@@ -44,3 +44,4 @@
 - 本文（観点）の上書き＝差し替え扱い（open以外は承認・locked拒否）。観点/例の追加は別ファイルで union
 
 > 各決定の詳細は [requirements/](requirements/) を参照。
+> システムの入出力一覧は [requirements/05-io-overview.md](requirements/05-io-overview.md)。
