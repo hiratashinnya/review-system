@@ -198,6 +198,11 @@ uc = 0
 本文・`determinism` は順序がないので、上表の自動判定には乗らない（人が見る）。本文は「本文の扱い」、
 `determinism` は下記の注を参照。
 
+> **方向は「直近の親（合成済みの実効値）」を基準に測る**（3段継承で重要）。
+> 例：org=error → team=warning → project=error の naming-convention で、project の変更は
+> team(warning) 基準で「厳しく」＝安全側。org の元値と同じかどうかは見ない。
+> つまり**親が承認を得て緩めたものを、子が締め直すのは自由**（締め直しは常に安全側）。
+
 > `determinism` は「事実」であり好みで書き換えない（Q6 原則）。事実の訂正が要るなら
 > 全社基準への修正提案として扱う。チームが運用都合で触る対象ではない。
 
@@ -252,6 +257,7 @@ overrides:
 - [examples/policy.org.yaml](examples/policy.org.yaml) … 全社デフォルトの自動化ポリシー
 - [examples/code.team-frontend.md](examples/code.team-frontend.md) … frontend チーム差分（org を継承・上書き）
 - [examples/code.team-frontend.react.md](examples/code.team-frontend.react.md) … React 固有の観点を additive に union（本文差し替えなし）
+- [examples/code.project-checkout.md](examples/code.project-checkout.md) … checkout プロジェクト差分（team:frontend を継承＝3段目）
 
 ### 継承の効き方（frontend チームでの合成結果）
 
@@ -271,6 +277,23 @@ overrides:
 > ポイント：org の `naming-convention` 本文には一切触れていない。React 固有の例は
 > 新 id（`react-component-naming` 等）として足すだけなので、本文差し替えの承認経路を踏まない。
 
+### 3段継承の合成結果（checkout プロジェクト）
+
+上の team 合成結果に、さらに [code.project-checkout.md](examples/code.project-checkout.md) を重ねた最終形。
+**方向は直近の親（team の実効値）を基準に判定**する点に注目。
+
+| id | チェーン（severity / 状態） | project の効果 | 承認 |
+|---|---|---|---|
+| naming-convention | org:error → team:**warning** → project:**error** | team基準で厳しく＝安全側（親の緩めを締め直す） | 不要 |
+| missing-test | org:warning(有効) → team:**無効** → project:**error(有効)** | team基準で有効化＋厳しく＝安全側 | 不要 |
+| secret-in-code | org:error（locked）→ … → project | 全段で不可侵。error が貫通 | 不可 |
+| dead-code / long-function 他 | team の実効値をそのまま継承 | project は触らず | — |
+| money-no-float | project で新規追加 | 新規（安全側） | 不要 |
+
+> 検証で確認できたこと：①方向ゲートは「org の元値」ではなく**直近の親**を基準にするので、
+> 親が承認を得て緩めたものを子が締め直すのは常に自由。②`locked` は段数に関係なく貫通する。
+> ③provenance は org/team/project の3起点になり、衝突報告・差分通知（Q9/Q10）で由来段を示せる必要がある。
+
 ## 書いてみて見えた論点（dashboard へ反映候補）
 
 - **本文と例の言語・形式**：コード例は言語ごとに複数要るか？ 文書タイプで「良い例/悪い例」の形が変わる（議事録は文章例）。
@@ -280,3 +303,7 @@ overrides:
 - ~~**同一 `doc_type×scope` の複数ファイル許容**（継承サンプルで発覚）~~ → 方針合意（Q10）。
   スコープ内は対等な兄弟・順序なし。provenance を保持し、同 id 衝突はメタ＝決定的・本文＝LLM 矛盾判定で
   「共存 or 親フォールバック＋警告」。詳細は[スコープ内マージ](#スコープ内マージ同-doc_typescope-の兄弟ファイル)。
+- **`override`（特に `locked`）を宣言できるのは誰か**（3段継承サンプルで発覚, Q11）：現仕様は「locked は org が宣言」。
+  だが team/project は**自分が追加した新ルール**には `override` を付けている（例 `money-no-float`）。
+  「継承ルールの override は宣言元(org)のみ変更可・locked は段に関係なく不可侵／新規ルールには自スコープで
+  open・loosen は宣言可、locked は org 限定？」あたりの線引きを決める。
