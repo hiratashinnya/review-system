@@ -58,8 +58,9 @@ criteria/                 # 評価基準（ルールの素性 + 観点本文）
     code.md
     minutes.md
     spec.md
-  teams/<team>/code.md    # チーム固有（org を継承・上書き）
-  projects/<proj>/code.md # プロジェクト固有（team を継承・上書き）
+  teams/<team>/code.md       # チーム固有（org を継承・上書き）
+  teams/<team>/code.react.md # 同 doc_type は複数可。union で結合（観点の additive 追加）
+  projects/<proj>/code.md    # プロジェクト固有（team を継承・上書き）
 policy/                   # 自動化ポリシー（マトリクス → 適用モード）
   org.yaml
   teams/<team>.yaml
@@ -227,6 +228,26 @@ overrides:
 - [examples/code.org.md](examples/code.org.md) … コード評価・全社デフォルト
 - [examples/minutes.org.md](examples/minutes.org.md) … 議事録評価・全社デフォルト
 - [examples/policy.org.yaml](examples/policy.org.yaml) … 全社デフォルトの自動化ポリシー
+- [examples/code.team-frontend.md](examples/code.team-frontend.md) … frontend チーム差分（org を継承・上書き）
+- [examples/code.team-frontend.react.md](examples/code.team-frontend.react.md) … React 固有の観点を additive に union（本文差し替えなし）
+
+### 継承の効き方（frontend チームでの合成結果）
+
+`org` の5ルールに上記2ファイルを `id` 単位でマージした結果。**緩め方向は要承認**。
+
+| id | 由来 | severity | 効果 | 承認 |
+|---|---|---|---|---|
+| naming-convention | org→team上書き | ~~error~~ → **warning** | 緩め（本文は org 継承） | ✅ 要（loosen-needs-approval） |
+| dead-code | org→team上書き | ~~warning~~ → **error** | 厳しく（安全側） | 不要 |
+| long-function | org のまま | warning | 継承 | — |
+| missing-test | org→team上書き | — | **無効化**（緩め） | ✅ 要 |
+| secret-in-code | org のまま | error | 緩め試行は `locked` で**機械拒否** | 不可 |
+| no-inline-style | team 追加 | warning | 新規（安全側） | 不要 |
+| react-component-naming | react ファイル追加 | warning | 新規（union） | 不要 |
+| hooks-rules | react ファイル追加 | error | 新規（union） | 不要 |
+
+> ポイント：org の `naming-convention` 本文には一切触れていない。React 固有の例は
+> 新 id（`react-component-naming` 等）として足すだけなので、本文差し替えの承認経路を踏まない。
 
 ## 書いてみて見えた論点（dashboard へ反映候補）
 
@@ -234,3 +255,7 @@ overrides:
 - **`category` の語彙**：自由記述だと集計がブレる。enum 化するか。
 - **`enabled: false` 以外の disable 表現**：ポリシー override で実質無効化もできるため、無効化の責務が基準/ポリシーに二重化しないか整理が要る。
 - **指摘と id の紐付け精度**：LLM が誤った id を付けた場合のフォールバック（未分類バケツ）が要る。
+- **同一 `doc_type×scope` の複数ファイル許容**（継承サンプルで発覚）：union 方式だと
+  `teams/frontend/code.md` と `teams/frontend/code.react.md` のように1スコープ複数ファイルになる。
+  当初の「1スコープ1ファイル」前提を緩め、ディレクトリ内の同 `doc_type` を全部読んで結合する規約に要更新。
+  読み込み順（同 id 衝突時の優先）も決める必要あり。
