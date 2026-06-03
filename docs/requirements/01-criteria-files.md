@@ -57,7 +57,13 @@ Git でバージョン管理する。
 
 各ルールは `override: locked | loosen-needs-approval(既定) | open` を宣言する。
 これで「必須ラインは全社固定／現場は厳しくする裁量を持つ」を両立し、均質化が崩れない。
-詳細とスキーマ → [../schema/README.md](../schema/README.md)。承認フローは Q1 と直結。
+
+判定は常に **2軸**で考える（→ [../schema/README.md](../schema/README.md) 横断概念）：
+- **システムの判定基準**：順序のある属性（severity・適用モード・enabled）。機械が方向を自動判定しゲートを回す。
+- **運用ルール**：本文（観点プロース）・`determinism` の事実性・承認者。機械は判定できず、人が承認で担保。
+
+本文の上書きは差し替え扱い（`open` 以外は承認、`locked` は拒否）。観点・例を足すだけなら本文を編集せず別ファイルを追加する。
+承認フローは Q1 と直結。
 
 ## スキーマ（v0 叩き台）→ [../schema/README.md](../schema/README.md)
 
