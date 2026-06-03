@@ -10,24 +10,28 @@ rules:
     severity: info
     determinism: deterministic
     enabled: true
+    override: open
   - id: action-item-format
     title: アクションアイテムの体裁
     category: structure
     severity: warning
     determinism: tradeoff
     enabled: true
+    override: loosen-needs-approval
   - id: decision-clarity
     title: 決定事項の明確さ
     category: completeness
     severity: warning
     determinism: judgment
     enabled: true
+    override: loosen-needs-approval
   - id: missing-owner
     title: 担当者・期限の欠落
     category: completeness
     severity: error
     determinism: judgment
     enabled: true
+    override: loosen-needs-approval
 ---
 
 # 議事録評価基準（全社デフォルト）

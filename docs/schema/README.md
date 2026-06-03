@@ -59,7 +59,8 @@ rules:
     category: readability      # 集計・フィルタ用の分類
     severity: error            # error | warning | info（ルール固有の素性）
     determinism: deterministic # deterministic | tradeoff | judgment（後述）
-    enabled: true              # 無効化フラグ（継承時の disable に使う）
+    enabled: true              # 適用範囲フラグ（継承時の disable に使う）
+    override: loosen-needs-approval # 下位スコープからの上書き可否（後述）
 ```
 
 > 対応モード（auto-fix / suggest / human-only）は **ここに書かない。**
@@ -112,6 +113,37 @@ uc = 0
 
 例：「うちのチームは命名規則を warning に緩める」なら team ファイルに
 `{ id: naming-convention, severity: warning }` だけ書く。
+ただし**この「緩める」上書きには下記のガバナンスがかかる**。
+
+---
+
+## 上書きガバナンス（方向ゲート制）
+
+「上書き可否」は一律では決めない。**方向（厳しく/緩め）× 対象（必須/推奨）** で扱いを変える。
+原則：**安全側への上書きは自由、リスク側への上書きは承認 or 禁止。**
+
+### 何が「リスク側（＝緩め）」か
+
+| 層 | 安全側（自由に上書き可） | リスク側（承認 or 禁止） |
+|---|---|---|
+| 基準 | ルール追加 / severity を上げる | severity を下げる / `enabled: false` / ルール削除 |
+| ポリシー | 自動化を減らす（承認を増やす方向） | 自動化を増やす（`human_only`→`auto_fix_suggest`→`auto_fix_log_only`） |
+
+> `determinism` は「事実」であり好みで書き換えない（Q6 原則）。事実の訂正が要るなら
+> 全社基準への修正提案として扱う。チームが運用都合で触る対象ではない。
+
+### `override` 属性の3値（全社基準が各ルールに宣言）
+
+| 値 | 意味 |
+|---|---|
+| `locked` | 上書き不可（基準もポリシーも）。セキュリティ・コンプラ等の必須ライン |
+| `loosen-needs-approval` | **既定**。厳しくは自由 / 緩めは管理者承認（PR）が必要 |
+| `open` | 厳しくも緩めも自由（現場裁量に完全委任する推奨ルール） |
+
+### 承認フローとの接続
+
+リスク側の上書きは PR 化し、管理者が承認して初めて有効になる（dashboard **Q1** / `04` フィードバックループ）。
+流し読みの「対象外」フラグも、緩める方向の提案ならこの承認ゲートを通る。
 
 ---
 

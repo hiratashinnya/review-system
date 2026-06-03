@@ -10,30 +10,35 @@ rules:
     severity: error
     determinism: deterministic
     enabled: true
+    override: loosen-needs-approval
   - id: dead-code
     title: 不要コード
     category: readability
     severity: warning
     determinism: deterministic
     enabled: true
+    override: open
   - id: long-function
     title: 長すぎる関数
     category: maintainability
     severity: warning
     determinism: tradeoff
     enabled: true
+    override: open
   - id: missing-test
     title: テスト不足
     category: quality
     severity: warning
     determinism: judgment
     enabled: true
+    override: loosen-needs-approval
   - id: secret-in-code
     title: 機密情報のハードコード
     category: security
     severity: error
     determinism: judgment
     enabled: true
+    override: locked
 ---
 
 # コード評価基準（全社デフォルト）
