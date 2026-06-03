@@ -1,0 +1,29 @@
+# 自動化ポリシー（全社デフォルト）
+# 基準ファイルとは責務を分離する：
+#   基準ファイル = ルールの素性（severity / determinism）
+#   ポリシー     = その素性を「どう適用するか（🤖/✋/💬）」へ写像する
+# team / project で上書き可能（extends で継承元を指定）。
+scope: org
+extends: null
+version: 1
+
+# determinism × severity → 適用モード
+# "*" は severity を問わない既定。個別 severity を上書きしたい場合はキーを足す。
+matrix:
+  deterministic:
+    "*": auto_fix_log_only      # 答えが一意 → ログのみ・承認スキップ（🤖）
+  tradeoff:
+    "*": auto_fix_suggest       # 定石あり  → diff 提示・承認任意（✋）
+  judgment:
+    "*": human_only             # 判断必要  → AI は原案まで（💬）
+
+# 個別ルールの例外（matrix より優先）
+overrides:
+  # 機密情報は deterministic に検知できても、対処は必ず人間判断にする
+  - rule: secret-in-code
+    mode: human_only
+
+# 適用モードの定義（参照用）
+# auto_fix_log_only : 承認不要で適用。自動修正サマリに記録。一括 revert 可。
+# auto_fix_suggest  : 提案 → 承認 → 適用。承認必須にも設定可。
+# human_only        : AI は指摘＋原案提示まで。適用は人間。

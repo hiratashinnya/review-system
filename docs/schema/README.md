@@ -1,0 +1,158 @@
+# 評価基準ファイル スキーマ仕様（v0 / 叩き台）
+
+> A1「評価基準ファイルのスキーマを実際に書く」の成果物。
+> サンプルで曖昧さを潰すのが目的。確定ではなく**議論のための叩き台**。
+> 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
+
+## 設計の出発点：情報の「読み手」から決める
+
+基準ファイルは3者に読まれる。求める形が違うので、**層を分ける**。
+
+| 読み手 | 用途 | 欲しい形 |
+|---|---|---|
+| 人間 | 観点を読み書きする | 自然文の Markdown（良い例/悪い例つき） |
+| プログラム | 基準の選択・継承マージ・指摘の仕分け | 機械可読な少数フィールド |
+| LLM | 評価プロンプトの組み立て | 観点の説明本文（＝人間向け本文を流用） |
+
+→ **YAML フロントマター（ルーティング層）＋ Markdown 本文（観点＝人間 & LLM 共用）** の二層構成にする。
+
+### 役割分担（重要）
+
+- **LLM は仕分けをしない。** 観点違反を見つけ、`rule id` を付け、修正原案を出すだけ。
+- **プログラムが仕分けする。** `id → determinism × severity → ポリシー` で機械的に 🤖/✋/💬 に振り分ける。
+  仕分けロジックは基準ファイルに直書きせず、別の **ポリシーファイル**（[policy.schema.md](#自動化ポリシーファイル) 参照）に置く（責務分離）。
+
+---
+
+## ディレクトリ構成（案）
+
+```
+criteria/                 # 評価基準（ルールの素性 + 観点本文）
+  org/                    # 全社デフォルト
+    code.md
+    minutes.md
+    spec.md
+  teams/<team>/code.md    # チーム固有（org を継承・上書き）
+  projects/<proj>/code.md # プロジェクト固有（team を継承・上書き）
+policy/                   # 自動化ポリシー（マトリクス → 適用モード）
+  org.yaml
+  teams/<team>.yaml
+  projects/<proj>.yaml
+```
+
+適用基準 = `文書タイプ × スコープ`。同じ `doc_type` のファイルを `org → team → project` の順に重ね、`id` 単位でマージする。
+
+---
+
+## 基準ファイルのスキーマ
+
+### フロントマター（機械可読・ルーティング層）
+
+```yaml
+doc_type: code            # 文書タイプ。ファイルの対象（code | spec | minutes | ...）
+scope: org                # org | team:<name> | project:<name>
+extends: null             # 継承元。org は null。team は "org"、project は "team:<name>"
+version: 1                # スキーマ/内容のバージョン
+rules:
+  - id: naming-convention      # 必須・一意。指摘の紐付け / 継承 / ポリシーの結合キー
+    title: 命名規則            # 人間向け短いラベル
+    category: readability      # 集計・フィルタ用の分類
+    severity: error            # error | warning | info（ルール固有の素性）
+    determinism: deterministic # deterministic | tradeoff | judgment（後述）
+    enabled: true              # 無効化フラグ（継承時の disable に使う）
+```
+
+> 対応モード（auto-fix / suggest / human-only）は **ここに書かない。**
+> それはポリシー側で `determinism × severity` から写像する（責務分離）。
+
+#### `determinism` の3値（基準を書く人が宣言する）
+
+| 値 | 意味 | 例 |
+|---|---|---|
+| `deterministic` | 答えが一意。機械的に直せる | 命名規則違反・誤字・フォーマット |
+| `tradeoff` | 直し方に幅はあるが定石が明確 | 冗長表現の整理・軽微なリファクタ |
+| `judgment` | 意思決定が絡む。人間判断が要る | 要件矛盾・設計の是非・機密の扱い |
+
+`02` の「AI に毎回判断させると揺れる」を避けるため、**基準を書く時点で人間が宣言**する（dashboard Q2 の運用案）。
+
+### 本文（観点＝人間 & LLM 共用）
+
+各ルールを `## <id> — <title>` 見出しで1セクション書く。プログラムは `id` で本文を抽出し、そのまま LLM プロンプトへ注入する。
+
+```markdown
+## naming-convention — 命名規則
+
+変数・関数・クラスの命名が規約に沿っているかを評価する。
+
+**チェック観点**
+- 省略しすぎていないか / 役割が名前から分かるか
+
+**良い例**
+\`\`\`python
+user_count = 0
+\`\`\`
+
+**悪い例**
+\`\`\`python
+uc = 0
+\`\`\`
+```
+
+---
+
+## 継承・オーバーライドの仕様
+
+`org → team → project` の順にマージ。結合キーは `id`。
+
+| 下位ファイルの記述 | 効果 |
+|---|---|
+| 上位に無い `id` | **追加** |
+| 上位と同じ `id`（フィールド指定） | **上書き**（指定フィールドのみ。本文も与えれば差し替え） |
+| 同じ `id` で `enabled: false` | **無効化**（このスコープでは適用しない） |
+
+例：「うちのチームは命名規則を warning に緩める」なら team ファイルに
+`{ id: naming-convention, severity: warning }` だけ書く。
+
+---
+
+## 自動化ポリシーファイル
+
+基準とは別ファイル。`determinism × severity` のマトリクスを適用モードへ写像する。
+基準と同じく `org → team → project` で上書き可能。
+
+```yaml
+scope: org
+extends: null
+# determinism × severity → 適用モード
+matrix:
+  deterministic: { "*": auto_fix_log_only } # 一律ログのみ（🤖）
+  tradeoff:      { "*": auto_fix_suggest }   # diff 提示・承認任意（✋）
+  judgment:      { "*": human_only }         # AI は原案まで（💬）
+# 個別ルールの例外（任意）
+overrides:
+  - rule: secret-in-code
+    mode: human_only
+```
+
+### 適用モードと提示3区分（`02`）の対応
+
+| 適用モード | 提示区分 | 振る舞い |
+|---|---|---|
+| `auto_fix_log_only` | 🤖 自動修正済み | 承認不要で適用・サマリに記録・一括 revert 可 |
+| `auto_fix_suggest` | ✋ 要承認 | diff 提示・人間が適用ボタン |
+| `human_only` | 💬 要判断 | AI が原案提示・人間が決定 |
+
+---
+
+## サンプル
+
+- [examples/code.org.md](examples/code.org.md) … コード評価・全社デフォルト
+- [examples/minutes.org.md](examples/minutes.org.md) … 議事録評価・全社デフォルト
+- [examples/policy.org.yaml](examples/policy.org.yaml) … 全社デフォルトの自動化ポリシー
+
+## 書いてみて見えた論点（dashboard へ反映候補）
+
+- **本文と例の言語・形式**：コード例は言語ごとに複数要るか？ 文書タイプで「良い例/悪い例」の形が変わる（議事録は文章例）。
+- **`category` の語彙**：自由記述だと集計がブレる。enum 化するか。
+- **`enabled: false` 以外の disable 表現**：ポリシー override で実質無効化もできるため、無効化の責務が基準/ポリシーに二重化しないか整理が要る。
+- **指摘と id の紐付け精度**：LLM が誤った id を付けた場合のフォールバック（未分類バケツ）が要る。

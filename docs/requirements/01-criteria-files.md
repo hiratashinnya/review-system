@@ -46,15 +46,26 @@ Git でバージョン管理する。
 
 この継承の仕組みは、自動化ポリシー（03）でもそのまま流用する。
 
-## スキーマ例（叩き台 / 未確定）
+## スキーマ（v0 叩き台）→ [../schema/README.md](../schema/README.md)
+
+A1 で実際に書いた。要点：
+
+- **二層構成**：YAML フロントマター（機械可読・ルーティング層）＋ Markdown 本文（観点＝人間 & LLM 共用）。
+  情報の読み手（人間 / プログラム / LLM）で欲しい形が違うため層を分けた。
+- **`id` が全ての結合キー**（指摘の紐付け・継承マージ・ポリシー写像）。
+- **対応モード（auto-fix 等）は基準ファイルに書かない**。基準はルールの素性（`severity` / `determinism`）だけ宣言し、
+  適用モードへの写像は別の**ポリシーファイル**が担う（責務分離）。
+- **LLM は仕分けしない**。違反を見つけ `id` を付け原案を出すだけ。仕分けはプログラムが
+  `id → determinism × severity → ポリシー` で機械的に行う。
 
 ```yaml
-- rule: naming-convention
-  severity: error
-  determinism: deterministic   # auto-fix(ログのみ) に振れる
-  auto_fix: log_only
-  good_example: ...
-  bad_example: ...
+# フロントマター（抜粋）
+rules:
+  - id: naming-convention
+    title: 命名規則
+    severity: error
+    determinism: deterministic   # auto-fix 等の適用モードはここに書かない
+    enabled: true
 ```
 
-> ⚠️ スキーマの正式設計は未着手。サンプルを実際に書いて曖昧さを潰すのが次の一手。
+サンプル：[code](../schema/examples/code.org.md) / [minutes](../schema/examples/minutes.org.md) / [policy](../schema/examples/policy.org.yaml)
