@@ -38,6 +38,7 @@
 レビュー時の AI 入力設計（LLM 入出力）→ [07-ai-input-design.md](07-ai-input-design.md)
 入力の受け取り設計（単位・参照コンテキスト・タイプ・スコープ）→ [08-intake-design.md](08-intake-design.md)
 intake からレポートまでを通した処理パイプライン → [09-processing-pipeline.md](09-processing-pipeline.md)
+LLM ⇄ システムの責務境界（イベントリスト）→ [10-llm-system-boundary.md](10-llm-system-boundary.md)
 
 ## 対象文書と評価軸（仮）
 
