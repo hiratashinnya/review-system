@@ -85,7 +85,7 @@ version: 1                # スキーマ/内容のバージョン
 rules:
   - id: naming-convention      # 必須・一意。指摘の紐付け / 継承 / ポリシーの結合キー
     title: 命名規則            # 人間向け短いラベル
-    category: readability      # 集計・フィルタ用の分類
+    category: readability      # 集計・フィルタ用のゆるいタグ（自由記述・推奨語彙は後述）
     severity: error            # error | warning | info（ルール固有の素性）
     determinism: deterministic # deterministic | tradeoff | judgment（後述）
     enabled: true              # 適用範囲フラグ（継承時の disable に使う）
@@ -319,7 +319,10 @@ overrides:
 ## 書いてみて見えた論点（dashboard へ反映候補）
 
 - **本文と例の言語・形式**：コード例は言語ごとに複数要るか？ 文書タイプで「良い例/悪い例」の形が変わる（議事録は文章例）。
-- **`category` の語彙**：自由記述だと集計がブレる。enum 化するか。
+- ~~**`category` の語彙**：enum 化するか~~ → 確定（Q8）。**enum 強制はしない**（基準ファイルはテキスト編集できるので非現実的）。
+  自由記述＋**推奨語彙のソフト規約**で運用する。推奨：`readability` / `maintainability` / `security` / `quality` /
+  `correctness` / `performance`（コード系）、`clarity` / `structure` / `completeness`（文章系）。
+  集計は存在する文字列でグループ化。語彙の正規化（AI クラスタリング提案）は将来の育成機能候補で、MVP では作らない。
 - **`enabled: false` 以外の disable 表現**：ポリシー override で実質無効化もできるため、無効化の責務が基準/ポリシーに二重化しないか整理が要る。
 - **指摘と id の紐付け精度**：LLM が誤った id を付けた場合のフォールバック（未分類バケツ）が要る。
 - ~~**同一 `doc_type×scope` の複数ファイル許容**（継承サンプルで発覚）~~ → 方針合意（Q10）。
