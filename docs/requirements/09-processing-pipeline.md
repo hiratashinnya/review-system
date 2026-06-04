@@ -15,7 +15,7 @@ AI 入出力([07](07-ai-input-design.md)) / 仕分け・提示([02](02-evaluatio
 | ① intake | 関連文書群 / 参照 / 型 / スコープ | **評価対象集合**・**参照集合**（ファイル所属）/ doc_type / scope=org | 08 | 後段の参照除外はこの集合判定に依存 |
 | ② 基準合成 | doc_type × scope | 観点パック（id/title/本文/例）＋ **メタ表**(determinism/severity/override・provenance) | 01/schema | MVP は org 単一。兄弟ファイル union＋本文矛盾チェック(Q10)はここ |
 | ③ プロンプト構築 | 観点パック / 対象 / 参照 | LLM 入力 | 07 | **メタは載せない**（仕分けは後段）。対象と参照を分けて渡す |
-| ④ LLM 評価 | プロンプト | findings[] / unmatched[]（**location.file 必須**） | 07 | LLM は発見＋id付与＋原案のみ。仕分けしない |
+| ④ LLM 評価 | プロンプト | findings[] / unmatched[]（**location.file 必須**） | 07 / 11 | **アダプタ→外部 PF**（自前実装しない）。LLM は発見＋id付与＋原案のみ。仕分けしない |
 | ⑤ 正規化&検証 | ④の出力＋①の集合 | クリーンな findings / unmatched | 07 | ★**仕分け・適用より前**。下記2処理 |
 | ⑥ 仕分け | findings＋メタ表＋ポリシー | 🤖/✋/💬 ・❓未分類 | 02/03 | `rule_id → determinism×severity → ポリシー → モード` |
 | ⑦ 自動適用 | 🤖 の修正案 | 評価対象への書込＋**指摘(finding)単位のコミット** | 03 | **評価対象集合のみ書込**。finding ごとに1コミット（revert 粒度＝finding） |
