@@ -31,6 +31,7 @@
    → 詳細: [04-feedback-loop.md](04-feedback-loop.md)
 
 システムの入出力を1か所に集約した俯瞰台帳 → [05-io-overview.md](05-io-overview.md)
+外部イベント駆動で入出力を点検するイベントリスト → [06-event-list.md](06-event-list.md)
 
 ## 対象文書と評価軸（仮）
 
