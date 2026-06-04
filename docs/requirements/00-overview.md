@@ -32,6 +32,7 @@
 
 システムの入出力を1か所に集約した俯瞰台帳 → [05-io-overview.md](05-io-overview.md)
 外部イベント駆動で入出力を点検するイベントリスト → [06-event-list.md](06-event-list.md)
+レビュー時の AI 入力設計（LLM 入出力）→ [07-ai-input-design.md](07-ai-input-design.md)
 
 ## 対象文書と評価軸（仮）
 
