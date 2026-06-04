@@ -20,7 +20,7 @@ rules:
     severity: error
     determinism: deterministic
     enabled: true
-    override: loosen-needs-approval
+    override: tighten-only
 ---
 
 # コード評価基準（frontend / React 固有の追加観点）

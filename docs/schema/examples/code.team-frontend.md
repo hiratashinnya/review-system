@@ -4,20 +4,17 @@ scope: team:frontend
 extends: org
 version: 1
 # org の各ルールに対する「差分」だけを書く。書かない id は org をそのまま継承。
+# 既定は org 権威：下位は「追加」と「厳しく」だけ自由。緩め・無効化は org が open したルールのみ。
 rules:
-  # ① 緩め方向（severity を下げる）＝リスク側 → 管理者承認が要る（override: loosen-needs-approval）
+  # ① 緩め（severity を下げる）。naming-convention は org が override:open なので可
   - id: naming-convention
     severity: warning        # error → warning。本文は与えない＝org の観点をそのまま継承
 
-  # ② 厳しく方向（severity を上げる）＝安全側 → 自由に適用（承認不要）
+  # ② 厳しく（severity を上げる）＝常に自由（org の下限を上げる方向）
   - id: dead-code
     severity: error          # warning → error
 
-  # ③ 無効化＝緩めの最たるもの → 承認が要る（missing-test の override は loosen-needs-approval）
-  - id: missing-test
-    enabled: false
-
-  # ④ フロント固有の新ルールを「追加」＝安全側 → 自由。本文はこのファイルで与える
+  # ③ フロント固有の新ルールを「追加」＝常に自由。本文はこのファイルで与える
   - id: no-inline-style
     title: インラインスタイルの直書き
     category: maintainability
@@ -26,14 +23,17 @@ rules:
     enabled: true
     override: open
 
-  # ⑤ secret-in-code を緩めようとしても override: locked のため機械的に拒否される。
-  #    （ここに severity: warning と書いてもマージ時に reject。例として記載＝適用されない）
+  # ④ missing-test を無効化しようとしても override:tighten-only のため機械拒否される。
+  #    （ここに enabled: false と書いてもマージ時に reject＝適用されない。緩め・無効化は org の open が要る）
+  # ⑤ secret-in-code を緩めようとしても override:locked のため機械拒否される。
+  #    （severity: warning と書いても reject）
 ---
 
 # コード評価基準（frontend チーム差分）
 
 全社デフォルト（[code.org.md](code.org.md)）を継承し、フロント開発の実態に合わせて差分だけを定義する。
-**緩め方向（① naming-convention の格下げ・③ missing-test の無効化）は管理者承認を経て初めて有効**になる。
+**下位は「追加」と「厳しく」だけ自由**。①の naming 緩めは org が `open` 宣言しているから可能で、
+④ missing-test の無効化・⑤ secret の緩めは org 権威（tighten-only / locked）で**機械拒否**される。
 
 ## no-inline-style — インラインスタイルの直書き
 

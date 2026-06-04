@@ -4,28 +4,27 @@ scope: project:checkout
 extends: team:frontend
 version: 1
 # team:frontend（さらに org を継承）からの差分だけを書く。
-# 方向ゲートの「厳しく/緩め」は、合成済みの「直近の親（＝team の実効値）」を基準に測る。
+# 「厳しく/緩め」は合成済みの「直近の親（＝team の実効値）」を基準に測る。追加・厳しくは常に自由。
 rules:
   # ① team が warning に緩めた naming を、決済画面なので error に戻す。
-  #    team(warning) 基準で「厳しく」＝安全側 → 承認不要。
+  #    team(warning) 基準で「厳しく」＝常に自由。
   #    （org→project で見ると元の error と同じだが、その比較は使わない。基準は直近の親）
   - id: naming-convention
     severity: error
 
-  # ② team が無効化(enabled:false)した missing-test を復活させ、さらに error に上げる。
-  #    team(無効) 基準で「有効化＋厳しく」＝安全側 → 承認不要。
+  # ② missing-test を error に締める。team の無効化は org 権威で拒否済みなので、
+  #    missing-test は org 既定（warning・有効）のまま。それを「厳しく」error へ＝自由。
   - id: missing-test
-    enabled: true
     severity: error
 
-  # ③ プロジェクト固有の新ルールを追加（安全側）。本文はこのファイルで与える。
+  # ③ プロジェクト固有の新ルールを追加（常に自由）。本文はこのファイルで与える。
   - id: money-no-float
     title: 金額の浮動小数点演算
     category: correctness
     severity: error
     determinism: deterministic
     enabled: true
-    override: loosen-needs-approval
+    override: tighten-only
 
   # ④ secret-in-code は org が locked。project からは厳しく/緩めいずれも触れない
   #    （ここに書いても拒否）。org の error 設定がそのまま貫通する。
@@ -34,7 +33,7 @@ rules:
 # コード評価基準（checkout プロジェクト差分）
 
 frontend チーム基準（[code.team-frontend.md](code.team-frontend.md)）を継承し、決済というクリティカル領域に合わせて
-**チームが緩めた箇所を締め直す**差分を定義する。締め直し（厳しく）は安全側なので承認不要。
+**さらに締め直す（厳しくする）**差分を定義する。締め直し（厳しく）・追加は常に自由。
 
 ## money-no-float — 金額の浮動小数点演算
 

@@ -10,14 +10,14 @@ rules:
     severity: error
     determinism: deterministic
     enabled: true
-    override: loosen-needs-approval
+    override: open               # 命名は現場裁量に委ねる＝下位は緩めても可
   - id: dead-code
     title: 不要コード
     category: readability
     severity: warning
     determinism: deterministic
     enabled: true
-    override: open
+    override: tighten-only       # 既定。下位は締める/追加のみ、緩め・無効化は不可
   - id: long-function
     title: 長すぎる関数
     category: maintainability
@@ -31,7 +31,7 @@ rules:
     severity: warning
     determinism: judgment
     enabled: true
-    override: loosen-needs-approval
+    override: tighten-only       # 全社の品質下限。下位は無効化/格下げ不可
   - id: secret-in-code
     title: 機密情報のハードコード
     category: security
