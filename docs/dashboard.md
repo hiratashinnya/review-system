@@ -80,6 +80,6 @@
 - **LLM は自前実装せず外部 PF（Claude Code/Copilot 等）に委譲**。システムは PF のラッパーで、接続部は**アダプタパターン**（PF 差し替え可・自前実装も同じ口に差せる）。出力はアダプタ越しでもシステムが検証する（[11](requirements/11-platform-adapter.md)）
 - **口は双方向**：System→PF（ヘッドレス）と PF→System（決定的処理を function calling / MCP ツールで公開）。同じポートを両向きから使う。**MVP は「ツール群＋プロンプト雛形」だけ作り、Claude が LLM 役を担って高速に検証**（オーケストレータ/UI は後）。ツールは後で System 駆動に切り替えても再利用（[11](requirements/11-platform-adapter.md)）
 
-> 各決定の詳細は [requirements/](requirements/) を参照。
+> 各決定の詳細は [requirements/](requirements/) を参照。プロセス設計（DFD/状態）は [process/](process/00-context.md)。
 > システムの入出力一覧は [requirements/05-io-overview.md](requirements/05-io-overview.md)、
 > イベント駆動の俯瞰は [requirements/06-event-list.md](requirements/06-event-list.md)。
