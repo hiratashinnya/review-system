@@ -1,6 +1,6 @@
 # プロセス設計 00 — コンテキストダイアグラム（Level 0）
 
-> 目次：**00 コンテキスト**（本書）／ [01 DFD Level1](01-dfd-level1.md)／ [02 単一責務まで分解](02-decomposition.md)／ [03 状態インベントリ](03-state-inventory.md)／ [04 発見した漏れ](04-gaps-found.md)
+> 目次：**00 コンテキスト**（本書）／ [01 DFD Level1](01-dfd-level1.md)／ [02 単一責務まで分解](02-decomposition.md)／ [03 状態インベントリ](03-state-inventory.md)／ [04 発見した漏れ](04-gaps-found.md)／ [05 イベント総点検](05-event-trace.md)
 
 
 構造化分析でプロセスを分解する作業の起点。**フル論理設計**（MVP に含む部分は `*MVP外` 等で印）。
