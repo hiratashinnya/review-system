@@ -18,8 +18,9 @@
 - 運用ルール（PR2）は機構＋デフォルトに留め、設計で詰めない。
 
 ## スキル/エージェント
-- スキル：`/align` `/io-event-ledger` `/value-trace` `/mvp-scope` `/schema-design` `/spec-pipeline`
-- サブエージェント：`spec-inspector`（読み取り専用点検）・`structured-analysis`（DFD 分解）
+- スキル：`/align` `/io-event-ledger` `/value-trace` `/mvp-scope` `/schema-design` `/spec-pipeline` `/asset-pipeline`
+- サブエージェント：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 
 ## このリポジトリ
