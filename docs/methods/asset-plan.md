@@ -25,6 +25,7 @@
 | A4 I/O 台帳 ＋ A5 イベントリスト | 台帳起こし | スキル | `/io-event-ledger` | 3 |
 | A1 認識合わせ | 段取り | スキル | `/align` | 3 |
 | A13 スキーマ設計 | スキーマ起こし | スキル | `/schema-design` | 3 |
+| A15 ドメインモデル設計（DD→型安全クラス） | 内部型起こし | スキル | `/domain-model` | 3 |
 | A2 ダッシュボード運用 / A3 案出し | 作業流儀 | （CLAUDE.md の作業規約に記述） | — | 3 |
 | A1→A12 全体 | パイプライン | スキル（オーケストレータ） | `/spec-pipeline` | 4 |
 | A14 資産化（重複/競合監査） | 資産監査 | **エージェント** | `asset-auditor` | 5 |
@@ -43,6 +44,7 @@
     value-trace/SKILL.md       # A9
     mvp-scope/SKILL.md         # A12
     schema-design/SKILL.md     # A13
+    domain-model/SKILL.md      # A15（DD 確定後の内部型/クラス設計・実装フェーズ）
     spec-pipeline/SKILL.md     # A1→A12 仕様設計オーケストレータ
     asset-pipeline/SKILL.md    # A14 資産化オーケストレータ（disable-model-invocation）
   agents/
