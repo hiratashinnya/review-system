@@ -27,6 +27,7 @@ class ProvenanceStamp:                 # S6
     executed_at: str                   # ISO8601
 ```
 
+> **冗長は意図的（非正規化）**：`execution_id = executed_at + criteria_hash[:12]`（[DD6](decisions.md#dd6--executionid-の定義)）なので `executed_at`/`criteria_content_hash` は理論上 execution_id から辿れる。だが版スタンプは**人が直接読む再現性の証跡**なので、導出を強いず**フル値を併記**する（状態ではなく可読性のための非正規化）。`criteria_content_hash` は DS2/DS4 キーと**同じ語彙**で照合に使うため独立フィールドとして保持。
 - 各 finding/ルールは **provenance（由来ファイルパス・継承段）**（[01 Provenance](01-class-design.md)・[Q10](../dashboard.md)）。3段継承で衝突/差分の由来段を示す（[schema](../schema/README.md)）。
 - **受け入れ基準**（[13 S6](../requirements/13-stabilization.md)）：同一入力×同一版の再実行で、版スタンプから「どの基準・どの PF/モデル・どの雛形」を追える。
 

@@ -19,6 +19,8 @@
 | DD8 | 構造化出力の強制（agentic PF のグレーゾーン Q22） | プロンプトで strict JSON 指定＋アダプタで再パース→失敗は ❓未分類 | [07](07-system-prompts.md)/[04](04-platform-protocol.md) |
 | DD9 | ログ出力先（stdout が制御に使われる問題） | 制御=stdout・診断ログ=stderr・実行ログ=`run.log`・テストは tee | [08](08-logging-and-versioning.md) |
 | DD10 | レビュアーの承認/決定の入口 | `approve`/`decide` サブコマンド＋レポートが finding_id を提示 | [03](03-external-interfaces.md) |
+| DD11 | 観点FB起草(P6.2/O-12) のオンデマンド起動口 | `criteria feedback-draft` を論理追加・**MVP保留印** | [03](03-external-interfaces.md)/[06](06-orchestration.md) |
+| DD12 | lint/revert 失敗の O-14 語彙 | `FailureStage` に `LINT` 追加・revert 対象なしは exit2（stage 不要） | [01](01-class-design.md)/[03](03-external-interfaces.md) |
 
 ---
 
@@ -93,6 +95,30 @@
 - **推奨 A（採用）／非推奨 B,C**：理由＝[11](../requirements/11-platform-adapter.md) の stdout 制御と[テスト戦略](../../.claude/skills/test-strategy/SKILL.md)のログ要件を両立。
 - **暫定決定**：`io/cli` は制御を stdout、`logging` 診断を stderr、実行単位ログを `.review-workspace/<exec_id>/run.log`。テストは `2>&1 | tee`。
 - **影響範囲**：08/04/06。
+
+## DD10 — レビュアーの承認/決定の入口
+- **論点**：✋ 要承認 diff・💬 要判断原案を、人がどう適用/決定するか。
+- **選択肢**：(A) `approve`/`decide` サブコマンド＋レポートが `exec_id+finding_id` を併記／(B) 対話 TUI／(C) レポートファイルを編集して再投入。
+- **トレードオフ**：A＝[03](03-external-interfaces.md) の CLI 体系に一致・finding 単位で参照可。B＝MVP に過剰。C＝状態管理が曖昧。
+- **推奨 A（採用）／非推奨 B,C**：理由＝[06](06-orchestration.md) で `RApp →(I-6) AP` の経路に直結、finding_id（[01](01-class-design.md)）が安定キー。
+- **暫定決定**：`approve <exec> <finding…>` / `decide <exec> <finding> --as <decision>`。レポートが両 id を提示。
+- **影響範囲**：03。
+
+## DD11 — 観点FB起草(P6.2) のオンデマンド起動口
+- **論点（[spec-inspector G3](README.md)）**：O-12 観点FB提案は port(L5)・雛形(`feedback-draft`)・core 関数が揃うのに、**起動する CLI 口が無い**（`feedback` は DS5 収集どまり）＝価値経路の細い穴（[PR6](../methods/method-inventory.md)）。
+- **選択肢**：(A) `criteria feedback-draft [--rule]` をオンデマンド口として**論理追加し MVP保留印**／(B) MVP は自動（しきい値）トリガのみ／(C) P6.2 を MVP から完全除外。
+- **トレードオフ**：A＝[PR8](../methods/method-inventory.md)（フル論理＋MVP印）に従い価値経路を**論理的に塞ぐ**・実装は後。B＝しきい値運用ルールを今詰める必要が出る（[PR2](../methods/method-inventory.md) 違反）。C＝育成ループが論理的に切れる（PR6 違反）。
+- **推奨 A（採用）／非推奨 B,C**：理由＝[05 台帳](../requirements/05-io-overview.md) で O-12/DS5 は MVP 最小（△）。論理経路は残し、起動はオンデマンド口で塞ぎ、自動トリガ（I-12 時間）は post-MVP（[05 ③](../requirements/05-io-overview.md)）。
+- **暫定決定**：`reviewer criteria feedback-draft` を [03](03-external-interfaces.md) に追加（**MVP保留印**）。[06](06-orchestration.md) P6.2 の「オンデマンド」＝この口。
+- **影響範囲**：03/06。🛑 **オーナー確認の余地**：MVP に育成口を1つでも入れるか、完全 post-MVP にするか。暫定は「口だけ用意・実装は後」。
+
+## DD12 — lint/revert 失敗の O-14 語彙
+- **論点（[spec-inspector G7](README.md)）**：`FailureStage`（intake/compose/evaluate/validate/apply）に **lint・revert の失敗段が無く**、[13 S5](../requirements/13-stabilization.md)「lint 失敗は O-14 同形式」と齟齬。
+- **選択肢**：(A) `FailureStage` に `LINT` を足し、revert 対象なしは exit2（要求不正・O-14 stage 不要）／(B) revert/lint も汎用 stage に押し込む／(C) lint を O-14 でなく別形式に。
+- **トレードオフ**：A＝S5 の「O-14 同形式」を満たしつつ、revert の「対象なし」は**異常でなく要求不正**として正しく分離（[03 終了コード](03-external-interfaces.md) exit2）。B＝意味の薄い stage 乱立。C＝[13 S5](../requirements/13-stabilization.md) と矛盾。
+- **推奨 A（採用）／非推奨 B,C**：理由＝lint は実行前検証＝失敗は O-14（fail-close 同形式）が要件。revert 対象なしは利用者の指定ミス＝exit2 で十分。
+- **暫定決定**：[01](01-class-design.md) `FailureStage.LINT` 追加。revert 対象なし＝exit2（stage 無し）。
+- **影響範囲**：01/03。
 
 ---
 

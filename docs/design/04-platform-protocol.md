@@ -94,12 +94,15 @@ class PlatformCapabilities:
 >>> STEP evaluate
 >>> THINK review:3         # プロンプト雛形 review v3（07）
 >>> EXPECT findings_schema  # L1 スキーマ（上記）
->>> CALL tool validate-findings {...}
->>> CALL tool triage {...}
->>> CALL tool apply-fix {"exec":"…","fixes":[…]}
+>>> CALL tool validate-findings {...}     # ⑤ 検証（id外れ→❓未分類）
+>>> CALL tool exclude-reference {...}     # 参照集合の指摘を除外（不変条件の全段を明示）
+>>> CALL tool triage {...}                # 🤖/✋/💬
+>>> CALL tool apply-fix {"exec":"…","fixes":[…]}   # 🤖 のみ。validate→exclude→triage を経た物だけ
 >>> CALL tool build-report {...}
 >>> DONE 0
 ```
+
+> **不変条件（§5・[06](06-orchestration.md)）**：`apply-fix` は必ず `validate-findings → exclude-reference → triage` を経た後にしか現れない。stdout は順序を握るため、PF→apply の直行はプロトコル上**書けない**。
 
 ## 4. 2つの運転モードと保証（[11](../requirements/11-platform-adapter.md)）
 

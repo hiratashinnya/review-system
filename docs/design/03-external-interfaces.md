@@ -43,6 +43,7 @@ flowchart LR
 | レビュアー | `reviewer approve <exec> <finding…>` | P5.2(✋・I-6) | exec_id・finding_id 群 | 適用結果 / 0・3 衝突→人 |
 | レビュアー | `reviewer decide <exec> <finding> --as <decision>` | P5.2(💬・I-6) | `approve\|modify\|reject\|out_of_scope`・`--diff` | 適用 or 記録 / 0 |
 | レビュアー | `reviewer feedback <exec> <finding> --decision <d>` | P6.1 | `approve\|reject\|out_of_scope` | DS5 追記 / 0 |
+| メンテナ | `reviewer criteria feedback-draft [--rule <id>]` | P6.2（オンデマンド・[DD11](decisions.md#dd11--観点fb起草p62-のオンデマンド起動口)） | DS5 傾向（任意で rule 絞り） | O-12 観点FB提案 / 0 ・**MVP保留印** |
 | メンテナ | `reviewer criteria lint [paths]` | S5 | 基準/ポリシーのパス（既定＝全件） | lint 結果（O-14 同形式）/ 0 健全・4 不正 |
 | メンテナ | `reviewer criteria scaffold --type <t> --scope <s>` | P6.4 | doc_type・scope | 基準ひな形(O-11) / 0 |
 | メンテナ | `reviewer warnings [--scope <s>]` | P6.5 表示 | scope フィルタ | 新規＋既知警告(O-9) / 0 |
@@ -94,14 +95,19 @@ def cmd_warnings(scope: Scope | None) -> int: ...          # O-9（DS4）
 - どの異常も**黙って空を返さない**：`FailureNotice{stage+reason+subject+next_action}`（O-14）を**stderr へ可読出力**し、上の code を返す（[DD9](decisions.md#dd9--ログ出力先)）。
 - **承認/決定の入口は finding_id で参照**（[DD10](decisions.md#dd10--レビュアーの承認決定の入口)）：`review`/`run` のレポートが各 ✋/💬 に `exec_id` と `finding_id`（=`rule_id+location`・[01](01-class-design.md)）を併記し、レビュアーはそれを `approve`/`decide` に渡す。
 
-## 入力台帳との対応（[05 I/O](../requirements/05-io-overview.md)）
+## 入力台帳との対応（[05 I/O](../requirements/05-io-overview.md) の正準番号に整合）
 
-| 操作 | I-# | O-# |
+> ⚠️ 番号は[05 台帳](../requirements/05-io-overview.md)が正準。**参照＝I-13**（I-3 は scope）・**scope＝I-3**（I-5 はポリシー）・**判断/対象外＝I-6/I-7**・**revert＝I-14**（[04-gaps](../process/04-gaps-found.md) で台帳化）。`I-10/I-11` は使わない（I-10＝通知条件・post-MVP、I-11＝削除済み）。
+
+| 操作 | I-#（[05](../requirements/05-io-overview.md)） | O-# |
 |---|---|---|
-| `review` | I-1 対象・I-3 参照・I-2 型上書き・I-5 scope | O-1 レポート・O-2 指摘・O-14 |
-| `approve`/`decide` | I-6 承認/決定 | O-3 適用結果 |
-| `revert` | I-7 revert 要求（[G4](../process/04-gaps-found.md) で台帳化） | O-6 |
-| `feedback` | I-10 判断/対象外 | — (DS5) |
-| `criteria scaffold` | I-11 新型/scope | O-11 |
+| `review` | I-1 対象・I-13 参照・I-2 型上書き＋I-15 推定・I-3 scope（MVP=org）・I-4/I-5 基準/ポリシー | O-1 レポート・O-2 指摘・O-14 |
+| `approve`/`decide` | I-6 指摘への判断（承認/修正/却下） | O-3 適用・O-4 diff・O-5 原案 |
+| `revert` | I-14 revert 要求 | O-6 |
+| `feedback` | I-6 判断 ＋ I-7 対象外フラグ | — (DS5) |
+| `criteria feedback-draft` | （DS5 起点・オンデマンド・[DD11](decisions.md#dd11--観点fb起草p62-のオンデマンド起動口) MVP保留印） | O-12 観点FB提案 |
+| `criteria scaffold` | （入力番号なし＝**イベント E8** 起点・doc_type/scope は引数） | O-11 |
 | `warnings` | — | O-9 |
+
+> **post-MVP・未結線**（[PR8](../methods/method-inventory.md) フル論理＋MVP印）：I-10 通知条件設定・I-12 時間トリガは MVP では CLI に口を持たない（[05 ③](../requirements/05-io-overview.md)）。
 </content>

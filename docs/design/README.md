@@ -20,7 +20,7 @@
 
 > ① は**スイムレーン付きフローチャート**（Mermaid `flowchart` の `subgraph` をレーンに）で表現する（シーケンス図は使わない＝分岐/繰返しが見づらい）。
 > E（非決定ステップを決定化するテスト用シーム＝Fake アダプタ）は ④ に内包。
-> **設計判断ログ**＝[decisions.md](decisions.md)（DD1–DD9）。仕様で一意に決まらなかった点の暫定決定と影響範囲。
+> **設計判断ログ**＝[decisions.md](decisions.md)（DD1–DD12）。仕様で一意に決まらなかった点の暫定決定と影響範囲。spec-inspector の G1–G8 を反映済み。
 > **次**：実装フェーズ（`tests/` 証跡の生成は実装と同時）。[01 クラス設計](01-class-design.md) へ `ExecutionId` 追加が要る（[DD6](decisions.md#dd6--executionid-の定義)）。
 
 ## 横断の約束（凍結セット全体に効く）

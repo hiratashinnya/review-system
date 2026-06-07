@@ -364,6 +364,8 @@ T = TypeVar("T")
 class FailureStage(Enum):
     INTAKE = "intake"; COMPOSE = "compose"; EVALUATE = "evaluate"
     VALIDATE = "validate"; APPLY = "apply"
+    LINT = "lint"          # S5 事前 lint（`criteria lint`・合成内パース）も O-14 形式で返す（DD12）
+    # revert の「対象なし」は fail-close でなく要求不正（exit2・O-14 stage 不要）
 
 @dataclass(frozen=True, slots=True)
 class FailureNotice:                       # O-14
