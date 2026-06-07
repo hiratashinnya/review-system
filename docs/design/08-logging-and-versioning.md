@@ -60,9 +60,30 @@ class ProvenanceStamp:                 # S6
 - テストの「ログ＝標準出力ダンプ」は `python -m unittest -v 2>&1 | tee tests/logs/<id>-<commit>.txt`＝**stdout＋stderr 両方**を捕捉（[DD9](decisions.md#dd9--ログ出力先)）。
 - テスト成績書ヘッダの版＝本書の版群：`{ ケース版 + 実装commit id + prompt_template_version + criteria_content_hash + executed_at }`。S6 の版スタンプとテスト証跡が**同じ語彙**で揃う。
 
-## 4. 影響範囲（他設計へ）
+## 4. 版定数はプログラム側に持つ（コメントでなく定数・[DD7](decisions.md)）
+
+対応する版は**ソースの定数**として持つ（コメント不可）。理由＝`reviewer version`／`--help` がそれを読んで表示でき、lint も同じ定数で判定できる（単一ソース）。
+
+```python
+# parsing/frontmatter.py — 基準/ポリシーが読める MAJOR の集合（S5 lint がこれで判定）
+SUPPORTED_CRITERIA_MAJOR: frozenset[int] = frozenset({1})   # 未対応 MAJOR は fail-close
+SUPPORTED_POLICY_MAJOR:   frozenset[int] = frozenset({1})
+# MINOR は情報のみ（処理は MAJOR で分岐）。version は "MAJOR.MINOR" 文字列で読む（整数化しない）
+
+# prompts/registry.py — 各雛形の現行版（版スタンプ・version コマンドが読む）
+TEMPLATE_VERSIONS: dict[str, str] = {
+    "role": "1.0", "review": "3.1", "contradiction": "1.0",
+    "type-estimate": "1.0", "merge": "1.0", "feedback-draft": "1.0", "scaffold": "1.0",
+}
+```
+
+- `reviewer version`（[03](03-external-interfaces.md)）＝この2定数を表示。lint（S5）と版スタンプ（S6）も**同じ定数**を参照（DRY）。
+- **MAJOR を上げる＝対応ハンドラ世代を上げる**ので、定数の更新と[07 対応表](07-system-prompts.md)・パーサ/ビルダーの改修は**同時**に行う（版↔ロジックを一目で追える）。
+
+## 5. 影響範囲（他設計へ）
 - [01 クラス設計](01-class-design.md)：`ExecutionId` 追加・`ProvenanceStamp`/`AppliedCommit` に `execution_id`（[DD6](decisions.md#dd6--executionid-の定義)）。
 - [04](04-platform-protocol.md)：stdout は制御専用（診断は stderr）。
-- [05](05-persistence.md)：`run.log` は実行ワークスペース配下。
-- 将来：雛形改定で L2 判定が変わる場合、DS2 キャッシュキーに `judge_version` を足す余地（[07 版管理](07-system-prompts.md) のメモ）。
+- [05](05-persistence.md)：`run.log` は実行ワークスペース配下。版定数は `parsing/`。
+- [03](03-external-interfaces.md)：`reviewer version` が版定数を表示。
+- 将来：雛形 MAJOR 改定で L2 判定が変わる場合、DS2 キャッシュキーに `judge_major` を足す（[07 版管理](07-system-prompts.md)）。
 </content>

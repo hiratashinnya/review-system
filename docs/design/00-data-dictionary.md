@@ -29,8 +29,8 @@
 | `ReviewDecision` | 指摘への判断（I-6/I-7） | `approve \| modify \| reject \| out_of_scope` | [02 P6](../process/02-decomposition.md) |
 | `ContentHash` | 矛盾/既出判定キー | `hash(対象ルールのメタ + 本文)` | [schema](../schema/README.md#警告の既出判定warning-ledger) |
 
-> ⚠ **基本型の濫用を避ける**（[01](01-class-design.md) 命名/型方針）：`ContentHash`・`RuleId`・`FilePath`・`Provenance` 等は
-> 生 `str` でなく**値オブジェクト**にして取り違えを型で防ぐ（[01 §2](01-class-design.md)）。
+> ⚠ **基本型の濫用を避ける**（[01](01-class-design.md) 命名/型方針）：`ContentHash`・`RuleId`・`Provenance` 等は
+> 生 `str` でなく**値オブジェクト**にして取り違えを型で防ぐ（[01 §2](01-class-design.md)）。**パスは `pathlib.Path`**（自前ラッパは作らない・[DD13](decisions.md#dd13--自前-filepath-クラスの要否オーナー指摘)）。
 
 ---
 
@@ -40,7 +40,7 @@
 |---|---|---|---|
 | `提出物 Submission` | `{ 文書群 + 参照群? + 型上書き? + scope指定? }` | 導出（1実行の入力束） | [02 P1](../process/02-decomposition.md) |
 | `文書群 / 参照群` | `{ ファイル }`（ファイルパスの列） | 導出 | [02 P1](../process/02-decomposition.md) |
-| `ファイル SourceFile` | `{ パス FilePath + 内容 + (言語?) }` | 導出 | I-1 |
+| `ファイル SourceFile` | `{ パス Path + 内容 + (言語?) }` | 導出 | I-1 |
 | `型推定 TypeEstimation` | `{ 候補 DocumentType + 確信度 }`（PF＝I-15） | 導出（PF 出力＝入力） | [02 P1.1](../process/02-decomposition.md) |
 | `確定型 ResolvedDocumentType` | I-2 上書き と I-15 推定を調停した1つの `DocumentType` | 導出 | [05](../requirements/05-io-overview.md) |
 | `対象集合 TargetSet` | `{ ファイル }`（評価する物） | 導出 | [02 P1.3](../process/02-decomposition.md) |
@@ -76,7 +76,7 @@
 |---|---|---|---|
 | `プロンプト ReviewPrompt` | `{ 役割制約 + 観点パック + 対象 + 参照 + 出力スキーマ }` | 導出 | [02 P3.1](../process/02-decomposition.md) |
 | `指摘 Finding` | `{ rule_id RuleId + location + (quote?) + rationale + (suggested_fix?) }` | 導出（PF 生成＝入力→検証後 O-2） | [02 P3](../process/02-decomposition.md) |
-| `位置 Location` | `{ file FilePath + (line_range?) }`（**file 必須**） | 導出 | [02 P3](../process/02-decomposition.md) |
+| `位置 Location` | `{ file Path + (line_range?) }`（**file 必須**） | 導出 | [02 P3](../process/02-decomposition.md) |
 | `行範囲 LineRange` | `{ 開始行 + 終了行 }` | 導出 | （新規・タプル回避） |
 | `未分類指摘 UnmatchedFinding` | `{ description + location + (suggested_fix?) + 由来(id外れ\|自己申告) }` | 導出（O-7） | [02 P4](../process/02-decomposition.md) / [Q7](../dashboard.md) |
 | `修正案 SuggestedFix` | `{ 説明 + diff }`（LLM 原案 or ツール生成の素） | 導出 | [02 P3/P5](../process/02-decomposition.md) |
@@ -172,5 +172,5 @@
 3. **導出物は frozen（イミュータブル）にしやすい**：`Finding`・`ComposedRule`・`ReviewReport` 等は1実行の産物で書き換えない。
 4. **状態（DS1〜DS5）だけが可変/永続**：`AppliedCommit`(DS3)・`WarningLedgerEntry`(DS4)・`Feedback`(DS5)・`CriteriaFile`(DS1)。
 5. **失敗は型で表す**：`StageOutcome<T>`＝`Result` 型で fail-close（[S3](../requirements/13-stabilization.md)）を例外に頼らず表現。
-6. **同じ `str` でも意味が違うキー**（`RuleId`/`ContentHash`/`FilePath`）は**取り違え防止のため別値オブジェクト**にする。
+6. **同じ `str` でも意味が違うキー**（`RuleId`/`ContentHash`）は**取り違え防止のため別値オブジェクト**にする（パスは `pathlib.Path`）。
 </content>

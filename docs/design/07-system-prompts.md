@@ -82,6 +82,7 @@ LLM の責務を**狭く固定**する。混ぜると 2軸（[PR2](../methods/me
 | `merge`/`feedback-draft`/`scaffold` | 1 | 各 v1 |
 
 - **未対応 MAJOR は実行前に fail-close**（[13 S5](../requirements/13-stabilization.md) と同型）。MINOR 差は**許容**（情報のみ・ハンドラは同じ）。
+- **現行版は定数で持つ**：`prompts/registry.py` の `TEMPLATE_VERSIONS`（[08 §4](08-logging-and-versioning.md)）。`reviewer version`／版スタンプ／本対応表が**同じ定数**を参照（コメントでなく定数＝DRY・DD7）。
 - `ProvenanceStamp.prompt_template_version`＝**主たる評価雛形の `MAJOR.MINOR`**（例 `"review:3.1"`・[08](08-logging-and-versioning.md)）。同一入力×同一版で「どの雛形で評価したか」を追える（[13 S6](../requirements/13-stabilization.md)）。
 - L2 矛盾判定の入力（本文ペア）の `content_hash` は DS2 キャッシュキー（[05](05-persistence.md)）。**MINOR 改ではキャッシュ不変**、**MAJOR 改（判定構造が変わる）時のみ** `judge_major` をキーに足して別扱いにする（[08 §4](08-logging-and-versioning.md) の将来余地を MAJOR にひも付け）。
 

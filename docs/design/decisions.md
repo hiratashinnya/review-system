@@ -15,12 +15,14 @@
 | DD4 | DS2/DS4/DS5 の保存形式 | append-only JSONL ＋ JSON（stdlib のみ・sqlite 不採用） | [05](05-persistence.md) |
 | DD5 | DS3 内部 git ワークスペースの実体 | 実行ごとの作業コピーを `git` subprocess で finding 単位コミット | [05](05-persistence.md) |
 | DD6 | `ExecutionId` の定義（クラス設計の穴埋め） | `executed_at + criteria_hash` 由来の実行識別子を新規型に | [05](05-persistence.md)/[01](01-class-design.md) |
-| DD7 | プロンプト/コンフィグのバージョニング | **`MAJOR.MINOR`**（MAJOR=構造/型変更→ロジック改修要・MINOR=内容/文言のみ） | [07](07-system-prompts.md)/[08](08-logging-and-versioning.md)/[schema](../schema/README.md) |
+| DD7 | プロンプト/コンフィグのバージョニング | **`MAJOR.MINOR`**（MAJOR=構造/型変更→ロジック改修要・MINOR=内容/文言のみ）。**対応版はパーサ側に定数で持つ** | [07](07-system-prompts.md)/[08](08-logging-and-versioning.md)/[schema](../schema/README.md) |
 | DD8 | 構造化出力の強制（agentic PF のグレーゾーン Q22） | プロンプトで strict JSON 指定＋アダプタで再パース→失敗は ❓未分類 | [07](07-system-prompts.md)/[04](04-platform-protocol.md) |
 | DD9 | ログ出力先（stdout が制御に使われる問題） | 制御=stdout・診断ログ=stderr・実行ログ=`run.log`・テストは tee | [08](08-logging-and-versioning.md) |
-| DD10 | レビュアーの承認/決定の入口 | `approve`/`decide` サブコマンド＋レポートが finding_id を提示 | [03](03-external-interfaces.md) |
+| DD10 | 承認/決定/FB の入口（100件問題） | **インタラクティブ HTML レポート**にチェックボックス入力。`decide`/`feedback`/`approve` は**レポートのパスだけ**を引数に取る | [03](03-external-interfaces.md)/[06](06-orchestration.md) |
 | DD11 | 観点FB起草(P6.2/O-12) のオンデマンド起動口 | `criteria feedback-draft` を論理追加・**MVP保留印** | [03](03-external-interfaces.md)/[06](06-orchestration.md) |
 | DD12 | lint/revert 失敗の O-14 語彙 | `FailureStage` に `LINT` 追加・revert 対象なしは exit2（stage 不要） | [01](01-class-design.md)/[03](03-external-interfaces.md) |
+| DD13 | 自前 `FilePath` クラスの要否 | **廃止し `pathlib.Path`（stdlib）を使う**。突合キーは intake で正規化 | [01](01-class-design.md) |
+| DD14 | HTML レポート→CLI の往復（サーバ無し） | レポート内 JS が**フィードバック JSON を書き出し**、コマンドは review_id で同梱ファイルを解決 | [03](03-external-interfaces.md) |
 
 ---
 
@@ -96,13 +98,32 @@
 - **暫定決定**：`io/cli` は制御を stdout、`logging` 診断を stderr、実行単位ログを `.review-workspace/<exec_id>/run.log`。テストは `2>&1 | tee`。
 - **影響範囲**：08/04/06。
 
-## DD10 — レビュアーの承認/決定の入口
-- **論点**：✋ 要承認 diff・💬 要判断原案を、人がどう適用/決定するか。
-- **選択肢**：(A) `approve`/`decide` サブコマンド＋レポートが `exec_id+finding_id` を併記／(B) 対話 TUI／(C) レポートファイルを編集して再投入。
-- **トレードオフ**：A＝[03](03-external-interfaces.md) の CLI 体系に一致・finding 単位で参照可。B＝MVP に過剰。C＝状態管理が曖昧。
-- **推奨 A（採用）／非推奨 B,C**：理由＝[06](06-orchestration.md) で `RApp →(I-6) AP` の経路に直結、finding_id（[01](01-class-design.md)）が安定キー。
-- **暫定決定**：`approve <exec> <finding…>` / `decide <exec> <finding> --as <decision>`。レポートが両 id を提示。
-- **影響範囲**：03。
+## DD10 — 承認/決定/FB の入口（**オーナー指摘で全面改訂**：100件問題）
+- **論点**：✋承認・💬決定・FB を finding 単位で **CLI に id を打って**渡すのは、100件出たら破綻＝非現実的（オーナー指摘）。
+- **選択肢**：(A) ~~`approve <exec> <finding…>` 等 id 列挙~~（**却下**：UX 破綻）／(B) **インタラクティブ HTML レポート**にチェックボックスで入力し、コマンドは**レポートのパスだけ**を取る／(C) 対話 TUI で1件ずつ。
+- **トレードオフ**：A＝大量時に使い物にならない。B＝**UI をブラウザに委譲**でき、id 入力ゼロ・一覧で一括操作・コマンドは1引数で済む。C＝端末で重く、大量時も遅い。
+- **推奨 B（採用）／非推奨 A,C**：理由＝レビューとレポートは**1:1**。レポートに **`review_id`（=`ExecutionId`）を埋め**、各 finding に入力欄を持たせれば、人はブラウザで選ぶだけ。`decide`/`feedback`/`approve` は**レポートのパスだけ**で対象（review_id と各 finding の入力）が解決する。
+- **暫定決定（確定）**：
+  - **O-1 レポート＝インタラクティブ HTML**。finding ごとに `承認/却下/対象外/決定` のチェックボックス＋（💬 用）任意の修正欄。
+  - レポートに **`review_id` を埋め込み**（表示は任意）。**DS3 修正適用フォルダ `.review-workspace/<review_id>/` にも同 id を持つ**（既に exec_id キー）。
+  - `decide`/`feedback`/`approve` の**引数はレポートのパスのみ**。往復方式は [DD14](#dd14--html-レポートcli-の往復サーバ無し)。
+- **影響範囲**：03（コマンド簡素化）・06（レポート→人→コマンドのループ）・[01](01-class-design.md)（`ReviewReport` の HTML レンダリング＋`review_id`）。
+
+## DD13 — 自前 `FilePath` クラスの要否（**オーナー指摘**）
+- **論点**：[01](01-class-design.md) は `FilePath` を**検証なしの str ラッパ**として定義。`RuleId` 等との取り違え防止が理由だが、`pathlib.Path` は既に `RuleId` と別型＝取り違え論拠が弱い。要るのか？
+- **選択肢**：(A) **廃止して `pathlib.Path`（stdlib）を使う**＋突合キーは intake で正規化／(B) `FilePath` に**仕事を与える**（正規化済みリポジトリ相対 POSIX キーとして検証付き）／(C) 現状維持（ほぼ無価値）。
+- **トレードオフ**：A＝パス操作（glob/suffix/join）が**無料**・stdlib・Path は immutable+hashable。突合（参照除外・`location.file`）の厳密性は**正規化関数**で担保。B＝型安全だが薄いラッパの保守コスト。C＝[PR1](../methods/method-inventory.md) primitive 偽装で価値なし。
+- **推奨 A（採用）／非推奨 B,C**：理由＝`Path` で取り違えは起きない（`RuleId` と別型）。パス操作が無料で、唯一の懸念（LLM 返却パスの厳密一致・参照集合判定）は **intake での正規化（リポジトリ相対 POSIX 文字列化）** で解決。
+- **暫定決定**：`FilePath` を廃し **`pathlib.Path`** を使う。`location.file`・参照集合・finding 突合は **intake で正規化した Path** で行う（正規化は1箇所＝境界）。
+- **影響範囲**：[01](01-class-design.md)（`Location.file`/`SourceFile.path`/`Provenance.source_path` を `Path` に・`FindingId` の hash は Path が hashable で不変）・03 の写像（`FilePath(p)` → `Path(p)` ＋ 正規化）。
+
+## DD14 — HTML レポート→CLI の往復（サーバ無し）
+- **論点**：[DD10](#dd10--承認決定fb-の入口オーナー指摘で全面改訂100件問題) で「コマンドはレポートパスだけ」。ブラウザで入力した状態を、**サーバを立てずに**どうコマンドへ戻すか。
+- **選択肢**：(A) レポート内 **JS が `<review_id>.feedback.json` を書き出し**、コマンドは review_id で同梱ファイルを探す／(B) **ローカルサーバ** `reviewer serve` に POST して即適用／(C) 保存した HTML を再パース（ブラウザはチェック状態を保存しないので不可）。
+- **トレードオフ**：A＝サーバ不要・stdlib（HTML/JS を生成するだけ）・「引数はパスだけ」と両立。B＝往復は滑らかだが常駐サーバ＝MVP に重く「コマンドだけ」と乖離。C＝技術的に破綻。
+- **推奨 A（採用）／非推奨 B,C**：理由＝[11](../requirements/11-platform-adapter.md) の「軽量・サーバレス」志向に一致。系は HTML＋クライアント JS を出すだけで、状態は JSON で受ける。
+- **暫定決定**：HTML レポートに「書き出す」ボタン（JS）＝`<review_id>.feedback.json` をダウンロード。`reviewer feedback/decide/approve <report.html>` は HTML から `review_id` を読み、**同ディレクトリ（または既定の DL 先）から該当 feedback.json を解決**して適用。
+- **影響範囲**：03。🛑 **小さな摩擦＝要オーナー確認**：ブラウザの DL 先が既定 Downloads になりがち。許容（ユーザがレポート横へ移動）か、`reviewer serve`（DD14-B）を将来採るかは運用で判断。MVP は A で前進。
 
 ## DD11 — 観点FB起草(P6.2) のオンデマンド起動口
 - **論点（[spec-inspector G3](README.md)）**：O-12 観点FB提案は port(L5)・雛形(`feedback-draft`)・core 関数が揃うのに、**起動する CLI 口が無い**（`feedback` は DS5 収集どまり）＝価値経路の細い穴（[PR6](../methods/method-inventory.md)）。

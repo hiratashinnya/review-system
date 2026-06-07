@@ -45,6 +45,7 @@ class FeedbackStore(Protocol):            # DS5
 - `discover` は `criteria/org → teams/<t> → projects/<p>` の同 `doc_type` を集め、**自前パーサ**（`parsing/frontmatter.py`＝[S5 検証器](../requirements/13-stabilization.md)）で `CriteriaFile{frontmatter, rules[], body}` に読む。
 - 合成（継承マージ・方向ゲート・本文矛盾）は `core/compose`。**毎回合成**（[Q15](../dashboard.md)・安価）。本文矛盾(LLM)だけ DS2 でキャッシュ。
 - 編集は**系外＝非イベント**（[PR3](../methods/method-inventory.md)）。システムは書かない。lint は `criteria lint`／合成時に毎回（[04](04-platform-protocol.md)）。
+- `version` は `"MAJOR.MINOR"` 文字列で読み、**MAJOR が `parsing.SUPPORTED_CRITERIA_MAJOR`（定数・[08 §4](08-logging-and-versioning.md)）に無ければ S5 fail-close**。MINOR は情報のみ。
 
 ## DS2 矛盾チェックキャッシュ（JSON・[DD4](decisions.md#dd4--ds2ds4ds5-の保存形式)）
 

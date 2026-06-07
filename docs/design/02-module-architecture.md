@@ -43,7 +43,7 @@ flowchart TB
 ```
 review_system/
   domain/            # design/01。純粋・no deps
-    ids.py           #   RuleId / FilePath / ContentHash / FindingId …（値オブジェクト）
+    ids.py           #   RuleId / ContentHash / FindingId …（値オブジェクト。パスは pathlib.Path＝DD13）
     enums.py         #   DocumentType / Severity / Determinism / OverrideRule / ApplicationMode …
     criteria.py      #   ComposedRule / RuleMeta / RuleGuidance / CriteriaPack / MetaIndex
     review.py        #   Finding / Location / UnmatchedFinding / TriagedFinding / TriageResult

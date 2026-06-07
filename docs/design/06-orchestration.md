@@ -64,10 +64,10 @@ flowchart TB
   AP <-->|finding 単位 commit / 失敗=reset| DS3
   AP --> RP
   UNM --> RP
-  RP -->|O-1 レポート| 利用者
-  RP -->|✋diff/💬原案 ＋ exec_id+finding_id| RApp
-  RApp -->|I-6| AP
-  RFb --> GOV2[P6.1 FB収集]
+  RP -->|O-1 HTML レポート（review_id 埋込）| 利用者
+  RP -->|✋/💬 をチェックボックスで提示| RApp
+  RApp -->|レポートのパスだけ→ feedback.json 復元 I-6| AP
+  RFb -->|レポートのパスだけ| GOV2[P6.1 FB収集]
   GOV <-->|既出判定| DS4
   GOV -->|新規警告| M
   UR --> RV <--> DS3
@@ -98,6 +98,10 @@ def run_review(req: ReviewRequest, deps: Deps) -> StageOutcome[ReviewReport]:
         case Success(applied): pass
     return Success(build_report(applied, triaged, stamp(deps)))   # S6
 ```
+
+## レポート駆動の人手ループ（✋承認/💬決定/FB・[DD10](decisions.md#dd10--承認決定fb-の入口オーナー指摘で全面改訂100件問題)）
+
+レビューとレポートは **1:1**。レポート＝**インタラクティブ HTML**（`review_id`＝`ExecutionId` 埋込）に finding 毎のチェックボックスを出し、人はブラウザで選ぶ。`approve`/`decide`/`feedback` の**引数はレポートのパスだけ**で、`review_id` から同梱 `feedback.json`（[DD14](decisions.md#dd14--html-レポートcli-の往復サーバ無し)）を解決して**一括適用**（id を打たない＝100件でも回る）。適用は finding 単位 commit（[S4](../requirements/13-stabilization.md)）のまま。DS3 適用フォルダ `.review-workspace/<review_id>/` も同 id で対応（[03](03-external-interfaces.md)/[05](05-persistence.md)）。
 
 ## PF 駆動（run）との関係
 

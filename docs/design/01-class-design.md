@@ -6,7 +6,7 @@
 ## 設計方針（この章の憲法）
 
 1. **命名が命（自己説明的命名・必須）**。型名・フィールド名はドメイン語で、略語禁止（`RuleId`✓ `RID`✗）。`§7 命名規約`を全型に適用。
-2. **基本型の濫用を避ける**（primitive obsession を排す）。意味のある値は生 `str`/`int` でなく**値オブジェクト**にする（`RuleId`/`FilePath`/`ContentHash`）。取り違えを**型で**防ぐ。
+2. **基本型の濫用を避ける**（primitive obsession を排す）。意味のある値は生 `str`/`int` でなく**値オブジェクト**にする（`RuleId`/`ContentHash`/`FindingId`）。取り違えを**型で**防ぐ。ただし**パスは stdlib `pathlib.Path` を使う**（自前ラッパは作らない・[DD13](decisions.md#dd13--自前-filepath-クラスの要否オーナー指摘)）。
 3. **タプルでレコードを表さない**。`(file, line)` のような位置情報は**名前付きの値オブジェクト**（`Location`）にする。`tuple[X, ...]` は**順序不変の集合**としてのみ使う（レコードの代用にしない）。
 4. **可能な限りイミュータブル**。導出物（1実行の産物）は全て `@dataclass(frozen=True, slots=True)`。可変なのは**状態（DS1〜DS5）を写すごく一部**だけ。
 5. **タイプセーフ**。閉じた語彙は `Enum`。失敗は例外でなく**`Result` 型（`StageOutcome`）**で表し、fail-close（[S3](../requirements/13-stabilization.md)）を型で強制。
@@ -32,10 +32,13 @@ class RuleId:
         if not self.value:
             raise ValueError("RuleId は空にできない")
 
-@dataclass(frozen=True, slots=True)
-class FilePath:
-    """対象/参照ファイルのパス。RuleId 等と取り違えないよう別型にする。"""
-    value: str
+# ファイルパスは自前ラッパを作らず stdlib の pathlib.Path を使う（DD13）。
+# 理由：Path は RuleId 等と別型なので取り違えは起きず、glob/suffix 等の操作が無料・immutable+hashable。
+# 唯一の懸念（LLM 返却パスの厳密一致・参照集合判定）は intake で正規化（repo 相対 POSIX）して解決。
+from pathlib import Path
+def normalize(p: Path) -> Path:
+    """境界の1箇所で repo 相対 POSIX へ正規化。突合（参照除外・location.file）はこの Path で行う。"""
+    ...
 
 @dataclass(frozen=True, slots=True)
 class ContentHash:
@@ -54,13 +57,13 @@ class LineRange:
 @dataclass(frozen=True, slots=True)
 class Location:
     """指摘の所在。file は必須（P3 不変条件）、line_range は任意。"""
-    file: FilePath
+    file: Path                              # DD13：正規化済み pathlib.Path（Path は hashable→FindingId も hashable）
     line_range: LineRange | None = None
 
 @dataclass(frozen=True, slots=True)
 class Provenance:
     """ルールの由来。衝突報告・差分通知(O-9/Q10)で継承段を示すのに必須。"""
-    source_path: FilePath
+    source_path: Path                       # DD13
     inheritance_layer: "InheritanceLayer"   # §2 Enum
 ```
 
@@ -157,7 +160,7 @@ class Scope:
 ```python
 @dataclass(frozen=True, slots=True)
 class SourceFile:
-    path: FilePath
+    path: Path                              # DD13：pathlib.Path（正規化済み）
     content: str
     language: str | None = None
 
@@ -313,13 +316,13 @@ class ProvenanceStamp:                     # S6 版スタンプ
     executed_at: str                       # ISO8601
 
 @dataclass(frozen=True, slots=True)
-class ReviewReport:                        # O-1（コンテナ）。ビルダーで組む（§6）
+class ReviewReport:                        # O-1（コンテナ）。ビルダーで組む（§6）。HTML へレンダ（DD10）
     applied: tuple[ResolvedFix, ...]
     diffs_to_approve: tuple[TriagedFinding, ...]
     drafts_to_judge: tuple[TriagedFinding, ...]
     unclassified: tuple[UnmatchedFinding, ...]
     summary: "ReportSummary"
-    stamp: ProvenanceStamp
+    stamp: ProvenanceStamp                 # stamp.execution_id ＝ review_id（HTML に埋込・DS3 フォルダと同 id・DD10/DD14）
 
 @dataclass(frozen=True, slots=True)
 class RevertRequest:
@@ -371,7 +374,7 @@ class FailureStage(Enum):
 class FailureNotice:                       # O-14
     stage: FailureStage
     reason: str
-    subject: FilePath | None               # どのファイル/対象
+    subject: Path | None                   # どのファイル/対象（DD13）
     next_action: str                       # 実行可能な次手
 
 @dataclass(frozen=True, slots=True)
@@ -460,7 +463,7 @@ class ReviewPromptBuilder:
 | 対象 | 規約 | 例（○ / ✗） |
 |---|---|---|
 | 型名 | PascalCase・ドメイン語の名詞句・**略語禁止** | `ComposedRule` / ✗`CmpRule` `Data` `Info` |
-| 識別子の値オブジェクト | **役割で命名**（包んだ基本型でなく） | `RuleId` `FilePath` / ✗`Str1` `Key` |
+| 識別子の値オブジェクト | **役割で命名**（包んだ基本型でなく） | `RuleId` `ContentHash` / ✗`Str1` `Key` |
 | 真偽フィールド | `is_` / `has_` で意図を出す | `is_enabled` `has_reference` / ✗`flag` |
 | 列挙メンバ | 意味が読める語（コード値は `.value`） | `ApplicationMode.HUMAN_ONLY` / ✗`MODE_3` |
 | コレクション | 複数形・中身が分かる | `target_files` `unclassified` / ✗`list1` `items` |
@@ -490,7 +493,7 @@ class ReviewPromptBuilder:
 |---|---|---|
 | §0 閉じた語彙 ×9 | `DocumentType`/`Severity`/`Determinism`/`OverrideRule`/`ApplicationMode`/`TriageBucket`/`ReviewDecision`/`InheritanceLayer`/`FixOrigin` | — |
 | `Scope` | `Scope`（値オブジェクト） | コンストラクタ＋`org()` |
-| `Location`/`LineRange`/`FindingId`/`Provenance`/`ContentHash`/`RuleId`/`FilePath` | 同名 値オブジェクト | コンストラクタ（`FindingId` はファクトリ） |
+| `Location`/`LineRange`/`FindingId`/`Provenance`/`ContentHash`/`RuleId`（パスは `pathlib.Path`） | 同名 値オブジェクト | コンストラクタ（`FindingId` はファクトリ） |
 | `正規化入力` | `NormalizedIntake` | コンストラクタ |
 | `合成ルール`/`メタ`/`観点パック`/`メタ表` | `ComposedRule`/`RuleMeta`/`CriteriaPack`/`MetaIndex` | ファクトリ（Composer） |
 | `指摘`/`未分類指摘`/`修正案` | `Finding`/`UnmatchedFinding`/`SuggestedFix` | コンストラクタ |
@@ -511,20 +514,26 @@ class ReviewPromptBuilder:
 
 > id 照合・dedup・dict キー・set が随所に出る（`pack.contains(rule_id)`・`MetaIndex.by_rule_id[id]`・警告レジャーの `rule_id×content_hash`・DS2/DS3 の finding 単位）。その**等価とハッシュの規約**を明文化する。
 
+### ひとことで（前提知識ゼロ向け）
+- `__eq__`＝**`==` の意味**、`__hash__`＝**dict のキーや set に入れるための数値**。「演算子オーバーロード」とは、自分の型で `==` がどう振る舞うかを自分で決めること。
+- **素の Python オブジェクトの `==` は「同じ実体か（メモリ上同一か）」**。だから `RuleId("naming")` を2回作ると別物扱いで `==` が False になり、id 照合や dict キーに使えない。これは困る。
+- **`@dataclass(frozen=True)` を付けると Python が自動で `==` と hash を「中身（フィールド）が同じなら等しい」に書き換えてくれる**（Java の `equals()`/`hashCode()` を自動生成するイメージ）。なので `RuleId("naming") == RuleId("naming")` は True、dict キー/set にもそのまま使える。
+- **結論：自分で手書きする必要はない**（frozen dataclass が正しくやってくれる）。下はその前提での規約。
+
 ### 方針：frozen dataclass の自動生成に乗る（手書きオーバーロードは原則しない）
 - `@dataclass(frozen=True)` は **(a) フィールド単位の値等価 `__eq__` と (b) `__hash__`（frozen かつ `eq=True` ⇒ フィールドのタプルから導出）を自動生成**する。**演算子/ハッシュ関数を手書きしない**——生成物が正しく、手書きは取り違え・不変条件破りの温床（`__eq__` と `__hash__` の整合崩れ等）。
 - これは **NewType でなく検証付き frozen 値オブジェクトを選んだ理由の一つ**（[§1 注](#1-値オブジェクト基本型タプル回避)）＝**検証＋値等価＋ハッシュ**を一度に得る。
 - 結果として `RuleId("naming") == RuleId("naming")` は `True`、かつ dict キー/set 要素として使える（メモリ内ハッシュは Python が field から導出）。
 
 ### identity は **`*Id` 値オブジェクト**に切り出す（whole-value eq に依存しない）
-- 一致判定は **`RuleId` / `FindingId` / `ExecutionId` / `ContentHash` / `FilePath`** で行う。`pack.contains(rule_id)`・`MetaIndex.by_rule_id[rule_id]`・`seen(rule_id, content_hash)` はこの**値等価**で動く。
+- 一致判定は **`RuleId` / `FindingId` / `ExecutionId` / `ContentHash`**（パスは正規化済み `pathlib.Path`）で行う。`pack.contains(rule_id)`・`MetaIndex.by_rule_id[rule_id]`・`seen(rule_id, content_hash)` はこの**値等価**で動く。
 - **アグリゲートの同一性は `*Id` に委譲**：`Finding` 全体ではなく `FindingId = rule_id + location` を identity/commit/revert キーにする（[§4 P5](#p5-適用レポート)）。`Finding` 同士の `==` は全フィールド比較になるが**識別には使わない**（rationale/quote が違っても「同じ指摘」と見たい場面は `FindingId.of(finding)` で判定）。
 
 ### ハッシュ可能性（dict キー / set 可否）
 
 | 型 | hashable | 用途 |
 |---|---|---|
-| 識別子・座標の値オブジェクト（`RuleId`/`FilePath`/`ContentHash`/`FindingId`/`ExecutionId`/`Location`/`LineRange`/`Scope`/`Provenance`） | ✅ frozen＋中身も hashable | dict キー・set・照合 |
+| 識別子・座標の値オブジェクト（`RuleId`/`ContentHash`/`FindingId`/`ExecutionId`/`Location`/`LineRange`/`Scope`/`Provenance`）と `pathlib.Path` | ✅ frozen＋中身も hashable（Path も hashable） | dict キー・set・照合 |
 | `tuple[...]` だけを抱える導出物（`CriteriaPack`/`TriageResult`/`ReviewReport` 等） | ✅ tuple は hashable | 値比較・キャッシュ |
 | **`dict` を持つ型**（`MetaIndex.by_rule_id`） | ❌ dict は unhashable | **キーにしない**（参照テーブル本体。中の `RuleId` キーは hashable） |
 
