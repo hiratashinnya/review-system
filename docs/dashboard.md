@@ -29,8 +29,8 @@
 | 3 | `domain/criteria`＋policy 型 | RuleMeta/ComposedRule/CriteriaPack/MetaIndex/PolicyMatrix/TriagedFinding 等 | ✅ |
 | 4 | `ports` | PlatformPort・各 Repository（Protocol） | 🟡 評価/適用層と一緒に（8/10） |
 | 5 | `core/triage`（P4） | rule_id検証(S1)→参照除外→mode判定／未宣言は HUMAN_ONLY(S2) | ✅ TC-triage-001（11） |
-| 6 | `core/compose`（P2・org最小） | org 読込→pack/meta 組立（方向ゲート/矛盾は post-MVP印） | ⬜ |
-| 7 | `core/intake`（P1） | 対象/参照集合・型確定（org固定・手動型・AI推定は MVP外） | ⬜ |
+| 6 | `core/compose`（P2・org最小） | org 読込→pack/meta 組立（方向ゲート/矛盾は post-MVP印） | ✅ TC-compose-001（4・純粋部） |
+| 7 | `core/intake`（P1） | 対象/参照集合・型確定（org固定・手動型・AI推定は MVP外） | ✅ TC-intake-001（1・純粋部） |
 | 8 | `prompts`＋`adapters/fake` | 雛形ビルダー＋FakePlatformAdapter（テスト用 seam） | ⬜ |
 | 9 | `core/evaluate`（P3） | PlatformPort 呼び→raw findings | ⬜ |
 | 10 | `persistence` | criteria_repo・workspace_git(S4)・warning/feedback/contradiction | ⬜ |
