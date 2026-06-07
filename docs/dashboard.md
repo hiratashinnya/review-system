@@ -26,6 +26,7 @@
 | A2 | AI への入力設計を決める | 基準＋文書をどう渡すか / 長い文書・コードベースの扱い | 🟡 設計あり（[07](requirements/07-ai-input-design.md)）→レビュー待ち |
 | A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 確定 |
 | A4 | これまでの設計プロセスを資産化 | 案出し・イベントリスト・点検・価値分析などの手順/基準をスキル・エージェント化（[methods/](methods/method-inventory.md)） | 🟡 棚卸し済→構築計画あり |
+| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md) | 🟡 A＋④着手（残：②/B/C/①/③/D） |
 
 ## ❓ 未決事項（決めないと進めない論点）
 
@@ -129,6 +130,10 @@ P1（出すと仕分けレポートが返る）・P2（直す＋戻せる）を*
 - **MVP はアクターを区別しない**（単一ユーザー）。専用 RBAC も Git ホスト権限依存も採らない。役割ラベルは記述的。方向ゲートは「検出」まで機能し、「誰が承認するか」の強制は将来
 - **LLM は自前実装せず外部 PF（Claude Code/Copilot 等）に委譲**。システムは PF のラッパーで、接続部は**アダプタパターン**（PF 差し替え可・自前実装も同じ口に差せる）。出力はアダプタ越しでもシステムが検証する（[11](requirements/11-platform-adapter.md)）
 - **口は双方向**：System→PF（ヘッドレス）と PF→System（決定的処理を function calling / MCP ツールで公開）。同じポートを両向きから使う。**MVP は「ツール群＋プロンプト雛形」だけ作り、Claude が LLM 役を担って高速に検証**（オーケストレータ/UI は後）。ツールは後で System 駆動に切り替えても再利用（[11](requirements/11-platform-adapter.md)）
+- **実装前の凍結セット（8項目）**を固めてから着手：A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン付フローチャート)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)
+- **モジュール構成はヘキサゴナル＋依存内向き**：`domain ← core(ports) ← adapters/persistence/cli`。コアは PF/IO/保存形式を知らず、結線は合成ルート(`io/cli`)のみ（[design/02](design/02-module-architecture.md)）
+- **テスト戦略**：unittest（全 public 関数）／ケース＝Markdown／成績書＝ケースコピー＋実測＋commit id／ログ＝stdout ダンプ／失敗も残す（隠蔽禁止＋原因/対策）／テスト前コミット／e2e は Claude Code エージェントで同じ3点セット。非決定（LLM）は `FakePlatformAdapter` で決定化＝アダプタ境界＝テスト境界
+- **資産のテーラリング運用（A16）**：プロセスはスキルで実現するためテーラリング実体は `.claude/`（docs でない）。汎用標準＝`.claude/standards/`（非活性）、テーラリング済 active＝`.claude/skills/`、対応台帳＝`.claude/tailoring-registry.md`。テーラリング時は元を `git mv` で非活性化（消さない）し registry に記録。本PJは extract-then-generalize。初回適用＝`/test-strategy`
 
 > 各決定の詳細は [requirements/](requirements/) を参照。プロセス設計（DFD/状態）は [process/](process/00-context.md)。
 > システムの入出力一覧は [requirements/05-io-overview.md](requirements/05-io-overview.md)、

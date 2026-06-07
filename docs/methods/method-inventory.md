@@ -158,6 +158,14 @@
 - **点検観点**：既存と責務が被らないか・`description` 自動起動が衝突しないか・原則と矛盾しないか・**台帳/プラン/規約が同期**しているか。
 - **成果物**：スキル/エージェント実体（`.claude/`）＋ 本台帳(A#)・[asset-plan](asset-plan.md)(振り分け)・[CLAUDE.md](../../CLAUDE.md)(一覧) の同期更新。対応資産：`asset-auditor`・`/asset-pipeline`。
 
+### A16. テーラリング運用（汎用標準 → プロジェクト固有）
+- **目的**：プロジェクト非依存の**汎用標準**を、プロジェクト固有の**ノブを埋めた active 版**へ具体化し、対応を追跡可能に保つ。プロセスはスキル等で実現するため**テーラリングの実体は `.claude/` 配下**（docs に置かない）。
+- **トリガ**：汎用標準（不変条件＋ノブ）を、あるプロジェクトに当てて運用する時。A14（資産化）の実体化フェーズの下位ステップ。
+- **手順**：①標準を棚卸し（不変条件は継承・ノブを洗い出す）②**既存 active 汎用版があれば `git mv` で `.claude/standards/` へ非活性化**（消さない＝PR8）／標準を新規 author する場合は `standards/` に直接置く ③ノブを埋めた版を `.claude/skills/<n>/` に置く（active）④[tailoring-registry](../../.claude/tailoring-registry.md) に `標準源／実体パス／テーラリング内容／由来PJ` を追記。
+- **判断基準**：PR2（不変条件＝機構／ノブ＝デフォルトの埋め込み）／PR8（汎用標準を消さず非活性で残す）。配置＝汎用標準は `.claude/standards/`（auto-load させない＝未テーラリングの誤適用防止）、active は `.claude/skills/`。
+- **点検観点**：全ノブが埋まったか・3点セット等のテンプレが確定したか・registry に実体パスとテーラリング内容が記録済みか・標準が非活性で残っているか。`asset-auditor` の棚卸しは `.claude/standards/` も対象に含める。
+- **成果物**：`.claude/standards/<n>/`（標準）＋ `.claude/skills/<n>/`（active）＋ [tailoring-registry](../../.claude/tailoring-registry.md)。初回適用＝`test-strategy`。
+
 ---
 
 ## 2. 依存（どの順で使うか）
@@ -180,6 +188,7 @@ flowchart LR
   A7 --> A15[A15 ドメインモデル設計]
   A13 -.DD/スキーマ確定後に型導出.- A15
   A14[A14 資産化] -.繰り返し有効な活動を資産化.- A12
+  A14 --> A16[A16 テーラリング運用]
   PR[(0. 原則 PR1-10)] -.全工程で参照.- A10
 ```
 

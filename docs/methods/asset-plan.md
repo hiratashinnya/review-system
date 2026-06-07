@@ -30,6 +30,9 @@
 | A1→A12 全体 | パイプライン | スキル（オーケストレータ） | `/spec-pipeline` | 4 |
 | A14 資産化（重複/競合監査） | 資産監査 | **エージェント** | `asset-auditor` | 5 |
 | A14 資産化（パイプライン） | オーケストレータ | スキル | `/asset-pipeline` | 5 |
+| ④ テスト戦略（汎用標準） | 標準（非活性） | standards | `test-strategy-standard`（`.claude/standards/`） | 6 |
+| ④ テスト戦略（本PJ） | テーラリング済 active | スキル | `/test-strategy`（`.claude/skills/`） | 6 |
+| A16 テーラリング運用 | 機構＋台帳 | standards/＋registry | `.claude/tailoring-registry.md` | 6 |
 
 > `spec-inspector` と `structured-analysis` を**エージェント**にする理由：複数ファイルを横断的に読み・分解し、結論（gap 一覧 / DFD 一式）を返す自走型で、メインの会話文脈を汚さない方が効く（[method-inventory](method-inventory.md) の依存図でも A10/A11 が反復ループの核）。
 
@@ -47,10 +50,14 @@
     domain-model/SKILL.md      # A15（DD 確定後の内部型/クラス設計・実装フェーズ）
     spec-pipeline/SKILL.md     # A1→A12 仕様設計オーケストレータ
     asset-pipeline/SKILL.md    # A14 資産化オーケストレータ（disable-model-invocation）
+    test-strategy/SKILL.md     # ④ テスト戦略（本PJ テーラリング済・active）
+  standards/                   # A16 汎用標準（非活性・auto-load されない）
+    test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
   agents/
     spec-inspector.md          # A6+A10+A11（仕様点検→gap 一覧を返す）
     structured-analysis.md     # A7+A8（コンテキスト→DFD→単一責務→状態）
-    asset-auditor.md           # A14 既存資産の重複/矛盾/競合監査（read-only）
+    asset-auditor.md           # A14 既存資産の重複/矛盾/競合監査（read-only／standards も棚卸し対象）
+  tailoring-registry.md        # A16 標準⇄テーラリングの対応・実体パス・差分
 CLAUDE.md                      # A2/A3 の作業流儀＋「迷ったら spec-principles」
 ```
 
@@ -103,3 +110,5 @@ tools: Read, Grep, Glob   # 読み取り中心。書き込みはしない
 - 全資産を実体化済み：`spec-principles` / `spec-inspector` / `structured-analysis` / `/value-trace` / `/mvp-scope` / `/io-event-ledger` / `/align` / `/schema-design` / `/spec-pipeline` ＋ `CLAUDE.md`。
 - **資産化そのものも資産化（A14）**：`asset-auditor`（重複/矛盾/競合監査・read-only）＋ `/asset-pipeline`（オーケストレータ）。
   新資産は**作る前に `asset-auditor` で点検**し、新規 vs 既存変更を判断する。
+- **テーラリング運用（A16）**：汎用標準は `.claude/standards/`（非活性・auto-load されない）、テーラリング済 active は `.claude/skills/`、対応は `.claude/tailoring-registry.md`。
+  §6 の「固有版は提案時に併記し採用は汎用版」を、**標準（汎用）⇄テーラリング（固有）の常設機構**へ格上げ。初回適用＝`test-strategy`（④）。
