@@ -33,6 +33,12 @@
 | ④ テスト戦略（汎用標準） | 標準（非活性） | standards | `test-strategy-standard`（`.claude/standards/`） | 6 |
 | ④ テスト戦略（本PJ） | テーラリング済 active | スキル | `/test-strategy`（`.claude/skills/`） | 6 |
 | A16 テーラリング運用 | 機構＋台帳 | standards/＋registry | `.claude/tailoring-registry.md` | 6 |
+| A17 アーキテクチャ設計（モジュール/IF/プロトコル/永続） | 実装設計 | スキル | `/architecture-design` | 7 |
+| A18 オーケストレーション設計（制御フロー/fail-close/ログ） | 実装設計 | スキル | `/orchestration-design` | 7 |
+| A19 プロンプト設計（LLM 雛形/役割/注入対策） | 実装設計 | スキル | `/prompt-design` | 7 |
+| A20 実装設計パイプライン（凍結セット） | オーケストレータ | スキル（disable-model-invocation） | `/impl-design-pipeline` | 7 |
+| 8 判断ログ DD# ／ 9 凍結セット規律 | 作業流儀 | （CLAUDE.md の作業規約に記述・スキル化しない） | — | 7 |
+| 設計総点検 | 既存拡張 | エージェント | `spec-inspector`（点検対象に設計ドキュメント追加） | 7 |
 
 > `spec-inspector` と `structured-analysis` を**エージェント**にする理由：複数ファイルを横断的に読み・分解し、結論（gap 一覧 / DFD 一式）を返す自走型で、メインの会話文脈を汚さない方が効く（[method-inventory](method-inventory.md) の依存図でも A10/A11 が反復ループの核）。
 
@@ -51,6 +57,10 @@
     spec-pipeline/SKILL.md     # A1→A12 仕様設計オーケストレータ
     asset-pipeline/SKILL.md    # A14 資産化オーケストレータ（disable-model-invocation）
     test-strategy/SKILL.md     # ④ テスト戦略（本PJ テーラリング済・active）
+    architecture-design/SKILL.md   # A17 モジュール/依存・IF・プロトコル・永続
+    orchestration-design/SKILL.md  # A18 制御フロー・fail-close・ログ/版
+    prompt-design/SKILL.md         # A19 LLM 雛形・役割制約・注入対策
+    impl-design-pipeline/SKILL.md  # A20 実装設計オーケストレータ（disable-model-invocation）
   standards/                   # A16 汎用標準（非活性・auto-load されない）
     test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
   agents/
@@ -112,3 +122,6 @@ tools: Read, Grep, Glob   # 読み取り中心。書き込みはしない
   新資産は**作る前に `asset-auditor` で点検**し、新規 vs 既存変更を判断する。
 - **テーラリング運用（A16）**：汎用標準は `.claude/standards/`（非活性・auto-load されない）、テーラリング済 active は `.claude/skills/`、対応は `.claude/tailoring-registry.md`。
   §6 の「固有版は提案時に併記し採用は汎用版」を、**標準（汎用）⇄テーラリング（固有）の常設機構**へ格上げ。初回適用＝`test-strategy`（④）。
+- **実装設計フェーズの資産化（A17–A20）**：設計工程を 3 焦点スキル（`/architecture-design`＝1+2+3+4・`/orchestration-design`＝5+7・`/prompt-design`＝6）＋オーケストレータ `/impl-design-pipeline` に集約（9個に割らない＝PR1）。
+  8（判断ログ DD#）・9（凍結セット規律）は**作業規約**（CLAUDE.md）に。総点検は **spec-inspector の拡張**（設計ドキュメントを点検対象に追加）で賄い、新規エージェントは作らない。
+  これら設計スキルは**汎用メソッド（プロジェクト非依存）**として `.claude/skills/` に active（本PJ固有の選択＝ヘキサゴナル/内部git/stdout プロトコルは成果物 docs 側）。テーラリングが要る場合のみ registry へ起票。
