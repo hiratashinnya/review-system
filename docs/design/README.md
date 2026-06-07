@@ -28,4 +28,3 @@
 - **失敗は型**（[S3](../requirements/13-stabilization.md)）：各段は `StageOutcome`（Result）を返し fail-close を強制（[01 §5](01-class-design.md)）。
 - **状態は永続層に隔離**（[C](05-persistence.md)）：DS1–DS5。導出物は frozen。
 - **資産のテーラリング運用**（[tailoring-registry](../../.claude/tailoring-registry.md)）：標準は `.claude/standards/`、テーラリング済は `.claude/skills/`。
-</content>

@@ -111,4 +111,3 @@ def run_review(req: ReviewRequest, deps: Deps) -> StageOutcome[ReviewReport]:
 - `feedback`（P6.1）→ DS5 蓄積 → しきい値/オンデマンドで `P6.2` 観点FB起草（L5）→ メンテナ。
 - 警告（P6.5）は **P2 合成時の警告候補のみ**を DS4 で既出判定（基準編集は系外＝非イベント）。
 - これらは本線レビューの価値経路を**遮断しない**（[PR6](../methods/method-inventory.md)）：レビューは警告/FB の有無に関わらず完走する。
-</content>

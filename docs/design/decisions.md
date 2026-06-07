@@ -150,4 +150,3 @@
 > - ✅ **DD5（git バイナリ前提）＝採用**（オーナー確定）。`subprocess` 経由で Python 依存は増えず [Q5](../dashboard.md) を満たす（[spec-inspector G9](README.md) 健全確認済）。git 無し要件が出たら DD5-(C) へ（影響＝05 の S4 実装）。
 > - ✅ **DD11（育成口は口だけ用意・実装後）＝採用**（オーナー確定）。
 > - **観測（未決・運用ルール）**：[Q9](../dashboard.md) 警告の打ち上げ条件（バッチ/しきい値/dedup）は[schema](../schema/README.md) でも未決。MVP は「既出抑制（DS4）＋新規のみ即時」で前進（[05](05-persistence.md) で機構のみ）。運用ルール詰めは [PR2](../methods/method-inventory.md) によりここでは行わない。
-</content>

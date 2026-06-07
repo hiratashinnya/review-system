@@ -48,4 +48,3 @@ version: 1.0
 - 値オブジェクトが**壊れた値を生成時に弾く**（S1/S5 の土台）ことを境界で確認。
 - `Location`/`RuleId` が hashable＝dict キー/set で使える（[01 §10](../../docs/design/01-class-design.md) の自動 `__eq__`/`__hash__`）。
 - FAIL なし＝原因調査/対策の記載は無し。
-</content>

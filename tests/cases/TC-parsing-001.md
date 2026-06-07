@@ -44,4 +44,3 @@ Python 3.11・標準ライブラリのみ。`version` は `"MAJOR.MINOR"` 文字
 | L7 境界 | `version: "2.0"`（未対応 MAJOR） | エラー（fail-close） |
 | L8 境界 | `version: "1.9"`（対応 MAJOR・新しい MINOR） | `ok`（MINOR は情報のみ） |
 | L9 | `extends` 先が存在しない | エラー（継承リンク切れ） |
-</content>

@@ -2,7 +2,7 @@
 doc_type: code
 scope: project:checkout
 extends: team:frontend
-version: 1
+version: "1.0"
 # team:frontend（さらに org を継承）からの差分だけを書く。
 # 「厳しく/緩め」は合成済みの「直近の親（＝team の実効値）」を基準に測る。追加・厳しくは常に自由。
 rules:

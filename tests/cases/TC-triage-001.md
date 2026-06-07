@@ -28,4 +28,3 @@ version: 1.0
 | 9 | triage(S2) | rule_id のメタが無い | **JUDGE/HUMAN_ONLY**（🤖 にしない） |
 | 10 | triage(S2) | policy matrix が当該を持たない | **HUMAN_ONLY**（自動適用を生まない） |
 | 11 | triage override | policy overrides に rule_id | override の mode が勝つ |
-</content>

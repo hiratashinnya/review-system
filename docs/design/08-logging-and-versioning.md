@@ -86,4 +86,3 @@ TEMPLATE_VERSIONS: dict[str, str] = {
 - [05](05-persistence.md)：`run.log` は実行ワークスペース配下。版定数は `parsing/`。
 - [03](03-external-interfaces.md)：`reviewer version` が版定数を表示。
 - 将来：雛形 MAJOR 改定で L2 判定が変わる場合、DS2 キャッシュキーに `judge_major` を足す（[07 版管理](07-system-prompts.md)）。
-</content>

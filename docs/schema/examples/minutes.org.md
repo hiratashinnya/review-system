@@ -2,7 +2,7 @@
 doc_type: minutes
 scope: org
 extends: null
-version: 1
+version: "1.0"
 rules:
   - id: typo
     title: 誤字・表記ゆれ

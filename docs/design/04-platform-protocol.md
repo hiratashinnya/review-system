@@ -117,4 +117,3 @@ class PlatformCapabilities:
 - PF が返す `findings/unmatched` は**必ず** `validate-findings`（⑤）→ `exclude-reference` → `triage` を通る。PF に直接 `apply-fix` させない。
 - `judge_contradiction` は **yes/no のみ**（方向＝厳しく/緩めは判定させない・[schema 2軸](../schema/README.md)）。
 - 構造化出力が崩れたら **degrade して ❓未分類**（crash も silent-drop もしない・[DD8](decisions.md#dd8--構造化出力の強制q22-グレーゾーン)/S1）。
-</content>

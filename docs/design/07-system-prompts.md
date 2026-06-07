@@ -97,4 +97,3 @@ prompt = (ReviewPromptBuilder(template_set, version="review:3.1")  # MAJOR.MINOR
           .with_output_schema()
           .build())                 # frozen な ReviewPrompt を1つ返す
 ```
-</content>

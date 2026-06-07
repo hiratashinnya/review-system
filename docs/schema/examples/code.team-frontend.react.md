@@ -2,7 +2,7 @@
 doc_type: code
 scope: team:frontend
 extends: org
-version: 1
+version: "1.0"
 # 「観点・言語別の例を足したいだけ」のケース。
 # 親ルールの本文を差し替えず（＝重い承認経路を踏まず）、新しい id を additive に union する。
 # 同一 doc_type×scope のファイルは複数置けて、rules は id 単位で結合される。

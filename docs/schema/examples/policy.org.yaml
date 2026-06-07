@@ -5,7 +5,7 @@
 # team / project で上書き可能（extends で継承元を指定）。
 scope: org
 extends: null
-version: 1
+version: "1.0"
 
 # determinism × severity → 適用モード
 # "*" は severity を問わない既定。個別 severity を上書きしたい場合はキーを足す。

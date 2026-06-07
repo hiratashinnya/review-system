@@ -2,7 +2,7 @@
 doc_type: code
 scope: org
 extends: null
-version: 1
+version: "1.0"
 rules:
   - id: naming-convention
     title: 命名規則

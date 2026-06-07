@@ -119,4 +119,3 @@ tests/               # ④ 証跡（test-strategy のテーラリング先）
 - **`core` は副作用を持たない**：ファイル/ネットワーク/git は port 越し。これで `unittest` が**Fake アダプタ**で全関数決定的に回せる（[④ テスト戦略](README.md)の seam＝E）。
 - **境界を跨ぐ値は domain 型のみ**（生 `str`/`dict` を core の公開シグネチャに出さない）。
 - **合成ルートは1つ**（`io/cli`）。ここだけが具体を知り、DI で組む。
-</content>

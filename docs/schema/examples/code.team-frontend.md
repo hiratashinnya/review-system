@@ -2,7 +2,7 @@
 doc_type: code
 scope: team:frontend
 extends: org
-version: 1
+version: "1.0"
 # org の各ルールに対する「差分」だけを書く。書かない id は org をそのまま継承。
 # 既定は org 権威：下位は「追加」と「厳しく」だけ自由。緩め・無効化は org が open したルールのみ。
 rules:

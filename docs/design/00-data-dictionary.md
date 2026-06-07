@@ -173,4 +173,3 @@
 4. **状態（DS1〜DS5）だけが可変/永続**：`AppliedCommit`(DS3)・`WarningLedgerEntry`(DS4)・`Feedback`(DS5)・`CriteriaFile`(DS1)。
 5. **失敗は型で表す**：`StageOutcome<T>`＝`Result` 型で fail-close（[S3](../requirements/13-stabilization.md)）を例外に頼らず表現。
 6. **同じ `str` でも意味が違うキー**（`RuleId`/`ContentHash`）は**取り違え防止のため別値オブジェクト**にする（パスは `pathlib.Path`）。
-</content>

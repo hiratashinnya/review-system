@@ -543,4 +543,3 @@ class ReviewPromptBuilder:
 
 ### 例外（custom が要るとき）
 - 現設計では**不要**。将来どうしても「id だけで等価」なアグリゲートが要るなら `@dataclass(eq=False)` にして `__eq__`/`__hash__` を `*Id` 委譲で手書きするが、**まず `*Id` 値オブジェクトで表現できないかを先に検討**（[PR1](../methods/method-inventory.md) もので分ける）。可変フィールド（`list`/`dict`）を持つ型は**キー化しない**（[§8](#8-イミュータブルタイプセーフの徹底ルール)）。
-</content>

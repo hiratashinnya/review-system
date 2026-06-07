@@ -42,4 +42,3 @@ version: 1.0
 | 20 | `resolve_document_type` 境界 | manual=None, est=None | **None**（呼出側で fail-close） |
 | 21 | `Result` | `ok(42)` | `Success(value=42)` |
 | 22 | `Result` | `fail(...)` | `Failure(notice=...)`・`match` で分岐可 |
-</content>

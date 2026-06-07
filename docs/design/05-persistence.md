@@ -108,4 +108,3 @@ class ExecutionId:
 - **読み出し1件は frozen**（[01 §4](01-class-design.md)）。`list`/`dict` は repo 層に隔離。
 - **追記専用（DS4/DS5）は上書き禁止**（PR8）。DS2 は再計算可能な導出キャッシュ（消えても再生成）。
 - **DS3 以外はリポジトリにコミット**して再現可能に。`.review-workspace/` は実行産物（gitignore 可・revert 期間中のみ保持）。
-</content>
