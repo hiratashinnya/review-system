@@ -20,8 +20,8 @@ from ..ports.platform import PlatformPort, ReviewRequest
 from . import compose, evaluate, triage
 from .intake import build_intake
 
-# 主たる評価雛形版（prompts.TEMPLATE_VERSIONS["review"] と同期・DD7）
-_PROMPT_TEMPLATE_VERSION = "review:3.1"
+# 主たる評価雛形版は registry を単一ソースにする（ハードコード禁止・DRY・DD7）
+from ..prompts.registry import REVIEW_VERSION as _PROMPT_TEMPLATE_VERSION
 
 
 @dataclass(frozen=True, slots=True)

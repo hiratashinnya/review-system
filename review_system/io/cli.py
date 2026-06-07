@@ -36,6 +36,11 @@ STATE = Path(".review-state")
 _RID = re.compile(r'data-review-id="([^"]+)"')
 
 
+def _now() -> str:
+    """microseconds 精度の UTC ISO 文字列（同一秒内の review_id 衝突を避ける・#5）。"""
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="reviewer")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -93,7 +98,7 @@ def _cmd_review(args) -> int:
         platform=platform,
         load_criteria=lambda dt, sc: discover_criteria(Path(args.criteria), dt, sc),
         load_policy=lambda sc: load_policy_file(Path(args.policy)),
-        now=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        now=_now,
     )
     match run_review(request, deps):
         case Failure(notice):
@@ -145,8 +150,19 @@ def _cmd_feedback(args) -> int:
     if not fb_path.exists():
         print(f"error: {fb_path.name} が無い（HTML で書き出して同ディレクトリに置く）", file=sys.stderr)
         return EXIT_BADREQ
-    data = json.loads(fb_path.read_text(encoding="utf-8"))
-    n = append_feedback(STATE / "feedback.jsonl", rid, data.get("feedback", []))
+    try:                                          # #6：壊れた JSON で落ちない
+        data = json.loads(fb_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"error: feedback.json を読めない: {e}", file=sys.stderr)
+        return EXIT_BADREQ
+    if not isinstance(data, dict) or data.get("review_id") != rid:   # #6：別 review 誤取込を防ぐ
+        print("error: feedback.json の review_id がレポートと一致しない", file=sys.stderr)
+        return EXIT_BADREQ
+    try:                                          # #6/#7：item のキー欠落は BADREQ
+        n = append_feedback(STATE / "feedback.jsonl", rid, data.get("feedback", []))
+    except (ValueError, TypeError) as e:
+        print(f"error: feedback の内容が不正: {e}", file=sys.stderr)
+        return EXIT_BADREQ
     print(f"recorded {n} feedback item(s)")
     return EXIT_OK
 

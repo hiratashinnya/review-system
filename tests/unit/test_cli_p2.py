@@ -89,6 +89,26 @@ class TestCliP2Flow(unittest.TestCase):
         self.assertEqual(cli.main(["revert", "report.html"]), 0)
         self.assertEqual(self._ws_file().read_text(), "uc = 0\n")   # 元へ戻る
 
+    def test_feedback_malformed_json(self):              # #6：壊れた入力→fail-close(BADREQ)
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        Path(f"{rid}.feedback.json").write_text("{ not json", encoding="utf-8")
+        self.assertEqual(cli.main(["feedback", "report.html"]), 2)
+
+    def test_feedback_review_id_mismatch(self):          # #6：別 review の FB を誤取込しない
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        Path(f"{rid}.feedback.json").write_text(json.dumps(
+            {"review_id": "SOMEONE-ELSE", "feedback": []}), encoding="utf-8")
+        self.assertEqual(cli.main(["feedback", "report.html"]), 2)
+
+    def test_feedback_missing_keys(self):                # #6/#7：item のキー欠落→BADREQ
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        Path(f"{rid}.feedback.json").write_text(json.dumps(
+            {"review_id": rid, "feedback": [{"finding_id": "x"}]}), encoding="utf-8")
+        self.assertEqual(cli.main(["feedback", "report.html"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
