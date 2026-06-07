@@ -504,4 +504,34 @@ class ReviewPromptBuilder:
 
 > **不変条件の所在**：「`location.file` 必須」は `Location` 型が、「fail-close で書込ゼロ」は `StageOutcome` 型が、
 > 「revert 粒度＝finding」は `FindingId` 型が**それぞれ構造で保証**する。ロジックでなく**型に語らせる**のが本設計の狙い。
+
+---
+
+## 10. 等価性とハッシュ（`__eq__` / `__hash__`）— 一致判定の規約
+
+> id 照合・dedup・dict キー・set が随所に出る（`pack.contains(rule_id)`・`MetaIndex.by_rule_id[id]`・警告レジャーの `rule_id×content_hash`・DS2/DS3 の finding 単位）。その**等価とハッシュの規約**を明文化する。
+
+### 方針：frozen dataclass の自動生成に乗る（手書きオーバーロードは原則しない）
+- `@dataclass(frozen=True)` は **(a) フィールド単位の値等価 `__eq__` と (b) `__hash__`（frozen かつ `eq=True` ⇒ フィールドのタプルから導出）を自動生成**する。**演算子/ハッシュ関数を手書きしない**——生成物が正しく、手書きは取り違え・不変条件破りの温床（`__eq__` と `__hash__` の整合崩れ等）。
+- これは **NewType でなく検証付き frozen 値オブジェクトを選んだ理由の一つ**（[§1 注](#1-値オブジェクト基本型タプル回避)）＝**検証＋値等価＋ハッシュ**を一度に得る。
+- 結果として `RuleId("naming") == RuleId("naming")` は `True`、かつ dict キー/set 要素として使える（メモリ内ハッシュは Python が field から導出）。
+
+### identity は **`*Id` 値オブジェクト**に切り出す（whole-value eq に依存しない）
+- 一致判定は **`RuleId` / `FindingId` / `ExecutionId` / `ContentHash` / `FilePath`** で行う。`pack.contains(rule_id)`・`MetaIndex.by_rule_id[rule_id]`・`seen(rule_id, content_hash)` はこの**値等価**で動く。
+- **アグリゲートの同一性は `*Id` に委譲**：`Finding` 全体ではなく `FindingId = rule_id + location` を identity/commit/revert キーにする（[§4 P5](#p5-適用レポート)）。`Finding` 同士の `==` は全フィールド比較になるが**識別には使わない**（rationale/quote が違っても「同じ指摘」と見たい場面は `FindingId.of(finding)` で判定）。
+
+### ハッシュ可能性（dict キー / set 可否）
+
+| 型 | hashable | 用途 |
+|---|---|---|
+| 識別子・座標の値オブジェクト（`RuleId`/`FilePath`/`ContentHash`/`FindingId`/`ExecutionId`/`Location`/`LineRange`/`Scope`/`Provenance`） | ✅ frozen＋中身も hashable | dict キー・set・照合 |
+| `tuple[...]` だけを抱える導出物（`CriteriaPack`/`TriageResult`/`ReviewReport` 等） | ✅ tuple は hashable | 値比較・キャッシュ |
+| **`dict` を持つ型**（`MetaIndex.by_rule_id`） | ❌ dict は unhashable | **キーにしない**（参照テーブル本体。中の `RuleId` キーは hashable） |
+
+### `ContentHash`（ドメインの意味的同一性）と `__hash__`（実行内最適化）は別物
+- `ContentHash` ＝ **メタ＋本文が意味的に同じか**を表す**永続・決定的キー**（`hashlib.sha256`・DS2 矛盾キャッシュ／DS4 警告レジャー・[schema](../schema/README.md)）。
+- `__hash__` ＝ コンテナ最適化用の**実行内ハッシュ**（プロセス間で不変を保証しない）。**両者を混同しない**。永続照合は必ず `ContentHash`、メモリ内 dict/set は `__hash__`。
+
+### 例外（custom が要るとき）
+- 現設計では**不要**。将来どうしても「id だけで等価」なアグリゲートが要るなら `@dataclass(eq=False)` にして `__eq__`/`__hash__` を `*Id` 委譲で手書きするが、**まず `*Id` 値オブジェクトで表現できないかを先に検討**（[PR1](../methods/method-inventory.md) もので分ける）。可変フィールド（`list`/`dict`）を持つ型は**キー化しない**（[§8](#8-イミュータブルタイプセーフの徹底ルール)）。
 </content>

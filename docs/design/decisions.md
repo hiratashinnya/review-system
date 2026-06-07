@@ -15,7 +15,7 @@
 | DD4 | DS2/DS4/DS5 の保存形式 | append-only JSONL ＋ JSON（stdlib のみ・sqlite 不採用） | [05](05-persistence.md) |
 | DD5 | DS3 内部 git ワークスペースの実体 | 実行ごとの作業コピーを `git` subprocess で finding 単位コミット | [05](05-persistence.md) |
 | DD6 | `ExecutionId` の定義（クラス設計の穴埋め） | `executed_at + criteria_hash` 由来の実行識別子を新規型に | [05](05-persistence.md)/[01](01-class-design.md) |
-| DD7 | プロンプト雛形のバージョニング | 雛形 id ごとの整数版（`role/1`, `review/3`…） | [07](07-system-prompts.md)/[08](08-logging-and-versioning.md) |
+| DD7 | プロンプト/コンフィグのバージョニング | **`MAJOR.MINOR`**（MAJOR=構造/型変更→ロジック改修要・MINOR=内容/文言のみ） | [07](07-system-prompts.md)/[08](08-logging-and-versioning.md)/[schema](../schema/README.md) |
 | DD8 | 構造化出力の強制（agentic PF のグレーゾーン Q22） | プロンプトで strict JSON 指定＋アダプタで再パース→失敗は ❓未分類 | [07](07-system-prompts.md)/[04](04-platform-protocol.md) |
 | DD9 | ログ出力先（stdout が制御に使われる問題） | 制御=stdout・診断ログ=stderr・実行ログ=`run.log`・テストは tee | [08](08-logging-and-versioning.md) |
 | DD10 | レビュアーの承認/決定の入口 | `approve`/`decide` サブコマンド＋レポートが finding_id を提示 | [03](03-external-interfaces.md) |
@@ -72,13 +72,13 @@
 - **暫定決定**：`ExecutionId(value: str)` 値オブジェクト。`ProvenanceStamp` に `execution_id` を追加。
 - **影響範囲**：05/08 と **[01 クラス設計](01-class-design.md)（型追加が要る・本ログで明示）**。`AppliedCommit` も `execution_id` を持つ。
 
-## DD7 — プロンプト雛形のバージョニング
-- **論点**：[13 S6](../requirements/13-stabilization.md) の「プロンプト雛形版」の採番。
-- **選択肢**：(A) 雛形 id ごとの整数（`review:3`）／(B) semver／(C) ファイル hash。
-- **トレードオフ**：A＝読みやすく差分追跡容易・版スタンプに載せやすい。B＝MVP に過剰。C＝人が版を語れない。
-- **推奨 A（採用）／非推奨 B,C**：理由＝雛形は少数・線形に育つ。版スタンプ・ログで人が「review:3 で評価」と言える。
-- **暫定決定**：`prompts/templates/<id>.md` 先頭に `version: <int>`。`ProvenanceStamp.prompt_template_version` に主たる評価雛形（`review`）の版を載せる。
-- **影響範囲**：07/08。
+## DD7 — プロンプト/コンフィグのバージョニング（**オーナー指示で改訂**）
+- **論点**：[13 S6](../requirements/13-stabilization.md) の「プロンプト雛形版」＋コンフィグ（基準/ポリシー）版の採番。**構造が変わると対応ロジックを変えねばならず、版から対応ロジックが一目で分かること**が要件（オーナー指示）。
+- **選択肢**：(A) 単一整数／(B) **`MAJOR.MINOR`**（MAJOR=構造/型・MINOR=内容）／(C) フル semver(`x.y.z`)。
+- **トレードオフ**：A＝構造変更とロジック改修の対応が版に出ない（要件未達）。B＝**MAJOR↔対応ロジック**が一目・最小で足りる。C＝patch まで要らず過剰。
+- **推奨 B（採用）／非推奨 A,C**：理由＝オーナー要件「型変わったら MAJOR・文章だけなら MINOR」に一致。MAJOR を**処理ロジックの世代キー**にし、版↔ロジック対応表を持てる（[07](07-system-prompts.md)/[08](08-logging-and-versioning.md)）。
+- **暫定決定（確定）**：版は最低 `MAJOR.MINOR`。**MAJOR 改 ⇔ 構造/型変更 ⇔ 対応パーサ/ビルダー改修必須**。MINOR 改＝本文/文言のみ（ロジック不変）。プロンプト雛形・基準フロントマター・ポリシーすべてに適用。`ProvenanceStamp.prompt_template_version`＝`"review:3.1"` 形式。**未対応 MAJOR は S5 fail-close**、MINOR 差は許容（情報のみ）。
+- **影響範囲**：07/08／[schema](../schema/README.md) の `version` フィールド／[13 S5/S6](../requirements/13-stabilization.md)。
 
 ## DD8 — 構造化出力の強制（Q22 グレーゾーン）
 - **論点**：agentic PF は JSON 強制が緩い（[11 グレーゾーン](../requirements/11-platform-adapter.md)）。どう固めるか。
@@ -110,7 +110,7 @@
 - **トレードオフ**：A＝[PR8](../methods/method-inventory.md)（フル論理＋MVP印）に従い価値経路を**論理的に塞ぐ**・実装は後。B＝しきい値運用ルールを今詰める必要が出る（[PR2](../methods/method-inventory.md) 違反）。C＝育成ループが論理的に切れる（PR6 違反）。
 - **推奨 A（採用）／非推奨 B,C**：理由＝[05 台帳](../requirements/05-io-overview.md) で O-12/DS5 は MVP 最小（△）。論理経路は残し、起動はオンデマンド口で塞ぎ、自動トリガ（I-12 時間）は post-MVP（[05 ③](../requirements/05-io-overview.md)）。
 - **暫定決定**：`reviewer criteria feedback-draft` を [03](03-external-interfaces.md) に追加（**MVP保留印**）。[06](06-orchestration.md) P6.2 の「オンデマンド」＝この口。
-- **影響範囲**：03/06。🛑 **オーナー確認の余地**：MVP に育成口を1つでも入れるか、完全 post-MVP にするか。暫定は「口だけ用意・実装は後」。
+- **影響範囲**：03/06。✅ **オーナー確定**：推奨どおり「口だけ用意・実装は後（MVP保留印）」を採用。
 
 ## DD12 — lint/revert 失敗の O-14 語彙
 - **論点（[spec-inspector G7](README.md)）**：`FailureStage`（intake/compose/evaluate/validate/apply）に **lint・revert の失敗段が無く**、[13 S5](../requirements/13-stabilization.md)「lint 失敗は O-14 同形式」と齟齬。
@@ -122,9 +122,9 @@
 
 ---
 
-## 要オーナー判断（🛑）
-> 現時点で**矛盾・要件欠落による停止は無し**。上記 DD はすべて合理的デフォルトで前進可能と判断。
-> 将来オーナー確認が要りそうな種（停止には至らないが影響大）を**先出し**しておく：
-> - **前提**：DD5 は **git バイナリの存在**を前提にする（社内ツールとして妥当と判断・暫定採用）。git 無し運用が要件なら DD5-(C) へ。
-> - **観測**：[Q9](../dashboard.md) 警告の打ち上げ条件（バッチ/しきい値/dedup）は[schema](../schema/README.md) でも未決。MVP は「既出抑制（DS4）＋新規のみ即時」で前進（[05](05-persistence.md) で機構のみ）。運用ルール詰めは PR2 によりここでは行わない。
+## オーナー確定・打ち上げ事項
+> **矛盾・要件欠落による停止は無し**。DD はすべて合理的デフォルトで前進。オーナー判断を仰いだ2点は**確定**：
+> - ✅ **DD5（git バイナリ前提）＝採用**（オーナー確定）。`subprocess` 経由で Python 依存は増えず [Q5](../dashboard.md) を満たす（[spec-inspector G9](README.md) 健全確認済）。git 無し要件が出たら DD5-(C) へ（影響＝05 の S4 実装）。
+> - ✅ **DD11（育成口は口だけ用意・実装後）＝採用**（オーナー確定）。
+> - **観測（未決・運用ルール）**：[Q9](../dashboard.md) 警告の打ち上げ条件（バッチ/しきい値/dedup）は[schema](../schema/README.md) でも未決。MVP は「既出抑制（DS4）＋新規のみ即時」で前進（[05](05-persistence.md) で機構のみ）。運用ルール詰めは [PR2](../methods/method-inventory.md) によりここでは行わない。
 </content>

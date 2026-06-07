@@ -4,15 +4,20 @@
 > チャネル分離は [DD9](decisions.md#dd9--ログ出力先)（stdout=制御・stderr=診断・`run.log`=実行ログ）。版は [DD6](decisions.md#dd6--executionid-の定義)/[DD7](decisions.md#dd7--プロンプト雛形のバージョニング)。
 > 関連：[テスト戦略](../../.claude/skills/test-strategy/SKILL.md)（ログ＝stdout ダンプ・成績書に commit id）。
 
-## 1. バージョニング（何を版で固定するか）
+## 1. バージョニング（何を版で固定するか・`MAJOR.MINOR`）
 
-| 対象 | 版の形 | 置き場 | 用途 |
+**版の規約（[DD7](decisions.md)・オーナー指示）**：**MAJOR＝構造/型が変わる⇒対応ロジック（パーサ/ビルダー）の改修必須**、**MINOR＝内容/文言のみ⇒ロジック不変（見せたい差分）**。最低 `MAJOR.MINOR` を付ける。**MAJOR が処理ロジックの世代キー**＝版を見れば対応ロジックが一目で分かる。
+
+| 対象 | 版の形 | 置き場 | MAJOR を上げる契機（＝ロジック改修） |
 |---|---|---|---|
-| 実行 | `ExecutionId`＝`executed_at-criteria_hash[:12]`（[DD6](decisions.md#dd6--executionid-の定義)） | レポート・commit・log | revert/ログ/版スタンプの串刺しキー |
-| 基準スキーマ | `version: <int>`（フロントマター・[schema](../schema/README.md)） | criteria/*.md | 文法/内容の世代 |
-| 合成結果 | `criteria_content_hash`＝hash(合成パック＋メタ) | 版スタンプ・DS2/DS4 キー | どの基準で評価したか |
-| プロンプト雛形 | `<id>:<int>`（例 `review:3`・[DD7](decisions.md#dd7--プロンプト雛形のバージョニング)） | prompts/templates | どの雛形で評価したか |
-| PF/モデル | `platform_id` / `model_id`（[04 capabilities](04-platform-protocol.md)） | 版スタンプ | どの PF/モデルか |
+| 実行 | `ExecutionId`＝`executed_at-criteria_hash[:12]`（[DD6](decisions.md)） | レポート・commit・log | （識別子・版概念なし） |
+| 基準フロントマター | `version: <MAJOR.MINOR>`（[schema](../schema/README.md)） | criteria/*.md | 対応サブセット文法/必須キーが変わる⇒自前パーサ改修 |
+| 自動化ポリシー | `version: <MAJOR.MINOR>` | policy/*.yaml | matrix 構造が変わる⇒写像ロジック改修 |
+| 合成結果 | `criteria_content_hash`＝hash(合成パック＋メタ) | 版スタンプ・DS2/DS4 キー | （ハッシュ・版概念なし） |
+| プロンプト雛形 | `<id>:<MAJOR.MINOR>`（例 `review:3.1`・[DD7](decisions.md)） | prompts/templates | 出力スキーマの型/構造が変わる⇒[07 対応表](07-system-prompts.md)で世代切替 |
+| PF/モデル | `platform_id` / `model_id`（[04 capabilities](04-platform-protocol.md)） | 版スタンプ | （外部識別子） |
+
+> **版↔対応ロジックの一覧**は[07 §版管理](07-system-prompts.md)（プロンプト）と各パーサ（基準/ポリシー）が持つ。**未対応 MAJOR は実行前 fail-close**（[13 S5](../requirements/13-stabilization.md)）、MINOR 差は許容（情報のみ）。
 
 ### 版スタンプ（O-1 に必須・[01 ProvenanceStamp](01-class-design.md) に `execution_id` 追加）
 

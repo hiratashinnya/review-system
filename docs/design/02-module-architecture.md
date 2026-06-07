@@ -105,6 +105,16 @@ tests/               # ④ 証跡（test-strategy のテーラリング先）
 | S5 事前 lint | `parsing/lint`（parser＝検証器） |
 | S6 版スタンプ | `io/cli` 合成ルートで採取し `ReviewReport.stamp` に注入 |
 
+## 実行・インポート規約（`sys.path` を触らない理由）
+
+- パッケージ `review_system/` を**正しい package 構造**（各階層に `__init__.py`、**絶対 import** `from review_system.core import ...`）にする。これだけで import は解決し、**`sys.path` 操作は不要**。
+- 起動は **`python -m review_system`**（`review_system/__main__.py` に CLI エントリ＝合成ルート）。テストは**リポジトリルートから `python -m unittest`**。どちらも CWD（ルート）が `sys.path[0]` に入るので `review_system` も `tests` も素直に import できる。
+- **`sys.path.insert(...)` 等のハックを使わない理由**：
+  1. **起動起点依存で壊れる**（どこから実行したかで解決が変わる）＝[13 S3](../requirements/13-stabilization.md) の再現性と逆行。
+  2. **import 解決が暗黙化**し、依存方向（`domain ← core ← …`）が grep で追えなくなる＝[依存ルール](#依存ルール最重要1枚)を侵食。
+  3. テストが**本物の package を出荷と同じ経路で import** するので seam を歪めない（[④ テスト戦略](README.md)）。
+- 配布が要るなら将来 `pyproject.toml` で `pip install -e .`（標準パッケージング）。それまでも `python -m` で完結し**追加依存ゼロ**（[Q5](../dashboard.md)）。`tests/` はルート直下に置き、path hack/`conftest` 不要。
+
 ## 決め事（実装の不変条件）
 - **`core` は副作用を持たない**：ファイル/ネットワーク/git は port 越し。これで `unittest` が**Fake アダプタ**で全関数決定的に回せる（[④ テスト戦略](README.md)の seam＝E）。
 - **境界を跨ぐ値は domain 型のみ**（生 `str`/`dict` を core の公開シグネチャに出さない）。
