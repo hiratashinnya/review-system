@@ -34,9 +34,9 @@
 | 8 | `ports`＋`adapters/fake` | PlatformPort/能力宣言＋FakePlatformAdapter（テスト seam） | ✅ |
 | 9 | `core/evaluate`（P3）＋`core/pipeline`（P1通し） | PF呼び→検証→仕分け→レポート＋版スタンプ。fail-close 直列 | ✅ TC-pipeline-001（6・e2e） |
 | 10 | `persistence`（criteria/policy ローダ） | parser拡張(Q24=A)＋criteria_repo（.md→ComposedRule・policy→PolicyMatrix）。git/ledgers は P2 で | ✅ TC-repo-001（4）／TC-parsing +2 |
-| 11 | `core/apply`（P5）＋report | 修正適用・finding単位commit・revert・HTMLレポート(DD10) | ⬜ |
-| 12 | `core/pipeline`＋`io/cli` | 段の直列(fail-close)・合成ルート・`reviewer` サブコマンド・version | ⬜ |
-| 13 | e2e（FakePlatform） | 受付→…→レポートの通し（同3点セット） | ⬜ |
+| 11 | `core/apply`（P5）＋report | HTMLレポート(DD10・review_id埋込・checkbox・feedback.json)=✅／git適用・revert は **P2 残**(#次) | 🟡 report ✅ / apply ⬜ |
+| 12 | `io/cli`（合成ルート） | `reviewer version`（版定数表示）・`review`→HTML。`python -m review_system` 実起動可 | ✅ TC-cli-001 |
+| 13 | e2e（CLI・FakePlatform） | `python -m review_system review …`→HTML 実生成。version も実行可 | ✅ TC-cli-001（4） |
 
 > **MVP外（実装しない・PR8 印）**：合成時警告(F11)・育成ループ(F12/13)・AI型推定(F15)・参照突き合わせ(F10)・異常系degrade(F16)・team/project scope(F17)。
 
