@@ -1,0 +1,11 @@
+test_conservation (tests.unit.test_pipeline_e2e.TestPipeline.test_conservation) ... ok
+test_empty_criteria_fail_close (tests.unit.test_pipeline_e2e.TestPipeline.test_empty_criteria_fail_close) ... ok
+test_happy_path_buckets (tests.unit.test_pipeline_e2e.TestPipeline.test_happy_path_buckets) ... ok
+test_no_type_fail_close (tests.unit.test_pipeline_e2e.TestPipeline.test_no_type_fail_close) ... ok
+test_reference_excluded (tests.unit.test_pipeline_e2e.TestPipeline.test_reference_excluded) ... ok
+test_version_stamp (tests.unit.test_pipeline_e2e.TestPipeline.test_version_stamp) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+OK
