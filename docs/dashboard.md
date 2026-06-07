@@ -18,6 +18,29 @@
 
 > 開発着手の前に、ここまでの設計プロセスを**資産化**（スキル/エージェント化）する → [methods/](methods/method-inventory.md)。
 
+## 🔨 実装進捗（MVP・TDD）— レート制限時の再開ポイント
+
+> 各層 commit→テスト→成績書(commit id)→push。証跡は `tests/{cases,reports,logs}`。再開時はこの表の最初の ⬜ から。
+
+| # | 層/モジュール | 内容 | 状態 |
+|---|---|---|---|
+| 1 | `domain`（基盤） | enums・result・ids・review・intake | ✅ TC-domain-001（22） |
+| 2 | `parsing` | 自前 mini-YAML パーサ＝S5 lint | ✅ TC-parsing-001（19） |
+| 3 | `domain/criteria`＋policy 型 | RuleMeta/ComposedRule/CriteriaPack/MetaIndex/PolicyMatrix/TriagedFinding 等 | ⬜ |
+| 4 | `ports` | PlatformPort・各 Repository（Protocol） | ⬜ |
+| 5 | `core/triage`（P4） | rule_id検証(S1)→参照除外→mode判定／未宣言は HUMAN_ONLY(S2) | ⬜ |
+| 6 | `core/compose`（P2・org最小） | org 読込→pack/meta 組立（方向ゲート/矛盾は post-MVP印） | ⬜ |
+| 7 | `core/intake`（P1） | 対象/参照集合・型確定（org固定・手動型・AI推定は MVP外） | ⬜ |
+| 8 | `prompts`＋`adapters/fake` | 雛形ビルダー＋FakePlatformAdapter（テスト用 seam） | ⬜ |
+| 9 | `core/evaluate`（P3） | PlatformPort 呼び→raw findings | ⬜ |
+| 10 | `persistence` | criteria_repo・workspace_git(S4)・warning/feedback/contradiction | ⬜ |
+| 11 | `core/apply`（P5）＋report | 修正適用・finding単位commit・revert・HTMLレポート(DD10) | ⬜ |
+| 12 | `core/pipeline`＋`io/cli` | 段の直列(fail-close)・合成ルート・`reviewer` サブコマンド・version | ⬜ |
+| 13 | e2e（FakePlatform） | 受付→…→レポートの通し（同3点セット） | ⬜ |
+
+> **MVP外（実装しない・PR8 印）**：合成時警告(F11)・育成ループ(F12/13)・AI型推定(F15)・参照突き合わせ(F10)・異常系degrade(F16)・team/project scope(F17)。
+
+
 ## 🔥 ネクストアクション（次にやる候補）
 
 | # | アクション | 目的 | 状態 |
