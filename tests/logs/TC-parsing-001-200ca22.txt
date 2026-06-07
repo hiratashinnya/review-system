@@ -1,0 +1,24 @@
+test_bad_determinism (tests.unit.test_parsing.TestLint.test_bad_determinism) ... ok
+test_bad_override (tests.unit.test_parsing.TestLint.test_bad_override) ... ok
+test_bad_severity (tests.unit.test_parsing.TestLint.test_bad_severity) ... ok
+test_duplicate_rule_id (tests.unit.test_parsing.TestLint.test_duplicate_rule_id) ... ok
+test_extends_missing_target (tests.unit.test_parsing.TestLint.test_extends_missing_target) ... ok
+test_missing_required_key (tests.unit.test_parsing.TestLint.test_missing_required_key) ... ok
+test_supported_major_newer_minor_ok (tests.unit.test_parsing.TestLint.test_supported_major_newer_minor_ok) ... ok
+test_unsupported_major (tests.unit.test_parsing.TestLint.test_unsupported_major) ... ok
+test_valid_ok (tests.unit.test_parsing.TestLint.test_valid_ok) ... ok
+test_anchor_rejected (tests.unit.test_parsing.TestParserSubset.test_anchor_rejected) ... ok
+test_comments_ignored (tests.unit.test_parsing.TestParserSubset.test_comments_ignored) ... ok
+test_flow_style_rejected (tests.unit.test_parsing.TestParserSubset.test_flow_style_rejected) ... ok
+test_hash_in_quotes_preserved (tests.unit.test_parsing.TestParserSubset.test_hash_in_quotes_preserved) ... ok
+test_missing_closing_fence (tests.unit.test_parsing.TestParserSubset.test_missing_closing_fence) ... ok
+test_multiline_scalar_rejected (tests.unit.test_parsing.TestParserSubset.test_multiline_scalar_rejected) ... ok
+test_normal (tests.unit.test_parsing.TestParserSubset.test_normal) ... ok
+test_odd_indent_rejected (tests.unit.test_parsing.TestParserSubset.test_odd_indent_rejected) ... ok
+test_scalar_types (tests.unit.test_parsing.TestParserSubset.test_scalar_types) ... ok
+test_tab_indent_rejected (tests.unit.test_parsing.TestParserSubset.test_tab_indent_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.002s
+
+OK
