@@ -23,6 +23,7 @@
 | DD12 | lint/revert 失敗の O-14 語彙 | `FailureStage` に `LINT` 追加・revert 対象なしは exit2（stage 不要） | [01](01-class-design.md)/[03](03-external-interfaces.md) |
 | DD13 | 自前 `FilePath` クラスの要否 | **廃止し `pathlib.Path`（stdlib）を使う**。突合キーは intake で正規化 | [01](01-class-design.md) |
 | DD14 | HTML レポート→CLI の往復（サーバ無し） | レポート内 JS が**フィードバック JSON を書き出し**、コマンドは review_id で同梱ファイルを解決 | [03](03-external-interfaces.md) |
+| DD15 | `ReviewReport` の形（実装時） | P1 は仕分け4区分（auto/approve/judge/unclassified）＋summary＋stamp を持つ。`applied`(ResolvedFix) は **P2(apply) で追加** | [01](01-class-design.md)/report.py |
 
 ---
 
