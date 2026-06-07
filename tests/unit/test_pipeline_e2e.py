@@ -33,8 +33,8 @@ def _deps(findings, unmatched=(), rules=None, policy=None):
         _rule("naming", Determinism.DETERMINISTIC), _rule("design", Determinism.JUDGMENT),
     )
     policy = policy or PolicyMatrix(
-        {Determinism.DETERMINISTIC: ApplicationMode.AUTO_FIX_LOG_ONLY,
-         Determinism.JUDGMENT: ApplicationMode.HUMAN_ONLY}, {})
+        {Determinism.DETERMINISTIC: {"*": ApplicationMode.AUTO_FIX_LOG_ONLY},
+         Determinism.JUDGMENT: {"*": ApplicationMode.HUMAN_ONLY}}, {})
     return Deps(
         platform=platform,
         load_criteria=lambda dt, sc: rules,

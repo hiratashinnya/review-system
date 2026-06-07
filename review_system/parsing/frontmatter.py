@@ -3,9 +3,9 @@
 [schema 対応文法](../../docs/schema/README.md)・[Q5a](../../docs/dashboard.md)・[DD7](../../docs/design/decisions.md)。
 パーサ＝検証器（S5）。**対応サブセット外は黙って通さず MiniYamlError で実行前 fail-close**。
 
-対応：マッピング `key: value`（key は小文字スネーク）／ブロック列 `- `／
+対応：マッピング `key: value`（key は小文字スネーク、または引用文字列 `"*"`/`'…'`）／ブロック列 `- `／
 スカラ（素文字列・"…"・'…'・10進整数・true/false・null）／行・行末コメント（引用内 `#` は除く）／
-インデントは半角スペース2刻みのみ（タブ禁止）。
+インデントは半角スペース2刻みのみ（タブ禁止）。ブロックのマッピング入れ子は深さ任意（policy の matrix で3段）。
 非対応（=エラー）：フロー `[]{}`・アンカー/エイリアス `&*`・複数行 `|>`・タグ `!!`・マージ `<<`・
 複数ドキュメント・3スペース等の奇数インデント・閉じ `---` 欠落。
 
@@ -90,6 +90,27 @@ def _strip_inline_comment(s: str) -> str:
     return "".join(out).rstrip()
 
 
+def _split_key_value(content: str, line_no: int) -> tuple[str, str]:
+    """`key: value` を分割。key は小文字スネーク、または引用文字列（`"*"` 等・Q24=A）。"""
+    if content[0] in "\"'":
+        q = content[0]
+        end = content.find(q, 1)
+        if end == -1:
+            raise MiniYamlError(line_no, "閉じられていないキーの引用符")
+        after = content[end + 1:].lstrip()
+        if not after.startswith(":"):
+            raise MiniYamlError(line_no, "引用キーの後に `:` が無い")
+        return content[1:end], after[1:].strip()
+    m = KEY.match(content)
+    if not m:
+        raise MiniYamlError(line_no, f"`key: value` 形式でない（非対応記法）: {content!r}")
+    return m.group(1), m.group(2).strip()
+
+
+def _looks_like_key(content: str) -> bool:
+    return bool(KEY.match(content)) or (bool(content) and content[0] in "\"'")
+
+
 def _parse_block(entries, i: int, indent: int):
     if i >= len(entries):
         return {}, i
@@ -109,10 +130,7 @@ def _parse_mapping(entries, i: int, indent: int):
             raise MiniYamlError(line_no, "想定外の深いインデント")
         if content.startswith("- "):
             raise MiniYamlError(line_no, "マッピング中にブロック列が現れた")
-        m = KEY.match(content)
-        if not m:
-            raise MiniYamlError(line_no, f"`key: value` 形式でない（非対応記法）: {content!r}")
-        key, rest = m.group(1), m.group(2).strip()
+        key, rest = _split_key_value(content, line_no)
         if rest == "":
             if i + 1 < len(entries) and entries[i + 1][1] > indent:
                 child, i = _parse_block(entries, i + 1, entries[i + 1][1])
@@ -141,7 +159,7 @@ def _parse_list(entries, i: int, indent: int):
         while j < len(entries) and entries[j][1] >= item_indent:
             sub.append(entries[j])
             j += 1
-        if sub and KEY.match(sub[0][2]):
+        if sub and _looks_like_key(sub[0][2]):
             value, _ = _parse_mapping(sub, 0, item_indent)
         elif first and not sub[0][2] == first:  # pragma: no cover
             value = _parse_scalar(first, line_no)

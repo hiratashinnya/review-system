@@ -118,5 +118,36 @@ class TestLint(unittest.TestCase):
         self.assertFalse(lint(bad, exists=lambda ref: False).ok)
 
 
+POLICY = """\
+scope: org
+extends: null
+version: "1.0"
+matrix:
+  deterministic:
+    "*": auto_fix_log_only
+  tradeoff:
+    "*": auto_fix_suggest
+  judgment:
+    "*": human_only
+overrides:
+  - rule: secret-in-code
+    mode: human_only
+"""
+
+
+class TestQ24Extension(unittest.TestCase):
+    """Q24=A：引用キー("*")＋3段ブロックネスト（policy の matrix）。flow は依然 非対応。"""
+
+    def test_quoted_star_key_and_3level(self):
+        d = parse_frontmatter(POLICY, is_markdown=False)
+        self.assertEqual(d["matrix"]["deterministic"]["*"], "auto_fix_log_only")
+        self.assertEqual(d["matrix"]["judgment"]["*"], "human_only")
+        self.assertEqual(d["overrides"][0]["rule"], "secret-in-code")
+
+    def test_flow_still_rejected(self):                  # flow は拡張しない（A の範囲外）
+        with self.assertRaises(MiniYamlError):
+            parse_frontmatter('scope: org\nm: { "*": x }\n', is_markdown=False)
+
+
 if __name__ == "__main__":
     unittest.main()

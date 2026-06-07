@@ -55,7 +55,8 @@ class TestExcludeReference(unittest.TestCase):
 
 class TestTriage(unittest.TestCase):
     def _policy(self, mapping=None, overrides=None):
-        return PolicyMatrix(mapping or {}, overrides or {})
+        wrapped = {det: {"*": mode} for det, mode in (mapping or {}).items()}
+        return PolicyMatrix(wrapped, overrides or {})
 
     def test_deterministic_auto(self):                   # 6
         idx = MetaIndex({RuleId("naming"): _meta(Determinism.DETERMINISTIC)})
