@@ -34,7 +34,7 @@
 | 8 | `ports`＋`adapters/fake` | PlatformPort/能力宣言＋FakePlatformAdapter（テスト seam） | ✅ |
 | 9 | `core/evaluate`（P3）＋`core/pipeline`（P1通し） | PF呼び→検証→仕分け→レポート＋版スタンプ。fail-close 直列 | ✅ TC-pipeline-001（6・e2e） |
 | 10 | `persistence`（criteria/policy ローダ） | parser拡張(Q24=A)＋criteria_repo（.md→ComposedRule・policy→PolicyMatrix）。git/ledgers は P2 で | ✅ TC-repo-001（4）／TC-parsing +2 |
-| 11 | `core/apply`（P5）＋report | HTMLレポート(DD10)＋内部git適用(finding単位commit/rollback=S4)＋revert✅。残=CLI の apply/revert/feedback 配線・実PFアダプタ | 🟡 機構✅ / CLI配線 ⬜ |
+| 11 | `core/apply`（P5）＋report＋CLI配線 | HTMLレポート＋内部git適用(S4)＋revert＋feedback(DS5)。`review`/`revert`/`feedback` は **レポートのパスだけ**(DD10/14)。実PF=FilePlatform(findings.json) | ✅ TC-cli-002（4） |
 | 12 | `io/cli`（合成ルート） | `reviewer version`（版定数表示）・`review`→HTML。`python -m review_system` 実起動可 | ✅ TC-cli-001 |
 | 13 | e2e（CLI・FakePlatform） | `python -m review_system review …`→HTML 実生成。version も実行可 | ✅ TC-cli-001（4） |
 
