@@ -9,17 +9,19 @@
 
 | # | 項目 | 成果物 | 状態 |
 |---|---|---|---|
-| A | モジュール／パッケージ構成と依存方向 | [02-module-architecture](02-module-architecture.md) | 🟢 着手 |
-| ② | 外部アクタ IF のシグネチャ（User/Reviewer/Maintainer） | 03-external-interfaces | ⬜ |
-| B | PF 駆動プロトコル＋公開ツールのシグネチャ（PF＝外部） | 04-platform-protocol | ⬜ |
-| C | 永続層（DS1–DS5）設計・内部 git ワークスペース（S4 実体） | 05-persistence | ⬜ |
-| ① | オーケストレーション（**スイムレーン付きフローチャート**） | 06-orchestration | ⬜ |
-| ③ | システムプロンプト設計（何をどこに・どう合成） | 07-system-prompts | ⬜ |
-| D | ロギング／バージョニング規約（stdout ダンプ・版スタンプ） | 08-logging-and-versioning | ⬜ |
-| ④ | テスト戦略（資産化＝`/test-strategy` をテーラリング） | `.claude/skills/test-strategy/`（テーラリング済）＋ `tests/`（証跡） | 🟢 着手 |
+| A | モジュール／パッケージ構成と依存方向 | [02-module-architecture](02-module-architecture.md) | ✅ |
+| ② | 外部アクタ IF のシグネチャ（User/Reviewer/Maintainer） | [03-external-interfaces](03-external-interfaces.md) | ✅ |
+| B | PF 駆動プロトコル＋公開ツールのシグネチャ（PF＝外部） | [04-platform-protocol](04-platform-protocol.md) | ✅ |
+| C | 永続層（DS1–DS5）設計・内部 git ワークスペース（S4 実体） | [05-persistence](05-persistence.md) | ✅ |
+| ① | オーケストレーション（**スイムレーン付きフローチャート**） | [06-orchestration](06-orchestration.md) | ✅ |
+| ③ | システムプロンプト設計（何をどこに・どう合成） | [07-system-prompts](07-system-prompts.md) | ✅ |
+| D | ロギング／バージョニング規約（stdout ダンプ・版スタンプ） | [08-logging-and-versioning](08-logging-and-versioning.md) | ✅ |
+| ④ | テスト戦略（資産化＝`/test-strategy` をテーラリング） | `.claude/skills/test-strategy/`（テーラリング済）＋ `tests/`（証跡） | ✅ 戦略確定 |
 
 > ① は**スイムレーン付きフローチャート**（Mermaid `flowchart` の `subgraph` をレーンに）で表現する（シーケンス図は使わない＝分岐/繰返しが見づらい）。
 > E（非決定ステップを決定化するテスト用シーム＝Fake アダプタ）は ④ に内包。
+> **設計判断ログ**＝[decisions.md](decisions.md)（DD1–DD9）。仕様で一意に決まらなかった点の暫定決定と影響範囲。
+> **次**：実装フェーズ（`tests/` 証跡の生成は実装と同時）。[01 クラス設計](01-class-design.md) へ `ExecutionId` 追加が要る（[DD6](decisions.md#dd6--executionid-の定義)）。
 
 ## 横断の約束（凍結セット全体に効く）
 - **依存は内向き**（[02](02-module-architecture.md)）：`domain ← core(ports) ← adapters/persistence/cli`。コアは PF/IO を知らない。

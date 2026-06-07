@@ -26,7 +26,7 @@
 | A2 | AI への入力設計を決める | 基準＋文書をどう渡すか / 長い文書・コードベースの扱い | 🟡 設計あり（[07](requirements/07-ai-input-design.md)）→レビュー待ち |
 | A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 確定 |
 | A4 | これまでの設計プロセスを資産化 | 案出し・イベントリスト・点検・価値分析などの手順/基準をスキル・エージェント化（[methods/](methods/method-inventory.md)） | 🟡 棚卸し済→構築計画あり |
-| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md) | 🟡 A＋④着手（残：②/B/C/①/③/D） |
+| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)。判断ログ＝[design/decisions](design/decisions.md) | ✅ 8項目確定（DD1–DD9 暫定決定）→ 実装フェーズへ |
 
 ## ❓ 未決事項（決めないと進めない論点）
 

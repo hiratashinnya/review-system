@@ -290,6 +290,14 @@ class FindingId:                           # revert/コミット粒度（Q3）
         return cls(finding.rule_id, finding.location)
 
 @dataclass(frozen=True, slots=True)
+class ExecutionId:                         # 1レビュー実行の識別子（DD6・design/05・08）
+    """版スタンプ(S6)と同素材で再現性に直結。RevertTarget の実行単位キー。"""
+    value: str
+    @classmethod
+    def of(cls, executed_at: str, criteria_hash: ContentHash) -> "ExecutionId":
+        return cls(f"{executed_at}-{criteria_hash.value[:12]}")
+
+@dataclass(frozen=True, slots=True)
 class ResolvedFix:
     finding_id: FindingId
     origin: FixOrigin
@@ -297,9 +305,10 @@ class ResolvedFix:
 
 @dataclass(frozen=True, slots=True)
 class ProvenanceStamp:                     # S6 版スタンプ
+    execution_id: ExecutionId              # DD6（design/08）。ログ/コミット/版を串刺し
     platform_id: str
     model_id: str
-    prompt_template_version: str
+    prompt_template_version: str           # 主＝"review:3"（DD7）
     criteria_content_hash: ContentHash
     executed_at: str                       # ISO8601
 
@@ -324,6 +333,7 @@ class RevertRequest:
 ```python
 @dataclass(frozen=True, slots=True)
 class AppliedCommit:                       # DS3
+    execution_id: ExecutionId              # DD6：実行単位 revert のキー
     finding_id: FindingId
     commit_ref: str
     applied_at: str
