@@ -1,6 +1,5 @@
 """TC-workspace-001: 内部 git ワークスペース（DS3・S4）。実 git を tmp で動かす。"""
 import shutil
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,6 +35,18 @@ class TestGitWorkspace(unittest.TestCase):
         self.repo.commit_fix(self.exec, "f1@a.py:1-1", "a.py", "step1\n")
         self.repo.rollback_execution(self.exec)
         self.assertEqual(self._content("a.py"), "uc = 0\n")   # 基準点へ全戻し
+
+    def test_commit_fix_rejects_absolute_path(self):     # #2/#3 パストラバーサル（絶対）
+        with self.assertRaises(ValueError):
+            self.repo.commit_fix(self.exec, "f@x", "/etc/evil", "boom\n")
+
+    def test_commit_fix_rejects_parent_escape(self):     # #2/#3 パストラバーサル（..）
+        with self.assertRaises(ValueError):
+            self.repo.commit_fix(self.exec, "f@x", "../escape.txt", "boom\n")
+
+    def test_open_rejects_absolute_path(self):           # #2 open も検証
+        with self.assertRaises(ValueError):
+            self.repo.open(ExecutionId("other"), {"/etc/evil": "x"})
 
 
 if __name__ == "__main__":

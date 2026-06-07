@@ -42,6 +42,19 @@ class TestApplyAuto(unittest.TestCase):
         self.assertIsInstance(out, Failure)
         self.assertEqual((self.repo.workdir(self.exec) / "a.py").read_text(), "uc = 0\n")  # 全戻し
 
+    def test_malicious_finding_path_fail_close(self):    # #2/#4：LLM 由来の脱出パス→fail-close＋rollback
+        out = apply_auto(self.exec,
+                         (_auto("naming", "a.py", "ok\n"), _auto("x", "../escape", "evil\n")),
+                         self.targets, self.repo, "now")
+        self.assertIsInstance(out, Failure)
+        self.assertEqual((self.repo.workdir(self.exec) / "a.py").read_text(), "uc = 0\n")
+        self.assertFalse((self.repo.workdir(self.exec).parent / "escape").exists())  # 外へ書かれない
+
+    def test_open_failure_fail_close(self):              # #4：open 自体の失敗も例外漏れせず Failure
+        out = apply_auto(ExecutionId("e2"), (_auto("naming", "a.py", "ok\n"),),
+                         {"/etc/evil": "x"}, self.repo, "now")
+        self.assertIsInstance(out, Failure)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,16 @@ _IDENT = [
 ]
 
 
+def _safe_join(wd: Path, rel: str) -> Path:
+    """`rel` を `wd` 配下の安全なパスに解決。絶対パス・`..` 脱出は ValueError（書込前に弾く）。"""
+    target = (wd / rel).resolve()
+    try:
+        target.relative_to(wd.resolve())
+    except ValueError:
+        raise ValueError(f"ワークスペース外への書込は不可: {rel!r}")
+    return target
+
+
 class GitWorkspaceRepository:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -33,7 +43,7 @@ class GitWorkspaceRepository:
         wd = self.workdir(exec_id)
         wd.mkdir(parents=True, exist_ok=True)
         for rel, content in files.items():
-            p = wd / rel
+            p = _safe_join(wd, rel)             # 脱出パスは拒否（防御の二重化）
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
         self._run(wd, "init", "-q")
@@ -44,15 +54,18 @@ class GitWorkspaceRepository:
     def commit_fix(self, exec_id: ExecutionId, finding_id: str, rel_path: str, new_content: str) -> str:
         """1 finding 分の修正を書き込み、finding 単位でコミットして commit ref を返す。"""
         wd = self.workdir(exec_id)
-        (wd / rel_path).write_text(new_content, encoding="utf-8")
-        self._run(wd, "add", rel_path)
+        target = _safe_join(wd, rel_path)        # LLM 由来の脱出パスをここで弾く（[10]）
+        target.write_text(new_content, encoding="utf-8")
+        self._run(wd, "add", str(target.relative_to(wd.resolve())))
         self._run(wd, *_IDENT, "commit", "-q", "-m", f"{exec_id.value} {finding_id}")
         return self._head(wd)
 
     def rollback_execution(self, exec_id: ExecutionId) -> None:
         """実行内のいずれかが失敗 → 基準点へ全戻し（書込ゼロ＝S4 all-or-nothing）。"""
-        wd = self.workdir(exec_id)
-        self._run(wd, "reset", "--hard", "-q", self._baseline[exec_id.value])
+        baseline = self._baseline.get(exec_id.value)
+        if baseline is None:                     # 基準点が無い（open 失敗等）＝戻すものが無い
+            return
+        self._run(self.workdir(exec_id), "reset", "--hard", "-q", baseline)
 
     def revert(self, exec_id: ExecutionId, commit_ref: str) -> None:
         """指定コミットを revert（個別 finding／実行ぶんを戻す＝O-6）。"""

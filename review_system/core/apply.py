@@ -19,10 +19,14 @@ def apply_auto(
     workspace,
     now: str,
 ) -> StageOutcome[tuple[AppliedCommit, ...]]:
-    """🤖 区分を内部 git に適用。失敗時は基準点へ全戻し（書込ゼロ）。"""
-    workspace.open(exec_id, targets)
+    """🤖 区分を内部 git に適用。失敗時は基準点へ全戻し（書込ゼロ）。
+
+    open() も含めて try 内で受ける（open 失敗も fail-close）。rollback は best-effort で、
+    二次例外が原因例外を潰さないようにする（S4 の「書込ゼロ」を例外漏れ無しで保つ）。
+    """
     commits: list[AppliedCommit] = []
     try:
+        workspace.open(exec_id, targets)
         for tf in auto:
             fix = tf.finding.suggested_fix
             if fix is None:                      # 修正案が無い 🤖 はスキップ（適用対象外）
@@ -33,6 +37,9 @@ def apply_auto(
             commits.append(AppliedCommit(exec_id, key, ref, now))
         return ok(tuple(commits))
     except Exception as e:                        # S4：途中失敗→実行ぶんを巻き戻す
-        workspace.rollback_execution(exec_id)
+        try:
+            workspace.rollback_execution(exec_id)
+        except Exception:                         # 二次例外で原因を潰さない
+            pass
         return fail(FailureStage.APPLY, f"自動適用に失敗: {e}", None,
                     "実行ぶんを基準点へ戻した（書込ゼロ）。手動確認を")
