@@ -3,9 +3,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .enums import DocumentType
+from .enums import DocumentType, ApplicationMode, TriageBucket
 from .ids import Location, RuleId, Scope
 from pathlib import Path
+
+_MODE_TO_BUCKET = {
+    ApplicationMode.AUTO_FIX_LOG_ONLY: TriageBucket.AUTO,
+    ApplicationMode.AUTO_FIX_SUGGEST: TriageBucket.APPROVE,
+    ApplicationMode.HUMAN_ONLY: TriageBucket.JUDGE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,3 +55,21 @@ class UnmatchedFinding:                     # O-7 ❓未分類
     description: str
     location: Location
     suggested_fix: SuggestedFix | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TriagedFinding:                       # P4.3 出力：finding＋適用モード
+    finding: Finding
+    mode: ApplicationMode
+
+    @property
+    def bucket(self) -> TriageBucket:       # mode から決定的に導出（状態を持たない）
+        return _MODE_TO_BUCKET[self.mode]
+
+
+@dataclass(frozen=True, slots=True)
+class TriageResult:                         # 4区分の束
+    auto: tuple[TriagedFinding, ...]
+    approve: tuple[TriagedFinding, ...]
+    judge: tuple[TriagedFinding, ...]
+    unclassified: tuple[UnmatchedFinding, ...]
