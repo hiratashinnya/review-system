@@ -33,7 +33,7 @@
 | 7 | `core/intake`（P1） | 対象/参照集合・型確定（org固定・手動型・AI推定は MVP外） | ✅ TC-intake-001（1・純粋部） |
 | 8 | `ports`＋`adapters/fake` | PlatformPort/能力宣言＋FakePlatformAdapter（テスト seam） | ✅ |
 | 9 | `core/evaluate`（P3）＋`core/pipeline`（P1通し） | PF呼び→検証→仕分け→レポート＋版スタンプ。fail-close 直列 | ✅ TC-pipeline-001（6・e2e） |
-| 10 | `persistence` | criteria_repo・workspace_git(S4)・warning/feedback/contradiction | ⬜ |
+| 10 | `persistence` | criteria_repo・workspace_git(S4)・ledgers | 🛑 **Q24 でブロック**（policy 記法）。criteria(.md)ローダは着手可 |
 | 11 | `core/apply`（P5）＋report | 修正適用・finding単位commit・revert・HTMLレポート(DD10) | ⬜ |
 | 12 | `core/pipeline`＋`io/cli` | 段の直列(fail-close)・合成ルート・`reviewer` サブコマンド・version | ⬜ |
 | 13 | e2e（FakePlatform） | 受付→…→レポートの通し（同3点セット） | ⬜ |
@@ -62,6 +62,7 @@
 | Q5 | 技術スタック | **確定：アプリ本体＝Python・原則標準ライブラリのみ**（外部依存は最小）。AI レイヤは外部 PF へ委譲済み（[11](requirements/11-platform-adapter.md)）。git は `subprocess` で CLI 呼び。**Q5a 確定＝自前の最小フロントマターパーサ**（stdlib のみ・PyYAML 不採用）：対応文法を**意図的に小さく固定**（フラット key:value＋単純リスト＋override の1段ネスト）し、**範囲外は S5 lint で fail-close**。**パーサが検証器(S5)を兼ねる**。要：対応文法を [schema](schema/README.md) に明文化 | 🟢 確定（Q5a＝自前パーサ） |
 | Q22 | PF 能力差の吸収 | 当面はファイル適用・ツール実行の2能力をシステム代替できれば十分（気にしすぎない）。別途、**自前実装の方がコントロールしやすい範囲が無いかを調査**＝[11](requirements/11-platform-adapter.md) に build-vs-delegate のたたき台 | 🟡 当面OK／要調査 |
 | Q23 | 双方向の口の境界・順序ガード | PF→System の実装は **CLI＋stdout でシステムが制御フローを流し順序を握る**（起動プロンプトは「起動方法＋入力＋指示に従え」の最小）。どの関数を公開するか・適用前検証の強制は本番でツール側ガード。MVP は stdout 指示で軽量に担保（[11](requirements/11-platform-adapter.md)） | 🟡 MVP方針あり |
+| **Q24** | **ポリシー記法 ↔ パーサ非対応（矛盾）** | [schema](schema/README.md) の policy 例が**フロー `{ "*": mode }`＋`*` キー**で、Q5a の mini-YAML サブセット（フロー/`*`/3段ネスト非対応）で**読めない**。実装で発覚。原案＝**(B) policy を `determinism: mode` のブロック平坦形に再設計**（MVP の `PolicyMatrix` は既に determinism→mode で severity 不使用＝損失なし／パーサ拡張不要）。代替＝(A) パーサ拡張（引用キー＋3段ブロック・Q5a を広げる）。**推奨 B**。要オーナー判断 | 🛑 **要決定**（実装ブロッカー・[decisions DD16案](design/decisions.md)） |
 | Q6 | 無効化の責務の二重化 | 事実(基準)と好み(ポリシー)を混ぜない＋方向ゲート制で整理。緩めはポリシー/承認経由、完全オフは `enabled` に一本化 | 🟢 方針合意（明文化済み） |
 | Q7 | LLM の id 誤付与のフォールバック | **第4区分「❓ 未分類」として surfacing**。自動仕分けせず、人の確認＋新ルール候補（育成）へ。未分類化は2経路＝(a)LLM自己申告 (b)**rule_id がパックに無いものをプログラムが検証して回送**（[09](requirements/09-processing-pipeline.md)⑤） | 🟢 確定 |
 | Q8 | `category` の語彙 | **enum 強制はしない（テキスト編集できる以上、非現実的）**。自由記述＋**推奨語彙（ソフト規約）**で運用、集計は存在する文字列でグループ化。AI クラスタリングによる正規化提案は MVP 不要＝将来の育成機能候補（[schema](schema/README.md)） | 🟢 確定（ソフト規約） |
