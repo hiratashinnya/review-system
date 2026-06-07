@@ -73,3 +73,10 @@ class TriageResult:                         # 4区分の束
     approve: tuple[TriagedFinding, ...]
     judge: tuple[TriagedFinding, ...]
     unclassified: tuple[UnmatchedFinding, ...]
+
+
+def finding_key(finding: Finding) -> str:
+    """finding 安定キー（rule_id@file:start-end）。レポート/feedback.json/commit の突合用。"""
+    lr = finding.location.line_range
+    span = f":{lr.start_line}-{lr.end_line}" if lr else ""
+    return f"{finding.rule_id.value}@{finding.location.file}{span}"

@@ -22,6 +22,14 @@ class ProvenanceStamp:                     # S6 版スタンプ
 
 
 @dataclass(frozen=True, slots=True)
+class AppliedCommit:                        # DS3：1 finding の適用コミット（revert キー）
+    execution_id: ExecutionId
+    finding_key: str
+    commit_ref: str
+    applied_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class ReportSummary:
     auto_count: int
     approve_count: int
