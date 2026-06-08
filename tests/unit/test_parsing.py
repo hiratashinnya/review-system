@@ -149,5 +149,21 @@ class TestQ24Extension(unittest.TestCase):
             parse_frontmatter('scope: org\nm: { "*": x }\n', is_markdown=False)
 
 
+class TestMajorOf(unittest.TestCase):
+    """M2：version は MAJOR.MINOR 形式のみ受理（ドット無しは不可）。"""
+
+    def test_requires_dotted_form(self):
+        from review_system.parsing.lint import major_of
+        self.assertEqual(major_of("1.0"), 1)
+        self.assertEqual(major_of("2.13"), 2)
+        self.assertIsNone(major_of("1"))        # ドット無し → 不可
+        self.assertIsNone(major_of("1."))       # MINOR 欠落 → 不可
+        self.assertIsNone(major_of("x.y"))      # 非数字 → 不可
+
+    def test_lint_rejects_bare_integer_version(self):
+        bad = VALID.replace('version: "1.0"', 'version: "1"')
+        self.assertFalse(lint(bad).ok)
+
+
 if __name__ == "__main__":
     unittest.main()

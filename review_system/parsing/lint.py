@@ -5,8 +5,12 @@ id 一意性・version の MAJOR 対応・extends 先の存在。失敗は O-14 
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable
+
+# version は MAJOR.MINOR(.PATCH…) のドット形式のみ（各成分が数字）＝M2
+_VERSION = re.compile(r"(\d+)(?:\.\d+)+")
 
 # 対応する MAJOR（コメントでなく定数＝reviewer version / lint / 版スタンプの単一ソース・DD7）
 SUPPORTED_CRITERIA_MAJOR: frozenset[int] = frozenset({1})
@@ -34,11 +38,15 @@ class CriteriaLintResult:
 
 
 def major_of(version: object) -> int | None:
-    """`"MAJOR.MINOR"` 文字列から MAJOR(int) を取り出す。読めなければ None。"""
+    """`"MAJOR.MINOR"` 文字列から MAJOR(int) を取り出す（DD7）。
+
+    MAJOR.MINOR の**ドット形式（各成分が数字）以外は受理しない**（M2）。
+    例：`"1.0"`→1、`"1"`/`"1."`/`"x.y"`→None（lint で fail-close）。
+    """
     if not isinstance(version, str):
         return None
-    head = version.split(".", 1)[0].strip()
-    return int(head) if head.isdigit() else None
+    m = _VERSION.fullmatch(version.strip())
+    return int(m.group(1)) if m else None
 
 
 def lint_criteria(parsed: dict, *, exists: Callable[[str], bool]) -> CriteriaLintResult:
