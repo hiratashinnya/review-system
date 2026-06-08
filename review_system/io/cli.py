@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -137,7 +138,13 @@ def _cmd_revert(args) -> int:
     repo = GitWorkspaceRepository(WORKSPACE)
     exec_id = ExecutionId(rid)
     for ref in reversed(refs):                  # 新しい順に戻す
-        repo.revert(exec_id, ref)
+        try:                                    # #10：git 失敗（衝突/不正 ref/workdir 破損）を fail-close
+            repo.revert(exec_id, ref)
+        except (subprocess.CalledProcessError, OSError) as e:
+            print(f"O-14 [apply] revert に失敗（{ref}）: {e} "
+                  f"-> 一部のみ revert された可能性。ワークスペースを手動確認のこと",
+                  file=sys.stderr)
+            return EXIT_FAILCLOSE
     print(f"reverted {len(refs)} commit(s) for {rid}")
     return EXIT_OK
 
