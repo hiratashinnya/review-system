@@ -100,6 +100,14 @@ class TestCriteriaRepo(unittest.TestCase):
         self.assertTrue(all(r.provenance.inheritance_layer == InheritanceLayer.ORG
                             for r in rules))
 
+    def test_discover_excludes_typo_scope(self):         # #12 Copilot：scope の typo/欠落は fail-close
+        typo = CRITERIA.replace("scope: org", "scope: orgg")     # 打ち間違い
+        (self.dir / "typo.md").write_text(typo, encoding="utf-8")
+        missing = CRITERIA.replace("scope: org\n", "")           # scope 行を欠落
+        (self.dir / "missing.md").write_text(missing, encoding="utf-8")
+        rules = R.discover_criteria(self.dir, DocumentType.CODE, Scope.org())
+        self.assertEqual(len(rules), 2)                  # org 完全一致のみ（typo/欠落は org に化けない）
+
 
 if __name__ == "__main__":
     unittest.main()
