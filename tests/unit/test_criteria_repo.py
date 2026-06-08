@@ -92,6 +92,14 @@ class TestCriteriaRepo(unittest.TestCase):
         spec = R.discover_criteria(self.dir, DocumentType.SPEC, Scope.org())
         self.assertEqual(len(spec), 0)                   # doc_type 不一致は拾わない
 
+    def test_discover_filters_by_scope(self):            # #8：同 doc_type でも別 scope は拾わない
+        team = CRITERIA.replace("scope: org", "scope: team:x")
+        (self.dir / "team.md").write_text(team, encoding="utf-8")
+        rules = R.discover_criteria(self.dir, DocumentType.CODE, Scope.org())
+        self.assertEqual(len(rules), 2)                  # org の 2 ルールのみ（team 分は混入しない）
+        self.assertTrue(all(r.provenance.inheritance_layer == InheritanceLayer.ORG
+                            for r in rules))
+
 
 if __name__ == "__main__":
     unittest.main()
