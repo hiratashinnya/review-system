@@ -14,9 +14,9 @@ from ..domain.ids import Scope, ExecutionId
 from ..domain.criteria import ComposedRule
 from ..domain.policy import PolicyMatrix
 from ..domain.intake import resolve_document_type
-from ..domain.result import StageOutcome, FailureStage, ok, fail
+from ..domain.result import StageOutcome, FailureStage, Success, Failure, ok, fail
 from ..domain.report import ReviewReport, ReportSummary, ProvenanceStamp
-from ..ports.platform import PlatformPort, ReviewRequest
+from ..ports.platform import SafePlatformPort, ReviewRequest
 from . import compose, evaluate, triage
 from .intake import build_intake
 
@@ -26,7 +26,7 @@ from ..prompts.registry import REVIEW_VERSION as _PROMPT_TEMPLATE_VERSION
 
 @dataclass(frozen=True, slots=True)
 class Deps:
-    platform: PlatformPort
+    platform: SafePlatformPort        # ガード済み PF（例外を投げない・M1）
     load_criteria: Callable[[DocumentType, Scope], tuple[ComposedRule, ...]]
     load_policy: Callable[[Scope], PolicyMatrix]
     now: Callable[[], str]
@@ -47,8 +47,12 @@ def run_review(req: ReviewRequest, deps: Deps) -> StageOutcome[ReviewReport]:
                     None, "criteria/ に該当 doc_type の観点を用意")
     pack, meta = compose.build_pack_and_meta(rules)
 
-    # P3 評価（PF・アダプタ越し）
-    raw = evaluate.evaluate(pack, nz, deps.platform)
+    # P3 評価（ガード済み PF・例外は Failure(EVALUATE) で受ける＝M1/S3）
+    match evaluate.evaluate(pack, nz, deps.platform):
+        case Failure() as f:
+            return f
+        case Success(raw):
+            pass
 
     # P4 検証(S1)→参照除外→仕分け(S2)
     valid, unc_from_id = triage.validate(raw.findings, pack)

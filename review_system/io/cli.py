@@ -21,6 +21,7 @@ from ..domain.result import Success, Failure
 from ..ports.platform import ReviewRequest, RawReviewResponse
 from ..adapters.fake import FakePlatformAdapter
 from ..adapters.file_platform import FilePlatformAdapter
+from ..adapters.guard import GuardingPlatform
 from ..parsing.lint import SUPPORTED_CRITERIA_MAJOR, SUPPORTED_POLICY_MAJOR
 from ..prompts.registry import TEMPLATE_VERSIONS
 from ..persistence.criteria_repo import discover_criteria, load_policy_file
@@ -92,8 +93,9 @@ def _cmd_review(args) -> int:
         type_override=DocumentType(args.type_),
         scope=Scope.org(),
     )
-    platform = (FilePlatformAdapter(Path(args.findings)) if args.findings
-                else FakePlatformAdapter(RawReviewResponse((), ())))
+    adapter = (FilePlatformAdapter(Path(args.findings)) if args.findings
+               else FakePlatformAdapter(RawReviewResponse((), ())))
+    platform = GuardingPlatform(adapter)        # PF 境界のガード（例外→fail-close・M1）
     deps = Deps(
         platform=platform,
         load_criteria=lambda dt, sc: discover_criteria(Path(args.criteria), dt, sc),

@@ -38,6 +38,7 @@ class PlatformCapabilities:
 ```
 
 - **能力差はシステムが吸収**（[11](../requirements/11-platform-adapter.md) の表）：`file_apply`/`tool_execution` 無しは自前代替。**`structured_output` だけは必須**（[DD8](decisions.md#dd8--構造化出力の強制q22-グレーゾーン)・Q22）。
+- **PF 例外の fail-close はガードプロキシで（[DD17](decisions.md)）**：アダプタ（翻訳・例外を投げ得る）を **`GuardingPlatform`（プロキシ）** で包み、`review()` を `StageOutcome` 返しにして例外を `Failure(EVALUATE)` に変換。`core` は **`SafePlatformPort`（例外を投げない）** だけに依存し、try/catch を持たない（門番は1箇所）。「PF を信用しない」[10] 不変条件を構造で担保。
 - アダプタ選択は registry ファクトリ `make_adapter(platform_id) -> PlatformPort`（[01 §6](01-class-design.md)）。階層は〔agentic PF → raw API → self-host〕で必要に応じ降りる（[11](../requirements/11-platform-adapter.md)）。
 
 ### L1 出力スキーマ（strict・[13 S1](../requirements/13-stabilization.md)）

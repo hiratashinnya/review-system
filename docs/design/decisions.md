@@ -25,6 +25,7 @@
 | DD14 | HTML レポート→CLI の往復（サーバ無し） | レポート内 JS が**フィードバック JSON を書き出し**、コマンドは review_id で同梱ファイルを解決 | [03](03-external-interfaces.md) |
 | DD15 | `ReviewReport` の形（実装時） | P1 は仕分け4区分（auto/approve/judge/unclassified）＋summary＋stamp を持つ。`applied`(ResolvedFix) は **P2(apply) で追加** | [01](01-class-design.md)/report.py |
 | DD16 | Q24 解決＝パーサ拡張（オーナー決定 A） | mini-YAML に**引用キー（`"*"`）＋3段ブロックネスト**を追加（flow は非対応のまま）。policy はブロック形。schema の文法表/例を先に更新してから実装 | [schema](../schema/README.md)/parsing |
+| DD17 | PF 例外の fail-close 化＝**ガードプロキシ**（オーナー決定） | アダプタ（翻訳・PF差し替え性）は残し、その前に **`GuardingPlatform`（プロキシ）** を1枚。`review()` を `StageOutcome` 返しにし try/catch→`Failure(EVALUATE)`。core は `SafePlatformPort`（例外を投げない）に依存。「PF を信用しない」責務を境界1箇所へ集約（[10]/S3・M1） | [04](04-platform-protocol.md)/adapters/core |
 
 ---
 

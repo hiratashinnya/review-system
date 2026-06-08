@@ -10,8 +10,9 @@ from review_system.domain.criteria import RuleMeta, RuleGuidance, ComposedRule
 from review_system.domain.policy import PolicyMatrix
 from review_system.domain.review import SourceFile, Finding, UnmatchedFinding
 from review_system.domain.result import Success, Failure
-from review_system.ports.platform import ReviewRequest, RawReviewResponse
+from review_system.ports.platform import ReviewRequest, RawReviewResponse, PlatformCapabilities
 from review_system.adapters.fake import FakePlatformAdapter
+from review_system.adapters.guard import GuardingPlatform
 from review_system.core.pipeline import Deps, run_review
 
 
@@ -27,8 +28,8 @@ def _loc(f="a.py"):
     return Location(Path(f), LineRange(1, 1))
 
 
-def _deps(findings, unmatched=(), rules=None, policy=None):
-    platform = FakePlatformAdapter(RawReviewResponse(findings, unmatched))
+def _deps(findings, unmatched=(), rules=None, policy=None, platform=None):
+    platform = platform or GuardingPlatform(FakePlatformAdapter(RawReviewResponse(findings, unmatched)))
     rules = rules if rules is not None else (
         _rule("naming", Determinism.DETERMINISTIC), _rule("design", Determinism.JUDGMENT),
     )
@@ -88,6 +89,15 @@ class TestPipeline(unittest.TestCase):
         req = _request(references=(SourceFile(Path("ref.py"), "y"),))
         rep = run_review(req, _deps(findings)).value
         self.assertEqual(len(rep.auto), 0)               # 参照のパスは除外
+
+    def test_pf_exception_fail_close(self):              # 7（M1）：PF 例外→fail-close（クラッシュしない）
+        class _Raising:
+            def capabilities(self):
+                return PlatformCapabilities(True, False, False, "m", "raise")
+            def review(self, *a):
+                raise ValueError("壊れた PF 出力")
+        out = run_review(_request(), _deps((), platform=GuardingPlatform(_Raising())))
+        self.assertIsInstance(out, Failure)
 
 
 if __name__ == "__main__":
