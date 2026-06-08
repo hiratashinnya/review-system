@@ -59,11 +59,12 @@ def discover_criteria(
     criteria_dir: Path, doc_type: DocumentType, scope: Scope
 ) -> tuple[ComposedRule, ...]:
     """ディレクトリ内の同 doc_type の基準ファイルを union（MVP は org のみ）。"""
+    want_scope = _scope_token(scope)             # doc_type と対称に完全一致でフィルタ
     found: list[ComposedRule] = []
     for path in sorted(criteria_dir.glob("*.md")):
         fm = parse_frontmatter(path.read_text(encoding="utf-8"), is_markdown=True)
-        # doc_type ＋ scope の両方で絞る（#8：同 dir の別 scope 混入を防ぐ。MVP は org 限定）。
-        if fm.get("doc_type") == doc_type.value and _layer_of(fm.get("scope")) is scope.layer:
+        # doc_type ＋ scope の両方を完全一致で絞る（#8/#12：別 scope・typo/欠落の混入を fail-close）。
+        if fm.get("doc_type") == doc_type.value and fm.get("scope") == want_scope:
             found.extend(load_criteria_file(path))
     return tuple(found)
 
@@ -94,6 +95,11 @@ def _extract_sections(body: str) -> dict[str, str]:
     if current is not None:
         sections[current] = "\n".join(buf).strip()
     return sections
+
+
+def _scope_token(scope: Scope) -> str:
+    """Scope を frontmatter の `scope` 文字列（org / team:x / project:y）に直す。"""
+    return scope.layer.value if scope.name is None else f"{scope.layer.value}:{scope.name}"
 
 
 def _layer_of(scope_token: object) -> InheritanceLayer:
