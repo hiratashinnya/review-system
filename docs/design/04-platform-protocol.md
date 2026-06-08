@@ -41,6 +41,22 @@ class PlatformCapabilities:
 - **PF 例外の fail-close はガードプロキシで（[DD17](decisions.md)）**：アダプタ（翻訳・例外を投げ得る）を **`GuardingPlatform`（プロキシ）** で包み、`review()` を `StageOutcome` 返しにして例外を `Failure(EVALUATE)` に変換。`core` は **`SafePlatformPort`（例外を投げない）** だけに依存し、try/catch を持たない（門番は1箇所）。「PF を信用しない」[10] 不変条件を構造で担保。
 - アダプタ選択は registry ファクトリ `make_adapter(platform_id) -> PlatformPort`（[01 §6](01-class-design.md)）。階層は〔agentic PF → raw API → self-host〕で必要に応じ降りる（[11](../requirements/11-platform-adapter.md)）。
 
+```python
+# ports/platform.py（DD17）：core が依存するのは SafePlatformPort（例外を投げない）
+class SafePlatformPort(Protocol):
+    def capabilities(self) -> PlatformCapabilities: ...
+    def review(self, pack, targets, references) -> StageOutcome[RawReviewResponse]: ...
+
+# adapters/guard.py：アダプタ（PlatformPort・例外を投げ得る）を包む門番プロキシ
+class GuardingPlatform:                     # SafePlatformPort 実装
+    def __init__(self, inner: PlatformPort) -> None: self._inner = inner
+    def capabilities(self): return self._inner.capabilities()
+    def review(self, pack, targets, references) -> StageOutcome[RawReviewResponse]:
+        try:    return ok(self._inner.review(pack, targets, references))
+        except Exception as e:  return fail(FailureStage.EVALUATE, f"PF 評価に失敗: {e}", None, "…")
+# 合成ルート：GuardingPlatform(make_adapter(platform_id)) と結線
+```
+
 ### L1 出力スキーマ（strict・[13 S1](../requirements/13-stabilization.md)）
 
 ```jsonc

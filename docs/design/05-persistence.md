@@ -60,15 +60,19 @@ class FeedbackStore(Protocol):            # DS5
 ```python
 class GitWorkspaceRepository:
     def open(self, exec_id, targets):
-        # .review-workspace/<exec_id>/ に対象を複製 → git init → git add -A → 初期コミット（基準点）
-    def commit_fix(self, fix) -> AppliedCommit:
-        # diff 適用 → git add <file> → git commit -m "<exec_id> <finding_id>"（finding 単位・Q3）
-        # commit_ref と finding_id を AppliedCommit で返す
+        # workdir を**作り直して**（既存は rmtree＝残骸排除）対象を複製 → git init → 基準点コミット
+        # 展開した対象集合を保持（commit_fix の書込許可セット）
+    def commit_fix(self, exec_id, finding_key, rel_path, new_content) -> AppliedCommit:
+        # _safe_join で絶対/`..` 脱出を拒否（[10]）＋ **対象集合に在る rel のみ許可**（対象外は ValueError）
+        # 書込 → git add <rel> → git commit -m "<exec_id> <finding_key>"（finding 単位・Q3）
     def rollback_execution(self, exec_id):
         # 実行内のどこかで失敗 → git reset --hard <基準点>（適用済みも含め書込ゼロ＝all-or-nothing）
+        # 基準点未設定（open 失敗等）なら no-op（二次例外で原因を潰さない）
     def revert(self, target):
         # finding: 当該 commit を git revert / exec: その実行の全 commit を revert / all: 基準点へ
 ```
+
+> **書込の不変条件（Copilot 指摘 N1/[10]）**：`commit_fix` は (a) ワークスペース外（絶対/`..`）と (b) **評価対象集合に無いパス**の両方を拒否する。LLM 由来の `location.file` が対象外/脱出を指しても、対象外への作成・改変は起きない。`open` は毎回作り直して**過去実行の残骸混入**を防ぐ。
 
 | S4 受け入れ基準 | 実装 |
 |---|---|

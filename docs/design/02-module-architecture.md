@@ -50,7 +50,7 @@ review_system/
     apply.py         #   ResolvedFix / FindingId / ReviewReport / RevertRequest
     result.py        #   Success / Failure / StageOutcome / FailureNotice（S3）
   ports/             # 抽象IF（core が依存する“穴”）
-    platform.py      #   PlatformPort（review/contradiction/type/merge/draft …L1–L6）＋ PlatformCapabilities
+    platform.py      #   PlatformPort（翻訳・raw）／SafePlatformPort（例外を投げない・core 依存先・DD17）＋ PlatformCapabilities
     repositories.py  #   CriteriaRepository(DS1) / WorkspaceRepository(DS3) /
                      #   WarningLedger(DS4) / FeedbackStore(DS5) / ContradictionCache(DS2)
   core/              # P1–P6 のユースケース（決定的・純粋）
@@ -68,9 +68,11 @@ review_system/
   prompts/           # ③ システムプロンプト雛形＋ビルダー
     templates/       #   役割制約・出力スキーマ等（版付き）
     builder.py       #   ReviewPromptBuilder
-  adapters/          # PlatformPort 実装
-    claude_code.py   #   ClaudeCodeAdapter（CLI＋stdout）
+  adapters/          # PlatformPort 実装（翻訳）＋ ガードプロキシ
+    claude_code.py   #   ClaudeCodeAdapter（CLI＋stdout・将来）
+    file_platform.py #   FilePlatformAdapter（findings.json を読む＝PF駆動MVPの実体）
     fake.py          #   FakePlatformAdapter（テスト用 record/replay＝E のシーム）
+    guard.py         #   GuardingPlatform（プロキシ：例外→Failure(EVALUATE)・DD17）
   persistence/       # Repository 実装（filesystem・内部 git）
     criteria_repo.py #   DS1 ディスカバリ/ロード
     workspace_git.py #   DS3 finding 単位コミット・revert（S4 トランザクション）

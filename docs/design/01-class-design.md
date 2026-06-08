@@ -311,18 +311,26 @@ class ProvenanceStamp:                     # S6 版スタンプ
     execution_id: ExecutionId              # DD6（design/08）。ログ/コミット/版を串刺し
     platform_id: str
     model_id: str
-    prompt_template_version: str           # 主＝"review:3"（DD7）
+    prompt_template_version: str           # 主＝"review:3.1"（DD7・registry.REVIEW_VERSION 単一ソース）
     criteria_content_hash: ContentHash
-    executed_at: str                       # ISO8601
+    executed_at: str                       # ISO8601（microseconds・review_id 衝突回避）
 
 @dataclass(frozen=True, slots=True)
-class ReviewReport:                        # O-1（コンテナ）。ビルダーで組む（§6）。HTML へレンダ（DD10）
-    applied: tuple[ResolvedFix, ...]
-    diffs_to_approve: tuple[TriagedFinding, ...]
-    drafts_to_judge: tuple[TriagedFinding, ...]
-    unclassified: tuple[UnmatchedFinding, ...]
+class ReviewReport:                        # O-1（コンテナ）。HTML へレンダ（DD10）。実装＝DD15
+    auto: tuple[TriagedFinding, ...]       # 🤖（P1 は未適用／P2 で apply→applied 化）
+    approve: tuple[TriagedFinding, ...]    # ✋ 要承認
+    judge: tuple[TriagedFinding, ...]      # 💬 要判断
+    unclassified: tuple[UnmatchedFinding, ...]  # ❓ 未分類
     summary: "ReportSummary"
     stamp: ProvenanceStamp                 # stamp.execution_id ＝ review_id（HTML に埋込・DS3 フォルダと同 id・DD10/DD14）
+    # 注（DD15）：P1 は上記4区分を持つ。P2(apply) で `applied: tuple[ResolvedFix, ...]` を追加する。
+
+@dataclass(frozen=True, slots=True)
+class ReportSummary:                       # 件数サマリ（TriageResult から派生）
+    auto_count: int
+    approve_count: int
+    judge_count: int
+    unclassified_count: int
 
 @dataclass(frozen=True, slots=True)
 class RevertRequest:
@@ -337,7 +345,7 @@ class RevertRequest:
 @dataclass(frozen=True, slots=True)
 class AppliedCommit:                       # DS3
     execution_id: ExecutionId              # DD6：実行単位 revert のキー
-    finding_id: FindingId
+    finding_key: str                       # rule_id@file:start-end（review.finding_key・突合/HTML/feedback と共通）
     commit_ref: str
     applied_at: str
 
@@ -415,34 +423,24 @@ StageOutcome = Success[T] | Failure        # 各段の戻り値。空文書 no-o
 | `FindingId` | **ファクトリ** `FindingId.of(finding)` | finding からの**派生キー**（rule_id＋location） |
 | `CriteriaPack` / `MetaIndex` | **ファクトリ（Composer の出力）** | 継承マージ・union・矛盾判定を経た**合成結果**（コンストラクタ直書きさせない） |
 | `ReviewPrompt` | **ビルダー** `ReviewPromptBuilder` | P3.1.1→…→3.1.5 で役割制約→観点→対象→参照→スキーマを**順に積む** |
-| `ReviewReport` | **ビルダー** `ReviewReportBuilder` | P5.3 で4区分＋サマリ＋版スタンプを**別ソースから段階的に**集約 |
+| `ReviewReport` | **MVP は直接構築**（P2 でビルダー） | P1 は pipeline が `TriageResult`＋`stamp` から直接組む（DD15）。P2 で applied を段階集約する `ReviewReportBuilder` へ |
 | `RevertRequest.target` | **ファクトリ** `RevertTarget.finding()/execution()/all_()` | 直和（FindingId\|ExecutionId\|All）の**安全な構築** |
-| `PlatformAdapter` 具体 | **ファクトリ（registry）** `make_adapter(platform_id)` | `ClaudeCodeAdapter`/`CopilotAdapter`/`SelfHostedAdapter` の**選択を隠す**（[11](../requirements/11-platform-adapter.md)） |
+| `PlatformAdapter` 具体 | **ファクトリ（registry）** `make_adapter(platform_id)` | `ClaudeCodeAdapter`/`FilePlatformAdapter`/`FakePlatformAdapter` の**選択を隠す**（[11](../requirements/11-platform-adapter.md)） |
+| **PF 境界ガード** `GuardingPlatform` | **プロキシ**（DD17） | アダプタを包み `review()→StageOutcome`、例外を `Failure(EVALUATE)` 化。core は `SafePlatformPort` に依存 |
 | `Result`（`Success`/`Failure`） | **ファクトリ** `ok()/fail()` | 呼び出し側の意図を短く・型推論を効かせる |
 
 **ビルダーはイミュータブルと両立させる**：ビルダー内部は可変だが `build()` は **frozen な最終オブジェクトを1つ返す**。
 
 ```python
-class ReviewReportBuilder:
-    """P5.3：4区分＋サマリ＋版スタンプを段階的に集約し、最後に frozen な ReviewReport を1つ作る。"""
-    def __init__(self, stamp: ProvenanceStamp) -> None:
-        self._stamp = stamp
-        self._applied: list[ResolvedFix] = []
-        self._unclassified: list[UnmatchedFinding] = []
-        # ...
-    def add_applied(self, fix: ResolvedFix) -> "ReviewReportBuilder":
-        self._applied.append(fix); return self          # メソッドチェーン
-    def add_unclassified(self, item: UnmatchedFinding) -> "ReviewReportBuilder":
-        self._unclassified.append(item); return self
-    def build(self) -> ReviewReport:                     # 可変→不変の一方向変換
-        return ReviewReport(
-            applied=tuple(self._applied),
-            diffs_to_approve=tuple(self._diffs_to_approve),
-            drafts_to_judge=tuple(self._drafts_to_judge),
-            unclassified=tuple(self._unclassified),
-            summary=ReportSummary.from_buckets(self._applied, self._unclassified),  # ファクトリで集計を派生
-            stamp=self._stamp,
-        )
+# MVP（P1）は pipeline が TriageResult＋stamp から ReviewReport を直接構築（DD15）：
+report = ReviewReport(
+    auto=result.auto, approve=result.approve, judge=result.judge,
+    unclassified=unclassified,
+    summary=ReportSummary.of(result, unclassified),     # 件数を派生（ファクトリ）
+    stamp=stamp,                                         # S6 版スタンプ（execution_id=review_id）
+)
+# P2（apply）で `applied: tuple[ResolvedFix, ...]` を加える段になったら、別ソースから段階集約する
+# ReviewReportBuilder（可変内部→build() で frozen を1つ返す）へ昇格する。
 ```
 
 ```python
@@ -503,7 +501,7 @@ class ReviewPromptBuilder:
 | 異常系 `O-14`/`StageOutcome`/`lint結果` | `FailureNotice`/`Success\|Failure`/`CriteriaLintResult` | ファクトリ `ok()/fail()` |
 | `版スタンプ` | `ProvenanceStamp` | コンストラクタ |
 | DS3/DS4/DS5 | `AppliedCommit`/`WarningLedgerEntry`/`Feedback` | コンストラクタ（永続層が書込） |
-| ポート契約 | `ReviewRequest`/`ReviewResponse`/`PlatformCapabilities`/`PlatformAdapter` | アダプタは registry ファクトリ |
+| ポート契約 | `ReviewRequest`/`RawReviewResponse`/`PlatformCapabilities`/`PlatformPort`（翻訳・raw）／`SafePlatformPort`（例外を投げない・core 依存先）／`GuardingPlatform`（プロキシ・DD17） | アダプタは registry ファクトリ、ガードは合成ルートで結線 |
 
 > **不変条件の所在**：「`location.file` 必須」は `Location` 型が、「fail-close で書込ゼロ」は `StageOutcome` 型が、
 > 「revert 粒度＝finding」は `FindingId` 型が**それぞれ構造で保証**する。ロジックでなく**型に語らせる**のが本設計の狙い。
@@ -543,3 +541,97 @@ class ReviewPromptBuilder:
 
 ### 例外（custom が要るとき）
 - 現設計では**不要**。将来どうしても「id だけで等価」なアグリゲートが要るなら `@dataclass(eq=False)` にして `__eq__`/`__hash__` を `*Id` 委譲で手書きするが、**まず `*Id` 値オブジェクトで表現できないかを先に検討**（[PR1](../methods/method-inventory.md) もので分ける）。可変フィールド（`list`/`dict`）を持つ型は**キー化しない**（[§8](#8-イミュータブルタイプセーフの徹底ルール)）。
+
+---
+
+## 11. クラス図（実装と一致・Mermaid）
+
+> 主要型と関係を3つに分けて図示する。実装（`review_system/`）と1:1で対応（DD6/DD13/DD15/DD17 反映済み）。
+
+### 11.1 ドメイン・コア（値オブジェクト → 評価 → レポート）
+
+```mermaid
+classDiagram
+  class RuleId
+  class ContentHash
+  class LineRange
+  class Location { +Path file; +LineRange? line_range }
+  class Scope { +InheritanceLayer layer; +str? name }
+  class FindingId { +RuleId rule_id; +Location location }
+  class ExecutionId { +str value }
+  class Provenance { +Path source_path; +InheritanceLayer layer }
+
+  class SourceFile { +Path path; +str content }
+  class Finding { +RuleId rule_id; +Location location; +str rationale; +SuggestedFix? fix }
+  class UnmatchedFinding
+  class TriagedFinding { +Finding finding; +ApplicationMode mode; +bucket() }
+  class TriageResult { +auto; +approve; +judge; +unclassified }
+
+  class RuleMeta { +Determinism; +Severity; +OverrideRule; +bool enabled }
+  class RuleGuidance
+  class ComposedRule { +RuleId; +RuleGuidance; +RuleMeta; +Provenance }
+  class CriteriaPack { +PackedRule[] rules; +contains() }
+  class MetaIndex { +dict by_rule_id; +get() }
+  class PolicyMatrix { +dict matrix; +dict overrides; +resolve() }
+
+  class ProvenanceStamp { +ExecutionId; +str platform_id; +str model_id; +str prompt_template_version; +ContentHash; +str executed_at }
+  class ReportSummary
+  class ReviewReport { +auto; +approve; +judge; +unclassified; +ReportSummary; +ProvenanceStamp }
+
+  Location o-- LineRange
+  Finding o-- Location
+  Finding o-- RuleId
+  FindingId o-- RuleId
+  FindingId o-- Location
+  TriagedFinding o-- Finding
+  TriageResult o-- TriagedFinding
+  TriageResult o-- UnmatchedFinding
+  ComposedRule o-- RuleMeta
+  ComposedRule o-- RuleGuidance
+  ComposedRule o-- Provenance
+  CriteriaPack o-- ComposedRule : packs(meta抜き)
+  MetaIndex o-- RuleMeta
+  ReviewReport o-- TriagedFinding
+  ReviewReport o-- UnmatchedFinding
+  ReviewReport o-- ReportSummary
+  ReviewReport o-- ProvenanceStamp
+  ProvenanceStamp o-- ExecutionId
+  ProvenanceStamp o-- ContentHash
+```
+
+### 11.2 失敗の型（Result / fail-close・S3）
+
+```mermaid
+classDiagram
+  class StageOutcome { <<type alias>> }
+  class Success { +value }
+  class Failure { +FailureNotice notice }
+  class FailureNotice { +FailureStage stage; +str reason; +Path subject; +str next_action }
+  class FailureStage { <<enum>> INTAKE COMPOSE EVALUATE VALIDATE APPLY LINT }
+  Failure o-- FailureNotice
+  FailureNotice o-- FailureStage
+  StageOutcome <|.. Success
+  StageOutcome <|.. Failure
+```
+> `StageOutcome[T] = Success[T] | Failure`（直和）。各段は例外を投げず `StageOutcome` を返す（S3）。
+
+### 11.3 PF 境界（アダプタ＝翻訳 ＋ ガードプロキシ＝門番・DD17）
+
+```mermaid
+classDiagram
+  class PlatformPort { <<Protocol>> +capabilities(); +review() RawReviewResponse }
+  class SafePlatformPort { <<Protocol>> +capabilities(); +review() StageOutcome }
+  class GuardingPlatform { -PlatformPort inner; +review() StageOutcome }
+  class FilePlatformAdapter { +review() RawReviewResponse }
+  class FakePlatformAdapter { +review() RawReviewResponse }
+  class ClaudeCodeAdapter { +review() RawReviewResponse }
+
+  PlatformPort <|.. FilePlatformAdapter
+  PlatformPort <|.. FakePlatformAdapter
+  PlatformPort <|.. ClaudeCodeAdapter
+  SafePlatformPort <|.. GuardingPlatform
+  GuardingPlatform o-- PlatformPort : wraps(try-catch→Failure)
+  note for GuardingPlatform "例外を Failure(EVALUATE) に変換。core は SafePlatformPort のみ依存"
+```
+
+> 図の不変条件：**`core` は `SafePlatformPort` だけに依存**（例外を投げない）。アダプタ（翻訳）は `GuardingPlatform`（門番）に包まれ、合成ルート `io/cli` が `GuardingPlatform(make_adapter(...))` と結線する。

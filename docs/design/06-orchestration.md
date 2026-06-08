@@ -88,11 +88,11 @@ def run_review(req: ReviewRequest, deps: Deps) -> StageOutcome[ReviewReport]:
                                              case Success(nz): pass
     match compose(nz, deps):                 case Failure() as f: return f       # パース/スコープ未解決→O-14
                                              case Success(criteria): pass
-    raw = deps.platform.review(...)          # L1（失敗は下で degrade/fail-close）
-    match evaluate_and_validate(raw, criteria):  # ⑤ 検証→❓未分類退避（S1）
-        case Failure() as f: return f
-        case Success(findings): pass
-    triaged = triage(exclude_reference(findings, nz.references), criteria.meta, deps.policy)
+    match evaluate(criteria.pack, nz, deps.platform):  # ガード越し（DD17）：PF例外→Failure(EVALUATE)
+        case Failure() as f: return f                  # PF 到達不能/壊れ出力→fail-close（クラッシュしない）
+        case Success(raw): pass
+    valid, unclassified = validate(raw.findings, criteria.pack)   # ⑤ 検証→❓未分類退避（S1）
+    triaged = triage(exclude_reference(valid, nz.references), criteria.meta, deps.policy)
     match apply(req.exec_id, triaged.auto, deps.workspace):   # S4：try/except→rollback
         case Failure() as f: return f                          # 適用失敗→書込ゼロ
         case Success(applied): pass
