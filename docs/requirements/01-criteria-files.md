@@ -41,20 +41,51 @@ Git でバージョン管理する。
 
 ```
 全社デフォルト  →  チーム  →  プロジェクト
-（下位が上位を上書きできる）
+（下位が上位を上書きできる。ただし方向ゲート制で縛る）
 ```
 
 この継承の仕組みは、自動化ポリシー（03）でもそのまま流用する。
 
-## スキーマ例（叩き台 / 未確定）
+### 上書きは無制限ではない（方向ゲート制・org 権威）
+
+「チームの都合で全社基準を上書きしていいのか」への答え：
+**org が下限を敷き、下位は下限を壊さない範囲でだけ specialize する。**
+
+- 厳しくする（ルール追加・severity 上げ）→ **常に自由**。均質化のバーが上がるだけ。
+- 緩める（severity 下げ・`enabled:false`・自動化を増やす）→ **既定で機械拒否**。org がそのルールを `open` にした場合のみ可。
+- 全社が `override: locked` 指定したルール（セキュリティ等）→ 一切触れない。
+
+各ルールは `override: locked | tighten-only(既定) | open` を宣言する。
+既定は **org 権威**（下位は締める/追加のみ）。緩めたいルールだけ org が個別に `open` にする。
+これで「必須ライン・既定は全社が握る／現場は厳しくする裁量を持つ」を両立し、均質化が崩れない。
+
+判定は常に **2軸**で考える（→ [../schema/README.md](../schema/README.md) 横断概念）：
+- **システムの判定基準**：順序のある属性（severity・適用モード・enabled）。機械が方向を自動判定しゲートを回す。
+- **運用ルール**：本文（観点プロース）・`determinism` の事実性・承認者。機械は判定できず、人が承認で担保。
+
+本文の上書きは差し替え扱い（`open` のみ可・それ以外は機械拒否、`locked` は不可）。観点・例を足すだけなら本文を編集せず別ファイルを追加する。
+個々の上書きは override で機械的に allow/reject（承認ステップ無し）。人間の確認が要るのは基準ファイル自体を変える行為で、Q1 と直結。
+
+## スキーマ（v0 叩き台）→ [../schema/README.md](../schema/README.md)
+
+A1 で実際に書いた。要点：
+
+- **二層構成**：YAML フロントマター（機械可読・ルーティング層）＋ Markdown 本文（観点＝人間 & LLM 共用）。
+  情報の読み手（人間 / プログラム / LLM）で欲しい形が違うため層を分けた。
+- **`id` が全ての結合キー**（指摘の紐付け・継承マージ・ポリシー写像）。
+- **対応モード（auto-fix 等）は基準ファイルに書かない**。基準はルールの素性（`severity` / `determinism`）だけ宣言し、
+  適用モードへの写像は別の**ポリシーファイル**が担う（責務分離）。
+- **LLM は仕分けしない**。違反を見つけ `id` を付け原案を出すだけ。仕分けはプログラムが
+  `id → determinism × severity → ポリシー` で機械的に行う。
 
 ```yaml
-- rule: naming-convention
-  severity: error
-  determinism: deterministic   # auto-fix(ログのみ) に振れる
-  auto_fix: log_only
-  good_example: ...
-  bad_example: ...
+# フロントマター（抜粋）
+rules:
+  - id: naming-convention
+    title: 命名規則
+    severity: error
+    determinism: deterministic   # auto-fix 等の適用モードはここに書かない
+    enabled: true
 ```
 
-> ⚠️ スキーマの正式設計は未着手。サンプルを実際に書いて曖昧さを潰すのが次の一手。
+サンプル：[code](../schema/examples/code.org.md) / [minutes](../schema/examples/minutes.org.md) / [policy](../schema/examples/policy.org.yaml)

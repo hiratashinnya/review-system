@@ -1,0 +1,27 @@
+test_short_hash_not_truncated (tests.unit.test_domain.TestExecutionId.test_short_hash_not_truncated) ... ok
+test_truncates_hash_to_12 (tests.unit.test_domain.TestExecutionId.test_truncates_hash_to_12) ... ok
+test_derived_and_stable (tests.unit.test_domain.TestFindingId.test_derived_and_stable) ... ok
+test_end_before_start_rejected (tests.unit.test_domain.TestLineRange.test_end_before_start_rejected) ... ok
+test_lower_bound_single_line (tests.unit.test_domain.TestLineRange.test_lower_bound_single_line) ... ok
+test_normal_range (tests.unit.test_domain.TestLineRange.test_normal_range) ... ok
+test_start_below_one_rejected (tests.unit.test_domain.TestLineRange.test_start_below_one_rejected) ... ok
+test_hashable_and_equal (tests.unit.test_domain.TestLocation.test_hashable_and_equal) ... ok
+test_optional_line_range (tests.unit.test_domain.TestLocation.test_optional_line_range) ... ok
+test_both_none_returns_none (tests.unit.test_domain.TestResolveDocumentType.test_both_none_returns_none) ... ok
+test_estimation_fallback (tests.unit.test_domain.TestResolveDocumentType.test_estimation_fallback) ... ok
+test_manual_override_wins (tests.unit.test_domain.TestResolveDocumentType.test_manual_override_wins) ... ok
+test_fail_and_match (tests.unit.test_domain.TestResult.test_fail_and_match) ... ok
+test_ok (tests.unit.test_domain.TestResult.test_ok) ... ok
+test_empty_rejected (tests.unit.test_domain.TestRuleId.test_empty_rejected) ... ok
+test_valid_and_value_equality (tests.unit.test_domain.TestRuleId.test_valid_and_value_equality) ... ok
+test_org_factory (tests.unit.test_domain.TestScope.test_org_factory) ... ok
+test_org_with_name_rejected (tests.unit.test_domain.TestScope.test_org_with_name_rejected) ... ok
+test_org_without_name_ok (tests.unit.test_domain.TestScope.test_org_without_name_ok) ... ok
+test_team_empty_name_rejected (tests.unit.test_domain.TestScope.test_team_empty_name_rejected) ... ok
+test_team_without_name_rejected (tests.unit.test_domain.TestScope.test_team_without_name_rejected) ... ok
+test_ordering (tests.unit.test_domain.TestSeverityOrder.test_ordering) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.001s
+
+OK

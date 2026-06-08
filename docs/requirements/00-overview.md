@@ -5,17 +5,20 @@
 ## 全体フロー
 
 ```
-① 文書アップロード
-② 文書タイプを選択（or AI 自動判定）
-③ タイプ × スコープに応じた評価基準を動的選択
+① 文書アップロード（＋任意で参照コンテキスト＝上流成果物・前提条件）
+② 文書タイプを AI 判定（手動上書き可）
+③ タイプ × スコープに応じた評価基準を動的選択（MVP は org 単一）
 ④ AI が指摘を生成 →「深刻度 × 対応モード」で自動仕分け
-⑤ 指摘を3区分で提示
+⑤ 指摘を3区分＋未分類で提示
      🤖 自動修正済み（ログのみ・承認不要）
      ✋ 要承認（diff 提示・人間が適用）
      💬 要判断（AI が原案提示・人間が決定）
+     ❓ 未分類（id 未確定・新ルール候補）
 ⑥ 人間の判断・違和感がフィードバックされる
-⑦ 基準ファイル / 自動化ポリシーが育つ（PR ベースで承認）
+⑦ 基準ファイル / 自動化ポリシーが育つ（人間の確認を経て反映）
 ```
+
+詳細な入力受け取り（単位・参照コンテキスト・タイプ・スコープ）→ [08-intake-design.md](08-intake-design.md)
 
 ## 設計の柱
 
@@ -29,6 +32,14 @@
    → 詳細: [03-auto-fix-policy.md](03-auto-fix-policy.md)
 5. **人間の流し読みが、そのままチューニングデータになる**
    → 詳細: [04-feedback-loop.md](04-feedback-loop.md)
+
+システムの入出力を1か所に集約した俯瞰台帳 → [05-io-overview.md](05-io-overview.md)
+外部イベント駆動で入出力を点検するイベントリスト → [06-event-list.md](06-event-list.md)
+レビュー時の AI 入力設計（LLM 入出力）→ [07-ai-input-design.md](07-ai-input-design.md)
+入力の受け取り設計（単位・参照コンテキスト・タイプ・スコープ）→ [08-intake-design.md](08-intake-design.md)
+intake からレポートまでを通した処理パイプライン → [09-processing-pipeline.md](09-processing-pipeline.md)
+LLM ⇄ システムの責務境界（イベントリスト）→ [10-llm-system-boundary.md](10-llm-system-boundary.md)
+LLM は外部 PF に委譲（アダプタパターン）→ [11-platform-adapter.md](11-platform-adapter.md)
 
 ## 対象文書と評価軸（仮）
 

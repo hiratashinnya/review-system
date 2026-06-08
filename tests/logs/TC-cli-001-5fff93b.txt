@@ -1,0 +1,10 @@
+test_html_embeds_review_id_and_checkboxes (tests.unit.test_cli_e2e.TestHtmlRender.test_html_embeds_review_id_and_checkboxes) ... ok
+test_review_requires_type (tests.unit.test_cli_e2e.TestReviewCommand.test_review_requires_type) ... error: --type が必要（MVP は AI 型推定なし）
+ok
+test_review_writes_html (tests.unit.test_cli_e2e.TestReviewCommand.test_review_writes_html) ... ok
+test_version_prints_constants (tests.unit.test_cli_e2e.TestVersionCommand.test_version_prints_constants) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.005s
+
+OK
