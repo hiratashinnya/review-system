@@ -62,7 +62,8 @@ def discover_criteria(
     found: list[ComposedRule] = []
     for path in sorted(criteria_dir.glob("*.md")):
         fm = parse_frontmatter(path.read_text(encoding="utf-8"), is_markdown=True)
-        if fm.get("doc_type") == doc_type.value:
+        # doc_type ＋ scope の両方で絞る（#8：同 dir の別 scope 混入を防ぐ。MVP は org 限定）。
+        if fm.get("doc_type") == doc_type.value and _layer_of(fm.get("scope")) is scope.layer:
             found.extend(load_criteria_file(path))
     return tuple(found)
 
