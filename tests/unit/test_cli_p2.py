@@ -89,6 +89,12 @@ class TestCliP2Flow(unittest.TestCase):
         self.assertEqual(cli.main(["revert", "report.html"]), 0)
         self.assertEqual(self._ws_file().read_text(), "uc = 0\n")   # 元へ戻る
 
+    def test_revert_failclose_on_bad_ref(self):          # #10：git 失敗で stack trace せず exit 3
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        cli._commits_path(rid).write_text(json.dumps(["deadbeef"]), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)    # O-14＋EXIT_FAILCLOSE
+
     def test_feedback_malformed_json(self):              # #6：壊れた入力→fail-close(BADREQ)
         self._review()
         rid = cli._review_id_of(Path("report.html"))
