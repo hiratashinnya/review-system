@@ -48,6 +48,16 @@ class TestGitWorkspace(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.open(ExecutionId("other"), {"/etc/evil": "x"})
 
+    def test_commit_fix_rejects_non_target(self):        # N1：評価対象集合外への書込は不可
+        with self.assertRaises(ValueError):
+            self.repo.commit_fix(self.exec, "f@b", "b.py", "x\n")   # b.py は open していない
+
+    def test_open_recreates_clean_workdir(self):         # N1：残骸混入を防ぐ（作り直し）
+        wd = self.repo.workdir(self.exec)
+        (wd / "stray.txt").write_text("junk", encoding="utf-8")
+        self.repo.open(self.exec, {"a.py": "uc = 0\n"})
+        self.assertFalse((wd / "stray.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

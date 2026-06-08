@@ -42,4 +42,4 @@ def apply_auto(
         except Exception:                         # 二次例外で原因を潰さない
             pass
         return fail(FailureStage.APPLY, f"自動適用に失敗: {e}", None,
-                    "実行ぶんを基準点へ戻した（書込ゼロ）。手動確認を")
+                    "実行ぶんは基準点へ戻したので（書込ゼロ）、原因を確認のうえ手動で修正・適用してください。")

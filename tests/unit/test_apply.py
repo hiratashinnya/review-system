@@ -55,6 +55,11 @@ class TestApplyAuto(unittest.TestCase):
                          {"/etc/evil": "x"}, self.repo, "now")
         self.assertIsInstance(out, Failure)
 
+    def test_next_action_is_complete_sentence(self):     # N2：O-14 の案内が文として完結
+        out = apply_auto(self.exec, (_auto("x", "../escape", "evil\n"),),
+                         self.targets, self.repo, "now")
+        self.assertTrue(out.notice.next_action.endswith("。"))
+
 
 if __name__ == "__main__":
     unittest.main()
