@@ -217,27 +217,109 @@ edges:
 ### ドリフト検出ルール
 
 ```
-# バージョンドリフト
+# バージョンドリフト（RULE-003）
 edge.ref_version の x.y ≠ 参照先ファイルの現在 version の x.y
   → status を pending に更新（検証ツールが検出・報告）
 
-# 意思決定ドリフト
-DD ノード（status: decided）の affects 辺に status: pending が残っている
+# 意思決定ドリフト（RULE-001）
+DD ノードの affects 辺に status: pending が残っている
   → 反映漏れ確定（ドリフト検出の核心）
+  ※ DD はノードの型で判定する。lifecycle状態のパース不要。
 ```
 
 ### ステータス遷移
 
 ```
-[新規辺作成]          → pending
-[反映完了]            → done
-[影響なしと確認]       → n/a
-[上流ファイル x.y 上昇] → done だった辺を pending へリセット
+[新規辺作成]           → pending
+[反映完了]             → done
+[影響なしと確認]        → n/a
+[上流ファイル x.y 上昇] → refines/realizes/verifies 辺を done → pending へリセット
 ```
 
 ---
 
-## 8. 確定決定ログ
+## 8. ドリフト検出・検証ルール
+
+> 検証ツールが走査するルールの完全定義。
+> 深刻度：**ERROR**（必ず解消）／**WARNING**（要確認・合理的な理由があれば n/a 許容）／**INFO**（記録のみ）
+
+### グループ A：意思決定ドリフト（C1）
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-001** | `DD` ノードの `affects` 辺 | `status: pending` が残っている | **ERROR** | `DD-015 → DM-001 が未反映（affects pending）` |
+| **RULE-002** | `Q` ノードの `affects` 辺 | `status: pending` が残っている | **WARNING** | `Q-003 → FR-007 が未追跡（未決論点の影響候補）` |
+
+> **DD は型で判定**：lifecycle状態（decided/open）を本文からパースせず、
+> ノード型が `DD` であれば `affects` の `pending` は無条件 ERROR。
+> `Q` は未決なので WARNING 止まり。反映完了時は `done`、影響なしと確定したら `n/a` に更新する。
+
+---
+
+### グループ B：バージョンドリフト
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-003** | `ref_version` を持つ辺 | `ref_version` の x.y ≠ 参照先ファイルの現在 version の x.y | **WARNING** | `DM-001 → TERM-003 の ref_version 1.2 が古い（現: 1.4.0）` |
+| **RULE-004** | `refines`/`realizes`/`verifies` 辺 | RULE-003 かつ kind が上記 3 種のいずれか | **ERROR** | 同上（主要辺は ERROR に昇格） |
+
+---
+
+### グループ C：構造的な接続不足
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-005** | `VAL`/`ACTOR`/`I`/`O`/`E` ノード | `see-also` を除く辺が 0 本 | **ERROR** | `I-3 が孤立している（辺が必要）` |
+| **RULE-006** | 03 マトリクスで ✅ の辺 | 必須の上流リンクが存在しない | **ERROR** | `DM-005 に TERM への refines 辺がない` |
+| **RULE-007** | 辺の `to` フィールド | 参照先 ID が存在しない | **ERROR** | `辺 FR-009 → SR-999 の参照先 SR-999 が未定義` |
+| **RULE-008** | 階層 ID（例: `I-1-1`） | 親ノード（`I-1`）に `decomposes` 辺がない | **WARNING** | `I-1-1 の親 I-1 に decomposes 辺がない` |
+
+---
+
+### グループ D：検証・指摘の完結性
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-009** | `FND` ノード | `found-in` 辺も `validates` 辺も 0 本 | **ERROR** | `FND-007 に辺がない（found-in または validates が必要）` |
+| **RULE-010** | `FND` ノード | `found-in` 辺が 0 本（`validates` のみ存在） | **WARNING** | `FND-007 に found-in がない（何の中に見つかったか不明）` |
+| **RULE-011** | `NFR` ノード | 入力方向の `validates` 辺が 0 本 | **WARNING** | `NFR-002 に validates 辺がない（検証証跡が必要）` |
+| **RULE-012** | `TC` ノード | `verifies` 辺が 0 本 | **ERROR** | `TC-012 に verifies 辺がない` |
+| **RULE-013** | `VERIFY` ノード | `verifies` 辺が 0 本 | **ERROR** | `VERIFY-003 に verifies 辺がない` |
+
+---
+
+### グループ E：`see-also` の伝播禁止
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-014** | `see-also` 辺 | `status: pending` または `done` が付いている | **WARNING** | `see-also 辺に伝播ステータスは不要（n/a に統一）` |
+
+> `see-also` は情報的参照のみ。伝播ステータスは `n/a` 固定とし、ドリフト検出対象外。
+
+---
+
+### ルール一覧サマリ
+
+| RULE# | グループ | 深刻度 | 一言説明 |
+|---|---|---|---|
+| RULE-001 | A | ERROR | DD の affects pending = 反映漏れ |
+| RULE-002 | A | WARNING | Q の affects pending = 未追跡 |
+| RULE-003 | B | WARNING | ref_version 不一致 |
+| RULE-004 | B | ERROR | 主要辺（refines/realizes/verifies）の ref_version 不一致 |
+| RULE-005 | C | ERROR | VAL/ACTOR/I/O/E の孤立 |
+| RULE-006 | C | ERROR | 必須上流リンクの欠如 |
+| RULE-007 | C | ERROR | 存在しない ID への参照 |
+| RULE-008 | C | WARNING | 階層 ID の親 decomposes 辺なし |
+| RULE-009 | D | ERROR | FND に辺が 0 本 |
+| RULE-010 | D | WARNING | FND に found-in なし |
+| RULE-011 | D | WARNING | NFR に validates なし |
+| RULE-012 | D | ERROR | TC に verifies なし |
+| RULE-013 | D | ERROR | VERIFY に verifies なし |
+| RULE-014 | E | WARNING | see-also に伝播ステータス付与 |
+
+---
+
+## 9. 確定決定ログ
 
 | DD# | 内容 |
 |---|---|
