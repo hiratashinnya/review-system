@@ -11,10 +11,10 @@
 
 | # | 項目 | 状態 |
 |---|---|---|
-| [01](01-document-items.md) | 文書項目セット（層・要素型・ID プレフィックス） | ✅ 確定 |
-| [02](02-meta-schema.md) | メタ属性スキーマ（id / type / edge / version / lifecycle） | ✅ 確定（DD-001） |
-| [03](03-connection-matrix.md) | 接続要否マトリクス（全段記載必須） | 🟡 確定（SRC/TC は D3 要確認） |
-| 04 | ノード＆エッジ記法（Markdown への埋め込み方） | ⬜ 未着手 |
+| [01](01-document-items.md) | 文書項目セット（層・要素型・ID プレフィックス・全 kind） | ✅ 確定 |
+| [02](02-meta-schema.md) | メタ属性スキーマ（ファイル版・ノード・エッジ・型一覧） | ✅ 確定（DD-001〜006） |
+| [03](03-connection-matrix.md) | 接続要否マトリクス（全祖先必須・直接リンク必須・NFR検証規則） | ✅ 確定 |
+| 04 | ノード＆エッジ記法（`<details>` 埋め込み） | ⬜ 未着手 |
 | 05 | 検証戦略（段階別・機械検証の範囲と実装計画） | ⬜ 未着手 |
 | 06 | トレース対象集合（in-graph ドキュメントの確定） | ⬜ 未着手（C3：後で詰める） |
 
@@ -45,6 +45,14 @@ review-system 本体ドキュメントへ適用
 | Q-新5 | 意思決定/QA/ペンディングの統合 | **id 通貫・ライフサイクルはノードのステータスで区別**。エッジには関係種別＋**伝播ステータス**（反映済/未反映/対象外）を付与 |
 | C2 | コード⇔設計の構造比較 | 段階①②③先行・④は sub-issue 化 |
 | C3 | トレース対象集合の確定タイミング | 検証器実装着手前に必須（06 で詰める） |
-| D1 | id の形式 | **連番**（`PREFIX-NNN`）・永続・意味は title が持つ |
-| D2 | 多段省略の可否 | **全段記載必須**（推移上流すべてに辺） |
-| D3 | SRC/TC の全段記載 | 辺爆発のため**直接先のみ**を推奨（[03 §4](03-connection-matrix.md) 要確認） |
+| D1 | id の形式 | **連番**（`PREFIX-N[-N...]`）・永続・意味は heading が持つ。階層化対応 |
+| D2 | 多段省略の可否 | **全段記載必須**（推移上流すべてに辺）。SRC/TC は除く（D3） |
+| D3 | SRC/TC の全段記載 | 直接先のみ（設計層が VAL まで担保済み）。確定 |
+| D4 | バージョニング単位 | **ファイル単位** `x.y.z`。z は伝播判定に不問。エッジに `ref_version` を持つ |
+| D5 | ライフサイクル状態 | メタ属性に持たず**本文に記載** |
+| D6 | mvp 属性 | `labels: [...]` に汎化 |
+| D7 | edge kind | 17種に拡充（refines/decomposes/realizes/allocates-to/instantiates/triggers/produces/consumes/verifies/validates/found-in/constrains/affects/replaces/see-also/extends/contradicts） |
+| D8 | 階層 ID | `PREFIX-N-N-N...` 形式で子ノードを表現。親は `decomposes` 辺で子を指す |
+| D9 | 型追加 | CFG/PROMPT/VERIFY/FND を追加 |
+| §10 | 直接リンク必須 | VAL/ACTOR/I/O/E は孤立禁止（辺1本以上必須） |
+| §11 | NFR 検証必須 | 全 NFR に validates 辺（FND/TC/VERIFY → NFR）が必要 |
