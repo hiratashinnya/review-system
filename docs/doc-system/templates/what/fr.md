@@ -5,8 +5,9 @@ version: "0.1.0"
 
 > **型**: FR ／ **必須上流**: SR（refines ✅）
 > 1 ノード = 「システムが持つべき機能・ユーザー価値」の単位（テスタブル粒度は SPEC で表現）。
-> **RULE-017**: この FR を refines する SPEC の中に `scenario: normal` が必要。
-> **RULE-018**: failure/error シナリオの SPEC がない場合 INFO。意図的なら `suppress: [RULE-018]`。
+> **RULE-017**: この FR を refines する SPEC の中に `condition: normal` が必要。
+> **RULE-018**: `condition: failure` も `condition: error` も SPEC がなければ INFO。
+>   意図的なら `suppress: [RULE-018]` + 理由 comment。
 
 ## [機能名]
 
@@ -17,9 +18,9 @@ id: FR-001
 type: FR
 labels: []
 scheduled: ""
-# suppress: [RULE-018]   # 意図的に error path なし: 理由をここに記載
+# suppress: [RULE-018]   # 意図的に負例なし: 理由をここに記載
 edges:
-  - to: SR-001          # 必須: この要求が応えるステークホルダー要求
+  - to: SR-001
     kind: refines
     status: pending
     ref_version: "0.1"

@@ -24,7 +24,7 @@
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 | 必須リンク |
 |---|---|---|---|---|
 | 機能要求 | `FR-` | 1 機能要求（システムが持つべき機能・ユーザー価値） | → `SR-`（直接） | ✅ 必須 |
-| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`scenario` 属性で種別分類 | → `FR-`（直接） | ✅ 必須。下流から TD(verifies)が必須（RULE-015）。scenario 必須（RULE-016） |
+| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`condition` 属性で条件分類（normal/boundary/failure/error） | → `FR-`（直接） | ✅ 必須。下流から TD(verifies)が必須（RULE-015）。condition 必須（RULE-016） |
 | 非機能/制約 | `NFR-` | 1 制約（性能・技術選択・安全側デフォルト等） | → `SR-`（直接） | 検証結果からリンク必須（§11） |
 
 > ファイル：`what/fr.md`・`what/spec.md`・`what/nfr.md`（別ファイル）
@@ -98,7 +98,7 @@
 
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 | 必須リンク |
 |---|---|---|---|---|
-| テスト設計 | `TD-` | 1 テストシナリオ（条件・境界・期待動作の設計）。`scenario` 属性で verifies 先 SPEC と対応付け | → `SPEC-` | ✅ SPEC を verifies（RULE-015 の対象辺）。scenario 必須（RULE-016, RULE-019） |
+| テスト設計 | `TD-` | 1 テストシナリオ（設計）。`condition` は verifies 先 SPEC と一致させる | → `SPEC-` | ✅ SPEC を verifies（RULE-015 の対象辺）。condition 必須（RULE-016）。SPEC と一致（RULE-019） |
 | テストコード | `TC-` | 1 テスト実装（テストケースのコード） | → `TD-` | ✅ TD を realizes |
 | テスト結果 | `TR-` | 1 実行記録（コミット ID・合否・ログ参照） | → `TC-` | `produced-by` 辺で TC に紐づける |
 | ドキュメント検証 | `VERIFY-` | 1 検証実施（範囲・手法・実施日） | → 対象文書要素 | ✅ verifies 辺が必須（RULE-013） |

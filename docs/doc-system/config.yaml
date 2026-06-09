@@ -31,13 +31,20 @@ stage_scope:
     full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TD, TC, TR, VERIFY, FND]
     warn: []
 
-# SPEC/TD の scenario 属性の有効語彙（RULE-016 の検証対象）
+# SPEC/TD の condition 属性の有効語彙（RULE-016 の検証対象）
 # ここに列挙した値以外は RULE-016 で WARNING
-scenario_vocab:
-  - normal    # 正常系（成立）
-  - failure   # 失敗系（不成立・バリデーション失敗・業務ルール違反）
-  - error     # 異常系（インフラ障害・タイムアウト・予期しない例外）
+condition_vocab:
+  - normal    # 正常系：有効な入力・正常な状態 → 期待通りに動く
+  - boundary  # 境界値：有効/無効の境目にある入力・状態（pass か fail かは SPEC 本文で明示）
+  - failure   # 不成立：無効な入力・業務ルール違反 → 拒否応答
+  - error     # 異常：インフラ障害・タイムアウト → フェイルセーフ応答
 
-# 抑制対象外ルール（scheduled/stage に関わらず常に ERROR）
+# カバレッジ要件（RULE-017/018 の判定基準）
+coverage_rules:
+  FR:
+    required_conditions:     [normal]           # SPEC に必須（なければ RULE-017 WARNING）
+    recommended_conditions:  [failure, error]   # あることを推奨（なければ RULE-018 INFO）
+
+# 抑制対象外ルール（suppress/scheduled/stage いずれでも抑制不可）
 always_error:
   - RULE-007   # 存在しない ID への参照
