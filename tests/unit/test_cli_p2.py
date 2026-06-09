@@ -110,6 +110,12 @@ class TestCliP2Flow(unittest.TestCase):
         cli._commits_path(rid).write_text(json.dumps([1, 2, 3]), encoding="utf-8")
         self.assertEqual(cli.main(["revert", "report.html"]), 3)
 
+    def test_revert_failclose_on_binary_commits(self):   # #12 T5：UTF-8 デコード不能でも fail-close
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        cli._commits_path(rid).write_bytes(b"\xff\xfe\x00\x01")   # 非 UTF-8（UnicodeDecodeError）
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)  # stack trace せず O-14＋exit 3
+
     def test_feedback_malformed_json(self):              # #6：壊れた入力→fail-close(BADREQ)
         self._review()
         rid = cli._review_id_of(Path("report.html"))
