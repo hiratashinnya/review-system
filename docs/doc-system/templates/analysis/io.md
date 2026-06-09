@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # 入出力台帳
 
-> **型**: I, O ／ **必須上流**: FR（refines ✅）
+> **型**: I, O ／ **必須上流**: SPEC（refines ✅）
 > **必須(§10)**:
 >   I → P へのリンク（`consumes` または P 側から `consumes`）
 >   O は P からの `produces` 辺を受ける
@@ -19,7 +19,7 @@ type: I
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: この入力が応える機能仕様
+  - to: SPEC-001        # 必須: この入力が応える機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"
@@ -43,12 +43,12 @@ type: O
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: この出力が実現する機能仕様
+  - to: SPEC-001        # 必須: この出力が実現する機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"
   # P-001 → O-001 (produces) は P 側の edges に記述する
-  # O 側は上流 FR への refines のみ
+  # O 側は上流 SPEC への refines のみ
 ```
 </details>
 
@@ -65,7 +65,7 @@ edges:
 id: I-001
 type: I
 edges:
-  - to: FR-001
+  - to: SPEC-001
     kind: refines
     status: pending
     ref_version: "0.1"

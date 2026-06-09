@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # 用語・データ辞書
 
-> **型**: TERM ／ **必須上流**: FR（refines ✅）
+> **型**: TERM ／ **必須上流**: SPEC（refines ✅）
 
 ## [用語名]
 
@@ -15,7 +15,7 @@ type: TERM
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: この用語が登場する機能仕様
+  - to: SPEC-001        # 必須: この用語が登場する機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"

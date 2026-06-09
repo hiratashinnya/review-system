@@ -1,10 +1,11 @@
 ---
 version: "0.1.0"
 ---
-# テストケース（ソース向け）
+# テストコード
 
-> **型**: TC ／ **必須上流**: FR または SRC（verifies・直接先のみ）
-> TC は FR を verifies して機能検証、または SRC を verifies してユニットテストを表す。
+> **型**: TC ／ **必須上流**: TD（realizes ✅）
+> 1 ノード = 1 テスト実装（関数 or クラス）。テスト設計（TD）をコードで実現する。
+> 実行後は TR ノードを作成して結果を記録する（TR → TC (produced-by)）。
 
 ## TC-001: [テスト名]
 
@@ -16,19 +17,13 @@ type: TC
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: 検証対象の機能仕様（機能テストの場合）
-    kind: verifies
+  - to: TD-001          # 必須: このコードが実現するテスト設計
+    kind: realizes
     status: pending
     ref_version: "0.1"
-  # または:
-  # - to: SRC-001       # ユニットテストの場合は SRC を直接 verifies
-  #   kind: verifies
-  #   status: pending
-  #   ref_version: "0.1"
+  # TR → TC-001 (produced-by) は TR 側の edges に記述する
 ```
 </details>
 
-**前提条件**: [テスト実行前に満たすべき状態]
-**入力**: [テストデータ]
-**期待値**: [期待される出力・状態変化]
-**実績**: [実行結果・コミット ID・合否]
+**実装ファイル**: [テストファイルパス:行番号]
+**テスト関数**: [`test_xxx`]

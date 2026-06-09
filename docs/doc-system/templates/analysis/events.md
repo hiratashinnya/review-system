@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # イベントリスト
 
-> **型**: E ／ **必須上流**: FR（refines ✅）
+> **型**: E ／ **必須上流**: SPEC（refines ✅）
 > **必須(§10)**: P への `triggers` 辺が1本以上
 
 ## E-001: [イベント名]
@@ -16,7 +16,7 @@ type: E
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: このイベントが関わる機能仕様
+  - to: SPEC-001        # 必須: このイベントが関わる機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"

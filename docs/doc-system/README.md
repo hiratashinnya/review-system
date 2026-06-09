@@ -51,8 +51,10 @@ review-system 本体ドキュメントへ適用
 | D4 | バージョニング単位 | **ファイル単位** `x.y.z`。z は伝播判定に不問。エッジに `ref_version` を持つ |
 | D5 | ライフサイクル状態 | メタ属性に持たず**本文に記載** |
 | D6 | mvp 属性 | `labels: [...]` に汎化 |
-| D7 | edge kind | 17種に拡充（refines/decomposes/realizes/allocates-to/instantiates/triggers/produces/consumes/verifies/validates/found-in/constrains/affects/replaces/see-also/extends/contradicts） |
+| D7 | edge kind | 19種（refines/decomposes/realizes/allocates-to/instantiates/triggers/produces/consumes/verifies/validates/found-in/constrains/affects/replaces/see-also/extends/contradicts/uses/produced-by） |
 | D8 | 階層 ID | `PREFIX-N-N-N...` 形式で子ノードを表現。親は `decomposes` 辺で子を指す |
-| D9 | 型追加 | CFG/PROMPT/VERIFY/FND を追加 |
+| D9 | 型追加 | CFG/PROMPT/VERIFY/FND/SPEC/TD/TR を追加 |
+| DD-008 | USDM 分割 | FR（機能要求）と SPEC（機能仕様・テスタブル粒度）を分離。分析層以降は SPEC を直接の親とする |
+| DD-009 | テスト3層 | TD（設計・verifies SPEC）→ TC（コード・realizes TD）→ TR（結果・produced-by TC）。TD→SPEC 辺でカバレッジ機械検証（RULE-015） |
 | §10 | 直接リンク必須 | VAL/ACTOR/I/O/E は孤立禁止（辺1本以上必須） |
 | §11 | NFR 検証必須 | 全 NFR に validates 辺（FND/TC/VERIFY → NFR）が必要 |

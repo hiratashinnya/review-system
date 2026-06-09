@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # コンフィグ
 
-> **型**: CFG ／ **必須上流**: SCM（instantiates ✅）・FR（refines ✅）
+> **型**: CFG ／ **必須上流**: SCM（instantiates ✅）・SPEC（refines ✅）
 
 ## CFG-001: [設定名]
 
@@ -19,7 +19,7 @@ edges:
     kind: instantiates
     status: pending
     ref_version: "0.1"
-  - to: FR-001          # 必須: この設定が実現する機能仕様
+  - to: SPEC-001        # 必須: この設定が実現する機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"

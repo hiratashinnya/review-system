@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # スキーマ
 
-> **型**: SCM ／ **必須上流**: FR（refines ✅）／TERM（任意）
+> **型**: SCM ／ **必須上流**: SPEC（refines ✅）／TERM（任意・see-also）
 
 ## SCM-001: [スキーマ名]
 
@@ -15,7 +15,7 @@ type: SCM
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: このスキーマが実現する機能仕様
+  - to: SPEC-001        # 必須: このスキーマが実現する機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"

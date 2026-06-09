@@ -170,6 +170,12 @@ edges:
 | `extends` | 継承・拡張（スキーマ継承・設計継承） | あり |
 | `uses` | コンポーネント/段が別の要素を利用する（ORC が PROMPT を使う等） | あり |
 
+### 実行証跡
+
+| kind | 意味 | 典型例 |
+|---|---|---|
+| `produced-by` | テスト結果がテストコードの実行から生成された | `TR-001 → TC-001` |
+
 ### 矛盾
 
 | kind | 意味 |
@@ -184,7 +190,8 @@ edges:
 |---|---|---|---|
 | `VAL` | `VAL-` | Why | 価値命題 |
 | `SR` | `SR-` | Why | ステークホルダー要求 |
-| `FR` | `FR-` | What | 機能仕様 |
+| `FR` | `FR-` | What | 機能要求 |
+| `SPEC` | `SPEC-` | What | 機能仕様（テスタブル粒度） |
 | `NFR` | `NFR-` | What | 非機能・制約 |
 | `TERM` | `TERM-` | 共有語彙 | 用語・データ辞書エントリ |
 | `ACTOR` | `ACTOR-` | 分析 | 外部アクタ |
@@ -201,7 +208,9 @@ edges:
 | `SCM` | `SCM-` | 設計・静的 | スキーマ |
 | `CFG` | `CFG-` | 設計・静的 | コンフィグ |
 | `PROMPT` | `PROMPT-` | 設計・静的 | プロンプトテンプレート |
-| `TC` | `TC-` | 検証 | テストケース（ソース向け） |
+| `TD` | `TD-` | 検証 | テスト設計 |
+| `TC` | `TC-` | 検証 | テストコード |
+| `TR` | `TR-` | 検証 | テスト結果 |
 | `VERIFY` | `VERIFY-` | 検証 | ドキュメント検証実施 |
 | `FND` | `FND-` | 検証 | 指摘・finding |
 | `DD` | `DD-` | 横断 | 意思決定 |
@@ -379,6 +388,17 @@ always_error:
 
 ---
 
+### グループ F：仕様カバレッジ
+
+| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
+|---|---|---|---|---|
+| **RULE-015** | `SPEC` ノード | 入力方向の `verifies` 辺（from `TD`）が 0 本 | **WARNING** | `SPEC-003 にテスト設計（TD）が紐づいていない（カバレッジ未確保）` |
+
+> SPEC カバレッジの機械検証ルール。`TD → SPEC (verifies)` 辺が存在しない SPEC はテスト設計が未作成。
+> verification ステージ（`stage_scope.verification`）では **ERROR** に昇格させることを推奨。
+
+---
+
 ### ルール一覧サマリ
 
 | RULE# | グループ | 深刻度 | 一言説明 |
@@ -397,6 +417,7 @@ always_error:
 | RULE-012 | D | ERROR | TC に verifies なし |
 | RULE-013 | D | ERROR | VERIFY に verifies なし |
 | RULE-014 | E | WARNING | see-also に伝播ステータス付与 |
+| RULE-015 | F | WARNING | SPEC に TD からの verifies なし（カバレッジ未確保） |
 
 ---
 
@@ -411,3 +432,5 @@ always_error:
 | DD-005 | ライフサイクル状態はメタ属性に持たず本文に記載 |
 | DD-006 | `mvp` 属性を廃止し `labels: [...]` で汎化 |
 | DD-007 | `scheduled` 抑制＝完全サイレント（WARNING 降格ではない）。ステージ抑制＝ERROR→WARNING。RULE-007 のみ常に ERROR |
+| DD-008 | USDM 分割：FR（機能要求・なぜ必要か）と SPEC（機能仕様・テスタブル粒度）を分離。分析層以降は SPEC を直接の親とする |
+| DD-009 | テスト3層分離：TD（テスト設計・SPEC を verifies）→ TC（テストコード・TD を realizes）→ TR（テスト結果・TC を produced-by）。TD→SPEC の verifies 辺でカバレッジを機械検証（RULE-015） |

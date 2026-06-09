@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # DFD・論理プロセス
 
-> **型**: P ／ **必須上流**: FR（refines ✅）
+> **型**: P ／ **必須上流**: SPEC（refines ✅）
 > **必須(§10)**: I/O/E のいずれかとのリンクが1本以上
 > プロセス間はI/Oノードを介して繋ぐ。P 同士を直接リンクしない（03 §7）。
 
@@ -17,7 +17,7 @@ type: P
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 必須: このプロセスが実現する機能仕様
+  - to: SPEC-001        # 必須: このプロセスが実現する機能仕様
     kind: refines
     status: pending
     ref_version: "0.1"
