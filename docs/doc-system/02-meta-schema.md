@@ -40,6 +40,9 @@ scheduled: string     # 任意：対応予定フェーズ（config.yaml の phas
                       # このノードに対するルールを完全サイレント（RULE-007 のみ除外）
 scenario:  string     # SPEC/TD のみ推奨。シナリオ分類（§2a 参照）。
                       # 省略時は RULE-016 で WARNING。
+suppress:  [string]   # 任意：このノードで抑制するルール番号のリスト（§8 suppress 抑制参照）
+                      # 抑制理由は本文または inline comment に必ず記載する。
+                      # always_error ルール（RULE-007）は suppress 対象外。
 ```
 
 > **ライフサイクル状態（DD/Q/PEND）はメタ属性に持たない**。本文の見出しや
@@ -291,12 +294,16 @@ DD ノードの affects 辺に status: pending が残っている
 
 > 設定ファイル：`docs/doc-system/config.yaml`
 
-### 抑制の2軸
+### 抑制の3軸
 
 | 軸 | 設定 | 条件 | 効果 |
 |---|---|---|---|
 | **scheduled 抑制** | ノード属性 `scheduled` | `scheduled` のフェーズが `current_phase` より後 | **完全サイレント**（ルール非発火） |
 | **ステージ抑制** | `config.yaml` の `stage_scope` | ノードの型が `current_stage` の `warn` リストに該当 | **ERROR → WARNING に降格**（発火するが警告のみ） |
+| **suppress 抑制** | ノード属性 `suppress` | ルール番号がリストに含まれる | **完全サイレント**（そのルールのみ非発火）。`always_error` ルールは無効 |
+
+> **suppress と labels の違い**：`labels` は人向けの分類タグ（機械が意味を解釈しない）。
+> `suppress` はルール番号を指定する機械向け専用属性。分類目的には使わない。
 
 ### scheduled 抑制の判定
 
@@ -322,10 +329,36 @@ stage_scope[current_stage].full にノードの type が含まれる
   → 元の深刻度のまま発火
 ```
 
+### suppress 抑制の判定
+
+```
+node.suppress にルール番号 R が含まれる
+  → そのノードに対する R の発火をスキップ
+
+例：
+  suppress: [RULE-018]   # error path が存在しない設計（外部システムは常時稼働前提）
+  → RULE-018 はこのノードに対して発火しない
+```
+
+> suppress 記載時は**理由を inline comment または本文に必ず残す**。
+> 理由なき suppress は将来の読者が判断できず、PR レビューで拒否することを推奨（運用ルール）。
+
+### suppress の記述例
+
+```yaml
+suppress: [RULE-018]   # error path なし: 呼び出し元がインフラ保護済みの内部 API
+```
+
+```yaml
+suppress:
+  - RULE-018   # error path なし: 外部システムは常時稼働前提（SLA 99.99%）
+  - RULE-016   # scenario 不要: このノードは手動確認のみで TD を持たない設計
+```
+
 ### 抑制の例外
 
-**RULE-007（存在しない ID への参照）は抑制対象外**。  
-scheduled/stage に関わらず常に ERROR。存在しない ID を参照している時点でグラフが壊れており、フェーズを待つ意味がない。
+**always_error ルール（RULE-007 等）は suppress 対象外**。  
+scheduled/stage/suppress いずれの方法でも抑制不可。存在しない ID を参照している時点でグラフが壊れており、フェーズや設計意図を問わず常に ERROR。
 
 ### config.yaml の構造
 
@@ -359,7 +392,7 @@ stage_scope:
     warn: []
 
 always_error:
-  - RULE-007
+  - RULE-007   # suppress/scheduled/stage のいずれでも抑制不可
 ```
 
 ---
@@ -431,13 +464,13 @@ always_error:
 | **RULE-015** | `SPEC` ノード | 入力方向の `verifies` 辺（from `TD`）が 0 本 | **WARNING** | `SPEC-003 にテスト設計（TD）が紐づいていない（カバレッジ未確保）` |
 | **RULE-016** | `SPEC`・`TD` ノード | `scenario` 属性がない | **WARNING** | `SPEC-002 に scenario 属性がない（カバレッジ次元が不明）` |
 | **RULE-017** | `FR` ノード | refines している `SPEC` 群に `scenario: normal` がひとつもない | **WARNING** | `FR-005 に正常系仕様（scenario: normal の SPEC）がない` |
-| **RULE-018** | `FR` ノード | refines している `SPEC` 群に `scenario: failure` も `scenario: error` もない | **INFO** | `FR-005 に失敗系・異常系の仕様がない（意図的であれば labels: [no-error-path] で抑制可）` |
+| **RULE-018** | `FR` ノード | refines している `SPEC` 群に `scenario: failure` も `scenario: error` もない | **INFO** | `FR-005 に失敗系・異常系の仕様がない（意図的であれば suppress: [RULE-018] で抑制可）` |
 | **RULE-019** | `TD` ノード | `scenario` が `verifies` 先 `SPEC` の `scenario` と不一致 | **WARNING** | `TD-003 (scenario: normal) が SPEC-002 (scenario: failure) を verifies している` |
 
 > RULE-015：テスト設計の存在を保証する。
 > RULE-016：シナリオ種別を明示させる（分類なしでは次元別カバレッジ計算不可）。
 > RULE-017：正常系が定義されていない FR を検出。全 FR に正常系仕様は必須。
-> RULE-018：INFO のみ（意図的に error path がない FR も存在するため）。`labels: [no-error-path]` で抑制。
+> RULE-018：INFO のみ（意図的に error path がない FR も存在するため）。`suppress: [RULE-018]` で抑制（理由 comment 必須）。
 > RULE-019：TD の scenario と検証対象 SPEC の scenario が食い違うと設計ミスの兆候。
 
 ---

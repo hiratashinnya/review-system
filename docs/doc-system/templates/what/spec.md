@@ -7,8 +7,9 @@ version: "0.1.0"
 > **RULE-015**: TD からの `verifies` 辺が必要（カバレッジ確保）。
 > **RULE-016**: `scenario` 属性が必要（normal / failure / error）。
 > 1 ノード = テスト可能な1条件（1シナリオ）。シナリオをまたぐ場合は別 SPEC に分割する。
+> ルールを意図的に抑制するときは `suppress: [RULE-xxx]` を使い、理由を inline comment に残す。
 
-## SPEC-001: [仕様タイトル]
+## SPEC-001: [正常系の仕様タイトル]
 
 <details><summary>⬡ SPEC-001 · v0.1</summary>
 
@@ -40,7 +41,7 @@ edges:
 ```yaml
 id: SPEC-002
 type: SPEC
-scenario: failure     # バリデーション失敗・業務ルール違反
+scenario: failure     # バリデーション失敗・業務ルール違反・前提条件不成立
 labels: []
 scheduled: ""
 edges:
