@@ -42,6 +42,10 @@ class TestParserSubset(unittest.TestCase):
         self.assertIsNone(d["extends"])                  # null → None
         self.assertEqual(d["rules"][0]["severity"], "error")
 
+    def test_scalar_list(self):                          # #9：スカラ列（- a / - b）→ ["a", "b"]
+        d = fm("---\ndoc_type: code\ntags:\n  - a\n  - b\n---\n")
+        self.assertEqual(d["tags"], ["a", "b"])
+
     def test_comments_ignored(self):                     # P3
         d = fm("---\n# 先頭コメント\ndoc_type: code   # 行末コメント\nscope: org\nrules:\n  - id: a\n---\n")
         self.assertEqual(d["doc_type"], "code")
