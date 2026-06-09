@@ -32,9 +32,12 @@ version: "1.2.0"
 ## 2. ノード属性スキーマ
 
 ```yaml
-id:     string     # 必須：グローバル一意・永続。PREFIX-N[-N...]（§3）
-type:   string     # 必須：要素型（§6）
-labels: [string]   # 任意：任意の分類タグ（例: [post-mvp, experimental, deprecated]）
+id:        string     # 必須：グローバル一意・永続。PREFIX-N[-N...]（§3）
+type:      string     # 必須：要素型（§6）
+labels:    [string]   # 任意：任意の分類タグ（例: [post-mvp, experimental, deprecated]）
+scheduled: string     # 任意：対応予定フェーズ（config.yaml の phases リストの値）
+                      # current_phase より後のフェーズが指定された場合、
+                      # このノードに対するルールを完全サイレント（RULE-007 のみ除外）
 ```
 
 > **ライフサイクル状態（DD/Q/PEND）はメタ属性に持たない**。本文の見出しや
@@ -165,6 +168,7 @@ edges:
 |---|---|---|
 | `see-also` | 参考情報（関連するが依存ではない） | **なし** |
 | `extends` | 継承・拡張（スキーマ継承・設計継承） | あり |
+| `uses` | コンポーネント/段が別の要素を利用する（ORC が PROMPT を使う等） | あり |
 
 ### 矛盾
 
@@ -238,7 +242,84 @@ DD ノードの affects 辺に status: pending が残っている
 
 ---
 
-## 8. ドリフト検出・検証ルール
+## 8. ルール抑制仕様
+
+> 設定ファイル：`docs/doc-system/config.yaml`
+
+### 抑制の2軸
+
+| 軸 | 設定 | 条件 | 効果 |
+|---|---|---|---|
+| **scheduled 抑制** | ノード属性 `scheduled` | `scheduled` のフェーズが `current_phase` より後 | **完全サイレント**（ルール非発火） |
+| **ステージ抑制** | `config.yaml` の `stage_scope` | ノードの型が `current_stage` の `warn` リストに該当 | **ERROR → WARNING に降格**（発火するが警告のみ） |
+
+### scheduled 抑制の判定
+
+```
+phases リストのインデックス比較：
+  index(node.scheduled) > index(current_phase)
+    → このノードに関するルールは全て発火しない
+
+例：
+  phases: [sprint-1, sprint-2, sprint-3, post-mvp]
+  current_phase: sprint-1
+  node.scheduled: sprint-2
+  → index(sprint-2)=1 > index(sprint-1)=0 → 完全サイレント
+```
+
+### ステージ抑制の判定
+
+```
+stage_scope[current_stage].warn にノードの type が含まれる
+  → ERROR ルールを WARNING に降格して発火
+
+stage_scope[current_stage].full にノードの type が含まれる
+  → 元の深刻度のまま発火
+```
+
+### 抑制の例外
+
+**RULE-007（存在しない ID への参照）は抑制対象外**。  
+scheduled/stage に関わらず常に ERROR。存在しない ID を参照している時点でグラフが壊れており、フェーズを待つ意味がない。
+
+### config.yaml の構造
+
+```yaml
+# docs/doc-system/config.yaml
+
+current_phase: "sprint-1"
+current_stage: "requirements"
+
+phases:
+  - sprint-1
+  - sprint-2
+  - sprint-3
+  - post-mvp
+
+stage_scope:
+  requirements:
+    full: [VAL, SR, FR, NFR]
+    warn: [TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND, DD, Q, PEND]
+  analysis:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E]
+    warn: [ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
+  design:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT]
+    warn: [SRC, TC, VERIFY, FND]
+  implementation:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC]
+    warn: [VERIFY, FND]
+  verification:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
+    warn: []
+
+always_error:
+  - RULE-007
+```
+
+---
+
+## 9. ドリフト検出・検証ルール
 
 > 検証ツールが走査するルールの完全定義。
 > 深刻度：**ERROR**（必ず解消）／**WARNING**（要確認・合理的な理由があれば n/a 許容）／**INFO**（記録のみ）
@@ -329,3 +410,4 @@ DD ノードの affects 辺に status: pending が残っている
 | DD-004 | バージョニング単位：ファイル単位（frontmatter `version: x.y.z`）。z は伝播判定に不問 |
 | DD-005 | ライフサイクル状態はメタ属性に持たず本文に記載 |
 | DD-006 | `mvp` 属性を廃止し `labels: [...]` で汎化 |
+| DD-007 | `scheduled` 抑制＝完全サイレント（WARNING 降格ではない）。ステージ抑制＝ERROR→WARNING。RULE-007 のみ常に ERROR |

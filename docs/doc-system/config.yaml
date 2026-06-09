@@ -1,0 +1,36 @@
+# ドキュメントシステム グローバル設定
+# 検証ツールがここを読んで scheduled 抑制・ステージ抑制を判定する
+
+current_phase: "sprint-1"
+current_stage: "requirements"   # requirements | analysis | design | implementation | verification
+
+# フェーズの順序（インデックスで大小比較）
+phases:
+  - sprint-1
+  - sprint-2
+  - sprint-3
+  - post-mvp
+
+# ステージ×レイヤーのスコープ
+# full: このステージでフル検査（元の深刻度）
+# warn: このステージでは ERROR → WARNING に降格
+stage_scope:
+  requirements:
+    full: [VAL, SR, FR, NFR]
+    warn: [TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND, DD, Q, PEND]
+  analysis:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E]
+    warn: [ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
+  design:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT]
+    warn: [SRC, TC, VERIFY, FND]
+  implementation:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC]
+    warn: [VERIFY, FND]
+  verification:
+    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
+    warn: []
+
+# 抑制対象外ルール（scheduled/stage に関わらず常に ERROR）
+always_error:
+  - RULE-007   # 存在しない ID への参照
