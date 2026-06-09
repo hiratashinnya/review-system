@@ -131,9 +131,9 @@ def _cmd_revert(args) -> int:
     if rid is None:
         print("error: レポートから review_id を読めない", file=sys.stderr)
         return EXIT_BADREQ
-    try:                                        # #12 T3：壊れた state ファイルもクラッシュさせず fail-close
+    try:                                        # #12 T3/T5：壊れた state ファイルもクラッシュさせず fail-close
         refs = _load_commits(rid)
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
         print(f"O-14 [apply] commits 状態ファイルを読めない: {e} "
               f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
         return EXIT_FAILCLOSE
