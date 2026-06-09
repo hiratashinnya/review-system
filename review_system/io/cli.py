@@ -131,7 +131,12 @@ def _cmd_revert(args) -> int:
     if rid is None:
         print("error: レポートから review_id を読めない", file=sys.stderr)
         return EXIT_BADREQ
-    refs = _load_commits(rid)
+    try:                                        # #12 T3：壊れた state ファイルもクラッシュさせず fail-close
+        refs = _load_commits(rid)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"O-14 [apply] commits 状態ファイルを読めない: {e} "
+              f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
+        return EXIT_FAILCLOSE
     if not refs:
         print("revert 対象なし", file=sys.stderr)
         return EXIT_BADREQ
@@ -141,7 +146,8 @@ def _cmd_revert(args) -> int:
         try:                                    # #10：git 失敗（衝突/不正 ref/workdir 破損）を fail-close
             repo.revert(exec_id, ref)
         except (subprocess.CalledProcessError, OSError) as e:
-            print(f"O-14 [apply] revert に失敗（{ref}）: {e} "
+            detail = getattr(e, "stderr", None) or getattr(e, "stdout", None) or e  # #12 T2：git の実エラーを O-14 に
+            print(f"O-14 [apply] revert に失敗（{ref}）: {str(detail).strip()} "
                   f"-> 一部のみ revert された可能性。ワークスペースを手動確認のこと",
                   file=sys.stderr)
             return EXIT_FAILCLOSE
