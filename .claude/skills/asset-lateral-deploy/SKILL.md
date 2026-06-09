@@ -86,7 +86,7 @@ python scripts/lateral_deploy.py --target claude --dry-run
 
 - **スキップされるスキル**:
   - `user-invocable: false` → Copilot の単体ファイルには出力しない（ただし `spec-principles` は `copilot-instructions.md` に PR1–PR10 を展開）
-  - `name` が未記載 → frontmatter が不完全なため変換不可
+  - `name` が未記載でも →ディレクトリ名またはファイル stem でフォールバック（変換は実行）
 
 - **スキップされないスキル**:
   - `disable-model-invocation: true` でも → `.github/instructions/<name>.instructions.md` に変換（文脈ルール・ガイドラインとして機能）
@@ -95,7 +95,7 @@ python scripts/lateral_deploy.py --target claude --dry-run
 
 ## Done 条件
 
-✓ `python --target copilot --dry-run` でエラーなく実行完了  
+✓ `python scripts/lateral_deploy.py --target copilot --dry-run` でエラーなく実行完了  
 ✓ `.github/prompts/*.prompt.md` が全スキル分生成される  
 ✓ `.github/instructions/*.instructions.md` が全エージェント分生成される  
 ✓ `.github/copilot-instructions.md` に PR1–PR10 とスキル一覧が含まれている  

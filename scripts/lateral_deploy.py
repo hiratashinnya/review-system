@@ -8,8 +8,6 @@ Usage:
 """
 
 import argparse
-import os
-import re
 import subprocess
 import sys
 from datetime import datetime
@@ -18,6 +16,9 @@ from pathlib import Path
 
 def parse_frontmatter(text: str) -> tuple[dict, str]:
     """Parse YAML-like frontmatter from text. Returns (dict, body)."""
+    if not text.startswith("---"):
+        return {}, text
+
     parts = text.split("---", 2)
     if len(parts) < 3:
         return {}, text
@@ -43,19 +44,19 @@ def scan_assets(claude_dir: Path) -> dict:
 
     skills_dir = claude_dir / "skills"
     if skills_dir.exists():
-        for skill_dir in skills_dir.iterdir():
+        for skill_dir in sorted(skills_dir.iterdir()):
             if skill_dir.is_dir():
                 skill_file = skill_dir / "SKILL.md"
                 if skill_file.exists():
                     assets["skills"].append(skill_file)
 
     agents_dir = claude_dir
-    for agent_file in agents_dir.glob("agents/*.md"):
+    for agent_file in sorted(agents_dir.glob("agents/*.md")):
         assets["agents"].append(agent_file)
 
     standards_dir = claude_dir / "standards"
     if standards_dir.exists():
-        for std_dir in standards_dir.iterdir():
+        for std_dir in sorted(standards_dir.iterdir()):
             if std_dir.is_dir():
                 std_file = std_dir / "SKILL.md"
                 if std_file.exists():
@@ -76,11 +77,14 @@ def convert_skill_to_prompt(skill_file: Path, fm: dict, body: str) -> tuple[str,
     name = fm.get("name", skill_file.parent.name)
     description = fm.get("description", "")
 
+    # Escape single quotes and remove newlines for YAML safety
+    description_safe = description.replace("'", "''").replace("\n", " ")
+
     output_path = f".github/prompts/{name}.prompt.md"
 
     prompt_content = f"""---
 mode: 'agent'
-description: '{description}'
+description: '{description_safe}'
 ---
 # {name}
 {body}"""
@@ -199,6 +203,10 @@ def create_pr(branch_name: str):
 
     # Create and push branch
     try:
+        # Create and checkout branch
+        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+        print(f"✓ Created and checked out branch {branch_name}")
+
         subprocess.run(["git", "add", ".github/"], check=True)
         subprocess.run(
             ["git", "commit", "-m", "chore: add GitHub Copilot asset deployments"],
@@ -221,6 +229,8 @@ def create_pr(branch_name: str):
                 "Lateral deployment: converted .claude skills/agents to GitHub Copilot formats.\n\nAutomatic conversion via scripts/lateral_deploy.py",
                 "--base",
                 "main",
+                "--head",
+                branch_name,
             ],
             check=True,
         )
@@ -236,9 +246,9 @@ def main():
     )
     parser.add_argument(
         "--target",
-        choices=["copilot"],
+        choices=["copilot", "claude"],
         default="copilot",
-        help="Target platform (copilot only for MVP)",
+        help="Target platform (copilot primary, claude future)",
     )
     parser.add_argument(
         "--dry-run",
@@ -288,7 +298,7 @@ def main():
 
     print("\n🔄 Converting to GitHub Copilot format...")
 
-    # Convert skills to prompts
+    # Convert skills to prompts or instructions
     for skill_file in assets["skills"]:
         content = skill_file.read_text()
         fm, body = parse_frontmatter(content)
@@ -297,9 +307,27 @@ def main():
             print(f"  ⊘ Skip {fm.get('name', skill_file.parent.name)} (user-invocable: false)")
             continue
 
-        output_path, prompt_content = convert_skill_to_prompt(skill_file, fm, body)
-        outputs.append((output_path, prompt_content))
-        print(f"  ✓ {fm.get('name', skill_file.parent.name)} → {output_path}")
+        name = fm.get('name', skill_file.parent.name)
+
+        # Orchestrators (disable-model-invocation: true) go to instructions
+        if fm.get("disable-model-invocation") == "true":
+            output_path = f".github/instructions/{name}.instructions.md"
+            tools = fm.get("tools", "")
+            model = fm.get("model", "inherit")
+            tools_comment = f"<!-- tools: {tools} | model: {model} -->" if tools else ""
+            instructions_content = f"""---
+applyTo: '**'
+---
+# {name}
+{tools_comment}
+{body}"""
+            outputs.append((output_path, instructions_content))
+            print(f"  ✓ {name} → {output_path} (orchestrator)")
+        else:
+            # Regular skills go to prompts
+            output_path, prompt_content = convert_skill_to_prompt(skill_file, fm, body)
+            outputs.append((output_path, prompt_content))
+            print(f"  ✓ {name} → {output_path}")
 
     # Convert agents to instructions
     for agent_file in assets["agents"]:
