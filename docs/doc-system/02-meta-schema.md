@@ -243,7 +243,7 @@ DD ノード（status: decided）の affects 辺に status: pending が残って
 |---|---|
 | DD-001 | 可視性：`<details>/<summary>` を採用（GitHub ネイティブトグル）。stripped 版は後続オプション |
 | DD-002 | ID 形式：連番（`PREFIX-N`）、永続。意味は heading が持つ。リネームで id を変えない |
-| DD-003 | 全祖先記載必須（D2）：各ノードは推移上流すべてに `refines` 辺を持つ（SRC/TC は直接先のみ） |
+| DD-003 | 直接の親（隣接1段）のみ必須（D2 旧「全祖先必須」を撤回）。SRC/TC も直接先のみ（D3） |
 | DD-004 | バージョニング単位：ファイル単位（frontmatter `version: x.y.z`）。z は伝播判定に不問 |
 | DD-005 | ライフサイクル状態はメタ属性に持たず本文に記載 |
 | DD-006 | `mvp` 属性を廃止し `labels: [...]` で汎化 |
