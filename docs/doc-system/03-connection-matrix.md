@@ -122,7 +122,7 @@ NFR は `refines` 辺の上流にはならない（他の要素が NFR を `refi
 | `I` | → P（消費） | `P → I (consumes)` |
 | `O` | ← P（生成） | `P → O (produces)` |
 | `E` | → P（起動） | `E → P (triggers)` |
-| `SPEC` | ← TD から | `TD → SPEC (verifies)`（RULE-015） |
+| `SPEC` | ← TD から | `TD → SPEC (verifies)`（RULE-015）。`scenario` 属性必須（RULE-016）。FR 単位で normal 必須（RULE-017） |
 
 ---
 

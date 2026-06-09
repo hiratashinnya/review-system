@@ -38,6 +38,8 @@ labels:    [string]   # 任意：任意の分類タグ（例: [post-mvp, experim
 scheduled: string     # 任意：対応予定フェーズ（config.yaml の phases リストの値）
                       # current_phase より後のフェーズが指定された場合、
                       # このノードに対するルールを完全サイレント（RULE-007 のみ除外）
+scenario:  string     # SPEC/TD のみ推奨。シナリオ分類（§2a 参照）。
+                      # 省略時は RULE-016 で WARNING。
 ```
 
 > **ライフサイクル状態（DD/Q/PEND）はメタ属性に持たない**。本文の見出しや
@@ -45,6 +47,40 @@ scheduled: string     # 任意：対応予定フェーズ（config.yaml の phas
 > 機械が状態を読む必要があれば本文パースで取得できる。
 
 > **バージョンはノードに持たない**。ファイル単位で管理（§1）。
+
+---
+
+## 2a. scenario 属性（SPEC・TD 専用）
+
+> **目的**：シナリオ種別を機械可読にして、FR ごとの仕様カバレッジを次元別に検証する。
+> **適用型**：`SPEC`・`TD`（それ以外に付与しても無視）
+
+### 語彙（config.yaml の `scenario_vocab` で拡張可能）
+
+| 値 | 意味 | 典型例 |
+|---|---|---|
+| `normal` | 正常系（成立）：前提が満たされ期待通りに動く | 正常な入力 → 200 OK |
+| `failure` | 失敗系（不成立）：業務ルール違反・バリデーション失敗 | 必須項目欠落 → 400 |
+| `error` | 異常系：インフラ障害・タイムアウト・予期しない例外 | DB 接続断 → 503 |
+
+> 語彙は固定ではなく `config.yaml` に `scenario_vocab` を追加することで拡張できる。
+> デフォルト語彙はこの3値。
+
+### TD の scenario は SPEC から導出する
+
+`TD` の `scenario` は `verifies` 辺で指す `SPEC` の `scenario` と一致させることを推奨。
+一致しない場合 RULE-019 で WARNING を出す（設計ミスの早期発見）。
+
+### カバレッジ検証の次元
+
+```
+FR-001
+  ├─ SPEC-001  scenario: normal   ← RULE-015 ✅ TD あり
+  ├─ SPEC-002  scenario: failure  ← RULE-015 ✅ TD あり
+  └─ SPEC-003  scenario: error    ← RULE-015 ⚠️ TD なし  ← RULE-015 発火
+```
+
+RULE-017 は FR → SPEC 方向で「正常系仕様が定義されているか」を検証する。
 
 ---
 
@@ -393,9 +429,16 @@ always_error:
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
 | **RULE-015** | `SPEC` ノード | 入力方向の `verifies` 辺（from `TD`）が 0 本 | **WARNING** | `SPEC-003 にテスト設計（TD）が紐づいていない（カバレッジ未確保）` |
+| **RULE-016** | `SPEC`・`TD` ノード | `scenario` 属性がない | **WARNING** | `SPEC-002 に scenario 属性がない（カバレッジ次元が不明）` |
+| **RULE-017** | `FR` ノード | refines している `SPEC` 群に `scenario: normal` がひとつもない | **WARNING** | `FR-005 に正常系仕様（scenario: normal の SPEC）がない` |
+| **RULE-018** | `FR` ノード | refines している `SPEC` 群に `scenario: failure` も `scenario: error` もない | **INFO** | `FR-005 に失敗系・異常系の仕様がない（意図的であれば labels: [no-error-path] で抑制可）` |
+| **RULE-019** | `TD` ノード | `scenario` が `verifies` 先 `SPEC` の `scenario` と不一致 | **WARNING** | `TD-003 (scenario: normal) が SPEC-002 (scenario: failure) を verifies している` |
 
-> SPEC カバレッジの機械検証ルール。`TD → SPEC (verifies)` 辺が存在しない SPEC はテスト設計が未作成。
-> verification ステージ（`stage_scope.verification`）では **ERROR** に昇格させることを推奨。
+> RULE-015：テスト設計の存在を保証する。
+> RULE-016：シナリオ種別を明示させる（分類なしでは次元別カバレッジ計算不可）。
+> RULE-017：正常系が定義されていない FR を検出。全 FR に正常系仕様は必須。
+> RULE-018：INFO のみ（意図的に error path がない FR も存在するため）。`labels: [no-error-path]` で抑制。
+> RULE-019：TD の scenario と検証対象 SPEC の scenario が食い違うと設計ミスの兆候。
 
 ---
 
@@ -418,6 +461,10 @@ always_error:
 | RULE-013 | D | ERROR | VERIFY に verifies なし |
 | RULE-014 | E | WARNING | see-also に伝播ステータス付与 |
 | RULE-015 | F | WARNING | SPEC に TD からの verifies なし（カバレッジ未確保） |
+| RULE-016 | F | WARNING | SPEC/TD に scenario 属性なし |
+| RULE-017 | F | WARNING | FR に scenario: normal の SPEC がない |
+| RULE-018 | F | INFO | FR に failure/error シナリオの SPEC がない |
+| RULE-019 | F | WARNING | TD の scenario が verifies 先 SPEC の scenario と不一致 |
 
 ---
 
@@ -434,3 +481,4 @@ always_error:
 | DD-007 | `scheduled` 抑制＝完全サイレント（WARNING 降格ではない）。ステージ抑制＝ERROR→WARNING。RULE-007 のみ常に ERROR |
 | DD-008 | USDM 分割：FR（機能要求・なぜ必要か）と SPEC（機能仕様・テスタブル粒度）を分離。分析層以降は SPEC を直接の親とする |
 | DD-009 | テスト3層分離：TD（テスト設計・SPEC を verifies）→ TC（テストコード・TD を realizes）→ TR（テスト結果・TC を produced-by）。TD→SPEC の verifies 辺でカバレッジを機械検証（RULE-015） |
+| DD-010 | scenario はメタ属性（sub-ID 案を退ける）。ID に意味を持たせない DD-002 の原則を優先。語彙固定（normal/failure/error）＋config.yaml 拡張可。FR×scenario×TD の3次元カバレッジを RULE-015〜019 で機械検証 |

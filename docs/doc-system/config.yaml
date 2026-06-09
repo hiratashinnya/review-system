@@ -31,6 +31,13 @@ stage_scope:
     full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TD, TC, TR, VERIFY, FND]
     warn: []
 
+# SPEC/TD の scenario 属性の有効語彙（RULE-016 の検証対象）
+# ここに列挙した値以外は RULE-016 で WARNING
+scenario_vocab:
+  - normal    # 正常系（成立）
+  - failure   # 失敗系（不成立・バリデーション失敗・業務ルール違反）
+  - error     # 異常系（インフラ障害・タイムアウト・予期しない例外）
+
 # 抑制対象外ルール（scheduled/stage に関わらず常に ERROR）
 always_error:
   - RULE-007   # 存在しない ID への参照
