@@ -101,6 +101,15 @@ class TestCliP2Flow(unittest.TestCase):
         cli._commits_path(rid).write_text("{ not json", encoding="utf-8")
         self.assertEqual(cli.main(["revert", "report.html"]), 3)    # stack trace せず O-14＋exit 3
 
+    def test_revert_failclose_on_invalid_refs_type(self):  # #12 T4：list[str] でない JSON で fail-close
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        # 有効な JSON だが list[str] ではないケース（dict / 数値 / 文字列のリスト以外）
+        cli._commits_path(rid).write_text(json.dumps({"ref": "abc"}), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)
+        cli._commits_path(rid).write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)
+
     def test_feedback_malformed_json(self):              # #6：壊れた入力→fail-close(BADREQ)
         self._review()
         rid = cli._review_id_of(Path("report.html"))
