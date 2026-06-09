@@ -118,7 +118,7 @@ def extract_spec_principles(principles_file: Path) -> str:
     if not principles_file.exists():
         return ""
 
-    content = principles_file.read_text()
+    content = principles_file.read_text(encoding='utf-8')
     _, body = parse_frontmatter(content)
 
     # Extract lines starting with PR# or bullet points (PR1–PR10 section)
@@ -145,7 +145,7 @@ def generate_copilot_instructions(
     # Build skill list
     skill_list = []
     for skill_file in assets["skills"]:
-        content = skill_file.read_text()
+        content = skill_file.read_text(encoding='utf-8')
         fm, _ = parse_frontmatter(content)
 
         if fm.get("user-invocable") != "false":
@@ -187,7 +187,7 @@ def write_outputs(outputs: list[tuple[str, str]], dry_run: bool = False):
         for path, content in outputs:
             file_path = Path(path)
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content)
+            file_path.write_text(content, encoding='utf-8')
             print(f"✓ Created {path}")
 
 
@@ -208,6 +208,16 @@ def create_pr(branch_name: str):
         print(f"✓ Created and checked out branch {branch_name}")
 
         subprocess.run(["git", "add", ".github/"], check=True)
+
+        # Check if there are staged changes
+        result = subprocess.run(
+            ["git", "diff", "--staged", "--quiet"], capture_output=True
+        )
+        if result.returncode == 0:
+            # No changes
+            print("ℹ No changes to commit. .github/ is up to date.")
+            return
+
         subprocess.run(
             ["git", "commit", "-m", "chore: add GitHub Copilot asset deployments"],
             check=True,
@@ -300,7 +310,7 @@ def main():
 
     # Convert skills to prompts or instructions
     for skill_file in assets["skills"]:
-        content = skill_file.read_text()
+        content = skill_file.read_text(encoding='utf-8')
         fm, body = parse_frontmatter(content)
 
         if should_skip_conversion(fm):
@@ -331,7 +341,7 @@ applyTo: '**'
 
     # Convert agents to instructions
     for agent_file in assets["agents"]:
-        content = agent_file.read_text()
+        content = agent_file.read_text(encoding='utf-8')
         fm, body = parse_frontmatter(content)
 
         output_path, instructions_content = convert_agent_to_instructions(

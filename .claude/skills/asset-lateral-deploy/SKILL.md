@@ -1,13 +1,16 @@
 ---
 name: asset-lateral-deploy
 description: 資産の横展方法確立。.claude 配下の資産を棚卸しし、ターゲットプラットフォーム（GitHub Copilot 等）向けにフォーマット変換してPRを作成する。スラッシュコマンド一発で一気通貫実行。
+disable-model-invocation: true
 ---
 
 # 資産の横展方法確立（asset-lateral-deploy）
 
 ## 概要
 
-`.claude/` 配下のスキル・エージェント・標準ベースラインを、GitHub Copilot など別プラットフォームで利用可能にする。3フェーズを順に回す。
+`.claude/` 配下の**スキル・エージェント**を、GitHub Copilot など別プラットフォームで利用可能にする。3フェーズを順に回す。
+
+**MVP スコープ**: `.claude/skills/*.md` と `.claude/agents/*.md` のみ変換・出力。標準ベースライン（`.claude/standards/`）は棚卸し対象だが変換は将来対応（スタブで出力スキップ）。
 
 ---
 
