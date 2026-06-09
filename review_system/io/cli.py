@@ -137,6 +137,10 @@ def _cmd_revert(args) -> int:
         print(f"O-14 [apply] commits 状態ファイルを読めない: {e} "
               f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
         return EXIT_FAILCLOSE
+    if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):  # #12 T4
+        print(f"O-14 [apply] commits 状態ファイルの形式が不正: {refs!r} "
+              f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
+        return EXIT_FAILCLOSE
     if not refs:
         print("revert 対象なし", file=sys.stderr)
         return EXIT_BADREQ
