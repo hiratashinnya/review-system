@@ -444,7 +444,7 @@ always_error:
 | **RULE-009** | `FND` ノード | `found-in` 辺も `validates` 辺も 0 本 | **ERROR** | `FND-007 に辺がない（found-in または validates が必要）` |
 | **RULE-010** | `FND` ノード | `found-in` 辺が 0 本（`validates` のみ存在） | **WARNING** | `FND-007 に found-in がない（何の中に見つかったか不明）` |
 | **RULE-011** | `NFR` ノード | 入力方向の `validates` 辺が 0 本 | **WARNING** | `NFR-002 に validates 辺がない（検証証跡が必要）` |
-| **RULE-012** | `TC` ノード | `verifies` 辺が 0 本 | **ERROR** | `TC-012 に verifies 辺がない` |
+| **RULE-012** | `TC` ノード | `realizes` 辺が 0 本 | **ERROR** | `TC-012 に realizes 辺がない（TD との紐づけが必要）` |
 | **RULE-013** | `VERIFY` ノード | `verifies` 辺が 0 本 | **ERROR** | `VERIFY-003 に verifies 辺がない` |
 
 ---
@@ -492,7 +492,7 @@ always_error:
 | RULE-009 | D | ERROR | FND に辺が 0 本 |
 | RULE-010 | D | WARNING | FND に found-in なし |
 | RULE-011 | D | WARNING | NFR に validates なし |
-| RULE-012 | D | ERROR | TC に verifies なし |
+| RULE-012 | D | ERROR | TC に realizes 辺なし（TD との紐づけなし） |
 | RULE-013 | D | ERROR | VERIFY に verifies なし |
 | RULE-014 | E | WARNING | see-also に伝播ステータス付与 |
 | RULE-015 | F | WARNING | SPEC に TD からの verifies なし（カバレッジ未確保） |
