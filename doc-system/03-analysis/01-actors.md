@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.2.0"
 ---
 # 外部アクタ
 
@@ -20,7 +20,7 @@ edges:
   - to: SR-1
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -41,7 +41,7 @@ edges:
   - to: SR-2
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -62,7 +62,7 @@ edges:
   - to: SR-4
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 

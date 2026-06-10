@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.2.0"
 ---
 # イベント
 
@@ -18,14 +18,14 @@ type: E
 labels: []
 scheduled: ""
 edges:
-  - to: SPEC-3
+  - to: SPEC-1
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: P-1
     kind: triggers
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -47,14 +47,14 @@ type: E
 labels: []
 scheduled: ""
 edges:
-  - to: SPEC-2
+  - to: SPEC-6
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: P-4
     kind: triggers
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 

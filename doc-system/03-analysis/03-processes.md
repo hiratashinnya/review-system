@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.2.0"
 ---
 # 論理プロセス
 
@@ -21,11 +21,11 @@ edges:
   - to: SPEC-1
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: I-1
     kind: consumes
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -46,14 +46,14 @@ type: P
 labels: []
 scheduled: ""
 edges:
-  - to: SPEC-3
+  - to: SPEC-5
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
-構造化ノードセットに全 RULE を適用し、違反ノードと違反内容を列挙する。
+構造化ノードセットに全 RULE（構造完結性 RULE-005〜008・ドリフト RULE-001〜004・カバレッジ RULE-015〜019・検証層 RULE-009〜013/020/021）を、3 軸抑制（scheduled/stage/suppress）を適用して評価し、違反ノードと違反内容を列挙する。
 **入力**: P-1 からの構造化ノードセット
 **出力**: 違反リスト（P-4 へ）
 **トリガ**: P-1 完了後に連続起動
@@ -70,14 +70,14 @@ type: P
 labels: []
 scheduled: ""
 edges:
-  - to: SPEC-3
+  - to: SPEC-14
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
-ノードセットの入力・出力・イベントの網羅性（孤児ノード・未駆動出力・未定義反応）を確認する。
+ノードセットの入力・出力・イベントの網羅性（孤児ノード・未駆動出力・未定義反応）と、SPEC×condition×TD の仕様カバレッジを確認する。
 **入力**: P-1 からの構造化ノードセット
 **出力**: カバレッジ穴リスト（P-4 へ）
 **トリガ**: P-1 完了後に連続起動
@@ -94,22 +94,22 @@ type: P
 labels: []
 scheduled: ""
 edges:
-  - to: SPEC-3
+  - to: SPEC-25
     kind: refines
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: O-1
     kind: produces
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: O-2
     kind: produces
     status: pending
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
-RULE 違反リストとカバレッジ穴リストをG#番号付きで整形し、レポートとして出力する。
+RULE 違反リストとカバレッジ穴リストを深刻度順（ERROR→WARNING→INFO）に整列し、G#番号付きで整形して出力する。ERROR があれば終了コード 1 を返す。
 **入力**: P-2 の違反リスト・P-3 のカバレッジ穴リスト
 **出力**: O-1（RULE違反レポート）・O-2（カバレッジ点検結果）を生成（produces）
 **トリガ**: P-2・P-3 完了後
