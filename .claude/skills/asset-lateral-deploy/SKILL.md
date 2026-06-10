@@ -17,7 +17,8 @@ disable-model-invocation: true
 ## フェーズ 1: 棚卸し（Inventory）
 
 1. **前提確認**
-   - リポジトリルート直下に `.claude/skills/`, `.claude/agents/`, `.claude/standards/` が存在すること
+   - リポジトリルート直下に `.claude/skills/`, `.claude/agents/` が存在すること
+   - `.claude/standards/` は存在すれば棚卸し対象（optional）
    - 変換対象の frontmatter 属性（`name`, `description`, `user-invocable`, `disable-model-invocation`）が正しく記述されていること
 
 2. **`asset-auditor` 呼び出し**（オプション）
