@@ -100,7 +100,7 @@
 |---|---|---|---|---|
 | テスト設計 | `TD-` | 1 テストシナリオ（設計）。`condition` は verifies 先 SPEC と一致させる | → `SPEC-` | ✅ SPEC を verifies（RULE-015 の対象辺）。condition 必須（RULE-016）。SPEC と一致（RULE-019） |
 | テストコード | `TC-` | 1 テスト実装（テストケースのコード） | → `TD-` | ✅ TD を realizes |
-| テスト結果 | `TR-` | 1 実行記録（コミット ID・合否・ログ参照） | → `TC-` | `produced-by` 辺で TC に紐づける |
+| テスト結果 | `TR-` | 1 実行記録（`result: PASS/FAIL`・`log_ref`・実施日） | → `TC-` | `produced-by` 辺で TC に紐づける。RULE-020: result 必須。RULE-021: FAIL 時 log_ref 必須 |
 | ドキュメント検証 | `VERIFY-` | 1 検証実施（範囲・手法・実施日） | → 対象文書要素 | ✅ verifies 辺が必須（RULE-013） |
 | 指摘（finding） | `FND-` | 1 検証指摘（内容・深刻度・状態） | → 指摘対象要素、→ `NFR-`（validates） | ✅ found-in 辺が必須（RULE-009） |
 
