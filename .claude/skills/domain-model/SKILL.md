@@ -40,9 +40,26 @@ description: Derive a type-safe, immutable in-code domain model from a SETTLED d
 
 ## ノード著作（DM / TERM）
 
+**フロントマター定義**
+
+```yaml
+---
+id: DM-1              # 型 prefix + 連番（下表）。採番後は変更禁止
+type: DM              # 型値（下表から選ぶ。自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+| 型 | id PREFIX | 例 |
+|---|---|---|
+| DM | `DM-` | `DM-1` |
+| TERM | `TERM-` | `TERM-1` |
+
 **共通手順**
 1. テンプレ複製：`docs/doc-system/templates/design-static/<type>.md`
-2. id 採番：`PREFIX-N`（連番・永続・変更禁止）、既存最大 +1
+2. id 採番：上表の PREFIX + 連番（既存最大 +1）。採番後は変更禁止
 3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
 4. status: pending から始め、反映確認後に done
 5. ref_version を参照先の現在 `x.y` に合わせる
