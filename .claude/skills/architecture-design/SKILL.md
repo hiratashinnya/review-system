@@ -40,4 +40,14 @@ description: Design the PHYSICAL module/dependency architecture from a SETTLED l
 - IF：サブコマンド表（アクタ/役割/入力/出力・exit）＋シグネチャ＋I/O 台帳対応。
 - プロトコル：ポート Protocol ＋能力宣言＋（あれば）駆動プロトコルのディレクティブ表。
 - 永続：リポジトリ port ＋ 保存形式 ＋ トランザクション手順 ＋ state 配置。
+
+## doc-system ノード著作（MOD / PORT / PRS / DS）
+物理アーキテクチャを起こすこの段で、**設計静的層**（モジュール/ポート/永続）と**データストア**を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 |
+|---|---|
+| MOD | → P (refines) |
+| PORT | → MOD (refines) |
+| PRS（永続） | → DS (refines) |
+| DS（データストア） | → P (refines) |
 </content>

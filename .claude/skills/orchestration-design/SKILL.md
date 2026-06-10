@@ -39,4 +39,13 @@ description: Design the RUNTIME control flow — a swimlane flowchart (lanes = a
 - 実行順序の不変条件リスト（番号付き）。
 - `run_*()` 疑似コード（`match` で成功/失敗を漏れなく分岐）。
 - ログ3チャネル表＋版スタンプ定義（`MAJOR.MINOR`・版↔対応ロジック対応）。
+
+## doc-system ノード著作（ORC）
+制御フローを起こすこの段で、**オーケストレーション段**ノードを著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 |
+|---|---|
+| ORC | → P (refines)、→ PROMPT (uses) 任意 |
+
+> 辺方向に注意：`PROMPT → ORC` は誤り。正は **`ORC → PROMPT (uses)`**。
 </content>

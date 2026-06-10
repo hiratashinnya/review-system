@@ -21,3 +21,19 @@ description: Build an I/O ledger (classify inputs, attach originating source) an
 ## 成果物
 入力表（発生源列つき）／出力表／イベント表／カバレッジ表＋穴の一覧。
 点検は **spec-inspector** サブエージェントに回せる。
+
+## doc-system ノード著作（ACTOR / I / O / P / E ＋ FR / SPEC / NFR）
+要件が結晶化するこの段で、**分析層**（ACTOR/I/O/P/E）と**What 層**（FR/SPEC/NFR）を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 | 追加属性 | 主な RULE |
+|---|---|---|---|
+| ACTOR | → SR (refines) | — | RULE-005 |
+| I | → SPEC (refines) | — | RULE-005/006 |
+| O | → SPEC (refines) | — | RULE-005/006 |
+| P | → SPEC (refines) | — | RULE-006（I/O/E リンク必須）|
+| E | → SPEC (refines) | — | RULE-005/006 |
+| FR | → SR (refines) | `suppress:[RULE-018]` 任意 | RULE-017（normal SPEC 必須）/018 |
+| SPEC | → FR (refines) | `condition: normal\|boundary\|failure\|error` ✅ | RULE-015（TD verifies）/016 |
+| NFR | → SR (refines) | — | RULE-011（FND→validates）|
+
+> I→P は **P 側** `consumes`、E→P は **E 側** `triggers`（I/E 側に書かない）。SPEC は **1 ノード=1 condition**（条件をまたぐなら別 SPEC へ分割）。

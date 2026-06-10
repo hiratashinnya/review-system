@@ -23,7 +23,7 @@
 | 資産 | 標準源 | 実体（active） | テーラリング内容（要点） | 由来PJ |
 |---|---|---|---|---|
 | test-strategy | `standards/test-strategy/SKILL.md` | `skills/test-strategy/SKILL.md` | 全 public 関数を unittest／非決定（LLM）は `FakePlatformAdapter`(record-replay) で決定化＝アダプタ境界＝テスト境界／e2e＝Claude Code エージェント×`io/cli` stdout 駆動／log＝stdout ダンプ(`tee`)／dirs＝`tests/{unit,designs,reports,logs}`／版＝TD版＋commit id＋雛形版＋基準content_hash(S6)／runner＝`python -m unittest`。**TD/TC/TR 対応**：ケース→TD(`tests/designs/` `TD-xxx`)・unittest→TC・成績書→TR(frontmatter: result/log_ref)（DD-009/DD-011 対応） | review-system |
-| ~~doc-authoring~~ | なし（新規 author） | ~~`skills/doc-authoring/SKILL.md`~~ → **廃止**（2026-06-10） | authoring 規約は各フェーズスキル（spec-pipeline・test-strategy 等）に持たせる設計に変更。人向け参照は `docs/doc-system/07-authoring-guide.md`（プレーン Markdown 継続）。退避先：`.claude/backups/2026-06-10/doc-authoring-SKILL.md` | review-system |
+| ~~doc-authoring~~ | なし（新規 author） | ~~`skills/doc-authoring/SKILL.md`~~ → **廃止＝工程別に畳み込み**（2026-06-10） | 横断 1 スキルを廃し、**ノードはそれを著作する工程スキルが規約を持つ**方式に統一（test-strategy が TD/TC/TR で先行）。新規スキルは作らず既存を拡張（A14 新規ゲート対象外）。割当：VAL/SR→align・ACTOR/I/O/P/E＋FR/SPEC/NFR→io-event-ledger・DM/TERM→domain-model・MOD/PORT/PRS/DS→architecture-design・ORC→orchestration-design・SCM/CFG→schema-design・PROMPT→prompt-design・TD/TC/TR→test-strategy。各スキルは**型・必須辺・要 RULE のみ**を持ち本文/RULE 全文は 07 へ集約（複製ドリフト防止）。横断スパイン（DD/Q/PEND/VERIFY/FND）は単一工程に属さず `docs/doc-system/07-authoring-guide.md`（プレーン MD）が第一参照。退避：`.claude/backups/2026-06-10/doc-authoring-SKILL.md` | review-system |
 
 > その他の既存スキル（align・io-event-ledger・value-trace・mvp-scope・schema-design・domain-model・spec-pipeline・asset-pipeline／
 > **実装設計：architecture-design・orchestration-design・prompt-design・impl-design-pipeline**）と

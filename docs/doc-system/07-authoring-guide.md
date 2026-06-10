@@ -3,9 +3,14 @@ version: "0.1.0"
 ---
 # ドキュメント・オーサリングガイド
 
-> このガイドはドキュメントシステムでノードを書くときの実践的なリファレンス。
-> スキーマ定義 → [02-meta-schema.md](02-meta-schema.md)、接続要否 → [03-connection-matrix.md](03-connection-matrix.md)、
-> テンプレート → `templates/`。（旧 doc-authoring SKILL は廃止、authoring 規約は各フェーズスキルへ委譲）
+> このガイドはドキュメントシステムでノードを書くときの**完全な実践リファレンス**（共通手順・型別本文フォーマット・RULE 受け入れ条件・suppress・辺方向）。
+> スキーマ定義 → [02-meta-schema.md](02-meta-schema.md)、接続要否 → [03-connection-matrix.md](03-connection-matrix.md)、テンプレート → `templates/`。
+>
+> **工程別の著作規約は各フェーズスキルが持つ**（旧 doc-authoring SKILL は廃止＝畳み込み）：
+> VAL/SR→`/align`・ACTOR/I/O/P/E＋FR/SPEC/NFR→`/io-event-ledger`・DM/TERM→`/domain-model`・
+> MOD/PORT/PRS/DS→`/architecture-design`・ORC→`/orchestration-design`・SCM/CFG→`/schema-design`・
+> PROMPT→`/prompt-design`・TD/TC/TR→`/test-strategy`。
+> **横断スパイン（DD/Q/PEND/VERIFY/FND）は単一工程に属さないため、このガイドが第一参照**（DD/Q の運用は [CLAUDE.md](../../CLAUDE.md)、点検は spec-inspector）。
 
 ---
 

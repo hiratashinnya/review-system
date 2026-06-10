@@ -37,4 +37,12 @@ description: Derive a type-safe, immutable in-code domain model from a SETTLED d
 - 導出物がすべて frozen か。可変なのは状態を写す型だけか。
 - 各型の生成方法（constructor/factory/builder）に根拠があるか。
 - データ辞書 → クラスの対応表があり、不変条件を**型で**保証できているか。
+
+## doc-system ノード著作（DM / TERM）
+ドメイン型を起こすこの段で、**設計静的層の型ノード**と**共有語彙**を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 | 備考 |
+|---|---|---|
+| DM | → TERM (refines)、→ P (refines) | 型の不変条件は本文「制約」に |
+| TERM | （被参照中心の共有語彙）| 接続要否は [03](../../../docs/doc-system/03-connection-matrix.md) を参照 |
 </content>

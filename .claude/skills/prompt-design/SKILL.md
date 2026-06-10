@@ -38,4 +38,11 @@ description: Design LLM system-prompt templates — role constraints, prompt ass
 - 役割制約ブロック（やること/やってはいけないこと）。
 - ビルダーの段（`with_*`）と最終 frozen プロンプト。
 - 版管理表（MAJOR.MINOR ↔ 対応ハンドラ）。
+
+## doc-system ノード著作（PROMPT）
+プロンプト雛形を起こすこの段で、**プロンプトテンプレート**ノードを著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 | 備考 |
+|---|---|---|
+| PROMPT | → SPEC (refines) | 版は本文/カタログで `MAJOR.MINOR` 管理。ORC からは `ORC → PROMPT (uses)` で参照される |
 </content>

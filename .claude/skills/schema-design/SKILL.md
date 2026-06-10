@@ -18,3 +18,13 @@ description: Design a structured config/criteria file schema reader-first — li
 ## done
 - 機械判定と運用ルールが混ざっていないか。
 - サンプルで境界条件が検証できているか。
+
+## doc-system ノード著作（SCM / CFG）
+ファイル形式を起こすこの段で、**スキーマ**と**コンフィグ実体**ノードを著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 |
+|---|---|
+| SCM | → SPEC (refines)、→ TERM (see-also) |
+| CFG | → SCM (instantiates)、→ SPEC (refines) |
+
+> 辺方向に注意：`SCM → TERM` は **see-also**（refines ではない）。see-also 辺の `status` は **`n/a`** 固定（RULE-014）。

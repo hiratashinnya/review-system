@@ -16,3 +16,11 @@ description: Pre-work alignment. Decompose the request, propose the steps and gr
 ## done
 - 手順・スコープ・停止条件が明文化され合意されているか。
 - 既存資料を過信しない前提（点検も兼ねる）を共有したか。
+
+## doc-system ノード著作（VAL / SR）
+価値の根を据えるこの段で **Why 層**ノードを著作する。共通手順・横断スパイン（DD/Q/PEND/VERIFY/FND）・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+
+| 型 | 必須辺 | 主な RULE |
+|---|---|---|
+| VAL | なし（根） | RULE-005（孤立禁止）|
+| SR | → VAL (refines) | RULE-006 |
