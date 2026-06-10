@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 `.claude/` 配下の**スキル・エージェント**を、GitHub Copilot など別プラットフォームで利用可能にする。3フェーズを順に回す。
 
-**MVP スコープ**: `.claude/skills/*.md` と `.claude/agents/*.md` のみ変換・出力。標準ベースライン（`.claude/standards/`）は棚卸し対象だが変換は将来対応（スタブで出力スキップ）。
+**MVP スコープ**: `.claude/skills/*/SKILL.md` と `.claude/agents/*.md` のみ変換・出力。標準ベースライン（`.claude/standards/`）は棚卸し対象だが変換は将来対応（スタブで出力スキップ）。
 
 ---
 
@@ -43,7 +43,7 @@ disable-model-invocation: true
    |---|---|---|
    | `skills/*/SKILL.md` | `.github/prompts/<name>.prompt.md` | `user-invocable: true` または未指定 |
    | `agents/*.md` | `.github/instructions/<name>.instructions.md` | エージェント定義全般 |
-   | `skills/spec-principles/SKILL.md` | `copilot-instructions.md` に展開 | `user-invocable: false`、PR1–PR10 をインライン化 |
+   | `skills/spec-principles/SKILL.md` | `.github/copilot-instructions.md` に展開 | `user-invocable: false`、PR1–PR10 をインライン化 |
    | オーケストレータ（`disable-model-invocation: true`） | `.github/instructions/<name>.instructions.md` | orchestrator 型スキル |
 
 3. **出力形式**

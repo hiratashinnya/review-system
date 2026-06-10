@@ -15,7 +15,13 @@ from pathlib import Path
 
 
 def parse_frontmatter(text: str) -> tuple[dict, str]:
-    """Parse YAML-like frontmatter from text. Returns (dict, body)."""
+    """Parse YAML-like frontmatter from text. Returns (dict, body).
+
+    Note: review_system/parsing/frontmatter.py exists but cannot be reused here
+    because its KEY regex ([a-z_][a-z0-9_]*) does not support hyphenated keys
+    such as 'disable-model-invocation' and 'user-invocable' used in SKILL.md files.
+    This lenient parser handles the .claude asset format only.
+    """
     if not text.startswith("---"):
         return {}, text
 
@@ -210,13 +216,16 @@ def create_pr(branch_name: str):
         subprocess.run(["git", "add", ".github/"], check=True)
 
         # Check if there are staged changes
+        # returncode: 0=no diff, 1=diff exists, >1=command error
         result = subprocess.run(
             ["git", "diff", "--staged", "--quiet"], capture_output=True
         )
         if result.returncode == 0:
-            # No changes
             print("ℹ No changes to commit. .github/ is up to date.")
             return
+        if result.returncode > 1:
+            print(f"✗ git diff --staged failed (returncode={result.returncode})")
+            sys.exit(1)
 
         subprocess.run(
             ["git", "commit", "-m", "chore: add GitHub Copilot asset deployments"],
@@ -302,6 +311,7 @@ def main():
     assets = scan_assets(claude_dir)
     print(f"  Found {len(assets['skills'])} skills")
     print(f"  Found {len(assets['agents'])} agents")
+    print(f"  Found {len(assets['standards'])} standards (inventory only; conversion not yet implemented)")
 
     # Convert assets
     outputs = []
