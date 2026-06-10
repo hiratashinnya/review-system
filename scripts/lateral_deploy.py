@@ -22,26 +22,19 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     such as 'disable-model-invocation' and 'user-invocable' used in SKILL.md files.
     This lenient parser handles the .claude asset format only.
     """
-    lines = text.splitlines(keepends=True)
-
-    if not lines or lines[0].strip() != "---":
+    if not text.startswith("---"):
         return {}, text
 
-    # Find closing --- delimiter
-    closing_idx = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            closing_idx = i
-            break
-
-    if closing_idx is None:
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        # Started with --- but missing closing ---
         raise ValueError(
             "Frontmatter started with --- but closing --- not found. "
             "Check the file format is valid SKILL.md."
         )
 
-    fm_text = "".join(lines[1:closing_idx])
-    body = "".join(lines[closing_idx + 1:])
+    fm_text = parts[1]
+    body = parts[2]
 
     fm = {}
     for line in fm_text.splitlines():
