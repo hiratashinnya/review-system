@@ -5,7 +5,7 @@ version: "0.1.0"
 
 > このガイドはドキュメントシステムでノードを書くときの実践的なリファレンス。
 > スキーマ定義 → [02-meta-schema.md](02-meta-schema.md)、接続要否 → [03-connection-matrix.md](03-connection-matrix.md)、
-> テンプレート → `templates/`、Claude 向けスキル → `.claude/skills/doc-authoring/SKILL.md`。
+> テンプレート → `templates/`。（旧 doc-authoring SKILL は廃止、authoring 規約は各フェーズスキルへ委譲）
 
 ---
 

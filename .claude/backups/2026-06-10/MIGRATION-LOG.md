@@ -37,3 +37,25 @@ test-strategy のケース Markdown が `TC-` prefix を使っていたため `T
 # test-strategy を退避前に戻す場合
 cp .claude/backups/2026-06-10/test-strategy-SKILL.md .claude/skills/test-strategy/SKILL.md
 ```
+
+---
+
+## doc-authoring スキル廃止（2026-06-10）
+
+**変更理由**: 工程横断の doc-authoring スキルは粒度が粗すぎ auto-load の無駄。  
+authoring 規約は各フェーズスキル（spec-pipeline・test-strategy 等）に持たせる設計に変更（方針変更：工程ごとにスキル化・doc-authoring はプレーン Markdown）。
+
+**対応**:
+| 対象 | 変更内容 |
+|---|---|
+| `.claude/skills/doc-authoring/` | 削除（auto-load から除外）|
+| `docs/doc-system/07-authoring-guide.md` | SKILL.md 参照を削除、プレーン Markdown 参照文書として継続 |
+| `.claude/tailoring-registry.md` | doc-authoring エントリを廃止済みとしてマーク |
+
+**退避先**: `.claude/backups/2026-06-10/doc-authoring-SKILL.md`
+
+```bash
+# doc-authoring を退避前に戻す場合
+mkdir -p .claude/skills/doc-authoring
+cp .claude/backups/2026-06-10/doc-authoring-SKILL.md .claude/skills/doc-authoring/SKILL.md
+```
