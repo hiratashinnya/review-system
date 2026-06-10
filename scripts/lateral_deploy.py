@@ -92,7 +92,6 @@ def convert_skill_to_prompt(skill_file: Path, fm: dict, body: str) -> tuple[str,
 mode: 'agent'
 description: '{description_safe}'
 ---
-# {name}
 {body}"""
 
     return output_path, prompt_content
@@ -112,7 +111,6 @@ def convert_agent_to_instructions(agent_file: Path, fm: dict, body: str) -> tupl
     instructions_content = f"""---
 applyTo: '**'
 ---
-# {name}
 {tools_comment}
 {body}"""
 
@@ -157,7 +155,9 @@ def generate_copilot_instructions(
         if fm.get("user-invocable") != "false":
             name = fm.get("name", skill_file.parent.name)
             description = fm.get("description", "")
-            skill_list.append(f"| `/{name}` | {description} |")
+            # Escape | and strip newlines to keep the Markdown table valid
+            description_cell = description.replace("|", "\\|").replace("\n", " ")
+            skill_list.append(f"| `/{name}` | {description_cell} |")
 
     skills_table = "\n".join(skill_list)
 
@@ -209,13 +209,8 @@ def create_pr(branch_name: str):
 
     # Create and push branch
     try:
-        # Create and checkout branch
-        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
-        print(f"✓ Created and checked out branch {branch_name}")
-
+        # Check for changes before creating a branch to avoid leaving an empty branch
         subprocess.run(["git", "add", ".github/"], check=True)
-
-        # Check if there are staged changes
         # returncode: 0=no diff, 1=diff exists, >1=command error
         result = subprocess.run(
             ["git", "diff", "--staged", "--quiet"], capture_output=True
@@ -226,6 +221,10 @@ def create_pr(branch_name: str):
         if result.returncode > 1:
             print(f"✗ git diff --staged failed (returncode={result.returncode})")
             sys.exit(1)
+
+        # Only create the branch when there are changes to commit
+        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+        print(f"✓ Created and checked out branch {branch_name}")
 
         subprocess.run(
             ["git", "commit", "-m", "chore: add GitHub Copilot asset deployments"],
@@ -338,7 +337,6 @@ def main():
             instructions_content = f"""---
 applyTo: '**'
 ---
-# {name}
 {tools_comment}
 {body}"""
             outputs.append((output_path, instructions_content))
