@@ -27,7 +27,11 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 
     parts = text.split("---", 2)
     if len(parts) < 3:
-        return {}, text
+        # Started with --- but missing closing ---
+        raise ValueError(
+            "Frontmatter started with --- but closing --- not found. "
+            "Check the file format is valid SKILL.md."
+        )
 
     fm_text = parts[1]
     body = parts[2]
@@ -181,6 +185,18 @@ This repository uses a structured spec-design methodology. Below are the core pr
 
 def write_outputs(outputs: list[tuple[str, str]], dry_run: bool = False):
     """Write converted files to disk or print to stdout."""
+    # Check for duplicate output paths (silent overwrites indicate a problem)
+    paths_seen = set()
+    for path, _ in outputs:
+        if path in paths_seen:
+            print(f"✗ Error: duplicate output path: {path}")
+            print(
+                "This likely indicates duplicate asset names or a collision in naming. "
+                "Check .claude/ for duplicate `name` attributes in frontmatter."
+            )
+            sys.exit(1)
+        paths_seen.add(path)
+
     if dry_run:
         print("=== DRY RUN: Files that would be generated ===\n")
         for path, content in outputs:
@@ -297,12 +313,24 @@ def main():
         today = datetime.now().strftime("%Y%m%d")
         args.branch_name = f"asset-lateral-deploy/{today}"
 
-    # Find .claude directory
+    # Find .claude directory and verify required subdirectories
     repo_root = Path.cwd()
     claude_dir = repo_root / ".claude"
 
     if not claude_dir.exists():
         print(f"Error: {claude_dir} not found")
+        sys.exit(1)
+
+    # Verify required subdirectories (per SKILL.md Phase 1 prerequisites)
+    skills_dir = claude_dir / "skills"
+    agents_dir = claude_dir / "agents"
+
+    if not skills_dir.exists():
+        print(f"Error: {skills_dir} not found (required prerequisite)")
+        sys.exit(1)
+
+    if not agents_dir.exists():
+        print(f"Error: {agents_dir} not found (required prerequisite)")
         sys.exit(1)
 
     # Scan assets
