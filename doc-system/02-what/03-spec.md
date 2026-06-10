@@ -1,11 +1,12 @@
 ---
-version: "0.2.0"
+version: "0.3.0"
 ---
 # 機能仕様
 
 > **型**: SPEC ／ **必須上流**: FR（refines ✅）
-> 全ノードに `scheduled: "verification"`（TD/検証層は後着手のため RULE-015 をサイレント）。
-> condition: normal | boundary | failure | error（RULE-016）。出典は各 FR と `docs/doc-system/`。
+> condition: normal | boundary | failure | error（RULE-016）。
+> TD/検証層ノードの必須辺（RULE-015/009〜013/020/021）は `stage_scope.disable` でステージ単位に無効化する（ノード単位の suppress は付与しない）。
+> 出典は各 FR と `docs/doc-system/`。
 
 ---
 
@@ -17,7 +18,7 @@ version: "0.2.0"
 id: SPEC-1
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-1
@@ -41,7 +42,7 @@ edges:
 id: SPEC-2
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: error
 edges:
   - to: FR-1
@@ -57,7 +58,7 @@ edges:
 
 ---
 
-## SPEC-3: ID 採番・永続・階層分解（normal）
+## SPEC-3: ID 管理の正常系（normal）
 
 <details><summary>⬡ SPEC-3 · v0.2</summary>
 
@@ -65,19 +66,101 @@ edges:
 id: SPEC-3
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-2
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-3-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-3-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-3-3
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: 既存ノード集合の ID が判明している
-**入力/トリガ**: 新規ノード採番、または `I-1` を `I-1-1`/`I-1-2` に分割する
-**期待動作**: `PREFIX-N[-N...]` の一意 ID を与え、ID をリネームせず永続させ、親が子へ `decomposes` 辺を張る
+ID 採番・永続・階層分解の正常系（SPEC-3-1〜3 を参照）。
+
+---
+
+## SPEC-3-1: PREFIX-N[-N...] 形式の一意 ID 採番（normal）
+
+<details><summary>⬡ SPEC-3-1 · v0.1</summary>
+
+```yaml
+id: SPEC-3-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 既存ノード集合の ID リストが判明している
+**入力/トリガ**: 著者が新規ノードに ID を付与する
+**期待動作**: `PREFIX-N[-N...]` 形式で既存 ID と重複しない一意な ID を採番する
+
+---
+
+## SPEC-3-2: ID の永続（リネームなし）（normal）
+
+<details><summary>⬡ SPEC-3-2 · v0.1</summary>
+
+```yaml
+id: SPEC-3-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: ID を持つノードが存在する
+**入力/トリガ**: ノードの見出し・本文・辺を変更する
+**期待動作**: ID は変更せずに永続させる。意味は見出し（heading）が担い、ID は追跡キーとしてのみ機能する
+
+---
+
+## SPEC-3-3: 階層分解時の親 decomposes 辺（normal）
+
+<details><summary>⬡ SPEC-3-3 · v0.1</summary>
+
+```yaml
+id: SPEC-3-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `I-1-1` のような子 ID と、親 `I-1` が存在する
+**入力/トリガ**: 著者が子ノードを作成する
+**期待動作**: 親ノードに子へ向かう `decomposes` 辺を追加する
 
 ---
 
@@ -89,7 +172,7 @@ edges:
 id: SPEC-4
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-2
@@ -113,7 +196,7 @@ edges:
 id: SPEC-5
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-3
@@ -137,7 +220,7 @@ edges:
 id: SPEC-6
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: error
 edges:
   - to: FR-3
@@ -149,7 +232,7 @@ edges:
 
 **前提条件**: ノード集合がパースされている
 **入力/トリガ**: 辺の `to` が存在しない ID を指す
-**期待動作**: RULE-007 ERROR を報告する。`always_error` のため scheduled/stage/suppress いずれでも抑制不可
+**期待動作**: RULE-007 ERROR を報告する。`always_error` のため scheduled / stage_scope.disable / suppress いずれでも抑制不可
 
 ---
 
@@ -161,7 +244,7 @@ edges:
 id: SPEC-7
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-3
@@ -185,7 +268,7 @@ edges:
 id: SPEC-8
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-3
@@ -209,19 +292,73 @@ edges:
 id: SPEC-9
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-4
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-9-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-9-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+辺の `ref_version` と参照先ファイルの version の不一致（ドリフト）検出（SPEC-9-1〜2 を参照）。
+
+---
+
+## SPEC-9-1: 主要辺のドリフト → RULE-004 ERROR（failure）
+
+<details><summary>⬡ SPEC-9-1 · v0.1</summary>
+
+```yaml
+id: SPEC-9-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-9
+    kind: refines
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
 **前提条件**: 辺が `ref_version` を持ち、参照先ファイルに version がある
-**入力/トリガ**: 辺の `ref_version` の x.y が参照先の現在 x.y と一致しない
-**期待動作**: RULE-003 WARNING を報告し、refines/realizes/verifies の主要辺なら RULE-004 ERROR に昇格する
+**入力/トリガ**: `refines` / `realizes` / `verifies` 辺の `ref_version` の x.y が参照先の現在 x.y と不一致
+**期待動作**: RULE-004 ERROR を報告する（主要辺のドリフトは設計反映漏れのリスクが高いため ERROR）
+
+---
+
+## SPEC-9-2: その他辺のドリフト → RULE-003 WARNING（failure）
+
+<details><summary>⬡ SPEC-9-2 · v0.1</summary>
+
+```yaml
+id: SPEC-9-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-9
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 辺が `ref_version` を持ち、参照先ファイルに version がある
+**入力/トリガ**: `refines` / `realizes` / `verifies` 以外の辺の `ref_version` の x.y が参照先の現在 x.y と不一致
+**期待動作**: RULE-003 WARNING を報告する
 
 ---
 
@@ -233,7 +370,7 @@ edges:
 id: SPEC-10
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-4
@@ -257,7 +394,7 @@ edges:
 id: SPEC-11
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-5
@@ -281,7 +418,7 @@ edges:
 id: SPEC-12
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-5
@@ -305,7 +442,7 @@ edges:
 id: SPEC-13
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-5
@@ -329,7 +466,7 @@ edges:
 id: SPEC-14
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-6
@@ -353,19 +490,101 @@ edges:
 id: SPEC-15
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-6
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-15-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-15-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-15-3
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: SPEC/TD ノードがある
-**入力/トリガ**: SPEC に TD からの verifies 辺がない／SPEC・TD に condition 属性がない・語彙外／TD の condition が verifies 先 SPEC と不一致
-**期待動作**: 順に RULE-015・RULE-016・RULE-019 を WARNING で報告する
+SPEC と TD のカバレッジ・condition 整合性の失敗系（SPEC-15-1〜3 を参照）。
+
+---
+
+## SPEC-15-1: SPEC に TD verifies 欠如（RULE-015）（failure）
+
+<details><summary>⬡ SPEC-15-1 · v0.1</summary>
+
+```yaml
+id: SPEC-15-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-15
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: SPEC ノードが存在する
+**入力/トリガ**: SPEC に TD からの `verifies` 辺がない
+**期待動作**: RULE-015 WARNING を報告する
+
+---
+
+## SPEC-15-2: condition 属性なし・語彙外（RULE-016）（failure）
+
+<details><summary>⬡ SPEC-15-2 · v0.1</summary>
+
+```yaml
+id: SPEC-15-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-15
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: SPEC または TD ノードが存在する
+**入力/トリガ**: SPEC・TD に `condition` 属性がない、または `config.yaml` の `condition_vocab` 外の値が設定されている
+**期待動作**: RULE-016 WARNING を報告する
+
+---
+
+## SPEC-15-3: TD の condition が verifies 先 SPEC と不一致（RULE-019）（failure）
+
+<details><summary>⬡ SPEC-15-3 · v0.1</summary>
+
+```yaml
+id: SPEC-15-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-15
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: TD が SPEC に `verifies` 辺を持ち、両者に `condition` 属性がある
+**入力/トリガ**: TD の `condition` が verifies 先 SPEC の `condition` と一致しない
+**期待動作**: RULE-019 WARNING を報告する
 
 ---
 
@@ -377,19 +596,74 @@ edges:
 id: SPEC-16
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-6
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-16-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-16-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: FR が SPEC 群を refines されている
-**入力/トリガ**: FR の SPEC 群に `condition: normal` がない／`failure` も `error` もない
-**期待動作**: RULE-017 を WARNING、RULE-018 を INFO で報告する（RULE-018 は意図的なら suppress 可）
+FR が保有する SPEC 群の condition 網羅の失敗系（SPEC-16-1〜2 を参照）。
+
+---
+
+## SPEC-16-1: FR の SPEC 群に normal condition なし（RULE-017）（failure）
+
+<details><summary>⬡ SPEC-16-1 · v0.1</summary>
+
+```yaml
+id: SPEC-16-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-16
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: FR に SPEC 群が refines で接続されている
+**入力/トリガ**: FR の SPEC 群に `condition: normal` を持つものが 1 つもない
+**期待動作**: RULE-017 WARNING を報告する（正常系仕様の欠如）
+
+---
+
+## SPEC-16-2: FR の SPEC 群に failure/error condition なし（RULE-018）（failure）
+
+<details><summary>⬡ SPEC-16-2 · v0.1</summary>
+
+```yaml
+id: SPEC-16-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+suppress: [RULE-018]  # 異常系なし: FR-16-2 自体の failure/error SPECは意図的に省略
+edges:
+  - to: SPEC-16
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: FR に SPEC 群が refines で接続されている
+**入力/トリガ**: FR の SPEC 群に `condition: failure` も `condition: error` も存在しない
+**期待動作**: RULE-018 INFO を報告する（意図的なら suppress 可）
 
 ---
 
@@ -401,7 +675,7 @@ edges:
 id: SPEC-17
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-7
@@ -425,19 +699,157 @@ edges:
 id: SPEC-18
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-7
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-18-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-18-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-18-3
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-18-4
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-18-5
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: 検証層ノードがある
-**入力/トリガ**: FND に found-in/validates がない（RULE-009/010）／NFR に validates がない（RULE-011）／TC に realizes がない（RULE-012）／VERIFY に verifies がない（RULE-013）
-**期待動作**: 該当 RULE を深刻度（ERROR/WARNING）どおりに報告する
+検証層ノード（FND/NFR/TC/VERIFY）の必須辺欠如（SPEC-18-1〜5 を参照）。
+
+---
+
+## SPEC-18-1: FND に found-in 欠如（RULE-009）（failure）
+
+<details><summary>⬡ SPEC-18-1 · v0.1</summary>
+
+```yaml
+id: SPEC-18-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が FND のノードが存在する
+**入力/トリガ**: FND に `found-in` 辺がない
+**期待動作**: RULE-009 WARNING を報告する
+
+---
+
+## SPEC-18-2: FND に validates 欠如（RULE-010）（failure）
+
+<details><summary>⬡ SPEC-18-2 · v0.1</summary>
+
+```yaml
+id: SPEC-18-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が FND のノードが存在する
+**入力/トリガ**: FND に `validates` 辺がない
+**期待動作**: RULE-010 WARNING を報告する
+
+---
+
+## SPEC-18-3: NFR に validates 欠如（RULE-011）（failure）
+
+<details><summary>⬡ SPEC-18-3 · v0.1</summary>
+
+```yaml
+id: SPEC-18-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が NFR のノードが存在する
+**入力/トリガ**: NFR に `validates` 辺がない
+**期待動作**: RULE-011 WARNING を報告する
+
+---
+
+## SPEC-18-4: TC に realizes 欠如（RULE-012）（failure）
+
+<details><summary>⬡ SPEC-18-4 · v0.1</summary>
+
+```yaml
+id: SPEC-18-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が TC のノードが存在する
+**入力/トリガ**: TC に `realizes` 辺がない
+**期待動作**: RULE-012 WARNING を報告する
+
+---
+
+## SPEC-18-5: VERIFY に verifies 欠如（RULE-013）（failure）
+
+<details><summary>⬡ SPEC-18-5 · v0.1</summary>
+
+```yaml
+id: SPEC-18-5
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が VERIFY のノードが存在する
+**入力/トリガ**: VERIFY に `verifies` 辺がない
+**期待動作**: RULE-013 WARNING を報告する
 
 ---
 
@@ -449,19 +861,73 @@ edges:
 id: SPEC-19
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: failure
 edges:
   - to: FR-7
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-19-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-19-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: 型が TR のノードがある
-**入力/トリガ**: TR に `result` 属性がない／`result: FAIL` かつ `log_ref` がない
-**期待動作**: 順に RULE-020・RULE-021 を WARNING で報告する（result/log_ref は YAML メタ）
+TR ノードの結果属性の完結性失敗系（SPEC-19-1〜2 を参照）。
+
+---
+
+## SPEC-19-1: TR に result 属性なし（RULE-020）（failure）
+
+<details><summary>⬡ SPEC-19-1 · v0.1</summary>
+
+```yaml
+id: SPEC-19-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-19
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が TR のノードが存在する
+**入力/トリガ**: TR に `result` 属性がない
+**期待動作**: RULE-020 WARNING を報告する
+
+---
+
+## SPEC-19-2: TR result:FAIL かつ log_ref なし（RULE-021）（failure）
+
+<details><summary>⬡ SPEC-19-2 · v0.1</summary>
+
+```yaml
+id: SPEC-19-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-19
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が TR のノードに `result: FAIL` が設定されている
+**入力/トリガ**: TR に `log_ref` 属性がない
+**期待動作**: RULE-021 WARNING を報告する（FAIL の根拠ログが必須）
 
 ---
 
@@ -473,7 +939,7 @@ edges:
 id: SPEC-20
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-8
@@ -485,31 +951,141 @@ edges:
 
 **前提条件**: ノードの `scheduled` が `config.yaml` の phases に含まれる値
 **入力/トリガ**: `index(node.scheduled) > index(current_phase)`
-**期待動作**: そのノードに対する全ルールを発火させない（RULE-007 のみ例外）
+**期待動作**: そのノードに対する全ルールを発火させない（always_error 指定ルール〔RULE-007〕のみ例外）
 
 ---
 
-## SPEC-21: stage_scope による ERROR→WARNING 降格（normal）
+## SPEC-21: stage_scope による検査無効化（normal）
 
-<details><summary>⬡ SPEC-21 · v0.2</summary>
+<details><summary>⬡ SPEC-21 · v0.3</summary>
 
 ```yaml
 id: SPEC-21
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-8
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-21-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-21-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-21-3
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-21-4
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: `config.yaml` の `stage_scope[current_stage]` が定義されている
-**入力/トリガ**: ノードの type が `current_stage.warn` に含まれる（`full` なら元の深刻度）
-**期待動作**: そのノードに対する ERROR ルールを WARNING に降格して発火する
+`config.yaml` の `stage_scope[current_stage].disable` リストに `{rule: RULE-xxx, on: NodeType}` ペアを登録することで、特定ステージで特定ノードタイプへの検査を無効化する（SPEC-21-1〜4 を参照）。
+
+---
+
+## SPEC-21-1: disable 対象ペアの検査サイレント（normal）
+
+<details><summary>⬡ SPEC-21-1 · v0.1</summary>
+
+```yaml
+id: SPEC-21-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-21
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `stage_scope[current_stage].disable` に `{rule: R, on: T}` ペアが存在する
+**入力/トリガ**: type が T のノードに対してルール R を評価しようとする
+**期待動作**: R の評価をスキップし、違反を報告しない
+
+---
+
+## SPEC-21-2: disable 非対象ペアの検査発火（normal）
+
+<details><summary>⬡ SPEC-21-2 · v0.1</summary>
+
+```yaml
+id: SPEC-21-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-21
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `stage_scope[current_stage].disable` に当該 `{rule: R, on: T}` ペアが含まれない
+**入力/トリガ**: type が T のノードに対してルール R を評価する
+**期待動作**: R を元の深刻度で評価し、違反があれば報告する
+
+---
+
+## SPEC-21-3: always_error は disable 対象でも発火（error）
+
+<details><summary>⬡ SPEC-21-3 · v0.1</summary>
+
+```yaml
+id: SPEC-21-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-21
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `stage_scope[current_stage].disable` に `{rule: RULE-007, on: X}` が含まれる（誤設定）
+**入力/トリガ**: type が X のノードに存在しない ID への参照がある
+**期待動作**: disable 設定を無視して RULE-007 ERROR を報告する（always_error のため）
+
+---
+
+## SPEC-21-4: current_stage が stage_scope に未定義（failure）
+
+<details><summary>⬡ SPEC-21-4 · v0.1</summary>
+
+```yaml
+id: SPEC-21-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-21
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `config.yaml` に `current_stage` が設定されている
+**入力/トリガ**: `stage_scope` に `current_stage` 値に対応するキーが存在しない
+**期待動作**: ツール設定エラーを報告し、stage_scope 判定をスキップして全ルールを元の深刻度で評価する
 
 ---
 
@@ -521,7 +1097,7 @@ edges:
 id: SPEC-22
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-8
@@ -531,33 +1107,87 @@ edges:
 ```
 </details>
 
-**前提条件**: ノードに `suppress: [RULE-xxx]` ＋理由 inline comment がある
+**前提条件**: ノードに `suppress: [RULE-xxx]` ＋理由インラインコメントがある
 **入力/トリガ**: 検証ツールがそのノードの RULE-xxx を評価する
 **期待動作**: 当該ルールをそのノードに対してのみサイレントにする
 
 ---
 
-## SPEC-23: always_error・理由なき suppress の扱い（error）
+## SPEC-23: suppress の禁止ケース（error）
 
-<details><summary>⬡ SPEC-23 · v0.2</summary>
+<details><summary>⬡ SPEC-23 · v0.3</summary>
 
 ```yaml
 id: SPEC-23
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: error
 edges:
   - to: FR-8
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-23-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-23-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+suppress の禁止ケース（always_error 抑制試みと理由コメント欠如）（SPEC-23-1〜2 を参照）。
+
+---
+
+## SPEC-23-1: RULE-007 を suppress に含めても抑制不可（error）
+
+<details><summary>⬡ SPEC-23-1 · v0.1</summary>
+
+```yaml
+id: SPEC-23-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-23
+    kind: refines
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
 **前提条件**: suppress 機構が動作している
-**入力/トリガ**: `suppress` に always_error（RULE-007）が含まれる／suppress に理由 comment がない
-**期待動作**: always_error は抑制せず常に ERROR 発火。理由なき suppress は運用上 PR レビューで拒否（理由必須）
+**入力/トリガ**: ノードの `suppress` リストに RULE-007 が含まれる
+**期待動作**: RULE-007 の抑制を無視し、存在しない ID 参照があれば常に ERROR を報告する（always_error のため）
+
+---
+
+## SPEC-23-2: suppress エントリに理由コメントなし（failure）
+
+<details><summary>⬡ SPEC-23-2 · v0.1</summary>
+
+```yaml
+id: SPEC-23-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-23
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: ノードに `suppress` フィールドがある
+**入力/トリガ**: suppress エントリの後に `# 理由` インラインコメントがない
+**期待動作**: suppress 品質チェックの WARNING を報告する（理由なき抑制は設計品質劣化の兆候）
 
 ---
 
@@ -569,23 +1199,77 @@ edges:
 id: SPEC-24
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-9
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-24-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-24-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
-**前提条件**: `config.yaml` に `trace_scope.include`/`exclude`（glob）がある
-**入力/トリガ**: 検証ツールが走査対象ファイルを決定する
-**期待動作**: include に一致し exclude に一致しないファイルを in-graph とする（exclude が include より優先）
+`config.yaml` の `trace_scope.include`/`exclude` を使った in-graph ファイル集合の決定（SPEC-24-1〜2 を参照）。
 
 ---
 
-## SPEC-25: 終了コードと深刻度順出力（normal）
+## SPEC-24-1: include 一致・exclude 非一致 → in-graph（normal）
+
+<details><summary>⬡ SPEC-24-1 · v0.1</summary>
+
+```yaml
+id: SPEC-24-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-24
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `config.yaml` に `trace_scope.include` および `trace_scope.exclude`（glob）が設定されている
+**入力/トリガ**: ファイルパスが include glob に一致し、exclude glob に一致しない
+**期待動作**: そのファイルを in-graph として扱い、検証対象に含める
+
+---
+
+## SPEC-24-2: include 一致・exclude 一致 → out-of-graph（boundary）
+
+<details><summary>⬡ SPEC-24-2 · v0.1</summary>
+
+```yaml
+id: SPEC-24-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: boundary
+edges:
+  - to: SPEC-24
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: `config.yaml` に `trace_scope.include` および `trace_scope.exclude` が設定されている
+**入力/トリガ**: ファイルパスが include glob に一致し、かつ exclude glob にも一致する
+**期待動作**: exclude が include より優先されるため、そのファイルを out-of-graph として検証対象から除外する
+
+---
+
+## SPEC-25: 出力形式と終了コード（normal）
 
 <details><summary>⬡ SPEC-25 · v0.2</summary>
 
@@ -593,19 +1277,101 @@ edges:
 id: SPEC-25
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-10
     kind: refines
     status: pending
     ref_version: "0.2"
+  - to: SPEC-25-1
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-25-2
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+  - to: SPEC-25-3
+    kind: decomposes
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+CLI の出力整列と終了コードの仕様（SPEC-25-1〜3 を参照）。
+
+---
+
+## SPEC-25-1: 違反一覧の深刻度順整列（normal）
+
+<details><summary>⬡ SPEC-25-1 · v0.1</summary>
+
+```yaml
+id: SPEC-25-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-25
+    kind: refines
+    status: pending
+    ref_version: "0.3"
 ```
 </details>
 
 **前提条件**: 検証ツールが in-graph を走査し終えている
 **入力/トリガ**: CLI を実行する
-**期待動作**: 違反一覧を深刻度順（ERROR→WARNING→INFO）に整列して出力し、ERROR が 1 件以上なら終了コード 1、なければ 0 を返す
+**期待動作**: 違反一覧を深刻度順（ERROR→WARNING→INFO）に整列して出力する
+
+---
+
+## SPEC-25-2: ERROR あり → 終了コード 1（failure）
+
+<details><summary>⬡ SPEC-25-2 · v0.1</summary>
+
+```yaml
+id: SPEC-25-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-25
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 検証ツールが走査を完了している
+**入力/トリガ**: 違反一覧に ERROR が 1 件以上含まれる
+**期待動作**: 終了コード 1 を返す
+
+---
+
+## SPEC-25-3: ERROR なし → 終了コード 0（normal）
+
+<details><summary>⬡ SPEC-25-3 · v0.1</summary>
+
+```yaml
+id: SPEC-25-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-25
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 検証ツールが走査を完了している
+**入力/トリガ**: 違反一覧に ERROR が 0 件
+**期待動作**: 終了コード 0 を返す
 
 ---
 
@@ -617,7 +1383,7 @@ edges:
 id: SPEC-26
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-11
@@ -641,7 +1407,7 @@ edges:
 id: SPEC-27
 type: SPEC
 labels: []
-scheduled: "verification"
+scheduled: ""
 condition: normal
 edges:
   - to: FR-11

@@ -113,3 +113,31 @@ RULE 違反リストとカバレッジ穴リストを深刻度順（ERROR→WARN
 **入力**: P-2 の違反リスト・P-3 のカバレッジ穴リスト
 **出力**: O-1（RULE違反レポート）・O-2（カバレッジ点検結果）を生成（produces）
 **トリガ**: P-2・P-3 完了後
+
+---
+
+## P-5: 設定ファイル読み込み
+
+<details><summary>⬡ P-5 · v0.1</summary>
+
+```yaml
+id: P-5
+type: P
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-21
+    kind: refines
+    status: pending
+    ref_version: "0.3"
+  - to: I-5
+    kind: consumes
+    status: pending
+    ref_version: "0.1"
+```
+</details>
+
+`config.yaml` を読み込んで検証済み設定オブジェクト（current_phase・current_stage・phases・stage_scope.disable・condition_vocab・trace_scope）に変換する。P-1/P-2/P-3 が参照する共有設定として提供する。
+**入力**: I-5 を消費（consumes）
+**出力**: 検証済み設定オブジェクト（P-1/P-2/P-3 へ）
+**トリガ**: E-1 から起動（P-1 と並行または先行して実行）

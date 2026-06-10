@@ -11,25 +11,47 @@ phases:
   - sprint-3
   - post-mvp
 
-# ステージ×レイヤーのスコープ
-# full: このステージでフル検査（元の深刻度）
-# warn: このステージでは ERROR → WARNING に降格
+# ステージ×ルール×ノードタイプ の無効化リスト
+# disable エントリの {rule, on} に一致するノードタイプへのルール評価をスキップする
+# always_error（RULE-007）は disable 対象に含めても無効（常に発火）
 stage_scope:
   requirements:
-    full: [VAL, SR, FR, SPEC, NFR]
-    warn: [TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TD, TC, TR, VERIFY, FND, DD, Q, PEND]
+    disable:
+      - {rule: RULE-015, on: SPEC}     # TD verifies 不要: TD 未作成
+      - {rule: RULE-011, on: NFR}      # validates 不要: 検証層未作成
+      - {rule: RULE-009, on: FND}      # found-in 不要: 検証層未作成
+      - {rule: RULE-010, on: FND}      # validates 不要: 検証層未作成
+      - {rule: RULE-012, on: TC}       # realizes 不要: 検証層未作成
+      - {rule: RULE-013, on: VERIFY}   # verifies 不要: 検証層未作成
+      - {rule: RULE-020, on: TR}       # result 不要: 検証層未作成
+      - {rule: RULE-021, on: TR}       # log_ref 不要: 検証層未作成
   analysis:
-    full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, TD]
-    warn: [ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, TR, VERIFY, FND]
+    disable:
+      - {rule: RULE-015, on: SPEC}
+      - {rule: RULE-011, on: NFR}
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-012, on: TC}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   design:
-    full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, TD]
-    warn: [SRC, TC, TR, VERIFY, FND]
+    disable:
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-012, on: TC}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   implementation:
-    full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TD, TC]
-    warn: [TR, VERIFY, FND]
+    disable:
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   verification:
-    full: [VAL, SR, FR, SPEC, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TD, TC, TR, VERIFY, FND]
-    warn: []
+    disable: []   # 全ルールフル検査
 
 # SPEC/TD の condition 属性の有効語彙（RULE-016 の検証対象）
 # ここに列挙した値以外は RULE-016 で WARNING
@@ -45,6 +67,6 @@ coverage_rules:
     required_conditions:     [normal]           # SPEC に必須（なければ RULE-017 WARNING）
     recommended_conditions:  [failure, error]   # あることを推奨（なければ RULE-018 INFO）
 
-# 抑制対象外ルール（suppress/scheduled/stage いずれでも抑制不可）
+# 抑制対象外ルール（suppress/scheduled/stage_scope いずれでも抑制不可）
 always_error:
   - RULE-007   # 存在しない ID への参照
