@@ -22,18 +22,79 @@ description: Build an I/O ledger (classify inputs, attach originating source) an
 入力表（発生源列つき）／出力表／イベント表／カバレッジ表＋穴の一覧。
 点検は **spec-inspector** サブエージェントに回せる。
 
-## doc-system ノード著作（ACTOR / I / O / P / E ＋ FR / SPEC / NFR）
-要件が結晶化するこの段で、**分析層**（ACTOR/I/O/P/E）と**What 層**（FR/SPEC/NFR）を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（ACTOR / I / O / P / E ＋ FR / SPEC / NFR）
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/<layer>/<type>.md`
+2. id 採番：`PREFIX-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. SPEC・TD は `condition` 属性必須（RULE-016）
+5. status: pending から始め、反映確認後に done
+6. ref_version を参照先の現在 `x.y` に合わせる
+7. 受け入れ条件を確認（下表）
 
 | 型 | 必須辺 | 追加属性 | 主な RULE |
 |---|---|---|---|
-| ACTOR | → SR (refines) | — | RULE-005 |
+| ACTOR | → SR (refines) | — | RULE-005（孤立禁止）|
 | I | → SPEC (refines) | — | RULE-005/006 |
 | O | → SPEC (refines) | — | RULE-005/006 |
 | P | → SPEC (refines) | — | RULE-006（I/O/E リンク必須）|
 | E | → SPEC (refines) | — | RULE-005/006 |
 | FR | → SR (refines) | `suppress:[RULE-018]` 任意 | RULE-017（normal SPEC 必須）/018 |
-| SPEC | → FR (refines) | `condition: normal\|boundary\|failure\|error` ✅ | RULE-015（TD verifies）/016 |
-| NFR | → SR (refines) | — | RULE-011（FND→validates）|
+| SPEC | → FR (refines) | `condition: normal\|boundary\|failure\|error` ✅ | RULE-015（TD verifies 必須）/016 |
+| NFR | → SR (refines) | — | RULE-011（FND→validates 辺必要）|
 
-> I→P は **P 側** `consumes`、E→P は **E 側** `triggers`（I/E 側に書かない）。SPEC は **1 ノード=1 condition**（条件をまたぐなら別 SPEC へ分割）。
+**本文フォーマット**
+
+```
+# ACTOR
+[外部エンティティの役割・範囲]
+
+# I
+**もの**: [入力の実体]
+**発生源**: [どのアクタから]
+**形式**: [型・フォーマット]
+**タイミング**: [いつ・どのトリガで]
+
+# O
+**もの**: [出力の実体]
+**受け手**: [どのアクタが受け取るか]
+**形式**: [型・フォーマット]
+
+# P
+[単一責務を1文（〜を〜する）]
+**入力**: I-xxx を消費（consumes）
+**出力**: O-xxx を生成（produces）
+**トリガ**: E-xxx から起動（triggers）
+
+# E
+**トリガ**: [外部トリガの内容]
+**反応**: [システムの反応]
+
+# FR
+[システムが持つべき機能・ユーザー価値を1文]
+（FR は「なぜこの機能が必要か」粒度。テスタブル条件は SPEC へ分割する）
+
+# SPEC
+**前提条件**: [正常に動く前提・文脈]
+**入力/トリガ**: [有効な入力・操作]
+**期待動作**: [正常応答・状態変化]
+（1 ノード = 1 condition。条件をまたぐなら別 SPEC へ分割）
+
+# NFR
+[制約の内容：性能・技術選択・安全デフォルト等]
+```
+
+**辺方向の注意**
+- I → P は**誤り**。正：P 側が `kind: consumes`（I → P と書かない）
+- E → P は**誤り**。正：E 側が `kind: triggers`
+- suppress を使う場合は inline comment に理由必須。RULE-007 は suppress 不可（always_error）
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] SPEC に `condition` 属性あり（RULE-016）
+- [ ] SPEC に TD からの `verifies` 辺が存在（RULE-015）
+- [ ] FR に `condition: normal` の SPEC が少なくとも1本（RULE-017）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）

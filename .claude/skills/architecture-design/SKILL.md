@@ -41,8 +41,15 @@ description: Design the PHYSICAL module/dependency architecture from a SETTLED l
 - プロトコル：ポート Protocol ＋能力宣言＋（あれば）駆動プロトコルのディレクティブ表。
 - 永続：リポジトリ port ＋ 保存形式 ＋ トランザクション手順 ＋ state 配置。
 
-## doc-system ノード著作（MOD / PORT / PRS / DS）
-物理アーキテクチャを起こすこの段で、**設計静的層**（モジュール/ポート/永続）と**データストア**を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（MOD / PORT / PRS / DS）
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/<type>.md`
+2. id 採番：`PREFIX-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
 
 | 型 | 必須辺 |
 |---|---|
@@ -50,4 +57,32 @@ description: Design the PHYSICAL module/dependency architecture from a SETTLED l
 | PORT | → MOD (refines) |
 | PRS（永続） | → DS (refines) |
 | DS（データストア） | → P (refines) |
+
+**本文フォーマット**
+
+```
+# MOD
+[モジュールの責務を1文]
+**公開 I/F**: [公開する主要な関数・クラス]
+**依存**: [依存するポート・モジュール]
+
+# PORT
+[ポートの目的（抽象化する副作用・外部判断）]
+
+# PRS
+[永続化する対象と保存形式]
+**保存形式**: [append-only JSONL / JSON / git 等]
+**ライフサイクル**: [作成・更新・削除のタイミング]
+
+# DS
+**保存対象**: [何を持つか]
+**保存理由**: [なぜ持つか・どこで参照されるか]
+**ライフサイクル**: [作成・更新・削除のタイミング]
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

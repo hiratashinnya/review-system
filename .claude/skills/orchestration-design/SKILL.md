@@ -40,12 +40,36 @@ description: Design the RUNTIME control flow — a swimlane flowchart (lanes = a
 - `run_*()` 疑似コード（`match` で成功/失敗を漏れなく分岐）。
 - ログ3チャネル表＋版スタンプ定義（`MAJOR.MINOR`・版↔対応ロジック対応）。
 
-## doc-system ノード著作（ORC）
-制御フローを起こすこの段で、**オーケストレーション段**ノードを著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（ORC）
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-behavior/orchestration.md`
+2. id 採番：`ORC-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
 
 | 型 | 必須辺 |
 |---|---|
 | ORC | → P (refines)、→ PROMPT (uses) 任意 |
 
-> 辺方向に注意：`PROMPT → ORC` は誤り。正は **`ORC → PROMPT (uses)`**。
+**本文フォーマット**
+
+```
+# ORC
+**段の目的**: [この段が達成する結果（Result 型を返す）]
+**入力**: [前段からの入力]
+**出力**: [次段への出力または最終出力]
+**失敗時**: [fail-close の振る舞い]
+```
+
+**辺方向の注意**
+- `PROMPT → ORC` は**誤り**。正：`ORC → PROMPT (uses)`
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

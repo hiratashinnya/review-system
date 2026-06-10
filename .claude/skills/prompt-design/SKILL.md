@@ -39,10 +39,37 @@ description: Design LLM system-prompt templates — role constraints, prompt ass
 - ビルダーの段（`with_*`）と最終 frozen プロンプト。
 - 版管理表（MAJOR.MINOR ↔ 対応ハンドラ）。
 
-## doc-system ノード著作（PROMPT）
-プロンプト雛形を起こすこの段で、**プロンプトテンプレート**ノードを著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（PROMPT）
 
-| 型 | 必須辺 | 備考 |
-|---|---|---|
-| PROMPT | → SPEC (refines) | 版は本文/カタログで `MAJOR.MINOR` 管理。ORC からは `ORC → PROMPT (uses)` で参照される |
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/prompts.md`
+2. id 採番：`PROMPT-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| PROMPT | → SPEC (refines) |
+
+**本文フォーマット**
+
+```
+# PROMPT
+**役割**: [LLM に担わせる役割]
+**入力変数**: [テンプレート変数一覧]
+**出力形式**: [期待する出力の形式・スキーマ]
+**注意事項**: [プロンプトインジェクション対策・制約]
+```
+
+**辺方向の注意**
+- ORC から参照される辺は `ORC → PROMPT (uses)`（PROMPT 側から ORC へは書かない）
+- 版は本文/カタログで `MAJOR.MINOR` 管理（MAJOR＝出力型/構造変更・MINOR＝文言のみ）
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

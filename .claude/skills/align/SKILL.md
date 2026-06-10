@@ -17,10 +17,33 @@ description: Pre-work alignment. Decompose the request, propose the steps and gr
 - 手順・スコープ・停止条件が明文化され合意されているか。
 - 既存資料を過信しない前提（点検も兼ねる）を共有したか。
 
-## doc-system ノード著作（VAL / SR）
-価値の根を据えるこの段で **Why 層**ノードを著作する。共通手順・横断スパイン（DD/Q/PEND/VERIFY/FND）・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（VAL / SR）
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/why/<type>.md`
+2. id 採番：`PREFIX-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
 
 | 型 | 必須辺 | 主な RULE |
 |---|---|---|
 | VAL | なし（根） | RULE-005（孤立禁止）|
 | SR | → VAL (refines) | RULE-006 |
+
+**本文フォーマット**
+
+```
+# VAL
+[誰に] [何の便益をもたらすか] を1文で記述。
+
+# SR
+[ステークホルダー] が [状況] において [欲求・期待] を持つ。
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007: always_error）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）

@@ -38,11 +38,36 @@ description: Derive a type-safe, immutable in-code domain model from a SETTLED d
 - 各型の生成方法（constructor/factory/builder）に根拠があるか。
 - データ辞書 → クラスの対応表があり、不変条件を**型で**保証できているか。
 
-## doc-system ノード著作（DM / TERM）
-ドメイン型を起こすこの段で、**設計静的層の型ノード**と**共有語彙**を著作する。共通手順・横断スパイン・RULE 全文・本文フォーマットは [07-authoring-guide.md](../../../docs/doc-system/07-authoring-guide.md)。スキーマ→[02-meta-schema.md](../../../docs/doc-system/02-meta-schema.md)、接続要否→[03-connection-matrix.md](../../../docs/doc-system/03-connection-matrix.md)。
+## ノード著作（DM / TERM）
 
-| 型 | 必須辺 | 備考 |
-|---|---|---|
-| DM | → TERM (refines)、→ P (refines) | 型の不変条件は本文「制約」に |
-| TERM | （被参照中心の共有語彙）| 接続要否は [03](../../../docs/doc-system/03-connection-matrix.md) を参照 |
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/<type>.md`
+2. id 採番：`PREFIX-N`（連番・永続・変更禁止）、既存最大 +1
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| DM | → TERM (refines)、→ P (refines) |
+| TERM | 被参照中心（接続マトリクスで確認） |
+
+**本文フォーマット**
+
+```
+# DM
+[型の目的・不変条件]
+**フィールド**: [主要フィールドと型]
+**制約**: [バリデーション・不変条件]
+
+# TERM
+[用語の定義（1文）]
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>
