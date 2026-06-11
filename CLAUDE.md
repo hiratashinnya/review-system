@@ -34,8 +34,8 @@
 ## ノード著作の委譲ルール
 ノードを著作するときは必ず対応するサブエージェントに委譲する（主文脈で直接書かない）：
 - **VAL / SR / FR / NFR** → `requirements-author`
-- **SPEC** → `spec-author`（1アサーション1ノード・-N枝番・decomposes 辺を強制）
-- **ACTOR / I / O / P / E** → `analysis-author`
+- **SPEC** → `spec-author`（1アサーション1ノード・-N枝番・無名依存辺で親 SPEC を参照）
+- **ACTOR / I / O / D / P / E** → `analysis-author`
 - **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM** → `design-author`
 - **TD / TC / TR / VERIFY / FND / DD / Q / PEND** → `verification-author`
 - **著作後の整合確認・本ファイル確定書き込み** → `reconciliation`
