@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: VAL-001         # 必須: この要求が実現する価値
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

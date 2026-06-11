@@ -17,12 +17,8 @@ labels: []
 scheduled: ""
 edges:
   - to: P-001           # 必須: この段が実現する論理プロセス
-    kind: refines
-    status: pending
     ref_version: "0.1"
-  - to: PROMPT-001      # 任意: この段で使うプロンプト（ORC 側から uses）
-    kind: uses
-    status: pending
+  - to: PROMPT-001      # 任意: この段で使うプロンプト（ORC 側から張る）
     ref_version: "0.1"
 ```
 </details>

@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: DS-001          # 必須: 永続化するデータストア
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

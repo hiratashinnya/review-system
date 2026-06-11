@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: P-001           # 必須: このモジュールが実現する論理プロセス
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

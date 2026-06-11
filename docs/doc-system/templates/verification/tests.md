@@ -18,8 +18,6 @@ labels: []
 scheduled: ""
 edges:
   - to: TD-001          # 必須: このコードが実現するテスト設計
-    kind: realizes
-    status: pending
     ref_version: "0.1"
   # TR → TC-001 (produced-by) は TR 側の edges に記述する
 ```

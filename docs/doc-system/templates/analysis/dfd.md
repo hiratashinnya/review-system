@@ -3,9 +3,12 @@ version: "0.1.0"
 ---
 # DFD・論理プロセス
 
-> **型**: P ／ **必須上流**: SPEC（refines ✅）
-> **必須(§10)**: I/O/E のいずれかとのリンクが1本以上
-> プロセス間はI/Oノードを介して繋ぐ。P 同士を直接リンクしない（03 §7）。
+> **型**: P ／ **必須上流**: SPEC（依存辺 ✅）
+> **必須(§10)**: I/O/E との依存辺が1本以上
+> 方向: **P → I**（プロセスは消費する入力に依存）／ **O → P**（出力は生成プロセスに依存・O 側から張る）／ **P → E**（プロセスはトリガ事象に依存）。
+> 内部データフローは新型 **D**（**D → P**・系外に出ない）。
+> プロセス間はI/O/Dノードを介して繋ぐ。P 同士を直接リンクしない（03 §7）。
+> 階層は ID パターン `X-N` から推論（decomposes 廃止）。
 
 ## P-001: [プロセス名]
 
@@ -18,17 +21,12 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: このプロセスが実現する機能仕様
-    kind: refines
-    status: pending
     ref_version: "0.1"
-  - to: I-001           # 必須(§10): 消費する入力
-    kind: consumes
-    status: pending
+  - to: I-001           # P → I: 消費する入力（プロセスは入力に依存）
     ref_version: "0.1"
-  - to: O-001           # 必須(§10): 生成する出力
-    kind: produces
-    status: pending
+  - to: E-001           # P → E: トリガ事象（プロセスはトリガ事象に依存）
     ref_version: "0.1"
+  # 生成する出力は O 側から張る（O → O-001 ではなく O-001 → P-001）
 ```
 </details>
 
@@ -44,14 +42,9 @@ edges:
 ```yaml
 id: P-001-1
 type: P
+# 親 P-001 との階層は ID パターン `X-N` から推論（decomposes 廃止・親への辺は張らない）
 edges:
-  - to: P-001           # 親プロセスへの decomposes は親側に置く
-    kind: refines       # 子は親を refines する
-    status: pending
-    ref_version: "0.1"
-  - to: I-001-1
-    kind: consumes
-    status: pending
+  - to: I-001-1         # P → I: 消費する入力
     ref_version: "0.1"
 ```
 </details>

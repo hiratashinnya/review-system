@@ -5,8 +5,8 @@ version: "0.1.0"
 
 > **型**: TR ／ **必須上流**: TC（produced-by ✅）
 > 1 ノード = 1 実行記録。`result` と `log_ref` は機械チェック対象のため YAML メタに記載する。
-> **RULE-020**: `result` 属性が必要（PASS/FAIL 不明は WARNING）。
-> **RULE-021**: `result: FAIL` のとき `log_ref` が必要（失敗証跡なしは WARNING）。
+> **RULE-020（ERROR）**: `result` 属性が必要（なしは ERROR）。
+> **RULE-021（ERROR）**: `log_ref` は result が PASS/FAIL いずれでも必須（証跡なしは ERROR）。
 
 ## TR-001: [テスト名] — PASS / FAIL
 
@@ -15,15 +15,13 @@ version: "0.1.0"
 ```yaml
 id: TR-001
 type: TR
-result: PASS          # PASS | FAIL（RULE-020）
-log_ref: ""           # ログのパスまたは URL（result: FAIL のとき必須・RULE-021）
+result: PASS          # PASS | FAIL（必須・RULE-020 ERROR）
+log_ref: ""           # ログのパスまたは URL（result 問わず必須・RULE-021 ERROR）
                       # 例: "ci/logs/run-42.txt" / "https://ci.example.com/run/42"
 labels: []
 scheduled: ""
 edges:
   - to: TC-001          # 必須: この結果を生成したテストコード
-    kind: produced-by
-    status: done
     ref_version: "0.1"
 ```
 </details>

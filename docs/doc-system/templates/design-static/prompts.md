@@ -17,12 +17,8 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: このプロンプトが実現する機能仕様
-    kind: refines
-    status: pending
     ref_version: "0.1"
   - to: PROMPT-000      # 任意: 継承元テンプレート
-    kind: extends
-    status: pending
     ref_version: "0.1"
 ```
 </details>

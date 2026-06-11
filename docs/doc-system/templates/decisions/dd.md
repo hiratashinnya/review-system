@@ -4,8 +4,9 @@ version: "0.1.0"
 # 意思決定ログ
 
 > **型**: DD ／ **必須上流**: なし（横断スパイン）
-> `affects` 辺の `status: pending` が反映漏れ検出の核心（RULE-001）。
-> 影響先の反映が完了したら `done` に、影響なしと確認したら `n/a` に更新する。
+> `affects` は **義務辺**：辺の存在＝未反映を意味する（反映漏れ検出の核心・RULE-001）。
+> 影響先の反映が完了したら **その辺を削除し、対象側に `X → DD` の依存辺を張る**。
+> 影響なしと確認した場合も義務辺を削除する。辺は無名（kind なし）。
 
 ## DD-001: [決定タイトル]
 
@@ -19,14 +20,9 @@ type: DD
 labels: []
 scheduled: ""
 edges:
-  - to: DM-001          # 影響先: 反映が必要な要素
-    kind: affects
-    status: pending     # 反映完了したら done / 影響なしなら n/a
+  - to: DM-001          # 義務辺（affects）: 辺の存在＝未反映。複数あれば各 1 行で列挙
     ref_version: "0.1"
-  - to: FR-001          # 影響先: 複数あれば列挙
-    kind: affects
-    status: done
-    ref_version: "0.1"
+  # 反映が済んだ影響先は義務辺を削除し、対象側に `DM-001 → DD-001` の依存辺を張る
 ```
 </details>
 

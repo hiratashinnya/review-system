@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: P-001           # 必須: この状態を必要とする論理プロセス
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

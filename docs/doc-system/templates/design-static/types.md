@@ -16,12 +16,8 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-001        # 必須: この型が具体化する用語
-    kind: refines
-    status: pending
     ref_version: "0.1"
   - to: P-001           # 必須: この型を使う論理プロセス
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

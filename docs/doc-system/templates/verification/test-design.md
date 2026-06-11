@@ -4,8 +4,8 @@ version: "0.1.0"
 # テスト設計
 
 > **型**: TD ／ **必須上流**: SPEC（verifies ✅）
-> `TD → SPEC (verifies)` 辺がカバレッジの証跡（RULE-015 の充足辺）。
-> **RULE-016**: `condition` 属性が必要。verifies 先 SPEC の `condition` と一致させる（RULE-019）。
+> `TD → SPEC (verifies)` 辺がカバレッジの証跡（RULE-006 config の充足辺）。
+> **RULE-016（ERROR）**: `condition` 属性が必要。verifies 先 SPEC の `condition` と一致させる（RULE-019）。
 > 1 ノード = 1 テスト条件（1 condition のシナリオ設計）。
 
 ## TD-001: [テストシナリオ名]
@@ -20,8 +20,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: このテストが検証する機能仕様
-    kind: verifies
-    status: pending
     ref_version: "0.1"
   # TC → TD-001 (realizes) は TC 側の edges に記述する
 ```

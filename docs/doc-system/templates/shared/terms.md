@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: この用語が登場する機能仕様
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

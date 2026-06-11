@@ -3,7 +3,7 @@ version: "0.1.0"
 ---
 # スキーマ
 
-> **型**: SCM ／ **必須上流**: SPEC（refines ✅）／TERM（任意・see-also）
+> **型**: SCM ／ **必須上流**: SPEC（依存辺 ✅）／TERM（任意・依存辺）
 
 ## SCM-001: [スキーマ名]
 
@@ -16,12 +16,8 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: このスキーマが実現する機能仕様
-    kind: refines
-    status: pending
     ref_version: "0.1"
-  - to: TERM-001        # 任意: スキーマで使う用語（refines 不可、see-also のみ）
-    kind: see-also
-    status: pending
+  - to: TERM-001        # 任意: スキーマで使う用語（無名依存辺）
     ref_version: "0.1"
 ```
 </details>

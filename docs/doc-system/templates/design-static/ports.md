@@ -16,8 +16,6 @@ labels: []
 scheduled: ""
 edges:
   - to: MOD-001         # 必須: このポートが属するモジュール
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

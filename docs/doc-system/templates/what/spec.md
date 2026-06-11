@@ -4,8 +4,8 @@ version: "0.1.0"
 # 機能仕様（テスタブル粒度）
 
 > **型**: SPEC ／ **必須上流**: FR（refines ✅）
-> **RULE-015**: TD からの `verifies` 辺が必要（カバレッジ確保）。
-> **RULE-016**: `condition` 属性が必要（normal / boundary / failure / error）。
+> **RULE-006 config**: TD からの `verifies` 辺が必要（カバレッジ確保）。
+> **RULE-016（ERROR）**: `condition` 属性が必要（normal / boundary / failure / error）。
 > 1 ノード = 1 テスト条件（1 condition）。条件をまたぐ場合は別 SPEC に分割する。
 > 意図的に condition を省略・ルールを抑制するときは `suppress: [RULE-xxx]` を使い理由を inline comment に残す。
 
@@ -21,10 +21,8 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-001
-    kind: refines
-    status: pending
     ref_version: "0.1"
-  # TD → SPEC-001 (verifies) は TD 側の edges に記述する（RULE-015 の対象辺）
+  # TD → SPEC-001 (verifies) は TD 側の edges に記述する（RULE-006 config の対象辺）
 ```
 </details>
 
@@ -46,8 +44,6 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-001
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>
@@ -70,8 +66,6 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-001
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>
@@ -94,8 +88,6 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-001
-    kind: refines
-    status: pending
     ref_version: "0.1"
 ```
 </details>

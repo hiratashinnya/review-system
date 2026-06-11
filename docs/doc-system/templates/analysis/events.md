@@ -3,8 +3,9 @@ version: "0.1.0"
 ---
 # イベントリスト
 
-> **型**: E ／ **必須上流**: SPEC（refines ✅）
-> **必須(§10)**: P への `triggers` 辺が1本以上
+> **型**: E ／ **必須上流**: SPEC（依存辺 ✅）
+> 方向: **P → E**（プロセスはトリガ事象に依存・P 側から張る）／ **E → ACTOR**（事象は刺激元アクタに依存）。
+> **必須(§10)**: P からの被参照（P → E）が1本以上、かつ刺激元 ACTOR への依存辺。
 
 ## E-001: [イベント名]
 
@@ -17,13 +18,10 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-001        # 必須: このイベントが関わる機能仕様
-    kind: refines
-    status: pending
     ref_version: "0.1"
-  - to: P-001           # 必須(§10): このイベントが起動するプロセス
-    kind: triggers
-    status: pending
+  - to: ACTOR-001       # E → ACTOR: 刺激元アクタ（事象は刺激元に依存）
     ref_version: "0.1"
+  # 起動されるプロセスは P 側から張る（P-001 → E-001）
 ```
 </details>
 

@@ -4,7 +4,8 @@ version: "0.1.0"
 # 未決論点・先送り
 
 > **型**: Q（未決）・PEND（先送り）
-> `affects` 辺 + `status: pending` は WARNING（RULE-002）。影響候補の追跡が目的。
+> `affects` は **義務辺**：辺の存在＝未反映（影響候補の追跡が目的・RULE-002 WARNING）。辺は無名（kind なし）。
+> 反映後はその辺を削除し、対象側に `X → Q`（または `X → PEND`）の依存辺を張る。
 > Q が決定されたら DD に昇格（id 通貫）。
 
 ## Q-001: [論点タイトル]
@@ -19,9 +20,7 @@ type: Q
 labels: []
 scheduled: ""
 edges:
-  - to: FR-001          # 任意: 影響が懸念される要素（追跡用）
-    kind: affects
-    status: pending
+  - to: FR-001          # 任意: 義務辺（affects）— 影響が懸念される要素（追跡用・辺の存在＝未反映）
     ref_version: "0.1"
 ```
 </details>
@@ -48,9 +47,7 @@ type: PEND
 labels: []
 scheduled: "sprint-2"  # 再検討予定フェーズ
 edges:
-  - to: FR-002
-    kind: affects
-    status: n/a         # 先送り中は n/a で追跡のみ
+  - to: FR-002          # 義務辺（affects）: 先送り中は追跡のみ（辺の存在＝未反映）
     ref_version: "0.1"
 ```
 </details>
