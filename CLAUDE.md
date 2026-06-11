@@ -24,11 +24,23 @@
 - **DD# は Q# の設計フェーズ版**：未決の置き場が Q#（ダッシュボード）、暫定決定の記録が DD#（[design/decisions](docs/design/decisions.md)）。
 
 ## スキル/エージェント
-- スキル（仕様）：`/align` `/io-event-ledger` `/value-trace` `/mvp-scope` `/schema-design` `/domain-model` `/spec-pipeline` `/asset-pipeline`
+- スキル（仕様）：`/align` `/value-trace` `/mvp-scope` `/schema-design` `/domain-model` `/spec-pipeline` `/asset-pipeline`
 - スキル（実装設計）：`/architecture-design` `/orchestration-design` `/prompt-design` `/impl-design-pipeline`（凍結セット）・`/test-strategy`
-- サブエージェント：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation`
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
+
+## ノード著作の委譲ルール
+ノードを著作するときは必ず対応するサブエージェントに委譲する（主文脈で直接書かない）：
+- **VAL / SR / FR / NFR** → `requirements-author`
+- **SPEC** → `spec-author`（1アサーション1ノード・-N枝番・decomposes 辺を強制）
+- **ACTOR / I / O / P / E** → `analysis-author`
+- **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM** → `design-author`
+- **TD / TC / TR / VERIFY / FND / DD / Q / PEND** → `verification-author`
+- **著作後の整合確認・本ファイル確定書き込み** → `reconciliation`
+
+各著作エージェントは `tmp/<sprint>/<parent-id>.md` に出力する。`reconciliation` が検証後に本ファイルへ反映する。
 
 ## 資産のテーラリング運用（A16）
 - プロセスはスキル等で実現するため、**テーラリングの実体は `.claude/` に置く（docs ではない）**。
