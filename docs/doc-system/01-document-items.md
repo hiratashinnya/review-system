@@ -24,7 +24,7 @@
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 | 必須リンク |
 |---|---|---|---|---|
 | 機能要求 | `FR-` | 1 機能要求（システムが持つべき機能・ユーザー価値） | → `SR-`（直接） | ✅ 必須 |
-| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`condition` 属性で条件分類（normal/boundary/failure/error） | → `FR-`（直接） | ✅ 必須。下流から TD(verifies)が必須（RULE-015）。condition 必須（RULE-016） |
+| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`condition` 属性で条件分類（normal/boundary/failure/error） | → `FR-`（直接） | ✅ 必須。下流から TD が必須（must_be_linked_from・verification 発火）。condition 必須（RULE-016 ERROR） |
 | 非機能/制約 | `NFR-` | 1 制約（性能・技術選択・安全側デフォルト等） | → `SR-`（直接） | 検証結果からリンク必須（§11） |
 
 > ファイル：`what/fr.md`・`what/spec.md`・`what/nfr.md`（別ファイル）
@@ -46,11 +46,12 @@
 
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 | 必須リンク |
 |---|---|---|---|---|
-| 外部アクタ | `ACTOR-` | 1 外部エンティティ | → `SR-` | ✅ I/O/P へのリンク必須 |
-| 入力 | `I-` | 1 入力（もの＋発生源） | → `SPEC-` | ✅ P へのリンク必須 |
-| 出力 | `O-` | 1 出力（もの＋受け手） | → `SPEC-` | ✅ P へのリンク必須 |
-| 論理プロセス | `P-` | 1 責務（単一責務まで分解） | → `SPEC-` | ✅ I/O/E へのリンク必須 |
-| イベント | `E-` | 1 外部トリガ→反応ペア | → `SPEC-` | ✅ P へのリンク必須 |
+| 外部アクタ | `ACTOR-` | 1 外部エンティティ | → `SR-` | ✅ E/I/O から被依存（参加） |
+| 入力 | `I-` | 1 入力（もの＋発生源・系外発） | → `SPEC-` | ✅ P から被依存（P→I） |
+| 出力 | `O-` | 1 出力（もの＋受け手・系外宛） | → `SPEC-`・`P-`（生成元）・`ACTOR-`（受け手） | ✅ O→P・O→ACTOR |
+| 内部データ | `D-` | 1 内部データフロー（系外に出ない） | → `SPEC-`・`P-`（生成元） | ✅ P から被依存（P→D） |
+| 論理プロセス | `P-` | 1 責務（単一責務まで分解） | → `SPEC-`（・I/D 消費・E トリガ） | ✅ SPEC 必須 |
+| イベント | `E-` | 1 外部トリガ→反応ペア | → `SPEC-`・`ACTOR-`（刺激元） | ✅ E→ACTOR・P から被依存 |
 
 > ファイル：`analysis/context.md`・`analysis/dfd.md`・`analysis/events.md`
 > **階層 ID 対応**：`I-1` を分割すると `I-1-1`・`I-1-2` になる。親は `decomposes` 辺で子を指す。
@@ -122,29 +123,27 @@
 | 先送り | `PEND-` | deferred → open（再開）/ closed |
 
 > **id は通貫**。ライフサイクルは本文（見出しや status バッジ）に記載。メタ属性には持たない。
-> `affects` 辺の `status: pending` がドリフト検出の核心。
+> DD/Q/PEND の**義務辺の存在**がドリフト検出の核心（反映後は辺を削除し `X→DD` を張る・DD-016）。
 
 ---
 
-## エッジ関係種別（全種・詳細は [02 §5](02-meta-schema.md)）
+## エッジ＝無名依存辺（詳細は [02 §5](02-meta-schema.md)）
 
-| グループ | kind | 意味 |
+辺に種別（kind）は持たない（DD-012）。`A → B` ＝「A は B に依存する（B が変われば A を見直す）」。
+関係の名称は `(source 型, target 型)` から読み取る。下表は**依存辺が表す関係の読み**（参考）。
+
+| 型ペア（source→target） | 読み | 方向の注意 |
 |---|---|---|
-| 階層/精緻化 | `refines` | 上位概念を詳細化 |
-| 階層/精緻化 | `decomposes` | 親が子に分割（階層 ID 対応） |
-| 実現 | `realizes` | コード/設計が仕様を実現 |
-| 実現 | `allocates-to` | 要求をコンポーネントに割当 |
-| 実現 | `instantiates` | コンフィグ/インスタンスが設計を具体化 |
-| データフロー | `triggers` | イベント/入力がプロセスを起動 |
-| データフロー | `produces` | プロセスが出力を生成 |
-| データフロー | `consumes` | プロセスが入力を消費 |
-| 検証 | `verifies` | テストが要求/コードを検証 |
-| 検証 | `validates` | 検証結果が NFR/制約を証明 |
-| 検証 | `found-in` | 指摘が対象要素の中に発見された |
-| 制約 | `constrains` | NFR が設計/実装を制約 |
-| 意思決定 | `affects` | 決定/指摘が要素に影響 |
-| 意思決定 | `replaces` | 新要素が旧要素を置換 |
-| 参照 | `see-also` | 参考情報（伝播なし） |
-| 参照 | `extends` | 継承/拡張（スキーマ・設計） |
-| 矛盾 | `contradicts` | 矛盾の存在を明示 |
-| 実行証跡 | `produced-by` | テスト結果がテストコードの実行から生成された（TR → TC） |
+| FR→SR, SPEC→FR, I/O/P/E→SPEC 等 | 詳細化（旧 refines） | 下流→上流 |
+| SRC→DM/PORT/ORC | 実現（旧 realizes） | |
+| CFG→SCM | 具体化（旧 instantiates） | |
+| O→P | 出力は生成プロセスに依存（旧 produces 反転） | **依存方向に統一** |
+| P→I, P→D | プロセスは消費入力に依存（旧 consumes） | |
+| P→E | プロセスはトリガ事象に依存（旧 triggers 反転） | |
+| O→ACTOR, E→ACTOR | 受け手/刺激元アクタに依存 | |
+| TD→SPEC, VERIFY→任意 | 検証（旧 verifies） | |
+| FND→NFR, TR→TC | 証跡（旧 validates/produced-by） | |
+| DD/Q/PEND→任意 | 義務辺（反映追跡・唯一の逆向き） | source 型で識別 |
+
+> **廃止**：`see-also`・`replaces`・`extends`・`contradicts`・`decomposes`（DD-014）。
+> see-also＝参照は依存・replaces＝本文更新＋版・extends＝無名依存辺・contradicts＝FND・decomposes＝ID パターン。

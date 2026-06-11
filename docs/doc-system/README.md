@@ -43,19 +43,20 @@ review-system 本体ドキュメントへ適用
 | Q-新2 | NFR の独立 | **独立させる**（`NFR-` プレフィックス） |
 | Q-新3 | 用語/データ辞書の独立 | **独立させる**（`TERM-`）。リンク必須対象の絞り込みは 05 で後日 |
 | Q-新4 | ドキュメント向け検証の範囲 | **機械検証可能なものはすべて実施**。段階化して sub-issue 可 |
-| Q-新5 | 意思決定/QA/ペンディングの統合 | **id 通貫・ライフサイクルはノードのステータスで区別**。エッジには関係種別＋**伝播ステータス**（反映済/未反映/対象外）を付与 |
+| Q-新5 | 意思決定/QA/ペンディングの統合 | **id 通貫・ライフサイクルは本文に記載**。エッジは無名依存辺（kind/status 廃止）。DD/Q/PEND は**義務辺の存在**で未反映を表す |
 | C2 | コード⇔設計の構造比較 | 段階①②③先行・④は sub-issue 化 |
 | C3 | トレース対象集合の確定タイミング | 検証器実装着手前に必須（06 で詰める） |
 | D1 | id の形式 | **連番**（`PREFIX-N[-N...]`）・永続・意味は heading が持つ。階層化対応 |
 | D2 | 多段省略の可否 | **直接の親（隣接1段）のみ必須**。全祖先記載は不要（旧「全段必須」を撤回） |
 | D3 | SRC/TC の接続 | 直接先のみ（D2 と同規則） |
-| D4 | バージョニング単位 | **ファイル単位** `x.y.z`。z は伝播判定に不問。エッジに `ref_version` を持つ |
+| D4 | バージョニング単位 | **ファイル単位** `x.y.z`。z は伝播判定に不問。エッジに `ref_version`（全辺必須） |
 | D5 | ライフサイクル状態 | メタ属性に持たず**本文に記載** |
 | D6 | mvp 属性 | `labels: [...]` に汎化 |
-| D7 | edge kind | 19種（refines/decomposes/realizes/allocates-to/instantiates/triggers/produces/consumes/verifies/validates/found-in/constrains/affects/replaces/see-also/extends/contradicts/uses/produced-by） |
-| D8 | 階層 ID | `PREFIX-N-N-N...` 形式で子ノードを表現。親は `decomposes` 辺で子を指す |
-| D9 | 型追加 | CFG/PROMPT/VERIFY/FND/SPEC/TD/TR を追加 |
+| D7 | edge | **無名依存辺**（kind 廃止・DD-012）。関係名は型ペアから読む。see-also/replaces/extends/contradicts/decomposes 廃止（DD-014） |
+| D8 | 階層 ID | `PREFIX-N-N-N...` 形式で子ノードを表現。**親→子辺は持たず ID パターンから推論**（decomposes 廃止） |
+| D9 | 型追加 | CFG/PROMPT/VERIFY/FND/SPEC/TD/TR・**D（内部データフロー・DD-018）** を追加 |
 | DD-008 | USDM 分割 | FR（機能要求）と SPEC（機能仕様・テスタブル粒度）を分離。分析層以降は SPEC を直接の親とする |
-| DD-009 | テスト3層 | TD（設計・verifies SPEC）→ TC（コード・realizes TD）→ TR（結果・produced-by TC）。TD→SPEC 辺でカバレッジ機械検証（RULE-015） |
-| §10 | 直接リンク必須 | VAL/ACTOR/I/O/E は孤立禁止（辺1本以上必須） |
-| §11 | NFR 検証必須 | 全 NFR に validates 辺（FND/TC/VERIFY → NFR）が必要 |
+| DD-009 | テスト3層 | TD（→SPEC）→ TC（→TD）→ TR（→TC）。SPEC←TD←TC←TR で実施を保証（must_be_linked_from） |
+| DD-012〜020 | エッジモデル刷新 | kind/status 廃止・依存方向統一（O→P/P→E）・義務辺モデル・必須接続の config 駆動（[02 §10](02-meta-schema.md)） |
+| §10 | 直接リンク必須 | 完全孤立は RULE-005（always_error）。型別必須接続は config |
+| §11 | NFR 検証必須 | 全 NFR は FND/TC/VERIFY から被依存（must_be_linked_from・verification 発火） |

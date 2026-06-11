@@ -39,12 +39,14 @@ scheduled: ""         # 常に空文字（後フェーズ予定なら labels に
 suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
 ```
 
-| 型 | id PREFIX | 例 | 必須辺 | 主な RULE |
+辺は**無名依存辺**（`kind`/`status` を書かない・`to` は単数・`ref_version` 必須）。
+
+| 型 | id PREFIX | 例 | 必須依存辺（out） | 主な RULE |
 |---|---|---|---|---|
-| VAL | `VAL-` | `VAL-1` | なし（根ノード） | RULE-005（孤立禁止）|
-| SR | `SR-` | `SR-1` | → VAL (refines) | RULE-006 |
-| FR | `FR-` | `FR-1` | → SR (refines) | RULE-017（normal SPEC 必須）/018 |
-| NFR | `NFR-` | `NFR-1` | → SR (refines) | RULE-011（validates 辺が必要）|
+| VAL | `VAL-` | `VAL-1` | なし（根ノード）。SR から被依存（in）| RULE-005（孤立禁止・always_error）|
+| SR | `SR-` | `SR-1` | → VAL | RULE-006 |
+| FR | `FR-` | `FR-1` | → SR | RULE-017（normal SPEC 必須）/018（WARNING）|
+| NFR | `NFR-` | `NFR-1` | → SR | RULE-006（NFR←[FND/TC/VERIFY]・verification 発火）|
 
 ### 本文フォーマット
 
@@ -63,17 +65,14 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 [制約の内容：性能・技術選択・安全デフォルト等]
 ```
 
-### NFR の suppress について
+### NFR の検証証跡について
 
-検証層（FND/VERIFY）が未作成のフェーズでは RULE-011 に違反する。
-suppress を使う場合は inline comment に理由必須：
-```yaml
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY が未作成
-```
+NFR は検証層（FND/TC/VERIFY）から被依存辺を受ける必要がある（`must_be_linked_from: NFR ← [FND,TC,VERIFY]`）。
+この接続は **verification ステージで発火**するため、requirements/analysis/design では沈黙する。**suppress 不要**。
 
 ### FR の suppress について
 
-FR に `condition: failure/error` の SPEC が意図的にない場合のみ：
+FR に `condition: failure/error` の SPEC が意図的にない場合のみ（RULE-018 WARNING）：
 ```yaml
 suppress: [RULE-018]  # 異常系なし: <具体的な理由>
 ```
@@ -83,8 +82,8 @@ suppress: [RULE-018]  # 異常系なし: <具体的な理由>
 ## 受け入れ条件
 
 - [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007: always_error）
-- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] 必須依存辺（config `must_link_to`）が存在（RULE-006）
+- [ ] `kind`/`status` を書いていない・`to` は単数
 - [ ] `scheduled: ""`（空文字のみ）
 - [ ] suppress を使う場合は inline comment に理由あり
-- [ ] see-also 辺の status が `n/a`（RULE-014）
-- [ ] ref_version が参照先の現在 x.y と一致（RULE-003/004）
+- [ ] ref_version が全辺にあり参照先の現在 x.y と一致（RULE-004）

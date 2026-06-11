@@ -44,25 +44,26 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 **構造チェック（自己修正可）**
 - [ ] ID が全体でユニーク（同一 ID が複数存在しない）
-- [ ] 親に `decomposes` 辺が揃っている（RULE-008）
-- [ ] 子が親を `refines` している（直接 FR を参照していない）
-- [ ] `ref_version` が参照先の現在 x.y と一致（RULE-003/004）
-- [ ] `see-also` 辺の status が `n/a`（RULE-014）
+- [ ] 階層 ID `X-N` の親ノード `X` が存在する（RULE-008・親→子辺は持たない）
+- [ ] 子が親へ依存辺を張っている（直接 FR を参照していない）
+- [ ] 辺に `kind`/`status` がない・`to` が単数（リスト禁止）
+- [ ] `ref_version` が全辺にあり参照先の現在 x.y と一致（RULE-004）
 
 **型別チェック（自己修正不可 → 差し戻し）**
-- [ ] SPEC: `condition` 属性あり（RULE-016）
+- [ ] SPEC: `condition` 属性あり（RULE-016 ERROR）
 - [ ] SPEC: `scheduled` が空文字（"" のみ許可）
 - [ ] SPEC: 期待動作が単一アサーション（複数 RULE 列挙 → 差し戻し）
-- [ ] TD: `condition` が verifies 先 SPEC と一致（RULE-019）
-- [ ] TR: `result` 属性あり（RULE-020）
-- [ ] TR result: FAIL → `log_ref` あり（RULE-021）
+- [ ] TD: `condition` が依存先 SPEC と一致（RULE-019）
+- [ ] TR: `result` 属性あり（RULE-020 ERROR）
+- [ ] TR: `log_ref` あり（PASS/FAIL 問わず・RULE-021 ERROR）
+- [ ] DD/Q/PEND: 反映済みの義務辺が残っていない（反映後は `X→DD` に置換）
 
 ### Step 4: 問題への対処
 
 **自己修正できる問題**（構造的な形式不整合のみ）：
 - `ref_version` の不一致 → 参照先から正しい値を読んで修正
-- `see-also` の status が `n/a` 以外 → `n/a` に修正
-- `decomposes` 辺の欠落（追加するだけで済む場合）→ 追加
+- 辺に残った `kind`/`status` → 削除
+- `to` のリスト記法 → 1辺1 `to` に分割
 
 **差し戻す問題**（内容の問題・著作エージェントが対処すべき）：
 - 存在しない ID への参照（RULE-007）
