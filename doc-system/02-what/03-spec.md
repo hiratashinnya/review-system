@@ -652,7 +652,6 @@ type: SPEC
 labels: []
 scheduled: ""
 condition: failure
-suppress: [RULE-018]  # 異常系なし: FR-16-2 自体の failure/error SPECは意図的に省略
 edges:
   - to: SPEC-16
     kind: refines
@@ -1399,7 +1398,7 @@ edges:
 
 ---
 
-## SPEC-27: スキルが外部参照なしに著作規約を提供（normal）
+## SPEC-27: エージェントが外部参照なしに著作規約を提供（normal）
 
 <details><summary>⬡ SPEC-27 · v0.2</summary>
 
@@ -1417,9 +1416,9 @@ edges:
 ```
 </details>
 
-**前提条件**: 工程別スキル（SKILL.md）が `.claude/skills/` にある
-**入力/トリガ**: 著者がスキルを呼び出して著作する
-**期待動作**: スキル内に型・ID PREFIX・辺・本文フォーマット・RULE チェックリストが揃い、外部ファイル読み込みなしに著作できる
+**前提条件**: 型別著作エージェント（AGENT.md）が `.claude/agents/` にある
+**入力/トリガ**: 著者が著作エージェントを呼び出して著作する
+**期待動作**: エージェント内に型・ID PREFIX・辺・本文フォーマット・RULE チェックリストが揃い、外部ファイル読み込みなしに著作できる
 
 ---
 
