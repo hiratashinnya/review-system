@@ -3,9 +3,9 @@ version: "0.2.0"
 ---
 # 非機能要求・制約
 
-> **型**: NFR ／ **必須上流**: SR（refines ✅）
-> NFR は検証結果から `validates` 辺を受ける必要がある（RULE-011）。本セットは検証層未着手のため
-> 各ノードで RULE-011 を suppress（理由付き）。
+> **型**: NFR ／ **必須上流**: SR（依存辺 ✅）
+> NFR は検証結果から辺を受ける必要がある（`must_be_linked_from: NFR ← [FND,TC,VERIFY]`）。
+> この接続は verification ステージで発火するため、現在（requirements）は沈黙（suppress 不要）。
 
 ---
 
@@ -18,11 +18,8 @@ id: NFR-1
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-4
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -40,11 +37,8 @@ id: NFR-2
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-4
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -62,11 +56,8 @@ id: NFR-3
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-1
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -84,11 +75,8 @@ id: NFR-4
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-6
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -106,11 +94,8 @@ id: NFR-5
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-3
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -128,11 +113,8 @@ id: NFR-6
 type: NFR
 labels: []
 scheduled: ""
-suppress: [RULE-011]  # 検証層未着手: validates 辺を張る FND/VERIFY/TR が未作成
 edges:
   - to: SR-4
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>

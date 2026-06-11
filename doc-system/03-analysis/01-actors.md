@@ -18,8 +18,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-1
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -39,8 +37,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>
@@ -60,8 +56,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-4
-    kind: refines
-    status: pending
     ref_version: "0.2"
 ```
 </details>

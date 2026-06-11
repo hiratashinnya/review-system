@@ -57,8 +57,6 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-003
-    kind: refines
-    status: pending
     ref_version: "1.0"
 \`\`\`
 </details>
@@ -117,33 +115,34 @@ suppress: [RULE-018]   # 理由を inline comment で必ず記載
 
 ```yaml
 edges:
-  # 基本形（1辺）
+  # 基本形（1辺1 to・kind/status なし）
   - to: SR-003
-    kind: refines
-    status: pending
     ref_version: "1.0"
 
-  # 複数先（同じ kind・status・ref_version）
-  - to: [SPEC-001, SPEC-002]
-    kind: refines
-    status: done
+  # 複数依存は辺を分割（リスト記法は禁止）
+  - to: SPEC-001
+    ref_version: "1.2"
+  - to: SPEC-002
     ref_version: "1.2"
 
   # note 付き
   - to: NFR-001
-    kind: constrains
-    status: n/a
     ref_version: "1.0"
     note: "パフォーマンス制約のみ。セキュリティは NFR-002 で別途"
 ```
 
-### status の値
+- **`kind` は書かない**（辺は無名依存辺。関係名は型ペアから読む・02§5）。
+- **`status` は書かない**（ドリフトは ref_version 比較が真実源・02§7）。
+- **`to` はスカラーのみ**。複数先は辺を分割する。
+- **`ref_version` は全辺必須**（DD/Q/PEND の義務辺含む）。
 
-| 値 | 意味 | 典型的な使い方 |
-|---|---|---|
-| `pending` | 上流変化がまだ反映されていない | 新規辺は pending から始める |
-| `done` | 反映済み | 上流を確認し反映が完了したら done |
-| `n/a` | 伝播反映は不要（影響なしと確認済み） | `see-also` 辺は n/a 固定（RULE-014） |
+### ドリフトの考え方（status 廃止）
+
+| 状態 | 表現 |
+|---|---|
+| 反映済み | `ref_version` が参照先の現在 x.y と一致 |
+| 未反映（ドリフト） | `ref_version` が古い → RULE-004 ERROR。見直して ref_version を更新する |
+| DD/Q/PEND の未反映 | 義務辺 `DD→X` が存在する（反映後に削除し `X→DD` を追加） |
 
 ---
 
@@ -218,14 +217,16 @@ version: "1.0.0"
 id: DD-011
 type: DD
 edges:
-  - to: [FR-003, TC-001]
-    kind: affects
-    status: done
+  - to: FR-003
+    ref_version: "1.0"
+  - to: TC-001
     ref_version: "1.0"
 ```
 </details>
 
 **status: decided**
+
+> DD の out 辺は義務辺。反映が完了したら辺を削除し、対象側に `FR-003 → DD-011` の依存辺を張る。
 
 **論点**: ログを body フィールドにするか YAML メタにするか  
 **選択肢**: A. YAML メタ昇格（機械チェック可） / B. body のまま  
@@ -243,10 +244,12 @@ edges:
 |---|---|---|
 | labels が空 | `labels: []` または `labels:` どちらも可 | 省略（キーごと消す）は不可 |
 | scheduled が未設定 | `scheduled: ""` または省略可 | — |
-| condition（SPEC/TD） | 省略すると RULE-016 WARNING | — |
-| result（TR） | 省略すると RULE-020 WARNING | — |
-| ref_version | 省略すると RULE-003/004 対象外になるが、省略を推奨しない | — |
+| condition（SPEC/TD） | — | 省略すると RULE-016 **ERROR** |
+| result（TR） | — | 省略すると RULE-020 **ERROR** |
+| ref_version | — | **全辺必須**（省略不可・RULE-004 の基準） |
 | note | 任意（省略可） | — |
+| kind / status | — | **フィールドごと禁止**（廃止） |
+| to のリスト | — | **禁止**（1辺1 to に分割） |
 
 ---
 
@@ -262,7 +265,7 @@ edges:
 frontmatter の version フィールド（x.y.z）
 
 # エッジ発見
-edges: リスト内の to/kind/status/ref_version を読み取る
+edges: リスト内の to/ref_version/note を読み取る（kind/status は存在しない）
 ```
 
 > 検証ツールはこの記法に依存して YAML を抽出する。  

@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.2.0"
 ---
 # 検証戦略
 
@@ -11,12 +11,12 @@ version: "0.1.0"
 ## 1. 検証の目的と全体像
 
 **腐敗源**：「実装が変わったのに設計書に反映し忘れる」ドリフト。  
-**対策**：辺に `ref_version` と `status` を持たせ、グラフ走査で不整合を機械検出する。
+**対策**：辺に `ref_version` を持たせ、グラフ走査で不整合を機械検出する（status は廃止・ref_version が真実源）。
 
 ```
 ドキュメント変更
     ↓
-① 辺のドリフト検出（ref_version 不一致・pending 残存）
+① 辺のドリフト検出（ref_version 不一致・DD/Q/PEND 義務辺の残存）
     ↓
 ② 構造的完結性チェック（孤立ノード・必須辺の欠如）
     ↓
@@ -35,10 +35,12 @@ version: "0.1.0"
 
 | RULE | 対象 | 深刻度 |
 |---|---|---|
-| RULE-001 | DD の affects 辺に pending 残存 | ERROR |
-| RULE-002 | Q の affects 辺に pending 残存 | WARNING |
-| RULE-003 | 辺の ref_version と参照先 x.y の不一致 | WARNING |
-| RULE-004 | 主要辺（refines/realizes/verifies）の ref_version 不一致 | ERROR |
+| RULE-001 | DD の義務辺（`DD→X`）が存在（未反映） | ERROR |
+| RULE-002 | Q の義務辺（`Q→X`）が存在 | WARNING |
+| RULE-022 | PEND の義務辺（`PEND→X`）が存在 | WARNING |
+| RULE-004 | 辺の ref_version と参照先 x.y の不一致（全依存辺・義務辺含む） | ERROR |
+
+> RULE-003 廃止（→ RULE-004）。see-also 廃止で辺は全て依存辺＝ドリフトは一律 ERROR。
 
 **トリガ**：ファイルの `version` を上げたとき（x または y の上昇）。  
 **運用**：PR 差分で `version` 変更を含むコミットの後、走査を実行する。
@@ -51,16 +53,12 @@ version: "0.1.0"
 
 | RULE | 対象 | 深刻度 |
 |---|---|---|
-| RULE-005 | VAL/ACTOR/I/O/E の孤立（辺 0 本） | ERROR |
-| RULE-006 | 接続マトリクス ✅ の辺が欠如 | ERROR |
+| RULE-005 | 完全孤立（in/out 辺 0 本） | ERROR（always_error） |
+| RULE-006 | config `must_link_to`/`must_be_linked_from` の必須接続欠如 | 行ごと（error/warning） |
 | RULE-007 | 辺の to が存在しない ID を参照 | ERROR（always_error） |
-| RULE-008 | 階層 ID の親に decomposes 辺なし | WARNING |
-| RULE-009 | FND に found-in/validates 辺が 0 本 | ERROR |
-| RULE-010 | FND に found-in 辺なし | WARNING |
-| RULE-011 | NFR に validates 辺なし | WARNING |
-| RULE-012 | TC に realizes 辺なし | ERROR |
-| RULE-013 | VERIFY に verifies 辺なし | ERROR |
-| RULE-014 | see-also 辺に pending/done ステータス | WARNING |
+| RULE-008 | 階層 ID `X-N` の親ノードが存在しない | ERROR |
+
+> 旧 RULE-009/010/011/012/013/015 は RULE-006（config 駆動）に吸収。RULE-014 は see-also 廃止で消滅。
 
 **トリガ**：ノードの追加・辺の追加/削除後。  
 **運用**：CI で常時実行する（ERROR があればマージブロック推奨）。
@@ -73,13 +71,13 @@ version: "0.1.0"
 
 | RULE | 対象 | 深刻度 |
 |---|---|---|
-| RULE-015 | SPEC に TD からの verifies 辺なし | WARNING |
-| RULE-016 | SPEC/TD に condition 属性なし | WARNING |
+| （SPEC←TD カバレッジ） | `must_be_linked_from: SPEC ← [TD]`（旧 RULE-015） | WARNING（config 行） |
+| RULE-016 | SPEC/TD に condition 属性なし | ERROR |
 | RULE-017 | FR に condition: normal の SPEC なし | WARNING |
-| RULE-018 | FR に condition: failure/error の SPEC なし | INFO |
+| RULE-018 | FR に condition: failure/error の SPEC なし | WARNING |
 | RULE-019 | TD の condition が verifies 先 SPEC の condition と不一致 | WARNING |
-| RULE-020 | TR に result 属性なし | WARNING |
-| RULE-021 | TR が FAIL かつ log_ref なし | WARNING |
+| RULE-020 | TR に result 属性なし | ERROR |
+| RULE-021 | TR に log_ref なし（result 問わず） | ERROR |
 
 **出力イメージ**：
 
@@ -88,12 +86,12 @@ version: "0.1.0"
 FR-001:
   ✅ normal   — SPEC-001 ← TD-001
   ✅ boundary — SPEC-002 ← TD-002
-  ⚠️ failure  — SPEC-003 ← (TD なし) [RULE-015]
-  — error    — (SPEC なし) [RULE-018 INFO]
+  ⚠️ failure  — SPEC-003 ← (TD なし) [must_be_linked_from]
+  ⚠️ error    — (SPEC なし) [RULE-018]
 
 TR 完結性:
   ✅ TR-001 result: PASS  log_ref: ci/logs/run-1.txt
-  ⚠️ TR-002 result: FAIL  log_ref: (なし) [RULE-021]
+  ❌ TR-002 result: FAIL  log_ref: (なし) [RULE-021 ERROR]
 ```
 
 ---
@@ -142,9 +140,11 @@ TR 完結性:
 id: VERIFY-001
 type: VERIFY
 edges:
-  - to: [FR-001, SPEC-001, SPEC-002]
-    kind: verifies
-    status: done
+  - to: FR-001
+    ref_version: "1.0"
+  - to: SPEC-001
+    ref_version: "1.0"
+  - to: SPEC-002
     ref_version: "1.0"
 ```
 
@@ -152,19 +152,15 @@ edges:
 
 ### FND（指摘）
 
-VERIFY または TC/TR の実行中に発見した指摘を記録する。
+VERIFY または TC/TR の実行中に発見した指摘を記録する。矛盾は FND の複数辺で表す（旧 contradicts 廃止）。
 
 ```yaml
 id: FND-001
 type: FND
 edges:
-  - to: SPEC-003
-    kind: found-in
-    status: pending
+  - to: SPEC-003       # 指摘が見つかった要素
     ref_version: "1.0"
-  - to: NFR-002        # 任意: この NFR が満たされていない証拠
-    kind: validates
-    status: done
+  - to: NFR-002        # この NFR が満たされていない証拠
     ref_version: "1.0"
 ```
 
@@ -174,18 +170,19 @@ edges:
 
 ## 5. NFR 検証フロー（§11）
 
-すべての NFR に少なくとも1本の `validates` 辺が必要（RULE-011）。
+すべての NFR は FND/TC/VERIFY のいずれかから辺を受ける必要がある
+（config `must_be_linked_from: NFR ← [FND, TC, VERIFY]`・旧 RULE-011）。
 
 ```
 NFR-001（性能制約）
-  ← FND-001 (validates) — 性能テストで確認した指摘
-  ← TR-012 (validates)  — ベンチマーク実行結果
+  ← FND-001 — 性能テストで確認した指摘
+  ← TR-012  — ベンチマーク実行結果
 
 NFR-002（セキュリティ制約）
-  ← VERIFY-003 (validates) — セキュリティレビュー実施記録
+  ← VERIFY-003 — セキュリティレビュー実施記録
 ```
 
-> `validates` 辺は **FND・TR・VERIFY のいずれ**から来ても良い。  
+> 辺は **FND・TC・VERIFY のいずれ**から来ても良い（OR）。  
 > 検証方法（テスト/レビュー/監査）をフローで制限しない。
 
 ---
@@ -216,7 +213,7 @@ NFR-002（セキュリティ制約）
 | 抑制軸 | 使い方 | 効果 |
 |---|---|---|
 | `scheduled` | 将来フェーズのノードは現在は検証対象外 | 完全サイレント |
-| `stage_scope` | 現フェーズで対象外の型は WARNING 降格 | ERROR → WARNING |
-| `suppress` | ノード単位で特定ルールを抑制 | 完全サイレント（理由 comment 必須） |
+| ステージ発火 | config の `activate_stage`/`rule_activation` が current_stage 未達 | 未到達ルールは沈黙（旧 stage_scope.disable を代替） |
+| `suppress` | ノード単位で特定ルールを抑制 | 完全サイレント（理由 comment 必須・always_error 不可） |
 
 > 抑制数が増えすぎると品質低下の兆候。月次で抑制ノードを棚卸しする（運用ルール）。

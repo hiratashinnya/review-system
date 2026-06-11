@@ -20,7 +20,7 @@ version: "1.2.0"
 
 | 桁 | 変化の意味 | エッジへの影響 |
 |---|---|---|
-| **x（メジャー）** | 構造破壊（要素の追加/削除/型変更） | `ref_version` の `x.y` 不一致 → `status: pending` |
+| **x（メジャー）** | 構造破壊（要素の追加/削除/型変更） | `ref_version` の `x.y` 不一致 → RULE-004 ERROR |
 | **y（マイナー）** | 有意な内容変更（仕様変更・新規記述） | 同上 |
 | **z（パッチ）** | 誤字修正・表現調整のみ | **無視**（`x.y` で比較・z は問わない） |
 
@@ -122,7 +122,8 @@ P-3-2        # プロセス3の子プロセス2
 ### 規則
 
 - id は**永続**：要素をリネームしても id は変えない。意味は heading が持つ。
-- 親ノードは子ノードへ `decomposes` 辺を持つ（子が追加されたときに親辺を追加）。
+- 階層は **ID パターン `X-N` から推論**する（`decomposes` 辺は廃止・DD-014）。
+  子 `I-1-1` が存在すれば親 `I-1` の存在を検証する（RULE-008）。
 - doc-system 自身の意思決定も同じ id 空間（`DD-001`, `Q-001` など）。
 
 ---
@@ -131,102 +132,58 @@ P-3-2        # プロセス3の子プロセス2
 
 ```yaml
 edges:
-  - to:          string | [string]  # 必須：参照先ノード id（単数または複数）
-    kind:        string             # 必須：関係種別（§5）
-    status:      string             # 必須：伝播ステータス（§7）
-    ref_version: string             # 推奨：参照先ファイルの x.y（ドリフト検出に使用）
-    note:        string             # 任意：補足・理由
+  - to:          string   # 必須：参照先ノード id（単数のみ・リスト禁止）
+    ref_version: string   # 必須：参照先ファイルの x.y（ドリフト検出に使用）
+    note:        string   # 任意：補足・理由
 ```
 
-### `to` の複数指定
-
-同一 kind・同一 status・同一 ref_version で複数ノードへ辺を張る場合は配列で書ける。
+- **`kind` フィールドは存在しない**（DD-012）。辺は無名の依存辺であり、関係の名称は
+  グラフ走査時に `(source 型, target 型)` から読み取る（接続マトリクス [03](03-connection-matrix.md)）。
+- **`status` フィールドは存在しない**（DD-013）。ドリフトは `ref_version` 比較が唯一の真実源（§7）。
+- **`to` はスカラー string のみ**。複数先へ依存する場合は辺を分割して1辺1 `to` で書く。
 
 ```yaml
 edges:
-  # 単一
-  - to: FR-009
-    kind: refines
-    status: done
+  # 1辺1 to（複数依存は辺を分割）
+  - to: SR-003
     ref_version: "1.2"
-
-  # 複数（同じ関係・同じステータス）
-  - to: [SR-003, VAL-001]
-    kind: refines
-    status: done
+  - to: VAL-001
     ref_version: "2.0"
+    note: "派生元の価値命題"
 ```
 
 ---
 
-## 5. エッジ関係種別（kind）
+## 5. エッジの意味論（無名依存辺）
 
-### 階層・精緻化
+辺は1種類だけ：**依存辺**。
 
-| kind | 意味 | 典型例 |
+> **`A → B` ＝ 「A は B に依存する」＝「B が変われば A は見直しが必要」。**
+
+- 辺に種別ラベル（kind）は持たせない。関係の名称（refines / realizes / verifies …）は
+  `(source 型, target 型)` の組から一意に読み取れるため、冗長な記録をしない（DD-012）。
+- **依存方向に統一**（DD-017）：辺は常に「自分が影響を受ける先」を指す。
+  - `O → P`：出力は生成プロセスに依存（旧 `P → O produces` を反転）
+  - `P → E`：プロセスはトリガ事象に依存（旧 `E → P triggers` を反転）
+  - `P → I`：プロセスは入力に依存（消費）
+  - `O → ACTOR`：出力は受け手アクタに依存／`E → ACTOR`：事象は刺激元アクタに依存
+- **唯一の例外＝決定スパインの義務辺**（DD-016）。`DD/Q/PEND → X` は「この決定が X に
+  影響する（反映が要る）」を表す一時辺で、依存方向とは**逆向き**。識別は **source 型が
+  DD/Q/PEND かどうか**で行う（§7・§9 グループ A）。
+
+### 廃止した関係（DD-014）
+
+| 旧 kind | 廃止理由 | 代替 |
 |---|---|---|
-| `refines` | 上位概念を詳細化する（層間の主辺） | `FR-001 → SR-001`, `DM-001 → TERM-001` |
-| `decomposes` | 親要素が子要素に分割された | `I-1 → I-1-1`, `I-1 → I-1-2` |
+| `see-also` | 参照＝依存。影響がなければ辺を張らない | 依存辺（影響があるなら普通の辺） |
+| `replaces` | 歴史情報でありドリフト対象にすべきでない | 本文更新＋ファイル版 bump |
+| `extends` | 実使用ゼロ | 無名依存辺（子→親） |
+| `contradicts` | 方向性のない観測＝指摘 | FND（`FND→A` と `FND→B` の2辺） |
+| `decomposes` | 階層は ID パターン `X-N` から推論可能 | ID パターン（§3・RULE-008） |
 
-### 実現
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `realizes` | コード/設計が仕様を実現する | `SRC → DM-001`, `SRC → PORT-001` |
-| `allocates-to` | 要求をコンポーネント/モジュールに割当 | `FR-003 → MOD-002` |
-| `instantiates` | コンフィグ/インスタンスが設計を具体化 | `CFG-001 → SCM-001` |
-
-### データフロー
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `triggers` | イベント/入力がプロセスを起動する | `E-001 → P-001` |
-| `produces` | プロセスが出力を生成する | `P-002 → O-001` |
-| `consumes` | プロセスが入力を消費する | `P-001 → I-001` ※方向注意：`I-001` が起点でも可 |
-
-> `P` と `I`/`O` の接続は `consumes`/`produces` を使う。`I-001` が `P-001` を
-> `consumes` するか、`P-001` が `I-001` を `consumes` するかは実装時に統一する（03 §7 参照）。
-
-### 検証
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `verifies` | テスト/検証が要求・コードを検証する | `TD-001 → SPEC-001`, `VERIFY-001 → FR-003` |
-| `validates` | 検証結果が NFR/制約を証明する | `FND-001 → NFR-002` |
-| `found-in` | 指摘が対象要素の中に発見された | `FND-001 → DM-005` |
-
-### 制約
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `constrains` | NFR/制約が設計・実装を制約する | `NFR-001 → MOD-003` |
-
-### 意思決定
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `affects` | 決定/指摘が要素に影響する | `DD-015 → DM-001`, `Q-003 → FR-007` |
-| `replaces` | 新要素が旧要素を置換/supersede する | `FR-010 → FR-007` |
-
-### 参照
-
-| kind | 意味 | 伝播 |
-|---|---|---|
-| `see-also` | 参考情報（関連するが依存ではない） | **なし** |
-| `extends` | 継承・拡張（スキーマ継承・設計継承） | あり |
-| `uses` | コンポーネント/段が別の要素を利用する（ORC が PROMPT を使う等） | あり |
-
-### 実行証跡
-
-| kind | 意味 | 典型例 |
-|---|---|---|
-| `produced-by` | テスト結果がテストコードの実行から生成された | `TR-001 → TC-001` |
-
-### 矛盾
-
-| kind | 意味 |
-|---|---|
-| `contradicts` | 2要素間の矛盾を明示（spec-inspector が起票） |
+> `refines`/`realizes`/`instantiates`/`verifies`/`validates`/`found-in`/`consumes`/`produces`/
+> `triggers`/`constrains`/`uses`/`produced-by` 等の旧 kind は、**すべて無名依存辺**になった。
+> 名称が要るときは型ペアから読む。
 
 ---
 
@@ -241,8 +198,9 @@ edges:
 | `NFR` | `NFR-` | What | 非機能・制約 |
 | `TERM` | `TERM-` | 共有語彙 | 用語・データ辞書エントリ |
 | `ACTOR` | `ACTOR-` | 分析 | 外部アクタ |
-| `I` | `I-` | 分析 | 入力 |
-| `O` | `O-` | 分析 | 出力 |
+| `I` | `I-` | 分析 | 入力（系外アクタ発） |
+| `O` | `O-` | 分析 | 出力（系外アクタ宛） |
+| `D` | `D-` | 分析 | 内部データフロー（プロセス間・系外へ出ない） |
 | `P` | `P-` | 分析 | 論理プロセス |
 | `E` | `E-` | 分析 | イベント |
 | `ORC` | `ORC-` | 設計・振る舞い | オーケストレーション段 |
@@ -265,35 +223,35 @@ edges:
 
 ---
 
-## 7. エッジ伝播ステータス（status）
+## 7. ドリフト検出（ref_version が唯一の真実源）
 
-| 値 | 意味 |
-|---|---|
-| `pending` | 上流の変化がこの辺の先にまだ反映されていない |
-| `done` | 反映済み |
-| `n/a` | トレース上辺は存在するが伝播反映は不要（影響なしと確認済み） |
+`status` フィールドは廃止した（DD-013）。辺がドリフトしているかは **`ref_version` 比較**だけで決まる。
 
-### ドリフト検出ルール
+### バージョンドリフト（RULE-004）
 
 ```
-# バージョンドリフト（RULE-003）
 edge.ref_version の x.y ≠ 参照先ファイルの現在 version の x.y
-  → status を pending に更新（検証ツールが検出・報告）
-
-# 意思決定ドリフト（RULE-001）
-DD ノードの affects 辺に status: pending が残っている
-  → 反映漏れ確定（ドリフト検出の核心）
-  ※ DD はノードの型で判定する。lifecycle状態のパース不要。
+  → ドリフト = ERROR（検証ツールが検出・報告）
 ```
 
-### ステータス遷移
+- 上流が x.y を上げたら、依存辺の `ref_version` は古いままになり ERROR で表面化する。
+- **見直して影響を取り込んだら（または影響なしと判断したら）、`ref_version` を現在版に
+  素直に更新する**。これが「反映済み」の唯一の表現（旧 `done`/`n/a` 概念は不要）。
+
+### 意思決定ドリフト（RULE-001/002/022）— 義務辺モデル
 
 ```
-[新規辺作成]           → pending
-[反映完了]             → done
-[影響なしと確認]        → n/a
-[上流ファイル x.y 上昇] → refines/realizes/verifies 辺を done → pending へリセット
+DD/Q/PEND → X の辺が「存在する」 = その決定が X にまだ反映されていない
+  DD→X 存在  → RULE-001 ERROR
+  Q→X 存在   → RULE-002 WARNING
+  PEND→X 存在 → RULE-022 WARNING
 ```
+
+- 反映が完了したら **`DD→X` 辺を削除し、`X→DD` の依存辺を新たに張る**（DD-016）。
+  これにより「未反映 = 義務辺の存在」「反映済 = 逆向き依存辺」が構造で表現され、status を持たない。
+- 義務辺にも `ref_version` は必須。反映前に X が別件で更新されたら義務辺がドリフト ERROR になり、
+  「その決定は古い X を前提にしている。見直せ」のシグナルになる（DD-015）。
+- DD/Q/PEND の判定は **ノードの型**で行う。lifecycle 状態（decided/open）の本文パースは不要。
 
 ---
 
@@ -306,7 +264,7 @@ DD ノードの affects 辺に status: pending が残っている
 | 軸 | 設定 | 条件 | 効果 |
 |---|---|---|---|
 | **scheduled 抑制** | ノード属性 `scheduled` | `scheduled` のフェーズが `current_phase` より後 | **完全サイレント**（ルール非発火） |
-| **ステージ抑制** | `config.yaml` の `stage_scope[current_stage].disable` | `{rule: R, on: NodeType}` ペアが一致 | **完全サイレント**（そのステージでその型へのそのルール評価をスキップ） |
+| **ステージ発火** | `config.yaml` の `must_link_to`/`must_be_linked_from` 行の `activate_stage`・属性ルールの `rule_activation` | `current_stage` が発火ステージ未満 | **未到達ルールは沈黙**（旧 `stage_scope.disable` マトリクスを代替） |
 | **suppress 抑制** | ノード属性 `suppress` | ルール番号がリストに含まれる | **完全サイレント**（そのルールのみ非発火）。`always_error` ルールは無効 |
 
 > **suppress と labels の違い**：`labels` は人向けの分類タグ（機械が意味を解釈しない）。
@@ -326,15 +284,21 @@ phases リストのインデックス比較：
   → index(sprint-2)=1 > index(sprint-1)=0 → 完全サイレント
 ```
 
-### ステージ抑制の判定
+### ステージ発火の判定
 
 ```
-stage_scope[current_stage].disable リストに {rule: R, on: T} が含まれる
-  かつ ノードの type が T と一致する
-    → ルール R の評価をスキップ（完全サイレント）
+# 接続ルール（RULE-006）
+must_link_to / must_be_linked_from の各行は activate_stage を持つ
+  index(current_stage) < index(row.activate_stage)
+    → その行の接続要求は発火しない（沈黙）
 
-current_stage が stage_scope に存在しない
-  → ステージ抑制判定をスキップして全ルールを元の深刻度で評価する（ツール設定エラーを報告）
+# 属性ルール（RULE-016〜021）
+rule_activation[RULE-x] が発火開始ステージを定義
+  index(current_stage) < index(rule_activation[RULE-x])
+    → ルール R は発火しない（沈黙）
+
+current_stage が stages リストに存在しない
+  → 全ルールを元の深刻度で評価する（ツール設定エラーを報告）
 ```
 
 ### suppress 抑制の判定
@@ -371,61 +335,42 @@ scheduled/stage/suppress いずれの方法でも抑制不可。存在しない 
 ### config.yaml の構造
 
 ```yaml
-# docs/doc-system/config.yaml
+# docs/doc-system/config.yaml（抜粋）
 
 current_phase: "sprint-1"
 current_stage: "requirements"
 
-phases:
-  - sprint-1
-  - sprint-2
-  - sprint-3
-  - post-mvp
+phases: [sprint-1, sprint-2, sprint-3, post-mvp]
+stages: [requirements, analysis, design, implementation, verification]
 
-# ステージ×ルール×ノードタイプ の無効化リスト
-# disable エントリの {rule, on} に一致するノードタイプへのルール評価をスキップする
-# always_error（RULE-007）は disable 対象に含めても無効（常に発火）
-stage_scope:
-  requirements:
-    disable:
-      - {rule: RULE-015, on: SPEC}     # TD verifies 不要: TD 未作成
-      - {rule: RULE-011, on: NFR}      # validates 不要: 検証層未作成
-      - {rule: RULE-009, on: FND}      # found-in 不要: 検証層未作成
-      - {rule: RULE-010, on: FND}      # validates 不要: 検証層未作成
-      - {rule: RULE-012, on: TC}       # realizes 不要: 検証層未作成
-      - {rule: RULE-013, on: VERIFY}   # verifies 不要: 検証層未作成
-      - {rule: RULE-020, on: TR}       # result 不要: 検証層未作成
-      - {rule: RULE-021, on: TR}       # log_ref 不要: 検証層未作成
-  analysis:
-    disable:
-      - {rule: RULE-015, on: SPEC}
-      - {rule: RULE-011, on: NFR}
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-012, on: TC}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  design:
-    disable:
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-012, on: TC}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  implementation:
-    disable:
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  verification:
-    disable: []   # 全ルールフル検査
+# 必須接続①：依存辺（node → target）。同一 node の複数行 = AND・target 配列 = OR
+must_link_to:
+  - { node: SPEC, target: FR,   activate_stage: requirements, severity: error,   reason: "SPECはFRを詳細化" }
+  - { node: O,    target: P,    activate_stage: analysis,     severity: error,   reason: "出力は生成プロセスに依存（O→P）" }
+  - { node: TD,   target: SPEC, activate_stage: verification, severity: error,   reason: "TDは仕様を検証" }
+  # …（全行は config.yaml 本体を参照）
+
+# 必須接続②：被依存辺（node ← source 群）。source 配列 = OR
+must_be_linked_from:
+  - { node: SPEC, source: [TD],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
+  - { node: NFR,  source: [FND, TC, VERIFY], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける" }
+  # …
+
+# 決定スパイン（source 型で判定）
+decision_spine:
+  - { node: DD,   rule: RULE-001, severity: error }
+  - { node: Q,    rule: RULE-002, severity: warning }
+  - { node: PEND, rule: RULE-022, severity: warning }
+
+# 属性ルールの発火開始ステージ（旧 stage_scope.disable を代替）
+rule_activation:
+  RULE-016: requirements   # condition 属性なし（ERROR）
+  RULE-020: verification   # TR result なし（ERROR）
+  RULE-021: verification   # TR log_ref なし（ERROR）
 
 always_error:
-  - RULE-007   # suppress/scheduled/stage のいずれでも抑制不可
+  - RULE-005   # 完全孤立（抑制不可）
+  - RULE-007   # 存在しない ID 参照（抑制不可）
 ```
 
 ---
@@ -435,16 +380,16 @@ always_error:
 > 検証ツールが走査するルールの完全定義。
 > 深刻度：**ERROR**（必ず解消）／**WARNING**（要確認・合理的な理由があれば n/a 許容）／**INFO**（記録のみ）
 
-### グループ A：意思決定ドリフト（C1）
+### グループ A：意思決定ドリフト（義務辺モデル）
 
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
-| **RULE-001** | `DD` ノードの `affects` 辺 | `status: pending` が残っている | **ERROR** | `DD-015 → DM-001 が未反映（affects pending）` |
-| **RULE-002** | `Q` ノードの `affects` 辺 | `status: pending` が残っている | **WARNING** | `Q-003 → FR-007 が未追跡（未決論点の影響候補）` |
+| **RULE-001** | `DD` ノード | `DD→X` の義務辺が存在する（＝未反映） | **ERROR** | `DD-015 → DM-001 が未反映（義務辺が残存）` |
+| **RULE-002** | `Q` ノード | `Q→X` の義務辺が存在する | **WARNING** | `Q-003 → FR-007 が未追跡（未決論点の影響候補）` |
+| **RULE-022** | `PEND` ノード | `PEND→X` の義務辺が存在する | **WARNING** | `PEND-002 → FR-009 が先送り中（影響候補）` |
 
-> **DD は型で判定**：lifecycle状態（decided/open）を本文からパースせず、
-> ノード型が `DD` であれば `affects` の `pending` は無条件 ERROR。
-> `Q` は未決なので WARNING 止まり。反映完了時は `done`、影響なしと確定したら `n/a` に更新する。
+> **型で判定**：ノード型が DD/Q/PEND なら、その out 辺は義務辺。辺の**存在そのもの**が未反映を意味する。
+> 反映完了で **`DD→X` を削除し `X→DD`（依存辺）を追加**する（DD-016）。status は持たない。
 
 ---
 
@@ -452,8 +397,10 @@ always_error:
 
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
-| **RULE-003** | `ref_version` を持つ辺 | `ref_version` の x.y ≠ 参照先ファイルの現在 version の x.y | **WARNING** | `DM-001 → TERM-003 の ref_version 1.2 が古い（現: 1.4.0）` |
-| **RULE-004** | `refines`/`realizes`/`verifies` 辺 | RULE-003 かつ kind が上記 3 種のいずれか | **ERROR** | 同上（主要辺は ERROR に昇格） |
+| ~~RULE-003~~ | — | **廃止**（RULE-004 に統合・ドリフトは一律 ERROR） | — | — |
+| **RULE-004** | `ref_version` を持つ**全辺**（義務辺含む） | `ref_version` の x.y ≠ 参照先ファイルの現在 version の x.y | **ERROR** | `DM-001 → TERM-003 の ref_version 1.2 が古い（現: 1.4.0）` |
+
+> see-also 廃止により辺は全て依存辺。依存先の更新確認は必須なので、ドリフトは一律 ERROR。
 
 ---
 
@@ -461,32 +408,34 @@ always_error:
 
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
-| **RULE-005** | `VAL`/`ACTOR`/`I`/`O`/`E` ノード | `see-also` を除く辺が 0 本 | **ERROR** | `I-3 が孤立している（辺が必要）` |
-| **RULE-006** | 03 マトリクスで ✅ の辺 | 必須の上流リンクが存在しない | **ERROR** | `DM-005 に TERM への refines 辺がない` |
-| **RULE-007** | 辺の `to` フィールド | 参照先 ID が存在しない | **ERROR** | `辺 FR-009 → SR-999 の参照先 SR-999 が未定義` |
-| **RULE-008** | 階層 ID（例: `I-1-1`） | 親ノード（`I-1`）に `decomposes` 辺がない | **WARNING** | `I-1-1 の親 I-1 に decomposes 辺がない` |
+| **RULE-005** | 全ノード | in/out 辺が **0 本**（完全孤立） | **ERROR（always_error）** | `I-3 が孤立している（辺が必要）` |
+| **RULE-006** | config の `must_link_to`/`must_be_linked_from` 行 | 必須接続を満たさない | **行ごと**（error/warning） | `DM-005 に TERM への辺がない（must_link_to）` |
+| **RULE-007** | 辺の `to` フィールド | 参照先 ID が存在しない | **ERROR（always_error）** | `辺 FR-009 → SR-999 の参照先 SR-999 が未定義` |
+| **RULE-008** | 階層 ID（例: `I-1-1`） | 親ノード（`I-1`）が**存在しない** | **ERROR** | `I-1-1 の親 I-1 が存在しない（孤児階層）` |
+
+> RULE-006 は設定駆動。旧 RULE-009/010/011/012/013/015 はすべてこの config 行に吸収された。
+> 各行が自己説明的な `reason` と `severity` を持つ。
+> RULE-008 は decomposes 辺の廃止に伴い「親ノードの存在チェック」へ転用（WARNING→ERROR 昇格）。
 
 ---
 
-### グループ D：検証・指摘の完結性
+### グループ D：検証・指摘の完結性 → **RULE-006 に統合（廃止）**
 
-| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
-|---|---|---|---|---|
-| **RULE-009** | `FND` ノード | `found-in` 辺も `validates` 辺も 0 本 | **ERROR** | `FND-007 に辺がない（found-in または validates が必要）` |
-| **RULE-010** | `FND` ノード | `found-in` 辺が 0 本（`validates` のみ存在） | **WARNING** | `FND-007 に found-in がない（何の中に見つかったか不明）` |
-| **RULE-011** | `NFR` ノード | 入力方向の `validates` 辺が 0 本 | **WARNING** | `NFR-002 に validates 辺がない（検証証跡が必要）` |
-| **RULE-012** | `TC` ノード | `realizes` 辺が 0 本 | **ERROR** | `TC-012 に realizes 辺がない（TD との紐づけが必要）` |
-| **RULE-013** | `VERIFY` ノード | `verifies` 辺が 0 本 | **ERROR** | `VERIFY-003 に verifies 辺がない` |
+| RULE# | 旧内容 | 後継 |
+|---|---|---|
+| ~~RULE-009~~ | FND に found-in/validates 辺が 0 本 | `must_link_to: FND→any` |
+| ~~RULE-010~~ | FND に found-in 辺なし | （FND→any に統合） |
+| ~~RULE-011~~ | NFR に validates 辺なし | `must_be_linked_from: NFR ← [FND,TC,VERIFY]` |
+| ~~RULE-012~~ | TC に realizes 辺なし | `must_link_to: TC→TD` |
+| ~~RULE-013~~ | VERIFY に verifies 辺なし | `must_link_to: VERIFY→any` |
 
 ---
 
-### グループ E：`see-also` の伝播禁止
+### グループ E：see-also → **廃止**
 
-| RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
-|---|---|---|---|---|
-| **RULE-014** | `see-also` 辺 | `status: pending` または `done` が付いている | **WARNING** | `see-also 辺に伝播ステータスは不要（n/a に統一）` |
-
-> `see-also` は情報的参照のみ。伝播ステータスは `n/a` 固定とし、ドリフト検出対象外。
+| RULE# | 旧内容 | 後継 |
+|---|---|---|
+| ~~RULE-014~~ | see-also 辺に伝播ステータス | see-also 廃止（DD-014）。参照は依存辺で表す |
 
 ---
 
@@ -494,17 +443,14 @@ always_error:
 
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
-| **RULE-015** | `SPEC` ノード | 入力方向の `verifies` 辺（from `TD`）が 0 本 | **WARNING** | `SPEC-003 にテスト設計（TD）が紐づいていない（カバレッジ未確保）` |
-| **RULE-016** | `SPEC`・`TD` ノード | `condition` 属性がない | **WARNING** | `SPEC-002 に condition 属性がない（カバレッジ条件が不明）` |
-| **RULE-017** | `FR` ノード | refines している `SPEC` 群に `condition: normal` がひとつもない | **WARNING** | `FR-005 に正常系仕様（condition: normal の SPEC）がない` |
-| **RULE-018** | `FR` ノード | refines している `SPEC` 群に `condition: failure` も `condition: error` もない | **INFO** | `FR-005 に不成立・異常系の仕様がない（意図的であれば suppress: [RULE-018] で抑制可）` |
-| **RULE-019** | `TD` ノード | `condition` が `verifies` 先 `SPEC` の `condition` と不一致 | **WARNING** | `TD-003 (condition: normal) が SPEC-002 (condition: failure) を verifies している` |
+| ~~RULE-015~~ | `SPEC` | TD からの verifies が 0 本 | **廃止** | → `must_be_linked_from: SPEC ← [TD]` |
+| **RULE-016** | `SPEC`・`TD` | `condition` 属性がない | **ERROR** | `SPEC-002 に condition 属性がない` |
+| **RULE-017** | `FR` | refines 先 SPEC 群に `condition: normal` がない | **WARNING** | `FR-005 に正常系仕様がない` |
+| **RULE-018** | `FR` | refines 先 SPEC 群に `failure` も `error` もない | **WARNING** | `FR-005 に不成立・異常系の仕様がない（意図的なら suppress: [RULE-018]）` |
+| **RULE-019** | `TD` | `condition` が verifies 先 SPEC の `condition` と不一致 | **WARNING** | `TD-003 (normal) が SPEC-002 (failure) を検証している` |
 
-> RULE-015：TD の存在を保証する（カバレッジの充足確認）。
-> RULE-016：condition 属性を明示させる（なければ条件軸でのカバレッジ計算不可）。
-> RULE-017：正常系が定義されていない FR を検出。全 FR に `condition: normal` は必須。
-> RULE-018：INFO のみ（意図的に負例がない FR も存在するため）。`suppress: [RULE-018]` で抑制（理由 comment 必須）。
-> RULE-019：TD の condition と検証対象 SPEC の condition が食い違うと設計ミスの兆候。
+> RULE-016：condition が「無い」のは ERROR（未充足の RULE-017 とは別軸）。
+> RULE-018：負例なしは INFO→WARNING に昇格（意図的なら suppress）。
 
 ---
 
@@ -512,12 +458,10 @@ always_error:
 
 | RULE# | 対象 | 条件 | 深刻度 | メッセージ例 |
 |---|---|---|---|---|
-| **RULE-020** | `TR` ノード | `result` 属性がない | **WARNING** | `TR-001 に result 属性がない（PASS/FAIL が不明）` |
-| **RULE-021** | `TR` ノード | `result: FAIL` かつ `log_ref` がない | **WARNING** | `TR-001 は FAIL だが log_ref がない（失敗証跡が必要）` |
+| **RULE-020** | `TR` ノード | `result` 属性がない | **ERROR** | `TR-001 に result 属性がない（PASS/FAIL 不明）` |
+| **RULE-021** | `TR` ノード | `log_ref` がない（**result 問わず**） | **ERROR** | `TR-001 に log_ref がない（証跡なき報告）` |
 
-> RULE-020：テスト結果が PASS か FAIL か機械判定可能にする。body 記述では判定不可。
-> RULE-021：FAIL の証跡（ログ）を必ず紐づける。ログなき FAIL は再発防止できない。
-> `log_ref` はパス・URL どちらでも可（例: `ci/logs/run-42.txt`, `https://ci.example.com/run/42`）。
+> ログはノード化しない方針のため、`log_ref` が唯一のエビデンス。PASS/FAIL を問わず証跡なき TR は ERROR。
 
 ---
 
@@ -525,27 +469,24 @@ always_error:
 
 | RULE# | グループ | 深刻度 | 一言説明 |
 |---|---|---|---|
-| RULE-001 | A | ERROR | DD の affects pending = 反映漏れ |
-| RULE-002 | A | WARNING | Q の affects pending = 未追跡 |
-| RULE-003 | B | WARNING | ref_version 不一致 |
-| RULE-004 | B | ERROR | 主要辺（refines/realizes/verifies）の ref_version 不一致 |
-| RULE-005 | C | ERROR | VAL/ACTOR/I/O/E の孤立 |
-| RULE-006 | C | ERROR | 必須上流リンクの欠如 |
-| RULE-007 | C | ERROR | 存在しない ID への参照 |
-| RULE-008 | C | WARNING | 階層 ID の親 decomposes 辺なし |
-| RULE-009 | D | ERROR | FND に辺が 0 本 |
-| RULE-010 | D | WARNING | FND に found-in なし |
-| RULE-011 | D | WARNING | NFR に validates なし |
-| RULE-012 | D | ERROR | TC に realizes 辺なし（TD との紐づけなし） |
-| RULE-013 | D | ERROR | VERIFY に verifies なし |
-| RULE-014 | E | WARNING | see-also に伝播ステータス付与 |
-| RULE-015 | F | WARNING | SPEC に TD からの verifies なし（カバレッジ未確保） |
-| RULE-016 | F | WARNING | SPEC/TD に condition 属性なし |
+| RULE-001 | A | ERROR | DD の義務辺存在 = 反映漏れ |
+| RULE-002 | A | WARNING | Q の義務辺存在 = 未追跡 |
+| RULE-022 | A | WARNING | PEND の義務辺存在 = 先送り中 |
+| ~~RULE-003~~ | B | — | 廃止（→ RULE-004） |
+| RULE-004 | B | ERROR | 全依存辺の ref_version 不一致 |
+| RULE-005 | C | ERROR（always） | 完全孤立（in/out 0 本） |
+| RULE-006 | C | 行ごと | 必須接続の欠如（config 駆動） |
+| RULE-007 | C | ERROR（always） | 存在しない ID への参照 |
+| RULE-008 | C | ERROR | 階層 ID の親ノード不在 |
+| ~~RULE-009〜013~~ | D | — | 廃止（→ RULE-006 config） |
+| ~~RULE-014~~ | E | — | 廃止（see-also 廃止） |
+| ~~RULE-015~~ | F | — | 廃止（→ RULE-006 config） |
+| RULE-016 | F | ERROR | SPEC/TD に condition 属性なし |
 | RULE-017 | F | WARNING | FR に condition: normal の SPEC がない |
-| RULE-018 | F | INFO | FR に condition: failure/error の SPEC がない |
-| RULE-019 | F | WARNING | TD の condition が verifies 先 SPEC の condition と不一致 |
-| RULE-020 | G | WARNING | TR に result 属性なし（PASS/FAIL 不明） |
-| RULE-021 | G | WARNING | TR が FAIL かつ log_ref なし（失敗証跡なし） |
+| RULE-018 | F | WARNING | FR に failure/error の SPEC がない |
+| RULE-019 | F | WARNING | TD の condition が SPEC と不一致 |
+| RULE-020 | G | ERROR | TR に result 属性なし |
+| RULE-021 | G | ERROR | TR に log_ref なし（result 問わず） |
 
 ---
 
@@ -564,3 +505,12 @@ always_error:
 | DD-009 | テスト3層分離：TD（テスト設計・SPEC を verifies）→ TC（テストコード・TD を realizes）→ TR（テスト結果・TC を produced-by）。TD→SPEC の verifies 辺でカバレッジを機械検証（RULE-015） |
 | DD-010 | `condition` 属性（旧 `scenario` をリネーム）。sub-ID 案を退け DD-002 原則を維持。語彙：normal/boundary/failure/error（config.yaml 拡張可）。`boundary` を独立させた理由：正常と失敗の境目は別コードパスになることが多く、テスト設計上も分離すべき。FR×condition×TD のカバレッジを RULE-015〜019 で機械検証 |
 | DD-011 | TR の `result`・`log_ref` を YAML メタに昇格。body フィールドでは機械判定不可のため。RULE-020（result 必須）・RULE-021（FAIL 時 log_ref 必須）を追加。LOG ノード型は不要（単一 TR に内包で十分）。 |
+| DD-012 | **kind 廃止**：辺は無名の依存辺。関係名は `(source 型, target 型)` から読み取る。冗長な kind フィールドを持たない |
+| DD-013 | **status 廃止**：ドリフトは `ref_version` 比較が唯一の真実源。pending/done は ref_version 一致/不一致から導出され冗長。影響なしは ref_version を素直に更新する（旧 n/a 不要） |
+| DD-014 | **see-also / replaces / extends / contradicts / decomposes 廃止**。参照＝依存（see-also 不要）・歴史情報は本文へ（replaces）・継承は無名依存辺（extends）・矛盾は FND（contradicts）・階層は ID パターン（decomposes） |
+| DD-015 | **ref_version 全辺必須**（義務辺含む）。義務辺がドリフトしたら「決定が古い前提に立つ」シグナルになり見直しオペレーションを駆動する |
+| DD-016 | **DD/Q/PEND 義務辺モデル**：`DD→X` 辺の存在＝未反映（RULE-001 ERROR）。反映完了で辺を削除し `X→DD` の依存辺を追加。逆向き辺は反映までの一時辺のみ |
+| DD-017 | **依存方向統一**：全辺は依存先を指す。`O→P`（旧 produces 反転）・`P→E`（旧 triggers 反転）・`P→I`（consumes）・`O/E→ACTOR` |
+| DD-018 | **D 型新設**（内部データフロー）：プロセス間で系外へ出ないデータ。`D→SPEC`・`D→P`・`P→D`。O→ACTOR ルールは D に適用しない |
+| DD-019 | **ルール設定駆動化**：必須接続を `must_link_to`/`must_be_linked_from`（型ペア＋発火ステージ＋severity）で表現。旧 RULE-005/009〜013/015 を RULE-006 に吸収。旧 stage_scope.disable を activate_stage/rule_activation で代替 |
+| DD-020 | **E→ACTOR 必須（ERROR）**：事象は刺激元アクタへの依存を持つ。系内の定期実行など「アクタなし事象」は事象ではなく FR で表現する |

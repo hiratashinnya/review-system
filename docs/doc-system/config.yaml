@@ -1,72 +1,130 @@
 # ドキュメントシステム グローバル設定
-# 検証ツールがここを読んで scheduled 抑制・ステージ抑制を判定する
+# 検証ツールがここを読んでルール発火・抑制を判定する
 
 current_phase: "sprint-1"
 current_stage: "requirements"   # requirements | analysis | design | implementation | verification
 
-# フェーズの順序（インデックスで大小比較）
-phases:
-  - sprint-1
-  - sprint-2
-  - sprint-3
-  - post-mvp
+phases: [sprint-1, sprint-2, sprint-3, post-mvp]
+stages: [requirements, analysis, design, implementation, verification]
 
-# ステージ×ルール×ノードタイプ の無効化リスト
-# disable エントリの {rule, on} に一致するノードタイプへのルール評価をスキップする
-# always_error（RULE-007）は disable 対象に含めても無効（常に発火）
-stage_scope:
-  requirements:
-    disable:
-      - {rule: RULE-015, on: SPEC}     # TD verifies 不要: TD 未作成
-      - {rule: RULE-011, on: NFR}      # validates 不要: 検証層未作成
-      - {rule: RULE-009, on: FND}      # found-in 不要: 検証層未作成
-      - {rule: RULE-010, on: FND}      # validates 不要: 検証層未作成
-      - {rule: RULE-012, on: TC}       # realizes 不要: 検証層未作成
-      - {rule: RULE-013, on: VERIFY}   # verifies 不要: 検証層未作成
-      - {rule: RULE-020, on: TR}       # result 不要: 検証層未作成
-      - {rule: RULE-021, on: TR}       # log_ref 不要: 検証層未作成
-  analysis:
-    disable:
-      - {rule: RULE-015, on: SPEC}
-      - {rule: RULE-011, on: NFR}
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-012, on: TC}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  design:
-    disable:
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-012, on: TC}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  implementation:
-    disable:
-      - {rule: RULE-009, on: FND}
-      - {rule: RULE-010, on: FND}
-      - {rule: RULE-013, on: VERIFY}
-      - {rule: RULE-020, on: TR}
-      - {rule: RULE-021, on: TR}
-  verification:
-    disable: []   # 全ルールフル検査
+# ------------------------------------------------------------
+# 必須接続①：依存辺（node → target）
+#
+# セマンティクス：
+#   同一 node の複数行 = AND（各行が独立した検査）
+#   target に配列 = OR（いずれか1本以上あればよい）
+#
+# activate_stage: その stage 以上に current_stage が達して初めて発火
+# severity: error | warning
+# ------------------------------------------------------------
+must_link_to:
+  # --- requirements 骨格 ---
+  - { node: SR,     target: VAL,            activate_stage: requirements,   severity: error,   reason: "SRは価値命題を詳細化" }
+  - { node: FR,     target: SR,             activate_stage: requirements,   severity: error,   reason: "FRはSRを詳細化" }
+  - { node: NFR,    target: SR,             activate_stage: requirements,   severity: error,   reason: "NFRはSRを詳細化" }
+  - { node: SPEC,   target: FR,             activate_stage: requirements,   severity: error,   reason: "SPECはFRを詳細化" }
+  # --- analysis ---
+  - { node: ACTOR,  target: SR,             activate_stage: analysis,       severity: error,   reason: "アクタはSRに紐づく" }
+  - { node: TERM,   target: SPEC,           activate_stage: analysis,       severity: warning, reason: "用語は仕様に紐づく" }
+  - { node: I,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "入力は仕様に紐づく" }
+  - { node: O,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "出力は仕様に紐づく" }
+  - { node: O,      target: P,              activate_stage: analysis,       severity: error,   reason: "出力は生成プロセスに依存（O→P）" }
+  - { node: O,      target: ACTOR,          activate_stage: analysis,       severity: error,   reason: "出力は受け手アクタに依存（O→ACTOR）" }
+  - { node: D,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "内部データは仕様に紐づく" }
+  - { node: D,      target: P,              activate_stage: analysis,       severity: error,   reason: "内部データは生成プロセスに依存（D→P）" }
+  - { node: P,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "プロセスは仕様を詳細化" }
+  - { node: E,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "イベントは仕様に紐づく" }
+  - { node: E,      target: ACTOR,          activate_stage: analysis,       severity: error,   reason: "事象は刺激元アクタに依存（系内定期実行はFRで表現）" }
+  # --- design ---
+  - { node: ORC,    target: P,              activate_stage: design,         severity: error,   reason: "ORCはプロセスを実装" }
+  - { node: DS,     target: P,              activate_stage: design,         severity: error,   reason: "DSはプロセスに紐づく" }
+  - { node: MOD,    target: P,              activate_stage: design,         severity: error,   reason: "MODはプロセスを実装" }
+  - { node: DM,     target: TERM,           activate_stage: design,         severity: error,   reason: "DMは用語を実装" }
+  - { node: DM,     target: P,              activate_stage: design,         severity: error,   reason: "DMはプロセスに紐づく" }
+  - { node: PORT,   target: MOD,            activate_stage: design,         severity: error,   reason: "PORTはモジュールに属す" }
+  - { node: PRS,    target: DS,             activate_stage: design,         severity: error,   reason: "PRSはデータストアを実装" }
+  - { node: SCM,    target: SPEC,           activate_stage: design,         severity: error,   reason: "SCMは仕様に紐づく" }
+  - { node: CFG,    target: SCM,            activate_stage: design,         severity: error,   reason: "CFGはスキーマを具体化" }
+  - { node: CFG,    target: SPEC,           activate_stage: design,         severity: error,   reason: "CFGは仕様に紐づく" }
+  - { node: PROMPT, target: SPEC,           activate_stage: design,         severity: error,   reason: "PROMPTは仕様に紐づく" }
+  # --- implementation ---
+  - { node: SRC,    target: [DM,PORT,ORC],  activate_stage: implementation, severity: error,   reason: "SRCは設計ノードを実現（いずれか1つ以上）" }
+  # --- verification ---
+  - { node: TD,     target: SPEC,           activate_stage: verification,   severity: error,   reason: "TDは仕様を検証" }
+  - { node: TC,     target: TD,             activate_stage: verification,   severity: error,   reason: "TCはTDを実装" }
+  - { node: TR,     target: TC,             activate_stage: verification,   severity: error,   reason: "TRはTCの実行結果" }
+  - { node: VERIFY, target: any,            activate_stage: verification,   severity: error,   reason: "検証は対象要素を指す" }
+  - { node: FND,    target: any,            activate_stage: verification,   severity: error,   reason: "指摘は対象要素を指す" }
 
-# SPEC/TD の condition 属性の有効語彙（RULE-016 の検証対象）
-# ここに列挙した値以外は RULE-016 で WARNING
-condition_vocab:
-  - normal    # 正常系：有効な入力・正常な状態 → 期待通りに動く
-  - boundary  # 境界値：有効/無効の境目にある入力・状態（pass か fail かは SPEC 本文で明示）
-  - failure   # 不成立：無効な入力・業務ルール違反 → 拒否応答
-  - error     # 異常：インフラ障害・タイムアウト → フェイルセーフ応答
+# ------------------------------------------------------------
+# 必須接続②：被依存辺（node ← source 群）
+#
+# セマンティクス：
+#   同一 node の複数行 = AND（各行が独立した検査）
+#   source に配列 = OR（いずれか1本以上から辺を受ければよい）
+# ------------------------------------------------------------
+must_be_linked_from:
+  # --- requirements ---
+  - { node: VAL,  source: [SR],              activate_stage: requirements, severity: error,   reason: "価値命題は下流SRに支えられる" }
+  - { node: SR,   source: [FR, NFR, ACTOR],  activate_stage: requirements, severity: warning, reason: "SRはFR/NFR/ACTORのいずれかに展開される（OR）" }
+  - { node: FR,   source: [SPEC],            activate_stage: requirements, severity: warning, reason: "FRはSPECに分解される" }
+  # --- analysis ---
+  - { node: I,    source: [P],               activate_stage: analysis,     severity: error,   reason: "入力は消費プロセスを持つ（P→I）" }
+  - { node: E,    source: [P],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
+  - { node: D,    source: [P],               activate_stage: analysis,     severity: error,   reason: "内部データは消費プロセスを持つ（P→D）" }
+  - { node: ACTOR,source: [E, I, O],         activate_stage: analysis,     severity: warning, reason: "アクタは事象/入出力のいずれかに関与（OR）" }
+  # --- verification（テスト実施保証の鎖 SPEC←TD←TC←TR）---
+  - { node: SPEC, source: [TD],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
+  - { node: TD,   source: [TC],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
+  - { node: TC,   source: [TR],              activate_stage: verification, severity: warning, reason: "テストは実行され結果を残す" }
+  - { node: NFR,  source: [FND, TC, VERIFY], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける（いずれか1つ以上・OR）" }
 
-# カバレッジ要件（RULE-017/018 の判定基準）
+# ------------------------------------------------------------
+# 決定スパイン（DD/Q/PEND の義務辺）
+#
+# DD→X 辺が存在する = 反映未完了。反映後に辺を削除し X→DD を追加。
+# 義務辺にも ref_version 必須（X が変更された場合にDDの前提を見直すため）。
+# ------------------------------------------------------------
+decision_spine:
+  - { node: DD,   rule: RULE-001, severity: error }
+  - { node: Q,    rule: RULE-002, severity: warning }
+  - { node: PEND, rule: RULE-022, severity: warning }
+
+# ------------------------------------------------------------
+# 属性検査ルールの発火開始ステージ
+# （このステージ未満では当該ルールを発火しない）
+# ------------------------------------------------------------
+rule_activation:
+  RULE-016: requirements   # condition 属性なし（ERROR）
+  RULE-017: requirements   # FR に normal SPEC なし（WARNING）
+  RULE-018: requirements   # FR に failure/error SPEC なし（WARNING）
+  RULE-019: verification   # TD↔SPEC condition 不一致（WARNING）
+  RULE-020: verification   # TR result なし（ERROR）
+  RULE-021: verification   # TR log_ref なし（ERROR）
+
+# ------------------------------------------------------------
+# condition 語彙（RULE-016）
+# ------------------------------------------------------------
+condition_vocab: [normal, boundary, failure, error]
+
+# ------------------------------------------------------------
+# カバレッジ要件（RULE-017/018）
+# ------------------------------------------------------------
 coverage_rules:
   FR:
-    required_conditions:     [normal]           # SPEC に必須（なければ RULE-017 WARNING）
-    recommended_conditions:  [failure, error]   # あることを推奨（なければ RULE-018 INFO）
+    required_conditions:    [normal]
+    recommended_conditions: [failure, error]
 
-# 抑制対象外ルール（suppress/scheduled/stage_scope いずれでも抑制不可）
+# ------------------------------------------------------------
+# 抑制対象外（scheduled/suppress/activate_stage いずれでも抑制不可）
+# ------------------------------------------------------------
 always_error:
-  - RULE-007   # 存在しない ID への参照
+  - RULE-005   # 完全孤立（in/out 辺が0本）
+  - RULE-007   # 存在しない ID 参照
+
+# ------------------------------------------------------------
+# トレース対象集合
+# ------------------------------------------------------------
+trace_scope:
+  include: ["doc-system/**/*.md"]
+  exclude: ["docs/**", "**/README.md"]
