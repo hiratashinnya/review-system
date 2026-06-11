@@ -306,7 +306,7 @@ DD ノードの affects 辺に status: pending が残っている
 | 軸 | 設定 | 条件 | 効果 |
 |---|---|---|---|
 | **scheduled 抑制** | ノード属性 `scheduled` | `scheduled` のフェーズが `current_phase` より後 | **完全サイレント**（ルール非発火） |
-| **ステージ抑制** | `config.yaml` の `stage_scope` | ノードの型が `current_stage` の `warn` リストに該当 | **ERROR → WARNING に降格**（発火するが警告のみ） |
+| **ステージ抑制** | `config.yaml` の `stage_scope[current_stage].disable` | `{rule: R, on: NodeType}` ペアが一致 | **完全サイレント**（そのステージでその型へのそのルール評価をスキップ） |
 | **suppress 抑制** | ノード属性 `suppress` | ルール番号がリストに含まれる | **完全サイレント**（そのルールのみ非発火）。`always_error` ルールは無効 |
 
 > **suppress と labels の違い**：`labels` は人向けの分類タグ（機械が意味を解釈しない）。
@@ -329,11 +329,12 @@ phases リストのインデックス比較：
 ### ステージ抑制の判定
 
 ```
-stage_scope[current_stage].warn にノードの type が含まれる
-  → ERROR ルールを WARNING に降格して発火
+stage_scope[current_stage].disable リストに {rule: R, on: T} が含まれる
+  かつ ノードの type が T と一致する
+    → ルール R の評価をスキップ（完全サイレント）
 
-stage_scope[current_stage].full にノードの type が含まれる
-  → 元の深刻度のまま発火
+current_stage が stage_scope に存在しない
+  → ステージ抑制判定をスキップして全ルールを元の深刻度で評価する（ツール設定エラーを報告）
 ```
 
 ### suppress 抑制の判定
@@ -359,7 +360,7 @@ suppress: [RULE-018]   # error path なし: 呼び出し元がインフラ保護
 ```yaml
 suppress:
   - RULE-018   # error path なし: 外部システムは常時稼働前提（SLA 99.99%）
-  - RULE-016   # scenario 不要: このノードは手動確認のみで TD を持たない設計
+  - RULE-016   # condition 不要: このノードは手動確認のみで TD を持たない設計
 ```
 
 ### 抑制の例外
@@ -381,22 +382,47 @@ phases:
   - sprint-3
   - post-mvp
 
+# ステージ×ルール×ノードタイプ の無効化リスト
+# disable エントリの {rule, on} に一致するノードタイプへのルール評価をスキップする
+# always_error（RULE-007）は disable 対象に含めても無効（常に発火）
 stage_scope:
   requirements:
-    full: [VAL, SR, FR, NFR]
-    warn: [TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND, DD, Q, PEND]
+    disable:
+      - {rule: RULE-015, on: SPEC}     # TD verifies 不要: TD 未作成
+      - {rule: RULE-011, on: NFR}      # validates 不要: 検証層未作成
+      - {rule: RULE-009, on: FND}      # found-in 不要: 検証層未作成
+      - {rule: RULE-010, on: FND}      # validates 不要: 検証層未作成
+      - {rule: RULE-012, on: TC}       # realizes 不要: 検証層未作成
+      - {rule: RULE-013, on: VERIFY}   # verifies 不要: 検証層未作成
+      - {rule: RULE-020, on: TR}       # result 不要: 検証層未作成
+      - {rule: RULE-021, on: TR}       # log_ref 不要: 検証層未作成
   analysis:
-    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E]
-    warn: [ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
+    disable:
+      - {rule: RULE-015, on: SPEC}
+      - {rule: RULE-011, on: NFR}
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-012, on: TC}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   design:
-    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT]
-    warn: [SRC, TC, VERIFY, FND]
+    disable:
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-012, on: TC}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   implementation:
-    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC]
-    warn: [VERIFY, FND]
+    disable:
+      - {rule: RULE-009, on: FND}
+      - {rule: RULE-010, on: FND}
+      - {rule: RULE-013, on: VERIFY}
+      - {rule: RULE-020, on: TR}
+      - {rule: RULE-021, on: TR}
   verification:
-    full: [VAL, SR, FR, NFR, TERM, ACTOR, I, O, P, E, ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, SRC, TC, VERIFY, FND]
-    warn: []
+    disable: []   # 全ルールフル検査
 
 always_error:
   - RULE-007   # suppress/scheduled/stage のいずれでも抑制不可
