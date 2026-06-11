@@ -6,11 +6,13 @@ version: "0.1.0"
 > このガイドはドキュメントシステムでノードを書くときの**完全な実践リファレンス**（共通手順・型別本文フォーマット・RULE 受け入れ条件・suppress・辺方向）。
 > スキーマ定義 → [02-meta-schema.md](02-meta-schema.md)、接続要否 → [03-connection-matrix.md](03-connection-matrix.md)、テンプレート → `templates/`。
 >
-> **工程別の著作規約は各フェーズスキルが持つ**（旧 doc-authoring SKILL は廃止＝畳み込み）：
-> VAL/SR→`/align`・ACTOR/I/O/P/E＋FR/SPEC/NFR→`/io-event-ledger`・DM/TERM→`/domain-model`・
-> MOD/PORT/PRS/DS→`/architecture-design`・ORC→`/orchestration-design`・SCM/CFG→`/schema-design`・
-> PROMPT→`/prompt-design`・TD/TC/TR→`/test-strategy`。
-> **横断スパイン（DD/Q/PEND/VERIFY/FND）は単一工程に属さないため、このガイドが第一参照**（DD/Q の運用は [CLAUDE.md](../../CLAUDE.md)、点検は spec-inspector）。
+> **型別の著作規約は型別著作エージェントが持つ**（旧 doc-authoring SKILL は廃止＝畳み込み）：
+> VAL/SR/FR/NFR→`requirements-author`・SPEC→`spec-author`・ACTOR/I/O/D/P/E→`analysis-author`・
+> ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM→`design-author`・TD/TC/TR/VERIFY/FND/DD/Q/PEND→`verification-author`・
+> 整合確認・本ファイル確定→`reconciliation`。
+> **このガイドは横断的な実践リファレンス**（DD/Q の運用は [CLAUDE.md](../../CLAUDE.md)、点検は spec-inspector）。
+>
+> **エッジは無名依存辺**（kind/status 廃止・DD-012/013）：`- to: X` ＋ `ref_version` のみ。`A→B`＝A は B に依存。
 
 ---
 
@@ -62,8 +64,8 @@ condition: normal   # normal | boundary | failure | error
 ### TR のみ
 
 ```yaml
-result: PASS        # PASS | FAIL（機械チェック対象・ボディに書かない）
-log_ref: ""         # ログのパス/URL（result: FAIL 時は必須）
+result: PASS        # PASS | FAIL（なしは RULE-020 ERROR・ボディに書かない）
+log_ref: "ci/..."   # ログのパス/URL（PASS/FAIL 問わず必須・なしは RULE-021 ERROR）
 ```
 
 ### suppress の書き方
@@ -133,19 +135,26 @@ condition ごとにフォーマットが変わる（normal/boundary/failure/erro
 **形式**: [型・フォーマット]
 ```
 
+**D（内部データフロー）**
+```
+**もの**: [プロセス間で受け渡す内部データの実体（系外に出ない）]
+**形式**: [型・フォーマット]
+```
+> 系外アクタとやり取りする入出力は I/O、プロセス間だけの中間データは D。
+
 **P（論理プロセス）**
 ```
 [単一責務を1文で記述（〜を〜する）]
-**入力**: I-xxx を消費（consumes）
-**出力**: O-xxx を生成（produces）
-**トリガ**: E-xxx から起動（triggers）
+**入力**: I-xxx / D-xxx を消費（P の edges に `- to: I-xxx`）
+**出力**: O-xxx / D-xxx が生成元として P に依存（O/D 側に `- to: P-xxx`）
+**トリガ**: E-xxx に依存（P の edges に `- to: E-xxx`）
 ```
 
 **E（イベント）**
 ```
 **イベント名**: [イベントの短い名前]
-**スティミュラス**: [外部アクタからの入力・刺激（I-# または自由記述）]
-**アクション**: [システムが行う処理・行動]
+**スティミュラス**: [刺激元アクタ（E の edges に `- to: ACTOR-xxx` 必須・DD-020）からの入力・刺激]
+**アクション**: [システムが行う処理・行動（各 P が P→E でこの事象に依存）]
 **レスポンス**: [生成される出力（O-# または自由記述）]
 **アフェクト**: [このイベントが生む価値・便益]
 ```
@@ -260,45 +269,50 @@ condition ごとにフォーマットが変わる（normal/boundary/failure/erro
 - [ ] `id` が一意（既存 ID と衝突なし）
 - [ ] `type` が §6 の型値と一致
 - [ ] `edges` の `to` がすべて実在する ID（RULE-007: always_error）
-- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
-- [ ] `see-also` 辺の `status` が `n/a`（RULE-014）
-- [ ] `ref_version` が参照先の現在 `x.y` と一致（RULE-003/004）
+- [ ] 必須依存辺（config `must_link_to`/`must_be_linked_from`）が存在（RULE-006）
+- [ ] 辺に `kind`/`status` がない・`to` は単数（リスト禁止）
+- [ ] 完全孤立していない（RULE-005: always_error）
+- [ ] `ref_version` が全辺にあり参照先の現在 `x.y` と一致（RULE-004）
 
 ### SPEC
 
-- [ ] `condition` 属性あり（RULE-016）
-- [ ] TD からの `verifies` 辺が存在（RULE-015）
+- [ ] `condition` 属性あり（RULE-016 ERROR）
+- [ ] TD から被依存（`must_be_linked_from: SPEC ← [TD]`・verification 発火）
 
 ### FR
 
 - [ ] `condition: normal` の SPEC が少なくとも 1 本（RULE-017）
-- [ ] `condition: failure` / `error` がなければ suppress か INFO 確認（RULE-018）
+- [ ] `condition: failure` / `error` がなければ suppress 確認（RULE-018 WARNING）
 
 ### TD
 
-- [ ] `condition` 属性あり（RULE-016）
-- [ ] `verifies` 先 SPEC の `condition` と一致（RULE-019）
+- [ ] `condition` 属性あり（RULE-016 ERROR）
+- [ ] 依存先 SPEC の `condition` と一致（RULE-019）
 
 ### TC
 
-- [ ] `realizes` 辺で TD に紐づいている（RULE-012: ERROR）
+- [ ] TD への依存辺がある（`must_link_to: TC→TD`・RULE-006）
 
 ### TR
 
-- [ ] `result: PASS|FAIL` が YAML メタにある（RULE-020）
-- [ ] `result: FAIL` のとき `log_ref` がある（RULE-021）
+- [ ] `result: PASS|FAIL` が YAML メタにある（RULE-020 ERROR）
+- [ ] `log_ref` がある（PASS/FAIL 問わず・RULE-021 ERROR）
 
 ### FND
 
-- [ ] `found-in` 辺が存在（RULE-009/010）
+- [ ] 対象要素への依存辺がある（`must_link_to: FND→any`・RULE-006）
 
 ### VERIFY
 
-- [ ] `verifies` 辺が存在（RULE-013）
+- [ ] 対象要素への依存辺がある（`must_link_to: VERIFY→any`・RULE-006）
 
 ### NFR
 
-- [ ] `validates` 辺（FND から）が存在（RULE-011）
+- [ ] FND/TC/VERIFY から被依存（`must_be_linked_from: NFR ← [FND,TC,VERIFY]`・verification 発火）
+
+### DD / Q / PEND
+
+- [ ] 義務辺が未反映のまま放置されていない（反映後は辺を削除し `X→DD` を張る・RULE-001/002/022）
 
 ---
 
@@ -307,22 +321,32 @@ condition ごとにフォーマットが変わる（normal/boundary/failure/erro
 | 状況 | suppress 対象 | 記述例 |
 |---|---|---|
 | FR に error path を作る設計意図がない | RULE-018 | `suppress: [RULE-018]  # error path なし: 外部 API は SLA 99.99% で常時稼働前提` |
-| SPEC は手動確認のみ（TD 不要） | RULE-015 | `suppress: [RULE-015]  # 手動レビューのみ: TC 作成の費用対効果なし（VERIFY-xxx で代替）` |
 
 suppress を付ける前に「本当に回避できないか」を確認する。suppress の多用は品質低下の兆候。
+（検証層の必須接続はステージ発火で自動沈黙するため suppress 不要。）
 
 ---
 
-## 6. エッジ方向の注意点
+## 6. エッジ方向の注意点（依存方向に統一・DD-017）
+
+辺は無名依存辺。`A→B`＝「A は B に依存する（B が変われば A を見直す）」。
 
 ```
-FR  → SR     (refines)  ← FR が SR を精緻化する
-SPEC → FR    (refines)  ← SPEC が FR を精緻化する
-TD  → SPEC   (verifies) ← TD が SPEC を検証する
-TC  → TD     (realizes) ← TC が TD を実現する
-TR  → TC     (produced-by) ← TR が TC の実行から生成された
+FR   → SR      ← FR が SR を精緻化（FR は SR に依存）
+SPEC → FR      ← SPEC が FR を精緻化
+TD   → SPEC    ← TD が SPEC を検証
+TC   → TD      ← TC が TD を実現
+TR   → TC      ← TR が TC の実行から生成
 
-I → P (× 誤り)   正: P → I (consumes) または E → P (triggers)
-PROMPT → ORC (× 誤り)   正: ORC → PROMPT (uses)
-SCM → TERM (refines) (× 誤り)   正: SCM → TERM (see-also)
+P → I          ← プロセスは消費する入力に依存（旧 consumes）
+O → P          ← 出力は生成プロセスに依存（旧 produces を反転）
+P → E          ← プロセスはトリガ事象に依存（旧 triggers を反転）
+O → ACTOR      ← 出力は受け手アクタに依存
+E → ACTOR      ← 事象は刺激元アクタに依存（必須・DD-020）
+D → P          ← 内部データは生成プロセスに依存
+CFG → SCM      ← 設定はスキーマに依存（旧 instantiates）
+ORC → PROMPT   ← オーケストレーションはプロンプトに依存（旧 uses・任意）
+
+廃止: see-also / replaces / extends / contradicts / decomposes（DD-014）
+  矛盾は FND（FND→A・FND→B の2辺）・階層は ID パターン X-N から推論
 ```

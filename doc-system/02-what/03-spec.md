@@ -266,7 +266,7 @@ edges:
 ```
 </details>
 
-辺の `ref_version` と参照先ファイルの version の不一致（ドリフト）検出（SPEC-9-1 を参照）。
+辺の `ref_version` と参照先ファイルの version の不一致（ドリフト）検出（SPEC-9-1〜2 を参照）。
 
 ---
 
