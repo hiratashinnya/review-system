@@ -143,6 +143,12 @@ def extract_spec_principles(principles_file: Path) -> str:
     for line in body.splitlines():
         if "PR1" in line or "PR2" in line or "PR3" in line or in_principles:
             in_principles = True
+            # Skip code-fence markers (```): a lone/odd fence would leak into
+            # copilot-instructions.md as an unclosed code block and break the
+            # following skill table. Principles are prose, so dropping fences
+            # is safe.
+            if line.strip().startswith("```"):
+                continue
             lines.append(line)
         if in_principles and line.strip().startswith("---"):
             break

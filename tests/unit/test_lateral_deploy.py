@@ -2,19 +2,24 @@
 
 Unit tests for parse_frontmatter(), conversion functions, and skip logic.
 """
+import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
-import tempfile
 
-# Import the module under test
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
-from lateral_deploy import (
-    parse_frontmatter,
-    should_skip_conversion,
-    convert_skill_to_prompt,
-    convert_agent_to_instructions,
-)
+# Import the script module by explicit file location (it lives under scripts/,
+# outside the review_system package, so we load it without touching sys.path
+# per the repo's import policy in docs/design/02-module-architecture.md).
+_SCRIPT_PATH = Path(__file__).parent.parent.parent / "scripts" / "lateral_deploy.py"
+_spec = importlib.util.spec_from_file_location("lateral_deploy", _SCRIPT_PATH)
+lateral_deploy = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(lateral_deploy)
+
+parse_frontmatter = lateral_deploy.parse_frontmatter
+should_skip_conversion = lateral_deploy.should_skip_conversion
+convert_skill_to_prompt = lateral_deploy.convert_skill_to_prompt
+convert_agent_to_instructions = lateral_deploy.convert_agent_to_instructions
+extract_spec_principles = lateral_deploy.extract_spec_principles
 
 
 class TestParseFrontmatter(unittest.TestCase):
@@ -180,6 +185,47 @@ class TestConvertAgentToInstructions(unittest.TestCase):
         output_path, _ = convert_agent_to_instructions(agent_file, fm, body)
         # Should use file stem
         self.assertEqual(output_path, ".github/instructions/my-agent.instructions.md")
+
+
+class TestExtractSpecPrinciples(unittest.TestCase):
+    """Test extract_spec_principles() — code-fence handling (no broken blocks)."""
+
+    def _write_temp(self, content: str) -> Path:
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        )
+        tmp.write(content)
+        tmp.close()
+        path = Path(tmp.name)
+        self.addCleanup(path.unlink)
+        return path
+
+    def test_code_fence_does_not_leak_unclosed_block(self):
+        """A lone/odd code fence must not produce an unbalanced block in output.
+
+        Without filtering, a trailing ``` would leak an unclosed code block into
+        copilot-instructions.md and break the following skill table.
+        """
+        content = (
+            "---\nname: spec-principles\nuser-invocable: false\n---\n\n"
+            "# 原則（PR1–PR10）\n\n"
+            "- **PR1 もので分ける** — 説明。\n"
+            "- **PR2 2軸** — コード例：\n"
+            "  ```python\n  def foo():\n      pass\n  ```\n"
+            "- **PR3 系外** — 説明。\n"
+            "- **PR10 認識合わせ先行** — 説明。\n\n"
+            "```\n"  # lone trailing fence
+        )
+        path = self._write_temp(content)
+        out = extract_spec_principles(path)
+        # No code fences should leak — balanced (zero) means the table won't break.
+        self.assertEqual(out.count("```"), 0)
+        self.assertIn("PR1", out)
+        self.assertIn("PR10", out)
+
+    def test_missing_file_returns_empty(self):
+        """Return empty string if principles file does not exist."""
+        self.assertEqual(extract_spec_principles(Path("/nonexistent/SKILL.md")), "")
 
 
 if __name__ == "__main__":
