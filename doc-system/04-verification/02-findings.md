@@ -1,5 +1,5 @@
 ---
-version: "0.1.2"
+version: "0.1.3"
 ---
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
@@ -342,3 +342,54 @@ edges:
 **内容**: FR-11 が「テンプレート提供」と「著作エージェントへの規約内包」を1 FR に束ね、さらに層単位ワークフロー・伝搬編集支援・テンプレート品質のエラー系が未仕様だった。`suppress: [RULE-018]` で異常系不在を宣言しており、著作支援の失敗系（テンプレ欠損・著作出力の不備）が機械検証から外れていた。1 FR の責務過積載で価値の分解が不十分（粒度過大）。
 **対応状況**: resolved
 **対応内容**: FR-11 をテンプレートによる著作品質保証に限定（v0.3→0.4・suppress 削除）、著作エージェント＋層ワークフローを FR-13 として、伝搬編集支援（post-MVP）を FR-14 として分離（fr.md v0.2.1→0.2.2）。失敗系 SPEC-36（テンプレ必須欠如）・SPEC-39（著作出力 id 欠如）と正常系 SPEC-38・SPEC-40 を追加。FR-11 に `→FND-15` バックリファレンス辺を付与済み（reconciliation が付与）。
+
+---
+
+## FND-16: FND-1 の forward 辺が削除済み ACTOR-3 を指して dangling（RULE-007 ERROR）
+
+<details><summary>⬡ FND-16 · v0.1</summary>
+
+```yaml
+id: FND-16
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: ERROR
+**内容**: FND-1（ACTOR-3 系境界誤りの指摘・resolved）が依存辺 `to: ACTOR-3` を保持しているが、ACTOR-3 は FND-1 の処置で削除済みであり、存在しない ID を参照している（RULE-007・always_error＝stage/suppress に関わらず発火）。FND は対象要素への辺が1本以上必須（RULE-006: FND→any）だが、唯一の対象が消滅したため forward 辺が宙に浮いている。FND-1 本文には「削除済みのため付与先なし」と記載済みだが、forward 辺自体は残置されダングリングになっている。
+**対応状況**: open
+**対応内容（推奨）**: FND-1 の forward 辺を、ACTOR-3 の役割を吸収した在グラフノードへ張り替える。**推奨＝P-1（ノード受付・パース＝spec-inspector 系内処理の代表）** に `to: P-1` で再接続し、P-1 に `→FND-1` バックリファレンスを付与。代替案：旧 ACTOR-3 の上流だった SR-2 に再接続。要件フェーズのためオーナー判断を仰ぐ（暫定で張り替えない）。
+
+---
+
+## FND-17: 分析層の版上げに伴う ref_version ドリフト群（記録・義務辺含む・RULE-004 WARNING）
+
+<details><summary>⬡ FND-17 · v0.1</summary>
+
+```yaml
+id: FND-17
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: VERIFY-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: 分析層ファイルの版上げに下流の ref_version 更新が追随しておらず RULE-004 ドリフトが多発。
+- (a) `01-actors.md` が 0.2→0.3（ACTOR-3 削除の x.y 上昇）したが、流入辺 E-1→ACTOR-1・E-2→ACTOR-1・O-1→ACTOR-2・O-2→ACTOR-2・VERIFY-1→ACTOR-1 が "0.2" のまま。
+- (b) VERIFY-1 の I-1("0.4"→現0.6)・P-1("0.4"→現0.6)・E-1("0.4"→現0.5) が陳腐化。
+- (c) 解消済み FND-2→P-2("0.5"→0.6)・FND-3→E-1("0.4"→0.5)・FND-4→P-3("0.5"→0.6)、義務辺 PEND-1→I-2("0.5"→0.6) がドリフト。
+- (d) 付随：FND-3 の forward 辺が E-1 を指すが、当該指摘の処置（E-3→E-2 リネーム）の back-ref は E-2 に付与されており、forward/back の対象ノードが不一致（FND-3 は本来 E-2 を指すべき疑い）。
+
+**対応状況**: open
+**対応内容（推奨）**: current_stage を analysis へ進める段（ダッシュボード N1）で一括解消する。「生きた」依存辺（E/O→ACTOR の "0.2"→"0.3"、FND-3 forward の E-1→E-2＋"0.5"）は再点検のうえ ref_version 更新。「凍結記録」（VERIFY-1、解消済み FND-2/4）の扱いは Q-1 の決定に従う。requirements フェーズでは分析層を据え置き、本 FND で追跡のみ。
