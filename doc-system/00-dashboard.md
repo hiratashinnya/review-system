@@ -12,7 +12,7 @@
 | ステージ | 対象型 | ノード | 状態 | レビュー |
 |---|---|---|---|---|
 | requirements | VAL / SR / FR / NFR / SPEC | 86 | ✅ 著作済み | ✅ spec-inspector 点検済（FND・DD-1 反映済） |
-| analysis | ACTOR / I / O / D / P / E | 29 | ✅ 著作済み | ✅ 点検済（DFD 分解・FND 反映済） |
+| analysis | ACTOR / I / O / D / P / E | 28 | ✅ 著作済み | ✅ 点検済（DFD 分解・FND 反映済） |
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手 | — |
 | implementation | SRC（spec-inspector 本体・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビューの VERIFY-1 / FND は実施済 |
