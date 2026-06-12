@@ -1,5 +1,5 @@
 ---
-version: "0.2.0"
+version: "0.2.1"
 ---
 # 非機能要求・制約
 
@@ -11,7 +11,7 @@ version: "0.2.0"
 
 ## NFR-1: プレーンテキスト形式
 
-<details><summary>⬡ NFR-1 · v0.2</summary>
+<details><summary>⬡ NFR-1 · v0.3</summary>
 
 ```yaml
 id: NFR-1
@@ -19,8 +19,10 @@ type: NFR
 labels: []
 scheduled: ""
 edges:
-  - to: SR-4
+  - to: SR-2
     ref_version: "0.2"
+  - to: DD-1
+    ref_version: "0.1"
 ```
 </details>
 
@@ -30,7 +32,7 @@ edges:
 
 ## NFR-2: 標準ライブラリのみでパース可能
 
-<details><summary>⬡ NFR-2 · v0.2</summary>
+<details><summary>⬡ NFR-2 · v0.3</summary>
 
 ```yaml
 id: NFR-2
@@ -38,8 +40,10 @@ type: NFR
 labels: []
 scheduled: ""
 edges:
-  - to: SR-4
+  - to: SR-2
     ref_version: "0.2"
+  - to: DD-1
+    ref_version: "0.1"
 ```
 </details>
 
@@ -106,7 +110,7 @@ edges:
 
 ## NFR-6: ライフサイクル状態は本文・メタに持たない
 
-<details><summary>⬡ NFR-6 · v0.2</summary>
+<details><summary>⬡ NFR-6 · v0.3</summary>
 
 ```yaml
 id: NFR-6
@@ -114,8 +118,10 @@ type: NFR
 labels: []
 scheduled: ""
 edges:
-  - to: SR-4
+  - to: SR-2
     ref_version: "0.2"
+  - to: DD-1
+    ref_version: "0.1"
 ```
 </details>
 
