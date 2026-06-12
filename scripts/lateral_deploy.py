@@ -37,7 +37,7 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     if closing_idx is None:
         raise ValueError(
             "Frontmatter started with --- but closing --- not found. "
-            "Check the file format is valid SKILL.md."
+            "Check the file format (frontmatter must be delimited by --- on separate lines)."
         )
 
     fm_text = "".join(lines[1:closing_idx])
@@ -209,6 +209,16 @@ def write_outputs(outputs: list[tuple[str, str]], dry_run: bool = False):
             )
             sys.exit(1)
         paths_seen.add(path)
+
+        # Validate path stays within .github/ (prevent path traversal)
+        resolved = Path(path).resolve()
+        github_base = (Path.cwd() / ".github").resolve()
+        try:
+            resolved.relative_to(github_base)
+        except ValueError:
+            print(f"✗ Error: output path escapes .github/: {path}")
+            print("All output paths must stay within .github/ (no .., no absolute paths).")
+            sys.exit(1)
 
     if dry_run:
         print("=== DRY RUN: Files that would be generated ===\n")
