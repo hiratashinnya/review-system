@@ -1,5 +1,5 @@
 ---
-version: "0.2.0"
+version: "0.3.0"
 ---
 # 外部アクタ
 
@@ -42,22 +42,3 @@ edges:
 </details>
 
 仕様の網羅性・整合性を確認する人。spec-inspector の出力を受け取り、指摘（G#）を評価・承認する。
-
----
-
-## ACTOR-3: spec-inspector
-
-<details><summary>⬡ ACTOR-3 · v0.1</summary>
-
-```yaml
-id: ACTOR-3
-type: ACTOR
-labels: []
-scheduled: ""
-edges:
-  - to: SR-4
-    ref_version: "0.2"
-```
-</details>
-
-ノードセットをパースして RULE 違反とカバレッジ穴を検出する自動点検エージェント。G# 番号付きレポートを生成する。
