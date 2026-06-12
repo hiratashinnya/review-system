@@ -230,11 +230,15 @@ condition ごとにフォーマットが変わる（normal/boundary/failure/erro
 
 **FND（指摘）**
 ```
+**深刻度**: [ERROR / WARNING / INFO]
 **内容**: [指摘の詳細]
-**深刻度**: [critical / major / minor / info]
-**状態**: [open / resolved / wontfix]
-**対象**: [found-in 辺で参照している要素]
+**対応状況**: [open / resolved / wontfix]
+**対応内容**: [どう直したか・直さない理由]
 ```
+
+> **FND 解消時の必須操作**: 対応状況を `resolved` にする場合、**処置対象ノード側に `→ FND-x` の依存辺を追加する**（`ref_version` 必須）。
+> これはバックリファレンス辺として永続記録になる。処置対象が削除された場合は FND 本文に「削除済みのため付与先なし」と明記すれば OK。
+> reconciliation がこの辺の存在を確認するため、付与せずに resolved にすると **差し戻し**になる。
 
 ### 横断スパイン
 
@@ -301,6 +305,7 @@ condition ごとにフォーマットが変わる（normal/boundary/failure/erro
 ### FND
 
 - [ ] 対象要素への依存辺がある（`must_link_to: FND→any`・RULE-006）
+- [ ] **対応状況が `resolved` の場合**: 処置対象ノードに `→ FND-x` 辺が付与されているか（処置対象削除時は FND 本文に「削除済みのため付与先なし」と明記）
 
 ### VERIFY
 

@@ -57,6 +57,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 - [ ] TR: `result` 属性あり（RULE-020 ERROR）
 - [ ] TR: `log_ref` あり（PASS/FAIL 問わず・RULE-021 ERROR）
 - [ ] DD/Q/PEND: 反映済みの義務辺が残っていない（反映後は `X→DD` に置換）
+- [ ] **FND 解消チェック**: 対応状況が `resolved` の FND が書き込まれる場合、処置対象ノード側に `→ FND-x`（ref_version 必須）が付与されているか確認。付与されていなければ **差し戻しエラー**（著作エージェントに差し戻す）。処置対象が削除された場合は FND 本文に「削除済みのため付与先なし」と明記されていれば OK。
 
 ### Step 4: 問題への対処
 
