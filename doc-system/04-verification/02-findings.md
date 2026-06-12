@@ -1,5 +1,5 @@
 ---
-version: "0.1.1"
+version: "0.1.2"
 ---
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
@@ -248,3 +248,97 @@ edges:
 **内容**: E-1（点検要求）の edges に入力（I）への辺が存在しなかった。イベントの定義は「系外アクタが入力を持ち込んでシステムを起動し、プロセスがアクションを行い、レスポンスが生成される」であり、入力辺のないイベントはその定義を満たしていない。E-1 は仕様著者（ACTOR-1）または CI が I-1（ノードファイル群）を渡して spec-inspector を起動する事象であり、I-1 への辺が必要だった。
 **対応状況**: resolved
 **対応内容**: E-1 に `to: I-1, ref_version: "0.6"` 辺を追加し、スティミュラスに「**入力**」フィールドを明記した（events.md v0.4→0.5）。E-1 に `→FND-11` バックリファレンス辺を付与済み。
+
+---
+
+## FND-12: FR-1 の SPEC 分割が荒く YAML 不在・空集合・パース異常ケースが未定義
+
+<details><summary>⬡ FND-12 · v0.1</summary>
+
+```yaml
+id: FND-12
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: FR-1
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: FR-1（ノードグラフの構造化表現）配下の SPEC は正常パース（SPEC-1）と崩れた記法（旧 SPEC-2）のみで、(a) in-graph 0 件の空集合、(b) ⬡ マーカー直後に YAML ブロックが無い、(c) id 欠如、(d) type 欠如、(e) 辺の ref_version 欠如、といった等価分割クラスが未定義だった。パース段階の異常系（fail-close 対象）が仕様化されておらず、テスト設計の網羅軸が欠落していた。
+**対応状況**: resolved
+**対応内容**: パース検証 RULE-023〜027 を新設（docs/doc-system/05-verification.md 段階0・config 反映）。FR-1 配下に SPEC-31（empty・in-graph 0 件）・SPEC-32（RULE-024）・SPEC-33（RULE-025）・SPEC-34（RULE-026）・SPEC-35（RULE-027）を追加し、SPEC-2 を RULE-023 限定に書き直した（spec.md v0.3.0→0.3.1）。FR-1 に `→FND-12` バックリファレンス辺を付与済み（reconciliation が付与）。
+
+---
+
+## FND-13: condition 語彙に空集合クラス（empty）が欠落し null/ゼロ件を boundary/normal に混入していた
+
+<details><summary>⬡ FND-13 · v0.1</summary>
+
+```yaml
+id: FND-13
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-31
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: condition 語彙が normal/boundary/failure/error の4語のみで、空集合・ゼロ件・null・未設定（in-graph 0 件など）を表す独立クラスが無かった。これらを normal や boundary に混ぜると等価分割が崩れ、テスト設計上の網羅穴になる。SPEC-31（in-graph 0 件）を著作する際にこの語彙不足が顕在化した。
+**対応状況**: resolved
+**対応内容**: `config.yaml` の condition_vocab に `empty` を追加し5語化（normal/boundary/empty/failure/error）、各語の説明コメントを追記。語彙を列挙する全箇所（spec.md 冒頭ガイド・04-notation・07-authoring-guide・02-meta-schema DD-010・01-document-items・spec-author/test-strategy/io-event-ledger）を5語へ更新。SPEC-31 が empty を使用。SPEC-31 に `→FND-13` バックリファレンス辺を付与済み（reconciliation が付与）。なお発生源の `config.yaml` は out-of-graph（trace_scope.exclude）のためノードを持たず、in-graph アンカーとして SPEC-31 に紐づけた。
+
+---
+
+## FND-14: SPEC 本文がテスタブルでない（定量・一意・出力フォーマット欠如）
+
+<details><summary>⬡ FND-14 · v0.1</summary>
+
+```yaml
+id: FND-14
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-1
+    ref_version: "0.3"
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: SPEC-26
+    ref_version: "0.3"
+  - to: SPEC-27
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: 既存 SPEC-1/2/26/27 の本文が「壊れていて抽出できない」「正しく著作できる」等の曖昧表現に留まり、(1) 定量的前提、(2) 一意なトリガ、(3) 出力フォーマット（`{SEVERITY}|{file}:{line}|{RULE-NNN}|{node-id}|{message}`）、(4) 終了コード、(5) 具体例、が欠けていた。2人が同じ本文から同一テストを書ける水準（テスタビリティ）を満たさず、仕様としての体を成していなかった。
+**対応状況**: resolved
+**対応内容**: 「SPEC テスタビリティ基準（必須チェックリスト8項目）」を docs/doc-system/07-authoring-guide.md に焼き込み、SPEC-1/2/26/27 を前提条件/入力・トリガ/期待動作/例の4項目・定量・出力フォーマット明記で書き直した（spec.md v0.3.0→0.3.1）。SPEC-1/2/26/27 にそれぞれ `→FND-14` バックリファレンス辺を付与済み（reconciliation が付与）。
+
+---
+
+## FND-15: FR-11「著作支援」が過積載でテンプレ/エージェント/ワークフロー/伝搬編集/エラー系が未分化
+
+<details><summary>⬡ FND-15 · v0.1</summary>
+
+```yaml
+id: FND-15
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: FR-11
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: FR-11 が「テンプレート提供」と「著作エージェントへの規約内包」を1 FR に束ね、さらに層単位ワークフロー・伝搬編集支援・テンプレート品質のエラー系が未仕様だった。`suppress: [RULE-018]` で異常系不在を宣言しており、著作支援の失敗系（テンプレ欠損・著作出力の不備）が機械検証から外れていた。1 FR の責務過積載で価値の分解が不十分（粒度過大）。
+**対応状況**: resolved
+**対応内容**: FR-11 をテンプレートによる著作品質保証に限定（v0.3→0.4・suppress 削除）、著作エージェント＋層ワークフローを FR-13 として、伝搬編集支援（post-MVP）を FR-14 として分離（fr.md v0.2.1→0.2.2）。失敗系 SPEC-36（テンプレ必須欠如）・SPEC-39（著作出力 id 欠如）と正常系 SPEC-38・SPEC-40 を追加。FR-11 に `→FND-15` バックリファレンス辺を付与済み（reconciliation が付与）。

@@ -57,7 +57,7 @@ suppress: []        # ルール抑制リスト。理由 comment 必須。RULE-00
 ### SPEC・TD のみ
 
 ```yaml
-condition: normal   # normal | boundary | failure | error
+condition: normal   # normal | boundary | empty | failure | error
                     # TD の condition は verifies 先 SPEC の condition と一致させる（RULE-019）
 ```
 

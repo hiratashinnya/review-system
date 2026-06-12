@@ -5,7 +5,7 @@ version: "0.1.0"
 
 > **型**: SPEC ／ **必須上流**: FR（refines ✅）
 > **RULE-006 config**: TD からの `verifies` 辺が必要（カバレッジ確保）。
-> **RULE-016（ERROR）**: `condition` 属性が必要（normal / boundary / failure / error）。
+> **RULE-016（ERROR）**: `condition` 属性が必要（normal / boundary / empty / failure / error）。
 > 1 ノード = 1 テスト条件（1 condition）。条件をまたぐ場合は別 SPEC に分割する。
 > 意図的に condition を省略・ルールを抑制するときは `suppress: [RULE-xxx]` を使い理由を inline comment に残す。
 

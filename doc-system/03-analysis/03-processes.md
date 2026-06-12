@@ -1,5 +1,5 @@
 ---
-version: "0.6.1"
+version: "0.6.2"
 ---
 # 論理プロセス
 
@@ -248,7 +248,7 @@ edges:
 ```
 </details>
 
-FR ごとに condition 軸（normal/boundary/failure/error）で SPEC と TD の充足状況を集計し、`--coverage` オプション実行時にカバレッジテーブルを出力する。
+FR ごとに condition 軸（normal/boundary/empty/failure/error）で SPEC と TD の充足状況を集計し、`--coverage` オプション実行時にカバレッジテーブルを出力する。
 **入力**: P-1 からの構造化ノードセット
 **出力**: カバレッジテーブル（P-4 へ）
 **トリガ**: E-1 に依存（P→E）

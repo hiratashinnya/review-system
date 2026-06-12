@@ -503,7 +503,7 @@ always_error:
 | DD-007 | `scheduled` 抑制＝完全サイレント（WARNING 降格ではない）。ステージ抑制＝ERROR→WARNING。RULE-007 のみ常に ERROR |
 | DD-008 | USDM 分割：FR（機能要求・なぜ必要か）と SPEC（機能仕様・テスタブル粒度）を分離。分析層以降は SPEC を直接の親とする |
 | DD-009 | テスト3層分離：TD（テスト設計・SPEC を verifies）→ TC（テストコード・TD を realizes）→ TR（テスト結果・TC を produced-by）。TD→SPEC の verifies 辺でカバレッジを機械検証（RULE-015） |
-| DD-010 | `condition` 属性（旧 `scenario` をリネーム）。sub-ID 案を退け DD-002 原則を維持。語彙：normal/boundary/failure/error（config.yaml 拡張可）。`boundary` を独立させた理由：正常と失敗の境目は別コードパスになることが多く、テスト設計上も分離すべき。FR×condition×TD のカバレッジを RULE-015〜019 で機械検証 |
+| DD-010 | `condition` 属性（旧 `scenario` をリネーム）。sub-ID 案を退け DD-002 原則を維持。語彙：normal/boundary/empty/failure/error（config.yaml 拡張可）。`boundary` を独立させた理由：正常と失敗の境目は別コードパスになることが多く、テスト設計上も分離すべき。`empty`（空集合・ゼロ件・null・未設定）は等価分割クラスとして独立（normal/boundary と混在させない・後から追加）。FR×condition×TD のカバレッジを RULE-015〜019 で機械検証 |
 | DD-011 | TR の `result`・`log_ref` を YAML メタに昇格。body フィールドでは機械判定不可のため。RULE-020（result 必須）・RULE-021（FAIL 時 log_ref 必須）を追加。LOG ノード型は不要（単一 TR に内包で十分）。 |
 | DD-012 | **kind 廃止**：辺は無名の依存辺。関係名は `(source 型, target 型)` から読み取る。冗長な kind フィールドを持たない |
 | DD-013 | **status 廃止**：ドリフトは `ref_version` 比較が唯一の真実源。pending/done は ref_version 一致/不一致から導出され冗長。影響なしは ref_version を素直に更新する（旧 n/a 不要） |

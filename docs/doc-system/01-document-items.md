@@ -24,7 +24,7 @@
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 | 必須リンク |
 |---|---|---|---|---|
 | 機能要求 | `FR-` | 1 機能要求（システムが持つべき機能・ユーザー価値） | → `SR-`（直接） | ✅ 必須 |
-| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`condition` 属性で条件分類（normal/boundary/failure/error） | → `FR-`（直接） | ✅ 必須。下流から TD が必須（must_be_linked_from・verification 発火）。condition 必須（RULE-016 ERROR） |
+| 機能仕様 | `SPEC-` | 1 テスト可能な仕様条件（入力・前提・期待動作を特定）。`condition` 属性で条件分類（normal/boundary/empty/failure/error） | → `FR-`（直接） | ✅ 必須。下流から TD が必須（must_be_linked_from・verification 発火）。condition 必須（RULE-016 ERROR） |
 | 非機能/制約 | `NFR-` | 1 制約（性能・技術選択・安全側デフォルト等） | → `SR-`（直接） | 検証結果からリンク必須（§11） |
 
 > ファイル：`what/fr.md`・`what/spec.md`・`what/nfr.md`（別ファイル）

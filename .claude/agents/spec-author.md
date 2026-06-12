@@ -70,7 +70,7 @@ id: SPEC-X-N          # 親ID + -N（数字）
 type: SPEC
 labels: []
 scheduled: ""         # 常に空文字。将来フェーズなら labels に post-mvp 等を付けること
-condition: normal     # normal | boundary | failure | error（RULE-016 ERROR）
+condition: normal     # normal | boundary | empty | failure | error（RULE-016 ERROR）
 edges:
   - to: SPEC-X        # 直接の親（FR ではなく親 SPEC）。kind/status は書かない
     ref_version: "<親ファイルの x.y>"

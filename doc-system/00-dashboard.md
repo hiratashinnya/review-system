@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > 議論や著作が進んだらここを更新する。**全件列挙はしない**——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は**状態と優先度の要約**に絞る。
 >
-> **最終更新**: 2026-06-12（分析層 I/O 台帳修正：E-2/E-1/I-6/I-8/D-2→O-3 の型・定義・名称修正＝FND-7〜11 起票・反映済）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-12（SPEC 品質強化：テスタビリティ基準策定・condition 語彙に `empty` 追加・パース検証 RULE-023〜027 追加・FR-11 改訂＋FR-13/14 新設・SPEC-1/2/26/27 書き直し＋SPEC-31〜40 追加）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | ステージ | 対象型 | ノード | 状態 | レビュー |
 |---|---|---|---|---|
-| requirements | VAL / SR / FR / NFR / SPEC | 86 | ✅ 著作済み | ✅ spec-inspector 点検済（FND・DD-1 反映済） |
+| requirements | VAL / SR / FR / NFR / SPEC | 97 | ✅ 著作済み | 🟡 SPEC 品質強化を反映（FR-11/13/14・SPEC-31〜40）→ spec-inspector 再点検が必要 |
 | analysis | ACTOR / I / O / D / P / E | 28 | ✅ 著作済み | ✅ 点検済（DFD 分解・FND 反映済） |
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手 | — |
 | implementation | SRC（spec-inspector 本体・Python CLI） | 0 | ⬜ 未着手 | — |
@@ -27,6 +27,7 @@
 
 | # | アクション | 優先 | 根拠 / 状態 |
 |---|---|---|---|
+| N0 | **spec-inspector で SPEC 品質強化分を再点検** | 🟡 中 | FR-11/13/14・SPEC-31〜40 追加と condition 語彙拡張（empty）後の孤児/穴/分割違反/カバレッジを確認。新規 SPEC の TD 未紐づけは verification 段沈黙中 |
 | N1 | **current_stage を `analysis`／`design` へ進める判断** | 🟡 中 | requirements/analysis は著作・点検済。据え置きだと analysis 段ルール（被依存辺等）が沈黙し続ける。進めると整合違反が発火 |
 | N2 | **設計層（凍結セット）の着手** | 🟡 中 | `/impl-design-pipeline` ＋ design-author で ORC/DS/MOD/DM/PORT/… を著作。spec-inspector の物理設計 |
 | N3 | **実装（FR-10：spec-inspector CLI）** | 🔵 低 | Python・標準ライブラリのみ。段階①②③。設計確定後 |
@@ -44,7 +45,7 @@
 |---|---|---|---|---|
 | PEND-1（I-2/3/4 過分割） | 🔵 低 | PEND（deferred） | FND-6 INFO・設計段へ先送り | N4（設計段で再評価） |
 
-> **FND サマリ**：計 11 件（✅ resolved 10 ／ ⏳ open 1 ＝ FND-6 ＝ PEND-1）。解消済みは処置ノードに `→ FND-x` を付与済み。FND-7〜11 は分析層 I/O 台帳の型・定義・命名修正（2026-06-12 起票・反映済）。
+> **FND サマリ**：計 15 件（✅ resolved 14 ／ ⏳ open 1 ＝ FND-6 ＝ PEND-1）。解消済みは処置ノードに `→ FND-x` を付与済み。FND-7〜11 は分析層 I/O 台帳修正、**FND-12〜15 は SPEC 品質強化**（FR-1 分割不足・condition 語彙 empty 欠落・SPEC 本文の非テスタブル・FR-11 過積載）＝2026-06-12 起票・反映済。
 > **DD サマリ**：DD-1（SR-4 削除・再配線）＝決定済・反映済（義務辺なし・FR-1/9・NFR-1/2/6 が `→DD-1` で被参照）。
 
 ---
