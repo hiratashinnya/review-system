@@ -89,6 +89,33 @@ class TestCliP2Flow(unittest.TestCase):
         self.assertEqual(cli.main(["revert", "report.html"]), 0)
         self.assertEqual(self._ws_file().read_text(), "uc = 0\n")   # 元へ戻る
 
+    def test_revert_failclose_on_bad_ref(self):          # #10：git 失敗で stack trace せず exit 3
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        cli._commits_path(rid).write_text(json.dumps(["deadbeef"]), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)    # O-14＋EXIT_FAILCLOSE
+
+    def test_revert_failclose_on_corrupt_commits(self):  # #12 T3：壊れた commits.json で fail-close
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        cli._commits_path(rid).write_text("{ not json", encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)    # stack trace せず O-14＋exit 3
+
+    def test_revert_failclose_on_invalid_refs_type(self):  # #12 T4：list[str] でない JSON で fail-close
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        # 有効な JSON だが list[str] ではないケース（dict / 数値 / 文字列のリスト以外）
+        cli._commits_path(rid).write_text(json.dumps({"ref": "abc"}), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)
+        cli._commits_path(rid).write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)
+
+    def test_revert_failclose_on_binary_commits(self):   # #12 T5：UTF-8 デコード不能でも fail-close
+        self._review()
+        rid = cli._review_id_of(Path("report.html"))
+        cli._commits_path(rid).write_bytes(b"\xff\xfe\x00\x01")   # 非 UTF-8（UnicodeDecodeError）
+        self.assertEqual(cli.main(["revert", "report.html"]), 3)  # stack trace せず O-14＋exit 3
+
     def test_feedback_malformed_json(self):              # #6：壊れた入力→fail-close(BADREQ)
         self._review()
         rid = cli._review_id_of(Path("report.html"))

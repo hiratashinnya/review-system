@@ -159,11 +159,9 @@ def _parse_list(entries, i: int, indent: int):
         while j < len(entries) and entries[j][1] >= item_indent:
             sub.append(entries[j])
             j += 1
-        if sub and _looks_like_key(sub[0][2]):
+        if sub and _looks_like_key(sub[0][2]):   # mapping 要素
             value, _ = _parse_mapping(sub, 0, item_indent)
-        elif first and not sub[0][2] == first:  # pragma: no cover
-            value = _parse_scalar(first, line_no)
-        elif first:
+        elif first:                              # scalar 要素
             value = _parse_scalar(first, line_no)
         else:
             raise MiniYamlError(line_no, "空のリスト要素")

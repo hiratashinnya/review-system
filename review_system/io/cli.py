@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -130,14 +131,30 @@ def _cmd_revert(args) -> int:
     if rid is None:
         print("error: レポートから review_id を読めない", file=sys.stderr)
         return EXIT_BADREQ
-    refs = _load_commits(rid)
+    try:                                        # #12 T3/T5：壊れた state ファイルもクラッシュさせず fail-close
+        refs = _load_commits(rid)
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        print(f"O-14 [apply] commits 状態ファイルを読めない: {e} "
+              f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
+        return EXIT_FAILCLOSE
+    if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):  # #12 T4
+        print(f"O-14 [apply] commits 状態ファイルの形式が不正: {refs!r} "
+              f"-> .review-state の当該 .commits.json を確認のこと", file=sys.stderr)
+        return EXIT_FAILCLOSE
     if not refs:
         print("revert 対象なし", file=sys.stderr)
         return EXIT_BADREQ
     repo = GitWorkspaceRepository(WORKSPACE)
     exec_id = ExecutionId(rid)
     for ref in reversed(refs):                  # 新しい順に戻す
-        repo.revert(exec_id, ref)
+        try:                                    # #10：git 失敗（衝突/不正 ref/workdir 破損）を fail-close
+            repo.revert(exec_id, ref)
+        except (subprocess.CalledProcessError, OSError) as e:
+            detail = getattr(e, "stderr", None) or getattr(e, "stdout", None) or e  # #12 T2：git の実エラーを O-14 に
+            print(f"O-14 [apply] revert に失敗（{ref}）: {str(detail).strip()} "
+                  f"-> 一部のみ revert された可能性。ワークスペースを手動確認のこと",
+                  file=sys.stderr)
+            return EXIT_FAILCLOSE
     print(f"reverted {len(refs)} commit(s) for {rid}")
     return EXIT_OK
 
