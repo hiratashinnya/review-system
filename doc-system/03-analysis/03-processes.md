@@ -1,5 +1,5 @@
 ---
-version: "0.6.0"
+version: "0.6.1"
 ---
 # 論理プロセス
 
@@ -333,7 +333,7 @@ trace_scope.include/exclude（I-5）とディレクトリ走査 .md ファイル
 
 ## P-7: ノード著作プロセス
 
-<details><summary>⬡ P-7 · v0.2</summary>
+<details><summary>⬡ P-7 · v0.3</summary>
 
 ```yaml
 id: P-7
@@ -347,6 +347,8 @@ edges:
     ref_version: "0.6"
   - to: E-2
     ref_version: "0.5"
+  - to: FND-10
+    ref_version: "0.1"
 ```
 </details>
 

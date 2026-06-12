@@ -1,5 +1,5 @@
 ---
-version: "0.5.0"
+version: "0.5.1"
 ---
 # イベント
 
@@ -11,7 +11,7 @@ version: "0.5.0"
 
 ## E-1: 点検要求
 
-<details><summary>⬡ E-1 · v0.4</summary>
+<details><summary>⬡ E-1 · v0.5</summary>
 
 ```yaml
 id: E-1
@@ -25,6 +25,8 @@ edges:
     ref_version: "0.2"
   - to: I-1
     ref_version: "0.6"
+  - to: FND-11
+    ref_version: "0.1"
 ```
 </details>
 
@@ -39,7 +41,7 @@ edges:
 
 ## E-2: 著作要求
 
-<details><summary>⬡ E-2 · v0.2</summary>
+<details><summary>⬡ E-2 · v0.3</summary>
 
 ```yaml
 id: E-2
@@ -55,6 +57,8 @@ edges:
     ref_version: "0.1"
   - to: I-7
     ref_version: "0.6"
+  - to: FND-7
+    ref_version: "0.1"
 ```
 </details>
 
