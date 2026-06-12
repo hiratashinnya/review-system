@@ -1235,6 +1235,8 @@ condition: normal
 edges:
   - to: FR-3
     ref_version: "0.2"
+  - to: FND-4
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1257,6 +1259,8 @@ condition: failure
 edges:
   - to: FR-3
     ref_version: "0.2"
+  - to: FND-4
+    ref_version: "0.1"
 ```
 </details>
 
