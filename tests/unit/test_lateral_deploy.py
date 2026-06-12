@@ -20,6 +20,9 @@ should_skip_conversion = lateral_deploy.should_skip_conversion
 convert_skill_to_prompt = lateral_deploy.convert_skill_to_prompt
 convert_agent_to_instructions = lateral_deploy.convert_agent_to_instructions
 extract_spec_principles = lateral_deploy.extract_spec_principles
+scan_assets = lateral_deploy.scan_assets
+generate_copilot_instructions = lateral_deploy.generate_copilot_instructions
+write_outputs = lateral_deploy.write_outputs
 
 
 class TestParseFrontmatter(unittest.TestCase):
@@ -226,6 +229,128 @@ class TestExtractSpecPrinciples(unittest.TestCase):
     def test_missing_file_returns_empty(self):
         """Return empty string if principles file does not exist."""
         self.assertEqual(extract_spec_principles(Path("/nonexistent/SKILL.md")), "")
+
+
+class TestScanAssets(unittest.TestCase):
+    """Test scan_assets() directory traversal and glob patterns."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.claude_dir = Path(self._tmp.name) / ".claude"
+        # skills/align/SKILL.md
+        skill_dir = self.claude_dir / "skills" / "align"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("---\nname: align\n---\nBody", encoding="utf-8")
+        # agents/spec-inspector.md
+        agents_dir = self.claude_dir / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "spec-inspector.md").write_text("---\nname: spec-inspector\n---\nBody", encoding="utf-8")
+        # standards/old-skill/SKILL.md
+        std_dir = self.claude_dir / "standards" / "old-skill"
+        std_dir.mkdir(parents=True)
+        (std_dir / "SKILL.md").write_text("---\nname: old-skill\n---\nBody", encoding="utf-8")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_finds_skills(self):
+        assets = scan_assets(self.claude_dir)
+        self.assertEqual(len(assets["skills"]), 1)
+        self.assertEqual(assets["skills"][0].name, "SKILL.md")
+        self.assertIn("align", str(assets["skills"][0]))
+
+    def test_finds_agents(self):
+        assets = scan_assets(self.claude_dir)
+        self.assertEqual(len(assets["agents"]), 1)
+        self.assertIn("spec-inspector.md", str(assets["agents"][0]))
+
+    def test_finds_standards(self):
+        assets = scan_assets(self.claude_dir)
+        self.assertEqual(len(assets["standards"]), 1)
+        self.assertIn("old-skill", str(assets["standards"][0]))
+
+    def test_missing_subdirs_return_empty_lists(self):
+        empty_claude = Path(self._tmp.name) / "empty_claude"
+        empty_claude.mkdir()
+        assets = scan_assets(empty_claude)
+        self.assertEqual(assets["skills"], [])
+        self.assertEqual(assets["agents"], [])
+        self.assertEqual(assets["standards"], [])
+
+
+class TestGenerateCopilotInstructions(unittest.TestCase):
+    """Test generate_copilot_instructions() orchestrator exclusion and table escaping."""
+
+    def _make_claude_dir(self, skills: list[tuple[str, str, bool]]) -> Path:
+        """Create a temp .claude dir with given skills: [(name, description, is_orchestrator)]."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, tmp)
+        claude_dir = Path(tmp) / ".claude"
+        for name, description, is_orchestrator in skills:
+            skill_dir = claude_dir / "skills" / name
+            skill_dir.mkdir(parents=True)
+            extra = "disable-model-invocation: true\n" if is_orchestrator else ""
+            (skill_dir / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: {description}\n{extra}---\nBody",
+                encoding="utf-8",
+            )
+        return claude_dir
+
+    def test_orchestrator_excluded_from_skill_table(self):
+        """Skills with disable-model-invocation: true must not appear in the table."""
+        claude_dir = self._make_claude_dir([
+            ("align", "Alignment skill", False),
+            ("asset-pipeline", "Pipeline orchestrator", True),
+        ])
+        assets = scan_assets(claude_dir)
+        _, content = generate_copilot_instructions(assets, claude_dir)
+        self.assertIn("`/align`", content)
+        self.assertNotIn("`/asset-pipeline`", content)
+
+    def test_pipe_in_description_is_escaped(self):
+        """Pipe characters in description must be escaped for Markdown table validity."""
+        claude_dir = self._make_claude_dir([
+            ("my-skill", "Input | Output mapping", False),
+        ])
+        assets = scan_assets(claude_dir)
+        _, content = generate_copilot_instructions(assets, claude_dir)
+        self.assertIn(r"Input \| Output mapping", content)
+        # Raw unescaped pipe must not appear inside a table cell
+        lines_with_my_skill = [l for l in content.splitlines() if "my-skill" in l]
+        self.assertTrue(any("\\|" in l for l in lines_with_my_skill))
+
+
+class TestWriteOutputs(unittest.TestCase):
+    """Test write_outputs() duplicate-path detection and path-traversal defence."""
+
+    def test_duplicate_path_raises_systemexit(self):
+        outputs = [
+            (".github/foo.md", "content-a"),
+            (".github/foo.md", "content-b"),
+        ]
+        with self.assertRaises(SystemExit):
+            write_outputs(outputs, dry_run=True)
+
+    def test_traversal_path_raises_systemexit(self):
+        """Path that escapes .github/ (e.g. via ..) must be rejected."""
+        outputs = [("../.hidden/secret.md", "bad")]
+        with self.assertRaises(SystemExit):
+            write_outputs(outputs, dry_run=False)
+
+    def test_dry_run_writes_no_files(self):
+        """Dry run must not create any files on disk."""
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / ".github" / "test.md"
+            outputs = [(".github/test.md", "hello")]
+            # dry_run=True should NOT create the file
+            import os
+            orig = os.getcwd()
+            os.chdir(tmp)
+            try:
+                write_outputs(outputs, dry_run=True)
+            finally:
+                os.chdir(orig)
+            self.assertFalse(target.exists())
 
 
 if __name__ == "__main__":
