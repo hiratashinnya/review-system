@@ -19,17 +19,32 @@
 
 ## 判断の仰ぎ方（フェーズ別・空で止めない＝PR7）
 - **大原則**：矛盾・オーナー判断必須で止めるときも、**原案・比較・理由付き推奨/非推奨を必ず添える**（意見なき停止は禁止）。**矛盾は原案検討して提案、他のやれる所をやる、一通り終えたら整理して提示**。
-- **要件定義フェーズ**：**暫定で進めない（危険）**。論点・矛盾は**止めて**選択肢＋推奨を出し、決定はオーナー。**他の決められる所を先に進める**（Q# で起票・状態維持）。
+- **起票してから止める（チャットで流さない）**：論点・矛盾・情報不足を見つけたら、**①ノード起票 → ②ダッシュボード更新（Q/FND いずれの場合も必須）→ ③選択肢＋推奨を添えて停止・質問** の順を必ず守る。チャットで指摘を述べるだけで**起票しないのは禁止**（後から「なぜ起票してない？」になる）。**②は省略不可**——ノードが明細、ダッシュボードが状態の要約で、両方を更新して初めて起票完了。
+  - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（[verification](doc-system/04-verification/02-findings.md)・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
+  - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。
+- **要件定義フェーズ**：**暫定で進めない（危険）**。論点・矛盾・情報不足は**上記①〜③で止めて**選択肢＋推奨を出し、決定はオーナー。**他の決められる所を先に進める**（Q#/FND で起票・状態維持）。
 - **設計フェーズ**：迷いは**推奨案で暫定決定**し、**判断ログ DD#**（論点→選択肢→推奨→暫定決定→影響範囲）に記録して前進。覆る場合の影響範囲を必ず併記。
 - **DD# は Q# の設計フェーズ版**：未決の置き場が Q#（ダッシュボード）、暫定決定の記録が DD#（[design/decisions](docs/design/decisions.md)）。
 
 ## スキル/エージェント
-- スキル（仕様）：`/align` `/io-event-ledger` `/value-trace` `/mvp-scope` `/schema-design` `/domain-model` `/spec-pipeline` `/asset-pipeline`
+- スキル（仕様）：`/align` `/value-trace` `/mvp-scope` `/schema-design` `/domain-model` `/spec-pipeline` `/asset-pipeline`
 - スキル（実装設計）：`/architecture-design` `/orchestration-design` `/prompt-design` `/impl-design-pipeline`（凍結セット）・`/test-strategy`
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
-- サブエージェント：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation`
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
+
+## ノード著作の委譲ルール
+ノードを著作するときは必ず対応するサブエージェントに委譲する（主文脈で直接書かない）：
+- **VAL / SR / FR / NFR** → `requirements-author`
+- **SPEC** → `spec-author`（1アサーション1ノード・-N枝番・無名依存辺で親 SPEC を参照）
+- **ACTOR / I / O / D / P / E** → `analysis-author`
+- **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM** → `design-author`
+- **TD / TC / TR / VERIFY / FND / DD / Q / PEND** → `verification-author`
+- **著作後の整合確認・本ファイル確定書き込み** → `reconciliation`
+
+各著作エージェントは `tmp/<sprint>/<parent-id>.md` に出力する。`reconciliation` が検証後に本ファイルへ反映する。
 
 ## 資産のテーラリング運用（A16）
 - プロセスはスキル等で実現するため、**テーラリングの実体は `.claude/` に置く（docs ではない）**。

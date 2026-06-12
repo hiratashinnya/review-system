@@ -37,4 +37,54 @@ description: Derive a type-safe, immutable in-code domain model from a SETTLED d
 - 導出物がすべて frozen か。可変なのは状態を写す型だけか。
 - 各型の生成方法（constructor/factory/builder）に根拠があるか。
 - データ辞書 → クラスの対応表があり、不変条件を**型で**保証できているか。
+
+## ノード著作（DM / TERM）
+
+**フロントマター定義**
+
+```yaml
+---
+id: DM-1              # 型 prefix + 連番（下表）。採番後は変更禁止
+type: DM              # 型値（下表から選ぶ。自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+| 型 | id PREFIX | 例 |
+|---|---|---|
+| DM | `DM-` | `DM-1` |
+| TERM | `TERM-` | `TERM-1` |
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/<type>.md`
+2. id 採番：上表の PREFIX + 連番（既存最大 +1）。採番後は変更禁止
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| DM | → TERM (refines)、→ P (refines) |
+| TERM | 被参照中心（接続マトリクスで確認） |
+
+**本文フォーマット**
+
+```
+# DM
+[型の目的・不変条件]
+**フィールド**: [主要フィールドと型]
+**制約**: [バリデーション・不変条件]
+
+# TERM
+[用語の定義（1文）]
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

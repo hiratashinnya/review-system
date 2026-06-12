@@ -40,4 +40,68 @@ description: Design the PHYSICAL module/dependency architecture from a SETTLED l
 - IF：サブコマンド表（アクタ/役割/入力/出力・exit）＋シグネチャ＋I/O 台帳対応。
 - プロトコル：ポート Protocol ＋能力宣言＋（あれば）駆動プロトコルのディレクティブ表。
 - 永続：リポジトリ port ＋ 保存形式 ＋ トランザクション手順 ＋ state 配置。
+
+## ノード著作（MOD / PORT / PRS / DS）
+
+**フロントマター定義**
+
+```yaml
+---
+id: MOD-1             # 型 prefix + 連番（下表）。採番後は変更禁止
+type: MOD             # 型値（下表から選ぶ。自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+| 型 | id PREFIX | 例 |
+|---|---|---|
+| MOD | `MOD-` | `MOD-1` |
+| PORT | `PORT-` | `PORT-1` |
+| PRS | `PRS-` | `PRS-1` |
+| DS | `DS-` | `DS-1` |
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/<type>.md`
+2. id 採番：上表の PREFIX + 連番（既存最大 +1）。採番後は変更禁止
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| MOD | → P (refines) |
+| PORT | → MOD (refines) |
+| PRS（永続） | → DS (refines) |
+| DS（データストア） | → P (refines) |
+
+**本文フォーマット**
+
+```
+# MOD
+[モジュールの責務を1文]
+**公開 I/F**: [公開する主要な関数・クラス]
+**依存**: [依存するポート・モジュール]
+
+# PORT
+[ポートの目的（抽象化する副作用・外部判断）]
+
+# PRS
+[永続化する対象と保存形式]
+**保存形式**: [append-only JSONL / JSON / git 等]
+**ライフサイクル**: [作成・更新・削除のタイミング]
+
+# DS
+**保存対象**: [何を持つか]
+**保存理由**: [なぜ持つか・どこで参照されるか]
+**ライフサイクル**: [作成・更新・削除のタイミング]
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

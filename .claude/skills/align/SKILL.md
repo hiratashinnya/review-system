@@ -16,3 +16,51 @@ description: Pre-work alignment. Decompose the request, propose the steps and gr
 ## done
 - 手順・スコープ・停止条件が明文化され合意されているか。
 - 既存資料を過信しない前提（点検も兼ねる）を共有したか。
+
+## ノード著作（VAL / SR）
+
+**フロントマター定義**
+
+```yaml
+---
+id: VAL-1             # 型 prefix + 連番（下表）。採番後は変更禁止
+type: VAL             # 型値（下表から選ぶ。自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+| 型 | id PREFIX | 例 |
+|---|---|---|
+| VAL | `VAL-` | `VAL-1` |
+| SR | `SR-` | `SR-1` |
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/why/<type>.md`
+2. id 採番：上表の PREFIX + 連番（既存最大 +1）。採番後は変更禁止
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 | 主な RULE |
+|---|---|---|
+| VAL | なし（根） | RULE-005（孤立禁止）|
+| SR | → VAL (refines) | RULE-006 |
+
+**本文フォーマット**
+
+```
+# VAL
+[誰に] [何の便益をもたらすか] を1文で記述。
+
+# SR
+[ステークホルダー] が [状況] において [欲求・期待] を持つ。
+```
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007: always_error）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）

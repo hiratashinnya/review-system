@@ -39,4 +39,49 @@ description: Design the RUNTIME control flow — a swimlane flowchart (lanes = a
 - 実行順序の不変条件リスト（番号付き）。
 - `run_*()` 疑似コード（`match` で成功/失敗を漏れなく分岐）。
 - ログ3チャネル表＋版スタンプ定義（`MAJOR.MINOR`・版↔対応ロジック対応）。
+
+## ノード著作（ORC）
+
+**フロントマター定義**
+
+```yaml
+---
+id: ORC-1             # ORC- + 連番。採番後は変更禁止
+type: ORC             # 型値（自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-behavior/orchestration.md`
+2. id 採番：`ORC-` + 連番（既存最大 +1）。採番後は変更禁止
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| ORC | → P (refines)、→ PROMPT (uses) 任意 |
+
+**本文フォーマット**
+
+```
+# ORC
+**段の目的**: [この段が達成する結果（Result 型を返す）]
+**入力**: [前段からの入力]
+**出力**: [次段への出力または最終出力]
+**失敗時**: [fail-close の振る舞い]
+```
+
+**辺方向の注意**
+- `PROMPT → ORC` は**誤り**。正：`ORC → PROMPT (uses)`
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>

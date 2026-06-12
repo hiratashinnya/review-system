@@ -38,4 +38,50 @@ description: Design LLM system-prompt templates — role constraints, prompt ass
 - 役割制約ブロック（やること/やってはいけないこと）。
 - ビルダーの段（`with_*`）と最終 frozen プロンプト。
 - 版管理表（MAJOR.MINOR ↔ 対応ハンドラ）。
+
+## ノード著作（PROMPT）
+
+**フロントマター定義**
+
+```yaml
+---
+id: PROMPT-1          # PROMPT- + 連番。採番後は変更禁止
+type: PROMPT          # 型値（自由記述不可）
+labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
+scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
+---
+```
+
+**共通手順**
+1. テンプレ複製：`docs/doc-system/templates/design-static/prompts.md`
+2. id 採番：`PROMPT-` + 連番（既存最大 +1）。採番後は変更禁止
+3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
+4. status: pending から始め、反映確認後に done
+5. ref_version を参照先の現在 `x.y` に合わせる
+6. 受け入れ条件を確認（下表）
+
+| 型 | 必須辺 |
+|---|---|
+| PROMPT | → SPEC (refines) |
+
+**本文フォーマット**
+
+```
+# PROMPT
+**役割**: [LLM に担わせる役割]
+**入力変数**: [テンプレート変数一覧]
+**出力形式**: [期待する出力の形式・スキーマ]
+**注意事項**: [プロンプトインジェクション対策・制約]
+```
+
+**辺方向の注意**
+- ORC から参照される辺は `ORC → PROMPT (uses)`（PROMPT 側から ORC へは書かない）
+- 版は本文/カタログで `MAJOR.MINOR` 管理（MAJOR＝出力型/構造変更・MINOR＝文言のみ）
+
+**受け入れ条件**
+- [ ] id 一意、type 一致、edges の to がすべて実在（RULE-007）
+- [ ] 接続マトリクス ✅ の辺がすべて存在（RULE-006）
+- [ ] see-also 辺の status が `n/a`（RULE-014）
+- [ ] ref_version が参照先の現在バージョンと一致（RULE-003/004）
 </content>
