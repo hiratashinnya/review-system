@@ -105,7 +105,13 @@ rule_activation:
 # ------------------------------------------------------------
 # condition 語彙（RULE-016）
 # ------------------------------------------------------------
-condition_vocab: [normal, boundary, failure, error]
+# condition 語彙（RULE-016）
+# normal:   正常入力・正常処理（ハッピーパス）
+# boundary: 境界値・端値（ゼロ・最大・最小など）
+# empty:    空集合・ゼロ件・null・未設定（等価分割クラスとして独立。boundary と混在させない）
+# failure:  ツールが仕様違反を正しく検出して報告する（検証の sad-path）
+# error:    ツール自身が処理不能な異常入力に遭遇する（パース不能・YAML 構文エラーなど。fail-close 対象）
+condition_vocab: [normal, boundary, empty, failure, error]
 
 # ------------------------------------------------------------
 # カバレッジ要件（RULE-017/018）

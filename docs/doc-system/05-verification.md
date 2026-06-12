@@ -1,5 +1,5 @@
 ---
-version: "0.2.0"
+version: "0.2.1"
 ---
 # 検証戦略
 
@@ -44,6 +44,26 @@ version: "0.2.0"
 
 **トリガ**：ファイルの `version` を上げたとき（x または y の上昇）。  
 **運用**：PR 差分で `version` 変更を含むコミットの後、走査を実行する。
+
+---
+
+### 段階 0：パース検証
+
+**目的**：グラフ構築前に、ファイルおよびノード YAML の構造的異常を検出する。段階①②③より先に実行し、異常があれば fail-close（処理中断）する。
+
+| RULE | 対象 | 深刻度 |
+|---|---|---|
+| RULE-023 | ノード YAML が PyYAML safe_load でパース不能（構文エラー） | ERROR（fail-close） |
+| RULE-024 | `⬡` マーカーが存在するが直後に ``` yaml ``` ブロックが存在しない | ERROR（fail-close） |
+| RULE-025 | ノード YAML に `id` フィールドが存在しない（または空文字） | ERROR |
+| RULE-026 | ノード YAML に `type` フィールドが存在しない（または空文字） | ERROR |
+| RULE-027 | 辺エントリに `ref_version` フィールドが存在しない | ERROR |
+
+> RULE-023/024 は fail-close（当該ファイルのパースを中断し、後続 RULE を発火させない）。
+> RULE-025/026/027 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
+> RULE-023/024 は `always_error` 相当（suppress/scheduled/activate_stage 不可）。
+
+**トリガ**：ファイルの読み込み時（段階①の前）。
 
 ---
 

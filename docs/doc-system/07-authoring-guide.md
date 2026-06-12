@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.1.1"
 ---
 # ドキュメント・オーサリングガイド
 
@@ -105,8 +105,23 @@ suppress: [RULE-018]   # error path なし: 外部 API は常時稼働前提（S
 **前提条件**: [正常に動く前提・文脈]
 **入力/トリガ**: [有効な入力・操作]
 **期待動作**: [正常応答・状態変化]
+**例**: input X → expected output Y  （具体値必須。プレースホルダ禁止）
 ```
-condition ごとにフォーマットが変わる（normal/boundary/failure/error → templates/what/spec.md 参照）。
+condition ごとにフォーマットが変わる（normal/boundary/empty/failure/error → templates/what/spec.md 参照）。
+
+#### SPEC テスタビリティ基準（必須チェックリスト）
+
+SPEC 本文は「2人の異なる実装者が同じ本文を読んで同一のテストを書ける」レベルの一意性を持つこと。
+以下をすべて満たさない SPEC は受け入れ条件不通過（reconciliation 差し戻し）。
+
+- [ ] **前提条件が定量的**：ノード数・ファイル数・フィールド値を具体的に示す。「いくつかのノード」「適切な設定」禁止。
+- [ ] **入力/トリガが一意**：同じ入力を2人が読んで同じテストデータを作れる。コマンド例・ファイル内容例を記載。
+- [ ] **出力フォーマットが明記**：「報告する」禁止。`{SEVERITY}|{file}:{line}|{RULE-NNN}|{node-id}|{message}` のような具体的行形式を示す。
+- [ ] **終了コードが明記**：condition: failure/error/empty の SPEC は期待する終了コード（0 or 1）を示す。
+- [ ] **全順序が定まる**：複数出力行がある場合、曖昧なく順序が定まるソートキーをすべて列挙する。
+- [ ] **具体例が1つ以上**：`例: input_A → output_B` の形式で実値を記載（プレースホルダ `[xxx]` 禁止）。
+- [ ] **曖昧語を使わない**：「適切な」「正しく」「relevant な」「基本的に」禁止。すべて定量・定義で置き換える。
+- [ ] **condition: empty を正しく使う**：空入力・ゼロ件・null・未設定ケースは必ず `condition: empty` で独立 SPEC 化する（boundary や failure に混入させない）。
 
 **NFR（非機能・制約）**
 ```
