@@ -127,4 +127,4 @@ always_error:
 # ------------------------------------------------------------
 trace_scope:
   include: ["doc-system/**/*.md"]
-  exclude: ["docs/**", "**/README.md"]
+  exclude: ["docs/**", "**/README.md", "**/00-dashboard.md"]   # ダッシュボードは要約帳票（ノードを持たない・out-of-graph）
