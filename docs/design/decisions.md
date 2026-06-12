@@ -144,6 +144,14 @@
 - **暫定決定**：[01](01-class-design.md) `FailureStage.LINT` 追加。revert 対象なし＝exit2（stage 無し）。
 - **影響範囲**：01/03。
 
+## DD18 — lateral_deploy 専用フロントマターパーサの分離（2パーサ併存）
+- **論点**：`scripts/lateral_deploy.py` は自前の寛容パーサを持ち、`review_system/parsing/frontmatter.py` と2パーサが共存している。A14 観点でドリフトリスクがある（PR #13 レビュー指摘）。統一すべきか。
+- **選択肢**：(A) **2パーサ併存を許容**（`lateral_deploy` は hyphenated key が必須・スタンドアロン設計）／(B) 既存パーサを hyphenated key 対応に拡張して共有／(C) 共通ライブラリとして切り出し。
+- **トレードオフ**：A＝既存パーサの変更ゼロ・`lateral_deploy` のポータビリティ維持（sys.path 汚染なし設計）。B＝`review_system` 全体に波及する KEY regex 拡張が必要で Q5a の「intentional small grammar」制約と干渉。C＝MVP に過剰。
+- **推奨 A（採用）／非推奨 B,C**：理由＝`KEY=[a-z_][a-z0-9_]*` は Q5a で意図的に固定した文法。SKILL.md の hyphenated key（`disable-model-invocation` 等）は `.claude/` ドメイン専用で `review_system` のパーサ拡張対象外。`lateral_deploy.py` の docstring（L22）に理由を明記済み。ドリフトは lenient/strict の役割が明確に分かれており `scripts/` 単一ファイルに閉じているため管理可能。
+- **暫定決定**：2パーサ併存を許容。将来 SKILL.md フロントマターキーが `[a-z_]` 系に統一される場合は B への移行を検討。
+- **影響範囲**：`scripts/lateral_deploy.py`。覆す（B 採用）なら `review_system/parsing/frontmatter.py` の KEY regex 拡張＋既存テスト更新が要る（TC-parsing-001 に波及）。
+
 ---
 
 ## オーナー確定・打ち上げ事項
