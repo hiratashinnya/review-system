@@ -177,10 +177,9 @@ def generate_copilot_instructions(
         content = skill_file.read_text(encoding='utf-8')
         fm, _ = parse_frontmatter(content)
 
-        if (
-            fm.get("user-invocable") != "false"
-            and fm.get("disable-model-invocation") != "true"
-        ):
+        # Orchestrators (disable-model-invocation: true) are still user-invokable
+        # slash commands, so they belong in the catalog like any other skill.
+        if fm.get("user-invocable") != "false":
             name = fm.get("name", skill_file.parent.name)
             description = fm.get("description", "")
             # Escape | and strip newlines to keep the Markdown table valid
@@ -392,7 +391,9 @@ def main():
 
     print("\n🔄 Converting to GitHub Copilot format...")
 
-    # Convert skills to prompts or instructions
+    # Convert skills to prompts. Orchestrators (disable-model-invocation: true)
+    # are user-invokable slash commands too, so they are converted as prompts
+    # like any other skill rather than auto-applied instructions.
     for skill_file in assets["skills"]:
         content = skill_file.read_text(encoding='utf-8')
         fm, body = parse_frontmatter(content)
@@ -402,20 +403,9 @@ def main():
             continue
 
         name = fm.get('name', skill_file.parent.name)
-
-        # Orchestrators (disable-model-invocation: true) go to instructions
-        if fm.get("disable-model-invocation") == "true":
-            output_path = f".github/instructions/{name}.instructions.md"
-            tools = fm.get("tools", "")
-            model = fm.get("model", "inherit")
-            instructions_content = _build_instructions_content(tools, model, body)
-            outputs.append((output_path, instructions_content))
-            print(f"  ✓ {name} → {output_path} (orchestrator)")
-        else:
-            # Regular skills go to prompts
-            output_path, prompt_content = convert_skill_to_prompt(skill_file, fm, body)
-            outputs.append((output_path, prompt_content))
-            print(f"  ✓ {name} → {output_path}")
+        output_path, prompt_content = convert_skill_to_prompt(skill_file, fm, body)
+        outputs.append((output_path, prompt_content))
+        print(f"  ✓ {name} → {output_path}")
 
     # Convert agents to instructions
     for agent_file in assets["agents"]:
