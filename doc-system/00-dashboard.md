@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > 議論や著作が進んだらここを更新する。**全件列挙はしない**——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は**状態と優先度の要約**に絞る。
 >
-> **最終更新**: 2026-06-13（DFD Level 1 オーナーレビュー処置＝FND-21/22/23・DD-7・PEND-2・SPEC-54。①P-6 config 直読み解消＝D-3 経由 ②③プロセス間データ D-3〜D-8 起票 ④P-7 に I-9 記載内容入力追加 ⑤分析層ワークフロー改訂）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-13（PR #21 オーナーレビュー VERIFY-4 起票・FND-24〜33 起票＝H1/H2/H3/M1〜M4/L1〜L3。FND-29・FND-30 resolved（PR 説明文更新・ダッシュボード矛盾修正）｜旧: DFD Level 1 オーナーレビュー処置＝FND-21/22/23・DD-7・PEND-2・SPEC-54）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
 
 ---
 
@@ -41,20 +41,21 @@
 | N2 | **設計層（凍結セット）の着手** | 🟡 中 | `/impl-design-pipeline` ＋ design-author で ORC/DS/MOD/DM/PORT/… を著作。spec-inspector の物理設計 |
 | N3 | **実装（FR-10：spec-inspector CLI）** | 🔵 低 | Python・標準ライブラリのみ。段階①②③。設計確定後 |
 
-> ✅ 完了: N0（SPEC 品質強化分の再点検＝VERIFY-2）／旧 N1（SR-4 の NFR 化 → DD-1 で「SR-2 の重複・削除＋再配線」決定・反映済）／旧 N3（Q-1 → DD-2 昇格・VERIFY suppress[RULE-004]付与）／FND-16（FND-1 dangling ACTOR-3 → P-1 張替）／FND-17（→ DD-4 昇格・分析層ドリフト一括解消）／N6（DD-5 decided・SPEC-44〜49 著作・config NFR→[SPEC] 追加）／DD-6 spec 層（FR-15/16・SPEC-50/51 著作）／N7（FND-18 resolved・重複不可方針で再処置＝SPEC-52/53・SPEC-14-1 著作＋RULE-028 追加・初回 SPEC-41〜43 は粒度差し戻しで撤去）／N5（P 単一責務点検＝VERIFY-3・FND-19 で P-7→P-7-1/P-7-2 分解・FND-20 で P-1 にパース段検証 SPEC 接続・P-4/P-5/P-6 は PASS）／分析層 DFD 生成（03-analysis/00-dfd.md・Level 0 コンテキスト図・Level 1 プロセス全体図・Level 2 P-2/P-3/P-7 分解・データフロー一覧）／**N9/N10 クローズ**（図生成＝VAL-5←SR-8・逆起こし＝VAL-6←SR-9 を `scheduled: sprint-2` で起票。FR/SPEC 以降は sprint-2 の実作業へ繰り越し）／**N4 クローズ（PEND-1 resolved）**（I-2/3/4 を I-1-1/I-1-2/I-1-3 に改名・親辺 `to: I-1` 付与・FND-6 resolved）／**DFD Level 1 オーナーレビュー処置**（FND-21：P-6 の config 直読み→D-3 経由に是正／FND-22：プロセス間データを D-3〜D-8 として起票＝データディクショナリ完成／FND-23：P-7-1 に I-9 ノード記載内容入力を追加＋SPEC-54 新設／DD-7：分析層ワークフロー改訂（図とノード並走著作・D は分析層起票・退役 ID 不再利用）／PEND-2：図のスクリプト自動生成は VAL-5/FR-15 に統合し sprint-2 へ先送り）。
+> ✅ 完了: N0（SPEC 品質強化分の再点検＝VERIFY-2）／旧 N1（SR-4 の NFR 化 → DD-1 で「SR-2 の重複・削除＋再配線」決定・反映済）／旧 N3（Q-1 → DD-2 昇格・VERIFY suppress[RULE-004]付与）／FND-16（FND-1 dangling ACTOR-3 → P-1 張替）／FND-17（→ DD-4 昇格・分析層ドリフト一括解消）／N6（DD-5 decided・SPEC-44〜49 著作・config NFR→[SPEC] 追加）／DD-6 spec 層（FR-15/16・SPEC-50/51 著作）／N7（FND-18 resolved・重複不可方針で再処置＝SPEC-52/53・SPEC-14-1 著作＋RULE-028 追加・初回 SPEC-41〜43 は粒度差し戻しで撤去）／N5（P 単一責務点検＝VERIFY-3・FND-19 で P-7→P-7-1/P-7-2 分解・FND-20 で P-1 にパース段検証 SPEC 接続・P-4/P-5/P-6 は PASS）／分析層 DFD 生成（03-analysis/00-dfd.md・Level 0 コンテキスト図・Level 1 プロセス全体図・Level 2 P-2/P-3/P-7 分解・データフロー一覧）／**N9/N10 クローズ**（図生成＝VAL-5←SR-8・逆起こし＝VAL-6←SR-9 を `scheduled: sprint-2` で起票。FR/SPEC 以降は sprint-2 の実作業へ繰り越し）／**N4 クローズ（PEND-1 resolved）**（I-2/3/4 を I-1-1/I-1-2/I-1-3 に改名・親辺 `to: I-1` 付与・FND-6 resolved）／**DFD Level 1 オーナーレビュー処置**（FND-21：P-6 の config 直読み→D-3 経由に是正／FND-22：プロセス間データを D-3〜D-8 として起票＝データディクショナリ完成／FND-23：P-7-1 に I-9 ノード記載内容入力を追加＋SPEC-54 新設／DD-7：分析層ワークフロー改訂（図とノード並走著作・D は分析層起票・退役 ID 不再利用）／PEND-2：図のスクリプト自動生成は VAL-5/FR-15 に統合し sprint-2 へ先送り）／**PR #21 レビュー処置**（VERIFY-4 起票・FND-24〜33 起票（H1/H2/H3/M1〜M4/L1〜L3 計10件）・FND-29（PR 説明文更新）・FND-30（ダッシュボード矛盾修正）は resolved）。
 
 ---
 
 ## ⏳ オーナー判断待ち（サマリ）
 
-**計 0 件**
+**計 1 件**
 
 | 項目 | 優先 | 種別 | 状態 | 次アクション |
 |---|---|---|---|---|
+| N1（current_stage を `analysis` へ進める判断） | 🟡 中 | N | ⬜ 判断待ち | オーナーが stage 進行 or 現状維持を決定（N8 も連動） |
 | PEND-1（I-1-1/I-1-2/I-1-3 過分割） | — | PEND（**resolved**） | 子ノード改名＋親辺付与で解消・FND-6 resolved | ✅ クローズ（N4） |
 
-> **FND サマリ**：計 23 件（✅ resolved 23 ／ ⏳ open 0）。FND-21（P-6 config 直読み→D-3 経由・ERROR）・FND-22（プロセス間 D 未起票→D-3〜D-8・WARNING）・FND-23（P-7-1 記載内容入力欠如→I-9・ERROR）は DFD レビューで 2026-06-13 resolved。FND-6（過分割）は子ノード改名で resolved。FND-19/20 は N5 で resolved。FND-18 も重複不可方針で再処置・resolved。
-> **VERIFY サマリ**：VERIFY-1（要件〜分析層・2026-06-11）／VERIFY-2（N0 再点検・2026-06-12）／VERIFY-3（N5・P 単一責務点検・2026-06-13）。いずれも suppress[RULE-004] 付与済み（DD-2 決定）。
+> **FND サマリ**：計 33 件（✅ resolved 25 ／ ⏳ open 8）。FND-24〜33 は PR #21 オーナーレビュー指摘（VERIFY-4・2026-06-13）。FND-29（M3・PR 説明文乖離）・FND-30（M4・ダッシュボード矛盾）は resolved。FND-24（H1・SPEC-14-1 RULE-006）・FND-25（M1・SPEC-48 矛盾）・FND-26（H2・connection-matrix 未同期）・FND-27（H3・dfd.md exclude 未登録）・FND-28（M2・追加バッチ VERIFY 欠如）・FND-31（L1）・FND-32（L2）・FND-33（L3）は open（技術修正はオーナー判断後）。
+> **VERIFY サマリ**：VERIFY-1（要件〜分析層・2026-06-11）／VERIFY-2（N0 再点検・2026-06-12）／VERIFY-3（N5・P 単一責務点検・2026-06-13）／VERIFY-4（PR #21 オーナーレビュー・2026-06-13）。いずれも suppress[RULE-004] 付与済み（DD-2 決定）。
 > **Q サマリ**：Q-1（closed・DD-2 へ昇格済み・2026-06-13）。
 > **DD サマリ**：DD-1〜5（決定済・反映済）・DD-6（decided・spec 層完了・分析層著作待ち）・DD-7（decided・反映済・分析層 DFD 改訂＝D 起票/ワークフロー並走/退役 ID 不再利用）。
 > **PEND サマリ**：PEND-1（resolved・過分割→子ノード化）・PEND-2（deferred・図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降）。

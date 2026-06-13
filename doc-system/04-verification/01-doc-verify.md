@@ -1,5 +1,5 @@
 ---
-version: "0.1.3"
+version: "0.1.4"
 ---
 # ドキュメント検証 — doc-system ドッグフーディング（要件〜分析層）
 
@@ -140,3 +140,57 @@ edges:
 **結果**: 指摘 2 件（WARNING 2＝FND-19・FND-20）。P-4/P-5/P-6 は単一責務 PASS。
 
 **発生した指摘**: → FND-19・FND-20 を参照。
+
+---
+
+## VERIFY-4: PR #21 オーナーレビュー点検記録
+
+<details><summary>⬡ VERIFY-4 · v0.1</summary>
+
+```yaml
+id: VERIFY-4
+type: VERIFY
+labels: []
+scheduled: ""
+suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.3"
+  - to: SPEC-48
+    ref_version: "0.3"
+  - to: FR-15
+    ref_version: "0.2"
+  - to: FR-16
+    ref_version: "0.2"
+  - to: DD-7
+    ref_version: "0.1"
+  - to: FND-24
+    ref_version: "0.1"
+  - to: FND-25
+    ref_version: "0.1"
+  - to: FND-26
+    ref_version: "0.1"
+  - to: FND-27
+    ref_version: "0.1"
+  - to: FND-28
+    ref_version: "0.1"
+  - to: FND-29
+    ref_version: "0.1"
+  - to: FND-30
+    ref_version: "0.1"
+  - to: FND-31
+    ref_version: "0.1"
+  - to: FND-32
+    ref_version: "0.1"
+  - to: FND-33
+    ref_version: "0.1"
+  - to: DD-2
+    ref_version: "0.1"
+```
+</details>
+
+**検証手法**: オーナーレビュー（PR #21 review）
+**実施日**: 2026-06-13
+**対象範囲**: PR #21（claude/doc-system-sprint2）の追加分全体。SPEC-14-1（RULE-006 検査）・SPEC-48（USDM 制約・config 整合）・FR-15/16（依存グラフ機能）・分析層（DFD・D-3〜D-8・I-9）・DD-7・trace_scope 設定
+**結果**: ERROR 3件（H1/H2/H3）・WARNING 4件（M1/M2/M3/M4）・INFO 3件（L1/L2/L3）。計10件 → FND-24〜FND-33
+**発生した指摘**: → FND-24〜FND-33 を参照
