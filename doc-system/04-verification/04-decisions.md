@@ -1,5 +1,5 @@
 ---
-version: "0.1.1"
+version: "0.1.2"
 ---
 # 意思決定 — Decision Log
 
@@ -146,3 +146,82 @@ edges: []
 - `03-analysis/02-io.md`: O-1・O-2 の ACTOR-2 辺 ref_version 更新 + →DD-4 付与（v0.6.1→0.6.2）。
 - `04-verification/02-findings.md`: FND-3 の forward 辺を E-2 に張替え・ref_version 更新 + →DD-4 付与、FND-17 を resolved に更新（v0.1.3→0.1.4）。
 - `04-verification/03-pend.md`: PEND-1 の I-2 辺 ref_version 更新 + →DD-4 付与（v0.1.0→0.1.1）。
+
+---
+
+## DD-5: NFR から SPEC 導出を必須化する
+
+**status: open**（影響範囲調査中・反映未完了）
+
+<details><summary>⬡ DD-5 · v0.1</summary>
+
+```yaml
+id: DD-5
+type: DD
+labels: []
+scheduled: ""
+edges:
+  - to: NFR-1
+    ref_version: "0.2"
+  - to: NFR-2
+    ref_version: "0.2"
+  - to: NFR-3
+    ref_version: "0.2"
+  - to: NFR-4
+    ref_version: "0.2"
+  - to: NFR-5
+    ref_version: "0.2"
+  - to: NFR-6
+    ref_version: "0.2"
+```
+</details>
+
+**論点**: 現状 NFR-1〜NFR-6 の全 6 件に SPEC 依存辺がゼロであり、NFR が達成されたかどうかを機械的に検証できない。FR → SPEC 導出は RULE-017/018 で強制されているが、NFR に同等のルールがなく、NFR は「制約として宣言するだけ」で終わる構造になっている。NFR をテスタブルな仕様として確実に達成可能な形にするには、NFR→SPEC 導出ルールを追加する必要がある。
+
+**選択肢**:
+- **A（RULE 追加）**: config.yaml に `must_link_to: NFR → [SPEC]` を追加し、NFR が少なくとも 1 本の SPEC 依存辺を持つことを必須化。NFR-1〜6 に各々 SPEC を導出して接続する。
+- **B（suppress 許容）**: A に加えて、定量化困難な NFR（例: NFR-3「self-contained」）は `suppress: [RULE-xxx]` で個別免除を許容する。
+- **C（現状維持）**: NFR は抽象制約として保持し、対応 SPEC は FR 側でカバーされているとみなす（検証の網羅穴は許容）。
+
+**推奨**: A + B の組み合わせ。理由：NFR は「非機能」とはいえ機械検証可能な制約（例: NFR-1「プレーンテキスト形式」→ ファイルのバイナリ有無検査 SPEC、NFR-2「標準ライブラリのみ」→ import チェック SPEC）に落とせるものが多い。定量化が難しい NFR は suppress で免除するが理由コメント必須とする。C は検証穴を永続化するため不採用。
+
+**影響範囲（調査後に確定・現在は義務辺として開放）**:
+- `config.yaml`（out-of-graph）: `rule_activation` に NFR SPEC 必須化ルール（RULE-028 相当）を追加。`must_link_to` に `NFR → [SPEC]` を追加。
+- `docs/doc-system/05-verification.md`: 新ルール定義を追記。
+- `doc-system/02-what/02-nfr.md`: NFR-1〜6 それぞれに SPEC 導出（内容と suppress 要否は個別判断）→ 各 NFR に `→DD-5` バックリファレンス付与。
+- `.claude/agents/requirements-author.md`・`spec-author.md`・`docs/doc-system/07-authoring-guide.md`: NFR の SPEC 導出必須規約を追記。
+
+---
+
+## DD-6: 依存グラフレポート出力機能・参照関係複雑度算出の追加
+
+**status: open**（FR 著作待ち・設計フェーズ）
+
+<details><summary>⬡ DD-6 · v0.1</summary>
+
+```yaml
+id: DD-6
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: 現行の spec-inspector は RULE 違反レポート（O-1）とカバレッジ点検結果（O-2）のみを出力し、ドキュメント間の依存構造そのものを可視化する機能がない。大規模なノードグラフにおいて特定ノードへの依存集中・孤立・循環参照などが検出困難であり、設計の意思決定支援が不足している。
+
+**追加機能（2本立て）**:
+- **依存グラフレポート（②）**: 全ノード間の依存関係を構造化出力する。dot 形式 / 隣接リスト形式等でエクスポートし、外部ツール（Graphviz 等）との連携を可能にする。
+- **参照関係複雑度算出（②'）**: 各ノードの in-degree（被参照数）・out-degree（参照数）・入出力比・ファイルをまたぐ参照クラスタ数などを集計し、複雑度メトリクスとして出力する。「ハブノード」「孤立クラスタ」「循環参照候補」を検出する。
+
+**選択肢**:
+- **A（新 FR 2 本）**: FR-15「依存グラフレポート出力」・FR-16「参照関係複雑度算出」として独立 FR 化。それぞれ SPEC → P → O の経路を完全に持つ。
+- **B（FR-3 拡張）**: FR-3（カバレッジ点検）配下の SPEC として折り込む。粒度的には FR-3 の「グラフ網羅性点検」の延長線上にある。
+- **C（post-MVP 印）**: 機能を追加するが `labels: [post-mvp]` で MVP スコープ外とし、設計フェーズまで詳細を先送りする。
+
+**推奨**: A + C の組み合わせ（FR として正式追加 + post-mvp 印）。理由：グラフ可視化と複雑度算出は FR-3（RULE 違反検査）とは目的が異なり独立価値がある（意思決定支援）。ただし MVP には不要のため post-mvp 印で設計フェーズで詳細化。
+
+**影響範囲（FR 著作後に義務辺として反映）**:
+- `doc-system/02-what/01-fr.md`: FR-15（依存グラフレポート）・FR-16（複雑度算出）を新設。SR への依存辺、`labels: [post-mvp]`。
+- `doc-system/03-analysis/`: 新 O ノード（O-4: 依存グラフ出力・O-5: 複雑度レポート）・新 P ノード（P-8: グラフ出力処理・P-9: 複雑度計算）を追加。
+- 設計フェーズで凍結セット（MOD/PORT/DM）へ落とし込む。
