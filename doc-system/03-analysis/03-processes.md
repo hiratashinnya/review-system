@@ -1,5 +1,5 @@
 ---
-version: "0.6.3"
+version: "0.6.4"
 ---
 # 論理プロセス
 
@@ -21,6 +21,22 @@ scheduled: ""
 edges:
   - to: SPEC-1
     ref_version: "0.3"
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: SPEC-32
+    ref_version: "0.3"
+  - to: SPEC-33
+    ref_version: "0.3"
+  - to: SPEC-34
+    ref_version: "0.3"
+  - to: SPEC-35
+    ref_version: "0.3"
+  - to: SPEC-36
+    ref_version: "0.3"
+  - to: SPEC-52
+    ref_version: "0.3"
+  - to: SPEC-53
+    ref_version: "0.3"
   - to: I-1
     ref_version: "0.6"
   - to: D-1
@@ -29,12 +45,14 @@ edges:
     ref_version: "0.5"
   - to: FND-1
     ref_version: "0.1"
+  - to: FND-20
+    ref_version: "0.1"
 ```
 </details>
 
-ノードファイル群を受け取り、YAMLフロントマターをパースして構造化ノードセットに変換する。
+ノードファイル群を受け取り、YAML フロントマターをパースして構造化ノードセットに変換する。変換と同時にパース段検証（RULE-023〜028）を実行し、パース不能（RULE-023）・⬡ 直後の YAML 欠如（RULE-024）・id/type/ref_version 欠如（RULE-025/026/027）・共通必須フィールドの欠如/型不正（RULE-028）を検出する（パース段処理という単一責務）。
 **入力**: I-1（ノードファイル群）・D-1（in-graph 集合）を消費（P→I/P→D）
-**出力**: 構造化ノードセット（P-2 へ）
+**出力**: 構造化ノードセット（P-2 へ）・パース段違反リスト（P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -333,9 +351,9 @@ trace_scope.include/exclude（I-5）とディレクトリ走査 .md ファイル
 
 ---
 
-## P-7: ノード著作プロセス
+## P-7: ノード著作・反映プロセス
 
-<details><summary>⬡ P-7 · v0.3</summary>
+<details><summary>⬡ P-7 · v0.4</summary>
 
 ```yaml
 id: P-7
@@ -345,16 +363,61 @@ scheduled: ""
 edges:
   - to: SPEC-26
     ref_version: "0.3"
-  - to: I-7
-    ref_version: "0.6"
-  - to: E-2
-    ref_version: "0.5"
   - to: FND-10
+    ref_version: "0.1"
+  - to: FND-19
     ref_version: "0.1"
 ```
 </details>
 
-仕様著者（ACTOR-1）がテンプレート（I-7）を用いてノードを著作し、ノードファイル（O-3）を生成する。著作エージェントは P-7 の内部定義（`.claude/agents/` の定義ファイル群）として組み込まれており、外部入力ではない。
+（P-7-1: 著作・P-7-2: 調停 に分担）ノードの著作から本ファイル反映までを担う親プロセス。著作エージェント・reconciliation エージェントはいずれも P-7 の内部定義（`.claude/agents/` の定義ファイル群）として組み込まれており、外部入力ではない。消費入力（I-7）・トリガ（E-2）の明示は各子プロセスに移す。
+
+---
+
+### P-7-1: 著作・tmp 出力
+
+<details><summary>⬡ P-7-1 · v0.1</summary>
+
+```yaml
+id: P-7-1
+type: P
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-38
+    ref_version: "0.3"
+  - to: I-7
+    ref_version: "0.6"
+  - to: E-2
+    ref_version: "0.5"
+```
+</details>
+
+仕様著者（ACTOR-1）がテンプレート（I-7）と著作エージェント（P-7 の内部定義）を用いてノードを著作し、`tmp/<sprint>/<parent-id>.md` に草案を出力する。
 **入力**: I-7（テンプレート参照）を消費（P→I）
-**出力**: O-3（著作済みノードファイル）が P-7 に依存（O→P）——著作者（ACTOR-1）が受け取る
+**出力**: ノード草案（tmp ファイル・P-7-2 へ）
 **トリガ**: E-2 に依存（P→E・著作要求）
+
+---
+
+### P-7-2: 調停・本ファイル反映
+
+<details><summary>⬡ P-7-2 · v0.1</summary>
+
+```yaml
+id: P-7-2
+type: P
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-39
+    ref_version: "0.3"
+  - to: E-2
+    ref_version: "0.5"
+```
+</details>
+
+reconciliation エージェントが P-7-1 の tmp 草案を検証（id 欠如等の検出）し、整合確認の上 doc-system 本ファイルへ転記して O-3（著作済みノードファイル）を生成する。
+**入力**: P-7-1 からの tmp 草案
+**出力**: O-3（著作済みノードファイル）が P-7-2 に依存（O→P）——著作者（ACTOR-1）が受け取る
+**トリガ**: E-2 に依存（P→E・P-7-1 完了後）
