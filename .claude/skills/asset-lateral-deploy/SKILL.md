@@ -45,7 +45,7 @@ disable-model-invocation: true
    | `skills/*/SKILL.md` | `.github/prompts/<name>.prompt.md` | `user-invocable: true` または未指定 |
    | `agents/*.md` | `.github/instructions/<name>.instructions.md` | エージェント定義全般 |
    | `skills/spec-principles/SKILL.md` | `.github/copilot-instructions.md` に展開 | `user-invocable: false`、PR1–PR10 をインライン化 |
-   | オーケストレータ（`disable-model-invocation: true`） | `.github/instructions/<name>.instructions.md` | orchestrator 型スキル |
+   | オーケストレータ（`disable-model-invocation: true`） | `.github/prompts/<name>.prompt.md` | ユーザー起動のスラッシュコマンドのため通常スキルと同様に prompt 化（スキル一覧表にも掲載） |
 
 3. **出力形式**
    - **Prompt** (`.github/prompts/<name>.prompt.md`): YAML frontmatter + Markdown body（SKILL.md をそのまま）
@@ -93,7 +93,7 @@ python scripts/lateral_deploy.py --target claude --dry-run
   - `name` が未記載でも →ディレクトリ名またはファイル stem でフォールバック（変換は実行）
 
 - **スキップされないスキル**:
-  - `disable-model-invocation: true` でも → `.github/instructions/<name>.instructions.md` に変換（文脈ルール・ガイドラインとして機能）
+  - `disable-model-invocation: true`（オーケストレータ）でも → ユーザー起動のスラッシュコマンドのため `.github/prompts/<name>.prompt.md` に変換し、スキル一覧表にも掲載する
 
 ---
 
