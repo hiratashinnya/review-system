@@ -1,5 +1,5 @@
 ---
-version: "0.6.4"
+version: "0.6.5"
 ---
 # 論理プロセス
 
@@ -96,7 +96,7 @@ edges:
     ref_version: "0.3"
   - to: SPEC-13
     ref_version: "0.3"
-  - to: I-4
+  - to: I-1-3
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -104,7 +104,7 @@ edges:
 </details>
 
 P-1 の構造化ノードセットを受け取り、各辺の ref_version と参照先ファイル version の x.y を比較（RULE-004）し、DD/Q/PEND ノードの義務辺存在を検出（RULE-001/002/022）する。
-**入力**: I-4（ref_version 値）を消費（P→I）
+**入力**: I-1-3（ref_version 値）を消費（P→I）
 **出力**: ドリフト・義務辺違反リスト（P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
@@ -126,9 +126,9 @@ edges:
     ref_version: "0.3"
   - to: SPEC-8
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -136,7 +136,7 @@ edges:
 </details>
 
 グラフの構造的健全性を検証する。always_error（RULE-005/007）は suppress/scheduled を無視して発火。孤立（RULE-005）・存在しない ID（RULE-007）・必須辺欠如（RULE-006）・階層親不在（RULE-008）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）を消費（P→I）
 **出力**: 構造違反リスト（P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
@@ -156,9 +156,9 @@ edges:
     ref_version: "0.3"
   - to: SPEC-16
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -166,7 +166,7 @@ edges:
 </details>
 
 SPEC・TD の condition 属性の存在と語彙、FR 配下の condition 網羅（normal 必須・failure/error 推奨）を検査する。condition 属性語彙（RULE-016）・FR の SPEC 網羅（RULE-017/018）・TD-SPEC condition 整合（RULE-019）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）を消費（P→I）
 **出力**: カバレッジ属性違反リスト（P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
@@ -188,9 +188,9 @@ edges:
     ref_version: "0.3"
   - to: SPEC-19
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -198,7 +198,7 @@ edges:
 </details>
 
 検証層ノード（FND/TC/VERIFY/TR）の辺と属性の完結性を verification ステージ発火ルールで検査する。FND/TC/VERIFY の必須辺（RULE-006 verification）・TR の result/log_ref（RULE-020/021）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）を消費（P→I）
 **出力**: 検証層違反リスト（P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 

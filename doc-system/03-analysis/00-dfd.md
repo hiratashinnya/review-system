@@ -113,10 +113,10 @@ flowchart LR
   P24(["P-2-4\n検証層完結性検査"]):::proc
 
   %% データフロー — L1 境界 → 子プロセス
-  LP1 -->|"構造化ノードセット\n+ I-4 ref_version"| P21
-  LP1 -->|"構造化ノードセット\n+ I-2 suppress\n+ I-3 scheduled"| P22
-  LP1 -->|"構造化ノードセット\n+ I-2 suppress\n+ I-3 scheduled"| P23
-  LP1 -->|"構造化ノードセット\n+ I-2 suppress\n+ I-3 scheduled"| P24
+  LP1 -->|"構造化ノードセット\n+ I-1-3 ref_version"| P21
+  LP1 -->|"構造化ノードセット\n+ I-1-1 suppress\n+ I-1-2 scheduled"| P22
+  LP1 -->|"構造化ノードセット\n+ I-1-1 suppress\n+ I-1-2 scheduled"| P23
+  LP1 -->|"構造化ノードセット\n+ I-1-1 suppress\n+ I-1-2 scheduled"| P24
   LP5 -->|"設定オブジェクト"| P21
   LP5 -->|"設定オブジェクト"| P22
   LP5 -->|"設定オブジェクト"| P23
@@ -129,7 +129,7 @@ flowchart LR
   P24 -->|"検証層違反リスト"| LP4
 ```
 
-> I-2（suppress）・I-3（scheduled）・I-4（ref_version）は I-1 ノードファイルに埋め込まれたフィールドであり、P-1 のパース段で抽出されて 構造化ノードセットに含まれる。Level 2 ではそれぞれを受け取る子プロセスとのフローとして明示する。
+> I-1-1（suppress）・I-1-2（scheduled）・I-1-3（ref_version）は I-1 ノードファイルに埋め込まれたフィールドであり、P-1 のパース段で抽出されて 構造化ノードセットに含まれる。Level 2 ではそれぞれを受け取る子プロセスとのフローとして明示する。
 
 ---
 
@@ -194,9 +194,9 @@ flowchart LR
 | ID | 内容 | 発生源 | L1 消費先 | L2 詳細消費先 |
 |---|---|---|---|---|
 | I-1 | ノードファイル群（.md + YAML フロントマター） | ACTOR-1 | P-1 | — |
-| I-2 | suppress 設定（ノード内フィールド） | ACTOR-1 | P-2（経由） | P-2-2 / P-2-3 / P-2-4 |
-| I-3 | scheduled 設定（ノード内フィールド） | ACTOR-1 | P-2（経由） | P-2-2 / P-2-3 / P-2-4 |
-| I-4 | ref_version 値（辺内フィールド） | ACTOR-1 | P-2（経由） | P-2-1 |
+| I-1-1 | suppress 設定（ノード内フィールド） | ACTOR-1 | P-2（経由） | P-2-2 / P-2-3 / P-2-4 |
+| I-1-2 | scheduled 設定（ノード内フィールド） | ACTOR-1 | P-2（経由） | P-2-2 / P-2-3 / P-2-4 |
+| I-1-3 | ref_version 値（辺内フィールド） | ACTOR-1 | P-2（経由） | P-2-1 |
 | I-5 | config.yaml（current_stage・must_link_to・trace_scope 等） | OS/FS | P-5 / P-6 | — |
 | I-6 | ディレクトリ走査 .md ファイルパス一覧 | OS/FS | P-6 | — |
 | I-7 | 型別著作テンプレートファイル群 | OS/FS（リポジトリ管理） | P-7 | P-7-1 |
