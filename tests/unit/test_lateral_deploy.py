@@ -279,7 +279,7 @@ class TestScanAssets(unittest.TestCase):
 
 
 class TestGenerateCopilotInstructions(unittest.TestCase):
-    """Test generate_copilot_instructions() orchestrator exclusion and table escaping."""
+    """Test generate_copilot_instructions() orchestrator inclusion and table escaping."""
 
     def _make_claude_dir(self, skills: list[tuple[str, str, bool]]) -> Path:
         """Create a temp .claude dir with given skills: [(name, description, is_orchestrator)]."""
@@ -296,8 +296,9 @@ class TestGenerateCopilotInstructions(unittest.TestCase):
             )
         return claude_dir
 
-    def test_orchestrator_excluded_from_skill_table(self):
-        """Skills with disable-model-invocation: true must not appear in the table."""
+    def test_orchestrator_included_in_skill_table(self):
+        """Orchestrators (disable-model-invocation: true) are user-invokable slash
+        commands, so they MUST appear in the table like any other skill."""
         claude_dir = self._make_claude_dir([
             ("align", "Alignment skill", False),
             ("asset-pipeline", "Pipeline orchestrator", True),
@@ -305,7 +306,21 @@ class TestGenerateCopilotInstructions(unittest.TestCase):
         assets = scan_assets(claude_dir)
         _, content = generate_copilot_instructions(assets, claude_dir)
         self.assertIn("`/align`", content)
-        self.assertNotIn("`/asset-pipeline`", content)
+        self.assertIn("`/asset-pipeline`", content)
+
+    def test_user_invocable_false_excluded_from_skill_table(self):
+        """Skills with user-invocable: false must not appear in the table."""
+        claude_dir = self._make_claude_dir([("align", "Alignment skill", False)])
+        hidden = claude_dir / "skills" / "spec-principles"
+        hidden.mkdir(parents=True)
+        (hidden / "SKILL.md").write_text(
+            "---\nname: spec-principles\ndescription: Principles\nuser-invocable: false\n---\nBody",
+            encoding="utf-8",
+        )
+        assets = scan_assets(claude_dir)
+        _, content = generate_copilot_instructions(assets, claude_dir)
+        self.assertIn("`/align`", content)
+        self.assertNotIn("`/spec-principles`", content)
 
     def test_pipe_in_description_is_escaped(self):
         """Pipe characters in description must be escaped for Markdown table validity."""
