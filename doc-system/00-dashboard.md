@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > 議論や著作が進んだらここを更新する。**全件列挙はしない**——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は**状態と優先度の要約**に絞る。
 >
-> **最終更新**: 2026-06-13（N9/N10 起票＝図生成機能・逆起こし機能 N 追加・分析層 DFD 生成（03-analysis/00-dfd.md））｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-13（N9/N10 クローズ＝VAL-5/6・SR-8/9 を sprint-2 scheduled で起票・分析層 DFD 生成（03-analysis/00-dfd.md））｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
 
 ---
 
@@ -20,7 +20,7 @@
 
 | ステージ | 対象型 | ノード | 状態 | レビュー |
 |---|---|---|---|---|
-| requirements | VAL / SR / FR / NFR / SPEC | 110 | ✅ 著作済み | ✅ N0 再点検済（VERIFY-2）・SPEC-44〜53・SPEC-14-1・FR-15/16 追加（FND-18 再処置・旧 SPEC-41/42/43 は粒度差し戻しで撤去） |
+| requirements | VAL / SR / FR / NFR / SPEC | 114 | ✅ 著作済み | ✅ N0 再点検済（VERIFY-2）・SPEC-44〜53・SPEC-14-1・FR-15/16 追加（FND-18 再処置・旧 SPEC-41/42/43 は粒度差し戻しで撤去）・VAL-5/6・SR-8/9（N9/N10 由来・`scheduled: sprint-2`・現フェーズ検査沈黙） |
 | analysis | ACTOR / I / O / D / P / E | 30 | ✅ 著作済み | ✅ 点検済（DFD 分解・FND 反映済・N5 で P-7→P-7-1/P-7-2 分解） |
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手 | — |
 | implementation | SRC（spec-inspector 本体・Python CLI） | 0 | ⬜ 未着手 | — |
@@ -41,10 +41,8 @@
 | N2 | **設計層（凍結セット）の着手** | 🟡 中 | `/impl-design-pipeline` ＋ design-author で ORC/DS/MOD/DM/PORT/… を著作。spec-inspector の物理設計 |
 | N3 | **実装（FR-10：spec-inspector CLI）** | 🔵 低 | Python・標準ライブラリのみ。段階①②③。設計確定後 |
 | N4 | **PEND-1 を設計段で再評価** | 🔵 低 | I-2/3/4 過分割（FND-6・INFO）。DM/CFG 設計時にトレードオフ比較 |
-| N9 | **図生成機能の FR/SPEC 著作**（ノードグラフ → DFD・クラス図等を機械出力） | 🔵 低 | N1 stage 進行・N2 設計層着手後。新 FR（post-mvp 候補）として要件に追加し SPEC を著作。DFD は 03-analysis/00-dfd.md で手動作成済み。 |
-| N10 | **逆起こし機能の FR 著作**（既存図 → ノード逆変換・次イテレーション） | 🔵 低 | N9 完了後。post-mvp ラベル付きで FR として起票。設計・実装は N9 の次サイクル。 |
 
-> ✅ 完了: N0（SPEC 品質強化分の再点検＝VERIFY-2）／旧 N1（SR-4 の NFR 化 → DD-1 で「SR-2 の重複・削除＋再配線」決定・反映済）／旧 N3（Q-1 → DD-2 昇格・VERIFY suppress[RULE-004]付与）／FND-16（FND-1 dangling ACTOR-3 → P-1 張替）／FND-17（→ DD-4 昇格・分析層ドリフト一括解消）／N6（DD-5 decided・SPEC-44〜49 著作・config NFR→[SPEC] 追加）／DD-6 spec 層（FR-15/16・SPEC-50/51 著作）／N7（FND-18 resolved・重複不可方針で再処置＝SPEC-52/53・SPEC-14-1 著作＋RULE-028 追加・初回 SPEC-41〜43 は粒度差し戻しで撤去）／N5（P 単一責務点検＝VERIFY-3・FND-19 で P-7→P-7-1/P-7-2 分解・FND-20 で P-1 にパース段検証 SPEC 接続・P-4/P-5/P-6 は PASS）／分析層 DFD 生成（03-analysis/00-dfd.md・Level 0 コンテキスト図・Level 1 E-1 点検フロー・Level 1 E-2 著作フロー・データフロー一覧）／N9/N10 起票。
+> ✅ 完了: N0（SPEC 品質強化分の再点検＝VERIFY-2）／旧 N1（SR-4 の NFR 化 → DD-1 で「SR-2 の重複・削除＋再配線」決定・反映済）／旧 N3（Q-1 → DD-2 昇格・VERIFY suppress[RULE-004]付与）／FND-16（FND-1 dangling ACTOR-3 → P-1 張替）／FND-17（→ DD-4 昇格・分析層ドリフト一括解消）／N6（DD-5 decided・SPEC-44〜49 著作・config NFR→[SPEC] 追加）／DD-6 spec 層（FR-15/16・SPEC-50/51 著作）／N7（FND-18 resolved・重複不可方針で再処置＝SPEC-52/53・SPEC-14-1 著作＋RULE-028 追加・初回 SPEC-41〜43 は粒度差し戻しで撤去）／N5（P 単一責務点検＝VERIFY-3・FND-19 で P-7→P-7-1/P-7-2 分解・FND-20 で P-1 にパース段検証 SPEC 接続・P-4/P-5/P-6 は PASS）／分析層 DFD 生成（03-analysis/00-dfd.md・Level 0 コンテキスト図・Level 1 E-1 点検フロー・Level 1 E-2 著作フロー・データフロー一覧）／**N9/N10 クローズ**（図生成＝VAL-5←SR-8・逆起こし＝VAL-6←SR-9 を `scheduled: sprint-2` で起票。FR/SPEC 以降は sprint-2 の実作業へ繰り越し）。
 
 ---
 

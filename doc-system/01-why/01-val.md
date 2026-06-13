@@ -1,5 +1,5 @@
 ---
-version: "0.2.0"
+version: "0.2.1"
 ---
 # 価値命題
 
@@ -72,3 +72,37 @@ edges: []
 </details>
 
 全層を一度に揃えなくても、現フェーズ・現ステージの対象だけを検査し、未来フェーズのノードを警告ノイズなく前進できる。
+
+---
+
+## VAL-5: グラフの図的可視化
+
+<details><summary>⬡ VAL-5 · v0.1</summary>
+
+```yaml
+id: VAL-5
+type: VAL
+labels: []
+scheduled: "sprint-2"
+edges: []
+```
+</details>
+
+ノードグラフから標準図（DFD・クラス図等）を機械生成し、ノード間の依存・データフローを可視化することで、レビュアー・メンテナが関係性を俯瞰し、開発の意思決定を支援できる。
+
+---
+
+## VAL-6: 図からの逆起こし（往復）
+
+<details><summary>⬡ VAL-6 · v0.1</summary>
+
+```yaml
+id: VAL-6
+type: VAL
+labels: []
+scheduled: "sprint-2"
+edges: []
+```
+</details>
+
+既存ドキュメントの図からノードグラフを機械的に逆起こしし、図とノードグラフの往復・既存図資産の取り込みを可能にする。
