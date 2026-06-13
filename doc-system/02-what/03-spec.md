@@ -1,5 +1,5 @@
 ---
-version: "0.3.2"
+version: "0.3.3"
 ---
 # 機能仕様
 
@@ -1491,81 +1491,6 @@ edges:
 
 ---
 
-## SPEC-41: I-1 フォーマット完全フィールドスキーマ（normal）
-
-<details><summary>⬡ SPEC-41 · v0.1</summary>
-
-```yaml
-id: SPEC-41
-type: SPEC
-labels: []
-scheduled: ""
-condition: normal
-edges:
-  - to: FR-1
-    ref_version: "0.2"
-  - to: FND-18
-    ref_version: "0.1"
-```
-</details>
-
-**前提条件**: in-graph ファイルが1件以上存在し、当該ファイルの `⬡` YAML ブロックに `id`・`type` フィールドが存在し PyYAML safe_load でパース成功している（SPEC-1 の正常系が先行している）。
-**入力/トリガ**: 検証ツールが当該ノードの YAML フィールドセットを完全スキーマ定義と照合する。
-**期待動作**: 全ノード型共通の必須フィールド（`id`・`type`・`labels`・`scheduled`・`edges`）が全て存在し、`labels` は配列・`scheduled` は文字列・`edges` は配列（空配列可）として検証を通過する。定義外キーが存在する場合は WARNING を1件出力するが ERROR にはならない。
-**例**: `{id: "SPEC-1", type: "SPEC", labels: [], scheduled: "", edges: [{to: "FR-1", ref_version: "0.2"}]}` → 必須フィールド全て存在・型正常 → 違反 0 件。`{id: "SPEC-99", type: "SPEC", labels: [], scheduled: "", edges: [], unknown_key: "foo"}` → `WARNING|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|unknown field: unknown_key` を1件出力。
-
----
-
-## SPEC-42: O-2 カバレッジテーブル出力フォーマット（normal）
-
-<details><summary>⬡ SPEC-42 · v0.1</summary>
-
-```yaml
-id: SPEC-42
-type: SPEC
-labels: []
-scheduled: ""
-condition: normal
-edges:
-  - to: FR-3
-    ref_version: "0.2"
-  - to: FND-18
-    ref_version: "0.1"
-```
-</details>
-
-**前提条件**: FR→SPEC グラフがパースされており、FR が1件以上存在する。`--coverage` オプションが指定されている。
-**入力/トリガ**: 検証ツールを `--coverage` オプション付きで実行する。
-**期待動作**: FR 単位の表形式カバレッジが以下フォーマットで stdout に出力される。ヘッダ行 `FR-id | normal | boundary | empty | failure | error` の後、FR を id 昇順でソートした行 `{FR-id} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜}`（✅=SPEC あり・⬜=なし）が続く。カバレッジ欠如がある FR については別セクションに `G{N}|{FR-id}|{condition}|coverage missing` を列挙する。
-**例**: FR-1 に `condition: normal` の SPEC のみ存在する場合 → `FR-1 | ✅ | ⬜ | ⬜ | ⬜ | ⬜` が出力され、gap セクションに `G1|FR-1|boundary|coverage missing`・`G2|FR-1|empty|coverage missing`・`G3|FR-1|failure|coverage missing`・`G4|FR-1|error|coverage missing` が列挙される。
-
----
-
-## SPEC-43: I-7 テンプレートファイルの必須構造（normal）
-
-<details><summary>⬡ SPEC-43 · v0.1</summary>
-
-```yaml
-id: SPEC-43
-type: SPEC
-labels: []
-scheduled: ""
-condition: normal
-edges:
-  - to: FR-11
-    ref_version: "0.2"
-  - to: FND-18
-    ref_version: "0.1"
-```
-</details>
-
-**前提条件**: `templates/<layer>/<type>.md` 形式のテンプレートファイルが存在する（layer ∈ {requirements, analysis, design, verification}）。テンプレートファイル自体は `trace_scope.exclude` により in-graph 検証対象外である。
-**入力/トリガ**: reconciliation エージェントが著作エージェント起動時に当該テンプレートファイルを SPEC-43 の基準で検証する。
-**期待動作**: テンプレートファイルが以下を全て含む場合に検証を通過する — `id:` プレースホルダ（`id: <PREFIX>-N` 形式）・`type:` フィールド・`edges:` セクション（最低1件の辺プレースホルダ）。さらに SPEC・TD 用テンプレートには `condition:` フィールドが存在し、TR 用テンプレートには `result:` と `log_ref:` フィールドが存在する。いずれかの必須構造が欠如している場合は検証エラー1件を出力する。
-**例**: `templates/requirements/SPEC.md` が `id: <SPEC-N>`・`type: SPEC`・`edges: [{to: FR-XX, ref_version: "0.0"}]`・`condition: normal` を全て含む → 必須構造充足 → 検証通過。`templates/verification/TR.md` に `result:` フィールドが存在しない → `ERROR|templates/verification/TR.md|template-check|(none)|required field missing: result` を出力。
-
----
-
 ## SPEC-44: ノードファイルはプレーンテキスト .md（normal）
 
 <details><summary>⬡ SPEC-44 · v0.1</summary>
@@ -1654,7 +1579,7 @@ edges:
 **前提条件**: in-graph ファイルが1件以上存在する。各ファイルは `---` で囲まれた YAML frontmatter を先頭に持つことが期待される。
 **入力/トリガ**: 検証ツールが in-graph 全ファイルの YAML frontmatter を読み込み、`version` フィールドを検査する。
 **期待動作**: 全 in-graph ファイルの frontmatter に `version:` フィールドが存在し、値が `"x.y.z"` 形式（x・y・z はそれぞれ非負整数・例: `"0.3.1"`）の文字列である。`version:` フィールドが存在しない・空文字・null のいずれかに該当するファイルは version 欠如として ERROR を1件出力する。
-**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.2"` → `x=0, y=3, z=2`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
+**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.3"` → `x=0, y=3, z=3`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
 
 ---
 
@@ -1677,7 +1602,7 @@ edges:
 **前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。接続マトリクスで SPEC の直接親は FR または別 SPEC と定義されている。
 **入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` を走査し、祖先型（SR・VAL 等）への直接辺を検出する。
 **期待動作**: SPEC ノードの `edges[].to` が全て FR・NFR・または別 SPEC（直接親 SPEC）を指し、SR・VAL などの祖先型を直接参照する辺が 0 件である。祖先型への直接辺が検出された場合は ERROR を1件出力する。
-**例**: `SPEC-41` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。仮に `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
+**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。仮に `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
 
 ---
 
