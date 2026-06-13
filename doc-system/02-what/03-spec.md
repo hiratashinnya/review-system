@@ -1,5 +1,5 @@
 ---
-version: "0.3.4"
+version: "0.3.5"
 ---
 # 機能仕様
 
@@ -1760,3 +1760,26 @@ edges:
 **出力フォーマット**: `ERROR|{file}:{line}|RULE-028|{id}|{message}`（`|` 区切り 5 フィールド。`{file}` は in-graph 相対パス、`{line}` は当該ノードの `⬡` マーカー行番号、`{message}` は違反フィールド名と期待型を述べる文）。
 **終了コード**: 違反ありなら 1。
 **例**: ノード `{id: "SPEC-99", type: "SPEC", labels: "foo", scheduled: "", edges: []}`（`labels` が文字列）を `doc-system/02-what/03-spec.md` の当該マーカー行で処理 → `ERROR|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|field 'labels' must be a list` を 1 件出力し、SPEC-99 の後続 RULE 評価を中断・終了コード 1。
+
+---
+
+## SPEC-54: 著作は記載内容入力を必須とする（normal）
+
+<details><summary>⬡ SPEC-54 · v0.1</summary>
+
+```yaml
+id: SPEC-54
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-13
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `.claude/agents/` に型別著作エージェント定義が存在し、著者（ACTOR-1）が著作要求（E-2）を起こす。
+**入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）に加えて著作対象ノードの記載内容（I-9：型・親 ID・依存辺・本文項目の指定）を入力として与える。
+**期待動作**: P-7-1 は I-7（構造の雛形）と I-9（記載内容）の両方を受け取り、記載内容をテンプレート構造に充填してノード草案（tmp）を生成する。I-9（記載内容）が与えられない場合は著作対象が定まらず、O-3（著作済みノードファイル）を生成できない（著作不成立）。テンプレート（I-7）のみでは O-3 を生成できないことを保証する。
+**例**: 著者が「type: FR・親 SR-1・本文4項目」という記載内容（I-9）を I-7（FR テンプレート）とともに P-7-1 に渡す → tmp 草案が生成され、reconciliation 経由で O-3 が生成される。I-9 を与えず I-7 のみ渡す → 著作対象不定で O-3 は生成されない。
