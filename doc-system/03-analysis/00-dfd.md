@@ -1,5 +1,5 @@
 ---
-version: "0.2.0"
+version: "0.2.1"
 ---
 # データフロー図（DFD）
 
@@ -23,12 +23,12 @@ flowchart LR
   ACTOR1["仕様著者\n(ACTOR-1)"]:::ext
   ACTOR2["レビュアー\n(ACTOR-2)"]:::ext
   FS["OS / ファイルシステム"]:::ext
-  SYS(["spec-inspector"]):::sys
+  SYS(("spec-inspector")):::sys
 
   ACTOR1 -->|"I-1 ノードファイル群"| SYS
-  ACTOR1 -->|"I-7 テンプレートファイル群"| SYS
   FS      -->|"I-5 config.yaml"| SYS
   FS      -->|"I-6 .md パス一覧"| SYS
+  FS      -->|"I-7 テンプレートファイル群"| SYS
   SYS     -->|"O-1 RULE 違反レポート"| ACTOR2
   SYS     -->|"O-2 カバレッジ点検結果"| ACTOR2
   SYS     -->|"O-3 著作済みノードファイル"| ACTOR1
@@ -84,7 +84,7 @@ flowchart TD
   P4      -->|"O-2 カバレッジ点検結果"| ACTOR2
 
   %% データフロー — 著作パイプライン
-  ACTOR1  -->|"I-7 テンプレート群"| P7
+  FS      -->|"I-7 テンプレート群"| P7
   P7      -->|"O-3 著作済みノードファイル"| ACTOR1
 ```
 
@@ -172,7 +172,7 @@ flowchart LR
   classDef proc  fill:#d5e8d4,stroke:#82b366,color:#000
 
   %% L1 境界
-  LA1in["ACTOR-1\nI-7 テンプレートファイル群"]:::l1ext
+  LFS["OS / FS\nI-7 テンプレートファイル群"]:::l1ext
   LA1out["ACTOR-1\nO-3 著作済みノードファイル"]:::l1ext
 
   %% P-7 の子プロセス
@@ -180,7 +180,7 @@ flowchart LR
   P72(["P-7-2\n調停・本ファイル反映"]):::proc
 
   %% データフロー
-  LA1in  -->|"I-7 テンプレート群"| P71
+  LFS    -->|"I-7 テンプレート群"| P71
   P71    -->|"tmp 草案"| P72
   P72    -->|"O-3 著作済みノードファイル"| LA1out
 ```
@@ -199,7 +199,7 @@ flowchart LR
 | I-4 | ref_version 値（辺内フィールド） | ACTOR-1 | P-2（経由） | P-2-1 |
 | I-5 | config.yaml（current_stage・must_link_to・trace_scope 等） | OS/FS | P-5 / P-6 | — |
 | I-6 | ディレクトリ走査 .md ファイルパス一覧 | OS/FS | P-6 | — |
-| I-7 | 型別著作テンプレートファイル群 | ACTOR-1 | P-7 | P-7-1 |
+| I-7 | 型別著作テンプレートファイル群 | OS/FS（リポジトリ管理） | P-7 | P-7-1 |
 | D-1 | in-graph ファイル集合（trace_scope フィルタ適用後） | P-6 | P-1 | — |
 
 ### 出力（O）
