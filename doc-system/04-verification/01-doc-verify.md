@@ -1,5 +1,5 @@
 ---
-version: "0.1.1"
+version: "0.1.2"
 ---
 # ドキュメント検証 — doc-system ドッグフーディング（要件〜分析層）
 
@@ -17,6 +17,7 @@ id: VERIFY-1
 type: VERIFY
 labels: []
 scheduled: ""
+suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: VAL-1
     ref_version: "0.2"
@@ -32,6 +33,8 @@ edges:
     ref_version: "0.4"
   - to: E-1
     ref_version: "0.4"
+  - to: DD-2
+    ref_version: "0.1"
 ```
 </details>
 
@@ -55,7 +58,7 @@ id: VERIFY-2
 type: VERIFY
 labels: []
 scheduled: ""
-suppress: []
+suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: FR-11
     ref_version: "0.2"
@@ -72,6 +75,8 @@ edges:
   - to: FND-17
     ref_version: "0.1"
   - to: Q-1
+    ref_version: "0.1"
+  - to: DD-2
     ref_version: "0.1"
 ```
 </details>

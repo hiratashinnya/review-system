@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.1.1"
 ---
 # 未決論点 — Questions
 
@@ -10,7 +10,7 @@ version: "0.1.0"
 
 ## Q-1: 凍結記録（VERIFY・解消済み FND）の ref_version ドリフト扱い
 
-**status: open**
+**status: closed**（2026-06-13 DD-2 へ昇格・決定済み）
 
 <details><summary>⬡ Q-1 · v0.1</summary>
 
@@ -21,7 +21,7 @@ labels: []
 scheduled: ""
 suppress: []
 edges:
-  - to: VERIFY-1
+  - to: DD-2
     ref_version: "0.1"
 ```
 </details>

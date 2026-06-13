@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.1.1"
 ---
 # 意思決定 — Decision Log
 
@@ -38,3 +38,111 @@ edges: []
 - `02-what/01-fr.md`: FR-1（ノードグラフの構造化表現）・FR-9（トレース対象集合の宣言）を `→SR-4` から `→SR-2` へ再配線。各ノードに `→DD-1` を付与。
 - `02-what/02-nfr.md`: NFR-1（プレーンテキスト形式）・NFR-2（標準ライブラリでパース可能）・NFR-6（ライフサイクルを型で判定）を `→SR-4` から `→SR-2` へ再配線。各ノードに `→DD-1` を付与。
 - 分析層への波及: 旧 SR-4 を指していた ACTOR-3 は FND-1 で削除済み。他に SR-4 参照ノードはなく、分析層（ACTOR/I/O/D/P/E）の辺は不変。
+
+---
+
+## DD-2: VERIFY の RULE-004 免除・FND は再検証シグナルとして据え置き（Q-1 から昇格）
+
+**status: decided**（2026-06-13 反映完了）
+
+<details><summary>⬡ DD-2 · v0.1</summary>
+
+```yaml
+id: DD-2
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: VERIFY ノードや解消済み FND など「ある時点の状態をレビュー/指摘した凍結記録」の ref_version は、参照先ファイルが版上げされるたびに RULE-004 ドリフト WARNING を発火し続ける。（Q-1 より昇格）
+
+**選択肢**:
+- **A（VERIFY 免除）**: VERIFY に `suppress: [RULE-004]` を付与し、凍結スナップショットとして RULE-004 を免除。
+- **B（都度更新）**: 記録系も生きた依存辺として ref_version を最新化。実際にはレビューしていない版を指す矛盾が生じうる。
+- **C（シグナル据え置き）**: ドリフト発火を再検証シグナルとして活用し、陳腐化したら新 VERIFY/FND を起票。
+
+**決定**:
+- **VERIFY ノード**: A を採用。`suppress: [RULE-004]` を付与し「過去の検証事実スナップショット」として凍結。理由：VERIFY は「いつ・何の版を・どのようにレビューしたか」の過去事実であり、参照先の将来変更で書き換えると証跡として不正確になる。本文に実施日・対象版を記載することを前提とする。
+- **FND（解消済み含む）**: C を採用。ドリフト発火を「記録が陳腐化→再検証を検討」のシグナルとして活用する。辺逆転後（target→FND）もドリフト発火は有効な再検証シグナルとなる。
+
+**影響範囲**:
+- `04-verification/01-doc-verify.md`: VERIFY-1・VERIFY-2 に `suppress: [RULE-004]` を付与（v0.1.1→0.1.2）。各ノードに `→DD-2` バックリファレンス辺を付与。
+- `04-verification/05-questions.md`: Q-1 を `status: closed`（DD-2 へ昇格済み）に更新（v0.1.0→0.1.1）。
+
+---
+
+## DD-3: FND 起票時の ref_version 本文記録ルール制度化
+
+**status: decided**（2026-06-13 反映完了）
+
+<details><summary>⬡ DD-3 · v0.1</summary>
+
+```yaml
+id: DD-3
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転するため、元の指摘時の `ref_version`（どの版の対象を指摘したか）が辺情報から失われる。
+
+**選択肢**:
+- **A（本文明記ルール）**: FND 起票時に `edges[].ref_version` の値を本文にも明記。実装コストゼロ・プロセス追加のみ。
+- **B（専用属性追加）**: FND ノードに `target_ref_version` 等の専用属性を追加。スキーマ拡張コスト大・既存 FND の遡及修正が発生。
+- **C（バックリファレンス辺の ref_version を使う）**: target→FND 辺の ref_version に「処置時の版」を記録。辺の意味論（指摘時の版→処置時の版）が変わり混乱を招く。
+
+**決定**: A を採用。FND 起票時に `edges[].ref_version` 値を本文に明記することを制度化。記録形式：
+```
+**指摘時 ref_version**: {ノードID} "{ref_version 値}"（{ファイル名} v{version} 時点）
+```
+
+**影響範囲**（すべてグラフ外プロセスドキュメント・in-graph 義務辺不要）:
+- `.claude/agents/verification-author.md`: FND 著作ルールに本文記録ルールを追加。
+- `docs/doc-system/07-authoring-guide.md`: FND 解消ライフサイクルセクションに追記。
+- `.claude/skills/spec-principles/SKILL.md`: PR7 関連のバックリファレンス規律に注記追加。
+- `CLAUDE.md`: 「判断の仰ぎ方」セクションのバックリファレンス規律に注記追加。
+
+---
+
+## DD-4: 分析層 ref_version ドリフト群の一括解消（FND-17 から昇格）
+
+**status: decided**（2026-06-13 反映完了）
+
+<details><summary>⬡ DD-4 · v0.1</summary>
+
+```yaml
+id: DD-4
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: FND-17（findings.md）で追跡していた分析層 ref_version ドリフト群を正式な意思決定として記録し、「生きた依存辺」を一括解消する。凍結記録（VERIFY-1・解消済み FND-2/FND-4）は DD-2 に委ねる。
+
+**ドリフト群の整理**:
+
+| 区分 | 辺 | 現 ref_version | 更新後 | 決定 |
+|---|---|---|---|---|
+| 生きた依存辺 | E-1 → ACTOR-1 | "0.2" | "0.3" | 更新 |
+| 生きた依存辺 | E-2 → ACTOR-1 | "0.2" | "0.3" | 更新 |
+| 生きた依存辺 | O-1 → ACTOR-2 | "0.2" | "0.3" | 更新 |
+| 生きた依存辺 | O-2 → ACTOR-2 | "0.2" | "0.3" | 更新 |
+| 凍結記録 VERIFY-1 | VERIFY-1 → ACTOR-1/I-1/P-1/E-1 | "0.2"/"0.4" | 据え置き | DD-2（suppress[RULE-004]）に委ねる |
+| 解消済み FND-2 | FND-2 → P-2 | "0.5" | 据え置き | DD-2（再検証シグナル）に委ねる |
+| 解消済み FND-4 | FND-4 → P-3 | "0.5" | 据え置き | DD-2 に委ねる |
+| 生きた義務辺 | PEND-1 → I-2 | "0.5" | "0.6" | 更新（PEND-1 は生きた義務辺） |
+| forward 辺不一致 | FND-3 → E-1 | "0.4" | E-2 "0.5" に張替え | 更新（E-2 が処置対象ノード） |
+
+**決定**: 推奨案（生きた依存辺のみ一括更新・凍結記録は DD-2 に委ねる）を採用。
+
+**影響範囲**:
+- `03-analysis/04-events.md`: E-1・E-2 の ACTOR-1 辺 ref_version 更新 + →DD-4 付与（v0.5.1→0.5.2）。
+- `03-analysis/02-io.md`: O-1・O-2 の ACTOR-2 辺 ref_version 更新 + →DD-4 付与（v0.6.1→0.6.2）。
+- `04-verification/02-findings.md`: FND-3 の forward 辺を E-2 に張替え・ref_version 更新 + →DD-4 付与、FND-17 を resolved に更新（v0.1.3→0.1.4）。
+- `04-verification/03-pend.md`: PEND-1 の I-2 辺 ref_version 更新 + →DD-4 付与（v0.1.0→0.1.1）。

@@ -1,5 +1,5 @@
 ---
-version: "0.6.2"
+version: "0.6.3"
 ---
 # 論理プロセス
 
@@ -27,6 +27,8 @@ edges:
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
+  - to: FND-1
+    ref_version: "0.1"
 ```
 </details>
 

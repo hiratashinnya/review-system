@@ -1,5 +1,5 @@
 ---
-version: "0.1.0"
+version: "0.1.1"
 ---
 # 先送り — PEND-1
 
@@ -18,8 +18,10 @@ labels: []
 scheduled: ""
 edges:
   - to: I-2
-    ref_version: "0.5"
+    ref_version: "0.6"
   - to: FND-6
+    ref_version: "0.1"
+  - to: DD-4
     ref_version: "0.1"
 ```
 </details>

@@ -1,5 +1,5 @@
 ---
-version: "0.1.3"
+version: "0.1.4"
 ---
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
@@ -19,15 +19,18 @@ type: FND
 labels: []
 scheduled: ""
 edges:
-  - to: ACTOR-3
-    ref_version: "0.2"
+  - to: P-1
+    ref_version: "0.6"
+  - to: FND-16
+    ref_version: "0.1"
 ```
 </details>
 
 **深刻度**: ERROR
 **内容**: ACTOR-3（spec-inspector）は外部 ACTOR として置かれているが、spec-inspector は本システム（検証 CLI）そのもの＝**系内処理**であり、既存の P-1〜P-4 と同一実体の二重表現である。out 辺は `→SR-4` のみで、E/I/O いずれからも被依存辺を受けず（`must_be_linked_from: ACTOR ← [E,I,O]` 違反・実質孤立に近い）、価値到達経路から浮いている。系外＝非アクタ（PR3/PR4）の原則に反する。
 **対応状況**: resolved
-**対応内容**: ACTOR-3 を削除し、spec-inspector を系内処理（P-1〜P-4）へ一本化した（actors.md v0.2→0.3）。ACTOR-3 は削除済みのためバックリファレンス辺の付与先ノードが存在しない。
+**対応内容**: ACTOR-3 を削除し、spec-inspector を系内処理（P-1〜P-4）へ一本化した（actors.md v0.2→0.3）。ACTOR-3 は削除済みのためバックリファレンス辺の付与先ノードが存在しない。ACTOR-3 の役割を吸収した P-1（ノード受付・パース）を forward 辺の張替え先とした（FND-16 対応）。P-1 に `→FND-1` バックリファレンスを付与済み。
+**指摘時 ref_version**: ACTOR-3 "0.2"（actors.md v0.2 時点・当該ノードはその後削除済み）
 
 ---
 
@@ -63,15 +66,18 @@ type: FND
 labels: []
 scheduled: ""
 edges:
-  - to: E-1
-    ref_version: "0.4"
+  - to: E-2
+    ref_version: "0.5"
+  - to: DD-4
+    ref_version: "0.1"
 ```
 </details>
 
 **深刻度**: WARNING
 **内容**: events.md は E-1・E-3 のみで E-2 が欠番。E-1 のスティミュラス「仕様著者または CI」は CI 駆動を含意しており、CI 定期/フック起動が別事象として落ちている疑いがある。削除なら理由、別事象なら起票が必要。
 **対応状況**: resolved
-**対応内容**: E-3（著作要求）を E-2 へリネームして欠番を補正した（events.md・processes.md P-7 参照追従）。E-2 に `→FND-3` バックリファレンス辺を付与済み。
+**対応内容**: E-3（著作要求）を E-2 へリネームして欠番を補正した（events.md・processes.md P-7 参照追従）。E-2 に `→FND-3` バックリファレンス辺を付与済み。forward 辺は指摘処置対象ノード E-2 を指すよう修正（FND-17 (d) 対応・DD-4 参照）。
+**指摘時 ref_version**: E-1 "0.4"（events.md v0.4 時点に欠番として指摘。処置は E-3→E-2 リネームで、現在は E-2 が対象ノード）
 
 ---
 
@@ -363,8 +369,8 @@ edges:
 
 **深刻度**: ERROR
 **内容**: FND-1（ACTOR-3 系境界誤りの指摘・resolved）が依存辺 `to: ACTOR-3` を保持しているが、ACTOR-3 は FND-1 の処置で削除済みであり、存在しない ID を参照している（RULE-007・always_error＝stage/suppress に関わらず発火）。FND は対象要素への辺が1本以上必須（RULE-006: FND→any）だが、唯一の対象が消滅したため forward 辺が宙に浮いている。FND-1 本文には「削除済みのため付与先なし」と記載済みだが、forward 辺自体は残置されダングリングになっている。
-**対応状況**: open
-**対応内容（推奨）**: FND-1 の forward 辺を、ACTOR-3 の役割を吸収した在グラフノードへ張り替える。**推奨＝P-1（ノード受付・パース＝spec-inspector 系内処理の代表）** に `to: P-1` で再接続し、P-1 に `→FND-1` バックリファレンスを付与。代替案：旧 ACTOR-3 の上流だった SR-2 に再接続。要件フェーズのためオーナー判断を仰ぐ（暫定で張り替えない）。
+**対応状況**: resolved
+**対応内容**: FND-1 の forward 辺を `to: ACTOR-3` から `to: P-1（processes.md v0.6）` に張替え。P-1（ノード受付・パース）は ACTOR-3 の系内処理の役割を担う代表ノード。P-1 に `→FND-1` バックリファレンスを付与済み。FND-1 に `→FND-16` バックリファレンスを付与済み（dangling 修正の根拠 FND として記録）。
 
 ---
 
@@ -391,5 +397,5 @@ edges:
 - (c) 解消済み FND-2→P-2("0.5"→0.6)・FND-3→E-1("0.4"→0.5)・FND-4→P-3("0.5"→0.6)、義務辺 PEND-1→I-2("0.5"→0.6) がドリフト。
 - (d) 付随：FND-3 の forward 辺が E-1 を指すが、当該指摘の処置（E-3→E-2 リネーム）の back-ref は E-2 に付与されており、forward/back の対象ノードが不一致（FND-3 は本来 E-2 を指すべき疑い）。
 
-**対応状況**: open
-**対応内容（推奨）**: current_stage を analysis へ進める段（ダッシュボード N1）で一括解消する。「生きた」依存辺（E/O→ACTOR の "0.2"→"0.3"、FND-3 forward の E-1→E-2＋"0.5"）は再点検のうえ ref_version 更新。「凍結記録」（VERIFY-1、解消済み FND-2/4）の扱いは Q-1 の決定に従う。requirements フェーズでは分析層を据え置き、本 FND で追跡のみ。
+**対応状況**: resolved
+**対応内容**: DD-4（decisions.md）として昇格し推奨案を実施。「生きた」依存辺（E-1/E-2→ACTOR-1・O-1/O-2→ACTOR-2 の ref_version "0.2"→"0.3"、FND-3 forward の E-1→E-2＋"0.5"、PEND-1→I-2 の "0.5"→"0.6"）を一括更新済み。凍結記録（VERIFY-1・解消済み FND-2/FND-4）は DD-2 決定（suppress[RULE-004]・再検証シグナル）に委ねる。処置対象ノードに `→DD-4` バックリファレンス付与済み。
