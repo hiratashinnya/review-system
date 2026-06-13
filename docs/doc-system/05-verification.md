@@ -58,10 +58,12 @@ version: "0.2.1"
 | RULE-025 | ノード YAML に `id` フィールドが存在しない（または空文字） | ERROR |
 | RULE-026 | ノード YAML に `type` フィールドが存在しない（または空文字） | ERROR |
 | RULE-027 | 辺エントリに `ref_version` フィールドが存在しない | ERROR |
+| RULE-028 | ノード YAML の共通必須フィールド（`labels` / `scheduled` / `edges`）が欠如、または型不正（`labels` が非リスト・`scheduled` が非文字列・`edges` が非リスト） | ERROR |
 
 > RULE-023/024 は fail-close（当該ファイルのパースを中断し、後続 RULE を発火させない）。
-> RULE-025/026/027 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
+> RULE-025/026/027/028 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
 > RULE-023/024 は `always_error` 相当（suppress/scheduled/activate_stage 不可）。
+> RULE-025/026/027 は `id`/`type`/`ref_version` の存在を、RULE-028 は残りの共通必須フィールド（`labels`/`scheduled`/`edges`）の存在と型を検証する（フィールドスキーマの完全定義を in-graph 化）。
 
 **トリガ**：ファイルの読み込み時（段階①の前）。
 

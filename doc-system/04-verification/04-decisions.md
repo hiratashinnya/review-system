@@ -1,5 +1,5 @@
 ---
-version: "0.1.3"
+version: "0.1.4"
 ---
 # 意思決定 — Decision Log
 
@@ -176,10 +176,10 @@ edges: []
 **決定**: A + B の組み合わせを採用（N6 処置・2026-06-13）。SPEC-44〜49（NFR-1〜6 各1件・normal）著作・config.yaml の `must_link_to` を `SPEC → [FR, NFR]` に変更・`must_be_linked_from: NFR ← [SPEC]` ルールを requirements ステージで追加・NFR-1〜6 に `→DD-5` バックリファレンス付与を実施した。
 
 **影響範囲（2026-06-13 反映完了）**:
-- `config.yaml`（out-of-graph）: `rule_activation` に NFR SPEC 必須化ルール（RULE-028 相当）を追加。`must_link_to` に `NFR → [SPEC]` を追加。
-- `docs/doc-system/05-verification.md`: 新ルール定義を追記。
-- `doc-system/02-what/02-nfr.md`: NFR-1〜6 それぞれに SPEC 導出（内容と suppress 要否は個別判断）→ 各 NFR に `→DD-5` バックリファレンス付与。
-- `.claude/agents/requirements-author.md`・`spec-author.md`・`docs/doc-system/07-authoring-guide.md`: NFR の SPEC 導出必須規約を追記。
+- `config.yaml`（out-of-graph）: `must_link_to` を `SPEC → [FR, NFR]` に変更（SPEC が NFR を直接親にできるよう拡張）。`must_be_linked_from` に `NFR ← [SPEC]`（requirements ステージ・warning）を追加。**番号付き RULE は新設せず config 駆動の被依存辺ルールで実装**（当初提案の「RULE-028 相当」は採らず・RULE-028 は別件のフィールドスキーマ検査に割当）。
+- `doc-system/02-what/03-spec.md`: SPEC-44〜49（NFR-1〜6 各1件・normal）を著作。
+- `doc-system/02-what/02-nfr.md`: NFR-1〜6 それぞれに `→DD-5` バックリファレンス付与。
+- 残作業（未反映）: `.claude/agents/requirements-author.md`・`spec-author.md`・`docs/doc-system/07-authoring-guide.md` への「NFR の SPEC 導出必須」規約追記は今後（著作プロセスへの定着）。
 
 ---
 

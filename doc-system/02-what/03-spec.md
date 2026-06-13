@@ -1,5 +1,5 @@
 ---
-version: "0.3.3"
+version: "0.3.4"
 ---
 # 機能仕様
 
@@ -421,12 +421,44 @@ condition: normal
 edges:
   - to: FR-6
     ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: FR→SPEC→TD のグラフがパースされている
 **入力/トリガ**: CLI を `--coverage` オプションで実行する
 **期待動作**: FR ごとに condition 軸（normal/boundary/empty/failure/error）で SPEC と TD の充足状況を表にしたカバレッジレポートを出力する
+
+---
+
+## SPEC-14-1: カバレッジテーブルの出力フォーマット（normal）
+
+<details><summary>⬡ SPEC-14-1 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14
+    ref_version: "0.3"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: FR→SPEC→TD のグラフがパース済みで、SPEC-14（カバレッジレポート生成）の `--coverage` 実行によりカバレッジテーブル本体が生成される文脈である。gap（カバレッジ欠如）の別セクション出力は SPEC-14 本体および RULE-017/018 の責務であり、本 SPEC ではテーブル本体のフォーマットのみを規定する。
+**入力/トリガ**: 検証ツールを `--coverage` オプションで実行する。
+**期待動作**: ヘッダ行 `FR-id | normal | boundary | empty | failure | error` を 1 行出力し、続けて全 FR を FR-id 昇順（接頭辞を除いた数値部の昇順）でソートした各行 `{FR-id} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜}` を出力する。各セルは当該 FR にその condition の SPEC が存在すれば `✅`、不在なら `⬜` とする。
+**出力フォーマット**: 1 行目はヘッダ `FR-id | normal | boundary | empty | failure | error`。2 行目以降は FR 1 件につき 1 行で `{FR-id} | {セル} | {セル} | {セル} | {セル} | {セル}`（` | ` 区切り 6 フィールド、列順は normal/boundary/empty/failure/error、セルは `✅` または `⬜`）。行はソートキー FR-id の数値部昇順で並ぶ。
+**終了コード**: 0。
+**例**: FR-1 に normal/empty/failure/error の SPEC があり boundary がない、FR-2 が次に存在する場合 → 出力は
+`FR-id | normal | boundary | empty | failure | error`
+`FR-1 | ✅ | ⬜ | ✅ | ✅ | ✅`
+`FR-2 | ...`（FR-2 が FR-1 の次の行・id 昇順）→ 終了コード 0。
 
 ---
 
@@ -1579,7 +1611,7 @@ edges:
 **前提条件**: in-graph ファイルが1件以上存在する。各ファイルは `---` で囲まれた YAML frontmatter を先頭に持つことが期待される。
 **入力/トリガ**: 検証ツールが in-graph 全ファイルの YAML frontmatter を読み込み、`version` フィールドを検査する。
 **期待動作**: 全 in-graph ファイルの frontmatter に `version:` フィールドが存在し、値が `"x.y.z"` 形式（x・y・z はそれぞれ非負整数・例: `"0.3.1"`）の文字列である。`version:` フィールドが存在しない・空文字・null のいずれかに該当するファイルは version 欠如として ERROR を1件出力する。
-**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.3"` → `x=0, y=3, z=3`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
+**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.4"` → `x=0, y=3, z=4`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
 
 ---
 
@@ -1674,3 +1706,57 @@ edges:
 **期待動作**: 各ノードの in-degree（被参照数）・out-degree（参照数）・ハブ判定（in-degree または out-degree が閾値以上のノードをハブとして識別）を含むメトリクスレポートが stdout に出力される。レポートはノードを id 昇順でソートした行形式（`{node-id} | in={N} | out={N} | hub={yes/no}`）で表示され、exit code 0 で正常終了する。
 **合格例**: ノード FR-1（被参照: SPEC-1, SPEC-2 の 2 件、参照先: SR-1 の 1 件）を含むグラフに `--complexity` を実行 → stdout に `FR-1 | in=2 | out=1 | hub=no`（in-degree 2、out-degree 1、閾値未満のためハブ判定 no）が含まれ、exit code 0 で終了する。
 **違反例**: `--complexity` を実行したが stdout に何も出力されない・またはメトリクス行に `in=` / `out=` フィールドが欠落する → 期待動作を満たさない。
+
+---
+
+## SPEC-52: I-1 完全フィールドスキーマ適合（normal）
+
+<details><summary>⬡ SPEC-52 · v0.1</summary>
+
+```yaml
+id: SPEC-52
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-1
+    ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、フィールドスキーマ検証（RULE-025/026/027/028）が当該ノードに対して評価される。
+**入力/トリガ**: 検証ツールが、共通必須フィールド（`id` 文字列・非空、`type` 文字列・非空、`labels` リスト・空可、`scheduled` 文字列・空可、`edges` リスト・各エントリに `to` と `ref_version`）を全て備え、かつ型別必須拡張フィールド（SPEC/TD は `condition`、TR は `result` と `log_ref`）も備えたノードを処理する。
+**期待動作**: 当該ノードに対して RULE-025・RULE-026・RULE-027・RULE-028 をいずれも発火させず、フィールドスキーマ違反を 0 件として通過する（当該ノード起因のエラー出力なし）。スキーマ違反が他に 0 件ならプロセス終了コードは 0。
+**出力フォーマット**: 当該ノード起因の `ERROR|...` 行を一切出力しない（標準出力に当該ノードのスキーマ違反行が現れない）。
+**終了コード**: 違反 0 件なら 0。
+**例**: ノード `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → `id` 非空文字列・`type` 非空文字列・`labels` 空リスト・`scheduled` 空文字列・`edges` リストで各エントリに `to` と `ref_version` あり（FR は型別拡張フィールドなし）→ RULE-025/026/027/028 いずれも非発火・違反 0 件・終了コード 0。
+
+---
+
+## SPEC-53: 共通必須フィールドの型不正・欠如検出（failure・RULE-028）
+
+<details><summary>⬡ SPEC-53 · v0.1</summary>
+
+```yaml
+id: SPEC-53
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-1
+    ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みである。`id`・`type` の欠如/空は RULE-025/026 が、edge の `ref_version` 欠如は RULE-027 が担当するため、それらは適合済みとし、本検査は共通必須フィールド `labels`・`scheduled`・`edges` の存在と型のみを評価する。
+**入力/トリガ**: 検証ツールが、`labels` が非リスト（例: 文字列）・`scheduled` が非文字列・`edges` が非リスト・またはこれら 3 キーのいずれかが欠如、のいずれか 1 つに該当するノードを処理する。
+**期待動作**: 当該違反を RULE-028 ERROR として 1 件出力し、当該ノードに対する後続 RULE 評価を中断する（他ファイル・他ノードの処理は継続）。違反が 1 件以上あればプロセス終了コードは 1。
+**出力フォーマット**: `ERROR|{file}:{line}|RULE-028|{id}|{message}`（`|` 区切り 5 フィールド。`{file}` は in-graph 相対パス、`{line}` は当該ノードの `⬡` マーカー行番号、`{message}` は違反フィールド名と期待型を述べる文）。
+**終了コード**: 違反ありなら 1。
+**例**: ノード `{id: "SPEC-99", type: "SPEC", labels: "foo", scheduled: "", edges: []}`（`labels` が文字列）を `doc-system/02-what/03-spec.md` の当該マーカー行で処理 → `ERROR|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|field 'labels' must be a list` を 1 件出力し、SPEC-99 の後続 RULE 評価を中断・終了コード 1。
