@@ -108,6 +108,15 @@ description: '{description_safe}'
     return output_path, prompt_content
 
 
+def _build_instructions_content(tools: str, model: str, body: str) -> str:
+    """Build .instructions.md body with standard applyTo header.
+
+    If tools is empty the HTML comment line is omitted entirely.
+    """
+    tools_line = f"<!-- tools: {tools} | model: {model} -->\n" if tools else ""
+    return f"---\napplyTo: '**'\n---\n{tools_line}{body}"
+
+
 def convert_agent_to_instructions(agent_file: Path, fm: dict, body: str) -> tuple[str, str]:
     """Convert agent .md to GitHub Copilot .instructions.md format."""
     name = fm.get("name", agent_file.stem)
@@ -115,21 +124,20 @@ def convert_agent_to_instructions(agent_file: Path, fm: dict, body: str) -> tupl
     model = fm.get("model", "inherit")
 
     output_path = f".github/instructions/{name}.instructions.md"
-
-    # Format tools list as HTML comment
-    tools_comment = f"<!-- tools: {tools} | model: {model} -->"
-
-    instructions_content = f"""---
-applyTo: '**'
----
-{tools_comment}
-{body}"""
+    instructions_content = _build_instructions_content(tools, model, body)
 
     return output_path, instructions_content
 
 
 def extract_spec_principles(principles_file: Path) -> str:
-    """Extract PR1-PR10 from spec-principles/SKILL.md for copilot-instructions.md."""
+    """Extract PR1-PR10 from spec-principles/SKILL.md for copilot-instructions.md.
+
+    NOTE: Assumes the current spec-principles/SKILL.md structure where PR1/PR2/PR3
+    appear near the start of the principles section and the section ends with ---
+    or within 50 lines. Structural changes to spec-principles/SKILL.md (new
+    sections containing PR1-PR3, heading renames, or principles exceeding 50 lines)
+    may require updating this heuristic.
+    """
     if not principles_file.exists():
         return ""
 
@@ -169,7 +177,10 @@ def generate_copilot_instructions(
         content = skill_file.read_text(encoding='utf-8')
         fm, _ = parse_frontmatter(content)
 
-        if fm.get("user-invocable") != "false":
+        if (
+            fm.get("user-invocable") != "false"
+            and fm.get("disable-model-invocation") != "true"
+        ):
             name = fm.get("name", skill_file.parent.name)
             description = fm.get("description", "")
             # Escape | and strip newlines to keep the Markdown table valid
@@ -397,12 +408,7 @@ def main():
             output_path = f".github/instructions/{name}.instructions.md"
             tools = fm.get("tools", "")
             model = fm.get("model", "inherit")
-            tools_comment = f"<!-- tools: {tools} | model: {model} -->" if tools else ""
-            instructions_content = f"""---
-applyTo: '**'
----
-{tools_comment}
-{body}"""
+            instructions_content = _build_instructions_content(tools, model, body)
             outputs.append((output_path, instructions_content))
             print(f"  ✓ {name} → {output_path} (orchestrator)")
         else:
