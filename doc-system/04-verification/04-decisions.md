@@ -1,5 +1,5 @@
 ---
-version: "0.1.2"
+version: "0.1.3"
 ---
 # 意思決定 — Decision Log
 
@@ -151,7 +151,7 @@ edges: []
 
 ## DD-5: NFR から SPEC 導出を必須化する
 
-**status: open**（影響範囲調査中・反映未完了）
+**status: decided**（2026-06-13 反映完了）
 
 <details><summary>⬡ DD-5 · v0.1</summary>
 
@@ -160,19 +160,7 @@ id: DD-5
 type: DD
 labels: []
 scheduled: ""
-edges:
-  - to: NFR-1
-    ref_version: "0.2"
-  - to: NFR-2
-    ref_version: "0.2"
-  - to: NFR-3
-    ref_version: "0.2"
-  - to: NFR-4
-    ref_version: "0.2"
-  - to: NFR-5
-    ref_version: "0.2"
-  - to: NFR-6
-    ref_version: "0.2"
+edges: []
 ```
 </details>
 
@@ -185,7 +173,9 @@ edges:
 
 **推奨**: A + B の組み合わせ。理由：NFR は「非機能」とはいえ機械検証可能な制約（例: NFR-1「プレーンテキスト形式」→ ファイルのバイナリ有無検査 SPEC、NFR-2「標準ライブラリのみ」→ import チェック SPEC）に落とせるものが多い。定量化が難しい NFR は suppress で免除するが理由コメント必須とする。C は検証穴を永続化するため不採用。
 
-**影響範囲（調査後に確定・現在は義務辺として開放）**:
+**決定**: A + B の組み合わせを採用（N6 処置・2026-06-13）。SPEC-44〜49（NFR-1〜6 各1件・normal）著作・config.yaml の `must_link_to` を `SPEC → [FR, NFR]` に変更・`must_be_linked_from: NFR ← [SPEC]` ルールを requirements ステージで追加・NFR-1〜6 に `→DD-5` バックリファレンス付与を実施した。
+
+**影響範囲（2026-06-13 反映完了）**:
 - `config.yaml`（out-of-graph）: `rule_activation` に NFR SPEC 必須化ルール（RULE-028 相当）を追加。`must_link_to` に `NFR → [SPEC]` を追加。
 - `docs/doc-system/05-verification.md`: 新ルール定義を追記。
 - `doc-system/02-what/02-nfr.md`: NFR-1〜6 それぞれに SPEC 導出（内容と suppress 要否は個別判断）→ 各 NFR に `→DD-5` バックリファレンス付与。
@@ -195,7 +185,7 @@ edges:
 
 ## DD-6: 依存グラフレポート出力機能・参照関係複雑度算出の追加
 
-**status: open**（FR 著作待ち・設計フェーズ）
+**status: decided**（FR-15/16・SPEC-50/51 著作済み 2026-06-13・残: 分析層（O-4/O-5/P-8/P-9）著作待ち）
 
 <details><summary>⬡ DD-6 · v0.1</summary>
 
@@ -221,7 +211,9 @@ edges: []
 
 **推奨**: A + C の組み合わせ（FR として正式追加 + post-mvp 印）。理由：グラフ可視化と複雑度算出は FR-3（RULE 違反検査）とは目的が異なり独立価値がある（意思決定支援）。ただし MVP には不要のため post-mvp 印で設計フェーズで詳細化。
 
-**影響範囲（FR 著作後に義務辺として反映）**:
-- `doc-system/02-what/01-fr.md`: FR-15（依存グラフレポート）・FR-16（複雑度算出）を新設。SR への依存辺、`labels: [post-mvp]`。
-- `doc-system/03-analysis/`: 新 O ノード（O-4: 依存グラフ出力・O-5: 複雑度レポート）・新 P ノード（P-8: グラフ出力処理・P-9: 複雑度計算）を追加。
-- 設計フェーズで凍結セット（MOD/PORT/DM）へ落とし込む。
+**決定**: A + C を採用（N8 処置・2026-06-13）。FR-15（依存グラフレポート）・FR-16（複雑度算出）著作・SPEC-50/51 著作（spec 層完了）。分析層（O-4/O-5/P-8/P-9）は設計フェーズで著作予定。
+
+**影響範囲（2026-06-13 spec 層処置完了・分析層以降は今後）**:
+- `doc-system/02-what/01-fr.md`: FR-15（依存グラフレポート）・FR-16（複雑度算出）を新設（v0.2.3）。各 FR に `→DD-6` バックリファレンス付与。
+- `doc-system/02-what/03-spec.md`: SPEC-50（FR-15 normal）・SPEC-51（FR-16 normal）を著作（v0.3.2）。
+- `doc-system/03-analysis/`: 新 O ノード（O-4: 依存グラフ出力・O-5: 複雑度レポート）・新 P ノード（P-8: グラフ出力処理・P-9: 複雑度計算）は未着手（設計フェーズ以降）。

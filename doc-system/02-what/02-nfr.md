@@ -1,5 +1,5 @@
 ---
-version: "0.2.1"
+version: "0.2.2"
 ---
 # 非機能要求・制約
 
@@ -23,6 +23,8 @@ edges:
     ref_version: "0.2"
   - to: DD-1
     ref_version: "0.1"
+  - to: DD-5
+    ref_version: "0.1"
 ```
 </details>
 
@@ -44,6 +46,8 @@ edges:
     ref_version: "0.2"
   - to: DD-1
     ref_version: "0.1"
+  - to: DD-5
+    ref_version: "0.1"
 ```
 </details>
 
@@ -63,6 +67,8 @@ scheduled: ""
 edges:
   - to: SR-1
     ref_version: "0.2"
+  - to: DD-5
+    ref_version: "0.1"
 ```
 </details>
 
@@ -82,6 +88,8 @@ scheduled: ""
 edges:
   - to: SR-6
     ref_version: "0.2"
+  - to: DD-5
+    ref_version: "0.1"
 ```
 </details>
 
@@ -101,6 +109,8 @@ scheduled: ""
 edges:
   - to: SR-3
     ref_version: "0.2"
+  - to: DD-5
+    ref_version: "0.1"
 ```
 </details>
 
@@ -121,6 +131,8 @@ edges:
   - to: SR-2
     ref_version: "0.2"
   - to: DD-1
+    ref_version: "0.1"
+  - to: DD-5
     ref_version: "0.1"
 ```
 </details>

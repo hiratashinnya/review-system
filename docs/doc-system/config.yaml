@@ -22,7 +22,7 @@ must_link_to:
   - { node: SR,     target: VAL,            activate_stage: requirements,   severity: error,   reason: "SRは価値命題を詳細化" }
   - { node: FR,     target: SR,             activate_stage: requirements,   severity: error,   reason: "FRはSRを詳細化" }
   - { node: NFR,    target: SR,             activate_stage: requirements,   severity: error,   reason: "NFRはSRを詳細化" }
-  - { node: SPEC,   target: FR,             activate_stage: requirements,   severity: error,   reason: "SPECはFRを詳細化" }
+  - { node: SPEC,   target: [FR, NFR],      activate_stage: requirements,   severity: error,   reason: "SPECはFRまたはNFRを詳細化（DD-5）" }
   # --- analysis ---
   - { node: ACTOR,  target: SR,             activate_stage: analysis,       severity: error,   reason: "アクタはSRに紐づく" }
   - { node: TERM,   target: SPEC,           activate_stage: analysis,       severity: warning, reason: "用語は仕様に紐づく" }
@@ -68,6 +68,7 @@ must_be_linked_from:
   - { node: VAL,  source: [SR],              activate_stage: requirements, severity: error,   reason: "価値命題は下流SRに支えられる" }
   - { node: SR,   source: [FR, NFR, ACTOR],  activate_stage: requirements, severity: warning, reason: "SRはFR/NFR/ACTORのいずれかに展開される（OR）" }
   - { node: FR,   source: [SPEC],            activate_stage: requirements, severity: warning, reason: "FRはSPECに分解される" }
+  - { node: NFR,  source: [SPEC],            activate_stage: requirements, severity: warning, reason: "NFRはSPECに導出される（DD-5）" }
   # --- analysis ---
   - { node: I,    source: [P],               activate_stage: analysis,     severity: error,   reason: "入力は消費プロセスを持つ（P→I）" }
   - { node: E,    source: [P],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
