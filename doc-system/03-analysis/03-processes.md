@@ -1,5 +1,5 @@
 ---
-version: "0.6.2"
+version: "0.6.6"
 ---
 # 論理プロセス
 
@@ -21,18 +21,42 @@ scheduled: ""
 edges:
   - to: SPEC-1
     ref_version: "0.3"
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: SPEC-32
+    ref_version: "0.3"
+  - to: SPEC-33
+    ref_version: "0.3"
+  - to: SPEC-34
+    ref_version: "0.3"
+  - to: SPEC-35
+    ref_version: "0.3"
+  - to: SPEC-36
+    ref_version: "0.3"
+  - to: SPEC-52
+    ref_version: "0.3"
+  - to: SPEC-53
+    ref_version: "0.3"
   - to: I-1
     ref_version: "0.6"
   - to: D-1
     ref_version: "0.6"
+  - to: D-3
+    ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
+  - to: FND-1
+    ref_version: "0.1"
+  - to: FND-20
+    ref_version: "0.1"
+  - to: DD-7
+    ref_version: "0.1"
 ```
 </details>
 
-ノードファイル群を受け取り、YAMLフロントマターをパースして構造化ノードセットに変換する。
-**入力**: I-1（ノードファイル群）・D-1（in-graph 集合）を消費（P→I/P→D）
-**出力**: 構造化ノードセット（P-2 へ）
+ノードファイル群を受け取り、YAML フロントマターをパースして構造化ノードセットに変換する。変換と同時にパース段検証（RULE-023〜028）を実行し、パース不能（RULE-023）・⬡ 直後の YAML 欠如（RULE-024）・id/type/ref_version 欠如（RULE-025/026/027）・共通必須フィールドの欠如/型不正（RULE-028）を検出する（パース段処理という単一責務）。
+**入力**: I-1（ノードファイル群）・D-1（in-graph 集合）・D-3（設定オブジェクト・P-5 が生成）を消費（P→I/P→D）
+**出力**: 構造化ノードセット（D-4・P-2/P-3 へ）・パース段違反リスト（D-5・P-4 へ）を生成（D-4/D-5 が P-1 に依存）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -76,7 +100,11 @@ edges:
     ref_version: "0.3"
   - to: SPEC-13
     ref_version: "0.3"
-  - to: I-4
+  - to: I-1-3
+    ref_version: "0.6"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -84,8 +112,8 @@ edges:
 </details>
 
 P-1 の構造化ノードセットを受け取り、各辺の ref_version と参照先ファイル version の x.y を比較（RULE-004）し、DD/Q/PEND ノードの義務辺存在を検出（RULE-001/002/022）する。
-**入力**: I-4（ref_version 値）を消費（P→I）
-**出力**: ドリフト・義務辺違反リスト（P-4 へ）
+**入力**: I-1-3（ref_version 値）・D-3（設定オブジェクト）・D-4（構造化ノードセット）を消費（P→I/P→D）
+**出力**: ドリフト・義務辺違反リスト（D-6 の一部・P-2 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -106,9 +134,13 @@ edges:
     ref_version: "0.3"
   - to: SPEC-8
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
+    ref_version: "0.6"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -116,8 +148,8 @@ edges:
 </details>
 
 グラフの構造的健全性を検証する。always_error（RULE-005/007）は suppress/scheduled を無視して発火。孤立（RULE-005）・存在しない ID（RULE-007）・必須辺欠如（RULE-006）・階層親不在（RULE-008）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
-**出力**: 構造違反リスト（P-4 へ）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）・D-3（設定オブジェクト）・D-4（構造化ノードセット）を消費（P→I/P→D）
+**出力**: 構造違反リスト（D-6 の一部・P-2 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -136,9 +168,13 @@ edges:
     ref_version: "0.3"
   - to: SPEC-16
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
+    ref_version: "0.6"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -146,8 +182,8 @@ edges:
 </details>
 
 SPEC・TD の condition 属性の存在と語彙、FR 配下の condition 網羅（normal 必須・failure/error 推奨）を検査する。condition 属性語彙（RULE-016）・FR の SPEC 網羅（RULE-017/018）・TD-SPEC condition 整合（RULE-019）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
-**出力**: カバレッジ属性違反リスト（P-4 へ）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）・D-3（設定オブジェクト）・D-4（構造化ノードセット）を消費（P→I/P→D）
+**出力**: カバレッジ属性違反リスト（D-6 の一部・P-2 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -168,9 +204,13 @@ edges:
     ref_version: "0.3"
   - to: SPEC-19
     ref_version: "0.3"
-  - to: I-2
+  - to: I-1-1
     ref_version: "0.6"
-  - to: I-3
+  - to: I-1-2
+    ref_version: "0.6"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
@@ -178,8 +218,8 @@ edges:
 </details>
 
 検証層ノード（FND/TC/VERIFY/TR）の辺と属性の完結性を verification ステージ発火ルールで検査する。FND/TC/VERIFY の必須辺（RULE-006 verification）・TR の result/log_ref（RULE-020/021）を検査する。
-**入力**: I-2（suppress 設定）・I-3（scheduled 設定）を消費（P→I）
-**出力**: 検証層違反リスト（P-4 へ）
+**入力**: I-1-1（suppress 設定）・I-1-2（scheduled 設定）・D-3（設定オブジェクト）・D-4（構造化ノードセット）を消費（P→I/P→D）
+**出力**: 検証層違反リスト（D-6 の一部・P-2 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -219,14 +259,18 @@ edges:
     ref_version: "0.3"
   - to: SPEC-30
     ref_version: "0.3"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
+    ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
 ```
 </details>
 
 分析層ノード（I/O/D/P/E）の接続網羅性を確認する。未駆動出力（O に P依存辺なし）・未定義反応（E に P被依存辺なし）・孤立ノードをゼロにすることで価値経路の完全性を保証する（SPEC-29/30 は FR-3 配下の新規 SPEC）。
-**入力**: P-1 からの構造化ノードセット
-**出力**: グラフ網羅性穴リスト（P-4 へ）
+**入力**: D-4（構造化ノードセット・P-1 が生成）・D-3（設定オブジェクト）を消費（P→D）
+**出力**: グラフ網羅性穴リスト（D-7 の一部・P-3 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -243,14 +287,18 @@ scheduled: ""
 edges:
   - to: SPEC-14
     ref_version: "0.3"
+  - to: D-3
+    ref_version: "0.6"
+  - to: D-4
+    ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
 ```
 </details>
 
 FR ごとに condition 軸（normal/boundary/empty/failure/error）で SPEC と TD の充足状況を集計し、`--coverage` オプション実行時にカバレッジテーブルを出力する。
-**入力**: P-1 からの構造化ノードセット
-**出力**: カバレッジテーブル（P-4 へ）
+**入力**: D-4（構造化ノードセット・P-1 が生成）・D-3（設定オブジェクト）を消費（P→D）
+**出力**: カバレッジテーブル（D-7 の一部・P-3 経由で P-4 へ）
 **トリガ**: E-1 に依存（P→E）
 
 ---
@@ -267,11 +315,19 @@ scheduled: ""
 edges:
   - to: SPEC-25
     ref_version: "0.3"
+  - to: D-5
+    ref_version: "0.6"
+  - to: D-6
+    ref_version: "0.6"
+  - to: D-7
+    ref_version: "0.6"
+  - to: DD-7
+    ref_version: "0.1"
 ```
 </details>
 
 RULE 違反リストとカバレッジ穴リストを深刻度順（ERROR→WARNING→INFO）に整列し、G#番号付きで整形して出力する。ERROR があれば終了コード 1 を返す。
-**入力**: P-2 の違反リスト・P-3 のカバレッジ穴リスト
+**入力**: D-5（パース段違反リスト・P-1 が生成）・D-6（RULE 違反リスト・P-2 が生成）・D-7（カバレッジ計測結果・P-3 が生成）を消費（P→D）
 **出力**: O-1（RULE違反レポート）・O-2（カバレッジ点検結果）が P-4 に依存（O→P）
 **トリガ**: P-2・P-3 完了後
 
@@ -293,12 +349,14 @@ edges:
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
+  - to: DD-7
+    ref_version: "0.1"
 ```
 </details>
 
-`config.yaml` を読み込んで検証済み設定オブジェクト（current_phase・current_stage・phases・stages・must_link_to・must_be_linked_from・rule_activation・condition_vocab・trace_scope）に変換する。P-1/P-2/P-3 が参照する共有設定として提供する。
+`config.yaml` を読み込んで検証済み設定オブジェクト（current_phase・current_stage・phases・stages・must_link_to・must_be_linked_from・rule_activation・condition_vocab・trace_scope）に変換する。P-1/P-2/P-3 および P-6（in-graph 集合決定・trace_scope を使用）が参照する共有設定として提供する。設定の読み込み・検証は P-5 の単一責務であり、他プロセスは config.yaml を直接読まず P-5 が生成する設定オブジェクトを経由する（FND-21）。
 **入力**: I-5 を消費（P→I）
-**出力**: 検証済み設定オブジェクト（P-1/P-2/P-3 へ）
+**出力**: D-3（検証済み設定オブジェクト）を生成（D-3 が P-5 に依存・P-1/P-2/P-3/P-6 へ）
 **トリガ**: E-1 に依存（P→E・P-1 と並行または先行して実行）
 
 ---
@@ -315,25 +373,29 @@ scheduled: ""
 edges:
   - to: SPEC-24
     ref_version: "0.3"
-  - to: I-5
+  - to: D-3
     ref_version: "0.6"
   - to: I-6
     ref_version: "0.6"
   - to: E-1
     ref_version: "0.5"
+  - to: DD-7
+    ref_version: "0.1"
+  - to: FND-21
+    ref_version: "0.1"
 ```
 </details>
 
-trace_scope.include/exclude（I-5）とディレクトリ走査 .md ファイルパス一覧（I-6）を照合し、in-graph ファイル集合（D-1）を決定する。
-**入力**: I-5（trace_scope 設定）・I-6（走査 .md ファイルパス一覧）を消費（P→I）
+P-5 が生成した設定オブジェクト（D-3）に含まれる trace_scope.include/exclude とディレクトリ走査 .md ファイルパス一覧（I-6）を照合し、in-graph ファイル集合（D-1）を決定する。config.yaml は P-5 経由で受け取り直接読まない（FND-21）。
+**入力**: D-3（設定オブジェクト・trace_scope を含む・P-5 が生成）・I-6（走査 .md ファイルパス一覧）を消費（P→D/P→I）
 **出力**: D-1（in-graph ファイル集合）が P-6 に依存（D→P）
-**トリガ**: E-1 に依存（P→E・P-5 と並行または直後）
+**トリガ**: E-1 に依存（P→E・P-5 の直後）
 
 ---
 
-## P-7: ノード著作プロセス
+## P-7: ノード著作・反映プロセス
 
-<details><summary>⬡ P-7 · v0.3</summary>
+<details><summary>⬡ P-7 · v0.4</summary>
 
 ```yaml
 id: P-7
@@ -343,16 +405,73 @@ scheduled: ""
 edges:
   - to: SPEC-26
     ref_version: "0.3"
-  - to: I-7
-    ref_version: "0.6"
-  - to: E-2
-    ref_version: "0.5"
   - to: FND-10
+    ref_version: "0.1"
+  - to: FND-19
     ref_version: "0.1"
 ```
 </details>
 
-仕様著者（ACTOR-1）がテンプレート（I-7）を用いてノードを著作し、ノードファイル（O-3）を生成する。著作エージェントは P-7 の内部定義（`.claude/agents/` の定義ファイル群）として組み込まれており、外部入力ではない。
-**入力**: I-7（テンプレート参照）を消費（P→I）
-**出力**: O-3（著作済みノードファイル）が P-7 に依存（O→P）——著作者（ACTOR-1）が受け取る
+（P-7-1: 著作・P-7-2: 調停 に分担）ノードの著作から本ファイル反映までを担う親プロセス。著作エージェント・reconciliation エージェントはいずれも P-7 の内部定義（`.claude/agents/` の定義ファイル群）として組み込まれており、外部入力ではない。消費入力（I-7）・トリガ（E-2）の明示は各子プロセスに移す。
+
+---
+
+### P-7-1: 著作・tmp 出力
+
+<details><summary>⬡ P-7-1 · v0.1</summary>
+
+```yaml
+id: P-7-1
+type: P
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-38
+    ref_version: "0.3"
+  - to: SPEC-54
+    ref_version: "0.3"
+  - to: I-7
+    ref_version: "0.6"
+  - to: I-9
+    ref_version: "0.6"
+  - to: E-2
+    ref_version: "0.5"
+  - to: DD-7
+    ref_version: "0.1"
+  - to: FND-23
+    ref_version: "0.1"
+```
+</details>
+
+仕様著者（ACTOR-1）がテンプレート（I-7）と記載内容（I-9：型・親 ID・辺・本文項目）を著作エージェント（P-7 の内部定義）に与えてノードを著作し、`tmp/<sprint>/<parent-id>.md` に草案を出力する。テンプレート（I-7）だけでは中身が定まらず、記載内容（I-9）が揃って初めて草案を生成できる（SPEC-54・FND-23）。
+**入力**: I-7（テンプレート参照）・I-9（ノード記載内容）を消費（P→I）
+**出力**: D-8（ノード草案・tmp）を生成（D-8 が P-7-1 に依存・P-7-2 へ）
 **トリガ**: E-2 に依存（P→E・著作要求）
+
+---
+
+### P-7-2: 調停・本ファイル反映
+
+<details><summary>⬡ P-7-2 · v0.1</summary>
+
+```yaml
+id: P-7-2
+type: P
+labels: []
+scheduled: ""
+edges:
+  - to: SPEC-39
+    ref_version: "0.3"
+  - to: D-8
+    ref_version: "0.6"
+  - to: E-2
+    ref_version: "0.5"
+  - to: DD-7
+    ref_version: "0.1"
+```
+</details>
+
+reconciliation エージェントが P-7-1 のノード草案（D-8）を検証（id 欠如等の検出）し、整合確認の上 doc-system 本ファイルへ転記して O-3（著作済みノードファイル）を生成する。
+**入力**: D-8（ノード草案・tmp・P-7-1 が生成）を消費（P→D）
+**出力**: O-3（著作済みノードファイル）が P-7-2 に依存（O→P）——著作者（ACTOR-1）が受け取る
+**トリガ**: E-2 に依存（P→E・P-7-1 完了後）

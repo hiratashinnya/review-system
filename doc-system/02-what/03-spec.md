@@ -1,9 +1,9 @@
 ---
-version: "0.3.1"
+version: "0.3.5"
 ---
 # 機能仕様
 
-> **型**: SPEC ／ **必須上流**: FR（依存辺 ✅）
+> **型**: SPEC ／ **必須上流**: FR または NFR（依存辺 ✅・DD-5）
 > condition: normal | boundary | empty | failure | error（RULE-016 ERROR）。
 > 検証層の必須接続（RULE-006 config・RULE-020/021）は `activate_stage`/`rule_activation` で verification ステージまで沈黙する（ノード単位の suppress は付与しない）。
 > 出典は各 FR と `docs/doc-system/`。
@@ -421,12 +421,44 @@ condition: normal
 edges:
   - to: FR-6
     ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: FR→SPEC→TD のグラフがパースされている
 **入力/トリガ**: CLI を `--coverage` オプションで実行する
 **期待動作**: FR ごとに condition 軸（normal/boundary/empty/failure/error）で SPEC と TD の充足状況を表にしたカバレッジレポートを出力する
+
+---
+
+## SPEC-14-1: カバレッジテーブルの出力フォーマット（normal）
+
+<details><summary>⬡ SPEC-14-1 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14
+    ref_version: "0.3"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: FR→SPEC→TD のグラフがパース済みで、SPEC-14（カバレッジレポート生成）の `--coverage` 実行によりカバレッジテーブル本体が生成される文脈である。gap（カバレッジ欠如）の別セクション出力は SPEC-14 本体および RULE-017/018 の責務であり、本 SPEC ではテーブル本体のフォーマットのみを規定する。
+**入力/トリガ**: 検証ツールを `--coverage` オプションで実行する。
+**期待動作**: ヘッダ行 `FR-id | normal | boundary | empty | failure | error` を 1 行出力し、続けて全 FR を FR-id 昇順（接頭辞を除いた数値部の昇順）でソートした各行 `{FR-id} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜}` を出力する。各セルは当該 FR にその condition の SPEC が存在すれば `✅`、不在なら `⬜` とする。
+**出力フォーマット**: 1 行目はヘッダ `FR-id | normal | boundary | empty | failure | error`。2 行目以降は FR 1 件につき 1 行で `{FR-id} | {セル} | {セル} | {セル} | {セル} | {セル}`（` | ` 区切り 6 フィールド、列順は normal/boundary/empty/failure/error、セルは `✅` または `⬜`）。行はソートキー FR-id の数値部昇順で並ぶ。
+**終了コード**: 0。
+**例**: FR-1 に normal/empty/failure/error の SPEC があり boundary がない、FR-2 が次に存在する場合 → 出力は
+`FR-id | normal | boundary | empty | failure | error`
+`FR-1 | ✅ | ⬜ | ✅ | ✅ | ✅`
+`FR-2 | ...`（FR-2 が FR-1 の次の行・id 昇順）→ 終了コード 0。
 
 ---
 
@@ -1326,7 +1358,7 @@ edges:
 **前提条件**: in-graph ファイルに `⬡` マーカー行が1件以上存在する。
 **入力/トリガ**: `⬡` マーカー行の直後行が ```` ```yaml ```` ブロック開始行でない（heading／空行＋heading／別の `⬡` マーカーが直後に来る）。
 **期待動作**: `ERROR|{file}:{line}|RULE-024|(none)|⬡ marker at line N has no YAML block following` を出力し、当該ファイルのパースを中断する（fail-close）。
-**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3`、行21が `## I-2:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
+**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3`、行21が `## I-1-1:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
 
 ---
 
@@ -1488,3 +1520,266 @@ edges:
 **入力/トリガ**: 著者が `--propagate A` オプションで検証ツールを実行する（post-MVP 機能）。
 **期待動作**: RULE-004 ドリフトが検出されたノード B の一覧と、各ノードで更新が必要な `ref_version` の現在値・更新先値を表形式で出力する。`{node-id} | {file}:{line} | ref_version: "{old}" → "{new}"` 形式で表示する。
 **例**: `doc-system/03-analysis/02-io.md` の version が `0.5`→`0.6` に上昇したとき `P-1 | doc-system/03-analysis/03-processes.md:26 | ref_version: "0.5" → "0.6"` の一覧を出力する。
+
+---
+
+## SPEC-44: ノードファイルはプレーンテキスト .md（normal）
+
+<details><summary>⬡ SPEC-44 · v0.1</summary>
+
+```yaml
+id: SPEC-44
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-1
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `trace_scope.include` に一致する in-graph ファイルが1件以上存在する。
+**入力/トリガ**: 検証ツールが in-graph ファイルを読み込む際に UTF-8 エンコードのプレーンテキスト検証を実行する。
+**期待動作**: `file.read_text(encoding='utf-8', errors='strict')` で全 in-graph ファイルの読み込みがエラーなく完了する。BOM（`\xEF\xBB\xBF`）が先頭に存在するファイルは WARNING を1件出力する。UTF-8 デコードエラーが発生するファイルは ERROR を1件出力する。
+**例**: `doc-system/02-what/01-fr.md` を `open(..., encoding='utf-8', errors='strict').read()` → 読み込み成功 → 違反 0 件。バイナリデータを含むファイル `doc-system/corrupt.md` が in-graph に存在 → `ERROR|doc-system/corrupt.md:0|NFR-1-check|(none)|UTF-8 decode error` を出力。
+
+---
+
+## SPEC-45: spec-inspector は Python 標準ライブラリのみ使用（normal）
+
+<details><summary>⬡ SPEC-45 · v0.1</summary>
+
+```yaml
+id: SPEC-45
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-2
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector の実装ソースファイル群（`src/` 以下または実装ファイル群）が1件以上存在する。
+**入力/トリガ**: reconciliation または CI が全ソースファイルの `import` 文を静的解析する。
+**期待動作**: 全 `import X` 文および `from X import Y` 文が Python 標準ライブラリモジュール（`sys`, `os`, `re`, `pathlib`, `json`, `typing`, `collections`, `itertools`, `functools`, `dataclasses` 等）のみを参照する。`import yaml`（PyYAML）・`import requests`・`import pydantic` 等の外部パッケージへの依存が 0 件である。
+**例**: `src/inspector.py` の全 import が `import sys`, `import os`, `import re`, `import pathlib`, `import json` のみ → 外部依存 0 件 → 検証通過。`import yaml` が `src/parser.py` 行3に存在 → `ERROR|src/parser.py:3|NFR-2-check|(none)|external package import: yaml` を出力。
+
+---
+
+## SPEC-46: スキルファイルは外部ファイル参照なしに自己完結（normal）
+
+<details><summary>⬡ SPEC-46 · v0.1</summary>
+
+```yaml
+id: SPEC-46
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-3
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `.claude/skills/*/SKILL.md` または `.claude/skills/*/*.md` のスキルファイルが1件以上存在する。
+**入力/トリガ**: reconciliation または asset-auditor がスキルファイルの全行を外部参照パターン（`\.\./`・`^include:`・`^source:`・`@import`）で検索する。
+**期待動作**: 各スキルファイルの本文に外部ファイル参照パターン（相対パス `../`・`include:`・`source:`・`@import`）が存在しない。各パターンにマッチする行が 0 件であることを確認し、検証を通過する。
+**例**: `.claude/skills/spec-author/SKILL.md` を全行検索 → `../`・`include:`・`source:`・`@import` にマッチする行なし → 検証通過。`.claude/skills/spec-author/SKILL.md` 行42に `see: ../07-authoring-guide.md` が存在 → `WARNING|.claude/skills/spec-author/SKILL.md:42|NFR-3-check|(none)|external file reference: ../07-authoring-guide.md` を出力。
+
+---
+
+## SPEC-47: 全 in-graph ファイルの frontmatter に version フィールドが存在（normal）
+
+<details><summary>⬡ SPEC-47 · v0.1</summary>
+
+```yaml
+id: SPEC-47
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-4
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph ファイルが1件以上存在する。各ファイルは `---` で囲まれた YAML frontmatter を先頭に持つことが期待される。
+**入力/トリガ**: 検証ツールが in-graph 全ファイルの YAML frontmatter を読み込み、`version` フィールドを検査する。
+**期待動作**: 全 in-graph ファイルの frontmatter に `version:` フィールドが存在し、値が `"x.y.z"` 形式（x・y・z はそれぞれ非負整数・例: `"0.3.1"`）の文字列である。`version:` フィールドが存在しない・空文字・null のいずれかに該当するファイルは version 欠如として ERROR を1件出力する。
+**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.4"` → `x=0, y=3, z=4`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
+
+---
+
+## SPEC-48: 各ノードは直接の親のみへ辺を張る（USDM 1段制約）（normal）
+
+<details><summary>⬡ SPEC-48 · v0.1</summary>
+
+```yaml
+id: SPEC-48
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-5
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。接続マトリクスで SPEC の直接親は FR または別 SPEC と定義されている。
+**入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` を走査し、祖先型（SR・VAL 等）への直接辺を検出する。
+**期待動作**: SPEC ノードの `edges[].to` が全て FR・NFR・または別 SPEC（直接親 SPEC）を指し、SR・VAL などの祖先型を直接参照する辺が 0 件である。祖先型への直接辺が検出された場合は ERROR を1件出力する。
+**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。仮に `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
+
+---
+
+## SPEC-49: DD/Q/PEND の frontmatter に status 系フィールドが存在しない（normal）
+
+<details><summary>⬡ SPEC-49 · v0.1</summary>
+
+```yaml
+id: SPEC-49
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: NFR-6
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在する。
+**入力/トリガ**: 検証ツールが DD・Q・PEND ノードの YAML フィールドキー一覧を検査する。
+**期待動作**: DD・Q・PEND ノードの YAML フィールドに `status:`・`lifecycle:`・`state:` キーが存在しない。これらのキーが frontmatter に存在する場合は WARNING を1件出力する。ライフサイクル状態は本文見出しバッジ（`**status: open**` 等）にのみ記載されている。
+**例**: `{id: "DD-5", type: "DD", labels: [], scheduled: "", edges: []}` → status 系フィールドなし → 違反なし。`{id: "Q-3", type: "Q", labels: [], scheduled: "", status: "open", edges: []}` → `WARNING|{file}:{line}|NFR-6-check|Q-3|lifecycle field 'status' in frontmatter violates NFR-6` を出力。
+
+---
+
+## SPEC-50: --export-graph による依存グラフファイル出力（normal）
+
+<details><summary>⬡ SPEC-50 · v0.1</summary>
+
+```yaml
+id: SPEC-50
+type: SPEC
+labels: [post-mvp]
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-15
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みである（SPEC-1 の正常系が先行している）。グラフに1件以上のノードが存在する。`--export-graph` オプションに有効なフォーマット名（`dot` または `json`）と出力先ファイルパスが指定されている。
+**入力/トリガ**: `spec-inspector --export-graph dot ./output/graph.dot`（または `json` フォーマット・任意の出力先パス）を実行する。
+**期待動作**: 指定されたフォーマット（`dot` の場合は Graphviz dot 形式・`json` の場合は JSON 隣接リスト形式）でノード間の依存関係グラフが指定ファイルパスに書き出される。stdout にはエラーメッセージを出力せず、exit code 0 で正常終了する。
+**合格例**: ノード 3 件（SPEC-1→FR-1、FR-1→SR-1）を含むグラフに対して `--export-graph dot ./graph.dot` を実行 → `./graph.dot` に `digraph { "SPEC-1" -> "FR-1"; "FR-1" -> "SR-1"; }` 形式の dot ファイルが生成され、exit code 0 で終了する。
+**違反例**: `--export-graph dot ./graph.dot` を実行したが出力ファイルが生成されない・または dot 形式の構文として不正なテキスト（例: JSON 形式）が書き出される → 期待動作を満たさない。
+
+---
+
+## SPEC-51: --complexity による参照関係複雑度メトリクスレポート stdout 出力（normal）
+
+<details><summary>⬡ SPEC-51 · v0.1</summary>
+
+```yaml
+id: SPEC-51
+type: SPEC
+labels: [post-mvp]
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-16
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みである（SPEC-1 の正常系が先行している）。グラフに1件以上のノードが存在する。`--complexity` オプションが指定されている。
+**入力/トリガ**: `spec-inspector --complexity` を実行する。
+**期待動作**: 各ノードの in-degree（被参照数）・out-degree（参照数）・ハブ判定（in-degree または out-degree が閾値以上のノードをハブとして識別）を含むメトリクスレポートが stdout に出力される。レポートはノードを id 昇順でソートした行形式（`{node-id} | in={N} | out={N} | hub={yes/no}`）で表示され、exit code 0 で正常終了する。
+**合格例**: ノード FR-1（被参照: SPEC-1, SPEC-2 の 2 件、参照先: SR-1 の 1 件）を含むグラフに `--complexity` を実行 → stdout に `FR-1 | in=2 | out=1 | hub=no`（in-degree 2、out-degree 1、閾値未満のためハブ判定 no）が含まれ、exit code 0 で終了する。
+**違反例**: `--complexity` を実行したが stdout に何も出力されない・またはメトリクス行に `in=` / `out=` フィールドが欠落する → 期待動作を満たさない。
+
+---
+
+## SPEC-52: I-1 完全フィールドスキーマ適合（normal）
+
+<details><summary>⬡ SPEC-52 · v0.1</summary>
+
+```yaml
+id: SPEC-52
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-1
+    ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、フィールドスキーマ検証（RULE-025/026/027/028）が当該ノードに対して評価される。
+**入力/トリガ**: 検証ツールが、共通必須フィールド（`id` 文字列・非空、`type` 文字列・非空、`labels` リスト・空可、`scheduled` 文字列・空可、`edges` リスト・各エントリに `to` と `ref_version`）を全て備え、かつ型別必須拡張フィールド（SPEC/TD は `condition`、TR は `result` と `log_ref`）も備えたノードを処理する。
+**期待動作**: 当該ノードに対して RULE-025・RULE-026・RULE-027・RULE-028 をいずれも発火させず、フィールドスキーマ違反を 0 件として通過する（当該ノード起因のエラー出力なし）。スキーマ違反が他に 0 件ならプロセス終了コードは 0。
+**出力フォーマット**: 当該ノード起因の `ERROR|...` 行を一切出力しない（標準出力に当該ノードのスキーマ違反行が現れない）。
+**終了コード**: 違反 0 件なら 0。
+**例**: ノード `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → `id` 非空文字列・`type` 非空文字列・`labels` 空リスト・`scheduled` 空文字列・`edges` リストで各エントリに `to` と `ref_version` あり（FR は型別拡張フィールドなし）→ RULE-025/026/027/028 いずれも非発火・違反 0 件・終了コード 0。
+
+---
+
+## SPEC-53: 共通必須フィールドの型不正・欠如検出（failure・RULE-028）
+
+<details><summary>⬡ SPEC-53 · v0.1</summary>
+
+```yaml
+id: SPEC-53
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-1
+    ref_version: "0.2"
+  - to: FND-18
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みである。`id`・`type` の欠如/空は RULE-025/026 が、edge の `ref_version` 欠如は RULE-027 が担当するため、それらは適合済みとし、本検査は共通必須フィールド `labels`・`scheduled`・`edges` の存在と型のみを評価する。
+**入力/トリガ**: 検証ツールが、`labels` が非リスト（例: 文字列）・`scheduled` が非文字列・`edges` が非リスト・またはこれら 3 キーのいずれかが欠如、のいずれか 1 つに該当するノードを処理する。
+**期待動作**: 当該違反を RULE-028 ERROR として 1 件出力し、当該ノードに対する後続 RULE 評価を中断する（他ファイル・他ノードの処理は継続）。違反が 1 件以上あればプロセス終了コードは 1。
+**出力フォーマット**: `ERROR|{file}:{line}|RULE-028|{id}|{message}`（`|` 区切り 5 フィールド。`{file}` は in-graph 相対パス、`{line}` は当該ノードの `⬡` マーカー行番号、`{message}` は違反フィールド名と期待型を述べる文）。
+**終了コード**: 違反ありなら 1。
+**例**: ノード `{id: "SPEC-99", type: "SPEC", labels: "foo", scheduled: "", edges: []}`（`labels` が文字列）を `doc-system/02-what/03-spec.md` の当該マーカー行で処理 → `ERROR|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|field 'labels' must be a list` を 1 件出力し、SPEC-99 の後続 RULE 評価を中断・終了コード 1。
+
+---
+
+## SPEC-54: 著作は記載内容入力を必須とする（normal）
+
+<details><summary>⬡ SPEC-54 · v0.1</summary>
+
+```yaml
+id: SPEC-54
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-13
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `.claude/agents/` に型別著作エージェント定義が存在し、著者（ACTOR-1）が著作要求（E-2）を起こす。
+**入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）に加えて著作対象ノードの記載内容（I-9：型・親 ID・依存辺・本文項目の指定）を入力として与える。
+**期待動作**: P-7-1 は I-7（構造の雛形）と I-9（記載内容）の両方を受け取り、記載内容をテンプレート構造に充填してノード草案（tmp）を生成する。I-9（記載内容）が与えられない場合は著作対象が定まらず、O-3（著作済みノードファイル）を生成できない（著作不成立）。テンプレート（I-7）のみでは O-3 を生成できないことを保証する。
+**例**: 著者が「type: FR・親 SR-1・本文4項目」という記載内容（I-9）を I-7（FR テンプレート）とともに P-7-1 に渡す → tmp 草案が生成され、reconciliation 経由で O-3 が生成される。I-9 を与えず I-7 のみ渡す → 著作対象不定で O-3 は生成されない。
