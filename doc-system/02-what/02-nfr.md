@@ -8,7 +8,7 @@
 
 ## NFR-1: プレーンテキスト形式
 
-<details><summary>⬡ NFR-1 · v0.3</summary>
+<details><summary>⬡ NFR-1 · v0.4</summary>
 
 ```yaml
 id: NFR-1
@@ -22,10 +22,12 @@ edges:
     ref_version: "0.1"
   - to: DD-5
     ref_version: "0.1"
+  - to: FND-84
+    ref_version: "0.1"
 ```
 </details>
 
-ノードファイルはプレーン Markdown＋YAML フロントマターで記述し、専用エディタ・専用フォーマットへの依存を持たない（GitHub でそのまま読める）。
+ノードファイルはプレーン Markdown（ノード定義は `⬡ PREFIX-N · vX.Y` バッジ＋インライン YAML ブロックとして `<details>` 内に埋め込み）で記述し、専用エディタ・専用フォーマットへの依存を持たない（GitHub でそのまま読める）。ファイルレベルの YAML フロントマター（`---`）は廃止済み（DD-8）。
 
 ---
 

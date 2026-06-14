@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > 議論や著作が進んだらここを更新する。**全件列挙はしない**——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は**状態と優先度の要約**に絞る。
 >
-> **最終更新**: 2026-06-14（**DD-8 即時実施完了**：ノードバージョニング正式化・ファイルフロントマター全廃・ref_version をノードバッジ基準に一括移行（live 辺 170 件・ドリフト 0 検証）・RULE-004/meta-schema/notation/config をノード x.y 基準に更新｜FND-36 resolved｜旧: FND-34 resolved（VERIFY-5 SR-7→SR-2 訂正））｜ **03-spec.md 全 SPEC 点検**：FND-40〜84（45件・open）起票（本文品質 38＋横断 7・うち ERROR=FND-84 SPEC-47/44↔DD-8 矛盾）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-14（**DD-9 反映完了**：config.yaml phases から post-mvp 除去・RULE-029 新設・SPEC-28/40/50/51 scheduled → sprint-2・FND-78 resolved ｜ **DD-10 反映完了**：SPEC-47 をノードバッジ x.y 検証に置換・NFR-1/SPEC-44 本文訂正・FND-84 resolved ｜ **DD-8 即時実施完了**：ノードバージョニング正式化・ファイルフロントマター全廃・ref_version をノードバッジ基準に一括移行（live 辺 170 件・ドリフト 0 検証）・RULE-004/meta-schema/notation/config をノード x.y 基準に更新｜FND-36 resolved）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
 
 ---
 
@@ -17,7 +17,7 @@
 | **DD-8 即時実施**（ノードバージョニング移行・フロントマター全廃・ref_version 再基準化）| DD reflected | ✅ 完了（2026-06-14・オーナー指示で sprint-2 繰り越しを撤回） |
 | DD-6：依存グラフ機能（spec 層完了・分析層（O-4/O-5/P-8/P-9）著作待ち） | DD（decided・分析層 pending） | 🔄 FR-15/16・SPEC-50/51 著作済み |
 | N1：current_stage を analysis へ進める判断 | N | ⬜ 判断待ち |
-| **03-spec.md 全 SPEC 点検**（FND-40〜84 起票）| FND open | ✅ 起票完了（45件・本文品質38＋横断7）・処置はオーナー判断待ち |
+| **03-spec.md 全 SPEC 点検**（FND-40〜84 起票）| FND open | ✅ 起票完了（45件・本文品質38＋横断7）｜ **FND-78 resolved（DD-9）**・**FND-84 resolved（DD-10）** 2026-06-14 処置完了 |
 
 ---
 
@@ -30,7 +30,7 @@
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手 | — |
 | implementation | SRC（spec-inspector 本体・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビューの VERIFY-1/2・FND は実施済 |
-| 横断スパイン | DD / Q / PEND | 10 | — | DD-1〜7（決定済・DD-6 は分析層著作のみ残・DD-7 分析層 DFD 改訂）・PEND-1（resolved）・PEND-2（先送り・図のスクリプト生成）・Q-1（closed） |
+| 横断スパイン | DD / Q / PEND | 12 | — | DD-1〜10（決定済・DD-6 は分析層著作のみ残・DD-7 分析層 DFD 改訂・DD-9 config phases 整理・DD-10 SPEC-47/NFR-1 DD-8 準拠）・PEND-1（resolved）・PEND-2（先送り・図のスクリプト生成）・Q-1（closed） |
 
 > 凡例：✅ 完了 ／ 🟡 進行中 ／ ⬜ 未着手。ノード数は概算（`labels: post-mvp` を含む）。
 > 注：current_stage が `requirements` のため、analysis 以降の被依存辺ルール等は沈黙中（著作は先行済み）。
@@ -57,13 +57,13 @@
 | 項目 | 優先 | 種別 | 状態 | 次アクション |
 |---|---|---|---|---|
 | N1（current_stage を `analysis` へ進める判断） | 🟡 中 | N | ⬜ 判断待ち | オーナーが stage 進行 or 現状維持を決定（N8 も連動） |
-| 03-spec.md 点検 FND-40〜84（45件 open）の処置 | 🟡 中 | FND | ⬜ 判断待ち | 本文品質37 SPEC の分割書き直し・F-2 config 改訂（DD 昇格）・SPEC-47/44 改修（FND-84）の実施可否を判断 |
+| 03-spec.md 点検 FND-40〜84（43件 open）の処置 | 🟡 中 | FND | 🔄 一部完了 | FND-78（DD-9）・FND-84（DD-10）resolved。残 43件（本文品質 38＋横断 5）はオーナー判断待ち |
 | FND-36（ノードバッジの意味＝ノード改訂回数 vs ファイル x.y） | — | FND（WARNING） | ✅ resolved（DD-8）| バッジ＝ノード固有バージョン（A 採用）・notation.md 更新済み |
 | PEND-1（I-1-1/I-1-2/I-1-3 過分割） | — | PEND（**resolved**） | 子ノード改名＋親辺付与で解消・FND-6 resolved | ✅ クローズ（N4） |
 
-### FND サマリ（計 84 件：✅ resolved 38 ／ ⏳ open 46）
+### FND サマリ（計 84 件：✅ resolved 40 ／ ⏳ open 44）
 
-> **2026-06-14 追加**：`doc-system/02-what/03-spec.md` の全 SPEC 点検で **FND-40〜84（45件・全 open）** を起票。内訳＝WARNING 40（本文品質 38＋FND-78 post-mvp/scheduled 不統一＋FND-80 PEND failure SPEC 欠落）／INFO 4（FND-79 RULE 分散・FND-81 SPEC-31 親選択・FND-82 SPEC-9-1/10 近接・FND-83 always_error condition 不揃い）／**ERROR 1（FND-84 SPEC-47/44 が DD-8 frontmatter 全廃と矛盾）**。処置（37 SPEC 本文の1アサーション分割・F-2 config 改訂・SPEC-47 改修）はオーナー判断待ち。**本文品質 FND-40〜77** は各 SPEC の `期待動作` がテスタブル基準「`【条件】のとき、〇〇を▲▲する`」に違反（複数動詞/目的語/アサーション混載）。明細は `02-findings.md`。
+> **2026-06-14 追加**：`doc-system/02-what/03-spec.md` の全 SPEC 点検で **FND-40〜84（45件）** を起票。**FND-78（DD-9）・FND-84（DD-10）resolved**（2026-06-14 処置完了）。残 43件（本文品質 38＋横断 5）はオーナー判断待ち。内訳＝WARNING 40（本文品質 38＋FND-78 ✅ post-mvp/scheduled 不統一→DD-9 解消＋FND-80 PEND failure SPEC 欠落）／INFO 4（FND-79 RULE 分散・FND-81 SPEC-31 親選択・FND-82 SPEC-9-1/10 近接・FND-83 always_error condition 不揃い）／**ERROR 1（FND-84 ✅ SPEC-47/44↔DD-8 矛盾→DD-10 解消）**。**本文品質 FND-40〜77** は各 SPEC の `期待動作` がテスタブル基準「`【条件】のとき、〇〇を▲▲する`」に違反（複数動詞/目的語/アサーション混載）。明細は `02-findings.md`。
 
 
 PR #21 オーナーレビュー（FND-24〜33・VERIFY-4）／PR #22 レビュー（FND-34〜37・2026-06-14）の内訳：

@@ -1245,17 +1245,19 @@ edges:
 
 ## SPEC-28: SRC の @id realizes 検証（normal・post-mvp）
 
-<details><summary>⬡ SPEC-28 · v0.2</summary>
+<details><summary>⬡ SPEC-28 · v0.3</summary>
 
 ```yaml
 id: SPEC-28
 type: SPEC
 labels: [post-mvp]
-scheduled: "post-mvp"
+scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-12
     ref_version: "0.2"
+  - to: FND-78
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1501,16 +1503,18 @@ edges:
 
 ## SPEC-40: 伝搬編集支援の表示（normal・post-mvp）
 
-<details><summary>⬡ SPEC-40 · v0.1</summary>
+<details><summary>⬡ SPEC-40 · v0.2</summary>
 
 ```yaml
 id: SPEC-40
 type: SPEC
 labels: [post-mvp]
-scheduled: "post-mvp"
+scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-14
+    ref_version: "0.1"
+  - to: FND-78
     ref_version: "0.1"
 ```
 </details>
@@ -1524,7 +1528,7 @@ edges:
 
 ## SPEC-44: ノードファイルはプレーンテキスト .md（normal）
 
-<details><summary>⬡ SPEC-44 · v0.1</summary>
+<details><summary>⬡ SPEC-44 · v0.2</summary>
 
 ```yaml
 id: SPEC-44
@@ -1534,7 +1538,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-1
-    ref_version: "0.3"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -1591,9 +1595,9 @@ edges:
 
 ---
 
-## SPEC-47: 全 in-graph ファイルの frontmatter に version フィールドが存在（normal）
+## SPEC-47: 全 in-graph ノードの summary バッジに version（x.y）が存在する（normal）
 
-<details><summary>⬡ SPEC-47 · v0.1</summary>
+<details><summary>⬡ SPEC-47 · v0.2</summary>
 
 ```yaml
 id: SPEC-47
@@ -1604,13 +1608,16 @@ condition: normal
 edges:
   - to: NFR-4
     ref_version: "0.2"
+  - to: FND-84
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイルが1件以上存在する。各ファイルは `---` で囲まれた YAML frontmatter を先頭に持つことが期待される。
-**入力/トリガ**: 検証ツールが in-graph 全ファイルの YAML frontmatter を読み込み、`version` フィールドを検査する。
-**期待動作**: 全 in-graph ファイルの frontmatter に `version:` フィールドが存在し、値が `"x.y.z"` 形式（x・y・z はそれぞれ非負整数・例: `"0.3.1"`）の文字列である。`version:` フィールドが存在しない・空文字・null のいずれかに該当するファイルは version 欠如として ERROR を1件出力する。
-**例**: `doc-system/02-what/03-spec.md` の frontmatter に `version: "0.3.4"` → `x=0, y=3, z=4`・形式適合 → 違反なし。`doc-system/02-what/01-fr.md` の frontmatter に `version:` キーが存在しない → `ERROR|doc-system/02-what/01-fr.md:1|NFR-4-check|(none)|version field missing` を出力。
+**前提条件**: in-graph にノードが1件以上存在し、パース済みである。各ノードは `<details><summary>⬡ PREFIX-N · vX.Y` 形式の summary バッジを持つことが期待される（DD-8：ファイルレベルフロントマター廃止・ノードバッジが唯一の版管理真実源）。
+**入力/トリガ**: 検証ツールが全ノードの summary バッジを走査し `· vX.Y` 部分を抽出する。
+**期待動作**: 全 in-graph ノードの summary バッジが `· vX.Y` 形式（X・Y はそれぞれ非負整数）のノードバージョンを持つ。`· v` 部分が存在しない・または `X.Y` が非負整数の2部形式でないノードは、バッジ version 欠如として ERROR を1件出力する。
+**合格例**: `⬡ FR-1 · v0.3` → バッジ version = "0.3"（X=0, Y=3）・形式適合 → 違反なし。`⬡ SPEC-54 · v0.1` → バッジ version = "0.1" → 違反なし。
+**違反例**: `⬡ SPEC-99`（`· vX.Y` 部分なし）→ `ERROR|{file}:{line}|NFR-4-check|SPEC-99|node badge version missing` を出力。`⬡ SPEC-88 · v2`（Y 部分欠如）→ `ERROR|{file}:{line}|NFR-4-check|SPEC-88|node badge version format error: v2` を出力。
 
 ---
 
@@ -1664,16 +1671,18 @@ edges:
 
 ## SPEC-50: --export-graph による依存グラフファイル出力（normal）
 
-<details><summary>⬡ SPEC-50 · v0.1</summary>
+<details><summary>⬡ SPEC-50 · v0.2</summary>
 
 ```yaml
 id: SPEC-50
 type: SPEC
 labels: [post-mvp]
-scheduled: ""
+scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-15
+    ref_version: "0.1"
+  - to: FND-78
     ref_version: "0.1"
 ```
 </details>
@@ -1688,16 +1697,18 @@ edges:
 
 ## SPEC-51: --complexity による参照関係複雑度メトリクスレポート stdout 出力（normal）
 
-<details><summary>⬡ SPEC-51 · v0.1</summary>
+<details><summary>⬡ SPEC-51 · v0.2</summary>
 
 ```yaml
 id: SPEC-51
 type: SPEC
 labels: [post-mvp]
-scheduled: ""
+scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-16
+    ref_version: "0.1"
+  - to: FND-78
     ref_version: "0.1"
 ```
 </details>
