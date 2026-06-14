@@ -22,13 +22,87 @@ edges:
     ref_version: "0.3"
   - to: FND-14
     ref_version: "0.1"
+  - to: FND-40
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイルが1件以上存在し、当該ファイルに `<details><summary>⬡ PREFIX-N` 形式の行が存在し、その直後に ```` ```yaml ```` ブロックがあり PyYAML safe_load でパース可能である。
+ノード埋め込みパースの正常系。期待動作は単一アサーション化のため SPEC-1-1〜1-3 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+---
+
+## SPEC-1-1: 構造化ノード1件の生成（normal）
+
+<details><summary>⬡ SPEC-1-1 · v0.1</summary>
+
+```yaml
+id: SPEC-1-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-1
+    ref_version: "0.3"
+  - to: FND-40
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに `<details><summary>⬡ PREFIX-N` 形式の行が存在し、その直後に ```` ```yaml ```` ブロックがあり PyYAML safe_load でパース可能である。
 **入力/トリガ**: 検証ツールが当該 in-graph ファイルを処理する。
-**期待動作**: `⬡` マーカー直後の YAML ブロックから `id`・`type`・`labels`・`scheduled`・`edges` を持つ構造化ノードを1件生成する。マーカー行の `PREFIX-N` と YAML の `id` 値が一致する。RULE-023〜027 の違反がなければエラー出力なし。
-**例**: `doc-system/02-what/03-spec.md` 行15に `⬡ SPEC-1 · v0.3`、直後 YAML に `id: SPEC-1, type: SPEC` → ノード `{id:"SPEC-1", type:"SPEC", labels:[], scheduled:"", edges:[{to:"FR-1", ref_version:"0.2"}]}` を生成し、エラー出力なし。
+**期待動作**: `⬡` マーカー直後の YAML ブロックがパース可能なとき、`id`・`type`・`labels`・`scheduled`・`edges` を持つ構造化ノードを 1 件生成する。
+**例**: `doc-system/02-what/03-spec.md` 行15に `⬡ SPEC-1 · v0.3`、直後 YAML に `id: SPEC-1, type: SPEC` → ノード `{id:"SPEC-1", type:"SPEC", labels:[], scheduled:"", edges:[{to:"FR-1", ref_version:"0.3"}]}` を 1 件生成する。
+
+---
+
+## SPEC-1-2: マーカー PREFIX-N と YAML id の一致検証（normal）
+
+<details><summary>⬡ SPEC-1-2 · v0.1</summary>
+
+```yaml
+id: SPEC-1-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-1
+    ref_version: "0.3"
+  - to: FND-40
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `⬡ PREFIX-N` マーカー直後の YAML ブロックから構造化ノードが 1 件生成済みである（SPEC-1-1 が先行）。
+**入力/トリガ**: 検証ツールが当該ノードのマーカー行 `PREFIX-N` と YAML の `id` 値を照合する。
+**期待動作**: マーカー行の `PREFIX-N` と YAML の `id` 値が一致するとき、当該ノードを ID 整合と判定する（不一致時は別 SPEC の責務）。
+**例**: マーカー `⬡ SPEC-1 · v0.3` の `SPEC-1` と YAML `id: SPEC-1` → 一致 → ID 整合と判定する。
+
+---
+
+## SPEC-1-3: パース段違反なし → エラー出力なし（normal）
+
+<details><summary>⬡ SPEC-1-3 · v0.1</summary>
+
+```yaml
+id: SPEC-1-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-1
+    ref_version: "0.3"
+  - to: FND-40
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `⬡ PREFIX-N` マーカー直後の YAML ブロックから構造化ノードが 1 件生成済みである（SPEC-1-1 が先行）。
+**入力/トリガ**: 検証ツールが当該ノードに対し RULE-023〜027 を評価する。
+**期待動作**: RULE-023〜027 の違反が 0 件のとき、当該ノード起因のエラー行を一切出力しない。
+**例**: `id: SPEC-1, type: SPEC` の正常ノードで RULE-023〜027 違反なし → 標準出力に当該ノード起因の `ERROR|...` 行が現れない。
 
 ---
 
@@ -47,13 +121,112 @@ edges:
     ref_version: "0.3"
   - to: FND-14
     ref_version: "0.1"
+  - to: FND-41
+    ref_version: "0.1"
+```
+</details>
+
+YAML 構文不正（RULE-023）時のパース失敗と fail-close 副作用の異常系。期待動作は単一アサーション化のため SPEC-2-1〜2-4 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+---
+
+## SPEC-2-1: YAML 構文不正で RULE-023 ERROR を出力（error）
+
+<details><summary>⬡ SPEC-2-1 · v0.1</summary>
+
+```yaml
+id: SPEC-2-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: FND-41
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルに `⬡` マーカー行が存在し、その直後の YAML ブロック自体は存在する（マーカー欠落ではなく中身の構文不正のケース）。
 **入力/トリガ**: その YAML ブロックが PyYAML safe_load で ScannerError または ParserError を発生させる（インデント不正・コロン欠如等）。
-**期待動作**: `ERROR|{file}:{line}|RULE-023|(none)|YAML parse error: {例外メッセージ}` を1件出力し、当該ファイルのパースを中断する（fail-close）。後続 RULE-024〜027 を当該ファイルに発火させない。他 in-graph ファイルの処理は継続する。
-**例**: `doc-system/02-what/01-fr.md` 行17の YAML に不正インデント → `ERROR|doc-system/02-what/01-fr.md:17|RULE-023|(none)|YAML parse error: mapping values are not allowed here` を出力し、当該ファイルの後続ノードを生成しない。
+**期待動作**: YAML パースが例外を発生させたとき、`ERROR|{file}:{line}|RULE-023|(none)|YAML parse error: {例外メッセージ}` を 1 件出力する。
+**例**: `doc-system/02-what/01-fr.md` 行17の YAML に不正インデント → `ERROR|doc-system/02-what/01-fr.md:17|RULE-023|(none)|YAML parse error: mapping values are not allowed here` を出力する。
+
+---
+
+## SPEC-2-2: YAML 構文不正で当該ファイルのパースを中断（error）
+
+<details><summary>⬡ SPEC-2-2 · v0.1</summary>
+
+```yaml
+id: SPEC-2-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: FND-41
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルの `⬡` マーカー直後の YAML ブロックが構文不正で、RULE-023 ERROR が出力された（SPEC-2-1 が先行）。
+**入力/トリガ**: 検証ツールが当該ファイルの残りノードのパースを試みる。
+**期待動作**: RULE-023 ERROR を検出したとき、当該ファイルのパースを中断する（fail-close・当該ファイルの後続ノードを生成しない）。
+**例**: `doc-system/02-what/01-fr.md` 行17で RULE-023 ERROR → 同ファイル行30以降の `⬡` マーカーのノードを生成しない。
+
+---
+
+## SPEC-2-3: パース中断後は後続 RULE-024〜027 を発火させない（error）
+
+<details><summary>⬡ SPEC-2-3 · v0.1</summary>
+
+```yaml
+id: SPEC-2-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: FND-41
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: RULE-023 ERROR により当該ファイルのパースが中断された（SPEC-2-2 が先行）。
+**入力/トリガ**: 検証ツールがパース段検証 RULE-024〜027 の評価フェーズに入る。
+**期待動作**: 当該ファイルのパースが中断されたとき、当該ファイルに対し RULE-024〜027 を発火させない。
+**例**: `doc-system/02-what/01-fr.md` が RULE-023 で中断 → 同ファイルに RULE-024（YAML ブロック欠如）・RULE-025/026/027 の違反行を出力しない。
+
+---
+
+## SPEC-2-4: 当該ファイル中断後も他 in-graph ファイルの処理を継続（error）
+
+<details><summary>⬡ SPEC-2-4 · v0.1</summary>
+
+```yaml
+id: SPEC-2-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-2
+    ref_version: "0.3"
+  - to: FND-41
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 1 件の in-graph ファイルが RULE-023 でパース中断され、他に in-graph ファイルが 1 件以上存在する（SPEC-2-2 が先行）。
+**入力/トリガ**: 検証ツールが残りの in-graph ファイルを走査する。
+**期待動作**: 1 ファイルがパース中断されたとき、他 in-graph ファイルのパース・検証処理を継続する。
+**例**: `doc-system/02-what/01-fr.md` が中断されても `doc-system/02-what/03-spec.md` のノードは通常どおりパース・検証される。
 
 ---
 
@@ -112,12 +285,62 @@ condition: normal
 edges:
   - to: SPEC-3
     ref_version: "0.2"
+  - to: FND-42
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: ID を持つノードが存在する
-**入力/トリガ**: ノードの見出し・本文・辺を変更する
-**期待動作**: ID は変更せずに永続させる。意味は見出し（heading）が担い、ID は追跡キーとしてのみ機能する
+ID 永続（リネームなし）と意味の担い手分離の正常系。期待動作は単一アサーション化のため SPEC-3-2-1〜3-2-2 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+---
+
+## SPEC-3-2-1: 内容変更時も ID を永続させる（normal）
+
+<details><summary>⬡ SPEC-3-2-1 · v0.1</summary>
+
+```yaml
+id: SPEC-3-2-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3-2
+    ref_version: "0.1"
+  - to: FND-42
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: ID を持つノードが存在する。
+**入力/トリガ**: ノードの見出し・本文・辺を変更する。
+**期待動作**: ノードの見出し・本文・辺が変更されたとき、その ID を変更せず永続させる。
+**例**: `SPEC-3-2` の本文を改訂しても `id: SPEC-3-2` は不変のまま追跡キーとして残る。
+
+---
+
+## SPEC-3-2-2: 意味は heading が担い ID は追跡キーに限定（normal）
+
+<details><summary>⬡ SPEC-3-2-2 · v0.1</summary>
+
+```yaml
+id: SPEC-3-2-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3-2
+    ref_version: "0.1"
+  - to: FND-42
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: ID と見出し（heading）を持つノードが存在する。
+**入力/トリガ**: 読み手または検証ツールがノードの意味を解釈する。
+**期待動作**: ノードの意味を解釈するとき、その意味は見出し（heading）が担い、ID は追跡キーとしてのみ機能する（ID 自体は意味を表さない）。
+**例**: `SPEC-3-2` の意味は見出し「ID の永続（リネームなし）」が表し、`SPEC-3-2` という ID 文字列は意味を持たず追跡のみに使われる。
 
 ---
 
@@ -134,12 +357,62 @@ condition: normal
 edges:
   - to: SPEC-3
     ref_version: "0.2"
+  - to: FND-43
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: `I-1-1` のような子 ID を持つノードが存在する
-**入力/トリガ**: 著者が子ノードを作成する
-**期待動作**: 階層は ID パターンから推論されるため親→子の辺は不要。親ノード `I-1` が存在していれば正常（decomposes 辺は廃止）
+階層 ID ノードの親存在判定の正常系。期待動作は単一アサーション化のため SPEC-3-3-1〜3-3-2 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+---
+
+## SPEC-3-3-1: 階層は ID パターンから推論し親→子辺を要求しない（normal）
+
+<details><summary>⬡ SPEC-3-3-1 · v0.1</summary>
+
+```yaml
+id: SPEC-3-3-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3-3
+    ref_version: "0.1"
+  - to: FND-43
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `I-1-1` のような子 ID を持つノードが存在する。
+**入力/トリガ**: 検証ツールが階層関係を判定する。
+**期待動作**: 階層関係を判定するとき、親→子の `decomposes` 辺を必須要求しない（階層は ID パターン `X-N` から推論する）。
+**例**: `I-1-1` の親子関係は ID パターンから推論され、`I-1 → I-1-1` の明示辺がなくても違反としない。
+
+---
+
+## SPEC-3-3-2: 親ノードが存在すれば階層 ID を正常と判定（normal）
+
+<details><summary>⬡ SPEC-3-3-2 · v0.1</summary>
+
+```yaml
+id: SPEC-3-3-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-3-3
+    ref_version: "0.1"
+  - to: FND-43
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `I-1-1` のような子 ID を持つノードが存在する。
+**入力/トリガ**: 検証ツールが子 ID の親 `I-1` の存在を確認する。
+**期待動作**: 子 ID の親ノード（`I-1`）が in-graph に存在するとき、当該階層 ID を正常（RULE-008 違反なし）と判定する。
+**例**: `I-1-1` に対し親 `I-1` が in-graph に存在 → 孤児階層ではない → 正常と判定し RULE-008 を発火させない。
 
 ---
 
@@ -200,12 +473,62 @@ condition: error
 edges:
   - to: FR-3
     ref_version: "0.2"
+  - to: FND-44
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: ノード集合がパースされている
 **入力/トリガ**: 辺の `to` が存在しない ID を指す
-**期待動作**: RULE-007 ERROR を報告する。`always_error` のため scheduled / activate_stage / suppress いずれでも抑制不可
+**期待動作**: 存在しない ID 参照に関する検証は SPEC-6-1（RULE-007 ERROR 報告）・SPEC-6-2（always_error による抑制不可）に分割して規定する（本ノードは umbrella・テスタブルな単一アサーションは子に委譲）。
+
+---
+
+## SPEC-6-1: 存在しない ID 参照を RULE-007 ERROR 報告（error）
+
+<details><summary>⬡ SPEC-6-1 · v0.1</summary>
+
+```yaml
+id: SPEC-6-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-6
+    ref_version: "0.2"
+  - to: FND-44
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: ノード集合がパースされている
+**入力/トリガ**: いずれかの辺の `to` が存在しない ID を指す
+**期待動作**: 存在しない ID を指す辺があるとき、RULE-007 違反を ERROR として報告する。
+
+---
+
+## SPEC-6-2: RULE-007 は always_error で抑制不可（error）
+
+<details><summary>⬡ SPEC-6-2 · v0.1</summary>
+
+```yaml
+id: SPEC-6-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-6
+    ref_version: "0.2"
+  - to: FND-44
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 存在しない ID を指す辺があり RULE-007 が発火する状態である
+**入力/トリガ**: 当該ノードに `suppress: [RULE-007]`（または `scheduled` / 未達 `activate_stage`）が設定されている
+**期待動作**: 抑制指定が設定されているとき、RULE-007 を抑制せず ERROR を報告する（always_error）。
 
 ---
 
@@ -330,12 +653,62 @@ condition: normal
 edges:
   - to: FR-4
     ref_version: "0.2"
+  - to: FND-45
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: あるファイルの version の x または y が上昇する（z は不問）
 **入力/トリガ**: 検証ツールが段階①を実行する
-**期待動作**: そのファイルのノードを参照する依存辺の `ref_version` 不一致を RULE-004 ERROR として検出し、再反映を促す（status は持たない・ref_version 更新で解消）
+**期待動作**: ファイル x.y 上昇に伴う依存辺ドリフトの検証は SPEC-10-1（RULE-004 ERROR 検出）・SPEC-10-2（再反映の促し）に分割して規定する（本ノードは umbrella・status は持たず ref_version 更新で解消）。
+
+---
+
+## SPEC-10-1: ref_version 不一致を RULE-004 ERROR 検出（normal）
+
+<details><summary>⬡ SPEC-10-1 · v0.1</summary>
+
+```yaml
+id: SPEC-10-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-10
+    ref_version: "0.2"
+  - to: FND-45
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: あるファイルのノードバッジ x.y が上昇している（z は不問）
+**入力/トリガ**: そのファイルのノードを参照する依存辺の `ref_version` が現バッジ x.y と一致しない
+**期待動作**: `ref_version` がバッジ x.y と不一致のとき、RULE-004 違反を ERROR として検出・報告する。
+
+---
+
+## SPEC-10-2: ドリフト検出時に再反映を促すメッセージを出力（normal）
+
+<details><summary>⬡ SPEC-10-2 · v0.1</summary>
+
+```yaml
+id: SPEC-10-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-10
+    ref_version: "0.2"
+  - to: FND-45
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: RULE-004 ドリフトが検出されている（SPEC-10-1）
+**入力/トリガ**: 検証ツールがドリフト違反の報告メッセージを生成する
+**期待動作**: ドリフトを検出したとき、当該依存辺の `ref_version` を現バッジ x.y へ更新するよう促すメッセージを出力する。
 
 ---
 
@@ -374,12 +747,14 @@ condition: failure
 edges:
   - to: FR-5
     ref_version: "0.2"
+  - to: FND-46
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: 型が DD のノードがある
+**前提条件**: 型が DD のノードがあり、反映完了時には著者が `DD→X` を削除し `X→DD` を追加する運用である（辺の削除・追加は著者の処置であり検証ツールの検証対象ではない）
 **入力/トリガ**: DD の義務辺（`DD→X`）が存在する
-**期待動作**: RULE-001 ERROR を報告する（型で判定・lifecycle パース不要）。反映完了で `DD→X` を削除し `X→DD` を追加
+**期待動作**: DD の義務辺 `DD→X` が残存するとき、RULE-001 違反を ERROR として報告する（型で判定・lifecycle パース不要）。
 
 ---
 
@@ -446,18 +821,115 @@ edges:
     ref_version: "0.1"
   - to: FND-24
     ref_version: "0.1"
+  - to: FND-47
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: FR→SPEC→TD のグラフがパース済みで、SPEC-14（カバレッジレポート生成）の `--coverage` 実行によりカバレッジテーブル本体が生成される文脈である。gap（カバレッジ欠如）の別セクション出力は SPEC-14 本体および RULE-017/018 の責務であり、本 SPEC ではテーブル本体のフォーマットのみを規定する。
+**前提条件**: FR→SPEC→TD のグラフがパース済みで、SPEC-14 の `--coverage` 実行によりカバレッジテーブル本体が生成される文脈である。gap（カバレッジ欠如）の別セクション出力は SPEC-14 本体および RULE-017/018 の責務であり、本系では扱わない。
 **入力/トリガ**: 検証ツールを `--coverage` オプションで実行する。
-**期待動作**: ヘッダ行 `FR-id | normal | boundary | empty | failure | error` を 1 行出力し、続けて全 FR を FR-id 昇順（接頭辞を除いた数値部の昇順）でソートした各行 `{FR-id} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜} | {✅/⬜}` を出力する。各セルは当該 FR にその condition の SPEC が存在すれば `✅`、不在なら `⬜` とする。
-**出力フォーマット**: 1 行目はヘッダ `FR-id | normal | boundary | empty | failure | error`。2 行目以降は FR 1 件につき 1 行で `{FR-id} | {セル} | {セル} | {セル} | {セル} | {セル}`（` | ` 区切り 6 フィールド、列順は normal/boundary/empty/failure/error、セルは `✅` または `⬜`）。行はソートキー FR-id の数値部昇順で並ぶ。
-**終了コード**: 0。
-**例**: FR-1 に normal/empty/failure/error の SPEC があり boundary がない、FR-2 が次に存在する場合 → 出力は
-`FR-id | normal | boundary | empty | failure | error`
-`FR-1 | ✅ | ⬜ | ✅ | ✅ | ✅`
-`FR-2 | ...`（FR-2 が FR-1 の次の行・id 昇順）→ 終了コード 0。
+**期待動作**: カバレッジテーブル本体の出力仕様は SPEC-14-1-1（ヘッダ行）・SPEC-14-1-2（各 FR 行のセル値）・SPEC-14-1-3（FR-id 昇順ソート）・SPEC-14-1-4（終了コード 0）に分割して規定する（本ノードは umbrella）。
+**例**: FR-1 に normal/empty/failure/error の SPEC があり boundary がない、FR-2 が次に存在する場合 → 各子 SPEC の規定に従い `FR-id | normal | boundary | empty | failure | error` のヘッダ行、`FR-1 | ✅ | ⬜ | ✅ | ✅ | ✅`、`FR-2 | ...` が FR-id 昇順で並び、終了コード 0。
+
+---
+
+## SPEC-14-1-1: カバレッジテーブルのヘッダ行出力（normal）
+
+<details><summary>⬡ SPEC-14-1-1 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.1"
+  - to: FND-47
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 検証ツールがカバレッジテーブル本体を生成する文脈である（`--coverage` 実行）
+**入力/トリガ**: カバレッジテーブルの 1 行目を出力する
+**期待動作**: テーブル先頭に、ヘッダ行 `FR-id | normal | boundary | empty | failure | error`（` | ` 区切り 6 フィールド・列順 normal/boundary/empty/failure/error）を 1 行出力する。
+**例**: 出力 1 行目 = `FR-id | normal | boundary | empty | failure | error`。
+
+---
+
+## SPEC-14-1-2: 各 FR 行のセル値出力（normal）
+
+<details><summary>⬡ SPEC-14-1-2 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.1"
+  - to: FND-47
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: ヘッダ行が出力済みで、各 FR を 1 行として明細を出力する文脈である
+**入力/トリガ**: ある FR の condition 別 SPEC 充足状況を 1 行として出力する
+**期待動作**: FR 1 件につき `{FR-id} | {セル} | {セル} | {セル} | {セル} | {セル}`（列順 normal/boundary/empty/failure/error）を 1 行出力し、各セルは当該 FR にその condition の SPEC が存在すれば `✅`、不在なら `⬜` とする。
+**例**: FR-1 に normal/empty/failure/error の SPEC があり boundary がない場合 → `FR-1 | ✅ | ⬜ | ✅ | ✅ | ✅`。
+
+---
+
+## SPEC-14-1-3: 明細行を FR-id 昇順でソート出力（normal）
+
+<details><summary>⬡ SPEC-14-1-3 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.1"
+  - to: FND-47
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 全 FR の明細行が生成されている（SPEC-14-1-2）
+**入力/トリガ**: 明細行群を並べて出力する
+**期待動作**: 明細行を FR-id の数値部（接頭辞を除いた数値）昇順でソートして出力する。
+**例**: FR-1 行の次に FR-2 行が並ぶ（id 昇順）。
+
+---
+
+## SPEC-14-1-4: 正常出力時の終了コード 0（normal）
+
+<details><summary>⬡ SPEC-14-1-4 · v0.1</summary>
+
+```yaml
+id: SPEC-14-1-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.1"
+  - to: FND-47
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: カバレッジテーブルが正常に生成・出力された
+**入力/トリガ**: 検証ツールが `--coverage` 実行を正常終了する
+**期待動作**: カバレッジテーブルを正常出力したとき、終了コード 0 を返す。
+**例**: 例外なくテーブル出力完了 → 終了コード 0。
 
 ---
 
