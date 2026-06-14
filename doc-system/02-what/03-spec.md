@@ -1,5 +1,5 @@
 ---
-version: "0.3.5"
+version: "0.3.6"
 ---
 # 機能仕様
 
@@ -446,6 +446,8 @@ edges:
   - to: SPEC-14
     ref_version: "0.3"
   - to: FND-18
+    ref_version: "0.1"
+  - to: FND-24
     ref_version: "0.1"
 ```
 </details>
@@ -1628,6 +1630,8 @@ condition: normal
 edges:
   - to: NFR-5
     ref_version: "0.2"
+  - to: FND-25
+    ref_version: "0.1"
 ```
 </details>
 

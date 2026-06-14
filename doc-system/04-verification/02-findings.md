@@ -1,5 +1,5 @@
 ---
-version: "0.1.12"
+version: "0.1.13"
 ---
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
@@ -584,7 +584,8 @@ edges:
 **深刻度**: ERROR
 **内容**: SPEC-14-1（カバレッジテーブルの出力フォーマット・normal）の edges が `to: SPEC-14`（親 SPEC）と `to: FND-18` のみであり、FR または NFR への直接辺が存在しない。config.yaml の `must_link_to: SPEC → [FR, NFR]`（RULE-006・severity: error）違反。SPEC-14-1 は SPEC-14 の -N 分割ノードだが、config の必須接続は FR/NFR への直辺を要求しており、SPEC→SPEC のみでは RULE-006 を満たさない。
 **推奨**: config の `must_link_to` の OR リストを `SPEC → [FR, NFR, SPEC]` に拡張し、子 SPEC（`-N` 採番）を機構として持つ。あるいは SPEC-14-1 に `to: FR-6` 直辺を付与する。**前者を推奨**（子 SPEC を今後も使うなら機構として持つべきで、SPEC-48 本文・接続マトリクスの意図と一致する）。本 PR が初めて子 SPEC（`-N` 採番）パターンを導入したが、config 側に `SPEC → SPEC` が用意されていなかった点が根因。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `docs/doc-system/config.yaml` の `must_link_to: SPEC` を `target: [FR, NFR, SPEC]` に拡張（FND-25 と同根一括解消）。SPEC-14-1 に `→FND-24` バックリファレンス辺を付与（spec.md v0.3.6）。接続マトリクス §2 SPEC 行に NFR ✅・SPEC ✅ を追加（connection-matrix.md v0.2.1）。
 **指摘時 ref_version**: SPEC-14-1 "0.3"（doc-system/02-what/03-spec.md v0.3.5 時点）
 
 ---
@@ -608,7 +609,8 @@ edges:
 **深刻度**: WARNING
 **内容**: SPEC-48（各ノードは直接の親のみへ辺を張る・USDM 1段制約）の本文に「接続マトリクスで SPEC の直接親は FR または別 SPEC と定義されている」「SPEC の `edges[].to` が FR・NFR・または別 SPEC（直接親 SPEC）を指す」と明記されている。一方 config.yaml の `must_link_to: SPEC → [FR, NFR]` には SPEC→SPEC は含まれておらず、機械検査上は SPEC→SPEC のみのノードが RULE-006 ERROR になる。FND-24（SPEC-14-1）の違反はこの不整合が根因。SPEC-48 本文か config の `must_link_to` のいずれかを修正する必要がある。
 **推奨**: FND-24 と同根のため一括解消する。config を `SPEC → [FR, NFR, SPEC]` に拡張すれば、SPEC-48 本文（「SPEC の辺は FR・NFR・または別 SPEC を指す」）と config の機械判定が一致する。config を拡張せず SPEC-48 本文側を狭める選択肢もあるが、子 SPEC パターンを採用する方針なら config 拡張を推奨。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: FND-24 と同根一括解消。`docs/doc-system/config.yaml` を `SPEC → [FR, NFR, SPEC]` に拡張することで SPEC-48 本文の記述と config の機械判定が一致した。SPEC-48 に `→FND-25` バックリファレンス辺を付与（spec.md v0.3.6）。
 **指摘時 ref_version**: SPEC-48 "0.3"（doc-system/02-what/03-spec.md v0.3.5 時点）
 
 ---
@@ -632,7 +634,8 @@ edges:
 **深刻度**: ERROR
 **内容**: DD-5（NFR から SPEC 導出を必須化・2026-06-13 反映完了）により config.yaml が `must_link_to: SPEC → [FR, NFR]` に更新され `must_be_linked_from: NFR ← [SPEC]` が追加されたが、`docs/doc-system/03-connection-matrix.md`（v0.2.0）は更新されていない。具体的な不整合：§2 接続要否マトリクス表の SPEC 行が FR のみ必須（NFR なし）・§4「NFR は `refines` 上流にはならない（他要素が NFR を refines しない）」が DD-5 の「SPEC→NFR を必須化」と直接矛盾。接続マトリクスは「人が読める全体像」として正本 config.yaml と一致すべきだが、DD-5 適用後に同期されていない。
 **推奨**: `docs/doc-system/03-connection-matrix.md` を DD-5 に合わせて §2/§3/§4 とも改訂する。具体的には (§2) must_link_to の mermaid を `SPEC --> FR` のみから `[FR, NFR]` 相当へ拡張・(§3) 被依存表に `NFR ← SPEC` を追加（現状 `NFR ← FND/TC/VERIFY` のみ）・(§4)「NFR は refines 上流にはならない（他要素が NFR を refines しない）」の記述を DD-5（`SPEC → NFR` 必須化）と整合する形に改訂。正本ドキュメント間（config と接続マトリクス）の矛盾を残したまま DD-5 を decided にするのは「矛盾は停止して打ち上げ」原則（PR）違反であり、マージ前解消が望ましい。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `docs/doc-system/03-connection-matrix.md` を v0.2.1 に改訂。§1 mermaid に `SPEC --> NFR` と `SPEC --> SPEC` を追加、§2 表に NFR 列を追加（SPEC 行: FR ✅・NFR ✅・SPEC ✅）、§3 被依存表に `NFR ← SPEC`（requirements 以降）行を追加、§4 テキストを DD-5 に合わせて改訂。DD-5 に `→FND-26` バックリファレンス辺を付与（decisions.md v0.1.6）。
 **指摘時 ref_version**: DD-5 "0.1"（doc-system/04-verification/04-decisions.md v0.1.5 時点）
 
 ---
@@ -656,7 +659,8 @@ edges:
 **深刻度**: ERROR
 **内容**: `doc-system/03-analysis/00-dfd.md`（v0.2.2）の本文に「本ファイルは派生図（ノードを持たない）」と記載され out-of-graph を自称するが、config.yaml の `trace_scope.include: ["doc-system/**/*.md"]` に含まれ、`trace_scope.exclude` には未登録。spec-inspector はこのファイルを走査しノードを抽出しようとするが、ファイル内には `<details>` YAML ブロックのノードが存在しないため「in-graph ファイルだがノードゼロ」という矛盾状態になる。修正方針：(A) `trace_scope.exclude` に `"**/00-dfd.md"` を追加して out-of-graph を正式化 か (B) out-of-graph 自称を削除しノードを持たない in-graph ファイルとして運用。
 **推奨**: **(A) を推奨**。`trace_scope.exclude` に `**/00-dfd.md`（または `doc-system/**/00-dfd.md`）を追加して out-of-graph を正式化する。dashboard を `**/00-dashboard.md` で除外しているのと同じ機構であり、自称と config の食い違い（観測できない前提）を解消できる。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: 推奨案 A を採用。`docs/doc-system/config.yaml` の `trace_scope.exclude` に `"**/00-dfd.md"` を追加し、DFD 図ファイルを out-of-graph として正式化した（00-dashboard.md と同等の扱い）。DD-7 に `→FND-27` バックリファレンス辺を付与（decisions.md v0.1.6）。
 **指摘時 ref_version**: DD-7 "0.1"（doc-system/04-verification/04-decisions.md v0.1.5 時点）
 
 ---

@@ -1,5 +1,5 @@
 ---
-version: "0.1.5"
+version: "0.1.6"
 ---
 # 意思決定 — Decision Log
 
@@ -160,7 +160,9 @@ id: DD-5
 type: DD
 labels: []
 scheduled: ""
-edges: []
+edges:
+  - to: FND-26
+    ref_version: "0.1"
 ```
 </details>
 
@@ -231,7 +233,9 @@ id: DD-7
 type: DD
 labels: []
 scheduled: ""
-edges: []
+edges:
+  - to: FND-27
+    ref_version: "0.1"
 ```
 </details>
 

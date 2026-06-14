@@ -22,7 +22,7 @@ must_link_to:
   - { node: SR,     target: VAL,            activate_stage: requirements,   severity: error,   reason: "SRは価値命題を詳細化" }
   - { node: FR,     target: SR,             activate_stage: requirements,   severity: error,   reason: "FRはSRを詳細化" }
   - { node: NFR,    target: SR,             activate_stage: requirements,   severity: error,   reason: "NFRはSRを詳細化" }
-  - { node: SPEC,   target: [FR, NFR],      activate_stage: requirements,   severity: error,   reason: "SPECはFRまたはNFRを詳細化（DD-5）" }
+  - { node: SPEC,   target: [FR, NFR, SPEC], activate_stage: requirements,   severity: error,   reason: "SPECはFR・NFR・または別SPEC（-N子）を詳細化（DD-5・FND-24）" }
   # --- analysis ---
   - { node: ACTOR,  target: SR,             activate_stage: analysis,       severity: error,   reason: "アクタはSRに紐づく" }
   - { node: TERM,   target: SPEC,           activate_stage: analysis,       severity: warning, reason: "用語は仕様に紐づく" }
@@ -134,4 +134,4 @@ always_error:
 # ------------------------------------------------------------
 trace_scope:
   include: ["doc-system/**/*.md"]
-  exclude: ["docs/**", "**/README.md", "**/00-dashboard.md"]   # ダッシュボードは要約帳票（ノードを持たない・out-of-graph）
+  exclude: ["docs/**", "**/README.md", "**/00-dashboard.md", "**/00-dfd.md"]   # ダッシュボードと DFD 図ファイルは out-of-graph（ノードを持たない）
