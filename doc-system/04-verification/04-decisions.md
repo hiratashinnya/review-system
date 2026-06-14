@@ -1,10 +1,11 @@
 ---
-version: "0.1.6"
+version: "0.1.7"
 ---
 # 意思決定 — Decision Log
 
 > **型**: DD ／ 義務辺（DD→X）が存在する間は「未反映」で RULE-001 ERROR。反映後は辺を削除し、影響を受けたノード側に X→DD を張る（経緯の永続記録）。
 > DD は無名依存辺のみ（`kind`/`status` なし・`to` は単数・`ref_version` 必須）。ライフサイクルは本文の status バッジに記載。
+> **影響範囲のバージョン注記**（例：`spec.md v0.3.0→0.3.1`）は**決定時点のスナップショット**（DD-2 凍結記録設計）。現時点のファイル版との差異はドリフトではなく当該 DD 以降の追加変更による自然な版上げを示す（FND-31）。
 
 ---
 
@@ -162,6 +163,8 @@ labels: []
 scheduled: ""
 edges:
   - to: FND-26
+    ref_version: "0.1"
+  - to: FND-31
     ref_version: "0.1"
 ```
 </details>

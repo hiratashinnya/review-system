@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > 議論や著作が進んだらここを更新する。**全件列挙はしない**——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は**状態と優先度の要約**に絞る。
 >
-> **最終更新**: 2026-06-14（H1/H2/H3 処置完了＝FND-24〜27 resolved：config `SPEC→[FR,NFR,SPEC]` 拡張・trace_scope.exclude に `**/00-dfd.md` 追加・connection-matrix.md v0.2.1 改訂。open 4 件（FND-28/31/32/33）残）｜旧: PR #21 オーナーレビュー VERIFY-4 起票・FND-24〜33 起票・FND-29・FND-30 resolved）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-14（FND 全件 resolved：FND-28 → VERIFY-5 起票・FND-31 → decisions.md プリアンブル追記・FND-32 → notation.md バッジ説明追記・FND-33 → 旧 tmp 草稿削除。FND-1〜33 すべて resolved）｜旧: H1/H2/H3 処置完了（FND-24〜27 resolved）｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
 
 ---
 
@@ -12,6 +12,7 @@
 | 作業 | 種別 | 状態 |
 |---|---|---|
 | H1/H2/H3 処置（FND-24〜27）| FND resolved | ✅ 完了（2026-06-14） |
+| FND 残件処置（FND-28/31/32/33）| FND resolved | ✅ 完了（2026-06-14） |
 | DD-6：依存グラフ機能（spec 層完了・分析層（O-4/O-5/P-8/P-9）著作待ち） | DD（decided・分析層 pending） | 🔄 FR-15/16・SPEC-50/51 著作済み |
 | N1：current_stage を analysis へ進める判断 | N | ⬜ 判断待ち |
 
@@ -55,24 +56,24 @@
 | N1（current_stage を `analysis` へ進める判断） | 🟡 中 | N | ⬜ 判断待ち | オーナーが stage 進行 or 現状維持を決定（N8 も連動） |
 | PEND-1（I-1-1/I-1-2/I-1-3 過分割） | — | PEND（**resolved**） | 子ノード改名＋親辺付与で解消・FND-6 resolved | ✅ クローズ（N4） |
 
-### FND サマリ（計 33 件：✅ resolved 29 ／ ⏳ open 4）
+### FND サマリ（計 33 件：✅ resolved 33 ／ ⏳ open 0）
 
 PR #21 オーナーレビュー指摘（FND-24〜33・VERIFY-4・2026-06-13）の内訳：
 
 | ID | レベル | 状態 | 概要 |
 |---|---|---|---|
-| FND-24 | H1（ERROR） | ✅ resolved | SPEC-14-1 RULE-006 違反 → config `SPEC→[FR,NFR,SPEC]` 拡張・spec.md v0.3.6 |
+| FND-24 | H1（ERROR） | ✅ resolved | SPEC-14-1 RULE-006 違反 → config `SPEC→[FR,NFR,SPEC]` 拡張 |
 | FND-25 | M1（WARNING） | ✅ resolved | SPEC-48 と config の矛盾 → FND-24 と同根一括解消 |
 | FND-26 | H2（ERROR） | ✅ resolved | connection-matrix.md DD-5 未同期 → v0.2.1 に改訂 |
 | FND-27 | H3（ERROR） | ✅ resolved | dfd.md out-of-graph 未登録 → trace_scope.exclude に追加 |
-| FND-28 | M2（WARNING） | ⏳ open | 追加バッチ（SPEC-44〜54 等）の VERIFY 欠如 |
+| FND-28 | M2（WARNING） | ✅ resolved | 追加バッチ VERIFY 欠如 → VERIFY-5 起票（2026-06-14・PASS） |
 | FND-29 | M3（WARNING） | ✅ resolved | PR 説明文の乖離 → PR 本文更新済み |
 | FND-30 | M4（WARNING） | ✅ resolved | ダッシュボードの判断待ち件数矛盾 → 修正済み |
-| FND-31 | L1（INFO） | ⏳ open | DD 影響範囲のバージョン注記が現版と乖離 |
-| FND-32 | L2（INFO） | ⏳ open | FR-1 バッジ v0.3 とファイル x.y=0.2 の不一致 |
-| FND-33 | L3（INFO） | ⏳ open | tmp 草稿に差し戻し済み SPEC-41〜43 残存 |
+| FND-31 | L1（INFO） | ✅ resolved | DD 影響範囲のバージョン注記が現版と乖離 → decisions.md プリアンブル追記 |
+| FND-32 | L2（INFO） | ✅ resolved | FR-1 バッジ v0.3 とファイル x.y=0.2 の不一致 → notation.md バッジ説明追記 |
+| FND-33 | L3（INFO） | ✅ resolved | tmp 草稿に差し戻し済み SPEC-41〜43 残存 → 旧 tmp 草稿削除 |
 
-> open 4 件（FND-28/31/32/33）は今後着手。FND-1〜23 はすべて resolved（明細は `02-findings.md`）。H1/H2/H3 処置（2026-06-14）で FND-24〜27 を一括 resolved。
+> FND-1〜33 すべて resolved（2026-06-14 完了）。明細は `02-findings.md`。
 
 ### VERIFY サマリ
 

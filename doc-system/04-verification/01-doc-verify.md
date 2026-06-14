@@ -1,5 +1,5 @@
 ---
-version: "0.1.4"
+version: "0.1.5"
 ---
 # ドキュメント検証 — doc-system ドッグフーディング（要件〜分析層）
 
@@ -194,3 +194,57 @@ edges:
 **対象範囲**: PR #21（claude/doc-system-sprint2）の追加分全体。SPEC-14-1（RULE-006 検査）・SPEC-48（USDM 制約・config 整合）・FR-15/16（依存グラフ機能）・分析層（DFD・D-3〜D-8・I-9）・DD-7・trace_scope 設定
 **結果**: ERROR 3件（H1/H2/H3）・WARNING 4件（M1/M2/M3/M4）・INFO 3件（L1/L2/L3）。計10件 → FND-24〜FND-33
 **発生した指摘**: → FND-24〜FND-33 を参照
+
+---
+
+## VERIFY-5: requirements 層追加バッチ再点検記録（FND-28 処置）
+
+<details><summary>⬡ VERIFY-5 · v0.1</summary>
+
+```yaml
+id: VERIFY-5
+type: VERIFY
+labels: []
+scheduled: ""
+suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
+edges:
+  - to: SPEC-44
+    ref_version: "0.3"
+  - to: SPEC-14-1
+    ref_version: "0.3"
+  - to: FR-15
+    ref_version: "0.2"
+  - to: SPEC-54
+    ref_version: "0.3"
+  - to: DD-5
+    ref_version: "0.1"
+  - to: FND-28
+    ref_version: "0.1"
+```
+</details>
+
+**検証手法**: 手動点検（H1〜H3 処置後・2026-06-14）
+**実施日**: 2026-06-14
+**対象範囲**: 2026-06-13 以降に追加された requirements 層ノード（SPEC-44〜54・SPEC-14-1・FR-15/16）。具体的には以下の由来バッチを対象とした。
+
+- **DD-5 由来**: SPEC-44〜49（NFR-1〜6 各1件・condition: normal）← spec.md
+- **DD-6 由来**: FR-15/16（依存グラフ・複雑度算出）← fr.md、SPEC-50/51（FR-15/16 の SPEC 子）← spec.md
+- **FND-18/23 由来**: SPEC-14-1（FR-6 child SPEC）、SPEC-54（FR-13 P-7 入力）← spec.md
+- **修正後確認**: H1 処置（FND-24・2026-06-14）で config `SPEC→[FR, NFR, SPEC]` 拡張済み
+
+**結果**: PASS（指摘なし）
+
+**点検項目**:
+
+1. **FR-15/16 の必須接続**: FR-15/16 → SR-7 辺あり ✓、SPEC 子（SPEC-50/51）あり ✓
+2. **SPEC-44〜49 の必須接続**: SPEC-44〜49 → NFR-1〜6 辺あり ✓、全ノードに `condition: normal` ✓
+3. **SPEC-50/51 の必須接続**: SPEC-50/51 → FR-15/16 辺あり ✓、`condition: normal` ✓
+4. **SPEC-14-1 の必須接続**: SPEC-14-1 → SPEC-14 辺あり ✓（H1 処置後 config `SPEC→[FR, NFR, SPEC]` により RULE-006 解消）
+5. **SPEC-54 の必須接続**: SPEC-54 → FR-13 辺あり ✓、`condition: normal` ✓
+6. **孤立ノードなし（RULE-005）**: バッチ全体で完全孤立（in/out 辺ゼロ）ノードなし ✓
+7. **存在しない ID 参照なし（RULE-007）**: 全辺の `to` が実在するノード ID ✓
+8. **condition 属性の完備（RULE-016）**: バッチ内の全 SPEC ノードに `condition` 属性あり ✓
+
+**所見**: FND-24（SPEC-14-1 の RULE-006 違反）は当初 VERIFY から漏れていたが H1 処置で config 拡張が完了し SPEC-14-1→SPEC-14 辺が有効な依存辺として承認された。バッチ全体は現時点で構造ルールに適合している。
+
+**発生した指摘**: なし（PASS）
