@@ -220,3 +220,6 @@ __marimo__/
 .review-state/
 report.html
 *.feedback.json
+
+# Authoring drafts (reconciled into main files; not history-bearing — FND-37)
+tmp/

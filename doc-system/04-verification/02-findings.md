@@ -860,8 +860,8 @@ edges:
 **深刻度**: WARNING
 **内容**: FND-24 処置で config.yaml の `must_link_to: SPEC` を `target: [FR, NFR, SPEC]` に拡張した。この OR 判定では SPEC→SPEC 辺（親 SPEC への辺）だけで RULE-006 を満たせるため、`-N` 採番の子 SPEC を意図した設計だが、任意の SPEC→SPEC 辺（兄弟 SPEC・無関係な SPEC への辺）でも合格してしまい、本来必要な FR/NFR への上流接続を機械検査で強制できない抜け穴がある。現存する全 SPEC に `-N` 子パターン以外の SPEC→SPEC 辺はないため現時点は実害ゼロだが、今後 SPEC が増えると意図しない抜け穴になり得る。
 **推奨**（次スプリント対応・本スプリントは起票のみ）: ① config/inspector に SPEC→SPEC の「子孫型」制約（target SPEC の ID が自ノードの `-N` 直接親であること）を追加、② SPEC-48 本文に運用ガイドとして「SPEC→SPEC 辺は `-N` 採番の直接親のみ」を明記、③ spec-inspector 実装時に SPEC→SPEC 辺の有効性を `-N` suffix で追加検証するロジックを組み込む。**推奨は ②＋③**（記法ガイドで運用ルールを明記しつつ、実装時に inspector ロジックで補完。①の config だけでは ID パターン照合が config スキーマを複雑化する）。
-**対応状況**: open
-**指摘時 ref_version**: SPEC-48 "0.3"（doc-system/02-what/03-spec.md v0.3.6 時点）
+**対応状況**: open（**オーナー承認済み sprint-2** — 2026-06-14・独断のスケジュールではなくオーナー判断で sprint-2 に確定）
+**指摘時 ref_version**: SPEC-48 "0.1"（ノードバージョン基準・DD-8。当初記録の file x.y="0.3"〔spec.md v0.3.6 時点〕は DD-8 移行で SPEC-48 ノードバッジ x.y="0.1" に再基準化）
 
 ---
 
@@ -902,7 +902,7 @@ edges:
 id: FND-37
 type: FND
 labels: []
-scheduled: "sprint-2"
+scheduled: ""
 suppress: []
 edges:
   - to: FND-33
@@ -912,6 +912,7 @@ edges:
 
 **深刻度**: INFO
 **内容**: FND-33 で「tmp をコミットしない運用（`.gitignore` 追加など）」を推奨し旧草稿を削除したが、本 PR #22 で新たに `tmp/doc-system/verify5.md` がコミットされた（Stop フックの untracked 検知による）。FND-33 推奨の tmp 非コミット運用が継続されていない。なお verify5.md の本文は VERIFY-5 として 01-doc-verify.md に反映済みであり tmp 版は冗長。
-**推奨**（次スプリント対応）: `.gitignore` に `tmp/` を追加して tmp を非コミット化するか、tmp を「著作エージェント出力の履歴成果物」として意図的に追跡する運用をオーナーと合意する。現状は方針未確定のまま Stop フックに従って都度コミットされており一貫性がない。
-**対応状況**: open
+**推奨**: `.gitignore` に `tmp/` を追加して tmp を非コミット化するか、tmp を「著作エージェント出力の履歴成果物」として意図的に追跡する運用をオーナーと合意する。現状は方針未確定のまま Stop フックに従って都度コミットされており一貫性がない。
+**対応状況**: resolved
+**対応内容**: オーナー判断（2026-06-14）で「`.gitignore` に `tmp/` を追加して非コミット化」を採用。`.gitignore` に `tmp/` を追記し、追跡済みの tmp 草稿（tmp/doc-system/・tmp/sprint-1/）を `git rm --cached` でインデックスから除去（ローカルには残置）。草稿は reconciliation が本ファイルへ反映するため履歴成果物ではなく、非コミット化が妥当（FND-33 推奨の継続）。
 **指摘時 ref_version**: FND-33 "0.1"（doc-system/04-verification/02-findings.md v0.1.14 時点）
