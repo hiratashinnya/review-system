@@ -2,7 +2,7 @@
 name: structured-analysis
 description: Structured-analysis designer. From an I/O ledger and event list, produces a context diagram, a level-1 DFD (STS split), recursive single-responsibility decomposition (STS × Warnier-Orr), and a state inventory. Use when turning settled requirements into a process design.
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: opus
 skills:
   - spec-principles
 ---

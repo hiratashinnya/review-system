@@ -2,7 +2,7 @@
 name: analysis-author
 description: Authors ACTOR, I, O, P, and E nodes for the analysis layer. Use when creating context/DFD-layer nodes. NOT for FR/SPEC/NFR (use requirements-author or spec-author), NOT for writing to main files (use reconciliation).
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: sonnet
 skills:
   - spec-principles
 ---
