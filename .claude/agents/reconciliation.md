@@ -2,7 +2,7 @@
 name: reconciliation
 description: Validates authored nodes from tmp files, reconciles cross-node consistency, and writes confirmed nodes to main files. Run after each authoring layer completes. NOT for authoring new nodes (use *-author agents), NOT for spec coverage inspection (use spec-inspector).
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: opus
 skills:
   - spec-principles
 ---

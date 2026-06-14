@@ -2,7 +2,7 @@
 name: spec-author
 description: Authors SPEC child nodes under a given parent SPEC or FR. Enforces 1-assertion-per-SPEC splitting and -N hierarchy numbering. Use when creating or splitting SPEC nodes. NOT for reading specs (use spec-inspector), NOT for writing to main files (use reconciliation).
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: opus
 skills:
   - spec-principles
 ---

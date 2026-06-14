@@ -2,7 +2,7 @@
 name: design-author
 description: Authors design-layer nodes: ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, TERM. Use when creating implementation-design nodes. NOT for requirements or analysis layer (use requirements-author or analysis-author), NOT for writing to main files (use reconciliation).
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: opus
 skills:
   - spec-principles
 ---
