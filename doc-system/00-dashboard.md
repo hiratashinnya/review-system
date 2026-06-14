@@ -54,11 +54,46 @@
 | N1（current_stage を `analysis` へ進める判断） | 🟡 中 | N | ⬜ 判断待ち | オーナーが stage 進行 or 現状維持を決定（N8 も連動） |
 | PEND-1（I-1-1/I-1-2/I-1-3 過分割） | — | PEND（**resolved**） | 子ノード改名＋親辺付与で解消・FND-6 resolved | ✅ クローズ（N4） |
 
-> **FND サマリ**：計 33 件（✅ resolved 25 ／ ⏳ open 8）。FND-24〜33 は PR #21 オーナーレビュー指摘（VERIFY-4・2026-06-13）。FND-29（M3・PR 説明文乖離）・FND-30（M4・ダッシュボード矛盾）は resolved。FND-24（H1・SPEC-14-1 RULE-006）・FND-25（M1・SPEC-48 矛盾）・FND-26（H2・connection-matrix 未同期）・FND-27（H3・dfd.md exclude 未登録）・FND-28（M2・追加バッチ VERIFY 欠如）・FND-31（L1）・FND-32（L2）・FND-33（L3）は open（技術修正はオーナー判断後）。
-> **VERIFY サマリ**：VERIFY-1（要件〜分析層・2026-06-11）／VERIFY-2（N0 再点検・2026-06-12）／VERIFY-3（N5・P 単一責務点検・2026-06-13）／VERIFY-4（PR #21 オーナーレビュー・2026-06-13）。いずれも suppress[RULE-004] 付与済み（DD-2 決定）。
-> **Q サマリ**：Q-1（closed・DD-2 へ昇格済み・2026-06-13）。
-> **DD サマリ**：DD-1〜5（決定済・反映済）・DD-6（decided・spec 層完了・分析層著作待ち）・DD-7（decided・反映済・分析層 DFD 改訂＝D 起票/ワークフロー並走/退役 ID 不再利用）。
-> **PEND サマリ**：PEND-1（resolved・過分割→子ノード化）・PEND-2（deferred・図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降）。
+### FND サマリ（計 33 件：✅ resolved 25 ／ ⏳ open 8）
+
+PR #21 オーナーレビュー指摘（FND-24〜33・VERIFY-4・2026-06-13）の内訳：
+
+| ID | レベル | 状態 | 概要 |
+|---|---|---|---|
+| FND-24 | H1（ERROR） | ⏳ open | SPEC-14-1 が FR/NFR 直辺なし（RULE-006 違反） |
+| FND-25 | M1（WARNING） | ⏳ open | SPEC-48 本文と config の SPEC→SPEC 扱いに矛盾 |
+| FND-26 | H2（ERROR） | ⏳ open | connection-matrix.md が DD-5 と未同期 |
+| FND-27 | H3（ERROR） | ⏳ open | dfd.md が out-of-graph 自称も trace_scope.exclude 未登録 |
+| FND-28 | M2（WARNING） | ⏳ open | 追加バッチ（SPEC-44〜54 等）の VERIFY 欠如 |
+| FND-29 | M3（WARNING） | ✅ resolved | PR 説明文の乖離 → PR 本文更新済み |
+| FND-30 | M4（WARNING） | ✅ resolved | ダッシュボードの判断待ち件数矛盾 → 修正済み |
+| FND-31 | L1（INFO） | ⏳ open | DD 影響範囲のバージョン注記が現版と乖離 |
+| FND-32 | L2（INFO） | ⏳ open | FR-1 バッジ v0.3 とファイル x.y=0.2 の不一致 |
+| FND-33 | L3（INFO） | ⏳ open | tmp 草稿に差し戻し済み SPEC-41〜43 残存 |
+
+> open 8 件の技術修正はオーナー判断後に着手。FND-1〜23 はすべて resolved（明細は `02-findings.md`）。
+
+### VERIFY サマリ
+
+| ID | 対象 | 実施日 |
+|---|---|---|
+| VERIFY-1 | 要件〜分析層 | 2026-06-11 |
+| VERIFY-2 | N0 再点検 | 2026-06-12 |
+| VERIFY-3 | N5・P 単一責務点検 | 2026-06-13 |
+| VERIFY-4 | PR #21 オーナーレビュー | 2026-06-13 |
+
+> いずれも suppress[RULE-004] 付与済み（DD-2 決定）。
+
+### DD / Q / PEND サマリ
+
+| ID | 状態 | 概要 |
+|---|---|---|
+| DD-1〜5 | ✅ 反映済 | 決定済・本文反映完了 |
+| DD-6 | 🔄 一部 pending | spec 層完了・分析層（O-4/O-5/P-8/P-9）著作待ち |
+| DD-7 | ✅ 反映済 | 分析層 DFD 改訂（D 起票／ワークフロー並走／退役 ID 不再利用） |
+| Q-1 | ✅ closed | DD-2 へ昇格済み（2026-06-13） |
+| PEND-1 | ✅ resolved | 過分割 → 子ノード化 |
+| PEND-2 | ⏳ deferred | 図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降 |
 
 ---
 
