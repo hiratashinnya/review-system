@@ -703,6 +703,8 @@ suppress: []
 edges:
   - to: P-7-2
     ref_version: "0.1"
+  - to: FND-38
+    ref_version: "0.1"
 ```
 </details>
 
@@ -916,3 +918,53 @@ edges:
 **対応状況**: resolved
 **対応内容**: オーナー判断（2026-06-14）で「`.gitignore` に `tmp/` を追加して非コミット化」を採用。`.gitignore` に `tmp/` を追記し、追跡済みの tmp 草稿（tmp/doc-system/・tmp/sprint-1/）を `git rm --cached` でインデックスから除去（ローカルには残置）。草稿は reconciliation が本ファイルへ反映するため履歴成果物ではなく、非コミット化が妥当（FND-33 推奨の継続）。
 **指摘時 ref_version**: FND-33 "0.1"（doc-system/04-verification/02-findings.md v0.1.14 時点）
+
+---
+
+## FND-38: PR #22 説明文が実変更と大きく乖離（FND-29 再発）
+
+<details><summary>⬡ FND-38 · v0.1</summary>
+
+```yaml
+id: FND-38
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-29
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: PR #22 のタイトル「fix: H1/H2/H3 処置（FND-24〜27 resolved）」および本文は、H1/H2/H3 処置のみを記述しており、以下の大規模変更が一切記載されていない：DD-8 確定（ノードバージョニング全面移行）・ファイルフロントマター全廃（30ファイル超）・ref_version 意味論変更（ファイル x.y → ノードバッジ x.y）・live 辺 170 件再基準化・RULE-004/meta-schema/notation/config 再定義・FND-34〜37 起票および一部 resolved・`.gitignore` 追加による tmp 非コミット化（−2400 行超）。PR #21 レビューで起票した FND-29（PR 説明文乖離）の再発であり、レビュアーが実際の変更範囲（プロジェクトのバージョニング哲学の構造的変更）を正しく評価できない状態になっている。
+**推奨**: PR 分割はしない（オーナー方針）。PR タイトルと本文を実態に合わせて更新する（タイトル例：`feat: H1/H2/H3 処置 + DD-8 ノードバージョニング全面移行`・本文に全変更の概要を追記）。
+**対応状況**: resolved
+**対応内容**: PR タイトルを `feat: H1/H2/H3 処置 + DD-8 ノードバージョニング全面移行（FND-24〜37 反映）` に更新し、本文に全変更区分（DD-8 移行・フロントマター全廃・ref_version 再基準化・FND-34〜37・tmp 非コミット化）の概要を追記した。
+**指摘時 ref_version**: FND-29 "0.1"（doc-system/04-verification/02-findings.md v0.1.8 時点）
+
+---
+
+## FND-39: DD-8 影響範囲に自己矛盾行残存（「✅ 完了」と「sprint-2 以降」が同居）
+
+<details><summary>⬡ FND-39 · v0.1</summary>
+
+```yaml
+id: FND-39
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: DD-8
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: `doc-system/04-verification/04-decisions.md` の DD-8「影響範囲」セクションに、フロントマター削除について「doc-system 配下…全ファイルから削除完了。✅ 完了」と宣言している行と、直後に「**ファイルフロントマター `version:` 削除**: sprint-2 以降に順次対応。」という旧版の残骸行が共存しており、直接矛盾している。DD-8 影響範囲を即時実施版に書き換えた際に旧文の一行が残存したもの。
+**推奨**: 矛盾行（「sprint-2 以降に順次対応」行）を削除し、DD-8 バッジを z バンプ（内容のみの修正のため ref_version 伝播不要）。末尾の FND-36 関連行は実施済みの記録として保持するが「※以下は当初起票時の実施計画（実施済み）」と一言添えると明確。
+**対応状況**: resolved
+**対応内容**: 矛盾行（「sprint-2 以降に順次対応」）を decisions.md から削除し、末尾の FND-36 関連行に「※実施済み確認記録」の注記を追加。DD-8 バッジを z バンプ（v0.1 → 表記上は v0.1 のまま、z バンプは省略）。
+**指摘時 ref_version**: DD-8 "0.1"（doc-system/04-verification/04-decisions.md 時点）

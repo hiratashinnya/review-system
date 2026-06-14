@@ -275,6 +275,8 @@ edges:
     ref_version: "0.1"
   - to: FND-32
     ref_version: "0.1"
+  - to: FND-39
+    ref_version: "0.1"
 ```
 </details>
 
@@ -308,5 +310,4 @@ edges:
 - **全辺の `ref_version`**: ファイル x.y → 参照先ノードのバッジ x.y へ一括移行（live 辺 170 件更新・ドリフト 0 を検証）。VERIFY 凍結辺は DD-2 により据え置き。✅ 完了
 - **ファイルフロントマター `version:` 削除**: doc-system 配下・docs/doc-system 配下（テンプレート群含む）全ファイルから削除完了。✅ 完了
 - **既知の残存事項（履歴保全・PR8）**: 解消済み FND 本文の `**指摘時 ref_version**:` 記録は当時のファイル x.y を凍結記録したものであり、遡及書き換えは provenance を損なうため実施しない（過去の系の下での記録として保持）。新規 FND は DD-3 の様式でノード x.y を記録する。
-- **ファイルフロントマター `version:` 削除**: sprint-2 以降に順次対応。
-- `doc-system/04-verification/02-findings.md`: FND-36 の対応状況を `open` → `resolved` に更新し、本 DD（DD-8）を処置記録として明記。FND-32 の処置誤謬（「ファイル x.y スナップショット」定義）が本 DD により是正済みである旨を FND-32 本文に追記。
+- ※以下は当初起票時の実施計画（実施済み確認記録）: `doc-system/04-verification/02-findings.md` の FND-36 を `open` → `resolved` に更新し、本 DD（DD-8）を処置記録として明記。FND-32 の処置誤謬（「ファイル x.y スナップショット」定義）が本 DD により是正済みである旨を FND-32 本文に追記。✅ 完了（FND-39 で指摘の旧版残骸行を削除済み）

@@ -13,7 +13,7 @@
 |---|---|---|
 | H1/H2/H3 処置（FND-24〜27）| FND resolved | ✅ 完了（2026-06-14） |
 | FND 残件処置（FND-28/31/32/33）| FND resolved | ✅ 完了（2026-06-14） |
-| PR #22 レビュー処置（FND-34〜37）| FND | ✅ FND-34/36/37 resolved・FND-35 はオーナー承認済 sprint-2 |
+| PR #22 レビュー処置（FND-34〜39）| FND | ✅ FND-34/36/37/38/39 resolved・FND-35 はオーナー承認済 sprint-2 |
 | **DD-8 即時実施**（ノードバージョニング移行・フロントマター全廃・ref_version 再基準化）| DD reflected | ✅ 完了（2026-06-14・オーナー指示で sprint-2 繰り越しを撤回） |
 | DD-6：依存グラフ機能（spec 層完了・分析層（O-4/O-5/P-8/P-9）著作待ち） | DD（decided・分析層 pending） | 🔄 FR-15/16・SPEC-50/51 著作済み |
 | N1：current_stage を analysis へ進める判断 | N | ⬜ 判断待ち |
