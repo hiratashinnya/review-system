@@ -1,6 +1,3 @@
----
-version: "0.1.16"
----
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
 > **型**: FND ／ **必須**: 指摘対象要素への依存辺が1本以上（RULE-006 config: `must_link_to: FND → any`）
@@ -20,7 +17,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.6"
+    ref_version: "0.2"
   - to: FND-16
     ref_version: "0.1"
 ```
@@ -45,7 +42,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2
-    ref_version: "0.5"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -67,7 +64,7 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
   - to: DD-4
     ref_version: "0.1"
 ```
@@ -92,7 +89,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3
-    ref_version: "0.5"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -136,7 +133,7 @@ labels: []
 scheduled: ""
 edges:
   - to: I-1-1
-    ref_version: "0.5"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -158,7 +155,7 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -180,7 +177,7 @@ labels: []
 scheduled: ""
 edges:
   - to: O-3
-    ref_version: "0.6"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -202,7 +199,7 @@ labels: []
 scheduled: ""
 edges:
   - to: I-6
-    ref_version: "0.6"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -224,7 +221,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.6"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -268,7 +265,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -290,7 +287,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-31
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -340,7 +337,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-11
-    ref_version: "0.2"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -413,9 +410,9 @@ labels: []
 scheduled: ""
 edges:
   - to: I-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -457,7 +454,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.6"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -484,7 +481,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.6"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -507,7 +504,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -530,7 +527,7 @@ labels: []
 scheduled: ""
 edges:
   - to: D-1
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -553,7 +550,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-1
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -577,7 +574,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-14-1
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -602,7 +599,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-48
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -677,9 +674,9 @@ scheduled: ""
 suppress: []
 edges:
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: SPEC-54
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -705,7 +702,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: P-7-2
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -779,7 +776,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-36
     ref_version: "0.1"
 ```
@@ -856,7 +853,7 @@ scheduled: "sprint-2"
 suppress: []
 edges:
   - to: SPEC-48
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 

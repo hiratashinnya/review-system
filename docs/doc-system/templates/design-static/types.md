@@ -1,6 +1,3 @@
----
-version: "0.1.0"
----
 # ドメイン型
 
 > **型**: DM ／ **必須上流**: TERM（refines ✅）・P（refines ✅）の両方

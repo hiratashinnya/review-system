@@ -1,6 +1,3 @@
----
-version: "0.1.6"
----
 # ドキュメント検証 — doc-system ドッグフーディング（要件〜分析層）
 
 > **型**: VERIFY ／ **必須**: 対象要素への依存辺が1本以上（RULE-006 config: `must_link_to: VERIFY → any`）

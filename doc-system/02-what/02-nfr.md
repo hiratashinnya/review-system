@@ -1,6 +1,3 @@
----
-version: "0.2.2"
----
 # 非機能要求・制約
 
 > **型**: NFR ／ **必須上流**: SR（依存辺 ✅）
@@ -20,7 +17,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-1
     ref_version: "0.1"
   - to: DD-5
@@ -43,7 +40,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-1
     ref_version: "0.1"
   - to: DD-5
@@ -66,7 +63,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-1
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-5
     ref_version: "0.1"
 ```
@@ -87,7 +84,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-6
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-5
     ref_version: "0.1"
 ```
@@ -108,7 +105,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-3
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-5
     ref_version: "0.1"
 ```
@@ -129,7 +126,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: DD-1
     ref_version: "0.1"
   - to: DD-5

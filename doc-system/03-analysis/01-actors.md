@@ -1,6 +1,3 @@
----
-version: "0.3.0"
----
 # 外部アクタ
 
 > **型**: ACTOR ／ **必須上流**: SR（refines ✅）
@@ -18,7 +15,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-1
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -37,7 +34,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 

@@ -1,6 +1,3 @@
----
-version: "0.3.6"
----
 # 機能仕様
 
 > **型**: SPEC ／ **必須上流**: FR または NFR（依存辺 ✅・DD-5）
@@ -22,7 +19,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-14
     ref_version: "0.1"
 ```
@@ -47,7 +44,7 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-14
     ref_version: "0.1"
 ```
@@ -92,7 +89,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -114,7 +111,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -136,7 +133,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -288,7 +285,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-9
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -310,7 +307,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-9
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -444,7 +441,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: FND-18
     ref_version: "0.1"
   - to: FND-24
@@ -496,7 +493,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -518,7 +515,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -540,7 +537,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -582,7 +579,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-16
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -604,7 +601,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-16
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -668,7 +665,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -690,7 +687,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -712,7 +709,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -734,7 +731,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -756,7 +753,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -798,7 +795,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-19
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -820,7 +817,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-19
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1058,7 +1055,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-9
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1078,7 +1075,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-24
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1100,7 +1097,7 @@ scheduled: ""
 condition: boundary
 edges:
   - to: SPEC-24
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1142,7 +1139,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-25
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1164,7 +1161,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-25
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1186,7 +1183,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-25
-    ref_version: "0.3"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1208,7 +1205,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-11
-    ref_version: "0.2"
+    ref_version: "0.4"
   - to: FND-14
     ref_version: "0.1"
 ```
@@ -1233,7 +1230,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: FND-14
     ref_version: "0.1"
 ```
@@ -1328,7 +1325,7 @@ scheduled: ""
 condition: empty
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-13
     ref_version: "0.1"
 ```
@@ -1353,7 +1350,7 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1376,7 +1373,7 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1399,7 +1396,7 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1422,7 +1419,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1445,7 +1442,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-11
-    ref_version: "0.2"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -1468,7 +1465,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1491,7 +1488,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-13
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1514,7 +1511,7 @@ scheduled: "post-mvp"
 condition: normal
 edges:
   - to: FR-14
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1537,7 +1534,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1560,7 +1557,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-2
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1654,7 +1651,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-6
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1677,7 +1674,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1701,7 +1698,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-16
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1725,7 +1722,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-18
     ref_version: "0.1"
 ```
@@ -1752,7 +1749,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: FND-18
     ref_version: "0.1"
 ```
@@ -1779,7 +1776,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 

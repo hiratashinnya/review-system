@@ -1,6 +1,3 @@
----
-version: "0.1.2"
----
 # 先送り — PEND-1
 
 > **型**: PEND ／ 義務辺（PEND→X）が存在する間は RULE-022 WARNING。解消後は X→PEND に転換。
@@ -18,7 +15,7 @@ labels: []
 scheduled: ""
 edges:
   - to: I-1-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: FND-6
     ref_version: "0.1"
   - to: DD-4
@@ -49,9 +46,9 @@ labels: []
 scheduled: ""
 edges:
   - to: VAL-5
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.1"
 ```
 </details>
 

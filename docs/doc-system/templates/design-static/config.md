@@ -1,6 +1,3 @@
----
-version: "0.1.0"
----
 # コンフィグ
 
 > **型**: CFG ／ **必須上流**: SCM（instantiates ✅）・SPEC（refines ✅）
