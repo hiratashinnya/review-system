@@ -44,7 +44,7 @@ edges:
 
 **点検項目**:
 
-1. **FR-15/16 の必須接続**: FR-15/16 → SR-7 辺あり ✓、SPEC 子（SPEC-50/51）あり ✓
+1. **FR-15/16 の必須接続**: FR-15/16 → SR-2 辺あり ✓、SPEC 子（SPEC-50/51）あり ✓
 2. **SPEC-44〜49 の必須接続**: SPEC-44〜49 → NFR-1〜6 辺あり ✓、全ノードに `condition: normal` ✓
 3. **SPEC-50/51 の必須接続**: SPEC-50/51 → FR-15/16 辺あり ✓、`condition: normal` ✓
 4. **SPEC-14-1 の必須接続**: SPEC-14-1 → SPEC-14 辺あり ✓（H1 処置後 config `SPEC→[FR, NFR, SPEC]` により RULE-006 解消）
