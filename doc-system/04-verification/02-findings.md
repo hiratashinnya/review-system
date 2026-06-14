@@ -1,6 +1,3 @@
----
-version: "0.1.12"
----
 # 指摘・Finding — doc-system ドッグフーディング（要件〜分析層）
 
 > **型**: FND ／ **必須**: 指摘対象要素への依存辺が1本以上（RULE-006 config: `must_link_to: FND → any`）
@@ -20,7 +17,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.6"
+    ref_version: "0.2"
   - to: FND-16
     ref_version: "0.1"
 ```
@@ -45,7 +42,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2
-    ref_version: "0.5"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -67,7 +64,7 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
   - to: DD-4
     ref_version: "0.1"
 ```
@@ -92,7 +89,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3
-    ref_version: "0.5"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -136,7 +133,7 @@ labels: []
 scheduled: ""
 edges:
   - to: I-1-1
-    ref_version: "0.5"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -158,7 +155,7 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -180,7 +177,7 @@ labels: []
 scheduled: ""
 edges:
   - to: O-3
-    ref_version: "0.6"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -202,7 +199,7 @@ labels: []
 scheduled: ""
 edges:
   - to: I-6
-    ref_version: "0.6"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -224,7 +221,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.6"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -268,7 +265,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -290,7 +287,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-31
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -340,7 +337,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FR-11
-    ref_version: "0.2"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -413,9 +410,9 @@ labels: []
 scheduled: ""
 edges:
   - to: I-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -457,7 +454,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.6"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -484,7 +481,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.6"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -507,7 +504,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -530,7 +527,7 @@ labels: []
 scheduled: ""
 edges:
   - to: D-1
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -553,7 +550,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-1
-    ref_version: "0.6"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -577,14 +574,15 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-14-1
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
 **深刻度**: ERROR
 **内容**: SPEC-14-1（カバレッジテーブルの出力フォーマット・normal）の edges が `to: SPEC-14`（親 SPEC）と `to: FND-18` のみであり、FR または NFR への直接辺が存在しない。config.yaml の `must_link_to: SPEC → [FR, NFR]`（RULE-006・severity: error）違反。SPEC-14-1 は SPEC-14 の -N 分割ノードだが、config の必須接続は FR/NFR への直辺を要求しており、SPEC→SPEC のみでは RULE-006 を満たさない。
 **推奨**: config の `must_link_to` の OR リストを `SPEC → [FR, NFR, SPEC]` に拡張し、子 SPEC（`-N` 採番）を機構として持つ。あるいは SPEC-14-1 に `to: FR-6` 直辺を付与する。**前者を推奨**（子 SPEC を今後も使うなら機構として持つべきで、SPEC-48 本文・接続マトリクスの意図と一致する）。本 PR が初めて子 SPEC（`-N` 採番）パターンを導入したが、config 側に `SPEC → SPEC` が用意されていなかった点が根因。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `docs/doc-system/config.yaml` の `must_link_to: SPEC` を `target: [FR, NFR, SPEC]` に拡張（FND-25 と同根一括解消）。SPEC-14-1 に `→FND-24` バックリファレンス辺を付与（spec.md v0.3.6）。接続マトリクス §2 SPEC 行に NFR ✅・SPEC ✅ を追加（connection-matrix.md v0.2.1）。
 **指摘時 ref_version**: SPEC-14-1 "0.3"（doc-system/02-what/03-spec.md v0.3.5 時点）
 
 ---
@@ -601,14 +599,15 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-48
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
 **深刻度**: WARNING
 **内容**: SPEC-48（各ノードは直接の親のみへ辺を張る・USDM 1段制約）の本文に「接続マトリクスで SPEC の直接親は FR または別 SPEC と定義されている」「SPEC の `edges[].to` が FR・NFR・または別 SPEC（直接親 SPEC）を指す」と明記されている。一方 config.yaml の `must_link_to: SPEC → [FR, NFR]` には SPEC→SPEC は含まれておらず、機械検査上は SPEC→SPEC のみのノードが RULE-006 ERROR になる。FND-24（SPEC-14-1）の違反はこの不整合が根因。SPEC-48 本文か config の `must_link_to` のいずれかを修正する必要がある。
 **推奨**: FND-24 と同根のため一括解消する。config を `SPEC → [FR, NFR, SPEC]` に拡張すれば、SPEC-48 本文（「SPEC の辺は FR・NFR・または別 SPEC を指す」）と config の機械判定が一致する。config を拡張せず SPEC-48 本文側を狭める選択肢もあるが、子 SPEC パターンを採用する方針なら config 拡張を推奨。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: FND-24 と同根一括解消。`docs/doc-system/config.yaml` を `SPEC → [FR, NFR, SPEC]` に拡張することで SPEC-48 本文の記述と config の機械判定が一致した。SPEC-48 に `→FND-25` バックリファレンス辺を付与（spec.md v0.3.6）。
 **指摘時 ref_version**: SPEC-48 "0.3"（doc-system/02-what/03-spec.md v0.3.5 時点）
 
 ---
@@ -632,7 +631,8 @@ edges:
 **深刻度**: ERROR
 **内容**: DD-5（NFR から SPEC 導出を必須化・2026-06-13 反映完了）により config.yaml が `must_link_to: SPEC → [FR, NFR]` に更新され `must_be_linked_from: NFR ← [SPEC]` が追加されたが、`docs/doc-system/03-connection-matrix.md`（v0.2.0）は更新されていない。具体的な不整合：§2 接続要否マトリクス表の SPEC 行が FR のみ必須（NFR なし）・§4「NFR は `refines` 上流にはならない（他要素が NFR を refines しない）」が DD-5 の「SPEC→NFR を必須化」と直接矛盾。接続マトリクスは「人が読める全体像」として正本 config.yaml と一致すべきだが、DD-5 適用後に同期されていない。
 **推奨**: `docs/doc-system/03-connection-matrix.md` を DD-5 に合わせて §2/§3/§4 とも改訂する。具体的には (§2) must_link_to の mermaid を `SPEC --> FR` のみから `[FR, NFR]` 相当へ拡張・(§3) 被依存表に `NFR ← SPEC` を追加（現状 `NFR ← FND/TC/VERIFY` のみ）・(§4)「NFR は refines 上流にはならない（他要素が NFR を refines しない）」の記述を DD-5（`SPEC → NFR` 必須化）と整合する形に改訂。正本ドキュメント間（config と接続マトリクス）の矛盾を残したまま DD-5 を decided にするのは「矛盾は停止して打ち上げ」原則（PR）違反であり、マージ前解消が望ましい。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `docs/doc-system/03-connection-matrix.md` を v0.2.1 に改訂。§1 mermaid に `SPEC --> NFR` と `SPEC --> SPEC` を追加、§2 表に NFR 列を追加（SPEC 行: FR ✅・NFR ✅・SPEC ✅）、§3 被依存表に `NFR ← SPEC`（requirements 以降）行を追加、§4 テキストを DD-5 に合わせて改訂。DD-5 に `→FND-26` バックリファレンス辺を付与（decisions.md v0.1.6）。
 **指摘時 ref_version**: DD-5 "0.1"（doc-system/04-verification/04-decisions.md v0.1.5 時点）
 
 ---
@@ -656,7 +656,8 @@ edges:
 **深刻度**: ERROR
 **内容**: `doc-system/03-analysis/00-dfd.md`（v0.2.2）の本文に「本ファイルは派生図（ノードを持たない）」と記載され out-of-graph を自称するが、config.yaml の `trace_scope.include: ["doc-system/**/*.md"]` に含まれ、`trace_scope.exclude` には未登録。spec-inspector はこのファイルを走査しノードを抽出しようとするが、ファイル内には `<details>` YAML ブロックのノードが存在しないため「in-graph ファイルだがノードゼロ」という矛盾状態になる。修正方針：(A) `trace_scope.exclude` に `"**/00-dfd.md"` を追加して out-of-graph を正式化 か (B) out-of-graph 自称を削除しノードを持たない in-graph ファイルとして運用。
 **推奨**: **(A) を推奨**。`trace_scope.exclude` に `**/00-dfd.md`（または `doc-system/**/00-dfd.md`）を追加して out-of-graph を正式化する。dashboard を `**/00-dashboard.md` で除外しているのと同じ機構であり、自称と config の食い違い（観測できない前提）を解消できる。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: 推奨案 A を採用。`docs/doc-system/config.yaml` の `trace_scope.exclude` に `"**/00-dfd.md"` を追加し、DFD 図ファイルを out-of-graph として正式化した（00-dashboard.md と同等の扱い）。DD-7 に `→FND-27` バックリファレンス辺を付与（decisions.md v0.1.6）。
 **指摘時 ref_version**: DD-7 "0.1"（doc-system/04-verification/04-decisions.md v0.1.5 時点）
 
 ---
@@ -673,9 +674,9 @@ scheduled: ""
 suppress: []
 edges:
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: SPEC-54
-    ref_version: "0.3"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -683,7 +684,8 @@ edges:
 **内容**: VERIFY-1（2026-06-11）・VERIFY-2（2026-06-12 N0 再点検）・VERIFY-3（2026-06-13 P 単一責務）は、それぞれの対象範囲以降に追加された SPEC-44〜54・SPEC-14-1・FR-15/16 を含まない。これらの追加バッチ（NFR→SPEC 導出強化・依存グラフ機能・SPEC-14-1 など）について spec-inspector による参照整合・カバレッジ・RULE 検査の記録がなく、FND-24（SPEC-14-1 RULE-006 違反）が VERIFY から漏れた事実も VERIFY 空白を示す。追加バッチ全体を対象とした VERIFY を起票する必要がある。
 **補足**: dashboard の「ステージ別完成度」は requirements を「✅ N0 再点検済」と表示しているが、06-13 に追加された SPEC-44〜54・SPEC-14-1・FR-15/16 は VERIFY で再走査されておらず、実際 H1（FND-24）のような未検出違反が残っている。「✅点検済」表示が実態を上回っている。
 **推奨**: 追加分を対象とした VERIFY を起票する（H1〜H3 解消後にまとめて再走査するのが望ましい）か、requirements 層のステータスを 🟡 に戻す。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: H1〜H3 処置（FND-24〜27・2026-06-14）完了後、SPEC-44〜54・SPEC-14-1・FR-15/16 を対象とした VERIFY-5 を起票（01-doc-verify.md v0.1.5）。手動点検で PASS を確認。SPEC-14-1 の RULE-006 違反（FND-24）は H1 処置で解消済みであることを確認した。バックリファレンス辺は VERIFY-5 の edges に `→FND-28` を含む形で付与済み。
 **指摘時 ref_version**: FR-15 "0.2"（doc-system/02-what/01-fr.md v0.2.5 時点）、SPEC-54 "0.3"（doc-system/02-what/03-spec.md v0.3.5 時点）
 
 ---
@@ -700,7 +702,9 @@ scheduled: ""
 suppress: []
 edges:
   - to: P-7-2
-    ref_version: "0.6"
+    ref_version: "0.1"
+  - to: FND-38
+    ref_version: "0.1"
 ```
 </details>
 
@@ -756,7 +760,8 @@ edges:
 **内容**: 各 DD の「影響範囲」に記載されたファイルのバージョン注記（例：`doc-system/02-what/03-spec.md`（v0.3.0→0.3.1）等）は、DD 決定時点のバージョン遷移を記録したものだが、その後の追加変更でファイルは更に版上げされており、影響範囲に書かれたバージョンが「当時の変更前後」であって「現在の最終版」を示さないことが不明瞭。読者が DD の影響範囲と現在のファイル版を照合しようとすると乖離が見つかる（例：DD-5 影響範囲では spec.md が v0.3.0→0.3.1 と記載されているが現在は v0.3.5）。DD は決定時点のスナップショットとして書かれているが（DD-2 により suppress[RULE-004] がある）、注記の意図が明示されていないため混乱を招く可能性がある。
 **補足**（オーナー指摘の版ずれ実例・いずれも DD-2 の suppress[RULE-004] によるスナップショット設計だが監査時に DD→ファイルで版が合わず混乱を招く）: DD-2 影響範囲「doc-verify →0.1.2」が実 0.1.3（現 0.1.4）／DD-4 影響範囲「findings →0.1.4」が実 0.1.9（現 0.1.11）／DD-5・DD-6 影響範囲「spec 0.3.2」が実 0.3.4（現 0.3.5）。加えて VERIFY-3 が DD-2 の影響範囲に未記載。
 **推奨**: DD の影響範囲注記が「決定時点のスナップショット」である旨を各 DD またはガイドに明示するか、監査用に「現在版」を併記する運用を検討。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `doc-system/04-verification/04-decisions.md` のプリアンブルに「影響範囲のバージョン注記は決定時点のスナップショット（DD-2 凍結記録設計）」の明示を追加（v0.1.7）。DD-5 に `→FND-31` バックリファレンス辺を付与。
 **指摘時 ref_version**: DD-5 "0.1"（doc-system/04-verification/04-decisions.md v0.1.5 時点）
 
 ---
@@ -773,13 +778,16 @@ scheduled: ""
 suppress: []
 edges:
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.3"
+  - to: FND-36
+    ref_version: "0.1"
 ```
 </details>
 
 **深刻度**: INFO
 **内容**: `doc-system/02-what/01-fr.md` 内の FR-1 ノードのバッジが `⬡ FR-1 · v0.3` だが、ファイルの frontmatter は `version: "0.2.5"`（x.y=0.2）。バッジの v0.3 はノード自体の改訂回数カウント、ファイル x.y はファイル全体の MAJOR.MINOR という別体系だが、ノードバッジと ref_version（ファイル x.y 基準）の対応関係が記法ガイドに明示されておらず、読者がバッジの意味を誤解する恐れがある。バッジが「ファイルの x.y」を示すと誤解した場合、ref_version: "0.2" との乖離（v0.3 vs 0.2）が誤りに見える。なお ref_version は `"0.2"` で RULE-004 上は正であり、誤読防止のためバッジ採番ルール（ノード改訂回数 vs ファイル x.y）の記法ガイド明記が望ましい。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: `docs/doc-system/04-notation.md` の summary バッジ説明箇所に「バッジは著作・最終更新時のファイル x.y スナップショットであり、ノード改訂カウントではない。現在のファイル x.y と一致しなくても RULE 違反にはならない」旨を追記。FR-1 に `→FND-32` バックリファレンス辺を付与（fr.md v0.2.6）。※本 FND-32 の処置（「ファイル x.y スナップショット」定義）は実態と乖離していたことが FND-36 で指摘され、DD-8 により「ノード固有バージョン（MAJOR.MINOR）」定義に是正済み（2026-06-14）。
 **指摘時 ref_version**: FR-1 "0.2"（doc-system/02-what/01-fr.md v0.2.5 時点）
 
 ---
@@ -804,7 +812,159 @@ edges:
 **内容**: `tmp/doc-system/spec-41-49.md` に FND-18 初回処置で差し戻し済みの SPEC-41（I-1 完全スキーマ）・SPEC-42（O-2 カバレッジ出力）・SPEC-43（I-7 テンプレート構造）の草稿が残存し、最終 spec.md（v0.3.5）の RULE-028 定義とは異なるバージョンの RULE-028 記述が含まれる。`tmp/doc-system/fnd18-redo.md` にも旧 RULE-028 定義が含まれる。tmp は working draft であり主ファイルとは独立するが、同一 SPEC ID の別定義が検索時に混乱を生む恐れがある。また tmp/doc-system/n5-verify-fnd.md にも RULE-028 への参照がある。
 **補足**: `tmp/doc-system/spec-41-49.md` の SPEC-41 は RULE-028 を「unknown field → WARNING」と定義しているが、最終 spec.md の RULE-028 は `labels`/`scheduled`/`edges` の欠如・型不正 → ERROR で**別物**であり、将来の誤参照源になる。tmp 草稿9本が最終版と重複してコミットされている。
 **推奨**: tmp をコミットしない運用にする（`.gitignore` 追加など）か、撤去分（差し戻し済み SPEC-41/42/43 を含む草稿）を削除する。
-**対応状況**: open
+**対応状況**: resolved
+**対応内容**: 旧 RULE-028 定義を含む草稿 `tmp/doc-system/spec-41-49.md`（差し戻し済み SPEC-41〜43 を含む）と `tmp/doc-system/fnd18-redo.md` を削除。バックリファレンス辺の付与先は tmp ファイル（in-graph ノードなし）のため付与先なし。
 **指摘時 ref_version**: FND-18 "0.1"（doc-system/04-verification/02-findings.md v0.1.10 時点）
 
 ---
+
+## FND-34: VERIFY-5 点検項目1 の事実誤記（SR-7 → SR-2）
+
+<details><summary>⬡ FND-34 · v0.1</summary>
+
+```yaml
+id: FND-34
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: VERIFY-5
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: VERIFY-5（doc-system/04-verification/01-doc-verify.md）の点検項目1に「FR-15/16 → SR-7 辺あり ✓」と記載されているが、FR-15・FR-16 の実際の辺はいずれも `to: SR-2`（単一 CLI エントリポイント）であり、SR-7（フェーズ・ステージ進行に応じた検査ノイズ制御）は参照していない。`tmp/doc-system/verify5.md` にも同じ誤記がある。事実誤記であり、PASS 判定（FR→SR 接続あり ✓）自体は正しい（FR-15/16 が SR への接続を持つこと自体は事実のため、結論は不変）。
+**推奨**: doc-verify.md と tmp/verify5.md の「SR-7」を「SR-2」に修正し、doc-verify.md を z-bump（v0.1.5→v0.1.6）。再走査不要（結論不変）。
+**対応状況**: resolved
+**対応内容**: doc-verify.md（v0.1.6）と tmp/verify5.md の点検項目1を SR-2 に修正。VERIFY-5 は suppress[RULE-004] の凍結スナップショットだが、事実誤記の訂正は版内修正として実施。バックリファレンス辺は VERIFY-5 に `→FND-34` を付与（suppress 付き凍結ノードだが訂正記録として）。
+**指摘時 ref_version**: VERIFY-5 "0.1"（doc-system/04-verification/01-doc-verify.md v0.1.5 時点）
+
+---
+
+## FND-35: config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール
+
+<details><summary>⬡ FND-35 · v0.1</summary>
+
+```yaml
+id: FND-35
+type: FND
+labels: []
+scheduled: "sprint-2"
+suppress: []
+edges:
+  - to: SPEC-48
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: FND-24 処置で config.yaml の `must_link_to: SPEC` を `target: [FR, NFR, SPEC]` に拡張した。この OR 判定では SPEC→SPEC 辺（親 SPEC への辺）だけで RULE-006 を満たせるため、`-N` 採番の子 SPEC を意図した設計だが、任意の SPEC→SPEC 辺（兄弟 SPEC・無関係な SPEC への辺）でも合格してしまい、本来必要な FR/NFR への上流接続を機械検査で強制できない抜け穴がある。現存する全 SPEC に `-N` 子パターン以外の SPEC→SPEC 辺はないため現時点は実害ゼロだが、今後 SPEC が増えると意図しない抜け穴になり得る。
+**推奨**（次スプリント対応・本スプリントは起票のみ）: ① config/inspector に SPEC→SPEC の「子孫型」制約（target SPEC の ID が自ノードの `-N` 直接親であること）を追加、② SPEC-48 本文に運用ガイドとして「SPEC→SPEC 辺は `-N` 採番の直接親のみ」を明記、③ spec-inspector 実装時に SPEC→SPEC 辺の有効性を `-N` suffix で追加検証するロジックを組み込む。**推奨は ②＋③**（記法ガイドで運用ルールを明記しつつ、実装時に inspector ロジックで補完。①の config だけでは ID パターン照合が config スキーマを複雑化する）。
+**対応状況**: open（**オーナー承認済み sprint-2** — 2026-06-14・独断のスケジュールではなくオーナー判断で sprint-2 に確定）
+**指摘時 ref_version**: SPEC-48 "0.1"（ノードバージョン基準・DD-8。当初記録の file x.y="0.3"〔spec.md v0.3.6 時点〕は DD-8 移行で SPEC-48 ノードバッジ x.y="0.1" に再基準化）
+
+---
+
+## FND-36: ノードバッジの意味が実態と矛盾（FND-32 処置の誤定義・オーナー判断論点）
+
+<details><summary>⬡ FND-36 · v0.1</summary>
+
+```yaml
+id: FND-36
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-32
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: FND-32 処置（前コミット）で `docs/doc-system/04-notation.md` の summary バッジ説明を「著作・最終更新したときのファイル x.y スナップショット」と定義した。しかしこの定義は実態と矛盾する。FR-1 のバッジは `v0.3` だが `01-fr.md` の version 履歴は 0.2.2→0.2.5→0.2.6 で **0.3 に達したことがない**。FR-11 のバッジ `v0.4` も同様にファイル x.y では説明不能。バッジは実際には**ノード固有の改訂回数（ノードを書き直すたびに増える版）**を表しており、「ファイル x.y スナップショット」という FND-32 の定義では全ノードのバッジが説明できない。FND-32 の処置が実態に反する定義で記法ガイドを固定してしまった（前処置の誤り）。元の notation.md 定義「ノードが書かれた時点のファイル x.y」も同様に実態と矛盾していた（FND-32 はこの矛盾の半分しか直していない）。
+**推奨**（選択肢・オーナー判断必須）:
+- **A. バッジ＝ノード固有のリビジョン番号**と定義し直す（改訂のたびに増える vN.M）。実態に合致し修正は notation.md の説明文のみ（全ノードのバッジは現状維持で有効）。ref_version（ファイル x.y 基準）とは別体系であることを明記。
+- **B. バッジ＝ファイル x.y を維持**し、全ノードのバッジ表示を現ファイル x.y に一括修正（FR-1 v0.3→v0.2 等）。大量修正でノード改訂履歴の情報が失われる。
+- **C. バッジ廃止**（人の目印に過ぎず ref_version が真実源のため）。
+- **推奨 A**（実態に合致・修正最小・ノード単位の改訂履歴として意味がある）。決定はオーナー。
+**対応状況**: resolved
+**対応内容**: DD-8（「ノードバッジをノード固有バージョン（x.y.z）に正式化・ファイルフロントマター version 廃止」・2026-06-14 オーナー確定）により、バッジをノード固有バージョン（MAJOR.MINOR）として正式化する選択肢 A を採用。`docs/doc-system/04-notation.md` の summary バッジ説明を「ノード固有バージョン（MAJOR.MINOR）、著作・更新のたびに独立して管理される（DD-8）」に改訂し、FND-32 処置の誤定義（「ファイル x.y スナップショット」）を上書き訂正。FND-32 に `→FND-36` バックリファレンス辺を付与。ファイルフロントマター廃止・全辺 ref_version 移行は sprint-2 以降（DD-8 決定）。
+**指摘時 ref_version**: FND-32 "0.1"（doc-system/04-verification/02-findings.md v0.1.14 時点）
+
+---
+
+## FND-37: tmp 草稿のコミット運用が継続されていない
+
+<details><summary>⬡ FND-37 · v0.1</summary>
+
+```yaml
+id: FND-37
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-33
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: FND-33 で「tmp をコミットしない運用（`.gitignore` 追加など）」を推奨し旧草稿を削除したが、本 PR #22 で新たに `tmp/doc-system/verify5.md` がコミットされた（Stop フックの untracked 検知による）。FND-33 推奨の tmp 非コミット運用が継続されていない。なお verify5.md の本文は VERIFY-5 として 01-doc-verify.md に反映済みであり tmp 版は冗長。
+**推奨**: `.gitignore` に `tmp/` を追加して tmp を非コミット化するか、tmp を「著作エージェント出力の履歴成果物」として意図的に追跡する運用をオーナーと合意する。現状は方針未確定のまま Stop フックに従って都度コミットされており一貫性がない。
+**対応状況**: resolved
+**対応内容**: オーナー判断（2026-06-14）で「`.gitignore` に `tmp/` を追加して非コミット化」を採用。`.gitignore` に `tmp/` を追記し、追跡済みの tmp 草稿（tmp/doc-system/・tmp/sprint-1/）を `git rm --cached` でインデックスから除去（ローカルには残置）。草稿は reconciliation が本ファイルへ反映するため履歴成果物ではなく、非コミット化が妥当（FND-33 推奨の継続）。
+**指摘時 ref_version**: FND-33 "0.1"（doc-system/04-verification/02-findings.md v0.1.14 時点）
+
+---
+
+## FND-38: PR #22 説明文が実変更と大きく乖離（FND-29 再発）
+
+<details><summary>⬡ FND-38 · v0.1</summary>
+
+```yaml
+id: FND-38
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-29
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: PR #22 のタイトル「fix: H1/H2/H3 処置（FND-24〜27 resolved）」および本文は、H1/H2/H3 処置のみを記述しており、以下の大規模変更が一切記載されていない：DD-8 確定（ノードバージョニング全面移行）・ファイルフロントマター全廃（30ファイル超）・ref_version 意味論変更（ファイル x.y → ノードバッジ x.y）・live 辺 170 件再基準化・RULE-004/meta-schema/notation/config 再定義・FND-34〜37 起票および一部 resolved・`.gitignore` 追加による tmp 非コミット化（−2400 行超）。PR #21 レビューで起票した FND-29（PR 説明文乖離）の再発であり、レビュアーが実際の変更範囲（プロジェクトのバージョニング哲学の構造的変更）を正しく評価できない状態になっている。
+**推奨**: PR 分割はしない（オーナー方針）。PR タイトルと本文を実態に合わせて更新する（タイトル例：`feat: H1/H2/H3 処置 + DD-8 ノードバージョニング全面移行`・本文に全変更の概要を追記）。
+**対応状況**: resolved
+**対応内容**: PR タイトルを `feat: H1/H2/H3 処置 + DD-8 ノードバージョニング全面移行（FND-24〜37 反映）` に更新し、本文に全変更区分（DD-8 移行・フロントマター全廃・ref_version 再基準化・FND-34〜37・tmp 非コミット化）の概要を追記した。
+**指摘時 ref_version**: FND-29 "0.1"（doc-system/04-verification/02-findings.md v0.1.8 時点）
+
+---
+
+## FND-39: DD-8 影響範囲に自己矛盾行残存（「✅ 完了」と「sprint-2 以降」が同居）
+
+<details><summary>⬡ FND-39 · v0.1</summary>
+
+```yaml
+id: FND-39
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: DD-8
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: `doc-system/04-verification/04-decisions.md` の DD-8「影響範囲」セクションに、フロントマター削除について「doc-system 配下…全ファイルから削除完了。✅ 完了」と宣言している行と、直後に「**ファイルフロントマター `version:` 削除**: sprint-2 以降に順次対応。」という旧版の残骸行が共存しており、直接矛盾している。DD-8 影響範囲を即時実施版に書き換えた際に旧文の一行が残存したもの。
+**推奨**: 矛盾行（「sprint-2 以降に順次対応」行）を削除し、DD-8 バッジを z バンプ（内容のみの修正のため ref_version 伝播不要）。末尾の FND-36 関連行は実施済みの記録として保持するが「※以下は当初起票時の実施計画（実施済み）」と一言添えると明確。
+**対応状況**: resolved
+**対応内容**: 矛盾行（「sprint-2 以降に順次対応」）を decisions.md から削除し、末尾の FND-36 関連行に「※実施済み確認記録」の注記を追加。DD-8 バッジを z バンプ（v0.1 → 表記上は v0.1 のまま、z バンプは省略）。
+**指摘時 ref_version**: DD-8 "0.1"（doc-system/04-verification/04-decisions.md 時点）

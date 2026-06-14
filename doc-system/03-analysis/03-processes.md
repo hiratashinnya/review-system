@@ -1,6 +1,3 @@
----
-version: "0.6.6"
----
 # 論理プロセス
 
 > **型**: P ／ **必須上流**: SPEC（依存辺 ✅）
@@ -24,25 +21,25 @@ edges:
   - to: SPEC-2
     ref_version: "0.3"
   - to: SPEC-32
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-33
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-34
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-35
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-36
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-52
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-53
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: I-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
   - to: FND-1
@@ -72,7 +69,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: FND-2
     ref_version: "0.1"
 ```
@@ -93,19 +90,19 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-9
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-11
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-12
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-13
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: I-1-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -129,19 +126,19 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-6
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-7
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-8
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: I-1-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: I-1-2
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -165,17 +162,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-15
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-16
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: I-1-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: I-1-2
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -199,19 +196,19 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-17
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-18
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: SPEC-19
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: I-1-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: I-1-2
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -235,7 +232,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: FND-4
     ref_version: "0.1"
 ```
@@ -256,13 +253,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-29
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-30
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -286,11 +283,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-4
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
 ```
@@ -314,13 +311,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: D-5
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-6
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: D-7
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: DD-7
     ref_version: "0.1"
 ```
@@ -346,7 +343,7 @@ edges:
   - to: SPEC-21
     ref_version: "0.3"
   - to: I-5
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
   - to: DD-7
@@ -372,11 +369,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-24
-    ref_version: "0.3"
+    ref_version: "0.2"
   - to: D-3
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: I-6
-    ref_version: "0.6"
+    ref_version: "0.3"
   - to: E-1
     ref_version: "0.5"
   - to: DD-7
@@ -427,15 +424,15 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-38
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: SPEC-54
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: I-7
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: I-9
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
   - to: DD-7
     ref_version: "0.1"
   - to: FND-23
@@ -461,11 +458,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-39
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: D-8
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.5"
+    ref_version: "0.3"
   - to: DD-7
     ref_version: "0.1"
 ```

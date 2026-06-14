@@ -1,6 +1,3 @@
----
-version: "0.5.2"
----
 # イベント
 
 > **型**: E ／ **必須上流**: SPEC（依存辺 ✅）・ACTOR（刺激元 ✅・DD-020）
@@ -22,9 +19,9 @@ edges:
   - to: SPEC-1
     ref_version: "0.3"
   - to: ACTOR-1
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: I-1
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: FND-11
     ref_version: "0.1"
   - to: DD-4
@@ -54,11 +51,11 @@ edges:
   - to: SPEC-26
     ref_version: "0.3"
   - to: ACTOR-1
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: FND-3
     ref_version: "0.1"
   - to: I-7
-    ref_version: "0.6"
+    ref_version: "0.1"
   - to: FND-7
     ref_version: "0.1"
   - to: DD-4

@@ -1,6 +1,3 @@
----
-version: "0.2.2"
----
 # データフロー図（DFD）
 
 > 分析層ノード（ACTOR / I / O / D / P；`01-actors`・`02-io`・`03-processes`）から導出した DFD。

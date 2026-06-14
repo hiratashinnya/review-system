@@ -1,6 +1,3 @@
----
-version: "0.1.0"
----
 # ドキュメント検証
 
 > **型**: VERIFY ／ **必須**: verifies 辺が1本以上（RULE-006 config）

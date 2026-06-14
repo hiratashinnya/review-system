@@ -1,6 +1,3 @@
----
-version: "0.1.0"
----
 # 指摘・Finding
 
 > **型**: FND ／ **必須**: `found-in` 辺が1本以上（RULE-006 config）

@@ -1,6 +1,3 @@
----
-version: "0.1.1"
----
 # 未決論点 — Questions
 
 > **型**: Q ／ 義務辺（Q→X＝affects）が存在する間は RULE-002 WARNING。決定したら DD へ昇格（id 通貫）。
