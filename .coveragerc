@@ -1,0 +1,11 @@
+[run]
+source = review_system
+omit =
+    tests/*
+    scripts/*
+
+[report]
+show_missing = true
+
+[html]
+directory = htmlcov
