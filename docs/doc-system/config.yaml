@@ -7,7 +7,7 @@
 current_phase: "sprint-1"
 current_stage: "requirements"   # requirements | analysis | design | implementation | verification
 
-phases: [sprint-1, sprint-2, sprint-3, post-mvp]
+phases: [sprint-1, sprint-2, sprint-3]
 stages: [requirements, analysis, design, implementation, verification]
 
 # ------------------------------------------------------------

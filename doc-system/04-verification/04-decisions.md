@@ -311,3 +311,122 @@ edges:
 - **ファイルフロントマター `version:` 削除**: doc-system 配下・docs/doc-system 配下（テンプレート群含む）全ファイルから削除完了。✅ 完了
 - **既知の残存事項（履歴保全・PR8）**: 解消済み FND 本文の `**指摘時 ref_version**:` 記録は当時のファイル x.y を凍結記録したものであり、遡及書き換えは provenance を損なうため実施しない（過去の系の下での記録として保持）。新規 FND は DD-3 の様式でノード x.y を記録する。
 - ※以下は当初起票時の実施計画（実施済み確認記録）: `doc-system/04-verification/02-findings.md` の FND-36 を `open` → `resolved` に更新し、本 DD（DD-8）を処置記録として明記。FND-32 の処置誤謬（「ファイル x.y スナップショット」定義）が本 DD により是正済みである旨を FND-32 本文に追記。✅ 完了（FND-39 で指摘の旧版残骸行を削除済み）
+
+---
+
+## DD-9: config.yaml phases から post-mvp 除去・RULE-029 新設
+
+**status: decided**（2026-06-14 反映完了）
+
+<details><summary>⬡ DD-9 · v0.1</summary>
+
+```yaml
+id: DD-9
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-78
+    ref_version: "0.1"
+```
+</details>
+
+**指摘時 ref_version**: FND-78 "0.1"（findings.md v0.1 時点）
+
+**論点**: FND-78 で指摘。`config.yaml` の `phases` に `post-mvp` が含まれており、SPEC-28/40 が `scheduled: "post-mvp"` を使用、SPEC-50/51 は `labels: [post-mvp]` だが `scheduled: ""` と表現が不統一。`scheduled` の値ドメインが phases と独立しており、phases 外の文字列を無効化するルールが存在しなかった。
+
+**選択肢**:
+- **A（post-mvp 除去＋RULE 新設）**: `phases` から `post-mvp` を除去し、RULE-029「scheduled が非空かつ phases 外の値」= ERROR を新設。SPEC-28/40/50/51 の scheduled を実スプリント（sprint-2）へ設定。phases = [sprint-1, sprint-2, sprint-3] に整理。
+- **B（post-mvp 残存）**: post-mvp を phases に残し、scheduled の空許容を維持。scheduled の不統一は許容。
+
+**推奨**: A。理由：`post-mvp` は実スプリントではなく優先度ラベルの概念であり、phases（スプリント計画）と混在することで scheduled の意味論が曖昧になる。実施時期は sprint-N で表現し、post-mvp 扱いは `labels: [post-mvp]` に集約すべき（scheduled と labels の責務分離）。
+
+**決定**: A を採用（オーナー承認・2026-06-14 FND-78 決定B）。
+
+**影響範囲（2026-06-14 即時実施完了）**:
+- `docs/doc-system/config.yaml`: `phases` を `[sprint-1, sprint-2, sprint-3]` に変更（post-mvp 除去）。✅ 完了
+- `docs/doc-system/05-verification.md`: 段階 0 テーブルに RULE-029 を追加（`scheduled` 値ドメイン検証・非空かつ phases 外 → ERROR）。✅ 完了
+- `doc-system/02-what/03-spec.md`: SPEC-28（v0.2→0.3）・SPEC-40（v0.1→0.2）を `scheduled: "sprint-2"` へ変更。SPEC-50（v0.1→0.2）・SPEC-51（v0.1→0.2）を `scheduled: "sprint-2"` へ変更。各ノードに `→FND-78` バックリファレンス付与。✅ 完了
+- `doc-system/04-verification/02-findings.md`: FND-78 を `resolved` へ更新。✅ 完了（本 DD 適用で）
+- RULE-029 の suppress 可否: `always_error` には含めない（suppress 可能とし、後フェーズ専用 SPEC など合理的理由がある場合は免除を許容）。
+
+---
+
+## DD-10: SPEC-47/NFR-1 の frontmatter 参照を DD-8 準拠に修正
+
+**status: decided**（2026-06-14 反映完了）
+
+<details><summary>⬡ DD-10 · v0.1</summary>
+
+```yaml
+id: DD-10
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-84
+    ref_version: "0.1"
+```
+</details>
+
+**指摘時 ref_version**: FND-84 "0.1"（findings.md v0.1 時点）
+
+**論点**: FND-84 で指摘（ERROR）。DD-8（2026-06-14 確定）でファイルレベル YAML frontmatter `version:` フィールドは全廃されノードバッジ x.y が版管理の唯一の真実源となった。しかし SPEC-47 は「全 in-graph ファイルの frontmatter に `version` フィールドが存在する」ことを ERROR 要求し（廃止済みの仕組みを要求）、NFR-1 本文は「プレーン Markdown＋YAML フロントマター」と記述しファイルレベルフロントマターの存在を前提としていた。
+
+**選択肢**:
+- **A（SPEC-47 内容置換・NFR-1 本文訂正）**: SPEC-47 を「全 in-graph ノードの summary バッジに version（x.y）が存在する」検証へ置換。NFR-1 本文から「YAML フロントマター」の記述を除去し、インライン YAML ブロック埋め込み形式に訂正。
+- **B（SPEC-47 廃止）**: SPEC-47 を削除（孤立ノード化するため suppress かラベルで無効化）。NFR-4 のノードバッジ検証は別途 SPEC を著作。
+- **C（現状維持）**: DD-8 矛盾を許容し SPEC-47 を凍結する。
+
+**推奨**: A。NFR-4（ファイル単位バージョニング・1 ファイル 1 責務）は DD-8 後もノードバッジでの版管理として有効であり、SPEC-47 はその検証 SPEC として機能する。検証対象を frontmatter → ノードバッジに切り替えることで DD-8 準拠を達成できる。B は検証カバレッジの穴を生む。C は ERROR 違反の放置で不採用。
+
+**決定**: A を採用（オーナー承認・2026-06-14 FND-84 決定）。
+
+**影響範囲（2026-06-14 即時実施完了）**:
+- `doc-system/02-what/03-spec.md`: SPEC-47（v0.1→0.2）を「全 in-graph ノードの summary バッジに version（x.y）が存在する」検証内容へ置換。`→FND-84` バックリファレンス付与。✅ 完了
+- `doc-system/02-what/02-nfr.md`: NFR-1（v0.3→0.4）本文の「YAML フロントマター」記述を「インライン YAML ブロック（`<details>` 内埋め込み）」に訂正。`→FND-84` バックリファレンス付与。✅ 完了
+- `doc-system/02-what/03-spec.md`: SPEC-44（v0.1→0.2）の NFR-1 への `ref_version` を `"0.3"`→`"0.4"` に更新（NFR-1 MINOR バンプに伴うドリフト解消）。✅ 完了
+- `doc-system/04-verification/02-findings.md`: FND-84 を `resolved` へ更新。✅ 完了（本 DD 適用で）
+
+---
+
+## DD-11: NFR 由来本文検査の rule-id 体系を `{NFR-id}-check` で正式採用（台帳登録）
+
+**status: decided**
+
+<details><summary>⬡ DD-11 · v0.1</summary>
+
+```yaml
+id: DD-11
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-86
+    ref_version: "0.1"
+```
+</details>
+
+**指摘時 ref_version**: FND-86 "0.1"（findings.md v0.1 時点）
+
+**論点**: FND-86 で指摘（INFO）。NFR 由来の本文検査（SPEC-44〜49 が検証する NFR-1〜6）の出力行3列目 rule-id が `{NFR-id}-check`（例 `NFR-1-check`）で記載されているが、正準ルール台帳（`docs/doc-system/05-verification.md` の `RULE-NNN`）に登録がなく、全 rule-id を台帳から一覧できない。出力契約（O-1 RULE 違反レポート）における違反 ID の名前空間が二重化しており、消費側（reconciliation・spec-inspector）の解釈がぶれる。
+
+**選択肢**:
+- **A（RULE-NNN 採番）**: RULE-030〜035 を新設し、SPEC-44〜49 の出力例6件を `{NFR-id}-check` → `RULE-NNN` へ差し替える。
+- **B（`{NFR-id}-check` 正式採用）**: `{NFR-id}-check` を NFR 由来検査の正式 rule-id 体系として台帳に1家族（NFR-1〜6 各1検査）として登録。SPEC 例は据置。
+- **C（現状維持）**: 台帳未登録のままとする。
+
+**推奨**: B。理由: (1) DD-5 が NFR→SPEC 導出で「番号付き RULE は新設せず config 駆動」を既に採用済みで、`{NFR-id}-check` 据置はこの方針と整合。(2) `NFR-1-check` は対応 NFR へ直接トレース可能（`RULE-030` は不透明）。(3) SPEC 例の churn ゼロ。C は台帳の網羅性穴を残すため不採用。
+
+**決定**: B を採用（暫定・設計フェーズ）。`docs/doc-system/05-verification.md` の RULE 台帳に「NFR 由来本文検査: rule-id = `{NFR-id}-check`（NFR-1〜6 各1検査・SPEC-44〜49）」を1家族として登録する。
+
+**影響範囲**:
+- `docs/doc-system/05-verification.md`（out-of-graph）に台帳行を追加（reconciliation 反映後に主文脈で実施）。
+- SPEC-44〜49 の出力例は変更なし。
+- `doc-system/04-verification/02-findings.md`: FND-86 を `resolved` へ更新。
+- **覆る場合**: 将来 A（RULE-NNN 採番）へ切替えるなら SPEC-44〜49 の出力例6件＋台帳行＋関連 TC を一括改修（影響は spec 層6ノードの 例 と台帳に限定）。
+
+---

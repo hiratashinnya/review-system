@@ -56,11 +56,13 @@
 | RULE-026 | ノード YAML に `type` フィールドが存在しない（または空文字） | ERROR |
 | RULE-027 | 辺エントリに `ref_version` フィールドが存在しない | ERROR |
 | RULE-028 | ノード YAML の共通必須フィールド（`labels` / `scheduled` / `edges`）が欠如、または型不正（`labels` が非リスト・`scheduled` が非文字列・`edges` が非リスト） | ERROR |
+| RULE-029 | ノード YAML の `scheduled` が非空文字列かつ `config.yaml` の `phases` リストに定義されていない値（例: phases から除去された `"post-mvp"`・誤記等） | ERROR |
 
 > RULE-023/024 は fail-close（当該ファイルのパースを中断し、後続 RULE を発火させない）。
 > RULE-025/026/027/028 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
 > RULE-023/024 は `always_error` 相当（suppress/scheduled/activate_stage 不可）。
 > RULE-025/026/027 は `id`/`type`/`ref_version` の存在を、RULE-028 は残りの共通必須フィールド（`labels`/`scheduled`/`edges`）の存在と型を検証する（フィールドスキーマの完全定義を in-graph 化）。
+> RULE-029 は `scheduled` の値ドメイン検証（RULE-028 の型検査の後続・FND-78/DD-9）。空文字列（`""`）は「現スプリント実施・繰り越しなし」を意味し合法。非空で phases 外＝違反。
 
 **トリガ**：ファイルの読み込み時（段階①の前）。
 
@@ -112,6 +114,25 @@ TR 完結性:
   ✅ TR-001 result: PASS  log_ref: ci/logs/run-1.txt
   ❌ TR-002 result: FAIL  log_ref: (なし) [RULE-021 ERROR]
 ```
+
+---
+
+### 段階 ③′：NFR 由来本文検査（`{NFR-id}-check`）
+
+**目的**：NFR-1〜6 を機械検証可能な制約に落とした本文検査（DD-5 で NFR→SPEC 導出を制度化）。これらは構造ルール（RULE-NNN）とは別系統で、出力行3列目の rule-id に **`{NFR-id}-check`** 体系を用いる（DD-11・FND-86：番号付き RULE を新設せず NFR へ直接トレース可能な命名を採用）。検証アサーションは SPEC-44〜49（各 NFR 1件・傘＋子）。
+
+| rule-id | 対象（NFR） | 検証 SPEC | 深刻度 |
+|---|---|---|---|
+| `NFR-1-check` | ノードファイルは UTF-8 プレーンテキスト .md（BOM=WARNING／デコードエラー=ERROR） | SPEC-44 | ERROR / WARNING |
+| `NFR-2-check` | spec-inspector は Python 標準ライブラリのみ（外部 import 検出） | SPEC-45 | ERROR |
+| `NFR-3-check` | スキルファイルは外部参照なしに自己完結（外部参照パターン検出） | SPEC-46 | WARNING |
+| `NFR-4-check` | 全ノードの summary バッジに version（x.y）が存在・形式適合 | SPEC-47 | ERROR |
+| `NFR-5-check` | 各ノードは直接の親のみへ辺を張る（USDM 1段制約） | SPEC-48 | ERROR |
+| `NFR-6-check` | DD/Q/PEND のノード YAML（メタ属性）に status 系キーが存在しない | SPEC-49 | WARNING |
+
+> rule-id は `{NFR-id}-check`（例 `NFR-1-check`）。構造ルール（RULE-NNN）とは名前空間が異なり、対応 NFR へ一意にトレースできる（DD-11）。将来 RULE-NNN 採番へ切替える場合は SPEC-44〜49 の出力例6件・本表・関連 TC を一括改修する（DD-11 影響範囲）。
+
+**トリガ**：NFR 対象成果物（in-graph ノード／spec-inspector 実装ソース／スキルファイル）の変更後。
 
 ---
 

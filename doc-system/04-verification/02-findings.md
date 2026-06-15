@@ -968,3 +968,1264 @@ edges:
 **対応状況**: resolved
 **対応内容**: 矛盾行（「sprint-2 以降に順次対応」）を decisions.md から削除し、末尾の FND-36 関連行に「※実施済み確認記録」の注記を追加。DD-8 バッジを z バンプ（v0.1 → 表記上は v0.1 のまま、z バンプは省略）。
 **指摘時 ref_version**: DD-8 "0.1"（doc-system/04-verification/04-decisions.md 時点）
+
+---
+
+## FND-40: SPEC-1 期待動作が「生成・id一致・エラーなし」の複数アサーション混載でテスタブル基準違反
+
+<details><summary>⬡ FND-40 · v0.1</summary>
+
+```yaml
+id: FND-40
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-1
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-1 の `**期待動作**` が、テスタブル基準「`【条件】のとき、〇〇を▲▲する`（単一条件→単一目的語→単一動詞）」に違反し、「ノード1件を生成する」「PREFIX-N と id が一致する」「エラーを出力しない」の3アサーションを1ノードに混載している。1ノード=1判定にならず、TR の PASS/FAIL がどのアサーションに対するものか曖昧になる。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-1-1/1-2/1-3
+**指摘時 ref_version**: SPEC-1 "0.3"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-41: SPEC-2 期待動作が「ERROR出力・当該中断・後続不発火・他ファイル継続」の4動作混載
+
+<details><summary>⬡ FND-41 · v0.1</summary>
+
+```yaml
+id: FND-41
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-2
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-2 の `**期待動作**` が、「ERROR を出力する」「当該ファイルの処理を中断する」「後続 RULE-024〜027 を発火させない」「他ファイルの処理を継続する」の4動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（中断・継続）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反する。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-2-1/2-2/2-3/2-4
+**指摘時 ref_version**: SPEC-2 "0.3"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-42: SPEC-3-2 期待動作が「IDを永続させる・意味はheadingが担う」の2アサーション混載
+
+<details><summary>⬡ FND-42 · v0.1</summary>
+
+```yaml
+id: FND-42
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-3-2
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-3-2 の `**期待動作**` が、「ID を永続させる」「意味は heading が担う」の2文・2アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。2つの異なる主張が1ノードに同居し検証単位として分離できない。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-3-2-1/3-2-2
+**指摘時 ref_version**: SPEC-3-2 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-43: SPEC-3-3 期待動作が「親→子辺は不要・親が存在すれば正常」の2アサーション混載
+
+<details><summary>⬡ FND-43 · v0.1</summary>
+
+```yaml
+id: FND-43
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-3-3
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-3-3 の `**期待動作**` が、「親→子辺は不要」「親 I-1 が存在すれば正常」の2アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。否定アサーション（辺不要）と正常判定アサーション（親存在）が同居し、それぞれ別条件・別目的語のため独立検証できない。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-3-3-1/3-3-2
+**指摘時 ref_version**: SPEC-3-3 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-44: SPEC-6 期待動作が「RULE-007 ERROR報告」と「always_errorで抑制不可」の併載
+
+<details><summary>⬡ FND-44 · v0.1</summary>
+
+```yaml
+id: FND-44
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-6
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-6 の `**期待動作**` が、「RULE-007 で ERROR を報告する」という検証動作アサーションに加えて、「always_error のため抑制不可」という抑制可否の独立文を併載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。検証動作の検証と抑制不可性の検証は別目的語・別条件であり1ノードに混在させるべきでない。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-6-1/6-2
+**指摘時 ref_version**: SPEC-6 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-45: SPEC-10 期待動作が「ドリフト検出・再反映を促す」の2動詞混載
+
+<details><summary>⬡ FND-45 · v0.1</summary>
+
+```yaml
+id: FND-45
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-10
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-10 の `**期待動作**` が、「ドリフトを検出する」「再反映を促す」の2動詞を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。検出（判定）と促し（報告メッセージ）は別動作であり、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-10-1/10-2
+**指摘時 ref_version**: SPEC-10 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-46: SPEC-12 期待動作が「ERROR報告・DD→X削除・X→DD追加」の3動作混載
+
+<details><summary>⬡ FND-46 · v0.1</summary>
+
+```yaml
+id: FND-46
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-12
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-12 の `**期待動作**` が、「RULE-001 で ERROR を報告する」「DD→X を削除する」「X→DD を追加する」の3動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。報告（検証ツールの責務）と辺の削除/追加（著者の処置）が混在し、検証対象が曖昧。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ 分割せず単一アサーションへ書き直し（処置手順は前提条件へ退避・SPEC-12 のまま）
+**指摘時 ref_version**: SPEC-12 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-47: SPEC-14-1 期待動作が「ヘッダ行出力・各行出力」＋別フィールド展開で複数アサーション
+
+<details><summary>⬡ FND-47 · v0.1</summary>
+
+```yaml
+id: FND-47
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-14-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-14-1 の `**期待動作**` が、「ヘッダ行を出力する」「各行を出力する」に加えて出力フォーマット/終了コードを別フィールドで展開しており、複数アサーションが1ノードに混在してテスタブル基準（単一条件→単一目的語→単一動詞）に違反する。出力の各構成要素（ヘッダ・明細行・フォーマット・終了コード）はそれぞれ独立検証可能な単位。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14）→ SPEC-14-1-1/14-1-2/14-1-3/14-1-4
+**指摘時 ref_version**: SPEC-14-1 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-48: SPEC-21-1 期待動作が「評価をスキップ・違反を報告しない」の2動詞混載
+
+<details><summary>⬡ FND-48 · v0.1</summary>
+
+```yaml
+id: FND-48
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-21-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-21-1 の `**期待動作**` が、「評価をスキップする」「違反を報告しない」の2動詞を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。スキップ（評価しない）と非報告（出力しない）は別動作で、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-21-1-1/21-1-2）
+**指摘時 ref_version**: SPEC-21-1 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-49: SPEC-21-2 期待動作が「元の深刻度で評価・違反があれば報告」の2動詞混載
+
+<details><summary>⬡ FND-49 · v0.1</summary>
+
+```yaml
+id: FND-49
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-21-2
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-21-2 の `**期待動作**` が、「元の深刻度で評価する」「違反があれば報告する」の2動詞を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。深刻度に基づく評価と違反報告は別動作であり、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-21-2-1/21-2-2）
+**指摘時 ref_version**: SPEC-21-2 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-50: SPEC-21-3 期待動作が「抑制設定を無視・ERROR報告」＋RULE-007/005の2目的語混載
+
+<details><summary>⬡ FND-50 · v0.1</summary>
+
+```yaml
+id: FND-50
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-21-3
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-21-3 の `**期待動作**` が、「抑制設定を無視する」「ERROR を報告する」の2動詞に加え、対象 RULE-007/RULE-005 の2目的語を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。抑制無視と ERROR 報告は別動作、かつ RULE-007 と RULE-005 は別目的語で、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-21-3-1/21-3-2）
+**指摘時 ref_version**: SPEC-21-3 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-51: SPEC-21-4 期待動作が「設定エラー報告・判定スキップ・全ルール評価」の3動作混載
+
+<details><summary>⬡ FND-51 · v0.1</summary>
+
+```yaml
+id: FND-51
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-21-4
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-21-4 の `**期待動作**` が、「設定エラーを報告する」「判定をスキップする」「全ルールを評価する」の3動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。設定エラー報告・該当判定のスキップ・他の全ルール評価継続はそれぞれ別動作であり、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-21-4-1/21-4-2/21-4-3）
+**指摘時 ref_version**: SPEC-21-4 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-52: SPEC-23-1 期待動作が「抑制を無視・常にERROR報告」の2動詞＋RULE-007/005併記
+
+<details><summary>⬡ FND-52 · v0.1</summary>
+
+```yaml
+id: FND-52
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-23-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-23-1 の `**期待動作**` が、「抑制を無視する」「常に ERROR を報告する」の2動詞に加え、対象 RULE-007/RULE-005 の併記で複数目的語を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。抑制無視と ERROR 報告は別動作、RULE-007/005 は別目的語で、それぞれ独立検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-23-1-1/23-1-2）
+**指摘時 ref_version**: SPEC-23-1 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-53: SPEC-26 期待動作が「テンプレ全項目包含・複製で RULE-025/026/027 不発火」の2アサーション＋多数目的語混載
+
+<details><summary>⬡ FND-53 · v0.1</summary>
+
+```yaml
+id: FND-53
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-26
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-26 の `**期待動作**` が、「テンプレが全項目を含む」「複製で RULE-025/026/027 が不発火」の2アサーションに加え、RULE-025/026/027 という多数目的語を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。テンプレ完備性の検証と複製時の各 RULE 不発火の検証は別目的語・別条件で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-26-1/26-2/26-3/26-4）
+**指摘時 ref_version**: SPEC-26 "0.3"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-54: SPEC-27 期待動作が「type値/id PREFIX/必須辺方向/本文4項目/RULEチェックリスト」の5目的語を1動詞で提供
+
+<details><summary>⬡ FND-54 · v0.1</summary>
+
+```yaml
+id: FND-54
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-27
+    ref_version: "0.3"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-27 の `**期待動作**` が、「type 値」「id PREFIX」「必須辺方向」「本文4項目」「RULE チェックリスト」の5目的語を「提供する」という1動詞で束ねており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。各構成要素の提供有無は独立に検証可能で、1ノードに5目的語を混載すると TR の PASS/FAIL が曖昧になる。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-27-1〜27-5）
+**指摘時 ref_version**: SPEC-27 "0.3"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-55: SPEC-28 期待動作が「realizes辺照合・設計漏れと紐づけ漏れ検出」の2動作・2目的語混載
+
+<details><summary>⬡ FND-55 · v0.1</summary>
+
+```yaml
+id: FND-55
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-28
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-28 の `**期待動作**` が、「realizes 辺を照合する」「設計漏れと紐づけ漏れを検出する」の2動作・2目的語（設計漏れ／紐づけ漏れ）を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。照合と検出、かつ2種類の漏れはそれぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-28-1/28-2）
+**指摘時 ref_version**: SPEC-28 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-56: SPEC-29 期待動作が「0件で通過・価値経路と分析層接続充足と判定」の2動作混載
+
+<details><summary>⬡ FND-56 · v0.1</summary>
+
+```yaml
+id: FND-56
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-29
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-29 の `**期待動作**` が、「0件で通過する」「価値経路と分析層接続を満たすと判定する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。0件通過（カウント判定）と接続充足判定（構造判定）は別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-29-1/29-2）
+**指摘時 ref_version**: SPEC-29 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-57: SPEC-30 期待動作が「未駆動出力/未定義反応イベント/未消費入力」の3目的語を1報告に混載
+
+<details><summary>⬡ FND-57 · v0.1</summary>
+
+```yaml
+id: FND-57
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-30 の `**期待動作**` が、「未駆動出力」「未定義反応イベント」「未消費入力」の3目的語を1つの報告動作に混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。3種類の接続漏れはそれぞれ独立した条件・目的語であり、別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-30-1/30-2/30-3）
+**指摘時 ref_version**: SPEC-30 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-58: SPEC-31 期待動作が「違反0/ノード0報告・exit 0・RULE全スキップ」の3動作混載
+
+<details><summary>⬡ FND-58 · v0.1</summary>
+
+```yaml
+id: FND-58
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-31 の `**期待動作**` が、「違反0/ノード0を報告する」「終了コード0で終了する」「RULE-005〜027を全スキップする」の3動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。報告・終了コード・ルールスキップはそれぞれ別動作で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-31-1/31-2/31-3）
+**指摘時 ref_version**: SPEC-31 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-59: SPEC-32 期待動作が「ERROR出力・ファイル中断」の2動作混載
+
+<details><summary>⬡ FND-59 · v0.1</summary>
+
+```yaml
+id: FND-59
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-32
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-32 の `**期待動作**` が、「ERROR を出力する」「ファイルを中断する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（中断）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反し、出力と中断は別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-32-1/32-2）
+**指摘時 ref_version**: SPEC-32 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-60: SPEC-33 期待動作が「ERROR出力・後続RULE中断」の2動作混載
+
+<details><summary>⬡ FND-60 · v0.1</summary>
+
+```yaml
+id: FND-60
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-33
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-33 の `**期待動作**` が、「ERROR を出力する」「後続 RULE を中断する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（後続中断）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反し、出力と中断は別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-33-1/33-2）
+**指摘時 ref_version**: SPEC-33 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-61: SPEC-34 期待動作が「ERROR出力・後続RULE中断」の2動作混載
+
+<details><summary>⬡ FND-61 · v0.1</summary>
+
+```yaml
+id: FND-61
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-34
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-34 の `**期待動作**` が、「ERROR を出力する」「後続 RULE を中断する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（後続中断）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反し、出力と中断は別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-34-1/34-2）
+**指摘時 ref_version**: SPEC-34 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-62: SPEC-35 期待動作が「ERROR出力・後続RULE中断」の2動作混載
+
+<details><summary>⬡ FND-62 · v0.1</summary>
+
+```yaml
+id: FND-62
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-35
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-35 の `**期待動作**` が、「ERROR を出力する」「後続 RULE を中断する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（後続中断）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反し、出力と中断は別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-35-1/35-2）
+**指摘時 ref_version**: SPEC-35 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-63: SPEC-36 期待動作が「RULE-025（id欠如）または RULE-026（type欠如）」の選言目的語混載
+
+<details><summary>⬡ FND-63 · v0.1</summary>
+
+```yaml
+id: FND-63
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-36
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-36 の `**期待動作**` が、「RULE-025（id 欠如）または RULE-026（type 欠如）」という選言（OR）目的語を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。id 欠如時の RULE-025 発火と type 欠如時の RULE-026 発火は別条件・別目的語であり、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-36-1/36-2）
+**指摘時 ref_version**: SPEC-36 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-64: SPEC-38 期待動作が「ノードをtmp出力・reconciliationが転記」の2主体・2動作混載
+
+<details><summary>⬡ FND-64 · v0.1</summary>
+
+```yaml
+id: FND-64
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-38
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-38 の `**期待動作**` が、「ノードを tmp へ出力する」「reconciliation が転記する」の2主体・2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。著作エージェントの tmp 出力と reconciliation の転記は別主体・別動作で、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-38-1/38-2）
+**指摘時 ref_version**: SPEC-38 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-65: SPEC-39 期待動作が「検証エラー報告・転記中断・id field missing出力」の3動作混載
+
+<details><summary>⬡ FND-65 · v0.1</summary>
+
+```yaml
+id: FND-65
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-39
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-39 の `**期待動作**` が、「検証エラーを報告する」「転記を中断する」「id field missing を出力する」の3動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。エラー報告・転記中断（fail-close 副作用）・具体メッセージ出力はそれぞれ別動作で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-39-1/39-2/39-3）
+**指摘時 ref_version**: SPEC-39 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-66: SPEC-40 期待動作が「一覧を表形式で出力・{形式}で表示」の2文混載
+
+<details><summary>⬡ FND-66 · v0.1</summary>
+
+```yaml
+id: FND-66
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-40
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-40 の `**期待動作**` が、「一覧を表形式で出力する」「{形式}で表示する」の2文を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。一覧の出力と特定形式での表示は別アサーションで、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-40-1/40-2）
+**指摘時 ref_version**: SPEC-40 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-67: SPEC-44 期待動作が「読込完了・BOMはWARNING・デコードエラーはERROR」の3分岐混載
+
+<details><summary>⬡ FND-67 · v0.1</summary>
+
+```yaml
+id: FND-67
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-44
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-44 の `**期待動作**` が、「読込が完了する」「BOM は WARNING」「デコードエラーは ERROR」の3分岐（正常／BOM／デコード失敗）を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。3つの入力クラス（正常・BOM 付き・不正エンコード）はそれぞれ別条件で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-44-1/44-2/44-3）
+**指摘時 ref_version**: SPEC-44 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-68: SPEC-45 期待動作が「全importが標準ライブラリのみ・外部依存0件」＋違反出力で複数アサーション混載
+
+<details><summary>⬡ FND-68 · v0.1</summary>
+
+```yaml
+id: FND-68
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-45
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-45 の `**期待動作**` が、「全 import が標準ライブラリのみを参照する」「外部依存0件である」に加え違反時の出力を含め、複数アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。標準ライブラリ参照判定・依存0件判定・違反出力はそれぞれ別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-45-1/45-2）
+**指摘時 ref_version**: SPEC-45 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-69: SPEC-46 期待動作が「外部参照パターン非存在・0件確認・検証通過」の複数動作混載
+
+<details><summary>⬡ FND-69 · v0.1</summary>
+
+```yaml
+id: FND-69
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-46
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-46 の `**期待動作**` が、「外部参照パターンが非存在である」「0件を確認する」「検証を通過する」の複数動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。パターン非存在判定・件数確認・通過判定はそれぞれ別動作で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-46-1/46-2）
+**指摘時 ref_version**: SPEC-46 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-70: SPEC-47 期待動作が「version存在・形式適合」と「欠如/空/nullはERROR」の正負2分岐混載
+
+<details><summary>⬡ FND-70 · v0.1</summary>
+
+```yaml
+id: FND-70
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-47
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-47 の `**期待動作**` が、「version が存在し形式に適合する」（正常）と「欠如/空/null は ERROR」（異常）の正負2分岐を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。存在・形式適合の正常判定と欠如/空/null の異常検出は別条件で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-47-1/47-2）
+**指摘時 ref_version**: SPEC-47 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-71: SPEC-48 期待動作が「全辺がFR/NFR/SPECを指す・祖先辺0件・検出時ERROR」の複数アサーション混載
+
+<details><summary>⬡ FND-71 · v0.1</summary>
+
+```yaml
+id: FND-71
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-48
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-48 の `**期待動作**` が、「全辺が FR/NFR/SPEC を指す」「祖先辺0件である」「検出時 ERROR」の複数アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。辺の指す先の妥当性判定・祖先辺の件数判定・違反検出時の ERROR 報告はそれぞれ別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-48-1/48-2）
+**指摘時 ref_version**: SPEC-48 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-72: SPEC-49 期待動作が「status系キー非存在・存在でWARNING・状態は本文バッジ」の複数アサーション混載
+
+<details><summary>⬡ FND-72 · v0.1</summary>
+
+```yaml
+id: FND-72
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-49
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-49 の `**期待動作**` が、「status 系キーが非存在である」「存在で WARNING」「状態は本文バッジが担う」の複数アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。キー非存在の正常判定・存在時の WARNING 検出・状態の担い手（本文バッジ）の説明はそれぞれ別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-49-1/49-2）
+**指摘時 ref_version**: SPEC-49 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-73: SPEC-50 期待動作が「指定フォーマットでファイル出力・stdoutエラーなし・exit 0」の3動作混載
+
+<details><summary>⬡ FND-73 · v0.1</summary>
+
+```yaml
+id: FND-73
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-50
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-50 の `**期待動作**` が、「指定フォーマットでファイル出力する」「stdout にエラーがない」「exit 0」の3動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。ファイル出力・stdout 状態・終了コードはそれぞれ別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-50-1/50-2/50-3）
+**指摘時 ref_version**: SPEC-50 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-74: SPEC-51 期待動作が「メトリクスレポートstdout出力・exit 0」の2動作混載
+
+<details><summary>⬡ FND-74 · v0.1</summary>
+
+```yaml
+id: FND-74
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-51
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-51 の `**期待動作**` が、「メトリクスレポートを stdout へ出力する」「exit 0」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。レポート出力と終了コードは別観点で、それぞれ独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-51-1/51-2）
+**指摘時 ref_version**: SPEC-51 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-75: SPEC-52 期待動作が「RULE-025/026/027/028非発火・終了コード0」の2アサーション混載
+
+<details><summary>⬡ FND-75 · v0.1</summary>
+
+```yaml
+id: FND-75
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-52 の `**期待動作**` が、「RULE-025/026/027/028 が非発火である」「終了コード0」の2アサーション（かつ RULE-025〜028 の複数目的語）を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。各 RULE の非発火判定と終了コードはそれぞれ別観点で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-52-1〜52-5）
+**指摘時 ref_version**: SPEC-52 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-76: SPEC-53 期待動作が「RULE-028 ERROR 1件出力・後続RULE中断」の2動作混載
+
+<details><summary>⬡ FND-76 · v0.1</summary>
+
+```yaml
+id: FND-76
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-53
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-53 の `**期待動作**` が、「RULE-028 で ERROR を1件出力する」「後続 RULE を中断する」の2動作を1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。fail-close の副作用（後続中断）も独立アサーションとして許容しない方針（オーナー方針 2026-06-14）に反し、出力と中断は別々の検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-53-1/53-2/53-3）
+**指摘時 ref_version**: SPEC-53 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-77: SPEC-54 期待動作が「I-7/I-9充填し草案生成・I-9なしでO-3生成不可・テンプレのみ生成不可保証」の複数アサーション混載
+
+<details><summary>⬡ FND-77 · v0.1</summary>
+
+```yaml
+id: FND-77
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-54
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-54 の `**期待動作**` が、「I-7 と I-9 を受け取り充填し草案を生成する」「I-9 なしでは O-3 を生成不可」「テンプレのみでは生成不可を保証する」の複数アサーションを1ノードに混載しており、テスタブル基準（単一条件→単一目的語→単一動詞）に違反する。正常系の草案生成・I-9 欠如時の生成不可・テンプレ単独時の生成不可保証はそれぞれ別条件で、独立した検証単位とすべき。
+**推奨**: 1アサーション1SPEC で分割（-N 枝番）し、各 SPEC の期待動作を単一条件→単一動作に書き直す。
+**対応状況**: resolved（テスタブル化分割・2026-06-14・→ SPEC-54-1/54-2/54-3）
+**指摘時 ref_version**: SPEC-54 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-78: SPEC-50/51 の post-mvp と scheduled 表現が不統一（オーナー決定Bで config 改訂方針）
+
+<details><summary>⬡ FND-78 · v0.1</summary>
+
+```yaml
+id: FND-78
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-50
+    ref_version: "0.1"
+  - to: SPEC-51
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: SPEC-50/51 は `labels:[post-mvp]` だが `scheduled:""`（空）である。一方 SPEC-28/40 は `scheduled:"post-mvp"` と表現しており、post-mvp の表現が不統一。scheduled は SPEC-20（後フェーズ完全サイレント判定）に影響する属性のため放置不可で、同じ post-mvp 扱いの SPEC 群でラベルと scheduled の使い分けが揺れている。
+**推奨**: オーナー決定B（2026-06-14）＝`config.yaml` の `phases` から `post-mvp` を除去し、`scheduled` は実スプリント（sprint-*）のみ許可する。SPEC-28/40/50/51 の `scheduled` を実スプリント（例 sprint-2）へ設定し、`scheduled ∈ phases` を強制する RULE を新設して空 scheduled と非 phases 値を違反化する。config・RULE 一覧・接続マトリクスの改訂を伴うため DD 昇格が望ましい。
+**対応状況**: resolved（DD-9 / 2026-06-14）
+**指摘時 ref_version**: SPEC-50 "0.1"／SPEC-51 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-79: RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷
+
+<details><summary>⬡ FND-79 · v0.1</summary>
+
+```yaml
+id: FND-79
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-8
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: RULE-025 を SPEC-33/36/39、RULE-026 を SPEC-34/36、RULE-006 を SPEC-8/15-1/18-1〜5/30 が扱っている。発生源（パース時／テンプレ由来／reconciliation 検証）・一般則／特殊ケースで分離されており矛盾はないが、同一 RULE が多数ノードに散在し全体把握の負荷になる。SPEC-30 は本文で「SPEC-8 の一般則の特殊ケース」と明示している。
+**推奨**: 発生源分割の意図を接続マトリクスまたは authoring-guide に索引化し、同一 RULE を扱う SPEC 群を相互参照できるようにする（仕様変更は不要・ドキュメント整備のみ）。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-8 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-80: PEND 義務辺残存（RULE-022）に対応する failure SPEC が不在
+
+<details><summary>⬡ FND-80 · v0.1</summary>
+
+```yaml
+id: FND-80
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FR-5
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: FR-5 配下に DD 義務辺残存＝SPEC-12（RULE-001）・Q 義務辺残存＝SPEC-13（RULE-002）はあるが、PEND 義務辺残存（RULE-022 WARNING）を検証する failure SPEC が存在しない。decision_spine の3型（DD/Q/PEND）のうち PEND だけカバレッジが欠落しており、PEND の義務辺残存が検証鎖から漏れている。
+**推奨**: FR-5 配下に PEND 義務辺残存（RULE-022）の failure SPEC を新設（SPEC-12/13 と同型）。要否はオーナー確認。
+**対応状況**: resolved（2026-06-15）
+**処置**: FR-5 配下に SPEC-55「PEND の義務辺残存（failure）」（RULE-022 WARNING・SPEC-12/13 同型）を新設し、decision_spine 3型（DD/Q/PEND）の義務辺残存カバレッジの対称を回復。spec-author が SPEC-55 に `→FND-80` バックリファレンス辺を付与済み。
+**指摘時 ref_version**: FR-5 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-81: SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然
+
+<details><summary>⬡ FND-81 · v0.1</summary>
+
+```yaml
+id: FND-81
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-31（trace_scope 結果 in-graph 0件・empty）の親辺が `to: FR-1`（ノードグラフ構造化）になっている。しかし in-graph 集合の決定は FR-9（トレース対象集合の宣言・trace_scope）の主題であり、親は FR-9 が自然との議論余地がある。現状 SPEC-24-1/24-2 が FR-9 配下に置かれている。
+**推奨**: SPEC-31 の親を FR-9 へ付け替えるか、FR-1 配下に留める根拠（パース正常系の境界＝empty）を本文に明記する。オーナー判断。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-31 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-82: SPEC-9-1 と SPEC-10 が同一 RULE-004 検出でほぼ同主張
+
+<details><summary>⬡ FND-82 · v0.1</summary>
+
+```yaml
+id: FND-82
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-10
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-9-1（依存辺ドリフト・failure）と SPEC-10（ファイル/ノード x.y 上昇・normal）が、いずれも「依存辺 ref_version の x.y 不一致→RULE-004 ERROR」を主張しほぼ同内容になっている。condition で正/負対の意図と思われるが、視点（辺側の定義 vs 版上昇トリガ）の差が本文で明確でなく重複が近接している。
+**推奨**: 両 SPEC の責務境界（9-1=ドリフト定義の failure、10=版上昇トリガの normal）を本文で明示するか、統合を検討する。オーナー判断。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-10 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-83: always_error 系 SPEC の condition が不揃い（SPEC-6=error, SPEC-7=failure）
+
+<details><summary>⬡ FND-83 · v0.1</summary>
+
+```yaml
+id: FND-83
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-7
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: RULE-007（存在しない ID 参照）と RULE-005（孤立）はともに always_error だが、対応 SPEC の condition が SPEC-6=error・SPEC-7=failure と不揃いになっている。同じ always_error 性質のルールで condition 軸の付与基準が一貫していない。
+**推奨**: always_error 系 SPEC の condition 付与基準（error か failure か）を統一定義し、SPEC-6/7 を整合させる。オーナー判断。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-7 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-84: SPEC-47/SPEC-44 が DD-8（ファイル frontmatter 全廃）と矛盾
+
+<details><summary>⬡ FND-84 · v0.1</summary>
+
+```yaml
+id: FND-84
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-47
+    ref_version: "0.1"
+  - to: DD-8
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: ERROR
+**内容**: DD-8（2026-06-14 確定・反映済）でファイル frontmatter `version:` は全廃され、版管理はノードバッジ x.y に移行済みである（config.yaml 冒頭・FND-39・ダッシュボードで確認）。しかし SPEC-47 は「全 in-graph ファイルの frontmatter に `version` フィールドが存在する」ことを ERROR 要求し、SPEC-44（NFR-1）も「YAML フロントマター」を前提にしている。廃止済みの frontmatter を必須化する仕様が残存しており、DD-8 と直接矛盾する。さらに「観測できないものを持たない」原則（PR4）にも反し、検証ツールが存在しない frontmatter version を ERROR 報告してしまう。
+**推奨**: SPEC-47 を「全 in-graph ノードの summary バッジに version（x.y）が存在する」検証へ置換、または廃止する。SPEC-44 の本文から frontmatter 前提を除去し、プレーンテキスト/UTF-8 検証に限定する。NFR-1 本文（フロントマター言及）の見直しも要。DD 昇格が望ましい。
+**対応状況**: resolved（DD-10 / 2026-06-14）
+**指摘時 ref_version**: SPEC-47 "0.1"／DD-8 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-85: SPEC-49-1/49-2 が廃止済み frontmatter を検査対象にしている（DD-8 矛盾）
+
+<details><summary>⬡ FND-85 · v0.1</summary>
+
+```yaml
+id: FND-85
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-49
+    ref_version: "0.1"
+  - to: DD-8
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: アンブレラ SPEC-49 の概要は「状態は本文見出しバッジにのみ記載される」と正しく述べているが、子 SPEC-49-1/49-2 の前提条件・入力/トリガ・期待動作は「frontmatter に `status:`/`lifecycle:`/`state:` キーが存在するか」を検査対象としている。DD-8（2026-06-14 確定・反映済）でファイルレベル YAML フロントマターは全廃され、ノードデータはインライン YAML ブロック（`<details>` 内）にのみ存在する。したがって「frontmatter」は実在しない検査対象であり、DD-8 および NFR-1（プレーンテキスト・フロントマター廃止）と齟齬する。検査対象が存在しないため、本来検出すべき「ノード YAML ブロックへの status 系キー混入」を取りこぼす恐れがある（PR4: 観測できないものを持たない、にも抵触）。
+**推奨**: SPEC-49-1/49-2 本文の「frontmatter」を「ノード YAML ブロック内のフィールド（`<details>` 内インライン YAML）」へ用語訂正する。SPEC-49 概要の表現と整合させる。DD 昇格が望ましい。
+**対応状況**: resolved（2026-06-15）
+**処置**: SPEC-49/49-1/49-2 の「frontmatter」表記を「ノード YAML（メタ属性）」へ用語訂正（DD-8 準拠）。NFR-6 は既に「メタ属性」表記のため変更不要。spec-author が SPEC-49 に `→FND-85` バックリファレンス辺を付与済み。
+**指摘時 ref_version**: SPEC-49 "0.1"／DD-8 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-86: NFR 由来本文検査の出力ルール ID 規約が未定義（{NFR-id}-check vs RULE-NNN）
+
+<details><summary>⬡ FND-86 · v0.1</summary>
+
+```yaml
+id: FND-86
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: 横断: SPEC-44〜49（SPEC-44 を代表アンカーとして指摘）。SPEC-44〜49 の出力例は検証ルール ID として `{NFR-id}-check`（例 `NFR-1-check`・`NFR-4-check`）を使用するが、正準ルール台帳は `RULE-NNN`（`docs/doc-system/05-verification.md`）である。NFR 由来の本文検査が正式に RULE 番号を持つのか、`{NFR-id}-check` が暫定識別子なのか、出力契約上の識別子規約が定義されていない。出力契約（O-1 RULE 違反レポート）における違反 ID の名前空間が二重化しており、消費側（reconciliation・spec-inspector）の解釈がぶれる。
+**推奨**: NFR 由来検査の出力ルール ID 規約を確定する（RULE-NNN への正式採番 or `{NFR-id}-check` の正式採用）。確定後は台帳（`05-verification.md`）に記載し、SPEC-44〜49 の出力例を統一する。
+**対応状況**: resolved（DD-11 / 2026-06-15）
+**処置**: DD-11 で `{NFR-id}-check` を NFR 由来本文検査の正式 rule-id 体系として採用（選択肢 B）。`docs/doc-system/05-verification.md` の RULE 台帳に1家族として登録する（reconciliation 反映後に主文脈で実施）。SPEC-44〜49 の出力例は据置。バックリファレンスは DD-11 が `→FND-86` 辺を保持（FND→DD の通常逆転ではなく、DD が解消起点のため DD 側に辺を持つ）。
+**指摘時 ref_version**: SPEC-44 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-87: SPEC-30 に分析層 D の接続漏れ失敗系子が欠落
+
+<details><summary>⬡ FND-87 · v0.1</summary>
+
+```yaml
+id: FND-87
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: アンブレラ SPEC-30「分析ノードの接続漏れ検出」の子は SPEC-30-1（未駆動出力 O→P 欠如）/30-2（未定義反応イベント E←P 欠如）/30-3（未消費入力 I←P 欠如）の3種だが、分析層 D（内部データ）の接続漏れ（D→P・D←P 欠如）の失敗系子が欠落している。config の `must_link_to: D→P`・`must_be_linked_from: D←P` は RULE-006 対象であり、D の接続漏れも検出されるべき検査対象である。SPEC-8 一般則でカバーされる前提なら、SPEC-30 概要にその旨の明記がなく、検証カバレッジの穴か単なる暗黙包含かが読み取れない。
+**推奨**: SPEC-30 に D 接続漏れの failure 子（SPEC-30-4）を追加するか、D は SPEC-8 一般則でカバーされる旨を SPEC-30 概要に明記する。要否（専用子の新設 vs 一般則委譲の明記）はオーナー判断。
+**対応状況**: resolved（2026-06-15）
+**処置**: 実カバレッジ穴ではない。SPEC-8 一般則（RULE-006）が D→P・P→D をカバーするため専用子は不要。SPEC-30 概要に「D は SPEC-8 でカバー・本傘はアクタ面 O/E/I のみ列挙」と設計意図を明記。spec-author が SPEC-30 に `→FND-87` バックリファレンス辺を付与済み。
+**指摘時 ref_version**: SPEC-30 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-88: SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない
+
+<details><summary>⬡ FND-88 · v0.1</summary>
+
+```yaml
+id: FND-88
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-13
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-13 の期待動作は「RULE-002 WARNING を報告する（未決論点の影響候補・ERROR には昇格しない）」であり、単一動詞（報告する）・単一目的語（RULE-002 WARNING）は満たすが、条件節が期待動作の文頭に置かれていない（条件「Q の義務辺が存在する」は入力/トリガ欄にのみ記載）。`【条件】のとき、〇〇を▲▲する` の条件節文頭形式で統一する他 SPEC と様式が不統一であり、テスタブル様式の機械抽出（条件→期待のペア化）にブレを生む。なお内容自体は正しく、失敗系の WARNING 報告として妥当。
+**推奨**: 期待動作を「Q の義務辺（Q→X）が存在するとき、RULE-002 WARNING を報告する」のように条件節を文頭に置く様式へ整形し、テスタブル様式を全 SPEC で統一する。様式統一は notation/規約での明文化が望ましい。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-13 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-89: 傘 SPEC の condition が子の condition 多様性を代表せずミスリード
+
+<details><summary>⬡ FND-89 · v0.1</summary>
+
+```yaml
+id: FND-89
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: アンブレラ SPEC-44 の `condition: normal` だが、子 SPEC-44-1 は `condition: normal`、SPEC-44-2 は `condition: boundary`（BOM 検出）、SPEC-44-3 は `condition: error`（デコードエラー）と多様である。傘の condition が normal 固定で子の condition 多様性を代表しておらず、形式上ミスリードを招く（傘は非テスタブルのため実害は低い）。同種の傘（複数 condition の子を束ねるアンブレラ）が他にも存在する（横断的論点）。一方、傘から condition を外すと RULE-016（SPEC は condition 必須）に抵触する。
+**推奨**: 傘ノードの condition の意味づけ（代表 condition なのか、無効化マーカーなのか）を notation/規約で定義する。RULE-016 との両立のため、condition フィールドを残しつつ傘では `condition: normal`（または `mixed` 等の専用値）の意味を規約側で定義する解を検討する。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-44 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-90: 検証手順の観測/実行主体が二者択一で一意でない（再現性・観測可能性）
+
+<details><summary>⬡ FND-90 · v0.1</summary>
+
+```yaml
+id: FND-90
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-45
+    ref_version: "0.2"
+  - to: SPEC-46
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-45-1/45-2 の入力/トリガが「reconciliation または CI が」、関連する SPEC-46-1/46-2 が「reconciliation または asset-auditor が」と、観測/実行主体を二者択一で記載している。検証手順の主体が一意でないと、どの主体が実行したかで結果が再現しない懸念があり、観測可能性（PR4）・再現性が揺れる。誰が実行しても同一判定になる機構として明文化されていれば問題ないが、現状の「A または B が」表現はそれを保証していない。
+**推奨**: 検証主体を一意化する（単一主体に固定）か、「reconciliation・CI・asset-auditor のいずれが実行しても同一の機械判定を行う」ことを機構として明文化する。SPEC-46（横断的に同種記載あり）も併せて見直す。
+**対応状況**: resolved（2026-06-15）
+**処置**: 観測主体を一意化（PR4）。SPEC-45-1/45-2 を「CI が」、SPEC-46-1/46-2 を「asset-auditor が」に変更し、「reconciliation または」の二択を解消。横断対象 SPEC-46 もこの finding でカバーするため `→SPEC-46` 辺を追加（指摘時 ref_version: SPEC-46 "0.1"）。spec-author が SPEC-45・SPEC-46 の両傘に `→FND-90` バックリファレンス辺を付与済み。
+**指摘時 ref_version**: SPEC-45 "0.1"／SPEC-46 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-91: SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落
+
+<details><summary>⬡ FND-91 · v0.1</summary>
+
+```yaml
+id: FND-91
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-3-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-3-1 の入力/トリガが「著者が新規ノードに ID を付与する」、期待動作が「`PREFIX-N[-N...]` 形式で既存 ID と重複しない一意な ID を採番する」であり、主体が人手（著者）の採番行為になっている。検証ツール（spec-inspector）が観測できるのは「採番された結果の ID が形式に合致し一意か」であって採番行為そのものではない（PR4: 観測できないものを持たない）。期待動作が行為主体視点で書かれており、機械検証可能な「結果状態」への言い換えが望ましい。加えて他 SPEC が持つ `例` 欄が SPEC-3-1 には欠落しており、テスタブル様式の具体例提示が不足している。
+**推奨**: 期待動作を「全ノードの ID が `PREFIX-N[-N...]` 形式に合致し、グラフ内で一意である」のような機械検証可能な結果観点へ言い換える。併せて `例`（合致・重複の具体例）を追加する。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-3-1 "0.1"（ノードバッジ x.y 基準・DD-8）
