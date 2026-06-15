@@ -3431,7 +3431,7 @@ edges:
 
 ---
 
-## SPEC-49: DD/Q/PEND の frontmatter に status 系フィールドが存在しない（normal）
+## SPEC-49: DD/Q/PEND の frontmatter に status 系フィールドが存在しない（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-49 · v0.1</summary>
 
@@ -3444,17 +3444,62 @@ condition: normal
 edges:
   - to: NFR-6
     ref_version: "0.3"
+  - to: FND-72
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在する。
-**入力/トリガ**: 検証ツールが DD・Q・PEND ノードの YAML フィールドキー一覧を検査する。
-**期待動作**: DD・Q・PEND ノードの YAML フィールドに `status:`・`lifecycle:`・`state:` キーが存在しない。これらのキーが frontmatter に存在する場合は WARNING を1件出力する。ライフサイクル状態は本文見出しバッジ（`**status: open**` 等）にのみ記載されている。
-**例**: `{id: "DD-5", type: "DD", labels: [], scheduled: "", edges: []}` → status 系フィールドなし → 違反なし。`{id: "Q-3", type: "Q", labels: [], scheduled: "", status: "open", edges: []}` → `WARNING|{file}:{line}|NFR-6-check|Q-3|lifecycle field 'status' in frontmatter violates NFR-6` を出力。
+**概要**: DD・Q・PEND ノードのライフサイクル状態が frontmatter に漏れていないことの検証を、キー非存在の正常判定（SPEC-49-1）とキー存在時の WARNING 出力（SPEC-49-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル。状態は本文見出しバッジにのみ記載される）。
 
 ---
 
-## SPEC-50: --export-graph による依存グラフファイル出力（normal）
+## SPEC-49-1: status 系キー非存在ノードは違反なし（normal）
+
+<details><summary>⬡ SPEC-49-1 · v0.1</summary>
+
+```yaml
+id: SPEC-49-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-49
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在し、ライフサイクル状態は本文見出しバッジ（`**status: open**` 等）にのみ記載されている。
+**入力/トリガ**: 検証ツールが、frontmatter に `status:`・`lifecycle:`・`state:` キーを持たない DD・Q・PEND ノードを検査する。
+**期待動作**: status 系キーが frontmatter に存在しないとき、当該ノードを違反なしとして通過させる。
+**例**: `{id: "DD-5", type: "DD", labels: [], scheduled: "", edges: []}` → status 系フィールドなし → 違反なし。
+
+---
+
+## SPEC-49-2: status 系キー存在で WARNING 出力（failure）
+
+<details><summary>⬡ SPEC-49-2 · v0.1</summary>
+
+```yaml
+id: SPEC-49-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-49
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在し、ライフサイクル状態は本文見出しバッジに記載されるべきものである。
+**入力/トリガ**: 検証ツールが、frontmatter に `status:`・`lifecycle:`・`state:` のいずれかのキーを持つ DD・Q・PEND ノードを検査する。
+**期待動作**: status 系キーが frontmatter に存在するとき、WARNING を1件出力する。
+**例**: `{id: "Q-3", type: "Q", labels: [], scheduled: "", status: "open", edges: []}` → `WARNING|{file}:{line}|NFR-6-check|Q-3|lifecycle field 'status' in frontmatter violates NFR-6` を出力。
+
+---
+
+## SPEC-50: --export-graph による依存グラフファイル出力（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-50 · v0.2</summary>
 
@@ -3469,18 +3514,88 @@ edges:
     ref_version: "0.1"
   - to: FND-78
     ref_version: "0.1"
+  - to: FND-73
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: spec-inspector がノードグラフを正常にパース済みである（SPEC-1 の正常系が先行している）。グラフに1件以上のノードが存在する。`--export-graph` オプションに有効なフォーマット名（`dot` または `json`）と出力先ファイルパスが指定されている。
-**入力/トリガ**: `spec-inspector --export-graph dot ./output/graph.dot`（または `json` フォーマット・任意の出力先パス）を実行する。
-**期待動作**: 指定されたフォーマット（`dot` の場合は Graphviz dot 形式・`json` の場合は JSON 隣接リスト形式）でノード間の依存関係グラフが指定ファイルパスに書き出される。stdout にはエラーメッセージを出力せず、exit code 0 で正常終了する。
-**合格例**: ノード 3 件（SPEC-1→FR-1、FR-1→SR-1）を含むグラフに対して `--export-graph dot ./graph.dot` を実行 → `./graph.dot` に `digraph { "SPEC-1" -> "FR-1"; "FR-1" -> "SR-1"; }` 形式の dot ファイルが生成され、exit code 0 で終了する。
-**違反例**: `--export-graph dot ./graph.dot` を実行したが出力ファイルが生成されない・または dot 形式の構文として不正なテキスト（例: JSON 形式）が書き出される → 期待動作を満たさない。
+**概要**: `--export-graph` 実行時の依存グラフ出力を、ファイル生成（SPEC-50-1）・stdout 無エラー（SPEC-50-2）・exit code 0（SPEC-50-3）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-51: --complexity による参照関係複雑度メトリクスレポート stdout 出力（normal）
+## SPEC-50-1: --export-graph で指定フォーマットのグラフファイルを生成（normal・post-mvp）
+
+<details><summary>⬡ SPEC-50-1 · v0.1</summary>
+
+```yaml
+id: SPEC-50-1
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-50
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みで（SPEC-1 の正常系が先行）、グラフに1件以上のノードが存在し、`--export-graph` に有効なフォーマット名（`dot` または `json`）と出力先ファイルパスが指定されている。
+**入力/トリガ**: `spec-inspector --export-graph dot ./output/graph.dot`（または `json` フォーマット・任意の出力先パス）を実行する。
+**期待動作**: `--export-graph` を実行したとき、指定フォーマット（`dot`＝Graphviz dot 形式・`json`＝JSON 隣接リスト形式）で依存関係グラフを指定ファイルパスに書き出す。
+**合格例**: ノード 3 件（SPEC-1→FR-1、FR-1→SR-1）に `--export-graph dot ./graph.dot` を実行 → `./graph.dot` に `digraph { "SPEC-1" -> "FR-1"; "FR-1" -> "SR-1"; }` 形式の dot ファイルが生成される。
+**違反例**: 出力ファイルが生成されない・または dot 形式として不正なテキスト（例: JSON 形式）が書き出される → 期待動作を満たさない。
+
+---
+
+## SPEC-50-2: --export-graph 正常時 stdout にエラーを出力しない（normal・post-mvp）
+
+<details><summary>⬡ SPEC-50-2 · v0.1</summary>
+
+```yaml
+id: SPEC-50-2
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-50
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みで、グラフに1件以上のノードが存在し、`--export-graph` に有効なフォーマット名と出力先ファイルパスが指定され、グラフファイルが正常に書き出される。
+**入力/トリガ**: `spec-inspector --export-graph dot ./output/graph.dot` を実行する。
+**期待動作**: グラフファイル出力が正常完了したとき、stdout にエラーメッセージを出力しない。
+**合格例**: `--export-graph dot ./graph.dot` 実行でファイルが正常生成され、stdout にエラーメッセージが現れない。
+**違反例**: ファイルは生成されたが stdout にエラーメッセージが出力される → 期待動作を満たさない。
+
+---
+
+## SPEC-50-3: --export-graph 正常時 exit code 0 で終了（normal・post-mvp）
+
+<details><summary>⬡ SPEC-50-3 · v0.1</summary>
+
+```yaml
+id: SPEC-50-3
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-50
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みで、グラフに1件以上のノードが存在し、`--export-graph` に有効なフォーマット名と出力先ファイルパスが指定され、グラフファイルが正常に書き出される。
+**入力/トリガ**: `spec-inspector --export-graph dot ./output/graph.dot` を実行する。
+**期待動作**: グラフファイル出力が正常完了したとき、exit code 0 で終了する。
+**合格例**: `--export-graph dot ./graph.dot` 実行でファイルが正常生成され、プロセスが exit code 0 で終了する。
+**違反例**: ファイルは生成されたが exit code が 0 以外で終了する → 期待動作を満たさない。
+
+---
+
+## SPEC-51: --complexity による参照関係複雑度メトリクスレポート stdout 出力（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-51 · v0.2</summary>
 
@@ -3495,18 +3610,64 @@ edges:
     ref_version: "0.1"
   - to: FND-78
     ref_version: "0.1"
+  - to: FND-74
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: spec-inspector がノードグラフを正常にパース済みである（SPEC-1 の正常系が先行している）。グラフに1件以上のノードが存在する。`--complexity` オプションが指定されている。
-**入力/トリガ**: `spec-inspector --complexity` を実行する。
-**期待動作**: 各ノードの in-degree（被参照数）・out-degree（参照数）・ハブ判定（in-degree または out-degree が閾値以上のノードをハブとして識別）を含むメトリクスレポートが stdout に出力される。レポートはノードを id 昇順でソートした行形式（`{node-id} | in={N} | out={N} | hub={yes/no}`）で表示され、exit code 0 で正常終了する。
-**合格例**: ノード FR-1（被参照: SPEC-1, SPEC-2 の 2 件、参照先: SR-1 の 1 件）を含むグラフに `--complexity` を実行 → stdout に `FR-1 | in=2 | out=1 | hub=no`（in-degree 2、out-degree 1、閾値未満のためハブ判定 no）が含まれ、exit code 0 で終了する。
-**違反例**: `--complexity` を実行したが stdout に何も出力されない・またはメトリクス行に `in=` / `out=` フィールドが欠落する → 期待動作を満たさない。
+**概要**: `--complexity` 実行時のメトリクスレポート出力を、レポート stdout 出力（SPEC-51-1）と exit code 0（SPEC-51-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-52: I-1 完全フィールドスキーマ適合（normal）
+## SPEC-51-1: --complexity でメトリクスレポートを stdout 出力（normal・post-mvp）
+
+<details><summary>⬡ SPEC-51-1 · v0.1</summary>
+
+```yaml
+id: SPEC-51-1
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-51
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みで（SPEC-1 の正常系が先行）、グラフに1件以上のノードが存在し、`--complexity` オプションが指定されている。
+**入力/トリガ**: `spec-inspector --complexity` を実行する。
+**期待動作**: `--complexity` 指定時、各ノードの in-degree・out-degree・ハブ判定を含むメトリクスレポートを id 昇順の行形式（`{node-id} | in={N} | out={N} | hub={yes/no}`）で stdout に出力する。
+**合格例**: ノード FR-1（被参照: SPEC-1, SPEC-2 の 2 件、参照先: SR-1 の 1 件）を含むグラフに `--complexity` 実行 → stdout に `FR-1 | in=2 | out=1 | hub=no` が含まれる。
+**違反例**: stdout に何も出力されない・またはメトリクス行に `in=` / `out=` フィールドが欠落する → 期待動作を満たさない。
+
+---
+
+## SPEC-51-2: --complexity 正常時 exit code 0 で終了（normal・post-mvp）
+
+<details><summary>⬡ SPEC-51-2 · v0.1</summary>
+
+```yaml
+id: SPEC-51-2
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-51
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: spec-inspector がノードグラフを正常にパース済みで、グラフに1件以上のノードが存在し、`--complexity` オプションが指定され、メトリクスレポートが正常に出力される。
+**入力/トリガ**: `spec-inspector --complexity` を実行する。
+**期待動作**: メトリクスレポート出力が正常完了したとき、exit code 0 で終了する。
+**合格例**: `--complexity` 実行でレポートが stdout に出力され、プロセスが exit code 0 で終了する。
+**違反例**: レポートは出力されたが exit code が 0 以外で終了する → 期待動作を満たさない。
+
+---
+
+## SPEC-52: I-1 完全フィールドスキーマ適合（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-52 · v0.1</summary>
 
@@ -3521,15 +3682,127 @@ edges:
     ref_version: "0.3"
   - to: FND-18
     ref_version: "0.1"
+  - to: FND-75
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、フィールドスキーマ検証（RULE-025/026/027/028）が当該ノードに対して評価される。
-**入力/トリガ**: 検証ツールが、共通必須フィールド（`id` 文字列・非空、`type` 文字列・非空、`labels` リスト・空可、`scheduled` 文字列・空可、`edges` リスト・各エントリに `to` と `ref_version`）を全て備え、かつ型別必須拡張フィールド（SPEC/TD は `condition`、TR は `result` と `log_ref`）も備えたノードを処理する。
-**期待動作**: 当該ノードに対して RULE-025・RULE-026・RULE-027・RULE-028 をいずれも発火させず、フィールドスキーマ違反を 0 件として通過する（当該ノード起因のエラー出力なし）。スキーマ違反が他に 0 件ならプロセス終了コードは 0。
-**出力フォーマット**: 当該ノード起因の `ERROR|...` 行を一切出力しない（標準出力に当該ノードのスキーマ違反行が現れない）。
-**終了コード**: 違反 0 件なら 0。
-**例**: ノード `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → `id` 非空文字列・`type` 非空文字列・`labels` 空リスト・`scheduled` 空文字列・`edges` リストで各エントリに `to` と `ref_version` あり（FR は型別拡張フィールドなし）→ RULE-025/026/027/028 いずれも非発火・違反 0 件・終了コード 0。
+**概要**: 完全フィールドスキーマ適合ノードがスキーマ検証を通過することの検証を、RULE-025（SPEC-52-1）・RULE-026（SPEC-52-2）・RULE-027（SPEC-52-3）・RULE-028（SPEC-52-4）の各非発火と終了コード 0（SPEC-52-5）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-52-1: 完全スキーマ適合ノードは RULE-025 を発火させない（normal）
+
+<details><summary>⬡ SPEC-52-1 · v0.1</summary>
+
+```yaml
+id: SPEC-52-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
+**入力/トリガ**: 検証ツールが、共通必須フィールド（`id`・`type`・`labels`・`scheduled`・`edges`）と型別必須拡張フィールド（SPEC/TD は `condition`、TR は `result` と `log_ref`）を全て備えたノードに RULE-025 を評価する。
+**期待動作**: 完全スキーマ適合ノードに対して RULE-025 を発火させない。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-025 非発火。
+
+---
+
+## SPEC-52-2: 完全スキーマ適合ノードは RULE-026 を発火させない（normal）
+
+<details><summary>⬡ SPEC-52-2 · v0.1</summary>
+
+```yaml
+id: SPEC-52-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
+**入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-026 を評価する。
+**期待動作**: 完全スキーマ適合ノードに対して RULE-026 を発火させない。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-026 非発火。
+
+---
+
+## SPEC-52-3: 完全スキーマ適合ノードは RULE-027 を発火させない（normal）
+
+<details><summary>⬡ SPEC-52-3 · v0.1</summary>
+
+```yaml
+id: SPEC-52-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
+**入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-027 を評価する。
+**期待動作**: 完全スキーマ適合ノードに対して RULE-027 を発火させない。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-027 非発火。
+
+---
+
+## SPEC-52-4: 完全スキーマ適合ノードは RULE-028 を発火させない（normal）
+
+<details><summary>⬡ SPEC-52-4 · v0.1</summary>
+
+```yaml
+id: SPEC-52-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
+**入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-028 を評価する。
+**期待動作**: 完全スキーマ適合ノードに対して RULE-028 を発火させない。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-028 非発火。
+
+---
+
+## SPEC-52-5: スキーマ違反 0 件のとき終了コード 0（normal）
+
+<details><summary>⬡ SPEC-52-5 · v0.1</summary>
+
+```yaml
+id: SPEC-52-5
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-52
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph の全ノードがフィールドスキーマ検証（RULE-025/026/027/028）を通過し、スキーマ違反が 0 件である。
+**入力/トリガ**: 検証ツールがフィールドスキーマ検証を全ノードに対して完了する。
+**期待動作**: フィールドスキーマ違反が 0 件のとき、プロセス終了コードを 0 とする。
+**例**: 全ノードが完全スキーマ適合で違反 0 件 → 終了コード 0。
 
 ---
 
