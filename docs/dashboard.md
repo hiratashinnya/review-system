@@ -3,7 +3,7 @@
 議事録から抽出した未決事項とネクストアクションの運用ハブ。
 新しい議論が出たら、ここを更新する。
 
-最終更新：2026-06-15（DD19 追加＝asset-lateral-deploy スクリプト廃止・エージェント手書き化確定。DD18 superseded）
+最終更新：2026-06-12（DD18 追加＝lateral_deploy 2パーサ併存を許容・決定明文化）
 
 ## 🎯 MVP ターゲット（確定）
 
@@ -158,7 +158,7 @@ P1（出すと仕分けレポートが返る）・P2（直す＋戻せる）を*
 - **モジュール構成はヘキサゴナル＋依存内向き**：`domain ← core(ports) ← adapters/persistence/cli`。コアは PF/IO/保存形式を知らず、結線は合成ルート(`io/cli`)のみ（[design/02](design/02-module-architecture.md)）
 - **テスト戦略**：unittest（全 public 関数）／ケース＝Markdown／成績書＝ケースコピー＋実測＋commit id／ログ＝stdout ダンプ／失敗も残す（隠蔽禁止＋原因/対策）／テスト前コミット／e2e は Claude Code エージェントで同じ3点セット。非決定（LLM）は `FakePlatformAdapter` で決定化＝アダプタ境界＝テスト境界
 - **資産のテーラリング運用（A16）**：プロセスはスキルで実現するためテーラリング実体は `.claude/`（docs でない）。汎用標準＝`.claude/standards/`（非活性）、テーラリング済 active＝`.claude/skills/`、対応台帳＝`.claude/tailoring-registry.md`。テーラリング時は元を `git mv` で非活性化（消さない）し registry に記録。本PJは extract-then-generalize。初回適用＝`/test-strategy`
-- **`asset-lateral-deploy` 変換方針変更（DD19・2026-06-15 確定）**：スクリプト一括変換（`lateral_deploy.py`）を廃止し、エージェントが種別を判断して手書き変換する方針に全面移行。理由＝instructions 量産など Copilot 種別の誤分類を生む構造的限界。スクリプト・テスト削除済み（テスト 137→109件）。Copilot ⇔ Claude Code の YAML フロントマター対応表を SKILL.md に記載 → [DD19](design/decisions.md) ／旧 [DD18](design/decisions.md)（lateral_deploy 2パーサ併存許容）は DD19 により superseded。
+- **`scripts/lateral_deploy.py` のフロントマターパーサ分離（DD18）**：`review_system/parsing/frontmatter.py` は `KEY=[a-z_][a-z0-9_]*` regex が hyphenated key（`disable-model-invocation` 等）非対応のため、`lateral_deploy.py` 専用の寛容パーサを別実装。2パーサ併存を許容（`lateral_deploy` はスタンドアロン設計・既存パーサの拡張は Q5a 範囲外）→ [DD18](design/decisions.md)
 
 > 各決定の詳細は [requirements/](requirements/) を参照。プロセス設計（DFD/状態）は [process/](process/00-context.md)。
 > システムの入出力一覧は [requirements/05-io-overview.md](requirements/05-io-overview.md)、
