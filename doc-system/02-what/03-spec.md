@@ -3155,7 +3155,7 @@ edges:
 
 ---
 
-## SPEC-45: spec-inspector は Python 標準ライブラリのみ使用（normal）
+## SPEC-45: spec-inspector は Python 標準ライブラリのみ使用（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-45 · v0.1</summary>
 
@@ -3168,17 +3168,62 @@ condition: normal
 edges:
   - to: NFR-2
     ref_version: "0.3"
+  - to: FND-68
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: spec-inspector の実装ソースファイル群（`src/` 以下または実装ファイル群）が1件以上存在する。
-**入力/トリガ**: reconciliation または CI が全ソースファイルの `import` 文を静的解析する。
-**期待動作**: 全 `import X` 文および `from X import Y` 文が Python 標準ライブラリモジュール（`sys`, `os`, `re`, `pathlib`, `json`, `typing`, `collections`, `itertools`, `functools`, `dataclasses` 等）のみを参照する。`import yaml`（PyYAML）・`import requests`・`import pydantic` 等の外部パッケージへの依存が 0 件である。
-**例**: `src/inspector.py` の全 import が `import sys`, `import os`, `import re`, `import pathlib`, `import json` のみ → 外部依存 0 件 → 検証通過。`import yaml` が `src/parser.py` 行3に存在 → `ERROR|src/parser.py:3|NFR-2-check|(none)|external package import: yaml` を出力。
+**概要**: spec-inspector の標準ライブラリ限定要件を、標準ライブラリ参照判定（SPEC-45-1）と外部 import 検出時の ERROR 出力（SPEC-45-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-46: スキルファイルは外部ファイル参照なしに自己完結（normal）
+## SPEC-45-1: 全 import が標準ライブラリのみを参照する（normal）
+
+<details><summary>⬡ SPEC-45-1 · v0.1</summary>
+
+```yaml
+id: SPEC-45-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-45
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: spec-inspector の実装ソースファイル群が1件以上存在し、静的解析が完了している。
+**入力/トリガ**: reconciliation または CI が全ソースファイルの `import X` 文および `from X import Y` 文を抽出する。
+**期待動作**: 全ソースファイルの import 文を解析したとき、外部パッケージ（PyYAML・requests・pydantic 等）への依存が 0 件であることを判定する。
+**例**: `src/inspector.py` の全 import が `import sys`, `import os`, `import re`, `import pathlib`, `import json` のみ → 外部依存 0 件 → 違反なし。
+
+---
+
+## SPEC-45-2: 外部パッケージ import 検出時に ERROR を出力する（failure）
+
+<details><summary>⬡ SPEC-45-2 · v0.1</summary>
+
+```yaml
+id: SPEC-45-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-45
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: spec-inspector の実装ソースファイル群が1件以上存在し、静的解析が完了している。
+**入力/トリガ**: reconciliation または CI が外部パッケージへの `import` 文を1件以上検出する。
+**期待動作**: 外部パッケージ import を検出したとき、当該行を指す ERROR を1件出力する。
+**例**: `import yaml` が `src/parser.py` 行3に存在 → `ERROR|src/parser.py:3|NFR-2-check|(none)|external package import: yaml` を出力。
+
+---
+
+## SPEC-46: スキルファイルは外部ファイル参照なしに自己完結（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-46 · v0.1</summary>
 
@@ -3191,17 +3236,62 @@ condition: normal
 edges:
   - to: NFR-3
     ref_version: "0.2"
+  - to: FND-69
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: `.claude/skills/*/SKILL.md` または `.claude/skills/*/*.md` のスキルファイルが1件以上存在する。
-**入力/トリガ**: reconciliation または asset-auditor がスキルファイルの全行を外部参照パターン（`\.\./`・`^include:`・`^source:`・`@import`）で検索する。
-**期待動作**: 各スキルファイルの本文に外部ファイル参照パターン（相対パス `../`・`include:`・`source:`・`@import`）が存在しない。各パターンにマッチする行が 0 件であることを確認し、検証を通過する。
-**例**: `.claude/skills/spec-author/SKILL.md` を全行検索 → `../`・`include:`・`source:`・`@import` にマッチする行なし → 検証通過。`.claude/skills/spec-author/SKILL.md` 行42に `see: ../07-authoring-guide.md` が存在 → `WARNING|.claude/skills/spec-author/SKILL.md:42|NFR-3-check|(none)|external file reference: ../07-authoring-guide.md` を出力。
+**概要**: スキルファイルの外部参照自己完結要件を、外部参照パターン非存在の判定（SPEC-46-1）と検出時の WARNING 出力（SPEC-46-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-47: 全 in-graph ノードの summary バッジに version（x.y）が存在する（normal）
+## SPEC-46-1: スキルファイルに外部参照パターンが存在しない（normal）
+
+<details><summary>⬡ SPEC-46-1 · v0.1</summary>
+
+```yaml
+id: SPEC-46-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-46
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: スキルファイルが1件以上存在し、全行が外部参照パターンで検索済みである。
+**入力/トリガ**: reconciliation または asset-auditor がスキルファイルの全行を外部参照パターン（`\.\./`・`^include:`・`^source:`・`@import`）で検索する。
+**期待動作**: スキルファイルを全行検索したとき、外部ファイル参照パターンにマッチする行が 0 件であることを判定する。
+**例**: `.claude/skills/spec-author/SKILL.md` を全行検索 → `../`・`include:`・`source:`・`@import` にマッチする行なし → 違反なし。
+
+---
+
+## SPEC-46-2: 外部参照パターン検出時に WARNING を出力する（failure）
+
+<details><summary>⬡ SPEC-46-2 · v0.1</summary>
+
+```yaml
+id: SPEC-46-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-46
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: スキルファイルが1件以上存在し、全行が外部参照パターンで検索済みである。
+**入力/トリガ**: reconciliation または asset-auditor が外部参照パターンにマッチする行を1件以上検出する。
+**期待動作**: 外部参照パターンにマッチする行を検出したとき、当該行を指す WARNING を1件出力する。
+**例**: `.claude/skills/spec-author/SKILL.md` 行42に `see: ../07-authoring-guide.md` が存在 → `WARNING|.claude/skills/spec-author/SKILL.md:42|NFR-3-check|(none)|external file reference: ../07-authoring-guide.md` を出力。
+
+---
+
+## SPEC-47: 全 in-graph ノードの summary バッジに version（x.y）が存在する（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-47 · v0.2</summary>
 
@@ -3216,18 +3306,62 @@ edges:
     ref_version: "0.2"
   - to: FND-84
     ref_version: "0.1"
+  - to: FND-70
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph にノードが1件以上存在し、パース済みである。各ノードは `<details><summary>⬡ PREFIX-N · vX.Y` 形式の summary バッジを持つことが期待される（DD-8：ファイルレベルフロントマター廃止・ノードバッジが唯一の版管理真実源）。
-**入力/トリガ**: 検証ツールが全ノードの summary バッジを走査し `· vX.Y` 部分を抽出する。
-**期待動作**: 全 in-graph ノードの summary バッジが `· vX.Y` 形式（X・Y はそれぞれ非負整数）のノードバージョンを持つ。`· v` 部分が存在しない・または `X.Y` が非負整数の2部形式でないノードは、バッジ version 欠如として ERROR を1件出力する。
-**合格例**: `⬡ FR-1 · v0.3` → バッジ version = "0.3"（X=0, Y=3）・形式適合 → 違反なし。`⬡ SPEC-54 · v0.1` → バッジ version = "0.1" → 違反なし。
+**概要**: ノードバッジ version の存在・形式要件を、形式適合判定（SPEC-47-1）と欠如・形式不正時の ERROR 出力（SPEC-47-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル。DD-8：ファイルレベルフロントマター廃止・ノードバッジが唯一の版管理真実源）。
+
+---
+
+## SPEC-47-1: 全ノードのバッジが `· vX.Y`（非負整数 2 部）形式を持つ（normal）
+
+<details><summary>⬡ SPEC-47-1 · v0.1</summary>
+
+```yaml
+id: SPEC-47-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-47
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph にノードが1件以上存在し、各ノードの summary バッジが走査済みである。
+**入力/トリガ**: 検証ツールが全ノードの summary バッジから `· vX.Y` 部分を抽出する。
+**期待動作**: 全 in-graph ノードのバッジを走査したとき、各バッジが `· vX.Y`（X・Y はそれぞれ非負整数）の 2 部形式を持つことを判定する。
+**合格例**: `⬡ FR-1 · v0.3` → バッジ version = "0.3"（X=0, Y=3）・形式適合 → 違反なし。`⬡ SPEC-54 · v0.1` → 違反なし。
+
+---
+
+## SPEC-47-2: バッジ version 欠如・形式不正のノードに ERROR を出力する（failure）
+
+<details><summary>⬡ SPEC-47-2 · v0.1</summary>
+
+```yaml
+id: SPEC-47-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-47
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph にノードが1件以上存在し、各ノードの summary バッジが走査済みである。
+**入力/トリガ**: 検証ツールが `· v` 部分の欠如、または `X.Y` が非負整数 2 部形式でないバッジを1件以上検出する。
+**期待動作**: バッジ version 欠如または形式不正を検出したとき、当該ノードを指す ERROR を1件出力する。
 **違反例**: `⬡ SPEC-99`（`· vX.Y` 部分なし）→ `ERROR|{file}:{line}|NFR-4-check|SPEC-99|node badge version missing` を出力。`⬡ SPEC-88 · v2`（Y 部分欠如）→ `ERROR|{file}:{line}|NFR-4-check|SPEC-88|node badge version format error: v2` を出力。
 
 ---
 
-## SPEC-48: 各ノードは直接の親のみへ辺を張る（USDM 1段制約）（normal）
+## SPEC-48: 各ノードは直接の親のみへ辺を張る（USDM 1段制約）（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-48 · v0.1</summary>
 
@@ -3242,13 +3376,58 @@ edges:
     ref_version: "0.2"
   - to: FND-25
     ref_version: "0.1"
+  - to: FND-71
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。接続マトリクスで SPEC の直接親は FR または別 SPEC と定義されている。
-**入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` を走査し、祖先型（SR・VAL 等）への直接辺を検出する。
-**期待動作**: SPEC ノードの `edges[].to` が全て FR・NFR・または別 SPEC（直接親 SPEC）を指し、SR・VAL などの祖先型を直接参照する辺が 0 件である。祖先型への直接辺が検出された場合は ERROR を1件出力する。
-**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。仮に `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
+**概要**: USDM 1 段制約（直接親のみへの辺）の検証を、全辺が直接親型を指す判定（SPEC-48-1）と祖先辺検出時の ERROR 出力（SPEC-48-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-48-1: SPEC の辺が全て直接親型（FR/NFR/SPEC）を指す（normal）
+
+<details><summary>⬡ SPEC-48-1 · v0.1</summary>
+
+```yaml
+id: SPEC-48-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-48
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。
+**入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` を走査する。
+**期待動作**: SPEC ノードの全辺を走査したとき、各辺が FR・NFR・または別 SPEC（直接親）を指し、祖先型（SR・VAL 等）への直接辺が 0 件であることを判定する。
+**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。
+
+---
+
+## SPEC-48-2: 祖先型への直接辺検出時に ERROR を出力する（failure）
+
+<details><summary>⬡ SPEC-48-2 · v0.1</summary>
+
+```yaml
+id: SPEC-48-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-48
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。
+**入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` に祖先型（SR・VAL 等）への直接辺を1件以上検出する。
+**期待動作**: 祖先型への直接辺を検出したとき、当該辺を指す ERROR を1件出力する。
+**例**: `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
 
 ---
 
