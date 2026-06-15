@@ -2052,3 +2052,173 @@ edges:
 **推奨**: SPEC-47 を「全 in-graph ノードの summary バッジに version（x.y）が存在する」検証へ置換、または廃止する。SPEC-44 の本文から frontmatter 前提を除去し、プレーンテキスト/UTF-8 検証に限定する。NFR-1 本文（フロントマター言及）の見直しも要。DD 昇格が望ましい。
 **対応状況**: resolved（DD-10 / 2026-06-14）
 **指摘時 ref_version**: SPEC-47 "0.1"／DD-8 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-85: SPEC-49-1/49-2 が廃止済み frontmatter を検査対象にしている（DD-8 矛盾）
+
+<details><summary>⬡ FND-85 · v0.1</summary>
+
+```yaml
+id: FND-85
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-49
+    ref_version: "0.1"
+  - to: DD-8
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: アンブレラ SPEC-49 の概要は「状態は本文見出しバッジにのみ記載される」と正しく述べているが、子 SPEC-49-1/49-2 の前提条件・入力/トリガ・期待動作は「frontmatter に `status:`/`lifecycle:`/`state:` キーが存在するか」を検査対象としている。DD-8（2026-06-14 確定・反映済）でファイルレベル YAML フロントマターは全廃され、ノードデータはインライン YAML ブロック（`<details>` 内）にのみ存在する。したがって「frontmatter」は実在しない検査対象であり、DD-8 および NFR-1（プレーンテキスト・フロントマター廃止）と齟齬する。検査対象が存在しないため、本来検出すべき「ノード YAML ブロックへの status 系キー混入」を取りこぼす恐れがある（PR4: 観測できないものを持たない、にも抵触）。
+**推奨**: SPEC-49-1/49-2 本文の「frontmatter」を「ノード YAML ブロック内のフィールド（`<details>` 内インライン YAML）」へ用語訂正する。SPEC-49 概要の表現と整合させる。DD 昇格が望ましい。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-49 "0.1"／DD-8 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-86: NFR 由来本文検査の出力ルール ID 規約が未定義（{NFR-id}-check vs RULE-NNN）
+
+<details><summary>⬡ FND-86 · v0.1</summary>
+
+```yaml
+id: FND-86
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: 横断: SPEC-44〜49（SPEC-44 を代表アンカーとして指摘）。SPEC-44〜49 の出力例は検証ルール ID として `{NFR-id}-check`（例 `NFR-1-check`・`NFR-4-check`）を使用するが、正準ルール台帳は `RULE-NNN`（`docs/doc-system/05-verification.md`）である。NFR 由来の本文検査が正式に RULE 番号を持つのか、`{NFR-id}-check` が暫定識別子なのか、出力契約上の識別子規約が定義されていない。出力契約（O-1 RULE 違反レポート）における違反 ID の名前空間が二重化しており、消費側（reconciliation・spec-inspector）の解釈がぶれる。
+**推奨**: NFR 由来検査の出力ルール ID 規約を確定する（RULE-NNN への正式採番 or `{NFR-id}-check` の正式採用）。確定後は台帳（`05-verification.md`）に記載し、SPEC-44〜49 の出力例を統一する。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-44 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-87: SPEC-30 に分析層 D の接続漏れ失敗系子が欠落
+
+<details><summary>⬡ FND-87 · v0.1</summary>
+
+```yaml
+id: FND-87
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+**内容**: アンブレラ SPEC-30「分析ノードの接続漏れ検出」の子は SPEC-30-1（未駆動出力 O→P 欠如）/30-2（未定義反応イベント E←P 欠如）/30-3（未消費入力 I←P 欠如）の3種だが、分析層 D（内部データ）の接続漏れ（D→P・D←P 欠如）の失敗系子が欠落している。config の `must_link_to: D→P`・`must_be_linked_from: D←P` は RULE-006 対象であり、D の接続漏れも検出されるべき検査対象である。SPEC-8 一般則でカバーされる前提なら、SPEC-30 概要にその旨の明記がなく、検証カバレッジの穴か単なる暗黙包含かが読み取れない。
+**推奨**: SPEC-30 に D 接続漏れの failure 子（SPEC-30-4）を追加するか、D は SPEC-8 一般則でカバーされる旨を SPEC-30 概要に明記する。要否（専用子の新設 vs 一般則委譲の明記）はオーナー判断。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-30 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-88: SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない
+
+<details><summary>⬡ FND-88 · v0.1</summary>
+
+```yaml
+id: FND-88
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-13
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-13 の期待動作は「RULE-002 WARNING を報告する（未決論点の影響候補・ERROR には昇格しない）」であり、単一動詞（報告する）・単一目的語（RULE-002 WARNING）は満たすが、条件節が期待動作の文頭に置かれていない（条件「Q の義務辺が存在する」は入力/トリガ欄にのみ記載）。`【条件】のとき、〇〇を▲▲する` の条件節文頭形式で統一する他 SPEC と様式が不統一であり、テスタブル様式の機械抽出（条件→期待のペア化）にブレを生む。なお内容自体は正しく、失敗系の WARNING 報告として妥当。
+**推奨**: 期待動作を「Q の義務辺（Q→X）が存在するとき、RULE-002 WARNING を報告する」のように条件節を文頭に置く様式へ整形し、テスタブル様式を全 SPEC で統一する。様式統一は notation/規約での明文化が望ましい。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-13 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-89: 傘 SPEC の condition が子の condition 多様性を代表せずミスリード
+
+<details><summary>⬡ FND-89 · v0.1</summary>
+
+```yaml
+id: FND-89
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: アンブレラ SPEC-44 の `condition: normal` だが、子 SPEC-44-1 は `condition: normal`、SPEC-44-2 は `condition: boundary`（BOM 検出）、SPEC-44-3 は `condition: error`（デコードエラー）と多様である。傘の condition が normal 固定で子の condition 多様性を代表しておらず、形式上ミスリードを招く（傘は非テスタブルのため実害は低い）。同種の傘（複数 condition の子を束ねるアンブレラ）が他にも存在する（横断的論点）。一方、傘から condition を外すと RULE-016（SPEC は condition 必須）に抵触する。
+**推奨**: 傘ノードの condition の意味づけ（代表 condition なのか、無効化マーカーなのか）を notation/規約で定義する。RULE-016 との両立のため、condition フィールドを残しつつ傘では `condition: normal`（または `mixed` 等の専用値）の意味を規約側で定義する解を検討する。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-44 "0.2"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-90: 検証手順の観測/実行主体が二者択一で一意でない（再現性・観測可能性）
+
+<details><summary>⬡ FND-90 · v0.1</summary>
+
+```yaml
+id: FND-90
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-45
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-45-1/45-2 の入力/トリガが「reconciliation または CI が」、関連する SPEC-46-1/46-2 が「reconciliation または asset-auditor が」と、観測/実行主体を二者択一で記載している。検証手順の主体が一意でないと、どの主体が実行したかで結果が再現しない懸念があり、観測可能性（PR4）・再現性が揺れる。誰が実行しても同一判定になる機構として明文化されていれば問題ないが、現状の「A または B が」表現はそれを保証していない。
+**推奨**: 検証主体を一意化する（単一主体に固定）か、「reconciliation・CI・asset-auditor のいずれが実行しても同一の機械判定を行う」ことを機構として明文化する。SPEC-46（横断的に同種記載あり）も併せて見直す。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-45 "0.1"（ノードバッジ x.y 基準・DD-8）
+
+---
+
+## FND-91: SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落
+
+<details><summary>⬡ FND-91 · v0.1</summary>
+
+```yaml
+id: FND-91
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: SPEC-3-1
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: INFO
+**内容**: SPEC-3-1 の入力/トリガが「著者が新規ノードに ID を付与する」、期待動作が「`PREFIX-N[-N...]` 形式で既存 ID と重複しない一意な ID を採番する」であり、主体が人手（著者）の採番行為になっている。検証ツール（spec-inspector）が観測できるのは「採番された結果の ID が形式に合致し一意か」であって採番行為そのものではない（PR4: 観測できないものを持たない）。期待動作が行為主体視点で書かれており、機械検証可能な「結果状態」への言い換えが望ましい。加えて他 SPEC が持つ `例` 欄が SPEC-3-1 には欠落しており、テスタブル様式の具体例提示が不足している。
+**推奨**: 期待動作を「全ノードの ID が `PREFIX-N[-N...]` 形式に合致し、グラフ内で一意である」のような機械検証可能な結果観点へ言い換える。併せて `例`（合致・重複の具体例）を追加する。
+**対応状況**: open
+**指摘時 ref_version**: SPEC-3-1 "0.1"（ノードバッジ x.y 基準・DD-8）

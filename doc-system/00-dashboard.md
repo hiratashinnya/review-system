@@ -12,6 +12,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| 全 SPEC 自己点検（spec-inspector ×6・175 ノード） | 点検 | ✅ 構造クリーン。2-object 子2件を即修正（SPEC-29-2／SPEC-31-1 分割）・新規残課題を FND-85〜91 起票（2026-06-15） |
 | 03-spec.md 本文品質（FND-40〜77）テスタブル化分割 | FND ×38 | ✅ resolved（2026-06-15） |
 | config phases 整理・RULE-029 新設（FND-78） | DD-9 | ✅ reflected（2026-06-14） |
 | SPEC-47/NFR-1 を DD-8 準拠に修正（FND-84） | DD-10 | ✅ reflected（2026-06-14） |
@@ -57,17 +58,17 @@
 | 項目 | 優先 | 種別 | 次アクション |
 |---|---|---|---|
 | N1：current_stage を `analysis` へ | 🟡 中 | N | stage 進行 or 現状維持を決定（N8 連動） |
-| 03-spec.md 横断 FND-79〜83（5件） | 🟡 中 | FND | 索引化／PEND failure SPEC／SPEC-31 親付替／SPEC-9-1・10 統合／always_error condition 統一 の実施可否 |
+| 03-spec.md 残課題 FND-79〜83・85〜91（計12件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（WARNING 3＝FND-80/85/87・INFO 9）。`scheduled` 未設定 |
 
 ---
 
 ## 📋 FND サマリ
 
-**計 84 件：✅ resolved 78 ／ ⏳ open 6**
+**計 91 件：✅ resolved 78 ／ ⏳ open 13**
 
-> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。明細は `04-verification/02-findings.md`。
+> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票・`scheduled` 未設定）。明細は `04-verification/02-findings.md`。
 
-### open 明細（6 件）
+### open 明細（13 件・`scheduled` は未設定でオーナー判断待ち）
 
 | ID | 深刻度 | 状態 | 概要 |
 |---|---|---|---|
@@ -77,6 +78,13 @@
 | FND-81 | INFO | ⏳ open | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 |
 | FND-82 | INFO | ⏳ open | SPEC-9-1 と SPEC-10 が RULE-004 で近接 → 統合検討 |
 | FND-83 | INFO | ⏳ open | always_error SPEC の condition 不揃い（SPEC-6=error/SPEC-7=failure） |
+| FND-85 | WARNING | ⏳ open | SPEC-49 子本文が「frontmatter」を検査対象とするが DD-8 で廃止済 → 「ノード YAML ブロック」へ用語訂正 |
+| FND-86 | INFO | ⏳ open | 出力例の `{NFR-id}-check` が RULE-NNN 台帳と非整合（横断 SPEC-44〜49） |
+| FND-87 | WARNING | ⏳ open | SPEC-30 接続漏れ子に D（D→P/D←P）失敗系が欠落 |
+| FND-88 | INFO | ⏳ open | SPEC-13 の condition が入力/トリガ側にあり期待動作の文頭に来ていない |
+| FND-89 | INFO | ⏳ open | アンブレラ SPEC-44 の condition=normal が子（boundary/error）を代表せず |
+| FND-90 | INFO | ⏳ open | SPEC-45-1/46-1 の観測主体が「reconciliation または CI/asset-auditor」と二択 |
+| FND-91 | INFO | ⏳ open | SPEC-3-1 が人手採番で機械観測が弱く `例` 欠落 |
 
 ---
 
