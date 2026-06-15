@@ -3806,7 +3806,7 @@ edges:
 
 ---
 
-## SPEC-53: 共通必須フィールドの型不正・欠如検出（failure・RULE-028）
+## SPEC-53: 共通必須フィールドの型不正・欠如検出（failure・RULE-028・アンブレラ）
 
 <details><summary>⬡ SPEC-53 · v0.1</summary>
 
@@ -3821,19 +3821,86 @@ edges:
     ref_version: "0.3"
   - to: FND-18
     ref_version: "0.1"
+  - to: FND-76
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みである。`id`・`type` の欠如/空は RULE-025/026 が、edge の `ref_version` 欠如は RULE-027 が担当するため、それらは適合済みとし、本検査は共通必須フィールド `labels`・`scheduled`・`edges` の存在と型のみを評価する。
-**入力/トリガ**: 検証ツールが、`labels` が非リスト（例: 文字列）・`scheduled` が非文字列・`edges` が非リスト・またはこれら 3 キーのいずれかが欠如、のいずれか 1 つに該当するノードを処理する。
-**期待動作**: 当該違反を RULE-028 ERROR として 1 件出力し、当該ノードに対する後続 RULE 評価を中断する（他ファイル・他ノードの処理は継続）。違反が 1 件以上あればプロセス終了コードは 1。
-**出力フォーマット**: `ERROR|{file}:{line}|RULE-028|{id}|{message}`（`|` 区切り 5 フィールド。`{file}` は in-graph 相対パス、`{line}` は当該ノードの `⬡` マーカー行番号、`{message}` は違反フィールド名と期待型を述べる文）。
-**終了コード**: 違反ありなら 1。
-**例**: ノード `{id: "SPEC-99", type: "SPEC", labels: "foo", scheduled: "", edges: []}`（`labels` が文字列）を `doc-system/02-what/03-spec.md` の当該マーカー行で処理 → `ERROR|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|field 'labels' must be a list` を 1 件出力し、SPEC-99 の後続 RULE 評価を中断・終了コード 1。
+**概要**: 共通必須フィールド（`labels`・`scheduled`・`edges`）の型不正・欠如検出（RULE-028）を、ERROR 出力（SPEC-53-1）・後続 RULE 中断（SPEC-53-2）・終了コード（SPEC-53-3）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-54: 著作は記載内容入力を必須とする（normal）
+## SPEC-53-1: 共通必須フィールド違反の ERROR 出力（failure・RULE-028）
+
+<details><summary>⬡ SPEC-53-1 · v0.1</summary>
+
+```yaml
+id: SPEC-53-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-53
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みである。`id`・`type` の欠如/空は RULE-025/026 が、edge の `ref_version` 欠如は RULE-027 が担当するため適合済みとし、本検査は共通必須フィールド `labels`・`scheduled`・`edges` の存在と型のみを評価する。
+**入力/トリガ**: 検証ツールが、`labels` が非リスト・`scheduled` が非文字列・`edges` が非リスト・またはこれら 3 キーのいずれかが欠如、のいずれか 1 つに該当するノードを処理する。
+**期待動作**: 当該違反があるとき、RULE-028 ERROR を 1 件出力する。
+**出力フォーマット**: `ERROR|{file}:{line}|RULE-028|{id}|{message}`（`|` 区切り 5 フィールド。`{file}` は in-graph 相対パス、`{line}` は当該ノードの `⬡` マーカー行番号、`{message}` は違反フィールド名と期待型を述べる文）。
+**例**: ノード `{id: "SPEC-99", type: "SPEC", labels: "foo", scheduled: "", edges: []}`（`labels` が文字列）を `doc-system/02-what/03-spec.md` の当該マーカー行で処理 → `ERROR|doc-system/02-what/03-spec.md:{line}|RULE-028|SPEC-99|field 'labels' must be a list` を 1 件出力。
+
+---
+
+## SPEC-53-2: 共通必須フィールド違反ノードの後続 RULE 中断（failure・RULE-028）
+
+<details><summary>⬡ SPEC-53-2 · v0.1</summary>
+
+```yaml
+id: SPEC-53-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-53
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡` マーカー直後の YAML から 1 件のノードが生成済み。`labels`・`scheduled`・`edges` の型/存在検査（SPEC-53-1）が当該ノードで違反を検出している。
+**入力/トリガ**: 検証ツールが、共通必須フィールド違反（RULE-028）を検出したノードについて以降の処理を進める。
+**期待動作**: 当該ノードに対して共通必須フィールド違反が検出されたとき、そのノードに対する後続 RULE 評価を中断する（他ファイル・他ノードの処理は継続）。
+**例**: `labels` が文字列の SPEC-99 を処理 → RULE-028 違反検出後、SPEC-99 に対する後続 RULE 評価を実行せず、次ノードの処理へ進む。
+
+---
+
+## SPEC-53-3: 共通必須フィールド違反時のプロセス終了コード（failure・RULE-028）
+
+<details><summary>⬡ SPEC-53-3 · v0.1</summary>
+
+```yaml
+id: SPEC-53-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-53
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph 全ファイルの検証処理が完了し、RULE-028（共通必須フィールド）違反件数が集計済みである。
+**入力/トリガ**: 検証ツールが、RULE-028 違反を 1 件以上検出した状態でプロセスを終了する。
+**期待動作**: RULE-028 違反が 1 件以上あるとき、プロセス終了コードを 1 とする。
+**例**: `labels` が文字列の SPEC-99 を含む in-graph を検証 → RULE-028 違反 1 件以上のため、プロセス終了コード 1 で終了。
+
+---
+
+## SPEC-54: 著作は記載内容入力を必須とする（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-54 · v0.1</summary>
 
@@ -3846,10 +3913,78 @@ condition: normal
 edges:
   - to: FR-13
     ref_version: "0.1"
+  - to: FND-77
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: 著作（P-7-1）が記載内容（I-9）を必須とすることの検証を、I-7+I-9 充填による草案生成（SPEC-54-1）・I-9 欠如時の O-3 生成不可（SPEC-54-2）・I-7 単独時の O-3 生成不可（SPEC-54-3）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-54-1: 著作は I-7 と I-9 を充填して草案を生成する（normal）
+
+<details><summary>⬡ SPEC-54-1 · v0.1</summary>
+
+```yaml
+id: SPEC-54-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-54
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `.claude/agents/` に型別著作エージェント定義が存在し、著者（ACTOR-1）が著作要求（E-2）を起こす。
-**入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）に加えて著作対象ノードの記載内容（I-9：型・親 ID・依存辺・本文項目の指定）を入力として与える。
-**期待動作**: P-7-1 は I-7（構造の雛形）と I-9（記載内容）の両方を受け取り、記載内容をテンプレート構造に充填してノード草案（tmp）を生成する。I-9（記載内容）が与えられない場合は著作対象が定まらず、O-3（著作済みノードファイル）を生成できない（著作不成立）。テンプレート（I-7）のみでは O-3 を生成できないことを保証する。
-**例**: 著者が「type: FR・親 SR-1・本文4項目」という記載内容（I-9）を I-7（FR テンプレート）とともに P-7-1 に渡す → tmp 草案が生成され、reconciliation 経由で O-3 が生成される。I-9 を与えず I-7 のみ渡す → 著作対象不定で O-3 は生成されない。
+**入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）と著作対象ノードの記載内容（I-9：型・親 ID・依存辺・本文項目の指定）の両方を入力として与える。
+**期待動作**: I-7 と I-9 の両方が与えられたとき、P-7-1 は記載内容を I-7 のテンプレート構造に充填してノード草案（tmp）を生成する。
+**例**: 著者が「type: FR・親 SR-1・本文4項目」という I-9 を I-7（FR テンプレート）とともに P-7-1 に渡す → tmp 草案が生成される。
+
+---
+
+## SPEC-54-2: I-9 欠如時は O-3 を生成しない（failure）
+
+<details><summary>⬡ SPEC-54-2 · v0.1</summary>
+
+```yaml
+id: SPEC-54-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-54
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `.claude/agents/` に型別著作エージェント定義が存在し、著者（ACTOR-1）が著作要求（E-2）を起こす。
+**入力/トリガ**: 著者が P-7-1（著作）に、記載内容（I-9）を与えずに著作を要求する。
+**期待動作**: I-9（記載内容）が与えられないとき、著作対象が定まらず P-7-1 は O-3（著作済みノードファイル）を生成しない（著作不成立）。
+**例**: 著者が I-9 を与えず P-7-1 に著作を要求する → 著作対象不定のため O-3 は生成されない。
+
+---
+
+## SPEC-54-3: I-7 のみでは O-3 を生成しない（failure）
+
+<details><summary>⬡ SPEC-54-3 · v0.1</summary>
+
+```yaml
+id: SPEC-54-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-54
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `.claude/agents/` に型別著作エージェント定義が存在し、著者（ACTOR-1）が著作要求（E-2）を起こす。
+**入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）のみを与え、記載内容（I-9）を伴わずに著作を要求する。
+**期待動作**: 入力が I-7（構造の雛形）のみであるとき、P-7-1 は O-3（著作済みノードファイル）を生成しない。
+**例**: 著者が I-9 を与えず I-7（テンプレート）のみを P-7-1 に渡す → O-3 は生成されない。

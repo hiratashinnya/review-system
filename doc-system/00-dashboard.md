@@ -17,7 +17,7 @@
 | **DD-8 即時実施**（ノードバージョニング移行・フロントマター全廃・ref_version 再基準化）| DD reflected | ✅ 完了（2026-06-14・オーナー指示で sprint-2 繰り越しを撤回） |
 | DD-6：依存グラフ機能（spec 層完了・分析層（O-4/O-5/P-8/P-9）著作待ち） | DD（decided・分析層 pending） | 🔄 FR-15/16・SPEC-50/51 著作済み |
 | N1：current_stage を analysis へ進める判断 | N | ⬜ 判断待ち |
-| **03-spec.md 全 SPEC 点検**（FND-40〜84 起票）| FND open | ✅ 起票完了（45件・本文品質38＋横断7）｜ **FND-78 resolved（DD-9）**・**FND-84 resolved（DD-10）** 2026-06-14 処置完了 |
+| **03-spec.md 全 SPEC 点検**（FND-40〜84 起票）| FND | ✅ **本文品質 FND-40〜77（38件）全 resolved**（テスタブル化分割・SPEC 子展開）｜ FND-78（DD-9）・FND-84（DD-10）resolved｜残 open=横断5（FND-79/80/81/82/83） |
 
 ---
 
@@ -57,13 +57,13 @@
 | 項目 | 優先 | 種別 | 状態 | 次アクション |
 |---|---|---|---|---|
 | N1（current_stage を `analysis` へ進める判断） | 🟡 中 | N | ⬜ 判断待ち | オーナーが stage 進行 or 現状維持を決定（N8 も連動） |
-| 03-spec.md 点検 FND-40〜84（43件 open）の処置 | 🟡 中 | FND | 🔄 一部完了 | FND-78（DD-9）・FND-84（DD-10）resolved。残 43件（本文品質 38＋横断 5）はオーナー判断待ち |
+| 03-spec.md 点検 FND-79〜83（横断5件 open）の処置 | 🟡 中 | FND | ⬜ 判断待ち | 本文品質 FND-40〜77（38件）resolved・FND-78/84 resolved。残 = 横断 INFO/WARNING（FND-79 RULE 索引・FND-80 PEND failure SPEC・FND-81 SPEC-31 親・FND-82 SPEC-9-1/10 統合・FND-83 always_error condition）。オーナー判断待ち |
 | FND-36（ノードバッジの意味＝ノード改訂回数 vs ファイル x.y） | — | FND（WARNING） | ✅ resolved（DD-8）| バッジ＝ノード固有バージョン（A 採用）・notation.md 更新済み |
 | PEND-1（I-1-1/I-1-2/I-1-3 過分割） | — | PEND（**resolved**） | 子ノード改名＋親辺付与で解消・FND-6 resolved | ✅ クローズ（N4） |
 
-### FND サマリ（計 84 件：✅ resolved 40 ／ ⏳ open 44）
+### FND サマリ（計 84 件：✅ resolved 78 ／ ⏳ open 6）
 
-> **2026-06-14 追加**：`doc-system/02-what/03-spec.md` の全 SPEC 点検で **FND-40〜84（45件）** を起票。**FND-78（DD-9）・FND-84（DD-10）resolved**（2026-06-14 処置完了）。残 43件（本文品質 38＋横断 5）はオーナー判断待ち。内訳＝WARNING 40（本文品質 38＋FND-78 ✅ post-mvp/scheduled 不統一→DD-9 解消＋FND-80 PEND failure SPEC 欠落）／INFO 4（FND-79 RULE 分散・FND-81 SPEC-31 親選択・FND-82 SPEC-9-1/10 近接・FND-83 always_error condition 不揃い）／**ERROR 1（FND-84 ✅ SPEC-47/44↔DD-8 矛盾→DD-10 解消）**。**本文品質 FND-40〜77** は各 SPEC の `期待動作` がテスタブル基準「`【条件】のとき、〇〇を▲▲する`」に違反（複数動詞/目的語/アサーション混載）。明細は `02-findings.md`。
+> **2026-06-14 追加**：`doc-system/02-what/03-spec.md` の全 SPEC 点検で **FND-40〜84（45件）** を起票。**本文品質 FND-40〜77（38件）全 resolved**（テスタブル化分割：各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割。親はアンブレラ化・可視バッジ据置＝DD-8 z-bump・子は親バッジ x.y を ref_version 参照）。**FND-78（DD-9）・FND-84（DD-10）resolved**。**残 open 6 件**＝横断 FND-79（RULE 索引・INFO）／FND-80（PEND failure SPEC 欠落・WARNING）／FND-81（SPEC-31 親選択・INFO）／FND-82（SPEC-9-1/10 近接・INFO）／FND-83（always_error condition 不揃い・INFO）＋ FND-35（config SPEC→SPEC OR ループホール・オーナー承認済 sprint-2）。明細は `02-findings.md`。
 
 
 PR #21 オーナーレビュー（FND-24〜33・VERIFY-4）／PR #22 レビュー（FND-34〜37・2026-06-14）の内訳：
