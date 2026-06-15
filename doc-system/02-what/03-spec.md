@@ -2293,7 +2293,7 @@ edges:
 
 ---
 
-## SPEC-29-2: 価値経路到達と分析層接続の充足判定（normal）
+## SPEC-29-2: 価値経路到達の充足判定（normal）
 
 <details><summary>⬡ SPEC-29-2 · v0.1</summary>
 
@@ -2311,7 +2311,7 @@ edges:
 
 **前提条件**: 全 I/O/D/P/E ノードが適切な接続を持つ（O→P・O→ACTOR・D→P・E→ACTOR・P→I/D/E の各依存辺、および I←P・D←P・E←P の被依存辺が揃っている）
 **入力/トリガ**: 検証ツールがグラフ網羅性点検（P-3-1）を実行する
-**期待動作**: 全ノードが VAL まで到達可能であるとき、グラフが価値経路と分析層接続を完全に満たすと判定する
+**期待動作**: 全ノードが VAL まで到達可能であるとき、グラフが価値経路を完全に満たすと判定する（分析層接続の充足は SPEC-29-1 が担保）
 
 ---
 
@@ -2425,12 +2425,12 @@ edges:
 ```
 </details>
 
-**概要**: trace_scope の結果 in-graph が0件のときの振る舞い。検証アサーションは子 SPEC-31-1〜3 を参照（報告・終了コード・ルールスキップを1アサーション1SPEC に分割・FND-58）。
+**概要**: trace_scope の結果 in-graph が0件のときの振る舞い。検証アサーションは子 SPEC-31-1〜4 を参照（違反0件報告・ノード0件報告・終了コード・ルールスキップを1アサーション1SPEC に分割・FND-58）。
 **例**: `trace_scope.include: ["doc-system/**/*.md"]` かつ `exclude: ["doc-system/**/*.md"]` → in-graph ファイル0件・ノード0件・違反0件・終了コード 0。
 
 ---
 
-## SPEC-31-1: in-graph 0 件で違反0・ノード0を報告（empty）
+## SPEC-31-1: in-graph 0 件で違反0件を報告（empty）
 
 <details><summary>⬡ SPEC-31-1 · v0.1</summary>
 
@@ -2448,7 +2448,29 @@ edges:
 
 **前提条件**: `config.yaml` の `trace_scope` 設定の結果、in-graph ファイルが0件になる。
 **入力/トリガ**: 検証ツールを実行する。
-**期待動作**: in-graph ファイルが0件であるとき、違反0件・ノード0件を報告する。
+**期待動作**: in-graph ファイルが0件であるとき、違反0件を報告する。
+
+---
+
+## SPEC-31-4: in-graph 0 件でノード0件を報告（empty）
+
+<details><summary>⬡ SPEC-31-4 · v0.1</summary>
+
+```yaml
+id: SPEC-31-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: empty
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `config.yaml` の `trace_scope` 設定の結果、in-graph ファイルが0件になる。
+**入力/トリガ**: 検証ツールを実行する。
+**期待動作**: in-graph ファイルが0件であるとき、ノード0件を報告する。
 
 ---
 
