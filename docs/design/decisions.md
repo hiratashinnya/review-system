@@ -150,7 +150,27 @@
 - **トレードオフ**：A＝既存パーサの変更ゼロ・`lateral_deploy` のポータビリティ維持（sys.path 汚染なし設計）。B＝`review_system` 全体に波及する KEY regex 拡張が必要で Q5a の「intentional small grammar」制約と干渉。C＝MVP に過剰。
 - **推奨 A（採用）／非推奨 B,C**：理由＝`KEY=[a-z_][a-z0-9_]*` は Q5a で意図的に固定した文法。SKILL.md の hyphenated key（`disable-model-invocation` 等）は `.claude/` ドメイン専用で `review_system` のパーサ拡張対象外。`lateral_deploy.py` の docstring（L22）に理由を明記済み。ドリフトは lenient/strict の役割が明確に分かれており `scripts/` 単一ファイルに閉じているため管理可能。
 - **暫定決定**：2パーサ併存を許容。将来 SKILL.md フロントマターキーが `[a-z_]` 系に統一される場合は B への移行を検討。
-- **影響範囲**：`scripts/lateral_deploy.py`。覆す（B 採用）なら `review_system/parsing/frontmatter.py` の KEY regex 拡張＋既存テスト更新が要る（TC-parsing-001 に波及）。
+- **影響範囲**：`scripts/lateral_deploy.py`。覆す（B 採用）なら `review_system/parsing/frontmatter.py` の KEY regex 拡張＋既存テスト更新が要る（TC-parsing-001 に波及）。→ **DD19 により superseded**（`lateral_deploy.py` 削除のためパーサ分離前提が消滅・2026-06-15）。
+
+## DD19 — asset-lateral-deploy 変換方針変更（スクリプト廃止・エージェント手書き化）
+- **論点**：`asset-lateral-deploy` スキルの変換方針を「スクリプト一括変換（`scripts/lateral_deploy.py`）」のまま続けるか。旧スクリプト方式は全サブエージェントを `.github/instructions/*.instructions.md` に量産し、GitHub Copilot の「instructions = 自動適用の常時コンテキスト」という意味を取り違えていた。加えてスクリプトは Copilot の種別（Skill / Prompt / Agent / Instructions）を「起動方式（誰がいつ呼ぶか）」で正しく振り分けられず、誤分類を生む構造的限界がある。
+- **選択肢**：
+  - (A) **スクリプト廃止・エージェント手書き変換**。エージェントが資産1つずつ種別を判断して変換し、対応表（Copilot ⇔ Claude Code の YAML フロントマター）を SKILL.md に記載。
+  - (B) スクリプトを改修して振り分けロジックを追加。
+  - (C) スクリプトを残しつつ手書き併用（二重管理）。
+- **トレードオフ**：A＝機械的一括変換の構造的限界（起動方式の判断を持てず instructions 量産などの誤分類を生む）を断ち、資産単位の正確な振り分けが得られる。スクリプト・テストの保守も不要に。B＝振り分けロジックを機械で表現する複雑さが増し、それでも新種別・例外への追従が脆い。C＝スクリプトと手書きの二重管理でドリフトリスク（A14）が残る。
+- **推奨 A（採用）／非推奨 B,C**：理由＝機械的一括変換は「起動方式（誰がいつ呼ぶか）」の判断を持てず、instructions 量産などの誤分類を生む。エージェントが資産1つずつ判断することで Copilot 種別への正確な振り分けが可能。
+- **暫定決定（オーナー直接承認・確定）**：A 採用。`scripts/lateral_deploy.py` とそのテストを削除し、`asset-lateral-deploy` は SKILL.md の方針・対応表に基づくエージェント手書き変換に全面移行（2026-06-15 オーナー承認）。
+- **影響範囲**：
+  - `scripts/lateral_deploy.py` → **削除済み**。
+  - `tests/unit/test_lateral_deploy.py` → **削除済み**（テスト 137 → 109 件）。
+  - `.claude/skills/asset-lateral-deploy/SKILL.md` → 方針・対応表（Copilot ⇔ Claude Code の YAML フロントマター）に全面改定済み。
+  - **DD18 との関係**：DD18 は `lateral_deploy.py` の2パーサ併存を許容した決定だが、スクリプト削除により前提（スクリプトの存在）が消失。**DD18 は本決定（DD19）により superseded（無効化）**。DD18 本文に `→ DD19 により superseded` を追記する（reconciliation で反映）。
+  - `docs/dashboard.md` → DD18 参照行に DD19 の決定を追記し、DD18 参照を更新する（reconciliation で反映）。
+  - 義務辺（決定スパイン）：本決定は起票時点で全面反映済みのため、未反映を表す義務辺 `DD19→X` は持たない。
+
+### DD18 への参照
+→ DD18（`lateral_deploy.py` 2パーサ併存許容）は本決定（DD19）により superseded。`lateral_deploy.py` が削除されたため、2パーサ併存という前提自体が消滅した。
 
 ---
 
