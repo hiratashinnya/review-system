@@ -4,7 +4,7 @@
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
 > **最終更新**: 2026-06-15 ｜ **current_stage**: `requirements`（`docs/doc-system/config.yaml`）
-> 直近: 03-spec.md 本文品質 FND-40〜77（38件）をテスタブル化分割で全解消（SPEC 174 ノードへ展開）。
+> 直近: 03-spec.md 本文品質 FND-40〜77（38件）をテスタブル化分割で全解消（SPEC 174 ノードへ展開）。asset-lateral-deploy スクリプト廃止・エージェント手書き化（DD19）。
 
 ---
 
@@ -112,6 +112,7 @@
 | Q-1 | ✅ closed | DD-2 へ昇格済み |
 | PEND-1 | ✅ resolved | 過分割 → 子ノード化（FND-6 resolved） |
 | PEND-2 | 🗓 deferred | 図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降 |
+| DD19（review-system） | ✅ 確定 | asset-lateral-deploy スクリプト廃止・エージェント手書き化。DD18 superseded（2026-06-15） |
 
 ---
 

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Coverage for tests/unit/test_guard.py: 92%</title>
+    <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
+    <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
+    <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
+</head>
+<body class="pyfile">
+<header>
+    <div class="content">
+        <h1>
+            <span class="text">Coverage for </span><b>tests<span class="sep">/</span>unit<span class="sep">/</span>test_guard.py</b>:
+            <span class="pc_cov">92%</span>
+        </h1>
+        <aside id="help_panel_wrapper">
+            <input id="help_panel_state" type="checkbox">
+            <label for="help_panel_state">
+                <img id="keyboard_icon" src="keybd_closed_cb_900cfef5.png" alt="Show/hide keyboard shortcuts">
+            </label>
+            <div id="help_panel">
+                <p class="legend">Shortcuts on this page</p>
+                <div class="keyhelp">
+                    <p>
+                        <kbd>r</kbd>
+                        <kbd>m</kbd>
+                        <kbd>x</kbd>
+                        &nbsp; toggle line displays
+                    </p>
+                    <p>
+                        <kbd>j</kbd>
+                        <kbd>k</kbd>
+                        &nbsp; next/prev highlighted chunk
+                    </p>
+                    <p>
+                        <kbd>0</kbd> &nbsp; (zero) top of page
+                    </p>
+                    <p>
+                        <kbd>1</kbd> &nbsp; (one) first highlighted chunk
+                    </p>
+                    <p>
+                        <kbd>[</kbd>
+                        <kbd>]</kbd>
+                        &nbsp; prev/next file
+                    </p>
+                    <p>
+                        <kbd>u</kbd> &nbsp; up to the index
+                    </p>
+                    <p>
+                        <kbd>?</kbd> &nbsp; show/hide this help
+                    </p>
+                </div>
+            </div>
+        </aside>
+        <h2>
+            <span class="text">24 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">22<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">2<span class="text"> missing</span></button>
+            <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
+        </h2>
+        <p class="text">
+            <a id="prevFileLink" class="nav" href="z_17bd492d087794b9_test_domain_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
+            <a id="nextFileLink" class="nav" href="z_17bd492d087794b9_test_lateral_deploy_py.html">&#xbb; next</a>
+            &nbsp; &nbsp; &nbsp;
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.1">coverage.py v7.14.1</a>,
+            created at 2026-06-15 11:42 +0000
+        </p>
+        <aside class="hidden">
+            <button type="button" class="button_next_chunk" data-shortcut="j"></button>
+            <button type="button" class="button_prev_chunk" data-shortcut="k"></button>
+            <button type="button" class="button_top_of_page" data-shortcut="0"></button>
+            <button type="button" class="button_first_chunk" data-shortcut="1"></button>
+            <button type="button" class="button_prev_file" data-shortcut="["></button>
+            <button type="button" class="button_next_file" data-shortcut="]"></button>
+            <button type="button" class="button_to_index" data-shortcut="u"></button>
+            <button type="button" class="button_show_hide_help" data-shortcut="?"></button>
+        </aside>
+    </div>
+</header>
+<main id="source">
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""TC-guard-001: PF &#22659;&#30028;&#12398;&#12460;&#12540;&#12489;&#12503;&#12525;&#12461;&#12471;&#65288;M1&#65289;&#12290;&#12450;&#12480;&#12503;&#12479;&#12398;&#20363;&#22806;&#12434; fail-close &#12395;&#22793;&#25563;&#12290;"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="key">import</span> <span class="nam">unittest</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="key">from</span> <span class="nam">review_system</span><span class="op">.</span><span class="nam">adapters</span><span class="op">.</span><span class="nam">fake</span> <span class="key">import</span> <span class="nam">FakePlatformAdapter</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="key">from</span> <span class="nam">review_system</span><span class="op">.</span><span class="nam">adapters</span><span class="op">.</span><span class="nam">guard</span> <span class="key">import</span> <span class="nam">GuardingPlatform</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="key">from</span> <span class="nam">review_system</span><span class="op">.</span><span class="nam">ports</span><span class="op">.</span><span class="nam">platform</span> <span class="key">import</span> <span class="nam">PlatformCapabilities</span><span class="op">,</span> <span class="nam">RawReviewResponse</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">review_system</span><span class="op">.</span><span class="nam">domain</span><span class="op">.</span><span class="nam">result</span> <span class="key">import</span> <span class="nam">Success</span><span class="op">,</span> <span class="nam">Failure</span><span class="op">,</span> <span class="nam">FailureStage</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">class</span> <span class="nam">_RaisingAdapter</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">    <span class="str">"""&#22730;&#12428;&#12383; findings.json &#12434;&#35501;&#12416;&#12450;&#12480;&#12503;&#12479;&#31561;&#12434;&#27169;&#12377;&#65288;review &#12364;&#20363;&#22806;&#12434;&#25237;&#12370;&#12427;&#65289;&#12290;"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t">    <span class="key">def</span> <span class="nam">capabilities</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">PlatformCapabilities</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">        <span class="key">return</span> <span class="nam">PlatformCapabilities</span><span class="op">(</span><span class="key">True</span><span class="op">,</span> <span class="key">False</span><span class="op">,</span> <span class="key">False</span><span class="op">,</span> <span class="str">"m"</span><span class="op">,</span> <span class="str">"raise"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">    <span class="key">def</span> <span class="nam">review</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">pack</span><span class="op">,</span> <span class="nam">targets</span><span class="op">,</span> <span class="nam">references</span><span class="op">)</span> <span class="op">-></span> <span class="nam">RawReviewResponse</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="str">"&#22730;&#12428;&#12383; PF &#20986;&#21147;"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="key">class</span> <span class="nam">TestGuardingPlatform</span><span class="op">(</span><span class="nam">unittest</span><span class="op">.</span><span class="nam">TestCase</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_exception_becomes_failure</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>            <span class="com"># M1&#65306;&#20363;&#22806;&#8594;Failure(EVALUATE)&#12539;&#12463;&#12521;&#12483;&#12471;&#12517;&#12375;&#12394;&#12356;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">        <span class="nam">out</span> <span class="op">=</span> <span class="nam">GuardingPlatform</span><span class="op">(</span><span class="nam">_RaisingAdapter</span><span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">review</span><span class="op">(</span><span class="key">None</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertIsInstance</span><span class="op">(</span><span class="nam">out</span><span class="op">,</span> <span class="nam">Failure</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertEqual</span><span class="op">(</span><span class="nam">out</span><span class="op">.</span><span class="nam">notice</span><span class="op">.</span><span class="nam">stage</span><span class="op">,</span> <span class="nam">FailureStage</span><span class="op">.</span><span class="nam">EVALUATE</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertTrue</span><span class="op">(</span><span class="nam">out</span><span class="op">.</span><span class="nam">notice</span><span class="op">.</span><span class="nam">next_action</span><span class="op">.</span><span class="nam">endswith</span><span class="op">(</span><span class="str">"&#12290;"</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_success_passthrough</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>                  <span class="com"># &#27491;&#24120;&#12399; Success &#12391;&#12381;&#12398;&#12414;&#12414;&#36890;&#12377;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">        <span class="nam">out</span> <span class="op">=</span> <span class="nam">GuardingPlatform</span><span class="op">(</span><span class="nam">FakePlatformAdapter</span><span class="op">(</span><span class="nam">RawReviewResponse</span><span class="op">(</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">review</span><span class="op">(</span><span class="key">None</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertIsInstance</span><span class="op">(</span><span class="nam">out</span><span class="op">,</span> <span class="nam">Success</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_capabilities_delegated</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>               <span class="com"># &#33021;&#21147;&#23459;&#35328;&#12399;&#20869;&#20596;&#12450;&#12480;&#12503;&#12479;&#12408;&#22996;&#35698;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">        <span class="nam">g</span> <span class="op">=</span> <span class="nam">GuardingPlatform</span><span class="op">(</span><span class="nam">FakePlatformAdapter</span><span class="op">(</span><span class="nam">RawReviewResponse</span><span class="op">(</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertEqual</span><span class="op">(</span><span class="nam">g</span><span class="op">.</span><span class="nam">capabilities</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">platform_id</span><span class="op">,</span> <span class="str">"fake"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="key">if</span> <span class="nam">__name__</span> <span class="op">==</span> <span class="str">"__main__"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">    <span class="nam">unittest</span><span class="op">.</span><span class="nam">main</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+</main>
+<footer>
+    <div class="content">
+        <p>
+            <a class="nav" href="z_17bd492d087794b9_test_domain_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
+            <a class="nav" href="z_17bd492d087794b9_test_lateral_deploy_py.html">&#xbb; next</a>
+            &nbsp; &nbsp; &nbsp;
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.1">coverage.py v7.14.1</a>,
+            created at 2026-06-15 11:42 +0000
+        </p>
+    </div>
+</footer>
+</body>
+</html>
