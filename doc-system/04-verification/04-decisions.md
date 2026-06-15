@@ -187,7 +187,7 @@ edges:
 
 ## DD-6: 依存グラフレポート出力機能・参照関係複雑度算出の追加
 
-**status: decided**（FR-15/16・SPEC-50/51 著作済み 2026-06-13・残: 分析層（O-4/O-5/P-8/P-9）著作待ち）
+**status: decided**（FR-15/16・SPEC-50/51 著作済み 2026-06-13・分析層 O-4/O-5/P-8/P-9 著作・反映完了 2026-06-15／N8）
 
 <details><summary>⬡ DD-6 · v0.1</summary>
 
@@ -213,12 +213,15 @@ edges: []
 
 **推奨**: A + C の組み合わせ（FR として正式追加 + post-mvp 印）。理由：グラフ可視化と複雑度算出は FR-3（RULE 違反検査）とは目的が異なり独立価値がある（意思決定支援）。ただし MVP には不要のため post-mvp 印で設計フェーズで詳細化。
 
-**決定**: A + C を採用（N8 処置・2026-06-13）。FR-15（依存グラフレポート）・FR-16（複雑度算出）著作・SPEC-50/51 著作（spec 層完了）。分析層（O-4/O-5/P-8/P-9）は設計フェーズで著作予定。
+**決定**: A + C を採用（N8 処置・2026-06-13）。FR-15（依存グラフレポート）・FR-16（複雑度算出）著作・SPEC-50/51 著作（spec 層完了）。分析層（O-4/O-5/P-8/P-9）は当初設計フェーズ著作予定としたが、N1（current_stage→analysis 進行・2026-06-15）に伴い analysis フェーズで著作・反映完了（下記影響範囲・FND-92 で E-1 整合）。
 
-**影響範囲（2026-06-13 spec 層処置完了・分析層以降は今後）**:
+**影響範囲（2026-06-13 spec 層処置完了・2026-06-15 分析層補完完了／N8）**:
 - `doc-system/02-what/01-fr.md`: FR-15（依存グラフレポート）・FR-16（複雑度算出）を新設（v0.2.3）。各 FR に `→DD-6` バックリファレンス付与。
 - `doc-system/02-what/03-spec.md`: SPEC-50（FR-15 normal）・SPEC-51（FR-16 normal）を著作（v0.3.2）。
-- `doc-system/03-analysis/`: 新 O ノード（O-4: 依存グラフ出力・O-5: 複雑度レポート）・新 P ノード（P-8: グラフ出力処理・P-9: 複雑度計算）は未着手（設計フェーズ以降）。
+- `doc-system/03-analysis/02-io.md`: O-4（依存グラフ出力ファイル）・O-5（参照関係複雑度メトリクスレポート）を著作（labels: post-mvp・scheduled: sprint-2・各 `→DD-6` 付与）。
+- `doc-system/03-analysis/03-processes.md`: P-8（依存グラフ出力処理）・P-9（参照関係複雑度計算処理）を著作（labels: post-mvp・scheduled: sprint-2・各 `→DD-6` 付与）。
+- `doc-system/03-analysis/04-events.md`: E-1（点検要求）本文を改訂（DD-8 §4 z バンプ・可視バッジ v0.5 据置・伝播なし）。`--export-graph`→P-8／`--complexity`→P-9 の追加実行・O-4/O-5 追加出力を反映（FND-92 処置）。
+- `doc-system/04-verification/02-findings.md`: FND-92（E-1 本文不整合・INFO・resolved）を起票。
 
 ---
 
