@@ -2563,7 +2563,7 @@ edges:
 
 ---
 
-## SPEC-33: id フィールド欠如・空（error・RULE-025）
+## SPEC-33: id フィールド欠如・空（error・RULE-025・アンブレラ）
 
 <details><summary>⬡ SPEC-33 · v0.1</summary>
 
@@ -2576,17 +2576,62 @@ condition: error
 edges:
   - to: FR-1
     ref_version: "0.3"
+  - to: FND-60
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイルに `⬡` マーカーと直後の YAML ブロックが存在し、YAML は PyYAML safe_load でパース可能である。
+**概要**: in-graph ノードの `id` フィールド欠如・空（RULE-025）に対する ERROR 出力と後続 RULE 中断を、子 SPEC-33-1〜2 で個別に検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-33-1: id 欠如時に RULE-025 ERROR を出力（error）
+
+<details><summary>⬡ SPEC-33-1 · v0.1</summary>
+
+```yaml
+id: SPEC-33-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-33
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに `⬡` マーカーと直後の YAML ブロックが存在し、YAML は safe_load でパース可能である。
 **入力/トリガ**: YAML ブロックに `id` キーが存在しない、または値が空文字列（`id: ""`）である。
-**期待動作**: `ERROR|{file}:{line}|RULE-025|(none)|id field missing or empty` を出力し、当該ノードの後続 RULE 評価を中断する（他ファイル・他ノードは継続）。
+**期待動作**: `id` キーが欠如・空のとき、`ERROR|{file}:{line}|RULE-025|(none)|id field missing or empty` を出力する。
 **例**: `doc-system/02-what/01-fr.md` 行17の YAML に id キーなし → `ERROR|doc-system/02-what/01-fr.md:17|RULE-025|(none)|id field missing or empty`。
 
 ---
 
-## SPEC-34: type フィールド欠如・空（error・RULE-026）
+## SPEC-33-2: id 欠如時に当該ノードの後続 RULE 評価を中断（error）
+
+<details><summary>⬡ SPEC-33-2 · v0.1</summary>
+
+```yaml
+id: SPEC-33-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-33
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに `⬡` マーカーと直後の YAML ブロックが存在し、YAML は safe_load でパース可能である。
+**入力/トリガ**: YAML ブロックに `id` キーが存在しない、または値が空文字列（`id: ""`）である。
+**期待動作**: `id` キーが欠如・空のとき、当該ノードの後続 RULE 評価を中断する（他ファイル・他ノードの評価は継続する）。
+**例**: id キーなしのノードでは RULE-025 出力後、当該ノードに対する RULE-026 以降を評価しない。次ノードの評価は継続する。
+
+---
+
+## SPEC-34: type フィールド欠如・空（error・RULE-026・アンブレラ）
 
 <details><summary>⬡ SPEC-34 · v0.1</summary>
 
@@ -2599,17 +2644,62 @@ condition: error
 edges:
   - to: FR-1
     ref_version: "0.3"
+  - to: FND-61
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: in-graph ノードの `type` フィールド欠如・空（RULE-026）に対する ERROR 出力と後続 RULE 中断を、子 SPEC-34-1〜2 で個別に検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-34-1: type 欠如時に RULE-026 ERROR を出力（error）
+
+<details><summary>⬡ SPEC-34-1 · v0.1</summary>
+
+```yaml
+id: SPEC-34-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-34
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルに `⬡` マーカーと YAML ブロックが存在し、YAML パース可能で `id` キーは存在する。
 **入力/トリガ**: YAML ブロックに `type` キーが存在しない、または値が空文字列である。
-**期待動作**: `ERROR|{file}:{line}|RULE-026|{id}|type field missing or empty` を出力し、当該ノードの後続 RULE 評価を中断する。
+**期待動作**: `type` キーが欠如・空のとき、`ERROR|{file}:{line}|RULE-026|{id}|type field missing or empty` を出力する。
 **例**: `doc-system/02-what/01-fr.md` 行17の YAML に type なし・id は `FR-1` → `ERROR|doc-system/02-what/01-fr.md:17|RULE-026|FR-1|type field missing or empty`。
 
 ---
 
-## SPEC-35: edge に ref_version 欠如（failure・RULE-027）
+## SPEC-34-2: type 欠如時に当該ノードの後続 RULE 評価を中断（error）
+
+<details><summary>⬡ SPEC-34-2 · v0.1</summary>
+
+```yaml
+id: SPEC-34-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-34
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに `⬡` マーカーと YAML ブロックが存在し、YAML パース可能で `id` キーは存在する。
+**入力/トリガ**: YAML ブロックに `type` キーが存在しない、または値が空文字列である。
+**期待動作**: `type` キーが欠如・空のとき、当該ノードの後続 RULE 評価を中断する（他ファイル・他ノードの評価は継続する）。
+**例**: type キーなしのノードでは RULE-026 出力後、当該ノードに対する後続 RULE を評価しない。次ノードの評価は継続する。
+
+---
+
+## SPEC-35: edge に ref_version 欠如（failure・RULE-027・アンブレラ）
 
 <details><summary>⬡ SPEC-35 · v0.1</summary>
 
@@ -2622,17 +2712,62 @@ condition: failure
 edges:
   - to: FR-1
     ref_version: "0.3"
+  - to: FND-62
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: `edges` エントリの `ref_version` 欠如（RULE-027）に対する ERROR 出力と後続 RULE 中断を、子 SPEC-35-1〜2 で個別に検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-35-1: edge の ref_version 欠如時に RULE-027 ERROR を出力（failure）
+
+<details><summary>⬡ SPEC-35-1 · v0.1</summary>
+
+```yaml
+id: SPEC-35-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-35
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルに YAML ブロックが存在し、`id`・`type` は存在する。`edges` リストに1件以上のエントリがある。
 **入力/トリガ**: `edges` の任意のエントリに `ref_version` キーが存在しない。
-**期待動作**: `ERROR|{file}:{line}|RULE-027|{id}|edge to {target_id}: ref_version missing` を出力し、当該ノードの後続 RULE 評価を中断する。
-**例**: `doc-system/02-what/03-spec.md` の SPEC-1 ノードの edges に `{to: FR-1}`（ref_version なし）→ `ERROR|doc-system/02-what/03-spec.md:22|RULE-027|SPEC-1|edge to FR-1: ref_version missing`。
+**期待動作**: `edges` エントリに `ref_version` が欠如するとき、`ERROR|{file}:{line}|RULE-027|{id}|edge to {target_id}: ref_version missing` を出力する。
+**例**: SPEC-1 ノードの edges に `{to: FR-1}`（ref_version なし）→ `ERROR|doc-system/02-what/03-spec.md:22|RULE-027|SPEC-1|edge to FR-1: ref_version missing`。
 
 ---
 
-## SPEC-36: テンプレート由来の必須フィールド欠如（failure）
+## SPEC-35-2: edge の ref_version 欠如時に当該ノードの後続 RULE 評価を中断（failure）
+
+<details><summary>⬡ SPEC-35-2 · v0.1</summary>
+
+```yaml
+id: SPEC-35-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-35
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに YAML ブロックが存在し、`id`・`type` は存在する。`edges` リストに1件以上のエントリがある。
+**入力/トリガ**: `edges` の任意のエントリに `ref_version` キーが存在しない。
+**期待動作**: `edges` エントリに `ref_version` が欠如するとき、当該ノードの後続 RULE 評価を中断する（他ファイル・他ノードの評価は継続する）。
+**例**: ref_version 欠如ノードでは RULE-027 出力後、当該ノードに対する後続 RULE を評価しない。次ノードの評価は継続する。
+
+---
+
+## SPEC-36: テンプレート由来の必須フィールド欠如（failure・アンブレラ）
 
 <details><summary>⬡ SPEC-36 · v0.1</summary>
 
@@ -2645,13 +2780,58 @@ condition: failure
 edges:
   - to: FR-11
     ref_version: "0.4"
+  - to: FND-63
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: テンプレート `templates/<layer>/<type>.md` の `id:` または `type:` フィールドが削除されている、または空になっている。
-**入力/トリガ**: 著者がそのテンプレートを複製してノードを著作し、検証ツールが当該ノードを処理する。
-**期待動作**: テンプレート由来で必須フィールドを欠くため、RULE-025（id 欠如）または RULE-026（type 欠如）の ERROR が報告される。
+**概要**: テンプレート由来で必須フィールドを欠くノードに対し、id 欠如時の RULE-025・type 欠如時の RULE-026 をそれぞれ子 SPEC-36-1〜2 で個別に検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-36-1: テンプレート由来 id 欠如時に RULE-025 ERROR を報告（failure）
+
+<details><summary>⬡ SPEC-36-1 · v0.1</summary>
+
+```yaml
+id: SPEC-36-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-36
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: テンプレート `templates/<layer>/<type>.md` の `id:` フィールドが削除されている、または空になっている。
+**入力/トリガ**: 著者がその `id` 欠落テンプレートを複製してノードを著作し、検証ツールが当該ノードを処理する。
+**期待動作**: テンプレート由来で `id` を欠くとき、RULE-025（id 欠如）の ERROR を報告する。
 **例**: `templates/requirements/FR.md` の `id:` 行が削除 → 著者が複製して `doc-system/02-what/01-fr.md` 行14に著作 → `ERROR|doc-system/02-what/01-fr.md:14|RULE-025|(none)|id field missing or empty`。
+
+---
+
+## SPEC-36-2: テンプレート由来 type 欠如時に RULE-026 ERROR を報告（failure）
+
+<details><summary>⬡ SPEC-36-2 · v0.1</summary>
+
+```yaml
+id: SPEC-36-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-36
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: テンプレート `templates/<layer>/<type>.md` の `type:` フィールドが削除されている、または空になっている（`id:` は存在する）。
+**入力/トリガ**: 著者がその `type` 欠落テンプレートを複製してノードを著作し、検証ツールが当該ノードを処理する。
+**期待動作**: テンプレート由来で `type` を欠くとき、RULE-026（type 欠如）の ERROR を報告する。
+**例**: `templates/requirements/FR.md` の `type:` 行が削除 → 著者が複製して `doc-system/02-what/01-fr.md` 行14に著作（id は `FR-1`）→ `ERROR|doc-system/02-what/01-fr.md:14|RULE-026|FR-1|type field missing or empty`。
 
 ---
 
