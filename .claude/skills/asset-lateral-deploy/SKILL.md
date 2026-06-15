@@ -13,7 +13,7 @@ disable-model-invocation: true
 **方針（2026-06-15 改定）**：**スクリプト一括変換は廃止**。エージェントが**資産1つずつ種別・起動方式を判断し、下表の対応に従って手書き変換**する。
 理由＝旧スクリプト方式は全サブエージェントを `.instructions.md` に量産し、Copilot の「instructions＝自動適用の常時コンテキスト」という意味を取り違えていた。**instructions の量産は禁止**（エージェントは agent に、ユーザー起動コマンドは prompt/skill に振り分ける）。
 
-> 旧スクリプト `scripts/lateral_deploy.py` は本方針改定で**非推奨**。実体の扱いは [tailoring-registry](../../tailoring-registry.md) / DD を参照。
+> 旧スクリプト `scripts/lateral_deploy.py`（とそのテスト）は本方針改定で**削除済み**（オーナー判断・2026-06-15）。一括変換は instructions 量産を招くため廃し、エージェント手書きに一本化した。
 
 ---
 
