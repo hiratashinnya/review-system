@@ -4018,3 +4018,29 @@ edges:
 **入力/トリガ**: 著者が P-7-1（著作）に、テンプレート（I-7）のみを与え、記載内容（I-9）を伴わずに著作を要求する。
 **期待動作**: 入力が I-7（構造の雛形）のみであるとき、P-7-1 は O-3（著作済みノードファイル）を生成しない。
 **例**: 著者が I-9 を与えず I-7（テンプレート）のみを P-7-1 に渡す → O-3 は生成されない。
+
+---
+
+## SPEC-55: PEND の義務辺残存（failure）
+
+<details><summary>⬡ SPEC-55 · v0.1</summary>
+
+```yaml
+id: SPEC-55
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-5
+    ref_version: "0.2"
+  - to: FND-80
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が PEND のノードがあり、反映完了時には著者が `PEND→X` を削除し `X→PEND` を追加する運用である（辺の削除・追加は著者の処置であり検証ツールの検証対象ではない）
+**入力/トリガ**: PEND の義務辺（`PEND→X`）が存在する
+**期待動作**: PEND の義務辺 `PEND→X` が残存するとき、RULE-022 違反を WARNING として報告する（型で判定・lifecycle パース不要）。
+
+---

@@ -12,6 +12,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| PEND 義務辺残存 failure SPEC 新設（FND-80） | FND ×1 | ✅ resolved（2026-06-15）。SPEC-55（RULE-022 WARNING）新設で decision_spine 3型カバレッジ対称回復 |
 | 自己点検残課題 FND-85/86/87/90 を即処置（DD-11 新設） | FND ×4 | ✅ resolved（2026-06-15）。SPEC-49 用語訂正／`{NFR-id}-check` 台帳登録／SPEC-30 D カバレッジ明記／SPEC-45・46 観測主体一意化 |
 | 全 SPEC 自己点検（spec-inspector ×6・175 ノード） | 点検 | ✅ 構造クリーン。2-object 子2件を即修正（SPEC-29-2／SPEC-31-1 分割）・新規残課題を FND-85〜91 起票（2026-06-15） |
 | 03-spec.md 本文品質（FND-40〜77）テスタブル化分割 | FND ×38 | ✅ resolved（2026-06-15） |
@@ -59,23 +60,22 @@
 | 項目 | 優先 | 種別 | 次アクション |
 |---|---|---|---|
 | N1：current_stage を `analysis` へ | 🟡 中 | N | stage 進行 or 現状維持を決定（N8 連動） |
-| 03-spec.md 残課題 FND-79〜83・88・89・91（計8件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（WARNING 1＝FND-80・INFO 7）。`scheduled` 未設定 |
+| 03-spec.md 残課題 FND-79・81・82・83・88・89・91（計7件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（全 INFO）。`scheduled` 未設定 |
 
 ---
 
 ## 📋 FND サマリ
 
-**計 91 件：✅ resolved 82 ／ ⏳ open 9**
+**計 91 件：✅ resolved 83 ／ ⏳ open 8**
 
-> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設）**。残 open は FND-88/89/91（INFO・`scheduled` 未設定）。明細は `04-verification/02-findings.md`。
+> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。残 open（FND-79/81/82/83/88/89/91）は全て INFO・`scheduled` 未設定。明細は `04-verification/02-findings.md`。
 
-### open 明細（9 件・`scheduled` は未設定でオーナー判断待ち）
+### open 明細（8 件・`scheduled` は未設定でオーナー判断待ち）
 
 | ID | 深刻度 | 状態 | 概要 |
 |---|---|---|---|
 | FND-35 | WARNING | 🗓 sprint-2（承認済） | config `SPEC→SPEC` OR ループホール（推奨 ②＋③） |
 | FND-79 | INFO | ⏳ open | RULE-006/025/026 が複数 SPEC に分散 → 索引化 |
-| FND-80 | WARNING | ⏳ open | PEND 義務辺残存（RULE-022）の failure SPEC が欠落 |
 | FND-81 | INFO | ⏳ open | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 |
 | FND-82 | INFO | ⏳ open | SPEC-9-1 と SPEC-10 が RULE-004 で近接 → 統合検討 |
 | FND-83 | INFO | ⏳ open | always_error SPEC の condition 不揃い（SPEC-6=error/SPEC-7=failure） |

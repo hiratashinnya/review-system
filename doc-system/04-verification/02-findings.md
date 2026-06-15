@@ -1952,7 +1952,8 @@ edges:
 **深刻度**: WARNING
 **内容**: FR-5 配下に DD 義務辺残存＝SPEC-12（RULE-001）・Q 義務辺残存＝SPEC-13（RULE-002）はあるが、PEND 義務辺残存（RULE-022 WARNING）を検証する failure SPEC が存在しない。decision_spine の3型（DD/Q/PEND）のうち PEND だけカバレッジが欠落しており、PEND の義務辺残存が検証鎖から漏れている。
 **推奨**: FR-5 配下に PEND 義務辺残存（RULE-022）の failure SPEC を新設（SPEC-12/13 と同型）。要否はオーナー確認。
-**対応状況**: open
+**対応状況**: resolved（2026-06-15）
+**処置**: FR-5 配下に SPEC-55「PEND の義務辺残存（failure）」（RULE-022 WARNING・SPEC-12/13 同型）を新設し、decision_spine 3型（DD/Q/PEND）の義務辺残存カバレッジの対称を回復。spec-author が SPEC-55 に `→FND-80` バックリファレンス辺を付与済み。
 **指摘時 ref_version**: FR-5 "0.2"（ノードバッジ x.y 基準・DD-8）
 
 ---
