@@ -2247,7 +2247,7 @@ edges:
 
 ---
 
-## SPEC-29: グラフ網羅性点検の正常系（normal）
+## SPEC-29: グラフ網羅性点検の正常系（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-29 · v0.1</summary>
 
@@ -2262,16 +2262,60 @@ edges:
     ref_version: "0.2"
   - to: FND-4
     ref_version: "0.1"
+  - to: FND-56
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: グラフ網羅性点検の正常系。検証アサーションは子 SPEC-29-1〜2 を参照（1アサーション1SPEC・FND-56 で分割）。
+
+---
+
+## SPEC-29-1: 孤立・必須辺欠如のゼロ件通過（normal）
+
+<details><summary>⬡ SPEC-29-1 · v0.1</summary>
+
+```yaml
+id: SPEC-29-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-29
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: 全 I/O/D/P/E ノードが適切な接続を持つ（O→P・O→ACTOR・D→P・E→ACTOR・P→I/D/E の各依存辺、および I←P・D←P・E←P の被依存辺が揃っている）
 **入力/トリガ**: 検証ツールがグラフ網羅性点検（P-3-1）を実行する
-**期待動作**: 孤立ノード（RULE-005）・必須辺欠如（RULE-006 config の analysis 段接続）をゼロ件として通過させ、グラフが価値経路（VAL まで到達可能）と分析層接続を完全に満たすと判定する
+**期待動作**: 孤立ノード（RULE-005）と必須辺欠如（RULE-006 の analysis 段接続）がいずれも0件であるとき、違反0件として点検を通過させる
 
 ---
 
-## SPEC-30: 分析ノードの接続漏れ検出（failure）
+## SPEC-29-2: 価値経路到達と分析層接続の充足判定（normal）
+
+<details><summary>⬡ SPEC-29-2 · v0.1</summary>
+
+```yaml
+id: SPEC-29-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-29
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 全 I/O/D/P/E ノードが適切な接続を持つ（O→P・O→ACTOR・D→P・E→ACTOR・P→I/D/E の各依存辺、および I←P・D←P・E←P の被依存辺が揃っている）
+**入力/トリガ**: 検証ツールがグラフ網羅性点検（P-3-1）を実行する
+**期待動作**: 全ノードが VAL まで到達可能であるとき、グラフが価値経路と分析層接続を完全に満たすと判定する
+
+---
+
+## SPEC-30: 分析ノードの接続漏れ検出（failure・アンブレラ）
 
 <details><summary>⬡ SPEC-30 · v0.1</summary>
 
@@ -2286,16 +2330,82 @@ edges:
     ref_version: "0.2"
   - to: FND-4
     ref_version: "0.1"
+  - to: FND-57
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph に分析層ノード（I/O/D/P/E）が存在する
-**入力/トリガ**: P-3-1 がグラフ網羅性を確認する際に、O に P への依存辺がない・E に P からの被依存辺がない・I に P からの被依存辺がないノードを検出する
-**期待動作**: 未駆動出力（O→P 欠如）・未定義反応イベント（E←P 欠如）・未消費入力（I←P 欠如）を RULE-006 の config `activate_stage: analysis` 行の severity（error/warning）として報告する（SPEC-8 の一般則における分析層の特殊ケース）
+**概要**: 分析ノードの接続漏れ検出（SPEC-8 の一般則における分析層の特殊ケース）。検証アサーションは子 SPEC-30-1〜3 を参照（接続漏れ3種を1アサーション1SPEC に分割・FND-57）。
 
 ---
 
-## SPEC-31: trace_scope による in-graph 0 件（empty）
+## SPEC-30-1: 未駆動出力（O→P 欠如）の検出（failure）
+
+<details><summary>⬡ SPEC-30-1 · v0.1</summary>
+
+```yaml
+id: SPEC-30-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に分析層ノード（O）が存在する
+**入力/トリガ**: P-3-1 がグラフ網羅性を確認する際に、O に P への依存辺（O→P）がないノードを検出する
+**期待動作**: O→P 欠如のノードを検出したとき、未駆動出力として RULE-006 の config `activate_stage: analysis` 行の severity で報告する
+
+---
+
+## SPEC-30-2: 未定義反応イベント（E←P 欠如）の検出（failure）
+
+<details><summary>⬡ SPEC-30-2 · v0.1</summary>
+
+```yaml
+id: SPEC-30-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に分析層ノード（E）が存在する
+**入力/トリガ**: P-3-1 がグラフ網羅性を確認する際に、E に P からの被依存辺（E←P）がないノードを検出する
+**期待動作**: E←P 欠如のノードを検出したとき、未定義反応イベントとして RULE-006 の config `activate_stage: analysis` 行の severity で報告する
+
+---
+
+## SPEC-30-3: 未消費入力（I←P 欠如）の検出（failure）
+
+<details><summary>⬡ SPEC-30-3 · v0.1</summary>
+
+```yaml
+id: SPEC-30-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-30
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph に分析層ノード（I）が存在する
+**入力/トリガ**: P-3-1 がグラフ網羅性を確認する際に、I に P からの被依存辺（I←P）がないノードを検出する
+**期待動作**: I←P 欠如のノードを検出したとき、未消費入力として RULE-006 の config `activate_stage: analysis` 行の severity で報告する
+
+---
+
+## SPEC-31: trace_scope による in-graph 0 件（empty・アンブレラ）
 
 <details><summary>⬡ SPEC-31 · v0.1</summary>
 
@@ -2310,17 +2420,83 @@ edges:
     ref_version: "0.3"
   - to: FND-13
     ref_version: "0.1"
+  - to: FND-58
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: trace_scope の結果 in-graph が0件のときの振る舞い。検証アサーションは子 SPEC-31-1〜3 を参照（報告・終了コード・ルールスキップを1アサーション1SPEC に分割・FND-58）。
+**例**: `trace_scope.include: ["doc-system/**/*.md"]` かつ `exclude: ["doc-system/**/*.md"]` → in-graph ファイル0件・ノード0件・違反0件・終了コード 0。
+
+---
+
+## SPEC-31-1: in-graph 0 件で違反0・ノード0を報告（empty）
+
+<details><summary>⬡ SPEC-31-1 · v0.1</summary>
+
+```yaml
+id: SPEC-31-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: empty
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `config.yaml` の `trace_scope` 設定の結果、in-graph ファイルが0件になる。
 **入力/トリガ**: 検証ツールを実行する。
-**期待動作**: 違反0件・ノード0件を報告し、終了コード 0 で終了する。RULE-005〜027 の評価を全てスキップする。
-**例**: `trace_scope.include: ["doc-system/**/*.md"]` かつ `exclude: ["doc-system/**/*.md"]` → in-graph ファイル0件・ノード0件・違反0件・終了コード 0。
+**期待動作**: in-graph ファイルが0件であるとき、違反0件・ノード0件を報告する。
 
 ---
 
-## SPEC-32: ⬡ マーカー直後に YAML ブロックなし（error・RULE-024）
+## SPEC-31-2: in-graph 0 件で終了コード 0（empty）
+
+<details><summary>⬡ SPEC-31-2 · v0.1</summary>
+
+```yaml
+id: SPEC-31-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: empty
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `config.yaml` の `trace_scope` 設定の結果、in-graph ファイルが0件になる。
+**入力/トリガ**: 検証ツールを実行する。
+**期待動作**: in-graph ファイルが0件であるとき、終了コード 0 で終了する。
+
+---
+
+## SPEC-31-3: in-graph 0 件で RULE 評価を全スキップ（empty）
+
+<details><summary>⬡ SPEC-31-3 · v0.1</summary>
+
+```yaml
+id: SPEC-31-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: empty
+edges:
+  - to: SPEC-31
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: `config.yaml` の `trace_scope` 設定の結果、in-graph ファイルが0件になる。
+**入力/トリガ**: 検証ツールを実行する。
+**期待動作**: in-graph ファイルが0件であるとき、RULE-005〜027 の評価を全てスキップする。
+
+---
+
+## SPEC-32: ⬡ マーカー直後に YAML ブロックなし（error・RULE-024・アンブレラ）
 
 <details><summary>⬡ SPEC-32 · v0.1</summary>
 
@@ -2333,13 +2509,57 @@ condition: error
 edges:
   - to: FR-1
     ref_version: "0.3"
+  - to: FND-59
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: `⬡` マーカー直後に YAML ブロックがない場合のパース異常（RULE-024）。検証アサーションは子 SPEC-32-1〜2 を参照（出力と中断を1アサーション1SPEC に分割・FND-59）。
+**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3`、行21が `## I-1-1:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
+
+---
+
+## SPEC-32-1: ⬡ マーカー直後 YAML 欠如で RULE-024 ERROR 出力（error）
+
+<details><summary>⬡ SPEC-32-1 · v0.1</summary>
+
+```yaml
+id: SPEC-32-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-32
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルに `⬡` マーカー行が1件以上存在する。
 **入力/トリガ**: `⬡` マーカー行の直後行が ```` ```yaml ```` ブロック開始行でない（heading／空行＋heading／別の `⬡` マーカーが直後に来る）。
-**期待動作**: `ERROR|{file}:{line}|RULE-024|(none)|⬡ marker at line N has no YAML block following` を出力し、当該ファイルのパースを中断する（fail-close）。
-**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3`、行21が `## I-1-1:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
+**期待動作**: `⬡` マーカー直後に YAML ブロックがないとき、`ERROR|{file}:{line}|RULE-024|(none)|⬡ marker at line N has no YAML block following` を出力する。
+
+---
+
+## SPEC-32-2: ⬡ マーカー直後 YAML 欠如で当該ファイルのパース中断（error）
+
+<details><summary>⬡ SPEC-32-2 · v0.1</summary>
+
+```yaml
+id: SPEC-32-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-32
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ファイルに `⬡` マーカー行が1件以上存在する。
+**入力/トリガ**: `⬡` マーカー行の直後行が ```` ```yaml ```` ブロック開始行でない（heading／空行＋heading／別の `⬡` マーカーが直後に来る）。
+**期待動作**: `⬡` マーカー直後に YAML ブロックがないとき、当該ファイルのパースを中断する（fail-close）。
 
 ---
 
