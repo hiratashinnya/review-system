@@ -2835,7 +2835,7 @@ edges:
 
 ---
 
-## SPEC-38: 著作エージェントが規約準拠ノードを tmp 出力（normal）
+## SPEC-38: 著作エージェント出力と reconciliation 転記（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-38 · v0.1</summary>
 
@@ -2848,17 +2848,62 @@ condition: normal
 edges:
   - to: FR-13
     ref_version: "0.1"
+  - to: FND-64
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: 著作エージェントの規約準拠 tmp 出力（SPEC-38-1）と reconciliation の本ファイル転記（SPEC-38-2）を、子 SPEC で個別に検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-38-1: 著作エージェントが規約準拠ノードを tmp 出力（normal）
+
+<details><summary>⬡ SPEC-38-1 · v0.1</summary>
+
+```yaml
+id: SPEC-38-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-38
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `.claude/agents/` に型別著作エージェント定義（例 `requirements-author.md`）が存在し、著者が FR 著作を依頼する。
 **入力/トリガ**: 著者が `requirements-author` エージェントに FR ノード1件の著作を依頼する。
-**期待動作**: エージェントは `type: FR`・`id: FR-N`（連番）・`edges: [{to: SR-*, ref_version: "..."}]`・本文4項目を含むノードを `tmp/sprint-1/<parent-id>.md` に出力する。出力後、reconciliation が本ファイルに転記する。
+**期待動作**: 著者が著作を依頼したとき、エージェントは `type: FR`・`id: FR-N`（連番）・`edges: [{to: SR-*, ref_version: "..."}]`・本文4項目を含むノードを `tmp/sprint-1/<parent-id>.md` に出力する。
 **例**: `requirements-author` に「FR-13 著作」を依頼 → `tmp/sprint-1/fr-11-13-14.md` に `id: FR-13, type: FR, edges: [{to: SR-1, ref_version: "0.2"}]` ＋4項目本文が出力される。
 
 ---
 
-## SPEC-39: 著作出力の id 欠如を reconciliation が検出（failure）
+## SPEC-38-2: reconciliation が tmp 出力を本ファイルに転記（normal）
+
+<details><summary>⬡ SPEC-38-2 · v0.1</summary>
+
+```yaml
+id: SPEC-38-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-38
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 著作エージェントが規約準拠ノードを `tmp/sprint-1/<parent-id>.md` に出力済みで、検証エラーがない。
+**入力/トリガ**: 著者が reconciliation エージェントに tmp 出力の反映を依頼する。
+**期待動作**: 検証を通過した tmp 出力に対し、reconciliation は当該ノードを本ファイルに転記する。
+**例**: `tmp/sprint-1/fr-11-13-14.md` の FR-13 ノードが検証通過 → reconciliation が `doc-system/02-what/01-fr.md` に当該ノードを転記する。
+
+---
+
+## SPEC-39: 著作出力の id 欠如検出時の reconciliation 挙動（failure・アンブレラ）
 
 <details><summary>⬡ SPEC-39 · v0.1</summary>
 
@@ -2871,17 +2916,85 @@ condition: failure
 edges:
   - to: FR-13
     ref_version: "0.1"
+  - to: FND-65
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: 著者がエージェントに著作を依頼し、エージェントが `id` フィールドを欠いたノードを tmp ファイルに出力する。
-**入力/トリガ**: reconciliation エージェントが tmp ファイルを検証する際に、id フィールドの欠如を検出する。
-**期待動作**: reconciliation は検証エラーを報告し、本ファイルへの転記を中断する。`id field missing or empty` を出力する（RULE-025 相当のチェックを reconciliation 検証フェーズで実施）。
-**例**: tmp ファイルに `type: FR` のみで `id:` なし → `ERROR|tmp/sprint-1/fr-11-13-14.md:5|RULE-025|(none)|id field missing or empty` を報告し、本ファイルへの転記を中断する。
+**概要**: 著作出力の id 欠如に対する reconciliation の検証エラー報告（SPEC-39-1）・具体メッセージ出力（SPEC-39-2）・転記中断（SPEC-39-3）を、子 SPEC で個別に検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-40: 伝搬編集支援の表示（normal・post-mvp）
+## SPEC-39-1: id 欠如 tmp 出力に reconciliation が検証エラーを報告（failure）
+
+<details><summary>⬡ SPEC-39-1 · v0.1</summary>
+
+```yaml
+id: SPEC-39-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-39
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: エージェントが `id` フィールドを欠いたノードを tmp ファイルに出力済みである。
+**入力/トリガ**: reconciliation が tmp ファイルを検証し、id フィールドの欠如を検出する。
+**期待動作**: id 欠如を検出したとき、reconciliation は検証エラーを報告する。
+**例**: tmp ファイルに `type: FR` のみで `id:` なし → reconciliation が検証エラーを報告する。
+
+---
+
+## SPEC-39-2: id 欠如検出時に RULE-025 相当メッセージを出力（failure）
+
+<details><summary>⬡ SPEC-39-2 · v0.1</summary>
+
+```yaml
+id: SPEC-39-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-39
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: エージェントが `id` フィールドを欠いたノードを tmp ファイルに出力済みで、reconciliation が検証フェーズで RULE-025 相当チェックを実施する。
+**入力/トリガ**: reconciliation が tmp ファイルの id 欠如を検出する。
+**期待動作**: id 欠如を検出したとき、reconciliation は `ERROR|{file}:{line}|RULE-025|(none)|id field missing or empty` を出力する。
+**例**: tmp ファイルに `type: FR` のみで `id:` なし → `ERROR|tmp/sprint-1/fr-11-13-14.md:5|RULE-025|(none)|id field missing or empty` を出力する。
+
+---
+
+## SPEC-39-3: id 欠如検出時に reconciliation が転記を中断（failure）
+
+<details><summary>⬡ SPEC-39-3 · v0.1</summary>
+
+```yaml
+id: SPEC-39-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-39
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: エージェントが `id` フィールドを欠いたノードを tmp ファイルに出力済みである。
+**入力/トリガ**: reconciliation が tmp ファイルの id 欠如を検出する。
+**期待動作**: id 欠如を検出したとき、reconciliation は本ファイルへの転記を中断する（fail-close）。
+**例**: tmp ファイルに `type: FR` のみで `id:` なし → reconciliation が `doc-system/02-what/01-fr.md` への転記を中断する。
+
+---
+
+## SPEC-40: 伝搬編集支援の表示（normal・post-mvp・アンブレラ）
 
 <details><summary>⬡ SPEC-40 · v0.2</summary>
 
@@ -2896,17 +3009,62 @@ edges:
     ref_version: "0.1"
   - to: FND-78
     ref_version: "0.1"
+  - to: FND-66
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: in-graph ファイル A の version x.y が上昇し、ノード B が `to: A, ref_version: "旧 x.y"` の辺を持つ（RULE-004 ドリフト状態）。
-**入力/トリガ**: 著者が `--propagate A` オプションで検証ツールを実行する（post-MVP 機能）。
-**期待動作**: RULE-004 ドリフトが検出されたノード B の一覧と、各ノードで更新が必要な `ref_version` の現在値・更新先値を表形式で出力する。`{node-id} | {file}:{line} | ref_version: "{old}" → "{new}"` 形式で表示する。
-**例**: `doc-system/03-analysis/02-io.md` の version が `0.5`→`0.6` に上昇したとき `P-1 | doc-system/03-analysis/03-processes.md:26 | ref_version: "0.5" → "0.6"` の一覧を出力する。
+**概要**: 伝搬編集支援のドリフトノード一覧出力（SPEC-40-1）と各行の更新フォーマット表示（SPEC-40-2）を、子 SPEC で個別に検証する（傘ノード・非テスタブル）。
 
 ---
 
-## SPEC-44: ノードファイルはプレーンテキスト .md（normal）
+## SPEC-40-1: 伝搬時にドリフトノード一覧を表形式で出力（normal・post-mvp）
+
+<details><summary>⬡ SPEC-40-1 · v0.1</summary>
+
+```yaml
+id: SPEC-40-1
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-40
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: in-graph ファイル A の version x.y が上昇し、1件以上のノード B が `to: A, ref_version: "旧 x.y"` の辺を持つ（RULE-004 ドリフト状態）。
+**入力/トリガ**: 著者が `--propagate A` オプションで検証ツールを実行する。
+**期待動作**: `--propagate A` を実行したとき、RULE-004 ドリフトが検出されたノード B の一覧を表形式で出力する。
+**例**: `doc-system/03-analysis/02-io.md` の version が `0.5`→`0.6` に上昇 → ドリフトノード `P-1` を含む一覧を表形式で出力する。
+
+---
+
+## SPEC-40-2: ドリフト一覧の各行を更新フォーマットで表示（normal・post-mvp）
+
+<details><summary>⬡ SPEC-40-2 · v0.1</summary>
+
+```yaml
+id: SPEC-40-2
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-40
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `--propagate A` 実行により RULE-004 ドリフトノード一覧が得られている。
+**入力/トリガ**: 検証ツールがドリフト一覧の各行を整形して出力する。
+**期待動作**: ドリフト一覧を表示するとき、各行を `{node-id} | {file}:{line} | ref_version: "{old}" → "{new}"` 形式で表示する。
+**例**: `P-1 | doc-system/03-analysis/03-processes.md:26 | ref_version: "0.5" → "0.6"` の形式で表示する。
+
+---
+
+## SPEC-44: ノードファイルはプレーンテキスト .md（normal・アンブレラ）
 
 <details><summary>⬡ SPEC-44 · v0.2</summary>
 
@@ -2919,13 +3077,81 @@ condition: normal
 edges:
   - to: NFR-1
     ref_version: "0.4"
+  - to: FND-67
+    ref_version: "0.1"
 ```
 </details>
 
-**前提条件**: `trace_scope.include` に一致する in-graph ファイルが1件以上存在する。
-**入力/トリガ**: 検証ツールが in-graph ファイルを読み込む際に UTF-8 エンコードのプレーンテキスト検証を実行する。
-**期待動作**: `file.read_text(encoding='utf-8', errors='strict')` で全 in-graph ファイルの読み込みがエラーなく完了する。BOM（`\xEF\xBB\xBF`）が先頭に存在するファイルは WARNING を1件出力する。UTF-8 デコードエラーが発生するファイルは ERROR を1件出力する。
-**例**: `doc-system/02-what/01-fr.md` を `open(..., encoding='utf-8', errors='strict').read()` → 読み込み成功 → 違反 0 件。バイナリデータを含むファイル `doc-system/corrupt.md` が in-graph に存在 → `ERROR|doc-system/corrupt.md:0|NFR-1-check|(none)|UTF-8 decode error` を出力。
+**概要**: in-graph ファイルの UTF-8 プレーンテキスト検証を、正常読込（SPEC-44-1）・BOM 検出 WARNING（SPEC-44-2）・デコードエラー ERROR（SPEC-44-3）の入力クラス別に子 SPEC で検証する（傘ノード・非テスタブル）。
+
+---
+
+## SPEC-44-1: 正常 UTF-8 ファイルの読み込みが完了（normal）
+
+<details><summary>⬡ SPEC-44-1 · v0.1</summary>
+
+```yaml
+id: SPEC-44-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `trace_scope.include` に一致する in-graph ファイルが1件以上存在し、いずれも BOM なしの正常な UTF-8 でエンコードされている。
+**入力/トリガ**: 検証ツールが in-graph ファイルを `file.read_text(encoding='utf-8', errors='strict')` で読み込む。
+**期待動作**: 正常 UTF-8 ファイルを読み込んだとき、全 in-graph ファイルの読み込みがエラーなく完了する（違反 0 件）。
+**例**: `doc-system/02-what/01-fr.md` を `open(..., encoding='utf-8', errors='strict').read()` → 読み込み成功 → 違反 0 件。
+
+---
+
+## SPEC-44-2: BOM 付きファイルに WARNING を1件出力（boundary）
+
+<details><summary>⬡ SPEC-44-2 · v0.1</summary>
+
+```yaml
+id: SPEC-44-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: boundary
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `trace_scope.include` に一致する in-graph ファイルのうち1件が、先頭に BOM（`\xEF\xBB\xBF`）を持つ。
+**入力/トリガ**: 検証ツールが当該ファイルを読み込み、先頭 BOM を検出する。
+**期待動作**: 先頭 BOM を検出したとき、当該ファイルに対し WARNING を1件出力する。
+**例**: `doc-system/02-what/01-fr.md` の先頭に BOM が存在 → 当該ファイルに WARNING を1件出力する。
+
+---
+
+## SPEC-44-3: UTF-8 デコードエラー発生ファイルに ERROR を1件出力（error）
+
+<details><summary>⬡ SPEC-44-3 · v0.1</summary>
+
+```yaml
+id: SPEC-44-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: error
+edges:
+  - to: SPEC-44
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: `trace_scope.include` に一致する in-graph ファイルのうち1件が、UTF-8 として不正なバイト列を含む。
+**入力/トリガ**: 検証ツールが当該ファイルを `errors='strict'` で読み込み、UTF-8 デコードエラーに遭遇する。
+**期待動作**: UTF-8 デコードエラーが発生したとき、当該ファイルに対し ERROR を1件出力する。
+**例**: バイナリデータを含む `doc-system/corrupt.md` が in-graph に存在 → `ERROR|doc-system/corrupt.md:0|NFR-1-check|(none)|UTF-8 decode error` を出力する。
 
 ---
 
