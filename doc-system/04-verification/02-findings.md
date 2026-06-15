@@ -2076,7 +2076,8 @@ edges:
 **深刻度**: WARNING
 **内容**: アンブレラ SPEC-49 の概要は「状態は本文見出しバッジにのみ記載される」と正しく述べているが、子 SPEC-49-1/49-2 の前提条件・入力/トリガ・期待動作は「frontmatter に `status:`/`lifecycle:`/`state:` キーが存在するか」を検査対象としている。DD-8（2026-06-14 確定・反映済）でファイルレベル YAML フロントマターは全廃され、ノードデータはインライン YAML ブロック（`<details>` 内）にのみ存在する。したがって「frontmatter」は実在しない検査対象であり、DD-8 および NFR-1（プレーンテキスト・フロントマター廃止）と齟齬する。検査対象が存在しないため、本来検出すべき「ノード YAML ブロックへの status 系キー混入」を取りこぼす恐れがある（PR4: 観測できないものを持たない、にも抵触）。
 **推奨**: SPEC-49-1/49-2 本文の「frontmatter」を「ノード YAML ブロック内のフィールド（`<details>` 内インライン YAML）」へ用語訂正する。SPEC-49 概要の表現と整合させる。DD 昇格が望ましい。
-**対応状況**: open
+**対応状況**: resolved（2026-06-15）
+**処置**: SPEC-49/49-1/49-2 の「frontmatter」表記を「ノード YAML（メタ属性）」へ用語訂正（DD-8 準拠）。NFR-6 は既に「メタ属性」表記のため変更不要。spec-author が SPEC-49 に `→FND-85` バックリファレンス辺を付与済み。
 **指摘時 ref_version**: SPEC-49 "0.1"／DD-8 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
 
 ---
@@ -2100,7 +2101,8 @@ edges:
 **深刻度**: INFO
 **内容**: 横断: SPEC-44〜49（SPEC-44 を代表アンカーとして指摘）。SPEC-44〜49 の出力例は検証ルール ID として `{NFR-id}-check`（例 `NFR-1-check`・`NFR-4-check`）を使用するが、正準ルール台帳は `RULE-NNN`（`docs/doc-system/05-verification.md`）である。NFR 由来の本文検査が正式に RULE 番号を持つのか、`{NFR-id}-check` が暫定識別子なのか、出力契約上の識別子規約が定義されていない。出力契約（O-1 RULE 違反レポート）における違反 ID の名前空間が二重化しており、消費側（reconciliation・spec-inspector）の解釈がぶれる。
 **推奨**: NFR 由来検査の出力ルール ID 規約を確定する（RULE-NNN への正式採番 or `{NFR-id}-check` の正式採用）。確定後は台帳（`05-verification.md`）に記載し、SPEC-44〜49 の出力例を統一する。
-**対応状況**: open
+**対応状況**: resolved（DD-11 / 2026-06-15）
+**処置**: DD-11 で `{NFR-id}-check` を NFR 由来本文検査の正式 rule-id 体系として採用（選択肢 B）。`docs/doc-system/05-verification.md` の RULE 台帳に1家族として登録する（reconciliation 反映後に主文脈で実施）。SPEC-44〜49 の出力例は据置。バックリファレンスは DD-11 が `→FND-86` 辺を保持（FND→DD の通常逆転ではなく、DD が解消起点のため DD 側に辺を持つ）。
 **指摘時 ref_version**: SPEC-44 "0.2"（ノードバッジ x.y 基準・DD-8）
 
 ---
@@ -2124,7 +2126,8 @@ edges:
 **深刻度**: WARNING
 **内容**: アンブレラ SPEC-30「分析ノードの接続漏れ検出」の子は SPEC-30-1（未駆動出力 O→P 欠如）/30-2（未定義反応イベント E←P 欠如）/30-3（未消費入力 I←P 欠如）の3種だが、分析層 D（内部データ）の接続漏れ（D→P・D←P 欠如）の失敗系子が欠落している。config の `must_link_to: D→P`・`must_be_linked_from: D←P` は RULE-006 対象であり、D の接続漏れも検出されるべき検査対象である。SPEC-8 一般則でカバーされる前提なら、SPEC-30 概要にその旨の明記がなく、検証カバレッジの穴か単なる暗黙包含かが読み取れない。
 **推奨**: SPEC-30 に D 接続漏れの failure 子（SPEC-30-4）を追加するか、D は SPEC-8 一般則でカバーされる旨を SPEC-30 概要に明記する。要否（専用子の新設 vs 一般則委譲の明記）はオーナー判断。
-**対応状況**: open
+**対応状況**: resolved（2026-06-15）
+**処置**: 実カバレッジ穴ではない。SPEC-8 一般則（RULE-006）が D→P・P→D をカバーするため専用子は不要。SPEC-30 概要に「D は SPEC-8 でカバー・本傘はアクタ面 O/E/I のみ列挙」と設計意図を明記。spec-author が SPEC-30 に `→FND-87` バックリファレンス辺を付与済み。
 **指摘時 ref_version**: SPEC-30 "0.1"（ノードバッジ x.y 基準・DD-8）
 
 ---
@@ -2189,15 +2192,18 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-45
-    ref_version: "0.1"
+    ref_version: "0.2"
+  - to: SPEC-46
+    ref_version: "0.2"
 ```
 </details>
 
 **深刻度**: INFO
 **内容**: SPEC-45-1/45-2 の入力/トリガが「reconciliation または CI が」、関連する SPEC-46-1/46-2 が「reconciliation または asset-auditor が」と、観測/実行主体を二者択一で記載している。検証手順の主体が一意でないと、どの主体が実行したかで結果が再現しない懸念があり、観測可能性（PR4）・再現性が揺れる。誰が実行しても同一判定になる機構として明文化されていれば問題ないが、現状の「A または B が」表現はそれを保証していない。
 **推奨**: 検証主体を一意化する（単一主体に固定）か、「reconciliation・CI・asset-auditor のいずれが実行しても同一の機械判定を行う」ことを機構として明文化する。SPEC-46（横断的に同種記載あり）も併せて見直す。
-**対応状況**: open
-**指摘時 ref_version**: SPEC-45 "0.1"（ノードバッジ x.y 基準・DD-8）
+**対応状況**: resolved（2026-06-15）
+**処置**: 観測主体を一意化（PR4）。SPEC-45-1/45-2 を「CI が」、SPEC-46-1/46-2 を「asset-auditor が」に変更し、「reconciliation または」の二択を解消。横断対象 SPEC-46 もこの finding でカバーするため `→SPEC-46` 辺を追加（指摘時 ref_version: SPEC-46 "0.1"）。spec-author が SPEC-45・SPEC-46 の両傘に `→FND-90` バックリファレンス辺を付与済み。
+**指摘時 ref_version**: SPEC-45 "0.1"／SPEC-46 "0.1"（いずれもノードバッジ x.y 基準・DD-8）
 
 ---
 

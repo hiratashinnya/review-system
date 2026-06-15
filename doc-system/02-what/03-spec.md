@@ -2317,7 +2317,7 @@ edges:
 
 ## SPEC-30: 分析ノードの接続漏れ検出（failure・アンブレラ）
 
-<details><summary>⬡ SPEC-30 · v0.1</summary>
+<details><summary>⬡ SPEC-30 · v0.2</summary>
 
 ```yaml
 id: SPEC-30
@@ -2332,10 +2332,12 @@ edges:
     ref_version: "0.1"
   - to: FND-57
     ref_version: "0.1"
+  - to: FND-87
+    ref_version: "0.1"
 ```
 </details>
 
-**概要**: 分析ノードの接続漏れ検出（SPEC-8 の一般則における分析層の特殊ケース）。検証アサーションは子 SPEC-30-1〜3 を参照（接続漏れ3種を1アサーション1SPEC に分割・FND-57）。
+**概要**: 分析ノードの接続漏れ検出（SPEC-8 の一般則における分析層の特殊ケース）。検証アサーションは子 SPEC-30-1〜3 を参照（接続漏れ3種を1アサーション1SPEC に分割・FND-57）。なお D（内部データ）の接続漏れ（D→P・P→D 欠如）は一般則 SPEC-8（RULE-006 全般）でカバーされ、本傘 SPEC-30 はアクタに面する価値経路の名前付き漏れ3種（未駆動出力 O→P・未定義反応 E←P・未消費入力 I←P）のみを列挙する（D は内部データのため本傘の対象外）。
 
 ---
 
@@ -2351,7 +2353,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2373,7 +2375,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2395,7 +2397,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3179,7 +3181,7 @@ edges:
 
 ## SPEC-45: spec-inspector は Python 標準ライブラリのみ使用（normal・アンブレラ）
 
-<details><summary>⬡ SPEC-45 · v0.1</summary>
+<details><summary>⬡ SPEC-45 · v0.2</summary>
 
 ```yaml
 id: SPEC-45
@@ -3192,6 +3194,8 @@ edges:
     ref_version: "0.3"
   - to: FND-68
     ref_version: "0.1"
+  - to: FND-90
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3201,7 +3205,7 @@ edges:
 
 ## SPEC-45-1: 全 import が標準ライブラリのみを参照する（normal）
 
-<details><summary>⬡ SPEC-45-1 · v0.1</summary>
+<details><summary>⬡ SPEC-45-1 · v0.2</summary>
 
 ```yaml
 id: SPEC-45-1
@@ -3211,12 +3215,12 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-45
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: spec-inspector の実装ソースファイル群が1件以上存在し、静的解析が完了している。
-**入力/トリガ**: reconciliation または CI が全ソースファイルの `import X` 文および `from X import Y` 文を抽出する。
+**入力/トリガ**: CI が全ソースファイルの `import X` 文および `from X import Y` 文を抽出する。
 **期待動作**: 全ソースファイルの import 文を解析したとき、外部パッケージ（PyYAML・requests・pydantic 等）への依存が 0 件であることを判定する。
 **例**: `src/inspector.py` の全 import が `import sys`, `import os`, `import re`, `import pathlib`, `import json` のみ → 外部依存 0 件 → 違反なし。
 
@@ -3224,7 +3228,7 @@ edges:
 
 ## SPEC-45-2: 外部パッケージ import 検出時に ERROR を出力する（failure）
 
-<details><summary>⬡ SPEC-45-2 · v0.1</summary>
+<details><summary>⬡ SPEC-45-2 · v0.2</summary>
 
 ```yaml
 id: SPEC-45-2
@@ -3234,12 +3238,12 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-45
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: spec-inspector の実装ソースファイル群が1件以上存在し、静的解析が完了している。
-**入力/トリガ**: reconciliation または CI が外部パッケージへの `import` 文を1件以上検出する。
+**入力/トリガ**: CI が外部パッケージへの `import` 文を1件以上検出する。
 **期待動作**: 外部パッケージ import を検出したとき、当該行を指す ERROR を1件出力する。
 **例**: `import yaml` が `src/parser.py` 行3に存在 → `ERROR|src/parser.py:3|NFR-2-check|(none)|external package import: yaml` を出力。
 
@@ -3247,7 +3251,7 @@ edges:
 
 ## SPEC-46: スキルファイルは外部ファイル参照なしに自己完結（normal・アンブレラ）
 
-<details><summary>⬡ SPEC-46 · v0.1</summary>
+<details><summary>⬡ SPEC-46 · v0.2</summary>
 
 ```yaml
 id: SPEC-46
@@ -3260,6 +3264,8 @@ edges:
     ref_version: "0.2"
   - to: FND-69
     ref_version: "0.1"
+  - to: FND-90
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3269,7 +3275,7 @@ edges:
 
 ## SPEC-46-1: スキルファイルに外部参照パターンが存在しない（normal）
 
-<details><summary>⬡ SPEC-46-1 · v0.1</summary>
+<details><summary>⬡ SPEC-46-1 · v0.2</summary>
 
 ```yaml
 id: SPEC-46-1
@@ -3279,12 +3285,12 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-46
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: スキルファイルが1件以上存在し、全行が外部参照パターンで検索済みである。
-**入力/トリガ**: reconciliation または asset-auditor がスキルファイルの全行を外部参照パターン（`\.\./`・`^include:`・`^source:`・`@import`）で検索する。
+**入力/トリガ**: asset-auditor がスキルファイルの全行を外部参照パターン（`\.\./`・`^include:`・`^source:`・`@import`）で検索する。
 **期待動作**: スキルファイルを全行検索したとき、外部ファイル参照パターンにマッチする行が 0 件であることを判定する。
 **例**: `.claude/skills/spec-author/SKILL.md` を全行検索 → `../`・`include:`・`source:`・`@import` にマッチする行なし → 違反なし。
 
@@ -3292,7 +3298,7 @@ edges:
 
 ## SPEC-46-2: 外部参照パターン検出時に WARNING を出力する（failure）
 
-<details><summary>⬡ SPEC-46-2 · v0.1</summary>
+<details><summary>⬡ SPEC-46-2 · v0.2</summary>
 
 ```yaml
 id: SPEC-46-2
@@ -3302,12 +3308,12 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-46
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: スキルファイルが1件以上存在し、全行が外部参照パターンで検索済みである。
-**入力/トリガ**: reconciliation または asset-auditor が外部参照パターンにマッチする行を1件以上検出する。
+**入力/トリガ**: asset-auditor が外部参照パターンにマッチする行を1件以上検出する。
 **期待動作**: 外部参照パターンにマッチする行を検出したとき、当該行を指す WARNING を1件出力する。
 **例**: `.claude/skills/spec-author/SKILL.md` 行42に `see: ../07-authoring-guide.md` が存在 → `WARNING|.claude/skills/spec-author/SKILL.md:42|NFR-3-check|(none)|external file reference: ../07-authoring-guide.md` を出力。
 
@@ -3453,9 +3459,9 @@ edges:
 
 ---
 
-## SPEC-49: DD/Q/PEND の frontmatter に status 系フィールドが存在しない（normal・アンブレラ）
+## SPEC-49: DD/Q/PEND のノード YAML（メタ属性）に status 系フィールドが存在しない（normal・アンブレラ）
 
-<details><summary>⬡ SPEC-49 · v0.1</summary>
+<details><summary>⬡ SPEC-49 · v0.2</summary>
 
 ```yaml
 id: SPEC-49
@@ -3468,16 +3474,18 @@ edges:
     ref_version: "0.3"
   - to: FND-72
     ref_version: "0.1"
+  - to: FND-85
+    ref_version: "0.1"
 ```
 </details>
 
-**概要**: DD・Q・PEND ノードのライフサイクル状態が frontmatter に漏れていないことの検証を、キー非存在の正常判定（SPEC-49-1）とキー存在時の WARNING 出力（SPEC-49-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル。状態は本文見出しバッジにのみ記載される）。
+**概要**: DD・Q・PEND ノードのライフサイクル状態がノード YAML（メタ属性）に漏れていないことの検証を、キー非存在の正常判定（SPEC-49-1）とキー存在時の WARNING 出力（SPEC-49-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル。状態は本文見出しバッジにのみ記載し、ノード YAML には持たない＝DD-8 でファイル frontmatter は廃止済み）。
 
 ---
 
 ## SPEC-49-1: status 系キー非存在ノードは違反なし（normal）
 
-<details><summary>⬡ SPEC-49-1 · v0.1</summary>
+<details><summary>⬡ SPEC-49-1 · v0.2</summary>
 
 ```yaml
 id: SPEC-49-1
@@ -3487,20 +3495,20 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-49
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在し、ライフサイクル状態は本文見出しバッジ（`**status: open**` 等）にのみ記載されている。
-**入力/トリガ**: 検証ツールが、frontmatter に `status:`・`lifecycle:`・`state:` キーを持たない DD・Q・PEND ノードを検査する。
-**期待動作**: status 系キーが frontmatter に存在しないとき、当該ノードを違反なしとして通過させる。
+**入力/トリガ**: 検証ツールが、ノード YAML（メタ属性）に `status:`・`lifecycle:`・`state:` キーを持たない DD・Q・PEND ノードを検査する。
+**期待動作**: status 系キーがノード YAML（メタ属性）に存在しないとき、当該ノードを違反なしとして通過させる。
 **例**: `{id: "DD-5", type: "DD", labels: [], scheduled: "", edges: []}` → status 系フィールドなし → 違反なし。
 
 ---
 
 ## SPEC-49-2: status 系キー存在で WARNING 出力（failure）
 
-<details><summary>⬡ SPEC-49-2 · v0.1</summary>
+<details><summary>⬡ SPEC-49-2 · v0.2</summary>
 
 ```yaml
 id: SPEC-49-2
@@ -3510,14 +3518,14 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-49
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
 **前提条件**: in-graph に `type: DD`・`type: Q`・`type: PEND` のいずれかのノードが1件以上存在し、ライフサイクル状態は本文見出しバッジに記載されるべきものである。
-**入力/トリガ**: 検証ツールが、frontmatter に `status:`・`lifecycle:`・`state:` のいずれかのキーを持つ DD・Q・PEND ノードを検査する。
-**期待動作**: status 系キーが frontmatter に存在するとき、WARNING を1件出力する。
-**例**: `{id: "Q-3", type: "Q", labels: [], scheduled: "", status: "open", edges: []}` → `WARNING|{file}:{line}|NFR-6-check|Q-3|lifecycle field 'status' in frontmatter violates NFR-6` を出力。
+**入力/トリガ**: 検証ツールが、ノード YAML（メタ属性）に `status:`・`lifecycle:`・`state:` のいずれかのキーを持つ DD・Q・PEND ノードを検査する。
+**期待動作**: status 系キーがノード YAML（メタ属性）に存在するとき、WARNING を1件出力する。
+**例**: `{id: "Q-3", type: "Q", labels: [], scheduled: "", status: "open", edges: []}` → `WARNING|{file}:{line}|NFR-6-check|Q-3|lifecycle field 'status' in node YAML violates NFR-6` を出力。
 
 ---
 

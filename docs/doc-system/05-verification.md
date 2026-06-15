@@ -117,6 +117,25 @@ TR 完結性:
 
 ---
 
+### 段階 ③′：NFR 由来本文検査（`{NFR-id}-check`）
+
+**目的**：NFR-1〜6 を機械検証可能な制約に落とした本文検査（DD-5 で NFR→SPEC 導出を制度化）。これらは構造ルール（RULE-NNN）とは別系統で、出力行3列目の rule-id に **`{NFR-id}-check`** 体系を用いる（DD-11・FND-86：番号付き RULE を新設せず NFR へ直接トレース可能な命名を採用）。検証アサーションは SPEC-44〜49（各 NFR 1件・傘＋子）。
+
+| rule-id | 対象（NFR） | 検証 SPEC | 深刻度 |
+|---|---|---|---|
+| `NFR-1-check` | ノードファイルは UTF-8 プレーンテキスト .md（BOM=WARNING／デコードエラー=ERROR） | SPEC-44 | ERROR / WARNING |
+| `NFR-2-check` | spec-inspector は Python 標準ライブラリのみ（外部 import 検出） | SPEC-45 | ERROR |
+| `NFR-3-check` | スキルファイルは外部参照なしに自己完結（外部参照パターン検出） | SPEC-46 | WARNING |
+| `NFR-4-check` | 全ノードの summary バッジに version（x.y）が存在・形式適合 | SPEC-47 | ERROR |
+| `NFR-5-check` | 各ノードは直接の親のみへ辺を張る（USDM 1段制約） | SPEC-48 | ERROR |
+| `NFR-6-check` | DD/Q/PEND のノード YAML（メタ属性）に status 系キーが存在しない | SPEC-49 | WARNING |
+
+> rule-id は `{NFR-id}-check`（例 `NFR-1-check`）。構造ルール（RULE-NNN）とは名前空間が異なり、対応 NFR へ一意にトレースできる（DD-11）。将来 RULE-NNN 採番へ切替える場合は SPEC-44〜49 の出力例6件・本表・関連 TC を一括改修する（DD-11 影響範囲）。
+
+**トリガ**：NFR 対象成果物（in-graph ノード／spec-inspector 実装ソース／スキルファイル）の変更後。
+
+---
+
 ### 段階 ④：コード⇔設計の構造比較（sub-issue）
 
 **目的**：SRC（docstring の `@id`）が DM/PORT/ORC を正しく参照しているか確認する。
