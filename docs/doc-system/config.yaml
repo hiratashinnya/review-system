@@ -5,7 +5,7 @@
 #   RULE-004 のドリフト判定は「辺の ref_version ≠ 参照先ノードのバッジ x.y」で行う。
 
 current_phase: "sprint-1"
-current_stage: "requirements"   # requirements | analysis | design | implementation | verification
+current_stage: "analysis"   # requirements | analysis | design | implementation | verification
 
 phases: [sprint-1, sprint-2, sprint-3]
 stages: [requirements, analysis, design, implementation, verification]
