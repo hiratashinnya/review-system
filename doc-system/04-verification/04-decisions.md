@@ -477,3 +477,65 @@ edges:
 - **覆る場合の影響範囲**: 分割 D の粒度・P-2-5 の責務配置を見直す場合、io.md の D-9〜D-22 定義と processes.md の検査子⇔D 配線、00-dfd.md の L1/L2/L3 を一括改修する（分析層 3 ファイルに限定・要件層 SPEC は Q-2 の決定次第で波及）。
 
 ---
+
+## DD-13: MOD 粒度の選択
+
+**status: decided**（2026-06-16 暫定決定・設計フェーズ）
+
+<details><summary>⬡ DD-13 · v0.1</summary>
+
+```yaml
+id: DD-13
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: spec-inspector の Python モジュール粒度を「DFD L2/L3 リーフ単位（1プロセス1モジュール）」にするか「DFD L1 親プロセス単位（1親P1モジュール）」にするか。ただし P-2-5（抑制・発火フィルタ）は単独責務・横断関心事の集約として L1/L2 混在でも例外的に独立モジュールとする。
+
+**選択肢**:
+- A: L2/L3 リーフ単位（例: P-1-1: file_reader.py, P-1-2: marker_scanner.py ...）
+- B: L1 親プロセス単位（例: P-1 全体: parser.py に P-1-1〜P-1-6 を集約）。ただし P-2-5 は L2 プロセスだが単一横断責務のため独立 filter.py とする例外あり
+
+**推奨**: B（L1 単位 + P-2-5 例外）。理由: L2/L3 リーフは34以上あり、1:1 で作ると Python モジュールが爆発して管理不能。Python は関数/クラス単位で分担できるため L1 1:1 で十分。P-2-5 は suppress/scheduled/activate_stage の一元管理責務が明確に区別できるため例外とする。
+
+**決定**: B を暫定採用（設計フェーズ・オーナー要確認で覆る場合は影響範囲参照）（2026-06-16）
+
+**影響範囲**:
+- MOD-1〜MOD-12 は L1 プロセス単位で定義（MOD-6 のみ P-2-5 に対応する例外）
+- 実装時に L2/L3 の各責務を各 MOD 内の関数/クラスで実現
+- L2/L3 分解が必要になった場合はモジュール分割（新 MOD-N 追加）で対応
+
+## DD-14: FileSystemPort の抽象化粒度
+
+**status: decided**（2026-06-16 暫定決定・設計フェーズ）
+
+<details><summary>⬡ DD-14 · v0.1</summary>
+
+```yaml
+id: DD-14
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: ファイルシステムアクセスを抽象化するポートを「list_md_files + read_file を1つにまとめる FileSystemPort」にするか「ListPort / ReadPort を別々に定義」するか。
+
+**選択肢**:
+- A: 単一 FileSystemPort（list_md_files: Path → list[Path], read_file: Path → str）
+- B: ListFilesPort と ReadFilePort を別ポートとして定義
+
+**推奨**: A（単一 Port）。理由: list と read は常にペアで使われ（list してから各ファイルを read）、別 Port にしても合成ルートの DI が複雑になるだけで利点がない。FakeFsAdapter も1つ実装すれば済む。Python の `Protocol` で2つのメソッドを持てばよい。
+
+**決定**: A を暫定採用（2026-06-16）
+
+**影響範囲**:
+- PORT-1（FileSystemPort）は2メソッド持つ単一 Protocol として定義
+- MOD-11（adapters/fs.py）は RealFsAdapter + FakeFsAdapter の2クラスを同一ファイルに置く
+- 将来 write_file が必要になった場合は FileSystemPort にメソッドを追加（MINOR バンプ）するか、WritePort を別途追加する
+
+---
