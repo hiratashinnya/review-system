@@ -13,6 +13,7 @@
 | 作業 | 種別 | 状態 |
 |---|---|---|
 | 分析層 全面的見直し：D 分割・P リーフ分解・P-2-5 新設・I-1-x 退役・DFD 再生成（DD-12） | DD-12 | ✅ reflected（2026-06-16）。Pass1〜3b で段階反映。FND-93/94 resolved・Q-2 open。spec-inspector クリーン |
+| PR #27 レビュー対応：終了コードの O モデル化（③）・PR 説明是正（②） | FND ×1 | ✅ resolved（2026-06-16）。O-6「終了コード」新設で P-4-4 終端出力を価値経路接続（FND-95）。DFD/ダッシュボード反映 |
 | current_stage を `analysis` へ進行（N1） | N | ✅ done（2026-06-15）。config.yaml 更新・stage 進行後 spec-inspector 点検クリーン |
 | 依存グラフ機能の分析層補完 O-4/O-5/P-8/P-9（N8） | DD-6 | ✅ reflected（2026-06-15）。analysis-author 著作→reconciliation 反映。E-1 整合不整合は FND-92 で resolved。DD-6 反映完了 |
 | E-1 本文が P-8/P-9・O-4/O-5 を未反映の不整合（FND-92） | FND ×1 | ✅ resolved（2026-06-15）。E-1 本文改訂（`--coverage`/P-3-2 先例と整合・新 E 不要）。z バンプ据置（DD-8 §4）|
@@ -28,7 +29,7 @@
 | ステージ | 対象型 | ノード | 状態 | 備考 |
 |---|---|---|---|---|
 | requirements | VAL / SR / FR / NFR / SPEC | 210 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 174 ノード・うち post-mvp 24） |
-| analysis | ACTOR / I / O / D / P / E | 91 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。00-dfd.md を L0–L3 で再生成。旧 41 から増加 |
+| analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手（次フェーズ） | `/impl-design-pipeline` で着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
@@ -66,9 +67,9 @@
 
 ## 📋 FND サマリ
 
-**計 94 件：✅ resolved 86 ／ ⏳ open 8**
+**計 95 件：✅ resolved 87 ／ ⏳ open 8**
 
-> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。残 open（FND-79/81/82/83/88/89/91）は全て INFO・`scheduled` 未設定。明細は `04-verification/02-findings.md`。
+> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。残 open（FND-79/81/82/83/88/89/91）は全て INFO・`scheduled` 未設定。明細は `04-verification/02-findings.md`。
 
 ### open 明細（8 件・`scheduled` は未設定でオーナー判断待ち）
 
