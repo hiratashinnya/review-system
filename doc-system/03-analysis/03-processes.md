@@ -407,7 +407,7 @@ edges:
 
 ### P-2-2-3: 必須辺欠如検出
 
-<details><summary>⬡ P-2-2-3 · v0.1</summary>
+<details><summary>⬡ P-2-2-3 · v0.2</summary>
 
 ```yaml
 id: P-2-2-3
@@ -417,16 +417,20 @@ scheduled: ""
 edges:
   - to: SPEC-8
     ref_version: "0.2"
+  - to: SPEC-15-1
+    ref_version: "0.1"
   - to: D-17
     ref_version: "0.1"
   - to: D-10
     ref_version: "0.1"
   - to: E-1
     ref_version: "0.5"
+  - to: FND-94
+    ref_version: "0.1"
 ```
 </details>
 
-接続検査ビュー（D-17）と必須接続規則（D-10：must_link_to/must_be_linked_from）を照合し、充足していないノードを RULE-006 必須辺欠如違反候補として出力する。
+接続検査ビュー（D-17）と必須接続規則（D-10：must_link_to/must_be_linked_from）を照合し、充足していないノードを RULE-006 必須辺欠如違反候補として出力する。RULE-006 のうち SPEC←TD 被依存辺欠如（`must_be_linked_from: SPEC ← [TD]`・旧 RULE-015）も D-10 に含まれる規則として本プロセスが担当するため、failure 系仕様 **SPEC-15-1**（SPEC への TD 被依存辺欠如報告）を詳細化する（FND-94 G1 で SPEC-15-1 の被覆主体として接続・孤児解消）。
 **責務（単一動詞）**: must_link_to/must_be_linked_from の必須辺充足を検査して欠如を検出する
 **提供価値**: 型別に義務付けられた依存辺の欠落を可視化し、接続の強制を保証できる
 **入力**: D-17（接続検査ビュー・P-1-6 が生成）・D-10（必須接続規則・P-5-3 が生成）を消費（P→D）
