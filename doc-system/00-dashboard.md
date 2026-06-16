@@ -33,7 +33,7 @@
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 0 | ⬜ 未着手（次フェーズ） | `/impl-design-pipeline` で着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
-| 横断スパイン | DD / Q / PEND | 16 | ✅ | DD-1〜12（全反映済・DD-12 分析層見直し）・Q-1 closed・Q-2 open・PEND-1 resolved・PEND-2 deferred |
+| 横断スパイン | DD / Q / PEND | 17 | ✅ | DD-1〜12（全反映済・DD-12 分析層見直し）・Q-1 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
 
 > 凡例：✅ 完了／🔄 進行中／⬜ 未着手。ノード数は `-N` 子・`labels: post-mvp` を含む実数。
 > current_stage が `analysis` に進行（N1）。analysis 発火の辺ルールは spec-inspector 点検でクリーン確認済み。design 以降の被依存辺ルールは沈黙中（design 着手で発火）。
@@ -54,11 +54,12 @@
 
 ## ⏳ オーナー判断待ち
 
-**計 2 件**
+**計 3 件**
 
 | 項目 | 優先 | 種別 | 次アクション |
 |---|---|---|---|
 | Q-2：傘 SPEC（SPEC-21/25/1・SPEC-29）の細分化要否＋ SPEC-29-1/29-2 リーフマップ | 🟡 中 | Q | 推奨 A（傘マップ維持・実害顕在時に細分化）。方針・実施スプリントはオーナー判断。`scheduled` 未設定 |
+| Q-3：O-1/O-2 の生成元辺を P-4-3（リーフ）へ精緻化するか親 P-4 のままか | 🔵 低 | Q | 推奨 A（リーフ先例 O-3/O-6・フロー表に統一・最小変更）。採否・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | 03-spec.md 残課題 FND-79・81・82・83・88・89・91（計7件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（全 INFO）。`scheduled` 未設定 |
 
 > N1（current_stage→analysis）は 2026-06-15 オーナー指示で実施済み。
@@ -114,6 +115,7 @@
 | DD-12 | ✅ 反映済 | 分析層全面見直し：D-3/D-4 内部化＋D-9〜D-22 分割／P-2-5 発火制御一元化／I-1-1/1-2/1-3 退役／リーフ単一動詞分解（2026-06-16） |
 | Q-1 | ✅ closed | DD-2 へ昇格済み |
 | Q-2 | ⏳ open | 傘 SPEC 細分化要否＋ SPEC-29-1/29-2 リーフマップ。推奨 A（傘維持）。オーナー判断待ち |
+| Q-3 | ⏳ open | O-1/O-2 生成元辺の粒度（親 P-4 vs リーフ P-4-3）。推奨 A（P-4-3 へ精緻化）。オーナー判断待ち |
 | PEND-1 | ✅ resolved | 過分割 → 子ノード化（FND-6）→ DD-12 で I-1-x 退役・D-18 へ repoint |
 | PEND-2 | 🗓 deferred | 図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降 |
 | DD19（review-system） | ✅ 確定 | asset-lateral-deploy スクリプト廃止・エージェント手書き化。DD18 superseded（2026-06-15） |
