@@ -6,7 +6,7 @@
 
 ## ORC-1: 検査パイプライン実行
 
-<details><summary>⬡ ORC-1 · v0.2</summary>
+<details><summary>⬡ ORC-1 · v0.3</summary>
 
 ```yaml
 id: ORC-1
@@ -16,6 +16,8 @@ scheduled: ""
 edges:
   - to: E-1
     ref_version: "0.5"
+  - to: DD-15
+    ref_version: "0.1"
   - to: P-5
     ref_version: "0.2"
   - to: P-6
@@ -32,6 +34,7 @@ edges:
 </details>
 
 > **改訂理由（MINOR バンプ v0.1→v0.2）**: must_link_to ルールを ORC→P から ORC→E に変更（ORC の本質は起動イベントへの参照）。`→ E-1`（ref_version "0.5"）辺を追加。P ノードへの辺は実行する段の列挙として維持。
+> **改訂理由（MINOR バンプ v0.2→v0.3）**: DD-15（ORC→E 決定）を反映。`→DD-15`（ref_version "0.1"）バックリファレンス辺を追加。
 
 **段の目的**: E-1（CLI 実行 `python -m spec_inspector`）をトリガに P-5→P-6→P-1→P-2→P-3→P-4 を直列実行し、O-1（RULE 違反レポート）/ O-2（カバレッジ点検結果）/ O-6（終了コード 0/1）を生成する
 
