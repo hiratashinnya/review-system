@@ -81,6 +81,7 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 | PORT | → MOD (refines) |
 | PRS（永続） | → DS (refines) |
 | DS（データストア） | → P (refines) |
+| ORC | → E (trigger) |
 
 **本文フォーマット**
 

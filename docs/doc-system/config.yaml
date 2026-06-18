@@ -39,7 +39,7 @@ must_link_to:
   - { node: E,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "イベントは仕様に紐づく" }
   - { node: E,      target: ACTOR,          activate_stage: analysis,       severity: error,   reason: "事象は刺激元アクタに依存（系内定期実行はFRで表現）" }
   # --- design ---
-  - { node: ORC,    target: P,              activate_stage: design,         severity: error,   reason: "ORCはプロセスを実装" }
+  - { node: ORC,    target: E,              activate_stage: design,         severity: error,   reason: "ORCは起動イベントを参照する" }
   - { node: DS,     target: P,              activate_stage: design,         severity: error,   reason: "DSはプロセスに紐づく" }
   - { node: MOD,    target: P,              activate_stage: design,         severity: error,   reason: "MODはプロセスを実装" }
   - { node: DM,     target: TERM,           activate_stage: design,         severity: error,   reason: "DMは用語を実装" }

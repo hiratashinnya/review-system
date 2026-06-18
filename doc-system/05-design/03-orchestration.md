@@ -1,12 +1,12 @@
 # オーケストレーション（ORC）
 
-> **型**: ORC ／ **必須上流**: P（refines ✅）
+> **型**: ORC ／ **必須上流**: E（trigger ✅）
 > spec-inspector 検査パイプラインの実行制御設計（doc-system 設計層）。
 > スイムレーン flowchart で端から端の実行フローを示す。
 
 ## ORC-1: 検査パイプライン実行
 
-<details><summary>⬡ ORC-1 · v0.1</summary>
+<details><summary>⬡ ORC-1 · v0.2</summary>
 
 ```yaml
 id: ORC-1
@@ -14,6 +14,8 @@ type: ORC
 labels: []
 scheduled: ""
 edges:
+  - to: E-1
+    ref_version: "0.5"
   - to: P-5
     ref_version: "0.2"
   - to: P-6
@@ -28,6 +30,8 @@ edges:
     ref_version: "0.2"
 ```
 </details>
+
+> **改訂理由（MINOR バンプ v0.1→v0.2）**: must_link_to ルールを ORC→P から ORC→E に変更（ORC の本質は起動イベントへの参照）。`→ E-1`（ref_version "0.5"）辺を追加。P ノードへの辺は実行する段の列挙として維持。
 
 **段の目的**: E-1（CLI 実行 `python -m spec_inspector`）をトリガに P-5→P-6→P-1→P-2→P-3→P-4 を直列実行し、O-1（RULE 違反レポート）/ O-2（カバレッジ点検結果）/ O-6（終了コード 0/1）を生成する
 
