@@ -77,6 +77,8 @@ must_be_linked_from:
   - { node: E,    source: [P],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
   - { node: D,    source: [P],               activate_stage: analysis,     severity: error,   reason: "内部データは消費プロセスを持つ（P→D）" }
   - { node: ACTOR,source: [E, I, O],         activate_stage: analysis,     severity: warning, reason: "アクタは事象/入出力のいずれかに関与（OR）" }
+  # --- design ---
+  - { node: E,    source: [ORC],             activate_stage: design,       severity: warning, reason: "起動イベントは設計層のORCに参照される（DD-15）" }
   # --- verification（テスト実施保証の鎖 SPEC←TD←TC←TR）---
   - { node: SPEC, source: [TD],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
   - { node: TD,   source: [TC],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
