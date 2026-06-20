@@ -111,6 +111,35 @@ FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転す
 
 複数辺を持つ FND は対象辺ごとに記録する。辺が逆転した後も本文が指摘時の版の証跡を保持する。
 
+### 接続規則変更を伴う DD・FND の伝播チェック
+
+DD の決定内容または FND の処置が **config.yaml の接続規則（`must_link_to` / `must_be_linked_from`）の追加・変更・削除**を含む場合、機械判定の正本（config.yaml）だけでなく、その規則を人間/LLM 向けに表現する **out-of-graph 著作資産にも必ず同期**する。伝播漏れは次回著作時に旧ルールの誤った辺を再生産する（FND-99 パターン）。
+
+**伝播対象（該当行を確認・更新する）：**
+
+変更された型に対応する author エージェント・スキルを特定し、各資産で旧ルールの記述を更新する。
+
+| 資産カテゴリ | パス | 更新対象の型 |
+|---|---|---|
+| 接続マトリクス | `docs/doc-system/03-connection-matrix.md` | すべての型（mermaid 図・接続要否マトリクス） |
+| ドキュメント一覧 | `docs/doc-system/01-document-items.md` | すべての型（上流参照列） |
+| 設計スキル群 | `.claude/skills/architecture-design/SKILL.md`<br>`.claude/skills/domain-model/SKILL.md`<br>`.claude/skills/orchestration-design/SKILL.md` 等 | MOD / DM / ORC 等の設計層型 |
+| requirements-author | `.claude/agents/requirements-author.md`<br>`.github/agents/requirements-author.agent.md` | VAL / SR / FR / NFR |
+| spec-author | `.claude/agents/spec-author.md`<br>`.github/agents/spec-author.agent.md` | SPEC |
+| analysis-author | `.claude/agents/analysis-author.md`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / P / E |
+| design-author | `.claude/agents/design-author.md`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM |
+| verification-author（自身） | `.claude/agents/verification-author.md`<br>`.github/agents/verification-author.agent.md` | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+
+**チェック手順：**
+1. DD/FND の内容が接続規則変更を含むか判断（変更された型を特定する）
+2. 上記各資産で該当型の記述を `Grep` で確認し、旧ルールと新ルールの差分を把握する
+3. 差分がある資産を修正し、DD/FND の処置内容に「同期した資産リスト」を箇条書きで記録する
+4. 差分がない（既に同期済み）場合も、確認済みである旨を本文に記録する
+
+> 規則変更を伴わない通常の DD/FND（運用ルールや判断記録のみ）には本チェックは不要。
+
+---
+
 ### よくある誤り
 
 | 誤り | 正しい記述 |
@@ -121,6 +150,7 @@ FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転す
 | TR に log_ref なし | `log_ref` を YAML メタに書く（PASS でも必須・RULE-021 ERROR）|
 | 反映済みの affects を残す | 反映後は `DD→X` を削除し `X→DD` を張る |
 | 矛盾を contradicts 辺で表す | FND を起票し `FND→A`・`FND→B` の2辺で表す |
+| config.yaml の接続規則変更を著作資産に伝播しない | 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧にも同期する（FND-99 パターン）。処置内容に同期資産リストを記録する |
 
 ---
 
@@ -136,3 +166,4 @@ FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転す
 - [ ] `scheduled: ""`（空文字のみ）
 - [ ] ref_version が全辺にあり参照先の現在 x.y と一致（RULE-004）
 - [ ] **FND 解消時**: 対応状況を `resolved` にする場合、処置対象ノードに `→ FND-x` 辺を付与したか（処置対象削除の場合は FND 本文に「削除済みのため付与先なし」を明記）
+- [ ] **接続規則変更を伴う DD・FND の場合**: 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧への同期が完了しているか、または同期不要と判断した根拠を本文に記録したか
