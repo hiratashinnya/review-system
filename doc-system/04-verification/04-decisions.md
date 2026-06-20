@@ -482,9 +482,10 @@ edges:
 
 **status: decided**（2026-06-16 暫定決定／2026-06-17 改訂・設計フェーズ）
 
+> **改訂理由（MINOR バンプ v0.2→v0.3）**: FND-98（ダッシュボード・PR 本文の DD-13 v0.2 陳腐化）の解消に伴い `→FND-98`（ref_version "0.1"）バックリファレンス辺を付与（2026-06-20）。
 > **改訂理由（MINOR バンプ v0.1→v0.2）**: 判断基準を「L1 単位 + P-2-5 例外」から「孫プロセスあり OR 責務が明確に別 → L2 分割」に変更（2026-06-17）
 
-<details><summary>⬡ DD-13 · v0.2</summary>
+<details><summary>⬡ DD-13 · v0.3</summary>
 
 ```yaml
 id: DD-13
@@ -492,7 +493,9 @@ type: DD
 labels: []
 scheduled: ""
 suppress: []
-edges: []
+edges:
+  - to: FND-98
+    ref_version: "0.1"
 ```
 </details>
 
