@@ -3,8 +3,8 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-06-16 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
-> 直近: **設計層（凍結セット）着手（N2）**。MOD-1〜12 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1（計 18 ノード）を `doc-system/05-design/` に著作。DD-13（MOD 粒度）・DD-14（FileSystemPort 粒度）を起票。current_stage → `design` に進行。
+> **最終更新**: 2026-06-20 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> 直近: **DD-13 v0.2 改訂・DD-15 起票・ORC-2 新設**。MOD 粒度を「孫プロセスあり OR 責務別 → L2 分割」に改訂（MOD-13〜18 新設・計 25 設計ノード）。ORC 必須辺 P→E 変更（DD-15）・config.yaml must_be_linked_from 追加・ORC-2（著作・反映パイプライン）新設。
 
 ---
 
@@ -31,13 +31,13 @@
 |---|---|---|---|---|
 | requirements | VAL / SR / FR / NFR / SPEC | 210 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 174 ノード・うち post-mvp 24） |
 | analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
-| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 18 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜12 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1 著作済み。テスト戦略 ④ 未着手 |
+| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 25 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み（DD-13 v0.2 粒度改訂・DD-15 ORC→E 変更）。テスト戦略 ④ 未着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
-| 横断スパイン | DD / Q / PEND | 17 | ✅ | DD-1〜12（全反映済・DD-12 分析層見直し）・Q-1 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
+| 横断スパイン | DD / Q / PEND | 20 | ✅ | DD-1〜15（DD-13 MOD 粒度・DD-14 FileSystemPort・DD-15 ORC→E）・Q-1 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
 
 > 凡例：✅ 完了／🔄 進行中／⬜ 未着手。ノード数は `-N` 子・`labels: post-mvp` を含む実数。
-> current_stage が `design` に進行（N2・2026-06-16）。design 発火の辺ルール（MOD→P / PORT→MOD / DS→P / PRS→DS / ORC→P）が全ノードに適用中。
+> current_stage が `design` に進行（N2・2026-06-16）。design 発火の辺ルール（MOD→P / PORT→MOD / DS→P / PRS→DS / ORC→E）が全ノードに適用中（DD-15 により ORC→P から ORC→E に変更）。
 
 ---
 
@@ -46,7 +46,7 @@
 | # | アクション | 優先 | 根拠 / 状態 |
 |---|---|---|---|
 | N3 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後（テスト戦略 ④ 完了後） |
-| N12 | テスト戦略 ④（凍結セット残項目） | 🟡 中 | 設計 18 ノード著作済み。`/test-strategy` スキルで TD/TC 設計。凍結セット完了前に N3 着手しない |
+| N12 | テスト戦略 ④（凍結セット残項目） | 🟡 中 | 設計 25 ノード著作済み。`/test-strategy` スキルで TD/TC 設計。凍結セット完了前に N3 着手しない |
 | N11 | 03-spec.md 残課題 FND-79/81/82/83/88/89/91（INFO 7件）の実施スプリント決定 | 🔵 低 | 全 INFO・`scheduled` 未設定。オーナー判断待ち（独断繰り越し禁止） |
 
 > **完了済み（経緯は DD/FND ノードに保全・PR8）**: **N2（設計層着手・MOD-1〜12/PORT-1/DS-1〜3/PRS-1/ORC-1 著作・DD-13/DD-14・current_stage→design・2026-06-16）**／**N1（current_stage→analysis・2026-06-15）／N8（O-4/O-5/P-8/P-9 補完・FND-92・2026-06-15）**／N0（VERIFY-2 再点検）／N4（PEND-1 resolved）／N5（VERIFY-3・P 単一責務）／N6（DD-5・NFR→SPEC 導出）／N7（FND-18・SPEC-52/53・RULE-028）／N9・N10（VAL-5/6・SR-8/9 を sprint-2 起票）／DFD 生成（03-analysis/00-dfd.md）／**分析層全面見直し（DD-12・FND-93/94・I-1-x 退役・DFD 再生成・2026-06-16）**／PR #21・#22 レビュー（FND-24〜39）。
