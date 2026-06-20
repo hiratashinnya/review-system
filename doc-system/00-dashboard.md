@@ -12,18 +12,11 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
-| PR #28 レビュー対応：ORC-1 と DD-15 の矛盾（FND-97）・ダッシュボード陳腐化（FND-98） | FND ×2 | ✅ resolved（2026-06-20）。ORC-1 P 辺 6 本を削除（v0.3→v0.4）・ダッシュボード 3 箇所更新・PR 本文更新 |
 | FND-96 設計修正 — DM→MOD→D 正規化（選択肢A・sprint-1） | FND-96 | 🔄 実施予定（2026-06-20 選択肢A・sprint-1 確定）。設計修正（config.yaml + MOD-1 辺 + DM/TERM 著作）は別コミットにて実施 |
+| PR #28 レビュー対応：ORC-1 と DD-15 の矛盾（FND-97）・ダッシュボード陳腐化（FND-98） | FND ×2 | ✅ resolved（2026-06-20）。ORC-1 P 辺 6 本を削除（v0.3→v0.4）・ダッシュボード 3 箇所更新・PR 本文更新 |
 | 設計層（凍結セット）着手（N2）：MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作・反映。DD-13 v0.2 改訂・DD-14・DD-15 起票。current_stage→design | N2 | ✅ done（2026-06-20）。design-author→reconciliation 完了。`doc-system/05-design/` 新設。config.yaml current_stage=design |
-| 分析層 全面的見直し：D 分割・P リーフ分解・P-2-5 新設・I-1-x 退役・DFD 再生成（DD-12） | DD-12 | ✅ reflected（2026-06-16）。Pass1〜3b で段階反映。FND-93/94 resolved・Q-2 open。spec-inspector クリーン |
-| PR #27 レビュー対応：終了コードの O モデル化（③）・PR 説明是正（②） | FND ×1 | ✅ resolved（2026-06-16）。O-6「終了コード」新設で P-4-4 終端出力を価値経路接続（FND-95）。DFD/ダッシュボード反映 |
-| current_stage を `analysis` へ進行（N1） | N | ✅ done（2026-06-15）。config.yaml 更新・stage 進行後 spec-inspector 点検クリーン |
-| 依存グラフ機能の分析層補完 O-4/O-5/P-8/P-9（N8） | DD-6 | ✅ reflected（2026-06-15）。analysis-author 著作→reconciliation 反映。E-1 整合不整合は FND-92 で resolved。DD-6 反映完了 |
-| E-1 本文が P-8/P-9・O-4/O-5 を未反映の不整合（FND-92） | FND ×1 | ✅ resolved（2026-06-15）。E-1 本文改訂（`--coverage`/P-3-2 先例と整合・新 E 不要）。z バンプ据置（DD-8 §4）|
-| PEND 義務辺残存 failure SPEC 新設（FND-80） | FND ×1 | ✅ resolved（2026-06-15）。SPEC-55（RULE-022 WARNING）新設で decision_spine 3型カバレッジ対称回復 |
-| 自己点検残課題 FND-85/86/87/90 を即処置（DD-11 新設） | FND ×4 | ✅ resolved（2026-06-15）。SPEC-49 用語訂正／`{NFR-id}-check` 台帳登録／SPEC-30 D カバレッジ明記／SPEC-45・46 観測主体一意化 |
-| 全 SPEC 自己点検（spec-inspector ×6・175 ノード） | 点検 | ✅ 構造クリーン。2-object 子2件を即修正（SPEC-29-2／SPEC-31-1 分割）・新規残課題を FND-85〜91 起票（2026-06-15） |
-| 03-spec.md 本文品質（FND-40〜77）テスタブル化分割 | FND ×38 | ✅ resolved（2026-06-15） |
+
+> 完了済みの旧作業（〜2026-06-16：DD-12 分析層見直し／PR #27／N1／N8／FND-92/80/85〜91／全 SPEC 自己点検／FND-40〜77）は本表から除去。経緯は DD/FND ノードと「推奨ネクストアクション」の完了済み行に保全（消さない＝PR8）。
 
 ---
 
