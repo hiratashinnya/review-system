@@ -477,3 +477,137 @@ edges:
 - **覆る場合の影響範囲**: 分割 D の粒度・P-2-5 の責務配置を見直す場合、io.md の D-9〜D-22 定義と processes.md の検査子⇔D 配線、00-dfd.md の L1/L2/L3 を一括改修する（分析層 3 ファイルに限定・要件層 SPEC は Q-2 の決定次第で波及）。
 
 ---
+
+## DD-13: MOD 粒度の選択
+
+**status: decided**（2026-06-16 暫定決定／2026-06-17 改訂・設計フェーズ）
+
+> **改訂理由（MINOR バンプ v0.2→v0.3）**: FND-98（ダッシュボード・PR 本文の DD-13 v0.2 陳腐化）の解消に伴い `→FND-98`（ref_version "0.1"）バックリファレンス辺を付与（2026-06-20）。
+> **改訂理由（MINOR バンプ v0.1→v0.2）**: 判断基準を「L1 単位 + P-2-5 例外」から「孫プロセスあり OR 責務が明確に別 → L2 分割」に変更（2026-06-17）
+
+<details><summary>⬡ DD-13 · v0.3</summary>
+
+```yaml
+id: DD-13
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-98
+    ref_version: "0.1"
+```
+</details>
+
+**論点**: spec-inspector の Python モジュール粒度をどの DFD レベルに合わせるか。「L2/L3 リーフ単位（1プロセス1モジュール）」「L1 親プロセス単位（1親P1モジュール）」のいずれにするか。ただし横断関心事の集約（P-2-5）など単一責務が明確なものをどう扱うか。
+
+**選択肢**:
+- **A: L2/L3 リーフ全単位**（34+ モジュール）。例: P-1-1: file_reader.py, P-1-2: marker_scanner.py … 各リーフ 1:1 でモジュール化。
+- **B: L1 親プロセス単位**（+ P-2-5 例外）。例: P-1 全体を parser.py に集約。P-2-5 のみ横断責務のため独立 filter.py とする。← **旧決定（v0.1）**
+- **C: 中間粒度（判断基準ベース）**「孫プロセス（L3 以深）あり OR 責務が明確に別 → L2 単位で分割。孫なし＋同一責務圏 → L1 維持」。← **新決定（v0.2）**
+
+**推奨**: **C**。A より少なく B より細かい中間粒度。リーフ全 1:1（A）はモジュールが爆発して管理不能だが、L1 一括（B）は L2 が複数 L3 を抱える親プロセスで 1 モジュール内の関数数が爆発し、責務が異なる処理が同居してしまう。孫の有無と責務圏を判断基準に据えることで、両極の弊害を回避する。
+
+**決定**: **C を採用**（オーナー要確認で覆る場合は影響範囲参照・2026-06-17 改訂）。
+
+**根拠**:
+- 旧決定 B（L1 単位）は、P-2 / P-3 / P-7 の各 L2 がそれぞれ 2〜4 本の L3 リーフを持つことが分析で判明し、1 モジュール内の関数数が爆発する（例: P-2 配下に P-2-1〜P-2-4 の各 L3 を含めると checker.py 単体に十数関数が集中）。L2 単位に割ることで各モジュールの責務と関数数が適正化される。
+- P-1-6（検査ビュー射影）は孫を持たないが、「D-4 → 消費スライス D-17〜D-21 への射影」というビュー工場責務であり、parser.py の read→scan→parse→validate→assemble 変換パイプラインとは責務が明確に異なるため分離対象（孫なしでも責務が別なら分割の典型例）。
+- P-1-1〜P-1-5 は read→scan→parse→validate→assemble の密結合直列パイプラインで同一責務圏のため L1 単位（parser.py）に維持する。
+- P-4 / P-5 / P-6 は L2 のみ・孫なし・同一責務圏のため L1 単位（reporter.py / config.py / collector.py）を維持する。
+- 旧 B の P-2-5 例外（横断関心事を独立モジュール filter.py に）は新基準「責務が明確に別 → 分割」に自然に包含される（特例扱いをやめ一般則で説明できる）。
+
+**影響範囲**（本ファイル反映は別パス＝design-author→reconciliation。本 DD 改訂に伴う MOD 改訂で反映辺は reconciliation 時に X→DD-13 を付与）:
+
+更新対象（既存 MOD の MINOR バンプ）:
+- **MOD-4**（parser.py → P-1）: 責務を P-1-1〜P-1-5（変換パイプライン）に限定。P-1-6 は MOD-13（projector.py）へ分離。MINOR バンプ v0.1→v0.2。
+- **MOD-5**（checker.py → P-2）: drift_checker.py へ改名・参照先を P-2-1 へ変更。MINOR バンプ v0.1→v0.2。
+- **MOD-7**（coverage.py → P-3）: graph_coverage.py へ改名・参照先を P-3-1 へ変更。MINOR バンプ v0.1→v0.2。
+- **MOD-9**（author.py → P-7）: 参照先を P-7-1（著作側）へ変更。MINOR バンプ v0.1→v0.2。
+
+新規追加 MOD（6 件）:
+- **MOD-13**: projector.py（→ P-1-6・検査ビュー射影／ビュー工場責務）
+- **MOD-14**: structure_checker.py（→ P-2-2）
+- **MOD-15**: condition_checker.py（→ P-2-3）
+- **MOD-16**: verification_checker.py（→ P-2-4）
+- **MOD-17**: spec_coverage.py（→ P-3-2）
+- **MOD-18**: reconciler.py（→ P-7-2・調停側）
+
+維持（変更なし）:
+- filter.py（→ P-2-5・横断関心事の抑制/発火フィルタ）、reporter.py（→ P-4）、config.py（→ P-5）、collector.py（→ P-6）は L1/単一責務単位を維持。
+
+総 MOD 数: 12 → 18。
+
+**覆る場合の影響範囲**: 判断基準を A（リーフ全単位）または B（L1 一括）へ戻す場合、MOD-4/5/7/9 の参照先と MOD-13〜18 の新設/削除、依存規則図（core レイヤのモジュール列）を一括改修する（影響は設計層 module-architecture とクラス設計に限定・分析層 P ノードは不変）。
+
+## DD-14: FileSystemPort の抽象化粒度
+
+**status: decided**（2026-06-16 暫定決定・設計フェーズ）
+
+<details><summary>⬡ DD-14 · v0.1</summary>
+
+```yaml
+id: DD-14
+type: DD
+labels: []
+scheduled: ""
+edges: []
+```
+</details>
+
+**論点**: ファイルシステムアクセスを抽象化するポートを「list_md_files + read_file を1つにまとめる FileSystemPort」にするか「ListPort / ReadPort を別々に定義」するか。
+
+**選択肢**:
+- A: 単一 FileSystemPort（list_md_files: Path → list[Path], read_file: Path → str）
+- B: ListFilesPort と ReadFilePort を別ポートとして定義
+
+**推奨**: A（単一 Port）。理由: list と read は常にペアで使われ（list してから各ファイルを read）、別 Port にしても合成ルートの DI が複雑になるだけで利点がない。FakeFsAdapter も1つ実装すれば済む。Python の `Protocol` で2つのメソッドを持てばよい。
+
+**決定**: A を暫定採用（2026-06-16）
+
+**影響範囲**:
+- PORT-1（FileSystemPort）は2メソッド持つ単一 Protocol として定義
+- MOD-11（adapters/fs.py）は RealFsAdapter + FakeFsAdapter の2クラスを同一ファイルに置く
+- 将来 write_file が必要になった場合は FileSystemPort にメソッドを追加（MINOR バンプ）するか、WritePort を別途追加する
+
+---
+
+## DD-15: ORC の must_link_to 参照先を P から E へ変更（設計ノードの上流参照の定義）
+
+**status: decided**（2026-06-18 設計フェーズ）
+
+<details><summary>⬡ DD-15 · v0.1</summary>
+
+```yaml
+id: DD-15
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+**論点**: ORC（オーケストレーション）の `must_link_to` の参照先を P（プロセス）にするか E（イベント）にするか。設計ノードの上流参照をどう定義するかの問題。現行 config.yaml では `must_link_to: ORC → [P]`（「ORC はプロセスを実装」・MOD→P と同型）だが、ORC の識別子の本質は「何がパイプラインを起動するか」であり、MOD→P が捉える「モジュールがプロセスを実装」とは別の依存関係を表すべきではないか。
+
+**選択肢**:
+- **A（ORC→P）**: 「ORC はプロセスを実装」。設計→分析トレーサビリティを確保し、MOD→P と同型の参照とする。
+- **B（ORC→E）**: 「ORC は起動イベントを参照」。ORC の識別子は "何がパイプラインを起動するか" であり、MOD→P とは別の依存関係（トリガ依存）を捉える。
+
+**推奨**: **B**。
+
+**根拠**:
+- ORC の本質は「何をトリガに・どの順序でプロセスを走らせるか」の記述である。トリガ（E）への参照こそが必須であり、P への参照（実行段の列挙）は本文で表現できる。
+- MOD→P で「モジュールがプロセスを実装」する関係は既にカバーされており、ORC→P は同じ軸の重複になる。
+- ORC→E がなければ "何が起動するか" が RULE で保証されず、ORC が浮いた設計（トリガ未定義）になりえる。
+
+**決定**: **B を採用**（2026-06-18）。`must_link_to: ORC → [E]` に変更し、ORC は起動イベントへの参照を必須とする。
+
+**影響範囲**（本ファイル反映は別パス＝design-author→reconciliation。反映辺は reconciliation 時に X→DD-15 を付与）:
+- `docs/doc-system/config.yaml`（out-of-graph）: `must_link_to` の ORC target を `P` → `E` に変更（reason を「ORC は起動イベントを参照する」に更新）。`must_be_linked_from` に `E ← [ORC]`（design ステージ・warning・「イベントは起動する ORC を持ちうる」）を追加。
+- `doc-system/05-design/03-orchestration.md`: ORC-1 に `→E-1` 辺を追加（MINOR バンプ v0.1→v0.2）。`→DD-15` バックリファレンス付与。従来の P への参照は本文で実行段として表現する。
+- `.claude/skills/architecture-design/SKILL.md`（out-of-graph）: `must_link_to` 表に `ORC → E(trigger)` を追記し、ORC→P が重複である旨を注記。
+
+**覆る場合の影響範囲**: A（ORC→P）へ戻す場合、ORC-1 の E-1 辺を削除し P 辺を必須に戻す、config.yaml の `must_link_to` ORC target を E→P に戻し `must_be_linked_from: E←[ORC]` を撤回、SKILL.md の表を元に戻す（影響は設計層 orchestration と config・SKILL に限定・分析層 E ノードは不変）。
+
+---

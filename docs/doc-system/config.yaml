@@ -5,7 +5,7 @@
 #   RULE-004 のドリフト判定は「辺の ref_version ≠ 参照先ノードのバッジ x.y」で行う。
 
 current_phase: "sprint-1"
-current_stage: "analysis"   # requirements | analysis | design | implementation | verification
+current_stage: "design"   # requirements | analysis | design | implementation | verification
 
 phases: [sprint-1, sprint-2, sprint-3]
 stages: [requirements, analysis, design, implementation, verification]
@@ -39,7 +39,7 @@ must_link_to:
   - { node: E,      target: SPEC,           activate_stage: analysis,       severity: error,   reason: "イベントは仕様に紐づく" }
   - { node: E,      target: ACTOR,          activate_stage: analysis,       severity: error,   reason: "事象は刺激元アクタに依存（系内定期実行はFRで表現）" }
   # --- design ---
-  - { node: ORC,    target: P,              activate_stage: design,         severity: error,   reason: "ORCはプロセスを実装" }
+  - { node: ORC,    target: E,              activate_stage: design,         severity: error,   reason: "ORCは起動イベントを参照する" }
   - { node: DS,     target: P,              activate_stage: design,         severity: error,   reason: "DSはプロセスに紐づく" }
   - { node: MOD,    target: P,              activate_stage: design,         severity: error,   reason: "MODはプロセスを実装" }
   - { node: DM,     target: TERM,           activate_stage: design,         severity: error,   reason: "DMは用語を実装" }
@@ -77,6 +77,8 @@ must_be_linked_from:
   - { node: E,    source: [P],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
   - { node: D,    source: [P],               activate_stage: analysis,     severity: error,   reason: "内部データは消費プロセスを持つ（P→D）" }
   - { node: ACTOR,source: [E, I, O],         activate_stage: analysis,     severity: warning, reason: "アクタは事象/入出力のいずれかに関与（OR）" }
+  # --- design ---
+  - { node: E,    source: [ORC],             activate_stage: design,       severity: warning, reason: "起動イベントは設計層のORCに参照される（DD-15）" }
   # --- verification（テスト実施保証の鎖 SPEC←TD←TC←TR）---
   - { node: SPEC, source: [TD],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
   - { node: TD,   source: [TC],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
