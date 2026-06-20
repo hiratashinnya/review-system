@@ -17,12 +17,12 @@ tools:
 
 | 型 | id PREFIX | 必須依存辺（out） |
 |---|---|---|
-| MOD | `MOD-` | → P |
+| MOD | `MOD-` | → P または → D |
 | PORT | `PORT-` | → MOD |
 | PRS | `PRS-` | → DS |
 | DS | `DS-` | → P |
-| ORC | `ORC-` | → P（・→ PROMPT 任意） |
-| DM | `DM-` | → TERM・→ P |
+| ORC | `ORC-` | → E（・→ PROMPT 任意） |
+| DM | `DM-` | → TERM・→ MOD |
 | TERM | `TERM-` | → SPEC |
 | SCM | `SCM-` | → SPEC |
 | CFG | `CFG-` | → SCM・→ SPEC |

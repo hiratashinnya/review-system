@@ -2611,4 +2611,57 @@ edges:
 
 **対応内容**: 解消と同時起票。ダッシュボード 3 箇所（DD-13 サマリ行・直近作業 N2 行・完了済み行）を DD-13 v0.2（C 案・MOD-1〜18・2026-06-20）・DD-15・ORC-2 を反映した記述へ更新済み。PR #28 本文は GitHub 側で更新済み。指摘の原因ノード DD-13 に `→FND-98` のバックリファレンス辺を付与する（reconciliation 反映時）。
 
+## FND-99: 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播
+
+<details><summary>⬡ FND-99 · v0.1</summary>
+
+```yaml
+id: FND-99
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: FND-96
+    ref_version: "0.4"
+  - to: DD-15
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+
+**対応状況**: resolved（解消と同コミットで処置済み・sprint-1）
+
+**指摘時 ref_version**:
+- FND-96 "0.4"（02-findings.md の FND-96 バッジ v0.4 時点）
+- DD-15 "0.1"（04-decisions.md の DD-15 バッジ v0.1 時点）
+
+### 内容
+
+設計層の接続規則を変更する決定（FND-96・DD-15）が、`config.yaml`（機械判定の正本）には反映されているものの、その規則を人間/LLM 向けに表現する out-of-graph の著作資産（スキル・エージェント定義・接続マトリクス等）には伝播していなかった。著作資産が config と食い違ったまま放置されると、次回 design-author がノードを著作する際に**旧ルールの誤った辺を再生産する**。FND-98（DD-13 改訂後のダッシュボード/PR 本文の陳腐化）と同種の「決定の非伝播」ドリフト。
+
+ドリフトしていた規則は2系統:
+
+1. **FND-96（MOD/DM 規則・2026-06-20）**: `MOD → P`（単一）→ 正しくは `MOD → [P | D]`（OR）。`DM → P` → 正しくは `DM → MOD`（DM→MOD→D チェーン）。
+2. **DD-15（ORC 規則・2026-06-18）**: `ORC → P` → 正しくは `ORC → E`（起動イベント参照）。architecture-design スキルには反映済みだったが、他の著作資産に未伝播だった。
+
+### 深刻度判定の根拠
+
+`config.yaml`（機械判定の正本）は既に正しいため、検証ツール上の live な RULE 違反は発生しない（out-of-graph 資産は `trace_scope` 対象外）。一方、著作ガイドが正本と食い違うと誤った辺の再生産を招くため、FND-98 と同じく構造的・運用上のドリフトとして **WARNING**。
+
+### 対応内容
+
+解消と同時起票。以下7資産を `config.yaml` の正ルールに同期（FND-96 の `MOD→[P|D]`／`DM→MOD`、DD-15 の `ORC→E`）:
+
+- `.claude/skills/architecture-design/SKILL.md`（MOD 必須辺）
+- `.claude/skills/domain-model/SKILL.md`（DM 必須辺・TERM→SPEC 補正）
+- `.claude/skills/orchestration-design/SKILL.md`（ORC 必須辺）
+- `.claude/agents/design-author.md`（MOD/ORC/DM 行）
+- `.github/agents/design-author.agent.md`（MOD/ORC/DM 行）
+- `docs/doc-system/03-connection-matrix.md`（mermaid＋接続要否マトリクス MOD/DM/ORC 行）
+- `docs/doc-system/01-document-items.md`（MOD/DM/ORC 上流参照）
+
+> **バックリファレンスの扱い**: FND-99 の**処置対象は上記7資産（いずれも out-of-graph・ノードでない）**ため、CLAUDE.md 規約に従いノードへのバックリファレンス付与先はない（本文に明記）。FND-99 は「指摘は対象要素を指す」に従い、規則の出所ノード FND-96（ref "0.4"）・DD-15（ref "0.1"）を subject 辺として指す（RULE-005 非孤立・RULE-007 充足）。FND-96・DD-15 は本指摘の subject であって処置対象ではないため、両ノードの版・辺は変更しない。
+
 **指摘時 ref_version**: DD-13 "0.2"（04-decisions.md の DD-13 バッジ v0.2 時点）

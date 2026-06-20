@@ -45,12 +45,12 @@ suppress: []          # inline comment に理由必須。RULE-007 は抑制不�
 
 | 型 | id PREFIX | 例 | 必須依存辺（out） |
 |---|---|---|---|
-| MOD | `MOD-` | `MOD-1` | → P |
+| MOD | `MOD-` | `MOD-1` | → P または → D |
 | PORT | `PORT-` | `PORT-1` | → MOD |
 | PRS | `PRS-` | `PRS-1` | → DS |
 | DS | `DS-` | `DS-1` | → P |
-| ORC | `ORC-` | `ORC-1` | → P（・→ PROMPT 任意） |
-| DM | `DM-` | `DM-1` | → TERM・→ P |
+| ORC | `ORC-` | `ORC-1` | → E（・→ PROMPT 任意） |
+| DM | `DM-` | `DM-1` | → TERM・→ MOD |
 | TERM | `TERM-` | `TERM-1` | → SPEC |
 | SCM | `SCM-` | `SCM-1` | → SPEC |
 | CFG | `CFG-` | `CFG-1` | → SCM・→ SPEC |

@@ -67,8 +67,8 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 
 | 型 | 必須辺 |
 |---|---|
-| DM | → TERM (refines)、→ P (refines) |
-| TERM | 被参照中心（接続マトリクスで確認） |
+| DM | → TERM、→ MOD（型定義はモジュールに属す・DM→MOD→D チェーン・FND-96） |
+| TERM | → SPEC |
 
 **本文フォーマット**
 
