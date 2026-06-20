@@ -2416,7 +2416,7 @@ edges:
 
 ## FND-96: 設計層の接続チェーン DM→MOD→D が欠落しており MOD→P / DM→P の強制が PR1 違反を生む
 
-<details><summary>⬡ FND-96 · v0.3</summary>
+<details><summary>⬡ FND-96 · v0.4</summary>
 
 ```yaml
 id: FND-96
@@ -2430,6 +2430,9 @@ edges:
 </details>
 
 **深刻度**: WARNING
+
+**改訂理由（MINOR バンプ v0.3→v0.4）**:
+選択肢A（DM→MOD→D 正規化・フル実施）を sprint-1 で適用・完了し、対応状況を resolved に更新。実施した処置は以下のとおり。(1) `config.yaml` の `MOD → P`（必須・単一ターゲット）を `MOD → [P | D]`（OR）へ変更し、`DM → P` を `DM → MOD` へ変更（`DM → TERM` は維持）。(2) MOD-1 の `→P-1` 辺を削除し、realize するデータ型概念 D-4・D-6・D-9〜D-21 への辺へ変更（MOD-1 を MINOR バンプ v0.1→v0.2・`→FND-96` バックリファレンス付与）。(3) TERM-1〜4（NodeRecord / EdgeRecord / ViolationRecord / ConfigSlice）を新設。(4) DM-1〜4（各型の DM ノード・`→TERM` + `→MOD-1`）を新設。指摘対象・edges・深刻度は変更しない（処置完了の記録のため MINOR バンプ）。MOD-1 が `→FND-96` を張り返すため FND-96 自体の edges は現状維持（`→MOD-1` のみ）。
 
 **改訂理由（MINOR バンプ v0.2→v0.3）**:
 オーナーが選択肢A（DM→MOD→D 正規化・フル実施）・実施スプリント sprint-1 を決定。
@@ -2506,7 +2509,15 @@ MOD-1 が定義するデータ型と分析層 D の対応:
 
 **推奨**: **A**。B は中間として成立するが、`DM→MOD` ルールに対応するノード（DM）が存在しない状態が続く。A の TERM + DM ノード著作は作業量があるが、設計層の完全性（PR6・DM→MOD→D の連続）のために必要。C は違反据え置きとなる。実施スプリントはオーナー判断（`scheduled` は空のまま）。
 
-**対応状況**: 選択肢A 確定（sprint-1 実施予定）。設計修正（config.yaml の MOD→[P|D] / DM→MOD 変更・MOD-1 辺変更・DM/TERM ノード新設）は別コミットにて実施する。
+**対応状況**: resolved
+
+**対応内容**（選択肢A 適用・sprint-1 完了）:
+- **config.yaml**（`docs/doc-system/config.yaml`）：必須辺 `{ node: MOD, target: P, ... }` を `{ node: MOD, target: [P, D], ... }`（OR・reason: "MODはプロセスを実装（処理系）またはデータ型を実現（D）"）へ変更。`{ node: DM, target: P, ... }` を `{ node: DM, target: MOD, ... }`（reason: "DM型定義はモジュールに属す（DM→MOD→D チェーン）"）へ変更。`DM → TERM` は維持。
+- **MOD-1**（`doc-system/05-design/01-modules.md`）：`→P-1` 辺を削除し、realize するデータ型概念へ辺を変更（D-4 "0.2"・D-6 "0.1"・D-9 "0.2"・D-10〜13 "0.1"・D-14 "0.2"・D-15〜21 "0.1"）。`→FND-96`（ref_version "0.3"）バックリファレンス辺を付与。MINOR バンプ v0.1→v0.2。
+- **TERM-1〜4 新設**（`doc-system/03-analysis/05-terms.md`）：TERM-1 NodeRecord・TERM-2 EdgeRecord・TERM-3 ViolationRecord・TERM-4 ConfigSlice の用語定義を著作。
+- **DM-1〜4 新設**（`doc-system/05-design/04-domain-model.md`）：DM-1 NodeRecord型・DM-2 EdgeRecord型・DM-3 ViolationRecord型・DM-4 ConfigSlice型群を著作（各 `→TERM` + `→MOD-1`）。
+- これにより設計層の接続チェーン `DM → MOD → D` が確立し、MOD-1 はデータ（もの）を D の辺で表現するようになった（PR1 category error 解消）。追跡経路 `DM → MOD-1 → D → P` が連続し PR6 を満たす。
+- バックリファレンス辺は処置対象 MOD-1（v0.2）側に reconciliation 反映時に付与済み。FND-96 自体の edges は MOD-1 が張り返すため現状維持（`→MOD-1` のみ）。
 
 ## FND-97: ORC-1 frontmatter の P 辺が DD-15 決定に反する（解消済み）
 

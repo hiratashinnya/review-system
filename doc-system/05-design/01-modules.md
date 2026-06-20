@@ -21,7 +21,7 @@ domain ← ports ← core（config / collector / parser / projector /
 
 ## MOD-1: domain
 
-<details><summary>⬡ MOD-1 · v0.1</summary>
+<details><summary>⬡ MOD-1 · v0.2</summary>
 
 ```yaml
 id: MOD-1
@@ -29,7 +29,37 @@ type: MOD
 labels: []
 scheduled: ""
 edges:
-  - to: P-1
+  - to: D-4
+    ref_version: "0.2"
+  - to: D-6
+    ref_version: "0.1"
+  - to: D-9
+    ref_version: "0.2"
+  - to: D-10
+    ref_version: "0.1"
+  - to: D-11
+    ref_version: "0.1"
+  - to: D-12
+    ref_version: "0.1"
+  - to: D-13
+    ref_version: "0.1"
+  - to: D-14
+    ref_version: "0.2"
+  - to: D-15
+    ref_version: "0.1"
+  - to: D-16
+    ref_version: "0.1"
+  - to: D-17
+    ref_version: "0.1"
+  - to: D-18
+    ref_version: "0.1"
+  - to: D-19
+    ref_version: "0.1"
+  - to: D-20
+    ref_version: "0.1"
+  - to: D-21
+    ref_version: "0.1"
+  - to: FND-96
     ref_version: "0.3"
 ```
 </details>
@@ -39,6 +69,8 @@ edges:
 **公開 I/F**: `NodeRecord`, `EdgeRecord`, `ViolationRecord`, `ConfigSlice`
 **依存**: なし（最下層・他のどの層にも依存しない）
 **依存方向**: domain（被依存される最下層）
+
+> **改訂理由（MINOR バンプ v0.1→v0.2）**: FND-96 選択肢A（DM→MOD→D 正規化）。MOD-1 は処理プロセスを実装しないため P-1 辺を削除し、realize するデータ型概念 D-4/D-6/D-9〜D-21 への辺へ変更。`→FND-96` バックリファレンス付与。
 
 ---
 

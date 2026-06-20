@@ -4,7 +4,7 @@
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
 > **最終更新**: 2026-06-20 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
-> 直近: **PR #28 レビュー対応（FND-97/98 resolved）**。ORC-1 の P 辺を DD-15 違反として削除（v0.4）・本帳票の陳腐化を解消。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 の計 25 ノード（DD-13 v0.3「孫あり OR 責務別→L2 分割」C 案・DD-15 ORC→E）。進行中: **FND-96**（設計層 DM→MOD→D 正規化・選択肢A・sprint-1 実施待ち）。
+> 直近: **FND-96 resolved**（DM→MOD→D 正規化・選択肢A・2026-06-20）。config.yaml 変更（MOD→[P|D]・DM→MOD）・MOD-1 辺変更（→D-4〜D-21）・TERM-1〜4/DM-1〜4 新設。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜4 の計 29 ノード＋TERM-1〜4。
 
 ---
 
@@ -12,7 +12,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
-| FND-96 設計修正 — DM→MOD→D 正規化（選択肢A・sprint-1） | FND-96 | 🔄 実施予定（2026-06-20 選択肢A・sprint-1 確定）。設計修正（config.yaml + MOD-1 辺 + DM/TERM 著作）は別コミットにて実施 |
+| FND-96 設計修正 — DM→MOD→D 正規化（選択肢A・sprint-1） | FND-96 | ✅ resolved（2026-06-20）。config.yaml 変更（MOD→[P\|D]・DM→MOD）・MOD-1 辺変更（v0.1→v0.2）・TERM-1〜4/DM-1〜4 新設 |
 | PR #28 レビュー対応：ORC-1 と DD-15 の矛盾（FND-97）・ダッシュボード陳腐化（FND-98） | FND ×2 | ✅ resolved（2026-06-20）。ORC-1 P 辺 6 本を削除（v0.3→v0.4）・ダッシュボード 3 箇所更新・PR 本文更新 |
 | 設計層（凍結セット）着手（N2）：MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作・反映。DD-13 v0.3 改訂・DD-14・DD-15 起票。current_stage→design | N2 | ✅ done（2026-06-20）。design-author→reconciliation 完了。`doc-system/05-design/` 新設。config.yaml current_stage=design |
 
@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | requirements | VAL / SR / FR / NFR / SPEC | 210 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 174 ノード・うち post-mvp 24） |
 | analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
-| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 25 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み（DD-13 v0.3 粒度改訂・DD-15 ORC→E・ORC-1 v0.4 で P 辺削除）。FND-96（DM→MOD→D 正規化で DM/TERM 著作）・テスト戦略 ④ 未着手 |
+| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 29 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み。FND-96（DM→MOD→D 正規化）resolved（2026-06-20）：DM-1〜4 / TERM-1〜4 新設・config.yaml 修正・MOD-1 v0.2。テスト戦略 ④ 未着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
 | 横断スパイン | DD / Q / PEND | 20 | ✅ | DD-1〜15（DD-13 MOD 粒度・DD-14 FileSystemPort・DD-15 ORC→E）・Q-1 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
@@ -64,11 +64,11 @@
 
 ## 📋 FND サマリ
 
-**計 98 件：✅ resolved 89 ／ ⏳ open 9**
+**計 98 件：✅ resolved 90 ／ ⏳ open 8**
 
-> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。**FND-96**（設計層 DM→MOD→D チェーン欠落＝PR1）はオーナー判断で選択肢A・sprint-1 実施確定（open・実施待ち）。**FND-97/98**（PR #28 レビュー：ORC-1 P 辺の DD-15 違反／ダッシュボード・PR 本文の陳腐化）は即 resolved（2026-06-20・ORC-1 v0.4・本帳票更新）。INFO の残 open（FND-79/81/82/83/88/89/91）は全て `scheduled` 未設定。WARNING の open は FND-35（sprint-2 承認済）・FND-96（sprint-1 確定）。明細は `04-verification/02-findings.md`。
+> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。**FND-96**（設計層 DM→MOD→D チェーン欠落＝PR1）は選択肢A フル実施で resolved（2026-06-20・config.yaml + MOD-1 + TERM-1〜4 + DM-1〜4）。**FND-97/98**（PR #28 レビュー：ORC-1 P 辺の DD-15 違反／ダッシュボード・PR 本文の陳腐化）は即 resolved（2026-06-20・ORC-1 v0.4・本帳票更新）。INFO の残 open（FND-79/81/82/83/88/89/91）は全て `scheduled` 未設定。WARNING の open は FND-35（sprint-2 承認済）のみ（FND-96 は 2026-06-20 resolved）。明細は `04-verification/02-findings.md`。
 
-### open 明細（9 件）
+### open 明細（8 件）
 
 | ID | 深刻度 | 状態 | 概要 |
 |---|---|---|---|
@@ -80,7 +80,6 @@
 | FND-88 | INFO | ⏳ open | SPEC-13 の condition が入力/トリガ側にあり期待動作の文頭に来ていない |
 | FND-89 | INFO | ⏳ open | アンブレラ SPEC-44 の condition=normal が子（boundary/error）を代表せず |
 | FND-91 | INFO | ⏳ open | SPEC-3-1 が人手採番で機械観測が弱く `例` 欠落 |
-| FND-96 | WARNING | 🔄 sprint-1 実施予定 | 設計層 DM→MOD→D チェーン欠落（PR1）→ 選択肢A 確定（config.yaml + MOD-1 辺 + DM/TERM 著作） |
 
 ---
 
