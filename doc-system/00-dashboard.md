@@ -12,7 +12,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
-| `MOD→P` がデータ/インフラ MOD を「プロセス実装」と誤分類（PR1 違反）を発見 → FND-96 起票 | FND ×1 | ⏳ open（2026-06-20）。MOD-1(domain)/10/11/12 が対象。推奨 A（`MOD→[P,D]`）。選択肢・実施スプリントはオーナー判断 |
+| FND-96 設計修正 — DM→MOD→D 正規化（選択肢A・sprint-1） | FND-96 | 🔄 実施予定（2026-06-20 選択肢A・sprint-1 確定）。設計修正（config.yaml + MOD-1 辺 + DM/TERM 著作）は別コミットにて実施 |
 | 設計層（凍結セット）着手（N2）：MOD-1〜12 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1 著作・反映。DD-13/DD-14 起票。current_stage→design | N2 | ✅ done（2026-06-16）。design-author→reconciliation 完了。`doc-system/05-design/` 新設。config.yaml current_stage=design |
 | 分析層 全面的見直し：D 分割・P リーフ分解・P-2-5 新設・I-1-x 退役・DFD 再生成（DD-12） | DD-12 | ✅ reflected（2026-06-16）。Pass1〜3b で段階反映。FND-93/94 resolved・Q-2 open。spec-inspector クリーン |
 | PR #27 レビュー対応：終了コードの O モデル化（③）・PR 説明是正（②） | FND ×1 | ✅ resolved（2026-06-16）。O-6「終了コード」新設で P-4-4 終端出力を価値経路接続（FND-95）。DFD/ダッシュボード反映 |
@@ -56,11 +56,10 @@
 
 ## ⏳ オーナー判断待ち
 
-**計 4 件**
+**計 3 件**
 
 | 項目 | 優先 | 種別 | 次アクション |
 |---|---|---|---|
-| FND-96：`MOD→P` 必須辺がデータ/インフラモジュール（MOD-1 domain ほか MOD-10/11/12）を「プロセス実装」と誤分類（PR1 違反） | 🟡 中 | FND | 推奨 A（`MOD→[P,D]` へ拡張・MOD-1 を D へ再ポイント）。選択肢 A/B/C・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | Q-2：傘 SPEC（SPEC-21/25/1・SPEC-29）の細分化要否＋ SPEC-29-1/29-2 リーフマップ | 🟡 中 | Q | 推奨 A（傘マップ維持・実害顕在時に細分化）。方針・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | Q-3：O-1/O-2 の生成元辺を P-4-3（リーフ）へ精緻化するか親 P-4 のままか | 🔵 低 | Q | 推奨 A（リーフ先例 O-3/O-6・フロー表に統一・最小変更）。採否・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | 03-spec.md 残課題 FND-79・81・82・83・88・89・91（計7件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（全 INFO）。`scheduled` 未設定 |
@@ -75,7 +74,7 @@
 
 > 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。残 open（FND-79/81/82/83/88/89/91）は全て INFO・`scheduled` 未設定。明細は `04-verification/02-findings.md`。
 
-### open 明細（9 件・`scheduled` は未設定でオーナー判断待ち）
+### open 明細（9 件）
 
 | ID | 深刻度 | 状態 | 概要 |
 |---|---|---|---|
@@ -87,7 +86,7 @@
 | FND-88 | INFO | ⏳ open | SPEC-13 の condition が入力/トリガ側にあり期待動作の文頭に来ていない |
 | FND-89 | INFO | ⏳ open | アンブレラ SPEC-44 の condition=normal が子（boundary/error）を代表せず |
 | FND-91 | INFO | ⏳ open | SPEC-3-1 が人手採番で機械観測が弱く `例` 欠落 |
-| FND-96 | WARNING | ⏳ open | `MOD→P` がデータ/インフラ MOD（MOD-1/10/11/12）を「プロセス実装」と誤分類（PR1）→ 推奨 A: `MOD→[P,D]` |
+| FND-96 | WARNING | 🔄 sprint-1 実施予定 | 設計層 DM→MOD→D チェーン欠落（PR1）→ 選択肢A 確定（config.yaml + MOD-1 辺 + DM/TERM 著作） |
 
 ---
 

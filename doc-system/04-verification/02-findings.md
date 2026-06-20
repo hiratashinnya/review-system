@@ -2416,7 +2416,7 @@ edges:
 
 ## FND-96: 設計層の接続チェーン DM→MOD→D が欠落しており MOD→P / DM→P の強制が PR1 違反を生む
 
-<details><summary>⬡ FND-96 · v0.2</summary>
+<details><summary>⬡ FND-96 · v0.3</summary>
 
 ```yaml
 id: FND-96
@@ -2430,6 +2430,11 @@ edges:
 </details>
 
 **深刻度**: WARNING
+
+**改訂理由（MINOR バンプ v0.2→v0.3）**:
+オーナーが選択肢A（DM→MOD→D 正規化・フル実施）・実施スプリント sprint-1 を決定。
+対応状況を「選択肢A 確定（sprint-1 実施予定）」に更新。
+設計修正（config.yaml・MOD-1 辺変更・DM/TERM ノード著作）は別コミットにて実施。
 
 **改訂理由（MINOR バンプ v0.1→v0.2）**:
 v0.1 は「MOD-1 が `MOD→P` を張っているのは category error」という**局所的な指摘**に留まっていた。オーナーとの議論で、本質は設計層の**接続チェーン構造ごと誤っている**点（正しくは `DM → MOD → D`）にあると確認された。これに伴い、(1) タイトルを接続チェーン欠落の問題として書き直し、(2) 正しいチェーン `DM→MOD→D` の説明・PORT→MOD パターンとの対比を追加、(3) 現状 config.yaml の誤り（`DM→P`／`MOD→P` 単一ターゲット）を2点明記、(4) 選択肢 A/B/C を DM→MOD→D 正規化を軸に改訂した。指摘対象・edges・深刻度・対応状況は変更しない（内容拡充のため MINOR バンプ）。
@@ -2480,7 +2485,7 @@ MOD-1 が定義するデータ型と分析層 D の対応:
 
 **選択肢（オーナー判断）**:
 
-- **選択肢A（推奨・DM→MOD→D 正規化・フル実施）**：
+- **選択肢A（採用・DM→MOD→D 正規化・フル実施）**：
   - `config.yaml`：`MOD → [P | D]`（OR）へ変更、`DM → P` を `DM → MOD` へ変更（`DM → TERM` は維持）。
   - MOD-1 の edge を D-4・D-6・D-9〜16・D-17〜21 へ変更。
   - DM ノードを新設（NodeRecord・EdgeRecord・ViolationRecord・ConfigSlice 等 → MOD-1 + 対応 TERM）。
@@ -2501,4 +2506,4 @@ MOD-1 が定義するデータ型と分析層 D の対応:
 
 **推奨**: **A**。B は中間として成立するが、`DM→MOD` ルールに対応するノード（DM）が存在しない状態が続く。A の TERM + DM ノード著作は作業量があるが、設計層の完全性（PR6・DM→MOD→D の連続）のために必要。C は違反据え置きとなる。実施スプリントはオーナー判断（`scheduled` は空のまま）。
 
-**対応状況**: open（オーナーの選択肢決定待ち。解消は設計フェーズの暫定決定として後続で DD 化する。実施スプリントはオーナー判断・独断繰り越しはしない＝`scheduled` は空）
+**対応状況**: 選択肢A 確定（sprint-1 実施予定）。設計修正（config.yaml の MOD→[P|D] / DM→MOD 変更・MOD-1 辺変更・DM/TERM ノード新設）は別コミットにて実施する。
