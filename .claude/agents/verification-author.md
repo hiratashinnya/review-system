@@ -1,6 +1,6 @@
 ---
 name: verification-author
-description: Authors verification-layer nodes: TD, TC, TR, VERIFY, FND, DD, Q, PEND. Use when creating test designs, test cases, test results, findings, or decision records. NOT for SPEC nodes (use spec-author), NOT for writing to main files (use reconciliation).
+description: "Authors verification-layer nodes: TD, TC, TR, VERIFY, FND, DD, Q, PEND. Use when creating test designs, test cases, test results, findings, or decision records. NOT for SPEC nodes (use spec-author), NOT for writing to main files (use reconciliation)."
 tools: Read, Grep, Glob, Write, Edit
 model: opus
 skills:
