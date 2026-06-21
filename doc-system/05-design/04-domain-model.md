@@ -19,7 +19,7 @@ edges:
   - to: TERM-1
     ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -54,7 +54,7 @@ edges:
   - to: TERM-2
     ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -71,7 +71,7 @@ edges:
 
 ## DM-3: ViolationRecord型
 
-<details><summary>⬡ DM-3 · v0.1</summary>
+<details><summary>⬡ DM-3 · v0.2</summary>
 
 ```yaml
 id: DM-3
@@ -82,13 +82,15 @@ edges:
   - to: TERM-3
     ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.2"
+    ref_version: "0.3"
+  - to: FND-100
+    ref_version: "0.1"
 ```
 </details>
 
 **Python クラス**: `ViolationRecord`（不変値オブジェクト・`@dataclass(frozen=True)`）
 **パス**: `spec_inspector/domain.py`（MOD-1）
-**責務**: RULE 検査結果の違反 1 件を表す不変値オブジェクト。各 checker モジュールが生成し、filter（MOD-6）・reporter（MOD-8）が消費する。
+**責務**: RULE 検査結果の違反 1 件を表す不変値オブジェクト。パース段（MOD-4 parser）と各 checker モジュールが生成し、filter（MOD-6）・reporter（MOD-8）が消費する。
 **フィールド**:
 - `severity: str` — 深刻度（error / warning）
 - `file_ref: str` — 違反検出ファイルパス
@@ -96,7 +98,9 @@ edges:
 - `node_id: str | None` — 違反ノード ID（ファイル全体違反時は None）
 - `message: str` — 違反メッセージ
 **不変条件**: `severity` は `error` / `warning` のいずれか。`rule_id` は非空の RULE 識別子。`message` は非空。
-**実現する D**: D-6（RULE 違反リスト）
+**実現する D**: D-5（パース段違反リスト）/ D-6（RULE 違反リスト）
+
+> **改訂理由（MINOR バンプ v0.1→v0.2）**: PR #32 レビュー対応（DM→MOD→D 対称化・FND-100）。D-5（パース段違反リスト・RULE-023〜028）は D-6 と同形の `list[ViolationRecord]` でありながら ViolationRecord 型へ realize されていなかった（DM↔D 被覆の非対称）。型は同一（同じ「もの」＝違反レコード 1 件・発生源差は生成元プロセス P-1/P-2 で既表現）のため新規型を作らず「実現する D」に D-5 を追加。`→MOD-1` ref_version を MOD-1 更新後バッジ "0.3" に追従。`→FND-100` バックリファレンス付与。
 
 ---
 
@@ -113,7 +117,7 @@ edges:
   - to: TERM-4
     ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.2"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -131,3 +135,74 @@ edges:
 - `ScopeSlice` — trace_scope（D-16 走査スコープ設定）
 **不変条件**: 各スライスは frozen で生成後に変更不可。参照先 D の必須フィールドを欠かさず保持する。
 **実現する D**: D-9（フェーズ・ステージ状態）/ D-10（必須接続規則）/ D-11（決定スパイン規則）/ D-12（always-error 規則）/ D-13（condition 語彙・網羅規則）/ D-14（ルール発火ステージ表）/ D-15（ハブ閾値設定）/ D-16（走査スコープ設定）
+
+---
+
+## DM-5: CoverageReport型
+
+<details><summary>⬡ DM-5 · v0.1</summary>
+
+```yaml
+id: DM-5
+type: DM
+labels: []
+scheduled: ""
+edges:
+  - to: TERM-5
+    ref_version: "0.1"
+  - to: MOD-1
+    ref_version: "0.3"
+  - to: FND-100
+    ref_version: "0.1"
+```
+</details>
+
+**Python クラス**: `CoverageReport`（不変値オブジェクト・`@dataclass(frozen=True)`。FR 行を表す内側 VO `CoverageRow` を保持）
+**パス**: `spec_inspector/domain.py`（MOD-1）
+**責務**: FR×condition 仕様カバレッジ計測の集計結果を表す不変値オブジェクト。spec_coverage（MOD-17）が生成し、reporter（MOD-8）がカバレッジ点検結果（O-2）として整形・出力する。
+**フィールド**:
+- `rows: tuple[CoverageRow, ...]` — FR ごとの充足状況行（id 昇順）
+- `CoverageRow.fr_id: str` — 対象 FR の ID
+- `CoverageRow.required_conditions: tuple[str, ...]` — required な condition 値群
+- `CoverageRow.satisfied: tuple[str, ...]` — 実際に SPEC/TD で充足された condition 値群
+- `CoverageRow.missing: tuple[str, ...]` — 未充足の required condition 値群
+- `CoverageRow.covering_specs: tuple[str, ...]` — 充足元の SPEC/TD ノード ID 群
+**不変条件**: `rows` は frozen（生成後変更不可）。各 `CoverageRow.missing` は `required_conditions` の部分集合かつ `satisfied` と素。`fr_id` は非空の FR 識別子。
+**実現する D**: D-7（カバレッジ計測結果・FR×condition カバレッジテーブル部分。グラフ網羅性穴リスト部分は DM-3 ViolationRecord が担う）
+
+> **新設理由（FND-100・PR #32 レビュー対応）**: D-7（カバレッジ計測結果）の FR×condition カバレッジテーブル部を表す novel 型。違反でない計測集計値であり ViolationRecord では表せないため別の「もの」として新設（PR1）。MOD-17 が `measure_spec_coverage(...) -> CoverageReport` で型名を既に命名済み。`→FND-100` バックリファレンス付与。
+
+---
+
+## DM-6: InspectionViews型群
+
+<details><summary>⬡ DM-6 · v0.1</summary>
+
+```yaml
+id: DM-6
+type: DM
+labels: []
+scheduled: ""
+edges:
+  - to: TERM-6
+    ref_version: "0.1"
+  - to: MOD-1
+    ref_version: "0.3"
+  - to: FND-100
+    ref_version: "0.1"
+```
+</details>
+
+**Python クラス**: `InspectionViews`（`LinkageView` / `AttributeView` / `DecisionEdgeView` / `AnalysisTopologyView` / `SpecCoverageView` の不変値オブジェクト群を束ねる集約・`@dataclass(frozen=True)`）
+**パス**: `spec_inspector/domain.py`（MOD-1）
+**責務**: D-4（構造化ノードセット）から射影した各検査ビュースライスを型付き値オブジェクトとして表す不変集約。projector（MOD-13）が `project_views(node_set) -> InspectionViews` で組み立て、各検査モジュールが必要なビューを消費する。DM-4（ConfigSlice 型群）の射影側対応物。
+**フィールド**（スライスと対応 D）:
+- `LinkageView` — id・type・edges(to)・in_degree・out_degree・全ノード ID 集合・階層 ID パターン（D-17 接続検査ビュー。消費: structure_checker MOD-14）
+- `AttributeView` — id・type・condition・result・log_ref・suppress・scheduled・辺メタデータ（D-18 属性検査ビュー。消費: condition_checker MOD-15・verification_checker MOD-16・filter MOD-6）
+- `DecisionEdgeView` — 辺の from_id・to・ref_version・参照先バッジ x.y・DD/Q/PEND 義務辺情報（D-19 決定辺ビュー。消費: drift_checker MOD-5）
+- `AnalysisTopologyView` — 分析層ノード（type ∈ {I,O,D,P,E}）の id・type・edges(to)（D-20 分析層トポロジビュー。消費: graph_coverage MOD-7）
+- `SpecCoverageView` — FR/SPEC/TD の id・condition・edges(to)（D-21 仕様カバレッジビュー。消費: spec_coverage MOD-17）
+**不変条件**: 各ビューは frozen で生成後に変更不可。`LinkageView.in_degree` / `out_degree` は非負整数で全ノード ID 集合と整合。各ビューは参照先 D の必須フィールドを欠かさず保持する。D-22（グラフトポロジビュー・post-mvp）は本集約に含めない（labels:[post-mvp]・対象外）。
+**実現する D**: D-17（接続検査ビュー）/ D-18（属性検査ビュー）/ D-19（決定辺ビュー）/ D-20（分析層トポロジビュー）/ D-21（仕様カバレッジビュー）
+
+> **新設理由（FND-100・PR #32 レビュー対応）**: D-17〜D-21（各検査ビュー型）を 1 ノードで一括 realize。先例 DM-4（ConfigSlice 型群・D-9〜D-16 を 1 ノード集約）と射影系として構造一致。MOD-13 が `project_views(node_set) -> InspectionViews` で集約戻り値型を既に命名済み。これにより D-17〜D-21 経路の `DM→MOD→D` チェーン欠落を補完。`→FND-100` バックリファレンス付与。

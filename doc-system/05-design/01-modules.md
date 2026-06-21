@@ -21,7 +21,7 @@ domain ← ports ← core（config / collector / parser / projector /
 
 ## MOD-1: domain
 
-<details><summary>⬡ MOD-1 · v0.2</summary>
+<details><summary>⬡ MOD-1 · v0.3</summary>
 
 ```yaml
 id: MOD-1
@@ -31,7 +31,11 @@ scheduled: ""
 edges:
   - to: D-4
     ref_version: "0.2"
+  - to: D-5
+    ref_version: "0.1"
   - to: D-6
+    ref_version: "0.1"
+  - to: D-7
     ref_version: "0.1"
   - to: D-9
     ref_version: "0.2"
@@ -61,16 +65,20 @@ edges:
     ref_version: "0.1"
   - to: FND-96
     ref_version: "0.3"
+  - to: FND-100
+    ref_version: "0.1"
 ```
 </details>
 
 **パス**: `spec_inspector/domain.py`
-**責務**: NodeRecord / EdgeRecord / ViolationRecord / ConfigSlice 等の値オブジェクトを定義する。
-**公開 I/F**: `NodeRecord`, `EdgeRecord`, `ViolationRecord`, `ConfigSlice`
+**責務**: NodeRecord / EdgeRecord / ViolationRecord / ConfigSlice / CoverageReport / InspectionViews 等の値オブジェクトを定義する。
+**公開 I/F**: `NodeRecord`, `EdgeRecord`, `ViolationRecord`, `ConfigSlice`, `CoverageReport`, `InspectionViews`
 **依存**: なし（最下層・他のどの層にも依存しない）
 **依存方向**: domain（被依存される最下層）
 
 > **改訂理由（MINOR バンプ v0.1→v0.2）**: FND-96 選択肢A（DM→MOD→D 正規化）。MOD-1 は処理プロセスを実装しないため P-1 辺を削除し、realize するデータ型概念 D-4/D-6/D-9〜D-21 への辺へ変更。`→FND-96` バックリファレンス付与。
+>
+> **改訂理由（MINOR バンプ v0.2→v0.3）**: PR #32 レビュー対応（DM→MOD→D 対称化・FND-100）。FND-96 処置後に残った DM↔D 被覆の非対称を是正。D-5（パース段違反リスト・DM-3 ViolationRecord が realize）と D-7（カバレッジ計測結果・DM-5 CoverageReport が realize）への realize 辺を追加し、`DM→MOD→D` チェーンの被覆漏れを補完。D-17〜D-21 は既存辺あり（DM-6 InspectionViews が realize）。型変更・構造変更なし（辺追加のみ）のため MINOR。`→FND-100` バックリファレンス付与。
 
 ---
 
