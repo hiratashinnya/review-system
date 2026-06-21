@@ -103,7 +103,7 @@
 | テストコード | `TC-` | 1 テスト実装（テストケースのコード） | → `TD-` | ✅ TD を realizes |
 | テスト結果 | `TR-` | 1 実行記録（`result: PASS/FAIL`・`log_ref`・実施日） | → `TC-` | `produced-by` 辺で TC に紐づける。RULE-020: result 必須。RULE-021: FAIL 時 log_ref 必須 |
 | ドキュメント検証 | `VERIFY-` | 1 検証実施（範囲・手法・実施日） | → 対象文書要素 | ✅ verifies 辺が必須（RULE-013） |
-| 指摘（finding） | `FND-` | 1 検証指摘（内容・深刻度・状態） | → 指摘対象要素、→ `NFR-`（validates） | ✅ found-in 辺が必須（RULE-009） |
+| 指摘（finding） | `FND-` | 1 検証指摘（内容・深刻度・状態）。`resolved: true/false`（省略時 false）で機械判定 | **未解消**: → 指摘対象要素（forward 必須）<br>**resolved**: ← 処置対象要素（backward 必須・forward 不在期待） | ✅ fnd_lifecycle ルール（DD-16）。未解消＝forward 辺必須・resolved＝backward 辺必須＋forward 辺不在期待。`resolved` フィールドで分岐 |
 
 > **テスト3層の役割分担**
 > - `TD`: 何をどう確認するか（設計）。`SPEC → TD (verifies)` 辺がカバレッジの証跡。

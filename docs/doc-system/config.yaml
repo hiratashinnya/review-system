@@ -57,7 +57,6 @@ must_link_to:
   - { node: TC,     target: TD,             activate_stage: verification,   severity: error,   reason: "TCはTDを実装" }
   - { node: TR,     target: TC,             activate_stage: verification,   severity: error,   reason: "TRはTCの実行結果" }
   - { node: VERIFY, target: any,            activate_stage: verification,   severity: error,   reason: "検証は対象要素を指す" }
-  - { node: FND,    target: any,            activate_stage: verification,   severity: error,   reason: "指摘は対象要素を指す" }
 
 # ------------------------------------------------------------
 # 必須接続②：被依存辺（node ← source 群）
@@ -84,6 +83,34 @@ must_be_linked_from:
   - { node: TD,   source: [TC],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
   - { node: TC,   source: [TR],              activate_stage: verification, severity: warning, reason: "テストは実行され結果を残す" }
   - { node: NFR,  source: [FND, TC, VERIFY], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける（いずれか1つ以上・OR）" }
+
+# ------------------------------------------------------------
+# FND ライフサイクルルール（DD-16・Q-4 から昇格）
+#
+# FND は状態（未解消／resolved）に応じて必須辺の向きが逆転する。
+# resolved_field: FND YAML の機械判定フィールド（省略時は false として扱う）
+# unresolved（resolved: false / 未設定）: forward 辺（FND → 対象）が必須
+# resolved（resolved: true）: backward 辺（対象 → FND）が必須 + forward 辺の不在を期待
+# ------------------------------------------------------------
+fnd_lifecycle:
+  resolved_field: resolved
+  unresolved:
+    must_link_to:
+      target: any
+      activate_stage: verification
+      severity: error
+      reason: "未解消 FND は指摘対象要素への forward 辺を必須とする（RULE-006 後継）"
+  resolved:
+    must_be_linked_from:
+      source: any
+      activate_stage: verification
+      severity: error
+      reason: "resolved FND は処置対象要素からの backward 辺を必須とする"
+    must_not_link_to:
+      target: any
+      activate_stage: verification
+      severity: warning
+      reason: "resolved FND の元 forward 辺は削除済みであること（辺逆転ルール DD-3）"
 
 # ------------------------------------------------------------
 # 決定スパイン（DD/Q/PEND の義務辺）
