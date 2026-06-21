@@ -2416,19 +2416,23 @@ edges:
 
 ## FND-96: 設計層の接続チェーン DM→MOD→D が欠落しており MOD→P / DM→P の強制が PR1 違反を生む
 
-<details><summary>⬡ FND-96 · v0.4</summary>
+<details><summary>⬡ FND-96 · v0.5</summary>
 
 ```yaml
 id: FND-96
 type: FND
 labels: []
 scheduled: ""
-suppress: [RULE-006]
+suppress: []
+resolved: true
 edges: []
 ```
 </details>
 
 **深刻度**: WARNING
+
+**改訂理由（MINOR バンプ v0.4→v0.5）**:
+Q-4 選択肢A 採用（DD-16）により `fnd_lifecycle` 専用ルールが正式定義されたため、暫定措置の `suppress: [RULE-006]` を撤去し `resolved: true` で機械判定可能にする。本 FND は既に元 forward 辺を削除し（`edges: []`）処置対象 MOD-1（v0.2）から `→FND-96`（backward 辺）を受けており、新 `fnd_lifecycle` の resolved ルール（backward 必須・forward 不在期待）を満たす。指摘内容・深刻度・対応状況（resolved）は不変（suppress 撤去＋`resolved` フィールド追加＝構造変更のため MINOR バンプ）。
 
 **改訂理由（MINOR バンプ v0.3→v0.4）**:
 選択肢A（DM→MOD→D 正規化・フル実施）を sprint-1 で適用・完了し、対応状況を resolved に更新。実施した処置は以下のとおり。(1) `config.yaml` の `MOD → P`（必須・単一ターゲット）を `MOD → [P | D]`（OR）へ変更し、`DM → P` を `DM → MOD` へ変更（`DM → TERM` は維持）。(2) MOD-1 の `→P-1` 辺を削除し、realize するデータ型概念 D-4・D-6・D-9〜D-21 への辺へ変更（MOD-1 を MINOR バンプ v0.1→v0.2・`→FND-96` バックリファレンス付与）。(3) TERM-1〜4（NodeRecord / EdgeRecord / ViolationRecord / ConfigSlice）を新設。(4) DM-1〜4（各型の DM ノード・`→TERM` + `→MOD-1`）を新設。指摘対象・深刻度は変更しない（処置完了の記録のため MINOR バンプ）。MOD-1 が `→FND-96` を張り返すため FND-96 自体の forward 辺（`→MOD-1`）は削除し、`suppress: [RULE-006]` を付与（resolved FND の辺逆転ルール）。指摘時 ref_version は本文に記録済み（DD-3）。
@@ -2520,17 +2524,21 @@ MOD-1 が定義するデータ型と分析層 D の対応:
 
 ## FND-97: ORC-1 frontmatter の P 辺が DD-15 決定に反する（解消済み）
 
-<details><summary>⬡ FND-97 · v0.1</summary>
+<details><summary>⬡ FND-97 · v0.2</summary>
 
 ```yaml
 id: FND-97
 type: FND
 labels: []
 scheduled: ""
-suppress: [RULE-006]
+suppress: []
+resolved: true
 edges: []
 ```
 </details>
+
+**改訂理由（MINOR バンプ v0.1→v0.2）**:
+Q-4 選択肢A 採用（DD-16）により `fnd_lifecycle` 専用ルールが正式定義されたため、暫定措置の `suppress: [RULE-006]` を撤去し `resolved: true` で機械判定可能にする。本 FND は処置対象 ORC-1（v0.4）から `→FND-97`（backward 辺）を受けており、新 `fnd_lifecycle` の resolved ルール（backward 必須・forward 不在期待・`edges: []`）を満たす。指摘内容・深刻度・対応状況（resolved）は不変（suppress 撤去＋`resolved` フィールド追加＝構造変更のため MINOR バンプ）。
 
 > **深刻度**: WARNING ／ **対応状況**: resolved（選択肢A 適用・ORC-1 v0.4 で P 辺削除）
 
@@ -2580,17 +2588,21 @@ edges:
 
 ## FND-98: ダッシュボード・PR 本文が DD-13 v0.2 改訂前のスナップショットで陳腐化
 
-<details><summary>⬡ FND-98 · v0.1</summary>
+<details><summary>⬡ FND-98 · v0.2</summary>
 
 ```yaml
 id: FND-98
 type: FND
 labels: []
 scheduled: ""
-suppress: [RULE-006]
+suppress: []
+resolved: true
 edges: []
 ```
 </details>
+
+**改訂理由（MINOR バンプ v0.1→v0.2）**:
+Q-4 選択肢A 採用（DD-16）により `fnd_lifecycle` 専用ルールが正式定義されたため、暫定措置の `suppress: [RULE-006]` を撤去し `resolved: true` で機械判定可能にする。本 FND は処置対象 DD-13（v0.3）から `→FND-98`（backward 辺）を受けており、新 `fnd_lifecycle` の resolved ルール（backward 必須・forward 不在期待・`edges: []`）を満たす。指摘内容・深刻度・対応状況（resolved）は不変（suppress 撤去＋`resolved` フィールド追加＝構造変更のため MINOR バンプ）。
 
 **深刻度**: WARNING
 
@@ -2670,17 +2682,21 @@ FND 解消時に辺が逆向きに張り直され（対象→FND）元の forwar
 
 ## FND-100: 設計層の被覆チェーン DM→MOD→D が D-5/D-7/D-17〜D-21 経路で非対称（解消済み）
 
-<details><summary>⬡ FND-100 · v0.1</summary>
+<details><summary>⬡ FND-100 · v0.2</summary>
 
 ```yaml
 id: FND-100
 type: FND
 labels: []
 scheduled: ""
-suppress: [RULE-006]
+suppress: []
+resolved: true
 edges: []
 ```
 </details>
+
+**改訂理由（MINOR バンプ v0.1→v0.2）**:
+Q-4 選択肢A 採用（DD-16）により `fnd_lifecycle` 専用ルールが正式定義されたため、暫定措置の `suppress: [RULE-006]` を撤去し `resolved: true` で機械判定可能にする。本 FND は処置対象 MOD-1・DM-3・DM-5・DM-6 から `→FND-100`（backward 辺）を受けており、新 `fnd_lifecycle` の resolved ルール（backward 必須・forward 不在期待・`edges: []`）を満たす。指摘内容・深刻度・対応状況（resolved）は不変（suppress 撤去＋`resolved` フィールド追加＝構造変更のため MINOR バンプ）。
 
 **深刻度**: WARNING
 

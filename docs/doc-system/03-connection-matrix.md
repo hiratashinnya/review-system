@@ -55,11 +55,13 @@ flowchart BT
   TC --> TD
   TR --> TC
   VERIFY --> 任意要素
-  FND --> 任意要素
+  FND -->|未解消: forward| 任意要素
+  任意要素 -->|resolved: backward| FND
 ```
 
 > 矢印はすべて依存辺（無名）。`O → P` は「出力は生成プロセスに依存」、`P → E` は「プロセスはトリガ事象に依存」。
 > `decomposes` 辺は廃止（階層は ID パターン `X-N` から推論・DD-014）。
+> **FND はライフサイクルで辺の向きが逆転（DD-16）**: 未解消 FND は `FND → 任意要素`（forward 必須）、resolved FND は `任意要素 → FND`（backward 必須・forward 不在期待）。機械判定フィールドは FND YAML の `resolved: true/false`（省略時 false）。
 
 ---
 
