@@ -4,7 +4,7 @@
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
 > **最終更新**: 2026-06-21 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
-> 直近: **DM-3 v0.3**（PR #32 再レビュー 🟡 対応・D-7 穴リスト部分を実現する D に追記・prose 対称化）／**FND ライフサイクル「辺の逆転」正式化の起票**（2026-06-21）。**Q-4**（FND 専用ライフサイクルルールを汎用 RULE-006 から独立定義すべきか・推奨 A）起票・**FND-99 v0.2**（辺逆転ルール適用＝元 forward 辺削除・out-of-graph 処置対象のため RULE-005 孤立を意図的に保持）・**FND-101**（FND-1〜95 が元 forward 辺を削除せず辺逆転違反・open・是正は Q-4 決定依存で別ブランチ）。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 の計 31 ノード＋TERM-1〜6。
+> 直近: **Q-4 → DD-16 昇格・選択肢A 採用**（FND 専用ライフサイクルルールを config に独立定義・2026-06-21）。config.yaml に `fnd_lifecycle` 専用セクション新設（汎用 RULE-006 FND 行を削除）。FND-96/97/98/100 の暫定 `suppress: [RULE-006]` 撤去・`resolved: true` 追加（MINOR バンプ）。接続マトリクス・文書一覧・verification-author 著作資産へも同期。FND-101（FND-1〜95 の forward 辺残留是正）は別ブランチ・実施スプリントはオーナー判断。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 の計 31 ノード＋TERM-1〜6。
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | issue #30 必須辺の仕様化漏れ点検 — 必須辺 config 45 行の SPEC 被覆点検＋全 dedicated SPEC 化（worktree） | FND-102 | ✅ resolved（2026-06-21）。点検結論＝完全起票漏れ無し（SPEC-8 が parametric に全行被覆）だが dedicated SPEC は 9/45 のみ。FND-102 起票→オーナー決定②で **SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設**し 45 行全 dedicated 化（行→SPEC 1:1）。新設傘に `→FND-102` backref。索引表は FND-79 領分 |
 | DM-3 v0.3（PR #32 再レビュー 🟡 対応・D-7 穴リスト部分を実現する D に追記） | DM-3 | ✅ done（2026-06-21）。DM-5 本文が「D-7 穴リスト部分は DM-3 が担う」と明記する一方 DM-3 の「実現する D」に D-7 未記載だった prose 非対称を是正。推奨案 (a)（D-7 追記で対称化）。構造変更・edges 変更なし（D-7 の MOD-1 realize 辺は既存） |
-| FND ライフサイクル「辺の逆転」正式化 — Q-4 起票・FND-99 v0.2 改訂・FND-101 起票 | Q-4 / FND ×2 | 🔄 起票（2026-06-21）。Q-4（FND 専用ライフサイクルルールを RULE-006 から独立定義・推奨A・open）／FND-99 v0.2（元 forward 辺削除・out-of-graph 処置対象で RULE-005 孤立を意図的保持）／FND-101（FND-1〜95 の forward 辺残留＝辺逆転違反・open・是正は Q-4 決定依存で別ブランチ） |
+| FND ライフサイクル「辺の逆転」正式化 — Q-4 → DD-16 昇格・FND-96/97/98/100 suppress 撤去 | DD-16 / Q-4 closed / FND ×4 | ✅ 処置完了（2026-06-21）。Q-4 選択肢A 採用（DD-16）。config.yaml に `fnd_lifecycle` 専用セクション新設（resolved_field/unresolved.must_link_to/resolved.must_be_linked_from/resolved.must_not_link_to）・汎用 RULE-006 FND 行を削除。FND-96（v0.5）/97（v0.2）/98（v0.2）/100（v0.2）の `suppress: [RULE-006]` 撤去・`resolved: true` 追加。接続マトリクス・文書一覧・verification-author 著作資産へも同期。FND-101 別ブランチ |
 | PR #32 レビュー対応 — FND-96 処置後の DM↔MOD↔D 被覆の非対称是正 | FND-100 | ✅ resolved（2026-06-21）。D-5→DM-3 拡張（v0.2）・D-7→TERM-5/DM-5（CoverageReport）・D-17〜D-21→TERM-6/DM-6（InspectionViews）新設・MOD-1 v0.3。config 規則変更なし（伝播チェック不要）。🟡 注記（MOD→[P\|D] OR 化の型別強制喪失）は FND-96 選択肢A 決定済みトレードオフとして記録 |
 | FND-96 設計修正 — DM→MOD→D 正規化（選択肢A・sprint-1） | FND-96 | ✅ resolved（2026-06-20）。config.yaml 変更（MOD→[P\|D]・DM→MOD）・MOD-1 辺変更（v0.1→v0.2）・TERM-1〜4/DM-1〜4 新設 |
 | FND-99 著作資産の規則伝播ギャップ是正 — スキル/エージェント/接続マトリクスを config に同期 | FND-99 | ✅ resolved（2026-06-20）。FND-96（MOD→[P\|D]・DM→MOD）・DD-15（ORC→E）の規則を7資産に伝播。design-author 等が旧ルールの辺を再生産する穴を解消 |
@@ -34,7 +34,7 @@
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 31 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み。FND-96（DM→MOD→D 正規化）resolved（2026-06-20）：DM-1〜4 / TERM-1〜4 新設・config.yaml 修正・MOD-1 v0.2。**FND-100（PR #32・DM↔MOD↔D 被覆対称化）resolved（2026-06-21）：DM-5（CoverageReport）/ DM-6（InspectionViews）/ TERM-5/6 新設・DM-3 v0.2・MOD-1 v0.3**。テスト戦略 ④ 未着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
-| 横断スパイン | DD / Q / PEND | 21 | ✅ | DD-1〜15（DD-13 MOD 粒度・DD-14 FileSystemPort・DD-15 ORC→E）・Q-1 closed・Q-2/Q-3/Q-4 open・PEND-1 resolved・PEND-2 deferred |
+| 横断スパイン | DD / Q / PEND | 22 | ✅ | DD-1〜16（DD-16: FND 専用ライフサイクルルール・Q-4 から昇格）・Q-1/Q-4 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
 
 > 凡例：✅ 完了／🔄 進行中／⬜ 未着手。ノード数は `-N` 子・`labels: post-mvp` を含む実数。
 > current_stage が `design` に進行（N2・2026-06-16）。design 発火の辺ルール（MOD→P / PORT→MOD / DS→P / PRS→DS / ORC→E）が全ノードに適用中（DD-15 により ORC→P から ORC→E に変更）。
@@ -61,8 +61,7 @@
 |---|---|---|---|
 | Q-2：傘 SPEC（SPEC-21/25/1・SPEC-29）の細分化要否＋ SPEC-29-1/29-2 リーフマップ | 🟡 中 | Q | 推奨 A（傘マップ維持・実害顕在時に細分化）。方針・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | Q-3：O-1/O-2 の生成元辺を P-4-3（リーフ）へ精緻化するか親 P-4 のままか | 🔵 低 | Q | 推奨 A（リーフ先例 O-3/O-6・フロー表に統一・最小変更）。採否・実施スプリントはオーナー判断。`scheduled` 未設定 |
-| Q-4：FND 専用ライフサイクルルールを汎用 RULE-006 から独立定義すべきか（辺の逆転の正式化） | 🟡 中 | Q | 推奨 A（config に状態別必須辺を独立定義・FND-96/97/98/100 の暫定 `suppress: [RULE-006]` 撤去）。採否・config スキーマへの状態メタ属性導入要否・実施スプリントはオーナー判断。`scheduled` 未設定 |
-| FND-101：resolved FND（FND-1〜95）の元 forward 辺残留（辺逆転違反） | 🟡 中 | FND | 是正は Q-4 決定に依存（別ブランチ実施）。実施スプリントは Q-4 決定後にオーナー判断。`scheduled` 未設定 |
+| FND-101：resolved FND（FND-1〜95）の元 forward 辺残留（辺逆転違反） | 🟡 中 | FND | Q-4 → DD-16 決定（2026-06-21）により是正可能。別ブランチ実施。実施スプリントはオーナー判断。`scheduled` 未設定 |
 | 03-spec.md 残課題 FND-79・81・82・83・88・89・91（計7件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（全 INFO）。`scheduled` 未設定 |
 
 > N1（current_stage→analysis）は 2026-06-15 オーナー指示で実施済み。
@@ -121,10 +120,11 @@
 | DD-13 | ✅ 反映済 | MOD 粒度：孫プロセスあり OR 責務別→L2 分割（C 案・v0.3）。MOD-1〜18 で採用（2026-06-20・v0.3 で →FND-98 backref） |
 | DD-14 | ✅ 反映済 | FileSystemPort 抽象化粒度：単一 Port（A 案）。list_md_files + read_file の 2 メソッド Protocol（2026-06-16） |
 | DD-15 | ✅ 反映済 | ORC の must_link_to 参照先を P→E に変更（設計ノードの上流参照を起動イベントへ）。config.yaml must_be_linked_from 追加・ORC-1〜2 適用（2026-06-18） |
+| DD-16 | ✅ 反映済 | FND 専用ライフサイクルルールを config に独立定義（Q-4 から昇格・選択肢A・2026-06-21）。config.yaml `fnd_lifecycle` 新設・FND-96/97/98/100 suppress 撤去・resolved フィールド導入 |
 | Q-1 | ✅ closed | DD-2 へ昇格済み |
 | Q-2 | ⏳ open | 傘 SPEC 細分化要否＋ SPEC-29-1/29-2 リーフマップ。推奨 A（傘維持）。オーナー判断待ち |
 | Q-3 | ⏳ open | O-1/O-2 生成元辺の粒度（親 P-4 vs リーフ P-4-3）。推奨 A（P-4-3 へ精緻化）。オーナー判断待ち |
-| Q-4 | ⏳ open | FND 専用ライフサイクルルールを汎用 RULE-006 から独立定義すべきか（辺の逆転の正式化）。推奨 A（config に状態別必須辺を独立定義・`suppress` 撤去）。採否・実施スプリントはオーナー判断 |
+| Q-4 | ✅ closed | DD-16 へ昇格済み（2026-06-21・選択肢A 採用） |
 | PEND-1 | ✅ resolved | 過分割 → 子ノード化（FND-6）→ DD-12 で I-1-x 退役・D-18 へ repoint |
 | PEND-2 | 🗓 deferred | 図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降 |
 | DD19（review-system） | ✅ 確定 | asset-lateral-deploy スクリプト廃止・エージェント手書き化。DD18 superseded（2026-06-15） |

@@ -222,3 +222,4 @@ report.html
 
 # Authoring drafts (reconciled into main files; not history-bearing — FND-37)
 tmp/
+./claude/worktrees/*
