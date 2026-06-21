@@ -77,7 +77,7 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 
 | 型 | 必須辺 |
 |---|---|
-| MOD | → P (refines) |
+| MOD | → P または → D（プロセス実装＝P・データ型実現＝D・OR・FND-96） |
 | PORT | → MOD (refines) |
 | PRS（永続） | → DS (refines) |
 | DS（データストア） | → P (refines) |

@@ -32,6 +32,7 @@ tools:
 - **DD/Q/PEND 義務辺モデル**：`DD→X` 辺は「この決定が X に未反映」を表す。反映完了したら `DD→X` を削除し、対象側に `X→DD` を張る。
 - **FND の解消ライフサイクル**：resolved にする場合、処置対象ノード側に `→ FND-x` の依存辺を必ず追加する。処置対象が削除された場合は FND 本文に「削除済みのため付与先なし」と明記。
 - **FND 起票時の ref_version 本文記録**：FND 起票時、`edges[].ref_version` の値を本文に明記する（`**指摘時 ref_version**: {ノードID} "{ref_version}"（{ファイル名} v{version} 時点）`）。
+- **接続規則変更の伝播**：DD/FND が config.yaml の接続規則変更を含む場合、変更型に対応する author エージェント（requirements-author / spec-author / analysis-author / design-author / verification-author）および `docs/doc-system/03-connection-matrix.md`・`docs/doc-system/01-document-items.md`・`.claude/skills/*/SKILL.md` にも同期し、処置内容に同期資産リストを記録する（FND-99 パターン防止）。
 
 ## 受け入れ条件
 
@@ -43,3 +44,4 @@ tools:
 - [ ] DD/Q/PEND の義務辺が未反映のまま放置されていない
 - [ ] `scheduled: ""`（空文字のみ）
 - [ ] ref_version が全辺にあり参照先の現在 x.y と一致
+- [ ] 接続規則変更を伴う DD・FND の場合、変更型対応の author エージェント・スキル・接続マトリクスへの同期完了が本文に記録されているか

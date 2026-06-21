@@ -41,9 +41,9 @@ must_link_to:
   # --- design ---
   - { node: ORC,    target: E,              activate_stage: design,         severity: error,   reason: "ORCは起動イベントを参照する" }
   - { node: DS,     target: P,              activate_stage: design,         severity: error,   reason: "DSはプロセスに紐づく" }
-  - { node: MOD,    target: P,              activate_stage: design,         severity: error,   reason: "MODはプロセスを実装" }
+  - { node: MOD,    target: [P, D],         activate_stage: design,         severity: error,   reason: "MODはプロセスを実装（処理系）またはデータ型を実現（D）" }
   - { node: DM,     target: TERM,           activate_stage: design,         severity: error,   reason: "DMは用語を実装" }
-  - { node: DM,     target: P,              activate_stage: design,         severity: error,   reason: "DMはプロセスに紐づく" }
+  - { node: DM,     target: MOD,            activate_stage: design,         severity: error,   reason: "DM型定義はモジュールに属す（DM→MOD→D チェーン）" }
   - { node: PORT,   target: MOD,            activate_stage: design,         severity: error,   reason: "PORTはモジュールに属す" }
   - { node: PRS,    target: DS,             activate_stage: design,         severity: error,   reason: "PRSはデータストアを実装" }
   - { node: SCM,    target: SPEC,           activate_stage: design,         severity: error,   reason: "SCMは仕様に紐づく" }

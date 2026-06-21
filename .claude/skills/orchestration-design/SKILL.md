@@ -64,7 +64,7 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 
 | 型 | 必須辺 |
 |---|---|
-| ORC | → P (refines)、→ PROMPT (uses) 任意 |
+| ORC | → E (trigger)、→ PROMPT (uses) 任意（DD-15: 上流参照は起動イベント E） |
 
 **本文フォーマット**
 

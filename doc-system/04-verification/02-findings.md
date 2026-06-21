@@ -2416,20 +2416,22 @@ edges:
 
 ## FND-96: 設計層の接続チェーン DM→MOD→D が欠落しており MOD→P / DM→P の強制が PR1 違反を生む
 
-<details><summary>⬡ FND-96 · v0.3</summary>
+<details><summary>⬡ FND-96 · v0.4</summary>
 
 ```yaml
 id: FND-96
 type: FND
 labels: []
 scheduled: ""
-edges:
-  - to: MOD-1
-    ref_version: "0.1"
+suppress: [RULE-006]
+edges: []
 ```
 </details>
 
 **深刻度**: WARNING
+
+**改訂理由（MINOR バンプ v0.3→v0.4）**:
+選択肢A（DM→MOD→D 正規化・フル実施）を sprint-1 で適用・完了し、対応状況を resolved に更新。実施した処置は以下のとおり。(1) `config.yaml` の `MOD → P`（必須・単一ターゲット）を `MOD → [P | D]`（OR）へ変更し、`DM → P` を `DM → MOD` へ変更（`DM → TERM` は維持）。(2) MOD-1 の `→P-1` 辺を削除し、realize するデータ型概念 D-4・D-6・D-9〜D-21 への辺へ変更（MOD-1 を MINOR バンプ v0.1→v0.2・`→FND-96` バックリファレンス付与）。(3) TERM-1〜4（NodeRecord / EdgeRecord / ViolationRecord / ConfigSlice）を新設。(4) DM-1〜4（各型の DM ノード・`→TERM` + `→MOD-1`）を新設。指摘対象・深刻度は変更しない（処置完了の記録のため MINOR バンプ）。MOD-1 が `→FND-96` を張り返すため FND-96 自体の forward 辺（`→MOD-1`）は削除し、`suppress: [RULE-006]` を付与（resolved FND の辺逆転ルール）。指摘時 ref_version は本文に記録済み（DD-3）。
 
 **改訂理由（MINOR バンプ v0.2→v0.3）**:
 オーナーが選択肢A（DM→MOD→D 正規化・フル実施）・実施スプリント sprint-1 を決定。
@@ -2506,7 +2508,15 @@ MOD-1 が定義するデータ型と分析層 D の対応:
 
 **推奨**: **A**。B は中間として成立するが、`DM→MOD` ルールに対応するノード（DM）が存在しない状態が続く。A の TERM + DM ノード著作は作業量があるが、設計層の完全性（PR6・DM→MOD→D の連続）のために必要。C は違反据え置きとなる。実施スプリントはオーナー判断（`scheduled` は空のまま）。
 
-**対応状況**: 選択肢A 確定（sprint-1 実施予定）。設計修正（config.yaml の MOD→[P|D] / DM→MOD 変更・MOD-1 辺変更・DM/TERM ノード新設）は別コミットにて実施する。
+**対応状況**: resolved
+
+**対応内容**（選択肢A 適用・sprint-1 完了）:
+- **config.yaml**（`docs/doc-system/config.yaml`）：必須辺 `{ node: MOD, target: P, ... }` を `{ node: MOD, target: [P, D], ... }`（OR・reason: "MODはプロセスを実装（処理系）またはデータ型を実現（D）"）へ変更。`{ node: DM, target: P, ... }` を `{ node: DM, target: MOD, ... }`（reason: "DM型定義はモジュールに属す（DM→MOD→D チェーン）"）へ変更。`DM → TERM` は維持。
+- **MOD-1**（`doc-system/05-design/01-modules.md`）：`→P-1` 辺を削除し、realize するデータ型概念へ辺を変更（D-4 "0.2"・D-6 "0.1"・D-9 "0.2"・D-10〜13 "0.1"・D-14 "0.2"・D-15〜21 "0.1"）。`→FND-96`（ref_version "0.3"）バックリファレンス辺を付与。MINOR バンプ v0.1→v0.2。
+- **TERM-1〜4 新設**（`doc-system/03-analysis/05-terms.md`）：TERM-1 NodeRecord・TERM-2 EdgeRecord・TERM-3 ViolationRecord・TERM-4 ConfigSlice の用語定義を著作。
+- **DM-1〜4 新設**（`doc-system/05-design/04-domain-model.md`）：DM-1 NodeRecord型・DM-2 EdgeRecord型・DM-3 ViolationRecord型・DM-4 ConfigSlice型群を著作（各 `→TERM` + `→MOD-1`）。
+- これにより設計層の接続チェーン `DM → MOD → D` が確立し、MOD-1 はデータ（もの）を D の辺で表現するようになった（PR1 category error 解消）。追跡経路 `DM → MOD-1 → D → P` が連続し PR6 を満たす。
+- バックリファレンス辺は処置対象 MOD-1（v0.2）側に reconciliation 反映時に付与済み。FND-96 自体の edges は MOD-1 が張り返すため現状維持（`→MOD-1` のみ）。
 
 ## FND-97: ORC-1 frontmatter の P 辺が DD-15 決定に反する（解消済み）
 
@@ -2517,10 +2527,8 @@ id: FND-97
 type: FND
 labels: []
 scheduled: ""
-suppress: []
-edges:
-  - to: ORC-1
-    ref_version: "0.4"
+suppress: [RULE-006]
+edges: []
 ```
 </details>
 
@@ -2579,10 +2587,8 @@ id: FND-98
 type: FND
 labels: []
 scheduled: ""
-suppress: []
-edges:
-  - to: DD-13
-    ref_version: "0.2"
+suppress: [RULE-006]
+edges: []
 ```
 </details>
 
@@ -2600,4 +2606,200 @@ edges:
 
 **対応内容**: 解消と同時起票。ダッシュボード 3 箇所（DD-13 サマリ行・直近作業 N2 行・完了済み行）を DD-13 v0.2（C 案・MOD-1〜18・2026-06-20）・DD-15・ORC-2 を反映した記述へ更新済み。PR #28 本文は GitHub 側で更新済み。指摘の原因ノード DD-13 に `→FND-98` のバックリファレンス辺を付与する（reconciliation 反映時）。
 
-**指摘時 ref_version**: DD-13 "0.2"（04-decisions.md の DD-13 バッジ v0.2 時点）
+## FND-99: 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播
+
+<details><summary>⬡ FND-99 · v0.2</summary>
+
+```yaml
+id: FND-99
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+**深刻度**: WARNING
+
+**対応状況**: resolved（解消と同コミットで処置済み・sprint-1。ただし**バックリファレンス対象が未著作のため意図的にエラー発火状態を保持**＝下記「バックリファレンスの扱い」「孤立エラーの意図的保持」を参照）
+
+**改訂理由（MINOR バンプ v0.1→v0.2）**:
+オーナー決定に従い、resolved FND の辺逆転ルール（DD-3・処置対象→FND の被参照辺へ張り直し・元 forward 辺は削除・指摘時 ref_version は本文へ移動）を本 FND にも適用し、辺の扱いを明確化した。具体的には、(1) v0.1 が残していた元の forward 辺（`→FND-96` ref "0.4"・`→DD-15` ref "0.1"）を削除して `edges: []` とし、指摘時 ref_version は本文の「指摘時 ref_version」節に維持・明確化する。(2) 本 FND の処置対象は 7 つの out-of-graph 著作資産（ノードでない）であり、バックリファレンス（対象→FND-99）の張り先が現時点で存在しないため、FND-99 は outgoing/incoming 辺をともに持たず孤立し、抑制不可（RULE-005＝always_error）のエラーを発火する。(3) **このエラーは恣意的に抑制しない**（`suppress` を付けない）＝「resolved だがバックリファレンス対象が未著作」を正しく示すシグナルとして意図的に保持する旨を本文に明記する。指摘内容・深刻度・対応した同期資産リストは変更しない（辺の扱いと記述の明確化のための MINOR バンプ）。
+
+### 内容
+
+設計層の接続規則を変更する決定（FND-96・DD-15）が、`config.yaml`（機械判定の正本）には反映されているものの、その規則を人間/LLM 向けに表現する out-of-graph の著作資産（スキル・エージェント定義・接続マトリクス等）には伝播していなかった。著作資産が config と食い違ったまま放置されると、次回 design-author がノードを著作する際に**旧ルールの誤った辺を再生産する**。FND-98（DD-13 改訂後のダッシュボード/PR 本文の陳腐化）と同種の「決定の非伝播」ドリフト。
+
+ドリフトしていた規則は2系統:
+
+1. **FND-96（MOD/DM 規則・2026-06-20）**: `MOD → P`（単一）→ 正しくは `MOD → [P | D]`（OR）。`DM → P` → 正しくは `DM → MOD`（DM→MOD→D チェーン）。
+2. **DD-15（ORC 規則・2026-06-18）**: `ORC → P` → 正しくは `ORC → E`（起動イベント参照）。architecture-design スキルには反映済みだったが、他の著作資産に未伝播だった。
+
+### 深刻度判定の根拠
+
+`config.yaml`（機械判定の正本）は既に正しいため、検証ツール上の **規則内容に起因する** live な RULE 違反は発生しない（out-of-graph 資産は `trace_scope` 対象外）。一方、著作ガイドが正本と食い違うと誤った辺の再生産を招くため、FND-98 と同じく構造的・運用上のドリフトとして **WARNING**。
+
+> 注: 本 FND が現在発火している RULE-005（完全孤立）エラーは、上記の指摘内容（規則の非伝播・WARNING）とは別物であり、「resolved だがバックリファレンス対象が未著作」という FND ライフサイクル上のシグナルである（下記参照）。深刻度 WARNING は指摘内容そのものの評価であって、孤立エラーの severity（RULE-005＝error・always_error）とは独立である。
+
+### 対応内容
+
+解消と同時起票。以下7資産を `config.yaml` の正ルールに同期（FND-96 の `MOD→[P|D]`／`DM→MOD`、DD-15 の `ORC→E`）:
+
+- `.claude/skills/architecture-design/SKILL.md`（MOD 必須辺）
+- `.claude/skills/domain-model/SKILL.md`（DM 必須辺・TERM→SPEC 補正）
+- `.claude/skills/orchestration-design/SKILL.md`（ORC 必須辺）
+- `.claude/agents/design-author.md`（MOD/ORC/DM 行）
+- `.github/agents/design-author.agent.md`（MOD/ORC/DM 行）
+- `docs/doc-system/03-connection-matrix.md`（mermaid＋接続要否マトリクス MOD/DM/ORC 行）
+- `docs/doc-system/01-document-items.md`（MOD/DM/ORC 上流参照）
+
+> **バックリファレンスの扱い（オーナー決定・v0.2）**: FND-99 の**処置対象は上記7資産（いずれも out-of-graph・ノードでない）**ため、`対象 → FND-99` のバックリファレンス辺を張る先のノードが**現時点では存在しない**。オーナー決定に従い、**設計・実装が進めばこれらの規則を実体化するノード（例: 接続マトリクス・著作ガイドに対応する設計/実装ノード）が著作され、その時点でバックリファレンス対象が生まれる。それまでは恣意的な抑制を行わず、エラー発火状態を保持する**（`suppress` を付けない）。辺逆転ルール（DD-3）に従い、元の forward 辺（`→FND-96`・`→DD-15`）は v0.2 で削除し、指摘時 ref_version は下記「指摘時 ref_version」節に記録する。FND-96・DD-15 は本指摘の subject であって処置対象ではないため、両ノードの版・辺は変更しない（本 FND から両ノードへの forward 辺も張らない）。
+
+> **🔴 孤立エラーの意図的保持（恣意的抑制の禁止）**: 上記の結果、FND-99 は outgoing 辺（forward を削除済み）も incoming 辺（バックリファレンス対象が未著作）も持たず**完全に孤立**し、**RULE-005（完全孤立＝in/out 辺が0本・always_error・抑制不可）のエラーを発火する**。これは欠陥ではなく、**「FND-99 は resolved だが、その処置（規則の著作資産への伝播）を引き受けるべきバックリファレンス対象ノードがまだ著作されていない」という状態を正しく示す意図的なシグナル**である。RULE-005 は always_error（`suppress`・`scheduled`・`activate_stage` いずれでも抑制不可）であり、恣意的に抑制することはできず、またオーナー決定によりすべきでない。設計・実装フェーズで対応するノードが著作され、`対象 → FND-99` のバックリファレンス辺が張られた時点でこの孤立エラーは自然に解消する。それまでは本エラーを**意図的に保持**する。
+
+### 指摘時 ref_version
+
+FND 解消時に辺が逆向きに張り直され（対象→FND）元の forward 辺（FND→対象）が削除されるため、辺情報から指摘時の版が失われる。本文に明記する（DD-3 制度化）。本 FND は処置対象が out-of-graph 資産でバックリファレンス対象が未著作のため辺がすべて失われており、以下が指摘時の版の唯一の証跡である。
+
+- **FND-96 "0.4"**（02-findings.md の FND-96 バッジ v0.4 時点・MOD/DM 規則変更の出所）
+- **DD-15 "0.1"**（04-decisions.md の DD-15 バッジ v0.1 時点・ORC 規則変更の出所）
+- DD-13 "0.2"（04-decisions.md の DD-13 バッジ v0.2 時点・MOD 粒度 C 案の決定文脈。FND-98 と同コミットで処置した際の関連版）
+
+---
+
+## FND-100: 設計層の被覆チェーン DM→MOD→D が D-5/D-7/D-17〜D-21 経路で非対称（解消済み）
+
+<details><summary>⬡ FND-100 · v0.1</summary>
+
+```yaml
+id: FND-100
+type: FND
+labels: []
+scheduled: ""
+suppress: [RULE-006]
+edges: []
+```
+</details>
+
+**深刻度**: WARNING
+
+**対応状況**: resolved（オーナーが本セッションで即時実施を承認済み＝独断繰り越しではない。`scheduled` は空のまま）
+
+### 内容
+
+FND-96（DM→MOD→D 正規化・選択肢A・sprint-1）の処置後、**MOD-1↔DM の被覆が非対称**であり、接続チェーン `DM → MOD → D` が一部経路で途切れている（PR6 連続性の部分残存）。
+
+- **MOD-1（domain）が realize 宣言する D**（v0.2 時点の edges）: D-4・D-6・**D-9〜D-21**。
+- **新設済み DM（DM-1〜4）が realize する D**: D-4（DM-1/DM-2）・D-6（DM-3）・**D-9〜D-16（DM-4）** のみ。
+- → **D-17〜D-21（各検査ビュー型）に対応する DM 型ノードが存在しない**。これらは D-4 の単なる部分集合ではなく、D-4 に無い計算フィールド（in_degree / out_degree 等）を持つ**別の値オブジェクト型**であり、domain.py 上に独立した型が要る。DM 不在のため `DM → MOD → D` チェーンが D-17〜D-21 経路で途切れている。
+
+加えて同じ非対称が次の 2 点に現れる:
+
+1. **D-5（パース段違反リスト）**: D-6（RULE 違反リスト）と完全に同形（`list[ViolationRecord]`）であるにもかかわらず、MOD-1 は D-6 のみ realize し D-5 を realize していなかった（MOD-1↔D の非対称）。型は同一の「もの」（違反レコード 1 件）であり、発生源差（パース段 P-1 / RULE 検査段 P-2）は生成元プロセスの差として D ノード側で既に表現済み。
+2. **D-7（カバレッジ計測結果）**: CoverageReport 型が MOD-1・DM のどちらにも不在で、`DM→MOD→D` チェーンが D-7 経路で完全に欠落していた。
+
+**対象外**: D-22（グラフトポロジビュー）は `labels:[post-mvp]` のため本指摘の対象外。
+
+**主たる指摘対象**: MOD-1（domain.py）。被覆漏れの所在は MOD-1 の realize 辺集合と新設 DM 群の被覆の差にある。
+
+### 指摘時 ref_version
+
+FND 解消時に辺が逆向きに張り直され（対象→FND）元の辺（FND→対象）が削除されるため、辺情報から指摘時の版が失われる。本文に明記する（DD-3 制度化）。
+
+- **MOD-1 "0.2"**（01-modules.md・MOD-1 バッジ v0.2 時点。realize 辺が D-4/D-6/D-9〜D-21 で D-5/D-7 を欠く状態）
+- 補足対象の指摘時バッジ（被覆漏れの相手側の版も provenance として記録）:
+  - DM-3 "0.1"（04-domain-model.md・D-5 を未 realize の状態）
+  - DM-4 "0.1"（04-domain-model.md・D-17〜D-21 に対応する DM が DM-4 の外に存在しない状態）
+  - D-5 / D-7 / D-17〜D-21 "0.1"（02-io.md）
+
+### 深刻度判定の根拠
+
+機械 RULE 上、MOD-1 は `MOD → [P | D]`（OR・RULE-006）を D 辺で充足済みであり、新設 DM 群も `DM → MOD`・`DM → TERM` を充足している。被覆が非対称でも個々のノードは必須辺を満たすため、検証ツール上の live な RULE 失敗は発生しない。本件は「各ノードのルールは満たされているが、`DM → MOD → D` チェーンの被覆が一部経路で途切れる」**設計層の構造的な被覆漏れ（PR6 連続性の部分残存）**であり、FND-96（live RULE 失敗なし・WARNING）の判定基準に倣い **WARNING** と判定する。
+
+### 対応内容（design-author 著作の DM/TERM/MOD 補完を反映）
+
+被覆の非対称を是正するため、以下を著作・反映した:
+
+1. **DM-3（ViolationRecord 型）v0.1→v0.2**: 「実現する D」に **D-5（パース段違反リスト）を追加**（D-6 と同形・新規型なし）。`→MOD-1` ref_version を MOD-1 更新後バッジ "0.3" に追従。`→FND-100` 付与。
+2. **TERM-5・DM-5（CoverageReport）新設**: D-7 の FR×condition カバレッジテーブル部を表す novel 型。D-7 の網羅性穴リスト部は引き続き DM-3（ViolationRecord）が担う協働。MOD-17 が `measure_spec_coverage(...) -> CoverageReport` で型名を命名済み。DM-5 に `→FND-100` 付与。
+3. **TERM-6・DM-6（InspectionViews 型群）新設**: **D-17〜D-21 を 1 ノードで一括 realize**。先例 DM-4（ConfigSlice 型群）と射影系として構造一致。MOD-13 が `project_views(node_set) -> InspectionViews` で集約戻り値型を命名済み。DM-6 に `→FND-100` 付与。
+4. **MOD-1 v0.2→v0.3**: realize 辺に **D-5・D-7 を追加**（各 D 現バッジ "0.1"）。D-17〜D-21 は既存辺あり。`→FND-100` バックリファレンス付与（FND-100 の forward 辺を逆転した辺）。
+
+これにより設計層の被覆が対称化し、`DM → MOD → D` チェーンが D-5（DM-3）・D-7（DM-5＋DM-3）・D-17〜D-21（DM-6）の全経路で連続する（PR6 充足）。
+
+> **バックリファレンスの扱い**: 処置対象 MOD-1・DM-3・DM-5・DM-6 はいずれも実在ノード（付与先あり）のため、各ノードに `→FND-100`（ref_version "0.1"）を付与済み。削除済みの処置対象はなく「付与先なし」項目は該当なし。D-5/D-7/D-17〜D-21（D ノード側）には本対応で `→FND-100` を張らない（被覆の主体は MOD-1 realize 辺と DM 群であり、FND-96 でも D ノード側には張らず MOD-1 が張り返した先例に倣う）。
+
+> **config.yaml 規則変更なし**: 本対応は既存規則（`DM→TERM`・`DM→MOD`・`MOD→[P|D]`・`TERM→SPEC`）に準拠するノード著作のみで config.yaml の `must_link_to`/`must_be_linked_from` を変更しない。よって out-of-graph 著作資産への規則伝播チェック（FND-99 パターン）は不要。
+
+> **🟡 注記（決定済みトレードオフ・新規是正対象でない）**: PR #32 は `MOD → [P | D]` の OR 化により「ドメイン型モジュール → D／処理モジュール → P」の型別強制が機械判定で効かなくなる点（処理モジュールが誤って D のみを張っても RULE-006 上は合格）を 🟡 として挙げている。これは FND-96 選択肢A（オーナー承認済み・config.yaml L44）で織り込み済みのトレードオフであり、本 FND-100 の新規是正対象ではない。設計レビュー（人/LLM）・asset-auditor・spec-inspector の点検でカバーする運用前提。独立追跡のための別ノード化（INFO FND/DD・subject `→FND-96`・config.yaml L44 所在）はオーナー判断に委ねる（独断で起票も「対応不要」も結論づけない）。
+
+---
+
+## FND-101: resolved 済み FND（FND-1〜95）が元の forward 辺を削除せず辺逆転ルールに違反している
+
+<details><summary>⬡ FND-101 · v0.1</summary>
+
+```yaml
+id: FND-101
+type: FND
+labels: []
+scheduled: ""
+suppress: []
+edges:
+  - to: Q-4
+    ref_version: "0.1"
+```
+</details>
+
+**深刻度**: WARNING
+
+**対応状況**: open（未是正・修正は別ブランチで別途実施。今回は FND 起票のみ）
+
+**指摘時 ref_version**: Q-4 "0.1"（05-questions.md の Q-4 新規バッジ v0.1 時点・本 FND の是正方針が依存する FND 専用ライフサイクルルールの未決論点）
+
+### 内容
+
+resolved 済み FND の大部分（**FND-1〜FND-95** の範囲）が、解消後も元の forward 辺（FND → 処置対象）を削除しておらず、FND の辺逆転ルール（DD-3／verification-author 規約）に違反している。
+
+**辺逆転ルール（正しい resolved FND の形）**:
+- 処置対象ノード側に `対象 → FND-x` の被参照辺（バックリファレンス）を張る。
+- FND 側の元の forward 辺（FND → 対象）は**削除**する。
+- 指摘時 ref_version は辺から失われるため、FND 本文に明記して移動する（DD-3）。
+
+**現状（Read で確認した違反パターン）**:
+FND-1〜95 の resolved FND では、処置対象側へのバックリファレンス付与（`対象 → FND-x`）は概ね行われている一方で、**FND 側の元 forward 辺（FND → 対象）が削除されずに残置されている**。すなわち「対象 → FND」と「FND → 対象」の**双方向辺が併存**し、辺逆転（forward を消して backward へ張り替える）が完了していない。汎用ルール `{ node: FND, target: any }`（config.yaml L60・通称 RULE-006・forward 必須）が forward 辺の残置を許す（むしろ要求する）ため、live な RULE-006 エラーは発生せず、違反が機械検知されないまま蓄積している。
+
+今回 sprint-1 で起票・処置した **FND-96 / FND-97 / FND-98 / FND-100 は是正済み**（元 forward 辺を削除し `edges: []` とし、暫定 `suppress: [RULE-006]` を付与）。FND-99 も辺逆転を適用済み（out-of-graph 処置対象のため孤立エラーを意図的に保持）。一方で **FND-1〜95 は未是正**のまま残っている。
+
+### 範囲のサンプリング根拠（軽量サンプリング・全件精査は別ブランチ作業）
+
+`doc-system/04-verification/02-findings.md` の冒頭側 resolved FND を Read でサンプリングした結果、以下のように元 forward 辺が残置されている（バックリファレンスは別途対象側に付与済み・double-edge 状態）:
+
+- **FND-2**（resolved・P-2 を分解）: `edges: [→P-2 (ref "0.2")]` が残置。本文に「P-2 に `→FND-2` バックリファレンス辺を付与済み」とあり、双方向辺が併存。
+- **FND-4**（resolved・SPEC-29/30 新設・P-3 分解）: `edges: [→P-3 (ref "0.2")]` が残置。本文に「P-3・SPEC-29・SPEC-30 に `→FND-4` バックリファレンス辺を付与済み」とあり併存。
+- **FND-5**（resolved・FR-6 本文修正）: `edges: [→FR-6 (ref "0.2")]` が残置。本文に「FR-6 に `→FND-5` バックリファレンス辺を付与済み」とあり併存。
+- **FND-1**（resolved・ACTOR-3 削除）: `edges: [→P-1 (ref "0.2"), →FND-16 (ref "0.1")]` が残置（処置対象 ACTOR-3 は削除済みだが forward 辺は張替先 P-1 を指したまま残る）。
+
+サンプル4件すべてで「forward 辺残置＋対象側バックリファレンス付与」の double-edge パターンが確認でき、FND-1〜95 全体に同パターンが広く分布していると推定される（範囲の網羅的確定は別ブランチ作業）。対照的に FND-96/97/98/100 は `edges: []`（forward 削除済み）であり、是正済みと未是正の境界が明確。
+
+### 深刻度判定の根拠
+
+**WARNING** と判定する。根拠:
+- **live な機械 RULE 失敗は発生していない**: 残置された forward 辺はむしろ汎用 RULE-006（FND→any・forward 必須）を充足してしまうため、検証ツール上のエラーは出ない（違反が機械検知されない＝サイレントな構造的負債）。
+- **誤った辺が検証グラフ・トレースに与える影響は構造的・運用的**: resolved FND の本来の意味は「処置対象から指される（過去の指摘の証跡）」であるべきところ、forward 辺が残ることで「FND が依然として対象を指す＝未解消であるかのような」誤った接続がグラフに残る。トレース・被覆解析（どのノードがどの指摘で処置されたか／逆にどの FND が生きているか）を辿る際に double-edge が誤読・ノイズを生む。
+- 既存の構造的・原則違反 FND（live RULE 失敗を伴わない構造的ドリフトは WARNING＝FND-96/98/99/100 の判定基準）に倣い **WARNING** とする。ERROR にしないのは、価値経路の遮断や機械判定の誤った合否（fail-open）を直接引き起こすものではなく、トレース可読性・構造整合性の劣化に留まるため。
+
+### 是正方針（Q-4 の決定に依存）
+
+本 FND の是正方針は **Q-4（FND 専用ライフサイクルルールを汎用 RULE-006 から独立定義すべきか）の決定に依存する**ため、subject 辺として `→Q-4`（ref_version "0.1"）を張る。
+
+- Q-4 で **選択肢A（FND 専用ライフサイクルルールを config に独立定義）** が採択された場合、resolved FND は「対象 → FND の backward 必須・forward 不在期待」が機械判定されるようになる。その規則に合わせて FND-1〜95 の元 forward 辺を一括削除し、指摘時 ref_version を各 FND 本文へ移動する是正を行う（FND-96/97/98/100 で用いた暫定 `suppress: [RULE-006]` も Q-4 決定後は不要になり撤去対象）。
+- Q-4 が別案（運用ルールのみ／現状維持）に決した場合は、その決定に整合する形で是正方針を確定する。
+- いずれにせよ、是正の具体手順・対象範囲（FND-1〜95 の網羅的確定）・実施は **Q-4 決定後に別ブランチで実施**する。本ノートは範囲を本文で説明するに留め、処置対象ノードの網羅的列挙（FND-1〜95 すべてへの辺）は行わない（範囲が広く double-edge の機械検知も別途要するため）。
+
+> **代表対象を Q-4 1 辺に限定した理由**: 本 FND の対象は FND-1〜95 と広範であり、処置対象を辺として列挙すると 90 件超の辺が必要になる一方、是正方針自体が Q-4 の決定待ちで未確定である。よって RULE-005（非孤立）・RULE-007（実在 ID 参照）を満たしつつ、是正の依存先である Q-4 を subject 辺として 1 本張り、対象範囲は本文で説明する方針とした。
+
+> **オーナー指示・スケジュール**: 修正は別ブランチで別途実施するため、今回は FND 起票のみに留める。実施スプリント（`scheduled`）は空のままとし、Q-4 決定後にオーナーが判断する（独断でのスプリント繰越は禁止＝CLAUDE.md「スケジュール独断禁止」）。AI が独断で「対応不要」「将来検討でよい」と結論づけない（PR7・独断禁止）。
+
+---
