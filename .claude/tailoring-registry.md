@@ -32,9 +32,10 @@
 | verification-author | なし（新規 author） | `agents/verification-author.md` | TD/TC/TR/VERIFY/FND/DD/Q/PEND 著作エージェント。TD condition 一致（RULE-019）・TR result/log_ref を YAML メタに記述（RULE-020/021）・TC は kind: realizes（verifies 禁止）を組み込み済み。 | review-system |
 | reconciliation | なし（新規 author） | `agents/reconciliation.md` | 調停エージェント。`tmp/<sprint>/` の一時ファイルを検証（自己修正 or ROLLBACK）し、合格後に本ファイルへ確定書き込み。著作エージェントとの責務分離：tmp 書き込みは著作エージェント専権、本ファイル書き込みは調停エージェント専権。 | review-system |
 
-> その他の既存スキル（align・value-trace・mvp-scope・schema-design・domain-model・spec-pipeline・asset-pipeline・**asset-lateral-deploy**／
+> その他の既存スキル（align・value-trace・mvp-scope・schema-design・domain-model・spec-pipeline・asset-pipeline・**asset-lateral-deploy**・**agy-delegate**・**bloom-model-tier**／
 > **実装設計：architecture-design・orchestration-design・prompt-design・impl-design-pipeline**）と
-> エージェント（spec-inspector・structured-analysis・asset-auditor）は**未テーラリング＝汎用メソッドのまま active**。
+> エージェント（spec-inspector・structured-analysis・asset-auditor・**agy-delegate**）は**未テーラリング＝汎用メソッドのまま active**。
 > ※ 実装設計スキルは**汎用メソッド**（本PJ固有の選択＝ヘキサゴナル/内部git/stdout プロトコルは成果物 docs 側）。テーラリングが要る場合のみ本表へ起票する。
 > ※ 思考支援スキル（align・architecture-design 等）は著作規約セクションを暫定で保持。型別エージェントへの完全移管は後続タスク。
 > ※ `asset-lateral-deploy` は Issue #3 で新規追加（汎用メソッド・テーラリング対象外）。
+> ※ `agy-delegate`（スキル＋エージェント）は外部 CLI 委譲ツール（汎用・テーラリング対象外）。agy MCP はローカル CLI／Windows Credential Manager 依存のため**クラウド/別プラットフォームへは非移植**。横展時は「環境依存・非移植」注記が要る。
