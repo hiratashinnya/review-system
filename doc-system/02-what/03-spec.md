@@ -1125,13 +1125,13 @@ edges:
 ```
 </details>
 
-検証層ノード（FND/NFR/TC/VERIFY）の必須辺欠如（SPEC-18-1〜5 を参照）。
+検証層ノード（FND/NFR/TC/VERIFY/TD/TR）の必須辺欠如（SPEC-18-1〜8 を参照）。
 
 ---
 
 ## SPEC-18-1: FND に被指摘要素への辺欠如（RULE-006）（failure）
 
-<details><summary>⬡ SPEC-18-1 · v0.1</summary>
+<details><summary>⬡ SPEC-18-1 · v0.2</summary>
 
 ```yaml
 id: SPEC-18-1
@@ -1145,9 +1145,9 @@ edges:
 ```
 </details>
 
-**前提条件**: 型が FND のノードが存在する（verification ステージ）
-**入力/トリガ**: FND に対象要素への依存辺がない（`must_link_to: FND→any`）
-**期待動作**: RULE-006 ERROR を報告する（旧 RULE-009）
+**前提条件**: 型が FND の未解消ノード（`resolved: false` / 未設定）が存在する（verification ステージ）
+**入力/トリガ**: 未解消 FND に指摘対象要素への forward 辺がない（`fnd_lifecycle.unresolved.must_link_to`・target: any・severity error。DD-16・Q-4 で `must_link_to` 標準セクションから状態依存ルールへ移管）
+**期待動作**: RULE-006 ERROR を報告する（config reason「RULE-006 後継」・旧 RULE-009）
 
 ---
 
@@ -1236,6 +1236,75 @@ edges:
 **前提条件**: 型が VERIFY のノードが存在する（verification ステージ）
 **入力/トリガ**: VERIFY に対象要素への依存辺がない（`must_link_to: VERIFY→any`）
 **期待動作**: RULE-006 ERROR を報告する（旧 RULE-013）
+
+---
+
+## SPEC-18-6: TD に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-18-6 · v0.1</summary>
+
+```yaml
+id: SPEC-18-6
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が TD のノードが存在する（verification ステージが activate 済み）
+**入力/トリガ**: TD に SPEC への依存辺がない（config `must_link_to: TD→SPEC`・severity error）
+**期待動作**: RULE-006 を ERROR で報告する
+**例**: `TD-3` が `SPEC-18` への辺を 1 本も持たない → `ERROR|...|RULE-006|TD-3|...`
+
+---
+
+## SPEC-18-7: TR に TC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-18-7 · v0.1</summary>
+
+```yaml
+id: SPEC-18-7
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が TR のノードが存在する（verification ステージが activate 済み）
+**入力/トリガ**: TR に TC への依存辺がない（config `must_link_to: TR→TC`・severity error）
+**期待動作**: RULE-006 を ERROR で報告する
+**例**: `TR-2` が `TC-5` への辺を持たない（どの TC も指していない）→ `ERROR|...|RULE-006|TR-2|...`
+
+---
+
+## SPEC-18-8: TD に TC からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-18-8 · v0.1</summary>
+
+```yaml
+id: SPEC-18-8
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が TD のノードが存在する（verification ステージが activate 済み）
+**入力/トリガ**: TD が TC から被依存辺を受けていない（config `must_be_linked_from: TD ← [TC]`・severity warning）
+**期待動作**: RULE-006 を WARNING で報告する
+**例**: `TD-3` を指す `TC` ノードが 1 つも存在しない → `WARNING|...|RULE-006|TD-3|...`
 
 ---
 
@@ -2203,7 +2272,7 @@ edges:
 
 **前提条件**: ソースに `@id` アノテーションがあり、設計層に DM/PORT/ORC ノードがある
 **入力/トリガ**: 段階④の検証を実行する
-**期待動作**: SPEC-28-1〜SPEC-28-2 を参照（`@id`→DM/PORT/ORC の realizes 辺照合による設計漏れ検出・紐づけ漏れ検出）。
+**期待動作**: SPEC-28-1〜SPEC-28-3 を参照（`@id`→DM/PORT/ORC の realizes 辺照合による設計漏れ検出・紐づけ漏れ検出、および `SRC→[DM,PORT,ORC]` 必須辺欠如検出）。
 
 ---
 
@@ -2248,6 +2317,29 @@ edges:
 **前提条件**: ソースに `@id` アノテーションがあり、設計層に DM/PORT/ORC ノードがある
 **入力/トリガ**: 段階④の検証で `@id`→DM/PORT/ORC の realizes 辺を照合する
 **期待動作**: realizes 辺を照合するとき、設計あり・realizes なしの紐づけ漏れを検出する。
+
+---
+
+## SPEC-28-3: SRC に DM/PORT/ORC への必須辺欠如（RULE-006）（normal・post-mvp）
+
+<details><summary>⬡ SPEC-28-3 · v0.1</summary>
+
+```yaml
+id: SPEC-28-3
+type: SPEC
+labels: [post-mvp]
+scheduled: "sprint-2"
+condition: normal
+edges:
+  - to: SPEC-28
+    ref_version: "0.3"
+```
+</details>
+
+**前提条件**: 型が SRC のノードが存在する（implementation ステージが activate 済み）
+**入力/トリガ**: SRC が DM・PORT・ORC のいずれにも依存辺を張っていない（config `must_link_to: SRC→[DM,PORT,ORC]`〔OR ターゲット〕・severity error）
+**期待動作**: RULE-006 を ERROR で報告する。これは `@id` realizes 照合（SPEC-28-1/28-2）による設計漏れ・紐づけ漏れ検出とは別に、config の必須辺 `SRC→[DM,PORT,ORC]` の欠如を構造点検として検出するものである。
+**例**: `SRC-4` が DM・PORT・ORC のいずれへも辺を持たない（3 ターゲットすべてに未接続）→ `ERROR|...|RULE-006|SRC-4|...`
 
 ---
 
@@ -4046,5 +4138,807 @@ edges:
 **前提条件**: 型が PEND のノードがあり、反映完了時には著者が `PEND→X` を削除し `X→PEND` を追加する運用である（辺の削除・追加は著者の処置であり検証ツールの検証対象ではない）
 **入力/トリガ**: PEND の義務辺（`PEND→X`）が存在する
 **期待動作**: PEND の義務辺 `PEND→X` が残存するとき、RULE-022 違反を WARNING として報告する（型で判定・lifecycle パース不要）。
+
+---
+
+## SPEC-56: 要件層ノードの必須辺欠如（failure）
+
+<details><summary>⬡ SPEC-56 · v0.1</summary>
+
+```yaml
+id: SPEC-56
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-3
+    ref_version: "0.2"
+  - to: FND-102
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: 要件層ノード（VAL/SR/FR/NFR/SPEC）の必須辺欠如検出（アンブレラ）。検証アサーションは子 SPEC-56-1〜8 を参照（config の `must_link_to`/`must_be_linked_from` 要件層 8 行を 1 行 1 SPEC に分割）。各子は `activate_stage: requirements` 到達時に当該 config 行の severity で RULE-006 を報告する。
+
+---
+
+## SPEC-56-1: SR に VAL への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-1 · v0.1</summary>
+
+```yaml
+id: SPEC-56-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が SR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: SR に VAL への依存辺がない（`must_link_to: SR→VAL`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: SR-1 が VAL への辺を持たない → `ERROR|...|RULE-006|SR-1|...`
+
+---
+
+## SPEC-56-2: FR に SR への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-2 · v0.1</summary>
+
+```yaml
+id: SPEC-56-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が FR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: FR に SR への依存辺がない（`must_link_to: FR→SR`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: FR-3 が SR への辺を持たない → `ERROR|...|RULE-006|FR-3|...`
+
+---
+
+## SPEC-56-3: NFR に SR への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-3 · v0.1</summary>
+
+```yaml
+id: SPEC-56-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が NFR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: NFR に SR への依存辺がない（`must_link_to: NFR→SR`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: NFR-3 が SR への辺を持たない → `ERROR|...|RULE-006|NFR-3|...`
+
+---
+
+## SPEC-56-4: SPEC に FR/NFR/SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-4 · v0.1</summary>
+
+```yaml
+id: SPEC-56-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が SPEC のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: SPEC が FR・NFR・SPEC のいずれの target へも依存辺を持たない（`must_link_to: SPEC→[FR,NFR,SPEC]`＝OR ターゲットのいずれからも辺が無い）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: SPEC-40 が FR・NFR・親 SPEC のいずれへも辺を持たない → `ERROR|...|RULE-006|SPEC-40|...`
+
+---
+
+## SPEC-56-5: VAL に SR からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-5 · v0.1</summary>
+
+```yaml
+id: SPEC-56-5
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が VAL のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: VAL が SR から被依存辺を受けていない（`must_be_linked_from: VAL←[SR]`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: VAL-1 を指す SR の辺が 1 本も無い → `ERROR|...|RULE-006|VAL-1|...`
+
+---
+
+## SPEC-56-6: SR に FR/NFR/ACTOR からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-6 · v0.1</summary>
+
+```yaml
+id: SPEC-56-6
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が SR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: SR が FR・NFR・ACTOR のいずれの source からも被依存辺を受けていない（`must_be_linked_from: SR←[FR,NFR,ACTOR]`＝OR ソースのいずれからも辺が無い）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: SR-5 を指す FR・NFR・ACTOR の辺が 1 本も無い → `WARNING|...|RULE-006|SR-5|...`
+
+---
+
+## SPEC-56-7: FR に SPEC からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-7 · v0.1</summary>
+
+```yaml
+id: SPEC-56-7
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が FR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: FR が SPEC から被依存辺を受けていない（`must_be_linked_from: FR←[SPEC]`）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: FR-3 を指す SPEC の辺が 1 本も無い → `WARNING|...|RULE-006|FR-3|...`
+
+---
+
+## SPEC-56-8: NFR に SPEC からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-56-8 · v0.1</summary>
+
+```yaml
+id: SPEC-56-8
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-56
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が NFR のノードが存在する（requirements ステージ到達済み）
+**入力/トリガ**: NFR が SPEC から被依存辺を受けていない（`must_be_linked_from: NFR←[SPEC]`）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: NFR-3 を指す SPEC の辺が 1 本も無い → `WARNING|...|RULE-006|NFR-3|...`
+
+---
+
+## SPEC-57: 分析層ノードの必須辺欠如（価値経路3種以外）（failure）
+
+<details><summary>⬡ SPEC-57 · v0.1</summary>
+
+```yaml
+id: SPEC-57
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-3
+    ref_version: "0.2"
+  - to: FND-102
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: 分析層ノード（ACTOR/TERM/I/O/D/P/E）の必須辺欠如検出（アンブレラ）。価値経路の名前付き3種（O→P・I←P・E←P）は SPEC-30（SPEC-30-1/3/2）が担うため本傘の対象外とし、本傘はそれ以外の分析層必須辺を列挙する。検証アサーションは子 SPEC-57-1〜12 を参照（config の `must_link_to`/`must_be_linked_from` 分析層 残 12 行を 1 行 1 SPEC に分割）。各子は `activate_stage: analysis` 到達時に当該 config 行の severity で RULE-006 を報告する。
+
+---
+
+## SPEC-57-1: ACTOR に SR への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-1 · v0.1</summary>
+
+```yaml
+id: SPEC-57-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が ACTOR のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: ACTOR に SR への依存辺がない（`must_link_to: ACTOR→SR`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: ACTOR-1 が SR への辺を持たない → `ERROR|...|RULE-006|ACTOR-1|...`
+
+---
+
+## SPEC-57-2: TERM に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-2 · v0.1</summary>
+
+```yaml
+id: SPEC-57-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が TERM のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: TERM に SPEC への依存辺がない（`must_link_to: TERM→SPEC`）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: TERM-1 が SPEC への辺を持たない → `WARNING|...|RULE-006|TERM-1|...`
+
+---
+
+## SPEC-57-3: I に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-3 · v0.1</summary>
+
+```yaml
+id: SPEC-57-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が I（入力）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: I に SPEC への依存辺がない（`must_link_to: I→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: I-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|I-1|...`
+
+---
+
+## SPEC-57-4: O に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-4 · v0.1</summary>
+
+```yaml
+id: SPEC-57-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が O（出力）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: O に SPEC への依存辺がない（`must_link_to: O→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: O-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|O-1|...`
+
+---
+
+## SPEC-57-5: O に ACTOR への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-5 · v0.1</summary>
+
+```yaml
+id: SPEC-57-5
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が O（出力）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: O に ACTOR への依存辺がない（`must_link_to: O→ACTOR`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: O-1 が ACTOR への辺を持たない → `ERROR|...|RULE-006|O-1|...`
+
+---
+
+## SPEC-57-6: D に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-6 · v0.1</summary>
+
+```yaml
+id: SPEC-57-6
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が D（データストア）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: D に SPEC への依存辺がない（`must_link_to: D→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: D-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|D-1|...`
+
+---
+
+## SPEC-57-7: D に P への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-7 · v0.1</summary>
+
+```yaml
+id: SPEC-57-7
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が D（データストア）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: D に P への依存辺がない（`must_link_to: D→P`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: D-1 が P への辺を持たない → `ERROR|...|RULE-006|D-1|...`
+
+---
+
+## SPEC-57-8: P に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-8 · v0.1</summary>
+
+```yaml
+id: SPEC-57-8
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が P（プロセス）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: P に SPEC への依存辺がない（`must_link_to: P→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: P-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|P-1|...`
+
+---
+
+## SPEC-57-9: E に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-9 · v0.1</summary>
+
+```yaml
+id: SPEC-57-9
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が E（外部エンティティ）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: E に SPEC への依存辺がない（`must_link_to: E→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: E-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|E-1|...`
+
+---
+
+## SPEC-57-10: E に ACTOR への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-10 · v0.1</summary>
+
+```yaml
+id: SPEC-57-10
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が E（外部エンティティ）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: E に ACTOR への依存辺がない（`must_link_to: E→ACTOR`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: E-1 が ACTOR への辺を持たない → `ERROR|...|RULE-006|E-1|...`
+
+---
+
+## SPEC-57-11: ACTOR に E/I/O からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-11 · v0.1</summary>
+
+```yaml
+id: SPEC-57-11
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が ACTOR のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: ACTOR が E・I・O のいずれの source からも被依存辺を受けていない（`must_be_linked_from: ACTOR←[E,I,O]`＝OR ソースのいずれからも辺が無い）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: ACTOR-1 を指す E・I・O の辺が 1 本も無い → `WARNING|...|RULE-006|ACTOR-1|...`
+
+---
+
+## SPEC-57-12: D に P からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-57-12 · v0.1</summary>
+
+```yaml
+id: SPEC-57-12
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-57
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が D（データストア）のノードが存在する（analysis ステージ到達済み）
+**入力/トリガ**: D が P から被依存辺を受けていない（`must_be_linked_from: D←[P]`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: D-1 を指す P の辺が 1 本も無い → `ERROR|...|RULE-006|D-1|...`
+
+---
+
+## SPEC-58: 設計層ノードの必須辺欠如検出（failure）
+
+<details><summary>⬡ SPEC-58 · v0.1</summary>
+
+```yaml
+id: SPEC-58
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-3
+    ref_version: "0.2"
+  - to: FND-102
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: 設計層ノード（ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/E）の必須辺欠如検出（アンブレラ）。検証アサーションは子 SPEC-58-1〜12 を参照（config の `must_link_to`/`must_be_linked_from` 設計層 12 行を 1 行 1 SPEC に分割）。各子は `activate_stage: design` 到達時に当該 config 行の severity で RULE-006 を報告する。
+
+---
+
+## SPEC-58-1: ORC に E への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-1 · v0.1</summary>
+
+```yaml
+id: SPEC-58-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が ORC（オーケストレーション）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: ORC に E への依存辺がない（`must_link_to: ORC→E`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: ORC-1 が E への辺を持たない → `ERROR|...|RULE-006|ORC-1|...`
+
+---
+
+## SPEC-58-2: DS に P への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-2 · v0.1</summary>
+
+```yaml
+id: SPEC-58-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が DS（データストア設計）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: DS に P への依存辺がない（`must_link_to: DS→P`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: DS-1 が P への辺を持たない → `ERROR|...|RULE-006|DS-1|...`
+
+---
+
+## SPEC-58-3: MOD に P/D への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-3 · v0.1</summary>
+
+```yaml
+id: SPEC-58-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が MOD（モジュール）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: MOD が P・D のいずれの target にも依存辺を張っていない（`must_link_to: MOD→[P,D]`＝OR ターゲットのいずれへも辺が無い）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: MOD-1 が P へも D へも辺を 1 本も持たない → `ERROR|...|RULE-006|MOD-1|...`
+
+---
+
+## SPEC-58-4: DM に TERM への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-4 · v0.1</summary>
+
+```yaml
+id: SPEC-58-4
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が DM（ドメインモデル）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: DM に TERM への依存辺がない（`must_link_to: DM→TERM`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: DM-1 が TERM への辺を持たない → `ERROR|...|RULE-006|DM-1|...`
+
+---
+
+## SPEC-58-5: DM に MOD への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-5 · v0.1</summary>
+
+```yaml
+id: SPEC-58-5
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が DM（ドメインモデル）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: DM に MOD への依存辺がない（`must_link_to: DM→MOD`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: DM-1 が MOD への辺を持たない → `ERROR|...|RULE-006|DM-1|...`
+
+---
+
+## SPEC-58-6: PORT に MOD への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-6 · v0.1</summary>
+
+```yaml
+id: SPEC-58-6
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が PORT（ポート/インターフェース）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: PORT に MOD への依存辺がない（`must_link_to: PORT→MOD`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: PORT-1 が MOD への辺を持たない → `ERROR|...|RULE-006|PORT-1|...`
+
+---
+
+## SPEC-58-7: PRS に DS への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-7 · v0.1</summary>
+
+```yaml
+id: SPEC-58-7
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が PRS（永続化）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: PRS に DS への依存辺がない（`must_link_to: PRS→DS`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: PRS-1 が DS への辺を持たない → `ERROR|...|RULE-006|PRS-1|...`
+
+---
+
+## SPEC-58-8: SCM に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-8 · v0.1</summary>
+
+```yaml
+id: SPEC-58-8
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が SCM（スキーマ）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: SCM に SPEC への依存辺がない（`must_link_to: SCM→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: SCM-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|SCM-1|...`
+
+---
+
+## SPEC-58-9: CFG に SCM への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-9 · v0.1</summary>
+
+```yaml
+id: SPEC-58-9
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が CFG（設定）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: CFG に SCM への依存辺がない（`must_link_to: CFG→SCM`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: CFG-1 が SCM への辺を持たない → `ERROR|...|RULE-006|CFG-1|...`
+
+---
+
+## SPEC-58-10: CFG に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-10 · v0.1</summary>
+
+```yaml
+id: SPEC-58-10
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が CFG（設定）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: CFG に SPEC への依存辺がない（`must_link_to: CFG→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: CFG-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|CFG-1|...`
+
+---
+
+## SPEC-58-11: PROMPT に SPEC への依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-11 · v0.1</summary>
+
+```yaml
+id: SPEC-58-11
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が PROMPT（プロンプト）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: PROMPT に SPEC への依存辺がない（`must_link_to: PROMPT→SPEC`）
+**期待動作**: RULE-006 ERROR を報告する
+**例**: PROMPT-1 が SPEC への辺を持たない → `ERROR|...|RULE-006|PROMPT-1|...`
+
+---
+
+## SPEC-58-12: E に ORC からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-58-12 · v0.1</summary>
+
+```yaml
+id: SPEC-58-12
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-58
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が E（外部エンティティ）のノードが存在する（design ステージ到達済み）
+**入力/トリガ**: E が ORC から被依存辺を受けていない（`must_be_linked_from: E←[ORC]`）
+**期待動作**: RULE-006 WARNING を報告する
+**例**: E-1 を指す ORC の辺が 1 本も無い → `WARNING|...|RULE-006|E-1|...`
 
 ---
