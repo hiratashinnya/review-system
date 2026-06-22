@@ -4994,3 +4994,73 @@ edges:
 **例**: `resolved: true` の `FND-50` に `FND-50→SPEC-3` の forward 辺が残っている → `WARNING|...|RULE-030|FND-50|...`
 
 ---
+
+## SPEC-60: FND resolved 状態の機械判定セマンティクス（normal）
+
+<details><summary>⬡ SPEC-60 · v0.1</summary>
+
+```yaml
+id: SPEC-60
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-7
+    ref_version: "0.2"
+  - to: FND-105
+    ref_version: "0.1"
+```
+</details>
+
+FND ノードの `resolved` フィールドをどう解釈して resolved／unresolved を判定するかの正常系セマンティクス（読み方・省略時の既定値）。SPEC-1 と同型の behavior SPEC であり、特定の RULE には紐づかない（判定結果は SPEC-18-1〔unresolved 前提〕・SPEC-18-9・SPEC-59〔resolved 前提〕が依拠する状態判定の in-graph 定義）。設定の根拠は config `fnd_lifecycle.resolved_field: resolved`（out-of-graph・「省略時は false として扱う」）。期待動作は単一アサーション化のため SPEC-60-1〜2 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+**スコープ外（明示）**: 本 SPEC は「判定セマンティクス（フィールドの読み方・既定値）」に限定する。`resolved` 値が boolean か否かの型検証（非 boolean 値の扱い）は本 SPEC のスコープに含めない——FND の任意フィールド `resolved` の型検証は SPEC-52-4（RULE-028）の共通必須／型別必須フィールド検証の対象外であり、別途 FND-105 が論点化しうる。なお DD/Q/PEND は状態を本文バッジのみで持ち YAML に状態を持たない（SPEC-49）のに対し、FND は `resolved` を YAML フィールドとして持つ点で非対称である。
+
+---
+
+## SPEC-60-1: `resolved: true` → resolved 判定（normal）
+
+<details><summary>⬡ SPEC-60-1 · v0.1</summary>
+
+```yaml
+id: SPEC-60-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-60
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が FND の構造化ノードが 1 件以上パース済みで、検証ツールが config `fnd_lifecycle.resolved_field`（値 `resolved`）を参照して状態判定を行う段にある。
+**入力/トリガ**: 検証ツールが当該 FND ノードの YAML から `resolved` フィールドを読む。
+**期待動作**: `resolved` の値が boolean の `true` のとき、当該 FND を resolved（解消済み）と判定する（この判定結果に対して resolved 系の状態依存ルール〔`fnd_lifecycle.resolved.*`〕が適用される）。
+**例**: `id: FND-50, type: FND, resolved: true` → resolved と判定 → SPEC-18-9・SPEC-59 の前提（解消済み FND）が成立する。
+
+---
+
+## SPEC-60-2: `resolved: false`・未設定 → unresolved 判定（省略時 false 既定）（normal）
+
+<details><summary>⬡ SPEC-60-2 · v0.1</summary>
+
+```yaml
+id: SPEC-60-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-60
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: 型が FND の構造化ノードが 1 件以上パース済みで、検証ツールが config `fnd_lifecycle.resolved_field`（値 `resolved`）を参照して状態判定を行う段にある。
+**入力/トリガ**: 検証ツールが当該 FND ノードの YAML から `resolved` フィールドを読む（`resolved: false` が明記されている、または `resolved` キー自体が存在しない）。
+**期待動作**: `resolved` の値が boolean の `true` でないとき（明示 `false`、またはキー未設定で既定の `false` に解決されるとき）、当該 FND を unresolved（未解消）と判定する（config「省略時は false として扱う」の既定適用。この判定結果に対して unresolved 系の状態依存ルール〔`fnd_lifecycle.unresolved.*`〕が適用される）。
+**例**: `resolved: false` の `FND-60`、および `resolved` キーを持たない `FND-61` → いずれも unresolved と判定 → SPEC-18-1 の前提（未解消 FND）が成立する。
+
+---
