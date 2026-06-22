@@ -41,6 +41,9 @@
 | 設計総点検 | 既存拡張 | エージェント | `spec-inspector`（点検対象に設計ドキュメント追加） | 7 |
 | Issue #3 資産の横展 | 横展オーケストレータ | スキル＋Python ヘルパー | `/asset-lateral-deploy` | 8 |
 | 外部 CLI 委譲（agy/Antigravity） | 外部委譲ツール | スキル（薄い起動口・disable-model-invocation）＋エージェント | `/agy-delegate`・`agy-delegate` | — |
+| ノード検索/読み込み（md2idx 思想） | 検索・コンテキスト効率 | スキル（CLI 利用手順）＋エージェント（検索ループ隔離） | `/docidx`・`docidx-lookup`（実体＝`docidx/`） | — |
+
+> `docidx` を**スキル＋エージェント両方**にする理由：スキルは `python -m docidx` の利用手順（メインスレッドがその場で叩く）。エージェント `docidx-lookup` は「検索→選別→show→要約」の反復を別コンテキストに隔離し、ダイジェストだけ返してメインの文脈を節約する自走仕事。責務は**取得（retrieval）**で、点検（`spec-inspector`）・価値経路（`/value-trace`）・著作（`*-author`）とは別軸（asset-auditor 監査済・新規）。
 
 > `spec-inspector` と `structured-analysis` を**エージェント**にする理由：複数ファイルを横断的に読み・分解し、結論（gap 一覧 / DFD 一式）を返す自走型で、メインの会話文脈を汚さない方が効く（[method-inventory](method-inventory.md) の依存図でも A10/A11 が反復ループの核）。
 

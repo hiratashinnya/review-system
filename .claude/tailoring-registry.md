@@ -39,3 +39,4 @@
 > ※ 思考支援スキル（align・architecture-design 等）は著作規約セクションを暫定で保持。型別エージェントへの完全移管は後続タスク。
 > ※ `asset-lateral-deploy` は Issue #3 で新規追加（汎用メソッド・テーラリング対象外）。
 > ※ `agy-delegate`（スキル＋エージェント）は外部 CLI 委譲ツール（汎用・テーラリング対象外）。agy MCP はローカル CLI／Windows Credential Manager 依存のため**クラウド/別プラットフォームへは非移植**。横展時は「環境依存・非移植」注記が要る。
+> ※ `docidx`（スキル）＋ `docidx-lookup`（エージェント）はノード検索/読み込みツール（実体 `docidx/`・Python 標準ライブラリのみ・汎用・テーラリング対象外）。doc-system フォーマット仕様（SPEC/notation）に依存＝依存マップは `docidx/README.md`・各関数 `依存仕様:` docstring（フォーマット改版時に見直す）。

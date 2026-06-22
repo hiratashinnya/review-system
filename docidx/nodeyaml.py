@@ -72,7 +72,10 @@ def _indent(line: str) -> int:
 
 
 def _parse_edges(lines: list[str], start: int) -> tuple[list[dict[str, Any]], int]:
-    """``edges:`` 直後のブロックリストを読み、(edges, 次行index) を返す。"""
+    """``edges:`` 直後のブロックリストを読み、(edges, 次行index) を返す。
+
+    依存仕様: 04-notation.md §3（`to` スカラ・`ref_version` 必須・`note` 任意・`kind`/`status` なし）。
+    """
     edges: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     i = start
@@ -105,7 +108,11 @@ def _parse_edges(lines: list[str], start: int) -> tuple[list[dict[str, Any]], in
 
 
 def parse(text: str) -> dict[str, Any]:
-    """ノードの YAML ブロック本文（フェンス内）を dict へパースする。"""
+    """ノードの YAML ブロック本文（フェンス内）を dict へパースする。
+
+    依存仕様: 04-notation.md §3（YAML ブロック文法・edge スキーマ）。
+      記法が崩れた YAML をパースできない場合に失敗する点＝SPEC-2 v0.3（呼び出し側が fail-soft 化）。
+    """
     lines = text.splitlines()
     data: dict[str, Any] = {}
     i = 0

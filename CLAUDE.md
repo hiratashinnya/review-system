@@ -50,7 +50,9 @@
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
+- スキル（ノード検索・コンテキスト効率）：`/docidx`（doc-system ノードの md2idx 流 検索/読み込み。実体＝`docidx/`＝`python -m docidx`、委譲先＝`docidx-lookup`。read-only・drift は情報提示のみで判定はしない）
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
+- サブエージェント（ノード検索）：`docidx-lookup`（docidx CLI で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は CLI 実行のみ）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation`
 - サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation`(opus) を必ず通す）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
@@ -88,3 +90,4 @@
 - MVP ターゲットは `docs/dashboard.md`（P1＋P2）と `docs/requirements/12-mvp-scope.md`。
 - 実装設計：データ辞書集約は `docs/design/00-data-dictionary.md`、型安全なドメインモデルは `docs/design/01-class-design.md`（`/domain-model`）。
 - **実装前の凍結セット（8項目）**：索引＝`docs/design/README.md`。基盤＝`docs/design/02-module-architecture.md`。テスト戦略＝`/test-strategy`。
+- ノード検索/読み込みツール（md2idx 思想）：`docidx/`（`python -m docidx`・標準ライブラリのみ）。フォーマット依存マップ＝`docidx/README.md`。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。

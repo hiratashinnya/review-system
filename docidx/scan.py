@@ -37,12 +37,17 @@ def _is_node_summary_line(line: str) -> bool:
     """本物のノード summary 行か（本文中の例・インラインコードを誤検出しない）。
 
     本文には ``⬡ SPEC-1 · v0.3`` のような例が現れるため、``<summary`` タグの存在を必須とする。
+
+    依存仕様: SPEC-1-1 v0.1, SPEC-1 v0.3（04-notation.md §8・02-meta-schema.md §1 DD-8）
     """
     return "<summary" in line and _SUMMARY in line and _MIDDOT in line
 
 
 def _parse_summary(line: str) -> tuple[str, str] | None:
-    """summary 行から (id, version) を取り出す。バッジが無ければ None。"""
+    """summary 行から (id, version) を取り出す。バッジが無ければ None。
+
+    依存仕様: SPEC-1 v0.3, SPEC-1-1 v0.1（04-notation.md §8・02-meta-schema.md §1 DD-8）
+    """
     if not _is_node_summary_line(line):
         return None
     after = line.split(_SUMMARY, 1)[1]
@@ -60,7 +65,11 @@ def _is_boundary(line: str) -> bool:
 
 
 def parse_markdown(text: str, rel_path: str) -> list[Node]:
-    """1 ファイル分のテキストからノード群を抽出する。"""
+    """1 ファイル分のテキストからノード群を抽出する。
+
+    依存仕様: SPEC-1 v0.3, SPEC-1-1 v0.1, SPEC-1-2 v0.1（ノード発見・構造化・マーカー=id）。
+      見出し=直前 `## `／本文=`</details>` 後＝04-notation.md §4。マーカー直後 YAML 欠如＝§8。
+    """
     lines = text.splitlines()
     nodes: list[Node] = []
     heading = ""
@@ -120,6 +129,10 @@ def parse_markdown(text: str, rel_path: str) -> list[Node]:
 
 
 def _make_node(node_id, version, heading, rel_path, line_no, data, body, parse_error) -> Node:
+    """YAML dict＋バッジ情報から Node を組み立てる。
+
+    依存仕様: SPEC-1-1 v0.1（id/type/labels/scheduled/edges の抽出）。
+    """
     edges = tuple(Edge.from_dict(e) for e in data.get("edges", []) if isinstance(e, dict))
     labels_raw = data.get("labels", [])
     labels = tuple(str(x) for x in labels_raw) if isinstance(labels_raw, list) else ()
@@ -143,7 +156,10 @@ def _make_node(node_id, version, heading, rel_path, line_no, data, body, parse_e
 
 
 def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
-    """config.yaml の ``trace_scope`` の include/exclude を読む（無ければ既定）。"""
+    """config.yaml の ``trace_scope`` の include/exclude を読む（無ければ既定）。
+
+    依存仕様: SPEC-24 v0.2（trace_scope による in-graph 判定）・config.yaml: trace_scope。
+    """
     if not config_path.is_file():
         return list(_DEFAULT_INCLUDE), list(_DEFAULT_EXCLUDE)
     include: list[str] | None = None
@@ -170,7 +186,10 @@ def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
 
 
 def discover_files(repo_root: Path, include: list[str], exclude: list[str]) -> list[Path]:
-    """include グロブで集め、exclude グロブを除いた in-graph ファイル一覧。"""
+    """include グロブで集め、exclude グロブを除いた in-graph ファイル一覧。
+
+    依存仕様: SPEC-24 v0.2, SPEC-31 v0.1（in-graph 判定・空集合）・config.yaml: trace_scope。
+    """
     found: set[Path] = set()
     for pattern in include:
         for p in repo_root.glob(pattern):
@@ -186,7 +205,10 @@ def discover_files(repo_root: Path, include: list[str], exclude: list[str]) -> l
 
 
 def build_index(repo_root: Path | None = None, config_path: Path | None = None) -> NodeIndex:
-    """リポジトリ root を走査して NodeIndex を構築する。"""
+    """リポジトリ root を走査して NodeIndex を構築する。
+
+    依存仕様: SPEC-1 v0.3（ノード発見）・SPEC-24 v0.2, SPEC-31 v0.1（trace_scope 解決）。
+    """
     root = repo_root or find_repo_root()
     cfg = config_path or (root / "docs" / "doc-system" / "config.yaml")
     include, exclude = load_trace_scope(cfg)

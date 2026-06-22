@@ -29,6 +29,25 @@ python -m docidx dependents FR-1        # 依存元（入辺・逆引き）
 `<summary>` タグの有無で誤検出しない。パース不能ブロックは全体を止めず当該ノードに
 `parse_error` を記録する（fail-soft）。
 
+## フォーマット依存マップ（関数単位）
+
+docidx は doc-system の Markdown フォーマット仕様に依存する。仕様（SPEC ノード／notation 文書）が
+改版されたら、下表と各関数 docstring の `依存仕様:` 行を見直すこと（版は凍結参照）。
+
+| 関数 / 型 | 依存ポイント | 依存仕様（id・版／節） |
+|---|---|---|
+| `scan._is_node_summary_line` / `_parse_summary` | summary バッジでノード発見・版取得・例の誤検出回避 | SPEC-1-1 v0.1・SPEC-1 v0.3・04-notation §8・02-meta-schema §1 (DD-8) |
+| `scan.parse_markdown` | ノード発見と構造化／見出し=直前 `## `・本文=`</details>` 後／マーカー直後 YAML 欠如 | SPEC-1 v0.3・SPEC-1-1 v0.1・SPEC-1-2 v0.1・04-notation §4,§8 |
+| `scan._make_node` | id/type/labels/scheduled/edges の抽出 | SPEC-1-1 v0.1 |
+| `scan.load_trace_scope` / `discover_files` / `build_index` | trace_scope の include/exclude で in-graph 判定（空集合含む） | SPEC-24 v0.2・SPEC-31 v0.1・config.yaml: trace_scope |
+| `nodeyaml.parse` / `_parse_edges` | YAML ブロック文法・edge スキーマ／記法崩れで失敗 | 04-notation §3・SPEC-2 v0.3 |
+| `model.Edge` | edge スキーマ（`to`/`ref_version`/`note`・`kind`/`status` なし） | 04-notation §3 |
+| `model.Node`（`version`） | 版の真実源は summary バッジ x.y | 02-meta-schema §1 (DD-8) |
+| `query._drift` / `deps` / `dependents` | ドリフト＝辺 `ref_version` と参照先バッジ x.y の比較（情報提示のみ） | SPEC-9 v0.2・02-meta-schema §1 (DD-8) |
+
+> ドリフトは**情報提示のみ**。FND 起票・RULE 発火（検証）は doc-system 検証ツール側の責務で、
+> docidx は行わない（PR2: 機械取得と運用判定を混ぜない）。
+
 ## スコープ外（v1）
 
 グラフ全体の検証（RULE-001…029）、ノードの書き込み/変更、`.idx` キャッシュの永続化、

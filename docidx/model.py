@@ -8,7 +8,10 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Edge:
-    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジ x.y）。"""
+    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジ x.y）。
+
+    依存仕様: 04-notation.md §3（`to` スカラ・`ref_version` 必須・`note` 任意・`kind`/`status` なし）。
+    """
 
     to: str
     ref_version: str = ""
@@ -25,7 +28,11 @@ class Edge:
 
 @dataclass(frozen=True)
 class Node:
-    """doc-system の 1 ノード（summary バッジ＋YAML＋本文）。"""
+    """doc-system の 1 ノード（summary バッジ＋YAML＋本文）。
+
+    依存仕様: SPEC-1-1 v0.1（構造化フィールド）。``version`` は summary バッジ x.y が
+      真実源＝02-meta-schema.md §1（DD-8・ファイル frontmatter version は廃止）。
+    """
 
     id: str
     type: str
