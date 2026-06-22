@@ -35,9 +35,11 @@
 | RULE-001 | DD の義務辺（`DD→X`）が存在（未反映） | ERROR |
 | RULE-002 | Q の義務辺（`Q→X`）が存在 | WARNING |
 | RULE-022 | PEND の義務辺（`PEND→X`）が存在 | WARNING |
+| RULE-030 | config 駆動の禁止接続が残存：`fnd_lifecycle.resolved.must_not_link_to`（resolved FND の元 forward 辺 `FND→X` が削除されず残留・辺逆転 DD-3 後の残置） | WARNING（config 行） |
 | RULE-004 | 辺の ref_version と参照先**ノード**の x.y（バッジ）の不一致（全依存辺・義務辺含む・DD-8） | ERROR |
 
 > RULE-003 廃止（→ RULE-004）。see-also 廃止で辺は全て依存辺＝ドリフトは一律 ERROR。
+> RULE-030 は **config 駆動の汎用「禁止接続/辺残留」検出**（DD-17・FND-104・案B）。RULE-001/002/022 が `decision_spine` の**ノード型固有**の義務辺残存を検出するのに対し、RULE-030 は config（現状 `fnd_lifecycle.resolved.must_not_link_to`）が宣言する任意型の禁止接続の残存を検出する。**辺の欠如**を検出する RULE-006（段階②・config 駆動の必須接続欠如）と対をなす（欠如=RULE-006／残存=RULE-030 で責務分離）。
 
 **トリガ**：ノードのバッジ `vX.Y` を上げたとき（x または y の上昇・DD-8）。  
 **運用**：PR 差分でノードバッジ変更を含むコミットの後、走査を実行する。

@@ -1322,7 +1322,7 @@ edges:
   - to: SPEC-18
     ref_version: "0.2"
   - to: FND-103
-    ref_version: "0.1"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -4965,5 +4965,32 @@ edges:
 **入力/トリガ**: E が ORC から被依存辺を受けていない（`must_be_linked_from: E←[ORC]`）
 **期待動作**: RULE-006 WARNING を報告する
 **例**: E-1 を指す ORC の辺が 1 本も無い → `WARNING|...|RULE-006|E-1|...`
+
+---
+
+## SPEC-59: 解消済み FND の元 forward 辺残存（failure）
+
+<details><summary>⬡ SPEC-59 · v0.1</summary>
+
+```yaml
+id: SPEC-59
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-7
+    ref_version: "0.2"
+  - to: FND-103
+    ref_version: "0.2"
+  - to: FND-104
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の解消済みノード（`resolved: true`）があり、解消時には著者が元の `FND→X`（指摘対象への forward 辺）を削除し `X→FND` の backward 辺に置換する運用である（辺逆転ルール・DD-3。辺の削除・追加は著者の処置であり検証ツールの検証対象ではない）
+**入力/トリガ**: 解消済み FND に元の forward 辺（`FND→X`）が残存する（config `fnd_lifecycle.resolved.must_not_link_to`・target: any・severity warning）
+**期待動作**: 解消済み FND の forward 辺 `FND→X` が残存するとき、RULE-030 を WARNING で報告する
+**例**: `resolved: true` の `FND-50` に `FND-50→SPEC-3` の forward 辺が残っている → `WARNING|...|RULE-030|FND-50|...`
 
 ---
