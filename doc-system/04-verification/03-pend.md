@@ -6,7 +6,7 @@
 
 **status: resolved**（2026-06-13 初回解消＝I-1-1/I-1-2/I-1-3 を I-1 の子ノードとして改名・親辺 `to: I-1` を付与して階層を明示。2026-06-15 DD-12 退役で再解消＝3 ノードを退役し D-18/D-19 の派生属性へ吸収。独立入力扱いの問題を根本是正。）
 
-<details><summary>⬡ PEND-1 · v0.2</summary>
+<details><summary>⬡ PEND-1 · v0.2.0</summary>
 
 ```yaml
 id: PEND-1
@@ -15,11 +15,11 @@ labels: []
 scheduled: ""
 edges:
   - to: D-18
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-6
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-4
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -43,7 +43,7 @@ edges:
 
 **status: deferred**（sprint-2 以降・VAL-5/FR-15 で実装）
 
-<details><summary>⬡ PEND-2 · v0.1</summary>
+<details><summary>⬡ PEND-2 · v0.1.0</summary>
 
 ```yaml
 id: PEND-2
@@ -52,9 +52,9 @@ labels: []
 scheduled: ""
 edges:
   - to: VAL-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FR-15
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

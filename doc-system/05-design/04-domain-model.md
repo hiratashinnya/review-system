@@ -8,7 +8,7 @@
 
 ## DM-1: NodeRecord型
 
-<details><summary>⬡ DM-1 · v0.1</summary>
+<details><summary>⬡ DM-1 · v0.1.0</summary>
 
 ```yaml
 id: DM-1
@@ -17,9 +17,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -43,7 +43,7 @@ edges:
 
 ## DM-2: EdgeRecord型
 
-<details><summary>⬡ DM-2 · v0.1</summary>
+<details><summary>⬡ DM-2 · v0.1.0</summary>
 
 ```yaml
 id: DM-2
@@ -52,9 +52,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -71,7 +71,7 @@ edges:
 
 ## DM-3: ViolationRecord型
 
-<details><summary>⬡ DM-3 · v0.3</summary>
+<details><summary>⬡ DM-3 · v0.3.0</summary>
 
 ```yaml
 id: DM-3
@@ -80,11 +80,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-3
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FND-100
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -108,7 +108,7 @@ edges:
 
 ## DM-4: ConfigSlice型群
 
-<details><summary>⬡ DM-4 · v0.1</summary>
+<details><summary>⬡ DM-4 · v0.1.0</summary>
 
 ```yaml
 id: DM-4
@@ -117,9 +117,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-4
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -142,7 +142,7 @@ edges:
 
 ## DM-5: CoverageReport型
 
-<details><summary>⬡ DM-5 · v0.1</summary>
+<details><summary>⬡ DM-5 · v0.1.0</summary>
 
 ```yaml
 id: DM-5
@@ -151,11 +151,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FND-100
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -178,7 +178,7 @@ edges:
 
 ## DM-6: InspectionViews型群
 
-<details><summary>⬡ DM-6 · v0.1</summary>
+<details><summary>⬡ DM-6 · v0.1.0</summary>
 
 ```yaml
 id: DM-6
@@ -187,11 +187,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-6
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: MOD-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FND-100
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

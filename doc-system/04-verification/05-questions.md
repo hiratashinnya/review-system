@@ -9,7 +9,7 @@
 
 **status: closed**（2026-06-13 DD-2 へ昇格・決定済み）
 
-<details><summary>⬡ Q-1 · v0.1</summary>
+<details><summary>⬡ Q-1 · v0.1.0</summary>
 
 ```yaml
 id: Q-1
@@ -19,7 +19,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: DD-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -40,7 +40,7 @@ edges:
 
 **status: open**
 
-<details><summary>⬡ Q-2 · v0.2</summary>
+<details><summary>⬡ Q-2 · v0.2.0</summary>
 
 ```yaml
 id: Q-2
@@ -50,13 +50,13 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-21
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: SPEC-25
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: SPEC-29
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -89,7 +89,7 @@ edges:
 
 **status: open**
 
-<details><summary>⬡ Q-3 · v0.1</summary>
+<details><summary>⬡ Q-3 · v0.1.0</summary>
 
 ```yaml
 id: Q-3
@@ -99,9 +99,9 @@ scheduled: ""
 suppress: []
 edges:
   - to: O-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: O-2
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -132,7 +132,7 @@ edges:
 
 **改訂（MINOR バンプ v0.1→v0.2・辺追加＝構造変更）**: オーナーが選択肢A（FND 専用ライフサイクルルールを config に独立定義）を承認したため、本 Q を DD-16 へ昇格し `status: closed` とする。義務辺 `→DD-16`（ref_version "0.1"・DD-16 現バッジ v0.1）を追加し、本 Q が DD-16 へ昇格したことを辺で明示する（Q→DD 昇格辺）。DD-16 が `fnd_lifecycle` 専用ルール（未解消＝forward 必須／resolved＝backward 必須・forward 不在期待）・FND の `resolved` フィールド導入・FND-96/97/98/100 の暫定 `suppress: [RULE-006]` 撤去を決定した。指摘時 ref_version（FND-96 "0.4"・DD-3 "0.1"）は据え置き（既存の指摘時 ref_version 記録を維持）。
 
-<details><summary>⬡ Q-4 · v0.2</summary>
+<details><summary>⬡ Q-4 · v0.2.0</summary>
 
 ```yaml
 id: Q-4
@@ -142,11 +142,11 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-96
-    ref_version: "0.4"
+    ref_version: "0.4.0"
   - to: DD-3
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-16
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

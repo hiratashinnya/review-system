@@ -20,7 +20,7 @@ edges:
 ```
 </details>
 
-**バージョン**: `MAJOR.MINOR`（MAJOR=構造/型変化・MINOR=文言のみ）
+**バージョン**: `MAJOR.MINOR.PATCH`（MAJOR=構造/型変化・MINOR=文言のみ）
 **役割制約**: [やること / やってはいけないこと]
 **出力スキーマ**: [→ SCM-NNN 参照]
 

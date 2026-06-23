@@ -6,7 +6,7 @@
 
 ## VAL-1: トレーサビリティ
 
-<details><summary>⬡ VAL-1 · v0.1</summary>
+<details><summary>⬡ VAL-1 · v0.1.0</summary>
 
 ```yaml
 id: VAL-1
@@ -23,7 +23,7 @@ edges: []
 
 ## VAL-2: 自動整合性検証
 
-<details><summary>⬡ VAL-2 · v0.1</summary>
+<details><summary>⬡ VAL-2 · v0.1.0</summary>
 
 ```yaml
 id: VAL-2
@@ -40,7 +40,7 @@ edges: []
 
 ## VAL-3: 著作効率
 
-<details><summary>⬡ VAL-3 · v0.1</summary>
+<details><summary>⬡ VAL-3 · v0.1.0</summary>
 
 ```yaml
 id: VAL-3
@@ -57,7 +57,7 @@ edges: []
 
 ## VAL-4: 段階的前進
 
-<details><summary>⬡ VAL-4 · v0.1</summary>
+<details><summary>⬡ VAL-4 · v0.1.0</summary>
 
 ```yaml
 id: VAL-4
@@ -74,7 +74,7 @@ edges: []
 
 ## VAL-5: グラフの図的可視化
 
-<details><summary>⬡ VAL-5 · v0.1</summary>
+<details><summary>⬡ VAL-5 · v0.1.0</summary>
 
 ```yaml
 id: VAL-5
@@ -91,7 +91,7 @@ edges: []
 
 ## VAL-6: 図からの逆起こし（往復）
 
-<details><summary>⬡ VAL-6 · v0.1</summary>
+<details><summary>⬡ VAL-6 · v0.1.0</summary>
 
 ```yaml
 id: VAL-6

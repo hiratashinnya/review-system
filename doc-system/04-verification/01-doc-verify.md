@@ -7,7 +7,7 @@
 
 ## VERIFY-1: 要件〜分析層の spec-inspector レビュー
 
-<details><summary>⬡ VERIFY-1 · v0.1</summary>
+<details><summary>⬡ VERIFY-1 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-1
@@ -17,21 +17,21 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: VAL-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: FR-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: ACTOR-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: I-1
-    ref_version: "0.4"
+    ref_version: "0.4.0"
   - to: P-1
-    ref_version: "0.4"
+    ref_version: "0.4.0"
   - to: E-1
-    ref_version: "0.4"
+    ref_version: "0.4.0"
   - to: DD-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -48,7 +48,7 @@ edges:
 
 ## VERIFY-2: N0（SPEC 品質強化分）再点検の実施記録
 
-<details><summary>⬡ VERIFY-2 · v0.1</summary>
+<details><summary>⬡ VERIFY-2 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-2
@@ -58,23 +58,23 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: FR-11
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: FR-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: FR-14
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: SPEC-31
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: SPEC-40
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FND-16
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-17
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: Q-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -99,7 +99,7 @@ edges:
 
 ## VERIFY-3: N5（P 単一責務点検）の実施記録
 
-<details><summary>⬡ VERIFY-3 · v0.1</summary>
+<details><summary>⬡ VERIFY-3 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-3
@@ -109,17 +109,17 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: P-1
-    ref_version: "0.6"
+    ref_version: "0.6.0"
   - to: P-4
-    ref_version: "0.6"
+    ref_version: "0.6.0"
   - to: P-5
-    ref_version: "0.6"
+    ref_version: "0.6.0"
   - to: P-6
-    ref_version: "0.6"
+    ref_version: "0.6.0"
   - to: P-7
-    ref_version: "0.6"
+    ref_version: "0.6.0"
   - to: DD-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -142,7 +142,7 @@ edges:
 
 ## VERIFY-4: PR #21 オーナーレビュー点検記録
 
-<details><summary>⬡ VERIFY-4 · v0.1</summary>
+<details><summary>⬡ VERIFY-4 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-4
@@ -152,37 +152,37 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: SPEC-14-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: SPEC-48
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: FR-16
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-7
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-24
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-25
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-26
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-27
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-28
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-29
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-30
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-31
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-32
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-33
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -196,7 +196,7 @@ edges:
 
 ## VERIFY-5: requirements 層追加バッチ再点検記録（FND-28 処置）
 
-<details><summary>⬡ VERIFY-5 · v0.1</summary>
+<details><summary>⬡ VERIFY-5 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-5
@@ -206,19 +206,19 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: SPEC-44
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: SPEC-14-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FR-15
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: SPEC-54
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-28
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-34
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

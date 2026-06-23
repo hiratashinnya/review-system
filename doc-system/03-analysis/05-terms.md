@@ -8,7 +8,7 @@
 
 ## TERM-1: NodeRecord
 
-<details><summary>⬡ TERM-1 · v0.1</summary>
+<details><summary>⬡ TERM-1 · v0.1.0</summary>
 
 ```yaml
 id: TERM-1
@@ -17,7 +17,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -31,7 +31,7 @@ edges:
 
 ## TERM-2: EdgeRecord
 
-<details><summary>⬡ TERM-2 · v0.1</summary>
+<details><summary>⬡ TERM-2 · v0.1.0</summary>
 
 ```yaml
 id: TERM-2
@@ -40,7 +40,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -54,7 +54,7 @@ edges:
 
 ## TERM-3: ViolationRecord
 
-<details><summary>⬡ TERM-3 · v0.1</summary>
+<details><summary>⬡ TERM-3 · v0.1.0</summary>
 
 ```yaml
 id: TERM-3
@@ -63,7 +63,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -77,7 +77,7 @@ edges:
 
 ## TERM-4: ConfigSlice
 
-<details><summary>⬡ TERM-4 · v0.1</summary>
+<details><summary>⬡ TERM-4 · v0.1.0</summary>
 
 ```yaml
 id: TERM-4
@@ -86,7 +86,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -100,7 +100,7 @@ edges:
 
 ## TERM-5: CoverageReport
 
-<details><summary>⬡ TERM-5 · v0.1</summary>
+<details><summary>⬡ TERM-5 · v0.1.0</summary>
 
 ```yaml
 id: TERM-5
@@ -109,7 +109,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -123,7 +123,7 @@ edges:
 
 ## TERM-6: InspectionViews
 
-<details><summary>⬡ TERM-6 · v0.1</summary>
+<details><summary>⬡ TERM-6 · v0.1.0</summary>
 
 ```yaml
 id: TERM-6
@@ -132,7 +132,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 

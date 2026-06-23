@@ -5,7 +5,7 @@
 
 ## DS-1: in-graph ノードファイル群
 
-<details><summary>⬡ DS-1 · v0.1</summary>
+<details><summary>⬡ DS-1 · v0.1.0</summary>
 
 ```yaml
 id: DS-1
@@ -14,7 +14,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -24,7 +24,7 @@ edges:
 
 ## DS-2: config.yaml
 
-<details><summary>⬡ DS-2 · v0.1</summary>
+<details><summary>⬡ DS-2 · v0.1.0</summary>
 
 ```yaml
 id: DS-2
@@ -33,7 +33,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -43,7 +43,7 @@ edges:
 
 ## DS-3: tmp ノード草案
 
-<details><summary>⬡ DS-3 · v0.1</summary>
+<details><summary>⬡ DS-3 · v0.1.0</summary>
 
 ```yaml
 id: DS-3
@@ -52,7 +52,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.4"
+    ref_version: "0.4.0"
 ```
 </details>
 
@@ -62,7 +62,7 @@ edges:
 
 ## PRS-1: tmp 草案ファイル書き出し
 
-<details><summary>⬡ PRS-1 · v0.1</summary>
+<details><summary>⬡ PRS-1 · v0.1.0</summary>
 
 ```yaml
 id: PRS-1
@@ -71,7 +71,7 @@ labels: []
 scheduled: ""
 edges:
   - to: DS-3
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

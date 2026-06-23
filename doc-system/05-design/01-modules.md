@@ -21,7 +21,7 @@ domain ← ports ← core（config / collector / parser / projector /
 
 ## MOD-1: domain
 
-<details><summary>⬡ MOD-1 · v0.3</summary>
+<details><summary>⬡ MOD-1 · v0.3.0</summary>
 
 ```yaml
 id: MOD-1
@@ -30,43 +30,43 @@ labels: []
 scheduled: ""
 edges:
   - to: D-4
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: D-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-6
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-7
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-9
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: D-10
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-11
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-12
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-13
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-14
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: D-15
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-16
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-17
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-18
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-19
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-20
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: D-21
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-96
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: FND-100
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -84,7 +84,7 @@ edges:
 
 ## MOD-2: config
 
-<details><summary>⬡ MOD-2 · v0.1</summary>
+<details><summary>⬡ MOD-2 · v0.1.0</summary>
 
 ```yaml
 id: MOD-2
@@ -93,7 +93,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -107,7 +107,7 @@ edges:
 
 ## MOD-3: collector
 
-<details><summary>⬡ MOD-3 · v0.1</summary>
+<details><summary>⬡ MOD-3 · v0.1.0</summary>
 
 ```yaml
 id: MOD-3
@@ -116,7 +116,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -130,7 +130,7 @@ edges:
 
 ## MOD-4: parser
 
-<details><summary>⬡ MOD-4 · v0.2</summary>
+<details><summary>⬡ MOD-4 · v0.2.0</summary>
 
 ```yaml
 id: MOD-4
@@ -139,9 +139,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -157,7 +157,7 @@ edges:
 
 ## MOD-5: drift_checker
 
-<details><summary>⬡ MOD-5 · v0.2</summary>
+<details><summary>⬡ MOD-5 · v0.2.0</summary>
 
 ```yaml
 id: MOD-5
@@ -166,9 +166,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -184,7 +184,7 @@ edges:
 
 ## MOD-6: filter
 
-<details><summary>⬡ MOD-6 · v0.1</summary>
+<details><summary>⬡ MOD-6 · v0.1.0</summary>
 
 ```yaml
 id: MOD-6
@@ -193,7 +193,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -207,7 +207,7 @@ edges:
 
 ## MOD-7: graph_coverage
 
-<details><summary>⬡ MOD-7 · v0.2</summary>
+<details><summary>⬡ MOD-7 · v0.2.0</summary>
 
 ```yaml
 id: MOD-7
@@ -216,9 +216,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -234,7 +234,7 @@ edges:
 
 ## MOD-8: reporter
 
-<details><summary>⬡ MOD-8 · v0.1</summary>
+<details><summary>⬡ MOD-8 · v0.1.0</summary>
 
 ```yaml
 id: MOD-8
@@ -243,7 +243,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-4
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -257,7 +257,7 @@ edges:
 
 ## MOD-9: author
 
-<details><summary>⬡ MOD-9 · v0.2</summary>
+<details><summary>⬡ MOD-9 · v0.2.0</summary>
 
 ```yaml
 id: MOD-9
@@ -266,9 +266,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -284,7 +284,7 @@ edges:
 
 ## MOD-10: ports
 
-<details><summary>⬡ MOD-10 · v0.1</summary>
+<details><summary>⬡ MOD-10 · v0.1.0</summary>
 
 ```yaml
 id: MOD-10
@@ -293,7 +293,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -307,7 +307,7 @@ edges:
 
 ## MOD-11: adapters/fs
 
-<details><summary>⬡ MOD-11 · v0.1</summary>
+<details><summary>⬡ MOD-11 · v0.1.0</summary>
 
 ```yaml
 id: MOD-11
@@ -316,7 +316,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -330,7 +330,7 @@ edges:
 
 ## MOD-12: __main__
 
-<details><summary>⬡ MOD-12 · v0.1</summary>
+<details><summary>⬡ MOD-12 · v0.1.0</summary>
 
 ```yaml
 id: MOD-12
@@ -339,7 +339,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -353,7 +353,7 @@ edges:
 
 ## MOD-13: projector
 
-<details><summary>⬡ MOD-13 · v0.1</summary>
+<details><summary>⬡ MOD-13 · v0.1.0</summary>
 
 ```yaml
 id: MOD-13
@@ -362,9 +362,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1-6
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -380,7 +380,7 @@ edges:
 
 ## MOD-14: structure_checker
 
-<details><summary>⬡ MOD-14 · v0.1</summary>
+<details><summary>⬡ MOD-14 · v0.1.0</summary>
 
 ```yaml
 id: MOD-14
@@ -389,9 +389,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-2
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -407,7 +407,7 @@ edges:
 
 ## MOD-15: condition_checker
 
-<details><summary>⬡ MOD-15 · v0.1</summary>
+<details><summary>⬡ MOD-15 · v0.1.0</summary>
 
 ```yaml
 id: MOD-15
@@ -416,9 +416,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-3
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -434,7 +434,7 @@ edges:
 
 ## MOD-16: verification_checker
 
-<details><summary>⬡ MOD-16 · v0.1</summary>
+<details><summary>⬡ MOD-16 · v0.1.0</summary>
 
 ```yaml
 id: MOD-16
@@ -443,9 +443,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-4
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -461,7 +461,7 @@ edges:
 
 ## MOD-17: spec_coverage
 
-<details><summary>⬡ MOD-17 · v0.1</summary>
+<details><summary>⬡ MOD-17 · v0.1.0</summary>
 
 ```yaml
 id: MOD-17
@@ -470,9 +470,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3-2
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -488,7 +488,7 @@ edges:
 
 ## MOD-18: reconciler
 
-<details><summary>⬡ MOD-18 · v0.1</summary>
+<details><summary>⬡ MOD-18 · v0.1.0</summary>
 
 ```yaml
 id: MOD-18
@@ -497,9 +497,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-2
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: DD-13
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 
@@ -515,7 +515,7 @@ edges:
 
 ## PORT-1: FileSystemPort
 
-<details><summary>⬡ PORT-1 · v0.1</summary>
+<details><summary>⬡ PORT-1 · v0.1.0</summary>
 
 ```yaml
 id: PORT-1
@@ -524,7 +524,7 @@ labels: []
 scheduled: ""
 edges:
   - to: MOD-10
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

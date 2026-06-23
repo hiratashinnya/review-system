@@ -15,7 +15,7 @@ FIXTURE = """\
 
 ## SPEC-1: ノード埋め込みのパース（normal）
 
-<details><summary>⬡ SPEC-1 · v0.3</summary>
+<details><summary>⬡ SPEC-1 · v0.3.0</summary>
 
 ```yaml
 id: SPEC-1
@@ -25,18 +25,18 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
 本文の一行目。
-**例**: 本文に `⬡ SPEC-1 · v0.3` や ```yaml のような例が現れても誤検出しない。
+**例**: 本文に `⬡ SPEC-1 · v0.3.0` や ```yaml のような例が現れても誤検出しない。
 
 ---
 
 ## SPEC-2: 二つ目（boundary）
 
-<details><summary>⬡ SPEC-2 · v0.1</summary>
+<details><summary>⬡ SPEC-2 · v0.1.0</summary>
 
 ```yaml
 id: SPEC-2
@@ -45,7 +45,7 @@ condition: boundary
 labels: [post-mvp]
 edges:
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
 ```
 </details>
 
@@ -65,7 +65,7 @@ class TestParseMarkdown(unittest.TestCase):
 
     def test_heading_and_version_and_line(self):
         n = self.by_id["SPEC-1"]
-        self.assertEqual(n.version, "0.3")
+        self.assertEqual(n.version, "0.3.0")
         self.assertTrue(n.heading.startswith("SPEC-1: ノード埋め込み"))
         self.assertEqual(n.type, "SPEC")
         self.assertEqual(n.condition, "normal")
@@ -74,7 +74,7 @@ class TestParseMarkdown(unittest.TestCase):
         n = self.by_id["SPEC-1"]
         self.assertEqual(len(n.edges), 1)
         self.assertEqual(n.edges[0].to, "FR-1")
-        self.assertEqual(n.edges[0].ref_version, "0.3")
+        self.assertEqual(n.edges[0].ref_version, "0.3.0")
 
     def test_labels_and_body(self):
         n = self.by_id["SPEC-2"]
@@ -183,7 +183,7 @@ class TestMalformedYamlIsFailSoft(unittest.TestCase):
     def test_bad_block_records_parse_error_not_crash(self):
         bad = (
             "## X-1: 壊れた\n\n"
-            "<details><summary>⬡ X-1 · v0.1</summary>\n\n"
+            "<details><summary>⬡ X-1 · v0.1.0</summary>\n\n"
             "```yaml\n"
             "id X-1\n"  # コロン無し → NodeYamlError
             "```\n"

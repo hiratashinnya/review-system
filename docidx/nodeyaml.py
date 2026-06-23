@@ -111,7 +111,7 @@ def parse(text: str) -> dict[str, Any]:
     """ノードの YAML ブロック本文（フェンス内）を dict へパースする。
 
     依存仕様: 04-notation.md §3（YAML ブロック文法・edge スキーマ）。
-      記法が崩れた YAML をパースできない場合に失敗する点＝SPEC-2 v0.3（呼び出し側が fail-soft 化）。
+      記法が崩れた YAML をパースできない場合に失敗する点＝SPEC-2 v0.3.0（呼び出し側が fail-soft 化）。
     """
     lines = text.splitlines()
     data: dict[str, Any] = {}

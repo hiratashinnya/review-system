@@ -6,7 +6,7 @@
 
 ## ORC-1: 検査パイプライン実行
 
-<details><summary>⬡ ORC-1 · v0.4</summary>
+<details><summary>⬡ ORC-1 · v0.4.0</summary>
 
 ```yaml
 id: ORC-1
@@ -15,11 +15,11 @@ labels: []
 scheduled: ""
 edges:
   - to: E-1
-    ref_version: "0.5"
+    ref_version: "0.5.0"
   - to: DD-15
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-97
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -77,7 +77,7 @@ flowchart TD
 
 ## ORC-2: 著作・反映パイプライン実行
 
-<details><summary>⬡ ORC-2 · v0.1</summary>
+<details><summary>⬡ ORC-2 · v0.1.0</summary>
 
 ```yaml
 id: ORC-2
@@ -86,13 +86,13 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: DD-15
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: P-7-1
-    ref_version: "0.2"
+    ref_version: "0.2.0"
   - to: P-7-2
-    ref_version: "0.2"
+    ref_version: "0.2.0"
 ```
 </details>
 

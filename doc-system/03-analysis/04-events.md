@@ -8,7 +8,7 @@
 
 ## E-1: 点検要求
 
-<details><summary>⬡ E-1 · v0.5</summary>
+<details><summary>⬡ E-1 · v0.5.0</summary>
 
 ```yaml
 id: E-1
@@ -17,17 +17,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: ACTOR-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: I-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-11
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-4
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-92
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -42,7 +42,7 @@ edges:
 
 ## E-2: 著作要求
 
-<details><summary>⬡ E-2 · v0.3</summary>
+<details><summary>⬡ E-2 · v0.3.0</summary>
 
 ```yaml
 id: E-2
@@ -51,17 +51,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-26
-    ref_version: "0.3"
+    ref_version: "0.3.0"
   - to: ACTOR-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-3
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: I-7
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-7
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-4
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 

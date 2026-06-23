@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Edge:
-    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジ x.y）。
+    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジ x.y.z・ドリフト判定は x.y のみ比較）。
 
     依存仕様: 04-notation.md §3（`to` スカラ・`ref_version` 必須・`note` 任意・`kind`/`status` なし）。
     """
@@ -30,13 +30,13 @@ class Edge:
 class Node:
     """doc-system の 1 ノード（summary バッジ＋YAML＋本文）。
 
-    依存仕様: SPEC-1-1 v0.1（構造化フィールド）。``version`` は summary バッジ x.y が
-      真実源＝02-meta-schema.md §1（DD-8・ファイル frontmatter version は廃止）。
+    依存仕様: SPEC-1-1 v0.1.0（構造化フィールド）。``version`` は summary バッジ x.y.z が
+      真実源＝02-meta-schema.md §1（DD-8・ファイル frontmatter version は廃止・FND-104）。
     """
 
     id: str
     type: str
-    version: str  # summary バッジの x.y
+    version: str  # summary バッジの x.y.z
     heading: str
     file: str  # リポジトリ root からの相対パス（posix）
     line: int  # summary 行の 1 始まり行番号

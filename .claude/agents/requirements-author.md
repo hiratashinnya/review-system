@@ -86,4 +86,4 @@ suppress: [RULE-018]  # 異常系なし: <具体的な理由>
 - [ ] `kind`/`status` を書いていない・`to` は単数
 - [ ] `scheduled: ""`（空文字のみ）
 - [ ] suppress を使う場合は inline comment に理由あり
-- [ ] ref_version が全辺にあり参照先の現在 x.y と一致（RULE-004）
+- [ ] ref_version が全辺にあり参照先の現在 x.y.z（z は伝播判定に不問）.z と一致（z は伝播判定に不問）（RULE-004）

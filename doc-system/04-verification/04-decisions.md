@@ -10,7 +10,7 @@
 
 **status: decided**（2026-06-12 反映完了）
 
-<details><summary>⬡ DD-1 · v0.1</summary>
+<details><summary>⬡ DD-1 · v0.1.0</summary>
 
 ```yaml
 id: DD-1
@@ -43,7 +43,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-2 · v0.1</summary>
+<details><summary>⬡ DD-2 · v0.1.0</summary>
 
 ```yaml
 id: DD-2
@@ -75,7 +75,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-3 · v0.1</summary>
+<details><summary>⬡ DD-3 · v0.1.0</summary>
 
 ```yaml
 id: DD-3
@@ -110,7 +110,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-4 · v0.1</summary>
+<details><summary>⬡ DD-4 · v0.1.0</summary>
 
 ```yaml
 id: DD-4
@@ -151,7 +151,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-5 · v0.1</summary>
+<details><summary>⬡ DD-5 · v0.1.0</summary>
 
 ```yaml
 id: DD-5
@@ -160,9 +160,9 @@ labels: []
 scheduled: ""
 edges:
   - to: FND-26
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-31
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -189,7 +189,7 @@ edges:
 
 **status: decided**（FR-15/16・SPEC-50/51 著作済み 2026-06-13・分析層 O-4/O-5/P-8/P-9 著作・反映完了 2026-06-15／N8）
 
-<details><summary>⬡ DD-6 · v0.1</summary>
+<details><summary>⬡ DD-6 · v0.1.0</summary>
 
 ```yaml
 id: DD-6
@@ -229,7 +229,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-7 · v0.1</summary>
+<details><summary>⬡ DD-7 · v0.1.0</summary>
 
 ```yaml
 id: DD-7
@@ -238,7 +238,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FND-27
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -265,7 +265,7 @@ edges:
 
 **status: decided**（2026-06-14 オーナー判断確定）
 
-<details><summary>⬡ DD-8 · v0.1</summary>
+<details><summary>⬡ DD-8 · v0.1.0</summary>
 
 ```yaml
 id: DD-8
@@ -275,11 +275,11 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-36
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-32
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-39
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -321,7 +321,7 @@ edges:
 
 **status: decided**（2026-06-14 反映完了）
 
-<details><summary>⬡ DD-9 · v0.1</summary>
+<details><summary>⬡ DD-9 · v0.1.0</summary>
 
 ```yaml
 id: DD-9
@@ -331,7 +331,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-78
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -360,7 +360,7 @@ edges:
 
 **status: decided**（2026-06-14 反映完了）
 
-<details><summary>⬡ DD-10 · v0.1</summary>
+<details><summary>⬡ DD-10 · v0.1.0</summary>
 
 ```yaml
 id: DD-10
@@ -370,7 +370,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-84
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -399,7 +399,7 @@ edges:
 
 **status: decided**
 
-<details><summary>⬡ DD-11 · v0.1</summary>
+<details><summary>⬡ DD-11 · v0.1.0</summary>
 
 ```yaml
 id: DD-11
@@ -409,7 +409,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-86
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -438,7 +438,7 @@ edges:
 
 **status: decided**（2026-06-15 設計確定・本ファイル反映は reconciliation が実施）
 
-<details><summary>⬡ DD-12 · v0.1</summary>
+<details><summary>⬡ DD-12 · v0.1.0</summary>
 
 ```yaml
 id: DD-12
@@ -448,7 +448,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-93
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -485,7 +485,7 @@ edges:
 > **改訂理由（MINOR バンプ v0.2→v0.3）**: FND-98（ダッシュボード・PR 本文の DD-13 v0.2 陳腐化）の解消に伴い `→FND-98`（ref_version "0.1"）バックリファレンス辺を付与（2026-06-20）。
 > **改訂理由（MINOR バンプ v0.1→v0.2）**: 判断基準を「L1 単位 + P-2-5 例外」から「孫プロセスあり OR 責務が明確に別 → L2 分割」に変更（2026-06-17）
 
-<details><summary>⬡ DD-13 · v0.3</summary>
+<details><summary>⬡ DD-13 · v0.3.0</summary>
 
 ```yaml
 id: DD-13
@@ -495,7 +495,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-98
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -544,7 +544,7 @@ edges:
 
 **status: decided**（2026-06-16 暫定決定・設計フェーズ）
 
-<details><summary>⬡ DD-14 · v0.1</summary>
+<details><summary>⬡ DD-14 · v0.1.0</summary>
 
 ```yaml
 id: DD-14
@@ -576,7 +576,7 @@ edges: []
 
 **status: decided**（2026-06-18 設計フェーズ）
 
-<details><summary>⬡ DD-15 · v0.1</summary>
+<details><summary>⬡ DD-15 · v0.1.0</summary>
 
 ```yaml
 id: DD-15
@@ -616,7 +616,7 @@ edges: []
 
 **status: decided**（2026-06-21 オーナー承認・選択肢A 採用）
 
-<details><summary>⬡ DD-16 · v0.1</summary>
+<details><summary>⬡ DD-16 · v0.1.0</summary>
 
 ```yaml
 id: DD-16

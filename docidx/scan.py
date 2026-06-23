@@ -1,7 +1,7 @@
 """doc-system の Markdown を走査して NodeIndex を組み立てる。
 
 パース規約は ``docs/doc-system/04-notation.md §8``:
-  ``<details><summary>⬡ <ID> · v<x.y></summary>`` 行の次の ```yaml``` ブロックを読む。
+  ``<details><summary>⬡ <ID> · v<x.y.z></summary>`` 行の次の ```yaml``` ブロックを読む。
   見出し = 直前の ``## `` 行、本文 = ``</details>`` 以降〜次の境界（``## ``/``---``/EOF）。
 """
 
@@ -14,10 +14,10 @@ from pathlib import Path
 from . import nodeyaml
 from .model import Edge, Node, NodeIndex
 
-# summary バッジ: ⬡ <id> · v<x.y>
+# summary バッジ: ⬡ <id> · v<x.y.z>
 _SUMMARY = "⬡"
 _MIDDOT = "·"
-_VERSION_RE = re.compile(r"v(\d+\.\d+)")
+_VERSION_RE = re.compile(r"v(\d+\.\d+\.\d+)")
 
 _TRACE_SCOPE_HINT = (
     'docidx は trace_scope をインラインリスト形式（例: include: ["doc-system/**/*.md"]）'
@@ -49,7 +49,7 @@ def _is_node_summary_line(line: str) -> bool:
 
     本文には ``⬡ SPEC-1 · v0.3`` のような例が現れるため、``<summary`` タグの存在を必須とする。
 
-    依存仕様: SPEC-1-1 v0.1, SPEC-1 v0.3（04-notation.md §8・02-meta-schema.md §1 DD-8）
+    依存仕様: SPEC-1-1 v0.1.0, SPEC-1 v0.3.0（04-notation.md §8・02-meta-schema.md §1 DD-8）
     """
     return "<summary" in line and _SUMMARY in line and _MIDDOT in line
 
@@ -57,7 +57,7 @@ def _is_node_summary_line(line: str) -> bool:
 def _parse_summary(line: str) -> tuple[str, str] | None:
     """summary 行から (id, version) を取り出す。バッジが無ければ None。
 
-    依存仕様: SPEC-1 v0.3, SPEC-1-1 v0.1（04-notation.md §8・02-meta-schema.md §1 DD-8）
+    依存仕様: SPEC-1 v0.3.0, SPEC-1-1 v0.1.0（04-notation.md §8・02-meta-schema.md §1 DD-8）
     """
     if not _is_node_summary_line(line):
         return None
@@ -78,7 +78,7 @@ def _is_boundary(line: str) -> bool:
 def parse_markdown(text: str, rel_path: str) -> list[Node]:
     """1 ファイル分のテキストからノード群を抽出する。
 
-    依存仕様: SPEC-1 v0.3, SPEC-1-1 v0.1, SPEC-1-2 v0.1（ノード発見・構造化・マーカー=id）。
+    依存仕様: SPEC-1 v0.3.0, SPEC-1-1 v0.1.0, SPEC-1-2 v0.1.0（ノード発見・構造化・マーカー=id）。
       見出し=直前 `## `／本文=`</details>` 後＝04-notation.md §4。マーカー直後 YAML 欠如＝§8。
     """
     lines = text.splitlines()
@@ -142,7 +142,7 @@ def parse_markdown(text: str, rel_path: str) -> list[Node]:
 def _make_node(node_id, version, heading, rel_path, line_no, data, body, parse_error) -> Node:
     """YAML dict＋バッジ情報から Node を組み立てる。
 
-    依存仕様: SPEC-1-1 v0.1（id/type/labels/scheduled/edges の抽出）。
+    依存仕様: SPEC-1-1 v0.1.0（id/type/labels/scheduled/edges の抽出）。
     """
     edges = tuple(Edge.from_dict(e) for e in data.get("edges", []) if isinstance(e, dict))
     labels_raw = data.get("labels", [])
@@ -175,7 +175,7 @@ def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
     停止する（黙って古いハードコード既定値ですり替えるドリフトを断つため）。``exclude`` は
     省略可（無ければ空集合）。
 
-    依存仕様: SPEC-24 v0.2（trace_scope による in-graph 判定）・config.yaml: trace_scope。
+    依存仕様: SPEC-24 v0.2.0（trace_scope による in-graph 判定）・config.yaml: trace_scope。
     """
     if not config_path.is_file():
         raise TraceScopeError(f"config.yaml が見つかりません: {config_path}。{_TRACE_SCOPE_HINT}")
@@ -223,7 +223,7 @@ def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
 def discover_files(repo_root: Path, include: list[str], exclude: list[str]) -> list[Path]:
     """include グロブで集め、exclude グロブを除いた in-graph ファイル一覧。
 
-    依存仕様: SPEC-24 v0.2, SPEC-31 v0.1（in-graph 判定・空集合）・config.yaml: trace_scope。
+    依存仕様: SPEC-24 v0.2.0, SPEC-31 v0.1.0（in-graph 判定・空集合）・config.yaml: trace_scope。
     """
     found: set[Path] = set()
     for pattern in include:
@@ -242,7 +242,7 @@ def discover_files(repo_root: Path, include: list[str], exclude: list[str]) -> l
 def build_index(repo_root: Path | None = None, config_path: Path | None = None) -> NodeIndex:
     """リポジトリ root を走査して NodeIndex を構築する。
 
-    依存仕様: SPEC-1 v0.3（ノード発見）・SPEC-24 v0.2, SPEC-31 v0.1（trace_scope 解決）。
+    依存仕様: SPEC-1 v0.3.0（ノード発見）・SPEC-24 v0.2.0, SPEC-31 v0.1.0（trace_scope 解決）。
     """
     root = repo_root or find_repo_root()
     cfg = config_path or (root / "docs" / "doc-system" / "config.yaml")

@@ -45,14 +45,14 @@ class TestEdges(unittest.TestCase):
             "type: SPEC\n"
             "edges:\n"
             "  - to: FR-1\n"
-            '    ref_version: "0.3"\n'
+            '    ref_version: "0.3.0"\n'
             "  - to: FND-40\n"
-            '    ref_version: "0.1"\n'
+            '    ref_version: "0.1.0"\n'
             '    note: "補足"\n'
         )
         d = nodeyaml.parse(text)
         self.assertEqual(len(d["edges"]), 2)
-        self.assertEqual(d["edges"][0], {"to": "FR-1", "ref_version": "0.3"})
+        self.assertEqual(d["edges"][0], {"to": "FR-1", "ref_version": "0.3.0"})
         self.assertEqual(d["edges"][1]["note"], "補足")
 
     def test_empty_edges(self):

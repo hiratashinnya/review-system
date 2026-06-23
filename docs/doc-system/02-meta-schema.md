@@ -7,7 +7,7 @@
 
 ## 1. ノードバージョニング（DD-8）
 
-バージョン管理の単位は**ノード**。各ノードの summary バッジ `⬡ <ID> · vX.Y` に記載する（ファイル frontmatter の `version` は廃止＝DD-8）。
+バージョン管理の単位は**ノード**。各ノードの summary バッジ `⬡ <ID> · vX.Y.Z` に記載する（ファイル frontmatter の `version` は廃止＝DD-8）。
 
 ```markdown
 <details><summary>⬡ DM-001 · v1.2</summary>

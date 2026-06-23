@@ -8,7 +8,7 @@
 
 ## NFR-1: プレーンテキスト形式
 
-<details><summary>⬡ NFR-1 · v0.4</summary>
+<details><summary>⬡ NFR-1 · v0.4.0</summary>
 
 ```yaml
 id: NFR-1
@@ -17,13 +17,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: FND-84
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -33,7 +33,7 @@ edges:
 
 ## NFR-2: 標準ライブラリのみでパース可能
 
-<details><summary>⬡ NFR-2 · v0.3</summary>
+<details><summary>⬡ NFR-2 · v0.3.0</summary>
 
 ```yaml
 id: NFR-2
@@ -42,11 +42,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -56,7 +56,7 @@ edges:
 
 ## NFR-3: スキルは self-contained
 
-<details><summary>⬡ NFR-3 · v0.2</summary>
+<details><summary>⬡ NFR-3 · v0.2.0</summary>
 
 ```yaml
 id: NFR-3
@@ -65,9 +65,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -77,7 +77,7 @@ edges:
 
 ## NFR-4: ファイル単位バージョニング・1 ファイル 1 責務
 
-<details><summary>⬡ NFR-4 · v0.2</summary>
+<details><summary>⬡ NFR-4 · v0.2.0</summary>
 
 ```yaml
 id: NFR-4
@@ -86,9 +86,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-6
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -98,7 +98,7 @@ edges:
 
 ## NFR-5: 直接の親 1 段のみ・USDM 分割
 
-<details><summary>⬡ NFR-5 · v0.2</summary>
+<details><summary>⬡ NFR-5 · v0.2.0</summary>
 
 ```yaml
 id: NFR-5
@@ -107,9 +107,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-3
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
@@ -119,7 +119,7 @@ edges:
 
 ## NFR-6: ライフサイクル状態は本文・メタに持たない
 
-<details><summary>⬡ NFR-6 · v0.3</summary>
+<details><summary>⬡ NFR-6 · v0.3.0</summary>
 
 ```yaml
 id: NFR-6
@@ -128,11 +128,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-1
-    ref_version: "0.1"
+    ref_version: "0.1.0"
   - to: DD-5
-    ref_version: "0.1"
+    ref_version: "0.1.0"
 ```
 </details>
 
