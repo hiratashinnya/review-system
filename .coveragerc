@@ -1,5 +1,7 @@
 [run]
-source = review_system
+source =
+    review_system
+    docidx
 omit =
     tests/*
     scripts/*
