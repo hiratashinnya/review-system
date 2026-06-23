@@ -1125,7 +1125,7 @@ edges:
 ```
 </details>
 
-検証層ノード（FND/NFR/TC/VERIFY/TD/TR）の必須辺欠如（SPEC-18-1〜8 を参照）。
+検証層ノード（FND/NFR/TC/VERIFY/TD/TR）の必須辺欠如（SPEC-18-1〜9 を参照）。
 
 ---
 
@@ -1305,6 +1305,31 @@ edges:
 **入力/トリガ**: TD が TC から被依存辺を受けていない（config `must_be_linked_from: TD ← [TC]`・severity warning）
 **期待動作**: RULE-006 を WARNING で報告する
 **例**: `TD-3` を指す `TC` ノードが 1 つも存在しない → `WARNING|...|RULE-006|TD-3|...`
+
+---
+
+## SPEC-18-9: 解消済み FND に処置対象からの被依存辺欠如（RULE-006）（failure）
+
+<details><summary>⬡ SPEC-18-9 · v0.1</summary>
+
+```yaml
+id: SPEC-18-9
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-18
+    ref_version: "0.2"
+  - to: FND-103
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の解消済みノード（`resolved: true`）が存在する（verification ステージが activate 済み）。解消時には著者が処置対象要素に `X→FND` の backward 辺を付与する運用である（辺逆転ルール・DD-3）
+**入力/トリガ**: 解消済み FND がどの処置対象要素からも被依存辺を受けていない（config `fnd_lifecycle.resolved.must_be_linked_from`・source: any・severity error）
+**期待動作**: RULE-006 を ERROR で報告する
+**例**: `resolved: true` の `FND-50` を指す `X→FND-50` の辺が 1 本も存在しない → `ERROR|...|RULE-006|FND-50|...`
 
 ---
 
@@ -4940,5 +4965,127 @@ edges:
 **入力/トリガ**: E が ORC から被依存辺を受けていない（`must_be_linked_from: E←[ORC]`）
 **期待動作**: RULE-006 WARNING を報告する
 **例**: E-1 を指す ORC の辺が 1 本も無い → `WARNING|...|RULE-006|E-1|...`
+
+---
+
+## SPEC-59: 解消済み FND の元 forward 辺残存（failure）
+
+<details><summary>⬡ SPEC-59 · v0.1</summary>
+
+```yaml
+id: SPEC-59
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: FR-7
+    ref_version: "0.2"
+  - to: FND-103
+    ref_version: "0.2"
+  - to: FND-104
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の解消済みノード（`resolved: true`）があり、解消時には著者が元の `FND→X`（指摘対象への forward 辺）を削除し `X→FND` の backward 辺に置換する運用である（辺逆転ルール・DD-3。辺の削除・追加は著者の処置であり検証ツールの検証対象ではない）
+**入力/トリガ**: 解消済み FND に元の forward 辺（`FND→X`）が残存する（config `fnd_lifecycle.resolved.must_not_link_to`・target: any・severity warning）
+**期待動作**: 解消済み FND の forward 辺 `FND→X` が残存するとき、RULE-030 を WARNING で報告する
+**例**: `resolved: true` の `FND-50` に `FND-50→SPEC-3` の forward 辺が残っている → `WARNING|...|RULE-030|FND-50|...`
+
+---
+
+## SPEC-60: FND resolved 状態の機械判定セマンティクス（normal）
+
+<details><summary>⬡ SPEC-60 · v0.2</summary>
+
+```yaml
+id: SPEC-60
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-7
+    ref_version: "0.2"
+  - to: FND-105
+    ref_version: "0.2"
+```
+</details>
+
+FND ノードの `resolved` フィールドをどう解釈して resolved／unresolved を判定するかの正常系セマンティクス（読み方・省略時の既定値・型不正の扱い）。SPEC-1 と同型の behavior SPEC であり、判定結果は SPEC-18-1〔unresolved 前提〕・SPEC-18-9・SPEC-59〔resolved 前提〕が依拠する状態判定の in-graph 定義となる。設定の根拠は config `fnd_lifecycle.resolved_field: resolved`（out-of-graph・「省略時は false として扱う」）。期待動作は単一アサーション化のため SPEC-60-1〜3 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+**`resolved` 入力空間の完全分割**: 本 SPEC は `resolved` フィールドが取りうる値を 3 子 SPEC で漏れなく分割する——(1) boolean の `true` → resolved 判定（SPEC-60-1）、(2) boolean の `false`／キー未設定 → unresolved 判定（省略時 false 既定・SPEC-60-2）、(3) boolean 以外（文字列・数値・null 等）→ 型不正として RULE-031 を ERROR で報告（SPEC-60-3）。当初は型検証（非 boolean 値の扱い）を本 SPEC のスコープ外とし FND-105 で別軸論点化していたが、これを撤回し、型検証を SPEC-60-3 として本傘の対象に組み込んだ（経緯は FND-105・DD-18）。これにより 60-1／60-2／60-3 が `resolved` の入力空間を完全分割する。なお RULE-031 は型別（FND 固有）の任意フィールド `resolved` の型検証であり、SPEC-52-4（RULE-028）の共通必須／型別「必須」フィールド検証とは責務が異なる（condition→RULE-016・result→RULE-020 と同じ「型別フィールドは専用 RULE」パターン）。
+
+**SPEC-49 との非対称性**: DD/Q/PEND は状態を本文バッジのみで持ち YAML に状態を持たない（SPEC-49）のに対し、FND は `resolved` を YAML フィールドとして持つ点で非対称である。この非対称ゆえに FND だけが `resolved` の値・型の機械判定を要し、本 SPEC（60-1〜3）がその判定セマンティクスを定義する。
+
+---
+
+## SPEC-60-1: `resolved: true` → resolved 判定（normal）
+
+<details><summary>⬡ SPEC-60-1 · v0.1</summary>
+
+```yaml
+id: SPEC-60-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-60
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の構造化ノードが 1 件以上パース済みで、検証ツールが config `fnd_lifecycle.resolved_field`（値 `resolved`）を参照して状態判定を行う段にある。
+**入力/トリガ**: 検証ツールが当該 FND ノードの YAML から `resolved` フィールドを読む。
+**期待動作**: `resolved` の値が boolean の `true` のとき、当該 FND を resolved（解消済み）と判定する（この判定結果に対して resolved 系の状態依存ルール〔`fnd_lifecycle.resolved.*`〕が適用される）。
+**例**: `id: FND-50, type: FND, resolved: true` → resolved と判定 → SPEC-18-9・SPEC-59 の前提（解消済み FND）が成立する。
+
+---
+
+## SPEC-60-2: `resolved: false`・未設定 → unresolved 判定（省略時 false 既定）（normal）
+
+<details><summary>⬡ SPEC-60-2 · v0.2</summary>
+
+```yaml
+id: SPEC-60-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-60
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の構造化ノードが 1 件以上パース済みで、検証ツールが config `fnd_lifecycle.resolved_field`（値 `resolved`）を参照して状態判定を行う段にある。`resolved` キーが存在する場合、その値は boolean である（非 boolean 値の型検証は SPEC-60-3 の責務）。
+**入力/トリガ**: 検証ツールが当該 FND ノードの YAML から `resolved` フィールドを読み、その値が boolean の `false` である、または `resolved` キー自体が存在しない。
+**期待動作**: `resolved` の値が boolean の `false` であるとき、またはキーが未設定で既定の `false` に解決されるとき、当該 FND を unresolved（未解消）と判定する（config「省略時は false として扱う」の既定適用。この判定結果に対して unresolved 系の状態依存ルール〔`fnd_lifecycle.unresolved.*`〕が適用される）。非 boolean 値はこの既定解決の対象とせず SPEC-60-3（RULE-031 ERROR）で扱う。
+**例**: `resolved: false`（boolean）の `FND-60`、および `resolved` キーを持たない `FND-61` → いずれも unresolved と判定 → SPEC-18-1 の前提（未解消 FND）が成立する。一方 `resolved: "false"`（文字列）は本 SPEC の対象外で SPEC-60-3 が型不正を報告する。
+
+---
+
+## SPEC-60-3: `resolved` が非 boolean → 型不正として RULE-031 ERROR（failure）
+
+<details><summary>⬡ SPEC-60-3 · v0.1</summary>
+
+```yaml
+id: SPEC-60-3
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-60
+    ref_version: "0.2"
+```
+</details>
+
+**前提条件**: 型が FND の構造化ノードが 1 件以上パース済みで、検証ツールが config `fnd_lifecycle.resolved_field`（値 `resolved`）を参照して状態判定を行う段にある。当該ノードの YAML には `resolved` キーが存在する。
+**入力/トリガ**: 検証ツールが当該 FND ノードの YAML から `resolved` フィールドを読み、その値が boolean（`true`／`false`）ではない（文字列 `"true"`、数値 `1`、`null` 等）と判明する。
+**期待動作**: `resolved` の値が boolean でないとき、型不正として `RULE-031` を ERROR で報告する。非 boolean 値を黙って既定の `false`（unresolved）に解決せず、resolved 判定（SPEC-60-1）も unresolved 判定（SPEC-60-2）も適用しない。
+**例**: `id: FND-70, type: FND, resolved: "true"`（boolean ではなく文字列）→ `ERROR|doc-system/04-verification/02-findings.md:120|RULE-031|FND-70|resolved must be boolean, got string "true"` を出力し、当該ノードへ resolved／unresolved 判定を適用しない。
 
 ---
