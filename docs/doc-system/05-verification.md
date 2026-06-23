@@ -59,12 +59,14 @@
 | RULE-027 | 辺エントリに `ref_version` フィールドが存在しない | ERROR |
 | RULE-028 | ノード YAML の共通必須フィールド（`labels` / `scheduled` / `edges`）が欠如、または型不正（`labels` が非リスト・`scheduled` が非文字列・`edges` が非リスト） | ERROR |
 | RULE-029 | ノード YAML の `scheduled` が非空文字列かつ `config.yaml` の `phases` リストに定義されていない値（例: phases から除去された `"post-mvp"`・誤記等） | ERROR |
+| RULE-031 | 型が FND のノード YAML に `resolved` フィールドが存在するが値が boolean でない（型不正：文字列 `"true"`・数値 `1`・null 等）。`fnd_lifecycle.resolved_field` の機械判定値は boolean を要する（DD-18・FND-105・SPEC-60-3） | ERROR |
 
 > RULE-023/024 は fail-close（当該ファイルのパースを中断し、後続 RULE を発火させない）。
 > RULE-025/026/027/028 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
 > RULE-023/024 は `always_error` 相当（suppress/scheduled/activate_stage 不可）。
 > RULE-025/026/027 は `id`/`type`/`ref_version` の存在を、RULE-028 は残りの共通必須フィールド（`labels`/`scheduled`/`edges`）の存在と型を検証する（フィールドスキーマの完全定義を in-graph 化）。
 > RULE-029 は `scheduled` の値ドメイン検証（RULE-028 の型検査の後続・FND-78/DD-9）。空文字列（`""`）は「現スプリント実施・繰り越しなし」を意味し合法。非空で phases 外＝違反。
+> RULE-031 は FND 固有の任意フィールド `resolved` の型検証（boolean）。RULE-028 が**共通必須**フィールドの型を検証するのに対し、RULE-031 は**型別（FND 固有）の任意**フィールドの型を検証する（条件 `condition`→RULE-016／結果 `result`→RULE-020 と同じく型別フィールドは専用 RULE で検証＝PR1 単一責務）。RULE-031 が発火するとき当該ノードの resolved 状態判定（SPEC-60-1/60-2）は安全に行えないため、判定セマンティクスを適用せず型不正を報告する（非 boolean を黙って `false` 既定に解決しない）。RULE-028 と異なり fail-close しない（任意フィールドの型不正は他 RULE 評価を阻害しない）。
 
 **トリガ**：ファイルの読み込み時（段階①の前）。
 
