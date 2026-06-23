@@ -83,19 +83,28 @@ class Node:
 
 @dataclass(frozen=True)
 class NodeIndex:
-    """全ノードと、ID 索引・依存元（逆引き）索引。"""
+    """全ノードと、ID 索引・依存元（逆引き）索引。
+
+    ``duplicates`` は ID 重複が起きた場合に ``id -> ("file:line", ...)``（出現順・全件）を
+    保持する。重複は ``by_id`` では先勝ち（最初を保持）で潰すが、捨てた側も特定できるよう
+    全出現箇所を残し、CLI 層が警告として提示する（黙って取りこぼさないため）。
+    """
 
     nodes: tuple[Node, ...]
     by_id: dict[str, Node]
     dependents: dict[str, tuple[str, ...]]  # target_id -> それを参照する node id 群
+    duplicates: dict[str, tuple[str, ...]] = field(default_factory=dict)  # 重複 id -> 全出現 file:line
 
     @classmethod
     def build(cls, nodes: list[Node]) -> "NodeIndex":
         by_id: dict[str, Node] = {}
         rev: dict[str, list[str]] = {}
+        locations: dict[str, list[str]] = {}  # id -> 全出現 file:line（重複検知用）
         for n in nodes:
+            locations.setdefault(n.id, []).append(f"{n.file}:{n.line}")
             by_id.setdefault(n.id, n)  # 先勝ち（重複 ID は最初を保持）
             for e in n.edges:
                 rev.setdefault(e.to, []).append(n.id)
         dependents = {k: tuple(v) for k, v in rev.items()}
-        return cls(nodes=tuple(nodes), by_id=by_id, dependents=dependents)
+        duplicates = {nid: tuple(locs) for nid, locs in locations.items() if len(locs) > 1}
+        return cls(nodes=tuple(nodes), by_id=by_id, dependents=dependents, duplicates=duplicates)

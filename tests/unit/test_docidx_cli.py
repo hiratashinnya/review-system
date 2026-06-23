@@ -2,13 +2,29 @@
 
 import io
 import json
+import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from docidx import cli, scan
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+_SAMPLE_MD = """\
+## SPEC-1: サンプル（normal）
+
+<details><summary>⬡ SPEC-1 · v0.1</summary>
+
+```yaml
+id: SPEC-1
+type: SPEC
+condition: normal
+```
+</details>
+
+本文。
+"""
 
 
 class TestRealTree(unittest.TestCase):
@@ -81,6 +97,53 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(code, 0)
         data = json.loads(out)
         self.assertTrue(all(n["type"] == "FND" for n in data))
+
+
+class TestCliTraceScopeFailClose(unittest.TestCase):
+    """必須1: trace_scope を読めない config は既定値に逃がさず EXIT_CONFIG で停止し警告する。"""
+
+    def _run(self, root: Path, config: Path, argv):
+        # 共通フラグはサブコマンドの後ろに置く（前置すると親パーサ既定で上書きされる）
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main([*argv, "--root", str(root), "--config", str(config)])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_block_form_config_exits_config_with_hint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "doc-system").mkdir()
+            (root / "doc-system" / "spec.md").write_text(_SAMPLE_MD, encoding="utf-8")
+            cfg = root / "config.yaml"
+            cfg.write_text("trace_scope:\n  include:\n    - doc-system/**/*.md\n", encoding="utf-8")
+            code, _, err = self._run(root, cfg, ["index"])
+            self.assertEqual(code, cli.EXIT_CONFIG)
+            self.assertIn("インラインリスト形式", err)
+
+
+class TestCliDuplicateWarning(unittest.TestCase):
+    """必須2: ノード ID 重複は stderr に警告（全出現 file:line・先勝ち採用先）を出す。"""
+
+    def _run(self, root: Path, config: Path, argv):
+        # 共通フラグはサブコマンドの後ろに置く（前置すると親パーサ既定で上書きされる）
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main([*argv, "--root", str(root), "--config", str(config)])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_duplicate_id_warns_but_succeeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "doc-system").mkdir()
+            (root / "doc-system" / "a.md").write_text(_SAMPLE_MD, encoding="utf-8")
+            (root / "doc-system" / "b.md").write_text(_SAMPLE_MD, encoding="utf-8")  # 同じ SPEC-1
+            cfg = root / "config.yaml"
+            cfg.write_text('trace_scope:\n  include: ["doc-system/**/*.md"]\n', encoding="utf-8")
+            code, out, err = self._run(root, cfg, ["index"])
+            self.assertEqual(code, cli.EXIT_OK)  # read-only 情報ツールとして継続
+            self.assertIn("ノード ID 重複 SPEC-1", err)
+            self.assertIn("doc-system/a.md", err)
+            self.assertIn("doc-system/b.md", err)
 
 
 if __name__ == "__main__":

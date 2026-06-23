@@ -31,7 +31,8 @@ python -m docidx dependents FR-1             # 依存元（入辺・逆引き）
 ```
 - `--format json|table`（既定 `json`、サブコマンドの前後どちらでも指定可）。
 - `--root` でリポジトリ root、`--config` で config.yaml を明示（既定は自動検出）。
-- 終了コード: `0` 正常 / `2` 未検出 / `3` 用法。
+- 終了コード: `0` 正常 / `2` 未検出 / `3` 用法 / `4` config（`trace_scope` を解釈できない）。
+- `trace_scope` は**インラインリスト形式のみ**対応（ブロック形式・config 欠如は既定にフォールバックせず停止）。ID 重複は先勝ち＋stderr 警告。
 
 ## 注意（責務の境界）
 - **read-only**。ノードの編集・起票はしない（著作は `*-author`→`reconciliation`）。

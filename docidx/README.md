@@ -19,7 +19,37 @@ python -m docidx dependents FR-1        # 依存元（入辺・逆引き）
 - `--format json|table`（既定 `json`、サブコマンドの前後どちらでも指定可）
 - `--root` でリポジトリ root を明示（既定: `doc-system/` を上方向に自動検出）
 - `--config` で `config.yaml` のパスを明示（既定: `<root>/docs/doc-system/config.yaml` の `trace_scope`）
-- 終了コード: `0` 正常 / `2` 未検出 / `3` 用法
+- 終了コード: `0` 正常 / `2` 未検出 / `3` 用法 / `4` config（`trace_scope` を解釈できない）
+
+> 補足: `doc-system/`（実ノードのツリー）と `docs/doc-system/`（メタ仕様＝notation/meta-schema/
+> config.yaml）は別物。`--root` は前者で root を決め、既定の `--config` は後者の `config.yaml` を読む。
+
+## trace_scope（in-graph 範囲）の読み取り
+
+走査対象は `config.yaml` の `trace_scope` が唯一の真実源。docidx は**インラインリスト形式のみ**対応する。
+
+```yaml
+trace_scope:
+  include: ["doc-system/**/*.md"]       # ✅ 対応（インラインフロー）
+  exclude: ["docs/**", "**/README.md"]  # ✅（省略時は空集合）
+```
+
+ブロック形式（`- item`）・`trace_scope` ブロック欠如・config 欠如・`include` 欠如は**読めない**ものとして
+扱い、**既定値へ黙ってフォールバックせず警告を出して停止する**（終了コード `4`）。ハードコード既定値で
+すり替えると config 変更（ブロック化・グロブ追加）が docidx に効かないドリフトを生むため。
+警告文はインラインリスト形式のみ対応である旨を案内するので、`config.yaml` の記法を直すこと。
+
+```yaml
+trace_scope:
+  include:
+    - doc-system/**/*.md   # ❌ ブロック形式は未対応 → エラーで停止（コード4）
+```
+
+## ノード ID 重複の扱い
+
+ID が重複した場合、索引は**先勝ち**（最初の出現を保持）で解決するが、**重複を検知したら stderr に
+警告**を出す（どの ID が・どの `file:line` 群で重複し・どれを採用したかを明示）。read-only な情報
+ツールとして処理自体は継続する（重複は doc-system 側のデータ不整合で、是正は検証ツールの責務）。
 
 ## パース規約
 

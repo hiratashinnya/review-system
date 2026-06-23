@@ -103,14 +103,80 @@ class TestTraceScope(unittest.TestCase):
             rels = sorted(p.relative_to(root).as_posix() for p in files)
             self.assertEqual(rels, ["doc-system/02-what/01-fr.md"])
 
+    def _write_config(self, root: Path, body: str) -> Path:
+        cfg = root / "config.yaml"
+        cfg.write_text(body, encoding="utf-8")
+        return cfg
+
     def test_build_index_on_temp_tree(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "doc-system").mkdir()
             (root / "doc-system" / "spec.md").write_text(FIXTURE, encoding="utf-8")
-            index = scan.build_index(repo_root=root, config_path=root / "missing.yaml")
+            cfg = self._write_config(
+                root,
+                'trace_scope:\n  include: ["doc-system/**/*.md"]\n  exclude: []\n',
+            )
+            index = scan.build_index(repo_root=root, config_path=cfg)
             self.assertEqual(len(index.nodes), 2)
             self.assertIn("SPEC-1", index.by_id)
+
+    def test_inline_form_parses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = self._write_config(
+                root,
+                'trace_scope:\n'
+                '  include: ["doc-system/**/*.md"]\n'
+                '  exclude: ["docs/**"]   # trailing comment\n',
+            )
+            include, exclude = scan.load_trace_scope(cfg)
+            self.assertEqual(include, ["doc-system/**/*.md"])
+            self.assertEqual(exclude, ["docs/**"])
+
+    def test_exclude_optional_defaults_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = self._write_config(root, 'trace_scope:\n  include: ["doc-system/**/*.md"]\n')
+            include, exclude = scan.load_trace_scope(cfg)
+            self.assertEqual(include, ["doc-system/**/*.md"])
+            self.assertEqual(exclude, [])
+
+    def test_missing_config_raises_not_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(scan.TraceScopeError) as ctx:
+                scan.load_trace_scope(Path(tmp) / "missing.yaml")
+            self.assertIn("見つかりません", str(ctx.exception))
+
+    def test_block_form_raises_with_inline_hint(self):
+        # ブロックリスト（- item）形式は黙って既定値に逃がさず停止し、記法を案内する
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = self._write_config(
+                root,
+                "trace_scope:\n  include:\n    - doc-system/**/*.md\n",
+            )
+            with self.assertRaises(scan.TraceScopeError) as ctx:
+                scan.load_trace_scope(cfg)
+            msg = str(ctx.exception)
+            self.assertIn("インラインリスト形式", msg)
+            self.assertIn("include", msg)
+
+    def test_no_trace_scope_block_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = self._write_config(root, "current_phase: sprint-1\n")
+            with self.assertRaises(scan.TraceScopeError) as ctx:
+                scan.load_trace_scope(cfg)
+            self.assertIn("trace_scope", str(ctx.exception))
+
+    def test_include_missing_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = self._write_config(root, 'trace_scope:\n  exclude: ["docs/**"]\n')
+            with self.assertRaises(scan.TraceScopeError) as ctx:
+                scan.load_trace_scope(cfg)
+            self.assertIn("include", str(ctx.exception))
 
 
 class TestMalformedYamlIsFailSoft(unittest.TestCase):

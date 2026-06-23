@@ -6,10 +6,11 @@ from docidx import query
 from docidx.model import Edge, Node, NodeIndex
 
 
-def _node(nid, ntype, version="1.0", edges=(), labels=(), heading="", body=""):
+def _node(nid, ntype, version="1.0", edges=(), labels=(), heading="", body="",
+          file="doc-system/x.md", line=1):
     return Node(
         id=nid, type=ntype, version=version, heading=heading or nid,
-        file="doc-system/x.md", line=1, labels=tuple(labels),
+        file=file, line=line, labels=tuple(labels),
         edges=tuple(Edge(*e) for e in edges), body=body,
     )
 
@@ -87,6 +88,31 @@ class TestDependents(QueryBase):
 
     def test_no_dependents(self):
         self.assertEqual(query.dependents(self.index, "SPEC-2"), [])
+
+
+class TestDuplicateIds(unittest.TestCase):
+    def test_first_wins_and_all_locations_recorded(self):
+        nodes = [
+            _node("SPEC-1", "SPEC", "0.3", heading="先（採用される）",
+                  file="doc-system/a.md", line=10),
+            _node("SPEC-1", "SPEC", "0.1", heading="後（捨てられる）",
+                  file="doc-system/b.md", line=20),
+            _node("FR-1", "FR", "0.3", file="doc-system/a.md", line=5),
+        ]
+        index = NodeIndex.build(nodes)
+        # 先勝ち：by_id は最初の出現を保持
+        self.assertEqual(index.by_id["SPEC-1"].heading, "先（採用される）")
+        # 重複検知：捨てた側も含め全出現 file:line を出現順で記録
+        self.assertEqual(
+            index.duplicates,
+            {"SPEC-1": ("doc-system/a.md:10", "doc-system/b.md:20")},
+        )
+        # 重複していない ID は duplicates に出ない
+        self.assertNotIn("FR-1", index.duplicates)
+
+    def test_no_duplicates_is_empty(self):
+        index = NodeIndex.build([_node("FR-1", "FR")])
+        self.assertEqual(index.duplicates, {})
 
 
 if __name__ == "__main__":

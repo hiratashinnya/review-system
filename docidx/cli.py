@@ -15,12 +15,19 @@ from . import query, render, scan
 EXIT_OK = 0
 EXIT_NOT_FOUND = 2
 EXIT_USAGE = 3
+EXIT_CONFIG = 4  # trace_scope を解釈できない（TraceScopeError）
 
 
 def _build(args: argparse.Namespace):
     root = Path(args.root).resolve() if args.root else scan.find_repo_root()
     config = Path(args.config).resolve() if args.config else None
-    return scan.build_index(repo_root=root, config_path=config)
+    index = scan.build_index(repo_root=root, config_path=config)
+    for nid, locs in index.duplicates.items():
+        print(
+            f"警告: ノード ID 重複 {nid}（{', '.join(locs)}）。先勝ちで {locs[0]} を採用しました。",
+            file=sys.stderr,
+        )
+    return index
 
 
 def _emit_json(obj) -> None:
@@ -146,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.func(args)
+    except scan.TraceScopeError as exc:
+        print(f"エラー: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
     except BrokenPipeError:
         return EXIT_OK
 

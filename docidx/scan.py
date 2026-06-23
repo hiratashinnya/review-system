@@ -19,8 +19,19 @@ _SUMMARY = "⬡"
 _MIDDOT = "·"
 _VERSION_RE = re.compile(r"v(\d+\.\d+)")
 
-_DEFAULT_INCLUDE = ["doc-system/**/*.md"]
-_DEFAULT_EXCLUDE = ["docs/**", "**/README.md", "**/00-dashboard.md", "**/00-dfd.md"]
+_TRACE_SCOPE_HINT = (
+    'docidx は trace_scope をインラインリスト形式（例: include: ["doc-system/**/*.md"]）'
+    "のみ対応します。ブロック形式（- item）・未設定・config 欠如には対応しません。"
+    "config.yaml の trace_scope を該当形式に直してください。"
+)
+
+
+class TraceScopeError(Exception):
+    """config.yaml の ``trace_scope`` を解釈できないとき送出する。
+
+    既定値へ黙ってフォールバックすると config 変更（ブロック化・グロブ追加）が docidx に
+    効かないドリフトを生むため、フォールバックせず停止して利用者に記法修正を促す。
+    """
 
 
 def find_repo_root(start: Path | None = None) -> Path:
@@ -156,14 +167,21 @@ def _make_node(node_id, version, heading, rel_path, line_no, data, body, parse_e
 
 
 def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
-    """config.yaml の ``trace_scope`` の include/exclude を読む（無ければ既定）。
+    """config.yaml の ``trace_scope`` の include/exclude を読む。
+
+    **インラインリスト形式（``include: ["…"]``）のみ対応**。読めない場合
+    （config が無い／``trace_scope`` ブロックが無い／``include`` が無い／キーがブロック形式
+    などインラインでない）は、既定値へフォールバックせず :class:`TraceScopeError` を送出して
+    停止する（黙って古いハードコード既定値ですり替えるドリフトを断つため）。``exclude`` は
+    省略可（無ければ空集合）。
 
     依存仕様: SPEC-24 v0.2（trace_scope による in-graph 判定）・config.yaml: trace_scope。
     """
     if not config_path.is_file():
-        return list(_DEFAULT_INCLUDE), list(_DEFAULT_EXCLUDE)
+        raise TraceScopeError(f"config.yaml が見つかりません: {config_path}。{_TRACE_SCOPE_HINT}")
     include: list[str] | None = None
     exclude: list[str] | None = None
+    seen_scope = False
     in_scope = False
     for raw in config_path.read_text(encoding="utf-8").splitlines():
         if raw.strip() == "" or raw.lstrip().startswith("#"):
@@ -171,18 +189,35 @@ def load_trace_scope(config_path: Path) -> tuple[list[str], list[str]]:
         indent = len(raw) - len(raw.lstrip(" "))
         if raw.strip() == "trace_scope:":
             in_scope = True
+            seen_scope = True
             continue
         if in_scope and indent == 0:
             break
         if in_scope:
             key, sep, rest = raw.strip().partition(":")
-            if sep and rest.strip().startswith("["):
-                vals = [str(v) for v in nodeyaml._inline_list(rest.strip())]
-                if key.strip() == "include":
-                    include = vals
-                elif key.strip() == "exclude":
-                    exclude = vals
-    return (include or list(_DEFAULT_INCLUDE), exclude or list(_DEFAULT_EXCLUDE))
+            key = key.strip()
+            if key not in ("include", "exclude"):
+                continue
+            if not (sep and rest.strip().startswith("[")):
+                # ブロック形式（- item）や空など、インラインでない記法は黙って既定に逃がさず停止
+                raise TraceScopeError(
+                    f"config.yaml の trace_scope.{key} がインラインリスト形式ではありません"
+                    f"（該当行: {raw.strip()!r}）。{_TRACE_SCOPE_HINT}"
+                )
+            vals = [str(v) for v in nodeyaml._inline_list(rest.strip())]
+            if key == "include":
+                include = vals
+            else:
+                exclude = vals
+    if not seen_scope:
+        raise TraceScopeError(
+            f"config.yaml に trace_scope ブロックがありません: {config_path}。{_TRACE_SCOPE_HINT}"
+        )
+    if include is None:
+        raise TraceScopeError(
+            f"config.yaml の trace_scope に include がありません: {config_path}。{_TRACE_SCOPE_HINT}"
+        )
+    return include, exclude or []
 
 
 def discover_files(repo_root: Path, include: list[str], exclude: list[str]) -> list[Path]:
