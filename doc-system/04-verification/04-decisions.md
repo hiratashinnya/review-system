@@ -678,3 +678,164 @@ in-graph ノード（別ファイル差分で出力）:
 **覆る場合の影響範囲**: 選択肢B（運用ルールのみ）／C（現状維持）へ戻す場合、config.yaml の `fnd_lifecycle` を撤去し汎用 `{ node: FND, target: any }` を復元、FND-96/97/98/100 に `suppress: [RULE-006]` を復活させ `resolved` フィールドを撤去、上記 out-of-graph 資産の FND 行を旧表記へ戻す（影響は config・verification 層 FND ノード 4 件・著作資産に限定）。
 
 ---
+
+## DD-17: config 駆動の「禁止接続/辺残留」検出に専用 RULE-030 を新設（欠如 RULE-006 と残存 RULE-030 を責務分離）
+
+**status: decided**（2026-06-22 オーナー承認・案B 採用）
+
+<details><summary>⬡ DD-17 · v0.1.0</summary>
+
+```yaml
+id: DD-17
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+> **辺の扱い**: 本 DD は decided。本決定の反映先は主に out-of-graph（`docs/doc-system/05-verification.md` の RULE 表・`docs/doc-system/config.yaml` の `fnd_lifecycle.resolved.must_not_link_to`）であり、in-graph の義務辺（DD→X）は反映済みのため張らない（DD-16 の `edges: []` と同方針）。本決定で resolved 化される FND-104 が in-graph の代表処置対象であり、処置側（FND-104）から `→DD-17` のバックリファレンス辺を張り返す（FND-104 v0.2 で付与・X→DD 慣行）。dedicated SPEC（SPEC-59）は RULE-030 を引くが、SPEC が RULE/DD への辺を張る慣行はないため `SPEC-59→DD-17` は不要。したがって本 DD の `edges: []`。先例: DD-9（RULE-029 新設・`→FND-78` 1 辺）・DD-16（`edges: []`・out-of-graph 反映＋処置側張り返し）。
+> **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は FND-104 の指摘を受けて決定したものだが、DD であり FND でないため「指摘時 ref_version」の本文記録は不要（DD-16 と同扱い）。論点の出所は FND-104（findings.md v0.1 時点）である旨を論点欄に記す。
+
+**論点**（FND-104 より昇格）: main の Q-4→DD-16 で `config.yaml` に正式化された `fnd_lifecycle.resolved.must_not_link_to`（target: any・severity warning・「resolved FND の元 forward 辺は削除済みであること」＝辺残留/禁止接続の存在の検出）に対し、それを検出・報告する RULE 番号が `docs/doc-system/05-verification.md` の RULE 一覧に存在しない（検出機構の定義そのものの空白）。既存 RULE は意味が合致しない:
+
+- RULE-006（段階②・必須接続の**欠如**）は `must_link_to`/`must_be_linked_from` のみを対象とし、`must_not_link_to`（辺が**残ってはならない**）とは意味が逆。
+- RULE-001/002/022（段階①・義務辺**残存**）は DD/Q/PEND の `decision_spine` **ノード型固有**ルールであり、config 駆動の汎用「辺残留」ルールではない。
+
+結果として「config 駆動・任意型・辺が残留してはならない」検出を引ける RULE コードが空白で、検証ツール実装時に `must_not_link_to` 違反をどの RULE で報告するか決められず、FND-103 ②案の dedicated SPEC（resolved 系）も参照すべき RULE 番号を引けない。
+
+**選択肢**:
+- **案A（RULE-006 拡張）**: 既存 RULE-006 の定義を拡張し、config 駆動の `must_not_link_to`（辺残留・禁止接続の存在）も RULE-006 で報告する。RULE 番号を増やさず済むが、RULE-006 が「必須接続の欠如」と「禁止接続の残存」の**2責務**を持ち単一責務が緩む（欠如と残存は検出ロジックも逆・severity も error/warning で異なる）。
+- **案B（新規 RULE-030 新設・推奨）**: 「config 駆動の禁止接続/辺残留の存在」を独立 RULE-030 として新設し、欠如（RULE-006）と残存（RULE-030）を責務分離する。RULE-001/022 が義務辺の残存を独立 RULE にしている先例と整合し、FND-103 ②案の dedicated SPEC（SPEC-59）はこの RULE-030 を引く。
+
+**推奨**: 案B。理由: (1) RULE-006 の単一責務を守る（PR1「もの＋発生源で分ける」＝欠如と残存は検出ロジックも severity も別もの）。(2) RULE-001/022 が義務辺の残存を独立 RULE にしている既存先例と一貫する。(3) FND-103 の配置決定（辺欠如 vs 辺残留を別 SPEC に責務分離）と層が揃う。案A は RULE-006 を 2 責務化し、欠如（error）と残存（warning）という意味も severity も逆のロジックを 1 RULE に押し込むため非推奨。
+
+**決定**: **案B を採用**（オーナー承認・2026-06-22）。RULE-030 を `docs/doc-system/05-verification.md` 段階①に新設し、config 駆動の禁止接続/辺残留（`fnd_lifecycle.resolved.must_not_link_to` を含む汎用の `must_not_link_to`）の存在を WARNING で報告する。FND-103 ②案で新設する dedicated SPEC（SPEC-59）は RULE-030 を引く。
+
+**影響範囲（2026-06-22 反映状況）**:
+
+機械判定の正本:
+- `docs/doc-system/config.yaml`（out-of-graph）: **変更不要**。`fnd_lifecycle.resolved.must_not_link_to` 自体は DD-16 で既にコミット済み。RULE 番号（RULE-030）は config 側に持たず 05-verification.md 側でマップする（RULE-006 と同方式＝config が機構、05-verification.md が RULE 番号台帳）。✅ 変更なし
+
+out-of-graph RULE 台帳:
+- `docs/doc-system/05-verification.md`: 段階①に RULE-030（config 駆動の禁止接続/辺残留の存在＝`must_not_link_to` 違反・任意型・WARNING）を新設。本文注記で RULE-001/022（decision_spine のノード型固有残存）および RULE-006（必須接続の欠如・段階②）との責務分離を明記。✅ 反映済み（本セッション既了）
+
+in-graph ノード（別ファイル差分で出力）:
+- `doc-system/02-what/03-spec.md`: SPEC-59（fnd_lifecycle resolved 系 `must_not_link_to` の dedicated SPEC）の期待動作・例の参照 RULE を RULE-006→RULE-030 に差し替え、`→FND-103`・`→FND-104` バックリファレンスを付与（→ `tmp/sprint-1/SPEC-59.md`・reconciliation 反映）。
+- `doc-system/04-verification/02-findings.md`: FND-104（v0.1→0.2）を resolved 化（→ `tmp/sprint-1/FND-104.md`）。処置側から本 DD へ `FND-104→DD-17` を張り返す。FND-103（v0.1→0.2）も ②案完了で resolved 化（→ `tmp/sprint-1/FND-103.md`）。
+
+**接続規則変更チェック（FND-99 パターン）**: 本 DD は **05-verification.md の RULE 台帳に RULE-030 を追加するのみ**で、`config.yaml` の接続規則（`must_link_to`/`must_be_linked_from`/`fnd_lifecycle` の `must_not_link_to`）の追加・変更・削除を**含まない**（`fnd_lifecycle.resolved.must_not_link_to` 規則自体は DD-16 で既にコミット済み・本 DD はその検出 RULE 番号を台帳に充てるのみ）。よって接続マトリクス・ドキュメント一覧・各 author エージェント／スキルへの規則伝播は**不要**。ただし RULE 台帳に番号が増えた事実（RULE 範囲 001〜030）は dashboard 参考の RULE 範囲記述に反映する（番号台帳の更新であって接続規則の変更ではない）。
+
+**覆る場合の影響範囲**: RULE-030 を撤去し、SPEC-59 の参照 RULE を差し替える（案A へ回帰するなら RULE-006 拡張＋SPEC-59 を RULE-006 参照へ戻す）。
+
+---
+
+## DD-18: `resolved` の boolean 型検証（SPEC-60-3）に専用 RULE-031 を新設（共通必須型 RULE-028 と型別任意型 RULE-031 を責務分離）
+
+**status: decided**（2026-06-23 オーナー指摘「型検証を SPEC-60-3 として対象化」を受けた設計判断・案B 採用）
+
+<details><summary>⬡ DD-18 · v0.1.0</summary>
+
+```yaml
+id: DD-18
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+> **辺の扱い**: 本 DD は decided。本決定の反映先は主に out-of-graph（`docs/doc-system/05-verification.md` 段階0 の RULE 表に RULE-031 を追加）であり、in-graph の義務辺（DD→X）は反映済みのため張らない（DD-16/17 の `edges: []` と同方針）。本決定の in-graph 代表処置対象は FND-105（resolved・スコープ外撤回）であり、処置側（FND-105）から `→DD-18` のバックリファレンス辺を張り返す（FND-105 v0.2 で付与・X→DD 慣行）。dedicated SPEC（SPEC-60-3）は RULE-031 を引くが、SPEC が RULE/DD への辺を張る慣行はないため `SPEC-60-3→DD-18` は不要。したがって本 DD の `edges: []`。先例: DD-17（RULE-030 新設・`edges: []`・out-of-graph 反映＋処置側 FND-104 から張り返し）・DD-16（`edges: []`）。
+> **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は FND-105 のスコープ外撤回に伴い決定したものだが、DD であり FND でないため「指摘時 ref_version」の本文記録は不要（DD-16/17 と同扱い）。論点の出所は FND-105（findings.md v0.1 時点・当初「②案＝別軸」としてスコープ外化していた論点）である旨を論点欄に記す。
+
+**論点**（FND-105 の②案より昇格）: `resolved` フィールドの入力空間を SPEC-60-1（`true`→resolved）／SPEC-60-2（boolean `false`・キー未設定→unresolved）／SPEC-60-3（boolean でない型不正）の3子 SPEC で完全分割するにあたり、SPEC-60-3 が要求する「`resolved` フィールドが存在するが boolean でない（文字列 `"true"`・数値 `1`・null 等）」の検出・報告をどの RULE で行うかが空白だった。FND-105 当初は型検証を「②案＝判定セマンティクス規定（①案）とは別軸」としてスコープ外に追い出していたが、オーナー指摘により撤回し SPEC-60-3 として SPEC-60 傘の対象に組み込む方針に変更した。既存 RULE は意味が合致しない:
+
+- RULE-028（段階0・共通必須フィールドの存在と型）は `labels`/`scheduled`/`edges` 等の**全ノード共通必須フィールド**を fail-close で検証する。一方 `resolved` は **FND 固有の任意フィールド**であり、共通必須でも全ノード対象でもない。RULE-028 で拾うと「共通必須」と「FND 固有任意」の2責務を1 RULE が抱える。
+- 非 boolean を黙って `false` 既定に解決すると（現行 SPEC-60-2 文言「`true` でないとき」は非 boolean まで拾う）、型不正の握り潰しになる。検出と報告を担う RULE が必要。
+
+**選択肢**:
+- **案A（RULE-028 拡張）**: 既存 RULE-028（共通必須フィールドの型検証）を拡張し、FND 固有の任意フィールド `resolved` の boolean 型検証も RULE-028 で行う。RULE 番号を増やさず済むが、(1) RULE-028 が「共通必須フィールドの型」＋「型別（FND 固有）任意フィールドの型」の**2責務**を持ち単一責務が緩む。(2) `resolved` は**任意**フィールドであり、RULE-028 の fail-close（必須欠如はノード単位で打ち切り）方針とも整合しない（任意フィールドの型不正は fail-close すべき性質ではない）。
+- **案B（新規 RULE-031 新設・推奨）**: 「型別（FND 固有）任意フィールドの型検証」を独立 RULE-031 として新設し、共通必須フィールド型（RULE-028）と型別任意フィールド型（RULE-031）を責務分離する。`condition`→RULE-016・`result`→RULE-020 の既存「型別フィールドは専用 RULE」パターンと整合する。
+
+**推奨**: 案B。理由: (1) RULE-028 の単一責務を守る（PR1「もの＋発生源で分ける」＝共通必須フィールドの型と型別任意フィールドの型は対象も発火条件も別もの）。(2) `condition`（FND/SPEC 等の型別フィールド）→RULE-016、`result`（TR の型別フィールド）→RULE-020 と同じく「型別フィールドは専用 RULE で検証する」既存パターンに揃う。(3) `resolved` は任意フィールドで非 fail-close（型不正でもノード処理を打ち切らず ERROR 報告のみ）にできるため、fail-close 前提の RULE-028 とロジックが異なる。案A は RULE-028 を 2 責務化し、必須/fail-close と任意/非 fail-close という性質の異なる検証を1 RULE に押し込むため非推奨。
+
+**決定**: **案B を採用**（主文脈・2026-06-23）。オーナー指摘「型検証を SPEC-60-3 として対象化」を受け、RULE-031 を `docs/doc-system/05-verification.md` 段階0（スキーマ検証・RULE-023〜029 の節）に新設する。定義は「型が FND のノード YAML に `resolved` が存在するが boolean でない（型不正）」・深刻度 **ERROR**・**非 fail-close**。RULE-031 発火時は当該ノードの resolved 判定（SPEC-60-1/60-2）を適用せず型不正を報告する（非 boolean を黙って `false` 既定に解決しない）。SPEC-60-3 はこの RULE-031 を引く。なお RULE-028 拡張（案A）vs 新 RULE 新設（案B）の選択はオーナー override 可として本 DD に記録する。
+
+**影響範囲（2026-06-23 反映状況）**:
+
+機械判定の正本:
+- `docs/doc-system/config.yaml`（out-of-graph）: **変更不要**。`fnd_lifecycle.resolved_field: resolved` は既コミット済みで、RULE 番号（RULE-031）は config 側に持たず 05-verification.md 側でマップする（RULE-006/030 と同方式＝config が機構、05-verification.md が RULE 番号台帳）。✅ 変更なし
+
+out-of-graph RULE 台帳:
+- `docs/doc-system/05-verification.md`: 段階0（スキーマ検証・RULE-023〜029 の節）に RULE-031（型が FND のノードに `resolved` が存在するが boolean でない＝型不正・ERROR・非 fail-close）を追加。本文注記で RULE-028（共通必須フィールドの型）との責務分離、および `condition`→RULE-016・`result`→RULE-020 の「型別フィールドは専用 RULE」パターンとの整合を明記。✅ 反映済み（主文脈で追加済み）
+
+in-graph ノード（別ファイル差分で出力）:
+- `doc-system/02-what/03-spec.md`: SPEC-60 傘の対象に SPEC-60-3（failure・`resolved` 型不正→RULE-031 ERROR）を追加、SPEC-60-2 の文言を「boolean の `false`／キー未設定」に限定修正（非 boolean を 60-3 の責務へ切り出し）。SPEC-60-1 は変更なし。SPEC-60 傘本文の「スコープ外」段落を 3 分割の説明へ書き換え（spec-author 所掌）。
+- `doc-system/04-verification/02-findings.md`: FND-105（v0.1→0.2）の「スコープ外（明示）」「②案（別軸）」記述を撤回・書き換え（→ `tmp/sprint-1/FND-105.md`）。処置側から本 DD へ `FND-105→DD-18` を張り返す。
+
+**接続規則変更チェック（FND-99 パターン）**: 本 DD は **05-verification.md の RULE 台帳に RULE-031 を追加するのみ**で、`config.yaml` の接続規則（`must_link_to`/`must_be_linked_from`/`fnd_lifecycle` の `must_not_link_to`/`resolved_field`）の追加・変更・削除を**含まない**（`resolved_field: resolved` 定義および省略時 false 既定の規約自体は main の Q-4→DD-16 で既にコミット済み・本 DD はその型妥当性検出 RULE 番号を台帳に充てるのみ）。よって接続マトリクス（`docs/doc-system/03-connection-matrix.md`）・ドキュメント一覧（`docs/doc-system/01-document-items.md`）・各 author エージェント／スキルへの規則伝播は**不要**（接続規則ではなく RULE 番号台帳の追加であり、DD-17 の RULE-030 新設と同じ判定）。ただし RULE 台帳に番号が増えた事実（RULE 範囲 001〜031）は dashboard 参考の RULE 範囲記述に反映する（番号台帳の更新であって接続規則の変更ではない）。
+
+**覆る場合の影響範囲**: RULE-031 を撤去し、SPEC-60-3 の参照 RULE を差し替える（案A へ回帰するなら RULE-028 を拡張し、SPEC-60-3 を RULE-028 参照へ戻す）。SPEC-60-2 の文言限定修正（「boolean の `false`／キー未設定」）も巻き戻し、非 boolean を `false` 既定へ吸収する旧モデルへ戻す。
+
+---
+
+## DD-19: 検証戦略の段階別トリガを §1 フロー図 L13-23 の単一トリガに統一（bump 非依存の辺残留検査のすり抜けを解消）
+
+**status: decided**（2026-06-23 オーナー決定・PR #37 スレッド3・案A 採用）
+
+<details><summary>⬡ DD-19 · v0.1.0</summary>
+
+```yaml
+id: DD-19
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+> **辺の扱い**: 本 DD は decided。本決定の反映先は全面的に out-of-graph（`docs/doc-system/05-verification.md` §2 統一トリガ注記の追加・段階①②③′トリガ行の書換）であり、in-graph の義務辺（DD→X）は反映済みのため張らない（DD-16/17/18 の `edges: []` と同方針）。本決定の in-graph 代表処置対象は FND-106（resolved）であり、処置側（FND-106）から `→DD-19` のバックリファレンス辺を張り返す（FND-106 v0.2 で付与・X→DD 慣行）。被指摘の検証戦略文書（05-verification.md）は out-of-graph でノード ID を持たず、DD→文書行の辺は張れない。したがって本 DD の `edges: []`。先例: DD-18（RULE-031 新設・`edges: []`・out-of-graph 反映＋処置側 FND-105 から張り返し）・DD-17（RULE-030 新設・`edges: []`・処置側 FND-104 から張り返し）・DD-16（`edges: []`）。
+> **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は FND-106 のトリガ不整合指摘を受けて決定したものだが、DD であり FND でないため「指摘時 ref_version」の本文記録は不要（DD-16/17/18 と同扱い）。論点の出所は FND-106（findings.md v0.1 時点・PR #37 スレッド3 起源・「段階別トリガ宣言がフロー図の単一トリガモデルと不整合」）である旨を論点欄に記す。
+
+**論点**（FND-106 より昇格）: `docs/doc-system/05-verification.md` の §1 フロー図（L13-23）は「ドキュメント変更があったら①②③（④は実装着手後）を順に流す」という**単一トリガモデル**を正本として示している。一方、各段階の `**トリガ**`/`**運用**` 行は段階ごとに別トリガを後付け宣言しており、両者が不整合である。とりわけ段階①トリガ（L44・「ノードのバッジ `vX.Y` を上げたとき」＝bump トリガ）は、段階①に同居する RULE のうち RULE-004（ref_version ドリフト・bump 依存）には妥当だが、RULE-030（禁止接続/辺残留）・RULE-001/002/022（DD/Q/PEND 義務辺残存）は**バッジ bump に依存しない辺残留検査**である。これらを bump トリガに括ると、**バッジ bump を伴わない辺改変コミット**（resolved FND の元 forward 辺 `FND→X` の消し忘れ・必須辺の削除をバッジ据え置きで行った等）で段階①が回らず、辺残留・義務辺残存・禁止接続残留が**すり抜ける検出漏れ gate** が生じる。対照的に辺の**欠如**を見る RULE-006 は段階②（辺改変トリガ）で正しく回るため、同じ「辺の存在状態を検査する」性質が欠如＝辺改変トリガ・残留＝bump トリガという非対称になっている。このトリガ整合をどう取るかが論点。
+
+**選択肢**:
+- **案A（トリガ統一・推奨）**: 段階①〜③（③′含む）の `**トリガ**`/`**運用**` 行を §1 フロー図 L13 の単一トリガ（「ドキュメント変更があったとき①②③を全て実行」）に統一する。段階0 の fail-close 境界（ファイル読み込み時・段階①の前）と段階④ の phase-gate（実装着手後・sub-issue）は性質の異なる起動条件のため現行据え置き。フロー図（正本）と段落トリガが一致し、辺改変コミットで段階①の辺残留検査が bump の有無に依存せず確実に回る。RULE-004（bump 依存）も「ドキュメント変更時に毎回走査」に包含され、bump がなければドリフトも生じないため過検出にならない。
+  - 利点: 正本（既に単一トリガのフロー図）に段落トリガを揃えるだけの最小変更で検出漏れ経路が閉じる。PR3「必要な検査は処理時に毎回実行」とも整合（トリガ条件で検査を間引かない）。RULE の段階再配置を伴わないため RULE 表・dashboard 段階別集計への波及がない。
+  - 留意: CI 上は全 RULE 毎回実行になるが、グラフ走査は軽量で実装層 0 ノードの現状で問題にならない。
+- **案B（RULE 再配置）**: トリガは段階別のまま維持し、bump 非依存の辺残留 RULE（RULE-030/001/002/022）を段階②（辺改変トリガ）へ移すか、段階①トリガに「辺の追加/削除（辺改変）時」も併記する。各段階のトリガを検出事象の発生源に厳密対応させる（bump 起因＝RULE-004 は段階①／辺改変起因＝辺残留 RULE は段階②・PR1 発生源基準）。
+  - 利点: トリガと検出対象の発生源が 1:1 対応し、各段階が単一の起動条件を持つ。
+  - 留意: RULE の段階再配置は RULE 表・本文注記・dashboard の段階別集計に波及し変更面積が大きい。段階①の「ドリフト検出」括りに辺残留（RULE-030/001/002/022）が含まれてきた経緯（FND-104 で RULE-030 を段階①に新設した配置）と整合を取り直す必要がある。
+- **案C（現状維持＋根拠明記）**: 段階別トリガを残し、「bump 非依存の辺残留 RULE も実運用では CI で常時走査するため取りこぼさない」旨を本文に注記して整合を文章で担保する。
+  - 留意: 文書上のトリガ宣言（bump トリガ）と実運用（常時走査）が乖離したまま残り、文言どおり実装すると検出が落ちる。検出機構の設計整合という指摘の核心を解消しないため非推奨。
+
+**推奨**: 案A。理由: (1) §1 フロー図（L13-23）が既に単一トリガモデルを正本として示しており、段落 `**トリガ**` 行を後付けで段階別に分割した結果が不整合の原因であるため、正本（フロー図）に段落トリガを揃えるのが筋。(2) 最小変更で検出漏れ経路を閉じられる（RULE の段階再配置を伴わず RULE 表・dashboard 段階別集計に波及しない）。(3) PR3（処理時に毎回検査・トリガ条件で間引かない）と整合する。案B は発生源基準では理屈が通るが RULE 表・dashboard まで波及して変更面積が大きく、現状の最小是正には過剰。案C はトリガ宣言と実運用の乖離を残し検出を gate しうる本質を解消しないため非推奨。段階0 fail-close（構造異常での即時中断）と段階④ phase-gate（フェーズゲート）は単一トリガと性質が異なるため統一対象に含めず現行据え置きが妥当。
+
+**決定**: **案A を採用**（オーナー決定・2026-06-23・PR #37 スレッド3）。§1 フロー図を正本とし、段階①〜③（③′含む）のトリガ宣言を単一トリガ（ドキュメント変更時に①②③を一括全実行・CI 常時実行）へ統一する。これにより bump を伴わない辺改変でも段階①の辺残留検査（RULE-030/001/002/022）と RULE-004 が必ず走り、検出漏れ gate が閉じる。段階0（fail-close 境界・ファイル読み込み時）・段階④（phase-gate・実装着手前は対象なし）のみ固有の実行条件を持つ例外として現行維持する。
+
+**影響範囲（2026-06-23 反映状況）**:
+
+機械判定の正本:
+- `docs/doc-system/config.yaml`（out-of-graph）: **変更不要**。本決定はトリガ宣言（どの段階をいつ起動するか）の文言整合であり、`must_link_to`/`must_be_linked_from`/`fnd_lifecycle`/`must_not_link_to` 等の接続規則および RULE 定義そのものには触れない。✅ 変更なし
+
+out-of-graph 検証戦略文書:
+- `docs/doc-system/05-verification.md`: 主文脈で反映済み。✅
+  - §2 冒頭に「検証トリガ（統一・DD-19・FND-106）」注記を追加（段階①②③（③′含む）は段階別トリガを持たず §1 フロー図どおりドキュメント変更時に①②③を一括全実行〔CI 常時実行〕。bump を伴わない辺改変でも段階①の辺残留検査〔RULE-030/001/002/022〕と RULE-004 が必ず走る。段階0〔fail-close 境界〕・段階④〔phase-gate〕のみ固有の実行条件を持つ例外）。
+  - 段階①トリガ（旧「バッジ vX.Y を上げたとき」）→ §2 統一トリガに従う旨へ書換（RULE-004 は bump 時に差分が生じるが走査は毎回実行と明記）。
+  - 段階②トリガ（旧「ノードの追加・辺の追加/削除後」）→ §2 統一トリガに従う旨へ書換（運用「CI 常時実行・ERROR でマージブロック推奨」は保持）。
+  - 段階③′トリガ（旧「NFR 対象成果物の変更後」）→ §2 統一トリガに従う旨へ書換。
+  - 段階0 トリガ（ファイル読み込み時＝段階①の前）・段階④（実装着手前は対象なし）は現状維持。
+
+in-graph ノード:
+- `doc-system/04-verification/02-findings.md`: FND-106（v0.1→0.2）を resolved 化し、処置側から本 DD へ `FND-106→DD-19`（ref "0.1"）を張り返す。
+
+**接続規則変更チェック（FND-99 パターン）**: 本 DD は **05-verification.md の段階別トリガ宣言を §1 フロー図の単一トリガに整合させる文言修正のみ**で、`config.yaml` の接続規則（`must_link_to`/`must_be_linked_from`/`fnd_lifecycle` の `must_not_link_to`/`resolved_field` 等）および RULE 定義（RULE-001〜031 の意味・配置）の追加・変更・削除を**含まない**。指摘・処置の対象は「どの段階をいつ起動するか」のトリガ宣言（運用記述）であり、「どの型がどの型に辺を張る/張らない」という接続規則や RULE の意味には一切触れない。
+
+よって接続マトリクス（`docs/doc-system/03-connection-matrix.md`）・ドキュメント一覧（`docs/doc-system/01-document-items.md`）・各 author エージェント／スキルへの規則伝播は**不要**（変更される接続規則型なし＝伝播対象なし）。案A は RULE の段階再配置すら伴わないため RULE 表・dashboard の段階別集計への波及もない（案B を採っていた場合のみ RULE 段階配置の見直しが生じたが、案A 採用により発生しない）。先例: FND-106 本文の同チェック・DD-18 の同チェック（RULE 台帳の操作は接続規則変更でない）と同じ判定。
+
+**覆る場合の影響範囲**: 段階①〜③のトリガ宣言を段階別トリガ（bump トリガ・辺改変トリガ・NFR 成果物変更トリガ）へ戻し、§2 統一トリガ注記を撤去する。その際は案B（辺残留 RULE の段階再配置）か案C（常時走査の文章注記）のいずれかで検出漏れ gate を別途閉じる必要がある（単なる現状回帰は FND-106 の検出漏れ gate を再発させるため不可）。
+
+---

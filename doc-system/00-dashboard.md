@@ -3,7 +3,7 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-06-22 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-06-23 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
 > 直近: **issue #30 PR #34 レビュー対応（origin/main マージ後の config 整合）**（2026-06-22）。ブランチが古い config（FND→any が must_link_to 内・計45行）基準だったため、main の Q-4→DD-16（FND→any を fnd_lifecycle へ移管・標準44行）を取り込み、FND-102 の計数を 45行/既存9 → **44行/既存8** へ訂正。SPEC-18-1 を `fnd_lifecycle.unresolved.must_link_to` 参照へ付替え。fnd_lifecycle 残2ルール（resolved.must_be_linked_from／must_not_link_to）の dedicated 化は **FND-103**（INFO・open）で別途追跡。直近の **Q-4 → DD-16 昇格・選択肢A 採用**（FND 専用ライフサイクルルールを config に独立定義・2026-06-21）。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 の計 31 ノード＋TERM-1〜6。
 
 ---
@@ -12,6 +12,9 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| PR #37 レビュー対応 — スレッド1（SPEC-59 分類）＋スレッド3（検証戦略トリガ整合） | FND-106 / DD-19 / SPEC-59 分類修正 | ✅ 完了（2026-06-23）。**スレッド1**＝SPEC-59 の親辺は FR-7 で確定（オーナー決定「fr-7でよい・新規 FND 不要」）。ダッシュボードの「SPEC-12/55 系統の独立 SPEC」表現を「FR-7 配下の独立 SPEC・辺残留検出は SPEC-12/55〔FR-5〕と同系の機構だが親辺は完結性検証 FR-7」へ2箇所修正（03-spec.md の `to: FR-7` は変更せず据置）。**スレッド3**＝**FND-106 resolved（案A＝トリガ統一実施・DD-19）**。オーナー決定により段階①〜③（③′含む）のトリガ宣言を §1 フロー図 L13-23 の単一トリガに統一し bump 非依存の辺残留検査すり抜け gate を解消。05-verification.md §2 統一トリガ注記＋段階①②③′トリガ書換は主文脈で反映済み・DD-19 起票（`edges: []`）・FND-106 v0.2 で →DD-19 backref。旧スレッド2 は本スレッド3 に差し替え済み |
+| resolved 状態判定の dedicated SPEC 化 — `resolved` フィールド判定セマンティクスの in-graph 被覆ギャップ起票＋充足・型検証スコープ外撤回 | FND-105 / SPEC-60 / DD-18 | ✅ resolved（2026-06-22 起票・2026-06-23 型検証対象化）。`fnd_lifecycle.resolved_field`（out-of-graph config）の判定セマンティクス（`true`=resolved／未設定・`false`=unresolved／省略時 false 既定）を規定する in-graph dedicated SPEC が不在だった完結性ギャップを **FND-105**（INFO）で起票。オーナー決定「FND と SPEC 両方起票」に従い、FR-7 配下に **SPEC-60 傘＋SPEC-60-1（true→resolved）/60-2（false・未設定→unresolved）** を新設して充足。**2026-06-23 オーナー指摘「型検証を勝手にスコープ外にするな」を受け、当初スコープ外としていた `resolved` 非 boolean の型検証を撤回・対象化：SPEC-60-3（failure・非 boolean→RULE-031 ERROR）を追加し SPEC-60-2 を「boolean false／キー未設定」に限定。型検証 RULE 選定（RULE-028 拡張 vs 新設）は DD-18（案B＝RULE-031 新設）に記録。FND-105 v0.2（→SPEC-60 ref 0.2・→DD-18 ref 0.1 追加）**。SPEC-60→FND-105 backref・FND-105→SPEC-60 forward 保持（FND-102 baseline・`resolved: true` 未付与で FND-101 辺逆転コホート帰属） |
+| FND-103 処置（案②・責務分離）— fnd_lifecycle resolved 系2ルールの dedicated SPEC 化 | FND-103 / FND-104 / DD-17 | ✅ resolved（2026-06-22）。`must_be_linked_from`（辺欠如/error）→ **SPEC-18-9**（SPEC-18 傘の子・RULE-006 ERROR）。`must_not_link_to`（辺残留/warning）→ **SPEC-59**（FR-7 配下の独立 SPEC・辺残留検出は SPEC-12/55〔FR-5・RULE-001/022〕と同系の機構だが親辺は完結性検証 FR-7・RULE-030 WARNING）。処置中に config 同ルールを検出する RULE 不在が判明し **FND-104 起票→案B 採用（DD-17）で RULE-030 を 05-verification.md 段階①に新設**。FND-103/104 とも resolved（FND-102 同様 forward 辺保持・FND-101 コホート） |
 | issue #30 必須辺の仕様化漏れ点検 — 必須辺 config 44 行の SPEC 被覆点検＋全 dedicated SPEC 化（worktree） | FND-102 | ✅ resolved（2026-06-21）。点検結論＝完全起票漏れ無し（SPEC-8 が parametric に全行被覆）だが dedicated SPEC は 8/44 のみ。FND-102 起票→オーナー決定②で **SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設**し 44 行全 dedicated 化（行→SPEC 1:1）。新設傘に `→FND-102` backref。索引表は FND-79 領分。FND→any は fnd_lifecycle へ移動・残課題は FND-103 で追跡 |
 | DM-3 v0.3（PR #32 再レビュー 🟡 対応・D-7 穴リスト部分を実現する D に追記） | DM-3 | ✅ done（2026-06-21）。DM-5 本文が「D-7 穴リスト部分は DM-3 が担う」と明記する一方 DM-3 の「実現する D」に D-7 未記載だった prose 非対称を是正。推奨案 (a)（D-7 追記で対称化）。構造変更・edges 変更なし（D-7 の MOD-1 realize 辺は既存） |
 | FND ライフサイクル「辺の逆転」正式化 — Q-4 → DD-16 昇格・FND-96/97/98/100 suppress 撤去 | DD-16 / Q-4 closed / FND ×4 | ✅ 処置完了（2026-06-21）。Q-4 選択肢A 採用（DD-16）。config.yaml に `fnd_lifecycle` 専用セクション新設（resolved_field/unresolved.must_link_to/resolved.must_be_linked_from/resolved.must_not_link_to）・汎用 RULE-006 FND 行を削除。FND-96（v0.5）/97（v0.2）/98（v0.2）/100（v0.2）の `suppress: [RULE-006]` 撤去・`resolved: true` 追加。接続マトリクス・文書一覧・verification-author 著作資産へも同期。FND-101 別ブランチ |
@@ -29,12 +32,12 @@
 
 | ステージ | 対象型 | ノード | 状態 | 備考 |
 |---|---|---|---|---|
-| requirements | VAL / SR / FR / NFR / SPEC | 249 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 213 ノード・うち post-mvp 25）。**FND-102（issue #30・②）で必須辺 44 行を全 dedicated SPEC 化：SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設（+39）** |
+| requirements | VAL / SR / FR / NFR / SPEC | 255 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 213 ノード・うち post-mvp 25）。**FND-102（issue #30・②）で必須辺 44 行を全 dedicated SPEC 化：SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設（+39）**。**FND-103 案②（責務分離）で fnd_lifecycle resolved 系2ルールを全 dedicated 化：SPEC-18-9（must_be_linked_from・辺欠如/error）＋ SPEC-59（must_not_link_to・辺残留/warning・RULE-030 経由）を新設（+2）**。**FND-105 で resolved 判定セマンティクスを dedicated 化：SPEC-60 傘＋SPEC-60-1/60-2 を FR-7 配下に新設、さらに型検証スコープ外を撤回し SPEC-60-3（resolved 非 boolean→RULE-031 ERROR）を追加（+4・60 傘/60-1/60-2/60-3）** |
 | analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
 | design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 31 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み。FND-96（DM→MOD→D 正規化）resolved（2026-06-20）：DM-1〜4 / TERM-1〜4 新設・config.yaml 修正・MOD-1 v0.2。**FND-100（PR #32・DM↔MOD↔D 被覆対称化）resolved（2026-06-21）：DM-5（CoverageReport）/ DM-6（InspectionViews）/ TERM-5/6 新設・DM-3 v0.2・MOD-1 v0.3**。テスト戦略 ④ 未着手 |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
-| 横断スパイン | DD / Q / PEND | 22 | ✅ | DD-1〜16（DD-16: FND 専用ライフサイクルルール・Q-4 から昇格）・Q-1/Q-4 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
+| 横断スパイン | DD / Q / PEND | 25 | ✅ | DD-1〜19（DD-16: FND 専用ライフサイクル／DD-17: RULE-030 新設・案B・FND-104／DD-18: RULE-031 新設・案B・FND-105 型検証／DD-19: 検証トリガ統一・案A・FND-106）・Q-1/Q-4 closed・Q-2/Q-3 open・PEND-1 resolved・PEND-2 deferred |
 
 > 凡例：✅ 完了／🔄 進行中／⬜ 未着手。ノード数は `-N` 子・`labels: post-mvp` を含む実数。
 > current_stage が `design` に進行（N2・2026-06-16）。design 発火の辺ルール（MOD→P / PORT→MOD / DS→P / PRS→DS / ORC→E）が全ノードに適用中（DD-15 により ORC→P から ORC→E に変更）。
@@ -56,7 +59,7 @@
 
 ## ⏳ オーナー判断待ち
 
-**計 5 件**
+**計 4 件**
 
 | 項目 | 優先 | 種別 | 次アクション |
 |---|---|---|---|
@@ -64,7 +67,6 @@
 | Q-3：O-1/O-2 の生成元辺を P-4-3（リーフ）へ精緻化するか親 P-4 のままか | 🔵 低 | Q | 推奨 A（リーフ先例 O-3/O-6・フロー表に統一・最小変更）。採否・実施スプリントはオーナー判断。`scheduled` 未設定 |
 | FND-101：resolved FND（FND-1〜95）の元 forward 辺残留（辺逆転違反） | 🟡 中 | FND | Q-4 → DD-16 決定（2026-06-21）により是正可能。別ブランチ実施。実施スプリントはオーナー判断。`scheduled` 未設定 |
 | 03-spec.md 残課題 FND-79・81・82・83・88・89・91（計7件・open） | 🟡 中 | FND | 横断整合＋自己点検残課題の実施スプリント決定（全 INFO）。`scheduled` 未設定 |
-| FND-103：fnd_lifecycle の resolved 系2ルール（must_be_linked_from／must_not_link_to）に dedicated SPEC 不在 | 🔵 低 | FND | 推奨①現状維持／②fnd_lifecycle 2ルールの dedicated SPEC 化。実施時期はオーナー判断・`scheduled` 未設定（本PRスコープ外・INFO） |
 
 > N1（current_stage→analysis）は 2026-06-15 オーナー指示で実施済み。
 > FND-102（issue #30・必須辺の仕様化漏れ点検）はオーナー決定＝選択肢②で **resolved**（2026-06-21・SPEC-56/57/58＋SPEC-18-6〜8・SPEC-28-3 新設で 44 行全 dedicated SPEC 化）。
@@ -73,11 +75,11 @@
 
 ## 📋 FND サマリ
 
-**計 106 件：✅ resolved 96 ／ ⏳ open 10**
+**計 109 件：✅ resolved 100 ／ ⏳ open 9**
 
-> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。**FND-96**（設計層 DM→MOD→D チェーン欠落＝PR1）は選択肢A フル実施で resolved（2026-06-20・config.yaml + MOD-1 + TERM-1〜4 + DM-1〜4）。**FND-97/98**（PR #28 レビュー：ORC-1 P 辺の DD-15 違反／ダッシュボード・PR 本文の陳腐化）は即 resolved（2026-06-20・ORC-1 v0.4・本帳票更新）。**FND-99**（設計接続規則の決定 FND-96/DD-15 が out-of-graph 著作資産＝スキル/エージェント/接続マトリクスに未伝播だったドリフト）も即 resolved（2026-06-20・7資産を config.yaml の正ルール `MOD→[P\|D]`／`DM→MOD`／`ORC→E` に同期）。**FND-100**（PR #32 レビュー：FND-96 処置後の DM↔MOD↔D 被覆の非対称＝D-17〜D-21 に対応 DM 不在・D-5/D-7 も非対称）も即 resolved（2026-06-21・DM-3 拡張＋DM-5 CoverageReport／DM-6 InspectionViews／TERM-5/6 新設・MOD-1 v0.3。config 規則変更なしで伝播チェック不要。🟡 OR 化トレードオフは FND-96 選択肢A 決定済みとして記録）。**FND-99 は v0.2 に改訂**（2026-06-21・辺逆転ルール DD-3 適用＝元 forward 辺 `→FND-96`/`→DD-15` を削除し `edges: []`・指摘時 ref_version は本文へ移動。処置対象が out-of-graph 資産でバックリファレンス対象が未著作のため、恣意的抑制を行わず RULE-005 完全孤立を意図的に保持＝「resolved だがバックリファレンス対象未著作」の正しいシグナル）。**FND-101**（resolved FND の大部分 FND-1〜95 が元 forward 辺を削除せず辺逆転ルール違反＝double-edge 残置・サイレントな構造的負債）も起票（open・是正は Q-4 決定依存で別ブランチ・`scheduled` 未設定）。INFO の残 open（FND-79/81/82/83/88/89/91）は全て `scheduled` 未設定。**FND-102**（issue #30「必須辺の仕様化漏れ点検」：config 44 行のうち dedicated SPEC は当初 8 行のみ・残 36 行は parametric 傘仕様 SPEC-8 依存）は **resolved**（2026-06-21・オーナー決定＝選択肢②「全 44 行を dedicated SPEC 化」。SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設し全行 1:1 トレーサビリティ成立。新設傘 SPEC-56/57/58 に `→FND-102` backref・forward 辺は baseline 慣行どおり保持で FND-101/Q-4 辺逆転コホートに帰属）。**SPEC-18-1（FND→any）は origin/main マージで `must_link_to` 標準セクションから `fnd_lifecycle.unresolved.must_link_to` へ移動したため標準 44 行外**（FND→any 系の dedicated 化＝fnd_lifecycle 残2ルールは別途 FND-103 で追跡）。なお形式的な行→SPEC 索引表は FND-79（分散→索引化・open）の領分で別途検討。**FND-103**（fnd_lifecycle の必須辺ルール3つのうち resolved 系2ルール〔must_be_linked_from／must_not_link_to〕が dedicated SPEC を欠く被覆均一化の残課題）を起票（open・INFO・本PRスコープ外・`scheduled` 未設定。FND-79／FND-101／Q-4 辺逆転コホートと同系統）。WARNING の open は FND-35（sprint-2 承認済）・FND-101（Q-4 決定依存）（FND-96 は 2026-06-20 resolved）。**FND-107**（ノードバージョン x.y → x.y.z 3パート化・バッジ・ref_version・_drift・テスト・全資産横展）は即 resolved（2026-06-23・PR #38 案 A 実施）。**FND-108**（`_drift` が x.y.z フル比較で z バンプを誤ドリフト検出・spec↔impl 乖離）も即 resolved（2026-06-24・PR #38 内・`_xy()` ヘルパー追加＋z 不問テスト追加）。**FND-109**（03-spec.md 本文「例」12 箇所に旧形式残存＝バッジ 2 パート・ref_version 3 パート）も即 resolved（2026-06-24・PR #38 内・12 SPEC z バンプ＋バックリファレンス付与。初回 10 箇所＋再々レビューで顕在化した SPEC-1-2・SPEC-32 のバッジ漏れ 2 箇所を本 FND 使い回しで追加処置）。明細は `04-verification/02-findings.md`。
+> 本文品質 FND-40〜77（38件）は各 SPEC の `期待動作` を「`【条件】のとき、〇〇を▲▲する`」の単一アサーション子 SPEC へ `-N` 分割して全解消。親はアンブレラ化し可視バッジ据置（DD-8 z-bump）・子は親バッジ x.y を ref_version 参照。FND-78（DD-9）・FND-84（DD-10）も resolved。**FND-85〜91** は全 SPEC 自己点検（spec-inspector ×6）で surfaced した残課題（オーナー判断: 全件起票）。うち **FND-80/85/86/87/90 を即処置（resolved・2026-06-15・DD-11 新設・SPEC-55 新設）**。**FND-92**（N8 で顕在化した E-1 本文と P-8/P-9・O-4/O-5 の不整合）も即 resolved（E-1 本文改訂・`--coverage`/P-3-2 先例と整合・新 E 不要・DD-8 §4 z バンプ据置）。**FND-93/94**（分析層全面見直しで顕在化：FND-93＝旧 D-4 の condition/result/log_ref 欠落による価値経路断絶／FND-94＝総点検 G1・G4 の被覆ドリフト）も即 resolved（2026-06-16・DD-12）。**FND-95**（PR #27 レビュー③：P-4-4 終了コードの O/D 未モデル＝PR6 価値経路の穴）も O-6「終了コード」新設で resolved（2026-06-16）。**FND-96**（設計層 DM→MOD→D チェーン欠落＝PR1）は選択肢A フル実施で resolved（2026-06-20・config.yaml + MOD-1 + TERM-1〜4 + DM-1〜4）。**FND-97/98**（PR #28 レビュー：ORC-1 P 辺の DD-15 違反／ダッシュボード・PR 本文の陳腐化）は即 resolved（2026-06-20・ORC-1 v0.4・本帳票更新）。**FND-99**（設計接続規則の決定 FND-96/DD-15 が out-of-graph 著作資産＝スキル/エージェント/接続マトリクスに未伝播だったドリフト）も即 resolved（2026-06-20・7資産を config.yaml の正ルール `MOD→[P\|D]`／`DM→MOD`／`ORC→E` に同期）。**FND-100**（PR #32 レビュー：FND-96 処置後の DM↔MOD↔D 被覆の非対称＝D-17〜D-21 に対応 DM 不在・D-5/D-7 も非対称）も即 resolved（2026-06-21・DM-3 拡張＋DM-5 CoverageReport／DM-6 InspectionViews／TERM-5/6 新設・MOD-1 v0.3。config 規則変更なしで伝播チェック不要。🟡 OR 化トレードオフは FND-96 選択肢A 決定済みとして記録）。**FND-99 は v0.2 に改訂**（2026-06-21・辺逆転ルール DD-3 適用＝元 forward 辺 `→FND-96`/`→DD-15` を削除し `edges: []`・指摘時 ref_version は本文へ移動。処置対象が out-of-graph 資産でバックリファレンス対象が未著作のため、恣意的抑制を行わず RULE-005 完全孤立を意図的に保持＝「resolved だがバックリファレンス対象未著作」の正しいシグナル）。**FND-101**（resolved FND の大部分 FND-1〜95 が元 forward 辺を削除せず辺逆転ルール違反＝double-edge 残置・サイレントな構造的負債）も起票（open・是正は Q-4 決定依存で別ブランチ・`scheduled` 未設定）。INFO の残 open（FND-79/81/82/83/88/89/91）は全て `scheduled` 未設定。**FND-102**（issue #30「必須辺の仕様化漏れ点検」：config 44 行のうち dedicated SPEC は当初 8 行のみ・残 36 行は parametric 傘仕様 SPEC-8 依存）は **resolved**（2026-06-21・オーナー決定＝選択肢②「全 44 行を dedicated SPEC 化」。SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設し全行 1:1 トレーサビリティ成立。新設傘 SPEC-56/57/58 に `→FND-102` backref・forward 辺は baseline 慣行どおり保持で FND-101/Q-4 辺逆転コホートに帰属）。**SPEC-18-1（FND→any）は origin/main マージで `must_link_to` 標準セクションから `fnd_lifecycle.unresolved.must_link_to` へ移動したため標準 44 行外**（FND→any 系の dedicated 化＝fnd_lifecycle 残2ルールは別途 FND-103 で追跡）。なお形式的な行→SPEC 索引表は FND-79（分散→索引化・open）の領分で別途検討。**FND-103**（fnd_lifecycle の必須辺ルール3つのうち resolved 系2ルール〔must_be_linked_from／must_not_link_to〕が dedicated SPEC を欠く被覆均一化の残課題）を起票（open・INFO・FND-79／FND-101／Q-4 辺逆転コホートと同系統）。**FND-103 はオーナー決定＝案②（責務分離）で resolved（2026-06-22）：`must_be_linked_from`（辺欠如/error）に SPEC-18-9（SPEC-18 傘の子・RULE-006 ERROR）、`must_not_link_to`（辺残留/warning）に SPEC-59（FR-7 配下の独立 SPEC・辺残留検出は SPEC-12/55〔FR-5・RULE-001/022〕と同系の機構だが親辺は完結性検証 FR-7・RULE-030 WARNING）を新設し resolved 系2ルールを全 dedicated 化。処置中に config `fnd_lifecycle.resolved.must_not_link_to` を検出する RULE が 05-verification.md に未定義（RULE-006＝欠如のみ／RULE-001/022＝decision_spine ノード型固有・汎用辺残留 RULE が空白）と判明し FND-104（WARNING）を起票→オーナー決定＝案B（DD-17）で新規 RULE-030（config 駆動の禁止接続/辺残留・段階①）を新設して解消、SPEC-59 が RULE-030 を引く。FND-103/104 とも resolved（FND-102 同様 forward 辺保持・`resolved: true` 未付与で FND-101 辺逆転コホート帰属・badge v0.2）。** **FND-105**（`fnd_lifecycle.resolved_field` の判定セマンティクス〔`true`=resolved／未設定・`false`=unresolved／省略時 false 既定〕を規定する in-graph dedicated SPEC が不在＝FND-103 と同根・同層の被覆均一化ギャップ・INFO）も resolved（2026-06-22・オーナー決定「FND と SPEC 両方起票」に従い FR-7 配下に SPEC-60 傘＋SPEC-60-1/60-2 を新設して充足。**2026-06-23・オーナー指摘により当初スコープ外としていた `resolved` 非 boolean の型検証を撤回・対象化：SPEC-60-3〔failure・非 boolean→RULE-031 ERROR〕を追加して `resolved` 入力空間を 3 子で完全分割、型検証 RULE 選定を DD-18〔案B＝RULE-031 新設〕に記録・FND-105 v0.2 で →DD-18 辺追加**。SPEC-60→FND-105 backref・forward 辺 →SPEC-60 保持で FND-102 baseline／FND-101 辺逆転コホート帰属・`resolved: true` 未付与）。**FND-106**（検証戦略 `05-verification.md` の段階別トリガ宣言がフロー図 L13-23 の単一トリガモデルと不整合：bump 非依存の辺残留 RULE〔RULE-030/001/002/022〕が段階① bump トリガに括られ、バッジ bump を伴わない辺改変コミットで辺残留検査がトリガされず検出すり抜けリスク。辺の欠如を見る RULE-006 が段階② 辺改変トリガにいるのと非対称）は **resolved**（PR #37 スレッド3 起源・2026-06-23・**オーナー決定＝案A〔トリガ統一〕採用**）。段階①〜③（③′含む）のトリガ宣言を §1 フロー図 L13-23 の単一トリガ（ドキュメント変更時に①②③を一括全実行・CI 常時実行）に統一し、bump 非依存の辺残留検査のすり抜け gate を解消。段階0 fail-close・段階④ phase-gate は固有実行条件を持つ例外として据置。決定記録は **DD-19**。05-verification.md への反映（§2 統一トリガ注記＋段階①②③′トリガ書換）は主文脈で実施済み。被指摘は out-of-graph（05-verification.md）で forward 辺を張れないため決定スパイン慣行に従い処置側から `FND-106→DD-19`（ref "0.1"）を張り返す（v0.1→0.2）。`resolved: true` 未付与で FND-102 baseline／FND-101 辺逆転コホート帰属。WARNING の残 open は FND-35（sprint-2 承認済）・FND-101（Q-4 決定依存）（FND-96 は 2026-06-20 resolved・FND-106 は 2026-06-23 resolved）。**FND-107**（ノードバージョン x.y → x.y.z 3パート化・バッジ・ref_version・_drift・テスト・全資産横展）は即 resolved（2026-06-23・PR #38 案 A 実施）。**FND-108**（`_drift` が x.y.z フル比較で z バンプを誤ドリフト検出・spec↔impl 乖離）も即 resolved（2026-06-24・PR #38 内・`_xy()` ヘルパー追加＋z 不問テスト追加）。**FND-109**（03-spec.md 本文「例」12 箇所に旧形式残存＝バッジ 2 パート・ref_version 3 パート）も即 resolved（2026-06-24・PR #38 内・12 SPEC z バンプ＋バックリファレンス付与。初回 10 箇所＋再々レビューで顕在化した SPEC-1-2・SPEC-32 のバッジ漏れ 2 箇所を本 FND 使い回しで追加処置）。なお本 PR の FND-104/105/106 は origin/main（PR #37）と ID 衝突したため FND-107/108/109 へ改番済み。明細は `04-verification/02-findings.md`。
 
-### open 明細（10 件）
+### open 明細（9 件）
 
 | ID | 深刻度 | 状態 | 概要 |
 |---|---|---|---|
@@ -90,7 +92,6 @@
 | FND-88 | INFO | ⏳ open | SPEC-13 の condition が入力/トリガ側にあり期待動作の文頭に来ていない |
 | FND-89 | INFO | ⏳ open | アンブレラ SPEC-44 の condition=normal が子（boundary/error）を代表せず |
 | FND-91 | INFO | ⏳ open | SPEC-3-1 が人手採番で機械観測が弱く `例` 欠落 |
-| FND-103 | INFO | ⏳ open | fnd_lifecycle の `resolved.must_be_linked_from`／`must_not_link_to` に dedicated SPEC 不在（被覆均一化の残課題）。本PRスコープ外・`scheduled` 未設定 |
 
 ---
 
@@ -124,6 +125,9 @@
 | DD-14 | ✅ 反映済 | FileSystemPort 抽象化粒度：単一 Port（A 案）。list_md_files + read_file の 2 メソッド Protocol（2026-06-16） |
 | DD-15 | ✅ 反映済 | ORC の must_link_to 参照先を P→E に変更（設計ノードの上流参照を起動イベントへ）。config.yaml must_be_linked_from 追加・ORC-1〜2 適用（2026-06-18） |
 | DD-16 | ✅ 反映済 | FND 専用ライフサイクルルールを config に独立定義（Q-4 から昇格・選択肢A・2026-06-21）。config.yaml `fnd_lifecycle` 新設・FND-96/97/98/100 suppress 撤去・resolved フィールド導入 |
+| DD-17 | ✅ 反映済 | `fnd_lifecycle.resolved.must_not_link_to`（辺残留/warning）検出に**新規 RULE-030 を新設**（案B・FND-104・2026-06-22）。欠如=RULE-006／残存=RULE-030 で責務分離。05-verification.md 段階①に追加・SPEC-59 が RULE-030 を引く |
+| DD-18 | ✅ 反映済 | `resolved` の boolean 型検証（SPEC-60-3）に**新規 RULE-031 を新設**（案B・FND-105・2026-06-23）。共通必須型=RULE-028／型別任意型=RULE-031 で責務分離（condition→RULE-016・result→RULE-020 の「型別フィールドは専用 RULE」パターン）。05-verification.md 段階0 に ERROR・非 fail-close で追加・SPEC-60-3 が RULE-031 を引く・`edges: []` |
+| DD-19 | ✅ 反映済 | 検証戦略の段階別トリガを §1 フロー図 L13-23 の単一トリガに統一（案A・FND-106・2026-06-23）。bump 非依存の辺残留検査（RULE-030/001/002/022）のすり抜けを解消。段階0 fail-close・段階④ phase-gate は例外で据置。05-verification.md §2 統一トリガ注記＋段階①②③′トリガ書換（反映済）・config.yaml 不変・`edges: []` |
 | Q-1 | ✅ closed | DD-2 へ昇格済み |
 | Q-2 | ⏳ open | 傘 SPEC 細分化要否＋ SPEC-29-1/29-2 リーフマップ。推奨 A（傘維持）。オーナー判断待ち |
 | Q-3 | ⏳ open | O-1/O-2 生成元辺の粒度（親 P-4 vs リーフ P-4-3）。推奨 A（P-4-3 へ精緻化）。オーナー判断待ち |
@@ -141,5 +145,5 @@
 
 ## 参考ドキュメント
 - **グローバル設定**: [`docs/doc-system/config.yaml`](../../../docs/doc-system/config.yaml) — 必須接続ルール・ステージ・condition 語彙・カバレッジ要件
-- **RULE 定義**: [`docs/doc-system/05-verification.md`](../../../docs/doc-system/05-verification.md) — RULE-001〜029 の完全定義
+- **RULE 定義**: [`docs/doc-system/05-verification.md`](../../../docs/doc-system/05-verification.md) — RULE-001〜031 の完全定義
 - **記法ガイド**: [`docs/doc-system/04-notation.md`](../../../docs/doc-system/04-notation.md) — ノード埋め込み・summary バッジ（ノードバージョン x.y）・YAML ブロック形式

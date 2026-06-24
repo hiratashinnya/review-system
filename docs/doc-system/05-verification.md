@@ -26,6 +26,8 @@
 
 ## 2. 段階別検証（①②③ 先行・④ は sub-issue）
 
+> **検証トリガ（統一・DD-19・FND-106）**：段階①②③（③′ 含む）は**段階別の個別トリガを持たず**、§1 フロー図のとおり**ドキュメントへの変更があったとき①②③を一括で全実行する**（CI で常時実行・ERROR があればマージブロック推奨）。これにより、バッジ `vX.Y` の bump を伴わない辺改変（禁止辺の追加・必須辺の削除等）でも段階①の辺残留検査（RULE-030・RULE-001/002/022）や RULE-004 が必ず走り、検出漏れが生じない。段階0（パース検証）は①②③より前に実行する fail-close 境界、段階④（コード⇔設計比較）は実装着手後にのみ対象を持つ phase-gate であり、これらのみ前提条件 gate として固有の実行条件を持つ（統一トリガの例外）。
+
 ### 段階 ①：ドリフト検出
 
 **目的**：辺の `ref_version` と参照先**ノードの現在バージョン（summary バッジ x.y）**が食い違う「ドリフト」を検出する（DD-8：ファイル version は廃止・ノード単位の版が基準）。
@@ -35,12 +37,13 @@
 | RULE-001 | DD の義務辺（`DD→X`）が存在（未反映） | ERROR |
 | RULE-002 | Q の義務辺（`Q→X`）が存在 | WARNING |
 | RULE-022 | PEND の義務辺（`PEND→X`）が存在 | WARNING |
+| RULE-030 | config 駆動の禁止接続が残存：`fnd_lifecycle.resolved.must_not_link_to`（resolved FND の元 forward 辺 `FND→X` が削除されず残留・辺逆転 DD-3 後の残置） | WARNING（config 行） |
 | RULE-004 | 辺の ref_version と参照先**ノード**の x.y（バッジ）の不一致（全依存辺・義務辺含む・DD-8） | ERROR |
 
 > RULE-003 廃止（→ RULE-004）。see-also 廃止で辺は全て依存辺＝ドリフトは一律 ERROR。
+> RULE-030 は **config 駆動の汎用「禁止接続/辺残留」検出**（DD-17・FND-104・案B）。RULE-001/002/022 が `decision_spine` の**ノード型固有**の義務辺残存を検出するのに対し、RULE-030 は config（現状 `fnd_lifecycle.resolved.must_not_link_to`）が宣言する任意型の禁止接続の残存を検出する。**辺の欠如**を検出する RULE-006（段階②・config 駆動の必須接続欠如）と対をなす（欠如=RULE-006／残存=RULE-030 で責務分離）。
 
-**トリガ**：ノードのバッジ `vX.Y.Z` を上げたとき（x・y・z の上昇・DD-8）。  
-**運用**：PR 差分でノードバッジ変更を含むコミットの後、走査を実行する。
+**トリガ**：§2 統一トリガに従う（ドキュメント変更時に①②③を一括実行）。RULE-004 は性質上ノードのバッジ `vX.Y` 上昇時に差分が生じるが（DD-8）、走査自体は段階別トリガを持たず毎回実行する（bump を伴わない辺改変でも辺残留検査が漏れないよう統一・DD-19・FND-106）。
 
 ---
 
@@ -57,12 +60,14 @@
 | RULE-027 | 辺エントリに `ref_version` フィールドが存在しない | ERROR |
 | RULE-028 | ノード YAML の共通必須フィールド（`labels` / `scheduled` / `edges`）が欠如、または型不正（`labels` が非リスト・`scheduled` が非文字列・`edges` が非リスト） | ERROR |
 | RULE-029 | ノード YAML の `scheduled` が非空文字列かつ `config.yaml` の `phases` リストに定義されていない値（例: phases から除去された `"post-mvp"`・誤記等） | ERROR |
+| RULE-031 | 型が FND のノード YAML に `resolved` フィールドが存在するが値が boolean でない（型不正：文字列 `"true"`・数値 `1`・null 等）。`fnd_lifecycle.resolved_field` の機械判定値は boolean を要する（DD-18・FND-105・SPEC-60-3） | ERROR |
 
 > RULE-023/024 は fail-close（当該ファイルのパースを中断し、後続 RULE を発火させない）。
 > RULE-025/026/027/028 は後続 RULE を発火させないが他ファイルの処理は継続する（ファイル単位の fail-close）。
 > RULE-023/024 は `always_error` 相当（suppress/scheduled/activate_stage 不可）。
 > RULE-025/026/027 は `id`/`type`/`ref_version` の存在を、RULE-028 は残りの共通必須フィールド（`labels`/`scheduled`/`edges`）の存在と型を検証する（フィールドスキーマの完全定義を in-graph 化）。
 > RULE-029 は `scheduled` の値ドメイン検証（RULE-028 の型検査の後続・FND-78/DD-9）。空文字列（`""`）は「現スプリント実施・繰り越しなし」を意味し合法。非空で phases 外＝違反。
+> RULE-031 は FND 固有の任意フィールド `resolved` の型検証（boolean）。RULE-028 が**共通必須**フィールドの型を検証するのに対し、RULE-031 は**型別（FND 固有）の任意**フィールドの型を検証する（条件 `condition`→RULE-016／結果 `result`→RULE-020 と同じく型別フィールドは専用 RULE で検証＝PR1 単一責務）。RULE-031 が発火するとき当該ノードの resolved 状態判定（SPEC-60-1/60-2）は安全に行えないため、判定セマンティクスを適用せず型不正を報告する（非 boolean を黙って `false` 既定に解決しない）。RULE-028 と異なり fail-close しない（任意フィールドの型不正は他 RULE 評価を阻害しない）。
 
 **トリガ**：ファイルの読み込み時（段階①の前）。
 
@@ -81,7 +86,7 @@
 
 > 旧 RULE-009/010/011/012/013/015 は RULE-006（config 駆動）に吸収。RULE-014 は see-also 廃止で消滅。
 
-**トリガ**：ノードの追加・辺の追加/削除後。  
+**トリガ**：§2 統一トリガに従う（ドキュメント変更時に①②③を一括実行）。  
 **運用**：CI で常時実行する（ERROR があればマージブロック推奨）。
 
 ---
@@ -132,7 +137,7 @@ TR 完結性:
 
 > rule-id は `{NFR-id}-check`（例 `NFR-1-check`）。構造ルール（RULE-NNN）とは名前空間が異なり、対応 NFR へ一意にトレースできる（DD-11）。将来 RULE-NNN 採番へ切替える場合は SPEC-44〜49 の出力例6件・本表・関連 TC を一括改修する（DD-11 影響範囲）。
 
-**トリガ**：NFR 対象成果物（in-graph ノード／spec-inspector 実装ソース／スキルファイル）の変更後。
+**トリガ**：§2 統一トリガに従う。NFR 対象成果物（in-graph ノード／spec-inspector 実装ソース／スキルファイル）の変更も「ドキュメントへの変更」に含み、①②③と一括実行する。
 
 ---
 
