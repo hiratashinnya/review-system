@@ -10,7 +10,7 @@
 
 **status: decided**（2026-06-12 反映完了）
 
-<details><summary>⬡ DD-1 · v0.1</summary>
+<details><summary>⬡ DD-1 · v0.1.0</summary>
 
 ```yaml
 id: DD-1
@@ -43,7 +43,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-2 · v0.1</summary>
+<details><summary>⬡ DD-2 · v0.1.0</summary>
 
 ```yaml
 id: DD-2
@@ -75,7 +75,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-3 · v0.1</summary>
+<details><summary>⬡ DD-3 · v0.1.0</summary>
 
 ```yaml
 id: DD-3
@@ -110,7 +110,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-4 · v0.1</summary>
+<details><summary>⬡ DD-4 · v0.1.0</summary>
 
 ```yaml
 id: DD-4
@@ -151,7 +151,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-5 · v0.1</summary>
+<details><summary>⬡ DD-5 · v0.1.0</summary>
 
 ```yaml
 id: DD-5
@@ -189,7 +189,7 @@ edges:
 
 **status: decided**（FR-15/16・SPEC-50/51 著作済み 2026-06-13・分析層 O-4/O-5/P-8/P-9 著作・反映完了 2026-06-15／N8）
 
-<details><summary>⬡ DD-6 · v0.1</summary>
+<details><summary>⬡ DD-6 · v0.1.0</summary>
 
 ```yaml
 id: DD-6
@@ -229,7 +229,7 @@ edges: []
 
 **status: decided**（2026-06-13 反映完了）
 
-<details><summary>⬡ DD-7 · v0.1</summary>
+<details><summary>⬡ DD-7 · v0.1.0</summary>
 
 ```yaml
 id: DD-7
@@ -265,7 +265,7 @@ edges:
 
 **status: decided**（2026-06-14 オーナー判断確定）
 
-<details><summary>⬡ DD-8 · v0.1</summary>
+<details><summary>⬡ DD-8 · v0.1.1</summary>
 
 ```yaml
 id: DD-8
@@ -280,13 +280,15 @@ edges:
     ref_version: "0.1"
   - to: FND-39
     ref_version: "0.1"
+  - to: FND-107
+    ref_version: "0.1"
 ```
 </details>
 
 **論点**: FND-36 により、ノードバッジ `⬡ FR-1 · v0.3` の `v0.3` が「著作時点のファイル x.y スナップショット」（FND-32 の処置で定義した意味）でも「現在のファイル x.y」でもなく、**ノード固有の改訂回数**を実態として示していることが判明した。FND-32 の処置（notation.md に「バッジ＝ファイル x.y スナップショット」と追記）は実態と乖離した誤定義であり、是正が必要。バッジを正式なノードバージョンとして制度化し、ファイルフロントマターの `version:` を廃止することで、ノード追跡性を一貫した形で高める。
 
 **選択肢**:
-- **A（ノード固有リビジョン正式化）**: バッジ＝ノード固有の x.y.z バージョン（MAJOR.MINOR）として正式化。`notation.md` の説明文のみ修正。全ノードのバッジ値はそのまま有効で移行作業なし。実態に合致し修正コスト最小。
+- **A（ノード固有リビジョン正式化）**: バッジ＝ノード固有の x.y.z バージョン（MAJOR.MINOR.PATCH）として正式化。`notation.md` の説明文のみ修正。全ノードのバッジ値はそのまま有効で移行作業なし。実態に合致し修正コスト最小。
 - **B（ファイル x.y 統一）**: バッジ＝現在のファイル x.y に一致させるため全ノードのバッジを一括修正。大量修正が発生し、ノード改訂履歴の情報（例: FR-1 が 0.3 まで改訂された事実）が失われる。
 - **C（バッジ廃止）**: バッジを廃止し `ref_version` のみを版管理の真実源とする。大規模変更が必要で可視性が低下する。
 
@@ -294,7 +296,7 @@ edges:
 
 **決定: A ベースで拡張**（オーナー・2026-06-14）
 
-1. **バッジのノードバージョン正式化**: `⬡ PREFIX-N · vX.Y` の `X.Y` はノード固有バージョン（MAJOR.MINOR）として正式化する。現在のバッジ値はすべてそのまま有効。
+1. **バッジのノードバージョン正式化**: `⬡ PREFIX-N · vX.Y.Z` の `X.Y.Z` はノード固有バージョン（MAJOR.MINOR.PATCH）として正式化する。現在のバッジ値はすべてそのまま有効（FND-107 処置で x.y → x.y.0 移行済み）。
 2. **ファイルフロントマター `version:` 廃止**: 各ファイルの `---\nversion: "x.y.z"\n---` フィールドは廃止する（2026-06-14 全ファイルから削除完了）。新規ファイルへの記載は行わない。
 3. **`ref_version` 参照先変更**: `ref_version` は従来のファイル x.y ではなく、参照先ノードのノードバージョン x.y を指すものとして意味論を変更する。全辺の移行を 2026-06-14 に実施済み（VERIFY ノードの凍結辺＝`01-doc-verify.md`・DD-2 suppress[RULE-004] を除く）。
 4. **バンプルール**:
@@ -305,7 +307,7 @@ edges:
 5. **本 DD 適用時の制約**: 今回のノードバージョン改訂は z バンプのみ・伝播させない（本 DD 起因の改訂で大規模な ref_version 更新を誘発しない）。ref_version の一括移行（下記）は「ファイル x.y → ノード x.y」の座標系再表現であり、ノードバージョンの改訂ではない（バッジは不変）。
 
 **影響範囲（2026-06-14 即時実施完了・sprint-2 への繰り越しはオーナー指示により撤回）**:
-- `docs/doc-system/04-notation.md`（out-of-graph・直接更新）: §1/§2/§5/§8 のバッジ・フロントマター説明をノード固有バージョン（MAJOR.MINOR）に更新。FND-32 の処置（「ファイル x.y スナップショット」定義）を上書き訂正。✅ 完了
+- `docs/doc-system/04-notation.md`（out-of-graph・直接更新）: §1/§2/§5/§8 のバッジ・フロントマター説明をノード固有バージョン（MAJOR.MINOR.PATCH）に更新。FND-32 の処置（「ファイル x.y スナップショット」定義）を上書き訂正。✅ 完了
 - `docs/doc-system/02-meta-schema.md`（out-of-graph）: §1「ファイルバージョニング」を「ノードバージョニング」に書き換え、§7 ドリフト定義・RULE-004 表を「参照先ノードのバッジ x.y」基準に更新。✅ 完了
 - `docs/doc-system/05-verification.md`（out-of-graph）: 段階①ドリフト検出・RULE-004 の判定基準を「参照先ノードのバッジ x.y」に更新、トリガを「ノードバッジの版上げ」に変更。✅ 完了
 - `docs/doc-system/config.yaml`（out-of-graph）: 冒頭に DD-8 注記（版管理単位＝ノードバッジ・RULE-004 はノード x.y 基準）を追記。✅ 完了
@@ -314,6 +316,7 @@ edges:
 - **ファイルフロントマター `version:` 削除**: doc-system 配下・docs/doc-system 配下（テンプレート群含む）全ファイルから削除完了。✅ 完了
 - **既知の残存事項（履歴保全・PR8）**: 解消済み FND 本文の `**指摘時 ref_version**:` 記録は当時のファイル x.y を凍結記録したものであり、遡及書き換えは provenance を損なうため実施しない（過去の系の下での記録として保持）。新規 FND は DD-3 の様式でノード x.y を記録する。
 - ※以下は当初起票時の実施計画（実施済み確認記録）: `doc-system/04-verification/02-findings.md` の FND-36 を `open` → `resolved` に更新し、本 DD（DD-8）を処置記録として明記。FND-32 の処置誤謬（「ファイル x.y スナップショット」定義）が本 DD により是正済みである旨を FND-32 本文に追記。✅ 完了（FND-39 で指摘の旧版残骸行を削除済み）
+- **FND-107 是正（2026-06-23）**: 本 DD §1 が「MAJOR.MINOR（2 部）」と誤記し x.y.z バッジの z-bump 機構を機能不能にしていた。FND-107 処置（Case A）により全511ノードのバッジを x.y → x.y.0 に移行し、§1 記述を「MAJOR.MINOR.PATCH（3 部）」に訂正（FND-107 resolved）。
 
 ---
 
@@ -321,7 +324,7 @@ edges:
 
 **status: decided**（2026-06-14 反映完了）
 
-<details><summary>⬡ DD-9 · v0.1</summary>
+<details><summary>⬡ DD-9 · v0.1.0</summary>
 
 ```yaml
 id: DD-9
@@ -360,7 +363,7 @@ edges:
 
 **status: decided**（2026-06-14 反映完了）
 
-<details><summary>⬡ DD-10 · v0.1</summary>
+<details><summary>⬡ DD-10 · v0.1.0</summary>
 
 ```yaml
 id: DD-10
@@ -399,7 +402,7 @@ edges:
 
 **status: decided**
 
-<details><summary>⬡ DD-11 · v0.1</summary>
+<details><summary>⬡ DD-11 · v0.1.0</summary>
 
 ```yaml
 id: DD-11
@@ -438,7 +441,7 @@ edges:
 
 **status: decided**（2026-06-15 設計確定・本ファイル反映は reconciliation が実施）
 
-<details><summary>⬡ DD-12 · v0.1</summary>
+<details><summary>⬡ DD-12 · v0.1.0</summary>
 
 ```yaml
 id: DD-12
@@ -485,7 +488,7 @@ edges:
 > **改訂理由（MINOR バンプ v0.2→v0.3）**: FND-98（ダッシュボード・PR 本文の DD-13 v0.2 陳腐化）の解消に伴い `→FND-98`（ref_version "0.1"）バックリファレンス辺を付与（2026-06-20）。
 > **改訂理由（MINOR バンプ v0.1→v0.2）**: 判断基準を「L1 単位 + P-2-5 例外」から「孫プロセスあり OR 責務が明確に別 → L2 分割」に変更（2026-06-17）
 
-<details><summary>⬡ DD-13 · v0.3</summary>
+<details><summary>⬡ DD-13 · v0.3.0</summary>
 
 ```yaml
 id: DD-13
@@ -544,7 +547,7 @@ edges:
 
 **status: decided**（2026-06-16 暫定決定・設計フェーズ）
 
-<details><summary>⬡ DD-14 · v0.1</summary>
+<details><summary>⬡ DD-14 · v0.1.0</summary>
 
 ```yaml
 id: DD-14
@@ -576,7 +579,7 @@ edges: []
 
 **status: decided**（2026-06-18 設計フェーズ）
 
-<details><summary>⬡ DD-15 · v0.1</summary>
+<details><summary>⬡ DD-15 · v0.1.0</summary>
 
 ```yaml
 id: DD-15
@@ -616,7 +619,7 @@ edges: []
 
 **status: decided**（2026-06-21 オーナー承認・選択肢A 採用）
 
-<details><summary>⬡ DD-16 · v0.1</summary>
+<details><summary>⬡ DD-16 · v0.1.0</summary>
 
 ```yaml
 id: DD-16
@@ -680,7 +683,7 @@ in-graph ノード（別ファイル差分で出力）:
 
 **status: decided**（2026-06-22 オーナー承認・案B 採用）
 
-<details><summary>⬡ DD-17 · v0.1</summary>
+<details><summary>⬡ DD-17 · v0.1.0</summary>
 
 ```yaml
 id: DD-17
@@ -732,7 +735,7 @@ in-graph ノード（別ファイル差分で出力）:
 
 **status: decided**（2026-06-23 オーナー指摘「型検証を SPEC-60-3 として対象化」を受けた設計判断・案B 採用）
 
-<details><summary>⬡ DD-18 · v0.1</summary>
+<details><summary>⬡ DD-18 · v0.1.0</summary>
 
 ```yaml
 id: DD-18
@@ -782,7 +785,7 @@ in-graph ノード（別ファイル差分で出力）:
 
 **status: decided**（2026-06-23 オーナー決定・PR #37 スレッド3・案A 採用）
 
-<details><summary>⬡ DD-19 · v0.1</summary>
+<details><summary>⬡ DD-19 · v0.1.0</summary>
 
 ```yaml
 id: DD-19

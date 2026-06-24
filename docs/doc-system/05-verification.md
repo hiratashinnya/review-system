@@ -131,7 +131,7 @@ TR 完結性:
 | `NFR-1-check` | ノードファイルは UTF-8 プレーンテキスト .md（BOM=WARNING／デコードエラー=ERROR） | SPEC-44 | ERROR / WARNING |
 | `NFR-2-check` | spec-inspector は Python 標準ライブラリのみ（外部 import 検出） | SPEC-45 | ERROR |
 | `NFR-3-check` | スキルファイルは外部参照なしに自己完結（外部参照パターン検出） | SPEC-46 | WARNING |
-| `NFR-4-check` | 全ノードの summary バッジに version（x.y）が存在・形式適合 | SPEC-47 | ERROR |
+| `NFR-4-check` | 全ノードの summary バッジに version（x.y.z）が存在・形式適合 | SPEC-47 | ERROR |
 | `NFR-5-check` | 各ノードは直接の親のみへ辺を張る（USDM 1段制約） | SPEC-48 | ERROR |
 | `NFR-6-check` | DD/Q/PEND のノード YAML（メタ属性）に status 系キーが存在しない | SPEC-49 | WARNING |
 

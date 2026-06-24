@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _SAMPLE_MD = """\
 ## SPEC-1: サンプル（normal）
 
-<details><summary>⬡ SPEC-1 · v0.1</summary>
+<details><summary>⬡ SPEC-1 · v0.1.0</summary>
 
 ```yaml
 id: SPEC-1

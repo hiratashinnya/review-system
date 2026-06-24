@@ -7,7 +7,7 @@
 
 ## VERIFY-1: 要件〜分析層の spec-inspector レビュー
 
-<details><summary>⬡ VERIFY-1 · v0.1</summary>
+<details><summary>⬡ VERIFY-1 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-1
@@ -48,7 +48,7 @@ edges:
 
 ## VERIFY-2: N0（SPEC 品質強化分）再点検の実施記録
 
-<details><summary>⬡ VERIFY-2 · v0.1</summary>
+<details><summary>⬡ VERIFY-2 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-2
@@ -99,7 +99,7 @@ edges:
 
 ## VERIFY-3: N5（P 単一責務点検）の実施記録
 
-<details><summary>⬡ VERIFY-3 · v0.1</summary>
+<details><summary>⬡ VERIFY-3 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-3
@@ -142,7 +142,7 @@ edges:
 
 ## VERIFY-4: PR #21 オーナーレビュー点検記録
 
-<details><summary>⬡ VERIFY-4 · v0.1</summary>
+<details><summary>⬡ VERIFY-4 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-4
@@ -196,7 +196,7 @@ edges:
 
 ## VERIFY-5: requirements 層追加バッチ再点検記録（FND-28 処置）
 
-<details><summary>⬡ VERIFY-5 · v0.1</summary>
+<details><summary>⬡ VERIFY-5 · v0.1.0</summary>
 
 ```yaml
 id: VERIFY-5

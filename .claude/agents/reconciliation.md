@@ -47,7 +47,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 - [ ] 階層 ID `X-N` の親ノード `X` が存在する（RULE-008・親→子辺は持たない）
 - [ ] 子が親へ依存辺を張っている（直接 FR を参照していない）
 - [ ] 辺に `kind`/`status` がない・`to` が単数（リスト禁止）
-- [ ] `ref_version` が全辺にあり参照先の現在 x.y と一致（RULE-004）
+- [ ] `ref_version`（x.y）が全辺にあり参照先バッジの現在 x.y と一致（RULE-004）
 
 **型別チェック（自己修正不可 → 差し戻し）**
 - [ ] SPEC: `condition` 属性あり（RULE-016 ERROR）

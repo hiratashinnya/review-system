@@ -6,7 +6,7 @@
 
 ## ACTOR-1: 仕様著者
 
-<details><summary>⬡ ACTOR-1 · v0.1</summary>
+<details><summary>⬡ ACTOR-1 · v0.1.0</summary>
 
 ```yaml
 id: ACTOR-1
@@ -25,7 +25,7 @@ doc-system の規約に従いノードを作成・更新する人。スキルを
 
 ## ACTOR-2: レビュアー
 
-<details><summary>⬡ ACTOR-2 · v0.1</summary>
+<details><summary>⬡ ACTOR-2 · v0.1.0</summary>
 
 ```yaml
 id: ACTOR-2

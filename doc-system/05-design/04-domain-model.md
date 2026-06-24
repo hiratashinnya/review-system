@@ -8,7 +8,7 @@
 
 ## DM-1: NodeRecord型
 
-<details><summary>⬡ DM-1 · v0.1</summary>
+<details><summary>⬡ DM-1 · v0.1.0</summary>
 
 ```yaml
 id: DM-1
@@ -43,7 +43,7 @@ edges:
 
 ## DM-2: EdgeRecord型
 
-<details><summary>⬡ DM-2 · v0.1</summary>
+<details><summary>⬡ DM-2 · v0.1.0</summary>
 
 ```yaml
 id: DM-2
@@ -71,7 +71,7 @@ edges:
 
 ## DM-3: ViolationRecord型
 
-<details><summary>⬡ DM-3 · v0.3</summary>
+<details><summary>⬡ DM-3 · v0.3.0</summary>
 
 ```yaml
 id: DM-3
@@ -108,7 +108,7 @@ edges:
 
 ## DM-4: ConfigSlice型群
 
-<details><summary>⬡ DM-4 · v0.1</summary>
+<details><summary>⬡ DM-4 · v0.1.0</summary>
 
 ```yaml
 id: DM-4
@@ -142,7 +142,7 @@ edges:
 
 ## DM-5: CoverageReport型
 
-<details><summary>⬡ DM-5 · v0.1</summary>
+<details><summary>⬡ DM-5 · v0.1.0</summary>
 
 ```yaml
 id: DM-5
@@ -178,7 +178,7 @@ edges:
 
 ## DM-6: InspectionViews型群
 
-<details><summary>⬡ DM-6 · v0.1</summary>
+<details><summary>⬡ DM-6 · v0.1.0</summary>
 
 ```yaml
 id: DM-6

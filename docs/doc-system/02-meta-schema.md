@@ -7,13 +7,13 @@
 
 ## 1. ノードバージョニング（DD-8）
 
-バージョン管理の単位は**ノード**。各ノードの summary バッジ `⬡ <ID> · vX.Y` に記載する（ファイル frontmatter の `version` は廃止＝DD-8）。
+バージョン管理の単位は**ノード**。各ノードの summary バッジ `⬡ <ID> · vX.Y.Z` に記載する（ファイル frontmatter の `version` は廃止＝DD-8）。
 
 ```markdown
 <details><summary>⬡ DM-001 · v1.2</summary>
 ```
 
-> 旧仕様（ファイル単位 frontmatter version）は DD-8 で廃止。ノードごとに独立して x.y.z を管理し、`ref_version` は参照先ノードのバッジ x.y を指す。
+> 旧仕様（ファイル単位 frontmatter version）は DD-8 で廃止。ノードごとに独立してバッジ x.y.z を管理し、`ref_version` は参照先ノードのバッジ x.y（2パート）を指す。z は伝播判定に不問。
 
 ### バージョン桁の意味
 

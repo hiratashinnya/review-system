@@ -32,24 +32,32 @@ def search(
     return out
 
 
-def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
-    """辺の ref_version が参照先バッジ x.y と不一致なら True、一致で False。
+def _xy(version: str) -> str:
+    """x.y.z バッジから x.y 部分を返す。ref_version（x.y）との比較用（FND-105・DD-8 §4）。"""
+    parts = version.split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else version
 
+
+def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
+    """辺の ref_version（x.y）が参照先バッジの x.y と不一致なら True、一致で False。
+
+    ref_version は x.y（2パート）、バッジは x.y.z（3パート）。z は伝播判定に不問のため
+    バッジの x.y 部分のみを ref_version と比較する（04-notation.md §2/§3・DD-8 §4）。
     参照先がインデックスに存在しない場合は None（判定不能）。
 
-    依存仕様: SPEC-9 v0.2（依存辺のドリフト＝RULE-004）・02-meta-schema.md §1（DD-8）。
+    依存仕様: SPEC-9 v0.2.0（依存辺のドリフト＝RULE-004）・02-meta-schema.md §1（DD-8）。
       なお docidx はドリフトを情報提示するのみで、FND 起票・判定（RULE 発火）は行わない。
     """
     target = index.by_id.get(target_id)
     if target is None or not ref_version or not target.version:
         return None
-    return ref_version != target.version
+    return ref_version != _xy(target.version)
 
 
 def deps(index: NodeIndex, node_id: str) -> list[dict]:
     """node の出辺（依存先）一覧＋ドリフト情報を返す。
 
-    依存仕様: 04-notation.md §3（edge スキーマ）・SPEC-9 v0.2（ドリフト・情報提示のみ）。
+    依存仕様: 04-notation.md §3（edge スキーマ）・SPEC-9 v0.2.0（ドリフト・情報提示のみ）。
     """
     node = index.by_id.get(node_id)
     if node is None:
@@ -71,7 +79,7 @@ def deps(index: NodeIndex, node_id: str) -> list[dict]:
 def dependents(index: NodeIndex, node_id: str) -> list[dict]:
     """node への入辺（依存元）一覧を逆引き索引から返す。
 
-    依存仕様: 04-notation.md §3（edge スキーマ）・SPEC-9 v0.2（ドリフト・情報提示のみ）。
+    依存仕様: 04-notation.md §3（edge スキーマ）・SPEC-9 v0.2.0（ドリフト・情報提示のみ）。
     """
     rows: list[dict] = []
     for src_id in index.dependents.get(node_id, ()):  # noqa: B007

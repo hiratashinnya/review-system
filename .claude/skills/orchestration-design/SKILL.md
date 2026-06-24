@@ -59,7 +59,7 @@ suppress: []          # RULE 抑制リスト。inline comment に理由必須。
 2. id 採番：`ORC-` + 連番（既存最大 +1）。採番後は変更禁止
 3. 必須 edges を追加（下表）。`to` が実在する id か確認（RULE-007: always_error）
 4. status: pending から始め、反映確認後に done
-5. ref_version を参照先の現在 `x.y` に合わせる
+5. ref_version（x.y）を参照先バッジの現在 x.y に合わせる（バッジは x.y.z・z は伝播判定に不問）
 6. 受け入れ条件を確認（下表）
 
 | 型 | 必須辺 |

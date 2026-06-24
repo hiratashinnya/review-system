@@ -8,7 +8,7 @@
 
 ## E-1: 点検要求
 
-<details><summary>⬡ E-1 · v0.5</summary>
+<details><summary>⬡ E-1 · v0.5.0</summary>
 
 ```yaml
 id: E-1
@@ -42,7 +42,7 @@ edges:
 
 ## E-2: 著作要求
 
-<details><summary>⬡ E-2 · v0.3</summary>
+<details><summary>⬡ E-2 · v0.3.0</summary>
 
 ```yaml
 id: E-2
