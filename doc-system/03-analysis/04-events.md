@@ -17,17 +17,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: ACTOR-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-11
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-92
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -51,17 +51,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: ACTOR-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

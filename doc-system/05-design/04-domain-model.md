@@ -17,9 +17,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -52,9 +52,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -80,11 +80,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-100
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -117,9 +117,9 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -151,11 +151,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-100
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -187,11 +187,11 @@ labels: []
 scheduled: ""
 edges:
   - to: TERM-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: MOD-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-100
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

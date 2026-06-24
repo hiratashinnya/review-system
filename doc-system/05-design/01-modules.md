@@ -30,43 +30,43 @@ labels: []
 scheduled: ""
 edges:
   - to: D-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-9
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-11
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-12
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-15
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-19
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-21
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-96
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-100
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -93,7 +93,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -116,7 +116,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -139,9 +139,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -166,9 +166,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -193,7 +193,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -216,9 +216,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -243,7 +243,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -266,9 +266,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -293,7 +293,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -316,7 +316,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -339,7 +339,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -362,9 +362,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-1-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -389,9 +389,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -416,9 +416,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -443,9 +443,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-2-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -470,9 +470,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-3-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -497,9 +497,9 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -524,7 +524,7 @@ labels: []
 scheduled: ""
 edges:
   - to: MOD-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

@@ -17,21 +17,21 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: D-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-9
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: FND-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -51,13 +51,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: I-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -81,9 +81,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-32
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -107,9 +107,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -133,21 +133,21 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-33
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-34
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-35
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-36
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-53
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-9
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -171,9 +171,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -197,9 +197,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -223,9 +223,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -244,13 +244,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-9
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-12
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -269,13 +269,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-9-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-10-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-19
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -299,17 +299,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-12
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-55
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-19
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-11
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -333,13 +333,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-7
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -358,11 +358,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-7
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -386,13 +386,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-6-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-6-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -416,17 +416,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-15-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: FND-94
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -450,11 +450,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -478,11 +478,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-16
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -501,13 +501,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-15-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -531,13 +531,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-16-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -561,13 +561,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-16-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -591,11 +591,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-15-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -619,13 +619,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-17
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-19
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -644,21 +644,21 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-18-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-18-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-18-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-18-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-18-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -682,11 +682,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-19-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -710,11 +710,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-19-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -738,19 +738,19 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-20
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: D-9
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-12
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -779,9 +779,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -800,15 +800,15 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-29
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-30
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -829,13 +829,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-30-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -859,13 +859,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-30-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -889,13 +889,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-30-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-20
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -919,13 +919,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-21
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -946,13 +946,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14-1-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-21
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -976,13 +976,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14-1-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-14-1-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-14-1-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1006,15 +1006,15 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1033,13 +1033,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1062,7 +1062,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1085,9 +1085,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-14-1-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1110,11 +1110,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-25-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-25-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-95
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1141,13 +1141,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: I-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1167,11 +1167,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: I-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1195,9 +1195,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1221,11 +1221,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-24
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1249,17 +1249,17 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-24
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-6
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-21
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1279,13 +1279,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-24-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-6
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: D-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1309,11 +1309,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-24-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
 ```
 </details>
 
@@ -1337,11 +1337,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-10
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-19
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1360,19 +1360,19 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-38
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-54
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-9
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-23
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1392,11 +1392,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-26-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1420,11 +1420,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-54-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: I-9
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1448,9 +1448,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-38-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1474,13 +1474,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-39
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-8
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1501,15 +1501,15 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-39-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-39-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: SPEC-39-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-8
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1533,9 +1533,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-38-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1559,13 +1559,13 @@ labels: [post-mvp]
 scheduled: "sprint-2"
 edges:
   - to: SPEC-50
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-22
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: DD-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1589,15 +1589,15 @@ labels: [post-mvp]
 scheduled: "sprint-2"
 edges:
   - to: SPEC-51
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: D-22
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: D-15
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: DD-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

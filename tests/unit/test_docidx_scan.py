@@ -25,7 +25,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -45,7 +45,7 @@ condition: boundary
 labels: [post-mvp]
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -74,7 +74,7 @@ class TestParseMarkdown(unittest.TestCase):
         n = self.by_id["SPEC-1"]
         self.assertEqual(len(n.edges), 1)
         self.assertEqual(n.edges[0].to, "FR-1")
-        self.assertEqual(n.edges[0].ref_version, "0.3.0")
+        self.assertEqual(n.edges[0].ref_version, "0.3")
 
     def test_labels_and_body(self):
         n = self.by_id["SPEC-2"]

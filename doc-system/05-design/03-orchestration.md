@@ -15,11 +15,11 @@ labels: []
 scheduled: ""
 edges:
   - to: E-1
-    ref_version: "0.5.0"
+    ref_version: "0.5"
   - to: DD-15
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-97
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -86,13 +86,13 @@ labels: []
 scheduled: ""
 edges:
   - to: E-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: DD-15
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: P-7-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: P-7-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 

@@ -73,7 +73,7 @@ scheduled: ""         # 常に空文字。将来フェーズなら labels に po
 condition: normal     # normal | boundary | empty | failure | error（RULE-016 ERROR）
 edges:
   - to: SPEC-X        # 直接の親（FR ではなく親 SPEC）。kind/status は書かない
-    ref_version: "<参照先ノードの x.y.z>"
+    ref_version: "<参照先ノードのバッジ x.y（2パート）>"
 ```
 
 `scheduled: "verification"` や `scheduled: "sprint-N"` は禁止。**常に `""`**。
@@ -114,4 +114,4 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 - [ ] `scheduled: ""`（空文字のみ。値あり禁止）
 - [ ] `condition` 属性が全子ノードに存在（RULE-016 ERROR）
 - [ ] edges の `to` がすべて実在する ID（RULE-007: always_error）
-- [ ] `ref_version` が全辺にあり参照先の現在 x.y.z（z は伝播判定に不問） と一致（RULE-004）
+- [ ] `ref_version`（x.y）が全辺にあり参照先バッジの現在 x.y と一致（RULE-004）

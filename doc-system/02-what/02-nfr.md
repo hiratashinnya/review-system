@@ -17,13 +17,13 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-84
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -42,11 +42,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -65,9 +65,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -86,9 +86,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-6
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -107,9 +107,9 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -128,11 +128,11 @@ labels: []
 scheduled: ""
 edges:
   - to: SR-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

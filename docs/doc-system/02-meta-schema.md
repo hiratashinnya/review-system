@@ -13,7 +13,7 @@
 <details><summary>⬡ DM-001 · v1.2</summary>
 ```
 
-> 旧仕様（ファイル単位 frontmatter version）は DD-8 で廃止。ノードごとに独立して x.y.z を管理し、`ref_version` は参照先ノードのバッジ x.y を指す。
+> 旧仕様（ファイル単位 frontmatter version）は DD-8 で廃止。ノードごとに独立してバッジ x.y.z を管理し、`ref_version` は参照先ノードのバッジ x.y（2パート）を指す。z は伝播判定に不問。
 
 ### バージョン桁の意味
 

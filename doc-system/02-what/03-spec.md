@@ -19,11 +19,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-40
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -43,9 +43,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-40
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -68,9 +68,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-40
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -93,9 +93,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-40
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -118,11 +118,11 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-41
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -142,9 +142,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-41
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -167,9 +167,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-41
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -192,9 +192,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-41
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -217,9 +217,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-41
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -242,7 +242,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -262,7 +262,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -284,9 +284,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-42
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -306,9 +306,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-42
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -331,9 +331,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-42
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -356,9 +356,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-43
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -378,9 +378,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-43
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -403,9 +403,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-3-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-43
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -428,7 +428,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -450,7 +450,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -472,9 +472,9 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-44
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -496,9 +496,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-44
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -520,9 +520,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-44
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -544,7 +544,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -566,7 +566,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -588,9 +588,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-105
-    ref_version: "0.1.2"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -610,7 +610,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-9
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -632,7 +632,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-9
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -654,9 +654,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-45
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -678,9 +678,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-10
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-45
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -702,9 +702,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-10
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-45
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -726,7 +726,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -748,9 +748,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-46
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -772,7 +772,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -794,9 +794,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -818,13 +818,13 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-24
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-47
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -847,9 +847,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-47
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -872,9 +872,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-47
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -897,9 +897,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-47
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -922,9 +922,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-14-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-47
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -947,7 +947,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -967,9 +967,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-94
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -993,7 +993,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1015,7 +1015,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1037,7 +1037,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1057,7 +1057,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-16
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1079,7 +1079,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-16
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1101,7 +1101,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-7
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1123,7 +1123,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-7
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1143,7 +1143,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1165,7 +1165,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1187,7 +1187,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1209,7 +1209,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1231,7 +1231,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1253,7 +1253,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1276,7 +1276,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1299,7 +1299,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-18
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1322,7 +1322,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-7
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1342,7 +1342,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-19
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1364,7 +1364,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-19
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1386,7 +1386,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1408,7 +1408,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1428,9 +1428,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-48
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1450,7 +1450,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1473,7 +1473,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1496,9 +1496,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-49
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1518,7 +1518,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1541,7 +1541,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-21-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1564,9 +1564,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-50
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1586,7 +1586,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-21-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1609,7 +1609,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-21-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1632,9 +1632,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-51
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1654,7 +1654,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-21-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1677,7 +1677,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-21-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1700,7 +1700,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-21-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1723,7 +1723,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1745,7 +1745,7 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-8
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1765,9 +1765,9 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-23
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1789,7 +1789,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-23-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1811,7 +1811,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-23-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1833,7 +1833,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-23
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1855,7 +1855,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-9
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -1875,7 +1875,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-24
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1897,7 +1897,7 @@ scheduled: ""
 condition: boundary
 edges:
   - to: SPEC-24
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1919,7 +1919,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-10
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1939,7 +1939,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1961,7 +1961,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -1983,7 +1983,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2005,11 +2005,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-11
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: FND-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-53
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2031,7 +2031,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2054,7 +2054,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2077,7 +2077,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2100,7 +2100,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-26
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2123,11 +2123,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-54
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2149,7 +2149,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-27
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2172,7 +2172,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-27
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2195,7 +2195,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-27
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2218,7 +2218,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-27
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2241,7 +2241,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-27
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2264,11 +2264,11 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-12
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-78
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-55
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2290,7 +2290,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-28
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2312,7 +2312,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-28
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2334,7 +2334,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-28
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -2357,11 +2357,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2381,7 +2381,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-29
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2403,7 +2403,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-29
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2425,13 +2425,13 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-4
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-87
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2451,7 +2451,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2473,7 +2473,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2495,7 +2495,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-30
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -2517,11 +2517,11 @@ scheduled: ""
 condition: empty
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2542,7 +2542,7 @@ scheduled: ""
 condition: empty
 edges:
   - to: SPEC-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2564,7 +2564,7 @@ scheduled: ""
 condition: empty
 edges:
   - to: SPEC-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2586,7 +2586,7 @@ scheduled: ""
 condition: empty
 edges:
   - to: SPEC-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2608,7 +2608,7 @@ scheduled: ""
 condition: empty
 edges:
   - to: SPEC-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2630,9 +2630,9 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-59
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2653,7 +2653,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-32
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2675,7 +2675,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-32
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2697,9 +2697,9 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-60
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2719,7 +2719,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-33
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2742,7 +2742,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-33
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2765,9 +2765,9 @@ scheduled: ""
 condition: error
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-61
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2787,7 +2787,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-34
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2810,7 +2810,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-34
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2833,9 +2833,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-62
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2855,7 +2855,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-35
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2878,7 +2878,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-35
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2901,9 +2901,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-11
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: FND-63
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2923,7 +2923,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-36
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2946,7 +2946,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-36
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2969,9 +2969,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-64
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -2991,7 +2991,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-38
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3014,7 +3014,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-38
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3037,9 +3037,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-65
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3059,7 +3059,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-39
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3082,7 +3082,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-39
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3105,7 +3105,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-39
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3128,11 +3128,11 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-14
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-78
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-66
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3152,7 +3152,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-40
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3175,7 +3175,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-40
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3198,9 +3198,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-1
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: FND-67
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3220,7 +3220,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-44
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3243,7 +3243,7 @@ scheduled: ""
 condition: boundary
 edges:
   - to: SPEC-44
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3266,7 +3266,7 @@ scheduled: ""
 condition: error
 edges:
   - to: SPEC-44
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3289,11 +3289,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-2
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-68
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-90
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3313,7 +3313,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-45
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3336,7 +3336,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-45
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3359,11 +3359,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-69
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-90
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3383,7 +3383,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-46
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3406,7 +3406,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-46
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3429,13 +3429,13 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-4
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-84
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-70
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-104
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3455,7 +3455,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-47
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3478,7 +3478,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-47
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3501,11 +3501,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-25
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-71
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3525,7 +3525,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-48
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3548,7 +3548,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-48
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3571,11 +3571,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: NFR-6
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-72
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-85
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3595,7 +3595,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-49
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3618,7 +3618,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-49
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3641,11 +3641,11 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-15
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-78
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-73
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3665,7 +3665,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-50
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3689,7 +3689,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-50
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3713,7 +3713,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-50
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3737,11 +3737,11 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: FR-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-78
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-74
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3761,7 +3761,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-51
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3785,7 +3785,7 @@ scheduled: "sprint-2"
 condition: normal
 edges:
   - to: SPEC-51
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -3809,11 +3809,11 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-75
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3833,7 +3833,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3856,7 +3856,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3879,7 +3879,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3902,7 +3902,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3925,7 +3925,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-52
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3948,11 +3948,11 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-18
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-76
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3972,7 +3972,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-53
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -3996,7 +3996,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-53
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4019,7 +4019,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-53
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4042,9 +4042,9 @@ scheduled: ""
 condition: normal
 edges:
   - to: FR-13
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-77
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4064,7 +4064,7 @@ scheduled: ""
 condition: normal
 edges:
   - to: SPEC-54
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4087,7 +4087,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-54
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4110,7 +4110,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-54
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4133,9 +4133,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-80
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4157,9 +4157,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-102
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4179,7 +4179,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4202,7 +4202,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4225,7 +4225,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4248,7 +4248,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4271,7 +4271,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4294,7 +4294,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4317,7 +4317,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4340,7 +4340,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-56
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4363,9 +4363,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-102
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4385,7 +4385,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4408,7 +4408,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4431,7 +4431,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4454,7 +4454,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4477,7 +4477,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4500,7 +4500,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4523,7 +4523,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4546,7 +4546,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4569,7 +4569,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4592,7 +4592,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4615,7 +4615,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4638,7 +4638,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-57
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4661,9 +4661,9 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FND-102
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4683,7 +4683,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4706,7 +4706,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4729,7 +4729,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4752,7 +4752,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4775,7 +4775,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4798,7 +4798,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4821,7 +4821,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4844,7 +4844,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4867,7 +4867,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4890,7 +4890,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4913,7 +4913,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -4936,7 +4936,7 @@ scheduled: ""
 condition: failure
 edges:
   - to: SPEC-58
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

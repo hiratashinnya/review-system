@@ -14,7 +14,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-6
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -33,7 +33,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -52,7 +52,7 @@ labels: []
 scheduled: ""
 edges:
   - to: P-7
-    ref_version: "0.4.0"
+    ref_version: "0.4"
 ```
 </details>
 
@@ -71,7 +71,7 @@ labels: []
 scheduled: ""
 edges:
   - to: DS-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

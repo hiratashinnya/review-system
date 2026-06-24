@@ -17,21 +17,21 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: VAL-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FR-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: ACTOR-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: I-1
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: P-1
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: E-1
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: DD-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -58,23 +58,23 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: FR-11
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FR-13
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FR-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-31
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-40
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FND-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-17
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: Q-1
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -109,17 +109,17 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: P-1
-    ref_version: "0.6.0"
+    ref_version: "0.6"
   - to: P-4
-    ref_version: "0.6.0"
+    ref_version: "0.6"
   - to: P-5
-    ref_version: "0.6.0"
+    ref_version: "0.6"
   - to: P-6
-    ref_version: "0.6.0"
+    ref_version: "0.6"
   - to: P-7
-    ref_version: "0.6.0"
+    ref_version: "0.6"
   - to: DD-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -152,37 +152,37 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: SPEC-14-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-48
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FR-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: FR-16
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: DD-7
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-24
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-25
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-26
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-27
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-28
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-29
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-30
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-32
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-33
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -206,19 +206,19 @@ scheduled: ""
 suppress: [RULE-004] # 過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）
 edges:
   - to: SPEC-44
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-14-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: FR-15
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-54
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: DD-5
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-28
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-34
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

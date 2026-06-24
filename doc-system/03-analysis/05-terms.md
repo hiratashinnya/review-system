@@ -17,7 +17,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -40,7 +40,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -63,7 +63,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -86,7 +86,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
 ```
 </details>
 
@@ -109,7 +109,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-14
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -132,7 +132,7 @@ labels: []
 scheduled: ""
 edges:
   - to: SPEC-5
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 

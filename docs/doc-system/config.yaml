@@ -2,7 +2,7 @@
 # 検証ツールがここを読んでルール発火・抑制を判定する
 #
 # DD-8：版管理の単位はノード（summary バッジ vX.Y.Z）。ファイル frontmatter version は廃止。
-#   RULE-004 のドリフト判定は「辺の ref_version の x.y ≠ 参照先ノードのバッジ x.y.z の x.y（z は伝播判定に不問）」で行う。
+#   RULE-004 のドリフト判定は「辺の ref_version（x.y）≠ 参照先ノードのバッジ x.y.z の x.y」で行う（z は伝播判定に不問）。
 
 current_phase: "sprint-1"
 current_stage: "design"   # requirements | analysis | design | implementation | verification

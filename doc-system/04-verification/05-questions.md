@@ -19,7 +19,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: DD-2
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -50,13 +50,13 @@ scheduled: ""
 suppress: []
 edges:
   - to: SPEC-21
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-25
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: SPEC-1
-    ref_version: "0.3.0"
+    ref_version: "0.3"
   - to: SPEC-29
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -99,9 +99,9 @@ scheduled: ""
 suppress: []
 edges:
   - to: O-1
-    ref_version: "0.2.0"
+    ref_version: "0.2"
   - to: O-2
-    ref_version: "0.2.0"
+    ref_version: "0.2"
 ```
 </details>
 
@@ -142,11 +142,11 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-96
-    ref_version: "0.4.0"
+    ref_version: "0.4"
   - to: DD-3
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: DD-16
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

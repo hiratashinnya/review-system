@@ -160,9 +160,9 @@ labels: []
 scheduled: ""
 edges:
   - to: FND-26
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-31
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -238,7 +238,7 @@ labels: []
 scheduled: ""
 edges:
   - to: FND-27
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -275,13 +275,13 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-36
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-32
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-39
-    ref_version: "0.1.0"
+    ref_version: "0.1"
   - to: FND-104
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -334,7 +334,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-78
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -373,7 +373,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-84
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -412,7 +412,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-86
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -451,7 +451,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-93
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 
@@ -498,7 +498,7 @@ scheduled: ""
 suppress: []
 edges:
   - to: FND-98
-    ref_version: "0.1.0"
+    ref_version: "0.1"
 ```
 </details>
 

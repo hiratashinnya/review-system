@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Edge:
-    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジ x.y.z・ドリフト判定は x.y のみ比較）。
+    """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジの x.y（2パート）・バッジは x.y.z）。
 
     依存仕様: 04-notation.md §3（`to` スカラ・`ref_version` 必須・`note` 任意・`kind`/`status` なし）。
     """
