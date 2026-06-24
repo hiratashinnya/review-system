@@ -33,7 +33,7 @@ edges:
 
 ## SPEC-1-1: 構造化ノード1件の生成（normal）
 
-<details><summary>⬡ SPEC-1-1 · v0.1.0</summary>
+<details><summary>⬡ SPEC-1-1 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-1-1
@@ -46,13 +46,15 @@ edges:
     ref_version: "0.3"
   - to: FND-40
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルに `<details><summary>⬡ PREFIX-N` 形式の行が存在し、その直後に ```` ```yaml ```` ブロックがあり PyYAML safe_load でパース可能である。
 **入力/トリガ**: 検証ツールが当該 in-graph ファイルを処理する。
 **期待動作**: `⬡` マーカー直後の YAML ブロックがパース可能なとき、`id`・`type`・`labels`・`scheduled`・`edges` を持つ構造化ノードを 1 件生成する。
-**例**: `doc-system/02-what/03-spec.md` 行15に `⬡ SPEC-1 · v0.3`、直後 YAML に `id: SPEC-1, type: SPEC` → ノード `{id:"SPEC-1", type:"SPEC", labels:[], scheduled:"", edges:[{to:"FR-1", ref_version:"0.3.0"}]}` を 1 件生成する。
+**例**: `doc-system/02-what/03-spec.md` 行15に `⬡ SPEC-1 · v0.3.0`、直後 YAML に `id: SPEC-1, type: SPEC` → ノード `{id:"SPEC-1", type:"SPEC", labels:[], scheduled:"", edges:[{to:"FR-1", ref_version:"0.3"}]}` を 1 件生成する。
 
 ---
 
@@ -2021,7 +2023,7 @@ edges:
 
 ## SPEC-26-1: テンプレートが必須フィールドを全て含む（normal）
 
-<details><summary>⬡ SPEC-26-1 · v0.1.0</summary>
+<details><summary>⬡ SPEC-26-1 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-26-1
@@ -2032,13 +2034,15 @@ condition: normal
 edges:
   - to: SPEC-26
     ref_version: "0.3"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `templates/<layer>/<type>.md` が存在する（例 `templates/requirements/SPEC.md`）。
 **入力/トリガ**: 著者がテンプレートを複製してノード著作を開始する。
 **期待動作**: テンプレートを検査するとき、`id:`（プレースホルダ）・`type:`（型名）・`labels: []`・`scheduled: ""`・`edges:`（≥1エントリ・各エントリに `to:` と `ref_version:`）・本文4項目（`**前提条件**:`／`**入力/トリガ**:`／`**期待動作**:`／`**例**:`）を全て含むことを確認する。
-**例**: `templates/requirements/SPEC.md` を複製すると `id: SPEC-XXX`・`type: SPEC`・`edges: [{to: FR-XX, ref_version: "0.0.0"}]`・本文4項目が存在する。
+**例**: `templates/requirements/SPEC.md` を複製すると `id: SPEC-XXX`・`type: SPEC`・`edges: [{to: FR-XX, ref_version: "0.0"}]`・本文4項目が存在する。
 
 ---
 
@@ -2981,7 +2985,7 @@ edges:
 
 ## SPEC-38-1: 著作エージェントが規約準拠ノードを tmp 出力（normal）
 
-<details><summary>⬡ SPEC-38-1 · v0.1.0</summary>
+<details><summary>⬡ SPEC-38-1 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-38-1
@@ -2992,13 +2996,15 @@ condition: normal
 edges:
   - to: SPEC-38
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `.claude/agents/` に型別著作エージェント定義（例 `requirements-author.md`）が存在し、著者が FR 著作を依頼する。
 **入力/トリガ**: 著者が `requirements-author` エージェントに FR ノード1件の著作を依頼する。
 **期待動作**: 著者が著作を依頼したとき、エージェントは `type: FR`・`id: FR-N`（連番）・`edges: [{to: SR-*, ref_version: "..."}]`・本文4項目を含むノードを `tmp/sprint-1/<parent-id>.md` に出力する。
-**例**: `requirements-author` に「FR-13 著作」を依頼 → `tmp/sprint-1/fr-11-13-14.md` に `id: FR-13, type: FR, edges: [{to: SR-1, ref_version: "0.2.0"}]` ＋4項目本文が出力される。
+**例**: `requirements-author` に「FR-13 著作」を依頼 → `tmp/sprint-1/fr-11-13-14.md` に `id: FR-13, type: FR, edges: [{to: SR-1, ref_version: "0.2"}]` ＋4項目本文が出力される。
 
 ---
 
@@ -3165,7 +3171,7 @@ edges:
 
 ## SPEC-40-2: ドリフト一覧の各行を更新フォーマットで表示（normal・post-mvp）
 
-<details><summary>⬡ SPEC-40-2 · v0.1.0</summary>
+<details><summary>⬡ SPEC-40-2 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-40-2
@@ -3176,13 +3182,15 @@ condition: normal
 edges:
   - to: SPEC-40
     ref_version: "0.2"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `--propagate A` 実行により RULE-004 ドリフトノード一覧が得られている。
 **入力/トリガ**: 検証ツールがドリフト一覧の各行を整形して出力する。
 **期待動作**: ドリフト一覧を表示するとき、各行を `{node-id} | {file}:{line} | ref_version: "{old}" → "{new}"` 形式で表示する。
-**例**: `P-1 | doc-system/03-analysis/03-processes.md:26 | ref_version: "0.5.0" → "0.6"` の形式で表示する。
+**例**: `P-1 | doc-system/03-analysis/03-processes.md:26 | ref_version: "0.5" → "0.6"` の形式で表示する。
 
 ---
 
@@ -3515,7 +3523,7 @@ edges:
 
 ## SPEC-48-1: SPEC の辺が全て直接親型（FR/NFR/SPEC）を指す（normal）
 
-<details><summary>⬡ SPEC-48-1 · v0.1.0</summary>
+<details><summary>⬡ SPEC-48-1 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-48-1
@@ -3526,19 +3534,21 @@ condition: normal
 edges:
   - to: SPEC-48
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。
 **入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` を走査する。
 **期待動作**: SPEC ノードの全辺を走査したとき、各辺が FR・NFR・または別 SPEC（直接親）を指し、祖先型（SR・VAL 等）への直接辺が 0 件であることを判定する。
-**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2.0"}]` → 直接親 FR-1 のみ参照 → 違反なし。
+**例**: `SPEC-1` の edges が `[{to: "FR-1", ref_version: "0.2"}]` → 直接親 FR-1 のみ参照 → 違反なし。
 
 ---
 
 ## SPEC-48-2: 祖先型への直接辺検出時に ERROR を出力する（failure）
 
-<details><summary>⬡ SPEC-48-2 · v0.1.0</summary>
+<details><summary>⬡ SPEC-48-2 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-48-2
@@ -3549,13 +3559,15 @@ condition: failure
 edges:
   - to: SPEC-48
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph に SPEC ノードが1件以上存在し、全ノードがパース済みである。
 **入力/トリガ**: 検証ツールが SPEC ノードの `edges[].to` に祖先型（SR・VAL 等）への直接辺を1件以上検出する。
 **期待動作**: 祖先型への直接辺を検出したとき、当該辺を指す ERROR を1件出力する。
-**例**: `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2.0"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
+**例**: `SPEC-99` の edges に `{to: "SR-2", ref_version: "0.2"}` が含まれる → `ERROR|{file}:{line}|NFR-5-check|SPEC-99|direct ancestor edge to SR-2 violates 1-level constraint` を出力。
 
 ---
 
@@ -3823,7 +3835,7 @@ edges:
 
 ## SPEC-52-1: 完全スキーマ適合ノードは RULE-025 を発火させない（normal）
 
-<details><summary>⬡ SPEC-52-1 · v0.1.0</summary>
+<details><summary>⬡ SPEC-52-1 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-52-1
@@ -3834,19 +3846,21 @@ condition: normal
 edges:
   - to: SPEC-52
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
 **入力/トリガ**: 検証ツールが、共通必須フィールド（`id`・`type`・`labels`・`scheduled`・`edges`）と型別必須拡張フィールド（SPEC/TD は `condition`、TR は `result` と `log_ref`）を全て備えたノードに RULE-025 を評価する。
 **期待動作**: 完全スキーマ適合ノードに対して RULE-025 を発火させない。
-**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2.0"}]}` を処理 → RULE-025 非発火。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-025 非発火。
 
 ---
 
 ## SPEC-52-2: 完全スキーマ適合ノードは RULE-026 を発火させない（normal）
 
-<details><summary>⬡ SPEC-52-2 · v0.1.0</summary>
+<details><summary>⬡ SPEC-52-2 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-52-2
@@ -3857,19 +3871,21 @@ condition: normal
 edges:
   - to: SPEC-52
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
 **入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-026 を評価する。
 **期待動作**: 完全スキーマ適合ノードに対して RULE-026 を発火させない。
-**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2.0"}]}` を処理 → RULE-026 非発火。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-026 非発火。
 
 ---
 
 ## SPEC-52-3: 完全スキーマ適合ノードは RULE-027 を発火させない（normal）
 
-<details><summary>⬡ SPEC-52-3 · v0.1.0</summary>
+<details><summary>⬡ SPEC-52-3 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-52-3
@@ -3880,19 +3896,21 @@ condition: normal
 edges:
   - to: SPEC-52
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
 **入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-027 を評価する。
 **期待動作**: 完全スキーマ適合ノードに対して RULE-027 を発火させない。
-**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2.0"}]}` を処理 → RULE-027 非発火。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-027 非発火。
 
 ---
 
 ## SPEC-52-4: 完全スキーマ適合ノードは RULE-028 を発火させない（normal）
 
-<details><summary>⬡ SPEC-52-4 · v0.1.0</summary>
+<details><summary>⬡ SPEC-52-4 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-52-4
@@ -3903,13 +3921,15 @@ condition: normal
 edges:
   - to: SPEC-52
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
 **入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-028 を評価する。
 **期待動作**: 完全スキーマ適合ノードに対して RULE-028 を発火させない。
-**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2.0"}]}` を処理 → RULE-028 非発火。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-028 非発火。
 
 ---
 
