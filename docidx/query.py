@@ -32,9 +32,16 @@ def search(
     return out
 
 
-def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
-    """辺の ref_version が参照先バッジ x.y と不一致なら True、一致で False。
+def _xy(version: str) -> str:
+    """x.y.z から x.y 部分を返す。z を伝播判定から除外するため（FND-105・DD-8 §4）。"""
+    parts = version.split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else version
 
+
+def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
+    """辺の ref_version の x.y が参照先バッジ x.y と不一致なら True、一致で False。
+
+    z は伝播判定に不問（04-notation.md §2/§3・DD-8 §4）。
     参照先がインデックスに存在しない場合は None（判定不能）。
 
     依存仕様: SPEC-9 v0.2.0（依存辺のドリフト＝RULE-004）・02-meta-schema.md §1（DD-8）。
@@ -43,7 +50,7 @@ def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
     target = index.by_id.get(target_id)
     if target is None or not ref_version or not target.version:
         return None
-    return ref_version != target.version
+    return _xy(ref_version) != _xy(target.version)
 
 
 def deps(index: NodeIndex, node_id: str) -> list[dict]:
