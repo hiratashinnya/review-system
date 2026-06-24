@@ -60,7 +60,7 @@ edges:
 
 ## SPEC-1-2: マーカー PREFIX-N と YAML id の一致検証（normal）
 
-<details><summary>⬡ SPEC-1-2 · v0.1.0</summary>
+<details><summary>⬡ SPEC-1-2 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-1-2
@@ -73,13 +73,15 @@ edges:
     ref_version: "0.3"
   - to: FND-40
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **前提条件**: `⬡ PREFIX-N` マーカー直後の YAML ブロックから構造化ノードが 1 件生成済みである（SPEC-1-1 が先行）。
 **入力/トリガ**: 検証ツールが当該ノードのマーカー行 `PREFIX-N` と YAML の `id` 値を照合する。
 **期待動作**: マーカー行の `PREFIX-N` と YAML の `id` 値が一致するとき、当該ノードを ID 整合と判定する（不一致時は別 SPEC の責務）。
-**例**: マーカー `⬡ SPEC-1 · v0.3` の `SPEC-1` と YAML `id: SPEC-1` → 一致 → ID 整合と判定する。
+**例**: マーカー `⬡ SPEC-1 · v0.3.0` の `SPEC-1` と YAML `id: SPEC-1` → 一致 → ID 整合と判定する。
 
 ---
 
@@ -2624,7 +2626,7 @@ edges:
 
 ## SPEC-32: ⬡ マーカー直後に YAML ブロックなし（error・RULE-024・アンブレラ）
 
-<details><summary>⬡ SPEC-32 · v0.1.0</summary>
+<details><summary>⬡ SPEC-32 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-32
@@ -2637,11 +2639,13 @@ edges:
     ref_version: "0.3"
   - to: FND-59
     ref_version: "0.1"
+  - to: FND-106
+    ref_version: "0.1"
 ```
 </details>
 
 **概要**: `⬡` マーカー直後に YAML ブロックがない場合のパース異常（RULE-024）。検証アサーションは子 SPEC-32-1〜2 を参照（出力と中断を1アサーション1SPEC に分割・FND-59）。
-**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3`、行21が `## I-1-1:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
+**例**: `doc-system/03-analysis/02-io.md` 行20に `⬡ I-1 · v0.3.0`、行21が `## I-1-1:` → `ERROR|doc-system/03-analysis/02-io.md:20|RULE-024|(none)|⬡ marker at line 20 has no YAML block following`。
 
 ---
 
