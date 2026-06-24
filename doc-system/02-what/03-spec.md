@@ -578,7 +578,7 @@ edges:
 
 ## SPEC-9: バージョンドリフトの検出（failure）
 
-<details><summary>⬡ SPEC-9 · v0.2.0</summary>
+<details><summary>⬡ SPEC-9 · v0.2.1</summary>
 
 ```yaml
 id: SPEC-9
@@ -589,10 +589,12 @@ condition: failure
 edges:
   - to: FR-4
     ref_version: "0.2.0"
+  - to: FND-105
+    ref_version: "0.1.2"
 ```
 </details>
 
-辺の `ref_version` と参照先ファイルの version の不一致（ドリフト）検出（SPEC-9-1〜2 を参照）。
+辺の `ref_version` と参照先ノードのバッジ x.y の不一致（ドリフト）検出（SPEC-9-1〜2 を参照）。
 
 ---
 
