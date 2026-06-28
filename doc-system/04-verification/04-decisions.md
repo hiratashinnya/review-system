@@ -683,7 +683,7 @@ in-graph ノード（別ファイル差分で出力）:
 
 **status: decided**（2026-06-22 オーナー承認・案B 採用）
 
-<details><summary>⬡ DD-17 · v0.1.0</summary>
+<details><summary>⬡ DD-17 · v0.1.1</summary>
 
 ```yaml
 id: DD-17
@@ -695,7 +695,7 @@ edges: []
 ```
 </details>
 
-> **辺の扱い**: 本 DD は decided。本決定の反映先は主に out-of-graph（`docs/doc-system/05-verification.md` の RULE 表・`docs/doc-system/config.yaml` の `fnd_lifecycle.resolved.must_not_link_to`）であり、in-graph の義務辺（DD→X）は反映済みのため張らない（DD-16 の `edges: []` と同方針）。本決定で resolved 化される FND-104 が in-graph の代表処置対象であり、処置側（FND-104）から `→DD-17` のバックリファレンス辺を張り返す（FND-104 v0.2 で付与・X→DD 慣行）。dedicated SPEC（SPEC-59）は RULE-030 を引くが、SPEC が RULE/DD への辺を張る慣行はないため `SPEC-59→DD-17` は不要。したがって本 DD の `edges: []`。先例: DD-9（RULE-029 新設・`→FND-78` 1 辺）・DD-16（`edges: []`・out-of-graph 反映＋処置側張り返し）。
+> **辺の扱い**（v0.1.1・FND-101 辺逆転是正に伴い整合更新）: 本 DD は decided。本決定の反映先は主に out-of-graph（`docs/doc-system/05-verification.md` の RULE 表・`docs/doc-system/config.yaml` の `fnd_lifecycle.resolved.must_not_link_to`）であり、in-graph の義務辺（DD→X）は反映済みのため張らない（DD-16 の `edges: []` と同方針）。本決定で resolved 化された FND-104 は当初 `FND-104→DD-17`（X→DD）を張っていたが、FND-101 辺逆転コホートの一括是正（DD-16・2026-06-25）で当該 provenance 辺を削除し、関連は FND-104 本文に記録した（→DD は付与せず provenance を本文に記す・DD-17 側に backref は付与しない＝DD-16 と同型）。処置成果の in-graph 代表である SPEC-59 が `→FND-104` バックリファレンス辺を持ち、FND-104 の resolved ルール（backward 必須）はこれで充足される。dedicated SPEC（SPEC-59）は RULE-030 を引くが、SPEC が RULE/DD への辺を張る慣行はないため `SPEC-59→DD-17` は不要。したがって本 DD の `edges: []`。先例: DD-9（RULE-029 新設・`→FND-78` 1 辺）・DD-16（`edges: []`・out-of-graph 反映＋provenance 本文記録）。
 > **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は FND-104 の指摘を受けて決定したものだが、DD であり FND でないため「指摘時 ref_version」の本文記録は不要（DD-16 と同扱い）。論点の出所は FND-104（findings.md v0.1 時点）である旨を論点欄に記す。
 
 **論点**（FND-104 より昇格）: main の Q-4→DD-16 で `config.yaml` に正式化された `fnd_lifecycle.resolved.must_not_link_to`（target: any・severity warning・「resolved FND の元 forward 辺は削除済みであること」＝辺残留/禁止接続の存在の検出）に対し、それを検出・報告する RULE 番号が `docs/doc-system/05-verification.md` の RULE 一覧に存在しない（検出機構の定義そのものの空白）。既存 RULE は意味が合致しない:
@@ -723,7 +723,7 @@ out-of-graph RULE 台帳:
 
 in-graph ノード（別ファイル差分で出力）:
 - `doc-system/02-what/03-spec.md`: SPEC-59（fnd_lifecycle resolved 系 `must_not_link_to` の dedicated SPEC）の期待動作・例の参照 RULE を RULE-006→RULE-030 に差し替え、`→FND-103`・`→FND-104` バックリファレンスを付与（→ `tmp/sprint-1/SPEC-59.md`・reconciliation 反映）。
-- `doc-system/04-verification/02-findings.md`: FND-104（v0.1→0.2）を resolved 化（→ `tmp/sprint-1/FND-104.md`）。処置側から本 DD へ `FND-104→DD-17` を張り返す。FND-103（v0.1→0.2）も ②案完了で resolved 化（→ `tmp/sprint-1/FND-103.md`）。
+- `doc-system/04-verification/02-findings.md`: FND-104（v0.1→0.2 で resolved 化、その後 FND-101 辺逆転是正で v0.3）。当初は処置側から本 DD へ `FND-104→DD-17`（X→DD）を張り返していたが、FND-101 辺逆転コホート是正（DD-16・2026-06-25）で当該 provenance 辺を削除し関連は FND-104 本文に記録（→DD は付与せず provenance を本文に記す）。FND-104 の resolved backward は SPEC-59→FND-104 が充足する。FND-103 も ②案完了で resolved 化（同様に forward 辺を削除し本文 provenance 記録へ移行）。
 
 **接続規則変更チェック（FND-99 パターン）**: 本 DD は **05-verification.md の RULE 台帳に RULE-030 を追加するのみ**で、`config.yaml` の接続規則（`must_link_to`/`must_be_linked_from`/`fnd_lifecycle` の `must_not_link_to`）の追加・変更・削除を**含まない**（`fnd_lifecycle.resolved.must_not_link_to` 規則自体は DD-16 で既にコミット済み・本 DD はその検出 RULE 番号を台帳に充てるのみ）。よって接続マトリクス・ドキュメント一覧・各 author エージェント／スキルへの規則伝播は**不要**。ただし RULE 台帳に番号が増えた事実（RULE 範囲 001〜030）は dashboard 参考の RULE 範囲記述に反映する（番号台帳の更新であって接続規則の変更ではない）。
 
@@ -837,5 +837,118 @@ in-graph ノード:
 よって接続マトリクス（`docs/doc-system/03-connection-matrix.md`）・ドキュメント一覧（`docs/doc-system/01-document-items.md`）・各 author エージェント／スキルへの規則伝播は**不要**（変更される接続規則型なし＝伝播対象なし）。案A は RULE の段階再配置すら伴わないため RULE 表・dashboard の段階別集計への波及もない（案B を採っていた場合のみ RULE 段階配置の見直しが生じたが、案A 採用により発生しない）。先例: FND-106 本文の同チェック・DD-18 の同チェック（RULE 台帳の操作は接続規則変更でない）と同じ判定。
 
 **覆る場合の影響範囲**: 段階①〜③のトリガ宣言を段階別トリガ（bump トリガ・辺改変トリガ・NFR 成果物変更トリガ）へ戻し、§2 統一トリガ注記を撤去する。その際は案B（辺残留 RULE の段階再配置）か案C（常時走査の文章注記）のいずれかで検出漏れ gate を別途閉じる必要がある（単なる現状回帰は FND-106 の検出漏れ gate を再発させるため不可）。
+
+---
+
+## DD-20: O-1/O-2 の生成元辺を親 P-4 からリーフ P-4-3 へ精緻化（Q-3 から昇格・O 生成元粒度のリーフ基準統一）
+
+**status: decided**（2026-06-24 オーナー承認・選択肢A 採用）
+
+<details><summary>⬡ DD-20 · v0.1.0</summary>
+
+```yaml
+id: DD-20
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+> **辺の扱い**: 本 DD は decided。本決定の in-graph 反映先は O-1・O-2 の生成元辺の張替え（`→P-4` → `→P-4-3`）であり、その反映は別パス（analysis-author → reconciliation）で行う。**先例（Q-4→DD-16・DD-15）に倣い本 DD は `edges: []` とし、義務辺 DD→O-1/O-2 は張らない**。理由：(1) 本決定の in-graph 代表処置対象は昇格元 Q-3 であり、Q-3 が処置側から `→DD-20`（昇格辺）を張り返すことで本 DD の被参照辺が確保され RULE-005（完全孤立）は生じない。(2) O-1/O-2 の張替えは反映完了時に各ノードへ `→DD-20`（X→DD・ref_version は DD-20 のバッジ x.y）を付与する慣行で経緯を残す（DD-15 で ORC-1 の反映を別パスとし反映時に `→DD-15` を付与した先例と同型）。義務辺 DD→X（未反映の RULE-001 ERROR シグナル）を一旦張って即削除する二度手間を避け、最新の昇格 DD（DD-15〜DD-19 はいずれも `edges: []`）の慣行に揃える。
+> **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は Q-3 から昇格（DD であり FND でない）ため「指摘時 ref_version」の本文記録は不要（DD-16/17/18/19 と同扱い）。論点・現状の出所は Q-3（05-questions.md・指摘時 O-1 "0.2"／O-2 "0.2"）である。
+
+**論点**（Q-3 より昇格・要約）: 分析層の過分割（DD-12）後、**O-1・O-2 の生成元辺が親 P-4 を指したまま**であり、実生成リーフ（P-4-3＝G 番号付与・整形）と、リーフ基準の先例（O-3→P-7-2・O-6→P-4-4）および 00-dfd.md の O フロー表「L2 詳細生成元＝P-4-3」と二重に不整合になっている。O の生成元辺（O→P）の粒度を**リーフへ精緻化するか／親のまま許容するか**。
+
+**現状**（Q-3 で Read 確認済み）:
+- O-1（v0.2）の生成元辺＝`→P-4`（ref_version "0.1"）。O-2（v0.2）の生成元辺＝`→P-4`（ref_version "0.1"）。
+- リーフ基準の先例は確立済み: **O-3→P-7-2**・**O-6→P-4-4**（いずれも親でなく終端リーフへ生成元辺を張る。O-6 本文に「リーフ先例 O-3→P-7-2 に倣って終端リーフ P-4-4 に張る」と明記）。
+- 00-dfd.md「出力（O）」フロー表「L2 詳細生成元」列は **O-1=P-4-3・O-2=P-4-3**（P-4 の L2 分解で O-1/O-2 を生成するのは P-4-3「G 番号付与・整形」）。
+- すなわち O-1/O-2 のみが「親 P-4 基準」で取り残され、同じ O 型の O-3/O-6 のリーフ基準・フロー表記載と不整合。
+
+**選択肢**（Q-3 より要約・排他）:
+- **選択肢A（O-1/O-2 の `→P-4` を `→P-4-3` へ精緻化・推奨）**: リーフ先例（O-3→P-7-2・O-6→P-4-4）および既存フロー表（L2 詳細生成元＝P-4-3）に統一。最小変更（O-1/O-2 の生成元辺 to を P-4-3 へ・ref_version は P-4-3 の現バッジに一致）で O 型全体の生成元辺粒度がリーフ基準で揃う。02-io.md の O-1/O-2 を MINOR バンプ。
+- **選択肢B（親 P-4 のまま据え置き）**: 親境界での生成元表現として許容。O-3/O-6 が既にリーフ基準のため O 型内で粒度が割れたまま残る。一貫させるには O 全体を親基準へ寄せ直す広範改訂（O-3→P-7・O-6→P-4 への差し戻し＋フロー表 L2 列の意味再定義）が別途必要で変更範囲が拡大。非推奨。
+- **選択肢C（O 生成元辺の粒度方針を先に DD 化し全 O を一括統一）**: 方針自体を先行決定として全 O に適用。既にリーフ基準（O-3/O-6・フロー表）が事実上の先例として存在するため、A を実施してから事後 DD 化で足り、先行 DD 化は過剰手続き。非推奨。
+
+**推奨**: 選択肢A（Q-3 推奨どおり）。
+
+**決定**: **選択肢A を採用**（オーナー承認・2026-06-24）。O-1・O-2 の生成元辺 `→P-4`（ref_version "0.1"）を `→P-4-3`（ref_version は P-4-3 の現バッジ x.y＝"0.1"）へ精緻化し、O 型の生成元辺粒度をリーフ基準で統一する。
+
+**根拠**:
+- O-3→P-7-2・O-6→P-4-4 が既にリーフ基準で確立し O-6 本文がリーフ先例に倣う旨を明記しているため、O-1/O-2 のみ親基準で残すのは整合性の穴（PR6 価値経路・生成元の追跡可能性）。
+- 00-dfd.md フロー表が既に O-1/O-2=P-4-3 と記載しており、台帳（02-io.md）を派生図に合わせるのが最小変更。
+- B は O 型内の不整合を残すか、解消には逆方向の広範改訂を要し変更範囲が拡大。C は事実上の先例があるため先行 DD 化は過剰手続きで、A 実施後の事後 DD 化（＝本 DD）で足りる。
+
+**接続規則変更チェック（FND-99 パターン）**: 本 DD は **個別ノード O-1/O-2 の生成元辺の to を P-4（親）から P-4-3（リーフ）へ張替えるのみ**で、`config.yaml` の接続規則（`must_link_to: O → P` 等）の追加・変更・削除を**含まない**。O→P の規則自体は不変で、辺先がいずれも P 型である点も不変（粒度＝対象ノードの選び方が変わるだけで規則は同一）。よって接続マトリクス（`docs/doc-system/03-connection-matrix.md`）・ドキュメント一覧（`docs/doc-system/01-document-items.md`）・各 author エージェント／スキルへの規則伝播は**不要**。先例: DD-17/18/19 の同チェック（接続規則そのものに触れない変更は伝播不要）と同じ判定。
+
+**影響範囲（A 採用時・2026-06-24 reconciliation で反映完了）**:
+
+in-graph ノード:
+- `doc-system/03-analysis/02-io.md`: O-1（v0.2→0.3・MINOR）・O-2（v0.2→0.3・MINOR）の生成元辺 `→P-4`（ref_version "0.1"）を `→P-4-3`（ref_version "0.1"＝P-4-3 現バッジ v0.1.0 の x.y・RULE-004）へ差し替え。両ノード本文の「生成元」記述を P-4-3 基準に改訂（O-6 に倣い「リーフ先例に倣って終端リーフ P-4-3 に張る」旨を明記）。反映時に O-1・O-2 へ `→DD-20`（ref_version は DD-20 バッジ x.y＝"0.1"）バックリファレンス辺を付与（X→DD 慣行）。✅ 反映済み
+- `doc-system/04-verification/05-questions.md`: Q-3 を `status: closed`（DD-20 へ昇格）・`→DD-20`（ref_version "0.1"）付与・MINOR バンプ v0.1→v0.2。✅ 反映済み
+
+out-of-graph（再生成不要）:
+- `doc-system/03-analysis/00-dfd.md`: 派生図（out-of-graph）で既に O-1/O-2=P-4-3 と記載済みのため再生成不要。
+
+**覆る場合の影響範囲**: 選択肢B（親 P-4 据え置き）へ戻す場合、O-1/O-2 の生成元辺を `→P-4` に戻し `→DD-20` バックリファレンスを撤去、Q-3 を再 open（または別途整理）する。さらに O 型内の粒度一貫を取るには O-3→P-7・O-6→P-4 への差し戻しとフロー表 L2 列の意味再定義が必要になる（影響は分析層 02-io.md の O 群と 00-dfd.md に限定・要件層 SPEC は不変）。
+
+---
+
+## DD-21: resolved-FND 辺逆転/backref 付与の版バンプ種別を z バンプに確定（Q-5 から昇格・DD-8 §4 適用徹底・選択肢D 却下）
+
+**status: decided**（2026-06-28 オーナー決定・選択肢A 採用／選択肢D 却下）
+
+<details><summary>⬡ DD-21 · v0.1.0</summary>
+
+```yaml
+id: DD-21
+type: DD
+labels: []
+scheduled: ""
+suppress: []
+edges: []
+```
+</details>
+
+> **辺の扱い**: 本 DD は decided。被参照は昇格元 Q-5 の `→DD-21`（昇格辺）で確保され RULE-005（完全孤立）は生じない。先例（Q-3→DD-20・Q-4→DD-16・DD-15〜DD-20 はいずれも `edges: []`）に倣い本 DD は `edges: []` とする。**75 FND は resolved（`fnd_lifecycle.resolved.must_not_link_to: any`）のため `→DD-21` の forward 辺を持てない**——よって本決定の provenance は各 FND 本文の改訂理由（「Q-5/DD-21 により z へ訂正」）に記録し、辺は張らない（DD-16 が FND-96 等へ辺を張らず provenance を本文記録した先例と同型）。5 件の backref 保持ノード（D-18/P-7-2/FR-5/FR-1/DM-1）も本文で DD-21 を参照し、辺の追加は行わない（churn 最小化）。
+> **指摘時 ref_version の記録（DD-3 制度）**: 本 DD は Q-5 から昇格（DD であり FND でない）ため不要（DD-16〜20 と同扱い）。論点・現状の出所は Q-5（05-questions.md・指摘時 FND-101 "0.2"／SPEC-9 "0.2"／DD-8 "0.1"）。
+
+**論点**（Q-5 より昇格・要約）: resolved FND の辺逆転（forward 辺 `FND→対象` の削除＋`resolved: true` 化）と、処置対象側への backref 辺 `対象→FND` 付与に伴う版バンプを、**MINOR とすべきか z（PATCH）とすべきか**。A-1（FND-101 辺逆転一括是正）で 75 FND を MINOR バンプした結果、それらを指す backref/affects 辺（ref_version 据え置き）が一斉ドリフトし、新規 101 件の RULE-004 ドリフトが発生した。この是正方針を確定する。
+
+**現状**（Q-5 で点検確認済みの定量事実）:
+- A-1 実施後にグラフ全体のドリフトを点検したところ、**A-1 が 101 件の新規 backref ドリフト（X→FND）を生んだ**（A-1 前 main=103 件 → A-1 後=182 件・新規分のうち 101 がこの種）。
+- 原因：A-1 で 75 件の resolved FND を **MINOR バンプ**（例 v0.1.0→v0.2.0）し、それらを指す backref 辺（処置対象 X→FND-x・provenance）の ref_version が "0.1" のまま残り、FND バッジの x.y 変化によって `_drift()`（SPEC-9 v0.2.1＝RULE-004）が一斉ドリフトと判定した。
+- 補強事実：reconciliation は A-1 で新規追加した 5 件の backref を「MINOR だと依存元ドリフトが発生する」として **z バンプに自己訂正**しており（DD-8 §4「backref 辺追加→z バンプ」）、同じ理屈が FND ノード本体の lifecycle 辺逆転にも当てはまる。
+
+**選択肢**（Q-5 より要約）:
+- **選択肢A（resolved-FND の辺逆転/backref を z バンプとする・DD-8 §4 適用徹底／採用）**: 75 FND を vX.(Y+1).0 → vX.Y.(Z+1) に再バンプ（x.y を A-1 前＝main の値に戻し z を +1）。x.y 不変で 101 件の新規ドリフトが消える。辺逆転（forward 削除＋`resolved: true`）と backref 付与は **downstream 無影響の provenance/lifecycle 操作**であり、既存 DD-8 §4「backref 辺追加＝z バンプ」と同類。**ルール（SPEC-9・DD-8）の改変は不要で、既存ルールの適用を直すだけ**。
+- **選択肢B（MINOR 維持＋全 backref の ref_version を新 badge x.y へ同期）**: 101 件の backref ref を更新。実体のない更新で ref_version の意味を壊す。非推奨。
+- **選択肢C（MINOR 維持＋ドリフトを許容ノイズとする）**: FND-101 が目的とした「警告慣れ」問題を悪化させる。非推奨。
+- **選択肢D（SPEC-9/RULE-004 で backref/provenance 辺をドリフト判定対象外にするルール改変）**: 版バンプ論争を無意味化するが SPEC-9 改訂＋`_drift()` 実装変更＋テスト追加でスコープ大。**却下**。
+
+**決定**: **選択肢A を採用**（オーナー決定・2026-06-28）。
+- resolved FND の辺逆転（forward 削除＋`resolved: true`）と backref 付与は **z（PATCH）バンプ**とする。A-1 で MINOR バンプしたのは誤りであり、75 FND を z バンプへ再訂正する（x.y を A-1 前＝main の値に戻し z を +1）。
+- **drift ルール（SPEC-9＝RULE-004）も DD-8 も変更しない**。両者は既に正しく、既存 DD-8 §4「backref 辺追加＝z バンプ」の適用を徹底するのみ（適用を誤っただけで、適用を直す）。
+- **選択肢D（backref/provenance 辺をドリフト対象外にするルール改変）は却下**。
+
+**根拠**:
+- 辺逆転・backref 付与は参照先の意味内容（FND の指摘事実）を変えず、downstream の再レビューを要さない provenance/lifecycle 操作である。DD-8 §4 は既にこの種を「z バンプ」と定めており、resolved-FND の辺逆転も同類と解するのが整合的（PR2 機械判定の対象を正しく適用する）。
+- z バンプなら x.y が不変のため、backref/affects 辺の ref_version（指摘時の版）を据え置いたままドリフトが発生しない。A-1 起因の新規 101 件ドリフトが解消し、FND-101 が目的とした「警告ノイズ低減」を真に達成する。
+- reconciliation が 5 件の新規 backref を z バンプに自己訂正した先例（DD-8 §4 適用）と同一の理屈で、FND 本体にも一貫適用する。
+- D は原理的により根本的だが SPEC-9 改訂＋コード改修でスコープが大きく実装フェーズ寄り。既存ルールの適用是正（A）で新規ノイズは止まるため、ルール改変は不要と判断し却下。B は ref_version の意味を壊し、C は警告慣れを悪化させるため非推奨。
+
+**接続規則変更チェック（FND-99 パターン）**: 本 DD は **版バンプ種別の運用適用を是正するのみ**で、`config.yaml` の接続規則・`fnd_lifecycle`・`decision_spine`・SPEC-9（RULE-004）のいずれも追加・変更・削除しない（選択肢D 却下のためルール本体は不変）。よって接続マトリクス・ドキュメント一覧・各 author エージェント／スキルへの規則伝播は不要（DD-17/18/19/20 の同チェックと同じ判定）。版バンプ種別は DD-8 で既に定義済みのため DD-8 本体への規則追記も不要。
+
+**影響範囲（A 採用・本ブランチで実施済み）**:
+- **75 FND の再バンプ（MINOR → z）**: `doc-system/04-verification/02-findings.md` のバッジと本文版表記を z バンプへ訂正。既存 v0.1.0 群（FND-1〜5,7〜16,19〜23,29,30,32,34,37,38,39,40〜77,80,87,90,95,101）= v0.2.0→**v0.1.1**／FND-6,103,104,105 = v0.3.0→**v0.2.1**／FND-107 = v0.2.0→**v0.1.2**。改訂理由の版種別を「MINOR」→「z」へ訂正済み。
+- **5 件の backref ref_version 訂正**: D-18→FND-6 "0.3"→**"0.2"**／P-7-2→FND-29 "0.2"→**"0.1"**／FR-5→FND-80 "0.2"→**"0.1"**／FR-1→FND-107 "0.2"→**"0.1"**／DM-1→FND-107 "0.2"→**"0.1"**。backref 保持ノード自身の z バンプは正しいので維持（ref 値のみ訂正）。
+- **Q-5 を昇格・closed 化**: `→DD-21`（ref "0.1"）付与・MINOR バンプ v0.1.0→v0.2.0。
+- out-of-graph（不変）: SPEC-9（RULE-004）・DD-8・`config.yaml`・`docidx/query.py` `_drift()`（選択肢D 却下）。
+
+**残課題（別件・要オーナー判断）**: FND-96/97/98/99/100 も A-1 以前に lifecycle 辺逆転で **MINOR バンプ済み**（FND-101 が「是正済み手本」とした scope 外ノード）で、同じ原則違反（main 既存ドリフトの一部＝MOD-1→FND-96 ref0.3/badge0.5 等）。本 DD の原則は等しく当てはまるが、pre-existing かつ改訂履歴が混在（FND-96 は v0.1→v0.4 が正当な MINOR・最終 v0.4→v0.5 のみ lifecycle）するため、本ブランチでは是正せず別途オーナー判断（FND 起票）とする。
+
+**覆る場合の影響範囲**: 選択肢D（ルール改変）へ移行する場合、SPEC-9（RULE-004）を「backref/provenance 辺をドリフト判定対象外」に改訂し `docidx/query.py` `_drift()` 実装変更＋テスト追加、01-doc-verify.md・関連スキル/エージェントへドリフト意味論変更を周知する（実装フェーズ寄りの別 DD として起票）。本 DD（z バンプ適用）はその場合も無害で、D 移行は上位互換的に追加可能。
 
 ---
