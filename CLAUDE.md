@@ -53,8 +53,8 @@
 - スキル（ノード検索・コンテキスト効率）：`/docidx`（doc-system ノードの md2idx 流 検索/読み込み。実体＝`docidx/`＝`python -m docidx`、委譲先＝`docidx-lookup`。read-only・drift は情報提示のみで判定はしない）
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
 - サブエージェント（ノード検索）：`docidx-lookup`（docidx CLI で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は CLI 実行のみ）
-- サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation`
-- サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation`(opus) を必ず通す）。
+- サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
+- サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 
@@ -65,9 +65,10 @@
 - **ACTOR / I / O / D / P / E** → `analysis-author`
 - **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM** → `design-author`
 - **TD / TC / TR / VERIFY / FND / DD / Q / PEND** → `verification-author`
-- **著作後の整合確認・本ファイル確定書き込み** → `reconciliation`
+- **著作後の構造検証（read-only・VALIDATION_OK/ROLLBACK）** → `reconciliation-validator`
+- **検証合格後の self_fix 適用・本ファイル確定書き込み** → `reconciliation`
 
-各著作エージェントは `tmp/<sprint>/<parent-id>.md` に出力する。`reconciliation` が検証後に本ファイルへ反映する。
+各著作エージェントは `tmp/<sprint>/<parent-id>.md` に出力する。**2段で確定する**：`reconciliation-validator`（read-only 検証→`VALIDATION_OK`/`ROLLBACK`）→ 合格なら `reconciliation`（self_fix 適用＋本ファイル書込＋tmp 掃除）。ROLLBACK 時は writer を呼ばず著作エージェントを再起動する。検証と書込を分離した理由＝validator は Write/Edit を持たず**構造的に本ファイルへ書けない fail-close**を保証（DD-22）。
 
 - **委譲時のインプットは最小化**：**作業を特定するのに必要な情報**（関連ノードの ID、新規著作か既存更新かの別、対象範囲など）は委譲時に渡してよい。一方で**分析・推奨はサブエージェントに任せ**、主文脈で先回りして分析結果・推奨・本文を作り込んで渡さない。※これは委譲（author/分析）への入力規律。判断を仰ぐ FND/Q の**本文**は別物で、そちらは「ID だけで投げず本文で説明してから判断を仰ぐ」（オーナー向け説明）を維持する。
 - **共通指示は一時ファイル経由でコンテキスト節約**：サブエージェント呼び出しを複数回行うとき、共通となる指示部分は `tmp/<sprint>/` 等の一時ファイルに書き出して各呼び出しから参照させ、呼び出しごとに同じ指示を展開しない。

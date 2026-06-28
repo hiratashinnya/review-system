@@ -18,7 +18,7 @@ Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レ
    - **クラウド/ヘッドレス環境では agy は使えない**（ローカル CLI・Windows Credential Manager 認証依存）。
    - `Overall: OK` でなければ**移譲せず停止**し、理由を報告する。推測で移譲を試みない。
 2. **Windows パスで渡す**：`workspace` は `C:\...` 形式（WSL パス `/mnt/c/...` は `[WinError 267]` で失敗）。
-3. **スコープ厳守（境界＝誰が正本に書くか）**：agy は**素案・調査レポートを返す read-only/draft アシスタント**。`docs/`/本ファイルへの書き込み・ノードの確定著作・無検証コード採用は**移譲しない**（`*-author`(tmp)→`reconciliation`(opus) 経由・実装は Python 標準ライブラリのみ＝Q5）。✅ read-only 影響調査（例：ref_version バンプの伝搬先レポート）・ノード素案作成（規律を `ask` で読ませてから）は可。**agy にはファイルを書かせずテキスト/レポートで回収**し、正本反映は既存パイプラインに通す。
+3. **スコープ厳守（境界＝誰が正本に書くか）**：agy は**素案・調査レポートを返す read-only/draft アシスタント**。`docs/`/本ファイルへの書き込み・ノードの確定著作・無検証コード採用は**移譲しない**（`*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) 経由・実装は Python 標準ライブラリのみ＝Q5）。✅ read-only 影響調査（例：ref_version バンプの伝搬先レポート）・ノード素案作成（規律を `ask` で読ませてから）は可。**agy にはファイルを書かせずテキスト/レポートで回収**し、正本反映は既存パイプラインに通す。
 
 ## 使い方
 
