@@ -68,11 +68,20 @@
     impl-design-pipeline/SKILL.md  # A20 実装設計オーケストレータ（disable-model-invocation）
   standards/                   # A16 汎用標準（非活性・auto-load されない）
     test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
-  agents/
+  agents/                      # ※ 現況の正本は tailoring-registry.md（本ツリーは設計初期スナップショット）
     spec-inspector.md          # A6+A10+A11（仕様点検→gap 一覧を返す）
     structured-analysis.md     # A7+A8（コンテキスト→DFD→単一責務→状態）
     asset-auditor.md           # A14 既存資産の重複/矛盾/競合監査（read-only／standards も棚卸し対象）
-  tailoring-registry.md        # A16 標準⇄テーラリングの対応・実体パス・差分
+    docidx-lookup.md           # ノード検索/読み込み（docidx CLI・retrieval・read-only）
+    requirements-author.md     # VAL/SR/FR/NFR 著作（Policy B・型別著作エージェント）
+    spec-author.md             # SPEC 著作（1アサーション1ノード）
+    analysis-author.md         # ACTOR/I/O/P/E 著作
+    design-author.md           # ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM 著作
+    verification-author.md     # TD/TC/TR/VERIFY/FND/DD/Q/PEND 著作
+    reconciliation-validator.md  # 著作後の read-only 構造検証→VALIDATION_OK/ROLLBACK（Write/Edit なし＝fail-close・DD-22）
+    reconciliation.md          # 検証合格後の self_fix 適用＋本ファイル確定書込＋tmp 掃除（書込専任・DD-22）
+    agy-delegate.md            # 外部 CLI(agy) 委譲
+  tailoring-registry.md        # A16 標準⇄テーラリングの対応・実体パス・差分（agents の正本）
 CLAUDE.md                      # A2/A3 の作業流儀＋「迷ったら spec-principles」
 ```
 
