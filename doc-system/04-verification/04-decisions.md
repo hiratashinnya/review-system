@@ -900,7 +900,7 @@ out-of-graph（再生成不要）:
 
 **status: decided**（2026-06-28 オーナー決定・選択肢A 採用／選択肢D 却下）
 
-<details><summary>⬡ DD-21 · v0.1.0</summary>
+<details><summary>⬡ DD-21 · v0.1.1</summary>
 
 ```yaml
 id: DD-21
@@ -948,6 +948,8 @@ edges: []
 - out-of-graph（不変）: SPEC-9（RULE-004）・DD-8・`config.yaml`・`docidx/query.py` `_drift()`（選択肢D 却下）。
 
 **残課題（別件・要オーナー判断）**: FND-96/97/98/99/100 も A-1 以前に lifecycle 辺逆転で **MINOR バンプ済み**（FND-101 が「是正済み手本」とした scope 外ノード）で、同じ原則違反（main 既存ドリフトの一部＝MOD-1→FND-96 ref0.3/badge0.5 等）。本 DD の原則は等しく当てはまるが、pre-existing かつ改訂履歴が混在（FND-96 は v0.1→v0.4 が正当な MINOR・最終 v0.4→v0.5 のみ lifecycle）するため、本ブランチでは是正せず別途オーナー判断（FND 起票）とする。
+
+**→ 残課題完了（2026-06-28・issue #40）**: FND-96〜100（A-1 漏れコホート）は **FND-110 を起票し本ブランチ（`claude/issue-40-plan-0t1eqc`）で z バンプ適用是正・完了**（FND-96=v0.4.1／FND-97・98・99・100=v0.1.1。MOD-1→FND-96 ref 訂正・MOD-1 に FND-110 被参照アンカー付与）。DD-21 自体は decided 済み・本追記のため z バンプ（v0.1.0→v0.1.1）。
 
 **覆る場合の影響範囲**: 選択肢D（ルール改変）へ移行する場合、SPEC-9（RULE-004）を「backref/provenance 辺をドリフト判定対象外」に改訂し `docidx/query.py` `_drift()` 実装変更＋テスト追加、01-doc-verify.md・関連スキル/エージェントへドリフト意味論変更を周知する（実装フェーズ寄りの別 DD として起票）。本 DD（z バンプ適用）はその場合も無害で、D 移行は上位互換的に追加可能。
 
