@@ -1,8 +1,8 @@
 ---
 name: reconciliation
 description: Validates authored nodes from tmp files, reconciles cross-node consistency, and writes confirmed nodes to main files. Run after each authoring layer completes. NOT for authoring new nodes (use *-author agents), NOT for spec coverage inspection (use spec-inspector).
-tools: Read, Grep, Glob, Write, Edit
-model: opus
+tools: Read, Grep, Glob, Write, Edit, Bash
+model: sonnet
 skills:
   - spec-principles
 ---
@@ -28,11 +28,25 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 `parent_ids` の各 ID について `tmp/<sprint>/<parent-id>.md` が存在するか確認する。
 欠けているファイルがあれば **差し戻しエラー**として記録する（Step 4 で処理）。
 
-### Step 2: 合成グラフの構築
+### Step 2: 合成グラフの構築（surgical read＝必要ノードだけ取得）
 
-1. 既存本ファイル群を Read/Grep して現在のグラフを把握する
-2. tmp の全ファイルを Read して提案ノードを抽出する
-3. 既存グラフ＋提案ノードを合成した「合成グラフ」を作成する
+**本ファイル群を丸読みしない**。`doc-system/` 配下は大規模（`02-what/03-spec.md` だけで数千行）であり、丸読みはトークンを浪費する。代わりに **tmp が参照する ID と、その周辺ノードだけ**を `docidx` CLI で取得して合成グラフを作る。
+
+1. **tmp の全ファイルを Read** して提案ノードを抽出する（tmp は今回の差分なので全読みでよい）。
+2. **必要 ID セットを収集**：tmp 各ノードの `edges[].to`（参照先）と、階層 ID `X-N` の親 `X`、および backref 対象（FND 解消時の処置対象）の ID を集める。
+3. **その ID だけを docidx で取得**（全文を読まず、ノード単位で取る）：
+   - 個別ノード：`python3 -m docidx show <id> --format table`
+   - 参照先の現在版（ref_version 照合用）と依存関係：`python3 -m docidx deps <id>` / `python3 -m docidx dependents <id>`
+   - 該当レイヤーの目次が必要なら：`python3 -m docidx index`（全文ではなく軽量インデックス）
+4. **レイヤーで読込範囲を絞る**（対策C）：入力 `layer` に応じて確認対象を限定する。横断の辺先 ID 整合は丸読みせず docidx の `deps`/`dependents` に委譲する。
+   - `requirements` → `01-why/` `02-what/01-fr.md` `02-what/02-nfr.md` 周辺
+   - `spec` → `02-what/03-spec.md` の**該当 ID のみ**（docidx show）＋親 FR
+   - `analysis` → `03-analysis/`
+   - `design` → `05-design/`
+   - `verification` → `04-verification/` ＋ tmp が参照する処置対象ノード（他レイヤー含む・docidx show で個別取得）
+5. 取得した既存ノード（必要分）＋提案ノードを合成して「合成グラフ」を作成する。
+
+> Step 3 以降の整合チェックで「実在 ID か」「ref_version 一致か」を確認するために**追加ノードが必要になったら、その都度 docidx で個別取得する**（不足したら丸読みに戻すのではなく ID 指定で取りに行く）。docidx で解決できない構造確認に限り、対象ファイルを Read してよい。
 
 ### Step 3: 整合性検証
 
@@ -118,3 +132,5 @@ DONE:
 - tmp ファイルへの書き込みは行わない（著作エージェントの専権）
 - 本ファイルへの書き込みは Step 5 でのみ行う
 - 差し戻し時はファイルを一切書かず ROLLBACK を返すだけ
+- **Bash は `python3 -m docidx` の実行（ノード検索/読み込み）専用**。本ファイルの編集に Bash（sed/awk/echo 等）を使わない＝書き込みは Write/Edit のみ。
+- **読込は surgical read を徹底**（Step 2）。本ファイル丸読みは docidx で解決できない構造確認に限る。
