@@ -52,15 +52,22 @@ python -m backref check --id 'FND-1*'         # ID グロブで絞り込み
 doc-system の Markdown／edge フォーマット仕様に依存する。仕様改版時は下表と各 docstring の
 `依存仕様:` 行を見直すこと。
 
-| 関数 / 型 | 依存ポイント | 依存仕様（id・版／節） |
+**参照原則（再発防止）**：`依存仕様` は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）** を
+一次アンカーにする。`docs/doc-system/04-notation.md`・`02-meta-schema.md`・`config.yaml`・`CLAUDE.md`
+は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため、これらを
+**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。補助（人間向けナビ）としてのみ併記する。
+版付きノードがまだ無いフォーマット事実（例: edge スキーマが out-of-graph の meta-schema にしか無い）は、
+その不足自体を FND/Q で起票する（FND-18 が同種の指摘）。
+
+| 関数 / 型 | 依存ポイント | 依存仕様（in-graph 版付きノード／補助: out-of-graph・版なし） |
 |---|---|---|
-| `locate.find_yaml_block` / `find_edges_span` | summary 行→YAML フェンス／`edges:` block・inline の特定 | 04-notation §3,§8・02-meta-schema §4 |
-| `locate.find_body_region` | `</details>` 以降〜次境界（`## `/`---`/次ノード） | 04-notation §4,§8 |
-| `edit.bump_summary_z` | summary バッジ `vX.Y.Z`／backref 追加＝z | 02-meta-schema §1 (DD-8 §4) |
-| `edit.render_edge_entry` | edge block 項目（`- to:`＋`ref_version`・2スペース） | 04-notation §3 |
-| `reverse`（provenance 分類） | 宛先型 {FND,DD,Q,PEND} は backref なし | config.yaml fnd_lifecycle・DD-16 |
-| `reverse`（DD-3 行） | `**指摘時 ref_version**:` 凍結記録の形式 | CLAUDE.md L29・DD-3 |
-| `check`（不整合分類） | resolved/forward/backward の義務辺 | config.yaml fnd_lifecycle（`must_link_to`/`must_be_linked_from`/`must_not_link_to`） |
+| `locate.find_yaml_block` / `find_edges_span` / `find_body_region` | summary 行→YAML フェンス／`edges:` block・inline／本文範囲（`</details>` 後〜次境界） | **SPEC-1 v0.3.0・SPEC-1-1 v0.1.1・SPEC-2 v0.3.0**（補助: 04-notation §3,§8・02-meta-schema §4） |
+| `edit.bump_summary_z` | summary バッジ `vX.Y.Z`／backref 追加＝z | **DD-8 v0.1.1・DD-21 v0.1.1**（補助: 02-meta-schema §1） |
+| `edit.render_edge_entry` | edge block 項目（`- to:`＋`ref_version`・2スペース） | **SPEC-2 v0.3.0**（補助: 04-notation §3） |
+| `reverse`（provenance 分類・義務辺） | 宛先型 {FND,DD,Q,PEND} は backref なし／FND ライフサイクル | **DD-16 v0.1.0**（補助: config.yaml fnd_lifecycle） |
+| `reverse`（DD-3 凍結行） | `**指摘時 ref_version**:` 記録形式 | **DD-3 v0.1.0**（補助: CLAUDE.md） |
+| `reverse` / `check`（z バンプ種別） | backref 追加＝z | **DD-8 v0.1.1・DD-21 v0.1.1** |
+| `check`（不整合分類） | resolved/forward/backward の義務辺 | **DD-16 v0.1.0**（`must_link_to`/`must_be_linked_from`/`must_not_link_to`・補助: config.yaml fnd_lifecycle） |
 
 ## スコープ外
 

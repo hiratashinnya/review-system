@@ -10,7 +10,10 @@ CLAUDE.md L27–29 / DD-3 / DD-16 / DD-8 §4 の手順を機械化する:
 2 フェーズ（plan→apply）で、全ファイルの変更をメモリ上に算出してから書く（途中失敗で部分破壊しない）。
 冪等: 対象に既に ``→FND-x`` があれば付与・バッジ更新をスキップする。
 
-依存仕様: docidx（scan/model/query・ノード発見と file:line）・config.yaml fnd_lifecycle（規約源）。
+依存仕様: DD-16 v0.1.0（FND ライフサイクル＝forward/backward 義務・provenance）・DD-3 v0.1.0（指摘時
+  ref_version 本文凍結）・DD-8 v0.1.1／DD-21 v0.1.1（backref 追加＝z バンプ）・SPEC-1 v0.3.0／
+  SPEC-1-1 v0.1.1／SPEC-2 v0.3.0（パース・docidx 再利用）。補助（out-of-graph・版なし）:
+  config.yaml fnd_lifecycle・CLAUDE.md（バックリファレンス規約）。
 """
 
 from __future__ import annotations

@@ -2,6 +2,9 @@
 
 各ヘルパは「対象行（群）→ 置換行（群）」を返すだけの純関数で、ファイル全体の splice は
 :func:`apply_edits` が担う。編集はインデックスを後ろから適用するため互いの位置をずらさない。
+
+依存仕様: DD-8 v0.1.1・DD-21 v0.1.1（バッジ x.y.z・backref 追加＝z バンプ）・
+  SPEC-2 v0.3.0（edge スキーマ to/ref_version）。補助（out-of-graph・版なし）: 02-meta-schema §1・04-notation §3。
 """
 
 from __future__ import annotations
@@ -25,7 +28,10 @@ class Edit:
 
 
 def bump_summary_z(line: str) -> str:
-    """summary 行の ``vX.Y.Z`` の z を +1 した行を返す（DD-8 §4: backref 追加＝z）。"""
+    """summary 行の ``vX.Y.Z`` の z を +1 した行を返す。
+
+    依存仕様: DD-8 v0.1.1（バッジ x.y.z・§4 backref 追加＝z）・DD-21 v0.1.1（辺逆転/backref の版バンプ種別）。
+    """
     m = _VERSION_RE.search(line)
     if not m:
         raise BackrefError(f"summary 行にバッジ vX.Y.Z が無い: {line!r}")

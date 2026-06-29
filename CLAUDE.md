@@ -92,3 +92,5 @@
 - 実装設計：データ辞書集約は `docs/design/00-data-dictionary.md`、型安全なドメインモデルは `docs/design/01-class-design.md`（`/domain-model`）。
 - **実装前の凍結セット（8項目）**：索引＝`docs/design/README.md`。基盤＝`docs/design/02-module-architecture.md`。テスト戦略＝`/test-strategy`。
 - ノード検索/読み込みツール（md2idx 思想）：`docidx/`（`python -m docidx`・標準ライブラリのみ）。フォーマット依存マップ＝`docidx/README.md`。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
+- FND 辺逆転（バックリファレンス）の機械実行ツール：`backref/`（`python -m backref reverse/check`・標準ライブラリのみ・docidx 再利用）。フォーマット依存マップ＝`backref/README.md`。運用は `reconciliation` が `--apply`（issue #48）。
+- **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。
