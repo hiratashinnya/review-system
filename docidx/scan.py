@@ -49,7 +49,7 @@ def _is_node_summary_line(line: str) -> bool:
 
     本文には ``⬡ SPEC-1 · v0.3`` のような例が現れるため、``<summary`` タグの存在を必須とする。
 
-    依存仕様: SPEC-1-1 v0.1.0, SPEC-1 v0.3.0（04-notation.md §8・02-meta-schema.md §1 DD-8）
+    依存仕様: SPEC-1-1 v0.1.0, SPEC-1 v0.3.0（04-notation.md §8・02-meta-schema.md §1 DD-8 v0.1.1）
     """
     return "<summary" in line and _SUMMARY in line and _MIDDOT in line
 
@@ -57,7 +57,7 @@ def _is_node_summary_line(line: str) -> bool:
 def _parse_summary(line: str) -> tuple[str, str] | None:
     """summary 行から (id, version) を取り出す。バッジが無ければ None。
 
-    依存仕様: SPEC-1 v0.3.0, SPEC-1-1 v0.1.0（04-notation.md §8・02-meta-schema.md §1 DD-8）
+    依存仕様: SPEC-1 v0.3.0, SPEC-1-1 v0.1.0（04-notation.md §8・02-meta-schema.md §1 DD-8 v0.1.1）
     """
     if not _is_node_summary_line(line):
         return None
