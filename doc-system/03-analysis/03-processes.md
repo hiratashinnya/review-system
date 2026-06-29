@@ -1554,7 +1554,7 @@ P-7-2-1 が検証した草案を doc-system 本ファイルへ転記して著作
 
 ## P-8: 依存グラフ出力処理
 
-<details><summary>⬡ P-8 · v0.2.0</summary>
+<details><summary>⬡ P-8 · v0.2.1</summary>
 
 ```yaml
 id: P-8
@@ -1570,6 +1570,8 @@ edges:
     ref_version: "0.5"
   - to: DD-6
     ref_version: "0.1"
+  - to: FND-92
+    ref_version: "0.1"
 ```
 </details>
 
@@ -1584,7 +1586,7 @@ edges:
 
 ## P-9: 参照関係複雑度計算処理
 
-<details><summary>⬡ P-9 · v0.2.0</summary>
+<details><summary>⬡ P-9 · v0.2.1</summary>
 
 ```yaml
 id: P-9
@@ -1601,6 +1603,8 @@ edges:
   - to: E-1
     ref_version: "0.5"
   - to: DD-6
+    ref_version: "0.1"
+  - to: FND-92
     ref_version: "0.1"
 ```
 </details>
