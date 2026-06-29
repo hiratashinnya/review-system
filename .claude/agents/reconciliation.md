@@ -41,7 +41,8 @@ validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック
 ### Step 3: 本ファイルへの確定書き込み
 
 1. self_fix 適用後の tmp 内容で、**書き込み先（本ファイル）の現在内容を必要分だけ Read**（surgical：`python3 -m docidx show <id>` で位置=file:line を特定してよい）。
-2. 各 tmp ファイルの内容を該当する本ファイル（`doc-system/` または `docs/` 配下）に Write/Edit で反映する。**Bash（sed/awk/echo 等）で本文を編集しない**＝書き込みは Write/Edit のみ。
+2. 各 tmp ファイルの内容を該当する本ファイル（`doc-system/` または `docs/` 配下）に Write/Edit で反映する。**Bash（sed/awk/echo 等）の場当たり編集で本文を編集しない**＝書き込みは Write/Edit のみ。
+   - **例外＝FND の辺逆転**：resolved FND の forward 辺削除＋処置対象への `→FND-x` 付与＋DD-3 凍結記録＋z バンプは、手編集でなく**決定的ツール `backref` で機械実行する**：`python3 -m backref reverse <FND-id>`（まず dry-run で差分確認）→ 妥当なら `--apply` で書込。冪等・2 フェーズ・想定外形は停止（fail-close）。既存 DD-3 行と食い違う等の警告が出たら**書込を止めて主文脈に返す**（人手照合・勝手に上書きしない）。これは「場当たり Bash 編集の禁止」の趣旨（ad-hoc sed/awk 禁止）に反しない＝テスト済みの専用ツール。
 3. **全ファイルの書き込みが完了してから** `tmp/<sprint>/` のファイルを削除する。
 
 ### Step 4: 完了報告
@@ -63,4 +64,4 @@ DONE:
 - tmp ファイルへの書き込みは self_fix 適用（Step 2）に限る（新規ノードの著作はしない＝著作エージェントの専権）。
 - 本ファイルへの書き込みは Step 3 でのみ行う。
 - `validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能のいずれも、**書き込まずに主文脈へ返す**（fail-close）。
-- Bash は `python3 -m docidx`（書き込み位置の特定）専用。本文編集は Write/Edit のみ。
+- Bash は `python3 -m docidx`（書き込み位置の特定）と `python3 -m backref`（FND 辺逆転の機械実行）専用。それ以外の本文編集は Write/Edit のみ（場当たり sed/awk/echo 禁止）。
