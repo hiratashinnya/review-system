@@ -26,6 +26,7 @@
 | DD15 | `ReviewReport` の形（実装時） | P1 は仕分け4区分（auto/approve/judge/unclassified）＋summary＋stamp を持つ。`applied`(ResolvedFix) は **P2(apply) で追加** | [01](01-class-design.md)/report.py |
 | DD16 | Q24 解決＝パーサ拡張（オーナー決定 A） | mini-YAML に**引用キー（`"*"`）＋3段ブロックネスト**を追加（flow は非対応のまま）。policy はブロック形。schema の文法表/例を先に更新してから実装 | [schema](../schema/README.md)/parsing |
 | DD17 | PF 例外の fail-close 化＝**ガードプロキシ**（オーナー決定） | アダプタ（翻訳・PF差し替え性）は残し、その前に **`GuardingPlatform`（プロキシ）** を1枚。`review()` を `StageOutcome` 返しにし try/catch→`Failure(EVALUATE)`。core は `SafePlatformPort`（例外を投げない）に依存。「PF を信用しない」責務を境界1箇所へ集約（[10]/S3・M1） | [04](04-platform-protocol.md)/adapters/core |
+| DD22 | reconciliation のトークン過大消費（資産運用） | ①Step2 を docidx surgical read 化＋レイヤー限定 ②model opus→sonnet ③**検証/書込を2エージェントに分離**（`reconciliation-validator`=read-only 検証・Write/Edit なし／`reconciliation`=書込専任）。validator は構造的に本ファイルへ書けず fail-close。self_fix は validator が指示・writer が適用 | `.claude/agents/`・`tailoring-registry.md`・[CLAUDE.md](../../CLAUDE.md)・[asset-plan](../methods/asset-plan.md) |
 
 ---
 
@@ -171,6 +172,24 @@
 
 ### DD18 への参照
 → DD18（`lateral_deploy.py` 2パーサ併存許容）は本決定（DD19）により superseded。`lateral_deploy.py` が削除されたため、2パーサ併存という前提自体が消滅した。
+
+## DD22 — reconciliation のトークン過大消費（資産運用）
+- **論点**：`reconciliation` エージェントが usage 上で突出してトークンを消費している。原因は `.claude/agents/reconciliation.md` の Step2「合成グラフ構築」が `doc-system/` 配下（約15,500行・`02-what/03-spec.md` だけで 5,119行）を**丸読み**していたこと、機械的検証＋書込を `model: opus` で実行していたこと、検証/書込を1エージェントで抱えていたこと。
+- **選択肢**：
+  - **A（surgical read）**：Step2 を tmp 参照 ID＋親＋backref 対象のみ `python3 -m docidx show/deps/dependents` で個別取得に変更。レイヤーで読込範囲も限定。
+  - **B（モデル降格）**：`model: opus → sonnet`（処理は Bloom Apply 相当）。
+  - **C（検証/書込分離）**：`reconciliation-validator`（read-only 検証・Write/Edit なし）と `reconciliation`（書込専任）に分離。
+  - **D（内部ステップ分割のみ）**：同一エージェント内で検証/書込ステップを整理（C の代替）。
+- **トレードオフ**：A＝読込 15,500行→数十〜数百行。B＝コスト削減・検証は機械的なので品質劣化リスク小。C＝validator は Write/Edit を構造的に持たず、バグ/誤判定でも本ファイルへ書けない **fail-close** を得る（orchestration の fail-close 思想に整合）。D＝エージェント濫造を避けるが Write/Edit を保持するため構造保証は得られない。
+- **推奨 A＋B＋C（採用）／非推奨 D**：理由＝C の付加価値（ツール権限による構造的 fail-close）は D では得られず、asset-auditor 点検でも「validator は Write を外すことで一段深い防御になる」と確認。C 採用に伴い ①self_fix は validator が確定値つき指示として返し writer が適用（validator は書けないため）②reconciliation は検証ロジックを持たない writer 専任へ縮約（二重実装ドリフト防止）。
+- **暫定決定（オーナー確認のうえ採用）**：A＋B＋C を実装。validator=`reconciliation-validator`（model: sonnet・Read/Grep/Glob/Bash〔docidx 専用〕）、writer=`reconciliation`（model: sonnet・Write/Edit 保持）。2段パイプライン `*-author`→validator→（VALIDATION_OK なら）reconciliation。ROLLBACK 時は writer を呼ばず著作エージェント再起動。
+- **影響範囲**：
+  - `.claude/agents/reconciliation.md`（writer 専任へ縮約）・`.claude/agents/reconciliation-validator.md`（新設）。
+  - `.claude/tailoring-registry.md`（validator 行追加・reconciliation 行更新）。
+  - `CLAUDE.md`（サブエージェント一覧・ノード著作の委譲ルールを2段化）。
+  - `docs/methods/asset-plan.md`（agents ツリー同期）。
+  - 覆す（validator を廃し1エージェントへ戻す）場合：上記4ファイルの記述と委譲フローを再統合。
+  - 義務辺：本決定は資産運用（`.claude/`）への反映で、in-graph 義務辺は持たない。
 
 ---
 

@@ -30,7 +30,8 @@
 | analysis-author | なし（新規 author） | `agents/analysis-author.md` | ACTOR/I/O/P/E 著作エージェント。P consumes I（I→P 禁止）・E の5要素必須を組み込み済み。 | review-system |
 | design-author | なし（新規 author） | `agents/design-author.md` | ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM 著作エージェント。SCM→TERM は kind: see-also（refines 禁止）等を組み込み済み。 | review-system |
 | verification-author | なし（新規 author） | `agents/verification-author.md` | TD/TC/TR/VERIFY/FND/DD/Q/PEND 著作エージェント。TD condition 一致（RULE-019）・TR result/log_ref を YAML メタに記述（RULE-020/021）・TC は kind: realizes（verifies 禁止）を組み込み済み。 | review-system |
-| reconciliation | なし（新規 author） | `agents/reconciliation.md` | 調停エージェント。`tmp/<sprint>/` の一時ファイルを検証（自己修正 or ROLLBACK）し、合格後に本ファイルへ確定書き込み。著作エージェントとの責務分離：tmp 書き込みは著作エージェント専権、本ファイル書き込みは調停エージェント専権。 | review-system |
+| reconciliation-validator | なし（新規 author） | `agents/reconciliation-validator.md` | 検証エージェント（read-only）。`tmp/<sprint>/` の一時ファイルを surgical read（docidx）で検証し `VALIDATION_OK`（self_fix 指示付き）or `ROLLBACK` を返す。**Write/Edit を持たない＝構造的に本ファイルへ書けない fail-close**（DD-22）。自己修正は自分で適用せず指示として writer へ渡す。 | review-system |
+| reconciliation | なし（新規 author） | `agents/reconciliation.md` | 調停（書込）エージェント。reconciliation-validator が `VALIDATION_OK` を返した後、`self_fix` 指示を適用し本ファイルへ確定書き込み＋tmp 掃除。**検証ロジックは持たない＝validator 専権**（二重実装ドリフト防止・DD-22）。責務分離：tmp 著作=*-author／検証=validator／本ファイル書込=reconciliation。 | review-system |
 
 > その他の既存スキル（align・value-trace・mvp-scope・schema-design・domain-model・spec-pipeline・asset-pipeline・**asset-lateral-deploy**・**agy-delegate**・**bloom-model-tier**／
 > **実装設計：architecture-design・orchestration-design・prompt-design・impl-design-pipeline**）と
