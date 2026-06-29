@@ -51,6 +51,7 @@ class EdgesSpan:
     end: int
     inline: bool  # True なら ``edges: []`` / ``edges: [..]`` の 1 行形
     entry_indent: int  # block 形のとき ``- to:`` のインデント（既定 2）
+    inline_empty: bool = False  # inline のとき ``edges: []``（空）か ``edges: [..]``（非空）か
 
 
 @dataclass(frozen=True)
@@ -110,8 +111,11 @@ def find_edges_span(lines: list[str], block: YamlBlock) -> EdgesSpan | None:
         return None
     rest = lines[key_idx].split(":", 1)[1].strip()
     if rest != "":
-        # ``edges: []`` / ``edges: [..]`` の inline 1 行形
-        return EdgesSpan(start=key_idx, end=key_idx, inline=True, entry_indent=2)
+        # ``edges: []`` / ``edges: [..]`` の inline 1 行形。空かどうかを区別する
+        # （非空 inline への追記は既存辺を壊すため、呼び出し側で fail-close させる）。
+        empty = rest.startswith("[") and rest.rstrip().endswith("]") and rest[1:-1].strip() == ""
+        return EdgesSpan(start=key_idx, end=key_idx, inline=True, entry_indent=2,
+                         inline_empty=empty)
     # block 形: 後続の indent>0 行を消費（fence 手前 / indent 0 / 境界で終端）
     end = key_idx
     entry_indent = 2

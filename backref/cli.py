@@ -59,6 +59,8 @@ def cmd_reverse(args) -> int:
                 tag = "backref 既存（冪等スキップ）"
             print(f"  →{a.to} [{a.kind}] {tag}")
         print(f"  DD-3: {plan.dd3_line}")
+        if plan.notarget_line:
+            print(f"  {plan.notarget_line}")
         print(f"  改訂理由（提示・本文へは未記入）: {plan.revision_note}")
         if args.apply:
             reverse.write_plan(plan, root)

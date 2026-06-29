@@ -54,6 +54,7 @@ class FndPlan:
     fnd_file: str
     actions: list[TargetAction] = field(default_factory=list)
     dd3_line: str = ""
+    notarget_line: str = ""  # 付与先（backref 辺）が無いときの本文記録（空＝不要）
     revision_note: str = ""  # 推奨改訂理由（書込はせず提示する）
     notes: list[str] = field(default_factory=list)  # 警告/スキップ理由
     noop: bool = False  # 反転すべき forward 辺が無く何もしない
@@ -148,13 +149,15 @@ class _Planner:
                     f"{fnd_id}→{e.to}: 既に →{fnd_id} backref あり。付与省略（冪等）。"
                 )
 
-        # --- FND 側: edges→[] + resolved:true + バッジ z + DD-3 本文 ---
+        # --- FND 側: edges→[] + resolved:true + バッジ z + DD-3／付与先なし 本文 ---
         plan.dd3_line = f"{DD3_MARKER} " + "／".join(dd3_parts)
+        plan.notarget_line = self._notarget_line(plan.actions)
         self._plan_fnd_yaml(fnd_lines, fnd_block, fnd_id)
         self._plan_fnd_badge(fnd_lines, fnd_block)
-        dd3_note = self._plan_dd3_body(fnd_lines, node.line - 1, plan.dd3_line)
-        if dd3_note:
-            plan.notes.append(dd3_note)
+        body_note = self._plan_body_records(
+            fnd_lines, node.line - 1, plan.dd3_line, plan.notarget_line)
+        if body_note:
+            plan.notes.append(body_note)
         plan.revision_note = (
             f"**改訂理由（z バンプ・DD-16 辺逆転完了。辺逆転は downstream 無影響の "
             f"provenance/lifecycle 操作のため z＝DD-8 §4「backref 追加＝z」準拠）**: "
@@ -175,6 +178,13 @@ class _Planner:
             )
         if fnd_id in locate.edge_targets(tlines, tspan):
             return True  # 冪等: 既に付与済み
+        if tspan.inline and not tspan.inline_empty:
+            # 非空 inline ``edges: [..]`` は、行全体を block 形へ置換すると既存辺を黙って捨てる。
+            # 現コーパスは block 形のみだが、保証の穴を塞ぐため fail-close で停止する。
+            raise BackrefError(
+                f"{target.id}: 非空 inline edges（`{tlines[tspan.start].strip()}`）への backref 付与は未対応。"
+                "block 形（`edges:` ＋ `- to:`）へ直してから再実行すること"
+            )
         indent = len(tlines[tspan.start]) - len(tlines[tspan.start].lstrip(" "))
         if tspan.inline:
             # ``edges: []`` を block 形へ変換して 1 項目を持たせる
@@ -235,34 +245,65 @@ class _Planner:
                  [edit.bump_summary_z(lines[block.summary_idx])], "FND badge z bump"),
         )
 
-    def _plan_dd3_body(self, lines, summary_idx: int, dd3_line: str) -> str | None:
-        """DD-3 ``指摘時 ref_version`` 行を本文へ記録する編集を計画。
+    @staticmethod
+    def _notarget_line(actions: list[TargetAction]) -> str:
+        """backref の付与先が無い対象（削除済み／全 provenance）の本文記録行を組み立てる。
+
+        CLAUDE.md L28・README「削除済みノードは FND 本文に『付与先なし』と明記」を満たす。
+        付与先が一つでも残る通常対象があり、かつ削除済みも無ければ空文字（記録不要）。
+        """
+        missing = [a.to for a in actions if a.kind == "missing"]
+        provenance = [a.to for a in actions if a.kind == "provenance"]
+        has_normal = any(a.kind == "normal" for a in actions)
+        segs: list[str] = []
+        if missing:
+            segs.append(f"{'・'.join(missing)}（削除済みのため付与先ノードなし）")
+        if not has_normal and provenance:
+            segs.append(f"{'・'.join(provenance)}（provenance のため backref 非付与）")
+        if not segs:
+            return ""
+        return "**付与先なし**: " + "／".join(segs)
+
+    def _plan_body_records(self, lines, summary_idx: int, dd3_line: str,
+                           notarget_line: str) -> str | None:
+        """DD-3 ``指摘時 ref_version`` 行と「付与先なし」行を本文へ記録する編集を計画。
 
         **既存の DD-3 行は上書きしない**（PR8「消さない」。人手の凍結記録を破壊しないため）。
         既存があり内容が辺由来と食い違う場合は警告メッセージを返し、人手の照合に委ねる。
-        無い場合のみ本文末尾へ 1 行挿入する。
+        付与先なし行も既に本文にあれば再挿入しない（冪等）。新規分のみ本文末尾へ一括挿入する。
         """
         region = locate.find_body_region(lines, summary_idx)
         rel = self._rel_of(lines)
-        for i in range(region.start, region.end + 1):
-            if lines[i].lstrip().startswith(DD3_MARKER):
-                existing = lines[i].strip()
-                if existing != dd3_line:
-                    return (
-                        "本文に既存の DD-3 行があるため上書きしません（PR8）。辺由来と食い違うため"
-                        "人手で照合してください。\n"
-                        f"    既存 : {existing}\n"
-                        f"    辺由来: {dd3_line}"
-                    )
-                return None  # 既存＝辺由来。何もしない（冪等）
-        # 無ければ本文末尾（最後の非空行の後）に挿入
-        last = region.end
-        while last >= region.start and lines[last].strip() == "":
-            last -= 1
-        insert_at = last + 1
-        new = ["", dd3_line] if last >= region.start else [dd3_line]
-        self._add_edit(rel, Edit(insert_at, insert_at - 1, new, "DD-3 line insert"))
-        return None
+        body = "\n".join(lines[region.start : region.end + 1]) if region.end >= region.start else ""
+        warn: str | None = None
+        append: list[str] = []
+
+        existing_dd3 = next(
+            (lines[i].strip() for i in range(region.start, region.end + 1)
+             if lines[i].lstrip().startswith(DD3_MARKER)),
+            None,
+        )
+        if existing_dd3 is None:
+            append.append(dd3_line)
+        elif existing_dd3 != dd3_line:
+            warn = (
+                "本文に既存の DD-3 行があるため上書きしません（PR8）。辺由来と食い違うため"
+                "人手で照合してください。\n"
+                f"    既存 : {existing_dd3}\n"
+                f"    辺由来: {dd3_line}"
+            )
+
+        if notarget_line and "付与先なし" not in body:
+            append.append(notarget_line)
+
+        if append:
+            last = region.end
+            while last >= region.start and lines[last].strip() == "":
+                last -= 1
+            insert_at = last + 1
+            new = (["", *append]) if last >= region.start else list(append)
+            self._add_edit(rel, Edit(insert_at, insert_at - 1, new, "body records insert"))
+        return warn
 
     def _rel_of(self, lines: list[str]) -> str:
         for rel, cached in self._cache.items():

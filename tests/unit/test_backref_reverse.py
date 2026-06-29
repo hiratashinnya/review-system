@@ -176,5 +176,151 @@ class TestReverseApplyThenReparse(unittest.TestCase):
         self.assertEqual(new.count("**指摘時 ref_version**:"), 1)
 
 
+NOTARGET = """\
+# Findings
+
+---
+
+## FND-300: 削除済み対象のみ
+
+<details><summary>⬡ FND-300 · v0.1.0</summary>
+
+```yaml
+id: FND-300
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: GHOST-9
+    ref_version: "0.2"
+```
+</details>
+
+**内容**: 削除済みノードのみを指す指摘。
+
+---
+
+## FND-400: provenance のみ
+
+<details><summary>⬡ FND-400 · v0.1.0</summary>
+
+```yaml
+id: FND-400
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: FND-300
+    ref_version: "0.1"
+```
+</details>
+
+provenance のみ。
+"""
+
+INLINE_NONEMPTY = """\
+# IO
+
+---
+
+## D-1: inline 非空 edges を持つ対象
+
+<details><summary>⬡ D-1 · v0.1.0</summary>
+
+```yaml
+id: D-1
+type: D
+edges: [SPEC-1]
+```
+</details>
+
+本文。
+"""
+
+FND_TO_D1 = """\
+# Findings
+
+---
+
+## FND-500: D-1 を指す
+
+<details><summary>⬡ FND-500 · v0.1.0</summary>
+
+```yaml
+id: FND-500
+type: FND
+labels: []
+scheduled: ""
+edges:
+  - to: D-1
+    ref_version: "0.1"
+```
+</details>
+
+本文。
+"""
+
+
+def _make_tree_text(tmp: str, findings: str, processes: str | None = None) -> tuple[Path, Path]:
+    root = Path(tmp)
+    (root / "doc-system" / "04-verification").mkdir(parents=True)
+    (root / "doc-system" / "03-analysis").mkdir(parents=True)
+    (root / "docs" / "doc-system").mkdir(parents=True)
+    (root / "doc-system" / "04-verification" / "02-findings.md").write_text(
+        findings, encoding="utf-8")
+    if processes is not None:
+        (root / "doc-system" / "03-analysis" / "03-processes.md").write_text(
+            processes, encoding="utf-8")
+    cfg = root / "docs" / "doc-system" / "config.yaml"
+    cfg.write_text(CONFIG, encoding="utf-8")
+    return root, cfg
+
+
+class TestNoTargetRecording(unittest.TestCase):
+    """削除済み／provenance のみの resolved FND は本文へ『付与先なし』を残す（PR8・check 整合）。"""
+
+    def _run_and_check(self, fnd_id: str) -> tuple[str, list]:
+        from backref import check as check_mod
+        with tempfile.TemporaryDirectory() as tmp:
+            root, cfg = _make_tree_text(tmp, NOTARGET)
+            idx = scan.build_index(repo_root=root, config_path=cfg)
+            plan = reverse.plan_reverse(idx, root, fnd_id)
+            reverse.write_plan(plan, root)
+            idx2 = scan.build_index(repo_root=root, config_path=cfg)
+            new = (root / "doc-system/04-verification/02-findings.md").read_text("utf-8")
+            findings = [f for f in check_mod.check(idx2) if f.fnd_id == fnd_id]
+            return new, findings
+
+    def test_deleted_only_writes_notarget_and_check_clean(self):
+        new, findings = self._run_and_check("FND-300")
+        self.assertIn("付与先なし", new)
+        # resolved-no-backref が誤検出されない
+        self.assertFalse([f for f in findings if f.code == "resolved-no-backref"])
+
+    def test_provenance_only_writes_notarget_and_check_clean(self):
+        new, findings = self._run_and_check("FND-400")
+        self.assertIn("付与先なし", new)
+        self.assertFalse([f for f in findings if f.code == "resolved-no-backref"])
+
+
+class TestInlineNonEmptyFailClose(unittest.TestCase):
+    def test_raises_instead_of_dropping_edges(self):
+        from backref.errors import BackrefError
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "doc-system" / "04-verification").mkdir(parents=True)
+            (root / "doc-system" / "03-analysis").mkdir(parents=True)
+            (root / "docs" / "doc-system").mkdir(parents=True)
+            (root / "doc-system" / "04-verification" / "02-findings.md").write_text(
+                FND_TO_D1, encoding="utf-8")
+            (root / "doc-system" / "03-analysis" / "02-io.md").write_text(
+                INLINE_NONEMPTY, encoding="utf-8")
+            cfg = root / "docs" / "doc-system" / "config.yaml"
+            cfg.write_text(CONFIG, encoding="utf-8")
+            idx = scan.build_index(repo_root=root, config_path=cfg)
+            with self.assertRaises(BackrefError):
+                reverse.plan_reverse(idx, root, "FND-500")
+
+
 if __name__ == "__main__":
     unittest.main()
