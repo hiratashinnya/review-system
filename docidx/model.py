@@ -10,7 +10,8 @@ from typing import Any
 class Edge:
     """無名依存辺（``to`` への依存・``ref_version`` は参照先バッジの x.y（2パート）・バッジは x.y.z）。
 
-    依存仕様: 04-notation.md §3（`to` スカラ・`ref_version` 必須・`note` 任意・`kind`/`status` なし）。
+    依存仕様: SPEC-1-1 v0.1.1（edge スキーマ: `to`/`ref_version`/`note`・`kind`/`status` なし）・
+      04-notation.md §3（補助・out-of-graph・版なし）。
     """
 
     to: str
@@ -31,7 +32,7 @@ class Node:
     """doc-system の 1 ノード（summary バッジ＋YAML＋本文）。
 
     依存仕様: SPEC-1-1 v0.1.0（構造化フィールド）。``version`` は summary バッジ x.y.z が
-      真実源＝02-meta-schema.md §1（DD-8・ファイル frontmatter version は廃止・FND-104）。
+      真実源＝02-meta-schema.md §1（DD-8 v0.1.1・ファイル frontmatter version は廃止・FND-104）。
     """
 
     id: str

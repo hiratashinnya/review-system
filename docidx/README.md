@@ -66,14 +66,14 @@ docidx は doc-system の Markdown フォーマット仕様に依存する。仕
 
 | 関数 / 型 | 依存ポイント | 依存仕様（id・版／節） |
 |---|---|---|
-| `scan._is_node_summary_line` / `_parse_summary` | summary バッジでノード発見・版取得・例の誤検出回避 | SPEC-1-1 v0.1・SPEC-1 v0.3・04-notation §8・02-meta-schema §1 (DD-8) |
+| `scan._is_node_summary_line` / `_parse_summary` | summary バッジでノード発見・版取得・例の誤検出回避 | SPEC-1-1 v0.1・SPEC-1 v0.3・04-notation §8・02-meta-schema §1 (DD-8 v0.1.1) |
 | `scan.parse_markdown` | ノード発見と構造化／見出し=直前 `## `・本文=`</details>` 後／マーカー直後 YAML 欠如 | SPEC-1 v0.3・SPEC-1-1 v0.1・SPEC-1-2 v0.1・04-notation §4,§8 |
 | `scan._make_node` | id/type/labels/scheduled/edges の抽出 | SPEC-1-1 v0.1 |
 | `scan.load_trace_scope` / `discover_files` / `build_index` | trace_scope の include/exclude で in-graph 判定（空集合含む） | SPEC-24 v0.2・SPEC-31 v0.1・config.yaml: trace_scope |
-| `nodeyaml.parse` / `_parse_edges` | YAML ブロック文法・edge スキーマ／記法崩れで失敗 | 04-notation §3・SPEC-2 v0.3 |
-| `model.Edge` | edge スキーマ（`to`/`ref_version`/`note`・`kind`/`status` なし） | 04-notation §3 |
-| `model.Node`（`version`） | 版の真実源は summary バッジ x.y | 02-meta-schema §1 (DD-8) |
-| `query._drift` / `deps` / `dependents` | ドリフト＝辺 `ref_version` と参照先バッジ x.y の比較（情報提示のみ） | SPEC-9 v0.2・02-meta-schema §1 (DD-8) |
+| `nodeyaml.parse` / `_parse_edges` | YAML ブロック文法・edge スキーマ／記法崩れで失敗 | SPEC-1-1 v0.1.1・SPEC-2 v0.3.0・04-notation §3（補助） |
+| `model.Edge` | edge スキーマ（`to`/`ref_version`/`note`・`kind`/`status` なし） | SPEC-1-1 v0.1.1・04-notation §3（補助） |
+| `model.Node`（`version`） | 版の真実源は summary バッジ x.y | 02-meta-schema §1 (DD-8 v0.1.1) |
+| `query._drift` / `deps` / `dependents` | ドリフト＝辺 `ref_version` と参照先バッジ x.y の比較（情報提示のみ） | SPEC-9 v0.2・02-meta-schema §1 (DD-8 v0.1.1) |
 
 > ドリフトは**情報提示のみ**。FND 起票・RULE 発火（検証）は doc-system 検証ツール側の責務で、
 > docidx は行わない（PR2: 機械取得と運用判定を混ぜない）。

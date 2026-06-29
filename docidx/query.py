@@ -33,7 +33,7 @@ def search(
 
 
 def _xy(version: str) -> str:
-    """x.y.z バッジから x.y 部分を返す。ref_version（x.y）との比較用（FND-105・DD-8 §4）。"""
+    """x.y.z バッジから x.y 部分を返す。ref_version（x.y）との比較用（FND-105・DD-8 v0.1.1 §4）。"""
     parts = version.split(".")
     return ".".join(parts[:2]) if len(parts) >= 2 else version
 
@@ -42,10 +42,10 @@ def _drift(index: NodeIndex, target_id: str, ref_version: str) -> bool | None:
     """辺の ref_version（x.y）が参照先バッジの x.y と不一致なら True、一致で False。
 
     ref_version は x.y（2パート）、バッジは x.y.z（3パート）。z は伝播判定に不問のため
-    バッジの x.y 部分のみを ref_version と比較する（04-notation.md §2/§3・DD-8 §4）。
+    バッジの x.y 部分のみを ref_version と比較する（04-notation.md §2/§3・DD-8 v0.1.1 §4）。
     参照先がインデックスに存在しない場合は None（判定不能）。
 
-    依存仕様: SPEC-9 v0.2.0（依存辺のドリフト＝RULE-004）・02-meta-schema.md §1（DD-8）。
+    依存仕様: SPEC-9 v0.2.0（依存辺のドリフト＝RULE-004）・02-meta-schema.md §1（DD-8 v0.1.1）。
       なお docidx はドリフトを情報提示するのみで、FND 起票・判定（RULE 発火）は行わない。
     """
     target = index.by_id.get(target_id)
