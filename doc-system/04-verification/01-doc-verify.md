@@ -7,7 +7,7 @@
 
 ## VERIFY-1: 要件〜分析層の spec-inspector レビュー
 
-<details><summary>⬡ VERIFY-1 · v0.1.0</summary>
+<details><summary>⬡ VERIFY-1 · v0.1.1</summary>
 
 ```yaml
 id: VERIFY-1
@@ -31,6 +31,8 @@ edges:
   - to: E-1
     ref_version: "0.4"
   - to: DD-2
+    ref_version: "0.1"
+  - to: FND-17
     ref_version: "0.1"
 ```
 </details>

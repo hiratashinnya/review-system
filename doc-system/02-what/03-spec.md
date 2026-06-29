@@ -560,7 +560,7 @@ edges:
 
 ## SPEC-8: 必須上流辺の欠如（failure）
 
-<details><summary>⬡ SPEC-8 · v0.2.0</summary>
+<details><summary>⬡ SPEC-8 · v0.2.1</summary>
 
 ```yaml
 id: SPEC-8
@@ -570,6 +570,8 @@ scheduled: ""
 condition: failure
 edges:
   - to: FR-3
+    ref_version: "0.2"
+  - to: FND-102
     ref_version: "0.2"
 ```
 </details>
@@ -3225,7 +3227,7 @@ edges:
 
 ## SPEC-44: ノードファイルはプレーンテキスト .md（normal・アンブレラ）
 
-<details><summary>⬡ SPEC-44 · v0.2.0</summary>
+<details><summary>⬡ SPEC-44 · v0.2.1</summary>
 
 ```yaml
 id: SPEC-44
@@ -3237,6 +3239,8 @@ edges:
   - to: NFR-1
     ref_version: "0.4"
   - to: FND-67
+    ref_version: "0.1"
+  - to: FND-86
     ref_version: "0.1"
 ```
 </details>
@@ -4081,7 +4085,7 @@ edges:
 
 ## SPEC-54: 著作は記載内容入力を必須とする（normal・アンブレラ）
 
-<details><summary>⬡ SPEC-54 · v0.1.0</summary>
+<details><summary>⬡ SPEC-54 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-54
@@ -4093,6 +4097,8 @@ edges:
   - to: FR-13
     ref_version: "0.1"
   - to: FND-77
+    ref_version: "0.1"
+  - to: FND-28
     ref_version: "0.1"
 ```
 </details>
