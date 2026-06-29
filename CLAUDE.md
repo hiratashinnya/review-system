@@ -25,7 +25,7 @@
 - **大原則**：矛盾・オーナー判断必須で止めるときも、**原案・比較・理由付き推奨/非推奨を必ず添える**（意見なき停止は禁止）。**矛盾は原案検討して提案、他のやれる所をやる、一通り終えたら整理して提示**。
 - **起票してから止める（チャットで流さない）**：論点・矛盾・情報不足を見つけたら、**①ノード起票 → ②ダッシュボード更新（Q/FND いずれの場合も必須）→ ③選択肢＋推奨を添えて停止・質問** の順を必ず守る。チャットで指摘を述べるだけで**起票しないのは禁止**（後から「なぜ起票してない？」になる）。**②は省略不可**——ノードが明細、ダッシュボードが状態の要約で、両方を更新して初めて起票完了。
   - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（[verification](doc-system/04-verification/02-findings.md)・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
-  - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。
+  - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。**辺逆転（forward 削除＋backward 付与＋DD-3 凍結＋z バンプ）は手編集でなく `backref` ツールで機械実行する**＝`python -m backref reverse <FND-id>`（既定 dry-run／`--apply` で書込・実体＝`backref/`・docidx 再利用）。不整合監査は `python -m backref check`。
   - **FND 起票時は ref_version を本文にも記録**：FND 解消時に edges が逆転（FND→対象 → 対象→FND）するため指摘時の ref_version が辺情報から失われる。**FND 起票時に `edges[].ref_version` の値を本文に明記する**（`**指摘時 ref_version**: {ノードID} "{ref_version}"（{ファイル名} v{version} 時点）`・DD-3 制度化）。
 - **要件定義フェーズ**：**暫定で進めない（危険）**。論点・矛盾・情報不足は**上記①〜③で止めて**選択肢＋推奨を出し、決定はオーナー。**他の決められる所を先に進める**（Q#/FND で起票・状態維持）。
 - **設計フェーズ**：迷いは**推奨案で暫定決定**し、**判断ログ DD#**（論点→選択肢→推奨→暫定決定→影響範囲）に記録して前進。覆る場合の影響範囲を必ず併記。
@@ -92,3 +92,5 @@
 - 実装設計：データ辞書集約は `docs/design/00-data-dictionary.md`、型安全なドメインモデルは `docs/design/01-class-design.md`（`/domain-model`）。
 - **実装前の凍結セット（8項目）**：索引＝`docs/design/README.md`。基盤＝`docs/design/02-module-architecture.md`。テスト戦略＝`/test-strategy`。
 - ノード検索/読み込みツール（md2idx 思想）：`docidx/`（`python -m docidx`・標準ライブラリのみ）。フォーマット依存マップ＝`docidx/README.md`。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
+- FND 辺逆転（バックリファレンス）の機械実行ツール：`backref/`（`python -m backref reverse/check`・標準ライブラリのみ・docidx 再利用）。フォーマット依存マップ＝`backref/README.md`。運用は `reconciliation` が `--apply`（issue #48）。
+- **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。
