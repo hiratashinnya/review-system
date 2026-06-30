@@ -88,9 +88,10 @@
 
 ## このリポジトリ
 - 現状ドキュメント中心（要件・設計フェーズ）。実装は **Python・原則標準ライブラリのみ**（Q5/Q5a：フロントマターも自前パーサ）。
-- MVP ターゲットは `docs/dashboard.md`（P1＋P2）と `docs/requirements/12-mvp-scope.md`。
-- 実装設計：データ辞書集約は `docs/design/00-data-dictionary.md`、型安全なドメインモデルは `docs/design/01-class-design.md`（`/domain-model`）。
-- **実装前の凍結セット（8項目）**：索引＝`docs/design/README.md`。基盤＝`docs/design/02-module-architecture.md`。テスト戦略＝`/test-strategy`。
+- **`docs/` 配下は原則「壁打ちメモ＝非正本」**（オーナー方針・2026-06-29）：設計時の参考に閲覧してよいが**そっちありきにしない**。**正本は `doc-system/`（ノードグラフ）＋ `.claude/`（資産・規約）＋本ファイル**。**例外＝`docs/doc-system/`**（config.yaml・templates・記法・接続マトリクス等＝doc-system の機械定義は正本の一部。`config.yaml` の `trace_scope` も `docs/**` を除外済み）。**docs/ プローズと doc-system ノードが食い違う場合は doc-system 側を正**とし、不足は doc-system 側に著作して埋める（docs/ は更新しない・古い記述は無視）。
+- MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）。運用ハブ＝`doc-system/00-dashboard.md`（旧 `docs/dashboard.md`・`docs/requirements/12-mvp-scope.md` は非正本の壁打ち）。
+- 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system/05-design/04-domain-model.md`・`doc-system/03-analysis/05-terms.md`）。`docs/design/00-data-dictionary.md`・`01-class-design.md` は非正本の参考。
+- **実装前の凍結セット**：索引＝`doc-system/05-design/README.md`、基盤＝`doc-system/05-design/01-modules.md`（MOD）。テスト戦略＝`/test-strategy`。`docs/design/*` プローズは非正本の参考。
 - ノード検索/読み込みツール（md2idx 思想）：`docidx/`（`python -m docidx`・標準ライブラリのみ）。フォーマット依存マップ＝`docidx/README.md`。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
 - FND 辺逆転（バックリファレンス）の機械実行ツール：`backref/`（`python -m backref reverse/check`・標準ライブラリのみ・docidx 再利用）。フォーマット依存マップ＝`backref/README.md`。運用は `reconciliation` が `--apply`（issue #48）。
 - **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。
