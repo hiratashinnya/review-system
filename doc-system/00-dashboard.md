@@ -3,8 +3,8 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-06-29 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
-> 直近: **A2 — resolved-flag ドリフト一括是正（FND-111・2026-06-29）**。「本文 resolved／機械 unresolved」だった19件（`resolved: true` 欠落＋forward 辺残置）に A-1 同型の辺逆転を適用し、機械 `resolved: true` を 81→101 件へ整合（FND-99/108 は意図的孤立設計のため不可触）。直前は A-1（FND-101・75件辺逆転・2026-06-28）・FND-110（FND-96〜100 バンプ是正・2026-06-28）。設計層は MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 の計 31 ノード＋TERM-1〜6。次の焦点は **テスト戦略④（凍結セット残）→ 実装**。
+> **最終更新**: 2026-06-30 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> 直近: **設計層 static ノードを上流から作りきり（2026-06-30）**。設計層に欠けていた SCM（スキーマ・10）・CFG（設定・1要素1ノード・14）・PROMPT（著作支援プロンプト・7）の計 **31 ノード**を著作し `05-design/05-static.md` 新設。**PROMPT が N/A という分析は誤りで訂正**＝著作支援（P-7-1）は LLM（`*-author`）でプロンプトを持つ（SPEC-27/FR-13 を実現・PROMPT-6＝reconciliation 書込／PROMPT-7＝reconciliation-validator 検証→SPEC-39）。**PR#55 レビューで「1 LLM エージェント=1 PROMPT」粒度の取りこぼし（validator 欠落）を発見し PROMPT-7 を追補**。設計層 31→62 ノード（＋TERM-1〜6）。次は **テスト戦略④の要否判断 → 実装**。
 
 ---
 
@@ -27,7 +27,7 @@
 |---|---|---|---|---|
 | requirements | VAL / SR / FR / NFR / SPEC | 255 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 213 ノード・うち post-mvp 25）。**FND-102（issue #30・②）で必須辺 44 行を全 dedicated SPEC 化：SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設（+39）**。**FND-103 案②（責務分離）で fnd_lifecycle resolved 系2ルールを全 dedicated 化：SPEC-18-9（must_be_linked_from・辺欠如/error）＋ SPEC-59（must_not_link_to・辺残留/warning・RULE-030 経由）を新設（+2）**。**FND-105 で resolved 判定セマンティクスを dedicated 化：SPEC-60 傘＋SPEC-60-1/60-2 を FR-7 配下に新設、さらに型検証スコープ外を撤回し SPEC-60-3（resolved 非 boolean→RULE-031 ERROR）を追加（+4・60 傘/60-1/60-2/60-3）** |
 | analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
-| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 31 | 🔄 進行中 | N2 着手（2026-06-16）。MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 著作済み。FND-96（DM→MOD→D 正規化）resolved（2026-06-20）：DM-1〜4 / TERM-1〜4 新設・config.yaml 修正・MOD-1 v0.2。**FND-100（PR #32・DM↔MOD↔D 被覆対称化）resolved（2026-06-21）：DM-5（CoverageReport）/ DM-6（InspectionViews）/ TERM-5/6 新設・DM-3 v0.2・MOD-1 v0.3**。テスト戦略 ④ 未着手 |
+| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 62 | 🔄 ほぼ完成 | MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 / TERM-1〜6 著作済み。**2026-06-30 静的設計ノードを上流から作りきり（`05-static.md`・+31）**：SCM-1〜3 系（スキーマ・10。ノードフォーマット/ config.yaml/ 出力。階層 -N）／CFG-1＋1-1〜1-13（config.yaml の13要素を1要素1ノード・14）／PROMPT-1〜7（著作支援プロンプト＝`*-author`×5→SPEC-27・reconciliation＋reconciliation-validator→SPEC-39）。**③PROMPT「不要・LLMなし」の旧判断を撤回**（著作支援は LLM）。**PR#55 レビューで PROMPT-7（validator）を追補**＝1 LLM エージェント=1 PROMPT 粒度に整合。残り：テスト戦略④の要否判断・D ロギング |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
 | 横断スパイン | DD / Q / PEND | 28 | 🔄（一部未決） | DD-1〜21（DD-16: FND 専用ライフサイクル／DD-17: RULE-030 新設・案B・FND-104／DD-18: RULE-031 新設・案B・FND-105 型検証／DD-19: 検証トリガ統一・案A・FND-106／DD-20: O-1/O-2 生成元辺を P-4-3 へ精緻化・案A・Q-3 昇格／DD-21: resolved-FND 辺逆転/backref は z バンプ・案A・Q-5 昇格・D 却下）・Q-1/Q-3/Q-4/Q-5 closed・**Q-2 open**・PEND-1 resolved・**PEND-2 deferred**。未決ノード（Q-2 open・PEND-2 deferred）が残るため ✅ ではなく 🔄 とする（FND-79 索引・表記精度スコープで是正） |
@@ -46,7 +46,7 @@
 | N11 | 03-spec.md 残課題 FND-79/81/82/83/88/89/91（INFO 7件）の実施スプリント決定 | 🔵 低 | 全 INFO・`scheduled` 未設定。オーナー判断待ち（独断繰り越し禁止） |
 
 
-> **完了済み（経緯は DD/FND ノードに保全・PR8）**: **A2（FND-111・resolved-flag ドリフト19件の A-1 同型辺逆転・機械 resolved:true 81→101・2026-06-29）**／**A-1（FND-101・double-edge 75件解消・2026-06-28）／FND-110（FND-96〜100 バンプ是正・DD-21・2026-06-28）**／**N13（FND-107 処置・ノードバージョン x.y→x.y.z 移行・案 A 実施・2026-06-23）**／**N2（設計層着手・MOD-1〜18/PORT-1/DS-1〜3/PRS-1/ORC-1〜2 著作・DD-13 v0.3 改訂/DD-14/DD-15・current_stage→design・2026-06-20）**／**N1（current_stage→analysis・2026-06-15）／N8（O-4/O-5/P-8/P-9 補完・FND-92・2026-06-15）**／N0（VERIFY-2 再点検）／N4（PEND-1 resolved）／N5（VERIFY-3・P 単一責務）／N6（DD-5・NFR→SPEC 導出）／N7（FND-18・SPEC-52/53・RULE-028）／N9・N10（VAL-5/6・SR-8/9 を sprint-2 起票）／DFD 生成（03-analysis/00-dfd.md）／**分析層全面見直し（DD-12・FND-93/94・I-1-x 退役・DFD 再生成・2026-06-16）**／PR #21・#22 レビュー（FND-24〜39）。
+> **完了済み（経緯は DD/FND ノードに保全・PR8）**: **設計層 static 作りきり（SCM10・CFG14・PROMPT7＝計31・`05-static.md`・PROMPT N/A 撤回・PR#55 レビューで PROMPT-7 validator 追補・2026-06-30）**／**A2（FND-111・resolved-flag ドリフト19件の A-1 同型辺逆転・機械 resolved:true 81→101・2026-06-29）**／**A-1（FND-101・double-edge 75件解消・2026-06-28）／FND-110（FND-96〜100 バンプ是正・DD-21・2026-06-28）**／**N13（FND-107 処置・ノードバージョン x.y→x.y.z 移行・案 A 実施・2026-06-23）**／**N2（設計層着手・MOD-1〜18/PORT-1/DS-1〜3/PRS-1/ORC-1〜2 著作・DD-13 v0.3 改訂/DD-14/DD-15・current_stage→design・2026-06-20）**／**N1（current_stage→analysis・2026-06-15）／N8（O-4/O-5/P-8/P-9 補完・FND-92・2026-06-15）**／N0（VERIFY-2 再点検）／N4（PEND-1 resolved）／N5（VERIFY-3・P 単一責務）／N6（DD-5・NFR→SPEC 導出）／N7（FND-18・SPEC-52/53・RULE-028）／N9・N10（VAL-5/6・SR-8/9 を sprint-2 起票）／DFD 生成（03-analysis/00-dfd.md）／**分析層全面見直し（DD-12・FND-93/94・I-1-x 退役・DFD 再生成・2026-06-16）**／PR #21・#22 レビュー（FND-24〜39）。
 
 ---
 
