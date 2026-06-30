@@ -1,0 +1,77 @@
+# レートリミット自動再開フック
+
+レートリミット(`StopFailure` / `error_type: rate_limit`)を検知し、**WSL 環境でのみ**
+リセット後に対話セッションを自動再開する仕組み。**クラウド(スマホ版)では無害な no-op**。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `on-rate-limit.sh` | `StopFailure(rate_limit)` フックハンドラ。WSL を積極検知したときだけ watcher を切り離し起動。非WSL は no-op。 |
+| `resume-watcher.sh` | リセット時刻まで待機し、tmux ペインへ継続メッセージ + Enter を送出して再開。**状態認識ガード**(稼働中は注入しない/制限画面が確認できないと注入しない)・多重起動防止つき。 |
+
+## 設計上の前提(公式仕様)
+
+- `StopFailure` は **出力・終了コードが無視される**ため、フック自身は再開/リトライを
+  制御できない。再開は「フックが裏で起動した別プロセス」が担う(二段構え)。
+- フック stdin の JSON にリセット時刻は**含まれない**。`resume-watcher.sh` が tmux ペインの
+  「resets H:MMam/pm」表記から best-effort で抽出し、取れなければ既定待機(15分)にフォールバック。
+- matcher のリスト区切りは **`|`**(`,` はリテラル扱い)。
+
+## 環境ごとの挙動
+
+- **WSL サーバ**: `WSL_DISTRO_NAME` か `/proc/version` の `microsoft|wsl` で検知 → 有効。
+  ただし **claude を tmux 内で起動している場合のみ**注入が動く(`TMUX_PANE` を使用)。
+  tmux 外なら何もせず abort(ログのみ)。
+- **クラウド(スマホ版)**: WSL 検知が外れるため自動的に no-op。常駐プロセスを一切起動しない。
+
+## 再開判定の安全設計(稼働中セッションへの割り込み防止)
+
+注入は同じペインへ `tmux send-keys` で送るため、**再開後に動いている Claude へ二度目を撃つと作業を割り込んで壊す**。これを防ぐため watcher は **状態認識** で動く:
+
+- **大原則**: 「制限画面が確認できる **かつ** 作業中でない」ときだけ注入する。少しでも曖昧(作業中/制限画面が無い)なら**触らずに停止**(fail-safe)。
+- **稼働中ガード**: ペイン末尾(入力欄フッタ付近)に中断ヒント(`esc to interrupt` 等)が見えたら「もう再開して動いている」とみなし**注入しない**。
+- **制限画面ガード**: 末尾にレート制限バナーが確認できないときは(解消済み/再開済みの可能性)**注入しない**。
+- **誤爆対策**: 判定はスクロールバック全体でなく**末尾8行のみ**を見る。これにより、再開後の Claude が "rate limit" 等の語を含むファイルを編集・表示しても誤って再注入しない。
+- **既定は単発**(`MAX_ATTEMPTS=1`): リセット時刻に1回だけ注入して終了。**再注入は「まだ制限画面のまま」を再確認したときだけ**(`MAX_ATTEMPTS>1` 設定時の早撃ち救済用)。
+- 成功(作業中になった/制限バナーが消えた)を確認したら `exit 0` で停止。watcher はデーモンではなく使い捨てプロセス。
+
+## 利用方法(WSL)
+
+1. tmux 内で Claude Code を起動する: `tmux new -s cc 'claude'` など。
+2. レートリミットに当たると `on-rate-limit.sh` が発火し、watcher が起動。
+3. リセット時刻 + マージン後、**制限画面かつ非稼働中**を確認してから継続メッセージを送りセッションが再開する。
+
+## 調整(環境変数)
+
+| 変数 | 既定 | 説明 |
+|---|---|---|
+| `CLAUDE_RL_CONTINUE_MSG` | `続けて` | 送出する継続メッセージ |
+| `CLAUDE_RL_DEFAULT_WAIT` | `900` | リセット時刻不明時の待機秒 |
+| `CLAUDE_RL_MARGIN` | `30` | リセット時刻に足すマージン秒 |
+| `CLAUDE_RL_MAX_ATTEMPTS` | `1` | 注入試行上限(既定1=単発。`>1` で「まだ制限画面のまま」のときだけ早撃ち救済リトライ) |
+| `CLAUDE_RL_RETRY_BACKOFF` | `300` | 再注入バックオフ基本間隔秒(`MAX_ATTEMPTS>1` 時) |
+| `CLAUDE_RL_VERIFY_WAIT` | `20` | 注入後に状態を再確認するまでの待機秒 |
+
+## ログ
+
+`~/.claude/rate-limit-recovery/hook.log` と `watcher.log`。
+実発火時の生 stdin は `~/.claude/rate-limit-recovery/last-payload.json` に保存される(ペイロード形の確認用)。
+
+## 実機検証で判明したこと(2026-06-30)
+
+- **`StopFailure` フックは実レートリミットで発火した**(hook.log に `fired ... session='…'` を確認)。
+  matcher は error type で発火を絞るため、発火した時点でその停止は rate_limit と分類されている。
+- **ところが stdin の `error_type` が空(`''`)で届いた**(`session_id` は取れるのに `error_type` だけ空)。
+  旧 `on-rate-limit.sh` は保険として `error_type != rate_limit` を再チェックしており、
+  **空ゆえに skip → watcher を一度も起動しなかった**(＝自動再開が効かなかった真因)。
+- **修正**: 発火の絞り込みは matcher に委ね、スクリプトは `error_type` を必須にしない
+  (空/不明なら matcher を信頼して継続。明示的に rate_limit 以外のときだけ skip)。
+  併せて生 stdin を `last-payload.json` に保存し、次回実発火で正しいフィールド名へ厳密化できるようにした。
+
+## 残検証(実機 WSL)
+
+- `last-payload.json` を見て StopFailure の実フィールド名(`error_type` か別名か)を確定する。
+- サブスクの「5時間枠上限」が `rate_limit` 以外の error type(`overloaded`/`unknown` 等)で来る場合、
+  matcher を `rate_limit|...` のように広げる必要があるか確認する。
+- tmux ペインのリセット時刻表記が想定フォーマットか(`resets 3:45pm` 等)。

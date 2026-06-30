@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "StopFailure": [
+      {
+        "matcher": "rate_limit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/on-rate-limit.sh",
+            "timeout": 15,
+            "statusMessage": "rate limit検知: 自動再開ウォッチャを起動中(WSLのみ)"
+          }
+        ]
+      }
+    ]
+  }
+}
