@@ -56,9 +56,22 @@
 ## ログ
 
 `~/.claude/rate-limit-recovery/hook.log` と `watcher.log`。
+実発火時の生 stdin は `~/.claude/rate-limit-recovery/last-payload.json` に保存される(ペイロード形の確認用)。
 
-## 要検証(実機 WSL)
+## 実機検証で判明したこと(2026-06-30)
 
-- `StopFailure(rate_limit)` がサブスクの「セッション上限(5時間枠)」でも発火するか
-  (API 429 系のみの可能性)。1回踏ませて `hook.log` を確認すること。
+- **`StopFailure` フックは実レートリミットで発火した**(hook.log に `fired ... session='…'` を確認)。
+  matcher は error type で発火を絞るため、発火した時点でその停止は rate_limit と分類されている。
+- **ところが stdin の `error_type` が空(`''`)で届いた**(`session_id` は取れるのに `error_type` だけ空)。
+  旧 `on-rate-limit.sh` は保険として `error_type != rate_limit` を再チェックしており、
+  **空ゆえに skip → watcher を一度も起動しなかった**(＝自動再開が効かなかった真因)。
+- **修正**: 発火の絞り込みは matcher に委ね、スクリプトは `error_type` を必須にしない
+  (空/不明なら matcher を信頼して継続。明示的に rate_limit 以外のときだけ skip)。
+  併せて生 stdin を `last-payload.json` に保存し、次回実発火で正しいフィールド名へ厳密化できるようにした。
+
+## 残検証(実機 WSL)
+
+- `last-payload.json` を見て StopFailure の実フィールド名(`error_type` か別名か)を確定する。
+- サブスクの「5時間枠上限」が `rate_limit` 以外の error type(`overloaded`/`unknown` 等)で来る場合、
+  matcher を `rate_limit|...` のように広げる必要があるか確認する。
 - tmux ペインのリセット時刻表記が想定フォーマットか(`resets 3:45pm` 等)。
