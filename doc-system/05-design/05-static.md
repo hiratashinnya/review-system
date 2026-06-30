@@ -307,7 +307,6 @@ edges:
 ```
 </details>
 
-# CFG
 ドキュメントシステム検証ツールが読み込むグローバル設定の単一インスタンス。SCM-2 スキーマに準拠し、ルール発火・抑制・ステージ判定・接続検査・ライフサイクルの全パラメータをここに集約する。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: トップレベル13要素を配下の子 CFG に分解。`current_phase`（CFG-1-1）・`current_stage`（CFG-1-2）・`phases`（CFG-1-3）・`stages`（CFG-1-4）・`must_link_to`（CFG-1-5）・`must_be_linked_from`（CFG-1-6）・`fnd_lifecycle`（CFG-1-7）・`decision_spine`（CFG-1-8）・`rule_activation`（CFG-1-9）・`condition_vocab`（CFG-1-10）・`coverage_rules`（CFG-1-11）・`always_error`（CFG-1-12）・`trace_scope`（CFG-1-13）。
@@ -332,7 +331,6 @@ edges:
 ```
 </details>
 
-# CFG
 現在進行中のスプリント（フェーズ）を示す単一の文字列値。検証ツールがノードの `scheduled` 値と突き合わせ、当該フェーズで有効・繰り越しのいずれかを判定する基準となる。値は `phases`（CFG-1-3）の要素のいずれかでなければならない。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `current_phase: "sprint-1"`（現在値）。スプリント進行に応じてオーナー判断で更新する。
@@ -357,7 +355,6 @@ edges:
 ```
 </details>
 
-# CFG
 現在のステージ（requirements / analysis / design / implementation / verification のいずれか）を示す単一の文字列値。各接続ルール・属性検査ルールの `activate_stage` と比較され、current_stage がその段階以上に達して初めて当該ルールが発火する（段階ゲートの基準点）。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `current_stage: "design"`（現在値）。`stages`（CFG-1-4）の要素のいずれか。
@@ -382,7 +379,6 @@ edges:
 ```
 </details>
 
-# CFG
 プロジェクトで定義されるスプリント（フェーズ）の一覧。`current_phase`（CFG-1-1）およびノードの `scheduled` 値が取りうる有効な語彙を画定する。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `phases: [sprint-1, sprint-2, sprint-3]`。
@@ -407,7 +403,6 @@ edges:
 ```
 </details>
 
-# CFG
 開発ライフサイクルのステージを定義順に並べた一覧。`current_stage`（CFG-1-2）と各ルールの `activate_stage` が取りうる語彙、およびその順序（段階ゲートの大小比較の基準）を画定する。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `stages: [requirements, analysis, design, implementation, verification]`（記載順がそのまま段階順序）。
@@ -432,7 +427,6 @@ edges:
 ```
 </details>
 
-# CFG
 各ノード型に課す必須の依存辺（node → target）ルール群の実インスタンス。requirements 骨格から verification までの全段階を、`node`・`target`・`activate_stage`・`severity`・`reason` の5項目で列挙する。同一 node の複数行は AND（各行が独立検査）、target が配列なら OR（いずれか1本以上）として評価される。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `must_link_to:` 配下のルール行群。例＝`{ node: CFG, target: SCM, activate_stage: design, severity: error }`・`{ node: SPEC, target: [FR, NFR, SPEC], ... }`（OR）。
@@ -457,7 +451,6 @@ edges:
 ```
 </details>
 
-# CFG
 各ノード型に課す必須の被依存辺（node ← source 群）ルール群の実インスタンス。あるノードが下流から参照されていること（孤立・終端の穴の検出）を `node`・`source`・`activate_stage`・`severity`・`reason` で列挙する。同一 node の複数行は AND、source が配列なら OR（いずれか1本以上から辺を受ければよい）。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `must_be_linked_from:` 配下のルール行群。例＝`{ node: VAL, source: [SR], ... }`・`{ node: SPEC, source: [TD], activate_stage: verification, severity: warning }`。
@@ -482,7 +475,6 @@ edges:
 ```
 </details>
 
-# CFG
 FND ノードの状態（未解消／resolved）に応じて必須辺の向きを逆転させるライフサイクルルールの実インスタンス。`resolved_field` で機械判定フィールド名を指定し、未解消時は forward 辺（FND → 対象）を必須、resolved 時は backward 辺（対象 → FND）を必須かつ forward 辺の不在を期待する。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `fnd_lifecycle:` 配下。`resolved_field: resolved`・`unresolved.must_link_to`（target: any・severity error）・`resolved.must_be_linked_from`（source: any・error）・`resolved.must_not_link_to`（target: any・warning）。
@@ -507,7 +499,6 @@ edges:
 ```
 </details>
 
-# CFG
 DD / Q / PEND の決定スパイン義務辺ルールの実インスタンス。これらのノードから対象への辺が存在する＝反映未完了を意味し、反映後に辺を削除して逆向き（X → DD）に張り替える運用を機械検査する。義務辺にも ref_version が必須。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `decision_spine:` 配下。`{ node: DD, rule: RULE-001, severity: error }`・`{ node: Q, rule: RULE-002, severity: warning }`・`{ node: PEND, rule: RULE-022, severity: warning }`。
@@ -532,7 +523,6 @@ edges:
 ```
 </details>
 
-# CFG
 属性検査ルール（接続辺以外の RULE）ごとに、発火を開始するステージを定義する写像。current_stage が指定ステージ未満の間は当該ルールを発火させない（段階ゲート）。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `rule_activation:` 配下。`RULE-016/017/018: requirements`（condition 属性・FR カバレッジ系）・`RULE-019/020/021: verification`（TD↔SPEC 不一致・TR result/log_ref 欠落）。
@@ -557,7 +547,6 @@ edges:
 ```
 </details>
 
-# CFG
 SPEC・TD の `condition` 属性が取りうる語彙（等価分割クラス）の許容集合。RULE-016 がこの語彙外の値を違反として検出する。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `condition_vocab: [normal, boundary, empty, failure, error]`。normal＝ハッピーパス、boundary＝境界値、empty＝空集合/null（boundary と独立）、failure＝仕様違反を正しく検出する sad-path、error＝ツール自身が処理不能な異常入力（fail-close 対象）。
@@ -582,7 +571,6 @@ edges:
 ```
 </details>
 
-# CFG
 ノード型ごとに、その配下 SPEC が満たすべき condition の必須・推奨集合を定義するカバレッジ要件の実インスタンス。RULE-017（required 欠落＝WARNING）・RULE-018（recommended 欠落＝WARNING）の判定基準となる。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `coverage_rules:` 配下。`FR.required_conditions: [normal]`・`FR.recommended_conditions: [failure, error]`。
@@ -607,7 +595,6 @@ edges:
 ```
 </details>
 
-# CFG
 いかなる抑制機構（scheduled / suppress / activate_stage）によっても抑制できない RULE の一覧。グラフ整合性の根幹に関わるため常に error として発火させる fail-close 指定。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `always_error: [RULE-005, RULE-007]`。RULE-005＝完全孤立（in/out 辺が0本）、RULE-007＝存在しない ID 参照。
@@ -632,7 +619,6 @@ edges:
 ```
 </details>
 
-# CFG
 検証ツールがトレース（ノード抽出・整合検査）の対象とするファイル集合を、include / exclude の glob パターンで画定する実インスタンス。exclude されたファイルは out-of-graph 扱いとなりノードを持たない。
 **ファイルパス**: `docs/doc-system/config.yaml`
 **主要項目**: `trace_scope:` 配下。`include: ["doc-system/**/*.md"]`・`exclude: ["docs/**", "**/README.md", "**/00-dashboard.md", "**/00-dfd.md"]`（ダッシュボードと DFD 図はノード非対象）。
@@ -657,7 +643,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 要求層ノード（VAL / SR / FR / NFR）の著作支援プロンプト。外部ファイル参照なしに type 値・id PREFIX・必須辺方向・本文4項目・RULE チェックリストを内包する（SPEC-27 の実体＝`.claude/agents/requirements-author.md`）。
 **バージョン**: 1.0
 **目的**: 指定された親ノード配下の VAL/SR/FR/NFR を、type 値（VAL|SR|FR|NFR・自由記述不可）・id PREFIX（`VAL-`/`SR-`/`FR-`/`NFR-`・既存最大+1）・必須依存辺方向（SR→VAL・FR→SR・NFR→SR の無名依存辺）・本文4項目フォーマット・RULE チェックリスト（RULE-005/006/017/018）を**プロンプト内に閉じて**提供し、外部参照なしに著作させる（SPEC-27-1〜5）。
@@ -683,7 +668,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 SPEC ノードの著作支援プロンプト。外部ファイル参照なしに type 値・id 枝番パターン・必須辺方向・本文3項目・分割／RULE チェックリストを内包する（SPEC-27 の実体＝`.claude/agents/spec-author.md`）。
 **バージョン**: 1.0
 **目的**: 指定された親 SPEC または FR 配下の子 SPEC を、type 値（SPEC・自由記述不可）・id 枝番（`親ID-N`・数字のみ・`-a/-b` 禁止）・必須依存辺方向（子→親 SPEC の無名依存辺・FR を直接参照しない）・本文3項目（前提条件／入力・トリガ／期待動作）・分割基準（1 SPEC=1 検証アサーション。複数 RULE・複数期待結果・複数トリガなら分割）・RULE チェックリスト（RULE-007/016/019）を**プロンプト内に閉じて**提供する（SPEC-27-1〜5）。
@@ -709,7 +693,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 分析層ノード（ACTOR / I / O / D / P / E）の著作支援プロンプト。外部ファイル参照なしに type 値・id PREFIX・必須辺方向・本文フォーマット・RULE チェックリストを内包する（SPEC-27 の実体＝`.claude/agents/analysis-author.md`）。
 **バージョン**: 1.0
 **目的**: 指定された親ノード配下の ACTOR/I/O/D/P/E を、type 値（自由記述不可）・id PREFIX（`ACTOR-`/`I-`/`O-`/`D-`/`P-`/`E-`・退役 ID 再利用禁止）・必須依存辺方向（依存方向に統一・DD-017＝ACTOR→SR・I→SPEC・O→SPEC/P/ACTOR・D→SPEC/P・P→SPEC（・I/D/E 該当時）・E→SPEC/ACTOR）・各型本文フォーマット（E は5要素必須）・RULE チェックリスト（RULE-005/006）を**プロンプト内に閉じて**提供する（SPEC-27-1〜5）。
@@ -735,7 +718,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 設計層ノード（ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM）の著作支援プロンプト。外部ファイル参照なしに type 値・id PREFIX・必須辺方向・本文フォーマット・RULE チェックリストを内包する（SPEC-27 の実体＝`.claude/agents/design-author.md`）。
 **バージョン**: 1.0
 **目的**: 指定された親ノード配下の設計層10型を、type 値（自由記述不可）・id PREFIX（`MOD-`/`PORT-`/`PRS-`/`DS-`/`ORC-`/`DM-`/`TERM-`/`SCM-`/`CFG-`/`PROMPT-`）・必須依存辺方向（MOD→P|D・PORT→MOD・PRS→DS・DS→P・ORC→E・DM→TERM/MOD・TERM→SPEC・SCM→SPEC・CFG→SCM/SPEC・PROMPT→SPEC）・各型本文フォーマット・RULE チェックリスト（RULE-006/007）を**プロンプト内に閉じて**提供する（SPEC-27-1〜5）。
@@ -761,7 +743,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 検証層・意思決定ノード（TD / TC / TR / VERIFY / FND / DD / Q / PEND）の著作支援プロンプト。外部ファイル参照なしに type 値・id PREFIX・必須辺方向・追加属性・本文フォーマット・RULE チェックリストを内包する（SPEC-27 の実体＝`.claude/agents/verification-author.md`）。
 **バージョン**: 1.0
 **目的**: 指定された親ノード配下の検証・意思決定ノードを、type 値（自由記述不可）・id PREFIX（`TD-`/`TC-`/`TR-`/`VERIFY-`/`FND-`/`DD-`/`Q-`/`PEND-`）・必須依存辺方向（TD→SPEC・TC→TD・TR→TC・VERIFY→any・FND は状態で逆転・DD/Q/PEND→影響要素の義務辺）・追加属性（TD の condition＝SPEC と一致／TR の result・log_ref／FND の resolved）・RULE チェックリスト（RULE-016/019/020/021/001/002/022 とライフサイクル）を**プロンプト内に閉じて**提供する（SPEC-27-1〜5）。
@@ -787,7 +768,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 著作出力（tmp ノード草案）に対する**調停プロンプト**。草案スキーマの検証機能（P-7-2-1）に加え、検証合格後に草案を本ファイルへ転記する調停機能（P-7-2-2 本ファイル転記）を併せ持つため PROMPT 化する（オーナー指示）。SPEC-39 の実体＝`.claude/agents/reconciliation.md`。
 **バージョン**: 1.0
 **目的**: (1) 検証＝reconciliation-validator が返した VALIDATION_OK ブロック（validated・self_fix）を前提に、id 欠如・ref_version 不一致・残存 kind/status・to のリスト記法・resolved FND の元 forward 辺残存等の確定修正を tmp 上で適用する（検証ロジックは再実装せず validator 判定を信頼＝P-7-2-1）。(2) 調停＝self_fix 適用後の草案を `doc-system/` または `docs/` 配下の本ファイルへ Write/Edit で確定転記し、全書込完了後に tmp を掃除する（P-7-2-2 本ファイル転記）。id 欠如等の構造違反検出時は転記を中断し主文脈へ差し戻す（SPEC-39 系列・fail-close）。
@@ -813,7 +793,6 @@ edges:
 ```
 </details>
 
-# PROMPT
 著作出力（tmp ノード草案）に対する**read-only 構造検証プロンプト**。草案スキーマ検証（P-7-2-1）を実装する LLM エージェント reconciliation-validator のシステムプロンプトで、合格なら `VALIDATION_OK`（自己修正可フラグ `self_fix` 付き）、不合格なら `ROLLBACK` を返す。書込ツールを構造的に持たないことで検証段の fail-close を保証する（DD-22）。SPEC-39 の検証挙動（id 欠如検出→エラー報告→転記中断）の検証フェーズ（P-7-2-1）を担い、書込専任の reconciliation（PROMPT-6・P-7-2-2）と責務分離する。SPEC-39 の検証側実体＝`.claude/agents/reconciliation-validator.md`。
 **バージョン**: 1.0
 **目的**: tmp 草案を **read-only で構造検証**し判定を返す。(1) 合成グラフ構築＝本ファイルを丸読みせず tmp 参照 ID とその周辺ノードだけを docidx CLI で surgical read して合成する。(2) 整合性検証＝edges.to 実在（RULE-007 always_error）・id 一意・階層 ID `X-N` の親存在（RULE-008）・子→親依存辺・辺の無名性（kind/status なし・to 単数）・ref_version の参照先バッジ x.y 一致（RULE-004）・型別属性（SPEC の condition/単一アサーション・TD の condition 一致・TR の result/log_ref）・resolved FND の辺逆転（backref 付与・元 forward 辺削除）を全件チェックする。(3) 判定生成＝内容問題（存在しない ID 参照・SPEC 分割粒度違反・FND backref 未付与等）は `ROLLBACK`、自己修正可の不整合は確定修正指示として `self_fix` に列挙した `VALIDATION_OK` を返す。**ファイルは一切書かない**（書込は reconciliation の専権）。
