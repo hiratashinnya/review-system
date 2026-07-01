@@ -799,3 +799,341 @@ edges:
 **入力変数**: `sprint`（current_phase）／`parent_ids`（今回の著作対象の親ノード ID リスト）／`layer`（requirements / spec / analysis / design / verification。確認対象の読込範囲を絞る）。sprint 未指定なら config.yaml の current_phase を取得。
 **出力形式**: 判定ブロックの返却のみ（ファイル書込なし）。合格＝`VALIDATION_OK`（layer・sprint・validated・self_fix。self_fix は target・field・action の確定修正指示）。不合格＝`ROLLBACK`（parent_id・agent・errors）。Bash は `python3 -m docidx`（ノード検索/読み込み）専用。
 **注意事項**: ファイルは一切書かない（tmp も本ファイルも）＝バグや誤判定でも構造的に本ファイルへ書けない fail-close（DD-22）。自己修正を自分で適用せず、参照先から読み取った確定値を `self_fix` に指示として載せ writer に渡す（曖昧指示禁止）。読込は surgical read を徹底し本ファイル丸読みは docidx で解決できない構造確認に限る。RULE-007 は always_error（抑制不可）→ROLLBACK。検証ロジックは reconciliation 側と二重実装せず本プロンプト（validator）に集約する。矛盾・判断必須は ROLLBACK で打ち上げ勝手に解消しない（PR7・原案/理由を errors に添える＝意見なき停止禁止）。
+
+---
+
+## PROMPT-8: align 認識合わせスキルプロンプト（着手前の段取り）
+
+<details><summary>⬡ PROMPT-8 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-8
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `align`（着手前の認識合わせ）を在グラフ化した skill 軸 PROMPT ノード。重い作業の前にゴール・手順・粒度・前提・停止条件を握るための LLM 手順プロンプト。実体＝`.claude/skills/align/SKILL.md`。決定元＝DD-22（skill を PROMPT 型流用で在グラフモデル化・SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 依頼を分解して**作業手順を提案**（成果物と粒度を明示）し、結果を変える**不明点・選択肢を質問**（AskUserQuestion）、**確定パラメータ**（スコープ・進め方・停止条件＝矛盾は打ち上げ）を宣言してから着手させる（PR10 認識合わせ先行・PR7 矛盾は停止）。
+**入力変数**: ユーザーの作業依頼（分解対象）／関連する既存資料（過信しない前提で点検も兼ねる）。
+**出力形式**: 作業手順の提案＋不明点への質問（AskUserQuestion）＋確定パラメータ宣言。done＝手順・スコープ・停止条件が明文化・合意され、既存資料を過信しない前提を共有した状態。
+**注意事項**: 重い作業ほど先に握る。変えないものは既定で進めると宣言。矛盾・情報不足は勝手に解決せず打ち上げる（PR7・意見なき停止禁止）。carrier=skill（slash command `/align`。将来 orchestrator agent 化時は carrier=agent＋版更新で表す・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点＝x.y "0.1"・DD-3）。
+
+---
+
+## PROMPT-9: value-trace 価値経路トレースskillプロンプト（イベント総点検）
+
+<details><summary>⬡ PROMPT-9 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-9
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `value-trace`（価値経路トレース・イベント総点検）を在グラフ化した skill 軸 PROMPT ノード。各イベントが入力→内部プロセス→出力まで遮断なく届くかを三つ組で1ホップずつ追う点検プロンプト。実体＝`.claude/skills/value-trace/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: イベントリストの各イベントの入力・出力を先に書き出し、`|情報の発生源|情報|情報の受け手|` の三つ組表で1ホップずつ記述して、価値経路の連続性（PR6）とレベリング（PR9）を総点検させる（PR1 ラップ境界も判定）。
+**入力変数**: イベントリスト（対象イベント群）／各イベントの入力・出力／DFD の階層構造（L1/リーフ）。
+**出力形式**: イベント毎に「入力/出力サマリ → 三つ組表（段階で見出し分割可）→ ✅ 連続性の結論」、最後に総点検の結論（貫通/遮断/削除/post-MVP）。
+**注意事項**: レベリング厳守＝外部エンティティ/データストアは L1 プロセスの境界にしか繋がない（`外部→leaf` 直結禁止・PR9）。外部システム/LLM 生成物は入力として入り加工後に出力へ出る（PR1）。遮断（穴）は設計の欠陥として明示（PR6）、削除済/post-MVP は印で区別。carrier=skill（slash command `/value-trace`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-10: mvp-scope 価値ベースMVPスコープskillプロンプト
+
+<details><summary>⬡ PROMPT-10 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-10
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `mvp-scope`（価値ベース MVP スコープ）を在グラフ化した skill 軸 PROMPT ノード。機能を価値で並べ、前提と不可分グループを明示して着手順と MVP ラインを決めるプロンプト。実体＝`.claude/skills/mvp-scope/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 機能を列挙し各々に価値（誰に何を）・前提（先行物）・不可分グループを付し、依存 DAG を描いて価値で着手順を提案し、内側だけで価値が出ることを確認して MVP ラインを引かせる（PR8 フル論理＋MVP印）。
+**入力変数**: 列挙済みの機能一覧／各機能の価値・前提・不可分グループ／依存関係。
+**出力形式**: `ID | 機能 | 価値 | 前提 | 不可分 | 段階` の表 ＋ 依存 Mermaid ＋ 着手順 ＋ MVP ライン ＋ 後回しの根拠。
+**注意事項**: 不可分グループは丸ごと1単位（途中までは価値ゼロ）。価値未接続の機能は MVP 外に印で残す（消さない＝PR8）。リスクと安全機構はセット（自動適用と取り消しは不可分）。carrier=skill（slash command `/mvp-scope`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-11: schema-design スキーマ設計skillプロンプト（読み手から決める）
+
+<details><summary>⬡ PROMPT-11 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-11
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `schema-design`（構造化ファイルのスキーマ設計）を在グラフ化した skill 軸 PROMPT ノード。基準/設定ファイルのスキーマを読み手起点で決めるプロンプト。実体＝`.claude/skills/schema-design/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 読み手（人／プログラム／LLM）を列挙し、フロントマター（機械可読・ルーティング）＋本文（人＆LLM 共用）の二層構成で、属性を2軸（機械判定＝自動ゲート／事実性・妥当性＝人が確認）に振り分け、サンプルで曖昧さを潰して構造化ファイルのスキーマを設計させる（PR2 機械判定と運用を混ぜない）。
+**入力変数**: 対象の設定/基準ファイルの用途／読み手の一覧と各々の欲しい形／継承・上書きの要否。
+**出力形式**: 二層構成スキーマ（フロントマター属性＋本文構造）＋2軸の属性振り分け表＋境界条件を潰すサンプル（多段継承・ロック・本文差し替え）。
+**注意事項**: 機械判定と運用ルールを混ぜない（運用は機構＋デフォルトに留める・PR2）。継承/上書きは「具体が勝つ」機構＋権威は別レイヤ（方向ゲート）。対応モード等の写像は別ファイル（責務分離）。carrier=skill（slash command `/schema-design`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-12: domain-model ドメインモデル設計skillプロンプト（データ辞書→型安全なクラス）
+
+<details><summary>⬡ PROMPT-12 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-12
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `domain-model`（データ辞書 → 型安全なクラス）を在グラフ化した skill 軸 PROMPT ノード。確定済みデータディクショナリ／I/O 台帳を入力に、内部ドメイン型（Python dataclass 中心）へ写像するプロンプト。実体＝`.claude/skills/domain-model/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 閉じた語彙（`|`）は Enum・複合（`{…}`）は値オブジェクトとして棚卸しし、基本型/レコード代用タプルを値オブジェクトへ、失敗は `Result` 型で表し、導出物は frozen dataclass に、生成方法（コンストラクタ／ファクトリ／ビルダー）を根拠付きで選び、自己説明的命名で型安全な内部ドメインモデルを設計させる（PR1 もので分ける・PR5 導出は無状態）。
+**入力変数**: 確定済みデータディクショナリ／I/O 台帳（DD 確定の後に使う・上流＝structured-analysis）。
+**出力形式**: ドメイン型定義（Enum／値オブジェクト／frozen dataclass）＋生成方法の判断＋データ辞書 → クラス／型 → 生成方法の対応表。
+**注意事項**: 外部ファイル形式は schema-design、データ辞書生成は structured-analysis（本スキルは下流の内部型設計のみ）。生文字列比較を残さない・導出物は全て frozen・不変条件は型で保証。`manager`/`helper`/`util` 等の無情報語を禁止。carrier=skill（slash command `/domain-model`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-13: architecture-design アーキテクチャ設計skillプロンプト（論理DFD→物理モジュール/依存・IF・プロトコル・永続）
+
+<details><summary>⬡ PROMPT-13 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-13
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `architecture-design`（論理 DFD → 物理モジュール/依存・IF・プロトコル・永続）を在グラフ化した skill 軸 PROMPT ノード。確定した論理 DFD＋ドメイン型を ports & adapters の物理境界へ写すプロンプト。実体＝`.claude/skills/architecture-design/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 依存規則（`domain ← core(ports) ← adapters/persistence/io`・内向きのみ・合成ルート1つ）を固定し、DFD プロセス→モジュール対応、外部アクタ IF（CLI シグネチャ＋終了コード）、プラットフォーム/プロトコル（抽象ポート＋駆動プロトコル＋能力宣言）、永続層（リポジトリ port＋保存形式）を設計させる（PR1 もので分ける・PR2 機構と運用を混ぜない・PR6 価値経路）。
+**入力変数**: 確定した論理 DFD（L1–Ln・structured-analysis 出力）／型安全ドメインモデル（domain-model 出力）／外部ファイル形式が要る場合は schema-design 出力。
+**出力形式**: 依存規則図（mermaid）＋パッケージ構成＋「DFD→モジュール」「状態→所在」対応表／サブコマンド表＋シグネチャ＋I/O 台帳対応／ポート Protocol＋能力宣言／リポジトリ port＋保存形式＋トランザクション手順。
+**注意事項**: 依存は内向きのみ（core が adapters/io を import したら負け）。境界を跨ぐ値はドメイン型のみ・失敗は `Result`（fail-close を型で強制）。外部出力（LLM 等）は必ず系の検証を通す（直行経路を作らない）。`python -m` 起動・`sys.path` ハック禁止。DFD→モジュール粒度は孫プロセス有無＋責務圏で判断。carrier=skill（slash command `/architecture-design`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-14: orchestration-design オーケストレーション設計skillプロンプト（制御フロー・fail-close・ログ/版）
+
+<details><summary>⬡ PROMPT-14 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-14
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `orchestration-design`（制御フロー・fail-close・ログ/版）を在グラフ化した skill 軸 PROMPT ノード。モジュール構成を端から端の実行（スイムレーンフローチャート）として固めるプロンプト。実体＝`.claude/skills/orchestration-design/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: レーン（外部アクタ＋層）を決め、各段が `Result` を返す直列を並べ、実行順序の不変条件（検証→…→副作用）を型で強制し、良性 no-op と異常を分け、ログのチャネル分離と版スタンプ（`MAJOR.MINOR`）を設計させる。失敗は下流を走らせず出口へ伝播（fail-close・PR6 価値経路を遮断しない・PR2 機構＝fail-close）。
+**入力変数**: 物理アーキテクチャ（architecture-design のモジュール・ポート・IF）／失敗の型（`Result`/`StageOutcome`・domain-model）／安定化策（fail-close・トランザクション・版スタンプ・要件 S# 一覧）。
+**出力形式**: スイムレーン flowchart（mermaid `subgraph`）＋実行順序の不変条件リスト＋`run_*()` 疑似コード（`match` で成功/失敗を漏れなく分岐）＋ログ3チャネル表＋版スタンプ定義。
+**注意事項**: fail-close は横断経路（全段に効く error 経路）で、失敗も黙って空にせず明示通知。外部（LLM 等）出力は必ず検証段を通す（飛ばす経路を作らない）。制御チャネルを診断で汚さない。版は `MAJOR.MINOR`（MAJOR＝構造/型→対応ロジック改修・MINOR＝内容のみ）。シーケンス図は使わない。carrier=skill（slash command `/orchestration-design`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-15: prompt-design プロンプト設計skillプロンプト（LLMへの問い方を固める）
+
+<details><summary>⬡ PROMPT-15 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-15
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `prompt-design`（LLM システムプロンプトのテンプレート設計）を在グラフ化した skill 軸 PROMPT ノード。系が LLM をラップして価値を出すとき、LLM への問い（システムプロンプト）を再現可能・役割固定・注入耐性に設計するプロンプト。実体＝`.claude/skills/prompt-design/SKILL.md`。決定元＝DD-22（SPEC-61 系）。本ノード群（PROMPT-8〜20）自体もこの skill の適用対象。
+**バージョン**: 1.0
+**目的**: 雛形カタログ（id・用途・入力・出力スキーマを `MAJOR.MINOR` 版付きで台帳化）を作り、役割制約ブロックで LLM の責務を狭く固定（機械判定＝仕分け/適用/順序はやらせない）、ビルダーで役割→基準→対象→参照→出力スキーマを順に積み、注入対策を役割に明記して設計させる（PR1 LLM 生成物は入力・PR2 機械判定と運用を混ぜない）。
+**入力変数**: LLM 呼び出し箇所の一覧（どの判断を委譲するか・要件の境界設計）／出力スキーマの形式（schema-design）／版スタンプ・ログ規約（orchestration-design/test-strategy）。
+**出力形式**: 雛形カタログ表（id・版・用途・入出力）＋役割制約ブロック（やること/やってはいけないこと）＋ビルダーの段（`with_*`）と最終 frozen プロンプト＋版管理表（`MAJOR.MINOR` ↔ 対応ハンドラ）。
+**注意事項**: raw LLM 出力＝入力（系が検証/整形して初めて出力・素通し禁止）。1雛形＝1責務・メタ判断を LLM に渡さない。二重防御＝参照除外/id 検証/スキーマ検証は系が機械実行、プロンプトは一次ガード。出力スキーマの設計は schema-design、版スタンプは test-strategy へ委譲（二重定義しない）。未対応 MAJOR は実行前に弾く。carrier=skill（slash command `/prompt-design`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-16: test-strategy テスト戦略skillプロンプト（review-system テーラリング済）
+
+<details><summary>⬡ PROMPT-16 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-16
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `test-strategy`（review-system テーラリング済・active）を在グラフ化した skill 軸 PROMPT ノード。汎用標準の不変条件を継承し本 PJ のノブを埋めた、実装をどうテストするかを計画するプロンプト。実体＝`.claude/skills/test-strategy/SKILL.md`（由来＝`.claude/standards/test-strategy`・tailoring-registry）。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: doc-system の TD/TC/TR 3層に対応した本 PJ のテスト戦略を適用させる。public 関数ごとの unittest、TD（テスト設計 Markdown）＋TC（Python unittest コード）＋TR（result/log_ref フロントマター付きテスト結果）、テスト前コミット、Claude Code e2e も同じ3点セットで残す（PR8 失敗も残す・隠蔽/上書き禁止）。
+**入力変数**: 実装対象の public 関数群（domain/core/parsing/prompts）／非決定シーム（`adapters/fake.py` の FakePlatformAdapter）／モジュール構成（design/02）／版スタンプ素材（S6）。
+**出力形式**: TD（`tests/designs/<id>.md`・condition 付き）／TC（`tests/unit/`）／TR（`tests/reports/<id>-<commit>.md`・result/log_ref＋ヘッダに TD版/commit/プロンプト雛形版/基準content_hash/実行日時）／ログ（`tests/logs/<id>-<commit>.txt`）。1サイクル手順（コミット→unittest→TR 作成→FAIL 記録→e2e）。
+**注意事項**: 失敗も残す（隠蔽・上書き禁止＋根本原因/対処を併記・PR8）。3点セットの対応を保つ。アダプタ境界＝テスト境界で core を決定化（非決定は LLM のみ＝PlatformPort の裏）。ランナーは `python -m unittest`（標準ライブラリのみ）。carrier=skill（slash command `/test-strategy`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-17: spec-principles 仕様設計・点検の原則skillプロンプト（PR1–PR10）
+
+<details><summary>⬡ PROMPT-17 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-17
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `spec-principles`（仕様設計・点検の横断原則 PR1–PR10）を在グラフ化した skill 軸 PROMPT ノード。仕様策定・構造化分析・点検で迷ったら立ち返る**原則集を提供する参照プロンプト**（他スキル/エージェントが参照する単一ソース。他 skill PROMPT と異なり工程手順でなく判断原則を供給する性格）。実体＝`.claude/skills/spec-principles/SKILL.md`。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 横断原則 PR1–PR10 を単一ソースとして提供し、判断の拠り所を与える。PR1 もので分ける（発生源基準）／PR2 2軸（機械判定と運用を混ぜない）／PR3 系外＝非イベント／PR4 観測できないものは持たない／PR5 状態の要否／PR6 価値経路を遮断しない／PR7 矛盾は停止して打ち上げ（空で止めない・起票→ダッシュボード→推奨添付）／PR8 フル論理＋MVP印／PR9 DFD レベリング／PR10 認識合わせ先行。
+**入力変数**: なし（原則の参照専用。他スキル/エージェントから `../spec-principles/SKILL.md` としてリンク参照される単一ソース）。
+**出力形式**: PR1–PR10 の原則本文（各原則の定義と適用指針）。他スキルはこれを制約へ翻訳して適用する。
+**注意事項**: 原則同士の優先はケース依存だが、矛盾は勝手に解決せず PR7 で停止して打ち上げる（意見なき停止禁止・①ノード起票→②ダッシュボード更新→③推奨添付）。FND 起票時は `edges[].ref_version` を本文に明記（DD-3）。本ノードは手順でなく原則を供給する参照プロンプトで、各 author/pipeline スキルの下敷きになる。carrier=skill（`.claude/skills/spec-principles/`・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-18: spec-pipeline 仕様設計パイプラインskillプロンプト（オーケストレータ）
+
+<details><summary>⬡ PROMPT-18 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-18
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `spec-pipeline`（仕様設計パイプライン）を在グラフ化した skill 軸 PROMPT ノード。要件から MVP スコープまでを順に回す**オーケストレーション手順プロンプト**（工程 skill と異なりメインスレッドで他スキル/サブエージェントを段階起動する性格）。実体＝`.claude/skills/spec-pipeline/SKILL.md`（`disable-model-invocation: true`・明示起動のみ）。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 仕様設計の全工程をメインスレッドで順に回させる（サブエージェントはサブエージェントを呼べないため skill 化）。①`/align`（段取り）→②`/io-event-ledger`（I/O 台帳＋イベントリスト＋カバレッジ）→③spec-inspector（点検・gap/矛盾）→④structured-analysis（DFD→単一責務→状態）→⑤`/value-trace`（イベント総点検）→⑥`/mvp-scope`（価値ベース線引き）。
+**入力変数**: 要件（起点）／各段の前段成果物（台帳・DFD 等）／spec-inspector・structured-analysis サブエージェントの点検/分析結果。
+**出力形式**: 各段のチェックポイント通過を伴う工程進行と成果物（台帳・DFD・価値トレース・MVP スコープ）。各段後に成果物を確認し矛盾が出たら停止。
+**注意事項**: 各段の後に成果物を確認し、矛盾（PR7）が出たら停止して打ち上げる（必要なら spec-inspector を随時挟む）。原則は spec-principles に従う。carrier=skill（slash command `/spec-pipeline`・明示起動のみ。将来 orchestrator agent 化時は carrier=agent＋版更新・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-19: impl-design-pipeline 実装設計パイプラインskillプロンプト（凍結セット化）
+
+<details><summary>⬡ PROMPT-19 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-19
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `impl-design-pipeline`（実装設計パイプライン・spec→実装の橋渡し）を在グラフ化した skill 軸 PROMPT ノード。仕様確定後・実装前に固める凍結セットを順に回す**オーケストレーション手順プロンプト**。実体＝`.claude/skills/impl-design-pipeline/SKILL.md`（`disable-model-invocation: true`・明示起動のみ）。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: 論理 DFD＋ドメインモデル確定後に、実装前の凍結セットをチェックポイント付きで順に固めさせる。①凍結セット索引を立てる→②architecture-design→③orchestration-design→④prompt-design→⑤test-strategy 適用→⑥spec-inspector 総点検（G#）→⑦判断ログ DD# 記録。
+**入力変数**: 確定した structured-analysis（論理 DFD・状態）と domain-model（型）／必要なら schema-design（外部形式）／新規資産があれば asset-auditor 点検結果。
+**出力形式**: 設計索引（凍結セット）＋architecture/orchestration/prompt 各設計＋判断ログ（DD#）＋spec-inspector の G# 反映。同期更新＝method-inventory・asset-plan・CLAUDE.md。
+**注意事項**: 実装設計フェーズは暫定で進めてよい（迷いは推奨案で暫定決定し DD# に記録して前進・空で止めない）。矛盾・オーナー判断必須は原案・比較・推奨を添えて止める。新規資産前に asset-auditor（A14）。各段は前段の確定物に接続（依存順を守る）。carrier=skill（slash command `/impl-design-pipeline`・明示起動のみ・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
+
+---
+
+## PROMPT-20: asset-pipeline 資産化パイプラインskillプロンプト（method→skill/agent）
+
+<details><summary>⬡ PROMPT-20 · v0.1.0</summary>
+
+```yaml
+id: PROMPT-20
+type: PROMPT
+labels: []
+scheduled: ""
+suppress: []
+carrier: skill
+edges:
+  - to: SPEC-61
+    ref_version: "0.1"
+```
+</details>
+
+skill `asset-pipeline`（資産化パイプライン・method → skill/agent/規約）を在グラフ化した skill 軸 PROMPT ノード。確立したメソッドを資産化する手順をメインスレッドで順に回す**オーケストレーション手順プロンプト**。実体＝`.claude/skills/asset-pipeline/SKILL.md`（`disable-model-invocation: true`・明示起動のみ）。決定元＝DD-22（SPEC-61 系）。
+**バージョン**: 1.0
+**目的**: メソッドの資産化をチェックポイント付きで順に回させる（サブエージェントはサブエージェントを呼べないため skill 化）。①棚卸し（対象活動をカード化・ユーザーの指摘/質問/課題提起を重点的に拾う・原則 PR と活動 A を分離）→②asset-auditor で重複/矛盾/競合を点検し新規 vs 既存変更を判断→③提案（振り分け＋汎用化前後の双方提示）→④形式適合確認（ターゲット仕様を一次確認）→⑤フェーズ毎の実体化（最小・最再利用単位から・台帳/プラン/規約を同期更新）→⑥検証（要否と方法・実施はユーザー確認）。
+**入力変数**: 資産化対象の活動/メソッド（method-inventory の A#）／ユーザーの指摘・質問・課題提起／asset-auditor の重複/矛盾/競合点検結果／ターゲット（skill/agent/規約）仕様。
+**出力形式**: カード化した棚卸し／振り分け提案（スキル/エージェント/共有リファレンス/規約・汎用前後）／実体化した資産＋台帳（tailoring-registry・method-inventory・asset-plan）同期更新／検証結果。
+**注意事項**: 原則(PR)と活動(A)を分離。既存資産調査（asset-auditor）を必ず通し新規 vs 既存変更を判断（A14）。憶測で作らず形式適合を一次確認（原則を制約へ翻訳＝subagent は AskUserQuestion 不可→STOP 報告）。矛盾（PR7）は停止して打ち上げ。検証実施はユーザー確認を求める。carrier=skill（slash command `/asset-pipeline`・明示起動のみ・DD-22）。**辺の ref_version**: SPEC-61 "0.1"（02-what/03-spec.md v0.1.0 時点・DD-3）。
