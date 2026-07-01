@@ -73,6 +73,39 @@ class TestCli(unittest.TestCase):
         code, out = self._run(["check", "--id", "FND-100", *self.base])
         self.assertNotIn("open-but-backref-exists", out)
 
+    def test_stray_hr_detects_body_and_ignores_separator(self):
+        # SPEC-62: 本文中の孤立 `---`（次が本文prose）は検出、ノード分離 `---`（次が
+        # `## 見出し`）は検出しない。截断被害ノードの ID を主体に指す。
+        from backref import notation
+        md = "\n".join([
+            "## FND-1: t", "<details><summary>⬡ FND-1 · v0.1.0</summary>", "",
+            "```yaml", "id: FND-1", "type: FND", "edges: []", "```", "",
+            "</details>", "", "**内容**: part1", "",
+            "---", "",                      # ← 本文内 stray（次=bold prose）
+            "**内容続き**: part2", "",
+            "---", "",                      # ← ノード分離（次=## 見出し）＝正常
+            "## FND-2: t2", "<details><summary>⬡ FND-2 · v0.1.0</summary>",
+            "```yaml", "id: FND-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            findings = notation.check_stray_hr(root, [f])
+        strays = [x for x in findings if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)              # 分離 `---` は誤検出しない
+        self.assertEqual(strays[0].fnd_id, "FND-1")   # 截断被害ノードを指す
+        self.assertEqual(strays[0].severity, "warning")
+
+    def test_check_reports_stray_hr(self):
+        # CLI 配線: 既存ノード本文末尾に stray `---`＋prose を注入 → check が検出
+        p = self.root / "doc-system/04-verification/02-findings.md"
+        p.write_text(p.read_text("utf-8") + "\n\n---\n\n**截断される本文**: xx\n", "utf-8")
+        code, out = self._run(["check", *self.base])
+        self.assertIn("stray-hr-in-body", out)
+
 
 if __name__ == "__main__":
     unittest.main()
