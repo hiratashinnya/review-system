@@ -1,6 +1,6 @@
 ---
 description: 'Authors ACTOR, I, O, P, D, and E nodes for the analysis layer. Use when creating context/DFD-layer nodes. NOT for FR/SPEC/NFR (use requirements-author or spec-author), NOT for writing to main files (use reconciliation).'
-model: claude-sonnet-4-6
+model: claude-sonnet-5
 tools:
   - read_file
   - create_file

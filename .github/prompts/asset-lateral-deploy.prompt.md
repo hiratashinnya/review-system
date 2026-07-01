@@ -56,7 +56,7 @@ instructions の量産は禁止（エージェントは agent に、ユーザー
 | `description` | `description`（**必須**・single quote 推奨） |
 | `tools` | `tools`（推奨） |
 | `model: opus` | `model: claude-opus-4-8`（強推奨） |
-| `model: sonnet` | `model: claude-sonnet-4-6` |
+| `model: sonnet` | `model: claude-sonnet-5` |
 | `permissionMode` / `maxTurns` 等 | 落とす |
 
 ---
