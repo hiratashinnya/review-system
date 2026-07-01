@@ -3,8 +3,9 @@
 > doc-system（ドッグフーディング・ノードグラフ）の **進捗・判断待ち・ネクストアクション** の運用ハブ。
 > **状態と優先度の要約**に絞る——明細（FND/SPEC/ノード本体）は各層ファイル、本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-06-30 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
-> 直近: **設計層 static ノードを上流から作りきり（2026-06-30）**。設計層に欠けていた SCM（スキーマ・10）・CFG（設定・1要素1ノード・14）・PROMPT（著作支援プロンプト・7）の計 **31 ノード**を著作し `05-design/05-static.md` 新設。**PROMPT が N/A という分析は誤りで訂正**＝著作支援（P-7-1）は LLM（`*-author`）でプロンプトを持つ（SPEC-27/FR-13 を実現・PROMPT-6＝reconciliation 書込／PROMPT-7＝reconciliation-validator 検証→SPEC-39）。**PR#55 レビューで「1 LLM エージェント=1 PROMPT」粒度の取りこぼし（validator 欠落）を発見し PROMPT-7 を追補**。設計層 31→62 ノード（＋TERM-1〜6）。次は **テスト戦略④の要否判断 → 実装**。
+> **最終更新**: 2026-07-01 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> 直近: **issue #64（backref check 既存 18 ERROR 是正）を処置（2026-07-01）**。うち **8件（Category A）は `backref/check.py` 自体のバグ**（`open-but-backref-exists` 判定がトートロジーで open FND を全件誤検出）と判明し実在の不整合ではなかった（FND-112・check.py 修正＋回帰テスト追加）。誤検出のまま `backref reverse --apply` していればオーナー承認済み sprint-2 の FND-35 を独断で resolved 化する破壊的操作になっていた。残り本物の10件（Category B/C：FND-17/37/38/94/98/100/106/107/111）は DD-3 マーカー追記・付与先なし明記で是正。副次的に FND-94 の本文フォーマット不整合（内部 `---` 誤用によるノード境界パーサの截断）も発見・是正（z バンプ）。`python -m backref check` は 18→0 件。詳細は FND-112。
+> 直近（設計層）: **設計層 static ノードを上流から作りきり（2026-06-30）**。設計層に欠けていた SCM（スキーマ・10）・CFG（設定・1要素1ノード・14）・PROMPT（著作支援プロンプト・7）の計 **31 ノード**を著作し `05-design/05-static.md` 新設。**PROMPT が N/A という分析は誤りで訂正**＝著作支援（P-7-1）は LLM（`*-author`）でプロンプトを持つ（SPEC-27/FR-13 を実現・PROMPT-6＝reconciliation 書込／PROMPT-7＝reconciliation-validator 検証→SPEC-39）。**PR#55 レビューで「1 LLM エージェント=1 PROMPT」粒度の取りこぼし（validator 欠落）を発見し PROMPT-7 を追補**。設計層 31→62 ノード（＋TERM-1〜6）。次は **テスト戦略④の要否判断 → 実装**。
 
 ---
 
@@ -12,6 +13,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #64 — `backref check` 既存18 ERROR 是正 | FND-112 resolved（新規）／FND-17・37・38・94・98・100・106・107・111 是正 | ✅ 完了（2026-07-01）。**Category A（8件）は `backref/check.py` のトートロジーバグによる誤検出**と判明（実在の不整合ではない・FND-35 等の open FND は不可触）。check.py の `open-but-backref-exists` 判定を修正＋回帰テスト追加。**Category B/C（10件）は本物**：resolved-no-dd3（6件）に DD-3 マーカー追記、resolved-no-backref（4件）に付与先なし明記。副次的に FND-94 の内部 `---` 誤用（ノード境界パーサ截断）も発見・是正。`backref check` 18→0 件。明細＝FND-112／findings.md |
 | skill の設計層モデリング拡張（Q-6→DD-22） | DD-22 / FR-17 / SPEC-61 / PROMPT-8〜20 | 🔄 sprint-1・②著作完了（2026-07-01）。機能軸 **FR-17＋傘 SPEC-61/-1/-2/-3** 新設、価値実現直結の **skill 13件を PROMPT-8〜20** に PROMPT 化（`carrier: skill`・→SPEC-61）。全ノード在グラフ・drift/孤立/重複なし・新規起因エラーゼロで機械検証済。**残＝①-C の `.claude/` fan-out 実装**（対話入口 skill／非対話 fan-out orchestrator agent）＋carrier スキーマ化・対象 skill 集合宣言・検査 RULE 新設要否（FND/Q 起票予定）。明細＝DD-22 |
 | A2 — resolved-flag ドリフト一括是正（「本文 resolved／機械 unresolved」19件に A-1 同型の辺逆転を適用） | FND-111 resolved | ✅ 完了（2026-06-29）。`resolved: true` 欠落19件（FND-17/18/24/25/26/27/28/31/33/36/78/84/85/86/92/93/94/102/106）を `resolved: true`＋`edges: []` 化、in-graph 処置対象へ backref（新規7・既存14＝double-edge 解消）・provenance 辺（DD/FND/Q）は本文記録のみ・全 **z バンプ**（DD-21）。機械 `resolved: true` を 81→101 件へ整合。**FND-99/108 は意図的孤立設計のため不可触**。FND-106/111 は incoming なしで意図的孤立保持。明細＝FND-111／findings.md |
 | A-1 — FND-101 辺逆転一括是正（resolved FND の double-edge 解消） | FND-101 resolved / DD-16 / Q-4 closed | ✅ 完了（2026-06-28）。resolved FND 75件の元 forward 辺削除・`edges: []`・`resolved: true` 化・指摘時 ref_version を本文へ移動（DD-3）・全 z バンプ（DD-21）。明細＝FND-101／DD-21 |
@@ -67,7 +69,9 @@
 
 ## 📋 FND サマリ
 
-**計 111 件：✅ resolved 103 ／ ⏳ open 8**（機械 `resolved: true` 101 件。FND-99/108 は意図的孤立設計のため本文 resolved のまま `resolved: true` を省略＝documented・A2/FND-111 で不可触）
+**計 112 件：✅ resolved 104 ／ ⏳ open 8**（機械 `resolved: true` 101 件。FND-99/108/106/112 は意図的孤立設計または FND-102 baseline 慣行のため本文 resolved のまま `resolved: true` を省略＝documented）
+
+> **FND-112**（2026-07-01・issue #64 検証中に発見・resolved）: `backref/check.py` の `open-but-backref-exists` 判定がトートロジーで open FND 全件を誤検出していたバグ。指摘対象が out-of-graph（check.py）のため `resolved: true` 省略・FND-102/106 baseline 慣行。明細＝findings.md FND-112。
 
 > **要約**（全件列挙はしない＝明細は [`04-verification/02-findings.md`](04-verification/02-findings.md) を参照・PR8 で各 FND ノードに経緯保全）。主な resolved 経緯：本文品質 FND-40〜77（38件）は子 SPEC `-N` 分割で全解消（DD-8 z-bump）／自己点検残課題 FND-78・80・84〜91（spec-inspector ×6・DD-9/10/11・SPEC-55）／分析層見直し FND-92〜95（DD-12・O-6 新設）／設計層 DM→MOD→D 正規化と PR #28/#32 レビュー FND-96〜100（TERM/DM 新設・MOD-1・7資産同期）／必須辺44行 dedicated 化 FND-102（SPEC-56/57/58＋）・resolved 系2ルール FND-103/104（SPEC-18-9/59・RULE-030・DD-17）・resolved 判定セマンティクス FND-105（SPEC-60・RULE-031・DD-18）・検証トリガ統一 FND-106（DD-19）／ノード版 x.y.z 化 FND-107〜109（PR #38）。
 > **lifecycle 辺逆転コホート**：**FND-101**（A-1・resolved FND 75件の double-edge 一括解消・2026-06-28）→ **FND-110**（FND-96〜100 の MINOR→z バンプ是正・DD-21・2026-06-28）→ **FND-111**（`resolved: true` 欠落19件に A-1 同型の辺逆転を適用＝「本文 resolved／機械 unresolved」ドリフトを解消・2026-06-29）。版バンプは全て **z**（DD-21・DD-8 §4「backref/lifecycle 操作＝z」）。**FND-99/108 は意図的孤立設計（forward 辺なし）を保持し不可触**。

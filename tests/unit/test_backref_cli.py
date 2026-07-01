@@ -65,6 +65,14 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_FINDINGS)
         self.assertIn("open-but-backref-exists", out)
 
+    def test_check_open_without_backref_is_not_flagged(self):
+        # P-100 に →FND-100 を仕込まない通常の open FND は、forward 辺を持つだけで
+        # open-but-backref-exists が誤検出されてはならない（fid が自身の forward 辺
+        # によって dependents[e.to] に載るのは常に真になるため、判定は
+        # 「対象が fid への backward 辺を持つか」で行う。回帰防止のための固定テスト。
+        code, out = self._run(["check", "--id", "FND-100", *self.base])
+        self.assertNotIn("open-but-backref-exists", out)
+
 
 if __name__ == "__main__":
     unittest.main()

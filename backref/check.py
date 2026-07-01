@@ -63,7 +63,7 @@ def check(index: NodeIndex) -> list[Finding]:
                 out.append(Finding(fid, "error", "dangling-forward",
                                    f"forward 辺が存在しない ID を指す: →{e.to}", *loc))
                 continue
-            if not resolved and fid in index.dependents.get(e.to, ()):
+            if not resolved and e.to in index.dependents.get(fid, ()):
                 out.append(Finding(fid, "error", "open-but-backref-exists",
                                    f"open だが対象 {e.to} が既に →{fid} を保有（辺逆転未完）",
                                    *loc))
