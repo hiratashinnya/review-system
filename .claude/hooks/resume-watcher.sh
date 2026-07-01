@@ -40,10 +40,12 @@ is_working() {
   pane_tail 8 | grep -qiE "to interrupt|interrupt\)|interrupt to|ctrl\+c to (stop|interrupt)"
 }
 
-# 今まさにレート制限画面が出ているか(入力欄付近の末尾8行・厳しめパターン)。
-# ここが真のときだけ注入を許可する(=制限画面が確認できないなら触らない)。
+# レート制限バナーがペインに見えるか(情報ログ専用・注入の可否判定には使わない)。
+# 注意: リセット後はバナーが消えるため、これを注入の必須条件にすると
+#   「バナー無し=再開済み」と誤認して永遠に注入しなくなる(旧バグ・自動再開が機能しない)。
+# バナーはフッタ入力欄より上に出るため末尾15行を見る(8行では拾い漏れる=リセット時刻抽出の tail -40 と整合)。
 is_limit_screen() {
-  pane_tail 8 | grep -qiE "resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to"
+  pane_tail 15 | grep -qiE "resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to"
 }
 
 # --- 多重起動防止(同一ペインに watcher は1つだけ) ---
@@ -92,42 +94,44 @@ fi
 log "sleeping ${wait_s}s until reset"
 sleep "$wait_s"
 
-# --- 注入(状態認識・fail-safe) ---
-# 大原則: 「制限画面が確認できる かつ 作業中でない」ときだけ注入する。
-#         少しでも曖昧(作業中/制限画面が無い)なら触らずに止める(=稼働中への割り込み厳禁)。
-# 既定は単発(MAX_ATTEMPTS=1)。リセット時刻の早撃ち救済が要るときだけ >1 にする。
+# --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
+# 大原則: リセット待機後、ペインが「作業中でない(アイドル)」なら継続メッセージを注入して再開する。
+#   稼働中セッションへの割り込みは is_working ガードだけで防ぐ(=フッタの中断ヒントで判定)。
+#   ※ is_limit_screen は情報ログのみ。リセット後は制限バナーが消えるため、これを注入の
+#     必須条件にすると「バナー無し=再開済み」と誤認して永遠に注入しない(旧バグ・是正)。
+# 既定は単発(MAX_ATTEMPTS=1)。効かないとき用の再試行は >1 で有効化。
 attempt=1
 while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
-  # 注入前ガード①: もう動いているなら絶対に割り込まない
+  # 注入前ガード: もう動いている(稼働中)なら絶対に割り込まない
   if is_working; then
-    log "pane appears to be WORKING (already resumed?); NOT injecting; exit"
+    log "pane is WORKING (already resumed & active); NOT injecting; exit"
     exit 0
   fi
-  # 注入前ガード②: 制限画面が確認できないなら注入しない(誤爆防止・既に解消/再開済みの可能性)
-  if ! is_limit_screen; then
-    log "limit screen NOT confirmed (cleared / already resumed); NOT injecting; exit"
-    exit 0
+  # アイドル → 注入して再開(制限バナーの有無は問わない。情報としてのみ記録)
+  if is_limit_screen; then
+    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & limit banner still visible; send '${CONTINUE_MSG}'"
+  else
+    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & banner cleared (post-reset); send '${CONTINUE_MSG}'"
   fi
-
-  log "inject attempt ${attempt}/${MAX_ATTEMPTS}: limit screen confirmed & not working; send '${CONTINUE_MSG}'"
   tmux send-keys -t "$PANE" "$CONTINUE_MSG" 2>>"$LOG"
   sleep 1
   tmux send-keys -t "$PANE" Enter 2>>"$LOG"
   sleep "$VERIFY_WAIT"
 
-  # 注入後の確認: 作業中になった or 制限画面が消えた → 再開成功とみなして停止
-  if is_working || ! is_limit_screen; then
-    log "resume confirmed (working or limit screen gone); done"
+  # 注入後の確認: 作業中になった → 再開成功
+  if is_working; then
+    log "resume confirmed (pane now working); done"
     exit 0
   fi
 
-  # まだ制限画面のまま=注入が効いていない(早撃ち等)。リトライ可なら待って“再評価から”やり直す。
+  # まだアイドル=注入が効いていない(早撃ち/未リセット等)。リトライ可なら待って再試行。
+  # 注意: 注入自体は送出済みのため、ここで give up してもメッセージは既にペインに入っている。
   if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
-    log "still on limit screen after attempt ${attempt}; attempts exhausted; give up (no further injection)"
+    log "still idle after attempt ${attempt} (message already sent); attempts exhausted; exit"
     exit 0
   fi
   back=$(( RETRY_BACKOFF * attempt ))
-  log "still on limit screen; backoff ${back}s then re-evaluate (re-inject only if still limit screen & not working)"
+  log "still idle; backoff ${back}s then retry (only if still idle & not working)"
   sleep "$back"
   attempt=$(( attempt + 1 ))
 done
