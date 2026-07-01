@@ -26,14 +26,21 @@
 - **DD# は設計フェーズの判断ログ**：迷いは推奨案で暫定決定し、DD#（論点→選択肢→推奨→暫定決定→影響範囲）に記録して前進。
 - **スケジュール独断禁止**：FND/Q/DD で実施スプリントを設定するとき、オーナー確認なしに繰り越すことは厳禁。
 - **実装は Python・原則標準ライブラリのみ**。
-- **ノード著作は専門エージェントに委譲**：VAL/SR/FR/NFR→requirements-author / SPEC→spec-author / 分析層→analysis-author / 設計層→design-author / 検証層→verification-author / 本ファイル反映→reconciliation。
+- **ノード著作は専門エージェントに委譲し、2段で確定する**：VAL/SR/FR/NFR→requirements-author / SPEC→spec-author / 分析層→analysis-author / 設計層→design-author / 検証層→verification-author が `tmp/<sprint>/` に出力→**reconciliation-validator**（read-only 構造検証・VALIDATION_OK/ROLLBACK）→合格なら**reconciliation**（self_fix 適用・本ファイル確定書き込み）。ROLLBACK 時は writer を呼ばず著作エージェントを再起動する。
 - **新資産前に asset-auditor で重複/競合点検**（A14）。
+- **PR レビュー・GitHub コメント運用（明示・独断禁止）**：レビュー指摘への返信は AI 対応であることと実施した処置を具体的に明記する。指摘の処置要否・スプリント繰り越しの「対応不要」は AI が独断で結論づけない（オーナー判断）。指摘は原則、起票→反映まで追い、据え置きはオーナー明示判断の場合のみ明記する。
+- **資産のテーラリング運用（A16）**：テーラリング実体は `.claude/`（docs ではない）。汎用標準は `.claude/standards/<name>/`（非活性）、テーラリング済 active は `.claude/skills/<name>/`、対応は `.claude/tailoring-registry.md`。
+- **実装設計フェーズ（凍結セット・A17–A20）**：仕様確定後・実装着手前に凍結セット（モジュール／IF／プロトコル／永続／オーケストレーション／プロンプト／ログ・版／テスト戦略）を固める（索引 `docs/design/README.md`）。手順は `/impl-design-pipeline`。設計一式は spec-inspector で総点検してから実装へ。
 
 ---
 
-## ダッシュボード
+## このリポジトリの正本
 
-`doc-system/00-dashboard.md`
+- 現状ドキュメント中心（要件・設計フェーズ）。正本は `doc-system/`（ノードグラフ）＋ `.claude/`（資産・規約）＋ `CLAUDE.md`。
+- **`docs/` 配下は原則「壁打ちメモ＝非正本」**（例外＝`docs/doc-system/`＝doc-system の機械定義）。`docs/` プローズと doc-system ノードが食い違う場合は doc-system 側を正とする（`docs/` は更新しない）。
+- 運用ハブ＝`doc-system/00-dashboard.md`。
+
+---
 
 ## スキル一覧（Copilot で `/` 起動できるもの）
 
@@ -43,3 +50,11 @@
 | `/asset-pipeline` | メソッド→スキル/エージェント 資産化パイプライン |
 | `/impl-design-pipeline` | 実装設計フェーズ凍結セット化（spec→実装の橋渡し） |
 | `/spec-pipeline` | 要件から MVP スコープまでの仕様設計パイプライン |
+
+## エージェント一覧（`.github/agents/`）
+
+- `requirements-author` / `spec-author` / `analysis-author` / `design-author` / `verification-author`：ノード著作（tmp 出力）
+- `reconciliation`：検証合格後の self_fix 適用・本ファイル確定書き込み
+- `spec-inspector`：仕様・設計点検（G# 出力）
+- `structured-analysis`：DFD 分解
+- `asset-auditor`：資産の重複/矛盾/競合監査（read-only）
