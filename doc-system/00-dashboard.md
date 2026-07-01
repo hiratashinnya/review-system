@@ -14,6 +14,7 @@
 | 作業 | 種別 | 状態 |
 |---|---|---|
 | issue #64 — `backref check` 既存18 ERROR 是正 | FND-112 resolved（新規）／FND-17・37・38・94・98・100・106・107・111 是正 | ✅ 完了（2026-07-01）。**Category A（8件）は `backref/check.py` のトートロジーバグによる誤検出**と判明（実在の不整合ではない・FND-35 等の open FND は不可触）。check.py の `open-but-backref-exists` 判定を修正＋回帰テスト追加。**Category B/C（10件）は本物**：resolved-no-dd3（6件）に DD-3 マーカー追記、resolved-no-backref（4件）に付与先なし明記。副次的に FND-94 の内部 `---` 誤用（ノード境界パーサ截断）も発見・是正。`backref check` 18→0 件。明細＝FND-112／findings.md |
+| skill の設計層モデリング拡張（Q-6→DD-22） | DD-22 / FR-17 / SPEC-61 / PROMPT-8〜20 | 🔄 sprint-1・②著作完了（2026-07-01）。機能軸 **FR-17＋傘 SPEC-61/-1/-2/-3** 新設、価値実現直結の **skill 13件を PROMPT-8〜20** に PROMPT 化（`carrier: skill`・→SPEC-61）。全ノード在グラフ・drift/孤立/重複なし・新規起因エラーゼロで機械検証済。**残＝①-C の `.claude/` fan-out 実装**（対話入口 skill／非対話 fan-out orchestrator agent）＋carrier スキーマ化・対象 skill 集合宣言・検査 RULE 新設要否（FND/Q 起票予定）。明細＝DD-22 |
 | A2 — resolved-flag ドリフト一括是正（「本文 resolved／機械 unresolved」19件に A-1 同型の辺逆転を適用） | FND-111 resolved | ✅ 完了（2026-06-29）。`resolved: true` 欠落19件（FND-17/18/24/25/26/27/28/31/33/36/78/84/85/86/92/93/94/102/106）を `resolved: true`＋`edges: []` 化、in-graph 処置対象へ backref（新規7・既存14＝double-edge 解消）・provenance 辺（DD/FND/Q）は本文記録のみ・全 **z バンプ**（DD-21）。機械 `resolved: true` を 81→101 件へ整合。**FND-99/108 は意図的孤立設計のため不可触**。FND-106/111 は incoming なしで意図的孤立保持。明細＝FND-111／findings.md |
 | A-1 — FND-101 辺逆転一括是正（resolved FND の double-edge 解消） | FND-101 resolved / DD-16 / Q-4 closed | ✅ 完了（2026-06-28）。resolved FND 75件の元 forward 辺削除・`edges: []`・`resolved: true` 化・指摘時 ref_version を本文へ移動（DD-3）・全 z バンプ（DD-21）。明細＝FND-101／DD-21 |
 | FND-96〜100 バンプ是正（MINOR→z・A-1 以前の pre-existing ドリフト） | FND-110 / DD-21 / issue #40 | ✅ resolved（2026-06-28）。FND-96=v0.4.1・FND-97/98/99/100=v0.1.1 へ z バンプ訂正。DD-21 残課題コホート完了。明細＝FND-110 |
@@ -27,12 +28,12 @@
 
 | ステージ | 対象型 | ノード | 状態 | 備考 |
 |---|---|---|---|---|
-| requirements | VAL / SR / FR / NFR / SPEC | 255 | ✅ 著作・点検済 | VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 213 ノード・うち post-mvp 25）。**FND-102（issue #30・②）で必須辺 44 行を全 dedicated SPEC 化：SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設（+39）**。**FND-103 案②（責務分離）で fnd_lifecycle resolved 系2ルールを全 dedicated 化：SPEC-18-9（must_be_linked_from・辺欠如/error）＋ SPEC-59（must_not_link_to・辺残留/warning・RULE-030 経由）を新設（+2）**。**FND-105 で resolved 判定セマンティクスを dedicated 化：SPEC-60 傘＋SPEC-60-1/60-2 を FR-7 配下に新設、さらに型検証スコープ外を撤回し SPEC-60-3（resolved 非 boolean→RULE-031 ERROR）を追加（+4・60 傘/60-1/60-2/60-3）** |
+| requirements | VAL / SR / FR / NFR / SPEC | 260 | ✅ 著作・点検済 | **2026-07-01 skill プロンプト資産の機能軸 FR-17＋傘 SPEC-61/-1/-2/-3（+5・DD-22）**：skill を PROMPT 設計ノード化する要件（存在/親辺/キャリア属性）。著作エージェント軸 SPEC-27/FR-13 とは別軸。 VERIFY-2/5。本文品質 FND-40〜77 をテスタブル化分割（SPEC 子展開で 213 ノード・うち post-mvp 25）。**FND-102（issue #30・②）で必須辺 44 行を全 dedicated SPEC 化：SPEC-56/57/58 傘＋36 子・SPEC-18-6〜8・SPEC-28-3 を新設（+39）**。**FND-103 案②（責務分離）で fnd_lifecycle resolved 系2ルールを全 dedicated 化：SPEC-18-9（must_be_linked_from・辺欠如/error）＋ SPEC-59（must_not_link_to・辺残留/warning・RULE-030 経由）を新設（+2）**。**FND-105 で resolved 判定セマンティクスを dedicated 化：SPEC-60 傘＋SPEC-60-1/60-2 を FR-7 配下に新設、さらに型検証スコープ外を撤回し SPEC-60-3（resolved 非 boolean→RULE-031 ERROR）を追加（+4・60 傘/60-1/60-2/60-3）** |
 | analysis | ACTOR / I / O / D / P / E | 92 | ✅ **current stage**・著作/点検済 | DD-12 全面見直し：D-9〜D-22 分割（+14）・P-1〜P-7 全リーフ分解（+39）・P-2-5 新設・I-1-1/1-2/1-3 退役（-3）。O-6 終了コード追加（FND-95・PR#27 ③）。00-dfd.md を L0–L3 で再生成 |
-| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 62 | 🔄 ほぼ完成 | MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 / TERM-1〜6 著作済み。**2026-06-30 静的設計ノードを上流から作りきり（`05-static.md`・+31）**：SCM-1〜3 系（スキーマ・10。ノードフォーマット/ config.yaml/ 出力。階層 -N）／CFG-1＋1-1〜1-13（config.yaml の13要素を1要素1ノード・14）／PROMPT-1〜7（著作支援プロンプト＝`*-author`×5→SPEC-27・reconciliation＋reconciliation-validator→SPEC-39）。**③PROMPT「不要・LLMなし」の旧判断を撤回**（著作支援は LLM）。**PR#55 レビューで PROMPT-7（validator）を追補**＝1 LLM エージェント=1 PROMPT 粒度に整合。残り：テスト戦略④の要否判断・D ロギング |
+| design | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM | 75 | 🔄 ほぼ完成 | MOD-1〜18 / PORT-1 / DS-1〜3 / PRS-1 / ORC-1〜2 / DM-1〜6 / TERM-1〜6 著作済み。**2026-06-30 静的設計ノードを上流から作りきり（`05-static.md`・+31）**：SCM-1〜3 系（10）／CFG-1＋1-1〜1-13（14）／PROMPT-1〜7（著作支援＝`*-author`×5→SPEC-27・reconciliation＋validator→SPEC-39）。**2026-07-01 skill 軸 PROMPT-8〜20（+13・DD-22）**：価値実現直結の 13 skill を機能軸 FR-17／傘 SPEC-61 配下に PROMPT 化（`carrier: skill`・→SPEC-61）。skill｜agent はキャリア属性で表し将来の agent 化は carrier＋版で吸収。残り：①-C の `.claude/` fan-out 実装・テスト戦略④の要否判断・D ロギング |
 | implementation | SRC（spec-inspector・Python CLI） | 0 | ⬜ 未着手 | — |
 | verification | TD / TC / TR | 0 | ⬜ 未着手 | 文書レビュー VERIFY-1〜5 は実施済 |
-| 横断スパイン | DD / Q / PEND | 28 | 🔄（一部未決） | DD-1〜21（DD-16: FND 専用ライフサイクル／DD-17: RULE-030 新設・案B・FND-104／DD-18: RULE-031 新設・案B・FND-105 型検証／DD-19: 検証トリガ統一・案A・FND-106／DD-20: O-1/O-2 生成元辺を P-4-3 へ精緻化・案A・Q-3 昇格／DD-21: resolved-FND 辺逆転/backref は z バンプ・案A・Q-5 昇格・D 却下）・Q-1/Q-3/Q-4/Q-5 closed・**Q-2 open**・PEND-1 resolved・**PEND-2 deferred**。未決ノード（Q-2 open・PEND-2 deferred）が残るため ✅ ではなく 🔄 とする（FND-79 索引・表記精度スコープで是正） |
+| 横断スパイン | DD / Q / PEND | 30 | 🔄（一部未決） | DD-1〜22（DD-16: FND 専用ライフサイクル／DD-17: RULE-030 新設・案B・FND-104／DD-18: RULE-031 新設・案B・FND-105 型検証／DD-19: 検証トリガ統一・案A・FND-106／DD-20: O-1/O-2 生成元辺を P-4-3 へ精緻化・案A・Q-3 昇格／DD-21: resolved-FND 辺逆転/backref は z バンプ・案A・Q-5 昇格・D 却下／DD-22: skill の設計層モデリング拡張＝①-C ハイブリッド＋②-A PROMPT 流用・Q-6 昇格・2026-07-01）・Q-1/Q-3/Q-4/Q-5/Q-6 closed・**Q-2 open**・PEND-1 resolved・**PEND-2 deferred**。未決ノード（Q-2 open・PEND-2 deferred）が残るため ✅ ではなく 🔄 とする（FND-79 索引・表記精度スコープで是正） |
 
 > 凡例：✅ 完了／🔄 進行中／⬜ 未着手。ノード数は `-N` 子・`labels: post-mvp` を含む実数。
 > current_stage が `design` に進行（N2・2026-06-16）。design 発火の辺ルール（MOD→P / PORT→MOD / DS→P / PRS→DS / ORC→E）が全ノードに適用中（DD-15 により ORC→P から ORC→E に変更）。
@@ -126,11 +127,13 @@
 | DD-19 | ✅ 反映済 | 検証戦略の段階別トリガを §1 フロー図 L13-23 の単一トリガに統一（案A・FND-106・2026-06-23）。bump 非依存の辺残留検査（RULE-030/001/002/022）のすり抜けを解消。段階0 fail-close・段階④ phase-gate は例外で据置。05-verification.md §2 統一トリガ注記＋段階①②③′トリガ書換（反映済）・config.yaml 不変・`edges: []` |
 | DD-20 | ✅ 反映済 | O-1/O-2 の生成元辺を親 P-4 からリーフ P-4-3 へ精緻化（案A・Q-3 から昇格・2026-06-24）。O 型生成元辺粒度をリーフ基準（O-3→P-7-2・O-6→P-4-4）で統一。O-1/O-2 v0.3（→P-4-3・→DD-20 backref）・Q-3 closed・`edges: []` |
 | DD-21 | ✅ 反映済 | resolved-FND 辺逆転/backref 付与は **z バンプ**に確定（案A・Q-5 から昇格・2026-06-28・選択肢D 却下）。A-1 の 75 FND を MINOR バンプした誤りを z へ再訂正し新規 101 件 backref ドリフトを解消。SPEC-9（RULE-004）・DD-8 は不変＝DD-8 §4「backref 追加＝z」の適用徹底。`edges: []` |
+| DD-22 | ✅ 反映済 | skill の設計層モデリング拡張を確定（Q-6 から昇格・2026-07-01）。**①-C ハイブリッド**（対話入口=skill／非対話 fan-out=orchestrator agent・5段ネスト前提は公式ドキュメントで確認済）＋**②-A（PROMPT 型流用・新要件軸）**（skill を PROMPT 設計ノード化・新 FR＋傘 SPEC で著作エージェント軸 SPEC-27/FR-13 と区別・対象 skill 13件）。後続著作＝新 FR/傘 SPEC・PROMPT-8〜（13件）・`.claude/` fan-out 実装。`edges: []`（被参照＝Q-6→DD-22 昇格辺） |
 | Q-1 | ✅ closed | DD-2 へ昇格済み |
 | Q-2 | ⏳ open | 傘 SPEC 細分化要否＋ SPEC-29-1/29-2 リーフマップ。推奨 A（傘維持）。オーナー判断待ち |
 | Q-3 | ✅ closed | DD-20 へ昇格済み（2026-06-24・選択肢A 採用）。O-1/O-2 生成元辺を P-4-3 へ精緻化 |
 | Q-4 | ✅ closed | DD-16 へ昇格済み（2026-06-21・選択肢A 採用） |
 | Q-5 | ✅ closed | DD-21 へ昇格（2026-06-28・選択肢A 採用／D 却下）。resolved-FND 辺逆転/backref は z バンプ。A-1 の 101 件新規ドリフトを z 訂正で解消。義務辺 →FND-101/→SPEC-9/→DD-8/→DD-21 |
+| Q-6 | ✅ closed | DD-22 へ昇格（2026-07-01・①-C／②-A 採用）。サブ決定確定＝ノード型 PROMPT 流用・対象 skill 13件（価値実現直結）・sprint-1・5段ネスト公式確認済。旧 affects 9辺を →DD-22 昇格辺へ置換・v0.2.0。明細＝DD-22 |
 | PEND-1 | ✅ resolved | 過分割 → 子ノード化（FND-6）→ DD-12 で I-1-x 退役・D-18 へ repoint |
 | PEND-2 | 🗓 deferred | 図のスクリプト生成は VAL-5/FR-15 で sprint-2 以降 |
 | DD19（review-system） | ✅ 確定 | asset-lateral-deploy スクリプト廃止・エージェント手書き化。DD18 superseded（2026-06-15） |
