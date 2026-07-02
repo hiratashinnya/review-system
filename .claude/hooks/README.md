@@ -53,7 +53,7 @@
 | `CLAUDE_RL_MAX_ATTEMPTS` | `1` | 注入試行上限(既定1=単発。`>1` で「注入後もアイドルのまま(=効いていない)」のときだけ早撃ち救済リトライ) |
 | `CLAUDE_RL_RETRY_BACKOFF` | `300` | 再注入バックオフ基本間隔秒(`MAX_ATTEMPTS>1` 時) |
 | `CLAUDE_RL_VERIFY_WAIT` | `20` | 注入後に状態を再確認するまでの待機秒 |
-| `CLAUDE_RL_PANE_CMD_RE` | `claude\|node` | 注入を許可する前景コマンドの正規表現。これに一致しない(シェル等に戻った/ペインが閉じた)ときは注入せず終了 |
+| `CLAUDE_RL_PANE_CMD_RE` | <code>^(claude&#124;node)$</code> | 注入を許可する前景コマンドの正規表現(拡張正規表現・完全一致)。これに一致しない(シェル等に戻った/ペインが閉じた)ときは注入せず終了。native `claude` バイナリや `bun` 等の変則環境では実値を（例 <code>^(claude&#124;node&#124;bun)$</code>）で上書きする |
 
 ## ログ
 
