@@ -5228,3 +5228,86 @@ edges:
 **例**: skill `align` の PROMPT ノードが `carrier: skill` を持つ → 属性充足。将来 orchestrator agent 化時は `carrier: agent`＋版更新で表し、別 SPEC 軸へ付け替えない。
 
 ---
+
+## SPEC-62: ノード本文に孤立 `---`（ノード分離記法の本文内誤用）が存在しない（normal・アンブレラ）
+
+<details><summary>⬡ SPEC-62 · v0.1.0</summary>
+
+```yaml
+id: SPEC-62
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: FR-1
+    ref_version: "0.3"
+  - to: SCM-1-2
+    ref_version: "0.1"
+  - to: FND-94
+    ref_version: "0.1"
+  - to: FND-112
+    ref_version: "0.1"
+```
+</details>
+
+**概要**: in-graph ノードの本文が孤立 `---`（ノード分離専用記法の本文内誤用）を含まないことを検査し、パーサ（`docidx/scan.py`・`backref/locate.py` の `_is_boundary`）による本文の silent 截断（データ欠落）を予防する要件を、孤立 `---` 非存在の判定（SPEC-62-1）と検出時の WARNING 出力（SPEC-62-2）に分けて子 SPEC で検証する（傘ノード・非テスタブル）。
+
+**背景**: `04-notation.md` は `---`（水平線）を「複数ノードを同一ファイルに置く場合の**ノード分離専用**」記法と規定している（スキーマ＝ **SCM-1-2 ノードファイル記法スキーマ**）。ノード本文中に孤立 `---` 行を書くと、パーサの `_is_boundary` がそこをノード境界とみなして本文を silent に截断し、それ以降の本文（例：`**指摘時 ref_version**:` 行・論点・選択肢）がノードの `body` から静かに脱落する。実例：FND-94（是正済み）・Q-6（未是正の実 stray）。起源は Issue #68。
+
+**provenance / 指摘時 ref_version**（DD-3・辺を張る対象分）:
+- FR-1 "0.3"（`docs/doc-system/02-what/01-fr.md` FR-1 v0.3.1 時点・親要件＝ノードグラフの構造化表現）
+- SCM-1-2 "0.1"（`docs/doc-system/05-design/05-static.md` SCM-1-2 v0.1.0 時点・`---`=ノード分離の根拠スキーマ）
+- FND-94 "0.1"（`docs/doc-system/04-verification/02-findings.md` FND-94 v0.1.2 時点・該当事例＝是正済み）
+- FND-112 "0.1"（`docs/doc-system/04-verification/02-findings.md` FND-112 v0.1.0 時点）
+- Issue #68（GitHub Issue・本検査の起源。ノードでないため辺は張らず本文記録のみ）
+
+**注記（スコープ限定）**: 本 SPEC は要件宣言のみを行い、**config.yaml の接続規則（接続マトリクス）は変更しない**。孤立 `---` 検出の検査 RULE を新設するか否かは別途判断とする（本 SPEC は「本文が孤立 `---` を含まないこと」の要件を宣言するに留める）。実装先（`docidx`・`backref`・`spec-inspector` のいずれで検査を実装するか）は SPEC では規定せず、設計/実装層に委ねる。
+
+---
+
+## SPEC-62-1: ノード本文中に孤立 `---` 行が存在しない（normal）
+
+<details><summary>⬡ SPEC-62-1 · v0.1.0</summary>
+
+```yaml
+id: SPEC-62-1
+type: SPEC
+labels: []
+scheduled: ""
+condition: normal
+edges:
+  - to: SPEC-62
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ノードが1件以上存在し、各ノードの本文範囲（YAML/summary ブロック外）が孤立 `---` 検出ロジックで走査済みである。
+**入力/トリガ**: 検査器が in-graph 各ノードの本文行を走査し、bare `---` 行（前後を空行で挟まれた水平線）を、その直後の非空行の種別（見出し `^#{2,}\s`／`<details>`・`<summary>`／blockquote `^>`）で分類する。
+**期待動作**: 全 in-graph ノードの本文を走査したとき、直後の非空行が「見出し／`<details>`・`<summary>`／blockquote」のいずれでもない bare `---` 行（＝本文内誤用の孤立 `---`）が 0 件であることを判定する。
+**例**: FND-94（是正済み）の本文を走査 → 論点行に挟まれた孤立 `---` なし・末尾のノード分離 `---` は直後が見出し `## FND-95` → 違反なし。
+
+---
+
+## SPEC-62-2: 本文中の孤立 `---` を検出したとき WARNING を出力する（failure）
+
+<details><summary>⬡ SPEC-62-2 · v0.1.1</summary>
+
+```yaml
+id: SPEC-62-2
+type: SPEC
+labels: []
+scheduled: ""
+condition: failure
+edges:
+  - to: SPEC-62
+    ref_version: "0.1"
+```
+</details>
+
+**前提条件**: in-graph ノードが1件以上存在し、本文範囲が孤立 `---` 検出ロジックで走査済みである。
+**入力/トリガ**: 検査器がノード本文中に孤立 `---` 行を1件以上検出する。検出定義：bare `---` 行のうち、直後の非空行（空行を読み飛ばした先）が次の (1)(2)(3) のいずれでもないもの（＝本文を截断する孤立 `---`）。**(1) 次ノードの開始**＝直後（空行・`<details>` 単独開き行を読み飛ばした先）に **⬡ バッジ付き `<summary>` 行**（`<summary` かつ `⬡` かつ `·` を含む行）が続くもの。※ バッジ無しの汎用 `<details>`／`<summary>` は本物のノード境界ではなく本文＝截断被害。**(2) inter-node の blockquote 注記**＝直後が `^>`。**(3) ノード見出し**＝直後が見出し行（`^#{1,}\s`）で、かつ後続（別見出し・blockquote・`**bold**`・yaml フェンス等の前置きを読み飛ばした先）に **⬡ バッジ付き `<summary>` が続く**もの。後続にバッジ付き summary が無い見出しは「本文小見出し」＝截断被害として検出する。既知の限界：`---` 直後が blockquote の場合は (2) 除外により非検出。
+**期待動作**: 本文内誤用の孤立 `---` 行を検出したとき、当該行を指す WARNING を1件出力する。
+**例**: Q-6 の本文行58が bare `---`・直後の非空行が `**選択肢A**: ...`（次ノード開始でも blockquote でもノード見出しでもない）→ 本文内誤用と判定 → `WARNING|...:58|stray-hr-in-body|(none)|body-internal '---' truncates node body（use node-separator only between nodes）` を1件出力。
+
+---

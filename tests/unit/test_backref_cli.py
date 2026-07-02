@@ -73,6 +73,94 @@ class TestCli(unittest.TestCase):
         code, out = self._run(["check", "--id", "FND-100", *self.base])
         self.assertNotIn("open-but-backref-exists", out)
 
+    def test_stray_hr_detects_body_and_ignores_separator(self):
+        # SPEC-62: 本文中の孤立 `---`（次が本文prose）は検出、ノード分離 `---`（次が
+        # `## 見出し`）は検出しない。截断被害ノードの ID を主体に指す。
+        from backref import notation
+        md = "\n".join([
+            "## FND-1: t", "<details><summary>⬡ FND-1 · v0.1.0</summary>", "",
+            "```yaml", "id: FND-1", "type: FND", "edges: []", "```", "",
+            "</details>", "", "**内容**: part1", "",
+            "---", "",                      # ← 本文内 stray（次=bold prose）
+            "**内容続き**: part2", "",
+            "---", "",                      # ← ノード分離（次=## 見出し）＝正常
+            "## FND-2: t2", "<details><summary>⬡ FND-2 · v0.1.0</summary>",
+            "```yaml", "id: FND-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            findings = notation.check_stray_hr(root, [f])
+        strays = [x for x in findings if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)              # 分離 `---` は誤検出しない
+        self.assertEqual(strays[0].fnd_id, "FND-1")   # 截断被害ノードを指す
+        self.assertEqual(strays[0].severity, "warning")
+
+    def test_stray_hr_h3_subheading_vs_node_heading(self):
+        # レビュー指摘の回帰: `---` の直後が H3 でも、本文小見出し（後続に <details> なし）は
+        # stray、ノード見出し（後続に <details> あり）は非検出。実パーサは `---` を無条件境界に
+        # するため「H2以上を一律 legit」ではなく「見出しの後に <details> が続くか」で判定する。
+        from backref import notation
+        md = "\n".join([
+            "## N-1: t", "<details><summary>⬡ N-1 · v0.1.0</summary>",
+            "```yaml", "id: N-1", "type: FND", "edges: []", "```", "</details>", "",
+            "**内容**: part1", "",
+            "---", "",                       # ← 本文内 stray（次=H3 本文小見出し・後続 details なし）
+            "### 本文小見出し", "",
+            "截断される本文prose", "",
+            "---", "",                       # ← ノード分離（次=H3 ノード見出し・後続 details あり）
+            "### N-2: t2", "<details><summary>⬡ N-2 · v0.1.0</summary>",
+            "```yaml", "id: N-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            strays = [x for x in notation.check_stray_hr(root, [f])
+                      if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)            # H3 本文小見出しの stray のみ
+        self.assertEqual(strays[0].fnd_id, "N-1")   # 截断被害ノード
+
+    def test_stray_hr_badgeless_details_is_body(self):
+        # 再レビュー指摘の回帰: `---` の直後がバッジ無しの汎用 <details>（⬡ summary なし）は
+        # 実パーサではノード境界ではなく本文＝截断被害。旧実装は `<details` 前方一致だけで legit と
+        # 誤判定していた。⬡ バッジ付き summary が続くかで本物のノード開始と区別する。
+        from backref import notation
+        md = "\n".join([
+            "## N-1: t", "<details><summary>⬡ N-1 · v0.1.0</summary>",
+            "```yaml", "id: N-1", "type: FND", "edges: []", "```", "</details>", "",
+            "**内容**: part1", "",
+            "---", "",                       # ← 本文内 stray（次=バッジ無し details・本文）
+            "<details><summary>クリックで展開（サンプル）</summary>",
+            "截断されてはいけない本文の一部", "</details>", "",
+            "**内容続き**: この行も本文", "",
+            "---", "",                       # ← ノード分離（次=⬡ バッジ付き summary）
+            "## N-2: t2", "<details><summary>⬡ N-2 · v0.1.0</summary>",
+            "```yaml", "id: N-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            strays = [x for x in notation.check_stray_hr(root, [f])
+                      if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)            # バッジ無し details の stray のみ
+        self.assertEqual(strays[0].fnd_id, "N-1")   # 截断被害ノード
+
+    def test_check_reports_stray_hr(self):
+        # CLI 配線: 既存ノード本文末尾に stray `---`＋prose を注入 → check が検出
+        p = self.root / "doc-system/04-verification/02-findings.md"
+        p.write_text(p.read_text("utf-8") + "\n\n---\n\n**截断される本文**: xx\n", "utf-8")
+        code, out = self._run(["check", *self.base])
+        self.assertIn("stray-hr-in-body", out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -72,9 +72,18 @@ def cmd_reverse(args) -> int:
     return EXIT_OK
 
 
+def _stray_hr_findings(args, root: Path):
+    """SPEC-62: in-graph ファイルのノード本文中の孤立 `---` を監査する。"""
+    from . import notation
+    cfg = Path(args.config).resolve() if args.config else (root / "docs" / "doc-system" / "config.yaml")
+    include, exclude = scan.load_trace_scope(cfg)
+    files = scan.discover_files(root, include, exclude)
+    return notation.check_stray_hr(root, files)
+
+
 def cmd_check(args) -> int:
-    index, _ = _index(args)
-    findings = check_mod.check(index)
+    index, root = _index(args)
+    findings = check_mod.check(index) + _stray_hr_findings(args, root)
     if args.id:
         import fnmatch
         findings = [f for f in findings if fnmatch.fnmatch(f.fnd_id, args.id)]
