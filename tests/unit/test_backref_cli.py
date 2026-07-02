@@ -99,6 +99,33 @@ class TestCli(unittest.TestCase):
         self.assertEqual(strays[0].fnd_id, "FND-1")   # 截断被害ノードを指す
         self.assertEqual(strays[0].severity, "warning")
 
+    def test_stray_hr_h3_subheading_vs_node_heading(self):
+        # レビュー指摘の回帰: `---` の直後が H3 でも、本文小見出し（後続に <details> なし）は
+        # stray、ノード見出し（後続に <details> あり）は非検出。実パーサは `---` を無条件境界に
+        # するため「H2以上を一律 legit」ではなく「見出しの後に <details> が続くか」で判定する。
+        from backref import notation
+        md = "\n".join([
+            "## N-1: t", "<details><summary>⬡ N-1 · v0.1.0</summary>",
+            "```yaml", "id: N-1", "type: FND", "edges: []", "```", "</details>", "",
+            "**内容**: part1", "",
+            "---", "",                       # ← 本文内 stray（次=H3 本文小見出し・後続 details なし）
+            "### 本文小見出し", "",
+            "截断される本文prose", "",
+            "---", "",                       # ← ノード分離（次=H3 ノード見出し・後続 details あり）
+            "### N-2: t2", "<details><summary>⬡ N-2 · v0.1.0</summary>",
+            "```yaml", "id: N-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            strays = [x for x in notation.check_stray_hr(root, [f])
+                      if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)            # H3 本文小見出しの stray のみ
+        self.assertEqual(strays[0].fnd_id, "N-1")   # 截断被害ノード
+
     def test_check_reports_stray_hr(self):
         # CLI 配線: 既存ノード本文末尾に stray `---`＋prose を注入 → check が検出
         p = self.root / "doc-system/04-verification/02-findings.md"
