@@ -1,0 +1,13 @@
+# テンプレ: NFR（非機能・制約）。path: nodes/02-what/nfr/{slug}.yaml
+# 検証証跡（FND/TC/VERIFY → この NFR）を verification stage で受ける（must_be_linked_from nfr←fnd/tc/verify）。
+title: "[制約名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（NFR→SR）: 属するステークホルダー要求（config must_link_to nfr→sr）
+  - to: "[上流 SR の slug]"
+    ref_version: "0.1"
+  # 任意（NFR→対象）: 制約先を明示する場合（無名依存辺）
+  # - to: "[制約先ノードの slug]"
+  #   ref_version: "0.1"

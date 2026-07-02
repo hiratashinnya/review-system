@@ -1,0 +1,12 @@
+# テンプレ: D（内部データ・系外に出ない）。path: nodes/03-analysis/d/{slug}.yaml
+title: "[内部データ名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（D→SPEC）: 紐づく機能仕様（config must_link_to d→spec）
+  - to: "[紐づく SPEC の slug]"
+    ref_version: "0.1"
+  # 必須（D→P）: 生成/消費プロセス（config must_link_to d→p）
+  - to: "[関係する P の slug]"
+    ref_version: "0.1"

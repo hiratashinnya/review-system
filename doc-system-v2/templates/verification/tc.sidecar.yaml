@@ -1,0 +1,10 @@
+# テンプレ: TC（テストコード）。path: nodes/04-verification/tc/{slug}.yaml
+# 実行後は TR ノードを作り結果を記録する（TR→TC）。
+title: "[テスト名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（TC→TD・realizes）: 実現するテスト設計（config must_link_to tc→td）
+  - to: "[実現する TD の slug]"
+    ref_version: "0.1"

@@ -1,0 +1,12 @@
+# テンプレ: DM（ドメイン型）。path: nodes/05-design/dm/{slug}.yaml
+title: "[型名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（DM→TERM）: 具体化する用語（config must_link_to dm→term）
+  - to: "[具体化する TERM の slug]"
+    ref_version: "0.1"
+  # 必須（DM→MOD）: 型定義が属するモジュール（config must_link_to dm→mod・DM→MOD→D）
+  - to: "[属する MOD の slug]"
+    ref_version: "0.1"

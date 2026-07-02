@@ -1,0 +1,15 @@
+# テンプレ: O（出力）。path: nodes/03-analysis/o/{slug}.yaml
+title: "[出力名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（O→SPEC）: この出力が実現する機能仕様（config must_link_to o→spec）
+  - to: "[実現する SPEC の slug]"
+    ref_version: "0.1"
+  # 必須（O→P）: 生成プロセス（出力は生成プロセスに依存）
+  - to: "[生成 P の slug]"
+    ref_version: "0.1"
+  # 必須（O→ACTOR）: 受け手アクタ（出力は受け手に依存）
+  - to: "[受け手 ACTOR の slug]"
+    ref_version: "0.1"

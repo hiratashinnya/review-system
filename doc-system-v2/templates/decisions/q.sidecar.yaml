@@ -1,0 +1,7 @@
+# テンプレ: Q（未決論点・open）。path: nodes/04-verification/q/open/{slug}.yaml
+# status（open|decided|deferred|closed）は path で表す。決定したら DD へ昇格。
+title: "[論点タイトル]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges: []   # 任意の義務辺（Q→影響先・RULE-002 WARNING）。追跡する影響先があれば `- to: "<slug>"`+ref_version を追加。

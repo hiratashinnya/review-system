@@ -1,0 +1,10 @@
+# テンプレ: PEND（先送り）。path: nodes/04-verification/pend/{slug}.yaml（pend は status サブディレクトリなし）
+# 義務辺（affects・RULE-022 WARNING）: 先送り中は追跡のみ（辺の存在＝未反映）。
+title: "[先送りタイトル]"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-N"   # 再検討予定フェーズ（繰り越しはオーナー判断）
+edges:
+  # 義務辺（PEND→影響先）: 追跡する影響先
+  - to: "[影響先ノードの slug]"
+    ref_version: "0.1"

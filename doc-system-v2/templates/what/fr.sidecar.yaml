@@ -1,0 +1,12 @@
+# テンプレ: FR（機能要求）。path: nodes/02-what/fr/{slug}.yaml
+# RULE-017: この FR を詳細化する SPEC に condition:normal が必要。
+# RULE-018: failure/error の SPEC も推奨（無ければ WARNING）。
+# 注: 旧テンプレの suppress は v2 サイドカー schema 未対応（PR で要確認）。
+title: "[機能名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（FR→SR）: 詳細化するステークホルダー要求（config must_link_to fr→sr）
+  - to: "[上流 SR の slug]"
+    ref_version: "0.1"

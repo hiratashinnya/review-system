@@ -1,0 +1,12 @@
+# テンプレ: TR（テスト結果）。path: nodes/04-verification/tr/{slug}.yaml
+# 注意: 旧 TR は result/log_ref を YAML メタに持ち RULE-020/021 で機械検査したが、
+#       v2 サイドカー schema はこの2キーを許可しない（additionalProperties:false）。
+#       暫定で本文（.md）に記録する。schema 拡張要否は Sub-A/オーナー確認（PR で起票）。
+title: "[テスト名] — PASS/FAIL"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（TR→TC・produced-by）: この結果を生成したテストコード（config must_link_to tr→tc）
+  - to: "[生成元 TC の slug]"
+    ref_version: "0.1"

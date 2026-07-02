@@ -1,0 +1,17 @@
+# テンプレ: P（論理プロセス・DFD）。path: nodes/03-analysis/p/{slug}.yaml
+# プロセス階層は slug（id）パターンから読む。P 同士は直接リンクせず I/O/D を介す。
+title: "[プロセス名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（P→SPEC）: 実現する機能仕様（config must_link_to p→spec）
+  - to: "[実現する SPEC の slug]"
+    ref_version: "0.1"
+  # 必須（P→I）: 消費する入力（プロセスは入力に依存）
+  - to: "[消費する I の slug]"
+    ref_version: "0.1"
+  # 必須（P→E）: トリガ事象（プロセスはトリガ事象に依存）
+  - to: "[トリガ E の slug]"
+    ref_version: "0.1"
+  # 生成する出力／内部データは O/D 側から張る（O→P / D→P）

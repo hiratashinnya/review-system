@@ -1,0 +1,7 @@
+# テンプレ: VAL（価値命題・根ノード）。path: nodes/01-why/val/{slug}.yaml
+# id=ファイル名 stem=slugify(title)。type/status は path から導出（サイドカーに持たない）。
+title: "[価値名: 誰に何の便益か]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges: []   # 根ノード（上流辺なし）。下流 SR から被参照される（RULE-005 孤立禁止）。
