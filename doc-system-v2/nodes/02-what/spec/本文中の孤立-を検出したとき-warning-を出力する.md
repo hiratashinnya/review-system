@@ -4,5 +4,5 @@
 
 **期待動作**: 本文内誤用の孤立 `---` 行を検出したとき、当該行を指す WARNING を1件出力する。
 
-> 注: 新フォーマットのサンプル。親（アンブレラ SPEC）への関係は **サイドカーの edge（kind: parent）**で表す。
+> 注: 新フォーマットのサンプル。親（アンブレラ SPEC）への関係は **サイドカーの無名 edge**（`SPEC→SPEC`＝refines＝親）で表す。
 > condition=failure・version は `.yaml` にあり、path には出さない。

@@ -1,62 +1,155 @@
-# doc-system v2 config（起点）。
-# 現行 docs/doc-system/config.yaml の stage 別必須辺ルールは「型レベル」でありフォーマット非依存の
-# ため、ほぼそのまま移植する（Sub-E で正式化）。RULE-004 ドリフト判定は「辺の ref_version(x.y) ≠
-# 参照先バッジ x.y.z の x.y」で行う（z は伝播不問）。
+# doc-system v2 config。
+# 現行 docs/doc-system/config.yaml の型レベル・ルール群を **完全移植**（フォーマット非依存のため）。
+# 差分は「フォーマット由来の適応」のみ:
+#   - path 規約（layout / status_dirs）を追加。
+#   - FND/Q/DD の status は YAML フィールドではなく **path から導出**（旧 resolved: フィールドは廃止）。
+#   - trace_scope は新 nodes/** レイアウトへ。
+# RULE-004 ドリフト判定は「辺の ref_version(x.y) ≠ 参照先バッジ x.y.z の x.y」（z は伝播不問・DD-8）。
+#
+# 注: validate.py（Sub-A）は STAGES/TYPE_DIRS/STATUS_DIRS を本 config と一致させて直書きしている。
+# 検証器が本 config を直接読む配線は Sub-E #74 で行う（それまで両者は本コメントで整合を担保）。
 
 current_stage: "design"          # requirements | analysis | design | implementation | verification
 stages: [requirements, analysis, design, implementation, verification]
 
-# stage → ディレクトリ（path の第1階層）
-stage_dirs:
-  requirements: 01-why           # VAL/SR は 01-why、FR/NFR/SPEC は 02-what（下記 type_stage 参照）
-  what:         02-what
-  analysis:     03-analysis
-  design:       05-design
-  verification: 04-verification
+# ------------------------------------------------------------
+# path レイアウト: stage ディレクトリ → 配置する type 群（type は path から導出）
+# id/type/status はサイドカーに持たない。requirements stage は 01-why(VAL/SR) と 02-what(FR/NFR/SPEC)
+# の2ディレクトリに分かれる（type→dir は本マップが唯一の機械可読ソース）。
+# ------------------------------------------------------------
+layout:
+  01-why:          [val, sr]
+  02-what:         [fr, nfr, spec]
+  03-analysis:     [actor, i, o, d, p, e, term]
+  05-design:       [orc, ds, mod, dm, port, prs, scm, cfg, prompt]
+  04-verification: [td, tc, tr, verify, fnd, dd, q, pend]
+# implementation stage の src は未材化（辺ルールのみ下記に保持・配置 dir は Sub-E で確定）。
 
-# type → ディレクトリ名（path の第2階層）。id には含めない（type は path から導出）。
-type_dirs:
-  [val, sr, fr, nfr, spec, actor, i, o, d, p, e, term,
-   orc, ds, mod, dm, port, prs, scm, cfg, prompt,
-   td, tc, tr, verify, fnd, dd, q, pend]
-
-# lifecycle を持つ型のみ status サブディレクトリ（path の第3階層）。status もサイドカーに持たない。
+# lifecycle を持つ型のみ status サブディレクトリ（path 第3階層・status もサイドカーに持たない）。
 status_dirs:
   fnd: [open, resolved]
   q:   [open, decided, deferred, closed]
   dd:  [decided, closed]
 
-# slug（= ファイル名 stem = id）の正規化は slugify.py が唯一の実装。
+# slug（= ファイル名 stem = id）の正規化は slugify.py が唯一実装。
 slug:
   impl: "doc-system-v2/slugify.py"
   max_bytes: 120
 
-# 必須辺（型レベル・activate_stage 以上で発火）。現行 config.yaml から移植。
-# target が配列＝いずれか1つ以上を満たせばよい。
-required_edges:
-  - { node: sr,     target: val,             activate_stage: requirements, severity: error,   reason: "SRは価値命題を詳細化" }
-  - { node: fr,     target: sr,              activate_stage: requirements, severity: error,   reason: "FRはSRを詳細化" }
-  - { node: nfr,    target: sr,              activate_stage: requirements, severity: error,   reason: "NFRはSRを詳細化" }
-  - { node: spec,   target: [fr, nfr, spec], activate_stage: requirements, severity: error,   reason: "SPECはFR・NFR・または別SPEC(親)を詳細化" }
-  - { node: actor,  target: sr,              activate_stage: analysis,     severity: error,   reason: "アクタはSRに紐づく" }
-  - { node: term,   target: spec,            activate_stage: analysis,     severity: warning, reason: "用語は仕様に紐づく" }
-  - { node: i,      target: spec,            activate_stage: analysis,     severity: error,   reason: "入力は仕様に紐づく" }
-  - { node: o,      target: spec,            activate_stage: analysis,     severity: error,   reason: "出力は仕様に紐づく" }
-  - { node: o,      target: p,               activate_stage: analysis,     severity: error,   reason: "出力は生成プロセスに依存(O→P)" }
-  - { node: o,      target: actor,           activate_stage: analysis,     severity: error,   reason: "出力は受け手アクタに依存(O→ACTOR)" }
-  - { node: d,      target: spec,            activate_stage: analysis,     severity: error,   reason: "内部データは仕様に紐づく" }
-  - { node: d,      target: p,               activate_stage: analysis,     severity: error,   reason: "内部データは生成プロセスに依存(D→P)" }
-  - { node: p,      target: spec,            activate_stage: analysis,     severity: error,   reason: "プロセスは仕様を詳細化" }
-  - { node: e,      target: spec,            activate_stage: analysis,     severity: error,   reason: "イベントは仕様に紐づく" }
-  - { node: e,      target: actor,           activate_stage: analysis,     severity: error,   reason: "事象は刺激元アクタに依存" }
-  - { node: orc,    target: e,               activate_stage: design,       severity: error,   reason: "ORCは起動イベントを参照" }
-  - { node: ds,     target: p,               activate_stage: design,       severity: error,   reason: "DSはプロセスに紐づく" }
-  - { node: mod,    target: [p, d],          activate_stage: design,       severity: error,   reason: "MODはプロセス実装またはデータ型実現" }
-  - { node: dm,     target: term,            activate_stage: design,       severity: error,   reason: "DMは用語を実装" }
-  - { node: dm,     target: mod,             activate_stage: design,       severity: error,   reason: "DM型定義はモジュールに属す" }
-  - { node: port,   target: mod,             activate_stage: design,       severity: error,   reason: "PORTはモジュールに属す" }
-  - { node: prs,    target: ds,              activate_stage: design,       severity: error,   reason: "PRSはデータストアを実装" }
-  - { node: scm,    target: spec,            activate_stage: design,       severity: error,   reason: "SCMは仕様に紐づく" }
-  - { node: cfg,    target: scm,             activate_stage: design,       severity: error,   reason: "CFGはスキーマを具体化" }
-  - { node: cfg,    target: spec,            activate_stage: design,       severity: error,   reason: "CFGは仕様に紐づく" }
-  - { node: prompt, target: spec,            activate_stage: design,       severity: error,   reason: "PROMPTは仕様に紐づく" }
+# ------------------------------------------------------------
+# condition 語彙（RULE-016）。現行から新設/削除なしで踏襲。
+# normal:正常系 / boundary:境界値 / empty:空・ゼロ件・null / failure:仕様違反を正しく検出(sad-path) /
+# error:処理不能な異常入力(fail-close 対象)。非テスタブル(傘)ノードは condition を持たない。
+# ------------------------------------------------------------
+condition_vocab: [normal, boundary, empty, failure, error]
+
+# ------------------------------------------------------------
+# 必須接続①：依存辺（node → target）。同一 node 複数行=AND、target 配列=OR。
+# activate_stage 以上で発火。**全 stage を移植**（旧 must_link_to）。
+# ------------------------------------------------------------
+must_link_to:
+  # --- requirements ---
+  - { node: sr,     target: val,             activate_stage: requirements,   severity: error,   reason: "SRは価値命題を詳細化" }
+  - { node: fr,     target: sr,              activate_stage: requirements,   severity: error,   reason: "FRはSRを詳細化" }
+  - { node: nfr,    target: sr,              activate_stage: requirements,   severity: error,   reason: "NFRはSRを詳細化" }
+  - { node: spec,   target: [fr, nfr, spec], activate_stage: requirements,   severity: error,   reason: "SPECはFR・NFR・または親SPECを詳細化（DD-5・FND-24）" }
+  # --- analysis ---
+  - { node: actor,  target: sr,              activate_stage: analysis,       severity: error,   reason: "アクタはSRに紐づく" }
+  - { node: term,   target: spec,            activate_stage: analysis,       severity: warning, reason: "用語は仕様に紐づく" }
+  - { node: i,      target: spec,            activate_stage: analysis,       severity: error,   reason: "入力は仕様に紐づく" }
+  - { node: o,      target: spec,            activate_stage: analysis,       severity: error,   reason: "出力は仕様に紐づく" }
+  - { node: o,      target: p,               activate_stage: analysis,       severity: error,   reason: "出力は生成プロセスに依存（O→P）" }
+  - { node: o,      target: actor,           activate_stage: analysis,       severity: error,   reason: "出力は受け手アクタに依存（O→ACTOR）" }
+  - { node: d,      target: spec,            activate_stage: analysis,       severity: error,   reason: "内部データは仕様に紐づく" }
+  - { node: d,      target: p,               activate_stage: analysis,       severity: error,   reason: "内部データは生成プロセスに依存（D→P）" }
+  - { node: p,      target: spec,            activate_stage: analysis,       severity: error,   reason: "プロセスは仕様を詳細化" }
+  - { node: e,      target: spec,            activate_stage: analysis,       severity: error,   reason: "イベントは仕様に紐づく" }
+  - { node: e,      target: actor,           activate_stage: analysis,       severity: error,   reason: "事象は刺激元アクタに依存" }
+  # --- design ---
+  - { node: orc,    target: e,               activate_stage: design,         severity: error,   reason: "ORCは起動イベントを参照" }
+  - { node: ds,     target: p,               activate_stage: design,         severity: error,   reason: "DSはプロセスに紐づく" }
+  - { node: mod,    target: [p, d],          activate_stage: design,         severity: error,   reason: "MODはプロセス実装またはデータ型実現（D）" }
+  - { node: dm,     target: term,            activate_stage: design,         severity: error,   reason: "DMは用語を実装" }
+  - { node: dm,     target: mod,             activate_stage: design,         severity: error,   reason: "DM型定義はモジュールに属す（DM→MOD→D）" }
+  - { node: port,   target: mod,             activate_stage: design,         severity: error,   reason: "PORTはモジュールに属す" }
+  - { node: prs,    target: ds,              activate_stage: design,         severity: error,   reason: "PRSはデータストアを実装" }
+  - { node: scm,    target: spec,            activate_stage: design,         severity: error,   reason: "SCMは仕様に紐づく" }
+  - { node: cfg,    target: scm,             activate_stage: design,         severity: error,   reason: "CFGはスキーマを具体化" }
+  - { node: cfg,    target: spec,            activate_stage: design,         severity: error,   reason: "CFGは仕様に紐づく" }
+  - { node: prompt, target: spec,            activate_stage: design,         severity: error,   reason: "PROMPTは仕様に紐づく" }
+  # --- implementation ---
+  - { node: src,    target: [dm, port, orc], activate_stage: implementation, severity: error,   reason: "SRCは設計ノードを実現（いずれか1つ以上）" }
+  # --- verification ---
+  - { node: td,     target: spec,            activate_stage: verification,   severity: error,   reason: "TDは仕様を検証" }
+  - { node: tc,     target: td,              activate_stage: verification,   severity: error,   reason: "TCはTDを実装" }
+  - { node: tr,     target: tc,              activate_stage: verification,   severity: error,   reason: "TRはTCの実行結果" }
+  - { node: verify, target: any,             activate_stage: verification,   severity: error,   reason: "検証は対象要素を指す" }
+
+# ------------------------------------------------------------
+# 必須接続②：被依存辺（node ← source 群）。同一 node 複数行=AND、source 配列=OR。
+# ------------------------------------------------------------
+must_be_linked_from:
+  # --- requirements ---
+  - { node: val,   source: [sr],              activate_stage: requirements, severity: error,   reason: "価値命題は下流SRに支えられる" }
+  - { node: sr,    source: [fr, nfr, actor],  activate_stage: requirements, severity: warning, reason: "SRはFR/NFR/ACTORのいずれかに展開（OR）" }
+  - { node: fr,    source: [spec],            activate_stage: requirements, severity: warning, reason: "FRはSPECに分解される" }
+  - { node: nfr,   source: [spec],            activate_stage: requirements, severity: warning, reason: "NFRはSPECに導出される（DD-5）" }
+  # --- analysis ---
+  - { node: i,     source: [p],               activate_stage: analysis,     severity: error,   reason: "入力は消費プロセスを持つ（P→I）" }
+  - { node: e,     source: [p],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
+  - { node: d,     source: [p],               activate_stage: analysis,     severity: error,   reason: "内部データは消費プロセスを持つ（P→D）" }
+  - { node: actor, source: [e, i, o],         activate_stage: analysis,     severity: warning, reason: "アクタは事象/入出力のいずれかに関与（OR）" }
+  # --- design ---
+  - { node: e,     source: [orc],             activate_stage: design,       severity: warning, reason: "起動イベントは設計層ORCに参照される（DD-15）" }
+  # --- verification（テスト実施保証の鎖 SPEC←TD←TC←TR）---
+  - { node: spec,  source: [td],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
+  - { node: td,    source: [tc],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
+  - { node: tc,    source: [tr],              activate_stage: verification, severity: warning, reason: "テストは実行され結果を残す" }
+  - { node: nfr,   source: [fnd, tc, verify], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける（OR）" }
+
+# ------------------------------------------------------------
+# FND ライフサイクル（DD-16・Q-4）。
+# v2 差分: resolved 判定は path から導出（nodes/**/fnd/resolved/ か否か）。旧 resolved: フィールドは廃止。
+# ------------------------------------------------------------
+fnd_lifecycle:
+  resolved_from: path            # nodes/<stage>/fnd/resolved/ に在れば resolved、fnd/open/ なら未解消
+  unresolved:                    # open/: forward 辺（FND → 対象）が必須
+    must_link_to:   { target: any, activate_stage: verification, severity: error,   reason: "未解消 FND は対象への forward 辺を必須（RULE-006 後継）" }
+  resolved:                      # resolved/: backward 辺（対象 → FND）必須・forward 不在を期待
+    must_be_linked_from: { source: any, activate_stage: verification, severity: error,   reason: "resolved FND は処置対象からの backward 辺を必須" }
+    must_not_link_to:    { target: any, activate_stage: verification, severity: warning, reason: "resolved FND の元 forward 辺は削除済み（辺逆転 DD-3）" }
+
+# ------------------------------------------------------------
+# 決定スパイン（DD/Q/PEND の義務辺）。DD→X が在る=反映未完了、反映後に X→DD へ。
+# ------------------------------------------------------------
+decision_spine:
+  - { node: dd,   rule: RULE-001, severity: error }
+  - { node: q,    rule: RULE-002, severity: warning }
+  - { node: pend, rule: RULE-022, severity: warning }
+
+# ------------------------------------------------------------
+# 属性検査ルールの発火開始ステージ
+# ------------------------------------------------------------
+rule_activation:
+  RULE-016: requirements   # condition 属性なし（ERROR）
+  RULE-017: requirements   # FR に normal SPEC なし（WARNING）
+  RULE-018: requirements   # FR に failure/error SPEC なし（WARNING）
+  RULE-019: verification   # TD↔SPEC condition 不一致（WARNING）
+  RULE-020: verification   # TR result なし（ERROR）
+  RULE-021: verification   # TR log_ref なし（ERROR）
+
+# カバレッジ要件（RULE-017/018）
+coverage_rules:
+  fr:
+    required_conditions:    [normal]
+    recommended_conditions: [failure, error]
+
+# 抑制対象外（scheduled/suppress/activate_stage いずれでも抑制不可）
+always_error:
+  - RULE-005   # 完全孤立（in/out 辺が0本）
+  - RULE-007   # 存在しない ID 参照
+
+# トレース対象集合（v2 レイアウト）。ノードの正本はサイドカー .yaml（辺グラフの源）。
+trace_scope:
+  include: ["nodes/**/*.yaml"]
+  exclude: ["**/README.md"]

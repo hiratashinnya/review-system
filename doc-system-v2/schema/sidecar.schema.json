@@ -19,8 +19,8 @@
     },
     "condition": {
       "type": "string",
-      "enum": ["normal", "failure", "umbrella"],
-      "description": "SPEC 等のアサーション種別。type が持たない型では省略可。"
+      "enum": ["normal", "boundary", "empty", "failure", "error"],
+      "description": "テスタブルなアサーションの条件区分（config.yml condition_vocab と一致）。非テスタブル（傘・トレーサビリティ用）ノードは省略する。傘（umbrella）性は condition ではなく構造（同型の子から被参照されるか）で導出する。"
     },
     "labels": {
       "type": "array",
@@ -35,7 +35,7 @@
     },
     "edges": {
       "type": "array",
-      "description": "本ノードから他ノードへの有向辺。親子も edge（kind: parent）。",
+      "description": "本ノードから他ノードへの有向辺（無名依存辺・親子も edge）。関係の意味は kind ではなく (source 型, target 型)＋required_edges＋FND resolved から導出。",
       "items": {
         "type": "object",
         "additionalProperties": false,

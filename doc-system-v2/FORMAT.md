@@ -44,8 +44,10 @@ nodes/
 
 ## path 規約
 `nodes/<stage>/<type>/[<status>/]{slug}.{md,yaml}`
+- stage / type の対応は `config.yml: layout`（stage ディレクトリ → type 群）が唯一の機械可読ソース。
+  requirements stage は 01-why(val/sr) と 02-what(fr/nfr/spec) の2ディレクトリに分かれる。
 - stage: `01-why | 02-what | 03-analysis | 05-design | 04-verification`
-- type: `config.yml: type_dirs`（val, sr, …, fnd, dd, q, pend）。**type は path から導出**。
+- type: `config.yml: layout` の各値（val, sr, …, fnd, dd, q, pend）。**type は path から導出**。
 - status（lifecycle 型のみ・**path から導出**）:
   - `fnd`: `open | resolved`
   - `q`: `open | decided | deferred | closed`
@@ -63,6 +65,12 @@ nodes/
 - 親子（umbrella→子）＝ 同型間の依存辺（例: `SPEC→SPEC` は refines＝親）。
 - 入出力・詳細化＝ 型ペアで一意（例: `O→P`・`O→ACTOR`・`MOD→P/D` は target 型で判別）。
 - backref＝ `node→FND`（FND resolved）の向きで判別（逆転時に付与・指摘時 ref_version は FND 本文に記録＝DD-3）。
+
+## condition（テスタブルなアサーションの条件区分）
+- 語彙は現行 `config.yml: condition_vocab` を踏襲: **`normal | boundary | empty | failure | error`**（新設・削除なし）。
+  - normal=正常系 / boundary=境界値 / empty=空・ゼロ件・null / failure=仕様違反を正しく検出（sad-path）/ error=処理不能な異常入力（fail-close 対象）。
+- **非テスタブル**（傘・トレーサビリティ用）ノードは `condition` を**省略**する。
+- **傘（umbrella）は condition 値ではない**。傘性は「同型の子から被参照される」構造から導出する（condition に umbrella を混ぜない＝子を代表せずミスリードになるため）。移行（Sub-B）で現行の傘 SPEC（condition:normal）は condition を落とす。
 
 ## 版（DD-8 踏襲）
 - `version` は `MAJOR.MINOR.PATCH`。MAJOR=構造/型、MINOR=内容、PATCH(z)=format/provenance/lifecycle。
