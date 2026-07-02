@@ -39,12 +39,16 @@ STATUS_DIRS = {
     "q": {"open", "decided", "deferred", "closed"},
     "dd": {"decided", "closed"},
 }
-_ALLOWED_TOP = {"title", "version", "condition", "labels", "scheduled", "edges"}
+# 正準 meta-schema フィールド（labels/scheduled/condition/suppress・TR の result/log_ref）＋
+# コーパス実使用の carrier（canonicalization 保留）。id/type/status はサイドカーに持たない。
+_ALLOWED_TOP = {"title", "version", "condition", "labels", "scheduled",
+                "suppress", "result", "log_ref", "carrier", "edges"}
 _ALLOWED_EDGE = {"to", "ref_version", "note"}  # 無名依存辺（kind なし）
 _VER = re.compile(r"^\d+\.\d+\.\d+$")
 _REFVER = re.compile(r"^\d+\.\d+$")
 # config.yml condition_vocab と一致（傘性は condition でなく構造から導出＝ここに umbrella は無い）。
 _CONDITIONS = {"normal", "boundary", "empty", "failure", "error"}
+_RESULTS = {"PASS", "FAIL"}
 
 
 def validate_sidecar(data: dict) -> list[str]:
@@ -63,6 +67,10 @@ def validate_sidecar(data: dict) -> list[str]:
         errs.append(f"condition 不正: {data['condition']!r}")
     if "labels" in data and not isinstance(data["labels"], list):
         errs.append("labels は配列であること")
+    if "suppress" in data and not isinstance(data["suppress"], list):
+        errs.append("suppress は配列であること（ルール番号のリスト）")
+    if "result" in data and data["result"] not in _RESULTS:
+        errs.append(f"result 不正（PASS|FAIL）: {data['result']!r}")
     if "edges" in data:
         if not isinstance(data["edges"], list):
             errs.append("edges は配列であること")

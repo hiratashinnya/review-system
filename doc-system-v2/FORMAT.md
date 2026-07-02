@@ -29,8 +29,10 @@ nodes/
 ## 1ノード = 2ファイル
 - `{slug}.md` … **本文のみ**（Markdown）。属性・バッジ・YAML は書かない。
 - `{slug}.yaml` … **サイドカー**。`schema/sidecar.schema.json` に従う。
-  - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]`
-  - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）＝二重管理回避。
+  - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]` ＋ 正準 meta-schema フィールド
+    `suppress?`（抑制ルール番号・理由は本文/コメント必須）・`result?`/`log_ref?`（**TR 専用**・DD-011）・
+    `carrier?`（コーパス実使用の設計属性＝現状 `carrier: skill`。正準 meta-schema 未記載で **canonicalization は要オーナー判断**。移行の無損失のため schema では受理）。
+  - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）・`resolved`（=FND の path）＝二重管理回避。
 
 ## id / slug（§slug）
 - **id = ファイル名 stem = 正規化した読めるタイトル**。パス非依存・**グローバル一意**。

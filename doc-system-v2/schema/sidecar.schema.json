@@ -33,6 +33,25 @@
       "default": "",
       "description": "実施スプリント（sprint-N）。空文字＝未設定。繰り越しはオーナー判断。"
     },
+    "suppress": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "このノードで抑制するルール番号（例: [RULE-018]）。機械向け専用（labels とは別）。抑制理由を inline comment か本文に必ず残す。always_error（RULE-005/007）は抑制対象外（config.yml: always_error）。"
+    },
+    "result": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"],
+      "description": "TR（テスト結果）専用。RULE-020（省略時 WARNING/ERROR）。DD-011 で body から YAML メタへ昇格。"
+    },
+    "log_ref": {
+      "type": "string",
+      "description": "TR 専用。ログファイルのパス/URL。証跡（RULE-021）。"
+    },
+    "carrier": {
+      "type": "string",
+      "description": "コーパス実使用の設計属性（現状 carrier: skill・05-static.md の 13 ノード）。設計要素の実現担体（skill 等）。※ 正準 meta-schema には未記載＝canonicalization は要オーナー判断（移行の無損失のため schema では受理する）。"
+    },
     "edges": {
       "type": "array",
       "description": "本ノードから他ノードへの有向辺（無名依存辺・親子も edge）。関係の意味は kind ではなく (source 型, target 型)＋required_edges＋FND resolved から導出。",
