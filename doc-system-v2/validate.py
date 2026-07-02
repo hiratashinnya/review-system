@@ -38,9 +38,9 @@ STATUS_DIRS = {
     "dd": {"decided", "closed"},
 }
 _ALLOWED_TOP = {"title", "version", "condition", "labels", "scheduled", "edges"}
+_ALLOWED_EDGE = {"to", "ref_version", "note"}  # 無名依存辺（kind なし）
 _VER = re.compile(r"^\d+\.\d+\.\d+$")
 _REFVER = re.compile(r"^\d+\.\d+$")
-_EDGE_KINDS = {"parent", "dep", "backref"}
 _CONDITIONS = {"normal", "failure", "umbrella"}
 
 
@@ -68,8 +68,9 @@ def validate_sidecar(data: dict) -> list[str]:
                 if not isinstance(e, dict) or not str(e.get("to", "")).strip():
                     errs.append(f"edges[{j}]: to が非空必須")
                     continue
-                if "kind" in e and e["kind"] not in _EDGE_KINDS:
-                    errs.append(f"edges[{j}].kind 不正: {e['kind']!r}")
+                for k in e:
+                    if k not in _ALLOWED_EDGE:
+                        errs.append(f"edges[{j}]: 未知キー {k!r}（無名依存辺は to/ref_version/note のみ）")
                 if "ref_version" in e and not _REFVER.match(str(e["ref_version"])):
                     errs.append(f"edges[{j}].ref_version が x.y でない: {e['ref_version']!r}")
     return errs

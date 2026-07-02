@@ -40,22 +40,21 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["to"],
+        "description": "無名依存辺（kind を持たない）。関係の意味は (source 型, target 型)＋required_edges＋FND resolved から導出。",
         "properties": {
           "to": {
             "type": "string",
             "minLength": 1,
             "description": "参照先ノードの slug（＝id・path 非依存）。"
           },
-          "kind": {
-            "type": "string",
-            "enum": ["parent", "dep", "backref"],
-            "default": "dep",
-            "description": "parent=親子（umbrella→子等）/ dep=依存(詳細化・入出力等)/ backref=FND 逆転で付与された被処置辺。"
-          },
           "ref_version": {
             "type": "string",
             "pattern": "^[0-9]+\\.[0-9]+$",
             "description": "参照時点の相手 x.y。相手バッジ x.y.z の x.y と不一致ならドリフト(RULE-004)。"
+          },
+          "note": {
+            "type": "string",
+            "description": "任意の補足。"
           }
         }
       }

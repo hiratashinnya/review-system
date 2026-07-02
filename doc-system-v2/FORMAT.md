@@ -52,11 +52,17 @@ nodes/
   - `dd`: `decided | closed`
   - 他の型は status ディレクトリを取らない。
 
-## edges（親子＝edge）
+## edges（無名依存辺・親子も edge）
 サイドカー `edges[]` の各要素:
 - `to`（必須）: 参照先の **slug**（path 非依存）。
-- `kind`（既定 `dep`）: `parent`（親子・umbrella→子等）/ `dep`（依存＝詳細化・入出力等）/ `backref`（FND 逆転で付与）。
-- `ref_version`: 参照時点の相手 `x.y`。相手バッジ `x.y.z` の `x.y` と不一致でドリフト（RULE-004）。
+- `ref_version`（任意）: 参照時点の相手 `x.y`。相手バッジ `x.y.z` の `x.y` と不一致でドリフト（RULE-004）。
+- `note`（任意）: 補足。
+
+**edge は無名**（現行 doc-system の「無名依存辺」を踏襲・`kind` を持たない）。関係の意味は
+**(source 型, target 型) ＋ `config.yml: required_edges` ＋ FND resolved 状態から導出**する:
+- 親子（umbrella→子）＝ 同型間の依存辺（例: `SPEC→SPEC` は refines＝親）。
+- 入出力・詳細化＝ 型ペアで一意（例: `O→P`・`O→ACTOR`・`MOD→P/D` は target 型で判別）。
+- backref＝ `node→FND`（FND resolved）の向きで判別（逆転時に付与・指摘時 ref_version は FND 本文に記録＝DD-3）。
 
 ## 版（DD-8 踏襲）
 - `version` は `MAJOR.MINOR.PATCH`。MAJOR=構造/型、MINOR=内容、PATCH(z)=format/provenance/lifecycle。
