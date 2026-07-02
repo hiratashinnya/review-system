@@ -1,0 +1,8 @@
+title: "サイドカーに status を持たせず path 導出とする設計判断の要確認"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # FND→対象ノードの依存辺（無名。解決時は向きが逆転し node→FND になる）
+  - to: "本文中の孤立-を検出したとき-warning-を出力する"
+    ref_version: "0.1"

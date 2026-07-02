@@ -1,0 +1,9 @@
+title: "本文中の孤立 `---` を検出したとき WARNING を出力する"
+version: "0.1.1"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  # 親 SPEC への辺（SPEC→SPEC ＝ refines＝親。kind は持たず型ペアから導出）
+  - to: "ノード本文に孤立-ノード分離記法の本文内誤用-が存在しない"
+    ref_version: "0.1"
