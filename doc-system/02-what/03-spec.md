@@ -5291,7 +5291,7 @@ edges:
 
 ## SPEC-62-2: 本文中の孤立 `---` を検出したとき WARNING を出力する（failure）
 
-<details><summary>⬡ SPEC-62-2 · v0.1.0</summary>
+<details><summary>⬡ SPEC-62-2 · v0.1.1</summary>
 
 ```yaml
 id: SPEC-62-2
@@ -5306,8 +5306,8 @@ edges:
 </details>
 
 **前提条件**: in-graph ノードが1件以上存在し、本文範囲が孤立 `---` 検出ロジックで走査済みである。
-**入力/トリガ**: 検査器がノード本文中に孤立 `---` 行を1件以上検出する。検出定義：bare `---` 行のうち、**次の非空行が「見出し（`^#{2,}\s`）」「`<details>`／`<summary>`」「blockquote（`^>`）」のいずれでもない**もの（＝ノード分離でも inter-node 注記でもない本文内の `---`）。
+**入力/トリガ**: 検査器がノード本文中に孤立 `---` 行を1件以上検出する。検出定義：bare `---` 行のうち、直後の非空行（空行を読み飛ばした先）が次の (1)(2)(3) のいずれでもないもの（＝本文を截断する孤立 `---`）。**(1) 次ノードの開始**＝直後（空行・`<details>` 単独開き行を読み飛ばした先）に **⬡ バッジ付き `<summary>` 行**（`<summary` かつ `⬡` かつ `·` を含む行）が続くもの。※ バッジ無しの汎用 `<details>`／`<summary>` は本物のノード境界ではなく本文＝截断被害。**(2) inter-node の blockquote 注記**＝直後が `^>`。**(3) ノード見出し**＝直後が見出し行（`^#{1,}\s`）で、かつ後続（別見出し・blockquote・`**bold**`・yaml フェンス等の前置きを読み飛ばした先）に **⬡ バッジ付き `<summary>` が続く**もの。後続にバッジ付き summary が無い見出しは「本文小見出し」＝截断被害として検出する。既知の限界：`---` 直後が blockquote の場合は (2) 除外により非検出。
 **期待動作**: 本文内誤用の孤立 `---` 行を検出したとき、当該行を指す WARNING を1件出力する。
-**例**: Q-6 の本文行58が bare `---`・直後の非空行が `**選択肢A**: ...`（見出しでも details/summary でも blockquote でもない）→ 本文内誤用と判定 → `WARNING|...:58|stray-hr-in-body|(none)|body-internal '---' truncates node body（use node-separator only between nodes）` を1件出力。
+**例**: Q-6 の本文行58が bare `---`・直後の非空行が `**選択肢A**: ...`（次ノード開始でも blockquote でもノード見出しでもない）→ 本文内誤用と判定 → `WARNING|...:58|stray-hr-in-body|(none)|body-internal '---' truncates node body（use node-separator only between nodes）` を1件出力。
 
 ---

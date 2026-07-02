@@ -126,6 +126,34 @@ class TestCli(unittest.TestCase):
         self.assertEqual(len(strays), 1)            # H3 本文小見出しの stray のみ
         self.assertEqual(strays[0].fnd_id, "N-1")   # 截断被害ノード
 
+    def test_stray_hr_badgeless_details_is_body(self):
+        # 再レビュー指摘の回帰: `---` の直後がバッジ無しの汎用 <details>（⬡ summary なし）は
+        # 実パーサではノード境界ではなく本文＝截断被害。旧実装は `<details` 前方一致だけで legit と
+        # 誤判定していた。⬡ バッジ付き summary が続くかで本物のノード開始と区別する。
+        from backref import notation
+        md = "\n".join([
+            "## N-1: t", "<details><summary>⬡ N-1 · v0.1.0</summary>",
+            "```yaml", "id: N-1", "type: FND", "edges: []", "```", "</details>", "",
+            "**内容**: part1", "",
+            "---", "",                       # ← 本文内 stray（次=バッジ無し details・本文）
+            "<details><summary>クリックで展開（サンプル）</summary>",
+            "截断されてはいけない本文の一部", "</details>", "",
+            "**内容続き**: この行も本文", "",
+            "---", "",                       # ← ノード分離（次=⬡ バッジ付き summary）
+            "## N-2: t2", "<details><summary>⬡ N-2 · v0.1.0</summary>",
+            "```yaml", "id: N-2", "type: FND", "edges: []", "```", "</details>",
+            "", "**内容**: body2", "",
+        ])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f = root / "doc-system" / "x.md"
+            f.parent.mkdir(parents=True)
+            f.write_text(md, encoding="utf-8")
+            strays = [x for x in notation.check_stray_hr(root, [f])
+                      if x.code == "stray-hr-in-body"]
+        self.assertEqual(len(strays), 1)            # バッジ無し details の stray のみ
+        self.assertEqual(strays[0].fnd_id, "N-1")   # 截断被害ノード
+
     def test_check_reports_stray_hr(self):
         # CLI 配線: 既存ノード本文末尾に stray `---`＋prose を注入 → check が検出
         p = self.root / "doc-system/04-verification/02-findings.md"
