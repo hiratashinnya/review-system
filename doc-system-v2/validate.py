@@ -38,6 +38,7 @@ STATUS_DIRS = {
     "fnd": {"open", "resolved"},
     "q": {"open", "decided", "deferred", "closed"},
     "dd": {"decided", "closed"},
+    "pend": {"open", "resolved", "deferred"},
 }
 # 正準 meta-schema フィールド（labels/scheduled/condition/suppress・TR の result/log_ref）＋
 # コーパス実使用の carrier（canonicalization 保留）。id/type/status はサイドカーに持たない。

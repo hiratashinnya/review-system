@@ -50,7 +50,7 @@
     },
     "carrier": {
       "type": "string",
-      "description": "コーパス実使用の設計属性（現状 carrier: skill・05-static.md の 13 ノード）。設計要素の実現担体（skill 等）。※ 正準 meta-schema には未記載＝canonicalization は要オーナー判断（移行の無損失のため schema では受理する）。"
+      "description": "設計要素の実現担体（realization carrier）。現状値 skill（05-static.md の 13 ノード）。将来 code/module 等を想定。v2 正準フィールド（オーナー承認 2026-07-03）。"
     },
     "edges": {
       "type": "array",

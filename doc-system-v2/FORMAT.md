@@ -31,7 +31,7 @@ nodes/
 - `{slug}.yaml` … **サイドカー**。`schema/sidecar.schema.json` に従う。
   - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]` ＋ 正準 meta-schema フィールド
     `suppress?`（抑制ルール番号・理由は本文/コメント必須）・`result?`/`log_ref?`（**TR 専用**・DD-011）・
-    `carrier?`（コーパス実使用の設計属性＝現状 `carrier: skill`。正準 meta-schema 未記載で **canonicalization は要オーナー判断**。移行の無損失のため schema では受理）。
+    `carrier?`（設計要素の実現担体＝realization carrier・現状値 `skill`。v2 正準フィールド・オーナー承認済 2026-07-03）。
   - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）・`resolved`（=FND の path）＝二重管理回避。
 
 ## id / slug（§slug）
@@ -54,6 +54,7 @@ nodes/
   - `fnd`: `open | resolved`
   - `q`: `open | decided | deferred | closed`
   - `dd`: `decided | closed`
+  - `pend`: `open | resolved | deferred`
   - 他の型は status ディレクトリを取らない。
 
 ## edges（無名依存辺・親子も edge）

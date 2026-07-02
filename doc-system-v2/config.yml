@@ -27,9 +27,10 @@ layout:
 
 # lifecycle を持つ型のみ status サブディレクトリ（path 第3階層・status もサイドカーに持たない）。
 status_dirs:
-  fnd: [open, resolved]
-  q:   [open, decided, deferred, closed]
-  dd:  [decided, closed]
+  fnd:  [open, resolved]
+  q:    [open, decided, deferred, closed]
+  dd:   [decided, closed]
+  pend: [open, resolved, deferred]
 
 # slug（= ファイル名 stem = id）の正規化は slugify.py が唯一実装。
 slug:
