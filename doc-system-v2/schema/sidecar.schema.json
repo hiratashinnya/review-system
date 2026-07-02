@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "doc-system-v2/schema/sidecar.schema.json",
+  "title": "doc-system v2 サイドカー（{slug}.yaml）スキーマ",
+  "description": "1ノード1サイドカー。多値・グラフ属性のみを持つ。id/type/status はここに持たない（id=ファイル名 stem、type/status は path から導出＝二重管理回避）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "version", "edges"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "人間向けフルタイトル（記号・空白・backtick を含んでよい）。ファイル名(slug)はこれを slugify.py で正規化したもの。"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "MAJOR.MINOR.PATCH（DD-8）。ドリフト判定(RULE-004)は x.y を比較、z は伝播不問。"
+    },
+    "condition": {
+      "type": "string",
+      "enum": ["normal", "failure", "umbrella"],
+      "description": "SPEC 等のアサーション種別。type が持たない型では省略可。"
+    },
+    "labels": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "多値ラベル（post-mvp 等）。多値ゆえ path 化できずサイドカーで持つ。"
+    },
+    "scheduled": {
+      "type": "string",
+      "default": "",
+      "description": "実施スプリント（sprint-N）。空文字＝未設定。繰り越しはオーナー判断。"
+    },
+    "edges": {
+      "type": "array",
+      "description": "本ノードから他ノードへの有向辺。親子も edge（kind: parent）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["to"],
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "description": "参照先ノードの slug（＝id・path 非依存）。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["parent", "dep", "backref"],
+            "default": "dep",
+            "description": "parent=親子（umbrella→子等）/ dep=依存(詳細化・入出力等)/ backref=FND 逆転で付与された被処置辺。"
+          },
+          "ref_version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "description": "参照時点の相手 x.y。相手バッジ x.y.z の x.y と不一致ならドリフト(RULE-004)。"
+          }
+        }
+      }
+    }
+  }
+}

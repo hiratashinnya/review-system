@@ -1,0 +1,62 @@
+# doc-system v2 config（起点）。
+# 現行 docs/doc-system/config.yaml の stage 別必須辺ルールは「型レベル」でありフォーマット非依存の
+# ため、ほぼそのまま移植する（Sub-E で正式化）。RULE-004 ドリフト判定は「辺の ref_version(x.y) ≠
+# 参照先バッジ x.y.z の x.y」で行う（z は伝播不問）。
+
+current_stage: "design"          # requirements | analysis | design | implementation | verification
+stages: [requirements, analysis, design, implementation, verification]
+
+# stage → ディレクトリ（path の第1階層）
+stage_dirs:
+  requirements: 01-why           # VAL/SR は 01-why、FR/NFR/SPEC は 02-what（下記 type_stage 参照）
+  what:         02-what
+  analysis:     03-analysis
+  design:       05-design
+  verification: 04-verification
+
+# type → ディレクトリ名（path の第2階層）。id には含めない（type は path から導出）。
+type_dirs:
+  [val, sr, fr, nfr, spec, actor, i, o, d, p, e, term,
+   orc, ds, mod, dm, port, prs, scm, cfg, prompt,
+   td, tc, tr, verify, fnd, dd, q, pend]
+
+# lifecycle を持つ型のみ status サブディレクトリ（path の第3階層）。status もサイドカーに持たない。
+status_dirs:
+  fnd: [open, resolved]
+  q:   [open, decided, deferred, closed]
+  dd:  [decided, closed]
+
+# slug（= ファイル名 stem = id）の正規化は slugify.py が唯一の実装。
+slug:
+  impl: "doc-system-v2/slugify.py"
+  max_bytes: 120
+
+# 必須辺（型レベル・activate_stage 以上で発火）。現行 config.yaml から移植。
+# target が配列＝いずれか1つ以上を満たせばよい。
+required_edges:
+  - { node: sr,     target: val,             activate_stage: requirements, severity: error,   reason: "SRは価値命題を詳細化" }
+  - { node: fr,     target: sr,              activate_stage: requirements, severity: error,   reason: "FRはSRを詳細化" }
+  - { node: nfr,    target: sr,              activate_stage: requirements, severity: error,   reason: "NFRはSRを詳細化" }
+  - { node: spec,   target: [fr, nfr, spec], activate_stage: requirements, severity: error,   reason: "SPECはFR・NFR・または別SPEC(親)を詳細化" }
+  - { node: actor,  target: sr,              activate_stage: analysis,     severity: error,   reason: "アクタはSRに紐づく" }
+  - { node: term,   target: spec,            activate_stage: analysis,     severity: warning, reason: "用語は仕様に紐づく" }
+  - { node: i,      target: spec,            activate_stage: analysis,     severity: error,   reason: "入力は仕様に紐づく" }
+  - { node: o,      target: spec,            activate_stage: analysis,     severity: error,   reason: "出力は仕様に紐づく" }
+  - { node: o,      target: p,               activate_stage: analysis,     severity: error,   reason: "出力は生成プロセスに依存(O→P)" }
+  - { node: o,      target: actor,           activate_stage: analysis,     severity: error,   reason: "出力は受け手アクタに依存(O→ACTOR)" }
+  - { node: d,      target: spec,            activate_stage: analysis,     severity: error,   reason: "内部データは仕様に紐づく" }
+  - { node: d,      target: p,               activate_stage: analysis,     severity: error,   reason: "内部データは生成プロセスに依存(D→P)" }
+  - { node: p,      target: spec,            activate_stage: analysis,     severity: error,   reason: "プロセスは仕様を詳細化" }
+  - { node: e,      target: spec,            activate_stage: analysis,     severity: error,   reason: "イベントは仕様に紐づく" }
+  - { node: e,      target: actor,           activate_stage: analysis,     severity: error,   reason: "事象は刺激元アクタに依存" }
+  - { node: orc,    target: e,               activate_stage: design,       severity: error,   reason: "ORCは起動イベントを参照" }
+  - { node: ds,     target: p,               activate_stage: design,       severity: error,   reason: "DSはプロセスに紐づく" }
+  - { node: mod,    target: [p, d],          activate_stage: design,       severity: error,   reason: "MODはプロセス実装またはデータ型実現" }
+  - { node: dm,     target: term,            activate_stage: design,       severity: error,   reason: "DMは用語を実装" }
+  - { node: dm,     target: mod,             activate_stage: design,       severity: error,   reason: "DM型定義はモジュールに属す" }
+  - { node: port,   target: mod,             activate_stage: design,       severity: error,   reason: "PORTはモジュールに属す" }
+  - { node: prs,    target: ds,              activate_stage: design,       severity: error,   reason: "PRSはデータストアを実装" }
+  - { node: scm,    target: spec,            activate_stage: design,       severity: error,   reason: "SCMは仕様に紐づく" }
+  - { node: cfg,    target: scm,             activate_stage: design,       severity: error,   reason: "CFGはスキーマを具体化" }
+  - { node: cfg,    target: spec,            activate_stage: design,       severity: error,   reason: "CFGは仕様に紐づく" }
+  - { node: prompt, target: spec,            activate_stage: design,       severity: error,   reason: "PROMPTは仕様に紐づく" }

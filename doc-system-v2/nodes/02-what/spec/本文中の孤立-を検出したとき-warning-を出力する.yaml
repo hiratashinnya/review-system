@@ -1,0 +1,9 @@
+title: "本文中の孤立 `---` を検出したとき WARNING を出力する"
+version: "0.1.1"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード本文に孤立-ノード分離記法の本文内誤用-が存在しない"
+    kind: parent
+    ref_version: "0.1"
