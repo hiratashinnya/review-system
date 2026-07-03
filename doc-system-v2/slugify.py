@@ -23,9 +23,10 @@ import unicodedata
 
 MAX_BYTES = 120
 
-# 末尾 condition マーカー。実コーパスは （normal） だけでなく （normal・アンブレラ）
-# （failure・…）等の派生形を持つため「normal|failure|umbrella で始まる末尾括弧群」を対象にする。
-_CONDITION_SUFFIX = re.compile(r"[（(](?:normal|failure|umbrella)[^）)]*[)）]\s*$")
+# 末尾 condition マーカー。config.yml condition_vocab（normal/boundary/empty/failure/error）と一致させる。
+# 実コーパスは （normal） だけでなく （normal・アンブレラ）（error・…）等の派生形を持つため
+# 「vocab 語で始まる末尾括弧群」を対象にする（umbrella は #81 で condition から外れたため含めない）。
+_CONDITION_SUFFIX = re.compile(r"[（(](?:normal|boundary|empty|failure|error)[^）)]*[)）]\s*$")
 # path/shell 敵性文字。これらは slug から除去（空白化→後段でハイフン化）。
 _HOSTILE = set('/\\:*?"<>|`\'()[]{}（）「」【】〔〕')
 _WS = re.compile(r"\s+")
@@ -83,10 +84,14 @@ def _selftest() -> None:
         assert not out.startswith("-") and not out.endswith("-"), out
         assert "--" not in out, out
         assert len(out.encode("utf-8")) <= MAX_BYTES, out
-    # (3) condition ストリップ
-    assert strip_condition("題（failure）") == "題"
+    # (3) condition ストリップ（config.yml condition_vocab に一致）
+    for cond in ("normal", "boundary", "empty", "failure", "error"):
+        assert strip_condition(f"題（{cond}）") == "題", cond
     assert strip_condition("題（normal・アンブレラ）") == "題"
-    assert strip_condition("題（umbrella）") == "題"
+    # umbrella は #81 で condition 値でなくなったため除去しない（漏れではなく仕様）
+    assert strip_condition("題（umbrella）") == "題（umbrella）"
+    # slug でも （error） 等が漏れないこと（本指摘①の回帰）
+    assert slugify("何かの検査（error）") == "何かの検査", slugify("何かの検査（error）")
     assert strip_condition("題") == "題"
     # (4) 長さ上限（多バイト境界を割らない）
     s = slugify("あ" * 100)  # 300 bytes
