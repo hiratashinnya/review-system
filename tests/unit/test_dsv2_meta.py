@@ -56,5 +56,50 @@ class TestBuildMeta(unittest.TestCase):
         self.assertEqual(len(m["nodes"]), 5)
 
 
+class TestPlacementValidation(unittest.TestCase):
+    """read_node は不正配置を silently 誤メタ化せず MetaError で fail-close する。"""
+
+    def _make(self, tmp, relpath):
+        import tempfile
+        from pathlib import Path
+        root = Path(tempfile.mkdtemp(dir=tmp))
+        y = root / relpath
+        y.parent.mkdir(parents=True, exist_ok=True)
+        y.write_text("title: t\nversion: 0.1.0\nedges: []\n", "utf-8")
+        y.with_suffix(".md").write_text("body\n", "utf-8")
+        return root, y
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.mkdtemp()
+
+    def test_valid_placements_ok(self):
+        for rel in ("nodes/02-what/spec/x.yaml",
+                    "nodes/04-verification/fnd/open/x.yaml",
+                    "nodes/04-verification/pend/deferred/x.yaml"):
+            root, y = self._make(self._tmp, rel)
+            meta.read_node(y, root)  # 例外なし
+
+    def test_unknown_stage(self):
+        root, y = self._make(self._tmp, "nodes/99-bogus/spec/x.yaml")
+        self.assertRaises(meta.MetaError, meta.read_node, y, root)
+
+    def test_type_not_in_stage(self):
+        root, y = self._make(self._tmp, "nodes/02-what/fnd/x.yaml")  # fnd は 04 のみ
+        self.assertRaises(meta.MetaError, meta.read_node, y, root)
+
+    def test_status_dir_on_statusless_type(self):
+        root, y = self._make(self._tmp, "nodes/05-design/mod/extra/x.yaml")
+        self.assertRaises(meta.MetaError, meta.read_node, y, root)
+
+    def test_missing_required_status_dir(self):
+        root, y = self._make(self._tmp, "nodes/04-verification/fnd/x.yaml")  # status 必須
+        self.assertRaises(meta.MetaError, meta.read_node, y, root)
+
+    def test_unknown_status_value(self):
+        root, y = self._make(self._tmp, "nodes/04-verification/fnd/bogus/x.yaml")
+        self.assertRaises(meta.MetaError, meta.read_node, y, root)
+
+
 if __name__ == "__main__":
     unittest.main()

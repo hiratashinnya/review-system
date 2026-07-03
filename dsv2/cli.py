@@ -9,7 +9,7 @@
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
 
-終了コード: 0 正常 / 2 未検出 / 3 用法 / 4 前提違反。
+終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反。
 """
 
 from __future__ import annotations
@@ -24,9 +24,8 @@ from .rename import RenameError
 from .reverse import ReverseError
 
 EXIT_OK = 0
-EXIT_NOT_FOUND = 2
-EXIT_USAGE = 3
-EXIT_ERROR = 4
+EXIT_NOT_FOUND = 2  # 未検出。argparse の用法エラーも既定で 2 を返す
+EXIT_ERROR = 4      # 前提違反（reverse/rename の前提不成立）
 
 
 def _root(args) -> Path:

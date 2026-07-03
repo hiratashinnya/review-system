@@ -20,12 +20,26 @@ from docidx import nodeyaml  # noqa: E402
 DEFAULT_ROOT = "doc-system-v2"
 META_FILENAME = "meta.json"
 
+
+class MetaError(ValueError):
+    """path が config.yml の layout / status_dirs に反する不正配置。"""
+
+
 # config.yml layout / status_dirs を正本とし一致させて直書き（配線は Sub-E で config 直読へ）。
-STAGES = {"01-why", "02-what", "03-analysis", "05-design", "04-verification"}
+LAYOUT = {
+    "01-why": {"val", "sr"},
+    "02-what": {"fr", "nfr", "spec"},
+    "03-analysis": {"actor", "i", "o", "d", "p", "e", "term"},
+    "05-design": {"orc", "ds", "mod", "dm", "port", "prs", "scm", "cfg", "prompt"},
+    "04-verification": {"td", "tc", "tr", "verify", "fnd", "dd", "q", "pend"},
+}
+STAGES = set(LAYOUT)
+# lifecycle を持つ型のみ status サブディレクトリ（config.yml status_dirs と一致・pend は #81 で追加）。
 STATUS_DIRS = {
     "fnd": {"open", "resolved"},
     "q": {"open", "decided", "deferred", "closed"},
     "dd": {"decided", "closed"},
+    "pend": {"open", "resolved", "deferred"},
 }
 
 
@@ -41,6 +55,24 @@ def read_node(yaml_path: Path, root: Path) -> dict:
     stage = middle[0] if len(middle) >= 1 else ""
     typ = middle[1] if len(middle) >= 2 else ""
     status = middle[2] if len(middle) >= 3 else None
+
+    # 配置検証（FORMAT.md / config.yml layout・status_dirs）: 不正配置を silently 誤メタ化しない。
+    if parts[0] != "nodes":
+        raise MetaError(f"nodes/ 配下でない: {_posix(rel)}")
+    if stage not in LAYOUT:
+        raise MetaError(f"未知 stage: {stage!r}（{_posix(rel)}）")
+    if typ not in LAYOUT[stage]:
+        raise MetaError(f"stage {stage!r} に無い type: {typ!r}（{_posix(rel)}）")
+    allowed = STATUS_DIRS.get(typ)
+    if allowed is None and status is not None:
+        raise MetaError(f"type {typ!r} は status ディレクトリを取らない: {status!r}（{_posix(rel)}）")
+    if allowed is not None:
+        if status is None:
+            raise MetaError(f"type {typ!r} は status ディレクトリ必須（{sorted(allowed)}・{_posix(rel)}）")
+        if status not in allowed:
+            raise MetaError(f"type {typ!r} の未知 status: {status!r}（許容 {sorted(allowed)}・{_posix(rel)}）")
+    if len(middle) > 3:
+        raise MetaError(f"想定外の階層深さ: {_posix(rel)}")
 
     data = nodeyaml.parse(yaml_path.read_text(encoding="utf-8"))
     edges: list[dict] = []
