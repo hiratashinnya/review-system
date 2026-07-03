@@ -1,9 +1,9 @@
-# テンプレ: PEND（先送り）。path: nodes/04-verification/pend/{slug}.yaml（pend は status サブディレクトリなし）
+# テンプレ: PEND（先送り）。path: nodes/04-verification/pend/<status>/{slug}.yaml（status: open|resolved|deferred）
 # 義務辺（affects・RULE-022 WARNING）: 先送り中は追跡のみ（辺の存在＝未反映）。
 title: "[先送りタイトル]"
 version: "0.1.0"
 labels: []
-scheduled: "sprint-N"   # 再検討予定フェーズ（繰り越しはオーナー判断）
+scheduled: ""   # 既定は未設定。sprint-N を入れる場合はオーナー確認必須（スケジュール独断禁止）
 edges:
   # 義務辺（PEND→影響先）: 追跡する影響先
   - to: "[影響先ノードの slug]"

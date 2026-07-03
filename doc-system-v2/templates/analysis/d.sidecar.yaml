@@ -7,6 +7,6 @@ edges:
   # 必須（D→SPEC）: 紐づく機能仕様（config must_link_to d→spec）
   - to: "[紐づく SPEC の slug]"
     ref_version: "0.1"
-  # 必須（D→P）: 生成/消費プロセス（config must_link_to d→p）
-  - to: "[関係する P の slug]"
+  # 必須（D→P）: 生成元プロセス（config must_link_to d→p）。消費は P→D で P 側が張る（D→P に消費を混ぜない）
+  - to: "[生成元 P の slug]"
     ref_version: "0.1"

@@ -14,4 +14,7 @@ edges:
   # 必須（P→E）: トリガ事象（プロセスはトリガ事象に依存）
   - to: "[トリガ E の slug]"
     ref_version: "0.1"
-  # 生成する出力／内部データは O/D 側から張る（O→P / D→P）
+  # 必須（P→D）: 消費する内部データ（config must_be_linked_from d ← p＝消費 P・severity error）
+  - to: "[消費する D の slug]"
+    ref_version: "0.1"
+  # 生成側の辺は生成元ノードから張る: 出力=O→P、内部データの生成元=D→P（ここ P→D は「消費」のみ）
