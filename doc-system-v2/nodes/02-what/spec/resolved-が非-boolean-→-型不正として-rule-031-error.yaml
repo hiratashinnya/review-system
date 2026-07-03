@@ -1,0 +1,8 @@
+title: "`resolved` が非 boolean → 型不正として RULE-031 ERROR"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "fnd-resolved-状態の機械判定セマンティクス"
+    ref_version: "0.2"

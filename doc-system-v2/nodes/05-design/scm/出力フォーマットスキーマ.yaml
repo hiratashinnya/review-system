@@ -1,0 +1,7 @@
+title: "出力フォーマットスキーマ"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "出力形式と終了コード"
+    ref_version: "0.2"

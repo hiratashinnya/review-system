@@ -1,0 +1,13 @@
+title: "TD-SPEC condition 整合検査"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "td-の-condition-が-verifies-先-spec-と不一致-rule-019"
+    ref_version: "0.1"
+  - to: "属性検査ビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "カバレッジ属性検査"
+    ref_version: "0.2"

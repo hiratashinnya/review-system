@@ -1,0 +1,13 @@
+title: "著作・反映パイプライン実行"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "orc-の-must_link_to-参照先を-p-から-e-へ変更-設計ノードの上流参照の定義"
+    ref_version: "0.1"
+  - to: "著作・tmp-出力"
+    ref_version: "0.2"
+  - to: "調停・本ファイル反映"
+    ref_version: "0.2"

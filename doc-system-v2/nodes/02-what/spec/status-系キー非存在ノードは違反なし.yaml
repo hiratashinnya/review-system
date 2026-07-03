@@ -1,0 +1,8 @@
+title: "status 系キー非存在ノードは違反なし"
+version: "0.2.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "dd-q-pend-のノード-yaml-メタ属性-に-status-系フィールドが存在しない"
+    ref_version: "0.2"

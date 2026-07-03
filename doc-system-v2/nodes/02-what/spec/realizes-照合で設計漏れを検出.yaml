@@ -1,0 +1,8 @@
+title: "realizes 照合で設計漏れを検出"
+version: "0.1.0"
+condition: normal
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "src-の-@id-realizes-検証"
+    ref_version: "0.3"

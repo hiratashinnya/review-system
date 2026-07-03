@@ -1,0 +1,17 @@
+title: "ノードグラフの構造化表現"
+version: "0.3.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"
+  - to: "sr-4-を-sr-2-の重複として削除し被依存を-sr-2-へ再配線"
+    ref_version: "0.1"
+  - to: "fr-1-の-spec-分割が荒く-yaml-不在・空集合・パース異常ケースが未定義"
+    ref_version: "0.1"
+  - to: "i-o-ノードのフォーマット定義が非公式散文にとどまり-spec-として機械検証不可"
+    ref_version: "0.1"
+  - to: "l2-fr-1-ノードバッジ-v0.3-と-fr.md-ファイル-version-x.y=0.2-の不一致"
+    ref_version: "0.1"
+  - to: "ノードバージョンの桁数定義が-2パート-x.y-と-3パート-x.y.z-で矛盾し-dd-8-§4-の-z-バンプが"
+    ref_version: "0.1"

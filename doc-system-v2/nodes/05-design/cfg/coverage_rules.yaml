@@ -1,0 +1,11 @@
+title: "coverage_rules"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ステージ／語彙／カバレッジ／スコープスキーマ"
+    ref_version: "0.1"
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "config.yaml-設定インスタンス"
+    ref_version: "0.1"

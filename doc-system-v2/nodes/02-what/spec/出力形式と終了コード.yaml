@@ -1,0 +1,7 @@
+title: "出力形式と終了コード"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "検証ツールの実行形態"
+    ref_version: "0.2"

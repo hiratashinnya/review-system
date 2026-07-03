@@ -1,0 +1,11 @@
+title: "属性検査ビュー"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "spec×td-カバレッジ・condition-不整合"
+    ref_version: "0.2"
+  - to: "ノード受付・パース"
+    ref_version: "0.2"
+  - to: "i-1-1-i-1-2-i-1-3-の過分割の疑い"
+    ref_version: "0.2"

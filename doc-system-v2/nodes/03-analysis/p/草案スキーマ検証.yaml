@@ -1,0 +1,17 @@
+title: "草案スキーマ検証"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "id-欠如-tmp-出力に-reconciliation-が検証エラーを報告"
+    ref_version: "0.1"
+  - to: "id-欠如検出時に-rule-025-相当メッセージを出力"
+    ref_version: "0.1"
+  - to: "id-欠如検出時に-reconciliation-が転記を中断"
+    ref_version: "0.1"
+  - to: "ノード草案-tmp-草案"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "調停・本ファイル反映"
+    ref_version: "0.2"

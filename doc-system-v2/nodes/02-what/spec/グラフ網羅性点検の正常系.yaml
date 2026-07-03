@@ -1,0 +1,11 @@
+title: "グラフ網羅性点検の正常系"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "構造的完結性検証"
+    ref_version: "0.2"
+  - to: "カバレッジ点検-グラフ網羅性-の上流-spec-欠落"
+    ref_version: "0.1"
+  - to: "spec-29-期待動作が-0件で通過・価値経路と分析層接続充足と判定-の2動作混載"
+    ref_version: "0.1"

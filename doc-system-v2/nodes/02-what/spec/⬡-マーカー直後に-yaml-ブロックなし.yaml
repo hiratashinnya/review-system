@@ -1,0 +1,12 @@
+title: "⬡ マーカー直後に YAML ブロックなし"
+version: "0.1.1"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードグラフの構造化表現"
+    ref_version: "0.3"
+  - to: "spec-32-期待動作が-error出力・ファイル中断-の2動作混載"
+    ref_version: "0.1"
+  - to: "03-spec.md-本文-例-記述-12-箇所に旧形式残存-バッジ-2-パート・ref_version-3-パート"
+    ref_version: "0.1"

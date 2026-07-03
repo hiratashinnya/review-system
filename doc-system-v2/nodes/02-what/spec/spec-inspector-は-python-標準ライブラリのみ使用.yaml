@@ -1,0 +1,11 @@
+title: "spec-inspector は Python 標準ライブラリのみ使用"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "標準ライブラリのみでパース可能"
+    ref_version: "0.3"
+  - to: "spec-45-期待動作が-全importが標準ライブラリのみ・外部依存0件-＋違反出力で複数アサーシ"
+    ref_version: "0.1"
+  - to: "検証手順の観測-実行主体が二者択一で一意でない-再現性・観測可能性"
+    ref_version: "0.1"

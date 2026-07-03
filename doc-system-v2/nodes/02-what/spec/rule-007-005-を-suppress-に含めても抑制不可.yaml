@@ -1,0 +1,10 @@
+title: "RULE-007/005 を suppress に含めても抑制不可"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "suppress-の禁止ケース"
+    ref_version: "0.3"
+  - to: "spec-23-1-期待動作が-抑制を無視・常にerror報告-の2動詞＋rule-007-005併記"
+    ref_version: "0.1"

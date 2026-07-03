@@ -1,0 +1,13 @@
+title: "記載内容充填"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作は-i-7-と-i-9-を充填して草案を生成する"
+    ref_version: "0.1"
+  - to: "ノード記載内容"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "著作・tmp-出力"
+    ref_version: "0.2"

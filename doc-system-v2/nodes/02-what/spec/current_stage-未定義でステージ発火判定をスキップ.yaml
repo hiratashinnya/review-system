@@ -1,0 +1,8 @@
+title: "current_stage 未定義でステージ発火判定をスキップ"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "current_stage-が-stages-に未定義"
+    ref_version: "0.1"

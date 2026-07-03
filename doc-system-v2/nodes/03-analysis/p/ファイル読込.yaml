@@ -1,0 +1,15 @@
+title: "ファイル読込"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード埋め込みのパース"
+    ref_version: "0.3"
+  - to: "ノードファイル群"
+    ref_version: "0.1"
+  - to: "in-graph-ファイル集合"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "ノード受付・パース"
+    ref_version: "0.3"

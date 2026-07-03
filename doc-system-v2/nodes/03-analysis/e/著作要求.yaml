@@ -1,0 +1,17 @@
+title: "著作要求"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートの必須フィールド充足"
+    ref_version: "0.3"
+  - to: "仕様著者"
+    ref_version: "0.1"
+  - to: "events.md-の-e-2-欠番"
+    ref_version: "0.1"
+  - to: "テンプレートファイル群"
+    ref_version: "0.1"
+  - to: "e-2-スティミュラスが-新規ノード著作-のみで既存ノード改訂を含まない"
+    ref_version: "0.1"
+  - to: "分析層-ref_version-ドリフト群の一括解消-fnd-17-から昇格"
+    ref_version: "0.1"

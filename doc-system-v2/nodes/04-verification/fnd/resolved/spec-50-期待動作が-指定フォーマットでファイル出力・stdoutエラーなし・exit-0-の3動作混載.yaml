@@ -1,0 +1,5 @@
+title: "SPEC-50 期待動作が「指定フォーマットでファイル出力・stdoutエラーなし・exit 0」の3動作混載"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges: []

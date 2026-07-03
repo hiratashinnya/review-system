@@ -1,0 +1,8 @@
+title: "FR の SPEC 群に normal condition なし（RULE-017）"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "fr-の-condition-網羅"
+    ref_version: "0.2"

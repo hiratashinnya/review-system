@@ -1,0 +1,7 @@
+title: "__main__"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "設定ファイル読み込み"
+    ref_version: "0.2"

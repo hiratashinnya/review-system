@@ -1,0 +1,10 @@
+title: "always_error は発火ステージ前でも発火"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "spec-21-3-期待動作が-抑制設定を無視・error報告-＋rule-007-005の2目的語混載"
+    ref_version: "0.1"

@@ -1,0 +1,11 @@
+title: "ライフサイクル状態は本文・メタに持たない"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"
+  - to: "sr-4-を-sr-2-の重複として削除し被依存を-sr-2-へ再配線"
+    ref_version: "0.1"
+  - to: "nfr-から-spec-導出を必須化する"
+    ref_version: "0.1"

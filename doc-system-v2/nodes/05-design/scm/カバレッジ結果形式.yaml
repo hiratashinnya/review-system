@@ -1,0 +1,9 @@
+title: "カバレッジ結果形式"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジレポートの生成"
+    ref_version: "0.2"
+  - to: "出力フォーマットスキーマ"
+    ref_version: "0.1"

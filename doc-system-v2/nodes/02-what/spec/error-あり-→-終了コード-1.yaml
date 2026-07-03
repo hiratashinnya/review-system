@@ -1,0 +1,8 @@
+title: "ERROR あり → 終了コード 1"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "出力形式と終了コード"
+    ref_version: "0.2"

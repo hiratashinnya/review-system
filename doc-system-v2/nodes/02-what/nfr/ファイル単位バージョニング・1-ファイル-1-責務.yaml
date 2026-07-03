@@ -1,0 +1,9 @@
+title: "ファイル単位バージョニング・1 ファイル 1 責務"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "上流変更の下流への反映漏れ-ドリフト-を継続検出できる"
+    ref_version: "0.1"
+  - to: "nfr-から-spec-導出を必須化する"
+    ref_version: "0.1"

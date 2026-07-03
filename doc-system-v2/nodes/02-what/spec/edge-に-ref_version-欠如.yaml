@@ -1,0 +1,10 @@
+title: "edge に ref_version 欠如"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードグラフの構造化表現"
+    ref_version: "0.3"
+  - to: "spec-35-期待動作が-error出力・後続rule中断-の2動作混載"
+    ref_version: "0.1"

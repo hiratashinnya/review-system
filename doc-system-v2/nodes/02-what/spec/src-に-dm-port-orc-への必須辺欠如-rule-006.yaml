@@ -1,0 +1,8 @@
+title: "SRC に DM/PORT/ORC への必須辺欠如（RULE-006）"
+version: "0.1.0"
+condition: normal
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "src-の-@id-realizes-検証"
+    ref_version: "0.3"

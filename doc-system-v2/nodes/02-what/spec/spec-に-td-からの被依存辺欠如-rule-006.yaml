@@ -1,0 +1,10 @@
+title: "SPEC に TD からの被依存辺欠如（RULE-006）"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "spec×td-カバレッジ・condition-不整合"
+    ref_version: "0.2"
+  - to: "分析層全面見直し起因の被覆ドリフト-2-件-g1-孤児-spec・g4-旧-p-3-消費先記述残存"
+    ref_version: "0.1"

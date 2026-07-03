@@ -1,0 +1,7 @@
+title: "フェーズ・ステージ進行に応じて検査ノイズを制御できる"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "段階的前進"
+    ref_version: "0.1"

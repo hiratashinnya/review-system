@@ -1,0 +1,10 @@
+title: "DD の義務辺残存"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "意思決定ドリフト検出"
+    ref_version: "0.2"
+  - to: "spec-12-期待動作が-error報告・dd→x削除・x→dd追加-の3動作混載"
+    ref_version: "0.1"

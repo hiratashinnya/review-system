@@ -1,0 +1,10 @@
+title: "SPEC の辺が全て直接親型（FR/NFR/SPEC）を指す"
+version: "0.1.1"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "各ノードは直接の親のみへ辺を張る-usdm-1段制約"
+    ref_version: "0.1"
+  - to: "03-spec.md-本文-例-記述-12-箇所に旧形式残存-バッジ-2-パート・ref_version-3-パート"
+    ref_version: "0.1"

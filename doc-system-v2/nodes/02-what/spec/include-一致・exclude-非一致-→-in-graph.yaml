@@ -1,0 +1,8 @@
+title: "include 一致・exclude 非一致 → in-graph"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-判定"
+    ref_version: "0.2"

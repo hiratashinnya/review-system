@@ -1,0 +1,17 @@
+title: "調停・本ファイル反映"
+version: "0.2.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作出力の-id-欠如検出時の-reconciliation-挙動"
+    ref_version: "0.1"
+  - to: "ノード草案-tmp-草案"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "分析層ワークフロー改訂-図と並走してノード著作・d-は分析層で起票-＋-dfd-修正の技術決"
+    ref_version: "0.1"
+  - to: "m3-pr-#21-説明文が実変更と大きく乖離"
+    ref_version: "0.1"
+  - to: "ノード著作・反映プロセス"
+    ref_version: "0.4"

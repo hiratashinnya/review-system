@@ -1,0 +1,8 @@
+title: "バッジ version 欠如・形式不正のノードに ERROR を出力する"
+version: "0.1.1"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "全-in-graph-ノードの-summary-バッジに-version-x.y.z-が存在する"
+    ref_version: "0.2"

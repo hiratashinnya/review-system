@@ -1,0 +1,12 @@
+title: "解消済み FND の元 forward 辺残存"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "検証・指摘の完結性検証"
+    ref_version: "0.2"
+  - to: "fnd_lifecycle-の必須辺ルール3つのうち-resolved-系2ルールに-dedicated-spec-が不在-被覆均一化の"
+    ref_version: "0.2"
+  - to: "config-駆動の-禁止接続-辺残留-must_not_link_to-を報告する-rule-が-05-verification.md-に未定義-検出"
+    ref_version: "0.2"

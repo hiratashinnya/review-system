@@ -1,0 +1,8 @@
+title: "全 import が標準ライブラリのみを参照する"
+version: "0.2.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "spec-inspector-は-python-標準ライブラリのみ使用"
+    ref_version: "0.2"

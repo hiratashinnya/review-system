@@ -1,0 +1,13 @@
+title: "テンプレート取得"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートが必須フィールドを全て含む"
+    ref_version: "0.1"
+  - to: "テンプレートファイル群"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "著作・tmp-出力"
+    ref_version: "0.2"

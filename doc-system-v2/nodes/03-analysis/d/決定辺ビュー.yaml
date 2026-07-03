@@ -1,0 +1,9 @@
+title: "決定辺ビュー"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "バージョンドリフトの検出"
+    ref_version: "0.2"
+  - to: "ノード受付・パース"
+    ref_version: "0.2"

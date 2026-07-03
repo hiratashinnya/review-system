@@ -1,0 +1,9 @@
+title: "カバレッジレポートの生成"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "仕様カバレッジ検証"
+    ref_version: "0.2"
+  - to: "i-o-ノードのフォーマット定義が非公式散文にとどまり-spec-として機械検証不可"
+    ref_version: "0.1"

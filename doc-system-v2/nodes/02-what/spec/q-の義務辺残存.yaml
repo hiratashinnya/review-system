@@ -1,0 +1,8 @@
+title: "Q の義務辺残存"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "意思決定ドリフト検出"
+    ref_version: "0.2"

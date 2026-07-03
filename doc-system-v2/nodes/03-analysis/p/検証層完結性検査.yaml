@@ -1,0 +1,15 @@
+title: "検証層完結性検査"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "検証層の辺・属性が揃えば違反-0"
+    ref_version: "0.2"
+  - to: "検証層ノードの必須辺欠如"
+    ref_version: "0.2"
+  - to: "テスト結果の完結性"
+    ref_version: "0.2"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "rule-検査"
+    ref_version: "0.3"

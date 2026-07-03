@@ -1,0 +1,13 @@
+title: "exclude 除外適用"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "include-一致・exclude-一致-→-out-of-graph"
+    ref_version: "0.1"
+  - to: "走査スコープ設定"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "in-graph-集合決定"
+    ref_version: "0.2"

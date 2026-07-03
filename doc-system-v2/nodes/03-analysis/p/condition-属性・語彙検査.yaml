@@ -1,0 +1,15 @@
+title: "condition 属性・語彙検査"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "condition-属性なし・語彙外-rule-016"
+    ref_version: "0.1"
+  - to: "属性検査ビュー"
+    ref_version: "0.1"
+  - to: "condition-語彙・網羅規則"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "カバレッジ属性検査"
+    ref_version: "0.2"

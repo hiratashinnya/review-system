@@ -1,0 +1,8 @@
+title: "発火ステージ到達でルールを元の深刻度で評価"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "発火ステージ到達でルール発火"
+    ref_version: "0.1"

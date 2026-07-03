@@ -1,0 +1,10 @@
+title: "current_stage が stages に未定義"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "spec-21-4-期待動作が-設定エラー報告・判定スキップ・全ルール評価-の3動作混載"
+    ref_version: "0.1"

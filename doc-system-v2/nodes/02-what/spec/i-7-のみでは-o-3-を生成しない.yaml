@@ -1,0 +1,8 @@
+title: "I-7 のみでは O-3 を生成しない"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "著作は記載内容入力を必須とする"
+    ref_version: "0.1"

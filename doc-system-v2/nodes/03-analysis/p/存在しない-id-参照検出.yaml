@@ -1,0 +1,15 @@
+title: "存在しない ID 参照検出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "存在しない-id-参照を-rule-007-error-報告"
+    ref_version: "0.1"
+  - to: "rule-007-は-always_error-で抑制不可"
+    ref_version: "0.1"
+  - to: "接続検査ビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "構造完結性検査"
+    ref_version: "0.2"

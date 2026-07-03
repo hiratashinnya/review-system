@@ -1,0 +1,9 @@
+title: "直接の親 1 段のみ・USDM 分割"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "メンテナが変更の影響範囲を辺でたどれる"
+    ref_version: "0.1"
+  - to: "nfr-から-spec-導出を必須化する"
+    ref_version: "0.1"

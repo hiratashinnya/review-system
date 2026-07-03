@@ -1,0 +1,7 @@
+title: "レビュアー・メンテナがグラフを図として俯瞰できる"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-2"
+edges:
+  - to: "グラフの図的可視化"
+    ref_version: "0.1"

@@ -1,0 +1,8 @@
+title: "検証層ノードの必須辺欠如"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "検証・指摘の完結性検証"
+    ref_version: "0.2"

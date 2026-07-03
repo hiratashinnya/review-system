@@ -1,0 +1,10 @@
+title: "内容変更時も ID を永続させる"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "id-の永続-リネームなし"
+    ref_version: "0.1"
+  - to: "spec-3-2-期待動作が-idを永続させる・意味はheadingが担う-の2アサーション混載"
+    ref_version: "0.1"

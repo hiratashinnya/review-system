@@ -1,0 +1,7 @@
+title: "doc-system 設計層モデリングを skill 資産へどう広げるか — ①pipeline skill のオーケストレーターエージェント化 / ②skill の PROMPT 設計ノード化（両者は結合）"
+version: "0.2.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "doc-system-設計層モデリングの-skill-展開方針を確定-q-6-から昇格・①-c-ハイブリッド／②-a"
+    ref_version: "0.1"

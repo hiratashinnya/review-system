@@ -1,0 +1,15 @@
+title: "ref_version ドリフト検出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "依存辺のドリフト-→-rule-004-error"
+    ref_version: "0.1"
+  - to: "ref_version-不一致を-rule-004-error-検出"
+    ref_version: "0.1"
+  - to: "決定辺ビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "ドリフト・義務辺検査"
+    ref_version: "0.2"

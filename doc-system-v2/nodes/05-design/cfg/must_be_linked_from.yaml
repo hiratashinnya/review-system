@@ -1,0 +1,11 @@
+title: "must_be_linked_from"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "接続ルールスキーマ"
+    ref_version: "0.1"
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "config.yaml-設定インスタンス"
+    ref_version: "0.1"

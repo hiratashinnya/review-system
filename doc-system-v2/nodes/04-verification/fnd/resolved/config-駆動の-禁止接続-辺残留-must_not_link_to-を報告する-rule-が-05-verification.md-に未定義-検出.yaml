@@ -1,0 +1,5 @@
+title: "config 駆動の「禁止接続/辺残留」（`must_not_link_to`）を報告する RULE が 05-verification.md に未定義（検出機構の空白）"
+version: "0.2.1"
+labels: []
+scheduled: ""
+edges: []

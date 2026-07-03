@@ -1,0 +1,8 @@
+title: "id 欠如検出時に reconciliation が転記を中断"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "著作出力の-id-欠如検出時の-reconciliation-挙動"
+    ref_version: "0.1"

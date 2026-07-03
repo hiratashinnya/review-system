@@ -1,0 +1,15 @@
+title: "RULE 違反レポート"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "出力形式と終了コード"
+    ref_version: "0.2"
+  - to: "g-番号付与・整形"
+    ref_version: "0.1"
+  - to: "レビュアー"
+    ref_version: "0.1"
+  - to: "分析層-ref_version-ドリフト群の一括解消-fnd-17-から昇格"
+    ref_version: "0.1"
+  - to: "o-1-o-2-の生成元辺を親-p-4-からリーフ-p-4-3-へ精緻化-q-3-から昇格・o-生成元粒度のリーフ基"
+    ref_version: "0.1"

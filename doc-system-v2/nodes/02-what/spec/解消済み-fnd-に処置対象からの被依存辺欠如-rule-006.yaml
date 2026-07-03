@@ -1,0 +1,10 @@
+title: "解消済み FND に処置対象からの被依存辺欠如（RULE-006）"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "検証層ノードの必須辺欠如"
+    ref_version: "0.2"
+  - to: "fnd_lifecycle-の必須辺ルール3つのうち-resolved-系2ルールに-dedicated-spec-が不在-被覆均一化の"
+    ref_version: "0.2"

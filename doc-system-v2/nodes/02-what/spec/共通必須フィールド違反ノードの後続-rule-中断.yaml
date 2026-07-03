@@ -1,0 +1,8 @@
+title: "共通必須フィールド違反ノードの後続 RULE 中断"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "共通必須フィールドの型不正・欠如検出"
+    ref_version: "0.1"

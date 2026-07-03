@@ -1,0 +1,9 @@
+title: "NFR から SPEC 導出を必須化する"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "h2-docs-doc-system-03-connection-matrix.md-が-dd-5-と未同期で矛盾"
+    ref_version: "0.1"
+  - to: "l1-dd-影響範囲のバージョン注記が現在の-frontmatter-と乖離"
+    ref_version: "0.1"

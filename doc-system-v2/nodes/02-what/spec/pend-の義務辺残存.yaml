@@ -1,0 +1,10 @@
+title: "PEND の義務辺残存"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "意思決定ドリフト検出"
+    ref_version: "0.2"
+  - to: "pend-義務辺残存-rule-022-に対応する-failure-spec-が不在"
+    ref_version: "0.1"

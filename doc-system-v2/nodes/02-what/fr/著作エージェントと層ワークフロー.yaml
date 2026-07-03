@@ -1,0 +1,7 @@
+title: "著作エージェントと層ワークフロー"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著者が型・id・辺ルールを間違えずに書ける"
+    ref_version: "0.1"

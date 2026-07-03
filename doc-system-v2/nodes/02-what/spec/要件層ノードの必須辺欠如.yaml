@@ -1,0 +1,10 @@
+title: "要件層ノードの必須辺欠如"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "構造的完結性検証"
+    ref_version: "0.2"
+  - to: "必須辺-config-44-行-のうち-dedicated-spec-を持つのは-8-行のみ・行→被覆-spec-のトレーサビリ"
+    ref_version: "0.1"

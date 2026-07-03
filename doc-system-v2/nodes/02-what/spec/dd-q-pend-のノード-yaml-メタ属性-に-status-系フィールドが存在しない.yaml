@@ -1,0 +1,11 @@
+title: "DD/Q/PEND のノード YAML（メタ属性）に status 系フィールドが存在しない"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ライフサイクル状態は本文・メタに持たない"
+    ref_version: "0.3"
+  - to: "spec-49-期待動作が-status系キー非存在・存在でwarning・状態は本文バッジ-の複数アサーショ"
+    ref_version: "0.1"
+  - to: "spec-49-1-49-2-が廃止済み-frontmatter-を検査対象にしている-dd-8-矛盾"
+    ref_version: "0.1"

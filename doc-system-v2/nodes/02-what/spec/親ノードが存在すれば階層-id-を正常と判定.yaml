@@ -1,0 +1,10 @@
+title: "親ノードが存在すれば階層 ID を正常と判定"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "階層-id-の親ノード存在"
+    ref_version: "0.1"
+  - to: "spec-3-3-期待動作が-親→子辺は不要・親が存在すれば正常-の2アサーション混載"
+    ref_version: "0.1"

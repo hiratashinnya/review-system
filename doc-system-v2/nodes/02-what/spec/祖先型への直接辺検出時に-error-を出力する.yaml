@@ -1,0 +1,10 @@
+title: "祖先型への直接辺検出時に ERROR を出力する"
+version: "0.1.1"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "各ノードは直接の親のみへ辺を張る-usdm-1段制約"
+    ref_version: "0.1"
+  - to: "03-spec.md-本文-例-記述-12-箇所に旧形式残存-バッジ-2-パート・ref_version-3-パート"
+    ref_version: "0.1"

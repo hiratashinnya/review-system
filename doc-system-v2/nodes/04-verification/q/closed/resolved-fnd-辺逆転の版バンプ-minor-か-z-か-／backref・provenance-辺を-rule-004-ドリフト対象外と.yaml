@@ -1,0 +1,13 @@
+title: "resolved-FND 辺逆転の版バンプ（MINOR か z か）／backref・provenance 辺を RULE-004 ドリフト対象外とすべきか"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "resolved-済み-fnd-fnd-1〜95-が元の-forward-辺を削除せず辺逆転ルールに違反している"
+    ref_version: "0.1"
+  - to: "バージョンドリフトの検出"
+    ref_version: "0.2"
+  - to: "ノードバッジをノード固有バージョン-x.y.z-に正式化・ファイルフロントマター-version-廃"
+    ref_version: "0.1"
+  - to: "resolved-fnd-辺逆転-backref-付与の版バンプ種別を-z-バンプに確定-q-5-から昇格・dd-8-§4-適用徹"
+    ref_version: "0.1"

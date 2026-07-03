@@ -1,0 +1,11 @@
+title: "草案 tmp 書出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作エージェントが規約準拠ノードを-tmp-出力"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "著作・tmp-出力"
+    ref_version: "0.2"

@@ -1,0 +1,17 @@
+title: "in-graph 集合決定"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-判定"
+    ref_version: "0.2"
+  - to: "走査スコープ設定"
+    ref_version: "0.1"
+  - to: "ディレクトリ走査-.md-ファイルパス一覧"
+    ref_version: "0.3"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "分析層ワークフロー改訂-図と並走してノード著作・d-は分析層で起票-＋-dfd-修正の技術決"
+    ref_version: "0.1"
+  - to: "p-6-が-config.yaml-i-5-を-p-5-を経由せず直接読み込んでいる"
+    ref_version: "0.1"

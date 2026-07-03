@@ -1,0 +1,11 @@
+title: "--complexity による参照関係複雑度メトリクスレポート stdout 出力"
+version: "0.2.0"
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "参照関係複雑度算出"
+    ref_version: "0.1"
+  - to: "spec-50-51-の-post-mvp-と-scheduled-表現が不統一-オーナー決定bで-config-改訂方針"
+    ref_version: "0.1"
+  - to: "spec-51-期待動作が-メトリクスレポートstdout出力・exit-0-の2動作混載"
+    ref_version: "0.1"

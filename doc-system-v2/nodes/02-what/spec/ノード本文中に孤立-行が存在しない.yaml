@@ -1,0 +1,8 @@
+title: "ノード本文中に孤立 `---` 行が存在しない"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード本文に孤立-ノード分離記法の本文内誤用-が存在しない"
+    ref_version: "0.1"

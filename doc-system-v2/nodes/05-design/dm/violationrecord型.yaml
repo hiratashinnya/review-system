@@ -1,0 +1,11 @@
+title: "ViolationRecord型"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "violationrecord"
+    ref_version: "0.1"
+  - to: "domain"
+    ref_version: "0.3"
+  - to: "設計層の被覆チェーン-dm→mod→d-が-d-5-d-7-d-17〜d-21-経路で非対称-解消済み"
+    ref_version: "0.1"

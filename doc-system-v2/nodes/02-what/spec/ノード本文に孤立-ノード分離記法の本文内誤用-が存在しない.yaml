@@ -1,6 +1,13 @@
 title: "ノード本文に孤立 `---`（ノード分離記法の本文内誤用）が存在しない"
 version: "0.1.0"
-# 非テスタブルの傘ノードは condition を持たない（傘性は同型の子から被参照される構造で導出）。
 labels: []
 scheduled: ""
-edges: []
+edges:
+  - to: "ノードグラフの構造化表現"
+    ref_version: "0.3"
+  - to: "ノードファイル記法スキーマ"
+    ref_version: "0.1"
+  - to: "分析層全面見直し起因の被覆ドリフト-2-件-g1-孤児-spec・g4-旧-p-3-消費先記述残存"
+    ref_version: "0.1"
+  - to: "backref-check-の-open-but-backref-判定がトートロジーで-open-fnd-を全件誤検出する-github-issue-#64-cat"
+    ref_version: "0.1"

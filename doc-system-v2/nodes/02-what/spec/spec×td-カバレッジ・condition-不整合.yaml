@@ -1,0 +1,8 @@
+title: "SPEC×TD カバレッジ・condition 不整合"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "仕様カバレッジ検証"
+    ref_version: "0.2"

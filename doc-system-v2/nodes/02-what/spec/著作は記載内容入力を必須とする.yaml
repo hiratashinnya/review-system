@@ -1,0 +1,11 @@
+title: "著作は記載内容入力を必須とする"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作エージェントと層ワークフロー"
+    ref_version: "0.1"
+  - to: "spec-54-期待動作が-i-7-i-9充填し草案生成・i-9なしでo-3生成不可・テンプレのみ生成不可保"
+    ref_version: "0.1"
+  - to: "m2-spec-44〜54-spec-14-1-fr-15-16-追加バッチを対象とした-verify-が存在しない"
+    ref_version: "0.1"

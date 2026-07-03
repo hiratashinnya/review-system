@@ -1,0 +1,5 @@
+title: "`backref check` の open-but-backref 判定がトートロジーで open FND を全件誤検出する（GitHub issue #64 Category A）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges: []

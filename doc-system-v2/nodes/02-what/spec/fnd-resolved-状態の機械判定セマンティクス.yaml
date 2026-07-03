@@ -1,0 +1,9 @@
+title: "FND resolved 状態の機械判定セマンティクス"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "検証・指摘の完結性検証"
+    ref_version: "0.2"
+  - to: "fnd-の-resolved-状態を機械判定するセマンティクス-resolved-フィールドの解釈-を定義した-in-g"
+    ref_version: "0.2"

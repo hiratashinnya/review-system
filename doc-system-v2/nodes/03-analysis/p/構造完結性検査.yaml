@@ -1,0 +1,15 @@
+title: "構造完結性検査"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "存在しない-id-への参照"
+    ref_version: "0.2"
+  - to: "孤立ノードの検出"
+    ref_version: "0.2"
+  - to: "必須上流辺の欠如"
+    ref_version: "0.2"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "rule-検査"
+    ref_version: "0.3"
