@@ -1,0 +1,13 @@
+# テンプレ: ORC（オーケストレーション・実行段）。path: nodes/05-design/orc/{slug}.yaml
+# 起動イベントを参照（ORC→E）。E→P→ORC の推移で論理プロセスに到達。
+title: "[実行段名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（ORC→E）: この段の起動イベント（config must_link_to orc→e）
+  - to: "[起動 E の slug]"
+    ref_version: "0.1"
+  # 任意（ORC→PROMPT）: この段で使うプロンプト（ORC 側から張る）
+  # - to: "[使う PROMPT の slug]"
+  #   ref_version: "0.1"

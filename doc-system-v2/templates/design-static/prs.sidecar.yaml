@@ -1,0 +1,9 @@
+# テンプレ: PRS（永続設計）。path: nodes/05-design/prs/{slug}.yaml
+title: "[永続化対象名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（PRS→DS）: 永続化するデータストア（config must_link_to prs→ds）
+  - to: "[永続化する DS の slug]"
+    ref_version: "0.1"

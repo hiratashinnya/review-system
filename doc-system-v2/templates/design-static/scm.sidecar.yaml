@@ -1,0 +1,12 @@
+# テンプレ: SCM（スキーマ）。path: nodes/05-design/scm/{slug}.yaml
+title: "[スキーマ名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（SCM→SPEC）: 実現する機能仕様（config must_link_to scm→spec）
+  - to: "[実現する SPEC の slug]"
+    ref_version: "0.1"
+  # 任意（SCM→TERM）: スキーマで使う用語
+  # - to: "[使う TERM の slug]"
+  #   ref_version: "0.1"

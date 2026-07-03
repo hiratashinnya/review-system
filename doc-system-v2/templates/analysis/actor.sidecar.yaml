@@ -1,0 +1,10 @@
+# テンプレ: ACTOR（外部アクタ）。path: nodes/03-analysis/actor/{slug}.yaml
+# I/O/E との関係は相手側から張る（O→ACTOR / E→ACTOR）。孤立禁止（RULE-005）は被参照で満たす。
+title: "[アクタ名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（ACTOR→SR）: 関連するステークホルダー要求（config must_link_to actor→sr）
+  - to: "[関連 SR の slug]"
+    ref_version: "0.1"

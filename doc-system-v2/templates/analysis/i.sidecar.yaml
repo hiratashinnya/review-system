@@ -1,0 +1,10 @@
+# テンプレ: I（入力）。path: nodes/03-analysis/i/{slug}.yaml
+# 消費プロセスとの関係は P 側から張る（P→I）。孤立禁止は被参照で満たす。
+title: "[入力名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（I→SPEC）: この入力が応える機能仕様（config must_link_to i→spec）
+  - to: "[応える SPEC の slug]"
+    ref_version: "0.1"

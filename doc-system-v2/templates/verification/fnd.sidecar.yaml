@@ -1,0 +1,11 @@
+# テンプレ: FND（指摘・未解消）。path: nodes/04-verification/fnd/open/{slug}.yaml
+# status=open は path（fnd/open/）で表す（サイドカーに status を持たない）。
+# 解決時: fnd/resolved/ へ git mv し、辺を逆転（FND→対象 を削除し 対象→FND を付与）＝backref で機械実行。
+title: "[指摘タイトル]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（未解消 FND→対象・forward 辺）: 指摘が見つかった要素（config fnd_lifecycle.unresolved）
+  - to: "[指摘対象ノードの slug]"
+    ref_version: "0.1"

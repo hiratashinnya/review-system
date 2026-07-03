@@ -1,0 +1,14 @@
+# テンプレ: SPEC（機能仕様・テスタブル粒度）。path: nodes/02-what/spec/{slug}.yaml
+# 1ノード=1テスト条件（1 condition）。条件をまたぐ場合は別 SPEC に分割する。
+# condition（RULE-016 ERROR）: normal|boundary|empty|failure|error。
+#   非テスタブルの傘 SPEC は condition 行を削除する（傘性は同型の子から被参照される構造で導出）。
+title: "[仕様タイトル: 1アサーション]"
+version: "0.1.0"
+condition: normal   # normal|boundary|empty|failure|error（傘なら本行を削除）
+labels: []
+scheduled: ""
+edges:
+  # 必須（SPEC→FR/NFR/親SPEC のいずれか・config must_link_to spec→[fr,nfr,spec]）
+  - to: "[上流 FR / NFR / 親 SPEC の slug]"
+    ref_version: "0.1"
+  # TD→SPEC（verifies）は TD 側サイドカーに置く（カバレッジ証跡）

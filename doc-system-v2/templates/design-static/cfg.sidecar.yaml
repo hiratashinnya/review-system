@@ -1,0 +1,12 @@
+# テンプレ: CFG（コンフィグ）。path: nodes/05-design/cfg/{slug}.yaml
+title: "[設定名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（CFG→SCM）: 準拠するスキーマ（config must_link_to cfg→scm）
+  - to: "[準拠する SCM の slug]"
+    ref_version: "0.1"
+  # 必須（CFG→SPEC）: 実現する機能仕様（config must_link_to cfg→spec）
+  - to: "[実現する SPEC の slug]"
+    ref_version: "0.1"

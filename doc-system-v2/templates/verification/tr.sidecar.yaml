@@ -1,0 +1,12 @@
+# テンプレ: TR（テスト結果）。path: nodes/04-verification/tr/{slug}.yaml
+# result/log_ref はサイドカーの機械可読フィールド（#81 で正式化・RULE-020/021 が検査・DD-011）。
+title: "[テスト名] — PASS/FAIL"
+version: "0.1.0"
+labels: []
+scheduled: ""
+result: "PASS"          # PASS | FAIL（RULE-020）
+log_ref: "[ログのパス/URL（例 ci/logs/run-42.txt）・RULE-021]"
+edges:
+  # 必須（TR→TC・produced-by）: この結果を生成したテストコード（config must_link_to tr→tc）
+  - to: "[生成元 TC の slug]"
+    ref_version: "0.1"

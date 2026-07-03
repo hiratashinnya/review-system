@@ -1,0 +1,9 @@
+# テンプレ: SR（ステークホルダー要求）。path: nodes/01-why/sr/{slug}.yaml
+title: "[要求名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（SR→VAL）: この要求が実現する価値命題（config must_link_to sr→val）
+  - to: "[実現する VAL の slug]"
+    ref_version: "0.1"
