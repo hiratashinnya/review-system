@@ -1,0 +1,13 @@
+title: "カバレッジテーブルの出力フォーマット"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジレポートの生成"
+    ref_version: "0.2"
+  - to: "i-o-ノードのフォーマット定義が非公式散文にとどまり-spec-として機械検証不可"
+    ref_version: "0.1"
+  - to: "h1-spec-14-1-rule-006-違反-fr-nfr-への直接辺なし"
+    ref_version: "0.1"
+  - to: "spec-14-1-期待動作が-ヘッダ行出力・各行出力-＋別フィールド展開で複数アサーション"
+    ref_version: "0.1"

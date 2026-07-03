@@ -1,0 +1,8 @@
+title: "edge の ref_version 欠如時に RULE-027 ERROR を出力"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "edge-に-ref_version-欠如"
+    ref_version: "0.1"

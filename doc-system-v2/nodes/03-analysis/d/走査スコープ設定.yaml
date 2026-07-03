@@ -1,0 +1,9 @@
+title: "走査スコープ設定"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-判定"
+    ref_version: "0.2"
+  - to: "設定ファイル読み込み"
+    ref_version: "0.1"

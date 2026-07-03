@@ -1,0 +1,13 @@
+title: "ノードバッジをノード固有バージョン（x.y.z）に正式化・ファイルフロントマター version 廃止"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードバッジの意味が実態と矛盾-fnd-32-処置の誤定義・オーナー判断論点"
+    ref_version: "0.1"
+  - to: "l2-fr-1-ノードバッジ-v0.3-と-fr.md-ファイル-version-x.y=0.2-の不一致"
+    ref_version: "0.1"
+  - to: "dd-8-影響範囲に自己矛盾行残存-✅-完了-と-sprint-2-以降-が同居"
+    ref_version: "0.1"
+  - to: "ノードバージョンの桁数定義が-2パート-x.y-と-3パート-x.y.z-で矛盾し-dd-8-§4-の-z-バンプが"
+    ref_version: "0.1"

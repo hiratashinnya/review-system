@@ -1,0 +1,9 @@
+title: "graph_coverage"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "グラフ網羅性点検"
+    ref_version: "0.2"
+  - to: "mod-粒度の選択"
+    ref_version: "0.2"

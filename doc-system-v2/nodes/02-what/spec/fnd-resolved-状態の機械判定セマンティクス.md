@@ -1,0 +1,5 @@
+FND ノードの `resolved` フィールドをどう解釈して resolved／unresolved を判定するかの正常系セマンティクス（読み方・省略時の既定値・型不正の扱い）。SPEC-1 と同型の behavior SPEC であり、判定結果は SPEC-18-1〔unresolved 前提〕・SPEC-18-9・SPEC-59〔resolved 前提〕が依拠する状態判定の in-graph 定義となる。設定の根拠は config `fnd_lifecycle.resolved_field: resolved`（out-of-graph・「省略時は false として扱う」）。期待動作は単一アサーション化のため SPEC-60-1〜3 へ分割した（階層は ID パターンで表現し親→子辺は持たない）。
+
+**`resolved` 入力空間の完全分割**: 本 SPEC は `resolved` フィールドが取りうる値を 3 子 SPEC で漏れなく分割する——(1) boolean の `true` → resolved 判定（SPEC-60-1）、(2) boolean の `false`／キー未設定 → unresolved 判定（省略時 false 既定・SPEC-60-2）、(3) boolean 以外（文字列・数値・null 等）→ 型不正として RULE-031 を ERROR で報告（SPEC-60-3）。当初は型検証（非 boolean 値の扱い）を本 SPEC のスコープ外とし FND-105 で別軸論点化していたが、これを撤回し、型検証を SPEC-60-3 として本傘の対象に組み込んだ（経緯は FND-105・DD-18）。これにより 60-1／60-2／60-3 が `resolved` の入力空間を完全分割する。なお RULE-031 は型別（FND 固有）の任意フィールド `resolved` の型検証であり、SPEC-52-4（RULE-028）の共通必須／型別「必須」フィールド検証とは責務が異なる（condition→RULE-016・result→RULE-020 と同じ「型別フィールドは専用 RULE」パターン）。
+
+**SPEC-49 との非対称性**: DD/Q/PEND は状態を本文バッジのみで持ち YAML に状態を持たない（SPEC-49）のに対し、FND は `resolved` を YAML フィールドとして持つ点で非対称である。この非対称ゆえに FND だけが `resolved` の値・型の機械判定を要し、本 SPEC（60-1〜3）がその判定セマンティクスを定義する。

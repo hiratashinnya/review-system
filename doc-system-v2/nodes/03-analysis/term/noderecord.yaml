@@ -1,0 +1,7 @@
+title: "NodeRecord"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード埋め込みのパース"
+    ref_version: "0.3"

@@ -1,0 +1,11 @@
+title: "ノードファイル記法スキーマ"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード埋め込みのパース"
+    ref_version: "0.3"
+  - to: "⬡-マーカー直後に-yaml-ブロックなし"
+    ref_version: "0.1"
+  - to: "ノードフォーマットスキーマ"
+    ref_version: "0.1"

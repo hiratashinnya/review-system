@@ -1,0 +1,8 @@
+title: "正常 UTF-8 ファイルの読み込みが完了"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードファイルはプレーンテキスト-.md"
+    ref_version: "0.2"

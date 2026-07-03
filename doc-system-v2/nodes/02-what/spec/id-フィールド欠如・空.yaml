@@ -1,0 +1,10 @@
+title: "id フィールド欠如・空"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードグラフの構造化表現"
+    ref_version: "0.3"
+  - to: "spec-33-期待動作が-error出力・後続rule中断-の2動作混載"
+    ref_version: "0.1"

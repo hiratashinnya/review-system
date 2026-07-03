@@ -1,0 +1,9 @@
+title: "検証ツールの実行形態"
+version: "0.2.0"
+labels: []
+scheduled: ""
+suppress: [RULE-018]
+suppress_reason: "異常系なし: 出力契約（終了コード・整列）は正常系のみ。検出された違反は ERROR ではなく出力内容"
+edges:
+  - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"

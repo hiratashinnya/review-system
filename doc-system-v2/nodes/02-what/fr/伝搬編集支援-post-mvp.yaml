@@ -1,0 +1,9 @@
+title: "伝搬編集支援（post-MVP）"
+version: "0.1.0"
+labels: [post-mvp]
+scheduled: "post-mvp"
+suppress: [RULE-018]
+suppress_reason: "異常系なし: post-MVP の支援表示機能であり、ドリフト検出（FR-4）の失敗系は FR-4 側で担保される"
+edges:
+  - to: "上流変更の下流への反映漏れ-ドリフト-を継続検出できる"
+    ref_version: "0.1"

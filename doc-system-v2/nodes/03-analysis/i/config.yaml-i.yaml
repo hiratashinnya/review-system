@@ -1,0 +1,9 @@
+title: "config.yaml（I）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "trace_scope-による-in-graph-判定"
+    ref_version: "0.2"

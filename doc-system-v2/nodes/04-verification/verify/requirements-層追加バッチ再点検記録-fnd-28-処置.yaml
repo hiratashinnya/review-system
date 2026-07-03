@@ -1,0 +1,21 @@
+title: "requirements 層追加バッチ再点検記録（FND-28 処置）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+suppress: [RULE-004]
+suppress_reason: "過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）"
+edges:
+  - to: "ノードファイルはプレーンテキスト-.md"
+    ref_version: "0.3"
+  - to: "カバレッジテーブルの出力フォーマット"
+    ref_version: "0.3"
+  - to: "依存グラフレポート出力"
+    ref_version: "0.2"
+  - to: "著作は記載内容入力を必須とする"
+    ref_version: "0.3"
+  - to: "nfr-から-spec-導出を必須化する"
+    ref_version: "0.1"
+  - to: "m2-spec-44〜54-spec-14-1-fr-15-16-追加バッチを対象とした-verify-が存在しない"
+    ref_version: "0.1"
+  - to: "verify-5-点検項目1-の事実誤記-sr-7-→-sr-2"
+    ref_version: "0.1"

@@ -1,0 +1,9 @@
+title: "カバレッジ計測結果"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジレポートの生成"
+    ref_version: "0.2"
+  - to: "カバレッジ点検"
+    ref_version: "0.2"

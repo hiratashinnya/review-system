@@ -1,0 +1,8 @@
+title: "always_error の RULE-007 は発火ステージ前でも ERROR 報告"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "always_error-は発火ステージ前でも発火"
+    ref_version: "0.1"

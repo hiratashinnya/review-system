@@ -1,0 +1,11 @@
+title: "in-graph ファイル集合"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-判定"
+    ref_version: "0.2"
+  - to: "in-graph-集合決定"
+    ref_version: "0.1"
+  - to: "プロセス間の内部データ-データディクショナリ-が-d-ノードとして未起票"
+    ref_version: "0.1"

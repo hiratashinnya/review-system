@@ -1,0 +1,9 @@
+title: "ノードファイル群"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード埋め込みのパース"
+    ref_version: "0.3"
+  - to: "i-o-ノードのフォーマット定義が非公式散文にとどまり-spec-として機械検証不可"
+    ref_version: "0.1"

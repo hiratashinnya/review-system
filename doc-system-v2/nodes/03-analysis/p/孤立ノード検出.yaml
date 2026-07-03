@@ -1,0 +1,13 @@
+title: "孤立ノード検出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "孤立ノードの検出"
+    ref_version: "0.2"
+  - to: "接続検査ビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "構造完結性検査"
+    ref_version: "0.2"

@@ -1,0 +1,8 @@
+title: "suppress に RULE-005 を含めても ERROR 報告"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "rule-007-005-を-suppress-に含めても抑制不可"
+    ref_version: "0.1"

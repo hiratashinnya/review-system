@@ -1,0 +1,8 @@
+title: "--export-graph 正常時 stdout にエラーを出力しない"
+version: "0.1.0"
+condition: normal
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "export-graph-による依存グラフファイル出力"
+    ref_version: "0.2"

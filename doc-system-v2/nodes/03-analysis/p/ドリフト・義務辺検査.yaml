@@ -1,0 +1,15 @@
+title: "ドリフト・義務辺検査"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "バージョンドリフトの検出"
+    ref_version: "0.2"
+  - to: "dd-の義務辺残存"
+    ref_version: "0.2"
+  - to: "q-の義務辺残存"
+    ref_version: "0.2"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "rule-検査"
+    ref_version: "0.3"

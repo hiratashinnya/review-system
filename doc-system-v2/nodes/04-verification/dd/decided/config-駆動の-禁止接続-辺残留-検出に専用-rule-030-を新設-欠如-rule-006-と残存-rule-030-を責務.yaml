@@ -1,0 +1,5 @@
+title: "config 駆動の「禁止接続/辺残留」検出に専用 RULE-030 を新設（欠如 RULE-006 と残存 RULE-030 を責務分離）"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges: []

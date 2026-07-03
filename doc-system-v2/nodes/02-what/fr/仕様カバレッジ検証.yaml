@@ -1,0 +1,9 @@
+title: "仕様カバレッジ検証"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"
+  - to: "fr-6-本文が廃止-rule-015-を生きた番号として参照"
+    ref_version: "0.1"

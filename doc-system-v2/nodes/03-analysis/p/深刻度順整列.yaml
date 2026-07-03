@@ -1,0 +1,9 @@
+title: "深刻度順整列"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "違反一覧の深刻度順整列"
+    ref_version: "0.1"
+  - to: "レポート生成"
+    ref_version: "0.2"

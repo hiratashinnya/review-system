@@ -1,0 +1,14 @@
+title: "分析ノードの接続漏れ検出"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "構造的完結性検証"
+    ref_version: "0.2"
+  - to: "カバレッジ点検-グラフ網羅性-の上流-spec-欠落"
+    ref_version: "0.1"
+  - to: "spec-30-期待動作が-未駆動出力-未定義反応イベント-未消費入力-の3目的語を1報告に混載"
+    ref_version: "0.1"
+  - to: "spec-30-に分析層-d-の接続漏れ失敗系子が欠落"
+    ref_version: "0.1"

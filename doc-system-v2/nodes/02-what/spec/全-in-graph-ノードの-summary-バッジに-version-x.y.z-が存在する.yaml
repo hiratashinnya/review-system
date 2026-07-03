@@ -1,0 +1,13 @@
+title: "全 in-graph ノードの summary バッジに version（x.y.z）が存在する"
+version: "0.2.1"
+labels: []
+scheduled: ""
+edges:
+  - to: "ファイル単位バージョニング・1-ファイル-1-責務"
+    ref_version: "0.2"
+  - to: "spec-47-spec-44-が-dd-8-ファイル-frontmatter-全廃-と矛盾"
+    ref_version: "0.1"
+  - to: "spec-47-期待動作が-version存在・形式適合-と-欠如-空-nullはerror-の正負2分岐混載"
+    ref_version: "0.1"
+  - to: "ノードバージョンの桁数定義が-2パート-x.y-と-3パート-x.y.z-で矛盾し-dd-8-§4-の-z-バンプが"
+    ref_version: "0.1"

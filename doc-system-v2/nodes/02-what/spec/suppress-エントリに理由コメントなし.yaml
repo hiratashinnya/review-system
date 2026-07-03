@@ -1,0 +1,8 @@
+title: "suppress エントリに理由コメントなし"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "suppress-の禁止ケース"
+    ref_version: "0.3"

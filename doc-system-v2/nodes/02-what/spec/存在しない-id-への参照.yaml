@@ -1,0 +1,10 @@
+title: "存在しない ID への参照"
+version: "0.2.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "構造的完結性検証"
+    ref_version: "0.2"
+  - to: "spec-6-期待動作が-rule-007-error報告-と-always_errorで抑制不可-の併載"
+    ref_version: "0.1"

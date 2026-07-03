@@ -1,0 +1,7 @@
+title: "reporter"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "レポート生成"
+    ref_version: "0.2"

@@ -1,0 +1,17 @@
+title: "点検要求"
+version: "0.5.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード埋め込みのパース"
+    ref_version: "0.3"
+  - to: "仕様著者"
+    ref_version: "0.1"
+  - to: "ノードファイル群"
+    ref_version: "0.1"
+  - to: "e-1-に入力辺が欠如-イベントには入力が必ず伴う"
+    ref_version: "0.1"
+  - to: "分析層-ref_version-ドリフト群の一括解消-fnd-17-から昇格"
+    ref_version: "0.1"
+  - to: "e-1-点検要求-本文が-p-8-p-9・o-4-o-5-を反映していない不整合"
+    ref_version: "0.1"

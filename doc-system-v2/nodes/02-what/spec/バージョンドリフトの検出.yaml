@@ -1,0 +1,10 @@
+title: "バージョンドリフトの検出"
+version: "0.2.1"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "バージョンドリフト検出"
+    ref_version: "0.2"
+  - to: "_drift-が-x.y.z-フル比較で-z-バンプを誤ドリフト検出する-spec↔impl-乖離"
+    ref_version: "0.1"

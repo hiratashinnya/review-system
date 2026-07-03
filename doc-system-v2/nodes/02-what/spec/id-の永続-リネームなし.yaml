@@ -1,0 +1,9 @@
+title: "ID の永続（リネームなし）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "id-管理の正常系"
+    ref_version: "0.2"
+  - to: "spec-3-2-期待動作が-idを永続させる・意味はheadingが担う-の2アサーション混載"
+    ref_version: "0.1"

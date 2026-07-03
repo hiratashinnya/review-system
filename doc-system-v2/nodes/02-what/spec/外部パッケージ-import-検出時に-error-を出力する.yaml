@@ -1,0 +1,8 @@
+title: "外部パッケージ import 検出時に ERROR を出力する"
+version: "0.2.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "spec-inspector-は-python-標準ライブラリのみ使用"
+    ref_version: "0.2"

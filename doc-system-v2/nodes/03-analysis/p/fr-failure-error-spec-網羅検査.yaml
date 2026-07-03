@@ -1,0 +1,15 @@
+title: "FR failure-error SPEC 網羅検査"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "fr-の-spec-群に-failure-error-condition-なし-rule-018"
+    ref_version: "0.1"
+  - to: "属性検査ビュー"
+    ref_version: "0.1"
+  - to: "condition-語彙・網羅規則"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "カバレッジ属性検査"
+    ref_version: "0.2"

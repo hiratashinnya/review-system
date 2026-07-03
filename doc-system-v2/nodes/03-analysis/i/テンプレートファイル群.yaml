@@ -1,0 +1,7 @@
+title: "テンプレートファイル群"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートの必須フィールド充足"
+    ref_version: "0.3"

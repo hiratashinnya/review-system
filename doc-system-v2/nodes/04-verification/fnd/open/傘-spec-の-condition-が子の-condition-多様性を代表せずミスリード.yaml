@@ -1,0 +1,7 @@
+title: "傘 SPEC の condition が子の condition 多様性を代表せずミスリード"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードファイルはプレーンテキスト-.md"
+    ref_version: "0.2"

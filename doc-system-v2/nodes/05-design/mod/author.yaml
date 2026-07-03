@@ -1,0 +1,9 @@
+title: "author"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作・tmp-出力"
+    ref_version: "0.2"
+  - to: "mod-粒度の選択"
+    ref_version: "0.2"

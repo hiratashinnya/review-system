@@ -1,0 +1,7 @@
+title: "MOD 粒度の選択"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ダッシュボード・pr-本文が-dd-13-v0.2-改訂前のスナップショットで陳腐化"
+    ref_version: "0.1"

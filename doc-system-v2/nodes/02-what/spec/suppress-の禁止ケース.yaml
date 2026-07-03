@@ -1,0 +1,8 @@
+title: "suppress の禁止ケース"
+version: "0.3.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "三軸の検査抑制機構"
+    ref_version: "0.2"

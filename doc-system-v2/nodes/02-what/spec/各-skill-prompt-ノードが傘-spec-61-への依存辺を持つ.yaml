@@ -1,0 +1,8 @@
+title: "各 skill PROMPT ノードが傘 SPEC-61 への依存辺を持つ"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
+    ref_version: "0.1"

@@ -1,0 +1,13 @@
+title: "設定ファイル読み込み"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "config.yaml-i"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "分析層ワークフロー改訂-図と並走してノード著作・d-は分析層で起票-＋-dfd-修正の技術決"
+    ref_version: "0.1"

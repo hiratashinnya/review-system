@@ -1,0 +1,15 @@
+title: "テーブル整形・FR-id 昇順出力"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジテーブルのヘッダ行出力"
+    ref_version: "0.1"
+  - to: "明細行を-fr-id-昇順でソート出力"
+    ref_version: "0.1"
+  - to: "正常出力時の終了コード-0"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "仕様カバレッジ計測"
+    ref_version: "0.2"

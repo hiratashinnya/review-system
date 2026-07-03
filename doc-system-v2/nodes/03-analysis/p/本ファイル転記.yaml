@@ -1,0 +1,11 @@
+title: "本ファイル転記"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "reconciliation-が-tmp-出力を本ファイルに転記"
+    ref_version: "0.1"
+  - to: "著作要求"
+    ref_version: "0.3"
+  - to: "調停・本ファイル反映"
+    ref_version: "0.2"

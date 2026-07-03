@@ -1,0 +1,9 @@
+title: "ノード草案（tmp 草案）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作エージェント出力と-reconciliation-転記"
+    ref_version: "0.1"
+  - to: "著作・tmp-出力"
+    ref_version: "0.1"

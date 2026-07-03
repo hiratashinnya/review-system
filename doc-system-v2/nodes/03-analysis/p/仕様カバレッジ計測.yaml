@@ -1,0 +1,15 @@
+title: "仕様カバレッジ計測"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジレポートの生成"
+    ref_version: "0.2"
+  - to: "仕様カバレッジビュー"
+    ref_version: "0.1"
+  - to: "condition-語彙・網羅規則"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "カバレッジ点検"
+    ref_version: "0.2"

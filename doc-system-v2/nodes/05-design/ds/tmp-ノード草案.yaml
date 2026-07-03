@@ -1,0 +1,7 @@
+title: "tmp ノード草案"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ノード著作・反映プロセス"
+    ref_version: "0.4"

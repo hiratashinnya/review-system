@@ -1,0 +1,9 @@
+title: "ConfigSlice型群"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "configslice"
+    ref_version: "0.1"
+  - to: "domain"
+    ref_version: "0.3"

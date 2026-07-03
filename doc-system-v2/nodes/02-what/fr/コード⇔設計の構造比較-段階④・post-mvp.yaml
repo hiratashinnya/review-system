@@ -1,0 +1,7 @@
+title: "コード⇔設計の構造比較（段階④・post-MVP）"
+version: "0.2.0"
+labels: [post-mvp]
+scheduled: "post-mvp"
+edges:
+  - to: "メンテナが変更の影響範囲を辺でたどれる"
+    ref_version: "0.1"

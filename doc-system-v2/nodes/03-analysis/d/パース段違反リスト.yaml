@@ -1,0 +1,9 @@
+title: "パース段違反リスト"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "記法が崩れた-yaml-ブロックのパース失敗"
+    ref_version: "0.3"
+  - to: "ノード受付・パース"
+    ref_version: "0.2"

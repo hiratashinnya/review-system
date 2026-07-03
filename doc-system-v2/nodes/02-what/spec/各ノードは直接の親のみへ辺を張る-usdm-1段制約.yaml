@@ -1,0 +1,11 @@
+title: "各ノードは直接の親のみへ辺を張る（USDM 1段制約）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "直接の親-1-段のみ・usdm-分割"
+    ref_version: "0.2"
+  - to: "m1-spec-48-本文が-spec→spec-を有効と明記するが-config-はそれを強制しない矛盾"
+    ref_version: "0.1"
+  - to: "spec-48-期待動作が-全辺がfr-nfr-specを指す・祖先辺0件・検出時error-の複数アサーション混載"
+    ref_version: "0.1"

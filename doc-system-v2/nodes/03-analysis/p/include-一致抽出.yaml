@@ -1,0 +1,15 @@
+title: "include 一致抽出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "include-一致・exclude-非一致-→-in-graph"
+    ref_version: "0.1"
+  - to: "ディレクトリ走査-.md-ファイルパス一覧"
+    ref_version: "0.3"
+  - to: "走査スコープ設定"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "in-graph-集合決定"
+    ref_version: "0.2"

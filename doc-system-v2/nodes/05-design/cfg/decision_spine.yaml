@@ -1,0 +1,11 @@
+title: "decision_spine"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ライフサイクル／決定スパインスキーマ"
+    ref_version: "0.1"
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"
+  - to: "config.yaml-設定インスタンス"
+    ref_version: "0.1"

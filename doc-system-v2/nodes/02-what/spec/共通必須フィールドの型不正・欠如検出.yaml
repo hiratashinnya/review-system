@@ -1,0 +1,12 @@
+title: "共通必須フィールドの型不正・欠如検出"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "ノードグラフの構造化表現"
+    ref_version: "0.3"
+  - to: "i-o-ノードのフォーマット定義が非公式散文にとどまり-spec-として機械検証不可"
+    ref_version: "0.1"
+  - to: "spec-53-期待動作が-rule-028-error-1件出力・後続rule中断-の2動作混載"
+    ref_version: "0.1"

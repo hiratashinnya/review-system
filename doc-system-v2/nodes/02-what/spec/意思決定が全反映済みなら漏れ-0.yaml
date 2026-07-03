@@ -1,0 +1,8 @@
+title: "意思決定が全反映済みなら漏れ 0"
+version: "0.2.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "意思決定ドリフト検出"
+    ref_version: "0.2"

@@ -1,0 +1,10 @@
+title: "ref_version 不一致を RULE-004 ERROR 検出"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "ファイル-x.y-上昇で依存辺をドリフト検出"
+    ref_version: "0.2"
+  - to: "spec-10-期待動作が-ドリフト検出・再反映を促す-の2動詞混載"
+    ref_version: "0.1"

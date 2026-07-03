@@ -1,0 +1,15 @@
+title: "依存グラフ出力処理"
+version: "0.2.1"
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "export-graph-による依存グラフファイル出力"
+    ref_version: "0.2"
+  - to: "グラフトポロジビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "依存グラフレポート出力機能・参照関係複雑度算出の追加"
+    ref_version: "0.1"
+  - to: "e-1-点検要求-本文が-p-8-p-9・o-4-o-5-を反映していない不整合"
+    ref_version: "0.1"

@@ -1,0 +1,10 @@
+title: "テンプレートが必須フィールドを全て含む"
+version: "0.1.1"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートの必須フィールド充足"
+    ref_version: "0.3"
+  - to: "03-spec.md-本文-例-記述-12-箇所に旧形式残存-バッジ-2-パート・ref_version-3-パート"
+    ref_version: "0.1"

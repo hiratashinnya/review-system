@@ -1,0 +1,8 @@
+title: "TC に TD への依存辺欠如（RULE-006）"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "検証層ノードの必須辺欠如"
+    ref_version: "0.2"

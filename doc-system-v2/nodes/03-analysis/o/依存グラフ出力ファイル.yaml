@@ -1,0 +1,13 @@
+title: "依存グラフ出力ファイル"
+version: "0.1.0"
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "export-graph-による依存グラフファイル出力"
+    ref_version: "0.2"
+  - to: "依存グラフ出力処理"
+    ref_version: "0.1"
+  - to: "レビュアー"
+    ref_version: "0.1"
+  - to: "依存グラフレポート出力機能・参照関係複雑度算出の追加"
+    ref_version: "0.1"

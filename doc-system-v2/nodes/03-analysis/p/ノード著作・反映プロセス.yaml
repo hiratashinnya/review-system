@@ -1,0 +1,11 @@
+title: "ノード著作・反映プロセス"
+version: "0.4.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートの必須フィールド充足"
+    ref_version: "0.3"
+  - to: "i-8-著作エージェント定義-の型分類誤り-i→p-7-内部"
+    ref_version: "0.1"
+  - to: "p-7-ノード著作プロセス-の単一責務違反-著作＋調停の2活動内包"
+    ref_version: "0.1"

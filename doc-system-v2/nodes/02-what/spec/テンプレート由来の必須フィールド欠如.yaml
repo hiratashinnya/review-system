@@ -1,0 +1,10 @@
+title: "テンプレート由来の必須フィールド欠如"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "テンプレートによる著作品質保証"
+    ref_version: "0.4"
+  - to: "spec-36-期待動作が-rule-025-id欠如-または-rule-026-type欠如-の選言目的語混載"
+    ref_version: "0.1"

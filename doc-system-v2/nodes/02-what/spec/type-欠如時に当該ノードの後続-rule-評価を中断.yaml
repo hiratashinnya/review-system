@@ -1,0 +1,8 @@
+title: "type 欠如時に当該ノードの後続 RULE 評価を中断"
+version: "0.1.0"
+condition: error
+labels: []
+scheduled: ""
+edges:
+  - to: "type-フィールド欠如・空"
+    ref_version: "0.1"

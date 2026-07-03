@@ -1,0 +1,7 @@
+title: "SPEC-47/NFR-1 の frontmatter 参照を DD-8 準拠に修正"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "spec-47-spec-44-が-dd-8-ファイル-frontmatter-全廃-と矛盾"
+    ref_version: "0.1"

@@ -1,0 +1,8 @@
+title: "in-graph 0 件で RULE 評価を全スキップ"
+version: "0.1.0"
+condition: empty
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-0-件"
+    ref_version: "0.1"

@@ -1,0 +1,8 @@
+title: "伝搬時にドリフトノード一覧を表形式で出力"
+version: "0.1.0"
+condition: normal
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "伝搬編集支援の表示"
+    ref_version: "0.2"

@@ -1,0 +1,10 @@
+title: "カバレッジテーブルのヘッダ行出力"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジテーブルの出力フォーマット"
+    ref_version: "0.1"
+  - to: "spec-14-1-期待動作が-ヘッダ行出力・各行出力-＋別フィールド展開で複数アサーション"
+    ref_version: "0.1"

@@ -1,0 +1,7 @@
+title: "SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "trace_scope-による-in-graph-0-件"
+    ref_version: "0.1"

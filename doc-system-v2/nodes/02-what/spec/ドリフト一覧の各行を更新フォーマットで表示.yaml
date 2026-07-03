@@ -1,0 +1,10 @@
+title: "ドリフト一覧の各行を更新フォーマットで表示"
+version: "0.1.1"
+condition: normal
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "伝搬編集支援の表示"
+    ref_version: "0.2"
+  - to: "03-spec.md-本文-例-記述-12-箇所に旧形式残存-バッジ-2-パート・ref_version-3-パート"
+    ref_version: "0.1"

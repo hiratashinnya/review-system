@@ -1,0 +1,7 @@
+title: "NFR 由来本文検査の rule-id 体系を `{NFR-id}-check` で正式採用（台帳登録）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "nfr-由来本文検査の出力ルール-id-規約が未定義-nfr-id-check-vs-rule-nnn"
+    ref_version: "0.1"

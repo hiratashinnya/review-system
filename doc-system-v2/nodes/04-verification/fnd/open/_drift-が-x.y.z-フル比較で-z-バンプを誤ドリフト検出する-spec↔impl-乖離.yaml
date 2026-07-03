@@ -1,0 +1,5 @@
+title: "`_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離）"
+version: "0.1.2"
+labels: []
+scheduled: ""
+edges: []

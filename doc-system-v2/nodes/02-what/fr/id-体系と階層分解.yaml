@@ -1,0 +1,9 @@
+title: "ID 体系と階層分解"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "メンテナが変更の影響範囲を辺でたどれる"
+    ref_version: "0.1"
+  - to: "後工程の修正・指摘から影響する上流ノードを特定できる"
+    ref_version: "0.1"

@@ -1,0 +1,8 @@
+title: "整合グラフは構造違反 0 で通過"
+version: "0.2.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "構造的完結性検証"
+    ref_version: "0.2"

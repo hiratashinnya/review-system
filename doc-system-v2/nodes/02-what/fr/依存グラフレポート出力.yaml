@@ -1,0 +1,13 @@
+title: "依存グラフレポート出力"
+version: "0.1.1"
+labels: [post-mvp]
+scheduled: ""
+suppress: [RULE-018]
+suppress_reason: "異常系なし: post-MVP のエクスポート機能であり、出力フォーマット異常はフォーマット選択の入力検証（FR-10 側）で担保される"
+edges:
+  - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"
+  - to: "依存グラフレポート出力機能・参照関係複雑度算出の追加"
+    ref_version: "0.1"
+  - to: "m2-spec-44〜54-spec-14-1-fr-15-16-追加バッチを対象とした-verify-が存在しない"
+    ref_version: "0.1"

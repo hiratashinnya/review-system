@@ -1,0 +1,9 @@
+title: "spec_coverage"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "仕様カバレッジ計測"
+    ref_version: "0.2"
+  - to: "mod-粒度の選択"
+    ref_version: "0.2"

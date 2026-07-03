@@ -1,0 +1,17 @@
+title: "グラフ網羅性点検"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "グラフ網羅性点検の正常系"
+    ref_version: "0.1"
+  - to: "分析ノードの接続漏れ検出"
+    ref_version: "0.2"
+  - to: "分析層トポロジビュー"
+    ref_version: "0.1"
+  - to: "必須接続規則"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "カバレッジ点検"
+    ref_version: "0.2"

@@ -1,0 +1,13 @@
+title: "階層親不在検出"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "階層-id-親ノードの不在"
+    ref_version: "0.2"
+  - to: "接続検査ビュー"
+    ref_version: "0.1"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "構造完結性検査"
+    ref_version: "0.2"

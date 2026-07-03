@@ -1,0 +1,13 @@
+title: "カバレッジ属性検査"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "spec×td-カバレッジ・condition-不整合"
+    ref_version: "0.2"
+  - to: "fr-の-condition-網羅"
+    ref_version: "0.2"
+  - to: "点検要求"
+    ref_version: "0.5"
+  - to: "rule-検査"
+    ref_version: "0.3"

@@ -1,0 +1,8 @@
+title: "id 欠如 tmp 出力に reconciliation が検証エラーを報告"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "著作出力の-id-欠如検出時の-reconciliation-挙動"
+    ref_version: "0.1"

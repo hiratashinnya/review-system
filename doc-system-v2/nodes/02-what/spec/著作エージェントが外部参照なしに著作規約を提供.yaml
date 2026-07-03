@@ -1,0 +1,11 @@
+title: "著作エージェントが外部参照なしに著作規約を提供"
+version: "0.3.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作エージェントと層ワークフロー"
+    ref_version: "0.1"
+  - to: "spec-本文がテスタブルでない-定量・一意・出力フォーマット欠如"
+    ref_version: "0.1"
+  - to: "spec-27-期待動作が-type値-id-prefix-必須辺方向-本文4項目-ruleチェックリスト-の5目的語を1動"
+    ref_version: "0.1"

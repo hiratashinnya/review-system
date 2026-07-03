@@ -1,0 +1,8 @@
+title: "未定義反応イベント（E←P 欠如）の検出"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "分析ノードの接続漏れ検出"
+    ref_version: "0.2"

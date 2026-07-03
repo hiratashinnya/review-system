@@ -1,0 +1,9 @@
+title: "skill の LLM プロンプト資産モデリング（機能軸）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著者が型・id・辺ルールを間違えずに書ける"
+    ref_version: "0.1"
+  - to: "doc-system-設計層モデリングの-skill-展開方針を確定-q-6-から昇格・①-c-ハイブリッド／②-a"
+    ref_version: "0.1"

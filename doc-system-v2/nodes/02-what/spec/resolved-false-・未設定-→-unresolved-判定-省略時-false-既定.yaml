@@ -1,0 +1,8 @@
+title: "`resolved: false`・未設定 → unresolved 判定（省略時 false 既定）"
+version: "0.2.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "fnd-resolved-状態の機械判定セマンティクス"
+    ref_version: "0.2"

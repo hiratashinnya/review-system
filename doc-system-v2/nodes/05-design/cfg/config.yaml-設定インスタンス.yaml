@@ -1,0 +1,9 @@
+title: "config.yaml 設定インスタンス"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "config.yaml-スキーマ"
+    ref_version: "0.1"
+  - to: "ステージ発火による検査制御"
+    ref_version: "0.3"

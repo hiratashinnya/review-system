@@ -1,0 +1,9 @@
+title: "drift_checker"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "ドリフト・義務辺検査"
+    ref_version: "0.2"
+  - to: "mod-粒度の選択"
+    ref_version: "0.2"

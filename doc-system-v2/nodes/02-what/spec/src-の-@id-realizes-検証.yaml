@@ -1,0 +1,11 @@
+title: "SRC の @id realizes 検証"
+version: "0.3.0"
+labels: [post-mvp]
+scheduled: "sprint-2"
+edges:
+  - to: "コード⇔設計の構造比較-段階④・post-mvp"
+    ref_version: "0.2"
+  - to: "spec-50-51-の-post-mvp-と-scheduled-表現が不統一-オーナー決定bで-config-改訂方針"
+    ref_version: "0.1"
+  - to: "spec-28-期待動作が-realizes辺照合・設計漏れと紐づけ漏れ検出-の2動作・2目的語混載"
+    ref_version: "0.1"

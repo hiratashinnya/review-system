@@ -1,0 +1,9 @@
+title: "著作エージェント出力と reconciliation 転記"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "著作エージェントと層ワークフロー"
+    ref_version: "0.1"
+  - to: "spec-38-期待動作が-ノードをtmp出力・reconciliationが転記-の2主体・2動作混載"
+    ref_version: "0.1"

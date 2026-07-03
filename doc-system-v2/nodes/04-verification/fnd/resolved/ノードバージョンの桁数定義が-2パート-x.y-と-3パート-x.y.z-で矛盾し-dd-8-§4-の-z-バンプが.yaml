@@ -1,0 +1,5 @@
+title: "ノードバージョンの桁数定義が 2パート（x.y）と 3パート（x.y.z）で矛盾し DD-8 §4 の z バンプが実行不能"
+version: "0.1.2"
+labels: []
+scheduled: ""
+edges: []

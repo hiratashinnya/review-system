@@ -1,0 +1,9 @@
+title: "projector"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "検査ビュー射影"
+    ref_version: "0.1"
+  - to: "mod-粒度の選択"
+    ref_version: "0.2"

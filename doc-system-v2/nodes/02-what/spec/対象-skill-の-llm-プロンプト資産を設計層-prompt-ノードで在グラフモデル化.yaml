@@ -1,0 +1,7 @@
+title: "対象 skill の LLM プロンプト資産を設計層 PROMPT ノードで在グラフモデル化"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "skill-の-llm-プロンプト資産モデリング-機能軸"
+    ref_version: "0.1"

@@ -1,0 +1,9 @@
+title: "カバレッジ点検"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "カバレッジレポートの生成"
+    ref_version: "0.2"
+  - to: "カバレッジ点検-グラフ網羅性-の上流-spec-欠落"
+    ref_version: "0.1"

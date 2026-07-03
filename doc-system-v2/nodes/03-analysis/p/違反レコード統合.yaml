@@ -1,0 +1,15 @@
+title: "違反レコード統合"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "出力形式と終了コード"
+    ref_version: "0.2"
+  - to: "パース段違反リスト"
+    ref_version: "0.1"
+  - to: "rule-違反リスト"
+    ref_version: "0.1"
+  - to: "カバレッジ計測結果"
+    ref_version: "0.1"
+  - to: "レポート生成"
+    ref_version: "0.2"

@@ -1,0 +1,8 @@
+title: "著作は I-7 と I-9 を充填して草案を生成する"
+version: "0.1.0"
+condition: normal
+labels: []
+scheduled: ""
+edges:
+  - to: "著作は記載内容入力を必須とする"
+    ref_version: "0.1"

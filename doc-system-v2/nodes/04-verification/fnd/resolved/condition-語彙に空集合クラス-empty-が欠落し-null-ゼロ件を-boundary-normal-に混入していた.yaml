@@ -1,0 +1,5 @@
+title: "condition 語彙に空集合クラス（empty）が欠落し null/ゼロ件を boundary/normal に混入していた"
+version: "0.1.1"
+labels: []
+scheduled: ""
+edges: []

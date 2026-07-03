@@ -1,0 +1,9 @@
+title: "必須接続規則"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "必須上流辺の欠如"
+    ref_version: "0.2"
+  - to: "設定ファイル読み込み"
+    ref_version: "0.1"

@@ -1,0 +1,8 @@
+title: "DM に MOD への依存辺欠如（RULE-006）"
+version: "0.1.0"
+condition: failure
+labels: []
+scheduled: ""
+edges:
+  - to: "設計層ノードの必須辺欠如検出"
+    ref_version: "0.1"

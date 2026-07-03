@@ -1,0 +1,11 @@
+title: "O-1・O-2 の生成元辺が親 P-4 のまま — リーフ精緻化（→P-4-3）するか親許容か"
+version: "0.2.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "rule-違反レポート"
+    ref_version: "0.2"
+  - to: "カバレッジ点検結果"
+    ref_version: "0.2"
+  - to: "o-1-o-2-の生成元辺を親-p-4-からリーフ-p-4-3-へ精緻化-q-3-から昇格・o-生成元粒度のリーフ基"
+    ref_version: "0.1"

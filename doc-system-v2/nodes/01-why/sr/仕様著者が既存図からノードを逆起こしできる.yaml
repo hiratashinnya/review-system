@@ -1,0 +1,7 @@
+title: "仕様著者が既存図からノードを逆起こしできる"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-2"
+edges:
+  - to: "図からの逆起こし-往復"
+    ref_version: "0.1"
