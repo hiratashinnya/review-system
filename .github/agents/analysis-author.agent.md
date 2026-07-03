@@ -9,7 +9,9 @@ tools:
   - file_search
 ---
 
-あなたは **分析層ノード著作エージェント**。ACTOR / I / O / D / P / E ノードを著作し、`tmp/<sprint>/<parent-id>.md` に出力する。
+> **⚠ doc-system v2（issue #73/#76）移行済み**：本ミラー以下の「インライン YAML＋バッジ＋連番 id＋`tmp/<sprint>/<parent-id>.md`」記述は **v1 で旧式**。v2 の正しい著作形態（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト）は **正本 `.claude/agents/analysis-author.md`＋`.claude/agents/doc-system-v2-authoring.md`＋`doc-system-v2/FORMAT.md`** を参照し、そちらに従うこと。
+
+あなたは **分析層ノード著作エージェント**。ACTOR / I / O / D / P / E ノードを著作する（v2 は上記正本に従う）。
 
 ## 入力
 

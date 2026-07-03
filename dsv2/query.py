@@ -86,6 +86,33 @@ def orphans(meta: dict) -> list[dict]:
     return [n for n in meta["nodes"] if not n["edges"] and n["id"] not in referenced]
 
 
+def slug_collisions(meta: dict, slugs: list[str]) -> dict[str, str]:
+    """著作 slug 群がコーパス既存 id と衝突するか／slug 群内で重複するかを返す（fail-close 用）。
+
+    id = slug = ファイル名 stem はグローバル一意（FORMAT.md §slug）。この一意性は slugify.py でも
+    validate.py（per-node）でも担保できない＝コーパス横断の照合が必要。reconciliation-validator が
+    書込前に本関数（dsv2 check-slug 経由）で fail-close 判定する（DD-22・Sub-D・issue #73）。
+
+    戻り値: ``{slug: reason}``（衝突分のみ）。reason は
+      * ``"corpus:<yaml_path>"`` … 既存コーパスノードと id 衝突。
+      * ``"batch(xN)"``          … 今回の著作 slug 群内で N 回重複。
+    衝突が無ければ空 dict（＝一意で書込可）。
+
+    依存仕様: doc-system-v2/FORMAT.md（§slug グローバル一意）・config.yml（id=stem）。
+    """
+    by_id = index_by_id(meta)
+    counts: dict[str, int] = {}
+    for s in slugs:
+        counts[s] = counts.get(s, 0) + 1
+    out: dict[str, str] = {}
+    for s, n in counts.items():
+        if s in by_id:
+            out[s] = f"corpus:{by_id[s]['yaml_path']}"
+        elif n > 1:
+            out[s] = f"batch(x{n})"
+    return out
+
+
 def drift(meta: dict) -> list[dict]:
     """全辺を走査し、ref_version が参照先バッジ x.y とドリフトしている辺を列挙（RULE-004）。"""
     by_id = index_by_id(meta)
