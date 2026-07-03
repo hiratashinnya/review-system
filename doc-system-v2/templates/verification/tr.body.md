@@ -1,8 +1,5 @@
+<!-- 機械可読な result（PASS/FAIL）・log_ref はサイドカー .yaml に持つ（#81・RULE-020/021）。本文は人間向け記述のみ。 -->
 **実施日**: [YYYY-MM-DD]
-
-**結果**: [PASS / FAIL]
-
-**ログ参照**: [ログのパスまたは URL（例: ci/logs/run-42.txt）]
 
 **コミット ID**: [ハッシュ]
 

@@ -110,18 +110,20 @@ edges:
 | 本文中の inline `yaml` ブロック | サイドカー `{slug}.yaml` に分離 |
 | `id: PREFIX-N`（連番 ID） | **id = slug（正規化タイトル）**。連番廃止（並行開発の競合抑止） |
 | `type: FR` フィールド | path 第2階層 `<type>` から導出（サイドカーに持たない） |
-| 本文中の `**status: open**` 等 | path 第3階層 `<status>` から導出（fnd/q/dd のみ・`git mv` で遷移） |
+| 本文中の `**status: open**` 等 | path 第3階層 `<status>` から導出（fnd/q/dd/pend・`git mv` で遷移） |
 | `edges[].to: SR-001`（ID 参照） | `edges[].to: "<slug>"`（slug 参照・path 非依存） |
 | `kind` / `status`（辺）… 既に v1 で廃止済み | 引き続き無し（無名依存辺） |
-| `suppress: [RULE-xxx]` | **v2 サイドカー schema 未対応**（要 Sub-A/オーナー確認・§10） |
-| TR `result` / `log_ref`（YAML メタ） | **v2 サイドカー schema 未対応**（暫定で本文記録・§10） |
+| `suppress: [RULE-xxx]`（理由は本文/コメント） | **#81 で正式化**：`suppress: [RULE-xxx]` ＋ `suppress_reason`（非空必須・理由は本文でなく属性へ） |
+| TR `result` / `log_ref`（YAML メタ） | **#81 で正式化**：サイドカーの機械可読フィールド（RULE-020/021・DD-011） |
+| （新）`carrier`（設計要素の実現担体） | **#81 で正式化**：サイドカー `carrier`（現状値 `skill`） |
 
-## 10. 未解決（Sub-A schema 差分・要確認）
+## 10. schema 差分は #81 で解決済み
 
-v2 サイドカー schema は `additionalProperties: false`（`title/version/condition/labels/scheduled/edges` のみ許可）のため、
-旧 v1 で YAML メタに持っていた次の属性が**表現できない**。テンプレは暫定対応（本文記録）としており、schema 拡張の要否はオーナー/Sub-A の判断が必要:
+旧テンプレが「v2 サイドカー schema 未対応」として打ち上げていた属性は、**PR #81（オーナー承認 2026-07-03）で正準フィールドとして schema に追加**され決着した:
 
-- **TR の `result` / `log_ref`**（RULE-020/021 の機械検査対象）。本文へ記録すると機械判定不可となる。
-- **`suppress`**（RULE-018 等の意図的抑制）。`config.yml: always_error` は「suppress で抑制不可」と suppress 機構の存在を前提とする記述があるが、schema にキーが無い。
+- **TR の `result`（PASS|FAIL）/ `log_ref`**（RULE-020/021 の機械検査対象・DD-011 で body→メタ昇格）。
+- **`suppress`（配列）/ `suppress_reason`**（理由は本文でなく属性・`suppress` 非空なら `suppress_reason` 必須＝schema の `if/then`＋`validate.py` で強制）。
+- **`carrier`**（設計要素の実現担体・現状値 `skill`）。
 
-> 本件は Sub-E の実装範囲（テンプレ・notation）を越える schema 設計判断のため、**独断で schema キーを追加せず** PR で打ち上げる。
+現行サイドカー schema（`additionalProperties: false`）の**許可トップレベルキー**は:
+`title / version / condition / labels / scheduled / suppress / suppress_reason / result / log_ref / carrier / edges`。
