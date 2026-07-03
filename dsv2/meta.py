@@ -1,8 +1,9 @@
 """v2 コーパスの索引化: ``nodes/**/*.yaml`` を走査し ``meta.json`` を生成/読込する。
 
 各ノードは path から ``stage/type/status`` を、サイドカー（``docidx.nodeyaml.parse`` で読む）から
-``title/version/condition?/labels/scheduled/edges`` を、ファイル stem から ``id`` を、対の ``.md`` を
-``body_path`` として集約する。生成物 meta.json は手編集せず、``index`` で再生成する（FORMAT.md）。
+``title/version/condition?/labels/scheduled/suppress/suppress_reason?/result?/log_ref?/carrier?/edges``
+を、ファイル stem から ``id`` を、対の ``.md`` を ``body_path`` として集約する（``suppress`` 等は #81 で
+正式化したフィールド）。生成物 meta.json は手編集せず、``index`` で再生成する（FORMAT.md）。
 
 依存仕様: doc-system-v2/FORMAT.md（Sub-A・新フォーマット正本）・doc-system-v2/config.yml（layout /
   status_dirs / trace_scope）。サイドカー読取は docidx.nodeyaml（既存・再利用）。
@@ -93,12 +94,18 @@ def read_node(yaml_path: Path, root: Path) -> dict:
         "version": str(data.get("version", "")),
         "labels": list(data.get("labels", []) or []),
         "scheduled": str(data.get("scheduled", "") or ""),
+        "suppress": [str(r) for r in (data.get("suppress") or [])],
         "edges": edges,
         "yaml_path": _posix(rel),
         "body_path": _posix(rel.with_suffix(".md")),
     }
     if data.get("condition"):
         node["condition"] = str(data["condition"])
+    # #81 で正式化した任意フィールドを集約（存在時のみ）。suppress は drift 判定・
+    # suppress_reason/result(TR)/log_ref(TR)/carrier は meta.json 完全性（viewer 等）に必要。
+    for opt in ("suppress_reason", "result", "log_ref", "carrier"):
+        if data.get(opt):
+            node[opt] = str(data[opt])
     return node
 
 
