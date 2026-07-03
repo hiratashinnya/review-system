@@ -6,6 +6,12 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["title", "version", "edges"],
+  "allOf": [
+    {
+      "if": {"properties": {"suppress": {"minItems": 1}}, "required": ["suppress"]},
+      "then": {"required": ["suppress_reason"]}
+    }
+  ],
   "properties": {
     "title": {
       "type": "string",
@@ -37,7 +43,12 @@
       "type": "array",
       "items": {"type": "string"},
       "default": [],
-      "description": "このノードで抑制するルール番号（例: [RULE-018]）。機械向け専用（labels とは別）。抑制理由を inline comment か本文に必ず残す。always_error（RULE-005/007）は抑制対象外（config.yml: always_error）。"
+      "description": "このノードで抑制するルール番号（例: [RULE-018]）。機械向け専用（labels とは別）。理由は本文/コメントではなく suppress_reason に書く（suppress が空でなければ必須）。always_error（RULE-005/007）は抑制対象外（config.yml: always_error）。"
+    },
+    "suppress_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "suppress の理由（機械可読・本文/コメントに残さない）。suppress が非空なら必須。"
     },
     "result": {
       "type": "string",
