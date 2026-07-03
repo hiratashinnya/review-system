@@ -29,8 +29,10 @@ nodes/
 ## 1ノード = 2ファイル
 - `{slug}.md` … **本文のみ**（Markdown）。属性・バッジ・YAML は書かない。
 - `{slug}.yaml` … **サイドカー**。`schema/sidecar.schema.json` に従う。
-  - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]`
-  - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）＝二重管理回避。
+  - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]` ＋ 正準 meta-schema フィールド
+    `suppress?`（抑制ルール番号のリスト）・`suppress_reason?`（**理由＝本文/コメントでなくこの属性に書く**・suppress 非空なら必須・機械可読）・`result?`/`log_ref?`（**TR 専用**・DD-011）・
+    `carrier?`（設計要素の実現担体＝realization carrier・現状値 `skill`。v2 正準フィールド・オーナー承認済 2026-07-03）。
+  - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）・`resolved`（=FND の path）＝二重管理回避。
 
 ## id / slug（§slug）
 - **id = ファイル名 stem = 正規化した読めるタイトル**。パス非依存・**グローバル一意**。
@@ -52,6 +54,7 @@ nodes/
   - `fnd`: `open | resolved`
   - `q`: `open | decided | deferred | closed`
   - `dd`: `decided | closed`
+  - `pend`: `open | resolved | deferred`
   - 他の型は status ディレクトリを取らない。
 
 ## edges（無名依存辺・親子も edge）
