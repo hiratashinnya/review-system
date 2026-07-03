@@ -1,0 +1,9 @@
+# テンプレ: PORT（ポート・アダプタ）。path: nodes/05-design/port/{slug}.yaml
+title: "[ポート名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（PORT→MOD）: 属するモジュール（config must_link_to port→mod）
+  - to: "[属する MOD の slug]"
+    ref_version: "0.1"

@@ -1,0 +1,9 @@
+# テンプレ: TERM（用語・データ辞書）。path: nodes/03-analysis/term/{slug}.yaml
+title: "[用語名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（TERM→SPEC・config must_link_to term→spec, warning）: 登場する機能仕様
+  - to: "[登場する SPEC の slug]"
+    ref_version: "0.1"

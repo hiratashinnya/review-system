@@ -1,0 +1,13 @@
+# テンプレ: PROMPT（プロンプトテンプレート）。path: nodes/05-design/prompt/{slug}.yaml
+# version は MAJOR.MINOR.PATCH（MAJOR=構造/型変化・MINOR=文言のみ）。
+title: "[プロンプト名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（PROMPT→SPEC）: 実現する機能仕様（config must_link_to prompt→spec）
+  - to: "[実現する SPEC の slug]"
+    ref_version: "0.1"
+  # 任意（PROMPT→PROMPT）: 継承元テンプレート
+  # - to: "[継承元 PROMPT の slug]"
+  #   ref_version: "0.1"

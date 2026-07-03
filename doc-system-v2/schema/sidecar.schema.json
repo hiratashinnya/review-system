@@ -6,6 +6,12 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["title", "version", "edges"],
+  "allOf": [
+    {
+      "if": {"properties": {"suppress": {"minItems": 1}}, "required": ["suppress"]},
+      "then": {"required": ["suppress_reason"]}
+    }
+  ],
   "properties": {
     "title": {
       "type": "string",
@@ -32,6 +38,30 @@
       "type": "string",
       "default": "",
       "description": "実施スプリント（sprint-N）。空文字＝未設定。繰り越しはオーナー判断。"
+    },
+    "suppress": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "このノードで抑制するルール番号（例: [RULE-018]）。機械向け専用（labels とは別）。理由は本文/コメントではなく suppress_reason に書く（suppress が空でなければ必須）。always_error（RULE-005/007）は抑制対象外（config.yml: always_error）。"
+    },
+    "suppress_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "suppress の理由（機械可読・本文/コメントに残さない）。suppress が非空なら必須。"
+    },
+    "result": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"],
+      "description": "TR（テスト結果）専用。RULE-020（省略時 WARNING/ERROR）。DD-011 で body から YAML メタへ昇格。"
+    },
+    "log_ref": {
+      "type": "string",
+      "description": "TR 専用。ログファイルのパス/URL。証跡（RULE-021）。"
+    },
+    "carrier": {
+      "type": "string",
+      "description": "設計要素の実現担体（realization carrier）。現状値 skill（05-static.md の 13 ノード）。将来 code/module 等を想定。v2 正準フィールド（オーナー承認 2026-07-03）。"
     },
     "edges": {
       "type": "array",

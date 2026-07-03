@@ -1,0 +1,9 @@
+# テンプレ: DS（状態・データストア）。path: nodes/05-design/ds/{slug}.yaml
+title: "[データストア名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（DS→P）: この状態を必要とする論理プロセス（config must_link_to ds→p）
+  - to: "[必要とする P の slug]"
+    ref_version: "0.1"

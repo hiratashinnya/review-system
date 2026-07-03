@@ -1,0 +1,11 @@
+# テンプレ: DD（意思決定ログ・決定済み）。path: nodes/04-verification/dd/decided/{slug}.yaml
+# status（decided|closed）は path で表す。
+# out 辺は義務辺＝存在＝未反映（RULE-001）。反映完了で辺を削除し、対象側に 対象→DD を張る。
+title: "[決定タイトル]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 義務辺（DD→影響先）: 辺の存在＝未反映。複数あれば各1行で列挙。
+  - to: "[影響を受けるノードの slug]"
+    ref_version: "0.1"

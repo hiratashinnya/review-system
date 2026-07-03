@@ -1,0 +1,12 @@
+# テンプレ: VERIFY（ドキュメント検証）。path: nodes/04-verification/verify/{slug}.yaml
+title: "[検証名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（VERIFY→対象・config must_link_to verify→any）: 検証対象の要素（任意の型）
+  - to: "[検証対象ノードの slug]"
+    ref_version: "0.1"
+  # 任意（VERIFY→NFR）: 証明する NFR
+  # - to: "[証明する NFR の slug]"
+  #   ref_version: "0.1"

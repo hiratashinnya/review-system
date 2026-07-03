@@ -1,0 +1,9 @@
+# テンプレ: MOD（モジュール）。path: nodes/05-design/mod/{slug}.yaml
+title: "[モジュール名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（MOD→P または MOD→D・config must_link_to mod→[p,d]）: 実現する論理プロセス or データ型
+  - to: "[実現する P / D の slug]"
+    ref_version: "0.1"

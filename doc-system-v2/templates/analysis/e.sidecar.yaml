@@ -1,0 +1,13 @@
+# テンプレ: E（イベント）。path: nodes/03-analysis/e/{slug}.yaml
+# 起動プロセスは P 側から張る（P→E）。設計層 ORC からも参照される（ORC→E）。
+title: "[イベント名]"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  # 必須（E→SPEC）: 関わる機能仕様（config must_link_to e→spec）
+  - to: "[関わる SPEC の slug]"
+    ref_version: "0.1"
+  # 必須（E→ACTOR）: 刺激元アクタ（config must_link_to e→actor）
+  - to: "[刺激元 ACTOR の slug]"
+    ref_version: "0.1"
