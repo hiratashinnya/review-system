@@ -27,7 +27,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 ### Step 1: tmp ミラーの存在確認
 
-`parent_ids` の各 ID について `tmp/<sprint>/<parent-id>/nodes/**` に `{slug}.md`＋`{slug}.yaml` の対が存在するか確認する（`ls`/`find`）。**md だけ／yaml だけの片割れは ROLLBACK**（対でないと 1ノード成立しない）。欠けていれば ROLLBACK として記録する（Step 4 で返す）。
+`parent_ids` の各 ID について `tmp/<sprint>/<parent-id>/nodes/**` に `{slug}.md`＋`{slug}.yaml` の対が存在するか確認する（`ls`/`find`）。**md だけ／yaml だけの片割れは ROLLBACK**（対でないと 1ノード成立しない）。欠けていれば ROLLBACK として記録する（Step 5 で返す）。
 
 ### Step 2: 決定論チェックを機械実行（fail-close の中核・Bash）
 
