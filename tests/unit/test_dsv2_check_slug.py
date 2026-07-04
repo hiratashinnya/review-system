@@ -5,10 +5,8 @@ reconciliation-validator が書込前に走らせる決定論チェック。slug
 """
 
 import io
-import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from pathlib import Path
 
 from dsv2 import cli, query
 from dsv2.meta import build_meta
@@ -83,35 +81,6 @@ class TestCheckSlugCli(unittest.TestCase):
 
     def test_no_args_usage_error(self):
         code, _, err = self._run([])
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
-
-    # --- --from-dir（tmp ミラー走査・issue #89） ---
-    def _mirror(self, *stems):
-        d = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
-        sub = d / "nodes" / "02-what" / "spec"
-        sub.mkdir(parents=True)
-        for s in stems:
-            (sub / f"{s}.yaml").write_text("title: x\nversion: 0.1.0\n", encoding="utf-8")
-            (sub / f"{s}.md").write_text("# x\n", encoding="utf-8")  # .md は無視される
-        return d
-
-    def test_from_dir_collects_stems_ok(self):
-        d = self._mirror("brand-new-a", "brand-new-b")
-        code, out, _ = self._run(["--from-dir", str(d)])
-        self.assertEqual(code, cli.EXIT_OK)
-        self.assertIn("収集", out)
-        self.assertIn("brand-new-a", out)
-
-    def test_from_dir_collision_fail_close(self):
-        # 走査した stem の1つが既存コーパス id（target-p）と衝突 → fail-close。
-        d = self._mirror("target-p", "brand-new-b")
-        code, _, err = self._run(["--from-dir", str(d)])
-        self.assertEqual(code, cli.EXIT_ERROR)
-        self.assertIn("target-p", err)
-
-    def test_from_dir_missing_dir_error(self):
-        code, _, err = self._run(["--from-dir", "/no/such/dir/xyz"])
         self.assertEqual(code, cli.EXIT_NOT_FOUND)
 
 

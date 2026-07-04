@@ -42,17 +42,15 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    ERROR が 1 件でも出れば **ROLLBACK**（該当 ERROR 行を errors に転記）。
    - **`WARN: stem≠slugify(title)`（id 不整合）が 1 行でも出れば ROLLBACK として扱う**。validate.py はこれを WARN として出す（exit code は非0にならない）が、id==slug==slugify(title) は check-slug fail-close の前提＝load-bearing なので、WARN でも書込を許さず errors に転記して差し戻す。
 
-2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する。
-   **tmp ミラーを走査させる `--from-dir` を使う**（slug を手で列挙せず、著作した `{slug}.yaml` の stem を
-   ツールに収集させる＝取りこぼし防止・パイプライン入力）：
+2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する：
    ```bash
-   python3 -m dsv2 check-slug --from-dir tmp/<sprint>/<parent-id>/nodes --root doc-system-v2
+   python3 -m dsv2 check-slug <slug1> <slug2> ... --root doc-system-v2
    ```
-   （個別に確かめたいときは `check-slug <slug1> <slug2> ...`、タイトルからは `--title "..."` で slugify.py を通して照合できる。`--from-dir` と併用可。）
+   （タイトルから確認したいときは `--title "..."` で slugify.py を通して照合できる。）
    **終了コードが 0 以外（＝既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
-### Step 3: 合成グラフの構築（surgical read）
+### Step 3: 合成グラフの構築と整合性検証（surgical read）
 
 **コーパスを丸読みしない**（`ls`/`find`/`grep` と v2 グラフ照会で必要ノードだけ取得）。
 
@@ -79,7 +77,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 **型別チェック（自己修正不可 → ROLLBACK）**
 - [ ] SPEC: `condition` 属性あり（RULE-016 ERROR）
-- [ ] `scheduled` が非空（既定 = current_phase）。空は**オーナー承認済みの後送り**のときのみ許可し、その旨が本文/labels に残る（無計画な空は差し戻し・DD 未整備なら self_fix で current_phase 充填を指示）
+- [ ] SPEC: `scheduled` が空文字（"" のみ許可）
 - [ ] SPEC: 期待動作が単一アサーション（複数 RULE 列挙 → ROLLBACK）
 - [ ] TD: `condition` が依存先 SPEC と一致（RULE-019）
 - [ ] TR: `result` 属性あり（RULE-020 ERROR）
@@ -88,7 +86,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 - [ ] **FND 起票の配置**: 新規 FND は `nodes/04-verification/fnd/open/` に置かれ、`FND→対象` の forward 辺を持つ（open）。resolved 化は著作でなく reconciliation の `dsv2 reverse` が行うため、**著作段で `fnd/resolved/` へ手置きされた対を見たら ROLLBACK**（解消は writer の機械実行に委ねる）。
 - [ ] **FND 解消の妥当性**（解消を伴う著作差分がある場合）: 解消は `dsv2 reverse <FND-slug>` で機械実行される前提。処置対象 slug が FND 本文に記録され、削除済み対象は「付与先なし」明記があることを確認する。手で辺を逆転した痕跡（`fnd/resolved/` 手置き・処置対象への手 backref）があれば **self_fix に「reverse ツールで機械実行させる」指示**を載せる（本文に指摘時 ref_version が未記録なら ROLLBACK）。
 
-### Step 5: 判定の生成（ファイルは書かない）
+### Step 4: 判定の生成（ファイルは書かない）
 
 **ROLLBACK がある場合**（内容の問題・著作エージェントが対処すべき）：
 - validate.py の ERROR（スキーマ/配置/id 一貫性）／**slug グローバル一意違反（check-slug 非0＝fail-close）**／存在しない slug への参照（RULE-007）／SPEC の分割粒度違反（複数アサーション）／condition の不一致／著作ルール違反全般／`fnd/resolved/` への手置き

@@ -62,8 +62,8 @@
 ノードを著作するときは必ず対応するサブエージェントに委譲する（主文脈で直接書かない）：
 - **VAL / SR / FR / NFR** → `requirements-author`
 - **SPEC** → `spec-author`（1アサーション1ノード・-N枝番・無名依存辺で親 SPEC を参照）
-- **ACTOR / I / O / D / P / E / TERM（用語ノードの新規作成＝分析ファセット）** → `analysis-author`
-- **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT** → `design-author`（**TERM は新規作成しない**。DM 確定時に既存 TERM へ設計ファセット＝型名/定義モジュールを追記更新する・1用語1ノード共有・#87）
+- **ACTOR / I / O / D / P / E** → `analysis-author`
+- **ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM** → `design-author`
 - **TD / TC / TR / VERIFY / FND / DD / Q / PEND** → `verification-author`
 - **著作後の構造検証（read-only・VALIDATION_OK/ROLLBACK）** → `reconciliation-validator`
 - **検証合格後の self_fix 適用・本ファイル確定書き込み** → `reconciliation`

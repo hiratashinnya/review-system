@@ -50,7 +50,7 @@ title: "本文中の孤立 `---` を検出したとき WARNING を出力する" 
 version: "0.1.1"        # 必須。MAJOR.MINOR.PATCH（DD-8）。ドリフト判定は x.y、z は伝播不問。
 condition: failure      # テスタブルなアサーションのみ。傘/非テスタブルは省略。
 labels: []              # 多値ラベル（post-mvp 等）。多値ゆえ path 化不可。
-scheduled: "sprint-1"   # 実施スプリント。既定=current_phase（config.yaml）。空=オーナー承認済みの後送り/未計画のみ。繰り越しはオーナー判断。
+scheduled: ""           # 実施スプリント（sprint-N）。空=未設定。繰り越しはオーナー判断。
 edges: []               # 無名依存辺（§5）。空でもキーは必須。
 ```
 
