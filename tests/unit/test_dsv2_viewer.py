@@ -119,11 +119,38 @@ class TestViewer(unittest.TestCase):
         self.assertIn("NEWLY-ADDED-MARKER", html2)
 
     def test_no_external_network_refs(self):
+        """オフライン自己完結＝*ロードされる*外部リソースが無いこと。本文アンカーの
+        ``https://`` リンクはロードしないので許容する（実コーパスは URL を多数含む）。"""
         html = self._build()
-        self.assertNotIn("http://", html)
-        self.assertNotIn("https://", html)
-        self.assertNotIn("//cdn", html)
-        self.assertNotIn("<link", html)
+        for pat in (
+            "<script src=", "<link ", 'src="http', "src='http",
+            'src="//', "src='//", "@import", "//cdn",
+        ):
+            self.assertNotIn(pat, html)
+
+    def test_external_anchor_link_allowed(self):
+        """本文中の外部リンクはアンカー化されるが、外部ロードは発生しない。"""
+        body = self.root / "nodes/02-what/spec/parent-spec.md"
+        body.write_text("参照: [site](https://example.com/x)\n", encoding="utf-8")
+        html = self._build()
+        node = next(n for n in _embedded(html)["nodes"] if n["id"] == "parent-spec")
+        self.assertIn('href="https://example.com/x"', node["body_html"])
+        self.assertNotIn("<script src=", html)
+
+    def test_javascript_scheme_link_degraded(self):
+        """``javascript:`` 等の危険スキームはリンク化せずテキストへ降格する。"""
+        body = self.root / "nodes/02-what/spec/parent-spec.md"
+        body.write_text("危険: [x](javascript:alert(1))\n", encoding="utf-8")
+        html = self._build()
+        node = next(n for n in _embedded(html)["nodes"] if n["id"] == "parent-spec")
+        self.assertNotIn("<a ", node["body_html"])  # リンク化されない
+        self.assertNotIn("javascript:", node["body_html"])  # スキームは href に載らない
+        self.assertIn("x", node["body_html"])  # リンクテキストは残る
+
+    def test_glob_star_not_italicized(self):
+        """空白隣接の glob（``*.md`` ``*.py``）を <em> へ誤爆させない。"""
+        h = viewer.render_markdown("生成物は *.md と *.py を対象にする")
+        self.assertNotIn("<em>", h)
 
     def test_lonely_node_present(self):
         data = _embedded(self._build())

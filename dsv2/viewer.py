@@ -40,13 +40,37 @@ _TYPE_ORDER = [
 # --------------------------------------------------------------------------- #
 
 _LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-_BOLD = re.compile(r"\*\*(.+?)\*\*")
-_ITALIC = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
+# 強調は開始/終了の内側が非空白のときだけ対にする。本 repo の本文は glob（`*.md` `*.py`
+# `docs/**`）を多用するため、空白隣接の単独 `*` を強調へ誤爆させない（Sub-F レビュー指摘）。
+_BOLD = re.compile(r"\*\*(?!\s)(.+?)(?<!\s)\*\*")
+_ITALIC = re.compile(r"(?<!\*)\*(?!\*)(?!\s)(.+?)(?<!\s)(?<!\*)\*(?!\*)")
 _INLINE_CODE = re.compile(r"`([^`]+)`")
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 _ULI = re.compile(r"^\s*[-*]\s+(.*)$")
 _OLI = re.compile(r"^\s*\d+\.\s+(.*)$")
 _QUOTE = re.compile(r"^>\s?(.*)$")
+
+# 先頭がスキーム（`名前:`）かどうか。無ければ相対パス/アンカーで安全。
+_SCHEME = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):")
+# href に許可するスキーム（外部ロード/スクリプト実行に使えないもの）。
+_SAFE_SCHEMES = frozenset({"http", "https", "mailto"})
+
+
+def _safe_href(url: str) -> str | None:
+    """外部ロード/スクリプト実行に使えない安全な href だけ通す。
+    http/https/mailto・アンカー(#…)・相対パス（スキーム無し）は許可し、``javascript:`` 等
+    未知スキームは None（リンク化しない＝素のテキストへ降格）。他がエスケープ徹底なので href も同水準に揃える。"""
+    m = _SCHEME.match(url.strip())
+    if m is None:
+        return url  # スキーム無し＝相対パス/アンカー/空 → 安全
+    return url if m.group(1).lower() in _SAFE_SCHEMES else None
+
+
+def _link_sub(m: "re.Match[str]") -> str:
+    href = _safe_href(m.group(2))
+    if href is None:
+        return m.group(1)  # 危険スキームはリンク化せず、既にエスケープ済みのテキストを残す
+    return f'<a href="{href}" rel="noopener">{m.group(1)}</a>'
 
 
 def _inline(text: str) -> str:
@@ -58,9 +82,7 @@ def _inline(text: str) -> str:
             out.append(f"<code>{html.escape(seg)}</code>")
             continue
         seg = html.escape(seg)
-        seg = _LINK.sub(
-            lambda m: f'<a href="{m.group(2)}" rel="noopener">{m.group(1)}</a>', seg
-        )
+        seg = _LINK.sub(_link_sub, seg)
         seg = _BOLD.sub(r"<strong>\1</strong>", seg)
         seg = _ITALIC.sub(r"<em>\1</em>", seg)
         out.append(seg)
