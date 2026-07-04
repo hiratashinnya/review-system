@@ -40,7 +40,7 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/{slug}.yaml  # サイドカー
 title: "読めるタイトル"     # id は slugify(title)＝ファイル名 stem。型 prefix+連番は使わない
 version: "0.1.0"
 labels: []
-scheduled: ""             # 常に空文字（後フェーズ予定なら labels に post-mvp 等）
+scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
 suppress: []              # RULE 抑制リスト。RULE-005/007 は抑制不可。非空なら suppress_reason 必須
 edges:
   - to: "参照先ノードの-slug"
@@ -94,6 +94,6 @@ suppress: [RULE-018]  # 異常系なし: <具体的な理由>
 - [ ] edges の to がすべて実在 slug（RULE-007: always_error）
 - [ ] 必須依存辺（config `must_link_to`）が存在（RULE-006）
 - [ ] `kind`/`status` を書いていない・`to` は単数 slug
-- [ ] `scheduled: ""`（空文字のみ）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
 - [ ] suppress を使う場合は `suppress_reason` に理由あり（本文でなくサイドカー属性）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）

@@ -201,6 +201,17 @@ def cmd_check_slug(args) -> int:
     for nid, locs in duplicates(meta).items():
         print(f"警告: コーパスに既存 id 重複 {nid}（{', '.join(locs)}）。", file=sys.stderr)
     slugs = list(args.slugs)
+    for d in getattr(args, "from_dir", []):
+        base = Path(d)
+        if not base.is_dir():
+            print(f"エラー: --from-dir が存在しない: {d}", file=sys.stderr)
+            return EXIT_NOT_FOUND
+        found = sorted(p.stem for p in base.rglob("*.yaml"))
+        if not found:
+            print(f"警告: {d} 配下に *.yaml が無い", file=sys.stderr)
+        else:
+            print(f"--from-dir {d}: {len(found)} slug 収集（{', '.join(found)}）")
+        slugs.extend(found)  # 重複はそのまま残す＝バッチ内重複を slug_collisions が検出
     if args.title:
         slugify = _load_slugify()
         for t in args.title:
@@ -208,7 +219,7 @@ def cmd_check_slug(args) -> int:
             print(f"slugify: {t!r} → {s!r}")
             slugs.append(s)
     if not slugs:
-        print("エラー: 判定する slug/title が無い", file=sys.stderr)
+        print("エラー: 判定する slug/title/--from-dir が無い", file=sys.stderr)
         return EXIT_NOT_FOUND
     collisions = query.slug_collisions(meta, slugs)
     if not collisions:
@@ -263,6 +274,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("slugs", nargs="*", help="判定する slug（＝ファイル名 stem）")
     p.add_argument("--title", action="append", default=[],
                    help="タイトルを slugify.py で slug 化して判定に加える（複数可）")
+    p.add_argument("--from-dir", action="append", default=[], metavar="DIR",
+                   help="ディレクトリ配下の *.yaml サイドカー stem を判定対象に収集（tmp ミラー走査・複数可）")
     p.set_defaults(func=cmd_check_slug)
 
     return parser
