@@ -8,6 +8,7 @@
   * ``drift``            ref_version が参照先バッジ x.y とドリフトしている辺（RULE-004）。
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
+  * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
 
 終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反。
 """
@@ -18,7 +19,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import query, rename, reverse
+from . import query, rename, reverse, viewer
 from .meta import DEFAULT_ROOT, META_FILENAME, build_meta, duplicates, load_meta, write_meta
 from .rename import RenameError
 from .reverse import ReverseError
@@ -174,6 +175,18 @@ def cmd_rename(args) -> int:
     return EXIT_OK
 
 
+def cmd_build_view(args) -> int:
+    root = _root(args)
+    meta = load_meta(root, _meta_path(args, root))
+    for nid, locs in duplicates(meta).items():
+        print(f"警告: id 重複 {nid}（{', '.join(locs)}）。先勝ちを採用。", file=sys.stderr)
+    out = Path(args.out).resolve() if args.out else root / viewer.DEFAULT_OUT
+    model = viewer.build_view(root, meta, out)
+    size = out.stat().st_size
+    print(f"{len(model['nodes'])} ノードを HTML 化 → {out}（{size:,} bytes）")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--root", default=DEFAULT_ROOT,
@@ -211,6 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("new")
     p.add_argument("--apply", action="store_true", help="改名＋referrer 張替え（既定 dry-run）")
     p.set_defaults(func=cmd_rename)
+
+    p = sub.add_parser("build-view", parents=[common],
+                       help="meta.json ＋本文から単一 doc_view.html を生成")
+    p.add_argument("--out", help="出力先 HTML（既定 <root>/doc_view.html）")
+    p.set_defaults(func=cmd_build_view)
 
     return parser
 
