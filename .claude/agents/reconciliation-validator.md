@@ -50,7 +50,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    **終了コードが 0 以外（＝既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
-### Step 3: 合成グラフの構築と整合性検証（surgical read）
+### Step 3: 合成グラフの構築（surgical read）
 
 **コーパスを丸読みしない**（`ls`/`find`/`grep` と v2 グラフ照会で必要ノードだけ取得）。
 
@@ -86,7 +86,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 - [ ] **FND 起票の配置**: 新規 FND は `nodes/04-verification/fnd/open/` に置かれ、`FND→対象` の forward 辺を持つ（open）。resolved 化は著作でなく reconciliation の `dsv2 reverse` が行うため、**著作段で `fnd/resolved/` へ手置きされた対を見たら ROLLBACK**（解消は writer の機械実行に委ねる）。
 - [ ] **FND 解消の妥当性**（解消を伴う著作差分がある場合）: 解消は `dsv2 reverse <FND-slug>` で機械実行される前提。処置対象 slug が FND 本文に記録され、削除済み対象は「付与先なし」明記があることを確認する。手で辺を逆転した痕跡（`fnd/resolved/` 手置き・処置対象への手 backref）があれば **self_fix に「reverse ツールで機械実行させる」指示**を載せる（本文に指摘時 ref_version が未記録なら ROLLBACK）。
 
-### Step 4: 判定の生成（ファイルは書かない）
+### Step 5: 判定の生成（ファイルは書かない）
 
 **ROLLBACK がある場合**（内容の問題・著作エージェントが対処すべき）：
 - validate.py の ERROR（スキーマ/配置/id 一貫性）／**slug グローバル一意違反（check-slug 非0＝fail-close）**／存在しない slug への参照（RULE-007）／SPEC の分割粒度違反（複数アサーション）／condition の不一致／著作ルール違反全般／`fnd/resolved/` への手置き

@@ -41,7 +41,7 @@ version: "0.1.0"
 labels: []
 scheduled: ""             # 常に空文字
 suppress: []              # 非空なら suppress_reason 必須。RULE-005/007 は抑制不可
-carrier: skill            # 設計要素の実現担体（該当時・v2 正準フィールド）
+carrier: skill            # 設計要素の実現担体（該当時）。値集合の SoT = schema/sidecar.schema.json（現状 skill）
 edges:
   - to: "参照先ノードの-slug"
     ref_version: "0.1"    # 参照先サイドカー version の x.y
