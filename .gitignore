@@ -226,3 +226,5 @@ tmp/
 
 # doc-system v2 生成物（meta.json は index で再生成・手編集/コミットしない — FORMAT.md）
 doc-system-v2/meta.json
+# doc_view.html は build-view で meta.json + 本文から再生成する生成物（Sub-F #75）
+doc-system-v2/doc_view.html
