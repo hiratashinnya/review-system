@@ -5,6 +5,10 @@ description: Retrieve/load specific doc-system nodes (by id/type/label/keyword) 
 
 # docidx — ノード検索/読み込み（md2idx 思想）
 
+> **フォーマットの対象（v1／v2）**：`docidx`（`python -m docidx`）は **v1 コーパス `doc-system/`**（巨大 Markdown にノードが埋め込まれた旧フォーマット）専用。
+> **doc-system v2（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対・issue #73/#76）の照会は `dsv2` CLI（`python3 -m dsv2` — index/deps/dependents/orphans/drift/check-slug）を使う**。
+> v2 では 1 ノード = 2 ファイルで巨大ファイル埋め込みが無いため、ブラウズは `ls`/`find`/`grep` でも代替でき、グラフ照会は `dsv2` が担う。v1/v2 併存期はどちらのコーパスを見ているかで使い分ける。
+
 doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 行）に埋め込まれている。
 1 ノードを見たいだけでファイル全体をコンテキストへ読み込むのは無駄。**まず軽量インデックスを作り、
 必要なノードだけをオンデマンドで読み込む**のが docidx（実体＝`docidx/`・`python -m docidx`）。

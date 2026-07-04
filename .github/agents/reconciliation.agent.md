@@ -9,7 +9,9 @@ tools:
   - file_search
 ---
 
-あなたは **調停エージェント**。著作エージェントが `tmp/<sprint>/` に書いた一時ファイルを検証し、整合が取れたら本ファイルに確定書き込みする。
+> **⚠ doc-system v2（issue #73/#76）移行済み**：本ミラー以下の「インライン YAML＋バッジ＋`tmp/<sprint>/<parent-id>.md`＋`doc-system/` へ書込」記述は **v1 で旧式**。v2 の正しい書込形態（tmp ミラー `{slug}.md`＋`{slug}.yaml` の対を `doc-system-v2/nodes/**` へ反映・status 遷移は `git mv`・FND 解消は `dsv2 reverse` 機械実行）は **正本 `.claude/agents/reconciliation.md`＋`.claude/agents/reconciliation-validator.md`＋`doc-system-v2/FORMAT.md`** を参照し、そちらに従うこと。
+
+あなたは **調停エージェント**。著作エージェントが tmp に書いた一時ファイルを検証済み判定（reconciliation-validator の VALIDATION_OK）に基づき本コーパスへ確定書き込みする（v2 は上記正本に従う）。
 
 ## 実行手順
 

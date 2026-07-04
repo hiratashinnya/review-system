@@ -8,14 +8,17 @@
   * ``drift``            ref_version が参照先バッジ x.y とドリフトしている辺（RULE-004）。
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
+  * ``check-slug <slug>...`` 著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）。
   * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
 
-終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反。
+終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反（reverse/rename の
+前提不成立・**check-slug の衝突**）。
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -26,7 +29,19 @@ from .reverse import ReverseError
 
 EXIT_OK = 0
 EXIT_NOT_FOUND = 2  # 未検出。argparse の用法エラーも既定で 2 を返す
-EXIT_ERROR = 4      # 前提違反（reverse/rename の前提不成立）
+EXIT_ERROR = 4      # 前提違反（reverse/rename の前提不成立・check-slug の衝突＝fail-close）
+
+# slug 正規化は doc-system-v2/slugify.py が唯一実装（独自再実装を禁じる・FORMAT.md §slug）。
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_SLUGIFY_PY = _REPO_ROOT / "doc-system-v2" / "slugify.py"
+
+
+def _load_slugify():
+    """唯一実装 doc-system-v2/slugify.py を動的 import して slugify() を返す。"""
+    spec = importlib.util.spec_from_file_location("_dsv2_slugify", _SLUGIFY_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.slugify
 
 
 def _root(args) -> Path:
@@ -175,6 +190,37 @@ def cmd_rename(args) -> int:
     return EXIT_OK
 
 
+def cmd_check_slug(args) -> int:
+    """著作 slug（＋ ``--title`` を slugify した slug）がグローバル一意か fail-close 判定する。
+
+    reconciliation-validator が書込前に Bash で呼ぶ決定論チェック（DD-22・Sub-D・issue #73）。
+    衝突（既存コーパス id と一致 or 著作 slug 群内で重複）が 1 件でもあれば EXIT_ERROR。
+    """
+    root = _root(args)
+    # 改変前の現状コーパスと照合するためディスク走査で index を作る（meta.json の陳腐化を避ける）。
+    meta = build_meta(root)
+    for nid, locs in duplicates(meta).items():
+        print(f"警告: コーパスに既存 id 重複 {nid}（{', '.join(locs)}）。", file=sys.stderr)
+    slugs = list(args.slugs)
+    if args.title:
+        slugify = _load_slugify()
+        for t in args.title:
+            s = slugify(t)
+            print(f"slugify: {t!r} → {s!r}")
+            slugs.append(s)
+    if not slugs:
+        print("エラー: 判定する slug/title が無い", file=sys.stderr)
+        return EXIT_NOT_FOUND
+    collisions = query.slug_collisions(meta, slugs)
+    if not collisions:
+        print(f"OK: {len(slugs)} slug すべて一意（衝突なし）: {', '.join(slugs)}")
+        return EXIT_OK
+    print("NG: slug 衝突（グローバル一意違反・fail-close）", file=sys.stderr)
+    for s, why in sorted(collisions.items()):
+        print(f"  衝突 {s!r} … {why}", file=sys.stderr)
+    return EXIT_ERROR
+
+
 def cmd_build_view(args) -> int:
     root = _root(args)
     meta = load_meta(root, _meta_path(args, root))
@@ -224,6 +270,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("new")
     p.add_argument("--apply", action="store_true", help="改名＋referrer 張替え（既定 dry-run）")
     p.set_defaults(func=cmd_rename)
+
+    p = sub.add_parser("check-slug", parents=[common],
+                       help="著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）")
+    p.add_argument("slugs", nargs="*", help="判定する slug（＝ファイル名 stem）")
+    p.add_argument("--title", action="append", default=[],
+                   help="タイトルを slugify.py で slug 化して判定に加える（複数可）")
+    p.set_defaults(func=cmd_check_slug)
 
     p = sub.add_parser("build-view", parents=[common],
                        help="meta.json ＋本文から単一 doc_view.html を生成")
