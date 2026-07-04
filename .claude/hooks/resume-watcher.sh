@@ -51,8 +51,14 @@ is_working() {
 # 注意: リセット後はバナーが消えるため、これを注入の必須条件にすると
 #   「バナー無し=再開済み」と誤認して永遠に注入しなくなる(旧バグ・自動再開が機能しない)。
 # バナーはフッタ入力欄より上に出るため末尾15行を見る(8行では拾い漏れる=リセット時刻抽出の tail -40 と整合)。
+LIMIT_BANNER_RE='resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to'
 is_limit_screen() {
-  pane_tail 15 | grep -qiE "resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to"
+  pane_tail 15 | grep -qiE "$LIMIT_BANNER_RE"
+}
+# 既に capture 済みのテキストに対する制限バナー判定(acquire ループで再 capture を避け、
+# saw_banner と時刻抽出を同一スナップショットで評価するため)。
+text_has_banner() {
+  printf '%s' "$1" | grep -qiE "$LIMIT_BANNER_RE"
 }
 
 # 注入先ペインが生存し、かつ前景コマンドが claude 系(=node 実行)か。
@@ -118,7 +124,7 @@ while [ "$i" -le "$RESET_POLL_MAX" ]; do
     exit 0
   fi
   text="$(tmux capture-pane -p -t "$PANE" 2>/dev/null | tail -n 40)"
-  is_limit_screen && saw_banner=1
+  text_has_banner "$text" && saw_banner=1   # 同一スナップショットで判定(再 capture しない)
   parsed="$(parse_reset_from_text "$text")"
   if [ "$parsed" = "WEEKLY" ]; then
     log "weekly limit detected; auto-resume非対応のため待機/注入せず終了"
@@ -145,13 +151,21 @@ elif [ "$saw_banner" -eq 1 ]; then
   # 時刻は最後まで取れなかったが、制限バナーは観測した=実際にレート制限中。
   # 盲目の時刻発火はせず、バナーが「消える(=リセット発生)」まで待ってから注入する(決定論)。
   log "リセット時刻を ${RESET_POLL_MAX} 回試行しても取得できず。バナー消滅(=リセット)を待つ方式へフォールバック"
+  # バナー消滅は「2連続」で確認してから注入する(単発の再描画/部分キャプチャで一瞬バナーが
+  # 欠けたのを誤ってリセットと見なし、制限中に早撃ちするのを防ぐ)。
+  clear_streak=0
   j=1
   while [ "$j" -le "$BANNER_POLL_MAX" ]; do
     if ! is_claude_pane; then log "banner-wait: ペイン消失/非claude; 終了"; exit 0; fi
     if is_working; then log "banner-wait: ペインが WORKING(再開済み); 注入せず終了"; exit 0; fi
-    if ! is_limit_screen; then
-      log "banner-wait: 制限バナー消滅を検知(=リセット) after ${j} polls; 注入へ"
-      break
+    if is_limit_screen; then
+      clear_streak=0
+    else
+      clear_streak=$(( clear_streak + 1 ))
+      if [ "$clear_streak" -ge 2 ]; then
+        log "banner-wait: 制限バナー消滅を2連続確認(=リセット) after ${j} polls; 注入へ"
+        break
+      fi
     fi
     sleep "$BANNER_POLL_INTERVAL"
     j=$(( j + 1 ))
