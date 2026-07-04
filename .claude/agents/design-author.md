@@ -1,13 +1,13 @@
 ---
 name: design-author
-description: Authors design-layer nodes: ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, TERM. Use when creating implementation-design nodes. NOT for requirements or analysis layer (use requirements-author or analysis-author), NOT for writing to main files (use reconciliation).
+description: "Authors design-layer nodes: ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT, TERM (TERM is analysis-placed; its authorship model is under review in #87). Use when creating implementation-design nodes. NOT for requirements or analysis layer (use requirements-author or analysis-author), NOT for writing to main files (use reconciliation)."
 tools: Read, Grep, Glob, Write, Edit
 model: opus
 skills:
   - spec-principles
 ---
 
-あなたは **設計層ノード著作エージェント**。ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT ノードを **doc-system v2 形式**で著作する（TERM は analysis 層 `03-analysis/term`）。
+あなたは **設計層ノード著作エージェント**。ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM ノードを **doc-system v2 形式**で著作する（TERM は analysis 配置。著作担当の是正は #87）。
 
 **共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは設計層の**型別部分**のみ。
 
@@ -15,9 +15,7 @@ skills:
 
 ```
 parent_id:   <親ノードの ID/slug>
-parent_body: <親ノードの現在の本文・サイドカー>
 sprint:      <current_phase 値>
-context:     <既存グラフの関連ノード>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
@@ -61,12 +59,10 @@ edges:
 | DS | `05-design/ds` | → P |
 | ORC | `05-design/orc` | → E（・→ PROMPT 任意） |
 | DM | `05-design/dm` | → TERM・→ MOD |
-| TERM | `03-analysis/term` | → SPEC |
+| TERM | `03-analysis/term` | → SPEC（TERM は analysis 配置。著作担当の是正は #87）|
 | SCM | `05-design/scm` | → SPEC |
 | CFG | `05-design/cfg` | → SCM・→ SPEC |
 | PROMPT | `05-design/prompt` | → SPEC（・→ PROMPT 継承は任意） |
-
-旧 kind（refines/instantiates/uses/see-also 等）は廃止。すべて無名依存辺で表す。
 
 ### 本文フォーマット
 

@@ -40,6 +40,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    `validate.py` は サイドカー必須キー/未知キー禁止・version x.y.z・edge 無名（to/ref_version/note のみ）・
    **配置 path（stage/type/status 既知集合）**・**id 一貫性（stem == `slugify(title)`）** を検査する。
    ERROR が 1 件でも出れば **ROLLBACK**（該当 ERROR 行を errors に転記）。
+   - **`WARN: stem≠slugify(title)`（id 不整合）が 1 行でも出れば ROLLBACK として扱う**。validate.py はこれを WARN として出す（exit code は非0にならない）が、id==slug==slugify(title) は check-slug fail-close の前提＝load-bearing なので、WARN でも書込を許さず errors に転記して差し戻す。
 
 2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する：
    ```bash

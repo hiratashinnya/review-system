@@ -15,9 +15,7 @@ skills:
 
 ```
 parent_id:   <親ノードの ID/slug（例: 親 SPEC・FR の slug）>
-parent_body: <親ノードの現在の本文・サイドカー>
 sprint:      <current_phase 値（例: sprint-1）>
-context:     <既存グラフの関連ノード（親の上流 FR・隣接 SPEC 等）>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
@@ -49,7 +47,7 @@ tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
 **NG 例**（分割すべき）:
 ```
 期待動作: RULE-016 ERROR を報告し、RULE-017 WARNING を報告し、RULE-019 WARNING を報告する
-→ 3 ノードに分割（各々が単一 RULE の別 slug・別タイトル。旧 SPEC-X-1/-2/-3 の連番枝番は使わない）
+→ 3 ノードに分割（各々が単一 RULE の別 slug・別タイトル）
 ```
 
 **OK 例**（分割不要）:
@@ -58,9 +56,9 @@ tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
 → 1 つの RULE、1 つの期待結果 → 分割不要
 ```
 
-### 2. 分割ノードの id（v2＝slug・連番 `-N` は廃止）
+### 2. 分割ノードの id（v2＝slug）
 
-- 子ノード id = **`slugify(タイトル)`**（`doc-system-v2/slugify.py` で算出）。旧 `親ID-N`（`SPEC-15-1` 等の連番枝番）は**使わない**。
+- 子ノード id = **`slugify(タイトル)`**（`doc-system-v2/slugify.py` で算出）。
 - 分割した各アサーションに**識別的なタイトル**を付け、それぞれ別の `{slug}.md`＋`{slug}.yaml` 対にする。
 - **階層は id でも path でも表さない**。親子関係は**子 SPEC → 親 SPEC の無名依存辺**（同型間の依存辺＝refines）で表す。
 
@@ -103,8 +101,8 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 
 ## 著作手順
 
-1. 入力の parent_id・parent_body を確認する
-2. 既存グラフを Grep/Read（または `docidx`）で確認し、隣接 SPEC・親 SPEC を把握する
+1. parent_id から親ノードを Read して確認する
+2. 既存グラフを Grep/Read（v2 は `grep` / `dsv2 deps`・`dsv2 dependents`）で確認し、隣接 SPEC・親 SPEC を把握する
 3. 分割判断基準に照らし、子ノードの数と condition を決める
 4. 各子アサーションに識別的なタイトルを付け、`slugify(title)` で slug を確定する
 5. 各子ノードの `{slug}.yaml`＋`{slug}.md` を草稿する

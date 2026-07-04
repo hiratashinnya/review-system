@@ -6,10 +6,9 @@
 > 正本は `doc-system-v2/FORMAT.md`・`doc-system-v2/config.yml`・`doc-system-v2/schema/sidecar.schema.json`。
 > 本ファイルはその著作向け要約。食い違ったら FORMAT.md を正とする。
 
-## 1ノード = 2ファイル（旧インライン YAML＋バッジは廃止）
+## 1ノード = 2ファイル
 
-旧フォーマット（1つの `.md` に `id: / type:` インライン YAML ＋ `⬡ PREFIX-N · vX.Y.Z` バッジ）は
-**廃止**。v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー `{slug}.yaml`（属性）** の対。
+v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー `{slug}.yaml`（属性）** の対。
 
 - `{slug}.md` … **本文のみ**。属性・バッジ・`---`/`## ` 境界・YAML を一切書かない。
 - `{slug}.yaml` … サイドカー。下記キーのみ（`schema/sidecar.schema.json`・未知キー禁止）。
@@ -48,8 +47,7 @@ edges:
 
 ## 出力先（tmp のミラーレイアウト）
 
-**旧 `tmp/<sprint>/<parent-id>.md`（1ファイルに子を全部）ではない**。v2 は
-**corpus と同じ path を tmp 下にミラー**して対で置く：
+v2 は **corpus と同じ path を tmp 下にミラー**して対で置く：
 
 ```
 tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.md

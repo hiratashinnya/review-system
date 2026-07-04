@@ -15,9 +15,7 @@ skills:
 
 ```
 parent_id:   <親ノードの ID/slug（例: VAL-1 相当の slug、または新規ルートなら空）>
-parent_body: <親ノードの現在の本文・サイドカー>
 sprint:      <current_phase 値>
-context:     <既存グラフの関連ノード>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
