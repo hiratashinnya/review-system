@@ -77,7 +77,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 **型別チェック（自己修正不可 → ROLLBACK）**
 - [ ] SPEC: `condition` 属性あり（RULE-016 ERROR）
-- [ ] SPEC: `scheduled` が空文字（"" のみ許可）
+- [ ] `scheduled` が非空（既定 = current_phase）。空は**オーナー承認済みの後送り**のときのみ許可し、その旨が本文/labels に残る（無計画な空は差し戻し・DD 未整備なら self_fix で current_phase 充填を指示）
 - [ ] SPEC: 期待動作が単一アサーション（複数 RULE 列挙 → ROLLBACK）
 - [ ] TD: `condition` が依存先 SPEC と一致（RULE-019）
 - [ ] TR: `result` 属性あり（RULE-020 ERROR）

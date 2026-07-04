@@ -37,7 +37,7 @@
     "scheduled": {
       "type": "string",
       "default": "",
-      "description": "実施スプリント（sprint-N）。空文字＝未設定。繰り越しはオーナー判断。"
+      "description": "実施スプリント（sprint-N）。既定＝current_phase（config.yaml）。空文字＝オーナー承認済みの後送り/未計画のみ（無計画な空は不可）。繰り越しはオーナー判断。"
     },
     "suppress": {
       "type": "array",
