@@ -5,8 +5,11 @@
 # 引数: $1=tmux ペインID  $2=session_id  $3=transcript_path
 #
 # 動作:
-#   1) ペインのレート制限テキストからリセット時刻を best-effort 抽出
-#   2) リセット時刻(+マージン)まで sleep。不明なら既定待機。
+#   1) ペインのレート制限テキストからリセット時刻を抽出。取り逃したら短間隔で再取得を
+#      リトライする(watcher がバナー描画より先に起動する競合対策=当てずっぽうの早撃ち防止)。
+#   2) 時刻を取得できたらリセット(+マージン)まで sleep。最後まで取得できず制限バナーだけ
+#      観測できた場合は、当てずっぽうに時刻発火せず「バナー消滅(=リセット発生)」まで待つ。
+#      バナーを一度も観測できなければ注入しない(誤発火防止)。
 #   3) ペインへ継続メッセージ + Enter を送出
 #   4) まだ制限中ならバックオフして再送(上限あり)
 #
@@ -23,7 +26,10 @@ LOG="${STATE_DIR}/watcher.log"
 LOCK="${STATE_DIR}/lock.$(printf '%s' "$PANE" | tr -c 'A-Za-z0-9' '_')"
 
 CONTINUE_MSG="${CLAUDE_RL_CONTINUE_MSG:-続けて}"     # 送出する継続メッセージ
-DEFAULT_WAIT="${CLAUDE_RL_DEFAULT_WAIT:-900}"        # リセット時刻不明時の待機秒(既定15分)
+RESET_POLL_INTERVAL="${CLAUDE_RL_RESET_POLL_INTERVAL:-15}"   # リセット時刻の再取得ポーリング間隔秒
+RESET_POLL_MAX="${CLAUDE_RL_RESET_POLL_MAX:-40}"             # 再取得の最大試行回数(15s×40=10分)
+BANNER_POLL_INTERVAL="${CLAUDE_RL_BANNER_POLL_INTERVAL:-30}"  # 時刻不明時: バナー消滅を待つ間隔秒
+BANNER_POLL_MAX="${CLAUDE_RL_BANNER_POLL_MAX:-720}"          # 同上限(30s×720=6時間の安全上限)
 MARGIN="${CLAUDE_RL_MARGIN:-30}"                     # リセット時刻に足すマージン秒
 MAX_ATTEMPTS="${CLAUDE_RL_MAX_ATTEMPTS:-1}"          # 注入試行上限(既定1=単発。>1で早撃ち救済リトライ)
 RETRY_BACKOFF="${CLAUDE_RL_RETRY_BACKOFF:-300}"      # 再注入バックオフ基本間隔秒
@@ -45,8 +51,14 @@ is_working() {
 # 注意: リセット後はバナーが消えるため、これを注入の必須条件にすると
 #   「バナー無し=再開済み」と誤認して永遠に注入しなくなる(旧バグ・自動再開が機能しない)。
 # バナーはフッタ入力欄より上に出るため末尾15行を見る(8行では拾い漏れる=リセット時刻抽出の tail -40 と整合)。
+LIMIT_BANNER_RE='resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to'
 is_limit_screen() {
-  pane_tail 15 | grep -qiE "resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun|[0-9])|hit your (session|weekly|usage|5-hour|account) limit|usage limit|/upgrade|upgrade to"
+  pane_tail 15 | grep -qiE "$LIMIT_BANNER_RE"
+}
+# 既に capture 済みのテキストに対する制限バナー判定(acquire ループで再 capture を避け、
+# saw_banner と時刻抽出を同一スナップショットで評価するため)。
+text_has_banner() {
+  printf '%s' "$1" | grep -qiE "$LIMIT_BANNER_RE"
 }
 
 # 注入先ペインが生存し、かつ前景コマンドが claude 系(=node 実行)か。
@@ -72,40 +84,101 @@ fi
 
 log "start session='${SESSION_ID}'"
 
-# --- リセット時刻を best-effort 抽出 ---
-pane_text="$(tmux capture-pane -p -t "$PANE" 2>/dev/null | tail -n 40)"
-reset_epoch=""
-
-if printf '%s' "$pane_text" | grep -qiE 'resets[[:space:]]+(mon|tue|wed|thu|fri|sat|sun)'; then
-  # 週次上限(曜日付き)は待機が長すぎるため自動再開の対象外。既定待機にフォールバック。
-  log "weekly limit detected; auto-resume非対応のため既定待機にフォールバック"
-else
-  hhmm="$(printf '%s' "$pane_text" \
+# --- リセット時刻をペインテキストから抽出し stdout へ echo する ---
+#   週次上限(曜日付き) -> "WEEKLY" / 時刻抽出成功 -> epoch(数字) / それ以外 -> 空。
+#   ※ 呼び出しは $(...) 命令置換=サブシェルなので、結果はグローバル変数でなく stdout で返す
+#     (サブシェル内のグローバル代入は親に伝播しないため)。
+parse_reset_from_text() {
+  local text="$1" hhmm now cand
+  if printf '%s' "$text" | grep -qiE 'resets[[:space:]]+(mon|tue|wed|thu|fri|sat|sun)'; then
+    printf 'WEEKLY'
+    return 0
+  fi
+  hhmm="$(printf '%s' "$text" \
     | grep -oiE 'resets[[:space:]]+[0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)' \
     | tail -n1 \
     | grep -oiE '[0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)')"
-  if [ -n "$hhmm" ]; then
-    now="$(date +%s)"
-    cand="$(date -d "today $hhmm" +%s 2>/dev/null || true)"
-    if [ -n "$cand" ]; then
-      [ "$cand" -le "$now" ] && cand="$(date -d "tomorrow $hhmm" +%s 2>/dev/null || true)"
-      reset_epoch="$cand"
-      log "parsed reset time '$hhmm' -> epoch=${reset_epoch}"
-    fi
-  fi
-fi
+  [ -n "$hhmm" ] || return 0
+  now="$(date +%s)"
+  cand="$(date -d "today $hhmm" +%s 2>/dev/null || true)"
+  [ -n "$cand" ] || return 0
+  [ "$cand" -le "$now" ] && cand="$(date -d "tomorrow $hhmm" +%s 2>/dev/null || true)"
+  printf '%s' "$cand"
+}
 
-# --- 待機 ---
-now="$(date +%s)"
+# --- リセット時刻を「取り逃したら再取得」する ---
+# 旧実装は起動直後に1回だけ capture していたため、レート制限バナーが未描画(=watcher が
+# バナー出現より先に起動する競合)だとリセット時刻を取り逃し、盲目の既定待機で"早撃ち"していた。
+# ここでは時刻を取得できるまで短間隔で再取得し、当てずっぽうの時刻発火はしない。
+reset_epoch=""
+saw_banner=0
+i=1
+while [ "$i" -le "$RESET_POLL_MAX" ]; do
+  # 途中でセッション再開/ペイン消失を検知したら注入せず終了(誤送出防止)
+  if ! is_claude_pane; then
+    log "acquire: 対象ペインが消失 or 前景が claude でない; 注入せず終了"
+    exit 0
+  fi
+  if is_working; then
+    log "acquire: ペインが既に WORKING(別経路で再開済み); 注入せず終了"
+    exit 0
+  fi
+  text="$(tmux capture-pane -p -t "$PANE" 2>/dev/null | tail -n 40)"
+  text_has_banner "$text" && saw_banner=1   # 同一スナップショットで判定(再 capture しない)
+  parsed="$(parse_reset_from_text "$text")"
+  if [ "$parsed" = "WEEKLY" ]; then
+    log "weekly limit detected; auto-resume非対応のため待機/注入せず終了"
+    exit 0
+  fi
+  if [ -n "$parsed" ]; then
+    reset_epoch="$parsed"
+    log "acquire: リセット時刻を取得 (attempt ${i}/${RESET_POLL_MAX}) -> epoch=${reset_epoch}"
+    break
+  fi
+  log "acquire: リセット時刻 未取得 (attempt ${i}/${RESET_POLL_MAX}; banner_seen=${saw_banner}); ${RESET_POLL_INTERVAL}s 後に再取得"
+  sleep "$RESET_POLL_INTERVAL"
+  i=$(( i + 1 ))
+done
+
+# --- 待機方式の決定(当てずっぽうの時刻発火はしない) ---
 if [ -n "$reset_epoch" ]; then
+  now="$(date +%s)"
   wait_s=$(( reset_epoch - now + MARGIN ))
   [ "$wait_s" -lt 0 ] && wait_s=0
+  log "sleeping ${wait_s}s until reset (+${MARGIN}s margin)"
+  sleep "$wait_s"
+elif [ "$saw_banner" -eq 1 ]; then
+  # 時刻は最後まで取れなかったが、制限バナーは観測した=実際にレート制限中。
+  # 盲目の時刻発火はせず、バナーが「消える(=リセット発生)」まで待ってから注入する(決定論)。
+  log "リセット時刻を ${RESET_POLL_MAX} 回試行しても取得できず。バナー消滅(=リセット)を待つ方式へフォールバック"
+  # バナー消滅は「2連続」で確認してから注入する(単発の再描画/部分キャプチャで一瞬バナーが
+  # 欠けたのを誤ってリセットと見なし、制限中に早撃ちするのを防ぐ)。
+  clear_streak=0
+  j=1
+  while [ "$j" -le "$BANNER_POLL_MAX" ]; do
+    if ! is_claude_pane; then log "banner-wait: ペイン消失/非claude; 終了"; exit 0; fi
+    if is_working; then log "banner-wait: ペインが WORKING(再開済み); 注入せず終了"; exit 0; fi
+    if is_limit_screen; then
+      clear_streak=0
+    else
+      clear_streak=$(( clear_streak + 1 ))
+      if [ "$clear_streak" -ge 2 ]; then
+        log "banner-wait: 制限バナー消滅を2連続確認(=リセット) after ${j} polls; 注入へ"
+        break
+      fi
+    fi
+    sleep "$BANNER_POLL_INTERVAL"
+    j=$(( j + 1 ))
+  done
+  if [ "$j" -gt "$BANNER_POLL_MAX" ]; then
+    log "banner-wait: 上限まで待ってもバナーが消えず; 当てずっぽう注入はせず終了"
+    exit 0
+  fi
 else
-  wait_s="$DEFAULT_WAIT"
-  log "reset time unknown; using default wait ${wait_s}s"
+  # バナーを一度も観測できなかった=レート制限画面ではない/既に解消済みの可能性。当てずっぽうに注入しない。
+  log "制限バナーを一度も観測できず(${RESET_POLL_MAX} 回試行); 当てずっぽう注入はせず終了"
+  exit 0
 fi
-log "sleeping ${wait_s}s until reset"
-sleep "$wait_s"
 
 # --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
 # 大原則: リセット待機後、ペインが「作業中でない(アイドル)」なら継続メッセージを注入して再開する。
