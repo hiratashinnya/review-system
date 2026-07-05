@@ -140,8 +140,8 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 | 設計スキル群 | `.claude/skills/architecture-design/SKILL.md`<br>`.claude/skills/domain-model/SKILL.md`<br>`.claude/skills/orchestration-design/SKILL.md` 等 | MOD / DM / ORC 等の設計層型 |
 | requirements-author | `.claude/agents/requirements-author.md`<br>`.github/agents/requirements-author.agent.md` | VAL / SR / FR / NFR |
 | spec-author | `.claude/agents/spec-author.md`<br>`.github/agents/spec-author.agent.md` | SPEC |
-| analysis-author | `.claude/agents/analysis-author.md`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / P / E |
-| design-author | `.claude/agents/design-author.md`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT / TERM |
+| analysis-author | `.claude/agents/analysis-author.md`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / D / P / E / TERM（用語ノードの新規作成＝分析ファセット・#87） |
+| design-author | `.claude/agents/design-author.md`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT（TERM は新規作成しない。design facet 追記のみ・#87） |
 | verification-author（自身） | `.claude/agents/verification-author.md`<br>`.github/agents/verification-author.agent.md` | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 
 **チェック手順：**
