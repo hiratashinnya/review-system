@@ -3,7 +3,7 @@
 title: "[テスト名] — PASS/FAIL"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 result: "PASS"          # PASS | FAIL（RULE-020）
 log_ref: "[ログのパス/URL（例 ci/logs/run-42.txt）・RULE-021]"
 edges:

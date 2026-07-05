@@ -2,7 +2,7 @@
 title: "[永続化対象名]"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（PRS→DS）: 永続化するデータストア（config must_link_to prs→ds）
   - to: "[永続化する DS の slug]"
