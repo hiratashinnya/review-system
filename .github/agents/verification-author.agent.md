@@ -44,6 +44,6 @@ tools:
 - [ ] TR に result 属性（YAML メタ）あり
 - [ ] TR に log_ref あり（PASS/FAIL 問わず）
 - [ ] DD/Q/PEND の義務辺が未反映のまま放置されていない
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
+- [ ] `scheduled: ""`（空文字のみ）
 - [ ] ref_version が全辺にあり参照先の現在 x.y と一致
 - [ ] 接続規則変更を伴う DD・FND の場合、変更型対応の author エージェント・スキル・接続マトリクスへの同期完了が本文に記録されているか

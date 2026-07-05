@@ -35,5 +35,5 @@ tools:
 - [ ] id 一意、type 一致、edges の to がすべて実在
 - [ ] 必須依存辺が存在
 - [ ] `kind`/`status` を書いていない・`to` は単数
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
+- [ ] `scheduled: ""`（空文字のみ）
 - [ ] ref_version が全辺にあり参照先の現在 x.y と一致
