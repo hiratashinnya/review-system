@@ -73,14 +73,14 @@ tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
 title: "検証アサーションを表す読めるタイトル"   # id は slugify(title)＝ファイル名 stem
 version: "0.1.0"
 labels: []
-scheduled: ""         # 常に空文字。将来フェーズなら labels に post-mvp 等
+scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
 condition: normal     # normal | boundary | empty | failure | error（RULE-016 ERROR）
 edges:
   - to: "親-spec-の-slug"   # 直接の親（FR でなく親 SPEC）。kind/status は書かない
     ref_version: "0.1"      # 親 SPEC サイドカー version の x.y
 ```
 
-`scheduled: "verification"` や `scheduled: "sprint-N"` は禁止。**常に `""`**。
+`scheduled` の**既定は `current_phase`**（config.yaml）。無計画な空は禁止。別フェーズ（`sprint-N`）へ回すのは**オーナー承認時のみ**で、承認の旨を残す。post-mvp の大枠は `labels`。
 SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verification 発火で現在は沈黙する。ノード単位の `suppress` は付けない。
 
 ### 5. 本文フォーマット
@@ -118,7 +118,7 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 - [ ] 親ノードに子への辺がない（decomposes 廃止・親子は子→親の同型依存辺）
 - [ ] 子ノードが親 SPEC へ依存辺を張る（FR を直接参照していない）・`kind`/`status` を書いていない
 - [ ] `to` は単数 slug（リスト記法を使っていない）
-- [ ] `scheduled: ""`（空文字のみ。値あり禁止）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
 - [ ] `condition` 属性が全子ノードに存在（RULE-016 ERROR）
 - [ ] edges の `to` がすべて実在する slug（RULE-007: always_error）
 - [ ] `ref_version`（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
