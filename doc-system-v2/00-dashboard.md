@@ -84,14 +84,14 @@
 |---|---|---|---|
 | N1 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後 |
 | N2 | テスト戦略④（凍結セット残項目） | 🟡 中 | 設計層著作済み。`/test-strategy` スキルで TD/TC 設計 |
-| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は別 issue へ切り出し済み（下記「今後」参照） |
+| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み |
 | N4 | open FND 11件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
 
 ---
 
 ## 今後（自動化の別 issue）
 
-本ダッシュボードは**手で書いた最小版**（オーナー方針・2026-07-05）。open FND/Q/DD を `doc-system-v2/nodes/04-verification/**` から自動集計し本ファイルを生成する `dsv2` サブコマンドの追加は、本カットオーバーとは別スコープとして GitHub issue へ切り出した（issue 番号は下記コミット/PR参照）。
+本ダッシュボードは**手で書いた最小版**（オーナー方針・2026-07-05）。open FND/Q/DD を `doc-system-v2/nodes/04-verification/**` から自動集計し本ファイルを生成する `dsv2` サブコマンドの追加は、本カットオーバーとは別スコープとして [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出した。
 
 ---
 
