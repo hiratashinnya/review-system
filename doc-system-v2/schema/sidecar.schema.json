@@ -61,7 +61,8 @@
     },
     "carrier": {
       "type": "string",
-      "description": "設計要素の実現担体（realization carrier）。現状値 skill（05-static.md の 13 ノード）。将来 code/module 等を想定。v2 正準フィールド（オーナー承認 2026-07-03）。"
+      "enum": ["skill", "agent", "command", "instructions", "hooks", "code"],
+      "description": "設計要素の実現担体（realization carrier）。値集合は本 enum が機械可読 SoT（instructions＝CLAUDE.md 等の常駐コンテキスト、code＝Python 実装）。v2 正準フィールド（オーナー承認 2026-07-03、enum 化＝Issue #93）。"
     },
     "edges": {
       "type": "array",
