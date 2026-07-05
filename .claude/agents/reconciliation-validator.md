@@ -42,11 +42,14 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    ERROR が 1 件でも出れば **ROLLBACK**（該当 ERROR 行を errors に転記）。
    - **`WARN: stem≠slugify(title)`（id 不整合）が 1 行でも出れば ROLLBACK として扱う**。validate.py はこれを WARN として出す（exit code は非0にならない）が、id==slug==slugify(title) は check-slug fail-close の前提＝load-bearing なので、WARN でも書込を許さず errors に転記して差し戻す。
 
-2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する：
+2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する。
+   **tmp ミラーを走査させる `--from-dir` を使う**（slug を手で列挙せず、著作した `{slug}.yaml` の stem を
+   ツールに収集させる＝取りこぼし防止・パイプライン入力）：
    ```bash
-   python3 -m dsv2 check-slug <slug1> <slug2> ... --root doc-system-v2
+   python3 -m dsv2 check-slug --from-dir tmp/<sprint>/<parent-id>/nodes --root doc-system-v2
    ```
-   （タイトルから確認したいときは `--title "..."` で slugify.py を通して照合できる。）
+   （個別に確かめたいときは `check-slug <slug1> <slug2> ...`、タイトルからは `--title "..."` で slugify.py を通して照合できる。`--from-dir` と併用可。）
+   **複数 parent_ids を一括検証するとき**は、**parent 横断の slug 重複（cross-parent 衝突）も取りこぼさないよう**、各 parent の nodes を渡す（`--from-dir A/nodes --from-dir B/nodes …` と複数指定）か、**スプリント一括で `--from-dir tmp/<sprint>`** を渡す（配下の全 `*.yaml` を再帰収集する）。
    **終了コードが 0 以外（＝既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
