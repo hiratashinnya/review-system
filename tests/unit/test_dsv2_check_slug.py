@@ -114,6 +114,27 @@ class TestCheckSlugCli(unittest.TestCase):
         code, _, err = self._run(["--from-dir", "/no/such/dir/xyz"])
         self.assertEqual(code, cli.EXIT_NOT_FOUND)
 
+    def test_from_dir_batch_dup_across_subdirs(self):
+        # 本機能の目玉: 同一 slug が2つの parent サブツリーに現れると、
+        # from-dir 収集（rglob）で重複が残り batch(xN) として fail-close する。
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(d, ignore_errors=True))
+        for p in ("parent-a", "parent-b"):
+            sub = d / p / "nodes" / "02-what" / "spec"
+            sub.mkdir(parents=True)
+            (sub / "dup.yaml").write_text("title: x\nversion: 0.1.0\n", encoding="utf-8")
+        code, _, err = self._run(["--from-dir", str(d)])
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("batch", err)
+        self.assertIn("dup", err)
+
+    def test_from_dir_plus_explicit_slug_merged(self):
+        # from-dir 収集 slug と明示 slug 引数が併合されて一括判定される。
+        d = self._mirror("fresh-from-dir")
+        code, _, err = self._run(["target-p", "--from-dir", str(d)])  # 明示 = 既存 id
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("target-p", err)
+
 
 if __name__ == "__main__":
     unittest.main()

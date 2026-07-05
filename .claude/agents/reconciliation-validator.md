@@ -49,6 +49,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    python3 -m dsv2 check-slug --from-dir tmp/<sprint>/<parent-id>/nodes --root doc-system-v2
    ```
    （個別に確かめたいときは `check-slug <slug1> <slug2> ...`、タイトルからは `--title "..."` で slugify.py を通して照合できる。`--from-dir` と併用可。）
+   **複数 parent_ids を一括検証するとき**は、**parent 横断の slug 重複（cross-parent 衝突）も取りこぼさないよう**、各 parent の nodes を渡す（`--from-dir A/nodes --from-dir B/nodes …` と複数指定）か、**スプリント一括で `--from-dir tmp/<sprint>`** を渡す（配下の全 `*.yaml` を再帰収集する）。
    **終了コードが 0 以外（＝既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
