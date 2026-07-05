@@ -31,7 +31,7 @@ nodes/
 - `{slug}.yaml` … **サイドカー**。`schema/sidecar.schema.json` に従う。
   - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]` ＋ 正準 meta-schema フィールド
     `suppress?`（抑制ルール番号のリスト）・`suppress_reason?`（**理由＝本文/コメントでなくこの属性に書く**・suppress 非空なら必須・機械可読）・`result?`/`log_ref?`（**TR 専用**・DD-011）・
-    `carrier?`（設計要素の実現担体＝realization carrier・現状値 `skill`。v2 正準フィールド・オーナー承認済 2026-07-03）。
+    `carrier?`（設計要素の実現担体＝realization carrier。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code`（値集合の SoT = `schema/sidecar.schema.json`）。v2 正準フィールド・オーナー承認済 2026-07-03）。
   - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）・`resolved`（=FND の path）＝二重管理回避。
 
 ## id / slug（§slug）
