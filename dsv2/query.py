@@ -23,7 +23,8 @@ from typing import Iterable
 from .meta import index_by_id
 
 # config.yml の prompt_coverage_targets を正本とし、それと一致させて直書きしている
-# （config 直読み配線は Sub-E #74 想定・validate.py の STAGES/TYPE_DIRS/STATUS_DIRS と同型の暫定）。
+# （config 直読み配線は issue #114 想定・doc-system-v2/validate.py の STAGES/TYPE_DIRS/STATUS_DIRS
+#   と同型の暫定。旧 #74 は Sub-E としてクローズ済みのため #114 へ差し替え）。
 # 決定元＝DD-22（2026-07-01）: 工程別10＋パイプライン3＋境界IN（docidx）＝計14件。
 PROMPT_COVERAGE_TARGETS: tuple[str, ...] = (
     "align",
