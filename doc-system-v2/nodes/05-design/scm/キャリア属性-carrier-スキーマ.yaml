@@ -1,0 +1,7 @@
+title: "キャリア属性（carrier）スキーマ"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "各-skill-prompt-ノードがキャリア属性-skill｜agent-を持つ"
+    ref_version: "0.1"
