@@ -17,6 +17,7 @@ skills:
 sprint:      <current_phase 値>
 parent_ids:  <今回の著作対象の親ノード ID リスト（tmp サブディレクトリ名）>
 layer:       <今回のレイヤー名（requirements / spec / analysis / design / verification）>
+update_slugs: <このスプリントで「既存ノード更新」として宣言する slug 群（任意・委譲指示内で渡す）>
 ```
 
 sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current_phase` を取得する。v2 コーパスの root は既定 `doc-system-v2`。
