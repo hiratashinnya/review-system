@@ -64,6 +64,18 @@ class TestSlugCollisionsPure(unittest.TestCase):
         res = query.slug_collisions(self.meta, ["brand-new"], {"brand-new"})
         self.assertEqual(res, {})
 
+    # --- update_slugs_not_in_corpus（--update typo ハードニング・issue #103 Part B） ---
+    def test_update_slugs_not_in_corpus_reports_missing(self):
+        res = query.update_slugs_not_in_corpus(self.meta, {"target-p", "no-such-slug"})
+        self.assertEqual(res, ["no-such-slug"])
+
+    def test_update_slugs_not_in_corpus_all_present(self):
+        res = query.update_slugs_not_in_corpus(self.meta, {"target-p", "parent-spec"})
+        self.assertEqual(res, [])
+
+    def test_update_slugs_not_in_corpus_empty_declaration(self):
+        self.assertEqual(query.update_slugs_not_in_corpus(self.meta, set()), [])
+
 
 class TestCheckSlugCli(unittest.TestCase):
     """CLI 終了コード（fail-close）。"""
@@ -183,6 +195,31 @@ class TestCheckSlugCli(unittest.TestCase):
         d = self._mirror("target-p", "brand-new-b")
         code, _, _ = self._run(["--from-dir", str(d), "--update", "target-p"])
         self.assertEqual(code, cli.EXIT_OK)
+
+    # --- --update の typo ハードニング（コーパス非存在宣言への WARN・issue #103 Part B） ---
+    def test_update_nonexistent_slug_warns_but_stays_ok(self):
+        # 宣言 slug がコーパスに無い＝typo 疑い。fail-close は変えない（他に衝突が無ければ EXIT_OK）。
+        code, _, err = self._run(["brand-new", "--update", "no-such-slug"])
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn("警告", err)
+        self.assertIn("no-such-slug", err)
+
+    def test_update_existing_slug_no_warn(self):
+        # 宣言 slug がコーパスに実在すれば typo 警告は出ない。
+        code, _, err = self._run(["target-p", "--update", "target-p"])
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertNotIn("警告", err)
+
+    def test_update_mixed_existing_and_missing_warns_only_missing(self):
+        # 複数 --update 宣言のうち実在しないものだけ WARN の対象になる。
+        code, _, err = self._run(
+            ["brand-new", "--update", "target-p", "--update", "no-such-slug"]
+        )
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn("警告", err)
+        self.assertIn("no-such-slug", err)
+        # target-p は実在するので警告行には現れない（衝突メッセージにも登場しない＝EXIT_OK なので）。
+        self.assertNotIn("target-p", err)
 
 
 if __name__ == "__main__":

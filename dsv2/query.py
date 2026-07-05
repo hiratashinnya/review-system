@@ -123,6 +123,20 @@ def slug_collisions(
     return out
 
 
+def update_slugs_not_in_corpus(meta: dict, update_slugs: set[str]) -> list[str]:
+    """``--update`` 宣言 slug のうちコーパスに実在しないものを返す（typo ハードニング用・情報提示のみ）。
+
+    ``--update <slug>`` は「既存ノードを更新する」宣言だが、対象がコーパスに無ければ衝突免除は
+    silent no-op になる（宣言 slug がそもそも corpus 衝突しないので除外の実効が無い＝実害はないが、
+    タイプミスの可能性が高い）。fail-close には影響させず、呼び出し側（cli）が WARN を出すための
+    情報だけを返す（issue #103 Part B）。
+
+    依存仕様: issue #97（案A・``--update`` 契約）・issue #103（typo ハードニング follow-up）。
+    """
+    by_id = index_by_id(meta)
+    return sorted(s for s in update_slugs if s not in by_id)
+
+
 def drift(meta: dict) -> list[dict]:
     """全辺を走査し、ref_version が参照先バッジ x.y とドリフトしている辺を列挙（RULE-004）。"""
     by_id = index_by_id(meta)
