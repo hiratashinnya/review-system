@@ -25,11 +25,11 @@ sprint:      <current_phase 値（例: sprint-1）>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
-sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current_phase` を取得する。
+sprint が未指定なら `docs/doc-system/config.yaml` を read_file して `current_phase` を取得する。
 
 ## 出力（共通契約のミラーレイアウト）
 
-各 SPEC を対で書く（Write ツール）。SPEC の `<stage>/<type>` は `02-what/spec`：
+各 SPEC を対で書く（create_file）。SPEC の `<stage>/<type>` は `02-what/spec`：
 ```
 tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
@@ -107,13 +107,13 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 
 ## 著作手順
 
-1. parent_id から親ノードを Read して確認する
-2. 既存グラフを Grep/Read（v2 は `grep` / `dsv2 deps`・`dsv2 dependents`）で確認し、隣接 SPEC・親 SPEC を把握する
+1. parent_id から親ノードを read_file して確認する
+2. 既存グラフを grep_search/read_file（v2 は `grep` / `dsv2 deps`・`dsv2 dependents`）で確認し、隣接 SPEC・親 SPEC を把握する
 3. 分割判断基準に照らし、子ノードの数と condition を決める
 4. 各子アサーションに識別的なタイトルを付け、`slugify(title)` で slug を確定する
 5. 各子ノードの `{slug}.yaml`＋`{slug}.md` を草稿する
 6. 受け入れ条件を全項目チェックする
-7. `tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.{md,yaml}` に書き込む（Write ツール）
+7. `tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.{md,yaml}` に書き込む（create_file）
 
 ## 受け入れ条件（書き込み前に全項目チェック・共通契約のチェックに加えて）
 

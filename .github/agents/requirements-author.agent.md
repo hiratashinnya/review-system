@@ -25,11 +25,11 @@ sprint:      <current_phase 値>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
-sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current_phase` を取得する。
+sprint が未指定なら `docs/doc-system/config.yaml` を read_file して `current_phase` を取得する。
 
 ## 出力（共通契約のミラーレイアウト）
 
-各ノードを対で書く（Write ツール）：
+各ノードを対で書く（create_file）：
 ```
 tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/{slug}.yaml  # サイドカー
