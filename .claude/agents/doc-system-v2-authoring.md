@@ -43,7 +43,7 @@ edges:
 - **持たない**：`id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）＝二重管理回避。
 - **edges は無名**：`kind`/`status` を書かない。`to` は **1辺1 slug**（リスト記法禁止・OR は複数辺）。
 - **ref_version = 参照先サイドカーの `version` の x.y**（バッジではなく `{参照先slug}.yaml` の version 上2桁）。
-- TR 専用: `result: PASS|FAIL` ＋ `log_ref`。設計要素の実現担体は `carrier`（現状 `skill`・値集合の SoT = `schema/sidecar.schema.json`）。
+- TR 専用: `result: PASS|FAIL` ＋ `log_ref`。設計要素の実現担体は `carrier`（値集合の SoT = `schema/sidecar.schema.json` enum: `skill`/`agent`/`command`/`instructions`/`hooks`/`code`）。
 - **`scheduled` の既定 = `current_phase`**（config.yaml）。「無計画な空」は禁止。後フェーズへ回すのはオーナー承認時のみで、その旨を残す（空/別値）。post-mvp の大枠は `labels` で表す。
 
 ## 出力先（tmp のミラーレイアウト）
