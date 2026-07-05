@@ -30,7 +30,7 @@ tools:
 id: SPEC-X-N
 type: SPEC
 labels: []
-scheduled: ""         # 常に空文字
+scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
 condition: normal     # normal | boundary | empty | failure | error
 edges:
   - to: SPEC-X        # 直接の親（kind/status は書かない）
@@ -51,7 +51,7 @@ edges:
 - [ ] 分割 ID が `親ID-N`（数字のみ）形式
 - [ ] 親ノードに子への辺がない（階層は ID パターン）
 - [ ] 子ノードが親 SPEC へ依存辺を張る（FR を直接参照していない）
-- [ ] `scheduled: ""`（空文字のみ）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
 - [ ] `condition` 属性が全子ノードに存在
 - [ ] edges の `to` がすべて実在する ID
 - [ ] `ref_version` が全辺にあり参照先の現在 x.y と一致
