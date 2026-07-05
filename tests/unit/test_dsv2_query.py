@@ -44,5 +44,51 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(rows[0]["to"], "parent-spec")
 
 
+def _prompt_node(node_id: str, carrier: str | None = "skill") -> dict:
+    node = {"id": node_id, "type": "prompt", "version": "0.1.0", "edges": []}
+    if carrier is not None:
+        node["carrier"] = carrier
+    return node
+
+
+class TestPromptCoverageGaps(unittest.TestCase):
+    """RULE-032: 宣言 skill 集合のうち対応 PROMPT ノードが無いものを列挙。"""
+
+    def _meta(self, nodes):
+        return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
+
+    def test_all_covered_returns_empty(self):
+        m = self._meta([_prompt_node("align-認識合わせ"), _prompt_node("mvp-scope-価値ベース")])
+        self.assertEqual(query.prompt_coverage_gaps(m, targets=["align", "mvp-scope"]), [])
+
+    def test_missing_skill_is_reported(self):
+        m = self._meta([_prompt_node("align-認識合わせ")])
+        self.assertEqual(query.prompt_coverage_gaps(m, targets=["align", "docidx"]), ["docidx"])
+
+    def test_preserves_declared_order(self):
+        m = self._meta([])
+        self.assertEqual(
+            query.prompt_coverage_gaps(m, targets=["docidx", "align", "mvp-scope"]),
+            ["docidx", "align", "mvp-scope"],
+        )
+
+    def test_non_skill_carrier_prompt_not_counted_as_coverage(self):
+        # 著作エージェント PROMPT（carrier なし）は対象 skill の代替にならない
+        m = self._meta([_prompt_node("align-author-著作支援", carrier=None)])
+        self.assertEqual(query.prompt_coverage_gaps(m, targets=["align"]), ["align"])
+
+    def test_prefix_boundary_no_false_match(self):
+        # "spec-pipeline" ノードは "spec-principles" の充足にならない（ハイフン境界一致）
+        m = self._meta([_prompt_node("spec-pipeline-オーケストレータ")])
+        self.assertEqual(
+            query.prompt_coverage_gaps(m, targets=["spec-principles", "spec-pipeline"]),
+            ["spec-principles"],
+        )
+
+    def test_default_targets_used_when_omitted(self):
+        gaps = query.prompt_coverage_gaps(self._meta([]))
+        self.assertEqual(gaps, list(query.PROMPT_COVERAGE_TARGETS))
+
+
 if __name__ == "__main__":
     unittest.main()

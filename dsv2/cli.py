@@ -6,6 +6,7 @@
   * ``dependents <id>``  node への入辺（依存元）。
   * ``orphans``          in/out 辺 0 本の完全孤立ノード。
   * ``drift``            ref_version が参照先バッジ x.y とドリフトしている辺（RULE-004）。
+  * ``prompt-coverage``  config.yml 宣言対象 skill の PROMPT ノード欠落を列挙（RULE-032）。
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
   * ``check-slug <slug>...`` 著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）。
@@ -129,6 +130,18 @@ def cmd_drift(args) -> int:
     for r in rows:
         print(f"{r['from']} → {r['to']}  ref={r['ref_version']} ≠ target={r['target_version']}")
     print(f"\n{len(rows)} 件のドリフト（RULE-004）")
+    return EXIT_OK
+
+
+def cmd_prompt_coverage(args) -> int:
+    _root_, meta = _load(args)
+    gaps = query.prompt_coverage_gaps(meta)
+    if not gaps:
+        print("PROMPT カバレッジ欠落なし（宣言 skill すべてに対応 PROMPT ノードあり）")
+        return EXIT_OK
+    for skill in gaps:
+        print(f"{skill}: 対応する PROMPT ノードなし")
+    print(f"\n{len(gaps)} 件の PROMPT カバレッジ欠落（RULE-032）")
     return EXIT_OK
 
 
@@ -283,6 +296,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("drift", parents=[common], help="ref_version ドリフト辺を列挙（RULE-004）")
     p.set_defaults(func=cmd_drift)
+
+    p = sub.add_parser("prompt-coverage", parents=[common],
+                       help="宣言 skill 集合の PROMPT ノード欠落を列挙（RULE-032）")
+    p.set_defaults(func=cmd_prompt_coverage)
 
     p = sub.add_parser("reverse", parents=[common], help="FND 辺逆転（既定 dry-run）")
     p.add_argument("slug", help="FND の slug（=id）")
