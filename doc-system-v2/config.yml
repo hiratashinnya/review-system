@@ -138,12 +138,39 @@ rule_activation:
   RULE-019: verification   # TD↔SPEC condition 不一致（WARNING）
   RULE-020: verification   # TR result なし（ERROR）
   RULE-021: verification   # TR log_ref なし（ERROR）
+  RULE-032: design         # 宣言 skill に対応する PROMPT ノード欠落（WARNING）
 
 # カバレッジ要件（RULE-017/018）
 coverage_rules:
   fr:
     required_conditions:    [normal]
     recommended_conditions: [failure, error]
+
+# ------------------------------------------------------------
+# PROMPT ノードカバレッジ対象 skill 集合（RULE-032）。
+# `.claude/skills/` の LLM プロンプト資産のうち設計層 PROMPT ノードでモデル化すべき対象を、
+# trace_scope と同型のイディオムで config を単一ソースとして宣言する（対象を散在させない）。
+# 宣言先＝SPEC「config.yml が PROMPT ノードカバレッジ対象 skill 集合を宣言する」。
+# 消費（欠落検査）＝SPEC「宣言された対象 skill 集合の PROMPT ノード欠落を機械検査で報告する」（RULE-032）。
+# 決定元＝DD-22（2026-07-01 オーナー確定）: 工程別10＋パイプライン3＋境界IN（docidx・retrieval が
+# VAL-1 を支援）＝計14件。対象外4件（coverage-html/asset-lateral-deploy/agy-delegate/bloom-model-tier）
+# は NFR-3/SPEC-46 の検査対象アーティファクトのまま（PROMPT モデル化の対象外）。
+# ------------------------------------------------------------
+prompt_coverage_targets:
+  - align
+  - value-trace
+  - mvp-scope
+  - schema-design
+  - domain-model
+  - architecture-design
+  - orchestration-design
+  - prompt-design
+  - test-strategy
+  - spec-principles
+  - spec-pipeline
+  - impl-design-pipeline
+  - asset-pipeline
+  - docidx
 
 # 抑制対象外（scheduled/suppress/activate_stage いずれでも抑制不可）
 always_error:

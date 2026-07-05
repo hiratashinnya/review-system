@@ -1,16 +1,46 @@
-"""meta.json 上のグラフ照会（純関数）: deps / dependents / orphans / drift。
+"""meta.json 上のグラフ照会（純関数）: deps / dependents / orphans / drift / prompt_coverage_gaps。
 
 RULE-004（ドリフト）は「辺の ``ref_version``（x.y）≠ 参照先サイドカー ``version`` の x.y」。z は
 伝播不問（DD-8）。参照元ノードが ``suppress: [RULE-004]`` を持つ辺は drift 判定を凍結免除する
 （RULE-004 は always_error＝RULE-005/007 でないため suppress 可能・#81 で正式化・DD-2）。
 孤立（orphans）は in/out 辺がともに 0 本のノード（RULE-005＝always_error なので suppress 無視で正）。
 
-依存仕様: doc-system-v2/config.yml（RULE-004 / always_error / trace_scope）・FORMAT.md（無名依存辺・親子も edge）。
+RULE-032（PROMPT カバレッジ欠落）は config.yml ``prompt_coverage_targets`` が宣言する対象 skill
+集合のうち、対応する ``carrier: skill`` な在グラフ PROMPT ノードが存在しない skill を報告する。
+
+依存仕様: doc-system-v2/config.yml（RULE-004 / always_error / trace_scope / prompt_coverage_targets）・
+  FORMAT.md（無名依存辺・親子も edge）・
+  doc-system-v2/nodes/02-what/spec/config.yml-が-prompt-ノードカバレッジ対象-skill-集合を宣言する.yaml
+  v0.1.0・
+  doc-system-v2/nodes/02-what/spec/宣言された対象-skill-集合の-prompt-ノード欠落を機械検査で報告する.yaml
+  v0.1.0（RULE-032）。
 """
 
 from __future__ import annotations
 
+from typing import Iterable
+
 from .meta import index_by_id
+
+# config.yml の prompt_coverage_targets を正本とし、それと一致させて直書きしている
+# （config 直読み配線は Sub-E #74 想定・validate.py の STAGES/TYPE_DIRS/STATUS_DIRS と同型の暫定）。
+# 決定元＝DD-22（2026-07-01）: 工程別10＋パイプライン3＋境界IN（docidx）＝計14件。
+PROMPT_COVERAGE_TARGETS: tuple[str, ...] = (
+    "align",
+    "value-trace",
+    "mvp-scope",
+    "schema-design",
+    "domain-model",
+    "architecture-design",
+    "orchestration-design",
+    "prompt-design",
+    "test-strategy",
+    "spec-principles",
+    "spec-pipeline",
+    "impl-design-pipeline",
+    "asset-pipeline",
+    "docidx",
+)
 
 
 def _xy(version: str) -> str:
@@ -135,6 +165,28 @@ def update_slugs_not_in_corpus(meta: dict, update_slugs: set[str]) -> list[str]:
     """
     by_id = index_by_id(meta)
     return sorted(s for s in update_slugs if s not in by_id)
+
+
+def prompt_coverage_gaps(
+    meta: dict,
+    targets: Iterable[str] = PROMPT_COVERAGE_TARGETS,
+) -> list[str]:
+    """対象 skill 集合のうち、対応する PROMPT ノードが在グラフに存在しない skill を列挙（RULE-032）。
+
+    対応判定は「``type == 'prompt'`` かつ ``carrier == 'skill'`` なノードの ``id``（slug）が
+    ``'{skill}-'`` で始まる」（design-author の既存命名慣行・PROMPT-8〜20 で確認済み）。
+    著作エージェント PROMPT（PROMPT-1〜7）は carrier を持たないため対象から自然に除外される。
+    戻り値は ``targets`` の宣言順を保つ（欠落 0 件なら空リスト）。
+    """
+    covered: set[str] = set()
+    for n in meta["nodes"]:
+        if n.get("type") != "prompt" or n.get("carrier") != "skill":
+            continue
+        node_id = n.get("id", "")
+        for skill in targets:
+            if node_id.startswith(f"{skill}-"):
+                covered.add(skill)
+    return [s for s in targets if s not in covered]
 
 
 def drift(meta: dict) -> list[dict]:
