@@ -10,6 +10,7 @@
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
   * ``check-slug <slug>...`` 著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）。
       ``--update <slug>`` で宣言した既存ノード更新 slug はコーパス衝突から除外（issue #97）。
+      宣言 slug がコーパスに実在しなければ typo 疑いの WARN を出す（fail-close は変えない・issue #103）。
   * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
 
 終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反（reverse/rename の
@@ -199,7 +200,8 @@ def cmd_check_slug(args) -> int:
 
     ``--update <slug>`` で「意図的に既存ノードを更新する」slug を宣言すると、その slug は既存
     コーパス id 衝突の fail-close から除外される（issue #97・案A）。バッチ内重複は宣言有無に関わらず
-    fail-close を維持する。
+    fail-close を維持する。宣言 slug がコーパスに実在しなければ typo 疑いの WARN を出す（衝突免除が
+    空振りになるため・fail-close は変えない・情報提示のみ・issue #103）。
     """
     root = _root(args)
     # 改変前の現状コーパスと照合するためディスク走査で index を作る（meta.json の陳腐化を避ける）。
@@ -230,6 +232,9 @@ def cmd_check_slug(args) -> int:
     update_slugs = set(getattr(args, "update", []) or [])
     if update_slugs:
         print(f"更新宣言 slug（コーパス衝突を除外）: {', '.join(sorted(update_slugs))}")
+        for s in query.update_slugs_not_in_corpus(meta, update_slugs):
+            print(f"警告: --update {s!r} はコーパスに存在しない（typo の可能性・衝突免除は空振り）",
+                  file=sys.stderr)
     collisions = query.slug_collisions(meta, slugs, update_slugs)
     if not collisions:
         print(f"OK: {len(slugs)} slug すべて一意（衝突なし）: {', '.join(slugs)}")

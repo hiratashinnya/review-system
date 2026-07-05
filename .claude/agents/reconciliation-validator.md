@@ -57,6 +57,20 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
        --update <既存slug1> --update <既存slug2> --root doc-system-v2
    ```
    **`--update` は宣言した slug の「コーパス衝突」のみを免除する。バッチ内重複（同一 slug の二重著作）と、非宣言 slug の corpus 衝突は宣言有無に関わらず fail-close を維持する。** どの slug を `--update` に渡すかは、著作エージェントの入力（新規著作か既存更新かの別）で決まる——新規著作 slug を誤って `--update` に入れないこと（偶発衝突の検出を弱める）。**`--update` は既存 slug をそのまま渡す**（`--title` のような slugify はしない・生の slug 文字列で照合）。
+
+   **更新宣言の契約は out-of-band（issue #103 Part A・明文化）**：`--update` に何を渡すかを判定するのは
+   validator 自身でも tmp サイドカーの機械可読フィールドでもなく、**著作エージェント**である。著作エージェント
+   は「新規 slug を書いたか、既存コーパスノードの slug をそのまま tmp にコピーして（本文/サイドカーを）更新した
+   か」を自分の作業内容から把握しており、その別を**呼び出し側（本エージェントを起動するコンテキスト・親の
+   委譲指示）が `--update <slug>` という CLI 引数の形で本エージェントに渡す**。tmp の `{slug}.yaml` 自体には
+   「これは既存更新である」ことを示すフィールドは無い——validator は corpus 突合による自動判別も行わない
+   （slug がコーパスに実在する＝更新、しない＝新規、という推測は「タイプミスで既存 slug と衝突した新規著作」
+   を誤って更新扱いする恐れがあり、fail-close を弱めるため採用しない）。将来 tmp サイドカーに機械可読マーカ
+   を追加する／corpus 突合で自動判別する等の**契約の機械化はしない**（このセクションが明文化された契約）。
+   **`--update` に渡された slug がコーパスに実在しない場合は typo 疑いの WARN が出る**（issue #103 Part B・
+   `dsv2 check-slug` の stdout/stderr。fail-close には影響しない＝ROLLBACK 判定はこれまで通り終了コードのみで行う）。
+   WARN が出ていたら、宣言 slug の誤記でないか著作エージェントの入力を確認する。
+
    **終了コードが 0 以外（＝**非宣言の**既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
