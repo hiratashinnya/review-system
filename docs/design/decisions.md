@@ -27,6 +27,7 @@
 | DD16 | Q24 解決＝パーサ拡張（オーナー決定 A） | mini-YAML に**引用キー（`"*"`）＋3段ブロックネスト**を追加（flow は非対応のまま）。policy はブロック形。schema の文法表/例を先に更新してから実装 | [schema](../schema/README.md)/parsing |
 | DD17 | PF 例外の fail-close 化＝**ガードプロキシ**（オーナー決定） | アダプタ（翻訳・PF差し替え性）は残し、その前に **`GuardingPlatform`（プロキシ）** を1枚。`review()` を `StageOutcome` 返しにし try/catch→`Failure(EVALUATE)`。core は `SafePlatformPort`（例外を投げない）に依存。「PF を信用しない」責務を境界1箇所へ集約（[10]/S3・M1） | [04](04-platform-protocol.md)/adapters/core |
 | DD22 | reconciliation のトークン過大消費（資産運用） | ①Step2 を docidx surgical read 化＋レイヤー限定 ②model opus→sonnet ③**検証/書込を2エージェントに分離**（`reconciliation-validator`=read-only 検証・Write/Edit なし／`reconciliation`=書込専任）。validator は構造的に本ファイルへ書けず fail-close。self_fix は validator が指示・writer が適用 | `.claude/agents/`・`tailoring-registry.md`・[CLAUDE.md](../../CLAUDE.md)・[asset-plan](../methods/asset-plan.md) |
+| DD23 | spec-pipeline の非対話並列著作 fan-out をどう実装するか（Issue #62/#110・doc-system-v2 DD-22 ①-C の実装） | 新 orchestrator agent `spec-authoring-fanout` を新設し、複数親の VAL/SR/FR/NFR・SPEC 著作を `*-author` へ並列ファンアウト→`reconciliation-validator`→`reconciliation` まで sub-tree 内で完結（VALIDATION_OK は writer へ委譲・ROLLBACK/矛盾は STOP 報告）。spec-pipeline に著作 fan-out 段を明示挿入し `/io-event-ledger`（廃止）参照を除去。impl-design/asset-pipeline は単一 agent 呼びのため対象外 | `.claude/agents/spec-authoring-fanout.md`（新設）・`.claude/skills/spec-pipeline/SKILL.md` |
 
 ---
 
@@ -190,6 +191,25 @@
   - `docs/methods/asset-plan.md`（agents ツリー同期）。
   - 覆す（validator を廃し1エージェントへ戻す）場合：上記4ファイルの記述と委譲フローを再統合。
   - 義務辺：本決定は資産運用（`.claude/`）への反映で、in-graph 義務辺は持たない。
+
+## DD23 — spec-pipeline の非対話並列著作 fan-out（Issue #62/#110・doc-system-v2 DD-22 ①-C の実装）
+- **論点**：doc-system-v2 の **DD-22（①-C ハイブリッド）** は「対話入口は skill・**非対話 fan-out のみ orchestrator agent 化**」を決めたが、対象 pipeline skill（spec/impl-design/asset）には**そもそも並列 fan-out する著作ロジックが存在しなかった**。要求層ノード著作（`requirements-author`/`spec-author` の呼び出し）は主文脈で場当たりに行われ、skill に成文化されていない。オーナー指示「そもそも並列呼び出しになってないことがおかしいからそこから直す」（2026-07-06）に従い、**まず並列著作の実体を作る**。
+  - 派生論点3つ：(a) エージェントはエージェントを spawn できるのか（旧 skill コメントは「呼べない」と明記）／(b) 著作段を pipeline のどこに挿すか／(c) 3 pipeline すべてに専用 orchestrator を作るのか、spec-pipeline だけか。
+- **選択肢**：
+  - **A（新 orchestrator agent `spec-authoring-fanout` を新設・採用）**：spec-pipeline が「著作すべき親ノード群」を確定した段で、複数親の VAL/SR/FR/NFR（`requirements-author`）・SPEC（`spec-author`）を**1メッセージ内で並列 Task 発行**し、まとめて `reconciliation-validator`→（VALIDATION_OK なら）`reconciliation` へ委譲。ROLLBACK/矛盾は STOP 報告。
+  - **B（skill 内で主文脈が逐次に author を呼ぶ現状維持）**：並列化されず context 隔離も得られない（＝オーナー指摘の「並列になってない」を放置）。
+  - **C（3 pipeline 全部に専用 orchestrator agent を作る）**：impl-design/asset の非対話部は**単一 agent 呼び**（それぞれ spec-inspector 1回・asset-auditor 1回）で、並列化する複数ノードが無い＝専用 orchestrator は空箱になる。
+- **派生論点の解決**：
+  - **(a) エージェントは子エージェントを spawn 可能**。根拠＝**DD-22 本文**（doc-system-v2・decided 2026-07-01）が公式ドキュメントで確認済みと明記：**Claude Code v2.1.172 以降サブエージェントが子サブエージェントを spawn 可能／main 直下から数え depth 5 が最終段（further spawn 不可）・上限固定**。本 orchestrator（depth 1）→ `*-author`/validator/reconciliation（depth 2）は depth 5 に収まる。旧 pipeline skill の「サブエージェントはサブエージェントを呼べないため skill にする」は DD-22 で無効化済み（skill に残す理由は**ネスト不可**ではなく**対話性**）。
+  - **(b) 挿入位置**＝台帳（手順2）＋ structured-analysis（手順4）が「何を著作するか」を出した**直後**（手順5）。align のパラメータ確定・spec-inspector の矛盾停止・mvp-scope の価値線引き（対話段）は skill に残す（DD-22 ①-C）。
+  - **(c) spec-pipeline だけ**に作る。impl-design/asset は単一 agent 呼びで並列化余地が無い（C の空箱回避）。
+  - **VALIDATION_OK の扱い＝writer へ委譲（report-back でなく）**：非対話 fan-out の趣旨に沿い、著作→検証→**書込（reconciliation）まで sub-tree 内で完結**させ、主文脈にはコンパクト要約（`FANOUT_DONE`）だけ返す（context 隔離を最大化）。既存パイプラインも主文脈から author→validator→reconciliation を回しており、VALIDATION_OK 後の決定的書込は据え置き。**矛盾・ROLLBACK・曖昧は書込前に STOP**（AskUserQuestion 不可のため skill が Q/DD 起票→オーナー）。
+- **推奨 A（採用）／非推奨 B,C**：理由＝A はオーナー指摘の「並列になってない」を実体化し DD-22 ①-C の非対話 fan-out を具現。B は放置、C は空箱で asset 濫造（A14 に反する）。
+- **暫定決定**：
+  - `.claude/agents/spec-authoring-fanout.md` を新設（`model: sonnet`＝コーディネータ／判断困難は STOP の fail-safe・実質著作は opus の `*-author` に委譲・Bloom は Apply〜Evaluate 相当だが routing/thoroughness-bound）。`tools: Task, Read, Grep, Glob, Bash`（Task＝子エージェント spawn・Write/Edit は持たない＝著作/書込しない責務境界）。description で「単一ノード著作でない・validator でない・writer でない」を明記し `*-author`/`reconciliation` との auto-dispatch 衝突を回避。
+  - `.claude/skills/spec-pipeline/SKILL.md` を改訂：(1) 廃止済み `/io-event-ledger` 参照を「台帳＋イベントリスト→analysis-author 著作（2段確定）」へ差し替え（tailoring-registry 2026-06-11 の移管を反映）、(2) 手順5 に著作 fan-out 段を明示挿入、(3) ハイブリッド分担（対話＝skill／非対話 fan-out＝agent）を冒頭に明記、(4) 旧コメント「サブエージェントは呼べない」を DD-22 の depth-5 事実で更新。
+- **影響範囲**：`.claude/agents/spec-authoring-fanout.md`（新設）・`.claude/skills/spec-pipeline/SKILL.md`（改訂）。impl-design-pipeline/asset-pipeline は**不変**（単一 agent 呼びで並列化余地なし＝監査で確認）。in-graph 義務辺は持たない（`.claude/` 資産運用への反映）。**覆す場合**＝`spec-authoring-fanout` を撤去し spec-pipeline の著作段を主文脈逐次呼びへ戻す（影響は当該2ファイルに閉じる）。
+  - **未確定リスク（要フォロー）**：本エージェントの並列 fan-out・深さ 2 ネストは**実 e2e 未実行**（本タスクはプロンプト/エージェント定義の著作）。実運用で depth/並列 Task の挙動を確認し、齟齬があれば FND 起票する。
 
 ---
 

@@ -165,5 +165,7 @@ always_error:
 # トレース対象集合
 # ------------------------------------------------------------
 trace_scope:
-  include: ["doc-system/**/*.md"]
+  # issue #76（v1→v2 cutover）で doc-system/ を doc-system-v1-archive/ へ改名。
+  # docidx は v1-legacy-only ツールとして継続動作するため、走査対象パスを追随させる。
+  include: ["doc-system-v1-archive/**/*.md"]
   exclude: ["docs/**", "**/README.md", "**/00-dashboard.md", "**/00-dfd.md"]   # ダッシュボードと DFD 図ファイルは out-of-graph（ノードを持たない）
