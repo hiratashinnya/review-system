@@ -25,11 +25,11 @@ sprint:      <current_phase 値>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
-sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current_phase` を取得する。
+sprint が未指定なら `docs/doc-system/config.yaml` を read_file して `current_phase` を取得する。
 
 ## 出力（共通契約のミラーレイアウト）
 
-各ノードを対で書く（Write ツール）。検証層の型は `04-verification/<type>`。**lifecycle 型（fnd/q/dd/pend）は `[<status>/]` を必ず挟む**（config.yml status_dirs）：
+各ノードを対で書く（create_file）。検証層の型は `04-verification/<type>`。**lifecycle 型（fnd/q/dd/pend）は `[<status>/]` を必ず挟む**（config.yml status_dirs）：
 ```
 tmp/<sprint>/<parent-id>/nodes/04-verification/<type>/[<status>/]{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/04-verification/<type>/[<status>/]{slug}.yaml  # サイドカー
@@ -152,7 +152,7 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 
 **チェック手順：**
 1. DD/FND の内容が接続規則変更を含むか判断（変更された型を特定する）
-2. 上記各資産で該当型の記述を `Grep` で確認し、旧ルールと新ルールの差分を把握する
+2. 上記各資産で該当型の記述を `grep_search` で確認し、旧ルールと新ルールの差分を把握する
 3. 差分がある資産を修正し、DD/FND の処置内容に「同期した資産リスト」を箇条書きで記録する
 4. 差分がない（既に同期済み）場合も、確認済みである旨を本文に記録する
 
