@@ -1,5 +1,5 @@
 title: "config.yml が PROMPT ノードカバレッジ対象 skill 集合を宣言する"
-version: "0.1.0"
+version: "0.2.0"
 condition: normal
 labels: []
 scheduled: "sprint-1"

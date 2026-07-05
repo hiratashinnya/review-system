@@ -1,5 +1,5 @@
 title: "宣言された対象 skill 集合の PROMPT ノード欠落を機械検査で報告する"
-version: "0.1.0"
+version: "0.2.0"
 condition: failure
 labels: []
 scheduled: "sprint-1"
