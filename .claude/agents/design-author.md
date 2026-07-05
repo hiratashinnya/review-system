@@ -29,6 +29,15 @@ tmp/<sprint>/<parent-id>/nodes/05-design/<type>/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/05-design/<type>/{slug}.yaml  # サイドカー
 ```
 
+### TERM への設計ファセット追記フロー（新規作成しない）
+
+TERM は analysis-author が既に著作した `03-analysis/term` の共有ノード。design-author は DM 確定時に**既存 TERM を更新**する：
+
+1. **既存 TERM をコーパスから Read**：`doc-system-v2/nodes/03-analysis/term/{slug}.md`＋`{slug}.yaml`。無ければ分析ファセット未著作＝分析層が先行していない状態なので著作せず打ち上げる（analysis-author 先行が前提）。
+2. その対を **tmp ミラーの `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/{slug}.{md,yaml}`**（`05-design` ではなく **`03-analysis/term`**）にコピーし、`.md` 本文の「用語/意味/用途」の下に**設計ファセット（Python 型名・定義モジュール）を追記**する。**分析ファセットは保持**（消さない）。
+3. サイドカー `.yaml` は `version` を **MINOR バンプ**（内容追記）。`edges`（`term→spec`）は保持。設計側の依存（`dm→term`）は DM ノード側に張る（TERM には張らない）。
+4. reconciliation は tmp の path（`03-analysis/term`）が既存コーパスノードと一致するため、**新規作成ではなく既存ノードの上書き更新**として反映する。
+
 ---
 
 ## 著作ルール
