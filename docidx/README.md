@@ -1,8 +1,18 @@
 # docidx — doc-system ノード検索/読み込みツール
 
+> **v1/v2 スコープの注意（issue #76・v1→v2 cutover 後）**：
+> `scan.py`・`cli.py`・`query.py`・`render.py`・`model.py` は **v1-legacy 専用**。旧インライン YAML
+> 埋め込みフォーマット（`<details><summary>⬡ <ID> · vX.Y.Z</summary>` パース規約）を読み、対象は
+> 今は `doc-system-v1-archive/`（旧 `doc-system/` を archive 化・`git mv`）。**現行コーパスは
+> `doc-system-v2/`（1ノード=`{slug}.md`＋`{slug}.yaml` の対）で、これは docidx の対象外**——
+> v2 の索引・照会は `python3 -m dsv2`（`dsv2/`）を使う。
+> 一方 `nodeyaml.py` はサブモジュールとして **v2 側でも共有インフラとして現役**（`dsv2/meta.py`・
+> `doc-system-v2/validate.py` が import している）。move/削除しないこと。
+> 委譲先の `docidx-lookup` サブエージェントは dsv2-native に書き換え済み（`.claude/agents/docidx-lookup.md`）。
+
 [md2idx](https://github.com/oubakiou/md2idx) と同じ思想（**コンテキスト効率**）の read-only ユーティリティ。
-巨大な `doc-system/` の Markdown 全体を読み込む代わりに、軽量なインデックス（目次）を作り、
-必要なノードだけをオンデマンドで読み込む。標準ライブラリのみ。
+巨大な `doc-system/`（現 `doc-system-v1-archive/`）の Markdown 全体を読み込む代わりに、軽量なインデックス
+（目次）を作り、必要なノードだけをオンデマンドで読み込む。標準ライブラリのみ。
 
 ## 使い方
 

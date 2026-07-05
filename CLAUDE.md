@@ -24,8 +24,8 @@
 ## 判断の仰ぎ方（フェーズ別・空で止めない＝PR7）
 - **大原則**：矛盾・オーナー判断必須で止めるときも、**原案・比較・理由付き推奨/非推奨を必ず添える**（意見なき停止は禁止）。**矛盾は原案検討して提案、他のやれる所をやる、一通り終えたら整理して提示**。
 - **起票してから止める（チャットで流さない）**：論点・矛盾・情報不足を見つけたら、**①ノード起票 → ②ダッシュボード更新（Q/FND いずれの場合も必須）→ ③選択肢＋推奨を添えて停止・質問** の順を必ず守る。チャットで指摘を述べるだけで**起票しないのは禁止**（後から「なぜ起票してない？」になる）。**②は省略不可**——ノードが明細、ダッシュボードが状態の要約で、両方を更新して初めて起票完了。
-  - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（[verification](doc-system/04-verification/02-findings.md)・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
-  - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。**辺逆転（forward 削除＋backward 付与＋DD-3 凍結＋z バンプ）は手編集でなく `backref` ツールで機械実行する**＝`python -m backref reverse <FND-id>`（既定 dry-run／`--apply` で書込・実体＝`backref/`・docidx 再利用）。不整合監査は `python -m backref check`。
+  - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（`doc-system-v2/nodes/04-verification/fnd/`（open/resolved の2状態は path で表現）・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
+  - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。**辺逆転（forward 削除＋backward 付与＋DD-3 凍結＋z バンプ＋`fnd/open/`→`fnd/resolved/` の `git mv`）は手編集でなく `dsv2` ツールで機械実行する**＝`python3 -m dsv2 reverse <FND-slug> --root doc-system-v2`（既定 dry-run／`--apply` で書込・実装＝`dsv2/reverse.py`）。旧 `backref/`（v1専用）は `archive/backref-v1/` に retire 済み（issue #76）。
   - **FND 起票時は ref_version を本文にも記録**：FND 解消時に edges が逆転（FND→対象 → 対象→FND）するため指摘時の ref_version が辺情報から失われる。**FND 起票時に `edges[].ref_version` の値を本文に明記する**（`**指摘時 ref_version**: {ノードID} "{ref_version}"（{ファイル名} v{version} 時点）`・DD-3 制度化）。
 - **要件定義フェーズ**：**暫定で進めない（危険）**。論点・矛盾・情報不足は**上記①〜③で止めて**選択肢＋推奨を出し、決定はオーナー。**他の決められる所を先に進める**（Q#/FND で起票・状態維持）。
 - **設計フェーズ**：迷いは**推奨案で暫定決定**し、**判断ログ DD#**（論点→選択肢→推奨→暫定決定→影響範囲）に記録して前進。覆る場合の影響範囲を必ず併記。
@@ -50,9 +50,9 @@
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
-- スキル（ノード検索・コンテキスト効率）：`/docidx`（doc-system ノードの md2idx 流 検索/読み込み。実体＝`docidx/`＝`python -m docidx`、委譲先＝`docidx-lookup`。read-only・drift は情報提示のみで判定はしない）
+- スキル（ノード検索・コンテキスト効率）：`/docidx`（**v1-archive 専用**。現行コーパスは doc-system-v2 のため対象外。実体＝`docidx/`＝`python -m docidx`・対象は `doc-system-v1-archive/`。read-only・drift は情報提示のみで判定はしない）。v2 コーパスの検索・読込は `docidx-lookup`（下記）が担う
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
-- サブエージェント（ノード検索）：`docidx-lookup`（docidx CLI で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は CLI 実行のみ）
+- サブエージェント（ノード検索）：`docidx-lookup`（**dsv2-native**＝`python3 -m dsv2 index` の meta.json を grep/python でフィルタ→ `Read` で本文取得、辺は `dsv2 deps`/`dependents` で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は `dsv2` CLI 実行のみ）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
 - サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
@@ -88,10 +88,10 @@
 
 ## このリポジトリ
 - 現状ドキュメント中心（要件・設計フェーズ）。実装は **Python・原則標準ライブラリのみ**（Q5/Q5a：フロントマターも自前パーサ）。
-- **`docs/` 配下は原則「壁打ちメモ＝非正本」**（オーナー方針・2026-06-29）：設計時の参考に閲覧してよいが**そっちありきにしない**。**正本は `doc-system/`（ノードグラフ）＋ `.claude/`（資産・規約）＋本ファイル**。**例外＝`docs/doc-system/`**（config.yaml・templates・記法・接続マトリクス等＝doc-system の機械定義は正本の一部。`config.yaml` の `trace_scope` も `docs/**` を除外済み）。**docs/ プローズと doc-system ノードが食い違う場合は doc-system 側を正**とし、不足は doc-system 側に著作して埋める（docs/ は更新しない・古い記述は無視）。
-- MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）。運用ハブ＝`doc-system/00-dashboard.md`（旧 `docs/dashboard.md`・`docs/requirements/12-mvp-scope.md` は非正本の壁打ち）。
-- 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system/05-design/04-domain-model.md`・`doc-system/03-analysis/05-terms.md`）。`docs/design/00-data-dictionary.md`・`01-class-design.md` は非正本の参考。
-- **実装前の凍結セット**：索引＝`doc-system/05-design/README.md`、基盤＝`doc-system/05-design/01-modules.md`（MOD）。テスト戦略＝`/test-strategy`。`docs/design/*` プローズは非正本の参考。
-- ノード検索/読み込みツール（md2idx 思想）：`docidx/`（`python -m docidx`・標準ライブラリのみ）。フォーマット依存マップ＝`docidx/README.md`。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
-- FND 辺逆転（バックリファレンス）の機械実行ツール：`backref/`（`python -m backref reverse/check`・標準ライブラリのみ・docidx 再利用）。フォーマット依存マップ＝`backref/README.md`。運用は `reconciliation` が `--apply`（issue #48）。
+- **`docs/` 配下は原則「壁打ちメモ＝非正本」**（オーナー方針・2026-06-29）：設計時の参考に閲覧してよいが**そっちありきにしない**。**正本は `doc-system-v2/`（ノードグラフ）＋ `.claude/`（資産・規約）＋本ファイル**。**例外＝`docs/doc-system/`**（config.yaml・templates・記法・接続マトリクス等＝doc-system の機械定義は正本の一部。`config.yaml` の `trace_scope` も `docs/**` を除外済み）。**docs/ プローズと doc-system ノードが食い違う場合は doc-system 側を正**とし、不足は doc-system 側に著作して埋める（docs/ は更新しない・古い記述は無視）。v1 `doc-system/` は issue #76（v1→v2 cutover）で `doc-system-v1-archive/` へ retire 済み（`git mv`・履歴保持・非正本）。
+- MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）。運用ハブ＝`doc-system-v2/00-dashboard.md`（旧 `doc-system/00-dashboard.md`・`docs/dashboard.md`・`docs/requirements/12-mvp-scope.md` は非正本の壁打ち）。
+- 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。`docs/design/00-data-dictionary.md`・`01-class-design.md` は非正本の参考。
+- **実装前の凍結セット**：`doc-system-v2/nodes/05-design/` 配下（索引の考え方は `python3 -m dsv2 index` で meta.json 生成→grep/jq で参照。基盤＝`doc-system-v2/nodes/05-design/mod/`）。テスト戦略＝`/test-strategy`。`docs/design/*` プローズは非正本の参考。
+- ノード検索/読み込みツール（md2idx 思想）：`docidx/`（**v1-legacy 専用・現行コーパスは対象外**。`python -m docidx`・標準ライブラリのみ・対象は `doc-system-v1-archive/`）。フォーマット依存マップ＝`docidx/README.md`。**v2 検索は `dsv2 index` ＋ grep/Read**（`docidx-lookup` 参照）。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`・v1-archive 専用と明記済み）・委譲先＝`docidx-lookup`（`.claude/agents/docidx-lookup.md`・dsv2-native）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
+- FND 辺逆転（バックリファレンス）の機械実行：**v2 は `python3 -m dsv2 reverse`**（実装＝`dsv2/reverse.py`）。旧 v1 専用ツール `backref/` は issue #76 で `archive/backref-v1/` へ retire 済み（フォーマット依存マップは `archive/backref-v1/README.md` に保全・消さない＝PR8）。運用は `reconciliation` が `--apply`（旧 issue #48 の運用を dsv2 へ継承）。
 - **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。
