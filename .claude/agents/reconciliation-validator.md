@@ -42,12 +42,22 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
    ERROR が 1 件でも出れば **ROLLBACK**（該当 ERROR 行を errors に転記）。
    - **`WARN: stem≠slugify(title)`（id 不整合）が 1 行でも出れば ROLLBACK として扱う**。validate.py はこれを WARN として出す（exit code は非0にならない）が、id==slug==slugify(title) は check-slug fail-close の前提＝load-bearing なので、WARN でも書込を許さず errors に転記して差し戻す。
 
-2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する：
+2. **slug グローバル一意（点4・umbrella の fail-close）**：著作された全 slug をコーパス横断で照合する。
+   **tmp ミラーを走査させる `--from-dir` を使う**（slug を手で列挙せず、著作した `{slug}.yaml` の stem を
+   ツールに収集させる＝取りこぼし防止・パイプライン入力）：
    ```bash
-   python3 -m dsv2 check-slug <slug1> <slug2> ... --root doc-system-v2
+   python3 -m dsv2 check-slug --from-dir tmp/<sprint>/<parent-id>/nodes --root doc-system-v2
    ```
-   （タイトルから確認したいときは `--title "..."` で slugify.py を通して照合できる。）
-   **終了コードが 0 以外（＝既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
+   （個別に確かめたいときは `check-slug <slug1> <slug2> ...`、タイトルからは `--title "..."` で slugify.py を通して照合できる。`--from-dir` と併用可。）
+   **複数 parent_ids を一括検証するとき**は、**parent 横断の slug 重複（cross-parent 衝突）も取りこぼさないよう**、各 parent の nodes を渡す（`--from-dir A/nodes --from-dir B/nodes …` と複数指定）か、**スプリント一括で `--from-dir tmp/<sprint>`** を渡す（配下の全 `*.yaml` を再帰収集する）。
+   **既存ノードを意図的に更新する著作（新規著作ではない）**が混ざるときは、更新対象の slug を **`--update <slug>`** で宣言する（複数可・issue #97）。宣言した slug は「既存コーパス id と一致」しても衝突扱いにしない（既存ノード更新＝slug がコーパスに在るのは正常。例：spec-author の親サイドカー更新・design-author の TERM 設計ファセット追記・backref 付与）。**新規著作 slug は `--from-dir`/位置引数で渡し、更新 slug だけを `--update` で区別して渡す**：
+   ```bash
+   # 新規著作は from-dir で収集、既存更新の slug は --update で宣言
+   python3 -m dsv2 check-slug --from-dir tmp/<sprint>/<parent-id>/nodes \
+       --update <既存slug1> --update <既存slug2> --root doc-system-v2
+   ```
+   **`--update` は宣言した slug の「コーパス衝突」のみを免除する。バッチ内重複（同一 slug の二重著作）と、非宣言 slug の corpus 衝突は宣言有無に関わらず fail-close を維持する。** どの slug を `--update` に渡すかは、著作エージェントの入力（新規著作か既存更新かの別）で決まる——新規著作 slug を誤って `--update` に入れないこと（偶発衝突の検出を弱める）。**`--update` は既存 slug をそのまま渡す**（`--title` のような slugify はしない・生の slug 文字列で照合）。
+   **終了コードが 0 以外（＝**非宣言の**既存コーパス id と衝突、または著作 slug 群内で重複）なら必ず ROLLBACK**。
    これは自己修正不可（id=slug の付け替え＝著作のやり直し）＝**fail-close**（DD-22）。stderr の衝突理由を errors に転記する。
 
 ### Step 3: 合成グラフの構築（surgical read）
@@ -77,7 +87,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 **型別チェック（自己修正不可 → ROLLBACK）**
 - [ ] SPEC: `condition` 属性あり（RULE-016 ERROR）
-- [ ] SPEC: `scheduled` が空文字（"" のみ許可）
+- [ ] `scheduled` が非空（既定 = current_phase）。空は**オーナー承認済みの後送り**のときのみ許可し、その旨が本文/labels に残る（無計画な空は差し戻し・DD 未整備なら self_fix で current_phase 充填を指示）
 - [ ] SPEC: 期待動作が単一アサーション（複数 RULE 列挙 → ROLLBACK）
 - [ ] TD: `condition` が依存先 SPEC と一致（RULE-019）
 - [ ] TR: `result` 属性あり（RULE-020 ERROR）

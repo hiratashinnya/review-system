@@ -39,7 +39,7 @@ tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.yaml  # サイドカー
 title: "読めるタイトル"     # id は slugify(title)＝ファイル名 stem。型 prefix+連番は使わない
 version: "0.1.0"
 labels: []
-scheduled: ""             # 常に空文字
+scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
 suppress: []              # 非空なら suppress_reason 必須。RULE-005/007 は抑制不可
 edges:
   - to: "参照先ノードの-slug"
@@ -123,5 +123,5 @@ TERM は分析ファセット（用語/意味/用途）を著作し、`→ SPEC`
 - [ ] E に `→ ACTOR` の刺激元辺がある（DD-020）
 - [ ] 内部データは D 型（O→ACTOR を持たない）
 - [ ] E の本文が 5 要素すべて存在
-- [ ] `scheduled: ""`（空文字のみ）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）

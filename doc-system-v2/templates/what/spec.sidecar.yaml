@@ -6,7 +6,7 @@ title: "[仕様タイトル: 1アサーション]"
 version: "0.1.0"
 condition: normal   # normal|boundary|empty|failure|error（傘なら本行を削除）
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（SPEC→FR/NFR/親SPEC のいずれか・config must_link_to spec→[fr,nfr,spec]）
   - to: "[上流 FR / NFR / 親 SPEC の slug]"

@@ -50,7 +50,7 @@ title: "本文中の孤立 `---` を検出したとき WARNING を出力する" 
 version: "0.1.1"        # 必須。MAJOR.MINOR.PATCH（DD-8）。ドリフト判定は x.y、z は伝播不問。
 condition: failure      # テスタブルなアサーションのみ。傘/非テスタブルは省略。
 labels: []              # 多値ラベル（post-mvp 等）。多値ゆえ path 化不可。
-scheduled: ""           # 実施スプリント（sprint-N）。空=未設定。繰り越しはオーナー判断。
+scheduled: "sprint-1"   # 実施スプリント。既定=current_phase（config.yaml）。空=オーナー承認済みの後送り/未計画のみ。繰り越しはオーナー判断。
 edges: []               # 無名依存辺（§5）。空でもキーは必須。
 ```
 
@@ -115,7 +115,7 @@ edges:
 | `kind` / `status`（辺）… 既に v1 で廃止済み | 引き続き無し（無名依存辺） |
 | `suppress: [RULE-xxx]`（理由は本文/コメント） | **#81 で正式化**：`suppress: [RULE-xxx]` ＋ `suppress_reason`（非空必須・理由は本文でなく属性へ） |
 | TR `result` / `log_ref`（YAML メタ） | **#81 で正式化**：サイドカーの機械可読フィールド（RULE-020/021・DD-011） |
-| （新）`carrier`（設計要素の実現担体） | **#81 で正式化**：サイドカー `carrier`（現状値 `skill`） |
+| （新）`carrier`（設計要素の実現担体） | **#81 で正式化**：サイドカー `carrier`。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code` |
 
 ## 10. schema 差分は #81 で解決済み
 
@@ -123,7 +123,7 @@ edges:
 
 - **TR の `result`（PASS|FAIL）/ `log_ref`**（RULE-020/021 の機械検査対象・DD-011 で body→メタ昇格）。
 - **`suppress`（配列）/ `suppress_reason`**（理由は本文でなく属性・`suppress` 非空なら `suppress_reason` 必須＝schema の `if/then`＋`validate.py` で強制）。
-- **`carrier`**（設計要素の実現担体・現状値 `skill`）。
+- **`carrier`**（設計要素の実現担体）。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code`（値集合の SoT = `schema/sidecar.schema.json`）。
 
 現行サイドカー schema（`additionalProperties: false`）の**許可トップレベルキー**は:
 `title / version / condition / labels / scheduled / suppress / suppress_reason / result / log_ref / carrier / edges`。

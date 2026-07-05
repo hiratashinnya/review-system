@@ -9,6 +9,7 @@
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
   * ``check-slug <slug>...`` 著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）。
+      ``--update <slug>`` で宣言した既存ノード更新 slug はコーパス衝突から除外（issue #97）。
   * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
 
 終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反（reverse/rename の
@@ -195,6 +196,10 @@ def cmd_check_slug(args) -> int:
 
     reconciliation-validator が書込前に Bash で呼ぶ決定論チェック（DD-22・Sub-D・issue #73）。
     衝突（既存コーパス id と一致 or 著作 slug 群内で重複）が 1 件でもあれば EXIT_ERROR。
+
+    ``--update <slug>`` で「意図的に既存ノードを更新する」slug を宣言すると、その slug は既存
+    コーパス id 衝突の fail-close から除外される（issue #97・案A）。バッチ内重複は宣言有無に関わらず
+    fail-close を維持する。
     """
     root = _root(args)
     # 改変前の現状コーパスと照合するためディスク走査で index を作る（meta.json の陳腐化を避ける）。
@@ -202,6 +207,17 @@ def cmd_check_slug(args) -> int:
     for nid, locs in duplicates(meta).items():
         print(f"警告: コーパスに既存 id 重複 {nid}（{', '.join(locs)}）。", file=sys.stderr)
     slugs = list(args.slugs)
+    for d in getattr(args, "from_dir", []):
+        base = Path(d)
+        if not base.is_dir():
+            print(f"エラー: --from-dir が存在しない: {d}", file=sys.stderr)
+            return EXIT_NOT_FOUND
+        found = sorted(p.stem for p in base.rglob("*.yaml"))
+        if not found:
+            print(f"警告: {d} 配下に *.yaml が無い", file=sys.stderr)
+        else:
+            print(f"--from-dir {d}: {len(found)} slug 収集（{', '.join(found)}）")
+        slugs.extend(found)  # 重複はそのまま残す＝バッチ内重複を slug_collisions が検出
     if args.title:
         slugify = _load_slugify()
         for t in args.title:
@@ -209,9 +225,12 @@ def cmd_check_slug(args) -> int:
             print(f"slugify: {t!r} → {s!r}")
             slugs.append(s)
     if not slugs:
-        print("エラー: 判定する slug/title が無い", file=sys.stderr)
+        print("エラー: 判定する slug/title/--from-dir が無い", file=sys.stderr)
         return EXIT_NOT_FOUND
-    collisions = query.slug_collisions(meta, slugs)
+    update_slugs = set(getattr(args, "update", []) or [])
+    if update_slugs:
+        print(f"更新宣言 slug（コーパス衝突を除外）: {', '.join(sorted(update_slugs))}")
+    collisions = query.slug_collisions(meta, slugs, update_slugs)
     if not collisions:
         print(f"OK: {len(slugs)} slug すべて一意（衝突なし）: {', '.join(slugs)}")
         return EXIT_OK
@@ -276,6 +295,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("slugs", nargs="*", help="判定する slug（＝ファイル名 stem）")
     p.add_argument("--title", action="append", default=[],
                    help="タイトルを slugify.py で slug 化して判定に加える（複数可）")
+    p.add_argument("--from-dir", action="append", default=[], metavar="DIR",
+                   help="ディレクトリ配下の *.yaml サイドカー stem を判定対象に収集（tmp ミラー走査・複数可）")
+    p.add_argument("--update", action="append", default=[], metavar="SLUG",
+                   help="意図的に既存ノードを更新する slug を宣言（コーパス衝突 fail-close から除外・複数可・issue #97）")
     p.set_defaults(func=cmd_check_slug)
 
     p = sub.add_parser("build-view", parents=[common],

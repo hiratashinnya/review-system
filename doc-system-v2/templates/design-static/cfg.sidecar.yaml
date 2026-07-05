@@ -2,7 +2,7 @@
 title: "[設定名]"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（CFG→SCM）: 準拠するスキーマ（config must_link_to cfg→scm）
   - to: "[準拠する SCM の slug]"

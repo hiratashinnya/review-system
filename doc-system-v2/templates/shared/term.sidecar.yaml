@@ -2,7 +2,7 @@
 title: "[用語名]"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（TERM→SPEC・config must_link_to term→spec, warning）: 登場する機能仕様
   - to: "[登場する SPEC の slug]"

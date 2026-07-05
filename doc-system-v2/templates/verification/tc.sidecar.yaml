@@ -3,7 +3,7 @@
 title: "[テスト名]"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（TC→TD・realizes）: 実現するテスト設計（config must_link_to tc→td）
   - to: "[実現する TD の slug]"
