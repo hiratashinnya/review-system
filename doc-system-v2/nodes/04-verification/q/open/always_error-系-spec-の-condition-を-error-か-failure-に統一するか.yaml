@@ -1,5 +1,5 @@
 title: "always_error 系 SPEC の condition を error か failure に統一するか"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
 edges:
@@ -8,7 +8,7 @@ edges:
     note: "本 Q の決定で FND-83 が解消される（affected element）"
   - to: "存在しない-id-参照を-rule-007-error-報告"
     ref_version: "0.1"
-    note: "SPEC-6（RULE-007）現 condition=error。統一で再割当の可能性"
+    note: "SPEC-6-1（RULE-007）現 condition=error。入力等価クラス基準で failure へ是正の可能性"
   - to: "孤立ノードの検出"
     ref_version: "0.2"
-    note: "SPEC-7（RULE-005）現 condition=failure。統一で再割当の可能性"
+    note: "SPEC-7（RULE-005）現 condition=failure。入力等価クラス基準で妥当（変更なし）"

@@ -1,5 +1,5 @@
 title: "傘・非テスタブルノードの condition 表現を明示マーカー化するか省略維持か"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
 edges:
