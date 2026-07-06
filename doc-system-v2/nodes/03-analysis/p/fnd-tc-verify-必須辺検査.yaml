@@ -4,7 +4,7 @@ labels: []
 scheduled: ""
 edges:
   - to: "fnd-に被指摘要素への辺欠如-rule-006"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "tc-がテスト未実行-tr-不在-rule-006"
     ref_version: "0.1"
   - to: "nfr-に検証証跡の被依存辺欠如-rule-006"

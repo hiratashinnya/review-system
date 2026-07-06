@@ -6,4 +6,4 @@ edges:
   - to: "グラフ網羅性点検"
     ref_version: "0.2"
   - to: "mod-粒度の選択"
-    ref_version: "0.2"
+    ref_version: "0.3"

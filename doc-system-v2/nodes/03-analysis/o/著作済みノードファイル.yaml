@@ -6,7 +6,7 @@ edges:
   - to: "テンプレートの必須フィールド充足"
     ref_version: "0.3"
   - to: "調停・本ファイル反映"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "仕様著者"
     ref_version: "0.1"
   - to: "d-2-著作済みノードファイル-の型分類誤り-d→o"

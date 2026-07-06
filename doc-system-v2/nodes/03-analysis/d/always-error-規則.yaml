@@ -6,4 +6,4 @@ edges:
   - to: "ステージ発火による検査制御"
     ref_version: "0.3"
   - to: "設定ファイル読み込み"
-    ref_version: "0.1"
+    ref_version: "0.2"
