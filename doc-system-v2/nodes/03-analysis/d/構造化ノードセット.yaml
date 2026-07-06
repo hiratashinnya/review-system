@@ -6,6 +6,6 @@ edges:
   - to: "ノード埋め込みのパース"
     ref_version: "0.3"
   - to: "ノード受付・パース"
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: "d-4-構造化ノードセット-定義が-condition-result-log_ref-を欠き-p-2-3-p-2-4-p-3-2-の入力が台帳上断"
     ref_version: "0.1"
