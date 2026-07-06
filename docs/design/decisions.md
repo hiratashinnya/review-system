@@ -211,6 +211,8 @@
 - **影響範囲**：`.claude/agents/spec-authoring-fanout.md`（新設）・`.claude/skills/spec-pipeline/SKILL.md`（改訂）。impl-design-pipeline/asset-pipeline は**不変**（単一 agent 呼びで並列化余地なし＝監査で確認）。in-graph 義務辺は持たない（`.claude/` 資産運用への反映）。**覆す場合**＝`spec-authoring-fanout` を撤去し spec-pipeline の著作段を主文脈逐次呼びへ戻す（影響は当該2ファイルに閉じる）。
   - **未確定リスク（要フォロー）**：本エージェントの並列 fan-out・深さ 2 ネストは**実 e2e 未実行**（本タスクはプロンプト/エージェント定義の著作）。実運用で depth/並列 Task の挙動を確認し、齟齬があれば FND 起票する。
 
+> **補遺（issue #121・2026-07-06・supersede）**：上記「impl-design-pipeline/asset-pipeline は不変（単一 agent 呼びで並列化余地なし＝監査で確認）」という結論は**誤りだった**。オーナー指摘（「要件定義層しか並列化せず、本来の趣旨を隠蔽しているように見えている」）により再監査した結果、impl-design-pipeline（`architecture-design`/`orchestration-design`/`prompt-design`）・test-strategy の SKILL.md には**そもそも `design-author`/`verification-author` への著作委譲が存在しなかった**（「並列化余地なし」ではなく著作ステップ自体の欠落）。是正として `spec-authoring-fanout` を `author` パラメータ（`requirements-author|spec-author|analysis-author|design-author|verification-author`）で汎化した **`.claude/agents/authoring-fanout.md`** を新設し、`spec-authoring-fanout.md` は `archive/spec-authoring-fanout-v1.md` へ retire（`git mv`・PR8 消さない）。`impl-design-pipeline/SKILL.md` に Wave1/Wave2 design-author fan-out 段（2.5）を、`test-strategy/SKILL.md` に TD-authoring fan-out 段を新設し、`.github/agents/authoring-fanout.agent.md`・`.github/skills/impl-design-pipeline/SKILL.md`・`.github/skills/test-strategy/SKILL.md` へも同内容をミラー。本 DD23 自体は履歴として保持し、削除・書き換えはしない（PR8）。詳細は issue #121。
+
 ---
 
 ## オーナー確定・打ち上げ事項
