@@ -6,4 +6,4 @@ edges:
   - to: "ノード受付・パース"
     ref_version: "0.3"
   - to: "mod-粒度の選択"
-    ref_version: "0.2"
+    ref_version: "0.3"

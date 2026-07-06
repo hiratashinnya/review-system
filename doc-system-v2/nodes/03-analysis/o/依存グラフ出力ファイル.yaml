@@ -6,7 +6,7 @@ edges:
   - to: "export-graph-による依存グラフファイル出力"
     ref_version: "0.2"
   - to: "依存グラフ出力処理"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "レビュアー"
     ref_version: "0.1"
   - to: "依存グラフレポート出力機能・参照関係複雑度算出の追加"

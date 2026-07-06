@@ -6,4 +6,4 @@ edges:
   - to: "著作エージェント出力と-reconciliation-転記"
     ref_version: "0.1"
   - to: "著作・tmp-出力"
-    ref_version: "0.1"
+    ref_version: "0.2"

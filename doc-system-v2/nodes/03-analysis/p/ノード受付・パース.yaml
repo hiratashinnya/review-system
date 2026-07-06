@@ -10,7 +10,7 @@ edges:
   - to: "in-graph-ファイル集合"
     ref_version: "0.1"
   - to: "フェーズ・ステージ状態"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "点検要求"
     ref_version: "0.5"
   - to: "actor-3-spec-inspector-の系境界誤り-被依存辺ゼロ"

@@ -6,4 +6,4 @@ edges:
   - to: "記法が崩れた-yaml-ブロックのパース失敗"
     ref_version: "0.3"
   - to: "ノード受付・パース"
-    ref_version: "0.2"
+    ref_version: "0.3"
