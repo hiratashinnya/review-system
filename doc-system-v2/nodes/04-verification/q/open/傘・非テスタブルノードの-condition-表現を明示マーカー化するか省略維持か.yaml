@@ -1,0 +1,11 @@
+title: "傘・非テスタブルノードの condition 表現を明示マーカー化するか省略維持か"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "傘-spec-の-condition-が子の-condition-多様性を代表せずミスリード"
+    ref_version: "0.1"
+    note: "本 Q の決定で FND-89 が解消される（affected element）"
+  - to: "condition-属性なし・語彙外-rule-016"
+    ref_version: "0.1"
+    note: "傘の condition 表現を変えると RULE-016（condition 必須）の解釈に波及する"
