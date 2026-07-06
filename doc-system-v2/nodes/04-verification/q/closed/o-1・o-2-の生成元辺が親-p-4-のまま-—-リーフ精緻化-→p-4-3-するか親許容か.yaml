@@ -4,8 +4,8 @@ labels: []
 scheduled: ""
 edges:
   - to: "rule-違反レポート"
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: "カバレッジ点検結果"
-    ref_version: "0.2"
+    ref_version: "0.3"
   - to: "o-1-o-2-の生成元辺を親-p-4-からリーフ-p-4-3-へ精緻化-q-3-から昇格・o-生成元粒度のリーフ基"
     ref_version: "0.1"

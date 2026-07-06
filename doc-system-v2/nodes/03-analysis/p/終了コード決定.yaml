@@ -8,6 +8,6 @@ edges:
   - to: "error-なし-→-終了コード-0"
     ref_version: "0.1"
   - to: "p-4-4-終了コード決定-の終端出力-終了コード-0-1-が-o-d-ノード化されず価値経路が受け手に"
-    ref_version: "0.2"
+    ref_version: "0.1"
   - to: "レポート生成"
     ref_version: "0.2"
