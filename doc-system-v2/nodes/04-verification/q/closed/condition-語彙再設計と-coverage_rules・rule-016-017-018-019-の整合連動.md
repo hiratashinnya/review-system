@@ -1,4 +1,4 @@
-**status: open**
+**status: closed**（2026-07-06 Q1/Q2/Q3 の決定により解消・別 DD なし）
 
 **論点（Issue #78 論点4）**: condition 語彙の再設計（論点1〜3 の決定）が、既存の coverage/整合ルールと齟齬しないか。具体的には `coverage_rules`（RULE-017/018）・RULE-019（TD↔SPEC condition 一致）・RULE-016（condition 必須・語彙外検査）が、再設計後の語彙と整合する範囲・改訂すべき範囲を確定する。本 Q は論点1〜3 の決定を受ける**整合連動の制約**であり、単独では決められない（論点1/2/3 の結論に従属する）。
 
@@ -23,3 +23,22 @@
 **ブロッカー**: coverage/整合ルールの改訂範囲・実施時期は**オーナー判断**（**独断でのスプリント繰越は禁止**・`scheduled` 空で判断を仰ぐ）。論点1〜3 の決定後に本 Q を DD へ昇格。
 
 **指摘時 ref_version**: condition 属性なし・語彙外（RULE-016）"0.1"／FR の SPEC 群に normal condition なし（RULE-017）"0.1"／FR の SPEC 群に failure/error condition なし（RULE-018）"0.1"／TD の condition が verifies 先 SPEC と不一致（RULE-019）"0.1"（各 SPEC サイドカー v0.1.0 時点）／FR の condition 網羅 "0.2"（同 SPEC サイドカー v0.2.0 時点）
+
+---
+
+## 解消記録（2026-07-06・Q1/Q2/Q3 の決定を受けて closed）
+
+本 Q は論点1〜3 に**従属する整合連動 Q**であり、単独の改訂対象を持たない。Q1〜Q3 の決定（それぞれ DD へ昇格済み）を踏まえて確認した結果、**別 DD を起こさず本 Q を closed とする**。結論と根拠は以下のとおり。
+
+- **vocab セット自体（condition_vocab）・coverage_rules の定義自体（required/recommended_conditions）は、Q1〜3 のいずれによっても変更されない**。
+  - Q1（傘 SPEC は condition 省略・傘ロールは edges から機械判定）＝**運用規約の明文化のみ**で vocab セットは不変。
+  - Q2（5値語彙セット維持）＝**現状追認**で vocab セット不変。
+  - Q3（SPEC-6-1 の condition を error→failure へ是正）＝**個別ノードの値の是正**であり、語彙の集合定義・coverage_rules の定義自体は不変。
+  - したがって RULE-016/017/018/019・config.yml の**定義そのものを改訂する必要はない**（Q4 が独立に決めるべき論点は残っていない）。
+
+- **推奨（選択肢A：lockstep 同期改訂）は独立 DD としてではなく、DD-Q1・DD-Q3 それぞれの「影響範囲」節の follow-up として実質的に充足される**。
+  - Q4 が懸念していた「検査 SPEC・config との整合」に該当する実装 follow-up は、(a) RULE-016 への傘ロール除外条件の追記（Q1 由来・DD `傘-spec-は-condition-を省略し傘ロールを-edges-から機械判定-傘表現-q-より昇格` 側の義務辺で追跡）、(b) SPEC-6-1 の condition 実変更＋RULE-019 カスケード（Q3 由来・DD `spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格` 側の義務辺で追跡）の2件のみ。
+  - どちらも範囲が各 DD の決定内に閉じており、lockstep の対象が Q1/Q3 の決定内に収まったため、**Q4 に固有の改訂対象は無い**。Q2 由来の影響は無い（vocab 不変・現状追認）。
+  - これらの follow-up はいずれも**本 PR では未実装・実施時期はオーナー判断待ち**であり、各 DD の義務辺（`DD→X`）が「未反映」シグナルとして残している。
+
+- **結論**: Q4 は別 DD を起こさず解消。上記3辺（DD-Q1／DD-Q2／DD-Q3）を参照辺として張り、解消の帰結を各 DD に紐付けた。vocab セット・coverage_rules の定義自体は不変につき、RULE-016/017/018/019・config.yml の定義改訂は不要。残る整合作業は DD-Q1／DD-Q3 側の follow-up として追跡される。

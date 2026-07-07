@@ -1,4 +1,4 @@
-**status: open**
+**status: closed**（2026-07-06 DD へ昇格・決定済み）
 
 **論点（Issue #78 論点2）**: condition の5値セット `normal / boundary / empty / failure / error`（等価分割）は今も適切か。特に `empty`（空・ゼロ件・null）を `boundary` から独立させた経緯（**FND-13**・resolved）を踏まえ、独立を維持するか `boundary` へ統合（＝4値化）するか。
 
@@ -21,3 +21,7 @@
 **ブロッカー**: 5値セットの妥当性は**オーナー判断**。実施時期も含めてオーナーが決定する（**独断でのスプリント繰越は禁止**・`scheduled` 空で判断を仰ぐ）。決定後は DD へ昇格。
 
 **指摘時 ref_version**: condition 属性なし・語彙外（RULE-016）"0.1"（同 SPEC サイドカー v0.1.0 時点）
+
+---
+
+**決定（2026-07-06 オーナー承認）**: 選択肢A（5値維持）を採用。本 Q は DD「condition の5値語彙セットを維持（語彙妥当性 Q より昇格）」として昇格・決定済み。`empty` を `boundary` へ統合せず、`normal / boundary / empty / failure / error` の5値語彙セットをそのまま維持する。

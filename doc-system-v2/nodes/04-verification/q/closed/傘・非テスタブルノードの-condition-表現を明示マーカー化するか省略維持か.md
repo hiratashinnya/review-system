@@ -1,4 +1,4 @@
-**status: open**
+**status: closed**（2026-07-06 DD へ昇格・決定済み）
 
 **論点（Issue #78 論点1）**: 傘（アンブレラ）ノード・非テスタブルノードの condition をどう表現するか。現状は「傘ノードは condition を省略する」方式（Sub-A 採用・#81 で umbrella は condition 値でなくなった）で運用している。これで十分か、それとも明示マーカーや別属性が要るか。本 Q が決定されると既存の **FND-89**（傘 SPEC の condition が子の condition 多様性を代表せずミスリード・open・INFO）が解消される。
 
@@ -32,3 +32,5 @@
 **ブロッカー**: 傘 condition の表現方式は**オーナー判断**。オーナー回答（A 採用・呼称 umbrella/leaf）を得たため方式は確定。実施時期（今スプリント vs 次スプリント以降）は引き続きオーナー判断（**独断でのスプリント繰越は禁止**＝CLAUDE.md「スケジュール独断禁止」。本 Q は `scheduled` を空のままとし実施時期の判断を仰ぐ）。決定は DD へ昇格し、RULE-016 対象範囲変更に伴う out-of-graph 著作資産（接続マトリクス・notation・各 author）への伝播を DD の処置に含める。
 
 **指摘時 ref_version**: 傘 SPEC の condition が子の condition 多様性を代表せずミスリード "0.1"（FND-89 サイドカー v0.1.0 時点）／condition 属性なし・語彙外（RULE-016）"0.1"（同 SPEC サイドカー v0.1.0 時点）
+
+**昇格結果（2026-07-06）**: 本 Q は「傘 SPEC は condition を省略し傘ロールを edges から機械判定（傘表現 Q より昇格）」として DD へ昇格・決定済み。決定内容（A 採用・機械判定基準・umbrella/leaf 呼称・不採用理由）は当該 DD に転記した。RULE-016 への傘ロール除外条件の追記・傘 SPEC の残存 condition クリーンアップ・FND-89 の解消・out-of-graph 伝播は当該 DD のフォローアップ（本 PR 未実装・実施時期オーナー判断待ち）とした。

@@ -1,5 +1,5 @@
 title: "condition 語彙再設計と coverage_rules・RULE-016/017/018/019 の整合連動"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
 edges:
@@ -18,3 +18,12 @@ edges:
   - to: "fr-の-condition-網羅"
     ref_version: "0.2"
     note: "RULE-017/018 の親（coverage 網羅アンブレラ）"
+  - to: "傘-spec-は-condition-を省略し傘ロールを-edges-から機械判定-傘表現-q-より昇格"
+    ref_version: "0.1"
+    note: "Q1 の決定（省略維持・vocab不変）。RULE-016 除外条件の追記は同 DD 側の follow-up として追跡"
+  - to: "condition-の5値語彙セットを維持-語彙妥当性-q-より昇格"
+    ref_version: "0.1"
+    note: "Q2 の決定（5値維持・現状追認）。vocab 不変につき本 Q への影響なし"
+  - to: "spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格"
+    ref_version: "0.1"
+    note: "Q3 の決定（SPEC-6-1 個別是正）。RULE-019 カスケードは同 DD 側の follow-up として追跡"

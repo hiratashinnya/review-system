@@ -1,8 +1,10 @@
 title: "condition 5値語彙セットの妥当性 empty を boundary へ統合するか維持するか"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
 edges:
   - to: "condition-属性なし・語彙外-rule-016"
     ref_version: "0.1"
     note: "vocab セットの変更は RULE-016（語彙外検査）が列挙する集合に直接波及する"
+  - to: "condition-の5値語彙セットを維持-語彙妥当性-q-より昇格"
+    ref_version: "0.1"
