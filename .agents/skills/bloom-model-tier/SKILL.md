@@ -1,0 +1,77 @@
+---
+name: bloom-model-tier
+description: Assign a Claude model tier + effort level to a sub-agent's frontmatter (`model:`/`effort:`) by classifying its dominant Bloom's-revised cognitive level AND whether its difficulty is thoroughness-bound or judgment-bound (Remember→haiku; Understand/Apply→sonnet; Analyze/Evaluate/Create→sonnet+high/xhigh effort if thoroughness-bound, else opus). Use when deciding which model/effort a custom agent should run on. NOT runtime control-flow or version-stamp logging (orchestration-design), NOT prompt template design (prompt-design).
+---
+
+# bloom-model-tier — Bloom 認知分類 × 難所の性質でエージェントの model/effort を選ぶ
+
+カスタムサブエージェントの `model:`（＋`effort:`）を **2軸**で機械判定する：
+① その仕事の**主要な認知負荷**（Bloom 改訂版分類の何段か）
+② その難所が **網羅性ボトルネック**（thinking budget を増やせば直接品質が上がる）か **判断ボトルネック**（曖昧な解釈・利害trade-off・不可逆な決定＝モデル自体の知識/判断力が効く）か。
+
+`effort:`（`low/medium/high/xhigh/max`・`model:` と独立に指定可・Claude Code sub-agent frontmatter の正規フィールド）を使い、**Lv4 以上でも網羅性ボトルネックなら opus に上げず `sonnet` + 高 effort に倒す**（過剰な opus 割当のコスト規律）。
+原則：[spec-principles](../spec-principles/SKILL.md)（**PR2 機械判定と運用ルールを混ぜない**＝Bloom レベルも軸2も順序/二値の属性なので自動ゲート可能・**PR7 矛盾は停止**）。
+
+## 判定ルール（機械ゲート＝PR2）
+
+### 軸1：Bloom Lv（認知行為の種類）
+| Bloom Lv | 認知行為（動詞） | 典型タスク |
+|---|---|---|
+| **1 記憶** Remember | 想起・参照・転記 | 既知値の検索／定型コピー／単純抽出 |
+| **2 理解** Understand | 説明・要約・言い換え | 内容の要約／分類タグ付け／読み解き |
+| **3 応用** Apply | 適用・実行 | 確定テンプレへの当てはめ／手順実行／定型変換 |
+| **4 分析** Analyze | 分解・関連付け・差分検出 | 構造分解／カバレッジ点検／矛盾・gap 検出 |
+| **5 評価** Evaluate | 判定・検証・批評 | 整合調停／監査／レビュー／受け入れ判定 |
+| **6 創造** Create | 新規生成・設計 | 要件/設計の新規著作／DFD 構築／戦略立案 |
+
+### 軸2：難所の性質（Lv4 以上でのみ判定）
+- **網羅性ボトルネック**：やることはルールベース／機械的だが、見落とさず全部拾う・照合することが難所。**effort を増やせば直接品質が上がる**（例：ledger 突合、孤立ノード検出、構造チェックリスト照合）。多くは「**報告のみ・裁定は人間/呼び出し元に委ねる**」設計。
+- **判断ボトルネック**：曖昧な入力の解釈・利害/trade-off の裁定・前例のない構造の創出・不可逆な決定が難所。**effort を増やしても解決しない**（モデル自体の知識/判断力＝opus 固有の強みが効く）。多くは「**推奨・裁定まで担う**」設計。
+
+### 閾値表（改訂）
+| Bloom Lv | 網羅性ボトルネック | 判断ボトルネック |
+|---|---|---|
+| 1 記憶 | `haiku` | — |
+| 2 理解／3 応用 | `sonnet`（`effort: low`〜`medium`） | `sonnet`（`effort: medium`・稀） |
+| 4 分析 | **`sonnet` + `effort: high`〜`xhigh`** | `opus` |
+| 5 評価 | **`sonnet` + `effort: high`〜`xhigh`**（例：機械的チェックリスト照合・裁定なしの gap 提示） | `opus`（例：trade-off 裁定・受け入れ判定・新規vs既存の拡張可否判断） |
+| 6 創造 | **`sonnet` + `effort: high`**（確定テンプレへの流し込みが主体の著作） | `opus`（曖昧な入力からの新規構造化・利害調整） |
+
+太字＝旧版（Lv4以上一律 opus）から広がった sonnet 領域。
+
+## 手順
+1. 対象エージェントの `description` と system prompt から、**結論を出すために繰り返す主要行為**を1つ取り出す（補助的な下位行為に引っ張られない）。
+2. その行為の動詞を Bloom 段に同定（**最も高い段ではなく、仕事の大半を占める段**を採る）。
+3. **Lv4 以上なら軸2を判定**：「effort（考える回数/深さ）を増やせば人間目線で結果が良くなるタイプの難しさか？」→ Yes＝網羅性ボトルネック、No（解釈の余地・利害調整・裁定・不可逆決定が絡む）＝判断ボトルネック。
+4. 上表で `model:`（＋Lv4以上かつ網羅性ボトルネックなら `effort:`）を確定し、frontmatter に書き込む。
+5. 既存の `model:` 値と差があれば**理由付きで提案**し、既存値は**勝手に上書きしない**（PR8 消さない/壊さない・`inherit` 統一が意図的規約の場合も同様）。
+
+## 判定基準（タイブレーク）
+- **複数段にまたがる**：成果物を出すために必須な最上位の行為で採る（例：点検しつつ提案＝Evaluate→opus）。ただし上位行為が**例外的・補助的**なら主行為を採る。
+- **「著作」は中身で割る**：確定入力を型へ**転記**するだけ＝Apply(3)→sonnet。利害・制約から**新規に文章/構造を構成**＝Create(6)→判断ボトルネック→opus。
+- **「報告のみ・裁定はしない」は網羅性側の強いシグナル**：gap リスト提示や構造チェックリスト照合のように**裁定を人間/呼び出し元に委ねる**設計のエージェントは、読み取り専用でも Analyze/Evaluate の網羅性ボトルネック＝`sonnet`+`xhigh` 候補。逆に**「推奨・裁定」まで担うエージェントは判断ボトルネック**＝opus 継続（例：新規vs既存拡張の可否判断は構造境界の決定＝著作の分割判断と同種）。
+- **迷ったら軸2は判断ボトルネック側（opus）に倒す**（effort は品質を保証しない代理変数のため、コスト規律より品質を優先して安全側に倒す）。根拠を1行残す。
+
+## done（点検観点）
+- [ ] 主要認知行為を1つに同定し、Bloom 段と動詞を明記したか。
+- [ ] Lv4 以上は軸2（網羅性/判断ボトルネック）を明記したか。
+- [ ] 表で `model:`／`effort:` を機械的に引いたか（恣意的選定でないか）。
+- [ ] 既存値との差分を理由付きで提示し、無断上書きしていないか。
+- [ ] 判定根拠を1行（行為→Lv→軸2→model/effort）で残したか（後から追える）。
+
+## 成果物テンプレ
+
+**単体（frontmatter 提案）**
+```yaml
+model: sonnet
+effort: xhigh   # Bloom Lv5 評価・網羅性ボトルネック（gap 提示のみで裁定はしない）→ sonnet+xhigh
+```
+```yaml
+model: opus   # Bloom Lv6 創造・判断ボトルネック（曖昧な入力から新規構造を構成）→ opus
+```
+
+**一覧（複数エージェントの分類表）**
+
+| agent | 主要認知行為 | Bloom Lv | 軸2（Lv4+のみ） | 推奨 model/effort | 現状 |
+|---|---|---|---|---|---|
+| `<name>` | <動詞・1語> | <1–6 段名> | 網羅性/判断/(該当なし) | `haiku`/`sonnet(+effort)`/`opus` | `opus` 等 |

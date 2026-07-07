@@ -1,0 +1,35 @@
+---
+name: agy-delegate
+description: ユーザーが明示起動する「Antigravity(agy)CLI への作業移譲」の入口。疎通チェックを必須ゲートにして agy-delegate エージェントへ委譲する（read-only 影響調査レポート・ノード素案・調査・スクラッチコード・画像生成）。手順本体はエージェント側に単一ソース化（ここでは再記述しない）。
+disable-model-invocation: true
+---
+
+# agy への作業移譲（agy-delegate）
+
+Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レポート出力・ノード素案作成・調査・スクラッチコード・画像生成・並列サブクエリ）を移譲するための**ユーザー起動の入口**。
+
+手順・ツール使い分け・スコープ境界・**ユースケース表と必読規律セット**の実体は [`agy-delegate` エージェント](../../agents/agy-delegate.md)に**単一ソース化**してある（複製ドリフト防止）。本スキルはその入口として、起動時の不変ゲートだけを定める。
+
+> 想定ユースケース（UC-1 影響調査／UC-2 参照・孤児調査／UC-3 ノード素案／UC-4 リポジトリ外調査／UC-5 スクラッチコード／UC-6 画像生成／UC-7 並列）と、各 UC で agy に `ask` で読ませる**必読規律セット**（G-min / G-full ＋ 型別 A-\<type\>）は**エージェントの表が正本**。ランタイムでの判断ブレを抑えるため、その表に従って規律を渡すこと。
+
+## 必須ゲート（破ってはならない）
+
+1. **疎通チェックが先（fail-close）**：移譲の前に必ず `mcp__agy__antigravity_status` で agy MCP サーバーの疎通を確認する。
+   - **クラウド/ヘッドレス環境では agy は使えない**（ローカル CLI・Windows Credential Manager 認証依存）。
+   - `Overall: OK` でなければ**移譲せず停止**し、理由を報告する。推測で移譲を試みない。
+2. **Windows パスで渡す**：`workspace` は `C:\...` 形式（WSL パス `/mnt/c/...` は `[WinError 267]` で失敗）。
+3. **スコープ厳守（境界＝誰が正本に書くか）**：agy は**素案・調査レポートを返す read-only/draft アシスタント**。`docs/`/本ファイルへの書き込み・ノードの確定著作・無検証コード採用は**移譲しない**（`*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) 経由・実装は Python 標準ライブラリのみ＝Q5）。✅ read-only 影響調査（例：ref_version バンプの伝搬先レポート）・ノード素案作成（規律を `ask` で読ませてから）は可。**agy にはファイルを書かせずテキスト/レポートで回収**し、正本反映は既存パイプラインに通す。
+
+## 使い方
+
+1. 上記ゲートを満たすことを確認。
+2. `agy-delegate` エージェントに委譲し、移譲したいタスク・対象 workspace（Windows パス）・期待する成果物を渡す。
+3. エージェントが疎通チェック → ツール選択（ask/continue/swarm/image）→ 結果回収を行う。
+4. 結果（使用ツール・workspace・要約）をユーザーへ提示。生成ファイルは必要なら `SendUserFile` で送る。
+
+## done 条件
+
+- [ ] 移譲前に `antigravity_status` で疎通を確認した（NG なら移譲せず停止・報告）。
+- [ ] `workspace` を Windows パスで渡した。
+- [ ] 依頼がスコープ内（doc-system 著作・本ファイル書き込み・製品コード採用を含まない）と確認した。
+- [ ] 結果をユーザーへ提示した。
