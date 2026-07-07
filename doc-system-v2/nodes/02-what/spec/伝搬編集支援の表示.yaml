@@ -4,7 +4,7 @@ labels: [post-mvp]
 scheduled: "sprint-2"
 edges:
   - to: "伝搬編集支援-post-mvp"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "spec-50-51-の-post-mvp-と-scheduled-表現が不統一-オーナー決定bで-config-改訂方針"
     ref_version: "0.1"
   - to: "spec-40-期待動作が-一覧を表形式で出力・-形式-で表示-の2文混載"

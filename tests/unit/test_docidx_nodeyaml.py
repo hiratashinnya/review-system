@@ -24,8 +24,8 @@ class TestScalars(unittest.TestCase):
         self.assertEqual(d["ref"], "0.3")
 
     def test_inline_comment_stripped(self):
-        d = nodeyaml.parse("suppress: [RULE-018]   # 理由\nid: X-1\n")
-        self.assertEqual(d["suppress"], ["RULE-018"])
+        d = nodeyaml.parse("labels: [post-mvp]   # 理由\nid: X-1\n")
+        self.assertEqual(d["labels"], ["post-mvp"])
         self.assertEqual(d["id"], "X-1")
 
 

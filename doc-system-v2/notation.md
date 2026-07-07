@@ -113,7 +113,7 @@ edges:
 | 本文中の `**status: open**` 等 | path 第3階層 `<status>` から導出（fnd/q/dd/pend・`git mv` で遷移） |
 | `edges[].to: SR-001`（ID 参照） | `edges[].to: "<slug>"`（slug 参照・path 非依存） |
 | `kind` / `status`（辺）… 既に v1 で廃止済み | 引き続き無し（無名依存辺） |
-| `suppress: [RULE-xxx]`（理由は本文/コメント） | **#81 で正式化**：`suppress: [RULE-xxx]` ＋ `suppress_reason`（非空必須・理由は本文でなく属性へ） |
+| `suppress: [RULE-xxx]`（理由は本文/コメント） | **#81 で正式化 → #118 でスキーマごと廃止**（抑制機構自体を撤去・drift は無条件発火。旧 `suppress`/`suppress_reason` フィールドは非対応） |
 | TR `result` / `log_ref`（YAML メタ） | **#81 で正式化**：サイドカーの機械可読フィールド（RULE-020/021・DD-011） |
 | （新）`carrier`（設計要素の実現担体） | **#81 で正式化**：サイドカー `carrier`。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code` |
 
@@ -122,8 +122,9 @@ edges:
 旧テンプレが「v2 サイドカー schema 未対応」として打ち上げていた属性は、**PR #81（オーナー承認 2026-07-03）で正準フィールドとして schema に追加**され決着した:
 
 - **TR の `result`（PASS|FAIL）/ `log_ref`**（RULE-020/021 の機械検査対象・DD-011 で body→メタ昇格）。
-- **`suppress`（配列）/ `suppress_reason`**（理由は本文でなく属性・`suppress` 非空なら `suppress_reason` 必須＝schema の `if/then`＋`validate.py` で強制）。
 - **`carrier`**（設計要素の実現担体）。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code`（値集合の SoT = `schema/sidecar.schema.json`）。
 
+（旧 **`suppress`（配列）/ `suppress_reason`** は #81 で正式化されたが、**#118 で抑制機構自体を撤去**しスキーマから除去済み。依存先ノード更新時の影響確認を必須化し、drift（RULE-004）は凍結せず常に発火させる方針に一本化。）
+
 現行サイドカー schema（`additionalProperties: false`）の**許可トップレベルキー**は:
-`title / version / condition / labels / scheduled / suppress / suppress_reason / result / log_ref / carrier / edges`。
+`title / version / condition / labels / scheduled / result / log_ref / carrier / edges`。

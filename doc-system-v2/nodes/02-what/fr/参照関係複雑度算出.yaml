@@ -1,9 +1,7 @@
 title: "参照関係複雑度算出"
-version: "0.1.0"
+version: "0.2.0"
 labels: [post-mvp]
 scheduled: ""
-suppress: [RULE-018]
-suppress_reason: "異常系なし: post-MVP のメトリクス算出機能であり、グラフ構造の異常（孤立・不在参照）は FR-3/FR-4 側で担保される"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

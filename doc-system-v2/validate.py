@@ -40,10 +40,10 @@ STATUS_DIRS = {
     "dd": {"decided", "closed"},
     "pend": {"open", "resolved", "deferred"},
 }
-# 正準 meta-schema フィールド（labels/scheduled/condition/suppress・TR の result/log_ref）＋
+# 正準 meta-schema フィールド（labels/scheduled/condition・TR の result/log_ref）＋
 # コーパス実使用の carrier（canonicalization 保留）。id/type/status はサイドカーに持たない。
 _ALLOWED_TOP = {"title", "version", "condition", "labels", "scheduled",
-                "suppress", "suppress_reason", "result", "log_ref", "carrier", "edges"}
+                "result", "log_ref", "carrier", "edges"}
 _ALLOWED_EDGE = {"to", "ref_version", "note"}  # 無名依存辺（kind なし）
 _VER = re.compile(r"^\d+\.\d+\.\d+$")
 _REFVER = re.compile(r"^\d+\.\d+$")
@@ -68,12 +68,6 @@ def validate_sidecar(data: dict) -> list[str]:
         errs.append(f"condition 不正: {data['condition']!r}")
     if "labels" in data and not isinstance(data["labels"], list):
         errs.append("labels は配列であること")
-    if "suppress" in data and not isinstance(data["suppress"], list):
-        errs.append("suppress は配列であること（ルール番号のリスト）")
-    # suppress が非空なら理由を suppress_reason に必須（本文/コメントに書かない）
-    if isinstance(data.get("suppress"), list) and data["suppress"]:
-        if not str(data.get("suppress_reason", "")).strip():
-            errs.append("suppress が非空なのに suppress_reason がない（理由は本文でなく suppress_reason に必須）")
     if "result" in data and data["result"] not in _RESULTS:
         errs.append(f"result 不正（PASS|FAIL）: {data['result']!r}")
     if "edges" in data:

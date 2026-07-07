@@ -172,11 +172,6 @@ prompt_coverage_targets:
   - asset-pipeline
   - docidx
 
-# 抑制対象外（scheduled/suppress/activate_stage いずれでも抑制不可）
-always_error:
-  - RULE-005   # 完全孤立（in/out 辺が0本）
-  - RULE-007   # 存在しない ID 参照
-
 # トレース対象集合（v2 レイアウト）。ノードの正本はサイドカー .yaml（辺グラフの源）。
 trace_scope:
   include: ["nodes/**/*.yaml"]

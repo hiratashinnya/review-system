@@ -5,7 +5,8 @@
 ``<script type="application/json">`` にインラインし、フィルタ/ナビゲーションは同梱 JS で行う）。
 
 グラフ照会（deps/dependents/ドリフト）は ``dsv2.query`` を再利用し CLI と完全一致させる。RULE-004 ドリフト
-（辺 ``ref_version`` x.y ≠ 参照先バッジ x.y・``suppress: [RULE-004]`` は免除）も query 経由で算出する。
+（辺 ``ref_version`` x.y ≠ 参照先バッジ x.y。#118 で suppress 機構は廃止済み・drift は無条件発火）も
+query 経由で算出する。
 Markdown→HTML は**標準ライブラリのみの最小レンダラ**（見出し/リスト/コードフェンス/インラインコード/
 強調/リンク/引用/段落・HTML エスケープ）で、外部ライブラリを持ち込まない。
 
@@ -213,7 +214,6 @@ def build_view_model(root: Path, meta: dict) -> dict:
             "version": node["version"],
             "labels": node["labels"],
             "scheduled": node["scheduled"],
-            "suppress": node.get("suppress", []),
             "condition": node.get("condition"),
             "body_html": render_markdown(_read_body(root, node)),
             "deps": deps_out,
@@ -441,7 +441,6 @@ function renderDetail(n){
   if (n.status) badges.push(`<span class="badge status">${n.status}</span>`);
   if (n.condition) badges.push(`<span class="badge">${n.condition}</span>`);
   (n.labels||[]).forEach(l => badges.push(`<span class="badge">${escapeHtml(l)}</span>`));
-  if ((n.suppress||[]).length) badges.push(`<span class="badge">suppress:${n.suppress.join(",")}</span>`);
 
   const par = parents(n), ch = children(n);
   const depOut = n.deps, depIn = n.dependents;

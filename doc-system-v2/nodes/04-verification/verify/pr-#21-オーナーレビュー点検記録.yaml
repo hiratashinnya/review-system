@@ -1,14 +1,12 @@
 title: "PR #21 オーナーレビュー点検記録"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
-suppress: [RULE-004]
-suppress_reason: "過去の検証事実スナップショット。参照先の版上げによるドリフトは凍結免除（DD-2）"
 edges:
   - to: "カバレッジテーブルの出力フォーマット"
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: "各ノードは直接の親のみへ辺を張る-usdm-1段制約"
-    ref_version: "0.3"
+    ref_version: "0.1"
   - to: "依存グラフレポート出力"
     ref_version: "0.2"
   - to: "参照関係複雑度算出"
@@ -34,6 +32,4 @@ edges:
   - to: "l2-fr-1-ノードバッジ-v0.3-と-fr.md-ファイル-version-x.y=0.2-の不一致"
     ref_version: "0.1"
   - to: "l3-tmp-草稿に差し戻し済み-spec-41〜43-と旧-rule-028-定義が残存"
-    ref_version: "0.1"
-  - to: "verify-の-rule-004-免除・fnd-は再検証シグナルとして据え置き-q-1-から昇格"
     ref_version: "0.1"

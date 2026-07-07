@@ -44,6 +44,43 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(rows[0]["to"], "parent-spec")
 
 
+def _drift_meta(nodes):
+    return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
+
+
+class TestDriftUnconditional(unittest.TestCase):
+    """issue #118: suppress 機構は廃止済み。drift（RULE-004）は node の type/属性に関わらず無条件発火する。
+
+    かつて ``suppress: [RULE-004]`` を持つ VERIFY 等の凍結記録は drift 判定を免除されていたが、
+    オーナー方針（依存先ノード更新時の影響確認は必須）によりその凍結免除機構自体を撤去した。
+    """
+
+    target = {"id": "target", "type": "spec", "version": "0.2.0", "edges": [],
+              "yaml_path": "nodes/02-what/spec/target.yaml"}
+
+    def _verify_src(self):
+        # ref "0.1" ≠ target v0.2 → ドリフト。旧 suppress:[RULE-004] があれば免除されていたケース。
+        return {"id": "src", "type": "verify", "version": "0.1.0",
+                "yaml_path": "nodes/04-verification/verify/src.yaml",
+                "edges": [{"to": "target", "ref_version": "0.1"}]}
+
+    def test_drift_flagged_for_verify_type_source(self):
+        self.assertEqual(len(query.drift(_drift_meta([self._verify_src(), self.target]))), 1)
+
+    def test_deps_drift_true_for_verify_type_source(self):
+        rows = query.deps(_drift_meta([self._verify_src(), self.target]), "src")
+        self.assertIs(rows[0]["drift"], True)
+
+    def test_dependents_drift_true_for_verify_type_source(self):
+        rows = query.dependents(_drift_meta([self._verify_src(), self.target]), "target")
+        self.assertIs(rows[0]["drift"], True)
+
+    def test_orphans_unaffected_by_removed_suppress_mechanism(self):
+        # RULE-005（孤立）は元々 suppress と無関係。廃止後も変わらず判定される。
+        lonely = {"id": "lonely", "type": "spec", "version": "0.1.0", "edges": []}
+        self.assertEqual([n["id"] for n in query.orphans(_drift_meta([lonely]))], ["lonely"])
+
+
 def _prompt_node(node_id: str, carrier: str | None = "skill") -> dict:
     node = {"id": node_id, "type": "prompt", "version": "0.1.0", "edges": []}
     if carrier is not None:

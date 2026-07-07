@@ -56,6 +56,43 @@ class TestBuildMeta(unittest.TestCase):
         self.assertEqual(len(m["nodes"]), 5)
 
 
+class TestOptionalFieldAggregation(unittest.TestCase):
+    """#81 で正式化した任意フィールドの集約（suppress/suppress_reason は #118 で廃止済み）。"""
+
+    def _write(self, root, rel, yaml_text):
+        from pathlib import Path
+        y = root / rel
+        y.parent.mkdir(parents=True, exist_ok=True)
+        y.write_text(yaml_text, "utf-8")
+        y.with_suffix(".md").write_text("body\n", "utf-8")
+        return y
+
+    def test_aggregates_carrier_result_log_ref(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            y = self._write(root, "nodes/04-verification/tr/x.yaml",
+                             'title: t\nversion: "0.1.0"\nresult: PASS\n'
+                             'log_ref: "ci/log"\ncarrier: skill\nedges: []\n')
+            node = meta.read_node(y, root)
+        self.assertEqual(node["result"], "PASS")
+        self.assertEqual(node["log_ref"], "ci/log")
+        self.assertEqual(node["carrier"], "skill")
+
+    def test_suppress_field_absent_entirely(self):
+        """suppress/suppress_reason は issue #118 で機構ごと廃止。存在しても集約しない。"""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            y = self._write(root, "nodes/02-what/spec/x.yaml",
+                             'title: t\nversion: "0.1.0"\nedges: []\n')
+            node = meta.read_node(y, root)
+        for k in ("suppress", "suppress_reason", "result", "log_ref", "carrier"):
+            self.assertNotIn(k, node)
+
+
 class TestPlacementValidation(unittest.TestCase):
     """read_node は不正配置を silently 誤メタ化せず MetaError で fail-close する。"""
 
