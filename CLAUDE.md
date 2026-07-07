@@ -49,12 +49,14 @@
 - スキル（実装設計）：`/architecture-design` `/orchestration-design` `/prompt-design` `/impl-design-pipeline`（凍結セット）・`/test-strategy`
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
+- スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し、実装は `issue-implementer`・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
 - スキル（ノード検索・コンテキスト効率）：`/docidx`（**v1-archive 専用**。現行コーパスは doc-system-v2 のため対象外。実体＝`docidx/`＝`python -m docidx`・対象は `doc-system-v1-archive/`。read-only・drift は情報提示のみで判定はしない）。v2 コーパスの検索・読込は `docidx-lookup`（下記）が担う
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
 - サブエージェント（ノード検索）：`docidx-lookup`（**dsv2-native**＝`python3 -m dsv2 index` の meta.json を grep/python でフィルタ→ `Read` で本文取得、辺は `dsv2 deps`/`dependents` で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は `dsv2` CLI 実行のみ）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
 - サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
+- サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：`issue-implementer`（1 Issue をブランチ→実装→テスト→commit→push→PR まで完結・**merge 不可**）／`pr-reviewer`（PR をレビュー→コメント→**merge 可・push 不可**）。**push/merge の非対称権限は `.claude/hooks/agent-command-gate.sh`（PreToolUse・agent_type ゲート）で機械強制**（プロンプト自制ではない・既知の限界は Issue #129）。両者は非対話（AskUserQuestion なし）＝曖昧は STOP 報告・対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 

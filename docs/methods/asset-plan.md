@@ -41,6 +41,7 @@
 | 設計総点検 | 既存拡張 | エージェント | `spec-inspector`（点検対象に設計ドキュメント追加） | 7 |
 | Issue #3 資産の横展 | 横展オーケストレータ | スキル＋Python ヘルパー | `/asset-lateral-deploy` | 8 |
 | 外部 CLI 委譲（agy/Antigravity） | 外部委譲ツール | スキル（薄い起動口・disable-model-invocation）＋エージェント | `/agy-delegate`・`agy-delegate` | — |
+| Issue 運用（implement→PR→review→merge→close） | Issue 処理オーケストレータ＋ファンアウト2種＋権限フック | スキル（disable-model-invocation）＋エージェント2＋PreToolUse フック | `/issue-pipeline`・`issue-implementer`・`pr-reviewer`（＋`.claude/hooks/agent-command-gate.sh`） | — |
 | ノード検索/読み込み（md2idx 思想） | 検索・コンテキスト効率 | スキル（CLI 利用手順）＋エージェント（検索ループ隔離） | `/docidx`・`docidx-lookup`（実体＝`docidx/`） | — |
 
 > `docidx` を**スキル＋エージェント両方**にする理由：スキルは `python -m docidx` の利用手順（メインスレッドがその場で叩く）。エージェント `docidx-lookup` は「検索→選別→show→要約」の反復を別コンテキストに隔離し、ダイジェストだけ返してメインの文脈を節約する自走仕事。責務は**取得（retrieval）**で、点検（`spec-inspector`）・価値経路（`/value-trace`）・著作（`*-author`）とは別軸（asset-auditor 監査済・新規）。
@@ -66,6 +67,7 @@
     orchestration-design/SKILL.md  # A18 制御フロー・fail-close・ログ/版
     prompt-design/SKILL.md         # A19 LLM 雛形・役割制約・注入対策
     impl-design-pipeline/SKILL.md  # A20 実装設計オーケストレータ（disable-model-invocation）
+    issue-pipeline/SKILL.md        # Issue #120 Issue 処理オーケストレータ（disable-model-invocation・dev-tooling メタパイプライン）
   standards/                   # A16 汎用標準（非活性・auto-load されない）
     test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
   agents/                      # ※ 現況の正本は tailoring-registry.md（本ツリーは設計初期スナップショット）
@@ -81,6 +83,10 @@
     reconciliation-validator.md  # 著作後の read-only 構造検証→VALIDATION_OK/ROLLBACK（Write/Edit なし＝fail-close・DD-22）
     reconciliation.md          # 検証合格後の self_fix 適用＋本ファイル確定書込＋tmp 掃除（書込専任・DD-22）
     agy-delegate.md            # 外部 CLI(agy) 委譲
+    issue-implementer.md       # Issue #120 1 Issue を実装→PR（merge 不可・agent-command-gate 機械強制）
+    pr-reviewer.md             # Issue #120 PR レビュー→merge（push 不可・agent-command-gate 機械強制）
+  hooks/
+    agent-command-gate.sh      # Issue #120 PreToolUse・issue-implementer/pr-reviewer の push/merge 非対称権限を機械強制
   tailoring-registry.md        # A16 標準⇄テーラリングの対応・実体パス・差分（agents の正本）
 CLAUDE.md                      # A2/A3 の作業流儀＋「迷ったら spec-principles」
 ```

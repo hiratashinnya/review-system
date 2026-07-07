@@ -40,4 +40,5 @@
 > ※ 思考支援スキル（align・architecture-design 等）は著作規約セクションを暫定で保持。型別エージェントへの完全移管は後続タスク。
 > ※ `asset-lateral-deploy` は Issue #3 で新規追加（汎用メソッド・テーラリング対象外）。
 > ※ `agy-delegate`（スキル＋エージェント）は外部 CLI 委譲ツール（汎用・テーラリング対象外）。agy MCP はローカル CLI／Windows Credential Manager 依存のため**クラウド/別プラットフォームへは非移植**。横展時は「環境依存・非移植」注記が要る。
+> ※ `issue-pipeline`（スキル）＋ `issue-implementer`／`pr-reviewer`（エージェント）は Issue 運用の dev-tooling メタパイプライン（Issue #120 で新規追加・**未テーラリング active**・テーラリング対象外）。gh CLI／Claude Code フック（`agent-command-gate.sh`）／Task 委譲／`bloom-model-tier` に依存し **Copilot 等に等価物なし**のため `.github/` へは非移植（`agy-delegate` と同様・横展時は「環境依存・非移植」注記が要る）。doc-system-v2 の ORC ノード化・`config.yml` の `prompt_coverage_targets` 対象外（in-graph の観測可能成果物を持たない repo 運用ツールのため・`agy-delegate`/`bloom-model-tier` と同区分）。
 > ※ `docidx`（スキル）＋ `docidx-lookup`（エージェント）はノード検索/読み込みツール（実体 `docidx/`・Python 標準ライブラリのみ・汎用・テーラリング対象外）。doc-system フォーマット仕様（SPEC/notation）に依存＝依存マップは `docidx/README.md`・各関数 `依存仕様:` docstring（フォーマット改版時に見直す）。
