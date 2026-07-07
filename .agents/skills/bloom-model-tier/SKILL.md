@@ -9,7 +9,7 @@ description: Assign a Claude model tier + effort level to a sub-agent's frontmat
 ① その仕事の**主要な認知負荷**（Bloom 改訂版分類の何段か）
 ② その難所が **網羅性ボトルネック**（thinking budget を増やせば直接品質が上がる）か **判断ボトルネック**（曖昧な解釈・利害trade-off・不可逆な決定＝モデル自体の知識/判断力が効く）か。
 
-`effort:`（`low/medium/high/xhigh/max`・`model:` と独立に指定可・Claude Code sub-agent frontmatter の正規フィールド）を使い、**Lv4 以上でも網羅性ボトルネックなら opus に上げず `sonnet` + 高 effort に倒す**（過剰な opus 割当のコスト規律）。
+Codex では対応する `model` / `model_reasoning_effort` 設定に読み替える。移植元の `effort:` 指定（`low/medium/high/xhigh/max`・`model:` と独立指定）を参考にし、**Lv4 以上でも網羅性ボトルネックなら opus に上げず `sonnet` + 高 effort に倒す**（過剰な opus 割当のコスト規律）。
 原則：[spec-principles](../spec-principles/SKILL.md)（**PR2 機械判定と運用ルールを混ぜない**＝Bloom レベルも軸2も順序/二値の属性なので自動ゲート可能・**PR7 矛盾は停止**）。
 
 ## 判定ルール（機械ゲート＝PR2）

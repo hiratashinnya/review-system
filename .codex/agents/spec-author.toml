@@ -19,7 +19,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 ## 出力（共通契約のミラーレイアウト）
 
-各 SPEC を対で書く（Write ツール）。SPEC の `<stage>/<type>` は `02-what/spec`：
+各 SPEC を対で書く（Codex のファイル編集機能）。SPEC の `<stage>/<type>` は `02-what/spec`：
 ```
 tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
@@ -103,7 +103,7 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 4. 各子アサーションに識別的なタイトルを付け、`slugify(title)` で slug を確定する
 5. 各子ノードの `{slug}.yaml`＋`{slug}.md` を草稿する
 6. 受け入れ条件を全項目チェックする
-7. `tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.{md,yaml}` に書き込む（Write ツール）
+7. `tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.{md,yaml}` に書き込む（Codex のファイル編集機能）
 
 ## 受け入れ条件（書き込み前に全項目チェック・共通契約のチェックに加えて）
 

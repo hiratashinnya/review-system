@@ -19,7 +19,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 ## 出力（共通契約のミラーレイアウト）
 
-各ノードを対で書く（Write ツール）。分析層の型はすべて `03-analysis/<type>`（actor/i/o/d/p/e/term）：
+各ノードを対で書く（Codex のファイル編集機能）。分析層の型はすべて `03-analysis/<type>`（actor/i/o/d/p/e/term）：
 ```
 tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.yaml  # サイドカー

@@ -19,7 +19,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 ## 出力（共通契約のミラーレイアウト）
 
-各ノードを対で書く（Write ツール）。検証層の型は `04-verification/<type>`。**lifecycle 型（fnd/q/dd/pend）は `[<status>/]` を必ず挟む**（config.yml status_dirs）：
+各ノードを対で書く（Codex のファイル編集機能）。検証層の型は `04-verification/<type>`。**lifecycle 型（fnd/q/dd/pend）は `[<status>/]` を必ず挟む**（config.yml status_dirs）：
 ```
 tmp/<sprint>/<parent-id>/nodes/04-verification/<type>/[<status>/]{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/04-verification/<type>/[<status>/]{slug}.yaml  # サイドカー

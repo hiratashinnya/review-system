@@ -7,7 +7,7 @@ disable-model-invocation: true
 # 仕様設計パイプライン（オーケストレータ）
 
 要件から MVP スコープまでを順に回す。**メインスレッドで実行**——ただし理由は「サブエージェントが呼べないから」ではない
-（DD-22 でその制約は無効化＝Claude Code v2.1.172+ はサブエージェントの depth 5 ネストを許容）。**対話（オーナー判断・
+（Codex では subagent workflow を明示的に使える。深いネスト可否は現在の Codex 設定に従う）。**対話（オーナー判断・
 Q/DD 起票・停止）が要る段を主文脈に残すため** skill にしている（①-C ハイブリッド・DD-22）。**非対話の並列著作 fan-out は
 `authoring-fanout` エージェント（`author: requirements-author` / `author: spec-author`）へ委譲**する（下記 5）。
 原則：[spec-principles](../spec-principles/SKILL.md)。
@@ -18,7 +18,7 @@ Q/DD 起票・停止）が要る段を主文脈に残すため** skill にして
 
 ## 手順（順に・各段でチェックポイント）
 1. `/align` — 段取りと確定パラメータ（**対話・skill**）。
-2. **I/O 台帳＋イベントリスト＋カバレッジ** — 台帳とイベントリストを起こし、ACTOR/I/O/E ノードを **analysis-author** で著作する（2段確定：`reconciliation-validator`→`reconciliation`）。※旧 `/io-event-ledger` skill は 2026-06-11 に廃止され、著作規約は型別 `*-author` エージェントへ移管済み（[tailoring-registry](../../tailoring-registry.md)）。
+2. **I/O 台帳＋イベントリスト＋カバレッジ** — 台帳とイベントリストを起こし、ACTOR/I/O/E ノードを **analysis-author** で著作する（2段確定：`reconciliation-validator`→`reconciliation`）。※旧 `/io-event-ledger` skill は 2026-06-11 に廃止され、著作規約は型別 `*-author` エージェントへ移管済み（[tailoring-registry](../../../.claude/tailoring-registry.md)）。
 3. **spec-inspector** サブエージェント — 点検（gap/矛盾）。**矛盾は止めて確認**（対話・skill／PR7 起票→オーナー）。
 4. **structured-analysis** サブエージェント — コンテキスト→DFD→単一責務→状態。
 5. **要求層の並列著作 fan-out（非対話・エージェント委譲）** — 2・4 が「著作すべき親ノード群」を確定したら、**`authoring-fanout`** エージェントに委譲する：

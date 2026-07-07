@@ -37,7 +37,7 @@ validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック
 ### Step 3: v2 コーパスへの確定書き込み
 
 1. tmp のミラーレイアウト（`tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.{md,yaml}`）は **コーパスの配置先と同一構造**。self_fix 適用後、各対を対応する `doc-system-v2/nodes/<stage>/<type>/[<status>/]{slug}.{md,yaml}` へ Write で反映する（path から type/status が導出されるため配置先は一意）。
-2. 既存ノードの**更新**（親サイドカー・backref 付与先等）は、対応する `doc-system-v2/nodes/.../{slug}.yaml` を Read → Edit で反映する。**Bash（sed/awk/echo 等）の場当たり編集は禁止**＝書き込みは Write/Edit のみ。
+2. 既存ノードの**更新**（親サイドカー・backref 付与先等）は、対応する `doc-system-v2/nodes/.../{slug}.yaml` を 読み込み→編集 で反映する。**Bash（sed/awk/echo 等）の場当たり編集は禁止**＝書き込みは Codex のファイル編集 のみ。
    - **例外＝FND 解消（status 遷移＋辺逆転）**：resolved 化は手編集でなく**決定的ツール `dsv2 reverse` で機械実行する**：`python3 -m dsv2 reverse <FND-slug> --root doc-system-v2`（まず dry-run で差分確認）→ 妥当なら `--apply`。これは forward 辺削除＋処置対象への `→FND` backref 付与＋DD-3 凍結記録＋z バンプ＋`fnd/open/ → fnd/resolved/` の **`git mv`**（rename・履歴保持）を一括実行する。冪等・2 フェーズ・想定外形は停止（fail-close）。既存 DD-3 行と食い違う等の警告が出たら**書込を止めて主文脈に返す**（人手照合・勝手に上書きしない）。これは「場当たり Bash 編集の禁止」の趣旨に反しない＝テスト済み専用ツール。
    - **その他の status 遷移（DD/Q/PEND の decided→closed 等）**：`git mv doc-system-v2/nodes/.../<type>/<old-status>/{slug}.{md,yaml} .../<new-status>/{slug}.{md,yaml}`（id=slug 不変ゆえ参照は壊れない・rename で履歴保持）。内容の版更新が伴う場合はサイドカーを Edit で z/内容バンプする。
 3. **全ファイルの書き込みが完了してから** `tmp/<sprint>/<parent-id>/` を削除する。
@@ -62,5 +62,5 @@ DONE:
 - tmp への書き込みは self_fix 適用（Step 2）に限る（新規ノードの著作はしない＝著作エージェントの専権）。
 - コーパスへの書き込みは Step 3 でのみ行う。
 - `validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能のいずれも、**書き込まずに主文脈へ返す**（fail-close）。
-- Bash は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）専用。それ以外の本文編集は Write/Edit のみ（場当たり sed/awk/echo 禁止）。
+- Bash は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）専用。それ以外の本文編集は Codex のファイル編集 のみ（場当たり sed/awk/echo 禁止）。
 """
