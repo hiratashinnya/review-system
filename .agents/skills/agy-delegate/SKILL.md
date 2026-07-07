@@ -14,7 +14,7 @@ Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レ
 
 ## 必須ゲート（破ってはならない）
 
-1. **疎通チェックが先（fail-close）**：移譲の前に、現在の Codex セッションで agy MCP の status 相当ツールが利用可能か確認し、そのツールで疎通を確認する。
+1. **疎通チェックが先（fail-close）**：移譲の前に、現在の Codex セッションで公開されている agy MCP ツールを確認し、status 相当能力で疎通を確認する。
    - **クラウド/ヘッドレス環境では agy は使えない**（ローカル CLI・Windows Credential Manager 認証依存）。
    - `Overall: OK` でなければ**移譲せず停止**し、理由を報告する。推測で移譲を試みない。
 2. **Windows パスで渡す**：`workspace` は `C:\...` 形式（WSL パス `/mnt/c/...` は `[WinError 267]` で失敗）。
