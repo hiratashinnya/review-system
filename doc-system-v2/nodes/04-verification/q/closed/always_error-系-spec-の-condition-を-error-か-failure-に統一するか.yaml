@@ -1,5 +1,5 @@
 title: "always_error 系 SPEC の condition を error か failure に統一するか"
-version: "0.2.0"
+version: "0.3.0"
 labels: []
 scheduled: ""
 edges:
@@ -12,3 +12,6 @@ edges:
   - to: "孤立ノードの検出"
     ref_version: "0.2"
     note: "SPEC-7（RULE-005）現 condition=failure。入力等価クラス基準で妥当（変更なし）"
+  - to: "spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格"
+    ref_version: "0.1"
+    note: "本 Q は当 DD として昇格・決定済み"

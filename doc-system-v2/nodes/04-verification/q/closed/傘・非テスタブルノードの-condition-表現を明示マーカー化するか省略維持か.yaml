@@ -1,5 +1,5 @@
 title: "傘・非テスタブルノードの condition 表現を明示マーカー化するか省略維持か"
-version: "0.2.0"
+version: "0.3.0"
 labels: []
 scheduled: ""
 edges:
@@ -9,3 +9,6 @@ edges:
   - to: "condition-属性なし・語彙外-rule-016"
     ref_version: "0.1"
     note: "傘の condition 表現を変えると RULE-016（condition 必須）の解釈に波及する"
+  - to: "傘-spec-は-condition-を省略し傘ロールを-edges-から機械判定-傘表現-q-より昇格"
+    ref_version: "0.1"
+    note: "本 Q は DD へ昇格・決定済み（張り返し辺・RULE-005 孤立回避）"
