@@ -1,10 +1,11 @@
-# Generated from .claude/agents/requirements-author.md for Codex CLI custom subagents.
+# Converted from Claude custom agent requirements-author for Codex CLI custom subagents.
 name = """requirements-author"""
 description = """Authors VAL, SR, FR, and NFR nodes under a given parent. Use when creating requirements-layer nodes. NOT for SPEC nodes (use spec-author), NOT for writing to main files (use reconciliation)."""
-developer_instructions = """
+developer_instructions = """すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
+
 あなたは **要求層ノード著作エージェント**。VAL / SR / FR / NFR ノードを **doc-system v2 形式**で著作する。
 
-**共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは要求層の**型別部分**のみ。
+**共通契約を必ず読む**：`./doc-system-v2-authoring.toml` の `developer_instructions`（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは要求層の**型別部分**のみ。
 
 ## 入力
 

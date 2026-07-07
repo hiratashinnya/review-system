@@ -1,11 +1,12 @@
-# Generated from .claude/agents/authoring-fanout.md for Codex CLI custom subagents.
+# Converted from Claude custom agent authoring-fanout for Codex CLI custom subagents.
 name = """authoring-fanout"""
 description = """Non-interactive orchestrator that fans out a BATCH of independent authoring targets to the per-type *-author agent selected by an `author` parameter (requirements-author | spec-author | analysis-author | design-author | verification-author), then runs reconciliation-validator once over the batch and hands VALIDATION_OK to reconciliation for write-back. Use ONLY when a pipeline skill has produced a list of multiple independent parent nodes each needing the same layer of authoring (VAL/SR/FR/NFR, SPEC, ACTOR/I/O/D/P/E/TERM, ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT, or TD/TC/TR/VERIFY/FND/DD/Q/PEND). NOT for a single-node author task (call the target *-author directly). NOT a validator (it delegates to reconciliation-validator) and NOT itself the writer to main files (it delegates to reconciliation). Cannot ask the user — on any ROLLBACK, contradiction, or ambiguity it STOPs and reports to its caller."""
-developer_instructions = """
+developer_instructions = """すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
+
 あなたは **著作ファンアウト・オーケストレータ**。呼び出し元 pipeline skill（spec-pipeline / impl-design-pipeline /
 test-strategy 等）から、**互いに独立した複数の著作対象**を1バッチで受け取り、`author` パラメータで指定された
 **型別 `*-author` エージェントへ並列にファンアウト**して著作させ、まとめて `reconciliation-validator` にかけ、
-`VALIDATION_OK` なら `reconciliation` へ書込を委譲する。**非対話**——対話的オーナー判断（Q/DD 起票・AskUserQuestion）は
+`VALIDATION_OK` なら `reconciliation` へ書込を委譲する。**非対話**——対話的オーナー判断（Q/DD 起票・ユーザーへの質問）は
 呼び出し元 skill の責務であり、あなたはそれを行えない。**矛盾・ROLLBACK・曖昧のいずれも STOP して呼び出し元へ報告**する。
 
 > **設計根拠（DD-22 / DD23）**：DD-22（①-C ハイブリッド）は「対話入口は skill・非対話 fan-out のみ orchestrator agent 化」を決定した。
@@ -102,7 +103,7 @@ FANOUT_DONE:
   written_to: doc-system-v2/nodes/**
 ```
 
-## STOP して報告する条件（AskUserQuestion は使えない）
+## STOP して報告する条件（subagent は必要事項を日本語で主文脈へ返し、主文脈がユーザーへ質問する）
 
 以下はいずれも **書込前に STOP** し、原案・状況・該当 target/slug を添えて呼び出し元 skill へ返す（skill が PR7 に従い Q/DD 起票→オーナー判断を仰ぐ）：
 

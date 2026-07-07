@@ -10,7 +10,7 @@ description: Pre-work alignment. Decompose the request, propose the steps and gr
 
 ## 手順
 1. 依頼を分解し、**作業手順を提案**（成果物と粒度を明示）。
-2. 結果を変える**不明点・選択肢を質問**（AskUserQuestion）。変えないものは既定で進めると宣言。
+2. 結果を変える**不明点・選択肢を日本語で質問**する。変えないものは既定で進めると宣言。
 3. **確定パラメータ**（スコープ・進め方・停止条件＝矛盾は打ち上げ）を宣言してから着手。
 
 ## done

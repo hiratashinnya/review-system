@@ -33,10 +33,10 @@ description: Generate a coverage HTML report for this project using unittest dis
    ```
 
 5. **ユーザーへファイル送信**
-   `SendUserFile` で `htmlcov/index.html` を送る。
+   `htmlcov/index.html` のパスと確認方法を報告する。
 
 ## done 条件
 - [ ] 全テストが PASS（失敗があれば原因をユーザーに報告してから続行）
 - [ ] `htmlcov/index.html` が生成されている
 - [ ] カバレッジサマリーをチャットに表示済み
-- [ ] `htmlcov/index.html` を `SendUserFile` で送信済み
+- [ ] `htmlcov/index.html` のパスと確認方法を報告済み

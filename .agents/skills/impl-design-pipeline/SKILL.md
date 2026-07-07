@@ -23,7 +23,7 @@ disable-model-invocation: true
    - 独立親ノードごとに `targets` 配列（`parent_id`・`kind`・`brief`）で渡し、Wave1（MOD/PORT/PRS/DS など依存の薄い基盤層）→Wave2（ORC/DM/SCM/CFG/PROMPT など Wave1 に依存する層）の**2波に分けて並列著作**させる（依存対象を同バッチに混ぜない＝skill が分割）。
    - DM 確定時の TERM 設計ファセット追記（design-author が既存 TERM ノードへ Python 型名/定義モジュールを追記・新規作成しない）も同じ fan-out 経路に乗る。
    - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。
-   - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
+   - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（subagent はユーザーへ直接質問せず、主文脈が日本語で質問する）。
 3. **orchestration-design**：制御フロー（スイムレーン）・fail-close・ログ/版。（確定後、2.5 と同じ経路で ORC ノードを著作する）
 4. **prompt-design**：LLM 雛形・役割制約・注入対策（出力スキーマは schema-design）。（確定後、2.5 と同じ経路で PROMPT ノードを著作する）
 5. **テスト戦略**：[test-strategy](../test-strategy/SKILL.md)（テーラリング済）を適用し証跡の置き場を決める。

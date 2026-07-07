@@ -25,7 +25,7 @@ Q/DD 起票・停止）が要る段を主文脈に残すため** skill にして
    - まず `author: requirements-author`（VAL/SR/FR/NFR）を、独立親ごとに `targets` 配列で渡して**並列著作**させる。
    - 依存する SPEC は親 FR/SPEC 確定後、別バッチ `author: spec-author` で委譲する（依存対象は同バッチに混ぜない＝skill が分割）。
    - 単一対象しか無い段では fan-out せず `requirements-author` / `spec-author` を直接呼ぶ（fan-out はオーバースペック）。
-   - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、該当 author の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
+   - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、該当 author の再起動 or PR7 起票（Q/DD → オーナー）を行う（subagent はユーザーへ直接質問せず、主文脈が日本語で質問する）。
 6. `/value-trace` — イベント総点検（遮断検出）。
 7. `/mvp-scope` — 価値ベースの線引き（**対話・skill**）。
 
