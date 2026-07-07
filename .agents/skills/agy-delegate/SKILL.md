@@ -1,8 +1,9 @@
 ---
 name: agy-delegate
-description: ユーザーが明示起動する「Antigravity(agy)CLI への作業移譲」の入口。疎通チェックを必須ゲートにして agy-delegate エージェントへ委譲する（read-only 影響調査レポート・ノード素案・調査・スクラッチコード・画像生成）。手順本体はエージェント側に単一ソース化（ここでは再記述しない）。
-disable-model-invocation: true
+description: ユーザーが明示起動する外部 CLI への作業移譲入口。疎通チェックを必須ゲートにして agy-delegate エージェントへ委譲する。手順本体はエージェント側に単一ソース化する。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # agy への作業移譲（agy-delegate）
 

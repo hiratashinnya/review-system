@@ -1,7 +1,9 @@
 ---
 name: coverage-html
-description: Generate a coverage HTML report for this project using unittest discover. Installs coverage if absent, runs all tests under tests/, writes htmlcov/index.html, and prints a per-module summary. Use when you want to see which lines are covered or uncovered.
+description: このプロジェクトで unittest discover と coverage を使い、HTML カバレッジレポートを生成する。未導入なら coverage を入れ、tests/ 配下を実行し、htmlcov/index.html とモジュール別概要を出す。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # coverage HTML レポート生成
 

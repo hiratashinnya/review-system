@@ -1,8 +1,9 @@
 ---
 name: spec-principles
-description: Cross-cutting principles for spec/requirements design & inspection — split I/O by thing+source, machine-gate vs operational rules, value-path continuity, out-of-system=non-event, state necessity, stop-on-contradiction, DFD leveling, align-first. Preloaded by inspector/analysis agents.
-user-invocable: false
+description: 仕様・要件設計と点検の横断原則。I/O 分割、機械ゲートと運用ルールの分離、価値経路、系外非イベント、状態要否、矛盾停止、DFD レベリング、認識合わせ先行を扱う。関連 agent/skill が参照する。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 仕様設計・点検の原則（PR1–PR10）
 

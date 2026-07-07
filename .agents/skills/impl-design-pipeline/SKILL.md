@@ -1,13 +1,14 @@
 ---
 name: impl-design-pipeline
-description: Orchestrate the implementation-design phase into a pre-implementation FREEZE SET — architecture-design → orchestration-design → prompt-design, recording design decisions (DD#) and running a spec-inspector total-check. Run only when explicitly invoked (the spec → impl-design bridge). Downstream of spec-pipeline.
-disable-model-invocation: true
+description: 実装前の FREEZE SET を作る実装設計フェーズを進行する。architecture-design、orchestration-design、prompt-design、判断記録、総点検を扱う。spec-pipeline の後段としてユーザーが明示起動した場合のみ使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 実装設計パイプライン（spec → 実装の橋渡し・凍結セット化）
 
 > 仕様（spec-pipeline）の下流。**論理 DFD＋ドメインモデルが確定**してから、実装前に固める設計物を**順に・チェックポイント付き**で回す。
-> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**規律**＝[CLAUDE.md](../../../CLAUDE.md) の「実装設計フェーズ」節に従って各段で実施。
+> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**規律**＝[AGENTS.md](../../../AGENTS.md) の「実装設計フェーズ」節に従って各段で実施。
 > 原則：[spec-principles](../spec-principles/SKILL.md)。
 > **対話が要る段（総点検の矛盾停止・判断ログ DD# の暫定決定）は主文脈に残す**が、**非対話の並列ノード著作 fan-out は
 > `authoring-fanout` エージェント（`author: design-author`）へ委譲**する（下記 2.5・DD-22 ①-C・issue #121）。
@@ -30,7 +31,7 @@ disable-model-invocation: true
 6. **総点検（9）**：**spec-inspector** に設計ドキュメント群を点検させ、G# を出して反映（孤児/穴/分割違反/矛盾）。
 7. **判断ログ（8）**：各段で**仕様で一意に決まらない点**を `DD#`（原案→比較→理由付き推奨→暫定決定→影響範囲）で記録。
 
-## 判断の仰ぎ方（フェーズ規律・[CLAUDE.md](../../../CLAUDE.md)）
+## 判断の仰ぎ方（フェーズ規律・[AGENTS.md](../../../AGENTS.md)）
 - **実装設計フェーズ＝暫定で進めてよい**：迷いは推奨案で暫定決定し DD# に記録して前進。
 - **矛盾・オーナー判断必須は止める**——ただし**空で止めない**：原案・比較・理由付き推奨/非推奨を必ず添える。
 - **他の決められるところは進める**。一通り終えたら**整理して提示**。
@@ -44,5 +45,5 @@ disable-model-invocation: true
 
 ## 成果物
 - 設計索引（凍結セット）＋ architecture/orchestration/prompt 各設計 ＋ 判断ログ（DD#）＋ doc-system-v2 設計層ノード（`authoring-fanout` 経由で著作・反映済み）。
-- 同期更新：[method-inventory](../../../docs/methods/method-inventory.md)・[asset-plan](../../../docs/methods/asset-plan.md)・[CLAUDE.md](../../../CLAUDE.md)。
+- 同期更新：[method-inventory](../../../docs/methods/method-inventory.md)・[asset-plan](../../../docs/methods/asset-plan.md)・[AGENTS.md](../../../AGENTS.md)。
 </content>

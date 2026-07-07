@@ -1,14 +1,15 @@
 ---
 name: test-strategy
-description: Test strategy for THIS project (review-system) — unittest per public function, TD (Markdown test design) + TC (Python unittest code) + TR (test result with result/log_ref frontmatter), commit-before-test, same 3-set for Codex CLI e2e. Use when planning HOW to test the implementation. NOT spec/design (see domain-model/schema-design), NOT asset auditing (see asset-auditor).
-status: tailored (active) — derived from .claude/standards/test-strategy
+description: 本プロジェクト review-system のテスト戦略。公開関数ごとの unittest、TD/TC/TR の 3 点セット、commit-before-test、Codex CLI e2e の同形式を扱う。実装のテスト方法を計画する時に使い、仕様/設計や資産監査には使わない。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # テスト戦略（review-system テーラリング済・active）
 
-> 汎用標準 [`.claude/standards/test-strategy`](../../../.claude/standards/test-strategy/SKILL.md) の**不変条件を継承**し、本PJのノブを埋めた版。
-> 由来・差分は [tailoring-registry](../../../.claude/tailoring-registry.md)。実装の足場は [design/02 モジュール構成](../../../docs/design/02-module-architecture.md)。
-> doc-system の **TD/TC/TR 3層**（[DD-009](../../../docs/doc-system/02-meta-schema.md)）に対応済み（移行ログ: [backups/2026-06-10](../../../.claude/backups/2026-06-10/MIGRATION-LOG.md)）。
+> 汎用標準を Codex 用に移した本 skill の**不変条件を継承**し、本 PJ のノブを埋めた版。移植元の旧テスト標準は比較用としてのみ参照する。
+> 由来・差分は旧 tailoring registry を比較用に確認する。実装の足場は [design/02 モジュール構成](../../../docs/design/02-module-architecture.md)。
+> doc-system の **TD/TC/TR 3層**（[DD-009](../../../docs/doc-system/02-meta-schema.md)）に対応済み。
 
 ## doc-system との対応
 

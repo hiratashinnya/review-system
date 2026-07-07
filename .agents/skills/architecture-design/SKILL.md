@@ -1,7 +1,9 @@
 ---
 name: architecture-design
-description: Design the PHYSICAL module/dependency architecture from a SETTLED logical DFD + domain model — hexagonal ports & adapters, dependency-inward, a single composition root, the CLI/interface surface with exit codes, platform/protocol ports + a driven protocol, and persistence repository ports with transactions. Use AFTER structured-analysis (logical decomposition) and domain-model. NOT logical DFD decomposition (use structured-analysis), NOT external file-format schema (use schema-design).
+description: 確定済みの論理 DFD とドメインモデルから物理モジュール/依存アーキテクチャを設計する。structured-analysis と domain-model の後に使い、論理分解や外部ファイル形式スキーマ設計には使わない。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # アーキテクチャ設計（論理 DFD → 物理モジュール/依存・IF・プロトコル・永続）
 

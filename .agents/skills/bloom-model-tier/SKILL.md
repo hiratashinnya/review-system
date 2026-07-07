@@ -1,7 +1,9 @@
 ---
 name: bloom-model-tier
-description: Assign a Codex model and model_reasoning_effort to a custom agent by classifying its dominant Bloom's-revised cognitive level and whether difficulty is thoroughness-bound or judgment-bound. Use when deciding Codex custom-agent model settings. NOT runtime control-flow or version-stamp logging (orchestration-design), NOT prompt template design (prompt-design).
+description: カスタム agent の主な認知負荷を Bloom 改訂版で分類し、model と model_reasoning_effort を決める。custom agent のモデル設定を決める時に使い、実行制御やプロンプトテンプレート設計には使わない。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # bloom-model-tier — Bloom 認知分類 × 難所の性質で Codex agent の model / model_reasoning_effort を選ぶ
 

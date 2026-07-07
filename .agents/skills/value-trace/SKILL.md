@@ -1,7 +1,9 @@
 ---
 name: value-trace
-description: Trace each event from input through processes to output as source|info|receiver triples, verifying DFD leveling (no level-skipping) and flagging any severed value path. Use to total-check a process design against the event list.
+description: 各イベントを入力からプロセス、出力まで source|info|receiver の三つ組で追跡し、DFD レベリングと価値経路の断絶を点検する。イベントリストに対するプロセス設計の総点検に使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 価値経路トレース（イベント総点検）
 

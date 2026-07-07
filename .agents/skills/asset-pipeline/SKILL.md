@@ -1,8 +1,9 @@
 ---
 name: asset-pipeline
-description: Orchestrate the asset-ization pipeline (method -> skill/agent) in the main thread — inventory, asset-auditor reuse/conflict check, proposal (generic vs project-specific), phased build with checkpoints, verification gate. Run only when explicitly invoked.
-disable-model-invocation: true
+description: 手法を skill/agent 資産へ落とし込むパイプラインを主文脈で進行する。棚卸し、再利用/競合確認、汎用/プロジェクト固有の提案、段階的構築、検証ゲートを扱う。ユーザーが明示起動した場合のみ使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 資産化パイプライン（オーケストレータ）
 

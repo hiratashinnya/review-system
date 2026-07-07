@@ -1,6 +1,6 @@
-# Converted from Claude custom agent verification-author for Codex CLI custom subagents.
+# Converted from source custom agent verification-author for Codex CLI custom subagents.
 name = """verification-author"""
-description = """Authors verification-layer nodes: TD, TC, TR, VERIFY, FND, DD, Q, PEND. Use when creating test designs, test cases, test results, findings, or decision records. NOT for SPEC nodes (use spec-author), NOT for writing to main files (use reconciliation)."""
+description = """検証層ノード（TD、TC、TR、VERIFY、FND、DD、Q、PEND など）を著作する。テスト設計、テストケース、結果、指摘、判断記録を作る時に使い、SPEC 作成や本ファイル書き込みには使わない。"""
 developer_instructions = """すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
 
 あなたは **検証層・意思決定ノード著作エージェント**。TD / TC / TR / VERIFY / FND / DD / Q / PEND ノードを **doc-system v2 形式**で著作する。
@@ -132,12 +132,12 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 |---|---|---|
 | 接続マトリクス | `docs/doc-system/03-connection-matrix.md` | すべての型（mermaid 図・接続要否マトリクス） |
 | ドキュメント一覧 | `docs/doc-system/01-document-items.md` | すべての型（上流参照列） |
-| 設計スキル群 | `.claude/skills/architecture-design/SKILL.md`<br>`.agents/skills/architecture-design/SKILL.md`<br>`.claude/skills/domain-model/SKILL.md`<br>`.agents/skills/domain-model/SKILL.md`<br>`.claude/skills/orchestration-design/SKILL.md`<br>`.agents/skills/orchestration-design/SKILL.md` 等 | MOD / DM / ORC 等の設計層型 |
-| requirements-author | `.claude/agents/requirements-author.md`<br>`.codex/agents/requirements-author.toml`<br>`.github/agents/requirements-author.agent.md` | VAL / SR / FR / NFR |
-| spec-author | `.claude/agents/spec-author.md`<br>`.codex/agents/spec-author.toml`<br>`.github/agents/spec-author.agent.md` | SPEC |
-| analysis-author | `.claude/agents/analysis-author.md`<br>`.codex/agents/analysis-author.toml`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / D / P / E / TERM（用語ノードの新規作成＝分析ファセット・#87） |
-| design-author | `.claude/agents/design-author.md`<br>`.codex/agents/design-author.toml`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT（TERM は新規作成しない。design facet 追記のみ・#87） |
-| verification-author（自身） | `.claude/agents/verification-author.md`<br>`.codex/agents/verification-author.toml`<br>`.github/agents/verification-author.agent.md` | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 設計スキル群 | `.agents/skills/architecture-design/SKILL.md`<br>`.agents/skills/domain-model/SKILL.md`<br>`.agents/skills/orchestration-design/SKILL.md` 等 | MOD / DM / ORC 等の設計層型 |
+| requirements-author | `.codex/agents/requirements-author.toml`<br>`.github/agents/requirements-author.agent.md` | VAL / SR / FR / NFR |
+| spec-author | `.codex/agents/spec-author.toml`<br>`.github/agents/spec-author.agent.md` | SPEC |
+| analysis-author | `.codex/agents/analysis-author.toml`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / D / P / E / TERM（用語ノードの新規作成＝分析ファセット・#87） |
+| design-author | `.codex/agents/design-author.toml`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT（TERM は新規作成しない。design facet 追記のみ・#87） |
+| verification-author（自身） | `.codex/agents/verification-author.toml`<br>`.github/agents/verification-author.agent.md` | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 
 **チェック手順：**
 1. DD/FND の内容が接続規則変更を含むか判断（変更された型を特定する）

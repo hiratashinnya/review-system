@@ -1,7 +1,9 @@
 ---
 name: docidx
-description: Retrieve/load specific doc-system nodes (by id/type/label/keyword) without reading whole files, via the docidx Python CLI (`python -m docidx` — index/search/show/deps/dependents). Use BEFORE opening a large doc-system/*.md to find a node — build a lightweight index, then load only the nodes you need (md2idx philosophy). Read-only. Not validation (no coverage/gap/value-path checks — see spec-inspector/value-trace), not node authoring (see the *-author agents).
+description: ノード検索用の docidx Python CLI で doc-system ノードを id/type/label/keyword から検索・取得する。大きな doc-system ファイルを開く前に軽量 index を作り、必要なノードだけ読む。読み取り専用で、検証やノード著作には使わない。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # docidx — ノード検索/読み込み（md2idx 思想）
 

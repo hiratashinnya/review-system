@@ -1,8 +1,9 @@
 ---
 name: spec-pipeline
-description: Orchestrate the full spec-design pipeline in the main thread — align, I/O & event ledger, inspect, structured analysis, batch node-authoring fan-out, value trace, MVP scope. Run only when explicitly invoked.
-disable-model-invocation: true
+description: 仕様設計全体のパイプラインを主文脈で進行する。align、I/O・イベント台帳、点検、構造化分析、ノード著作 fan-out、value trace、MVP scope を扱う。ユーザーが明示起動した場合のみ使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 仕様設計パイプライン（オーケストレータ）
 
@@ -18,7 +19,7 @@ Q/DD 起票・停止）が要る段を主文脈に残すため** skill にして
 
 ## 手順（順に・各段でチェックポイント）
 1. `/align` — 段取りと確定パラメータ（**対話・skill**）。
-2. **I/O 台帳＋イベントリスト＋カバレッジ** — 台帳とイベントリストを起こし、ACTOR/I/O/E ノードを **analysis-author** で著作する（2段確定：`reconciliation-validator`→`reconciliation`）。※旧 `/io-event-ledger` skill は 2026-06-11 に廃止され、著作規約は型別 `*-author` エージェントへ移管済み（[tailoring-registry](../../../.claude/tailoring-registry.md)）。
+2. **I/O 台帳＋イベントリスト＋カバレッジ** — 台帳とイベントリストを起こし、ACTOR/I/O/E ノードを **analysis-author** で著作する（2段確定：`reconciliation-validator`→`reconciliation`）。※旧 `/io-event-ledger` skill は 2026-06-11 に廃止され、著作規約は型別 `*-author` エージェントへ移管済み（移植履歴は旧 tailoring registry を比較用に確認）。
 3. **spec-inspector** サブエージェント — 点検（gap/矛盾）。**矛盾は止めて確認**（対話・skill／PR7 起票→オーナー）。
 4. **structured-analysis** サブエージェント — コンテキスト→DFD→単一責務→状態。
 5. **要求層の並列著作 fan-out（非対話・エージェント委譲）** — 2・4 が「著作すべき親ノード群」を確定したら、**`authoring-fanout`** エージェントに委譲する：

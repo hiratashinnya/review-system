@@ -1,7 +1,9 @@
 ---
 name: align
-description: Pre-work alignment. Decompose the request, propose the steps and granularity, ask the open questions, and declare the fixed parameters before starting. Use before any multi-step design task.
+description: 複数ステップの設計作業に入る前の認識合わせ。依頼を分解し、手順・粒度・未決質問・確定パラメータを日本語で提示してから着手する。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 認識合わせ（着手前の段取り）
 

@@ -1,7 +1,9 @@
 ---
 name: orchestration-design
-description: Design the RUNTIME control flow — a swimlane flowchart (lanes = actors/layers), staged outcomes (a Result type) with fail-close paths, execution-order invariants, plus log-channel separation and version stamping. Use when turning a settled module architecture into an end-to-end execution design. This is control-flow design, NOT value-path inspection (use value-trace) and NOT logical DFD decomposition (use structured-analysis).
+description: 実行時制御フローを設計する。swimlane、段階的 Result、fail-close、実行順序不変条件、ログチャネル分離、版記録を扱う。確定したモジュール構成を end-to-end 実行設計へ落とす時に使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # オーケストレーション設計（制御フロー・fail-close・ログ/版）
 

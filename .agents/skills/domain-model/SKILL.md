@@ -1,7 +1,9 @@
 ---
 name: domain-model
-description: Derive a type-safe, immutable in-code domain model from a SETTLED data dictionary / I/O ledger — wrap meaningful scalars as value objects (no primitive/tuple obsession), make closed vocabularies enums, prefer frozen dataclasses, choose constructor vs factory vs builder deliberately, and name everything self-explanatorily. Use AFTER the data dictionary is settled, when turning it into Python types/classes. Not for external file-format schemas (use schema-design) and not for producing the data dictionary itself (use structured-analysis).
+description: 確定済みのデータ辞書/I/O 台帳から、型安全で不変寄りのコード内ドメインモデルを導出する。データ辞書確定後に Python 型/クラスへ落とす時に使い、外部ファイル形式スキーマやデータ辞書作成には使わない。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # ドメインモデル設計（データ辞書 → 型安全なクラス）
 

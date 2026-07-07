@@ -1,7 +1,9 @@
 ---
 name: schema-design
-description: Design a structured config/criteria file schema reader-first — list readers, use a frontmatter (machine) + body (human/LLM) two-layer split, route attributes by the two axes, and disambiguate with samples. Use when an external settings/criteria file format is needed.
+description: 読み手起点で構造化 config/criteria ファイルスキーマを設計する。読者列挙、frontmatter と body の二層分離、属性配置、サンプルによる曖昧性解消を扱う。外部設定/基準ファイル形式が必要な時に使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # スキーマ設計（読み手から決める）
 

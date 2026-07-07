@@ -1,7 +1,9 @@
 ---
 name: mvp-scope
-description: Scope an MVP by value. List features with value/precondition/atomic-group, draw a dependency DAG, then propose build order and where to draw the MVP line. Use after features are enumerated and before development starts.
+description: 価値を基準に MVP 範囲を切る。機能を価値/前提/atomic group 付きで列挙し、依存 DAG を作り、開発順と MVP 線引きを提案する。機能列挙後、開発開始前に使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # 価値ベース MVP スコープ
 

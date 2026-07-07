@@ -1,6 +1,6 @@
-# Converted from Claude custom agent doc-system-v2-authoring for Codex CLI custom subagents.
+# Converted from source custom agent doc-system-v2-authoring for Codex CLI custom subagents.
 name = """doc-system-v2-authoring"""
-description = """doc-system v2 著作コントラクト（全 `*-author` 共通・正本 = `doc-system-v2/FORMAT.md`）"""
+description = """文書システム v2 著作コントラクト。すべての `*-author` に共通する形式・正本・tmp ミラーレイアウトの規律を定義する。"""
 developer_instructions = """すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
 
 # doc-system v2 著作コントラクト（全 `*-author` 共通・正本 = `doc-system-v2/FORMAT.md`）

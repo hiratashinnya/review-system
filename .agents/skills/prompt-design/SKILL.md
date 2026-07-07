@@ -1,7 +1,9 @@
 ---
 name: prompt-design
-description: Design LLM system-prompt templates — role constraints, prompt assembly (a builder), prompt-injection defenses, and a template catalog with MAJOR.MINOR versions. For output schemas use schema-design; for version stamps see test-strategy / logging design. Use when designing HOW an LLM is prompted inside a wrapping system. NOT external config-file schema (schema-design), NOT runtime control flow (orchestration-design).
+description: 大規模言語モデルのシステムプロンプトテンプレートを設計する。役割制約、prompt assembly、防御、テンプレートカタログと版管理を扱う。LLM をラップするシステム内でのプロンプト方法を設計する時に使う。
 ---
+
+すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
 
 # プロンプト設計（LLM への問い方を固める）
 
