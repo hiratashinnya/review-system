@@ -78,8 +78,8 @@ agy は**素案・調査レポートを返すだけの read-only/draft アシス
 | **A-\\<type\\>** | 型別の著作規約（素案時に G-full へ追加） | 対象型の `*-author` プロンプト（下の対応表）＋ テンプレ `docs/doc-system/templates/<layer>/<type>.md` |
 
 **型 → author 対応**（A-\\<type\\> の author プロンプト）：
-VAL/SR/FR/NFR→`.claude/agents/requirements-author.md`／SPEC→`spec-author.md`／ACTOR/I/O/D/P/E→`analysis-author.md`／
-ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM→`design-author.md`／TD/TC/TR/VERIFY/FND/DD/Q/PEND→`verification-author.md`。
+VAL/SR/FR/NFR→`.codex/agents/requirements-author.toml`（必要なら `.claude/agents/requirements-author.md` も参照）／SPEC→`.codex/agents/spec-author.toml`／ACTOR/I/O/D/P/E→`.codex/agents/analysis-author.toml`／
+ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM→`.codex/agents/design-author.toml`／TD/TC/TR/VERIFY/FND/DD/Q/PEND→`.codex/agents/verification-author.toml`。
 
 ### ユースケース表
 
