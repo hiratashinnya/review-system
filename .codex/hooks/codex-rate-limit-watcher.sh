@@ -26,7 +26,7 @@ VERIFY_WAIT="${CODEX_RL_VERIFY_WAIT:-20}"
 PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^(codex|node)$}"
 STARTUP_WAIT="${CODEX_RL_STARTUP_WAIT:-30}"
 
-RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|429|try again|please try again|resets?[[:space:]]+|reset[[:space:]]+(at|in)|upgrade'
+RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
 WEEKLY_RE='resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun)|weekly limit'
 WORKING_RE='to interrupt|interrupt\)|interrupt to|ctrl\+c to (stop|interrupt)|press esc to interrupt|esc to interrupt'
 

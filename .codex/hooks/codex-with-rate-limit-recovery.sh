@@ -3,7 +3,7 @@
 #
 # Usage:
 #   tmux new -s codex 'path/to/codex-with-rate-limit-recovery.sh'
-#   .claude/hooks/codex-with-rate-limit-recovery.sh --model gpt-5
+#   .codex/hooks/codex-with-rate-limit-recovery.sh --model gpt-5
 #
 # This wrapper starts the watcher for the current tmux pane, then replaces itself
 # with Codex. The watcher observes the pane, waits for a reset when a rate-limit
