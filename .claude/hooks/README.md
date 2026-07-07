@@ -10,6 +10,26 @@
 | `on-rate-limit.sh` | `StopFailure(rate_limit)` フックハンドラ。WSL を積極検知したときだけ watcher を切り離し起動。非WSL は no-op。 |
 | `resume-watcher.sh` | リセット時刻まで待機し、tmux ペインへ継続メッセージ + Enter を送出して再開。**状態認識ガード**(前景が claude でなければ注入しない/稼働中は注入しない。アイドルなら注入。制限バナー有無は情報ログのみ)・多重起動防止つき。 |
 
+## Codex CLI 版
+
+Codex CLI には Claude Code の `StopFailure(rate_limit)` と同等のフックを前提にしないため、
+tmux ペインを常時監視するラッパー方式を追加した。
+
+| ファイル | 役割 |
+|---|---|
+| `codex-with-rate-limit-recovery.sh` | 現在の tmux ペイン向け watcher を起動してから `codex "$@"` に `exec` するラッパー。 |
+| `codex-rate-limit-watcher.sh` | Codex のレートリミット表示を検知し、リセット後にアイドルな Codex ペインへ `continue` + Enter を送出する。 |
+| `CODEX_RATE_LIMIT_RECOVERY.md` | Codex 版の利用方法・環境変数・ログ場所。 |
+
+利用例:
+
+```bash
+tmux new -s codex '/home/hiras/ws_claude/review-system/.claude/hooks/codex-with-rate-limit-recovery.sh'
+```
+
+`.codex/` ディレクトリはこの環境では読み取り専用だったため、実体は既存 hook 群と同じ
+`.claude/hooks/` 配下に置いている。
+
 ## 設計上の前提(公式仕様)
 
 - `StopFailure` は **出力・終了コードが無視される**ため、フック自身は再開/リトライを
