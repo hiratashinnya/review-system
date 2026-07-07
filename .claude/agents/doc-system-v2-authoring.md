@@ -32,8 +32,6 @@ version: "0.1.0"        # MAJOR.MINOR.PATCH。新規は 0.1.0
 condition: normal       # テスタブル型のみ。normal|boundary|empty|failure|error。非テスタブル(傘)は省略
 labels: []
 scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
-suppress: []            # 抑制 RULE 番号のリスト。RULE-005/007 は抑制不可
-suppress_reason: ""     # suppress 非空なら必須（理由は本文でなくこの属性・機械可読）
 edges:
   - to: "参照先ノードの-slug"   # 無名依存辺。slug（path 非依存）を書く
     ref_version: "0.1"          # 参照時点の相手サイドカー version の x.y（2パート）
@@ -75,5 +73,5 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
 - [ ] サイドカーに `id`/`type`/`status` を書いていない（path から導出）
 - [ ] edges は無名（`kind`/`status` なし）・`to` は単数 slug・`ref_version` は参照先 version の x.y
 - [ ] `to` の slug がすべて実在（RULE-007: always_error）／必須依存辺が存在（config `must_link_to`）
-- [ ] `scheduled` が非空（既定 = current_phase・空はオーナー承認済み後送りのみ）／suppress 非空なら `suppress_reason` あり
+- [ ] `scheduled` が非空（既定 = current_phase・空はオーナー承認済み後送りのみ）
 - [ ] tmp のミラー path が `nodes/<stage>/<type>/[<status>/]` に一致（config.yml layout）

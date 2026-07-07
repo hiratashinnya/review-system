@@ -41,7 +41,6 @@ title: "読めるタイトル"     # id は slugify(title)＝ファイル名 ste
 version: "0.1.0"
 labels: []
 scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
-suppress: []              # RULE 抑制リスト。RULE-005/007 は抑制不可。非空なら suppress_reason 必須
 edges:
   - to: "参照先ノードの-slug"
     ref_version: "0.1"    # 参照先サイドカー version の x.y
@@ -76,14 +75,7 @@ edges:
 ### NFR の検証証跡について
 
 NFR は検証層（FND/TC/VERIFY）から被依存辺を受ける必要がある（`must_be_linked_from: NFR ← [FND,TC,VERIFY]`）。
-この接続は **verification ステージで発火**するため、requirements/analysis/design では沈黙する。**suppress 不要**。
-
-### FR の suppress について
-
-FR に `condition: failure/error` の SPEC が意図的にない場合のみ（RULE-018 WARNING）：
-```yaml
-suppress: [RULE-018]  # 異常系なし: <具体的な理由>
-```
+この接続は **verification ステージで発火**するため、requirements/analysis/design では沈黙する。
 
 ---
 
@@ -95,5 +87,4 @@ suppress: [RULE-018]  # 異常系なし: <具体的な理由>
 - [ ] 必須依存辺（config `must_link_to`）が存在（RULE-006）
 - [ ] `kind`/`status` を書いていない・`to` は単数 slug
 - [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
-- [ ] suppress を使う場合は `suppress_reason` に理由あり（本文でなくサイドカー属性）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
