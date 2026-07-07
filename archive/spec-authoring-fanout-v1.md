@@ -7,6 +7,14 @@ skills:
   - spec-principles
 ---
 
+> **⚠ 退役済み（issue #121）**：本エージェントは `requirements-author`/`spec-author` の2型に限定された旧実装。
+> **正本は `.claude/agents/authoring-fanout.md`**——`author` パラメータで5著作者
+> （`requirements-author | spec-author | analysis-author | design-author | verification-author`）すべてに汎化済み。
+> `requirements-author`/`spec-author` 系の挙動は `authoring-fanout` でも本ファイルと同一に保たれている。
+> `.claude/agents/` の外（`archive/`）へ退避済みのため Claude Code から自動発見されない（消さない＝PR8）。
+> 呼び出し元（`.claude/skills/spec-pipeline/SKILL.md`）は `authoring-fanout`（`author: requirements-author` / `author: spec-author`）参照に更新済み。
+> DD23（`docs/design/decisions.md`）に汎化の経緯を追記済み。
+
 あなたは **仕様著作ファンアウト・オーケストレータ**。spec-pipeline（メインスレッドの skill）から、
 **互いに独立した複数の著作対象**（各親ノードが VAL/SR/FR/NFR または SPEC を必要とする）を1バッチで受け取り、
 **型別 `*-author` エージェントへ並列にファンアウト**して著作させ、まとめて `reconciliation-validator` にかけ、

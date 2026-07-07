@@ -18,6 +18,10 @@ description: Test strategy for THIS project (review-system) — unittest per pub
 | **TR**（テスト結果） | `tests/reports/<id>-<commit>.md` | TD コピー＋実測（result/log_ref frontmatter 必須） |
 | **ログ** | `tests/logs/<id>-<commit>.txt` | stdout ダンプ（`python -m unittest -v 2>&1 \| tee`） |
 
+## TD ノード著作 fan-out（非対話・issue #121）
+
+上記の実体（`tests/designs/*.md` 等）とは別に、doc-system-v2 の在グラフ表現として **TD ノード**（`04-verification/td`・→ SPEC）を著作する。凍結セット（SPEC 群）が確定し対応 TD の親が複数・独立にバッチ着手できる状態になったら、`authoring-fanout`（`author: verification-author`）に委譲する。独立 SPEC ごとに `targets`（`parent_id`＝対象 SPEC の slug・`kind: TD`・`brief`）で渡し並列著作させる。TC/TR は実装・実行が先行条件のため本 fan-out の対象外。単一 SPEC なら fan-out せず `verification-author` を直接呼ぶ。`ROLLBACK`/矛盾は主文脈で受け止める。
+
 ## 手順（1サイクル）
 
 1. 実装を**コミット**（commit id を確定）。

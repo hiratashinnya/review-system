@@ -19,6 +19,16 @@ status: tailored (active) — derived from .claude/standards/test-strategy
 | **TR**（テスト結果） | テスト結果 Markdown（ケースコピー＋実測） | `tests/reports/<id>-<commit>.md` | `TR-<area>-<nnn>-<commit>` |
 | ログ | stdout ダンプ（TR の log_ref が参照） | `tests/logs/<id>-<commit>.txt` | — |
 
+## TD ノード著作 fan-out（非対話・エージェント委譲・issue #121）
+
+上記「本PJの実体」（`tests/designs/*.md` 等）とは別に、doc-system-v2 の在グラフ表現として **TD ノード**（`04-verification/td`・→ SPEC・`condition` が対応 SPEC と一致）を著作する。凍結セット（SPEC 群）が確定し、対応する TD の親（SPEC 単位）が複数・独立にバッチ着手できる状態になったら、著作を主文脈で場当たりに行わず **`authoring-fanout`** エージェントに **`author: verification-author`** で委譲する：
+
+- 独立 SPEC ごとに `targets` 配列（`parent_id`＝対象 SPEC の slug・`kind: TD`・`brief`）で渡し、**並列著作**させる。
+- TC/TR は実装・実行が先行条件のため本 fan-out の対象外（TD 確定後、実装着手→コミット→テスト実行を経て別途 verification-author で個別に著作する）。
+- 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。
+- 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
+- 対話が要る段（TD の condition と SPEC の不一致など矛盾の裁定）は主文脈に残す（DD-22 ①-C ハイブリッド）。
+
 ## 継承する不変条件（標準のまま）
 unittest 基本／テスト設計＝Markdown（TD）／テスト結果＝TD コピー＋実測＋commit id（TR）／ログ＝標準出力ダンプをリンク／
 失敗も残す（隠蔽・上書き禁止＋原因/対策）／e2e も同じ3点セット／**テスト前にコミット**。3点セットの対応を保つ。
