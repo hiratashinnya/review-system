@@ -14,3 +14,18 @@
 **結果（全グラフ走査の副次発見）**: 既存層に整合崩れを検出 → FND-16（RULE-007 ERROR）・FND-17（RULE-004 ドリフト群 WARNING）・Q-1（凍結記録のドリフト扱いの設計論点）を起票。
 
 **発生した指摘**: → FND-16・FND-17・Q-1 を参照。
+
+## 凍結時点の参照記録（out-of-graph・#118 suppress 廃止に伴う記録）
+
+本ノードはかつて `suppress: [RULE-004]` により drift 判定を凍結免除されていた（DD-2）。issue #118
+で抑制機構自体が廃止されたため、以下の関連辺は edges から除去し、参照していた事実のみ本記録として
+保持する。
+
+```yaml
+- to: "verify-の-rule-004-免除・fnd-は再検証シグナルとして据え置き-q-1-から昇格"
+  ref_version: "0.1"
+- to: "分析層の版上げに伴う-ref_version-ドリフト群-記録・義務辺含む・rule-004-warning"
+  ref_version: "0.1"
+- to: "凍結記録-verify・解消済み-fnd-の-ref_version-ドリフト扱い"
+  ref_version: "0.1"
+```

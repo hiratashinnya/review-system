@@ -1,9 +1,7 @@
 title: "トレース対象集合の宣言"
-version: "0.3.0"
+version: "0.4.0"
 labels: []
 scheduled: ""
-suppress: [RULE-018]
-suppress_reason: "異常系なし: 走査範囲は静的な include/exclude 宣言で fail パスを持たない"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

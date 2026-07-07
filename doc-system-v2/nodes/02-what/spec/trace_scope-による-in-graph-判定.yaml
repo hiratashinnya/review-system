@@ -4,4 +4,4 @@ labels: []
 scheduled: ""
 edges:
   - to: "トレース対象集合の宣言"
-    ref_version: "0.3"
+    ref_version: "0.4"

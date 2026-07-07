@@ -51,7 +51,6 @@ title: "読めるタイトル"     # id は slugify(title)＝ファイル名 ste
 version: "0.1.0"
 labels: []
 scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
-suppress: []              # 非空なら suppress_reason 必須。RULE-005/007 は抑制不可
 carrier: skill            # 設計要素の実現担体（該当時）。値集合の SoT = schema/sidecar.schema.json enum（skill/agent/command/instructions/hooks/code）
 edges:
   - to: "参照先ノードの-slug"

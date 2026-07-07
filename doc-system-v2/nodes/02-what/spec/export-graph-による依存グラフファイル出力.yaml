@@ -4,7 +4,7 @@ labels: [post-mvp]
 scheduled: "sprint-2"
 edges:
   - to: "依存グラフレポート出力"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "spec-50-51-の-post-mvp-と-scheduled-表現が不統一-オーナー決定bで-config-改訂方針"
     ref_version: "0.1"
   - to: "spec-50-期待動作が-指定フォーマットでファイル出力・stdoutエラーなし・exit-0-の3動作混載"

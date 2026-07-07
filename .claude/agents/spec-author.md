@@ -81,7 +81,7 @@ edges:
 ```
 
 `scheduled` の**既定は `current_phase`**（config.yaml）。無計画な空は禁止。別フェーズ（`sprint-N`）へ回すのは**オーナー承認時のみ**で、承認の旨を残す。post-mvp の大枠は `labels`。
-SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verification 発火で現在は沈黙する。ノード単位の `suppress` は付けない。
+SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verification 発火で現在は沈黙する。
 
 ### 5. 本文フォーマット
 

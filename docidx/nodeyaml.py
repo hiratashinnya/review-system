@@ -2,7 +2,7 @@
 
 doc-system のノードは ``<details>`` 内の ```yaml``` ブロックに以下しか書かない（04-notation §3）:
   * 平坦な ``key: value`` スカラ（引用/非引用・int・bool・null）
-  * 空/インラインのフローリスト（``labels: []`` / ``suppress: [RULE-018]``）
+  * 空/インラインのフローリスト（``labels: []`` / ``labels: [post-mvp]``）
   * ``edges:`` ブロックリスト（``- to:`` ＋ ``ref_version:`` ＋任意の ``note:``）
 
 汎用 YAML パーサは持ち込まず、この限定文法だけを扱う。``review_system/parsing/frontmatter.py``

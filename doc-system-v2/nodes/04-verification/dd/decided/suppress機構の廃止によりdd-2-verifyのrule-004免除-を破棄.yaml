@@ -1,0 +1,9 @@
+title: "suppress機構の廃止によりDD-2（VERIFYのRULE-004免除）を破棄"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "verify-の-rule-004-免除・fnd-は再検証シグナルとして据え置き-q-1-から昇格"
+    ref_version: "0.1"
+  - to: "分析層の版上げに伴う-ref_version-ドリフト群-記録・義務辺含む・rule-004-warning"
+    ref_version: "0.1"

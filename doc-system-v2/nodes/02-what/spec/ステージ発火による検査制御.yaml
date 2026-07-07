@@ -4,4 +4,4 @@ labels: []
 scheduled: ""
 edges:
   - to: "三軸の検査抑制機構"
-    ref_version: "0.2"
+    ref_version: "0.3"

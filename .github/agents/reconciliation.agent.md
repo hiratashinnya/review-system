@@ -31,7 +31,7 @@ tools:
 - [ ] TD: `condition` が依存先 SPEC と一致
 - [ ] TR: `result` 属性あり / `log_ref` あり
 - [ ] DD/Q/PEND: 反映済みの義務辺が残っていない
-- [ ] FND 解消チェック（辺の逆転）: resolved の FND は (1) 処置対象ノード側に `→ FND-x`（ref_version 必須）が付与され、(2) FND 自身の元 forward 辺（`FND→処置対象`）が削除されている（指摘時 ref_version は本文へ移動＝DD-3）。(3) outgoing 0 になる場合は暫定で `suppress: [RULE-006]`（Q-4 決定までの暫定）。ただし out-of-graph 処置でバックリファレンス対象未著作なら抑制せずエラー保持（FND-99 先例）
+- [ ] FND 解消チェック（辺の逆転）: resolved の FND は (1) 処置対象ノード側に `→ FND-x`（ref_version 必須）が付与され、(2) FND 自身の元 forward 辺（`FND→処置対象`）が削除されている（指摘時 ref_version は本文へ移動＝DD-3）。out-of-graph 処置でバックリファレンス対象未著作ならエラー保持（FND-99 先例）
 
 ### Step 4: 問題への対処
 

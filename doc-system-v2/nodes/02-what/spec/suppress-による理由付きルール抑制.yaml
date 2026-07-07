@@ -1,8 +1,8 @@
 title: "suppress による理由付きルール抑制"
-version: "0.2.0"
+version: "0.3.0"
 condition: normal
 labels: []
 scheduled: ""
 edges:
   - to: "三軸の検査抑制機構"
-    ref_version: "0.2"
+    ref_version: "0.3"

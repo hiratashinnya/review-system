@@ -6,4 +6,4 @@ edges:
   - to: "グラフの図的可視化"
     ref_version: "0.1"
   - to: "依存グラフレポート出力"
-    ref_version: "0.1"
+    ref_version: "0.2"

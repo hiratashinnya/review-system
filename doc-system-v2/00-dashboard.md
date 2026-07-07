@@ -4,7 +4,7 @@
 > **状態と優先度の要約**に絞る——明細（ノード本体・辺）は各ノードファイル（`nodes/**/{slug}.md`＋`{slug}.yaml`）、
 > 本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-07-05 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-07-07 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
 > 本帳票は **v1 の `doc-system/00-dashboard.md` の後継**（issue #76・v1→v2 cutover）。v1 は
 > `doc-system-v1-archive/`（旧 `doc-system/`・`git mv` で履歴保持）へ retire 済み。**正本は本コーパス
 > （`doc-system-v2/nodes/**`）**。旧ダッシュボードの経緯・完了ログは archive 側に保全されている
@@ -16,6 +16,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #118 — suppress 機構の廃止（凍結の発想自体を撤去） | 機構廃止（コード＋要件層＋検証層） | ✅ 完了（2026-07-07）。オーナー方針「drift(RULE-004) は凍結免除せず無条件発火させ、依存先更新時の影響確認を必須化する」に基づき suppress/suppress_reason 機構自体を撤去。コード側：`schema/sidecar.schema.json`・`validate.py`・`dsv2/query.py`（`_suppresses_drift()` 撤去）・`dsv2/meta.py`・`dsv2/viewer.py`・`config.yml`（`always_error:` 撤去・dead code 確認済み）から suppress を除去し FORMAT.md/notation.md を追随。コーパス側：FR「三軸の検査抑制機構」を二軸に改訂＋axis③（suppress）子孫 SPEC 6件を退役表記、VERIFY 5件から suppress 除去＋凍結機構固有辺を本文 out-of-graph 記録へ退避、FR 5件（RULE-018 用）の suppress を本文プロースへ移行。DD-2（VERIFY の RULE-004 免除決定）を新規 DD で明示的に破棄。ドリフト resync 28件（本バッチの版上げ由来分含む）を機械的に解消（drift 0 件）。分析/設計層（P-2-5/D-4/D-12/D-18/P-7・DM-1/MOD-filter）の未追随は新規 open FND で別途フラグ（本 PR スコープ外・オーナー判断待ち）。 |
 | issue #76 — doc-system v1→v2 フォーマット根本刷新 | tracking issue（Sub-A〜F：#70-75）＋本 cutover | ✅ 完了（2026-07-05）。①本文/メタ属性分離（`{slug}.md`＋`{slug}.yaml`）②連番 id 廃止（slug=正規化タイトル・path 非依存）③1ファイル1ノード化を実施。Sub-A（新フォーマット確定・#70）→Sub-B（585 ノード一括移行・#71）→Sub-C（ツール刷新・#72）→Sub-D（著作パイプライン更新・#73）→Sub-E（テンプレート改訂・#74）→Sub-F（doc_view.html 生成器・#75）が全完了済み。本セッションで**最終カットオーバー**を実施：v1 `doc-system/` を `doc-system-v1-archive/` へ retire（`git mv`）、v1 専用 `backref/` を `archive/backref-v1/` へ retire、`docidx/` は v1-legacy-only である旨を README に明記（`nodeyaml.py` は v2 `dsv2`/`doc-system-v2/validate.py` の共有インフラとして存続）、`docidx-lookup` サブエージェントを dsv2-native（`python3 -m dsv2 index`＋grep/Read）に書き換え、`CLAUDE.md`／`.github/copilot-instructions.md` の正本ポインタを `doc-system/` → `doc-system-v2/` へ全面更新。 |
 
 > 完了済みの旧作業（v1 時代・〜2026-07-04）は `doc-system-v1-archive/00-dashboard.md` に保全（消さない＝PR8）。
@@ -43,9 +44,9 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 13 件**（open FND 11・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 14 件**（open FND 12・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（11 件）
+### open FND（12 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
@@ -60,6 +61,7 @@
 | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 未設定 | 親辺の妥当性再検討 |
 | `_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離） | 未設定 | 実装時に要検証 |
 | 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 未設定 | 著作資産側への反映漏れ点検 |
+| 分析・設計層が三軸抑制モデルのまま issue #118 の suppress 廃止に未追随（P-2-5/D-4/D-12/D-18/P-7・DM-1/MOD-filter） | 未設定 | issue #118 で要件層（FR「三軸→二軸」）・検証層（VERIFY 5件）・コード（dsv2）は追随済みだが、分析層 DFD・設計層 DM-1/MOD が旧三軸モデルのまま。DFD 再分解・型仕様の作り替えは後続設計タスク。実施スプリントはオーナー判断 |
 
 > 全て `scheduled` 未設定（オーナー判断待ち。1件のみ sprint-2 承認済み）は**独断で繰り越さない**
 > （CLAUDE.md「スケジュール独断禁止」）。
@@ -85,7 +87,7 @@
 | N1 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後 |
 | N2 | テスト戦略④（凍結セット残項目） | 🟡 中 | 設計層著作済み。`/test-strategy` スキルで TD/TC 設計 |
 | N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み |
-| N4 | open FND 11件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
+| N4 | open FND 12件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
 
 ---
 
