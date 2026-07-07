@@ -2,11 +2,20 @@
 # Monitor a Codex CLI tmux pane and recover automatically after rate limits.
 #
 # This is the Codex analogue of resume-watcher.sh, but Codex currently does not
-# provide a StopFailure(rate_limit) hook equivalent. Instead, this monitor is
-# started before Codex and watches the target pane for rate-limit text.
+# provide a StopFailure(rate_limit) hook equivalent. It can either run as a
+# legacy pane monitor or as a one-shot worker launched by the Stop hook after
+# the hook has asked Codex for /status.
 set -u
 
-PANE="${1:?tmux pane id required}"
+MODE="watch"
+STATUS_TEXT_FILE=""
+if [ "${1:-}" = "--recover-once" ]; then
+  MODE="once"
+  PANE="${2:?tmux pane id required}"
+  STATUS_TEXT_FILE="${3:-}"
+else
+  PANE="${1:?tmux pane id required}"
+fi
 
 STATE_DIR="${CODEX_RL_STATE_DIR:-${HOME}/.codex/rate-limit-recovery}"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
@@ -103,10 +112,25 @@ parse_reset_from_text() {
 }
 
 wait_for_reset_and_recover() {
-  local reset_epoch="" saw_banner=0 text parsed i now wait_s clear_streak j
+  local initial_text="${1:-}" reset_epoch="" saw_banner=0 text parsed i now wait_s clear_streak j
+
+  if [ -n "$initial_text" ]; then
+    text_has_rate_limit_banner "$initial_text" && saw_banner=1
+    parsed="$(parse_reset_from_text "$initial_text")"
+    if [ "$parsed" = "WEEKLY" ]; then
+      log "weekly limit detected from status text; automatic recovery is not attempted"
+      return 0
+    fi
+    if [ -n "$parsed" ]; then
+      reset_epoch="$parsed"
+      log "acquire: reset time parsed from status text: epoch=${reset_epoch}"
+    else
+      log "acquire: reset time not found in status text; falling back to pane polling"
+    fi
+  fi
 
   i=1
-  while [ "$i" -le "$RESET_POLL_MAX" ]; do
+  while [ -z "$reset_epoch" ] && [ "$i" -le "$RESET_POLL_MAX" ]; do
     if ! is_codex_pane; then
       log "acquire: target pane missing or foreground is not codex; exit"
       exit 0
@@ -213,10 +237,19 @@ if command -v flock >/dev/null 2>&1; then
   fi
 fi
 
-log "start"
+log "start mode=${MODE}"
 if ! wait_for_codex_pane; then
   cur="$(tmux display-message -p -t "$PANE" '#{pane_current_command}' 2>/dev/null || true)"
   log "codex did not become foreground within ${STARTUP_WAIT}s (current='${cur}'); exit"
+  exit 0
+fi
+
+if [ "$MODE" = "once" ]; then
+  initial_text=""
+  if [ -n "$STATUS_TEXT_FILE" ] && [ -r "$STATUS_TEXT_FILE" ]; then
+    initial_text="$(cat "$STATUS_TEXT_FILE" 2>/dev/null || true)"
+  fi
+  wait_for_reset_and_recover "$initial_text"
   exit 0
 fi
 

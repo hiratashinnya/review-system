@@ -5,9 +5,10 @@
 #   tmux new -s codex 'path/to/codex-with-rate-limit-recovery.sh'
 #   .codex/hooks/codex-with-rate-limit-recovery.sh --model gpt-5
 #
-# This wrapper starts the watcher for the current tmux pane, then replaces itself
-# with Codex. The watcher observes the pane, waits for a reset when a rate-limit
-# banner appears, and submits CODEX_RL_CONTINUE_MSG only when the pane is idle.
+# This legacy wrapper starts the continuous watcher for the current tmux pane,
+# then replaces itself with Codex. The project-local Stop hook in
+# .codex/hooks.json is the preferred path because it asks Codex for /status
+# before calculating the reset time.
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
