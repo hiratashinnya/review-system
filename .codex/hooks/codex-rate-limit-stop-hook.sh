@@ -8,11 +8,8 @@ set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR="${CODEX_RL_STATE_DIR:-${HOME}/.codex/rate-limit-recovery}"
-mkdir -p "$STATE_DIR" 2>/dev/null || true
-LOG="${STATE_DIR}/stop-hook.log"
-LAST_PAYLOAD="${STATE_DIR}/last-stop-payload.json"
 PANE="${CODEX_RL_TMUX_PANE:-${TMUX_PANE:-}}"
-PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^(codex|node)$}"
+PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^codex$}"
 STATUS_WAIT="${CODEX_RL_STATUS_WAIT:-3}"
 STATUS_CAPTURE_LINES="${CODEX_RL_STATUS_CAPTURE_LINES:-140}"
 STATUS_ON_EVERY_STOP="${CODEX_RL_STATUS_ON_EVERY_STOP:-0}"
@@ -20,7 +17,7 @@ STATUS_COOLDOWN="${CODEX_RL_STATUS_COOLDOWN:-60}"
 
 RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
 
-log() { printf '%s [stop-hook] %s\n' "$(date '+%F %T')" "$*" >> "$LOG" 2>/dev/null || true; }
+say_noop() { printf '%s\n' "$*" >&2; }
 
 is_truthy() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
@@ -38,6 +35,27 @@ is_cloud_env() {
   return 1
 }
 
+if is_cloud_env; then
+  say_noop "cloud environment detected by env; no-op"
+  exit 0
+fi
+
+if [ -z "$PANE" ] || [ -z "${TMUX:-}" ]; then
+  say_noop "not inside tmux or TMUX_PANE unavailable; no-op"
+  exit 0
+fi
+
+if ! command -v tmux >/dev/null 2>&1; then
+  say_noop "tmux command unavailable; no-op"
+  exit 0
+fi
+
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+LOG="${STATE_DIR}/stop-hook.log"
+LAST_PAYLOAD="${STATE_DIR}/last-stop-payload.json"
+
+log() { printf '%s [stop-hook] %s\n' "$(date '+%F %T')" "$*" >> "$LOG" 2>/dev/null || true; }
+
 pane_text() { tmux capture-pane -p -t "$PANE" 2>/dev/null; }
 pane_tail() { pane_text | tail -n "${1:-50}"; }
 
@@ -54,21 +72,6 @@ has_rate_limit_text() {
 
 payload="$(cat 2>/dev/null || true)"
 printf '%s' "$payload" > "$LAST_PAYLOAD" 2>/dev/null || true
-
-if is_cloud_env; then
-  log "cloud environment detected by env; no-op"
-  exit 0
-fi
-
-if [ -z "$PANE" ] || [ -z "${TMUX:-}" ]; then
-  log "not inside tmux or TMUX_PANE unavailable; no-op"
-  exit 0
-fi
-
-if ! command -v tmux >/dev/null 2>&1; then
-  log "tmux command unavailable; no-op"
-  exit 0
-fi
 
 if ! is_codex_pane; then
   cur="$(tmux display-message -p -t "$PANE" '#{pane_current_command}' 2>/dev/null || true)"

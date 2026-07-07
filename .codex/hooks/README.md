@@ -41,7 +41,9 @@ without hooks:
 - The Stop hook does not run `/status` after every turn by default. It first
   checks the Stop payload and pane tail for rate-limit text. Set
   `CODEX_RL_STATUS_ON_EVERY_STOP=1` to force `/status` on every Stop event.
-- Injects only when the target pane still has foreground command `codex` or `node`.
+- Injects only when the target pane still has foreground command `codex` by
+  default. Environments that run Codex through a `node` wrapper can override
+  `CODEX_RL_PANE_CMD_RE`.
 - Does not inject while the pane tail looks busy, for example while an interrupt hint is visible.
 - The preferred reset source is `/status`. If a reset time cannot be parsed from
   status output, the watcher falls back to pane polling and then banner-clear
@@ -69,7 +71,7 @@ without hooks:
 | `CODEX_RL_MAX_ATTEMPTS` | `1` | Injection attempts per recovery. |
 | `CODEX_RL_RETRY_BACKOFF` | `300` | Backoff seconds multiplied by attempt number. |
 | `CODEX_RL_VERIFY_WAIT` | `20` | Seconds to wait after injection before checking activity. |
-| `CODEX_RL_PANE_CMD_RE` | `^(codex\|node)$` | Foreground command regex allowed for injection. |
+| `CODEX_RL_PANE_CMD_RE` | `^codex$` | Foreground command regex allowed for injection. Override this, for example to include a `node` wrapper, only when your Codex pane needs it. |
 | `CODEX_RL_STARTUP_WAIT` | `30` | Seconds the watcher waits for the wrapper to `exec codex`. |
 | `CODEX_RL_STATE_DIR` | `~/.codex/rate-limit-recovery` | Log and lock directory. |
 

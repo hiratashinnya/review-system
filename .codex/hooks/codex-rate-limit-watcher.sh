@@ -32,7 +32,7 @@ MARGIN="${CODEX_RL_MARGIN:-30}"
 MAX_ATTEMPTS="${CODEX_RL_MAX_ATTEMPTS:-1}"
 RETRY_BACKOFF="${CODEX_RL_RETRY_BACKOFF:-300}"
 VERIFY_WAIT="${CODEX_RL_VERIFY_WAIT:-20}"
-PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^(codex|node)$}"
+PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^codex$}"
 STARTUP_WAIT="${CODEX_RL_STARTUP_WAIT:-30}"
 
 RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
