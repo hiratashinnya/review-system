@@ -1,7 +1,8 @@
 # Codex CLI rate-limit recovery
 
 Codex CLI does not use the Claude `StopFailure(rate_limit)` hook described in
-`.claude/hooks/README.md`, so this repo provides a tmux watcher instead.
+`.claude/hooks/README.md`, so this repo provides a tmux watcher under
+`.codex/hooks` instead.
 
 ## Files
 
@@ -15,13 +16,13 @@ Codex CLI does not use the Claude `StopFailure(rate_limit)` hook described in
 Run Codex through the wrapper inside tmux:
 
 ```bash
-tmux new -s codex '/home/hiras/ws_claude/review-system/.claude/hooks/codex-with-rate-limit-recovery.sh'
+tmux new -s codex '/home/hiras/ws_claude/review-system/.codex/hooks/codex-with-rate-limit-recovery.sh'
 ```
 
 Arguments are passed through:
 
 ```bash
-.claude/hooks/codex-with-rate-limit-recovery.sh --model gpt-5
+.codex/hooks/codex-with-rate-limit-recovery.sh --model gpt-5
 ```
 
 ## Safety behavior
