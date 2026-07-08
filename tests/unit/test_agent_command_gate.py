@@ -52,6 +52,9 @@ class AgentCommandGateTests(unittest.TestCase):
             "bash -c 'git merge feature'",
             "python3 -c \"import os; os.system('git merge feature')\"",
             "gh pr merge 123",
+            "gh --repo hiratashinnya/review-system pr merge 123",
+            "gh -R hiratashinnya/review-system pr merge 123",
+            "rtk gh --repo hiratashinnya/review-system pr merge 123",
             "rtk gh pr merge 123",
             "git -c alias.m=merge m feature",
         ]

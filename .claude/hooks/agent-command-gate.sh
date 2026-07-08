@@ -42,6 +42,9 @@ SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|cred
 SEGMENT_SPLIT_RE = re.compile(r"&&|\|\||[;|\n()]|\$\(|`")
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
+GH_GLOBAL_OPTIONS_WITH_VALUE = {"--repo", "-R", "--hostname"}
+GH_GLOBAL_OPTION_VALUE_PREFIXES = ("--repo=", "-R", "--hostname=")
+GH_GLOBAL_FLAG_OPTIONS = {"--help", "-h", "--paginate", "--verbose", "--version", "--debug"}
 
 
 def deny(reason):
@@ -163,6 +166,29 @@ def git_subcommand(tokens):
     return subcommand, args, configs
 
 
+def gh_command(tokens):
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+        if token in GH_GLOBAL_OPTIONS_WITH_VALUE and index + 1 < len(tokens):
+            index += 2
+            continue
+        if token.startswith(GH_GLOBAL_OPTION_VALUE_PREFIXES) and token not in {"-R"}:
+            index += 1
+            continue
+        if token in GH_GLOBAL_FLAG_OPTIONS:
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        break
+    return tokens[index:]
+
+
 def is_allowed_merge_maintenance(args):
     return len(args) == 1 and args[0] in {"--abort", "--quit"}
 
@@ -182,8 +208,10 @@ def direct_violation(tokens, role):
                     return "git alias for merge"
         if role in {"pr-reviewer", "unknown"} and subcommand == "push":
             return "git push"
-    if tokens[:3] == ["gh", "pr", "merge"] and role in {"issue-implementer", "unknown"}:
-        return "gh pr merge"
+    if tokens[0] == "gh" and role in {"issue-implementer", "unknown"}:
+        command_tokens = gh_command(tokens)
+        if command_tokens[:2] == ["pr", "merge"]:
+            return "gh pr merge"
     return None
 
 
