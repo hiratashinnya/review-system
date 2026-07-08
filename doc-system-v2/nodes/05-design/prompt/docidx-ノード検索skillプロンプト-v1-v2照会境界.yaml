@@ -1,0 +1,8 @@
+title: "docidx ノード検索skillプロンプト（v1/v2照会境界）"
+version: "0.1.0"
+labels: []
+scheduled: ""
+carrier: "skill"
+edges:
+  - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
+    ref_version: "0.1"
