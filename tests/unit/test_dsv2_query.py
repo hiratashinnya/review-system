@@ -120,6 +120,11 @@ class TestPromptCoverageGaps(unittest.TestCase):
         m = self._meta([_prompt_node("align-author-著作支援", carrier=None)])
         self.assertEqual(query.prompt_coverage_gaps(m, targets=["align"]), ["align"])
 
+    def test_agent_carrier_prompt_counts_as_coverage(self):
+        # DD-22 ①-C ハイブリッド: 対象 skill の PROMPT が agent carrier 化しても欠落扱いしない
+        m = self._meta([_prompt_node("spec-pipeline-オーケストレータ", carrier="agent")])
+        self.assertEqual(query.prompt_coverage_gaps(m, targets=["spec-pipeline"]), [])
+
     def test_prefix_boundary_no_false_match(self):
         # "spec-pipeline" ノードは "spec-principles" の充足にならない（ハイフン境界一致）
         m = self._meta([_prompt_node("spec-pipeline-オーケストレータ")])
