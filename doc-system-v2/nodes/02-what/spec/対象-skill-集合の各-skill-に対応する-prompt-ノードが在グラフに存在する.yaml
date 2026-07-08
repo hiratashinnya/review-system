@@ -1,5 +1,5 @@
 title: "対象 skill 集合の各 skill に対応する PROMPT ノードが在グラフに存在する"
-version: "0.1.0"
+version: "0.1.1"
 condition: normal
 labels: []
 scheduled: ""
