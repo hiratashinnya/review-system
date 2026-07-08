@@ -1,8 +1,10 @@
 title: "condition 属性なし・語彙外（RULE-016）"
-version: "0.1.0"
+version: "0.2.0"
 condition: failure
 labels: []
 scheduled: ""
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"
+  - to: "傘-spec-は-condition-を省略し傘ロールを-edges-から機械判定-傘表現-q-より昇格"
+    ref_version: "0.1"

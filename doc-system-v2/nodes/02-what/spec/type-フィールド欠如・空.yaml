@@ -1,6 +1,5 @@
 title: "type フィールド欠如・空"
-version: "0.1.0"
-condition: error
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:

@@ -1,6 +1,5 @@
 title: "trace_scope による in-graph 0 件"
-version: "0.1.0"
-condition: empty
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:

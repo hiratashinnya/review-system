@@ -23,7 +23,7 @@
   2. `role: hub / leaf` ＝ グラフ汎用だが「hub」は高次数（fan-in/out 大）を含意し「抽象親」を正確に表さない。新語彙を導入する分だけ既存文脈から乖離。
   3. `abstract / concrete`（抽象 / 具体）＝ OOP 由来で明快だが doc-system の既存語彙にない新語彙。
   → **呼称は #1「umbrella（傘）/ leaf（葉）」を採用**（既存語彙の追認）。傘は格納値でなく **edges から導出されるロール**であり、config/notation では「傘ロール（＝同型の子→親辺の target になっている非葉 SPEC）は RULE-016 対象外」と明文化する。
-- **残存 condition のクリーンアップ（本決定の処置に含める）**: 現状、傘 SPEC「存在しない ID への参照」に `condition: error` が、FND-89 の SPEC-44 に `condition: normal` が**残っている**（傘＝省略への統一が未徹底）。DD 昇格時にこれら傘 SPEC の condition を**省略へ統一**し、FND-89 を解消する。
+- **残存 condition のクリーンアップ（本決定の処置に含める）**: 決定時は傘 SPEC「存在しない ID への参照」に `condition: error` が、FND-89 の SPEC-44 に `condition: normal` が**残っていた**（傘＝省略への統一が未徹底）。Issue #78 follow-up で傘 SPEC の condition を省略へ統一し、FND-89 を解消済み。
 
 **論点4（整合連動）への波及**: 本決定は RULE-016（condition 必須検査）の対象範囲に直接影響する。A を採用したため vocab セット（論点2）・RULE-019 への波及はなく、影響は「RULE-016 に傘ロール除外条件を追加する」1 点に限定される。out-of-graph 資産（接続マトリクス・notation・各 author）へは「傘ロールは edges 由来で判定・RULE-016 対象外・condition 省略」の明文化を伝播する。
 
@@ -33,4 +33,4 @@
 
 **指摘時 ref_version**: 傘 SPEC の condition が子の condition 多様性を代表せずミスリード "0.1"（FND-89 サイドカー v0.1.0 時点）／condition 属性なし・語彙外（RULE-016）"0.1"（同 SPEC サイドカー v0.1.0 時点）
 
-**昇格結果（2026-07-06）**: 本 Q は「傘 SPEC は condition を省略し傘ロールを edges から機械判定（傘表現 Q より昇格）」として DD へ昇格・決定済み。決定内容（A 採用・機械判定基準・umbrella/leaf 呼称・不採用理由）は当該 DD に転記した。RULE-016 への傘ロール除外条件の追記・傘 SPEC の残存 condition クリーンアップ・FND-89 の解消・out-of-graph 伝播は当該 DD のフォローアップ（本 PR 未実装・実施時期オーナー判断待ち）とした。
+**昇格結果（2026-07-06）**: 本 Q は「傘 SPEC は condition を省略し傘ロールを edges から機械判定（傘表現 Q より昇格）」として DD へ昇格・決定済み。決定内容（A 採用・機械判定基準・umbrella/leaf 呼称・不採用理由）は当該 DD に転記した。Issue #78 follow-up で RULE-016 への傘ロール除外条件の追記・傘 SPEC の残存 condition クリーンアップ・FND-89 の解消・out-of-graph 伝播を反映済み。

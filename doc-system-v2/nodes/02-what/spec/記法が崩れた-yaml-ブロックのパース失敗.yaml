@@ -1,6 +1,5 @@
 title: "記法が崩れた YAML ブロックのパース失敗"
-version: "0.3.0"
-condition: error
+version: "0.3.1"
 labels: []
 scheduled: ""
 edges:

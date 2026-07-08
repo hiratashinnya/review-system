@@ -1,6 +1,5 @@
 title: "存在しない ID への参照"
-version: "0.2.0"
-condition: error
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:

@@ -1,6 +1,5 @@
 title: "バージョンドリフトの検出"
-version: "0.2.1"
-condition: failure
+version: "0.2.2"
 labels: []
 scheduled: ""
 edges:

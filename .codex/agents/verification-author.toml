@@ -60,7 +60,7 @@ edges:
 
 ### TD の condition
 
-TD の `condition` は verifies 先 SPEC の `condition` と必ず一致させる（RULE-019）。
+TD の `condition` は verifies 先の leaf SPEC の `condition` と必ず一致させる（RULE-019）。傘 SPEC は非テスタブルで condition を持たないため、TD の verifies 先にしない。
 ```yaml
 condition: normal   # 依存先 SPEC の condition: normal に合わせる
 ```

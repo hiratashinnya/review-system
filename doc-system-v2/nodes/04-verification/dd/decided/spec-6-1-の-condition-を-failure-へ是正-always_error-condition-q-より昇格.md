@@ -1,10 +1,10 @@
 **status: decided**（2026-07-06 オーナー承認）
 
-> **辺の扱い**: 本 DD は義務辺 `DD→SPEC-6-1`（`存在しない-id-参照を-rule-007-error-報告`）を1辺だけ張る。これは「condition を error→failure へ是正する処置が SPEC-6-1 に未反映」であることを示すシグナルであり、その処置（実 SPEC の condition 変更・RULE-019 カスケード）は本 PR 対象外の follow-up（実施時期オーナー判断待ち）だからである。処置反映時にこの義務辺を削除し `SPEC-6-1→DD` の被参照へ置換する。昇格元 Q 側も closed 化で `Q→この DD` を張り返すため被参照は確保される（RULE-005 完全孤立を回避）。
+> **辺の扱い**: Issue #78 follow-up で SPEC-6-1（`存在しない-id-参照を-rule-007-error-報告`）の condition を `error` から `failure` へ是正済み。未反映シグナルとして残していた `DD→SPEC-6-1` 義務辺は削除し、反映先 SPEC から本 DD への backref へ置換した。昇格元 Q 側も closed 化で `Q→この DD` を張り返すため被参照は確保される（RULE-005 完全孤立を回避）。
 
 **論点**（`always_error 系 SPEC の condition を error か failure に統一するか` より昇格・要約）: `always_error` 系ルール（抑制不可・RULE-005 孤立 / RULE-007 存在しない ID 参照）を検査する SPEC の condition が不揃い（SPEC-6-1=error / SPEC-7=failure）である。FND-83（open・INFO）の指摘を語彙再設計に取り込み、付与基準をどう定めるか。
 
-**現状**:
+**決定時の現状**:
 - `config.yml` の `always_error: [RULE-005, RULE-007]`（scheduled/suppress/activate_stage いずれでも抑制不可）。
 - 対応 SPEC の condition が不揃い:
   - SPEC-6-1「存在しない ID 参照を RULE-007 ERROR 報告」（v0.1.0）→ `condition: error`（傘 SPEC「存在しない ID への参照」の子）。
@@ -30,11 +30,8 @@
 **接続規則変更チェック（FND-99 パターン）**: 本決定は `doc-system-v2/config.yml` の接続規則（`must_link_to` / `must_be_linked_from`）の追加・変更・削除を**含まない**。決定内容は個別 SPEC の `condition` 値の割当基準（入力等価クラス基準）の確定と、その規約明文化であり、辺の接続要否そのものには手を入れない。よって author エージェント・スキル・接続マトリクス・ドキュメント一覧への伝播は不要。
 
 **影響範囲**:
-- in-graph（本 PR・reconciliation で反映完了する対象）: 本 DD ノードの新規著作、および昇格元 Q（`always_error 系 SPEC の condition を error か failure に統一するか`）の closed 化＋`Q→この DD` 辺付与のみ。
-- **本 PR では実装しないフォローアップ（黙って先送りしない・実施時期はオーナー判断待ち・本 PR は決定の記録のみ）**:
-  1. SPEC-6-1（`存在しない-id-参照を-rule-007-error-報告`）の `condition` 属性を実際に `error` → `failure` へ変更する。
-  2. 上記に伴う RULE-019（TD↔SPEC condition 一致）カスケード＝SPEC-6-1 を verifies する TD が存在する場合の TD 側 condition 追随変更。
-  3. FND-83（`always_error 系 SPEC の condition が不揃い（SPEC-6=error, SPEC-7=failure）`）の解消。本 PR では open のまま残す（触らない）。処置時は `dsv2 reverse` で辺逆転。
-  4. 傘 SPEC「存在しない ID への参照」の `condition: error` 残存クリーンアップは Q1（傘表現決定）の follow-up に含まれ、本 Q の scope 外（本 DD では扱わない）。
+- in-graph（Issue #78 follow-up で反映完了）: 本 DD ノード、昇格元 Q（`always_error 系 SPEC の condition を error か failure に統一するか`）、SPEC-6-1（`存在しない-id-参照を-rule-007-error-報告`）の `condition: failure` 化、FND-83 resolved 化。
+- RULE-019 カスケード: 現行 v2 コーパスに SPEC-6-1 を verifies する TD は存在しないため追随変更は不要。
+- 傘 SPEC「存在しない ID への参照」の `condition: error` 残存クリーンアップは、Q1（傘表現決定）の follow-up として同時に反映済み。
 
 **覆る場合の影響範囲**: 決定が覆った場合（例: B を採用＝両者を error に統一へ転換）は、本 DD の義務辺 `DD→SPEC-6-1` の意味（error→failure 是正の未反映）を撤回し、SPEC-7 側 condition の変更方針に切り替える。加えて condition 付与基準の規約（入力等価クラス基準）の明文化も差し戻す。昇格元 Q の closed も再オープンが必要になる。

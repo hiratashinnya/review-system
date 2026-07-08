@@ -1,6 +1,5 @@
 title: "テンプレート由来の必須フィールド欠如"
-version: "0.1.0"
-condition: failure
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:

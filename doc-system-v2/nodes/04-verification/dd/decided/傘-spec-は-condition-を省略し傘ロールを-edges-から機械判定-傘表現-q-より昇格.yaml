@@ -1,8 +1,5 @@
 title: "傘 SPEC は condition を省略し傘ロールを edges から機械判定（傘表現 Q より昇格）"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "condition-属性なし・語彙外-rule-016"
-    ref_version: "0.1"
-    note: "RULE-016 に傘ロール除外条件を追加する処置が未反映（follow-up・実施時期オーナー判断待ち）"
+edges: []

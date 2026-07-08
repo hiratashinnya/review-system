@@ -1,6 +1,5 @@
 title: "著作出力の id 欠如検出時の reconciliation 挙動"
-version: "0.1.0"
-condition: failure
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:

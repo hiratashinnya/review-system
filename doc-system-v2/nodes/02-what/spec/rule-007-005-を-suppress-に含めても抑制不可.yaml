@@ -1,6 +1,5 @@
 title: "RULE-007/005 を suppress に含めても抑制不可"
-version: "0.2.0"
-condition: error
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:

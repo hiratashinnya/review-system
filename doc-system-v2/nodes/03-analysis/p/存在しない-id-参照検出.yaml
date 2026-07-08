@@ -4,7 +4,7 @@ labels: []
 scheduled: ""
 edges:
   - to: "存在しない-id-参照を-rule-007-error-報告"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "rule-007-は-always_error-で抑制不可"
     ref_version: "0.1"
   - to: "接続検査ビュー"

@@ -1,8 +1,10 @@
 title: "孤立ノードの検出"
-version: "0.2.0"
+version: "0.2.1"
 condition: failure
 labels: []
 scheduled: ""
 edges:
   - to: "構造的完結性検証"
     ref_version: "0.2"
+  - to: "always_error-系-spec-の-condition-が不揃い-spec-6=error,-spec-7=failure"
+    ref_version: "0.1"
