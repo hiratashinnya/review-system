@@ -44,6 +44,7 @@ pip-delete-this-directory.txt
 .cache
 nosetests.xml
 coverage.xml
+htmlcov/
 *.cover
 *.py.cover
 .hypothesis/
@@ -217,8 +218,10 @@ __marimo__/
 .streamlit/secrets.toml
 .review-workspace/
 .review-state/
+.serena/
 report.html
 *.feedback.json
+_site/
 
 # Authoring drafts (reconciled into main files; not history-bearing — FND-37)
 tmp/
