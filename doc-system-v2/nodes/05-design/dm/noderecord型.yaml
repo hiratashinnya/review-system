@@ -1,5 +1,5 @@
 title: "NodeRecord型"
-version: "0.1.1"
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:
@@ -8,4 +8,6 @@ edges:
   - to: "domain"
     ref_version: "0.3"
   - to: "ノードバージョンの桁数定義が-2パート-x.y-と-3パート-x.y.z-で矛盾し-dd-8-§4-の-z-バンプが"
+    ref_version: "0.1"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
     ref_version: "0.1"
