@@ -4,7 +4,7 @@
 > **状態と優先度の要約**に絞る——明細（ノード本体・辺）は各ノードファイル（`nodes/**/{slug}.md`＋`{slug}.yaml`）、
 > 本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-07-07 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-07-08 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
 > 本帳票は **v1 の `doc-system/00-dashboard.md` の後継**（issue #76・v1→v2 cutover）。v1 は
 > `doc-system-v1-archive/`（旧 `doc-system/`・`git mv` で履歴保持）へ retire 済み。**正本は本コーパス
 > （`doc-system-v2/nodes/**`）**。旧ダッシュボードの経緯・完了ログは archive 側に保全されている
@@ -16,6 +16,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| Phase 1 — 安全機構・PROMPT coverage・dashboard 同期 | 実装＋検証＋運用要約更新 | ✅ 完了（2026-07-08）。#129 は PR #133 で `agent-command-gate.sh` の fail-open / false negative / false positive を修正し、review 指摘（`gh --repo/-R pr merge`）も同 PR 内で解消後に merge。#112 は PR #134 で `docidx` PROMPT ノードを追加し、SPEC-61 系本文の 13→14 件不整合も review 指摘後に解消。#114 は PR #135 で `prompt_coverage_targets` を `config.yml` 直読みへ変更。#115 は PR #136 で RULE-032 の PROMPT coverage 判定を `carrier: skill|agent` に拡張し、agent carrier 化による誤欠落を防止。実測は 598 ノード、drift 0 件、PROMPT coverage 欠落 0 件。 |
 | issue #118 — suppress 機構の廃止（凍結の発想自体を撤去） | 機構廃止（コード＋要件層＋検証層） | ✅ 完了（2026-07-07）。オーナー方針「drift(RULE-004) は凍結免除せず無条件発火させ、依存先更新時の影響確認を必須化する」に基づき suppress/suppress_reason 機構自体を撤去。コード側：`schema/sidecar.schema.json`・`validate.py`・`dsv2/query.py`（`_suppresses_drift()` 撤去）・`dsv2/meta.py`・`dsv2/viewer.py`・`config.yml`（`always_error:` 撤去・dead code 確認済み）から suppress を除去し FORMAT.md/notation.md を追随。コーパス側：FR「三軸の検査抑制機構」を二軸に改訂＋axis③（suppress）子孫 SPEC 6件を退役表記、VERIFY 5件から suppress 除去＋凍結機構固有辺を本文 out-of-graph 記録へ退避、FR 5件（RULE-018 用）の suppress を本文プロースへ移行。DD-2（VERIFY の RULE-004 免除決定）を新規 DD で明示的に破棄。ドリフト resync 28件（本バッチの版上げ由来分含む）を機械的に解消（drift 0 件）。分析/設計層（P-2-5/D-4/D-12/D-18/P-7・DM-1/MOD-filter）の未追随は新規 open FND で別途フラグ（本 PR スコープ外・オーナー判断待ち）。 |
 | issue #76 — doc-system v1→v2 フォーマット根本刷新 | tracking issue（Sub-A〜F：#70-75）＋本 cutover | ✅ 完了（2026-07-05）。①本文/メタ属性分離（`{slug}.md`＋`{slug}.yaml`）②連番 id 廃止（slug=正規化タイトル・path 非依存）③1ファイル1ノード化を実施。Sub-A（新フォーマット確定・#70）→Sub-B（585 ノード一括移行・#71）→Sub-C（ツール刷新・#72）→Sub-D（著作パイプライン更新・#73）→Sub-E（テンプレート改訂・#74）→Sub-F（doc_view.html 生成器・#75）が全完了済み。本セッションで**最終カットオーバー**を実施：v1 `doc-system/` を `doc-system-v1-archive/` へ retire（`git mv`）、v1 専用 `backref/` を `archive/backref-v1/` へ retire、`docidx/` は v1-legacy-only である旨を README に明記（`nodeyaml.py` は v2 `dsv2`/`doc-system-v2/validate.py` の共有インフラとして存続）、`docidx-lookup` サブエージェントを dsv2-native（`python3 -m dsv2 index`＋grep/Read）に書き換え、`CLAUDE.md`／`.github/copilot-instructions.md` の正本ポインタを `doc-system/` → `doc-system-v2/` へ全面更新。 |
 
@@ -28,17 +29,16 @@
 | ステージ | ディレクトリ | ノード数（`.yaml`） | 主な型 |
 |---|---|---|---|
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
-| 02-what | `nodes/02-what/` | 251 | FR / NFR / SPEC |
+| 02-what | `nodes/02-what/` | 253 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 147 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
-| 05-design | `nodes/05-design/` | 75 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **585** | v1 の全ノードを移行済み（Sub-B・実測ブラスト半径どおり） |
+| 04-verification | `nodes/04-verification/` | 156 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 05-design | `nodes/05-design/` | 77 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
+| **計** | `nodes/**` | **598** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は v1 移行時点の実測（`doc-system-v2/MIGRATION_REPORT.md`）と一致。移行後の増分著作は
-> `*-author` → `reconciliation-validator` → `reconciliation` の2段パイプラインで v2 コーパスへ直接追加される
-> ため、本表は生成物ではなく移行完了時のスナップショット。最新の型別内訳は
-> `python3 -m dsv2 index --root doc-system-v2` が生成する `meta.json` を grep/jq で参照する
-> （自動集計サブコマンドは未実装・下記「今後」参照）。
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-08 実測。`doc-system-v2/meta.json`
+> が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
+> 2026-07-08 時点では `python3 -m dsv2 drift --root doc-system-v2` は drift 0 件、
+> `python3 -m dsv2 prompt-coverage --root doc-system-v2` は PROMPT coverage 欠落 0 件。
 
 ---
 
@@ -86,7 +86,7 @@
 |---|---|---|---|
 | N1 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後 |
 | N2 | テスト戦略④（凍結セット残項目） | 🟡 中 | 設計層著作済み。`/test-strategy` スキルで TD/TC 設計 |
-| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み |
+| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み。Phase 1 では手動同期のみ完了 |
 | N4 | open FND 12件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
 
 ---
