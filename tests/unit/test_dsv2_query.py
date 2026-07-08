@@ -1,6 +1,8 @@
 """dsv2.query — deps / dependents / orphans / drift の契約。"""
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from dsv2 import meta, query
 
@@ -94,6 +96,10 @@ class TestPromptCoverageGaps(unittest.TestCase):
     def _meta(self, nodes):
         return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
 
+    def _write_config(self, root: Path, targets: list[str]) -> None:
+        body = "prompt_coverage_targets:\n" + "".join(f"  - {target}\n" for target in targets)
+        (root / "config.yml").write_text(body, encoding="utf-8")
+
     def test_all_covered_returns_empty(self):
         m = self._meta([_prompt_node("align-認識合わせ"), _prompt_node("mvp-scope-価値ベース")])
         self.assertEqual(query.prompt_coverage_gaps(m, targets=["align", "mvp-scope"]), [])
@@ -122,9 +128,15 @@ class TestPromptCoverageGaps(unittest.TestCase):
             ["spec-principles"],
         )
 
-    def test_default_targets_used_when_omitted(self):
-        gaps = query.prompt_coverage_gaps(self._meta([]))
-        self.assertEqual(gaps, list(query.PROMPT_COVERAGE_TARGETS))
+    def test_targets_are_loaded_from_config_each_call(self):
+        m = self._meta([_prompt_node("align-認識合わせ")])
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self._write_config(root, ["align", "docidx"])
+            self.assertEqual(query.prompt_coverage_gaps(m, root=root), ["docidx"])
+
+            self._write_config(root, ["align", "docidx", "mvp-scope"])
+            self.assertEqual(query.prompt_coverage_gaps(m, root=root), ["docidx", "mvp-scope"])
 
 
 if __name__ == "__main__":
