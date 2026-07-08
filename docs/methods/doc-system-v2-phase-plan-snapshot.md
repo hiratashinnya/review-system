@@ -5,7 +5,7 @@
 ## 棚卸しサマリ
 
 - 初回棚卸し時点の GitHub open Issue は 15 件。
-- Phase 2 完了後の dashboard 判断待ちは open FND 8 / open Q 1 / deferred PEND 1。
+- Phase 2 完了後の dashboard 判断待ちは open FND 9 / open Q 1 / deferred PEND 1。
 - Phase 2 完了後の dsv2 実測は 598 ノード、validate エラー 0、drift 0。
 - Phase 2 完了後の prompt-coverage は欠落 0 件。
 
@@ -22,7 +22,7 @@
 - #107: PR #138 で完了。author update slug reporting を正式化し、著作更新時の slug 報告規約を明確化。
 - #78: PR #139 で完了。condition follow-up を反映し、condition 語彙・傘 SPEC 周辺の後続整理を完了。
 - suppress 廃止後続 FND: PR #143 で完了。issue #118 後に残っていた分析/設計層の suppress 未追随を解消し、該当 FND を resolved 化。
-- dashboard / snapshot 手動同期: `doc-system-v2/00-dashboard.md` と本スナップショットに Phase 2 完了ログ、判断待ち open FND 8 / open Q 1 / deferred PEND 1、598 ノード、validate エラー 0、drift 0、PROMPT coverage 欠落 0 を反映。
+- dashboard / snapshot 手動同期: `doc-system-v2/00-dashboard.md` と本スナップショットに Phase 2 完了ログ、判断待ち open FND 9 / open Q 1 / deferred PEND 1、598 ノード、validate エラー 0、drift 0、PROMPT coverage 欠落 0 を反映。
 
 ## Phase 推奨
 
@@ -40,7 +40,7 @@
 - #5。
 - #6 / #7 / #11。
 - #108。
-- open FND 8 件・open Q 1 件の実施スプリント決定。
+- open FND 9 件・open Q 1 件の実施スプリント決定。
 
 ## 主な依存・衝突
 

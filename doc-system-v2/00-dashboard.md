@@ -46,9 +46,9 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 10 件**（open FND 8・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 11 件**（open FND 9・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（8 件）
+### open FND（9 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
@@ -60,6 +60,7 @@
 | SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落 | 未設定 | テスタブル化検討 |
 | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 未設定 | 親辺の妥当性再検討 |
 | `_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離） | 未設定 | 実装時に要検証 |
+| 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 未設定 | 著作資産側への反映漏れ点検 |
 
 > 全て `scheduled` 未設定（オーナー判断待ち。1件のみ sprint-2 承認済み）は**独断で繰り越さない**
 > （CLAUDE.md「スケジュール独断禁止」）。
@@ -85,7 +86,7 @@
 | N1 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後 |
 | N2 | テスト戦略④（凍結セット残項目） | 🟡 中 | 設計層著作済み。`/test-strategy` スキルで TD/TC 設計 |
 | N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み。Phase 1 では手動同期のみ完了 |
-| N4 | open FND 8件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
+| N4 | open FND 9件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
 
 ---
 
