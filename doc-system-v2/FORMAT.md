@@ -74,7 +74,8 @@ nodes/
 - 語彙は現行 `config.yml: condition_vocab` を踏襲: **`normal | boundary | empty | failure | error`**（新設・削除なし）。
   - normal=正常系 / boundary=境界値 / empty=空・ゼロ件・null / failure=仕様違反を正しく検出（sad-path）/ error=処理不能な異常入力（fail-close 対象）。
 - **非テスタブル**（傘・トレーサビリティ用）ノードは `condition` を**省略**する。
-- **傘（umbrella）は condition 値ではない**。傘性は「同型の子から被参照される」構造から導出する（condition に umbrella を混ぜない＝子を代表せずミスリードになるため）。移行（Sub-B）で現行の傘 SPEC（condition:normal）は condition を落とす。
+- **傘（umbrella）は condition 値ではない**。傘性は「同型の子から被参照される」構造から導出する（condition に umbrella を混ぜない＝子を代表せずミスリードになるため）。同型 child→parent 辺の target になっている傘 SPEC は RULE-016 対象外で、condition を持たない。
+- **always_error は condition とは別軸**。RULE-005/007 のような抑制不可性は config の `always_error` で表し、condition は入力等価クラス（failure/error 等）で割り当てる。
 
 ## 版（DD-8 踏襲）
 - `version` は `MAJOR.MINOR.PATCH`。MAJOR=構造/型、MINOR=内容、PATCH(z)=format/provenance/lifecycle。

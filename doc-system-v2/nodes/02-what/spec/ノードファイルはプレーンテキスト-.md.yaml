@@ -1,5 +1,5 @@
 title: "ノードファイルはプレーンテキスト .md"
-version: "0.2.1"
+version: "0.2.2"
 labels: []
 scheduled: ""
 edges:
@@ -8,4 +8,6 @@ edges:
   - to: "spec-44-期待動作が-読込完了・bomはwarning・デコードエラーはerror-の3分岐混載"
     ref_version: "0.1"
   - to: "nfr-由来本文検査の出力ルール-id-規約が未定義-nfr-id-check-vs-rule-nnn"
+    ref_version: "0.1"
+  - to: "傘-spec-の-condition-が子の-condition-多様性を代表せずミスリード"
     ref_version: "0.1"

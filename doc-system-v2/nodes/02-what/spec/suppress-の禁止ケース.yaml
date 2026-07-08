@@ -1,6 +1,5 @@
 title: "suppress の禁止ケース"
-version: "0.4.0"
-condition: error
+version: "0.4.1"
 labels: []
 scheduled: ""
 edges:

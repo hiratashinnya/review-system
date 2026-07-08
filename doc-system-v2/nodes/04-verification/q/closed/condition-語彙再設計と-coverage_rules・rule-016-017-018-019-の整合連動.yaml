@@ -4,7 +4,7 @@ labels: []
 scheduled: ""
 edges:
   - to: "condition-属性なし・語彙外-rule-016"
-    ref_version: "0.1"
+    ref_version: "0.2"
     note: "RULE-016 は vocab セットを列挙して語彙外を検査する"
   - to: "fr-の-spec-群に-normal-condition-なし-rule-017"
     ref_version: "0.1"

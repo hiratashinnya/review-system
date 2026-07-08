@@ -1,6 +1,5 @@
 title: "current_stage が stages に未定義"
-version: "0.1.0"
-condition: failure
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:

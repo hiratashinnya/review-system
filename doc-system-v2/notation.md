@@ -56,7 +56,8 @@ edges: []               # 無名依存辺（§5）。空でもキーは必須。
 
 - **condition**（`config.yml: condition_vocab`）: `normal | boundary | empty | failure | error`。
   - normal=正常系 / boundary=境界値 / empty=空・ゼロ件・null / failure=仕様違反を正しく検出（sad-path）/ error=処理不能な異常入力（fail-close 対象）。
-  - **非テスタブル（傘・トレーサビリティ用）ノードは `condition` を省略**する。傘性は「同型の子から被参照される」構造から導出する（condition に `umbrella` を混ぜない）。
+  - **非テスタブル（傘・トレーサビリティ用）ノードは `condition` を省略**する。傘性は「同型の子から被参照される」構造から導出する（condition に `umbrella` を混ぜない）。同型 child→parent 辺の target になっている傘 SPEC は RULE-016 対象外。
+  - **always_error は condition とは別軸**。抑制不可性は config の `always_error` で表し、condition は入力等価クラスで割り当てる。
 - **version**: MAJOR=構造/型、MINOR=内容、PATCH(z)=format/provenance/lifecycle。RULE-004 は `x.y` を比較。
 
 ## 5. edges（無名依存辺・親子も edge）

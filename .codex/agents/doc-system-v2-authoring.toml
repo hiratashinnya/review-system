@@ -34,7 +34,7 @@ v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー
 ```yaml
 title: "読めるタイトル（末尾に condition マーカーを書かない）"
 version: "0.1.0"        # MAJOR.MINOR.PATCH。新規は 0.1.0
-condition: normal       # テスタブル型のみ。normal|boundary|empty|failure|error。非テスタブル(傘)は省略
+condition: normal       # テスタブル型のみ。normal|boundary|empty|failure|error。同型 child→parent 辺から導出する傘は省略
 labels: []
 scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
 edges:

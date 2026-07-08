@@ -2,7 +2,7 @@
 
 **論点（Issue #78 論点3）**: `always_error` 系ルール（抑制不可・RULE-005 孤立 / RULE-007 存在しない ID 参照）を検査する SPEC の condition が不揃いになっている。**FND-83**（open・INFO）の指摘を語彙再設計に取り込み、付与基準を統一するか。
 
-**現状**:
+**決定時の現状**:
 - `config.yml` の `always_error: [RULE-005, RULE-007]`（scheduled/suppress/activate_stage いずれでも抑制不可）。
 - 対応 SPEC の condition が不揃い:
   - **SPEC-6-1**「存在しない ID 参照を RULE-007 ERROR 報告」（v0.1.0）→ `condition: error`（傘 SPEC「存在しない ID への参照」の子）
@@ -21,7 +21,7 @@
 - **カバレッジは FR 粒度で規定される（RULE-017/018 を再読）**: `coverage_rules.fr` = `required_conditions: [normal]` / `recommended_conditions: [failure, error]`。RULE-018 の実 SPEC「fr-の-spec-群に-failure-error-condition-なし-rule-018」の期待動作は「FR の SPEC 群に `condition: failure` **も** `condition: error` **も**存在しない → WARNING」＝**OR セマンティクス**（どちらか一方があれば充足・両方同時保有は要求しない）。すなわち config 上「1 つの規則（RULE）ごとに failure と error を両方持て」という要件は存在しない。
 - **SPEC-6・SPEC-7 は同一 FR ファミリー「構造的完結性検証」に属し、その FR は既に normal/failure/error を全網羅**: 実 slug と親をコーパスで特定した結果——
   - SPEC-7＝`孤立ノードの検出`（RULE-005・condition: **failure**）は FR「構造的完結性検証」の直接の子。
-  - SPEC-6＝傘 SPEC `存在しない ID への参照`（condition: error・**傘**）が同 FR の子で、そのテスタブル子 SPEC-6-1＝`存在しない ID 参照を RULE-007 ERROR 報告`（condition: **error**）。
+  - 決定時は SPEC-6＝傘 SPEC `存在しない ID への参照`（condition: error・**傘**）が同 FR の子で、そのテスタブル子 SPEC-6-1＝`存在しない ID 参照を RULE-007 ERROR 報告`（condition: **error**）だった。Issue #78 follow-up 後は傘 SPEC の condition を省略し、SPEC-6-1 は `failure` に是正済み。
   - 同 FR ファミリーには normal も存在（`整合グラフは構造違反 0 で通過` = normal）。ほか多数の必須辺欠如系 SPEC が failure。
   - ∴ FR「構造的完結性検証」は **normal ✓ / failure ✓ / error ✓** を既に全て保有。RULE-017・RULE-018 とも充足済みで**網羅穴なし**。オーナーの「両方無いと充足してない」懸念への答え＝「**このファミリーは failure も error も既に保有しており充足している**」。
 - **RULE-005/007 は各々「単一の入力等価クラス」しか持たない**: condition の 5 値は「その SPEC が扱う入力の等価クラス」。RULE-005（孤立）も RULE-007（存在しない ID 参照）も、**パース可能な入力に対しグラフ構造違反を検出する sad-path** ＝ 本来 **failure クラス**。両規則に「処理不能な異常入力（error クラス）」の別入力は存在しない——error クラス（YAML 構文不正・UTF-8 デコード失敗・id 欠如等）は別 SPEC ファミリーが既にカバー済み。∴ RULE-005/007 の各規則に error 兄弟を新設する必要はない（1 規則 = 1 入力クラスで充足）。
@@ -30,7 +30,7 @@
 
 - **D の評価＝不採用**: (1) カバレッジは FR 粒度で既に normal/failure/error を全網羅済み（穴なし）。(2) RULE-005/007 は各々単一入力クラス（failure）しか持たず、error クラスの別入力が実在しない（error は別 SPEC ファミリーが担当）。∴ 新設すべき欠落兄弟は無い。オーナーの鋭い問いは「統一」フレーミングの誤りを正しく露呈したが、網羅穴の存在は示さない。
 
-**論点4（整合連動）への波及**: SPEC-6-1 の condition を error→failure に是正すると、それを verifies する TD が存在する場合 **RULE-019**（TD↔SPEC condition 一致）に波及する（TD 側 condition も追随変更が必要）。論点4 の Q で RULE-019 との整合を確認する。傘 SPEC「存在しない ID への参照」の `condition: error` 残存は論点1（傘＝condition 省略）の処置で解消する（本 Q の scope 外）。
+**論点4（整合連動）への波及**: SPEC-6-1 の condition を error→failure に是正すると、それを verifies する TD が存在する場合 **RULE-019**（TD↔SPEC condition 一致）に波及する（TD 側 condition も追随変更が必要）。Issue #78 follow-up 時点では該当 TD は存在しないため追随変更は不要。傘 SPEC「存在しない ID への参照」の `condition: error` 残存は論点1（傘＝condition 省略）の処置で解消済み。
 
 **他論点との結合**: 本 Q（論点3）は論点2（vocab セット）が確定した集合内での値の割り当て。論点2 が B/C（セット変更）なら本 Q の選択肢も影響を受けるため、論点2 → 論点3 の順で決めるのが自然。independent な決定軸（always_error への値割当基準）のため別 Q とした。
 
@@ -38,4 +38,4 @@
 
 **指摘時 ref_version**: always_error 系 SPEC の condition が不揃い（SPEC-6=error, SPEC-7=failure）"0.1"（FND-83 サイドカー v0.1.0 時点）／存在しない ID 参照を RULE-007 ERROR 報告 "0.1"（同 SPEC サイドカー v0.1.0 時点）／孤立ノードの検出 "0.2"（同 SPEC サイドカー v0.2.0 時点）
 
-**昇格記録（2026-07-06）**: 本 Q は DD「SPEC-6-1 の condition を failure へ是正（always_error condition Q より昇格）」（slug: `spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格`）として昇格・決定済み。決定＝SPEC-6-1 の condition を入力等価クラス基準で `error`→`failure` へ是正（SPEC-7 は変更なし）・選択肢 D は不採用。実際の SPEC 修正・RULE-019 カスケード・FND-83 解消は follow-up（本 PR 対象外・実施時期オーナー判断待ち）。
+**昇格記録（2026-07-06）**: 本 Q は DD「SPEC-6-1 の condition を failure へ是正（always_error condition Q より昇格）」（slug: `spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格`）として昇格・決定済み。決定＝SPEC-6-1 の condition を入力等価クラス基準で `error`→`failure` へ是正（SPEC-7 は変更なし）・選択肢 D は不採用。Issue #78 follow-up で SPEC 修正・FND-83 解消を反映済み。RULE-019 カスケードは対象 TD 不在のため不要。

@@ -1,10 +1,12 @@
 title: "存在しない ID 参照を RULE-007 ERROR 報告"
-version: "0.1.0"
-condition: error
+version: "0.2.0"
+condition: failure
 labels: []
 scheduled: ""
 edges:
   - to: "存在しない-id-への参照"
     ref_version: "0.2"
   - to: "spec-6-期待動作が-rule-007-error報告-と-always_errorで抑制不可-の併載"
+    ref_version: "0.1"
+  - to: "spec-6-1-の-condition-を-failure-へ是正-always_error-condition-q-より昇格"
     ref_version: "0.1"

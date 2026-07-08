@@ -1,8 +1,5 @@
 title: "SPEC-6-1 の condition を failure へ是正（always_error condition Q より昇格）"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "存在しない-id-参照を-rule-007-error-報告"
-    ref_version: "0.1"
-    note: "condition を error→failure へ是正する処置が未反映（follow-up・RULE-019 カスケード含む・実施時期オーナー判断待ち）"
+edges: []

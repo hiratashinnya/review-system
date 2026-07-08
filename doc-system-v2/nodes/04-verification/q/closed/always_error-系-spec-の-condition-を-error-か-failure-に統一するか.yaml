@@ -7,7 +7,7 @@ edges:
     ref_version: "0.1"
     note: "本 Q の決定で FND-83 が解消される（affected element）"
   - to: "存在しない-id-参照を-rule-007-error-報告"
-    ref_version: "0.1"
+    ref_version: "0.2"
     note: "SPEC-6-1（RULE-007）現 condition=error。入力等価クラス基準で failure へ是正の可能性"
   - to: "孤立ノードの検出"
     ref_version: "0.2"

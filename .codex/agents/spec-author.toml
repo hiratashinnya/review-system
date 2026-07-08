@@ -70,7 +70,7 @@ title: "検証アサーションを表す読めるタイトル"   # id は slugi
 version: "0.1.0"
 labels: []
 scheduled: "<current_phase 値>"  # 既定 = current_phase（config.yaml）。後送りはオーナー承認時のみ空/別値
-condition: normal     # normal | boundary | empty | failure | error（RULE-016 ERROR）
+condition: normal     # leaf SPEC のみ。normal | boundary | empty | failure | error（RULE-016 ERROR）
 edges:
   - to: "親-spec-の-slug"   # 直接の親（FR でなく親 SPEC）。kind/status は書かない
     ref_version: "0.1"      # 親 SPEC サイドカー version の x.y
@@ -115,7 +115,7 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 - [ ] 子ノードが親 SPEC へ依存辺を張る（FR を直接参照していない）・`kind`/`status` を書いていない
 - [ ] `to` は単数 slug（リスト記法を使っていない）
 - [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
-- [ ] `condition` 属性が全子ノードに存在（RULE-016 ERROR）
+- [ ] leaf SPEC の `condition` 属性が全子ノードに存在（RULE-016 ERROR）。同型 child→parent 辺から傘ロールと導出される親 SPEC は condition を省略する
 - [ ] edges の `to` がすべて実在する slug（RULE-007: always_error）
 - [ ] `ref_version`（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
 """

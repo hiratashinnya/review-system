@@ -40,7 +40,8 @@ slug:
 # ------------------------------------------------------------
 # condition 語彙（RULE-016）。現行から新設/削除なしで踏襲。
 # normal:正常系 / boundary:境界値 / empty:空・ゼロ件・null / failure:仕様違反を正しく検出(sad-path) /
-# error:処理不能な異常入力(fail-close 対象)。非テスタブル(傘)ノードは condition を持たない。
+# error:処理不能な異常入力(fail-close 対象)。always_error は condition とは別軸。
+# 非テスタブル(同型 child→parent 辺から導出する傘)ノードは condition を持たず、RULE-016 対象外。
 # ------------------------------------------------------------
 condition_vocab: [normal, boundary, empty, failure, error]
 

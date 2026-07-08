@@ -7,7 +7,7 @@ edges:
     ref_version: "0.1"
     note: "本 Q の決定で FND-89 が解消される（affected element）"
   - to: "condition-属性なし・語彙外-rule-016"
-    ref_version: "0.1"
+    ref_version: "0.2"
     note: "傘の condition 表現を変えると RULE-016（condition 必須）の解釈に波及する"
   - to: "傘-spec-は-condition-を省略し傘ロールを-edges-から機械判定-傘表現-q-より昇格"
     ref_version: "0.1"

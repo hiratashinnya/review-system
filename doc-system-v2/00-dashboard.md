@@ -46,7 +46,7 @@
 
 **計 14 件**（open FND 12・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（12 件）
+### open FND（10 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
@@ -54,9 +54,7 @@
 | `backref check` の open-but-backref 判定がトートロジーで open FND を全件誤検出（issue #64 Category A） | 未設定 | out-of-graph（`archive/backref-v1/` 内）のバグ記録。v1 archive 化により実害は収束 |
 | RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷 | 未設定 | 索引化検討 |
 | SPEC-9-1 と SPEC-10 が同一 RULE-004 検出でほぼ同主張 | 未設定 | 統合検討 |
-| always_error 系 SPEC の condition が不揃い（SPEC-6=error, SPEC-7=failure） | 未設定 | condition 語彙の不揃い |
 | SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない | 未設定 | 文言整形 |
-| 傘 SPEC の condition が子の condition 多様性を代表せずミスリード | 未設定 | 傘 SPEC 表記の精度 |
 | SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落 | 未設定 | テスタブル化検討 |
 | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 未設定 | 親辺の妥当性再検討 |
 | `_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離） | 未設定 | 実装時に要検証 |
