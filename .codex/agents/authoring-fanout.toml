@@ -59,9 +59,13 @@ update_slugs: <既存ノード更新として宣言する slug 群（任意・de
 
 ### Step 3: 著作結果の収集
 
-各 `*-author` の戻り（著作した slug 群・エラー）を集約する。いずれかの author が
+各 `*-author` の戻り（`AUTHOR_DONE` の `created_slugs` / `update_slugs` / `written_tmp`・エラー）を集約する。いずれかの author が
 **エラー/未完（差し戻しエラーを返した・tmp 未出力）** なら、そのまま `reconciliation-validator` にかけず
 **STOP して報告**（どの target が失敗したか）。勝手に再試行の推測をしない（呼び出し元が author を再起動する）。
+
+`update_slugs` は、入力で呼び出し元から渡されたものと、各 `*-author` が `AUTHOR_DONE.update_slugs` で申告したものを
+重複排除してマージする。author が既存ノード更新をしていない場合でも `update_slugs: []` を返していることを確認する。
+新規作成 slug（`created_slugs`）を `update_slugs` に混ぜない。
 
 ### Step 4: バッチ検証（reconciliation-validator へ委譲）
 
@@ -71,7 +75,7 @@ update_slugs: <既存ノード更新として宣言する slug 群（任意・de
 sprint:      <sprint>
 parent_ids:  <このバッチの全 parent_id>
 layer:       <author から導出した layer（requirements/spec/analysis/design/verification）>
-update_slugs: <既存ノード更新として宣言する slug 群（呼び出し元または design-author の TERM 追記から渡された場合のみ）>
+update_slugs: <既存ノード更新として宣言する slug 群（呼び出し元入力と各 author の AUTHOR_DONE.update_slugs をマージしたもの。無ければ []）>
 ```
 
 validator は read-only で `VALIDATION_OK`（`self_fix` 指示付き）または `ROLLBACK` を返す。
