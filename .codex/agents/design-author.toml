@@ -29,12 +29,13 @@ tmp/<sprint>/<parent-id>/nodes/05-design/<type>/{slug}.yaml  # サイドカー
 
 TERM は analysis-author が既に著作した `03-analysis/term` の共有ノード。design-author は DM 確定時に**既存 TERM を更新**する：
 
-> **既存ノード更新の検証（#97 で解決済み）**：既存 TERM を同一 slug で tmp に置くと `dsv2 check-slug` が「既存コーパス id 衝突」として ROLLBACK するため、reconciliation-validator は**更新対象 slug を `dsv2 check-slug --update <term-slug>` で宣言**して衝突免除する（案A・#97）。バッチ内重複と非宣言 slug の corpus 衝突は従来どおり fail-close を維持。下記フローはこの `--update` 宣言を前提に動く。
+> **既存ノード更新の検証（#97 で解決済み）**：既存 TERM を同一 slug で tmp に置くと `dsv2 check-slug` が「既存コーパス id 衝突」として ROLLBACK するため、reconciliation-validator は**更新対象 slug を `dsv2 check-slug --update <term-slug>` で宣言**して衝突免除する（案A・#97）。バッチ内重複と非宣言 slug の corpus 衝突は従来どおり fail-close を維持。下記フローはこの `--update` 宣言を前提に動く。design-author は TERM 更新を完了報告の `AUTHOR_DONE.update_slugs` に必ず列挙し、呼び出し元が validator の `update_slugs` へ渡せるようにする。
 
 1. **既存 TERM をコーパスから Read**：`doc-system-v2/nodes/03-analysis/term/{slug}.md`＋`{slug}.yaml`。無ければ分析ファセット未著作＝分析層が先行していない状態なので著作せず打ち上げる（analysis-author 先行が前提）。
 2. その対を **tmp ミラーの `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/{slug}.{md,yaml}`**（`05-design` ではなく **`03-analysis/term`**）にコピーし、`.md` 本文の「用語/意味/用途」の下に**設計ファセット（Python 型名・定義モジュール）を追記**する。**分析ファセットは保持**（消さない）。
 3. サイドカー `.yaml` は `version` を **MINOR バンプ**（内容追記）。`edges`（`term→spec`）は保持。設計側の依存（`dm→term`）は DM ノード側に張る（TERM には張らない）。
 4. reconciliation は tmp の path（`03-analysis/term`）が既存コーパスノードと一致するため、**新規作成ではなく既存ノードの上書き更新**として反映する。
+5. 完了報告では、追記更新した TERM slug を `created_slugs` ではなく `update_slugs` に列挙する。複数 TERM を更新した場合は全 slug を重複なく列挙し、TERM 更新が無い場合は共通契約どおり `update_slugs: []` を返す。
 
 ---
 

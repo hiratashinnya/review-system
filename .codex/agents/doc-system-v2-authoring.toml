@@ -66,6 +66,33 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
   corpus へそのまま反映**できる（path から type/status が導出されるため配置先が一意）。
 - 親ノードを更新する場合も、その `{parent-slug}.yaml`（＋必要なら `.md`）を同じミラー下に置く。
 
+## 著作結果報告（validator への update-slug 申告）
+
+各 `*-author` は tmp への書き込み後、呼び出し元（主文脈または `authoring-fanout`）へ、著作結果を次の形式で
+必ず報告する。これは `reconciliation-validator` の `update_slugs` 入力、最終的には
+`dsv2 check-slug --update <slug>` へ渡すための out-of-band 契約である。
+
+```
+AUTHOR_DONE:
+  parent_id: <parent-id>
+  created_slugs: [<新規作成した slug>, ...]
+  update_slugs: [<既存コーパスノードを更新した slug>, ...]
+  written_tmp:
+    - tmp/<sprint>/<parent-id>/nodes/.../<slug>.md
+    - tmp/<sprint>/<parent-id>/nodes/.../<slug>.yaml
+```
+
+- **新規ノード作成**: コーパスにまだ存在しない slug の対を新しく置いた場合は `created_slugs` に入れる。
+  `update_slugs` には入れない。
+- **既存ノード更新**: 既存コーパスノードと同じ slug の対を tmp ミラーに置き、本文またはサイドカーを更新した場合は
+  `update_slugs` にその slug を入れる。親ノードのサイドカー更新、既存 TERM への設計ファセット追記、backref 付与対象の
+  更新などが該当する。
+- **複数更新**: 既存ノードを複数更新した場合は、更新した全 slug を `update_slugs` に列挙する。順序は問わないが重複させない。
+- **更新なし**: 既存ノード更新が無い場合も `update_slugs: []` を明示する。省略しない。
+- **slug の扱い**: `update_slugs` は tmp に置いた既存ノードのファイル stem と同じ生の slug 文字列を報告する。
+  title や path、`--title` 用の文字列は報告しない。新規 slug を誤って `update_slugs` に入れない。
+- **エラー時**: 著作を完了できない場合は `AUTHOR_DONE` を返さず、失敗理由と対象 `parent_id`/slug 候補を報告して STOP する。
+
 ## sprint の取得
 
 `sprint` 未指定なら `doc-system-v2/config.yml` の `current_stage` ではなく、運用の current phase
@@ -80,4 +107,5 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
 - [ ] `to` の slug がすべて実在（RULE-007: always_error）／必須依存辺が存在（config `must_link_to`）
 - [ ] `scheduled` が非空（既定 = current_phase・空はオーナー承認済み後送りのみ）
 - [ ] tmp のミラー path が `nodes/<stage>/<type>/[<status>/]` に一致（config.yml layout）
+- [ ] 呼び出し元へ `AUTHOR_DONE` を返し、既存ノード更新は `update_slugs`、新規ノード作成は `created_slugs` に分けた
 """
