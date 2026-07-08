@@ -1,5 +1,5 @@
 title: "構造化ノードセット"
-version: "0.2.0"
+version: "0.3.1"
 labels: []
 scheduled: ""
 edges:
@@ -8,4 +8,6 @@ edges:
   - to: "ノード受付・パース"
     ref_version: "0.3"
   - to: "d-4-構造化ノードセット-定義が-condition-result-log_ref-を欠き-p-2-3-p-2-4-p-3-2-の入力が台帳上断"
+    ref_version: "0.1"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
     ref_version: "0.1"

@@ -14,7 +14,7 @@ edges:
   - to: "verify-に対象要素への依存辺欠如-rule-006"
     ref_version: "0.1"
   - to: "属性検査ビュー"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "必須接続規則"
     ref_version: "0.1"
   - to: "点検要求"

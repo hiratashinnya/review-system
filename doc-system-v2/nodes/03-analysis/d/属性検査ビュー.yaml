@@ -1,5 +1,5 @@
 title: "属性検査ビュー"
-version: "0.1.1"
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:
@@ -9,3 +9,5 @@ edges:
     ref_version: "0.3"
   - to: "i-1-1-i-1-2-i-1-3-の過分割の疑い"
     ref_version: "0.2"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
+    ref_version: "0.1"

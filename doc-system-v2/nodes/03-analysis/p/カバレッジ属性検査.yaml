@@ -10,4 +10,4 @@ edges:
   - to: "点検要求"
     ref_version: "0.5"
   - to: "rule-検査"
-    ref_version: "0.3"
+    ref_version: "0.4"

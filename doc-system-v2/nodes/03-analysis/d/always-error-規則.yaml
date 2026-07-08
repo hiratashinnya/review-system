@@ -1,5 +1,5 @@
 title: "always-error 規則"
-version: "0.1.0"
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:
@@ -7,3 +7,5 @@ edges:
     ref_version: "0.3"
   - to: "設定ファイル読み込み"
     ref_version: "0.2"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
+    ref_version: "0.1"

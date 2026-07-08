@@ -12,6 +12,7 @@
 - `condition: str | None` — condition 属性（SPEC/TD/TC 等のみ）
 - `result: str | None` — 実行結果（TR のみ）
 - `log_ref: str | None` — ログ参照（TR のみ）
-- `suppress: list[str]` — 抑制ルール ID 群
 **不変条件**: `id` は非空かつ一意。`edges` の各要素は EdgeRecord。`condition` は config の `condition_vocab` 語彙に属す（保持時は任意・検査は別モジュール）。
 **実現する D**: D-4（構造化ノードセット）
+
+> **改訂理由（MINOR バンプ v0.1→v0.2・issue #118 後続）**: suppress 機構廃止に伴い、NodeRecord から `suppress` フィールドを除去した。scheduled は現行のフェーズ限定発火指定として残す。

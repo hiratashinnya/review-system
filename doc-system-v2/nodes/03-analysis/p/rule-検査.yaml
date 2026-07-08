@@ -1,9 +1,11 @@
 title: "RULE 検査"
-version: "0.3.0"
+version: "0.4.1"
 labels: []
 scheduled: ""
 edges:
   - to: "整合グラフは構造違反-0-で通過"
     ref_version: "0.2"
   - to: "p-2-rule-検査-の単一責務違反-粒度過大"
+    ref_version: "0.1"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
     ref_version: "0.1"

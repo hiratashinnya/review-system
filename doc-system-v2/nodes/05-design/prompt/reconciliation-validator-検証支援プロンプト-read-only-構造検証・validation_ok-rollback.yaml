@@ -1,7 +1,9 @@
 title: "reconciliation-validator 検証支援プロンプト（read-only 構造検証・VALIDATION_OK/ROLLBACK）"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: ""
 edges:
   - to: "著作出力の-id-欠如検出時の-reconciliation-挙動"
+    ref_version: "0.1"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
     ref_version: "0.1"

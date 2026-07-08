@@ -1,7 +1,9 @@
 title: "filter"
-version: "0.1.0"
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:
   - to: "抑制・発火フィルタ"
+    ref_version: "0.2"
+  - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
     ref_version: "0.1"

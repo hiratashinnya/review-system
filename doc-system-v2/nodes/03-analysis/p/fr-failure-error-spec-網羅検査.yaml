@@ -6,7 +6,7 @@ edges:
   - to: "fr-の-spec-群に-failure-error-condition-なし-rule-018"
     ref_version: "0.1"
   - to: "属性検査ビュー"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "condition-語彙・網羅規則"
     ref_version: "0.1"
   - to: "点検要求"
