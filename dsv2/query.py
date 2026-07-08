@@ -18,30 +18,42 @@ RULE-032（PROMPT カバレッジ欠落）は config.yml ``prompt_coverage_targe
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Iterable
 
-from .meta import index_by_id
+from .meta import DEFAULT_ROOT, index_by_id
 
-# config.yml の prompt_coverage_targets を正本とし、それと一致させて直書きしている
-# （config 直読み配線は issue #114 想定・doc-system-v2/validate.py の STAGES/TYPE_DIRS/STATUS_DIRS
-#   と同型の暫定。旧 #74 は Sub-E としてクローズ済みのため #114 へ差し替え）。
-# 決定元＝DD-22（2026-07-01）: 工程別10＋パイプライン3＋境界IN（docidx）＝計14件。
-PROMPT_COVERAGE_TARGETS: tuple[str, ...] = (
-    "align",
-    "value-trace",
-    "mvp-scope",
-    "schema-design",
-    "domain-model",
-    "architecture-design",
-    "orchestration-design",
-    "prompt-design",
-    "test-strategy",
-    "spec-principles",
-    "spec-pipeline",
-    "impl-design-pipeline",
-    "asset-pipeline",
-    "docidx",
-)
+
+def load_prompt_coverage_targets(root: str | Path = DEFAULT_ROOT) -> tuple[str, ...]:
+    """``config.yml`` が宣言する PROMPT カバレッジ対象 skill 集合を読む（RULE-032）。"""
+    config_path = Path(root) / "config.yml"
+    if not config_path.is_file():
+        raise ValueError(f"{config_path}: config.yml が見つかりません")
+    targets: list[str] | None = None
+    in_targets = False
+    for raw in config_path.read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if stripped == "prompt_coverage_targets:":
+            targets = []
+            in_targets = True
+            continue
+        if in_targets and indent == 0:
+            break
+        if in_targets:
+            if not stripped.startswith("- "):
+                raise ValueError(f"{config_path}: prompt_coverage_targets はブロックリスト形式である必要があります")
+            item = stripped[2:].split("#", 1)[0].strip().strip('"').strip("'")
+            if not item:
+                raise ValueError(f"{config_path}: prompt_coverage_targets に空要素があります")
+            targets.append(item)
+    if targets is None:
+        raise ValueError(f"{config_path}: prompt_coverage_targets が見つかりません")
+    if not targets:
+        raise ValueError(f"{config_path}: prompt_coverage_targets は空にできません")
+    return tuple(targets)
 
 
 def _xy(version: str) -> str:
@@ -160,7 +172,8 @@ def update_slugs_not_in_corpus(meta: dict, update_slugs: set[str]) -> list[str]:
 
 def prompt_coverage_gaps(
     meta: dict,
-    targets: Iterable[str] = PROMPT_COVERAGE_TARGETS,
+    targets: Iterable[str] | None = None,
+    root: str | Path = DEFAULT_ROOT,
 ) -> list[str]:
     """対象 skill 集合のうち、対応する PROMPT ノードが在グラフに存在しない skill を列挙（RULE-032）。
 
@@ -169,15 +182,16 @@ def prompt_coverage_gaps(
     著作エージェント PROMPT（PROMPT-1〜7）は carrier を持たないため対象から自然に除外される。
     戻り値は ``targets`` の宣言順を保つ（欠落 0 件なら空リスト）。
     """
+    declared_targets = tuple(targets) if targets is not None else load_prompt_coverage_targets(root)
     covered: set[str] = set()
     for n in meta["nodes"]:
         if n.get("type") != "prompt" or n.get("carrier") != "skill":
             continue
         node_id = n.get("id", "")
-        for skill in targets:
+        for skill in declared_targets:
             if node_id.startswith(f"{skill}-"):
                 covered.add(skill)
-    return [s for s in targets if s not in covered]
+    return [s for s in declared_targets if s not in covered]
 
 
 def drift(meta: dict) -> list[dict]:

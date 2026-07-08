@@ -134,8 +134,8 @@ def cmd_drift(args) -> int:
 
 
 def cmd_prompt_coverage(args) -> int:
-    _root_, meta = _load(args)
-    gaps = query.prompt_coverage_gaps(meta)
+    root, meta = _load(args)
+    gaps = query.prompt_coverage_gaps(meta, root=root)
     if not gaps:
         print("PROMPT カバレッジ欠落なし（宣言 skill すべてに対応 PROMPT ノードあり）")
         return EXIT_OK
