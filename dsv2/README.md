@@ -4,6 +4,7 @@ doc-system **v2**（1ノード1YAML＋型別 body policy・slug id・path 導出
 無名依存辺）向けの索引・照会・辺逆転・改題・HTML ビューア生成ツール。**標準ライブラリのみ**。`python3 -m dsv2 <cmd>`。
 
 サブコマンド: `index`（meta.json 生成）/ `deps` / `dependents` / `orphans` / `drift` /
+`dashboard`（stage/type 件数＋FND/Q/DD/PEND 判断待ちの Markdown 集計）/
 `reverse`（FND 辺逆転）/ `rename`（slug 改題）/ **`build-view`**（`meta.json`＋本文 → 単一 `doc_view.html`・Sub-F #75）。
 
 ## 公開レポート（GitHub Pages）
@@ -24,6 +25,7 @@ commit しない。
 |---|---|---|
 | `meta.py` | path `nodes/<stage>/<type>/[<status>/]{slug}` から stage/type/status を導出。`LAYOUT`/`STATUS_DIRS` は `config.yml` の `layout`/`status_dirs` と一致させ、不正配置は `MetaError` で fail-close。サイドカーは `title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/edges` を集約。`id`=ファイル stem。本文は `body_policy`、`body_path`、`body_anchor` として集約し、bodyless は `body_path=null`。 | 補助: FORMAT.md「path 規約」「1ノード=1YAML、本文は型別 body policy」・config.yml `layout`/`status_dirs`/`body_policy`。※ 版付きノード未整備（Sub-B 移行後に SCM/SPEC で整備予定）。 |
 | `query.py` | `deps`/`dependents`/`orphans`/`drift`。**RULE-004 ドリフト**＝辺の `ref_version`(x.y) ≠ 参照先サイドカー `version`(x.y.z) の x.y（z は不問）。`orphans`(RULE-005=always_error) は常時 ERROR 発火の fail-close 規則として扱う。 | 補助: FORMAT.md「版（DD-8 踏襲）」「edges」・config.yml（RULE-004 / always_error）。 |
+| `dashboard.py` | `meta.json` 互換データから stage/type/status 件数と、dashboard 判断待ちに相当する `fnd/open`・`q/open`・`dd/decided`・`pend/open|deferred` を Markdown スナップショット化する。`00-dashboard.md` の手書き運用とは分離し、標準出力のみで生成物を書かない。 | 補助: FORMAT.md「path 規約」・config.yml `status_dirs`・issue #108。 |
 | `yamledit.py` | サイドカー yaml の行ベース最小改変（version z バンプ・edges 追加/削除/retarget）。コメント保持＝**消さない（PR8）**。 | 補助: FORMAT.md「edges」「版」・DD-8。 |
 | `reverse.py` | FND 辺逆転＝forward(`FND→対象`)削除＋backward(`対象→FND`)付与＋DD-3 本文凍結＋z バンプ＋`git mv`（`fnd/open/`→`fnd/resolved/`）。status は path 導出。 | 補助: FORMAT.md「status 遷移（git mv）」・config.yml `fnd_lifecycle`（DD-16）・DD-3。 |
 | `rename.py` | slug 改題＝`.yaml` と同名 `.md` がある場合のみ改名＋全 referrer の `edges[].to` 一括張替え（meta.json 経由）。共有本文はノード改題で改名しない。 | 補助: FORMAT.md「id / slug」（rename ツール）・「body policy」。 |
@@ -37,7 +39,7 @@ commit しない。
 
 `dsv2 index` は `<root>/meta.json`（既定 `doc-system-v2/meta.json`）を生成する。これは**生成物**であり
 **手編集・コミットしない**（`.gitignore` 済み）。FORMAT.md「meta.json＝生成物・手編集しない・再生成で最新化」に従う。
-照会系（`deps`/`dependents`/`orphans`/`drift`）は `meta.json` があれば読み、無ければディスク走査で構築する
+照会系（`deps`/`dependents`/`orphans`/`drift`/`dashboard`）は `meta.json` があれば読み、無ければディスク走査で構築する
 （stale 回避のため照会前に `index` を推奨）。改変系（`reverse`/`rename`）は常にディスク走査で現状を反映する。
 `build-view` も同様に `meta.json` を読み（無ければ走査）、既定で `<root>/doc_view.html` を出力する。**`doc_view.html`
 も生成物**（`.gitignore` 済み・`build-view` で再生成）でコミットしない。

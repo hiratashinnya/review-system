@@ -6,6 +6,7 @@
 
   * ``index``       … ``nodes/**/*.yaml`` を走査し ``meta.json`` を生成（サイドカー集約）。
   * ``deps/dependents/orphans/drift`` … meta.json 上のグラフ照会（RULE-004 ドリフト含む）。
+  * ``dashboard``   … stage/type 件数と FND/Q/DD/PEND 判断待ちを Markdown 集計。
   * ``reverse``     … FND 辺逆転（forward 削除＋backward 付与＋DD-3 本文記録＋z バンプ＋git mv）。
   * ``rename``      … slug 改題（yaml＋同名本文の改名＋全 referrer の edges[].to 一括張替え）。
 

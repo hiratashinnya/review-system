@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dsv2 import meta, query
+from dsv2 import dashboard, meta, query
 
 from tests.unit.dsv2_fixtures import make_tree
 
@@ -44,6 +44,76 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["from"], "child-spec")
         self.assertEqual(rows[0]["to"], "parent-spec")
+
+
+class TestDashboardSummary(unittest.TestCase):
+    def test_counts_and_attention_nodes(self):
+        m = {
+            "format": "doc-system-v2",
+            "root": "r",
+            "nodes": [
+                {
+                    "id": "open-fnd",
+                    "stage": "04-verification",
+                    "type": "fnd",
+                    "status": "open",
+                    "title": "open finding",
+                    "scheduled": "",
+                    "yaml_path": "nodes/04-verification/fnd/open/open-fnd.yaml",
+                    "edges": [],
+                },
+                {
+                    "id": "resolved-fnd",
+                    "stage": "04-verification",
+                    "type": "fnd",
+                    "status": "resolved",
+                    "title": "resolved finding",
+                    "scheduled": "",
+                    "yaml_path": "nodes/04-verification/fnd/resolved/resolved-fnd.yaml",
+                    "edges": [],
+                },
+                {
+                    "id": "decided-dd",
+                    "stage": "04-verification",
+                    "type": "dd",
+                    "status": "decided",
+                    "title": "pending decision follow-up",
+                    "scheduled": "sprint-2",
+                    "yaml_path": "nodes/04-verification/dd/decided/decided-dd.yaml",
+                    "edges": [],
+                },
+                {
+                    "id": "deferred-pend",
+                    "stage": "04-verification",
+                    "type": "pend",
+                    "status": "deferred",
+                    "title": "deferred pending item",
+                    "scheduled": "",
+                    "yaml_path": "nodes/04-verification/pend/deferred/deferred-pend.yaml",
+                    "edges": [],
+                },
+                {
+                    "id": "spec",
+                    "stage": "02-what",
+                    "type": "spec",
+                    "status": None,
+                    "title": "normal spec",
+                    "scheduled": "",
+                    "yaml_path": "nodes/02-what/spec/spec.yaml",
+                    "edges": [],
+                },
+            ],
+        }
+        summary = dashboard.build_summary(m)
+        self.assertEqual(summary.total, 5)
+        self.assertIn(("04-verification", 4), summary.stage_counts)
+        self.assertIn(("fnd", "open", 1), summary.status_counts)
+        self.assertEqual([n["id"] for n in summary.attention_nodes], ["decided-dd", "open-fnd", "deferred-pend"])
+
+        rendered = dashboard.render_markdown(summary)
+        self.assertIn("## Attention Nodes", rendered)
+        self.assertIn("pending decision follow-up", rendered)
+        self.assertNotIn("resolved finding |", rendered)
 
 
 class TestExactLinkCountGaps(unittest.TestCase):
