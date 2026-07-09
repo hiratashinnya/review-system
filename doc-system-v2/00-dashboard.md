@@ -34,7 +34,7 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 253 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 156 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 161 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 77 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
 | **計** | `nodes/**` | **603** | v1 移行後の増分著作を含む現行実測 |
 
