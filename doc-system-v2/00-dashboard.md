@@ -18,6 +18,7 @@
 | 作業 | 種別 | 状態 |
 |---|---|---|
 | issue #142 — docidx archive 判断 | archive 判断＋参照境界更新 | ✅ 完了（2026-07-10）。`docidx/` は物理 archive へ移動しない判断。v1 archive (`doc-system-v1-archive/`) の読み取り CLI として `scan.py`/`cli.py`/`query.py` 等を残し、v2 実行系が import する `docidx.nodeyaml` は共有 YAML reader として存続。現行 v2 の正本照会は `python3 -m dsv2` と通常のファイル検索へ寄せる。 |
+| issue #140 — doc_system 用 config 操作エージェント | Codex agent＋repo skill＋PROMPT ノード | ✅ 完了（2026-07-10）。`doc-system-config-operator` と `doc-system-config` skill を追加し、`doc-system-v2/config.yml` の作成・解説・変更時に FORMAT/config/schema/dsv2 と対応 SPEC/SCM/CFG/PROMPT ノードを照合する手順を明文化。PROMPT ノードで agent carrier を在グラフ化。review_system 側の横展開は issue #141 に残す。 |
 | 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋FORMAT/dsv2 土台反映＋authoring 追随 | ✅ FORMAT/dsv2 body policy 反映済み（2026-07-09）。DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加後、`config.yml: body_policy`、`body_ref.file`/`body_ref.anchor`、YAML 走査 validator、bodyless/shared-body 対応 meta/rename/viewer を反映。PR #147 で SRC layout/schema/存在検査と TD shared body・TC bodyless・TD-TC 1:1 の実装設計・検証規則化を反映。本PRで著作テンプレート/プロンプト追随 FND を resolved 化し、TD/TC/SRC テンプレート、test-strategy、verification-author、共通 authoring/reconciliation 資産を body policy 前提へ同期。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
 | issue #94 — 既存585ノードの scheduled backfill | コーパス機械 backfill＋運用要約更新 | ✅ 完了（2026-07-10）。v1→v2 移行レポートの 585 slug を対象に、空 `scheduled` 558 件を `sprint-1` へ backfill。既存値あり 27 件（`sprint-2` 25 件・`post-mvp` 2 件）と移行後追加 18 件は #94 対象外として保持。 |
 | Phase 2 — condition / 傘 SPEC / suppress 廃止後続の同期 | コーパス追随＋検証＋運用要約更新 | ✅ 完了（2026-07-09）。#107 は PR #138 で author update slug reporting を正式化し、著作更新時の slug 報告規約を明確化。#78 は PR #139 で condition follow-up を反映し、condition 語彙・傘 SPEC 周辺の後続整理を完了。suppress 廃止後続 FND は PR #143 で分析/設計層未追随を解消し、issue #118 で残っていた「三軸抑制モデル」表現を Phase 2 として resolved 化。実測は 598 ノード、validate エラー 0 件、drift 0 件、PROMPT coverage 欠落 0 件。 |
@@ -37,12 +38,12 @@
 | 02-what | `nodes/02-what/` | 253 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
 | 04-verification | `nodes/04-verification/` | 161 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
-| 05-design | `nodes/05-design/` | 77 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **603** | v1 移行後の増分著作を含む現行実測 |
+| 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
+| **計** | `nodes/**` | **604** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-09 実測。`doc-system-v2/meta.json`
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-10 実測。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
-> 2026-07-09 時点では `python3 doc-system-v2/validate.py` は validate エラー 0 件、
+> 2026-07-10 時点では `python3 doc-system-v2/validate.py` は validate エラー 0 件、
 > `python3 -m dsv2 drift --root doc-system-v2` は drift 0 件、
 > `python3 -m dsv2 prompt-coverage --root doc-system-v2` は PROMPT coverage 欠落 0 件。
 
@@ -92,7 +93,7 @@
 | N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | ✅ 完了 | [issue #108](https://github.com/hiratashinnya/review-system/issues/108) 対応として `python3 -m dsv2 dashboard --root doc-system-v2` を追加済み。stage/type/status 件数と `fnd/open`・`q/open`・`dd/decided`・`pend/open|deferred` の Markdown 集計を stdout に出し、本帳票の手書き要約を検算できる |
 | N4 | #94 scheduled backfill | ✅ 完了 | v1→v2 移行 585 ノードの空 `scheduled` を `sprint-1` へ backfill 済み。既存値あり・移行後追加ノードは保持 |
 | N5 | #142 docidx archive 判断 | ✅ 完了 | `docidx/` は v1 archive CLI と v2 共有 `docidx.nodeyaml` として残し、物理 archive へ移動しない。現行 v2 照会は `dsv2` へ寄せる |
-| N6 | #140 → #141 config 操作エージェント | 🟡 中 | doc_system 側を先に固め、その後 review_system 側へ横展開する。#4 はここへ統合または close 判断する |
+| N6 | #140 → #141 config 操作エージェント | 🟡 中 | #140 doc_system 側は完了。次は #141 review_system 側へ横展開する。#4 は doc_system 側を #140 で吸収し、review_system 側は #141 の完了時に close 判断する |
 
 ---
 

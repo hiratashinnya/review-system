@@ -1,0 +1,10 @@
+title: "doc-system-config-operator doc-system config 操作エージェントプロンプト"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+carrier: "agent"
+edges:
+  - to: "config.yml-が-prompt-ノードカバレッジ対象-skill-集合を宣言する"
+    ref_version: "0.2"
+  - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
+    ref_version: "0.1"
