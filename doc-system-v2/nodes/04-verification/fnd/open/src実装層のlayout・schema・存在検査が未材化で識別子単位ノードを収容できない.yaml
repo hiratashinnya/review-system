@@ -1,0 +1,11 @@
+title: "SRC実装層のlayout・schema・存在検査が未材化で識別子単位ノードを収容できない"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges:
+  - to: "識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する"
+    ref_version: "0.1"
+  - to: "コード⇔設計の構造比較-段階④・post-mvp"
+    ref_version: "0.2"
+  - to: "src-の-@id-realizes-検証"
+    ref_version: "0.3"

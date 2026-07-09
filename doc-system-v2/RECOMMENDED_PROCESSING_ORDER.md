@@ -1,0 +1,64 @@
+# 推奨処理順序（2026-07-09）
+
+本ファイルは、識別子単位ノード・型別本文ポリシーの DD/FND 追加後に、open GitHub Issues と
+doc-system-v2 open FND/Q/PEND の依存関係を踏まえて整理した推奨順序である。
+
+## 前提
+
+- #5 は親テーマ。コメントで「doc_system 構築完了 + review_system の doc_system 対応」が完了条件に更新済み。
+- #127 は doc_system 完了の親。
+- #108 は #127 の blocker と本文に明記されている。
+- #94 はコメントで「backfill する」がオーナー確定済み。本文の「backfillしない推奨」は古い。
+- #140/#141 は doc_system / review_system 用 config 操作エージェント。
+- #142 は docidx archive 要否。dsv2 側の代替が固まってから判断する。
+- #4 は #140/#141 と重複気味。
+- #6/#7/#11 は review_system 旧ドキュメント/テスト証跡側の負債で、#128 配下に寄せるのが自然。
+
+## 推奨順序
+
+1. **識別子単位ノードの土台整備: FORMAT/dsv2 body policy**
+   - 対象 FND: `FORMATとdsv2ツールが1ノード2ファイル固定でbodyless・shared-bodyノードを表現できない`
+   - 理由: SRC/TD/TC の全作業の前提。先に FORMAT / notation / schema / validator / dsv2 meta/rename/viewer の本文ポリシーを確定する。
+
+2. **SRC と TD/TC の実装設計・検証規則化**
+   - 対象 FND:
+     - `SRC実装層のlayout・schema・存在検査が未材化で識別子単位ノードを収容できない`
+     - `TD共有本文とTC本文なし・TD-TC-1対1を検証層ルールが表現できない`
+   - 理由: SRC は `source.*` と implementation layout、TD/TC は `body_ref`・`test.*`・TD-TC exactly-one RULE が中心。共通 schema が関わるため、body policy 後に扱う。
+
+3. **著作テンプレート/プロンプト追随**
+   - 対象 FND: `著作テンプレートとプロンプトが識別子単位ノード・型別本文ポリシーに未追随`
+   - 理由: FORMAT/schema/validator が先。先に prompt を変えると、現行 validator が受け取れない形式を著作する恐れがある。
+
+4. **#108 dashboard 自動集計**
+   - 理由: body policy 後の meta 形に合わせて実装する方が手戻りが少ない。#127 の blocker。
+
+5. **#94 scheduled backfill**
+   - 理由: dashboard 自動集計後に、空 scheduled / legacy / backfill 済みの状態確認がしやすい。要否は owner 決定済みで、実施スプリントと方式が残る。
+
+6. **#142 docidx archive 判断**
+   - 理由: dsv2 index/dashboard/lookup が十分に代替できることを確認してから archive 判断する。
+
+7. **#140 → #141 config 操作エージェント**
+   - 理由: doc_system 側を先に固め、その後 review_system 側へ横展開する。#4 はここへ統合または close 判断する。
+
+8. **#127 doc_system 完了判定**
+   - 理由: 上記が揃ってから doc_system 構築完了を判断する。
+
+9. **#128 review_system 文書の doc_system 対応**
+   - 理由: #127 後に review_system 文書を doc_system 対応へ寄せる。#5 の完了条件にも関係する。
+
+10. **#6/#7/#11 review_system 側の旧負債処理**
+    - 理由: #128 配下で扱う。#11 の古いテスト名修正は #7 の UI 用語決定後が安全。
+
+11. **#5 親テーマの完了判断**
+    - 理由: doc_system 構築完了と review_system の doc_system 対応が揃ってから閉じる。
+
+## 検証スナップショット
+
+本順序の記録時点で以下を確認済み。
+
+- `python3 -m dsv2 index --root doc-system-v2`: 603 ノード
+- `python3 doc-system-v2/validate.py`: 603 ノード / エラー 0 件
+- `python3 -m dsv2 drift --root doc-system-v2`: ドリフトなし
+- `python3 -m dsv2 prompt-coverage --root doc-system-v2`: PROMPT カバレッジ欠落なし

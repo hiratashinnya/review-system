@@ -16,6 +16,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋後続 FND 分割 | ✅ 記録済み（2026-07-09）。実装/検証層は要件・分析・設計層と異なり、1ノード=1本文Markdown固定では冗長または不十分になるため、DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加。後続作業を「FORMAT/dsv2 body policy」「SRC layout/schema/存在検査」「TD shared body・TC bodyless・TD-TC 1:1」「著作テンプレート/プロンプト追随」の open FND 4件へ分割。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
 | Phase 2 — condition / 傘 SPEC / suppress 廃止後続の同期 | コーパス追随＋検証＋運用要約更新 | ✅ 完了（2026-07-09）。#107 は PR #138 で author update slug reporting を正式化し、著作更新時の slug 報告規約を明確化。#78 は PR #139 で condition follow-up を反映し、condition 語彙・傘 SPEC 周辺の後続整理を完了。suppress 廃止後続 FND は PR #143 で分析/設計層未追随を解消し、issue #118 で残っていた「三軸抑制モデル」表現を Phase 2 として resolved 化。実測は 598 ノード、validate エラー 0 件、drift 0 件、PROMPT coverage 欠落 0 件。 |
 | Phase 1 — 安全機構・PROMPT coverage・dashboard 同期 | 実装＋検証＋運用要約更新 | ✅ 完了（2026-07-08）。#129 は PR #133 で `agent-command-gate.sh` の fail-open / false negative / false positive を修正し、review 指摘（`gh --repo/-R pr merge`）も同 PR 内で解消後に merge。#112 は PR #134 で `docidx` PROMPT ノードを追加し、SPEC-61 系本文の 13→14 件不整合も review 指摘後に解消。#114 は PR #135 で `prompt_coverage_targets` を `config.yml` 直読みへ変更。#115 は PR #136 で RULE-032 の PROMPT coverage 判定を `carrier: skill|agent` に拡張し、agent carrier 化による誤欠落を防止。実測は 598 ノード、drift 0 件、PROMPT coverage 欠落 0 件。 |
 | issue #118 — suppress 機構の廃止（凍結の発想自体を撤去） | 機構廃止（コード＋要件層＋検証層） | ✅ 完了（2026-07-07）。オーナー方針「drift(RULE-004) は凍結免除せず無条件発火させ、依存先更新時の影響確認を必須化する」に基づき suppress/suppress_reason 機構自体を撤去。コード側：`schema/sidecar.schema.json`・`validate.py`・`dsv2/query.py`（`_suppresses_drift()` 撤去）・`dsv2/meta.py`・`dsv2/viewer.py`・`config.yml`（`always_error:` 撤去・dead code 確認済み）から suppress を除去し FORMAT.md/notation.md を追随。コーパス側：FR「三軸の検査抑制機構」を二軸に改訂＋axis③（suppress）子孫 SPEC 6件を退役表記、VERIFY 5件から suppress 除去＋凍結機構固有辺を本文 out-of-graph 記録へ退避、FR 5件（RULE-018 用）の suppress を本文プロースへ移行。DD-2（VERIFY の RULE-004 免除決定）を新規 DD で明示的に破棄。ドリフト resync 28件（本バッチの版上げ由来分含む）を機械的に解消（drift 0 件）。分析/設計層（P-2-5/D-4/D-12/D-18/P-7・DM-1/MOD-filter）の未追随は Phase 2 / PR #143 で resolved 化済み。 |
@@ -34,7 +35,7 @@
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
 | 04-verification | `nodes/04-verification/` | 156 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 77 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **598** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **603** | v1 移行後の増分著作を含む現行実測 |
 
 > ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-09 実測。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
@@ -46,9 +47,9 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 11 件**（open FND 9・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 15 件**（open FND 13・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（9 件）
+### open FND（13 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
@@ -61,6 +62,10 @@
 | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 未設定 | 親辺の妥当性再検討 |
 | `_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離） | 未設定 | 実装時に要検証 |
 | 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 未設定 | 著作資産側への反映漏れ点検 |
+| FORMAT/dsv2 が 1ノード2ファイル固定で bodyless/shared-body を表現できない | 未設定 | 識別子単位ノード DD の最初の実装前提 |
+| SRC 実装層の layout/schema/存在検査が未材化 | 未設定 | implementation stage の `src` 材化と `source.*` 属性導入 |
+| TD shared body・TC bodyless・TD-TC 1:1 を検証層ルールが表現できない | 未設定 | TD/TC 設計・接続規則の改訂 |
+| 著作テンプレート/プロンプトが識別子単位ノード・型別本文ポリシーに未追随 | 未設定 | FORMAT/schema 確定後に author/test-strategy 資産へ反映 |
 
 > 全て `scheduled` 未設定（オーナー判断待ち。1件のみ sprint-2 承認済み）は**独断で繰り越さない**
 > （CLAUDE.md「スケジュール独断禁止」）。

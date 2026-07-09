@@ -1,0 +1,5 @@
+title: "識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する"
+version: "0.1.0"
+labels: []
+scheduled: ""
+edges: []
