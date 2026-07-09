@@ -34,7 +34,7 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 253 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 156 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 161 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 77 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
 | **計** | `nodes/**` | **603** | v1 移行後の増分著作を含む現行実測 |
 
@@ -87,25 +87,31 @@
 |---|---|---|---|
 | N1 | 実装（FR-10：spec-inspector CLI） | 🔵 低 | Python 標準ライブラリのみ。凍結セット確定後 |
 | N2 | テスト戦略④（凍結セット残項目） | 🟡 中 | 設計層著作済み。`/test-strategy` スキルで TD/TC 設計 |
-| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | 🔵 低 | 本ダッシュボードは手動著作の暫定版。`dsv2` に集計サブコマンドを追加する構想は [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出し済み。Phase 1 では手動同期のみ完了 |
+| N3 | ダッシュボード（open Q/FND/DD 等）の自動集計サブコマンド | ✅ 完了 | [issue #108](https://github.com/hiratashinnya/review-system/issues/108) 対応として `python3 -m dsv2 dashboard --root doc-system-v2` を追加済み。stage/type/status 件数と `fnd/open`・`q/open`・`dd/decided`・`pend/open|deferred` の Markdown 集計を stdout に出し、本帳票の手書き要約を検算できる |
 | N4 | open FND 9件・open Q 1件の実施スプリント決定 | 🟡 中 | 全件 `scheduled` 未設定（1件を除く）。オーナー判断待ち（独断繰り越し禁止） |
 
 ---
 
 ## 今後（自動化の別 issue）
 
-本ダッシュボードは**手で書いた最小版**（オーナー方針・2026-07-05）。open FND/Q/DD を `doc-system-v2/nodes/04-verification/**` から自動集計し本ファイルを生成する `dsv2` サブコマンドの追加は、本カットオーバーとは別スコープとして [issue #108](https://github.com/hiratashinnya/review-system/issues/108) へ切り出した。
+本ダッシュボードは**手で書いた最小版**（オーナー方針・2026-07-05）として継続する。open FND/Q/DD/PEND を
+`doc-system-v2/nodes/04-verification/**` から検算する集計は
+`python3 -m dsv2 dashboard --root doc-system-v2` で Markdown スナップショットとして標準出力へ生成する。
+全面自動生成への置換はせず、当面は手書きの物語部分と機械集計の照合で運用する。
 
 ---
 
 ## 📌 運用メモ
 - 本帳票は **out-of-graph**（ノードを持たない要約帳票。`docs/doc-system/config.yaml` の `trace_scope.exclude` 対象は v1 パスのみだが、本ファイルは `doc-system-v2/` 直下でノード対象ディレクトリ `nodes/**` の外にあるため元々対象外）。
 - **状態と優先度の要約**に絞る。FND/Q/DD の明細は各ノードファイルを参照（全件列挙はしない）。
+- 手書き要約の検算には `python3 -m dsv2 dashboard --root doc-system-v2` を使う。`meta.json` が古い場合は
+  先に `python3 -m dsv2 index --root doc-system-v2` を再実行する。
 - 判断待ちは確定したら「次アクション」を実行し本帳票から消す。**決定の経緯は DD/PEND ノードに残す**（消さない＝PR8）。
 
 ## 参考ドキュメント
 - **新フォーマット定義**: [`doc-system-v2/FORMAT.md`](FORMAT.md) — 1ノード1YAML・型別 body policy・slug id・サイドカー schema
 - **記法ガイド**: [`doc-system-v2/notation.md`](notation.md)
 - **グローバル設定**: [`doc-system-v2/config.yml`](config.yml) — 必須接続ルール・ステージ・condition 語彙・カバレッジ要件
+- **dsv2 CLI**: [`dsv2/README.md`](../dsv2/README.md) — `dashboard` 集計コマンドを含む v2 ツール説明
 - **移行レポート**: [`doc-system-v2/MIGRATION_REPORT.md`](MIGRATION_REPORT.md) — v1→v2 一括移行（Sub-B）の全ノード対応表
 - **v1 旧ダッシュボード（archive）**: [`doc-system-v1-archive/00-dashboard.md`](../doc-system-v1-archive/00-dashboard.md) — cutover 前の完了ログ・経緯（消さない＝PR8）

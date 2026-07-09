@@ -7,6 +7,7 @@
   * ``orphans``          in/out 辺 0 本の完全孤立ノード。
   * ``drift``            ref_version が参照先バッジ x.y とドリフトしている辺（RULE-004）。
   * ``prompt-coverage``  config.yml 宣言対象 skill の PROMPT ノード欠落を列挙（RULE-032）。
+  * ``dashboard``        stage/type 件数と FND/Q/DD/PEND 判断待ちを Markdown 集計。
   * ``reverse <slug>``   FND 辺逆転（既定 dry-run・``--apply`` で書込＋git mv）。
   * ``rename <old> <new>`` slug 改題（既定 dry-run・``--apply`` で改名＋referrer 張替え）。
   * ``check-slug <slug>...`` 著作 slug のグローバル一意 fail-close 判定（Sub-D・DD-22）。
@@ -25,7 +26,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import query, rename, reverse, viewer
+from . import dashboard, query, rename, reverse, viewer
 from .meta import DEFAULT_ROOT, META_FILENAME, build_meta, duplicates, load_meta, write_meta
 from .rename import RenameError
 from .reverse import ReverseError
@@ -142,6 +143,13 @@ def cmd_prompt_coverage(args) -> int:
     for skill in gaps:
         print(f"{skill}: 対応する PROMPT ノードなし")
     print(f"\n{len(gaps)} 件の PROMPT カバレッジ欠落（RULE-032）")
+    return EXIT_OK
+
+
+def cmd_dashboard(args) -> int:
+    _root_, meta = _load(args)
+    summary = dashboard.build_summary(meta)
+    print(dashboard.render_markdown(summary), end="")
     return EXIT_OK
 
 
@@ -300,6 +308,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("prompt-coverage", parents=[common],
                        help="宣言 skill 集合の PROMPT ノード欠落を列挙（RULE-032）")
     p.set_defaults(func=cmd_prompt_coverage)
+
+    p = sub.add_parser("dashboard", parents=[common],
+                       help="stage/type 件数と FND/Q/DD/PEND 判断待ちを Markdown 集計")
+    p.set_defaults(func=cmd_dashboard)
 
     p = sub.add_parser("reverse", parents=[common], help="FND 辺逆転（既定 dry-run）")
     p.add_argument("slug", help="FND の slug（=id）")

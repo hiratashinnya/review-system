@@ -48,6 +48,24 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_OK)
         self.assertIn("ドリフトなし", out)
 
+    def test_dashboard_outputs_markdown_snapshot(self):
+        q_dir = self.root / "nodes/04-verification/q/open"
+        q_dir.mkdir(parents=True, exist_ok=True)
+        (q_dir / "owner-question.yaml").write_text(
+            'title: "オーナー確認事項"\n'
+            'version: "0.1.0"\n'
+            "labels: []\n"
+            'scheduled: "sprint-2"\n'
+            "edges: []\n",
+            encoding="utf-8",
+        )
+        code, out = self._run(["dashboard"])
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn("# doc-system-v2 dashboard snapshot", out)
+        self.assertIn("| `04-verification` |", out)
+        self.assertIn("オーナー確認事項", out)
+        self.assertIn("nodes/04-verification/q/open/owner-question.yaml", out)
+
     def test_reverse_dry_run_does_not_write(self):
         before = (self.root / "nodes/03-analysis/p/target-p.yaml").read_text("utf-8")
         code, out = self._run(["reverse", "fnd-open"])
