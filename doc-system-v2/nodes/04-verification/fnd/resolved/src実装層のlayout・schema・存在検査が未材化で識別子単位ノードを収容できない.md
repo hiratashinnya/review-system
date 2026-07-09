@@ -15,3 +15,7 @@
 5. SRC→DM/PORT/ORC の必須辺検査を実ノード配置で発火可能にする。
 
 **依存**: bodyless node の FORMAT/schema/validator 追随後に実施する。
+
+**対応内容（2026-07-09・PR #147）**: `06-implementation/src` layout、SRC bodyless 用 `source.file` / `source.qualname` / `source.kind`、SRC 実体参照検査、SRC→DM/PORT/ORC の必須辺検査を PR #147 で反映した。これにより implementation stage の SRC ノードを配置・検証できる状態になったため resolved 化する。
+
+**指摘時 ref_version**: 識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する "0.1"（nodes/04-verification/dd/decided/識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する.yaml v0.1 時点・provenance）／コード⇔設計の構造比較-段階④・post-mvp "0.2"（nodes/02-what/fr/コード⇔設計の構造比較-段階④・post-mvp.yaml v0.2 時点）／src-の-@id-realizes-検証 "0.3"（nodes/02-what/spec/src-の-@id-realizes-検証.yaml v0.3 時点）

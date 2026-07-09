@@ -52,7 +52,7 @@ update_slugs: <既存ノード更新として宣言する slug 群（任意・de
 
 `targets` の各要素を、`author` で指定された **`*-author` エージェントへ同一メッセージ内で並列に** subagent として委譲する（これがファンアウトの要＝逐次に呼ばない）。各 target の `parent_id`・`sprint`（・再試行時は `error`）を渡す。
 
-各 `*-author` は `tmp/<sprint>/<parent-id>/nodes/**` に `{slug}.md`＋`{slug}.yaml` の対で著作する（共通契約）。design-author の TERM 追記は `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/**` に出力される（design-author 自身の契約どおり）。
+各 `*-author` は `tmp/<sprint>/<parent-id>/nodes/**` に `{slug}.yaml` を必ず置き、Markdown 本文は `doc-system-v2/config.yml: body_policy` に従って著作する（共通契約）。design-author の TERM 追記は `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/**` に出力される（design-author 自身の契約どおり）。
 
 - 依存関係のある対象（親 SPEC が未著作でその子を同バッチで著作する等）は **同一バッチに混ぜない**。
   依存がある場合は「親バッチ→子バッチ」に分割するのは呼び出し元 skill の責務。混在を検知したら **STOP して報告**。

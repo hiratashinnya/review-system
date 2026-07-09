@@ -1,9 +1,13 @@
 # テンプレ: TC（テストコード）。path: nodes/04-verification/tc/{slug}.yaml
+# body_policy=none。Markdown 本文は作らず、実テスト識別子は test.* に書く。
 # 実行後は TR ノードを作り結果を記録する（TR→TC）。
 title: "[テスト名]"
 version: "0.1.0"
 labels: []
 scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+test.file: "[repo root からのテストファイルパス]"
+test.qualname: "[テスト関数または unittest メソッドの qualname]"
+test.kind: "unittest"   # unittest | pytest | function | method
 edges:
   # 必須（TC→TD・realizes）: 実現するテスト設計（config must_link_to tc→td）
   - to: "[実現する TD の slug]"

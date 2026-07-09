@@ -1,8 +1,10 @@
 title: "test-strategy テスト戦略skillプロンプト（review-system テーラリング済）"
-version: "0.1.0"
+version: "0.1.2"
 labels: []
 scheduled: ""
 carrier: "skill"
 edges:
   - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
+    ref_version: "0.1"
+  - to: "著作テンプレートとプロンプトが識別子単位ノード・型別本文ポリシーに未追随"
     ref_version: "0.1"

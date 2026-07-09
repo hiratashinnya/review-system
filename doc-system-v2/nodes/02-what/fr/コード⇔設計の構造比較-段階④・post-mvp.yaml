@@ -1,7 +1,9 @@
 title: "コード⇔設計の構造比較（段階④・post-MVP）"
-version: "0.2.0"
+version: "0.2.1"
 labels: [post-mvp]
 scheduled: "post-mvp"
 edges:
   - to: "メンテナが変更の影響範囲を辺でたどれる"
+    ref_version: "0.1"
+  - to: "src実装層のlayout・schema・存在検査が未材化で識別子単位ノードを収容できない"
     ref_version: "0.1"
