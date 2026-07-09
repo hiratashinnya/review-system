@@ -175,6 +175,57 @@ class TestPlacementValidation(unittest.TestCase):
         root, y = self._make(self._tmp, "nodes/04-verification/fnd/bogus/x.yaml")
         self.assertRaises(meta.MetaError, meta.read_node, y, root)
 
+    def test_src_implementation_layout_is_valid(self):
+        root, y = self._make(self._tmp, "nodes/06-implementation/src/x.yaml")
+        node = meta.read_node(y, root)
+        self.assertEqual(node["stage"], "06-implementation")
+        self.assertEqual(node["type"], "src")
+        self.assertEqual(node["body_policy"], "none")
+
+
+class TestIdentifierMetadataAggregation(unittest.TestCase):
+    """SRC/TC の識別子参照メタデータを meta.json へ集約する。"""
+
+    def _write_yaml(self, root, rel, text):
+        y = root / rel
+        y.parent.mkdir(parents=True, exist_ok=True)
+        y.write_text(text, "utf-8")
+        return y
+
+    def test_source_metadata_is_grouped(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            y = self._write_yaml(root, "nodes/06-implementation/src/src-a.yaml",
+                                 'title: t\nversion: "0.1.0"\n'
+                                 'source.file: "dsv2/meta.py"\n'
+                                 'source.qualname: "read_node"\n'
+                                 'source.kind: function\nedges: []\n')
+            node = meta.read_node(y, root)
+        self.assertEqual(node["source"], {
+            "file": "dsv2/meta.py",
+            "qualname": "read_node",
+            "kind": "function",
+        })
+
+    def test_test_metadata_is_grouped(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            y = self._write_yaml(root, "nodes/04-verification/tc/tc-a.yaml",
+                                 'title: t\nversion: "0.1.0"\n'
+                                 'test.file: "tests/unit/test_dsv2_meta.py"\n'
+                                 'test.qualname: "TestIdentifierMetadataAggregation.test_test_metadata_is_grouped"\n'
+                                 'test.kind: unittest\nedges: []\n')
+            node = meta.read_node(y, root)
+        self.assertEqual(node["test"], {
+            "file": "tests/unit/test_dsv2_meta.py",
+            "qualname": "TestIdentifierMetadataAggregation.test_test_metadata_is_grouped",
+            "kind": "unittest",
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

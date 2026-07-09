@@ -24,6 +24,48 @@ from typing import Iterable
 from .meta import DEFAULT_ROOT, index_by_id
 
 
+def exact_link_count_gaps(meta: dict, rules: Iterable[dict]) -> list[dict]:
+    """接続本数制約（exact count）に違反する node を列挙する。
+
+    ``rules`` は config.yml の ``exact_link_counts`` と同形:
+    ``node``（対象型）, ``direction``（incoming|outgoing）, ``peer``（相手型）, ``count``（期待本数）。
+    現時点の用途は TD-TC 1:1 の機械表現で、stage activation は呼び出し側が扱う。
+    """
+    by_id = index_by_id(meta)
+    out: list[dict] = []
+    for rule in rules:
+        node_type = str(rule["node"])
+        direction = str(rule["direction"])
+        peer_type = str(rule["peer"])
+        expected = int(rule["count"])
+        for node in meta["nodes"]:
+            if node.get("type") != node_type:
+                continue
+            if direction == "outgoing":
+                count = sum(1 for e in node.get("edges", []) if by_id.get(e.get("to"), {}).get("type") == peer_type)
+            elif direction == "incoming":
+                count = sum(
+                    1
+                    for src in meta["nodes"]
+                    if src.get("type") == peer_type
+                    for e in src.get("edges", [])
+                    if e.get("to") == node.get("id")
+                )
+            else:
+                raise ValueError(f"未知 direction: {direction!r}")
+            if count != expected:
+                out.append({
+                    "id": node["id"],
+                    "type": node_type,
+                    "direction": direction,
+                    "peer": peer_type,
+                    "expected": expected,
+                    "actual": count,
+                    "reason": rule.get("reason", ""),
+                })
+    return out
+
+
 def load_prompt_coverage_targets(root: str | Path = DEFAULT_ROOT) -> tuple[str, ...]:
     """``config.yml`` が宣言する PROMPT カバレッジ対象 skill 集合を読む（RULE-032）。"""
     config_path = Path(root) / "config.yml"

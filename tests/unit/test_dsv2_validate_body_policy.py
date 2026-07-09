@@ -37,8 +37,14 @@ class TestValidateBodyPolicy(unittest.TestCase):
 
     def test_bodyless_tc_accepts_missing_md(self):
         root = self._root()
+        test_file = root.parent / "tests/test_x.py"
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("def test_x():\n    pass\n", "utf-8")
         y = self._write_yaml(root, "nodes/04-verification/tc/x.yaml",
-                             'title: "x"\nversion: "0.1.0"\nedges: []\n')
+                             'title: "x"\nversion: "0.1.0"\n'
+                             'test.file: "tests/test_x.py"\n'
+                             'test.qualname: "test_x"\n'
+                             'test.kind: pytest\nedges: []\n')
 
         msgs = validate.validate_node(y, root)
 
