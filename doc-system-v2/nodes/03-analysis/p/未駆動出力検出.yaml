@@ -1,7 +1,7 @@
 title: "未駆動出力検出"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "未駆動出力-o→p-欠如-の検出"
     ref_version: "0.1"

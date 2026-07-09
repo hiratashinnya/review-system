@@ -2,7 +2,7 @@ title: "FR の SPEC 群に failure/error condition なし（RULE-018）"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "fr-の-condition-網羅"
     ref_version: "0.2"

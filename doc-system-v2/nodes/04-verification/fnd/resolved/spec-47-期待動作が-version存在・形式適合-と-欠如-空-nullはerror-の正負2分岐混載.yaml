@@ -1,5 +1,5 @@
 title: "SPEC-47 期待動作が「version存在・形式適合」と「欠如/空/nullはERROR」の正負2分岐混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

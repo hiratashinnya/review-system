@@ -1,7 +1,7 @@
 title: "カバレッジ属性検査"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"

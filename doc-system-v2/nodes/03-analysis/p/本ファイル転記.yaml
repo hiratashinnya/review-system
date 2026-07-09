@@ -1,7 +1,7 @@
 title: "本ファイル転記"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "reconciliation-が-tmp-出力を本ファイルに転記"
     ref_version: "0.1"

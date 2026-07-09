@@ -2,7 +2,7 @@ title: "current_stage 未定義時は全ルールを元の深刻度で評価"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "current_stage-が-stages-に未定義"
     ref_version: "0.1"

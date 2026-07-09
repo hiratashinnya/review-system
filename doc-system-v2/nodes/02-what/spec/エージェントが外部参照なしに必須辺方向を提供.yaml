@@ -2,7 +2,7 @@ title: "エージェントが外部参照なしに必須辺方向を提供"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェントが外部参照なしに著作規約を提供"
     ref_version: "0.3"

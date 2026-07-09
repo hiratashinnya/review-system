@@ -1,7 +1,7 @@
 title: "G 番号付与・整形"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "出力形式と終了コード"
     ref_version: "0.2"

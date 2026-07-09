@@ -1,7 +1,7 @@
 title: "decision_spine"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ライフサイクル／決定スパインスキーマ"
     ref_version: "0.1"

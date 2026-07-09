@@ -2,7 +2,7 @@ title: "パース中断後は後続 RULE-024〜027 を発火させない"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "記法が崩れた-yaml-ブロックのパース失敗"
     ref_version: "0.3"

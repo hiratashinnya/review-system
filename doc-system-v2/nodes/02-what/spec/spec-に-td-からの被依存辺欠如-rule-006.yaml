@@ -2,7 +2,7 @@ title: "SPEC に TD からの被依存辺欠如（RULE-006）"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"

@@ -1,7 +1,7 @@
 title: "マーカー走査"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "⬡-マーカー直後に-yaml-ブロックなし"
     ref_version: "0.1"

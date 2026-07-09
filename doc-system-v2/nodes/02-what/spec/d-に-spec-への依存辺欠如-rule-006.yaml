@@ -2,7 +2,7 @@ title: "D に SPEC への依存辺欠如（RULE-006）"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "分析層ノードの必須辺欠如-価値経路3種以外"
     ref_version: "0.1"

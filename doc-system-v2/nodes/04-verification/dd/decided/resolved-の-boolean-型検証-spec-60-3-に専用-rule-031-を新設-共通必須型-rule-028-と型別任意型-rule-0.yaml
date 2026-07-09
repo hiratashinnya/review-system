@@ -1,5 +1,5 @@
 title: "`resolved` の boolean 型検証（SPEC-60-3）に専用 RULE-031 を新設（共通必須型 RULE-028 と型別任意型 RULE-031 を責務分離）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

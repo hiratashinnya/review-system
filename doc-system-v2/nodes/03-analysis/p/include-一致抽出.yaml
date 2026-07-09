@@ -1,7 +1,7 @@
 title: "include 一致抽出"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "include-一致・exclude-非一致-→-in-graph"
     ref_version: "0.1"

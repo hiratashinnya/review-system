@@ -1,7 +1,7 @@
 title: "FND resolved 状態の機械判定セマンティクス"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "検証・指摘の完結性検証"
     ref_version: "0.2"

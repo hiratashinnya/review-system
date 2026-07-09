@@ -1,7 +1,7 @@
 title: "未消費入力検出"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "未消費入力-i←p-欠如-の検出"
     ref_version: "0.1"

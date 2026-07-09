@@ -2,7 +2,7 @@ title: "明細行を FR-id 昇順でソート出力"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "カバレッジテーブルの出力フォーマット"
     ref_version: "0.1"

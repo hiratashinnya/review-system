@@ -2,7 +2,7 @@ title: "id 欠如時に RULE-025 ERROR を出力"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-フィールド欠如・空"
     ref_version: "0.1"

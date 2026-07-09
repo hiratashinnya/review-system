@@ -1,5 +1,5 @@
 title: "SPEC-44 期待動作が「読込完了・BOMはWARNING・デコードエラーはERROR」の3分岐混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

@@ -1,7 +1,7 @@
 title: "ViolationRecord型"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "violationrecord"
     ref_version: "0.1"

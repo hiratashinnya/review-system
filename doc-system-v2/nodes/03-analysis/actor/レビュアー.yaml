@@ -1,7 +1,7 @@
 title: "レビュアー"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

@@ -1,7 +1,7 @@
 title: "著者が型・ID・辺ルールを間違えずに書ける"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作効率"
     ref_version: "0.1"

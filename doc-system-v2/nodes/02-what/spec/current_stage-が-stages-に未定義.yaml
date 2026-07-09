@@ -1,7 +1,7 @@
 title: "current_stage が stages に未定義"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ステージ発火による検査制御"
     ref_version: "0.3"

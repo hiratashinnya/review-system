@@ -1,7 +1,7 @@
 title: "走査スコープ設定"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "trace_scope-による-in-graph-判定"
     ref_version: "0.2"

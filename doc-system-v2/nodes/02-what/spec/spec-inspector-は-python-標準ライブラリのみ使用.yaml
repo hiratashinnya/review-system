@@ -1,7 +1,7 @@
 title: "spec-inspector は Python 標準ライブラリのみ使用"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "標準ライブラリのみでパース可能"
     ref_version: "0.3"

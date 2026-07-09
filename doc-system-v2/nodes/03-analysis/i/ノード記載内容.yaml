@@ -1,7 +1,7 @@
 title: "ノード記載内容"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作は記載内容入力を必須とする"
     ref_version: "0.1"

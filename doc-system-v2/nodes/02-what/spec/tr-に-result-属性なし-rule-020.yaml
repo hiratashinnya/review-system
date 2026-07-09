@@ -2,7 +2,7 @@ title: "TR に result 属性なし（RULE-020）"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テスト結果の完結性"
     ref_version: "0.2"

@@ -1,7 +1,7 @@
 title: "テンプレート取得"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレートが必須フィールドを全て含む"
     ref_version: "0.1"

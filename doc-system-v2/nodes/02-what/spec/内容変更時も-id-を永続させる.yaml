@@ -2,7 +2,7 @@ title: "内容変更時も ID を永続させる"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-の永続-リネームなし"
     ref_version: "0.1"

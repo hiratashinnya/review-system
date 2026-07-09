@@ -2,7 +2,7 @@ title: "always_error の RULE-005 は発火ステージ前でも ERROR 報告"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "always_error-は発火ステージ前でも発火"
     ref_version: "0.1"

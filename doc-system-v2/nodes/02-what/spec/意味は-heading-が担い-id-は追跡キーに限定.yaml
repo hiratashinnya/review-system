@@ -2,7 +2,7 @@ title: "意味は heading が担い ID は追跡キーに限定"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-の永続-リネームなし"
     ref_version: "0.1"

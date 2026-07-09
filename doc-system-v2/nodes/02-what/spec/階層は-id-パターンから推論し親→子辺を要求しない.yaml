@@ -2,7 +2,7 @@ title: "階層は ID パターンから推論し親→子辺を要求しない"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "階層-id-の親ノード存在"
     ref_version: "0.1"

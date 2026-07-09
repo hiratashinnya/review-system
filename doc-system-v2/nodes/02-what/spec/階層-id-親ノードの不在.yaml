@@ -2,7 +2,7 @@ title: "階層 ID 親ノードの不在"
 version: "0.2.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-体系と階層分解"
     ref_version: "0.2"

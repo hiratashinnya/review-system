@@ -2,7 +2,7 @@ title: "価値経路到達の充足判定"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "グラフ網羅性点検の正常系"
     ref_version: "0.1"

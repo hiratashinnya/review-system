@@ -1,7 +1,7 @@
 title: "ノードファイルはプレーンテキスト .md"
 version: "0.2.2"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "プレーンテキスト形式"
     ref_version: "0.4"

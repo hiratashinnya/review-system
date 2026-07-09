@@ -1,5 +1,5 @@
 title: "SPEC-36 期待動作が「RULE-025（id欠如）または RULE-026（type欠如）」の選言目的語混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

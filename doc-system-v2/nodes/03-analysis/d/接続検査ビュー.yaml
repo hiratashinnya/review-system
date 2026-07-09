@@ -1,7 +1,7 @@
 title: "接続検査ビュー"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "整合グラフは構造違反-0-で通過"
     ref_version: "0.2"

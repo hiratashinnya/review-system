@@ -1,7 +1,7 @@
 title: "projector"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "検査ビュー射影"
     ref_version: "0.1"

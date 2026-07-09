@@ -1,5 +1,5 @@
 title: "VERIFY の RULE-004 免除・FND は再検証シグナルとして据え置き（Q-1 から昇格）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

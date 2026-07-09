@@ -1,7 +1,7 @@
 title: "必須接続規則"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "必須上流辺の欠如"
     ref_version: "0.2"

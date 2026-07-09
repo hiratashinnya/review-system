@@ -1,7 +1,7 @@
 title: "上流変更の下流への反映漏れ（ドリフト）を継続検出できる"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "自動整合性検証"
     ref_version: "0.1"

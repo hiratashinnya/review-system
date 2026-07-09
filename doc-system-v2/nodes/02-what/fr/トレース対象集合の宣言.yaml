@@ -1,7 +1,7 @@
 title: "トレース対象集合の宣言"
 version: "0.4.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

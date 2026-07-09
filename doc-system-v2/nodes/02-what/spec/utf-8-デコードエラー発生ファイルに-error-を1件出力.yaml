@@ -2,7 +2,7 @@ title: "UTF-8 デコードエラー発生ファイルに ERROR を1件出力"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノードファイルはプレーンテキスト-.md"
     ref_version: "0.2"

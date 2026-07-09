@@ -1,5 +1,5 @@
 title: "設計層の接続チェーン DM→MOD→D が欠落しており MOD→P / DM→P の強制が PR1 違反を生む"
 version: "0.4.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

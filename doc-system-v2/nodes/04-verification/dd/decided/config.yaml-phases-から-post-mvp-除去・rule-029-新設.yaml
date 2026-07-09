@@ -1,7 +1,7 @@
 title: "config.yaml phases から post-mvp 除去・RULE-029 新設"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec-50-51-の-post-mvp-と-scheduled-表現が不統一-オーナー決定bで-config-改訂方針"
     ref_version: "0.1"

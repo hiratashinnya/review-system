@@ -1,7 +1,7 @@
 title: "collector"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "in-graph-集合決定"
     ref_version: "0.2"

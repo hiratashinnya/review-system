@@ -1,5 +1,5 @@
 title: "SPEC-45 期待動作が「全importが標準ライブラリのみ・外部依存0件」＋違反出力で複数アサーション混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

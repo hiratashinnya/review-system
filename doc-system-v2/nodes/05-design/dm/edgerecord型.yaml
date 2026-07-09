@@ -1,7 +1,7 @@
 title: "EdgeRecord型"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "edgerecord"
     ref_version: "0.1"

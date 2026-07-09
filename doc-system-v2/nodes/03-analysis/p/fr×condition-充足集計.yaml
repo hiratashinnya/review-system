@@ -1,7 +1,7 @@
 title: "FR×condition 充足集計"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "各-fr-行のセル値出力"
     ref_version: "0.1"

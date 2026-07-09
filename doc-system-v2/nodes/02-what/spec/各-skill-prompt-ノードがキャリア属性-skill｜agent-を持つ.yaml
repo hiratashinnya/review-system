@@ -2,7 +2,7 @@ title: "各 skill PROMPT ノードがキャリア属性（skill｜agent）を持
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
     ref_version: "0.1"

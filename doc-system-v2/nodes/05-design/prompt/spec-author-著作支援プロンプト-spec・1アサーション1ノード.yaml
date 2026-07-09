@@ -1,7 +1,7 @@
 title: "spec-author 著作支援プロンプト（SPEC・1アサーション1ノード）"
 version: "0.2.3"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェントが外部参照なしに著作規約を提供"
     ref_version: "0.3"

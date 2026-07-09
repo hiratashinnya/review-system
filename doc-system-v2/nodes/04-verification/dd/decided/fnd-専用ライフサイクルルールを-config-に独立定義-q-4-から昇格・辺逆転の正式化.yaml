@@ -1,5 +1,5 @@
 title: "FND 専用ライフサイクルルールを config に独立定義（Q-4 から昇格・辺逆転の正式化）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

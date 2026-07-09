@@ -2,7 +2,7 @@ title: "テンプレート由来 id 欠如時に RULE-025 ERROR を報告"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレート由来の必須フィールド欠如"
     ref_version: "0.1"

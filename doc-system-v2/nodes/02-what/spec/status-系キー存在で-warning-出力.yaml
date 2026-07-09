@@ -2,7 +2,7 @@ title: "status 系キー存在で WARNING 出力"
 version: "0.2.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "dd-q-pend-のノード-yaml-メタ属性-に-status-系フィールドが存在しない"
     ref_version: "0.2"

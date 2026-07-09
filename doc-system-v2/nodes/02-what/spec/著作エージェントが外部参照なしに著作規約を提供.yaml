@@ -1,7 +1,7 @@
 title: "著作エージェントが外部参照なしに著作規約を提供"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェントと層ワークフロー"
     ref_version: "0.1"

@@ -1,7 +1,7 @@
 title: "condition 属性・語彙検査"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "condition-属性なし・語彙外-rule-016"
     ref_version: "0.2"

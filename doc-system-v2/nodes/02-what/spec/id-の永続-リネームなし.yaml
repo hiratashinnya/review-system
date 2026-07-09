@@ -1,7 +1,7 @@
 title: "ID の永続（リネームなし）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-管理の正常系"
     ref_version: "0.2"

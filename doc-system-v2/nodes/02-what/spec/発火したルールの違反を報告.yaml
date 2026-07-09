@@ -2,7 +2,7 @@ title: "発火したルールの違反を報告"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "発火ステージ到達でルール発火"
     ref_version: "0.1"

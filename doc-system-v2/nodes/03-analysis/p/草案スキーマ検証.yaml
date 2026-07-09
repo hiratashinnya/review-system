@@ -1,7 +1,7 @@
 title: "草案スキーマ検証"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-欠如-tmp-出力に-reconciliation-が検証エラーを報告"
     ref_version: "0.1"

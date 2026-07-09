@@ -1,7 +1,7 @@
 title: "ライフサイクル状態は本文・メタに持たない"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

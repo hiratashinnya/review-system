@@ -1,7 +1,7 @@
 title: "FND-TC-VERIFY 必須辺検査"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "fnd-に被指摘要素への辺欠如-rule-006"
     ref_version: "0.2"

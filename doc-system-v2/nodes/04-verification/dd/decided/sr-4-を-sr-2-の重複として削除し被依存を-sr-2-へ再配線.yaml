@@ -1,5 +1,5 @@
 title: "SR-4 を SR-2 の重複として削除し被依存を SR-2 へ再配線"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

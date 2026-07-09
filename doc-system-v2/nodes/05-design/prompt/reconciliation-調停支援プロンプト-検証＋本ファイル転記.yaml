@@ -1,7 +1,7 @@
 title: "reconciliation 調停支援プロンプト（検証＋本ファイル転記）"
 version: "0.1.2"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作出力の-id-欠如検出時の-reconciliation-挙動"
     ref_version: "0.1"

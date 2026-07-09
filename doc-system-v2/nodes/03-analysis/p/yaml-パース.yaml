@@ -1,7 +1,7 @@
 title: "YAML パース"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "記法が崩れた-yaml-ブロックのパース失敗"
     ref_version: "0.3"
