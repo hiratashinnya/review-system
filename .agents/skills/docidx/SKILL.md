@@ -7,9 +7,13 @@ description: ノード検索用の docidx Python CLI で doc-system ノードを
 
 # docidx — ノード検索/読み込み（md2idx 思想）
 
-> **フォーマットの対象（v1／v2）**：`docidx`（`python -m docidx`）は **v1 コーパス `doc-system/`**（巨大 Markdown にノードが埋め込まれた旧フォーマット）専用。
-> **doc-system v2（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対・issue #73/#76）の照会は `dsv2` CLI（`python3 -m dsv2` — index/deps/dependents/orphans/drift/check-slug）を使う**。
-> v2 では 1 ノード = 2 ファイルで巨大ファイル埋め込みが無いため、ブラウズは `ls`/`find`/`grep` でも代替でき、グラフ照会は `dsv2` が担う。v1/v2 併存期はどちらのコーパスを見ているかで使い分ける。
+> **フォーマットの対象（v1／v2）**：`docidx`（`python -m docidx`）は **v1 archive
+> `doc-system-v1-archive/`**（巨大 Markdown にノードが埋め込まれた旧フォーマット）専用。
+> **doc-system v2（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対・issue #73/#76）の照会は
+> `dsv2` CLI（`python3 -m dsv2` — index/deps/dependents/orphans/drift/dashboard/prompt-coverage）を使う**。
+> v2 では 1 ノード = 1 YAML、本文は型別 body policy で巨大ファイル埋め込みが無いため、ブラウズは
+> `rg`/`find`/通常のファイル読込でも代替でき、グラフ照会は `dsv2` が担う。`docidx/` は issue #142 の判断により
+> 物理 archive へ移動せず、v1 legacy CLI と v2 共有 YAML reader（`docidx.nodeyaml`）として残す。
 
 doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 行）に埋め込まれている。
 1 ノードを見たいだけでファイル全体をコンテキストへ読み込むのは無駄。**まず軽量インデックスを作り、
@@ -20,10 +24,10 @@ doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 
 「フォーマット依存マップ」を参照。
 
 ## いつ使うか
-- doc-system のノードを ID／型／ラベル／キーワードで探したい。
+- v1 archive の doc-system ノードを ID／型／ラベル／キーワードで探したい。
 - あるノードの本文だけを読みたい（ファイル全体は不要）。
 - あるノードの依存先（出辺）・依存元（入辺・逆引き）を辿りたい。
-- **巨大ファイルを Read で開く前に**まず docidx で当たりを付ける。
+- **v1 archive の巨大ファイルを Read で開く前に**まず docidx で当たりを付ける。
 
 ## 使い方
 ```bash
@@ -36,7 +40,8 @@ python -m docidx deps SPEC-1-1               # 依存先（出辺）＋ドリフ
 python -m docidx dependents FR-1             # 依存元（入辺・逆引き）
 ```
 - `--format json|table`（既定 `json`、サブコマンドの前後どちらでも指定可）。
-- `--root` でリポジトリ root、`--config` で config.yaml を明示（既定は自動検出）。
+- `--root` でリポジトリ root、`--config` で config.yaml を明示（既定は自動検出。現行設定は
+  `doc-system-v1-archive/**/*.md` を trace_scope にしている）。
 - 終了コード: `0` 正常 / `2` 未検出 / `3` 用法 / `4` config（`trace_scope` を解釈できない）。
 - `trace_scope` は**インラインリスト形式のみ**対応（ブロック形式・config 欠如は既定にフォールバックせず停止）。ID 重複は先勝ち＋stderr 警告。
 

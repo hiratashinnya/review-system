@@ -2,7 +2,7 @@
 
 FND を resolved にするときの「辺逆転」を**決定的に機械実行**する write ツール。手作業の取りこぼし
 （forward 辺の消し忘れ・backref 付与漏れ・DD-3 凍結記録漏れ・z バンプ忘れ）を排除する（issue #48）。
-パース（ノード発見・file:line・edges）は read-only の [docidx](../docidx/README.md) を再利用し、
+パース（ノード発見・file:line・edges）は read-only の [docidx](../../docidx/README.md) を再利用し、
 本パッケージは**書込責務のみ**を担う。標準ライブラリのみ。
 
 > 運用イメージ：正本への唯一の書込担当である `reconciliation` エージェントが、FND の辺逆転を手編集
