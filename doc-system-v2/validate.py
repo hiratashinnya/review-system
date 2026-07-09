@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root（docidx 用）
+from dsv2 import meta as dsv2_meta  # noqa: E402
+from dsv2 import query as dsv2_query  # noqa: E402
 from docidx import nodeyaml  # noqa: E402
 
 from slugify import slugify  # noqa: E402  # 同ディレクトリ
@@ -65,6 +67,86 @@ _CONDITIONS = {"normal", "boundary", "empty", "failure", "error"}
 _RESULTS = {"PASS", "FAIL"}
 _SOURCE_KINDS = {"function", "class", "method"}
 _TEST_KINDS = {"unittest", "pytest", "function", "method"}
+
+
+def _split_config_items(raw: str) -> list[str]:
+    items: list[str] = []
+    quote: str | None = None
+    start = 0
+    for i, ch in enumerate(raw):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == ",":
+            items.append(raw[start:i].strip())
+            start = i + 1
+    items.append(raw[start:].strip())
+    return [item for item in items if item]
+
+
+def _parse_config_scalar(raw: str) -> str | int:
+    s = raw.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        return s[1:-1]
+    if re.fullmatch(r"-?\d+", s):
+        return int(s)
+    return s
+
+
+def _parse_inline_config_dict(raw: str, config_path: Path, line_no: int) -> dict:
+    body = raw.strip()
+    if not (body.startswith("{") and body.endswith("}")):
+        raise ValueError(f"{config_path}:{line_no}: exact_link_counts はインライン辞書形式である必要があります")
+    out: dict[str, str | int] = {}
+    for item in _split_config_items(body[1:-1]):
+        key, sep, val = item.partition(":")
+        if not sep:
+            raise ValueError(f"{config_path}:{line_no}: ':' がない exact_link_counts 要素: {item!r}")
+        out[key.strip()] = _parse_config_scalar(val)
+    return out
+
+
+def load_exact_link_counts(root: Path) -> list[dict]:
+    """config.yml の exact_link_counts を読む。未宣言なら空リスト。"""
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return []
+    rules: list[dict] | None = None
+    in_rules = False
+    for line_no, raw in enumerate(config_path.read_text("utf-8").splitlines(), start=1):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if stripped == "exact_link_counts:":
+            rules = []
+            in_rules = True
+            continue
+        if in_rules and indent == 0:
+            break
+        if in_rules:
+            if not stripped.startswith("- "):
+                raise ValueError(f"{config_path}:{line_no}: exact_link_counts はブロックリスト形式である必要があります")
+            rules.append(_parse_inline_config_dict(stripped[2:], config_path, line_no))
+    return rules or []
+
+
+def validate_exact_link_counts(root: Path) -> list[str]:
+    """config.yml: exact_link_counts を meta 全体に対して検査する。"""
+    rules = load_exact_link_counts(root)
+    if not rules:
+        return []
+    corpus = dsv2_meta.build_meta(root)
+    out: list[str] = []
+    for row in dsv2_query.exact_link_count_gaps(corpus, rules):
+        out.append(
+            "ERROR: exact_link_counts: "
+            f"{row['id']} ({row['type']}) {row['direction']} {row['peer']} "
+            f"expected={row['expected']} actual={row['actual']} reason={row.get('reason', '')}"
+        )
+    return out
 
 
 def validate_sidecar(data: dict) -> list[str]:
@@ -282,6 +364,14 @@ def main(argv: list[str]) -> int:
         status = "OK" if not errs else "NG"
         print(f"[{status}] {yaml.relative_to(root)}")
         for m in msgs:
+            print(f"    {m}")
+    cross_msgs = validate_exact_link_counts(root)
+    cross_errs = [m for m in cross_msgs if m.startswith("ERROR")]
+    if cross_msgs:
+        total_err += len(cross_errs)
+        status = "OK" if not cross_errs else "NG"
+        print(f"[{status}] exact_link_counts")
+        for m in cross_msgs:
             print(f"    {m}")
     print(f"\n{len(yamls)} ノード / エラー {total_err} 件")
     return 1 if total_err else 0
