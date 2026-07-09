@@ -41,13 +41,14 @@ without hooks:
 - The Stop hook does not run `/status` after every turn by default. It first
   checks the Stop payload and pane tail for rate-limit text. Set
   `CODEX_RL_STATUS_ON_EVERY_STOP=1` to force `/status` on every Stop event.
-- Injects only when the target pane still has foreground command `codex` by
-  default. Environments that run Codex through a `node` wrapper can override
-  `CODEX_RL_PANE_CMD_RE`.
+- Injects only when the target pane still looks like this repo's Codex pane.
+  The default accepts foreground command `codex`, and also accepts a `node`
+  wrapper only when the tmux pane current path is inside this trusted repo.
 - Does not inject while the pane tail looks busy, for example while an interrupt hint is visible.
-- The preferred reset source is `/status`. If a reset time cannot be parsed from
-  status output, the watcher falls back to pane polling and then banner-clear
-  detection.
+- The preferred reset source is machine-readable `rate_limits.*.resets_at`
+  captured from the Stop payload or session text. If that is unavailable, the
+  watcher parses `/status`; if that also fails, it falls back to pane polling and
+  then banner-clear detection.
 - Weekly limits are detected and skipped.
 - Uses a per-pane lock so only one watcher controls a pane.
 
@@ -71,7 +72,8 @@ without hooks:
 | `CODEX_RL_MAX_ATTEMPTS` | `1` | Injection attempts per recovery. |
 | `CODEX_RL_RETRY_BACKOFF` | `300` | Backoff seconds multiplied by attempt number. |
 | `CODEX_RL_VERIFY_WAIT` | `20` | Seconds to wait after injection before checking activity. |
-| `CODEX_RL_PANE_CMD_RE` | `^codex$` | Foreground command regex allowed for injection. Override this, for example to include a `node` wrapper, only when your Codex pane needs it. |
+| `CODEX_RL_PANE_CMD_RE` | `^codex$` | Foreground command regex allowed for injection. |
+| `CODEX_RL_NODE_WRAPPER_RE` | `^node$` | Foreground command regex treated as a Codex node wrapper only when the pane path is inside this trusted repo. |
 | `CODEX_RL_STARTUP_WAIT` | `30` | Seconds the watcher waits for the wrapper to `exec codex`. |
 | `CODEX_RL_STATE_DIR` | `~/.codex/rate-limit-recovery` | Log and lock directory. |
 

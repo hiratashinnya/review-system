@@ -16,3 +16,6 @@ Claude Code configuration tree.
 Rate-limit recovery is implemented as a project-local Codex `Stop` hook. Trust
 the hook with `/hooks` in local tmux sessions. Set `CODEX_RL_CLOUD=1` or
 `CODEX_RL_CLOUD_ENV=1` in cloud/hosted environments to make the hook a no-op.
+The hook accepts npm/npx `node` wrapper panes only when the pane path is inside
+this trusted repo, and it prefers machine-readable `rate_limits.*.resets_at`
+timestamps over screen-text parsing when available.

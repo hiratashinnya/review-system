@@ -21,6 +21,8 @@ STATE_DIR="${CODEX_RL_STATE_DIR:-${HOME}/.codex/rate-limit-recovery}"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 LOG="${STATE_DIR}/watcher.log"
 LOCK="${STATE_DIR}/lock.$(printf '%s' "$PANE" | tr -c 'A-Za-z0-9' '_')"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${HOOK_DIR}/../.." && pwd)"
 
 CONTINUE_MSG="${CODEX_RL_CONTINUE_MSG:-continue}"
 SCAN_INTERVAL="${CODEX_RL_SCAN_INTERVAL:-20}"
@@ -33,6 +35,7 @@ MAX_ATTEMPTS="${CODEX_RL_MAX_ATTEMPTS:-1}"
 RETRY_BACKOFF="${CODEX_RL_RETRY_BACKOFF:-300}"
 VERIFY_WAIT="${CODEX_RL_VERIFY_WAIT:-20}"
 PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^codex$}"
+NODE_WRAPPER_RE="${CODEX_RL_NODE_WRAPPER_RE:-^node$}"
 STARTUP_WAIT="${CODEX_RL_STARTUP_WAIT:-30}"
 
 RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
@@ -45,10 +48,23 @@ pane_text() { tmux capture-pane -p -t "$PANE" 2>/dev/null; }
 pane_tail() { pane_text | tail -n "${1:-12}"; }
 
 is_codex_pane() {
-  local cmd
+  local cmd path
   cmd="$(tmux display-message -p -t "$PANE" '#{pane_current_command}' 2>/dev/null)" || return 1
   [ -n "$cmd" ] || return 1
   printf '%s' "$cmd" | grep -qiE -- "$PANE_CMD_RE"
+  if [ "$?" -eq 0 ]; then
+    return 0
+  fi
+
+  # npm/npx Codex installs can leave node as the foreground command. Treat that
+  # as safe only for panes rooted in this trusted repository.
+  if printf '%s' "$cmd" | grep -qiE -- "$NODE_WRAPPER_RE"; then
+    path="$(tmux display-message -p -t "$PANE" '#{pane_current_path}' 2>/dev/null || true)"
+    case "$path" in
+      "$REPO_ROOT"|"$REPO_ROOT"/*) return 0 ;;
+    esac
+  fi
+  return 1
 }
 
 wait_for_codex_pane() {
@@ -76,7 +92,13 @@ text_has_rate_limit_banner() {
 }
 
 parse_reset_from_text() {
-  local text="$1" now cand hhmm rel value unit
+  local text="$1" now cand hhmm rel value unit json_epoch
+
+  json_epoch="$(json_reset_epoch_from_text "$text")"
+  if [ -n "$json_epoch" ]; then
+    printf '%s' "$json_epoch"
+    return 0
+  fi
 
   if printf '%s' "$text" | grep -qiE "$WEEKLY_RE"; then
     printf 'WEEKLY'
@@ -109,6 +131,47 @@ parse_reset_from_text() {
       h|hr|hrs|hour|hours) printf '%s' "$(( $(date +%s) + value * 3600 ))" ;;
     esac
   fi
+}
+
+json_reset_epoch_from_text() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  printf '%s' "$1" | python3 -c '
+import json
+import re
+import sys
+import time
+
+text = sys.stdin.read()
+now = int(time.time())
+vals = []
+
+for match in re.finditer(r"\"resets_at\"\s*:\s*([0-9]{9,12})", text):
+    vals.append(int(match.group(1)))
+
+for line in text.splitlines():
+    line = line.strip()
+    if not line or "rate_limits" not in line:
+        continue
+    try:
+        obj = json.loads(line)
+    except Exception:
+        continue
+    stack = [obj]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for key, value in cur.items():
+                if key == "resets_at" and isinstance(value, (int, float)):
+                    vals.append(int(value))
+                elif isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(cur, list):
+            stack.extend(cur)
+
+future = sorted(v for v in vals if v >= now - 60)
+if future:
+    print(future[0])
+'
 }
 
 wait_for_reset_and_recover() {
