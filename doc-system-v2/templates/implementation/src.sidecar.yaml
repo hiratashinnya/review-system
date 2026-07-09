@@ -1,0 +1,13 @@
+# テンプレ: SRC（実装識別子）。path: nodes/06-implementation/src/{slug}.yaml
+# body_policy=none。Markdown 本文は作らず、実装識別子は source.* に書く。
+title: "[実装識別子名]"
+version: "0.1.0"
+labels: []
+scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+source.file: "[repo root からの実装ファイルパス]"
+source.qualname: "[関数・クラス・メソッドの qualname]"
+source.kind: "function"   # function | class | method
+edges:
+  # 必須（SRC→DM/PORT/ORC のいずれか）: 実現する設計要素（config must_link_to src→[dm, port, orc]）
+  - to: "[実現する設計ノードの slug]"
+    ref_version: "0.1"

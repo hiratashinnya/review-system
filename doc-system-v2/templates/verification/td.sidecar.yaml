@@ -1,10 +1,13 @@
 # テンプレ: TD（テスト設計）。path: nodes/04-verification/td/{slug}.yaml
-# condition（RULE-016 ERROR）は verifies 先 SPEC の condition と一致（RULE-019）。1ノード=1条件。
+# body_policy=shared。1 TD は1テスト設計シナリオで、共有 Markdown 本文の該当節を body_ref で指す。
+# condition（RULE-016 ERROR）は verifies 先 SPEC の condition と一致（RULE-019）。
 title: "[テストシナリオ名]"
 version: "0.1.0"
 condition: normal   # verifies 先 SPEC と一致（normal|boundary|empty|failure|error）
 labels: []
 scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+body_ref.file: "nodes/04-verification/td/[テストプログラム単位の共有本文].md"
+body_ref.anchor: "[この TD シナリオの見出しアンカー]"
 edges:
   # 必須（TD→SPEC・verifies）: 検証する機能仕様＝カバレッジ証跡（config must_link_to td→spec）
   - to: "[検証する SPEC の slug]"

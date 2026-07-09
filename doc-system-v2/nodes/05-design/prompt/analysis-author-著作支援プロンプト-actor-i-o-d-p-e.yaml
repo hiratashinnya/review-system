@@ -1,7 +1,9 @@
 title: "analysis-author 著作支援プロンプト（ACTOR/I/O/D/P/E）"
-version: "0.1.0"
+version: "0.1.3"
 labels: []
 scheduled: ""
 edges:
   - to: "著作エージェントが外部参照なしに著作規約を提供"
     ref_version: "0.3"
+  - to: "著作テンプレートとプロンプトが識別子単位ノード・型別本文ポリシーに未追随"
+    ref_version: "0.1"

@@ -1,9 +1,11 @@
 title: "design-author 著作支援プロンプト（ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/TERM）"
-version: "0.2.0"
+version: "0.2.3"
 labels: []
 scheduled: ""
 edges:
   - to: "著作エージェントが外部参照なしに著作規約を提供"
     ref_version: "0.3"
   - to: "分析・設計層が三軸抑制モデルのまま-issue-#118-の-suppress-廃止に未追随"
+    ref_version: "0.1"
+  - to: "著作テンプレートとプロンプトが識別子単位ノード・型別本文ポリシーに未追随"
     ref_version: "0.1"
