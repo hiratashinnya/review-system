@@ -10,6 +10,19 @@
 > `doc-system-v2/validate.py` が import している）。move/削除しないこと。
 > 委譲先の `docidx-lookup` サブエージェントは dsv2-native に書き換え済み（`.claude/agents/docidx-lookup.md`）。
 
+## archive 判断（issue #142）
+
+2026-07-10 時点の判断: **`docidx/` は物理 archive へ移動しない**。
+
+- `scan.py`・`cli.py`・`query.py`・`render.py`・`model.py` は v1 archive
+  (`doc-system-v1-archive/`) を読むための legacy CLI として残す。
+- `nodeyaml.py` は v2 の `dsv2/meta.py` と `doc-system-v2/validate.py` が import する共有 YAML
+  reader であり、`docidx/` ごと `archive/` へ移すと現行 v2 実行系を壊す。
+- 現行 doc-system-v2 の正本照会は `python3 -m dsv2` と通常のファイル検索で行う。v2 のために
+  `python -m docidx` を使わない。
+- 将来 `nodeyaml.py` を v2 側の独立モジュールへ分離し、v1 archive CLI の保守を停止する判断が出た場合のみ、
+  `docidx/` 全体の archive 移動を再検討する。
+
 [md2idx](https://github.com/oubakiou/md2idx) と同じ思想（**コンテキスト効率**）の read-only ユーティリティ。
 巨大な `doc-system/`（現 `doc-system-v1-archive/`）の Markdown 全体を読み込む代わりに、軽量なインデックス
 （目次）を作り、必要なノードだけをオンデマンドで読み込む。標準ライブラリのみ。

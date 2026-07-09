@@ -17,7 +17,8 @@ commit しない。
 
 新フォーマットの正本は `doc-system-v2/FORMAT.md`・`doc-system-v2/config.yml`・
 `doc-system-v2/schema/sidecar.schema.json`。サイドカー YAML の読取は既存 **`docidx.nodeyaml`** を再利用する
-（独自 YAML パーサを持ち込まない）。
+（独自 YAML パーサを持ち込まない）。このため issue #142 の archive 判断では `docidx/` を物理移動せず、
+v1 legacy CLI と v2 共有 YAML reader を同一パッケージ内に残す。
 
 ## フォーマット依存マップ（モジュール → 依存する仕様・キー）
 
