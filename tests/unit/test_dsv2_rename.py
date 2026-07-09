@@ -1,4 +1,4 @@
-"""dsv2.rename — slug 改題（md/yaml 改名＋全 referrer の edges[].to 一括張替え）。"""
+"""dsv2.rename — slug 改題（yaml＋同名本文の改名＋全 referrer の edges[].to 一括張替え）。"""
 
 import unittest
 
@@ -31,7 +31,7 @@ class TestRename(unittest.TestCase):
         plan = rename.plan_rename(self.root, self.meta, "parent-spec", "parent-spec-v2")
         rename.apply_rename(self.root, plan)
 
-        # ファイルが改名される（md/yaml 両方）
+        # 同名本文がある場合は yaml と md の両方が改名される
         self.assertFalse((self.root / "nodes/02-what/spec/parent-spec.yaml").exists())
         self.assertTrue((self.root / "nodes/02-what/spec/parent-spec-v2.yaml").exists())
         self.assertTrue((self.root / "nodes/02-what/spec/parent-spec-v2.md").exists())
@@ -51,6 +51,36 @@ class TestRename(unittest.TestCase):
         plan = rename.plan_rename(self.root, self.meta, "lonely", "lonely-v2")
         self.assertEqual(plan.referrers, [])
         self.assertTrue(plan.notes)
+
+    def test_bodyless_node_renames_yaml_only(self):
+        y = self.root / "nodes/04-verification/tc/bodyless.yaml"
+        y.parent.mkdir(parents=True, exist_ok=True)
+        y.write_text('title: "本文なし"\nversion: "0.1.0"\nedges: []\n', "utf-8")
+        m = meta.build_meta(self.root)
+
+        plan = rename.plan_rename(self.root, m, "bodyless", "bodyless-v2")
+
+        self.assertEqual(plan.moves, [
+            ("nodes/04-verification/tc/bodyless.yaml",
+             "nodes/04-verification/tc/bodyless-v2.yaml"),
+        ])
+
+    def test_shared_body_ref_is_not_renamed_with_node(self):
+        shared = self.root / "nodes/04-verification/td/shared.md"
+        shared.parent.mkdir(parents=True, exist_ok=True)
+        shared.write_text("# shared\n", "utf-8")
+        y = self.root / "nodes/04-verification/td/td-a.yaml"
+        y.write_text('title: "TD A"\nversion: "0.1.0"\n'
+                     'body_ref.file: "nodes/04-verification/td/shared.md"\n'
+                     'edges: []\n', "utf-8")
+        m = meta.build_meta(self.root)
+
+        plan = rename.plan_rename(self.root, m, "td-a", "td-a-v2")
+
+        self.assertEqual(plan.moves, [
+            ("nodes/04-verification/td/td-a.yaml",
+             "nodes/04-verification/td/td-a-v2.yaml"),
+        ])
 
 
 if __name__ == "__main__":

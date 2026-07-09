@@ -93,6 +93,44 @@ class TestOptionalFieldAggregation(unittest.TestCase):
             self.assertNotIn(k, node)
 
 
+class TestBodyPolicyAggregation(unittest.TestCase):
+    """body_policy に従い bodyless/shared-body を meta へ集約する。"""
+
+    def _write_yaml(self, root, rel, text):
+        y = root / rel
+        y.parent.mkdir(parents=True, exist_ok=True)
+        y.write_text(text, "utf-8")
+        return y
+
+    def test_bodyless_node_has_no_required_body_path(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            y = self._write_yaml(root, "nodes/04-verification/tc/bodyless.yaml",
+                                 'title: t\nversion: "0.1.0"\nedges: []\n')
+            node = meta.read_node(y, root)
+        self.assertEqual(node["body_policy"], "none")
+        self.assertIsNone(node["body_path"])
+
+    def test_shared_body_ref_is_resolved(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            shared = root / "nodes/04-verification/td/shared.md"
+            shared.parent.mkdir(parents=True, exist_ok=True)
+            shared.write_text("# shared\n", "utf-8")
+            y = self._write_yaml(root, "nodes/04-verification/td/td-a.yaml",
+                                 'title: t\nversion: "0.1.0"\n'
+                                 'body_ref.file: "nodes/04-verification/td/shared.md"\n'
+                                 'body_ref.anchor: "case-a"\nedges: []\n')
+            node = meta.read_node(y, root)
+        self.assertEqual(node["body_policy"], "shared")
+        self.assertEqual(node["body_path"], "nodes/04-verification/td/shared.md")
+        self.assertEqual(node["body_anchor"], "case-a")
+
+
 class TestPlacementValidation(unittest.TestCase):
     """read_node は不正配置を silently 誤メタ化せず MetaError で fail-close する。"""
 

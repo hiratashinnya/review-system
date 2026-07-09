@@ -18,3 +18,5 @@
 **依存**: DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」の反映作業。
 
 **推奨スコープ**: 最初に FORMAT / notation / schema / validator を小さく同期し、その後 dsv2 rename/viewer へ広げる。SRC/TD/TC の具体ノード大量作成より先に行う。
+
+**指摘時 ref_version**: 識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する "0.1"（nodes/04-verification/dd/decided/識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する.yaml v0.1 時点・provenance）／ノード-yaml-ブロックスキーマ "0.1"（nodes/05-design/scm/ノード-yaml-ブロックスキーマ.yaml v0.1 時点）

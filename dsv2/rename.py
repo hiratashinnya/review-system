@@ -1,4 +1,4 @@
-"""slug 改題（v2）: md/yaml 改名＋全 referrer の ``edges[].to`` 一括張替え。
+"""slug 改題（v2）: yaml と同名本文の改名＋全 referrer の ``edges[].to`` 一括張替え。
 
 改題（title 変更で slug が変わる）は稀だが、起きた場合に参照の一貫性を機械的に保つ。referrer は
 meta.json から逆引きする。既定 dry-run。
@@ -57,10 +57,10 @@ def plan_rename(root: Path, meta: dict, old: str, new: str) -> RenamePlan:
         raise RenameError(f"{new}: 改名先 slug が既に存在する（衝突）")
 
     plan = RenamePlan(old=old, new=new)
-    plan.moves = [
-        (node["yaml_path"], _rename_path(node["yaml_path"], new)),
-        (node["body_path"], _rename_path(node["body_path"], new)),
-    ]
+    plan.moves = [(node["yaml_path"], _rename_path(node["yaml_path"], new))]
+    same_stem_body = node.get("body_path") == _rename_path(node["yaml_path"], old).replace(".yaml", ".md")
+    if same_stem_body:
+        plan.moves.append((node["body_path"], _rename_path(node["body_path"], new)))
 
     for src in meta["nodes"]:
         if not any(e["to"] == old for e in src["edges"]):
@@ -79,7 +79,7 @@ def plan_rename(root: Path, meta: dict, old: str, new: str) -> RenamePlan:
 
 
 def apply_rename(root: Path, plan: RenamePlan) -> None:
-    """referrer の to 張替えを書込み、対象 md/yaml を git mv する。"""
+    """referrer の to 張替えを書込み、対象 yaml と同名本文があれば git mv する。"""
     for rel, text in plan.new_text.items():
         (root / rel).write_text(text, encoding="utf-8")
     for src, dst in plan.moves:
