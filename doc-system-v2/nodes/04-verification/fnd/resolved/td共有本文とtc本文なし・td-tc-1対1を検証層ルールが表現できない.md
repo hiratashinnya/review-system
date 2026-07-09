@@ -17,3 +17,7 @@
 6. TR→TC は現行どおり維持し、TC が実行結果の対象 node であり続けるようにする。
 
 **依存**: body policy の FORMAT/schema 反映後、test-strategy 更新より先に実施する。
+
+**対応内容（2026-07-09・PR #147）**: TD の `body_ref.file` / `body_ref.anchor`、TC bodyless 用 `test.file` / `test.qualname` / `test.kind`、TD-TC exact link count、TC 実体参照検査、関連 SPEC/validator/dsv2 検証規則を PR #147 で反映した。これにより TD shared body・TC bodyless・TD-TC 1:1 を検証層ルールで扱える状態になったため resolved 化する。
+
+**指摘時 ref_version**: 識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する "0.1"（nodes/04-verification/dd/decided/識別子単位ノードは1ノード1yamlを維持し本文は型別ポリシーで省略・共有を許可する.yaml v0.1 時点・provenance）／仕様カバレッジ検証 "0.2"（nodes/02-what/fr/仕様カバレッジ検証.yaml v0.2 時点）／検証・指摘の完結性検証 "0.2"（nodes/02-what/fr/検証・指摘の完結性検証.yaml v0.2 時点）／td-に-tc-からの被依存辺欠如-rule-006 "0.1"（nodes/02-what/spec/td-に-tc-からの被依存辺欠如-rule-006.yaml v0.1 時点）／tc-に-td-への依存辺欠如-rule-006 "0.1"（nodes/02-what/spec/tc-に-td-への依存辺欠如-rule-006.yaml v0.1 時点）／td-の-condition-が-verifies-先-spec-と不一致-rule-019 "0.1"（nodes/02-what/spec/td-の-condition-が-verifies-先-spec-と不一致-rule-019.yaml v0.1 時点）

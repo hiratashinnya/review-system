@@ -1,8 +1,10 @@
 title: "TD の condition が verifies 先 SPEC と不一致（RULE-019）"
-version: "0.1.0"
+version: "0.1.1"
 condition: failure
 labels: []
 scheduled: ""
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"
+  - to: "td共有本文とtc本文なし・td-tc-1対1を検証層ルールが表現できない"
+    ref_version: "0.1"

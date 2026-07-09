@@ -1,7 +1,9 @@
 title: "検証・指摘の完結性検証"
-version: "0.2.0"
+version: "0.2.1"
 labels: []
 scheduled: ""
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
+    ref_version: "0.1"
+  - to: "td共有本文とtc本文なし・td-tc-1対1を検証層ルールが表現できない"
     ref_version: "0.1"
