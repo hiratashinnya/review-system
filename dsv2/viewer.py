@@ -1,4 +1,4 @@
-"""静的 HTML ビューア生成: meta.json ＋ 各ノードの ``.md`` 本文から単一 ``doc_view.html`` を出力する。
+"""静的 HTML ビューア生成: meta.json ＋ 各ノードの型別 Markdown 本文から単一 ``doc_view.html`` を出力する。
 
 手書き HTML を持たず、``meta.json``（``dsv2 index`` の生成物）と本文 Markdown から**データ駆動で再生成**する
 （Sub-F #75）。生成物は完全にオフライン自己完結＝外部 CDN/ネットワーク参照を持たない（データは
@@ -10,7 +10,7 @@ query 経由で算出する。
 Markdown→HTML は**標準ライブラリのみの最小レンダラ**（見出し/リスト/コードフェンス/インラインコード/
 強調/リンク/引用/段落・HTML エスケープ）で、外部ライブラリを持ち込まない。
 
-依存仕様: doc-system-v2/FORMAT.md（1ノード=2ファイル・edges・版）・doc-system-v2/config.yml（layout /
+依存仕様: doc-system-v2/FORMAT.md（1ノード=1YAML・body policy・edges・版）・doc-system-v2/config.yml（layout /
   status_dirs・stage/type/status の並び順）。ドリフト規則は dsv2.query（RULE-004・DD-2・#81）を単一ソースに再利用。
 """
 
@@ -170,7 +170,9 @@ def render_markdown(text: str) -> str:
 # --------------------------------------------------------------------------- #
 
 def _read_body(root: Path, node: dict) -> str:
-    """ノードの本文 ``.md`` を読む（無ければ空文字）。"""
+    """ノードの本文を読む（bodyless または無ければ空文字）。"""
+    if not node.get("body_path"):
+        return ""
     path = root / node["body_path"]
     if path.exists():
         return path.read_text(encoding="utf-8")

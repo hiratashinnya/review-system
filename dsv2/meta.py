@@ -1,9 +1,9 @@
 """v2 コーパスの索引化: ``nodes/**/*.yaml`` を走査し ``meta.json`` を生成/読込する。
 
 各ノードは path から ``stage/type/status`` を、サイドカー（``docidx.nodeyaml.parse`` で読む）から
-``title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/edges``
-を、ファイル stem から ``id`` を、対の ``.md`` を ``body_path`` として集約する（``suppress``/
-``suppress_reason`` は issue #118 で機構ごと廃止・#81 で正式化した任意フィールドのみ現存）。
+``title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/edges``
+を、ファイル stem から ``id`` を集約する。本文は型別 ``BODY_POLICY`` に従い、同名 ``.md``・
+``body_ref.file``・本文なしを表す（``suppress``/``suppress_reason`` は issue #118 で機構ごと廃止）。
 生成物 meta.json は手編集せず、``index`` で再生成する（FORMAT.md）。
 
 依存仕様: doc-system-v2/FORMAT.md（Sub-A・新フォーマット正本）・doc-system-v2/config.yml（layout /
@@ -43,10 +43,53 @@ STATUS_DIRS = {
     "dd": {"decided", "closed"},
     "pend": {"open", "resolved", "deferred"},
 }
+BODY_POLICY = {
+    "required": {
+        "val", "sr", "fr", "nfr", "spec",
+        "actor", "i", "o", "d", "p", "e", "term",
+        "orc", "ds", "mod", "dm", "port", "prs", "scm", "cfg", "prompt",
+        "tr", "verify", "fnd", "dd", "q", "pend",
+    },
+    "shared": {"td"},
+    "none": {"tc", "src"},
+}
+
+
+def body_policy_for(typ: str) -> str:
+    """type に対応する本文ポリシー（required/shared/none）を返す。未知 type は required。"""
+    for policy, types in BODY_POLICY.items():
+        if typ in types:
+            return policy
+    return "required"
 
 
 def _posix(p: Path) -> str:
     return str(p).replace("\\", "/")
+
+
+def _resolve_body(root: Path, yaml_path: Path, typ: str, data: dict) -> tuple[str, str | None, str]:
+    """(body_policy, body_path, body_anchor) を返す。
+
+    shared 型は ``body_ref.file`` を優先し、既存互換として同名 .md も許可する。none 型も移行中の
+    既存同名 .md は表示できるよう拾うが、本文が無くても正当なノードとして扱う。
+    """
+    policy = body_policy_for(typ)
+    raw = str(data.get("body_ref.file", "") or "").strip()
+    anchor = str(data.get("body_ref.anchor", "") or "")
+    if raw:
+        p = Path(raw)
+        if not p.is_absolute():
+            root_rel = root / p
+            y_rel = yaml_path.parent / p
+            p = root_rel if root_rel.exists() else y_rel
+        try:
+            return policy, _posix(p.resolve().relative_to(root.resolve())), anchor
+        except ValueError:
+            return policy, _posix(p), anchor
+    same_stem = yaml_path.with_suffix(".md")
+    if same_stem.exists():
+        return policy, _posix(same_stem.relative_to(root)), ""
+    return policy, None, ""
 
 
 def read_node(yaml_path: Path, root: Path) -> dict:
@@ -85,6 +128,7 @@ def read_node(yaml_path: Path, root: Path) -> dict:
         if e.get("note"):
             row["note"] = str(e["note"])
         edges.append(row)
+    body_policy, body_path, body_anchor = _resolve_body(root, yaml_path, typ, data)
 
     node = {
         "id": yaml_path.stem,
@@ -97,7 +141,9 @@ def read_node(yaml_path: Path, root: Path) -> dict:
         "scheduled": str(data.get("scheduled", "") or ""),
         "edges": edges,
         "yaml_path": _posix(rel),
-        "body_path": _posix(rel.with_suffix(".md")),
+        "body_policy": body_policy,
+        "body_path": body_path,
+        "body_anchor": body_anchor,
     }
     if data.get("condition"):
         node["condition"] = str(data["condition"])

@@ -1,5 +1,5 @@
 title: "ノード YAML ブロックスキーマ"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: ""
 edges:
@@ -16,4 +16,6 @@ edges:
   - to: "共通必須フィールドの型不正・欠如検出"
     ref_version: "0.1"
   - to: "ノードフォーマットスキーマ"
+    ref_version: "0.1"
+  - to: "formatとdsv2ツールが1ノード2ファイル固定でbodyless・shared-bodyノードを表現できない"
     ref_version: "0.1"

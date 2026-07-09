@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "doc-system-v2/schema/sidecar.schema.json",
   "title": "doc-system v2 サイドカー（{slug}.yaml）スキーマ",
-  "description": "1ノード1サイドカー。多値・グラフ属性のみを持つ。id/type/status はここに持たない（id=ファイル名 stem、type/status は path から導出＝二重管理回避）。",
+  "description": "1ノード1サイドカー。多値・グラフ属性と型別本文参照を持つ。id/type/status はここに持たない（id=ファイル名 stem、type/status は path から導出＝二重管理回避）。",
   "type": "object",
   "additionalProperties": false,
   "required": ["title", "version", "edges"],
@@ -46,6 +46,15 @@
       "type": "string",
       "enum": ["skill", "agent", "command", "instructions", "hooks", "code"],
       "description": "設計要素の実現担体（realization carrier）。値集合は本 enum が機械可読 SoT（instructions＝CLAUDE.md 等の常駐コンテキスト、code＝Python 実装）。v2 正準フィールド（オーナー承認 2026-07-03、enum 化＝Issue #93）。"
+    },
+    "body_ref.file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "共有 Markdown 本文への参照。body_policy=shared の型で使う。doc-system-v2 root からの相対パス、またはサイドカーからの相対パス。"
+    },
+    "body_ref.anchor": {
+      "type": "string",
+      "description": "共有本文内の見出しアンカーまたは節識別子。"
     },
     "edges": {
       "type": "array",

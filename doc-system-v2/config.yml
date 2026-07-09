@@ -38,6 +38,17 @@ slug:
   max_bytes: 120
 
 # ------------------------------------------------------------
+# 本文ポリシー: ノード identity は全型で 1 YAML が正本。Markdown 本文は type ごとに扱う。
+# required: 同名 .md が必須。
+# shared:   body_ref.file/body_ref.anchor で共有本文を指せる。同名 .md も互換として許可。
+# none:     Markdown 本文を要求しない。既存移行中の同名 .md は存在しても違反にしない。
+# ------------------------------------------------------------
+body_policy:
+  required: [val, sr, fr, nfr, spec, actor, i, o, d, p, e, term, orc, ds, mod, dm, port, prs, scm, cfg, prompt, tr, verify, fnd, dd, q, pend]
+  shared: [td]
+  none: [tc, src]
+
+# ------------------------------------------------------------
 # condition 語彙（RULE-016）。現行から新設/削除なしで踏襲。
 # normal:正常系 / boundary:境界値 / empty:空・ゼロ件・null / failure:仕様違反を正しく検出(sad-path) /
 # error:処理不能な異常入力(fail-close 対象)。always_error は condition とは別軸。
