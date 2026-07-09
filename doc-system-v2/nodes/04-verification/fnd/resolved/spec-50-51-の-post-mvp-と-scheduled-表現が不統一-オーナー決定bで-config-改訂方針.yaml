@@ -1,5 +1,5 @@
 title: "SPEC-50/51 の post-mvp と scheduled 表現が不統一（オーナー決定Bで config 改訂方針）"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

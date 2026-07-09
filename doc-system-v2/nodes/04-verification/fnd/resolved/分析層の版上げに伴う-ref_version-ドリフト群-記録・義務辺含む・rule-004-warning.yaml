@@ -1,5 +1,5 @@
 title: "分析層の版上げに伴う ref_version ドリフト群（記録・義務辺含む・RULE-004 WARNING）"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

@@ -2,7 +2,7 @@ title: "構造化ノード1件の生成"
 version: "0.1.1"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノード埋め込みのパース"
     ref_version: "0.3"

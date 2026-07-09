@@ -1,7 +1,7 @@
 title: "NodeRecord型"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "noderecord"
     ref_version: "0.1"

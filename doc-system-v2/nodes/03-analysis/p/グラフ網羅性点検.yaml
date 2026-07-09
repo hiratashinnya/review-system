@@ -1,7 +1,7 @@
 title: "グラフ網羅性点検"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "グラフ網羅性点検の正常系"
     ref_version: "0.1"

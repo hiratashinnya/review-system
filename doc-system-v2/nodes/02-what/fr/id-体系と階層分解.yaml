@@ -1,7 +1,7 @@
 title: "ID 体系と階層分解"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "メンテナが変更の影響範囲を辺でたどれる"
     ref_version: "0.1"

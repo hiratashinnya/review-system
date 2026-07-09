@@ -2,7 +2,7 @@ title: "著作エージェントが規約準拠ノードを tmp 出力"
 version: "0.1.1"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェント出力と-reconciliation-転記"
     ref_version: "0.1"

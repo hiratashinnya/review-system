@@ -1,5 +1,5 @@
 title: "always_error 系 SPEC の condition が不揃い（SPEC-6=error, SPEC-7=failure）"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

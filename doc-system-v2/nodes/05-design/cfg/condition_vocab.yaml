@@ -1,7 +1,7 @@
 title: "condition_vocab"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ステージ／語彙／カバレッジ／スコープスキーマ"
     ref_version: "0.1"

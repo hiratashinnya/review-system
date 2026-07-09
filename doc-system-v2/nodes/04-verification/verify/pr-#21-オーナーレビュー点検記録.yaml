@@ -1,7 +1,7 @@
 title: "PR #21 オーナーレビュー点検記録"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "カバレッジテーブルの出力フォーマット"
     ref_version: "0.1"

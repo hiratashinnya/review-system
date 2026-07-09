@@ -1,5 +1,5 @@
 title: "SPEC-1 期待動作が「生成・id一致・エラーなし」の複数アサーション混載でテスタブル基準違反"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

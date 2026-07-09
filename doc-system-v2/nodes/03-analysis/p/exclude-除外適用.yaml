@@ -1,7 +1,7 @@
 title: "exclude 除外適用"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "include-一致・exclude-一致-→-out-of-graph"
     ref_version: "0.1"

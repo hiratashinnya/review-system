@@ -2,7 +2,7 @@ title: "PEND の義務辺残存"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "意思決定ドリフト検出"
     ref_version: "0.2"

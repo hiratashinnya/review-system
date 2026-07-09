@@ -2,7 +2,7 @@ title: "カバレッジテーブルのヘッダ行出力"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "カバレッジテーブルの出力フォーマット"
     ref_version: "0.1"

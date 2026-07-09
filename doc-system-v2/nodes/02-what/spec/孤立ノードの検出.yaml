@@ -2,7 +2,7 @@ title: "孤立ノードの検出"
 version: "0.2.1"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "構造的完結性検証"
     ref_version: "0.2"

@@ -1,7 +1,7 @@
 title: "終了コード決定"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "error-あり-→-終了コード-1"
     ref_version: "0.1"

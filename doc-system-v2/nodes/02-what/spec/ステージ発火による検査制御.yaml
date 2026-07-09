@@ -1,7 +1,7 @@
 title: "ステージ発火による検査制御"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "三軸の検査抑制機構"
     ref_version: "0.3"

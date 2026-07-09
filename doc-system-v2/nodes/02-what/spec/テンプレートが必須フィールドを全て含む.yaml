@@ -2,7 +2,7 @@ title: "テンプレートが必須フィールドを全て含む"
 version: "0.1.1"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレートの必須フィールド充足"
     ref_version: "0.3"

@@ -1,5 +1,5 @@
 title: "FND-96〜100 が resolved 化/辺逆転のバンプを MINOR で記録し DD-21（z バンプ）に違反（A-1 以前の pre-existing ドリフト）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

@@ -1,5 +1,5 @@
 title: "検証戦略 05-verification.md の段階別トリガ宣言がフロー図の単一トリガモデルと不整合（バッジ bump 非依存の辺残留 RULE がバッジ bump トリガに括られ検出漏れリスク）"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

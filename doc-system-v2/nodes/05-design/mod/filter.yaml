@@ -1,7 +1,7 @@
 title: "filter"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "抑制・発火フィルタ"
     ref_version: "0.2"

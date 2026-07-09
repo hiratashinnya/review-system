@@ -2,7 +2,7 @@ title: "外部参照パターン検出時に WARNING を出力する"
 version: "0.2.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "スキルファイルは外部ファイル参照なしに自己完結"
     ref_version: "0.2"

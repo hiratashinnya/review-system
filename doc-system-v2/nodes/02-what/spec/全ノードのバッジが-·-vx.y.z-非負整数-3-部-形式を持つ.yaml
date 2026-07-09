@@ -2,7 +2,7 @@ title: "全ノードのバッジが `· vX.Y.Z`（非負整数 3 部）形式を
 version: "0.1.1"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "全-in-graph-ノードの-summary-バッジに-version-x.y.z-が存在する"
     ref_version: "0.2"

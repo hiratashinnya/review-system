@@ -1,7 +1,7 @@
 title: "resolved-FND 辺逆転の版バンプ（MINOR か z か）／backref・provenance 辺を RULE-004 ドリフト対象外とすべきか"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "resolved-済み-fnd-fnd-1〜95-が元の-forward-辺を削除せず辺逆転ルールに違反している"
     ref_version: "0.1"

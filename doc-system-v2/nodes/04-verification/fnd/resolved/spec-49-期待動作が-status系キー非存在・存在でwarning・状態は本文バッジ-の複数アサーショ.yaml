@@ -1,5 +1,5 @@
 title: "SPEC-49 期待動作が「status系キー非存在・存在でWARNING・状態は本文バッジ」の複数アサーション混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

@@ -1,7 +1,7 @@
 title: "SPEC-9-1 と SPEC-10 が同一 RULE-004 検出でほぼ同主張"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ファイル-x.y-上昇で依存辺をドリフト検出"
     ref_version: "0.2"

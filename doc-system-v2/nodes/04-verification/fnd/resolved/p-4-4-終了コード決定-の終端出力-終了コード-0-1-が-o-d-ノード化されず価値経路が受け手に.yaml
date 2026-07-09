@@ -1,5 +1,5 @@
 title: "P-4-4「終了コード決定」の終端出力（終了コード 0/1）が O/D ノード化されず価値経路が受け手に到達しない（PR6 価値経路の穴）"
 version: "0.1.2"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

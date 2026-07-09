@@ -1,7 +1,7 @@
 title: "分析層 DFD レベリング深化＋スタンプ結合排除の全面改訂"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "d-4-構造化ノードセット-定義が-condition-result-log_ref-を欠き-p-2-3-p-2-4-p-3-2-の入力が台帳上断"
     ref_version: "0.1"

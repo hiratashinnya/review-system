@@ -2,7 +2,7 @@ title: "親ノードが存在すれば階層 ID を正常と判定"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "階層-id-の親ノード存在"
     ref_version: "0.1"

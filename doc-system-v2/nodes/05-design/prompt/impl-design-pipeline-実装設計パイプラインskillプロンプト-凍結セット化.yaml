@@ -1,7 +1,7 @@
 title: "impl-design-pipeline 実装設計パイプラインskillプロンプト（凍結セット化）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 carrier: "skill"
 edges:
   - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"

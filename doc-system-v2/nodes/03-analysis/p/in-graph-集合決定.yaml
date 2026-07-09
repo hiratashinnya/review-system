@@ -1,7 +1,7 @@
 title: "in-graph 集合決定"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "trace_scope-による-in-graph-判定"
     ref_version: "0.2"

@@ -1,7 +1,7 @@
 title: "メンテナが変更の影響範囲を辺でたどれる"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "トレーサビリティ"
     ref_version: "0.1"

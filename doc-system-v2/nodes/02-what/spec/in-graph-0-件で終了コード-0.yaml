@@ -2,7 +2,7 @@ title: "in-graph 0 件で終了コード 0"
 version: "0.1.0"
 condition: empty
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "trace_scope-による-in-graph-0-件"
     ref_version: "0.1"

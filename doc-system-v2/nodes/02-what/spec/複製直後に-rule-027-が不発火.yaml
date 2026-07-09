@@ -2,7 +2,7 @@ title: "複製直後に RULE-027 が不発火"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレートの必須フィールド充足"
     ref_version: "0.3"

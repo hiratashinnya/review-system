@@ -1,7 +1,7 @@
 title: "structure_checker"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "構造完結性検査"
     ref_version: "0.2"

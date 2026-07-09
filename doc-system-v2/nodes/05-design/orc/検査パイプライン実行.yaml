@@ -1,7 +1,7 @@
 title: "検査パイプライン実行"
 version: "0.4.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "点検要求"
     ref_version: "0.5"

@@ -1,5 +1,5 @@
 title: "resolved 済み FND（FND-1〜95）が元の forward 辺を削除せず辺逆転ルールに違反している"
 version: "0.1.2"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

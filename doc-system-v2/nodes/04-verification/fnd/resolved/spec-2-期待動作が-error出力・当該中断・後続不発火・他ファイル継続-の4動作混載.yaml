@@ -1,5 +1,5 @@
 title: "SPEC-2 期待動作が「ERROR出力・当該中断・後続不発火・他ファイル継続」の4動作混載"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

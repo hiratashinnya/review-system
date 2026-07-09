@@ -1,7 +1,7 @@
 title: "⬡ マーカー直後に YAML ブロックなし"
 version: "0.1.2"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノードグラフの構造化表現"
     ref_version: "0.3"

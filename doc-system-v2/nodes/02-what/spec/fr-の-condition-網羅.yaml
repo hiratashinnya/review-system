@@ -1,7 +1,7 @@
 title: "FR の condition 網羅"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "仕様カバレッジ検証"
     ref_version: "0.2"

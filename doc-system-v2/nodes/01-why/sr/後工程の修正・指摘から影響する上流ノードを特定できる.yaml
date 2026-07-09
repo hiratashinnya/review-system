@@ -1,7 +1,7 @@
 title: "後工程の修正・指摘から影響する上流ノードを特定できる"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "トレーサビリティ"
     ref_version: "0.1"

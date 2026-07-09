@@ -1,7 +1,7 @@
 title: "DD/Q/PEND のノード YAML（メタ属性）に status 系フィールドが存在しない"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ライフサイクル状態は本文・メタに持たない"
     ref_version: "0.3"

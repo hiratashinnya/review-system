@@ -1,7 +1,7 @@
 title: "属性検査ビュー"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"

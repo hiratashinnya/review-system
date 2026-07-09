@@ -1,5 +1,5 @@
 title: "P-6 が config.yaml（I-5）を P-5 を経由せず直接読み込んでいる"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

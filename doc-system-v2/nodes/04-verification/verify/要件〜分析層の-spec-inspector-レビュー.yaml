@@ -1,7 +1,7 @@
 title: "要件〜分析層の spec-inspector レビュー"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "トレーサビリティ"
     ref_version: "0.1"

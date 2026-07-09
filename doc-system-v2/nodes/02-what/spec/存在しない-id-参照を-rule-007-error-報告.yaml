@@ -2,7 +2,7 @@ title: "存在しない ID 参照を RULE-007 ERROR 報告"
 version: "0.2.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "存在しない-id-への参照"
     ref_version: "0.2"

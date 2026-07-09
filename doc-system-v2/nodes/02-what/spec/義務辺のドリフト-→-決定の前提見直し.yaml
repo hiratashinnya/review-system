@@ -2,7 +2,7 @@ title: "義務辺のドリフト → 決定の前提見直し"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "バージョンドリフトの検出"
     ref_version: "0.2"

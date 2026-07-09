@@ -2,7 +2,7 @@ title: "パース段違反なし → エラー出力なし"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノード埋め込みのパース"
     ref_version: "0.3"

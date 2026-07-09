@@ -2,7 +2,7 @@ title: "BOM 付きファイルに WARNING を1件出力"
 version: "0.1.0"
 condition: boundary
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノードファイルはプレーンテキスト-.md"
     ref_version: "0.2"

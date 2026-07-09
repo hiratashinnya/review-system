@@ -1,7 +1,7 @@
 title: "草案 tmp 書出"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェントが規約準拠ノードを-tmp-出力"
     ref_version: "0.1"

@@ -1,7 +1,7 @@
 title: "must_link_to"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "接続ルールスキーマ"
     ref_version: "0.1"

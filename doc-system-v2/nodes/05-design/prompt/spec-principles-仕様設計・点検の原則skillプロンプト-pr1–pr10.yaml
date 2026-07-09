@@ -1,7 +1,7 @@
 title: "spec-principles 仕様設計・点検の原則skillプロンプト（PR1–PR10）"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 carrier: "skill"
 edges:
   - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"

@@ -1,7 +1,7 @@
 title: "tmp 草案ファイル書き出し"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "tmp-ノード草案"
     ref_version: "0.1"

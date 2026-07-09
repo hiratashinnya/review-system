@@ -1,7 +1,7 @@
 title: "抑制・発火フィルタ"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ステージ発火による検査制御"
     ref_version: "0.3"

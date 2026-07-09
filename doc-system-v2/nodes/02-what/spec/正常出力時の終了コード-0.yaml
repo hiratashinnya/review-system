@@ -2,7 +2,7 @@ title: "正常出力時の終了コード 0"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "カバレッジテーブルの出力フォーマット"
     ref_version: "0.1"

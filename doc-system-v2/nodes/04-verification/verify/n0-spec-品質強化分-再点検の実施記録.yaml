@@ -1,7 +1,7 @@
 title: "N0（SPEC 品質強化分）再点検の実施記録"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレートによる著作品質保証"
     ref_version: "0.4"

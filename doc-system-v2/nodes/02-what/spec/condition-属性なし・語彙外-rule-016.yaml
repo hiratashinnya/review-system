@@ -2,7 +2,7 @@ title: "condition 属性なし・語彙外（RULE-016）"
 version: "0.2.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"

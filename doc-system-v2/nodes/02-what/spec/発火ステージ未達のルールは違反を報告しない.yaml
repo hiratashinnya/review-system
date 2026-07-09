@@ -2,7 +2,7 @@ title: "発火ステージ未達のルールは違反を報告しない"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "発火ステージ未達のルールはサイレント"
     ref_version: "0.1"

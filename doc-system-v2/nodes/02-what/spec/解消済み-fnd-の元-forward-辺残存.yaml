@@ -2,7 +2,7 @@ title: "解消済み FND の元 forward 辺残存"
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "検証・指摘の完結性検証"
     ref_version: "0.2"

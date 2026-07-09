@@ -1,7 +1,7 @@
 title: "スキルは self-contained"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著者が型・id・辺ルールを間違えずに書ける"
     ref_version: "0.1"

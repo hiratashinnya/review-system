@@ -1,7 +1,7 @@
 title: "requirements 層追加バッチ再点検記録（FND-28 処置）"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノードファイルはプレーンテキスト-.md"
     ref_version: "0.2"

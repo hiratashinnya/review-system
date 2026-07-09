@@ -1,7 +1,7 @@
 title: "ノード YAML ブロックスキーマ"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "id-フィールド欠如・空"
     ref_version: "0.1"

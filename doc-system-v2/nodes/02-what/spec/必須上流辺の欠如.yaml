@@ -2,7 +2,7 @@ title: "必須上流辺の欠如"
 version: "0.2.1"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "構造的完結性検証"
     ref_version: "0.2"

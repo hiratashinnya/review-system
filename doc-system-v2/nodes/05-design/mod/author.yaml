@@ -1,7 +1,7 @@
 title: "author"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作・tmp-出力"
     ref_version: "0.2"

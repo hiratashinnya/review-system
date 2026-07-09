@@ -1,7 +1,7 @@
 title: "RULE-007/005 を suppress に含めても抑制不可"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "suppress-の禁止ケース"
     ref_version: "0.4"

@@ -1,5 +1,5 @@
 title: "M1: SPEC-48 本文が SPEC→SPEC を有効と明記するが config はそれを強制しない矛盾"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

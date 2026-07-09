@@ -1,7 +1,7 @@
 title: "テンプレート由来の必須フィールド欠如"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "テンプレートによる著作品質保証"
     ref_version: "0.4"

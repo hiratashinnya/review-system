@@ -1,7 +1,7 @@
 title: "FND 専用ライフサイクルルールを汎用 RULE-006 から独立定義すべきか（辺の逆転の正式化）"
 version: "0.2.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "設計層の接続チェーン-dm→mod→d-が欠落しており-mod→p-dm→p-の強制が-pr1-違反を生む"
     ref_version: "0.4"

@@ -2,7 +2,7 @@ title: "type 欠如時に RULE-026 ERROR を出力"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "type-フィールド欠如・空"
     ref_version: "0.1"

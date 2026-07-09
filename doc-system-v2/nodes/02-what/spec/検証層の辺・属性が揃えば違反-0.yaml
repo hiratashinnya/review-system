@@ -2,7 +2,7 @@ title: "検証層の辺・属性が揃えば違反 0"
 version: "0.2.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "検証・指摘の完結性検証"
     ref_version: "0.2"

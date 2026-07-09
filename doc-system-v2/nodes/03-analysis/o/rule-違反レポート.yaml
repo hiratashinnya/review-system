@@ -1,7 +1,7 @@
 title: "RULE 違反レポート"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "出力形式と終了コード"
     ref_version: "0.2"

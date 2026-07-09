@@ -2,7 +2,7 @@ title: "完全スキーマ適合ノードは RULE-028 を発火させない"
 version: "0.1.1"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "i-1-完全フィールドスキーマ適合"
     ref_version: "0.1"

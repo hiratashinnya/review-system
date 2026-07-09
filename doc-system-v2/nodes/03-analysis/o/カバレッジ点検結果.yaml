@@ -1,7 +1,7 @@
 title: "カバレッジ点検結果"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "カバレッジレポートの生成"
     ref_version: "0.2"

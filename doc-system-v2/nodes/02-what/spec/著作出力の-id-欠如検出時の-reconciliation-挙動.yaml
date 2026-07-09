@@ -1,7 +1,7 @@
 title: "著作出力の id 欠如検出時の reconciliation 挙動"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェントと層ワークフロー"
     ref_version: "0.1"

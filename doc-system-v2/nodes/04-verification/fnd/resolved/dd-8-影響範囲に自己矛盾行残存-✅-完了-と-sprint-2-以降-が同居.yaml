@@ -1,5 +1,5 @@
 title: "DD-8 影響範囲に自己矛盾行残存（「✅ 完了」と「sprint-2 以降」が同居）"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

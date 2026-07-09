@@ -1,7 +1,7 @@
 title: "依存グラフレポート出力"
 version: "0.2.0"
 labels: [post-mvp]
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "レビュアーが機械的に網羅性・整合性を検証できる"
     ref_version: "0.1"

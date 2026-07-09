@@ -1,7 +1,7 @@
 title: "接続ルールスキーマ"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ステージ発火による検査制御"
     ref_version: "0.3"

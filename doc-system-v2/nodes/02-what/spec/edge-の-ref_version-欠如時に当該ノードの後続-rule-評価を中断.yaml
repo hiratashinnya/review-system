@@ -2,7 +2,7 @@ title: "edge の ref_version 欠如時に当該ノードの後続 RULE 評価を
 version: "0.1.0"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "edge-に-ref_version-欠如"
     ref_version: "0.1"

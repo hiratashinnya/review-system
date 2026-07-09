@@ -1,7 +1,7 @@
 title: "config.yaml 設定インスタンス"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "config.yaml-スキーマ"
     ref_version: "0.1"

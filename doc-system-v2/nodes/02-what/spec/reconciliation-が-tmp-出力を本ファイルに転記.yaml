@@ -2,7 +2,7 @@ title: "reconciliation が tmp 出力を本ファイルに転記"
 version: "0.1.0"
 condition: normal
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作エージェント出力と-reconciliation-転記"
     ref_version: "0.1"

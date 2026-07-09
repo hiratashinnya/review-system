@@ -1,5 +1,5 @@
 title: "FND の resolved 状態を機械判定するセマンティクス（`resolved` フィールドの解釈）を定義した in-graph SPEC が不在（検出機構/カバレッジの完結性ギャップ）"
 version: "0.2.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

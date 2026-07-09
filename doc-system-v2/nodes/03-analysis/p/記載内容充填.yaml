@@ -1,7 +1,7 @@
 title: "記載内容充填"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "著作は-i-7-と-i-9-を充填して草案を生成する"
     ref_version: "0.1"

@@ -2,7 +2,7 @@ title: "RULE-007 は always_error で抑制不可"
 version: "0.1.0"
 condition: error
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "存在しない-id-への参照"
     ref_version: "0.2"

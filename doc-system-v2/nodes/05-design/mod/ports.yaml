@@ -1,7 +1,7 @@
 title: "ports"
 version: "0.1.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "ノード受付・パース"
     ref_version: "0.3"

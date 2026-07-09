@@ -1,5 +1,5 @@
 title: "FND-1 の forward 辺が削除済み ACTOR-3 を指して dangling（RULE-007 ERROR）"
 version: "0.1.1"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges: []

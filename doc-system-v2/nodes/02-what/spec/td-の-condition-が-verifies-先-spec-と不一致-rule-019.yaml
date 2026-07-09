@@ -2,7 +2,7 @@ title: "TD の condition が verifies 先 SPEC と不一致（RULE-019）"
 version: "0.1.1"
 condition: failure
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "spec×td-カバレッジ・condition-不整合"
     ref_version: "0.2"
