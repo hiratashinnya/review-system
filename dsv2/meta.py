@@ -1,7 +1,8 @@
 """v2 コーパスの索引化: ``nodes/**/*.yaml`` を走査し ``meta.json`` を生成/読込する。
 
 各ノードは path から ``stage/type/status`` を、サイドカー（``docidx.nodeyaml.parse`` で読む）から
-``title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/edges``
+``title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/
+source.*?/test.*?/edges``
 を、ファイル stem から ``id`` を集約する。本文は型別 ``BODY_POLICY`` に従い、同名 ``.md``・
 ``body_ref.file``・本文なしを表す（``suppress``/``suppress_reason`` は issue #118 で機構ごと廃止）。
 生成物 meta.json は手編集せず、``index`` で再生成する（FORMAT.md）。
@@ -34,6 +35,7 @@ LAYOUT = {
     "03-analysis": {"actor", "i", "o", "d", "p", "e", "term"},
     "05-design": {"orc", "ds", "mod", "dm", "port", "prs", "scm", "cfg", "prompt"},
     "04-verification": {"td", "tc", "tr", "verify", "fnd", "dd", "q", "pend"},
+    "06-implementation": {"src"},
 }
 STAGES = set(LAYOUT)
 # lifecycle を持つ型のみ status サブディレクトリ（config.yml status_dirs と一致・pend は #81 で追加）。
@@ -152,6 +154,14 @@ def read_node(yaml_path: Path, root: Path) -> dict:
     for opt in ("result", "log_ref", "carrier"):
         if data.get(opt):
             node[opt] = str(data[opt])
+    for group in ("source", "test"):
+        grouped = {}
+        for field in ("file", "qualname", "kind"):
+            key = f"{group}.{field}"
+            if data.get(key):
+                grouped[field] = str(data[key])
+        if grouped:
+            node[group] = grouped
     return node
 
 

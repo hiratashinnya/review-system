@@ -33,6 +33,8 @@ nodes/
     `result?`/`log_ref?`（**TR 専用**・DD-011）・
     `carrier?`（設計要素の実現担体＝realization carrier。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code`（値集合の SoT = `schema/sidecar.schema.json`）。v2 正準フィールド・オーナー承認済 2026-07-03）。
     `body_ref.file?`/`body_ref.anchor?`（共有 Markdown 本文への参照。`body_policy=shared` の型で使う）。
+    `source.file?`/`source.qualname?`/`source.kind?`（**SRC 専用**。実装識別子の所在）。
+    `test.file?`/`test.qualname?`/`test.kind?`（**TC 専用**。実テスト識別子の所在）。
     （`suppress?`/`suppress_reason?` は issue #118 で抑制機構ごと廃止済み・スキーマ非対応）
   - **持たない**: `id`（=stem）・`type`（=path 第2階層）・`status`（=path 第3階層）・`resolved`（=FND の path）＝二重管理回避。
 - Markdown 本文 … 属性・バッジ・YAML は書かない。本文の要否は `config.yml: body_policy` で決まる。
@@ -56,6 +58,8 @@ nodes/
 - stage / type の対応は `config.yml: layout`（stage ディレクトリ → type 群）が唯一の機械可読ソース。
   requirements stage は 01-why(val/sr) と 02-what(fr/nfr/spec) の2ディレクトリに分かれる。
 - stage: `01-why | 02-what | 03-analysis | 05-design | 04-verification`
+- implementation stage の SRC は `06-implementation/src/{slug}.yaml` に置く。SRC は `body_policy=none` で
+  Markdown 本文を要求せず、`source.file` + `source.qualname` + `source.kind` を正本にして実装識別子を指す。
 - type: `config.yml: layout` の各値（val, sr, …, fnd, dd, q, pend）。**type は path から導出**。
 - status（lifecycle 型のみ・**path から導出**）:
   - `fnd`: `open | resolved`
@@ -75,6 +79,8 @@ nodes/
 - 親子（umbrella→子）＝ 同型間の依存辺（例: `SPEC→SPEC` は refines＝親）。
 - 入出力・詳細化＝ 型ペアで一意（例: `O→P`・`O→ACTOR`・`MOD→P/D` は target 型で判別）。
 - backref＝ `node→FND`（FND resolved）の向きで判別（逆転時に付与・指摘時 ref_version は FND 本文に記録＝DD-3）。
+- TD-TC は `config.yml: exact_link_counts` で 1:1 を表す。TD はちょうど1つの TC から実装され、TC は
+  ちょうど1つの TD を実装する。
 
 ## condition（テスタブルなアサーションの条件区分）
 - 語彙は現行 `config.yml: condition_vocab` を踏襲: **`normal | boundary | empty | failure | error`**（新設・削除なし）。

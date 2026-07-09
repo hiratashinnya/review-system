@@ -56,6 +56,36 @@
       "type": "string",
       "description": "共有本文内の見出しアンカーまたは節識別子。"
     },
+    "source.file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SRC 専用。repo root からの相対パスで、実装識別子を含むソースファイルを指す。"
+    },
+    "source.qualname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SRC 専用。source.file 内の関数・クラス・メソッド等の修飾名。"
+    },
+    "source.kind": {
+      "type": "string",
+      "enum": ["function", "class", "method"],
+      "description": "SRC 専用。source.qualname が指す実装識別子の種別。"
+    },
+    "test.file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "TC 専用。repo root からの相対パスで、実テスト識別子を含むファイルを指す。"
+    },
+    "test.qualname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "TC 専用。test.file 内のテスト関数・テストメソッド等の修飾名。"
+    },
+    "test.kind": {
+      "type": "string",
+      "enum": ["unittest", "pytest", "function", "method"],
+      "description": "TC 専用。test.qualname が指すテスト識別子の種別または実行系。"
+    },
     "edges": {
       "type": "array",
       "description": "本ノードから他ノードへの有向辺（無名依存辺・親子も edge）。関係の意味は kind ではなく (source 型, target 型)＋required_edges＋FND resolved から導出。",

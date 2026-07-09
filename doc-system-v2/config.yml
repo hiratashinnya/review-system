@@ -23,7 +23,7 @@ layout:
   03-analysis:     [actor, i, o, d, p, e, term]
   05-design:       [orc, ds, mod, dm, port, prs, scm, cfg, prompt]
   04-verification: [td, tc, tr, verify, fnd, dd, q, pend]
-# implementation stage の src は未材化（辺ルールのみ下記に保持・配置 dir は Sub-E で確定）。
+  06-implementation: [src]
 
 # lifecycle を持つ型のみ status サブディレクトリ（path 第3階層・status もサイドカーに持たない）。
 status_dirs:
@@ -119,6 +119,14 @@ must_be_linked_from:
   - { node: td,    source: [tc],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
   - { node: tc,    source: [tr],              activate_stage: verification, severity: warning, reason: "テストは実行され結果を残す" }
   - { node: nfr,   source: [fnd, tc, verify], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける（OR）" }
+
+# ------------------------------------------------------------
+# 接続本数制約: min-one の must_link_to / must_be_linked_from より強い exact count。
+# TD-TC は DD「識別子単位ノード」に従い 1:1 とする。
+# ------------------------------------------------------------
+exact_link_counts:
+  - { node: td, direction: incoming, peer: tc, count: 1, activate_stage: verification, severity: error, reason: "TDはちょうど1つのTCから実装される" }
+  - { node: tc, direction: outgoing, peer: td, count: 1, activate_stage: verification, severity: error, reason: "TCはちょうど1つのTDを実装する" }
 
 # ------------------------------------------------------------
 # FND ライフサイクル（DD-16・Q-4）。

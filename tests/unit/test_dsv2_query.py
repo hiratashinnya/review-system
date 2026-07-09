@@ -46,6 +46,37 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(rows[0]["to"], "parent-spec")
 
 
+class TestExactLinkCountGaps(unittest.TestCase):
+    """TD-TC exactly-one 表現を meta 上で検査する。"""
+
+    rules = [
+        {"node": "td", "direction": "incoming", "peer": "tc", "count": 1, "reason": "TDはちょうど1つのTC"},
+        {"node": "tc", "direction": "outgoing", "peer": "td", "count": 1, "reason": "TCはちょうど1つのTD"},
+    ]
+
+    def _meta(self, nodes):
+        return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
+
+    def test_td_tc_one_to_one_has_no_gap(self):
+        m = self._meta([
+            {"id": "td-a", "type": "td", "version": "0.1.0", "edges": []},
+            {"id": "tc-a", "type": "tc", "version": "0.1.0", "edges": [{"to": "td-a"}]},
+        ])
+        self.assertEqual(query.exact_link_count_gaps(m, self.rules), [])
+
+    def test_missing_and_duplicate_tc_are_reported(self):
+        m = self._meta([
+            {"id": "td-a", "type": "td", "version": "0.1.0", "edges": []},
+            {"id": "td-b", "type": "td", "version": "0.1.0", "edges": []},
+            {"id": "tc-a", "type": "tc", "version": "0.1.0", "edges": [{"to": "td-a"}]},
+            {"id": "tc-b", "type": "tc", "version": "0.1.0", "edges": [{"to": "td-a"}]},
+        ])
+        rows = query.exact_link_count_gaps(m, self.rules)
+        by_id = {r["id"]: r for r in rows}
+        self.assertEqual(by_id["td-a"]["actual"], 2)
+        self.assertEqual(by_id["td-b"]["actual"], 0)
+
+
 def _drift_meta(nodes):
     return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
 

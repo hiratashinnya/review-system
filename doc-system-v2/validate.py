@@ -17,6 +17,7 @@ YAML 読取は既存 ``docidx/nodeyaml.py``（新フォーマットでも流用�
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -28,11 +29,11 @@ from slugify import slugify  # noqa: E402  # 同ディレクトリ
 
 # 以下 3 集合は config.yml（layout / status_dirs）を正本とし、それと一致させて直書きしている。
 # 検証器が config.yml を直接読む配線は Sub-E #74（それまで本コメントで整合を担保）。
-STAGES = {"01-why", "02-what", "03-analysis", "05-design", "04-verification"}
+STAGES = {"01-why", "02-what", "03-analysis", "05-design", "04-verification", "06-implementation"}
 TYPE_DIRS = {
     "val", "sr", "fr", "nfr", "spec", "actor", "i", "o", "d", "p", "e", "term",
     "orc", "ds", "mod", "dm", "port", "prs", "scm", "cfg", "prompt",
-    "td", "tc", "tr", "verify", "fnd", "dd", "q", "pend",
+    "td", "tc", "tr", "verify", "fnd", "dd", "q", "pend", "src",
 }
 BODY_POLICY = {
     "required": {
@@ -53,13 +54,17 @@ STATUS_DIRS = {
 # 正準 meta-schema フィールド（labels/scheduled/condition・TR の result/log_ref）＋
 # コーパス実使用の carrier（canonicalization 保留）。id/type/status はサイドカーに持たない。
 _ALLOWED_TOP = {"title", "version", "condition", "labels", "scheduled",
-                "result", "log_ref", "carrier", "body_ref.file", "body_ref.anchor", "edges"}
+                "result", "log_ref", "carrier", "body_ref.file", "body_ref.anchor",
+                "source.file", "source.qualname", "source.kind",
+                "test.file", "test.qualname", "test.kind", "edges"}
 _ALLOWED_EDGE = {"to", "ref_version", "note"}  # 無名依存辺（kind なし）
 _VER = re.compile(r"^\d+\.\d+\.\d+$")
 _REFVER = re.compile(r"^\d+\.\d+$")
 # config.yml condition_vocab と一致（傘性は condition でなく構造から導出＝ここに umbrella は無い）。
 _CONDITIONS = {"normal", "boundary", "empty", "failure", "error"}
 _RESULTS = {"PASS", "FAIL"}
+_SOURCE_KINDS = {"function", "class", "method"}
+_TEST_KINDS = {"unittest", "pytest", "function", "method"}
 
 
 def validate_sidecar(data: dict) -> list[str]:
@@ -84,6 +89,13 @@ def validate_sidecar(data: dict) -> list[str]:
         errs.append("body_ref.file が非空必須")
     if "body_ref.anchor" in data and "body_ref.file" not in data:
         errs.append("body_ref.anchor は body_ref.file と併用すること")
+    for key in ("source.file", "source.qualname", "test.file", "test.qualname"):
+        if key in data and not str(data[key]).strip():
+            errs.append(f"{key} が非空必須")
+    if "source.kind" in data and data["source.kind"] not in _SOURCE_KINDS:
+        errs.append(f"source.kind 不正: {data['source.kind']!r}")
+    if "test.kind" in data and data["test.kind"] not in _TEST_KINDS:
+        errs.append(f"test.kind 不正: {data['test.kind']!r}")
     if "edges" in data:
         if not isinstance(data["edges"], list):
             errs.append("edges は配列であること")
@@ -97,6 +109,73 @@ def validate_sidecar(data: dict) -> list[str]:
                         errs.append(f"edges[{j}]: 未知キー {k!r}（無名依存辺は to/ref_version/note のみ）")
                 if "ref_version" in e and not _REFVER.match(str(e["ref_version"])):
                     errs.append(f"edges[{j}].ref_version が x.y でない: {e['ref_version']!r}")
+    return errs
+
+
+def _resolve_repo_path(root: Path, raw: str) -> Path:
+    p = Path(raw)
+    return p if p.is_absolute() else root.parent / p
+
+
+def _python_qualnames(path: Path) -> dict[str, str]:
+    tree = ast.parse(path.read_text("utf-8"), filename=str(path))
+    out: dict[str, str] = {"": "module"}
+
+    def walk(body: list[ast.stmt], prefix: str = "") -> None:
+        for node in body:
+            if isinstance(node, ast.ClassDef):
+                name = f"{prefix}.{node.name}" if prefix else node.name
+                out[name] = "class"
+                walk(node.body, name)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                name = f"{prefix}.{node.name}" if prefix else node.name
+                out[name] = "method" if prefix and out.get(prefix) == "class" else "function"
+
+    walk(tree.body)
+    return out
+
+
+def _validate_identifier_ref(root: Path, data: dict, prefix: str, allowed_type: str) -> list[str]:
+    errs: list[str] = []
+    keys = [f"{prefix}.file", f"{prefix}.qualname", f"{prefix}.kind"]
+    present = [k for k in keys if k in data]
+    if not present:
+        errs.append(f"type {allowed_type!r} は {prefix}.file/{prefix}.qualname/{prefix}.kind 必須")
+        return errs
+    missing = [k for k in keys if k not in data]
+    if missing:
+        errs.append(f"{prefix}.* 不完全: {', '.join(missing)} 欠落")
+        return errs
+    ref_path = _resolve_repo_path(root, str(data[f"{prefix}.file"]))
+    if not ref_path.exists():
+        errs.append(f"{prefix}.file が存在しない: {data[f'{prefix}.file']}")
+        return errs
+    if ref_path.suffix == ".py":
+        try:
+            qualnames = _python_qualnames(ref_path)
+        except SyntaxError as ex:
+            errs.append(f"{prefix}.file の Python 構文解析失敗: {ex}")
+            return errs
+        qn = str(data[f"{prefix}.qualname"])
+        if qn not in qualnames:
+            errs.append(f"{prefix}.qualname が Python AST 上に存在しない: {qn}")
+        elif prefix == "source" and data.get(f"{prefix}.kind") != qualnames[qn]:
+            errs.append(f"source.kind が AST 種別と不一致: {data[f'{prefix}.kind']!r} != {qualnames[qn]!r}")
+    return errs
+
+
+def validate_type_metadata(root: Path, typ: str, data: dict) -> list[str]:
+    errs: list[str] = []
+    source_keys = [k for k in data if k.startswith("source.")]
+    test_keys = [k for k in data if k.startswith("test.")]
+    if typ != "src" and source_keys:
+        errs.append(f"type {typ!r} は source.* を持たない")
+    if typ != "tc" and test_keys:
+        errs.append(f"type {typ!r} は test.* を持たない")
+    if typ == "src":
+        errs += _validate_identifier_ref(root, data, "source", typ)
+    if typ == "tc":
+        errs += _validate_identifier_ref(root, data, "test", typ)
     return errs
 
 
@@ -183,6 +262,7 @@ def validate_node(yaml: Path, root: Path) -> list[str]:
     out += [f"WARN: {w}" for w in p_warn]
     if typ:
         out += [f"ERROR: {e}" for e in validate_body_policy(yaml, root, typ, data)]
+        out += [f"ERROR: {e}" for e in validate_type_metadata(root, typ, data)]
     # id 一貫性: stem == slugify(title)
     if "title" in data:
         want = slugify(str(data["title"]))
