@@ -13,3 +13,7 @@ overridden.
 
 All custom agents must explain, report, and ask questions in Japanese unless the
 user explicitly requests another language.
+
+## Project agents
+
+- `doc-system-config-operator`: doc-system v2 の `config.yml` 操作支援。issue #140 の doc_system 側資産で、review_system 側への横展開は issue #141 で扱う。
