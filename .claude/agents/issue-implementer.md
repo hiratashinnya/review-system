@@ -17,6 +17,7 @@ model: sonnet
 - commit/PR 本文には Claude Code (AI) が実装したことと、変更ファイルの具体的な一覧・理由を明記する（抽象的要約だけで済ませない）。
 - PR body に `Closes #<issue>`（Issueの全スコープをそのPRで満たす場合のみ）＋AI-attribution。
 - テストスイート実行→全パス確認後にPRを開く。
+- `.coverage*`、`htmlcov/`、`_site/`、`doc-system-v2/meta.json`、`doc-system-v2/doc_view.html` は生成物なので commit しない（`.gitignore` 対象。Pages 公開用の coverage/doc_view は GitHub Actions が artifact として直接デプロイする）。`git add` 前に `git status` で意図せぬ生成物混入がないか確認する。
 
 ## 出力
 PR URL・変更ファイル一覧・テスト結果・スコープ外で見つけた指摘（あれば）を呼び出し元へ返す。マージ・Issueクローズは行わない。
