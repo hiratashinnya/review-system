@@ -1,0 +1,7 @@
+title: "リーフプロセスの SPEC 1:1 不足（傘 SPEC 暫定マップ）— 要件層で SPEC を細分化するか傘マップ維持か"
+version: "0.3.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "傘-spec-マップ維持と実害顕在時細分化方針-q-2-から昇格"
+    ref_version: "0.1"
