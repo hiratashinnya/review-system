@@ -1,0 +1,59 @@
+name: asset-parity
+
+# Issue #155: cross-platform asset (skills/agents) sync check.
+# Any of the four asset trees can be updated by any platform/tool (Claude Code,
+# GitHub Copilot, Codex CLI, or a human editing the files directly) — the
+# `paths:` filter below intentionally covers all four trees so this workflow
+# fires regardless of which one changed, not just `.claude/`.
+on:
+  push:
+    paths:
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".github/skills/**"
+      - ".github/agents/**"
+      - ".codex/agents/**"
+      - ".agents/skills/**"
+      - "asset_parity/**"
+      - ".github/workflows/asset-parity.yml"
+  pull_request:
+    paths:
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".github/skills/**"
+      - ".github/agents/**"
+      - ".codex/agents/**"
+      - ".agents/skills/**"
+      - "asset_parity/**"
+      - ".github/workflows/asset-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run asset_parity check (fails on MISSING; matrix -> job summary)
+        # GH Actions' default bash invocation for `run:` steps is
+        # `bash -e {0}` — NOT `-o pipefail` (confirmed empirically: an
+        # earlier version of this step piped straight into `tee` and the
+        # step reported success even with real MISSING entries, because
+        # `tee`'s exit code, not `asset_parity check`'s, was what bash saw).
+        # `set -o pipefail` below makes the pipeline's exit code the exit
+        # code of the last command that failed, so MISSING still fails the
+        # build (concrete, verifiable fact); staleness alone does not
+        # (`--fail-on-stale` is intentionally omitted — staleness is a
+        # heuristic flag, not a blocker; see asset_parity/README.md).
+        run: |
+          set -o pipefail
+          python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"

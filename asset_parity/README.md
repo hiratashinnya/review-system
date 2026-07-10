@@ -94,8 +94,29 @@ tree), not a one-off documented carve-out:
   tests, same shape as the other two.
 - **Text + JSON, one command**: text for a human running it locally, JSON for
   CI/other tooling to parse; `--format both` when you want both at once.
-- **CI wiring intentionally left out of this PR** — the task brief called this a
-  natural follow-up rather than something to force into this change (scope
-  discipline). Wiring it into `.github/workflows/` would need a decision about
-  which drift should actually fail a build vs. just annotate a PR; that's a
-  separate call for the repo owner.
+
+## CI wiring (issue #155 follow-up, closed)
+
+`.github/workflows/asset-parity.yml` runs `python3 -m asset_parity check` on
+every `push`/`pull_request` whose diff touches any of the four asset trees
+(`.claude/skills|agents`, `.github/skills|agents`, `.codex/agents`,
+`.agents/skills`) — the `paths:` filter deliberately spans all four, so the
+check fires regardless of which platform/tool made the change (Claude Code,
+Copilot, Codex CLI, or a human), not just when `.claude/` changes.
+
+Failure policy: the workflow uses the tool's **default** exit-code contract
+(no `--fail-on-stale`) — a genuine `MISSING` gap (present in `.claude/`,
+absent from a mirror, not in the documented exception list) is a concrete,
+verifiable fact, so it **fails the build**. Staleness flags stay
+informational-only (heuristic, false positives expected) and never block —
+consistent with this repo's discipline against tooling unilaterally blocking
+merges on fuzzy judgment calls. The matrix is also written to
+`$GITHUB_STEP_SUMMARY` so it renders as a readable table in the Actions UI
+regardless of pass/fail.
+
+Note: at the time this workflow was added, the canonical tree already had a
+few genuine `MISSING` entries against `.github` (see `check` output) that
+predate this PR. Wiring the check into CI surfaces them as an actionable
+red build rather than fixing them — fixing pre-existing mirror gaps is a
+separate, subsequent piece of work, not folded into the CI-wiring change
+itself.
