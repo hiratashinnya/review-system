@@ -44,10 +44,16 @@ jobs:
           python-version: "3.x"
 
       - name: Run asset_parity check (fails on MISSING; matrix -> job summary)
-        # Default GH Actions bash invocation runs with `-o pipefail`, so the
-        # exit code of `asset_parity check` (not `tee`) determines step
-        # success/failure here — MISSING fails the build (concrete,
-        # verifiable fact); staleness alone does not (`--fail-on-stale` is
-        # intentionally omitted — staleness is a heuristic flag, not a
-        # blocker; see asset_parity/README.md).
-        run: python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"
+        # GH Actions' default bash invocation for `run:` steps is
+        # `bash -e {0}` — NOT `-o pipefail` (confirmed empirically: an
+        # earlier version of this step piped straight into `tee` and the
+        # step reported success even with real MISSING entries, because
+        # `tee`'s exit code, not `asset_parity check`'s, was what bash saw).
+        # `set -o pipefail` below makes the pipeline's exit code the exit
+        # code of the last command that failed, so MISSING still fails the
+        # build (concrete, verifiable fact); staleness alone does not
+        # (`--fail-on-stale` is intentionally omitted — staleness is a
+        # heuristic flag, not a blocker; see asset_parity/README.md).
+        run: |
+          set -o pipefail
+          python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"
