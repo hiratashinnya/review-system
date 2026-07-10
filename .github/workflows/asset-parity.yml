@@ -1,0 +1,53 @@
+name: asset-parity
+
+# Issue #155: cross-platform asset (skills/agents) sync check.
+# Any of the four asset trees can be updated by any platform/tool (Claude Code,
+# GitHub Copilot, Codex CLI, or a human editing the files directly) — the
+# `paths:` filter below intentionally covers all four trees so this workflow
+# fires regardless of which one changed, not just `.claude/`.
+on:
+  push:
+    paths:
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".github/skills/**"
+      - ".github/agents/**"
+      - ".codex/agents/**"
+      - ".agents/skills/**"
+      - "asset_parity/**"
+      - ".github/workflows/asset-parity.yml"
+  pull_request:
+    paths:
+      - ".claude/skills/**"
+      - ".claude/agents/**"
+      - ".github/skills/**"
+      - ".github/agents/**"
+      - ".codex/agents/**"
+      - ".agents/skills/**"
+      - "asset_parity/**"
+      - ".github/workflows/asset-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run asset_parity check (fails on MISSING; matrix -> job summary)
+        # Default GH Actions bash invocation runs with `-o pipefail`, so the
+        # exit code of `asset_parity check` (not `tee`) determines step
+        # success/failure here — MISSING fails the build (concrete,
+        # verifiable fact); staleness alone does not (`--fail-on-stale` is
+        # intentionally omitted — staleness is a heuristic flag, not a
+        # blocker; see asset_parity/README.md).
+        run: python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"
