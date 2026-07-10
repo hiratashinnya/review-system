@@ -11,8 +11,9 @@ model: sonnet
 使う。`doc-system-v2/` のノードは編集しない＝著作は `*-author`／`reconciliation` の責務）。
 
 > 対象は **doc-system-v2**（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対）。
-> 旧 `docidx` CLI（`python -m docidx`）は v1-legacy 専用（今は `doc-system-v1-archive/`）で本エージェント
-> の対象外（issue #76・v1→v2 cutover）。
+> 旧 `docidx` CLI（`python3 -m archive.docidx-v1`、issue #172 で `docidx/` から `archive/docidx-v1/`
+> へ退避済み）は v1-legacy 専用（今は `doc-system-v1-archive/`）で本エージェントの対象外（issue #76・
+> v1→v2 cutover）。
 
 ## 入力
 探索したいトピック・質問、または手掛かり（型・ID・キーワード・ラベル）。曖昧なら自分で

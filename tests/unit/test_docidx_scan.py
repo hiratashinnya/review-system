@@ -1,10 +1,12 @@
-"""docidx.scan — Markdown 走査・本文抽出・trace_scope。"""
+"""docidx.scan（archive/docidx-v1/scan.py・issue #172 で docidx/ から退避）— Markdown 走査・本文抽出・trace_scope。"""
 
 import tempfile
 import unittest
 from pathlib import Path
 
-from docidx import scan
+from tests.unit.docidx_v1_compat import import_docidx_v1
+
+scan = import_docidx_v1("scan")
 
 FIXTURE = """\
 # 機能仕様

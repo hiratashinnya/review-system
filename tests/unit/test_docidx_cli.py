@@ -1,4 +1,4 @@
-"""docidx CLI / build_index の E2E（実物の doc-system ツリーに対して）。"""
+"""docidx CLI / build_index の E2E（実物の doc-system ツリーに対して。archive/docidx-v1/・issue #172 で docidx/ から退避）。"""
 
 import io
 import json
@@ -7,7 +7,10 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from docidx import cli, scan
+from tests.unit.docidx_v1_compat import import_docidx_v1
+
+cli = import_docidx_v1("cli")
+scan = import_docidx_v1("scan")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

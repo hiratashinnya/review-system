@@ -1,9 +1,12 @@
-"""docidx.query — 検索・依存先/依存元・ドリフト判定。"""
+"""docidx.query（archive/docidx-v1/query.py・issue #172 で docidx/ から退避）— 検索・依存先/依存元・ドリフト判定。"""
 
 import unittest
 
-from docidx import query
-from docidx.model import Edge, Node, NodeIndex
+from tests.unit.docidx_v1_compat import import_docidx_v1
+
+query = import_docidx_v1("query")
+model = import_docidx_v1("model")
+Edge, Node, NodeIndex = model.Edge, model.Node, model.NodeIndex
 
 
 def _node(nid, ntype, version="1.0.0", edges=(), labels=(), heading="", body="",
