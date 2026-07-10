@@ -17,6 +17,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 計画反映（2026-07-10）。Issue 起票と PR は分離し、本更新では `RECOMMENDED_PROCESSING_ORDER.md` に Sprint 1 完了対象の定義、Q-2 判断（傘 SPEC マップ維持）、FND 解消群、stage gate、SRC/TD/TC/TR materialization、`current_stage` advancement の順序を反映。コーパスノード lifecycle と `current_stage` は未変更。 |
 | issue #142 — docidx archive 判断 | archive 判断＋参照境界更新 | ✅ 完了（2026-07-10）。`docidx/` は物理 archive へ移動しない判断。v1 archive (`doc-system-v1-archive/`) の読み取り CLI として `scan.py`/`cli.py`/`query.py` 等を残し、v2 実行系が import する `docidx.nodeyaml` は共有 YAML reader として存続。現行 v2 の正本照会は `python3 -m dsv2` と通常のファイル検索へ寄せる。 |
 | issue #140 — doc_system 用 config 操作エージェント | Codex agent＋repo skill＋PROMPT ノード | ✅ 完了（2026-07-10）。`doc-system-config-operator` と `doc-system-config` skill を追加し、`doc-system-v2/config.yml` の作成・解説・変更時に FORMAT/config/schema/dsv2 と対応 SPEC/SCM/CFG/PROMPT ノードを照合する手順を明文化。PROMPT ノードで agent carrier を在グラフ化。review_system 側の横展開は issue #141 に残す。 |
 | 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋FORMAT/dsv2 土台反映＋authoring 追随 | ✅ FORMAT/dsv2 body policy 反映済み（2026-07-09）。DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加後、`config.yml: body_policy`、`body_ref.file`/`body_ref.anchor`、YAML 走査 validator、bodyless/shared-body 対応 meta/rename/viewer を反映。PR #147 で SRC layout/schema/存在検査と TD shared body・TC bodyless・TD-TC 1:1 の実装設計・検証規則化を反映。本PRで著作テンプレート/プロンプト追随 FND を resolved 化し、TD/TC/SRC テンプレート、test-strategy、verification-author、共通 authoring/reconciliation 資産を body policy 前提へ同期。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
@@ -94,6 +95,7 @@
 | N4 | #94 scheduled backfill | ✅ 完了 | v1→v2 移行 585 ノードの空 `scheduled` を `sprint-1` へ backfill 済み。既存値あり・移行後追加ノードは保持 |
 | N5 | #142 docidx archive 判断 | ✅ 完了 | `docidx/` は v1 archive CLI と v2 共有 `docidx.nodeyaml` として残し、物理 archive へ移動しない。現行 v2 照会は `dsv2` へ寄せる |
 | N6 | #140 → #141 config 操作エージェント | 🟡 中 | #140 doc_system 側は完了。次は #141 review_system 側へ横展開する。#4 は doc_system 側を #140 で吸収し、review_system 側は #141 の完了時に close 判断する |
+| N7 | #152 → #157〜#165 stage completion 前処理 | 🔴 高 | #141 継続後、#152 scheduled 空欄対策を先に維持し、Q-2 DD 化（#157）、Sprint 1 open FND 解消（#158/#159/#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）の順で #127 完了判定へ進む |
 
 ---
 
