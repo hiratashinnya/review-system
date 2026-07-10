@@ -39,7 +39,7 @@ class TestValidateIdentifierMetadata(unittest.TestCase):
     def test_src_python_qualname_exists(self):
         _write(self.repo / "pkg/mod.py", "class Service:\n    def run(self):\n        pass\n")
         y = self.root / "nodes/06-implementation/src/service-run.yaml"
-        _write(y, 'title: "service run"\nversion: "0.1.0"\n'
+        _write(y, 'title: "service run"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                   'source.file: "pkg/mod.py"\n'
                   'source.qualname: "Service.run"\n'
                   'source.kind: method\nedges: []\n')
@@ -49,7 +49,7 @@ class TestValidateIdentifierMetadata(unittest.TestCase):
     def test_src_missing_qualname_is_error(self):
         _write(self.repo / "pkg/mod.py", "def present():\n    pass\n")
         y = self.root / "nodes/06-implementation/src/missing.yaml"
-        _write(y, 'title: "missing"\nversion: "0.1.0"\n'
+        _write(y, 'title: "missing"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                   'source.file: "pkg/mod.py"\n'
                   'source.qualname: "absent"\n'
                   'source.kind: function\nedges: []\n')
@@ -58,17 +58,37 @@ class TestValidateIdentifierMetadata(unittest.TestCase):
 
     def test_tc_requires_test_metadata_and_existing_file(self):
         y = self.root / "nodes/04-verification/tc/tc-a.yaml"
-        _write(y, 'title: "tc a"\nversion: "0.1.0"\nedges: []\n')
+        _write(y, 'title: "tc a"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
         msgs = validate.validate_node(y, self.root)
         self.assertTrue(any("test.file/test.qualname/test.kind 必須" in m for m in msgs), msgs)
 
         _write(self.repo / "tests/test_sample.py", "def test_ok():\n    pass\n")
-        _write(y, 'title: "tc a"\nversion: "0.1.0"\n'
+        _write(y, 'title: "tc a"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                   'test.file: "tests/test_sample.py"\n'
                   'test.qualname: "test_ok"\n'
                   'test.kind: pytest\nedges: []\n')
         msgs = validate.validate_node(y, self.root)
         self.assertFalse([m for m in msgs if m.startswith("ERROR")], msgs)
+
+
+class TestValidateScheduledRequired(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "doc-system-v2"
+        self.root.mkdir()
+
+    def test_empty_scheduled_is_error(self):
+        y = self.root / "nodes/02-what/spec/empty-scheduled.yaml"
+        _write(y, 'title: "empty scheduled"\nversion: "0.1.0"\n'
+                  "labels: []\n"
+                  'scheduled: ""\n'
+                  "edges: []\n")
+        _write(y.with_suffix(".md"), "body\n")
+
+        msgs = validate.validate_node(y, self.root)
+
+        self.assertIn("ERROR: scheduled が空", msgs)
 
 
 class TestValidateExactLinkCounts(unittest.TestCase):
@@ -88,13 +108,13 @@ class TestValidateExactLinkCounts(unittest.TestCase):
 
     def _write_td(self, name: str) -> None:
         y = self.root / f"nodes/04-verification/td/{name}.yaml"
-        _write(y, f'title: "{name}"\nversion: "0.1.0"\nedges: []\n')
+        _write(y, f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
         _write(y.with_suffix(".md"), f"# {name}\n")
 
     def _write_tc(self, name: str, qualname: str, edges: str) -> None:
         _write(
             self.root / f"nodes/04-verification/tc/{name}.yaml",
-            f'title: "{name}"\nversion: "0.1.0"\n'
+            f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
             'test.file: "tests/test_sample.py"\n'
             f'test.qualname: "{qualname}"\n'
             "test.kind: pytest\n"

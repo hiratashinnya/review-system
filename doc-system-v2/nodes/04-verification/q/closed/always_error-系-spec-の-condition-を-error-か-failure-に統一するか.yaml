@@ -1,7 +1,7 @@
 title: "always_error 系 SPEC の condition を error か failure に統一するか"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "always_error-系-spec-の-condition-が不揃い-spec-6=error,-spec-7=failure"
     ref_version: "0.1"

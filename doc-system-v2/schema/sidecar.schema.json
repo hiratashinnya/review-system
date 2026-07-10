@@ -5,7 +5,7 @@
   "description": "1ノード1サイドカー。多値・グラフ属性と型別本文参照を持つ。id/type/status はここに持たない（id=ファイル名 stem、type/status は path から導出＝二重管理回避）。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["title", "version", "edges"],
+  "required": ["title", "version", "labels", "scheduled", "edges"],
   "properties": {
     "title": {
       "type": "string",
@@ -30,8 +30,9 @@
     },
     "scheduled": {
       "type": "string",
-      "default": "",
-      "description": "実施スプリント（sprint-N）。既定＝current_phase（config.yaml）。空文字＝オーナー承認済みの後送り/未計画のみ（無計画な空は不可）。繰り越しはオーナー判断。"
+      "minLength": 1,
+      "default": "sprint-1",
+      "description": "実施スプリント（sprint-N 等）。空文字は不可。既定は current_phase 相当の現行スプリントを明示する。繰り越しはオーナー判断。"
     },
     "result": {
       "type": "string",

@@ -55,7 +55,7 @@ class TestRename(unittest.TestCase):
     def test_bodyless_node_renames_yaml_only(self):
         y = self.root / "nodes/04-verification/tc/bodyless.yaml"
         y.parent.mkdir(parents=True, exist_ok=True)
-        y.write_text('title: "本文なし"\nversion: "0.1.0"\nedges: []\n', "utf-8")
+        y.write_text('title: "本文なし"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n', "utf-8")
         m = meta.build_meta(self.root)
 
         plan = rename.plan_rename(self.root, m, "bodyless", "bodyless-v2")
@@ -70,7 +70,7 @@ class TestRename(unittest.TestCase):
         shared.parent.mkdir(parents=True, exist_ok=True)
         shared.write_text("# shared\n", "utf-8")
         y = self.root / "nodes/04-verification/td/td-a.yaml"
-        y.write_text('title: "TD A"\nversion: "0.1.0"\n'
+        y.write_text('title: "TD A"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                      'body_ref.file: "nodes/04-verification/td/shared.md"\n'
                      'edges: []\n', "utf-8")
         m = meta.build_meta(self.root)

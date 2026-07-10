@@ -1,4 +1,4 @@
 **前提条件**: in-graph ファイルが PyYAML safe_load でパース可能で、`⬡ PREFIX-N` マーカー直後の YAML ブロックから 1 件のノードが生成済みであり、当該ノードは共通必須フィールドと型別必須拡張フィールドを全て備える。
 **入力/トリガ**: 検証ツールが、共通必須フィールドと型別必須拡張フィールドを全て備えたノードに RULE-026 を評価する。
 **期待動作**: 完全スキーマ適合ノードに対して RULE-026 を発火させない。
-**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-026 非発火。
+**例**: `{id: "FR-1", type: "FR", labels: [], scheduled: "sprint-1", edges: [{to: "SR-2", ref_version: "0.2"}]}` を処理 → RULE-026 非発火。

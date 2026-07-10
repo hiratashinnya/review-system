@@ -3,7 +3,7 @@
 title: "[先送りタイトル]"
 version: "0.1.0"
 labels: []
-scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+scheduled: "sprint-1"   # 既定=current_phase を明示。別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 義務辺（PEND→影響先）: 追跡する影響先
   - to: "[影響先ノードの slug]"

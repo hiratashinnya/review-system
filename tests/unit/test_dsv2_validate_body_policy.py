@@ -29,7 +29,7 @@ class TestValidateBodyPolicy(unittest.TestCase):
     def test_required_body_missing_is_error(self):
         root = self._root()
         y = self._write_yaml(root, "nodes/02-what/spec/x.yaml",
-                             'title: "x"\nversion: "0.1.0"\nedges: []\n')
+                             'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
 
         msgs = validate.validate_node(y, root)
 
@@ -41,7 +41,7 @@ class TestValidateBodyPolicy(unittest.TestCase):
         test_file.parent.mkdir(parents=True, exist_ok=True)
         test_file.write_text("def test_x():\n    pass\n", "utf-8")
         y = self._write_yaml(root, "nodes/04-verification/tc/x.yaml",
-                             'title: "x"\nversion: "0.1.0"\n'
+                             'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                              'test.file: "tests/test_x.py"\n'
                              'test.qualname: "test_x"\n'
                              'test.kind: pytest\nedges: []\n')
@@ -56,7 +56,7 @@ class TestValidateBodyPolicy(unittest.TestCase):
         shared.parent.mkdir(parents=True, exist_ok=True)
         shared.write_text("# shared\n", "utf-8")
         y = self._write_yaml(root, "nodes/04-verification/td/x.yaml",
-                             'title: "x"\nversion: "0.1.0"\n'
+                             'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                              'body_ref.file: "nodes/04-verification/td/shared.md"\n'
                              'edges: []\n')
 

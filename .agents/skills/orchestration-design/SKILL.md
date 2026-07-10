@@ -51,7 +51,7 @@ description: 実行時制御フローを設計する。swimlane、段階的 Resu
 id: ORC-1             # ORC- + 連番。採番後は変更禁止
 type: ORC             # 型値（自由記述不可）
 labels: []            # 任意タグ（post-mvp / experimental 等）。分類用・RULE 判定に影響なし
-scheduled: ""         # 空 = 現フェーズ対象。値あり = 後フェーズ予定（全 RULE がサイレント）
+scheduled: "sprint-1" # 現フェーズ対象も sprint を明示。後フェーズはオーナー承認済み sprint 値
 suppress: []          # RULE 抑制リスト。inline comment に理由必須。RULE-007 は抑制不可
 ---
 ```
