@@ -17,8 +17,16 @@
 #   pr-reviewer.md 側のプロンプトレベルの絶対規範（自己承認バイパス禁止）と併用する前提。
 #
 # 入力: PreToolUse フックの stdin JSON（agent_type/subagent_type と tool_input.command を想定）。
-#   command が読めない場合は検査不能として deny する。agent_type が読めない場合でも、危険コマンドが
-#   含まれる時は fail-closed で deny し、無関係な Bash は許可する。
+#   command が読めない場合は検査不能として deny する。agent_type が issue-implementer/pr-reviewer の
+#   いずれでもない場合（main／general-purpose／各 *-author 等・agent_type 欠如を含む）は、11行目の
+#   通りこのゲートの対象外＝常に許可する。
+#
+#   2026-07-11 是正の経緯：Issue #129 対応で「agent_type 欠如時は危険コマンドを fail-closed で deny」
+#   を追加したところ、main context 自身（agent_type を持たない）の git push まで塞ぐ回帰が発生した。
+#   オーナー判断：①main context 自身を識別するタグ付けはハーネス側の機能が必要でこのフックだけでは
+#   実現不可、②push/merge を専用エージェント以外全面禁止する案は main context の直接 push まで
+#   止めるコストが大きく不採用。よって「対象外ロールは常に許可」という元の設計に確定して戻す
+#   （fail-closed 化による agent_type 詐称防御は失うが、二者択一の上でのオーナー明示判断）。
 # デバッグ: AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log を設定すると、受信 payload の redacted JSON と
 #   判定を追記する。機微値はキー名ベースで伏せる。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・CLAUDE.md の "python3 標準ライブラリのみ" 方針に合わせる）。
@@ -258,8 +266,7 @@ else:
         reason = f"issue-implementer role: {violation} is reserved for pr-reviewer. Push + open a PR, then stop and report."
     elif agent_type == "pr-reviewer" and violation:
         reason = f"pr-reviewer role: {violation} is reserved for issue-implementer. Reviewers may inspect/comment/merge only, never push code."
-    elif not agent_type and violation:
-        reason = f"agent-command-gate: agent_type/subagent_type is missing while restricted command '{violation}' is present; refusing fail-closed until the PreToolUse payload schema is confirmed."
+    # agent_type が上記2ロール以外（欠如を含む）の場合は対象外＝常に許可（11行目のドキュメント通り）。
 
 if reason:
     debug_payload(payload, "deny", reason)

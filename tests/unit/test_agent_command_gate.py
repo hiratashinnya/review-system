@@ -80,10 +80,16 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))
         self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 123")))
 
-    def test_missing_agent_denies_restricted_command_fail_closed(self):
-        self.assert_denied(run_gate({"tool_input": {"command": "git merge feature"}}))
-        self.assert_denied(run_gate({"tool_input": {"command": "git push origin HEAD"}}))
+    def test_missing_or_unrecognized_agent_is_out_of_scope(self):
+        # 2026-07-11 オーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでもない
+        # 場合（欠如を含む・main context 自身がこれに該当）は、このゲートの対象外として常に許可する。
+        # main context を積極識別するハーネス側の機能が無く、かつ push/merge を専用エージェント
+        # 以外全面禁止にすると main context 自身の直接 push まで塞がれてしまうため、この設計に確定。
+        self.assert_allowed(run_gate({"tool_input": {"command": "git merge feature"}}))
+        self.assert_allowed(run_gate({"tool_input": {"command": "git push origin HEAD"}}))
         self.assert_allowed(run_gate({"tool_input": {"command": "git status"}}))
+        self.assert_allowed(run_gate(payload("general-purpose", "git merge feature")))
+        self.assert_allowed(run_gate(payload("general-purpose", "git push origin HEAD")))
 
     def test_missing_command_denies_because_command_cannot_be_inspected(self):
         self.assert_denied(run_gate({"agent_type": "issue-implementer", "tool_input": {}}))
