@@ -16,15 +16,19 @@ commit しない。
 - [doc-system v2 viewer](https://hiratashinnya.github.io/review-system/doc_view.html)
 
 新フォーマットの正本は `doc-system-v2/FORMAT.md`・`doc-system-v2/config.yml`・
-`doc-system-v2/schema/sidecar.schema.json`。サイドカー YAML の読取は既存 **`docidx.nodeyaml`** を再利用する
-（独自 YAML パーサを持ち込まない）。このため issue #142 の archive 判断では `docidx/` を物理移動せず、
-v1 legacy CLI と v2 共有 YAML reader を同一パッケージ内に残す。
+`doc-system-v2/schema/sidecar.schema.json`。サイドカー YAML の読取は **`nodeyaml.py`**（本モジュール）
+を使う（独自 YAML パーサを持ち込まない）。issue #142 では「`nodeyaml.py` を v1 legacy CLI（`docidx/`）
+と同一パッケージに残す」と暫定判断していたが、issue #172 で `nodeyaml.py` を v2 側の本パッケージへ
+分離し、`docidx/` の残り（`scan.py`/`cli.py`/`query.py`/`render.py`/`model.py`）は v1-legacy 専用
+アーカイブ `archive/docidx-v1/` へ退避した（誤って `python -m docidx` を v2 作業で使ってしまうリスクを
+構造的に下げる・PR8「消さない」＝`git mv` で履歴保持）。
 
 ## フォーマット依存マップ（モジュール → 依存する仕様・キー）
 
 | モジュール | 依存フォーマット事実 | 一次アンカー（版付きノード）＋補助（out-of-graph） |
 |---|---|---|
 | `meta.py` | path `nodes/<stage>/<type>/[<status>/]{slug}` から stage/type/status を導出。`LAYOUT`/`STATUS_DIRS` は `config.yml` の `layout`/`status_dirs` と一致させ、不正配置は `MetaError` で fail-close。サイドカーは `title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/edges` を集約。`id`=ファイル stem。本文は `body_policy`、`body_path`、`body_anchor` として集約し、bodyless は `body_path=null`。 | 補助: FORMAT.md「path 規約」「1ノード=1YAML、本文は型別 body policy」・config.yml `layout`/`status_dirs`/`body_policy`。※ 版付きノード未整備（Sub-B 移行後に SCM/SPEC で整備予定）。 |
+| `nodeyaml.py` | ノードの YAML ブロック専用の最小サブセットリーダ（`re`/`typing` のみ依存・自己完結）。平坦な `key: value` スカラ・空/インラインのフローリスト・`edges:` ブロックリストのみ扱う。`meta.py`（本パッケージ）と `doc-system-v2/validate.py` が re-export なしで直接 import する。issue #172 で `docidx/` から分離（旧 `docidx/nodeyaml.py`）。 | 補助: FORMAT.md「1ノード=1YAML」「edges」・04-notation §3。`nodeyaml.parse`/`_parse_edges` の依存仕様は docstring: SPEC-1-1 v0.1.1・SPEC-2 v0.3.0。 |
 | `query.py` | `deps`/`dependents`/`orphans`/`drift`。**RULE-004 ドリフト**＝辺の `ref_version`(x.y) ≠ 参照先サイドカー `version`(x.y.z) の x.y（z は不問）。`orphans`(RULE-005=always_error) は常時 ERROR 発火の fail-close 規則として扱う。 | 補助: FORMAT.md「版（DD-8 踏襲）」「edges」・config.yml（RULE-004 / always_error）。 |
 | `dashboard.py` | `meta.json` 互換データから stage/type/status 件数と、dashboard 判断待ちに相当する `fnd/open`・`q/open`・`dd/decided`・`pend/open|deferred` を Markdown スナップショット化する。`00-dashboard.md` の手書き運用とは分離し、標準出力のみで生成物を書かない。 | 補助: FORMAT.md「path 規約」・config.yml `status_dirs`・issue #108。 |
 | `yamledit.py` | サイドカー yaml の行ベース最小改変（version z バンプ・edges 追加/削除/retarget）。コメント保持＝**消さない（PR8）**。 | 補助: FORMAT.md「edges」「版」・DD-8。 |
@@ -34,7 +38,9 @@ v1 legacy CLI と v2 共有 YAML reader を同一パッケージ内に残す。
 | `gitutil.py` | `git mv` の薄いラッパ（失敗時 FS フォールバック）。 | — |
 | `cli.py` | サブコマンド配線。終了コード 0/2/4（2=未検出 or argparse 用法・4=前提違反）。 | — |
 
-**再利用**: `docidx.nodeyaml.parse`（サイドカー yaml の限定 YAML 読取）。
+**再利用**: `nodeyaml.parse`（サイドカー yaml の限定 YAML 読取・issue #172 で `docidx/` から本パッケージへ
+分離）。`archive/docidx-v1/`（v1-legacy CLI）も同モジュールを `dsv2` から re-import して使う（依存方向が
+逆転する点に注意：legacy 側が現行 v2 共有モジュールに依存する）。
 
 ## meta.json の管理方針（生成物）
 

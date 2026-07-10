@@ -1,6 +1,6 @@
 """v2 コーパスの索引化: ``nodes/**/*.yaml`` を走査し ``meta.json`` を生成/読込する。
 
-各ノードは path から ``stage/type/status`` を、サイドカー（``docidx.nodeyaml.parse`` で読む）から
+各ノードは path から ``stage/type/status`` を、サイドカー（``nodeyaml.parse`` で読む）から
 ``title/version/condition?/labels/scheduled/result?/log_ref?/carrier?/body_ref.file?/body_ref.anchor?/
 source.*?/test.*?/edges``
 を、ファイル stem から ``id`` を集約する。本文は型別 ``BODY_POLICY`` に従い、同名 ``.md``・
@@ -8,17 +8,16 @@ source.*?/test.*?/edges``
 生成物 meta.json は手編集せず、``index`` で再生成する（FORMAT.md）。
 
 依存仕様: doc-system-v2/FORMAT.md（Sub-A・新フォーマット正本）・doc-system-v2/config.yml（layout /
-  status_dirs / trace_scope）。サイドカー読取は docidx.nodeyaml（既存・再利用）。
+  status_dirs / trace_scope）。サイドカー読取は ``dsv2.nodeyaml``（issue #172 で ``docidx/`` から
+  分離した v2 共有モジュール）。
 """
 
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root（docidx 用）
-from docidx import nodeyaml  # noqa: E402
+from . import nodeyaml
 
 DEFAULT_ROOT = "doc-system-v2"
 META_FILENAME = "meta.json"

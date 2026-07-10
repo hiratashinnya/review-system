@@ -105,7 +105,7 @@ nodes/
 - 人間のブラウズ/検索は `ls`/`find`/`grep`（index/search ツールは不要化）。
 
 ## 検証（Sub-A で提供）
-- `slugify.py`（自己テスト付き）・`validate.py`（stdlib のみ・`docidx/nodeyaml.py` 流用）。
+- `slugify.py`（自己テスト付き）・`validate.py`（stdlib のみ・`dsv2/nodeyaml.py` 流用・issue #172 で `docidx/` から分離）。
 - `validate.py` は schema（必須キー/型/enum/pattern・未知キー禁止）＋path（stage/type/status 既知集合）
   ＋body policy（required/shared/none）＋id 一貫性（stem == slugify(title)）を検査。**edge.to の存在確認・一意性は範囲外**（前者=meta.json/Sub-C、後者=Sub-D）。
 - サンプル: `nodes/02-what/spec/`（umbrella＋子・親子 edge）・`nodes/04-verification/fnd/open/`（status＝path）。
