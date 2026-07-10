@@ -20,7 +20,7 @@ doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 
 必要なノードだけをオンデマンドで読み込む**のが docidx（実体＝`docidx/`・`python -m docidx`）。
 
 委譲したいとき（探索ループを別コンテキストに逃がしてダイジェストだけ受け取る）は
-サブエージェント **`docidx-lookup`** を使う。フォーマット依存の詳細は `docidx/README.md` の
+サブエージェント **`dsv2-lookup`**（旧名 `docidx-lookup`・issue #173 で v2-native であることが分かる名前へ改名）を使う。フォーマット依存の詳細は `docidx/README.md` の
 「フォーマット依存マップ」を参照。
 
 ## いつ使うか
