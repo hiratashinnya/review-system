@@ -32,7 +32,7 @@ def make_tree(test: unittest.TestCase) -> Path:
     _node(
         root, "02-what/spec", "parent-spec",
         "親（アンブレラ）SPEC の本文。\n",
-        'title: "親 SPEC のタイトル"\nversion: "0.1.0"\nlabels: []\nscheduled: ""\nedges: []\n',
+        'title: "親 SPEC のタイトル"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
     )
     _node(
         root, "02-what/spec", "child-spec",
@@ -41,7 +41,7 @@ def make_tree(test: unittest.TestCase) -> Path:
         'version: "0.1.1"\n'
         "condition: failure\n"
         "labels: []\n"
-        'scheduled: ""\n'
+        'scheduled: "sprint-1"\n'
         "edges:\n"
         "  # 親 SPEC への辺\n"
         '  - to: "parent-spec"\n'
@@ -50,7 +50,7 @@ def make_tree(test: unittest.TestCase) -> Path:
     _node(
         root, "03-analysis/p", "target-p",
         "プロセス P の本文（FND の付与先）。\n",
-        'title: "プロセス P"\nversion: "0.2.0"\nlabels: []\nscheduled: ""\nedges: []\n',
+        'title: "プロセス P"\nversion: "0.2.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
     )
     _node(
         root, "04-verification/fnd/open", "fnd-open",
@@ -58,7 +58,7 @@ def make_tree(test: unittest.TestCase) -> Path:
         'title: "P の指摘（要確認）"\n'
         'version: "0.1.0"\n'
         "labels: []\n"
-        'scheduled: ""\n'
+        'scheduled: "sprint-1"\n'
         "edges:\n"
         "  # FND→対象の forward 辺（解決時に逆転）\n"
         '  - to: "target-p"\n'
@@ -67,7 +67,7 @@ def make_tree(test: unittest.TestCase) -> Path:
     _node(
         root, "03-analysis/term", "lonely",
         "完全孤立ノード（in/out 辺 0 本）。\n",
-        'title: "孤立した用語"\nversion: "0.1.0"\nlabels: []\nscheduled: ""\nedges: []\n',
+        'title: "孤立した用語"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
     )
 
     _git(root, "init")

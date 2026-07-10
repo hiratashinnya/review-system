@@ -73,7 +73,7 @@ class TestOptionalFieldAggregation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             y = self._write(root, "nodes/04-verification/tr/x.yaml",
-                             'title: t\nversion: "0.1.0"\nresult: PASS\n'
+                             'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nresult: PASS\n'
                              'log_ref: "ci/log"\ncarrier: skill\nedges: []\n')
             node = meta.read_node(y, root)
         self.assertEqual(node["result"], "PASS")
@@ -87,7 +87,7 @@ class TestOptionalFieldAggregation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             y = self._write(root, "nodes/02-what/spec/x.yaml",
-                             'title: t\nversion: "0.1.0"\nedges: []\n')
+                             'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
             node = meta.read_node(y, root)
         for k in ("suppress", "suppress_reason", "result", "log_ref", "carrier"):
             self.assertNotIn(k, node)
@@ -108,7 +108,7 @@ class TestBodyPolicyAggregation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             y = self._write_yaml(root, "nodes/04-verification/tc/bodyless.yaml",
-                                 'title: t\nversion: "0.1.0"\nedges: []\n')
+                                 'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
             node = meta.read_node(y, root)
         self.assertEqual(node["body_policy"], "none")
         self.assertIsNone(node["body_path"])
@@ -122,7 +122,7 @@ class TestBodyPolicyAggregation(unittest.TestCase):
             shared.parent.mkdir(parents=True, exist_ok=True)
             shared.write_text("# shared\n", "utf-8")
             y = self._write_yaml(root, "nodes/04-verification/td/td-a.yaml",
-                                 'title: t\nversion: "0.1.0"\n'
+                                 'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                                  'body_ref.file: "nodes/04-verification/td/shared.md"\n'
                                  'body_ref.anchor: "case-a"\nedges: []\n')
             node = meta.read_node(y, root)
@@ -140,7 +140,7 @@ class TestPlacementValidation(unittest.TestCase):
         root = Path(tempfile.mkdtemp(dir=tmp))
         y = root / relpath
         y.parent.mkdir(parents=True, exist_ok=True)
-        y.write_text("title: t\nversion: 0.1.0\nedges: []\n", "utf-8")
+        y.write_text('title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n', "utf-8")
         y.with_suffix(".md").write_text("body\n", "utf-8")
         return root, y
 
@@ -182,6 +182,12 @@ class TestPlacementValidation(unittest.TestCase):
         self.assertEqual(node["type"], "src")
         self.assertEqual(node["body_policy"], "none")
 
+    def test_empty_scheduled_is_fail_closed(self):
+        root, y = self._make(self._tmp, "nodes/02-what/spec/x.yaml")
+        y.write_text('title: t\nversion: "0.1.0"\nlabels: []\nscheduled: ""\nedges: []\n', "utf-8")
+        with self.assertRaises(meta.MetaError):
+            meta.read_node(y, root)
+
 
 class TestIdentifierMetadataAggregation(unittest.TestCase):
     """SRC/TC の識別子参照メタデータを meta.json へ集約する。"""
@@ -198,7 +204,7 @@ class TestIdentifierMetadataAggregation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             y = self._write_yaml(root, "nodes/06-implementation/src/src-a.yaml",
-                                 'title: t\nversion: "0.1.0"\n'
+                                 'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                                  'source.file: "dsv2/meta.py"\n'
                                  'source.qualname: "read_node"\n'
                                  'source.kind: function\nedges: []\n')
@@ -215,7 +221,7 @@ class TestIdentifierMetadataAggregation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             y = self._write_yaml(root, "nodes/04-verification/tc/tc-a.yaml",
-                                 'title: t\nversion: "0.1.0"\n'
+                                 'title: t\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
                                  'test.file: "tests/unit/test_dsv2_meta.py"\n'
                                  'test.qualname: "TestIdentifierMetadataAggregation.test_test_metadata_is_grouped"\n'
                                  'test.kind: unittest\nedges: []\n')

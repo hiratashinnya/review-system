@@ -83,7 +83,7 @@ class TestReverseProvenanceAndMissing(unittest.TestCase):
         # FND の forward を存在しない ID に差し替える
         y = root / "nodes/04-verification/fnd/open/fnd-open.yaml"
         y.write_text(
-            'title: "P の指摘（要確認）"\nversion: "0.1.0"\nlabels: []\nscheduled: ""\n'
+            'title: "P の指摘（要確認）"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
             "edges:\n"
             '  - to: "does-not-exist"\n'
             '    ref_version: "0.1"\n',

@@ -122,6 +122,9 @@ def read_node(yaml_path: Path, root: Path) -> dict:
         raise MetaError(f"想定外の階層深さ: {_posix(rel)}")
 
     data = nodeyaml.parse(yaml_path.read_text(encoding="utf-8"))
+    scheduled = data.get("scheduled")
+    if not isinstance(scheduled, str) or not scheduled.strip():
+        raise MetaError(f"scheduled は非空文字列必須（{_posix(rel)}）")
     edges: list[dict] = []
     for e in data.get("edges", []) or []:
         row = {"to": str(e.get("to", ""))}
@@ -140,7 +143,7 @@ def read_node(yaml_path: Path, root: Path) -> dict:
         "title": str(data.get("title", "")),
         "version": str(data.get("version", "")),
         "labels": list(data.get("labels", []) or []),
-        "scheduled": str(data.get("scheduled", "") or ""),
+        "scheduled": scheduled,
         "edges": edges,
         "yaml_path": _posix(rel),
         "body_policy": body_policy,

@@ -3,7 +3,7 @@
 title: "[アクタ名]"
 version: "0.1.0"
 labels: []
-scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+scheduled: "sprint-1"   # 既定=current_phase を明示。別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（ACTOR→SR）: 関連するステークホルダー要求（config must_link_to actor→sr）
   - to: "[関連 SR の slug]"

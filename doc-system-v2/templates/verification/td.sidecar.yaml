@@ -5,7 +5,7 @@ title: "[テストシナリオ名]"
 version: "0.1.0"
 condition: normal   # verifies 先 SPEC と一致（normal|boundary|empty|failure|error）
 labels: []
-scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+scheduled: "sprint-1"   # 既定=current_phase を明示。別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 body_ref.file: "nodes/04-verification/td/[テストプログラム単位の共有本文].md"
 body_ref.anchor: "[この TD シナリオの見出しアンカー]"
 edges:

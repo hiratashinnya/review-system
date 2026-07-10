@@ -4,7 +4,7 @@ Sub-A の受け入れ条件「サンプルが schema 検証を通る」を満た
 YAML 読取は既存 ``docidx/nodeyaml.py``（新フォーマットでも流用予定・Sub-C）を再利用する。
 
 検証内容（schema/sidecar.schema.json ＋ FORMAT.md と一致）:
-  - 必須キー title/version/edges、未知キー禁止（additionalProperties:false）。
+  - 必須キー title/version/labels/scheduled/edges、未知キー禁止（additionalProperties:false）。
   - version は x.y.z、edge は無名（to 非空必須・ref_version は x.y・note のみ許容）。
   - condition ∈ config.yml condition_vocab（任意・非テスタブルは省略）。
   - **配置パス** nodes/<stage>/<type>/[<status>/]{slug}.yaml: stage/type/status が既知集合。
@@ -154,7 +154,7 @@ def validate_sidecar(data: dict) -> list[str]:
     for k in data:
         if k not in _ALLOWED_TOP:
             errs.append(f"未知キー: {k!r}")
-    for req in ("title", "version", "edges"):
+    for req in ("title", "version", "labels", "scheduled", "edges"):
         if req not in data:
             errs.append(f"必須キー欠落: {req!r}")
     if "title" in data and not str(data["title"]).strip():
@@ -165,6 +165,11 @@ def validate_sidecar(data: dict) -> list[str]:
         errs.append(f"condition 不正: {data['condition']!r}")
     if "labels" in data and not isinstance(data["labels"], list):
         errs.append("labels は配列であること")
+    if "scheduled" in data:
+        if not isinstance(data["scheduled"], str):
+            errs.append("scheduled は文字列であること")
+        elif not data["scheduled"].strip():
+            errs.append("scheduled が空")
     if "result" in data and data["result"] not in _RESULTS:
         errs.append(f"result 不正（PASS|FAIL）: {data['result']!r}")
     if "body_ref.file" in data and not str(data["body_ref.file"]).strip():

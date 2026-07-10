@@ -4,7 +4,7 @@
 title: "[指摘タイトル]"
 version: "0.1.0"
 labels: []
-scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+scheduled: "sprint-1"   # 既定=current_phase を明示。別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 必須（未解消 FND→対象・forward 辺）: 指摘が見つかった要素（config fnd_lifecycle.unresolved）
   - to: "[指摘対象ノードの slug]"

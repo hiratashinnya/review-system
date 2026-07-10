@@ -8,6 +8,8 @@
 #
 # 注: validate.py（Sub-A）は STAGES/TYPE_DIRS/STATUS_DIRS を本 config と一致させて直書きしている。
 # 検証器が本 config を直接読む配線は Sub-E #74 で行う（それまで両者は本コメントで整合を担保）。
+# scheduled は全サイドカーで非空必須。新規ノードは現行スプリントを明示し、空文字は validate.py と
+# dsv2 index の双方で fail-close する（issue #152）。
 
 current_stage: "design"          # requirements | analysis | design | implementation | verification
 stages: [requirements, analysis, design, implementation, verification]

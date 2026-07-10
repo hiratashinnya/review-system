@@ -1,7 +1,7 @@
 title: "傘・非テスタブルノードの condition 表現を明示マーカー化するか省略維持か"
 version: "0.3.0"
 labels: []
-scheduled: ""
+scheduled: "sprint-1"
 edges:
   - to: "傘-spec-の-condition-が子の-condition-多様性を代表せずミスリード"
     ref_version: "0.1"

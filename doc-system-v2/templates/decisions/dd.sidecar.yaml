@@ -4,7 +4,7 @@
 title: "[決定タイトル]"
 version: "0.1.0"
 labels: []
-scheduled: ""   # 既定=current_phase を設定。空/別 sprint はオーナー承認時のみ（スケジュール独断禁止）
+scheduled: "sprint-1"   # 既定=current_phase を明示。別 sprint はオーナー承認時のみ（スケジュール独断禁止）
 edges:
   # 義務辺（DD→影響先）: 辺の存在＝未反映。複数あれば各1行で列挙。
   - to: "[影響を受けるノードの slug]"

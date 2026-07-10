@@ -29,7 +29,7 @@ nodes/
 
 ## 1ノード = 1 YAML、本文は型別 body policy
 - `{slug}.yaml` … **ノード正本**。1 YAML に複数ノードを詰め込まない。`schema/sidecar.schema.json` に従う。
-  - 持つ: `title` `version` `condition?` `labels` `scheduled` `edges[]` ＋ 正準 meta-schema フィールド
+  - 持つ: `title` `version` `condition?` `labels` `scheduled`（非空） `edges[]` ＋ 正準 meta-schema フィールド
     `result?`/`log_ref?`（**TR 専用**・DD-011）・
     `carrier?`（設計要素の実現担体＝realization carrier。**#93 で enum 化**：`skill`/`agent`/`command`/`instructions`/`hooks`/`code`（値集合の SoT = `schema/sidecar.schema.json`）。v2 正準フィールド・オーナー承認済 2026-07-03）。
     `body_ref.file?`/`body_ref.anchor?`（共有 Markdown 本文への参照。`body_policy=shared` の型で使う）。
