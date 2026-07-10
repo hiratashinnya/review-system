@@ -1,8 +1,8 @@
-"""docidx.nodeyaml — ノード YAML サブセットリーダの契約。"""
+"""dsv2.nodeyaml — ノード YAML サブセットリーダの契約（issue #172 で docidx/ から dsv2/ へ分離）。"""
 
 import unittest
 
-from docidx import nodeyaml
+from dsv2 import nodeyaml
 
 
 class TestScalars(unittest.TestCase):

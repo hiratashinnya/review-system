@@ -87,7 +87,7 @@ tree), not a one-off documented carve-out:
 
 ## Design choices (and why)
 
-- **Package, not a single script**: matches this repo's `dsv2/`/`docidx/` convention
+- **Package, not a single script**: matches this repo's `dsv2/`/`archive/docidx-v1/` convention
   (dedicated stdlib-only package with `__main__.py`/`cli.py`), not `scripts/<name>.py`
   — this tool has enough distinct concerns (inventory, per-tree conventions,
   exceptions, staleness, reporting) to warrant separate modules and their own unit

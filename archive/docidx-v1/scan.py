@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import fnmatch
 import re
+import sys
 from pathlib import Path
 
-from . import nodeyaml
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # repo root（dsv2 用）
+from dsv2 import nodeyaml  # noqa: E402  # issue #172: docidx/ から dsv2/ へ分離した共有モジュール
 from .model import Edge, Node, NodeIndex
 
 # summary バッジ: ⬡ <id> · v<x.y.z>

@@ -1,7 +1,7 @@
 """サイドカー（{slug}.yaml）＋配置パスの機械検証（stdlib のみ・参照実装）。
 
 Sub-A の受け入れ条件「サンプルが schema 検証を通る」を満たすための最小検証器。
-YAML 読取は既存 ``docidx/nodeyaml.py``（新フォーマットでも流用予定・Sub-C）を再利用する。
+YAML 読取は ``dsv2/nodeyaml.py``（issue #172 で ``docidx/`` から分離した v2 共有モジュール）を再利用する。
 
 検証内容（schema/sidecar.schema.json ＋ FORMAT.md と一致）:
   - 必須キー title/version/labels/scheduled/edges、未知キー禁止（additionalProperties:false）。
@@ -22,10 +22,10 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root（docidx 用）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root（dsv2 用）
 from dsv2 import meta as dsv2_meta  # noqa: E402
 from dsv2 import query as dsv2_query  # noqa: E402
-from docidx import nodeyaml  # noqa: E402
+from dsv2 import nodeyaml  # noqa: E402
 
 from slugify import slugify  # noqa: E402  # 同ディレクトリ
 
