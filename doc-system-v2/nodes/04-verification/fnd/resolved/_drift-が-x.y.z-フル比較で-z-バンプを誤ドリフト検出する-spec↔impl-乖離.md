@@ -1,3 +1,6 @@
+**改訂理由（z バンプ v0.1.2→v0.1.3・issue #158 lifecycle 配置整理）**:
+本文上は PR #38 で resolved 済みだった本 FND を、path 由来 lifecycle とも整合するよう `fnd/open/` から `fnd/resolved/` へ移動した。既存の `edges: []` は維持し、処置対象は out-of-graph 実装資産（起票時 `docidx/query.py`、現行 archive 後は `archive/docidx-v1/query.py`）のため対象ファイルへ backref は張らない。in-graph 代表 backref は既に SPEC「バージョンドリフトの検出」から `→FND` として存在するため、重複追加しない。lifecycle 配置のみの整理であり、下流意味内容を変えないため z バンプとする。
+
 **対応状況**: resolved（2026-06-24・本 PR #38 内で処置完了）
 
 **深刻度**: ERROR

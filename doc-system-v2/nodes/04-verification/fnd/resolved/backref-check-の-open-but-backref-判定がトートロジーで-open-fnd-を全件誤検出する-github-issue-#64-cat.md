@@ -1,3 +1,6 @@
+**改訂理由（z バンプ v0.1.0→v0.1.1・issue #158 lifecycle 配置整理）**:
+本文上は 2026-07-01 に resolved 済みだった本 FND を、path 由来 lifecycle とも整合するよう `fnd/open/` から `fnd/resolved/` へ移動した。既存の `edges: []` は維持し、処置対象は out-of-graph の v1 archive 実装資産（`archive/backref-v1/check.py`。起票時は `backref/check.py`）のため対象ファイルへ backref は張らない。in-graph 代表 backref は既に SPEC「ノード本文に孤立 `---`（ノード分離記法の本文内誤用）が存在しない」から `→FND` として存在するため、重複追加しない。lifecycle 配置のみの整理であり、下流意味内容を変えないため z バンプとする。
+
 **対応状況**: resolved（2026-07-01・本セッション内で修正・回帰テスト追加完了）
 
 **深刻度**: ERROR

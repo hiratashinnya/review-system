@@ -5,7 +5,7 @@
 > 本文は型別 body policy に従う Markdown、
 > 本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-07-10 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-07-11 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
 > 本帳票は **v1 の `doc-system/00-dashboard.md` の後継**（issue #76・v1→v2 cutover）。v1 は
 > `doc-system-v1-archive/`（旧 `doc-system/`・`git mv` で履歴保持）へ retire 済み。**正本は本コーパス
 > （`doc-system-v2/nodes/**`）**。旧ダッシュボードの経緯・完了ログは archive 側に保全されている
@@ -17,8 +17,9 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #158 — 本文 resolved 済み open FND 整理 | lifecycle 配置整理 | ✅ 完了（2026-07-11）。`_drift` z バンプ誤検出と `backref check` open-but-backref 判定トートロジーの 2 件を、既存 backref と out-of-graph 対象の扱いを確認した上で `fnd/resolved/` へ整理。 |
 | issue #152 — scheduled 空欄対策 | 流入防止＋流出検出＋既存空欄整理 | ✅ 完了（2026-07-10）。`scheduled` を非空必須にし、`validate.py` / `schema/sidecar.schema.json` / `dsv2 index` で空欄・欠落を fail-close。移行後追加の空欄 12 件は完了済み/解決済みノードとして `sprint-1` に整理。 |
-| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-10）。#157 で Q-2 を DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針を在グラフ化。open Q は 0 件。残りは Sprint 1 open FND 解消（#158/#159/#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）。 |
+| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-11）。#157 で Q-2 を DD-23 へ昇格し、#158 で本文 resolved 済み FND 2 件を lifecycle 上も resolved 化。open Q は 0 件。残りは Sprint 1 open FND 解消（#159/#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）。 |
 | issue #142 — docidx archive 判断 | archive 判断＋参照境界更新 | ✅ 完了（2026-07-10）。`docidx/` は物理 archive へ移動しない判断。v1 archive (`doc-system-v1-archive/`) の読み取り CLI として `scan.py`/`cli.py`/`query.py` 等を残し、v2 実行系が import する `docidx.nodeyaml` は共有 YAML reader として存続。現行 v2 の正本照会は `python3 -m dsv2` と通常のファイル検索へ寄せる。**issue #172 で refine**：`nodeyaml.py` のみ `dsv2/nodeyaml.py` へ分離し、残り（`scan.py`/`cli.py`/`query.py`/`render.py`/`model.py`）を `archive/docidx-v1/` へ `git mv`（v1-legacy 誤起動リスクの構造的低減）。 |
 | issue #140 — doc_system 用 config 操作エージェント | Codex agent＋repo skill＋PROMPT ノード | ✅ 完了（2026-07-10）。`doc-system-config-operator` と `doc-system-config` skill を追加し、`doc-system-v2/config.yml` の作成・解説・変更時に FORMAT/config/schema/dsv2 と対応 SPEC/SCM/CFG/PROMPT ノードを照合する手順を明文化。PROMPT ノードで agent carrier を在グラフ化。review_system 側の横展開は issue #141 に残す。 |
 | 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋FORMAT/dsv2 土台反映＋authoring 追随 | ✅ FORMAT/dsv2 body policy 反映済み（2026-07-09）。DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加後、`config.yml: body_policy`、`body_ref.file`/`body_ref.anchor`、YAML 走査 validator、bodyless/shared-body 対応 meta/rename/viewer を反映。PR #147 で SRC layout/schema/存在検査と TD shared body・TC bodyless・TD-TC 1:1 の実装設計・検証規則化を反映。本PRで著作テンプレート/プロンプト追随 FND を resolved 化し、TD/TC/SRC テンプレート、test-strategy、verification-author、共通 authoring/reconciliation 資産を body policy 前提へ同期。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
@@ -53,20 +54,18 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 10 件**（open FND 9・open Q 0・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 8 件**（open FND 7・open Q 0・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（9 件）
+### open FND（7 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
 | config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | v1 時代の FND-35 相当。オーナー承認済み |
-| `backref check` の open-but-backref 判定がトートロジーで open FND を全件誤検出（issue #64 Category A） | 🗓 sprint-1（backfill） | out-of-graph（`archive/backref-v1/` 内）のバグ記録。v1 archive 化により実害は収束 |
 | RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷 | 🗓 sprint-1（backfill） | 索引化検討 |
 | SPEC-9-1 と SPEC-10 が同一 RULE-004 検出でほぼ同主張 | 🗓 sprint-1（backfill） | 統合検討 |
 | SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない | 🗓 sprint-1（backfill） | 文言整形 |
 | SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落 | 🗓 sprint-1（backfill） | テスタブル化検討 |
 | SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 🗓 sprint-1（backfill） | 親辺の妥当性再検討 |
-| `_drift` が x.y.z フル比較で z バンプを誤ドリフト検出する（spec↔impl 乖離） | 🗓 sprint-1（backfill） | 実装時に要検証 |
 | 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 🗓 sprint-1（backfill） | 著作資産側への反映漏れ点検 |
 
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
