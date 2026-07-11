@@ -98,7 +98,7 @@ sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current
 
 **型別チェック（自己修正不可 → ROLLBACK）**
 - [ ] leaf SPEC: `condition` 属性あり（RULE-016 ERROR）。同型 child→parent 辺から傘ロールと導出される SPEC は condition 省略を許容し、RULE-016 対象外
-- [ ] `scheduled` が非空（既定 = current_phase）。空は**オーナー承認済みの後送り**のときのみ許可し、その旨が本文/labels に残る（無計画な空は差し戻し・DD 未整備なら self_fix で current_phase 充填を指示）
+- [ ] `scheduled` が非空（既定 = current_phase）。空は**オーナー承認済みの後送り**のときのみ許可し、その旨が本文/labels に残る（無計画な空は差し戻し）。**新規著作ノード**（`update_slugs` に含まれない slug）の `scheduled` 未設定を `current_phase` で補う self_fix 指示は確立済みの標準運用であり自己判定に当たらない。一方、対象 slug が `update_slugs` に含まれる（＝**既存ノードの `scheduled` を一括変更/backfill する著作**）場合は、指示側（Issue 本文・オーナーコメント・呼び出し元指示）が具体的な値を明示していない限り、`self_fix` で `current_phase` を機械充填するよう指示してはならない——**ROLLBACK として差し戻し**、対象 slug・現在値・指示側の値明示有無を errors に記録した上で呼び出し元へオーナー確認を要請する（AGENTS.md/CLAUDE.md「スケジュール独断禁止」／PR #150 と同型の自己判定パターン・Issue #206。線引きは doc-system-v2-authoring の「`scheduled` 値決定の自己判定禁止」＝Issue #185 と整合させた）
 - [ ] SPEC: 期待動作が単一アサーション（複数 RULE 列挙 → ROLLBACK）
 - [ ] TD: `condition` が依存先 SPEC と一致（RULE-019）
 - [ ] TR: `result` 属性あり（RULE-020 ERROR）
