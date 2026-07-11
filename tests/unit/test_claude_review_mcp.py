@@ -153,6 +153,52 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertFalse(blocked)
         self.assertIn("no active", reason)
 
+    def test_rate_limit_preflight_ignores_state_without_reset_at(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "reset_at": None,
+                        "raw": "successful review discussed rate-limit handling and option 1.",
+                    }
+                )
+            )
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+
+        self.assertFalse(blocked)
+        self.assertIn("no active", reason)
+
+    def test_successful_review_text_mentioning_rate_limit_is_not_recorded(self):
+        stdout = json.dumps(
+            {
+                "result": "The code handles rate-limit state and reset parsing correctly.",
+                "total_cost_usd": 0.01,
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                reset = server.detect_and_record_rate_limit(stdout, "", 0)
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+
+        self.assertIsNone(reset)
+        self.assertFalse(state_path.exists())
+
+    def test_rate_limit_error_result_is_recorded(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(microsecond=0)
+        stdout = json.dumps({"result": f"You've hit your session limit · resets {reset_at.isoformat()}"})
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                reset = server.detect_and_record_rate_limit(stdout, "", 0)
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                self.assertTrue(state_path.exists())
+
+        self.assertIsNotNone(reset)
+
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [tool["name"] for tool in response["result"]["tools"]]

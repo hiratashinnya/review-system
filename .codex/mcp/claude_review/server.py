@@ -23,8 +23,14 @@ DEFAULT_WORKSPACE = Path(
         os.path.expanduser(os.environ.get("CLAUDE_REVIEW_MCP_WORKSPACE_ROOT", os.getcwd()))
     )
 )
-RATE_LIMIT_RE = re.compile(
-    r"(rate[ -]?limit|session limit|usage limit|too many requests|rate_limit)",
+RATE_LIMIT_ERROR_RE = re.compile(
+    r"("
+    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
+    r"too many requests|"
+    r"\b429\b|"
+    r"rate_limit(?:_error)?"
+    r")",
     re.IGNORECASE,
 )
 RESET_RE = re.compile(r"resets?\s+([^\n\r.;]+)", re.IGNORECASE)
@@ -151,13 +157,8 @@ def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
 
     error = data.get("error")
     message = data.get("last_assistant_message")
-    if isinstance(error, str) and isinstance(message, str) and RATE_LIMIT_RE.search(error + "\n" + message):
+    if isinstance(error, str) and isinstance(message, str) and RATE_LIMIT_ERROR_RE.search(error + "\n" + message):
         return parse_reset_hint(message)
-    raw = data.get("raw")
-    if isinstance(raw, str) and RATE_LIMIT_RE.search(raw):
-        reset = parse_reset_hint(raw)
-        if reset:
-            return reset
     return None
 
 
@@ -171,9 +172,32 @@ def current_block() -> tuple[bool, str]:
     return False, "no active Claude rate-limit block found"
 
 
+def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | None:
+    if stderr and RATE_LIMIT_ERROR_RE.search(stderr):
+        return stderr
+
+    try:
+        data = json.loads(stdout) if stdout else None
+    except json.JSONDecodeError:
+        data = None
+    if isinstance(data, dict):
+        fields = []
+        for key in ("error", "message", "last_assistant_message", "result"):
+            value = data.get(key)
+            if isinstance(value, str):
+                fields.append(value)
+        structured = "\n".join(fields)
+        if structured and RATE_LIMIT_ERROR_RE.search(structured):
+            return structured
+
+    if returncode != 0 and stdout and RATE_LIMIT_ERROR_RE.search(stdout):
+        return stdout
+    return None
+
+
 def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
-    text = "\n".join([stdout or "", stderr or "", f"returncode={returncode}"])
-    if not RATE_LIMIT_RE.search(text):
+    text = rate_limit_error_text(stdout, stderr, returncode)
+    if not text:
         return None
     reset = parse_reset_hint(text)
     write_json(

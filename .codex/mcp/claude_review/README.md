@@ -65,9 +65,12 @@ Before calling `claude -p`, it checks only the wrapper-owned cooldown file:
 The wrapper does not inspect Claude Code hook state such as
 `~/.claude/rate-limit-recovery/last-payload.json`; that file can belong to a
 different pane or session. If the wrapper's own file indicates a future reset
-time, the wrapper returns a tool error without spending Claude quota. Otherwise,
-rate-limit detection happens from the actual `claude -p` result, and any detected
-cooldown is stored for the next call.
+time, the wrapper returns a tool error without spending Claude quota. A state
+entry without a parseable future `reset_at` is not treated as a block.
+Otherwise, rate-limit detection happens from the actual `claude -p` process
+result and only records strong error signals such as "you've hit your session
+limit", "too many requests", `429`, or `rate_limit`; ordinary successful review
+text that merely discusses rate-limit handling is not stored as a cooldown.
 
 GitHub PR metadata and diffs are appended inside fenced blocks with explicit
 instructions to treat them as untrusted review evidence, not as model
