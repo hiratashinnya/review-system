@@ -35,6 +35,55 @@ has_rate_limit_text() {
     && printf '%s' "$blob" | grep -qiE "$RATE_LIMIT_RESET_RE"
 }
 
+# --- Structured rate-limit API detection (Issue #195) --------------------
+# Primary detector. Instead of scraping the rendered tmux banner, ask Codex's
+# app-server for the machine-readable account/rateLimits/read snapshot (via the
+# codex-rate-limit-query.py helper). The pane-text regex above is kept only as
+# a fallback for when this API is unavailable (see the hook body).
+RL_QUERY_HELPER="${CODEX_RL_QUERY_HELPER:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/codex-rate-limit-query.py}"
+MAX_AUTO_WINDOW_MINS="${CODEX_RL_MAX_AUTO_WINDOW_MINS:-360}"
+
+# Populate RL_* globals from the helper's `RL_KEY=value` output. Returns 0 only
+# when the query succeeded (RL_OK=1); a non-zero return tells the caller to fall
+# back to text parsing. CODEX_RL_QUERY_CMD overrides the helper invocation for
+# tests (it is eval'd and expected to print the same RL_* lines).
+query_rate_limit_api() {
+  RL_OK=0; RL_REACHED=0; RL_REACHED_TYPE=""; RL_RESET_EPOCH=""
+  RL_WINDOW_MINS=""; RL_USED_PERCENT=""; RL_PLAN=""
+  local out k v
+  if [ -n "${CODEX_RL_QUERY_CMD:-}" ]; then
+    out="$(eval "$CODEX_RL_QUERY_CMD" 2>>"${LOG:-/dev/null}")" || true
+  else
+    command -v python3 >/dev/null 2>&1 || return 1
+    [ -r "$RL_QUERY_HELPER" ] || return 1
+    out="$(python3 "$RL_QUERY_HELPER" 2>>"${LOG:-/dev/null}")" || true
+  fi
+  while IFS='=' read -r k v; do
+    case "$k" in
+      RL_OK) RL_OK="$v" ;;
+      RL_REACHED) RL_REACHED="$v" ;;
+      RL_REACHED_TYPE) RL_REACHED_TYPE="$v" ;;
+      RL_RESET_EPOCH) RL_RESET_EPOCH="$v" ;;
+      RL_WINDOW_MINS) RL_WINDOW_MINS="$v" ;;
+      RL_USED_PERCENT) RL_USED_PERCENT="$v" ;;
+      RL_PLAN) RL_PLAN="$v" ;;
+    esac
+  done <<RLEOF
+$out
+RLEOF
+  [ "$RL_OK" = "1" ]
+}
+
+# True when the binding (reached) window is longer than the auto-recover cap,
+# i.e. a weekly/long limit we should not sit and wait on. Unknown/empty window
+# durations are treated as "not long" (we still have a concrete resetsAt).
+api_window_is_long() {
+  case "$RL_WINDOW_MINS" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$RL_WINDOW_MINS" -gt "$MAX_AUTO_WINDOW_MINS" ]
+}
+
 # Allow this file to be `source`d (with CODEX_RL_SOURCE_FOR_TEST=1) so a unit
 # test can call has_rate_limit_text() directly against sample text, without
 # running the tmux-dependent hook body below (which would otherwise exit/act
@@ -53,6 +102,7 @@ STATUS_WAIT="${CODEX_RL_STATUS_WAIT:-3}"
 STATUS_CAPTURE_LINES="${CODEX_RL_STATUS_CAPTURE_LINES:-140}"
 STATUS_ON_EVERY_STOP="${CODEX_RL_STATUS_ON_EVERY_STOP:-0}"
 STATUS_COOLDOWN="${CODEX_RL_STATUS_COOLDOWN:-60}"
+API_CHECK="${CODEX_RL_API_CHECK:-1}"
 
 say_noop() { printf '%s\n' "$*" >&2; }
 
@@ -126,12 +176,9 @@ if ! is_codex_pane; then
   exit 0
 fi
 
-before="$(pane_tail 80)"
-if ! is_truthy "$STATUS_ON_EVERY_STOP" && ! has_rate_limit_text "$payload" "$before"; then
-  log "no rate-limit text in Stop payload/pane; no-op"
-  exit 0
-fi
-
+# --- cooldown gate (shared by the API check and the legacy /status path) --
+# One active rate-limit check per pane per STATUS_COOLDOWN seconds, so neither
+# launching the app-server nor sending /status happens on every single Stop.
 pane_key="$(printf '%s' "$PANE" | tr -c 'A-Za-z0-9' '_')"
 cooldown_file="${STATE_DIR}/last-status.${pane_key}"
 now="$(date +%s)"
@@ -142,16 +189,55 @@ if [ -r "$cooldown_file" ]; then
     *)
       age=$(( now - last ))
       if [ "$age" -lt "$STATUS_COOLDOWN" ]; then
-        log "recent /status request ${age}s ago; no-op"
+        log "recent rate-limit check ${age}s ago; no-op"
         exit 0
       fi
       ;;
   esac
 fi
+
+# --- primary: structured rate-limit API (Issue #195) ----------------------
+# Trust the API fully when it answers: rateLimitReachedType != null == limited,
+# and the binding window's resetsAt is the reset time. This replaces the tmux
+# banner regex as the detector; the regex remains only as the fallback below.
+if is_truthy "$API_CHECK" && query_rate_limit_api; then
+  printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
+  log "api: reached=${RL_REACHED} type=${RL_REACHED_TYPE:-none} used=${RL_USED_PERCENT:-?}% reset=${RL_RESET_EPOCH:-none} window=${RL_WINDOW_MINS:-?}m plan=${RL_PLAN:-?}"
+  if [ "$RL_REACHED" != "1" ]; then
+    log "api: not rate-limited; no-op"
+    exit 0
+  fi
+  if api_window_is_long; then
+    log "api: limit reached on long/weekly window (${RL_WINDOW_MINS}m > ${MAX_AUTO_WINDOW_MINS}m cap); automatic recovery not attempted"
+    exit 0
+  fi
+  case "$RL_RESET_EPOCH" in
+    ''|*[!0-9]*)
+      log "api: limit reached but no usable resetsAt; automatic recovery not attempted"
+      exit 0
+      ;;
+  esac
+  log "api: rate limit reached (${RL_REACHED_TYPE}); spawning watcher for reset epoch ${RL_RESET_EPOCH}"
+  setsid bash "${HOOK_DIR}/codex-rate-limit-watcher.sh" --recover-once-epoch "$PANE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
+    >> "$LOG" 2>&1 < /dev/null &
+  exit 0
+fi
+
+# --- fallback: legacy pane/status text detection --------------------------
+# Reached only when the API could not be queried (codex not on PATH, not logged
+# in, app-server error/timeout, or an older Codex without the method).
+if is_truthy "$API_CHECK"; then
+  log "rate-limit API unavailable; falling back to pane/status text detection"
+fi
+before="$(pane_tail 80)"
+if ! is_truthy "$STATUS_ON_EVERY_STOP" && ! has_rate_limit_text "$payload" "$before"; then
+  log "no rate-limit text in Stop payload/pane; no-op"
+  exit 0
+fi
 printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
 
 status_file="${STATE_DIR}/status.${now}.${pane_key}.txt"
-log "rate-limit candidate detected; requesting /status"
+log "rate-limit candidate detected (text fallback); requesting /status"
 tmux send-keys -t "$PANE" "/status" 2>>"$LOG" || exit 0
 sleep 1
 tmux send-keys -t "$PANE" Enter 2>>"$LOG" || exit 0

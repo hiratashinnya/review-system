@@ -6,10 +6,12 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
    `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-2. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery: it inspects a
-   stopped Codex turn, runs `/status` when the pane looks rate-limited, parses the
-   reported reset time, and resumes the thread after the reset. This hook is
-   intentionally local/tmux-only; cloud and non-tmux environments are safe no-ops.
+2. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
+   Codex's structured `account/rateLimits/read` app-server API whether the account
+   is rate-limited and, if so, when it resets, then resumes the thread after the
+   reset (Issue #195). Tmux pane text scraping (`/status` + banner regex) is kept
+   only as a fallback for when that API is unavailable. This hook is intentionally
+   local/tmux-only; cloud and non-tmux environments are safe no-ops.
 
 ## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
 
@@ -234,8 +236,9 @@ resolution is still unverified, but it is now known to be moot until the
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` and `Stop` hooks. Trust them with `/hooks` before relying on them. |
 | `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
-| `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases, sends `/status`, captures the status output, and starts the one-shot watcher. |
-| `codex-rate-limit-watcher.sh` | Waits until the parsed reset time and submits `continue` only when the pane is idle. It also still supports the legacy continuous watcher mode. |
+| `codex-rate-limit-query.py` | Structured rate-limit query helper (Issue #195). Drives `codex app-server --stdio` over JSON-RPC (`initialize` → `initialized` → `account/rateLimits/read`) and prints normalized `RL_*=value` lines (reached / reset epoch / window / used%). Standard-library only. Exit 0 = queried; non-zero = API unavailable (caller falls back to text). |
+| `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases; queries the rate-limit API and, when reached, spawns the watcher with the API reset epoch (`--recover-once-epoch`). Falls back to `/status` + banner text only when the API is unavailable. |
+| `codex-rate-limit-watcher.sh` | Waits until the reset time and submits `continue` only when the pane is idle. In `--recover-once-epoch` mode it sleeps to the API-provided epoch and re-confirms via the API that the limit cleared before injecting; it also still supports the legacy status-text (`--recover-once`) and continuous watcher modes. |
 | `codex-with-rate-limit-recovery.sh` | Legacy wrapper that starts the continuous watcher for the current tmux pane, then `exec codex "$@"`. |
 
 ## Usage
@@ -267,16 +270,82 @@ without hooks:
   The default accepts foreground command `codex`, and also accepts a `node`
   wrapper only when the tmux pane current path is inside this trusted repo.
 - Does not inject while the pane tail looks busy, for example while an interrupt hint is visible.
-- The preferred reset source is machine-readable `rate_limits.*.resets_at`
-  captured from the Stop payload or session text. If that is unavailable, the
-  watcher parses `/status`; if that also fails, it falls back to pane polling and
-  then banner-clear detection.
-- Weekly limits are detected and skipped.
+- The preferred detector and reset source is now the structured
+  `account/rateLimits/read` app-server API (Issue #195): `rateLimitReachedType`
+  (non-null = limited) and the binding window's `resetsAt`. Only when that API
+  cannot be reached does the Stop hook fall back to `/status` text plus the
+  banner regex, and the watcher to `/status` parsing / pane polling / banner-clear
+  detection.
+- Weekly / long limits are detected and skipped. Via the API this is any reached
+  window longer than `CODEX_RL_MAX_AUTO_WINDOW_MINS` (default 360, i.e. the 5-hour
+  window recovers but the weekly one does not); via the text fallback the weekly
+  banner regex is skipped as before.
 - Uses a per-pane lock so only one watcher controls a pane.
 
-### Rate-limit banner detection (Issue #182)
+### Structured rate-limit API (Issue #195)
 
-The regex previously used to decide "does this pane look rate-limited"
+The Stop hook and watcher used to decide "are we rate-limited, and when do we
+reset?" purely by regex-matching the rendered Codex tmux banner (Issue #182 had
+to harden that regex against false-fires). That is inherently fragile — it
+depends on exact banner wording, terminal wrapping, and scrollback.
+
+Codex exposes the same information as structured data over its app-server
+protocol. `codex-rate-limit-query.py` drives `codex app-server --stdio` with a
+JSON-RPC handshake and calls `account/rateLimits/read`:
+
+```
+initialize                       (clientInfo)
+initialized                      (notification)
+account/rateLimits/read          (params: null)  -> GetAccountRateLimitsResponse
+```
+
+The response's `rateLimits` snapshot carries `primary`/`secondary` windows
+(`usedPercent`, `windowDurationMins`, `resetsAt`), a top-level
+`rateLimitReachedType` (an enum, or `null` when not limited), and `planType`.
+Verified live against `codex-cli` 0.144.1 (the method is listed in the app-server
+`ClientRequest.json`; the response shape matches
+`v2/GetAccountRateLimitsResponse.json` from `codex app-server generate-json-schema`).
+A real idle sample: `primary` = 5h window (`windowDurationMins:300`), `secondary`
+= weekly (`10080`), `rateLimitReachedType: null`.
+
+Detection rule (Issue #195 acceptance criterion 2): **`rateLimitReachedType`
+non-null == rate limited**, and the *binding* window's `resetsAt` is used
+verbatim as the reset time. The binding window is the exhausted (`usedPercent >=
+100`) window that resets latest (so recovery waits for every maxed window); when
+that window is longer than `CODEX_RL_MAX_AUTO_WINDOW_MINS` (weekly/long), auto-
+recovery is skipped, mirroring the old weekly-skip. The Stop hook passes the
+resolved epoch to the watcher via `--recover-once-epoch <pane> <epoch> <window>`;
+the watcher sleeps until it and re-queries the API to confirm the limit cleared
+before injecting `continue`.
+
+**Replace vs. fallback (acceptance criterion 3).** The API is the *primary*
+detector and is trusted fully when it answers (it is the account's own
+authoritative state, not a screen guess). The existing text/regex path is
+**kept as a fallback**, reached only when the API cannot be queried: `codex`
+not on `PATH`, not logged in, an app-server error/timeout, or an older Codex
+release without the method. This is the conservative choice — it strictly adds
+reliability without removing the previously tested safety net, and matches this
+codebase's defensive "never guess-fire, degrade gracefully" style. Disable the
+API path entirely with `CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
+
+**Known residual trade-offs**, flagged rather than resolved unilaterally:
+
+- Per-Stop cost. Each eligible Stop may spawn a short-lived `codex app-server`
+  process (~1–2s). This is bounded by the existing per-pane cooldown
+  (`CODEX_RL_STATUS_COOLDOWN`, default 60s) so it cannot fire on every turn, and
+  the push-style `AccountRateLimitsUpdatedNotification` (which could remove
+  polling entirely) is intentionally left for a future change to keep this PR
+  focused on the read API.
+- Account/session identity. The API reports the state of the logged-in account
+  for `~/.codex`, which is assumed to be the same account driving the tmux pane.
+  If a pane runs Codex under a different login, the API answer could disagree
+  with that pane's banner; the fallback still covers the API-unavailable case.
+
+### Rate-limit banner detection (Issue #182) — fallback path
+
+As of Issue #195 the regex below is the **fallback** detector, used only when
+the structured API above is unavailable. The regex previously used to decide
+"does this pane look rate-limited"
 (`RATE_LIMIT_RE`) was a single broad `OR` of loose terms (bare `rate limit`,
 `usage limit`, `too many requests`, ...). Those words are common in ordinary
 coding conversation (e.g. implementing a rate limiter, or pasting an
@@ -355,8 +424,16 @@ away more recall.
 | `CODEX_RL_NODE_WRAPPER_RE` | `^node$` | Foreground command regex treated as a Codex node wrapper only when the pane path is inside this trusted repo. |
 | `CODEX_RL_STARTUP_WAIT` | `30` | Seconds the watcher waits for the wrapper to `exec codex`. |
 | `CODEX_RL_STATE_DIR` | `~/.codex/rate-limit-recovery` | Log and lock directory. |
-| `CODEX_RL_RATE_LIMIT_PHRASE_RE` | see script | Limit-hit phrase half of the AND banner regex (Issue #182). |
-| `CODEX_RL_RATE_LIMIT_RESET_RE` | see script | Reset/retry-cue half of the AND banner regex (Issue #182). |
+| `CODEX_RL_RATE_LIMIT_PHRASE_RE` | see script | Limit-hit phrase half of the AND banner regex (Issue #182; fallback path). |
+| `CODEX_RL_RATE_LIMIT_RESET_RE` | see script | Reset/retry-cue half of the AND banner regex (Issue #182; fallback path). |
+| `CODEX_RL_API_CHECK` | `1` | When truthy, query the structured `account/rateLimits/read` API first (Issue #195). Set `0` to force the legacy text/regex path only. |
+| `CODEX_RL_API_TIMEOUT` | `12` | Seconds `codex-rate-limit-query.py` waits for the rateLimits response before giving up (→ text fallback). |
+| `CODEX_RL_MAX_AUTO_WINDOW_MINS` | `360` | Reached windows longer than this (e.g. the weekly 10080) are treated as long/weekly and skipped for auto-recovery. |
+| `CODEX_RL_APP_SERVER_CMD` | `codex app-server --stdio` | Command the query helper runs to launch the app-server (shell-split). |
+| `CODEX_RL_QUERY_HELPER` | `<hook dir>/codex-rate-limit-query.py` | Path to the query helper the hooks invoke. |
+| `CODEX_RL_RESET_CONFIRM_INTERVAL` | `30` | Seconds between post-reset API confirmations (`--recover-once-epoch`) that the limit cleared. |
+| `CODEX_RL_RESET_CONFIRM_MAX` | `5` | Max post-reset API confirmation attempts before injecting anyway. |
+| `CODEX_RL_QUERY_CMD` | unset | Test-only override: eval'd instead of the helper; must print `RL_*=value` lines. |
 
 Logs are written to `~/.codex/rate-limit-recovery/launcher.log` and
 `~/.codex/rate-limit-recovery/watcher.log`. Stop hook diagnostics are written
