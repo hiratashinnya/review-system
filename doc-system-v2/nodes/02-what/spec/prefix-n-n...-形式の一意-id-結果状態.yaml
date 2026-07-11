@@ -1,0 +1,10 @@
+title: "PREFIX-N[-N...] 形式の一意 ID 結果状態"
+version: "0.1.1"
+condition: normal
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "id-管理の正常系"
+    ref_version: "0.2"
+  - to: "spec-3-1-が人手の-id-採番行為を期待動作とし機械観測が難しい＋例の欠落"
+    ref_version: "0.1"

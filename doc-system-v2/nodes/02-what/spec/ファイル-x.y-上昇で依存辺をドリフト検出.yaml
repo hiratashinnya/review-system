@@ -1,9 +1,11 @@
 title: "ファイル x.y 上昇で依存辺をドリフト検出"
-version: "0.2.0"
+version: "0.2.1"
 labels: []
 scheduled: "sprint-1"
 edges:
   - to: "バージョンドリフト検出"
     ref_version: "0.2"
   - to: "spec-10-期待動作が-ドリフト検出・再反映を促す-の2動詞混載"
+    ref_version: "0.1"
+  - to: "spec-9-1-と-spec-10-が同一-rule-004-検出でほぼ同主張"
     ref_version: "0.1"

@@ -17,9 +17,10 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #159 — SPEC 本文系 open FND 解消 | SPEC-3-1/13/9-1+10/31 の文言・親辺・resolved 化 | ✅ 完了（2026-07-11）。対象4件を `fnd/resolved/` へ移動し、処置先 SPEC から backref を付与。 |
 | issue #158 — 本文 resolved 済み open FND 整理 | lifecycle 配置整理 | ✅ 完了（2026-07-11）。`_drift` z バンプ誤検出と `backref check` open-but-backref 判定トートロジーの 2 件を、既存 backref と out-of-graph 対象の扱いを確認した上で `fnd/resolved/` へ整理。 |
 | issue #152 — scheduled 空欄対策 | 流入防止＋流出検出＋既存空欄整理 | ✅ 完了（2026-07-10）。`scheduled` を非空必須にし、`validate.py` / `schema/sidecar.schema.json` / `dsv2 index` で空欄・欠落を fail-close。移行後追加の空欄 12 件は完了済み/解決済みノードとして `sprint-1` に整理。 |
-| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-11）。#157 で Q-2 を DD-23 へ昇格し、#158 で本文 resolved 済み FND 2 件を lifecycle 上も resolved 化。open Q は 0 件。残りは Sprint 1 open FND 解消（#159/#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）。 |
+| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-11）。#157 で Q-2 を DD-23 へ昇格し、#158 で本文 resolved 済み FND 2 件を lifecycle 上も resolved 化、#159 で SPEC 本文系 FND 4 件を resolved 化。open Q は 0 件。残りは Sprint 1 open FND 解消（#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）。 |
 | issue #142 — docidx archive 判断 | archive 判断＋参照境界更新 | ✅ 完了（2026-07-10）。`docidx/` は物理 archive へ移動しない判断。v1 archive (`doc-system-v1-archive/`) の読み取り CLI として `scan.py`/`cli.py`/`query.py` 等を残し、v2 実行系が import する `docidx.nodeyaml` は共有 YAML reader として存続。現行 v2 の正本照会は `python3 -m dsv2` と通常のファイル検索へ寄せる。**issue #172 で refine**：`nodeyaml.py` のみ `dsv2/nodeyaml.py` へ分離し、残り（`scan.py`/`cli.py`/`query.py`/`render.py`/`model.py`）を `archive/docidx-v1/` へ `git mv`（v1-legacy 誤起動リスクの構造的低減）。 |
 | issue #140 — doc_system 用 config 操作エージェント | Codex agent＋repo skill＋PROMPT ノード | ✅ 完了（2026-07-10）。`doc-system-config-operator` と `doc-system-config` skill を追加し、`doc-system-v2/config.yml` の作成・解説・変更時に FORMAT/config/schema/dsv2 と対応 SPEC/SCM/CFG/PROMPT ノードを照合する手順を明文化。PROMPT ノードで agent carrier を在グラフ化。review_system 側の横展開は issue #141 に残す。 |
 | 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋FORMAT/dsv2 土台反映＋authoring 追随 | ✅ FORMAT/dsv2 body policy 反映済み（2026-07-09）。DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加後、`config.yml: body_policy`、`body_ref.file`/`body_ref.anchor`、YAML 走査 validator、bodyless/shared-body 対応 meta/rename/viewer を反映。PR #147 で SRC layout/schema/存在検査と TD shared body・TC bodyless・TD-TC 1:1 の実装設計・検証規則化を反映。本PRで著作テンプレート/プロンプト追随 FND を resolved 化し、TD/TC/SRC テンプレート、test-strategy、verification-author、共通 authoring/reconciliation 資産を body policy 前提へ同期。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
@@ -54,18 +55,14 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 8 件**（open FND 7・open Q 0・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 4 件**（open FND 3・open Q 0・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（7 件）
+### open FND（3 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
 | config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | v1 時代の FND-35 相当。オーナー承認済み |
 | RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷 | 🗓 sprint-1（backfill） | 索引化検討 |
-| SPEC-9-1 と SPEC-10 が同一 RULE-004 検出でほぼ同主張 | 🗓 sprint-1（backfill） | 統合検討 |
-| SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない | 🗓 sprint-1（backfill） | 文言整形 |
-| SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落 | 🗓 sprint-1（backfill） | テスタブル化検討 |
-| SPEC-31 の親が FR-1 だが trace_scope 主題の FR-9 が自然 | 🗓 sprint-1（backfill） | 親辺の妥当性再検討 |
 | 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 🗓 sprint-1（backfill） | 著作資産側への反映漏れ点検 |
 
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
@@ -93,7 +90,7 @@ Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時
 | N4 | #94 scheduled backfill | ✅ 完了 | v1→v2 移行 585 ノードの空 `scheduled` を `sprint-1` へ backfill 済み。既存値あり・移行後追加ノードは保持 |
 | N5 | #142 docidx archive 判断 | ✅ 完了 | `docidx/` は v1 archive CLI と v2 共有 `docidx.nodeyaml` として残し、物理 archive へ移動しない。現行 v2 照会は `dsv2` へ寄せる |
 | N6 | #140 → #141 config 操作エージェント | 🟡 中 | #140 doc_system 側は完了。次は #141 review_system 側へ横展開する。#4 は doc_system 側を #140 で吸収し、review_system 側は #141 の完了時に close 判断する |
-| N7 | #158〜#165 stage completion 前処理 | 🔴 高 | #157 Q-2 DD 化は完了。次に Sprint 1 open FND 解消（#158/#159/#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）の順で #127 完了判定へ進む |
+| N7 | #158〜#165 stage completion 前処理 | 🔴 高 | #157 Q-2 DD 化、#158 lifecycle 整理、#159 SPEC 本文系 FND 解消は完了。次に Sprint 1 open FND 解消（#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）の順で #127 完了判定へ進む |
 
 ---
 

@@ -1,8 +1,10 @@
 title: "依存辺のドリフト → RULE-004 ERROR"
-version: "0.1.0"
+version: "0.1.1"
 condition: failure
 labels: []
 scheduled: "sprint-1"
 edges:
   - to: "バージョンドリフトの検出"
     ref_version: "0.2"
+  - to: "spec-9-1-と-spec-10-が同一-rule-004-検出でほぼ同主張"
+    ref_version: "0.1"

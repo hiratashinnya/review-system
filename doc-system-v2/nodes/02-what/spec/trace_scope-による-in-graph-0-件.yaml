@@ -1,11 +1,13 @@
 title: "trace_scope による in-graph 0 件"
-version: "0.1.1"
+version: "0.1.2"
 labels: []
 scheduled: "sprint-1"
 edges:
-  - to: "ノードグラフの構造化表現"
-    ref_version: "0.3"
+  - to: "トレース対象集合の宣言"
+    ref_version: "0.4"
   - to: "condition-語彙に空集合クラス-empty-が欠落し-null-ゼロ件を-boundary-normal-に混入していた"
     ref_version: "0.1"
   - to: "spec-31-期待動作が-違反0-ノード0報告・exit-0・rule全スキップ-の3動作混載"
+    ref_version: "0.1"
+  - to: "spec-31-の親が-fr-1-だが-trace_scope-主題の-fr-9-が自然"
     ref_version: "0.1"

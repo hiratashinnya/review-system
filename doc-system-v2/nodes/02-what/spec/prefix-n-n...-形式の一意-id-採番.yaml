@@ -1,8 +1,0 @@
-title: "PREFIX-N[-N...] 形式の一意 ID 採番"
-version: "0.1.0"
-condition: normal
-labels: []
-scheduled: "sprint-1"
-edges:
-  - to: "id-管理の正常系"
-    ref_version: "0.2"
