@@ -11,13 +11,17 @@ HOOK = ROOT / ".claude" / "hooks" / "agent-command-gate.sh"
 
 
 def run_gate(payload, *, env=None):
+    # AGENT_COMMAND_GATE_TRACE_LOG は既定で常時有効（Issue #192）。テストが明示的に上書きしない
+    # 限り空文字にして無効化し、開発者の実ホームディレクトリ（~/.claude/agent-command-gate-trace.log）
+    # を汚染しないようにする。
+    merged_env = {**os.environ, "AGENT_COMMAND_GATE_TRACE_LOG": "", **(env or {})}
     result = subprocess.run(
         [str(HOOK)],
         input=json.dumps(payload),
         text=True,
         capture_output=True,
         check=True,
-        env={**os.environ, **(env or {})},
+        env=merged_env,
     )
     if not result.stdout:
         return None
@@ -115,6 +119,59 @@ class AgentCommandGateTests(unittest.TestCase):
             record = json.loads(log_path.read_text().strip())
             self.assertEqual(record["payload"]["api_token"], "<redacted>")
             self.assertEqual(record["decision"], "deny")
+
+    def test_trace_log_records_minimal_fields_on_deny_and_allow(self):
+        # Issue #192: 常時有効の最小トレース。command 本文や生 payload は含まず、
+        # 時刻・agent_type・tool_name・判定のみを1行JSONとして追記する。
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "trace.log"
+            self.assert_denied(
+                run_gate(
+                    payload("issue-implementer", "git merge feature"),
+                    env={"AGENT_COMMAND_GATE_TRACE_LOG": str(log_path)},
+                )
+            )
+            self.assert_allowed(
+                run_gate(
+                    payload("issue-implementer", "git push origin HEAD"),
+                    env={"AGENT_COMMAND_GATE_TRACE_LOG": str(log_path)},
+                )
+            )
+            lines = log_path.read_text().strip().splitlines()
+            self.assertEqual(len(lines), 2)
+            deny_record = json.loads(lines[0])
+            allow_record = json.loads(lines[1])
+            self.assertEqual(deny_record["decision"], "deny")
+            self.assertEqual(deny_record["agent_type"], "issue-implementer")
+            self.assertIn("ts", deny_record)
+            self.assertEqual(set(deny_record.keys()), {"ts", "agent_type", "tool_name", "decision"})
+            self.assertEqual(allow_record["decision"], "allow")
+            self.assertEqual(allow_record["agent_type"], "issue-implementer")
+            # command 本文・その他 payload フィールドが漏れていないことを確認する。
+            raw_text = log_path.read_text()
+            self.assertNotIn("git merge feature", raw_text)
+            self.assertNotIn("git push origin HEAD", raw_text)
+
+    def test_trace_log_can_be_disabled_with_empty_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "trace.log"
+            run_gate(
+                payload("issue-implementer", "git merge feature"),
+                env={"AGENT_COMMAND_GATE_TRACE_LOG": ""},
+            )
+            self.assertFalse(log_path.exists())
+
+    def test_trace_log_rotates_when_it_grows_past_the_size_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "trace.log"
+            log_path.write_text("x" * 1_000_001)
+            run_gate(
+                payload("issue-implementer", "git status"),
+                env={"AGENT_COMMAND_GATE_TRACE_LOG": str(log_path)},
+            )
+            backup_path = Path(str(log_path) + ".1")
+            self.assertTrue(backup_path.exists())
+            self.assertEqual(len(log_path.read_text().strip().splitlines()), 1)
 
 
 if __name__ == "__main__":

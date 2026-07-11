@@ -44,6 +44,50 @@ gate (fail-closing on absent `agent_type` regressed the main context's own push)
 Treat the gate as one layer of defense together with the prompt-level discipline
 in `issue-implementer.toml` / `pr-reviewer.toml`.
 
+### Checking whether the hook actually fired (Issue #192)
+
+Issue #192 (see the "Root cause confirmed" section below) found that trust is
+granted per hook key, not per file, and that there was previously **no way to
+confirm the `PreToolUse` gate had actually executed** short of setting the
+opt-in `AGENT_COMMAND_GATE_DEBUG_PAYLOAD` beforehand — which is easy to forget
+to set *before* the moment you actually want to check.
+
+To close that gap, `agent-command-gate.sh` now writes a minimal, **always-on**
+trace line every time it runs, independent of `AGENT_COMMAND_GATE_DEBUG_PAYLOAD`:
+
+**Look at `~/.codex/agent-command-gate-trace.log`.** Each line is one JSON
+record: `ts` (UTC timestamp), `agent_type` (as received; `null` if absent or
+the payload itself wasn't valid JSON), `tool_name`, and `decision`
+(`"allow"`/`"deny"`). For example:
+
+```json
+{"agent_type": "issue-implementer", "decision": "allow", "tool_name": "Bash", "ts": "2026-07-11T06:03:16+00:00"}
+```
+
+If this file has fresh entries after you run a Bash/git/gh command, the
+`PreToolUse` hook fired for that call (trust is granted and Codex invoked it) —
+this is the direct signal Issue #192 was missing. If the file is empty or
+stale, the hook did not run (most likely: not yet trusted via `/hooks`).
+
+Design notes:
+
+- **On by default, not opt-in.** An opt-in-only design would have the same
+  "forgot to set the env var before the session I actually wanted to check"
+  problem this issue set out to fix, so the default is on.
+- **No sensitive or bulky content.** Only the four fields above are recorded —
+  never the command text or the raw payload (that remains
+  `AGENT_COMMAND_GATE_DEBUG_PAYLOAD`'s opt-in job, redacted).
+- **Bounded size.** The file rotates to a single `.1` backup once it exceeds
+  ~1&nbsp;MB (no unbounded growth); no external log rotation setup is required.
+- **Overridable / disableable.** Set `AGENT_COMMAND_GATE_TRACE_LOG=/other/path`
+  to redirect it, or `AGENT_COMMAND_GATE_TRACE_LOG=` (empty) to turn it off
+  entirely (this is also how the test suite avoids writing to the real
+  `~/.codex/` during `python3 -m unittest`).
+- **Security logic is unchanged.** This trace is purely diagnostic; it does not
+  read, and cannot influence, the allow/deny decision.
+- The Claude counterpart (`.claude/hooks/agent-command-gate.sh`) writes the
+  same shape of record to `~/.claude/agent-command-gate-trace.log` for parity.
+
 ### Dogfooding results (Issue #188, 2026-07-11, `codex-cli` 0.142.5)
 
 Ran a real, non-interactive `codex exec` session (in a disposable local clone,
