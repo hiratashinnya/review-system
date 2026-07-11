@@ -6,6 +6,43 @@
 # and launches the one-shot watcher to wait until the parsed reset time.
 set -u
 
+# --- Rate-limit banner detection (Issue #182) ----------------------------
+# Detection requires BOTH a limit-hit phrase AND a reset/retry cue to be
+# present (AND, not one broad OR) so that ordinary pane text that merely
+# mentions "rate limit" / "usage limit" / "too many requests" (very common
+# wording while discussing or implementing rate-limiting code, or pasting an
+# unrelated HTTP 429 log) does not accidentally trigger `/status` plus the
+# auto-resume watcher, whose end effect is an unattended `continue` being
+# injected into the pane. Real captured banners always pair the two, e.g.
+# "You've hit your session limit \xc2\xb7 resets 10:50pm (Asia/Tokyo)"
+# (real payload captured in PR #66). Both halves are overridable via env for
+# local tuning without editing this file.
+# NOTE: the `{n,m}` interval quantifiers below must NOT be written directly
+# inside a `${VAR:-default}` expansion — bash's word-scanner for `${...}`
+# treats the default text's *first* unescaped `}` as the end of the whole
+# expansion (verified: `${FOO:-a{0,20}b}` evaluates to `a{0,20b}`, silently
+# truncating and corrupting the regex). Define the literal default first,
+# then apply the env override against that plain variable.
+_RATE_LIMIT_PHRASE_RE_DEFAULT='(hit|reached|exceeded)[[:space:]]+(your|the)[[:space:]]+[a-z0-9 -]*(rate|usage|session|request|5-hour|weekly|daily|account)[a-z0-9 -]*limit|(rate|usage|session|request)[ -]?limit[[:space:]]+(reached|exceeded)|429[^0-9]{0,20}too many requests'
+_RATE_LIMIT_RESET_RE_DEFAULT='resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)|try again[^0-9]{0,20}[0-9]|retry[[:space:]]+(in|after)[^0-9]{0,10}[0-9]'
+RATE_LIMIT_PHRASE_RE="${CODEX_RL_RATE_LIMIT_PHRASE_RE:-$_RATE_LIMIT_PHRASE_RE_DEFAULT}"
+RATE_LIMIT_RESET_RE="${CODEX_RL_RATE_LIMIT_RESET_RE:-$_RATE_LIMIT_RESET_RE_DEFAULT}"
+
+has_rate_limit_text() {
+  local blob
+  blob="$(printf '%s\n%s' "$1" "$2")"
+  printf '%s' "$blob" | grep -qiE "$RATE_LIMIT_PHRASE_RE" \
+    && printf '%s' "$blob" | grep -qiE "$RATE_LIMIT_RESET_RE"
+}
+
+# Allow this file to be `source`d (with CODEX_RL_SOURCE_FOR_TEST=1) so a unit
+# test can call has_rate_limit_text() directly against sample text, without
+# running the tmux-dependent hook body below (which would otherwise exit/act
+# on a real pane as soon as it is sourced).
+if [ "${CODEX_RL_SOURCE_FOR_TEST:-0}" = "1" ]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${HOOK_DIR}/../.." && pwd)"
 STATE_DIR="${CODEX_RL_STATE_DIR:-${HOME}/.codex/rate-limit-recovery}"
@@ -16,8 +53,6 @@ STATUS_WAIT="${CODEX_RL_STATUS_WAIT:-3}"
 STATUS_CAPTURE_LINES="${CODEX_RL_STATUS_CAPTURE_LINES:-140}"
 STATUS_ON_EVERY_STOP="${CODEX_RL_STATUS_ON_EVERY_STOP:-0}"
 STATUS_COOLDOWN="${CODEX_RL_STATUS_COOLDOWN:-60}"
-
-RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
 
 say_noop() { printf '%s\n' "$*" >&2; }
 
@@ -79,10 +114,6 @@ is_codex_pane() {
     esac
   fi
   return 1
-}
-
-has_rate_limit_text() {
-  printf '%s\n%s' "$1" "$2" | grep -qiE "$RATE_LIMIT_RE"
 }
 
 payload="$(cat 2>/dev/null || true)"

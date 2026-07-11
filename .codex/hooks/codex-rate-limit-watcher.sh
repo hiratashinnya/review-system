@@ -38,7 +38,24 @@ PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^codex$}"
 NODE_WRAPPER_RE="${CODEX_RL_NODE_WRAPPER_RE:-^node$}"
 STARTUP_WAIT="${CODEX_RL_STARTUP_WAIT:-30}"
 
-RATE_LIMIT_RE='rate[ -]?limit|usage limit|session limit|request limit|too many requests|hit your .*limit|429.*(rate|limit|too many)|resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)'
+# --- Rate-limit banner detection (Issue #182) -----------------------------
+# Detection requires BOTH a limit-hit phrase AND a reset/retry cue to be
+# present (AND, not one broad OR) so that ordinary pane text merely
+# mentioning "rate limit" / "usage limit" / "too many requests" does not
+# false-fire the recovery flow (which ends in an unattended `continue`
+# injection). Kept identical to codex-rate-limit-stop-hook.sh's regex so the
+# Stop hook's initial gate and this watcher's own pane scanning agree on what
+# counts as a real banner. Both halves are overridable via env.
+# NOTE: the `{n,m}` interval quantifiers below must NOT be written directly
+# inside a `${VAR:-default}` expansion — bash's word-scanner for `${...}`
+# treats the default text's *first* unescaped `}` as the end of the whole
+# expansion (verified: `${FOO:-a{0,20}b}` evaluates to `a{0,20b}`, silently
+# truncating and corrupting the regex). Define the literal default first,
+# then apply the env override against that plain variable.
+_RATE_LIMIT_PHRASE_RE_DEFAULT='(hit|reached|exceeded)[[:space:]]+(your|the)[[:space:]]+[a-z0-9 -]*(rate|usage|session|request|5-hour|weekly|daily|account)[a-z0-9 -]*limit|(rate|usage|session|request)[ -]?limit[[:space:]]+(reached|exceeded)|429[^0-9]{0,20}too many requests'
+_RATE_LIMIT_RESET_RE_DEFAULT='resets?[[:space:]]+([0-9]{1,2}(:[0-9]{2})?[[:space:]]*(am|pm)|mon|tue|wed|thu|fri|sat|sun)|try again[^0-9]{0,20}[0-9]|retry[[:space:]]+(in|after)[^0-9]{0,10}[0-9]'
+RATE_LIMIT_PHRASE_RE="${CODEX_RL_RATE_LIMIT_PHRASE_RE:-$_RATE_LIMIT_PHRASE_RE_DEFAULT}"
+RATE_LIMIT_RESET_RE="${CODEX_RL_RATE_LIMIT_RESET_RE:-$_RATE_LIMIT_RESET_RE_DEFAULT}"
 WEEKLY_RE='resets?[[:space:]]+(mon|tue|wed|thu|fri|sat|sun)|weekly limit'
 WORKING_RE='to interrupt|interrupt\)|interrupt to|ctrl\+c to (stop|interrupt)|press esc to interrupt|esc to interrupt'
 
@@ -84,11 +101,14 @@ is_working() {
 }
 
 has_rate_limit_banner() {
-  pane_tail 50 | grep -qiE "$RATE_LIMIT_RE"
+  local text
+  text="$(pane_tail 50)"
+  text_has_rate_limit_banner "$text"
 }
 
 text_has_rate_limit_banner() {
-  printf '%s' "$1" | grep -qiE "$RATE_LIMIT_RE"
+  printf '%s' "$1" | grep -qiE "$RATE_LIMIT_PHRASE_RE" \
+    && printf '%s' "$1" | grep -qiE "$RATE_LIMIT_RESET_RE"
 }
 
 parse_reset_from_text() {
@@ -175,10 +195,19 @@ if future:
 }
 
 wait_for_reset_and_recover() {
-  local initial_text="${1:-}" reset_epoch="" saw_banner=0 text parsed i now wait_s clear_streak j
+  local initial_text="${1:-}" reset_epoch="" saw_banner=0 banner_streak=0 text parsed i now wait_s clear_streak j
 
-  if [ -n "$initial_text" ]; then
-    text_has_rate_limit_banner "$initial_text" && saw_banner=1
+  # initial_text (when present) is the /status capture the Stop hook already
+  # requested specifically to confirm the pane-tail candidate that made it
+  # send /status in the first place — i.e. it is itself a second, independent
+  # confirmation (different command, different snapshot), not a single guess.
+  # Only trust it, and only try to parse a reset time out of it, if it
+  # independently re-matches the AND banner regex on this same snapshot
+  # (Issue #182: previously parse_reset_from_text ran unconditionally here,
+  # so a stray HH:MMam/pm-shaped substring anywhere in the Stop payload could
+  # set reset_epoch without any limit-banner confirmation at all).
+  if [ -n "$initial_text" ] && text_has_rate_limit_banner "$initial_text"; then
+    saw_banner=1
     parsed="$(parse_reset_from_text "$initial_text")"
     if [ "$parsed" = "WEEKLY" ]; then
       log "weekly limit detected from status text; automatic recovery is not attempted"
@@ -190,6 +219,8 @@ wait_for_reset_and_recover() {
     else
       log "acquire: reset time not found in status text; falling back to pane polling"
     fi
+  elif [ -n "$initial_text" ]; then
+    log "acquire: status text does not confirm a rate-limit banner; falling back to pane polling"
   fi
 
   i=1
@@ -204,8 +235,23 @@ wait_for_reset_and_recover() {
     fi
 
     text="$(pane_text | tail -n 80)"
-    text_has_rate_limit_banner "$text" && saw_banner=1
-    parsed="$(parse_reset_from_text "$text")"
+    # Only attempt to extract a reset time from a snapshot that itself
+    # confirms the banner (same-snapshot AND), so a later unrelated line
+    # containing a clock-like substring cannot set reset_epoch on its own.
+    # saw_banner (used by the no-reset-time fallback below) additionally
+    # requires the banner to reappear on 2 consecutive polls before it is
+    # trusted, as one more confirmation step before the riskier
+    # wait-for-banner-to-clear fallback is armed.
+    if text_has_rate_limit_banner "$text"; then
+      banner_streak=$(( banner_streak + 1 ))
+      if [ "$banner_streak" -ge 2 ]; then
+        saw_banner=1
+      fi
+      parsed="$(parse_reset_from_text "$text")"
+    else
+      banner_streak=0
+      parsed=""
+    fi
     if [ "$parsed" = "WEEKLY" ]; then
       log "weekly limit detected; automatic recovery is not attempted"
       return 0
@@ -216,7 +262,7 @@ wait_for_reset_and_recover() {
       break
     fi
 
-    log "acquire: reset time not found (attempt ${i}/${RESET_POLL_MAX}; banner_seen=${saw_banner})"
+    log "acquire: reset time not found (attempt ${i}/${RESET_POLL_MAX}; banner_seen=${saw_banner}; banner_streak=${banner_streak})"
     sleep "$RESET_POLL_INTERVAL"
     i=$(( i + 1 ))
   done
@@ -292,6 +338,14 @@ inject_continue() {
   done
 }
 
+# Allow this file to be `source`d (with CODEX_RL_SOURCE_FOR_TEST=1) so a unit
+# test can call the pure text-matching functions above (text_has_rate_limit_
+# banner, parse_reset_from_text, ...) directly against sample text, without
+# running the tmux/lock-dependent watcher body below.
+if [ "${CODEX_RL_SOURCE_FOR_TEST:-0}" = "1" ]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 exec 9>"$LOCK" 2>/dev/null || true
 if command -v flock >/dev/null 2>&1; then
   if ! flock -n 9; then
@@ -316,15 +370,27 @@ if [ "$MODE" = "once" ]; then
   exit 0
 fi
 
+continuous_banner_streak=0
 while true; do
   if ! is_codex_pane; then
     log "target pane is gone or foreground is not codex; exit"
     exit 0
   fi
 
+  # Extra confirmation step before arming recovery at all (Issue #182):
+  # require the (already AND-gated) banner regex to match on 2 consecutive
+  # scans, SCAN_INTERVAL seconds apart, rather than acting on a single
+  # snapshot. This is on top of, not instead of, the AND phrase+reset regex.
   if ! is_working && has_rate_limit_banner; then
-    log "rate-limit banner detected"
-    wait_for_reset_and_recover
+    continuous_banner_streak=$(( continuous_banner_streak + 1 ))
+    log "rate-limit banner candidate (streak=${continuous_banner_streak}/2)"
+    if [ "$continuous_banner_streak" -ge 2 ]; then
+      log "rate-limit banner confirmed on 2 consecutive scans"
+      wait_for_reset_and_recover
+      continuous_banner_streak=0
+    fi
+  else
+    continuous_banner_streak=0
   fi
 
   sleep "$SCAN_INTERVAL"

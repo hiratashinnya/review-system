@@ -230,6 +230,63 @@ without hooks:
 - Weekly limits are detected and skipped.
 - Uses a per-pane lock so only one watcher controls a pane.
 
+### Rate-limit banner detection (Issue #182)
+
+The regex previously used to decide "does this pane look rate-limited"
+(`RATE_LIMIT_RE`) was a single broad `OR` of loose terms (bare `rate limit`,
+`usage limit`, `too many requests`, ...). Those words are common in ordinary
+coding conversation (e.g. implementing a rate limiter, or pasting an
+unrelated HTTP 429 log), so the gate could false-fire and, in the worst case,
+end with an **unattended `continue` being injected into the pane** — see
+Issue #182 for the audit finding.
+
+Both `codex-rate-limit-stop-hook.sh` and `codex-rate-limit-watcher.sh` now
+require **two independent regexes to both match** before treating pane/status
+text as a real rate-limit banner:
+
+- `RATE_LIMIT_PHRASE_RE` — a limit-hit phrase (`hit`/`reached`/`exceeded`
+  `your`/`the` `<rate|usage|session|request|5-hour|weekly|daily|account>`
+  `limit`, or `<...> limit reached/exceeded`, or `429` + `too many requests`).
+- `RATE_LIMIT_RESET_RE` — a reset/retry cue (`resets HH:MMam/pm`, `resets
+  <weekday>`, `try again in <N>`, `retry in/after <N>`).
+
+A real captured banner always pairs the two, e.g. `You've hit your session
+limit · resets 10:50pm (Asia/Tokyo)` (real Stop payload captured in PR #66).
+Neither alone is sufficient. Both halves are overridable via
+`CODEX_RL_RATE_LIMIT_PHRASE_RE` / `CODEX_RL_RATE_LIMIT_RESET_RE` (see table
+below) for local tuning without editing the scripts.
+
+As one more confirmation step before the riskier "no parseable reset time"
+fallback (waiting for the banner to clear and then injecting blind) is armed,
+the watcher now also requires the AND-matched banner to reappear on **2
+consecutive polls** (`wait_for_reset_and_recover`'s acquire loop, and the
+legacy continuous watch loop) before trusting it, instead of acting on a
+single snapshot. This does not apply to the reset-time-known fast path (the
+sleep-until-`resets_at`-then-inject flow already documented above): requiring
+banner presence again right before injection would reintroduce the "banner
+already cleared after reset = looks like it never happened" regression fixed
+in PR #66, so injection there stays gated on `is_working` only, as before.
+
+Both scripts can be `source`d with `CODEX_RL_SOURCE_FOR_TEST=1` to unit-test
+the text-matching functions (`has_rate_limit_text`, `text_has_rate_limit_
+banner`, `parse_reset_from_text`, ...) directly against sample text without
+running the tmux-dependent hook/watcher body — see
+`tests/unit/test_codex_rate_limit_banner_regex.py`.
+
+**Known residual trade-off**: the AND requirement trades recall for
+precision. A genuine rate-limit banner that never shows any reset/retry cue
+(e.g. a plan that only says "upgrade to continue" with no time information)
+will no longer arm automatic recovery — but automatic recovery could not
+usefully act on that case anyway (there is nothing to wait for), so this is
+treated as an acceptable, conservative trade-off consistent with this
+codebase's existing "never guess-fire" design (see PR #86). Conversely, a
+message that coincidentally contains both a limit-hit phrase and an unrelated
+reset-time-shaped phrase (e.g. "we hit the request limit for our internal
+rate limiter, resets at 9am") could still combine to a false positive; this
+residual risk was flagged to the repo owner in Issue #182's implementation
+report rather than resolved unilaterally, since further tightening trades
+away more recall.
+
 ## Environment variables
 
 | Variable | Default | Description |
@@ -254,6 +311,8 @@ without hooks:
 | `CODEX_RL_NODE_WRAPPER_RE` | `^node$` | Foreground command regex treated as a Codex node wrapper only when the pane path is inside this trusted repo. |
 | `CODEX_RL_STARTUP_WAIT` | `30` | Seconds the watcher waits for the wrapper to `exec codex`. |
 | `CODEX_RL_STATE_DIR` | `~/.codex/rate-limit-recovery` | Log and lock directory. |
+| `CODEX_RL_RATE_LIMIT_PHRASE_RE` | see script | Limit-hit phrase half of the AND banner regex (Issue #182). |
+| `CODEX_RL_RATE_LIMIT_RESET_RE` | see script | Reset/retry-cue half of the AND banner regex (Issue #182). |
 
 Logs are written to `~/.codex/rate-limit-recovery/launcher.log` and
 `~/.codex/rate-limit-recovery/watcher.log`. Stop hook diagnostics are written
