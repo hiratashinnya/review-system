@@ -33,6 +33,16 @@ RATE_LIMIT_ERROR_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+RATE_LIMIT_RESULT_RE = re.compile(
+    r"^\s*(?:error:\s*)?("
+    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
+    r"too many requests|"
+    r"\b429\b|"
+    r"rate_limit(?:_error)?"
+    r")",
+    re.IGNORECASE,
+)
 RESET_RE = re.compile(r"resets?\s+([^\n\r.;]+)", re.IGNORECASE)
 
 
@@ -149,6 +159,8 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
 
 
 def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
+    if data.get("source") != "claude_process_error":
+        return None
     structured_reset = data.get("reset_at")
     if isinstance(structured_reset, str):
         reset = parse_reset_hint(structured_reset)
@@ -184,7 +196,10 @@ def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | No
         fields = []
         for key in ("error", "message", "last_assistant_message", "result"):
             value = data.get(key)
-            if isinstance(value, str):
+            if key == "result" and isinstance(value, str):
+                if RATE_LIMIT_RESULT_RE.search(value):
+                    fields.append(value)
+            elif isinstance(value, str):
                 fields.append(value)
         structured = "\n".join(fields)
         if structured and RATE_LIMIT_ERROR_RE.search(structured):
@@ -206,6 +221,7 @@ def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> d
             "error": "rate_limit",
             "last_seen_at": now_tz().isoformat(),
             "reset_at": reset.isoformat() if reset else None,
+            "source": "claude_process_error",
             "raw": text[-4000:],
         },
     )

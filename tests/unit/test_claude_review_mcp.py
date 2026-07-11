@@ -88,7 +88,15 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
             state_path = state_root / "claude-review-mcp" / "rate-limit.json"
             state_path.parent.mkdir(parents=True)
-            state_path.write_text(json.dumps({"error": "rate_limit", "reset_at": reset_at}))
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "reset_at": reset_at,
+                        "source": "claude_process_error",
+                    }
+                )
+            )
             with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
                 blocked, reason = server.current_block()
         self.assertTrue(blocked)
@@ -107,6 +115,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                         "error": "rate_limit",
                         "last_seen_at": last_seen_at,
                         "reset_at": reset_at,
+                        "source": "claude_process_error",
                         "raw": "rate limit encountered",
                     }
                 )
@@ -173,10 +182,31 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertFalse(blocked)
         self.assertIn("no active", reason)
 
+    def test_rate_limit_preflight_ignores_legacy_state_without_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "reset_at": reset_at,
+                        "raw": "successful review mentioned rate_limit and 429",
+                    }
+                )
+            )
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+
+        self.assertFalse(blocked)
+        self.assertIn("no active", reason)
+
     def test_successful_review_text_mentioning_rate_limit_is_not_recorded(self):
         stdout = json.dumps(
             {
-                "result": "The code handles rate-limit state and reset parsing correctly.",
+                "result": "The code handles rate-limit state, rate_limit fields, 429 cases, and too many requests correctly.",
                 "total_cost_usd": 0.01,
             }
         )
