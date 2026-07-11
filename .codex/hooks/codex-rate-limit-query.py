@@ -139,10 +139,20 @@ def call_app_server(cmd, timeout):
         stderr=subprocess.PIPE,
         text=True,
     )
+    # stdin/stdout are typed as IO[str] | None by subprocess.Popen, but the
+    # PIPE args above guarantee they are non-None here. Assert and bind to
+    # local names so Pyright narrows the type for reportOptionalMemberAccess
+    # (narrowing from a bare `proc.stdin`/`proc.stdout` assert does not
+    # propagate into the nested `send` closure below; see PR #196's
+    # type-clean policy).
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    proc_stdin = proc.stdin
+    proc_stdout = proc.stdout
 
     def send(obj):
-        proc.stdin.write(json.dumps(obj) + "\n")
-        proc.stdin.flush()
+        proc_stdin.write(json.dumps(obj) + "\n")
+        proc_stdin.flush()
 
     try:
         send(
@@ -173,7 +183,7 @@ def call_app_server(cmd, timeout):
 
         deadline = time.time() + timeout
         while time.time() < deadline:
-            line = proc.stdout.readline()
+            line = proc_stdout.readline()
             if not line:
                 break
             line = line.strip()
