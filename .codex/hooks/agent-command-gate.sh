@@ -71,6 +71,13 @@
 #   heredoc_pipeline_has_downstream_interpreter() を追加し、マーカー行内のパイプ下流ステージに
 #   インタプリタが見つかれば reexec_bodies に含めて depth+1 で再帰走査するよう拡張した
 #   （詳細は heredoc_pipeline_has_downstream_interpreter/extract_heredocs のコメント参照）。
+#
+#   2026-07-12 追加是正その2（Issue #189・PR #212 再レビュー指摘・Claude 版と同一設計）：
+#   HEREDOC_INTERPRETER_COMMANDS に bash 組み込みの `source`/`.`（同義・カレントシェルでスクリプトを
+#   再実行するコマンド）が含まれておらず、`cat <<'EOF' | source /dev/stdin`（`. /dev/stdin` も同様）
+#   でヒアドキュメント本文が再実行されるにもかかわらず allow されていた（PR #212 の base=main では
+#   偶然 deny されていた挙動が本PRの変更で allow に変わる回帰だった）。source/. を
+#   HEREDOC_INTERPRETER_COMMANDS に追加して是正。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -343,7 +350,11 @@ HEREDOC_RE = re.compile(
 # quoted_subcommands() が "-c" 経由の再実行として扱っているコマンド集合と揃える
 # （bash/sh/zsh/dash と python3?/perl/ruby/node）。ヒアドキュメントを直接標準入力として
 # 食わせるコマンド（`bash <<EOF` 等）も同じ意味で「本文が実行される」ため同じ集合を使う。
-HEREDOC_INTERPRETER_COMMANDS = {"bash", "sh", "zsh", "dash", "python", "python3", "perl", "ruby", "node"}
+# `source`/`.`（bash 組み込みの同義コマンド。カレントシェルでスクリプトを読み込み実行する）も
+# 同様に本文が実行されるため含める（2026-07-12 追加是正・Issue #189・PR #212 再レビュー指摘）。
+HEREDOC_INTERPRETER_COMMANDS = {
+    "bash", "sh", "zsh", "dash", "python", "python3", "perl", "ruby", "node", "source", ".",
+}
 
 
 def heredoc_command_word(command_text, marker_start):

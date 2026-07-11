@@ -162,6 +162,28 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
 
+    def test_heredoc_piped_to_source_is_still_denied(self):
+        # Issue #189 追加是正その2（PR #212 再レビュー指摘）: HEREDOC_INTERPRETER_COMMANDS に
+        # bash 組み込みの `source`/`.`（同義・カレントシェルでスクリプトを読み込み実行する）が
+        # 含まれておらず、`cat <<'EOF' | source /dev/stdin`（`. /dev/stdin` も同様）でヒアドキュメント
+        # 本文が再実行されるにもかかわらず allow されていた（PR #212 の base=main では偶然 deny
+        # されていた挙動が本PRの変更で allow に変わる回帰だった）。source/. を追加したため、
+        # 引き続き検知されなければならない。
+        issue_implementer_commands = [
+            "cat <<'EOF' | source /dev/stdin\ngit merge evil\nEOF",
+            "cat <<'EOF' | . /dev/stdin\ngit merge evil\nEOF",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        pr_reviewer_commands = [
+            "cat <<'EOF' | source /dev/stdin\ngit push origin HEAD\nEOF",
+            "cat <<'EOF' | . /dev/stdin\ngit push origin HEAD\nEOF",
+        ]
+        for command in pr_reviewer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
     def test_missing_or_unrecognized_agent_is_out_of_scope(self):
         # 2026-07-11 オーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでもない
         # 場合（欠如を含む・main context 自身がこれに該当）は、このゲートの対象外として常に許可する。
