@@ -306,6 +306,32 @@ def validate_body_policy(yaml: Path, root: Path, typ: str, data: dict) -> list[s
     return errs
 
 
+def find_orphan_mds(root: Path) -> list[str]:
+    """nodes/ 配下の .md のうち、どの .yaml サイドカーからも参照されない孤立本文を検出する。
+
+    走査基点が `.yaml`（rglob("*.yaml")）に変わった際（PR #145・body_policy 導入）、
+    YAML サイドカーを持たない `.md` を検出する経路が失われていた（issue #183）。
+    ここでは `.yaml` 起点の走査に加えて `.md` 側から集合差分を取り、どの yaml からも
+    「同名 .md」または「body_ref.file」として参照されない `.md` を ERROR として報告する。
+    """
+    yamls = sorted((root / "nodes").rglob("*.yaml"))
+    accounted: set[Path] = set()
+    for yaml in yamls:
+        accounted.add(yaml.with_suffix(".md").resolve())
+        try:
+            data = nodeyaml.parse(yaml.read_text("utf-8"))
+        except Exception:  # noqa: BLE001  # パース失敗は validate_node 側で別途報告する
+            continue
+        ref = _body_ref_path(yaml, root, data)
+        if ref is not None:
+            accounted.add(ref.resolve())
+    errs: list[str] = []
+    for md in sorted((root / "nodes").rglob("*.md")):
+        if md.resolve() not in accounted:
+            errs.append(f"ERROR: サイドカー欠落: {md.relative_to(root)}")
+    return errs
+
+
 def validate_path(yaml: Path, root: Path) -> tuple[list[str], list[str], str]:
     """(errors, warnings, type)。yaml は nodes/<stage>/<type>/[<status>/]{slug}.yaml。"""
     errs: list[str] = []
@@ -377,6 +403,12 @@ def main(argv: list[str]) -> int:
         status = "OK" if not cross_errs else "NG"
         print(f"[{status}] exact_link_counts")
         for m in cross_msgs:
+            print(f"    {m}")
+    orphan_msgs = find_orphan_mds(root)
+    if orphan_msgs:
+        total_err += len(orphan_msgs)
+        print("[NG] orphan .md（yaml サイドカー欠落）")
+        for m in orphan_msgs:
             print(f"    {m}")
     print(f"\n{len(yamls)} ノード / エラー {total_err} 件")
     return 1 if total_err else 0

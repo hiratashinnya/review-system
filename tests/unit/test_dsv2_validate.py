@@ -149,5 +149,78 @@ class TestValidateExactLinkCounts(unittest.TestCase):
         self.assertNotIn("exact_link_counts", stdout)
 
 
+class TestFindOrphanMds(unittest.TestCase):
+    """issue #183: .yaml 起点の走査（main）で不可視になっていた孤立 .md の検出。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "doc-system-v2"
+        self.root.mkdir()
+
+    def _write(self, rel: str, text: str) -> Path:
+        p = self.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, "utf-8")
+        return p
+
+    def _run_validate(self) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = validate.main(["validate.py", str(self.root)])
+        return code, out.getvalue()
+
+    def test_orphan_md_without_yaml_is_detected(self):
+        self._write(
+            "nodes/02-what/spec/x.yaml",
+            'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
+        )
+        self._write("nodes/02-what/spec/x.md", "body\n")
+        orphan = self._write("nodes/02-what/spec/stray.md", "誰にも参照されない本文\n")
+
+        errs = validate.find_orphan_mds(self.root)
+
+        self.assertEqual(errs, [f"ERROR: サイドカー欠落: {orphan.relative_to(self.root)}"])
+
+    def test_body_ref_referenced_md_is_not_orphan(self):
+        self._write("nodes/04-verification/td/shared.md", "# shared\n")
+        self._write(
+            "nodes/04-verification/td/x.yaml",
+            'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
+            'body_ref.file: "nodes/04-verification/td/shared.md"\n'
+            "edges: []\n",
+        )
+
+        errs = validate.find_orphan_mds(self.root)
+
+        self.assertEqual(errs, [])
+
+    def test_main_reports_orphan_md_and_nonzero_exit(self):
+        self._write(
+            "nodes/02-what/spec/x.yaml",
+            'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
+        )
+        self._write("nodes/02-what/spec/x.md", "body\n")
+        self._write("nodes/02-what/spec/stray.md", "誰にも参照されない本文\n")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 1, stdout)
+        self.assertIn("orphan .md（yaml サイドカー欠落）", stdout)
+        self.assertIn("stray.md", stdout)
+
+    def test_main_no_orphan_when_corpus_clean(self):
+        self._write(
+            "nodes/02-what/spec/x.yaml",
+            'title: "x"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n',
+        )
+        self._write("nodes/02-what/spec/x.md", "body\n")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("orphan .md", stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
