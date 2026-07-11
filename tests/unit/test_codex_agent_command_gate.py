@@ -97,6 +97,105 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))
         self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 123")))
 
+    def test_heredoc_prose_quoting_is_not_over_denied(self):
+        # Issue #189: quoted_subcommands/quoted_literals の副作用で、`gh pr create`/`git commit` を
+        # 本リポジトリの規約どおりヒアドキュメント（<<'EOF' ... EOF）で渡すと、本文中の説明的な
+        # 引用テキスト（Markdown インラインコード等）に「git merge」「gh pr merge」が含まれるだけで
+        # over-deny されていた（実地に PR #191 の作業中で複数回再現。Claude 版と同一設計）。
+        # ヒアドキュメント本文はシェル上「直前コマンドへの入力データ」であってトップレベルの
+        # コマンド列ではないため、これらは許可されるべき（false positive の解消）。
+        commands = [
+            "gh pr create --title \"t\" --body \"$(cat <<'EOF'\n"
+            "See `git merge` example in docs.\n"
+            "EOF\n"
+            ")\"",
+            "git commit -m \"$(cat <<'EOF'\n"
+            "fix: note that `gh pr merge` is reviewer-only\n"
+            "EOF\n"
+            ")\"",
+            "gh pr comment 123 --body \"$(cat <<'EOF'\n"
+            "Please do not run `git merge` manually; only pr-reviewer may `gh pr merge`.\n"
+            "EOF\n"
+            ")\"",
+            "git commit -m \"$(cat <<\"EOF\"\n"
+            "note about git merge in prose\n"
+            "EOF\n"
+            ")\"",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("issue-implementer", command)))
+
+    def test_heredoc_smuggled_reexecution_is_still_denied(self):
+        # Issue #189 是正の trade-off 確認: ヒアドキュメント本文を「常にデータ扱い」で無条件に
+        # スキップすると、`bash -c "$(cat <<'EOF' ... EOF)"` や `bash <<'EOF' ... EOF` のように
+        # ヒアドキュメント経由で実際にコマンド文字列が再実行される難読化を見逃してしまう。
+        # インタプリタ（bash/sh/python 等）へ直接・間接に渡る本文は、除去した上で別途生テキストとして
+        # 再帰走査するため、これらは引き続き検知されなければならない（Claude 版と同一設計）。
+        commands = [
+            "bash -c \"$(cat <<'EOF'\n"
+            "git merge evil\n"
+            "EOF\n"
+            ")\"",
+            "bash <<'EOF'\ngit merge evil\nEOF",
+            "sh <<'EOF'\ngh pr merge 123\nEOF",
+            "eval \"$(cat <<'EOF'\n"
+            "git merge evil\n"
+            "EOF\n"
+            ")\"",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+
+    def test_heredoc_piped_to_interpreter_is_still_denied(self):
+        # Issue #189 追加是正（PR #212 レビュー指摘・Claude 版と同一設計）: heredoc_command_word()
+        # は `<<` の直前・同一行のコマンド語（例: `cat`）しか見ておらず、その stdout が下流パイプで
+        # インタプリタに渡る経路（`cat <<'EOF' | bash` 等）を捕捉できていなかったため、以下がすべて
+        # 本来 deny すべきなのに allow されてしまう重大バイパスがあった。パイプ下流にインタプリタが
+        # あれば本文を再帰走査するよう是正したため、引き続き検知されなければならない。
+        issue_implementer_commands = [
+            "cat <<'EOF' | bash\ngit merge evil\nEOF",
+            "cat <<EOF | bash\ngit merge evil\nEOF",  # 非引用デリミタ
+            "cat <<EOF | sh\ngh pr merge 123\nEOF",
+            "cat <<-'EOF' | bash\ngit merge evil\nEOF",  # `<<-` ダッシュ版
+            "cat <<'EOF' | tee /tmp/x | bash\ngit merge evil\nEOF",  # 多段パイプ
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        # git push は pr-reviewer 側の禁止事項（issue-implementer には push は許可されている）ため、
+        # 同じパイプ経由バイパスを pr-reviewer ロールで確認する。
+        pr_reviewer_commands = [
+            "cat <<'EOF' | bash\ngit push origin HEAD\nEOF",
+            "cat <<'EOF' | tee /tmp/x | bash\ngit push origin HEAD\nEOF",
+        ]
+        for command in pr_reviewer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
+    def test_heredoc_piped_to_source_is_still_denied(self):
+        # Issue #189 追加是正その2（PR #212 再レビュー指摘・Claude 版と同一設計）:
+        # HEREDOC_INTERPRETER_COMMANDS に bash 組み込みの `source`/`.`（同義・カレントシェルで
+        # スクリプトを読み込み実行する）が含まれておらず、`cat <<'EOF' | source /dev/stdin`
+        # （`. /dev/stdin` も同様）でヒアドキュメント本文が再実行されるにもかかわらず allow されて
+        # いた（PR #212 の base=main では偶然 deny されていた挙動が本PRの変更で allow に変わる
+        # 回帰だった）。source/. を追加したため、引き続き検知されなければならない。
+        issue_implementer_commands = [
+            "cat <<'EOF' | source /dev/stdin\ngit merge evil\nEOF",
+            "cat <<'EOF' | . /dev/stdin\ngit merge evil\nEOF",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        pr_reviewer_commands = [
+            "cat <<'EOF' | source /dev/stdin\ngit push origin HEAD\nEOF",
+            "cat <<'EOF' | . /dev/stdin\ngit push origin HEAD\nEOF",
+        ]
+        for command in pr_reviewer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
     def test_missing_or_unrecognized_agent_is_out_of_scope(self):
         # Claude 版と同じオーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでも
         # ない場合（欠如を含む・main context 自身がこれに該当）は対象外＝常に許可。

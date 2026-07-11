@@ -49,6 +49,35 @@
 # トレース（Issue #192・常時有効）: 呼ばれるたびに時刻・agent_type・tool_name・判定(allow/deny)のみを
 #   既定で ~/.codex/agent-command-gate-trace.log に1行追記する（command 本文・生 payload は含まない）。
 #   パスは AGENT_COMMAND_GATE_TRACE_LOG で上書き、空文字で無効化できる。詳細は README.md 参照。
+#
+#   2026-07-11 是正の経緯（Issue #189）：quoted_subcommands/quoted_literals による難読化対策の
+#   副作用で、`gh pr create --body "$(cat <<'EOF' ... EOF)"` のようにヒアドキュメントで PR 本文・
+#   コミットメッセージを渡す（本フック自身の運用規約が推奨する書き方）際、本文中の散文的な引用
+#   （例: Markdown インラインコード `git merge`）を独立したトップレベルコマンドと誤認して
+#   over-deny していた。ヒアドキュメント本文はシェル上「直前コマンドへの入力データ」であって
+#   コマンド列ではないため、direct_violation の素朴な走査対象から除外し、実際にインタプリタへの
+#   入力として再実行される場合（`bash <<'EOF' ... EOF` 等）だけ本文を素のテキストとして再帰走査する
+#   よう是正した（詳細は find_violation/extract_heredocs のコメント参照。Claude 版と同一設計）。
+#   既存の eval/bash -c/python -c 経由の難読化検知（quoted_subcommands）は無変更。
+#
+#   2026-07-12 追加是正（Issue #189・pr-reviewer レビュー指摘・PR #212・Claude 版と同一設計）：
+#   上記の是正が heredoc_command_word() で「`<<` の直前・同一行のコマンド語」しか見ておらず、その
+#   stdout が下流パイプでインタプリタに渡る経路（`cat <<'EOF' | bash` / `cat <<EOF | bash`
+#   （非引用デリミタ）/ `cat <<-'EOF' | bash`（`<<-` ダッシュ版）/
+#   `cat <<'EOF' | tee /tmp/x | bash`（多段パイプ）等）を捕捉できておらず、本来 deny すべきものが
+#   軒並み allow される重大バイパスがあった。「本文を除外する前に、そのヒアドキュメントが最終的に
+#   インタプリタへ渡る経路（直接 `bash <<EOF` でも、パイプ経由でも）が無いことを確認できた場合のみ
+#   除外する」という、より保守的な（除外条件を厳しくする）方向で
+#   heredoc_pipeline_has_downstream_interpreter() を追加し、マーカー行内のパイプ下流ステージに
+#   インタプリタが見つかれば reexec_bodies に含めて depth+1 で再帰走査するよう拡張した
+#   （詳細は heredoc_pipeline_has_downstream_interpreter/extract_heredocs のコメント参照）。
+#
+#   2026-07-12 追加是正その2（Issue #189・PR #212 再レビュー指摘・Claude 版と同一設計）：
+#   HEREDOC_INTERPRETER_COMMANDS に bash 組み込みの `source`/`.`（同義・カレントシェルでスクリプトを
+#   再実行するコマンド）が含まれておらず、`cat <<'EOF' | source /dev/stdin`（`. /dev/stdin` も同様）
+#   でヒアドキュメント本文が再実行されるにもかかわらず allow されていた（PR #212 の base=main では
+#   偶然 deny されていた挙動が本PRの変更で allow に変わる回帰だった）。source/. を
+#   HEREDOC_INTERPRETER_COMMANDS に追加して是正。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -301,11 +330,121 @@ def quoted_literals(command_text):
         yield match.group(2)
 
 
+# ヒアドキュメント対応（Issue #189・Claude 版 .claude/hooks/agent-command-gate.sh と同一設計）:
+# ヒアドキュメント本文（<<WORD / <<'WORD' / <<"WORD" ... WORD）はシェル上「直前のコマンドへの
+# 入力データ」であり、トップレベルのコマンド列ではない。しかし SEGMENT_SPLIT_RE ベースの素朴な
+# 分割は改行・丸括弧・バッククォートを無条件にコマンド境界とみなすため、ヒアドキュメント経由で
+# 渡す PR 本文・コミットメッセージの散文（Markdown のインラインコード `git merge` 等）を独立した
+# トップレベルコマンドと誤認し、over-deny していた（Issue #189 で実地に複数回誤検知された）。
+# 対策: ヒアドキュメント本文を direct_violation のトップレベル走査から除外する。ただし
+# `bash <<'EOF' ... EOF` のように本文が実際にインタプリタへのスクリプト入力として再実行される
+# 場合は、除外した上で別途 depth+1 として本文の素のテキストを再帰走査し、既存の false negative
+# 対策と同じ安全側バイアスを維持する。
+# 適用は depth==0（エージェントが実際に発行したコマンド全体）のみに限定する。depth>0
+# （quoted_subcommands が eval/bash -c/python -c の引数として抽出した文字列）は、その時点で
+# 既に「再実行される」と判定済みのテキストなので、ヒアドキュメント除去はせず素の最大感度スキャンを
+# 維持する（`bash -c "$(cat <<'EOF'\ngit merge evil\nEOF\n)"` のような二重の難読化を見逃さないため）。
+HEREDOC_RE = re.compile(
+    r"<<-?[ \t]*(?:'([A-Za-z_][A-Za-z0-9_]*)'|\"([A-Za-z_][A-Za-z0-9_]*)\"|([A-Za-z_][A-Za-z0-9_]*))"
+)
+# quoted_subcommands() が "-c" 経由の再実行として扱っているコマンド集合と揃える
+# （bash/sh/zsh/dash と python3?/perl/ruby/node）。ヒアドキュメントを直接標準入力として
+# 食わせるコマンド（`bash <<EOF` 等）も同じ意味で「本文が実行される」ため同じ集合を使う。
+# `source`/`.`（bash 組み込みの同義コマンド。カレントシェルでスクリプトを読み込み実行する）も
+# 同様に本文が実行されるため含める（2026-07-12 追加是正・Issue #189・PR #212 再レビュー指摘）。
+HEREDOC_INTERPRETER_COMMANDS = {
+    "bash", "sh", "zsh", "dash", "python", "python3", "perl", "ruby", "node", "source", ".",
+}
+
+
+def heredoc_command_word(command_text, marker_start):
+    """`<<` の直前（同じ行内）にあるコマンド語を返す（先頭が '-' のフラグ語はスキップする）。
+    見つからなければ空文字列を返す（= 非インタプリタ扱い・安全側でスキップのみに倒す）。"""
+    line_start = command_text.rfind("\n", 0, marker_start) + 1
+    prefix = command_text[line_start:marker_start]
+    words = prefix.split()
+    for word in reversed(words):
+        if word.startswith("-"):
+            continue
+        return os.path.basename(word.rstrip("|;&"))
+    return ""
+
+
+def heredoc_pipeline_has_downstream_interpreter(line_after_marker):
+    """ヒアドキュメントのマーカー以降・同じ行の末尾までのテキストを走査し、パイプ（`|`）で
+    区切られた下流ステージの先頭コマンドがインタプリタかどうかを判定する（Issue #189 追加是正・
+    PR #212 レビュー指摘・Claude 版と同一設計）。
+
+    是正の経緯: heredoc_command_word() は `<<` の直前・同一行のコマンド語（例: `cat`）しか
+    見ておらず、その stdout がパイプ下流のインタプリタへ渡る経路（`cat <<'EOF' | bash` /
+    `cat <<EOF | bash`（非引用デリミタ）/ `cat <<-'EOF' | bash`（`<<-` ダッシュ版）/
+    `cat <<'EOF' | tee /tmp/x | bash`（多段パイプ）等）を捕捉できておらず、本来 deny すべきものが
+    軒並み allow される重大バイパスがあった。
+    設計方針: 「本文を除外する前に、そのヒアドキュメントが最終的にインタプリタへ渡る経路
+    （直接 `bash <<EOF` でも、パイプ経由でも）が無いことを確認できた場合のみ除外する」という、
+    より保守的な（除外条件を厳しくする）方向に倒す。マーカー行内の各パイプステージについて
+    strip_leading_wrappers で env/rtk 等のラッパーとフラグ・代入を剥がした先頭コマンド語を見て、
+    どこかにインタプリタがあれば「最終的に再実行される」と判定する。"""
+    for stage in line_after_marker.split("|")[1:]:
+        tokens = strip_leading_wrappers(stage.split())
+        if not tokens:
+            continue
+        name = os.path.basename(tokens[0].rstrip("|;&"))
+        if name in HEREDOC_INTERPRETER_COMMANDS:
+            return True
+    return False
+
+
+def extract_heredocs(command_text):
+    """ヒアドキュメント本文をトップレベル走査用テキストから取り除き、
+    (取り除いた後のテキスト, インタプリタへ直接渡される本文のリスト) を返す。
+    本文は常に direct_violation の素朴な分割対象から除外する一方、本文がインタプリタコマンドへの
+    標準入力として渡される場合（`bash <<'EOF' ... EOF` の直接形、または `cat <<'EOF' | bash` の
+    ようにパイプ下流でインタプリタに渡る形のいずれか。Issue #189 追加是正）は、その本文を
+    呼び出し側（find_violation）で depth+1 として再帰走査させる。終端デリミタが見つからない
+    不正な形式のヒアドキュメントはテキストを変更せず残す（検査不能側＝安全側に倒す）。"""
+    stripped = []
+    reexec_bodies = []
+    pos = 0
+    for m in HEREDOC_RE.finditer(command_text):
+        if m.start() < pos:
+            continue  # 既に取り除いた本文の内側にある偽陽性マッチ
+        word = m.group(1) or m.group(2) or m.group(3)
+        line_end = command_text.find("\n", m.end())
+        if line_end == -1:
+            continue  # 本文を持たない（改行がない）= 不正形式、そのまま残す
+        body_start = line_end + 1
+        delim_re = re.compile(r"(?m)^[ \t]*" + re.escape(word) + r"[ \t]*$")
+        dm = delim_re.search(command_text, body_start)
+        if not dm:
+            continue  # 終端デリミタが見つからない = 不正形式、そのまま残す
+        stripped.append(command_text[pos:body_start])
+        reaches_interpreter = (
+            heredoc_command_word(command_text, m.start()) in HEREDOC_INTERPRETER_COMMANDS
+            or heredoc_pipeline_has_downstream_interpreter(command_text[m.end():line_end])
+        )
+        if reaches_interpreter:
+            reexec_bodies.append(command_text[body_start:dm.start()])
+        pos = dm.start()
+    stripped.append(command_text[pos:])
+    return "".join(stripped), reexec_bodies
+
+
 def find_violation(command_text, role, depth=0):
     if depth > 3:
         return None
-    for segment in SEGMENT_SPLIT_RE.split(command_text):
+    if depth == 0:
+        scan_text, reexec_bodies = extract_heredocs(command_text)
+    else:
+        # depth>0 は quoted_subcommands が eval/bash -c/python -c の引数として抽出した、
+        # 既に「再実行される」と判定済みのテキスト。ヒアドキュメント除去はせず素のスキャンを維持する。
+        scan_text, reexec_bodies = command_text, []
+    for segment in SEGMENT_SPLIT_RE.split(scan_text):
         violation = direct_violation(shell_words(segment), role)
+        if violation:
+            return violation
+    for body in reexec_bodies:
+        violation = find_violation(body, role, depth + 1)
         if violation:
             return violation
     for nested in quoted_subcommands(command_text):
