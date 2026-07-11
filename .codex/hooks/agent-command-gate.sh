@@ -45,7 +45,10 @@
 #   fail-closed で deny すると main context の直接 push まで塞ぐ回帰が出るため、「対象外ロールは常に許可」
 #   とする（agent_type 詐称防御は失うが、二者択一の上でのオーナー明示判断・Claude issue #129）。
 # デバッグ: AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log を設定すると、受信 payload の redacted JSON と
-#   判定を追記する。機微値はキー名ベースで伏せる。
+#   判定を追記する（オプトイン・機微値はキー名ベースで伏せる）。
+# トレース（Issue #192・常時有効）: 呼ばれるたびに時刻・agent_type・tool_name・判定(allow/deny)のみを
+#   既定で ~/.codex/agent-command-gate-trace.log に1行追記する（command 本文・生 payload は含まない）。
+#   パスは AGENT_COMMAND_GATE_TRACE_LOG で上書き、空文字で無効化できる。詳細は README.md 参照。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -62,6 +65,7 @@ import os
 import re
 import shlex
 import sys
+from datetime import datetime, timezone
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 SEGMENT_SPLIT_RE = re.compile(r"&&|\|\||[;|\n()]|\$\(|`")
@@ -113,11 +117,46 @@ def debug_payload(payload, decision, reason):
         pass
 
 
+# 常時有効の最小トレース（Issue #192）：AGENT_COMMAND_GATE_DEBUG_PAYLOAD（オプトイン・フルペイロード・
+# デフォルト無効）とは別に、"フックが実際に呼ばれたか" だけを常時1行追記で残す。command 本文や生 payload
+# は含めない（機微情報を持たない設計）。既定パスは AGENT_COMMAND_GATE_TRACE_LOG で上書きでき、空文字を
+# 設定すると無効化できる（テストや no-op 運用向け）。既定でオンにしたのは、オプトイン方式だと
+# "trust 付与後に本当に発火したか" を確認したいまさにその時に、事前に環境変数を仕込み忘れて再現できない
+# という Issue #192 の根本課題を再発させるため（1行判断根拠）。
+TRACE_DEFAULT_PATH = os.path.expanduser("~/.codex/agent-command-gate-trace.log")
+TRACE_MAX_BYTES = 1_000_000  # 超過したら1世代だけ .1 にローテートする（際限ない肥大化を防ぐ）。
+
+
+def trace_event(agent_type, tool_name, decision):
+    path = os.environ.get("AGENT_COMMAND_GATE_TRACE_LOG", TRACE_DEFAULT_PATH)
+    if not path:
+        return
+    try:
+        directory = os.path.dirname(path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        try:
+            if os.path.getsize(path) > TRACE_MAX_BYTES:
+                os.replace(path, path + ".1")
+        except OSError:
+            pass
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "agent_type": agent_type or None,
+                "tool_name": tool_name or None,
+                "decision": decision,
+            }, ensure_ascii=False, sort_keys=True) + "\n")
+    except Exception:
+        pass
+
+
 try:
     with open(sys.argv[1]) as f:
         payload = json.load(f)
 except Exception:
     deny("agent-command-gate: PreToolUse payload is not valid JSON; refusing because the Bash command cannot be inspected.")
+    trace_event(None, None, "deny")
     sys.exit(0)
 
 def first_string(*values):
@@ -298,8 +337,10 @@ else:
 
 if reason:
     debug_payload(payload, "deny", reason)
+    trace_event(agent_type, tool_name, "deny")
     deny(reason)
 else:
     debug_payload(payload, "allow", "")
+    trace_event(agent_type, tool_name, "allow")
 PYEOF
 exit 0
