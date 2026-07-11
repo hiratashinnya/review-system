@@ -148,6 +148,32 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
+    def test_heredoc_piped_to_interpreter_is_still_denied(self):
+        # Issue #189 追加是正（PR #212 レビュー指摘・Claude 版と同一設計）: heredoc_command_word()
+        # は `<<` の直前・同一行のコマンド語（例: `cat`）しか見ておらず、その stdout が下流パイプで
+        # インタプリタに渡る経路（`cat <<'EOF' | bash` 等）を捕捉できていなかったため、以下がすべて
+        # 本来 deny すべきなのに allow されてしまう重大バイパスがあった。パイプ下流にインタプリタが
+        # あれば本文を再帰走査するよう是正したため、引き続き検知されなければならない。
+        issue_implementer_commands = [
+            "cat <<'EOF' | bash\ngit merge evil\nEOF",
+            "cat <<EOF | bash\ngit merge evil\nEOF",  # 非引用デリミタ
+            "cat <<EOF | sh\ngh pr merge 123\nEOF",
+            "cat <<-'EOF' | bash\ngit merge evil\nEOF",  # `<<-` ダッシュ版
+            "cat <<'EOF' | tee /tmp/x | bash\ngit merge evil\nEOF",  # 多段パイプ
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        # git push は pr-reviewer 側の禁止事項（issue-implementer には push は許可されている）ため、
+        # 同じパイプ経由バイパスを pr-reviewer ロールで確認する。
+        pr_reviewer_commands = [
+            "cat <<'EOF' | bash\ngit push origin HEAD\nEOF",
+            "cat <<'EOF' | tee /tmp/x | bash\ngit push origin HEAD\nEOF",
+        ]
+        for command in pr_reviewer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
     def test_missing_or_unrecognized_agent_is_out_of_scope(self):
         # Claude 版と同じオーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでも
         # ない場合（欠如を含む・main context 自身がこれに該当）は対象外＝常に許可。

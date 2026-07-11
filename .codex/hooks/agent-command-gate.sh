@@ -59,6 +59,18 @@
 #   入力として再実行される場合（`bash <<'EOF' ... EOF` 等）だけ本文を素のテキストとして再帰走査する
 #   よう是正した（詳細は find_violation/extract_heredocs のコメント参照。Claude 版と同一設計）。
 #   既存の eval/bash -c/python -c 経由の難読化検知（quoted_subcommands）は無変更。
+#
+#   2026-07-12 追加是正（Issue #189・pr-reviewer レビュー指摘・PR #212・Claude 版と同一設計）：
+#   上記の是正が heredoc_command_word() で「`<<` の直前・同一行のコマンド語」しか見ておらず、その
+#   stdout が下流パイプでインタプリタに渡る経路（`cat <<'EOF' | bash` / `cat <<EOF | bash`
+#   （非引用デリミタ）/ `cat <<-'EOF' | bash`（`<<-` ダッシュ版）/
+#   `cat <<'EOF' | tee /tmp/x | bash`（多段パイプ）等）を捕捉できておらず、本来 deny すべきものが
+#   軒並み allow される重大バイパスがあった。「本文を除外する前に、そのヒアドキュメントが最終的に
+#   インタプリタへ渡る経路（直接 `bash <<EOF` でも、パイプ経由でも）が無いことを確認できた場合のみ
+#   除外する」という、より保守的な（除外条件を厳しくする）方向で
+#   heredoc_pipeline_has_downstream_interpreter() を追加し、マーカー行内のパイプ下流ステージに
+#   インタプリタが見つかれば reexec_bodies に含めて depth+1 で再帰走査するよう拡張した
+#   （詳細は heredoc_pipeline_has_downstream_interpreter/extract_heredocs のコメント参照）。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -347,13 +359,39 @@ def heredoc_command_word(command_text, marker_start):
     return ""
 
 
+def heredoc_pipeline_has_downstream_interpreter(line_after_marker):
+    """ヒアドキュメントのマーカー以降・同じ行の末尾までのテキストを走査し、パイプ（`|`）で
+    区切られた下流ステージの先頭コマンドがインタプリタかどうかを判定する（Issue #189 追加是正・
+    PR #212 レビュー指摘・Claude 版と同一設計）。
+
+    是正の経緯: heredoc_command_word() は `<<` の直前・同一行のコマンド語（例: `cat`）しか
+    見ておらず、その stdout がパイプ下流のインタプリタへ渡る経路（`cat <<'EOF' | bash` /
+    `cat <<EOF | bash`（非引用デリミタ）/ `cat <<-'EOF' | bash`（`<<-` ダッシュ版）/
+    `cat <<'EOF' | tee /tmp/x | bash`（多段パイプ）等）を捕捉できておらず、本来 deny すべきものが
+    軒並み allow される重大バイパスがあった。
+    設計方針: 「本文を除外する前に、そのヒアドキュメントが最終的にインタプリタへ渡る経路
+    （直接 `bash <<EOF` でも、パイプ経由でも）が無いことを確認できた場合のみ除外する」という、
+    より保守的な（除外条件を厳しくする）方向に倒す。マーカー行内の各パイプステージについて
+    strip_leading_wrappers で env/rtk 等のラッパーとフラグ・代入を剥がした先頭コマンド語を見て、
+    どこかにインタプリタがあれば「最終的に再実行される」と判定する。"""
+    for stage in line_after_marker.split("|")[1:]:
+        tokens = strip_leading_wrappers(stage.split())
+        if not tokens:
+            continue
+        name = os.path.basename(tokens[0].rstrip("|;&"))
+        if name in HEREDOC_INTERPRETER_COMMANDS:
+            return True
+    return False
+
+
 def extract_heredocs(command_text):
     """ヒアドキュメント本文をトップレベル走査用テキストから取り除き、
     (取り除いた後のテキスト, インタプリタへ直接渡される本文のリスト) を返す。
     本文は常に direct_violation の素朴な分割対象から除外する一方、本文がインタプリタコマンドへの
-    標準入力として渡される場合（`bash <<'EOF' ... EOF`）は、その本文を呼び出し側
-    （find_violation）で depth+1 として再帰走査させる。終端デリミタが見つからない不正な形式の
-    ヒアドキュメントはテキストを変更せず残す（検査不能側＝安全側に倒す）。"""
+    標準入力として渡される場合（`bash <<'EOF' ... EOF` の直接形、または `cat <<'EOF' | bash` の
+    ようにパイプ下流でインタプリタに渡る形のいずれか。Issue #189 追加是正）は、その本文を
+    呼び出し側（find_violation）で depth+1 として再帰走査させる。終端デリミタが見つからない
+    不正な形式のヒアドキュメントはテキストを変更せず残す（検査不能側＝安全側に倒す）。"""
     stripped = []
     reexec_bodies = []
     pos = 0
@@ -370,7 +408,11 @@ def extract_heredocs(command_text):
         if not dm:
             continue  # 終端デリミタが見つからない = 不正形式、そのまま残す
         stripped.append(command_text[pos:body_start])
-        if heredoc_command_word(command_text, m.start()) in HEREDOC_INTERPRETER_COMMANDS:
+        reaches_interpreter = (
+            heredoc_command_word(command_text, m.start()) in HEREDOC_INTERPRETER_COMMANDS
+            or heredoc_pipeline_has_downstream_interpreter(command_text[m.end():line_end])
+        )
+        if reaches_interpreter:
             reexec_bodies.append(command_text[body_start:dm.start()])
         pos = dm.start()
     stripped.append(command_text[pos:])
