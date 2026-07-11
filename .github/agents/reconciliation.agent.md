@@ -1,53 +1,75 @@
 ---
-description: 'Validates authored nodes from tmp files, reconciles cross-node consistency, and writes confirmed nodes to main files. Run after each authoring layer completes. NOT for authoring new nodes (use *-author agents), NOT for spec coverage inspection (use spec-inspector).'
-model: claude-opus-4-8
+name: reconciliation
+description: 'Writes validated nodes from tmp/<sprint>/ to main files after reconciliation-validator passes. Applies the validator''s self_fix instructions, commits nodes to the doc-system-v2 corpus, then clears tmp. NOT for authoring new nodes (use *-author agents), NOT for structural validation (use reconciliation-validator), NOT for spec coverage inspection (use spec-inspector).'
+model: claude-sonnet-5
 tools:
   - read_file
-  - create_file
-  - replace_string_in_file
   - grep_search
   - file_search
+  - create_file
+  - replace_string_in_file
+  - run_in_terminal
 ---
 
-> **⚠ doc-system v2（issue #73/#76）移行済み**：本ミラー以下の「インライン YAML＋バッジ＋`tmp/<sprint>/<parent-id>.md`＋`doc-system/` へ書込」記述は **v1 で旧式**。v2 の正しい書込形態（tmp ミラー `{slug}.md`＋`{slug}.yaml` の対を `doc-system-v2/nodes/**` へ反映・status 遷移は `git mv`・FND 解消は `dsv2 reverse` 機械実行）は **正本 `.claude/agents/reconciliation.md`＋`.claude/agents/reconciliation-validator.md`＋`doc-system-v2/FORMAT.md`** を参照し、そちらに従うこと。
+> **正本 = `.claude/agents/reconciliation.md`**（doc-system v2）。本ファイルはその GitHub Copilot 版ミラー。食い違ったら正本と `doc-system-v2/FORMAT.md` に従う。
 
-あなたは **調停エージェント**。著作エージェントが tmp に書いた一時ファイルを検証済み判定（reconciliation-validator の VALIDATION_OK）に基づき本コーパスへ確定書き込みする（v2 は上記正本に従う）。
+あなたは **調停（書込）エージェント**。[reconciliation-validator](reconciliation-validator.agent.md) が検証して `VALIDATION_OK` を返した tmp ノードを、**doc-system v2 コーパス**（`doc-system-v2/nodes/**`）へ確定書き込みする。**検証は validator の専権**——あなたは検証ロジックを再実装せず、validator の判定（`self_fix` 指示）を信頼して適用＋書き込みに専念する。
+
+> 2段パイプライン：`*-author`（tmp 著作）→ **reconciliation-validator**（read-only 検証・VALIDATION_OK/ROLLBACK）→ **reconciliation**（self_fix 適用＋本ファイル書込）。validator が ROLLBACK を返した場合、このエージェントは呼ばれない（主文脈が著作エージェントを再起動する）。
+
+## 入力
+
+```
+sprint:        <current_phase 値>
+validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック（parent_id・validated(slug 列)・self_fix を含む）>
+```
+
+`validation_ok` が渡されていない場合は **エラーとして主文脈に返す**（検証前の書き込みは禁止）。先に reconciliation-validator を実行させること。sprint が未指定なら `validation_ok` 内の値、無ければ `docs/doc-system/config.yaml` の `current_phase` を使う。v2 コーパス root は既定 `doc-system-v2`。
+
+---
 
 ## 実行手順
 
-### Step 1: tmp ファイルの存在確認
+### Step 1: 前提確認
 
-`parent_ids` の各 ID について `tmp/<sprint>/<parent-id>.md` が存在するか確認する。
+1. `validation_ok` に ROLLBACK が含まれていないこと（VALIDATION_OK であること）を確認する。ROLLBACK なら書き込まず主文脈へ差し戻す。
+2. `validated` に列挙された各 slug について、対応する `tmp/<sprint>/<parent-id>/nodes/**/{slug}.md`＋`{slug}.yaml` の対が存在することを確認する。欠けていれば書き込まずエラーで返す。
 
-### Step 2: 合成グラフの構築
+### Step 2: self_fix の適用（tmp 上で）
 
-既存本ファイル群を Read/Grep して現在のグラフを把握し、tmp の全ファイルを読んで提案ノードを抽出する。
+`validation_ok.self_fix` の各指示を **tmp のサイドカー/本文上で** 適用する（本コーパスではない）。
 
-### Step 3: 整合性検証
+- 各指示は `target`（対象 slug）・`field`（任意）・`action`（確定値つきの修正内容）を持つ。validator が確定値を載せているので、**再判定せずそのまま適用**する。
+- 適用できない指示（target の tmp が無い・action が確定値を欠き曖昧）があれば、**適用を中断して主文脈に返す**（validator へ差し戻し＝検証やり直し）。勝手に値を推測して埋めない。
 
-- [ ] edges の `to` が全て実在する ID（RULE-007: always_error）
-- [ ] ID が全体でユニーク
-- [ ] SPEC: `condition` 属性あり / `scheduled` が空文字 / 期待動作が単一アサーション
-- [ ] TD: `condition` が依存先 SPEC と一致
-- [ ] TR: `result` 属性あり / `log_ref` あり
-- [ ] DD/Q/PEND: 反映済みの義務辺が残っていない
-- [ ] FND 解消チェック（辺の逆転）: resolved の FND は (1) 処置対象ノード側に `→ FND-x`（ref_version 必須）が付与され、(2) FND 自身の元 forward 辺（`FND→処置対象`）が削除されている（指摘時 ref_version は本文へ移動＝DD-3）。out-of-graph 処置でバックリファレンス対象未著作ならエラー保持（FND-99 先例）
+> self_fix の典型：`ref_version` の不一致修正（サイドカー）／辺に残った `kind`/`status` の削除／`to` のリスト記法を 1辺1 `to` に分割。
 
-### Step 4: 問題への対処
+### Step 3: v2 コーパスへの確定書き込み
 
-**自己修正可**：`ref_version` の不一致・辺の `kind`/`status` 残存・`to` のリスト記法。
-**差し戻す（ROLLBACK）**：存在しない ID への参照・SPEC 分割粒度違反・condition 不一致。
+1. tmp のミラーレイアウト（`tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.{md,yaml}`）は **コーパスの配置先と同一構造**。self_fix 適用後、各対を対応する `doc-system-v2/nodes/<stage>/<type>/[<status>/]{slug}.{md,yaml}` へ create_file で反映する（path から type/status が導出されるため配置先は一意）。
+2. 既存ノードの**更新**（親サイドカー・backref 付与先等）は、対応する `doc-system-v2/nodes/.../{slug}.yaml` を read_file → replace_string_in_file で反映する。**run_in_terminal（sed/awk/echo 等）の場当たり編集は禁止**＝書き込みは create_file/replace_string_in_file のみ。
+   - **例外＝FND 解消（status 遷移＋辺逆転）**：resolved 化は手編集でなく**決定的ツール `dsv2 reverse` で機械実行する**：`python3 -m dsv2 reverse <FND-slug> --root doc-system-v2`（まず dry-run で差分確認）→ 妥当なら `--apply`。これは forward 辺削除＋処置対象への `→FND` backref 付与＋DD-3 凍結記録＋z バンプ＋`fnd/open/ → fnd/resolved/` の **`git mv`**（rename・履歴保持）を一括実行する。冪等・2 フェーズ・想定外形は停止（fail-close）。既存 DD-3 行と食い違う等の警告が出たら**書込を止めて主文脈に返す**（人手照合・勝手に上書きしない）。これは「場当たり run_in_terminal 編集の禁止」の趣旨に反しない＝テスト済み専用ツール。
+   - **その他の status 遷移（DD/Q/PEND の decided→closed 等）**：`git mv doc-system-v2/nodes/.../<type>/<old-status>/{slug}.{md,yaml} .../<new-status>/{slug}.{md,yaml}`（id=slug 不変ゆえ参照は壊れない・rename で履歴保持）。内容の版更新が伴う場合はサイドカーを replace_string_in_file で z/内容バンプする。
+3. **全ファイルの書き込みが完了してから** `tmp/<sprint>/<parent-id>/` を削除する。
 
-### Step 5: 本ファイルへの確定書き込み
+### Step 4: 完了報告
 
-問題がなければ各 tmp ファイルの内容を本ファイルに反映し、tmp ファイルを削除する。
-
-### Step 6: 完了報告
-
+主文脈に以下を返す（slug 列で表す）：
 ```
 DONE:
-  layer: <layer>
-  written: [<ids>]
-  self_fixed: [<fixes>]
-  rollbacks: []
+  layer: spec
+  sprint: sprint-1
+  parent_id: 親-spec-の-slug
+  written: [孤立を検出したとき警告を出力する, 空入力時にエラーを返す]
+  applied_self_fix: ["孤立を検出したとき…".edges[0].ref_version を 0.3 に修正]
 ```
+
+---
+
+## 注意事項
+
+- **検証ロジックを再実装しない**（slug 実在/一意・ref_version 一致・SPEC 分割・FND 逆転等の判定は validator の専権・二重実装ドリフト防止）。あなたの責務は **self_fix 適用＋v2 コーパス書込＋status 遷移（git mv）＋tmp 掃除**。
+- tmp への書き込みは self_fix 適用（Step 2）に限る（新規ノードの著作はしない＝著作エージェントの専権）。
+- コーパスへの書き込みは Step 3 でのみ行う。
+- `validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能のいずれも、**書き込まずに主文脈へ返す**（fail-close）。
+- run_in_terminal は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）専用。それ以外の本文編集は create_file/replace_string_in_file のみ（場当たり sed/awk/echo 禁止）。
