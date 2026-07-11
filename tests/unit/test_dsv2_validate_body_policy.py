@@ -9,6 +9,9 @@ from pathlib import Path
 _VALIDATE = Path(__file__).resolve().parents[2] / "doc-system-v2" / "validate.py"
 sys.path.insert(0, str(_VALIDATE.parent))
 _SPEC = importlib.util.spec_from_file_location("_dsv2_validate", _VALIDATE)
+assert _SPEC is not None and _SPEC.loader is not None, (
+    f"failed to build import spec for {_VALIDATE}"
+)
 validate = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(validate)
 

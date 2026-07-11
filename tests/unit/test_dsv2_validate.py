@@ -15,6 +15,9 @@ def _load_validate():
     path = Path(__file__).resolve().parents[2] / "doc-system-v2" / "validate.py"
     sys.path.insert(0, str(path.parent))
     spec = importlib.util.spec_from_file_location("_dsv2_validate", path)
+    assert spec is not None and spec.loader is not None, (
+        f"failed to build import spec for {path}"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

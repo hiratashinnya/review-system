@@ -43,6 +43,9 @@ def _load_query_module():
     spec = importlib.util.spec_from_file_location(
         "codex_rate_limit_query", str(QUERY_HELPER)
     )
+    assert spec is not None and spec.loader is not None, (
+        f"failed to build import spec for {QUERY_HELPER}"
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
