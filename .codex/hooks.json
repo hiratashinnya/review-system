@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/agent-command-gate.sh\"",
+            "timeout": 15,
+            "statusMessage": "Enforcing issue-implementer/pr-reviewer push/merge boundary"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
