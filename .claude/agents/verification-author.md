@@ -181,7 +181,7 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 - [ ] TR に result 属性（サイドカー）あり（RULE-020 ERROR）
 - [ ] TR に log_ref あり（PASS/FAIL 問わず・RULE-021 ERROR）
 - [ ] DD/Q/PEND の義務辺が未反映のまま放置されていない（反映済は X→DD に置換）
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185。FND/DD/Q/PEND の `scheduled`/実施スプリントは特にこの対象）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
 - [ ] **FND 解消時**: `dsv2 reverse` による解消なら処置対象ノードに `→ FND` backref が付与される（処置対象削除の場合は FND 本文に「削除済みのため付与先なし」を明記）
 - [ ] **接続規則変更を伴う DD・FND の場合**: 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧への同期が完了しているか、または同期不要と判断した根拠を本文に記録したか
