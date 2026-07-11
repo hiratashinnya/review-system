@@ -1,7 +1,5 @@
 title: "SPEC-13 の期待動作が条件節文頭のテスタブル様式に整っていない"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "q-の義務辺残存"
-    ref_version: "0.2"
+edges: []

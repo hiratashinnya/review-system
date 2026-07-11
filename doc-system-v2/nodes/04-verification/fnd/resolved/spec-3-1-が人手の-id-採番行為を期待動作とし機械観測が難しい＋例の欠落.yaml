@@ -1,7 +1,5 @@
 title: "SPEC-3-1 が人手の ID 採番行為を期待動作とし機械観測が難しい＋例の欠落"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "prefix-n-n...-形式の一意-id-採番"
-    ref_version: "0.1"
+edges: []

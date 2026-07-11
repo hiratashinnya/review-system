@@ -1,8 +1,10 @@
 title: "Q の義務辺残存"
-version: "0.2.0"
+version: "0.2.1"
 condition: failure
 labels: []
 scheduled: "sprint-1"
 edges:
   - to: "意思決定ドリフト検出"
     ref_version: "0.2"
+  - to: "spec-13-の期待動作が条件節文頭のテスタブル様式に整っていない"
+    ref_version: "0.1"
