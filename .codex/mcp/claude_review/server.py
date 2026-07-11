@@ -137,13 +137,24 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
 
 
 def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
-    reset = parse_reset_hint(json.dumps(data, ensure_ascii=False))
-    if reset:
-        return reset
+    structured_reset = data.get("reset_at")
+    if isinstance(structured_reset, str):
+        reset = parse_reset_hint(structured_reset)
+        if reset:
+            return reset
+
     error = data.get("error")
     message = data.get("last_assistant_message")
     if isinstance(error, str) and isinstance(message, str) and RATE_LIMIT_RE.search(error + "\n" + message):
         return parse_reset_hint(message)
+    raw = data.get("raw")
+    if isinstance(raw, str):
+        reset = parse_reset_hint(raw)
+        if reset:
+            return reset
+    reset = parse_reset_hint(json.dumps(data, ensure_ascii=False))
+    if reset:
+        return reset
     return None
 
 

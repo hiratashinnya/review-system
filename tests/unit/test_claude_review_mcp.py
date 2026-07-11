@@ -75,6 +75,28 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertTrue(blocked)
         self.assertIn("rate-limit block active", reason)
 
+    def test_rate_limit_preflight_prefers_structured_reset_at(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            last_seen_at = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat()
+            reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(microsecond=0).isoformat()
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "last_seen_at": last_seen_at,
+                        "reset_at": reset_at,
+                        "raw": "rate limit encountered",
+                    }
+                )
+            )
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+        self.assertTrue(blocked)
+        self.assertIn(reset_at, reason)
+
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [tool["name"] for tool in response["result"]["tools"]]
