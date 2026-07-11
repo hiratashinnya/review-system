@@ -101,6 +101,89 @@ interactive-mode test is run, and continue to rely on the prompt-level
 discipline in `issue-implementer.toml` / `pr-reviewer.toml` as the primary
 control, not this hook.
 
+### Root cause confirmed (Issue #192, 2026-07-11): untrusted, not a schema bug
+
+The owner ran `/hooks` in a real interactive Codex CLI TUI session on this repo and
+observed **`PreToolUse`: 0 hits, `Stop`: 1 hit** — direct, first-party evidence (not
+`codex exec`-mode inference) that the `agent-command-gate.sh` `PreToolUse` hook has
+never fired in normal, everyday use either, while the rate-limit `Stop` hook works.
+
+**Investigation method.** Read the actual `openai/codex` source for this installed
+version (`codex-cli` 0.142.5) via `gh api repos/openai/codex/contents/...`:
+
+- `codex-rs/config/src/hook_config.rs` (`HooksFile`, `HookEventsToml`) — confirms the
+  on-disk JSON schema this repo's `.codex/hooks.json` already uses is correct:
+  `{"hooks": {"PreToolUse": [...], "Stop": [...]}}`, with `PreToolUse`/`Stop`/etc. as
+  the literal (PascalCase) JSON keys via `#[serde(rename = "PreToolUse")]` and
+  friends. **There is no schema mismatch** — this hypothesis from the issue turned
+  out to be false.
+- `codex-rs/hooks/src/lib.rs` (`hook_event_key_label`, `hook_key`) and
+  `codex-rs/hooks/src/engine/discovery.rs` (`append_matcher_groups`) — show that each
+  hook handler is keyed as `"{source_path}:{event_label}:{group_index}:{handler_index}"`
+  (e.g. `.../hooks.json:stop:0:0`, matching this repo's existing
+  `~/.codex/config.toml` entry) and is only added to the executable handler list when
+  `enabled && (bypass_hook_trust || trust_status ∈ {Managed, Trusted})`. Trust is
+  **per hook key, not per file** — adding a new hook to `hooks.json` does not extend
+  the trust of hooks already present.
+
+**Empirical, read-only confirmation in this exact repo.** `hooks/list` is a
+query-only JSON-RPC method on `codex app-server` (the same one the interactive
+`/hooks` TUI command calls internally — see `codex-rs/tui/src/hooks_rpc.rs`); trust
+is only ever granted by the separate, mutating `config/batchWrite` method (also
+in `hooks_rpc.rs`), which this investigation never invoked. Driving `codex
+app-server --stdio` by hand with `initialize` → `initialized` → `hooks/list` against
+this real repo path returned:
+
+```
+pre_tool_use:0:0  enabled=true  trustStatus=untrusted  hash=sha256:9fcd24e5...
+stop:0:0          enabled=true  trustStatus=trusted    hash=sha256:43a2f93d...
+```
+
+`~/.codex/config.toml` was diffed before/after and is byte-identical — this call
+made no changes, matching its read-only contract.
+
+Note on scope: issue #192's acceptance criteria asked for a disposable-clone
+verification. This step intentionally ran against the real repo/config instead,
+because trust keys embed the hooks.json's absolute path — a disposable clone at a
+different path cannot reproduce or answer *this* repo's actual trust state, and the
+call used is read-only (no hook command execution, no `--dangerously-bypass-hook-trust`,
+no config write), unlike the `git merge`/`git push` experiments in the #188
+dogfooding that did warrant a disposable clone.
+
+**Root cause**: the `Stop` hook was added on 2026-07-08 (commit `7d801c9`) and was
+trusted at that time. The `PreToolUse` gate was added later, on 2026-07-11 (commit
+`5982f73`, issue #181/PR #187), as a *new* hook key that has never been through the
+(human-review) trust flow since. Codex's hook engine is fail-closed by design here:
+an untrusted handler is simply never added to the executable list, so `0` hits is
+the expected, correct behavior of the trust gate — not a bug in this repo's
+`.codex/hooks.json`, and not a fail-open.
+
+**Remediation is a one-time trust decision, not a code change** — `.codex/hooks.json`
+needs no edit. Two mechanically equivalent ways to grant it:
+
+- (A) **Recommended.** Open an interactive Codex CLI session in this repo
+  (`tmux new -s codex 'codex'`), run `/hooks`, review the `PreToolUse` entry
+  (`bash "$(git rev-parse --show-toplevel)/.codex/hooks/agent-command-gate.sh"`,
+  matcher `Bash`), and trust it. This keeps the human-review step that Codex's hook
+  trust model is designed around.
+- (B) Not performed here. The identical effect can be produced non-interactively via
+  the same `config/batchWrite` RPC `hooks_rpc.rs` uses
+  (`hooks.state."<repo>/.codex/hooks.json:pre_tool_use:0:0".trusted_hash =
+  "<current hash from hooks/list>"`). This PR does not do this: granting execution
+  trust to a hook that runs on every future `Bash` tool call is a security-relevant
+  decision this investigation treats as the owner's call, not something to grant
+  unilaterally — same reasoning as the "no unilateral scope/schedule decisions"
+  principle in this repo's `CLAUDE.md`. The trusted hash is tied to the hook's
+  normalized content (event + matcher + command + timeout — see
+  `command_hook_hash`/`NormalizedHookIdentity` in `discovery.rs`), so it will need to
+  be re-trusted whenever this hook's registration in `hooks.json` changes.
+
+This supersedes the "unverified in practice" framing of the Issue #188 dogfooding
+above for the *interactive* path specifically: the interactive path's `agent_type`
+resolution is still unverified, but it is now known to be moot until the
+`PreToolUse` hook is trusted — until then it cannot fire at all, regardless of what
+`agent_type` a spawned subagent would report.
+
 ## Files
 
 | File | Role |
