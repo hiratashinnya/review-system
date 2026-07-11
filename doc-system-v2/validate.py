@@ -113,7 +113,7 @@ def load_exact_link_counts(root: Path) -> list[dict]:
     config_path = root / "config.yml"
     if not config_path.is_file():
         return []
-    rules: list[dict] | None = None
+    rules: list[dict] = []
     in_rules = False
     for line_no, raw in enumerate(config_path.read_text("utf-8").splitlines(), start=1):
         stripped = raw.strip()
@@ -121,7 +121,6 @@ def load_exact_link_counts(root: Path) -> list[dict]:
             continue
         indent = len(raw) - len(raw.lstrip(" "))
         if stripped == "exact_link_counts:":
-            rules = []
             in_rules = True
             continue
         if in_rules and indent == 0:
@@ -130,17 +129,88 @@ def load_exact_link_counts(root: Path) -> list[dict]:
             if not stripped.startswith("- "):
                 raise ValueError(f"{config_path}:{line_no}: exact_link_counts はブロックリスト形式である必要があります")
             rules.append(_parse_inline_config_dict(stripped[2:], config_path, line_no))
-    return rules or []
+    return rules
+
+
+def _strip_top_level_comment(raw: str) -> str:
+    """引用符の外にある '#' 以降を除去する（config.yml のトップレベル scalar/list 行コメント用）。"""
+    quote: str | None = None
+    for i, ch in enumerate(raw):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "#":
+            return raw[:i]
+    return raw
+
+
+def load_current_stage(root: Path) -> str | None:
+    """config.yml の current_stage（段階ゲートの現在値）を読む。未宣言なら None。"""
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return None
+    for raw in config_path.read_text("utf-8").splitlines():
+        line = _strip_top_level_comment(raw).strip()
+        if not line.startswith("current_stage:"):
+            continue
+        _, _, val = line.partition(":")
+        value = _parse_config_scalar(val)
+        return str(value) if str(value).strip() else None
+    return None
+
+
+def load_stages(root: Path) -> list[str]:
+    """config.yml の stages（段階順序。記載順が大小比較の基準）を読む。未宣言なら空リスト。"""
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return []
+    for raw in config_path.read_text("utf-8").splitlines():
+        line = _strip_top_level_comment(raw).strip()
+        if not line.startswith("stages:"):
+            continue
+        _, _, val = line.partition(":")
+        val = val.strip()
+        if not (val.startswith("[") and val.endswith("]")):
+            raise ValueError(f"{config_path}: stages はインラインリスト形式である必要があります")
+        inner = val[1:-1].strip()
+        if not inner:
+            return []
+        return [item.strip().strip("'\"") for item in _split_config_items(inner)]
+    return []
+
+
+def _rule_active(rule: dict, current_stage: str | None, stages: list[str]) -> bool:
+    """rule の activate_stage が current_stage に対して発火済みか（SPEC「発火ステージ未達のルールは評価をスキップ」）。
+
+    activate_stage 未宣言の rule は無条件発火（後方互換）。current_stage/stages が config.yml に
+    未宣言、または activate_stage/current_stage が stages 語彙に無い場合は、意図しない ERROR 化を
+    防ぐため安全側（不活性）に倒す。
+    """
+    activate_stage = str(rule.get("activate_stage", "") or "")
+    if not activate_stage:
+        return True
+    if not current_stage or not stages:
+        return False
+    if activate_stage not in stages or current_stage not in stages:
+        return False
+    return stages.index(current_stage) >= stages.index(activate_stage)
 
 
 def validate_exact_link_counts(root: Path) -> list[str]:
-    """config.yml: exact_link_counts を meta 全体に対して検査する。"""
+    """config.yml: exact_link_counts を meta 全体に対して検査する（activate_stage 未達の rule はスキップ）。"""
     rules = load_exact_link_counts(root)
     if not rules:
         return []
+    current_stage = load_current_stage(root)
+    stages = load_stages(root)
+    active_rules = [r for r in rules if _rule_active(r, current_stage, stages)]
+    if not active_rules:
+        return []
     corpus = dsv2_meta.build_meta(root)
     out: list[str] = []
-    for row in dsv2_query.exact_link_count_gaps(corpus, rules):
+    for row in dsv2_query.exact_link_count_gaps(corpus, active_rules):
         out.append(
             "ERROR: exact_link_counts: "
             f"{row['id']} ({row['type']}) {row['direction']} {row['peer']} "
@@ -204,6 +274,22 @@ def _resolve_repo_path(root: Path, raw: str) -> Path:
     return p if p.is_absolute() else root.parent / p
 
 
+def _within_repo(root: Path, path: Path) -> bool:
+    """path がリポジトリ直下（root.parent）配下に解決されるか（絶対パス・``..`` 脱出の拒否）。
+
+    ``source.file``/``test.file`` はコーパス著作者が YAML サイドカーに書く経路であり、Python の
+    ``ast.parse`` に渡す前提上「リポジトリ配下の実装ファイル」しか意図されていない。絶対パスや
+    ``../`` によるリポジトリ外パスをそのまま解決すると任意ファイル読取になりうるため、ここで
+    リポジトリ境界を明示的に強制する（issue #184）。
+    """
+    repo_root = root.parent.resolve()
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return resolved == repo_root or repo_root in resolved.parents
+
+
 def _python_qualnames(path: Path) -> dict[str, str]:
     tree = ast.parse(path.read_text("utf-8"), filename=str(path))
     out: dict[str, str] = {"": "module"}
@@ -234,6 +320,9 @@ def _validate_identifier_ref(root: Path, data: dict, prefix: str, allowed_type: 
         errs.append(f"{prefix}.* 不完全: {', '.join(missing)} 欠落")
         return errs
     ref_path = _resolve_repo_path(root, str(data[f"{prefix}.file"]))
+    if not _within_repo(root, ref_path):
+        errs.append(f"{prefix}.file はリポジトリ配下のパスのみ許可: {data[f'{prefix}.file']}")
+        return errs
     if not ref_path.exists():
         errs.append(f"{prefix}.file が存在しない: {data[f'{prefix}.file']}")
         return errs
