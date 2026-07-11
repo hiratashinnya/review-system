@@ -331,9 +331,19 @@ API path entirely with `CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
 **Known residual trade-offs**, flagged rather than resolved unilaterally:
 
 - Per-Stop cost. Each eligible Stop may spawn a short-lived `codex app-server`
-  process (~1–2s). This is bounded by the existing per-pane cooldown
-  (`CODEX_RL_STATUS_COOLDOWN`, default 60s) so it cannot fire on every turn, and
-  the push-style `AccountRateLimitsUpdatedNotification` (which could remove
+  process (~1–2s normally; up to `CODEX_RL_API_TIMEOUT` seconds — default 12s —
+  if the app-server hangs or is otherwise unresponsive). This is bounded by the
+  existing per-pane cooldown (`CODEX_RL_STATUS_COOLDOWN`, default 60s), which
+  the Stop hook now writes **whether the query succeeds *or* fails/times
+  out**, so it cannot re-run on every single Stop event either way. (Issue #199
+  fixed a gap where a *persistently* failing/hanging query never wrote the
+  cooldown file — it was previously written only on API success, or on the
+  legacy text-fallback path below when banner text actually matched — so a
+  sustained app-server hang re-ran the full timeout on every Stop instead of
+  being throttled like the healthy-API case; see
+  `tests/unit/test_codex_rate_limit_api.py`'s
+  `StopHookApiFailureCooldownTests` for the regression coverage.) The
+  push-style `AccountRateLimitsUpdatedNotification` (which could remove
   polling entirely) is intentionally left for a future change to keep this PR
   focused on the read API.
 - Account/session identity. The API reports the state of the logged-in account

@@ -14,7 +14,14 @@ new API path:
   fake app-server;
 - the bash ``query_rate_limit_api`` parser and ``wait_until_epoch_and_recover``
   flow in ``codex-rate-limit-watcher.sh`` / ``codex-rate-limit-stop-hook.sh``,
-  with the API command and tmux/pane access stubbed out.
+  with the API command and tmux/pane access stubbed out;
+- (Issue #199) the Stop hook's per-pane cooldown file is written even when the
+  API query itself fails/times out, not only on success or on a matched
+  legacy-text banner, so a persistently hanging/unavailable app-server cannot
+  cause a fresh ``CODEX_RL_API_TIMEOUT``-second query on every single Stop
+  event (``StopHookApiFailureCooldownTests``, which runs the real
+  (non-sourced) ``codex-rate-limit-stop-hook.sh`` end-to-end against a stubbed
+  ``tmux``).
 """
 
 import importlib.util
@@ -357,6 +364,113 @@ wait_until_epoch_and_recover "$past" 300
         )
         # The extra invocation with a bad epoch must log + refuse to inject.
         self.assertIn("invalid reset epoch", log)
+
+
+class StopHookApiFailureCooldownTests(unittest.TestCase):
+    """Issue #199 regression: a failing/hanging API query must still write
+    the per-pane cooldown file, so a persistent failure cannot cause a fresh
+    query on every single Stop event.
+
+    Runs the real (non-sourced) codex-rate-limit-stop-hook.sh end-to-end,
+    with tmux stubbed out via a fake ``tmux`` executable placed first on
+    PATH and CODEX_RL_QUERY_CMD standing in for the Python query helper.
+    """
+
+    _FAKE_TMUX = textwrap.dedent(
+        """\
+        #!/usr/bin/env bash
+        # Minimal stub: this repo's stop hook only calls display-message
+        # (pane foreground command / path), capture-pane (pane text) and
+        # send-keys (legacy /status path). No real rate-limit banner text is
+        # ever produced, so the legacy text fallback never matches here.
+        case "$1" in
+          display-message)
+            printf 'codex\\n'
+            ;;
+          capture-pane)
+            printf ''
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+        """
+    )
+
+    def setUp(self):
+        self.bin_dir = tempfile.mkdtemp(prefix="codex-rl-fake-tmux-")
+        self.state_dir = tempfile.mkdtemp(prefix="codex-rl-stop-hook-state-")
+        self.addCleanup(shutil.rmtree, self.bin_dir, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
+
+        fake_tmux = Path(self.bin_dir) / "tmux"
+        fake_tmux.write_text(self._FAKE_TMUX)
+        fake_tmux.chmod(0o755)
+
+        self.query_calls_marker = Path(self.state_dir) / "query-calls.log"
+
+    def _run_stop_hook(self):
+        env = dict(os.environ)
+        env["PATH"] = f"{self.bin_dir}:{env.get('PATH', '')}"
+        env["TMUX"] = "codex-rl-test-socket,0,0"
+        env["CODEX_RL_TMUX_PANE"] = "%0"
+        env["CODEX_RL_STATE_DIR"] = self.state_dir
+        env["CODEX_RL_API_CHECK"] = "1"
+        # Stands in for the python3 helper: always fails (RL_OK=0) and
+        # records one line per invocation so the test can count queries.
+        env["CODEX_RL_QUERY_CMD"] = (
+            f"printf 'call\\n' >> '{self.query_calls_marker}'; "
+            "printf '%s\\n' RL_OK=0"
+        )
+        return subprocess.run(
+            ["bash", str(STOP_HOOK)],
+            input="",
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+
+    def _query_call_count(self):
+        if not self.query_calls_marker.exists():
+            return 0
+        return len(self.query_calls_marker.read_text().splitlines())
+
+    def _log_text(self):
+        log_path = Path(self.state_dir) / "stop-hook.log"
+        return log_path.read_text() if log_path.exists() else ""
+
+    def test_failed_query_writes_cooldown_file(self):
+        result = self._run_stop_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self._query_call_count(), 1)
+
+        cooldown_files = list(Path(self.state_dir).glob("last-status.*"))
+        self.assertEqual(
+            len(cooldown_files),
+            1,
+            "expected the per-pane cooldown file to be written even though "
+            "the API query failed",
+        )
+        self.assertIn("cooldown applied", self._log_text())
+
+    def test_second_stop_within_cooldown_does_not_requery(self):
+        first = self._run_stop_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(self._query_call_count(), 1)
+
+        second = self._run_stop_hook()
+        self.assertEqual(second.returncode, 0, second.stderr)
+        # The cooldown gate must skip the second Stop's query entirely (this
+        # is the bug: before the fix, a failed query never wrote the
+        # cooldown file, so this count would be 2, then 3, ... unboundedly).
+        self.assertEqual(
+            self._query_call_count(),
+            1,
+            "a second Stop within the cooldown window re-ran the API query "
+            "instead of being throttled by the per-pane cooldown file",
+        )
+        self.assertIn("recent rate-limit check", self._log_text())
 
 
 class HelperCompileTests(unittest.TestCase):

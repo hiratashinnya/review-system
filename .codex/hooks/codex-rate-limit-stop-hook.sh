@@ -200,35 +200,50 @@ fi
 # Trust the API fully when it answers: rateLimitReachedType != null == limited,
 # and the binding window's resetsAt is the reset time. This replaces the tmux
 # banner regex as the detector; the regex remains only as the fallback below.
-if is_truthy "$API_CHECK" && query_rate_limit_api; then
-  printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
-  log "api: reached=${RL_REACHED} type=${RL_REACHED_TYPE:-none} used=${RL_USED_PERCENT:-?}% reset=${RL_RESET_EPOCH:-none} window=${RL_WINDOW_MINS:-?}m plan=${RL_PLAN:-?}"
-  if [ "$RL_REACHED" != "1" ]; then
-    log "api: not rate-limited; no-op"
-    exit 0
-  fi
-  if api_window_is_long; then
-    log "api: limit reached on long/weekly window (${RL_WINDOW_MINS}m > ${MAX_AUTO_WINDOW_MINS}m cap); automatic recovery not attempted"
-    exit 0
-  fi
-  case "$RL_RESET_EPOCH" in
-    ''|*[!0-9]*)
-      log "api: limit reached but no usable resetsAt; automatic recovery not attempted"
+if is_truthy "$API_CHECK"; then
+  if query_rate_limit_api; then
+    printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
+    log "api: reached=${RL_REACHED} type=${RL_REACHED_TYPE:-none} used=${RL_USED_PERCENT:-?}% reset=${RL_RESET_EPOCH:-none} window=${RL_WINDOW_MINS:-?}m plan=${RL_PLAN:-?}"
+    if [ "$RL_REACHED" != "1" ]; then
+      log "api: not rate-limited; no-op"
       exit 0
-      ;;
-  esac
-  log "api: rate limit reached (${RL_REACHED_TYPE}); spawning watcher for reset epoch ${RL_RESET_EPOCH}"
-  setsid bash "${HOOK_DIR}/codex-rate-limit-watcher.sh" --recover-once-epoch "$PANE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
-    >> "$LOG" 2>&1 < /dev/null &
-  exit 0
+    fi
+    if api_window_is_long; then
+      log "api: limit reached on long/weekly window (${RL_WINDOW_MINS}m > ${MAX_AUTO_WINDOW_MINS}m cap); automatic recovery not attempted"
+      exit 0
+    fi
+    case "$RL_RESET_EPOCH" in
+      ''|*[!0-9]*)
+        log "api: limit reached but no usable resetsAt; automatic recovery not attempted"
+        exit 0
+        ;;
+    esac
+    log "api: rate limit reached (${RL_REACHED_TYPE}); spawning watcher for reset epoch ${RL_RESET_EPOCH}"
+    setsid bash "${HOOK_DIR}/codex-rate-limit-watcher.sh" --recover-once-epoch "$PANE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
+      >> "$LOG" 2>&1 < /dev/null &
+    exit 0
+  fi
+
+  # API check attempted but failed (RL_OK=0: codex not on PATH, not logged
+  # in, app-server error, or the query hit --timeout with no response). Write
+  # the SAME per-pane cooldown file a successful check would (Issue #199):
+  # without this, a persistently hanging/unavailable app-server never wrote
+  # the cooldown file (it was previously only written on API success, or on
+  # the legacy text path below when banner text actually matched), so every
+  # single Stop event re-ran the full ~CODEX_RL_API_TIMEOUT-second (default
+  # 12s) query forever. Reusing STATUS_COOLDOWN here bounds the retry cadence
+  # to the same, already-accepted rate as a healthy API's steady-state
+  # polling, and this Stop event still falls through to the (cheap) text
+  # fallback below so a genuine banner already on screen is still caught
+  # immediately — only the *next* Stop, if still within the cooldown window,
+  # skips re-querying.
+  printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
+  log "api: query failed/unavailable (cooldown applied to bound retries); falling back to pane/status text detection"
 fi
 
 # --- fallback: legacy pane/status text detection --------------------------
 # Reached only when the API could not be queried (codex not on PATH, not logged
 # in, app-server error/timeout, or an older Codex without the method).
-if is_truthy "$API_CHECK"; then
-  log "rate-limit API unavailable; falling back to pane/status text detection"
-fi
 before="$(pane_tail 80)"
 if ! is_truthy "$STATUS_ON_EVERY_STOP" && ! has_rate_limit_text "$payload" "$before"; then
   log "no rate-limit text in Stop payload/pane; no-op"
