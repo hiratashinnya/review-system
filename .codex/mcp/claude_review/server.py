@@ -160,15 +160,12 @@ def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
 
 
 def current_block() -> tuple[bool, str]:
-    candidates = [state_file(), Path.home() / ".claude" / "rate-limit-recovery" / "last-payload.json"]
     current = now_tz()
-    for path in candidates:
-        data = read_json(path)
-        if not data:
-            continue
-        reset = rate_limit_payload_reset(data)
-        if reset and reset > current:
-            return True, f"Claude rate-limit block active until {reset.isoformat()} from {path}"
+    path = state_file()
+    data = read_json(path)
+    reset = rate_limit_payload_reset(data) if data else None
+    if reset and reset > current:
+        return True, f"Claude rate-limit block active until {reset.isoformat()} from {path}"
     return False, "no active Claude rate-limit block found"
 
 

@@ -44,13 +44,16 @@ The wrapper passes:
 
 It does not pass edit, write, shell, bypass, or accept-edits permissions.
 
-Before calling `claude -p`, it checks:
+Before calling `claude -p`, it checks only the wrapper-owned cooldown file:
 
 - `${XDG_STATE_HOME:-~/.local/state}/claude-review-mcp/rate-limit.json`
-- `~/.claude/rate-limit-recovery/last-payload.json`
 
-If either file indicates a future reset time, the wrapper returns a tool error
-without spending Claude quota.
+The wrapper does not inspect Claude Code hook state such as
+`~/.claude/rate-limit-recovery/last-payload.json`; that file can belong to a
+different pane or session. If the wrapper's own file indicates a future reset
+time, the wrapper returns a tool error without spending Claude quota. Otherwise,
+rate-limit detection happens from the actual `claude -p` result, and any detected
+cooldown is stored for the next call.
 
 ## Tests
 

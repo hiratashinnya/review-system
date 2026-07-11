@@ -97,6 +97,30 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertTrue(blocked)
         self.assertIn(reset_at, reason)
 
+    def test_rate_limit_preflight_ignores_external_claude_hook_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            state_root = Path(tmp) / "state"
+            payload = home / ".claude" / "rate-limit-recovery" / "last-payload.json"
+            payload.parent.mkdir(parents=True)
+            reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+            payload.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "last_assistant_message": f"You've hit your session limit · resets {reset_at}",
+                    }
+                )
+            )
+            with mock.patch.dict(
+                server.os.environ,
+                {"HOME": str(home), "XDG_STATE_HOME": str(state_root)},
+            ):
+                blocked, reason = server.current_block()
+
+        self.assertFalse(blocked)
+        self.assertIn("no active", reason)
+
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         names = [tool["name"] for tool in response["result"]["tools"]]
