@@ -1,5 +1,13 @@
 """Unit tests for the Codex rate-limit banner detection regex (Issue #182).
 
+NOTE (Issue #195): as of the structured-API work, this pane-text regex is no
+longer the *primary* rate-limit detector — the hooks now call Codex's
+``account/rateLimits/read`` app-server method first (see
+``test_codex_rate_limit_api.py``). The regex below is retained only as the
+*fallback* path used when that API is unavailable (codex not on PATH, not
+logged in, app-server error/timeout, or an older Codex without the method), so
+these tests still guard that fallback and remain valid.
+
 `RATE_LIMIT_RE` in `.codex/hooks/codex-rate-limit-stop-hook.sh` and
 `.codex/hooks/codex-rate-limit-watcher.sh` used to be a single broad `OR` of
 loose terms (bare "rate limit", "usage limit", "too many requests", ...).

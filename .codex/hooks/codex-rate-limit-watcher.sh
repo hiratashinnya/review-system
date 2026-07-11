@@ -9,10 +9,19 @@ set -u
 
 MODE="watch"
 STATUS_TEXT_FILE=""
+RESET_EPOCH_ARG=""
+WINDOW_MINS_ARG=""
 if [ "${1:-}" = "--recover-once" ]; then
   MODE="once"
   PANE="${2:?tmux pane id required}"
   STATUS_TEXT_FILE="${3:-}"
+elif [ "${1:-}" = "--recover-once-epoch" ]; then
+  # Structured-API path (Issue #195): the Stop hook already resolved a concrete
+  # reset epoch from account/rateLimits/read, so there is no text to parse.
+  MODE="once-epoch"
+  PANE="${2:?tmux pane id required}"
+  RESET_EPOCH_ARG="${3:?reset epoch required}"
+  WINDOW_MINS_ARG="${4:-}"
 else
   PANE="${1:?tmux pane id required}"
 fi
@@ -37,6 +46,16 @@ VERIFY_WAIT="${CODEX_RL_VERIFY_WAIT:-20}"
 PANE_CMD_RE="${CODEX_RL_PANE_CMD_RE:-^codex$}"
 NODE_WRAPPER_RE="${CODEX_RL_NODE_WRAPPER_RE:-^node$}"
 STARTUP_WAIT="${CODEX_RL_STARTUP_WAIT:-30}"
+
+# --- Structured rate-limit API (Issue #195) -------------------------------
+# In --recover-once-epoch mode the reset time comes from Codex's
+# account/rateLimits/read (via codex-rate-limit-query.py), not text parsing.
+# Before injecting `continue` the watcher re-queries the API to confirm the
+# limit actually cleared.
+RL_QUERY_HELPER="${CODEX_RL_QUERY_HELPER:-${HOOK_DIR}/codex-rate-limit-query.py}"
+API_CHECK="${CODEX_RL_API_CHECK:-1}"
+RESET_CONFIRM_INTERVAL="${CODEX_RL_RESET_CONFIRM_INTERVAL:-30}"
+RESET_CONFIRM_MAX="${CODEX_RL_RESET_CONFIRM_MAX:-5}"
 
 # --- Rate-limit banner detection (Issue #182) -----------------------------
 # Detection requires BOTH a limit-hit phrase AND a reset/retry cue to be
@@ -338,6 +357,85 @@ inject_continue() {
   done
 }
 
+is_truthy() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Populate RL_* globals from codex-rate-limit-query.py (structured API).
+# Returns 0 only when the query succeeded (RL_OK=1). CODEX_RL_QUERY_CMD
+# overrides the helper invocation for tests (eval'd, must print RL_* lines).
+query_rate_limit_api() {
+  RL_OK=0; RL_REACHED=0; RL_REACHED_TYPE=""; RL_RESET_EPOCH=""
+  RL_WINDOW_MINS=""; RL_USED_PERCENT=""; RL_PLAN=""
+  local out k v
+  if [ -n "${CODEX_RL_QUERY_CMD:-}" ]; then
+    out="$(eval "$CODEX_RL_QUERY_CMD" 2>>"${LOG:-/dev/null}")" || true
+  else
+    command -v python3 >/dev/null 2>&1 || return 1
+    [ -r "$RL_QUERY_HELPER" ] || return 1
+    out="$(python3 "$RL_QUERY_HELPER" 2>>"${LOG:-/dev/null}")" || true
+  fi
+  while IFS='=' read -r k v; do
+    case "$k" in
+      RL_OK) RL_OK="$v" ;;
+      RL_REACHED) RL_REACHED="$v" ;;
+      RL_REACHED_TYPE) RL_REACHED_TYPE="$v" ;;
+      RL_RESET_EPOCH) RL_RESET_EPOCH="$v" ;;
+      RL_WINDOW_MINS) RL_WINDOW_MINS="$v" ;;
+      RL_USED_PERCENT) RL_USED_PERCENT="$v" ;;
+      RL_PLAN) RL_PLAN="$v" ;;
+    esac
+  done <<RLEOF
+$out
+RLEOF
+  [ "$RL_OK" = "1" ]
+}
+
+# Structured-API recovery (Issue #195): sleep until the API-provided reset
+# epoch (+margin), then confirm via the API that the limit cleared before
+# injecting `continue`. No pane-text parsing involved.
+wait_until_epoch_and_recover() {
+  local reset_epoch="$1" window_mins="${2:-}" now wait_s i
+  case "$reset_epoch" in
+    ''|*[!0-9]*)
+      log "epoch mode: invalid reset epoch '${reset_epoch}'; no injection"
+      return 0
+      ;;
+  esac
+  now="$(date +%s)"
+  wait_s=$(( reset_epoch - now + MARGIN ))
+  [ "$wait_s" -lt 0 ] && wait_s=0
+  log "epoch mode: sleeping ${wait_s}s until API reset epoch ${reset_epoch} (+${MARGIN}s margin; window=${window_mins:-?}m)"
+  sleep "$wait_s"
+
+  if is_truthy "$API_CHECK"; then
+    i=1
+    while [ "$i" -le "$RESET_CONFIRM_MAX" ]; do
+      if ! is_codex_pane; then
+        log "epoch mode: target pane missing or non-codex; exit"
+        exit 0
+      fi
+      if query_rate_limit_api; then
+        if [ "$RL_REACHED" != "1" ]; then
+          log "epoch mode: API confirms limit cleared (used=${RL_USED_PERCENT:-?}%); proceeding to inject"
+          break
+        fi
+        log "epoch mode: API still reports limit reached (attempt ${i}/${RESET_CONFIRM_MAX}); waiting ${RESET_CONFIRM_INTERVAL}s"
+      else
+        log "epoch mode: API unavailable on confirm (attempt ${i}/${RESET_CONFIRM_MAX}); proceeding after reset wait"
+        break
+      fi
+      sleep "$RESET_CONFIRM_INTERVAL"
+      i=$(( i + 1 ))
+    done
+  fi
+
+  inject_continue
+}
+
 # Allow this file to be `source`d (with CODEX_RL_SOURCE_FOR_TEST=1) so a unit
 # test can call the pure text-matching functions above (text_has_rate_limit_
 # banner, parse_reset_from_text, ...) directly against sample text, without
@@ -358,6 +456,11 @@ log "start mode=${MODE}"
 if ! wait_for_codex_pane; then
   cur="$(tmux display-message -p -t "$PANE" '#{pane_current_command}' 2>/dev/null || true)"
   log "codex did not become foreground within ${STARTUP_WAIT}s (current='${cur}'); exit"
+  exit 0
+fi
+
+if [ "$MODE" = "once-epoch" ]; then
+  wait_until_epoch_and_recover "$RESET_EPOCH_ARG" "$WINDOW_MINS_ARG"
   exit 0
 fi
 
