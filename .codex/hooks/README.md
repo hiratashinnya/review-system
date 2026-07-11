@@ -44,6 +44,63 @@ gate (fail-closing on absent `agent_type` regressed the main context's own push)
 Treat the gate as one layer of defense together with the prompt-level discipline
 in `issue-implementer.toml` / `pr-reviewer.toml`.
 
+### Dogfooding results (Issue #188, 2026-07-11, `codex-cli` 0.142.5)
+
+Ran a real, non-interactive `codex exec` session (in a disposable local clone,
+not this checkout) with `AGENT_COMMAND_GATE_DEBUG_PAYLOAD` set and
+`--dangerously-bypass-hook-trust`, prompting the main agent to explicitly spawn
+a subagent named `issue-implementer` (per `.codex/agents/issue-implementer.toml`)
+to run `git status` then `git merge main`, and separately a subagent named
+`pr-reviewer` (per `.codex/agents/pr-reviewer.toml`) to run `git log -1
+--oneline` then `git push origin HEAD:refs/heads/<test-branch>`.
+
+**Result: the premise the gate is built on did not hold in this exec-mode
+test, in a more fundamental way than "the string differs".**
+
+- The model's `spawn_agent` tool call with `agent_type: "issue-implementer"`
+  (and separately `"pr-reviewer"`) was rejected by the Codex router itself:
+  `codex_core::tools::router: error=unknown agent_type 'issue-implementer'`
+  / `... 'pr-reviewer'` on stderr. The project-scoped `.codex/agents/*.toml`
+  files exist, match the documented schema (`name` / `description` /
+  `developer_instructions`), and the filename matches `name`, but this
+  installed release did not accept those names as valid `agent_type` values
+  for `spawn_agent` when driven through `codex exec`.
+- After the rejection, the main agent silently fell back to spawning a plain
+  (unnamed/default) subagent and asked it, via prompt text only, to
+  role-play "as if" it were `issue-implementer` / `pr-reviewer`. So the real
+  `agent_type` sent to any hook for that subagent's tool calls would have been
+  absent/default, not `"issue-implementer"`/`"pr-reviewer"` — this gate's
+  `role` would resolve to `"unknown"` (always allowed) for that session.
+- Independently of the above, `AGENT_COMMAND_GATE_DEBUG_PAYLOAD` was **never
+  written** during this session (the log file did not exist afterward), even
+  with `--dangerously-bypass-hook-trust` set. The `PreToolUse` hook did not
+  fire at all for the Bash calls the (fallback, unnamed) subagent made in this
+  exec-mode run.
+- The two commands that were supposed to probe the gate ran without it: the
+  `git merge main` failed, but from a sandbox filesystem restriction
+  (`cannot lock ref 'ORIG_HEAD' ... Read-only file system`), not from
+  `permissionDecision:"deny"`. The `git push` to a disposable test branch
+  actually **succeeded** (it landed in the local clone's `origin`, a
+  filesystem path, not on GitHub — verified with `gh api .../branches/<name>`
+  → 404 — and the stray local branch was deleted immediately after).
+
+**Interpretation and residual risk**: this does not confirm the gate works as
+designed, and it does not identify a corrected `agent_type` string to encode
+either — it shows that, at least via `codex exec`, the named custom-agent path
+this gate assumes (`SubagentHookContext.agent_type` == the `.codex/agents/*.toml`
+`name`) was not reachable at all in this release; the runtime fell back to an
+unnamed agent before any hook input existed to inspect. Whether the officially
+documented, interactive usage path (`tmux new -s codex 'codex'`, trusting hooks
+via `/hooks`, then spawning agents from an interactive session) resolves
+`agent_type` correctly for these same custom names is still untested — running
+that experiment safely requires a live tmux session and repeated
+`--dangerously-bypass-*` style invocations, which is more invasive than this
+follow-up investigation's scope covered. Treat the gate's `agent_type` match as
+**unverified in practice** (not merely "not yet re-verified") until an
+interactive-mode test is run, and continue to rely on the prompt-level
+discipline in `issue-implementer.toml` / `pr-reviewer.toml` as the primary
+control, not this hook.
+
 ## Files
 
 | File | Role |
