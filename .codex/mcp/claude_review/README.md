@@ -14,6 +14,10 @@ args = ["/home/hiras/ws_codex/review_system/.codex/mcp/claude_review/server.py"]
 
 Restart Codex after changing MCP configuration.
 
+The allowed workspace root defaults to the server startup directory. Set
+`CLAUDE_REVIEW_MCP_WORKSPACE_ROOT` if the MCP host may launch the server from a
+broader directory than the repository.
+
 ## Tools
 
 - `claude_review`: runs `claude -p` in read-only plan mode. `model` accepts
@@ -39,7 +43,7 @@ that startup cwd. Paths outside that tree return a tool error before any
 The wrapper passes:
 
 ```text
---permission-mode plan --tools Read,Glob,Grep,LS
+--model <opus|fable> --fallback-model opus --permission-mode plan --tools Read,Glob,Grep,LS --output-format json --no-session-persistence
 ```
 
 It does not pass edit, write, shell, bypass, or accept-edits permissions.
@@ -54,6 +58,10 @@ different pane or session. If the wrapper's own file indicates a future reset
 time, the wrapper returns a tool error without spending Claude quota. Otherwise,
 rate-limit detection happens from the actual `claude -p` result, and any detected
 cooldown is stored for the next call.
+
+GitHub PR metadata and diffs are appended inside fenced blocks with explicit
+instructions to treat them as untrusted review evidence, not as model
+instructions.
 
 ## Tests
 
