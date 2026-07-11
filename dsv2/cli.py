@@ -43,6 +43,9 @@ _SLUGIFY_PY = _REPO_ROOT / "doc-system-v2" / "slugify.py"
 def _load_slugify():
     """唯一実装 doc-system-v2/slugify.py を動的 import して slugify() を返す。"""
     spec = importlib.util.spec_from_file_location("_dsv2_slugify", _SLUGIFY_PY)
+    assert spec is not None and spec.loader is not None, (
+        f"failed to build import spec for {_SLUGIFY_PY}"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.slugify
