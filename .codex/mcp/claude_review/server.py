@@ -17,6 +17,7 @@ DEFAULT_TIMEOUT_S = 300
 DEFAULT_MAX_PR_CHARS = 120_000
 ALLOWED_MODELS = {"opus", "fable"}
 READ_ONLY_TOOLS = "Read,Glob,Grep,LS"
+DEFAULT_WORKSPACE = Path(os.path.realpath(os.getcwd()))
 RATE_LIMIT_RE = re.compile(
     r"(rate[ -]?limit|session limit|usage limit|too many requests|rate_limit)",
     re.IGNORECASE,
@@ -194,6 +195,17 @@ def validate_model(model: str | None) -> str:
     return selected
 
 
+def resolve_workspace(workspace: str | None) -> str:
+    if workspace is None:
+        return str(DEFAULT_WORKSPACE)
+    candidate = Path(os.path.realpath(os.path.expanduser(workspace)))
+    try:
+        candidate.relative_to(DEFAULT_WORKSPACE)
+    except ValueError as exc:
+        raise ToolError(f"workspace must be under {DEFAULT_WORKSPACE}") from exc
+    return str(candidate)
+
+
 def run_command(args: list[str], cwd: str | None, timeout_s: int) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -279,14 +291,15 @@ def claude_review(args: dict[str, Any]) -> str:
     workspace = args.get("workspace")
     if workspace is not None and not isinstance(workspace, str):
         raise ToolError("workspace must be a string")
+    resolved_workspace = resolve_workspace(workspace)
     timeout_s = int(args.get("timeout_s") or DEFAULT_TIMEOUT_S)
     blocked, reason = current_block()
     if blocked:
         raise ToolError(reason)
 
-    assembled = assemble_prompt(prompt, workspace, args.get("pr_number"))
+    assembled = assemble_prompt(prompt, resolved_workspace, args.get("pr_number"))
     command = build_claude_command(assembled, model)
-    proc = run_command(command, workspace, timeout_s)
+    proc = run_command(command, resolved_workspace, timeout_s)
     detect_and_record_rate_limit(proc.stdout, proc.stderr, proc.returncode)
     if proc.returncode != 0:
         raise ToolError(f"claude -p failed with exit {proc.returncode}: {(proc.stderr or proc.stdout).strip()}")

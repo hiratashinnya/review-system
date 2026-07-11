@@ -124,7 +124,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                                 "prompt": "review",
                                 "model": "opus",
                                 "pr_number": 2,
-                                "workspace": "/tmp/work",
+                                "workspace": str(server.DEFAULT_WORKSPACE),
                             }
                         )
 
@@ -133,6 +133,23 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertEqual(claude_command[0], "claude")
         self.assertIn("--no-session-persistence", claude_command)
         self.assertIn("GitHub PR Context #2", claude_command[2])
+
+    def test_claude_review_blocks_workspace_outside_default_before_commands(self):
+        with tempfile.TemporaryDirectory() as outside:
+            with mock.patch.object(server, "run_command") as run_command:
+                with mock.patch.object(server, "current_block") as current_block:
+                    with self.assertRaises(server.ToolError) as ctx:
+                        server.claude_review(
+                            {
+                                "prompt": "review",
+                                "pr_number": 2,
+                                "workspace": outside,
+                            }
+                        )
+
+        self.assertIn("workspace must be under", str(ctx.exception))
+        run_command.assert_not_called()
+        current_block.assert_not_called()
 
 
 if __name__ == "__main__":

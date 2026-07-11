@@ -29,6 +29,11 @@ When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 That context is appended to the prompt sent to Claude. If either command fails,
 Claude is not called.
 
+If `workspace` is omitted, the wrapper uses the MCP server startup cwd. If it
+is provided, the wrapper resolves it with realpath and only allows paths under
+that startup cwd. Paths outside that tree return a tool error before any
+`gh` or `claude` command is run.
+
 ## Safety
 
 The wrapper passes:
