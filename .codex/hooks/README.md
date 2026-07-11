@@ -1,17 +1,55 @@
-# Codex CLI rate-limit recovery
+# Codex CLI hooks
 
-Codex CLI supports lifecycle hooks. This repo uses a `Stop` hook to inspect a
-stopped Codex turn, run `/status` when the pane looks rate-limited, parse the
-reported reset time, and resume the thread after the reset.
+Codex CLI supports lifecycle hooks. This repo registers two project-local hooks
+in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
-The hook is intentionally local/tmux-only. Cloud and non-tmux environments are
-safe no-ops.
+1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
+   `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
+   of `.claude/hooks/agent-command-gate.sh`.
+2. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery: it inspects a
+   stopped Codex turn, runs `/status` when the pane looks rate-limited, parses the
+   reported reset time, and resumes the thread after the reset. This hook is
+   intentionally local/tmux-only; cloud and non-tmux environments are safe no-ops.
+
+## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
+
+`agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
+Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
+`PreToolUse` hook whose input JSON carries `agent_type`, `tool_name`, and
+`tool_input`, and whose output can `deny` a tool call via
+`hookSpecificOutput.permissionDecision = "deny"` with a non-empty
+`permissionDecisionReason` — the same wire shape as Claude Code. Shell commands
+arrive with `tool_name = "Bash"` and `tool_input.command` as a string.
+
+The gate denies:
+
+- `issue-implementer`: `git merge` / `gh pr merge` (push + open a PR, then stop).
+- `pr-reviewer`: `git push` (review/comment/merge only, never push code).
+
+Every other `agent_type` (including an absent one = the main context) is out of
+scope and always allowed, matching the owner decision recorded for the Claude
+gate (fail-closing on absent `agent_type` regressed the main context's own push).
+
+### Known limits (tracked in Issue #129 / #181)
+
+- Static inspection of the Bash command string — not a full sandbox. Arbitrary
+  wrapper scripts, obfuscation, or code inside another interpreter can evade it.
+- The hook only fires once it is trusted via `/hooks`, and it can be disabled by
+  `requirements.toml` / `config.toml` hook policy.
+- The exact `agent_type` string a spawned subagent reports should be confirmed by
+  dogfooding (Claude issue #129 item 1 fail-open risk). Set
+  `AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log` to record the received payload
+  and decision (sensitive keys are redacted).
+
+Treat the gate as one layer of defense together with the prompt-level discipline
+in `issue-implementer.toml` / `pr-reviewer.toml`.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `.codex/hooks.json` | Registers the project-local `Stop` hook. Trust it with `/hooks` before relying on it. |
+| `.codex/hooks.json` | Registers the project-local `PreToolUse` and `Stop` hooks. Trust them with `/hooks` before relying on them. |
+| `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases, sends `/status`, captures the status output, and starts the one-shot watcher. |
 | `codex-rate-limit-watcher.sh` | Waits until the parsed reset time and submits `continue` only when the pane is idle. It also still supports the legacy continuous watcher mode. |
 | `codex-with-rate-limit-recovery.sh` | Legacy wrapper that starts the continuous watcher for the current tmux pane, then `exec codex "$@"`. |
