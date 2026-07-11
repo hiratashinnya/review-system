@@ -78,6 +78,20 @@
 #   でヒアドキュメント本文が再実行されるにもかかわらず allow されていた（PR #212 の base=main では
 #   偶然 deny されていた挙動が本PRの変更で allow に変わる回帰だった）。source/. を
 #   HEREDOC_INTERPRETER_COMMANDS に追加して是正。
+#
+#   2026-07-12 追加是正その3（Issue #213・PR #212 sonnet 再レビューで発見・既存ギャップ・
+#   Claude 版と同一設計）：以下3経路が実際にコマンドを実行するにもかかわらず allow されていた。
+#     1. here-string 経由：`bash <<< 'git merge evil'`。HEREDOC_RE は `<<` の直後に識別子を
+#        要求するため `<<<`（3文字目が `<`）にはそもそもマッチせず、検知対象外だった。
+#     2. xargs プレースホルダ置換経由：`echo 'git merge evil' | xargs -I{} bash -c '{}'`。
+#        quoted_subcommands はリテラル文字列 `{}` をそのまま抽出するだけで、実行時に xargs が
+#        代入する実際の値（パイプ上流のリテラル）を追えていなかった。
+#     3. 一般パイプ経由（ヒアドキュメントを使わない素朴なパイプ）：`printf '%s' 'git merge evil' | bash`。
+#   herestring_reexec_bodies/xargs_reexec_bodies/bare_interpreter_reexec_bodies を追加し、
+#   いずれも「パイプ上流が echo/printf のみで構成される静的リテラルの場合に限り」実行時に渡る値を
+#   静的に確定して reexec 対象に含める設計とした（上流が `find` の結果や変数展開等の非リテラルの
+#   場合は静的に決定できないため対象外＝新規の過検知を出さない）。完全な網羅は目指さない（受け入れ
+#   基準5）。詳細は各関数のコメント参照（詳細設計は Claude/Codex 両版で同一）。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -430,6 +444,163 @@ def extract_heredocs(command_text):
     return "".join(stripped), reexec_bodies
 
 
+# here-string 対応（Issue #213 受け入れ基準1・Claude 版と同一設計）: `<<<`（here-string）は
+# `<<`（ヒアドキュメント）と記法が似ているが意味論が異なる。`<<WORD ... WORD` は終端デリミタまでの
+# 複数行を読むのに対し、`<<<VALUE` は同じ行の一語（クォート文字列 or 空白なしの単語）をそのまま
+# コマンドの標準入力として渡す。HEREDOC_RE は `<<` の直後に識別子（クォート付き/なし）を要求するため、
+# 3文字目が `<` である `<<<` にはそもそもマッチせず、`bash <<< 'git merge evil'` が検知漏れになって
+# いた（実証済み）。本関数は `<<<` の後続値を抽出し、直前のコマンド語（またはパイプ下流）が
+# インタプリタの場合のみ reexec 対象として返す（heredoc_command_word/
+# heredoc_pipeline_has_downstream_interpreter を再利用）。ヒアドキュメントと異なり単一行の値であり、
+# 除去しなくても direct_violation の素朴な走査に新規の誤検知は生じないため、scan_text からの除去
+# （ストリップ）は行わない。
+HERESTRING_RE = re.compile(r"<<<[ \t]*(?:(['\"])(.*?)\1|(\S+))", re.S)
+
+
+def herestring_reexec_bodies(command_text):
+    bodies = []
+    for m in HERESTRING_RE.finditer(command_text):
+        value = m.group(2) if m.group(2) is not None else m.group(3)
+        if not value:
+            continue
+        line_end = command_text.find("\n", m.end())
+        rest_of_line = command_text[m.end():line_end] if line_end != -1 else command_text[m.end():]
+        reaches_interpreter = (
+            heredoc_command_word(command_text, m.start()) in HEREDOC_INTERPRETER_COMMANDS
+            or heredoc_pipeline_has_downstream_interpreter(rest_of_line)
+        )
+        if reaches_interpreter:
+            bodies.append(value)
+    return bodies
+
+
+# `|`（`||` を除く）でトップレベルのパイプ境界を分割する。SEGMENT_SPLIT_RE 同様、クォート/
+# ヒアドキュメント境界を認識しない素朴な分割であり、既存の制約の延長線上にある（安全側＝
+# 誤検知が起きても deny 方向にしか倒れない設計であり、完全な網羅は目指さない・受け入れ基準5）。
+PIPE_ONLY_RE = re.compile(r"(?<!\|)\|(?!\|)")
+
+# 敵対的自己検証で発見（Issue #213・実装中の追加是正・Claude 版と同一設計）: `true ||
+# echo 'git merge evil' | bash` や `echo 'git merge evil' | bash && true` のように、パイプ境界の
+# 前後に `&&`/`||`/`;`/改行で別のサブコマンドが連結されていると、ステージ全体をそのまま shlex
+# 解析するだけでは producer 側の先頭トークンが `true`（echo ではない）になったり、consumer 側の
+# 残余引数に `&&`/`true` 等の非フラグ語が混入して「位置引数あり」判定に誤って倒れたりして検知漏れに
+# なる。シェルの優先順位は `|` が `&&`/`||`/`;` より強く結合するため、producer に実際に効いて
+# くるのはその中の最後のサブコマンド、consumer に効いてくるのは最初のサブコマンドのみ。
+STAGE_OPERATOR_SPLIT_RE = re.compile(r"&&|\|\||;|\n")
+
+
+def last_operator_segment(text):
+    parts = STAGE_OPERATOR_SPLIT_RE.split(text)
+    return parts[-1] if parts else text
+
+
+def first_operator_segment(text):
+    parts = STAGE_OPERATOR_SPLIT_RE.split(text)
+    return parts[0] if parts else text
+
+
+def literal_producer_value(stage_text):
+    """パイプの直前ステージのうち実際にパイプへ出力を渡す最後のサブコマンド
+    （last_operator_segment）が echo/printf のみで構成され、渡す引数が全てリテラル
+    （フラグを含まない単語・クォート文字列）である場合に、標準出力へ書き出される文字列を返す。
+    変数展開・コマンド置換・非対応コマンド（`find` 等）が混在する場合は None を返す
+    （静的に確定できないため対象外＝新規の過検知を出さない安全側の設計）。"""
+    stripped = last_operator_segment(stage_text).strip()
+    if "$" in stripped or "`" in stripped:
+        return None
+    try:
+        tokens = shlex.split(stripped, posix=True)
+    except ValueError:
+        return None
+    tokens = strip_leading_wrappers(tokens)
+    if len(tokens) < 2:
+        return None
+    head, args = tokens[0], tokens[1:]
+    if any(arg.startswith("-") for arg in args):
+        return None
+    if head == "echo":
+        return " ".join(args)
+    if head == "printf":
+        if len(args) == 1:
+            return args[0]
+        if len(args) == 2 and args[0] in {"%s", "%s\\n"}:
+            return args[1]
+        return None
+    return None
+
+
+# xargs プレースホルダ置換対応（Issue #213 受け入れ基準2・Claude 版と同一設計）: `echo 'git merge
+# evil' | xargs -I{} bash -c '{}'` のように、`-I` で指定したプレースホルダ（既定 `{}`）が xargs
+# 経由で実行時に置換されるパターンは、quoted_subcommands が `bash -c '{}'` を抽出してもプレース
+# ホルダのリテラル文字列のままで、実際に代入される値（パイプ上流からの入力）を静的に追えず検知漏れに
+# なっていた。本関数は、xargs の直前のパイプステージが echo/printf のみの静的リテラル引数で
+# 構成されている場合に限り（literal_producer_value が値を確定できる場合のみ）、その値を
+# プレースホルダに埋め込んだ上で xargs のコマンド部分を reexec 対象として返す。上流が非リテラル
+# の場合は対象外（安全側）。長形式 `--replace` 等の非 `-I` 記法は未対応（既知の残存ギャップ・
+# 完全網羅は目指さない設計方針＝受け入れ基準5）。
+XARGS_PLACEHOLDER_RE = re.compile(r"(?<!\S)-I[ \t]*(\S+)")
+
+
+def xargs_reexec_bodies(command_text):
+    bodies = []
+    stages = PIPE_ONLY_RE.split(command_text)
+    for i in range(1, len(stages)):
+        stage_text = stages[i]
+        try:
+            stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
+        except ValueError:
+            continue
+        if not stage_tokens or stage_tokens[0] != "xargs":
+            continue
+        m = XARGS_PLACEHOLDER_RE.search(stage_text)
+        if not m:
+            continue
+        placeholder = m.group(1)
+        remainder = stage_text[m.end():]
+        if placeholder not in remainder:
+            continue
+        literal_value = literal_producer_value(stages[i - 1])
+        if literal_value is None:
+            continue
+        bodies.append(remainder.replace(placeholder, literal_value))
+    return bodies
+
+
+def bare_interpreter_reexec_bodies(command_text):
+    """一般パイプ経由対応（Issue #213 受け入れ基準6・Claude 版と同一設計）: `printf '%s' 'git merge
+    evil' | bash` のように、ヒアドキュメントを使わない素朴なパイプでインタプリタへ渡す経路を検知する。
+    パイプ下流ステージの「最初のサブコマンド」（first_operator_segment。`bash && true` のように
+    後続に `&&`/`;` 等で別コマンドが連結されていても、実際にパイプへ繋がるのは最初の一つだけの
+    ため）の先頭コマンドがインタプリタ（HEREDOC_INTERPRETER_COMMANDS を流用）で、かつ
+    `-c`/`--command` や位置引数（スクリプトファイル等）を伴わない（＝標準入力からスクリプト
+    全体を読み込む形）場合のみ、上流ステージの literal_producer_value を reexec 対象として返す。
+    位置引数がある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして読まない
+    ため対象外とする（新規の過検知を避けるため）。"""
+    bodies = []
+    stages = PIPE_ONLY_RE.split(command_text)
+    for i in range(1, len(stages)):
+        stage_text = first_operator_segment(stages[i])
+        try:
+            stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
+        except ValueError:
+            continue
+        if not stage_tokens:
+            continue
+        name = os.path.basename(stage_tokens[0])
+        if name not in HEREDOC_INTERPRETER_COMMANDS:
+            continue
+        rest_args = stage_tokens[1:]
+        if any(arg in {"-c", "--command"} for arg in rest_args):
+            continue  # スクリプトが引数そのもの＝quoted_subcommands が別途担当
+        if any(not arg.startswith("-") for arg in rest_args):
+            continue  # 位置引数（スクリプトファイル等）がある場合は標準入力を読まないため対象外
+        literal_value = literal_producer_value(stages[i - 1])
+        if literal_value is None:
+            continue
+        bodies.append(literal_value)
+    return bodies
+
+
 def find_violation(command_text, role, depth=0):
     if depth > 3:
         return None
@@ -439,6 +610,20 @@ def find_violation(command_text, role, depth=0):
         # depth>0 は quoted_subcommands が eval/bash -c/python -c の引数として抽出した、
         # 既に「再実行される」と判定済みのテキスト。ヒアドキュメント除去はせず素のスキャンを維持する。
         scan_text, reexec_bodies = command_text, []
+    # here-string/xargs プレースホルダ/一般パイプ経由の reexec 対象は、ヒアドキュメントと異なり
+    # 単一行の判定であるため depth を問わず毎回抽出する（Issue #213）。ただし command_text ではなく
+    # scan_text（ヒアドキュメント本文を除去済みのテキスト）を走査対象にする。ヒアドキュメント本文
+    # （例: `cat > file.py <<'EOF' ... EOF` で書き出す Python ソース中の文字列リテラル）に
+    # 偶然 `<<<`/パイプ/xargs に見える記法が含まれていても、それは実行されないデータであり
+    # over-deny してはならない（Issue #189 の false positive 是正方針を踏襲。command_text で
+    # 走査すると reaches_interpreter 判定がヒアドキュメント本文内の直前の語だけを見て誤って
+    # 「再実行される」と判定してしまう回帰があったため、実装中の敵対的自己検証で発見し是正）。
+    reexec_bodies = (
+        list(reexec_bodies)
+        + herestring_reexec_bodies(scan_text)
+        + xargs_reexec_bodies(scan_text)
+        + bare_interpreter_reexec_bodies(scan_text)
+    )
     for segment in SEGMENT_SPLIT_RE.split(scan_text):
         violation = direct_violation(shell_words(segment), role)
         if violation:

@@ -196,6 +196,111 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
 
+    def test_herestring_bypass_is_denied(self):
+        # Issue #213 受け入れ基準1（Claude 版と同一設計）: `bash <<< 'git merge evil'`
+        # （here-string）は HEREDOC_RE が `<<` の直後に識別子を要求するため `<<<`（3文字目が `<`）
+        # にはマッチせず、検知漏れだった（実際に bash で実行し注入コマンドが走ることを確認済み）。
+        issue_implementer_commands = [
+            "bash <<< 'git merge feature'",
+            'bash <<< "git merge feature"',
+            "sh <<< 'gh pr merge 123'",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(run_gate(payload("pr-reviewer", "bash <<< 'git push origin HEAD'")))
+        self.assert_allowed(run_gate(payload("issue-implementer", "bash <<< 'echo hello'")))
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "cat <<< 'git merge is mentioned here'"))
+        )
+
+    def test_xargs_placeholder_substitution_bypass_is_denied(self):
+        # Issue #213 受け入れ基準2（Claude 版と同一設計）: `echo 'git merge evil' |
+        # xargs -I{} bash -c '{}'` は quoted_subcommands がリテラル `{}` のみ抽出し、xargs が
+        # 実行時に代入する実際の値（パイプ上流の echo リテラル）を静的に追えず検知漏れだった
+        # （実行して確認済み）。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | xargs -I{} bash -c '{}'",
+            "echo 'git merge feature' | xargs -I {} bash -c '{}'",
+            "printf '%s' 'gh pr merge 123' | xargs -I{} sh -c '{}'",
+            "echo 'merge' | xargs -I{} git {}",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | xargs -I{} bash -c '{}'"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "find . -name '*.txt' | xargs -I{} wc -l {}"))
+        )
+
+    def test_bare_pipe_to_interpreter_bypass_is_denied(self):
+        # Issue #213 受け入れ基準6（追記コメントで追加・Claude 版と同一設計）:
+        # `printf '%s' 'git merge evil' | bash` のように、ヒアドキュメントを使わない素朴なパイプ
+        # 経由でインタプリタへ渡す経路は、PR #212 適用前後を問わず allow のままだった
+        # （実行して確認済み）。
+        issue_implementer_commands = [
+            "printf '%s' 'git merge feature' | bash",
+            "echo 'git merge feature' | bash",
+            "echo 'gh pr merge 123' | sh",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | bash")))
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
+        )
+        self.assert_allowed(run_gate(payload("issue-implementer", "cat notes.txt | bash")))
+
+    def test_operator_chained_pipe_bypass_is_denied(self):
+        # 実装中の敵対的自己検証で発見（Issue #213・Claude 版と同一設計）: `true ||
+        # echo 'git merge evil' | bash` や `echo 'git merge evil' | bash && true` のように、
+        # パイプの前後に `&&`/`||`/`;` で別のサブコマンドを連結すると、producer/consumer 判定が
+        # ステージ全体を素朴に見てしまい検知漏れになっていた（`|` は `&&`/`||`/`;` より強く結合
+        # するため、実際にパイプに効いてくるのは producer 側は最後のサブコマンド、consumer 側は
+        # 最初のサブコマンドのみ）。
+        commands = [
+            "echo 'git merge feature' | bash && true",
+            "echo 'git merge feature' | bash; true",
+            "true; echo 'git merge feature' | bash",
+            "false || echo 'git merge feature' | bash",
+            "true || echo 'git merge feature' | bash",
+            "echo 'git merge feature' | xargs -I{} bash -c '{}' && true",
+            "true; echo 'git merge feature' | xargs -I{} bash -c '{}'",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_allowed(run_gate(payload("issue-implementer", "git status && echo done")))
+
+    def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
+        # 実装中の敵対的自己検証で発見（Issue #213・Claude 版と同一設計）:
+        # herestring_reexec_bodies/xargs_reexec_bodies/bare_interpreter_reexec_bodies を
+        # command_text（生テキスト）に対して走査すると、`cat > file.py <<'EOF' ... EOF` のように
+        # 実行されないヒアドキュメント本文（例: サンプルコードやドキュメントの文字列リテラル）の
+        # 中にたまたま `<<<`/パイプ経由でインタプリタに渡っているように見える記法が含まれている
+        # だけで over-deny してしまう回帰があった（Issue #189 の false positive 是正方針の再侵犯）。
+        # scan_text（ヒアドキュメント本文除去済み）を走査対象にすることで、これらのデータは
+        # 実行されないため許可されなければならない。
+        commands = [
+            "cat > /tmp/example.py <<'EOF'\n"
+            "cases = [\n"
+            "    (\"issue-implementer\", \"/bin/bash <<< 'git merge feature'\"),\n"
+            "]\n"
+            "EOF",
+            "cat > /tmp/example.md <<'EOF'\n"
+            "Example: `echo 'git merge evil' | xargs -I{} bash -c '{}'` is a known bypass.\n"
+            "EOF",
+            "cat > /tmp/example.md <<'EOF'\n"
+            "Example: `printf '%s' 'git merge evil' | bash` is a known bypass.\n"
+            "EOF",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("issue-implementer", command)))
+
     def test_missing_or_unrecognized_agent_is_out_of_scope(self):
         # Claude 版と同じオーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでも
         # ない場合（欠如を含む・main context 自身がこれに該当）は対象外＝常に許可。
