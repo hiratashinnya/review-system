@@ -18,8 +18,8 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - **主文脈＝対話オーナー**：ユーザーと直接対話できるのはここだけ（Codex CLI のメインスレッド）。**順序決め・オーナー判断・先送り可否・スコープ拡張の起票判断**を担う。
 - **`issue-implementer` / `pr-reviewer`＝非対話ファンアウト**：ユーザーへ直接質問しない。曖昧・矛盾に当たったら**STOP して報告**（意見なき停止禁止＝原案＋比較＋推奨を添えて返す）。
   対話ロジックを非対話エージェントに埋め込まない／順序・オーナー判断を主文脈から外へ出さない（DD-22）。
-- **権限境界は Codex ではプロンプト規律として遵守する**（`.codex/agents/issue-implementer.toml`／`pr-reviewer.toml` の `developer_instructions` に明記。機械的強制は別途 Codex hook/config が導入されるまで前提にしない）：`issue-implementer` は push/PR 可・merge 不可、
-  `pr-reviewer` は merge 可・push 不可。Codex 版では別クライアントのようなコマンド制限フックが実行されないため、必要な Codex hook/config が導入されるまではこの禁止をプロンプト規律として厳守する（既知の限界は Issue #129・多層防御の一枚）。**Claude Code 側は `.claude/hooks/agent-command-gate.sh` による機械ゲート、Codex 側はプロンプト規律という非対称は意図的**であり、無理に揃えない。
+- **権限境界は Codex hook とプロンプト規律の両方で遵守する**（`.codex/agents/issue-implementer.toml`／`pr-reviewer.toml` の `developer_instructions`、`.codex/hooks/agent-command-gate.sh`）：`issue-implementer` は push/PR 可・merge 不可、
+  `pr-reviewer` は merge 可・push 不可。Codex hook は PreToolUse の静的検査であり完全な sandbox ではないため、禁止操作はプロンプト規律としても厳守する（既知の限界は Issue #129/#181・多層防御の一枚）。Claude Code 側の `.claude/hooks/agent-command-gate.sh` と同等の境界を目指すが、クライアント差分と trust 状態の限界を過信しない。
 
 ## 段（各 Issue を直列に回す。バッチ内 Issue は ① で順序確定）
 
@@ -49,6 +49,14 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
   レビューアが「指摘は明確・機械的 → 既定 effort で処置」と判断したら、主文脈はその指示どおり ②-c を回すだけ（降格判断を横取りしない）。
 - **レビュー指摘・処置結果は PR レビューコメントに残す**（Issue #120 ⑥・Codex CLI (AI) 明記＋具体的な変更/根拠。`gh pr comment`。
   承認/却下ステータスを偽らない＝`pr-reviewer.toml` の絶対規範）。
+
+**②-b-2 Claude review MCP による別視点レビュー（条件付き・merge 前）**
+- Codex `pr-reviewer` の初回レビュー後、merge 前に下の**Claude レビュー起動条件表**で追加レビュー要否を判定する。Claude は判断の置き換えではなく、別モデル視点のリスク探索入力として扱う。
+- **必須条件に該当する PR は merge 前に `claude_review` MCP を呼ぶ**。Claude が rate limit 等で使えない場合は STOP し、待つ/今回は Codex レビューのみで進める/スコープを分割する、の選択肢と推奨をオーナーへ提示する。
+- **任意条件のみなら、コスト・待ち時間・レビュー価値を1行で見積もって呼ぶ/省くを記録する**。省く場合も「なぜ省いたか」を進捗ログまたは PR コメントに残す。
+- `pr_number` を指定して GitHub 文脈は MCP に取得させる。prompt にはタスク固有の観点だけを書く。恒常指示は `.codex/mcp/claude_review/common_instructions.md` が MCP により自動注入されるため、dispatch prompt に展開しない。
+- 既定は `model: opus`。`fable` はドキュメント/プロンプト/運用文言/ユーザー向け説明の読み味や曖昧さを別視点で見たい場合、または Opus/Codex の見解が割れて表現・方針面の第三視点が必要な場合に追加で使う。コード正当性・セキュリティ境界・merge 可否の最終補助は Opus を優先する。
+- Claude の所見は PR コメントへ **Codex AI agent** 由来として要約し、採否は Codex `pr-reviewer` または是正後の再レビュー文脈で確認する。Claude の所見を未検証のまま merge 判定に直結しない。
 
 **②-c 是正 → 再レビュー（指摘があった場合のループ）**
 - 是正は `issue-implementer` へ差し戻す（`pr-reviewer` は push 不可＝コードを書けない）。担当 effort は **②-b でレビューアが決めた降格判断に従う**
@@ -85,14 +93,32 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - 迷ったら **`xhigh` 側に倒す**（bloom-model-tier のタイブレーク＝effort は品質の代理変数にすぎない・安全側）。選定根拠を1行残す（信号→effort）。
 - **再レビューは表に依らず常に既定 `high`**（Issue #120 ⑤）。是正の担当 effort は**レビューアの降格判断に従う**（主文脈が決めない・Issue #120 ④）。
 
+## Claude レビュー起動条件表（②-b-2・別モデル視点の投入タイミング）
+Claude review MCP は **Codex 初回レビュー後、merge 前**に使う。Codex レビューで明確な修正指摘が出た場合は、まず ②-c で是正し、再レビューで clean に近づいた段階で Claude を呼ぶ（明白な欠陥が残った PR に高コストレビューを重ねない）。
+
+| 条件 | 扱い | 理由 |
+|---|---|---|
+| 権限ゲート、hook、MCP、rate limit、外部 CLI/API、認証、sandbox、merge/push 境界を変更 | **必須・Opus** | 事故時の影響が大きく、Codex とは別モデルのセキュリティ/運用視点が必要 |
+| `AGENTS.md`、custom agent、skill、prompt、レビュー/マージ手順など恒常運用規約を変更 | **必須・Opus** | 以後の全作業へ波及し、自己参照的な見落としが起きやすい |
+| doc-system の schema/validator/config、グラフ構造、横断 ref_version、広域 backfill を変更 | **必須・Opus** | 広範囲の不整合やオーナー専権判断の混入を別視点で確認する必要がある |
+| リスク信号表で `xhigh`、または reviewer が判断ボトルネックと判定 | **必須・Opus** | Bloom Lv5 評価の判断ボトルネックで、独立視点の価値が高い |
+| Codex review と実装者の見解が割れる、または reviewer が「自信不足/未検証」を明示 | **必須・Opus** | merge 前に第三視点で争点を狭める |
+| PR が小規模だが、プロンプト/説明文/ユーザー向け運用文言の曖昧さが主リスク | **任意・Fable 追加可** | 表現・解釈・伝わり方の別視点が有効 |
+| 局所的なテスト追加、typo、明確な機械的修正、単一ファイルの軽微な doc 更新 | **原則スキップ** | Codex review と通常テストで十分なことが多く、Claude quota を温存する |
+| 必須条件に該当するが Claude が rate limit / MCP 障害 | **STOP** | 必須レビューを無断で省かず、待機・例外進行・分割の判断をオーナーに戻す |
+
+記録する1行根拠の形式：
+`Claude review: <必須/任意/スキップ/STOP> / model=<opus|fable|opus+fable|none> / trigger=<条件> / timing=<初回後|是正後|再レビュー後> / result=<PRコメントURLまたは未実施理由>`
+
 ## 共通指示の配り方（dispatch テンプレをリーンに保つ）
 `issue-implementer`/`pr-reviewer` の**恒常的な共通契約**（決定点で前提/背景/メリデメ＋選択肢＋推奨を報告に添える・PR コメントは AI 明記＋具体・
 曖昧は STOP 報告・スコープ外は起票提案）は、**各エージェントの `developer_instructions`（`.codex/agents/issue-implementer.toml`／`pr-reviewer.toml`）に常設**する（読者が見る場所・版管理・毎回自動適用）。
 - **dispatch prompt には毎回タスク固有情報だけ**を書く。バッチ共通の補足がある場合のみ、AGENTS.md の規約どおり
   `tmp/<sprint>/issue-pipeline-common.md` に書き出して各 dispatch から参照させる（同一指示をコンテキストに展開しない）。
+- **Claude review MCP へ渡す恒常指示は `.codex/mcp/claude_review/common_instructions.md` に置く**。MCP が毎回自動注入するため、呼び出し側は「日本語」「AGENTS.md遵守」「読み取り専用」等の共通文言を prompt に繰り返し書かない。
 - **恒常契約を毎回 dispatch prompt に展開する仕組みは採らない（設計判断）**：Codex には Claude Code の `SubagentStart` フック（`hookSpecificOutput.additionalContext` で子コンテキストへ注入する仕組み）に相当する機構はない。恒常契約は `developer_instructions` に置くことで可視・版管理でき毎回自動適用されるため、そもそもフック的な注入機構を必要としない。
   理由＝(1) 対象2エージェントは本パイプライン専用で、恒常契約は各 `.toml` に置く方が可視・版管理でき常に効く。
-  (2) Codex 版では push/merge の禁止は**機械ゲートではなくプロンプト規律**（`.codex/agents/issue-implementer.toml`／`pr-reviewer.toml` 自身の記述どおり・必要な Codex hook/config が導入されるまでの前提）であり、Claude Code 側の agent-command-gate のような機械拒否境界に限ってフックを使う慣行（PR2・機械判定と運用ルールを混ぜない）は Codex には現状存在しない。
+  (2) Codex 版の push/merge 禁止は `.codex/hooks/agent-command-gate.sh` による機械ゲートとプロンプト規律の多層防御だが、hook は静的検査かつ trust 前提なので完全な権限境界ではない。恒常指示の配布は `.toml` と MCP 共通指示に置き、コマンド拒否のような機械判定だけ hook に寄せる（PR2・機械判定と運用ルールを混ぜない）。
   (3) 常時 ON のグローバル副作用は、明示ブロックに比べ保守面が重く不透明で、得られるトークン節約は限定的（この理由は環境非依存でそのまま踏襲）。
 
 ## 重い作業は agy を積極利用（Issue #120 ⑦・fail-close）
@@ -104,6 +130,7 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - ① 推奨順を依存グラフ＋根拠付きで提示し、オーナー承認を得た（独断で処理を始めていない）。
 - 各 Issue が **implement→PR→review→merge→close** を1件ずつ完結（前 Issue の close 確認後に次へ）。
 - 実装 model/effort は bloom-model-tier、初回レビュー effort はリスク信号表で選定し**根拠を1行残した**。是正降格は**レビューアが決めた**。**再レビューは既定 `high`**。
+- Claude review MCP の必須/任意/スキップ/STOP を起動条件表で判定し、merge 前に根拠と結果を記録した。
 - レビュー指摘・処置結果が **PR レビューコメント**に AI 明記＋具体で残っている（Issue #120 ⑥）。
 - スコープ拡張は**別 Issue に逃がした**（現 PR を肥大化させていない・⑧）。
 - 先送りは**オーナー許可を取った**（AI 独断で「対応不要/繰り越し」していない・⑨）。

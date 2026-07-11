@@ -18,12 +18,22 @@ The allowed workspace root defaults to the server startup directory. Set
 `CLAUDE_REVIEW_MCP_WORKSPACE_ROOT` if the MCP host may launch the server from a
 broader directory than the repository.
 
+Every `claude_review` call automatically injects the shared review instructions
+from:
+
+- `.codex/mcp/claude_review/common_instructions.md`
+
+Set `CLAUDE_REVIEW_MCP_COMMON_INSTRUCTIONS` to point at a different file if a
+repo needs a different shared contract. Relative paths are resolved under the
+workspace root.
+
 ## Tools
 
 - `claude_review`: runs `claude -p` in read-only plan mode. `model` accepts
   `opus` or `fable`; default is `opus`, and `opus` is passed as the fallback.
 - `claude_review_status`: checks `claude --version`, `gh --version`, and local
-  rate-limit state without running `claude -p`.
+  rate-limit state without running `claude -p`; it also reports the common
+  instructions path.
 
 When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 
@@ -62,6 +72,10 @@ cooldown is stored for the next call.
 GitHub PR metadata and diffs are appended inside fenced blocks with explicit
 instructions to treat them as untrusted review evidence, not as model
 instructions.
+
+The common instructions file is trusted project configuration and is injected
+before the caller's task-specific prompt. Callers should pass only the concrete
+review request, such as the PR number, risk focus, and any owner-approved scope.
 
 ## Tests
 

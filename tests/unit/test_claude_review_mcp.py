@@ -66,6 +66,22 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertEqual(calls[0][:4], ["gh", "pr", "view", "1"])
         self.assertEqual(calls[1][:4], ["gh", "pr", "diff", "1"])
 
+    def test_common_instructions_are_injected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            common = Path(tmp) / "common.md"
+            common.write_text("always answer in Japanese", encoding="utf-8")
+            with mock.patch.dict(
+                server.os.environ,
+                {"CLAUDE_REVIEW_MCP_COMMON_INSTRUCTIONS": str(common)},
+                clear=False,
+            ):
+                text = server.assemble_prompt("review this", "/tmp/work", None)
+
+        self.assertIn("Trusted Common Instructions", text)
+        self.assertIn(str(common), text)
+        self.assertIn("always answer in Japanese", text)
+        self.assertIn("review this", text)
+
     def test_rate_limit_preflight_blocks_future_reset(self):
         with tempfile.TemporaryDirectory() as tmp:
             state_root = Path(tmp)
