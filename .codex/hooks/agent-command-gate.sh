@@ -92,6 +92,18 @@
 #   静的に確定して reexec 対象に含める設計とした（上流が `find` の結果や変数展開等の非リテラルの
 #   場合は静的に決定できないため対象外＝新規の過検知を出さない）。完全な網羅は目指さない（受け入れ
 #   基準5）。詳細は各関数のコメント参照（詳細設計は Claude/Codex 両版で同一）。
+#
+#   2026-07-12 追加是正その4（Issue #215・Issue #213/PR #214 の opus 敵対的レビューで発見・
+#   Claude 版と同一設計）：bare_interpreter_reexec_bodies/xargs_reexec_bodies は
+#   literal_producer_value を「直前ステージ（stages[i-1]）のみ」に適用していたため、リテラル
+#   producer とインタプリタの間に `cat`/`tee` 等のパススルーを1段挟むと検知が外れていた
+#   （`echo 'git merge evil' | cat | bash` 等を実行して allow されることを確認済み）。同PR自身の
+#   ヒアドキュメント経路（heredoc_pipeline_has_downstream_interpreter）は既に多段パススルーに
+#   対応済みで、bare-pipe/xargs 経路だけが非対称だった。is_pure_passthrough_stage/
+#   literal_producer_value_through_passthrough を追加し、直前ステージが純粋なパススルー
+#   （演算子を含まず、cat はファイルオペランドを持たない）である限りさらに前段へ literal
+#   producer の確定を遡るよう対称化した。過度なパススルーコマンドの網羅は目指さない（受け入れ
+#   基準6・cat/tee の代表例に限定）。詳細は各関数のコメント参照。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -529,12 +541,78 @@ def literal_producer_value(stage_text):
     return None
 
 
+# パススルー経由の producer 遡及対応（Issue #215・Claude 版と同一設計）: bare_interpreter_reexec_bodies/
+# xargs_reexec_bodies は下で literal_producer_value を直前ステージ（stages[i-1]）のみに適用して
+# いたため、リテラル producer とインタプリタの間に `cat`/`tee` 等のパススルーを1段挟むと
+# （`echo 'git merge evil' | cat | bash` 等）検知が外れていた（実行して確認済み）。本節は
+# 「直前ステージが純粋なパススルーなら、さらにその前段へ literal_producer_value の確定を
+# 遡って試みる」設計で、既存の heredoc_pipeline_has_downstream_interpreter（多段パススルー対応済み）
+# と対称化する。過度なパススルーコマンドの網羅は目指さない（受け入れ基準6・代表例の cat/tee に限定）。
+PASSTHROUGH_COMMANDS = {"cat", "tee"}
+
+
+def is_pure_passthrough_stage(stage_text):
+    """stage_text（隣接する `|` の間の1ステージ全体のテキスト）が、標準入力をそのまま標準出力へ
+    転送するだけの純粋なパススルー（cat/tee）かどうかを判定する。
+
+    安全側に倒す2つの制約:
+    1. STAGE_OPERATOR_SPLIT_RE（&&/||/;/改行）を含む場合は対象外にする。シェルの結合優先順位は
+       `|` が `&&`/`||`/`;` より強いため、`a | cat && true | b` は実際には
+       `(a | cat) && (true | b)` という2本の独立したパイプラインであり、"cat" の出力は
+       次段（b）へは渡らない。演算子を含むステージをパススルー候補として遡及すると、実際には
+       繋がっていない別のパイプラインを繋がっていると誤認するおそれがあるため、演算子を
+       含む時点で遡及を打ち切る（安全側＝新規の過検知にはならず、単に一部の組み合わせを
+       検知しないだけに留まる）。
+    2. `cat` はファイルオペランド（`-` 以外の非フラグ引数）を持つ場合は対象外にする。
+       `echo x | cat somefile | bash` は somefile の中身が実行されるのであって上流の echo の
+       値ではないため、パススルー扱いにすると producer 追跡の対応関係が壊れる。`tee` は
+       ファイル引数があっても標準入力を標準出力へも常に転送する仕様のため対象外にしない。
+    """
+    if STAGE_OPERATOR_SPLIT_RE.search(stage_text):
+        return False
+    stripped = stage_text.strip()
+    if "$" in stripped or "`" in stripped:
+        return False
+    try:
+        tokens = shlex.split(stripped, posix=True)
+    except ValueError:
+        return False
+    tokens = strip_leading_wrappers(tokens)
+    if not tokens:
+        return False
+    name = os.path.basename(tokens[0])
+    if name not in PASSTHROUGH_COMMANDS:
+        return False
+    if name == "cat":
+        for arg in tokens[1:]:
+            if arg == "-" or arg.startswith("-"):
+                continue
+            return False  # 非フラグのファイルオペランドがある = 標準入力を読まない
+    return True
+
+
+def literal_producer_value_through_passthrough(stages, index):
+    """stages[index] から後方（producer 方向）へ、純粋なパススルー段（is_pure_passthrough_stage）を
+    許容しながら literal_producer_value が確定できる最初の段まで遡る。パススルーでも literal
+    producer でもない段に当たった時点で静的に確定できないため None を返す（安全側）。index は
+    毎回1段ずつ減るため、有限のステージ数で必ず終了する（無限ループにはならない）。"""
+    while index >= 0:
+        value = literal_producer_value(stages[index])
+        if value is not None:
+            return value
+        if not is_pure_passthrough_stage(stages[index]):
+            return None
+        index -= 1
+    return None
+
+
 # xargs プレースホルダ置換対応（Issue #213 受け入れ基準2・Claude 版と同一設計）: `echo 'git merge
 # evil' | xargs -I{} bash -c '{}'` のように、`-I` で指定したプレースホルダ（既定 `{}`）が xargs
 # 経由で実行時に置換されるパターンは、quoted_subcommands が `bash -c '{}'` を抽出してもプレース
 # ホルダのリテラル文字列のままで、実際に代入される値（パイプ上流からの入力）を静的に追えず検知漏れに
-# なっていた。本関数は、xargs の直前のパイプステージが echo/printf のみの静的リテラル引数で
-# 構成されている場合に限り（literal_producer_value が値を確定できる場合のみ）、その値を
+# なっていた。本関数は、xargs の直前のパイプステージ（またはそこから純粋なパススルー＝cat/tee を
+# 許容して遡った先のステージ。Issue #215）が echo/printf のみの静的リテラル引数で構成されている
+# 場合に限り（literal_producer_value_through_passthrough が値を確定できる場合のみ）、その値を
 # プレースホルダに埋め込んだ上で xargs のコマンド部分を reexec 対象として返す。上流が非リテラル
 # の場合は対象外（安全側）。長形式 `--replace` 等の非 `-I` 記法は未対応（既知の残存ギャップ・
 # 完全網羅は目指さない設計方針＝受け入れ基準5）。
@@ -559,7 +637,7 @@ def xargs_reexec_bodies(command_text):
         remainder = stage_text[m.end():]
         if placeholder not in remainder:
             continue
-        literal_value = literal_producer_value(stages[i - 1])
+        literal_value = literal_producer_value_through_passthrough(stages, i - 1)
         if literal_value is None:
             continue
         bodies.append(remainder.replace(placeholder, literal_value))
@@ -573,9 +651,10 @@ def bare_interpreter_reexec_bodies(command_text):
     後続に `&&`/`;` 等で別コマンドが連結されていても、実際にパイプへ繋がるのは最初の一つだけの
     ため）の先頭コマンドがインタプリタ（HEREDOC_INTERPRETER_COMMANDS を流用）で、かつ
     `-c`/`--command` や位置引数（スクリプトファイル等）を伴わない（＝標準入力からスクリプト
-    全体を読み込む形）場合のみ、上流ステージの literal_producer_value を reexec 対象として返す。
-    位置引数がある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして読まない
-    ため対象外とする（新規の過検知を避けるため）。"""
+    全体を読み込む形）場合のみ、上流ステージ（またはそこから純粋なパススルー＝cat/tee を許容して
+    遡った先のステージ。Issue #215）の literal_producer_value_through_passthrough を reexec 対象
+    として返す。位置引数がある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして
+    読まないため対象外とする（新規の過検知を避けるため）。"""
     bodies = []
     stages = PIPE_ONLY_RE.split(command_text)
     for i in range(1, len(stages)):
@@ -594,7 +673,7 @@ def bare_interpreter_reexec_bodies(command_text):
             continue  # スクリプトが引数そのもの＝quoted_subcommands が別途担当
         if any(not arg.startswith("-") for arg in rest_args):
             continue  # 位置引数（スクリプトファイル等）がある場合は標準入力を読まないため対象外
-        literal_value = literal_producer_value(stages[i - 1])
+        literal_value = literal_producer_value_through_passthrough(stages, i - 1)
         if literal_value is None:
             continue
         bodies.append(literal_value)

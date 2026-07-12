@@ -275,6 +275,56 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
         self.assert_allowed(run_gate(payload("issue-implementer", "git status && echo done")))
 
+    def test_passthrough_between_literal_producer_and_interpreter_is_denied(self):
+        # Issue #215（Claude 版と同一設計）: Issue #213（PR #214）の opus 敵対的レビューで発見。
+        # bare_interpreter_reexec_bodies/xargs_reexec_bodies は literal_producer_value を直前
+        # ステージ（stages[i-1]）のみに適用していたため、リテラル producer とインタプリタの間に
+        # `cat`/`tee` 等のパススルーを1段挟むと検知が外れていた（実行して allow されることを
+        # 確認済み）。パススルーを許容して producer を遡れるようにしたため、以下は引き続き
+        # （多段パススルーでも）検知されなければならない。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | cat | bash",
+            "printf '%s' 'git merge feature' | tee /tmp/x | bash",
+            "echo 'git merge feature' | cat | xargs -I{} bash -c '{}'",
+            # 多段パススルー（cat/tee の重ね掛け）。
+            "echo 'git merge feature' | cat | cat | bash",
+            "echo 'git merge feature' | cat | tee /tmp/x | cat | bash",
+            "printf '%s' 'gh pr merge 123' | cat | sh",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        pr_reviewer_commands = [
+            "echo 'git push origin HEAD' | cat | bash",
+            "echo 'git push origin HEAD' | cat | xargs -I{} bash -c '{}'",
+        ]
+        for command in pr_reviewer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
+    def test_passthrough_producer_traversal_does_not_introduce_new_bypass(self):
+        # 敵対的自己検証（Issue #215・Claude 版と同一設計）: パススルー許容ロジック自体が新たな
+        # 抜け道を生んでいないか確認。
+        # 1. パイプ境界前後の演算子連結（`&&`）でパススルーが挟まると、シェルの結合優先順位
+        #    （`|` が `&&` より強い）により実際には2本の独立したパイプラインに分かれ、literal は
+        #    bash 側へ渡らない（実際に bash で実行し injected 文字列が「実行されず表示されるだけ」に
+        #    留まることを確認済み）。過検知せず allow のままであるべき。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | cat && true | bash"))
+        )
+        # 2. `cat` にファイルオペランドがある場合、標準入力ではなくファイルを読むため、上流の
+        #    echo リテラルは実際には bash に渡らない。パススルー扱いにしないため過検知しない。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt | bash"))
+        )
+        # 3. 既存の false positive 対策（無関係の xargs/パイプイディオム）は壊れていない。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "find . -name '*.txt' | xargs -I{} wc -l {}"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
+        )
+
     def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
         # 実装中の敵対的自己検証で発見（Issue #213・Claude 版と同一設計）:
         # herestring_reexec_bodies/xargs_reexec_bodies/bare_interpreter_reexec_bodies を
