@@ -124,6 +124,36 @@
 #        （SINGLE_LINE）恒等とみなす2区分の設計にした（classify_passthrough_stage/
 #        is_single_line_identity_args）。`grep`/`tr` は恒等変換にならないため対象外（受け入れ基準3・
 #        スコープ外として明記）。詳細は各関数のコメント参照。
+#
+#   2026-07-12 追加是正その6（PR #219 の opus 敵対的レビューで発見・同PR内で追加是正・
+#   オーナー承認「実装者に差し戻して同PR内でA+Bも修正」・Claude 版と同一設計）：その5の実装に
+#   対し、実 bash で実行確認された残存バイパス2クラスが見つかった。
+#     クラスA（サブシェル・consumer/パイプライン全体のラップ）: split_top_level_pipes/
+#       strip_matching_parens は「中間パススルー段としてのサブシェル」のみに対応しており、
+#       `echo 'git merge evil' | (bash)`（consumer 位置を丸括弧で包む）・
+#       `(echo 'git merge evil' | bash)`（パイプライン全体を丸括弧で包む）・
+#       `echo 'git merge evil' | (cat | cat) | (bash)`（両方の組み合わせ）・
+#       `echo 'git merge evil' | (cat && true) | bash`・`echo 'git merge evil' | (true; cat) | bash`
+#       （サブシェル内の sequencing 演算子）が未対応で、いずれも実行して allow されることを
+#       確認した。unwrap_redundant_parens()/top_level_pipeline_stages() で consumer 側・
+#       パイプライン全体のラップを剥がし、classify_subshell_body()/classify_operator_sequence_stage()
+#       でサブシェル内の sequencing 演算子（&&/;）を、true/:/false のような「標準出力を一切
+#       生成しないことが既知のコマンド」と組み合わさる場合に限り安全側で解決するようにした
+#       （トップレベル＝丸括弧の外側での &&/; は既存どおり対象外のまま。シェルの結合優先順位
+#       `|` > `&&`/`;` により実際に別パイプラインへ分かれてしまうため。詳細は
+#       classify_operator_sequence_stage のコメント参照）。
+#     クラスB（sort/head/tail の恒等フラグの過小評価）: その5の実装は sort/uniq をフラグなしのみ
+#       許可していたが、`sort -r`/`sort -u`/`uniq -u` は単一行入力に対しては実際には恒等変換
+#       であり、deny すべきなのに allow されていたバイパスだった。同様に head/tail の
+#       `-c`/`--bytes`（バイト数指定）・head の `-n +1` も未対応だった。
+#       is_single_line_identity_args を (is_safe, byte_cap) を返す設計に拡張し、sort/uniq は
+#       検証済みの安全なフラグ集合（SORT_SAFE_FLAG_CHARS={"r","u"}/UNIQ_SAFE_FLAG_CHARS={"u"}）
+#       のみ許可、head/tail のバイト数指定は producer 値の実際のバイト長が指定値以下の場合に
+#       限り恒等とみなす byte_cap 判定を追加した（`head -c5` で "git merge evil" が "git m" に
+#       切り詰められ恒等でなくなることを実行して確認済みのため、バイト数の妥当性は動的に
+#       検証する）。
+#   受け入れ基準の scope は変わらず：`grep`/`tr` の対応、cut/awk/sed 等の他フィルタコマンドへの
+#   一般化は Issue #220 として別起票済み・本是正では対象外。詳細は各関数のコメント参照。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -573,6 +603,38 @@ def strip_matching_parens(stripped):
     return stripped[1:-1]
 
 
+# サブシェルによる consumer/パイプライン全体のラップ対応（PR #219 opus レビューで発見・クラスA・
+# Claude 版と同一設計）: `echo 'git merge evil' | (bash)`（consumer 位置を丸括弧で包む）や
+# `(echo 'git merge evil' | bash)`（パイプライン全体を丸括弧で包む）は、いずれも実 bash で
+# 実際にペイロードが実行されるにもかかわらず、split_top_level_pipes だけでは検知できない
+# （前者は consumer 側トークンが `(bash)` という1語になり HEREDOC_INTERPRETER_COMMANDS と
+# 一致しない。後者はパイプ全体が depth>=1 の内側に収まり、そもそもトップレベルの `|` が
+# 見つからず stages が1要素のまま split されない）。実行して確認済み。
+def unwrap_redundant_parens(text):
+    """text をトリムした結果がちょうど1組の対応する丸括弧で全体を囲んでいる場合、内側を返し、
+    それがさらに丸括弧で囲まれていれば繰り返し剥がす（`((cmd))` 等の多重サブシェルにも対応）。
+    剥がせなくなった時点のテキスト（トリム済み）を返す。"""
+    stripped = text.strip()
+    while True:
+        inner = strip_matching_parens(stripped)
+        if inner is None:
+            return stripped
+        stripped = inner.strip()
+
+
+def top_level_pipeline_stages(command_text):
+    """command_text 全体のトップレベルのパイプ段リストを返す。split_top_level_pipes が1要素
+    しか返さず、かつその唯一の要素がちょうど1組の丸括弧で command_text 全体を囲んでいるだけ
+    （＝パイプライン全体が丸ごとサブシェルに包まれているだけで、実質的な段構成は中身と同じ）の
+    場合は、中身を展開してから改めて分割する（再帰的に多重サブシェルにも対応）。"""
+    stages = split_top_level_pipes(command_text)
+    if len(stages) == 1:
+        unwrapped = unwrap_redundant_parens(stages[0])
+        if unwrapped != stages[0].strip():
+            return top_level_pipeline_stages(unwrapped)
+    return stages
+
+
 # 敵対的自己検証で発見（Issue #213・実装中の追加是正・Claude 版と同一設計）: `true ||
 # echo 'git merge evil' | bash` や `echo 'git merge evil' | bash && true` のように、パイプ境界の
 # 前後に `&&`/`||`/`;`/改行で別のサブコマンドが連結されていると、ステージ全体をそのまま shlex
@@ -637,9 +699,8 @@ UNCONDITIONAL_PASSTHROUGH_COMMANDS = {"cat", "tee"}
 # 「複数行入力」や「一部のフラグ」では恒等変換にならない（例: sort は複数行なら並べ替える、
 # `uniq -c` は件数を先頭に付与する、`head -n0` は0行しか出力しない）。一方でこのフックが遡及に
 # 使う literal_producer_value は echo/printf の静的リテラル引数から確定した値であり、通常は
-# 改行を含まない単一行になる。「引数なし（フラグなし）で呼び出された sort/uniq」「正の行数指定
-# のみを伴う、または引数なしの head/tail」は、入力が実際に単一行である限り恒等変換になることが
-# 構造的に保証できるため、UNCONDITIONAL（cat/tee・無条件）とは区別して SINGLE_LINE（producer 値に
+# 改行を含まない単一行になる。「単一行入力であれば恒等になることが構造的に保証できる引数の
+# 組み合わせ」に限り UNCONDITIONAL（cat/tee・無条件）とは区別して SINGLE_LINE（producer 値に
 # 改行が含まれないことを別途確認した場合のみ有効）という2区分でパススルーを扱う。`grep`/`tr` は
 # 恒等変換にならない（grep はパターン一致が前提、tr は文字変換が前提）ため対象外（Issue #218
 # 受け入れ基準3・スコープ外として明記）。
@@ -647,97 +708,147 @@ SINGLE_LINE_PASSTHROUGH_COMMANDS = {"sort", "head", "tail", "uniq"}
 
 _POSITIVE_INT_RE = re.compile(r"^\d+$")
 
+# PR #219 opus レビュー・クラスB追随是正（Claude 版と同一設計）: sort -r/-u・uniq -u・head/tail
+# -c（バイト数指定）・head -n +1 は、実 bash で実行確認したところいずれも恒等変換だったが、
+# 当初の実装（フラグなしのみ許可）では未対応で検知漏れになっていた。以下、各コマンドごとに
+# 検証済みの安全な引数の組み合わせのみを追加する（無条件の全フラグ許可はしない）。
+#
+# sort -r/--reverse・-u/--unique（単独・バンドル `-ru`/`-ur` を含む）は、1行しかない入力では
+# 並べ替え・重複排除ともに対象が1個しかなく効果がないため恒等（実 bash で確認済み）。
+# `-c`/`-C`（check モード。並べ替え結果を標準出力に書かない）・`-o FILE`（ファイル出力）・
+# `-m`（複数ソート済み入力のマージ前提）等、恒等が崩れる／保証できないフラグは許可しない。
+SORT_SAFE_FLAG_CHARS = {"r", "u"}
+SORT_SAFE_LONG_FLAGS = {"--reverse", "--unique"}
+# uniq -u/--unique（隣接する重複を除いた行のみ出力）は、1行しかない入力では比較対象がなく
+# 常に「重複していない行」として出力されるため恒等（実 bash で確認済み）。`-d`/`--repeated`
+# （重複行のみ出力。1行入力では出力が空になり恒等でない）・`-c`（件数付与）は許可しない。
+UNIQ_SAFE_FLAG_CHARS = {"u"}
+UNIQ_SAFE_LONG_FLAGS = {"--unique"}
 
-def _head_tail_positive_line_count(args):
-    """head/tail の引数が「正の行数を1つだけ指定する」形（`-n5`/`-n 5`/`--lines=5`/旧記法 `-5`）に
-    限り True を返す。1行入力に対しては「先頭/末尾から何行取るか」を何行指定しても取れる行は
-    その1行しかないため恒等になるが、`-n0`（0行要求＝恒等でない）や `-n +5`（絶対行番号指定・
-    `+` 付きは意味が異なる）、`-c`（バイト数指定）は対象外にする（Issue #218 受け入れ基準3・
-    設計上の注意を踏まえた安全側の限定）。"""
+
+def _is_safe_flag_only_args(args, safe_chars, safe_long_flags):
+    """args の全トークンが「安全な短縮フラグ文字だけで構成された `-` 始まりのバンドル」
+    （例: safe_chars={"r","u"} なら `-r`/`-u`/`-ru`/`-ur`）または「安全なロングフラグ」の
+    いずれかである場合のみ True を返す。ファイルオペランド・その他の非安全フラグが1つでも
+    混じっていれば False（安全側）。"""
+    for arg in args:
+        if arg in safe_long_flags:
+            continue
+        if arg.startswith("--"):
+            return False
+        if arg.startswith("-") and len(arg) > 1 and all(ch in safe_chars for ch in arg[1:]):
+            continue
+        return False
+    return True
+
+
+def _head_tail_count_spec(args):
+    """head/tail の引数（先頭コマンド語を除いた残り）を解析し、`-n`/`-c`（または `--lines=`/
+    `--bytes=`）1個だけで構成される場合に ("lines" | "bytes", カウント文字列) を返す。
+    複数フラグの混在・カウント指定なしなど、静的に安全性を判定できない形は None を返す。"""
+    kind = None
     count_text = None
     if len(args) == 1:
         token = args[0]
         if token.startswith("-n") and token != "-n":
-            count_text = token[2:]
+            kind, count_text = "lines", token[2:]
+        elif token.startswith("-c") and token != "-c":
+            kind, count_text = "bytes", token[2:]
         elif token.startswith("--lines="):
-            count_text = token[len("--lines="):]
+            kind, count_text = "lines", token[len("--lines="):]
+        elif token.startswith("--bytes="):
+            kind, count_text = "bytes", token[len("--bytes="):]
         elif token.startswith("-") and len(token) > 1 and token[1:].isdigit():
-            count_text = token[1:]  # head -5 / tail -5 の旧記法
+            kind, count_text = "lines", token[1:]  # head -5 / tail -5 の旧記法
     elif len(args) == 2 and args[0] in {"-n", "--lines"}:
-        count_text = args[1]
-    if count_text is None or not _POSITIVE_INT_RE.match(count_text):
-        return False
-    return int(count_text) >= 1
+        kind, count_text = "lines", args[1]
+    elif len(args) == 2 and args[0] in {"-c", "--bytes"}:
+        kind, count_text = "bytes", args[1]
+    if kind is None or count_text is None:
+        return None
+    return kind, count_text
 
 
 def is_single_line_identity_args(name, args):
     """SINGLE_LINE_PASSTHROUGH_COMMANDS の各コマンドについて、与えられた引数の組み合わせが
-    「単一行入力に対して」恒等変換になることを保証できる場合のみ True を返す。sort/uniq は
-    フラグ付きだと恒等性を個別に検証しきれない（`-o FILE` は標準出力に出さない、`-c`/`-d`/`-u`
-    は出力内容自体を変える等）ため、引数なし（フラグなし）の呼び出しのみ許可する（Issue #218
-    受け入れ基準3の「フラグなし」方針）。head/tail は正の行数指定のみ追加で許可する。ファイル
-    オペランドを伴う呼び出し（例: `sort file.txt`）も「引数あり」として一律ここで弾かれる
-    （標準入力ではなくファイルを読むため）。"""
-    if not args:
-        return True
-    if name in {"head", "tail"}:
-        return _head_tail_positive_line_count(args)
-    return False  # sort/uniq はフラグ付きだと対象外（安全側）
+    「単一行入力に対して」恒等変換になることを保証できるかどうかを判定する。
 
+    戻り値は (is_safe, byte_cap) のタプル。is_safe=False の場合 byte_cap は常に None。
+    is_safe=True かつ byte_cap=None は「単一行入力であれば無条件に恒等」（行数指定・フラグなし
+    等）。is_safe=True かつ byte_cap=N（正の整数）は「単一行入力であり、かつ最終的に確定する
+    producer 値の UTF-8 バイト長が N 以下の場合に限り恒等」（head/tail の `-c`/`--bytes`
+    バイト数指定・PR #219 opus レビュー クラスB追随。`head -c5` で "git merge evil" が
+    "git m" に切り詰められ恒等でなくなることを実 bash で確認済みのため、無条件許可はしない）。
 
-def classify_passthrough_stage(stage_text):
-    """stage_text（隣接する `|` の間の1ステージ全体のテキスト）が、標準入力をそのまま標準出力へ
-    転送するだけのパススルーかどうかを判定し、("unconditional" | "single_line" | None) を返す。
-
-    - "unconditional": cat/tee のように、入力の行数や内容に関わらず常に恒等変換になる
-      （cat はファイルオペランドを持たないことが条件・従来どおり）。
-    - "single_line": sort/head/tail/uniq のように、入力が改行を含まない単一行であり、かつ
-      is_single_line_identity_args が真を返す引数の組み合わせの場合に限り恒等になる。呼び出し側
-      literal_producer_value_through_passthrough が、最終的に確定した producer 値が実際に単一行
-      （"\\n" を含まない）であることを別途確認する（Issue #218 ギャップ2）。
-    - None: パススルーとして扱えない。
-
-    丸括弧 `( ... )` で囲まれたサブシェル1本のパイプライン（Issue #218 ギャップ1）は、
-    strip_matching_parens で内側を取り出し split_top_level_pipes で分割した各段が全て
-    passthrough である場合に限り、内側パイプライン全体を1段のパススルーとして扱う（いずれかの
-    段が single_line なら全体も single_line に倒す＝より制約が強い方に倒す安全側）。
-
-    安全側に倒す共通の制約（従来どおり）:
-    1. STAGE_OPERATOR_SPLIT_RE（&&/||/;/改行）を含む場合は対象外にする。シェルの結合優先順位は
-       `|` が `&&`/`||`/`;` より強いため、`a | cat && true | b` は実際には
-       `(a | cat) && (true | b)` という2本の独立したパイプラインであり、"cat" の出力は
-       次段（b）へは渡らない。演算子を含むステージをパススルー候補として遡及すると、実際には
-       繋がっていない別のパイプラインを繋がっていると誤認するおそれがあるため、演算子を
-       含む時点で遡及を打ち切る（安全側＝新規の過検知にはならず、単に一部の組み合わせを
-       検知しないだけに留まる）。
-    2. `cat` はファイルオペランド（`-` 以外の非フラグ引数）を持つ場合は対象外にする。
-       `echo x | cat somefile | bash` は somefile の中身が実行されるのであって上流の echo の
-       値ではないため、パススルー扱いにすると producer 追跡の対応関係が壊れる。`tee` は
-       ファイル引数があっても標準入力を標準出力へも常に転送する仕様のため対象外にしない。
+    - sort: 引数なし、または SORT_SAFE_FLAG_CHARS/SORT_SAFE_LONG_FLAGS のみで構成される場合。
+    - uniq: 引数なし、または UNIQ_SAFE_FLAG_CHARS/UNIQ_SAFE_LONG_FLAGS のみで構成される場合。
+    - head/tail: 引数なし、正の行数指定（`-n`/`--lines`。head は `-n +N` の `+` も許容——GNU
+      head の `-n +N` は tail と異なり単に "先頭 N 行"（`-n N` と同義）であることを実 bash で
+      確認済み。tail の `-n +N` は「N 行目から末尾まで」で意味が異なるため対象外）、または
+      正のバイト数指定（`-c`/`--bytes`。byte_cap 付きで返す）。
+    - それ以外の組み合わせ（ファイルオペランド混在・非対応フラグ等）は (False, None)。
     """
-    stripped = stage_text.strip()
-    if not stripped:
-        return None
-    inner = strip_matching_parens(stripped)
-    if inner is not None:
-        sub_stages = split_top_level_pipes(inner)
-        if not sub_stages or any(not sub.strip() for sub in sub_stages):
-            return None
-        kinds = [classify_passthrough_stage(sub) for sub in sub_stages]
-        if any(kind is None for kind in kinds):
-            return None
-        return "single_line" if "single_line" in kinds else "unconditional"
-    if STAGE_OPERATOR_SPLIT_RE.search(stripped):
-        return None
+    if not args:
+        return True, None
+    if name == "sort":
+        return _is_safe_flag_only_args(args, SORT_SAFE_FLAG_CHARS, SORT_SAFE_LONG_FLAGS), None
+    if name == "uniq":
+        return _is_safe_flag_only_args(args, UNIQ_SAFE_FLAG_CHARS, UNIQ_SAFE_LONG_FLAGS), None
+    if name in {"head", "tail"}:
+        spec = _head_tail_count_spec(args)
+        if spec is None:
+            return False, None
+        kind, count_text = spec
+        if kind == "lines":
+            if count_text.startswith("+"):
+                if name != "head":
+                    return False, None  # tail の `-n +N` は開始行指定で意味が異なるため対象外
+                count_text = count_text[1:]
+            if not _POSITIVE_INT_RE.match(count_text) or int(count_text) < 1:
+                return False, None
+            return True, None
+        if kind == "bytes":
+            if not _POSITIVE_INT_RE.match(count_text):
+                return False, None
+            n = int(count_text)
+            if n < 1:
+                return False, None
+            return True, n
+        return False, None
+    return False, None
+
+
+# サブシェル内 sequencing 演算子対応（PR #219 opus レビューで発見・クラスA・Claude 版と同一設計）:
+# `(cat && true)`/`(true; cat)` は、実 bash では実際に恒等変換になる（cat が stdin を読み切って
+# 書き出した後、true が続けて走っても標準出力には何も追加されない／true が先に走っても stdin を
+# 消費せず何も出力しないため後続の cat がそのまま元の stdin を書き出す。いずれも実 bash で
+# 確認済み）にもかかわらず、当初の実装は STAGE_OPERATOR_SPLIT_RE（&&/||/;/改行）を含む時点で
+# 無条件に非パススルー扱いにしていたため検知漏れだった。
+#
+# ただし、この「演算子を挟んでも恒等になりうる」という性質は、あくまで丸括弧で囲まれた
+# **サブシェルの中身**でのみ成り立つ（1つの実行コンテキストで標準出力が連結されるため）。
+# 丸括弧に包まれていない、トップレベルのパイプ段テキストに現れる `&&`/`;` は、シェルの結合
+# 優先順位が `|` > `&&`/`||`/`;` であるため実際には別々のパイプラインに分かれてしまう
+# （`a | cat && true | b` は `(a | cat) && (true | b)` で cat の出力は b に渡らない・既存の
+# 安全側の理由づけ）。この区別を保つため、classify_passthrough_stage（トップレベル段専用）と
+# classify_subshell_body（丸括弧の中身専用）を分離し、sequencing 演算子の処理は後者からのみ
+# 呼び出す classify_operator_sequence_stage に閉じ込める。
+NOOP_STDOUT_FREE_COMMANDS = {"true", ":", "false"}
+
+
+def classify_simple_command_stage(stripped):
+    """stripped（パイプ/丸括弧/sequencing 演算子を含まない単一のコマンドテキスト）を解析し、
+    ("unconditional" | "single_line", byte_cap) または (None, None) を返す（末端の判定ロジック。
+    従来 classify_passthrough_stage 内にあった単純コマンド解析部分を独立させたもの）。"""
     if "$" in stripped or "`" in stripped:
-        return None
+        return None, None
     try:
         tokens = shlex.split(stripped, posix=True)
     except ValueError:
-        return None
+        return None, None
     tokens = strip_leading_wrappers(tokens)
     if not tokens:
-        return None
+        return None, None
     name = os.path.basename(tokens[0])
     args = tokens[1:]
     if name in UNCONDITIONAL_PASSTHROUGH_COMMANDS:
@@ -745,13 +856,115 @@ def classify_passthrough_stage(stage_text):
             for arg in args:
                 if arg == "-" or arg.startswith("-"):
                     continue
-                return None  # 非フラグのファイルオペランドがある = 標準入力を読まない
-        return "unconditional"
+                return None, None  # 非フラグのファイルオペランドがある = 標準入力を読まない
+        return "unconditional", None
     if name in SINGLE_LINE_PASSTHROUGH_COMMANDS:
-        if is_single_line_identity_args(name, args):
-            return "single_line"
-        return None
-    return None
+        is_safe, byte_cap = is_single_line_identity_args(name, args)
+        if not is_safe:
+            return None, None
+        return "single_line", byte_cap
+    return None, None
+
+
+def classify_operator_sequence_stage(stripped):
+    """stripped が `&&`/`||`/`;`/改行で連結された1個以上のサブコマンド列で構成され、そのうち
+    ちょうど1つが classify_subshell_body で識別可能なパススルーで、残り全てが標準出力に
+    何も書かないことが既知のコマンド（NOOP_STDOUT_FREE_COMMANDS＝true/:/false、引数なし）で
+    ある場合、そのパススルー1個の判定結果 (kind, byte_cap) を返す。それ以外は (None, None)。
+
+    true/:/false は実行されてもされなくても（`&&`/`||` による短絡評価の結果に関わらず）標準
+    出力に一切書き込まないため、正確な短絡評価のシミュレーションをしなくても、この2条件
+    （パススルー候補ちょうど1個・残りが true/:/false のみ）さえ満たせば、サブシェル全体の
+    可視標準出力はそのパススルー1個の出力と一致することが保証できる（安全側：仮に非現実的な
+    組み合わせで誤ってパススルー扱いにしてしまっても、起きるのは過剰検知（deny 方向）であり
+    見逃し（allow 方向）にはならない）。呼び出しはこの関数専用（classify_passthrough_stage の
+    トップレベル段では sequencing 演算子は元の安全側挙動＝None のまま）。"""
+    segments = [seg for seg in re.split(r"&&|\|\||;|\n", stripped) if seg.strip()]
+    if not segments:
+        return None, None
+    passthrough_results = []
+    for seg in segments:
+        seg_stripped = seg.strip()
+        try:
+            seg_tokens = strip_leading_wrappers(shlex.split(seg_stripped, posix=True))
+        except ValueError:
+            seg_tokens = None
+        if seg_tokens and len(seg_tokens) == 1 and seg_tokens[0] in NOOP_STDOUT_FREE_COMMANDS:
+            continue  # 標準出力を生成しないことが既知のコマンド（実行有無に関わらず影響なし）
+        kind, byte_cap = classify_subshell_body(seg)
+        if kind is None:
+            return None, None
+        passthrough_results.append((kind, byte_cap))
+    if len(passthrough_results) != 1:
+        return None, None  # パススルー候補が0個または複数個は静的に恒等性を保証できない
+    return passthrough_results[0]
+
+
+def classify_subshell_body(text):
+    """丸括弧で1回以上囲まれたサブシェルの中身を解析し、("unconditional" | "single_line",
+    byte_cap) または (None, None) を返す（PR #219 opus レビュー・クラスA対応）。
+
+    - 中身がさらに丸括弧で囲まれていれば多重サブシェルとして再帰的に剥がす。
+    - トップレベルの `|` を含めば、split_top_level_pipes で分割した各段が全て
+      classify_subshell_body で passthrough と判定される場合に限り、サブシェル全体を1段の
+      パススルーとして扱う（従来の Issue #218 ギャップ1 対応を踏襲。いずれかの段が
+      single_line なら全体も single_line、byte_cap は各段の cap の最小値を採用）。
+    - パイプを含まず `&&`/`||`/`;`/改行のみで連結されたコマンド列は
+      classify_operator_sequence_stage に委ねる（サブシェル内の sequencing 演算子対応）。
+    - それ以外（単一の単純コマンド）は classify_simple_command_stage に委ねる。
+    """
+    stripped = text.strip()
+    if not stripped:
+        return None, None
+    nested = strip_matching_parens(stripped)
+    if nested is not None:
+        return classify_subshell_body(nested)
+    sub_stages = split_top_level_pipes(stripped)
+    if len(sub_stages) > 1:
+        if any(not sub.strip() for sub in sub_stages):
+            return None, None
+        results = [classify_subshell_body(sub) for sub in sub_stages]
+        if any(kind is None for kind, _cap in results):
+            return None, None
+        kinds = [kind for kind, _cap in results]
+        caps = [cap for _kind, cap in results if cap is not None]
+        combined_kind = "single_line" if "single_line" in kinds else "unconditional"
+        combined_cap = min(caps) if caps else None
+        return combined_kind, combined_cap
+    if STAGE_OPERATOR_SPLIT_RE.search(stripped):
+        return classify_operator_sequence_stage(stripped)
+    return classify_simple_command_stage(stripped)
+
+
+def classify_passthrough_stage(stage_text):
+    """stage_text（split_top_level_pipes/top_level_pipeline_stages で得られた、トップレベルの
+    パイプ段テキスト）が、標準入力をそのまま標準出力へ転送するだけのパススルーかどうかを判定し、
+    ("unconditional" | "single_line", byte_cap) または (None, None) を返す。
+
+    - "unconditional": cat/tee のように、入力の行数や内容に関わらず常に恒等変換になる。
+    - "single_line": sort/head/tail/uniq のように、入力が改行を含まない単一行であり、かつ
+      is_single_line_identity_args が真を返す引数の組み合わせの場合に限り恒等になる。呼び出し側
+      literal_producer_value_through_passthrough が、最終的に確定した producer 値が実際に単一行
+      （"\\n" を含まない）であることを別途確認する（Issue #218 ギャップ2）。
+    - byte_cap: None なら無条件、正の整数 N なら producer 値のバイト長が N 以下の場合に限り
+      恒等（head/tail の `-c`/`--bytes` 対応・PR #219 opus レビュー クラスB追随）。
+
+    丸括弧 `( ... )` で stage_text 全体が囲まれている場合は classify_subshell_body に委譲し、
+    サブシェルの中身（ネストしたパイプ・sequencing 演算子を含む）を解析する（Issue #218 ギャップ1
+    ／PR #219 opus レビュー クラスA）。丸括弧で囲まれていない場合、`&&`/`||`/`;`/改行を含む段は
+    対象外にする（トップレベルではシェルの結合優先順位により実際には別々のパイプラインに
+    分かれるため。既存の安全側設計を維持——サブシェル内でのみ意味が異なる点は
+    classify_operator_sequence_stage のコメント参照）。
+    """
+    stripped = stage_text.strip()
+    if not stripped:
+        return None, None
+    inner = strip_matching_parens(stripped)
+    if inner is not None:
+        return classify_subshell_body(inner)
+    if STAGE_OPERATOR_SPLIT_RE.search(stripped):
+        return None, None
+    return classify_simple_command_stage(stripped)
 
 
 def literal_producer_value_through_passthrough(stages, index):
@@ -762,19 +975,26 @@ def literal_producer_value_through_passthrough(stages, index):
 
     途中で "single_line" 種別のパススルー段（sort/head/tail/uniq）を1つでも経由した場合は、
     最終的に確定した producer 値が改行を含む場合（＝実際には単一行ではなかった場合）恒等変換の
-    保証が崩れるため None を返す（Issue #218 ギャップ2・安全側）。"""
+    保証が崩れるため None を返す（Issue #218 ギャップ2・安全側）。同様に、byte_cap 付きの段
+    （head/tail の `-c`/`--bytes`）を経由した場合は、producer 値の UTF-8 バイト長が経由した
+    全 byte_cap の最小値を超える場合も None を返す（PR #219 opus レビュー クラスB追随）。"""
     requires_single_line = False
+    max_bytes = None
     while index >= 0:
         value = literal_producer_value(stages[index])
         if value is not None:
             if requires_single_line and "\n" in value:
                 return None
+            if max_bytes is not None and len(value.encode("utf-8")) > max_bytes:
+                return None
             return value
-        kind = classify_passthrough_stage(stages[index])
+        kind, byte_cap = classify_passthrough_stage(stages[index])
         if kind is None:
             return None
         if kind == "single_line":
             requires_single_line = True
+        if byte_cap is not None and (max_bytes is None or byte_cap < max_bytes):
+            max_bytes = byte_cap
         index -= 1
     return None
 
@@ -794,9 +1014,13 @@ XARGS_PLACEHOLDER_RE = re.compile(r"(?<!\S)-I[ \t]*(\S+)")
 
 def xargs_reexec_bodies(command_text):
     bodies = []
-    stages = split_top_level_pipes(command_text)  # 丸括弧サブシェル対応（Issue #218 ギャップ1）
+    # top_level_pipeline_stages: 丸括弧サブシェル対応（Issue #218 ギャップ1／PR #219 opus レビュー
+    # クラスA：パイプライン全体が丸ごとサブシェルに包まれる `(... | xargs ...)` 形も展開する）。
+    stages = top_level_pipeline_stages(command_text)
     for i in range(1, len(stages)):
-        stage_text = stages[i]
+        # unwrap_redundant_parens: consumer 位置が丸括弧で包まれる `(xargs ...)` 形にも対応
+        # （PR #219 opus レビュー クラスA。bash 側と同じ理由づけ）。
+        stage_text = unwrap_redundant_parens(stages[i])
         try:
             stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
         except ValueError:
@@ -827,11 +1051,21 @@ def bare_interpreter_reexec_bodies(command_text):
     全体を読み込む形）場合のみ、上流ステージ（またはそこから純粋なパススルー＝cat/tee を許容して
     遡った先のステージ。Issue #215）の literal_producer_value_through_passthrough を reexec 対象
     として返す。位置引数がある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして
-    読まないため対象外とする（新規の過検知を避けるため）。"""
+    読まないため対象外とする（新規の過検知を避けるため）。
+
+    PR #219 opus レビュー クラスA追随（Claude 版と同一設計）: `echo x | (bash)`（consumer 位置を
+    丸括弧で包む）や `(echo x | bash)`（パイプライン全体を丸括弧で包む）は実 bash で実際に
+    ペイロードが実行されるにもかかわらず、当初の実装では検知できなかった（前者は shlex トークンが
+    `(bash)` という1語になり HEREDOC_INTERPRETER_COMMANDS と一致しない、後者はトップレベルの
+    `|` が見つからず stages が1要素のまま split されない）。top_level_pipeline_stages/
+    unwrap_redundant_parens で対応する。"""
     bodies = []
-    stages = split_top_level_pipes(command_text)  # 丸括弧サブシェル対応（Issue #218 ギャップ1）
+    # top_level_pipeline_stages: 丸括弧サブシェル対応（Issue #218 ギャップ1／PR #219 クラスA）。
+    stages = top_level_pipeline_stages(command_text)
     for i in range(1, len(stages)):
-        stage_text = first_operator_segment(stages[i])
+        # unwrap_redundant_parens: consumer 位置が丸括弧で包まれる `(bash)` 形にも対応
+        # （PR #219 opus レビュー クラスA）。
+        stage_text = unwrap_redundant_parens(first_operator_segment(stages[i]))
         try:
             stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
         except ValueError:
