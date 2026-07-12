@@ -1328,17 +1328,109 @@ def xargs_reexec_bodies(command_text):
     return bodies, fail_closed
 
 
+# 非 `-I` 形式の xargs 対応（PR #223 opus 再レビュー指摘B・2026-07-13 オーナー方針転換）:
+# `echo 'git push' | xargs -0 bash -c` のように `-I` を使わない xargs は、stdin から読んだ
+# トークンを COMMAND の末尾に追記して実行する（`-0` は NUL 区切り指定に過ぎず、追記される
+# という基本動作は変わらない）。xargs_reexec_bodies は `-I` の有無で判定しており、この形式は
+# 一切見ていなかったため素通りしていた（実 bash で実際に実行されることを確認済み）。
+# オーナー方針転換により、代入値の正確な追記位置・区切り方（-0/-n/-L 等の組み合わせ）を
+# 精密に静的解決することは狙わず、「xargs が実行しようとしているコマンドの先頭が
+# git/gh/interpreter である」という危険な形をしている場合、producer 値の確定可否によらず
+# 一律 fail-closed とする（過検知は許容し見逃さないことを優先する・#222 オーナー方針）。
+XARGS_BOOL_FLAGS = {
+    "-0", "--null", "-t", "--verbose", "-p", "--interactive", "-x", "--exit",
+    "-r", "--no-run-if-empty", "-o", "--open-tty",
+}
+XARGS_VALUE_FLAGS = {
+    "-I", "-i", "--replace", "-L", "-l", "--max-lines", "-n", "--max-args",
+    "-P", "--max-procs", "-d", "--delimiter", "-a", "--arg-file", "-s",
+    "--max-chars", "-E", "--eof",
+}
+_XARGS_COMBINED_SHORT_FLAG_RE = re.compile(r"^-[IiLlnPdsE].+")
+
+
+def xargs_command_head(stage_tokens):
+    """stage_tokens[0]=='xargs' として、xargs 自身のオプション（値を伴うもの・伴わないもの・
+    結合形の両方）を読み飛ばし、xargs が実行するコマンドの先頭トークンを返す（見つからなければ
+    None）。未知のトークンに遭遇した場合はそこまでで打ち切りコマンドの先頭とみなす（安全側＝
+    見逃さない方向。過検知は許容する）。"""
+    i = 1
+    n = len(stage_tokens)
+    while i < n:
+        tok = stage_tokens[i]
+        if tok == "--":
+            i += 1
+            break
+        if tok in XARGS_VALUE_FLAGS:
+            i += 2
+            continue
+        if tok in XARGS_BOOL_FLAGS:
+            i += 1
+            continue
+        if _XARGS_COMBINED_SHORT_FLAG_RE.match(tok):
+            i += 1
+            continue
+        if tok.startswith("--") and "=" in tok:
+            i += 1
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        break
+    return stage_tokens[i] if i < n else None
+
+
+def xargs_without_placeholder_fail_closed(command_text):
+    """xargs が `-I` プレースホルダを使わない形式（`xargs -0 bash -c` 等）で、実行しようとする
+    コマンドの先頭が git/gh/interpreter である場合、producer 値の確定可否によらず True を返す
+    （PR #223 opus 再レビュー指摘B）。`-I` 形式は xargs_reexec_bodies が別途厳密に処理するため
+    ここでは対象外にする（二重処理を避ける）。"""
+    stages = top_level_pipeline_stages(command_text)
+    for i in range(1, len(stages)):
+        stage_text = unwrap_redundant_parens(stages[i])
+        if XARGS_PLACEHOLDER_RE.search(stage_text):
+            continue  # -I 形式は xargs_reexec_bodies が担当
+        try:
+            stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
+        except ValueError:
+            continue
+        if not stage_tokens or stage_tokens[0] != "xargs":
+            continue
+        head = xargs_command_head(stage_tokens)
+        if head is None:
+            continue
+        name = os.path.basename(head)
+        if name in {"git", "gh"} or name in HEREDOC_INTERPRETER_COMMANDS:
+            return True
+    return False
+
+
+# stdin エイリアスの疑似ファイルパス対応（PR #223 opus 再レビュー指摘A・2026-07-13 オーナー方針
+# 転換：過剰denyを許容し「確証が持てない＝deny」をデフォルトにする）: `/dev/stdin`・
+# `/dev/fd/N`・`/proc/self/fd/N`・`/proc/PID/fd/N` は、OS が提供する「自プロセスの標準入力」を
+# 指す疑似ファイルパスであり、`bash /dev/stdin` はファイルではなく実質的に標準入力をスクリプト
+# として読む（`bash` 単体・`bash <(CMD)` と全く同じ危険性）。従来の
+# bare_interpreter_reexec_bodies は「位置引数があれば標準入力を読まないため対象外」という
+# 前提を無条件に適用しており、これらの疑似パスも「実在のスクリプトファイル」と誤って
+# 同一視して素通りしていた（`echo 'git push' | bash /dev/stdin` 等が実 bash で実際に実行される
+# ことを確認済み・本PR自身が `<(...)` プロセス置換で是正したのと全く同一のバグクラス）。
+_STDIN_ALIAS_PATH_RE = re.compile(r"^/(dev/stdin|dev/fd/\d+|proc/self/fd/\d+|proc/\d+/fd/\d+)$")
+
+
 def bare_interpreter_reexec_bodies(command_text):
     """一般パイプ経由対応（Issue #213 受け入れ基準6）: `printf '%s' 'git merge evil' | bash` の
     ように、ヒアドキュメントを使わない素朴なパイプでインタプリタへ渡す経路を検知する。パイプ
     下流ステージの「最初のサブコマンド」（first_operator_segment。`bash && true` のように後続に
     `&&`/`;` 等で別コマンドが連結されていても、実際にパイプへ繋がるのは最初の一つだけのため）の
     先頭コマンドがインタプリタ（HEREDOC_INTERPRETER_COMMANDS を流用）で、かつ `-c`/`--command`
-    や位置引数（スクリプトファイル等）を伴わない（＝標準入力からスクリプト全体を読み込む形）
-    場合のみ、上流ステージ（またはそこから純粋なパススルー＝cat/tee を許容して遡った先のステージ。
-    Issue #215）の literal_producer_value_through_passthrough を reexec 対象として返す。位置引数が
-    ある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして読まないため対象外とする
-    （新規の過検知を避けるため）。
+    を伴わず、最初の位置引数（スクリプトファイル等）が無いか、または stdin エイリアス
+    （_STDIN_ALIAS_PATH_RE。`/dev/stdin`/`/dev/fd/N`/`/proc/self/fd/N` 等・PR #223 opus 再レビュー
+    指摘A）の場合のみ、上流ステージ（またはそこから純粋なパススルー＝cat/tee を許容して遡った先の
+    ステージ。Issue #215）の literal_producer_value_through_passthrough を reexec 対象として返す。
+    最初の位置引数が stdin エイリアスに一致しない実在のファイルパス（`bash script.sh`／
+    `source FILE` 等）の場合は標準入力ではなくそのファイルを読むため対象外とする（新規の過検知を
+    避けるため。2個目以降の位置引数はスクリプトへの `$1`/`$2` 等の引数に過ぎず、標準入力を
+    読むかどうかの判定には関与しないため無視する）。
 
     PR #219 opus レビュー クラスA追随: `echo x | (bash)`（consumer 位置を丸括弧で包む）や
     `(echo x | bash)`（パイプライン全体を丸括弧で包む）は実 bash で実際にペイロードが実行される
@@ -1374,8 +1466,13 @@ def bare_interpreter_reexec_bodies(command_text):
         rest_args = stage_tokens[1:]
         if any(arg in {"-c", "--command"} for arg in rest_args):
             continue  # スクリプトが引数そのもの＝quoted_subcommands が別途担当
-        if any(not arg.startswith("-") for arg in rest_args):
-            continue  # 位置引数（スクリプトファイル等）がある場合は標準入力を読まないため対象外
+        first_positional = None
+        for arg in rest_args:
+            if not arg.startswith("-"):
+                first_positional = arg
+                break
+        if first_positional is not None and not _STDIN_ALIAS_PATH_RE.match(first_positional):
+            continue  # 実在のスクリプトファイルパス（stdin エイリアスでない）＝標準入力を読まない
         literal_value = literal_producer_value_through_passthrough(stages, i - 1)
         if literal_value is _UNVERIFIABLE_PRODUCER:
             fail_closed = True
@@ -1480,6 +1577,50 @@ def process_substitution_reexec_bodies(command_text):
     return bodies, fail_closed
 
 
+# 動的に構成される sink コマンド名／stdin 読み取りループ対応（PR #223 opus 再レビュー指摘C・
+# 2026-07-13 オーナー方針転換「過剰denyを許容する。危険コマンドや疑わしいコマンドが含まれて
+# いれば、実行されるか気にせずブロックしていい」）: これまでの fail-closed 対応は「sink が
+# interpreter/git/gh だと確定している場合に、そこに至る内容を確認できなければ deny」だったが、
+# 以下は sink コマンド自体が何であるか静的に確定できない、または stdin の内容をコマンドとして
+# 解釈しうるループ構文であり、内容確認を待たずに deny すべきとオーナーが判断した:
+#   1. `echo 'git push' | grep . | $(echo bash)` / `... | ${SHELL##*/}`: パイプ consumer の
+#      先頭コマンド語が `$(...)`／バッククォート／`${...}` で動的に構成されており、それが
+#      interpreter か無害なコマンドかを静的に判定できない。
+#   2. `echo 'git push' | while read l; do eval "$l"; done`: `while`/`until` ループが `read`
+#      で1行ずつ読み取りながら任意のコマンドとして実行しうる（`eval` の有無を問わず、ループの
+#      中身を精査せず一律 deny する——オーナー方針「内容を精査せずdeny側に倒して構わない」）。
+# 実 bash でいずれも実際にペイロードが実行されることを確認済み。
+_DYNAMIC_COMMAND_NAME_RE = re.compile(r"\$\(|`|\$\{")
+_STDIN_CONSUMING_LOOP_HEAD_WORDS = {"while", "until"}
+
+
+def unverifiable_pipe_consumer_sink(command_text):
+    """command_text のトップレベルのパイプ consumer（stages[1:]。producer 側の stages[0] は
+    対象外）を走査し、(a) 先頭コマンド語が動的に構成されている（_DYNAMIC_COMMAND_NAME_RE に
+    一致）、または (b) `while`/`until` から始まり `read` を含む stdin 読み取りループである
+    場合に True を返す。内容の精査は行わず、形だけで判定する（過検知許容・見逃さない方針。
+    PR #223 opus 再レビュー指摘C）。"""
+    stages = top_level_pipeline_stages(command_text)
+    for i in range(1, len(stages)):
+        stage_text = unwrap_redundant_parens(first_operator_segment(stages[i]))
+        stripped = stage_text.strip()
+        if not stripped:
+            continue
+        try:
+            tokens = shlex.split(stripped, posix=True)
+        except ValueError:
+            tokens = stripped.split()
+        tokens = strip_leading_wrappers(tokens)
+        if not tokens:
+            continue
+        head = tokens[0]
+        if _DYNAMIC_COMMAND_NAME_RE.search(head):
+            return True
+        if head in _STDIN_CONSUMING_LOOP_HEAD_WORDS and "read" in tokens:
+            return True
+    return False
+
+
 def find_violation(command_text, role, depth=0):
     """戻り値は (violation, fail_closed) のタプル（Issue #222・fail-closed 設計転換）。
     violation: 従来どおり、"git merge"/"git push"/"gh pr merge"/"git alias for merge" のいずれか
@@ -1511,7 +1652,13 @@ def find_violation(command_text, role, depth=0):
     bare_bodies, bare_fail_closed = bare_interpreter_reexec_bodies(scan_text)
     procsub_bodies, procsub_fail_closed = process_substitution_reexec_bodies(scan_text)
     reexec_bodies += xargs_bodies + bare_bodies + procsub_bodies
-    fail_closed = xargs_fail_closed or bare_fail_closed or procsub_fail_closed
+    fail_closed = (
+        xargs_fail_closed
+        or bare_fail_closed
+        or procsub_fail_closed
+        or xargs_without_placeholder_fail_closed(scan_text)
+        or unverifiable_pipe_consumer_sink(scan_text)
+    )
     for segment in SEGMENT_SPLIT_RE.split(scan_text):
         violation = direct_violation(shell_words(segment), role)
         if violation:

@@ -801,6 +801,104 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
+    def test_stdin_alias_positional_arg_bypass_is_denied(self):
+        # PR #223 opus 再レビュー指摘A（2026-07-13・最重要）: `/dev/stdin`・`/dev/fd/N`・
+        # `/proc/self/fd/N` は OS が提供する「自プロセスの標準入力」を指す疑似ファイルパスで
+        # あり、`bash /dev/stdin` はファイルではなく実質的に標準入力をスクリプトとして読む。
+        # bare_interpreter_reexec_bodies の「位置引数があれば標準入力を読まないため対象外」
+        # という前提がこれらの疑似パスに対して事実誤認であり、本PRが `<(...)` プロセス置換で
+        # 修正したのと全く同じバグクラス（実 bash で実際に実行されることを確認済み）。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | bash /dev/stdin",
+            "echo 'git merge feature' | sh /dev/stdin",
+            "echo 'git merge feature' | source /dev/stdin",
+            "echo 'git merge feature' | . /dev/stdin",
+            "echo 'git merge feature' | bash /dev/fd/0",
+            "echo 'git merge feature' | bash /proc/self/fd/0",
+            "echo 'git merge feature' | bash /proc/12345/fd/3",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | bash /dev/stdin")))
+        # 実在のスクリプトファイルパス（stdin エイリアスに一致しない）は引き続き対象外のまま
+        # （新規の過検知を避ける・既存の over-deny 防止テストと同じ理由づけ）。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | bash /home/user/repo/script.sh"))
+        )
+
+    def test_xargs_without_placeholder_bypass_is_denied(self):
+        # PR #223 opus 再レビュー指摘B（2026-07-13）: `-I` を使わない xargs は、stdin から
+        # 読んだトークンをコマンドの末尾に追記して実行する。xargs_reexec_bodies は `-I` の
+        # 有無で判定しており、この形式は一切見ていなかったため素通りしていた（実 bash で
+        # 実際に実行されることを確認済み）。オーナー方針転換により、xargs が実行しようと
+        # しているコマンドの先頭が git/gh/interpreter である場合、producer 値の確定可否に
+        # よらず一律 deny する。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | xargs -0 bash -c",
+            "echo 'git merge feature' | grep . | xargs -0 bash -c",
+            "echo 'git merge feature' | xargs bash -c",
+            "echo 'git merge feature' | xargs git",
+            "echo 'git merge feature' | xargs -n1 gh",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | grep . | xargs -0 bash -c"))
+        )
+        # 既存の一般的な xargs イディオムは引き続き壊さない（コマンドの先頭が git/gh/interpreter
+        # 以外の場合は対象化しない・受け入れ基準4）。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "find . -name '*.txt' | xargs -I{} wc -l {}"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "find . -name '*.pyc' | xargs rm -f"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'safe text' | xargs -n1 echo"))
+        )
+
+    def test_dynamic_sink_and_stdin_loop_bypass_is_denied(self):
+        # PR #223 opus 再レビュー指摘C（2026-07-13・オーナー方針転換「過剰denyを許容する。
+        # 危険コマンドや疑わしいコマンドが含まれていれば、実行されるか気にせずブロックしていい」）:
+        # パイプ consumer の先頭コマンド語が `$(...)`／バッククォート／`${...}` で動的に構成
+        # されている場合、それが interpreter か無害なコマンドかを静的に判定できない。また
+        # `while`/`until` から始まり `read` を含む stdin 読み取りループは、中身を精査せず
+        # 一律 deny する（実 bash でいずれも実際にペイロードが実行されることを確認済み）。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | grep . | $(echo bash)",
+            "echo 'git merge feature' | grep . | ${SHELL##*/}",
+            "echo 'git merge feature' | grep . | `echo bash`",
+            'echo \'git merge feature\' | while read l; do eval "$l"; done',
+            'echo \'git merge feature\' | until read l; do eval "$l"; done',
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | grep . | $(echo bash)"))
+        )
+        self.assert_denied(
+            run_gate(
+                payload("pr-reviewer", 'echo \'git push origin HEAD\' | while read l; do eval "$l"; done')
+            )
+        )
+        # 通常の変数展開・コマンド置換の「引数としての」利用（コマンド名自体ではない）は
+        # 引き続き壊さない。
+        self.assert_allowed(run_gate(payload("issue-implementer", "echo $(git rev-parse HEAD)")))
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", 'git commit -m "deploy ${VERSION}"'))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", 'echo "current branch: $(git branch --show-current)"'))
+        )
+        # 無害な for ループは壊さない（while/until 以外のループ構文・read を含まない構文は対象外）。
+        self.assert_allowed(run_gate(payload("issue-implementer", "for f in *.py; do echo $f; done")))
+
 
 if __name__ == "__main__":
     unittest.main()
