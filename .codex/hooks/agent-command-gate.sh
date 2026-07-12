@@ -178,6 +178,76 @@
 #   classify_operator_sequence_stage() のコメントに明記した（受け入れ基準5）。クラスC
 #   （cut/awk/sed/tr 等）は引き続き Issue #220 として別起票済み・対象外。詳細は各関数の
 #   コメント参照。
+#
+#   2026-07-13 設計転換（Issue #222・PR #219 3ラウンド連続の whack-a-mole を受けたオーナー承認
+#   「B: fail-closedへの設計転換」・Claude 版と同一設計）：上記までの是正は全て「producer/
+#   passthrough 追跡ロジックが安全なパイプ段だと静的に確定できない場合、追跡を諦めて ALLOW する」
+#   という fail-open の初期値の上に、新しい未知のシェル構文（サブシェル→sequencing演算子→
+#   stderrリダイレクト→fd複製/クローズ→…）が見つかるたびに個別の point-fix（列挙の拡張）を
+#   重ねる構造だった。この構造そのものが whack-a-mole の根本原因（シェル構文の亜種は原理的に
+#   列挙で塞ぎきれない）と判断し、初期値を反転した：**「パイプの中間段が、literal producer
+#   から interpreter/git/gh までの間で安全な passthrough だと積極的に確定できない限り、そのまま
+#   到達しうるとみなし deny する」**。
+#
+#   具体的には literal_producer_value_through_passthrough() が producer 遡及の途中で
+#   classify_passthrough_stage() から「確定できない」（None, None）を受け取った場合、従来は
+#   None を返して追跡を諦め ALLOW していたが、以後は `_UNVERIFIABLE_PRODUCER` という別センチネルを
+#   返し、bare_interpreter_reexec_bodies()/xargs_reexec_bodies()/process_substitution_reexec_bodies()
+#   の呼び出し元が「sink（interpreter や git/gh）は確定しているが、そこに至る内容を静的に安全と
+#   確認できなかった」ことを検知して fail_closed フラグを立て、最終的に find_violation() が独立した
+#   deny 理由として返す（既存の「git merge」等の具体的な違反メッセージとは別立てのメッセージに
+#   した。役割非対称メッセージ（"is reserved for pr-reviewer" 等）は「もう一方のロールなら許可
+#   される」という誤った含意を持つため、fail-closed の理由には使わない）。
+#
+#   唯一の例外（真に安全と証明できる場合のみ ALLOW 側に倒す）: 丸括弧・ブレースで囲まれていない
+#   ステージが `&&`/`||`/`;`/改行 演算子を含む場合（`classify_passthrough_stage` が
+#   `_DISCONNECTED_OPERATOR_SEQUENCE` を返す）。これはシェルの結合優先順位（`|` が `&&`/`||`/`;`
+#   より強く結合する）により、その時点で実際には別々の独立したパイプラインに分かれていることが
+#   構造的に証明できるケースであり、「確定できない」のではなく「確定的に無関係」なので
+#   fail-closed の対象にしない（`echo x | cat && true | bash` 等・既存の安全側設計を維持）。
+#
+#   この設計転換により、これまで3ラウンドで個別に列挙して塞いできたバイパス（サブシェル括弧・
+#   sequencing 演算子・stderr リダイレクト・fd 複製/クローズ構文の全て）は、個別の point-fix
+#   ではなく「classify_passthrough_stage が確定できないものは全て deny」という単一の原理で
+#   自動的に閉じる。既存の PASSTHROUGH_COMMANDS 列挙（UNCONDITIONAL/SINGLE_LINE 区分）は削除せず、
+#   fail-closed の枠組みの中の「高速パス最適化」（安全と確定済みの代表的な cat/tee/sort/head/
+#   tail/uniq を早期にパススルー確定させ、無用な過検知を避ける）として維持する（Issue #222
+#   スコープに明記のとおり）。
+#
+#   over-deny の増加を許容する（Issue #222 決定事項）: 従来「ファイルオペランド付き cat/sort」
+#   「uniq -c／head -n0 等の未対応フラグ」「grep/tr 等の未列挙フィルタ」「サブシェル内の
+#   2個以上の passthrough セグメント」等は、内容が実際には無害だったため allow のまま許容して
+#   いたが、これらは全て「安全と確定できない」に該当するため fail-closed で deny に転じる
+#   （実装後の敵対的検証・over-deny 実害の洗い出しは本コミットの PR 説明を参照）。同時に
+#   Issue #220（grep/cut/awk/sed 等の恒等変換フィルタ列挙方式の限界）は、個別コマンドの
+#   恒等性を証明できない限り deny する本設計により根本的に解消される（列挙が不要になる）。
+#
+#   xargs -I{} のテンプレート代入は、producer 値が確定できない場合でも「代入先が git/gh の
+#   サブコマンド位置、interpreter の -c/スクリプト位置、またはプレースホルダそのものが
+#   コマンド全体」という危険な形をしている場合に限り fail-closed 対象とする
+#   （xargs_template_is_dangerous_shape()）。`xargs -I{} wc -l {}` のような一般的な非危険形は
+#   対象化しない（既存の一般的な xargs イディオムを壊さない・受け入れ基準4）。
+#
+#   プロセス置換 `<(CMD)`/`>(CMD)`（bash がその場でパイプ/名前付きパイプを生成し中のコマンドを
+#   別プロセスとして実行して consumer に渡す構文）をインタプリタの位置引数として渡す形
+#   （`bash <(echo 'git merge evil')`）は、実装時の敵対的自己検証で新規発見した重大バイパス
+#   （既存の「位置引数があれば標準入力を読まないため対象外」という判定が `<(...)` を実在の
+#   ファイルパスと誤って同一視していた）。process_substitution_reexec_bodies() で、CMD 自身を
+#   1本のミニパイプラインとみなし literal_producer_value_through_passthrough を再利用して
+#   対応した。また `|&`（stdout+stderr をまとめてパイプ）と `{ ... }`（ブレースグルーピング。
+#   丸括弧サブシェルと同じ「接続を切らない」性質を持つがサブシェル以外のグルーピング構文として
+#   Issue #218 では意図的にスコープ外だった）も、既存の split_top_level_pipes/
+#   strip_matching_parens が非対応だったために classify_passthrough_stage の
+#   _DISCONNECTED_OPERATOR_SEQUENCE 判定を誤って通過してしまう新規バイパスとして同じ実装時の
+#   敵対的自己検証で発見し、split_top_level_pipes（`|&` の2文字消費・`{`/`}` の深さ追跡）と
+#   strip_matching_parens（`{ ... }` も1グループとして剥がす）を拡張して是正した。
+#
+#   ヒアドキュメント／here-string のパイプ下流インタプリタ判定（heredoc_pipeline_has_downstream_
+#   interpreter）は、この設計転換の対象に含めていない（本文は常に静的に既知であり
+#   「確定できない producer」という問題がそもそも存在しないため）。ただし判定自体の頑健性は
+#   split_top_level_pipes/unwrap_redundant_parens ベースに統一し、`cat <<EOF | (bash)` のような
+#   丸括弧で consumer を包む構文（敵対的自己検証で新規発見・列挙不要の構造的対応）も検知できる
+#   よう是正した。詳細は各関数のコメント参照（Claude/Codex 両版で同一設計）。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・AGENTS.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -484,8 +554,16 @@ def heredoc_pipeline_has_downstream_interpreter(line_after_marker):
     （直接 `bash <<EOF` でも、パイプ経由でも）が無いことを確認できた場合のみ除外する」という、
     より保守的な（除外条件を厳しくする）方向に倒す。マーカー行内の各パイプステージについて
     strip_leading_wrappers で env/rtk 等のラッパーとフラグ・代入を剥がした先頭コマンド語を見て、
-    どこかにインタプリタがあれば「最終的に再実行される」と判定する。"""
-    for stage in line_after_marker.split("|")[1:]:
+    どこかにインタプリタがあれば「最終的に再実行される」と判定する。
+
+    2026-07-13 頑健化（Issue #222 敵対的自己検証で新規発見・Claude 版と同一設計）: 素朴な
+    `line_after_marker.split("|")` は丸括弧で consumer を包む構文（`cat <<EOF | (bash)`）を
+    認識できず、`(bash)` という1トークンが HEREDOC_INTERPRETER_COMMANDS と一致せず見逃していた
+    （実行して確認済み・実際にペイロードが走る）。split_top_level_pipes/unwrap_redundant_parens
+    （丸括弧・引用符を構造的に扱う既存のパイプ分割器）に置き換えることで、個別列挙ではなく
+    構造的にこの種の亜種を塞ぐ。"""
+    for stage in split_top_level_pipes(line_after_marker)[1:]:
+        stage = unwrap_redundant_parens(first_operator_segment(stage))
         tokens = strip_leading_wrappers(stage.split())
         if not tokens:
             continue
@@ -579,51 +657,106 @@ def split_top_level_pipes(text):
     """PIPE_ONLY_RE と同じ「`|`（`||` を除く）」の意味論で分割するが、丸括弧 `( ... )` の
     内側にある `|` はトップレベルとみなさず分割しない。括弧の対応が取れないまま文字列が終端した
     場合（閉じ括弧が来ない）、それ以降は深さが0に戻らないため以降の `|` も分割対象外になる
-    （安全側：新規の誤検知にはならず、単に一部のステージ境界を見失うだけに留まる）。"""
+    （安全側：新規の誤検知にはならず、単に一部のステージ境界を見失うだけに留まる）。
+
+    2026-07-13 是正（Issue #222 敵対的自己検証で新規発見・Claude 版と同一設計）: `|&`（bash の
+    `cmd1 |& cmd2` ＝ `cmd1 2>&1 | cmd2` の省略記法。stdout と stderr をまとめて次段へパイプ
+    する）が未対応だった。旧実装は `|` の直後の文字が `&` の場合を全く考慮しておらず、`|` 自体は
+    素朴にパイプ境界として分割する一方、直後の `&` はどちらのステージにも属さず次ステージの
+    バッファの先頭に紛れ込み（例: `cat |& bash` → ["cat ", "& bash"]）、`& bash` という不正な
+    字句になって consumer 側の interpreter 認識が壊れ、結果的に producer→passthrough→consumer
+    の追跡が打ち切られて fail-closed 判定（_UNVERIFIABLE_PRODUCER）にすら至らずそのまま ALLOW
+    してしまっていた（実行して確認済み・実際にペイロードが走る重大バイパス）。`|` の直後が `&`
+    の場合は両方の文字を消費してパイプ境界とすることで是正する。
+
+    追加是正（同時発見・Claude 版と同一設計）: 丸括弧 `(` `)` の深さしか追跡していなかったため、
+    ブレースグループ `{ ... }` の内側にある `|` をトップレベルとして誤って分割していた。`{`/`}`
+    も同じ深さカウンタで追跡する（strip_matching_parens が `{ ... }` も1グループとして剥がせる
+    ようになったことと対称化）。"""
     stages = []
     depth = 0
     current = []
     length = len(text)
-    for i, ch in enumerate(text):
-        if ch == "(":
+    i = 0
+    while i < length:
+        ch = text[i]
+        if ch == "(" or ch == "{":
             depth += 1
             current.append(ch)
-        elif ch == ")":
+            i += 1
+            continue
+        if ch == ")" or ch == "}":
             if depth > 0:
                 depth -= 1
             current.append(ch)
-        elif ch == "|" and depth == 0:
+            i += 1
+            continue
+        if ch == "|" and depth == 0:
             prev_ch = text[i - 1] if i > 0 else ""
             next_ch = text[i + 1] if i + 1 < length else ""
-            if prev_ch == "|" or next_ch == "|":
-                current.append(ch)  # `||` は PIPE_ONLY_RE 同様パイプ境界として扱わない
+            if prev_ch == "|":
+                current.append(ch)  # 直前が `|` の `||` は PIPE_ONLY_RE 同様パイプ境界としない
+                i += 1
+                continue
+            if next_ch == "|":
+                current.append(ch)  # 直後が `|` の `||` も同様（この文字だけ積んで次周で判定）
+                i += 1
+                continue
+            stages.append("".join(current))
+            current = []
+            if next_ch == "&":
+                i += 2  # `|&` は `|` と `&` の2文字をまとめてパイプ境界として消費する
             else:
-                stages.append("".join(current))
-                current = []
-        else:
-            current.append(ch)
+                i += 1
+            continue
+        current.append(ch)
+        i += 1
     stages.append("".join(current))
     return stages
 
 
+_GROUP_OPENERS = "({"
+_GROUP_CLOSERS = {"(": ")", "{": "}"}
+
+
 def strip_matching_parens(stripped):
-    """stripped 全体がちょうど1組の対応する丸括弧で囲まれている場合、内側のテキストを返す
-    （例: "(cat | cat)" → "cat | cat"）。外側の括弧が末尾より前で閉じてしまう場合（例:
-    "(cat) (cat)" のように2つの独立したグループが並んでいる場合）や、先頭/末尾が括弧でない場合、
-    括弧の対応が取れない場合は None を返す（安全側：全体を1つのサブシェルとして扱えると確信できる
-    場合のみ剥がす）。"""
-    if len(stripped) < 2 or stripped[0] != "(" or stripped[-1] != ")":
+    """stripped 全体がちょうど1組の対応する丸括弧 `( ... )` またはブレースグループ `{ ... }`
+    （bash のコマンドグルーピング構文。サブシェルと違い現在のシェルで実行されるが、中身の
+    複数コマンドの標準出力が1本に連結されて外側へ渡る点はサブシェルと同じ「接続を切らない」
+    性質を持つ）で囲まれている場合、内側のテキストを返す（例: "(cat | cat)" → "cat | cat"、
+    "{ cat; }" → " cat; "）。外側の括弧が末尾より前で閉じてしまう場合（例: "(cat) (cat)" の
+    ように2つの独立したグループが並んでいる場合）、開き括弧と閉じ括弧の種類が対応しない場合
+    （例: "(foo}"）、先頭/末尾が括弧でない場合、括弧の対応が取れない場合は None を返す
+    （安全側：全体を1つのグループとして扱えると確信できる場合のみ剥がす）。
+
+    2026-07-13 拡張（Issue #222 敵対的自己検証で新規発見・Claude 版と同一設計）: ブレースグループ
+    `{ ... }` は Issue #218 時点では意図的にスコープ外（丸括弧のみ対応）だったが、丸括弧非対応の
+    ままだと `{ cmd; }` の中の `;` が「サブシェル外側の &&/;/|| は別パイプラインに分かれる」と
+    いう無関係な判定（classify_passthrough_stage の _DISCONNECTED_OPERATOR_SEQUENCE）に誤って
+    合致し、実際には接続されている producer→{ cmd; }→consumer の経路を「確定的に無関係」と
+    誤認して見逃す新規バイパスがあった（`echo 'git merge evil' | { cat; } | bash` を実 bash で
+    実行しペイロードが走ることを確認済み）。ブレースグループも classify_subshell_body に
+    委譲できるよう本関数で認識する。"""
+    if len(stripped) < 2 or stripped[0] not in _GROUP_OPENERS:
         return None
-    depth = 0
+    opener = stripped[0]
+    closer = _GROUP_CLOSERS[opener]
+    if stripped[-1] != closer:
+        return None
+    stack = []
     for idx, ch in enumerate(stripped):
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-            if depth == 0 and idx != len(stripped) - 1:
-                return None  # 最外の括弧が末尾より前で閉じている = 全体を囲んでいない
-            if depth < 0:
-                return None
+        if ch in _GROUP_OPENERS:
+            stack.append(ch)
+        elif ch in (")", "}"):
+            if not stack:
+                return None  # 対応する開き括弧がない
+            top = stack.pop()
+            if _GROUP_CLOSERS[top] != ch:
+                return None  # 開き括弧の種類と閉じ括弧の種類が対応しない（例: "(foo}"）
+            if not stack and idx != len(stripped) - 1:
+                return None  # 最外のグループが末尾より前で閉じている = 全体を囲んでいない
+    if stack:
+        return None  # 閉じきれていない（不正形式）
     return stripped[1:-1]
 
 
@@ -1062,10 +1195,30 @@ def classify_subshell_body(text):
     return classify_simple_command_stage(stripped)
 
 
+# fail-closed センチネル（Issue #222・Claude 版と同一設計）: classify_passthrough_stage の
+# (None, None) には意味が2種類混在している——(a) トップレベル（丸括弧の外側）の
+# `&&`/`||`/`;`/改行演算子を含む段は、シェルの結合優先順位（`|` が `&&`/`||`/`;` より強く
+# 結合する）により実際には別々の独立したパイプラインに分かれることが構造的に証明できる＝
+# 「確定的に無関係」であって fail-closed の対象ではない。(b) それ以外の全て（未知のコマンド・
+# ファイルオペランド・引数の組み合わせ・構文エラー等）は「安全と確定できない」であって
+# fail-closed の対象。呼び出し元 literal_producer_value_through_passthrough がこの2つを
+# 区別できるよう、(a) には専用のセンチネル値を返す。
+_DISCONNECTED_OPERATOR_SEQUENCE = "disconnected-operator-sequence"
+# producer 値が静的に確定できず、かつ「確定的に無関係」とも証明できなかったことを表す
+# センチネル。None（Python の通常の欠損値）や実際の producer 文字列と衝突しない専用オブジェクト
+# にすることで、呼び出し元が「値なし（disconnected・安全）」と「値不明（fail-closed・危険側）」を
+# 確実に区別できるようにする。
+_UNVERIFIABLE_PRODUCER = object()
+
+
 def classify_passthrough_stage(stage_text):
     """stage_text（split_top_level_pipes/top_level_pipeline_stages で得られた、トップレベルの
     パイプ段テキスト）が、標準入力をそのまま標準出力へ転送するだけのパススルーかどうかを判定し、
-    ("unconditional" | "single_line", byte_cap) または (None, None) を返す。
+    ("unconditional" | "single_line", byte_cap) を返す。
+
+    それ以外の場合は (None, None) または (_DISCONNECTED_OPERATOR_SEQUENCE, None) を返す
+    （Issue #222・fail-closed 設計転換。呼び出し元 literal_producer_value_through_passthrough が
+    両者を区別する）。
 
     - "unconditional": cat/tee のように、入力の行数や内容に関わらず常に恒等変換になる。
     - "single_line": sort/head/tail/uniq のように、入力が改行を含まない単一行であり、かつ
@@ -1077,10 +1230,15 @@ def classify_passthrough_stage(stage_text):
 
     丸括弧 `( ... )` で stage_text 全体が囲まれている場合は classify_subshell_body に委譲し、
     サブシェルの中身（ネストしたパイプ・sequencing 演算子を含む）を解析する（Issue #218 ギャップ1
-    ／PR #219 opus レビュー クラスA）。丸括弧で囲まれていない場合、`&&`/`||`/`;`/改行を含む段は
-    対象外にする（トップレベルではシェルの結合優先順位により実際には別々のパイプラインに
-    分かれるため。既存の安全側設計を維持——サブシェル内でのみ意味が異なる点は
-    classify_operator_sequence_stage のコメント参照）。
+    ／PR #219 opus レビュー クラスA。サブシェル内では &&/;/|| は接続を切らないため、その中の
+    「確定できない」は全て _UNVERIFIABLE_PRODUCER 側になる——classify_subshell_body/
+    classify_operator_sequence_stage は独自に (None, None) を返すのみで、この関数のような
+    disconnected センチネルは持たない）。
+
+    丸括弧で囲まれていない場合、`&&`/`||`/`;`/改行を含む段は _DISCONNECTED_OPERATOR_SEQUENCE を
+    返す（トップレベルではシェルの結合優先順位により実際には別々のパイプラインに分かれることが
+    構造的に証明できるため、fail-closed の対象にしない＝既存の安全側設計を維持。サブシェル内でのみ
+    意味が異なる点は classify_operator_sequence_stage のコメント参照）。
     """
     stripped = stage_text.strip()
     if not stripped:
@@ -1089,7 +1247,7 @@ def classify_passthrough_stage(stage_text):
     if inner is not None:
         return classify_subshell_body(inner)
     if STAGE_OPERATOR_SPLIT_RE.search(stripped):
-        return None, None
+        return _DISCONNECTED_OPERATOR_SEQUENCE, None
     return classify_simple_command_stage(stripped)
 
 
@@ -1098,43 +1256,50 @@ def literal_producer_value_through_passthrough(stages, index):
     許容しながら literal_producer_value が確定できる最初の段まで遡る。index は毎回1段ずつ減る
     ため、有限のステージ数で必ず終了する（無限ループにはならない）。
 
-    **None を返すことは「安全」を意味しない（PR #219 opus 再レビューで訂正・Claude 版と同一
-    設計）**: パススルーでも literal producer でもない段に当たった時点で None を返すのは、
-    その経路を静的に確定できなかった（＝未対応の残存ギャップ）ことを表すだけであり、その
-    パイプラインが実際には恒等変換であって注入されたコマンドが下流に届かない、という意味では
-    ない。呼び出し元（bare_interpreter_reexec_bodies/xargs_reexec_bodies）はこの値が None の
-    とき単にこの reexec 候補を諦めて allow 方向に倒れる（他の検知経路が別途あれば拾えるが、
-    無ければ見逃しになる）。classify_passthrough_stage/classify_subshell_body/
-    classify_operator_sequence_stage が対応しているパターンの範囲でのみ検知でき、範囲外は
-    fail-open のまま（受け入れ基準5・完全網羅は目指さない設計方針として明示的に許容する）。
+    戻り値は3通り（Issue #222・fail-closed 設計転換）:
+    - 文字列: producer 値を静的に確定できた（既存の高速パス。find_violation がこの値を
+      再帰的に scan し、実際に git merge/gh pr merge/git push が含まれるかを厳密に判定する）。
+    - None: 途中で classify_passthrough_stage が _DISCONNECTED_OPERATOR_SEQUENCE を返した
+      （丸括弧の外側の &&/||/;/改行によりシェルの結合優先順位で実際には別パイプラインに
+      分かれることが構造的に証明できた＝**真に安全と確認済み**。fail-closed の対象にしない）。
+    - _UNVERIFIABLE_PRODUCER: それ以外の理由で確定できなかった（未知のコマンド・ファイル
+      オペランド・構文エラー・sort/head/tail/uniq の未対応フラグ・sequencing 演算子内の
+      解決不能な組み合わせ等）。呼び出し元（bare_interpreter_reexec_bodies/xargs_reexec_bodies）
+      はこれを「sink（interpreter や git/gh）に到達しうる内容を安全と確認できなかった」と
+      みなし、fail-closed で deny 側に倒す（PR #219 3ラウンドで判明した通り、ここを
+      「確定できない＝ALLOW」にすると新しい未知のシェル構文のたびに個別対応が必要になる
+      whack-a-mole になるため、初期値を反転した）。
 
     途中で "single_line" 種別のパススルー段（sort/head/tail/uniq）を1つでも経由した場合は、
     最終的に確定した producer 値が改行を含む場合（＝実際には単一行ではなかった場合）、
     single_line 種別のコマンドについて確認済みの「単一行入力に対してのみ恒等」という前提が
-    成立しなくなるため None を返す（Issue #218 ギャップ2。この場合の None は verified 済みの
-    非該当＝真に恒等でないケースを正しく除外している）。同様に、byte_cap 付きの段（head/tail の
-    `-c`/`--bytes`）を経由した場合は、producer 値の UTF-8 バイト長が経由した全 byte_cap の
-    最小値を超える場合も None を返す（PR #219 opus レビュー クラスB追随。`head -c5` で
-    "git merge evil" が切り詰められることを実 bash で確認済みの、真に恒等でないケース）。"""
+    成立しなくなるため _UNVERIFIABLE_PRODUCER を返す（Issue #218 ギャップ2 の判定自体は
+    「真に恒等でない」ことを検出できているが、fail-closed 転換によりその場合は deny 側に
+    倒す——これは既存の安全側判定を「確定的に無関係」からさらに一段厳しくした変更ではなく、
+    「恒等の前提が崩れた＝もはや安全と確認できない」という当然の帰結）。byte_cap 付きの段
+    （head/tail の `-c`/`--bytes`）を経由し、producer 値の UTF-8 バイト長が経由した全 byte_cap
+    の最小値を超える場合も同様に _UNVERIFIABLE_PRODUCER を返す。"""
     requires_single_line = False
     max_bytes = None
     while index >= 0:
         value = literal_producer_value(stages[index])
         if value is not None:
             if requires_single_line and "\n" in value:
-                return None
+                return _UNVERIFIABLE_PRODUCER
             if max_bytes is not None and len(value.encode("utf-8")) > max_bytes:
-                return None
+                return _UNVERIFIABLE_PRODUCER
             return value
         kind, byte_cap = classify_passthrough_stage(stages[index])
+        if kind == _DISCONNECTED_OPERATOR_SEQUENCE:
+            return None  # 構造的に無関係と証明済み＝真に安全。fail-closed 対象にしない。
         if kind is None:
-            return None
+            return _UNVERIFIABLE_PRODUCER
         if kind == "single_line":
             requires_single_line = True
         if byte_cap is not None and (max_bytes is None or byte_cap < max_bytes):
             max_bytes = byte_cap
         index -= 1
-    return None
+    return _UNVERIFIABLE_PRODUCER
 
 
 # xargs プレースホルダ置換対応（Issue #213 受け入れ基準2・Claude 版と同一設計）: `echo 'git merge
@@ -1150,8 +1315,51 @@ def literal_producer_value_through_passthrough(stages, index):
 XARGS_PLACEHOLDER_RE = re.compile(r"(?<!\S)-I[ \t]*(\S+)")
 
 
+def xargs_template_is_dangerous_shape(remainder, placeholder):
+    """xargs -I{} のテンプレート（`-I` フラグ以降のテキスト）が、代入値を静的に確定できなくても
+    危険とみなすべき「形」をしているかどうかを判定する（Issue #222・fail-closed 設計転換・
+    Claude 版と同一設計）。
+
+    危険な形と判定する3パターン:
+    1. テンプレートの先頭コマンドがプレースホルダそのもの（`xargs -I{} {}`）＝代入値が
+       コマンド全体になる。
+    2. テンプレートの先頭コマンドが git/gh（`xargs -I{} git {}` 等）＝代入値が git/gh の
+       サブコマンド位置に来る可能性を排除できない。
+    3. テンプレートの先頭コマンドが HEREDOC_INTERPRETER_COMMANDS（bash/sh/python/eval 相当）＝
+       代入値がインタプリタへの入力になる可能性を排除できない。
+
+    それ以外（`wc -l {}`/`rm {}` のように、プレースホルダが git/gh/interpreter 以外の通常の
+    コマンドの引数位置に来るだけの形）は対象化しない。これは「代入値が具体的に何であっても
+    git merge/gh pr merge/git push の形にはなり得ない」ことが構造的に保証できるためであり、
+    既存の一般的な xargs イディオム（`find . | xargs -I{} wc -l {}` 等）を壊さないための
+    意図的なスコープ限定（受け入れ基準4・over-deny 実害の抑制）。"""
+    try:
+        rem_tokens = strip_leading_wrappers(shlex.split(remainder.strip(), posix=True))
+    except ValueError:
+        return True  # テンプレート自体を解析できない = 安全と確認できないため危険側に倒す
+    if not rem_tokens:
+        return True
+    if rem_tokens[0] == placeholder:
+        return True
+    head = os.path.basename(rem_tokens[0])
+    if head in {"git", "gh"}:
+        return True
+    if head in HEREDOC_INTERPRETER_COMMANDS:
+        return True
+    return False
+
+
 def xargs_reexec_bodies(command_text):
+    """戻り値は (bodies, fail_closed) のタプル（Issue #222・fail-closed 設計転換・Claude 版と
+    同一設計）。bodies: 従来どおり、producer 値を静的に確定できた場合の reexec 候補テキストの
+    リスト（find_violation が再帰的に scan して実際に git/gh 違反かを厳密判定する・既存の
+    高速パス）。fail_closed: True の場合、xargs -I{} の代入先が危険な形
+    （xargs_template_is_dangerous_shape）をしているにもかかわらず、上流 producer の値を静的に
+    確定できなかった（literal_producer_value_through_passthrough が _UNVERIFIABLE_PRODUCER を
+    返した）ことを示す。このとき find_violation は安全側で deny する（内容を具体的に特定
+    できなくても、xargs の代入先の形自体が git/gh/interpreter に直結しているため）。"""
     bodies = []
+    fail_closed = False
     # top_level_pipeline_stages: 丸括弧サブシェル対応（Issue #218 ギャップ1／PR #219 opus レビュー
     # クラスA：パイプライン全体が丸ごとサブシェルに包まれる `(... | xargs ...)` 形も展開する）。
     stages = top_level_pipeline_stages(command_text)
@@ -1173,10 +1381,14 @@ def xargs_reexec_bodies(command_text):
         if placeholder not in remainder:
             continue
         literal_value = literal_producer_value_through_passthrough(stages, i - 1)
+        if literal_value is _UNVERIFIABLE_PRODUCER:
+            if xargs_template_is_dangerous_shape(remainder, placeholder):
+                fail_closed = True
+            continue
         if literal_value is None:
             continue
         bodies.append(remainder.replace(placeholder, literal_value))
-    return bodies
+    return bodies, fail_closed
 
 
 def bare_interpreter_reexec_bodies(command_text):
@@ -1196,8 +1408,17 @@ def bare_interpreter_reexec_bodies(command_text):
     ペイロードが実行されるにもかかわらず、当初の実装では検知できなかった（前者は shlex トークンが
     `(bash)` という1語になり HEREDOC_INTERPRETER_COMMANDS と一致しない、後者はトップレベルの
     `|` が見つからず stages が1要素のまま split されない）。top_level_pipeline_stages/
-    unwrap_redundant_parens で対応する。"""
+    unwrap_redundant_parens で対応する。
+
+    戻り値は (bodies, fail_closed) のタプル（Issue #222・fail-closed 設計転換・Claude 版と同一
+    設計）。interpreter シンクが確定しているにもかかわらず
+    literal_producer_value_through_passthrough が _UNVERIFIABLE_PRODUCER を返した場合
+    （サブシェル・sequencing 演算子・stderr リダイレクト・fd 複製/クローズ構文等、未知・未対応の
+    シェル構文を含む場合すべて）、fail_closed=True を返し find_violation が安全側で deny する。
+    これにより、これまで3ラウンドで個別に列挙して塞いできたバイパスの全クラスが、個別の
+    point-fix ではなく本関数のこの1箇所の設計原理で自動的に閉じる。"""
     bodies = []
+    fail_closed = False
     # top_level_pipeline_stages: 丸括弧サブシェル対応（Issue #218 ギャップ1／PR #219 クラスA）。
     stages = top_level_pipeline_stages(command_text)
     for i in range(1, len(stages)):
@@ -1219,15 +1440,121 @@ def bare_interpreter_reexec_bodies(command_text):
         if any(not arg.startswith("-") for arg in rest_args):
             continue  # 位置引数（スクリプトファイル等）がある場合は標準入力を読まないため対象外
         literal_value = literal_producer_value_through_passthrough(stages, i - 1)
+        if literal_value is _UNVERIFIABLE_PRODUCER:
+            fail_closed = True
+            continue
         if literal_value is None:
             continue
         bodies.append(literal_value)
+    return bodies, fail_closed
+
+
+# プロセス置換対応（Issue #222 実装時の敵対的自己検証で新規発見・Claude 版と同一設計）: `<(CMD)`/
+# `>(CMD)`（bash のプロセス置換。`<(CMD)` は CMD の標準出力を読める名前付きパイプ／fd のパスに
+# 展開され、consumer からはファイルパスを渡されたように見える）は、
+# `bash <(echo 'git merge evil')` を実 bash で実行すると実際にペイロードが走ることを確認済みの
+# 重大バイパスだった。bare_interpreter_reexec_bodies の「位置引数（スクリプトファイル等）がある
+# 場合は標準入力を読まないため対象外」という既存の安全側ロジック（Issue #213 由来）が、`<(...)`
+# を「普通の位置引数＝実在のファイルパス」と誤って同一視してしまうため素通りしていた。実際には
+# `<(...)` の中身は command_text 自身に literal に書かれているコマンドであり（パイプ上流のように
+# 実行時にしか定まらない値ではない）、producer 遡及は不要でヒアドキュメント本文と全く同じ扱いで
+# 無条件に再帰走査すればよい。shlex は `<(`/`>(` を理解できず誤トークン化するため、shlex 経由
+# ではなく専用の丸括弧深さ追跡で抽出する。
+def process_substitution_bodies(command_text):
+    """command_text 中の `<(...)`/`>(...)`（プロセス置換）の内側のコマンドテキストを全て
+    抽出して返す。丸括弧のネストを深さで追跡し、対応が取れないものは無視する（安全側：
+    見逃しても新規の過検知にはならず、単に検知対象が1件減るだけに留まる）。"""
+    bodies = []
+    for m in re.finditer(r"[<>]\(", command_text):
+        start = m.end()
+        depth = 1
+        i = start
+        n = len(command_text)
+        while i < n and depth > 0:
+            if command_text[i] == "(":
+                depth += 1
+            elif command_text[i] == ")":
+                depth -= 1
+            i += 1
+        if depth == 0:
+            bodies.append(command_text[start:i - 1])
     return bodies
 
 
+# プロセス置換をインタプリタの位置引数として渡す形（`bash <(echo 'git merge evil')`）専用の
+# fail-closed 対応（Claude 版と同一設計）。process_substitution_bodies（上）は `<(...)` の中身を
+# 常に raw テキストとして再帰走査するため、中身が直接 `git ...`/`gh ...` で始まる場合は
+# direct_violation が拾えるが、`echo 'git merge evil'` のように「実行した"結果"が git merge に
+# なる」間接形は raw テキストの先頭トークンが "echo" のままなので捕まらない（実 bash で確認済み・
+# 真のバイパス）。bare_interpreter_reexec_bodies は「位置引数（スクリプトファイル等）がある場合は
+# 標準入力を読まないため対象外」という Issue #213 由来の安全側ロジックを持つが、`<(...)` を通常の
+# 位置引数（実ファイルパス）と同一視してしまい、これも素通りしていた。`<(CMD)` は bash が CMD を
+# サブプロセスとして起動しその stdout を fd 経由でインタプリタに渡す仕組みであり、パイプ経由で
+# stdin を渡すのと安全性の観点では等価（インタプリタは結局 CMD の出力をスクリプトとして読む）。
+# よって CMD 自身を1本のミニパイプラインとみなし、既存の
+# literal_producer_value_through_passthrough を再利用して producer 値を解決する（確定できれば
+# scan、できなければ fail_closed）。
+def process_substitution_reexec_bodies(command_text):
+    """戻り値は (bodies, fail_closed) のタプル（他の *_reexec_bodies 系と統一）。
+
+    xargs/bare-interpreter 系の `for i in range(1, len(stages))`（i=0 は producer 側なので除外）
+    と異なり、本関数は `range(0, len(stages))` で全ステージを見る。`bash <(CMD)` はパイプの
+    consumer 位置である必要が一切なく、パイプを介さない単独のコマンド（stages が1要素）でも
+    バイパスが成立する（`bash <(echo 'git merge evil')` は実 bash で確認済み・パイプ不使用）
+    ため、i=0（唯一のステージ含む）も対象にする必要がある。"""
+    bodies = []
+    fail_closed = False
+    stages = top_level_pipeline_stages(command_text)
+    for i in range(0, len(stages)):
+        stage_text = unwrap_redundant_parens(first_operator_segment(stages[i]))
+        if "<(" not in stage_text:
+            continue
+        head_match = re.match(r"\s*(\S+)", stage_text)
+        if not head_match:
+            continue
+        wrapped = strip_leading_wrappers([head_match.group(1)])
+        if not wrapped:
+            continue
+        name = os.path.basename(wrapped[0])
+        if name not in HEREDOC_INTERPRETER_COMMANDS:
+            continue
+        for m in re.finditer(r"<\(", stage_text):
+            start = m.end()
+            inner_depth = 1
+            j = start
+            n = len(stage_text)
+            while j < n and inner_depth > 0:
+                if stage_text[j] == "(":
+                    inner_depth += 1
+                elif stage_text[j] == ")":
+                    inner_depth -= 1
+                j += 1
+            if inner_depth != 0:
+                continue
+            inner_cmd = stage_text[start:j - 1]
+            inner_stages = top_level_pipeline_stages(inner_cmd)
+            value = literal_producer_value_through_passthrough(inner_stages, len(inner_stages) - 1)
+            if value is _UNVERIFIABLE_PRODUCER:
+                fail_closed = True
+                continue
+            if value is None:
+                continue
+            bodies.append(value)
+    return bodies, fail_closed
+
+
 def find_violation(command_text, role, depth=0):
+    """戻り値は (violation, fail_closed) のタプル（Issue #222・fail-closed 設計転換・Claude 版と
+    同一設計）。violation: 従来どおり、"git merge"/"git push"/"gh pr merge"/"git alias for merge"
+    のいずれか（具体的に何が検出されたかを表す既存の高精度パス）または None。
+    fail_closed: True の場合、xargs_reexec_bodies/bare_interpreter_reexec_bodies/
+    process_substitution_reexec_bodies のいずれかが「sink（interpreter や git/gh）は確定して
+    いるが、そこに至る内容を静的に安全と確認できなかった」ことを検知したことを示す（violation が
+    None でも fail_closed=True ならこの呼び出しの親は deny すべき）。再帰呼び出し
+    （reexec_bodies/quoted_subcommands 経由）のいずれかで fail_closed が立った場合も上位へ
+    伝播する。"""
     if depth > 3:
-        return None
+        return None, False
     if depth == 0:
         scan_text, reexec_bodies = extract_heredocs(command_text)
     else:
@@ -1242,29 +1569,33 @@ def find_violation(command_text, role, depth=0):
     # over-deny してはならない（Issue #189 の false positive 是正方針を踏襲。command_text で
     # 走査すると reaches_interpreter 判定がヒアドキュメント本文内の直前の語だけを見て誤って
     # 「再実行される」と判定してしまう回帰があったため、実装中の敵対的自己検証で発見し是正）。
-    reexec_bodies = (
-        list(reexec_bodies)
-        + herestring_reexec_bodies(scan_text)
-        + xargs_reexec_bodies(scan_text)
-        + bare_interpreter_reexec_bodies(scan_text)
-    )
+    reexec_bodies = list(reexec_bodies) + herestring_reexec_bodies(scan_text)
+    reexec_bodies += process_substitution_bodies(scan_text)
+    xargs_bodies, xargs_fail_closed = xargs_reexec_bodies(scan_text)
+    bare_bodies, bare_fail_closed = bare_interpreter_reexec_bodies(scan_text)
+    procsub_bodies, procsub_fail_closed = process_substitution_reexec_bodies(scan_text)
+    reexec_bodies += xargs_bodies + bare_bodies + procsub_bodies
+    fail_closed = xargs_fail_closed or bare_fail_closed or procsub_fail_closed
     for segment in SEGMENT_SPLIT_RE.split(scan_text):
         violation = direct_violation(shell_words(segment), role)
         if violation:
-            return violation
+            return violation, fail_closed
     for body in reexec_bodies:
-        violation = find_violation(body, role, depth + 1)
+        violation, nested_fail_closed = find_violation(body, role, depth + 1)
+        fail_closed = fail_closed or nested_fail_closed
         if violation:
-            return violation
+            return violation, fail_closed
     for nested in quoted_subcommands(command_text):
-        violation = find_violation(nested, role, depth + 1)
+        violation, nested_fail_closed = find_violation(nested, role, depth + 1)
+        fail_closed = fail_closed or nested_fail_closed
         if violation:
-            return violation
+            return violation, fail_closed
         for literal in quoted_literals(nested):
-            violation = find_violation(literal, role, depth + 1)
+            violation, literal_fail_closed = find_violation(literal, role, depth + 1)
+            fail_closed = fail_closed or literal_fail_closed
             if violation:
-                return violation
-    return None
+                return violation, fail_closed
+    return None, fail_closed
 
 reason = None
 role = agent_type if agent_type in {"issue-implementer", "pr-reviewer"} else "unknown"
@@ -1277,11 +1608,26 @@ elif tool_name not in SHELL_TOOL_NAMES:
 elif not isinstance(command, str) or not command:
     reason = "agent-command-gate: PreToolUse payload does not contain tool_input.command; refusing because the Bash command cannot be inspected."
 else:
-    violation = find_violation(command, role)
+    violation, fail_closed = find_violation(command, role)
     if agent_type == "issue-implementer" and violation:
         reason = f"issue-implementer role: {violation} is reserved for pr-reviewer. Push + open a PR, then stop and report."
     elif agent_type == "pr-reviewer" and violation:
         reason = f"pr-reviewer role: {violation} is reserved for issue-implementer. Reviewers may inspect/comment/merge only, never push code."
+    elif fail_closed:
+        # Issue #222・fail-closed 設計転換（Claude 版と同一設計）: 具体的な違反コマンドを
+        # 特定できなくても、パイプ/xargs プレースホルダ/プロセス置換が interpreter や git/gh に
+        # 到達することは確定しており、そこに至る内容を安全と静的に確認できなかった。役割非対称
+        # メッセージ（"is reserved for pr-reviewer" 等）は「もう一方のロールなら許可される」と
+        # いう誤った含意を持つため使わず、専用の理由文を返す。ここに到達する時点で role は
+        # 既に issue-implementer/pr-reviewer のいずれかに確定している（"unknown" は上の
+        # `if role == "unknown": pass` で早期に抜けている）。
+        reason = (
+            f"{agent_type} role: a pipe segment or xargs -I{{}} placeholder reaches an "
+            "interpreter (or git/gh), but the content flowing into it could not be statically "
+            "verified as safe (unrecognized/unenumerated shell construct between the source and "
+            "the sink). Denying conservatively by default (fail-closed; Issue #222) instead of "
+            "assuming it is safe."
+        )
 
 if reason:
     debug_payload(payload, "deny", reason)

@@ -249,10 +249,16 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
         self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | bash")))
+        # sink 自体が interpreter-reading-stdin と確定できない（位置引数がある）ケースであり、
+        # fail-closed の対象にはならない。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
         )
-        self.assert_allowed(run_gate(payload("issue-implementer", "cat notes.txt | bash")))
+        # Issue #222 fail-closed 設計転換（Claude 版と同一設計）: 上流が非リテラル（`cat notes.txt`
+        # のようにファイルオペランドを読む等）の場合、以前は「静的に値を確定できないため対象外＝
+        # allow」だったが、sink（bash）は確定しているのに内容を安全と確認できない以上、
+        # fail-closed で deny に転じる（over-deny 増加を許容する Issue #222 の決定事項）。
+        self.assert_denied(run_gate(payload("issue-implementer", "cat notes.txt | bash")))
 
     def test_operator_chained_pipe_bypass_is_denied(self):
         # 実装中の敵対的自己検証で発見（Issue #213・Claude 版と同一設計）: `true ||
@@ -313,8 +319,13 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat && true | bash"))
         )
         # 2. `cat` にファイルオペランドがある場合、標準入力ではなくファイルを読むため、上流の
-        #    echo リテラルは実際には bash に渡らない。パススルー扱いにしないため過検知しない。
-        self.assert_allowed(
+        #    echo リテラルは実際には bash に渡らない（パイプの意味論としては真に無関係）。ただし
+        #    Issue #222 fail-closed 設計転換（Claude 版と同一設計）により、「echo の値が渡らない
+        #    こと」自体は事実でも「notes.txt の中身が bash に渡ること」は排除できず、
+        #    classify_passthrough_stage はこれを（disconnected ではなく）unverifiable として
+        #    扱う。sink（bash）が確定している以上、内容を安全と確認できない限り deny する
+        #    （over-deny 増加を許容する Issue #222 の決定事項として意図的に受け入れる）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt | bash"))
         )
         # 3. 既存の false positive 対策（無関係の xargs/パイプイディオム）は壊れていない。
@@ -359,8 +370,11 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'safe text' | (cat | cat) | bash"))
         )
-        # cat がサブシェル内でファイルオペランドを持つ場合は標準入力を読まないため対象外のまま。
-        self.assert_allowed(
+        # cat がサブシェル内でファイルオペランドを持つ場合、標準入力ではなく notes.txt を読む
+        # ため producer の echo リテラルは渡らないが、Issue #222 fail-closed 設計転換
+        # （Claude 版と同一設計）により notes.txt の中身自体を安全と確認できない以上 deny する
+        # （over-deny 増加を許容する Issue #222 の決定事項として意図的に受け入れる）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat notes.txt) | bash"))
         )
         # 開き括弧のみで閉じ括弧が来ない不正形式は検査不能側に倒して従来どおり過検知しない。
@@ -394,32 +408,40 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | sort | bash")))
 
     def test_single_line_filter_passthrough_does_not_over_deny(self):
-        # Issue #218 受け入れ基準3: sort/head/tail/uniq を安易に無条件で追加すると、恒等変換に
-        # ならない引数の組み合わせ（`uniq -c`／`head -n0`／ファイルオペランドを伴う `sort file.txt`
-        # 等）まで誤ってパススルー扱いしてしまう。これらは恒等性を保証できないため、パススルー
-        # チェーンが途切れて allow のまま（＝新規の検知は増えないが、新規の過検知も起きない）で
-        # なければならない。
-        self.assert_allowed(
+        # Issue #218 時点（fail-open 設計）では、sort/head/tail/uniq の恒等変換にならない引数の
+        # 組み合わせ（`uniq -c`／`head -n0`／ファイルオペランドを伴う `sort file.txt` 等）は
+        # 「恒等性を保証できないためパススルー扱いにしない＝allow のまま」だった。
+        #
+        # Issue #222（fail-closed 設計転換・Claude 版と同一設計）でこの前提が変わった: sink
+        # （bash）は確定しているのに内容を安全と確認できない以上、"確定できない" は "deny" 側に
+        # 倒れる。以下は全て意図的な over-deny の新規発生であり、Issue #222 の決定事項として
+        # 受け入れる（issue-implementer/pr-reviewer が任意のファイル内容や、恒等性を保証できない
+        # 変換結果を interpreter へパイプする正当な必要性は通常ない）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | uniq -c | bash"))
         )
-        self.assert_allowed(
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | head -n0 | bash"))
         )
-        self.assert_allowed(
+        self.assert_denied(
             run_gate(payload("issue-implementer", "sort notes.txt | bash"))
         )
-        self.assert_allowed(
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | sort file.txt | bash"))
         )
-        # grep/tr は恒等変換にならないため対象外（Issue #218 スコープ外）。パススルー扱いに
-        # ならず allow のまま（過検知しない）。
-        self.assert_allowed(
+        # grep/tr は UNCONDITIONAL/SINGLE_LINE のいずれの列挙にも含まれず classify_simple_command_stage
+        # が (None, None) を返すため、これも fail-closed の対象になり deny する。これは Issue #220
+        # （cut/awk/sed/tr 等の恒等変換フィルタ列挙方式の限界）が、個別列挙の拡張ではなく本設計転換
+        # そのものによって根本的に解消されることを示す（受け入れ基準1・Issue #222 スコープに明記）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | grep git | bash"))
         )
-        self.assert_allowed(
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | tr a-z A-Z | bash"))
         )
-        # 通常の無関係な用途（安全なコンテンツを sort/head/tail/uniq に通すだけ）を壊さない。
+        # 通常の無関係な用途（sink が bash 等の interpreter ではない）は引き続き壊さない。
+        # `wc` は HEREDOC_INTERPRETER_COMMANDS に含まれないため、そもそも fail-closed のトリガー
+        # 対象にならない。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'safe text' | sort | wc -l"))
         )
@@ -486,28 +508,31 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | sort -r | bash")))
 
     def test_single_line_filter_extended_flags_does_not_over_deny(self):
-        # クラスB是正の副作用確認: 恒等変換にならない／保証できない引数の組み合わせは
-        # 引き続き対象外（過検知しない）。
+        # クラスB是正時点（fail-open 設計）では、恒等変換にならない／保証できない引数の組み合わせは
+        # 対象外（allow）だった。Issue #222（fail-closed 設計転換・Claude 版と同一設計）でこの
+        # 前提が変わり、以下は全て意図的な over-deny の新規発生として受け入れる（sink が確定して
+        # いる以上、恒等でないと判明している＝安全と確認できないので deny する）。
         # head -c5 は "git merge feature" を5バイトに切り詰めるため恒等でない
-        # （実 bash で "git m" になることを確認済み）。
-        self.assert_allowed(
+        # （実 bash で "git m" になることを確認済み）→ byte_cap 超過で deny。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | head -c5 | bash"))
         )
         # tail -n +2 は「2行目から末尾まで」で head の `-n +N` とは意味が異なり、
-        # 単一行入力では出力が空になる（実 bash で確認済み）ため対象外のまま。
-        self.assert_allowed(
+        # 単一行入力では出力が空になる（実 bash で確認済み）→ 未対応フラグとして deny。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | tail -n +2 | bash"))
         )
-        # sort -c（check モード）は標準出力に何も書かない（実 bash で確認済み）ため対象外のまま。
-        self.assert_allowed(
+        # sort -c（check モード）は標準出力に何も書かない（実 bash で確認済み）→ 未対応フラグ
+        # として deny。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | sort -c | bash"))
         )
-        # uniq -d（重複行のみ出力）は単一行入力では出力が空になる（実 bash で確認済み）ため
-        # 対象外のまま。
-        self.assert_allowed(
+        # uniq -d（重複行のみ出力）は単一行入力では出力が空になる（実 bash で確認済み）→
+        # 未対応フラグとして deny。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | uniq -d | bash"))
         )
-        # 通常の無関係な用途を壊さない。
+        # 通常の無関係な用途（sink が interpreter ではない）は引き続き壊さない。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'safe text' | sort -r | wc -l"))
         )
@@ -550,55 +575,57 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         )
 
     def test_operator_sequence_multiple_passthrough_and_stderr_redirect_does_not_over_deny(self):
-        # 是正の副作用確認（PR #219 opus 再レビュー指摘の敵対的再検証項目を含む・Claude 版と
-        # 同一設計）: 恒等変換を壊す、または保証できないリダイレクト・組み合わせは引き続き対象外
-        # （過検知しない）。実 bash で挙動を確認済み。
-        # `>`（stdout 自体の向け先変更）は恒等ではない（実際には downstream に届かない）ため
-        # 対象外のまま。
-        self.assert_allowed(
+        # PR #219 時点（fail-open 設計）では、恒等変換を壊す／保証できないリダイレクト・組み合わせは
+        # 対象外（allow）だった。Issue #222（fail-closed 設計転換・Claude 版と同一設計）でこの
+        # 前提が変わった。
+        # `>`（stdout 自体の向け先変更）は producer の echo リテラルが実際には bash に届かないが
+        # （実 bash で確認済み・真に無関係）、classify_passthrough_stage は「file への出力」を
+        # disconnected とは判定せず unverifiable として扱う（`>`/`>>` 等の stdout リダイレクトは
+        # strip_stderr_only_redirections の対象外＝非フラグの位置引数として cat の file-operand
+        # チェックに引っかかる）ため、sink（bash）が確定している以上 deny する。issue-implementer/
+        # pr-reviewer がこのようなリダイレクトを伴うパイプを interpreter へ渡す正当な必要性は
+        # 通常なく、意図的な over-deny として受け入れる（Issue #222 決定事項）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat > /tmp/agent-gate-test-x) | bash"))
         )
-        # ファイルオペランドを伴う場合は stderr リダイレクトを剥がしても「引数あり」のままなので
-        # 対象外のまま（標準入力ではなくファイルを読むため）。
-        self.assert_allowed(
+        # ファイルオペランドを伴う場合は stderr リダイレクトを剥がしても「引数あり」のままであり
+        # （標準入力ではなくファイルを読むため producer の echo リテラルは届かない）、上と同じ
+        # 理由づけで fail-closed の対象になり deny する。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt 2>/dev/null | bash"))
         )
-        # 通常の無関係な用途（無害なコマンドに stderr リダイレクトを付けるだけ）を壊さない。
+        # 通常の無関係な用途（sink が interpreter ではない）は引き続き壊さない。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'safe text' | cat 2>/dev/null | wc -l"))
         )
 
-    def test_fd_duplication_redirect_is_a_known_unresolved_gap(self):
-        # 既知の未対応残存ギャップ（PR #219 さらなる opus 再レビューで判明・fail-open・
-        # Claude 版と同一設計）。
+    def test_fd_duplication_redirect_bypass_is_denied(self):
+        # Issue #222（fail-closed 設計転換・Claude 版と同一設計）でこのギャップは解消された。
+        # 以前は test_fd_duplication_redirect_is_a_known_unresolved_gap という名前で、以下2件が
+        # 「既知の未対応残存ギャップ（fail-open のため allow になってしまう）」として意図的に
+        # 記録されていた（PR #219 さらなる opus 再レビューで発見。fd 複製・クローズ構文
+        # `2>&1`・`>&2`・`{fd}>&-` 等は個別の point-fix を重ねるたびに新しい亜種が見つかる
+        # いたちごっこだった）。
         #
-        # `(cat 2>&1)`/`(cat 2>/dev/null 2>&1)` のように stderr を stdout に合流させる fd
-        # 複製構文は、実 bash では恒等変換になる（cat が正常終了する限り stderr には何も
-        # 書き込まれないため、2>&1 で合流させても stdout の内容は変わらない）。つまり
-        # `echo 'git merge evil' | (cat 2>&1) | bash` 等は実際には deny すべきバイパスで
-        # あり、実行して allow されることを確認済み。
+        # `(cat 2>&1)`/`(cat 2>/dev/null 2>&1)` は実 bash では恒等変換になる（cat が正常終了
+        # する限り stderr には何も書き込まれないため、2>&1 で合流させても stdout の内容は
+        # 変わらない）ため、実際には deny すべきバイパスだった。
         #
-        # 以前このテスト（同ファイル内の *_does_not_over_deny）は、これを「恒等性を保証
-        # できないため安全に allow されるべき over-deny 防止ケース」として誤って assert
-        # していた。実際には false negative（見逃し）であり、「安全」ではない。
-        #
-        # この fd 複製・クローズ構文（`2>&1`・`>&2`・`{fd}>&-` 等の派生を含む）を個別の
-        # point-fix で塞ぎ続ける設計は、新しい亜種が見つかるたびに再発するいたちごっこに
-        # なっており（本PRだけで既に複数ラウンド発生）、オーナー判断により本PRではこれ以上
-        # 追わず、fail-closed への構造転換（認識できない構文は安全側で拒否するアローリスト
-        # 方式へ転換する）を Issue #222 として別途起票し、そちらで根本解消する方針とした。
-        #
-        # このテストは「現状 allow になってしまう」という既知のギャップを意図的に記録する
-        # ものであり、正しい挙動として保証しているわけではない。Issue #222 の対応で deny に
-        # 変わったら、このテストは失敗するので、その時点で削除・更新すること
-        # （assert_allowed を assert_denied に置き換え、コメントも解消済みに更新する）。
-        known_gap_commands = [
+        # classify_simple_command_stage は `2>&1`（_STDERR_DISCARD_TOKEN_RE が `(?!&)` で
+        # 除外するため strip_stderr_only_redirections で剥がされない）を非フラグの位置引数と
+        # 扱い、cat の file-operand チェックに引っかけて (None, None) を返す。以前はこれが
+        # 「確定できない＝ALLOW」だったが、Issue #222 の設計転換により
+        # literal_producer_value_through_passthrough はこれを _UNVERIFIABLE_PRODUCER として
+        # 扱い、sink（bash）が確定している以上 deny する。個別の `2>&1` 対応を追加したのでは
+        # なく、"分類できないものは全て deny" という単一の原理で自動的に閉じたことを確認する
+        # テスト（受け入れ基準1・2）。
+        bypass_commands = [
             "echo 'git merge feature' | (cat 2>&1) | bash",
             "echo 'git merge feature' | (cat 2>/dev/null 2>&1) | bash",
         ]
-        for command in known_gap_commands:
+        for command in bypass_commands:
             with self.subTest(command=command):
-                self.assert_allowed(run_gate(payload("issue-implementer", command)))
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
         # 実装中の敵対的自己検証で発見（Issue #213・Claude 版と同一設計）:
@@ -770,6 +797,60 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             backup_path = Path(str(log_path) + ".1")
             self.assertTrue(backup_path.exists())
             self.assertEqual(len(log_path.read_text().strip().splitlines()), 1)
+
+    def test_issue_220_enumeration_gap_is_resolved_by_fail_closed_design(self):
+        # Issue #220（Claude 版と同一設計）: PASSTHROUGH_COMMANDS/SINGLE_LINE_PASSTHROUGH_COMMANDS
+        # の列挙方式は、cut/awk/sed/rev 等 cat/tee/sort/head/tail/uniq 以外の恒等変換フィルタに
+        # 対応しておらず、無限に列挙が必要になるという設計限界が指摘されていた（Issue #218 の
+        # PR #219 レビューで判明・実行して恒等変換になることを確認済みの Issue #220 記載の
+        # PoC）。Issue #222 の fail-closed 設計転換は、恒等性を証明できないコマンドは全て deny
+        # するため、これらは個別列挙の追加なしに自動的に閉じる（受け入れ基準1）。
+        commands = [
+            "echo 'git merge feature' | cut -c1-1000 | bash",
+            "echo 'git merge feature' | rev | rev | bash",
+            "echo 'git merge feature' | awk '{print}' | bash",
+            "echo 'git merge feature' | sed 's/x/x/' | bash",
+            "echo 'git merge feature' | tac | bash",
+            "echo 'git merge feature' | base64 | base64 -d | bash",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+
+    def test_pr219_round3_fd_and_novel_syntax_bypasses_are_denied_structurally(self):
+        # Issue #222 実装時の敵対的自己検証で発見（Claude 版と同一設計）。個別の point-fix では
+        # なく fail-closed の設計原理そのものによって塞がれることを確認する（列挙ベースの対応を
+        # 一切追加していない）。
+        commands = [
+            "echo 'git merge feature' | cat 0<&0 | bash",
+            "echo 'git merge feature' | cat 2>&- | bash",
+            "echo 'git merge feature' | cat |& bash",
+            "echo 'git merge feature' | { cat; } | bash",
+            "echo 'git merge feature' | { { cat; }; } | bash",
+            "echo 'git merge feature' | xargs -I{} {}",
+            "bash <(echo 'git merge feature')",
+            "sh <(echo 'git merge feature')",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | cat |& bash")))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | { cat; } | bash"))
+        )
+        self.assert_denied(run_gate(payload("pr-reviewer", "bash <(echo 'git push origin HEAD')")))
+
+    def test_unenumerated_novel_construct_denies_by_default_not_by_listing(self):
+        # 受け入れ基準2（Claude 版と同一設計）: 「今回のレビューで能動的に試されていない亜種」
+        # でも、列挙されていない限り deny 側に倒れることを実演する。
+        commands = [
+            "echo 'git merge feature' | totally-made-up-filter-xyz | bash",
+            "echo 'git merge feature' | dd 2>/dev/null | bash",
+            "echo 'git merge feature' | nl | column | bash",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
 
 
 if __name__ == "__main__":
