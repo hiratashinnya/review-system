@@ -501,6 +501,69 @@ class AgentCommandGateTests(unittest.TestCase):
             run_gate(payload("issue-implementer", "echo 'safe text' | sort -r | wc -l"))
         )
 
+    def test_operator_sequence_multiple_passthrough_and_stderr_redirect_bypass_is_denied(self):
+        # PR #219 opus 再レビューで発見（実 bash で実行確認済み）: 前回追加した
+        # classify_operator_sequence_stage() 自体の以下2種の分岐を突くバイパスが見つかった。
+        #   1. 真の passthrough セグメントが2個以上連なる構成（`cat && cat`/`cat; cat`）。
+        #   2. stderr のみのリダイレクト付き passthrough（`cat 2>/dev/null` 等。サブシェル内・
+        #      パイプ内・サブシェルすら介さないトップレベル段のいずれでも検知漏れだった）。
+        # 根本原因は classify_operator_sequence_stage() が None を返す＝安全側（deny 方向）と
+        # 誤ってコメントしていたこと（実際には None は fail-open＝allow 方向）。誤ったコメントを
+        # 訂正した上で、cat/tee のみに限定した複数セグメント対応と
+        # strip_stderr_only_redirections() を追加して是正した。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | (cat && cat) | bash",
+            "echo 'git merge feature' | (cat; cat) | bash",
+            "echo 'git merge feature' | (cat || cat) | bash",
+            "echo 'git merge feature' | (cat 2>/dev/null) | bash",
+            "echo 'git merge feature' | (cat | cat 2>/dev/null) | bash",
+            "echo 'git merge feature' | cat 2>/dev/null | bash",
+            "echo 'git merge feature' | cat 2> /dev/null | bash",  # 分離形（"2>" "/dev/null"）
+            "echo 'git merge feature' | (cat 2>>/dev/null) | bash",  # 追記形（"2>>"）
+            "echo 'git merge feature' | (true && cat 2>/dev/null) | bash",
+            "echo 'git merge feature' | (cat 2>/dev/null && cat 2>/dev/null) | bash",
+            "echo 'git merge feature' | (sort 2>/dev/null) | bash",
+            "echo 'git merge feature' | (head -n1 2>/dev/null) | bash",
+            # 3個以上の真の passthrough セグメントが連なる場合も、全て unconditional なら
+            # 引き続き検知される（2個限定ではない一般化の確認）。
+            "echo 'git merge feature' | (cat && cat && cat) | bash",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | (cat && cat) | bash"))
+        )
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | cat 2>/dev/null | bash"))
+        )
+
+    def test_operator_sequence_multiple_passthrough_and_stderr_redirect_does_not_over_deny(self):
+        # 是正の副作用確認（PR #219 opus 再レビュー指摘の敵対的再検証項目を含む）:
+        # 恒等変換を壊す、または保証できないリダイレクト・組み合わせは引き続き対象外
+        # （過検知しない）。実 bash で挙動を確認済み。
+        # `2>&1`（stderr を stdout に合流）は恒等性を静的に保証しきれないため対象外のまま。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat 2>&1) | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat 2>/dev/null 2>&1) | bash"))
+        )
+        # `>`（stdout 自体の向け先変更）は恒等ではない（実際には downstream に届かない）ため
+        # 対象外のまま。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat > /tmp/agent-gate-test-x) | bash"))
+        )
+        # ファイルオペランドを伴う場合は stderr リダイレクトを剥がしても「引数あり」のままなので
+        # 対象外のまま（標準入力ではなくファイルを読むため）。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt 2>/dev/null | bash"))
+        )
+        # 通常の無関係な用途（無害なコマンドに stderr リダイレクトを付けるだけ）を壊さない。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'safe text' | cat 2>/dev/null | wc -l"))
+        )
+
     def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
         # 実装中の敵対的自己検証で発見（Issue #213）: herestring_reexec_bodies/xargs_reexec_bodies/
         # bare_interpreter_reexec_bodies を command_text（生テキスト）に対して走査すると、

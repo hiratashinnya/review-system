@@ -811,11 +811,55 @@ def is_single_line_identity_args(name, args):
 # 呼び出す classify_operator_sequence_stage に閉じ込める。
 NOOP_STDOUT_FREE_COMMANDS = {"true", ":", "false"}
 
+# stderr のみのリダイレクト対応（PR #219 opus 再レビューで発見・実 bash で実行確認済み）:
+# shlex は shell のリダイレクト構文を理解せず、`cat 2>/dev/null` の "2>/dev/null" を単なる
+# 1トークン（`cat 2> /dev/null` なら "2>" と "/dev/null" の2トークン）としてそのまま返すため、
+# cat のファイルオペランドチェックや sort/uniq/head/tail の引数安全性チェックが、実際には
+# stdin→stdout の恒等性を一切壊さない stderr 単独のリダイレクトを「非フラグの位置引数（＝
+# ファイルオペランドあり）」と誤判定して拒否していた。`(cat 2>/dev/null)`・パイプ内の
+# `cat | cat 2>/dev/null`・サブシェルすら介さないトップレベル段 `cat 2>/dev/null` の
+# いずれも実行して allow される（本来 deny すべきバイパス）ことを確認済み。
+#
+# 安全に取り除けるのは「stderr を破棄/追記するだけ」（`2>TARGET`/`2>>TARGET`）に限る。
+# stdout 自体の向け先を変える（`>`/`>>`/`1>`/`&>`）・標準入力の向け先を変える（`<`/`<<`/`<<<`）・
+# stderr を stdout に合流させる（`2>&1`）リダイレクトは、恒等性を壊す、または壊さないことを
+# 静的に保証しきれない（`2>&1` はエラー発生時に stderr の内容が stdout 側にも混ざり得る）ため
+# 除去しない＝以降の判定でそのまま「非フラグの位置引数」として扱われ、従来どおり拒否される
+# （この関数は該当リダイレクトを見誤って安全と判定する方向には倒れない＝取りこぼしても
+# 過検知止まりで、恒等性を壊すリダイレクトを誤って安全側に倒すことはない）。
+_STDERR_DISCARD_TOKEN_RE = re.compile(r"^2>{1,2}(?!&)")
+
+
+def strip_stderr_only_redirections(tokens):
+    """tokens（コマンド名を除いた残り引数）から stderr のみを破棄/追記するリダイレクト
+    （結合形 `2>TARGET`/`2>>TARGET` の1トークン、または分離形 `2>`/`2>>` + 次トークンの2トークン）
+    を取り除いた残りのトークン列を返す。"""
+    result = []
+    i = 0
+    n = len(tokens)
+    while i < n:
+        token = tokens[i]
+        if token in ("2>", "2>>"):
+            if i + 1 < n:
+                i += 2
+                continue
+            result.append(token)  # リダイレクト先を伴わない不正形式は素通しし以降の判定に委ねる
+            i += 1
+            continue
+        if _STDERR_DISCARD_TOKEN_RE.match(token):
+            i += 1
+            continue
+        result.append(token)
+        i += 1
+    return result
+
 
 def classify_simple_command_stage(stripped):
     """stripped（パイプ/丸括弧/sequencing 演算子を含まない単一のコマンドテキスト）を解析し、
     ("unconditional" | "single_line", byte_cap) または (None, None) を返す（末端の判定ロジック。
-    従来 classify_passthrough_stage 内にあった単純コマンド解析部分を独立させたもの）。"""
+    従来 classify_passthrough_stage 内にあった単純コマンド解析部分を独立させたもの）。
+    引数は strip_stderr_only_redirections で stderr のみのリダイレクトを取り除いた後に判定する
+    （PR #219 opus 再レビュー対応）。"""
     if "$" in stripped or "`" in stripped:
         return None, None
     try:
@@ -826,7 +870,7 @@ def classify_simple_command_stage(stripped):
     if not tokens:
         return None, None
     name = os.path.basename(tokens[0])
-    args = tokens[1:]
+    args = strip_stderr_only_redirections(tokens[1:])
     if name in UNCONDITIONAL_PASSTHROUGH_COMMANDS:
         if name == "cat":
             for arg in args:
@@ -843,18 +887,50 @@ def classify_simple_command_stage(stripped):
 
 
 def classify_operator_sequence_stage(stripped):
-    """stripped が `&&`/`||`/`;`/改行で連結された1個以上のサブコマンド列で構成され、そのうち
-    ちょうど1つが classify_subshell_body で識別可能なパススルーで、残り全てが標準出力に
-    何も書かないことが既知のコマンド（NOOP_STDOUT_FREE_COMMANDS＝true/:/false、引数なし）で
-    ある場合、そのパススルー1個の判定結果 (kind, byte_cap) を返す。それ以外は (None, None)。
+    """stripped が `&&`/`||`/`;`/改行で連結された1個以上のサブコマンド列で構成される場合に、
+    サブシェル全体を1段のパススルーとして扱えるかどうかを判定し、(kind, byte_cap) または
+    (None, None) を返す。
 
-    true/:/false は実行されてもされなくても（`&&`/`||` による短絡評価の結果に関わらず）標準
-    出力に一切書き込まないため、正確な短絡評価のシミュレーションをしなくても、この2条件
-    （パススルー候補ちょうど1個・残りが true/:/false のみ）さえ満たせば、サブシェル全体の
-    可視標準出力はそのパススルー1個の出力と一致することが保証できる（安全側：仮に非現実的な
-    組み合わせで誤ってパススルー扱いにしてしまっても、起きるのは過剰検知（deny 方向）であり
-    見逃し（allow 方向）にはならない）。呼び出しはこの関数専用（classify_passthrough_stage の
-    トップレベル段では sequencing 演算子は元の安全側挙動＝None のまま）。"""
+    **(None, None) を返すことは「安全」ではない（PR #219 opus 再レビューで指摘・重要な訂正）**:
+    ここで None を返すと呼び出し元 literal_producer_value_through_passthrough の遡及チェーンが
+    そこで打ち切られ、そのパイプライン全体が「静的に確定できないパススルー」として扱われて
+    reexec 対象に載らなくなる＝**ALLOW（見逃し）** になる。以前のコメントは「見逃し方向には
+    ならない」と誤って記述していたが、実際にはこの関数が実際には恒等変換であるパターンを
+    未対応のまま None を返すたびに fail-open（バイパス見逃し）が起こり得る。実際に
+    `(cat && cat)`/`(cat; cat)`（真の passthrough セグメントが2個以上）や
+    `(cat 2>/dev/null)`（stderr リダイレクト付き passthrough。こちらは
+    strip_stderr_only_redirections で別途対応）が実 bash で allow されるバイパスとして
+    見つかった。None は「恒等性を静的に確認できなかった」という**未対応の残存ギャップ**
+    （受け入れ基準5・完全網羅は目指さない）を意味するのであって、「見逃しが起きない」ことを
+    意味しない。
+
+    対応済みの範囲: 1個以上のセグメントが classify_subshell_body で識別可能なパススルーで、
+    残り全てが標準出力に何も書かないことが既知のコマンド（NOOP_STDOUT_FREE_COMMANDS＝
+    true/:/false、引数なし。stderr リダイレクト付きの `true 2>/dev/null` 等も同様に無害として
+    扱う）である場合、パススルーが1個だけなら判定結果をそのまま返す。パススルーが2個以上
+    連なる場合（`(cat && cat)`/`(cat; cat)` 等）は、**全セグメントが "unconditional"
+    （cat/tee・byte_cap なし）の場合に限り**まとめて "unconditional" として扱う。cat/tee は
+    必ず標準入力を最後まで読み切ってから書き出すため、複数個連なっても「1個目が全部読み切り、
+    2個目以降は EOF で何も出力しない」ことが read() のバッファリング実装に関わらず保証できる
+    （実 bash で確認済み）。一方 sort/uniq/head/tail（"single_line" 種別）、特に head/tail の
+    `-c`（バイト数指定）は「指定バイト数だけ読んで残りが未読のまま後続セグメントに漏れ出す」
+    可能性を静的に排除しきれないため、複数セグメント構成での組み合わせは対象外のまま維持する
+    （安全性を保証しきれない組み合わせを拡張しないという限定であり、これも受け入れ基準5の
+    残存ギャップとして許容する）。
+
+    既知の未対応の残存ギャップ（このラウンドでは対応しない・fail-open のまま）:
+    - `false && cat` のように、真に決定的な短絡評価（false は必ず失敗する）によって
+      passthrough セグメントが実際には一度も実行されない構成は、この関数の短絡評価
+      シミュレーションでは検出できない。ただしこの方向の誤りは「実際には空出力になるのに
+      恒等変換だと誤認する」（過検知＝deny 方向）であり、見逃し（allow 方向）の新規リスクには
+      ならない。
+    - head/tail の `-c` を含む複数セグメント構成、3種類以上のコマンドが混在する構成等は
+      未対応のまま（対応が複雑になりすぎる／安全性を保証しきれないと判断したため、無理に
+      実装しない。オーナー承認済み）。
+
+    呼び出しはこの関数専用（classify_passthrough_stage のトップレベル段では sequencing 演算子は
+    元の挙動＝None のまま。これは丸括弧の外側での `&&`/`;` がシェルの結合優先順位により実際に
+    別パイプラインに分かれる＝真の非該当であって、こちらは「安全」の表現が引き続き正しい）。"""
     segments = [seg for seg in re.split(r"&&|\|\||;|\n", stripped) if seg.strip()]
     if not segments:
         return None, None
@@ -865,15 +941,24 @@ def classify_operator_sequence_stage(stripped):
             seg_tokens = strip_leading_wrappers(shlex.split(seg_stripped, posix=True))
         except ValueError:
             seg_tokens = None
-        if seg_tokens and len(seg_tokens) == 1 and seg_tokens[0] in NOOP_STDOUT_FREE_COMMANDS:
-            continue  # 標準出力を生成しないことが既知のコマンド（実行有無に関わらず影響なし）
+        if (
+            seg_tokens
+            and seg_tokens[0] in NOOP_STDOUT_FREE_COMMANDS
+            and not strip_stderr_only_redirections(seg_tokens[1:])
+        ):
+            continue  # 標準出力を生成しないことが既知のコマンド（stderr リダイレクトのみは無害）
         kind, byte_cap = classify_subshell_body(seg)
         if kind is None:
             return None, None
         passthrough_results.append((kind, byte_cap))
-    if len(passthrough_results) != 1:
-        return None, None  # パススルー候補が0個または複数個は静的に恒等性を保証できない
-    return passthrough_results[0]
+    if not passthrough_results:
+        return None, None  # 全セグメントが noop（true/:/false のみ）＝標準入力を一切読まないため
+                            # 出力は常に空になり、パイプ上流の内容とは一致しない（恒等ではない）
+    if len(passthrough_results) == 1:
+        return passthrough_results[0]
+    if all(kind == "unconditional" and byte_cap is None for kind, byte_cap in passthrough_results):
+        return "unconditional", None
+    return None, None
 
 
 def classify_subshell_body(text):
@@ -945,15 +1030,28 @@ def classify_passthrough_stage(stage_text):
 
 def literal_producer_value_through_passthrough(stages, index):
     """stages[index] から後方（producer 方向）へ、パススルー段（classify_passthrough_stage）を
-    許容しながら literal_producer_value が確定できる最初の段まで遡る。パススルーでも literal
-    producer でもない段に当たった時点で静的に確定できないため None を返す（安全側）。index は
-    毎回1段ずつ減るため、有限のステージ数で必ず終了する（無限ループにはならない）。
+    許容しながら literal_producer_value が確定できる最初の段まで遡る。index は毎回1段ずつ減る
+    ため、有限のステージ数で必ず終了する（無限ループにはならない）。
+
+    **None を返すことは「安全」を意味しない（PR #219 opus 再レビューで訂正）**: パススルーでも
+    literal producer でもない段に当たった時点で None を返すのは、その経路を静的に確定できな
+    かった（＝未対応の残存ギャップ）ことを表すだけであり、そのパイプラインが実際には恒等変換
+    であって注入されたコマンドが下流に届かない、という意味ではない。呼び出し元
+    （bare_interpreter_reexec_bodies/xargs_reexec_bodies）はこの値が None のとき単にこの
+    reexec 候補を諦めて allow 方向に倒れる（他の検知経路が別途あれば拾えるが、無ければ
+    見逃しになる）。
+    classify_passthrough_stage/classify_subshell_body/classify_operator_sequence_stage が
+    対応しているパターンの範囲でのみ検知でき、範囲外は fail-open のまま（受け入れ基準5・
+    完全網羅は目指さない設計方針として明示的に許容する）。
 
     途中で "single_line" 種別のパススルー段（sort/head/tail/uniq）を1つでも経由した場合は、
-    最終的に確定した producer 値が改行を含む場合（＝実際には単一行ではなかった場合）恒等変換の
-    保証が崩れるため None を返す（Issue #218 ギャップ2・安全側）。同様に、byte_cap 付きの段
-    （head/tail の `-c`/`--bytes`）を経由した場合は、producer 値の UTF-8 バイト長が経由した
-    全 byte_cap の最小値を超える場合も None を返す（PR #219 opus レビュー クラスB追随）。"""
+    最終的に確定した producer 値が改行を含む場合（＝実際には単一行ではなかった場合）、
+    single_line 種別のコマンドについて確認済みの「単一行入力に対してのみ恒等」という前提が
+    成立しなくなるため None を返す（Issue #218 ギャップ2。この場合の None は verified 済みの
+    非該当＝真に恒等でないケースを正しく除外している）。同様に、byte_cap 付きの段（head/tail の
+    `-c`/`--bytes`）を経由した場合は、producer 値の UTF-8 バイト長が経由した全 byte_cap の
+    最小値を超える場合も None を返す（PR #219 opus レビュー クラスB追随。`head -c5` で
+    "git merge evil" が切り詰められることを実 bash で確認済みの、真に恒等でないケース）。"""
     requires_single_line = False
     max_bytes = None
     while index >= 0:
