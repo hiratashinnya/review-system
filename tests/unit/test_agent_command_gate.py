@@ -542,13 +542,6 @@ class AgentCommandGateTests(unittest.TestCase):
         # 是正の副作用確認（PR #219 opus 再レビュー指摘の敵対的再検証項目を含む）:
         # 恒等変換を壊す、または保証できないリダイレクト・組み合わせは引き続き対象外
         # （過検知しない）。実 bash で挙動を確認済み。
-        # `2>&1`（stderr を stdout に合流）は恒等性を静的に保証しきれないため対象外のまま。
-        self.assert_allowed(
-            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat 2>&1) | bash"))
-        )
-        self.assert_allowed(
-            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat 2>/dev/null 2>&1) | bash"))
-        )
         # `>`（stdout 自体の向け先変更）は恒等ではない（実際には downstream に届かない）ため
         # 対象外のまま。
         self.assert_allowed(
@@ -563,6 +556,37 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'safe text' | cat 2>/dev/null | wc -l"))
         )
+
+    def test_fd_duplication_redirect_is_a_known_unresolved_gap(self):
+        # 既知の未対応残存ギャップ（PR #219 さらなる opus 再レビューで判明・fail-open）。
+        #
+        # `(cat 2>&1)`/`(cat 2>/dev/null 2>&1)` のように stderr を stdout に合流させる fd
+        # 複製構文は、実 bash では恒等変換になる（cat が正常終了する限り stderr には何も
+        # 書き込まれないため、2>&1 で合流させても stdout の内容は変わらない）。つまり
+        # `echo 'git merge evil' | (cat 2>&1) | bash` 等は実際には deny すべきバイパスで
+        # あり、実行して allow されることを確認済み。
+        #
+        # 以前このテスト（同ファイル内の *_does_not_over_deny）は、これを「恒等性を保証
+        # できないため安全に allow されるべき over-deny 防止ケース」として誤って assert
+        # していた。実際には false negative（見逃し）であり、「安全」ではない。
+        #
+        # この fd 複製・クローズ構文（`2>&1`・`>&2`・`{fd}>&-` 等の派生を含む）を個別の
+        # point-fix で塞ぎ続ける設計は、新しい亜種が見つかるたびに再発するいたちごっこに
+        # なっており（本PRだけで既に複数ラウンド発生）、オーナー判断により本PRではこれ以上
+        # 追わず、fail-closed への構造転換（認識できない構文は安全側で拒否するアローリスト
+        # 方式へ転換する）を Issue #222 として別途起票し、そちらで根本解消する方針とした。
+        #
+        # このテストは「現状 allow になってしまう」という既知のギャップを意図的に記録する
+        # ものであり、正しい挙動として保証しているわけではない。Issue #222 の対応で deny に
+        # 変わったら、このテストは失敗するので、その時点で削除・更新すること
+        # （assert_allowed を assert_denied に置き換え、コメントも解消済みに更新する）。
+        known_gap_commands = [
+            "echo 'git merge feature' | (cat 2>&1) | bash",
+            "echo 'git merge feature' | (cat 2>/dev/null 2>&1) | bash",
+        ]
+        for command in known_gap_commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
     def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
         # 実装中の敵対的自己検証で発見（Issue #213）: herestring_reexec_bodies/xargs_reexec_bodies/
