@@ -316,6 +316,108 @@ class AgentCommandGateTests(unittest.TestCase):
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
         )
 
+    def test_subshell_paren_grouping_bypass_is_denied(self):
+        # Issue #218 ギャップ1（PR #216 の opus 敵対的レビューで発見）: PIPE_ONLY_RE.split() は
+        # トップレベルの `|` を素朴に全分割するため、`( ... | ... )` のような丸括弧サブシェルを
+        # 含むパイプラインでは、サブシェル内部の `|` まで分割対象にしてしまい `(cat`/`cat)` という
+        # 不正な字句が生まれ、パススルー追跡が途切れて検知漏れになっていた（実行して確認済み：
+        # `echo 'git merge evil' | (cat | cat) | bash` が allow されていた）。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | (cat | cat) | bash",
+            "echo 'git merge feature' | (cat) | bash",
+            "echo 'git merge feature' | ((cat)) | bash",
+            "echo 'git merge feature' | (cat | (cat | cat)) | bash",
+            "echo 'git merge feature' | (sort | cat) | bash",
+            "echo 'git merge feature' | (cat | sort) | bash",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(
+            run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | (cat | cat) | bash"))
+        )
+        # 比較対象: 括弧なしの同種パイプは #215 で既に対応済み（引き続き deny のまま）。
+        self.assert_denied(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | cat | cat | bash"))
+        )
+
+    def test_subshell_paren_grouping_does_not_over_deny_unrelated_commands(self):
+        # Issue #218 受け入れ基準2: サブシェル括弧を含むが実際には無関係な既存の許可パターンで
+        # 新規の誤検知（over-deny）が発生しないことを確認する。
+        self.assert_allowed(run_gate(payload("issue-implementer", "(echo hi)")))
+        self.assert_allowed(run_gate(payload("issue-implementer", "(echo hi) && git status")))
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'safe text' | (cat | cat) | bash"))
+        )
+        # cat がサブシェル内でファイルオペランドを持つ場合は標準入力を読まないため対象外のまま。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | (cat notes.txt) | bash"))
+        )
+        # 開き括弧のみで閉じ括弧が来ない不正形式は検査不能側に倒して従来どおり過検知しない
+        # （パイプの継続性が追えないだけで、既存の direct_violation 走査には影響しない）。
+        self.assert_allowed(run_gate(payload("issue-implementer", "echo '(unbalanced'")))
+
+    def test_single_line_filter_passthrough_bypass_is_denied(self):
+        # Issue #218 ギャップ2（PR #216 の opus 敵対的レビューで発見）: PASSTHROUGH_COMMANDS が
+        # cat/tee のみで、sort/head/tail/uniq を挟んだパイプラインが検知漏れになっていた
+        # （実行して確認済み：`echo 'git merge evil' | sort | bash` 等が allow されていた）。
+        # sort/head/tail/uniq は「引数なし（sort/uniq）」「正の行数指定のみ、または引数なし
+        # （head/tail）」の場合に限り、単一行入力に対する恒等変換として扱う。
+        issue_implementer_commands = [
+            "echo 'git merge feature' | sort | bash",
+            "echo 'git merge feature' | head -n1 | bash",
+            "echo 'git merge feature' | uniq | bash",
+            "echo 'git merge feature' | tail -n1 | bash",
+            "echo 'git merge feature' | head | bash",
+            "echo 'git merge feature' | tail | bash",
+            "echo 'git merge feature' | head -n 1 | bash",
+            "echo 'git merge feature' | head --lines=1 | bash",
+            # sort/head/tail/uniq を cat/tee と重ね掛けした多段パススルー。
+            "echo 'git merge feature' | cat | sort | bash",
+            "echo 'git merge feature' | sort | cat | bash",
+            "echo 'git merge feature' | uniq | cat | tail -n1 | bash",
+            # xargs プレースホルダ経由でも同様に検知されなければならない。
+            "echo 'git merge feature' | sort | xargs -I{} bash -c '{}'",
+        ]
+        for command in issue_implementer_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+        self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | sort | bash")))
+
+    def test_single_line_filter_passthrough_does_not_over_deny(self):
+        # Issue #218 受け入れ基準3: sort/head/tail/uniq を安易に無条件で追加すると、恒等変換に
+        # ならない引数の組み合わせ（`uniq -c`／`head -n0`／ファイルオペランドを伴う `sort file.txt`
+        # 等）まで誤ってパススルー扱いしてしまう。これらは恒等性を保証できないため、パススルー
+        # チェーンが途切れて allow のまま（＝新規の検知は増えないが、新規の過検知も起きない）で
+        # なければならない。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | uniq -c | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | head -n0 | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | sort -r | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "sort notes.txt | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | sort file.txt | bash"))
+        )
+        # grep/tr は恒等変換にならないため対象外（Issue #218 スコープ外）。パススルー扱いに
+        # ならず allow のまま（過検知しない）。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | grep git | bash"))
+        )
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'git merge feature' | tr a-z A-Z | bash"))
+        )
+        # 通常の無関係な用途（安全なコンテンツを sort/head/tail/uniq に通すだけ）を壊さない。
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "echo 'safe text' | sort | wc -l"))
+        )
+
     def test_herestring_and_pipe_detection_does_not_over_deny_heredoc_data(self):
         # 実装中の敵対的自己検証で発見（Issue #213）: herestring_reexec_bodies/xargs_reexec_bodies/
         # bare_interpreter_reexec_bodies を command_text（生テキスト）に対して走査すると、

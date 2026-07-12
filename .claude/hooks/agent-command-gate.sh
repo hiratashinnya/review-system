@@ -86,6 +86,25 @@
 #   （演算子を含まず、cat はファイルオペランドを持たない）である限りさらに前段へ literal
 #   producer の確定を遡るよう対称化した。過度なパススルーコマンドの網羅は目指さない（受け入れ
 #   基準6・cat/tee の代表例に限定）。詳細は各関数のコメント参照。
+#
+#   2026-07-12 追加是正その5（Issue #218・PR #216 の opus 敵対的レビューで発見・既存ギャップ2件）：
+#     1. サブシェル括弧グルーピング未対応：PIPE_ONLY_RE.split() はトップレベルの `|` を素朴に
+#        全分割し、丸括弧サブシェル `( ... | ... )` を認識しなかったため、
+#        `echo 'git merge evil' | (cat | cat) | bash` のようなパイプラインで `(cat`/`cat)` という
+#        不正な字句が生まれ、literal_producer_value_through_passthrough の遡及がそこで打ち切られ
+#        検知漏れになっていた（実行して確認済み）。split_top_level_pipes()/strip_matching_parens() を
+#        追加し、丸括弧の深さを追跡しながら分割・剥離することで、サブシェル全体を1段のパススルー
+#        として扱えるようにした（波括弧 `{ ... ; }` 等サブシェル以外のグルーピング構文への一般化は
+#        対象外＝スコープ外・Issue #218 受け入れ基準）。
+#     2. cat/tee 以外の単一行保存フィルタ未対応：`echo 'git merge evil' | sort | bash` /
+#        `... | head -n1 | bash` / `... | uniq | bash` 等、sort/head/tail/uniq を挟んだパイプラインが
+#        検知漏れになっていた。cat/tee は入力の行数や内容に関わらず常に恒等変換（UNCONDITIONAL）だが、
+#        sort/head/tail/uniq は複数行入力や一部フラグでは恒等変換にならないため、
+#        「引数なし（sort/uniq）」「正の行数指定のみ、または引数なし（head/tail）」の場合に限り、かつ
+#        最終的に確定する producer 値が実際に改行を含まない単一行であることを別途確認した場合のみ
+#        （SINGLE_LINE）恒等とみなす2区分の設計にした（classify_passthrough_stage/
+#        is_single_line_identity_args）。`grep`/`tr` は恒等変換にならないため対象外（受け入れ基準3・
+#        スコープ外として明記）。詳細は各関数のコメント参照（Claude/Codex 両版で同一設計）。
 # 標準ライブラリのみで JSON をパースする（jq 非依存・CLAUDE.md の "python3 標準ライブラリのみ" 方針に合わせる）。
 # 実装注意: `python3 - <<EOF ... EOF` は heredoc がそのまま python の stdin になり、外側で
 # パイプされた本来の stdin（フック入力 JSON）が読めなくなる。よって stdin を一旦ファイルに
@@ -468,6 +487,67 @@ def herestring_reexec_bodies(command_text):
 # 誤検知が起きても deny 方向にしか倒れない設計であり、完全な網羅は目指さない・受け入れ基準5）。
 PIPE_ONLY_RE = re.compile(r"(?<!\|)\|(?!\|)")
 
+
+# サブシェル括弧グルーピング対応（Issue #218 ギャップ1）: PIPE_ONLY_RE.split() はトップレベルの
+# `|` を素朴に全分割するため、`echo x | (cat | cat) | bash` のような丸括弧サブシェルを含む
+# パイプラインでは、サブシェル内部の `|` まで分割対象にしてしまい `(cat` / `cat)` という不正な
+# 字句が生まれ、classify_passthrough_stage 判定がそこで偽になって producer→パススルー→consumer
+# の追跡が途切れる（実行して確認済み：`echo 'git merge evil' | (cat | cat) | bash` が allow
+# されていた）。split_top_level_pipes() は丸括弧の深さを数えながら分割することで、サブシェル内部の
+# `|` を分割対象から除外する（波括弧 `{ ... ; }` 等サブシェル以外のグルーピング構文への一般化は
+# 対象外＝スコープ外・Issue #218 受け入れ基準）。
+def split_top_level_pipes(text):
+    """PIPE_ONLY_RE と同じ「`|`（`||` を除く）」の意味論で分割するが、丸括弧 `( ... )` の
+    内側にある `|` はトップレベルとみなさず分割しない。括弧の対応が取れないまま文字列が終端した
+    場合（閉じ括弧が来ない）、それ以降は深さが0に戻らないため以降の `|` も分割対象外になる
+    （安全側：新規の誤検知にはならず、単に一部のステージ境界を見失うだけに留まる）。"""
+    stages = []
+    depth = 0
+    current = []
+    length = len(text)
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+            current.append(ch)
+        elif ch == ")":
+            if depth > 0:
+                depth -= 1
+            current.append(ch)
+        elif ch == "|" and depth == 0:
+            prev_ch = text[i - 1] if i > 0 else ""
+            next_ch = text[i + 1] if i + 1 < length else ""
+            if prev_ch == "|" or next_ch == "|":
+                current.append(ch)  # `||` は PIPE_ONLY_RE 同様パイプ境界として扱わない
+            else:
+                stages.append("".join(current))
+                current = []
+        else:
+            current.append(ch)
+    stages.append("".join(current))
+    return stages
+
+
+def strip_matching_parens(stripped):
+    """stripped 全体がちょうど1組の対応する丸括弧で囲まれている場合、内側のテキストを返す
+    （例: "(cat | cat)" → "cat | cat"）。外側の括弧が末尾より前で閉じてしまう場合（例:
+    "(cat) (cat)" のように2つの独立したグループが並んでいる場合）や、先頭/末尾が括弧でない場合、
+    括弧の対応が取れない場合は None を返す（安全側：全体を1つのサブシェルとして扱えると確信できる
+    場合のみ剥がす）。"""
+    if len(stripped) < 2 or stripped[0] != "(" or stripped[-1] != ")":
+        return None
+    depth = 0
+    for idx, ch in enumerate(stripped):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0 and idx != len(stripped) - 1:
+                return None  # 最外の括弧が末尾より前で閉じている = 全体を囲んでいない
+            if depth < 0:
+                return None
+    return stripped[1:-1]
+
+
 # 敵対的自己検証で発見（Issue #213・実装中の追加是正）: `true || echo 'git merge evil' | bash` や
 # `echo 'git merge evil' | bash && true` のように、パイプ境界の前後に `&&`/`||`/`;`/改行で
 # 別のサブコマンドが連結されていると、ステージ全体をそのまま shlex 解析するだけでは
@@ -525,14 +605,79 @@ def literal_producer_value(stage_text):
 # 「直前ステージが純粋なパススルーなら、さらにその前段へ literal_producer_value の確定を
 # 遡って試みる」設計で、既存の heredoc_pipeline_has_downstream_interpreter（多段パススルー対応済み）
 # と対称化する。過度なパススルーコマンドの網羅は目指さない（受け入れ基準6・代表例の cat/tee に限定）。
-PASSTHROUGH_COMMANDS = {"cat", "tee"}
+UNCONDITIONAL_PASSTHROUGH_COMMANDS = {"cat", "tee"}
+
+# 単一行保存フィルタの追加対応（Issue #218 ギャップ2）: cat/tee は入力の行数や内容に関わらず常に
+# 恒等変換（入力どおりに出力する）だが、sort/head/tail/uniq は「複数行入力」や「一部のフラグ」では
+# 恒等変換にならない（例: sort は複数行なら並べ替える、`uniq -c` は件数を先頭に付与する、
+# `head -n0` は0行しか出力しない）。一方でこのフックが遡及に使う literal_producer_value は
+# echo/printf の静的リテラル引数から確定した値であり、通常は改行を含まない単一行になる。
+# 「引数なし（フラグなし）で呼び出された sort/uniq」「正の行数指定のみを伴う、または引数なしの
+# head/tail」は、入力が実際に単一行である限り恒等変換になることが構造的に保証できるため、
+# UNCONDITIONAL（cat/tee・無条件）とは区別して SINGLE_LINE（producer 値に改行が含まれないことを
+# 別途確認した場合のみ有効）という2区分でパススルーを扱う。`grep`/`tr` は恒等変換にならない
+# （grep はパターン一致が前提、tr は文字変換が前提）ため対象外（Issue #218 受け入れ基準3・
+# スコープ外として明記）。
+SINGLE_LINE_PASSTHROUGH_COMMANDS = {"sort", "head", "tail", "uniq"}
+
+_POSITIVE_INT_RE = re.compile(r"^\d+$")
 
 
-def is_pure_passthrough_stage(stage_text):
+def _head_tail_positive_line_count(args):
+    """head/tail の引数が「正の行数を1つだけ指定する」形（`-n5`/`-n 5`/`--lines=5`/旧記法 `-5`）に
+    限り True を返す。1行入力に対しては「先頭/末尾から何行取るか」を何行指定しても取れる行は
+    その1行しかないため恒等になるが、`-n0`（0行要求＝恒等でない）や `-n +5`（絶対行番号指定・
+    `+` 付きは意味が異なる）、`-c`（バイト数指定）は対象外にする（Issue #218 受け入れ基準3・
+    設計上の注意を踏まえた安全側の限定）。"""
+    count_text = None
+    if len(args) == 1:
+        token = args[0]
+        if token.startswith("-n") and token != "-n":
+            count_text = token[2:]
+        elif token.startswith("--lines="):
+            count_text = token[len("--lines="):]
+        elif token.startswith("-") and len(token) > 1 and token[1:].isdigit():
+            count_text = token[1:]  # head -5 / tail -5 の旧記法
+    elif len(args) == 2 and args[0] in {"-n", "--lines"}:
+        count_text = args[1]
+    if count_text is None or not _POSITIVE_INT_RE.match(count_text):
+        return False
+    return int(count_text) >= 1
+
+
+def is_single_line_identity_args(name, args):
+    """SINGLE_LINE_PASSTHROUGH_COMMANDS の各コマンドについて、与えられた引数の組み合わせが
+    「単一行入力に対して」恒等変換になることを保証できる場合のみ True を返す。sort/uniq は
+    フラグ付きだと恒等性を個別に検証しきれない（`-o FILE` は標準出力に出さない、`-c`/`-d`/`-u`
+    は出力内容自体を変える等）ため、引数なし（フラグなし）の呼び出しのみ許可する（Issue #218
+    受け入れ基準3の「フラグなし」方針）。head/tail は正の行数指定のみ追加で許可する。ファイル
+    オペランドを伴う呼び出し（例: `sort file.txt`）も「引数あり」として一律ここで弾かれる
+    （標準入力ではなくファイルを読むため）。"""
+    if not args:
+        return True
+    if name in {"head", "tail"}:
+        return _head_tail_positive_line_count(args)
+    return False  # sort/uniq はフラグ付きだと対象外（安全側）
+
+
+def classify_passthrough_stage(stage_text):
     """stage_text（隣接する `|` の間の1ステージ全体のテキスト）が、標準入力をそのまま標準出力へ
-    転送するだけの純粋なパススルー（cat/tee）かどうかを判定する。
+    転送するだけのパススルーかどうかを判定し、("unconditional" | "single_line" | None) を返す。
 
-    安全側に倒す2つの制約:
+    - "unconditional": cat/tee のように、入力の行数や内容に関わらず常に恒等変換になる
+      （cat はファイルオペランドを持たないことが条件・従来どおり）。
+    - "single_line": sort/head/tail/uniq のように、入力が改行を含まない単一行であり、かつ
+      is_single_line_identity_args が真を返す引数の組み合わせの場合に限り恒等になる。呼び出し側
+      literal_producer_value_through_passthrough が、最終的に確定した producer 値が実際に単一行
+      （"\\n" を含まない）であることを別途確認する（Issue #218 ギャップ2）。
+    - None: パススルーとして扱えない。
+
+    丸括弧 `( ... )` で囲まれたサブシェル1本のパイプライン（Issue #218 ギャップ1）は、
+    strip_matching_parens で内側を取り出し split_top_level_pipes で分割した各段が全て
+    passthrough である場合に限り、内側パイプライン全体を1段のパススルーとして扱う（いずれかの
+    段が single_line なら全体も single_line に倒す＝より制約が強い方に倒す安全側）。
+
+    安全側に倒す共通の制約（従来どおり）:
     1. STAGE_OPERATOR_SPLIT_RE（&&/||/;/改行）を含む場合は対象外にする。シェルの結合優先順位は
        `|` が `&&`/`||`/`;` より強いため、`a | cat && true | b` は実際には
        `(a | cat) && (true | b)` という2本の独立したパイプラインであり、"cat" の出力は
@@ -545,40 +690,66 @@ def is_pure_passthrough_stage(stage_text):
        値ではないため、パススルー扱いにすると producer 追跡の対応関係が壊れる。`tee` は
        ファイル引数があっても標準入力を標準出力へも常に転送する仕様のため対象外にしない。
     """
-    if STAGE_OPERATOR_SPLIT_RE.search(stage_text):
-        return False
     stripped = stage_text.strip()
+    if not stripped:
+        return None
+    inner = strip_matching_parens(stripped)
+    if inner is not None:
+        sub_stages = split_top_level_pipes(inner)
+        if not sub_stages or any(not sub.strip() for sub in sub_stages):
+            return None
+        kinds = [classify_passthrough_stage(sub) for sub in sub_stages]
+        if any(kind is None for kind in kinds):
+            return None
+        return "single_line" if "single_line" in kinds else "unconditional"
+    if STAGE_OPERATOR_SPLIT_RE.search(stripped):
+        return None
     if "$" in stripped or "`" in stripped:
-        return False
+        return None
     try:
         tokens = shlex.split(stripped, posix=True)
     except ValueError:
-        return False
+        return None
     tokens = strip_leading_wrappers(tokens)
     if not tokens:
-        return False
+        return None
     name = os.path.basename(tokens[0])
-    if name not in PASSTHROUGH_COMMANDS:
-        return False
-    if name == "cat":
-        for arg in tokens[1:]:
-            if arg == "-" or arg.startswith("-"):
-                continue
-            return False  # 非フラグのファイルオペランドがある = 標準入力を読まない
-    return True
+    args = tokens[1:]
+    if name in UNCONDITIONAL_PASSTHROUGH_COMMANDS:
+        if name == "cat":
+            for arg in args:
+                if arg == "-" or arg.startswith("-"):
+                    continue
+                return None  # 非フラグのファイルオペランドがある = 標準入力を読まない
+        return "unconditional"
+    if name in SINGLE_LINE_PASSTHROUGH_COMMANDS:
+        if is_single_line_identity_args(name, args):
+            return "single_line"
+        return None
+    return None
 
 
 def literal_producer_value_through_passthrough(stages, index):
-    """stages[index] から後方（producer 方向）へ、純粋なパススルー段（is_pure_passthrough_stage）を
+    """stages[index] から後方（producer 方向）へ、パススルー段（classify_passthrough_stage）を
     許容しながら literal_producer_value が確定できる最初の段まで遡る。パススルーでも literal
     producer でもない段に当たった時点で静的に確定できないため None を返す（安全側）。index は
-    毎回1段ずつ減るため、有限のステージ数で必ず終了する（無限ループにはならない）。"""
+    毎回1段ずつ減るため、有限のステージ数で必ず終了する（無限ループにはならない）。
+
+    途中で "single_line" 種別のパススルー段（sort/head/tail/uniq）を1つでも経由した場合は、
+    最終的に確定した producer 値が改行を含む場合（＝実際には単一行ではなかった場合）恒等変換の
+    保証が崩れるため None を返す（Issue #218 ギャップ2・安全側）。"""
+    requires_single_line = False
     while index >= 0:
         value = literal_producer_value(stages[index])
         if value is not None:
+            if requires_single_line and "\n" in value:
+                return None
             return value
-        if not is_pure_passthrough_stage(stages[index]):
+        kind = classify_passthrough_stage(stages[index])
+        if kind is None:
             return None
+        if kind == "single_line":
+            requires_single_line = True
         index -= 1
     return None
 
@@ -598,7 +769,7 @@ XARGS_PLACEHOLDER_RE = re.compile(r"(?<!\S)-I[ \t]*(\S+)")
 
 def xargs_reexec_bodies(command_text):
     bodies = []
-    stages = PIPE_ONLY_RE.split(command_text)
+    stages = split_top_level_pipes(command_text)  # 丸括弧サブシェル対応（Issue #218 ギャップ1）
     for i in range(1, len(stages)):
         stage_text = stages[i]
         try:
@@ -633,7 +804,7 @@ def bare_interpreter_reexec_bodies(command_text):
     ある形（`bash script.sh`／`source FILE` 等）は標準入力をスクリプトとして読まないため対象外とする
     （新規の過検知を避けるため）。"""
     bodies = []
-    stages = PIPE_ONLY_RE.split(command_text)
+    stages = split_top_level_pipes(command_text)  # 丸括弧サブシェル対応（Issue #218 ギャップ1）
     for i in range(1, len(stages)):
         stage_text = first_operator_segment(stages[i])
         try:
