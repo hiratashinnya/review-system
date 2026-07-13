@@ -239,10 +239,16 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
         self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | bash")))
-        # bash がスクリプトファイル引数を伴う場合（標準入力をスクリプトとして読まない）は
-        # 過検知しない。これは sink 自体が interpreter-reading-stdin と確定できない（位置引数が
-        # ある）ケースであり、fail-closed の対象にはならない。
-        self.assert_allowed(
+        # Issue #222 二次設計転換（PR #223 opus 三次レビュー対応・2026-07-13）: 以前は「bash が
+        # スクリプトファイル引数を伴う場合（標準入力をスクリプトとして読まない）は過検知しない」
+        # という個別の位置引数チェックだったが、これは列挙ベースの判定（stdin エイリアス
+        # パターンのみ危険とみなす）の副産物であり、パス正規化バリエーション（`/dev//stdin`
+        # 等）で再度バイパスされた（PR #223 opus 三次レビュー指摘A'）。判定原理を「consumer が
+        # 安全な passthrough だと証明できるか」に反転したことで、bash はどんな引数（stdin
+        # エイリアスであろうと実在のスクリプトファイルであろうと）を伴っても安全な passthrough
+        # とは証明できず、内容・引数の形に関わらず一律 deny になる（over-deny 増加を許容する
+        # Issue #222 の決定事項として意図的に受け入れる）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
         )
         # Issue #222 fail-closed 設計転換: 上流が非リテラル（`cat notes.txt` のようにファイル
@@ -318,11 +324,15 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt | bash"))
         )
-        # 3. 既存の false positive 対策（無関係の xargs/パイプイディオム）は壊れていない。
+        # 3. 既存の false positive 対策（無関係の xargs/パイプイディオム）は壊れていない
+        #    （xargs は専用ロジックの対象外扱いのため、判定原理の刷新後も変わらず allow）。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "find . -name '*.txt' | xargs -I{} wc -l {}"))
         )
-        self.assert_allowed(
+        # 4. Issue #222 二次設計転換（2026-07-13）後は、bash がスクリプトファイル引数を伴っても
+        #    安全な passthrough とは証明できないため deny になる（over-deny 増加を許容する
+        #    決定事項。上の test_bare_pipe_to_interpreter_bypass_is_denied と同じ理由づけ）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
         )
 
@@ -356,7 +366,11 @@ class AgentCommandGateTests(unittest.TestCase):
         # 新規の誤検知（over-deny）が発生しないことを確認する。
         self.assert_allowed(run_gate(payload("issue-implementer", "(echo hi)")))
         self.assert_allowed(run_gate(payload("issue-implementer", "(echo hi) && git status")))
-        self.assert_allowed(
+        # Issue #222 二次設計転換（PR #223 opus 三次レビュー対応・2026-07-13）: bash は安全な
+        # passthrough と証明できないため、内容が無害（"safe text"）でも一律 deny になる
+        # （オーナー方針「内容やコマンド種別に関わらず一律deny」の直接の帰結。over-deny 増加を
+        # 許容する Issue #222 の決定事項として意図的に受け入れる）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'safe text' | (cat | cat) | bash"))
         )
         # cat がサブシェル内でファイルオペランドを持つ場合、標準入力ではなく notes.txt を読む
@@ -429,10 +443,13 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | tr a-z A-Z | bash"))
         )
-        # 通常の無関係な用途（sink が bash 等の interpreter ではない）は引き続き壊さない。
-        # `wc` は HEREDOC_INTERPRETER_COMMANDS に含まれないため、そもそも fail-closed のトリガー
-        # 対象にならない。
-        self.assert_allowed(
+        # Issue #222 二次設計転換（PR #223 opus 三次レビュー対応・2026-07-13）: 以前は「wc は
+        # HEREDOC_INTERPRETER_COMMANDS に含まれないため fail-closed のトリガー対象にならない」
+        # という列挙ベースの理由で allow だったが、判定原理を「consumer が安全な passthrough だと
+        # 証明できるか」に反転したことで、wc（cat/tee/sort/head/tail/uniq のいずれでもない）も
+        # 安全な passthrough とは証明できず deny になる（over-deny 増加を許容する Issue #222 の
+        # 決定事項。内容が無害でも consumer の形自体で判定するオーナー方針の帰結）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'safe text' | sort | wc -l"))
         )
 
@@ -463,15 +480,26 @@ class AgentCommandGateTests(unittest.TestCase):
         # 新規の誤検知（over-deny）が発生しないこと。
         self.assert_allowed(run_gate(payload("issue-implementer", "(echo hi)")))
         self.assert_allowed(run_gate(payload("issue-implementer", "echo hi | (cat)")))
-        self.assert_allowed(run_gate(payload("issue-implementer", "(echo 'safe text' | bash)")))
+        # Issue #222 二次設計転換（PR #223 opus 三次レビュー対応・2026-07-13）: bash は安全な
+        # passthrough と証明できないため、内容が無害（"safe text"）でも一律 deny になる
+        # （オーナー方針「内容やコマンド種別に関わらず一律deny」の直接の帰結。over-deny 増加を
+        # 許容する Issue #222 の決定事項として意図的に受け入れる）。
+        self.assert_denied(run_gate(payload("issue-implementer", "(echo 'safe text' | bash)")))
         # (a | cat) && (true | b) は実際には別パイプライン（cat の出力は bash に渡らない）。
+        # 唯一の例外（オーナー明示指示・2026-07-13）: consumer 側（"bash"）が安全な passthrough
+        # と証明できなくても、そこへ実際につながる直前セグメント（シェルの結合優先順位により
+        # "true"）が「標準出力を一切生成しないことが既知のコマンド」（NOOP_STDOUT_FREE_COMMANDS）
+        # と確定できる場合は、bash に何が渡ろうと実行されるものが無いため安全と確定できる
+        # （preceding_stage_feeds_nothing。既存の _DISCONNECTED_OPERATOR_SEQUENCE の考え方を
+        # FORWARD 方向の consumer 安全性判定にも一貫して適用したもの）。
         self.assert_allowed(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat && true | bash"))
         )
-        # サブシェル内の sequencing でも、パススルー候補が2個（cat が2回）ある場合は
-        # 静的に恒等性を保証できないため対象外のまま（安全側・過検知にはならない。実際には
-        # `(cat; cat)` も恒等になるケースだが、既知の残存ギャップとして許容する＝受け入れ基準5）。
-        self.assert_allowed(
+        # サブシェル内の sequencing（`(cat; cat)`）は、真の passthrough セグメントが2個連なる
+        # 構成であり、noop（true/:/false）ではないため上記の例外に該当しない。bash も安全な
+        # passthrough ではないため deny になる（内容が無害でも一律 deny というオーナー方針の
+        # 帰結。over-deny 増加を許容する Issue #222 の決定事項）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'safe text' | (cat; cat) | bash"))
         )
 
@@ -520,8 +548,10 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | uniq -d | bash"))
         )
-        # 通常の無関係な用途（sink が interpreter ではない）は引き続き壊さない。
-        self.assert_allowed(
+        # Issue #222 二次設計転換（2026-07-13）: wc は安全な passthrough と証明できないため deny
+        # になる（over-deny 増加を許容する決定事項。上の test_single_line_filter_passthrough_
+        # does_not_over_deny と同じ理由づけ）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'safe text' | sort -r | wc -l"))
         )
 
@@ -581,8 +611,9 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | cat notes.txt 2>/dev/null | bash"))
         )
-        # 通常の無関係な用途（sink が interpreter ではない）は引き続き壊さない。
-        self.assert_allowed(
+        # Issue #222 二次設計転換（2026-07-13）: wc は安全な passthrough と証明できないため deny
+        # になる（over-deny 増加を許容する決定事項）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'safe text' | cat 2>/dev/null | wc -l"))
         )
 
@@ -805,9 +836,17 @@ class AgentCommandGateTests(unittest.TestCase):
         # PR #223 opus 再レビュー指摘A（2026-07-13・最重要）: `/dev/stdin`・`/dev/fd/N`・
         # `/proc/self/fd/N` は OS が提供する「自プロセスの標準入力」を指す疑似ファイルパスで
         # あり、`bash /dev/stdin` はファイルではなく実質的に標準入力をスクリプトとして読む。
-        # bare_interpreter_reexec_bodies の「位置引数があれば標準入力を読まないため対象外」
-        # という前提がこれらの疑似パスに対して事実誤認であり、本PRが `<(...)` プロセス置換で
-        # 修正したのと全く同じバグクラス（実 bash で実際に実行されることを確認済み）。
+        #
+        # 初回の是正（A対応）は `_STDIN_ALIAS_PATH_RE` で `/dev/stdin`/`/dev/fd/N`/
+        # `/proc/self/fd/N` を個別列挙する方式だったが、opus 三次レビュー（指摘A'）で
+        # `/dev//stdin`・`/dev/./stdin`・`//dev/stdin`・`/dev/fd//0` のようなパス正規化
+        # バリエーションで再度バイパスされることが実 bash で確認された（列挙方式の限界）。
+        #
+        # Issue #222 二次設計転換（オーナー承認・2026-07-13）により、`_STDIN_ALIAS_PATH_RE` は
+        # 完全に廃止し、判定原理を「consumer が安全な passthrough（cat/tee/sort 等の狭い
+        # 許可リスト）だと証明できるか」に反転した。bash はどんな引数（stdin エイリアスの
+        # どんな綴りであろうと、実在のスクリプトファイルであろうと）を伴っても安全な
+        # passthrough とは証明できないため、個別のパス綴りを列挙する必要なく一律 deny になる。
         issue_implementer_commands = [
             "echo 'git merge feature' | bash /dev/stdin",
             "echo 'git merge feature' | sh /dev/stdin",
@@ -816,17 +855,26 @@ class AgentCommandGateTests(unittest.TestCase):
             "echo 'git merge feature' | bash /dev/fd/0",
             "echo 'git merge feature' | bash /proc/self/fd/0",
             "echo 'git merge feature' | bash /proc/12345/fd/3",
+            # PR #223 opus 三次レビュー指摘A'（列挙方式では見逃していたパス正規化バリエーション）。
+            "echo 'git merge feature' | bash /dev//stdin",
+            "echo 'git merge feature' | bash /dev/./stdin",
+            "echo 'git merge feature' | bash //dev/stdin",
+            "echo 'git merge feature' | bash /dev/fd//0",
+            # here-string 経由（指摘A' の別形）。
+            "source /dev/stdin <<< 'git merge feature'",
         ]
         for command in issue_implementer_commands:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
         self.assert_denied(run_gate(payload("pr-reviewer", "echo 'git push origin HEAD' | bash /dev/stdin")))
-        # 実在のスクリプトファイルパス（stdin エイリアスに一致しない）は引き続き対象外のまま
-        # （新規の過検知を避ける・既存の over-deny 防止テストと同じ理由づけ）。
-        self.assert_allowed(
+        # Issue #222 二次設計転換（2026-07-13）: 実在のスクリプトファイルパスであっても、bash は
+        # 安全な passthrough と証明できないため、これも deny になる（over-deny 増加を許容する
+        # Issue #222 の決定事項として意図的に受け入れる。以前はここだけ例外的に allow していたが、
+        # その位置引数の中身に応じた個別分岐こそが列挙ベースの脆さの温床だった）。
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash script.sh"))
         )
-        self.assert_allowed(
+        self.assert_denied(
             run_gate(payload("issue-implementer", "echo 'git merge feature' | bash /home/user/repo/script.sh"))
         )
 
@@ -898,6 +946,96 @@ class AgentCommandGateTests(unittest.TestCase):
         )
         # 無害な for ループは壊さない（while/until 以外のループ構文・read を含まない構文は対象外）。
         self.assert_allowed(run_gate(payload("issue-implementer", "for f in *.py; do echo $f; done")))
+
+    def test_pr223_round3_enumeration_variants_are_denied_structurally(self):
+        # PR #223 opus 三次レビュー指摘A'/C'（2026-07-13）: ラウンド2で追加した個別列挙
+        # （stdin エイリアスパターン・動的コマンド構成パターン・loop キーワード）は、いずれも
+        # 「見つかった具体的な綴りだけを塞ぐ」対症療法であり、以下の隣接構文で3ラウンド連続で
+        # 再度バイパスされた（実 bash で確認済み）。Issue #222 二次設計転換（「安全な
+        # passthrough だと証明できなければ一律 deny」という原理への反転）により、これらは
+        # 個別列挙の追加なしに構造的に閉じる。
+        commands = [
+            # A': /dev/stdin のパス正規化バリエーション。
+            "echo 'git merge feature' | bash /dev//stdin",
+            "echo 'git merge feature' | bash /dev/./stdin",
+            "echo 'git merge feature' | bash //dev/stdin",
+            "echo 'git merge feature' | bash /dev/fd//0",
+            # A': here-string 経由（heredoc_command_word の「最後の非フラグ語」ヒューリスティック
+            # が /dev/stdin を誤ってコマンド語と誤認していたバグ）。
+            "source /dev/stdin <<< 'git merge feature'",
+            # C': ブレースグループ/サブシェルでの read+eval。
+            'echo \'git merge feature\' | { read l; eval "$l"; }',
+            'echo \'git merge feature\' | ( read l; eval "$l" )',
+            # C': for ループでの stdin 内容の eval。
+            'echo \'git merge feature\' | for l in "$(cat)"; do eval "$l"; done',
+            # C': mapfile での配列読み込み＋eval。
+            'echo \'git merge feature\' | { mapfile -t a; eval "${a[0]}"; }',
+            # C': プロセス置換 <(...) からの read リダイレクト＋eval（パイプ不使用）。
+            'read l < <(echo \'git merge feature\'); eval "$l"',
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+
+    def test_novel_execution_capable_interpreters_deny_without_enumeration(self):
+        # 受け入れ基準（Issue #222 二次設計転換の実演）: 今回のレビューで一度も試されていない
+        # 全く新しい interpreter/構文パターンでも、safe passthrough と証明できない限り
+        # 自動的に deny されることを実演する。perl/ruby/node/tclsh は HEREDOC_INTERPRETER_
+        # COMMANDS 列挙にすら含まれていないが、is_stage_provably_safe_passthrough の「安全と
+        # 証明できるか」判定原理により、列挙の有無に関わらず deny される。
+        commands = [
+            "echo 'git merge feature' | perl -e 'exec <STDIN>'",
+            "echo 'git merge feature' | ruby -e 'eval $stdin.read'",
+            'echo \'git merge feature\' | node -e \'eval(require("fs").readFileSync(0,"utf8"))\'',
+            "echo 'git merge feature' | tclsh",
+            # 未列挙の架空フィルタを介した多重ネストサブシェル consumer。
+            "echo 'git merge feature' | { cat | totally_new_thing_xyz; }",
+            "echo 'git merge feature' | ( ( ( bash ) ) )",
+            # select ループ・関数定義経由の eval（while/until 以外の未列挙ループ構文）。
+            'echo \'git merge feature\' | select x in "$(cat)"; do eval "$x"; done',
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+
+    def test_quoted_pipe_character_does_not_over_deny(self):
+        # 実装中の敵対的自己検証で発見（Issue #222 二次設計転換・重大）: split_top_level_pipes
+        # が引用符の状態を追跡していなかったため、`grep "a\|b"` のように引用符の内側にある
+        # リテラルな `|`（grep の正規表現内の文字通りの `|` であり、シェルのパイプ演算子では
+        # ない）までトップレベルの分割対象にしてしまい、パイプを一切含まない普通のコマンドが
+        # 誤って deny される重大な回帰があった（自分自身の `grep` 呼び出しが誤って deny され
+        # 発覚）。単一/二重引用符の状態を追跡するよう是正したため、これらは引き続き allow の
+        # ままでなければならない（これらはいずれもトップレベルのパイプを一切含まないため、
+        # bare_interpreter_reexec_bodies の consumer 走査ループ自体に入らない）。
+        commands = [
+            'grep -n "a\\|b" file.txt',
+            'grep -E "^Ran|OK|FAILED" file.txt',
+            "sed -n \"s/a\\|b/c/\" file.txt",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("issue-implementer", command)))
+
+    def test_known_severe_over_deny_bare_pipe_to_non_passthrough_filter(self):
+        # 重要な開示（実装後の敵対的自己検証で判明・Issue #222 二次設計転換の実運用影響）:
+        # 「consumer が安全な passthrough（cat/tee/sort/head/tail/uniq の狭い許可リスト）だと
+        # 証明できなければ一律 deny」という新原理は、grep/wc/awk/jq 等 developer が極めて
+        # 日常的に使う無害なフィルタコマインドを **末尾に置く「ごく普通の」パイプ**まで、
+        # git merge/push 等の危険なコンテンツが一切含まれていなくても deny してしまう
+        # （これらのコマンドは stdin をコードとして実行する能力を持たず、実際には安全側の
+        # over-deny だが、実運用上の支障は決して小さくない）。以下はいずれも issue-implementer/
+        # pr-reviewer の日常的な運用で使われうる完全に無害なコマンドだが、fail-closed の新原理
+        # により deny される（over-deny 増加を許容する Issue #222 オーナー方針の直接の帰結として
+        # 意図的に受け入れる。この重大な実運用影響は PR 説明でオーナーに明示的に開示している）。
+        commands = [
+            "git log --oneline | grep fix",
+            "git status --short | wc -l",
+            "ps aux | grep python",
+            "cat file.txt | awk '{print $1}'",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
 
 
 if __name__ == "__main__":

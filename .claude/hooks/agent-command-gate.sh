@@ -466,16 +466,28 @@ HEREDOC_INTERPRETER_COMMANDS = {
 
 
 def heredoc_command_word(command_text, marker_start):
-    """`<<` の直前（同じ行内）にあるコマンド語を返す（先頭が '-' のフラグ語はスキップする）。
-    見つからなければ空文字列を返す（= 非インタプリタ扱い・安全側でスキップのみに倒す）。"""
+    """`<<`/`<<<` の直前（同じ行内）にあるコマンド語（先頭のコマンド名。env/rtk 等のラッパー・
+    代入プレフィックスは strip_leading_wrappers で読み飛ばす）を返す。見つからなければ
+    空文字列を返す（= 非インタプリタ扱い・安全側でスキップのみに倒す）。
+
+    2026-07-13 是正（Issue #222 二次設計転換・PR #223 opus 三次レビュー指摘A' で新規発見）:
+    旧実装は「行内の最後の非フラグ語」をコマンド語とみなしていたが、これは
+    `source /dev/stdin <<< 'git merge evil'` のように、コマンドと `<<`/`<<<` の間に
+    stdin エイリアスである位置引数（`/dev/stdin` 等）が挟まる場合に、「最後の非フラグ語」＝
+    `/dev/stdin` を誤ってコマンド語として返してしまい、真のコマンド語 `source` を見失って
+    いた（実 bash で確認済み・here-string 経由の真のバイパス）。シェルのコマンド構文は常に
+    「コマンド語が先頭、引数がその後」であるため、最後の語ではなく最初の非ラッパー語を返す
+    よう是正する。"""
     line_start = command_text.rfind("\n", 0, marker_start) + 1
     prefix = command_text[line_start:marker_start]
-    words = prefix.split()
-    for word in reversed(words):
-        if word.startswith("-"):
-            continue
-        return os.path.basename(word.rstrip("|;&"))
-    return ""
+    try:
+        tokens = shlex.split(prefix.strip(), posix=True)
+    except ValueError:
+        tokens = prefix.split()
+    tokens = strip_leading_wrappers(tokens)
+    if not tokens:
+        return ""
+    return os.path.basename(tokens[0].rstrip("|;&"))
 
 
 def heredoc_pipeline_has_downstream_interpreter(line_after_marker):
@@ -498,15 +510,27 @@ def heredoc_pipeline_has_downstream_interpreter(line_after_marker):
     は丸括弧で consumer を包む構文（`cat <<EOF | (bash)`）を認識できず、`(bash)` という1トークンが
     HEREDOC_INTERPRETER_COMMANDS と一致せず見逃していた（実行して確認済み・実際にペイロードが
     走る）。split_top_level_pipes/unwrap_redundant_parens（丸括弧・引用符を構造的に扱う既存の
-    パイプ分割器）に置き換えることで、個別列挙ではなく構造的にこの種の亜種を塞ぐ。"""
+    パイプ分割器）に置き換えることで、個別列挙ではなく構造的にこの種の亜種を塞ぐ。
+
+    2026-07-13 追加是正（Issue #222 二次設計転換・PR #223 opus 三次レビュー対応で bare pipe
+    consumer 側に適用したのと同一原理を、ここにも一貫して適用）: 「先頭コマンド語が
+    HEREDOC_INTERPRETER_COMMANDS という既知のインタプリタ名に一致する場合のみ危険」という
+    列挙ベースの判定は、bare_interpreter_reexec_bodies と全く同じ欠陥（read+eval・mapfile+eval・
+    for ループ・ブレースグループ等の列挙されていない亜種を見逃す）を潜在的に抱える。
+    is_stage_provably_safe_passthrough と同じ「安全な passthrough だと証明できるか」を問う
+    原理に統一する：下流ステージが cat/tee/sort/head/tail/uniq 等の安全な passthrough 系で
+    なければ、内容やコマンド種別に関わらず「最終的に再実行されうる」とみなし、ヒアドキュメント
+    本文を再帰走査対象にする（過検知は許容——ヒアドキュメント本文への再帰走査は「即 deny」では
+    なく「本文を git/gh 違反として scan する」だけなので、本文が実際に無害なプロースであれば
+    再帰走査してもそのまま allow される。標準の `gh pr create --body "$(cat <<'EOF' ... EOF)"`
+    パターンはヒアドキュメント行にパイプを含まないため本関数のループ自体に入らず、この変更の
+    影響を受けない）。"""
     for stage in split_top_level_pipes(line_after_marker)[1:]:
-        stage = unwrap_redundant_parens(first_operator_segment(stage))
-        tokens = strip_leading_wrappers(stage.split())
-        if not tokens:
+        if not stage.strip():
             continue
-        name = os.path.basename(tokens[0].rstrip("|;&"))
-        if name in HEREDOC_INTERPRETER_COMMANDS:
-            return True
+        if is_stage_provably_safe_passthrough(stage):
+            continue  # 安全な passthrough と証明済み -- まだ危険な sink に届いていない
+        return True  # 安全と証明できない -- 危険側に倒し、ヒアドキュメント本文を再帰走査する
     return False
 
 
@@ -610,14 +634,51 @@ def split_top_level_pipes(text):
     誤って分割していた（例: `echo x | { cat | cat; } | bash` のサブシェル内 `|` を丸括弧版
     同様に1段として扱えなかった）。`{`/`}` も同じ深さカウンタで追跡する（strip_matching_parens
     が `{ ... }` も1グループとして剥がせるようになったことと対称化・詳細は同関数のコメント
-    参照）。"""
+    参照）。
+
+    2026-07-13 追加是正その2（Issue #222 二次設計転換の実装中に自己発見・重大）: 単一/二重
+    引用符の状態を一切追跡していなかったため、`grep "a\\|b"` のように引用符の**内側**にある
+    リテラルな `|`（シェル上はパイプ演算子ではなく、grep の正規表現内の文字通りの `|`）まで
+    トップレベルの分割対象にしてしまっていた。旧来の「危険パターンを列挙してdenyへ倒す」設計
+    ではこの誤分割の結果生まれる偽の consumer 段（例: `"b"` のような正規表現の断片）は「既知の
+    interpreter名」に一致せず単に無視されるだけで実害が表面化しなかったが、Issue #222 二次
+    設計転換（「安全な passthrough と証明できなければ一律 deny」）の導入後は、この偽の段が
+    「安全と証明できない consumer」として誤って fail-closed の対象になり、パイプを一切含まない
+    普通の `grep "a\\|b" file` のようなコマンドまで誤って deny してしまう重大な回帰を引き起こす
+    （実際に本 PR の実装中、自分自身の `grep` 呼び出しが誤って deny されて発覚した）。
+    単一引用符（内部にエスケープなし）・二重引用符（`\"`/`\\` のみバックスラッシュエスケープを
+    認識。POSIX シェルの実際の引用符解釈にほぼ準拠）の状態を追跡し、引用符内の `|`/`(`/`{`/`)`/
+    `}` は全て単なる文字として扱う（分割・深さ計算のいずれにも寄与しない）。"""
     stages = []
     depth = 0
     current = []
     length = len(text)
     i = 0
+    quote = None  # None または "'" または '"'
     while i < length:
         ch = text[i]
+        if quote is not None:
+            current.append(ch)
+            if quote == '"' and ch == "\\" and i + 1 < length:
+                # 二重引用符内のバックスラッシュエスケープ（次の1文字をそのまま消費する）。
+                current.append(text[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch == "'" or ch == '"':
+            quote = ch
+            current.append(ch)
+            i += 1
+            continue
+        if ch == "\\" and i + 1 < length:
+            # 引用符の外側でのバックスラッシュエスケープ（`\|` 等）。次の1文字をそのまま消費する。
+            current.append(ch)
+            current.append(text[i + 1])
+            i += 2
+            continue
         if ch == "(" or ch == "{":
             depth += 1
             current.append(ch)
@@ -1240,6 +1301,87 @@ def literal_producer_value_through_passthrough(stages, index):
     return _UNVERIFIABLE_PRODUCER
 
 
+# 判定原理の刷新（Issue #222 二次設計転換・PR #223 opus 三次レビュー対応・2026-07-13）:
+# ラウンド2（PR #223 一次/二次レビュー）で追加した「stdin エイリアスパターン（/dev/stdin 等）」
+# 「動的コマンド構成パターン（$(...) 等）」「stdin 読み取りループキーワード（while/until）」の
+# 個別列挙は、いずれも「見つかった具体的な綴りだけを塞ぐ」対症療法であり、パス正規化バリエーション
+# （`/dev//stdin`・`/dev/./stdin`・`//dev/stdin` 等）や隣接構文（`{ read; eval; }`・
+# `( read; eval )`・`for l in "$(cat)"; do eval "$l"; done`・`mapfile`+`eval`・
+# `read l < <(...)` 等）で実際に3ラウンド連続で再度バイパスされた（実 bash で確認済み）。
+# 個別列挙をこれ以上重ねても同じ構造のいたちごっこが続くと判断し、オーナー承認のもと判定の
+# 土台そのものを反転する：
+#
+#   旧構造（問題）：「安全か分からない」consumer に対し、危険パターン（既知のinterpreter名・
+#   既知のstdinエイリアス・既知の動的構成・既知のloopキーワード）を列挙して個別にdenyへ倒す。
+#   列挙にないものはデフォルト allow。
+#
+#   新構造（Issue #222 二次設計転換）：パイプの consumer 段について、「安全な passthrough
+#   だと積極的に証明できるか」（is_stage_provably_safe_passthrough。cat/tee/sort/head/tail/
+#   uniq の狭い許可リスト＋恒等変換になる引数条件——既存の classify_passthrough_stage/
+#   classify_subshell_body/classify_simple_command_stage をそのまま再利用し、これらの許可
+#   リスト自体は今回も拡張しない）を先に問い、証明できなければ、具体的なコマンド名・構文
+#   （bash/sh/python であろうと read/eval/mapfile/for ループ/ブレースグループ/サブシェル/
+#   将来出てくるかもしれない未知の構文であろうと）に関わらず一律 fail-closed とする。
+#
+# これにより「列挙されていない亜種」というカテゴリの問題自体が構造的に発生しなくなる
+# （今回一度も試されていない全く新しい構文でも、safe passthrough と証明できない限り自動的に
+# deny される。詳細は bare_interpreter_reexec_bodies/process_substitution_reexec_bodies/
+# heredoc_pipeline_has_downstream_interpreter のコメント参照）。
+def is_stage_provably_safe_passthrough(stage_text):
+    """stage_text（パイプの1段。`&&`/`;`/`||` 等の演算子で他のサブコマンドと連結されている
+    可能性がある生テキスト）について、実際に上流からの標準入力を受け取る「先頭の連結された
+    サブコマンド」（first_operator_segment。シェルの結合優先順位により `|` は `&&`/`;`/`||`
+    より強く結合するため、パイプ的に繋がるのは常に最初のサブコマンドのみ）が、安全な
+    passthrough だと積極的に証明できるかどうかを判定する。
+
+    丸括弧・ブレースグループで囲まれていれば中身を classify_subshell_body で解析する
+    （ネストしたパイプ・サブシェル内の sequencing 演算子を含めて判定できる——サブシェル内では
+    &&/;/|| は接続を切らないため、classify_passthrough_stage の _DISCONNECTED_OPERATOR_SEQUENCE
+    センチネルはここでは扱わない。あれは「BACKWARD にトップレベルのステージを遡る」文脈専用の
+    センチネルであり、本関数は「特定の1つの consumer 段が安全か」という FORWARD の判定なので
+    無関係）。それ以外は classify_simple_command_stage で判定する。cat/tee/sort/head/tail/uniq
+    の狭い許可リスト（かつ恒等変換になる引数条件）に該当する場合のみ True。それ以外（未知の
+    コマンド・bash/sh/python/read/eval/mapfile・ファイルオペランド付き cat 等）は全て False
+    （安全と証明できない＝呼び出し元が fail-closed で deny する）。"""
+    connected = unwrap_redundant_parens(first_operator_segment(stage_text))
+    stripped = connected.strip()
+    if not stripped:
+        return False
+    inner = strip_matching_parens(stripped)
+    if inner is not None:
+        kind, _cap = classify_subshell_body(inner)
+        return kind is not None
+    kind, _cap = classify_simple_command_stage(stripped)
+    return kind is not None
+
+
+def preceding_stage_feeds_nothing(preceding_stage_text):
+    """preceding_stage_text（stages[i-1]。stages[i] へ実際につながる直前ステージ全体の生
+    テキスト）について、シェルの結合優先順位（`|` は `&&`/`;`/`||` より強く結合する）により
+    stages[i] へ実際に渡るのは「preceding_stage_text 内の最後の演算子区切りセグメント」
+    （last_operator_segment）であることを踏まえ、そのセグメントが「標準出力を一切生成しない
+    ことが既知のコマンド」（NOOP_STDOUT_FREE_COMMANDS＝true/:/false、引数なし）である場合に
+    True を返す。
+
+    これは Issue #222 二次設計転換（PR #223 opus 三次レビュー対応）で「consumer が安全な
+    passthrough だと証明できなければ一律 fail-closed」という原則に反転した際、オーナーが
+    明示的に維持を指示した唯一の例外——「シェルの演算子優先順位により、構造的に本当に
+    無関係だと証明できる場合」（classify_passthrough_stage の _DISCONNECTED_OPERATOR_SEQUENCE
+    が BACKWARD 方向のトレースで扱っていたのと同じ考え方）を、FORWARD 方向の consumer 安全性
+    判定にも一貫して適用するためのもの。例えば `echo x | cat && true | bash` は
+    `(echo x | cat) && (true | bash)` と解釈され、"bash" に実際に渡るのは "true" の出力
+    （常に空）であって "cat" の出力ではない。"bash" 自体は安全な passthrough と証明できない
+    が、直前に実際につながっている "true" が確実に何も出力しないと分かっている以上、
+    "bash" に何が渡ろうと実行されるものは無い（stdin が空）ため、内容に関わらず安全と
+    確定できる（fail-closed の対象にしない）。"""
+    last_seg = last_operator_segment(preceding_stage_text)
+    try:
+        tokens = strip_leading_wrappers(shlex.split(last_seg.strip(), posix=True))
+    except ValueError:
+        return False
+    return len(tokens) == 1 and tokens[0] in NOOP_STDOUT_FREE_COMMANDS
+
+
 # xargs プレースホルダ置換対応（Issue #213 受け入れ基準2）: `echo 'git merge evil' |
 # xargs -I{} bash -c '{}'` のように、`-I` で指定したプレースホルダ（既定 `{}`）が xargs 経由で
 # 実行時に置換されるパターンは、quoted_subcommands が `bash -c '{}'` を抽出してもプレースホルダの
@@ -1414,72 +1556,62 @@ def xargs_without_placeholder_fail_closed(command_text):
 # 前提を無条件に適用しており、これらの疑似パスも「実在のスクリプトファイル」と誤って
 # 同一視して素通りしていた（`echo 'git push' | bash /dev/stdin` 等が実 bash で実際に実行される
 # ことを確認済み・本PR自身が `<(...)` プロセス置換で是正したのと全く同一のバグクラス）。
-_STDIN_ALIAS_PATH_RE = re.compile(r"^/(dev/stdin|dev/fd/\d+|proc/self/fd/\d+|proc/\d+/fd/\d+)$")
-
-
 def bare_interpreter_reexec_bodies(command_text):
-    """一般パイプ経由対応（Issue #213 受け入れ基準6）: `printf '%s' 'git merge evil' | bash` の
-    ように、ヒアドキュメントを使わない素朴なパイプでインタプリタへ渡す経路を検知する。パイプ
-    下流ステージの「最初のサブコマンド」（first_operator_segment。`bash && true` のように後続に
-    `&&`/`;` 等で別コマンドが連結されていても、実際にパイプへ繋がるのは最初の一つだけのため）の
-    先頭コマンドがインタプリタ（HEREDOC_INTERPRETER_COMMANDS を流用）で、かつ `-c`/`--command`
-    を伴わず、最初の位置引数（スクリプトファイル等）が無いか、または stdin エイリアス
-    （_STDIN_ALIAS_PATH_RE。`/dev/stdin`/`/dev/fd/N`/`/proc/self/fd/N` 等・PR #223 opus 再レビュー
-    指摘A）の場合のみ、上流ステージ（またはそこから純粋なパススルー＝cat/tee を許容して遡った先の
-    ステージ。Issue #215）の literal_producer_value_through_passthrough を reexec 対象として返す。
-    最初の位置引数が stdin エイリアスに一致しない実在のファイルパス（`bash script.sh`／
-    `source FILE` 等）の場合は標準入力ではなくそのファイルを読むため対象外とする（新規の過検知を
-    避けるため。2個目以降の位置引数はスクリプトへの `$1`/`$2` 等の引数に過ぎず、標準入力を
-    読むかどうかの判定には関与しないため無視する）。
+    """一般パイプ経由対応（Issue #213 受け入れ基準6・Issue #222 二次設計転換で判定原理を刷新・
+    PR #223 opus 三次レビュー対応・2026-07-13）。
+
+    **判定原理（is_stage_provably_safe_passthrough のコメント参照）**: パイプ consumer 段
+    （stages[1:]。producer 側の stages[0] は対象外）それぞれについて、「安全な passthrough
+    だと積極的に証明できるか」を先に問う。証明できれば安全（そのステージ自体はデータを右へ
+    流すだけで実行を伴わない）。証明できなければ、具体的なコマンド名が bash/sh/python であろうと
+    read/eval/mapfile/source/`/dev/stdin`等のstdinエイリアス/`$(...)`等の動的構成/`while`・`for`
+    ループ/ブレースグループ/サブシェル/未知のコマンドであろうと、内容やコマンド種別に関わらず
+    一律 fail-closed とする（旧来の「既知のinterpreter名/既知のstdinエイリアス/既知の動的構成/
+    既知のloopキーワードを個別列挙してdenyへ倒す」設計は、列挙されていない亜種（パス正規化
+    バリエーション・read+eval・mapfile+eval・for ループ等）で3ラウンド連続バイパスされた実績が
+    あり、廃止した）。
+
+    xargs のみ例外的にこの一般判定の対象外とし、既存の専用ロジック
+    （xargs_reexec_bodies/xargs_without_placeholder_fail_closed）に委ねる。xargs は「標準入力を
+    そのまま流す」passthrough ではなく「標準入力をトークン化し別コマンドの引数に変換する」別
+    カテゴリの機構であり、一般判定の対象に含めると `xargs -I{} wc -l {}` のような無害な一般
+    イディオムまで一律 deny になってしまうため。
 
     PR #219 opus レビュー クラスA追随: `echo x | (bash)`（consumer 位置を丸括弧で包む）や
     `(echo x | bash)`（パイプライン全体を丸括弧で包む）は実 bash で実際にペイロードが実行される
-    にもかかわらず、当初の実装では検知できなかった（前者は shlex トークンが `(bash)` という
-    1語になり HEREDOC_INTERPRETER_COMMANDS と一致しない、後者はトップレベルの `|` が
-    見つからず stages が1要素のまま split されない）。top_level_pipeline_stages/
-    unwrap_redundant_parens で対応する。
+    にもかかわらず、当初の実装では検知できなかった。top_level_pipeline_stages/
+    unwrap_redundant_parens/classify_subshell_body で対応済み（is_stage_provably_safe_passthrough
+    経由）。
 
-    戻り値は (bodies, fail_closed) のタプル（Issue #222・fail-closed 設計転換）。interpreter
-    シンクが確定しているにもかかわらず literal_producer_value_through_passthrough が
-    _UNVERIFIABLE_PRODUCER を返した場合（サブシェル・sequencing 演算子・stderr リダイレクト・
-    fd 複製/クローズ構文等、未知・未対応のシェル構文を含む場合すべて）、fail_closed=True を
-    返し find_violation が安全側で deny する。これにより、これまで3ラウンドで個別に列挙して
-    塞いできたバイパスの全クラスが、個別の point-fix ではなく本関数のこの1箇所の設計原理で
-    自動的に閉じる。"""
+    戻り値は (bodies, fail_closed) のタプル。可能であれば literal_producer_value_through_passthrough
+    で producer 値を静的に確定し、find_violation が再帰的に scan して実際に git/gh 違反かを
+    厳密判定する既存の高速パスは維持する（fail_closed は producer 値の確定可否に関わらず、
+    consumer が安全と証明できない時点で True になる——オーナー方針転換 2026-07-13）。"""
     bodies = []
     fail_closed = False
     # top_level_pipeline_stages: 丸括弧サブシェル対応（Issue #218 ギャップ1／PR #219 クラスA）。
     stages = top_level_pipeline_stages(command_text)
     for i in range(1, len(stages)):
-        # unwrap_redundant_parens: consumer 位置が丸括弧で包まれる `(bash)` 形にも対応
-        # （PR #219 opus レビュー クラスA）。
-        stage_text = unwrap_redundant_parens(first_operator_segment(stages[i]))
+        stage_text = stages[i]
+        connected = unwrap_redundant_parens(first_operator_segment(stage_text))
         try:
-            stage_tokens = strip_leading_wrappers(shlex.split(stage_text.strip(), posix=True))
+            probe_tokens = strip_leading_wrappers(shlex.split(connected.strip(), posix=True))
         except ValueError:
-            continue
-        if not stage_tokens:
-            continue
-        name = os.path.basename(stage_tokens[0])
-        if name not in HEREDOC_INTERPRETER_COMMANDS:
-            continue
-        rest_args = stage_tokens[1:]
-        if any(arg in {"-c", "--command"} for arg in rest_args):
-            continue  # スクリプトが引数そのもの＝quoted_subcommands が別途担当
-        first_positional = None
-        for arg in rest_args:
-            if not arg.startswith("-"):
-                first_positional = arg
-                break
-        if first_positional is not None and not _STDIN_ALIAS_PATH_RE.match(first_positional):
-            continue  # 実在のスクリプトファイルパス（stdin エイリアスでない）＝標準入力を読まない
+            probe_tokens = None
+        if probe_tokens and os.path.basename(probe_tokens[0]) == "xargs":
+            continue  # xargs は専用ロジック（xargs_reexec_bodies 系）に委ねる
+        if is_stage_provably_safe_passthrough(stage_text):
+            continue  # 安全な passthrough と証明済み -- このステージ自体は危険でない
+        if preceding_stage_feeds_nothing(stages[i - 1]):
+            continue  # 唯一の例外: 直前ステージの実際の送り手が noop（true/:/false）と確定済み
+            # ＝このステージが何であろうと渡る内容が無い（オーナー明示の例外・DISCONNECTED
+            # 相当をFORWARD判定にも一貫適用）。
+        # 安全と証明できない consumer -- 内容・コマンド種別に関わらず一律 fail-closed。
+        # 可能であれば producer 値も確定し、既存の高精度パス（具体的な違反メッセージ）を試みる。
         literal_value = literal_producer_value_through_passthrough(stages, i - 1)
-        if literal_value is _UNVERIFIABLE_PRODUCER:
-            fail_closed = True
-            continue
-        if literal_value is None:
-            continue
-        bodies.append(literal_value)
+        if literal_value is not None and literal_value is not _UNVERIFIABLE_PRODUCER:
+            bodies.append(literal_value)
+        fail_closed = True
     return bodies, fail_closed
 
 
@@ -1519,15 +1651,17 @@ def process_substitution_bodies(command_text):
 # fail-closed 対応。process_substitution_bodies（上）は `<(...)` の中身を常に raw テキストとして
 # 再帰走査するため、中身が直接 `git ...`/`gh ...` で始まる場合は direct_violation が拾えるが、
 # `echo 'git merge evil'` のように「実行した"結果"が git merge になる」間接形は raw テキストの
-# 先頭トークンが "echo" のままなので捕まらない（実 bash で確認済み・真のバイパス）。
-# bare_interpreter_reexec_bodies は「位置引数（スクリプトファイル等）がある場合は標準入力を
-# 読まないため対象外」という Issue #213 由来の安全側ロジックを持つが、`<(...)` を通常の位置
-# 引数（実ファイルパス）と同一視してしまい、これも素通りしていた。`<(CMD)` は bash が CMD を
-# サブプロセスとして起動しその stdout を fd 経由でインタプリタに渡す仕組みであり、パイプ経由で
-# stdin を渡すのと安全性の観点では等価（インタプリタは結局 CMD の出力をスクリプトとして読む）。
-# よって CMD 自身を1本のミニパイプラインとみなし、既存の
-# literal_producer_value_through_passthrough を再利用して producer 値を解決する（確定できれば
-# scan、できなければ fail_closed）。
+# 先頭トークンが "echo" のままなので捕まらない（実 bash で確認済み・真のバイパス）。`<(CMD)` は
+# bash が CMD をサブプロセスとして起動しその stdout を fd 経由で consumer に渡す仕組みであり、
+# パイプ経由で stdin を渡すのと安全性の観点では等価（consumer は結局 CMD の出力を読む）。
+#
+# 判定原理（2026-07-13 Issue #222 二次設計転換・PR #223 opus 三次レビュー対応）: 旧実装は
+# 「`<(...)` を消費するコマンドが HEREDOC_INTERPRETER_COMMANDS という既知のインタプリタ名に
+# 一致する場合のみ危険」という列挙ベースの判定だった。これは bare_interpreter_reexec_bodies の
+# 旧設計と全く同じ欠陥（動的に構成されたコマンド名 `$(echo bash) <(...)` 等で列挙をすり抜ける）
+# を抱える。is_stage_provably_safe_passthrough と同じ「安全な passthrough だと証明できるか」を
+# 問う原理に統一する：`<(...)` を消費するコマンドが cat/tee 等の安全な passthrough 系（狭い
+# 許可リスト）でなければ、内容やコマンド種別に関わらず一律 fail-closed とする。
 def process_substitution_reexec_bodies(command_text):
     """戻り値は (bodies, fail_closed) のタプル（他の *_reexec_bodies 系と統一）。
 
@@ -1550,8 +1684,9 @@ def process_substitution_reexec_bodies(command_text):
         if not wrapped:
             continue
         name = os.path.basename(wrapped[0])
-        if name not in HEREDOC_INTERPRETER_COMMANDS:
-            continue
+        if name in UNCONDITIONAL_PASSTHROUGH_COMMANDS or name in SINGLE_LINE_PASSTHROUGH_COMMANDS:
+            continue  # 安全な passthrough 系コマンドが <(...) をデータとして読むだけなら安全
+        stage_fail_closed = False
         for m in re.finditer(r"<\(", stage_text):
             start = m.end()
             inner_depth = 1
@@ -1568,57 +1703,14 @@ def process_substitution_reexec_bodies(command_text):
             inner_cmd = stage_text[start:j - 1]
             inner_stages = top_level_pipeline_stages(inner_cmd)
             value = literal_producer_value_through_passthrough(inner_stages, len(inner_stages) - 1)
-            if value is _UNVERIFIABLE_PRODUCER:
-                fail_closed = True
-                continue
-            if value is None:
-                continue
-            bodies.append(value)
+            if value is not None and value is not _UNVERIFIABLE_PRODUCER:
+                bodies.append(value)
+            stage_fail_closed = True
+        # 安全な passthrough と証明できないコマンドが <(...) を消費している以上、その内側の
+        # 値が具体的に確定できるかどうかに関わらず、内容・コマンド種別を問わず一律 fail-closed
+        # とする（オーナー方針転換・2026-07-13。bare_interpreter_reexec_bodies と同一原理）。
+        fail_closed = fail_closed or stage_fail_closed
     return bodies, fail_closed
-
-
-# 動的に構成される sink コマンド名／stdin 読み取りループ対応（PR #223 opus 再レビュー指摘C・
-# 2026-07-13 オーナー方針転換「過剰denyを許容する。危険コマンドや疑わしいコマンドが含まれて
-# いれば、実行されるか気にせずブロックしていい」）: これまでの fail-closed 対応は「sink が
-# interpreter/git/gh だと確定している場合に、そこに至る内容を確認できなければ deny」だったが、
-# 以下は sink コマンド自体が何であるか静的に確定できない、または stdin の内容をコマンドとして
-# 解釈しうるループ構文であり、内容確認を待たずに deny すべきとオーナーが判断した:
-#   1. `echo 'git push' | grep . | $(echo bash)` / `... | ${SHELL##*/}`: パイプ consumer の
-#      先頭コマンド語が `$(...)`／バッククォート／`${...}` で動的に構成されており、それが
-#      interpreter か無害なコマンドかを静的に判定できない。
-#   2. `echo 'git push' | while read l; do eval "$l"; done`: `while`/`until` ループが `read`
-#      で1行ずつ読み取りながら任意のコマンドとして実行しうる（`eval` の有無を問わず、ループの
-#      中身を精査せず一律 deny する——オーナー方針「内容を精査せずdeny側に倒して構わない」）。
-# 実 bash でいずれも実際にペイロードが実行されることを確認済み。
-_DYNAMIC_COMMAND_NAME_RE = re.compile(r"\$\(|`|\$\{")
-_STDIN_CONSUMING_LOOP_HEAD_WORDS = {"while", "until"}
-
-
-def unverifiable_pipe_consumer_sink(command_text):
-    """command_text のトップレベルのパイプ consumer（stages[1:]。producer 側の stages[0] は
-    対象外）を走査し、(a) 先頭コマンド語が動的に構成されている（_DYNAMIC_COMMAND_NAME_RE に
-    一致）、または (b) `while`/`until` から始まり `read` を含む stdin 読み取りループである
-    場合に True を返す。内容の精査は行わず、形だけで判定する（過検知許容・見逃さない方針。
-    PR #223 opus 再レビュー指摘C）。"""
-    stages = top_level_pipeline_stages(command_text)
-    for i in range(1, len(stages)):
-        stage_text = unwrap_redundant_parens(first_operator_segment(stages[i]))
-        stripped = stage_text.strip()
-        if not stripped:
-            continue
-        try:
-            tokens = shlex.split(stripped, posix=True)
-        except ValueError:
-            tokens = stripped.split()
-        tokens = strip_leading_wrappers(tokens)
-        if not tokens:
-            continue
-        head = tokens[0]
-        if _DYNAMIC_COMMAND_NAME_RE.search(head):
-            return True
-        if head in _STDIN_CONSUMING_LOOP_HEAD_WORDS and "read" in tokens:
-            return True
-    return False
 
 
 def find_violation(command_text, role, depth=0):
@@ -1657,7 +1749,6 @@ def find_violation(command_text, role, depth=0):
         or bare_fail_closed
         or procsub_fail_closed
         or xargs_without_placeholder_fail_closed(scan_text)
-        or unverifiable_pipe_consumer_sink(scan_text)
     )
     for segment in SEGMENT_SPLIT_RE.split(scan_text):
         violation = direct_violation(shell_words(segment), role)
