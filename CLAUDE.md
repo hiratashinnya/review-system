@@ -3,6 +3,9 @@
 このリポジトリでの仕様策定・設計の進め方。手法の棚卸しは `docs/methods/method-inventory.md`、
 スキル/エージェントの計画は `docs/methods/asset-plan.md`、実体は `.claude/`。
 
+> **本リポジトリは doc_system と review_system の2プロジェクトが同居**（ファイル構成・「正本」の所在は文脈で変わる）。
+> 詳細＝「[このリポジトリ＝2つのプロジェクトが同居（混同注意）](#このリポジトリ2つのプロジェクトが同居混同注意)」を参照。
+
 ## 迷ったら原則に戻る
 判断は **spec-principles（PR1–PR10）**（`.claude/skills/spec-principles/`）に従う。特に：
 **もの＋発生源で分ける**／**機械判定と運用ルールを混ぜない**／**価値経路を遮断しない**／
@@ -96,12 +99,44 @@
 - **総点検（凍結セット規律）**：設計一式を **spec-inspector** に点検させ、G#（孤児/穴/分割違反/矛盾）を出して反映してから実装へ。
 - **版は `MAJOR.MINOR`**（MAJOR=構造/型→対応ロジック改修・MINOR=内容のみ）。版↔対応ロジックを一目で追えること。
 
-## このリポジトリ
-- 現状ドキュメント中心（要件・設計フェーズ）。実装は **Python・原則標準ライブラリのみ**（Q5/Q5a：フロントマターも自前パーサ）。
-- **`docs/` 配下は原則「壁打ちメモ＝非正本」**（オーナー方針・2026-06-29）：設計時の参考に閲覧してよいが**そっちありきにしない**。**正本は `doc-system-v2/`（ノードグラフ）＋ `.claude/`（資産・規約）＋本ファイル**。**例外＝`docs/doc-system/`**（config.yaml・templates・記法・接続マトリクス等＝doc-system の機械定義は正本の一部。`config.yaml` の `trace_scope` も `docs/**` を除外済み）。**docs/ プローズと doc-system ノードが食い違う場合は doc-system 側を正**とし、不足は doc-system 側に著作して埋める（docs/ は更新しない・古い記述は無視）。v1 `doc-system/` は issue #76（v1→v2 cutover）で `doc-system-v1-archive/` へ retire 済み（`git mv`・履歴保持・非正本）。
-- MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）。運用ハブ＝`doc-system-v2/00-dashboard.md`（旧 `doc-system/00-dashboard.md`・`docs/dashboard.md`・`docs/requirements/12-mvp-scope.md` は非正本の壁打ち）。
-- 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。`docs/design/00-data-dictionary.md`・`01-class-design.md` は非正本の参考。
-- **実装前の凍結セット**：`doc-system-v2/nodes/05-design/` 配下（索引の考え方は `python3 -m dsv2 index` で meta.json 生成→grep/jq で参照。基盤＝`doc-system-v2/nodes/05-design/mod/`）。テスト戦略＝`/test-strategy`。`docs/design/*` プローズは非正本の参考。
+## このリポジトリ＝2つのプロジェクトが同居（混同注意）
+
+**本リポジトリには独立した2つのプロジェクトが同居している。ファイルツリーが両者にまたがって混在するため、
+今どちらを触っているかを常に意識する。**「正本」「MVP」「凍結セット」等の語はどちらの文脈かで指す実体が変わる。
+
+### ① doc_system（仕様策定支援ツール・メタ側＝本リポジトリの開発方法論そのもの）
+「どう仕様を作り、どう検証し、どう資産化するか」を扱う自己言及的（ドッグフーディング）なツール群。**review_system の
+ドメイン内容（要件/設計/スキーマ等）はここには実質存在しない**（`doc-system-v2/nodes/**` の VAL/SR/FR 等は
+「グラフの図的可視化」「トレーサビリティ」「自動整合性検証」のように doc_system 自身の目的を記述したノードで、
+`review_system`/`review-system` への言及は横断ツール文脈の4件のみ）。
+
+- **ノードグラフ（正本）**：`doc-system-v2/`（`nodes/**`＝要件〜検証層ノード、`00-dashboard.md`＝doc_system 自身の進捗ハブ、`config.yml`）
+- **v1 archive（非活性・履歴保持）**：`doc-system-v1-archive/`（旧 `doc-system/`。issue #76 で retire・`git mv`）
+- **CLI/ツール実装**：`dsv2/`（v2ノード操作・index/query/reverse等）・`archive/docidx-v1/`（v1専用検索・`python3 -m archive.docidx-v1`）・`archive/backref-v1/`（v1専用辺逆転）・`asset_parity/`（4ツリー資産整合監査）
+- **機械定義ドキュメント（例外的に正本の一部）**：`docs/doc-system/`（config.yaml・templates・記法・接続マトリクス等。`config.yaml` の `trace_scope` は `docs/**` を除外済み）
+- **エージェント/スキル定義**：`.claude/skills/`・`.claude/agents/`（大半は doc_system 自身の著作・点検・パイプライン運用向け。横展開先＝`.codex/`・`.github/skills|prompts|agents`・`.agents/skills`）
+- **テスト**：`tests/unit/test_dsv2_*.py`・`test_docidx_*.py`・`test_asset_parity_*.py`・`test_agent_command_gate.py`・`test_codex_*.py`・`test_claude_review_mcp.py`（`.codex/mcp/claude_review/server.py` 対象）等
+- **正本の所在**：`doc-system-v2/nodes/**`（ノードグラフ）＋ `.claude/`（資産・規約）＋ 本 `CLAUDE.md`。
+- MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）＝**doc_system 自身**の MVP スコープ（review_system の MVP ではない）。運用ハブ＝`doc-system-v2/00-dashboard.md`。
+- 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。
+- **実装前の凍結セット**：`doc-system-v2/nodes/05-design/` 配下（索引の考え方は `python3 -m dsv2 index` で meta.json 生成→grep/jq で参照。基盤＝`doc-system-v2/nodes/05-design/mod/`）。テスト戦略＝`/test-strategy`。
+
+### ② review_system（開発対象の製品本体＝AIレビューツール）
+「文書を評価基準に沿って AI レビューし、指摘を仕分け・自動修正・revert する」実際のアプリケーション。
+
+- **実装**：`review_system/`（`domain/`・`core/`・`ports/`・`adapters/`・`persistence/`・`parsing/`・`prompts/`・`io/`）。**Python・原則標準ライブラリのみ**（Q5/Q5a：フロントマターも自前パーサ）。
+- **テスト**：`tests/unit/test_domain.py`・`test_parsing.py`・`test_triage.py`・`test_compose_intake.py`・`test_pipeline_e2e.py`・`test_criteria_repo.py`・`test_apply.py`・`test_workspace_git.py`・`test_guard.py`・`test_cli_e2e.py`・`test_cli_p2.py`・`test_pr_fixes.py`（いずれも `review_system.*` を import）＋ 成績書 `tests/cases/`・`tests/reports/`・`tests/logs/`（TD/TC/TR の3点セット・`/test-strategy` のテーラリング運用）
+- **ドキュメント**：`docs/` 配下（`docs/doc-system/` を除く全て）＝ `docs/requirements/`・`docs/design/`・`docs/schema/`・`docs/process/`・`docs/methods/`・`docs/dashboard.md`・`docs/minutes/`
+- **正本の所在**：**`docs/` 配下**。①の「正本は doc-system-v2」は doc_system 自身の記述についての規定で、doc-system-v2 コーパスに review_system 固有の要件/設計ノードが無い以上 review_system には適用されない。`docs/design/README.md`（凍結セット8項目）・`docs/design/decisions.md`（DD#）・`docs/dashboard.md`（進捗・Q#）が実質的な確定記録として機能する。
+- MVP スコープは `docs/requirements/12-mvp-scope.md`＋`docs/dashboard.md`（①の doc-system ノード MVP とは別物）。データ辞書／ドメインモデルは `docs/design/00-data-dictionary.md`・`01-class-design.md`。
+
+### 注意：`tests/unit/` は両プロジェクトのテストが同一ディレクトリに混在
+`tests/cases/`・`tests/reports/`・`tests/logs/` は review_system 専用（TC/TR成績書）。一方 `tests/unit/` は
+review_system と doc_system 両方のテストファイルが**物理的に同じディレクトリに同居**する。判別は import 先で行う：
+`review_system.*` を import＝review_system 対象／`dsv2`・`archive.docidx_v1`・`asset_parity`・`.codex/*` を
+import・exec＝doc_system 対象。
+
+### doc_system の運用細則（②には適用されない・①専用）
 - ノード検索/読み込みツール（md2idx 思想）：`archive/docidx-v1/`（**v1-legacy 専用・現行コーパスは対象外**。`python3 -m archive.docidx-v1`・標準ライブラリのみ・対象は `doc-system-v1-archive/`。issue #142 で `docidx/` からの物理移動を一旦保留していたが、issue #172 で共有 YAML リーダ `nodeyaml.py` を `dsv2/nodeyaml.py` へ分離した上で残りを `archive/docidx-v1/` へ `git mv`）。フォーマット依存マップ＝`archive/docidx-v1/README.md`。**v2 検索は `dsv2 index` ＋ grep/Read**（`dsv2-lookup` 参照）。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`・v1-archive 専用と明記済み）・委譲先＝`dsv2-lookup`（`.claude/agents/dsv2-lookup.md`・dsv2-native。旧名 `docidx-lookup`・issue #173 で改名）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
 - FND 辺逆転（バックリファレンス）の機械実行：**v2 は `python3 -m dsv2 reverse`**（実装＝`dsv2/reverse.py`）。旧 v1 専用ツール `backref/` は issue #76 で `archive/backref-v1/` へ retire 済み（フォーマット依存マップは `archive/backref-v1/README.md` に保全・消さない＝PR8）。運用は `reconciliation` が `--apply`（旧 issue #48 の運用を dsv2 へ継承）。
 - **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。

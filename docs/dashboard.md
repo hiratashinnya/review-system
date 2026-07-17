@@ -3,7 +3,9 @@
 議事録から抽出した未決事項とネクストアクションの運用ハブ。
 新しい議論が出たら、ここを更新する。
 
-最終更新：2026-06-12（DD18 追加＝lateral_deploy 2パーサ併存を許容・決定明文化）
+最終更新：2026-07-17（実装進捗・ネクストアクションを実態に同期。**review_system の MVP(P1+P2)実装が完了**したことを反映）
+
+> **スコープ注記**：本ダッシュボードは `review_system`（レビューツール本体）のみを対象とする。本リポジトリには `doc_system`（`doc-system-v2/`・`dsv2/`・`asset_parity/`・`.codex/` 等の仕様策定支援ツール群）も同居するが対象外。2プロジェクトのファイル構成・正本の所在は [CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」](../CLAUDE.md#このリポジトリ2つのプロジェクトが同居混同注意) 参照。review_system については **`docs/` 配下が実質的な正本**（doc-system-v2 コーパスに review_system 固有の要件/設計ノードは存在しない）。
 
 ## 🎯 MVP ターゲット（確定）
 
@@ -18,9 +20,10 @@
 
 > 開発着手の前に、ここまでの設計プロセスを**資産化**（スキル/エージェント化）する → [methods/](methods/method-inventory.md)。
 
-## 🔨 実装進捗（MVP・TDD）— レート制限時の再開ポイント
+## 🔨 実装進捗（MVP・TDD）— 全13層 ✅ 完了
 
-> 各層 commit→テスト→成績書(commit id)→push。証跡は `tests/{cases,reports,logs}`。再開時はこの表の最初の ⬜ から。
+> **13/13 行が実装完了**（`review_system/` 全モジュール・`tests/unit/` の review_system 対象テスト109件が全パス）。
+> 各層 commit→テスト→成績書(commit id)→push。証跡は `tests/{cases,reports,logs}`。次に着手する場合は「MVP実装完了後」節を参照。
 
 | # | 層/モジュール | 内容 | 状態 |
 |---|---|---|---|
@@ -40,16 +43,20 @@
 
 > **MVP外（実装しない・PR8 印）**：合成時警告(F11)・育成ループ(F12/13)・AI型推定(F15)・参照突き合わせ(F10)・異常系degrade(F16)・team/project scope(F17)。
 
+> **テスト証跡の粒度に差あり（要フォロー）**：`tests/cases/`・`tests/reports/` の TC/TR Markdown は #1〜#7 相当（domain/parsing/triage/pipeline/repo/cli）の6件のみ。#5後半〜#13 で追加された `adapters/guard.py`・`persistence/workspace_git.py`・`core/apply.py`・`persistence/feedback_store.py`・`prompts/registry.py`・CLI の `revert`/`feedback` サブコマンド等は `tests/unit/`（unittest・全パス）はあるが、対応する TC/TR Markdown 成績書が無い。test-strategy の3点セット（TD/TC/TR）運用に照らすと成果物としては未整備 → A7 参照。
 
 ## 🔥 ネクストアクション（次にやる候補）
 
 | # | アクション | 目的 | 状態 |
 |---|---|---|---|
-| A1 | 評価基準ファイルのスキーマを実際に書く | サンプルで曖昧さを潰す | 🟡 叩き台あり（[schema/](schema/README.md)）→レビュー待ち |
-| A2 | AI への入力設計を決める | 基準＋文書をどう渡すか / 長い文書・コードベースの扱い | 🟡 設計あり（[07](requirements/07-ai-input-design.md)）→レビュー待ち |
-| A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 確定 |
-| A4 | これまでの設計プロセスを資産化 | 案出し・イベントリスト・点検・価値分析などの手順/基準をスキル・エージェント化（[methods/](methods/method-inventory.md)） | 🟡 棚卸し済→構築計画あり |
-| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)。判断ログ＝[design/decisions](design/decisions.md) | ✅ 8項目確定（DD1–DD12 暫定決定・spec-inspector G1–G8 反映）→ 実装フェーズへ |
+| A1 | 評価基準ファイルのスキーマを実際に書く | サンプルで曖昧さを潰す | 🟢 実装済み・運用中（[schema/](schema/README.md)＝`parsing/frontmatter.py`+`parsing/lint.py`+`persistence/criteria_repo.py` が準拠しテスト済）。**ただし schema/README.md 自体の見出しはまだ「v0 / 叩き台」のまま**＝ドキュメント側の確定宣言が未反映 |
+| A2 | AI への入力設計を決める | 基準＋文書をどう渡すか / 長い文書・コードベースの扱い | 🟢 実装済み・運用中（[07](requirements/07-ai-input-design.md)＝`core/evaluate.py`+`ports/platform.py`+`prompts/registry.py` が準拠）。schema 同様、07 自体の確定宣言は未反映 |
+| A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 確定・**P1+P2実装完了**（下表13/13） |
+| A4 | これまでの設計プロセスを資産化 | 案出し・イベントリスト・点検・価値分析などの手順/基準をスキル・エージェント化（[methods/](methods/method-inventory.md)） | ✅ 完了（[asset-plan.md](methods/asset-plan.md) に「実装済み」と明記・`.claude/skills`・`.claude/agents` 実体あり） |
+| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)。判断ログ＝[design/decisions](design/decisions.md) | ✅ 8項目確定（[design/README](design/README.md) 全項目 ✅・DD1–DD23）→ **実装フェーズ完了**（下表13/13 ✅） |
+| A6 | **post-MVP スコープの着手判断** | MVP(P1+P2) 実装完了に伴い、次の優先度をオーナーが決める：F10 参照突き合わせ／F11 合成時警告／F12+F13 育成ループ／F14 ひな形生成／F15 AI型推定／F16 異常系degrade／F17 team/project scope（いずれも [12-mvp-scope](requirements/12-mvp-scope.md) で P3/将来）。現状どれも未着手 | 🟡 未着手・オーナー判断待ち |
+| A7 | **TC/TR 成績書の後追い整備** | `guard`・`workspace_git`・`apply`・`feedback_store`・`prompts/registry`・CLI `revert`/`feedback`/P2系（`test_apply.py`/`test_workspace_git.py`/`test_guard.py`/`test_cli_p2.py`/`test_compose_intake.py`/`test_criteria_repo.py`/`test_pr_fixes.py`）はコード＋unittestのみで `tests/cases`/`tests/reports` の Markdown 成績書が無い。test-strategy の3点セット運用との整合を取るか、運用側で「以降は unittest のみで足りる」と明示的に方針転換するかの判断が必要 | 🟡 未着手・要方針決定 |
+| A8 | **F7（✋/💬 人手適用）の実装可否の明確化** | [12-mvp-scope](requirements/12-mvp-scope.md) は F7 を P2 差別化の構成要素（F5, 適用機構が前提）と位置付けるが、design/decisions・orchestration に F7 専用の設計判断が見当たらず、CLI にも人手適用専用コマンドは無い（HTMLレポートの `suggested_fix` を人間が読んで手動反映する運用に見える）。**意図的に「系外＝非イベント（PR3）で機構不要」と判断したのか、単なる未着手か**が記録から読み取れない → オーナー確認候補 | 🟡 未確認・要オーナー確認 |
 
 ## ❓ 未決事項（決めないと進めない論点）
 
