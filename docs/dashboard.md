@@ -5,7 +5,7 @@
 
 最終更新：2026-07-17（実装進捗・ネクストアクションを実態に同期。**review_system の MVP(P1+P2)実装が完了**したことを反映）
 
-> **スコープ注記**：本ダッシュボードは `review_system`（レビューツール本体）のみを対象とする。本リポジトリにはもう1つ `doc_system`（`doc-system-v2/`・`dsv2/`・`asset_parity/`・`.codex/` 等の仕様策定支援ツール群）があるが対象外。あわせて CLAUDE.md が明記するとおり本ファイルは非正本の壁打ちメモで、正本は `doc-system-v2/00-dashboard.md`。
+> **スコープ注記**：本ダッシュボードは `review_system`（レビューツール本体）のみを対象とする。本リポジトリにはもう1つ `doc_system`（`doc-system-v2/`・`dsv2/`・`asset_parity/`・`.codex/` 等の仕様策定支援ツール群）があるが対象外。CLAUDE.md の「正本は `doc-system-v2/`」は **doc_system 自身のドッグフーディング記述**についての規定で、`doc-system-v2/nodes/**` には review_system のドメイン内容（要件/設計/スキーマ等）が実質存在しない（実測：`review_system`/`review-system` 言及4件のみ、いずれも横断ツール文脈で review_system 固有の要件/設計ノードではない）。そのため **review_system に関しては本 `docs/` 配下が実質的な正本**として機能している。
 
 ## 🎯 MVP ターゲット（確定）
 
