@@ -49,7 +49,7 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|pytest|coverage|dsv2|gitgate の形のみ**）で
+#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
 #        gated 2ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
@@ -70,7 +70,7 @@
 #
 # 既知の限界（Issue #129 / #181・多層防御の一枚に過ぎない）:
 #   - シェル文字列の静的検査であり sandbox ではない。agent_type の詐称・ハーネス外の実行経路は防げない。
-#   - `python3 -m unittest|pytest|coverage` はリポジトリ内の Python コードを実行する＝テストファイル経由で
+#   - `python3 -m unittest|coverage` はリポジトリ内の Python コードを実行する＝テストファイル経由で
 #     任意コードを走らせられる（テスト実行を許可する以上、原理的に閉じられない）。
 #   - `git -c <key>=<value>`（alias!/core.pager 等）・`git push --receive-pack=…`・`gh api` 経由の merge・
 #     別名サブコマンドでの push は Issue #227 追加修正3（生 git 全 deny＋gitgate ラッパー＋gh フラグ許可
@@ -622,7 +622,7 @@ def gate_reason(command_text, role):
     if head_violation:
         return (
             f"agent-command-gate ({role}): {head_violation}. "
-            "Only git / gh / python3 -m <unittest|pytest|coverage|dsv2|gitgate> are allowed for this role "
+            "Only git / gh / python3 -m <unittest|coverage|dsv2|gitgate> are allowed for this role "
             "(whitelist mode, Issue #227). Use the file-reading/writing tools for file work."
         )
     violation = role_command_violation(tokens, role)
