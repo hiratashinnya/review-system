@@ -77,6 +77,10 @@ log_ref: tests/logs/<id>-<commit>.txt   # FAIL 時は必須（RULE-021 対応）
 ## 手順（1サイクル）
 1. 実装を**コミット**（commit id を確定）。
 2. `python -m unittest -v 2>&1 | tee tests/logs/<id>-<commit>.txt`。
+   - **`issue-implementer` / `pr-reviewer` ロールから実行する場合はこの形は使えない**（`|`・`2>` が
+     `agent-command-gate` の層1（危険記号 ban・Issue #227）で deny される）。両ロールでは
+     **`python3 -m unittest discover -s tests/unit` を単体で実行**し、ログが必要なら出力を
+     Write ツールで `tests/logs/<id>-<commit>.txt` に書き出す（`| tee` を使わない）。
 3. TD をコピーして TR を作成、frontmatter に `result` と `log_ref` を追記。
 4. FAIL は TR を残し、根本原因・対処を併記（消さない・上書きしない）。
 5. e2e は Claude Code エージェントで `io/cli` を回し、同じ3点セット（TD/TC/TR/ログ）を残す。
