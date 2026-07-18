@@ -7,6 +7,7 @@
   - main() が subprocess.run を shell=False の list 渡しで呼ぶ（monkeypatch で捕捉）。
 """
 
+import json
 import subprocess
 import tempfile
 import unittest
@@ -180,12 +181,20 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 class MainSubprocessTests(unittest.TestCase):
     def test_publish_info_reports_only_fixed_origin_and_same_name_remote_ref(self):
-        sha = "a" * 40
+        local_sha = "a" * 40
+        remote_sha = "b" * 40
         completed = [
-            subprocess.CompletedProcess([], 0, "git@github.com:o/r.git\n", ""),
-            subprocess.CompletedProcess([], 0, "feature/publish\n", ""),
+            subprocess.CompletedProcess([], 0, "https://github.com/o/r.git\n", ""),
             subprocess.CompletedProcess(
-                [], 0, f"{sha}\trefs/heads/feature/publish\n", ""
+                [],
+                0,
+                "git@github.com:o/r.git\nssh://git@github.com/o/r.git\n",
+                "",
+            ),
+            subprocess.CompletedProcess([], 0, "feature/publish\n", ""),
+            subprocess.CompletedProcess([], 0, local_sha + "\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, f"{remote_sha}\trefs/heads/feature/publish\n", ""
             ),
         ]
         stdout = StringIO()
@@ -198,7 +207,9 @@ class MainSubprocessTests(unittest.TestCase):
             [call.args[0] for call in run.call_args_list],
             [
                 ["git", "remote", "get-url", "origin"],
+                ["git", "remote", "get-url", "--push", "--all", "origin"],
                 ["git", "branch", "--show-current"],
+                ["git", "rev-parse", "--verify", "HEAD"],
                 [
                     "git",
                     "ls-remote",
@@ -209,17 +220,28 @@ class MainSubprocessTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            stdout.getvalue(),
-            '{"current_branch": "feature/publish", "origin_url": '
-            '"git@github.com:o/r.git", "remote_commit": "' + sha
-            + '", "remote_exists": true, "remote_ref": '
-            '"refs/heads/feature/publish"}\n',
+            json.loads(stdout.getvalue()),
+            {
+                "current_branch": "feature/publish",
+                "local_commit": local_sha,
+                "origin_fetch_url": "https://github.com/o/r.git",
+                "origin_push_urls": [
+                    "git@github.com:o/r.git",
+                    "ssh://git@github.com/o/r.git",
+                ],
+                "remote_commit": remote_sha,
+                "remote_exists": True,
+                "remote_ref": "refs/heads/feature/publish",
+            },
         )
 
-    def test_publish_info_reports_missing_same_name_remote_ref(self):
+    def test_publish_info_falls_back_to_fetch_url_and_reports_missing_remote_ref(self):
+        local_sha = "c" * 40
         completed = [
             subprocess.CompletedProcess([], 0, "git@github.com:o/r.git\n", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "feature/new\n", ""),
+            subprocess.CompletedProcess([], 0, local_sha + "\n", ""),
             subprocess.CompletedProcess([], 0, "", ""),
         ]
         stdout = StringIO()
@@ -227,8 +249,18 @@ class MainSubprocessTests(unittest.TestCase):
             with patch.object(gitgate_cli.sys, "stdout", stdout):
                 rc = gitgate_cli.main(["publish-info"])
         self.assertEqual(rc, 0)
-        self.assertIn('"remote_commit": null', stdout.getvalue())
-        self.assertIn('"remote_exists": false', stdout.getvalue())
+        self.assertEqual(
+            json.loads(stdout.getvalue()),
+            {
+                "current_branch": "feature/new",
+                "local_commit": local_sha,
+                "origin_fetch_url": "git@github.com:o/r.git",
+                "origin_push_urls": ["git@github.com:o/r.git"],
+                "remote_commit": None,
+                "remote_exists": False,
+                "remote_ref": "refs/heads/feature/new",
+            },
+        )
 
     def test_publish_info_preserves_git_error_and_exit_code(self):
         failed = subprocess.CompletedProcess([], 128, "", "fatal: no origin\n")

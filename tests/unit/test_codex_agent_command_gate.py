@@ -444,6 +444,18 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
+    def test_publish_info_only_allows_fixed_origin_and_current_branch(self):
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "python3 -m gitgate publish-info"))
+        )
+        for command in [
+            "python3 -m gitgate publish-info upstream",
+            "python3 -m gitgate publish-info origin refs/heads/main",
+            "python3 -m gitgate publish-info --remote upstream",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
+
     def test_issue_implementer_now_denied_out_of_allowlist_git_gh(self):
         # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全 deny。gh は impl 集合外を deny。
         denied = [

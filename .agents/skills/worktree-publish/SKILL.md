@@ -17,11 +17,12 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 
 ## 1. 公開前ゲートを確認する
 
-1. 対象 worktree の絶対パス、想定 branch、remote 名、PR の base branch、PR title/body を確定する。remote は既定で `origin` とする。
+1. 対象 worktree の絶対パス、想定 branch、想定 repository、PR の base branch、PR title/body を確定する。remote は固定の `origin` とし、任意 remote/ref を指定しない。
 2. commit 済みであり、必要なテストが全て成功している証跡を確認する。未 commit 変更や未実行・失敗テストがあれば停止する。
 3. current branch を確認し、detached HEAD、`main`、想定外 branch なら停止する。issue-implementer では `python3 -m gitgate branch-current` を使う。
 4. status で worktree の清潔性と upstream を確認する。issue-implementer では `python3 -m gitgate status` を使う。既存 upstream は原則 `origin/<current-branch>` と一致させる。初回 push 前は upstream 未設定、または worktree 作成時に設定された base branch upstream を暫定的に許容するが、同名 remote branch が未作成であることを読み取り専用確認し、push 後に必ず同名 upstream へ置き換える。それ以外の不一致は停止する。
-5. issue-implementer では引数なしの `python3 -m gitgate publish-info` を使い、限定 JSON の `origin_url` が想定 repository、`current_branch` が想定 branch、`remote_ref` が `refs/heads/<current-branch>` であることを確認する。初回公開では `remote_exists: false`、追加公開では `remote_exists: true` と `remote_commit` を確認する。remote/ref を引数で指定できる別コマンドへ置き換えない。判定不能なら推測せず、対象 worktree・branch・想定 remote と不足情報を報告して停止する。
+5. issue-implementer では引数なしの `python3 -m gitgate publish-info` を使う。限定 JSON の `origin_fetch_url` と `origin_push_urls` の**全件**が想定 repository、`current_branch` が想定 branch、`remote_ref` が `refs/heads/<current-branch>`、`local_commit` が現在の local HEAD SHA であることを push 前に必ず確認する。push URL は `remote.origin.pushurl` の全 effective URLで、未設定時は fetch URL に fallback する。URL が1件でも想定外、空、判定不能なら停止する。
+6. `remote_exists: false` と `remote_commit: null` を許容するのは、その branch の**初回 push 前だけ**とする。初回 push だと確認できなければ停止する。追加公開では push 前から `remote_exists: true` と `remote_commit` を必須にする。remote/ref 引数を追加したり、更新操作を行う別コマンドへ置き換えない。判定不能なら対象 worktree・branch・想定 repository と不足情報を報告して停止する。
 
 ## 2. network・DNS・認証を切り分ける
 
@@ -37,7 +38,7 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 2. 対象 worktree を cwd にして push する。issue-implementer では引数を追加せず `python3 -m gitgate push` を使い、`origin` の同名 branch に upstream を設定する。
 3. network/DNS エラーなら「2. network・DNS・認証を切り分ける」と同じ分類を行い、必要な外部 network 許可を要求して同じ push を再試行する。認証と推測しない。
 4. push 後に remote refs を更新し、status と remote commit を再確認する。issue-implementer では `python3 -m gitgate fetch`、`python3 -m gitgate status`、`python3 -m gitgate publish-info` の順に使う。
-5. upstream が `origin/<current-branch>` で local と upstream が up to date、かつ `publish-info` が同名 `remote_ref` の `remote_exists: true` と `remote_commit` を返すことを確認する。ahead/behind、別 upstream、remote ref 不在、fetch・取得失敗があれば remote commit 一致未確認として PR を作らず停止する。
+5. upstream が `origin/<current-branch>` で local と upstream が up to date、かつ `publish-info` が同名 `remote_ref` の `remote_exists: true`、非 null の `remote_commit`、`local_commit` を返し、`remote_commit` と `local_commit` が完全一致することを確認する。初回 push 後も remote SHA 不在は許容しない。SHA 不一致、ahead/behind、別 upstream、remote ref 不在、fetch・取得失敗があれば PR を作らず停止する。
 
 ## 4. draft PR を作成する
 

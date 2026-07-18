@@ -199,12 +199,14 @@ def verb_log(args):
 
 
 def run_publish_info(args):
-    """公開前確認に必要な origin・current branch・同名 remote ref だけを JSON で返す。"""
+    """公開前確認に必要な固定 origin・local HEAD・同名 remote ref だけを JSON で返す。"""
     _require_no_args("publish-info", args)
 
     commands = [
         ["git", "remote", "get-url", "origin"],
+        ["git", "remote", "get-url", "--push", "--all", "origin"],
         ["git", "branch", "--show-current"],
+        ["git", "rev-parse", "--verify", "HEAD"],
     ]
     outputs = []
     for command in commands:
@@ -217,11 +219,24 @@ def run_publish_info(args):
         if completed.returncode != 0:
             sys.stderr.write(completed.stderr)
             return completed.returncode
-        outputs.append(completed.stdout.strip())
+        outputs.append(completed.stdout)
 
-    origin_url, branch = outputs
+    origin_fetch_url = outputs[0].strip()
+    origin_push_urls = [line.strip() for line in outputs[1].splitlines() if line.strip()]
+    branch = outputs[2].strip()
+    local_commit = outputs[3].strip()
+    if not origin_fetch_url:
+        sys.stderr.write("gitgate: `publish-info` could not determine the origin fetch URL\n")
+        return 2
+    # `git remote get-url --push --all` normally performs this fallback itself. Keep it explicit so
+    # the JSON contract remains fail-safe if Git returns no push URL for a valid origin.
+    if not origin_push_urls:
+        origin_push_urls = [origin_fetch_url]
     if not branch:
         sys.stderr.write("gitgate: `publish-info` requires an attached current branch\n")
+        return 2
+    if not local_commit:
+        sys.stderr.write("gitgate: `publish-info` could not determine the local HEAD commit\n")
         return 2
     try:
         validate_branch_name(branch)
@@ -251,7 +266,9 @@ def run_publish_info(args):
 
     info = {
         "current_branch": branch,
-        "origin_url": origin_url,
+        "local_commit": local_commit,
+        "origin_fetch_url": origin_fetch_url,
+        "origin_push_urls": origin_push_urls,
         "remote_commit": matches[0] if matches else None,
         "remote_exists": bool(matches),
         "remote_ref": remote_ref,

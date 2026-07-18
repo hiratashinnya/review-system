@@ -60,6 +60,7 @@
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/push/
 #          branch-current/new-branch/fetch/diff/log/publish-info／reviewer: diff/log）で allow/deny する。
+#          `publish-info` は追加引数なしの固定 origin・current branch 読み取りだけを許可する。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl: pr create / issue view／reviewer: pr
 #          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
@@ -488,6 +489,10 @@ def gitgate_violation(tokens, role):
         return (
             f"`gitgate {verb}`".rstrip()
             + f" is not in this role's gitgate verb allowlist ({allowed})"
+        )
+    if verb == "publish-info" and len(tokens) != 4:
+        return (
+            "`gitgate publish-info` takes no arguments; arbitrary remote/ref selection is not allowed"
         )
     return None
 
