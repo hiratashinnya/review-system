@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[2]
 STOP_HOOK = ROOT / ".codex" / "hooks" / "codex-rate-limit-stop-hook.sh"
 WATCHER = ROOT / ".codex" / "hooks" / "codex-rate-limit-watcher.sh"
 QUERY_HELPER = ROOT / ".codex" / "hooks" / "codex-rate-limit-query.py"
+_HAS_BASH = shutil.which("bash") is not None
 
 
 def _load_query_module():
@@ -179,6 +180,7 @@ class QueryHelperProcessTests(unittest.TestCase):
             env=env,
         )
 
+    @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
     def test_fake_app_server_round_trip(self):
         # A fake app-server that answers id=2 with a reached snapshot. It must
         # keep reading stdin (the helper deliberately keeps stdin open until it
@@ -232,6 +234,7 @@ def _run_bash(body, args=()):
     )
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class BashQueryParsingTests(unittest.TestCase):
     """query_rate_limit_api must parse the helper's RL_* lines and signal
     success/fallback via its return code, in both hook scripts."""
@@ -301,6 +304,7 @@ RL_WINDOW_MINS=""; api_window_is_long && printf 'EMPTY-LONG\\n' || printf 'EMPTY
         self.assertIn("EMPTY-OK", result.stdout)
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class BashEpochRecoveryTests(unittest.TestCase):
     """wait_until_epoch_and_recover: sleep to the API reset epoch, confirm the
     limit cleared via the API, then inject exactly once."""
@@ -369,6 +373,7 @@ wait_until_epoch_and_recover "$past" 300
         self.assertIn("invalid reset epoch", log)
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class StopHookApiFailureCooldownTests(unittest.TestCase):
     """Issue #199 regression: a failing/hanging API query must still write
     the per-pane cooldown file, so a persistent failure cannot cause a fresh
@@ -485,6 +490,7 @@ class HelperCompileTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
     def test_hook_scripts_pass_bash_syntax_check(self):
         for script in (STOP_HOOK, WATCHER):
             with self.subTest(script=script.name):

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOK = ROOT / ".codex" / "hooks" / "agent-command-gate.sh"
+_HAS_BASH = shutil.which("bash") is not None
 
 
 def run_gate(payload, *, env=None):
@@ -189,6 +191,7 @@ REREVIEW_BYPASS_CORPUS = [
 ]
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class CodexAgentCommandGateTests(unittest.TestCase):
     def assert_denied(self, hook_output):
         self.assertIsNotNone(hook_output)
