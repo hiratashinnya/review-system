@@ -434,6 +434,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "python3 -m gitgate branch-current",
             "python3 -m gitgate new-branch issue-227-agent-command-gate-whitelist",
             "python3 -m gitgate fetch",
+            "python3 -m gitgate publish-info",
             "rtk python3 -m gitgate status",
             'gh pr create --title "fix(hooks): rewrite gate" --body-file /tmp/pr-body.md',
             "gh issue view 227",
@@ -526,6 +527,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         impl_allowed = [
             "status", "add p", "commit /tmp/m", "push", "branch-current",
             "new-branch feature", "fetch", "diff", "log -n1",
+            "publish-info",
         ]
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
@@ -534,7 +536,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
-                     "new-branch feature", "fetch"]:
+                     "new-branch feature", "fetch", "publish-info"]:
             with self.subTest(role="pr-reviewer", denied_verb=verb):
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
         for verb in ["merge", "clone", "remote", "reset", "push-force"]:

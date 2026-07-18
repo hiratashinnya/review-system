@@ -21,7 +21,7 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 2. commit 済みであり、必要なテストが全て成功している証跡を確認する。未 commit 変更や未実行・失敗テストがあれば停止する。
 3. current branch を確認し、detached HEAD、`main`、想定外 branch なら停止する。issue-implementer では `python3 -m gitgate branch-current` を使う。
 4. status で worktree の清潔性と upstream を確認する。issue-implementer では `python3 -m gitgate status` を使う。既存 upstream は原則 `origin/<current-branch>` と一致させる。初回 push 前は upstream 未設定、または worktree 作成時に設定された base branch upstream を暫定的に許容するが、同名 remote branch が未作成であることを読み取り専用確認し、push 後に必ず同名 upstream へ置き換える。それ以外の不一致は停止する。
-5. remote が想定 repository の `origin` か確認する。利用可能な安全な読み取り手段がない場合は推測せず、対象 worktree・branch・想定 remote と不足情報を報告して停止する。
+5. issue-implementer では引数なしの `python3 -m gitgate publish-info` を使い、限定 JSON の `origin_url` が想定 repository、`current_branch` が想定 branch、`remote_ref` が `refs/heads/<current-branch>` であることを確認する。初回公開では `remote_exists: false`、追加公開では `remote_exists: true` と `remote_commit` を確認する。remote/ref を引数で指定できる別コマンドへ置き換えない。判定不能なら推測せず、対象 worktree・branch・想定 remote と不足情報を報告して停止する。
 
 ## 2. network・DNS・認証を切り分ける
 
@@ -36,8 +36,8 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 1. current branch と status を直前に再確認する。
 2. 対象 worktree を cwd にして push する。issue-implementer では引数を追加せず `python3 -m gitgate push` を使い、`origin` の同名 branch に upstream を設定する。
 3. network/DNS エラーなら「2. network・DNS・認証を切り分ける」と同じ分類を行い、必要な外部 network 許可を要求して同じ push を再試行する。認証と推測しない。
-4. push 後に remote refs を更新し、status を再確認する。issue-implementer では `python3 -m gitgate fetch`、続けて `python3 -m gitgate status` を使う。
-5. upstream が `origin/<current-branch>` で、local と upstream が up to date であることを確認する。ahead/behind、別 upstream、fetch 失敗があれば remote commit 一致未確認として PR を作らず停止する。
+4. push 後に remote refs を更新し、status と remote commit を再確認する。issue-implementer では `python3 -m gitgate fetch`、`python3 -m gitgate status`、`python3 -m gitgate publish-info` の順に使う。
+5. upstream が `origin/<current-branch>` で local と upstream が up to date、かつ `publish-info` が同名 `remote_ref` の `remote_exists: true` と `remote_commit` を返すことを確認する。ahead/behind、別 upstream、remote ref 不在、fetch・取得失敗があれば remote commit 一致未確認として PR を作らず停止する。
 
 ## 4. draft PR を作成する
 

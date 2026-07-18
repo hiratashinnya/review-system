@@ -10,7 +10,9 @@
 import subprocess
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from gitgate import GitgateError, build_git_argv
 from gitgate import cli as gitgate_cli
@@ -97,6 +99,12 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
                 with self.assertRaises(GitgateError):
                     build_git_argv(argv)
 
+    def test_publish_info_rejects_extra_args_without_running_git(self):
+        with patch.object(gitgate_cli.subprocess, "run") as run:
+            rc = gitgate_cli.main(["publish-info", "upstream"])
+        self.assertEqual(rc, 2)
+        run.assert_not_called()
+
     def test_add_neutralizes_flags_via_double_dash(self):
         # add のパスに `--receive-pack=x` を与えても `--` 以降に置かれるため pathspec として無害。
         self.assertEqual(
@@ -171,6 +179,66 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_publish_info_reports_only_fixed_origin_and_same_name_remote_ref(self):
+        sha = "a" * 40
+        completed = [
+            subprocess.CompletedProcess([], 0, "git@github.com:o/r.git\n", ""),
+            subprocess.CompletedProcess([], 0, "feature/publish\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, f"{sha}\trefs/heads/feature/publish\n", ""
+            ),
+        ]
+        stdout = StringIO()
+        with patch.object(gitgate_cli.subprocess, "run", side_effect=completed) as run:
+            with patch.object(gitgate_cli.sys, "stdout", stdout):
+                rc = gitgate_cli.main(["publish-info"])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [call.args[0] for call in run.call_args_list],
+            [
+                ["git", "remote", "get-url", "origin"],
+                ["git", "branch", "--show-current"],
+                [
+                    "git",
+                    "ls-remote",
+                    "--heads",
+                    "origin",
+                    "refs/heads/feature/publish",
+                ],
+            ],
+        )
+        self.assertEqual(
+            stdout.getvalue(),
+            '{"current_branch": "feature/publish", "origin_url": '
+            '"git@github.com:o/r.git", "remote_commit": "' + sha
+            + '", "remote_exists": true, "remote_ref": '
+            '"refs/heads/feature/publish"}\n',
+        )
+
+    def test_publish_info_reports_missing_same_name_remote_ref(self):
+        completed = [
+            subprocess.CompletedProcess([], 0, "git@github.com:o/r.git\n", ""),
+            subprocess.CompletedProcess([], 0, "feature/new\n", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        stdout = StringIO()
+        with patch.object(gitgate_cli.subprocess, "run", side_effect=completed):
+            with patch.object(gitgate_cli.sys, "stdout", stdout):
+                rc = gitgate_cli.main(["publish-info"])
+        self.assertEqual(rc, 0)
+        self.assertIn('"remote_commit": null', stdout.getvalue())
+        self.assertIn('"remote_exists": false', stdout.getvalue())
+
+    def test_publish_info_preserves_git_error_and_exit_code(self):
+        failed = subprocess.CompletedProcess([], 128, "", "fatal: no origin\n")
+        stderr = StringIO()
+        with patch.object(gitgate_cli.subprocess, "run", return_value=failed):
+            with patch.object(gitgate_cli.sys, "stderr", stderr):
+                rc = gitgate_cli.main(["publish-info"])
+        self.assertEqual(rc, 128)
+        self.assertEqual(stderr.getvalue(), "fatal: no origin\n")
+
     def test_main_invokes_git_with_shell_false_list(self):
         calls = {}
 

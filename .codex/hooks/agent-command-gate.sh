@@ -59,7 +59,7 @@
 #          `python3 -m gitgate <verb>` に誘導する（ユーザ制御フラグが git に届かない＝`--receive-pack`/
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/push/
-#          branch-current/new-branch/fetch/diff/log／reviewer: diff/log）で allow/deny する。
+#          branch-current/new-branch/fetch/diff/log/publish-info／reviewer: diff/log）で allow/deny する。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl: pr create / issue view／reviewer: pr
 #          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
@@ -133,7 +133,7 @@ GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。gitgate の全 verb を許可する。
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
-        "new-branch", "fetch", "diff", "log",
+        "new-branch", "fetch", "diff", "log", "publish-info",
     },
     # pr-reviewer: レビューの読取専用のみ（diff/log）。
     "pr-reviewer": {"diff", "log"},

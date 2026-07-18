@@ -9,6 +9,7 @@ git 実行は build_git_argv() が返す list を subprocess.run([...], shell=Fa
 依存仕様: gitgate/__init__.py の docstring 参照（Issue #227 追加修正3・オーナー確定 2026-07-13）。
 """
 
+import json
 import os
 import re
 import subprocess
@@ -197,6 +198,68 @@ def verb_log(args):
     return argv
 
 
+def run_publish_info(args):
+    """公開前確認に必要な origin・current branch・同名 remote ref だけを JSON で返す。"""
+    _require_no_args("publish-info", args)
+
+    commands = [
+        ["git", "remote", "get-url", "origin"],
+        ["git", "branch", "--show-current"],
+    ]
+    outputs = []
+    for command in commands:
+        completed = subprocess.run(
+            command,
+            shell=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            sys.stderr.write(completed.stderr)
+            return completed.returncode
+        outputs.append(completed.stdout.strip())
+
+    origin_url, branch = outputs
+    if not branch:
+        sys.stderr.write("gitgate: `publish-info` requires an attached current branch\n")
+        return 2
+    try:
+        validate_branch_name(branch)
+    except GitgateError as exc:
+        sys.stderr.write(f"gitgate: invalid current branch: {exc}\n")
+        return 2
+
+    remote_ref = f"refs/heads/{branch}"
+    completed = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", remote_ref],
+        shell=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+
+    matches = []
+    for line in completed.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) == 2 and parts[1] == remote_ref:
+            matches.append(parts[0])
+    if len(matches) > 1:
+        sys.stderr.write("gitgate: `publish-info` received duplicate exact remote refs\n")
+        return 2
+
+    info = {
+        "current_branch": branch,
+        "origin_url": origin_url,
+        "remote_commit": matches[0] if matches else None,
+        "remote_exists": bool(matches),
+        "remote_ref": remote_ref,
+    }
+    sys.stdout.write(json.dumps(info, ensure_ascii=False, sort_keys=True) + "\n")
+    return 0
+
+
 VERB_HANDLERS = {
     "status": verb_status,
     "add": verb_add,
@@ -226,6 +289,12 @@ def build_git_argv(argv):
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+    if argv and argv[0] == "publish-info":
+        try:
+            return run_publish_info(argv[1:])
+        except GitgateError as exc:
+            sys.stderr.write(f"gitgate: {exc}\n")
+            return 2
     try:
         git_argv = build_git_argv(argv)
     except GitgateError as exc:
