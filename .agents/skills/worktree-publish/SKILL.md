@@ -20,7 +20,7 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 1. 対象 worktree の絶対パス、想定 branch、remote 名、PR の base branch、PR title/body を確定する。remote は既定で `origin` とする。
 2. commit 済みであり、必要なテストが全て成功している証跡を確認する。未 commit 変更や未実行・失敗テストがあれば停止する。
 3. current branch を確認し、detached HEAD、`main`、想定外 branch なら停止する。issue-implementer では `python3 -m gitgate branch-current` を使う。
-4. status で worktree の清潔性と upstream を確認する。issue-implementer では `python3 -m gitgate status` を使う。既存 upstream がある場合は `origin/<current-branch>` と一致しなければ停止する。初回 push 前の upstream 未設定は許容する。
+4. status で worktree の清潔性と upstream を確認する。issue-implementer では `python3 -m gitgate status` を使う。既存 upstream は原則 `origin/<current-branch>` と一致させる。初回 push 前は upstream 未設定、または worktree 作成時に設定された base branch upstream を暫定的に許容するが、同名 remote branch が未作成であることを読み取り専用確認し、push 後に必ず同名 upstream へ置き換える。それ以外の不一致は停止する。
 5. remote が想定 repository の `origin` か確認する。利用可能な安全な読み取り手段がない場合は推測せず、対象 worktree・branch・想定 remote と不足情報を報告して停止する。
 
 ## 2. network・DNS・認証を切り分ける
