@@ -25,7 +25,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null || true
 LOG="${STATE_DIR}/watcher.log"
 LOCK="${STATE_DIR}/lock.$(printf '%s' "$PANE" | tr -c 'A-Za-z0-9' '_')"
 
-CONTINUE_MSG="${CLAUDE_RL_CONTINUE_MSG:-続けて}"     # 送出する継続メッセージ
+CONTINUE_MSG_OVERRIDE="${CLAUDE_RL_CONTINUE_MSG:-}"  # 明示指定時はそのまま送出(時刻注記なし)。未指定なら②の自動生成文を使う
 RESET_POLL_INTERVAL="${CLAUDE_RL_RESET_POLL_INTERVAL:-15}"   # リセット時刻の再取得ポーリング間隔秒
 RESET_POLL_MAX="${CLAUDE_RL_RESET_POLL_MAX:-40}"             # 再取得の最大試行回数(15s×40=10分)
 BANNER_POLL_INTERVAL="${CLAUDE_RL_BANNER_POLL_INTERVAL:-30}"  # 時刻不明時: バナー消滅を待つ間隔秒
@@ -180,6 +180,26 @@ else
   exit 0
 fi
 
+# --- ②再開プロンプトへ解除時刻・解除済みの旨を明記する ---
+# LLM が「さっきレートリミットに当たったから」と誤って未解除のまま思い込み、サブエージェント
+# 利用等の通常プロセスから逸脱する事象への対策。CLAUDE_RL_CONTINUE_MSG が明示指定されていれば
+# そのまま使う(運用者の意図を優先)。未指定時は解除時刻(reset_epoch があればそれ、無ければ
+# 現在時刻)・現在時刻・解除済みである旨を注入直前に毎回組み立てる。
+build_continue_msg() {
+  local reset_str now_str
+  now_str="$(date '+%H:%M:%S')"
+  if [ -n "${reset_epoch:-}" ]; then
+    reset_str="$(date -d "@${reset_epoch}" '+%H:%M:%S' 2>/dev/null || printf '%s' "$now_str")"
+  else
+    reset_str="$now_str"
+  fi
+  if [ -n "$CONTINUE_MSG_OVERRIDE" ]; then
+    printf '%s' "$CONTINUE_MSG_OVERRIDE"
+    return 0
+  fi
+  printf 'レートリミットは解除されました(解除時刻 %s ごろ／現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$reset_str" "$now_str"
+}
+
 # --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
 # 大原則: リセット待機後、ペインが「作業中でない(アイドル)」なら継続メッセージを注入して再開する。
 #   稼働中セッションへの割り込みは is_working ガードだけで防ぐ(=フッタの中断ヒントで判定)。
@@ -202,12 +222,13 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
     exit 0
   fi
   # アイドル → 注入して再開(制限バナーの有無は問わない。情報としてのみ記録)
+  msg="$(build_continue_msg)"
   if is_limit_screen; then
-    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & limit banner still visible; send '${CONTINUE_MSG}'"
+    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & limit banner still visible; send '${msg}'"
   else
-    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & banner cleared (post-reset); send '${CONTINUE_MSG}'"
+    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & banner cleared (post-reset); send '${msg}'"
   fi
-  tmux send-keys -t "$PANE" "$CONTINUE_MSG" 2>>"$LOG"
+  tmux send-keys -t "$PANE" "$msg" 2>>"$LOG"
   sleep 1
   tmux send-keys -t "$PANE" Enter 2>>"$LOG"
   sleep "$VERIFY_WAIT"

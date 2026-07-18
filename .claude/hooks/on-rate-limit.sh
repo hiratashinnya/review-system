@@ -68,6 +68,18 @@ if [ -z "${TMUX:-}" ] || [ -z "${pane}" ]; then
   exit 0
 fi
 
+# --- ①検知時刻をチャット(ペイン)に表示 ---
+# LLM が「レートリミットに当たった」事実は認識できても、その後どれだけ時間が経過したかを
+# 見失い、解除後もサブエージェント使用等の通常プロセスから逸脱する事象への対策。
+# まずは検知した瞬間の時刻を見えるようにする。StopFailure は出力・終了コードが無視されるため、
+# tmux ペインへ直接ドラフト注入する(Enter は送らない=まだ解除前に新規ターンを送信して
+# 即座に再度レートリミットへ突入するのを防ぐ。あくまで表示のみ)。
+hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
+if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
+  tmux send-keys -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
+  log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
+fi
+
 # --- ウォッチャを切り離して起動(フックは即終了。出力は無視されるため fire-and-forget) ---
 setsid bash "${HOOK_DIR}/resume-watcher.sh" "${pane}" "${session_id}" "${transcript_path}" \
   >> "${LOG}" 2>&1 < /dev/null &
