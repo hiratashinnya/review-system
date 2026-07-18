@@ -79,8 +79,9 @@ class BuildGitArgvHappyPathTests(unittest.TestCase):
 
 class BuildGitArgvRejectionTests(unittest.TestCase):
     def test_unknown_verb_is_rejected(self):
-        with self.assertRaises(GitgateError):
+        with self.assertRaises(GitgateError) as raised:
             build_git_argv(["merge", "feature"])
+        self.assertIn("publish-info", str(raised.exception))
         with self.assertRaises(GitgateError):
             build_git_argv(["pull"])
         with self.assertRaises(GitgateError):
@@ -183,12 +184,22 @@ class MainSubprocessTests(unittest.TestCase):
     def test_publish_info_reports_only_fixed_origin_and_same_name_remote_ref(self):
         local_sha = "a" * 40
         remote_sha = "b" * 40
+        sensitive_userinfo = "account:credential"
         completed = [
-            subprocess.CompletedProcess([], 0, "https://github.com/o/r.git\n", ""),
             subprocess.CompletedProcess(
                 [],
                 0,
-                "git@github.com:o/r.git\nssh://git@github.com/o/r.git\n",
+                f"https://{sensitive_userinfo}@github.com:8443/o/r.git\n",
+                "",
+            ),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                (
+                    "git@github.com:o/r.git\n"
+                    f"ssh://{sensitive_userinfo}@github.com:2222/o/r.git\n"
+                    "https://github.com/o/r.git\n"
+                ),
                 "",
             ),
             subprocess.CompletedProcess([], 0, "feature/publish\n", ""),
@@ -203,6 +214,7 @@ class MainSubprocessTests(unittest.TestCase):
                 rc = gitgate_cli.main(["publish-info"])
 
         self.assertEqual(rc, 0)
+        self.assertNotIn(sensitive_userinfo, stdout.getvalue())
         self.assertEqual(
             [call.args[0] for call in run.call_args_list],
             [
@@ -224,10 +236,11 @@ class MainSubprocessTests(unittest.TestCase):
             {
                 "current_branch": "feature/publish",
                 "local_commit": local_sha,
-                "origin_fetch_url": "https://github.com/o/r.git",
+                "origin_fetch_url": "https://***@github.com:8443/o/r.git",
                 "origin_push_urls": [
                     "git@github.com:o/r.git",
-                    "ssh://git@github.com/o/r.git",
+                    "ssh://***@github.com:2222/o/r.git",
+                    "https://github.com/o/r.git",
                 ],
                 "remote_commit": remote_sha,
                 "remote_exists": True,
@@ -237,8 +250,11 @@ class MainSubprocessTests(unittest.TestCase):
 
     def test_publish_info_falls_back_to_fetch_url_and_reports_missing_remote_ref(self):
         local_sha = "c" * 40
+        sensitive_userinfo = "fallback-userinfo"
         completed = [
-            subprocess.CompletedProcess([], 0, "git@github.com:o/r.git\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, f"https://{sensitive_userinfo}@github.com/o/r.git\n", ""
+            ),
             subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "feature/new\n", ""),
             subprocess.CompletedProcess([], 0, local_sha + "\n", ""),
@@ -254,13 +270,14 @@ class MainSubprocessTests(unittest.TestCase):
             {
                 "current_branch": "feature/new",
                 "local_commit": local_sha,
-                "origin_fetch_url": "git@github.com:o/r.git",
-                "origin_push_urls": ["git@github.com:o/r.git"],
+                "origin_fetch_url": "https://***@github.com/o/r.git",
+                "origin_push_urls": ["https://***@github.com/o/r.git"],
                 "remote_commit": None,
                 "remote_exists": False,
                 "remote_ref": "refs/heads/feature/new",
             },
         )
+        self.assertNotIn(sensitive_userinfo, stdout.getvalue())
 
     def test_publish_info_preserves_git_error_and_exit_code(self):
         failed = subprocess.CompletedProcess([], 128, "", "fatal: no origin\n")

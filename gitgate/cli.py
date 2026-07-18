@@ -31,6 +31,9 @@ BRANCH_NAME_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 # 安全 charset（`{ }` 等は含めない＝過剰許可を避ける）。
 REF_RE = re.compile(r"^[A-Za-z0-9._/@~^-]+$")
 INTEGER_RE = re.compile(r"^[0-9]+$")
+SCHEME_URL_USERINFO_RE = re.compile(
+    r"^([A-Za-z][A-Za-z0-9+.-]*://)[^/?#]*@(.*)$"
+)
 
 
 def _reject_control_chars(value, what):
@@ -80,6 +83,14 @@ def validate_grep_pattern(value):
     # `--grep=<pat>` の単一引数としてデータ渡しする（list 渡し＝shell 解釈なし）。改行・NUL のみ拒否。
     _reject_control_chars(value, "grep pattern")
     return value
+
+
+def _redact_url_userinfo(url):
+    """scheme URL の authority にある userinfo だけを伏せ、repository 識別情報を保つ。"""
+    match = SCHEME_URL_USERINFO_RE.match(url)
+    if match is None:
+        return url
+    return f"{match.group(1)}***@{match.group(2)}"
 
 
 # --- verb ハンドラ ----------------------------------------------------------
@@ -267,8 +278,8 @@ def run_publish_info(args):
     info = {
         "current_branch": branch,
         "local_commit": local_commit,
-        "origin_fetch_url": origin_fetch_url,
-        "origin_push_urls": origin_push_urls,
+        "origin_fetch_url": _redact_url_userinfo(origin_fetch_url),
+        "origin_push_urls": [_redact_url_userinfo(url) for url in origin_push_urls],
         "remote_commit": matches[0] if matches else None,
         "remote_exists": bool(matches),
         "remote_ref": remote_ref,
@@ -288,6 +299,7 @@ VERB_HANDLERS = {
     "diff": verb_diff,
     "log": verb_log,
 }
+ALLOWED_VERBS = {*VERB_HANDLERS, "publish-info"}
 
 
 def build_git_argv(argv):
@@ -298,7 +310,7 @@ def build_git_argv(argv):
     verb = argv[0]
     handler = VERB_HANDLERS.get(verb)
     if handler is None:
-        allowed = ", ".join(sorted(VERB_HANDLERS))
+        allowed = ", ".join(sorted(ALLOWED_VERBS))
         raise GitgateError(f"unknown verb {verb!r}; allowed verbs: {allowed}")
     return handler(argv[1:])
 

@@ -10,6 +10,7 @@ commit・テスト済みの worktree を、認可済み実装 subagent から dr
 ## 境界
 
 - 明示的に認可された実装 subagent だけで使う。main thread では実行しない。
+- `agents/openai.yaml` は公式 Codex skill interface manifest 契約である。issue-implementer からの明示参照専用にするため、`policy.allow_implicit_invocation: false` を設定する。
 - branch 作成、stage、commit、テスト実行、レビュー、merge を行わない。commit と必要なテストの成功が確認済みであることを入力条件にする。
 - `yeet` を汎用公開フローとして置き換えない。`issue-pipeline` の Issue 選択・委譲・レビュー・merge 管理も置き換えない。
 - 対象 worktree を各 network command の実行時 cwd にする。network command に `git -C` を使わない。
