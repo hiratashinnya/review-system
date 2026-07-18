@@ -74,10 +74,24 @@ fi
 # まずは検知した瞬間の時刻を見えるようにする。StopFailure は出力・終了コードが無視されるため、
 # tmux ペインへ直接ドラフト注入する(Enter は送らない=まだ解除前に新規ターンを送信して
 # 即座に再度レートリミットへ突入するのを防ぐ。あくまで表示のみ)。
+# 安全対策(レビューで発覚した抜け穴の是正):
+#   - 対象ペインの前景が claude 系であることを確認してから注入する(resume-watcher.sh の
+#     is_claude_pane と同じ考え方。前景が既にシェル/別プログラムに戻っていると誤爆するため)。
+#   - 注入前に入力欄をクリア(C-u)する。多重発火時に前回のドラフトへ連結されたり、
+#     後で resume-watcher.sh が送る継続メッセージと連結して1行の壊れた文になるのを防ぐ。
+#   - tmux 呼び出しは timeout で打ち切る。StopFailure フックの15秒タイムアウト内で
+#     本来の役目(watcher 起動)まで確実に到達できるようにするため。
 hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
 if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
-  tmux send-keys -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
-  log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
+  pane_cmd_re="${CLAUDE_RL_PANE_CMD_RE:-^(claude|node)$}"
+  pane_cmd="$(timeout 3 tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null || true)"
+  if [ -n "$pane_cmd" ] && printf '%s' "$pane_cmd" | grep -qiE -- "$pane_cmd_re"; then
+    timeout 3 tmux send-keys -t "$pane" C-u 2>>"$LOG" || true
+    timeout 3 tmux send-keys -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
+    log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
+  else
+    log "pane foreground is not claude (current='${pane_cmd}'); skip hit-time announcement"
+  fi
 fi
 
 # --- ウォッチャを切り離して起動(フックは即終了。出力は無視されるため fire-and-forget) ---

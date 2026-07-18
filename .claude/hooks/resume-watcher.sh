@@ -187,17 +187,22 @@ fi
 # 現在時刻)・現在時刻・解除済みである旨を注入直前に毎回組み立てる。
 build_continue_msg() {
   local reset_str now_str
-  now_str="$(date '+%H:%M:%S')"
-  if [ -n "${reset_epoch:-}" ]; then
-    reset_str="$(date -d "@${reset_epoch}" '+%H:%M:%S' 2>/dev/null || printf '%s' "$now_str")"
-  else
-    reset_str="$now_str"
-  fi
   if [ -n "$CONTINUE_MSG_OVERRIDE" ]; then
     printf '%s' "$CONTINUE_MSG_OVERRIDE"
     return 0
   fi
-  printf 'レートリミットは解除されました(解除時刻 %s ごろ／現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$reset_str" "$now_str"
+  now_str="$(date '+%H:%M:%S')"
+  # reset_epoch が取れていない(バナー消滅待ちにフォールバックした)場合、reset_str を
+  # now_str で埋めると「解除時刻」と「現在時刻」が同じ値の重複表示になり、実際の解除時刻を
+  # 示すという目的を果たせない。取得できていないときは解除時刻の節ごと省く。
+  if [ -n "${reset_epoch:-}" ]; then
+    reset_str="$(date -d "@${reset_epoch}" '+%H:%M:%S' 2>/dev/null || true)"
+  fi
+  if [ -n "${reset_str:-}" ]; then
+    printf 'レートリミットは解除されました(解除時刻 %s ごろ／現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$reset_str" "$now_str"
+  else
+    printf 'レートリミットは解除されました(現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$now_str"
+  fi
 }
 
 # --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
@@ -228,6 +233,9 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
   else
     log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & banner cleared (post-reset); send '${msg}'"
   fi
+  # 注入前に入力欄をクリア(C-u)。on-rate-limit.sh が送った①の検知時刻ドラフト等、
+  # 残存テキストと連結して1行の壊れたメッセージが送信されるのを防ぐ。
+  tmux send-keys -t "$PANE" C-u 2>>"$LOG"
   tmux send-keys -t "$PANE" "$msg" 2>>"$LOG"
   sleep 1
   tmux send-keys -t "$PANE" Enter 2>>"$LOG"
