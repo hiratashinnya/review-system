@@ -11,6 +11,10 @@ SKILL_DIR = ROOT / ".agents" / "skills" / "worktree-publish"
 
 def _top_level_mapping_block(text, key):
     """汎用 YAML 依存を追加せず、この manifest の2-space mapping だけを切り出す。"""
+    definitions = list(re.finditer(rf"(?m)^{re.escape(key)}\s*:", text))
+    if len(definitions) != 1:
+        raise AssertionError(f"{key} mapping must be defined exactly once")
+
     match = re.search(
         rf"(?ms)^{re.escape(key)}:\s*\n(?P<body>(?:^[ ]+[^\n]*(?:\n|$))*)",
         text,
@@ -103,6 +107,36 @@ policy:
 """
 
         with self.assertRaisesRegex(AssertionError, "defined exactly once"):
+            _assert_manifest_contract(text)
+
+    def test_rejects_duplicate_top_level_policy_mapping(self):
+        text = """\
+interface:
+  default_prompt: "Use $worktree-publish to publish the worktree."
+policy:
+  allow_implicit_invocation: false
+policy:
+  allow_implicit_invocation: true
+"""
+
+        with self.assertRaisesRegex(
+            AssertionError, "policy mapping must be defined exactly once"
+        ):
+            _assert_manifest_contract(text)
+
+    def test_rejects_duplicate_top_level_interface_mapping(self):
+        text = """\
+interface:
+  default_prompt: "Use $worktree-publish to publish the worktree."
+policy:
+  allow_implicit_invocation: false
+interface:
+  default_prompt: "Use $worktree-publisher to publish the worktree."
+"""
+
+        with self.assertRaisesRegex(
+            AssertionError, "interface mapping must be defined exactly once"
+        ):
             _assert_manifest_contract(text)
 
 
