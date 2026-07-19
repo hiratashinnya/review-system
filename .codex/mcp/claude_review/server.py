@@ -38,15 +38,36 @@ RATE_LIMIT_ERROR_RE = re.compile(
 ANSI_ESCAPE_RE = re.compile(
     r"(?:\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~])"
 )
+RATE_LIMIT_PHRASE = (
+    r"(?:"
+    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded)"
+    r")"
+)
+RATE_LIMIT_PHRASE_RE = re.compile(RATE_LIMIT_PHRASE, re.IGNORECASE)
+RATE_LIMIT_PHRASE_BOUNDARY = (
+    r"(?=\s*(?:$|[.;:·—-]|resets?\b|retry(?:-after|\s+after)?\b|"
+    r"please(?:\s+try)?\b|try(?:\s+again)?\b|\())"
+)
 RATE_LIMIT_CANONICAL_RE = re.compile(
     r"^\s*(?:\{\s*(?:partial\s+)?)?(?:error:\s*)?(?:"
-    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
-    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
+    + RATE_LIMIT_PHRASE
+    + RATE_LIMIT_PHRASE_BOUNDARY
+    + r"|"
     r"too many requests(?=\s*(?:[.;:·—-]\s*)?(?:resets?\b|retry(?:-after|\s+after)?\b|please\s+try\b|try\s+again\b))|"
     r"(?:http(?:\s+error)?\s+429|429\s+too many requests)\b|"
     r"rate_limit_error\b|"
     r"rate_limit\s+error\b"
     r")",
+    re.IGNORECASE,
+)
+RATE_LIMIT_DIAGNOSTIC_RE = re.compile(
+    RATE_LIMIT_PHRASE
+    + RATE_LIMIT_PHRASE_BOUNDARY
+    + r"|"
+    r"too many requests(?=\s*(?:[.;:·—-]\s*)?(?:resets?\b|retry(?:-after|\s+after)?\b|please\s+try\b|try\s+again\b))|"
+    r"(?:http(?:\s+error)?\s+429|429\s+too many requests)\b|"
+    r"rate_limit_error\b|rate_limit\s+error\b",
     re.IGNORECASE,
 )
 RESET_CLAUSE_RE = re.compile(
@@ -201,7 +222,30 @@ def current_block() -> tuple[bool, str]:
 
 def normalize_diagnostic_text(text: str) -> str:
     """Remove terminal decoration that must not affect error classification."""
-    return ANSI_ESCAPE_RE.sub("", text or "").replace("\ufeff", "")
+    lines = [strip_leading_terminal_fragments(line) for line in (text or "").splitlines(keepends=True)]
+    return ANSI_ESCAPE_RE.sub("", "".join(lines)).replace("\ufeff", "")
+
+
+def strip_leading_terminal_fragments(line: str) -> str:
+    """Strip complete or truncated terminal prefixes without consuming banner text."""
+    offset = len(line) - len(line.lstrip(" \t\ufeff"))
+    while line.startswith("\x1b", offset):
+        phrase = RATE_LIMIT_PHRASE_RE.search(line, offset + 1)
+        if line.startswith("\x1b[", offset) and phrase:
+            parameters = line[offset + 2 : phrase.start()]
+            if re.fullmatch(r"[0-?]*[ -/]*", parameters):
+                line = line[:offset] + line[phrase.start() :]
+                continue
+        if line.startswith("\x1b]", offset) and phrase:
+            prefix = line[offset : phrase.start()]
+            if "\x07" not in prefix and "\x1b\\" not in prefix:
+                line = line[:offset] + line[phrase.start() :]
+                continue
+        complete = ANSI_ESCAPE_RE.match(line, offset)
+        if not complete:
+            break
+        line = line[:offset] + line[complete.end() :]
+    return line
 
 
 def first_rate_limit_banner(text: str) -> str | None:
@@ -213,10 +257,10 @@ def first_rate_limit_banner(text: str) -> str | None:
 
 
 def diagnostic_rate_limit_banner(text: str) -> str | None:
-    """Find a canonical banner at the start of a diagnostic line."""
+    """Find a strong banner in a diagnostic line, including after log prefixes."""
     for line in normalize_diagnostic_text(text).splitlines():
-        if RATE_LIMIT_CANONICAL_RE.search(line):
-            return line.strip()
+        if match := RATE_LIMIT_DIAGNOSTIC_RE.search(line):
+            return line[match.start() :].strip()
     return None
 
 
@@ -447,6 +491,7 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
         model,
         "--fallback-model",
         "opus",
+        "--safe-mode",
         "--permission-mode",
         "plan",
         "--tools",

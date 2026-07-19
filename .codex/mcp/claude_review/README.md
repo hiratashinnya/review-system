@@ -53,10 +53,15 @@ that startup cwd. Paths outside that tree return a tool error before any
 The wrapper passes:
 
 ```text
---model <opus|fable> --fallback-model opus --permission-mode plan --tools Read,Glob,Grep,LS --output-format json --no-session-persistence
+--model <opus|fable> --fallback-model opus --safe-mode --permission-mode plan --tools Read,Glob,Grep,LS --output-format json --no-session-persistence
 ```
 
-It does not pass edit, write, shell, bypass, or accept-edits permissions.
+`--safe-mode` disables checkout-controlled CLAUDE.md, skills, plugins, hooks,
+MCP servers, commands, agents, and other project customizations before the
+review child starts. The shared prompt explicitly tells the reviewer to read
+`AGENTS.md`; project customization does not need to remain enabled for that
+contract. Admin-managed Claude policy settings still apply. The wrapper also
+does not pass edit, write, shell, bypass, or accept-edits permissions.
 
 Before calling `claude -p`, it checks only the wrapper-owned cooldown file:
 
