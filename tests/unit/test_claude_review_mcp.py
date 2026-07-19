@@ -240,6 +240,27 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             "429 handling is broken at line 12; add a regression test.",
             "rate_limit state handling is correct at line 20.",
             "Too many requests handling at line 15 is missing.",
+            "429: response handling is broken at server.py:12.",
+            "rate_limit: state handling is broken at server.py:20.",
+            "Too many requests: handling is broken at server.py:15.",
+        )
+        for review in reviews:
+            with self.subTest(review=review):
+                with tempfile.TemporaryDirectory() as tmp:
+                    proc = Completed(["claude"], stdout=json.dumps({"result": review}))
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "run_command", return_value=proc):
+                            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                result = server.claude_review({"prompt": "review"})
+                        state_exists = (Path(tmp) / "claude-review-mcp" / "rate-limit.json").exists()
+
+                self.assertEqual(result, review)
+                self.assertFalse(state_exists)
+
+    def test_successful_decorated_review_and_mid_body_quote_are_not_recorded(self):
+        reviews = (
+            "\x1b[32mThe review covers 429 and rate_limit handling.\x1b[0m",
+            "The review quotes a diagnostic below:\nYou've hit your session limit; resets 5pm",
         )
         for review in reviews:
             with self.subTest(review=review):
@@ -438,6 +459,73 @@ class ClaudeReviewMcpTests(unittest.TestCase):
 
         self.assertIn("hit a rate limit", str(ctx.exception))
         self.assertTrue(state_exists)
+
+    def test_decorated_and_prefixed_rate_limit_banners_fail_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        cases = (
+            Completed(
+                ["claude"],
+                stdout=json.dumps(
+                    {"result": f"\x1b[31mYou've hit your session limit; resets {reset_at}\x1b[0m"}
+                ),
+            ),
+            Completed(
+                ["claude"],
+                stdout=json.dumps({"result": "clean"}),
+                stderr=f"\x1b[31mYou've hit your session limit; resets {reset_at}\x1b[0m",
+                returncode=1,
+            ),
+            Completed(
+                ["claude"],
+                stdout=json.dumps({"result": "clean"}),
+                stderr=f"warning: transient wrapper output\nYou've hit your session limit; resets {reset_at}",
+                returncode=1,
+            ),
+            Completed(
+                ["claude"],
+                stdout=f"\ufeff   You've hit your session limit; resets {reset_at}",
+                returncode=1,
+            ),
+        )
+        for proc in cases:
+            with self.subTest(stdout=proc.stdout, stderr=proc.stderr):
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "run_command", return_value=proc):
+                            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                with self.assertRaises(server.ToolError) as ctx:
+                                    server.claude_review({"prompt": "review"})
+                        state_exists = (Path(tmp) / "claude-review-mcp" / "rate-limit.json").exists()
+
+                self.assertIn("hit a rate limit", str(ctx.exception))
+                self.assertTrue(state_exists)
+
+    def test_failed_nested_rate_limit_error_fails_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        stdout = json.dumps(
+            {
+                "type": "error",
+                "error": {
+                    "type": "rate_limit_error",
+                    "message": f"Too many requests; resets {reset_at}",
+                },
+            }
+        )
+        proc = Completed(["claude"], stdout=stdout, returncode=1)
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(server, "run_command", return_value=proc):
+                    with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.claude_review({"prompt": "review"})
+                state = json.loads(
+                    (Path(tmp) / "claude-review-mcp" / "rate-limit.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+        self.assertIn("hit a rate limit", str(ctx.exception))
+        self.assertIsNotNone(state["reset_at"])
 
     def test_successful_unstructured_rate_limit_banners_fail_closed(self):
         reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()

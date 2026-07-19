@@ -35,14 +35,17 @@ RATE_LIMIT_ERROR_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
-RATE_LIMIT_BANNER_RE = re.compile(
+ANSI_ESCAPE_RE = re.compile(
+    r"(?:\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~])"
+)
+RATE_LIMIT_CANONICAL_RE = re.compile(
     r"^\s*(?:\{\s*(?:partial\s+)?)?(?:error:\s*)?(?:"
     r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
     r"(?:session|usage|rate) limit (?:reached|exceeded)|"
-    r"too many requests(?=\s*(?:$|[.;:·—-]|resets?\b|please\b|try\b))|"
-    r"(?:http(?:\s+error)?\s+)?429(?=\s*(?:$|[.;:·—-]|too many requests\b|error\b|response\b|status\b))|"
-    r"rate_limit_error(?=\s*(?:$|[.;:·—-]|resets?\b))|"
-    r"rate_limit(?=\s*(?:$|[.;:·—-]|error\b|resets?\b))"
+    r"too many requests(?=\s*(?:[.;:·—-]\s*)?(?:resets?\b|retry(?:-after|\s+after)?\b|please\s+try\b|try\s+again\b))|"
+    r"(?:http(?:\s+error)?\s+429|429\s+too many requests)\b|"
+    r"rate_limit_error\b|"
+    r"rate_limit\s+error\b"
     r")",
     re.IGNORECASE,
 )
@@ -196,37 +199,103 @@ def current_block() -> tuple[bool, str]:
     return False, "no active Claude rate-limit block found"
 
 
-def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | None:
-    if stderr and RATE_LIMIT_BANNER_RE.search(stderr):
-        return stderr
+def normalize_diagnostic_text(text: str) -> str:
+    """Remove terminal decoration that must not affect error classification."""
+    return ANSI_ESCAPE_RE.sub("", text or "").replace("\ufeff", "")
 
+
+def first_rate_limit_banner(text: str) -> str | None:
+    """Return a canonical banner only when it starts the supplied content."""
+    normalized = normalize_diagnostic_text(text).lstrip()
+    if normalized and RATE_LIMIT_CANONICAL_RE.search(normalized):
+        return normalized
+    return None
+
+
+def diagnostic_rate_limit_banner(text: str) -> str | None:
+    """Find a canonical banner at the start of a diagnostic line."""
+    for line in normalize_diagnostic_text(text).splitlines():
+        if RATE_LIMIT_CANONICAL_RE.search(line):
+            return line.strip()
+    return None
+
+
+def structured_rate_limit_error(data: dict[str, Any]) -> str | None:
+    """Extract explicit top-level or nested structured rate-limit errors."""
+    error = data.get("error")
+    fields: list[str] = []
+    error_type: str | None = None
+    if isinstance(error, str):
+        error_type = normalize_diagnostic_text(error).strip()
+        fields.append(error)
+    elif isinstance(error, dict):
+        nested_type = error.get("type")
+        if isinstance(nested_type, str):
+            error_type = normalize_diagnostic_text(nested_type).strip()
+            fields.append(nested_type)
+        nested_message = error.get("message")
+        if isinstance(nested_message, str):
+            fields.append(nested_message)
+
+    for key in ("message", "last_assistant_message"):
+        value = data.get(key)
+        if isinstance(value, str):
+            fields.append(value)
+
+    explicit_type = error_type and error_type.lower() in {"rate_limit", "rate_limit_error"}
+    joined = "\n".join(fields)
+    if explicit_type:
+        return normalize_diagnostic_text(joined)
+    return diagnostic_rate_limit_banner(joined)
+
+
+def successful_rate_limit_error_text(
+    data: Any, raw_stdout: str, stderr: str
+) -> str | None:
+    """Apply strict rate-limit evidence rules to an exit-zero response."""
+    stderr_banner = diagnostic_rate_limit_banner(stderr)
+    if stderr_banner:
+        return stderr_banner
+    if isinstance(data, dict):
+        structured = structured_rate_limit_error(data)
+        if data.get("error") is not None and structured:
+            return structured
+        result = data.get("result")
+        if isinstance(result, str):
+            return first_rate_limit_banner(result)
+        return None
+    return first_rate_limit_banner(raw_stdout)
+
+
+def failed_rate_limit_error_text(data: Any, raw_stdout: str, stderr: str) -> str | None:
+    """Inspect structured errors and diagnostic lines after a failed process."""
+    stderr_banner = diagnostic_rate_limit_banner(stderr)
+    if stderr_banner:
+        return stderr_banner
+    if isinstance(data, dict):
+        structured = structured_rate_limit_error(data)
+        if structured:
+            return structured
+        for key in ("message", "last_assistant_message"):
+            value = data.get(key)
+            if isinstance(value, str) and (banner := diagnostic_rate_limit_banner(value)):
+                return banner
+        result = data.get("result")
+        if isinstance(result, str):
+            return first_rate_limit_banner(result)
+        return None
+    return diagnostic_rate_limit_banner(raw_stdout)
+
+
+def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | None:
+    normalized_stdout = normalize_diagnostic_text(stdout).strip()
     try:
-        data = json.loads(stdout) if stdout else None
+        data = json.loads(normalized_stdout) if normalized_stdout else None
     except json.JSONDecodeError:
         data = None
-    if isinstance(data, dict):
-        result = data.get("result")
-        error = data.get("error")
-        if isinstance(result, str) and RATE_LIMIT_BANNER_RE.search(result):
-            return result
-        if isinstance(error, str) and RATE_LIMIT_BANNER_RE.search(error):
-            fields = [error]
-            fields.extend(
-                value
-                for key in ("message", "last_assistant_message")
-                if isinstance((value := data.get(key)), str)
-            )
-            return "\n".join(fields)
-        if returncode != 0:
-            for key in ("message", "last_assistant_message"):
-                value = data.get(key)
-                if isinstance(value, str) and RATE_LIMIT_BANNER_RE.search(value):
-                    return value
-        return None
-
-    if stdout and RATE_LIMIT_BANNER_RE.search(stdout):
-        return stdout
-    return None
+    if returncode == 0:
+        return successful_rate_limit_error_text(data, stdout, stderr)
+    return failed_rate_limit_error_text(data, stdout, stderr)
 
 
 def detect_and_record_rate_limit_details(
