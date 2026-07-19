@@ -25,35 +25,30 @@ DEFAULT_WORKSPACE = Path(
 )
 RATE_LIMIT_ERROR_RE = re.compile(
     r"("
-    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
-    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
+    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit"
+    r"(?=\s*(?:$|[.;:·—-]|resets?\b|please\b|try\b|\())|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded)"
+    r"(?=\s*(?:$|[.;:·—-]|resets?\b|please\b|try\b|\())|"
     r"too many requests|"
     r"\b429\b|"
     r"rate_limit(?:_error)?"
     r")",
     re.IGNORECASE,
 )
-RATE_LIMIT_RESULT_RE = re.compile(
-    r"^\s*(?:error:\s*)?("
+RATE_LIMIT_BANNER_RE = re.compile(
+    r"^\s*(?:\{\s*(?:partial\s+)?)?(?:error:\s*)?(?:"
     r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
     r"(?:session|usage|rate) limit (?:reached|exceeded)|"
-    r"too many requests|"
-    r"\b429\b|"
-    r"rate_limit(?:_error)?"
+    r"too many requests(?=\s*(?:$|[.;:·—-]|resets?\b|please\b|try\b))|"
+    r"(?:http(?:\s+error)?\s+)?429(?=\s*(?:$|[.;:·—-]|too many requests\b|error\b|response\b|status\b))|"
+    r"rate_limit_error(?=\s*(?:$|[.;:·—-]|resets?\b))|"
+    r"rate_limit(?=\s*(?:$|[.;:·—-]|error\b|resets?\b))"
     r")",
     re.IGNORECASE,
 )
-RATE_LIMIT_RAW_BANNER_RE = re.compile(
-    r"^\s*(?:\{\s*(?:partial\s+)?)?(?:error:\s*)?("
-    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
-    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
-    r"too many requests|"
-    r"\b429\b|"
-    r"rate_limit(?:_error)?"
-    r")",
-    re.IGNORECASE,
+RESET_CLAUSE_RE = re.compile(
+    r"\bresets?\s*(?:(?:at|on|in)\s+|[:=]\s*)?([^\n\r;]+)", re.IGNORECASE
 )
-RESET_RE = re.compile(r"resets?\s+([^\n\r.;]+)", re.IGNORECASE)
 
 
 class ToolError(RuntimeError):
@@ -93,14 +88,25 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime | None:
+def parse_reset_hint(
+    text: str, base: dt.datetime | None = None, *, allow_bare: bool = False
+) -> dt.datetime | None:
     """Best-effort parser for Claude rate-limit reset hints."""
     base = base or now_tz()
     raw = (text or "").strip()
     if not raw:
         return None
 
-    for match in re.finditer(r"\b(\d{10})(?:\.\d+)?\b", raw):
+    reset_match = RESET_CLAUSE_RE.search(raw)
+    if reset_match:
+        hint = reset_match.group(1).strip()
+    elif allow_bare:
+        hint = raw
+    else:
+        return None
+    hint = re.sub(r"\([^)]*\)", "", hint).strip()
+
+    for match in re.finditer(r"\b(\d{10})(?:\.\d+)?\b", hint):
         try:
             return dt.datetime.fromtimestamp(int(match.group(1)), tz=base.tzinfo)
         except (OverflowError, OSError, ValueError):
@@ -108,7 +114,7 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
 
     iso_match = re.search(
         r"\b(\d{4}-\d{2}-\d{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)\b",
-        raw,
+        hint,
     )
     if iso_match:
         value = iso_match.group(1).replace("Z", "+00:00")
@@ -121,10 +127,6 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
             return parsed.astimezone(base.tzinfo)
         except ValueError:
             pass
-
-    reset_match = RESET_RE.search(raw)
-    hint = reset_match.group(1).strip() if reset_match else raw
-    hint = re.sub(r"\([^)]*\)", "", hint).strip()
 
     time_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", hint, re.IGNORECASE)
     if time_match:
@@ -173,7 +175,7 @@ def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
         return None
     structured_reset = data.get("reset_at")
     if isinstance(structured_reset, str):
-        reset = parse_reset_hint(structured_reset)
+        reset = parse_reset_hint(structured_reset, allow_bare=True)
         if reset:
             return reset
 
@@ -195,7 +197,7 @@ def current_block() -> tuple[bool, str]:
 
 
 def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | None:
-    if returncode != 0 and stderr and RATE_LIMIT_ERROR_RE.search(stderr):
+    if stderr and RATE_LIMIT_BANNER_RE.search(stderr):
         return stderr
 
     try:
@@ -203,24 +205,27 @@ def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | No
     except json.JSONDecodeError:
         data = None
     if isinstance(data, dict):
-        fields = []
-        for key in ("error", "message", "last_assistant_message", "result"):
-            value = data.get(key)
-            if key == "result" and isinstance(value, str):
-                if RATE_LIMIT_RESULT_RE.search(value):
-                    fields.append(value)
-            elif returncode != 0 and isinstance(value, str):
-                fields.append(value)
-        structured = "\n".join(fields)
-        if structured and RATE_LIMIT_ERROR_RE.search(structured):
-            return structured
+        result = data.get("result")
+        error = data.get("error")
+        if isinstance(result, str) and RATE_LIMIT_BANNER_RE.search(result):
+            return result
+        if isinstance(error, str) and RATE_LIMIT_BANNER_RE.search(error):
+            fields = [error]
+            fields.extend(
+                value
+                for key in ("message", "last_assistant_message")
+                if isinstance((value := data.get(key)), str)
+            )
+            return "\n".join(fields)
+        if returncode != 0:
+            for key in ("message", "last_assistant_message"):
+                value = data.get(key)
+                if isinstance(value, str) and RATE_LIMIT_BANNER_RE.search(value):
+                    return value
         return None
 
-    if stdout:
-        if returncode == 0 and RATE_LIMIT_RAW_BANNER_RE.search(stdout):
-            return stdout
-        if returncode != 0 and RATE_LIMIT_ERROR_RE.search(stdout):
-            return stdout
+    if stdout and RATE_LIMIT_BANNER_RE.search(stdout):
+        return stdout
     return None
 
 
@@ -420,9 +425,12 @@ def claude_review(args: dict[str, Any]) -> str:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise ToolError("claude -p returned invalid JSON output") from exc
-    if isinstance(data, dict) and isinstance(data.get("result"), str):
-        return data["result"]
-    return json.dumps(data, ensure_ascii=False)
+    if not isinstance(data, dict):
+        raise ToolError("claude -p returned invalid JSON result schema")
+    result = data.get("result")
+    if not isinstance(result, str) or not result.strip():
+        raise ToolError("claude -p returned invalid JSON result schema")
+    return result
 
 
 def version_line(bin_name: str, args: list[str]) -> str:
