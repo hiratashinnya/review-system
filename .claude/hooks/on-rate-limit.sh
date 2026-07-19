@@ -21,11 +21,14 @@
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 共有ガード(ペイン判定・tmux timeout ラッパ・ドラフトマーカー)。resume-watcher.sh と共有。
-# shellcheck source=lib-pane-guard.sh
-source "${HOOK_DIR}/lib-pane-guard.sh"
-STATE_DIR="${HOME}/.claude/rate-limit-recovery"
-mkdir -p "$STATE_DIR" 2>/dev/null || true
+# 共有ガード(状態パス・ペイン判定・tmux timeout ラッパ)。resume-watcher.sh と共有。
+# lib が無ければ本フックは機能しない=誤動作より即中断が安全。明示的に失敗ログして exit。
+if ! source "${HOOK_DIR}/lib-pane-guard.sh" 2>/dev/null; then
+  printf '%s [hook] FATAL: lib-pane-guard.sh を読み込めません; abort\n' "$(date '+%F %T')" \
+    >> "${HOME}/.claude/rate-limit-recovery/hook.log" 2>/dev/null || true
+  exit 0
+fi
+STATE_DIR="$RL_STATE_DIR"
 LOG="${STATE_DIR}/hook.log"
 
 log() { printf '%s [hook] %s\n' "$(date '+%F %T')" "$*" >> "$LOG" 2>/dev/null || true; }
@@ -71,38 +74,22 @@ if [ -z "${TMUX:-}" ] || [ -z "${pane}" ]; then
   exit 0
 fi
 
-# --- ①検知時刻をチャット(ペイン)に表示 ---
-# LLM が「レートリミットに当たった」事実は認識できても、その後どれだけ時間が経過したかを
-# 見失い、解除後もサブエージェント使用等の通常プロセスから逸脱する事象への対策。
-# まずは検知した瞬間の時刻を見えるようにする。StopFailure は出力・終了コードが無視されるため、
-# tmux ペインへ直接ドラフト注入する(Enter は送らない=まだ解除前に新規ターンを送信して
-# 即座に再度レートリミットへ突入するのを防ぐ。あくまで表示のみ)。
-# 安全対策(コードレビュー指摘の是正):
-#   - 前景が claude 系のときだけ注入(rl_is_claude_pane・共有ガード)。前景がシェル/別
-#     プログラムに戻っていると誤爆するため。
-#   - ここでは入力欄をクリアしない=検知時に入力欄へ既にあるユーザーの手打ちテキストを
-#     消さない。ドラフトはマーカー付きで送り、後段②が「自分のドラフトだけ」を消す。
-#   - 多重発火の重なり(2プロセスの送出が交互に混ざり壊れる)を非ブロッキング flock で防止。
-#   - tmux 呼び出しは timeout ラップ(rl_tmux)。StopFailure フックの15秒予算内で本来の
-#     役目(watcher 起動)まで確実に到達させるため。
+# --- ①検知時刻を記録し、status-bar へ一瞬フラッシュ(out-of-band=入力欄には触れない) ---
+# LLM が解除後も「まだ制限中」と誤認し、サブエージェント使用等の通常プロセスから逸脱する
+# 事象への対策。検知時刻は状態ファイルへ記録し、②(resume-watcher.sh)が解除時の送信
+# メッセージへ折り込むことで LLM にも確実に届ける(＝送信されるので文脈に入る)。
+# 人間向けには tmux の status-bar へ一瞬フラッシュするだけ。tmux 入力欄(=②と共有する
+# 繊細な状態)には一切書き込まないため、マーカー/行クリア/注入ロックといった調整が不要。
 if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
-  if rl_is_claude_pane "$pane"; then
-    hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
-    ann_lock="${STATE_DIR}/announce-lock.$(printf '%s' "$pane" | tr -c 'A-Za-z0-9' '_')"
-    (
-      # 同一ペインへの二重発火をシリアライズ。取得できなければ別発火が処理中とみなし
-      # 即スキップ(予算も食わない)。サブシェル終了で fd8=ロック自動解放。
-      if command -v flock >/dev/null 2>&1; then
-        exec 8>"$ann_lock" 2>/dev/null || true
-        flock -n 8 2>/dev/null || { log "announce: 別発火が処理中; skip"; exit 0; }
-      fi
-      # マーカー付きドラフトを単一 send-keys でアトミックに送出(Enter は送らない)。
-      rl_tmux send-keys -t "$pane" "${RL_DRAFT_MARKER} ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
-      log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
-    )
-  else
-    log "pane foreground is not claude; skip hit-time announcement"
+  hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
+  # 状態ファイルへアトミックに記録(tmp→mv)。②が rl_hit_file 経由で読む。
+  hit_file="$(rl_hit_file "$pane")"
+  if printf '%s\n' "$hit_time" > "${hit_file}.tmp" 2>/dev/null; then
+    mv -f "${hit_file}.tmp" "$hit_file" 2>/dev/null || true
   fi
+  # status-bar へフラッシュ(入力欄には触れない・失敗しても無視・timeout ラップ)。
+  rl_tmux display-message -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミット検知。解除まで自動待機します。" 2>>"$LOG" || true
+  log "recorded hit time ${hit_time} to ${hit_file}; flashed status-bar (pane=${pane})"
 fi
 
 # --- ウォッチャを切り離して起動(フックは即終了。出力は無視されるため fire-and-forget) ---

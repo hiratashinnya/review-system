@@ -23,14 +23,19 @@ TRANSCRIPT="${3:-}"
 STATE_DIR="${HOME}/.claude/rate-limit-recovery"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 LOG="${STATE_DIR}/watcher.log"
-LOCK="${STATE_DIR}/lock.$(printf '%s' "$PANE" | tr -c 'A-Za-z0-9' '_')"
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 共有ガード(ペイン判定・tmux timeout ラッパ・ドラフトマーカー)。on-rate-limit.sh と共有。
+# 共有ガード(状態パス・ペイン判定・tmux timeout ラッパ)。on-rate-limit.sh と共有。
 # tmux 呼び出しを rl_tmux(timeout ラップ)経由にすることで、tmux ハング時に flock を
-# 永久保持して以後の自動再開を殺すのを防ぐ。
+# 永久保持して以後の自動再開を殺すのを防ぐ。lib が無ければ機能しないので即中断。
 # shellcheck source=lib-pane-guard.sh
-source "${HOOK_DIR}/lib-pane-guard.sh"
+if ! source "${HOOK_DIR}/lib-pane-guard.sh" 2>/dev/null; then
+  printf '%s [watcher] FATAL: lib-pane-guard.sh を読み込めません; abort\n' "$(date '+%F %T')" \
+    >> "$LOG" 2>/dev/null || true
+  exit 0
+fi
+# ペイン別ロックのパスは共有 slug ヘルパで生成(on-rate-limit.sh と同一の正規化・drift 防止)。
+LOCK="${RL_STATE_DIR}/lock.$(rl_pane_slug "$PANE")"
 
 CONTINUE_MSG_OVERRIDE="${CLAUDE_RL_CONTINUE_MSG:-}"  # 明示指定時はそのまま送出(時刻注記なし)。未指定なら②の自動生成文を使う
 RESET_POLL_INTERVAL="${CLAUDE_RL_RESET_POLL_INTERVAL:-15}"   # リセット時刻の再取得ポーリング間隔秒
@@ -181,30 +186,39 @@ else
   exit 0
 fi
 
-# --- ②再開プロンプトへ解除時刻・解除済みの旨を明記する ---
+# --- ②再開プロンプトへ検知/解除/現在時刻・解除済みの旨を明記する ---
 # LLM が「さっきレートリミットに当たったから」と誤って未解除のまま思い込み、サブエージェント
 # 利用等の通常プロセスから逸脱する事象への対策。CLAUDE_RL_CONTINUE_MSG が明示指定されていれば
-# そのまま使う(運用者の意図を優先)。未指定時は解除時刻(reset_epoch があればそれ、無ければ
-# 現在時刻)・現在時刻・解除済みである旨を注入直前に毎回組み立てる。
+# そのまま使う(運用者の意図を優先)。未指定時は、①が状態ファイルへ記録した検知時刻(HIT_STR・
+# 取得できたもののみ)・解除時刻(reset_epoch があるときのみ)・現在時刻・解除済みである旨を
+# 組み立てる。この送信メッセージは Enter で実際に送信されるため、検知時刻が LLM の文脈に入る。
 build_continue_msg() {
-  local reset_str now_str
+  local now_str reset_str parts
   if [ -n "$CONTINUE_MSG_OVERRIDE" ]; then
     printf '%s' "$CONTINUE_MSG_OVERRIDE"
     return 0
   fi
   now_str="$(date '+%H:%M:%S')"
-  # reset_epoch が取れていない(バナー消滅待ちにフォールバックした)場合、reset_str を
-  # now_str で埋めると「解除時刻」と「現在時刻」が同じ値の重複表示になり、実際の解除時刻を
-  # 示すという目的を果たせない。取得できていないときは解除時刻の節ごと省く。
+  # 取得できた時刻の節だけを並べる(未取得の節は出さない=同値の重複や虚偽の時刻を避ける)。
+  parts=""
+  [ -n "${HIT_STR:-}" ] && parts="検知 ${HIT_STR}／"
   if [ -n "${reset_epoch:-}" ]; then
     reset_str="$(date -d "@${reset_epoch}" '+%H:%M:%S' 2>/dev/null || true)"
+    [ -n "${reset_str:-}" ] && parts="${parts}解除 ${reset_str} ごろ／"
   fi
-  if [ -n "${reset_str:-}" ]; then
-    printf 'レートリミットは解除されました(解除時刻 %s ごろ／現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$reset_str" "$now_str"
-  else
-    printf 'レートリミットは解除されました(現在時刻 %s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$now_str"
-  fi
+  parts="${parts}現在 ${now_str}"
+  printf 'レートリミットは解除されました(%s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$parts"
 }
+
+# ①が状態ファイルへ記録した検知時刻を「読み取り即削除」で消費する(次エピソードへ古い値を
+# 持ち越さない)。ここは flock 取得済みの単一 watcher でのみ到達するため競合しない。
+HIT_STR=""
+_hit_file="$(rl_hit_file "$PANE")"
+if [ -f "$_hit_file" ]; then
+  HIT_STR="$(head -n1 "$_hit_file" 2>/dev/null || true)"
+  rm -f "$_hit_file" 2>/dev/null || true
+  log "検知時刻を状態ファイルから取得: '${HIT_STR}'"
+fi
 
 # --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
 # 大原則: リセット待機後、ペインが「作業中でない(アイドル)」なら継続メッセージを注入して再開する。
@@ -234,20 +248,11 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
   else
     log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & banner cleared (post-reset); send '${msg}'"
   fi
-  # 入力欄のクリアは「①のマーカー付きドラフトが入力欄付近に見えるときだけ」行う。
-  # マーカーが無い(=ユーザーが手打ちした別テキスト等)ときはクリアせず、そのまま注入して
-  # 手打ちを巻き込んで消さない。クリア時は C-u+本文を単一 send-keys でアトミックに送出する
-  # (C-u と本文を別呼び出しにすると、片方だけ失敗して「空行のまま」や「未クリア連結」が起きる)。
-  # 注意: C-u は行頭までの消去(unix-line-discard)。①のドラフトは単一行のため通常は完全に
-  # 消えるが、複数行入力の以前の行は残り得る(最善努力)。スクロールバック誤検出を避けるため
-  # 入力欄付近(末尾6行)だけでマーカーを判定する。
-  if pane_tail 6 | grep -qF -- "$RL_DRAFT_MARKER"; then
-    log "inject: ①ドラフト検出; C-u で消去してから注入"
-    rl_tmux send-keys -t "$PANE" C-u "$msg" 2>>"$LOG"
-  else
-    log "inject: ドラフト無し(手打ち等を保全); クリアせず注入"
-    rl_tmux send-keys -t "$PANE" "$msg" 2>>"$LOG"
-  fi
+  # out-of-band 方式のため入力欄に我々の書き込みは無い。よって注入前クリア(C-u)はしない
+  # =ユーザーが手打ち中のテキストを消さない(元の設計に一致)。継続メッセージのみ送出する。
+  # -l で常にリテラル送出(CLAUDE_RL_CONTINUE_MSG に "Enter"/"C-c" 等のキー名が入っても
+  # キーとして誤解釈せず文字列として打つ)。
+  rl_tmux send-keys -t "$PANE" -l "$msg" 2>>"$LOG"
   sleep 1
   rl_tmux send-keys -t "$PANE" Enter 2>>"$LOG"
   sleep "$VERIFY_WAIT"
