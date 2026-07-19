@@ -65,14 +65,19 @@
 #   上記の対象2ロール専用の3層判定とは別に、**agent_type を問わず**（main context 自身・
 #   issue-implementer・pr-reviewer・各 *-author 等すべて）command 文字列を SEGMENT_SPLIT_RE
 #   （`;`/`&&`/`||`/`|`/`(`/`)`/改行/`$(`/backtick）で素朴に（quote-aware ではなく）セグメント分割し、
-#   各セグメントを strip_leading_wrappers（先頭の env 代入・`env` ラッパー・rtk/command/builtin/exec の
-#   純ラッパーを剥がす。ただし対象2ロール専用の strip_wrappers_or_env_reason と異なり、env 代入それ自体
-#   は deny 理由にしない＝他の一般的な用法を妨げない）→ shell_words でトークン化 → 先頭語の
-#   os.path.basename を判定する。
-#     - NETWORK_COMMANDS（curl/wget/nc/ncat/netcat/socat/telnet/ftp/tftp/ssh/scp/sftp/rsync）に
-#       一致すれば deny。
-#     - インタプリタの任意実行フォーム（`bash`/`sh`/`zsh`/`dash` + `-c`、`python`/`python3` + `-c`、
-#       `perl`/`ruby`/`node` + `-e`、`eval`/`source`/`.` 単独）も deny。
+#   各セグメントを shell_words でトークン化し、**セグメント内の全独立トークン**の os.path.basename を
+#   判定する（PR #237 critical 修正・オーナー承認済み「独立トークン一致」。旧「先頭語のみ」判定は
+#   `timeout 5 curl x`・`nice curl x`・`xargs curl x`・`echo x & curl y`・`{ curl z; }`・`sudo curl x`
+#   のように危険コマンドを非先頭トークンに置くだけで記号ゼロですり抜けた＝#227 が脱却した denylist
+#   いたちごっこの再来だった）。
+#     - NETWORK_COMMANDS（curl/wget/nc/ncat/netcat/socat/telnet/ftp/tftp/ssh/scp/sftp/rsync）が
+#       **いずれかの独立トークン**として現れれば deny（`timeout curl`・`sudo curl` 等の wrapper 経由も捕捉）。
+#     - インタプリタの任意実行フォーム（同一セグメント内に `bash`/`sh`/`zsh`/`dash` トークン + `-c`
+#       トークン、`python`/`python3` + `-c`、`perl`/`ruby`/`node` + `-e`、または `eval`/`source` トークン、
+#       またはコマンド位置の `.`）も deny。**`python3 -m <module>` は `-c` トークンを持たないため allow を厳守**。
+#     - トークン一致なので、クォートで1トークンになった文字列（`git commit -m "fix curl bug"`）や部分
+#       文字列（`python3 test_curl.py`）は巻き込まない（over-match しない）。`.` はカレントディレクトリ
+#       引数（`git add .`）への over-deny を避けるためコマンド位置のみ判定する。
 #   SEGMENT_SPLIT_RE はダブルクォート/シングルクォートの内外を区別しない（quote-aware ではない）ため、
 #   例えば `gh pr create --title "fix(hooks): ..."` の丸括弧でもセグメントは分割されるが、その結果
 #   生じる断片はクォートが対応しなくなり shell_words でのトークン化に失敗し、単に読み飛ばされる
@@ -238,7 +243,11 @@ NETWORK_COMMANDS = {
 }
 SHELL_INTERPRETERS = {"bash", "sh", "zsh", "dash"}
 SCRIPT_EVAL_INTERPRETERS = {"perl", "ruby", "node"}
-STANDALONE_EXEC_COMMANDS = {"eval", "source", "."}
+# eval/source は任意トークン一致で deny する（`true & eval x` 等の非先頭位置も捕捉）。`.`（dot-source）
+# だけは**コマンド位置のみ**判定する（PR #237 修正で任意トークン一致にすると `git add .`・`grep x .`
+# のカレントディレクトリ引数まで over-deny してしまう有害な over-match を避けるための意図的な線引き）。
+EVAL_SOURCE_COMMANDS = {"eval", "source"}
+DOT_SOURCE_COMMAND = "."
 # quote-aware ではない素朴なセグメント分割（`;`/`&&`/`||`/`|`/`(`/`)`/改行/`$(`/backtick）。
 # クォート内の記号でも分割されるが、その結果生じる断片はクォート対応が崩れて shell_words での
 # トークン化に失敗し読み飛ばされる（fail-open・over-match 回避が狙い。詳細はファイル冒頭コメント）。
@@ -483,31 +492,54 @@ def strip_leading_wrappers(tokens):
 
 
 def segment_dangerous_command_token(segment_tokens):
-    """strip_leading_wrappers 適用済みの1セグメント分の tokens を判定する。危険なら『先頭語 [-c/-e]』
-    形式の短い表示用文字列を、問題なければ None を返す。パス付き（`/usr/bin/curl` 等）も
-    os.path.basename で正規化して判定する（絶対パスによるすり抜けを防ぐ・Issue #224）。"""
+    """1セグメント分の tokens を判定する。危険なら表示用文字列を、問題なければ None を返す。
+    パス付き（`/usr/bin/curl` 等）も os.path.basename で正規化して判定する（絶対パスによるすり抜けを
+    防ぐ・Issue #224）。
+
+    PR #237 critical 修正: **先頭語のみ**の判定は `timeout 5 curl x`・`nice curl x`・`nohup curl x`・
+    `xargs curl x`・`echo x & curl y`・`{ curl z; }`・`sudo curl x`・`env FOO=1 curl x` のように危険
+    コマンドを非先頭トークンに置くだけで記号ゼロで deny をすり抜けた（#227 が脱却した denylist いたち
+    ごっこの再来）。よって NETWORK/インタプリタ/eval・source は**セグメント内の全独立トークン**を走査
+    する（オーナー承認済み「独立トークン一致」）。トークン一致なので、クォートで1トークンになった
+    文字列（`git commit -m "fix curl bug"` の `fix curl bug`・`echo "see curl docs"`）や部分文字列
+    （`python3 test_curl.py` の `test_curl.py`）は巻き込まない。"""
     if not segment_tokens:
         return None
-    head = segment_tokens[0]
-    args = segment_tokens[1:]
-    basename = os.path.basename(head)
-    if basename in NETWORK_COMMANDS:
-        return basename
-    if basename in SHELL_INTERPRETERS and "-c" in args:
-        return f"{basename} -c"
-    if basename in PYTHON_HEAD_COMMANDS and "-c" in args:
-        return f"{basename} -c"
-    if basename in SCRIPT_EVAL_INTERPRETERS and "-e" in args:
-        return f"{basename} -e"
-    if basename in STANDALONE_EXEC_COMMANDS:
-        return basename
+    basenames = [os.path.basename(token) for token in segment_tokens]
+    # ネットワークコマンド: いずれかの独立トークンが一致すれば deny（wrapper 経由 `timeout curl` 等を含む）。
+    for name in basenames:
+        if name in NETWORK_COMMANDS:
+            return name
+    # インタプリタの任意実行: インタプリタ名トークンと対応フラグトークンが同一セグメント内に共存すれば
+    # deny（`xargs bash -c '{}'`・`timeout python3 -c '...'` 等の wrapper 経由も捕捉する）。
+    # `python3 -m <module>` は `-c` トークンを持たないため allow を厳守する（オーナー確定）。
+    has_c = "-c" in segment_tokens
+    has_e = "-e" in segment_tokens
+    if has_c:
+        for name in basenames:
+            if name in SHELL_INTERPRETERS or name in PYTHON_HEAD_COMMANDS:
+                return f"{name} -c"
+    if has_e:
+        for name in basenames:
+            if name in SCRIPT_EVAL_INTERPRETERS:
+                return f"{name} -e"
+    # eval/source: いずれかの独立トークンが一致すれば deny（`true & eval x` 等の非先頭位置も捕捉）。
+    for name in basenames:
+        if name in EVAL_SOURCE_COMMANDS:
+            return name
+    # `.`（dot-source）だけはコマンド位置（純ラッパー剥がし後の先頭語）でのみ判定する。任意トークン
+    # 一致にすると `git add .`・`grep x .` 等のカレントディレクトリ引数まで over-deny してしまうため
+    # （PR #237 修正で新たに生じ得た有害な over-match を避ける意図的な線引き）。
+    stripped = strip_leading_wrappers(segment_tokens)
+    if stripped and os.path.basename(stripped[0]) == DOT_SOURCE_COMMAND:
+        return DOT_SOURCE_COMMAND
     return None
 
 
 def all_role_dangerous_command_token(command_text):
     """全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。command_text を
-    SEGMENT_SPLIT_RE でセグメント分割し、各セグメントの先頭語（strip_leading_wrappers 適用後）が
-    NETWORK_COMMANDS またはインタプリタの任意実行フォームに該当すれば、その表示用トークンを返す。
+    SEGMENT_SPLIT_RE でセグメント分割し、各セグメントの全独立トークン（basename 正規化）が
+    NETWORK_COMMANDS・インタプリタ任意実行フォーム・eval/source/. に該当すれば表示用トークンを返す。
     セグメントがトークン化できない場合（クォートが分割で崩れた断片等）は検査不能として読み飛ばす
     （fail-open・over-match を避けるため。ファイル冒頭コメント参照）。問題が無ければ None を返す。"""
     for raw_segment in SEGMENT_SPLIT_RE.split(command_text):
@@ -517,7 +549,6 @@ def all_role_dangerous_command_token(command_text):
         tokens = shell_words(segment)
         if not tokens:
             continue
-        tokens = strip_leading_wrappers(tokens)
         token = segment_dangerous_command_token(tokens)
         if token:
             return token
