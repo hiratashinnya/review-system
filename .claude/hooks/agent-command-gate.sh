@@ -7,7 +7,10 @@
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
 #     - pr-reviewer:        merge は可、push は不可（レビュー中に無レビューの変更を紛れ込ませられない）。
 #   それ以外の agent_type（main／general-purpose／各 *-author 等・agent_type 欠如を含む）はこの
-#   ゲートの対象外＝常に許可する（下記 2026-07-11 のオーナー判断）。
+#   ゲートの2ロール専用判定（層1〜3）の対象外＝2ロール専用判定は適用しない（下記 2026-07-11 の
+#   オーナー判断）。ただし Issue #224 フォローアップ（案B・後述の「全 agent_type 共通の危険コマンド
+#   deny 層」）を追加したため、対象外ロールも危険コマンド（network/exec）だけは deny され、それ以外は
+#   従来通り許可される。
 #
 # 設計転換の経緯（Issue #227・2026-07-13 オーナー判断）:
 #   #189→#213→#215→#218→#222 と6ラウンド以上、「危険/安全パターンを個別に列挙して検知する」方式で
@@ -53,6 +56,29 @@
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
 #        コマンド・config/alias/env 注入による push/merge 迂回（`git send-pack`/`git subtree push`/
 #        `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set` 等）を列挙不要で fail-close 遮断する。
+#
+# 全 agent_type 共通の危険コマンド deny 層（Issue #224 フォローアップ・案B・2026-07-19）:
+#   settings.json の permissions.deny（`Bash(curl *)` 等）は Claude Code 側の静的プレフィックスマッチで
+#   あり、`FOO=x curl`（env代入プレフィックス）・`/usr/bin/curl`（絶対パス）・`true; curl`（compound
+#   command）で機械的にすり抜けることが実証された（Issue #224）。中間ワイルドカード `Bash(*curl*)` は
+#   `echo "curl"` のような無害な文字列まで over-match するため不採用。
+#   上記の対象2ロール専用の3層判定とは別に、**agent_type を問わず**（main context 自身・
+#   issue-implementer・pr-reviewer・各 *-author 等すべて）command 文字列を SEGMENT_SPLIT_RE
+#   （`;`/`&&`/`||`/`|`/`(`/`)`/改行/`$(`/backtick）で素朴に（quote-aware ではなく）セグメント分割し、
+#   各セグメントを strip_leading_wrappers（先頭の env 代入・`env` ラッパー・rtk/command/builtin/exec の
+#   純ラッパーを剥がす。ただし対象2ロール専用の strip_wrappers_or_env_reason と異なり、env 代入それ自体
+#   は deny 理由にしない＝他の一般的な用法を妨げない）→ shell_words でトークン化 → 先頭語の
+#   os.path.basename を判定する。
+#     - NETWORK_COMMANDS（curl/wget/nc/ncat/netcat/socat/telnet/ftp/tftp/ssh/scp/sftp/rsync）に
+#       一致すれば deny。
+#     - インタプリタの任意実行フォーム（`bash`/`sh`/`zsh`/`dash` + `-c`、`python`/`python3` + `-c`、
+#       `perl`/`ruby`/`node` + `-e`、`eval`/`source`/`.` 単独）も deny。
+#   SEGMENT_SPLIT_RE はダブルクォート/シングルクォートの内外を区別しない（quote-aware ではない）ため、
+#   例えば `gh pr create --title "fix(hooks): ..."` の丸括弧でもセグメントは分割されるが、その結果
+#   生じる断片はクォートが対応しなくなり shell_words でのトークン化に失敗し、単に読み飛ばされる
+#   （**fail-open**＝over-match を避けるための意図的な設計。厳格な quote-aware 判定は対象2ロール専用の
+#   層1〜3が別途担う）。この deny 層は対象2ロールにも前置適用されるが、層1（記号の一律 deny）が
+#   既に更に厳格なため実質的な影響はない。
 #
 # 既知の限界（多層防御の一枚に過ぎない・Issue #129）:
 #   - シェル文字列の静的検査であり sandbox ではない。agent_type の詐称・ハーネス外の実行経路は防げない。
@@ -203,6 +229,20 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 ALLOWED_PYTHON_MODULES = {"unittest", "coverage", "dsv2", "gitgate"}
 # coverage は実行系サブコマンド（run）を禁止し、レポート出力系のみ許可する。
 COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
+
+# 全 agent_type 共通の危険コマンド deny 層（Issue #224 フォローアップ・案B）。settings.json の
+# permissions.deny が env-prefix/abspath/compound で機械的にすり抜けるため、この hook 側で補完する。
+NETWORK_COMMANDS = {
+    "curl", "wget", "nc", "ncat", "netcat", "socat", "telnet",
+    "ftp", "tftp", "ssh", "scp", "sftp", "rsync",
+}
+SHELL_INTERPRETERS = {"bash", "sh", "zsh", "dash"}
+SCRIPT_EVAL_INTERPRETERS = {"perl", "ruby", "node"}
+STANDALONE_EXEC_COMMANDS = {"eval", "source", "."}
+# quote-aware ではない素朴なセグメント分割（`;`/`&&`/`||`/`|`/`(`/`)`/改行/`$(`/backtick）。
+# クォート内の記号でも分割されるが、その結果生じる断片はクォート対応が崩れて shell_words での
+# トークン化に失敗し読み飛ばされる（fail-open・over-match 回避が狙い。詳細はファイル冒頭コメント）。
+SEGMENT_SPLIT_RE = re.compile(r"&&|\|\||[;|\n()]|\$\(|`")
 
 
 def deny(reason):
@@ -418,6 +458,72 @@ def shell_words(command_text):
         return None
 
 
+def strip_leading_wrappers(tokens):
+    """全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ）の前処理。層3専用の
+    strip_wrappers_or_env_reason と異なり、env 代入・`env` ラッパー自体を deny 理由にはしない
+    （env 代入は agent_type を問わず一般的に許可された用法であり、本層は「その先の実効コマンドが
+    危険かどうか」だけを見る）。先頭の環境変数代入（`NAME=value`）・`env` ラッパー（直後のフラグ／
+    代入も簡易的にスキップする）・rtk/command/builtin/exec の純ラッパーを剥がした tokens を返す。"""
+    tokens = list(tokens)
+    while tokens:
+        head = tokens[0]
+        if ASSIGNMENT_RE.match(head):
+            tokens.pop(0)
+            continue
+        if head == "env":
+            tokens.pop(0)
+            while tokens and (ASSIGNMENT_RE.match(tokens[0]) or tokens[0].startswith("-")):
+                tokens.pop(0)
+            continue
+        if head in WRAPPER_COMMANDS:
+            tokens.pop(0)
+            continue
+        break
+    return tokens
+
+
+def segment_dangerous_command_token(segment_tokens):
+    """strip_leading_wrappers 適用済みの1セグメント分の tokens を判定する。危険なら『先頭語 [-c/-e]』
+    形式の短い表示用文字列を、問題なければ None を返す。パス付き（`/usr/bin/curl` 等）も
+    os.path.basename で正規化して判定する（絶対パスによるすり抜けを防ぐ・Issue #224）。"""
+    if not segment_tokens:
+        return None
+    head = segment_tokens[0]
+    args = segment_tokens[1:]
+    basename = os.path.basename(head)
+    if basename in NETWORK_COMMANDS:
+        return basename
+    if basename in SHELL_INTERPRETERS and "-c" in args:
+        return f"{basename} -c"
+    if basename in PYTHON_HEAD_COMMANDS and "-c" in args:
+        return f"{basename} -c"
+    if basename in SCRIPT_EVAL_INTERPRETERS and "-e" in args:
+        return f"{basename} -e"
+    if basename in STANDALONE_EXEC_COMMANDS:
+        return basename
+    return None
+
+
+def all_role_dangerous_command_token(command_text):
+    """全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。command_text を
+    SEGMENT_SPLIT_RE でセグメント分割し、各セグメントの先頭語（strip_leading_wrappers 適用後）が
+    NETWORK_COMMANDS またはインタプリタの任意実行フォームに該当すれば、その表示用トークンを返す。
+    セグメントがトークン化できない場合（クォートが分割で崩れた断片等）は検査不能として読み飛ばす
+    （fail-open・over-match を避けるため。ファイル冒頭コメント参照）。問題が無ければ None を返す。"""
+    for raw_segment in SEGMENT_SPLIT_RE.split(command_text):
+        segment = raw_segment.strip()
+        if not segment:
+            continue
+        tokens = shell_words(segment)
+        if not tokens:
+            continue
+        tokens = strip_leading_wrappers(tokens)
+        token = segment_dangerous_command_token(tokens)
+        if token:
+            return token
+    return None
+
+
 def head_command_violation(tokens):
     """層2: 先頭語ホワイトリスト。許可なら None、違反ならその説明を返す。
     パス付き（`/usr/bin/git`・`./git`）は完全一致しないため deny（カレントディレクトリに `git` という
@@ -616,11 +722,27 @@ def gate_reason(command_text, role):
     return None
 
 
+dangerous_token = None
+if isinstance(command, str) and command:
+    dangerous_token = all_role_dangerous_command_token(command)
+
 reason = None
-if agent_type not in GATED_ROLES:
-    # agent_type が対象2ロール以外（欠如を含む・main context 自身がこれに該当）は対象外＝常に許可
-    # （ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する（Codex 版と dispatch 順を統一・
-    # Issue #227 レビュー F3。2ロールについては下で command 欠落→deny を維持）。
+if dangerous_token:
+    # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。対象2ロール専用の層1〜3
+    # より前に判定し、agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」
+    # だった穴を、settings.json permissions.deny では塞ぎ切れない env-prefix/abspath/compound 経路について
+    # 補完する）。
+    reason = (
+        f"agent-command-gate: '{dangerous_token}' is a denied network/exec command for all roles "
+        "(Issue #224 env-prefix/abspath guard: settings.json permissions.deny is a static prefix match "
+        "that env-var prefixes / absolute paths / compound commands can bypass, so this hook denies it "
+        "independent of agent_type)."
+    )
+elif agent_type not in GATED_ROLES:
+    # agent_type が対象2ロール以外（欠如を含む・main context 自身がこれに該当）は2ロール専用判定
+    # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する
+    # （Codex 版と dispatch 順を統一・Issue #227 レビュー F3。2ロールについては下で command 欠落→deny
+    # を維持）。危険コマンドは上の全 agent_type 共通層で既に deny 済み。
     pass
 elif not isinstance(command, str) or not command:
     reason = "agent-command-gate: PreToolUse payload does not contain tool_input.command; refusing because the Bash command cannot be inspected."
