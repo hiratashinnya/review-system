@@ -21,6 +21,9 @@
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 共有ガード(ペイン判定・tmux timeout ラッパ・ドラフトマーカー)。resume-watcher.sh と共有。
+# shellcheck source=lib-pane-guard.sh
+source "${HOOK_DIR}/lib-pane-guard.sh"
 STATE_DIR="${HOME}/.claude/rate-limit-recovery"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 LOG="${STATE_DIR}/hook.log"
@@ -74,23 +77,31 @@ fi
 # まずは検知した瞬間の時刻を見えるようにする。StopFailure は出力・終了コードが無視されるため、
 # tmux ペインへ直接ドラフト注入する(Enter は送らない=まだ解除前に新規ターンを送信して
 # 即座に再度レートリミットへ突入するのを防ぐ。あくまで表示のみ)。
-# 安全対策(レビューで発覚した抜け穴の是正):
-#   - 対象ペインの前景が claude 系であることを確認してから注入する(resume-watcher.sh の
-#     is_claude_pane と同じ考え方。前景が既にシェル/別プログラムに戻っていると誤爆するため)。
-#   - 注入前に入力欄をクリア(C-u)する。多重発火時に前回のドラフトへ連結されたり、
-#     後で resume-watcher.sh が送る継続メッセージと連結して1行の壊れた文になるのを防ぐ。
-#   - tmux 呼び出しは timeout で打ち切る。StopFailure フックの15秒タイムアウト内で
-#     本来の役目(watcher 起動)まで確実に到達できるようにするため。
-hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
+# 安全対策(コードレビュー指摘の是正):
+#   - 前景が claude 系のときだけ注入(rl_is_claude_pane・共有ガード)。前景がシェル/別
+#     プログラムに戻っていると誤爆するため。
+#   - ここでは入力欄をクリアしない=検知時に入力欄へ既にあるユーザーの手打ちテキストを
+#     消さない。ドラフトはマーカー付きで送り、後段②が「自分のドラフトだけ」を消す。
+#   - 多重発火の重なり(2プロセスの送出が交互に混ざり壊れる)を非ブロッキング flock で防止。
+#   - tmux 呼び出しは timeout ラップ(rl_tmux)。StopFailure フックの15秒予算内で本来の
+#     役目(watcher 起動)まで確実に到達させるため。
 if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
-  pane_cmd_re="${CLAUDE_RL_PANE_CMD_RE:-^(claude|node)$}"
-  pane_cmd="$(timeout 3 tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null || true)"
-  if [ -n "$pane_cmd" ] && printf '%s' "$pane_cmd" | grep -qiE -- "$pane_cmd_re"; then
-    timeout 3 tmux send-keys -t "$pane" C-u 2>>"$LOG" || true
-    timeout 3 tmux send-keys -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
-    log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
+  if rl_is_claude_pane "$pane"; then
+    hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
+    ann_lock="${STATE_DIR}/announce-lock.$(printf '%s' "$pane" | tr -c 'A-Za-z0-9' '_')"
+    (
+      # 同一ペインへの二重発火をシリアライズ。取得できなければ別発火が処理中とみなし
+      # 即スキップ(予算も食わない)。サブシェル終了で fd8=ロック自動解放。
+      if command -v flock >/dev/null 2>&1; then
+        exec 8>"$ann_lock" 2>/dev/null || true
+        flock -n 8 2>/dev/null || { log "announce: 別発火が処理中; skip"; exit 0; }
+      fi
+      # マーカー付きドラフトを単一 send-keys でアトミックに送出(Enter は送らない)。
+      rl_tmux send-keys -t "$pane" "${RL_DRAFT_MARKER} ${hit_time} にレートリミットを検知。解除時刻になり次第、自動で継続メッセージを送信します(このメッセージは未送信のドラフトです)。" 2>>"$LOG" || true
+      log "announced hit time ${hit_time} to pane=${pane} (draft, Enter not sent)"
+    )
   else
-    log "pane foreground is not claude (current='${pane_cmd}'); skip hit-time announcement"
+    log "pane foreground is not claude; skip hit-time announcement"
   fi
 fi
 
