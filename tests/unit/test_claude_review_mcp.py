@@ -172,6 +172,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                     {
                         "error": "rate_limit",
                         "reset_at": None,
+                        "source": "claude_process_error",
                         "raw": "successful review discussed rate-limit handling and option 1.",
                     }
                 )
@@ -218,6 +219,31 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIsNone(reset)
         self.assertFalse(state_path.exists())
 
+    def test_failed_json_review_text_mentioning_rate_limit_is_not_recorded(self):
+        stdout = json.dumps(
+            {
+                "result": "The review covers rate-limit state, 429 responses, and too many requests.",
+                "is_error": True,
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                reset = server.detect_and_record_rate_limit(stdout, "", 1)
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+
+        self.assertIsNone(reset)
+        self.assertFalse(state_path.exists())
+
+    def test_failed_unstructured_rate_limit_is_recorded(self):
+        stdout = "Error: too many requests; resets 2099-01-01T00:00:00+00:00"
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                reset = server.detect_and_record_rate_limit(stdout, "", 1)
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+
+        self.assertIsNotNone(reset)
+        self.assertTrue(state_path.exists())
+
     def test_rate_limit_error_result_is_recorded(self):
         reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(microsecond=0)
         stdout = json.dumps({"result": f"You've hit your session limit · resets {reset_at.isoformat()}"})
@@ -228,6 +254,25 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertTrue(state_path.exists())
 
         self.assertIsNotNone(reset)
+
+    def test_successful_exit_rate_limit_banner_fails_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(microsecond=0)
+        stdout = json.dumps({"result": f"You've hit your session limit · resets {reset_at.isoformat()}"})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude"], stdout=stdout, returncode=0),
+                ):
+                    with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.claude_review({"prompt": "review"})
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+
+        self.assertIn("hit a rate limit", str(ctx.exception))
+        self.assertTrue(state_path.exists())
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})

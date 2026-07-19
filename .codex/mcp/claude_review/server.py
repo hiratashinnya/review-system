@@ -204,16 +204,19 @@ def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | No
         structured = "\n".join(fields)
         if structured and RATE_LIMIT_ERROR_RE.search(structured):
             return structured
+        return None
 
     if returncode != 0 and stdout and RATE_LIMIT_ERROR_RE.search(stdout):
         return stdout
     return None
 
 
-def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
+def detect_and_record_rate_limit_details(
+    stdout: str, stderr: str, returncode: int
+) -> tuple[bool, dt.datetime | None]:
     text = rate_limit_error_text(stdout, stderr, returncode)
     if not text:
-        return None
+        return False, None
     reset = parse_reset_hint(text)
     write_json(
         state_file(),
@@ -225,6 +228,11 @@ def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> d
             "raw": text[-4000:],
         },
     )
+    return True, reset
+
+
+def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
+    _, reset = detect_and_record_rate_limit_details(stdout, stderr, returncode)
     return reset
 
 
@@ -384,12 +392,16 @@ def claude_review(args: dict[str, Any]) -> str:
     assembled = assemble_prompt(prompt, resolved_workspace, args.get("pr_number"))
     command = build_claude_command(assembled, model)
     proc = run_command(command, resolved_workspace, timeout_s)
-    reset = detect_and_record_rate_limit(proc.stdout, proc.stderr, proc.returncode)
-    if proc.returncode != 0:
+    rate_limited, reset = detect_and_record_rate_limit_details(
+        proc.stdout, proc.stderr, proc.returncode
+    )
+    if rate_limited:
         if reset:
             raise ToolError(
                 f"claude -p hit a rate limit; cooldown recorded until {reset.isoformat()}"
             )
+        raise ToolError("claude -p hit a rate limit; cooldown recorded without a known reset time")
+    if proc.returncode != 0:
         raise ToolError(f"claude -p failed with exit {proc.returncode}: {(proc.stderr or proc.stdout).strip()}")
     try:
         data = json.loads(proc.stdout)
