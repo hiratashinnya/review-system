@@ -82,6 +82,22 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIn("always answer in Japanese", text)
         self.assertIn("review this", text)
 
+    def test_empty_common_instructions_fail_closed(self):
+        for content in ("", " \n\t"):
+            with self.subTest(content=content):
+                with tempfile.TemporaryDirectory() as tmp:
+                    common = Path(tmp) / "common.md"
+                    common.write_text(content, encoding="utf-8")
+                    with mock.patch.dict(
+                        server.os.environ,
+                        {"CLAUDE_REVIEW_MCP_COMMON_INSTRUCTIONS": str(common)},
+                        clear=False,
+                    ):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.common_instructions_block()
+
+                self.assertIn("common instructions file is empty", str(ctx.exception))
+
     def test_rate_limit_preflight_blocks_future_reset(self):
         with tempfile.TemporaryDirectory() as tmp:
             state_root = Path(tmp)
@@ -273,6 +289,123 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertTrue(state_path.exists())
 
         self.assertIn("hit a rate limit", str(ctx.exception))
+
+    def test_successful_review_metadata_rate_limit_mention_is_ignored(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        cases = (
+            Completed(
+                ["claude"],
+                stdout=json.dumps(
+                    {
+                        "result": "clean",
+                        "message": f"Review covers 429 handling and resets {reset_at}",
+                    }
+                ),
+            ),
+            Completed(
+                ["claude"],
+                stdout=json.dumps({"result": "clean"}),
+                stderr=f"review covers too many requests and resets {reset_at}",
+            ),
+        )
+
+        for proc in cases:
+            with self.subTest(proc=proc.stderr or proc.stdout):
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "run_command", return_value=proc):
+                            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                result = server.claude_review({"prompt": "review"})
+                        state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                        state_exists = state_path.exists()
+
+                self.assertEqual(result, "clean")
+                self.assertFalse(state_exists)
+
+    def test_successful_unstructured_rate_limit_banners_fail_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        for stdout in (
+            f"You've hit your session limit; resets {reset_at}",
+            f"{{partial You've hit your session limit; resets {reset_at}",
+        ):
+            with self.subTest(stdout=stdout):
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(
+                            server,
+                            "run_command",
+                            return_value=Completed(["claude"], stdout=stdout),
+                        ):
+                            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                with self.assertRaises(server.ToolError) as ctx:
+                                    server.claude_review({"prompt": "review"})
+                        state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                        state = json.loads(state_path.read_text(encoding="utf-8"))
+
+                self.assertIn("hit a rate limit", str(ctx.exception))
+                self.assertEqual(state["source"], "claude_process_error")
+                self.assertIsNotNone(state["reset_at"])
+
+    def test_successful_malformed_json_review_mention_fails_without_cooldown(self):
+        stdout = '{"result":"review discusses rate_limit and 429 handling"'
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude"], stdout=stdout),
+                ):
+                    with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.claude_review({"prompt": "review"})
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                state_exists = state_path.exists()
+
+        self.assertIn("invalid JSON", str(ctx.exception))
+        self.assertFalse(state_exists)
+
+    def test_failed_structured_rate_limit_still_fails_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        stdout = json.dumps(
+            {
+                "error": "rate_limit",
+                "message": f"Too many requests; resets {reset_at}",
+                "result": "Review mentions 429 handling.",
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude"], stdout=stdout, returncode=1),
+                ):
+                    with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.claude_review({"prompt": "review"})
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                state_exists = state_path.exists()
+
+        self.assertIn("hit a rate limit", str(ctx.exception))
+        self.assertTrue(state_exists)
+
+    def test_failed_unstructured_rate_limit_still_fails_closed_end_to_end(self):
+        stdout = "Error: too many requests; resets 2099-01-01T00:00:00+00:00"
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude"], stdout=stdout, returncode=1),
+                ):
+                    with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                        with self.assertRaises(server.ToolError) as ctx:
+                            server.claude_review({"prompt": "review"})
+                state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                state_exists = state_path.exists()
+
+        self.assertIn("hit a rate limit", str(ctx.exception))
+        self.assertTrue(state_exists)
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})

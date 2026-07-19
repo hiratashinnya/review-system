@@ -43,6 +43,16 @@ RATE_LIMIT_RESULT_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+RATE_LIMIT_RAW_BANNER_RE = re.compile(
+    r"^\s*(?:\{\s*(?:partial\s+)?)?(?:error:\s*)?("
+    r"you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded)|"
+    r"too many requests|"
+    r"\b429\b|"
+    r"rate_limit(?:_error)?"
+    r")",
+    re.IGNORECASE,
+)
 RESET_RE = re.compile(r"resets?\s+([^\n\r.;]+)", re.IGNORECASE)
 
 
@@ -185,7 +195,7 @@ def current_block() -> tuple[bool, str]:
 
 
 def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | None:
-    if stderr and RATE_LIMIT_ERROR_RE.search(stderr):
+    if returncode != 0 and stderr and RATE_LIMIT_ERROR_RE.search(stderr):
         return stderr
 
     try:
@@ -199,15 +209,18 @@ def rate_limit_error_text(stdout: str, stderr: str, returncode: int) -> str | No
             if key == "result" and isinstance(value, str):
                 if RATE_LIMIT_RESULT_RE.search(value):
                     fields.append(value)
-            elif isinstance(value, str):
+            elif returncode != 0 and isinstance(value, str):
                 fields.append(value)
         structured = "\n".join(fields)
         if structured and RATE_LIMIT_ERROR_RE.search(structured):
             return structured
         return None
 
-    if returncode != 0 and stdout and RATE_LIMIT_ERROR_RE.search(stdout):
-        return stdout
+    if stdout:
+        if returncode == 0 and RATE_LIMIT_RAW_BANNER_RE.search(stdout):
+            return stdout
+        if returncode != 0 and RATE_LIMIT_ERROR_RE.search(stdout):
+            return stdout
     return None
 
 
@@ -271,7 +284,7 @@ def common_instructions_block() -> str:
     except OSError as exc:
         raise ToolError(f"common instructions file is unreadable: {path} ({exc})") from exc
     if not text:
-        return ""
+        raise ToolError(f"common instructions file is empty: {path}")
     return (
         "## Trusted Common Instructions\n\n"
         f"The following trusted project review instructions were loaded from `{path}`.\n"
@@ -405,8 +418,8 @@ def claude_review(args: dict[str, Any]) -> str:
         raise ToolError(f"claude -p failed with exit {proc.returncode}: {(proc.stderr or proc.stdout).strip()}")
     try:
         data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return proc.stdout.strip()
+    except json.JSONDecodeError as exc:
+        raise ToolError("claude -p returned invalid JSON output") from exc
     if isinstance(data, dict) and isinstance(data.get("result"), str):
         return data["result"]
     return json.dumps(data, ensure_ascii=False)
