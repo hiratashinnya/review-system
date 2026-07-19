@@ -240,9 +240,9 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
                 reset = server.detect_and_record_rate_limit(stdout, "", 1)
                 state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                self.assertTrue(state_path.exists())
 
         self.assertIsNotNone(reset)
-        self.assertTrue(state_path.exists())
 
     def test_rate_limit_error_result_is_recorded(self):
         reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(microsecond=0)
@@ -270,9 +270,9 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                         with self.assertRaises(server.ToolError) as ctx:
                             server.claude_review({"prompt": "review"})
                 state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                self.assertTrue(state_path.exists())
 
         self.assertIn("hit a rate limit", str(ctx.exception))
-        self.assertTrue(state_path.exists())
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
