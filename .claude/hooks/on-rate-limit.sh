@@ -34,7 +34,8 @@ fi
 STATE_DIR="$RL_STATE_DIR"
 LOG="${STATE_DIR}/hook.log"
 
-log() { printf '%s [hook] %s\n' "$(date '+%F %T')" "$*" >> "$LOG" 2>/dev/null || true; }
+# ログ書式は共有ファクトリ rl_log_line に集約(watcher と同一書式・Issue #240 C3)。
+log() { rl_log_line "$LOG" "[hook]" "$*"; }
 
 # --- stdin JSON を素朴に読む(標準ツールのみ・jq 非依存) ---
 payload="$(cat)"
@@ -48,7 +49,6 @@ get() {
 }
 error_type="$(get error_type)"
 session_id="$(get session_id)"
-transcript_path="$(get transcript_path)"
 
 log "fired error_type='${error_type}' session='${session_id}'"
 
@@ -86,8 +86,12 @@ fi
 if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
   hit_time="$(date '+%Y-%m-%d %H:%M:%S')"
   # 状態ファイルへアトミックに記録(tmp→mv)。②が rl_hit_file 経由で読む。
+  # 1行目=検知した session_id・2行目=検知時刻の2行形式で書く(Issue #240 D1)。
+  # watcher は起動時に自分の session_id と照合し、不一致(別セッション/別エピソードが
+  # 残した stale なファイル)なら検知時刻を破棄する。session_id が空でも時刻は残す
+  # (照合をスキップ=後方互換)。②が消費・削除するため通常運用では残らない。
   hit_file="$(rl_hit_file "$pane")"
-  if printf '%s\n' "$hit_time" > "${hit_file}.tmp" 2>/dev/null; then
+  if printf '%s\n%s\n' "$session_id" "$hit_time" > "${hit_file}.tmp" 2>/dev/null; then
     # mv 失敗時は .tmp を残さず後始末(状態ディレクトリを汚さない)。
     mv -f "${hit_file}.tmp" "$hit_file" 2>/dev/null || rm -f "${hit_file}.tmp" 2>/dev/null || true
   fi
@@ -97,7 +101,8 @@ if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
 fi
 
 # --- ウォッチャを切り離して起動(フックは即終了。出力は無視されるため fire-and-forget) ---
-setsid bash "${HOOK_DIR}/resume-watcher.sh" "${pane}" "${session_id}" "${transcript_path}" \
+# transcript_path は watcher で未使用のため渡さない(Issue #240 C1)。
+setsid bash "${HOOK_DIR}/resume-watcher.sh" "${pane}" "${session_id}" \
   >> "${LOG}" 2>&1 < /dev/null &
 log "spawned resume-watcher for pane=${pane}"
 exit 0
