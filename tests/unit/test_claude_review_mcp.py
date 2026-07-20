@@ -65,16 +65,19 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIn("Read,Glob,Grep,LS", command)
         self.assertIn("--fallback-model", command)
         self.assertIn("opus", command)
+        for flag in server.REQUIRED_CLAUDE_CAPABILITIES:
+            self.assertEqual(command.count(flag), 1, flag)
+        self.assertLess(command.index("--safe-mode"), command.index("--permission-mode"))
+        self.assertLess(command.index("--permission-mode"), command.index("--tools"))
         forbidden = " ".join(command).lower()
         for token in ("edit", "write", "bash", "bypass", "danger", "acceptedits"):
             self.assertNotIn(token, forbidden)
 
     def test_pr_number_accepts_only_positive_decimal_integers(self):
         self.assertIsNone(server.validate_pr_number(None))
-        self.assertIsNone(server.validate_pr_number(""))
         self.assertEqual(server.validate_pr_number(1), "1")
         self.assertEqual(server.validate_pr_number("42"), "42")
-        for value in (True, False, 0, -1, 1.5, "0", "-1", "+1", " 1", "1 ", "1.0", "--repo=x", []):
+        for value in (True, False, 0, -1, 1.5, "", "0", "01", "-1", "+1", " 1", "1 ", "1.0", "--repo=x", []):
             with self.subTest(value=value):
                 with self.assertRaises(server.ToolError):
                     server.validate_pr_number(value)

@@ -361,7 +361,7 @@ def validate_model(model: str | None) -> str:
 
 
 def validate_pr_number(pr_number: Any) -> str | None:
-    if pr_number is None or pr_number == "":
+    if pr_number is None:
         return None
     if isinstance(pr_number, bool):
         raise ToolError("pr_number must be a positive integer")

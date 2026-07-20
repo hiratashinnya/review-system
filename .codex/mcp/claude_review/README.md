@@ -41,9 +41,10 @@ When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 That context is appended to the prompt sent to Claude. If either command fails,
 Claude is not called.
 
-`pr_number` must be a positive integer or a string containing only a positive
-base-10 integer. Values such as `0`, negative numbers, booleans, whitespace,
-and option-like strings are rejected before `gh` is called.
+`pr_number` must be a positive integer or its canonical base-10 string form.
+Values such as an empty string, `0`, a leading-zero string, negative numbers,
+booleans, whitespace, and option-like strings are rejected before `gh` is
+called.
 
 If `workspace` is omitted, the wrapper uses the MCP server startup cwd. If it
 is provided, the wrapper resolves it with realpath and only allows paths under
