@@ -186,6 +186,65 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertFalse(supported)
                 self.assertIn("missing required capabilities", detail)
 
+    def test_capabilities_in_non_option_sections_are_rejected(self):
+        headings = (
+            "Unsupported options:",
+            "Removed options:",
+            "Deprecated options:",
+            "Examples:",
+            "Description:",
+            "Future unavailable capabilities:",
+        )
+        for heading in headings:
+            for newline in ("\n", "\r\n"):
+                with self.subTest(heading=heading, newline=repr(newline)):
+                    help_text = newline.join(
+                        ["Usage: claude", heading]
+                        + [f"    {flag}" for flag in server.REQUIRED_CLAUDE_CAPABILITIES]
+                    )
+                    with mock.patch.object(
+                        server,
+                        "run_command",
+                        return_value=Completed(["claude", "--help"], stdout=help_text),
+                    ):
+                        supported, detail = server.claude_capability_status()
+                    self.assertFalse(supported)
+                    self.assertIn("missing required capabilities", detail)
+
+    def test_supported_option_sections_and_implicit_fixture_are_accepted(self):
+        required_lines = [f"    {flag}" for flag in server.REQUIRED_CLAUDE_CAPABILITIES]
+        cases = (
+            SUPPORTED_CLAUDE_HELP,
+            "\n".join(["Usage: claude", "Options:", *required_lines]),
+            "\r\n".join(["Usage: claude", "Global options:", *required_lines]),
+            "\n".join(["Usage: claude", "Flags:", *required_lines, "Commands:", "  review"]),
+        )
+        for help_text in cases:
+            with self.subTest(help_text=help_text):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude", "--help"], stdout=help_text),
+                ):
+                    supported, _ = server.claude_capability_status()
+                self.assertTrue(supported)
+
+    def test_section_transition_stops_option_collection(self):
+        flags = list(server.REQUIRED_CLAUDE_CAPABILITIES)
+        help_text = "\n".join(
+            ["Usage: claude", "Options:"]
+            + [f"  {flag}" for flag in flags[:-1]]
+            + ["Description:", f"  {flags[-1]}"]
+        )
+        with mock.patch.object(
+            server,
+            "run_command",
+            return_value=Completed(["claude", "--help"], stdout=help_text),
+        ):
+            supported, detail = server.claude_capability_status()
+        self.assertFalse(supported)
+        self.assertIn(flags[-1], detail)
+
     def test_pr_context_uses_gh_view_and_diff(self):
         calls = []
 
@@ -359,6 +418,44 @@ class ClaudeReviewMcpTests(unittest.TestCase):
 
         self.assertTrue(blocked)
         self.assertIn("unrecognized", reason)
+
+    def test_rate_limit_preflight_rejects_non_integer_schema_versions(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        for version in (True, False, 1.0, "1", 2):
+            with self.subTest(version=version):
+                with tempfile.TemporaryDirectory() as tmp:
+                    state_root = Path(tmp)
+                    state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+                    state_path.parent.mkdir(parents=True)
+                    state_path.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": version,
+                                "source": "claude_process_error",
+                                "error": "rate_limit",
+                                "reset_at": reset_at,
+                            }
+                        )
+                    )
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                        blocked, reason = server.current_block()
+                self.assertTrue(blocked)
+                self.assertIn("unrecognized", reason)
+
+    def test_rate_limit_preflight_rejects_nonfinite_schema_version(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(
+                '{"schema_version":NaN,"source":"claude_process_error",'
+                f'"error":"rate_limit","reset_at":"{reset_at}"}}'
+            )
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+        self.assertTrue(blocked)
+        self.assertIn("invalid", reason)
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
