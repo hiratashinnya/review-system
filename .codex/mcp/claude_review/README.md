@@ -137,8 +137,9 @@ legacy compact `Usage:` layout is also accepted, but any other top-level line
 ends that block. Headings with suffix text, unknown punctuation, examples,
 descriptions, and unindented flag mentions do not satisfy the capability gate.
 
-If the Claude child process raises before returning a completed result, the
-wrapper emits a fixed tool error. It never formats the exception object because
+If capability preflight, `gh pr view`, `gh pr diff`, or the Claude child process
+raises before returning a completed result, the wrapper emits a fixed,
+stage-specific tool error. It never formats the exception object because
 subprocess exceptions can retain the complete argv, including the assembled
 review prompt. Completed nonzero exits continue to use the bounded diagnostic
 contract described above.

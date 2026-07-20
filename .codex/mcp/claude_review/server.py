@@ -457,8 +457,14 @@ def pr_context(pr_number: Any, workspace: str | None) -> str:
         "number,title,author,baseRefName,headRefName,url,body,files,commits",
     ]
     diff_args = [gh, "pr", "diff", number]
-    view = run_command(view_args, workspace, 60)
-    diff = run_command(diff_args, workspace, 120)
+    try:
+        view = run_command(view_args, workspace, 60)
+    except Exception:  # noqa: BLE001 - child exceptions can retain command details
+        raise ToolError("gh pr view subprocess execution failed") from None
+    try:
+        diff = run_command(diff_args, workspace, 120)
+    except Exception:  # noqa: BLE001 - child exceptions can retain command details
+        raise ToolError("gh pr diff subprocess execution failed") from None
     if view.returncode != 0:
         raise ToolError(f"gh pr view failed for PR {number}: {(view.stderr or view.stdout).strip()}")
     if diff.returncode != 0:
@@ -554,8 +560,8 @@ def claude_capability_status() -> tuple[bool, str]:
     claude = os.environ.get("CLAUDE_BIN", "claude")
     try:
         proc = run_command([claude, "--help"], None, 15)
-    except (OSError, subprocess.SubprocessError) as exc:
-        return False, f"claude CLI capability preflight failed: {exc}"
+    except Exception:  # noqa: BLE001 - child exceptions can retain command details
+        return False, "claude CLI capability preflight subprocess execution failed"
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout).strip()
         return False, f"claude CLI capability preflight exited {proc.returncode}: {detail}"
@@ -639,8 +645,8 @@ def claude_review(args: dict[str, Any]) -> str:
 def version_line(bin_name: str, args: list[str]) -> str:
     try:
         proc = run_command(args, None, 15)
-    except (OSError, subprocess.SubprocessError) as exc:
-        return f"{bin_name}: unavailable ({exc})"
+    except Exception:  # noqa: BLE001 - child exceptions can retain command details
+        return f"{bin_name}: unavailable (subprocess execution failed)"
     text = (proc.stdout or proc.stderr or "").strip().splitlines()
     detail = text[0] if text else f"exit {proc.returncode}"
     return f"{bin_name}: {detail}"
