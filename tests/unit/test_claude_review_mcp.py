@@ -997,6 +997,26 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIn(reset_at, serialized)
         self.assertEqual(state["reset_at"], reset_at)
 
+    def test_status_never_exposes_raw_version_diagnostics(self):
+        sentinel = "VERSION_DIAGNOSTIC_SECRET_d91b"
+
+        def fake_run(args, cwd, timeout_s):
+            if args == ["claude", "--version"]:
+                return Completed(args, stdout=sentinel)
+            if args == ["gh", "--version"]:
+                return Completed(args, stderr=sentinel * 10_000, returncode=9)
+            if args == ["claude", "--help"]:
+                return Completed(args, stdout=SUPPORTED_CLAUDE_HELP)
+            raise AssertionError(args)
+
+        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+            with mock.patch.object(server, "run_command", side_effect=fake_run):
+                status = server.claude_review_status()
+        self.assertNotIn(sentinel, status)
+        self.assertLess(len(status), 2_000)
+        self.assertIn("claude: available", status)
+        self.assertIn("gh --version failed with exit 9", status)
+
     def test_claude_review_rejects_invalid_timeout(self):
         with mock.patch.object(server, "run_command") as run_command:
             with self.assertRaises(server.ToolError) as ctx:
