@@ -122,10 +122,12 @@ Claude review を「レビュー対象の可変 checkout」から分離した信
 | PR/操作単位 | 内容 | 含めないもの | merge/実行条件 |
 |---|---|---|---|
 | Plan PR | 本計画書と台帳リンク | 製品コード、設定、MCP操作 | docs review完了 |
-| Wrapper correctness PR | envelope/rate-limit/capability/precondition修正とunit test | repo外install、policy変更 | Plan merge、独立敵対レビュー、全test |
-| Runtime packaging PR | versioned bundle、manifest、launcher、provenance検証 | `~/.codex/config.toml`変更、restart | Wrapper PR merge、package test |
-| Owner rollout | repo外install、config switch、restart、rollback確認 | policy/prompt有効化 | packaging merge、owner明示承認 |
-| Policy/prompt PR | review必須条件、STOP規則、trusted prompt | wrapper/runtime新機能 | 敵対的validation成功 |
+| Wrapper correctness PR | envelope/rate-limit/capability/precondition修正とunit test | repo外install、policy変更 | Step 0 ledger transition merge、独立敵対レビュー、全test |
+| Runtime packaging PR | versioned bundle、manifest、launcher、bootstrap/fixture prompt、provenance検証 | production trusted prompt、`~/.codex/config.toml`変更、restart | Wrapper PR merge、package test |
+| Candidate staging | MCP disabledのまま候補bundleをrepo外へinstall | active config切替、restart、enable | packaging merge、owner明示承認 |
+| Candidate validation | configを使わず候補bundleを直接起動し、runtime隔離を検証 | production利用、policy有効化 | candidate staging、実Claude試験のowner明示承認 |
+| Policy/prompt PR | review必須条件、STOP規則、production trusted prompt | wrapper/runtime新機能、config変更 | candidate validation成功 |
+| Final rollout | approved prompt入り最終bundleの新規install、直接検証、owner承認、config切替、restart、enable | active checkout参照、候補bundleの流用 | policy/prompt merge、最終bundle検証、owner明示承認 |
 | PR #211整理 | superseded説明、必要な参照移行、close判断 | 新機能実装 | 置換PR群の完了 |
 
 ```mermaid
@@ -134,15 +136,17 @@ flowchart TD
     S0[Step 0: plan PR]
     S2[Step 2: wrapper correctness PR]
     S3[Step 3: runtime packaging PR]
-    S5P[Step 5: policy/prompt PR]
+    S5P[Step 5b: policy/prompt PR]
     S6[Step 6: #211整理]
   end
   subgraph Owner[Owner-managed external lane]
     S1[Step 1: containment]
-    S4[Step 4: install/config/restart]
+    S4[Step 4: candidate stage]
+    S5F[Step 5d: final switch/restart/enable]
   end
   subgraph Validation[Validation lane]
-    S5V[Step 5: adversarial validation]
+    S5VC[Step 5a: candidate direct validation]
+    S5I[Step 5c: final bundle install/direct validation]
     STOP([fail-close / stop・rollback])
   end
 
@@ -150,29 +154,53 @@ flowchart TD
   S0 --> S2
   S2 --> S3
   S3 --> S4
-  S4 --> S5V
-  S5V -->|success| S5P
-  S5P --> S6
-  S1 -.維持.-> S5V
+  S4 --> S5VC
+  S5VC -->|CandidateValidated| S5P
+  S5P -->|PolicyMerged| S5I
+  S5I -->|FinalBundleInstalled| S5F
+  S5F -->|Enabled| S6
+  S1 -.MCP disabledを維持.-> S5F
   S2 -->|failure| STOP
   S3 -->|failure| STOP
   S4 -->|failure| STOP
-  S5V -->|failure| STOP
-  STOP -->|既知版へ戻す| S1
+  S5VC -->|failure| STOP
+  S5I -->|failure| STOP
+  S5F -->|failure| STOP
+  STOP -->|Disabled維持・旧configへrollback| S1
 ```
+
+### 6.1 containmentからenableまでの状態遷移
+
+```mermaid
+stateDiagram-v2
+  [*] --> Disabled: Step 1 containment
+  Disabled --> CandidateValidated: candidateをconfig外で直接検証
+  CandidateValidated --> PolicyMerged: policy/prompt PR merge
+  PolicyMerged --> FinalBundleInstalled: approved prompt入り新versionをinstall・直接検証
+  FinalBundleInstalled --> OwnerApproved: enable範囲をownerが明示承認
+  OwnerApproved --> Enabled: config切替・restart・status/smoke成功
+  CandidateValidated --> Disabled: 検証失敗
+  PolicyMerged --> Disabled: package/install/検証失敗
+  FinalBundleInstalled --> Disabled: owner未承認または切替前停止
+  OwnerApproved --> Disabled: 切替/restart/status/smoke失敗
+```
+
+`Disabled` は「Codexに登録されたClaude review MCP disabled」「PR #211 merge hold」「新policy disabled」の3つを含む。`CandidateValidated`以降も、`Enabled`へ到達するまでは登録MCPと新policyを無効のまま維持する。candidate/final launcherの直接起動は隔離された検証processであり、登録MCPのre-enableではない。各失敗ではactive configを旧disabled設定へ戻し、状態を`Disabled`として記録する。
+
+候補bundleの`bootstrap/fixture prompt`はruntime隔離、応答検証、provenance経路を試験するための非本番artifactであり、レビューpolicyやactive configには使用しない。`production trusted prompt`はpolicy/prompt PRで承認された後にだけ最終version bundleへ含める。候補bundleと最終bundleは別version・別hashであり、同一物として扱わない。
 
 ## 7. 実行順序の不変条件
 
-1. Planが恒久化される前にcontainment以外の実装・rolloutを始めない。
+1. PR #238のremote mergeを確認し、専用ledger transition PRをmainへmergeしてStep 0を`done`、Step 1を`in_progress`と記録するまで、Step 1の外部操作とStep 2以降を始めない。
 2. 検証前の外部CLI/LLM出力をレビュー成功結果として返さない。
 3. Wrapper correctnessがmergeされる前にruntime bundleをrelease候補にしない。
-4. Runtime bundleのmanifest/hash/path検証が成功する前にconfigを切り替えない。
+4. Candidate bundleはMCP disabledのままconfig外で直接検証し、candidateとactive configを接続しない。
 5. config切替前に旧設定と旧bundleのrollback手順を実行可能な形で保存する。
-6. Codex/MCP再起動後のstatus/provenance確認前に新runtimeを有効と判定しない。
-7. 実Claudeによる敵対的validation成功前にreview policyを必須化しない。
+6. Candidate validation成功後にpolicy/prompt PRをmergeし、そのapproved production promptを含む別versionの最終bundleを新規作成・install・直接検証する。bootstrap/fixture promptをproduction promptとして昇格しない。
+7. `Disabled → CandidateValidated → PolicyMerged → FinalBundleInstalled → OwnerApproved → Enabled` の順を飛ばさず、実Claudeによる敵対的validation成功前にreview policyを必須化しない。
 8. 置換PRとrolloutが完了する前にPR #211をsuperseded完了としてcloseしない。
 9. 各段の失敗は下流を止め、黙ってskipまたは成功扱いにしない。
-10. owner承認が必要な外部操作を、文書PRのmergeやコードPRの承認から推定して実行しない。
+10. owner承認が必要な外部操作を、文書PRのmergeやコードPRの承認から推定して実行しない。実Claudeを呼ぶsample採取、test、validation、smokeはすべて個別承認対象とする。
 
 ## 8. 段階別処置
 
@@ -186,8 +214,10 @@ flowchart TD
 - **実行手順:** 文書作成 → link/check → diff review → 明示stage → commit → push → main向けdraft PR。
 - **verification:** Markdown内部link、Mermaid構文の目視、`git diff --check`、変更ファイル一覧。
 - **rollback:** draft PR close、remote/local branch削除。root checkoutとPR #211には影響しない。
-- **done gate:** 独立レビュー所見なし、Plan PR merge、実行台帳を`done`へ更新。
+- **done gate:** 独立レビュー所見なし、PR #238 merge後に専用ledger transition PRをmergeし、PR #238 URL、head SHA、merge commit、merge時刻を記録してStep 0を`done`、Step 1を`in_progress`へ遷移する。
 - **stop条件:** 事実と現物の矛盾、`origin/main`更新競合、docs以外のdiff、検証失敗。
+
+PR #238内の台帳は`in_progress`のまま保つ。PR #238自身をmerge前に`done`とは記録しない。remote merge確認後、Step 1専用ledger transition PRを最新mainから作り、その最初の変更として上記証跡と状態遷移だけを記録する。このtransition PRがmainへmergeされるまでStep 1の外部操作とStep 2以降は停止する。以降のStep 1実行結果は別のcloseout更新で記録する。
 
 ### Step 1 — containment
 
@@ -195,64 +225,69 @@ flowchart TD
 - **許可される変更:** owner承認後のMCP一時disable、#211 merge hold明記、rollback記録。
 - **禁止:** #211のclose/force-push、未監査runtimeへの切替、policy有効化。
 - **副作用:** Claude review MCPが一時利用不能になる。レビューは代替手段または保留となる。
-- **precondition:** ownerの明示承認、config backup、再有効化手順、利用者への影響通知。
+- **precondition:** Step 0のledger transition PRがmainへmerge済み、ownerの明示承認、config backup、再有効化手順、利用者への影響通知。
 - **実行手順:** 現状採取 → backup → MCP disable → restartが必要なら承認範囲内で実施 → status確認 → #211 holdを記録。
 - **verification:** MCPが呼出不能/disabledであること、他MCPへの非影響、backupから復元可能なこと。
 - **rollback:** backup configを戻し、旧MCPを再起動して旧statusを確認。ただし既知riskも復帰する旨を明示する。
-- **done gate:** containment状態とrollback証跡が台帳に記録される。
+- **done gate:** `Disabled`（MCP disabled、#211 merge hold、新policy disabled）とrollback証跡が台帳に記録される。
 - **stop条件:** backup不備、他MCPへの影響、disable対象の曖昧さ、owner承認範囲外のrestart要求。
 
 ### Step 2 — wrapper correctness独立PR
 
-- **入力:** F-06〜F-10のfixture、実Claude envelope sample、対応CLI要件。
+- **入力:** F-06〜F-10の既存fixture、provenance付き既存Claude envelope sample、対応CLI要件。live sampleは必須入力とみなさず、別承認substepでのみ採取する。
 - **許可される変更:** server/wrapper、unit test、互換性文書。`pr_number`正整数検証を含める。
 - **禁止:** repo外install、config変更、policy/prompt運用変更、PR #211への積み増し。
-- **副作用:** 不明・矛盾応答を成功からエラーへ変更する。古い/非対応CLIはpreflightで拒否される。
-- **precondition:** acceptするenvelope allowlistとrate-limit source分類をreviewで確定。
-- **実行手順:** failing fixture追加 → envelope validator → diagnostic経路分離 → capability preflight → tests/docs。
-- **verification:** 3反例、未知type/subtype、矛盾error、missing result、対応/非対応CLI、全unit/discover/coverage、独立敵対レビュー。
+- **副作用:** 不明・矛盾応答を成功からエラーへ変更する。古い/非対応CLIはpreflightで拒否される。live sampleを採取する場合は外部送信、quota/rate-limit消費、費用発生の可能性、外部serviceへのデータ保持が生じる。
+- **precondition:** acceptするenvelope allowlistとrate-limit source分類をreviewで確定。live sample採取前には送信内容、送信先、費用上限、quota/rate-limit影響を提示してownerの明示承認を得る。
+- **実行手順:** 既存fixtureでfailing test追加 → envelope validator → diagnostic経路分離 → capability preflight → unit tests/docs → owner承認がある場合だけlive success/error envelopeを採取し、秘密を除いたprovenance付きfixtureへ固定。
+- **verification:** 3反例、未知type/subtype、矛盾error、missing result、対応/非対応CLI、全unit/discover/coverage、独立敵対レビュー。未承認時は既存fixture/unit testまで進められるが、live validation gateを未完のまま保持しStep 3へ進まない。
 - **rollback:** correctness PR revert。containmentは維持し、旧wrapperをproduction gateへ戻さない。
-- **done gate:** PR merge、全検証成功、未解決review所見なし。
+- **done gate:** PR merge、全検証成功、未解決review所見なし、owner承認済みlive success/error envelopeのprovenance照合完了。ownerがlive callを承認しない場合はStep 2を`blocked-awaiting-owner`とし、Step 3を開始しない。
 - **stop条件:** 実CLI envelopeとfixtureの不一致、互換性をfail-openでしか保てない、公開契約の未合意MAJOR変更。
 
 ### Step 3 — versioned runtime bundle / manifest / launcher独立PR
 
 - **入力:** merge済みwrapper、runtime file一覧、threat model、install destination契約。
-- **許可される変更:** bundle builder/installer素材、manifest、isolated launcher、provenance status、package test/docs。
+- **許可される変更:** bundle builder/installer素材、manifest、isolated launcher、非本番bootstrap/fixture prompt、provenance status、package test/docs。
 - **禁止:** 実ユーザー領域へのinstall、`~/.codex/config.toml`変更、restart、policy変更。
 - **副作用:** repository内に配布可能なversioned artifact生成手段が増える。testは`/tmp`のみを使う。
-- **precondition:** runtime version、manifest schema、hash対象、absolute binary policy、target/runtime非重複条件の確定。
+- **precondition:** runtime version、manifest schema、hash対象、absolute binary policy、target/runtime非重複条件、bootstrap/fixture promptがproduction利用不能である機械的制約の確定。
 - **実行手順:** bundle layout → manifest/hash → `/usr/bin/python3 -I`相当launcher → realpath/non-overlap/HEAD照合 → provenance出力 → package tests。
 - **verification:** 改ざんhash、path重複、target HEAD不一致、未知manifest MAJOR、環境汚染をfail-close。reproducible bundle hashを確認。
 - **rollback:** packaging PR revert。外部install未実施のためruntime稼働状態は変えない。
 - **done gate:** PR merge、artifact/provenance再現、独立security review所見なし。
 - **stop条件:** expected hashと検証コードが同じ可変targetだけで自己完結する設計、target import、相対binary/path、秘密情報のmanifest混入。
 
-### Step 4 — repo外install / config switch / restart
+### Step 4 — MCP disabledのままcandidate bundleをrepo外へstage/install
 
-- **入力:** 監査済みcommitからのbundle、manifest/hash、現行config backup、rollback版。
-- **許可される変更:** owner承認範囲内のrepo外versioned directory、`~/.codex/config.toml`、Codex/MCP restart。
-- **禁止:** active checkout由来fileへの参照、未監査artifact、policy必須化、旧bundle即時削除。
-- **副作用:** ユーザー環境のMCP runtimeが切り替わり、restart中は利用不能時間が生じる。
-- **precondition:** ownerの明示承認、install先権限、disk容量、backup、rollback rehearsal、絶対path/hash確認。
-- **実行手順:** version directoryへinstall → manifest検証 → configを固定絶対pathへ切替 → restart → status/provenance確認。
-- **verification:** runtime realpath/version/hash、prompt version、launcher/python/Claude/gh path、target非重複、review smoke test。
-- **rollback:** configを旧版/disabled状態へ戻しrestart。失敗bundleは保持して診断し、active symlink等で曖昧に切替えない。
-- **done gate:** 新runtime status一致、rollback確認、ownerがrollout結果を承認。
-- **stop条件:** hash/path/version不一致、想定外env、restart失敗、旧設定消失、他MCP影響、approval不足。
+- **入力:** 監査済みcommitからのcandidate bundle、bootstrap/fixture prompt、manifest/hash、現行disabled config backup。
+- **許可される変更:** owner承認範囲内のrepo外candidate version directoryへのstage/install。
+- **禁止:** `~/.codex/config.toml`のactive path切替、Codex/MCP restart、MCP re-enable、production trusted promptの先取り、policy必須化、旧bundle即時削除。
+- **副作用:** repo外user領域のdiskを使用し、candidate artifactを永続配置する。MCPはdisabledのままで利用不能状態が継続する。
+- **precondition:** ownerのinstall明示承認、install先権限、disk容量、cleanup/rollback手順、絶対path/hash確認。
+- **実行手順:** candidate専用version directoryへinstall → manifest/hash/権限/realpath検証 → active configがcandidateを参照していないことを確認 → `Disabled`維持を記録。
+- **verification:** runtime realpath/version/hash、bootstrap/fixture prompt識別子、launcher/python/Claude/gh path、target非重複、active config非参照。実Claudeはまだ呼ばない。
+- **rollback:** candidate directoryを非activeのまま隔離または明示削除し、旧disabled configが不変であることを確認する。
+- **done gate:** candidateがrepo外にstage済みでmanifest一致、active config非参照、状態は`Disabled`のまま。
+- **stop条件:** hash/path/version不一致、production prompt混入、active config参照、想定外env、approval不足。
 
-### Step 5 — 敵対的validation後にpolicy/prompt独立PR
+### Step 5 — candidate検証、policy/prompt確定、最終bundle有効化
 
-- **入力:** rollout済みruntime、悪意あるtarget fixture、trusted prompt候補、review policy候補。
-- **許可される変更:** validation fixture/result記録。成功後に限りpolicy/promptの独立PR。
-- **禁止:** validation成功前の必須gate化、target側instructionをtrusted policyとして採用、機械検証のprompt委譲。
-- **副作用:** 実Claude呼出しが発生し得る。無料枠内で実行し、課金が必要なら停止してowner承認を求める。
-- **precondition:** ownerが実Claude試験を承認、marker/fixtureが隔離directory内、秘密情報を含まない、cleanup/費用上限が確定。
-- **実行手順:** hook/CLAUDE.md/plugin/prompt-injection fixture → safe-mode実行 → marker/output/provenance確認 → failure variant → 成功後policy/prompt PR。
-- **verification:** customization非読込、target指示不追従、schema bypass不可、target commit一致、unknown prompt MAJOR拒否、独立再レビュー。
-- **rollback:** validation失敗時はcontainmentへ戻す。policy PRはmergeせず、runtimeまたはwrapperの該当Stepへ戻る。
-- **done gate:** 敵対的validation成功、証跡保存、policy/prompt PR merge、必須gateのsmoke test成功。
-- **stop条件:** marker生成、untrusted instruction採用、provenance欠落、実行費用発生の懸念、外部service異常、未解決review所見。
+- **入力:** 非active candidate bundle、悪意あるtarget fixture、production trusted prompt候補、review policy候補、disabled config backup。
+- **許可される変更:** candidate/final bundleの直接validation記録、policy/prompt独立PR、approved prompt入り最終version bundleの新規install。全gate通過後に限りowner承認範囲内のconfig切替、restart、re-enable。
+- **禁止:** candidate bundleのactive化、bootstrap/fixture promptのproduction利用、validation前のpolicy必須化、target側instructionをtrusted policyとして採用、機械検証のprompt委譲、候補hashを最終bundlehashとして流用。
+- **副作用:** 実Claude呼出しによる外部送信、quota/rate-limit消費、費用発生の可能性、外部serviceへのデータ保持がある。最終切替時にはconfig変更、restart、短時間の利用不能、MCP re-enableが発生する。
+- **precondition:** 各実Claude呼出しについて送信内容・送信先・費用上限・quota影響を提示しownerが明示承認済み。marker/fixtureは隔離directory内で秘密を含まず、cleanup済み。config切替前には最終bundle検証、旧disabled config backup、rollback rehearsal、re-enableのowner明示承認が必要。
+- **実行手順:** 次のsubstepを順番に実行する。
+  1. **Candidate validation:** active configを変更せずcandidate launcherを絶対pathで直接起動し、bootstrap/fixture promptでprovenance、hook/CLAUDE.md/plugin隔離、schema fail-close、target commit一致を検証する。成功時だけ`CandidateValidated`。
+  2. **Policy/prompt確定:** candidate証跡を前提にpolicy/prompt独立PRをreview・mergeし、production trusted promptを確定する。成功時だけ`PolicyMerged`。
+  3. **Final bundle:** approved promptを含む新version bundleを監査済みcommitから作成して別directoryへinstallする。candidateと別version/hashであることを確認し、config外で直接起動してproduction promptを含む敵対的fixtureとprovenanceを再検証する。成功時だけ`FinalBundleInstalled`。
+  4. **Owner gate:** 最終version/hash、検証結果、config diff、restart/re-enable副作用、rollbackを提示し、ownerが明示承認した時だけ`OwnerApproved`。
+  5. **Enable:** configを最終bundleの固定絶対pathへ切替 → restart → status/provenance → 承認済み実Claude smoke test。すべて成功した時だけMCPと新policyをenableし`Enabled`。
+- **verification:** candidateとfinalそれぞれのruntime realpath/version/hash、prompt種別/version/hash、customization非読込、target指示不追従、schema bypass不可、target commit一致、unknown prompt MAJOR拒否、final config非checkout参照、restart後status、smoke、独立再レビュー。
+- **rollback:** どのsubstepの失敗でも新policyを無効、active configを旧disabled設定へ戻し、状態を`Disabled`として記録する。policy/promptがmerge済みでもruntime有効化を意味しない。失敗artifactは非activeのまま診断する。
+- **done gate:** `CandidateValidated → PolicyMerged → FinalBundleInstalled → OwnerApproved → Enabled`の全証跡が揃い、restart後status/provenanceと承認済みsmoke testが成功する。
+- **stop条件:** marker生成、untrusted instruction採用、provenance欠落、candidate/final同一性の誤認、費用・送信・quota承認不足、owner re-enable未承認、外部service異常、status/smoke失敗、未解決review所見。
 
 ### Step 6 — PR #211 superseded整理 / 台帳完了
 
@@ -276,14 +311,15 @@ flowchart TD
 | 本計画 | `1.0` | Step/gate/脅威モデルの構造変更 | 文言・補足・状態更新 |
 | Runtime manifest | `1.0`（Step 3で確定） | schema/検証契約の変更 | 後方互換field追加 |
 | Wrapper response contract | `1.0`（Step 2で確定） | acceptする応答型の構造変更 | 同一構造の診断改善 |
-| Trusted prompt | `1.0`（Step 5で確定） | 出力型/役割境界の変更 | 意味を保つ文言改善 |
+| Bootstrap/fixture prompt | `validation-1.0`（Step 3で確定） | validation入出力・試験責務の変更 | 同一試験責務の文言改善 |
+| Production trusted prompt | `1.0`（Step 5で確定） | 出力型/役割境界の変更 | 意味を保つ文言改善 |
 
 未対応MAJORは実行前にfail-closeする。版番号は実装commit、bundle hash、設定と対応づける。
 
 ### 9.2 実行ごとのprovenance必須項目
 
-- runtime version、runtime realpath、server/prompt/manifest SHA-256
-- wrapper response contract版、trusted prompt版
+- runtime version、runtime realpath、server/prompt/manifest SHA-256、candidate/finalの種別
+- wrapper response contract版、prompt種別（bootstrap/fixtureまたはproduction trusted）とprompt版
 - launcher、Python、Claude、ghの絶対pathとversion
 - target repository realpath、target HEAD、PR number、取得したremote PR head OID
 - config識別子/hash、実行時刻、結果種別、失敗stage
@@ -300,7 +336,7 @@ flowchart TD
 - repo外bundleのinstall、更新、削除
 - Codex/MCP processのrestart
 - PR #211のclose、reopen、force-push、merge
-- 実Claudeを使う敵対的integration test（費用と外部送信範囲を提示）
+- 実Claudeを呼ぶsample採取、test、validation、smokeのすべて（費用、quota/rate-limit影響、外部送信範囲、送信先を提示）
 - 有料サービス、有料枠、課金が発生し得る構成
 - root/admin管理配置など標準脅威モデルを超えるhardening
 
@@ -310,16 +346,16 @@ flowchart TD
 
 | Step | 状態 | 開始条件 | 証跡 | 次gate |
 |---|---|---|---|---|
-| 0 Plan恒久化 | `in_progress` | owner指示済み | Plan draft PR（作成後追記） | docs独立review・merge |
-| 1 Containment | `pending / 未実施` | Step 0 merge＋owner承認 | 未作成 | disable/rollback確認 |
-| 2 Wrapper correctness | `pending / 未実施` | Step 0 merge | 未作成 | 独立PR review/merge |
+| 0 Plan恒久化 | `in_progress` | owner指示済み | PR #238 / 初回review対象head `c2ab9b5ece78ae0c8b83dcde97add2338c7c793f`。最終head、merge commit・URL・時刻はmerge後のledger transition PRで追記 | #238 merge後、transition PR merge |
+| 1 Containment | `pending / 未実施` | Step 0 ledger transition merge＋owner承認 | 未作成 | `Disabled`・rollback確認 |
+| 2 Wrapper correctness | `pending / 未実施` | Step 0 ledger transition merge | 未作成 | live envelope gate＋独立PR review/merge |
 | 3 Runtime packaging | `pending / 未実施` | Step 2 merge | 未作成 | 独立PR review/merge |
-| 4 Repo外rollout | `pending / 未実施` | Step 3 merge＋owner承認 | 未作成 | status/rollback/owner承認 |
-| 5 Validation＋policy | `pending / 未実施` | Step 4完了＋owner承認 | 未作成 | 敵対試験成功＋policy PR merge |
+| 4 Candidate staging | `pending / 未実施` | Step 3 merge＋owner承認 | 未作成 | candidate install、active config非参照、`Disabled`維持 |
+| 5 Validation＋policy＋enable | `pending / 未実施` | Step 4完了＋各外部callのowner承認 | 未作成 | `CandidateValidated → PolicyMerged → FinalBundleInstalled → OwnerApproved → Enabled` |
 | 6 #211整理 | `pending / 未実施` | Step 2〜5完了＋owner承認 | 未作成 | 最終照合・close判断 |
 
-台帳更新は観測済み証跡に基づく。作業開始予定を`done`として記録せず、失敗・rollbackも結果として残す。
+台帳更新は観測済み証跡に基づく。PR #238内ではStep 0を`in_progress`のまま保ち、remote mergeを確認した後の専用ledger transition PRでのみ`done`へ更新する。そのPRにはPR #238 URL、head SHA、merge commit、merge時刻を記録し、mainへmergeされるまでStep 1/2を停止する。作業開始予定を`done`として記録せず、失敗・rollbackも結果として残す。
 
 ## 12. 現時点の次アクション
 
-**提案:** このPlan PRを独立文脈でレビューし、所見を修正してmergeする。merge後、Step 1の外部操作についてownerへ対象・副作用・rollbackを再提示して明示承認を得る。同時に、外部副作用を伴わないStep 2の設計・実装は別branch/PRで開始できる。
+**提案:** このPlan PRを独立文脈で再レビューし、所見を解消してmergeする。remote merge確認後、最新mainから専用ledger transition PRを作り、Step 0のmerge証跡と`done`、Step 1の`in_progress`を最初の変更として記録する。そのtransition PRがmergeされた後に、Step 1の外部操作についてownerへ対象・副作用・rollbackを再提示して明示承認を得る。Step 2もtransition PR merge前には開始しない。
