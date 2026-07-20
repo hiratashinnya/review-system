@@ -196,6 +196,39 @@ class RateLimitHookTests(unittest.TestCase):
     def test_banner_scan_lines_default_is_40(self):
         self.assertEqual(extract_var("BANNER_SCAN_LINES").strip(), "40")
 
+    # --- D1: hit-file session matching (resolve_hit_str) ---------------------
+    def _resolve(self, lines, session_id):
+        """Write ``lines`` to a temp hit-file, then run resolve_hit_str(file, sid)."""
+        tf = tempfile.NamedTemporaryFile("w", delete=False, suffix=".hit")
+        try:
+            tf.write(lines)
+            tf.close()
+            return _run('resolve_hit_str "$1" "$2"', [tf.name, session_id]).stdout
+        finally:
+            Path(tf.name).unlink(missing_ok=True)
+
+    def test_d1_matching_session_returns_time(self):
+        out = self._resolve("sess-AAA\n2026-07-20 10:00:00\n", "sess-AAA")
+        self.assertEqual(out, "2026-07-20 10:00:00")
+
+    def test_d1_mismatching_session_discards(self):
+        out = self._resolve("sess-AAA\n2026-07-20 10:00:00\n", "sess-BBB")
+        self.assertEqual(out, "")
+
+    def test_d1_empty_file_session_is_backward_compat_accepted(self):
+        # session_id not extractable at hit time → file line 1 empty → accept.
+        out = self._resolve("\n2026-07-20 10:00:00\n", "sess-AAA")
+        self.assertEqual(out, "2026-07-20 10:00:00")
+
+    def test_d1_legacy_single_line_format_is_discarded(self):
+        # Old 1-line format (time on line 1, no line 2) → time field empty → drop.
+        out = self._resolve("2026-07-20 10:00:00\n", "sess-AAA")
+        self.assertEqual(out, "")
+
+    def test_d1_missing_file_returns_empty(self):
+        out = _run('resolve_hit_str "/no/such/hit/file" "sess-AAA"').stdout
+        self.assertEqual(out, "")
+
     def test_acquire_capture_and_limit_screen_share_scan_window(self):
         # Both the acquire-loop capture and is_limit_screen must read the same
         # BANNER_SCAN_LINES window, or a banner on lines 16-40 is "detected but

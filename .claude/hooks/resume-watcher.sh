@@ -154,6 +154,21 @@ build_continue_msg() {
   printf 'レートリミットは解除されました(%s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$parts"
 }
 
+# hit-file(1行目=検知時の session_id・2行目=検知時刻)から、自 session と一致する検知時刻だけを
+# stdout へ返す(D1)。不一致(別セッション/別エピソードの stale)または時刻空なら何も出さない。
+# ファイル側 session_id が空のときは照合をスキップ=採用(後方互換)。旧1行形式(1行目=時刻・
+# 2行目無し)は 2行目が空になり時刻空とみなして破棄される。ファイル読み取りのみの純関数で、
+# consume(削除)やログは呼び出し側が行う=テスト用フックで公開して直接検証できる(Issue #240 M1/D2)。
+resolve_hit_str() {
+  local file="$1" my_sid="$2" fsid ftime
+  [ -f "$file" ] || return 0
+  fsid="$(sed -n '1p' "$file" 2>/dev/null || true)"
+  ftime="$(sed -n '2p' "$file" 2>/dev/null || true)"
+  if [ -n "$ftime" ] && { [ -z "$fsid" ] || [ "$fsid" = "$my_sid" ]; }; then
+    printf '%s' "$ftime"
+  fi
+}
+
 # テスト用フック(Issue #240 D2): CLAUDE_RL_SOURCE_FOR_TEST=1 で source されたら、ここまでに
 # 定義した純ロジック関数(parse_reset_from_text / build_continue_msg / is_limit_screen /
 # text_has_banner など)だけを公開して return する。ロック取得・待機・注入といった副作用のある
@@ -200,14 +215,13 @@ log "start session='${SESSION_ID}'"
 HIT_STR=""
 _hit_file="$(rl_hit_file "$PANE")"
 if [ -f "$_hit_file" ]; then
-  _hit_sid="$(sed -n '1p' "$_hit_file" 2>/dev/null || true)"
-  _hit_time="$(sed -n '2p' "$_hit_file" 2>/dev/null || true)"
+  # session 照合(D1)は純関数 resolve_hit_str に委譲(テストで直接検証・M1)。consume は必ず行う。
+  HIT_STR="$(resolve_hit_str "$_hit_file" "$SESSION_ID")"
   rm -f "$_hit_file" 2>/dev/null || true
-  if [ -n "$_hit_time" ] && { [ -z "$_hit_sid" ] || [ "$_hit_sid" = "$SESSION_ID" ]; }; then
-    HIT_STR="$_hit_time"
-    log "検知時刻を状態ファイルから取得: '${HIT_STR}' (session='${_hit_sid}')"
+  if [ -n "$HIT_STR" ]; then
+    log "検知時刻を状態ファイルから取得: '${HIT_STR}'"
   else
-    log "hit-file の session 不一致(file='${_hit_sid}' vs watcher='${SESSION_ID}') または時刻空; 検知時刻を破棄"
+    log "hit-file の session 不一致(watcher='${SESSION_ID}') または時刻空; 検知時刻を破棄"
   fi
 fi
 
