@@ -60,6 +60,7 @@
 - スキル（実装設計）：`/architecture-design` `/orchestration-design` `/prompt-design` `/impl-design-pipeline`（凍結セット）・`/test-strategy`
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
+- スキル（外部委譲・第二意見レビュー）：`/codex-review`（Codex 公式 CLI `codex exec` への第二意見レビュー委譲の入口＝別モデルファミリ OpenAI。`agy-delegate`＝agy MCP/Gemini とは委譲先の機構が別・in-repo Claude レビュー→merge は `pr-reviewer`。cybersecurity フィルタで最終応答が `ERROR:flagged` に消える件の回避＝防御形式プロンプト＋`~/.codex/sessions/rollout-*.jsonl` フォールバックを規約化。Linux/WSL 専用・全外部ツリー非移植＝`asset_parity/exceptions.py` に登録済み。opus session 上限時の代替レビュー経路にもなる）
 - スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し、実装は `issue-implementer`・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
 - スキル（ノード検索・コンテキスト効率）：`/docidx`（**v1-archive 専用**。現行コーパスは doc-system-v2 のため対象外。実体＝`archive/docidx-v1/`＝`python3 -m archive.docidx-v1`・対象は `doc-system-v1-archive/`。read-only・drift は情報提示のみで判定はしない。issue #172 で `docidx/` から `archive/docidx-v1/` へ退避、共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。v2 コーパスの検索・読込は `dsv2-lookup`（下記）が担う

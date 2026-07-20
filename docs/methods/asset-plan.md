@@ -41,6 +41,7 @@
 | 設計総点検 | 既存拡張 | エージェント | `spec-inspector`（点検対象に設計ドキュメント追加） | 7 |
 | Issue #3 資産の横展 | 横展オーケストレータ | スキル＋Python ヘルパー | `/asset-lateral-deploy` | 8 |
 | 外部 CLI 委譲（agy/Antigravity） | 外部委譲ツール | スキル（薄い起動口・disable-model-invocation）＋エージェント | `/agy-delegate`・`agy-delegate` | — |
+| 外部 CLI 委譲・第二意見レビュー（Codex/OpenAI） | 外部委譲ツール（別ファミリレビュー・薄い起動口） | スキル（disable-model-invocation・全外部ツリー非移植） | `/codex-review` | — |
 | Issue 運用（implement→PR→review→merge→close） | Issue 処理オーケストレータ＋ファンアウト2種＋権限フック | スキル（disable-model-invocation）＋エージェント2＋PreToolUse フック | `/issue-pipeline`・`issue-implementer`・`pr-reviewer`（＋`.claude/hooks/agent-command-gate.sh`） | — |
 | ノード検索/読み込み（md2idx 思想） | 検索・コンテキスト効率 | スキル（CLI 利用手順）＋エージェント（検索ループ隔離） | `/docidx`・`docidx-lookup`（実体＝`docidx/`） | — |
 
@@ -68,6 +69,7 @@
     prompt-design/SKILL.md         # A19 LLM 雛形・役割制約・注入対策
     impl-design-pipeline/SKILL.md  # A20 実装設計オーケストレータ（disable-model-invocation）
     issue-pipeline/SKILL.md        # Issue #120 Issue 処理オーケストレータ（disable-model-invocation・dev-tooling メタパイプライン）
+    codex-review/SKILL.md          # Codex 公式 CLI への第二意見レビュー委譲（disable-model-invocation・全外部ツリー非移植）
   standards/                   # A16 汎用標準（非活性・auto-load されない）
     test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
   agents/                      # ※ 現況の正本は tailoring-registry.md（本ツリーは設計初期スナップショット）
