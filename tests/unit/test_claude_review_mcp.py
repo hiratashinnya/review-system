@@ -80,9 +80,9 @@ class ClaudeReviewMcpTests(unittest.TestCase):
 
     def test_pr_number_accepts_only_positive_decimal_integers(self):
         self.assertIsNone(server.validate_pr_number(None))
-        self.assertEqual(server.validate_pr_number(1), "1")
-        self.assertEqual(server.validate_pr_number(1.0), "1")
-        self.assertEqual(server.validate_pr_number(2_147_483_647), "2147483647")
+        self.assertEqual(server.validate_pr_number(1), 1)
+        self.assertEqual(server.validate_pr_number(1.0), 1)
+        self.assertEqual(server.validate_pr_number(2_147_483_647), 2_147_483_647)
         for value in (
             True,
             False,
@@ -116,7 +116,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         for value in (1, 1.0, 2_147_483_647):
             with self.subTest(valid=value):
                 jsonschema.validate(value, schema)
-                self.assertEqual(server.validate_pr_number(value), str(int(value)))
+                self.assertEqual(server.validate_pr_number(value), int(value))
         for value in (True, 0, -1, 1.5, "1", 2_147_483_648):
             with self.subTest(invalid=value):
                 with self.assertRaises(jsonschema.ValidationError):

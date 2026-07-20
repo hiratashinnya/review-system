@@ -390,7 +390,7 @@ def validate_model(model: str | None) -> str:
     return selected
 
 
-def validate_pr_number(pr_number: Any) -> str | None:
+def validate_pr_number(pr_number: Any) -> int | None:
     if pr_number is None:
         return None
     if isinstance(pr_number, bool):
@@ -403,7 +403,7 @@ def validate_pr_number(pr_number: Any) -> str | None:
         raise ToolError(f"pr_number must be a JSON integer from 1 to {GITHUB_PR_NUMBER_MAX}")
     if not 1 <= value <= GITHUB_PR_NUMBER_MAX:
         raise ToolError(f"pr_number must be a JSON integer from 1 to {GITHUB_PR_NUMBER_MAX}")
-    return str(value)
+    return value
 
 
 def resolve_workspace(workspace: str | None) -> str:
@@ -436,9 +436,10 @@ def truncate_text(text: str, max_chars: int) -> str:
 
 
 def pr_context(pr_number: Any, workspace: str | None) -> str:
-    number = validate_pr_number(pr_number)
-    if number is None:
+    validated_number = validate_pr_number(pr_number)
+    if validated_number is None:
         return ""
+    number = str(validated_number)
     gh = os.environ.get("GH_BIN", "gh")
     view_args = [
         gh,
