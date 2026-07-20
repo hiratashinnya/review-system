@@ -12,7 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-WRAPPER_VERSION = "0.1.0"
+WRAPPER_VERSION = "0.2.0"
+WRAPPER_RESPONSE_CONTRACT_VERSION = "1.0"
 DEFAULT_TIMEOUT_S = 300
 DEFAULT_MAX_PR_CHARS = 120_000
 ALLOWED_MODELS = {"opus", "fable"}
@@ -22,10 +23,37 @@ DEFAULT_WORKSPACE = Path(
         os.path.expanduser(os.environ.get("CLAUDE_REVIEW_MCP_WORKSPACE_ROOT", os.getcwd()))
     )
 )
-RATE_LIMIT_RE = re.compile(
-    r"(rate[ -]?limit|session limit|usage limit|too many requests|rate_limit)",
+REQUIRED_CLAUDE_CAPABILITIES = (
+    "-p",
+    "--model",
+    "--fallback-model",
+    "--safe-mode",
+    "--permission-mode",
+    "--tools",
+    "--output-format",
+    "--no-session-persistence",
+)
+ANSI_ESCAPE_RE = re.compile(
+    r"(?:\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~])"
+)
+RATE_LIMIT_PHRASE = (
+    r"(?:you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
+    r"(?:session|usage|rate) limit (?:reached|exceeded))"
+)
+RATE_LIMIT_TAIL = (
+    r"(?:\s*[\"']?\s*(?:$|[.!]\s*$|"
+    r"[;:·—-]\s*(?:resets?\b|retry(?:-after|\s+after)?\b|please\b|try\b).*|"
+    r"resets?\b.*|retry(?:-after|\s+after)?\b.*|please\s+try\b.*|try\s+again\b.*))"
+)
+RATE_LIMIT_BANNER_RE = re.compile(r"^" + RATE_LIMIT_PHRASE + RATE_LIMIT_TAIL, re.IGNORECASE)
+RATE_LIMIT_DIAGNOSTIC_RE = re.compile(
+    RATE_LIMIT_PHRASE
+    + RATE_LIMIT_TAIL
+    + r"|(?:api request failed with status code|status code|http(?:\s+error)?)\s*429\b"
+    + r"|429\s+too many requests\b",
     re.IGNORECASE,
 )
+EXPLICIT_RATE_LIMIT_TYPES = {"rate_limit", "rate_limit_error"}
 RESET_RE = re.compile(r"resets?\s+([^\n\r.;]+)", re.IGNORECASE)
 
 
@@ -142,6 +170,8 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
 
 
 def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
+    if data.get("source") != "claude_process_error":
+        return None
     structured_reset = data.get("reset_at")
     if isinstance(structured_reset, str):
         reset = parse_reset_hint(structured_reset)
@@ -150,13 +180,8 @@ def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
 
     error = data.get("error")
     message = data.get("last_assistant_message")
-    if isinstance(error, str) and isinstance(message, str) and RATE_LIMIT_RE.search(error + "\n" + message):
+    if isinstance(error, str) and isinstance(message, str) and structured_rate_limit_error(data):
         return parse_reset_hint(message)
-    raw = data.get("raw")
-    if isinstance(raw, str) and RATE_LIMIT_RE.search(raw):
-        reset = parse_reset_hint(raw)
-        if reset:
-            return reset
     return None
 
 
@@ -170,10 +195,111 @@ def current_block() -> tuple[bool, str]:
     return False, "no active Claude rate-limit block found"
 
 
-def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
-    text = "\n".join([stdout or "", stderr or "", f"returncode={returncode}"])
-    if not RATE_LIMIT_RE.search(text):
+def normalize_diagnostic_text(text: str) -> str:
+    """Remove terminal decoration without changing diagnostic wording."""
+    return ANSI_ESCAPE_RE.sub("", text or "").replace("\ufeff", "").strip()
+
+
+def strip_outer_quotes(text: str) -> str:
+    normalized = normalize_diagnostic_text(text)
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in "\"'":
+        return normalized[1:-1].strip()
+    return normalized
+
+
+def success_rate_limit_banner(text: str) -> str | None:
+    """Classify only a whole success result as a legacy rate-limit banner."""
+    normalized = strip_outer_quotes(text)
+    if normalized == "429":
+        return normalized
+    if RATE_LIMIT_BANNER_RE.fullmatch(normalized):
+        return normalized
+    return None
+
+
+def diagnostic_rate_limit_banner(text: str) -> str | None:
+    """Find strong rate-limit evidence in stderr or an error envelope field."""
+    for line in normalize_diagnostic_text(text).splitlines():
+        stripped = line.strip()
+        if strip_outer_quotes(stripped) == "429":
+            return "429"
+        if match := RATE_LIMIT_DIAGNOSTIC_RE.search(stripped):
+            return stripped[match.start() :]
+    return None
+
+
+def structured_rate_limit_error(data: dict[str, Any]) -> str | None:
+    """Extract explicit rate-limit types or canonical error-channel banners."""
+    fields: list[str] = []
+    types: list[str] = []
+    for key in ("type", "subtype"):
+        value = data.get(key)
+        if isinstance(value, str):
+            types.append(value.strip().lower())
+    error = data.get("error")
+    if isinstance(error, str):
+        types.append(error.strip().lower())
+        fields.append(error)
+    elif isinstance(error, dict):
+        error_type = error.get("type")
+        if isinstance(error_type, str):
+            types.append(error_type.strip().lower())
+            fields.append(error_type)
+        error_message = error.get("message")
+        if isinstance(error_message, str):
+            fields.append(error_message)
+    for key in ("message", "last_assistant_message"):
+        value = data.get(key)
+        if isinstance(value, str):
+            fields.append(value)
+    if any(value in EXPLICIT_RATE_LIMIT_TYPES for value in types):
+        return normalize_diagnostic_text("\n".join(fields)) or "rate_limit_error"
+    return diagnostic_rate_limit_banner("\n".join(fields))
+
+
+def parse_stdout_json(stdout: str) -> Any | None:
+    normalized = normalize_diagnostic_text(stdout)
+    if not normalized:
         return None
+    try:
+        return json.loads(normalized)
+    except json.JSONDecodeError:
+        return None
+
+
+def rate_limit_error_text(
+    stdout: str, stderr: str, returncode: int, data: Any | None = None
+) -> str | None:
+    """Separate free-form success prose from structured/process diagnostics."""
+    if banner := diagnostic_rate_limit_banner(stderr):
+        return banner
+    parsed = parse_stdout_json(stdout) if data is None else data
+    if isinstance(parsed, dict):
+        if structured := structured_rate_limit_error(parsed):
+            return structured
+        result = parsed.get("result")
+        is_success_shape = (
+            parsed.get("type") == "result"
+            and parsed.get("subtype") == "success"
+            and parsed.get("is_error") is False
+            and parsed.get("error") in (None, "")
+        )
+        if isinstance(result, str):
+            if is_success_shape:
+                return success_rate_limit_banner(result)
+            return diagnostic_rate_limit_banner(result) or success_rate_limit_banner(result)
+        return None
+    if returncode != 0:
+        return diagnostic_rate_limit_banner(stdout)
+    return success_rate_limit_banner(stdout)
+
+
+def detect_and_record_rate_limit_details(
+    stdout: str, stderr: str, returncode: int, data: Any | None = None
+) -> tuple[bool, dt.datetime | None]:
+    text = rate_limit_error_text(stdout, stderr, returncode, data)
+    if not text:
+        return False, None
     reset = parse_reset_hint(text)
     write_json(
         state_file(),
@@ -181,9 +307,15 @@ def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> d
             "error": "rate_limit",
             "last_seen_at": now_tz().isoformat(),
             "reset_at": reset.isoformat() if reset else None,
+            "source": "claude_process_error",
             "raw": text[-4000:],
         },
     )
+    return True, reset
+
+
+def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
+    _, reset = detect_and_record_rate_limit_details(stdout, stderr, returncode)
     return reset
 
 
@@ -192,6 +324,18 @@ def validate_model(model: str | None) -> str:
     if selected not in ALLOWED_MODELS:
         raise ToolError("model must be one of: opus, fable")
     return selected
+
+
+def validate_pr_number(pr_number: Any) -> str | None:
+    if pr_number is None or pr_number == "":
+        return None
+    if isinstance(pr_number, bool):
+        raise ToolError("pr_number must be a positive integer")
+    if isinstance(pr_number, int) and pr_number > 0:
+        return str(pr_number)
+    if isinstance(pr_number, str) and re.fullmatch(r"[1-9][0-9]*", pr_number):
+        return pr_number
+    raise ToolError("pr_number must be a positive integer")
 
 
 def resolve_workspace(workspace: str | None) -> str:
@@ -224,9 +368,9 @@ def truncate_text(text: str, max_chars: int) -> str:
 
 
 def pr_context(pr_number: Any, workspace: str | None) -> str:
-    if pr_number is None or pr_number == "":
+    number = validate_pr_number(pr_number)
+    if number is None:
         return ""
-    number = str(pr_number)
     gh = os.environ.get("GH_BIN", "gh")
     view_args = [
         gh,
@@ -282,6 +426,7 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
         model,
         "--fallback-model",
         "opus",
+        "--safe-mode",
         "--permission-mode",
         "plan",
         "--tools",
@@ -292,11 +437,57 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
     ]
 
 
+def claude_capability_status() -> tuple[bool, str]:
+    claude = os.environ.get("CLAUDE_BIN", "claude")
+    try:
+        proc = run_command([claude, "--help"], None, 15)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"claude CLI capability preflight failed: {exc}"
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip()
+        return False, f"claude CLI capability preflight exited {proc.returncode}: {detail}"
+    help_text = "\n".join((proc.stdout or "", proc.stderr or ""))
+    missing = []
+    for flag in REQUIRED_CLAUDE_CAPABILITIES:
+        pattern = rf"(?<![A-Za-z0-9_-]){re.escape(flag)}(?=$|[\s,=])"
+        if not re.search(pattern, help_text):
+            missing.append(flag)
+    if missing:
+        return False, "claude CLI is unsupported; missing required capabilities: " + ", ".join(missing)
+    return True, "supported capabilities: " + ", ".join(REQUIRED_CLAUDE_CAPABILITIES)
+
+
+def require_claude_capabilities() -> str:
+    supported, detail = claude_capability_status()
+    if not supported:
+        raise ToolError(detail)
+    return detail
+
+
+def validate_success_envelope(data: Any) -> str:
+    """Return a validated review body for response contract 1.0."""
+    if not isinstance(data, dict):
+        raise ToolError("claude -p response contract 1.0 violation: expected an object")
+    if data.get("type") != "result":
+        raise ToolError("claude -p response contract 1.0 violation: type must be result")
+    if data.get("subtype") != "success":
+        raise ToolError("claude -p response contract 1.0 violation: subtype must be success")
+    if data.get("is_error") is not False:
+        raise ToolError("claude -p response contract 1.0 violation: is_error must be false")
+    if data.get("error") not in (None, ""):
+        raise ToolError("claude -p response contract 1.0 violation: success contains error")
+    result = data.get("result")
+    if not isinstance(result, str) or not result.strip():
+        raise ToolError("claude -p response contract 1.0 violation: result must be non-empty text")
+    return result
+
+
 def claude_review(args: dict[str, Any]) -> str:
     prompt = args.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip():
         raise ToolError("prompt is required")
     model = validate_model(args.get("model"))
+    pr_number = validate_pr_number(args.get("pr_number"))
     workspace = args.get("workspace")
     if workspace is not None and not isinstance(workspace, str):
         raise ToolError("workspace must be a string")
@@ -310,24 +501,26 @@ def claude_review(args: dict[str, Any]) -> str:
     blocked, reason = current_block()
     if blocked:
         raise ToolError(reason)
+    require_claude_capabilities()
 
-    assembled = assemble_prompt(prompt, resolved_workspace, args.get("pr_number"))
+    assembled = assemble_prompt(prompt, resolved_workspace, pr_number)
     command = build_claude_command(assembled, model)
     proc = run_command(command, resolved_workspace, timeout_s)
-    reset = detect_and_record_rate_limit(proc.stdout, proc.stderr, proc.returncode)
-    if proc.returncode != 0:
+    data = parse_stdout_json(proc.stdout)
+    rate_limited, reset = detect_and_record_rate_limit_details(
+        proc.stdout, proc.stderr, proc.returncode, data
+    )
+    if rate_limited:
         if reset:
             raise ToolError(
                 f"claude -p hit a rate limit; cooldown recorded until {reset.isoformat()}"
             )
+        raise ToolError("claude -p hit a rate limit; cooldown recorded without a known reset time")
+    if proc.returncode != 0:
         raise ToolError(f"claude -p failed with exit {proc.returncode}: {(proc.stderr or proc.stdout).strip()}")
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return proc.stdout.strip()
-    if isinstance(data, dict) and isinstance(data.get("result"), str):
-        return data["result"]
-    return json.dumps(data, ensure_ascii=False)
+    if data is None:
+        raise ToolError("claude -p returned invalid JSON output")
+    return validate_success_envelope(data)
 
 
 def version_line(bin_name: str, args: list[str]) -> str:
@@ -344,10 +537,14 @@ def claude_review_status(_: dict[str, Any] | None = None) -> str:
     claude = os.environ.get("CLAUDE_BIN", "claude")
     gh = os.environ.get("GH_BIN", "gh")
     blocked, reason = current_block()
+    capabilities_ok, capabilities = claude_capability_status()
     lines = [
         f"claude-review-mcp v{WRAPPER_VERSION}",
         version_line("claude", [claude, "--version"]),
         version_line("gh", [gh, "--version"]),
+        f"response_contract: {WRAPPER_RESPONSE_CONTRACT_VERSION}",
+        f"claude_capabilities_supported: {capabilities_ok}",
+        f"claude_capabilities_detail: {capabilities}",
         f"state_file: {state_file()}",
         f"workspace_root: {DEFAULT_WORKSPACE}",
         f"max_pr_chars: {os.environ.get('CLAUDE_REVIEW_MCP_MAX_PR_CHARS', str(DEFAULT_MAX_PR_CHARS))}",
@@ -367,7 +564,12 @@ TOOLS = [
                 "prompt": {"type": "string"},
                 "workspace": {"type": "string"},
                 "model": {"type": "string", "enum": ["opus", "fable"], "default": "opus"},
-                "pr_number": {"oneOf": [{"type": "integer"}, {"type": "string"}]},
+                "pr_number": {
+                    "oneOf": [
+                        {"type": "integer", "minimum": 1},
+                        {"type": "string", "pattern": "^[1-9][0-9]*$"},
+                    ]
+                },
                 "timeout_s": {"type": "integer", "default": DEFAULT_TIMEOUT_S},
             },
             "required": ["prompt"],

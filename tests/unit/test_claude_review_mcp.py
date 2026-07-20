@@ -156,7 +156,15 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
             state_path = state_root / "claude-review-mcp" / "rate-limit.json"
             state_path.parent.mkdir(parents=True)
-            state_path.write_text(json.dumps({"error": "rate_limit", "reset_at": reset_at}))
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "error": "rate_limit",
+                        "reset_at": reset_at,
+                        "source": "claude_process_error",
+                    }
+                )
+            )
             with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
                 blocked, reason = server.current_block()
         self.assertTrue(blocked)
@@ -175,6 +183,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                         "error": "rate_limit",
                         "last_seen_at": last_seen_at,
                         "reset_at": reset_at,
+                        "source": "claude_process_error",
                         "raw": "rate limit encountered",
                     }
                 )
@@ -207,6 +216,41 @@ class ClaudeReviewMcpTests(unittest.TestCase):
 
         self.assertFalse(blocked)
         self.assertIn("no active", reason)
+
+    def test_rate_limit_preflight_ignores_legacy_state_without_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(json.dumps({"error": "rate_limit", "reset_at": reset_at}))
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+
+        self.assertFalse(blocked)
+        self.assertIn("no active", reason)
+
+    def test_status_reports_capability_preflight_without_prompt(self):
+        calls = []
+
+        def fake_run(args, cwd, timeout_s):
+            calls.append(args)
+            if args == ["claude", "--version"]:
+                return Completed(args, stdout="2.1.fixture")
+            if args == ["gh", "--version"]:
+                return Completed(args, stdout="gh fixture")
+            if args == ["claude", "--help"]:
+                return Completed(args, stdout=SUPPORTED_CLAUDE_HELP)
+            raise AssertionError(args)
+
+        with mock.patch.object(server, "run_command", side_effect=fake_run):
+            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                status = server.claude_review_status()
+
+        self.assertIn("response_contract: 1.0", status)
+        self.assertIn("claude_capabilities_supported: True", status)
+        self.assertEqual(calls.count(["claude", "--help"]), 1)
+        self.assertFalse(any("-p" in call for call in calls))
 
     def test_rate_limit_preflight_ignores_raw_reset_without_rate_limit_text(self):
         with tempfile.TemporaryDirectory() as tmp:
