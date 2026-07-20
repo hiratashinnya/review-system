@@ -20,12 +20,16 @@
 #
 # ※ source 専用(直接実行しない)。set -u 下で source される前提。
 
-# 状態ファイル置き場(両スクリプト共通)。
-RL_STATE_DIR="${HOME}/.claude/rate-limit-recovery"
+# 状態ファイル置き場(両スクリプト共通)。テスト時は CLAUDE_RL_STATE_DIR で差し替え可
+# (Python unittest から一時ディレクトリへ隔離するため=Issue #240 D2)。
+RL_STATE_DIR="${CLAUDE_RL_STATE_DIR:-${HOME}/.claude/rate-limit-recovery}"
 mkdir -p "$RL_STATE_DIR" 2>/dev/null || true
 
-# 注入を許可する前景コマンド(既定=claude 本体=node 実行・完全一致)。env で上書き可。
-RL_PANE_CMD_RE="${CLAUDE_RL_PANE_CMD_RE:-^(claude|node)$}"
+# 注入を許可する前景コマンド(既定=claude 本体を起動するランタイム・完全一致)。env で上書き可。
+# node に加え bun / deno も既定に含める。claude CLI をこれらのランタイムやラッパで起動すると
+# pane_current_command がそれらの名前になり、node 固定だと rl_is_claude_pane が false になって
+# 自動再開しないため(Issue #240 B5)。さらに独自ラッパを使う場合は CLAUDE_RL_PANE_CMD_RE で上書き。
+RL_PANE_CMD_RE="${CLAUDE_RL_PANE_CMD_RE:-^(claude|node|bun|deno)$}"
 
 # tmux 呼び出しの timeout 秒(ハング対策)。env で上書き可。
 RL_TMUX_TIMEOUT="${CLAUDE_RL_TMUX_TIMEOUT:-3}"
@@ -34,6 +38,17 @@ RL_TMUX_TIMEOUT="${CLAUDE_RL_TMUX_TIMEOUT:-3}"
 # -k(kill-after): SIGTERM を無視/処理が遅い tmux クライアントを +5 秒後に SIGKILL で強制終了し、
 # 「timeout したのに実際は返らず flock を保持し続ける」事態を防ぐ。
 rl_tmux() { timeout -k 5 "$RL_TMUX_TIMEOUT" tmux "$@"; }
+
+# ログ1行を「時刻 プレフィックス 本文」の共通書式で追記する共有ファクトリ(Issue #240 C3)。
+# on-rate-limit.sh / resume-watcher.sh の log() がほぼ同一定義だったため lib に集約した。
+# 各スクリプトは自分のログファイルとプレフィックス(例: "[hook]" / "[watcher %pane]")を渡す薄い
+# log() を定義してこれを呼ぶ。追記失敗は握り潰す(ログ書込不能でフックを落とさない)。
+rl_log_line() {
+  # $1=ログファイル  $2=プレフィックス  $3..=本文
+  local logfile="$1" prefix="$2"
+  shift 2
+  printf '%s %s %s\n' "$(date '+%F %T')" "$prefix" "$*" >> "$logfile" 2>/dev/null || true
+}
 
 # tmux ペインID を状態ファイル名に使える文字だけへ正規化(両スクリプトで共有)。
 rl_pane_slug() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
