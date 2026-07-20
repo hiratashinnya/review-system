@@ -880,6 +880,123 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertTrue(response["result"]["isError"])
                 self.assertIn(f"gh pr {failed_stage} subprocess", serialized)
 
+    def test_completed_nonzero_diagnostics_are_never_client_visible(self):
+        sentinel = "COMPLETED_CHILD_SECRET_91e4"
+        diagnostics = (
+            sentinel,
+            sentinel * 10_000,
+            sentinel + "\npublic suffix",
+            "public prefix\n" + sentinel,
+            f"\x1b[31m{sentinel}\x1b[0m\r\nsecond line",
+        )
+        stages = ("capability", "gh view", "gh diff", "claude")
+        for stage in stages:
+            for channel in ("stdout", "stderr"):
+                for diagnostic in diagnostics:
+                    with self.subTest(stage=stage, channel=channel, size=len(diagnostic)):
+                        request = {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "tools/call",
+                            "params": {
+                                "name": "claude_review",
+                                "arguments": {
+                                    "prompt": "review",
+                                    **({"pr_number": 2} if stage.startswith("gh ") else {}),
+                                },
+                            },
+                        }
+
+                        def completed(args, returncode=7):
+                            streams = {"stdout": "", "stderr": ""}
+                            streams[channel] = diagnostic
+                            return Completed(args, returncode=returncode, **streams)
+
+                        def fake_run(args, cwd, timeout_s):
+                            if stage == "capability":
+                                return completed(args)
+                            if args[:3] == ["gh", "pr", "view"]:
+                                if stage == "gh view":
+                                    return completed(args)
+                                return Completed(args, stdout='{"number":2}')
+                            if args[:3] == ["gh", "pr", "diff"]:
+                                if stage == "gh diff":
+                                    return completed(args)
+                                return Completed(args, stdout="diff body")
+                            if stage == "claude":
+                                return completed(args)
+                            raise AssertionError(args)
+
+                        patches = (
+                            mock.patch.object(server, "current_block", return_value=(False, "ok")),
+                            mock.patch.object(
+                                server,
+                                "require_claude_capabilities",
+                                return_value="supported",
+                            ) if stage != "capability" else mock.patch.object(
+                                server,
+                                "require_claude_capabilities",
+                                wraps=server.require_claude_capabilities,
+                            ),
+                            mock.patch.object(server, "run_command", side_effect=fake_run),
+                        )
+                        with patches[0], patches[1], patches[2]:
+                            response = server.handle_request(request)
+                        serialized = json.dumps(response)
+                        self.assertNotIn(sentinel, serialized)
+                        self.assertLess(len(serialized), 512)
+                        self.assertTrue(response["result"]["isError"])
+                        self.assertIn("exit 7", serialized)
+
+    def test_invalid_exit_status_is_safely_normalized(self):
+        sentinel = "INVALID_EXIT_SECRET_ae12"
+        proc = Completed(["claude"], stderr="private", returncode=sentinel)
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "claude_review", "arguments": {"prompt": "review"}},
+        }
+        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+            with mock.patch.object(server, "require_claude_capabilities"):
+                with mock.patch.object(server, "run_command", return_value=proc):
+                    response = server.handle_request(request)
+        serialized = json.dumps(response)
+        self.assertNotIn(sentinel, serialized)
+        self.assertIn("exit unknown", serialized)
+        self.assertLess(len(serialized), 512)
+
+    def test_rate_limit_raw_diagnostic_is_classified_but_not_returned(self):
+        sentinel = "RATE_LIMIT_SECRET_5fc0"
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).replace(
+            microsecond=0
+        ).isoformat()
+        proc = Completed(
+            ["claude"],
+            stderr=f"{sentinel}\nYou've hit your session limit; resets {reset_at}",
+            returncode=1,
+        )
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "claude_review", "arguments": {"prompt": "review"}},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                    with mock.patch.object(server, "require_claude_capabilities"):
+                        with mock.patch.object(server, "run_command", return_value=proc):
+                            response = server.handle_request(request)
+                state = json.loads(
+                    (Path(tmp) / "claude-review-mcp" / "rate-limit.json").read_text()
+                )
+        serialized = json.dumps(response)
+        self.assertNotIn(sentinel, serialized)
+        self.assertLess(len(serialized), 512)
+        self.assertIn(reset_at, serialized)
+        self.assertEqual(state["reset_at"], reset_at)
+
     def test_claude_review_rejects_invalid_timeout(self):
         with mock.patch.object(server, "run_command") as run_command:
             with self.assertRaises(server.ToolError) as ctx:
