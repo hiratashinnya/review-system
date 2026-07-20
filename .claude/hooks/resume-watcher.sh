@@ -27,6 +27,9 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ※ source 前は RL_STATE_DIR が未定義なので、FATAL ログのパスだけはリテラルで書く。
 # shellcheck source=lib-pane-guard.sh
 if ! source "${HOOK_DIR}/lib-pane-guard.sh" 2>/dev/null; then
+  # 状態ディレクトリを作るのは lib 自身なので、lib 読込失敗時は未作成のことがある。
+  # FATAL を痕跡ゼロで握り潰さないよう、ここで best-effort に mkdir してから追記する。
+  mkdir -p "${HOME}/.claude/rate-limit-recovery" 2>/dev/null || true
   printf '%s [watcher] FATAL: lib-pane-guard.sh を読み込めません; abort\n' "$(date '+%F %T')" \
     >> "${HOME}/.claude/rate-limit-recovery/watcher.log" 2>/dev/null || true
   exit 0

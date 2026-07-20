@@ -24,6 +24,9 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 共有ガード(状態パス・ペイン判定・tmux timeout ラッパ)。resume-watcher.sh と共有。
 # lib が無ければ本フックは機能しない=誤動作より即中断が安全。明示的に失敗ログして exit。
 if ! source "${HOOK_DIR}/lib-pane-guard.sh" 2>/dev/null; then
+  # 状態ディレクトリを作るのは lib 自身なので、lib 読込失敗時は未作成のことがある。
+  # FATAL を痕跡ゼロで握り潰さないよう、ここで best-effort に mkdir してから追記する。
+  mkdir -p "${HOME}/.claude/rate-limit-recovery" 2>/dev/null || true
   printf '%s [hook] FATAL: lib-pane-guard.sh を読み込めません; abort\n' "$(date '+%F %T')" \
     >> "${HOME}/.claude/rate-limit-recovery/hook.log" 2>/dev/null || true
   exit 0
@@ -85,7 +88,8 @@ if [ "${CLAUDE_RL_ANNOUNCE_HIT:-1}" != "0" ]; then
   # 状態ファイルへアトミックに記録(tmp→mv)。②が rl_hit_file 経由で読む。
   hit_file="$(rl_hit_file "$pane")"
   if printf '%s\n' "$hit_time" > "${hit_file}.tmp" 2>/dev/null; then
-    mv -f "${hit_file}.tmp" "$hit_file" 2>/dev/null || true
+    # mv 失敗時は .tmp を残さず後始末(状態ディレクトリを汚さない)。
+    mv -f "${hit_file}.tmp" "$hit_file" 2>/dev/null || rm -f "${hit_file}.tmp" 2>/dev/null || true
   fi
   # status-bar へフラッシュ(入力欄には触れない・失敗しても無視・timeout ラップ)。
   rl_tmux display-message -t "$pane" "[rate-limit-hook] ${hit_time} にレートリミット検知。解除まで自動待機します。" 2>>"$LOG" || true
