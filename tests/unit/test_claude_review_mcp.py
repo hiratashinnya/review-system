@@ -1,6 +1,7 @@
 import datetime as dt
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -245,6 +246,42 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertFalse(supported)
         self.assertIn(flags[-1], detail)
 
+    def test_only_exact_option_sections_with_indented_rows_are_accepted(self):
+        required = list(server.REQUIRED_CLAUDE_CAPABILITIES)
+        boundaries = (
+            "Options: unsupported in this build",
+            "Options (advanced):",
+            "Future [options]:",
+            "Examples",
+            "Future options",
+            "top-level prose describing unavailable flags",
+        )
+        for newline in ("\n", "\r\n"):
+            for boundary in boundaries:
+                with self.subTest(newline=repr(newline), boundary=boundary):
+                    help_text = newline.join(
+                        ["Usage: claude", boundary]
+                        + [f"  {flag}" for flag in required]
+                    )
+                    with mock.patch.object(
+                        server,
+                        "run_command",
+                        return_value=Completed(["claude", "--help"], stdout=help_text),
+                    ):
+                        supported, detail = server.claude_capability_status()
+                    self.assertFalse(supported)
+                    self.assertIn("missing required capabilities", detail)
+
+        unindented = "\n".join(["Options:", *required])
+        with mock.patch.object(
+            server,
+            "run_command",
+            return_value=Completed(["claude", "--help"], stdout=unindented),
+        ):
+            supported, detail = server.claude_capability_status()
+        self.assertFalse(supported)
+        self.assertIn("missing required capabilities", detail)
+
     def test_pr_context_uses_gh_view_and_diff(self):
         calls = []
 
@@ -456,6 +493,70 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 blocked, reason = server.current_block()
         self.assertTrue(blocked)
         self.assertIn("invalid", reason)
+
+    def test_malformed_state_never_becomes_inactive_or_expired(self):
+        expired = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat()
+        malformed_states = (
+            {
+                "schema_version": True,
+                "source": "claude_process_error",
+                "error": "rate_limit",
+                "reset_at": None,
+            },
+            {"schema_version": 1, "error": "rate_limit", "reset_at": None},
+            {
+                "schema_version": 1,
+                "source": "other",
+                "error": "rate_limit",
+                "reset_at": None,
+            },
+            {
+                "schema_version": 1,
+                "source": "claude_process_error",
+                "error": ["rate_limit"],
+                "reset_at": None,
+            },
+            {"error": ["rate_limit"], "reset_at": None},
+            {
+                "schema_version": 1,
+                "source": "other",
+                "error": "rate_limit",
+                "reset_at": expired,
+            },
+        )
+        for state in malformed_states:
+            with self.subTest(state=state):
+                with tempfile.TemporaryDirectory() as tmp:
+                    state_root = Path(tmp)
+                    state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+                    state_path.parent.mkdir(parents=True)
+                    state_path.write_text(json.dumps(state), encoding="utf-8")
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                        blocked, reason = server.current_block()
+                self.assertTrue(blocked)
+                self.assertIn("operator action required", reason)
+
+    def test_recognized_unknown_reset_states_are_inactive(self):
+        states = (
+            {
+                "schema_version": 1,
+                "source": "claude_process_error",
+                "error": "rate_limit",
+                "reset_at": None,
+            },
+            {"error": "rate_limit", "reset_at": None},
+        )
+        for state in states:
+            with self.subTest(state=state):
+                with tempfile.TemporaryDirectory() as tmp:
+                    state_root = Path(tmp)
+                    state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+                    state_path.parent.mkdir(parents=True)
+                    state_path.write_text(json.dumps(state), encoding="utf-8")
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                        blocked, reason = server.current_block()
+                self.assertFalse(blocked)
+                self.assertIn("reset time unknown", reason)
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -685,6 +786,33 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
         self.assertIn("failed with exit 1", str(ctx.exception))
         self.assertFalse(state_path.exists())
+
+    def test_subprocess_exceptions_never_expose_assembled_prompt(self):
+        sentinel = "PROMPT_SECRET_SENTINEL_7d9a"
+        exceptions = (
+            subprocess.TimeoutExpired(["claude", "-p", sentinel], 1, output=sentinel),
+            OSError(f"cannot execute argv containing {sentinel}"),
+            RuntimeError(f"runner repr contains {sentinel}"),
+        )
+        for exc in exceptions:
+            with self.subTest(exception=type(exc).__name__):
+                request = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "claude_review",
+                        "arguments": {"prompt": sentinel},
+                    },
+                }
+                with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                    with mock.patch.object(server, "require_claude_capabilities"):
+                        with mock.patch.object(server, "run_command", side_effect=exc):
+                            response = server.handle_request(request)
+                serialized = json.dumps(response)
+                self.assertNotIn(sentinel, serialized)
+                self.assertTrue(response["result"]["isError"])
+                self.assertIn("subprocess", serialized)
 
     def test_claude_review_rejects_invalid_timeout(self):
         with mock.patch.object(server, "run_command") as run_command:
