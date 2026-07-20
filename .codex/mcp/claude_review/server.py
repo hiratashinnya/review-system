@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 import os
 import re
 import subprocess
@@ -14,6 +15,8 @@ from typing import Any
 
 WRAPPER_VERSION = "0.2.0"
 WRAPPER_RESPONSE_CONTRACT_VERSION = "1.0"
+RATE_LIMIT_STATE_SCHEMA_VERSION = 1
+GITHUB_PR_NUMBER_MAX = 2_147_483_647
 DEFAULT_TIMEOUT_S = 300
 DEFAULT_MAX_PR_CHARS = 120_000
 ALLOWED_MODELS = {"opus", "fable"}
@@ -77,15 +80,6 @@ def state_dir() -> Path:
 
 def state_file() -> Path:
     return state_dir() / "rate-limit.json"
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    try:
-        with path.open(encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -172,30 +166,43 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
     return None
 
 
-def rate_limit_payload_reset(data: dict[str, Any]) -> dt.datetime | None:
-    if data.get("source") != "claude_process_error":
-        return None
-    structured_reset = data.get("reset_at")
-    if isinstance(structured_reset, str):
-        reset = parse_reset_hint(structured_reset)
-        if reset:
-            return reset
-
-    error = data.get("error")
-    message = data.get("last_assistant_message")
-    if isinstance(error, str) and isinstance(message, str) and structured_rate_limit_error(data):
-        return parse_reset_hint(message)
-    return None
-
-
 def current_block() -> tuple[bool, str]:
     current = now_tz()
     path = state_file()
-    data = read_json(path)
-    reset = rate_limit_payload_reset(data) if data else None
-    if reset and reset > current:
+    if not path.exists():
+        return False, "no active Claude rate-limit block found"
+    try:
+        data = parse_strict_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+    if not isinstance(data, dict):
+        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+
+    reset_value = data.get("reset_at")
+    if reset_value is None:
+        if data.get("error") == "rate_limit":
+            return False, "no active Claude rate-limit block found (reset time unknown)"
+        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+    if not isinstance(reset_value, str) or not (reset := parse_reset_hint(reset_value)):
+        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+    if reset <= current:
+        return False, f"expired Claude rate-limit state ignored (reset {reset.isoformat()})"
+
+    is_current = (
+        data.get("schema_version") == RATE_LIMIT_STATE_SCHEMA_VERSION
+        and data.get("source") == "claude_process_error"
+        and data.get("error") == "rate_limit"
+    )
+    if is_current:
         return True, f"Claude rate-limit block active until {reset.isoformat()} from {path}"
-    return False, "no active Claude rate-limit block found"
+    is_legacy = (
+        "schema_version" not in data
+        and "source" not in data
+        and data.get("error") == "rate_limit"
+    )
+    if is_legacy:
+        return True, f"legacy Claude rate-limit block active until {reset.isoformat()} from {path}"
+    return True, f"unrecognized future Claude rate-limit state at {path}; operator action required"
 
 
 def strip_leading_terminal_fragments(line: str) -> str:
@@ -296,9 +303,31 @@ def parse_stdout_json(stdout: str) -> Any | None:
     if not normalized:
         return None
     try:
-        return json.loads(normalized)
-    except json.JSONDecodeError:
+        return parse_strict_json(normalized)
+    except ValueError:
         return None
+
+
+def reject_duplicate_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def reject_nonstandard_json_constant(value: str) -> Any:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def parse_strict_json(text: str) -> Any:
+    """Parse RFC-compatible JSON while rejecting ambiguity at every depth."""
+    return json.loads(
+        text,
+        object_pairs_hook=reject_duplicate_json_object,
+        parse_constant=reject_nonstandard_json_constant,
+    )
 
 
 def rate_limit_error_text(
@@ -339,6 +368,7 @@ def detect_and_record_rate_limit_details(
         state_file(),
         {
             "error": "rate_limit",
+            "schema_version": RATE_LIMIT_STATE_SCHEMA_VERSION,
             "last_seen_at": now_tz().isoformat(),
             "reset_at": reset.isoformat() if reset else None,
             "source": "claude_process_error",
@@ -364,12 +394,16 @@ def validate_pr_number(pr_number: Any) -> str | None:
     if pr_number is None:
         return None
     if isinstance(pr_number, bool):
-        raise ToolError("pr_number must be a positive integer")
-    if isinstance(pr_number, int) and pr_number > 0:
-        return str(pr_number)
-    if isinstance(pr_number, str) and re.fullmatch(r"[1-9][0-9]*", pr_number):
-        return pr_number
-    raise ToolError("pr_number must be a positive integer")
+        raise ToolError(f"pr_number must be a JSON integer from 1 to {GITHUB_PR_NUMBER_MAX}")
+    if isinstance(pr_number, int):
+        value = pr_number
+    elif isinstance(pr_number, float) and math.isfinite(pr_number) and pr_number.is_integer():
+        value = int(pr_number)
+    else:
+        raise ToolError(f"pr_number must be a JSON integer from 1 to {GITHUB_PR_NUMBER_MAX}")
+    if not 1 <= value <= GITHUB_PR_NUMBER_MAX:
+        raise ToolError(f"pr_number must be a JSON integer from 1 to {GITHUB_PR_NUMBER_MAX}")
+    return str(value)
 
 
 def resolve_workspace(workspace: str | None) -> str:
@@ -471,6 +505,26 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
     ]
 
 
+def defined_help_options(help_text: str) -> set[str]:
+    """Extract only option tokens defined at the start of non-negative help lines."""
+    options: set[str] = set()
+    negative = re.compile(r"\b(?:unsupported|removed|deprecated|no longer)\b", re.IGNORECASE)
+    option = re.compile(r"(--?[A-Za-z0-9][A-Za-z0-9-]*)(?=$|[\s,=])")
+    for line in help_text.splitlines():
+        stripped = line.lstrip()
+        if not stripped.startswith("-") or negative.search(stripped):
+            continue
+        remaining = stripped
+        while match := option.match(remaining):
+            options.add(match.group(1))
+            remaining = remaining[match.end() :]
+            comma = re.match(r"\s*,\s*", remaining)
+            if not comma:
+                break
+            remaining = remaining[comma.end() :]
+    return options
+
+
 def claude_capability_status() -> tuple[bool, str]:
     claude = os.environ.get("CLAUDE_BIN", "claude")
     try:
@@ -481,11 +535,8 @@ def claude_capability_status() -> tuple[bool, str]:
         detail = (proc.stderr or proc.stdout).strip()
         return False, f"claude CLI capability preflight exited {proc.returncode}: {detail}"
     help_text = "\n".join((proc.stdout or "", proc.stderr or ""))
-    missing = []
-    for flag in REQUIRED_CLAUDE_CAPABILITIES:
-        pattern = rf"(?<![A-Za-z0-9_-]){re.escape(flag)}(?=$|[\s,=])"
-        if not re.search(pattern, help_text):
-            missing.append(flag)
+    defined_options = defined_help_options(help_text)
+    missing = [flag for flag in REQUIRED_CLAUDE_CAPABILITIES if flag not in defined_options]
     if missing:
         return False, "claude CLI is unsupported; missing required capabilities: " + ", ".join(missing)
     return True, "supported capabilities: " + ", ".join(REQUIRED_CLAUDE_CAPABILITIES)
@@ -577,6 +628,7 @@ def claude_review_status(_: dict[str, Any] | None = None) -> str:
         version_line("claude", [claude, "--version"]),
         version_line("gh", [gh, "--version"]),
         f"response_contract: {WRAPPER_RESPONSE_CONTRACT_VERSION}",
+        f"rate_limit_state_schema: {RATE_LIMIT_STATE_SCHEMA_VERSION}",
         f"claude_capabilities_supported: {capabilities_ok}",
         f"claude_capabilities_detail: {capabilities}",
         f"state_file: {state_file()}",
@@ -599,10 +651,9 @@ TOOLS = [
                 "workspace": {"type": "string"},
                 "model": {"type": "string", "enum": ["opus", "fable"], "default": "opus"},
                 "pr_number": {
-                    "oneOf": [
-                        {"type": "integer", "minimum": 1},
-                        {"type": "string", "pattern": "^[1-9][0-9]*$"},
-                    ]
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": GITHUB_PR_NUMBER_MAX,
                 },
                 "timeout_s": {"type": "integer", "default": DEFAULT_TIMEOUT_S},
             },

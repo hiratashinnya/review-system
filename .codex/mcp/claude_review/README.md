@@ -31,7 +31,9 @@ Before a review, the wrapper runs the same capability preflight and requires
 `--tools`, `--output-format`, and `--no-session-persistence`. An unsupported
 CLI is rejected before GitHub context is fetched or a review prompt is sent.
 Capability detection is intentional: the contract does not infer support from
-a version string.
+a version string. Only options defined at the start of CLI help option lines
+count; mentions in usage examples, descriptions, or removed/deprecated lines
+do not satisfy the preflight.
 
 When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 
@@ -41,10 +43,11 @@ When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 That context is appended to the prompt sent to Claude. If either command fails,
 Claude is not called.
 
-`pr_number` must be a positive integer or its canonical base-10 string form.
-Values such as an empty string, `0`, a leading-zero string, negative numbers,
-booleans, whitespace, and option-like strings are rejected before `gh` is
-called.
+`pr_number` uses JSON Schema integer semantics and must be between `1` and the
+GitHub GraphQL `Int` maximum `2147483647`, inclusive. Integral JSON numbers
+such as `1.0` normalize to `1`; strings (including digit strings), booleans,
+zero, negative, fractional, non-finite, and over-limit values are rejected
+before state inspection, `gh`, or Claude subprocess execution.
 
 If `workspace` is omitted, the wrapper uses the MCP server startup cwd. If it
 is provided, the wrapper resolves it with realpath and only allows paths under
@@ -72,6 +75,16 @@ time, the wrapper returns a tool error without spending Claude quota. Otherwise,
 rate-limit detection happens from the actual `claude -p` result, and any detected
 cooldown is stored for the next call.
 
+New cooldown files use state schema `1` with
+`source: "claude_process_error"`. A schema-1 state with a future `reset_at`
+blocks normally. A v0.1 legacy state has neither `schema_version` nor `source`;
+when it has `error: "rate_limit"` and a future reset it also blocks, preventing
+an upgrade from spending quota during a real legacy cooldown. Expired states
+are safely ignored. Malformed states and unrecognized states claiming a future
+reset fail closed and require operator inspection or removal. A recognized
+rate-limit state without a known reset remains non-active, matching the
+existing unknown-reset behavior.
+
 ## Claude response contract
 
 Wrapper response contract `1.0` accepts exactly the following success
@@ -88,6 +101,9 @@ semantics while allowing additional metadata fields:
 
 Missing or unknown `type`/`subtype`, a non-false `is_error`, a non-empty
 `error` field, malformed JSON, and a missing or empty `result` fail closed.
+JSON object keys must be unique at every nesting depth, and non-standard JSON
+constants (`NaN`, `Infinity`, and `-Infinity`) are rejected; parser last-wins
+behavior is never used to resolve conflicting fields.
 This intentionally rejects older result-only fixtures and unsupported future
 envelope shapes instead of guessing that they mean success.
 
