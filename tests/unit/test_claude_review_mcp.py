@@ -829,6 +829,57 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertTrue(response["result"]["isError"])
                 self.assertIn("subprocess", serialized)
 
+    def test_preflight_exception_never_exposes_command_details(self):
+        sentinel = "PREFLIGHT_SECRET_SENTINEL_42c1"
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "claude_review",
+                "arguments": {"prompt": "review"},
+            },
+        }
+        failure = subprocess.TimeoutExpired([sentinel, "--help"], 1, output=sentinel)
+        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+            with mock.patch.object(server, "run_command", side_effect=failure):
+                response = server.handle_request(request)
+        serialized = json.dumps(response)
+        self.assertNotIn(sentinel, serialized)
+        self.assertTrue(response["result"]["isError"])
+        self.assertIn("capability preflight", serialized)
+
+    def test_gh_exceptions_never_expose_command_details(self):
+        sentinel = "GH_SECRET_SENTINEL_b832"
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "claude_review",
+                "arguments": {"prompt": "review", "pr_number": 2},
+            },
+        }
+        for failed_stage in ("view", "diff"):
+            with self.subTest(failed_stage=failed_stage):
+                def fake_run(args, cwd, timeout_s):
+                    if args[:3] == ["gh", "pr", "view"]:
+                        if failed_stage == "view":
+                            raise OSError(f"view argv contains {sentinel}")
+                        return Completed(args, stdout='{"number":2}')
+                    if args[:3] == ["gh", "pr", "diff"]:
+                        raise RuntimeError(f"diff argv contains {sentinel}")
+                    raise AssertionError(args)
+
+                with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                    with mock.patch.object(server, "require_claude_capabilities"):
+                        with mock.patch.object(server, "run_command", side_effect=fake_run):
+                            response = server.handle_request(request)
+                serialized = json.dumps(response)
+                self.assertNotIn(sentinel, serialized)
+                self.assertTrue(response["result"]["isError"])
+                self.assertIn(f"gh pr {failed_stage} subprocess", serialized)
+
     def test_claude_review_rejects_invalid_timeout(self):
         with mock.patch.object(server, "run_command") as run_command:
             with self.assertRaises(server.ToolError) as ctx:
