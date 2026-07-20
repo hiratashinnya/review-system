@@ -3,6 +3,8 @@
 > 目的：MVP 開発に着手する前に、ここまでの**やり方（手順・判断基準・点検観点）を再利用可能な形で抽出**する。
 > このメモを土台に、[asset-plan.md](asset-plan.md) でスキル/エージェント化を計画する。
 > 対象成果物：[dashboard](../dashboard.md) / [requirements/05・06](../requirements/05-io-overview.md) / [process/00–05](../process/00-context.md) / [schema](../schema/README.md) / [12-mvp-scope](../requirements/12-mvp-scope.md)。
+>
+> **関連運用計画**：[Claude review 修復・信頼境界分離計画](claude-review-remediation-plan.md) — Claude review MCP の containment、wrapper修正、runtime分離、repo外rollout、敵対的検証、policy再導入を段階管理する。
 
 ---
 
