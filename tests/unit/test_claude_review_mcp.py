@@ -6,6 +6,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+try:
+    import jsonschema
+except ImportError:  # pragma: no cover - optional independent schema oracle
+    jsonschema = None
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / ".codex" / "mcp" / "claude_review" / "server.py"
@@ -76,8 +81,24 @@ class ClaudeReviewMcpTests(unittest.TestCase):
     def test_pr_number_accepts_only_positive_decimal_integers(self):
         self.assertIsNone(server.validate_pr_number(None))
         self.assertEqual(server.validate_pr_number(1), "1")
-        self.assertEqual(server.validate_pr_number("42"), "42")
-        for value in (True, False, 0, -1, 1.5, "", "0", "01", "-1", "+1", " 1", "1 ", "1.0", "--repo=x", []):
+        self.assertEqual(server.validate_pr_number(1.0), "1")
+        self.assertEqual(server.validate_pr_number(2_147_483_647), "2147483647")
+        for value in (
+            True,
+            False,
+            0,
+            -1,
+            1.5,
+            "",
+            "0",
+            "01",
+            "42",
+            "9" * 2_000_000,
+            2_147_483_648,
+            float("nan"),
+            float("inf"),
+            [],
+        ):
             with self.subTest(value=value):
                 with self.assertRaises(server.ToolError):
                     server.validate_pr_number(value)
@@ -86,13 +107,33 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         schema = server.TOOLS[0]["inputSchema"]["properties"]["pr_number"]
         self.assertEqual(
             schema,
-            {
-                "oneOf": [
-                    {"type": "integer", "minimum": 1},
-                    {"type": "string", "pattern": "^[1-9][0-9]*$"},
-                ]
-            },
+            {"type": "integer", "minimum": 1, "maximum": 2_147_483_647},
         )
+
+    @unittest.skipUnless(jsonschema, "jsonschema package is required for schema parity")
+    def test_pr_number_json_schema_and_runtime_accept_the_same_boundaries(self):
+        schema = server.TOOLS[0]["inputSchema"]["properties"]["pr_number"]
+        for value in (1, 1.0, 2_147_483_647):
+            with self.subTest(valid=value):
+                jsonschema.validate(value, schema)
+                self.assertEqual(server.validate_pr_number(value), str(int(value)))
+        for value in (True, 0, -1, 1.5, "1", 2_147_483_648):
+            with self.subTest(invalid=value):
+                with self.assertRaises(jsonschema.ValidationError):
+                    jsonschema.validate(value, schema)
+                with self.assertRaises(server.ToolError):
+                    server.validate_pr_number(value)
+
+    def test_pr_number_overflow_fails_before_state_or_subprocess(self):
+        with mock.patch.object(server, "current_block") as current_block:
+            with mock.patch.object(server, "run_command") as run_command:
+                with self.assertRaises(server.ToolError) as ctx:
+                    server.claude_review(
+                        {"prompt": "review", "pr_number": "9" * 2_000_000}
+                    )
+        self.assertIn("pr_number", str(ctx.exception))
+        current_block.assert_not_called()
+        run_command.assert_not_called()
 
     def test_supported_claude_capabilities_are_accepted(self):
         with mock.patch.object(
@@ -120,6 +161,30 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIn("unsupported", str(ctx.exception))
         self.assertIn("--safe-mode", str(ctx.exception))
         self.assertEqual(calls, [["claude", "--help"]])
+
+    def test_removed_or_example_only_capabilities_are_rejected(self):
+        help_texts = (
+            "Usage: claude\nUnsupported/removed options: "
+            + " ".join(server.REQUIRED_CLAUDE_CAPABILITIES),
+            "Usage: claude\nExample: claude "
+            + " ".join(server.REQUIRED_CLAUDE_CAPABILITIES),
+            "Usage: claude\n  --old-option  Deprecated; use --safe-mode\n"
+            + "\n".join(
+                f"  {flag}"
+                for flag in server.REQUIRED_CLAUDE_CAPABILITIES
+                if flag != "--safe-mode"
+            ),
+        )
+        for help_text in help_texts:
+            with self.subTest(help_text=help_text):
+                with mock.patch.object(
+                    server,
+                    "run_command",
+                    return_value=Completed(["claude", "--help"], stdout=help_text),
+                ):
+                    supported, detail = server.claude_capability_status()
+                self.assertFalse(supported)
+                self.assertIn("missing required capabilities", detail)
 
     def test_pr_context_uses_gh_view_and_diff(self):
         calls = []
@@ -162,6 +227,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             state_path.write_text(
                 json.dumps(
                     {
+                        "schema_version": 1,
                         "error": "rate_limit",
                         "reset_at": reset_at,
                         "source": "claude_process_error",
@@ -183,6 +249,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             state_path.write_text(
                 json.dumps(
                     {
+                        "schema_version": 1,
                         "error": "rate_limit",
                         "last_seen_at": last_seen_at,
                         "reset_at": reset_at,
@@ -220,7 +287,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertFalse(blocked)
         self.assertIn("no active", reason)
 
-    def test_rate_limit_preflight_ignores_legacy_state_without_source(self):
+    def test_rate_limit_preflight_blocks_legacy_future_state_without_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             state_root = Path(tmp)
             reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
@@ -230,8 +297,33 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
                 blocked, reason = server.current_block()
 
+        self.assertTrue(blocked)
+        self.assertIn("legacy", reason)
+
+    def test_rate_limit_preflight_ignores_expired_legacy_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            reset_at = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat()
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(json.dumps({"error": "rate_limit", "reset_at": reset_at}))
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+
         self.assertFalse(blocked)
-        self.assertIn("no active", reason)
+        self.assertIn("expired", reason)
+
+    def test_rate_limit_preflight_blocks_malformed_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_root = Path(tmp)
+            state_path = state_root / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text('{"error":"rate_limit",', encoding="utf-8")
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
+                blocked, reason = server.current_block()
+
+        self.assertTrue(blocked)
+        self.assertIn("invalid", reason)
 
     def test_status_reports_capability_preflight_without_prompt(self):
         calls = []
@@ -255,18 +347,18 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertEqual(calls.count(["claude", "--help"]), 1)
         self.assertFalse(any("-p" in call for call in calls))
 
-    def test_rate_limit_preflight_ignores_raw_reset_without_rate_limit_text(self):
+    def test_rate_limit_preflight_blocks_unrecognized_future_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             state_root = Path(tmp)
             reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
             state_path = state_root / "claude-review-mcp" / "rate-limit.json"
             state_path.parent.mkdir(parents=True)
-            state_path.write_text(json.dumps({"error": "other", "raw": f"review note resets {reset_at}"}))
+            state_path.write_text(json.dumps({"error": "other", "reset_at": reset_at}))
             with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
                 blocked, reason = server.current_block()
 
-        self.assertFalse(blocked)
-        self.assertIn("no active", reason)
+        self.assertTrue(blocked)
+        self.assertIn("unrecognized", reason)
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -340,6 +432,25 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                                 server.claude_review({"prompt": "review"})
                 self.assertIn("response contract", str(ctx.exception))
 
+    def test_ambiguous_json_fails_closed_at_every_object_depth(self):
+        cases = (
+            '{"type":"result","subtype":"success","is_error":true,"is_error":false,"result":"ok"}',
+            '{"type":"error","type":"result","subtype":"success","is_error":false,"result":"ok"}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"ok","meta":{"x":1,"x":2}}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"ok","cost":NaN}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"ok","cost":Infinity}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"ok","cost":-Infinity}',
+        )
+        for stdout in cases:
+            with self.subTest(stdout=stdout):
+                proc = Completed(["claude"], stdout=stdout)
+                with mock.patch.object(server, "require_claude_capabilities", return_value="supported"):
+                    with mock.patch.object(server, "run_command", return_value=proc):
+                        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                            with self.assertRaises(server.ToolError) as ctx:
+                                server.claude_review({"prompt": "review"})
+                self.assertIn("invalid JSON", str(ctx.exception))
+
     def test_success_review_discussing_rate_limit_is_not_diagnostic(self):
         review = "rate_limit_error handling is broken; HTTP 429 should be tested."
         proc = Completed(["claude"], stdout=success_envelope(review))
@@ -389,6 +500,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                         )
                 self.assertIn("rate limit", str(ctx.exception))
                 self.assertEqual(state["source"], "claude_process_error")
+                self.assertEqual(state["schema_version"], 1)
 
     def test_terminal_decorated_banners_fail_closed(self):
         reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
