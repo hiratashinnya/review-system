@@ -267,8 +267,16 @@ Step 1の3条件達成後、専用closeout ledger PRで実測証跡とStep 1=`do
 
 - final verification sequenceを確定した[PR #241](https://github.com/hiratashinnya/review-system/pull/241)はmerge commit `8cf11c185bf724fd511086254658c03fb8b4ffd3`でmainへmerge済みである。
 - restart後、旧parent PID `2510`が存在しないことを確認した。fresh Codex wrapper PID `701827` / native PID `701838`は2026-07-20 17:06:51 JSTに起動した。
-- 対象`claude_review/server.py` processは17:32:14、17:35:03、17:55:16の各観測で0本だった。最初の観測から169秒後、さらに通常操作と別文脈操作を経た1213秒後にも再spawnしなかった。
-- 各status確認で`claude_review = disabled`、`agy` / `serena = enabled`だった。checkpoint (c)では`agy`のstatusと`serena`の`get_current_config`をread-only operationとして実行し、両方の成功を確認した。
+
+| Checkpoint | 時刻・間隔（2026-07-20 JST） | supervisor/session・旧PID | 対象process・MCP status | 刺激・read-only結果 |
+|---|---|---|---|---|
+| (a)/(b) fresh起動・discovery統合 | fresh wrapper/native起動 `17:06:51`、最初の恒久観測 `17:32:14` | wrapper PID `701827`、native PID `701838`（PPID `701827`）。旧PID `2510`不在 | `claude_review/server.py`: 一覧空・0本。`claude_review = disabled`、`agy = enabled`、`serena = enabled` | clientがfresh起動時にMCP tool discoveryを自動実行済みだったため、最初の明示的tool discovery前の(a)を分離できず(b)と統合した。自動discovery event単体の厳密時刻は保持されておらず、推測せずfresh起動時刻と最初の観測時刻を記録する |
+| (c) 刺激前 | `17:32:14` | wrapper PID `701827`、native PID `701838`（PPID `701827`）。旧PID `2510`不在 | `claude_review/server.py`: 一覧空・0本。`claude_review = disabled`、`agy = enabled`、`serena = enabled` | read-only operation実行前の共通必須証跡 |
+| (c) 刺激後 | `17:35:03`（刺激前から169秒後） | wrapper PID `701827`、native PID `701838`（PPID `701827`）。旧PID `2510`不在 | `claude_review/server.py`: 一覧空・0本。`claude_review = disabled`、`agy = enabled`、`serena = enabled` | `agy`のstatusと`serena`の`get_current_config`が成功。通常turnと別文脈操作後もnon-respawn。各operation単体の厳密時刻は保持されておらず、実行窓の前後時刻を記録する |
+| (d) 観測窓開始 | `17:35:03` | wrapper PID `701827`、native PID `701838`（PPID `701827`）。旧PID `2510`不在 | `claude_review/server.py`: 一覧空・0本。`claude_review = disabled`、`agy = enabled`、`serena = enabled` | (c)刺激後の状態を観測窓開始値として採用。read-only operationの再呼出しなし |
+| (d) 観測窓終了 | `17:55:16`（開始から1213秒後） | wrapper PID `701827`、native PID `701838`（PPID `701827`）。旧PID `2510`不在 | `claude_review/server.py`: 一覧空・0本。`claude_review = disabled`、`agy = enabled`、`serena = enabled` | 30秒を超える観測窓と追加の通常turn・別文脈操作後にもnon-respawn。read-only operationの再呼出しなし |
+
+- 上表の全観測で対象`claude_review/server.py` processは0本だった。169秒後、さらに1213秒後にも再spawnせず、`claude_review = disabled`と`agy` / `serena = enabled`を維持した。
 - active configの`[mcp_servers.claude_review]`は`enabled = false`を維持している。rollback用backup `/home/hiras/.codex/config.toml.pre-claude-review-disable.20260720T060143Z`は元設定との内容一致を確認済みで、mode `600`である。
 - [PR #211のmerge hold記録](https://github.com/hiratashinnya/review-system/pull/211#issuecomment-5019447581)は維持され、PR #211はOPENである。新policyもdisabledのため、Step 1の現在状態を`Disabled`、Step 1を`done`と判定する。
 - この判定はStep 2の開始を意味しない。Step 2は`pending / 未実施`であり、本closeout ledger PRのmainへのmerge後に、計画で定めた開始条件の再確認と明示的な開始判断を別gateとして行う。
@@ -351,7 +359,7 @@ Step 1の3条件達成後、専用closeout ledger PRで実測証跡とStep 1=`do
 
 | 対象 | 版 | MAJOR | MINOR |
 |---|---|---|---|
-| 本計画 | `1.5`（checkpoint刺激・証跡・usable判定の分離） | Step/gate/脅威モデルの構造変更 | 文言・補足・状態更新 |
+| 本計画 | `1.6`（Step 1完了証跡とStep 2未開始gateの記録） | Step/gate/脅威モデルの構造変更 | 文言・補足・状態更新 |
 | Runtime manifest | `1.0`（Step 3で確定） | schema/検証契約の変更 | 後方互換field追加 |
 | Wrapper response contract | `1.0`（Step 2で確定） | acceptする応答型の構造変更 | 同一構造の診断改善 |
 | Bootstrap/fixture prompt | `validation-1.0`（Step 3で確定） | validation入出力・試験責務の変更 | 同一試験責務の文言改善 |
