@@ -32,6 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 STOP_HOOK = ROOT / ".codex" / "hooks" / "codex-rate-limit-stop-hook.sh"
 WATCHER = ROOT / ".codex" / "hooks" / "codex-rate-limit-watcher.sh"
+_HAS_BASH = shutil.which("bash") is not None
 
 # Real banner text captured in a Stop payload (PR #66):
 #   "You've hit your session limit · resets 10:50pm (Asia/Tokyo)"
@@ -152,6 +153,7 @@ printf '%s' "${var_name}"
     return result.stdout
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class RateLimitBannerRegexTests(unittest.TestCase):
     def test_scripts_pass_bash_syntax_check(self):
         for script in (STOP_HOOK, WATCHER):
