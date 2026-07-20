@@ -497,16 +497,25 @@ class ClaudeReviewMcpTests(unittest.TestCase):
     def test_malformed_state_never_becomes_inactive_or_expired(self):
         expired = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat()
         malformed_states = (
-            {
-                "schema_version": True,
-                "source": "claude_process_error",
-                "error": "rate_limit",
-                "reset_at": None,
-            },
+            *(
+                {
+                    "schema_version": version,
+                    "source": "claude_process_error",
+                    "error": "rate_limit",
+                    "reset_at": None,
+                }
+                for version in (True, False, 1.0, "1")
+            ),
             {"schema_version": 1, "error": "rate_limit", "reset_at": None},
             {
                 "schema_version": 1,
                 "source": "other",
+                "error": "rate_limit",
+                "reset_at": None,
+            },
+            {
+                "schema_version": 1,
+                "source": False,
                 "error": "rate_limit",
                 "reset_at": None,
             },
@@ -517,6 +526,12 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 "reset_at": None,
             },
             {"error": ["rate_limit"], "reset_at": None},
+            {
+                "schema_version": 1,
+                "source": "claude_process_error",
+                "error": "rate_limit",
+                "reset_at": "unknown",
+            },
             {
                 "schema_version": 1,
                 "source": "other",

@@ -178,37 +178,38 @@ def current_block() -> tuple[bool, str]:
     if not isinstance(data, dict):
         return True, f"invalid Claude rate-limit state at {path}; operator action required"
 
-    reset_value = data.get("reset_at")
-    if reset_value is None:
-        if data.get("error") == "rate_limit":
-            return False, "no active Claude rate-limit block found (reset time unknown)"
-        return True, f"invalid Claude rate-limit state at {path}; operator action required"
-    if not isinstance(reset_value, str) or not (reset := parse_reset_hint(reset_value)):
-        return True, f"invalid Claude rate-limit state at {path}; operator action required"
-    if reset <= current:
-        return False, f"expired Claude rate-limit state ignored (reset {reset.isoformat()})"
-
     schema_version = data.get("schema_version")
     is_current_version = (
         isinstance(schema_version, int)
         and not isinstance(schema_version, bool)
         and schema_version == RATE_LIMIT_STATE_SCHEMA_VERSION
     )
-    is_current = (
+    is_current = bool(
         is_current_version
         and data.get("source") == "claude_process_error"
         and data.get("error") == "rate_limit"
     )
-    if is_current:
-        return True, f"Claude rate-limit block active until {reset.isoformat()} from {path}"
     is_legacy = (
         "schema_version" not in data
         and "source" not in data
         and data.get("error") == "rate_limit"
     )
+    if not is_current and not is_legacy:
+        return True, f"unrecognized Claude rate-limit state at {path}; operator action required"
+
+    reset_value = data.get("reset_at")
+    if reset_value is None:
+        return False, "no active Claude rate-limit block found (reset time unknown)"
+    if not isinstance(reset_value, str) or not (reset := parse_reset_hint(reset_value)):
+        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+    if reset <= current:
+        return False, f"expired Claude rate-limit state ignored (reset {reset.isoformat()})"
+
+    if is_current:
+        return True, f"Claude rate-limit block active until {reset.isoformat()} from {path}"
     if is_legacy:
         return True, f"legacy Claude rate-limit block active until {reset.isoformat()} from {path}"
-    return True, f"unrecognized future Claude rate-limit state at {path}; operator action required"
+    raise AssertionError("recognized state classification must be exhaustive")
 
 
 def strip_leading_terminal_fragments(line: str) -> str:
@@ -513,25 +514,28 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
 
 
 def defined_help_options(help_text: str) -> set[str]:
-    """Extract definitions only from implicit or explicitly supported option sections."""
+    """Extract indented definitions from exact supported option sections."""
     options: set[str] = set()
     negative = re.compile(r"\b(?:unsupported|removed|deprecated|no longer)\b", re.IGNORECASE)
     option = re.compile(r"(--?[A-Za-z0-9][A-Za-z0-9-]*)(?=$|[\s,=])")
-    heading = re.compile(r"^([A-Za-z][A-Za-z0-9 _/-]*):(?:\s.*)?$")
-    option_headings = {"options", "global options", "flags"}
-    neutral_headings = {"usage"}
-    collect_options = True
+    option_heading = re.compile(r"^(?:options|global\s+options|flags):\s*$", re.IGNORECASE)
+    usage_heading = re.compile(r"^usage:\s+.+$", re.IGNORECASE)
+    collect_options = False
     for line in help_text.splitlines():
         stripped = line.lstrip()
         if not stripped:
             continue
+        is_indented = len(stripped) != len(line)
+        if not is_indented:
+            # Exact supported headings begin a definition block. Usage starts
+            # the legacy compact block used by older Claude help output. Every
+            # other top-level line is a boundary, including headings with
+            # suffixes or punctuation the parser does not understand.
+            collect_options = bool(
+                option_heading.fullmatch(stripped) or usage_heading.fullmatch(stripped)
+            )
+            continue
         if not stripped.startswith("-"):
-            if match := heading.match(stripped):
-                name = " ".join(match.group(1).lower().split())
-                if name in option_headings:
-                    collect_options = True
-                elif name not in neutral_headings:
-                    collect_options = False
             continue
         if not collect_options or negative.search(stripped):
             continue
@@ -611,7 +615,10 @@ def claude_review(args: dict[str, Any]) -> str:
 
     assembled = assemble_prompt(prompt, resolved_workspace, pr_number)
     command = build_claude_command(assembled, model)
-    proc = run_command(command, resolved_workspace, timeout_s)
+    try:
+        proc = run_command(command, resolved_workspace, timeout_s)
+    except Exception:  # noqa: BLE001 - child exceptions can retain the prompt argv
+        raise ToolError("claude -p subprocess execution failed") from None
     data = parse_stdout_json(proc.stdout)
     rate_limited, reset = detect_and_record_rate_limit_details(
         proc.stdout, proc.stderr, proc.returncode, data

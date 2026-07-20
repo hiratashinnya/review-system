@@ -85,10 +85,11 @@ floats, strings, non-finite constants, and future versions are not schema 1), wi
 blocks normally. A v0.1 legacy state has neither `schema_version` nor `source`;
 when it has `error: "rate_limit"` and a future reset it also blocks, preventing
 an upgrade from spending quota during a real legacy cooldown. Expired states
-are safely ignored. Malformed states and unrecognized states claiming a future
-reset fail closed and require operator inspection or removal. A recognized
-rate-limit state without a known reset remains non-active, matching the
-existing unknown-reset behavior.
+are safely ignored only after the state has been recognized as valid current or
+legacy data. Malformed or unrecognized states fail closed and require operator
+inspection or removal even when `reset_at` is absent, null, unknown, or expired.
+Only a recognized rate-limit state without a known reset remains non-active,
+matching the existing unknown-reset behavior.
 
 ## Claude response contract
 
@@ -129,6 +130,18 @@ redacted provenance fixture and reviewing the compatibility impact.
 GitHub PR metadata and diffs are appended inside fenced blocks with explicit
 instructions to treat them as untrusted review evidence, not as model
 instructions.
+
+The Claude capability preflight reads option definitions only from indented
+rows under an exact `Options:`, `Global options:`, or `Flags:` heading. The
+legacy compact `Usage:` layout is also accepted, but any other top-level line
+ends that block. Headings with suffix text, unknown punctuation, examples,
+descriptions, and unindented flag mentions do not satisfy the capability gate.
+
+If the Claude child process raises before returning a completed result, the
+wrapper emits a fixed tool error. It never formats the exception object because
+subprocess exceptions can retain the complete argv, including the assembled
+review prompt. Completed nonzero exits continue to use the bounded diagnostic
+contract described above.
 
 ## Tests
 
