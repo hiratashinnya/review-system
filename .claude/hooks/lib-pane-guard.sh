@@ -31,7 +31,9 @@ RL_PANE_CMD_RE="${CLAUDE_RL_PANE_CMD_RE:-^(claude|node)$}"
 RL_TMUX_TIMEOUT="${CLAUDE_RL_TMUX_TIMEOUT:-3}"
 
 # timeout でラップした tmux 実行。tmux サーバがハングしても RL_TMUX_TIMEOUT 秒で必ず返る。
-rl_tmux() { timeout "$RL_TMUX_TIMEOUT" tmux "$@"; }
+# -k(kill-after): SIGTERM を無視/処理が遅い tmux クライアントを +5 秒後に SIGKILL で強制終了し、
+# 「timeout したのに実際は返らず flock を保持し続ける」事態を防ぐ。
+rl_tmux() { timeout -k 5 "$RL_TMUX_TIMEOUT" tmux "$@"; }
 
 # tmux ペインID を状態ファイル名に使える文字だけへ正規化(両スクリプトで共有)。
 rl_pane_slug() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }

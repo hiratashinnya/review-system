@@ -20,22 +20,22 @@ PANE="${1:?pane id required}"
 SESSION_ID="${2:-}"
 TRANSCRIPT="${3:-}"
 
-STATE_DIR="${HOME}/.claude/rate-limit-recovery"
-mkdir -p "$STATE_DIR" 2>/dev/null || true
-LOG="${STATE_DIR}/watcher.log"
-
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 共有ガード(状態パス・ペイン判定・tmux timeout ラッパ)。on-rate-limit.sh と共有。
 # tmux 呼び出しを rl_tmux(timeout ラップ)経由にすることで、tmux ハング時に flock を
 # 永久保持して以後の自動再開を殺すのを防ぐ。lib が無ければ機能しないので即中断。
+# ※ source 前は RL_STATE_DIR が未定義なので、FATAL ログのパスだけはリテラルで書く。
 # shellcheck source=lib-pane-guard.sh
 if ! source "${HOOK_DIR}/lib-pane-guard.sh" 2>/dev/null; then
   printf '%s [watcher] FATAL: lib-pane-guard.sh を読み込めません; abort\n' "$(date '+%F %T')" \
-    >> "$LOG" 2>/dev/null || true
+    >> "${HOME}/.claude/rate-limit-recovery/watcher.log" 2>/dev/null || true
   exit 0
 fi
-# ペイン別ロックのパスは共有 slug ヘルパで生成(on-rate-limit.sh と同一の正規化・drift 防止)。
-LOCK="${RL_STATE_DIR}/lock.$(rl_pane_slug "$PANE")"
+# 状態パスは共有ライブラリの RL_STATE_DIR に一元化(二重定義の drift 防止)。
+STATE_DIR="$RL_STATE_DIR"
+LOG="${STATE_DIR}/watcher.log"
+# ペイン別ロックのパスは共有 slug ヘルパで生成(on-rate-limit.sh と同一の正規化)。
+LOCK="${STATE_DIR}/lock.$(rl_pane_slug "$PANE")"
 
 CONTINUE_MSG_OVERRIDE="${CLAUDE_RL_CONTINUE_MSG:-}"  # 明示指定時はそのまま送出(時刻注記なし)。未指定なら②の自動生成文を使う
 RESET_POLL_INTERVAL="${CLAUDE_RL_RESET_POLL_INTERVAL:-15}"   # リセット時刻の再取得ポーリング間隔秒
@@ -89,6 +89,21 @@ if command -v flock >/dev/null 2>&1; then
 fi
 
 log "start session='${SESSION_ID}'"
+
+# ①が状態ファイルへ記録した検知時刻を「起動直後に読み取り即削除」で消費する。
+# ここで消費する理由(待機ループの後ではなく前で行う):
+#   - この後のリセット待機は数時間に及び得る。待機後に読むと、その間に発生した別エピソードの
+#     ①が同じファイルを上書きし、こちらが別エピソードの検知時刻を誤って表示してしまう。
+#   - 早期 exit(ペイン消失/週次上限/バナー未消滅 等)する経路でも、起動時に消費・削除して
+#     おけば古い値がファイルに残らず、後続エピソードへ持ち越さない。
+# flock 取得済みの単一 watcher でのみここへ到達するため競合しない。
+HIT_STR=""
+_hit_file="$(rl_hit_file "$PANE")"
+if [ -f "$_hit_file" ]; then
+  HIT_STR="$(head -n1 "$_hit_file" 2>/dev/null || true)"
+  rm -f "$_hit_file" 2>/dev/null || true
+  log "検知時刻を状態ファイルから取得: '${HIT_STR}'"
+fi
 
 # --- リセット時刻をペインテキストから抽出し stdout へ echo する ---
 #   週次上限(曜日付き) -> "WEEKLY" / 時刻抽出成功 -> epoch(数字) / それ以外 -> 空。
@@ -210,16 +225,6 @@ build_continue_msg() {
   printf 'レートリミットは解除されました(%s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$parts"
 }
 
-# ①が状態ファイルへ記録した検知時刻を「読み取り即削除」で消費する(次エピソードへ古い値を
-# 持ち越さない)。ここは flock 取得済みの単一 watcher でのみ到達するため競合しない。
-HIT_STR=""
-_hit_file="$(rl_hit_file "$PANE")"
-if [ -f "$_hit_file" ]; then
-  HIT_STR="$(head -n1 "$_hit_file" 2>/dev/null || true)"
-  rm -f "$_hit_file" 2>/dev/null || true
-  log "検知時刻を状態ファイルから取得: '${HIT_STR}'"
-fi
-
 # --- 注入(状態認識・リセット後のアイドルへ単発注入) ---
 # 大原則: リセット待機後、ペインが「作業中でない(アイドル)」なら継続メッセージを注入して再開する。
 #   稼働中セッションへの割り込みは is_working ガードだけで防ぐ(=フッタの中断ヒントで判定)。
@@ -251,10 +256,16 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
   # out-of-band 方式のため入力欄に我々の書き込みは無い。よって注入前クリア(C-u)はしない
   # =ユーザーが手打ち中のテキストを消さない(元の設計に一致)。継続メッセージのみ送出する。
   # -l で常にリテラル送出(CLAUDE_RL_CONTINUE_MSG に "Enter"/"C-c" 等のキー名が入っても
-  # キーとして誤解釈せず文字列として打つ)。
-  rl_tmux send-keys -t "$PANE" -l "$msg" 2>>"$LOG"
-  sleep 1
-  rl_tmux send-keys -t "$PANE" Enter 2>>"$LOG"
+  # キーとして誤解釈せず文字列として打つ)。-- でオプション終端を明示し、msg が "-" 始まり
+  # でも tmux にフラグ誤認されないようにする。
+  # Enter は「本文送出が成功したときだけ」送る。本文送出に失敗したのに Enter を撃つと、
+  # 入力欄に既にあった内容(空/ユーザーの手打ち)を誤って送信してしまうため。
+  if rl_tmux send-keys -t "$PANE" -l -- "$msg" 2>>"$LOG"; then
+    sleep 1
+    rl_tmux send-keys -t "$PANE" Enter 2>>"$LOG"
+  else
+    log "inject attempt ${attempt}/${MAX_ATTEMPTS}: 本文送出に失敗; Enter は送らない"
+  fi
   sleep "$VERIFY_WAIT"
 
   # 注入後の確認: 作業中になった → 再開成功
