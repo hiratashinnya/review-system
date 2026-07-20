@@ -33,7 +33,11 @@ CLI is rejected before GitHub context is fetched or a review prompt is sent.
 Capability detection is intentional: the contract does not infer support from
 a version string. Only options defined at the start of CLI help option lines
 count; mentions in usage examples, descriptions, or removed/deprecated lines
-do not satisfy the preflight.
+do not satisfy the preflight. The parser tracks help section transitions:
+`Options`, `Global options`, and `Flags` are definition sections, `Usage` keeps
+compatibility with compact help, and every other or unknown heading is
+non-defining until a supported option heading appears. This generic
+fail-closed section rule avoids relying on a list of known negative headings.
 
 When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 
@@ -75,7 +79,8 @@ time, the wrapper returns a tool error without spending Claude quota. Otherwise,
 rate-limit detection happens from the actual `claude -p` result, and any detected
 cooldown is stored for the next call.
 
-New cooldown files use state schema `1` with
+New cooldown files use state schema `1` as an exact JSON integer (JSON booleans,
+floats, strings, non-finite constants, and future versions are not schema 1), with
 `source: "claude_process_error"`. A schema-1 state with a future `reset_at`
 blocks normally. A v0.1 legacy state has neither `schema_version` nor `source`;
 when it has `error: "rate_limit"` and a future reset it also blocks, preventing

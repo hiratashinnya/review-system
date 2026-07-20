@@ -188,8 +188,14 @@ def current_block() -> tuple[bool, str]:
     if reset <= current:
         return False, f"expired Claude rate-limit state ignored (reset {reset.isoformat()})"
 
+    schema_version = data.get("schema_version")
+    is_current_version = (
+        isinstance(schema_version, int)
+        and not isinstance(schema_version, bool)
+        and schema_version == RATE_LIMIT_STATE_SCHEMA_VERSION
+    )
     is_current = (
-        data.get("schema_version") == RATE_LIMIT_STATE_SCHEMA_VERSION
+        is_current_version
         and data.get("source") == "claude_process_error"
         and data.get("error") == "rate_limit"
     )
@@ -507,13 +513,27 @@ def build_claude_command(prompt: str, model: str) -> list[str]:
 
 
 def defined_help_options(help_text: str) -> set[str]:
-    """Extract only option tokens defined at the start of non-negative help lines."""
+    """Extract definitions only from implicit or explicitly supported option sections."""
     options: set[str] = set()
     negative = re.compile(r"\b(?:unsupported|removed|deprecated|no longer)\b", re.IGNORECASE)
     option = re.compile(r"(--?[A-Za-z0-9][A-Za-z0-9-]*)(?=$|[\s,=])")
+    heading = re.compile(r"^([A-Za-z][A-Za-z0-9 _/-]*):(?:\s.*)?$")
+    option_headings = {"options", "global options", "flags"}
+    neutral_headings = {"usage"}
+    collect_options = True
     for line in help_text.splitlines():
         stripped = line.lstrip()
-        if not stripped.startswith("-") or negative.search(stripped):
+        if not stripped:
+            continue
+        if not stripped.startswith("-"):
+            if match := heading.match(stripped):
+                name = " ".join(match.group(1).lower().split())
+                if name in option_headings:
+                    collect_options = True
+                elif name not in neutral_headings:
+                    collect_options = False
+            continue
+        if not collect_options or negative.search(stripped):
             continue
         remaining = stripped
         while match := option.match(remaining):
