@@ -40,6 +40,7 @@ RATE_LIMIT_PHRASE = (
     r"(?:you(?:'|’)ve hit (?:your )?(?:session|usage|rate) limit|"
     r"(?:session|usage|rate) limit (?:reached|exceeded))"
 )
+RATE_LIMIT_PHRASE_RE = re.compile(RATE_LIMIT_PHRASE, re.IGNORECASE)
 RATE_LIMIT_TAIL = (
     r"(?:\s*[\"']?\s*(?:$|[.!]\s*$|"
     r"[;:·—-]\s*(?:resets?\b|retry(?:-after|\s+after)?\b|please\b|try\b).*|"
@@ -49,8 +50,10 @@ RATE_LIMIT_BANNER_RE = re.compile(r"^" + RATE_LIMIT_PHRASE + RATE_LIMIT_TAIL, re
 RATE_LIMIT_DIAGNOSTIC_RE = re.compile(
     RATE_LIMIT_PHRASE
     + RATE_LIMIT_TAIL
-    + r"|(?:api request failed with status code|status code|http(?:\s+error)?)\s*429\b"
-    + r"|429\s+too many requests\b",
+    + r"|(?:api request failed with status code|status code|http\s+error)\s*429\b"
+    + r"|http\s+429(?=\s*(?:$|[;:·—-]\s*(?:too many requests|resets?|retry)))"
+    + r"|429\s+too many requests\b"
+    + r"|too many requests(?=\s*(?:$|[;:·—-]\s*(?:resets?|retry|please|try)))",
     re.IGNORECASE,
 )
 EXPLICIT_RATE_LIMIT_TYPES = {"rate_limit", "rate_limit_error"}
@@ -195,9 +198,36 @@ def current_block() -> tuple[bool, str]:
     return False, "no active Claude rate-limit block found"
 
 
+def strip_leading_terminal_fragments(line: str) -> str:
+    """Strip complete or truncated terminal prefixes before a known banner."""
+    offset = len(line) - len(line.lstrip(" \t\ufeff"))
+    while line.startswith("\x1b", offset):
+        phrase = RATE_LIMIT_PHRASE_RE.search(line, offset + 1)
+        bare_429 = re.search(r"(?<![0-9])429(?![0-9])", line[offset + 1 :])
+        banner_start = phrase.start() if phrase else None
+        if banner_start is None and bare_429:
+            banner_start = offset + 1 + bare_429.start()
+        if line.startswith("\x1b[", offset) and banner_start is not None:
+            parameters = line[offset + 2 : banner_start]
+            if re.fullmatch(r"[0-?]*[ -/]*", parameters):
+                line = line[:offset] + line[banner_start:]
+                continue
+        if line.startswith("\x1b]", offset) and banner_start is not None:
+            prefix = line[offset:banner_start]
+            if "\x07" not in prefix and "\x1b\\" not in prefix:
+                line = line[:offset] + line[banner_start:]
+                continue
+        complete = ANSI_ESCAPE_RE.match(line, offset)
+        if not complete:
+            break
+        line = line[:offset] + line[complete.end() :]
+    return line
+
+
 def normalize_diagnostic_text(text: str) -> str:
     """Remove terminal decoration without changing diagnostic wording."""
-    return ANSI_ESCAPE_RE.sub("", text or "").replace("\ufeff", "").strip()
+    lines = [strip_leading_terminal_fragments(line) for line in (text or "").splitlines(keepends=True)]
+    return ANSI_ESCAPE_RE.sub("", "".join(lines)).replace("\ufeff", "").strip()
 
 
 def strip_outer_quotes(text: str) -> str:
@@ -221,8 +251,12 @@ def diagnostic_rate_limit_banner(text: str) -> str | None:
     """Find strong rate-limit evidence in stderr or an error envelope field."""
     for line in normalize_diagnostic_text(text).splitlines():
         stripped = line.strip()
-        if strip_outer_quotes(stripped) == "429":
-            return "429"
+        unquoted = strip_outer_quotes(stripped)
+        if re.fullmatch(
+            r"(?i)(?:error:\s*)?(?:429|rate_limit(?:_error)?|rate limit error|too many requests)[.!]?",
+            unquoted,
+        ):
+            return unquoted
         if match := RATE_LIMIT_DIAGNOSTIC_RE.search(stripped):
             return stripped[match.start() :]
     return None

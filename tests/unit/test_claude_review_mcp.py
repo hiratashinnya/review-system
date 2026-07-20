@@ -387,6 +387,57 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertIn("rate limit", str(ctx.exception))
                 self.assertEqual(state["source"], "claude_process_error")
 
+    def test_terminal_decorated_banners_fail_closed(self):
+        reset_at = (dt.datetime.now().astimezone() + dt.timedelta(hours=1)).isoformat()
+        banners = (
+            f"\x1b[31mYou've hit your session limit; resets {reset_at}\x1b[0m",
+            f"\x1b[31You've hit your session limit; resets {reset_at}",
+            f"\x1b]0;titleYou've hit your session limit; resets {reset_at}",
+        )
+        for banner in banners:
+            with self.subTest(banner=banner):
+                proc = Completed(["claude"], stdout=success_envelope(banner))
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "require_claude_capabilities", return_value="supported"):
+                            with mock.patch.object(server, "run_command", return_value=proc):
+                                with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                    with self.assertRaises(server.ToolError):
+                                        server.claude_review({"prompt": "review"})
+                        self.assertTrue(
+                            (Path(tmp) / "claude-review-mcp" / "rate-limit.json").exists()
+                        )
+
+    def test_quoted_banner_inside_review_prose_is_not_diagnostic(self):
+        review = (
+            "The parser must recognize the quoted sample \"You've hit your session limit; "
+            "resets 5pm\" without rejecting this review."
+        )
+        proc = Completed(["claude"], stdout=success_envelope(review))
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(server, "require_claude_capabilities", return_value="supported"):
+                    with mock.patch.object(server, "run_command", return_value=proc):
+                        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                            result = server.claude_review({"prompt": "review"})
+                self.assertFalse((Path(tmp) / "claude-review-mcp" / "rate-limit.json").exists())
+        self.assertEqual(result, review)
+
+    def test_normal_stderr_discussion_is_not_diagnostic(self):
+        proc = Completed(
+            ["claude"],
+            stdout=success_envelope("clean"),
+            stderr="Review covers rate_limit_error and HTTP 429 handling.",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(server, "require_claude_capabilities", return_value="supported"):
+                    with mock.patch.object(server, "run_command", return_value=proc):
+                        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                            result = server.claude_review({"prompt": "review"})
+                self.assertFalse((Path(tmp) / "claude-review-mcp" / "rate-limit.json").exists())
+        self.assertEqual(result, "clean")
+
     def test_structured_rate_limit_error_is_diagnostic(self):
         proc = Completed(
             ["claude"],
