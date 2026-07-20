@@ -36,6 +36,16 @@ REQUIRED_CLAUDE_CAPABILITIES = (
     "--output-format",
     "--no-session-persistence",
 )
+CHILD_STAGE_LABELS = {
+    "capability": "claude CLI capability preflight",
+    "gh_view": "gh pr view",
+    "gh_diff": "gh pr diff",
+    "claude_review": "claude -p",
+    "claude_version": "claude --version",
+    "gh_version": "gh --version",
+}
+SAFE_EXIT_STATUS_MIN = -(2**31)
+SAFE_EXIT_STATUS_MAX = 2**31 - 1
 ANSI_ESCAPE_RE = re.compile(
     r"(?:\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~])"
 )
@@ -435,6 +445,28 @@ def run_command(args: list[str], cwd: str | None, timeout_s: int) -> subprocess.
     )
 
 
+def safe_child_exit_status(returncode: Any) -> str:
+    """Return a bounded status token without formatting attacker-controlled values."""
+    if (
+        type(returncode) is int
+        and SAFE_EXIT_STATUS_MIN <= returncode <= SAFE_EXIT_STATUS_MAX
+    ):
+        return str(returncode)
+    return "unknown"
+
+
+def child_failure_detail(stage: str, returncode: Any) -> str:
+    """Create a fixed external error without child stdout, stderr, or argv."""
+    label = CHILD_STAGE_LABELS.get(stage, "child process")
+    return f"{label} failed with exit {safe_child_exit_status(returncode)}"
+
+
+def child_exception_detail(stage: str) -> str:
+    """Create a fixed external exception error for an allowlisted stage."""
+    label = CHILD_STAGE_LABELS.get(stage, "child process")
+    return f"{label} subprocess execution failed"
+
+
 def truncate_text(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
@@ -460,15 +492,15 @@ def pr_context(pr_number: Any, workspace: str | None) -> str:
     try:
         view = run_command(view_args, workspace, 60)
     except Exception:  # noqa: BLE001 - child exceptions can retain command details
-        raise ToolError("gh pr view subprocess execution failed") from None
+        raise ToolError(child_exception_detail("gh_view")) from None
     try:
         diff = run_command(diff_args, workspace, 120)
     except Exception:  # noqa: BLE001 - child exceptions can retain command details
-        raise ToolError("gh pr diff subprocess execution failed") from None
+        raise ToolError(child_exception_detail("gh_diff")) from None
     if view.returncode != 0:
-        raise ToolError(f"gh pr view failed for PR {number}: {(view.stderr or view.stdout).strip()}")
+        raise ToolError(child_failure_detail("gh_view", view.returncode))
     if diff.returncode != 0:
-        raise ToolError(f"gh pr diff failed for PR {number}: {(diff.stderr or diff.stdout).strip()}")
+        raise ToolError(child_failure_detail("gh_diff", diff.returncode))
     max_chars = int(os.environ.get("CLAUDE_REVIEW_MCP_MAX_PR_CHARS", str(DEFAULT_MAX_PR_CHARS)))
     body = (
         f"\n\n## GitHub PR Context #{number}\n\n"
@@ -561,10 +593,9 @@ def claude_capability_status() -> tuple[bool, str]:
     try:
         proc = run_command([claude, "--help"], None, 15)
     except Exception:  # noqa: BLE001 - child exceptions can retain command details
-        return False, "claude CLI capability preflight subprocess execution failed"
+        return False, child_exception_detail("capability")
     if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout).strip()
-        return False, f"claude CLI capability preflight exited {proc.returncode}: {detail}"
+        return False, child_failure_detail("capability", proc.returncode)
     help_text = "\n".join((proc.stdout or "", proc.stderr or ""))
     defined_options = defined_help_options(help_text)
     missing = [flag for flag in REQUIRED_CLAUDE_CAPABILITIES if flag not in defined_options]
@@ -624,7 +655,7 @@ def claude_review(args: dict[str, Any]) -> str:
     try:
         proc = run_command(command, resolved_workspace, timeout_s)
     except Exception:  # noqa: BLE001 - child exceptions can retain the prompt argv
-        raise ToolError("claude -p subprocess execution failed") from None
+        raise ToolError(child_exception_detail("claude_review")) from None
     data = parse_stdout_json(proc.stdout)
     rate_limited, reset = detect_and_record_rate_limit_details(
         proc.stdout, proc.stderr, proc.returncode, data
@@ -636,20 +667,20 @@ def claude_review(args: dict[str, Any]) -> str:
             )
         raise ToolError("claude -p hit a rate limit; cooldown recorded without a known reset time")
     if proc.returncode != 0:
-        raise ToolError(f"claude -p failed with exit {proc.returncode}: {(proc.stderr or proc.stdout).strip()}")
+        raise ToolError(child_failure_detail("claude_review", proc.returncode))
     if data is None:
         raise ToolError("claude -p returned invalid JSON output")
     return validate_success_envelope(data)
 
 
-def version_line(bin_name: str, args: list[str]) -> str:
+def version_line(stage: str, bin_name: str, args: list[str]) -> str:
     try:
         proc = run_command(args, None, 15)
     except Exception:  # noqa: BLE001 - child exceptions can retain command details
-        return f"{bin_name}: unavailable (subprocess execution failed)"
-    text = (proc.stdout or proc.stderr or "").strip().splitlines()
-    detail = text[0] if text else f"exit {proc.returncode}"
-    return f"{bin_name}: {detail}"
+        return f"{bin_name}: unavailable ({child_exception_detail(stage)})"
+    if proc.returncode != 0:
+        return f"{bin_name}: unavailable ({child_failure_detail(stage, proc.returncode)})"
+    return f"{bin_name}: available"
 
 
 def claude_review_status(_: dict[str, Any] | None = None) -> str:
@@ -659,8 +690,8 @@ def claude_review_status(_: dict[str, Any] | None = None) -> str:
     capabilities_ok, capabilities = claude_capability_status()
     lines = [
         f"claude-review-mcp v{WRAPPER_VERSION}",
-        version_line("claude", [claude, "--version"]),
-        version_line("gh", [gh, "--version"]),
+        version_line("claude_version", "claude", [claude, "--version"]),
+        version_line("gh_version", "gh", [gh, "--version"]),
         f"response_contract: {WRAPPER_RESPONSE_CONTRACT_VERSION}",
         f"rate_limit_state_schema: {RATE_LIMIT_STATE_SCHEMA_VERSION}",
         f"claude_capabilities_supported: {capabilities_ok}",

@@ -22,9 +22,11 @@ broader directory than the repository.
 
 - `claude_review`: runs `claude -p` in read-only plan mode. `model` accepts
   `opus` or `fable`; default is `opus`, and `opus` is passed as the fallback.
-- `claude_review_status`: checks `claude --version`, `gh --version`, and local
-  rate-limit state without running `claude -p`. It also runs `claude --help`
-  to report whether the installed CLI exposes every required capability.
+- `claude_review_status`: probes `claude --version`, `gh --version`, and local
+  rate-limit state without running `claude -p`. Version probe output is not
+  returned; status reports only bounded availability/failure categories. It
+  also runs `claude --help` to report whether the installed CLI exposes every
+  required capability.
 
 Before a review, the wrapper runs the same capability preflight and requires
 `-p`, `--model`, `--fallback-model`, `--safe-mode`, `--permission-mode`,
@@ -137,12 +139,16 @@ legacy compact `Usage:` layout is also accepted, but any other top-level line
 ends that block. Headings with suffix text, unknown punctuation, examples,
 descriptions, and unindented flag mentions do not satisfy the capability gate.
 
-If capability preflight, `gh pr view`, `gh pr diff`, or the Claude child process
-raises before returning a completed result, the wrapper emits a fixed,
-stage-specific tool error. It never formats the exception object because
-subprocess exceptions can retain the complete argv, including the assembled
-review prompt. Completed nonzero exits continue to use the bounded diagnostic
-contract described above.
+Capability preflight, version probes, `gh pr view`, `gh pr diff`, and the Claude
+child process share one external diagnostic boundary. Exceptions and completed
+nonzero exits emit only a fixed allowlisted stage label plus a bounded exit
+status when one is a real JSON-independent integer. Raw stdout, stderr,
+exception text, argv, ANSI content, and prompts are never copied to tool errors
+or status details; truncating raw text is intentionally not considered safe.
+The rate-limit classifier may inspect raw Claude diagnostics internally, but
+the external response contains only the fixed rate-limit category and a
+validated reset time when available. Completed nonzero diagnostics otherwise
+use a fixed safe summary.
 
 ## Tests
 
