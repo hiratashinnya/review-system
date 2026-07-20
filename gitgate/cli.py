@@ -9,6 +9,7 @@ git 実行は build_git_argv() が返す list を subprocess.run([...], shell=Fa
 依存仕様: gitgate/__init__.py の docstring 参照（Issue #227 追加修正3・オーナー確定 2026-07-13）。
 """
 
+import json
 import os
 import re
 import subprocess
@@ -30,6 +31,9 @@ BRANCH_NAME_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 # 安全 charset（`{ }` 等は含めない＝過剰許可を避ける）。
 REF_RE = re.compile(r"^[A-Za-z0-9._/@~^-]+$")
 INTEGER_RE = re.compile(r"^[0-9]+$")
+SCHEME_URL_USERINFO_RE = re.compile(
+    r"^([A-Za-z][A-Za-z0-9+.-]*://)[^/?#]*@(.*)$"
+)
 
 
 def _reject_control_chars(value, what):
@@ -79,6 +83,14 @@ def validate_grep_pattern(value):
     # `--grep=<pat>` の単一引数としてデータ渡しする（list 渡し＝shell 解釈なし）。改行・NUL のみ拒否。
     _reject_control_chars(value, "grep pattern")
     return value
+
+
+def _redact_url_userinfo(url):
+    """scheme URL の authority にある userinfo だけを伏せ、repository 識別情報を保つ。"""
+    match = SCHEME_URL_USERINFO_RE.match(url)
+    if match is None:
+        return url
+    return f"{match.group(1)}***@{match.group(2)}"
 
 
 # --- verb ハンドラ ----------------------------------------------------------
@@ -197,6 +209,85 @@ def verb_log(args):
     return argv
 
 
+def run_publish_info(args):
+    """公開前確認に必要な固定 origin・local HEAD・同名 remote ref だけを JSON で返す。"""
+    _require_no_args("publish-info", args)
+
+    commands = [
+        ["git", "remote", "get-url", "origin"],
+        ["git", "remote", "get-url", "--push", "--all", "origin"],
+        ["git", "branch", "--show-current"],
+        ["git", "rev-parse", "--verify", "HEAD"],
+    ]
+    outputs = []
+    for command in commands:
+        completed = subprocess.run(
+            command,
+            shell=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            sys.stderr.write(completed.stderr)
+            return completed.returncode
+        outputs.append(completed.stdout)
+
+    origin_fetch_url = outputs[0].strip()
+    origin_push_urls = [line.strip() for line in outputs[1].splitlines() if line.strip()]
+    branch = outputs[2].strip()
+    local_commit = outputs[3].strip()
+    if not origin_fetch_url:
+        sys.stderr.write("gitgate: `publish-info` could not determine the origin fetch URL\n")
+        return 2
+    # `git remote get-url --push --all` normally performs this fallback itself. Keep it explicit so
+    # the JSON contract remains fail-safe if Git returns no push URL for a valid origin.
+    if not origin_push_urls:
+        origin_push_urls = [origin_fetch_url]
+    if not branch:
+        sys.stderr.write("gitgate: `publish-info` requires an attached current branch\n")
+        return 2
+    if not local_commit:
+        sys.stderr.write("gitgate: `publish-info` could not determine the local HEAD commit\n")
+        return 2
+    try:
+        validate_branch_name(branch)
+    except GitgateError as exc:
+        sys.stderr.write(f"gitgate: invalid current branch: {exc}\n")
+        return 2
+
+    remote_ref = f"refs/heads/{branch}"
+    completed = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", remote_ref],
+        shell=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+
+    matches = []
+    for line in completed.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) == 2 and parts[1] == remote_ref:
+            matches.append(parts[0])
+    if len(matches) > 1:
+        sys.stderr.write("gitgate: `publish-info` received duplicate exact remote refs\n")
+        return 2
+
+    info = {
+        "current_branch": branch,
+        "local_commit": local_commit,
+        "origin_fetch_url": _redact_url_userinfo(origin_fetch_url),
+        "origin_push_urls": [_redact_url_userinfo(url) for url in origin_push_urls],
+        "remote_commit": matches[0] if matches else None,
+        "remote_exists": bool(matches),
+        "remote_ref": remote_ref,
+    }
+    sys.stdout.write(json.dumps(info, ensure_ascii=False, sort_keys=True) + "\n")
+    return 0
+
+
 VERB_HANDLERS = {
     "status": verb_status,
     "add": verb_add,
@@ -208,6 +299,7 @@ VERB_HANDLERS = {
     "diff": verb_diff,
     "log": verb_log,
 }
+ALLOWED_VERBS = {*VERB_HANDLERS, "publish-info"}
 
 
 def build_git_argv(argv):
@@ -218,7 +310,7 @@ def build_git_argv(argv):
     verb = argv[0]
     handler = VERB_HANDLERS.get(verb)
     if handler is None:
-        allowed = ", ".join(sorted(VERB_HANDLERS))
+        allowed = ", ".join(sorted(ALLOWED_VERBS))
         raise GitgateError(f"unknown verb {verb!r}; allowed verbs: {allowed}")
     return handler(argv[1:])
 
@@ -226,6 +318,12 @@ def build_git_argv(argv):
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
+    if argv and argv[0] == "publish-info":
+        try:
+            return run_publish_info(argv[1:])
+        except GitgateError as exc:
+            sys.stderr.write(f"gitgate: {exc}\n")
+            return 2
     try:
         git_argv = build_git_argv(argv)
     except GitgateError as exc:
