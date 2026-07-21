@@ -4,3 +4,4 @@
 **入力変数**: `parent_id`／`parent_body`／`sprint`／`context`／`error`。記載内容（I-9）＝各型本文（MOD＝責務1文+公開I/F+依存、PORT＝抽象化する副作用、PRS/DS＝保存対象・理由・ライフサイクル、ORC＝制御フロー+失敗経路、DM＝定義+型+不変条件、SCM＝目的+フォーマット+必須フィールド、CFG＝用途+ファイルパス、PROMPT＝目的+版+入力変数、TERM＝定義）。
 **出力形式**: `tmp/<sprint>/<parent-id>/nodes/...` に corpus ミラーレイアウトで出力する。設計層は body_policy=required のため、各新規ノードは `{slug}.yaml` と同名 `{slug}.md` を持つ。TERM 設計ファセット追記は既存 `03-analysis/term/{slug}.{yaml,md}` を同じ tmp ミラーに置く。本ファイルへは書かない。
 **注意事項**: 辺は無名依存辺（旧 kind refines/instantiates/uses/see-also は廃止・to は単数・ref_version 必須）。PROMPT などの親子関係が必要な場合は同型依存辺で表し、連番 id で階層を表さない。`scheduled` は非空必須。現行スプリントは `scheduled: "sprint-1"` などで明示し、後送りはオーナー承認済み sprint 値を指定。`suppress` / `suppress_reason` は issue #118 で廃止済みのため出力しない。RULE-007 は always_error として常時 ERROR 発火する。
+**FND-99（設計接続規則の非伝播）の backref 対象として在グラフ化**：本著作プロンプトは接続規則（必須辺方向）を記述する out-of-graph 著作資産の在グラフ担体であり、FND-99 の処置対象として backref 辺を張る（→FND-99・指摘時 ref_version 0.1／fnd version 0.1.1 時点）。
