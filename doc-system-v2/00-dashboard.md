@@ -56,7 +56,7 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 4 件**（open FND 2・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 5 件**（open FND 2・open Q 0・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
 ### open FND（2 件）
 
@@ -72,13 +72,17 @@
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
 > issue #152 で移行後追加ノードも含めて空 `scheduled` を禁止し、既存空欄は `sprint-1` に整理済み。
 
-### open Q（1 件）
+### open Q（0 件）
+
+> Q「SRC→[dm,port,orc] が MOD を対象外」は **DD-10 へ昇格し decided 化**（2026-07-21）。オーナー確定＝`src→[mod,dm,port,orc]` 拡張①。`q/decided/` へ移動。
+> Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
+
+### open PEND（2 件・DD-10 起票・2026-07-21）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
-| **SRC→[dm, port, orc] が MOD を対象外＝実装担体の自然な張り先が無い**（Phase A・#160 前提） | 🗓 sprint-1 | **🔴 オーナー判断待ち（新規・2026-07-21）**。Python モジュールの自然な対応先は MOD だが SRC は張れない。選択肢①`src→[mod,dm,port,orc]`拡張（推奨）②現状維持③MOD一本化。決定は #160 SRC 著作の前提 |
-
-> Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
+| **SRC シンボル適格性の多言語拡張と class 適格性厳密化**（PEND-a） | 🗓 sprint-1 起票 | 適格性規則は Python 前提（source.kind 語彙・AST 解析）。言語別切替/言語非依存化での多言語対応＋DM/PORT の class 厳密化（Protocol/dataclass 判定）。**実施時期はオーナー判断**（独断 defer せず） |
+| **非 Python 担体（prompt/cfg）の内容が当該資産である意味判定の完全機械化**（PEND-b） | 🗓 sprint-1 起票 | `.md/.yml` の中身の意味判定は現状不可。sprint-1 は存在＋正規パス規約一致まで機械判定。完全機械化は将来課題。**実施時期はオーナー判断** |
 
 ### deferred PEND（1 件）
 

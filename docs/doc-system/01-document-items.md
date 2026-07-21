@@ -89,9 +89,9 @@
 
 | 要素型 | ID プレフィックス | 1 ノードの単位 | 上流参照 |
 |---|---|---|---|
-| ソース（docstring） | ソースファイル内 `@id` | 1 クラス / 公開関数 | → `DM-`・`PORT-`・`ORC-`（直接先のみ） |
+| ソース（docstring） | ソースファイル内 `@id` | モジュール / クラス / 公開関数 | → `MOD-`・`DM-`・`PORT-`・`ORC-`（直接先のみ・DD-10） |
 
-> SRC は直接先（DM/PORT/ORC）のみ（D2 と同規則・D3）。
+> SRC は直接先（MOD/DM/PORT/ORC）のみ（D2 と同規則・D3）。**DD-10**: forward `src→[mod,dm,port,orc]`・充足は `src_symbol_eligibility`（設計種別→許容 src.kind）で SRC の source.kind が適格なときのみ有効（mod=module/dm・port=class/orc=function 等）。
 
 ---
 
@@ -135,7 +135,7 @@
 | 型ペア（source→target） | 読み | 方向の注意 |
 |---|---|---|
 | FR→SR, SPEC→FR, I/O/P/E→SPEC 等 | 詳細化（旧 refines） | 下流→上流 |
-| SRC→DM/PORT/ORC | 実現（旧 realizes） | |
+| SRC→MOD/DM/PORT/ORC | 実現（旧 realizes・DD-10 で mod 追加） | |
 | CFG→SCM | 具体化（旧 instantiates） | |
 | O→P | 出力は生成プロセスに依存（旧 produces 反転） | **依存方向に統一** |
 | P→I, P→D | プロセスは消費入力に依存（旧 consumes） | |

@@ -1,0 +1,10 @@
+title: "SRC の必須辺が MOD を対象外とし実装担体の自然な張り先が無い"
+version: "0.1.1"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "src-に-dm-port-orc-への必須辺欠如-rule-006"
+    ref_version: "0.1"
+  - to: "src-シンボル適格性で-src⇄設計リンクの誤充足を機械排除・src→mod-拡張"
+    ref_version: "0.1"
+    note: "本 Q の決着先＝DD-10（拡張①確定で昇格・decided）"

@@ -48,6 +48,7 @@ flowchart BT
   CFG --> SCM
   CFG --> SPEC
   PROMPT --> SPEC
+  SRC --> MOD
   SRC --> DM
   SRC --> PORT
   SRC --> ORC
@@ -222,7 +223,7 @@ P-002 → D-001    （P-002 が D-001 を消費：P は D に依存）
 | 要件層 | `要件層ノードの必須辺欠如`（SPEC-56） | VAL/SR/FR/NFR/SPEC | `val-に-sr-からの被依存辺欠如-rule-006`・`sr-に-val-…`・`sr-に-fr-nfr-actor-…`・`fr-に-sr-…`・`fr-に-spec-…`・`nfr-に-sr-…`・`nfr-に-spec-からの被依存辺欠如-rule-006`・`nfr-に検証証跡の被依存辺欠如-rule-006`（計 8） |
 | 分析層 | `分析層ノードの必須辺欠如-価値経路3種以外`（SPEC-57） | ACTOR/TERM/I/O/D/P/E | `actor-に-sr-…`・`actor-に-e-i-o-…`・`e-に-actor-…`・`e-に-spec-…`・`o-に-actor-…`・`o-に-spec-…`・`i-に-spec-…`・`d-に-p-…`(依存/被依存2件)・`d-に-spec-…`・`p-に-spec-…`・`term-に-spec-…`（計 12）|
 | 分析層・価値経路 | `分析ノードの接続漏れ検出`（SPEC-30） | O/I/E（アクタに面する3種） | `未駆動出力-o→p-欠如-の検出`・`未消費入力-i←p-欠如-の検出`・`未定義反応イベント-e←p-欠如-の検出`。※D の内部接続漏れは一般則 RULE-006（分析層傘）でカバー |
-| 設計層 | `設計層ノードの必須辺欠如検出`（design 15 子＋実装 7 子＝22・DD-9） | ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/E/P | 上流依存辺(15): `orc-に-e-…`・`e-に-orc-…`・`ds-に-p-…`・`ds-に-prs-…`・`mod-に-p-d-…`・`p-に-mod-…`・`dm-に-mod-…`・`dm-に-term-…`・`port-に-mod-…`・`prs-に-ds-…`・`scm-に-spec-…`・`scm-に-cfg-…`・`cfg-に-scm-…`・`cfg-に-spec-…`・`prompt-に-spec-…`／実現辺（*←SRC・実装段・7）: `mod-に-src-…`・`dm-に-src-…`・`port-に-src-…`・`orc-に-src-…`・`prs-に-src-…`・`prompt-に-src-…`・`cfg-に-src-…`（計 22）。※`src-に-dm-port-orc-への必須辺欠如-rule-006`（SRC の forward 必須辺 src→[dm,port,orc]）は本傘の子ではなく傘 `src-の-@id-realizes-検証` の子＝実装層・SRC forward 必須辺（別扱い）|
+| 設計層 | `設計層ノードの必須辺欠如検出`（design 15 子＋実装 7 子＝22・DD-9） | ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT/E/P | 上流依存辺(15): `orc-に-e-…`・`e-に-orc-…`・`ds-に-p-…`・`ds-に-prs-…`・`mod-に-p-d-…`・`p-に-mod-…`・`dm-に-mod-…`・`dm-に-term-…`・`port-に-mod-…`・`prs-に-ds-…`・`scm-に-spec-…`・`scm-に-cfg-…`・`cfg-に-scm-…`・`cfg-に-spec-…`・`prompt-に-spec-…`／実現辺（*←SRC・実装段・7）: `mod-に-src-…`・`dm-に-src-…`・`port-に-src-…`・`orc-に-src-…`・`prs-に-src-…`・`prompt-に-src-…`・`cfg-に-src-…`（計 22）。※`src-に-dm-port-orc-への必須辺欠如-rule-006`（SRC の forward 必須辺・**DD-10 で `src→[mod,dm,port,orc]` へ拡張**・充足は `src_symbol_eligibility` で src.kind 適格時のみ有効）は本傘の子ではなく傘 `src-の-@id-realizes-検証` の子＝実装層・SRC forward 必須辺（別扱い・slug は安定 ID のため据置）|
 | 検証層 | 傘なし（型別 dedicated 子が直接担当） | TD/TC/TR/VERIFY/FND/SPEC/NFR-trace | `td-に-spec-…`・`td-に-tc-…`・`tc-に-td-…`・`tc-がテスト未実行-tr-不在-rule-006`・`tr-に-tc-…`・`verify-に対象要素への依存辺欠如-rule-006`・`fnd-に被指摘要素への辺欠如-rule-006`・`解消済み-fnd-に処置対象からの被依存辺欠如-rule-006`・`spec-に-td-からの被依存辺欠如-rule-006`・`spec-に-fr-nfr-spec-への依存辺欠如-rule-006`（計 10）|
 
 **集約・ゼロ件通過**: `必須上流辺の欠如`（一般則・SPEC-8 系）・`孤立・必須辺欠如のゼロ件通過`・`検証層の辺・属性が揃えば違反-0`。RULE-006 の対概念は **RULE-030**（config 駆動の禁止接続残存＝欠如 RULE-006／残存 RULE-030 で責務分離・DD-17）。
