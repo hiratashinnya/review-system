@@ -40,6 +40,7 @@ Deliverable: <Expected destination format or output>
 ```
 
 Few-Shot Delegation Examples
+
 ❌ BAD (Micromanaged / Token-Wasting)
 "Please analyze the logs. Step 1: Open app.log. Step 2: Search for 'ERROR' keywords from the last 24 hours. Step 3: Count occurrences per module. Step 4: Summarize the top 3 modules in a list."
 
