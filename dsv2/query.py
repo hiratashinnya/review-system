@@ -95,8 +95,8 @@ def must_link_to_gaps(
     ``eligibility`` 指定時、``node == 'src'`` の辺は「先型 T に対し ``src.kind ∈ eligibility[T]``」の
     辺のみ有効カウントする（source/kind 無しは不適格）。stage gating は呼び出し側（validate.py）が扱う。
 
-    依存仕様: doc-system-v2/config.yml（must_link_to / src_symbol_eligibility・out-of-graph 補助）・
-      doc-system-v2/nodes/05-design/dd/decided/dd-10-*.yaml（SRC シンボル適格性・src→mod 拡張）v0.1.0。
+    依存仕様: doc-system-v2/nodes/04-verification/dd/decided/src-シンボル適格性で-src⇄設計リンクの誤充足を機械排除・src→mod-拡張.yaml
+      （SRC シンボル適格性・src→mod 拡張）v0.1.0・config.yml（must_link_to / src_symbol_eligibility・out-of-graph 補助）。
     """
     by_id = index_by_id(meta)
     out: list[dict] = []
@@ -142,8 +142,8 @@ def must_be_linked_from_gaps(
     ``eligibility`` 指定かつ ``source`` に ``'src'`` を含む rule は、入辺 src のうち
     ``src.kind ∈ eligibility[node型]`` のもののみ有効カウントする。stage gating は呼び出し側が扱う。
 
-    依存仕様: doc-system-v2/config.yml（must_be_linked_from / src_symbol_eligibility・out-of-graph 補助）・
-      doc-system-v2/nodes/05-design/dd/decided/dd-10-*.yaml（SRC シンボル適格性）v0.1.0。
+    依存仕様: doc-system-v2/nodes/04-verification/dd/decided/src-シンボル適格性で-src⇄設計リンクの誤充足を機械排除・src→mod-拡張.yaml
+      （SRC シンボル適格性）v0.1.0・config.yml（must_be_linked_from / src_symbol_eligibility・out-of-graph 補助）。
     """
     out: list[dict] = []
     for rule in rules:

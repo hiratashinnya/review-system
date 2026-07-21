@@ -134,27 +134,14 @@ def _parse_inline_config_dict(raw: str, config_path: Path, line_no: int) -> dict
 
 
 def load_exact_link_counts(root: Path) -> list[dict]:
-    """config.yml の exact_link_counts を読む。未宣言なら空リスト。"""
-    config_path = root / "config.yml"
-    if not config_path.is_file():
-        return []
-    rules: list[dict] = []
-    in_rules = False
-    for line_no, raw in enumerate(config_path.read_text("utf-8").splitlines(), start=1):
-        stripped = raw.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        if stripped == "exact_link_counts:":
-            in_rules = True
-            continue
-        if in_rules and indent == 0:
-            break
-        if in_rules:
-            if not stripped.startswith("- "):
-                raise ValueError(f"{config_path}:{line_no}: exact_link_counts はブロックリスト形式である必要があります")
-            rules.append(_parse_inline_config_dict(stripped[2:], config_path, line_no))
-    return rules
+    """config.yml の exact_link_counts を読む。未宣言なら空リスト。
+
+    汎用ブロックリスト読み口 ``_load_block_rules`` に委譲する（DRY・PR#251 stage-2）。
+    ``exact_link_counts`` の要素は非 list（``node``/``direction``/``peer``/``count``）だが、
+    読取ロジック（見出し検出・``- {...}`` 行の ``_parse_inline_config_dict`` 解釈）は
+    必須接続ブロックと同一のため共通化した（挙動不変）。
+    """
+    return _load_block_rules(root, "exact_link_counts")
 
 
 def _strip_top_level_comment(raw: str) -> str:
@@ -334,7 +321,9 @@ def _format_link_gaps(kind: str, arrow: str, key: str, rows: list[dict]) -> list
     """must_link_to / must_be_linked_from の gap 行を整形する（severity→ERROR/WARN プレフィクス）。"""
     out: list[str] = []
     for row in rows:
-        prefix = "ERROR" if row.get("severity") == "error" else "WARN"
+        # fail-close: 既知 severity は "error"→ERROR / "warning"→WARN。未知値（タイプミス等）は
+        # 意図した ERROR が黙って WARN に格下げされるのを防ぐため安全側＝ERROR に倒す（PR#251 stage-2）。
+        prefix = "WARN" if row.get("severity") == "warning" else "ERROR"
         out.append(
             f"{prefix}: {kind}: {row['id']} ({row['type']}) {arrow} {row[key]} 欠如 "
             f"reason={row.get('reason', '')}"
