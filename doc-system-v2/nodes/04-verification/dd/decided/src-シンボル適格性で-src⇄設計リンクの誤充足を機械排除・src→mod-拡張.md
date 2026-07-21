@@ -26,12 +26,13 @@
 **接続規則変更の伝播チェック（FND-99 パターン防止）**: 本決定は config.yml の `must_link_to`（src target 拡張）と `src_symbol_eligibility` 追加を含む接続規則変更のため、機械判定の正本（config.yml）だけでなく人間/LLM 向け著作資産にも同期が要る。変更型＝SRC。確認結果:
 - `doc-system-v2/config.yml`: 反映済み（機械正本）。
 - SCM `接続ルールスキーマ`／SPEC `src-に-dm-port-orc…`: 本バッチ T2／T3 で同期済み（backward 辺で追跡）。
-- **未同期・要フォロー（本 DD のスコープ外）**: 以下は SRC 接続規則を人間/LLM 向けに表現する out-of-graph 資産で、現状 `src→[dm,port,orc]`（mod 欠落・種別適格性の記述なし）とドリフトしている。SRC は設計層型のため design-author／architecture-design SKILL のレーンで同期すべき——
-  - `docs/doc-system/03-connection-matrix.md` L51-53（mermaid `SRC-->DM/PORT/ORC` に MOD 欠落）。
-  - `docs/doc-system/01-document-items.md` L94「SRC は直接先（DM/PORT/ORC）のみ」・L138「SRC→DM/PORT/ORC」（mod・src_symbol_eligibility 未反映）。
-  - `.claude/agents/design-author.md`／`.github/agents/design-author.agent.md`（SRC の張り先・適格性記述があれば）。
-  - `.claude/skills/architecture-design/SKILL.md`（`must_link_to` 表の SRC 行）。
-  これらは本 DD のスコープ（verification-layer ノード著作）外のため編集せず、主文脈へフォロー要と申し送る（未反映のまま放置すると旧ルールで誤った辺を再生産する）。
+- **out-of-graph 著作資産＝本 DD-10 の PR 内で同期済み**（未同期のまま申し送らない・FND-99 型ドリフトを本 PR で回避）:
+  - `docs/doc-system/03-connection-matrix.md`: mermaid に `SRC --> MOD` を追加し、§10 に src_symbol_eligibility（設計種別×許容 src.kind・種別照合で誤充足排除）の注記を追記済み。
+  - `docs/doc-system/01-document-items.md`: SRC の直接先に MOD を追記し、src_symbol_eligibility による適格性（`src.kind` 照合で有効カウントを絞る）の注記を追記済み。
+- **同期不要（SRC の張り先記述を持たない・grep 確認済み）**: 以下は SRC の `must_link_to`／適格性を表現する記述を含まないため、本規則変更の伝播対象にならない——
+  - `.claude/agents/design-author.md`／`.github/agents/design-author.agent.md`: SRC の張り先・適格性を規定する記述なし。
+  - `.claude/skills/architecture-design/SKILL.md`: `must_link_to` 表に SRC 行なし。
+  以上により、SRC 接続規則を人間/LLM 向けに表現する out-of-graph 資産はすべて本 PR で config.yml と整合済みで、旧ルール（`src→[dm,port,orc]`・mod 欠落・種別適格性なし）とのドリフトは残っていない。
 
 **スケジュール整合の申し送り（要オーナー判断・独断で変更しない）**: SRC forward 規則を規定する SPEC `src-に-dm-port-orc-への必須辺欠如-rule-006` は現状 `scheduled: sprint-2 / labels: post-mvp` である一方、DD-9 の backward `←src` 規則群および本 DD-10 は `sprint-1` である。forward（sprint-2/post-mvp）と backward/DD-10（sprint-1）の**実施時期が不一致**のまま残る。この不一致の是正（forward SPEC を sprint-1 へ前倒すか、backward/DD を sprint-2 に合わせるか、config 施行 #163 の実施時期）は**オーナー判断**であり、本 DD では SPEC の title/slug/scheduled/labels を独断変更しない（T3 も本文追記のみでスケジュール不変）。**実施時期はオーナー判断**として申し送る。
 
