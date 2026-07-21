@@ -20,7 +20,8 @@
 | issue #159 — SPEC 本文系 open FND 解消 | SPEC-3-1/13/9-1+10/31 の文言・親辺・resolved 化 | ✅ 完了（2026-07-11）。対象4件を `fnd/resolved/` へ移動し、処置先 SPEC から backref を付与。 |
 | issue #158 — 本文 resolved 済み open FND 整理 | lifecycle 配置整理 | ✅ 完了（2026-07-11）。`_drift` z バンプ誤検出と `backref check` open-but-backref 判定トートロジーの 2 件を、既存 backref と out-of-graph 対象の扱いを確認した上で `fnd/resolved/` へ整理。 |
 | issue #152 — scheduled 空欄対策 | 流入防止＋流出検出＋既存空欄整理 | ✅ 完了（2026-07-10）。`scheduled` を非空必須にし、`validate.py` / `schema/sidecar.schema.json` / `dsv2 index` で空欄・欠落を fail-close。移行後追加の空欄 12 件は完了済み/解決済みノードとして `sprint-1` に整理。 |
-| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-11）。#157 で Q-2 を DD-23 へ昇格し、#158 で本文 resolved 済み FND 2 件を lifecycle 上も resolved 化、#159 で SPEC 本文系 FND 4 件を resolved 化。open Q は 0 件。残りは Sprint 1 open FND 解消（#165/#164）、stage gate（#163）、SRC/TD/TC/TR materialization（#160/#161）、`current_stage` advancement（#162）。 |
+| issue #161/#163 — 接続規則の価値経路充足性 見直し（Phase A） | ルール監査→DD-9→config反映→in-graphミラー | 🟡 反映済み・施行待ち（2026-07-21）。オーナー確定で **DD-9** を起票し、価値経路の下流連続性規則（p←mod / scm←cfg / ds←prs〔design〕・mod・dm・port・orc・prs・prompt・cfg←src〔impl・シンボル適格性条件付き〕）＋ nfr←spec・spec←td(leaf限定) の error 昇格を `doc-system-v2/config.yml` へ**一括反映**（分割せず）。in-graph は dedicated rule SPEC 10・severity 是正 2・傘改訂・CFG `must_be_linked_from` 同期で追随（618ノード・validate/drift/coverage 全green）。**規則は宣言のみで inert＝施行は #163 Phase B（must_be_linked_from reader 実装）で発火**。Phase A FND は施行完了まで open 維持。SRC シンボル適格性はオーナー再確認待ち（下記 N8）。 |
+| issue #157〜#165 — stage completion issue expansion | 進捗管理ファイル更新 | 🟡 一部完了（2026-07-11〜）。#157 Q-2→DD-23、#158/#159 で FND 6 件 resolved。Phase A（#161/#163 規則見直し）反映済み。残りは Phase C open FND 解消（#165/#164）、gate 施行（#163）、SRC/TD/TC/TR materialization（#160/#161・適格性確定後）、`current_stage` advancement（#162）。 |
 | issue #142 — docidx archive 判断 | archive 判断＋参照境界更新 | ✅ 完了（2026-07-10）。`docidx/` は物理 archive へ移動しない判断。v1 archive (`doc-system-v1-archive/`) の読み取り CLI として `scan.py`/`cli.py`/`query.py` 等を残し、v2 実行系が import する `docidx.nodeyaml` は共有 YAML reader として存続。現行 v2 の正本照会は `python3 -m dsv2` と通常のファイル検索へ寄せる。**issue #172 で refine**：`nodeyaml.py` のみ `dsv2/nodeyaml.py` へ分離し、残り（`scan.py`/`cli.py`/`query.py`/`render.py`/`model.py`）を `archive/docidx-v1/` へ `git mv`（v1-legacy 誤起動リスクの構造的低減）。 |
 | issue #140 — doc_system 用 config 操作エージェント | Codex agent＋repo skill＋PROMPT ノード | ✅ 完了（2026-07-10）。`doc-system-config-operator` と `doc-system-config` skill を追加し、`doc-system-v2/config.yml` の作成・解説・変更時に FORMAT/config/schema/dsv2 と対応 SPEC/SCM/CFG/PROMPT ノードを照合する手順を明文化。PROMPT ノードで agent carrier を在グラフ化。review_system 側の横展開は issue #141 に残す。 |
 | 識別子単位ノード・型別本文ポリシーの整理 | DD 起票＋FORMAT/dsv2 土台反映＋authoring 追随 | ✅ FORMAT/dsv2 body policy 反映済み（2026-07-09）。DD「識別子単位ノードは1ノード1YAMLを維持し本文は型別ポリシーで省略・共有を許可する」を追加後、`config.yml: body_policy`、`body_ref.file`/`body_ref.anchor`、YAML 走査 validator、bodyless/shared-body 対応 meta/rename/viewer を反映。PR #147 で SRC layout/schema/存在検査と TD shared body・TC bodyless・TD-TC 1:1 の実装設計・検証規則化を反映。本PRで著作テンプレート/プロンプト追随 FND を resolved 化し、TD/TC/SRC テンプレート、test-strategy、verification-author、共通 authoring/reconciliation 資産を body policy 前提へ同期。実測は 603 ノード、validate エラー 0 件、drift 0 件。 |
@@ -55,22 +56,28 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 4 件**（open FND 3・open Q 0・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 5 件**（open FND 3・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
 ### open FND（3 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
+| **接続規則が価値経路連続性を error で機械保証していない**（Phase A・#161 本体） | 🗓 sprint-1 | **反映済み・施行待ち（2026-07-21）**。規則セットはオーナー確定→DD-9 で config／in-graph へ反映済み。ただし規則は宣言のみ＝inert で、**機械保証の成立は #163（Phase B）施行器の実装が前提**。施行完了まで open 維持（この FND は「機械保証していない」状態を指すため） |
+| **RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷**（#165） | 🗓 sprint-1 | Phase C 継続分。RULE 横断索引の整備＋`dsv2 reverse` 解消が残。dashboard ✅ 表記の半分は v1 archive 化で消滅済み（archive 非改変＝PR8・本文記録で処置） |
 | config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | v1 時代の FND-35 相当。オーナー承認済み |
-| RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷 | 🗓 sprint-1（backfill） | 索引化検討 |
-| 設計接続規則の決定（FND-96・DD-15）が out-of-graph 著作資産に未伝播 | 🗓 sprint-1（backfill） | 著作資産側への反映漏れ点検 |
+
+> **resolved 済み（2026-07-21・本セッション）**: FND-99「設計接続規則の out-of-graph 著作資産への非伝播」＝#164。既存 PROMPT ノード4件（architecture-design/domain-model/orchestration-design/design-author）から backref 付与で在グラフ化し `fnd/resolved/` へ移動（孤立解消確認・618ノード green）。
 
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
 > issue #152 で移行後追加ノードも含めて空 `scheduled` を禁止し、既存空欄は `sprint-1` に整理済み。
 
-### open Q（0 件）
+### open Q（1 件）
 
-Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
+| タイトル（要約） | scheduled | 備考 |
+|---|---|---|
+| **SRC→[dm, port, orc] が MOD を対象外＝実装担体の自然な張り先が無い**（Phase A・#160 前提） | 🗓 sprint-1 | **🔴 オーナー判断待ち（新規・2026-07-21）**。Python モジュールの自然な対応先は MOD だが SRC は張れない。選択肢①`src→[mod,dm,port,orc]`拡張（推奨）②現状維持③MOD一本化。決定は #160 SRC 著作の前提 |
+
+> Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
 
 ### deferred PEND（1 件）
 

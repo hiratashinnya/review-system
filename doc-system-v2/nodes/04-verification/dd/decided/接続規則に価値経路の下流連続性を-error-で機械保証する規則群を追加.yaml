@@ -1,0 +1,8 @@
+title: "接続規則に価値経路の下流連続性を error で機械保証する規則群を追加"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_be_linked_from"
+    ref_version: "0.1"
+    note: "DD→X 義務辺＝本決定が in-graph の接続規則モデル（CFG must_be_linked_from）へ未反映。T3 で config.yml と同期後、decision_spine に従い must_be_linked_from→DD へ逆転する"

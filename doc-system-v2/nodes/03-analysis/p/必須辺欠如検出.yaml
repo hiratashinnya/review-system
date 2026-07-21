@@ -6,7 +6,7 @@ edges:
   - to: "必須上流辺の欠如"
     ref_version: "0.2"
   - to: "spec-に-td-からの被依存辺欠如-rule-006"
-    ref_version: "0.1"
+    ref_version: "0.2"
   - to: "接続検査ビュー"
     ref_version: "0.1"
   - to: "必須接続規則"

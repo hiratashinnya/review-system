@@ -1,5 +1,5 @@
 title: "設計層ノードの必須辺欠如検出"
-version: "0.1.1"
+version: "0.1.2"
 labels: []
 scheduled: "sprint-1"
 edges:

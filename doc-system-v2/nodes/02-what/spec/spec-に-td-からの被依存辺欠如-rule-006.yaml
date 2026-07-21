@@ -1,5 +1,5 @@
 title: "SPEC に TD からの被依存辺欠如（RULE-006）"
-version: "0.1.0"
+version: "0.2.0"
 condition: failure
 labels: []
 scheduled: "sprint-1"

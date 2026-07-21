@@ -108,16 +108,32 @@ must_be_linked_from:
   - { node: val,   source: [sr],              activate_stage: requirements, severity: error,   reason: "価値命題は下流SRに支えられる" }
   - { node: sr,    source: [fr, nfr, actor],  activate_stage: requirements, severity: warning, reason: "SRはFR/NFR/ACTORのいずれかに展開（OR）" }
   - { node: fr,    source: [spec],            activate_stage: requirements, severity: warning, reason: "FRはSPECに分解される" }
-  - { node: nfr,   source: [spec],            activate_stage: requirements, severity: warning, reason: "NFRはSPECに導出される（DD-5）" }
+  # DD-9: NFR は必ず SPEC へ導出される（設計へ落ちる価値経路の起点）。warning→error 昇格。
+  - { node: nfr,   source: [spec],            activate_stage: requirements, severity: error,   reason: "NFRはSPECに導出される（DD-5・DD-9でerror昇格）" }
   # --- analysis ---
   - { node: i,     source: [p],               activate_stage: analysis,     severity: error,   reason: "入力は消費プロセスを持つ（P→I）" }
   - { node: e,     source: [p],               activate_stage: analysis,     severity: error,   reason: "事象は起動プロセスを持つ（P→E）" }
   - { node: d,     source: [p],               activate_stage: analysis,     severity: error,   reason: "内部データは消費プロセスを持つ（P→D）" }
   - { node: actor, source: [e, i, o],         activate_stage: analysis,     severity: warning, reason: "アクタは事象/入出力のいずれかに関与（OR）" }
-  # --- design ---
+  # --- design（DD-9: 価値経路の下流連続性を設計段で強制。設計ノードは実装/下流設計に落ちること）---
   - { node: e,     source: [orc],             activate_stage: design,       severity: warning, reason: "起動イベントは設計層ORCに参照される（DD-15）" }
+  - { node: p,     source: [mod],             activate_stage: design,       severity: error,   reason: "プロセスは実装モジュールを持つ（P←MOD・DD-9）" }
+  - { node: scm,   source: [cfg],             activate_stage: design,       severity: error,   reason: "スキーマは設定インスタンスで具体化される（SCM←CFG・DD-9）" }
+  - { node: ds,    source: [prs],             activate_stage: design,       severity: error,   reason: "データストアは永続化実装で実現される（DS←PRS・DD-9）" }
+  # --- implementation（DD-9: 設計ノードは実装(SRC)で実現される。SRC 著作(#160)後に発火）---
+  # 注: SRC→設計 の充足はシンボル適格性（設計種別ごとに張ってよいシンボル種別）を満たす場合のみ。
+  #     適格性判定は別途 DD で設計・機械検証可能化する（src.kind × 設計種別のマッチング）。
+  - { node: mod,   source: [src],             activate_stage: implementation, severity: error, reason: "モジュールは実装で実現される（MOD←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: dm,    source: [src],             activate_stage: implementation, severity: error, reason: "型定義は実装で実現される（DM←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: port,  source: [src],             activate_stage: implementation, severity: error, reason: "ポートは実装で実現される（PORT←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: orc,   source: [src],             activate_stage: implementation, severity: error, reason: "オーケストレーションは実装で実現される（ORC←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: prs,   source: [src],             activate_stage: implementation, severity: error, reason: "永続化は実装で実現される（PRS←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: prompt,source: [src],             activate_stage: implementation, severity: error, reason: "プロンプト資産は実装(skill/agentファイル)で実現される（PROMPT←SRC・DD-9・シンボル適格性条件付き）" }
+  - { node: cfg,   source: [src],             activate_stage: implementation, severity: error, reason: "設定は実装で実現される（CFG←SRC・DD-9・シンボル適格性条件付き）" }
   # --- verification（テスト実施保証の鎖 SPEC←TD←TC←TR）---
-  - { node: spec,  source: [td],              activate_stage: verification, severity: warning, reason: "仕様はテスト設計で覆われる" }
+  # DD-9: テスタブル(condition 有=leaf)SPEC はテスト設計で必ず覆われる。傘SPEC(condition 無)は非テスタブルで除外。
+  #       applies_when: condition_present は施行器(#163)がノードの condition 有無で対象を絞るための限定子。
+  - { node: spec,  source: [td],              activate_stage: verification, severity: error,   reason: "テスタブル仕様はテスト設計で覆われる（DD-9でerror昇格・leaf限定）", applies_when: condition_present }
   - { node: td,    source: [tc],              activate_stage: verification, severity: warning, reason: "テスト設計はコードで実装される" }
   - { node: tc,    source: [tr],              activate_stage: verification, severity: warning, reason: "テストは実行され結果を残す" }
   - { node: nfr,   source: [fnd, tc, verify], activate_stage: verification, severity: warning, reason: "NFRは検証証跡を受ける（OR）" }
