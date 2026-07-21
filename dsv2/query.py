@@ -66,6 +66,117 @@ def exact_link_count_gaps(meta: dict, rules: Iterable[dict]) -> list[dict]:
     return out
 
 
+def _src_kind_ok(node: dict, target_type: str, eligibility: dict[str, list[str]] | None) -> bool:
+    """SRC ノードの source.kind が target 設計種別の適格 kind に含まれるか（DD-10）。
+
+    eligibility 未指定、または node が src 型でなければ常に True（適格性チェックなし）。
+    eligibility に target_type の宣言があれば ``node['source']['kind']`` が許容 list に含まれる場合のみ True
+    （source / kind を持たないノードは不適格＝False）。target_type が未宣言なら制約なし＝True。
+    """
+    if eligibility is None or node.get("type") != "src":
+        return True
+    allowed = eligibility.get(target_type)
+    if allowed is None:
+        return True
+    kind = (node.get("source") or {}).get("kind")
+    return kind in allowed
+
+
+def must_link_to_gaps(
+    meta: dict,
+    rules: Iterable[dict],
+    eligibility: dict[str, list[str]] | None = None,
+) -> list[dict]:
+    """必須の出辺（node → target 型）が 0 本のノードを列挙する（must_link_to 施行・#163）。
+
+    ``rules`` は config.yml の ``must_link_to`` と同形で ``target`` は正規化済み ``list[str]``:
+    ``node``（対象型）, ``target``（許容先型の list・OR）, ``severity``, ``reason``。
+    ``target == ["any"]`` は「任意型の出辺が 1 本でもあれば充足」（verify→any センチネル）。
+    ``eligibility`` 指定時、``node == 'src'`` の辺は「先型 T に対し ``src.kind ∈ eligibility[T]``」の
+    辺のみ有効カウントする（source/kind 無しは不適格）。stage gating は呼び出し側（validate.py）が扱う。
+
+    依存仕様: doc-system-v2/config.yml（must_link_to / src_symbol_eligibility・out-of-graph 補助）・
+      doc-system-v2/nodes/05-design/dd/decided/dd-10-*.yaml（SRC シンボル適格性・src→mod 拡張）v0.1.0。
+    """
+    by_id = index_by_id(meta)
+    out: list[dict] = []
+    for rule in rules:
+        node_type = str(rule["node"])
+        targets = [str(t) for t in rule["target"]]
+        any_sentinel = targets == ["any"]
+        for node in meta["nodes"]:
+            if node.get("type") != node_type:
+                continue
+            count = 0
+            for e in node.get("edges", []):
+                target = by_id.get(e.get("to"))
+                if target is None:
+                    continue
+                target_type = target.get("type")
+                if not any_sentinel and target_type not in targets:
+                    continue
+                if not _src_kind_ok(node, target_type, eligibility):
+                    continue
+                count += 1
+            if count == 0:
+                out.append({
+                    "id": node["id"],
+                    "type": node_type,
+                    "targets": targets,
+                    "severity": rule.get("severity", "error"),
+                    "reason": rule.get("reason", ""),
+                })
+    return out
+
+
+def must_be_linked_from_gaps(
+    meta: dict,
+    rules: Iterable[dict],
+    eligibility: dict[str, list[str]] | None = None,
+) -> list[dict]:
+    """必須の入辺（node ← source 型）が 0 本の対象ノードを列挙する（must_be_linked_from 施行・#163）。
+
+    ``rules`` は config.yml の ``must_be_linked_from`` と同形で ``source`` は正規化済み ``list[str]``:
+    ``node``（対象型）, ``source``（許容元型の list・OR）, ``severity``, ``reason``, 任意 ``applies_when``。
+    ``applies_when == 'condition_present'`` の rule は ``condition`` を持つノードのみ対象（傘＝condition 無は除外）。
+    ``eligibility`` 指定かつ ``source`` に ``'src'`` を含む rule は、入辺 src のうち
+    ``src.kind ∈ eligibility[node型]`` のもののみ有効カウントする。stage gating は呼び出し側が扱う。
+
+    依存仕様: doc-system-v2/config.yml（must_be_linked_from / src_symbol_eligibility・out-of-graph 補助）・
+      doc-system-v2/nodes/05-design/dd/decided/dd-10-*.yaml（SRC シンボル適格性）v0.1.0。
+    """
+    out: list[dict] = []
+    for rule in rules:
+        node_type = str(rule["node"])
+        sources = [str(s) for s in rule["source"]]
+        condition_only = rule.get("applies_when") == "condition_present"
+        for node in meta["nodes"]:
+            if node.get("type") != node_type:
+                continue
+            if condition_only and not node.get("condition"):
+                continue
+            count = 0
+            for src in meta["nodes"]:
+                src_type = src.get("type")
+                if src_type not in sources:
+                    continue
+                for e in src.get("edges", []):
+                    if e.get("to") != node.get("id"):
+                        continue
+                    if not _src_kind_ok(src, node_type, eligibility):
+                        continue
+                    count += 1
+            if count == 0:
+                out.append({
+                    "id": node["id"],
+                    "type": node_type,
+                    "sources": sources,
+                    "severity": rule.get("severity", "error"),
+                    "reason": rule.get("reason", ""),
+                })
+    return out
+
+
 def load_prompt_coverage_targets(root: str | Path = DEFAULT_ROOT) -> tuple[str, ...]:
     """``config.yml`` が宣言する PROMPT カバレッジ対象 skill 集合を読む（RULE-032）。"""
     config_path = Path(root) / "config.yml"

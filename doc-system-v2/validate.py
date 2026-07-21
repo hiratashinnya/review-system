@@ -65,13 +65,19 @@ _REFVER = re.compile(r"^\d+\.\d+$")
 # config.yml condition_vocab と一致（傘性は condition でなく構造から導出＝ここに umbrella は無い）。
 _CONDITIONS = {"normal", "boundary", "empty", "failure", "error"}
 _RESULTS = {"PASS", "FAIL"}
-_SOURCE_KINDS = {"function", "class", "method"}
+_SOURCE_KINDS = {"function", "class", "method", "module", "file"}
 _TEST_KINDS = {"unittest", "pytest", "function", "method"}
 
 
 def _split_config_items(raw: str) -> list[str]:
+    """トップレベルのカンマで分割する（クオート内・``[...]``/``{...}`` 内のカンマは分割しない）。
+
+    bracket 深度を追うことで ``target: [mod, dm]`` のようなインラインリスト値を 1 要素として保つ（#163）。
+    既存の非 list 要素（exact_link_counts 形）に対する挙動は不変（深度 0 のまま分割）。
+    """
     items: list[str] = []
     quote: str | None = None
+    depth = 0
     start = 0
     for i, ch in enumerate(raw):
         if quote:
@@ -79,7 +85,12 @@ def _split_config_items(raw: str) -> list[str]:
                 quote = None
         elif ch in ("'", '"'):
             quote = ch
-        elif ch == ",":
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            if depth > 0:
+                depth -= 1
+        elif ch == "," and depth == 0:
             items.append(raw[start:i].strip())
             start = i + 1
     items.append(raw[start:].strip())
@@ -95,16 +106,30 @@ def _parse_config_scalar(raw: str) -> str | int:
     return s
 
 
+def _parse_config_value(raw: str) -> str | int | list:
+    """スカラー（str/int）またはインラインリスト ``[a, b]`` を解釈する（#163）。
+
+    ``[...]`` を検出したら要素分割し各要素をスカラー解釈する。それ以外は従来どおり ``_parse_config_scalar``。
+    """
+    s = raw.strip()
+    if s.startswith("[") and s.endswith("]"):
+        inner = s[1:-1].strip()
+        if not inner:
+            return []
+        return [_parse_config_scalar(item) for item in _split_config_items(inner)]
+    return _parse_config_scalar(s)
+
+
 def _parse_inline_config_dict(raw: str, config_path: Path, line_no: int) -> dict:
     body = raw.strip()
     if not (body.startswith("{") and body.endswith("}")):
         raise ValueError(f"{config_path}:{line_no}: exact_link_counts はインライン辞書形式である必要があります")
-    out: dict[str, str | int] = {}
+    out: dict[str, str | int | list] = {}
     for item in _split_config_items(body[1:-1]):
         key, sep, val = item.partition(":")
         if not sep:
             raise ValueError(f"{config_path}:{line_no}: ':' がない exact_link_counts 要素: {item!r}")
-        out[key.strip()] = _parse_config_scalar(val)
+        out[key.strip()] = _parse_config_value(val)
     return out
 
 
@@ -217,6 +242,136 @@ def validate_exact_link_counts(root: Path) -> list[str]:
             f"expected={row['expected']} actual={row['actual']} reason={row.get('reason', '')}"
         )
     return out
+
+
+def _load_block_rules(root: Path, block: str) -> list[dict]:
+    """config.yml のブロックリスト（``block:`` 見出し下の ``- {...}`` 群）を読む（未宣言なら空）。
+
+    ``load_exact_link_counts`` と同じ読み口を必須接続ブロック（must_link_to / must_be_linked_from）へ
+    一般化したもの。要素は ``_parse_inline_config_dict`` で解釈するため list 値も保持される（#163）。
+    """
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return []
+    rules: list[dict] = []
+    in_rules = False
+    for line_no, raw in enumerate(config_path.read_text("utf-8").splitlines(), start=1):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if stripped == f"{block}:":
+            in_rules = True
+            continue
+        if in_rules and indent == 0:
+            break
+        if in_rules:
+            if not stripped.startswith("- "):
+                raise ValueError(f"{config_path}:{line_no}: {block} はブロックリスト形式である必要があります")
+            rules.append(_parse_inline_config_dict(stripped[2:], config_path, line_no))
+    return rules
+
+
+def _normalize_type_list(val: object) -> list[str]:
+    """``target``/``source`` を常に ``list[str]`` へ正規化する（スカラー→1要素・``any`` センチネル保持・#163）。"""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    return [str(val)]
+
+
+def load_must_link_to(root: Path) -> list[dict]:
+    """config.yml: must_link_to を読む。``target`` を常に ``list[str]`` へ正規化する（未宣言なら空）。
+
+    実 config は ``target: sr``（スカラー）・``target: [fr, nfr, spec]``（list）・``target: any``
+    （センチネル）が混在するため、ローダで list へ揃える（``any`` は文字列要素として保持）。
+    ``applies_when`` 等の任意キーはそのまま保持する。
+    """
+    rules = _load_block_rules(root, "must_link_to")
+    for rule in rules:
+        rule["target"] = _normalize_type_list(rule.get("target"))
+    return rules
+
+
+def load_must_be_linked_from(root: Path) -> list[dict]:
+    """config.yml: must_be_linked_from を読む。``source`` を常に ``list[str]`` へ正規化する（未宣言なら空）。"""
+    rules = _load_block_rules(root, "must_be_linked_from")
+    for rule in rules:
+        rule["source"] = _normalize_type_list(rule.get("source"))
+    return rules
+
+
+def load_src_symbol_eligibility(root: Path) -> dict[str, list[str]]:
+    """config.yml: src_symbol_eligibility マッピングブロックを読む（DD-10・未宣言なら空 dict）。
+
+    ``mod: [module]`` 形式（キー＝設計種別、値＝許容 SRC シンボル kind の list）。行末コメントは除去する。
+    """
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return {}
+    out: dict[str, list[str]] = {}
+    in_block = False
+    for line_no, raw in enumerate(config_path.read_text("utf-8").splitlines(), start=1):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if stripped == "src_symbol_eligibility:":
+            in_block = True
+            continue
+        if in_block and indent == 0:
+            break
+        if in_block:
+            key, sep, val = stripped.partition(":")
+            if not sep:
+                raise ValueError(f"{config_path}:{line_no}: src_symbol_eligibility はマッピング形式である必要があります")
+            out[key.strip()] = _normalize_type_list(_parse_config_value(_strip_top_level_comment(val)))
+    return out
+
+
+def _format_link_gaps(kind: str, arrow: str, key: str, rows: list[dict]) -> list[str]:
+    """must_link_to / must_be_linked_from の gap 行を整形する（severity→ERROR/WARN プレフィクス）。"""
+    out: list[str] = []
+    for row in rows:
+        prefix = "ERROR" if row.get("severity") == "error" else "WARN"
+        out.append(
+            f"{prefix}: {kind}: {row['id']} ({row['type']}) {arrow} {row[key]} 欠如 "
+            f"reason={row.get('reason', '')}"
+        )
+    return out
+
+
+def validate_must_link_to(root: Path) -> list[str]:
+    """config.yml: must_link_to を meta 全体に対して検査する（activate_stage 未達の rule はスキップ・#163）。"""
+    rules = load_must_link_to(root)
+    if not rules:
+        return []
+    current_stage = load_current_stage(root)
+    stages = load_stages(root)
+    active_rules = [r for r in rules if _rule_active(r, current_stage, stages)]
+    if not active_rules:
+        return []
+    eligibility = load_src_symbol_eligibility(root) or None
+    corpus = dsv2_meta.build_meta(root)
+    rows = dsv2_query.must_link_to_gaps(corpus, active_rules, eligibility=eligibility)
+    return _format_link_gaps("must_link_to", "→", "targets", rows)
+
+
+def validate_must_be_linked_from(root: Path) -> list[str]:
+    """config.yml: must_be_linked_from を meta 全体に対して検査する（activate_stage 未達の rule はスキップ・#163）。"""
+    rules = load_must_be_linked_from(root)
+    if not rules:
+        return []
+    current_stage = load_current_stage(root)
+    stages = load_stages(root)
+    active_rules = [r for r in rules if _rule_active(r, current_stage, stages)]
+    if not active_rules:
+        return []
+    eligibility = load_src_symbol_eligibility(root) or None
+    corpus = dsv2_meta.build_meta(root)
+    rows = dsv2_query.must_be_linked_from_gaps(corpus, active_rules, eligibility=eligibility)
+    return _format_link_gaps("must_be_linked_from", "←", "sources", rows)
 
 
 def validate_sidecar(data: dict) -> list[str]:
@@ -485,12 +640,17 @@ def main(argv: list[str]) -> int:
         print(f"[{status}] {yaml.relative_to(root)}")
         for m in msgs:
             print(f"    {m}")
-    cross_msgs = validate_exact_link_counts(root)
-    cross_errs = [m for m in cross_msgs if m.startswith("ERROR")]
-    if cross_msgs:
-        total_err += len(cross_errs)
+    for label, cross_msgs in (
+        ("exact_link_counts", validate_exact_link_counts(root)),
+        ("must_link_to", validate_must_link_to(root)),
+        ("must_be_linked_from", validate_must_be_linked_from(root)),
+    ):
+        if not cross_msgs:
+            continue
+        cross_errs = [m for m in cross_msgs if m.startswith("ERROR")]
+        total_err += len(cross_errs)  # WARN 行は exit に非寄与（total_err に加算しない）
         status = "OK" if not cross_errs else "NG"
-        print(f"[{status}] exact_link_counts")
+        print(f"[{status}] {label}")
         for m in cross_msgs:
             print(f"    {m}")
     orphan_msgs = find_orphan_mds(root)
