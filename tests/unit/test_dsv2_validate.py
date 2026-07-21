@@ -322,5 +322,311 @@ class TestFindOrphanMds(unittest.TestCase):
         self.assertNotIn("orphan .md", stdout)
 
 
+_STAGES_LINE = "stages: [requirements, analysis, design, implementation, verification]\n"
+
+
+class TestParseInlineConfigBracket(unittest.TestCase):
+    """Phase B (#163): _parse_inline_config_dict / _split_config_items の bracket list 対応。
+
+    契約: target: [a, b] を Python list に解釈し、既存 scalar/int（exact_link_counts 形）は不変。
+    """
+
+    def test_split_config_items_respects_brackets(self):
+        items = validate._split_config_items("node: src, target: [mod, dm], severity: error")
+        self.assertEqual(items, ["node: src", "target: [mod, dm]", "severity: error"])
+
+    def test_parse_inline_dict_with_bracket_list(self):
+        raw = "{node: src, target: [mod, dm, port, orc], activate_stage: implementation, severity: error}"
+        d = validate._parse_inline_config_dict(raw, Path("config.yml"), 1)
+        self.assertEqual(d["target"], ["mod", "dm", "port", "orc"])
+        self.assertEqual(d["node"], "src")
+        self.assertEqual(d["activate_stage"], "implementation")
+        self.assertEqual(d["severity"], "error")
+
+    def test_parse_inline_dict_scalar_regression(self):
+        # 既存 exact_link_counts 形（list 無し）は挙動不変（回帰なし）。
+        raw = ('{ node: td, direction: incoming, peer: tc, count: 1, '
+               'activate_stage: verification, severity: error, reason: "TDはちょうど1つのTC" }')
+        d = validate._parse_inline_config_dict(raw, Path("config.yml"), 1)
+        self.assertEqual(d["count"], 1)
+        self.assertEqual(d["direction"], "incoming")
+        self.assertEqual(d["reason"], "TDはちょうど1つのTC")
+
+
+class TestLoadSrcSymbolEligibility(unittest.TestCase):
+    """Phase B (#163・DD-10): src_symbol_eligibility マッピングブロックの読取。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "doc-system-v2"
+        self.root.mkdir()
+
+    def test_reads_mapping_to_dict_of_lists(self):
+        _write(
+            self.root / "config.yml",
+            "src_symbol_eligibility:\n"
+            "  mod: [module]\n"
+            "  dm: [module]\n"
+            "  port: [class]\n",
+        )
+        self.assertEqual(
+            validate.load_src_symbol_eligibility(self.root),
+            {"mod": ["module"], "dm": ["module"], "port": ["class"]},
+        )
+
+    def test_undeclared_returns_empty_dict(self):
+        _write(self.root / "config.yml", 'current_stage: "design"\n')
+        self.assertEqual(validate.load_src_symbol_eligibility(self.root), {})
+
+
+class TestLoadMustLinkRules(unittest.TestCase):
+    """Phase B (#163): load_must_link_to / load_must_be_linked_from のブロックリスト読取。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "doc-system-v2"
+        self.root.mkdir()
+
+    def test_load_must_link_to_parses_target_lists(self):
+        _write(
+            self.root / "config.yml",
+            "must_link_to:\n"
+            "  - { node: p, target: [mod], activate_stage: design, severity: error, reason: \"P→MOD\" }\n"
+            "  - { node: src, target: [mod, dm, port, orc], activate_stage: implementation, severity: error, reason: \"SRC\" }\n",
+        )
+        rules = validate.load_must_link_to(self.root)
+        self.assertEqual(len(rules), 2)
+        self.assertEqual(rules[0]["node"], "p")
+        self.assertEqual(rules[0]["target"], ["mod"])
+        self.assertEqual(rules[1]["target"], ["mod", "dm", "port", "orc"])
+
+    def test_load_must_be_linked_from_preserves_applies_when(self):
+        _write(
+            self.root / "config.yml",
+            "must_be_linked_from:\n"
+            "  - { node: spec, source: [td], activate_stage: verification, severity: error, applies_when: condition_present, reason: \"spec←td\" }\n"
+            "  - { node: mod, source: [src], activate_stage: implementation, severity: error, reason: \"mod←src\" }\n",
+        )
+        rules = validate.load_must_be_linked_from(self.root)
+        self.assertEqual(len(rules), 2)
+        self.assertEqual(rules[0]["source"], ["td"])
+        self.assertEqual(rules[0]["applies_when"], "condition_present")
+        self.assertEqual(rules[1]["source"], ["src"])
+        self.assertNotIn("applies_when", rules[1])
+
+    def test_undeclared_blocks_return_empty(self):
+        _write(self.root / "config.yml", 'current_stage: "design"\n')
+        self.assertEqual(validate.load_must_link_to(self.root), [])
+        self.assertEqual(validate.load_must_be_linked_from(self.root), [])
+
+
+class TestValidateMustLinkTo(unittest.TestCase):
+    """Phase B (#163): validate_must_link_to の stage gating・severity・行整形と main 連携。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name)
+        self.root = self.repo / "doc-system-v2"
+        self.root.mkdir()
+
+    def _write_config(self, current_stage: str | None, activate: str, severity: str) -> None:
+        head = f'current_stage: "{current_stage}"\n{_STAGES_LINE}' if current_stage is not None else ""
+        _write(
+            self.root / "config.yml",
+            head
+            + "must_link_to:\n"
+            + f"  - {{ node: p, target: [mod], activate_stage: {activate}, severity: {severity}, reason: \"P must map to MOD\" }}\n",
+        )
+
+    def _write_p(self, name: str, edges_yaml: str) -> None:
+        y = self.root / f"nodes/03-analysis/p/{name}.yaml"
+        _write(y, f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n{edges_yaml}')
+        _write(y.with_suffix(".md"), f"# {name}\n")
+
+    def _write_mod(self, name: str) -> None:
+        y = self.root / f"nodes/05-design/mod/{name}.yaml"
+        _write(y, f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\nedges: []\n')
+        _write(y.with_suffix(".md"), f"# {name}\n")
+
+    def _run_validate(self) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = validate.main(["validate.py", str(self.root)])
+        return code, out.getvalue()
+
+    def test_error_severity_gap_is_error_and_fails_exit(self):
+        self._write_config("design", "design", "error")
+        self._write_p("p-a", "edges: []\n")  # 辺なし → gap
+        self._write_mod("mod-a")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 1, stdout)
+        self.assertIn("ERROR: must_link_to:", stdout)
+        self.assertIn("p-a", stdout)
+        self.assertIn("欠如", stdout)
+
+    def test_warning_severity_gap_does_not_fail_exit(self):
+        self._write_config("design", "design", "warning")
+        self._write_p("p-a", "edges: []\n")
+        self._write_mod("mod-a")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertIn("WARN: must_link_to:", stdout)
+        self.assertNotIn("ERROR: must_link_to:", stdout)
+
+    def test_satisfied_link_has_no_gap(self):
+        self._write_config("design", "design", "error")
+        self._write_p("p-a", 'edges:\n  - to: mod-a\n    ref_version: "0.1"\n')
+        self._write_mod("mod-a")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_link_to:", stdout)
+
+    def test_stage_below_activate_skips_rule(self):
+        # current_stage=design < activate_stage=verification → 未発火（gap でも ERROR にしない）。
+        self._write_config("design", "verification", "error")
+        self._write_p("p-a", "edges: []\n")
+        self._write_mod("mod-a")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_link_to:", stdout)
+
+    def test_missing_current_stage_is_inactive(self):
+        self._write_config(None, "design", "error")
+        self._write_p("p-a", "edges: []\n")
+        self._write_mod("mod-a")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_link_to:", stdout)
+
+    def test_validate_function_returns_error_line(self):
+        # 純関数の直接呼び出し（行整形の忠実性）。
+        self._write_config("design", "design", "error")
+        self._write_p("p-a", "edges: []\n")
+        self._write_mod("mod-a")
+
+        lines = validate.validate_must_link_to(self.root)
+
+        self.assertTrue(any(m.startswith("ERROR: must_link_to:") and "p-a" in m for m in lines), lines)
+
+
+class TestValidateMustBeLinkedFrom(unittest.TestCase):
+    """Phase B (#163): validate_must_be_linked_from の applies_when・stage gating・severity。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name)
+        self.root = self.repo / "doc-system-v2"
+        self.root.mkdir()
+        _write(self.repo / "tests/test_sample.py", "def test_a():\n    pass\n")
+
+    def _write_config(self, current_stage: str, activate: str, severity: str) -> None:
+        _write(
+            self.root / "config.yml",
+            f'current_stage: "{current_stage}"\n{_STAGES_LINE}'
+            + "must_be_linked_from:\n"
+            + f"  - {{ node: spec, source: [td], activate_stage: {activate}, severity: {severity}, applies_when: condition_present, reason: \"testable spec←td\" }}\n",
+        )
+
+    def _write_spec(self, name: str, condition: str | None) -> None:
+        cond = f'condition: "{condition}"\n' if condition else ""
+        y = self.root / f"nodes/02-what/spec/{name}.yaml"
+        _write(y, f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n{cond}edges: []\n')
+        _write(y.with_suffix(".md"), f"# {name}\n")
+
+    def _write_td_to(self, name: str, target: str) -> None:
+        y = self.root / f"nodes/04-verification/td/{name}.yaml"
+        _write(y, f'title: "{name}"\nversion: "0.1.0"\nlabels: []\nscheduled: "sprint-1"\n'
+                  f'edges:\n  - to: {target}\n    ref_version: "0.1"\n')
+        _write(y.with_suffix(".md"), f"# {name}\n")
+
+    def _run_validate(self) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = validate.main(["validate.py", str(self.root)])
+        return code, out.getvalue()
+
+    def test_condition_present_node_without_incoming_is_error(self):
+        self._write_config("verification", "verification", "error")
+        self._write_spec("spec-cond", "normal")  # incoming td 無し → gap
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 1, stdout)
+        self.assertIn("ERROR: must_be_linked_from:", stdout)
+        self.assertIn("spec-cond", stdout)
+
+    def test_node_without_condition_is_not_targeted(self):
+        self._write_config("verification", "verification", "error")
+        self._write_spec("spec-plain", None)  # 傘（condition 無）→ 対象外
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_be_linked_from:", stdout)
+
+    def test_incoming_source_satisfies(self):
+        self._write_config("verification", "verification", "error")
+        self._write_spec("spec-cond", "normal")
+        self._write_td_to("td-a", "spec-cond")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_be_linked_from:", stdout)
+
+    def test_stage_below_activate_skips_rule(self):
+        self._write_config("design", "verification", "error")
+        self._write_spec("spec-cond", "normal")
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertNotIn("must_be_linked_from:", stdout)
+
+
+class TestSourceKindVocabulary(unittest.TestCase):
+    """Phase B (#163): source.kind 語彙拡張 {module, class, function, method, file}。"""
+
+    def _sidecar(self, kind: str) -> list[str]:
+        data = {
+            "title": "x",
+            "version": "0.1.0",
+            "labels": [],
+            "scheduled": "sprint-1",
+            "edges": [],
+            "source.file": "pkg/mod.py",
+            "source.qualname": "x",
+            "source.kind": kind,
+        }
+        return validate.validate_sidecar(data)
+
+    def test_module_kind_accepted(self):
+        self.assertFalse([m for m in self._sidecar("module") if "source.kind 不正" in m])
+
+    def test_file_kind_accepted(self):
+        self.assertFalse([m for m in self._sidecar("file") if "source.kind 不正" in m])
+
+    def test_existing_kinds_still_accepted(self):
+        for k in ("function", "class", "method"):
+            self.assertFalse([m for m in self._sidecar(k) if "source.kind 不正" in m], k)
+
+    def test_invalid_kind_still_error(self):
+        self.assertTrue(any("source.kind 不正" in m for m in self._sidecar("banana")))
+
+
 if __name__ == "__main__":
     unittest.main()

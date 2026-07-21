@@ -147,6 +147,149 @@ class TestExactLinkCountGaps(unittest.TestCase):
         self.assertEqual(by_id["td-b"]["actual"], 0)
 
 
+class TestMustLinkToGaps(unittest.TestCase):
+    """Phase B (#163): must_link_to（outgoing 方向の必須リンク）欠落を meta 上で検査する純関数。
+
+    契約 (tmp/sprint-1/phaseb-163-design-brief.md):
+      must_link_to_gaps(meta, rules, eligibility=None) -> list[dict]
+      - rule: {node, target:[types], severity, reason, ...}
+      - node 型の各ノードについて target 型のいずれかへの outgoing 辺が 0 本なら gap（target 複数=OR）。
+      - eligibility 指定時、node=='src' の辺は node['source']['kind'] ∈ eligibility[target型] のみ有効カウント。
+      - 返す dict: {id, type, targets, severity, reason}
+    """
+
+    def _meta(self, nodes):
+        return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
+
+    def test_edge_to_target_type_has_no_gap(self):
+        m = self._meta([
+            {"id": "p-a", "type": "p", "version": "0.1.0", "edges": [{"to": "mod-a"}]},
+            {"id": "mod-a", "type": "mod", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "p", "target": ["mod"], "severity": "error", "reason": "P→MOD"}]
+        self.assertEqual(query.must_link_to_gaps(m, rules), [])
+
+    def test_no_outgoing_edge_is_gap(self):
+        m = self._meta([
+            {"id": "p-a", "type": "p", "version": "0.1.0", "edges": []},
+            {"id": "mod-a", "type": "mod", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "p", "target": ["mod"], "severity": "error", "reason": "P→MOD"}]
+        rows = query.must_link_to_gaps(m, rules)
+        self.assertEqual([r["id"] for r in rows], ["p-a"])
+        r = rows[0]
+        self.assertEqual(r["type"], "p")
+        self.assertEqual(r["targets"], ["mod"])
+        self.assertEqual(r["severity"], "error")
+        self.assertEqual(r["reason"], "P→MOD")
+
+    def test_or_semantics_any_target_satisfies(self):
+        # target [mod, dm]: 片方（dm）への辺があれば gap にならない（OR）。
+        m = self._meta([
+            {"id": "p-a", "type": "p", "version": "0.1.0", "edges": [{"to": "dm-a"}]},
+            {"id": "mod-a", "type": "mod", "version": "0.1.0", "edges": []},
+            {"id": "dm-a", "type": "dm", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "p", "target": ["mod", "dm"], "severity": "error", "reason": "P→MOD|DM"}]
+        self.assertEqual(query.must_link_to_gaps(m, rules), [])
+
+    def test_eligibility_kind_filters_src_edges(self):
+        # eligibility {mod:[module]}: src.kind=module→充足、function→不適格で gap、source 無し→gap。
+        m = self._meta([
+            {"id": "src-mod", "type": "src", "version": "0.1.0",
+             "source": {"kind": "module"}, "edges": [{"to": "mod-a"}]},
+            {"id": "src-func", "type": "src", "version": "0.1.0",
+             "source": {"kind": "function"}, "edges": [{"to": "mod-a"}]},
+            {"id": "src-nokind", "type": "src", "version": "0.1.0",
+             "edges": [{"to": "mod-a"}]},
+            {"id": "mod-a", "type": "mod", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "src", "target": ["mod"], "severity": "error", "reason": "SRC→MOD"}]
+        rows = query.must_link_to_gaps(m, rules, eligibility={"mod": ["module"]})
+        self.assertEqual({r["id"] for r in rows}, {"src-func", "src-nokind"})
+
+    def test_no_eligibility_ignores_src_kind(self):
+        # eligibility=None なら kind に関係なく辺の有無だけで判定（function でも辺あれば充足）。
+        m = self._meta([
+            {"id": "src-func", "type": "src", "version": "0.1.0",
+             "source": {"kind": "function"}, "edges": [{"to": "mod-a"}]},
+            {"id": "mod-a", "type": "mod", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "src", "target": ["mod"], "severity": "error", "reason": "SRC→MOD"}]
+        self.assertEqual(query.must_link_to_gaps(m, rules), [])
+
+
+class TestMustBeLinkedFromGaps(unittest.TestCase):
+    """Phase B (#163): must_be_linked_from（incoming 方向の必須被リンク）欠落を検査する純関数。
+
+    契約:
+      must_be_linked_from_gaps(meta, rules, eligibility=None) -> list[dict]
+      - rule: {node, source:[types], severity, reason, applies_when?}
+      - applies_when=='condition_present' は condition を持つノードのみ対象（傘=condition無は除外）。
+      - node 型の各対象について source 型のいずれかからの incoming 辺が 0 本なら gap（source 複数=OR）。
+      - eligibility 指定時、source に 'src' を含む rule は incoming src 辺のうち
+        その src ノードの source.kind ∈ eligibility[node型] のもののみ有効。
+      - 返す dict: {id, type, sources, severity, reason}
+    """
+
+    def _meta(self, nodes):
+        return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
+
+    def test_incoming_source_has_no_gap(self):
+        m = self._meta([
+            {"id": "spec-a", "type": "spec", "version": "0.1.0", "edges": []},
+            {"id": "td-a", "type": "td", "version": "0.1.0", "edges": [{"to": "spec-a"}]},
+        ])
+        rules = [{"node": "spec", "source": ["td"], "severity": "error", "reason": "spec←td"}]
+        self.assertEqual(query.must_be_linked_from_gaps(m, rules), [])
+
+    def test_no_incoming_is_gap(self):
+        m = self._meta([
+            {"id": "spec-a", "type": "spec", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "spec", "source": ["td"], "severity": "error", "reason": "spec←td"}]
+        rows = query.must_be_linked_from_gaps(m, rules)
+        self.assertEqual([r["id"] for r in rows], ["spec-a"])
+        r = rows[0]
+        self.assertEqual(r["type"], "spec")
+        self.assertEqual(r["sources"], ["td"])
+        self.assertEqual(r["severity"], "error")
+        self.assertEqual(r["reason"], "spec←td")
+
+    def test_or_semantics_any_source_satisfies(self):
+        m = self._meta([
+            {"id": "spec-a", "type": "spec", "version": "0.1.0", "edges": []},
+            {"id": "tc-a", "type": "tc", "version": "0.1.0", "edges": [{"to": "spec-a"}]},
+        ])
+        rules = [{"node": "spec", "source": ["td", "tc"], "severity": "error", "reason": "spec←td|tc"}]
+        self.assertEqual(query.must_be_linked_from_gaps(m, rules), [])
+
+    def test_applies_when_condition_present_excludes_umbrella(self):
+        # condition を持つ spec は incoming 無しで gap、condition 無し spec は対象外（gap なし）。
+        m = self._meta([
+            {"id": "spec-cond", "type": "spec", "version": "0.1.0", "condition": "normal", "edges": []},
+            {"id": "spec-plain", "type": "spec", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "spec", "source": ["td"], "severity": "error",
+                  "applies_when": "condition_present", "reason": "testable spec←td"}]
+        rows = query.must_be_linked_from_gaps(m, rules)
+        self.assertEqual([r["id"] for r in rows], ["spec-cond"])
+
+    def test_eligibility_kind_filters_incoming_src(self):
+        # eligibility {mod:[module]}: incoming src.kind=module→充足、function→gap 継続。
+        m = self._meta([
+            {"id": "src-mod", "type": "src", "version": "0.1.0",
+             "source": {"kind": "module"}, "edges": [{"to": "mod-ok"}]},
+            {"id": "src-func", "type": "src", "version": "0.1.0",
+             "source": {"kind": "function"}, "edges": [{"to": "mod-bad"}]},
+            {"id": "mod-ok", "type": "mod", "version": "0.1.0", "edges": []},
+            {"id": "mod-bad", "type": "mod", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "mod", "source": ["src"], "severity": "error", "reason": "mod←src"}]
+        rows = query.must_be_linked_from_gaps(m, rules, eligibility={"mod": ["module"]})
+        self.assertEqual([r["id"] for r in rows], ["mod-bad"])
+
+
 def _drift_meta(nodes):
     return {"format": "doc-system-v2", "root": "r", "nodes": nodes}
 
