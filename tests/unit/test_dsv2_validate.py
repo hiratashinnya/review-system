@@ -421,6 +421,21 @@ class TestLoadMustLinkRules(unittest.TestCase):
         self.assertEqual(validate.load_must_link_to(self.root), [])
         self.assertEqual(validate.load_must_be_linked_from(self.root), [])
 
+    def test_load_must_link_to_normalizes_scalar_and_any(self):
+        # [Major] 実 config 記法混在: スカラー target: fr / list target: [nfr, spec] /
+        # any センチネルを1ブロックで読み、target を常に list[str] へ正規化する。
+        _write(
+            self.root / "config.yml",
+            "must_link_to:\n"
+            "  - { node: sr, target: fr, activate_stage: analysis, severity: error, reason: \"SR→FR scalar\" }\n"
+            "  - { node: fr, target: [nfr, spec], activate_stage: analysis, severity: error, reason: \"FR→list\" }\n"
+            "  - { node: verify, target: any, activate_stage: verification, severity: warning, reason: \"verify→any\" }\n",
+        )
+        rules = validate.load_must_link_to(self.root)
+        self.assertEqual(rules[0]["target"], ["fr"])       # スカラー → 1要素 list
+        self.assertEqual(rules[1]["target"], ["nfr", "spec"])  # list はそのまま
+        self.assertEqual(rules[2]["target"], ["any"])      # any センチネルを list 要素に保持
+
 
 class TestValidateMustLinkTo(unittest.TestCase):
     """Phase B (#163): validate_must_link_to の stage gating・severity・行整形と main 連携。"""
@@ -596,6 +611,17 @@ class TestValidateMustBeLinkedFrom(unittest.TestCase):
 
         self.assertEqual(code, 0, stdout)
         self.assertNotIn("must_be_linked_from:", stdout)
+
+    def test_warning_severity_gap_does_not_fail_exit(self):
+        # [Medium] must_link_to 側と対称: severity=warning 違反は WARN 行を出すが exit に非寄与。
+        self._write_config("verification", "verification", "warning")
+        self._write_spec("spec-cond", "normal")  # incoming td 無し → gap
+
+        code, stdout = self._run_validate()
+
+        self.assertEqual(code, 0, stdout)
+        self.assertIn("WARN: must_be_linked_from:", stdout)
+        self.assertNotIn("ERROR: must_be_linked_from:", stdout)
 
 
 class TestSourceKindVocabulary(unittest.TestCase):

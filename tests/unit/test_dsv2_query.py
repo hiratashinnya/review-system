@@ -218,6 +218,41 @@ class TestMustLinkToGaps(unittest.TestCase):
         rules = [{"node": "src", "target": ["mod"], "severity": "error", "reason": "SRC→MOD"}]
         self.assertEqual(query.must_link_to_gaps(m, rules), [])
 
+    def test_any_sentinel_satisfied_by_any_outgoing_edge(self):
+        # [Major] target == ["any"]: 任意型の outgoing 辺が1本でもあれば充足、辺ゼロなら gap（verify→any）。
+        m = self._meta([
+            {"id": "verify-a", "type": "verify", "version": "0.1.0", "edges": [{"to": "spec-x"}]},
+            {"id": "verify-b", "type": "verify", "version": "0.1.0", "edges": []},
+            {"id": "spec-x", "type": "spec", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "verify", "target": ["any"], "severity": "warning", "reason": "verify→any"}]
+        rows = query.must_link_to_gaps(m, rules)
+        self.assertEqual([r["id"] for r in rows], ["verify-b"])
+
+    def test_or_with_per_target_eligibility_composite(self):
+        # [Minor・DD-10 核心] target 型ごとに異なる適格 kind:
+        #   mod:[module] / dm:[class] / orc:[function]。
+        # module→mod で充足、class→dm で充足、function→mod は不適格だが orc で充足、
+        # function→mod のみ（orc 辺なし）は gap。
+        eligibility = {"mod": ["module"], "dm": ["class"], "port": ["method"], "orc": ["function"]}
+        m = self._meta([
+            {"id": "src-mod", "type": "src", "version": "0.1.0",
+             "source": {"kind": "module"}, "edges": [{"to": "mod-1"}]},
+            {"id": "src-class", "type": "src", "version": "0.1.0",
+             "source": {"kind": "class"}, "edges": [{"to": "dm-1"}]},
+            {"id": "src-func-orc", "type": "src", "version": "0.1.0",
+             "source": {"kind": "function"}, "edges": [{"to": "mod-1"}, {"to": "orc-1"}]},
+            {"id": "src-func-modonly", "type": "src", "version": "0.1.0",
+             "source": {"kind": "function"}, "edges": [{"to": "mod-1"}]},
+            {"id": "mod-1", "type": "mod", "version": "0.1.0", "edges": []},
+            {"id": "dm-1", "type": "dm", "version": "0.1.0", "edges": []},
+            {"id": "orc-1", "type": "orc", "version": "0.1.0", "edges": []},
+        ])
+        rules = [{"node": "src", "target": ["mod", "dm", "port", "orc"],
+                  "severity": "error", "reason": "SRC→design"}]
+        rows = query.must_link_to_gaps(m, rules, eligibility=eligibility)
+        self.assertEqual([r["id"] for r in rows], ["src-func-modonly"])
+
 
 class TestMustBeLinkedFromGaps(unittest.TestCase):
     """Phase B (#163): must_be_linked_from（incoming 方向の必須被リンク）欠落を検査する純関数。
