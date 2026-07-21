@@ -215,7 +215,7 @@ P-002 → D-001    （P-002 が D-001 を消費：P は D に依存）
 
 ### RULE-006 — config `must_link_to` / `must_be_linked_from` の必須接続欠如（severity: 行ごと error/warning）
 
-担当 SPEC は **63 ノード**（層別 dedicated 子 53＋傘・集約 10）。**入口＝各層の傘 SPEC**。config の必須辺 1 行を 1 SPEC に割り、各子は当該 config 行の severity で RULE-006 を報告する。
+担当 SPEC の dedicated 子は層別に **計 55**（要件 8／分析 12／価値経路 3／設計 22／検証 10・下表内訳と一致）。加えて各層の傘 SPEC（要件 SPEC-56／分析 SPEC-57／価値経路 SPEC-30／設計 `設計層ノードの必須辺欠如検出`）と集約・ゼロ件通過ノード（下記）がある。**入口＝各層の傘 SPEC**。config の必須辺 1 行を 1 SPEC に割り、各子は当該 config 行の severity で RULE-006 を報告する。
 
 | 層 | 入口＝傘 SPEC（slug） | 対象ノード型 | dedicated 子（代表・件数） |
 |----|----------------------|--------------|-----------------------------|
