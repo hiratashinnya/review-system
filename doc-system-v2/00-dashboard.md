@@ -56,17 +56,18 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 5 件**（open FND 3・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 4 件**（open FND 2・open Q 1・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-### open FND（3 件）
+### open FND（2 件）
 
 | タイトル（要約） | scheduled | 備考 |
 |---|---|---|
 | **接続規則が価値経路連続性を error で機械保証していない**（Phase A・#161 本体） | 🗓 sprint-1 | **反映済み・施行待ち（2026-07-21）**。規則セットはオーナー確定→DD-9 で config／in-graph へ反映済み。ただし規則は宣言のみ＝inert で、**機械保証の成立は #163（Phase B）施行器の実装が前提**。施行完了まで open 維持（この FND は「機械保証していない」状態を指すため） |
-| **RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷**（#165） | 🗓 sprint-1 | Phase C 継続分。RULE 横断索引の整備＋`dsv2 reverse` 解消が残。dashboard ✅ 表記の半分は v1 archive 化で消滅済み（archive 非改変＝PR8・本文記録で処置） |
 | config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | v1 時代の FND-35 相当。オーナー承認済み |
 
-> **resolved 済み（2026-07-21・本セッション）**: FND-99「設計接続規則の out-of-graph 著作資産への非伝播」＝#164。既存 PROMPT ノード4件（architecture-design/domain-model/orchestration-design/design-author）から backref 付与で在グラフ化し `fnd/resolved/` へ移動（孤立解消確認・618ノード green）。
+> **resolved 済み（2026-07-21・本セッション）**:
+> - **FND-99**「設計接続規則の out-of-graph 著作資産への非伝播」＝#164（PR #246 merged）。既存 PROMPT ノード4件から backref 付与で在グラフ化。
+> - **FND-79**「RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷」＝#165。RULE 横断索引を `docs/doc-system/03-connection-matrix.md` §10 に整備、dashboard ✅ 矛盾は v2 で moot（v1 archive 化・PR8）を確認、`dsv2 reverse` で `必須上流辺の欠如`→FND-79 backref＋`fnd/resolved/` へ移動（孤立解消・618ノード green）。
 
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
 > issue #152 で移行後追加ノードも含めて空 `scheduled` を禁止し、既存空欄は `sprint-1` に整理済み。
