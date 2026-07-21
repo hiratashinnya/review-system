@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SessionStart フックハンドラ("startup"/"clear" のみ・"resume" では発火させない)。
+# SessionStart フックハンドラ("startup"/"clear"/"compact" で発火・"resume" では発火させない)。
 #
 # 役割:
 #   主文脈を「オーケストレーション＋ユーザーとのコミュニケーション」に限定するための
@@ -8,9 +8,13 @@
 #   側での再展開)によるトークン浪費を防ぐことが目的。
 #
 # 発火条件(matcher で担保・本スクリプトは絞り込まない):
-#   settings.json 側の matcher を "startup|clear" とし、"resume"(セッション再開)を
+#   settings.json 側の matcher を "startup|clear|compact" とし、"resume"(セッション再開)を
 #   明示的に除外する。resume は既存の会話コンテキストを引き継ぐため、委譲ルールを
 #   再注入する必要がない(要件①)。
+#   "compact" は公式仕様上 SessionStart イベントの source フィールドが取り得る値の一つで、
+#   コンパクション(自動/手動の要約による文脈圧縮)後にセッションが再開する際に発火する
+#   (Claude Code に独立した PostCompaction イベントは存在しない)。コンパクションでは
+#   委譲ルールの指示文もコンテキストから失われ得るため、"compact" を含めて再注入対象とする。
 #
 # コンテキスト本文の分離(要件③):
 #   注入する本文は本スクリプトに埋め込まず、同ディレクトリの
