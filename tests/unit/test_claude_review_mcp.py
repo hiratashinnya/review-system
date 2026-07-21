@@ -997,6 +997,252 @@ class ClaudeReviewMcpTests(unittest.TestCase):
         self.assertIn(reset_at, serialized)
         self.assertEqual(state["reset_at"], reset_at)
 
+    def test_rate_limit_state_never_persists_raw_diagnostics(self):
+        sentinel = "PERSISTED_SECRET_SENTINEL_7f3c"
+        huge = sentinel * 10_000
+        cases = (
+            ("stderr", f"You've hit your session limit; resets 5pm {sentinel}"),
+            ("stdout", f"\x1b[31mYou've hit your session limit; resets 5pm\x1b[0m {sentinel}"),
+            (
+                "structured_error",
+                {
+                    "type": "result",
+                    "subtype": "error_during_execution",
+                    "is_error": True,
+                    "error": {"type": "rate_limit_error", "message": huge},
+                },
+            ),
+            (
+                "structured_message",
+                {
+                    "type": "result",
+                    "subtype": "error_during_execution",
+                    "is_error": True,
+                    "error": {"type": "rate_limit_error"},
+                    "message": sentinel + " at start",
+                    "last_assistant_message": "at end " + sentinel,
+                },
+            ),
+        )
+        expected_keys = {
+            "error",
+            "schema_version",
+            "last_seen_at",
+            "reset_at",
+            "reset_status",
+            "source",
+        }
+        for kind, diagnostic in cases:
+            with self.subTest(kind=kind):
+                if kind == "stderr":
+                    proc = Completed(["claude"], stderr=diagnostic, returncode=1)
+                elif kind == "stdout":
+                    proc = Completed(["claude"], stdout=diagnostic, returncode=1)
+                else:
+                    proc = Completed(["claude"], stdout=json.dumps(diagnostic), returncode=1)
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                            with mock.patch.object(server, "require_claude_capabilities"):
+                                with mock.patch.object(server, "run_command", return_value=proc):
+                                    response = server.handle_request(
+                                        {
+                                            "jsonrpc": "2.0",
+                                            "id": 1,
+                                            "method": "tools/call",
+                                            "params": {
+                                                "name": "claude_review",
+                                                "arguments": {"prompt": "review"},
+                                            },
+                                        }
+                                    )
+                        state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                        state_text = state_path.read_text()
+                        state = json.loads(state_text)
+                        blocked, reason = server.current_block()
+                external = json.dumps(response) + reason
+                self.assertNotIn(sentinel, external)
+                self.assertNotIn(sentinel, state_text)
+                self.assertNotIn("raw", state)
+                self.assertEqual(set(state), expected_keys)
+                self.assertTrue(blocked)
+
+    def test_existing_raw_state_is_ignored_by_reader_and_status(self):
+        sentinel = "LEGACY_RAW_SECRET_e8b1"
+        base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
+        state = {
+            "schema_version": 1,
+            "source": "claude_process_error",
+            "error": "rate_limit",
+            "last_seen_at": base.isoformat(),
+            "reset_at": (base + dt.timedelta(hours=1)).isoformat(),
+            "raw": sentinel,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(json.dumps(state))
+
+            def fake_run(args, cwd, timeout_s):
+                if args == ["claude", "--help"]:
+                    return Completed(args, stdout=SUPPORTED_CLAUDE_HELP)
+                return Completed(args, stdout="version output is private")
+
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                with mock.patch.object(server, "now_tz", return_value=base):
+                    with mock.patch.object(server, "run_command", side_effect=fake_run):
+                        blocked, reason = server.current_block()
+                        status = server.claude_review_status()
+        self.assertTrue(blocked)
+        self.assertNotIn(sentinel, reason)
+        self.assertNotIn(sentinel, status)
+
+    def test_reset_parser_enforces_type_overflow_and_future_horizon(self):
+        base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
+        boundary = base + dt.timedelta(days=7)
+        accepted = (
+            ((base + dt.timedelta(hours=1)).isoformat(), base + dt.timedelta(hours=1)),
+            (boundary.isoformat(), boundary),
+            (str(int((base + dt.timedelta(hours=2)).timestamp())), base + dt.timedelta(hours=2)),
+            ((base - dt.timedelta(hours=1)).isoformat(), base - dt.timedelta(hours=1)),
+        )
+        for value, expected in accepted:
+            with self.subTest(accepted=value):
+                self.assertEqual(server.parse_reset_hint(value, base), expected)
+
+        rejected = (
+            boundary + dt.timedelta(seconds=1),
+            "9999-12-31T23:59:59+00:00",
+            "9999999999",
+            "NaN",
+            "Infinity",
+            "-Infinity",
+            "-9999999999",
+            True,
+            False,
+            1.0,
+            float("nan"),
+            float("inf"),
+            None,
+        )
+        for value in rejected:
+            if isinstance(value, dt.datetime):
+                value = value.isoformat()
+            with self.subTest(rejected=value):
+                self.assertIsNone(server.parse_reset_hint(value, base))
+
+    def test_invalid_reset_uses_bounded_fallback_without_internal_error(self):
+        base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
+        sentinel = "STRUCTURED_SECRET_END_81ad"
+        invalid_resets = (
+            "9999-12-31T23:59:59+00:00",
+            "9999999999",
+            "NaN",
+            "Infinity",
+            "-9999999999",
+        )
+        for hint in invalid_resets:
+            with self.subTest(hint=hint):
+                envelope = {
+                    "type": "result",
+                    "subtype": "error_during_execution",
+                    "is_error": True,
+                    "error": {
+                        "type": "rate_limit_error",
+                        "message": f"resets {hint} {sentinel}",
+                    },
+                }
+                proc = Completed(["claude"], stdout=json.dumps(envelope), returncode=1)
+                with tempfile.TemporaryDirectory() as tmp:
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}, clear=False):
+                        with mock.patch.object(server, "now_tz", return_value=base):
+                            with mock.patch.object(server, "current_block", return_value=(False, "ok")):
+                                with mock.patch.object(server, "require_claude_capabilities"):
+                                    with mock.patch.object(server, "run_command", return_value=proc):
+                                        response = server.handle_request(
+                                            {
+                                                "jsonrpc": "2.0",
+                                                "id": 1,
+                                                "method": "tools/call",
+                                                "params": {
+                                                    "name": "claude_review",
+                                                    "arguments": {"prompt": "review"},
+                                                },
+                                            }
+                                        )
+                            state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                            state_text = state_path.read_text()
+                            state = json.loads(state_text)
+                            blocked, reason = server.current_block()
+                serialized = json.dumps(response)
+                fallback = base + dt.timedelta(minutes=15)
+                self.assertIn("isError", serialized)
+                self.assertNotIn("-32603", serialized)
+                self.assertNotIn(sentinel, serialized + state_text + reason)
+                self.assertEqual(state["reset_at"], fallback.isoformat())
+                self.assertEqual(state["reset_status"], "fallback_invalid")
+                self.assertNotIn("raw", state)
+                self.assertTrue(blocked)
+                self.assertIn("operator action", reason)
+
+    def test_fallback_state_expires_and_valid_boundary_remains_active(self):
+        base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
+        cases = (
+            (
+                "fallback_active",
+                {
+                    "schema_version": 1,
+                    "source": "claude_process_error",
+                    "error": "rate_limit",
+                    "last_seen_at": base.isoformat(),
+                    "reset_at": (base + dt.timedelta(minutes=15)).isoformat(),
+                    "reset_status": "fallback_invalid",
+                },
+                base,
+                True,
+                "operator action",
+            ),
+            (
+                "fallback_expired",
+                {
+                    "schema_version": 1,
+                    "source": "claude_process_error",
+                    "error": "rate_limit",
+                    "last_seen_at": base.isoformat(),
+                    "reset_at": (base + dt.timedelta(minutes=15)).isoformat(),
+                    "reset_status": "fallback_invalid",
+                },
+                base + dt.timedelta(minutes=16),
+                False,
+                "expired",
+            ),
+            (
+                "validated_boundary",
+                {
+                    "schema_version": 1,
+                    "source": "claude_process_error",
+                    "error": "rate_limit",
+                    "last_seen_at": base.isoformat(),
+                    "reset_at": (base + dt.timedelta(days=7)).isoformat(),
+                    "reset_status": "validated",
+                },
+                base,
+                True,
+                "active",
+            ),
+        )
+        for name, state, current, expected_blocked, message in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+                    state_path.parent.mkdir(parents=True)
+                    state_path.write_text(json.dumps(state))
+                    with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                        with mock.patch.object(server, "now_tz", return_value=current):
+                            blocked, reason = server.current_block()
+                self.assertEqual(blocked, expected_blocked)
+                self.assertIn(message, reason)
+
     def test_status_never_exposes_raw_version_diagnostics(self):
         sentinel = "VERSION_DIAGNOSTIC_SECRET_d91b"
 
