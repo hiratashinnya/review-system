@@ -33,6 +33,15 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/install_pkgs/install_pkgs.sh"
           }
         ]
+      },
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/orchestrator-context.sh"
+          }
+        ]
       }
     ]
   },
