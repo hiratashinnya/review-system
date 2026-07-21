@@ -1,9 +1,11 @@
 title: "接続ルールスキーマ"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
 edges:
   - to: "ステージ発火による検査制御"
     ref_version: "0.3"
   - to: "config.yaml-スキーマ"
+    ref_version: "0.1"
+  - to: "src-シンボル適格性で-src⇄設計リンクの誤充足を機械排除・src→mod-拡張"
     ref_version: "0.1"

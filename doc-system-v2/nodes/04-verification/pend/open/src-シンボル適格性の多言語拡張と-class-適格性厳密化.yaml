@@ -1,0 +1,11 @@
+title: "SRC シンボル適格性の多言語拡張と class 適格性厳密化"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "接続ルールスキーマ"
+    ref_version: "0.1"
+    note: "多言語対応・class 厳密化を将来反映すべき在グラフ SCM（義務辺・影響要素）"
+  - to: "src-シンボル適格性で-src⇄設計リンクの誤充足を機械排除・src→mod-拡張"
+    ref_version: "0.1"
+    note: "本 PEND を切り出した決定 DD-10（起源・provenance）"

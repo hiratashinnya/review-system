@@ -1,7 +1,0 @@
-title: "SRC の必須辺が MOD を対象外とし実装担体の自然な張り先が無い"
-version: "0.1.0"
-labels: []
-scheduled: "sprint-1"
-edges:
-  - to: "src-に-dm-port-orc-への必須辺欠如-rule-006"
-    ref_version: "0.1"

@@ -93,12 +93,31 @@ must_link_to:
   - { node: cfg,    target: spec,            activate_stage: design,         severity: error,   reason: "CFGは仕様に紐づく" }
   - { node: prompt, target: spec,            activate_stage: design,         severity: error,   reason: "PROMPTは仕様に紐づく" }
   # --- implementation ---
-  - { node: src,    target: [dm, port, orc], activate_stage: implementation, severity: error,   reason: "SRCは設計ノードを実現（いずれか1つ以上）" }
+  # DD-10: MOD を追加（DD-9 の mod←src と対称。src→mod は src_symbol_eligibility で src.kind=module のみ有効）
+  - { node: src,    target: [mod, dm, port, orc], activate_stage: implementation, severity: error, reason: "SRCは設計ノードを実現（mod/dm/port/orcのいずれか1つ以上・シンボル適格性条件付き・DD-10）" }
   # --- verification ---
   - { node: td,     target: spec,            activate_stage: verification,   severity: error,   reason: "TDは仕様を検証" }
   - { node: tc,     target: td,              activate_stage: verification,   severity: error,   reason: "TCはTDを実装" }
   - { node: tr,     target: tc,              activate_stage: verification,   severity: error,   reason: "TRはTCの実行結果" }
   - { node: verify, target: any,             activate_stage: verification,   severity: error,   reason: "検証は対象要素を指す" }
+
+# ------------------------------------------------------------
+# SRC シンボル適格性（DD-10）: SRC⇄設計ノードのリンク充足は「設計種別ごとに張ってよい
+# シンボル種別」を満たす場合のみ有効。施行器(#163)が must_link_to(src→X) と
+# must_be_linked_from(X←src) のカウント時に SRC の source.kind を下表で照合する。
+# 目的＝MOD からしか張れないシンボル（module 単位）を関数/クラス流用で誤充足させない。
+# source.kind 語彙は施行器実装(#163)で {module, class, function, method, file} へ拡張。
+# 論点1（sprint-1）=kind 一致で確定（DM/PORT の class 重複は許容・厳密化は PEND-a〔多言語含む〕）。
+# 論点2=file 適格性は「存在＋正規パス規約一致」まで機械判定（意味判定は PEND-b）。
+# ------------------------------------------------------------
+src_symbol_eligibility:
+  mod:    [module]           # モジュール担体＝モジュールレベルのみ（関数/クラス流用を排除）
+  dm:     [class]            # 型定義＝クラス（dataclass/enum）
+  port:   [class]            # ポート＝クラス（Protocol/ABC）
+  orc:    [function]         # 制御フロー入口＝関数
+  prs:    [class, function]  # 永続化実装＝クラス or 関数
+  prompt: [file]             # プロンプト資産＝skill/agent ファイル（正規パス規約一致）
+  cfg:    [file]             # 設定インスタンス＝config ファイル（正規パス規約一致）
 
 # ------------------------------------------------------------
 # 必須接続②：被依存辺（node ← source 群）。同一 node 複数行=AND、source 配列=OR。
