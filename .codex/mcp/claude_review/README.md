@@ -90,8 +90,22 @@ an upgrade from spending quota during a real legacy cooldown. Expired states
 are safely ignored only after the state has been recognized as valid current or
 legacy data. Malformed or unrecognized states fail closed and require operator
 inspection or removal even when `reset_at` is absent, null, unknown, or expired.
-Only a recognized rate-limit state without a known reset remains non-active,
-matching the existing unknown-reset behavior.
+Reset parsing accepts only strings and safely rejects booleans, numbers,
+non-finite text, overflow, and invalid timezone conversions. A validated future
+reset may be at most seven days from observation. Seven days preserves weekday
+reset hints while preventing effectively permanent cooldowns.
+
+When a recognized rate-limit diagnostic has an invalid, unknown, past, or
+out-of-horizon reset, the writer records a fixed 15-minute fallback cooldown
+with `reset_status: "fallback_invalid"` and requires operator action. This
+prevents an immediate quota retry without turning an untrusted reset into a
+long-lived block. The reader applies the same validator; old recognized states
+with null or invalid resets use a stable 15-minute fallback derived from their
+`last_seen_at` or file timestamp, then expire automatically. New state files
+contain only allowlisted schema, category, source, observation, reset, and
+reset-status metadata. Raw stdout, stderr, structured error fields, ANSI text,
+prompts, and matched diagnostics are never persisted. An existing legacy
+`raw` field is ignored and is never displayed by state or status readers.
 
 ## Claude response contract
 

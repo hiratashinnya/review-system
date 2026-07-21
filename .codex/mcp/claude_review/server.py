@@ -16,6 +16,8 @@ from typing import Any
 WRAPPER_VERSION = "0.2.0"
 WRAPPER_RESPONSE_CONTRACT_VERSION = "1.0"
 RATE_LIMIT_STATE_SCHEMA_VERSION = 1
+MAX_RATE_LIMIT_RESET_FUTURE = dt.timedelta(days=7)
+INVALID_RESET_FALLBACK_COOLDOWN = dt.timedelta(minutes=15)
 GITHUB_PR_NUMBER_MAX = 2_147_483_647
 DEFAULT_TIMEOUT_S = 300
 DEFAULT_MAX_PR_CHARS = 120_000
@@ -101,18 +103,40 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime | None:
+def normalize_reset_candidate(
+    candidate: dt.datetime, base: dt.datetime
+) -> dt.datetime | None:
+    """Normalize a reset without permitting an effectively permanent future block."""
+    try:
+        if candidate.tzinfo is None:
+            candidate = candidate.replace(tzinfo=base.tzinfo)
+        normalized = candidate.astimezone(base.tzinfo)
+        if normalized - base > MAX_RATE_LIMIT_RESET_FUTURE:
+            return None
+        return normalized
+    except (OverflowError, OSError, TypeError, ValueError):
+        return None
+
+
+def parse_reset_hint(text: Any, base: dt.datetime | None = None) -> dt.datetime | None:
     """Best-effort parser for Claude rate-limit reset hints."""
     base = base or now_tz()
-    raw = (text or "").strip()
+    if not isinstance(text, str) or not isinstance(base, dt.datetime):
+        return None
+    raw = text.strip()
     if not raw:
         return None
 
-    for match in re.finditer(r"\b(\d{10})(?:\.\d+)?\b", raw):
+    epoch_match = re.search(r"(?<![\d.])(-?\d{10})(?:\.\d+)?(?![\d.])", raw)
+    if epoch_match:
         try:
-            return dt.datetime.fromtimestamp(int(match.group(1)), tz=base.tzinfo)
-        except (OverflowError, OSError, ValueError):
-            pass
+            epoch = int(epoch_match.group(1))
+            if epoch < 0:
+                return None
+            candidate = dt.datetime.fromtimestamp(epoch, tz=base.tzinfo)
+            return normalize_reset_candidate(candidate, base)
+        except (OverflowError, OSError, TypeError, ValueError):
+            return None
 
     iso_match = re.search(
         r"\b(\d{4}-\d{2}-\d{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)\b",
@@ -124,11 +148,9 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
             value = value[:-5] + value[-5:-2] + ":" + value[-2:]
         try:
             parsed = dt.datetime.fromisoformat(value)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=base.tzinfo)
-            return parsed.astimezone(base.tzinfo)
-        except ValueError:
-            pass
+            return normalize_reset_candidate(parsed, base)
+        except (OverflowError, OSError, TypeError, ValueError):
+            return None
 
     reset_match = RESET_RE.search(raw)
     hint = reset_match.group(1).strip() if reset_match else raw
@@ -147,7 +169,7 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
             candidate = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if candidate <= base:
                 candidate += dt.timedelta(days=1)
-            return candidate
+            return normalize_reset_candidate(candidate, base)
 
     weekdays = {
         "mon": 0,
@@ -171,9 +193,31 @@ def parse_reset_hint(text: str, base: dt.datetime | None = None) -> dt.datetime 
         days = (target - base.weekday()) % 7
         if days == 0:
             days = 7
-        return (base + dt.timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            candidate = (base + dt.timedelta(days=days)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        except (OverflowError, OSError, TypeError, ValueError):
+            return None
+        return normalize_reset_candidate(candidate, base)
 
     return None
+
+
+def fallback_reset_deadline(data: dict[str, Any], path: Path, current: dt.datetime) -> dt.datetime:
+    """Derive a stable bounded deadline for a recognized state with an invalid reset."""
+    observed = parse_reset_hint(data.get("last_seen_at"), current)
+    if observed is None or observed > current:
+        try:
+            observed = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=current.tzinfo)
+        except (OverflowError, OSError, TypeError, ValueError):
+            observed = current
+    if observed > current:
+        observed = current
+    try:
+        return observed + INVALID_RESET_FALLBACK_COOLDOWN
+    except (OverflowError, TypeError, ValueError):
+        return current
 
 
 def current_block() -> tuple[bool, str]:
@@ -207,11 +251,35 @@ def current_block() -> tuple[bool, str]:
     if not is_current and not is_legacy:
         return True, f"unrecognized Claude rate-limit state at {path}; operator action required"
 
+    reset_status = data.get("reset_status")
+    if is_current and reset_status not in (None, "validated", "fallback_invalid"):
+        return True, f"unrecognized Claude rate-limit state at {path}; operator action required"
+    if is_legacy and reset_status is not None:
+        return True, f"unrecognized Claude rate-limit state at {path}; operator action required"
+
     reset_value = data.get("reset_at")
-    if reset_value is None:
-        return False, "no active Claude rate-limit block found (reset time unknown)"
-    if not isinstance(reset_value, str) or not (reset := parse_reset_hint(reset_value)):
-        return True, f"invalid Claude rate-limit state at {path}; operator action required"
+    reset = parse_reset_hint(reset_value, current)
+    if reset is None:
+        fallback = fallback_reset_deadline(data, path, current)
+        if fallback <= current:
+            return False, f"expired fallback Claude rate-limit state ignored at {path}"
+        return (
+            True,
+            f"temporary Claude rate-limit fallback block active until {fallback.isoformat()} "
+            f"from {path}; operator action required",
+        )
+
+    if reset_status == "fallback_invalid":
+        fallback = fallback_reset_deadline(data, path, current)
+        effective_reset = min(reset, fallback)
+        if effective_reset <= current:
+            return False, f"expired fallback Claude rate-limit state ignored at {path}"
+        return (
+            True,
+            f"temporary Claude rate-limit fallback block active until {effective_reset.isoformat()} "
+            f"from {path}; operator action required",
+        )
+
     if reset <= current:
         return False, f"expired Claude rate-limit state ignored (reset {reset.isoformat()})"
 
@@ -376,27 +444,33 @@ def rate_limit_error_text(
 
 def detect_and_record_rate_limit_details(
     stdout: str, stderr: str, returncode: int, data: Any | None = None
-) -> tuple[bool, dt.datetime | None]:
+) -> tuple[bool, dt.datetime | None, str | None]:
     text = rate_limit_error_text(stdout, stderr, returncode, data)
     if not text:
-        return False, None
-    reset = parse_reset_hint(text)
+        return False, None, None
+    observed = now_tz()
+    reset = parse_reset_hint(text, observed)
+    if reset is not None and reset > observed:
+        reset_status = "validated"
+    else:
+        reset = observed + INVALID_RESET_FALLBACK_COOLDOWN
+        reset_status = "fallback_invalid"
     write_json(
         state_file(),
         {
             "error": "rate_limit",
             "schema_version": RATE_LIMIT_STATE_SCHEMA_VERSION,
-            "last_seen_at": now_tz().isoformat(),
-            "reset_at": reset.isoformat() if reset else None,
+            "last_seen_at": observed.isoformat(),
+            "reset_at": reset.isoformat(),
+            "reset_status": reset_status,
             "source": "claude_process_error",
-            "raw": text[-4000:],
         },
     )
-    return True, reset
+    return True, reset, reset_status
 
 
 def detect_and_record_rate_limit(stdout: str, stderr: str, returncode: int) -> dt.datetime | None:
-    _, reset = detect_and_record_rate_limit_details(stdout, stderr, returncode)
+    _, reset, _ = detect_and_record_rate_limit_details(stdout, stderr, returncode)
     return reset
 
 
@@ -657,10 +731,15 @@ def claude_review(args: dict[str, Any]) -> str:
     except Exception:  # noqa: BLE001 - child exceptions can retain the prompt argv
         raise ToolError(child_exception_detail("claude_review")) from None
     data = parse_stdout_json(proc.stdout)
-    rate_limited, reset = detect_and_record_rate_limit_details(
+    rate_limited, reset, reset_status = detect_and_record_rate_limit_details(
         proc.stdout, proc.stderr, proc.returncode, data
     )
     if rate_limited:
+        if reset_status == "fallback_invalid" and reset:
+            raise ToolError(
+                "claude -p hit a rate limit; invalid or unknown reset produced a temporary "
+                f"fallback cooldown until {reset.isoformat()}; operator action required"
+            )
         if reset:
             raise ToolError(
                 f"claude -p hit a rate limit; cooldown recorded until {reset.isoformat()}"

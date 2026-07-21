@@ -551,7 +551,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertTrue(blocked)
                 self.assertIn("operator action required", reason)
 
-    def test_recognized_unknown_reset_states_are_inactive(self):
+    def test_recognized_unknown_reset_states_use_temporary_fallback(self):
         states = (
             {
                 "schema_version": 1,
@@ -570,8 +570,9 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                     state_path.write_text(json.dumps(state), encoding="utf-8")
                     with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": str(state_root)}):
                         blocked, reason = server.current_block()
-                self.assertFalse(blocked)
-                self.assertIn("reset time unknown", reason)
+                self.assertTrue(blocked)
+                self.assertIn("temporary", reason)
+                self.assertIn("operator action", reason)
 
     def test_tools_list_contains_two_tools(self):
         response = server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
