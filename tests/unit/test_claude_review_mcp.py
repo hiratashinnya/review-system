@@ -1141,6 +1141,7 @@ class ClaudeReviewMcpTests(unittest.TestCase):
             "NaN",
             "Infinity",
             "-9999999999",
+            (base - dt.timedelta(hours=1)).isoformat(),
         )
         for hint in invalid_resets:
             with self.subTest(hint=hint):
@@ -1185,6 +1186,35 @@ class ClaudeReviewMcpTests(unittest.TestCase):
                 self.assertNotIn("raw", state)
                 self.assertTrue(blocked)
                 self.assertIn("operator action", reason)
+
+    def test_reader_bounds_existing_out_of_horizon_reset(self):
+        base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
+        state = {
+            "schema_version": 1,
+            "source": "claude_process_error",
+            "error": "rate_limit",
+            "last_seen_at": base.isoformat(),
+            "reset_at": "9999-12-31T23:59:59+00:00",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "claude-review-mcp" / "rate-limit.json"
+            state_path.parent.mkdir(parents=True)
+            state_path.write_text(json.dumps(state))
+            with mock.patch.dict(server.os.environ, {"XDG_STATE_HOME": tmp}):
+                with mock.patch.object(server, "now_tz", return_value=base):
+                    blocked, reason = server.current_block()
+                with mock.patch.object(
+                    server,
+                    "now_tz",
+                    return_value=base + dt.timedelta(minutes=16),
+                ):
+                    expired, expired_reason = server.current_block()
+        self.assertTrue(blocked)
+        self.assertIn((base + dt.timedelta(minutes=15)).isoformat(), reason)
+        self.assertNotIn("9999", reason)
+        self.assertIn("operator action", reason)
+        self.assertFalse(expired)
+        self.assertIn("expired fallback", expired_reason)
 
     def test_fallback_state_expires_and_valid_boundary_remains_active(self):
         base = dt.datetime(2026, 7, 21, 12, 0, tzinfo=dt.timezone.utc)
