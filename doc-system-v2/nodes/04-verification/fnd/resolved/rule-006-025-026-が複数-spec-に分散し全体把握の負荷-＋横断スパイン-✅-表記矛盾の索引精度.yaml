@@ -1,7 +1,5 @@
 title: "RULE-006/025/026 が複数 SPEC に分散し全体把握の負荷（＋横断スパイン ✅ 表記矛盾の索引精度をスコープに吸収）"
-version: "0.1.1"
+version: "0.1.2"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "必須上流辺の欠如"
-    ref_version: "0.2"
+edges: []
