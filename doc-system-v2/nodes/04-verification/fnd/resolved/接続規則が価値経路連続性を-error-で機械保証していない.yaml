@@ -1,7 +1,5 @@
 title: "接続規則が価値経路連続性を error で機械保証していない"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
-edges:
-  - to: "価値経路到達の充足判定"
-    ref_version: "0.1"
+edges: []
