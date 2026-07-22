@@ -1,0 +1,8 @@
+title: "施行で顕在化した53違反の解消方針（クラス別に材化 vs 規則精緻化）"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "接続規則に価値経路の下流連続性を-error-で機械保証する規則群を追加"
+    ref_version: "0.1"
+    note: "Q→DD 義務辺＝本問は DD-9 で全採用した下流連続性規則（p←mod・scm←cfg・ds←prs）の施行結果が過剰発火か未完成かを問う。決定確定後 decision_spine に従い逆転（DD→Q は張らない・Q は昇格先 DD を別途起票）"

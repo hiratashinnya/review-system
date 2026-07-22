@@ -57,7 +57,13 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 4 件**（open FND 1・open Q 0・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 5 件**（open FND 1・open Q 1・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+
+> **🔴 新規 open Q（2026-07-21・オーナー判断待ち）**: 「施行で顕在化した53違反の解消方針（クラス別に材化 vs 規則精緻化）」。
+> #163 施行で design 段に顕在化した 53 違反を、クラス別に下流ノード材化か規則精緻化かで処置する方針を問う。
+> ① **scm←cfg 7件＝過剰発火の疑い**（出力/データ形式スキーマは config スキーマでない→規則精緻化を推奨）
+> ② p←mod 42件＝設計 MOD 層未完成（材化中心・全 P が MOD 要かは精査）③ ds←prs 2件 ④ d←p 2件（各個別精査）。
+> 確定後 DD 昇格して実行。詳細＝`nodes/04-verification/q/open/施行で顕在化した53違反…`。
 
 > **⚙️ 施行状態（2026-07-21・#163 merge 後）**: `must_link_to`/`must_be_linked_from` が施行器で稼働。
 > `validate.py doc-system-v2` は **621ノード / 53 ERROR** が baseline（p←mod 42/scm←cfg 7/ds←prs 2/d←p 2＝
