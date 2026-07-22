@@ -40,17 +40,18 @@
 | ステージ | ディレクトリ | ノード数（`.yaml`） | 主な型 |
 |---|---|---|---|
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
-| 02-what | `nodes/02-what/` | 253 | FR / NFR / SPEC |
+| 02-what | `nodes/02-what/` | 263 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 162 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 168 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **605** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **621** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-10 実測。`doc-system-v2/meta.json`
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-21 実測。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
-> 2026-07-10 時点では `python3 doc-system-v2/validate.py` は validate エラー 0 件、
-> `python3 -m dsv2 drift --root doc-system-v2` は drift 0 件、
-> `python3 -m dsv2 prompt-coverage --root doc-system-v2` は PROMPT coverage 欠落 0 件。
+> **2026-07-21 時点（#163 施行器 merge 後）**: `python3 doc-system-v2/validate.py` は **validate ERROR 53 件**
+> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2＝価値経路の下流連続性違反＝グラフ不完全性・#160/#161 backlog。
+> 施行器が稼働している証拠であり規則欠陥ではない）、`python3 -m dsv2 drift` は drift 0 件、
+> `python3 -m dsv2 prompt-coverage` は PROMPT coverage 欠落 0 件。
 
 ---
 
