@@ -234,8 +234,9 @@ def validate_exact_link_counts(root: Path) -> list[str]:
 def _load_block_rules(root: Path, block: str) -> list[dict]:
     """config.yml のブロックリスト（``block:`` 見出し下の ``- {...}`` 群）を読む（未宣言なら空）。
 
-    ``load_exact_link_counts`` と同じ読み口を必須接続ブロック（must_link_to / must_be_linked_from）へ
-    一般化したもの。要素は ``_parse_inline_config_dict`` で解釈するため list 値も保持される（#163）。
+    exact_link_counts / must_link_to / must_be_linked_from の各ブロックを読む共通口（#163・DRY）。
+    ``load_exact_link_counts`` および ``load_must_link_to``/``load_must_be_linked_from`` が本関数へ委譲する。
+    要素は ``_parse_inline_config_dict`` で解釈するため list 値も保持される。
     """
     config_path = root / "config.yml"
     if not config_path.is_file():
