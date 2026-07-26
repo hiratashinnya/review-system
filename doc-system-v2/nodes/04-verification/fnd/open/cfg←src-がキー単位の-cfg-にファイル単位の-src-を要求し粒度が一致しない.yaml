@@ -1,0 +1,7 @@
+title: "cfg←src がキー単位の CFG にファイル単位の SRC を要求し粒度が一致しない"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_be_linked_from"
+    ref_version: "0.1"
