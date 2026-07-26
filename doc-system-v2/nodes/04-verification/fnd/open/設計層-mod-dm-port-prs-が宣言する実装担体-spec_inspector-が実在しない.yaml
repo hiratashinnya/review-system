@@ -1,5 +1,5 @@
 title: "設計層 MOD/DM/PORT/PRS が宣言する実装担体 spec_inspector/* が実在しない"
-version: "0.1.0"
+version: "0.2.0"
 labels: []
 scheduled: "sprint-1"
 edges:
@@ -54,4 +54,16 @@ edges:
   - to: "filesystemport"
     ref_version: "0.1"
   - to: "tmp-草案ファイル書き出し"
+    ref_version: "0.1"
+  - to: "noderecord"
+    ref_version: "0.1"
+  - to: "edgerecord"
+    ref_version: "0.1"
+  - to: "violationrecord"
+    ref_version: "0.1"
+  - to: "configslice"
+    ref_version: "0.1"
+  - to: "coveragereport"
+    ref_version: "0.1"
+  - to: "inspectionviews"
     ref_version: "0.1"

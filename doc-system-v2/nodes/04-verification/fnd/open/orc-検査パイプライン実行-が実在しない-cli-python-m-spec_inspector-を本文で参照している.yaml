@@ -1,0 +1,7 @@
+title: "ORC 検査パイプライン実行 が実在しない CLI python -m spec_inspector を本文で参照している"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "検査パイプライン実行"
+    ref_version: "0.4"
