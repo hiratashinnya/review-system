@@ -43,15 +43,15 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 263 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 175 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 177 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **628** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **630** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-26 実測（621→628。必須辺規則の
-> 欠陥 FND 6 件＋Q 1 件を起票・#253/#254/#255/#256/#160）。`doc-system-v2/meta.json`
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-26 実測（621→630。必須辺規則の
+> 欠陥 FND 8 件＋Q 1 件を起票・#253/#254/#255/#256/#160）。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
-> **2026-07-26 時点**: `python3 doc-system-v2/validate.py` は **628ノード / validate ERROR 53 件**
-> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。**起票 7 件による ERROR 増はゼロ**（baseline 維持）。
+> **2026-07-26 時点**: `python3 doc-system-v2/validate.py` は **630ノード / validate ERROR 53 件**
+> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。**起票 9 件による ERROR 増はゼロ**（baseline 維持）。
 > `python3 -m dsv2 drift` は drift 0 件、`python3 -m dsv2 prompt-coverage` は PROMPT coverage 欠落 0 件。
 >
 > **⚠️ 53 ERROR の分類を訂正（2026-07-26）**: 従来「全件が #160/#161 の backlog＝規則欠陥ではない」と
@@ -63,30 +63,31 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 11 件**（open FND 7・open Q 1・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 13 件**（open FND 9・open Q 1・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
 > **⚙️ 施行状態（2026-07-26 更新）**: `must_link_to`/`must_be_linked_from` が施行器（#163）で稼働。
-> `validate.py doc-system-v2` は **628ノード / 53 ERROR** が baseline（p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。
+> `validate.py doc-system-v2` は **630ノード / 53 ERROR** が baseline（p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。
 > **内訳の分類は 2026-07-26 に訂正済み**（規則欠陥 49／未決 2／未著作 2。上表の注記を参照）。
 > drift 0・prompt-coverage 0。既存テスト/CI は不変（合成 fixture・pages.yml 非 validate）。
 
-### open FND（7 件）
+### open FND（9 件）
 
 | タイトル（要約） | scheduled | 対応 Issue | 備考 |
 |---|---|---|---|
 | config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | — | v1 時代の FND-35 相当。オーナー承認済み |
 | `scm←cfg` 規則が SCM 型内の3部分集団を区別せず一律に CFG 入辺を要求する | 🗓 sprint-1 | #253 | 規則不備。config 4/成果物 5/傘 2 に分かれる。live ERROR 7 件 |
+| `p←mod` が全プロセスに MOD を要求し DD-13 の混合粒度と矛盾する | 🗓 sprint-1 | #254 | 規則不備。live ERROR 42 件。オーナー確定方針＝**leaf のみが MOD を要する**（必要なら DD-13 改訂・leaf 限定規則の分離も視野）。leaf-only 適用で要 MOD は 39 件・既存 MOD 12 件は非対象化 |
+| 消費プロセスが特定済みの D 2 件に `P→D` 消費辺が未著作 | 🗓 sprint-1 | #255 | **規則側に欠陥なし**（D 21 件中 19 件充足）。消費関係は両 D の本文に散文で存在するが辺として存在しない。live ERROR 2 件 |
 | `src` の必須出辺の許容先4型と `src` を要求する入辺規則7型が非対称 | 🗓 sprint-1 | #256 | 規則不備。prs/prompt/cfg 専用 SRC が詰む。**#160 の前提ブロッカー**。implementation 段で発火（現在 latent） |
 | `src_symbol_eligibility` の `mod:[module]` が非 Python 担体の MOD/PRS を被覆しない | 🗓 sprint-1 | #256 | 規則不備。`author`/`reconciler` の実体は `.claude/agents/*.md`。既存 `carrier` enum で判別可能 |
 | `cfg←src` がキー単位の CFG にファイル単位の SRC を要求し粒度が一致しない | 🗓 sprint-1 | #256 | 規則不備。CFG 14 件が同一 `config.yml` を指すことになる |
 | 設計層 MOD/DM/PORT/PRS が宣言する実装担体 `spec_inspector/*` が実在しない | 🗓 sprint-1 | #160 | 設計実装乖離。該当 26 件全数に forward 辺。実装は `dsv2/` + `validate.py` に別分割で存在 |
 | dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない | 🗓 sprint-1 | #160 | 設計外実装（上記の逆方向）。`viewer`/`rename`/`reverse`/`gitutil`/`yamledit`/`dashboard` |
 
-> **起票 6 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
+> **起票 8 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
 > 必須辺規則が型内の部分集団を見落としている欠陥、および設計層と実装の双方向の乖離を在グラフ化した。
 > いずれも処置方針の決定はオーナーに委ねており、**AI による「対応不要」の結論は含めない**。
-> **未起票（オーナー確認済み・著作中）**: `p←mod` が DD-13 の混合粒度と矛盾（#254）／`検査ビュー射影`・
-> `設定スライス組立` の D 消費辺が未著作（#255）。
+> 起票による ERROR 増はゼロ（630ノード / 53 ERROR ＝ baseline 維持・drift 0・prompt-coverage 0）。
 
 > **resolved 済み（2026-07-21・本セッション）**:
 > - **Phase A FND**「接続規則が価値経路連続性を error で機械保証していない」（#161 本体）。DD-9/DD-10 で規則を config 反映＋**#163 施行器 merge** で機械保証が成立→ finding 解消。`価値経路到達の充足判定`→FND backref＋`fnd/resolved/` へ移動。53 error 顕在化は #160/#161 backlog（別事象）・p←mod 過剰発火精査は #160/#161 follow-on として本文に保持。
