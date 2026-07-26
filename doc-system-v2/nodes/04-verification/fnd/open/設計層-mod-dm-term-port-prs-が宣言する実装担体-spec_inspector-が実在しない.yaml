@@ -1,5 +1,5 @@
-title: "設計層 MOD/DM/PORT/PRS が宣言する実装担体 spec_inspector/* が実在しない"
-version: "0.2.0"
+title: "設計層 MOD/DM/TERM/PORT/PRS が宣言する実装担体 spec_inspector/* が実在しない"
+version: "0.2.1"
 labels: []
 scheduled: "sprint-1"
 edges:

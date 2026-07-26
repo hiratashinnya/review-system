@@ -27,7 +27,7 @@
 
 再発防止としての教訓: 本 FND のように「本文記述の事実不一致」を指摘する FND の対象集合は、**型リスト（config.yml の規則）からではなく、指摘の述語そのものを機械的に評価して**（本件では `grep -rn spec_inspector doc-system-v2/nodes/` の全ヒットを型横断で棚卸しし、担体宣言行を持つか否かで振り分ける）導出しなければならない。規則の型リストは代理変数にすぎない。
 
-**タイトルについて**: 本ノードのタイトル・slug は `設計層 MOD/DM/PORT/PRS …` と型を列挙しており、TERM を含む現行スコープを正確に表さない。タイトル変更は id（= slug）変更となり全被参照辺の書き換えを伴う（`dsv2 rename` の対象）ため、本改訂では実施していない。改名要否はオーナー／主文脈の判断に委ねる。
+**タイトルについて（v0.2.1 で処置済み）**: v0.2.0 時点のタイトル・slug は `設計層 MOD/DM/PORT/PRS …` と型を列挙しており、TERM を含む現行スコープを正確に表していなかった。主文脈が `python3 -m dsv2 rename --apply` で `設計層-mod-dm-term-port-prs-が宣言する実装担体-spec_inspector-が実在しない` へ改名し、`title` を `設計層 MOD/DM/TERM/PORT/PRS が宣言する実装担体 spec_inspector/* が実在しない` へ同期した（referrer 0 件・`git mv` 2 対）。ノードの identity 操作のみで指摘内容・辺・深刻度に変更はないため **z バンプ v0.2.0 → v0.2.1**（DD-21 の「provenance/lifecycle 操作は z バンプ」に準ずる）。
 
 ## forward 辺の張り先と選定理由
 
