@@ -1,0 +1,9 @@
+title: "dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "__main__"
+    ref_version: "0.1"
+  - to: "ノード著作・反映プロセス"
+    ref_version: "0.4"
