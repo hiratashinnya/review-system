@@ -1,5 +1,5 @@
 title: "p←mod が全プロセスに MOD を要求し DD-13 の混合粒度と矛盾する"
-version: "0.2.0"
+version: "0.3.0"
 labels: []
 scheduled: "sprint-1"
 edges:
