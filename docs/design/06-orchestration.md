@@ -27,7 +27,7 @@ flowchart TB
     FC{{fail-close → O-14}}
   end
   subgraph PF[PF・LLM（外部）]
-    L3[L3 型推定]
+    L3["L3 型推定 🔖post-MVP(F15)"]
     L2[L2 本文矛盾 yes/no]
     L1[L1 評価 findings/unmatched]
   end
@@ -46,7 +46,7 @@ flowchart TB
   end
 
   U0 --> I
-  I -->|型推定依頼| L3 --> I
+  I -.->|"型推定依頼 🔖post-MVP(F15)"| L3 -.-> I
   I -->|空文書| RP
   I -->|スコープ未解決| FC
   I --> C
@@ -73,6 +73,10 @@ flowchart TB
   UR --> RV <--> DS3
   RV -->|O-6| 利用者
 ```
+
+> 🔖 **図の凡例（MVP 印）**：`🔖post-MVP(F##)` を付したノード／**点線の辺**は**フル論理には存在するが MVP では動かさない**経路。
+> 凍結セットはフル論理を保つため図から外さない（消さない＝PR8）。現在の該当：
+> **L3 型推定＝F15**（MVP は `reviewer review --type` 必須の手動指定のみ・[08](../requirements/08-intake-design.md)「文書タイプ判定」）。
 
 ## 実行順序の不変条件（型で守る）
 

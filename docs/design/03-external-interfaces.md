@@ -126,7 +126,7 @@ reviewer feedback|decide|approve  report.html   ─▶  HTML から review_id �
 
 | 操作 | I-#（[05](../requirements/05-io-overview.md)） | O-# |
 |---|---|---|
-| `review` | I-1 対象・I-13 参照・I-2 型上書き＋I-15 推定・I-3 scope（MVP=org）・I-4/I-5 基準/ポリシー | O-1 レポート・O-2 指摘・O-14 |
+| `review` | I-1 対象・I-13 参照・I-2 型上書き＋I-15 推定（**I-15 は 🔖post-MVP(F15)**＝MVP は `--type` 必須の I-2 のみ）・I-3 scope（MVP=org）・I-4/I-5 基準/ポリシー | O-1 レポート・O-2 指摘・O-14 |
 | `approve`/`decide` | I-6 指摘への判断（承認/修正/却下） | O-3 適用・O-4 diff・O-5 原案 |
 | `revert` | I-14 revert 要求 | O-6 |
 | `feedback` | I-6 判断 ＋ I-7 対象外フラグ | — (DS5) |
