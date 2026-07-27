@@ -1,0 +1,13 @@
+title: "resolved FND 4 件の本文に深刻度行がなくテンプレ必須項目を欠く"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "著作テンプレートとプロンプトが識別子単位ノード・型別本文ポリシーに未追随"
+    ref_version: "0.1"
+  - to: "formatとdsv2ツールが1ノード2ファイル固定でbodyless・shared-bodyノードを表現できない"
+    ref_version: "0.1"
+  - to: "src実装層のlayout・schema・存在検査が未材化で識別子単位ノードを収容できない"
+    ref_version: "0.1"
+  - to: "td共有本文とtc本文なし・td-tc-1対1を検証層ルールが表現できない"
+    ref_version: "0.1"
