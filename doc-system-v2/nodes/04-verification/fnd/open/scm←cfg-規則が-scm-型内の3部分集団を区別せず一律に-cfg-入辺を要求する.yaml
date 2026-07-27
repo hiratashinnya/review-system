@@ -1,0 +1,7 @@
+title: "`scm←cfg` 規則が SCM 型内の3部分集団を区別せず一律に CFG 入辺を要求する"
+version: "0.2.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_be_linked_from"
+    ref_version: "0.1"

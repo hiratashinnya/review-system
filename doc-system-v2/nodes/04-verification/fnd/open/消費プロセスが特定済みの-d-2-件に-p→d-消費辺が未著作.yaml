@@ -1,0 +1,9 @@
+title: "消費プロセスが特定済みの D 2 件に P→D 消費辺が未著作"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "検査ビュー射影"
+    ref_version: "0.1"
+  - to: "設定スライス組立"
+    ref_version: "0.1"

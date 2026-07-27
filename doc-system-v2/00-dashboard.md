@@ -17,6 +17,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #160/#253 — 必須辺検証ルールの見直し（全型監査） | 規則監査→Issue 分割→FND/Q 起票 | 🟡 起票完了・処置待ち（2026-07-26）。53 ERROR の内訳を全数照合したところ、**規則の分類粒度不足だけで解消する純粋な false positive は `p←mod` 3 件＋`scm←cfg`（傘）2 件＝計 5 件のみ**で、**残り 46 件（`p←mod` 39・`scm←cfg`（成果物）5・`d←p` 2）はオーナー確定方針の適用後もノード・辺の実著作を要する**（`p←mod` 39 は leaf P への MOD 割り当て＝既存 MOD からの張り替えが中心、`scm←cfg` 5 は O/I→SCM 辺の新規著作）。`ds←prs` 2 は規則不備か未著作かが未決（Q）。従来「全件 backlog・規則欠陥ではない」→ 中間時点で「`p←mod` 42・`scm←cfg` 7 は規則側の欠陥」としていた分類はいずれも訂正する（PR #257 の Codex レビュー指摘・2026-07-26 で判明）。implementation 段の `src` 系規則にも 3 欠陥（必須辺の非対称／非 Python 担体の非被覆／CFG 粒度ミスマッチ）を検出し、**#160 の前提ブロッカー**と判定。シリーズ Issue #253(①scm←cfg)/#254(②p←mod)/#255(③ds←prs＋d←p)/#256(④src 系) に分割し、在グラフへ FND 10 件＋Q 1 件を起票（632ノード・ERROR 53 件で baseline 維持）。`p←mod` はオーナー確定で **「全 leaf が MOD を要する（推移的被覆は不採用）」**方針（MOD:P は1:1でなくてよい・既存 MOD への割当で新設不要・DD-13 改訂＋leaf 限定規則の分離は視野）。#160 のスコープは**維持**（設計実装乖離を切り出さず、整合作業を #160 内で行う）。**関連 Issue #254/#160 本文は本確定方針に反する記述が残っていたため訂正コメントを追記済み**（#254＝推奨A「推移的被覆」を訂正、#160＝ORC `著作・反映パイプライン実行` の材化可否を訂正）。 |
 | issue #159 — SPEC 本文系 open FND 解消 | SPEC-3-1/13/9-1+10/31 の文言・親辺・resolved 化 | ✅ 完了（2026-07-11）。対象4件を `fnd/resolved/` へ移動し、処置先 SPEC から backref を付与。 |
 | issue #158 — 本文 resolved 済み open FND 整理 | lifecycle 配置整理 | ✅ 完了（2026-07-11）。`_drift` z バンプ誤検出と `backref check` open-but-backref 判定トートロジーの 2 件を、既存 backref と out-of-graph 対象の扱いを確認した上で `fnd/resolved/` へ整理。 |
 | issue #152 — scheduled 空欄対策 | 流入防止＋流出検出＋既存空欄整理 | ✅ 完了（2026-07-10）。`scheduled` を非空必須にし、`validate.py` / `schema/sidecar.schema.json` / `dsv2 index` で空欄・欠落を fail-close。移行後追加の空欄 12 件は完了済み/解決済みノードとして `sprint-1` に整理。 |
@@ -42,33 +43,73 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 263 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 168 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 179 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **621** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **632** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-21 実測。`doc-system-v2/meta.json`
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-07-26 実測（621→632。必須辺規則の
+> 欠陥・設計実装乖離の FND 10 件＋Q 1 件を起票・#253/#254/#255/#256/#160）。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
-> **2026-07-21 時点（#163 施行器 merge 後）**: `python3 doc-system-v2/validate.py` は **validate ERROR 53 件**
-> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2＝価値経路の下流連続性違反＝グラフ不完全性・#160/#161 backlog。
-> 施行器が稼働している証拠であり規則欠陥ではない）、`python3 -m dsv2 drift` は drift 0 件、
-> `python3 -m dsv2 prompt-coverage` は PROMPT coverage 欠落 0 件。
+> **2026-07-26 時点**: `python3 doc-system-v2/validate.py` は **632ノード / validate ERROR 53 件**
+> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。**起票 11 件による ERROR 増はゼロ**（baseline 維持）。
+> drift 0 件・PROMPT coverage 欠落 0 件。
+> `python3 -m dsv2 drift` は drift 0 件、`python3 -m dsv2 prompt-coverage` は PROMPT coverage 欠落 0 件。
+>
+> **⚠️ 53 ERROR の分類を再訂正（2026-07-26・オーナー確定方針の反映後。PR #257 の Codex レビュー指摘で判明）**:
+> 当初「全件が #160/#161 の backlog＝規則欠陥ではない」としていたのを、全数照合で「`p←mod` 42 件と
+> `scm←cfg` 7 件は規則側の欠陥、純粋な未著作は `d←p` の 2 件のみ」と訂正したが、**この中間分類も不正確
+> だった**。オーナー確定方針（`p←mod`＝全 leaf が MOD を要する／`scm←cfg`＝3部分集団に分割）を適用すると、
+> 規則の分類粒度不足だけで解消する**純粋な false positive は `p←mod` 3 件＋`scm←cfg`（傘）2 件＝計 5 件**
+> にとどまり、**残り `p←mod` 39 件（leaf への MOD 割り当て）＋`scm←cfg`（成果物）5 件（O/I→SCM 辺の新規
+> 著作）＋`d←p` 2 件＝計 46 件は規則を直しても別途ノード・辺の実著作を要する**。`ds←prs` 2 件は規則不備か
+> 未著作か未決のまま。それぞれ #254 / #253 / #255 で扱う。
 
 ---
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 4 件**（open FND 1・open Q 0・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 15 件**（open FND 11・open Q 1・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
-> **⚙️ 施行状態（2026-07-21・#163 merge 後）**: `must_link_to`/`must_be_linked_from` が施行器で稼働。
-> `validate.py doc-system-v2` は **621ノード / 53 ERROR** が baseline（p←mod 42/scm←cfg 7/ds←prs 2/d←p 2＝
-> 価値経路の下流連続性違反＝グラフ不完全性）。これは **#160/#161 で解消する backlog**（規則欠陥ではない）。
+> **⚠️ 深刻度判定の基準を是正（2026-07-26・オーナー指示）**: 従来は「`validate.py` が現に落ちるか」
+> 「検査する規則があるか」＝**機械検出可能性**を深刻度の根拠にしていた（先例＝FND-96「live RULE 失敗を
+> 伴わない原則違反は WARNING」）。この基準は「**機械が見られない欠陥ほど軽く扱われる**」逆転を生み、
+> PR2「機械判定と運用ルールを混ぜない」に反する。以後 **深刻度は実害で判定する**。
+> 本方針により既存 FND 1 件（`dsv2-実装-6-モジュールに対応する設計ノード-mod-p-が存在しない`）を
+> WARNING → ERROR へ是正した（v0.2.0）。**他の resolved 済み FND にも同種の誤りが波及している可能性が
+> あり、全件の洗い直し要否はオーナー判断待ち**。
+
+> **⚙️ 施行状態（2026-07-26 更新）**: `must_link_to`/`must_be_linked_from` が施行器（#163）で稼働。
+> `validate.py doc-system-v2` は **632ノード / 53 ERROR** が baseline（p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。
+> **内訳の分類は 2026-07-26 に再訂正済み**（純粋な規則欠陥＝false positive 5／規則直し後も実著作を要する
+> 46〔`p←mod` 39・`scm←cfg` 5・`d←p` 2〕／未決 2＝`ds←prs`。上表の注記を参照）。
 > drift 0・prompt-coverage 0。既存テスト/CI は不変（合成 fixture・pages.yml 非 validate）。
 
-### open FND（1 件）
+### open FND（11 件）
 
-| タイトル（要約） | scheduled | 備考 |
-|---|---|---|
-| config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | v1 時代の FND-35 相当。オーナー承認済み |
+| タイトル（要約） | scheduled | 対応 Issue | 備考 |
+|---|---|---|---|
+| config の `SPEC→[FR, NFR, SPEC]` OR 規則のループホール | 🗓 sprint-2（承認済） | — | v1 時代の FND-35 相当。オーナー承認済み |
+| `scm←cfg` 規則が SCM 型内の3部分集団を区別せず一律に CFG 入辺を要求する | 🗓 sprint-1 | #253 | 規則不備。config 4(PASS)/成果物 5/傘 2 に分かれる。live ERROR 7 件のうち**規則直しのみで消える false positive は傘 2 件**、**残り成果物 5 件は O/I→SCM 辺の新規著作を要する** |
+| `p←mod` が全プロセスに MOD を要求し DD-13 の混合粒度と矛盾する | 🗓 sprint-1 | #254 | 規則不備。live ERROR 42 件のうち**規則直しのみで消える false positive は non-leaf 3 件のみ**、**残り 39 件は leaf P への MOD 割り当て（既存 MOD からの張り替え中心）という実著作を要する**。オーナー確定方針＝**全 leaf が MOD を要する（推移的被覆は不採用）**・MOD:P は1:1でなくてよい・既存 MOD 12 件（non-leaf 指し先）は規則の要求対象から外れ張り替えが必要 |
+| 消費プロセスが特定済みの D 2 件に `P→D` 消費辺が未著作 | 🗓 sprint-1 | #255 | **規則側に欠陥なし**（D 21 件中 19 件充足）。消費関係は両 D の本文に散文で存在するが辺として存在しない。live ERROR 2 件 |
+| `src` の必須出辺の許容先4型と `src` を要求する入辺規則7型が非対称 | 🗓 sprint-1 | #256 | 規則不備。prs/prompt/cfg 専用 SRC が詰む。**#160 の前提ブロッカー**。implementation 段で発火（現在 latent） |
+| `src_symbol_eligibility` が担体軸を持たず非 Python 担体の MOD/PRS/ORC を被覆しない | 🗓 sprint-1 | #256 | 規則不備。`author`/`reconciler`/ORC `著作・反映パイプライン実行` の実体は `.claude/agents/*.md`。既存 `carrier` enum で判別可能。**v0.2.0 で ORC を追加（初版は網羅漏れ）・v0.2.1 で改名** |
+| `cfg←src` がキー単位の CFG にファイル単位の SRC を要求し粒度が一致しない | 🗓 sprint-1 | #256 | 規則不備。CFG 14 件が同一 `config.yml` を指すことになる |
+| 設計層 MOD/DM/TERM/PORT/PRS が宣言する実装担体 `spec_inspector/*` が実在しない | 🗓 sprint-1 | #160 | 設計実装乖離。**v0.2.0 で TERM 6 件を追加し 26→32 件全数に forward 辺（初版は網羅漏れ）・v0.2.1 で改名**。実装は `dsv2/` + `validate.py` に別分割で存在 |
+| dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない | 🗓 sprint-1 | #160 | 設計外実装（上記の逆方向）。`viewer`/`rename`/`reverse`/`gitutil`/`yamledit`/`dashboard`。**v0.2.0 で深刻度 WARNING→ERROR へ是正** |
+| ORC `検査パイプライン実行` が実在しない CLI `python -m spec_inspector` を本文で参照している | 🗓 sprint-1 | #160 | 担体宣言行を持たないため上記 C1 とは別命題。実体は `doc-system-v2/validate.py:main`。SRC 著作時に `source.file` と本文が矛盾する |
+| tmp 草案の出力先記述が v1 の1親1ファイル形式のまま1ノード2ファイル化に未追随 | 🗓 sprint-1 | #160 | agent 定義 8 ファイルは v2 ミラーレイアウトに追随済みだが、PRS/DS/ORC の設計層3件と `CLAUDE.md` L86 が v1 形式のまま。PRS 本文には廃止済み「YAML フロントマター」記述も同居 |
+
+> **起票 10 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
+> 必須辺規則が型内の部分集団を見落としている欠陥、および設計層と実装の双方向の乖離を在グラフ化した。
+> いずれも処置方針の決定はオーナーに委ねており、**AI による「対応不要」の結論は含めない**。
+> 起票による ERROR 増はゼロ（632ノード / 53 ERROR ＝ baseline 維持・drift 0・prompt-coverage 0）。
+>
+> **⚠️ 初版の網羅漏れ 2 件を是正（2026-07-26）**: 起票時に対象集合を**代理基準**（`config.yml` の
+> `must_be_linked_from` 型リスト／既知の事例）から導出し、**FND 自身の判定述語で型横断の網羅確認を
+> していなかった**ため、2 件でスコープが不足していた。①`spec_inspector` 担体 FND＝TERM 6 件漏れ
+> （26→32）、②`src_symbol_eligibility` FND＝ORC 漏れ（MOD/PRS→MOD/PRS/ORC）。いずれも v0.2.0 で
+> 是正し、原因を各 FND 本文に記録。あわせて `dsv2 rename` でタイトルを現行スコープへ同期（v0.2.1）。
 
 > **resolved 済み（2026-07-21・本セッション）**:
 > - **Phase A FND**「接続規則が価値経路連続性を error で機械保証していない」（#161 本体）。DD-9/DD-10 で規則を config 反映＋**#163 施行器 merge** で機械保証が成立→ finding 解消。`価値経路到達の充足判定`→FND backref＋`fnd/resolved/` へ移動。53 error 顕在化は #160/#161 backlog（別事象）・p←mod 過剰発火精査は #160/#161 follow-on として本文に保持。
@@ -78,8 +119,13 @@
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
 > issue #152 で移行後追加ノードも含めて空 `scheduled` を禁止し、既存空欄は `sprint-1` に整理済み。
 
-### open Q（0 件）
+### open Q（1 件）
 
+| タイトル（要約） | scheduled | 対応 Issue | 備考 |
+|---|---|---|---|
+| `ds←prs` 規則を書き込み実装に限るか永続層アクセス実装へ読み替えるか | 🗓 sprint-1 | #255 | read-only DS 2 件（`config.yaml-ds`/`in-graph-ノードファイル群`）に PRS 入辺なし。規則不備か未著作かが未決のため FND ではなく Q。live ERROR 2 件 |
+
+> `q/open/` ディレクトリは本起票（2026-07-26）が初出のため新規作成した（`decided`/`closed` は既存）。
 > Q「SRC→[dm,port,orc] が MOD を対象外」は **DD-10 へ昇格し decided 化**（2026-07-21）。オーナー確定＝`src→[mod,dm,port,orc]` 拡張①。`q/decided/` へ移動。
 > Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
 

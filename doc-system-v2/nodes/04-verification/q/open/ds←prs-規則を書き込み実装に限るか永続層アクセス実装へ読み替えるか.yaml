@@ -1,0 +1,11 @@
+title: "ds←prs 規則を書き込み実装に限るか永続層アクセス実装へ読み替えるか"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_be_linked_from"
+    ref_version: "0.1"
+  - to: "config.yaml-ds"
+    ref_version: "0.1"
+  - to: "in-graph-ノードファイル群"
+    ref_version: "0.1"

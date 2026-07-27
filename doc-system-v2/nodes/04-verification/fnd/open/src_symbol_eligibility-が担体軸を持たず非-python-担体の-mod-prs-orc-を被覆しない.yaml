@@ -1,0 +1,7 @@
+title: "src_symbol_eligibility が担体軸を持たず非 Python 担体の MOD/PRS/ORC を被覆しない"
+version: "0.2.1"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_be_linked_from"
+    ref_version: "0.1"

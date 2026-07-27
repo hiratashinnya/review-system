@@ -1,0 +1,7 @@
+title: "src の必須出辺の許容先4型と src を要求する入辺規則7型が非対称"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "must_link_to"
+    ref_version: "0.1"
