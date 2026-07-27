@@ -3,9 +3,9 @@
 議事録から抽出した未決事項とネクストアクションの運用ハブ。
 新しい議論が出たら、ここを更新する。
 
-最終更新：2026-07-27（**Q25 を起票**：F7（✋/💬 人手適用）が未実装であることを確認し、「MVP(P1+P2)実装完了」の宣言と矛盾する点を明記。A8 を「未確認」から矛盾確定へ格上げ）
+最終更新：2026-07-27（**Q25 を起票**：F7（✋/💬 人手適用）が未実装であることを確認し、「MVP(P1+P2)実装完了」の宣言と矛盾する点を明記。A8 を「未確認」から矛盾確定へ格上げ。**PR #258 レビュー対応**：A3/A5/A6 に Q25 の但し書きを横展開・Q4 に MVP 印を付与・アンカー修正・A8/A9 の行順を是正）
 
-> ⚠️ **2026-07-27 追記**：下記「実装進捗 13/13 ✅」は**層/モジュール単位の進捗**であり、**MVP 機能単位では F7（✋/💬 人手適用・P2 差別化）が未実装**。したがって「MVP(P1+P2)実装が完了」は現時点で正確でない → **[Q25](#未決事項決めないと進めない論点)**（オーナー判断待ち）。
+> ⚠️ **2026-07-27 追記**：下記「実装進捗 13/13 ✅」は**層/モジュール単位の進捗**であり、**MVP 機能単位では F7（✋/💬 人手適用・P2 差別化）が未実装**。したがって「MVP(P1+P2)実装が完了」は現時点で正確でない → **[Q25](#-未決事項決めないと進めない論点)**（オーナー判断待ち）。
 
 > **スコープ注記**：本ダッシュボードは `review_system`（レビューツール本体）のみを対象とする。本リポジトリには `doc_system`（`doc-system-v2/`・`dsv2/`・`asset_parity/`・`.codex/` 等の仕様策定支援ツール群）も同居するが対象外。2プロジェクトのファイル構成・正本の所在は [CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」](../CLAUDE.md#このリポジトリ2つのプロジェクトが同居混同注意) 参照。review_system については **`docs/` 配下が実質的な正本**（doc-system-v2 コーパスに review_system 固有の要件/設計ノードは存在しない）。
 
@@ -25,7 +25,7 @@
 ## 🔨 実装進捗（MVP・TDD）— 全13層 ✅ 完了
 
 > **13/13 行が実装完了**（`review_system/` 全モジュール・`tests/unit/` の review_system 対象テスト109件が全パス）。
-> ⚠️ ただしこれは**層/モジュール単位**の進捗。**MVP 機能単位では F7（✋/💬 人手適用）が未実装**＝[Q25](#未決事項決めないと進めない論点)。
+> ⚠️ ただしこれは**層/モジュール単位**の進捗。**MVP 機能単位では F7（✋/💬 人手適用）が未実装**＝[Q25](#-未決事項決めないと進めない論点)。
 > 各層 commit→テスト→成績書(commit id)→push。証跡は `tests/{cases,reports,logs}`。次に着手する場合は「MVP実装完了後」節を参照。
 
 | # | 層/モジュール | 内容 | 状態 |
@@ -54,13 +54,13 @@
 |---|---|---|---|
 | A1 | 評価基準ファイルのスキーマを実際に書く | サンプルで曖昧さを潰す | ✅ **完了**（2026-07-27）：実装済み・運用中（[schema/](schema/README.md)＝`parsing/frontmatter.py`+`parsing/lint.py`+`persistence/criteria_repo.py` が準拠しテスト済）に加え、**schema/README.md の見出しを「v0 / 叩き台」→「確定・MVP 実装準拠」へ更新済み** |
 | A2 | AI への入力設計を決める | 基準＋文書をどう渡すか / 長い文書・コードベースの扱い | ✅ **完了**（2026-07-27）：実装済み・運用中（[07](requirements/07-ai-input-design.md)＝`core/evaluate.py`+`ports/platform.py`+`prompts/registry.py` が準拠）に加え、**07 冒頭に確定宣言を追記済み** |
-| A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 確定・**P1+P2実装完了**（下表13/13） |
+| A3 | MVP の線引き | **確定：MVP＝P1＋P2**（[12-mvp-scope](requirements/12-mvp-scope.md)）。方向性：決定的ツール群（MCP）＋プロンプト雛形を作り、Claude が LLM 役で回す（[11](requirements/11-platform-adapter.md)） | 🟢 線引きは確定・**P1+P2 は下表13/13 の層単位で実装完了**。⚠️ ただし**機能単位では F7（✋/💬 人手適用・P2 差別化）が未実装**＝[Q25](#-未決事項決めないと進めない論点)／[A9](#-ネクストアクション次にやる候補) |
 | A4 | これまでの設計プロセスを資産化 | 案出し・イベントリスト・点検・価値分析などの手順/基準をスキル・エージェント化（[methods/](methods/method-inventory.md)） | ✅ 完了（[asset-plan.md](methods/asset-plan.md) に「実装済み」と明記・`.claude/skills`・`.claude/agents` 実体あり） |
-| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)。判断ログ＝[design/decisions](design/decisions.md) | ✅ 8項目確定（[design/README](design/README.md) 全項目 ✅・DD1–DD23）→ **実装フェーズ完了**（下表13/13 ✅） |
-| A6 | **post-MVP スコープの着手判断** | MVP(P1+P2) 実装完了に伴い、次の優先度をオーナーが決める：F10 参照突き合わせ／F11 合成時警告／F12+F13 育成ループ／F14 ひな形生成／F15 AI型推定／F16 異常系degrade／F17 team/project scope（いずれも [12-mvp-scope](requirements/12-mvp-scope.md) で P3/将来）。現状どれも未着手 | 🟡 未着手・オーナー判断待ち |
+| A5 | **実装前の凍結セット（8項目）を固める** | A モジュール構成・②外部IF・B PF駆動プロトコル・C 永続層・①オーケストレーション(スイムレーン)・③システムプロンプト・D ログ/版・④テスト戦略。索引＝[design/README](design/README.md)。判断ログ＝[design/decisions](design/decisions.md) | ✅ 8項目確定（[design/README](design/README.md) 全項目 ✅・DD1–DD23）→ **実装フェーズは下表13/13 ✅（層単位）**。⚠️ 凍結セットで設計済みの `approve`/`decide`（[03](design/03-external-interfaces.md)）は未実装＝[Q25](#-未決事項決めないと進めない論点)／[A9](#-ネクストアクション次にやる候補) |
+| A6 | **post-MVP スコープの着手判断** | ⚠️ **前提注意**：MVP は**機能単位では未完**（F7 未実装＝[Q25](#-未決事項決めないと進めない論点)・[A9](#-ネクストアクション次にやる候補) が 🔴 最優先）。本アクションは **A9 完了後**に判断するのが順序。次の優先度をオーナーが決める：F10 参照突き合わせ／F11 合成時警告／F12+F13 育成ループ／F14 ひな形生成／F15 AI型推定／F16 異常系degrade／F17 team/project scope（いずれも [12-mvp-scope](requirements/12-mvp-scope.md) で P3/将来）。現状どれも未着手 | 🟡 未着手・オーナー判断待ち |
 | A7 | **TC/TR 成績書の後追い整備** | `guard`・`workspace_git`・`apply`・`feedback_store`・`prompts/registry`・CLI `revert`/`feedback`/P2系（`test_apply.py`/`test_workspace_git.py`/`test_guard.py`/`test_cli_p2.py`/`test_compose_intake.py`/`test_criteria_repo.py`/`test_pr_fixes.py`）はコード＋unittestのみで `tests/cases`/`tests/reports` の Markdown 成績書が無い。**2026-07-27 実測**：unit 12本 vs `cases` 4／`reports` 6／`logs` 6 | 🟢 **方針確定＝全テストに3点セットを整備する**（オーナー確定 2026-07-27。「代表ケースのみ＋CI 生成に寄せる」案は**不採択**＝`/test-strategy` の現行運用を維持）。実作業は [#11](https://github.com/hiratashinnya/review-system/issues/11) へ一本化・未着手 |
-| **A9** | **F7（✋/💬 人手適用）の実装** | [Q25](#未決事項決めないと進めない論点) 決定＝A に基づく実装タスク。`reviewer approve <report>` / `reviewer decide <report>` を追加し、既存の適用機構（DS3 内部 git・finding 単位コミット・revert＝`persistence/workspace_git.py`・`core/apply.py`）を ✋/💬 バケツへ再利用する。設計は [03](design/03-external-interfaces.md):43-44,79-80・[DD10](design/decisions.md) に既存＝新規設計は不要。**前提**＝[#7](https://github.com/hiratashinnya/review-system/issues/7)（`decide` の入力＝💬 の「決定＋任意の修正欄」が現 UI に無い）の設計決定が先行 | 🔴 **未着手・最優先**（2026-07-27 起票） |
-| A8 | ~~**F7（✋/💬 人手適用）の実装可否の明確化**~~ | ~~記録から読み取れない → オーナー確認候補~~ **2026-07-27 調査で決着**：設計側は F7 を**明示的に設計済み**（[03](design/03-external-interfaces.md) の CLI 表に `reviewer approve <report>`（P5.2 ✋・I-6）・`reviewer decide <report>`（P5.2 💬・I-6）、関数契約 `cmd_approve`/`cmd_decide`、[DD10](design/decisions.md) も `decide`/`feedback`/`approve` の3コマンドを前提）。一方**実装は `version`/`review`/`revert`/`feedback` の4コマンドのみ**（`review_system/io/cli.py:49-63`）で `approve`/`decide` が無く、`core/apply.py` も `apply_auto`（🤖 バケツ専用）のみ＝**✋/💬 の適用経路が存在しない**。`feedback` は DS5 への記録だけで適用しない。→ 「系外と判断した」のではなく**単なる未実装**と確定 → **Q25 へ移送** | 🔴 矛盾確定 → [Q25](#未決事項決めないと進めない論点) |
+| A8 | ~~**F7（✋/💬 人手適用）の実装可否の明確化**~~ | ~~記録から読み取れない → オーナー確認候補~~ **2026-07-27 調査で決着**：設計側は F7 を**明示的に設計済み**（[03](design/03-external-interfaces.md) の CLI 表に `reviewer approve <report>`（P5.2 ✋・I-6）・`reviewer decide <report>`（P5.2 💬・I-6）、関数契約 `cmd_approve`/`cmd_decide`、[DD10](design/decisions.md) も `decide`/`feedback`/`approve` の3コマンドを前提）。一方**実装は `version`/`review`/`revert`/`feedback` の4コマンドのみ**（`review_system/io/cli.py:49-63`）で `approve`/`decide` が無く、`core/apply.py` も `apply_auto`（🤖 バケツ専用）のみ＝**✋/💬 の適用経路が存在しない**。`feedback` は DS5 への記録だけで適用しない。→ 「系外と判断した」のではなく**単なる未実装**と確定 → **Q25 へ移送** | 🔴 矛盾確定 → [Q25](#-未決事項決めないと進めない論点) |
+| **A9** | **F7（✋/💬 人手適用）の実装** | [Q25](#-未決事項決めないと進めない論点) 決定＝A に基づく実装タスク。`reviewer approve <report>` / `reviewer decide <report>` を追加し、既存の適用機構（DS3 内部 git・finding 単位コミット・revert＝`persistence/workspace_git.py`・`core/apply.py`）を ✋/💬 バケツへ再利用する。設計は [03](design/03-external-interfaces.md):43-44,79-80・[DD10](design/decisions.md) に既存＝新規設計は不要。**前提**＝[#7](https://github.com/hiratashinnya/review-system/issues/7)（`decide` の入力＝💬 の「決定＋任意の修正欄」が現 UI に無い）の設計決定が先行 | 🔴 **未着手・最優先**（2026-07-27 起票） |
 
 ## ❓ 未決事項（決めないと進めない論点）
 
@@ -69,7 +69,7 @@
 | Q1 | 基準変更は誰がやってよいか | 個々の上書きの可否は override で**機械判定（承認ステップ無し）**。人間の確認が要るのは「基準ファイル自体を編集・確定する行為」だけ。**MVP はアクターを区別しない**（単一ユーザー・人間確認まで）、ロール強制（RBAC）は将来。Git ホスト権限には乗せない | 🟢 MVP 方針確定（強制は将来） |
 | Q2 | determinism の判定をどう運用に乗せるか | **クローズ**：determinism は基準作者が**フロントマターで宣言する属性**（[schema](schema/README.md)）で、⑥仕分けが決定的に消費（`rule_id→determinism×severity→モード`）。別途の運用機構は不要＝2軸どおり（順序属性＝機械ゲート）。生成側の主体は Q21。安全側デフォルトは S2（未宣言は人間側へ） | 🟢 クローズ（schema/2軸に吸収） |
 | Q3 | 自動修正サマリの粒度・revert 単位 | **revert 単位＝指摘(finding)単位でコミット**（finding id＝rule_id＋location）。個別 revert も実行ぶん一括も、対象コミット群の revert で成立（一括は操作）。実装：内部に一時ローカル git（外部ホスト依存とは別物） | 🟢 方針確定 |
-| Q4 | 文書タイプの判定 | **AI 自動判定を既定＋手動上書き**。低確信時は手動を促す。誤判定＝誤基準なので上書きを常に効かせる（[08](requirements/08-intake-design.md)） | 🟢 確定 |
+| Q4 | 文書タイプの判定 | **AI 自動判定を既定＋手動上書き**。低確信時は手動を促す。誤判定＝誤基準なので上書きを常に効かせる（[08](requirements/08-intake-design.md)）。🔖 **ただしこれはフル論理**＝**MVP は手動 `--type` のみ**（`reviewer review --type` 必須・未指定は `EXIT_BADREQ`）で、**AI 型推定＝I-15 は F15＝post-MVP**（[12-mvp-scope](requirements/12-mvp-scope.md)・#6） | 🟢 確定（**MVP 印あり**＝実装は手動のみ） |
 | Q5 | 技術スタック | **確定：アプリ本体＝Python・原則標準ライブラリのみ**（外部依存は最小）。AI レイヤは外部 PF へ委譲済み（[11](requirements/11-platform-adapter.md)）。git は `subprocess` で CLI 呼び。**Q5a 確定＝自前の最小フロントマターパーサ**（stdlib のみ・PyYAML 不採用）：対応文法を**意図的に小さく固定**（フラット key:value＋単純リスト＋override の1段ネスト）し、**範囲外は S5 lint で fail-close**。**パーサが検証器(S5)を兼ねる**。要：対応文法を [schema](schema/README.md) に明文化 | 🟢 確定（Q5a＝自前パーサ） |
 | Q22 | PF 能力差の吸収 | 当面はファイル適用・ツール実行の2能力をシステム代替できれば十分（気にしすぎない）。別途、**自前実装の方がコントロールしやすい範囲が無いかを調査**＝[11](requirements/11-platform-adapter.md) に build-vs-delegate のたたき台 | 🟡 当面OK／要調査 |
 | Q23 | 双方向の口の境界・順序ガード | PF→System の実装は **CLI＋stdout でシステムが制御フローを流し順序を握る**（起動プロンプトは「起動方法＋入力＋指示に従え」の最小）。どの関数を公開するか・適用前検証の強制は本番でツール側ガード。MVP は stdout 指示で軽量に担保（[11](requirements/11-platform-adapter.md)） | 🟡 MVP方針あり |

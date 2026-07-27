@@ -88,7 +88,7 @@ tests/               # ④ 証跡（test-strategy のテーラリング先）
 
 | DFD | モジュール | 依存する port |
 |---|---|---|
-| P1 受付・正規化 | `core/intake` | PlatformPort(型推定 L3) |
+| P1 受付・正規化 | `core/intake` | PlatformPort(型推定 L3)＝**🔖post-MVP(F15)**。MVP は L3 を呼ばず `--type`(I-2) のみで確定（`core/pipeline.py` は推定に `None` を渡す） |
 | P2 基準合成 | `core/compose` ＋ `parsing` | CriteriaRepository, ContradictionCache, PlatformPort(矛盾 L2) |
 | P3 評価 | `core/evaluate` ＋ `prompts` | PlatformPort(評価 L1) |
 | P4 検証・仕分け | `core/triage` | （純粋・port 不要。メタ表/ポリシーは引数） |
