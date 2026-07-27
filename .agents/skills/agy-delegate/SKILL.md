@@ -17,20 +17,22 @@ Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レ
 
 1. **疎通チェックが先（fail-close）**：移譲の前に、現在の Codex セッションで公開されている agy MCP ツールを確認し、status 相当能力で疎通を確認する。
    - **クラウド/ヘッドレス環境では agy は使えない**（ローカル CLI・Windows Credential Manager 認証依存）。
-   - `Overall: OK` でなければ**移譲せず停止**し、理由を報告する。推測で移譲を試みない。
-2. **Windows パスで渡す**：`workspace` は `C:\...` 形式（WSL パス `/mnt/c/...` は `[WinError 267]` で失敗）。
-3. **スコープ厳守（境界＝誰が正本に書くか）**：agy は**素案・調査レポートを返す read-only/draft アシスタント**。`docs/`/本ファイルへの書き込み・ノードの確定著作・無検証コード採用は**移譲しない**（`*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) 経由・実装は Python 標準ライブラリのみ＝Q5）。✅ read-only 影響調査（例：ref_version バンプの伝搬先レポート）・ノード素案作成（規律を `ask` で読ませてから）は可。**agy にはファイルを書かせずテキスト/レポートで回収**し、正本反映は既存パイプラインに通す。
+   - 止めるのは **hard block**（agy CLI 不在・未ログイン・base/brain dir 欠落・クラウド）のときだけ。**`Overall: OK` を可否の判定条件にしない**——`newest transcript` だけの `PROBLEMS FOUND` は既知の transcript 書込バグで委譲は成功する（偽陽性）一方、`Overall: OK` でも agy が対象ツリーを開かず答えることがある（偽陰性・より危険）。詳細＝`.claude/agents/agy-delegate.md`。
+2. **workspace は `wslpath -w` の絶対パスを明示的に渡す**（省略しない）。「WSL パスは `[WinError 267]` で失敗する」という旧記述は 2026-07-27 の調査で否定済み。
+3. **repo 依存タスクは「実際に見えているか」を確認する**：最初の委譲で検証可能なアンカー（対象ファイルの実内容）を取らせ、実ファイルと突き合わせる。不一致なら結果を破棄して停止・報告する。
+4. **スコープ厳守（境界＝誰が正本に書くか）**：agy は**素案・調査レポートを返す read-only/draft アシスタント**。`docs/`/本ファイルへの書き込み・ノードの確定著作・無検証コード採用は**移譲しない**（`*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) 経由・実装は Python 標準ライブラリのみ＝Q5）。✅ read-only 影響調査（例：ref_version バンプの伝搬先レポート）・ノード素案作成（規律を `ask` で読ませてから）は可。**agy にはファイルを書かせずテキスト/レポートで回収**し、正本反映は既存パイプラインに通す。
 
 ## 使い方
 
 1. 上記ゲートを満たすことを確認。
-2. `agy-delegate` エージェントに委譲し、移譲したいタスク・対象 workspace（Windows パス）・期待する成果物を渡す。
+2. `agy-delegate` エージェントに委譲し、移譲したいタスク・対象 workspace（`wslpath -w` の絶対パス）・期待する成果物を渡す。
 3. エージェントが疎通チェック → ツール選択（ask/continue/swarm/image）→ 結果回収を行う。
 4. 結果（使用ツール・workspace・要約）をユーザーへ提示。生成ファイルがある場合は、同じワークスペース上のファイルパスと確認結果を報告する。
 
 ## done 条件
 
-- [ ] 移譲前に agy MCP の status 相当ツールで疎通を確認した（NG なら移譲せず停止・報告）。
-- [ ] `workspace` を Windows パスで渡した。
+- [ ] 移譲前に agy MCP の status 相当ツールを実行し、**hard block に該当しない**ことを確認した（該当なら移譲せず停止・報告）。
+- [ ] `workspace` を `wslpath -w` の絶対パスで明示的に渡した。
+- [ ] repo 依存タスクなら、agy が対象ツリーを実際に見ていることをアンカー突き合わせで確認した。
 - [ ] 依頼がスコープ内（doc-system 著作・本ファイル書き込み・製品コード採用を含まない）と確認した。
 - [ ] 結果をユーザーへ提示した。
