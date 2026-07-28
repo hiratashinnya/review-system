@@ -287,7 +287,12 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 | Linux 絶対パスで実在するディレクトリ | **`updatedInput` で正規化**。`wslpath -w` で変換して続行 |
 | 相対パス / 実在しない / 変換失敗 | **deny** |
 | workspace が期待される所の未知の構造 | **deny**。検査できないものを通さない |
+| **未知の agy ツール** | **deny**。`tool_input` の型に**関わらず**（分類はツール名で先に決める） |
 | 解釈できないペイロード / 非 object / 予期せぬ例外 | **deny**(fail-close。`agent-command-gate.sh` と同じ姿勢) |
+
+> Linux 絶対パスの扱いは backend で分かれる。**antigravity 系だけ `wslpath -w` で自動変換**し、
+> `codex_*` / `copilot_*` / `cursor_*` と `agent_swarm` の非 antigravity バックエンドは
+> **deny** する（「対象外(意図的)」節を参照）。
 
 必須の対象（省略するとサーバ cwd へ落ちるもの）:
 
@@ -330,8 +335,42 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 - **agy が実際にそれを開いたかは検証できない。** アンカー照合(`.claude/agents/agy-delegate.md`)は
   引き続き規律側の必須手順。
 
+## 期限保証(fail-close の外殻)
+
+非0終了は exit 2 以外ツール実行を止めない。**検査できなかったときに deny を返せないと
+未検査の入力がそのまま走る**ので、フック全体を期限付きにして 0 以外をすべて deny へ正規化する。
+
+| 区間 | 期限 | 備考 |
+|---|---|---|
+| stdin からの payload 読み取り | `READ_DEADLINE=5`s ＋ `KILL_AFTER=2`s | stdin が閉じないケースの歯止め |
+| python による検査 | `INNER_DEADLINE=10`s ＋ `KILL_AFTER=2`s | 最悪 19s < `settings.json` の `timeout: 25` |
+
+- **`timeout -k`(kill-after)を必ず付ける**。SIGTERM を無視するプロセスは `-k` 無しでは永久に
+  待たされ、外殻 25 秒に到達してフックごと打ち切られる＝deny を返せない(Codex 第3巡 BLOCKER)。
+- 終了コードは `124`(期限到達) / `137`(SIGKILL) / `143`(SIGTERM) を含め **0 以外すべて deny**。
+- python の stdout は**パイプでなくファイル**で受ける。パイプだと孫プロセスが fd を掴んだままだと
+  親が死んでも読み取りが終わらず、期限保証が破れる。
+
+## 内部完了の表明(stdout 無検証を塞ぐ)
+
+判定 JSON は **stdout ではなく専用の verdict ファイル**へ書き、stdout には
+`AGY_GUARD_DONE:<pass|deny|updated>` を **1 行だけ**出す。外殻はこれを検査してから転送する。
+
+| 内部の状態 | 外殻の扱い |
+|---|---|
+| 完了表明がちょうど 1 本・`pass` | 何も出力しない(通常フローへ委ねる) |
+| 完了表明がちょうど 1 本・`deny`/`updated` ＋ **単一行の妥当な判定 JSON** | その JSON を転送 |
+| 完了表明が 0 本(rc=0 でも無出力) / 2 本以上 / 未知ステータス | **外殻生成の deny** |
+| 判定 JSON が空・複数行・`{"hookSpecificOutput":…}` 形でない | **外殻生成の deny** |
+
+これで「初期化出力の混在」「複数出力」「非 JSON」「異常な無出力」がすべて deny に落ちる
+(旧版は rc=0 なら空 stdout を素通し・非空 stdout を無検証転送していた・Codex 第3巡 BLOCKER)。
+
 ## テスト
 
-`tests/unit/test_agy_workspace_guard.py`(26 ケース)。スコープ絞り込み(過剰拒否しないこと)・
-deny 条件・自動変換・**fail-close**(インタプリタのクラッシュ/ハング)・**未知ツール**の5群。
-`wslpath` が無い環境では同じ規則の代替を PATH に差し込むので、**WSL 以外でも全ケース実行される**。
+`tests/unit/test_agy_workspace_guard.py`(33 ケース)。スコープ絞り込み(過剰拒否しないこと)・
+deny 条件・自動変換・**fail-close**(クラッシュ/ハング/**終了要求を無視するプロセス**/
+**完了表明の無い stdout**)・**未知ツール**(`tool_input` が非 object でも deny)の5群。
+`wslpath` は**存在確認ではなく往復変換を probe** して実物が使えるか判定し、使えなければ同じ規則の
+代替を **各 subprocess の env にだけ**差し込む(`os.environ` は書き換えない)。既存パスの検査は
+固定 `C:\…` ではなく `ROOT` から導出するので、**WSL 以外でも全ケース実行される**。
