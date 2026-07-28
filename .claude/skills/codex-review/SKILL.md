@@ -19,10 +19,13 @@ session 上限のときの代替レビュー経路にもなる（それが主目
 1. 観点プロンプトをファイルに書く（`tmp/` 等）。cwd をリポジトリにして、未コミット diff / 対象ファイルを Codex に読ませる。
 2. 非対話で実行：
    ```bash
-   codex exec -m <model> --sandbox read-only - < prompt.txt > review.txt 2>&1
+   codex exec --json -m <model> --sandbox read-only \
+     -o last.txt - < prompt.txt > events.jsonl 2>&1
    ```
    - stdin に観点プロンプトを流す（`-` が stdin 指定）。`--sandbox read-only` で書き込みをさせない。
    - `model` は**オーナー指定**（例 `gpt-5.6-sol`）。`codex exec review` サブコマンドもある。
+   - **`--json` を必ず付ける**。理由は下記フォールバックの前提になるため（自分の stdout に全発話が届く）。
+     `-o` は最終応答だけを別ファイルに書き出す。
 3. `review.txt`（最終応答）を読む。**flag されていたら下記フォールバックへ**。
 
 ## ハマりどころ①：cybersecurity フィルタで最終応答が消える（原因特定済み・2026-07-20）
@@ -41,10 +44,29 @@ ERROR: This content was flagged for possible cybersecurity risk. … https://cha
 - **同一セッションの言い換え再提出は汚染を引きずり再 flag されやすい** → **最初から防御形式で新規セッション**が確実。
 
 ### フォールバック（所見は失われていない）
-- `codex exec` は進行中のエージェント発話を逐次ストリームし、**全 rollout を
-  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` に記録する**。
-- critical 候補は**最終集約が flag される前に中間発話として出ている**ので、**この rollout jsonl を読めば回収できる**
-  （＝「最終応答が確認できずトランスクリプトを読んだ」の実体）。直近セッションは日付ディレクトリで探す。
+
+critical 候補は**最終集約が flag される前に中間発話として出ている**ので回収できる。**回収元の優先順位を守る**：
+
+**① 自分の stdout（既定・共有ディレクトリを読まない）**
+`--json` を付けていれば、中間発話は `{"type":"item.completed","item":{"type":"agent_message","text":…}}`
+として**自分が捕捉した `events.jsonl` に既に入っている**。最終集約が flag されても、その手前の
+`agent_message` を読めば所見は揃う。**この経路は自プロセスの出力しか触らないため、他セッションを
+読む余地が構造的に無い。**
+
+**② それでも足りないときだけ rollout ファイル（session を明示特定する）**
+`~/.codex/sessions/YYYY/MM/DD/rollout-<時刻>-<thread_id>.jsonl` に全 rollout が残る。
+**ファイル名に thread_id が埋まっている**ので、**自分の `--json` 出力の先頭にある
+`{"type":"thread.started","thread_id":…}` の値と一致するファイルだけを開く**。
+
+> 🛑 **「日付ディレクトリの直近」で探してはならない。** codex は**並行実行できる**——私自身が複数レビューを
+> 並列で回すこともあれば、オーナーが対話セッションを同時に使っていることも、別リポジトリの作業が走って
+> いることもある（実測：ある1日に15セッションが蓄積）。「直近」は**別セッションのファイルを静かに掴む**。
+> 掴んだ結果は「別の対象についての所見を、この対象の所見として報告する」＝**気付けない誤答**であり、
+> 同時に**無関係な会話・秘密を読む**ことにもなる。
+>
+> **制限すべきは並行実行そのものではなく、セッションの特定方法**である。並行して走らせてよい。
+> ただし**必ず自分の thread_id で1ファイルに束縛する**。thread_id が取れなかった場合は、
+> 探索に降りず**停止して報告する**（推測で他人のファイルを開かない）。
 
 > これは [silent-failure-diagnosis](../silent-failure-diagnosis/SKILL.md) の一般則 **D5「永続ログ・履歴を当たる」** の Codex 版。
 > **本スキルは skill であり `skills:` によるプリロードが効かない**ので、Codex が「エラーを出さずに誤答・空応答している」
@@ -62,7 +84,8 @@ ERROR: This content was flagged for possible cybersecurity risk. … https://cha
 ## done 条件
 
 - [ ] 観点プロンプトを防御形式で書き、`codex exec -m <model> --sandbox read-only` で流した。
-- [ ] `review.txt` の末尾を確認。ERROR(flagged) なら `~/.codex/sessions/.../rollout-*.jsonl` から所見を回収した。
+- [ ] `--json` を付けて実行し、`thread.started` の `thread_id` を控えた。
+- [ ] 最終応答を確認。ERROR(flagged) なら **①自分の `events.jsonl` の `agent_message`** から回収した（不足時のみ ②`rollout-*-<thread_id>.jsonl` を**その1ファイルだけ**開いた。「直近」で探していない）。
 - [ ] 所見を Claude 側レビューと統合し、**AI（Codex 由来）であることを明示**してオーナー/PR へ報告した（独断で「対応不要」としない＝CLAUDE.md）。
 
 > 原因特定の経緯・詳細はグローバルメモリ `feedback_codex_review_official_cli` にインシデント記録として残す。本スキルが手順の正本。
