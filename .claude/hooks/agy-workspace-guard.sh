@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse ゲート: agy MCP ツールの workspace を「Windows 絶対パス」に機械的に揃える。
+# PreToolUse ゲート: agy MCP ツールの workspace を「実在する Windows 絶対パス」に機械的に揃える。
 #
 # なぜ要るか（2026-07-27 の調査・PR #259）:
 #   ブリッジ (/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py) は workspace を Windows Python の
@@ -10,22 +10,39 @@
 #   後者では続く os.makedirs(workspace, exist_ok=True) が**その空ディレクトリを新規作成**し、
 #   agy はそこで走る。エラーは出ない。agy はリポジトリを一度も開かないまま自信のある回答を返し、
 #   呼び出し側はそれを本物として扱う——これが実際に起きた事故の形。
+#   workspace の**省略**も同じ穴（サーバ cwd にフォールバックする）。
 #
 #   規約（"wslpath -w の絶対パスを明示的に渡す"）は .claude/agents/agy-delegate.md に書いたが、
-#   規約は破れる。ここでは破れても正しくなるようにする: Linux 絶対パスは wslpath -w で
-#   **自動変換して続行**し、変換できないもの・存在しないものだけを拒否する。
+#   規約は破れる。ここでは破れても正しくなるようにする。
+#
+# 許可判断は握らない（Codex レビュー指摘2・公式仕様で確認済み）:
+#   正規化時は permissionDecision を**返さない**。公式スキーマ上これは "defer" と同等で、
+#   updatedInput だけが適用され、許可判断は通常の permission フローにそのまま委ねられる
+#   （= フックが無い場合と同じ）。フックが権限境界を広げも狭めもしない。deny だけが例外で、
+#   これは意図的なゲート。
+#
+# updatedInput は tool_input 全体を返す（Codex レビュー指摘1）:
+#   公式スキーマは updatedInput を "partial, merged" と説明するが、全置換と解釈する資料もあり、
+#   食い違ったまま prompt 等を失うと事故になる。**元の tool_input を複製して該当フィールドだけ
+#   差し替える**形にすれば、merge・置換のどちらの意味でも正しい。安い保険なので常にそうする。
 #
 # 判定:
-#   未指定（必須ツールのみ）           -> deny  … 意図した repo は推測できない
-#   X:\... / \\...（Windows 形式）      -> allow … 既に正しい
-#   Linux 絶対パスで実在するディレクトリ -> allow + updatedInput（wslpath -w で変換）
-#   相対パス / 実在しない / 変換失敗     -> deny  … makedirs による無言のディレクトリ生成を手前で止める
+#   必須ツールで workspace 未指定        -> deny  … サーバ cwd へ落ちる（意図した repo は推測できない）
+#   実在する Windows 絶対パス            -> 素通し … 既に正しい
+#   実在する Linux 絶対パス              -> 正規化 … wslpath -w で変換（defer）
+#   相対パス / 実在しない / 変換失敗      -> deny  … makedirs による無言のディレクトリ生成を手前で止める
+#   workspace が期待される所の未知の構造  -> deny  … 検査できないものを通さない
+#   解釈できないペイロード / 予期せぬ例外 -> deny  … fail-close
 #
 # できないこと（規律側の責務・agy-delegate.md 参照）:
 #   - 渡されたパスが「意図した repo か」は判定しない（形式と実在の検査のみ）
 #   - agy が実際にそれを開いたかは検証できない → アンカー照合は引き続き必須
+#   - TOCTOU: 検査から agy 起動までの間の削除・すり替えは防げない
 #
-# 対象外: codex_* / copilot_* / cursor_* は同じブリッジだが未検証のため強制しない（過剰拒否を避ける）。
+# 正規化の対象外（意図的・過度な一般化を避ける）:
+#   codex_* / copilot_* / cursor_* は同じブリッジ経由だが、それらが Windows 形式を期待するかは
+#   未検証。値は書き換えない。agent_swarm の非 antigravity バックエンドも同様で、
+#   **workspace の存在だけ要求し、値の変換はしない**。
 
 set -uo pipefail
 
@@ -40,141 +57,230 @@ import re
 import subprocess
 import sys
 
-# workspace を必須にするツール（省略時に cwd 依存で別ツリーへ落ちるもの）。
-REQUIRE_WORKSPACE = {
+# workspace(単数・文字列) を必須にするツール。省略するとサーバ cwd へ落ちる。
+SINGLE_WS_REQUIRED = {
     "mcp__agy__antigravity_ask",
     "mcp__agy__antigravity_continue",
     "mcp__agy__antigravity_image",
 }
+# workspaces(配列) を必須にするツール。省略すると「先頭 workspace かサーバ cwd」へ落ちる。
+LIST_WS_REQUIRED = {"mcp__agy__antigravity_image_swarm"}
+# tasks[].workspace を必須にするツール。
+TASKS_WS_REQUIRED = {"mcp__agy__agent_swarm"}
+
+# 値を Windows 形式へ変換してよいバックエンド（agent_swarm の tasks[].backend）。
+NORMALIZABLE_BACKENDS = {"antigravity", "agy", "gemini"}
 
 WINDOWS_ABS = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
+MAX_ITEMS = 64  # 1 呼び出しで検査する workspace の上限（過大入力の歯止め）
 
 
-def emit(decision, reason, updated_input=None):
-    out = {
+class Deny(Exception):
+    pass
+
+
+def emit_deny(reason):
+    print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": reason,
+            "permissionDecision": "deny",
+            "permissionDecisionReason": f"agy-workspace-guard: {reason}",
         }
-    }
-    if updated_input is not None:
-        out["hookSpecificOutput"]["updatedInput"] = updated_input
-    print(json.dumps(out, ensure_ascii=False))
+    }, ensure_ascii=False))
     sys.exit(0)
 
 
-def allow_silently():
+def emit_updated_input(tool_input):
+    # permissionDecision は返さない＝"defer" 相当。許可判断は通常フローのまま。
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": tool_input,
+        }
+    }, ensure_ascii=False))
     sys.exit(0)
 
 
-def to_windows_path(path):
-    """WSL パス -> Windows 絶対パス。変換できなければ (None, 理由)。"""
-    if not os.path.isdir(path):
-        return None, f"ディレクトリが存在しない: {path}"
+def _wslpath(flag, path):
     try:
         proc = subprocess.run(
-            ["wslpath", "-w", path],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["wslpath", flag, path], capture_output=True, text=True, timeout=5
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return None, f"wslpath の実行に失敗: {exc}"
+        raise Deny(f"wslpath の実行に失敗: {exc}")
     if proc.returncode != 0:
-        return None, f"wslpath が失敗 (exit {proc.returncode}): {proc.stderr.strip()}"
-    converted = proc.stdout.strip()
-    if not converted or not WINDOWS_ABS.match(converted):
-        return None, f"wslpath の出力が Windows 絶対パスでない: {converted!r}"
-    return converted, None
+        raise Deny(f"wslpath {flag} が失敗 (exit {proc.returncode}): {proc.stderr.strip()}")
+    out = proc.stdout.strip()
+    if not out:
+        raise Deny(f"wslpath {flag} が空を返した: {path!r}")
+    return out
 
 
-def normalize_one(value, label):
-    """1 つの workspace 値を検査する。戻り値 (正規化後の値 or None, 拒否理由 or None)。"""
+def normalize_workspace(value, label, *, convert):
+    """1 つの workspace 値を検査し、正規化後の値を返す。
+
+    convert=False のときは値を書き換えず実在確認だけ行う（Windows 形式を期待するか
+    未検証なバックエンド向け）。
+    """
     if not isinstance(value, str) or not value.strip():
-        return None, f"{label} が空、または文字列でない"
+        raise Deny(f"{label} が空、または文字列でない")
     value = value.strip()
+
     if WINDOWS_ABS.match(value):
-        return value, None  # 既に Windows 形式
+        # 既に Windows 形式。存在しない値を通すとブリッジ側 makedirs が空ディレクトリを作るので、
+        # WSL 側から見えるパスへ引き戻して実在を確認する。
+        linux_view = _wslpath("-u", value)
+        if not os.path.isdir(linux_view):
+            raise Deny(
+                f"{label} のディレクトリが存在しない: {value}"
+                f"（WSL から見たパス: {linux_view}）。"
+                "存在しない workspace はブリッジ側で新規作成され、agy が空のディレクトリで走る。"
+            )
+        return value
+
     if not value.startswith("/"):
-        return None, (
+        raise Deny(
             f"{label} が相対パス: {value!r}。"
             "解決先が MCP サーバの cwd 依存になるため拒否した。絶対パスを渡すこと。"
         )
-    converted, err = to_windows_path(value)
-    if converted is None:
-        return None, f"{label} を Windows パスへ変換できない（{err}）"
-    return converted, None
+
+    if not os.path.isdir(value):
+        raise Deny(f"{label} のディレクトリが存在しない: {value}")
+
+    if not convert:
+        # 変換の妥当性が未検証なバックエンド。実在は確かめたが値は触らない。
+        return value
+
+    converted = _wslpath("-w", value)
+    if not WINDOWS_ABS.match(converted):
+        raise Deny(f"{label} の変換結果が Windows 絶対パスでない: {converted!r}")
+    return converted
+
+
+def handle_single(tool_input, tool_name):
+    raw = tool_input.get("workspace")
+    if raw is None:
+        if tool_name in SINGLE_WS_REQUIRED:
+            raise Deny(
+                f"{tool_name} に workspace が指定されていない。"
+                "省略すると MCP サーバの cwd が使われ、agy が意図しないツリー"
+                "（既定プロジェクトの scratch 等）で動いたまま、"
+                "エラーを出さずに誤った回答を返す。対象ディレクトリを絶対パスで明示すること"
+                "（例: /home/hiras/ws_claude/review-system。Windows 形式へは自動変換する）。"
+            )
+        return None
+    return normalize_workspace(raw, "workspace", convert=True)
+
+
+def handle_list(tool_input, tool_name):
+    raw = tool_input.get("workspaces")
+    if raw is None:
+        if tool_name in LIST_WS_REQUIRED:
+            raise Deny(
+                f"{tool_name} に workspaces が指定されていない。"
+                "省略するとサーバ cwd（または先頭 workspace）へ落ちるため拒否した。"
+            )
+        return None
+    if not isinstance(raw, list) or not raw:
+        raise Deny(f"workspaces が空、またはリストでない: {type(raw).__name__}")
+    if len(raw) > MAX_ITEMS:
+        raise Deny(f"workspaces の要素数が上限 {MAX_ITEMS} を超えている: {len(raw)}")
+    return [
+        normalize_workspace(item, f"workspaces[{idx}]", convert=True)
+        for idx, item in enumerate(raw)
+    ]
+
+
+def handle_tasks(tool_input, tool_name):
+    raw = tool_input.get("tasks")
+    if raw is None:
+        if tool_name in TASKS_WS_REQUIRED:
+            raise Deny(f"{tool_name} に tasks が無い。検査できないため拒否した。")
+        return None
+    if not isinstance(raw, list) or not raw:
+        raise Deny(f"tasks が空、またはリストでない: {type(raw).__name__}")
+    if len(raw) > MAX_ITEMS:
+        raise Deny(f"tasks の要素数が上限 {MAX_ITEMS} を超えている: {len(raw)}")
+
+    out = []
+    for idx, task in enumerate(raw):
+        if not isinstance(task, dict):
+            raise Deny(f"tasks[{idx}] がオブジェクトでない: {type(task).__name__}")
+        backend = task.get("backend")
+        if not isinstance(backend, str) or not backend.strip():
+            raise Deny(f"tasks[{idx}].backend が無い。どのバックエンドか判定できないため拒否した。")
+        if task.get("workspace") is None:
+            raise Deny(
+                f"tasks[{idx}] に workspace が指定されていない（backend={backend}）。"
+                "省略するとサーバ cwd へ落ち、意図しないツリーで走る。"
+            )
+        # 値を Windows 形式に変換してよいのは antigravity 系だけ。他バックエンドが
+        # Windows 形式を期待するかは未検証なので、実在確認だけ行い値は触らない。
+        convert = backend.strip().lower() in NORMALIZABLE_BACKENDS
+        new_task = dict(task)
+        new_task["workspace"] = normalize_workspace(
+            task["workspace"], f"tasks[{idx}].workspace", convert=convert
+        )
+        out.append(new_task)
+    return out
 
 
 def main():
     try:
         with open(sys.argv[1], encoding="utf-8") as fh:
             payload = json.load(fh)
-    except Exception as exc:  # 検査不能なら fail-close（agent-command-gate と同じ姿勢）
-        emit("deny", f"agy-workspace-guard: PreToolUse ペイロードを解釈できない: {exc}")
+    except Exception as exc:
+        emit_deny(f"PreToolUse ペイロードを解釈できない: {exc}")
+
+    if not isinstance(payload, dict):
+        emit_deny(f"PreToolUse ペイロードが object でない: {type(payload).__name__}")
 
     tool_name = payload.get("tool_name")
-    if not isinstance(tool_name, str) or not tool_name.startswith("mcp__agy__antigravity_"):
-        allow_silently()
+    if not isinstance(tool_name, str) or not tool_name.startswith("mcp__agy__"):
+        sys.exit(0)  # agy 以外は素通し
+
+    enforced = SINGLE_WS_REQUIRED | LIST_WS_REQUIRED | TASKS_WS_REQUIRED
 
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
-        if tool_name in REQUIRE_WORKSPACE:
-            emit("deny", f"agy-workspace-guard: {tool_name} の tool_input を検査できないため拒否した。")
-        allow_silently()
+        if tool_name in enforced:
+            emit_deny(f"{tool_name} の tool_input を検査できないため拒否した。")
+        sys.exit(0)
 
-    has_ws = "workspace" in tool_input and tool_input["workspace"] is not None
-    has_wss = "workspaces" in tool_input and tool_input["workspaces"] is not None
+    # 検査対象キーを1つも持たず、必須ツールでもない（status / models 等）なら素通し。
+    touches_ws = any(k in tool_input for k in ("workspace", "workspaces", "tasks"))
+    if tool_name not in enforced and not touches_ws:
+        sys.exit(0)
 
-    if not has_ws and not has_wss:
-        if tool_name in REQUIRE_WORKSPACE:
-            emit(
-                "deny",
-                f"agy-workspace-guard: {tool_name} に workspace が指定されていない。"
-                "省略すると MCP サーバの cwd が使われ、agy が意図しないツリー"
-                "（既定プロジェクトの scratch 等）で動いたまま、"
-                "エラーを出さずに誤った回答を返す。対象ディレクトリを絶対パスで明示すること"
-                "（例: /home/hiras/ws_claude/review-system。Windows 形式へは自動変換する）。",
-            )
-        allow_silently()
+    updated = dict(tool_input)  # 全フィールドを保持したまま該当キーだけ差し替える
+    changed = False
 
-    updated = {}
-    if has_ws:
-        normalized, err = normalize_one(tool_input["workspace"], "workspace")
-        if err:
-            emit("deny", f"agy-workspace-guard: {err}")
-        if normalized != tool_input["workspace"]:
-            updated["workspace"] = normalized
+    single = handle_single(tool_input, tool_name)
+    if single is not None and single != tool_input.get("workspace"):
+        updated["workspace"] = single
+        changed = True
 
-    if has_wss:
-        raw = tool_input["workspaces"]
-        # 既知の形（文字列のリスト）だけ扱う。未知の構造は書き換えず素通しする
-        # （過剰拒否を避けるための意図的な穴。agy-delegate.md の規律で補う）。
-        if isinstance(raw, list) and raw and all(isinstance(x, str) for x in raw):
-            out = []
-            changed = False
-            for idx, item in enumerate(raw):
-                normalized, err = normalize_one(item, f"workspaces[{idx}]")
-                if err:
-                    emit("deny", f"agy-workspace-guard: {err}")
-                changed = changed or normalized != item
-                out.append(normalized)
-            if changed:
-                updated["workspaces"] = out
+    listed = handle_list(tool_input, tool_name)
+    if listed is not None and listed != tool_input.get("workspaces"):
+        updated["workspaces"] = listed
+        changed = True
 
-    if updated:
-        detail = "; ".join(f"{k} -> {v}" for k, v in updated.items())
-        emit(
-            "allow",
-            f"agy-workspace-guard: workspace を Windows 絶対パスへ自動変換した（{detail}）。"
-            "ブリッジ側の abspath 解決が MCP サーバの cwd に依存し、"
-            "無言で別ディレクトリを作ってしまうのを防ぐため。",
-            updated_input=updated,
-        )
+    tasks = handle_tasks(tool_input, tool_name)
+    if tasks is not None and tasks != tool_input.get("tasks"):
+        updated["tasks"] = tasks
+        changed = True
 
-    allow_silently()
+    if changed:
+        emit_updated_input(updated)
+    sys.exit(0)
 
 
-main()
+try:
+    main()
+except Deny as exc:
+    emit_deny(str(exc))
+except SystemExit:
+    raise
+except Exception as exc:  # 予期せぬ例外で素通しさせない（fail-close）
+    emit_deny(f"検査中に予期せぬエラー: {type(exc).__name__}: {exc}")
 PYEOF

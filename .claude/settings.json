@@ -11,7 +11,7 @@
         ]
       },
       {
-        "matcher": "mcp__agy__antigravity_.*",
+        "matcher": "mcp__agy__.*",
         "hooks": [
           {
             "type": "command",

@@ -254,8 +254,9 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 
 # agy workspace ゲート(agy-workspace-guard.sh)
 
-`agy` MCP ツールの `workspace` を **Windows 絶対パス**に機械的に揃える PreToolUse フック。
-`settings.json` の matcher は `mcp__agy__antigravity_.*`。
+`agy` MCP ツールの `workspace` を **実在する Windows 絶対パス**に機械的に揃える PreToolUse フック。
+`settings.json` の matcher は `mcp__agy__.*`（agy サーバの全ツールを捕捉し、検査対象はスクリプト側で列挙する。
+`antigravity_` 前方一致だと `agent_swarm` が素通りしたため・Codex レビュー #259 指摘）。
 
 ## なぜ要るか(2026-07-27 の調査・PR #259)
 
@@ -280,23 +281,44 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 
 | `workspace` | 挙動 |
 |---|---|
-| 未指定(`antigravity_ask`/`continue`/`image` のみ必須) | **deny**。意図した repo は推測できない |
-| `X:\...` / `\\...` | allow(既に正しいので書き換えない) |
-| Linux 絶対パスで実在するディレクトリ | **allow + `updatedInput`**。`wslpath -w` で変換して続行 |
-| 相対パス / 実在しない / 変換失敗 | **deny**。`makedirs` による無言のディレクトリ生成を手前で止める |
-| 解釈できないペイロード | **deny**(fail-close。`agent-command-gate.sh` と同じ姿勢) |
+| 未指定(必須ツール) | **deny**。意図した repo は推測できない |
+| `X:\...` / `\\...` で**実在する** | 素通し(既に正しいので書き換えない) |
+| `X:\...` / `\\...` だが**実在しない** | **deny**。`wslpath -u` で WSL 側へ引き戻して確認する。存在しない値を通すとブリッジ側 `makedirs` が空ディレクトリを作り、agy がそこで走る |
+| Linux 絶対パスで実在するディレクトリ | **`updatedInput` で正規化**。`wslpath -w` で変換して続行 |
+| 相対パス / 実在しない / 変換失敗 | **deny** |
+| workspace が期待される所の未知の構造 | **deny**。検査できないものを通さない |
+| 解釈できないペイロード / 非 object / 予期せぬ例外 | **deny**(fail-close。`agent-command-gate.sh` と同じ姿勢) |
 
-`workspaces`(配列)は**文字列リストの場合のみ**要素ごとに変換する。未知の構造は書き換えず素通しする
-(過剰拒否を避けるための意図的な穴。規律側で補う)。
+必須の対象（省略するとサーバ cwd へ落ちるもの）:
+
+| ツール | キー |
+|---|---|
+| `antigravity_ask` / `antigravity_continue` / `antigravity_image` | `workspace` |
+| `antigravity_image_swarm` | `workspaces[]` |
+| `agent_swarm` | `tasks[].workspace`(要素ごと) |
+
+## 許可判断は握らない
+
+正規化時は **`permissionDecision` を返さない**。公式スキーマ上これは `"defer"` と同等で、
+`updatedInput` だけが適用され、許可判断は通常の permission フローにそのまま委ねられる
+(= フックが無い場合と同じ)。**フックが権限境界を広げも狭めもしない。** `deny` だけが例外で、
+これは意図的なゲート。
+
+`updatedInput` には **`tool_input` 全体を複製して該当フィールドだけ差し替えたもの**を返す。
+公式スキーマは `updatedInput` を "partial, merged" と説明するが全置換と解釈する資料もあり、
+食い違ったまま `prompt` 等を失うと事故になるため、どちらの意味でも正しい形にしている。
 
 ## 対象外(意図的)
 
-- `codex_*` / `copilot_*` / `cursor_*`: 同じブリッジだが**未検証**のため強制しない。
+- `codex_*` / `copilot_*` / `cursor_*`: 同じブリッジだが、それらが Windows 形式を期待するかは**未検証**のため
+  値を書き換えない。`agent_swarm` の非 antigravity バックエンドも同様で、**workspace の存在だけ要求し変換はしない**
+  (過度な一般化を避ける)。
+- **TOCTOU**: 検査から agy 起動までの間の削除・すり替えは防げない。
 - **渡されたパスが「意図した repo か」は判定しない**(形式と実在の検査のみ)。
 - **agy が実際にそれを開いたかは検証できない。** アンカー照合(`.claude/agents/agy-delegate.md`)は
   引き続き規律側の必須手順。
 
 ## テスト
 
-`tests/unit/test_agy_workspace_guard.py`(12 ケース)。スコープ絞り込み(過剰拒否しないこと)・
+`tests/unit/test_agy_workspace_guard.py`(22 ケース)。スコープ絞り込み(過剰拒否しないこと)・
 deny 条件・自動変換の3群。`wslpath` を要するケースは WSL 以外では skip。

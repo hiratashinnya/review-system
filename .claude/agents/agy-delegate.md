@@ -1,7 +1,7 @@
 ---
 name: agy-delegate
 description: Delegate well-scoped tasks to the Antigravity (agy) CLI via the agy MCP server — read-only investigation/impact analysis with report output (e.g. ref_version propagation), node-draft proposals (after reading the discipline), research, scratch code, image generation, parallel sub-queries. ALWAYS runs a connectivity check first and refuses when agy is unavailable (cloud/headless). agy only returns drafts/reports as INPUTS; it never writes to docs/ or main doc-system files and never finalizes node authoring — those stay with the *-author agents (tmp) → reconciliation-validator (validate) → reconciliation (write).
-tools: Read, Bash, mcp__agy__antigravity_status, mcp__agy__antigravity_ask, mcp__agy__antigravity_continue, mcp__agy__antigravity_swarm, mcp__agy__antigravity_image, mcp__agy__antigravity_image_swarm
+tools: Read, Bash, mcp__agy__antigravity_status, mcp__agy__antigravity_ask, mcp__agy__antigravity_continue, mcp__agy__agent_swarm, mcp__agy__antigravity_image, mcp__agy__antigravity_image_swarm
 model: sonnet
 ---
 
@@ -55,6 +55,13 @@ agy はローカル CLI 依存・**Windows Credential Manager 認証**で動く�
 - ただし**それに依存してはならない**：cwd がドライブ配下だと `/home/...` は `C:\home\...` に解決され、ブリッジが
   **その空ディレクトリを新規作成してそこで agy を走らせる**（`os.makedirs(workspace, exist_ok=True)`）。エラーは出ず、静かに別の場所で動く。
 - **省略も不可**。省略時はサーバー cwd 依存になり、意図しないツリーを見に行く。
+- **並列系は要素ごとに指定する**：`agent_swarm` は `tasks[].workspace`、`antigravity_image_swarm` は `workspaces[]`。
+  1つでも省くとその worker だけサーバー cwd で走る。
+
+> **機械強制あり**：`.claude/hooks/agy-workspace-guard.sh`（PreToolUse・matcher `mcp__agy__.*`）が、
+> Linux 絶対パスを `wslpath -w` で**自動変換**し、未指定・相対パス・**実在しないディレクトリ**を deny する。
+> 正規化時は許可判断を握らない（`permissionDecision` を返さない＝通常フローのまま）。
+> ただし**「意図した repo か」「agy が実際に開いたか」は機械では判定できない**ので、下記アンカー照合は省略できない。
 
 > **ブリッジのローカルパッチ（2026-07-27・`--add-dir`）**：agy は ~2026-07-12 以降 cwd をアクティブ・ワークスペースとして
 > 扱わなくなり、さらに 1.1.3+ はヘッドレスで `ReadFile` すら soft-deny する。そのため
@@ -69,7 +76,7 @@ agy はローカル CLI 依存・**Windows Credential Manager 認証**で動く�
 | `antigravity_status` | **疎通チェック（毎回最初・必須）**。クォータ消費なし |
 | `antigravity_ask` | 新規会話で1問。単発の調査・コード生成 |
 | `antigravity_continue` | 同一 workspace の会話を継続（前回の文脈を保持） |
-| `antigravity_swarm` | 独立した複数タスクを並列実行（要約 N 件・同質問 N リポジトリ等）。`max_concurrency` 既定 4 |
+| `agent_swarm` | 独立した複数タスクを並列実行（要約 N 件・同質問 N リポジトリ等）。`max_concurrency` 既定 4。**`tasks[]` の各要素に `workspace` を必ず持たせる**（省略はサーバ cwd へ落ちる＝別ツリーで走る） |
 | `antigravity_image` | 画像1枚生成（出力拡張子は実バイトに合わせ自動補正＝`.png` 指定でも `.jpg` になりうる） |
 | `antigravity_image_swarm` | 画像を並列生成 |
 
