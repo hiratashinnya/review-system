@@ -251,3 +251,52 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 `jq` が利用できる環境ではそれを使って安全にエスケープする。`jq` が無い環境向けに
 標準ツール(`sed`/`awk`)のみのフォールバックも用意している。コンテキストファイルが
 見つからない場合は何も注入せず `exit 0`(fail-open)。
+
+# agy workspace ゲート(agy-workspace-guard.sh)
+
+`agy` MCP ツールの `workspace` を **Windows 絶対パス**に機械的に揃える PreToolUse フック。
+`settings.json` の matcher は `mcp__agy__antigravity_.*`。
+
+## なぜ要るか(2026-07-27 の調査・PR #259)
+
+agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `workspace` を
+**Windows Python の `os.path.abspath`** で正規化する。ドライブレターの無い `/home/...` は
+「現在ドライブのルート」に解決されるため、MCP サーバの cwd 次第で意味が変わる:
+
+| MCP サーバの cwd | `/home/hiras/ws_claude/review-system` の解決先 |
+|---|---|
+| リポジトリ(UNC) | `\\wsl.localhost\Ubuntu\home\hiras\ws_claude\review-system`(偶然正しい) |
+| ドライブ配下 | `C:\home\hiras\ws_claude\review-system`(別物) |
+
+後者では続く `os.makedirs(workspace, exist_ok=True)` が**その空ディレクトリを新規作成**し、agy は
+そこで走る。**エラーは出ない。** agy はリポジトリを一度も開かないまま自信のある回答を返し、
+呼び出し側はそれを本物として扱う——これが実際に起きた事故の形(既定プロジェクトの `scratch` で
+作業して回答した実例あり)。
+
+規約(「`wslpath -w` の絶対パスを明示的に渡す」)は `.claude/agents/agy-delegate.md` に書いたが、
+**規約は破れる**。ここでは破れても正しくなるようにする。
+
+## 判定
+
+| `workspace` | 挙動 |
+|---|---|
+| 未指定(`antigravity_ask`/`continue`/`image` のみ必須) | **deny**。意図した repo は推測できない |
+| `X:\...` / `\\...` | allow(既に正しいので書き換えない) |
+| Linux 絶対パスで実在するディレクトリ | **allow + `updatedInput`**。`wslpath -w` で変換して続行 |
+| 相対パス / 実在しない / 変換失敗 | **deny**。`makedirs` による無言のディレクトリ生成を手前で止める |
+| 解釈できないペイロード | **deny**(fail-close。`agent-command-gate.sh` と同じ姿勢) |
+
+`workspaces`(配列)は**文字列リストの場合のみ**要素ごとに変換する。未知の構造は書き換えず素通しする
+(過剰拒否を避けるための意図的な穴。規律側で補う)。
+
+## 対象外(意図的)
+
+- `codex_*` / `copilot_*` / `cursor_*`: 同じブリッジだが**未検証**のため強制しない。
+- **渡されたパスが「意図した repo か」は判定しない**(形式と実在の検査のみ)。
+- **agy が実際にそれを開いたかは検証できない。** アンカー照合(`.claude/agents/agy-delegate.md`)は
+  引き続き規律側の必須手順。
+
+## テスト
+
+`tests/unit/test_agy_workspace_guard.py`(12 ケース)。スコープ絞り込み(過剰拒否しないこと)・
+deny 条件・自動変換の3群。`wslpath` を要するケースは WSL 以外では skip。
