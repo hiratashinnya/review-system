@@ -46,8 +46,9 @@ ERROR: This content was flagged for possible cybersecurity risk. … https://cha
 - critical 候補は**最終集約が flag される前に中間発話として出ている**ので、**この rollout jsonl を読めば回収できる**
   （＝「最終応答が確認できずトランスクリプトを読んだ」の実体）。直近セッションは日付ディレクトリで探す。
 
-> これは `silent-failure-diagnosis` の一般則 **D5「永続ログ・履歴を当たる」** の Codex 版。
-> 委譲先が「エラーを出さずに誤答・空応答している」疑いが出たら、切り分けの順序はそちらを参照する。
+> これは [silent-failure-diagnosis](../silent-failure-diagnosis/SKILL.md) の一般則 **D5「永続ログ・履歴を当たる」** の Codex 版。
+> **本スキルは skill であり `skills:` によるプリロードが効かない**ので、Codex が「エラーを出さずに誤答・空応答している」
+> 疑いが出たら、**上記リンクを開いて**切り分けの順序（D0→D1→D6→D5→D4→D3→D2→D7/D8）に従うこと。
 
 ### 正攻法（当面は使わない）
 - OpenAI の Trusted Access for Cyber 登録でセキュリティ作業として通せるが、**無課金方針・オーナー認可が対象**
