@@ -313,7 +313,10 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 - `codex_*` / `copilot_*` / `cursor_*`: 同じブリッジだが、それらが Windows 形式を期待するかは**未検証**のため
   値を書き換えない。`agent_swarm` の非 antigravity バックエンドも同様で、**workspace の存在だけ要求し変換はしない**
   (過度な一般化を避ける)。
-- **TOCTOU**: 検査から agy 起動までの間の削除・すり替えは防げない。
+- **TOCTOU**: 本フックの検査は agy 起動の**数秒前・別プロセス**なので、その間にディレクトリが消える/差し替わる可能性は残る。
+  ただしブリッジ側のローカルパッチで **`os.makedirs(workspace, exist_ok=True)` を全廃**し
+  （`_require_workspace()` が存在しなければ例外を投げる）、**「消えていたら空で作り直して走る」経路は無くなった**。
+  残る窓は「ブリッジが確認してから spawn するまでの数マイクロ秒」で、ユーザ空間では閉じられない（既知の限界）。
 - **渡されたパスが「意図した repo か」は判定しない**(形式と実在の検査のみ)。
 - **agy が実際にそれを開いたかは検証できない。** アンカー照合(`.claude/agents/agy-delegate.md`)は
   引き続き規律側の必須手順。

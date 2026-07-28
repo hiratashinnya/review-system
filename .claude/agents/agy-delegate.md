@@ -61,6 +61,9 @@ agy はローカル CLI 依存・**Windows Credential Manager 認証**で動く�
 > **機械強制あり**：`.claude/hooks/agy-workspace-guard.sh`（PreToolUse・matcher `mcp__agy__.*`）が、
 > Linux 絶対パスを `wslpath -w` で**自動変換**し、未指定・相対パス・**実在しないディレクトリ**を deny する。
 > 正規化時は許可判断を握らない（`permissionDecision` を返さない＝通常フローのまま）。
+> ブリッジ側にもローカルパッチがあり、**存在しない workspace を黙って新規作成しない**（`_require_workspace()` が例外を投げる）。
+> 以前は `os.makedirs(workspace, exist_ok=True)` が空ディレクトリを作り、agy がそこで走って
+> **開いてもいないツリーについて自信のある回答を返していた**——この経路は塞がれている。
 > ただし**「意図した repo か」「agy が実際に開いたか」は機械では判定できない**ので、下記アンカー照合は省略できない。
 
 > **ブリッジのローカルパッチ（2026-07-27・`--add-dir`）**：agy は ~2026-07-12 以降 cwd をアクティブ・ワークスペースとして
