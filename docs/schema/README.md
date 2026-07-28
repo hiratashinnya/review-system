@@ -1,10 +1,16 @@
-# 評価基準ファイル スキーマ仕様（確定・MVP 実装準拠）
+# 評価基準ファイル スキーマ仕様（記法は確定・**S5 lint は未結線**）
 
 > A1「評価基準ファイルのスキーマを実際に書く」の成果物。
-> **🟢 確定**（2026-07-27・[A1](../dashboard.md#-ネクストアクション次にやる候補)）：本仕様は叩き台段階を終え、**MVP 実装がこれに準拠**している。
-> 準拠する実装＝`review_system/parsing/frontmatter.py`（Q5a 自前 mini-YAML パーサ）・`review_system/parsing/lint.py`（S5 事前 lint）・
-> `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。いずれもテスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
+> **🟢 記法は確定**（2026-07-27・[A1](../dashboard.md#-ネクストアクション次にやる候補)）：叩き台段階を終え、**MVP のパース経路がこれに準拠**している。
+> 準拠する実装＝`review_system/parsing/frontmatter.py`（Q5a 自前 mini-YAML パーサ）・
+> `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。テスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
 > policy 記法は [Q24 決定＝A（パーサ拡張：引用キー `"*"` ＋3段ブロックネスト・フロー非対応）](../dashboard.md)／[DD16](../design/decisions.md) を反映済み。
+>
+> ⚠️ **確定していない部分（2026-07-28・Codex レビューで判明）**：本書が S5 として規定する**実行前 lint は本番経路に結線されていない**。
+> `review_system/parsing/lint.py` の `lint_criteria` は**どこからも呼ばれておらず**（grep で確認）、
+> 下記「非対応（書いたら実行前 lint で停止・S5）」の**ネスト段数上限・`extends` 先の存在・`override` の値域**は
+> **実行時に強制されていない**。記法の規定としては有効だが、「**書いたら止まる**」は現時点で成立しない
+> → [Q26](../dashboard.md#未決事項決めないと進めない論点)。
 > 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
 
 ## 設計の出発点：情報の「読み手」から決める
