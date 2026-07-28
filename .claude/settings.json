@@ -11,12 +11,12 @@
         ]
       },
       {
-        "matcher": "mcp__agy__antigravity_.*",
+        "matcher": "mcp__agy__.*",
         "hooks": [
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/agy-workspace-guard.sh",
-            "timeout": 15,
+            "timeout": 25,
             "statusMessage": "agy workspace を Windows 絶対パスへ正規化中"
           }
         ]
