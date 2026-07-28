@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,7 +25,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HOOK = ROOT / ".claude" / "hooks" / "agy-workspace-guard.sh"
 _HAS_BASH = shutil.which("bash") is not None
-_HAS_WSLPATH = shutil.which("wslpath") is not None
+
+# wslpath は WSL にしか無いが、主要な回帰（入力全保持・権限判断不返却・変換の往復・
+# 未知ツール deny）を WSL 以外の CI で skip すると守れない。実物が無ければ **同じ規則の
+# 代替を PATH に差し込んで**全環境で回す（Codex 再レビュー MEDIUM: 環境依存 skip）。
+_FAKE_WSLPATH = r"""#!/usr/bin/env python3
+import sys
+flag, path = sys.argv[1], sys.argv[2]
+if flag == "-w":
+    if path.startswith("/mnt/") and len(path) > 6:
+        d = path[5]; sys.stdout.write(d.upper() + ":\\" + path[7:].replace("/", "\\"))
+    else:
+        sys.stdout.write("\\\\wsl.localhost\\Ubuntu" + path.replace("/", "\\"))
+else:
+    p = path.replace("\\", "/")
+    if p.startswith("//wsl.localhost/Ubuntu"):
+        sys.stdout.write(p[len("//wsl.localhost/Ubuntu"):] or "/")
+    elif len(p) > 1 and p[1] == ":":
+        sys.stdout.write("/mnt/" + p[0].lower() + p[2:])
+    else:
+        sys.stdout.write(p)
+sys.stdout.write("\n")
+"""
+
+_shim_dir = None
+
+
+def setUpModule():
+    """wslpath が無い環境では代替を用意し、PATH の先頭に差す。"""
+    global _shim_dir
+    if shutil.which("wslpath"):
+        return
+    _shim_dir = tempfile.mkdtemp(prefix="wslpath_shim_")
+    shim = Path(_shim_dir) / "wslpath"
+    shim.write_text(_FAKE_WSLPATH, encoding="utf-8")
+    shim.chmod(0o755)
+    os.environ["PATH"] = f"{_shim_dir}{os.pathsep}{os.environ['PATH']}"
+
+
+def tearDownModule():
+    if _shim_dir:
+        shutil.rmtree(_shim_dir, ignore_errors=True)
 
 
 def run_guard(payload):
@@ -95,7 +136,6 @@ class TestDeny(unittest.TestCase):
             self._deny_reason(ask(workspace="/home/__no_such_dir_for_test__", prompt="x")),
         )
 
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_nonexistent_windows_directory_is_denied(self):
         # 旧版は Windows 形式なら無検証で通していた。`C:\home\...` はブリッジ側 makedirs が
         # 作ってしまう典型なので、ここで止める。
@@ -163,7 +203,6 @@ class TestDeny(unittest.TestCase):
 
 @unittest.skipUnless(_HAS_BASH, "bash が必要")
 class TestAllow(unittest.TestCase):
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_existing_windows_path_passes_unchanged(self):
         win = subprocess.run(
             ["wslpath", "-w", str(ROOT)], capture_output=True, text=True, check=True
@@ -172,7 +211,6 @@ class TestAllow(unittest.TestCase):
             run_guard(ask(workspace=win, prompt="x")), "既に正しい値は書き換えないこと"
         )
 
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_linux_path_is_converted(self):
         out = expect_decision(ask(workspace=str(ROOT), prompt="x"))
         converted = out["updatedInput"]["workspace"]
@@ -186,7 +224,6 @@ class TestAllow(unittest.TestCase):
         ).stdout.strip()
         self.assertEqual(os.path.realpath(back), os.path.realpath(str(ROOT)))
 
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_updated_input_preserves_all_other_fields(self):
         """BLOCKER 回帰: updatedInput が workspace だけだと prompt が失われうる。"""
         out = expect_decision(
@@ -197,7 +234,6 @@ class TestAllow(unittest.TestCase):
         self.assertEqual(updated["timeout_s"], 180)
         self.assertIs(updated["watch"], False)
 
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_normalization_does_not_decide_permission(self):
         """正規化はフックの仕事だが、許可判断は通常フローに委ねる（"defer" 相当）。"""
         out = expect_decision(ask(workspace=str(ROOT), prompt="x"))
@@ -205,7 +241,6 @@ class TestAllow(unittest.TestCase):
             "permissionDecision", out, "正規化時に許可判断を握らないこと（権限境界を動かさない）"
         )
 
-    @unittest.skipUnless(_HAS_WSLPATH, "wslpath が必要（WSL 環境のみ）")
     def test_swarm_antigravity_task_is_converted_and_keeps_siblings(self):
         out = expect_decision(
             swarm(
@@ -223,13 +258,69 @@ class TestAllow(unittest.TestCase):
         self.assertEqual(task["model"], "M")
         self.assertEqual(task["backend"], "antigravity")
 
-    def test_swarm_non_antigravity_task_value_is_not_rewritten(self):
-        """codex 等が Windows 形式を期待するかは未検証。存在確認だけして値は触らない。"""
+    def test_other_backend_windows_path_passes_unchanged(self):
+        """契約未検証のバックエンドでも、既に Windows 絶対パスなら触らず通す。"""
         self.assertIsNone(
             run_guard(
-                swarm({"backend": "codex", "prompt": "x", "workspace": str(ROOT)})
+                {
+                    "tool_name": "mcp__agy__codex_ask",
+                    "tool_input": {"workspace": r"C:\Users", "prompt": "x"},
+                }
             )
         )
+
+
+@unittest.skipUnless(_HAS_BASH, "bash が必要")
+class TestFailClose(unittest.TestCase):
+    """検査できなかったときに素通しさせない（Codex 再レビュー BLOCKER）。
+
+    非0終了は exit 2 以外ツール実行を止めないため、フックが落ちた・固まった場合に
+    deny を返せないと、検証されていない入力のままツールが走ってしまう。
+    """
+
+    def _run_with_fake_python(self, script):
+        d = tempfile.mkdtemp(prefix="fakepy_")
+        try:
+            fake = Path(d) / "python3"
+            fake.write_text(script, encoding="utf-8")
+            fake.chmod(0o755)
+            env = dict(os.environ, PATH=f"{d}{os.pathsep}{os.environ['PATH']}")
+            r = subprocess.run(
+                [str(HOOK)], input=json.dumps(ask(prompt="x")), text=True,
+                capture_output=True, check=True, env=env,
+            )
+            return json.loads(r.stdout)["hookSpecificOutput"]
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_interpreter_crash_is_denied(self):
+        out = self._run_with_fake_python("#!/bin/sh\nexit 3\n")
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertIn("異常終了", out["permissionDecisionReason"])
+
+    def test_interpreter_hang_is_denied(self):
+        out = self._run_with_fake_python("#!/bin/sh\nsleep 60\n")
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertIn("期限", out["permissionDecisionReason"])
+
+
+@unittest.skipUnless(_HAS_BASH, "bash が必要")
+class TestUnknownTool(unittest.TestCase):
+    def test_unknown_agy_tool_is_denied(self):
+        """将来 workspace を取るツールが増えたとき、列挙漏れで素通ししない。"""
+        out = expect_decision({"tool_name": "mcp__agy__future_tool", "tool_input": {"foo": 1}})
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertIn("未知", out["permissionDecisionReason"])
+
+    def test_other_backend_linux_path_is_denied(self):
+        """契約未検証のバックエンドに Linux パスを渡したら、推測変換せず deny する。"""
+        out = expect_decision(
+            {
+                "tool_name": "mcp__agy__codex_ask",
+                "tool_input": {"workspace": str(ROOT), "prompt": "x"},
+            }
+        )
+        self.assertEqual(out["permissionDecision"], "deny")
 
 
 if __name__ == "__main__":

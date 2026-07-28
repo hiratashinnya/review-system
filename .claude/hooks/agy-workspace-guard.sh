@@ -46,29 +46,61 @@
 
 set -uo pipefail
 
-payload_file="$(mktemp)"
-trap 'rm -f "$payload_file"' EXIT
-cat >"$payload_file"
+# fail-close の外殻（Codex 再レビュー BLOCKER）。
+# 非0終了は exit 2 以外ツール実行を止めないため、python が落ちる・見つからない・期限超過しても
+# ここで必ず deny JSON に正規化する。これが無いと、検査できなかったときに元の入力のまま実行される。
+INNER_DEADLINE=10   # python 側の総期限（秒）。settings.json の timeout はこれより長くすること
+MAX_BYTES=1048576   # 1MiB を超える payload は読まない（過大入力の歯止め）
 
-python3 - "$payload_file" <<'PYEOF'
+emit_deny() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$1"
+  exit 0
+}
+
+payload_file="$(mktemp 2>/dev/null)" || emit_deny '"agy-workspace-guard: 一時ファイルを作成できず検査不能（fail-close）"'
+trap 'rm -f "$payload_file"' EXIT
+head -c "$MAX_BYTES" >"$payload_file" || emit_deny '"agy-workspace-guard: ペイロードを読めず検査不能（fail-close）"'
+
+out="$(timeout "$INNER_DEADLINE" python3 - "$payload_file" <<'PYEOF'
 import json
 import os
 import re
 import subprocess
 import sys
 
+# ツールを明示的に分類する。未知のツールは素通しさせない（Codex 再レビュー MEDIUM）。
+# 将来 agy に workspace を取るツールが増えたとき、列挙漏れが cwd フォールバックの再発に
+# ならないよう、既知の「workspace を取らないツール」だけを allowlist にする。
+
 # workspace(単数・文字列) を必須にするツール。省略するとサーバ cwd へ落ちる。
+# codex/copilot/cursor も同じブリッジの Windows Python abspath を通る
+# （codex_bridge.py: os.path.abspath(ws) if ws else os.getcwd()）ため同じ穴を持つ。
 SINGLE_WS_REQUIRED = {
     "mcp__agy__antigravity_ask",
     "mcp__agy__antigravity_continue",
     "mcp__agy__antigravity_image",
+    "mcp__agy__codex_ask",
+    "mcp__agy__codex_continue",
+    "mcp__agy__copilot_ask",
+    "mcp__agy__copilot_continue",
+    "mcp__agy__cursor_ask",
+    "mcp__agy__cursor_continue",
 }
 # workspaces(配列) を必須にするツール。省略すると「先頭 workspace かサーバ cwd」へ落ちる。
 LIST_WS_REQUIRED = {"mcp__agy__antigravity_image_swarm"}
 # tasks[].workspace を必須にするツール。
 TASKS_WS_REQUIRED = {"mcp__agy__agent_swarm"}
+# workspace を取らない既知ツール（素通しを許す唯一の集合）。
+NO_WS_TOOLS = {
+    "mcp__agy__antigravity_status",
+    "mcp__agy__codex_status",
+    "mcp__agy__copilot_status",
+    "mcp__agy__cursor_status",
+}
 
-# 値を Windows 形式へ変換してよいバックエンド（agent_swarm の tasks[].backend）。
+# Windows 形式への自動変換を行ってよいバックエンド。antigravity は実測で契約を確認済み
+# （--add-dir に UNC を渡して repo を読めることを確認）。他バックエンドはパス契約が未検証
+# なので**変換せず、Windows 絶対パスで来ていなければ deny する**（推測で変換しない）。
 NORMALIZABLE_BACKENDS = {"antigravity", "agy", "gemini"}
 
 WINDOWS_ABS = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
@@ -148,8 +180,14 @@ def normalize_workspace(value, label, *, convert):
         raise Deny(f"{label} のディレクトリが存在しない: {value}")
 
     if not convert:
-        # 変換の妥当性が未検証なバックエンド。実在は確かめたが値は触らない。
-        return value
+        # パス契約が未検証なバックエンド。Linux 絶対パスのまま通すと、ブリッジの
+        # Windows abspath 解決で C:\home\... 等に化ける（antigravity と同じ事故）。
+        # 推測で変換もしないので、ここは deny して呼び出し側に明示させる。
+        raise Deny(
+            f"{label} が Windows 絶対パスでない: {value}。"
+            "このバックエンドのパス契約は未検証のため自動変換しない。"
+            "`wslpath -w` で得た Windows 絶対パスを明示的に渡すこと。"
+        )
 
     converted = _wslpath("-w", value)
     if not WINDOWS_ABS.match(converted):
@@ -169,7 +207,8 @@ def handle_single(tool_input, tool_name):
                 "（例: /home/hiras/ws_claude/review-system。Windows 形式へは自動変換する）。"
             )
         return None
-    return normalize_workspace(raw, "workspace", convert=True)
+    convert = tool_name.startswith("mcp__agy__antigravity_")
+    return normalize_workspace(raw, "workspace", convert=convert)
 
 
 def handle_list(tool_input, tool_name):
@@ -247,10 +286,14 @@ def main():
             emit_deny(f"{tool_name} の tool_input を検査できないため拒否した。")
         sys.exit(0)
 
-    # 検査対象キーを1つも持たず、必須ツールでもない（status / models 等）なら素通し。
-    touches_ws = any(k in tool_input for k in ("workspace", "workspaces", "tasks"))
-    if tool_name not in enforced and not touches_ws:
-        sys.exit(0)
+    if tool_name in NO_WS_TOOLS:
+        sys.exit(0)  # workspace を取らないと分かっている既知ツールだけ素通し
+    if tool_name not in enforced:
+        emit_deny(
+            f"{tool_name} は本ゲートの分類表に無い未知の agy ツール。"
+            "workspace を取るかどうか判定できないため拒否した（fail-close）。"
+            "ツールを追加したら .claude/hooks/agy-workspace-guard.sh の分類表を更新すること。"
+        )
 
     updated = dict(tool_input)  # 全フィールドを保持したまま該当キーだけ差し替える
     changed = False
@@ -284,3 +327,15 @@ except SystemExit:
 except Exception as exc:  # 予期せぬ例外で素通しさせない（fail-close）
     emit_deny(f"検査中に予期せぬエラー: {type(exc).__name__}: {exc}")
 PYEOF
+)"
+rc=$?
+
+if [ "$rc" -eq 124 ]; then
+  emit_deny '"agy-workspace-guard: 検査が内部期限を超過したため拒否（fail-close）"'
+elif [ "$rc" -ne 0 ]; then
+  emit_deny "\"agy-workspace-guard: 検査プロセスが異常終了 (exit $rc) のため拒否（fail-close）\""
+fi
+
+# python が判定を出したときだけそれを返す（無出力＝素通し）
+[ -n "$out" ] && printf '%s\n' "$out"
+exit 0

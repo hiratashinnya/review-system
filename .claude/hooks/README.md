@@ -299,10 +299,13 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 
 ## 許可判断は握らない
 
-正規化時は **`permissionDecision` を返さない**。公式スキーマ上これは `"defer"` と同等で、
-`updatedInput` だけが適用され、許可判断は通常の permission フローにそのまま委ねられる
-(= フックが無い場合と同じ)。**フックが権限境界を広げも狭めもしない。** `deny` だけが例外で、
-これは意図的なゲート。
+正規化時は **`permissionDecision` を返さない**（= no decision）。このとき `updatedInput` だけが
+適用され、許可判断は**通常の permission フロー**にそのまま委ねられる (= フックが無い場合と同じ)。
+**フックが権限境界を広げも狭めもしない。** `deny` だけが例外で、これは意図的なゲート。
+
+> ⚠️ **明示的な `"defer"` を返すこととは別物**（Codex 再レビュー指摘）。本フックは
+> `permissionDecision` フィールド自体を出力しない。「省略＝defer と同等」と書くと、
+> `updatedInput` の扱いまで同じだと誤読されるので、そう書かないこと。
 
 `updatedInput` には **`tool_input` 全体を複製して該当フィールドだけ差し替えたもの**を返す。
 公式スキーマは `updatedInput` を "partial, merged" と説明するが全置換と解釈する資料もあり、
@@ -310,9 +313,15 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 
 ## 対象外(意図的)
 
-- `codex_*` / `copilot_*` / `cursor_*`: 同じブリッジだが、それらが Windows 形式を期待するかは**未検証**のため
-  値を書き換えない。`agent_swarm` の非 antigravity バックエンドも同様で、**workspace の存在だけ要求し変換はしない**
-  (過度な一般化を避ける)。
+- `codex_*` / `copilot_*` / `cursor_*` と `agent_swarm` の非 antigravity バックエンド：
+  これらも**同じ Windows Python の abspath 解決を通る**（`codex_bridge.py` の
+  `os.path.abspath(ws) if ws else os.getcwd()`）ため、**同じ誤解決の穴を持つ**。
+  ただしそれらの CLI が Windows 形式を期待するかは**未検証**なので、**推測で変換はしない**。
+  代わりに**Windows 絶対パスで来ていなければ deny** し、呼び出し側に明示させる
+  (当初は「存在確認だけして値は触らない」としていたが、それでは Linux パスがそのまま
+  ブリッジへ渡り同じ事故が起きる・Codex 再レビュー HIGH)。
+- **未知の agy ツールは deny**。workspace を取らないと分かっている既知ツール
+  (`*_status`) だけを allowlist で素通しする。ツールが増えたら分類表を更新すること。
 - **TOCTOU**: 本フックの検査は agy 起動の**数秒前・別プロセス**なので、その間にディレクトリが消える/差し替わる可能性は残る。
   ただしブリッジ側のローカルパッチで **`os.makedirs(workspace, exist_ok=True)` を全廃**し
   （`_require_workspace()` が存在しなければ例外を投げる）、**「消えていたら空で作り直して走る」経路は無くなった**。
@@ -323,5 +332,6 @@ agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `worksp
 
 ## テスト
 
-`tests/unit/test_agy_workspace_guard.py`(22 ケース)。スコープ絞り込み(過剰拒否しないこと)・
-deny 条件・自動変換の3群。`wslpath` を要するケースは WSL 以外では skip。
+`tests/unit/test_agy_workspace_guard.py`(26 ケース)。スコープ絞り込み(過剰拒否しないこと)・
+deny 条件・自動変換・**fail-close**(インタプリタのクラッシュ/ハング)・**未知ツール**の5群。
+`wslpath` が無い環境では同じ規則の代替を PATH に差し込むので、**WSL 以外でも全ケース実行される**。
