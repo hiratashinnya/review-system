@@ -13,13 +13,6 @@
 > → [Q26](../dashboard.md#-未決事項決めないと進めない論点)。
 > 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
 
-> A1「評価基準ファイルのスキーマを実際に書く」の成果物。
-> **🟢 確定**（2026-07-27・[A1](../dashboard.md#-ネクストアクション次にやる候補)）：本仕様は叩き台段階を終え、**MVP 実装がこれに準拠**している。
-> 準拠する実装＝`review_system/parsing/frontmatter.py`（Q5a 自前 mini-YAML パーサ）・`review_system/parsing/lint.py`（S5 事前 lint）・
-> `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。いずれもテスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
-> policy 記法は [Q24 決定＝A（パーサ拡張：引用キー `"*"` ＋3段ブロックネスト・フロー非対応）](../dashboard.md)／[DD16](../design/decisions.md) を反映済み。
-> 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
-
 ## 設計の出発点：情報の「読み手」から決める
 
 基準ファイルは3者に読まれる。求める形が違うので、**層を分ける**。

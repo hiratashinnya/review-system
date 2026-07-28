@@ -1,17 +1,16 @@
 # 07. AI 入力設計（レビュー時の LLM 入出力）
 
-> **🟢 確定・MVP 実装準拠**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）：本書の入出力契約は確定し、**MVP 実装がこれに準拠**している。
-> 準拠する実装＝`review_system/core/evaluate.py`（④評価＋⑤契約検証）・`review_system/ports/platform.py`（`PlatformPort` 契約＝PF 差し替え可）・
-> `review_system/prompts/registry.py`（プロンプト雛形と版＝S6 版スタンプ）。テスト＝`tests/unit/test_pipeline_e2e.py`（`FakePlatformAdapter` で決定化）。
-
 > **🟢 契約は確定**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）：本書の入出力契約は確定し、
 > 実装の骨格＝`review_system/core/evaluate.py`（④評価＋⑤検証）・`review_system/ports/platform.py`（`PlatformPort` 契約）・
 > `review_system/prompts/registry.py`（プロンプト雛形と版＝S6 版スタンプ）がこれに沿っている。
 >
-> ⚠️ **「実装準拠」と言い切れない範囲（2026-07-28・Codex 第二意見レビュー指摘）**：本書の JSON 例は `suggested_fix` を文字列で示すが、
-> 実装の型は `SuggestedFix{description, diff}`（`domain/review.py`）で**表記が一致していない**。また e2e テストは
-> `FakePlatformAdapter` 経由で決定化されており、**実 JSON を通した入出力契約の検証にはなっていない**
-> → [Q26](../dashboard.md#-未決事項決めないと進めない論点)。
+> 実 JSON を通した契約検証もある：`tests/unit/test_cli_p2.py`（`FilePlatformAdapter` が `findings.json` を実際にパースし、
+> `suggested_fix.diff` まで検証。CLI 経由で `--findings f.json` を適用まで通す経路も同ファイルにある）。
+>
+> 📝 **2026-07-28 訂正**：本書の JSON 例は `suggested_fix` を**文字列**で示しており、実装の型
+> `SuggestedFix{description, diff}`（`domain/review.py`）と食い違っていた（Codex 第二意見レビュー指摘）。
+> **本 PR で例をオブジェクト形式へ修正済み**。当初これを「実 JSON の契約検証が無い」と記載したが**それは誤り**で、
+> 上記のとおり検証は存在する。誤った記述は Q26 からも撤回した。
 
 レビュー実行時に LLM へ「何を渡し・何を返させるか」の設計。これが MVP の中核。
 対象は**役割①レビュー時の LLM**（文書＋合成基準 → 指摘）。役割②（合成前の本文矛盾チェック）は
@@ -55,7 +54,7 @@ LLM の仕事は **「観点違反の発見＋`rule id` 付与＋修正原案」
       "location": { "file": "src/UserCard.tsx", "line_range": [1, 1] },
       "quote": "function userCard() {",
       "rationale": "コンポーネントが camelCase。PascalCase にすべき。",
-      "suggested_fix": "function UserCard() {"
+      "suggested_fix": { "description": "PascalCase へ改名", "diff": "-function userCard() {\n+function UserCard() {\n" }
     }
   ],
   "unmatched": [
