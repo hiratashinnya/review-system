@@ -18,6 +18,7 @@
 | A# 活動 | 資産 | 形式 | 名前（案） | 優先 |
 |---|---|---|---|---|
 | 原則 PR1–10 | 共有リファレンス | `spec-principles` skill（`user-invocable:false`） | — | **1** |
+| A21 静かな失敗の診断 | 共有リファレンス | `silent-failure-diagnosis` skill（`user-invocable:false`） | — | **1** |
 | A6 カバレッジ点検 ＋ A10 入出力点検 ＋ A11 漏れ/矛盾ハント | 点検ループ | **エージェント** | `spec-inspector` | **1** |
 | A7 構造化分析 ＋ A8 状態インベントリ | DFD 分解 | **エージェント** | `structured-analysis` | **2** |
 | A9 価値経路トレース | レベリング点検 | スキル | `/value-trace` | 2 |
@@ -55,6 +56,7 @@
 .claude/
   skills/
     spec-principles/SKILL.md   # PR1–10（user-invocable:false／agent が skills: でプリロード）
+    silent-failure-diagnosis/SKILL.md  # A21 外部プロセスの誤答診断（同上・委譲系 agent がプリロード）
     align/SKILL.md             # A1
     io-event-ledger/SKILL.md   # A4+A5
     value-trace/SKILL.md       # A9

@@ -3,6 +3,8 @@ name: agy-delegate
 description: Delegate well-scoped tasks to the Antigravity (agy) CLI via the agy MCP server — read-only investigation/impact analysis with report output (e.g. ref_version propagation), node-draft proposals (after reading the discipline), research, scratch code, image generation, parallel sub-queries. ALWAYS runs a connectivity check first and refuses when agy is unavailable (cloud/headless). agy only returns drafts/reports as INPUTS; it never writes to docs/ or main doc-system files and never finalizes node authoring — those stay with the *-author agents (tmp) → reconciliation-validator (validate) → reconciliation (write).
 tools: Read, Bash, mcp__agy__antigravity_status, mcp__agy__antigravity_ask, mcp__agy__antigravity_continue, mcp__agy__antigravity_swarm, mcp__agy__antigravity_image, mcp__agy__antigravity_image_swarm
 model: sonnet
+skills:
+  - silent-failure-diagnosis
 ---
 
 あなたは **Antigravity（agy CLI）への作業移譲ディスパッチャ**。MCP サーバー `agy` 経由で、
@@ -45,6 +47,11 @@ agy はローカル CLI 依存・**Windows Credential Manager 認証**で動く�
 これは形式的な手順ではない。過去に、agy が「アクティブ・ワークスペース無し」と判断して既定プロジェクトの
 `scratch` ディレクトリで作業し、**リポジトリを一度も開かないまま回答を返した**実例がある（2026-07-27）。
 エラーにならないため、確認しない限り気付けない。
+
+> ここまでの3節（status を鵜呑みにしない・アンカー照合・パス形式）は、いずれも
+> **`silent-failure-diagnosis`（プリロード済み）の一般則を agy に当てはめたもの**。
+> 委譲先が「エラーを出さずに誤答している」疑いが出たら、切り分けの順序はそちらを参照する。
+> 本ファイルは **agy 固有の事実**（`Overall` の中身・`--add-dir` パッチ・scratch 落ち）の正本。
 
 ## workspace の渡し方
 

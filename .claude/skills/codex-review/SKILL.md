@@ -46,6 +46,9 @@ ERROR: This content was flagged for possible cybersecurity risk. … https://cha
 - critical 候補は**最終集約が flag される前に中間発話として出ている**ので、**この rollout jsonl を読めば回収できる**
   （＝「最終応答が確認できずトランスクリプトを読んだ」の実体）。直近セッションは日付ディレクトリで探す。
 
+> これは `silent-failure-diagnosis` の一般則 **D5「永続ログ・履歴を当たる」** の Codex 版。
+> 委譲先が「エラーを出さずに誤答・空応答している」疑いが出たら、切り分けの順序はそちらを参照する。
+
 ### 正攻法（当面は使わない）
 - OpenAI の Trusted Access for Cyber 登録でセキュリティ作業として通せるが、**無課金方針・オーナー認可が対象**
   （CLAUDE.md コスト方針）。当面は上の「防御形式言い換え＋rollout 回収」で回す。
