@@ -33,6 +33,11 @@ flowchart LR
 ```
 
 > `m3 基準編集`は**系外＝非イベント**（[PR3](../methods/method-inventory.md)・[Q15](../dashboard.md)）。CLI の口にしない。検査は合成時に毎回（[04 lint](04-platform-protocol.md)/P2）。
+>
+> ⚠️ **「検査は合成時に毎回」は要件（S5）・将来設計としての規定であり、現状の挙動ではない**（2026-07-29 是正）。
+> 合成時ロード（`persistence/criteria_repo.py`）は `parsing/lint.py` の `lint_criteria` を**呼んでおらず**、
+> `reviewer criteria lint`（下表）も**未実装**＝**未結線**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
+> なお O-9（方向/矛盾/衝突/locked の合成時警告）は**別物で、F11＝post-MVP**（[12-mvp-scope](../requirements/12-mvp-scope.md)）。
 
 ## CLI サーフェス（サブコマンド一覧）
 
@@ -119,6 +124,7 @@ reviewer feedback|decide|approve  report.html   ─▶  HTML から review_id �
 - コマンドの**引数はレポートのパスだけ**。対象 finding 群はレポート＋feedback.json から復元（id 入力ゼロ）。
 - UI はブラウザに委譲（チェックボックス/フォーム）。系は **HTML＋クライアント JS を生成するだけ**（サーバレス・stdlib）。
 - ✋衝突（同一 location）は従来どおり適用時に解決（[05 DS3](05-persistence.md)）。一括適用でも finding 単位コミットは不変（[S4](../requirements/13-stabilization.md)）。
+  ⚠️ **実装状況（2026-07-29）**：衝突解決は**未実装**で、衝突単位も「同一 location」では不足（全内容 fix のため**同一ファイル**で後勝ち上書きが起きる）＝[Q27](../dashboard.md#-未決事項決めないと進めない論点)。
 
 ## 入力台帳との対応（[05 I/O](../requirements/05-io-overview.md) の正準番号に整合）
 

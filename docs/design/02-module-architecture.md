@@ -105,7 +105,7 @@ tests/               # ④ 証跡（test-strategy のテーラリング先）
 | S3 fail-close | `domain/result` の `StageOutcome` ＋ `core/pipeline` が段ごとに分岐 |
 | S4 トランザクション | `persistence/workspace_git`（finding 単位コミット・失敗時書込ゼロ） |
 | S5 事前 lint | `parsing/lint`（parser＝検証器）⚠️ **`lint_criteria` は本番経路から呼ばれていない**＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)。実効なのは `parsing/frontmatter` の構文検査と `persistence/criteria_repo` の Enum 変換だけ |
-| S6 版スタンプ | `io/cli` 合成ルートで採取し `ReviewReport.stamp` に注入 |
+| S6 版スタンプ | `core/pipeline`（`run_review`・`core/pipeline.py:65-83`）が `ProvenanceStamp` を構築し `ReviewReport.stamp` へ注入。素材は `prompts/registry.REVIEW_VERSION`（雛形版）・`compose.content_hash`（基準ハッシュ）・`platform.capabilities()`（PF/モデル id）・`deps.now()`（実行時刻）。`io/cli` の合成ルートが担うのは**素材の供給**（`Deps.now`・PF アダプタの結線）だけで、**構築・注入は core 側**（2026-07-29 是正） |
 
 ## 実行・インポート規約（`sys.path` を触らない理由）
 

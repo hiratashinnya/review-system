@@ -1,11 +1,30 @@
 # 07. AI 入力設計（レビュー時の LLM 入出力）
 
-> **🟢 契約は確定**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）：本書の入出力契約は確定し、
-> 実装の骨格＝`review_system/core/evaluate.py`（④評価＋⑤検証）・`review_system/ports/platform.py`（`PlatformPort` 契約）・
-> `review_system/prompts/registry.py`（プロンプト雛形と版＝S6 版スタンプ）がこれに沿っている。
+> **🟢 契約（本書が定める入出力の形）は確定**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）。
+> ただし**契約の確定と、それを強制する実装の存在は別物**なので、実装済み範囲を以下に限定して読むこと
+> （2026-07-29 Codex 第4巡レビュー指摘・過大表示の是正）。
 >
-> 実 JSON を通した契約検証もある：`tests/unit/test_cli_p2.py`（`FilePlatformAdapter` が `findings.json` を実際にパースし、
-> `suggested_fix.diff` まで検証。CLI 経由で `--findings f.json` を適用まで通す経路も同ファイルにある）。
+> **実装済み（＝コードで動く範囲）**：
+> - **有効な findings JSON の受理**：`adapters/file_platform.py` の `FilePlatformAdapter` が
+>   `--findings <path>` の JSON を `json.loads` し、下記スキーマの形をドメイン型
+>   （`Finding`/`UnmatchedFinding`/`SuggestedFix{description, diff}`）へ写像する。
+> - **単一 fix の全内容上書き**：`core/apply.py` の `apply_auto` が 🤖 区分の `suggested_fix.diff` を
+>   `persistence/workspace_git.py` の `commit_fix`（`write_text`）へ渡し、対象ファイルを**丸ごと置換**する。
+> - **契約検証テスト**：`tests/unit/test_cli_p2.py` が `FilePlatformAdapter` で実 JSON をパースし
+>   `suggested_fix.diff` まで検証し、CLI 経由で `--findings f.json` を適用まで通す。
+>
+> **未実装（＝本書の記述は要件/設計であって、現状それを保証する制御は無い）**：
+> - **プロンプト雛形そのものが無い**。`prompts/registry.py` は `TEMPLATE_VERSIONS`／`REVIEW_VERSION` の
+>   **版定数だけ**で、下記「入力の構成」の役割文・観点パック・出力スキーマ指定を組み立てる**ビルダーが存在しない**。
+> - **入力を渡す経路が無い**。`FilePlatformAdapter.review(pack, targets, references)` は
+>   3引数を**いずれも使わず**、あらかじめ人手/Claude が書いた JSON を読むだけ（＝PF 駆動 MVP の実体・[DD8](../design/decisions.md)）。
+>   したがって「routing 用メタを入力に載せない」「`rule_id` を与えた集合から選ばせる」等は
+>   **プロンプト側の規律**であって、コードが強制しているわけではない。
+> - **`suggested_fix.diff` が本当に「修正後ファイルの全内容」かを検査する制御が無い**。
+>   受け取った文字列をそのまま全上書きするため、部分断片が来ればファイルはその断片で置き換わる。
+>   テストも「文字列が読めること」までで、**全内容であることの検証はしていない**。
+> - **同一ファイルに複数 finding があるときの衝突検出・統合が無い**（後勝ち上書き）＝
+>   [Q27](../dashboard.md#-未決事項決めないと進めない論点)。
 >
 > 📝 **2026-07-28 訂正**：本書の JSON 例は `suggested_fix` を**文字列**で示しており、実装の型
 > `SuggestedFix{description, diff}`（`domain/review.py`）と食い違っていた（Codex 第二意見レビュー指摘）。

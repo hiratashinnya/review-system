@@ -99,7 +99,7 @@
 | `finding_id FindingId` | `{ rule_id RuleId + location Location }`（revert/コミット粒度） | 導出（決定的キー） | [02 P5](../process/02-decomposition.md) / [Q3](../dashboard.md) |
 | `確定fix ResolvedFix` | `{ finding_id + 生成元(tool\|llm) + diff }`（`diff` の意味は `SuggestedFix` と同じ＝**MVP は修正後ファイルの全内容**） | 導出 | [02 P5.1](../process/02-decomposition.md) |
 | `適用コミット AppliedCommit` | `{ finding_id + commit参照 + 適用時刻 }`（DS3 finding-commit） | **状態（DS3・永続）** | [process/03](../process/03-state-inventory.md) / [Q3](../dashboard.md) |
-| `衝突群 FixConflict` | `{ location + 競合する確定fix{} }`（同一箇所） | 導出 | [02 P5.2](../process/02-decomposition.md) / [Q20](../dashboard.md) |
+| `衝突群 FixConflict` | `{ location + 競合する確定fix{} }`（同一箇所）⚠️ **未実装**。`diff`＝全内容のため衝突単位は**同一ファイル**まで要拡張＝[Q27](../dashboard.md#-未決事項決めないと進めない論点) | 導出 | [02 P5.2](../process/02-decomposition.md) / [Q20](../dashboard.md) |
 | `評価レポート ReviewReport` | `{ auto済{} + ✋diff{} + 💬原案{} + ❓未分類{} + サマリ + 版スタンプ }` | 導出（O-1） | [02 P5.3](../process/02-decomposition.md) / [S6](../requirements/13-stabilization.md) |
 | `サマリ ReportSummary` | `{ 区分別件数 + 適用件数 + revert可否 }` | 導出 | [02 P5.3](../process/02-decomposition.md) |
 | `revert要求 RevertRequest` | `{ 対象: finding_id \| 実行ID \| all }`（I-14 候補） | 導出 | [02 P5.4](../process/02-decomposition.md) / [G4](../process/04-gaps-found.md) |

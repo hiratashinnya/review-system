@@ -6,22 +6,50 @@
 > `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。テスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
 > policy 記法は [Q24 決定＝A（パーサ拡張：引用キー `"*"` ＋3段ブロックネスト・フロー非対応）](../dashboard.md)／[DD16](../design/decisions.md) を反映済み。
 >
-> ⚠️ **確定していない部分（2026-07-28 起票／2026-07-29 精緻化）**：本書が S5 として規定する検査は**一括では成立していない**。
+> ⚠️ **確定していない部分（2026-07-28 起票／2026-07-29 精緻化・第4巡で網羅化）**：本書が S5 として規定する検査は**一括では成立していない**。
 > `review_system/parsing/lint.py` の `lint_criteria` は**本番経路のどこからも呼ばれていない**（grep で確認）が、
-> 「何が効いていて何が効いていないか」は項目ごとに違う。**一括して「実行時に強制されない」と書くのは誤り**なので、
-> 以下のとおり4つに分けて読むこと（→ [Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
+> 「何が効いていて何が効いていないか」は項目ごとに違う。**一括して「実行時に強制されない」「必須キーが未結線」と書くのは誤り**なので、
+> 下表の**4分類**で読むこと（→ [Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
+>
+> **分類の定義**（「止まるか」と「S5/O-14 として止まるか」は別問題）
+>
+> | 記号 | 意味 |
+> |---|---|
+> | ✅ **統制された拒否** | 実行前/ロード時に**確実に止まる**。※ただし現状 O-14 形式ではない（後述） |
+> | ⛔ **未捕捉例外で拒否** | 止まりはするが、`KeyError`/`ValueError` が**そのままトレースバックとして表面化**する。lint 違反として集約されず、どのファイル・どの行が悪いかも示されない |
+> | ❌ **無検査で通過** | **検査が存在せず、不正な値がそのまま生きる**。動作は静かに変わる（＝最も危険） |
+> | 🕳 **黙って対象外/空扱い** | エラーにも警告にもならず、**その基準が評価から消える**（「網羅した」という偽の安心） |
+>
+> **criteria（`.md`）**
 >
 > | 検査項目 | 現状 | 実体 |
 > |---|---|---|
-> | **記法サブセット外**（フロー `{}`/`[]`・アンカー `&`/`*`・複数行 `\|`/`>`・タグ `!!`・マージ `<<`・複数ドキュメント・タブ/奇数インデント・閉じ `---` 欠落） | ✅ **実行前に拒否される**（パース時に `MiniYamlError`） | `parsing/frontmatter.py`（`_tokenize`/`_parse_scalar`/`_extract_body`） |
-> | **`override` / `severity` / `determinism` の値域** | ✅ **ロード時に拒否される**（Enum/辞書変換が `ValueError`/`KeyError`） | `persistence/criteria_repo.py:33-35`（`Determinism(...)`・`_SEVERITY[...]`・`OverrideRule(...)`） |
-> | **必須キー（`doc_type`/`scope`/`rules`・`rules[].id`）・`id` 一意性・`extends` 先の存在・`version` の MAJOR 対応** | ❌ **未結線**。`lint.py` に実装はあるが呼ばれない。`doc_type`/`scope` 欠落は `discover_criteria` の完全一致フィルタで**黙って対象外**、`rules` 欠落は**空扱い** | `parsing/lint.py`（テストからのみ呼ばれる）／`persistence/criteria_repo.py:58-69` |
+> | **記法サブセット外**（フロー `{}`/`[]`・アンカー `&`/`*`・複数行 `\|`/`>`・タグ `!!`・マージ `<<`・複数ドキュメント・タブ/奇数インデント・閉じ `---` 欠落） | ✅ **統制された拒否**（パース時に `MiniYamlError`・行番号つき） | `parsing/frontmatter.py`（`_tokenize`/`_parse_scalar`/`_extract_body`） |
+> | **`rules[].override` / `severity` / `determinism` の値域** | ⛔ **未捕捉例外で拒否**（`ValueError`/`KeyError`） | `persistence/criteria_repo.py:33-35`（`Determinism(...)`・`_SEVERITY[...]`・`OverrideRule(...)`） |
+> | **`rules[].id`・`determinism`・`severity`・`override` の“キー欠落”** | ⛔ **未捕捉例外で拒否**。ローダが `r["id"]` 等で**直接添字参照**するため `KeyError` になる（`lint.py` の「`rules[N]` に id が無い」メッセージには**ならない**） | `persistence/criteria_repo.py:31-37` |
+> | **`doc_type` / `scope` の欠落・typo** | 🕳 **黙って対象外**。`discover_criteria` が `fm.get("doc_type") == …` の完全一致で絞るため、**そのファイルは一致せず無言でスキップ**される | `persistence/criteria_repo.py:64-68` |
+> | **`rules` キーの欠落** | 🕳 **黙って空扱い**（`fm.get("rules") or []`）。当該ファイルの基準はゼロ件になる。※全ファイルが空なら `core/pipeline.py:45-47` が「基準がゼロ」で O-14 を返すが、**他に1件でも基準があれば気付けない** | `persistence/criteria_repo.py:30` |
+> | **`rules[].enabled` の型** | ❌ **無検査で通過**。`bool(r.get("enabled", True))` で**何でも真偽値に潰す**ため、`enabled: "false"`（引用された文字列）は **True** になる | `persistence/criteria_repo.py:36` |
+> | **`id` 一意性・`extends` 先の存在・`version` の MAJOR 対応** | ❌ **無検査で通過**。`lint.py` に実装はあるが**本番から呼ばれない**（テスト専用）。重複 id は後勝ち、`extends` はロード時に**参照すらされない**、未対応 MAJOR もそのまま読まれる | `parsing/lint.py:52-95`（未結線） |
 > | **マッピング入れ子の段数上限（4段以上を弾く）** | ❌ **検査自体が存在しない**。lint を結線しても効かない＝**新規実装が要る** | `frontmatter.py` は入れ子を**深さ任意**で読む（同ファイル docstring 明記） |
 >
-> さらに、上2行の「拒否される」は**未捕捉例外として上がる**だけで、S5 が求める **O-14 形式の通知にはなっていない**
-> （`core/pipeline.py` の `deps.load_criteria(...)` 呼び出しは try/except に包まれていない）。
-> つまり「**書いたら実行前に止まる**」は**記法違反と値域違反については成立**、
-> **必須キー/`extends`/段数については不成立**、**止まり方（O-14 明示）は全項目で未達**。
+> **policy（`.yaml`）** — こちらは **lint 関数そのものが存在しない**（`lint_policy` は未実装。`SUPPORTED_POLICY_MAJOR` は `reviewer version` の**表示にしか使われていない**・[08 §4](../design/08-logging-and-versioning.md)）
+>
+> | 検査項目 | 現状 | 実体 |
+> |---|---|---|
+> | **記法サブセット外** | ✅ **統制された拒否**（`MiniYamlError`。`.yaml` はファイル全体をパース） | `parsing/frontmatter.py` |
+> | **`matrix` の determinism トークン・`mode` の値域** | ⛔ **未捕捉例外で拒否**（`Determinism(...)`・`ApplicationMode(...)` が `ValueError`） | `persistence/criteria_repo.py:48-51` |
+> | **`matrix` 行の severity キー** | ❌ **無検査で通過**。`{sev: ApplicationMode(mode) …}` の `sev` は**生文字列のままキーになる**だけで語彙照合されない。typo（`erorr` 等）は `PolicyMatrix.resolve` で**引けず None** → S2 により黙って `HUMAN_ONLY` に倒れる（＝ポリシーが無視されたことに気付けない） | `persistence/criteria_repo.py:50`／`domain/policy.py:27` |
+> | **`overrides[].rule` / `.mode` のキー欠落** | ⛔ **未捕捉例外で拒否**（`o["rule"]`/`o["mode"]` の `KeyError`） | `persistence/criteria_repo.py:52-54` |
+> | **必須キー（`matrix`）の欠落** | 🕳 **黙って空扱い**（`fm.get("matrix") or {}`）。空マトリクスは `resolve` が全件 None を返し、**全指摘が黙って人間側へ倒れる** | `persistence/criteria_repo.py:48`／`domain/policy.py:24-27` |
+> | **`version` の MAJOR 対応** | ❌ **無検査で通過**。`load_policy_file` は `version` を**読みも検査もしない** | `persistence/criteria_repo.py:44-55` |
+>
+> さらに、上表の ⛔ は**未捕捉例外として上がる**だけで、S5 が求める **O-14 形式の通知にはなっていない**
+> （`core/pipeline.py` の `deps.load_criteria(...)`／`deps.load_policy(...)` 呼び出しは try/except に包まれていない）。
+> つまり「**書いたら実行前に止まる**」は**記法違反については統制された形で成立**、
+> **値域違反・必須キー欠落については「落ちる」だけで成立とは言えず**、
+> **`id` 一意性/`extends`/`version`/段数/`enabled` 型/policy severity 語彙については不成立（無検査）**、
+> **`doc_type`/`scope`/`rules`/`matrix` の欠落に至っては止まりすらしない（黙って消える）**。
 > 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
 
 ## 設計の出発点：情報の「読み手」から決める
