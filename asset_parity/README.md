@@ -67,11 +67,16 @@ tree), not a one-off documented carve-out:
 
 - `disable-model-invocation: true` (orchestrator skill) → Copilot mirror is a
   **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
-- `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
-  inlines it into `.github/copilot-instructions.md`; no discrete per-asset file is
-  expected there at all, so the cell is reported as `exempt` with a structural reason
-  string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
-  kind at all", e.g. Codex agents vs. `.agents/skills`).
+- `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → no
+  discrete per-asset Copilot file is expected at all, so the cell is reported as
+  `exempt` with a structural reason string (kept distinct from `n/a`, which means "this
+  tree doesn't apply to this asset kind at all", e.g. Codex agents vs. `.agents/skills`).
+  ⚠️ **`exempt` here does not assert the content was inlined.** The default routing
+  inlines such a skill into `.github/copilot-instructions.md`, but an asset may instead
+  be deliberately not deployed to Copilot at all (e.g. `silent-failure-diagnosis`, owner
+  decision 2026-07-28). This tool never reads inline content, so it cannot distinguish
+  them — the reason string stays neutral and points at the per-asset record in
+  `.claude/tailoring-registry.md`, which is the source of truth for which one applies.
 
 ## Module map
 

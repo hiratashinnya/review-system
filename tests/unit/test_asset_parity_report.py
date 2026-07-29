@@ -48,7 +48,10 @@ class TestBuildReport(unittest.TestCase):
     def test_principle_skill_github_is_structural_exempt(self):
         row = self.by_name[(SKILL, "principle-skill")]
         self.assertEqual(row.cells[GITHUB].status, STATUS_EXEMPT)
-        self.assertIn("inlined", row.cells[GITHUB].reason)
+        self.assertIn("no discrete Copilot file", row.cells[GITHUB].reason)
+        # 構造的 exempt は「inline 済み」を断定しない（inline 内容は検査しないため・非移植もありうる）。
+        # 判別は資産別の tailoring 記録が正本＝PR #260 R4-4。
+        self.assertIn(".claude/tailoring-registry.md", row.cells[GITHUB].reason)
         # agents_dir 側は普通に present（構造的例外は github だけに効く）
         self.assertEqual(row.cells[AGENTS_DIR].status, STATUS_PRESENT)
 

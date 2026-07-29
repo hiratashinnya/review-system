@@ -16,9 +16,14 @@ file form is expected, not whether one is:
 
   * `disable-model-invocation: true` (orchestrator, e.g. `/spec-pipeline`) → Copilot
     represents it as a **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
-  * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
-    inlines it into `.github/copilot-instructions.md`; there is no discrete per-asset
-    file at all, so this is reported as a structural N/A, not a MISSING.
+  * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → no
+    discrete per-asset Copilot file exists at all, so this is reported as a structural
+    `exempt`, not a MISSING. NOTE: "no discrete file" is all this tool can establish.
+    The default routing inlines such a skill into `.github/copilot-instructions.md`, but
+    an asset may instead be deliberately not deployed to Copilot (e.g.
+    `silent-failure-diagnosis`, owner decision 2026-07-28) — this tool never reads inline
+    content and cannot tell the two apart. Which one applies is recorded per asset in
+    `.claude/tailoring-registry.md`.
 
 Codex's `.agents/skills/` tree does not have this split (verified: orchestrator-mode
 skills like `asset-pipeline`/`spec-pipeline` and even the `user-invocable: false`
@@ -77,7 +82,10 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
         return [root / ".agents" / "skills" / asset.name / "SKILL.md"]
     if tree == GITHUB:
         if asset.mode == MODE_PRINCIPLE:
-            return []  # inlined into copilot-instructions.md — no discrete file expected
+            # No discrete Copilot file expected — either inlined into
+            # copilot-instructions.md or intentionally not deployed. Not checked here;
+            # see the asset's entry in .claude/tailoring-registry.md.
+            return []
         if asset.mode == MODE_ORCHESTRATOR:
             return [root / ".github" / "prompts" / f"{asset.name}.prompt.md"]
         return [root / ".github" / "skills" / asset.name / "SKILL.md"]
