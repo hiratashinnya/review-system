@@ -25,7 +25,7 @@ status: tailored (active) — derived from .claude/standards/test-strategy
 
 - 独立 SPEC ごとに `targets` 配列（`parent_id`＝対象 SPEC の slug・`kind: TD`・`brief`）で渡し、**並列著作**させる。
 - TC/TR は実装・実行が先行条件のため本 fan-out の対象外（TD 確定後、実装着手→コミット→テスト実行を経て別途 verification-author で個別に著作する）。
-- 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。
+- 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/verification-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラーは当該ファイルを Read して取る**。
 - 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
 - 対話が要る段（TD の condition と SPEC の不一致など矛盾の裁定）は主文脈に残す（DD-22 ①-C ハイブリッド）。
 

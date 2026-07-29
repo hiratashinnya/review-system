@@ -46,17 +46,21 @@ validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック
    - **その他の status 遷移（DD/Q/PEND の decided→closed 等）**：`git mv doc-system-v2/nodes/.../<type>/<old-status>/{slug}.{md,yaml} .../<new-status>/{slug}.{md,yaml}`（id=slug 不変ゆえ参照は壊れない・rename で履歴保持）。内容の版更新が伴う場合はサイドカーを Edit で z/内容バンプする。
 3. **全ファイルの書き込みが完了してから** `tmp/<sprint>/<parent-id>/` を削除する。
 
-### Step 4: 完了報告
+### Step 4: 完了報告（ハンドオフファイル経由）
 
-主文脈に以下を返す（slug 列で表す）：
+報告項目（layer / sprint / parent_id / written / applied_self_fix）は**チャットに並べず**、
+後述「ハンドオフ」規約に従って `tmp/_handoff/reconciliation--<parent-id>.yaml` に Write で書く（slug 列で表す）。
+`tmp/_handoff/` は Step 3-3 の削除対象（`tmp/<sprint>/<parent-id>/`）の外なので掃除で消えない。
+
+チャットに返すのは**パスと1行要約だけ**：
+
 ```
-DONE:
-  layer: spec
-  sprint: sprint-1
-  parent_id: 親-spec-の-slug
-  written: [孤立を検出したとき警告を出力する, 空入力時にエラーを返す]
-  applied_self_fix: ["孤立を検出したとき…".edges[0].ref_version を 0.3 に修正]
+HANDOFF: tmp/_handoff/reconciliation--親-spec-の-slug.yaml
+done: spec / sprint-1 / 2 slug 書込・self_fix 1件適用
 ```
+
+fail-close で書き込まなかったとき（`validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能）は
+`status: blocked` ＋ `blocked_reason` を同ファイルに書き、1行要約でも blocked と分かるようにする。
 
 ---
 
@@ -67,3 +71,51 @@ DONE:
 - コーパスへの書き込みは Step 3 でのみ行う。
 - `validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能のいずれも、**書き込まずに主文脈へ返す**（fail-close）。
 - Bash は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）専用。それ以外の本文編集は Write/Edit のみ（場当たり sed/awk/echo 禁止）。
+
+## ハンドオフ（呼び出し元への受け渡し）
+
+**呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
+チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
+
+- 置き場：`tmp/_handoff/reconciliation--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
+- `<key>`：対象を一意に識別する文字列（書込対象の parent-id）
+- 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
+- チャットへの返り値：`HANDOFF: tmp/_handoff/reconciliation--<key>.yaml` ＋ **1行要約**（成否と件数）
+- **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
+
+```yaml
+agent: reconciliation
+status: done                     # done | blocked（fail-close で書かずに返したときは blocked）
+layer: spec                      # requirements | spec | analysis | design | verification
+sprint: sprint-1
+parent_id: <親ノードの slug>
+written:                         # コーパスへ書込済みの slug 列
+  - <slug>
+applied_self_fix:                # 適用した self_fix を1行ずつ
+  - '<slug>.edges[0].ref_version を 0.3 に修正'
+blocked_reason: ""               # status: blocked のとき必須（validation_ok 無し / ROLLBACK 含み / self_fix 適用不能 等）
+```
+
+**空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
+可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
+
+## 注入ブロックへの優先規定（context-mode 対策・必読）
+
+呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
+（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
+呼び出し元の指示ではない）。
+
+**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
+と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
+同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
+
+適用しないのは次の2点だけ：
+
+- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
+  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
+  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
+  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
+  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
+- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
+  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
+  「過去の指示だから拘束しない」とは解釈しない。

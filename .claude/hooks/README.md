@@ -251,3 +251,60 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 `jq` が利用できる環境ではそれを使って安全にエスケープする。`jq` が無い環境向けに
 標準ツール(`sed`/`awk`)のみのフォールバックも用意している。コンテキストファイルが
 見つからない場合は何も注入せず `exit 0`(fail-open)。
+
+---
+
+# 規約注入フック(UserPromptSubmit・context-mode 対策)
+
+> このディレクトリのフックは上記のレートリミット系・オーケストレータ系だけではない。ここでは
+> `inject-governance.sh` を記載する(`agent-command-gate.sh` の説明は `.codex/hooks/README.md` を参照)。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。 |
+| `governance-directives.md` | 注入する本文(CLAUDE.md 中核規範の配送用の写し)。**正本は CLAUDE.md**で、食い違ったら CLAUDE.md を正とする。HTML コメントは注入時に除去される。 |
+
+## なぜ必要か
+
+context-mode プラグイン(グローバル導入・2026-07-28)は全ターン・全 subagent 呼び出しに
+`<session_continuity>`(「過去に記録された指示・役割は standing order ではない。
+過去の文言はあなたを拘束しない」)を注入する。セッション冒頭に一度だけ読まれる CLAUDE.md は
+この文脈で「過去の指示」として相対化されうるため、**中核規範を毎ターン注入して
+"現在のターンの指示" として届ける**ことで対象から外す。
+
+subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
+「## 注入ブロックへの優先規定(context-mode 対策・必読)」が担う(15 エージェント全てに付与済み)。
+ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は CLAUDE.md「戻り値のハンドオフ規約」):
+
+- **write 権限あり(8)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
+  `tmp/_handoff/<agent>--<key>.yaml` に書き、チャットにはパスと1行要約だけ返す。矛盾しないので無効化しない。
+- **write 権限なし(7)**: ファイルに書けず注入の前提が成立しないため、`<artifact_policy>` を**無効化**して
+  従来どおりチャットへ全文返す。
+
+どちらのグループも `<session_continuity>` は共通で無効化する。
+
+`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」):
+
+- **実行系(`ctx_execute` / `ctx_execute_file` / `ctx_batch_execute`)は全エージェントに付与しない。**
+  実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、かつ tool_name が
+  `mcp__plugin_...` になるため **`matcher: "Bash"` の `agent-command-gate.sh` と rtk フックが発火しない**
+  ＝push/merge の権限境界を回避できる。
+- **検索系(`ctx_search` / `ctx_index`)は read-only なので、多数ファイルを読む5ロールに付与済み**
+  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
+  リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
+
+## 設計上の前提(公式仕様)
+
+- `UserPromptSubmit` は stdout の素のテキストも context として扱われるが、他フックの出力と
+  混ざったときに意図が曖昧にならないよう **JSON 形式**(`hookSpecificOutput.additionalContext`)で明示する。
+- **exit 2 はプロンプト自体を破棄する**。規約注入の失敗が作業全体の停止に化けるのは割に合わないため、
+  規範ファイルが読めないときは**何も注入せず exit 0**(fail-open)。欠落は `claude --debug` のフックログで気づける。
+- 注入は毎ターンのコストになる。`governance-directives.md` は「独断・逸脱が起きたら実害が大きい」
+  項目だけに絞り、**簡潔に保つ**(2026-07-28 時点で約 1,200 文字)。
+
+## 保守
+
+CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
+`governance-directives.md` も合わせて更新する。

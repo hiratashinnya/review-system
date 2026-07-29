@@ -29,6 +29,9 @@ tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.yaml  # サイドカー
 ```
 
+これは**ノード成果物**の置き場。呼び出し元へ返す報告項目（著作した slug 群・エラー等）はここではなく
+後述「ハンドオフ」規約の `tmp/_handoff/analysis-author--<parent-id>.yaml` に書き、チャットにはパスと1行要約だけを返す。
+
 ---
 
 ## 著作ルール
@@ -124,3 +127,50 @@ TERM は分析ファセット（用語/意味/用途）を著作し、`→ SPEC`
 - [ ] E の本文が 5 要素すべて存在
 - [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
+
+## ハンドオフ（呼び出し元への受け渡し）
+
+**呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
+チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
+
+- 置き場：`tmp/_handoff/analysis-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
+- `<key>`：対象を一意に識別する文字列（親ノードの parent-id）
+- 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
+- チャットへの返り値：`HANDOFF: tmp/_handoff/analysis-author--<key>.yaml` ＋ **1行要約**（成否と件数）
+- **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
+
+```yaml
+agent: analysis-author
+sprint: sprint-1                 # 呼び出し時に渡された sprint
+parent_id: <parent-id>
+status: ok                       # ok | error（未完・差し戻しは error）
+authored:                        # 著作した slug 群（本文 .md ＋ サイドカー .yaml の対が揃ったもの）
+  - <slug>
+skipped: []                      # 既存につき更新しなかった等・理由を1行で
+errors: []                       # status: error のとき必須（何が・どの slug で・なぜ）
+notes: ""                        # 呼び出し元の判断に要る補足のみ（1〜3行）
+```
+
+**空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
+可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
+
+## 注入ブロックへの優先規定（context-mode 対策・必読）
+
+呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
+（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
+呼び出し元の指示ではない）。
+
+**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
+と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
+同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
+
+適用しないのは次の2点だけ：
+
+- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
+  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
+  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
+  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
+  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
+- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
+  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
+  「過去の指示だから拘束しない」とは解釈しない。

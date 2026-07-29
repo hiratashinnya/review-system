@@ -6,6 +6,12 @@
 > **本リポジトリは doc_system と review_system の2プロジェクトが同居**（ファイル構成・「正本」の所在は文脈で変わる）。
 > 詳細＝「[このリポジトリ＝2つのプロジェクトが同居（混同注意）](#このリポジトリ2つのプロジェクトが同居混同注意)」を参照。
 
+> **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
+> 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
+> **正本は本ファイル**で、`governance-directives.md` はその配送用の写し。**規約を変えたら写しも合わせる**
+> （食い違ったら本ファイルを正とする）。subagent 側の対策は各 `.claude/agents/*.md` 末尾の
+> 「注入ブロックへの優先規定」。背景と設計は `.claude/hooks/README.md`。
+
 ## 迷ったら原則に戻る
 判断は **spec-principles（PR1–PR10）**（`.claude/skills/spec-principles/`）に従う。特に：
 **もの＋発生源で分ける**／**機械判定と運用ルールを混ぜない**／**価値経路を遮断しない**／
@@ -87,6 +93,47 @@
 
 - **委譲時のインプットは最小化**：**作業を特定するのに必要な情報**（関連ノードの ID、新規著作か既存更新かの別、対象範囲など）は委譲時に渡してよい。一方で**分析・推奨はサブエージェントに任せ**、主文脈で先回りして分析結果・推奨・本文を作り込んで渡さない。※これは委譲（author/分析）への入力規律。判断を仰ぐ FND/Q の**本文**は別物で、そちらは「ID だけで投げず本文で説明してから判断を仰ぐ」（オーナー向け説明）を維持する。
 - **共通指示は一時ファイル経由でコンテキスト節約**：サブエージェント呼び出しを複数回行うとき、共通となる指示部分は `tmp/<sprint>/` 等の一時ファイルに書き出して各呼び出しから参照させ、呼び出しごとに同じ指示を展開しない。
+
+### 戻り値のハンドオフ規約（write 権限の有無で分ける・2026-07-28）
+context-mode プラグイン（グローバル導入）が全 subagent 呼び出しに `<artifact_policy>`（成果物はファイルに書き、
+パスと1行要約だけ返す）を注入する。**これを潰さず、受け渡し方を合わせる**方針で統一する。
+
+- **write 権限があるエージェント（`*-author` / `structured-analysis` / `reconciliation` / `issue-implementer`）**
+  → 呼び出し元へ返す項目を **`tmp/_handoff/<agent>--<key>.yaml`** に Write で書き、チャットには
+  **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
+  **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
+  `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外。
+- **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
+  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
+  → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で
+  `<artifact_policy>` を無効化し、**従来どおりチャットへ全文返す**。
+  特に `reconciliation-validator` に書込経路を与えないこと自体が fail-close の保証（DD-22）。
+
+### ctx_* ツールの付与方針（エージェント単位で選定・2026-07-29）
+context-mode の 11 ツールを**一律禁止にはしない**。実測した性質で2群に分け、ロールごとに選ぶ。
+
+- **実行系＝`ctx_execute` / `ctx_execute_file` / `ctx_batch_execute` は全エージェントに付与しない。**
+  「sandboxed subprocess」はコンテキストのサンドボックスであって**FS のサンドボックスではない**——実測で
+  cwd＝プロジェクトルートのままリポジトリ内にファイルを書けた（注入文の "discard the sandbox FS" は実態と異なる）。
+  加えて tool_name が `mcp__plugin_...` になるため **`matcher: "Bash"` で登録した `agent-command-gate.sh` と
+  rtk フックが発火しない**＝`ctx_execute(shell, "git push")` で `pr-reviewer` の push 禁止・
+  `issue-implementer` の merge 禁止を回避できる（context-mode 自身の security check も `git push` を素通しした）。
+  **`.claude/settings.json` の `permissions.deny` も同様に迂回される**——`Bash(python3 -c *)` /
+  `Bash(bash -c *)` / `Bash(eval *)` / `Bash(node -e *)` 等の任意コード実行禁止と
+  `Bash(curl *)` / `Bash(ssh *)` 等の通信禁止は `Bash(...)` パターンで書かれており、MCP ツール呼び出しには当たらない。
+  `ctx_execute` は javascript / shell / python / perl を実行できるので、**この deny リストが丸ごと無効化される**。
+  よって①ゲート管理下ロールでは**実セキュリティ回避**、②Bash 非保有ロールでは**権限昇格**、
+  ③Bash 保有ロールでも「Bash は専用コマンドのみ」等の**明文化された制限を無効化**する。
+- **検索系＝`ctx_search` / `ctx_index` は read-only なので、多数ファイルを読むロールに付与する。**
+  実測でリポジトリへは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
+  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
+  read-only ゆえ `reconciliation-validator` の DD-22 fail-close を損なわない。
+- **`ctx_fetch_and_index`（ネットワーク送信）・`ctx_purge`（KB 破壊）・`ctx_insight`（外部ダッシュボード起動）・
+  `ctx_upgrade` / `ctx_stats` / `ctx_doctor`（運用系）は subagent に付与しない**——主文脈が扱う。
+
+この方針を変えるとき（例：ゲートを `ctx_execute` にも拡張して実行系を解禁する）は、
+`.claude/hooks/agent-command-gate.sh` の matcher と入力パース（`tool_input.code` / `commands[]`）を
+先に手当てすること。静的検査の限界は Issue #129 と同じ制約を受ける。
 
 ## 資産のテーラリング運用（A16）
 - プロセスはスキル等で実現するため、**テーラリングの実体は `.claude/` に置く（docs ではない）**。

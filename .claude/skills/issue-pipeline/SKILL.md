@@ -39,7 +39,7 @@ disable-model-invocation: true
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
-- 戻り＝PR URL・変更ファイル一覧・テスト結果・スコープ外指摘。**STOP 報告（曖昧・矛盾）なら主文脈で受けてオーナーへ**（PR7）。
+- 戻り＝`HANDOFF: tmp/_handoff/issue-implementer--issue-<N>.yaml` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイルを Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**
 - **初回レビューの model はリスク/難易度で選ぶ**（Issue #120 ④）。レビュー＝Bloom Lv5 評価。下の**リスク信号表**で `sonnet` / `opus` を機械的に引く
