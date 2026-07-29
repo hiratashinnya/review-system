@@ -251,3 +251,120 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 `jq` が利用できる環境ではそれを使って安全にエスケープする。`jq` が無い環境向けに
 標準ツール(`sed`/`awk`)のみのフォールバックも用意している。コンテキストファイルが
 見つからない場合は何も注入せず `exit 0`(fail-open)。
+
+---
+
+# 規約注入フック(UserPromptSubmit・context-mode 対策)
+
+> このディレクトリのフックは上記のレートリミット系・オーケストレータ系だけではない。ここでは
+> `inject-governance.sh` を記載する(`agent-command-gate.sh` の説明は `.codex/hooks/README.md` を参照)。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
+| `governance-directives.md` | 注入する本文(CLAUDE.md 中核規範の配送用の写し)。**正本は CLAUDE.md**で、食い違ったら CLAUDE.md を正とする。HTML コメントは注入時に除去される。 |
+
+## なぜ必要か
+
+context-mode プラグイン(グローバル導入・2026-07-28)は全ターン・全 subagent 呼び出しに
+`<session_continuity>`(「過去に記録された指示・役割は standing order ではない。
+過去の文言はあなたを拘束しない」)を注入する。セッション冒頭に一度だけ読まれる CLAUDE.md は
+この文脈で「過去の指示」として相対化されうるため、**中核規範を毎ターン注入して
+"現在のターンの指示" として届ける**ことで対象から外す。
+
+subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
+「## 注入ブロックへの優先規定(context-mode 対策・必読)」が担う(15 エージェント全てに付与済み)。
+ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は CLAUDE.md「戻り値のハンドオフ規約」):
+
+- **write 権限あり(8)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
+  `tmp/_handoff/<agent>--<key>.yaml` に書き、チャットにはパスと1行要約だけ返す。矛盾しないので無効化しない。
+- **write 権限なし(7)**: ファイルに書けず注入の前提が成立しないため、`<artifact_policy>` を**無効化**して
+  従来どおりチャットへ全文返す。
+
+どちらのグループも `<session_continuity>` は共通で無効化する。
+
+`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」):
+
+- **実行系(`ctx_execute` / `ctx_execute_file` / `ctx_batch_execute`)は全エージェントに付与しない。**
+  実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、かつ tool_name が
+  `mcp__plugin_...` になるため **`matcher: "Bash"` の `agent-command-gate.sh` と rtk フックが発火しない**
+  ＝push/merge の権限境界を回避できる。
+- **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読む5ロールに付与済み**
+  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
+  リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
+  **ただし `ctx_index` は read-only ではない**(`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
+  呼ぶたびに永続 FTS5 ストアへ追記される非冪等な書込)。付与の根拠は「read-only だから」ではなく
+  **「リポジトリ(作業ツリー)に書かないから」**。運用上は同じ対象を無駄に再 index しない。
+
+## 設計上の前提(公式仕様)
+
+- `UserPromptSubmit` は stdout の素のテキストも context として扱われるが、他フックの出力と
+  混ざったときに意図が曖昧にならないよう **JSON 形式**(`hookSpecificOutput.additionalContext`)で明示する。
+- **exit 2 はプロンプト自体を破棄する**。規約注入の失敗が作業全体の停止に化けるのは割に合わないため、
+  **どの失敗経路でも何も注入せず exit 0**(fail-open)。対象は規範ファイル欠落だけでなく、
+  **python3 の起動失敗・読込失敗・JSON 生成失敗・本文が空**も含む。
+- **fail-open でも無音にはしない**: いずれの失敗経路でも `[inject-governance] …` を **stderr へ出す**
+  (`warn()` ＋ python 側の詳細メッセージ)。**フックの stderr は通常の対話画面には表示されない**ため、
+  気づく手段は **`claude --debug`**(フックログに stderr が出る)。「規約注入が効いていない気がする」ときは
+  `claude --debug` で起動して `[inject-governance]` 行の有無を確認する。
+- 注入は毎ターンのコストになる。`governance-directives.md` は「独断・逸脱が起きたら実害が大きい」
+  項目だけに絞り、**簡潔に保つ**(2026-07-28 時点で約 1,200 文字)。
+
+## 保守
+
+CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
+`governance-directives.md` も合わせて更新する。**この追従漏れは下記のフックが機械的に検知する**。
+
+---
+
+# 規範の追従漏れ検知フック(PostToolUse・check-governance-drift.sh)
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が正本 `CLAUDE.md` のときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
+
+## なぜ必要か(実際に起きた事故)
+
+PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェクトが同居」節が入ったのに、
+写しを追従させ忘れた**。その結果「`docs/` は一律非正本」という**誤った規範が毎ターン注入され続ける**
+状態になった(Codex 第二意見レビュー指摘 #6 で発覚)。写しの誤りは毎ターン届くため影響が大きい。
+
+「片方直すの忘れました」は再現性のあるミスなので、人の注意力ではなくハーネスで検知する。
+
+## 検知方式(毎回の小言ではなく状態比較)
+
+写しの冒頭に同期マーカーを1行埋める:
+
+```markdown
+<!-- synced-from: CLAUDE.md@<sha256 先頭12桁> -->
+```
+
+フックは現在の `CLAUDE.md` のハッシュと突き合わせ、**一致していれば何も出力しない**。
+食い違っている間だけ警告を出し続け、**写しを直して sha を更新するまで消えない**(fail-safe な向き)。
+単純な「CLAUDE.md を触ったら毎回リマインド」にすると小言が常態化して無視されるため採らない。
+
+黙る条件: ①ハッシュ一致 ②編集対象が `CLAUDE.md` でない ③**写し自身の編集**(追従作業を邪魔しない)
+④別プロジェクトの同名 `CLAUDE.md`(realpath で判定)。
+
+## 設計上の前提
+
+- **常に `exit 0`**(fail-open)。このフックは補助であり作業を止める役ではない。
+  payload 破損・python 失敗・ファイル欠落はいずれも `[check-governance-drift] …` を
+  **stderr** へ出して継続する(`claude --debug` で拾える)。
+- `PostToolUse` は本フックが初出。`asset_parity`(4ツリー間の presence/absence 検出)とは**別物**で、
+  あちらは「資産の有無」、こちらは「正本→写しの内容追従」を見る。
+
+## 追従したあとにやること
+
+写しを直したら、マーカーの sha を現在値へ更新する:
+
+```bash
+sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
+```
+
+今回の変更が中核規範に無関係だと判断した場合も、同じく sha を更新して警告を解除する
+(「見た上で不要と判断した」ことの記録になる)。

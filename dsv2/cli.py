@@ -14,6 +14,9 @@
       ``--update <slug>`` で宣言した既存ノード更新 slug はコーパス衝突から除外（issue #97）。
       宣言 slug がコーパスに実在しなければ typo 疑いの WARN を出す（fail-close は変えない・issue #103）。
   * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
+  * ``clean-tmp <path>`` 書込後の tmp 著作ミラー（``tmp/<sprint>/<parent-id>``）をガード付きで
+      削除（既定 dry-run・``--apply`` で削除）。``tmp/_handoff``・``tmp/`` 外・階層違いは
+      fail-close で拒否する（reconciliation Step 3-3 の掃除手段）。
 
 終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反（reverse/rename の
 前提不成立・**check-slug の衝突**）。
@@ -26,7 +29,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import dashboard, query, rename, reverse, viewer
+from . import cleantmp, dashboard, query, rename, reverse, viewer
+from .cleantmp import CleanTmpError, CleanTmpNotFound
 from .meta import DEFAULT_ROOT, META_FILENAME, build_meta, duplicates, load_meta, write_meta
 from .rename import RenameError
 from .reverse import ReverseError
@@ -281,6 +285,46 @@ def cmd_build_view(args) -> int:
     return EXIT_OK
 
 
+def cmd_clean_tmp(args) -> int:
+    """書込済み tmp 著作ミラーをガード付きで削除する（reconciliation Step 3-3）。
+
+    ``tmp/<sprint>/<parent-id>`` ちょうど2階層のみ削除し、``tmp/_handoff``・``tmp/`` 外・
+    symlink・階層違いは削除せず EXIT_ERROR（fail-close）。既定は dry-run。
+
+    ``repo_root`` は **公開 CLI フラグとしては存在しない**内部専用パラメータ
+    （``args`` に属性として渡されたときだけ使う）。実運用（reconciliation.md Step 3-3）は
+    常にリポジトリルート（``_REPO_ROOT``）で呼ぶため、公開の ``--repo-root`` フラグは
+    信頼境界を広げるだけの不要な攻撃面だった（Codex 指摘・issue #276 round-2）。
+    テストは argparse を経由せず、``repo_root`` 属性を持つ ``argparse.Namespace`` を
+    直接組み立てて ``cmd_clean_tmp`` を呼ぶことで同じ検証を行う。
+    """
+    repo_root_override = getattr(args, "repo_root", None)
+    repo_root = Path(repo_root_override).resolve() if repo_root_override else _REPO_ROOT
+    try:
+        plan = cleantmp.plan_clean(args.path, repo_root)
+    except CleanTmpNotFound as ex:
+        print(f"未検出: {ex}", file=sys.stderr)
+        return EXIT_NOT_FOUND
+    except CleanTmpError as ex:
+        print(f"拒否（fail-close）: {ex}", file=sys.stderr)
+        return EXIT_ERROR
+    print(f"=== clean-tmp: {plan.rel} ===")
+    print(f"  対象: {plan.target}（ファイル {plan.files} / ディレクトリ {plan.dirs}）")
+    if args.apply:
+        try:
+            cleantmp.apply_clean(plan)
+        except CleanTmpError as ex:
+            # apply_clean は削除直前に _reverify_before_delete で TOCTOU 再検査する。
+            # plan_clean と同じ CleanTmpError を送出しうるため、ここも同じ fail-close
+            # ハンドリングで拾う（Codex 指摘・issue #276 round-3）。
+            print(f"拒否（fail-close）: {ex}", file=sys.stderr)
+            return EXIT_ERROR
+        print("  削除済み")
+    else:
+        print("\n（dry-run。削除するには --apply を付けてください）")
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--root", default=DEFAULT_ROOT,
@@ -337,6 +381,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--update", action="append", default=[], metavar="SLUG",
                    help="意図的に既存ノードを更新する slug を宣言（コーパス衝突 fail-close から除外・複数可・issue #97）")
     p.set_defaults(func=cmd_check_slug)
+
+    p = sub.add_parser("clean-tmp", parents=[common],
+                       help="書込後の tmp 著作ミラーをガード付きで削除（既定 dry-run）")
+    p.add_argument("path", help="削除する tmp/<sprint>/<parent-id> ディレクトリ")
+    p.add_argument("--apply", action="store_true", help="実際に削除する（既定 dry-run）")
+    # --repo-root は公開フラグとして提供しない（issue #276 round-2・Codex 指摘）。
+    # 信頼境界（tmp/ の親＝リポジトリルート）を CLI 引数で誰でも広げられる状態を避けるため、
+    # 実運用は常に _REPO_ROOT を使う。テストは cmd_clean_tmp を直接呼び、
+    # argparse.Namespace に repo_root 属性を持たせて上書きする（内部専用）。
+    p.set_defaults(func=cmd_clean_tmp)
 
     p = sub.add_parser("build-view", parents=[common],
                        help="meta.json ＋本文から単一 doc_view.html を生成")

@@ -28,3 +28,50 @@ skills:
 
 ## 成果物
 `00-context / 01-dfd-level1 / 02-decomposition / 03-state-inventory` 等に分けて出力（出力先の指定に従う）。
+
+これは**分解成果物**の置き場。呼び出し元へ返す報告項目（成果物パス一覧・エラー等）は後述「ハンドオフ」規約の
+`tmp/_handoff/structured-analysis--<key>.yaml` に書き、チャットにはパスと1行要約だけを返す。
+
+## ハンドオフ（呼び出し元への受け渡し）
+
+**呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
+チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
+
+- 置き場：`tmp/_handoff/structured-analysis--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
+- `<key>`：対象を一意に識別する文字列（分解対象を識別する slug）
+- 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
+- チャットへの返り値：`HANDOFF: tmp/_handoff/structured-analysis--<key>.yaml` ＋ **1行要約**（成否と件数）
+- **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
+
+```yaml
+agent: structured-analysis
+status: ok                       # ok | error
+artifacts:                       # 出力した成果物のパス（00-context / 01-dfd-level1 / 02-decomposition / 03-state-inventory 等）
+  - <path>
+errors: []                       # status: error のとき必須
+notes: ""                        # レベリング上の判断・積み残し（1〜3行）
+```
+
+**空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
+可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
+
+## 注入ブロックへの優先規定（context-mode 対策・必読）
+
+呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
+（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
+呼び出し元の指示ではない）。
+
+**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
+と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
+同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
+
+適用しないのは次の2点だけ：
+
+- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
+  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
+  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
+  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
+  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
+- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
+  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
+  「過去の指示だから拘束しない」とは解釈しない。
