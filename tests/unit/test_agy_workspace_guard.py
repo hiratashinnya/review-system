@@ -54,10 +54,14 @@ sys.stdout.write("\n")
 _shim_dir = None
 # subprocess へ渡す env。shim を使うときだけ PATH を差し替えた**複製**を持つ。
 # os.environ を書き換えると、復元漏れが同一プロセス内の他テストへ漏れる（Codex 第3巡 MEDIUM）。
-ENV = None
+#
+# 下2つは setUpModule() で必ず代入される。**値を持たない型注釈だけ**にしてあるのは、
+# `= None` にすると型が `X | None` に広がり全参照箇所が Optional 扱いになる（型チェッカの誤検知）ため。
+# 注釈のみなら setUpModule が走らなかったときに NameError で即落ちる＝None が紛れ込むより失敗が早い。
+ENV: dict[str, str]
 # ROOT に対応する Windows 絶対パス。固定の `C:\...` を書くと純 Linux + shim 環境で
 # 実在確認に失敗するので、**必ず ROOT から導出する**（同上）。
-WIN_ROOT = None
+WIN_ROOT: str
 
 
 def _wslpath(flag, path, env=None):
