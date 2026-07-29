@@ -63,6 +63,10 @@ class CleanPlan:
 def _tmp_root(repo_root: str | Path) -> Path:
     root = Path(repo_root).resolve()
     tmp = root / TMP_DIRNAME
+    if tmp.is_symlink():
+        raise CleanTmpError(
+            f"tmp ディレクトリ自体が symlink: {tmp}（symlink 越しに repo 外へ誘導されうるため拒否）"
+        )
     if not tmp.is_dir():
         raise CleanTmpError(f"tmp ディレクトリが無い: {tmp}")
     return tmp.resolve()

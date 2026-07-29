@@ -311,7 +311,14 @@ def cmd_clean_tmp(args) -> int:
     print(f"=== clean-tmp: {plan.rel} ===")
     print(f"  対象: {plan.target}（ファイル {plan.files} / ディレクトリ {plan.dirs}）")
     if args.apply:
-        cleantmp.apply_clean(plan)
+        try:
+            cleantmp.apply_clean(plan)
+        except CleanTmpError as ex:
+            # apply_clean は削除直前に _reverify_before_delete で TOCTOU 再検査する。
+            # plan_clean と同じ CleanTmpError を送出しうるため、ここも同じ fail-close
+            # ハンドリングで拾う（Codex 指摘・issue #276 round-3）。
+            print(f"拒否（fail-close）: {ex}", file=sys.stderr)
+            return EXIT_ERROR
         print("  削除済み")
     else:
         print("\n（dry-run。削除するには --apply を付けてください）")
