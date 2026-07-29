@@ -16,27 +16,59 @@ session 上限のときの代替レビュー経路にもなる（それが主目
 
 ## 呼び方（標準手順）
 
-1. 観点プロンプトをファイルに書く（`tmp/` 等）。cwd をリポジトリにして、未コミット diff / 対象ファイルを Codex に読ませる。
-2. 非対話で実行：
+> 🔐 **成果物は「実行ごとに一意な、gitignore 済みの一時ディレクトリ」にまとめて出す。**
+> 観点プロンプト・最終応答・イベントログには**レビュー対象のコード断片や秘密が入りうる**。
+> cwd 直下の固定名（`events.jsonl` / `last.txt` 等）に置くと、**未追跡ファイルとして誤 commit される**／
+> **前回や別実行の残骸を静かに読む**の両方が起きる。**固定名を使わない。**
+
+1. **実行単位の一時ディレクトリを作る**（`tmp/` は本リポジトリで gitignore 済み）：
+   ```bash
+   REPO="$(git rev-parse --show-toplevel)"
+   mkdir -p "$REPO/tmp/codex-review"
+   RUN_DIR="$(mktemp -d "$REPO/tmp/codex-review/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
+   chmod 700 "$RUN_DIR"
+   ```
+   - **アクセス範囲**：この実行で読んでよいのは `$RUN_DIR` の中だけ。**他の run ディレクトリを開かない**
+     （並行実行・過去実行の別対象の所見と秘密が入っている）。
+   - **後処理**：所見を報告へ取り込んだら `rm -rf "$RUN_DIR"`。**`git add` しない**
+     （gitignore 済みだが `-f` で足さない・報告やコミットへ生の値を転記しない）。
+2. 観点プロンプトを **`$RUN_DIR/prompt.txt`** に書く。cwd はリポジトリのままにして、
+   未コミット diff / 対象ファイルを Codex に読ませる。
+3. 非対話で実行。**stdout（JSON イベント）と stderr（診断メッセージ）を別ファイルへ分ける**：
    ```bash
    codex exec --json -m <model> --sandbox read-only \
-     -o last.txt - < prompt.txt > events.jsonl 2>&1
+     -o "$RUN_DIR/final.txt" - \
+     < "$RUN_DIR/prompt.txt" \
+     > "$RUN_DIR/events.jsonl" \
+     2> "$RUN_DIR/stderr.log"
    ```
    - stdin に観点プロンプトを流す（`-` が stdin 指定）。`--sandbox read-only` で書き込みをさせない。
    - `model` は**オーナー指定**（例 `gpt-5.6-sol`）。`codex exec review` サブコマンドもある。
+   - 🛑 **`2>&1` で stderr を stdout に併合しない。** 警告・進捗が混ざると `events.jsonl` が純粋な JSONL でなくなり、
+     `thread.started` の機械抽出が壊れて**不要な停止や誤解析**を招く（＝フォールバック①②の前提が崩れる）。
    - **`--json` を必ず付ける**。理由は下記フォールバックの前提になるため（自分の stdout に全発話が届く）。
      `-o` は最終応答だけを別ファイルに書き出す。
-3. `review.txt`（最終応答）を読む。**flag されていたら下記フォールバックへ**。
+4. **`thread_id` を控える**（純 JSONL になった `events.jsonl` だけを見る）：
+   ```bash
+   THREAD_ID="$(grep -m1 '"thread\.started"' "$RUN_DIR/events.jsonl" \
+     | python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["thread_id"])')"
+   ```
+   取れなければ**推測せず停止して報告**する（フォールバック②の束縛条件が作れないため）。
+   このとき `$RUN_DIR/stderr.log` を読んで原因（起動失敗・警告混入等）を確認する。
+5. **`$RUN_DIR/final.txt`（最終応答）を読む。** flag されていたら下記フォールバックへ。
+   **応答が空・異常なときは `$RUN_DIR/stderr.log` も必ず併せて読む**——CLI 側のエラーはそちらにしか出ない。
 
 ## ハマりどころ①：cybersecurity フィルタで最終応答が消える（原因特定済み・2026-07-20）
 
-敵対的バイパス探索のようなプロンプトを流すと、**stdout の最終アシスタントメッセージが**
+敵対的バイパス探索のようなプロンプトを流すと、**最終アシスタントメッセージ
+（`$RUN_DIR/final.txt` ＝ `$RUN_DIR/events.jsonl` 末尾の `agent_message`）が**
 ```
 ERROR: This content was flagged for possible cybersecurity risk. … https://chatgpt.com/cyber
 ```
 **に差し替わる**ことがある。犯人は **OpenAI サーバー側の cyber リスク分類器**（Trusted Access for Cyber ゲート）で、
 **攻撃文字列・bypass 成立条件を集約した最終まとめ**が引っかかる。**CLI の出力取りこぼしではない**
-（`> file 2>&1` の捕捉は正常・末尾が ERROR なだけ）。Anthropic の session limit とは無関係。
+（リダイレクトでの捕捉は正常・**末尾の最終応答が ERROR に差し替わっているだけ**で、
+`stderr.log` 側にも CLI エラーは出ない）。Anthropic の session limit とは無関係。
 
 ### 回避（プロンプト設計）
 - **防御レビュー形式に言い換える**：「攻撃コマンド文字列を再現するな。各 finding を `file:line ＋ 欠陥クラス ＋ 修正方針` で出せ」。
@@ -49,14 +81,17 @@ critical 候補は**最終集約が flag される前に中間発話として出
 
 **① 自分の stdout（既定・共有ディレクトリを読まない）**
 `--json` を付けていれば、中間発話は `{"type":"item.completed","item":{"type":"agent_message","text":…}}`
-として**自分が捕捉した `events.jsonl` に既に入っている**。最終集約が flag されても、その手前の
+として**自分が捕捉した `$RUN_DIR/events.jsonl` に既に入っている**。最終集約が flag されても、その手前の
 `agent_message` を読めば所見は揃う。**この経路は自プロセスの出力しか触らないため、他セッションを
 読む余地が構造的に無い。**
+**flag かどうかを判定するときは `$RUN_DIR/events.jsonl`（サーバ由来の ERROR 文言）と
+`$RUN_DIR/stderr.log`（CLI 由来のエラー・警告）の両方を見る。** 片方だけだと、
+「flag されたのか・CLI が落ちたのか・そもそも起動していないのか」を取り違える。
 
 **② それでも足りないときだけ rollout ファイル（session を明示特定する）**
 `~/.codex/sessions/YYYY/MM/DD/rollout-<時刻>-<thread_id>.jsonl` に全 rollout が残る。
-**ファイル名に thread_id が埋まっている**ので、**自分の `--json` 出力の先頭にある
-`{"type":"thread.started","thread_id":…}` の値と一致するファイルだけを開く**。
+**ファイル名に thread_id が埋まっている**ので、**手順 4 で控えた `$THREAD_ID`
+（`$RUN_DIR/events.jsonl` の `{"type":"thread.started","thread_id":…}` 由来）と一致するファイルだけを開く**。
 
 > 🛑 **「日付ディレクトリの直近」で探してはならない。** codex は**並行実行できる**——私自身が複数レビューを
 > 並列で回すこともあれば、オーナーが対話セッションを同時に使っていることも、別リポジトリの作業が走って
@@ -83,9 +118,17 @@ critical 候補は**最終集約が flag される前に中間発話として出
 
 ## done 条件
 
-- [ ] 観点プロンプトを防御形式で書き、`codex exec -m <model> --sandbox read-only` で流した。
-- [ ] `--json` を付けて実行し、`thread.started` の `thread_id` を控えた。
-- [ ] 最終応答を確認。ERROR(flagged) なら **①自分の `events.jsonl` の `agent_message`** から回収した（不足時のみ ②`rollout-*-<thread_id>.jsonl` を**その1ファイルだけ**開いた。「直近」で探していない）。
+- [ ] **実行ごとに一意な `$RUN_DIR`**（gitignore 済み `tmp/codex-review/` 配下・`chmod 700`）を作り、
+      `prompt.txt` / `final.txt` / `events.jsonl` / `stderr.log` を**その中だけ**に出した。
+      **cwd 直下の固定名を使っていない**（旧実行の残骸を読む余地を作っていない）。
+- [ ] 観点プロンプトを防御形式で書き、`codex exec --json -m <model> --sandbox read-only` で流した。
+      **`2>&1` で併合せず**、stdout（JSON イベント）と stderr（診断）を別ファイルに分けた。
+- [ ] `$RUN_DIR/events.jsonl` から `thread.started` の `thread_id` を機械抽出して控えた
+      （取れなければ探索に降りず停止して報告した）。
+- [ ] 最終応答は **`$RUN_DIR/final.txt`**（実行例の `-o` と同一ファイル）を読んだ。
+      異常時は `$RUN_DIR/stderr.log` も確認した。
+- [ ] ERROR(flagged) なら **①`$RUN_DIR/events.jsonl` の `agent_message`** から回収した（不足時のみ ②`rollout-*-<thread_id>.jsonl` を**その1ファイルだけ**開いた。「直近」で探していない）。
 - [ ] 所見を Claude 側レビューと統合し、**AI（Codex 由来）であることを明示**してオーナー/PR へ報告した（独断で「対応不要」としない＝CLAUDE.md）。
+- [ ] 報告へ取り込んだ後 **`rm -rf "$RUN_DIR"`** した（秘密を含みうる未追跡ファイルを残さない・`git add` していない）。
 
 > 原因特定の経緯・詳細はグローバルメモリ `feedback_codex_review_official_cli` にインシデント記録として残す。本スキルが手順の正本。
