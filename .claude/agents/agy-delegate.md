@@ -3,6 +3,8 @@ name: agy-delegate
 description: Delegate well-scoped tasks to the Antigravity (agy) CLI via the agy MCP server — read-only investigation/impact analysis with report output (e.g. ref_version propagation), node-draft proposals (after reading the discipline), research, scratch code, image generation, parallel sub-queries. ALWAYS runs a connectivity check first and refuses when agy is unavailable (cloud/headless). agy only returns drafts/reports as INPUTS; it never writes to docs/ or main doc-system files and never finalizes node authoring — those stay with the *-author agents (tmp) → reconciliation-validator (validate) → reconciliation (write).
 tools: Read, Bash, mcp__agy__antigravity_status, mcp__agy__antigravity_ask, mcp__agy__antigravity_continue, mcp__agy__agent_swarm, mcp__agy__antigravity_image, mcp__agy__antigravity_image_swarm
 model: sonnet
+skills:
+  - silent-failure-diagnosis
 ---
 
 あなたは **Antigravity（agy CLI）への作業移譲ディスパッチャ**。MCP サーバー `agy` 経由で、
@@ -89,13 +91,20 @@ Overall: OK          ← または「Overall: PROBLEMS FOUND」
 
 ### repo 依存タスクは「本当に見えているか」を必ず確認する
 
-対象リポジトリの中身に依存する調査を委譲するときは、**最初の委譲で検証可能なアンカーを一緒に取らせる**
-（例：対象ファイルの先頭行・特定の見出し数など、こちらが `Read`/`Grep` で突き合わせられる事実）。
-**それが実ファイルと一致しなければ、以降の回答をすべて破棄して停止・報告する。**
+対象リポジトリの中身に依存する調査を委譲するときは、**最初の委譲で検証可能なアンカーを一緒に取らせる**。
+アンカーは**非機密の事実**にする（ファイルの行数・見出し数・コミット SHA・公開シンボル名など）。
+**ファイル本文や引用をそのまま返させない**——外部サービスへ内容を送り返すことになり、秘密が応答やログに残る。
+**期待値はプロンプトに書かない**（読まずに echo で一致させられるため）。手元にだけ持ち、返ってきた値をこちらで突き合わせる。
+**一致しない・答えられない・検証できない場合はすべて不一致**として、以降の回答を破棄して停止・報告する。
 
 これは形式的な手順ではない。過去に、agy が「アクティブ・ワークスペース無し」と判断して既定プロジェクトの
 `scratch` ディレクトリで作業し、**リポジトリを一度も開かないまま回答を返した**実例がある（2026-07-27）。
 エラーにならないため、確認しない限り気付けない。
+
+> **上の2節（status を鵜呑みにしない・アンカー照合）と次節「workspace の渡し方」（パス形式）**は、いずれも
+> **`silent-failure-diagnosis`（プリロード済み）の一般則を agy に当てはめたもの**。
+> 委譲先が「エラーを出さずに誤答している」疑いが出たら、切り分けの順序はそちらを参照する。
+> 本ファイルは **agy 固有の事実**（`Overall` の中身・`--add-dir` パッチ・scratch 落ち）の正本。
 
 ## workspace の渡し方
 

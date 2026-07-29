@@ -76,8 +76,11 @@ def build_report(
             if not candidates:
                 cells[tree] = Cell(
                     status=STATUS_EXEMPT,
-                    reason="structural: inlined per asset-lateral-deploy routing "
-                           "(user-invocable: false has no discrete Copilot file)",
+                    reason="structural: no discrete Copilot file applies to this asset "
+                           "(user-invocable: false — asset-lateral-deploy routing expects "
+                           "no per-asset file in this tree). Whether the content is inlined "
+                           "or intentionally not deployed is per-asset and NOT checked here "
+                           "— see the asset's entry in .claude/tailoring-registry.md.",
                 )
                 continue
 
