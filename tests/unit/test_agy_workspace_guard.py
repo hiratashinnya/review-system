@@ -127,11 +127,16 @@ def run_guard(payload, env=None):
     return json.loads(result.stdout)["hookSpecificOutput"]
 
 
-def expect_decision(payload):
-    """フックが何か返すことを要求し、その hookSpecificOutput を返す（素通しなら失敗）。"""
-    out = run_guard(payload)
+def expect_decision(payload, env=None, msg="判定が返るべき入力が素通しした"):
+    """フックが何か返すことを要求し、その hookSpecificOutput を返す（素通しなら失敗）。
+
+    `run_guard` は素通し時に None を返すので、呼び出し側で assertIsNotNone してから
+    添字アクセスすると型チェッカが narrowing できない。**素通しを許さないケースは必ず
+    こちらを使う**こと（None を戻り値から締め出す）。
+    """
+    out = run_guard(payload, env=env)
     if out is None:
-        raise AssertionError("判定が返るべき入力が素通しした")
+        raise AssertionError(msg)
     return out
 
 
@@ -663,8 +668,11 @@ sys.stdout.write("\\\\\\\\wsl.localhost\\\\Ubuntu\\\\home\\n" if flag == "-w" el
             bad.write_text(self._BAD_WSLPATH, encoding="utf-8")
             bad.chmod(0o755)
             env = dict(ENV, PATH=f"{d}{os.pathsep}{ENV['PATH']}")
-            out = run_guard(ask(workspace=str(ROOT), prompt="x"), env=env)
-            self.assertIsNotNone(out, "往復が別ディレクトリを指す変換を素通ししないこと")
+            out = expect_decision(
+                ask(workspace=str(ROOT), prompt="x"),
+                env=env,
+                msg="往復が別ディレクトリを指す変換を素通ししないこと",
+            )
             self.assertEqual(out["permissionDecision"], "deny")
             self.assertIn("往復", out["permissionDecisionReason"])
         finally:
