@@ -9,6 +9,17 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__agy__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/agy-workspace-guard.sh",
+            "timeout": 25,
+            "statusMessage": "agy workspace を Windows 絶対パスへ正規化中"
+          }
+        ]
       }
     ],
     "StopFailure": [

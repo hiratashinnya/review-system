@@ -251,3 +251,197 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 `jq` が利用できる環境ではそれを使って安全にエスケープする。`jq` が無い環境向けに
 標準ツール(`sed`/`awk`)のみのフォールバックも用意している。コンテキストファイルが
 見つからない場合は何も注入せず `exit 0`(fail-open)。
+
+# agy workspace ゲート(agy-workspace-guard.sh)
+
+`agy` MCP ツールの `workspace` を **実在する Windows 絶対パス**に機械的に揃える PreToolUse フック。
+`settings.json` の matcher は `mcp__agy__.*`（agy サーバの全ツールを捕捉し、検査対象はスクリプト側で列挙する。
+`antigravity_` 前方一致だと `agent_swarm` が素通りしたため・Codex レビュー #259 指摘）。
+
+## なぜ要るか(2026-07-27 の調査・PR #259)
+
+agy ブリッジ(`/mnt/c/Users/hiras/tools/agy-mcp-bridge/server.py`)は `workspace` を
+**Windows Python の `os.path.abspath`** で正規化する。ドライブレターの無い `/home/...` は
+「現在ドライブのルート」に解決されるため、MCP サーバの cwd 次第で意味が変わる:
+
+| MCP サーバの cwd | `/home/hiras/ws_claude/review-system` の解決先 |
+|---|---|
+| リポジトリ(UNC) | `\\wsl.localhost\Ubuntu\home\hiras\ws_claude\review-system`(偶然正しい) |
+| ドライブ配下 | `C:\home\hiras\ws_claude\review-system`(別物) |
+
+後者では続く `os.makedirs(workspace, exist_ok=True)` が**その空ディレクトリを新規作成**し、agy は
+そこで走る。**エラーは出ない。** agy はリポジトリを一度も開かないまま自信のある回答を返し、
+呼び出し側はそれを本物として扱う——これが実際に起きた事故の形(既定プロジェクトの `scratch` で
+作業して回答した実例あり)。
+
+規約(「`wslpath -w` の絶対パスを明示的に渡す」)は `.claude/agents/agy-delegate.md` に書いたが、
+**規約は破れる**。ここでは破れても正しくなるようにする。
+
+## 判定
+
+| `workspace` | 挙動 |
+|---|---|
+| 未指定(必須ツール) | **deny**。意図した repo は推測できない |
+| `X:\...` / `\\...` で**実在する** | 素通し(既に正しいので書き換えない) |
+| `X:\...` / `\\...` だが**実在しない** | **deny**。`wslpath -u` で WSL 側へ引き戻して確認する。存在しない値を通すとブリッジ側 `makedirs` が空ディレクトリを作り、agy がそこで走る |
+| Linux 絶対パスで実在するディレクトリ | **`updatedInput` で正規化**。`wslpath -w` で変換して続行 |
+| 相対パス / 実在しない / 変換失敗 | **deny** |
+| **変換の往復が変換元と別ディレクトリを指す** | **deny**。`wslpath -w` の結果を `-u` で戻し、`os.path.samefile` で変換元と同一実体かを確認する。形式と変換元の実在だけでは「別の**実在**ディレクトリへ化けた」を検出できない |
+| workspace が期待される所の未知の構造 | **deny**。検査できないものを通さない |
+| **未知の agy ツール** | **deny**。`tool_input` の型に**関わらず**（分類はツール名で先に決める） |
+| **`tool_name` の欠落 / 非文字列 / 空** | **deny**。分類の起点が無い＝検査が成立していない |
+| **agy 名前空間外の `tool_name`** | **deny**。本フックは matcher `mcp__agy__.*` 専用（下記） |
+| 解釈できないペイロード / 非 object / 予期せぬ例外 | **deny**(fail-close。`agent-command-gate.sh` と同じ姿勢) |
+
+> Linux 絶対パスの扱いは backend で分かれる。**antigravity 系だけ `wslpath -w` で自動変換**し、
+> `codex_*` / `copilot_*` / `cursor_*` と `agent_swarm` の非 antigravity バックエンドは
+> **deny** する（「対象外(意図的)」節を参照）。
+
+> ⚠️ **matcher と分類表は一体**（Codex 第4巡 HIGH）。`settings.json` の matcher が
+> `mcp__agy__.*` である前提で、agy 名前空間外の `tool_name` は「届かないはずのものが届いた」＝
+> 検査が成立していない状況として **deny** する。matcher を広げるなら
+> `agy-workspace-guard.sh` の分類とこの表も同時に更新すること（広げたまま放置すると
+> agy 以外のツールが一律 deny になる＝**うるさく壊れる**。黙って穴が開くよりは良い）。
+
+必須の対象（省略するとサーバ cwd へ落ちるもの）:
+
+| ツール | キー | Linux 絶対パスの扱い |
+|---|---|---|
+| `antigravity_ask` / `antigravity_continue` / `antigravity_image` | `workspace` | `wslpath -w` で**自動変換** |
+| `antigravity_image_swarm` | `workspaces[]` | `wslpath -w` で**自動変換** |
+| `agent_swarm` | `tasks[].workspace`(要素ごと) | backend が antigravity 系(`antigravity`/`agy`/`gemini`)なら**自動変換**、それ以外は **deny** |
+| `codex_ask` / `codex_continue` | `workspace` | **deny**(契約未検証・自動変換しない) |
+| `copilot_ask` / `copilot_continue` | `workspace` | **deny**(同上) |
+| `cursor_ask` / `cursor_continue` | `workspace` | **deny**(同上) |
+
+`codex_*` / `copilot_*` / `cursor_*` も `workspace` を**必須**にしている。ブリッジの
+`codex_bridge.py` が `os.path.abspath(ws) if ws else os.getcwd()` で解決するため、省略すると
+antigravity と同じくサーバ cwd へ落ちるのは同じだから(値を変換しないことと必須にすることは別の話)。
+
+`workspace` を取らないと分かっている既知ツール（`antigravity_status` / `codex_status` /
+`copilot_status` / `cursor_status`）だけが allowlist で素通しされる。
+
+**antigravity 系 backend の alias**（`agent_swarm` の `tasks[].backend`）:
+`antigravity` / `agy` / `gemini` の3つ。出典＝ブリッジ `swarm.py` の `_BACKEND_ALIASES`
+（実測 2026-07-29・agy-mcp-bridge v0.21.4。`agy`・`gemini` はどちらも `antigravity` に解決される）。
+比較は `strip().lower()` 後に行うので大文字・前後空白も同一視する。
+**codex 側の alias（`openai` → codex、`github`/`gh` → copilot）は自動変換対象に入れない**
+（パス契約が未検証のため）。ブリッジを更新したら `_BACKEND_ALIASES` と
+`NORMALIZABLE_BACKENDS` の突き合わせを行うこと。
+
+## 許可判断は握らない
+
+正規化時は **`permissionDecision` を返さない**（= no decision）。このとき `updatedInput` だけが
+適用され、許可判断は**通常の permission フロー**にそのまま委ねられる (= フックが無い場合と同じ)。
+**フックが権限境界を広げも狭めもしない。** `deny` だけが例外で、これは意図的なゲート。
+
+> ⚠️ **明示的な `"defer"` を返すこととは別物**（Codex 再レビュー指摘）。本フックは
+> `permissionDecision` フィールド自体を出力しない。「省略＝defer と同等」と書くと、
+> `updatedInput` の扱いまで同じだと誤読されるので、そう書かないこと。
+
+`updatedInput` には **`tool_input` 全体を複製して該当フィールドだけ差し替えたもの**を返す。
+公式スキーマは `updatedInput` を "partial, merged" と説明するが全置換と解釈する資料もあり、
+食い違ったまま `prompt` 等を失うと事故になるため、どちらの意味でも正しい形にしている。
+
+## 対象外(意図的)
+
+- `codex_*` / `copilot_*` / `cursor_*` と `agent_swarm` の非 antigravity バックエンド：
+  これらも**同じ Windows Python の abspath 解決を通る**（`codex_bridge.py` の
+  `os.path.abspath(ws) if ws else os.getcwd()`）ため、**同じ誤解決の穴を持つ**。
+  ただしそれらの CLI が Windows 形式を期待するかは**未検証**なので、**推測で変換はしない**。
+  代わりに**Windows 絶対パスで来ていなければ deny** し、呼び出し側に明示させる
+  (当初は「存在確認だけして値は触らない」としていたが、それでは Linux パスがそのまま
+  ブリッジへ渡り同じ事故が起きる・Codex 再レビュー HIGH)。
+- **未知の agy ツールは deny**。workspace を取らないと分かっている既知ツール
+  (`*_status`) だけを allowlist で素通しする。ツールが増えたら分類表を更新すること。
+- **TOCTOU**: 本フックの検査は agy 起動の**数秒前・別プロセス**なので、その間にディレクトリが消える/差し替わる可能性は残る。
+  ただしブリッジ側のローカルパッチで **`os.makedirs(workspace, exist_ok=True)` を全廃**し
+  （`_require_workspace()` が存在しなければ例外を投げる）、**「消えていたら空で作り直して走る」経路は無くなった**。
+  残る窓は「ブリッジが確認してから spawn するまでの数マイクロ秒」で、ユーザ空間では閉じられない（既知の限界）。
+- **渡されたパスが「意図した repo か」は判定しない**(形式と実在の検査のみ)。
+- **agy が実際にそれを開いたかは検証できない。** アンカー照合(`.claude/agents/agy-delegate.md`)は
+  引き続き規律側の必須手順。
+
+## 期限保証(fail-close の外殻)
+
+非0終了は exit 2 以外ツール実行を止めない。**検査できなかったときに deny を返せないと
+未検査の入力がそのまま走る**ので、フック全体を期限付きにして 0 以外をすべて deny へ正規化する。
+
+| 区間 | 期限 | 備考 |
+|---|---|---|
+| stdin からの payload 読み取り | `READ_DEADLINE=5`s ＋ `KILL_AFTER=2`s | stdin が閉じないケースの歯止め |
+| python による検査 | `INNER_DEADLINE=10`s ＋ `KILL_AFTER=2`s | 最悪 19s < `settings.json` の `timeout: 25` |
+
+- **`timeout -k`(kill-after)を必ず付ける**。SIGTERM を無視するプロセスは `-k` 無しでは永久に
+  待たされ、外殻 25 秒に到達してフックごと打ち切られる＝deny を返せない(Codex 第3巡 BLOCKER)。
+- 終了コードは `124`(期限到達) / `137`(SIGKILL) / `143`(SIGTERM) を含め **0 以外すべて deny**。
+- python の stdout は**パイプでなくファイル**で受ける。パイプだと孫プロセスが fd を掴んだままだと
+  親が死んでも読み取りが終わらず、期限保証が破れる。
+
+## 内部完了の表明と判定 JSON(2つの別々の契約)
+
+判定 JSON は **stdout ではなく専用の verdict ファイル**へ書く。**stdout と verdict ファイルは
+別の契約**なので混同しないこと(Codex 第4巡で誤読された点)。
+
+### 契約① stdout ＝ 完了表明の運搬路(**1 行だけ**ではない)
+
+- 内部は `AGY_GUARD_DONE:<pass|deny|updated>` を **ちょうど 1 本**出す。
+- 外殻が要求するのは**その行がちょうど 1 本あること**だけ。
+  **それ以外の stdout 行は無視する**(`sitecustomize` や各種初期化の出力など、こちらが
+  制御できないノイズが混ざり得るため)。「stdout 全体が 1 行」という契約では**ない**。
+- ノイズが混ざっても判定内容は汚れない。判定は stdout ではなく verdict ファイルで受けるから。
+- 実装は `grep -c '^AGY_GUARD_DONE:'` が `1` であることを見る。回帰テスト＝
+  `test_stray_stdout_around_verdict_does_not_break_decision`(混在しても判定が通ること)と
+  `test_unvalidated_stdout_is_not_forwarded`(stdout の JSON は判定として採用しないこと)。
+
+### 契約② verdict ファイル ＝ 判定 JSON(**単一行の妥当な JSON**)
+
+外殻は転送前に次をすべて検証し、1つでも外れたら**外殻生成の deny** に落とす。
+
+1. **非空**であること。
+2. **ちょうど 1 行**であること(`wc -l`)。
+3. サイズが `MAX_BYTES`(1MiB)以下であること。
+4. **JSON として実際にパースできる**こと(構文検証。末尾のごみ・重複キー・生の制御文字・
+   不正なエスケープもここで落ちる)。
+5. **スキーマが完全一致**すること(過不足のあるキーは deny):
+
+   | 完了ステータス | 要求するスキーマ |
+   |---|---|
+   | `deny` | `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":<string>}}` |
+   | `updated` | `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":<object>}}` |
+
+6. **完了ステータスと判定内容が整合**すること。`deny` を名乗って `updatedInput` を返す/
+   `updated` を名乗って `permissionDecision` を返す/`pass` を名乗って verdict を書く、は
+   いずれも内部矛盾なので deny。
+
+> 旧版は `{"hookSpecificOutput":…}` という**グロブの外形一致**しか見ておらず、壊れた JSON でも
+> 転送していた。転送先で解析が失敗すると判定そのものが失われ、元の入力のまま続行され得る
+> ＝fail-open(Codex 第4巡 BLOCKER)。
+
+**検証は `awk` で行い `python3` は使わない**(意図的)。判定を生成したのは `python3` なので、
+同じ実行系で検証しても「壊れているときに壊れた検証結果が返る」だけで独立性が無い。`awk` は
+別実装かつ POSIX 必須ツールなので、生成側から独立して検証できる。`awk` が無い/落ちた場合も
+「検証できなかった」として deny する。
+
+> ⚠️ 内部の `emit_deny()` / `emit_updated_input()` にフィールドを足すときは、
+> `agy-workspace-guard.sh` 末尾の awk スキーマ(キー集合を**過不足なく**一致させている)と
+> 上の表も同時に更新すること。忘れると正しい判定が deny に落ちる。
+
+| 内部の状態 | 外殻の扱い |
+|---|---|
+| 完了表明がちょうど 1 本・`pass` ＋ verdict なし | 何も出力しない(通常フローへ委ねる) |
+| 完了表明がちょうど 1 本・`deny`/`updated` ＋ 上記①〜⑥をすべて満たす判定 JSON | その JSON を転送 |
+| 完了表明が 0 本(rc=0 でも無出力) / 2 本以上 / 未知ステータス | **外殻生成の deny** |
+| 判定 JSON が空・複数行・非 JSON・スキーマ不一致・ステータス不整合 | **外殻生成の deny** |
+| `pass` なのに verdict が書かれている | **外殻生成の deny**(内部矛盾) |
+
+## テスト
+
+`tests/unit/test_agy_workspace_guard.py`(50 ケース)。スコープ絞り込み(過剰拒否しないこと)・
+deny 条件・自動変換・**fail-close**(クラッシュ/ハング/**終了要求を無視するプロセス**/
+**完了表明の無い stdout**)・**判定 JSON の構文/スキーマ/ステータス整合**・**`tool_name` の
+欠落/型不正/agy 名前空間外**・**変換往復の同一性**・**未知ツール**(`tool_input` が非 object でも
+deny)の7群。
+`wslpath` は**存在確認ではなく往復変換を probe** して実物が使えるか判定し、使えなければ同じ規則の
+代替を **各 subprocess の env にだけ**差し込む(`os.environ` は書き換えない)。既存パスの検査は
+固定 `C:\…` ではなく `ROOT` から導出するので、**WSL 以外でも全ケース実行される**。
