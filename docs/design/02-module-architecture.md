@@ -104,7 +104,7 @@ tests/               # ④ 証跡（test-strategy のテーラリング先）
 | S2 安全側仕分け | `core/triage`（determinism 未宣言→`HUMAN_ONLY`） |
 | S3 fail-close | `domain/result` の `StageOutcome` ＋ `core/pipeline` が段ごとに分岐 |
 | S4 トランザクション | `persistence/workspace_git`（finding 単位コミット・失敗時書込ゼロ） |
-| S5 事前 lint | `parsing/lint`（parser＝検証器） |
+| S5 事前 lint | `parsing/lint`（parser＝検証器）⚠️ **`lint_criteria` は本番経路から呼ばれていない**＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)。実効なのは `parsing/frontmatter` の構文検査と `persistence/criteria_repo` の Enum 変換だけ |
 | S6 版スタンプ | `io/cli` 合成ルートで採取し `ReviewReport.stamp` に注入 |
 
 ## 実行・インポート規約（`sys.path` を触らない理由）

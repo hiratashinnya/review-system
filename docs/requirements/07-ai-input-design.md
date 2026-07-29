@@ -11,6 +11,11 @@
 > `SuggestedFix{description, diff}`（`domain/review.py`）と食い違っていた（Codex 第二意見レビュー指摘）。
 > **本 PR で例をオブジェクト形式へ修正済み**。当初これを「実 JSON の契約検証が無い」と記載したが**それは誤り**で、
 > 上記のとおり検証は存在する。誤った記述は Q26 からも撤回した。
+>
+> 📝 **2026-07-29 再訂正**：上記のオブジェクト化の際、`diff` の値を **unified diff 風**（`-…/+…`）で例示してしまったが、
+> それも実装の意味と食い違っていた（Codex 第3巡レビュー指摘）。**MVP の `suggested_fix.diff` は「修正後ファイルの全内容」**
+> （`persistence/workspace_git.py:61-67` `commit_fix` が `write_text` で丸ごと上書き）。例を全内容形式へ差し替え、
+> 下の出力スキーマ節に契約を明記した。
 
 レビュー実行時に LLM へ「何を渡し・何を返させるか」の設計。これが MVP の中核。
 対象は**役割①レビュー時の LLM**（文書＋合成基準 → 指摘）。役割②（合成前の本文矛盾チェック）は
@@ -54,7 +59,7 @@ LLM の仕事は **「観点違反の発見＋`rule id` 付与＋修正原案」
       "location": { "file": "src/UserCard.tsx", "line_range": [1, 1] },
       "quote": "function userCard() {",
       "rationale": "コンポーネントが camelCase。PascalCase にすべき。",
-      "suggested_fix": { "description": "PascalCase へ改名", "diff": "-function userCard() {\n+function UserCard() {\n" }
+      "suggested_fix": { "description": "PascalCase へ改名", "diff": "function UserCard() {\n  if (cond) {\n    const [open, setOpen] = useState(false);\n  }\n}\n" }
     }
   ],
   "unmatched": [
@@ -72,6 +77,13 @@ LLM の仕事は **「観点違反の発見＋`rule id` 付与＋修正原案」
 - `severity` / `mode` は**含めない**（プログラムが `rule_id → determinism×severity → ポリシー` で付与）。
 - `unmatched` は「観点としては妥当そうだが既存 id に当たらない」指摘の受け皿（Q7）。
   育成ループ（[04](04-feedback-loop.md)）で新ルール候補の素材になる。
+- ⚠️ **`suggested_fix.diff` の中身は「修正後ファイルの全内容」**（MVP・unified diff **ではない**）。
+  フィールド名は歴史的経緯で `diff` だが、実装は受け取った文字列を**そのままファイルへ書き戻す**：
+  `core/apply.py` の `apply_auto` が `workspace.commit_fix(exec_id, key, rel, fix.diff)` を呼び、
+  `persistence/workspace_git.py:61-67` の `commit_fix` が `target.write_text(new_content)` で丸ごと上書きする。
+  `core/apply.py` の docstring にも「MVP は `SuggestedFix.diff` を『新しいファイル内容』として適用する
+  （unified diff 適用は post-MVP）」と明記されている。**unified diff 形式のパッチ適用は post-MVP**。
+  → LLM には `location.file` の**修正後の全文**を返させる（部分パッチを返させない）。
 
 ## 後段との接続
 

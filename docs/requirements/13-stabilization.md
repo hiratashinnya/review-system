@@ -117,6 +117,12 @@ fail-open は「続けてもリスクが無い良性ケース」（＝空文書�
 **受け入れ基準**
 - 不正な `override` 値・未対応記法・extends 切れの各基準ファイルを、**レビュー実行前**に名指しで弾ける。
 
+> ⚠️ **実装状況（2026-07-29・未達）**：上記は**要件**であって現状ではない。**未対応記法**（`parsing/frontmatter.py`）と
+> **`override`/`severity`/`determinism` の値域**（`persistence/criteria_repo.py` の Enum 変換）は実行前に弾けるが、
+> **必須キー・`id` 一意性・`extends` 切れ・`version` MAJOR は `parsing/lint.py` にあるだけで本番経路から呼ばれず**、
+> **入れ子段数の検査は未実装**、**弾き方も未捕捉例外で O-14 形式になっていない**。
+> → [Q26](../dashboard.md#-未決事項決めないと進めない論点)（結線するか post-MVP へ送るかはオーナー未決）。
+
 ---
 
 ## S6 — 結果の provenance / 版スタンプ（MVP 推奨）

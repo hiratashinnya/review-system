@@ -17,7 +17,7 @@
 | プロンプト雛形 | `<id>:<MAJOR.MINOR>`（例 `review:3.1`・[DD7](decisions.md)） | prompts/templates | 出力スキーマの型/構造が変わる⇒[07 対応表](07-system-prompts.md)で世代切替 |
 | PF/モデル | `platform_id` / `model_id`（[04 capabilities](04-platform-protocol.md)） | 版スタンプ | （外部識別子） |
 
-> **版↔対応ロジックの一覧**は[07 §版管理](07-system-prompts.md)（プロンプト）と各パーサ（基準/ポリシー）が持つ。**未対応 MAJOR は実行前 fail-close**（[13 S5](../requirements/13-stabilization.md)）、MINOR 差は許容（情報のみ）。
+> **版↔対応ロジックの一覧**は[07 §版管理](07-system-prompts.md)（プロンプト）と各パーサ（基準/ポリシー）が持つ。**未対応 MAJOR は実行前 fail-close**（[13 S5](../requirements/13-stabilization.md)）、MINOR 差は許容（情報のみ）。⚠️ この fail-close は**要件であって現状ではない**（判定を持つ `lint_criteria` が未結線＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
 
 ### 版スタンプ（O-1 に必須・[01 ProvenanceStamp](01-class-design.md) に `execution_id` 追加）
 
@@ -65,7 +65,7 @@ class ProvenanceStamp:                 # S6
 対応する版は**ソースの定数**として持つ（コメント不可）。理由＝`reviewer version`／`--help` がそれを読んで表示でき、lint も同じ定数で判定できる（単一ソース）。
 
 ```python
-# parsing/frontmatter.py — 基準/ポリシーが読める MAJOR の集合（S5 lint がこれで判定）
+# parsing/lint.py — 基準/ポリシーが読める MAJOR の集合（S5 lint がこれで判定）
 SUPPORTED_CRITERIA_MAJOR: frozenset[int] = frozenset({1})   # 未対応 MAJOR は fail-close
 SUPPORTED_POLICY_MAJOR:   frozenset[int] = frozenset({1})
 # MINOR は情報のみ（処理は MAJOR で分岐）。version は "MAJOR.MINOR" 文字列で読む（整数化しない）
@@ -78,6 +78,8 @@ TEMPLATE_VERSIONS: dict[str, str] = {
 ```
 
 - `reviewer version`（[03](03-external-interfaces.md)）＝この2定数を表示。lint（S5）と版スタンプ（S6）も**同じ定数**を参照（DRY）。
+  ⚠️ **実装状況**：定数は `parsing/lint.py` に実在し `reviewer version` が表示するが、**MAJOR 判定を行う `lint_criteria` は本番経路から呼ばれていない**ため、
+  **未対応 MAJOR の基準ファイルは現状 fail-close せずそのまま読まれる**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
 - **MAJOR を上げる＝対応ハンドラ世代を上げる**ので、定数の更新と[07 対応表](07-system-prompts.md)・パーサ/ビルダーの改修は**同時**に行う（版↔ロジックを一目で追える）。
 
 ## 5. 影響範囲（他設計へ）

@@ -44,7 +44,7 @@ flowchart LR
 | レビュアー | `reviewer decide <report>` | P5.2(💬・I-6) | **レポートのパスだけ**（💬 決定＋任意の修正欄） | 適用 or 記録 / 0 |
 | レビュアー | `reviewer feedback <report>` | P6.1 | **レポートのパスだけ**（判断/対象外チェック） | DS5 追記 / 0 |
 | メンテナ | `reviewer criteria feedback-draft [--rule <id>]` | P6.2（オンデマンド・[DD11](decisions.md#dd11--観点fb起草p62-のオンデマンド起動口)） | DS5 傾向（任意で rule 絞り） | O-12 観点FB提案 / 0 ・**MVP保留印** |
-| メンテナ | `reviewer criteria lint [paths]` | S5 | 基準/ポリシーのパス（既定＝全件） | lint 結果（O-14 同形式）/ 0 健全・4 不正 |
+| メンテナ | `reviewer criteria lint [paths]` | S5 | 基準/ポリシーのパス（既定＝全件） | lint 結果（O-14 同形式）/ 0 健全・4 不正 ・⚠️ **未実装**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)） |
 | メンテナ | `reviewer criteria scaffold --type <t> --scope <s>` | P6.4 | doc_type・scope | 基準ひな形(O-11) / 0 |
 | メンテナ | `reviewer warnings [--scope <s>]` | P6.5 表示 | scope フィルタ | 新規＋既知警告(O-9) / 0 |
 | 共通 | `reviewer run <paths…>` | PF 駆動入口 | review と同じ | **stdout 制御プロトコル**（[04](04-platform-protocol.md)） |
@@ -96,7 +96,7 @@ def cmd_version() -> int: ...                  # 対応版定数を表示（pars
 | 0 | 成功（空文書 no-op 含む＝良性 fail-open） | レポート出力・0件レポート |
 | 2 | 要求不正（対象なし・revert 対象なし） | 引数ミス |
 | 3 | fail-close（O-14） | 基準パース失敗・LLM 障害・スコープ未解決 |
-| 4 | lint 不正（S5） | `override` 不正値・extends 切れ |
+| 4 | lint 不正（S5） | `override` 不正値・extends 切れ ・⚠️ **現状 exit 4 は返らない**（S5 lint 未結線＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)。`override` 不正値はローダの Enum 変換で未捕捉例外になる） |
 
 - どの異常も**黙って空を返さない**：`FailureNotice{stage+reason+subject+next_action}`（O-14）を**stderr へ可読出力**し、上の code を返す（[DD9](decisions.md#dd9--ログ出力先)）。
 

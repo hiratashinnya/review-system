@@ -79,7 +79,7 @@
 | `位置 Location` | `{ file Path + (line_range?) }`（**file 必須**） | 導出 | [02 P3](../process/02-decomposition.md) |
 | `行範囲 LineRange` | `{ 開始行 + 終了行 }` | 導出 | （新規・タプル回避） |
 | `未分類指摘 UnmatchedFinding` | `{ description + location + (suggested_fix?) + 由来(id外れ\|自己申告) }` | 導出（O-7） | [02 P4](../process/02-decomposition.md) / [Q7](../dashboard.md) |
-| `修正案 SuggestedFix` | `{ 説明 + diff }`（LLM 原案 or ツール生成の素） | 導出 | [02 P3/P5](../process/02-decomposition.md) |
+| `修正案 SuggestedFix` | `{ 説明 + diff }`（LLM 原案 or ツール生成の素）。**MVP の `diff` は「修正後ファイルの全内容」**＝unified diff ではない（`core/apply.py`→`workspace_git.commit_fix` が `write_text` で丸ごと上書き。unified diff 適用は post-MVP） | 導出 | [02 P3/P5](../process/02-decomposition.md) / [07](../requirements/07-ai-input-design.md) |
 
 ---
 
@@ -97,7 +97,7 @@
 | 名前 | 定義 | 状態/導出 | 由来 |
 |---|---|---|---|
 | `finding_id FindingId` | `{ rule_id RuleId + location Location }`（revert/コミット粒度） | 導出（決定的キー） | [02 P5](../process/02-decomposition.md) / [Q3](../dashboard.md) |
-| `確定fix ResolvedFix` | `{ finding_id + 生成元(tool\|llm) + diff }` | 導出 | [02 P5.1](../process/02-decomposition.md) |
+| `確定fix ResolvedFix` | `{ finding_id + 生成元(tool\|llm) + diff }`（`diff` の意味は `SuggestedFix` と同じ＝**MVP は修正後ファイルの全内容**） | 導出 | [02 P5.1](../process/02-decomposition.md) |
 | `適用コミット AppliedCommit` | `{ finding_id + commit参照 + 適用時刻 }`（DS3 finding-commit） | **状態（DS3・永続）** | [process/03](../process/03-state-inventory.md) / [Q3](../dashboard.md) |
 | `衝突群 FixConflict` | `{ location + 競合する確定fix{} }`（同一箇所） | 導出 | [02 P5.2](../process/02-decomposition.md) / [Q20](../dashboard.md) |
 | `評価レポート ReviewReport` | `{ auto済{} + ✋diff{} + 💬原案{} + ❓未分類{} + サマリ + 版スタンプ }` | 導出（O-1） | [02 P5.3](../process/02-decomposition.md) / [S6](../requirements/13-stabilization.md) |

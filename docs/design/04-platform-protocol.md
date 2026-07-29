@@ -69,6 +69,9 @@ class GuardingPlatform:                     # SafePlatformPort 実装
                    "suggested_fix": null } ] }
 ```
 
+> `suggested_fix.diff` は **MVP では「修正後ファイルの全内容」**（unified diff ではない）。アダプタが PF に返させる形もこれ
+> （`core/apply.py`→`persistence/workspace_git.py` の `commit_fix` が `write_text` で上書き・[07](../requirements/07-ai-input-design.md)）。
+
 > `findings.length + unmatched.length` が PF の出した item 総数（**取りこぼしゼロの保存則**・S1）。`rule_id` 実在・`location.file` 必須はシステムが検証（[02 分解 P3.3/P4.1](../process/02-decomposition.md)）。
 
 ## 2. PF → System：公開ツール（決定的オペレーション）

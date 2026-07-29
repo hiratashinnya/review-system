@@ -244,7 +244,7 @@ class WarningCandidate:
 @dataclass(frozen=True, slots=True)
 class SuggestedFix:
     description: str
-    diff: str
+    diff: str                              # MVP は「修正後ファイルの全内容」（unified diff は post-MVP・07）
 
 @dataclass(frozen=True, slots=True)
 class Finding:                             # PF 生成（=入力）→ 検証後に O-2
@@ -304,7 +304,7 @@ class ExecutionId:                         # 1レビュー実行の識別子（D
 class ResolvedFix:
     finding_id: FindingId
     origin: FixOrigin
-    diff: str
+    diff: str                              # SuggestedFix.diff と同義＝MVP は修正後ファイルの全内容
 
 @dataclass(frozen=True, slots=True)
 class ProvenanceStamp:                     # S6 版スタンプ
