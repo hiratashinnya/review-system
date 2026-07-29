@@ -27,6 +27,7 @@ status: tailored (active) — derived from .claude/standards/test-strategy
 - TC/TR は実装・実行が先行条件のため本 fan-out の対象外（TD 確定後、実装着手→コミット→テスト実行を経て別途 verification-author で個別に著作する）。
 - 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/verification-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを Read して取る**。**直接呼びのときは主文脈が `update_slugs`（backref 付与先など既存ノードを更新した slug）を `reconciliation-validator` へ明示的に渡す**（集約役の fan-out を通さないため。渡し忘れると `dsv2 check-slug` が正当な更新を既存 id 衝突と判定して ROLLBACK する）。
 - 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
+- **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。付けないと新しいキーが採番され、前回のハンドオフと対応付かなくなる。**新規 target には付けない**（付けないことで他バッチと衝突しないキーが採番される）。
 - 対話が要る段（TD の condition と SPEC の不一致など矛盾の裁定）は主文脈に残す（DD-22 ①-C ハイブリッド）。
 
 ## 継承する不変条件（標準のまま）

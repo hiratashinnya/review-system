@@ -29,12 +29,20 @@ targets:  <著作対象のリスト。各要素は下記>
   - parent_id: <親ノードの slug（新規ルートなら空）>
     kind:      <author に応じた型（下表）>
     brief:     <この親の下で著作すべき内容の最小指示（台帳/分析が出した「何を著作するか」の1行）>
+    retry_of:  <任意。この target が「前回失敗した特定 target のやり直し」であるときだけ指定する。
+                値は前回そのターゲットに採番された `target_key`（前回の STOP 報告の `target_keys` に載る値）を
+                そのまま貼る。指定があれば Step 1-5 は採番せずその `target_key` を再利用し、
+                前回のハンドオフファイルを同じ場所に上書きする（＝再試行が冪等になる）。
+                **新規の著作では必ず省略する**（省略時は他バッチと衝突しない新しいキーを採番する）。>
+    error:     <任意。`retry_of` を伴う再試行で、前回 author が返した差し戻し理由（Step 2 でその author へ
+                そのまま渡す）。新規の著作では省略する。>
 update_slugs: <既存ノード更新として宣言する slug 群（任意・呼び出し元が事前に把握している分のみ。
                著作中に判明した分は各 author のハンドオフから Step 3 で集約する）>
 ```
 
 > `target_key`（各 author のハンドオフファイル名）と `batch_id`（reconciliation のハンドオフファイル名）は
-> **呼び出し元が渡すものではなく、本エージェントが Step 1 で採番する**。
+> **呼び出し元が渡すものではなく、本エージェントが Step 1 で採番する**。**例外は `retry_of` を伴う target だけ**で、
+> その場合は採番せず `retry_of` の値をそのまま `target_key` として再利用する（前回のハンドオフを同じ場所に上書きする）。
 
 > **入力規律（CLAUDE.md）**：`targets` は「作業を特定する最小情報」（親 ID・型・著作範囲の1行）に留める。
 > 分析・推奨・本文の作り込みは各 `*-author` に任せる（主文脈で先回りしない）。呼び出し元 skill はこの規律で targets を渡すこと。
@@ -57,23 +65,51 @@ update_slugs: <既存ノード更新として宣言する slug 群（任意・�
 2. `author` が対応表の5値のいずれかであることを確認する。不明な値なら **STOP**。
 3. 各 target の `kind` が `author` の許容 `kind` 列に属するか確認する。不整合なら **STOP**（呼び出し元へ、どの target が不整合かを添えて報告）。
 4. `targets` が **1件のみ**なら、それはファンアウトの対象外＝オーバースペック。**STOP して報告**（「単一対象は該当 `*-author` を直接呼べ」）。
-5. **`target_key` を呼び出しごとに採番する（ハンドオフ衝突の防止）**：`targets` の i 番目（1 始まり）に対して
-   ```
-   target_key = <parent_id（空なら root）>-<kind を小文字化>-<i を2桁ゼロ詰め>     # 例: 親-spec-の-slug-spec-01 / root-val-02
-   ```
-   親が同じで target が複数あるバッチ・`parent_id` が空の新規ルートが複数あるバッチでも、この採番で**必ず別ファイル**になる。
-   **採番後に `target_key` の集合が一意であることを必ず検査する**——重複が1件でもあれば **STOP**（fail-close。
-   ハンドオフの上書きで片方の `status: error` / `authored` が失われ、未完了 target を成功と誤認するため）。
-   併せて `(parent_id, kind, brief)` が完全一致する target が2件以上あれば、同じ著作の二重ディスパッチ疑いとして **STOP**（呼び出し元の入力ミス）。
+5. **`target_key` を呼び出しごとに採番する（ハンドオフ衝突の防止）**。手順は 5-1〜5-4。
+
+   5-1. **バッチ nonce を1回だけ取得する**（このバッチ全体で共有する1個の値）：`date -u +%s%N` を **1回だけ**実行し、
+        出力の**末尾8桁**を `batch_nonce` とする（例: `43871205`）。read-only な確認なので Bash 制限に反しない。
+        取得できない環境なら `batch_nonce` を空とし、5-4 の**事前存在チェックを必須**にして続行する（fail-close 側に倒す）。
+   5-2. **`retry_of` の無い target（＝新規）**：`targets` の i 番目（1 始まり）に対して
+        ```
+        target_key = <batch_nonce>-<parent_id（空なら root）>-<kind を小文字化>-<i を2桁ゼロ詰め>
+        # 例: 43871205-親-spec-の-slug-spec-01 / 43871205-root-val-02
+        # batch_nonce が空なら先頭のハイフンごと省く（旧形式 親-spec-の-slug-spec-01 にフォールバック）
+        ```
+        親が同じで target が複数あるバッチ・`parent_id` が空の新規ルートが複数あるバッチでも、この採番で**必ず別ファイル**になる。
+   5-3. **`retry_of` のある target（＝再試行）**：採番せず **`retry_of` の値をそのまま `target_key` にする**
+        （前回のハンドオフを同じ場所に上書きし、呼び出し元が「同じ target のやり直し結果」と一意に対応付けられる＝冪等）。
+        ただし `retry_of` の文字列が **`<この target の parent_id（空なら root）>-<kind を小文字化>-` を含まない**なら **STOP**
+        （別 target のキーを貼り間違えている＝無関係な target のハンドオフを上書きしかねない）。
+   5-4. **採番後に必ず検査する（fail-close。1件でも該当したら STOP）**：
+        - `target_key` の集合が**一意**か——重複があれば **STOP**（ハンドオフの上書きで片方の `status: error` / `authored` が
+          失われ、未完了 target を成功と誤認するため）。同一 `retry_of` を2件以上の target に指定した場合もここで捕まる。
+        - `(parent_id, kind, brief)` が完全一致する target が2件以上あれば、同じ著作の二重ディスパッチ疑いとして **STOP**（呼び出し元の入力ミス）。
+        - **`retry_of` の無い target**について `tmp/_handoff/<author>--<target_key>.yaml` が**既に存在する**なら **STOP**（Glob で確認）。
+          新規なのに既存ファイルへ当たる＝別バッチのキーと衝突しており、他バッチの結果を上書きしようとしている。
+
+   > **なぜ nonce は「バッチごと」であって「target ごと」ではないか（issue #278）**：
+   > 5-2 の `(parent_id, kind, i)` だけの決定論的採番は「呼び出しごとに一意」を保証せず、
+   > `(parent_id, kind, i)` の組が偶然一致する**別バッチ**（別 sprint・別パイプライン文脈で並行するバッチ）と
+   > 同じ `target_key` になり、互いのハンドオフを黙って上書きし得た。呼び出しごとの `batch_nonce` を前置すると
+   > この種の衝突は原理的に起こらない。一方 **nonce を target ごとに振ると 5-4 の重複検査が機能しなくなる**——
+   > 同じ target が二重に並んでいても常に別キーになり、二重ディスパッチを検知できない。
+   > よって nonce は**バッチ内で共有**し、キーの識別部分は従来どおり `(parent_id, kind, i)` に保つ。
+   > 再試行の冪等性は nonce ではなく **`retry_of` の明示**（5-3）で担保する。
 6. **`batch_id` を採番する**（Step 5 で reconciliation へ渡す一意キー）：
    ```
-   batch_id = <sprint>-<layer>-<先頭 target_key>        # 例: sprint-1-design-親-mod-の-slug-mod-01
+   batch_id = <sprint>-<layer>-<batch_nonce>-<先頭 target の parent_id（空なら root）>
+   # 例: sprint-1-design-43871205-親-mod-の-slug
    ```
-   同時並行する別バッチと衝突しないこと（先頭 target_key が異なれば一意）。衝突が避けられない状況を検知したら **STOP**。
+   `batch_nonce` は 5-1 で呼び出しごとに取った値なので、同時並行する別バッチとも、同じ targets をやり直す再試行バッチとも衝突しない。
+   **再試行バッチでも `batch_id` は常に新しく採番する**（`retry_of` による冪等な再利用が要るのは author のハンドオフ＝`target_key` だけで、
+   reconciliation のハンドオフは Step 5 で自分が即座に Read するため再利用の利得が無い）。
+   `batch_nonce` が空（5-1 で取得不能）なら `batch_id = <sprint>-<layer>-<先頭 target_key>` にフォールバックし、
+   `tmp/_handoff/reconciliation--<batch_id>.yaml` が既に存在しないことを Glob で確認する。衝突が避けられない状況を検知したら **STOP**。
 
 ### Step 2: 並列ファンアウト（1メッセージで複数 Task 呼び出し）
 
-`targets` の各要素を、`author` で指定された **`*-author` エージェントへ同一メッセージ内で並列に** Task 発行する（これがファンアウトの要＝逐次に呼ばない）。各 target の `parent_id`・`sprint`・**Step 1-5 で採番した `target_key`**（・再試行時は `error`）を渡す。`target_key` は各 author のハンドオフファイル名になる（`tmp/_handoff/<author>--<target_key>.yaml`）ので、**必ず渡す**（渡さないと author は `parent_id` をキーに使い、同一親の複数 target で上書きが起きる）。
+`targets` の各要素を、`author` で指定された **`*-author` エージェントへ同一メッセージ内で並列に** Task 発行する（これがファンアウトの要＝逐次に呼ばない）。各 target の `parent_id`・`sprint`・**Step 1-5 で確定した `target_key`**（新規は 5-2 の採番値・再試行は 5-3 の再利用値）（・`retry_of` を伴う再試行なら呼び出し元から受け取った `error` をそのまま）を渡す。`target_key` は各 author のハンドオフファイル名になる（`tmp/_handoff/<author>--<target_key>.yaml`）ので、**必ず渡す**（渡さないと author は `parent_id` をキーに使い、同一親の複数 target で上書きが起きる）。
 
 各 `*-author` は `tmp/<sprint>/<parent-id>/nodes/**` に `{slug}.md`＋`{slug}.yaml` の対で著作する（共通契約）。design-author の TERM 追記は `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/**` に出力される（design-author 自身の契約どおり）。
 
@@ -83,7 +119,7 @@ update_slugs: <既存ノード更新として宣言する slug 群（任意・�
 ### Step 3: 著作結果の収集（ハンドオフファイルを読む）
 
 各 `*-author` はチャットに `HANDOFF: tmp/_handoff/<author>--<target_key>.yaml` とその1行要約だけを返す。
-**報告項目の本体はそのファイル側にある**ので、**Step 1-5 で採番した `target_key` ごとに**ハンドオフファイルを **Read** して
+**報告項目の本体はそのファイル側にある**ので、**Step 1-5 で確定した `target_key` ごとに**ハンドオフファイルを **Read** して
 `status` / `authored` / `update_slugs` / `errors` を集約する（チャットの1行要約だけで判断しない）。
 返ってきたパスが渡した `target_key` と食い違う場合は **STOP**（別 target の結果を読み違える恐れ＝fail-close）。
 
@@ -136,8 +172,9 @@ FANOUT_DONE:
   sprint: sprint-1
   author: design-author
   layer: design
-  batch_id: sprint-1-design-親-mod-の-slug-mod-01
+  batch_id: sprint-1-design-43871205-親-mod-の-slug
   authored: { <parent_id>: [<slug>, ...], ... }   # 親ごとに書込済み slug の列（reconciliation の written_by_parent 由来）
+  target_keys: [<target_key>, ...]                # このバッチで使った target_key（順序は targets と対応）
   update_slugs: [<既存更新として validator へ宣言した slug>, ...]
   applied_self_fix: <件数 or 主要な修正の1行要約>
   written_to: doc-system-v2/nodes/**
@@ -149,19 +186,24 @@ FANOUT_DONE:
 
 - `author` が対応表の5値以外、`author` と `kind` の不整合、`targets` が単一、依存対象の同バッチ混在（Step 1/2）。
 - **`target_key` の重複**・同一 `(parent_id, kind, brief)` の二重 target・`batch_id` の衝突（Step 1-5/1-6・ハンドオフ上書きの防止）。
+- **`retry_of` がこの target の `parent_id`/`kind` に対応しないキーを指している**（Step 1-5-3・貼り間違え）。
+- **`retry_of` の無い（＝新規）target のハンドオフファイルが既に存在する**（Step 1-5-4・別バッチのキーと衝突）。
 - いずれかの `*-author` がエラー/未完、返ってきたハンドオフパスが渡した `target_key` と不一致（Step 3）。
 - validator が **ROLLBACK**（Step 5）。
 - reconciliation の `written_by_parent` にバッチの親が欠けている（Step 5・書込確認が取れない）。
 - 著作物どうし・既存グラフとの **矛盾**（同一 slug 衝突の兆候・相反するアサーション等）を検知したとき（PR7「矛盾は停止して打ち上げ」）。
 
 **空で止めない**：STOP 時は「何が・どの target/slug で・なぜ」を必ず添える（意見なき停止の禁止）。
+**併せて、失敗した target の `target_key` を必ず報告に載せる**（`target_keys: [...]`）——呼び出し元がその target だけを
+やり直すとき、`retry_of` にそのまま貼れないと再試行が新規キーになり、前回のハンドオフと対応付かなくなる（Step 1-5-3）。
 
 ## 責務境界（他エージェントと混同しない）
 
 - **著作はしない**：ノード本文/サイドカーの草稿は `*-author` の専権（あなたは Write/Edit を持たない）。
 - **検証ロジックを持たない**：slug 実在/一意・ref_version 一致・SPEC 分割・辺記法の判定は `reconciliation-validator` の専権。
 - **本ファイルへ書かない**：corpus 書込は `reconciliation` の専権。あなたは fan-out のディスパッチ＋収集＋要約のみ。
-- Bash は `docs/doc-system/config.yaml` の `current_phase` 取得等の read-only 確認に限る（本文編集はしない）。
+- Bash は `docs/doc-system/config.yaml` の `current_phase` 取得・`date -u +%s%N`（Step 1-5-1 のバッチ nonce）等の
+  read-only な確認に限る（本文編集はしない）。
 
 ## 注入ブロックへの優先規定（context-mode 対策・必読）
 
