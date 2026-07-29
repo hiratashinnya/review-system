@@ -5,7 +5,8 @@ doc-system **v2**（1ノード1YAML＋型別 body policy・slug id・path 導出
 
 サブコマンド: `index`（meta.json 生成）/ `deps` / `dependents` / `orphans` / `drift` /
 `dashboard`（stage/type 件数＋FND/Q/DD/PEND 判断待ちの Markdown 集計）/
-`reverse`（FND 辺逆転）/ `rename`（slug 改題）/ **`build-view`**（`meta.json`＋本文 → 単一 `doc_view.html`・Sub-F #75）。
+`reverse`（FND 辺逆転）/ `rename`（slug 改題）/ **`build-view`**（`meta.json`＋本文 → 単一 `doc_view.html`・Sub-F #75）/
+`clean-tmp`（書込後の tmp 著作ミラー削除・ガード付き fail-close）。
 
 ## 公開レポート（GitHub Pages）
 
@@ -35,6 +36,7 @@ commit しない。
 | `reverse.py` | FND 辺逆転＝forward(`FND→対象`)削除＋backward(`対象→FND`)付与＋DD-3 本文凍結＋z バンプ＋`git mv`（`fnd/open/`→`fnd/resolved/`）。status は path 導出。 | 補助: FORMAT.md「status 遷移（git mv）」・config.yml `fnd_lifecycle`（DD-16）・DD-3。 |
 | `rename.py` | slug 改題＝`.yaml` と同名 `.md` がある場合のみ改名＋全 referrer の `edges[].to` 一括張替え（meta.json 経由）。共有本文はノード改題で改名しない。 | 補助: FORMAT.md「id / slug」（rename ツール）・「body policy」。 |
 | `viewer.py` | `meta.json`＋各ノードの型別本文から**単一 `doc_view.html`** を生成（`build-view`）。bodyless は空本文、shared は `body_ref.file` 解決済み `body_path` を読む。stage/type/status フィルタ＋`ls` 風階層ブラウズ・deps/dependents/親子（同型辺）表示・**ドリフト可視化**（辺 `ref_version` x.y ≠ 参照先 x.y）・最小 Markdown レンダラ（見出し/リスト/コードフェンス/強調/リンク/引用・HTML エスケープ）。**deps/dependents/drift は `query.py` を再利用し CLI と完全一致**。データは `<script type="application/json">` にインラインし**外部 CDN/ネットワーク参照ゼロ**（オフライン自己完結）。 | 補助: FORMAT.md「1ノード=1YAML、本文は型別 body policy」「edges」「版」・config.yml `layout`/`status_dirs`（stage/type/status 並び）。ドリフト規則は `query.py`（RULE-004・DD-2・#81）。 |
+| `cleantmp.py` | 書込後の tmp 著作ミラー削除（`clean-tmp`）。削除してよいのは `<repo>/tmp/<sprint>/<parent-id>` の**ちょうど2階層**のみで、`tmp/` の外・`_handoff` を含むパス・symlink・階層違いは削除せず fail-close（`CleanTmpError`）。既定 dry-run・`--apply` で `shutil.rmtree`。 | 補助: CLAUDE.md「戻り値のハンドオフ規約」（`tmp/_handoff/` は掃除対象外）・`.claude/agents/reconciliation.md` Step 3-3・著作エージェント共通契約の tmp ミラーレイアウト。 |
 | `gitutil.py` | `git mv` の薄いラッパ（失敗時 FS フォールバック）。 | — |
 | `cli.py` | サブコマンド配線。終了コード 0/2/4（2=未検出 or argparse 用法・4=前提違反）。 | — |
 

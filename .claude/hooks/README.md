@@ -263,7 +263,7 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 
 | ファイル | 役割 |
 |---|---|
-| `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。 |
+| `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
 | `governance-directives.md` | 注入する本文(CLAUDE.md 中核規範の配送用の写し)。**正本は CLAUDE.md**で、食い違ったら CLAUDE.md を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か
@@ -291,16 +291,24 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
   実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、かつ tool_name が
   `mcp__plugin_...` になるため **`matcher: "Bash"` の `agent-command-gate.sh` と rtk フックが発火しない**
   ＝push/merge の権限境界を回避できる。
-- **検索系(`ctx_search` / `ctx_index`)は read-only なので、多数ファイルを読む5ロールに付与済み**
+- **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読む5ロールに付与済み**
   (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
   リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
+  **ただし `ctx_index` は read-only ではない**(`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
+  呼ぶたびに永続 FTS5 ストアへ追記される非冪等な書込)。付与の根拠は「read-only だから」ではなく
+  **「リポジトリ(作業ツリー)に書かないから」**。運用上は同じ対象を無駄に再 index しない。
 
 ## 設計上の前提(公式仕様)
 
 - `UserPromptSubmit` は stdout の素のテキストも context として扱われるが、他フックの出力と
   混ざったときに意図が曖昧にならないよう **JSON 形式**(`hookSpecificOutput.additionalContext`)で明示する。
 - **exit 2 はプロンプト自体を破棄する**。規約注入の失敗が作業全体の停止に化けるのは割に合わないため、
-  規範ファイルが読めないときは**何も注入せず exit 0**(fail-open)。欠落は `claude --debug` のフックログで気づける。
+  **どの失敗経路でも何も注入せず exit 0**(fail-open)。対象は規範ファイル欠落だけでなく、
+  **python3 の起動失敗・読込失敗・JSON 生成失敗・本文が空**も含む。
+- **fail-open でも無音にはしない**: いずれの失敗経路でも `[inject-governance] …` を **stderr へ出す**
+  (`warn()` ＋ python 側の詳細メッセージ)。**フックの stderr は通常の対話画面には表示されない**ため、
+  気づく手段は **`claude --debug`**(フックログに stderr が出る)。「規約注入が効いていない気がする」ときは
+  `claude --debug` で起動して `[inject-governance]` 行の有無を確認する。
 - 注入は毎ターンのコストになる。`governance-directives.md` は「独断・逸脱が起きたら実害が大きい」
   項目だけに絞り、**簡潔に保つ**(2026-07-28 時点で約 1,200 文字)。
 

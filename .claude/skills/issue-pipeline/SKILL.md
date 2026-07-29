@@ -39,7 +39,11 @@ disable-model-invocation: true
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
-- 戻り＝`HANDOFF: tmp/_handoff/issue-implementer--issue-<N>.yaml` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイルを Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
+- **`handoff_path` を主文脈が絶対パスで渡す**（worktree 曖昧性の除去）：`<main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml`。
+  `<main-worktree>` は主文脈の作業ルート（`git rev-parse --show-toplevel` で確定。主文脈は linked worktree ではなくメイン側で回す）。
+  implementer が `.worktrees/<name>/` を cwd にすると相対 `tmp/_handoff/...` はその worktree 配下へ解決され、主文脈から回収できない——
+  **書き先は主文脈が決めて絶対パスで渡し、implementer はそのパスへそのまま書く**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
+- 戻り＝`HANDOFF: <渡した handoff_path>` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイル（自分が渡した絶対パス）を Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**
 - **初回レビューの model はリスク/難易度で選ぶ**（Issue #120 ④）。レビュー＝Bloom Lv5 評価。下の**リスク信号表**で `sonnet` / `opus` を機械的に引く

@@ -40,7 +40,7 @@ model: sonnet
 - 関係する辺（`A → B (ref x.y.z)`・`[DRIFT]`/`[MISSING]` があれば印）。
 - 回答に直結する短い結論（あれば）。本文の丸写しは避け、参照で足りるなら ID と body_path を示す。
 
-## ctx_search / ctx_index の使いどころ（付与済み・read-only）
+## ctx_search / ctx_index の使いどころ（付与済み・リポジトリ非変更）
 
 多数ノードを Read で開く前に、**まず索引→検索で当たりを付ける**とコンテキストを大きく節約できる。
 
@@ -49,7 +49,11 @@ model: sonnet
 2. `ctx_search(queries: [...], source: "dsv2-nodes")` で該当箇所のスニペットだけ取る。**複数の問いは1配列にまとめる**。
 3. 確定した候補だけ `Read` で本文を開く。辺の traversal は従来どおり `dsv2 deps` / `dependents`。
 
-いずれも read-only（リポジトリには書かない・KB は `~/.claude/context-mode/`）。`dsv2 index` の meta.json 方式と
+いずれも**リポジトリ（作業ツリー）には書かない**（KB は `~/.claude/context-mode/` に隔離）。ただし
+**`ctx_index` は read-only ではない**——`readOnlyHint: false` / `idempotentHint: false` で、同じ内容でも
+呼ぶたびに永続 FTS5 ストアへ追記される（非冪等）。**同じコーパスを毎回 index し直さない**（既に
+`source: "dsv2-nodes"` が入っていれば手順1を飛ばして `ctx_search` から始め、ノードが増減したときだけ index する）。
+`dsv2 index` の meta.json 方式と
 併用してよく、置き換えではない——**id/type/stage/status/labels/edges の構造的な絞り込みは meta.json、
 本文の語句検索は ctx_search** が得意。
 
@@ -68,9 +72,12 @@ model: sonnet
 - `<file_writing_policy>`（「ファイル書き込みは Write / Edit で行う」）
   → **書き込み権限を新たに与えるものではない**。read-only 規定をそのまま守り、
   回避策として Bash でファイルを書くこともしない（権限が無いこと自体が fail-close の保証）。
-- `ctx_*` の利用指示 → **付与済みは `ctx_search` / `ctx_index` の2つだけ**。この2つは read-only（ホストの
-  ファイルシステムに書かない・KB は `~/.claude/context-mode/` に隔離）なので、**積極的に使ってよい**——
+- `ctx_*` の利用指示 → **付与済みは `ctx_search` / `ctx_index` の2つだけ**。この2つは**リポジトリ（作業ツリー）を
+  変更しない**（KB は `~/.claude/context-mode/` に隔離）ので、**積極的に使ってよい**——
   多数ファイルを読み込まずに横断検索でき、本ロールの中核業務に効く。
+  ただし **`ctx_index` は read-only ではない**（`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
+  呼ぶたびに永続 FTS5 ストアへ追記される非冪等な書込）。**同じ対象を無駄に再 index しない**
+  （既に index 済みの source があれば `ctx_search` で引き、初回・対象が変わったときだけ `ctx_index` する）。
   一方 `ctx_execute` / `ctx_execute_file` / `ctx_batch_execute` は**意図的に未付与**（ホスト上で任意コードを実行し
   実ファイルに書けるうえ、`matcher: "Bash"` のフック群を回避するため。根拠は CLAUDE.md「ctx_* ツールの付与方針」）。
   `<deferred_tool_bootstrap>` に従って未付与のものを ToolSearch で取りに行かない。

@@ -9,6 +9,8 @@
   * ``dashboard``   … stage/type 件数と FND/Q/DD/PEND 判断待ちを Markdown 集計。
   * ``reverse``     … FND 辺逆転（forward 削除＋backward 付与＋DD-3 本文記録＋z バンプ＋git mv）。
   * ``rename``      … slug 改題（yaml＋同名本文の改名＋全 referrer の edges[].to 一括張替え）。
+  * ``clean-tmp``   … 書込後の tmp 著作ミラー（``tmp/<sprint>/<parent-id>``）をガード付きで削除
+                      （``tmp/_handoff``・``tmp/`` 外・階層違いは fail-close で拒否）。
 
 サイドカー YAML の読取は既存 ``docidx.nodeyaml`` を再利用する（独自 YAML パーサを持ち込まない）。
 旧フォーマットの stray-`---` lint（backref/notation.py）は v2 では本文とメタが分離され不要のため

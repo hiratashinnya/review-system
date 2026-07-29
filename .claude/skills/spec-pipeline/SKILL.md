@@ -24,7 +24,7 @@ Q/DD 起票・停止）が要る段を主文脈に残すため** skill にして
 5. **要求層の並列著作 fan-out（非対話・エージェント委譲）** — 2・4 が「著作すべき親ノード群」を確定したら、**`authoring-fanout`** エージェントに委譲する：
    - まず `author: requirements-author`（VAL/SR/FR/NFR）を、独立親ごとに `targets` 配列で渡して**並列著作**させる。
    - 依存する SPEC は親 FR/SPEC 確定後、別バッチ `author: spec-author` で委譲する（依存対象は同バッチに混ぜない＝skill が分割）。
-   - 単一対象しか無い段では fan-out せず `requirements-author` / `spec-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/<author>--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラーは当該ファイルを Read して取る**。
+   - 単一対象しか無い段では fan-out せず `requirements-author` / `spec-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/<author>--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを Read して取る**。**直接呼びのときは主文脈が `update_slugs`（親サイドカー更新など既存ノードを更新した slug）を `reconciliation-validator` へ明示的に渡す**（集約役の fan-out を通さないため。渡し忘れると `dsv2 check-slug` が正当な更新を既存 id 衝突と判定して ROLLBACK する）。
    - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、該当 author の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
 6. `/value-trace` — イベント総点検（遮断検出）。
 7. `/mvp-scope` — 価値ベースの線引き（**対話・skill**）。

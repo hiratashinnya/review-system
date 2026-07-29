@@ -22,7 +22,9 @@ disable-model-invocation: true
 2.5. **設計層ノード著作 fan-out（非対話・エージェント委譲）** — 2〜4 の各段で確定した設計物（プローズ）を、**doc-system-v2 の設計層ノード**（ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT）として著作する段。1・2・3・4 が「著作すべき親ノード群」（モジュール一覧・オーケストレーション・プロンプト雛形 等）を確定したら、**`authoring-fanout`** エージェントに **`author: design-author`** で委譲する：
    - 独立親ノードごとに `targets` 配列（`parent_id`・`kind`・`brief`）で渡し、Wave1（MOD/PORT/PRS/DS など依存の薄い基盤層）→Wave2（ORC/DM/SCM/CFG/PROMPT など Wave1 に依存する層）の**2波に分けて並列著作**させる（依存対象を同バッチに混ぜない＝skill が分割）。
    - DM 確定時の TERM 設計ファセット追記（design-author が既存 TERM ノードへ Python 型名/定義モジュールを追記・新規作成しない）も同じ fan-out 経路に乗る。
-   - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/design-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラーは当該ファイルを Read して取る**。
+     **更新した TERM の slug は design-author のハンドオフ `update_slugs` に載って返り、`authoring-fanout` が全 author 分を集約して validator の `--update` 宣言に渡す**（落とすと `dsv2 check-slug` が正当な TERM 更新を既存 id 衝突と判定して ROLLBACK する）。
+   - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/design-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを Read して取る**。
+     **直接呼びのときは主文脈が `update_slugs` を `reconciliation-validator` へ明示的に渡す**（fan-out を通さない＝集約役が居ないため、渡し忘れると TERM 更新が ROLLBACK になる）。
    - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
 3. **orchestration-design**：制御フロー（スイムレーン）・fail-close・ログ/版。（確定後、2.5 と同じ経路で ORC ノードを著作する）
 4. **prompt-design**：LLM 雛形・役割制約・注入対策（出力スキーマは schema-design）。（確定後、2.5 と同じ経路で PROMPT ノードを著作する）

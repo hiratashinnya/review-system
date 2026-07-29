@@ -43,23 +43,39 @@ model: sonnet
 - **パイプ/grep/cat の代替**：`gh --json`/`--jq`、`python3 -m gitgate log -n <N> --grep <pat> --oneline`、`python3 -m gitgate diff --stat` 等の**ネイティブフラグ**を使う。ファイル閲覧・検索は Bash を経由せず **Read / Grep / Glob ツール**で行う。
 - **テスト実行**：`python3 -m unittest discover -s tests/unit`（`| tee` でのログ保存は層1で deny されるため使わない）。
 
+## 入力（呼び出し元＝`issue-pipeline` 主文脈が渡す）
+
+```
+issue:        <Issue 番号>
+handoff_path: <ハンドオフファイルの絶対パス。メインワークツリー側の
+               <main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml>
+（ほかタスク固有情報：関連ノード ID・スコープ等）
+```
+
+**`handoff_path` が渡されていなければ実装に着手せず、チャットで STOP 報告する**（何が足りないか＋
+呼び出し元が渡すべき絶対パスの形を添える＝空で止めない）。相対パスからの推測解決はしない——
+理由は下記のとおり、worktree 内では相対 `tmp/_handoff/` が**呼び出し元の読めない場所**を指すため。
+
 ## 出力
 PR URL・変更ファイル一覧・テスト結果・スコープ外で見つけた指摘（あれば）は、後述「ハンドオフ」規約に従って
-`tmp/_handoff/issue-implementer--issue-<N>.yaml` に書く。**チャットにはパスと1行要約だけ**を返す。
+**呼び出し元から渡された `handoff_path`（絶対パス）へそのまま**書く。**チャットにはパスと1行要約だけ**を返す。
 マージ・Issueクローズは行わない。
 
-ワークツリーで作業する場合も、ハンドオフファイルは**呼び出し元が読めるメインのワークツリー側**
-（リポジトリルート直下の `tmp/_handoff/`）に書く——ワークツリー内に書くと呼び出し元から辿れない。
+**ワークツリーで作業する場合も書き先は `handoff_path` 一択**（自分でパスを組み立てない）。
+linked worktree（`.worktrees/<name>/`）を cwd にすると相対 `tmp/_handoff/...` はその worktree 配下に
+解決され、呼び出し元がメインワークツリー側を Read しても存在せず、PR URL・テスト結果・`stop_reason` を
+回収できない。**どのワークツリーで作業していても、呼び出し元が指定した絶対パスへ書く**ことで一意に解決する。
 
 ## ハンドオフ（呼び出し元への受け渡し）
 
 **呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
 チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
 
-- 置き場：`tmp/_handoff/issue-implementer--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
-- `<key>`：対象を一意に識別する文字列（issue-<Issue番号>）
+- 置き場：**呼び出し元が渡した絶対パス `handoff_path`**（＝`<main-worktree>/tmp/_handoff/issue-implementer--<key>.yaml`。
+  `tmp/` は gitignore 済み・コーパスを汚さない）。**自分で相対パスに置き換えない**（worktree 内に落ちて呼び出し元から辿れなくなる）
+- `<key>`：対象を一意に識別する文字列（issue-<Issue番号>）＝呼び出し元がパスに埋めて渡す
 - 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
-- チャットへの返り値：`HANDOFF: tmp/_handoff/issue-implementer--<key>.yaml` ＋ **1行要約**（成否と件数）
+- チャットへの返り値：`HANDOFF: <handoff_path>` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
 
 ```yaml

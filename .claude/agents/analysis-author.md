@@ -16,6 +16,8 @@ skills:
 ```
 parent_id:   <親ノードの ID/slug（例: SPEC・P の slug）>
 sprint:      <current_phase 値>
+target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
+              未指定なら parent_id を使う（単独呼び出し時のみ）>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
@@ -30,7 +32,7 @@ tmp/<sprint>/<parent-id>/nodes/03-analysis/<type>/{slug}.yaml  # サイドカー
 ```
 
 これは**ノード成果物**の置き場。呼び出し元へ返す報告項目（著作した slug 群・エラー等）はここではなく
-後述「ハンドオフ」規約の `tmp/_handoff/analysis-author--<parent-id>.yaml` に書き、チャットにはパスと1行要約だけを返す。
+後述「ハンドオフ」規約の `tmp/_handoff/analysis-author--<target_key>.yaml` に書き、チャットにはパスと1行要約だけを返す。
 
 ---
 
@@ -134,7 +136,9 @@ TERM は分析ファセット（用語/意味/用途）を著作し、`→ SPEC`
 チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
 
 - 置き場：`tmp/_handoff/analysis-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
-- `<key>`：対象を一意に識別する文字列（親ノードの parent-id）
+- `<key>`：呼び出し元（`authoring-fanout`）が採番して渡した **`target_key`**。渡されていなければ `parent_id` を使う（単独呼び出し時のみ）。
+  **同一親に複数 target がある／`parent_id` が空の新規ルートが複数あるバッチでは `parent_id` だけだとファイル名が衝突し、
+  片方の `status: error`・`authored` が失われて未完了 target を成功と誤認する**ため、fan-out 経由では必ず `target_key` を使う
 - 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
 - チャットへの返り値：`HANDOFF: tmp/_handoff/analysis-author--<key>.yaml` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
@@ -143,9 +147,13 @@ TERM は分析ファセット（用語/意味/用途）を著作し、`→ SPEC`
 agent: analysis-author
 sprint: sprint-1                 # 呼び出し時に渡された sprint
 parent_id: <parent-id>
+target_key: <target_key>         # 呼び出し元が渡した target_key（無ければ parent_id と同値）
 status: ok                       # ok | error（未完・差し戻しは error）
 authored:                        # 著作した slug 群（本文 .md ＋ サイドカー .yaml の対が揃ったもの）
   - <slug>
+update_slugs: []                 # 新規著作ではなく「既存コーパスノードを更新」した slug 群（無ければ空）。
+                                 # 呼び出し元がこれを validator へ `--update` 宣言として渡す。未申告だと
+                                 # dsv2 check-slug が正当な更新を既存 id 衝突と判定して ROLLBACK になる
 skipped: []                      # 既存につき更新しなかった等・理由を1行で
 errors: []                       # status: error のとき必須（何が・どの slug で・なぜ）
 notes: ""                        # 呼び出し元の判断に要る補足のみ（1〜3行）

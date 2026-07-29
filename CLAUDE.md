@@ -102,7 +102,13 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   → 呼び出し元へ返す項目を **`tmp/_handoff/<agent>--<key>.yaml`** に Write で書き、チャットには
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
-  `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外。
+  `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
+  （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が `_handoff` を機械的に拒否する）。
+  - **`<key>` は呼び出しごとに一意にする**：`authoring-fanout` は各 author へ `target_key`（親＋型＋連番）を、
+    `reconciliation` へ `batch_id` を採番して渡す。親 ID だけをキーにすると、同一親の複数 target や
+    `parent_id` 空の新規ルートが並列で走ったときに**同じファイルを上書きし、片方の結果が失われる**。
+  - **worktree をまたぐ場合は呼び出し元が絶対パスで渡す**（`issue-implementer` の `handoff_path`）。
+    linked worktree 内では相対 `tmp/_handoff/` がその worktree 配下に解決され、呼び出し元から回収できない。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で
@@ -124,10 +130,15 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
   `ctx_execute` は javascript / shell / python / perl を実行できるので、**この deny リストが丸ごと無効化される**。
   よって①ゲート管理下ロールでは**実セキュリティ回避**、②Bash 非保有ロールでは**権限昇格**、
   ③Bash 保有ロールでも「Bash は専用コマンドのみ」等の**明文化された制限を無効化**する。
-- **検索系＝`ctx_search` / `ctx_index` は read-only なので、多数ファイルを読むロールに付与する。**
-  実測でリポジトリへは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
+- **検索系＝`ctx_search` / `ctx_index` は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する。**
+  実測でリポジトリ（作業ツリー）へは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
   `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
-  read-only ゆえ `reconciliation-validator` の DD-22 fail-close を損なわない。
+  **付与の根拠は「リポジトリに書かない」ことであって「read-only だから」ではない**——`ctx_search` は読取専用だが、
+  **`ctx_index` は read-only ではない**（`readOnlyHint: false` / `idempotentHint: false`。同じ内容でも呼ぶたびに
+  永続 FTS5 ストアへ追記される＝非冪等）。`reconciliation-validator` の DD-22 fail-close が保たれるのも
+  **リポジトリ（`doc-system-v2/**`・tmp）へ書けないから**であり、KB への書込はその保証と無関係。
+  運用上は**同じ対象を無駄に再 index しない**（既に index 済みの source があればそれを `ctx_search` で引き、
+  対象が変わった/初回のときだけ `ctx_index` する）。
 - **`ctx_fetch_and_index`（ネットワーク送信）・`ctx_purge`（KB 破壊）・`ctx_insight`（外部ダッシュボード起動）・
   `ctx_upgrade` / `ctx_stats` / `ctx_doctor`（運用系）は subagent に付与しない**——主文脈が扱う。
 
