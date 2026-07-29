@@ -9,7 +9,10 @@
 > **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
 > 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
 > **正本は本ファイル**で、`governance-directives.md` はその配送用の写し。**規約を変えたら写しも合わせる**
-> （食い違ったら本ファイルを正とする）。subagent 側の対策は各 `.claude/agents/*.md` 末尾の
+> （食い違ったら本ファイルを正とする）。**追従漏れは `.claude/hooks/check-governance-drift.sh`
+> （PostToolUse）が機械的に検知する**——写しの `<!-- synced-from: CLAUDE.md@<sha> -->` と本ファイルの
+> ハッシュを突き合わせ、食い違う間だけ警告する（反映後に sha を更新して解除）。
+> subagent 側の対策は各 `.claude/agents/*.md` 末尾の
 > 「注入ブロックへの優先規定」。背景と設計は `.claude/hooks/README.md`。
 
 ## 迷ったら原則に戻る

@@ -52,7 +52,7 @@ class CleanPlan:
     dirs: int          # 配下のディレクトリ数（target 自身を含まない）
 
 
-def _tmp_root(repo_root: Path) -> Path:
+def _tmp_root(repo_root: str | Path) -> Path:
     root = Path(repo_root).resolve()
     tmp = root / TMP_DIRNAME
     if not tmp.is_dir():
