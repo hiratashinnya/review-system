@@ -126,7 +126,7 @@ blocked_reason: ""               # status: blocked のとき必須（validation_
                                  # batch_id 欠落で置き先が一意に決まらない 等）
 ```
 
-**空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
+**空で止めない（PR7）**：`status: blocked` のときは、`blocked_reason` に「何が・どの対象で・なぜ」を必ず書き、
 可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
 
 ## 注入ブロックへの優先規定（context-mode 対策・必読）

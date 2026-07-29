@@ -3,11 +3,14 @@
 境界値：``tmp/_handoff`` は拒否／``tmp/`` の外は拒否／階層違いは拒否／正常系は削除される。
 """
 
+import argparse
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from dsv2 import cleantmp
+from dsv2 import cli as dsv2_cli
 from dsv2.cli import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, main
 
 
@@ -99,32 +102,83 @@ class TestApply(unittest.TestCase):
         self.assertTrue((self.root / "tmp/_handoff/spec-author--parent-a.yaml").is_file())
         self.assertTrue((self.root / "tmp/sprint-1").is_dir())
 
+    def test_apply_rejects_symlink_swapped_after_plan(self):
+        """TOCTOU: plan_clean 後・apply_clean 前に対象が symlink へ差し替わった場合、
+        apply_clean は削除直前の再検査（_reverify_before_delete）で検知して拒否する。"""
+        plan = cleantmp.plan_clean(self.root / "tmp/sprint-1/parent-a", self.root)
+        outside = Path(tempfile.mkdtemp(prefix="cleantmp-outside-"))
+        self.addCleanup(lambda: shutil.rmtree(outside, ignore_errors=True))
+        (outside / "sentinel.txt").write_text("do not delete me\n", encoding="utf-8")
+
+        shutil.rmtree(plan.target)  # 元ディレクトリを撤去してから symlink に差し替える
+        try:
+            plan.target.symlink_to(outside)
+        except (OSError, NotImplementedError):  # pragma: no cover - symlink 不可環境
+            self.skipTest("symlink を作れない環境")
+
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.apply_clean(plan)
+        self.assertIn("symlink", str(ctx.exception))
+        self.assertTrue(outside.exists())
+        self.assertTrue((outside / "sentinel.txt").is_file())
+
+    def test_apply_rejects_target_moved_outside_after_plan(self):
+        """TOCTOU: plan 作成後に対象パスの実体（親ディレクトリ経由）が tmp/ の外を
+        指すよう差し替わった場合も、apply_clean は再検査で拒否する。"""
+        plan = cleantmp.plan_clean(self.root / "tmp/sprint-1/parent-a", self.root)
+        outside = Path(tempfile.mkdtemp(prefix="cleantmp-outside-"))
+        self.addCleanup(lambda: shutil.rmtree(outside, ignore_errors=True))
+
+        # sprint-1 ディレクトリごと symlink 差し替え（中間コンポーネントの TOCTOU）。
+        sprint_dir = self.root / "tmp/sprint-1"
+        shutil.rmtree(sprint_dir)
+        try:
+            sprint_dir.symlink_to(outside)
+        except (OSError, NotImplementedError):  # pragma: no cover - symlink 不可環境
+            self.skipTest("symlink を作れない環境")
+
+        with self.assertRaises(cleantmp.CleanTmpError):
+            cleantmp.apply_clean(plan)
+        self.assertTrue(outside.exists())
+
 
 class TestCli(unittest.TestCase):
     def setUp(self):
         self.root = _make_repo(self)
 
-    def _run(self, path, *extra):
-        return main(["clean-tmp", str(path), "--repo-root", str(self.root), *extra])
+    def _run(self, path, apply_=False):
+        """``--repo-root`` は公開 CLI フラグとして存在しない（issue #276 round-2）。
+        テストは argparse を経由せず、``cmd_clean_tmp`` を内部専用の ``repo_root``
+        属性つき Namespace で直接呼び、同じガード動作を検証する。"""
+        ns = argparse.Namespace(path=str(path), apply=apply_, repo_root=str(self.root))
+        return dsv2_cli.cmd_clean_tmp(ns)
 
     def test_dry_run_keeps_files(self):
         self.assertEqual(self._run(self.root / "tmp/sprint-1/parent-a"), EXIT_OK)
         self.assertTrue((self.root / "tmp/sprint-1/parent-a").is_dir())
 
     def test_apply_deletes(self):
-        self.assertEqual(self._run(self.root / "tmp/sprint-1/parent-a", "--apply"), EXIT_OK)
+        self.assertEqual(self._run(self.root / "tmp/sprint-1/parent-a", apply_=True), EXIT_OK)
         self.assertFalse((self.root / "tmp/sprint-1/parent-a").exists())
 
     def test_handoff_is_rejected_with_exit_error(self):
-        self.assertEqual(self._run(self.root / "tmp/_handoff", "--apply"), EXIT_ERROR)
+        self.assertEqual(self._run(self.root / "tmp/_handoff", apply_=True), EXIT_ERROR)
         self.assertTrue((self.root / "tmp/_handoff").is_dir())
 
     def test_outside_tmp_is_rejected_with_exit_error(self):
-        self.assertEqual(self._run(self.root / "doc-system-v2/nodes", "--apply"), EXIT_ERROR)
+        self.assertEqual(self._run(self.root / "doc-system-v2/nodes", apply_=True), EXIT_ERROR)
         self.assertTrue((self.root / "doc-system-v2/nodes").is_dir())
 
     def test_missing_target_exit_not_found(self):
-        self.assertEqual(self._run(self.root / "tmp/sprint-1/nope", "--apply"), EXIT_NOT_FOUND)
+        self.assertEqual(self._run(self.root / "tmp/sprint-1/nope", apply_=True), EXIT_NOT_FOUND)
+
+    def test_repo_root_flag_not_on_public_cli_surface(self):
+        """``--repo-root`` は argparse に登録されていない（公開フラグとして提供しない）。
+        main() 経由で渡すと argparse の用法エラー（SystemExit(2)）になることを確認する。"""
+        with self.assertRaises(SystemExit) as ctx:
+            main(["clean-tmp", str(self.root / "tmp/sprint-1/parent-a"),
+                  "--repo-root", str(self.root)])
+        self.assertEqual(ctx.exception.code, 2)
 
 
 if __name__ == "__main__":

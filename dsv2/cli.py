@@ -290,8 +290,16 @@ def cmd_clean_tmp(args) -> int:
 
     ``tmp/<sprint>/<parent-id>`` ちょうど2階層のみ削除し、``tmp/_handoff``・``tmp/`` 外・
     symlink・階層違いは削除せず EXIT_ERROR（fail-close）。既定は dry-run。
+
+    ``repo_root`` は **公開 CLI フラグとしては存在しない**内部専用パラメータ
+    （``args`` に属性として渡されたときだけ使う）。実運用（reconciliation.md Step 3-3）は
+    常にリポジトリルート（``_REPO_ROOT``）で呼ぶため、公開の ``--repo-root`` フラグは
+    信頼境界を広げるだけの不要な攻撃面だった（Codex 指摘・issue #276 round-2）。
+    テストは argparse を経由せず、``repo_root`` 属性を持つ ``argparse.Namespace`` を
+    直接組み立てて ``cmd_clean_tmp`` を呼ぶことで同じ検証を行う。
     """
-    repo_root = Path(args.repo_root).resolve() if args.repo_root else _REPO_ROOT
+    repo_root_override = getattr(args, "repo_root", None)
+    repo_root = Path(repo_root_override).resolve() if repo_root_override else _REPO_ROOT
     try:
         plan = cleantmp.plan_clean(args.path, repo_root)
     except CleanTmpNotFound as ex:
@@ -371,7 +379,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="書込後の tmp 著作ミラーをガード付きで削除（既定 dry-run）")
     p.add_argument("path", help="削除する tmp/<sprint>/<parent-id> ディレクトリ")
     p.add_argument("--apply", action="store_true", help="実際に削除する（既定 dry-run）")
-    p.add_argument("--repo-root", help="tmp/ の親（既定＝リポジトリルート。テスト用の上書き）")
+    # --repo-root は公開フラグとして提供しない（issue #276 round-2・Codex 指摘）。
+    # 信頼境界（tmp/ の親＝リポジトリルート）を CLI 引数で誰でも広げられる状態を避けるため、
+    # 実運用は常に _REPO_ROOT を使う。テストは cmd_clean_tmp を直接呼び、
+    # argparse.Namespace に repo_root 属性を持たせて上書きする（内部専用）。
     p.set_defaults(func=cmd_clean_tmp)
 
     p = sub.add_parser("build-view", parents=[common],
