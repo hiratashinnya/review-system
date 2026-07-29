@@ -17,6 +17,7 @@ Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レ
 1. **疎通チェックが先（fail-close）**：移譲の前に必ず `mcp__agy__antigravity_status` で agy MCP サーバーの疎通を確認する。
    - **クラウド/ヘッドレス環境では agy は使えない**（ローカル CLI・Windows Credential Manager 認証依存）。
    - **判定は allowlist（既定は停止）**：続行してよいのは「全項目正常」または「negative が `newest transcript` だけ（既知の transcript 書込バグ・実際の委譲は成功する）」のときだけ。**それ以外の negative・未知の項目・将来追加される診断はすべて停止**する（停止条件を列挙する方式は将来 fail-open するため採らない）。
+   - **診断出力の読み方・既知ラベル7つ・許容マーカー・停止条件は `.claude/agents/agy-delegate.md` の「判定手順（この順に機械的に当てる）」が正本**（1行目/最終行の照合 → 各行の解析 → マーカーは `ok`/`!!` の2値のみ → 未知ラベル・欠落・解析不能はすべて停止）。**出力が読めなければ停止**であり、「読めなかったので続行」は禁止。ここでは再掲しない（複製ドリフト防止）。
    - **`Overall: OK` を可否の判定条件にしない**——status は**認証状態もワークスペース到達性も検査していない**（`Overall: OK` でも agy が対象ツリーを開かず答えることがある）。**「未ログインなら停止」は status では判定不能**なので停止条件に数えない（認証 probe の追加は Issue #271）。詳細＝`.claude/agents/agy-delegate.md`。
 2. **workspace は `wslpath -w` の絶対パスを明示的に渡す**（省略しない）。並列系は要素ごとに指定する（swarm 相当＝`tasks[].workspace`、image swarm 相当＝`workspaces[]`）。**機械強制**＝`.claude/hooks/agy-workspace-guard.sh`。「WSL パスは `[WinError 267]` で失敗する」という旧記述は 2026-07-27 の調査で否定済み。
 3. **repo 依存タスクは「実際に見えているか」を確認する**：最初の委譲で検証可能なアンカー（対象ファイルの実内容）を取らせ、`Read`/`Grep` で突き合わせる。不一致なら結果を破棄して停止・報告する。
@@ -31,7 +32,7 @@ Antigravity（agy CLI）へ well-scoped タスク（read-only 影響調査＋レ
 
 ## done 条件
 
-- [ ] 移譲前に `antigravity_status` を実行し、**許容条件（全項目正常／negative が `newest transcript` だけ）に一致する**ことを確認した（一致しない・未知の診断があるなら移譲せず停止・報告）。
+- [ ] 移譲前に `antigravity_status` を実行し、**判定手順1〜7**（`.claude/agents/agy-delegate.md`）を当てて続行条件（既知7ラベルが揃い、`[!!]` が無いか `newest transcript` だけ）に一致することを確認した（一致しない・未知ラベル・解析不能なら移譲せず停止し、止まった手順番号と項目を報告）。
 - [ ] `workspace` を `wslpath -w` の絶対パスで明示的に渡した。
 - [ ] repo 依存タスクなら、agy が対象ツリーを実際に見ていることをアンカー突き合わせで確認した。
 - [ ] 依頼がスコープ内（doc-system 著作・本ファイル書き込み・製品コード採用を含まない）と確認した。
