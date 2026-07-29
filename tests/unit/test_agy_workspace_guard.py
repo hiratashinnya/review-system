@@ -14,6 +14,10 @@ Codex レビュー（#259）で塞いだ穴もここで固定する:
   - 実在しない Windows パス・未知構造・非 object ペイロードで fail-open しないこと
   - 終了要求に応答しない検査プロセスを内部期限内に強制終了して deny を返すこと
   - 内部完了表明の無い stdout（無出力・混在出力）を素通しさせないこと
+  - tool_name の欠落・型不正・agy 名前空間外を deny すること（第4巡 HIGH）
+  - 判定 JSON の構文・スキーマ・完了ステータスとの整合を外殻が検証すること（第4巡 BLOCKER）
+  - wslpath 変換の往復が変換元と同一ディレクトリを指すこと（第4巡 MEDIUM）
+  - `agy` / `gemini`（antigravity の確認済み alias）も変換対象になること（第4巡 LOW）
 """
 
 import json
@@ -54,10 +58,14 @@ sys.stdout.write("\n")
 _shim_dir = None
 # subprocess へ渡す env。shim を使うときだけ PATH を差し替えた**複製**を持つ。
 # os.environ を書き換えると、復元漏れが同一プロセス内の他テストへ漏れる（Codex 第3巡 MEDIUM）。
-ENV = None
+#
+# 下2つは setUpModule() で必ず代入される。**値を持たない型注釈だけ**にしてあるのは、
+# `= None` にすると型が `X | None` に広がり全参照箇所が Optional 扱いになる（型チェッカの誤検知）ため。
+# 注釈のみなら setUpModule が走らなかったときに NameError で即落ちる＝None が紛れ込むより失敗が早い。
+ENV: dict[str, str]
 # ROOT に対応する Windows 絶対パス。固定の `C:\...` を書くと純 Linux + shim 環境で
 # 実在確認に失敗するので、**必ず ROOT から導出する**（同上）。
-WIN_ROOT = None
+WIN_ROOT: str
 
 
 def _wslpath(flag, path, env=None):
@@ -119,12 +127,41 @@ def run_guard(payload, env=None):
     return json.loads(result.stdout)["hookSpecificOutput"]
 
 
-def expect_decision(payload):
-    """フックが何か返すことを要求し、その hookSpecificOutput を返す（素通しなら失敗）。"""
-    out = run_guard(payload)
+def expect_decision(payload, env=None, msg="判定が返るべき入力が素通しした"):
+    """フックが何か返すことを要求し、その hookSpecificOutput を返す（素通しなら失敗）。
+
+    `run_guard` は素通し時に None を返すので、呼び出し側で assertIsNotNone してから
+    添字アクセスすると型チェッカが narrowing できない。**素通しを許さないケースは必ず
+    こちらを使う**こと（None を戻り値から締め出す）。
+    """
+    out = run_guard(payload, env=env)
     if out is None:
-        raise AssertionError("判定が返るべき入力が素通しした")
+        raise AssertionError(msg)
     return out
+
+
+# 内部期限(10s) + kill-after(2s) を上回る余裕。settings.json の外殻 25s は超えない。
+HANG_TIMEOUT = 20
+
+
+def run_with_fake_python(script):
+    """検査本体(python3)を差し替えてフックを実行し、返った hookSpecificOutput を返す。
+
+    フックは `python3 - <payload> <verdict>` で呼ぶので、代替側から見て $2=payload・$3=verdict。
+    """
+    d = tempfile.mkdtemp(prefix="fakepy_")
+    try:
+        fake = Path(d) / "python3"
+        fake.write_text(script, encoding="utf-8")
+        fake.chmod(0o755)
+        env = dict(ENV, PATH=f"{d}{os.pathsep}{ENV['PATH']}")
+        r = subprocess.run(
+            [str(HOOK)], input=json.dumps(ask(prompt="x")), text=True,
+            capture_output=True, check=True, env=env, timeout=HANG_TIMEOUT,
+        )
+        return json.loads(r.stdout)["hookSpecificOutput"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def ask(**tool_input):
@@ -138,9 +175,6 @@ def swarm(*tasks):
 @unittest.skipUnless(_HAS_BASH, "bash が必要")
 class TestScope(unittest.TestCase):
     """検査対象の絞り込み。過剰拒否しないこと。"""
-
-    def test_non_mcp_tool_passes_through(self):
-        self.assertIsNone(run_guard({"tool_name": "Bash", "tool_input": {"command": "ls"}}))
 
     def test_other_backend_tool_without_workspace_passes_through(self):
         # codex/copilot/cursor は同じブリッジだが Windows 形式を期待するか未検証＝対象外（意図的）。
@@ -243,6 +277,43 @@ class TestDeny(unittest.TestCase):
 
 
 @unittest.skipUnless(_HAS_BASH, "bash が必要")
+class TestToolName(unittest.TestCase):
+    """tool_name そのものが検査の起点。壊れていたら素通しさせない（Codex 第4巡 HIGH）。
+
+    本フックは settings.json の matcher `mcp__agy__.*` 専用なので、ここへ届く payload の
+    tool_name は必ず agy 名前空間の文字列のはず。欠落・型不正・名前空間外は「payload が壊れて
+    いる」か「matcher が変わった」のどちらかで、いずれも検査が成立していない＝fail-close する。
+    """
+
+    def _deny_reason(self, payload):
+        out = expect_decision(payload)
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertNotIn("updatedInput", out, "deny 時に入力を書き換えないこと")
+        return out["permissionDecisionReason"]
+
+    def test_non_agy_tool_name_is_denied(self):
+        # 旧版は素通ししていた（agy 以外は対象外という扱い）。matcher が agy 専用である以上、
+        # ここに非 agy が来ること自体が異常なので拒否する。
+        self.assertIn(
+            "agy 名前空間",
+            self._deny_reason({"tool_name": "Bash", "tool_input": {"command": "ls"}}),
+        )
+
+    def test_missing_tool_name_is_denied(self):
+        self.assertIn("tool_name", self._deny_reason({"tool_input": {"workspace": str(ROOT)}}))
+
+    def test_non_string_tool_name_is_denied(self):
+        for bad in (123, ["mcp__agy__antigravity_ask"], {"a": 1}, None, True):
+            with self.subTest(tool_name=bad):
+                self.assertIn(
+                    "tool_name", self._deny_reason({"tool_name": bad, "tool_input": {}})
+                )
+
+    def test_blank_tool_name_is_denied(self):
+        self.assertIn("tool_name", self._deny_reason({"tool_name": "   ", "tool_input": {}}))
+
+
+@unittest.skipUnless(_HAS_BASH, "bash が必要")
 class TestAllow(unittest.TestCase):
     def test_existing_windows_path_passes_unchanged(self):
         self.assertIsNone(
@@ -298,6 +369,24 @@ class TestAllow(unittest.TestCase):
         self.assertEqual(task["model"], "M")
         self.assertEqual(task["backend"], "antigravity")
 
+    def test_swarm_antigravity_aliases_are_converted(self):
+        """`agy` / `gemini` は antigravity の**確認済み alias**（Codex 第4巡 LOW）。
+
+        出典＝ブリッジ `swarm.py` の `_BACKEND_ALIASES`（agy-mcp-bridge v0.21.4）で
+        `antigravity` / `agy` / `gemini` はすべて antigravity に解決される。ここを取りこぼすと
+        同じバックエンドが呼び方によって変換されたりされなかったりする。
+        比較は `strip().lower()` なので大文字・前後空白も同一視されること。
+        """
+        for backend in ("antigravity", "agy", "gemini", "GEMINI", "  Agy  "):
+            with self.subTest(backend=backend):
+                out = expect_decision(
+                    swarm({"backend": backend, "prompt": "P", "workspace": str(ROOT)})
+                )
+                ws = out["updatedInput"]["tasks"][0]["workspace"]
+                self.assertTrue(
+                    ws.startswith("\\\\") or ws[1:3] == ":\\", f"変換されていない: {ws!r}"
+                )
+
     def test_other_backend_windows_path_passes_unchanged(self):
         """契約未検証のバックエンドでも、既に Windows 絶対パスなら触らず通す。
 
@@ -321,23 +410,7 @@ class TestFailClose(unittest.TestCase):
     deny を返せないと、検証されていない入力のままツールが走ってしまう。
     """
 
-    # 内部期限(10s) + kill-after(2s) を上回る余裕。settings.json の外殻 25s は超えない。
-    HANG_TIMEOUT = 20
-
-    def _run_with_fake_python(self, script):
-        d = tempfile.mkdtemp(prefix="fakepy_")
-        try:
-            fake = Path(d) / "python3"
-            fake.write_text(script, encoding="utf-8")
-            fake.chmod(0o755)
-            env = dict(ENV, PATH=f"{d}{os.pathsep}{ENV['PATH']}")
-            r = subprocess.run(
-                [str(HOOK)], input=json.dumps(ask(prompt="x")), text=True,
-                capture_output=True, check=True, env=env, timeout=self.HANG_TIMEOUT,
-            )
-            return json.loads(r.stdout)["hookSpecificOutput"]
-        finally:
-            shutil.rmtree(d, ignore_errors=True)
+    _run_with_fake_python = staticmethod(run_with_fake_python)
 
     def test_interpreter_crash_is_denied(self):
         out = self._run_with_fake_python("#!/bin/sh\nexit 3\n")
@@ -383,6 +456,9 @@ class TestFailClose(unittest.TestCase):
     def test_stray_stdout_around_verdict_does_not_break_decision(self):
         """判定 JSON は stdout でなく専用ファイルで受けるので、混在出力に汚されないこと。
 
+        stdout に要求するのは**完了表明がちょうど1本あること**だけで、それ以外の行
+        （sitecustomize 等の初期化ノイズ）は無視する契約。「stdout 全体が1行」ではない。
+
         フックは `python3 - <payload> <verdict>` で呼ぶので、代替側の $2=payload・$3=verdict。
         """
         out = self._run_with_fake_python(
@@ -395,6 +471,120 @@ class TestFailClose(unittest.TestCase):
         )
         self.assertEqual(out["permissionDecision"], "deny")
         self.assertEqual(out["permissionDecisionReason"], "FAKE")
+
+
+@unittest.skipUnless(_HAS_BASH, "bash が必要")
+class TestVerdictValidation(unittest.TestCase):
+    """判定 JSON の構文・スキーマ・完了ステータス整合を外殻が検証すること（第4巡 BLOCKER）。
+
+    旧版は `{"hookSpecificOutput":…}` という**外形一致**しか見ておらず、壊れた JSON でも転送した。
+    転送先で解析が失敗すると判定そのものが失われ、元の入力のまま続行され得る＝fail-open。
+    外殻生成の deny に落ちること（＝内部が申告した判定が採用されないこと）を固定する。
+    """
+
+    _VALID_DENY = (
+        '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+        ' "permissionDecision": "deny", "permissionDecisionReason": "FAKE"}}'
+    )
+
+    _run_with_fake_python = staticmethod(run_with_fake_python)
+
+    def _fake_writing(self, verdict_body, status="deny"):
+        """代替 python3 に「任意の verdict を書いて status を表明する」振る舞いをさせる。"""
+        return self._run_with_fake_python(
+            "#!/bin/sh\n"
+            f"printf '%s\\n' '{verdict_body}' > \"$3\"\n"
+            f'echo "AGY_GUARD_DONE:{status}"\n'
+            "exit 0\n"
+        )
+
+    def _assert_shell_deny(self, out):
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertNotIn("FAKE", json.dumps(out), "不正な判定を採用していないこと")
+        return out["permissionDecisionReason"]
+
+    def test_malformed_verdict_json_is_denied(self):
+        # 途中で切れた JSON。外形は `{"hookSpecificOutput":` で始まるので旧版は通していた。
+        self._assert_shell_deny(
+            self._fake_writing(
+                '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+                ' "permissionDecision": "deny", "permissionDecisionReason": "FAKE"'
+            )
+        )
+
+    def test_verdict_with_unknown_permission_decision_is_denied(self):
+        out = self._fake_writing(
+            '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+            ' "permissionDecision": "allow", "permissionDecisionReason": "FAKE"}}'
+        )
+        self._assert_shell_deny(out)
+        self.assertNotIn("allow", json.dumps(out))
+
+    def test_verdict_with_wrong_hook_event_is_denied(self):
+        self._assert_shell_deny(
+            self._fake_writing(
+                '{"hookSpecificOutput": {"hookEventName": "PostToolUse",'
+                ' "permissionDecision": "deny", "permissionDecisionReason": "FAKE"}}'
+            )
+        )
+
+    def test_verdict_with_extra_top_level_key_is_denied(self):
+        self._assert_shell_deny(
+            self._fake_writing(
+                '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+                ' "permissionDecision": "deny", "permissionDecisionReason": "FAKE"},'
+                ' "continue": false}'
+            )
+        )
+
+    def test_status_deny_with_updated_input_verdict_is_denied(self):
+        """完了表明が deny なのに中身が updatedInput＝内部矛盾。"""
+        self._assert_shell_deny(
+            self._fake_writing(
+                '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+                ' "updatedInput": {"workspace": "FAKE"}}}',
+                status="deny",
+            )
+        )
+
+    def test_status_updated_with_deny_verdict_is_denied(self):
+        """完了表明が updated なのに中身が deny＝内部矛盾。"""
+        self._assert_shell_deny(self._fake_writing(self._VALID_DENY, status="updated"))
+
+    def test_status_pass_with_verdict_file_is_denied(self):
+        """pass を名乗りながら判定 JSON を書いているのは矛盾（素通しさせない）。"""
+        self._assert_shell_deny(self._fake_writing(self._VALID_DENY, status="pass"))
+
+    def test_multiline_verdict_is_denied(self):
+        out = self._run_with_fake_python(
+            "#!/bin/sh\n"
+            'printf \'{"hookSpecificOutput":\\n{"hookEventName": "PreToolUse",'
+            ' "permissionDecision": "deny", "permissionDecisionReason": "FAKE"}}\\n\' > "$3"\n'
+            'echo "AGY_GUARD_DONE:deny"\n'
+            "exit 0\n"
+        )
+        self._assert_shell_deny(out)
+
+    def test_empty_verdict_file_is_denied(self):
+        out = self._run_with_fake_python(
+            "#!/bin/sh\n: > \"$3\"\necho \"AGY_GUARD_DONE:deny\"\nexit 0\n"
+        )
+        self.assertEqual(out["permissionDecision"], "deny")
+
+    def test_valid_deny_verdict_is_forwarded(self):
+        """対偶: スキーマに適合していれば内部の判定はそのまま転送されること（過剰拒否しない）。"""
+        out = self._fake_writing(self._VALID_DENY)
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertEqual(out["permissionDecisionReason"], "FAKE")
+
+    def test_valid_updated_verdict_is_forwarded(self):
+        out = self._fake_writing(
+            '{"hookSpecificOutput": {"hookEventName": "PreToolUse",'
+            ' "updatedInput": {"workspace": "W", "prompt": "KEEP", "n": 1, "b": true}}}',
+            status="updated",
+        )
+        self.assertEqual(out["updatedInput"]["prompt"], "KEEP")
+        self.assertNotIn("permissionDecision", out)
 
 
 @unittest.skipUnless(_HAS_BASH, "bash が必要")
@@ -440,6 +630,53 @@ class TestUnknownTool(unittest.TestCase):
             }
         )
         self.assertEqual(out["permissionDecision"], "deny")
+
+    def test_swarm_non_antigravity_aliases_are_not_converted(self):
+        """codex / copilot / cursor の alias は変換対象に入れないこと（推測変換しない）。
+
+        ブリッジの `_BACKEND_ALIASES` には `openai`→codex・`github`/`gh`→copilot もある。
+        これらを取り込むと契約未検証のまま変換してしまうので、Linux パスは deny のままでよい。
+        """
+        for backend in ("codex", "openai", "copilot", "github", "gh", "cursor"):
+            with self.subTest(backend=backend):
+                out = expect_decision(
+                    swarm({"backend": backend, "prompt": "P", "workspace": str(ROOT)})
+                )
+                self.assertEqual(out["permissionDecision"], "deny")
+                self.assertIn("Windows 絶対パスでない", out["permissionDecisionReason"])
+
+
+@unittest.skipUnless(_HAS_BASH, "bash が必要")
+class TestConversionRoundTrip(unittest.TestCase):
+    """変換結果が変換元と**同じ実在ディレクトリ**を指すことまで確認する（Codex 第4巡 MEDIUM）。
+
+    形式（Windows 絶対パス）と変換元の実在だけでは「別の実在ディレクトリへ化けた」を検出できない。
+    化けたまま通すと agy は実在するが意図と違うツリーで走り、エラーも出さずに答える。
+    """
+
+    _BAD_WSLPATH = """#!/usr/bin/env python3
+import sys
+flag = sys.argv[1]
+# -w は「それらしい Windows 絶対パス」を返すが、-u で戻すと常に / になる（= 別ディレクトリ）。
+sys.stdout.write("\\\\\\\\wsl.localhost\\\\Ubuntu\\\\home\\n" if flag == "-w" else "/\\n")
+"""
+
+    def test_conversion_landing_elsewhere_is_denied(self):
+        d = tempfile.mkdtemp(prefix="badwslpath_")
+        try:
+            bad = Path(d) / "wslpath"
+            bad.write_text(self._BAD_WSLPATH, encoding="utf-8")
+            bad.chmod(0o755)
+            env = dict(ENV, PATH=f"{d}{os.pathsep}{ENV['PATH']}")
+            out = expect_decision(
+                ask(workspace=str(ROOT), prompt="x"),
+                env=env,
+                msg="往復が別ディレクトリを指す変換を素通ししないこと",
+            )
+            self.assertEqual(out["permissionDecision"], "deny")
+            self.assertIn("往復", out["permissionDecisionReason"])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":

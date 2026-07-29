@@ -34,9 +34,20 @@
 #   実在する Linux 絶対パス（antigravity）-> 正規化 … wslpath -w で変換（permissionDecision は返さない）
 #   実在する Linux 絶対パス（他 backend） -> deny  … パス契約が未検証なので推測変換しない
 #   相対パス / 実在しない / 変換失敗      -> deny  … makedirs による無言のディレクトリ生成を手前で止める
+#   変換の往復が別ディレクトリを指す      -> deny  … 変換先が変換元と同一実体でなければ通さない
+#   tool_name の欠落 / 非文字列 / 空      -> deny  … 分類の起点が無い＝検査できない（fail-close）
+#   agy 名前空間外の tool_name            -> deny  … 本フックは matcher `mcp__agy__.*` 専用（後述）
 #   未知の agy ツール                     -> deny  … tool_input の型に関わらず（分類は名前で先に決める）
 #   workspace が期待される所の未知の構造  -> deny  … 検査できないものを通さない
 #   解釈できないペイロード / 予期せぬ例外 -> deny  … fail-close
+#
+# 本フックは matcher `mcp__agy__.*` 専用（Codex 第4巡 HIGH）:
+#   settings.json の matcher が agy 名前空間だけを捕捉するため、ここへ届く payload の tool_name は
+#   必ず `mcp__agy__` で始まる。にもかかわらず欠落・型不正・名前空間外が来たなら、payload が
+#   壊れているか matcher が変わったかのどちらかで、いずれも**検査が成立していない**。素通しは
+#   fail-open なので deny する。
+#   ⚠ matcher を広げるならこの分類（および README の判定表）も同時に更新すること。
+#     広げたまま放置すると agy 以外のツールが一律 deny になる（うるさく壊れる＝黙って穴が開くより良い）。
 #
 # できないこと（規律側の責務・agy-delegate.md 参照）:
 #   - 渡されたパスが「意図した repo か」は判定しない（形式と実在の検査のみ）
@@ -136,6 +147,17 @@ NO_WS_TOOLS = {
 # Windows 形式への自動変換を行ってよいバックエンド。antigravity は実測で契約を確認済み
 # （--add-dir に UNC を渡して repo を読めることを確認）。他バックエンドはパス契約が未検証
 # なので**変換せず、Windows 絶対パスで来ていなければ deny する**（推測で変換しない）。
+#
+# agy / gemini は antigravity の**確認済み alias**（Codex 第4巡 LOW）。
+# 出典＝ブリッジの `swarm.py` `_BACKEND_ALIASES`（実測 2026-07-29・agy-mcp-bridge v0.21.4）:
+#     "antigravity": "antigravity", "agy": "antigravity", "gemini": "antigravity",
+#     "codex": "codex", "openai": "codex",
+#     "copilot": "copilot", "github": "copilot", "gh": "copilot",
+#     "cursor": "cursor"
+# つまり agent_swarm の tasks[].backend に "agy"/"gemini" と書いた場合も**実際に起動するのは
+# antigravity**。ここで取りこぼすと同じ backend が経路によって変換されたりされなかったりする。
+# 逆に codex 側 alias（openai / github / gh）は変換対象に**入れてはならない**（契約未検証）。
+# ブリッジを更新したら `_BACKEND_ALIASES` と本集合の突き合わせを行うこと。
 NORMALIZABLE_BACKENDS = {"antigravity", "agy", "gemini"}
 
 WINDOWS_ABS = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
@@ -250,6 +272,26 @@ def normalize_workspace(value, label, *, convert):
     converted = _wslpath("-w", value)
     if not WINDOWS_ABS.match(converted):
         raise Deny(f"{label} の変換結果が Windows 絶対パスでない: {converted!r}")
+
+    # 変換結果を Linux 側へ**戻して、変換元と同じ実体か**まで確認する（Codex 第4巡 MEDIUM）。
+    # 形式（Windows 絶対パス）と変換元の実在だけでは「別の実在ディレクトリへ化けた」を検出できない。
+    # 化けたまま通すと、agy は**実在するが意図と違うツリー**で走り、エラーも出ないまま
+    # 自信のある回答を返す——このゲートが塞ごうとしている事故そのもの。
+    back = _wslpath("-u", converted)
+    if not os.path.isdir(back):
+        raise Deny(
+            f"{label} の変換結果を WSL 側へ戻すと存在しないパスになる: "
+            f"{value} -> {converted} -> {back}"
+        )
+    try:
+        same = os.path.samefile(back, value)
+    except OSError as exc:
+        raise Deny(f"{label} の変換往復を検証できない: {value} -> {converted} -> {back} ({exc})")
+    if not same:
+        raise Deny(
+            f"{label} の変換往復が別のディレクトリを指す: "
+            f"{value} -> {converted} -> {back}。変換が信用できないため拒否した。"
+        )
     return converted
 
 
@@ -332,9 +374,24 @@ def main():
     if not isinstance(payload, dict):
         emit_deny(f"PreToolUse ペイロードが object でない: {type(payload).__name__}")
 
+    # 本フックは matcher `mcp__agy__.*` 専用。届く payload の tool_name は必ず agy 名前空間の
+    # 文字列のはずで、そうでないなら payload が壊れている（＝分類の起点が無い）か matcher が
+    # 変わったかのどちらか。どちらも「検査が成立していない」ので素通しさせない
+    # （旧版は素通し＝不正ペイロードで fail-open・Codex 第4巡 HIGH）。
     tool_name = payload.get("tool_name")
-    if not isinstance(tool_name, str) or not tool_name.startswith("mcp__agy__"):
-        emit_pass()  # agy 以外は素通し
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        emit_deny(
+            "PreToolUse ペイロードの tool_name が無い、または文字列でない"
+            f"（{type(tool_name).__name__}）。どのツールか判定できないため拒否した（fail-close）。"
+        )
+    tool_name = tool_name.strip()
+    if not tool_name.startswith("mcp__agy__"):
+        emit_deny(
+            f"{tool_name} は agy 名前空間（mcp__agy__*）のツールでない。"
+            "本ゲートは matcher `mcp__agy__.*` 専用で、それ以外は届かないはずのため拒否した"
+            "（fail-close）。matcher を広げたなら "
+            ".claude/hooks/agy-workspace-guard.sh の分類も更新すること。"
+        )
 
     enforced = SINGLE_WS_REQUIRED | LIST_WS_REQUIRED | TASKS_WS_REQUIRED
 
@@ -405,6 +462,11 @@ esac
 
 # 内部完了の表明を検査する（Codex 第3巡 BLOCKER: stdout 無検証による fail-open）。
 # rc=0 でも「何も出さずに終わった」「複数回出した」は検査が成立していない証拠なので deny する。
+#
+# stdout に**要求するのは完了表明がちょうど1本あること**だけで、それ以外の行（sitecustomize や
+# 各種初期化の出力など、こちらが制御できないノイズ）は**無視する**。判定 JSON は stdout ではなく
+# 専用の verdict ファイルで受けるので、ノイズが混ざっても判定内容は汚染されない。
+# 「stdout 全体が1行」という契約ではない（README の判定表と揃えること・Codex 第4巡の誤読点）。
 done_count="$(grep -c '^AGY_GUARD_DONE:' "$stdout_file" 2>/dev/null)" || done_count=0
 if [ "$done_count" != "1" ]; then
   emit_deny "\"agy-workspace-guard: 検査の完了表明が 1 本でない (count=$done_count) ため拒否（fail-close）\""
@@ -413,7 +475,12 @@ status="$(grep -m 1 '^AGY_GUARD_DONE:' "$stdout_file" | cut -d: -f2)"
 
 case "$status" in
   pass)
-    exit 0 ;;  # 検査は成立し「言うことなし」＝通常フローへ委ねる
+    # 検査は成立し「言うことなし」＝通常フローへ委ねる。
+    # ただし pass を名乗りながら判定 JSON を書いているのは内部矛盾なので通さない。
+    if [ -s "$verdict_file" ]; then
+      emit_deny '"agy-workspace-guard: 完了ステータス pass と判定 JSON の存在が矛盾するため拒否（fail-close）"'
+    fi
+    exit 0 ;;
   deny|updated)
     ;;
   *)
@@ -421,18 +488,158 @@ case "$status" in
     emit_deny '"agy-workspace-guard: 検査の完了ステータスが未知のため拒否（fail-close）"' ;;
 esac
 
-# 判定 JSON は「単一行の妥当な hookSpecificOutput」以外を通さない。
+# 判定 JSON は「単一行の**妥当な** hookSpecificOutput」以外を通さない（Codex 第4巡 BLOCKER）。
+# 旧版は `{"hookSpecificOutput":…}` というグロブの**外形一致**しか見ておらず、壊れた JSON でも
+# 転送していた。転送先で解析が失敗すると判定そのものが失われ、元の入力で続行され得る＝fail-open。
+# ここでは構文（本物のパース）・スキーマ・**完了ステータスとの整合**まで検証し、外れたら deny する。
+#
+# 検証は **awk** で行い、python3 は使わない（意図的）:
+#   判定を生成したのは python3 なので、同じ実行系で検証しても「壊れている場合に壊れた検証結果が
+#   返る」だけで独立性が無い。awk は別実装かつ POSIX 必須ツールなので、生成側から独立して検証できる。
 if [ ! -s "$verdict_file" ]; then
   emit_deny '"agy-workspace-guard: 判定 JSON が生成されなかったため拒否（fail-close）"'
 fi
 if [ "$(wc -l <"$verdict_file")" -ne 1 ]; then
   emit_deny '"agy-workspace-guard: 判定 JSON が単一行でないため拒否（fail-close）"'
 fi
-verdict="$(head -n 1 "$verdict_file")"
-case "$verdict" in
-  '{"hookSpecificOutput":'*'}') ;;
-  *) emit_deny '"agy-workspace-guard: 判定 JSON の形式が不正なため拒否（fail-close）"' ;;
-esac
+if [ "$(wc -c <"$verdict_file")" -gt "$MAX_BYTES" ]; then
+  emit_deny '"agy-workspace-guard: 判定 JSON が上限サイズを超えているため拒否（fail-close）"'
+fi
 
-printf '%s\n' "$verdict"
+# 検証するスキーマ（内部の emit_* が出す形と1対1）:
+#   status=deny    -> {"hookSpecificOutput":{"hookEventName":"PreToolUse",
+#                       "permissionDecision":"deny","permissionDecisionReason":<string>}}
+#   status=updated -> {"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":<object>}}
+# キー集合は**過不足なく一致**することを要求する（余分なキーも欠落も deny）。
+# emit_* に新しいフィールドを足すときは、この awk のスキーマも同時に更新すること。
+awk -v want="$status" '
+function skipws() { while (i <= n && index(" \t\r\n", substr(s, i, 1)) > 0) i++ }
+function pstring(   c, out) {
+  i++
+  out = ""
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "\\") {
+      if (i + 1 > n) { err = 1; return "" }
+      c = substr(s, i + 1, 1)
+      if (c == "u") {
+        if (i + 5 > n) { err = 1; return "" }
+        if (substr(s, i + 2, 4) !~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) { err = 1; return "" }
+        out = out "\\u"; i += 6
+      } else if (index("\"\\/bfnrt", c) > 0) {
+        out = out "\\" c; i += 2
+      } else { err = 1; return "" }
+    } else if (c == "\"") { i++; return out }
+    else if (c ~ /[[:cntrl:]]/) { err = 1; return "" }
+    else { out = out c; i++ }
+  }
+  err = 1; return ""
+}
+function pnumber() {
+  if (substr(s, i, 1) == "-") i++
+  if (i > n) { err = 1; return }
+  if (substr(s, i, 1) == "0") i++
+  else if (substr(s, i, 1) ~ /^[1-9]$/) { while (i <= n && substr(s, i, 1) ~ /^[0-9]$/) i++ }
+  else { err = 1; return }
+  if (i <= n && substr(s, i, 1) == ".") {
+    i++
+    if (i > n || substr(s, i, 1) !~ /^[0-9]$/) { err = 1; return }
+    while (i <= n && substr(s, i, 1) ~ /^[0-9]$/) i++
+  }
+  if (i <= n && substr(s, i, 1) ~ /^[eE]$/) {
+    i++
+    if (i <= n && substr(s, i, 1) ~ /^[-+]$/) i++
+    if (i > n || substr(s, i, 1) !~ /^[0-9]$/) { err = 1; return }
+    while (i <= n && substr(s, i, 1) ~ /^[0-9]$/) i++
+  }
+}
+function parse_value(path, depth,   c, k, first, kind) {
+  if (err) return ""
+  if (depth > 32) { err = 1; return "" }
+  skipws()
+  if (i > n) { err = 1; return "" }
+  c = substr(s, i, 1)
+  if (c == "{") {
+    i++
+    first = 1
+    while (1) {
+      skipws()
+      if (i > n) { err = 1; return "" }
+      if (substr(s, i, 1) == "}") { i++; return "object" }
+      if (!first) {
+        if (substr(s, i, 1) != ",") { err = 1; return "" }
+        i++
+        skipws()
+      }
+      first = 0
+      if (i > n || substr(s, i, 1) != "\"") { err = 1; return "" }
+      k = pstring()
+      if (err) return ""
+      skipws()
+      if (i > n || substr(s, i, 1) != ":") { err = 1; return "" }
+      i++
+      kind = parse_value(path "/" k, depth + 1)
+      if (err) return ""
+      if (path == "") {
+        if (k in top) { err = 1; return "" }
+        top[k] = kind; top_keys++
+      } else if (path == "/hookSpecificOutput") {
+        if (k in hso) { err = 1; return "" }
+        hso[k] = kind; hso_keys++
+        if (kind == "string") hso_val[k] = lastval
+      }
+    }
+  }
+  if (c == "[") {
+    i++
+    first = 1
+    while (1) {
+      skipws()
+      if (i > n) { err = 1; return "" }
+      if (substr(s, i, 1) == "]") { i++; return "array" }
+      if (!first) {
+        if (substr(s, i, 1) != ",") { err = 1; return "" }
+        i++
+      }
+      first = 0
+      parse_value(path "/[]", depth + 1)
+      if (err) return ""
+    }
+  }
+  if (c == "\"") { lastval = pstring(); if (err) return ""; return "string" }
+  if (c == "-" || c ~ /^[0-9]$/) { pnumber(); if (err) return ""; return "number" }
+  if (substr(s, i, 4) == "true") { i += 4; return "boolean" }
+  if (substr(s, i, 5) == "false") { i += 5; return "boolean" }
+  if (substr(s, i, 4) == "null") { i += 4; return "null" }
+  err = 1
+  return ""
+}
+{ if (NR == 1) s = $0; else err = 1 }
+END {
+  if (err || NR != 1) exit 1
+  n = length(s); i = 1
+  parse_value("", 0)
+  if (err) exit 1
+  skipws()
+  if (i <= n) exit 1
+  if (top_keys != 1 || top["hookSpecificOutput"] != "object") exit 1
+  if (hso["hookEventName"] != "string" || hso_val["hookEventName"] != "PreToolUse") exit 1
+  if (want == "deny") {
+    if (hso_keys != 3) exit 1
+    if (hso["permissionDecision"] != "string" || hso_val["permissionDecision"] != "deny") exit 1
+    if (hso["permissionDecisionReason"] != "string") exit 1
+  } else if (want == "updated") {
+    if (hso_keys != 2) exit 1
+    if (hso["updatedInput"] != "object") exit 1
+  } else exit 1
+  exit 0
+}
+' "$verdict_file" 2>/dev/null
+verdict_rc=$?
+if [ "$verdict_rc" -ne 0 ]; then
+  # awk が無い/落ちた場合もここに来る＝検証できていないので通さない（fail-close）。
+  emit_deny '"agy-workspace-guard: 判定 JSON が妥当な単一行 JSON でない、完了ステータスと整合しない、または検証できなかったため拒否（fail-close）"'
+fi
+
+printf '%s\n' "$(head -n 1 "$verdict_file")"
 exit 0
