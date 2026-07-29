@@ -33,7 +33,10 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    確定は `reconciliation-validator`（read-only 検証）→ `reconciliation`（書込）の2段。
 6. **課金の独断禁止** — CI・外部サービス連携は**無課金で実現できる方法を優先**。
    課金が要る構成は、実装前にオーナーの明示認可を取る。
-7. **正本の所在** — 正本は `doc-system-v2/`＋`.claude/`＋`CLAUDE.md`（例外＝`docs/doc-system/`）。
-   `docs/` 配下は非正本の壁打ちメモ。食い違ったら doc-system 側を正とする。
+7. **正本の所在は「どちらのプロジェクトの話か」で変わる**（本リポジトリは2プロジェクト同居）。
+   **①doc_system（文書体系そのもの）＝`doc-system-v2/`＋`.claude/`＋`CLAUDE.md`**（`docs/doc-system/` は機械定義として例外的に正本）。
+   **②review_system（AIレビューツール本体）＝`docs/` 配下**（要件・設計・スキーマ・ダッシュボード）。
+   ①の「docs/ は非正本」は doc_system 自身の記述についての規定であり、**review_system には適用しない**。
+   どちらの話か判断してから正本を決める（詳細は CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」）。
 8. **PR/GitHub コメントは実施者と処置を明記** — AI（Claude Code）による対応であることと、
    変更ファイル・コミット・判断根拠を具体的に書く。抽象的な要約だけで済ませない。
