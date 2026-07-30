@@ -20,7 +20,7 @@ Issue 作成の明示依頼は、別 repository、追加 Issue、先送り、課
 
 作成前に毎回、対象 repository の全 label と、対象 repository に紐づく GitHub Project 候補を実環境から取得する。ユーザーが Project を明示していなければ、候補が1件の時だけ選択する。0件または複数件なら候補と推奨を提示して、Issue または Project への write 前に停止する。ユーザーが Project を明示した場合も、その Project が対象 repository を扱うことを確認する。draft-only では候補を提示するだけで選択・変更しない。
 
-選択した Project の fields/options、Project item の update 権限、新規 Issue が auto-add の対象になる条件も live で確認する。update 権限がない、auto-add 対象か判定できない、または対象外で明示追加もできない場合は write 前に停止する。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
+選択した Project の fields/options、`viewerCanUpdate` 相当の update 権限、Issue を同 Project へ手動追加する権限と手段を live で確認する。いずれかを確認できなければ write 前に停止する。Auto-add は公開APIから取得できる workflow の名前と enabled 状態だけを参考情報として確認する。repository/filter の適用条件詳細は公開APIから検証できないため、確認不能を停止条件にしない。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
 
 最低限、次を取得して名前とIDを対応付ける。
 
@@ -91,9 +91,11 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 
 - `Workstream`: 主担当を1つだけ選ぶ。複数領域への影響は `area:*` で表す。
 - `Status`: 新規は `Inbox`。作成時に `Done` にしない。
-- `Priority`: `P0` は即時対応が必要な重大障害、`P1` はblocker/高影響、`P2` は通常、`P3` は低緊急度。根拠なしに上げない。
-- `Horizon`: `Now` は着手対象、`Next` は次候補、`Later` は時期未確定、`Deferred` は明示的な先送り。日程を独断で決めない。
-- `Deferred`: owner が理由と先送りを明示承認した場合だけ設定し、`Review date` も必須にする。承認がなければ候補を提示して止める。
+- `Priority`: `P0` は即時対応が必要な重大障害、`P1` はblocker/高影響、`P2` は通常、`P3` は低緊急度。根拠付きで提案できるが、live の必須 field へ設定する最終値を作成前 preview に出す。根拠なしに上げない。
+- `Horizon`: `Now` は着手対象、`Next` は次候補、`Later` は時期未確定、`Deferred` は明示的な先送り。AI の既定値を持たない。ユーザー文面で値が明示されているか、作成前 preview で推奨値と根拠を示してユーザー確認を得た場合だけ設定する。未指定・未確認なら Issue/Project への write 前に停止する。
+- `Deferred`: owner が理由と先送りを明示承認した場合だけ設定し、`Review date` も作成前に確認して必ず設定する。どちらかが未確認なら write 前に停止する。
+
+作成前 preview には、選択 Project、labels、Workstream、Priority、Horizon、Review date、Harness、relations の最終予定値と判断根拠を出す。特に Horizon は preview の提示だけを承認とみなさず、ユーザーの確認を得る。
 
 `area:harness` を付けた場合は、multi-select の `Harness` を1個以上設定する。
 
@@ -119,10 +121,11 @@ parent と blocker を同義に扱わない。既存 relation を読み、self r
 明示許可がある場合だけ、次の順序で行う。
 
 1. title/body/labels を指定して Issue を1件作成する。
-2. Project の auto-add 結果を確認し、未追加なら対象 Project へ明示追加する。
-3. live に解決した field/option ID で `Status=Inbox`、Workstream、Priority、Horizon、必要な Review date/Harness を設定する。
-4. parent/sub-issue と blocked-by/blocking を設定する。
-5. Issue と Project item を再取得し、本文、labels、全 fields、relations が意図どおりか照合する。
+2. 短時間 poll/read-back し、選択した Project の confirmed Project item として auto-add されたか確認する。
+3. 未追加なら選択した同じ Project へ明示追加する。別 Project を推測しない。追加に失敗したら fail-close で停止し、Issue URL、Project 未追加、fields 未設定という部分成功状態と回復案を報告する。
+4. Project item を確認できた後、live に解決した field/option ID で `Status=Inbox`、Workstream、確認済みの Priority/Horizon、必要な Review date/Harness を設定する。
+5. parent/sub-issue と blocked-by/blocking を設定する。
+6. Issue と Project item を再取得し、本文、labels、全 fields、relations が意図どおりか照合する。
 
 作成時に close、`Status=Done`、archive を行わない。一部だけ成功した場合は黙って成功扱いせず、URL、成功項目、失敗項目、回復案を報告する。安全に修正できる範囲は修正後に再読込する。
 
