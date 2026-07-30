@@ -107,9 +107,14 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
   `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
   （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が `_handoff` を機械的に拒否する）。
-  - **`<key>` は呼び出しごとに一意にする**：`authoring-fanout` は各 author へ `target_key`（親＋型＋連番）を、
-    `reconciliation` へ `batch_id` を採番して渡す。親 ID だけをキーにすると、同一親の複数 target や
-    `parent_id` 空の新規ルートが並列で走ったときに**同じファイルを上書きし、片方の結果が失われる**。
+  - **`<key>` は呼び出しごとに一意にする**：`authoring-fanout` は各 author へ `target_key`
+    （**呼び出しごとの nonce**＋親＋型＋連番）を、`reconciliation` へ `batch_id`（sprint＋layer＋同じ nonce＋先頭親）を
+    採番して渡す。親 ID だけをキーにすると、同一親の複数 target や `parent_id` 空の新規ルートが並列で走ったときに
+    **同じファイルを上書きし、片方の結果が失われる**。nonce が無い決定論的採番だと、`(親, 型, 連番)` が偶然一致する
+    **別バッチ**との衝突も同じ形で結果を失う（issue #278）。nonce は**バッチ内で共有する**（target ごとに振ると
+    同一 target の二重ディスパッチ検査が効かなくなる）。
+    **再試行の冪等性は nonce ではなく `retry_of` の明示で担保する**：失敗した target をやり直すときだけ、
+    呼び出し元が `retry_of: <前回の target_key>` を渡して同じキーを再利用させる（新規著作では渡さない）。
   - **worktree をまたぐ場合は呼び出し元が絶対パスで渡す**（`issue-implementer` の `handoff_path`）。
     linked worktree 内では相対 `tmp/_handoff/` がその worktree 配下に解決され、呼び出し元から回収できない。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /

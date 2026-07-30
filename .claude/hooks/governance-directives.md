@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
 
-<!-- synced-from: CLAUDE.md@97c3298fb655 -->
+<!-- synced-from: CLAUDE.md@13f4d6098f8f -->
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
