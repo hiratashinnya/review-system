@@ -1,7 +1,6 @@
 ---
 name: gh-create-issue
-description: GitHub Issue の調査、重複確認、本文作成、ラベル分類、Project fields・親子関係・依存関係の設定、作成後検証を安全に行う。ユーザーが Issue の起票・作成を明示的に依頼した時だけ実作成に使い、明示がなければ draft の提示に限定する。
-disable-model-invocation: true
+description: GitHub Issue の draft または作成を依頼された時に、重複確認、本文作成、ラベル分類、Project fields・親子関係・依存関係の設定、作成後検証を安全に行う。作成の明示依頼がある場合だけ実作成し、draft 依頼では提示に限定する。
 ---
 
 # GitHub Issue を作成する
@@ -19,7 +18,9 @@ Issue 作成の明示依頼は、別 repository、追加 Issue、先送り、課
 
 ## 2. live metadata を取得する
 
-作成前に毎回、対象 repository の全 label と、対象 GitHub Project の fields/options を実環境から取得する。Project 自体が不明なら repository の linked Project とユーザー/organization Project を確認する。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
+作成前に毎回、対象 repository の全 label と、対象 repository に紐づく GitHub Project 候補を実環境から取得する。ユーザーが Project を明示していなければ、候補が1件の時だけ選択する。0件または複数件なら候補と推奨を提示して、Issue または Project への write 前に停止する。ユーザーが Project を明示した場合も、その Project が対象 repository を扱うことを確認する。draft-only では候補を提示するだけで選択・変更しない。
+
+選択した Project の fields/options、Project item の update 権限、新規 Issue が auto-add の対象になる条件も live で確認する。update 権限がない、auto-add 対象か判定できない、または対象外で明示追加もできない場合は write 前に停止する。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
 
 最低限、次を取得して名前とIDを対応付ける。
 

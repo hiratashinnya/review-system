@@ -21,9 +21,9 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
     Codex CLI を Codex 自身の skill ツリー（`.agents/`）から呼ぶのは再帰的で不自然、
     Copilot（`.github/`）にも等価物なし。SKILL の applicable tree は GITHUB と
     AGENTS_DIR のみ（CODEX は agent 専用＝自動 N/A）なので、その2ツリーを exempt する。
-  * `gh-create-issue`（スキル）: ユーザー明示起動の Issue 起票規約。Claude Code を正本、
-    Codex を手書き mirror として用意したが、Copilot は明示起動方式・Project fields/relations
-    操作・ユーザー対話境界を今回未評価のため非移植。
+  * `gh-create-issue`（スキル）: ユーザー指定が Codex と Claude Code の2環境に限定された
+    明示スコープのため、その2環境だけに用意する。Copilot 版は作らず、将来 Copilot を
+    対象化する時に形式・tool・対話境界を再評価する。
 
 The first two assets' notes are scoped to the GitHub Copilot (`.github/`) tree
 specifically — Codex CLI (`.codex/agents/`, `.agents/skills/`) carries real equivalents
@@ -67,9 +67,9 @@ _CODEX_REVIEW_ENV = (
     "Copilot にも等価物なし）（.claude/tailoring-registry.md）"
 )
 _GH_CREATE_ISSUE_COPILOT = (
-    "ユーザー明示起動の Issue 起票規約。Claude Code 正本と Codex mirror は作成済みだが、"
-    "Copilot は明示起動方式・Project fields/relations 操作・ユーザー対話境界を今回未評価のため"
-    "非移植（.claude/tailoring-registry.md）"
+    "ユーザー指定が Codex と Claude Code の2環境に限定された明示スコープのため Copilot 版は"
+    "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
+    "（.claude/tailoring-registry.md）"
 )
 
 EXEMPTIONS: tuple[Exemption, ...] = (

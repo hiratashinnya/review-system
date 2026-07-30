@@ -35,7 +35,7 @@ class TestIsExempt(unittest.TestCase):
     def test_gh_create_issue_is_github_only_exemption(self):
         reason = is_exempt("gh-create-issue", SKILL, "github")
         self.assertIsNotNone(reason)
-        self.assertIn("未評価", reason)
+        self.assertIn("明示スコープ", reason)
         self.assertIsNone(is_exempt("gh-create-issue", SKILL, "agents_dir"))
 
 
