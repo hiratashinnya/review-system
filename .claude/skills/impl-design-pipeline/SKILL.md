@@ -27,6 +27,11 @@ disable-model-invocation: true
      **直接呼びのときは主文脈が `update_slugs` を `reconciliation-validator` へ明示的に渡す**（fan-out を通さない＝集約役が居ないため、渡し忘れると TERM 更新が ROLLBACK になる）。
    - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
    - **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。付けないと新しいキーが採番され、前回のハンドオフと対応付かなくなる。**新規 target には付けない**（付けないことで他バッチと衝突しないキーが採番される）。
+   - **N 個中1個だけ失敗し、その1件だけを再試行する場合は fan-out に戻さない**（`targets` が1件のみだと Step 1-4 で
+     オーバースペック STOP になる＝単一対象は `design-author` を直接呼ぶ）。この直接呼び出しでは、入力の `target_key` に
+     **前回の `target_key`（同じく前回 STOP 報告の `target_keys` の値）をそのまま渡す**（`error` も併せて渡す）。
+     省略すると `parent_id` 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされず、
+     本 issue #278 の目的（同一 target のやり直し結果を一意に対応付ける）が満たされない。
 3. **orchestration-design**：制御フロー（スイムレーン）・fail-close・ログ/版。（確定後、2.5 と同じ経路で ORC ノードを著作する）
 4. **prompt-design**：LLM 雛形・役割制約・注入対策（出力スキーマは schema-design）。（確定後、2.5 と同じ経路で PROMPT ノードを著作する）
 5. **テスト戦略**：[test-strategy](../test-strategy/SKILL.md)（テーラリング済）を適用し証跡の置き場を決める。

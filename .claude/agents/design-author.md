@@ -17,7 +17,10 @@ skills:
 parent_id:   <親ノードの ID/slug>
 sprint:      <current_phase 値>
 target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
-              未指定なら parent_id を使う（単独呼び出し時のみ）>
+              未指定なら parent_id を使う（単独呼び出し時のみ）。
+              **fan-out を介さず単一失敗 target の再試行として直接呼ばれた場合**は、呼び出し元が前回の
+              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す（issue #278）。
+              省略すると parent_id 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされない>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
