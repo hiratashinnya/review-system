@@ -21,6 +21,9 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
     Codex CLI を Codex 自身の skill ツリー（`.agents/`）から呼ぶのは再帰的で不自然、
     Copilot（`.github/`）にも等価物なし。SKILL の applicable tree は GITHUB と
     AGENTS_DIR のみ（CODEX は agent 専用＝自動 N/A）なので、その2ツリーを exempt する。
+  * `gh-create-issue`（スキル）: ユーザー指定が Codex と Claude Code の2環境に限定された
+    明示スコープのため、その2環境だけに用意する。Copilot 版は作らず、将来 Copilot を
+    対象化する時に形式・tool・対話境界を再評価する。
 
 The first two assets' notes are scoped to the GitHub Copilot (`.github/`) tree
 specifically — Codex CLI (`.codex/agents/`, `.agents/skills/`) carries real equivalents
@@ -63,6 +66,11 @@ _CODEX_REVIEW_ENV = (
     "レビュー委譲。全外部ツリー非移植（Codex CLI を Codex 自身の skill から呼ぶ再帰性が不自然・"
     "Copilot にも等価物なし）（.claude/tailoring-registry.md）"
 )
+_GH_CREATE_ISSUE_COPILOT = (
+    "ユーザー指定が Codex と Claude Code の2環境に限定された明示スコープのため Copilot 版は"
+    "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
+    "（.claude/tailoring-registry.md）"
+)
 
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
@@ -72,6 +80,7 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_COPILOT),
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
+    Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),
 )
 
 
