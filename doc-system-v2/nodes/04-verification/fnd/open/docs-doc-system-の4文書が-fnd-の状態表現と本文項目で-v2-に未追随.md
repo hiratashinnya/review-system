@@ -1,5 +1,7 @@
 **深刻度**: WARNING
 
+**対応 Issue**: #283（FND の深刻度語彙・本文必須項目・docs/doc-system の状態表現不一致を解消する）
+
 **指摘**: FND の**状態をどう表現するか**と**本文に何を書くか**を宣言している out-of-graph 文書 4 件が、v2 の確定モデル（status は path から導出・サイドカーに `resolved` キーを持たない）に追随していない。4 件は v2 が持たない状態語 `wontfix`、v2 が受け付けない `resolved: true/false` による機械判定、および path と二重管理になる本文項目 `**対応状況**` を、いずれも現行の指示として提示している。
 
 ### 内容（2026-07-27 実測）
@@ -137,3 +139,11 @@ v2 移行時に「status を path へ移す」という決定（`config.yml` L5�
 `dsv2/reverse.py`・`doc-system-v2/validate.py`・`doc-system-v2/config.yml`・`doc-system-v2/schema/sidecar.schema.json` は実測の根拠として参照したが、いずれも本 FND の指摘対象ではない（v2 実態の側＝正しい側）ため辺は張らない。
 
 **指摘時 ref_version**: `verification-author-著作支援プロンプト-td-tc-tr-verify-fnd-dd-q-pend` "0.2"（同 `.yaml` v0.2.3 時点）。被指摘の実体である `docs/doc-system/05-verification.md`（L212）・`docs/doc-system/01-document-items.md`（L106）・`docs/doc-system/07-authoring-guide.md`（L245-249・L247・L252）・`docs/doc-system/templates/verification/findings.md`（L25-28）は out-of-graph（版なし）であり forward 辺を張れないため、所在を行番号で本文に記録するに留める。解消時も `dsv2 reverse` はこれら 4 文書に backref を付与できないため、**4 文書の訂正完了は本 FND 本文への追記で証跡を残すこと**。
+
+### 改訂履歴
+
+#### v0.1.1（2026-07-30）— 対応 Issue の採番を反映（本文のみ・辺と `edges[].ref_version` は不変）
+
+- 冒頭 `**深刻度**` 行の直後に `**対応 Issue**: #283（FND の深刻度語彙・本文必須項目・docs/doc-system の状態表現不一致を解消する）` を追記した。Issue #283 は本 FND を含む 3 FND ＋ 1 Q を束ねた対応 Issue であり、Issue #263（[Phase 1] 陳腐化・起票漏れの解消）アイテム2・F-d の処置として採番された。
+- **指摘・深刻度・選択肢・推奨は一切変更していない**（起票時の判断記録を保全する・PR8）。
+- **版バンプ**: DD-8 §4 に照らし **z バンプ（0.1.0 → 0.1.1）**。変更は本文のみで、YAML キーの追加・型変更・辺の追加/削除/変更を伴わない（`edges` 1 本と `ref_version` "0.2" は不変）。z バンプのため依存元ノードの `ref_version` 更新（伝播）も不要（本ノードを参照する依存元は現時点で存在しない）。

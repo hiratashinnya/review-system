@@ -107,9 +107,9 @@
 | dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない | 🗓 sprint-1 | #160 | 設計外実装（上記の逆方向）。`viewer`/`rename`/`reverse`/`gitutil`/`yamledit`/`dashboard`。**v0.2.0 で深刻度 WARNING→ERROR へ是正** |
 | ORC `検査パイプライン実行` が実在しない CLI `python -m spec_inspector` を本文で参照している | 🗓 sprint-1 | #160 | 担体宣言行を持たないため上記 C1 とは別命題。実体は `doc-system-v2/validate.py:main`。SRC 著作時に `source.file` と本文が矛盾する |
 | tmp 草案の出力先記述が v1 の1親1ファイル形式のまま1ノード2ファイル化に未追随 | 🗓 sprint-1 | #160 | agent 定義 8 ファイルは v2 ミラーレイアウトに追随済みだが、PRS/DS/ORC の設計層3件と `CLAUDE.md` L86 が v1 形式のまま。PRS 本文には廃止済み「YAML フロントマター」記述も同居 |
-| FND の深刻度**語彙**が `05-verification.md`・v2 テンプレート・実コーパスで三者不一致 | 🗓 sprint-1 | — | **WARNING**。`critical/major/minor/info`（`docs/doc-system/05-verification.md` L212）／`low/medium/high（または ERROR/WARNING/INFO）`（`templates/verification/fnd.body.md`）／`ERROR/WARNING/INFO`（実コーパス 124/124 件）。推奨＝`ERROR/WARNING/INFO` へ一本化し非適合資産を同期 |
-| resolved FND 4 件の本文に**深刻度行**がなくテンプレ必須項目を欠く | 🗓 sprint-1 | — | **INFO**。resolved 117 件中 113 件は保持（WARNING 80/INFO 20/ERROR 13）。4 件は同一 DD 起点のバッチで別骨格。推奨＝本文必須項目を検査する RULE 新設で再発を止める |
-| `docs/doc-system/` の4文書が FND の**状態表現と本文項目**で v2 に未追随 | 🗓 sprint-1 | — | **WARNING**。①`01-document-items.md` L106 の「`resolved: true/false` で機械判定」は現に誤答（128 件中 117 件を取り違える）②`dsv2 reverse --apply` が本文/path 矛盾を確定的に生成（同型ドリフト 19 件が実発生済み）③`wontfix` の受け皿が存在しない。推奨＝文書同期を先行し `wontfix` の可否は切り出してオーナー決定 |
+| FND の深刻度**語彙**が `05-verification.md`・v2 テンプレート・実コーパスで三者不一致 | 🗓 sprint-1 | #283 | **WARNING**。`critical/major/minor/info`（`docs/doc-system/05-verification.md` L212）／`low/medium/high（または ERROR/WARNING/INFO）`（`templates/verification/fnd.body.md`）／`ERROR/WARNING/INFO`（実コーパス 124/124 件）。推奨＝`ERROR/WARNING/INFO` へ一本化し非適合資産を同期 |
+| resolved FND 4 件の本文に**深刻度行**がなくテンプレ必須項目を欠く | 🗓 sprint-1 | #283 | **INFO**。resolved 117 件中 113 件は保持（WARNING 80/INFO 20/ERROR 13）。4 件は同一 DD 起点のバッチで別骨格。推奨＝本文必須項目を検査する RULE 新設で再発を止める |
+| `docs/doc-system/` の4文書が FND の**状態表現と本文項目**で v2 に未追随 | 🗓 sprint-1 | #283 | **WARNING**。①`01-document-items.md` L106 の「`resolved: true/false` で機械判定」は現に誤答（128 件中 117 件を取り違える）②`dsv2 reverse --apply` が本文/path 矛盾を確定的に生成（同型ドリフト 19 件が実発生済み）③`wontfix` の受け皿が存在しない。推奨＝文書同期を先行し `wontfix` の可否は切り出してオーナー決定 |
 
 > **起票 10 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
 > 必須辺規則が型内の部分集団を見落としている欠陥、および設計層と実装の双方向の乖離を在グラフ化した。
@@ -135,7 +135,7 @@
 | タイトル（要約） | scheduled | 対応 Issue | 備考 |
 |---|---|---|---|
 | `ds←prs` 規則を書き込み実装に限るか永続層アクセス実装へ読み替えるか | 🗓 sprint-1 | #255 | read-only DS 2 件（`config.yaml-ds`/`in-graph-ノードファイル群`）に PRS 入辺なし。規則不備か未著作かが未決のため FND ではなく Q。live ERROR 2 件 |
-| 深刻度の判定基準是正を既存 FND 全件へ遡及適用するか | 🗓 sprint-1 | — | 母数＝**FND 131 件（open 14・resolved 117）**。判定根拠がほぼ未記録のため grep で切り分け不能＝全件遡及は約 100 件の人手読み直し。**深刻度は機械消費されず validate 結果は不変**。選択肢＝①全件遡及／②遡及せず以後のみ／③限定遡及。推奨＝③＋基準の in-graph 明文化（母数訂正後も**不変**） |
+| 深刻度の判定基準是正を既存 FND 全件へ遡及適用するか | 🗓 sprint-1 | #283 | 母数＝**FND 131 件（open 14・resolved 117）**。判定根拠がほぼ未記録のため grep で切り分け不能＝全件遡及は約 100 件の人手読み直し。**深刻度は機械消費されず validate 結果は不変**。選択肢＝①全件遡及／②遡及せず以後のみ／③限定遡及。推奨＝③＋基準の in-graph 明文化（母数訂正後も**不変**） |
 
 > `q/open/` ディレクトリは本起票（2026-07-26）が初出のため新規作成した（`decided`/`closed` は既存）。
 > Q「SRC→[dm,port,orc] が MOD を対象外」は **DD-10 へ昇格し decided 化**（2026-07-21）。オーナー確定＝`src→[mod,dm,port,orc]` 拡張①。`q/decided/` へ移動。

@@ -1,5 +1,5 @@
 title: "深刻度の判定基準是正を既存 FND 全件へ遡及適用するか"
-version: "0.1.1"
+version: "0.1.2"
 labels: []
 scheduled: "sprint-1"
 edges:

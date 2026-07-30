@@ -1,5 +1,7 @@
 **深刻度**: WARNING
 
+**対応 Issue**: #283（FND の深刻度語彙・本文必須項目・docs/doc-system の状態表現不一致を解消する）
+
 **指摘**: FND 本文の `**深刻度**` 欄に書くべき語彙が著作資産のあいだで三通りに宣言されており、そのうち 2 つが実コーパス（FND 128 件）の実態と一致しない。テンプレートをそのまま埋めた著作が非適合値を出力する経路が正規手順上に開いている。
 
 ### 内容（2026-07-27 実測）
@@ -75,3 +77,11 @@ Q「深刻度の判定基準是正を既存 FND 全件へ遡及適用するか�
 本ノードの状態は path（`04-verification/fnd/open/`）から導出される（サイドカーに `status` / `resolved` を持たない）。open のため `fnd_lifecycle.unresolved.must_link_to` に従い forward 辺 1 本を持つ。被指摘の実体は out-of-graph 資産（下記）でノード ID を持たず forward 辺を張れないため、in-graph の担体として、FND 著作規約を保持しながら語彙を宣言していない `verification-author 著作支援プロンプト` ノードを指摘対象とする（FND-99 が out-of-graph 著作資産の指摘を PROMPT ノードで在グラフ化した先例に従う）。
 
 **指摘時 ref_version**: `verification-author-著作支援プロンプト-td-tc-tr-verify-fnd-dd-q-pend` "0.2"（同 `.yaml` v0.2.3 時点）。被指摘の実体である `docs/doc-system/05-verification.md`（L212）・`doc-system-v2/templates/verification/fnd.body.md`（L3）・`docs/doc-system/07-authoring-guide.md`（L245）・`docs/doc-system/templates/verification/findings.md`（L25）・`doc-system-v2/notation.md`（L97）はいずれも out-of-graph（ノード ID・版を持たない・DD-8/FND-104）であり forward 辺を張れないため、所在を行番号で本文に記録するに留める（FND-99/103/104/106 が out-of-graph 資産を本文参照に留めた先例と同じ扱い）。
+
+### 改訂履歴
+
+#### v0.1.1（2026-07-30）— 対応 Issue の採番を反映（本文のみ・辺と `edges[].ref_version` は不変）
+
+- 冒頭 `**深刻度**` 行の直後に `**対応 Issue**: #283（FND の深刻度語彙・本文必須項目・docs/doc-system の状態表現不一致を解消する）` を追記した。Issue #283 は本 FND を含む 3 FND ＋ 1 Q を束ねた対応 Issue であり、Issue #263（[Phase 1] 陳腐化・起票漏れの解消）アイテム2・F-d の処置として採番された。
+- **指摘・深刻度・選択肢・推奨は一切変更していない**（起票時の判断記録を保全する・PR8）。
+- **版バンプ**: DD-8 §4 に照らし **z バンプ（0.1.0 → 0.1.1）**。変更は本文のみで、YAML キーの追加・型変更・辺の追加/削除/変更を伴わない（`edges` 1 本と `ref_version` "0.2" は不変）。z バンプのため依存元ノードの `ref_version` 更新（伝播）も不要（本ノードを参照する依存元は現時点で存在しない）。
