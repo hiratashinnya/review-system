@@ -19,8 +19,10 @@
 したがって #295 は、次のいずれかがオーナーに確定されるまで「relation 変更を即時反映する merge gate」を実装へ渡してはならない。
 
 - Webhook receiver / GitHub App 等、`issue_dependencies` と `sub_issues` を受けて PR head status を失効させる経路を scope に追加する。
-- merge queue の最終 check と定期再検査を組み合わせ、残る race を明示的に受容する。
+- bounded polling で残る最大 staleness と schedule の遅延/dropを明示的に受容する。
 - blocker relation が安定した後に専用の trusted workflow を手動再実行する運用を受容する。この案は「記憶に頼らない」という #293 の目的を完全には満たさない。
+
+merge queue は現在の候補ではない。この repository は User 所有であり、GitHub の merge queue は organization 所有 repository に限られる。organization への repository 移管は無料構成を維持できる可能性があるが、repository identity と運用主体を変える外部条件なので、オーナーの明示判断なしに前提にしない。
 
 本 spike の推奨は、issue-start gate と resolver の設計は進める一方、PR gate の「race がない」という acceptance は上記判断まで停止することである。
 
@@ -43,18 +45,21 @@
 - [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
 - [Managing rulesets for a repository](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository)
 - [GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+- [Merging a pull request with a merge queue](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/merging-a-pull-request-with-a-merge-queue)
+- [Dependabot on GitHub Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions)
 
 ## 3. live repository baseline
 
 | 項目 | 実測値 | 判定 |
 |---|---|---|
 | visibility / default branch | public / `main` | Free の repository ruleset と standard runner を利用可能 |
+| owner | `hiratashinnya` / `type=User` | 現 repository では merge queue を利用不可 |
 | 実測 token の repository permission | admin / maintain / push / triage / pull | owner PAT での probe。`GITHUB_TOKEN` の実測ではない |
 | Actions | enabled、allowed actions=`all` | Actions 自体は利用可能 |
 | default `GITHUB_TOKEN` | `read`、PR approval 不可 | workflow ごとに必要最小 permission を宣言する |
 | ruleset | active `main`、rule は deletion / non-fast-forward、bypass なし | required status check は未設定 |
 | `GET /rules/branches/main` | 空配列 | 現在の `main` に API が返す active rule はない。ruleset 名だけで有効範囲を推測しない |
-| merge queue | open PR #234/#259/#260/#268 で disabled | `merge_group` はこの repository で未実測 |
+| merge queue | open PR #234/#259/#260/#268 で `isMergeQueueEnabled=false` | 単なる未設定ではなく User 所有のため利用不可。organization 移管後だけ再検討可能 |
 | fork PR | open PR はすべて同一 repository owner | fork / Dependabot の live 実測 fixture なし |
 
 REST は明示した `X-GitHub-Api-Version: 2026-03-10` を response の `X-GitHub-Api-Version-Selected` で返した。version header を省略した `gh api` は `2022-11-28` を選択した。実装は version を固定し、変更を release note と probe で更新する。
@@ -131,8 +136,9 @@ PR #235 は PR body と commit message の両方に `Closes #224` があるた�
 | PR open / reopen / head update | `pull_request` / `pull_request_target`: `opened`, `reopened`, `synchronize` | 可 | 再評価する |
 | PR body / base update | `pull_request` / `pull_request_target`: `edited` | 可 | base、body、head SHA を API から再読する |
 | auto-merge / queue 操作 | PR の `auto_merge_*`, `enqueued`, `dequeued` | 可 | 補助 trigger。最終判定の代替ではない |
-| merge queue check | `merge_group: checks_requested` | 可 | queue を有効にするなら必須。現在は未実測 |
-| Issue close / reopen | `issues: closed`, `reopened` | 可 | blocker state 変更を再評価できる。ただし workflow は default branch に存在する必要あり |
+| merge queue check | `merge_group: checks_requested` | 可 | Actions event 自体は存在するが、現 repository は User 所有なので queue を利用不可 |
+| 同一 repository の Issue close / reopen | `issues: closed`, `reopened` | 可 | blocker state 変更を再評価できる。ただし workflow は default branch に存在する必要あり |
+| 別 repository の blocker close / reopen | source repository の `issues` | この repository では**不可** | target repository の workflow は起動しない。bounded polling または両 repository を購読する外部 Webhook/App が必要 |
 | blocked-by add/remove | Webhook `issue_dependencies` | **不可** | Webhook event は存在するが Actions trigger 一覧にない |
 | parent/sub-issue add/remove | Webhook `sub_issues` | **不可** | 同上 |
 | 定期監査 | `schedule` | 可 | 最短5分。遅延/drop、public repo 60日無 activity で disable があるため保証には使えない |
@@ -159,19 +165,29 @@ PR #235 は PR body と commit message の両方に `Closes #224` があるた�
 
 ### 6.2 fork / Dependabot
 
-仕様確認した制約:
+fork と Dependabot は同じものとして扱わない。
 
-- fork PR の `pull_request` workflow は secrets を受け取らず、`GITHUB_TOKEN` は read-only である。Dependabot PR も同じ制約として扱われる。
-- trusted な default-branch workflow が必要なら `pull_request_target` を使えるが、PR head を checkout / execute してはならない。blocker gate は API metadata だけを読み、untrusted title/body を shell source や command に埋め込まない。
-- `pull_request_target` で write status を作る場合は `statuses: write` だけを付与し、対象 SHA が event の repository / PR に属することを再検証する。
+| actor / event | workflow code | `GITHUB_TOKEN` / secrets | status 報告案 | 限界 |
+|---|---|---|---|---|
+| fork PR / `pull_request` | PR merge ref 側 | token は read-only、secrets なし | job 自体の check は出せるが、untrusted PR が workflow を変更し得るため security gate の正本にしない | 初回 contributor approval、conflict、skip 条件で未起動になり得る |
+| fork PR / `pull_request_target` | trusted default branch | 必要最小 permission を明示可能 | `statuses: write` だけを付け、API metadata を再読して検証済み head SHA に status を作る候補 | PR head を checkout / execute しない。title/body を shell code にしない |
+| Dependabot PR / `pull_request` | PR merge ref 側 | read-only、Actions secrets なし | write status に依存不可 | Dependabot secrets と通常 secrets は別 |
+| Dependabot PR / `pull_request_target` | trusted default branch | GitHub 公式制約により read-only、secrets なし。この制約は別 actor の re-run にも残る | `statuses: write` に依存不可 | 通常 fork の trusted write 経路と同一視しない |
 
-この repository に fork / Dependabot PR がないため、token downgrade、approval待ち、status の付与先は未実測である。#298 は production ruleset を有効にする前に fork fixture で確認し、workflow が起動しない、status を書けない、または head SHA を一意に束縛できない場合は fail-close する。
+Dependabot で成立し得る trusted write 経路の候補は、read-only の PR workflow 完了を `workflow_run` で受ける default-branch workflow、または `schedule` / `workflow_dispatch` である。`workflow_run` は先行 workflow より強い token / secrets を持てるため、次をすべて満たさない限り採用しない。
+
+- untrusted head code、artifact、cache、script を実行しない。
+- event の run id から repository、PR number、head SHA、actor を API で再取得し、status の付与先を束縛する。
+- `workflow_run` は PR event が起きた時だけであり、blocker relation や cross-repository Issue state の変更を直接受けないと明記する。
+- schedule は最短5分かつ遅延/drop/disable、manual は人の記憶への依存が残るため、どちらも即時保証ではない。
+
+この repository に fork / Dependabot PR がないため、token downgrade、approval待ち、status の付与先は未実測である。#298 は production ruleset を有効にする前に disposable fixture で確認し、workflow が起動しない、status を書けない、または head SHA を一意に束縛できない場合は fail-close する。
 
 ### 6.3 merge queue
 
-GitHub 公式仕様では required check を merge queue で使う workflow は `merge_group: checks_requested` を trigger に含める必要がある。含めないと required check が報告されず merge は停止する。
+GitHub 公式仕様では、merge queue は organization 所有の public repository、または GitHub Enterprise Cloud を使う organization 所有 private repositoryで利用できる。`hiratashinnya/review-system` は User 所有の public repository なので、現状では **利用不可** であり採用案に含めない。
 
-現在は `isMergeQueueEnabled=false` のため payload、PR member の解決、group SHA への status 付与を未実測とする。queue を有効化する時点で、close-set を group 内 PR ごとに再構築し、group SHA に結果を返す fixture が PASS するまで #298 を merge-ready にしない。
+organization への repository 移管をオーナーが別途明示決定した場合だけ再評価する。その場合も、required check workflow は `merge_group: checks_requested` を含め、close-set を group 内 PR ごとに再構築して group SHA に結果を返す fixture が PASS するまで #298 を merge-ready にしない。移管前に merge queue を前提とする設計は停止する。
 
 ## 7. GitHub Free 判定
 
@@ -202,6 +218,7 @@ GitHub 公式仕様では required check を merge queue で使う workflow は 
 - PR base が現在の default branch でない、head SHA が評価中に変わる。
 - GraphQL close 候補と許可した closing syntax の結果が一致しない。
 - fork / Dependabot / merge_group の未検証経路が production で現れる。
+- cross-repository blocker を初期 policy で許可していない、または source repository の state change を購読・pollできない。
 
 retry は `Retry-After` と rate-limit header を尊重した有限回に限定する。retry 上限後は ERROR とし、最後の成功 cache を ALLOW に再利用しない。
 
@@ -212,7 +229,9 @@ retry は `Retry-After` と rate-limit header を尊重した有限回に限定�
 | traversal 中に relation/state が変わる | root summary / ETag / PR head を最後に再読 | いいえ。複数 endpoint に snapshot transaction がない |
 | check success 後に blocker が追加される | relation webhook receiver、または最短5分 polling で status を failure に上書き | Actions-only polling では閉じない |
 | check success 後に blocker が reopen される | `issues: reopened` で再評価 | workflow 起動から status 更新まで窓がある |
-| merge queue 入場後に relation が変わる | `merge_group` 評価 + relation event で group status 失効 | relation event receiver がなければ閉じない |
+| cross-repository blocker が close / reopen される | target repository から定期 polling、または source/target を購読する外部 Webhook/App | target の Actions は source の `issues` event で起動しないため Actions-only の即時保証は不可 |
+| Dependabot PR を trusted workflow で再評価する | `workflow_run` / schedule / manual から API metadata だけを再読 | relation change の直接 trigger ではなく、schedule/manual の限界も残る |
+| organization 移管後の merge queue 入場後に relation が変わる | `merge_group` 評価 + relation event で group status 失効 | 現 repository では利用不可。移管後も relation event receiver がなければ閉じない |
 | PR body/base/head が評価後に変わる | PR event と head SHA 束縛、ruleset は最新 SHA の status を要求 | relation race とは別に管理可能 |
 | schedule が遅延/drop/disable | cron を時の0分からずらす、監査で last-run age を検査 | 定期処理自体の不実行は完全には閉じない |
 
@@ -230,6 +249,8 @@ required status check は「特定 SHA で過去に成功した」ことを保�
 6. API ambiguity、permission不足、unknown event、incomplete pagination、cycle は fail-close。前回成功 cache への fallback は禁止する。
 7. Issue-start gate は実行開始のたびに live API を読むため、PR relation invalidation の判断を待たず設計可能である。
 8. PR merge gate は relation event の即時 invalidation方式が確定するまで「race-free」としない。
+9. cross-repository blocker は初期 policy では ERROR を推奨する。許可するには source repository の close/reopen を受ける外部 Webhook/App、または owner が受容した bounded polling を必須にする。
+10. merge queue は現 repository の候補から除外する。organization 移管がオーナー決定された場合だけ別 fixture で再評価する。
 
 ### 9.2 #295 の停止条件
 
@@ -237,21 +258,32 @@ required status check は「特定 SHA で過去に成功した」ことを保�
 - 5分 schedule を即時 gate と同等に扱う、または schedule の成功 status に TTL があると仮定している。
 - commit message closure、manual link、cross-repository closure の扱いが未定である。
 - fork / Dependabot と merge queue の fixture がないまま required check を active にする。
-- ruleset の required check source、bypass actor、strict / merge queue policy が owner 確認されていない。
+- Dependabot の `pull_request_target` で `statuses: write` が使えると仮定する、または privileged `workflow_run` で untrusted head/artifact/cache を実行する。
+- cross-repository blocker を許容しながら、source repository の close/reopen がこの repository の `issues` workflow を起動すると仮定する。
+- User 所有の現 repository で merge queue を有効化できると仮定する。organization 移管は別のオーナー判断・移行計画なしに前提化しない。
+- ruleset の required check source、bypass actor、strict policy が owner 確認されていない。merge queue policy は organization 移管後だけ対象にする。
 - race の受容主体と最大許容 staleness が記録されていない。
 
 ## 10. 再現手順（read-only）
 
 secret や token value は出力・保存しない。以下は repository root から実行する。
 
+### 10.1 REST の全 page
+
 ```bash
-# REST relation
+# direct blocker
 rtk proxy gh api \
   -H 'X-GitHub-Api-Version: 2026-03-10' \
   repos/hiratashinnya/review-system/issues/295/dependencies/blocked_by \
   --paginate --jq 'map({number,state,title,repository_url})'
 
-# REST pagination。--include の Link を最後まで確認する
+# per_page=1 にして Link を gh に最後まで追わせる。各 page の1件を出力する
+rtk proxy gh api --method GET \
+  repos/hiratashinnya/review-system/issues/293/sub_issues \
+  -f per_page=1 --paginate \
+  --jq '.[] | [.number,.state] | @tsv'
+
+# Link header 自体の確認
 rtk proxy gh api --include --method GET \
   repos/hiratashinnya/review-system/issues/293/sub_issues \
   -f per_page=1 -f page=1
@@ -269,7 +301,104 @@ rtk proxy gh api repos/hiratashinnya/review-system/rulesets/18482582 \
 rtk proxy gh api repos/hiratashinnya/review-system/actions/permissions/workflow
 ```
 
-GraphQL probe:
+期待 evidence:
+
+```text
+#295 blocked_by: #294 open
+REST sub_issues: 294, 295, 296, 297, 298, 299（6行）
+page=1 Link: rel="next" page=2、rel="last" page=6
+timeline: parent_issue_added / blocked_by_added / blocking_added
+API version header: X-GitHub-Api-Version-Selected: 2026-03-10
+```
+
+### 10.2 GraphQL cursor の全 page
+
+`gh api graphql --paginate` が使う変数名を `$endCursor` にし、`pageInfo` を必ず query に含める。`first:1` で6 pageを強制する。
+
+```bash
+rtk proxy gh api graphql --paginate \
+  -f query='query($endCursor: String) {
+    repository(owner:"hiratashinnya", name:"review-system") {
+      issue(number:293) {
+        subIssues(first:1, after:$endCursor) {
+          nodes { number state }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }' \
+  --jq '.data.repository.issue.subIssues.nodes[] | [.number,.state] | @tsv'
+```
+
+期待 evidence は `294 OPEN` から `299 OPEN` までの6行である。2026-08-01 の再実行で REST と同じ順序・件数を確認した。
+
+PR close 候補も同じ cursor 契約で読む。
+
+```bash
+rtk proxy gh api graphql --paginate \
+  -f query='query($endCursor: String) {
+    repository(owner:"hiratashinnya", name:"review-system") {
+      pullRequest(number:259) {
+        baseRefName
+        closingIssuesReferences(first:1, after:$endCursor) {
+          nodes { number state repository { nameWithOwner } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }' \
+  --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[] |
+        [.repository.nameWithOwner,.number,.state] | @tsv'
+```
+
+期待 evidence:
+
+| query | expected |
+|---|---|
+| PR #259 | `hiratashinnya/review-system`, #290, `OPEN` |
+| PR #260 | 0件。base が non-default |
+| PR #268 | #292, `OPEN` |
+| PR #234 | 0件。`Refs` だけ |
+
+### 10.3 schema / repository capability
+
+GraphQL field の description と repository owner type を read-only で確認する。
+
+```bash
+rtk proxy gh api graphql \
+  -f query='query {
+    __type(name:"PullRequest") { fields { name description } }
+    repository(owner:"hiratashinnya", name:"review-system") {
+      owner { __typename login }
+    }
+  }' \
+  --jq '{owner:.data.repository.owner,
+         closing:(.data.__type.fields[] |
+           select(.name=="closingIssuesReferences"))}'
+```
+
+期待 evidence は owner が `User` / `hiratashinnya`、field description が `List of issues that may be closed by this pull request` である。User 所有という結果と GitHub 公式 availability を組み合わせ、merge queue は現 repository で利用不可と判定する。
+
+### 10.4 未実測 fixture の再現計画
+
+次は現在の production Issue / relation / repository ownership を変更しないと分離実測できないため、この PR では実行しない。実行にはオーナー承認と disposable repository を必須にし、production の #293〜#299 を fixture に転用しない。
+
+| 未実測項目 | disposable fixture | 手順 | expected evidence / 合否 |
+|---|---|---|---|
+| closed blocker | 同一 disposable repo の Issue A/B | B blocked-by A を作り、A open時とclose後を全page取得 | open時は BLOCK、close後は ALLOW。relation edge は残る |
+| cycle / self | disposable Issue A/B/C | A→B→C の後で C→A と self edge を API で試す | GitHub が `422` で拒否するか、作成できるなら resolver が cycle として ERROR。どちらも response status/bodyをsecret除外で保存 |
+| same-PR multiple close | disposable PR + Issue A/B | default branch向け PR bodyで両 Issueをclose候補にする。mergeは別承認 | `closingIssuesReferences` が A/B の2件。post-merge仮想状態で同じPR内blockerをCLOSED扱い |
+| commit-only close | disposable PR + Issue A | PR bodyにkeywordを置かずcommit messageだけに置く | GraphQL connectionと実merge closeの差を記録。policyが禁止なら merge前にERROR |
+| permission不足 / hidden private resource | disposable private repo + Issues readなし fine-grained token | relation readを行う | `403` または情報秘匿の `404`。ALLOWへ変換しない。token valueは保存しない |
+| API failure / pagination中断 | resolver fake transport または fault-injection test | page 2でtimeout/5xx/invalid JSON/同一cursorを返す | ERROR、最後の成功cacheを使わない、status successを作らない |
+| fork PR | disposable fork PR | `pull_request` と `pull_request_target` の token permission、approval、head SHAを記録 | head code非実行。trusted pathだけが検証済みSHAへ結果を付ける |
+| Dependabot PR | Dependabot有効の disposable repo | `pull_request` / `pull_request_target` / `workflow_run` のpermissionとstatus付与先を記録 | PR系tokenはread-only。trusted `workflow_run` はuntrusted artifact/codeを実行せず、APIで束縛したSHAだけに書く |
+| cross-repo blocker | disposable source/target repo | source blockerをclose/reopenし、target workflow run履歴を観察 | target の `issues` workflowは起動しない。polling時だけ検出、または外部Webhook/Appで即時失効 |
+| merge queue | organization ownershipへ移した disposable public repo | queue有効化後に `merge_group` payload/group SHAを記録 | **現 User-owned repoでは実行不可**。organization移管のowner決定なしでは着手しない |
+
+fixture evidence は request の endpoint/variables、HTTP status、secretを除いたresponse要約、workflow run URL、対象 repository/Issue/PR URL、実行日時を一組として残す。未実行の行は PASS にしない。
+
+参考として、単発 query の GraphQL 形は次のとおりである。
 
 ```graphql
 query Spike {
@@ -305,11 +434,11 @@ query Spike {
 
 | #294 acceptance | 状態 | 根拠 / 未実測理由 |
 |---|---|---|
-| open/closed blocker、transitive、cycle、pagination | 一部実測 | open / transitive / pagination は live 実測。closed は #294 merge 後に自然に得られる。cycle は production relation を調査のために破壊しないため未実測。resolver fixture で必須化する |
+| open/closed blocker、transitive、cycle、pagination | 一部実測 | open / transitive / pagination は live 実測。closed / cycle は production relation を調査のために変更しないため未実測。disposable fixture を owner 承認後に実行する |
 | PR closing Issue と default branch / auto-close | 一部実測 | main / non-default の connection 差と過去の merge-close timestamp は実測。commit-only と同一PR複数closeの live fixture は未実測 |
 | relation 変更後の required check 再評価 | 制約を実測・仕様確認 | timeline event は実測。Webhook は存在、Actions direct trigger は不存在。厳密再評価は Actions-only では保証不能 |
-| fork、merge_group、API障害、権限不足 | 仕様確認 / 未実測 | repository に fixture なし。公式制約と fail-close 条件を記録し、#298 の事前 fixture を停止条件にした |
+| fork / Dependabot、merge_group、API障害、権限不足 | 仕様確認 / 未実測 | repository に fixture なし。merge queue は User 所有の現 repoでは利用不可。公式制約、disposable fixture、fail-close 条件を記録した |
 | 無料構成、不可能な保証、race | 完了 | Free 可否と Actions-only の不可能保証、TOCTOU を明示 |
 | #295 へ採用案 / 停止条件 | 完了 | 本文 §9 |
 
-未実測項目を PASS とみなさず、後続 Issue の fixture と owner decision に明示的に渡す。
+未実測項目を PASS とみなさず、後続 Issue の fixture と owner decision に明示的に渡す。PR #300 は `Refs #294` とし、#294 を自動 closeせず、#295 の native blockerを解除しない。
