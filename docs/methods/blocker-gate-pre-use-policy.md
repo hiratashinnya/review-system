@@ -149,8 +149,8 @@ PrBinding = {
   base_ref_name,
   default_branch,
   merge_method,
-  intercepted_commit_title_sha256?,
-  intercepted_commit_message_sha256?,
+  intercepted_commit_title_fingerprint?,
+  intercepted_commit_message_fingerprint?,
   operation_fingerprint,
   policy_version
 }
@@ -164,6 +164,7 @@ EvaluatedSnapshot = {
   graphql_closing_set,
   delivered_message_closing_set,
   closing_set,
+  message_source_fingerprint,
   delivered_message_fingerprint,
   repository_merge_settings_fingerprint,
   issue_state_fingerprint,
@@ -176,6 +177,10 @@ EvaluatedSnapshot = {
 
 fingerprint は canonical identity、state/state reason、全 relation edge、全 page 完了 marker を canonical JSON にして SHA-256 を取る。closing set だけを束縛して graph の変化を無視してはならない。
 
+`message_source_fingerprint`はmethod、override指定有無/hash、fresh PR fields、methodが読むrepository settings、ordered source commit OID/parent/tree/message hashを含む。`delivered_message_fingerprint`はそのsourceから構築した実到達title/body列を含む。sourceと結果の両方を最終再読で比較する。
+
+`repository_merge_settings_fingerprint`はrepository node ID、API versionとmethodに必要なsetting名/valueをcanonical JSON化したSHA-256である。`merge`ではoverrideの有無にかかわらず`merge_commit_title`/`merge_commit_message`を含めて必須、`squash`ではsubject/bodyのどちらかをdefault生成する場合に`squash_merge_commit_title`/`squash_merge_commit_message`を含めて必須、`rebase`ではnull固定とする。
+
 ### 4.2 Relation set と merge method別 delivered-message set
 
 `GraphqlClosingSet` は `PullRequest.closingIssuesReferences` の全 cursor を完走して得た集合である。PR body の closing keyword と GitHub の manual linked Issue はこの集合に委ね、PR body を独自 parser で二重解釈しない。この relation set は merge method に依存しないが、default branch 以外を base とする invocation では automatic closure が発生しないため空集合として扱う。
@@ -186,25 +191,49 @@ classifier は `merge` / `rebase` / `squash` を閉じた `merge_method` とし�
 
 method省略を`merge`へ正規化できるのは、interceptしたtransportのversioned schemaがそのdefaultを明示し、#298 fixtureでoutbound payloadとの一致を確認した場合だけである。CLIの対話選択、repository設定、aliasからmethodを推測しない。
 
+enumとmethod semanticsの外部正本はGitHub公式の[REST repository endpoints](https://docs.github.com/en/rest/repos/repos)と[Pull request merges](https://docs.github.com/en/pull-requests/reference/pull-request-merges)である。API version、enum、formatter semanticsのdriftは内容を推測せずERRORにする。
+
 #### merge commit
 
 - default branch へ到達するのは、PR の全個別 commit message と新しい merge commit message である。
-- subject/body override があれば、その指定済み部分を merge commit message の正本とする。未指定部分は fresh read した PR number、head label、PR title から policy `1.0` が固定する GitHub default formatterで再構築する。
-- formatter入力の欠落、未知のtransport semantics、明示値とoutbound API payloadの不一致により一意に再構築できなければ `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。
+- 各attemptでrepositoryの`merge_commit_title`と`merge_commit_message`、PR number/title/body/head label、全個別commitの完全なmessageをfresh readする。二つのsettingはoverrideの有無にかかわらず全enumを検証し、repository node ID/API versionと共にsettings fingerprintへ束縛する。
+- intercepted `commit_title` / `commit_message` または各transportの同値fieldがあれば、その完全な値を対応componentの正本とする。指定の有無自体もoperation fingerprintへ含める。動的展開、切詰め、transportからoutbound payloadへの写像不明は`ERROR/MERGE_OVERRIDE_AMBIGUOUS`とする。
+- overrideがないcomponentは次のenum表だけで再構築する。unknown/null/partial enum、API error、formatter driftは`ERROR/MERGE_SETTINGS_AMBIGUOUS`とする。
+
+| setting | enum | override未指定時のcomponent |
+|---|---|---|
+| `merge_commit_title` | `PR_TITLE` | fresh PR title |
+| `merge_commit_title` | `MERGE_MESSAGE` | classic title `Merge pull request #<number> from <head-label>`をversioned formatterで生成 |
+| `merge_commit_message` | `PR_TITLE` | fresh PR title |
+| `merge_commit_message` | `PR_BODY` | fresh PR body。GitHubのnull bodyは空文字列 |
+| `merge_commit_message` | `BLANK` | 空文字列 |
+
+```text
+effective_title = intercepted_title ?? title_from(merge_commit_title)
+effective_body  = intercepted_body  ?? body_from(merge_commit_message)
+merge_commit_message =
+  effective_title                              if effective_body == ""
+  effective_title + "\n\n" + effective_body   otherwise
+```
+
+classic titleのhead-label表記、改行、Unicode/改行正規化をbyte単位で#298 fixtureへ固定する。一意に再構築できない場合は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とし、全個別commit messageだけで判定を続けない。
 
 #### rebase merge
 
-- default branch へ到達するのは、順序を維持してrebaseされた全個別 commitの完全なmessageだけである。synthetic merge/squash messageは存在しない。
-- transportがrebaseでは意味を持たないsubject/body overrideを含む場合は、無視せず `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。
+- default branch へ到達するのは、順序を維持してrebaseされた個別commitの完全なmessageだけである。synthetic merge/squash messageとrepository message settingは存在せず、settings fingerprintはnullでなければならない。
+- GitHubはcommitterとSHAを更新するが、delivered messageは採用されたsource commitの完全なmessageである。もともとemptyのcommitはdropされるため、各commit/first-parentのtree OIDをfresh readし、treeが同一のcommitをmessage setから除外する。
+- parent/tree/message/orderがpartial、source commitが複数parent、originally-empty判定不能、GitHubが提示するrebase eligibilityとsnapshotが矛盾、またはversioned fixtureで説明できないdrop/rewriteがあり得る場合は`ERROR/REBASE_MESSAGE_AMBIGUOUS`とする。
+- rebaseで意味を持たないsubject/body overrideが存在する、またはtransportがそのfieldを無視するか送るかを一意に証明できない場合は`ERROR/MERGE_OVERRIDE_AMBIGUOUS`とする。無視してALLOWしない。
 
 #### squash merge
 
 - default branch へ到達するのは一つのsquash commit messageだけであり、個別 commit messageを無条件に union してはならない。
 - intercepted subject/body が指定されていれば指定部分をそのまま束縛する。片方だけ未指定なら、未指定部分だけを以下のfresh repository設定とPR情報から再構築する。
+- overrideの完全な値・指定有無・outbound payloadへの写像を一意に束縛できなければ`ERROR/MERGE_OVERRIDE_AMBIGUOUS`とする。
 - repository の `squash_merge_commit_title`、`squash_merge_commit_message`、PR title/body/numberと、選択設定が要求するcommit件数・完全なmessageを同じattemptでfresh readする。
 - title設定 `PR_TITLE` はfresh PR title、`COMMIT_OR_PR_TITLE` は1 commitならそのcommit title、複数commitならfresh PR titleを選ぶ。
 - body設定 `PR_BODY` はfresh PR body、`COMMIT_MESSAGES` はGitHub default formatterで順序付き全commit messageを構成し、`BLANK` は空文字列とする。
-- unknown enum、null/partial/truncated入力、設定とtransportの矛盾、#298 fixtureで固定したformatter versionからのdriftは `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。推測値、ローカルgit log、前回設定へfallbackしない。
+- unknown enum、null/partial setting、設定とtransportの矛盾は`ERROR/MERGE_SETTINGS_AMBIGUOUS`、truncated入力、#298 fixtureで固定したformatter versionからのdrift、再構築非一意は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とする。推測値、ローカルgit log、前回設定へfallbackしない。
 
 merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数として#298でfixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。
 
@@ -241,10 +270,11 @@ closing set が空なら dependency/closure の root は空であり、`ALLOW/NO
 
 | merge method | default branchへ届くmessage | closing message解析 | fail-close条件 |
 |---|---|---|---|
-| `merge` | 全個別commit + synthetic merge commit | 両方を解析 | 個別commit未完、default merge messageを一意に再構築不能 |
-| `rebase` | rebase後の全個別commit | 全個別messageを解析 | commit未完、意味不明なsubject/body override |
+| `merge` + title/body override両方 | 全個別commit + overrideで作るmerge commit | 両方を解析。fresh settings fingerprintも束縛 | override/payload不一致、unknown/partial settings |
+| `merge` + override片側/なし | 全個別commit + overrideと`merge_commit_title`/`merge_commit_message`全enumから再構築したmerge commit | 両方を解析 | settings/formatter/overrideを一意に再構築不能 |
+| `rebase` | originally-emptyを除いたrebase後の個別commit | fresh order/tree/parentで採用commitを決め、その完全なmessageを解析 | source partial、multi-parent、drop/rewrite不明、override存在。settings fingerprintはnull |
 | `squash` + subject/body明示 | 明示値から成る単一squash commit | その一つだけ解析 | outbound payloadとの不一致、片側defaultを再構築不能 |
-| `squash` + subject/body省略 | fresh repo設定+PR情報から再構築した単一squash commit | 再構築した一つだけ解析 | unknown設定、partial入力、formatter drift、再構築非一意 |
+| `squash` + subject/body片側/両方省略 | fresh repo設定+PR情報から再構築した単一squash commit | 再構築した一つだけ解析。default使用時settings fingerprint必須 | unknown設定、partial入力、formatter drift、再構築非一意 |
 | 任意method + GraphQL relation | PR body closing keyword/manual linkの`GraphqlClosingSet` | message setとは別にunion | cursor未完、partial/null、cross-repo |
 | non-default base | 今回のautomatic closure対象なし | 両setを空にする | metadata不明ならERROR。空自体は`NO_CLOSING_EFFECT` |
 
@@ -433,7 +463,7 @@ flowchart LR
   end
   subgraph GitHub[GitHub API]
     PR2[fresh PR・head・base・default・全page]
-    PR6[同じ closing set / graph を fresh 再読]
+    PR6[同じ method / message source / closing set / graph を fresh 再読]
   end
   subgraph Core[shared resolver]
     PR3[closing set / 一括 virtual close]
@@ -468,7 +498,7 @@ flowchart LR
 6. dependency と closure は独立に完走し、ERROR優先で一つの Result に統合する。
 7. waiver は finding 作成後にだけ検証し、ERROR や非対象 code を消さない。
 8. `ALLOW` は repository、target、PR head、base、default branch、merge method、delivered-message/settings fingerprint、policy version、operation fingerprint に束縛した一回限りの値である。
-9. ALLOW 候補後、元操作の直前に同じ API scope を全 page fresh read し、`EvaluatedSnapshot` を再構築する。PR state/head/base/default/merge method、subject/body override、repository merge-message設定、delivered message/closing set、Issue state、dependency/closure relation、policy/waiver blob のどれかが変われば候補を破棄し、同じ invocation で最初から再評価する。
+9. ALLOW 候補後、元操作の直前に同じ API scope を全 page fresh read し、`EvaluatedSnapshot` を再構築する。PR state/head/base/default/merge method、subject/body override、repository merge/squash-message設定、rebase source order/parent/tree/message、delivered message/closing set、Issue state、dependency/closure relation、policy/waiver blob のどれかが変われば候補を破棄し、同じ invocation で最初から再評価する。
 10. 初回評価に加えて再評価は最大2回、合計3 attempt とする。3回目の最終再読でも変化した場合は `ERROR/REEVALUATION_LIMIT` とし、元操作を実行しない。API retry 回数とは別に数える。
 11. Result候補はJSON Schemaとsemantic validatorの両方を通す。どちらかが失敗したpayloadをpermit、診断上のtarget、ALLOWとして使用しない。
 12. 同じ hook invocationの`ValidatedGateResult(ALLOW)`から発行した未使用の`ExecutionPermit`がある場合だけ元操作を一度続行する。permit の永続化・再利用・別 operation への転用を禁止する。
@@ -642,7 +672,8 @@ closure finding は waiver 対象外である。Issue-start では current state
 | method別 delivered message のclosing keywordが正しくparseできる | relation setとのunion後に通常評価 | ALLOW時だけ呼ぶ |
 | squashで個別commitにだけkeywordがありsquash messageへ入らない | message closing setへ加えない | GraphQL set等の他findingで決定 |
 | merge/rebaseで個別commit messageがdefaultへ届く | method表どおりmessage closing setへ加える | 通常評価 |
-| method/messageを一意に束縛・再構築不能 | `ERROR/MERGE_MESSAGE_AMBIGUOUS` | 呼ばない |
+| method/setting/override/messageを一意に束縛不能 | 対応する`MERGE_*_AMBIGUOUS` | 呼ばない |
+| rebaseの採用commit/messageを一意に決定不能 | `ERROR/REBASE_MESSAGE_AMBIGUOUS` | 呼ばない |
 | closing referenceらしいがgrammar不正 | `ERROR/CLOSING_KEYWORD_PARSE` | 呼ばない |
 | auto-merge enable/schedule | `BLOCK/AUTO_MERGE_DENIED` | enable APIを呼ばない |
 | unknown alias/tool/connector または target不明 | `ERROR/CLASSIFIER_UNKNOWN` | 呼ばない |
@@ -679,8 +710,10 @@ ERROR:  CLASSIFIER_UNKNOWN, TARGET_AMBIGUOUS, MODE_MISMATCH,
         GRAPH_LIMIT_EXCEEDED, GRAPH_CYCLE, IDENTITY_MISMATCH,
         ISSUE_STATE_UNKNOWN, RELATION_INCONSISTENT,
         RELATION_TARGET_UNREADABLE, CROSS_REPOSITORY_UNSUPPORTED,
-        MERGE_METHOD_UNKNOWN, MERGE_MESSAGE_AMBIGUOUS,
-        MESSAGE_SOURCE_INCOMPLETE, CLOSING_KEYWORD_PARSE,
+        MERGE_METHOD_UNKNOWN, MERGE_SETTINGS_AMBIGUOUS,
+        MERGE_OVERRIDE_AMBIGUOUS, MERGE_MESSAGE_AMBIGUOUS,
+        REBASE_MESSAGE_AMBIGUOUS, MESSAGE_SOURCE_INCOMPLETE,
+        CLOSING_KEYWORD_PARSE,
         WAIVER_SCHEMA_INVALID, WAIVER_INVALID,
         REEVALUATION_LIMIT, RESULT_CONTRACT_INVALID,
         HOOK_INTEGRITY_ERROR, INTERNAL_ERROR
@@ -710,6 +743,9 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "base_ref_name": "main",
     "default_branch": "main",
     "merge_method": "squash",
+    "intercepted_commit_title_fingerprint": null,
+    "intercepted_commit_message_fingerprint": null,
+    "message_source_fingerprint": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
     "delivered_message_fingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
     "repository_merge_settings_fingerprint": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     "operation_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -792,7 +828,10 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
       "type": "object", "additionalProperties": false,
       "required": [
         "head_oid", "base_ref_name", "default_branch", "merge_method",
-        "delivered_message_fingerprint", "repository_merge_settings_fingerprint",
+        "intercepted_commit_title_fingerprint",
+        "intercepted_commit_message_fingerprint",
+        "message_source_fingerprint", "delivered_message_fingerprint",
+        "repository_merge_settings_fingerprint",
         "operation_fingerprint", "snapshot_fingerprint", "attempt"
       ],
       "properties": {
@@ -800,6 +839,15 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "base_ref_name": {"type": ["string", "null"]},
         "default_branch": {"type": ["string", "null"]},
         "merge_method": {"enum": ["merge", "rebase", "squash", null]},
+        "intercepted_commit_title_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
+        "intercepted_commit_message_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
+        "message_source_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
         "delivered_message_fingerprint": {
           "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
         },
@@ -859,8 +907,10 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "PAGINATION_INCOMPLETE", "GRAPH_LIMIT_EXCEEDED", "GRAPH_CYCLE",
         "IDENTITY_MISMATCH", "ISSUE_STATE_UNKNOWN", "RELATION_INCONSISTENT",
         "RELATION_TARGET_UNREADABLE", "CROSS_REPOSITORY_UNSUPPORTED",
-        "MERGE_METHOD_UNKNOWN", "MERGE_MESSAGE_AMBIGUOUS",
-        "MESSAGE_SOURCE_INCOMPLETE", "CLOSING_KEYWORD_PARSE",
+        "MERGE_METHOD_UNKNOWN", "MERGE_SETTINGS_AMBIGUOUS",
+        "MERGE_OVERRIDE_AMBIGUOUS", "MERGE_MESSAGE_AMBIGUOUS",
+        "REBASE_MESSAGE_AMBIGUOUS", "MESSAGE_SOURCE_INCOMPLETE",
+        "CLOSING_KEYWORD_PARSE",
         "WAIVER_SCHEMA_INVALID", "WAIVER_INVALID", "REEVALUATION_LIMIT",
         "RESULT_CONTRACT_INVALID", "HOOK_INTEGRITY_ERROR", "INTERNAL_ERROR"
       ]
@@ -922,7 +972,7 @@ JSON Schema PASSだけでは、closing setの和集合、findingとwaiver、Resu
 1. process exit、`result`、`exit_code`が10.1の同じ組である。
 2. `primary_reason`は`reasons`に含まれ、10.2のResult区分と一致する。未知reason、重複、規定外の混在を拒否する。
 3. `closing_set`はcanonicalizeした `graphql_closing_set union delivered_message_closing_set` と完全一致する。各集合はsort済み・uniqueでなければならない。
-4. PR modeではrepository/subject/merge method/head/base/default/operation fingerprintが束縛済みで、default baseならdelivered-message fingerprint、最終snapshot fingerprint、attemptを持つ。squashのsubject/bodyのいずれかをdefault生成した場合はrepository merge-message設定fingerprintも必須とする。Issue modeのPR固有値は規定どおりnull/空である。
+4. PR modeではrepository/subject/merge method/head/base/default/operation fingerprintが束縛済みで、default baseならmessage-source/delivered-message fingerprint、最終snapshot fingerprint、attemptを持つ。repository settings fingerprintは`merge`で常に必須、`squash`でsubject/bodyのいずれかをdefault生成した場合に必須、`rebase`でnull固定とする。この相関とoverride指定有無をoperation fingerprintに照合する。Issue modeのPR固有値は規定どおりnull/空である。
 5. `fetched_at <= completed_at`、attempt 1〜3、policy/classifier major一致、全fingerprint形式を検証する。
 
 Result別不変条件:
@@ -951,7 +1001,7 @@ schemaまたはsemantic validation失敗時、callerは受信したResultを利�
 
 pre-use decision record を append/fsync できなければ permit を発行しない。元操作の完了 record は post-use adapter が同じ `invocation_id` で追記する。元操作後の書込み失敗は既に起きた副作用を取り消せないため stderr と次回 runtime self-check へ監査欠損を残し、#299 が owner action として扱う。欠損した過去 record を後続 invocation の ALLOW 根拠にはしない。
 
-各 stage の start/end/error を `invocation_id` で串刺しし、`policy_version`、`classifier_version`、resolver build commit、hook asset hash、policy/waiver blob SHA、repository、target、head/base/default、取得時刻を版 stamp として残す。
+各 stage の start/end/error を `invocation_id` で串刺しし、`policy_version`、`classifier_version`、resolver build commit、hook asset hash、policy/waiver blob SHA、repository、target、head/base/default/method、override/message-source/delivered-message/settings fingerprint、取得時刻を版 stamp として残す。
 
 version は `MAJOR.MINOR` である。
 
@@ -963,7 +1013,7 @@ version は `MAJOR.MINOR` である。
 
 primary 保証は「managed tool が認識済み操作を送る直前に hook が発火し、fresh read で ALLOW を得た同一 operation だけを続行する」ことに限定する。
 
-複数 GitHub endpoint に transaction snapshot はなく、最終 read と GitHub が merge を受理する間に relation/state が変わる TOCTOU window は残る。本 policy は完全同期・原子性・race-free を主張しない。PR/head/base/default/closing set と全評価 graph の再読・最大2回の再評価は stale operation を狭めるが、全 relation を merge transaction と原子的に固定しない。この残存 race はオーナーが受容した境界である。
+複数 GitHub endpoint に transaction snapshot はなく、最終 read と GitHub が merge を受理する間に relation/state が変わる TOCTOU window は残る。本 policy は完全同期・原子性・race-free を主張しない。PR/head/base/default/method、override、message source、merge/squash settings、delivered message/closing setと全評価 graph の再読・最大2回の再評価は stale operation を狭めるが、これらを merge transaction と原子的に固定しない。この残存 race はオーナーが受容した境界である。
 
 次は primary ALLOW 根拠ではない。
 
@@ -1021,8 +1071,8 @@ managed path で新しい alias/wrapper/API/MCP/connector が発見された場�
 | 298-AC03 | unknown merge相当、target不明、interception不能 fail-close | 2.1、12 | unknown alias/tool/schemaとuninterceptable connector fixture |
 | 298-AC04 | bypass/alias corpusとconnector tool-name fixture | 2.1 | allowlist/denylist table-driven test |
 | 298-AC05 | 毎回fresh readし直前relation変更を検出 | 3、7.2、7.3 | invocation間・attempt間 relation change fixture |
-| 298-AC06 | PR/head/base/default再束縛、stale ALLOW不使用 | 4.1、7.3、8.2 | merge method/subject/body/repo message設定を含む各binding field changeとpermit失効 test |
-| 298-AC07 | closing set、same-PR multiple close、commit-only、default/non-default | 4、9.3 | merge/rebase/squash明示値/squash各default設定/再構築不能、GraphQL relation union、empty set、base別 fixture |
+| 298-AC06 | PR/head/base/default再束縛、stale ALLOW不使用 | 4.1、7.3、8.2 | merge method/override/repo merge・squash設定/rebase order・parent・treeを含む各binding field changeとpermit失効 test |
+| 298-AC07 | closing set、same-PR multiple close、commit-only、default/non-default | 4、9.3 | merge title 2 enum × body 3 enum・片側/両override・formatter drift、rebase original-empty/multi-parent/override/partial、squash明示値/各default設定/再構築不能、GraphQL relation union、empty set、base別 fixture |
 | 298-AC08 | direct/transitive blocker、cycle、API/permission、pagination | 5、9.1 | PR mode resolver integration fixture |
 | 298-AC09 | parent/open child と same-PR child close | 4.4、5.2、9.2 | post-merge virtual closure fixture |
 | 298-AC10 | ALLOWなしでmanaged mergeへ到達不能 | 7.3、8.2 | executor が `ExecutionPermit` を型/実行時に必須とする test |
