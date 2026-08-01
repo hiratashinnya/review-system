@@ -187,7 +187,7 @@ Dependabot で成立し得る trusted write 経路の候補は、read-only の P
 
 GitHub 公式仕様では、merge queue は organization 所有の public repository、または GitHub Enterprise Cloud を使う organization 所有 private repositoryで利用できる。`hiratashinnya/review-system` は User 所有の public repository なので、現状では **利用不可** であり採用案に含めない。
 
-organization への repository 移管をオーナーが別途明示決定した場合だけ再評価する。その場合も、required check workflow は `merge_group: checks_requested` を含め、close-set を group 内 PR ごとに再構築して group SHA に結果を返す fixture が PASS するまで #298 を merge-ready にしない。移管前に merge queue を前提とする設計は停止する。
+organization への repository 移管と merge queue 採用をオーナーが別途ともに明示決定した場合だけ再評価する。その場合も、required check workflow は `merge_group: checks_requested` を含め、close-set を group 内 PR ごとに再構築して group SHA に結果を返す fixture が PASS するまで queue 向け #298 を merge-ready にしない。移管または採用の決定前に merge queue を前提とする設計は停止するが、現行の通常 `pull_request` gate は停止しない。
 
 ## 7. GitHub Free 判定
 
@@ -201,7 +201,9 @@ organization への repository 移管をオーナーが別途明示決定した�
 | GitHub App registration | App 自体は構成可能 | Webhook receiver の稼働場所は repository-only 構成に含まれず、本 spike では採用しない |
 | external SaaS / paid required workflow | 不可 | #294 の調査境界外。導入しない |
 
-現在の `ruleset 18482582` には required status check がない。#298 で workflow が直近7日以内に一度成功し、fork / merge_group fixture を通した後、owner が expected source と bypass policy を確認してから追加する。
+現在の `ruleset 18482582` には required status check がない。現行の User 所有 repository では、#298 で通常の `pull_request` と fork / Dependabot fixture が PASS し、workflow が直近7日以内に一度成功した後、owner が expected source と bypass policy を確認して required check を追加する。`merge_group` fixture はこの通常 PR gate の有効化条件に含めない。
+
+将来、owner が organization への移管と merge queue 採用の両方を決定した場合に限り、`merge_group: checks_requested` の fixture が PASS するまで merge queue 向け required check enforcement を有効化しない。この条件付き検証の未実施を理由に、現行の通常 `pull_request` gate を停止し続けてはならない。
 
 ## 8. 障害・曖昧・race の扱い
 
@@ -217,7 +219,7 @@ organization への repository 移管をオーナーが別途明示決定した�
 - cycle、self relation、重複 node の矛盾、state の未知値を検出する。
 - PR base が現在の default branch でない、head SHA が評価中に変わる。
 - GraphQL close 候補と許可した closing syntax の結果が一致しない。
-- fork / Dependabot / merge_group の未検証経路が production で現れる。
+- fork / Dependabot の未検証経路が production で現れる。`merge_group` は organization 移管と merge queue 採用後にだけ同じ fail-close 対象へ加える。
 - cross-repository blocker を初期 policy で許可していない、または source repository の state change を購読・pollできない。
 
 retry は `Retry-After` と rate-limit header を尊重した有限回に限定する。retry 上限後は ERROR とし、最後の成功 cache を ALLOW に再利用しない。
@@ -257,7 +259,8 @@ required status check は「特定 SHA で過去に成功した」ことを保�
 - `issue_dependencies` / `sub_issues` を status 失効へ接続する手段を決めず、Actions の `issues` event が relation 変更でも発火すると仮定している。
 - 5分 schedule を即時 gate と同等に扱う、または schedule の成功 status に TTL があると仮定している。
 - commit message closure、manual link、cross-repository closure の扱いが未定である。
-- fork / Dependabot と merge queue の fixture がないまま required check を active にする。
+- 通常 `pull_request` と fork / Dependabot fixture がないまま、現行 repository の required check を active にする。
+- organization 移管と merge queue 採用の両方を決定した場合に、`merge_group` fixture がないまま merge queue 向け required check enforcement を active にする。移管または採用が未決定なら、この条件を通常 `pull_request` gate の停止理由にしない。
 - Dependabot の `pull_request_target` で `statuses: write` が使えると仮定する、または privileged `workflow_run` で untrusted head/artifact/cache を実行する。
 - cross-repository blocker を許容しながら、source repository の close/reopen がこの repository の `issues` workflow を起動すると仮定する。
 - User 所有の現 repository で merge queue を有効化できると仮定する。organization 移管は別のオーナー判断・移行計画なしに前提化しない。
@@ -279,26 +282,33 @@ rtk proxy gh api \
 
 # per_page=1 にして Link を gh に最後まで追わせる。各 page の1件を出力する
 rtk proxy gh api --method GET \
+  -H 'X-GitHub-Api-Version: 2026-03-10' \
   repos/hiratashinnya/review-system/issues/293/sub_issues \
   -f per_page=1 --paginate \
   --jq '.[] | [.number,.state] | @tsv'
 
 # Link header 自体の確認
 rtk proxy gh api --include --method GET \
+  -H 'X-GitHub-Api-Version: 2026-03-10' \
   repos/hiratashinnya/review-system/issues/293/sub_issues \
   -f per_page=1 -f page=1
 
 # timeline relation events
 rtk proxy gh api \
   -H 'Accept: application/vnd.github+json' \
+  -H 'X-GitHub-Api-Version: 2026-03-10' \
   repos/hiratashinnya/review-system/issues/295/timeline \
   --paginate \
   --jq 'map({event,created_at,actor:.actor.login})'
 
 # ruleset / Actions baseline
-rtk proxy gh api repos/hiratashinnya/review-system/rulesets/18482582 \
+rtk proxy gh api \
+  -H 'X-GitHub-Api-Version: 2026-03-10' \
+  repos/hiratashinnya/review-system/rulesets/18482582 \
   --jq '{id,name,enforcement,conditions,rules,bypass_actors}'
-rtk proxy gh api repos/hiratashinnya/review-system/actions/permissions/workflow
+rtk proxy gh api \
+  -H 'X-GitHub-Api-Version: 2026-03-10' \
+  repos/hiratashinnya/review-system/actions/permissions/workflow
 ```
 
 期待 evidence:
@@ -394,7 +404,7 @@ rtk proxy gh api graphql \
 | fork PR | disposable fork PR | `pull_request` と `pull_request_target` の token permission、approval、head SHAを記録 | head code非実行。trusted pathだけが検証済みSHAへ結果を付ける |
 | Dependabot PR | Dependabot有効の disposable repo | `pull_request` / `pull_request_target` / `workflow_run` のpermissionとstatus付与先を記録 | PR系tokenはread-only。trusted `workflow_run` はuntrusted artifact/codeを実行せず、APIで束縛したSHAだけに書く |
 | cross-repo blocker | disposable source/target repo | source blockerをclose/reopenし、target workflow run履歴を観察 | target の `issues` workflowは起動しない。polling時だけ検出、または外部Webhook/Appで即時失効 |
-| merge queue | organization ownershipへ移した disposable public repo | queue有効化後に `merge_group` payload/group SHAを記録 | **現 User-owned repoでは実行不可**。organization移管のowner決定なしでは着手しない |
+| merge queue | organization ownershipへ移した disposable public repo | queue有効化後に `merge_group` payload/group SHAを記録 | **現 User-owned repoでは実行不可**。organization移管と merge queue 採用の両方のowner決定なしでは着手しない |
 
 fixture evidence は request の endpoint/variables、HTTP status、secretを除いたresponse要約、workflow run URL、対象 repository/Issue/PR URL、実行日時を一組として残す。未実行の行は PASS にしない。
 
