@@ -19,7 +19,7 @@ authority: issue-295
 
 管理対象操作は、**同じ invocation の中で GitHub の現状態を読み、判定が `ALLOW` の場合に限って元の操作を一度だけ続行する**。`BLOCK` または `ERROR` なら元操作を実行しない。過去の成功、Actions status、cache、定期監査結果を ALLOW 根拠として再利用しない。
 
-依存の正本は GitHub native `blocked-by`、包含の正本は native parent/sub-issue とする。本文の `Blocked by:`、related link、Project Status は判定根拠にしない。PR が default branch への merge で閉じる Issue は、GraphQL `closingIssuesReferences` と、PR の全 commit message を GitHub closing keyword grammar で解析した集合の和集合とする。この closing set を仮想的に `CLOSED/COMPLETED` にして dependency と closure を評価する。default branch 以外への merge、または closing set が空の merge は Issue を閉じないため `ALLOW/NO_CLOSING_EFFECT` 候補となり、Issue link の必須化は本 blocker policy の責務に含めない。
+依存の正本は GitHub native `blocked-by`、包含の正本は native parent/sub-issue とする。本文の `Blocked by:`、related link、Project Status は判定根拠にしない。PR が default branch への merge で閉じる Issue は、GraphQL `closingIssuesReferences` と、merge/rebase/squashの各methodでdefault branchへ実際に届くmessageだけをGitHub closing keyword grammarで解析した集合の和集合とする。この closing set を仮想的に `CLOSED/COMPLETED` にして dependency と closure を評価する。default branch 以外への merge、または closing set が空の merge は Issue を閉じないため `ALLOW/NO_CLOSING_EFFECT` 候補となり、Issue link の必須化は本 blocker policy の責務に含めない。
 
 この policy が保証するのは managed path だけである。GitHub UI、hook 外の API、direct push/ref update は unmanaged であり、完全同期や race-free な GitHub 全体の merge 保証は行わない。managed auto-merge の enable/schedule は、検査と merge が別 invocation になるため常に拒否する。
 
@@ -117,7 +117,7 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 ### 3.1 API と pagination
 
 - Issue 本体、native blocked-by、parent、sub-issue は GitHub REST API を使用し、`X-GitHub-Api-Version: 2026-03-10` を固定する。
-- PR、default branch、head SHA、base branch、closing Issues、全 commit は GitHub GraphQL API を使用する。REST による同値の再束縛を併用してよいが、意味を変更してはならない。
+- PR、default branch、head SHA、base branch、closing Issuesと、選択merge methodが要求するcommit count/message sourceは GitHub GraphQL API を使用する。repository merge-message設定はRESTをfresh readする。REST/GraphQLによる同値の再束縛を併用してよいが、意味を変更してはならない。
 - list/connection は `per_page=100` または `first=100` で全 page/cursor を完走する。`Link rel=next` または `hasNextPage=true` が残る状態で評価へ進まない。
 - GraphQL top-level error、partial `errors`、null connection、同一 cursor/page の再訪、順序中の identity 矛盾は `ERROR` とする。
 - 1 invocation 当たり最大 10,000 unique Issue nodes、dependency/parent depth 最大 100 とする。超過は `ERROR/GRAPH_LIMIT_EXCEEDED` であり、途中までの graph を ALLOW に使わない。
@@ -149,6 +149,8 @@ PrBinding = {
   base_ref_name,
   default_branch,
   merge_method,
+  intercepted_commit_title_sha256?,
+  intercepted_commit_message_sha256?,
   operation_fingerprint,
   policy_version
 }
@@ -160,8 +162,10 @@ PrBinding = {
 EvaluatedSnapshot = {
   pr_binding,
   graphql_closing_set,
-  commit_closing_set,
+  delivered_message_closing_set,
   closing_set,
+  delivered_message_fingerprint,
+  repository_merge_settings_fingerprint,
   issue_state_fingerprint,
   dependency_fingerprint,
   closure_fingerprint,
@@ -172,11 +176,39 @@ EvaluatedSnapshot = {
 
 fingerprint は canonical identity、state/state reason、全 relation edge、全 page 完了 marker を canonical JSON にして SHA-256 を取る。closing set だけを束縛して graph の変化を無視してはならない。
 
-### 4.2 GraphQL set と commit-only set
+### 4.2 Relation set と merge method別 delivered-message set
 
-`GraphqlClosingSet` は `PullRequest.closingIssuesReferences` の全 cursor を完走して得た集合である。PR body の closing keyword と GitHub の manual linked Issue はこの集合に委ね、PR body を独自 parser で再解釈しない。
+`GraphqlClosingSet` は `PullRequest.closingIssuesReferences` の全 cursor を完走して得た集合である。PR body の closing keyword と GitHub の manual linked Issue はこの集合に委ね、PR body を独自 parser で二重解釈しない。この relation set は merge method に依存しないが、default branch 以外を base とする invocation では automatic closure が発生しないため空集合として扱う。
 
-default branch を base とする場合だけ、`CommitClosingSet` は PR の `commits` connection を全 cursor 取得し、各 commit の**省略されていない完全な message**を次の grammar で解析した集合である。
+commit-message-only closure は、PR branch に存在する全 commit message ではなく、選択した merge method により**今回 default branch へ実際に到達する commit message**だけを解析する。これを `DeliveredMessageSet`、そこから得る Issue 集合を `DeliveredMessageClosingSet` とする。
+
+classifier は `merge` / `rebase` / `squash` を閉じた `merge_method` として束縛する。未知、欠落、transport間の矛盾は `ERROR/MERGE_METHOD_UNKNOWN` とする。merge APIへ送られる subject/body override は raw operation object から取り出し、その完全な値を invocation 内に保持する。永続ログには SHA-256 だけを残す。
+
+method省略を`merge`へ正規化できるのは、interceptしたtransportのversioned schemaがそのdefaultを明示し、#298 fixtureでoutbound payloadとの一致を確認した場合だけである。CLIの対話選択、repository設定、aliasからmethodを推測しない。
+
+#### merge commit
+
+- default branch へ到達するのは、PR の全個別 commit message と新しい merge commit message である。
+- subject/body override があれば、その指定済み部分を merge commit message の正本とする。未指定部分は fresh read した PR number、head label、PR title から policy `1.0` が固定する GitHub default formatterで再構築する。
+- formatter入力の欠落、未知のtransport semantics、明示値とoutbound API payloadの不一致により一意に再構築できなければ `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。
+
+#### rebase merge
+
+- default branch へ到達するのは、順序を維持してrebaseされた全個別 commitの完全なmessageだけである。synthetic merge/squash messageは存在しない。
+- transportがrebaseでは意味を持たないsubject/body overrideを含む場合は、無視せず `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。
+
+#### squash merge
+
+- default branch へ到達するのは一つのsquash commit messageだけであり、個別 commit messageを無条件に union してはならない。
+- intercepted subject/body が指定されていれば指定部分をそのまま束縛する。片方だけ未指定なら、未指定部分だけを以下のfresh repository設定とPR情報から再構築する。
+- repository の `squash_merge_commit_title`、`squash_merge_commit_message`、PR title/body/numberと、選択設定が要求するcommit件数・完全なmessageを同じattemptでfresh readする。
+- title設定 `PR_TITLE` はfresh PR title、`COMMIT_OR_PR_TITLE` は1 commitならそのcommit title、複数commitならfresh PR titleを選ぶ。
+- body設定 `PR_BODY` はfresh PR body、`COMMIT_MESSAGES` はGitHub default formatterで順序付き全commit messageを構成し、`BLANK` は空文字列とする。
+- unknown enum、null/partial/truncated入力、設定とtransportの矛盾、#298 fixtureで固定したformatter versionからのdriftは `ERROR/MERGE_MESSAGE_AMBIGUOUS` とする。推測値、ローカルgit log、前回設定へfallbackしない。
+
+merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数として#298でfixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。
+
+`DeliveredMessageSet` の各**省略されていない完全な message**を次の grammar で解析する。
 
 ```ebnf
 keyword   = "close" | "closes" | "closed"
@@ -193,19 +225,30 @@ clause    = keyword, 1*WSP, reference ;
 - keyword の直後の非空白 token が `#`、`owner/repository#`、`https://github.com/.../issues/` で始まるにもかかわらず grammar を満たさない場合は `ERROR/CLOSING_KEYWORD_PARSE` とする。単なる自然文の “fixes performance” は closing clause ではなく error にしない。
 - parser は全出現を収集する。同じ Issue の重複は canonical identity で除去する。
 - unqualified `#N` は対象 PR と同じ repository に束縛する。qualified reference が別 repository を指す場合は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` とする。
-- commit message が欠落、切り詰め、decode不能、pagination 未完走なら `ERROR/COMMIT_SET_INCOMPLETE` とする。
+- source commitまたは生成messageが欠落、切り詰め、decode不能、pagination未完走なら `ERROR/MESSAGE_SOURCE_INCOMPLETE` とする。
 
 最終集合は次で固定する。差分は曖昧ではなく取得経路の違いとして保持する。
 
 ```text
-ClosingSet = canonicalize(GraphqlClosingSet union CommitClosingSet)
+ClosingSet = canonicalize(GraphqlClosingSet union DeliveredMessageClosingSet)
 ```
 
-これにより default branch 到達時の commit-message-only closure を漏らさない。merge command が squash/merge message の subject/body を指定できる場合も、元 operation object の完全な値を同じ grammar で解析し `CommitClosingSet` に加える。解析前の値を shell 展開しない。JSON evidence には `graphql_closing_set`、`commit_closing_set`、`closing_set` を別々に出す。
+GraphQL relation setとmessage由来setの重複はcanonical identityで除去するが、evidenceには `graphql_closing_set`、`delivered_message_closing_set`、`closing_set` を別々に出す。manual link/PR body由来relationを個別commit messageへ置換せず、commit-message-only closureをGraphQLだけで取得できるとも仮定しない。
 
-closing set が空なら dependency/closure の root は空であり、`ALLOW/NO_CLOSING_EFFECT` 候補とする。この policy は「すべての PR が Issue を閉じる」という別の tracking 規則を暗黙に追加しない。default branch 以外では commit closing keyword がその merge 自体で Issue を閉じないため解析結果を closing set に加えず、後に default branch へ到達させる PR invocation が全 commit を再評価する。
+closing set が空なら dependency/closure の root は空であり、`ALLOW/NO_CLOSING_EFFECT` 候補とする。この policy は「すべての PR が Issue を閉じる」という別の tracking 規則を暗黙に追加しない。default branch 以外ではmessage解析をclosing setに加えず、後にdefault branchへ到達させるPR invocationが、その時選択されたmerge methodのdelivered messageをfreshに再評価する。
 
-### 4.3 same-PR virtual close
+### 4.3 merge method 真理値表
+
+| merge method | default branchへ届くmessage | closing message解析 | fail-close条件 |
+|---|---|---|---|
+| `merge` | 全個別commit + synthetic merge commit | 両方を解析 | 個別commit未完、default merge messageを一意に再構築不能 |
+| `rebase` | rebase後の全個別commit | 全個別messageを解析 | commit未完、意味不明なsubject/body override |
+| `squash` + subject/body明示 | 明示値から成る単一squash commit | その一つだけ解析 | outbound payloadとの不一致、片側defaultを再構築不能 |
+| `squash` + subject/body省略 | fresh repo設定+PR情報から再構築した単一squash commit | 再構築した一つだけ解析 | unknown設定、partial入力、formatter drift、再構築非一意 |
+| 任意method + GraphQL relation | PR body closing keyword/manual linkの`GraphqlClosingSet` | message setとは別にunion | cursor未完、partial/null、cross-repo |
+| non-default base | 今回のautomatic closure対象なし | 両setを空にする | metadata不明ならERROR。空自体は`NO_CLOSING_EFFECT` |
+
+### 4.4 same-PR virtual close
 
 `ClosingSet` の全 Issue を仮想的に `CLOSED_COMPLETED` としてから評価する。この変換は集合全体へ一括適用し、Issue ごとに順番に適用してはならない。
 
@@ -345,6 +388,7 @@ flowchart LR
   subgraph Hook[Pre-use hook]
     IS1[classify / repo・Issue bind]
     IS7{Result と再読 snapshot}
+    ISV[schema + semantic validate]
     IS8[一回限り permit]
   end
   subgraph GitHub[GitHub API]
@@ -360,11 +404,16 @@ flowchart LR
     ISA[control JSON / stderr / redacted JSONL]
   end
 
-  IS0 --> IS1 --> IS2 --> IS3 --> IS4 --> IS5 --> IS6 --> IS7
-  IS7 -->|一致かつ ALLOW| IS8 --> IS9
+  IS0 --> IS1
+  IS1 -->|Issue-start| IS2 --> IS3 --> IS4 --> IS5 --> IS6 --> IS7
+  IS1 -->|mode mismatch / unknown Result| ISV
+  IS7 -->|一致したResult| ISV
   IS7 -->|変化・attempt 1〜2| IS2
-  IS7 -->|BLOCK / ERROR / 3回不安定| ISX
-  IS7 --> ISA
+  IS7 -->|3回不安定| ISV
+  ISV -->|valid ALLOW| IS8 --> IS9
+  ISV -->|valid BLOCK / ERROR| ISX
+  ISV -->|invalid: contract ERROR| ISX
+  ISV --> ISA
 ```
 
 ### 7.2 PR-merge swimlane
@@ -379,6 +428,7 @@ flowchart LR
   subgraph Hook[Pre-use hook]
     PR1[closed classifier / target bind]
     PR7{Result と再読 snapshot}
+    PRV[schema + semantic validate]
     PR8[一回限り permit]
   end
   subgraph GitHub[GitHub API]
@@ -395,12 +445,15 @@ flowchart LR
   end
 
   PR0 --> PR1
-  PR1 -->|auto-merge / unknown| PRX
+  PR1 -->|auto-merge / unknown Result| PRV
   PR1 -->|即時merge| PR2 --> PR3 --> PR4 --> PR5 --> PR6 --> PR7
-  PR7 -->|一致かつ ALLOW| PR8 --> PR9
+  PR7 -->|一致したResult| PRV
   PR7 -->|変化・attempt 1〜2| PR2
-  PR7 -->|BLOCK / ERROR / 3回不安定| PRX
-  PR7 --> PRA
+  PR7 -->|3回不安定| PRV
+  PRV -->|valid ALLOW| PR8 --> PR9
+  PRV -->|valid BLOCK / ERROR| PRX
+  PRV -->|invalid: contract ERROR| PRX
+  PRV --> PRA
 ```
 
 各 stage は `StageResult<T> = Ok<T> | Block<Findings> | Error<Findings>` を返す。`Ok` の値だけが次 stage の input 型を構築でき、`ExecutionPermit` は最終照合済み `ALLOW` からだけ生成できる。merge executor は `ExecutionPermit` と元の operation object を同時に要求する。
@@ -409,19 +462,22 @@ flowchart LR
 
 1. classifier が閉じた型を返す前に対象 API または元操作を呼ばない。
 2. repository/Issue/PR を一意に bind できるまで resolver と副作用へ進まない。
-3. 全 page/cursor と全 commit message を取得し終えるまで graph 評価へ進まない。
+3. 全 page/cursor と、選択merge methodが要求する全message sourceを取得し、default branchへ届くmessageを一意に構築し終えるまで graph 評価へ進まない。
 4. IssueClass、identity、relation の検証を通らない node を graph へ入れない。
 5. PR mode は closing set 全体の virtual close を一括適用してから dependency/closure を評価する。
 6. dependency と closure は独立に完走し、ERROR優先で一つの Result に統合する。
 7. waiver は finding 作成後にだけ検証し、ERROR や非対象 code を消さない。
-8. `ALLOW` は repository、target、PR head、base、default branch、policy version、operation fingerprint に束縛した一回限りの値である。
-9. ALLOW 候補後、元操作の直前に同じ API scope を全 page fresh read し、`EvaluatedSnapshot` を再構築する。PR state/head/base/default/closing set、Issue state、dependency/closure relation、policy/waiver blob のどれかが変われば候補を破棄し、同じ invocation で最初から再評価する。
+8. `ALLOW` は repository、target、PR head、base、default branch、merge method、delivered-message/settings fingerprint、policy version、operation fingerprint に束縛した一回限りの値である。
+9. ALLOW 候補後、元操作の直前に同じ API scope を全 page fresh read し、`EvaluatedSnapshot` を再構築する。PR state/head/base/default/merge method、subject/body override、repository merge-message設定、delivered message/closing set、Issue state、dependency/closure relation、policy/waiver blob のどれかが変われば候補を破棄し、同じ invocation で最初から再評価する。
 10. 初回評価に加えて再評価は最大2回、合計3 attempt とする。3回目の最終再読でも変化した場合は `ERROR/REEVALUATION_LIMIT` とし、元操作を実行しない。API retry 回数とは別に数える。
-11. 同じ hook invocation が発行した未使用の `ExecutionPermit` がある場合だけ元操作を一度続行する。permit の永続化・再利用・別 operation への転用を禁止する。
-12. BLOCK/ERROR、hook未登録・無効・untrusted・未発火では、managed Issue の worktree/委譲/branch/commit/push/PR作成、および managed merge API を実行しない。
-13. ALLOW 後の GitHub 側 merge eligibility failure は merge executor の失敗として記録し、gate ALLOW を成功 merge と表示しない。
+11. Result候補はJSON Schemaとsemantic validatorの両方を通す。どちらかが失敗したpayloadをpermit、診断上のtarget、ALLOWとして使用しない。
+12. 同じ hook invocationの`ValidatedGateResult(ALLOW)`から発行した未使用の`ExecutionPermit`がある場合だけ元操作を一度続行する。permit の永続化・再利用・別 operation への転用を禁止する。
+13. BLOCK/ERROR、hook未登録・無効・untrusted・未発火では、managed Issue の worktree/委譲/branch/commit/push/PR作成、および managed merge API を実行しない。
+14. ALLOW 後の GitHub 側 merge eligibility failure は merge executor の失敗として記録し、gate ALLOW を成功 merge と表示しない。
 
 ## 8. 疑似コード
+
+以下の `? else ERROR` / `? else BLOCK` は省略記法であり、直接returnを意味しない。実装は必ずcandidate Resultを構築し、JSON Schemaとsemantic validatorを通し、validated BLOCK/ERRORだけをemitして元操作をdenyする。
 
 ### 8.1 Issue-start
 
@@ -430,9 +486,15 @@ run_issue_start(raw_operation):
   classified = classify(raw_operation)
   match classified:
     IssueStart(op) -> continue
-    DeniedAutoMerge(_) -> return block(AUTO_MERGE_DENIED)
-    UnknownPotentialManaged(_) -> return error(CLASSIFIER_UNKNOWN)
-    _ -> return error(MODE_MISMATCH)
+    DeniedAutoMerge(_) ->
+      return deny(validate_or_contract_error(
+          build_result(block(AUTO_MERGE_DENIED), permit_issued=false)))
+    UnknownPotentialManaged(_) ->
+      return deny(validate_or_contract_error(
+          build_result(error(CLASSIFIER_UNKNOWN), permit_issued=false)))
+    _ ->
+      return deny(validate_or_contract_error(
+          build_result(error(MODE_MISMATCH), permit_issued=false)))
 
   binding = bind_issue(op) ? else ERROR
   for attempt in 1..3:
@@ -444,17 +506,25 @@ run_issue_start(raw_operation):
         scope=ancestors_and_descendants(binding.issue), virtual_closed={})
     verdict = verify_waivers_and_reduce(dependency + closure, binding)
     if verdict != ALLOW:
-      emit_three_channels(verdict)
-      return deny_without_side_effect(verdict)
+      candidate = build_result(verdict, permit_issued=false)
+      validated = validate_or_contract_error(candidate)
+      emit_three_channels(validated)
+      return deny_without_side_effect(validated)
 
     rebound = rebuild_issue_snapshot_from_fresh_reads(
         binding, graph_scope, policy, waivers) ? else ERROR
     if canonical_fingerprint(rebound) != canonical_fingerprint(snapshot):
       if attempt < 3: continue
-      return deny_without_side_effect(error(REEVALUATION_LIMIT))
+      candidate = build_result(
+          error(REEVALUATION_LIMIT), permit_issued=false)
+      return deny_without_side_effect(
+          validate_or_contract_error(candidate))
 
-    permit = one_shot_permit(binding, op.fingerprint)
-    emit_three_channels(ALLOW)
+    candidate = build_result(ALLOW, permit_issued=true)
+    validated = validate_or_contract_error(candidate)
+    require validated.result == ALLOW ? else deny
+    permit = one_shot_permit(validated, binding, op.fingerprint)
+    emit_three_channels(validated)
     return continue_original_operation_once(permit, raw_operation)
 ```
 
@@ -465,9 +535,15 @@ run_pr_merge(raw_operation):
   classified = classify(raw_operation)
   match classified:
     PullRequestMerge(op) -> continue
-    DeniedAutoMerge(_) -> return block(AUTO_MERGE_DENIED)
-    UnknownPotentialManaged(_) -> return error(CLASSIFIER_UNKNOWN)
-    _ -> return error(MODE_MISMATCH)
+    DeniedAutoMerge(_) ->
+      return deny(validate_or_contract_error(
+          build_result(block(AUTO_MERGE_DENIED), permit_issued=false)))
+    UnknownPotentialManaged(_) ->
+      return deny(validate_or_contract_error(
+          build_result(error(CLASSIFIER_UNKNOWN), permit_issued=false)))
+    _ ->
+      return deny(validate_or_contract_error(
+          build_result(error(MODE_MISMATCH), permit_issued=false)))
 
   for attempt in 1..3:
     binding = bind_pr_and_default_branch(op) ? else ERROR
@@ -475,12 +551,15 @@ run_pr_merge(raw_operation):
     require binding.is_draft == false         ? else BLOCK
 
     if binding.base_ref_name == binding.default_branch:
-      gql_set = read_closing_issues_all_cursors(binding)   ? else ERROR
-      commits = read_all_pr_commits_full_messages(binding) ? else ERROR
-      commit_set = parse_closing_keywords(commits, op)     ? else ERROR
-      closing_set = canonicalize(gql_set union commit_set)
+      gql_set = read_closing_issues_all_cursors(binding) ? else ERROR
+      message_sources = read_required_message_sources_by_method(
+          binding.merge_method, op, binding) ? else ERROR
+      delivered_messages = derive_delivered_messages_by_method(
+          binding.merge_method, op, message_sources) ? else ERROR
+      message_set = parse_closing_keywords(delivered_messages) ? else ERROR
+      closing_set = canonicalize(gql_set union message_set)
     else:
-      gql_set = {}; commit_set = {}; closing_set = {}
+      gql_set = {}; message_set = {}; closing_set = {}
 
     snapshot = read_graph_all_pages(closing_set) ? else ERROR
     states = classify_all(snapshot)               ? else ERROR
@@ -490,18 +569,25 @@ run_pr_merge(raw_operation):
         union(ancestors_and_descendants(each closing issue)), virtual)
     verdict = verify_waivers_and_reduce(dependency + closure, binding)
     if verdict != ALLOW:
-      emit_three_channels(verdict)
-      return deny_without_merge(verdict)
+      candidate = build_result(verdict, permit_issued=false)
+      validated = validate_or_contract_error(candidate)
+      emit_three_channels(validated)
+      return deny_without_merge(validated)
 
-    evaluated = bind_snapshot(binding, gql_set, commit_set,
+    evaluated = bind_snapshot(binding, gql_set, message_set,
                               closing_set, snapshot, policy, waivers)
     rebound = rebuild_same_snapshot_from_fresh_reads(op) ? else ERROR
     if rebound != evaluated:
       if attempt < 3: continue
-      return deny_without_merge(error(REEVALUATION_LIMIT))
+      candidate = build_result(
+          error(REEVALUATION_LIMIT), permit_issued=false)
+      return deny_without_merge(validate_or_contract_error(candidate))
 
-    permit = one_shot_permit(evaluated, op.fingerprint)
-    emit_three_channels(ALLOW)
+    candidate = build_result(ALLOW, permit_issued=true)
+    validated = validate_or_contract_error(candidate)
+    require validated.result == ALLOW ? else deny
+    permit = one_shot_permit(validated, evaluated, op.fingerprint)
+    emit_three_channels(validated)
     return execute_original_merge_once(permit, raw_operation)
 ```
 
@@ -523,7 +609,7 @@ run_pr_merge(raw_operation):
 | transfer 後に repository/node/number が不一致 | 適用不可 | `ERROR/IDENTITY_MISMATCH` | 拒否 |
 | deleted・非可視・404 relation target | 適用不可 | `ERROR/RELATION_TARGET_UNREADABLE` | 拒否 |
 | `hasNextPage` / `Link next` が残る、cursor再訪、page欠落 | 適用不可 | `ERROR/PAGINATION_INCOMPLETE` | 拒否 |
-| GraphQL partial errors / null connection / incomplete commit message | 適用不可 | `ERROR/API_PARTIAL_RESPONSE` または `ERROR/COMMIT_SET_INCOMPLETE` | 拒否 |
+| GraphQL partial errors / null connection / incomplete delivered-message source | 適用不可 | `ERROR/API_PARTIAL_RESPONSE` または `ERROR/MESSAGE_SOURCE_INCOMPLETE` | 拒否 |
 | API timeout/429/5xx/retry枯渇 | 適用不可 | `ERROR/API_UNAVAILABLE` | 拒否 |
 | 403・権限不足 | 適用不可 | `ERROR/API_PERMISSION` | 拒否 |
 | state/reason/identity/responseが未知・矛盾 | 適用不可 | `ERROR/ISSUE_STATE_UNKNOWN` 等 | 拒否 |
@@ -553,7 +639,10 @@ closure finding は waiver 対象外である。Issue-start では current state
 | open・非draft・default base、closing setあり、評価OK、再読一致 | `ALLOW/NO_VIOLATION` | 同じ invocation で一度だけ呼ぶ |
 | non-default base | `ALLOW/NO_CLOSING_EFFECT` 候補 | 同じ再読/permit規則を満たす時だけ呼ぶ |
 | default base だが closing set が空 | `ALLOW/NO_CLOSING_EFFECT` 候補 | 同上 |
-| commit-only closing keyword が正しくparseできる | union後に通常評価 | ALLOW時だけ呼ぶ |
+| method別 delivered message のclosing keywordが正しくparseできる | relation setとのunion後に通常評価 | ALLOW時だけ呼ぶ |
+| squashで個別commitにだけkeywordがありsquash messageへ入らない | message closing setへ加えない | GraphQL set等の他findingで決定 |
+| merge/rebaseで個別commit messageがdefaultへ届く | method表どおりmessage closing setへ加える | 通常評価 |
+| method/messageを一意に束縛・再構築不能 | `ERROR/MERGE_MESSAGE_AMBIGUOUS` | 呼ばない |
 | closing referenceらしいがgrammar不正 | `ERROR/CLOSING_KEYWORD_PARSE` | 呼ばない |
 | auto-merge enable/schedule | `BLOCK/AUTO_MERGE_DENIED` | enable APIを呼ばない |
 | unknown alias/tool/connector または target不明 | `ERROR/CLASSIFIER_UNKNOWN` | 呼ばない |
@@ -590,9 +679,11 @@ ERROR:  CLASSIFIER_UNKNOWN, TARGET_AMBIGUOUS, MODE_MISMATCH,
         GRAPH_LIMIT_EXCEEDED, GRAPH_CYCLE, IDENTITY_MISMATCH,
         ISSUE_STATE_UNKNOWN, RELATION_INCONSISTENT,
         RELATION_TARGET_UNREADABLE, CROSS_REPOSITORY_UNSUPPORTED,
-        CLOSING_KEYWORD_PARSE, COMMIT_SET_INCOMPLETE,
+        MERGE_METHOD_UNKNOWN, MERGE_MESSAGE_AMBIGUOUS,
+        MESSAGE_SOURCE_INCOMPLETE, CLOSING_KEYWORD_PARSE,
         WAIVER_SCHEMA_INVALID, WAIVER_INVALID,
-        REEVALUATION_LIMIT, HOOK_INTEGRITY_ERROR, INTERNAL_ERROR
+        REEVALUATION_LIMIT, RESULT_CONTRACT_INVALID,
+        HOOK_INTEGRITY_ERROR, INTERNAL_ERROR
 ```
 
 新しい reason の追加、削除、意味変更は policy version 規則に従う。未知 reason を受信した caller は ERROR とする。
@@ -618,12 +709,15 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "head_oid": "0123456789abcdef0123456789abcdef01234567",
     "base_ref_name": "main",
     "default_branch": "main",
+    "merge_method": "squash",
+    "delivered_message_fingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "repository_merge_settings_fingerprint": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     "operation_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     "snapshot_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
     "attempt": 1
   },
   "graphql_closing_set": ["hiratashinnya/review-system#120"],
-  "commit_closing_set": [],
+  "delivered_message_closing_set": [],
   "closing_set": ["hiratashinnya/review-system#120"],
   "findings": [{
     "code": "OPEN_BLOCKER",
@@ -640,7 +734,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
 ```
 
 - collection は canonical identity の辞書順、finding は `(code, subject, path)` 順にして再現可能にする。
-- `primary_reason` は ERROR finding の先頭、なければ未waive BLOCK finding の先頭、なければ `WAIVER_APPLIED`、closing set が空なら `NO_CLOSING_EFFECT`、最後に `NO_VIOLATION` とする。
+- `primary_reason` はERRORならERROR reasonのcanonical先頭、BLOCKなら未waive BLOCK reasonのcanonical先頭とする。ALLOWは10.5の相関に従い、`WAIVER_APPLIED`、`NO_CLOSING_EFFECT`、`NO_VIOLATION`のいずれか一つだけを`reasons`と`primary_reason`の両方へ設定する。
 - Issue mode では PR 固有 binding/closing fields を `null` または空配列で出し、key 自体は省略しない。
 - secrets、Authorization header、raw body、raw commit message、waiver reason 全文を出力しない。
 
@@ -659,7 +753,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "schema", "policy_version", "classifier_version", "invocation_id",
     "mode", "result", "exit_code", "primary_reason", "reasons",
     "repository", "subject", "binding", "graphql_closing_set",
-    "commit_closing_set", "closing_set", "findings", "fetched_at",
+    "delivered_message_closing_set", "closing_set", "findings", "fetched_at",
     "completed_at", "pages_complete", "permit_issued"
   ],
   "properties": {
@@ -675,32 +769,52 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
       "type": "array", "minItems": 1, "uniqueItems": true,
       "items": {"$ref": "#/$defs/reason"}
     },
-    "repository": {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+    "repository": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+        {"type": "null"}
+      ]
+    },
     "subject": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "number"],
-      "properties": {
-        "type": {"enum": ["issue", "pull_request"]},
-        "number": {"type": "integer", "minimum": 1}
-      }
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["type", "number"],
+          "properties": {
+            "type": {"enum": ["issue", "pull_request"]},
+            "number": {"type": "integer", "minimum": 1}
+          }
+        },
+        {"type": "null"}
+      ]
     },
     "binding": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "head_oid", "base_ref_name", "default_branch",
+        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "delivered_message_fingerprint", "repository_merge_settings_fingerprint",
         "operation_fingerprint", "snapshot_fingerprint", "attempt"
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
         "base_ref_name": {"type": ["string", "null"]},
         "default_branch": {"type": ["string", "null"]},
+        "merge_method": {"enum": ["merge", "rebase", "squash", null]},
+        "delivered_message_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
+        "repository_merge_settings_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
         "operation_fingerprint": {"$ref": "#/$defs/fingerprint"},
-        "snapshot_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "snapshot_fingerprint": {
+          "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
+        },
         "attempt": {"type": "integer", "minimum": 1, "maximum": 3}
       }
     },
     "graphql_closing_set": {"$ref": "#/$defs/issueSet"},
-    "commit_closing_set": {"$ref": "#/$defs/issueSet"},
+    "delivered_message_closing_set": {"$ref": "#/$defs/issueSet"},
     "closing_set": {"$ref": "#/$defs/issueSet"},
     "findings": {
       "type": "array",
@@ -708,7 +822,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "type": "object", "additionalProperties": false,
         "required": ["code", "subject", "path", "fingerprint", "waiver_id"],
         "properties": {
-          "code": {"$ref": "#/$defs/reason"},
+          "code": {"$ref": "#/$defs/findingCode"},
           "subject": {"$ref": "#/$defs/issueRef"},
           "path": {"type": "array", "items": {"$ref": "#/$defs/issueRef"}},
           "fingerprint": {"$ref": "#/$defs/fingerprint"},
@@ -728,33 +842,102 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
       "items": {"$ref": "#/$defs/issueRef"}
     },
     "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-    "reason": {
+    "allowReason": {
+      "enum": ["NO_VIOLATION", "NO_CLOSING_EFFECT", "WAIVER_APPLIED"]
+    },
+    "blockReason": {
       "enum": [
-        "NO_VIOLATION", "NO_CLOSING_EFFECT", "WAIVER_APPLIED",
         "OPEN_BLOCKER", "CLOSURE_OPEN_DESCENDANT",
         "TARGET_ISSUE_NOT_OPEN", "PR_NOT_OPEN", "PR_DRAFT",
-        "AUTO_MERGE_DENIED", "CLASSIFIER_UNKNOWN", "TARGET_AMBIGUOUS",
-        "MODE_MISMATCH", "API_UNAVAILABLE", "API_PERMISSION",
-        "API_PARTIAL_RESPONSE", "PAGINATION_INCOMPLETE",
-        "GRAPH_LIMIT_EXCEEDED", "GRAPH_CYCLE", "IDENTITY_MISMATCH",
-        "ISSUE_STATE_UNKNOWN", "RELATION_INCONSISTENT",
+        "AUTO_MERGE_DENIED"
+      ]
+    },
+    "errorReason": {
+      "enum": [
+        "CLASSIFIER_UNKNOWN", "TARGET_AMBIGUOUS", "MODE_MISMATCH",
+        "API_UNAVAILABLE", "API_PERMISSION", "API_PARTIAL_RESPONSE",
+        "PAGINATION_INCOMPLETE", "GRAPH_LIMIT_EXCEEDED", "GRAPH_CYCLE",
+        "IDENTITY_MISMATCH", "ISSUE_STATE_UNKNOWN", "RELATION_INCONSISTENT",
         "RELATION_TARGET_UNREADABLE", "CROSS_REPOSITORY_UNSUPPORTED",
-        "CLOSING_KEYWORD_PARSE", "COMMIT_SET_INCOMPLETE",
+        "MERGE_METHOD_UNKNOWN", "MERGE_MESSAGE_AMBIGUOUS",
+        "MESSAGE_SOURCE_INCOMPLETE", "CLOSING_KEYWORD_PARSE",
         "WAIVER_SCHEMA_INVALID", "WAIVER_INVALID", "REEVALUATION_LIMIT",
-        "HOOK_INTEGRITY_ERROR", "INTERNAL_ERROR"
+        "RESULT_CONTRACT_INVALID", "HOOK_INTEGRITY_ERROR", "INTERNAL_ERROR"
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {"$ref": "#/$defs/allowReason"},
+        {"$ref": "#/$defs/blockReason"},
+        {"$ref": "#/$defs/errorReason"}
+      ]
+    },
+    "findingCode": {
+      "anyOf": [
+        {"$ref": "#/$defs/blockReason"},
+        {"$ref": "#/$defs/errorReason"}
       ]
     }
   },
   "allOf": [
     {"if": {"properties": {"result": {"const": "ALLOW"}}},
-     "then": {"properties": {"exit_code": {"const": 0}, "permit_issued": {"const": true}}}},
+     "then": {"properties": {
+       "exit_code": {"const": 0},
+       "permit_issued": {"const": true},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/allowReason"},
+       "reasons": {"items": {"$ref": "#/$defs/allowReason"}}
+     }}},
     {"if": {"properties": {"result": {"const": "BLOCK"}}},
-     "then": {"properties": {"exit_code": {"const": 10}, "permit_issued": {"const": false}}}},
+     "then": {"properties": {
+       "exit_code": {"const": 10},
+       "permit_issued": {"const": false},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/blockReason"},
+       "reasons": {"items": {"$ref": "#/$defs/blockReason"}}
+     }}},
     {"if": {"properties": {"result": {"const": "ERROR"}}},
-     "then": {"properties": {"exit_code": {"const": 20}, "permit_issued": {"const": false}}}}
+     "then": {"properties": {
+       "exit_code": {"const": 20},
+       "permit_issued": {"const": false},
+       "primary_reason": {"$ref": "#/$defs/errorReason"},
+       "reasons": {
+         "items": {"anyOf": [
+           {"$ref": "#/$defs/blockReason"},
+           {"$ref": "#/$defs/errorReason"}
+         ]},
+         "contains": {"$ref": "#/$defs/errorReason"}
+       }
+     }}}
   ]
 }
 ```
+
+### 10.5 必須 semantic validation
+
+JSON Schema PASSだけでは、closing setの和集合、findingとwaiver、Resultとpermitの相関を証明できない。resolver/library境界とCLI stdoutを受け取るhook境界の両方で、schema検証の直後に `validate_result_semantics()` を必須実行する。統合済みResultを検証して`ValidatedGateResult` 型へ変換し、この型だけをhook decision・監査・`ExecutionPermit`生成へ渡す。
+
+共通不変条件:
+
+1. process exit、`result`、`exit_code`が10.1の同じ組である。
+2. `primary_reason`は`reasons`に含まれ、10.2のResult区分と一致する。未知reason、重複、規定外の混在を拒否する。
+3. `closing_set`はcanonicalizeした `graphql_closing_set union delivered_message_closing_set` と完全一致する。各集合はsort済み・uniqueでなければならない。
+4. PR modeではrepository/subject/merge method/head/base/default/operation fingerprintが束縛済みで、default baseならdelivered-message fingerprint、最終snapshot fingerprint、attemptを持つ。squashのsubject/bodyのいずれかをdefault生成した場合はrepository merge-message設定fingerprintも必須とする。Issue modeのPR固有値は規定どおりnull/空である。
+5. `fetched_at <= completed_at`、attempt 1〜3、policy/classifier major一致、全fingerprint形式を検証する。
+
+Result別不変条件:
+
+| Result | 必須相関 |
+|---|---|
+| `ALLOW` | exit `0`、`pages_complete=true`、`permit_issued=true`。reasonは一つだけで、waived findingありなら`WAIVER_APPLIED`、findingなし・PR closing set空なら`NO_CLOSING_EFFECT`、それ以外は`NO_VIOLATION`。ERROR findingと未waive BLOCK findingは0件。findingを残す場合は`OPEN_BLOCKER`かつ有効waiver ID/blob/approval evidenceと完全一致するものだけ。 |
+| `BLOCK` | exit `10`、`pages_complete=true`、`permit_issued=false`、ALLOW/ERROR reasonとERROR findingは0件。少なくとも一つの未waive BLOCK findingを持つ。ただしclassifierがgraph取得前に確定する`AUTO_MERGE_DENIED`だけはfindingなしを許す。 |
+| `ERROR` | exit `20`、`permit_issued=false`、少なくとも一つのERROR reasonを持ちprimaryもERROR。途中で得たBLOCK finding/reasonをevidenceとして併記できるがALLOW reasonは0件。required readの未完を表すAPI/permission/partial/pagination/message-source errorがあれば`pages_complete=false`。 |
+
+`permit_issued=true`というpayload fieldだけでは副作用権限にならない。schema/semantic validation済みの`ValidatedGateResult(ALLOW)`と同じinvocationのoperation objectから、callerが非永続の`ExecutionPermit`を生成した時だけ実際のpermitが存在する。BLOCKの`AUTO_MERGE_DENIED`は取得すべきpageが0件なので`pages_complete=true`とする。
+
+schemaまたはsemantic validation失敗時、callerは受信したResultを利用せず `ERROR/RESULT_CONTRACT_INVALID` として元操作を拒否する。壊れたpayloadからpermit、repository、target、next actionを推測しない。callerが生成する最小のtrusted audit recordへvalidation stage、受信payloadのSHA-256、schema/policy versionだけを残し、raw payloadは残さない。このfail-close変換自体は不正payloadを再度同じschemaへ通す再帰経路にしない。
+
+#296はschema validatorとsemantic validatorのunit/contract testを持ち、#297/#298はstdout欠落、exit不一致、ALLOW+`pages_complete=false`、ALLOW+ERROR finding、ALLOW+未waive BLOCK、BLOCK+permit、ERROR+ALLOW reason、closing set union不一致をadapter境界のnegative fixtureにする。
 
 ## 11. ログ3チャネルと版
 
@@ -806,12 +989,12 @@ managed path で新しい alias/wrapper/API/MCP/connector が発見された場�
 | 296-AC01 | Issue/PR 両 mode が同じ core evaluator | 5、7、8 | 両 adapter が同一 dependency/closure 関数を呼ぶ spy/unit test |
 | 296-AC02 | direct、open/closed、transitive、cycle、pagination、partial、API、permission fixture | 3、5、9.1 | 条件ごとの resolver fixture と期待 Result/reason |
 | 296-AC03 | API等の異常を allow にしない | 3、5.3、9.1 | 各異常が exit 20、permit false の contract test |
-| 296-AC04 | parent/open child、same-PR child close、手動 parent早期close | 4.3、5.2、9.2 | closure evaluator の独立 unit fixture |
+| 296-AC04 | parent/open child、same-PR child close、手動 parent早期close | 4.4、5.2、9.2 | closure evaluator の独立 unit fixture |
 | 296-AC05 | waiver verifier は read-only、schema/期限/対象/承認/署名検証 | 6 | valid/invalid/expired/wrong-scope/unsigned fixture と write spy zero |
 | 296-AC06 | waiver lifecycle を行わず #299 と分離 | 6.3 | public API に create/update/delete がないことと filesystem/API write spy zero |
 | 296-AC07 | #273 型 graph で未解決課題を列挙 | 5、9.1、9.2 | #273 anonymized graph fixture の全 finding/path snapshot |
 | 296-AC08 | ambiguous/error を allow に変換しない | 5.3、10 | ERROR優先 property/contract test |
-| 296-AC09 | output schema と policy version 固定 | frontmatter、10、11 | JSON Schema validation、version mismatch test |
+| 296-AC09 | output schema と policy version 固定 | frontmatter、10、11 | JSON Schema、semantic validatorの正負contract、version mismatch test |
 | 296-AC10 | repository tool と GitHub標準APIのみ | 3、12 | dependency inventory に外部SaaSなし、offline fixture + standard API integration |
 
 ### 13.2 Issue #297
@@ -838,13 +1021,13 @@ managed path で新しい alias/wrapper/API/MCP/connector が発見された場�
 | 298-AC03 | unknown merge相当、target不明、interception不能 fail-close | 2.1、12 | unknown alias/tool/schemaとuninterceptable connector fixture |
 | 298-AC04 | bypass/alias corpusとconnector tool-name fixture | 2.1 | allowlist/denylist table-driven test |
 | 298-AC05 | 毎回fresh readし直前relation変更を検出 | 3、7.2、7.3 | invocation間・attempt間 relation change fixture |
-| 298-AC06 | PR/head/base/default再束縛、stale ALLOW不使用 | 4.1、7.3、8.2 | 各 binding field change と permit失効 test |
-| 298-AC07 | closing set、same-PR multiple close、commit-only、default/non-default | 4、9.3 | GraphQL/commit union、empty set、base別 fixture |
+| 298-AC06 | PR/head/base/default再束縛、stale ALLOW不使用 | 4.1、7.3、8.2 | merge method/subject/body/repo message設定を含む各binding field changeとpermit失効 test |
+| 298-AC07 | closing set、same-PR multiple close、commit-only、default/non-default | 4、9.3 | merge/rebase/squash明示値/squash各default設定/再構築不能、GraphQL relation union、empty set、base別 fixture |
 | 298-AC08 | direct/transitive blocker、cycle、API/permission、pagination | 5、9.1 | PR mode resolver integration fixture |
-| 298-AC09 | parent/open child と same-PR child close | 4.3、5.2、9.2 | post-merge virtual closure fixture |
+| 298-AC09 | parent/open child と same-PR child close | 4.4、5.2、9.2 | post-merge virtual closure fixture |
 | 298-AC10 | ALLOWなしでmanaged mergeへ到達不能 | 7.3、8.2 | executor が `ExecutionPermit` を型/実行時に必須とする test |
 | 298-AC11 | BLOCK/ERRORでmerge API未呼出し | 7.2、8.2 | transport別 merge spy zero と audit record |
-| 298-AC12 | Result/exit/reason/log/next actionが#295と一致 | 10、11 | schema/exit/stderr golden contract test |
+| 298-AC12 | Result/exit/reason/log/next actionが#295と一致 | 10、11 | schema/semantic/exit/stderr goldenと不正ALLOW/BLOCK/ERROR negative contract test |
 | 298-AC13 | hook trusted/enabled/fired とClaude/Codex parity実環境確認 | 11、12 | 両 harness の actual-fire trace とasset hash |
 | 298-AC14 | Actionsなしでprimary e2e成立 | 1、12 | Actionsを無効化した managed merge e2e |
 | 298-AC15 | managed/unmanaged boundary文書化 | 2.1、12 | registry/readme と誤った保証表示がない review fixture |
@@ -875,12 +1058,13 @@ managed path で新しい alias/wrapper/API/MCP/connector が発見された場�
 
 - [x] relation 種別と正本を一意に定義した
 - [x] Issue/PR flow、swimlane、疑似コード、真理値表を定義した
-- [x] GraphQL closing set と全commit parser の union、commit-only、same-PR virtual close を定義した
+- [x] GraphQL relation set とmerge method別delivered-message setのunion、commit-only、same-PR virtual close を定義した
 - [x] direct/transitive blocker、closed classifier、cycle、pagination、API/permission/parse の結果を定義した
 - [x] parent/sub-issue closure と same-PR child close を定義した
 - [x] classifier を閉じた型にし、unknown/auto-mergeを fail-close にした
 - [x] fresh binding、全snapshot再読・上限付き再評価、一回限り ALLOW、check→副作用の順序を固定した
 - [x] Result、exit、reason、JSON、ログ3チャネル、`MAJOR.MINOR` を固定した
+- [x] JSON Schemaと必須semantic validatorでALLOW/BLOCK/ERRORの相関をfail-closeした
 - [x] waiver schema、protected main history、approver allowlist、#296/#299責務を固定した
 - [x] Actions optional、unmanaged boundary、TOCTOU非保証を明記した
 - [x] #296〜#299 へ一対一 trace した
