@@ -135,6 +135,21 @@ ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
 GATED_ROLES = {"issue-implementer", "pr-reviewer"}
 
+# Issue #303: context-mode の実行系 MCP ツール（`ctx_execute` / `ctx_execute_file` /
+# `ctx_batch_execute`）。これらは任意のコードをサブプロセスで実行でき、実測でホストの
+# リポジトリ直下に書き込める（"sandboxed subprocess" はコンテキストのサンドボックスであって
+# FS のサンドボックスではない）。settings.json の matcher は完全一致文字列で登録するが、
+# サーバ名部分が変わってもマッチが外れて素通りしないよう、ここでも suffix で同定し直す。
+CTX_EXEC_TOOL_SUFFIXES = {"ctx_execute", "ctx_execute_file", "ctx_batch_execute"}
+
+# `ctx_execute` / `ctx_execute_file` の language 許可リスト。shell 以外は
+# `<interpreter> -c <code>` と意味論的に同値であり、universal 層（SCRIPT_EVAL_INTERPRETERS）と
+# settings.json permissions.deny が**全 agent_type に対して既に禁止している**形。
+# 非 shell 言語のコードは静的検査で安全に扱えない（言語ごとに複数のサブプロセス起動 API があり、
+# 文字列結合・eval・動的 import でトークン一致は自明に回避できる＝Issue #227 が構造的に放棄した
+# denylist いたちごっこの再来）ため、ここでは言語そのものを allowlist で絞る。
+CTX_ALLOWED_LANGUAGES = {"shell"}
+
 # 層3（Issue #227 追加修正3・オーナー確定 2026-07-13）: git ラッパー方式＋gh フラグ許可リスト。
 # gated 2ロールからは**生 git を一切禁止**し、固定テンプレートで git を呼ぶ薄いラッパー
 # `python3 -m gitgate <verb>` のみ許可する（ユーザ制御フラグが git に届かない＝exec/write 面を構造的に
@@ -343,8 +358,9 @@ agent_type = first_string(
     payload.get("subagent_type"),
     (payload.get("agent") or {}).get("type") if isinstance(payload.get("agent"), dict) else None,
 )
-# tool_name は判定ロジックには使わない（Claude 側は settings.json の matcher:"Bash" で既に絞り込み済み）。
-# トレースログの診断用にのみ拾う。
+# tool_name は Bash 経路では判定に使わない（settings.json の matcher:"Bash" で既に絞り込み済み）が、
+# Issue #303 以降は **MCP 経路の識別に使う**——`mcp__` 始まりなら実行系 MCP ツールとして
+# 別入口（ctx_gate_reason）へ振る。tool_name 欠如は従来どおり Bash 扱い（既存テストとの互換）。
 tool_name = first_string(payload.get("tool_name"))
 tool_input = payload.get("tool_input")
 command = tool_input.get("command") if isinstance(tool_input, dict) else None
@@ -753,12 +769,121 @@ def gate_reason(command_text, role):
     return None
 
 
+def ctx_tool_suffix(name):
+    """tool_name（`mcp__<server>__<tool>`）から末尾のツール名を取り出す。"""
+    return name.rsplit("__", 1)[-1] if name else ""
+
+
+def ctx_commands_or_reason(suffix, tool_input_obj):
+    """Issue #303: 実行系 MCP ツールの入力を「シェルコマンド文字列のリスト」へ正規化する。
+
+    戻り値は (commands, reason)。reason が非 None のとき deny（commands は None）。
+
+    **fail-close**: 形が読めない／未知言語／未知ツールは **全 agent_type で deny** する。
+    Bash 経路の非ゲートロールは command 欠落でも許可する（既存ワークフロー救済・不変条件#1）が、
+    ここは意図的に非対称にしている——新規に統制下へ入れるツールには救済すべき既存ワークフローが
+    無く、「検査できないものを通す」既定を新設する理由がないため。
+    """
+    if not isinstance(tool_input_obj, dict):
+        return None, "the MCP tool_input is not an object; refusing because the code cannot be inspected"
+
+    if suffix == "ctx_batch_execute":
+        entries = tool_input_obj.get("commands")
+        if not isinstance(entries, list) or not entries:
+            return None, (
+                "`ctx_batch_execute` requires a non-empty `commands` array; "
+                "refusing because the commands cannot be inspected"
+            )
+        commands = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return None, (
+                    "every `ctx_batch_execute` entry must be an object with a `command` string; "
+                    "refusing because the commands cannot be inspected"
+                )
+            value = entry.get("command")
+            if not isinstance(value, str) or not value:
+                return None, (
+                    "every `ctx_batch_execute` entry must carry a non-empty `command` string; "
+                    "refusing because the commands cannot be inspected"
+                )
+            commands.append(value)
+        return commands, None
+
+    # ctx_execute / ctx_execute_file
+    language = tool_input_obj.get("language")
+    if not isinstance(language, str) or language not in CTX_ALLOWED_LANGUAGES:
+        allowed = "|".join(sorted(CTX_ALLOWED_LANGUAGES))
+        return None, (
+            f"`{suffix}` is only allowed with language={allowed}; `language={language!r}` runs an "
+            "interpreter over arbitrary source, which is equivalent to `python3 -c` / `node -e` and is "
+            "already denied for every agent_type (Issue #224/#303). Non-shell code cannot be inspected "
+            "statically, so the language itself is allowlisted instead"
+        )
+    code = tool_input_obj.get("code")
+    if not isinstance(code, str) or not code:
+        return None, (
+            f"`{suffix}` requires a non-empty `code` string; refusing because it cannot be inspected"
+        )
+    return [code], None
+
+
+def ctx_gate_reason(suffix, tool_input_obj, role):
+    """実行系 MCP ツールの判定入口。正規化した各コマンド文字列を、Bash とまったく同じ
+    universal 層（全 agent_type）＋層1〜3（gated ロールのみ）へ通す。判定ロジックは
+    `all_role_dangerous_command_token()` / `gate_reason()` の再利用で、新規実装はしない。"""
+    if suffix not in CTX_EXEC_TOOL_SUFFIXES:
+        # matcher の取りこぼし・プラグイン側の名称変更・将来の MCP ツール追加は allowlist 外＝deny。
+        # 「matcher だけ広げてパース未対応」が素通しではなく deny に倒れる（Issue #269 の allowlist 原則）。
+        allowed = ", ".join(sorted(CTX_EXEC_TOOL_SUFFIXES))
+        return (
+            f"agent-command-gate: MCP tool '{suffix}' is not in this hook's inspected allowlist "
+            f"({allowed}); refusing (fail-close, Issue #269/#303)."
+        )
+
+    commands, parse_reason = ctx_commands_or_reason(suffix, tool_input_obj)
+    if parse_reason:
+        return f"agent-command-gate ({role or 'no-agent-type'}): {parse_reason}."
+
+    # `cwd` は context-mode 自身が「未指定のときだけプロジェクトルートを補う」動作なので、
+    # 明示されている＝モデルが別ディレクトリを狙った場合だけを見ればよい（フックの実行順に依存しない）。
+    # gated 2ロールがリポジトリ外で実行すると、push/merge の非対称が掛かる対象そのものを差し替えられる。
+    if role in GATED_ROLES:
+        cwd = tool_input_obj.get("cwd")
+        if cwd is not None:
+            return (
+                f"agent-command-gate ({role}): an explicit `cwd` is not allowed for this role "
+                "(running outside the project root escapes the repo-scoped push/merge boundary). "
+                "Omit `cwd` — context-mode pins it to the project root on its own."
+            )
+
+    # 1件でも違反があれば呼び出し全体を deny する（部分許可はハーネス側に表現手段がない）。
+    for command_text in commands:
+        token = all_role_dangerous_command_token(command_text)
+        if token:
+            return (
+                f"agent-command-gate: '{token}' is a denied network/exec command for all roles "
+                f"(reached via {suffix}; Issue #224/#303)."
+            )
+        if role in GATED_ROLES:
+            violation = gate_reason(command_text, role)
+            if violation:
+                return violation
+    return None
+
+
+is_mcp = bool(tool_name) and tool_name.startswith("mcp__")
+
 dangerous_token = None
-if isinstance(command, str) and command:
+if not is_mcp and isinstance(command, str) and command:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if dangerous_token:
+if is_mcp:
+    # Issue #303: 実行系 MCP 経路。tool_input の形が Bash と違う（`code`+`language` /
+    # `commands[]`）ため専用入口で正規化してから、同じ判定関数へ通す。
+    reason = ctx_gate_reason(ctx_tool_suffix(tool_name), tool_input, agent_type)
+elif dangerous_token:
     # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。対象2ロール専用の層1〜3
     # より前に判定し、agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」
     # だった穴を、settings.json permissions.deny では塞ぎ切れない env-prefix/abspath/compound 経路について
