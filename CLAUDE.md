@@ -36,12 +36,37 @@
 ## 判断の仰ぎ方（フェーズ別・空で止めない＝PR7）
 - **大原則**：矛盾・オーナー判断必須で止めるときも、**原案・比較・理由付き推奨/非推奨を必ず添える**（意見なき停止は禁止）。**矛盾は原案検討して提案、他のやれる所をやる、一通り終えたら整理して提示**。
 - **起票してから止める（チャットで流さない）**：論点・矛盾・情報不足を見つけたら、**①ノード起票 → ②ダッシュボード更新（Q/FND いずれの場合も必須）→ ③選択肢＋推奨を添えて停止・質問** の順を必ず守る。チャットで指摘を述べるだけで**起票しないのは禁止**（後から「なぜ起票してない？」になる）。**②は省略不可**——ノードが明細、ダッシュボードが状態の要約で、両方を更新して初めて起票完了。
+  - **ただしハーネス開発は例外**（起票先が Issue になる）＝後述「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」。**打ち上げ義務そのものは変わらない**（起票せずチャットで流すのは依然として禁止）。
   - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（`doc-system-v2/nodes/04-verification/fnd/`（open/resolved の2状態は path で表現）・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
   - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。**辺逆転（forward 削除＋backward 付与＋DD-3 凍結＋z バンプ＋`fnd/open/`→`fnd/resolved/` の `git mv`）は手編集でなく `dsv2` ツールで機械実行する**＝`python3 -m dsv2 reverse <FND-slug> --root doc-system-v2`（既定 dry-run／`--apply` で書込・実装＝`dsv2/reverse.py`）。旧 `backref/`（v1専用）は `archive/backref-v1/` に retire 済み（issue #76）。
   - **FND 起票時は ref_version を本文にも記録**：FND 解消時に edges が逆転（FND→対象 → 対象→FND）するため指摘時の ref_version が辺情報から失われる。**FND 起票時に `edges[].ref_version` の値を本文に明記する**（`**指摘時 ref_version**: {ノードID} "{ref_version}"（{ファイル名} v{version} 時点）`・DD-3 制度化）。
 - **要件定義フェーズ**：**暫定で進めない（危険）**。論点・矛盾・情報不足は**上記①〜③で止めて**選択肢＋推奨を出し、決定はオーナー。**他の決められる所を先に進める**（Q#/FND で起票・状態維持）。
 - **設計フェーズ**：迷いは**推奨案で暫定決定**し、**判断ログ DD#**（論点→選択肢→推奨→暫定決定→影響範囲）に記録して前進。覆る場合の影響範囲を必ず併記。
 - **DD# は Q# の設計フェーズ版**：未決の置き場が Q#（ダッシュボード）、暫定決定の記録が DD#（[design/decisions](docs/design/decisions.md)）。
+
+## 起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）
+**「どこに成果物が出るか」で起票先が変わる。判定してから起票する。**
+
+- **doc_system の成果物**（`doc-system-v2/nodes/**` にノードが増減・変化する）→ 従来どおり
+  **FND/Q/DD ノード起票 ＋ `doc-system-v2/00-dashboard.md` 更新**（`verification-author` に委譲）。
+- **review_system の成果物**（`docs/` 配下の要件・設計・スキーマが変わる）→ 従来どおり
+  **Q#/DD# ＋ `docs/dashboard.md`・`docs/design/decisions.md`**。
+- **ハーネス開発**（`.claude/`＝hooks/agents/skills/settings、`.codex/`・`.github/`・`.agents/` の各資産ツリー、
+  `dsv2`/`gitgate`/`asset_parity`/`karte` 等の裸ツール、CI 定義）→ **ノード起票もダッシュボード更新も行わない**。
+  **`/gh-create-issue` で Issue を切って処置する**（`area:harness` ラベル）。
+
+**なぜ分けるか**：ハーネス資産は **in-graph の観測可能成果物を持たない**（`issue-pipeline`・`agy-delegate`・
+`bloom-model-tier` を `prompt_coverage_targets` 対象外としている既存決定と同じ理由＝
+「資産のテーラリング運用」「このリポジトリ＝2つのプロジェクトが同居」参照）。
+置き場のないノードを作ると、グラフに実体のない記述が溜まり、ダッシュボードの状態要約も濁る。
+
+**変わらないこと（弱めない）**：
+- **意見なき停止は禁止（PR7）** — 起票先が Issue になるだけで、**原案・比較・理由付き推奨を添える**義務は同じ。
+- **チャットで流して起票しないのは禁止** — ハーネスでも指摘・論点は必ず Issue に残す。
+- **「対応不要」を AI が独断で書かない** — 処置要否・据え置きはオーナー判断。Issue のクローズも同様。
+
+**迷ったら**：同じ変更が doc_system/review_system の成果物とハーネスの**両方**に及ぶなら、
+成果物側の規律（ノード起票・ダッシュボード）を**満たした上で**ハーネス分を Issue 化する（厳しい側に倒す）。
 
 ## スケジュール独断禁止（再発防止・2026-06-14）
 **FND/Q/DD で「次スプリント以降」「sprint-N 以降」等の実施スプリントを設定するとき、オーナー確認なしに独断で繰り越すことは厳禁。**
@@ -185,6 +210,9 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
 - **エージェント/スキル定義**：`.claude/skills/`・`.claude/agents/`（大半は doc_system 自身の著作・点検・パイプライン運用向け。横展開先＝`.codex/`・`.github/skills|prompts|agents`・`.agents/skills`）
 - **テスト**：`tests/unit/test_dsv2_*.py`・`test_docidx_*.py`・`test_asset_parity_*.py`・`test_agent_command_gate.py`・`test_codex_*.py`・`test_claude_review_mcp.py`（`.codex/mcp/claude_review/server.py` 対象）等
 - **正本の所在**：`doc-system-v2/nodes/**`（ノードグラフ）＋ `.claude/`（資産・規約）＋ 本 `CLAUDE.md`。
+  - **注意：「正本の所在」と「起票先」は別軸**。`.claude/`・CLI ツール群は上記のとおり**内容としては正本**だが、
+    **それ自体を改修する作業＝ハーネス開発**なので起票は Issue（ノード起票・ダッシュボード更新はしない）。
+    前掲「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」参照。
 - MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）＝**doc_system 自身**の MVP スコープ（review_system の MVP ではない）。運用ハブ＝`doc-system-v2/00-dashboard.md`。
 - 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。
 - **実装前の凍結セット**：`doc-system-v2/nodes/05-design/` 配下（索引の考え方は `python3 -m dsv2 index` で meta.json 生成→grep/jq で参照。基盤＝`doc-system-v2/nodes/05-design/mod/`）。テスト戦略＝`/test-strategy`。
