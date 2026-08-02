@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
 
-<!-- synced-from: CLAUDE.md@13f4d6098f8f -->
+<!-- synced-from: CLAUDE.md@eea77de52211 -->
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
@@ -25,6 +25,7 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **①ノード起票（未決の質問＝Q／既存ノードへの指摘＝FND、`verification-author` に委譲）
    → ②`doc-system-v2/00-dashboard.md` 更新（省略不可）→ ③選択肢＋推奨を添えて停止**。
    チャットで指摘を述べるだけで起票しないのは禁止。
+   **ただし起票先は「どこに成果物が出るか」で変わる**（下記9）。
 3. **「対応不要」を AI が独断で書かない** — 指摘の処置要否・据え置きは**オーナー判断**。
    AI 単独で「対応不要」「将来検討でよい」と結論・クローズしない。AI 同士のコメントを根拠にしない。
 4. **スケジュール独断禁止** — `scheduled:` の繰り越し（次スプリント以降）は
@@ -40,5 +41,14 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **②review_system（AIレビューツール本体）＝`docs/` 配下**（要件・設計・スキーマ・ダッシュボード）。
    ①の「docs/ は非正本」は doc_system 自身の記述についての規定であり、**review_system には適用しない**。
    どちらの話か判断してから正本を決める（詳細は CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」）。
+   **「正本の所在」と「起票先」は別軸**——`.claude/` は内容としては正本だが、それ自体の改修は下記9（Issue 運用）。
 8. **PR/GitHub コメントは実施者と処置を明記** — AI（Claude Code）による対応であることと、
    変更ファイル・コミット・判断根拠を具体的に書く。抽象的な要約だけで済ませない。
+9. **起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）** —
+   doc_system の成果物＝FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
+   review_system の成果物＝Q#/DD#＋`docs/dashboard.md`・`docs/design/decisions.md`／
+   **ハーネス開発**（`.claude/`・`.codex/`・`.github/`・`.agents/` の資産、`dsv2`/`gitgate`/`asset_parity`/
+   `karte` 等の裸ツール、CI 定義）＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
+   （`area:harness`）。理由＝ハーネス資産は in-graph の観測可能成果物を持たない。
+   **上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
+   両方に及ぶ変更は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。
