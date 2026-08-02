@@ -20,6 +20,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from karte import cli, model, paths, similarity, touched
 
@@ -421,8 +422,11 @@ class TestRender(KarteTestCase):
         self.assertIn("DIRECTIVE", out)
 
     def test_render_without_karte_is_not_found(self):
-        code = cli.main(["render", "--issue", "999"])
+        """カルテ未作成は「未検出」であってガード違反ではない（EXIT_ERROR と区別する）。"""
+        with contextlib.redirect_stderr(io.StringIO()) as errors:
+            code = cli.main(["render", "--issue", "999"])
         self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertIn("未検出", errors.getvalue())
 
 
 # --- パスガード ---------------------------------------------------------------
@@ -495,8 +499,99 @@ class TestPathGuards(KarteTestCase):
         self.assertIn("repo-root の外", err)
 
     def test_repo_root_flag_not_on_public_cli_surface(self):
-        with self.assertRaises(SystemExit) as ctx:
-            cli.main(["status", "--issue", "307", "--repo-root", str(self.root)])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                cli.main(["status", "--issue", "307", "--repo-root", str(self.root)])
+        self.assertEqual(ctx.exception.code, 2)
+
+
+# --- 公開 CLI 面（argv 経由） --------------------------------------------------
+
+
+class TestCliOverArgv(KarteTestCase):
+    """``python3 -m karte <verb>`` と同じ argv 経路で 5 verb ＋ ``close-attempt`` が動く。
+
+    他のテストは ``cmd_*`` を Namespace 直呼びで検証しており argparse の結線
+    （``--from``→``source`` / ``--finding-ids``→``finding_ids`` 等）を通らないため、
+    公開 CLI 面はここで固定する。``--repo-root`` は公開フラグとして持たない設計なので、
+    モジュール定数 ``_REPO_ROOT`` を一時リポジトリに差し替えて ``main()`` を呼ぶ。
+    """
+
+    def _main(self, *argv):
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
+                code = cli.main(list(argv))
+        return code, buffer.getvalue(), errors.getvalue()
+
+    def test_five_verbs_over_argv(self):
+        report = self._write_report("review-1.md", _report(("new", HARMFUL)))
+        code, out, err = self._main(
+            "ingest-review", "--issue", "307", "--round", "1", "--from", report
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+
+        code, out, err = self._main("render", "--issue", "307")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("Prior attempts（DO NOT repeat these）", out)
+
+        # --issue 省略＝進行ポインタ（active.json）から解決する。
+        code, out, err = self._main(
+            "append", "--finding-ids", "F-307-01", "--root-cause", "attrs-overwrite",
+            "--change-kind", "logic", "--targets", "pkg/forms.py::build_attrs",
+            "--diagnosis", "既存 attrs を作り直している",
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("Attempt 1", out)
+
+        diff = self._write_report(
+            "d1.patch",
+            "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n"
+            "@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n",
+        )
+        code, out, err = self._main(
+            "close-attempt", "--attempt", "1", "--outcome", "partial", "--diff-file", diff
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("pkg/forms.py::build_attrs", out)
+
+        code, out, err = self._main("check", "--issue", "307", "--round", "1")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("網羅", out)
+
+        code, out, err = self._main("status", "--issue", "307", "--json")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["findings"][0]["attempts"][0]["results"][0]["outcome"], "partial")
+
+    def test_saturation_exit_code_over_argv(self):
+        report = self._write_report("review-1.md", _report(("new", HARMFUL)))
+        self._main("ingest-review", "--issue", "307", "--round", "1", "--from", report)
+        for _ in range(2):
+            code, _out, err = self._main(
+                "append", "--issue", "307", "--finding-ids", "F-307-01",
+                "--root-cause", "attrs-overwrite", "--change-kind", "logic",
+                "--targets", "pkg/forms.py::build_attrs",
+            )
+            self.assertEqual(code, cli.EXIT_OK, err)
+        code, out, _err = self._main(
+            "append", "--issue", "307", "--finding-ids", "F-307-01",
+            "--root-cause", "attrs-overwrite", "--change-kind", "logic",
+            "--targets", "pkg/forms.py::build_attrs",
+        )
+        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertIn("DIRECTIVE", out)
+
+    def test_unknown_change_kind_is_a_usage_error(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                cli.main([
+                    "append", "--issue", "307", "--finding-ids", "F-307-01",
+                    "--root-cause", "x", "--change-kind", "typo", "--targets", "a.py::f",
+                ])
         self.assertEqual(ctx.exception.code, 2)
 
 
@@ -541,6 +636,43 @@ class TestModel(unittest.TestCase):
     def test_list_item_with_comma_is_rejected(self):
         with self.assertRaises(model.KarteFormatError):
             model.check_list(["a,b"], "targets")
+
+    def test_same_finding_detects_reworded_restatement(self):
+        """同一 locus での言い換え再掲は同一指摘（＝ID 再発番）と判定する。
+
+        空白トークン化では日本語の助詞挿入（``既存`` → ``既存の``）で一致率が落ちるため、
+        文字 n-gram で比較している（`model.shingles` の docstring 参照）。
+        """
+        self.assertTrue(
+            model.is_same_finding(
+                "build_attrs が既存 attrs を破棄している", "a/b.py::build_attrs",
+                "build_attrs が既存の attrs を破棄している（再掲）", "a/b.py::build_attrs",
+            )
+        )
+
+    def test_same_finding_does_not_merge_distinct_findings_at_same_locus(self):
+        """同じ関数への**別の**指摘は同一視しない（正当な新規指摘を潰さない）。"""
+        self.assertFalse(
+            model.is_same_finding(
+                "build_attrs が既存 attrs を破棄している", "a/b.py::build_attrs",
+                "build_attrs の docstring が古い", "a/b.py::build_attrs",
+            )
+        )
+
+    def test_same_finding_ignores_locus_when_summary_is_identical(self):
+        self.assertTrue(model.is_same_finding("同じ要約", "x.py::f", "同じ要約", "y.py::g"))
+        self.assertFalse(model.is_same_finding("要約A", "x.py::f", "要約B", "y.py::g"))
+
+    def test_preamble_is_tolerated_only_for_review_reports(self):
+        text = "# レビュー結果\n\n特になし\n\n### new\nharm: none\n"
+        with self.assertRaises(model.KarteFormatError):
+            model.parse_blocks(text)  # カルテ本体は 1 行でも解釈できなければ拒否
+        blocks = model.parse_blocks(text, allow_preamble=True)
+        self.assertEqual([block.title for block in blocks], ["new"])
+
+    def test_stray_line_after_a_block_is_rejected_even_with_preamble(self):
+        with self.assertRaises(model.KarteFormatError):
+            model.parse_blocks("### new\nharm: none\n要約の折り返し\n", allow_preamble=True)
 
 
 class TestSimilarity(unittest.TestCase):

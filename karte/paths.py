@@ -15,6 +15,11 @@
   5. カルテ本体は ``<repo-root>/tmp/_karte/issue-<N>.md`` ちょうどの形のみ。
      ``<N>`` は 1 以上の十進整数（前置ゼロ・符号・空白を認めない）。
 
+「まだ無い」と「触ってはならない」は別物として送出する（:class:`KarteMissing` ⊂
+:class:`KartePathError`）。前者は ``ingest-review`` 前の正常な初期状態なので、CLI は
+EXIT_NOT_FOUND に落として運用側に「まず取り込め」と伝える。まとめて EXIT_ERROR にすると
+未作成とガード違反の区別がつかない。
+
 依存仕様: :mod:`karte` の docstring（Issue #307）／``dsv2/cleantmp.py`` docstring（ガード様式）。
 """
 
@@ -34,6 +39,16 @@ KARTE_FILENAME_FMT = "issue-{issue}.md"
 
 class KartePathError(Exception):
     """ガード違反（触ってはならない形のパス）。読み書きは一切行われない。"""
+
+
+class KarteMissing(KartePathError):
+    """置き場（``tmp/`` ／ ``tmp/_karte/``）がまだ**存在しない**（未検出）。
+
+    「触ってはならない形」（symlink・repo 外・traversal）とは区別する。前者は運用上の
+    正常な初期状態（まだ ``ingest-review`` していない）で、呼び出し側は EXIT_NOT_FOUND に
+    落としたい。:class:`KartePathError` の派生なので、ガード違反として一括で捕まえる
+    既存の経路（``except KartePathError``）の fail-close はそのまま効く。
+    """
 
 
 def validate_issue(value) -> int:
@@ -111,7 +126,7 @@ def karte_dir(repo_root, *, create: bool = False) -> Path:
         )
     if not tmp.exists():
         if not create:
-            raise KartePathError(f"tmp ディレクトリが無い: {tmp}")
+            raise KarteMissing(f"tmp ディレクトリが無い: {tmp}")
         tmp.mkdir(parents=True)
     if not tmp.is_dir():
         raise KartePathError(f"tmp がディレクトリでない: {tmp}")
@@ -123,7 +138,7 @@ def karte_dir(repo_root, *, create: bool = False) -> Path:
         )
     if not target.exists():
         if not create:
-            raise KartePathError(f"カルテ置き場が無い: {target}")
+            raise KarteMissing(f"カルテ置き場が無い: {target}")
         target.mkdir(parents=True)
     if not target.is_dir():
         raise KartePathError(f"カルテ置き場がディレクトリでない: {target}")

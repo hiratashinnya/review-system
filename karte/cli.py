@@ -28,6 +28,7 @@ verb:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sys
 from pathlib import Path
@@ -53,6 +54,29 @@ class KarteUsageError(Exception):
 
 class KarteNotFound(KarteUsageError):
     """対象のカルテがまだ存在しない（未検出＝EXIT_NOT_FOUND）。"""
+
+
+def _fail_close(func):
+    """``cmd_*`` を「例外を投げず終了コードを返す」境界にする。
+
+    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ
+    fail-close 挙動を得る）。``main`` にだけ ``try/except`` を置くと、フックや
+    テストのように ``cmd_*`` を直接呼ぶ経路では例外が素通りし、「拒否されたのに
+    exit code が返らない」＝判定不能になる。ガードの効力を呼び出し経路に依存させない。
+    """
+
+    @functools.wraps(func)
+    def wrapper(args) -> int:
+        try:
+            return func(args)
+        except KarteNotFound as exc:
+            print(f"未検出: {exc}", file=sys.stderr)
+            return EXIT_NOT_FOUND
+        except (KarteUsageError, KartePathError, KarteFormatError, TouchedError) as exc:
+            print(f"拒否（fail-close）: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+
+    return wrapper
 
 
 # --- 共通ヘルパ --------------------------------------------------------------
@@ -105,8 +129,18 @@ def _validate_round(value) -> int:
 
 
 def _load(args, issue: int):
-    """カルテを読み込む。存在しなければ :class:`KarteUsageError`。"""
-    path = paths.karte_path(issue, _repo_root(args))
+    """カルテを読み込む。存在しなければ :class:`KarteNotFound`（＝EXIT_NOT_FOUND）。
+
+    「まだ作られていない」（置き場ごと無い＝:class:`paths.KarteMissing`）は**未検出**であって
+    ガード違反ではない。両者を同じ EXIT_ERROR に潰すと、``render`` を先に叩く運用側が
+    「カルテが未作成」と「触ってはならないパス」を区別できない。
+    """
+    try:
+        path = paths.karte_path(issue, _repo_root(args))
+    except paths.KarteMissing as exc:
+        raise KarteNotFound(
+            f"{exc}（先に `ingest-review --issue {issue} --round 1` を実行する）"
+        ) from None
     if not path.is_file():
         raise KarteNotFound(
             f"カルテが無い: {path}（先に `ingest-review --issue {issue} --round 1` を実行する）"
@@ -177,6 +211,7 @@ def _cluster_directive(karte: model.Karte, members) -> str:
 # --- verb: ingest-review ------------------------------------------------------
 
 
+@_fail_close
 def cmd_ingest_review(args) -> int:
     repo_root = _repo_root(args)
     issue = _resolve_issue(args)
@@ -296,6 +331,7 @@ def _find_duplicate(karte: model.Karte, accepted, item):
 # --- verb: render -------------------------------------------------------------
 
 
+@_fail_close
 def cmd_render(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -365,6 +401,7 @@ def cmd_render(args) -> int:
 # --- verb: append -------------------------------------------------------------
 
 
+@_fail_close
 def cmd_append(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -430,6 +467,7 @@ def cmd_append(args) -> int:
 # --- verb: close-attempt ------------------------------------------------------
 
 
+@_fail_close
 def cmd_close_attempt(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -490,6 +528,7 @@ def _validate_outcome(value: str) -> str:
 # --- verb: check --------------------------------------------------------------
 
 
+@_fail_close
 def cmd_check(args) -> int:
     issue = _resolve_issue(args)
     _path, karte = _load(args, issue)
@@ -579,6 +618,7 @@ def _status_payload(karte: model.Karte) -> dict:
     }
 
 
+@_fail_close
 def cmd_status(args) -> int:
     issue = _resolve_issue(args)
     _path, karte = _load(args, issue)
@@ -680,13 +720,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    """薄いディスパッチャ。終了コードへの変換は各 ``cmd_*``（:func:`_fail_close`）が担う。"""
     parser = build_parser()
     args = parser.parse_args(argv)
-    try:
-        return args.func(args)
-    except KarteNotFound as exc:
-        print(f"未検出: {exc}", file=sys.stderr)
-        return EXIT_NOT_FOUND
-    except (KarteUsageError, KartePathError, KarteFormatError, TouchedError) as exc:
-        print(f"拒否（fail-close）: {exc}", file=sys.stderr)
-        return EXIT_ERROR
+    return args.func(args)

@@ -72,9 +72,9 @@ KEY_RE = re.compile(r"^([a-z][a-z0-9_]*):(.*)$")
 FORBIDDEN_VALUE_CHARS = ("\n", "\r", "\0")
 FORBIDDEN_LIST_ITEM_CHARS = (",", "[", "]")
 
-_STOPWORDS = frozenset(
-    ["the", "a", "an", "is", "are", "を", "が", "に", "は", "の", "で", "と", "し", "て"]
-)
+# 同一指摘の再発番判定（`is_same_finding`）に使う文字 n-gram の粒度と閾値。
+SHINGLE_SIZE = 2
+DUPLICATE_SIMILARITY_THRESHOLD = 0.6
 
 
 class KarteFormatError(Exception):
@@ -154,14 +154,22 @@ class Block:
     lineno: int
 
 
-def parse_blocks(text: str) -> list:
+def parse_blocks(text: str, *, allow_preamble: bool = False) -> list:
     """``## Section`` / ``### Title`` ＋ ``key: value`` 行の決定論パーサ。
 
     解釈できない行が 1 行でもあれば :class:`KarteFormatError`（fail-close）。
+
+    ``allow_preamble``
+        最初の ``### `` 見出しより**前**の自由記述行（レポート冒頭のタイトル・総括）を
+        読み飛ばす。レビューレポート（レビューアが書く入力）専用の緩和で、カルテ本体
+        （機械が書き機械が読む正本）は既定どおり 1 行でも解釈できなければ拒否する。
+        1 件目のブロックに入った後は緩和しない——要約の折り返し行を黙って捨てると
+        指摘の内容が欠落するため、そこは fail-close のままにする。
     """
     blocks: list = []
     section = None
     current = None
+    seen_block = False
     for lineno, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("<!--"):
@@ -169,6 +177,7 @@ def parse_blocks(text: str) -> list:
         if line.startswith("### "):
             current = Block(section, line[4:].strip(), {}, lineno)
             blocks.append(current)
+            seen_block = True
             continue
         if line.startswith("## "):
             section = line[3:].strip()
@@ -184,6 +193,8 @@ def parse_blocks(text: str) -> list:
                 raise KarteFormatError(f"{lineno} 行目: キー '{key}' が重複している")
             current.fields[key] = parse_value(matched.group(2))
             continue
+        if allow_preamble and not seen_block:
+            continue  # 1 件目の `### ` より前の前書きは無視する（レビューレポート限定）
         raise KarteFormatError(f"{lineno} 行目: 解釈できない行: {line!r}")
     return blocks
 
@@ -474,8 +485,12 @@ def parse_review(text: str, issue: int) -> list:
 
     ``harm`` 欄の欠落・不正な ID 形式・要約欠落はすべて集めて 1 度に報告する
     （1 件ずつ往復させない）。1 件でもあれば :class:`KarteFormatError`（fail-close）。
+
+    レポート冒頭の前書き（``# レビュー結果`` とその下の総括文）は無視する。ブロックが
+    1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
+    ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
     """
-    blocks = parse_blocks(text)
+    blocks = parse_blocks(text, allow_preamble=True)
     if not blocks:
         raise KarteFormatError(
             "レビューレポートに finding ブロック（`### F-<issue>-<seq>` か `### new`）が無い"
@@ -569,8 +584,21 @@ def normalize_text(value: str) -> str:
     return " ".join(collapsed.split())
 
 
-def _tokens(value: str) -> frozenset:
-    return frozenset(t for t in normalize_text(value).split() if t not in _STOPWORDS)
+def shingles(value: str, size: int = SHINGLE_SIZE) -> frozenset:
+    """比較用の文字 n-gram 集合（既定は bigram）。
+
+    語の区切りに**空白を使わない**（＝空白位置が言い換えで揺れる）ため、空白トークン化は
+    使わない。``「既存 attrs を破棄」`` と ``「既存の attrs を破棄」`` は空白トークンでは
+    ``が既存`` / ``が既存の`` という別トークンになり、同一指摘なのに一致率が閾値を割る。
+    文字 n-gram は言語非依存・決定論的で、語形の揺れ（助詞の挿入・「（再掲）」等の付記）に
+    強い。形態素解析器のような外部依存も要らない（標準ライブラリのみの制約）。
+    """
+    text = normalize_text(value).replace(" ", "")
+    if not text:
+        return frozenset()
+    if len(text) <= size:
+        return frozenset([text])
+    return frozenset(text[index:index + size] for index in range(len(text) - size + 1))
 
 
 def _jaccard(left: frozenset, right: frozenset) -> float:
@@ -579,20 +607,25 @@ def _jaccard(left: frozenset, right: frozenset) -> float:
     return len(left & right) / len(left | right)
 
 
-DUPLICATE_JACCARD_THRESHOLD = 0.6
-
-
 def is_same_finding(summary_a: str, locus_a: str, summary_b: str, locus_b: str) -> bool:
     """「同一指摘に新しい ID を振り直した」かどうかの決定論判定。
 
     2 つの独立した信号の OR:
-      * 要約の正規化文字列が完全一致（locus は問わない）。
-      * locus が一致し、かつ要約トークンの Jaccard 係数が閾値以上。
+      * 要約の正規化文字列が完全一致（locus は問わない＝一字一句の再掲）。
+      * locus が一致し、かつ要約の文字 n-gram Jaccard 係数が閾値以上
+        （言い換え・付記つきの再掲）。
+
+    locus 一致を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
+    誤って同一視しないため——文字 n-gram だけで判定を回すと、短い要約同士が偶然似ただけで
+    再発番と誤検出し、レビューアが正当な新規指摘を挙げられなくなる。
     """
     if normalize_text(summary_a) and normalize_text(summary_a) == normalize_text(summary_b):
         return True
     if normalize_text(locus_a) and normalize_text(locus_a) == normalize_text(locus_b):
-        return _jaccard(_tokens(summary_a), _tokens(summary_b)) >= DUPLICATE_JACCARD_THRESHOLD
+        return (
+            _jaccard(shingles(summary_a), shingles(summary_b))
+            >= DUPLICATE_SIMILARITY_THRESHOLD
+        )
     return False
 
 

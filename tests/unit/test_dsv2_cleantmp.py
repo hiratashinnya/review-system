@@ -1,6 +1,8 @@
 """dsv2.cleantmp — tmp 著作ミラーの安全削除（ガード付き・reconciliation Step 3-3）。
 
-境界値：``tmp/_handoff`` は拒否／``tmp/`` の外は拒否／階層違いは拒否／正常系は削除される。
+境界値：``tmp/_handoff`` と ``tmp/_karte`` は拒否／``tmp/`` の外は拒否／階層違いは拒否／
+正常系は削除される。``tmp/_karte``（是正ループの診断カルテ・Issue #307）は掃除で消えると
+ループ状態そのものが失われるため、``_handoff`` と同じ保護名として固定する。
 """
 
 import argparse
@@ -16,7 +18,7 @@ from dsv2.cli import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, main
 
 
 def _make_repo(case) -> Path:
-    """``tmp/sprint-1/parent-a`` と ``tmp/_handoff`` を持つ疑似リポジトリを作る。"""
+    """``tmp/sprint-1/parent-a``・``tmp/_handoff``・``tmp/_karte`` を持つ疑似リポジトリを作る。"""
     root = Path(tempfile.mkdtemp(prefix="cleantmp-")).resolve()
     case.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
     target = root / "tmp" / "sprint-1" / "parent-a" / "nodes" / "02-spec" / "spec"
@@ -26,6 +28,9 @@ def _make_repo(case) -> Path:
     handoff = root / "tmp" / "_handoff"
     handoff.mkdir(parents=True)
     (handoff / "spec-author--parent-a.yaml").write_text("agent: spec-author\n", encoding="utf-8")
+    karte = root / "tmp" / "_karte"
+    karte.mkdir(parents=True)
+    (karte / "issue-307.md").write_text("# Karte: issue-307\n", encoding="utf-8")
     (root / "doc-system-v2" / "nodes").mkdir(parents=True)
     return root
 
@@ -51,6 +56,22 @@ class TestPlanGuards(unittest.TestCase):
         with self.assertRaises(cleantmp.CleanTmpError) as ctx:
             cleantmp.plan_clean(self.root / "tmp/_handoff/sub", self.root)
         self.assertIn("_handoff", str(ctx.exception))
+
+    def test_rejects_karte_dir(self):
+        """診断カルテ置き場は掃除対象外（Issue #307・ループ状態が失われる）。"""
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_karte", self.root)
+        self.assertIn("_karte", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
+
+    def test_rejects_path_under_karte(self):
+        """``tmp/_karte/<sub>`` はちょうど2階層なので階層ガードでは弾けない。
+        保護名ガードが効いていることを固定する（Issue #307）。"""
+        (self.root / "tmp/_karte/sub").mkdir()
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_karte/sub", self.root)
+        self.assertIn("_karte", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_karte/sub").is_dir())
 
     def test_rejects_outside_tmp(self):
         with self.assertRaises(cleantmp.CleanTmpError) as ctx:
@@ -126,6 +147,7 @@ class TestApply(unittest.TestCase):
         cleantmp.apply_clean(plan)
         self.assertFalse((self.root / "tmp/sprint-1/parent-a").exists())
         self.assertTrue((self.root / "tmp/_handoff/spec-author--parent-a.yaml").is_file())
+        self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
         self.assertTrue((self.root / "tmp/sprint-1").is_dir())
 
     def test_apply_rejects_symlink_swapped_after_plan(self):
@@ -190,6 +212,11 @@ class TestCli(unittest.TestCase):
     def test_handoff_is_rejected_with_exit_error(self):
         self.assertEqual(self._run(self.root / "tmp/_handoff", apply_=True), EXIT_ERROR)
         self.assertTrue((self.root / "tmp/_handoff").is_dir())
+
+    def test_karte_is_rejected_with_exit_error(self):
+        """``dsv2 clean-tmp --apply`` が ``tmp/_karte/`` を削除しない（Issue #307 受入基準）。"""
+        self.assertEqual(self._run(self.root / "tmp/_karte", apply_=True), EXIT_ERROR)
+        self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
 
     def test_outside_tmp_is_rejected_with_exit_error(self):
         self.assertEqual(self._run(self.root / "doc-system-v2/nodes", apply_=True), EXIT_ERROR)
