@@ -78,6 +78,14 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`bloom-model-tier`/
     `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`/`asset_parity`
   - 是正ループ用ツール：`karte`
+  - 点検・監査ツール（read-only）：`asset-auditor`（資産の重複/矛盾/競合監査。特定システムの仕様グラフが
+    記述する対象ではなく資産全体を横断するため）
+  - v1-legacy 退役ツール：`archive/docidx-v1`（v1 コーパス専用の検索ツール・実装対象は
+    `doc-system-v1-archive/` のみで v2 コーパスは対象外・退役済み。**同名の skill `/docidx` を上記65行目の
+    含有14件と混同しないこと**——`skill /docidx` は doc_system の仕様策定機構そのもの（PROMPT 設計ノード
+    としてモデル化された対象）だから含有される側、`archive/docidx-v1/` はその skill が指す**v1 アーカイブ
+    専用の退役ツール実装**で、v1 archive 化とともにどちらの現行システムの成果物でもなくなったため別物）・
+    `archive/backref-v1`（v1 専用の辺逆転ツール・issue #76 で retire 済み・同じ理由で対象システムを失った）
   - CI 定義（`.github/workflows/`）
 
 **根拠**：どちらに分類しても理由は同じ——**どちらのシステムの成果物でもない**（＝そのシステムの仕様
