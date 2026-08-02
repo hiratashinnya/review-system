@@ -324,6 +324,27 @@ class TestCloseAttempt(KarteTestCase):
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("Attempt 9", err)
 
+    def test_non_numeric_attempt_is_fail_closed_not_uncaught(self):
+        """K-03: ``--attempt`` が非数値でも ``_fail_close`` の外（EXIT_ERROR 以外）に漏れない。
+
+        是正前は ``int(args.attempt)`` が無検証で ``ValueError`` を送出し、``_fail_close``
+        （5 種の例外しか捕まえない）を素通りして終了コードが文書化された
+        ``{0,2,3,4}`` の外（未捕捉の例外＝1 相当）になっていた。
+        """
+        code, _out, err = self._close("abc", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("attempt", err)
+
+    def test_zero_attempt_is_fail_closed(self):
+        code, _out, err = self._close("0", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("attempt", err)
+
+    def test_negative_attempt_is_fail_closed(self):
+        code, _out, err = self._close("-1", "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("attempt", err)
+
 
 # --- check / status ----------------------------------------------------------
 
@@ -674,6 +695,23 @@ class TestModel(unittest.TestCase):
         with self.assertRaises(model.KarteFormatError):
             model.parse_blocks("### new\nharm: none\n要約の折り返し\n", allow_preamble=True)
 
+    def test_key_value_line_in_preamble_is_rejected_not_silently_dropped(self):
+        """K-10: 最初の `###` より前でも `key: value` 行は自由文として黙って捨てない。
+
+        `harm: real` のような行がブロック外（＝どの finding にも属さない）で書かれていたら、
+        preamble 緩和の対象（自由文）ではなく書式違反として拒否する。
+        """
+        text = "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\nlocus: x\nsummary: s\n"
+        with self.assertRaises(model.KarteFormatError) as ctx:
+            model.parse_blocks(text, allow_preamble=True)
+        self.assertIn("解釈できない行", str(ctx.exception))
+
+    def test_ingest_review_rejects_report_with_key_value_preamble(self):
+        """`parse_review` 経由（``ingest-review`` の実入力）でも同じく fail-close する。"""
+        text = "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\nlocus: x\nsummary: s\n"
+        with self.assertRaises(model.KarteFormatError):
+            model.parse_review(text, 307)
+
 
 class TestSimilarity(unittest.TestCase):
     def _view(self, number, root_cause, change_kind, targets, touched=()):
@@ -750,6 +788,104 @@ class TestTouchedFromDiff(unittest.TestCase):
     def test_invalid_ref_is_rejected(self):
         with self.assertRaises(touched.TouchedError):
             touched.validate_ref("--output=/etc/passwd")
+
+
+# --- main worktree 導出（K-01） ------------------------------------------------
+
+
+class TestMainWorktreeRoot(unittest.TestCase):
+    """``paths.main_worktree_root``：linked worktree でもカルテ置き場を main へ収束させる。"""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="karte-mainwt-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
+        (self.root / "tmp").mkdir()
+        (self.root / ".git").mkdir()
+
+    def _make_linked_worktree(self, name="w"):
+        worktree = self.root / ".worktrees" / name
+        worktree.mkdir(parents=True)
+        gitdir = self.root / ".git" / "worktrees" / name
+        gitdir.mkdir(parents=True)
+        (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+        return worktree, gitdir
+
+    def test_main_worktree_itself_is_returned_as_is(self):
+        self.assertEqual(paths.main_worktree_root(self.root), self.root)
+
+    def test_linked_worktree_resolves_to_main_root_via_gitdir(self):
+        worktree, _gitdir = self._make_linked_worktree()
+        self.assertEqual(paths.main_worktree_root(worktree), self.root)
+
+    def test_linked_worktree_prefers_commondir_file_when_present(self):
+        worktree, gitdir = self._make_linked_worktree("w2")
+        (gitdir / "commondir").write_text("../..\n", encoding="utf-8")
+        self.assertEqual(paths.main_worktree_root(worktree), self.root)
+
+    def test_directory_without_git_is_returned_as_is(self):
+        bare = Path(tempfile.mkdtemp(prefix="karte-bare-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(bare, ignore_errors=True))
+        self.assertEqual(paths.main_worktree_root(bare), bare)
+
+    def test_malformed_git_file_is_rejected(self):
+        worktree = self.root / ".worktrees" / "bad"
+        worktree.mkdir(parents=True)
+        (worktree / ".git").write_text("not-a-gitdir-line\n", encoding="utf-8")
+        with self.assertRaises(paths.KartePathError):
+            paths.main_worktree_root(worktree)
+
+
+class TestLinkedWorktreeConvergence(unittest.TestCase):
+    """K-01: linked worktree で ``ingest-review`` した台帳を main worktree の ``render`` が読める。
+
+    ``issue-implementer`` は isolated worktree で走る前提（Issue #307）。是正前は
+    ``_REPO_ROOT`` が ``Path(__file__)`` 由来の候補パス（＝実行中の worktree）をそのまま
+    使い、レビューア側の台帳（main worktree の ``tmp/_karte/``）と分裂していた。
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="karte-mainwt-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
+        (self.root / "tmp").mkdir()
+        (self.root / ".git").mkdir()
+        self.worktree = self.root / ".worktrees" / "w"
+        self.worktree.mkdir(parents=True)
+        gitdir = self.root / ".git" / "worktrees" / "w"
+        gitdir.mkdir(parents=True)
+        (self.worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+
+    def _run_from(self, cwd_root, func, **kwargs):
+        """``cwd_root`` を起点に ``_REPO_ROOT`` を導出し、公開フラグ無しで ``cmd_*`` を呼ぶ。
+
+        ``--repo-root`` は公開 CLI フラグではないため、実運用と同じく ``args`` に
+        ``repo_root`` を持たせず、``_REPO_ROOT``（モジュール既定値）だけを差し替える。
+        """
+        resolved = paths.main_worktree_root(cwd_root)
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        ns = argparse.Namespace(issue="307", **kwargs)
+        with mock.patch.object(cli, "_REPO_ROOT", resolved):
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
+                code = func(ns)
+        return code, buffer.getvalue(), errors.getvalue()
+
+    def test_ingest_from_worktree_is_visible_to_render_from_main(self):
+        report = self.root / "tmp" / "review-1.md"
+        report.write_text(
+            "### new\nharm: real\nharm_detail: d\nlocus: x\nsummary: s\n", encoding="utf-8"
+        )
+        code, out, err = self._run_from(
+            self.worktree, cli.cmd_ingest_review, round="1", source=str(report)
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+
+        code, out, err = self._run_from(self.root, cli.cmd_render)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+
+        # worktree 配下には一切カルテ置き場が作られない（分裂の再発防止）。
+        self.assertFalse((self.worktree / "tmp").exists())
 
 
 if __name__ == "__main__":

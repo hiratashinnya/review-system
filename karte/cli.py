@@ -45,7 +45,10 @@ EXIT_ERROR = 4
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+# linked worktree（`issue-implementer` 等の isolated worktree）でも main worktree の
+# `tmp/_karte/` へ収束させる（K-01）。`.git` がファイルなら `gitdir:` を辿る
+# `paths.main_worktree_root`（ガードは downstream の `_resolved_root` 等で必ず掛かる）。
+_REPO_ROOT = paths.main_worktree_root(Path(__file__).resolve().parent.parent)
 
 
 class KarteUsageError(Exception):
@@ -72,7 +75,7 @@ def _fail_close(func):
         except KarteNotFound as exc:
             print(f"未検出: {exc}", file=sys.stderr)
             return EXIT_NOT_FOUND
-        except (KarteUsageError, KartePathError, KarteFormatError, TouchedError) as exc:
+        except (KarteUsageError, KartePathError, KarteFormatError, TouchedError, OSError) as exc:
             print(f"拒否（fail-close）: {exc}", file=sys.stderr)
             return EXIT_ERROR
 
@@ -125,6 +128,18 @@ def _validate_round(value) -> int:
     text = str(value)
     if not text.isdigit() or int(text) < 1:
         raise KarteUsageError(f"round は 1 以上の整数: {value!r}")
+    return int(text)
+
+
+def _validate_attempt_number(value) -> int:
+    """``--attempt`` を検証する（``_validate_round`` と同型・K-03）。
+
+    ``int(args.attempt)`` を無検証で呼ぶと非数値入力で ``ValueError`` が送出され、
+    ``_fail_close`` の捕捉対象外（文書化された終了コード ``{0,2,3,4}`` の外）に漏れる。
+    """
+    text = str(value)
+    if not text.isdigit() or int(text) < 1:
+        raise KarteUsageError(f"attempt は 1 以上の整数: {value!r}")
     return int(text)
 
 
@@ -471,7 +486,11 @@ def cmd_append(args) -> int:
 def cmd_close_attempt(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
-    number = int(args.attempt) if args.attempt is not None else karte.next_attempt_number() - 1
+    number = (
+        _validate_attempt_number(args.attempt)
+        if args.attempt is not None
+        else karte.next_attempt_number() - 1
+    )
     attempt = karte.attempt(number)
     if attempt is None:
         raise KarteUsageError(f"Attempt {number} がカルテに無い（先に `append` する）")

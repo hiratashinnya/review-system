@@ -193,8 +193,9 @@ def parse_blocks(text: str, *, allow_preamble: bool = False) -> list:
                 raise KarteFormatError(f"{lineno} 行目: キー '{key}' が重複している")
             current.fields[key] = parse_value(matched.group(2))
             continue
-        if allow_preamble and not seen_block:
-            continue  # 1 件目の `### ` より前の前書きは無視する（レビューレポート限定）
+        if allow_preamble and not seen_block and not matched:
+            continue  # 1 件目の `### ` より前の自由文だけを無視する（レビューレポート限定）。
+            # `key: value` 形の行は preamble でも黙って捨てず拒否する（K-10：無言の欠落防止）。
         raise KarteFormatError(f"{lineno} 行目: 解釈できない行: {line!r}")
     return blocks
 
