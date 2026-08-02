@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
 
-<!-- synced-from: CLAUDE.md@eea77de52211 -->
+<!-- synced-from: CLAUDE.md@5fe44ae5d51a -->
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
@@ -41,14 +41,18 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **②review_system（AIレビューツール本体）＝`docs/` 配下**（要件・設計・スキーマ・ダッシュボード）。
    ①の「docs/ は非正本」は doc_system 自身の記述についての規定であり、**review_system には適用しない**。
    どちらの話か判断してから正本を決める（詳細は CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」）。
-   **「正本の所在」と「起票先」は別軸**——`.claude/` は内容としては正本だが、それ自体の改修は下記9（Issue 運用）。
+   **「正本の所在」と「起票先」は別軸**——`.claude/` の改修が一律 Issue 運用になるわけではない。
+   含有ハーネス（著作・検証エージェント等）の改修は通常どおりノード起票、含有されない汎用ハーネス
+   （`issue-pipeline`系等）の改修だけが下記9（Issue 運用）に回る。
 8. **PR/GitHub コメントは実施者と処置を明記** — AI（Claude Code）による対応であることと、
    変更ファイル・コミット・判断根拠を具体的に書く。抽象的な要約だけで済ませない。
-9. **起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）** —
-   doc_system の成果物＝FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
-   review_system の成果物＝Q#/DD#＋`docs/dashboard.md`・`docs/design/decisions.md`／
-   **ハーネス開発**（`.claude/`・`.codex/`・`.github/`・`.agents/` の資産、`dsv2`/`gitgate`/`asset_parity`/
-   `karte` 等の裸ツール、CI 定義）＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
-   （`area:harness`）。理由＝ハーネス資産は in-graph の観測可能成果物を持たない。
+9. **起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）** — 判定軸は
+   **「そのハーネスが doc_system / review_system に含有されるか」**（「in-graph の成果物を持たない」
+   ではない——`.claude/agents`/`.claude/skills` の多くは PROMPT ノードとして在グラフ）。
+   **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
+   review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
+   Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック・
+   `agy-delegate`等の外部委譲補助・`asset_parity`・`karte`・CI 定義）＝**ノード起票もダッシュボード更新も
+   せず `/gh-create-issue` で Issue 化**（`area:harness`）。`.claude/` 全体を対象外扱いしない。
    **上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
-   両方に及ぶ変更は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。
+   両方に及ぶ変更・境界事例は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。

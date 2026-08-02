@@ -45,28 +45,53 @@
 - **DD# は Q# の設計フェーズ版**：未決の置き場が Q#（ダッシュボード）、暫定決定の記録が DD#（[design/decisions](docs/design/decisions.md)）。
 
 ## 起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）
-**「どこに成果物が出るか」で起票先が変わる。判定してから起票する。**
+**判定軸は「そのハーネスが doc_system / review_system に含有されるか」**（オーナー訂正・2026-08-02）。
+旧判定軸「in-graph の観測可能成果物を持たない」は**事実に反するため廃止**——
+`doc-system-v2/nodes/05-design/prompt/` に PROMPT ノードが22件実在し、うち20件が
+`.claude/agents`/`.claude/skills` を参照して `carrier: "skill"` を持ち在グラフモデル化されている
+（オーナー確定 DD「skill を LLM プロンプト資産として在グラフの PROMPT 設計ノードにモデル化する」・
+FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝起票対象外と扱わない。**
 
-- **doc_system の成果物**（`doc-system-v2/nodes/**` にノードが増減・変化する）→ 従来どおり
-  **FND/Q/DD ノード起票 ＋ `doc-system-v2/00-dashboard.md` 更新**（`verification-author` に委譲）。
-- **review_system の成果物**（`docs/` 配下の要件・設計・スキーマが変わる）→ 従来どおり
-  **Q#/DD# ＋ `docs/dashboard.md`・`docs/design/decisions.md`**。
-- **ハーネス開発**（`.claude/`＝hooks/agents/skills/settings、`.codex/`・`.github/`・`.agents/` の各資産ツリー、
-  `dsv2`/`gitgate`/`asset_parity`/`karte` 等の裸ツール、CI 定義）→ **ノード起票もダッシュボード更新も行わない**。
-  **`/gh-create-issue` で Issue を切って処置する**（`area:harness` ラベル）。
+- **doc_system / review_system に含有されるハーネス**（両システム自身の生産機構）→ 従来どおり
+  **FND/Q/DD ノード起票 ＋ ダッシュボード更新**（doc_system の成果物＝`doc-system-v2/nodes/**` は
+  `doc-system-v2/00-dashboard.md`、review_system の成果物＝`docs/` 配下は `docs/dashboard.md`・
+  `docs/design/decisions.md`。`verification-author` に委譲）：
+  - 著作・検証エージェント：`requirements-author`/`spec-author`/`analysis-author`/`design-author`/
+    `verification-author`/`reconciliation`/`reconciliation-validator`/`spec-inspector`/
+    `structured-analysis`/`dsv2-lookup`/`authoring-fanout`/`doc-system-v2-authoring`
+  - 仕様策定・実装設計スキル：`doc-system-v2/config.yml` の `prompt_coverage_targets` に列挙された14件
+    （`align`/`value-trace`/`mvp-scope`/`schema-design`/`domain-model`/`architecture-design`/
+    `orchestration-design`/`prompt-design`/`test-strategy`/`spec-principles`/`spec-pipeline`/
+    `impl-design-pipeline`/`asset-pipeline`/`docidx`）
+  - コーパスを操作するツール：`dsv2`（doc-system-v2 のノードグラフを直接操作する）
+  - review_system 本体の実装・テスト（`review_system/`・`tests/`）
+- **どちらのシステムにも含有されない汎用開発ハーネス**（そのシステムの仕様グラフが記述する対象ではない）→
+  **ノード起票もダッシュボード更新も行わない**。**`/gh-create-issue` で Issue を切って処置する**
+  （`area:harness` ラベル）：
+  - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`pr-reviewer`/`gitgate`
+  - 実行環境の面倒を見るフック：`on-rate-limit.sh`/`resume-watcher.sh`/`install_pkgs`/
+    `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`、
+    `.claude/settings.json`
+  - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`bloom-model-tier`/
+    `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`/`asset_parity`
+  - 是正ループ用ツール：`karte`
+  - CI 定義（`.github/workflows/`）
 
-**なぜ分けるか**：ハーネス資産は **in-graph の観測可能成果物を持たない**（`issue-pipeline`・`agy-delegate`・
-`bloom-model-tier` を `prompt_coverage_targets` 対象外としている既存決定と同じ理由＝
-「資産のテーラリング運用」「このリポジトリ＝2つのプロジェクトが同居」参照）。
-置き場のないノードを作ると、グラフに実体のない記述が溜まり、ダッシュボードの状態要約も濁る。
+**根拠**：どちらに分類しても理由は同じ——**どちらのシステムの成果物でもない**（＝そのシステムの仕様
+グラフが記述する対象ではない）ものだけを Issue 運用に回す。「ハーネスは in-graph の成果物を持たない」
+という一般化はしない（含有されるハーネスは在グラフの成果物＝PROMPT ノード等を持つ）。
+
+**本節は係属中の FND の帰趨を先取りしない**：`dsv2` 実装6モジュールに対応する設計ノード（MOD/P）の
+過不足を指摘する open FND（severity ERROR・`scheduled: sprint-1`・対応 Issue #160）が別途係属中。
+本節は `dsv2` の起票先（FND/Q/DD 側）を定めるだけで、その FND 自体の解消方法はオーナー判断を待つ。
 
 **変わらないこと（弱めない）**：
 - **意見なき停止は禁止（PR7）** — 起票先が Issue になるだけで、**原案・比較・理由付き推奨を添える**義務は同じ。
 - **チャットで流して起票しないのは禁止** — ハーネスでも指摘・論点は必ず Issue に残す。
 - **「対応不要」を AI が独断で書かない** — 処置要否・据え置きはオーナー判断。Issue のクローズも同様。
 
-**迷ったら**：同じ変更が doc_system/review_system の成果物とハーネスの**両方**に及ぶなら、
-成果物側の規律（ノード起票・ダッシュボード）を**満たした上で**ハーネス分を Issue 化する（厳しい側に倒す）。
+**迷ったら**：判定に迷う新規ハーネス・境界事例は、成果物側の規律（ノード起票・ダッシュボード）を
+**満たした上で**Issue 化するか判断を仰ぐ（厳しい側に倒す）。
 
 ## スケジュール独断禁止（再発防止・2026-06-14）
 **FND/Q/DD で「次スプリント以降」「sprint-N 以降」等の実施スプリントを設定するとき、オーナー確認なしに独断で繰り越すことは厳禁。**
@@ -210,8 +235,10 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
 - **エージェント/スキル定義**：`.claude/skills/`・`.claude/agents/`（大半は doc_system 自身の著作・点検・パイプライン運用向け。横展開先＝`.codex/`・`.github/skills|prompts|agents`・`.agents/skills`）
 - **テスト**：`tests/unit/test_dsv2_*.py`・`test_docidx_*.py`・`test_asset_parity_*.py`・`test_agent_command_gate.py`・`test_codex_*.py`・`test_claude_review_mcp.py`（`.codex/mcp/claude_review/server.py` 対象）等
 - **正本の所在**：`doc-system-v2/nodes/**`（ノードグラフ）＋ `.claude/`（資産・規約）＋ 本 `CLAUDE.md`。
-  - **注意：「正本の所在」と「起票先」は別軸**。`.claude/`・CLI ツール群は上記のとおり**内容としては正本**だが、
-    **それ自体を改修する作業＝ハーネス開発**なので起票は Issue（ノード起票・ダッシュボード更新はしない）。
+  - **注意：「正本の所在」と「起票先」は別軸**。`.claude/` 配下の改修すべてが Issue 運用になるわけではない
+    ——著作・検証エージェントや仕様策定スキル14件のように**両システムに含有されるハーネス**の改修は、
+    従来どおりノード起票＋ダッシュボード更新の対象になる。Issue 運用（`/gh-create-issue`）に回るのは
+    `issue-pipeline` 系・実行環境フック等の**どちらのシステムにも含有されない汎用開発ハーネス**の改修に限る。
     前掲「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」参照。
 - MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）＝**doc_system 自身**の MVP スコープ（review_system の MVP ではない）。運用ハブ＝`doc-system-v2/00-dashboard.md`。
 - 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。
@@ -235,5 +262,8 @@ import・exec＝doc_system 対象。
 ### doc_system の運用細則（②には適用されない・①専用）
 - ノード検索/読み込みツール（md2idx 思想）：`archive/docidx-v1/`（**v1-legacy 専用・現行コーパスは対象外**。`python3 -m archive.docidx-v1`・標準ライブラリのみ・対象は `doc-system-v1-archive/`。issue #142 で `docidx/` からの物理移動を一旦保留していたが、issue #172 で共有 YAML リーダ `nodeyaml.py` を `dsv2/nodeyaml.py` へ分離した上で残りを `archive/docidx-v1/` へ `git mv`）。フォーマット依存マップ＝`archive/docidx-v1/README.md`。**v2 検索は `dsv2 index` ＋ grep/Read**（`dsv2-lookup` 参照）。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`・v1-archive 専用と明記済み）・委譲先＝`dsv2-lookup`（`.claude/agents/dsv2-lookup.md`・dsv2-native。旧名 `docidx-lookup`・issue #173 で改名）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
 - FND 辺逆転（バックリファレンス）の機械実行：**v2 は `python3 -m dsv2 reverse`**（実装＝`dsv2/reverse.py`）。旧 v1 専用ツール `backref/` は issue #76 で `archive/backref-v1/` へ retire 済み（フォーマット依存マップは `archive/backref-v1/README.md` に保全・消さない＝PR8）。運用は `reconciliation` が `--apply`（旧 issue #48 の運用を dsv2 へ継承）。
-- **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する。
+- **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する
+（ただし起票先は前掲「起票先はプロジェクト区分で決める」の分類に従う——`dsv2` は両システムに含有される
+コーパス操作ツールのため FND/Q、`asset_parity`／`archive.docidx-v1` 等の**含有されない**汎用ハーネスで
+見つかった依存仕様アンカーの不足は Issue で起票する）。
 - **資産ツリー間の presence/absence 検出（issue #155・検出半分）**：`.claude/skills|agents`（正本）↔ `.github/skills|prompts|agents`（Copilot）↔ `.codex/agents`（Codex CLI agent）↔ `.agents/skills`（Codex CLI skill）の4ツリーが揃っているかを **read-only** で機械検出するツール＝`asset_parity/`（`python3 -m asset_parity check`・標準ライブラリのみ・使い方は `asset_parity/README.md`）。**内容を書き換えるツールではない**（一括変換は 2026-06-15 に廃止済み・`asset-lateral-deploy` 参照）。意図的な非移植（`agy-delegate`／`issue-pipeline`＋`issue-implementer`／`pr-reviewer` の Copilot 非移植等）は `asset_parity/exceptions.py` に記録し、`.claude/tailoring-registry.md` の既存決定と同期させる（新規に非移植を決めたらまず tailoring-registry.md に記録してから exceptions.py に追記）。**CI 組み込み済み**（`.github/workflows/asset-parity.yml`・4ツリーいずれかを触る push/pull_request で自動起動・`MISSING` はビルド失敗／staleness はビルドを止めない・詳細は `asset_parity/README.md`）。
