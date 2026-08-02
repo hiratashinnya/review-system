@@ -874,7 +874,21 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
           "subject": {"$ref": "#/$defs/issueRef"},
           "path": {"type": "array", "items": {"$ref": "#/$defs/issueRef"}},
           "fingerprint": {"$ref": "#/$defs/fingerprint"},
-          "waiver_id": {"type": ["string", "null"], "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"}
+          "waiver_id": {"type": ["string", "null"], "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
+          "waiver_evidence": {
+            "type": "object", "additionalProperties": false,
+            "required": [
+              "waiver_id", "policy_blob_sha", "waiver_blob_sha",
+              "approval_commit", "expires_at"
+            ],
+            "properties": {
+              "waiver_id": {"type": "string", "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
+              "policy_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "waiver_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "approval_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+              "expires_at": {"type": "string", "format": "date-time"}
+            }
+          }
         }
       }
     },
