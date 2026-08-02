@@ -39,6 +39,11 @@ def validate_graph(nodes: Mapping[str, IssueNode], repository: str) -> None:
                 raise GraphEvaluationError("RELATION_INCONSISTENT", (ref, child))
         if node.parent is not None and ref not in nodes[node.parent].children:
             raise GraphEvaluationError("RELATION_INCONSISTENT", (node.parent, ref))
+    # root の包含scope外にある blocker node も含め、取得済みgraph全体を検査する。
+    # parent/children は双方向一致を上で確認済みなので children cycle の検出で
+    # self relation と parent cycle の両方をfail-closeできる。
+    _cycle_check(nodes, nodes, "children")
+    _cycle_check(nodes, nodes, "blocked_by")
 
 
 def _state(node: IssueNode, virtual_closed: frozenset[str]) -> IssueClass:

@@ -21,6 +21,8 @@ FP = "sha256:" + "a" * 64
 
 def evidence(**overrides):
     values = {
+        "default_branch": "main",
+        "default_head": "0" * 40,
         "policy_blob_sha": "sha256:" + "1" * 64,
         "waiver_blob_sha": "sha256:" + "2" * 64,
         "approval_commit": "3" * 40,
@@ -28,6 +30,7 @@ def evidence(**overrides):
         "signature_verified": True,
         "signer_login": "owner-login",
         "ruleset_active": True,
+        "history_bypass_free": True,
         "deletion_protected": True,
         "non_fast_forward_protected": True,
     }
@@ -82,6 +85,8 @@ class WaiverVerifierTests(unittest.TestCase):
             (self.waiver, self.context, evidence(signature_verified=False)),
             (self.waiver, self.context, evidence(signer_login="other-login")),
             (self.waiver, self.context, evidence(ruleset_active=False)),
+            (self.waiver, self.context, evidence(history_bypass_free=False)),
+            (self.waiver, self.context, evidence(default_branch="release")),
         )
         for waiver, context, proof in cases:
             with self.subTest(context=context, proof=proof), self.assertRaisesRegex(WaiverError, "WAIVER_INVALID"):

@@ -13,8 +13,8 @@
   ],
   "properties": {
     "schema": {"const": "blocker-gate-result/v1"},
-    "policy_version": {"const": "1.0"},
-    "classifier_version": {"const": "1.0"},
+    "policy_version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+$"},
+    "classifier_version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+$"},
     "invocation_id": {"type": "string", "format": "uuid"},
     "mode": {"enum": ["issue-start", "pr-merge"]},
     "result": {"enum": ["ALLOW", "BLOCK", "ERROR"]},
@@ -81,7 +81,20 @@
           "path": {"type": "array", "items": {"$ref": "#/$defs/issueRef"}},
           "fingerprint": {"$ref": "#/$defs/fingerprint"},
           "waiver_id": {"type": ["string", "null"], "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
-          "waiver_evidence": {"$ref": "#/$defs/waiverEvidence"}
+          "waiver_evidence": {
+            "type": "object", "additionalProperties": false,
+            "required": [
+              "waiver_id", "policy_blob_sha", "waiver_blob_sha",
+              "approval_commit", "expires_at"
+            ],
+            "properties": {
+              "waiver_id": {"type": "string", "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
+              "policy_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "waiver_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "approval_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+              "expires_at": {"type": "string", "format": "date-time"}
+            }
+          }
         }
       }
     },
@@ -112,17 +125,37 @@
       ]
     },
     "reason": {"anyOf": [{"$ref": "#/$defs/allowReason"}, {"$ref": "#/$defs/blockReason"}, {"$ref": "#/$defs/errorReason"}]},
-    "findingCode": {"anyOf": [{"$ref": "#/$defs/blockReason"}, {"$ref": "#/$defs/errorReason"}]},
-    "waiverEvidence": {
-      "type": "object", "additionalProperties": false,
-      "required": ["waiver_id", "policy_blob_sha", "waiver_blob_sha", "approval_commit", "expires_at"],
-      "properties": {
-        "waiver_id": {"type": "string", "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
-        "policy_blob_sha": {"$ref": "#/$defs/fingerprint"},
-        "waiver_blob_sha": {"$ref": "#/$defs/fingerprint"},
-        "approval_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
-        "expires_at": {"type": "string", "format": "date-time"}
-      }
-    }
-  }
+    "findingCode": {"anyOf": [{"$ref": "#/$defs/blockReason"}, {"$ref": "#/$defs/errorReason"}]}
+  },
+  "allOf": [
+    {"if": {"properties": {"result": {"const": "ALLOW"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 0},
+       "permit_issued": {"const": true},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/allowReason"},
+       "reasons": {"items": {"$ref": "#/$defs/allowReason"}}
+     }}},
+    {"if": {"properties": {"result": {"const": "BLOCK"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 10},
+       "permit_issued": {"const": false},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/blockReason"},
+       "reasons": {"items": {"$ref": "#/$defs/blockReason"}}
+     }}},
+    {"if": {"properties": {"result": {"const": "ERROR"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 20},
+       "permit_issued": {"const": false},
+       "primary_reason": {"$ref": "#/$defs/errorReason"},
+       "reasons": {
+         "items": {"anyOf": [
+           {"$ref": "#/$defs/blockReason"},
+           {"$ref": "#/$defs/errorReason"}
+         ]},
+         "contains": {"$ref": "#/$defs/errorReason"}
+       }
+     }}}
+  ]
 }

@@ -40,4 +40,7 @@ API失敗、権限不足、partial response、pagination未完走、cycle、iden
 
 runtime schemaは `blocker_gate/schemas/blocker-gate-result-v1.json` に置く。waiver適用済みfindingは
 `waiver_evidence` に waiver ID、policy/waiver blob SHA、approval commit、期限を保持する。
+Issue/PR command は open blocker がある場合だけ current default head の policy/waiver blob、
+waiver変更commitの署名・ancestor、適用rulesetをfresh readし、resolver内でstrict parseと
+`verify_waiver`を通過した候補だけを適用する。任意callbackのmappingはpermit根拠にしない。
 waiverの作成、更新、承認、削除、失効は #299 の責務であり、このCLI/libraryにはwrite APIがない。

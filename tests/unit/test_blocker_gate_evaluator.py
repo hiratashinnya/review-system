@@ -41,6 +41,12 @@ class ResolverFixtureTests(unittest.TestCase):
         self.assertIn("GRAPH_CYCLE", result["reasons"])
         self.assertFalse(result["permit_issued"])
 
+    def test_blocker_only_parent_cycle_is_error_not_allow(self):
+        result = evaluate_snapshot(load("parent_cycle.json"))
+        self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
+        self.assertIn("GRAPH_CYCLE", result["reasons"])
+        self.assertFalse(result["permit_issued"])
+
     def test_collection_failures_fail_close(self):
         cases = {
             "pagination_incomplete.json": "PAGINATION_INCOMPLETE",

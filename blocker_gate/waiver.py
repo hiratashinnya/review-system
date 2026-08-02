@@ -35,6 +35,8 @@ class WaiverContext:
 
 @dataclass(frozen=True)
 class WaiverEvidence:
+    default_branch: str
+    default_head: str
     policy_blob_sha: str
     waiver_blob_sha: str
     approval_commit: str
@@ -42,8 +44,26 @@ class WaiverEvidence:
     signature_verified: bool
     signer_login: str | None
     ruleset_active: bool
+    history_bypass_free: bool
     deletion_protected: bool
     non_fast_forward_protected: bool
+
+
+@dataclass(frozen=True)
+class WaiverMaterial:
+    """default branch head から read-only 収集した未解釈のwaiver材料。"""
+
+    policy_bytes: bytes
+    waiver_bytes: bytes
+    evidence: WaiverEvidence
+
+
+@dataclass(frozen=True)
+class WaiverCollection:
+    """waiver候補と、候補取得中に生じたfail-close error。"""
+
+    materials: tuple[WaiverMaterial, ...] = ()
+    errors: tuple[str, ...] = ()
 
 
 def _decode(data: bytes) -> str:
@@ -228,6 +248,8 @@ def verify_waiver(
     max_seconds = int(policy["max_waiver_lifetime_hours"]) * 3600
     checks = (
         waiver["policy_version"] == policy["policy_version"] == POLICY_VERSION,
+        evidence.default_branch == policy["protected_default_branch"],
+        isinstance(evidence.default_head, str) and bool(re.fullmatch(r"[0-9a-f]{40,64}", evidence.default_head)),
         waiver["repository"] == context.repository,
         scope["mode"] == context.mode,
         scope["subject"]["type"] == context.subject_type,
@@ -240,6 +262,7 @@ def verify_waiver(
         evidence.signature_verified,
         evidence.signer_login == waiver["approved_by"],
         evidence.ruleset_active,
+        evidence.history_bypass_free,
         evidence.deletion_protected,
         evidence.non_fast_forward_protected,
     )

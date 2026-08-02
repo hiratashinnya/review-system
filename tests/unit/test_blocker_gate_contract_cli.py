@@ -4,6 +4,7 @@ from io import StringIO
 import json
 import os
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 import unittest
 
@@ -11,6 +12,7 @@ from blocker_gate.cli import run
 from blocker_gate.contract import ContractError, validate_result_semantics
 from blocker_gate.model import ALLOW_REASONS, BLOCK_REASONS, ERROR_REASONS
 from blocker_gate.resolver import evaluate_snapshot, resolve_issue, resolve_pull_request
+from blocker_gate.waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 
 ROOT = Path(__file__).parents[2]
@@ -32,6 +34,39 @@ class FakeCollector:
         return load("pr_same_parent_child.json")
 
 
+class FakeWaiverProvider:
+    def __init__(self, collection):
+        self.collection = collection
+
+    def collect_waiver_materials(self, repository):
+        self.repository = repository
+        return self.collection
+
+
+def waiver_material(finding_fingerprint, **evidence_overrides):
+    waiver = (FIXTURES / "waiver_valid.yml").read_bytes().replace(
+        b"sha256:" + b"a" * 64, finding_fingerprint.encode("ascii")
+    )
+    values = {
+        "default_branch": "main",
+        "default_head": "0" * 40,
+        "policy_blob_sha": "sha256:" + "1" * 64,
+        "waiver_blob_sha": "sha256:" + "2" * 64,
+        "approval_commit": "3" * 40,
+        "commit_is_default_head_ancestor": True,
+        "signature_verified": True,
+        "signer_login": "owner-login",
+        "ruleset_active": True,
+        "history_bypass_free": True,
+        "deletion_protected": True,
+        "non_fast_forward_protected": True,
+    }
+    values.update(evidence_overrides)
+    return WaiverMaterial(
+        (FIXTURES / "policy.yml").read_bytes(), waiver, WaiverEvidence(**values)
+    )
+
+
 class SharedResolverTests(unittest.TestCase):
     def test_issue_and_pr_adapters_call_same_core(self):
         collector = FakeCollector()
@@ -47,19 +82,36 @@ class SharedResolverTests(unittest.TestCase):
         blocked = evaluate_snapshot(snapshot)
         target_fp = blocked["findings"][0]["fingerprint"]
 
-        def lookup(finding):
-            self.assertEqual(finding.fingerprint, target_fp)
-            return {
-                "waiver_id": "BW-20260801-001",
-                "policy_blob_sha": "sha256:" + "1" * 64,
-                "waiver_blob_sha": "sha256:" + "2" * 64,
-                "approval_commit": "3" * 40,
-                "expires_at": "2026-08-08T00:00:00Z",
-            }
-
-        allowed = evaluate_snapshot(snapshot, waiver_lookup=lookup)
+        provider = FakeWaiverProvider(
+            WaiverCollection((waiver_material(target_fp),))
+        )
+        allowed = evaluate_snapshot(snapshot, waiver_provider=provider)
         self.assertEqual((allowed["result"], allowed["primary_reason"]), ("ALLOW", "WAIVER_APPLIED"))
         self.assertEqual(allowed["findings"][0]["waiver_evidence"]["approval_commit"], "3" * 40)
+
+    def test_arbitrary_mapping_and_unverified_material_never_permit(self):
+        snapshot = load("open_direct.json")
+        target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
+        arbitrary = evaluate_snapshot(
+            snapshot,
+            waiver_provider=cast(
+                Any,
+                lambda _: {
+                    "waiver_id": "BW-20260801-001",
+                    "approval_commit": "3" * 40,
+                },
+            ),
+        )
+        unsigned = evaluate_snapshot(
+            snapshot,
+            waiver_provider=FakeWaiverProvider(
+                WaiverCollection((waiver_material(target_fp, signature_verified=False),))
+            ),
+        )
+        for result in (arbitrary, unsigned):
+            self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
+            self.assertFalse(result["permit_issued"])
+            self.assertIn("WAIVER_INVALID", result["reasons"])
 
 
 class ContractTests(unittest.TestCase):
@@ -71,8 +123,9 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(set(schema["$defs"]["blockReason"]["enum"]), BLOCK_REASONS)
         self.assertEqual(set(schema["$defs"]["errorReason"]["enum"]), ERROR_REASONS)
         policy = (ROOT / "docs" / "methods" / "blocker-gate-pre-use-policy.md").read_text(encoding="utf-8")
-        self.assertIn('"schema": "blocker-gate-result/v1"', policy)
-        self.assertIn('"waiver_evidence": {', policy)
+        normative = policy.split("### 10.4 機械 JSON Schema", 1)[1]
+        normative = normative.split("```json", 1)[1].split("```", 1)[0]
+        self.assertEqual(schema, json.loads(normative))
 
     def test_semantic_validator_rejects_allow_error_and_union_mismatch(self):
         base = evaluate_snapshot(load("closed_direct.json"))
@@ -87,12 +140,65 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             validate_result_semantics(bad_union, process_exit=0)
 
+    def test_pr_binding_and_method_specific_fingerprints_are_required(self):
+        pr = evaluate_snapshot(load("pr_same_parent_child.json"))
+        for key in (
+            "head_oid", "base_ref_name", "default_branch", "merge_method",
+            "operation_fingerprint", "snapshot_fingerprint",
+            "message_source_fingerprint", "delivered_message_fingerprint",
+        ):
+            with self.subTest(key=key):
+                bad = {**pr, "binding": {**pr["binding"], key: None}}
+                with self.assertRaises(ContractError):
+                    validate_result_semantics(bad, process_exit=0)
+        bad_rebase = {
+            **pr,
+            "binding": {
+                **pr["binding"],
+                "repository_merge_settings_fingerprint": "sha256:" + "9" * 64,
+            },
+        }
+        with self.assertRaises(ContractError):
+            validate_result_semantics(bad_rebase, process_exit=0)
+        bad_merge = {**pr, "binding": {**pr["binding"], "merge_method": "merge"}}
+        with self.assertRaises(ContractError):
+            validate_result_semantics(bad_merge, process_exit=0)
+
+    def test_waiver_evidence_correlation_is_closed(self):
+        snapshot = load("open_direct.json")
+        target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
+        allowed = evaluate_snapshot(
+            snapshot,
+            waiver_provider=FakeWaiverProvider(
+                WaiverCollection((waiver_material(target_fp),))
+            ),
+        )
+        finding = allowed["findings"][0]
+        mutations = (
+            {key: value for key, value in finding.items() if key != "waiver_evidence"},
+            {**finding, "code": "CLOSURE_OPEN_DESCENDANT"},
+            {
+                **finding,
+                "waiver_evidence": {
+                    **finding["waiver_evidence"],
+                    "expires_at": "2026-08-01T00:00:00Z",
+                },
+            },
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                bad = {**allowed, "findings": [mutation]}
+                with self.assertRaises(ContractError):
+                    validate_result_semantics(bad, process_exit=0)
+
     def test_ambiguous_snapshot_never_becomes_allow(self):
         malformed = load("closed_direct.json")
         malformed["mode"] = "unknown"
         result = evaluate_snapshot(malformed)
         self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
         self.assertFalse(result["permit_issued"])
+        self.assertEqual((result["mode"], result["repository"], result["subject"]), ("issue-start", None, None))
+        validate_result_semantics(result, process_exit=20)
 
 
 class CliIntegrationTests(unittest.TestCase):

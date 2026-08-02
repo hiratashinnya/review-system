@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Mapping, Protocol, cast
 from uuid import uuid4
 
-from .contract import validate_result_semantics
+from .contract import ContractError, validate_result_semantics
 from .evaluator import (
     GraphEvaluationError,
     evaluate_closure_invariant,
@@ -30,6 +30,15 @@ from .model import (
     fingerprint,
     sort_findings,
 )
+from .waiver import (
+    WaiverCollection,
+    WaiverContext,
+    WaiverError,
+    WaiverMaterial,
+    parse_policy_yaml,
+    parse_waiver_yaml,
+    verify_waiver,
+)
 
 
 class Collector(Protocol):
@@ -42,7 +51,8 @@ class Collector(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
-WaiverLookup = Callable[[Finding], Mapping[str, str] | None]
+class WaiverProvider(Protocol):
+    def collect_waiver_materials(self, repository: str) -> WaiverCollection: ...
 
 
 def _timestamp(value: datetime | None = None) -> str:
@@ -197,8 +207,91 @@ def _snapshot_graph(snapshot: Snapshot) -> dict[str, Any]:
     }
 
 
+def _apply_verified_waivers(
+    snapshot: Snapshot,
+    findings: list[Finding],
+    provider: WaiverProvider | None,
+) -> tuple[list[Finding], list[str], bool]:
+    """providerのraw mappingを信用せず、parser/verifier通過値だけを適用する。"""
+    if provider is None or not any(item.code == "OPEN_BLOCKER" for item in findings):
+        return findings, [], False
+    try:
+        collection = provider.collect_waiver_materials(snapshot.repository)
+    except Exception:
+        return findings, ["WAIVER_INVALID"], False
+    if not isinstance(collection, WaiverCollection):
+        return findings, ["WAIVER_INVALID"], False
+    errors = list(collection.errors)
+    verified: dict[str, list[Mapping[str, str]]] = {}
+    now = datetime.now(timezone.utc)
+    for material in collection.materials:
+        if not isinstance(material, WaiverMaterial):
+            errors.append("WAIVER_INVALID")
+            continue
+        try:
+            policy = parse_policy_yaml(material.policy_bytes)
+            waiver = parse_waiver_yaml(material.waiver_bytes)
+        except WaiverError as exc:
+            errors.append(exc.reason)
+            continue
+        scope = waiver["scope"]
+        subject = scope["subject"]
+        if (
+            waiver["repository"] != snapshot.repository
+            or scope["mode"] != snapshot.mode
+            or subject["type"] != snapshot.subject_type
+            or subject["number"] != snapshot.subject_number
+        ):
+            continue
+        for finding in findings:
+            if finding.code != "OPEN_BLOCKER" or finding.fingerprint not in scope["finding_fingerprints"]:
+                continue
+            try:
+                evidence = verify_waiver(
+                    waiver,
+                    policy,
+                    WaiverContext(
+                        repository=snapshot.repository,
+                        mode=snapshot.mode,
+                        subject_type=snapshot.subject_type,
+                        subject_number=snapshot.subject_number,
+                        finding_fingerprint=finding.fingerprint or "",
+                        now=now,
+                    ),
+                    material.evidence,
+                )
+            except WaiverError as exc:
+                errors.append(exc.reason)
+                continue
+            verified.setdefault(finding.fingerprint or "", []).append(evidence)
+
+    updated: list[Finding] = []
+    applied = False
+    for finding in findings:
+        candidates = verified.get(finding.fingerprint or "", [])
+        if len(candidates) > 1:
+            errors.append("WAIVER_INVALID")
+            updated.append(finding)
+        elif len(candidates) == 1:
+            evidence = candidates[0]
+            applied = True
+            updated.append(
+                Finding(
+                    finding.code,
+                    finding.subject,
+                    finding.path,
+                    finding.fingerprint,
+                    evidence["waiver_id"],
+                    evidence,
+                )
+            )
+        else:
+            updated.append(finding)
+    return updated, sorted(set(errors)), applied
+
+
 def evaluate_snapshot(
-    raw: Mapping[str, Any], waiver_lookup: WaiverLookup | None = None
+    raw: Mapping[str, Any], waiver_provider: WaiverProvider | None = None
 ) -> dict[str, Any]:
     """snapshot を全stage評価し、schema/semantic検証済み Result を返す。"""
     try:
@@ -230,26 +323,10 @@ def evaluate_snapshot(
         findings.append(Finding(exc.reason, subject, exc.path or (subject,)))
 
     finalized = [item.finalized(snapshot.mode) for item in sort_findings(findings)]
-    applied = False
-    if waiver_lookup is not None:
-        updated: list[Finding] = []
-        for finding in finalized:
-            evidence = waiver_lookup(finding) if finding.code == "OPEN_BLOCKER" else None
-            if evidence:
-                applied = True
-                updated.append(
-                    Finding(
-                        finding.code,
-                        finding.subject,
-                        finding.path,
-                        finding.fingerprint,
-                        evidence["waiver_id"],
-                        evidence,
-                    )
-                )
-            else:
-                updated.append(finding)
-        finalized = updated
+    finalized, waiver_errors, applied = _apply_verified_waivers(
+        snapshot, finalized, waiver_provider
+    )
+    errors.extend(waiver_errors)
 
     errors = sorted(set(errors))
     unwaived_blocks = [item for item in finalized if item.code in BLOCK_REASONS and item.waiver_id is None]
@@ -298,24 +375,32 @@ def evaluate_snapshot(
         "pages_complete": snapshot.pages_complete and not any(reason in INCOMPLETE_REASONS for reason in errors),
         "permit_issued": verdict is Verdict.ALLOW,
     }
-    validate_result_semantics(result, process_exit=exit_code)
+    try:
+        validate_result_semantics(result, process_exit=exit_code)
+    except ContractError:
+        trusted_reason = next(
+            (reason for reason in errors if reason in ERROR_REASONS),
+            "RESULT_CONTRACT_INVALID",
+        )
+        return _contract_error_result(raw, trusted_reason)
     return result
 
 
 def _contract_error_result(raw: Mapping[str, Any], reason: str) -> dict[str, Any]:
     now = _timestamp()
-    return {
+    trusted_reason = reason if reason in ERROR_REASONS else "RESULT_CONTRACT_INVALID"
+    result = {
         "schema": RESULT_SCHEMA,
         "policy_version": POLICY_VERSION,
         "classifier_version": CLASSIFIER_VERSION,
         "invocation_id": str(uuid4()),
-        "mode": raw.get("mode") if raw.get("mode") in {"issue-start", "pr-merge"} else "issue-start",
+        "mode": "issue-start",
         "result": "ERROR",
         "exit_code": 20,
-        "primary_reason": reason,
-        "reasons": [reason],
-        "repository": raw.get("repository") if isinstance(raw.get("repository"), str) else None,
-        "subject": raw.get("subject") if isinstance(raw.get("subject"), dict) else None,
+        "primary_reason": trusted_reason,
+        "reasons": [trusted_reason],
+        "repository": None,
+        "subject": None,
         "binding": {
             "head_oid": None,
             "base_ref_name": None,
@@ -339,12 +424,20 @@ def _contract_error_result(raw: Mapping[str, Any], reason: str) -> dict[str, Any
         "pages_complete": False,
         "permit_issued": False,
     }
+    validate_result_semantics(result, process_exit=20)
+    return result
 
 
 def resolve_issue(
-    collector: Collector, repository: str, number: int, waiver_lookup: WaiverLookup | None = None
+    collector: Collector,
+    repository: str,
+    number: int,
+    waiver_provider: WaiverProvider | None = None,
 ) -> dict[str, Any]:
-    return evaluate_snapshot(collector.collect_issue(repository, number), waiver_lookup)
+    provider = waiver_provider
+    if provider is None and hasattr(collector, "collect_waiver_materials"):
+        provider = cast(WaiverProvider, collector)
+    return evaluate_snapshot(collector.collect_issue(repository, number), provider)
 
 
 def resolve_pull_request(
@@ -352,8 +445,11 @@ def resolve_pull_request(
     repository: str,
     number: int,
     merge_method: str,
-    waiver_lookup: WaiverLookup | None = None,
+    waiver_provider: WaiverProvider | None = None,
 ) -> dict[str, Any]:
+    provider = waiver_provider
+    if provider is None and hasattr(collector, "collect_waiver_materials"):
+        provider = cast(WaiverProvider, collector)
     return evaluate_snapshot(
-        collector.collect_pull_request(repository, number, merge_method), waiver_lookup
+        collector.collect_pull_request(repository, number, merge_method), provider
     )
