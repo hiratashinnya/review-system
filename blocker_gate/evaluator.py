@@ -54,6 +54,8 @@ def _cycle_check(
     def walk(ref: str, depth: int) -> None:
         if depth > MAX_DEPTH:
             raise GraphEvaluationError("GRAPH_LIMIT_EXCEEDED", (*active, ref))
+        if ref not in nodes:
+            raise GraphEvaluationError("RELATION_TARGET_UNREADABLE", (*active, ref))
         if ref in active:
             start = active.index(ref)
             raise GraphEvaluationError("GRAPH_CYCLE", (*active[start:], ref))

@@ -110,7 +110,8 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
         _fail("findings invalid")
     finding_keys = {"code", "subject", "path", "fingerprint", "waiver_id"}
     for finding in result["findings"]:
-        if not isinstance(finding, dict) or set(finding) not in {finding_keys, finding_keys | {"waiver_evidence"}}:
+        allowed_finding_keys = (finding_keys, finding_keys | {"waiver_evidence"})
+        if not isinstance(finding, dict) or set(finding) not in allowed_finding_keys:
             _fail("finding keys invalid")
         if finding["code"] not in BLOCK_REASONS | ERROR_REASONS:
             _fail("finding code invalid")
