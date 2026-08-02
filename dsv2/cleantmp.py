@@ -10,8 +10,13 @@ reconciliation（書込エージェント）の Step 3-3「本コーパスへの
   1. 実体解決（symlink 追跡）後のパスが ``<repo-root>/tmp/`` 配下にある。
   2. ``tmp/`` からの相対が **ちょうど2階層**（``<sprint>/<parent-id>``）である。
      ``tmp`` 自身・``tmp/<sprint>`` 単独・``tmp/<sprint>/<parent-id>/nodes`` は拒否する。
-  3. 相対パスの構成要素に ``_handoff`` を含まない（ハンドオフ置き場は掃除対象外＝
-     CLAUDE.md「戻り値のハンドオフ規約」）。
+  3. 相対パスの構成要素に保護名（``_handoff`` / ``_karte``）を含まない。
+     ``_handoff``＝ハンドオフ置き場（CLAUDE.md「戻り値のハンドオフ規約」）、
+     ``_karte``＝是正ループの診断カルテ置き場（Issue #307）。どちらも
+     ``tmp/<sprint>/<parent-id>`` という著作ミラーの掃除対象ではなく、
+     **掃除で消えるとループ状態・戻り値が失われる**。ガード2（ちょうど2階層）でも
+     ``tmp/_karte`` 単体は弾けるが、``tmp/_karte/<sub>/`` のような2階層パスは
+     階層だけでは弾けないため保護名として明示する。
   4. 引数そのものが symlink でない（実体を差し替えた削除誘導の防止）。
   5. 対象が実在するディレクトリである。
 
@@ -25,6 +30,7 @@ plan 作成後に実体が変化していれば削除せず :class:`CleanTmpErro
 依存仕様:
   * DD-22（著作→検証→書込の3段分離・writer だけが破壊的操作を行う）
   * CLAUDE.md「戻り値のハンドオフ規約」（``tmp/_handoff/`` は tmp 掃除の対象外）
+  * Issue #307「診断カルテ CLI」（``tmp/_karte/`` も同様に掃除対象外＝保護名として明示）
   * ``.claude/agents/reconciliation.md`` Step 3-3（掃除対象＝``tmp/<sprint>/<parent-id>/``）
   ※ 上記2つは out-of-graph（版なし）のため補助ナビ。掃除対象レイアウトの一次アンカーは
     著作エージェント共通契約（``.claude/agents/doc-system-v2-authoring.md``）の tmp ミラー規定。
@@ -38,6 +44,11 @@ from pathlib import Path
 
 TMP_DIRNAME = "tmp"
 HANDOFF_DIRNAME = "_handoff"
+KARTE_DIRNAME = "_karte"
+# tmp 配下でも掃除してはならない置き場（構成要素にこの名前を含むパスは削除しない）。
+#   _handoff … 1回の戻り値（CLAUDE.md「戻り値のハンドオフ規約」）
+#   _karte   … 是正ループの診断カルテ（Issue #307・karte パッケージ）
+PROTECTED_DIRNAMES = (HANDOFF_DIRNAME, KARTE_DIRNAME)
 TARGET_DEPTH = 2  # tmp/<sprint>/<parent-id>
 
 
@@ -72,6 +83,18 @@ def _tmp_root(repo_root: str | Path) -> Path:
     return tmp.resolve()
 
 
+def _protected_component(parts) -> str | None:
+    """相対パスの構成要素に保護名が含まれていればその名前を返す（無ければ ``None``）。
+
+    ``plan_clean`` と ``_reverify_before_delete`` の**両方**から呼ぶ。片側だけに置くと
+    TOCTOU 再検査の側が穴のまま残る。
+    """
+    for name in PROTECTED_DIRNAMES:
+        if name in parts:
+            return name
+    return None
+
+
 def plan_clean(target: str | Path, repo_root: str | Path) -> CleanPlan:
     """``target`` が掃除してよい tmp 著作ミラーかを検査し、削除計画を返す。
 
@@ -94,10 +117,11 @@ def plan_clean(target: str | Path, repo_root: str | Path) -> CleanPlan:
         ) from None
 
     parts = rel.parts
-    if HANDOFF_DIRNAME in parts:
+    protected = _protected_component(parts)
+    if protected is not None:
         raise CleanTmpError(
-            f"ハンドオフ置き場は掃除対象外: {resolved}"
-            f"（'{HANDOFF_DIRNAME}' を含むパスは削除しない）"
+            f"保護された置き場は掃除対象外: {resolved}"
+            f"（'{protected}' を含むパスは削除しない）"
         )
     if len(parts) != TARGET_DEPTH:
         raise CleanTmpError(
@@ -124,7 +148,7 @@ def _reverify_before_delete(plan: CleanPlan) -> None:
     """``shutil.rmtree`` 直前の再検査（TOCTOU 対策・defense-in-depth）。
 
     ``plan_clean`` から ``apply_clean`` までの間に symlink 差し替え等でパスの実体が
-    変わっていないかを、plan-time と同じガード（tmp/ 配下・階層・非 handoff・非 symlink・
+    変わっていないかを、plan-time と同じガード（tmp/ 配下・階層・非保護名（_handoff/_karte）・非 symlink・
     ディレクトリ実在）で削除実行の直前に再確認する。1つでも崩れていれば削除せず
     :class:`CleanTmpError` を送出する（fail-close）。
     """
@@ -147,7 +171,7 @@ def _reverify_before_delete(plan: CleanPlan) -> None:
             f"削除直前の再検査でパスの実体が変化した（TOCTOU 疑い）: {target} → {resolved}"
         )
 
-    # 4. tmp/ 配下・階層・非 handoff・ディレクトリ実在を plan-time と同じ基準で再確認する。
+    # 4. tmp/ 配下・階層・非保護名（_handoff/_karte）・ディレクトリ実在を plan-time と同じ基準で再確認する。
     try:
         rel = resolved.relative_to(tmp_root)
     except ValueError:
@@ -155,8 +179,11 @@ def _reverify_before_delete(plan: CleanPlan) -> None:
             f"削除直前の再検査で tmp/ の外を指すようになった: {resolved}"
         ) from None
     parts = rel.parts
-    if HANDOFF_DIRNAME in parts:
-        raise CleanTmpError(f"削除直前の再検査でハンドオフ配下に変化した: {resolved}")
+    protected = _protected_component(parts)
+    if protected is not None:
+        raise CleanTmpError(
+            f"削除直前の再検査で保護された置き場（'{protected}'）配下に変化した: {resolved}"
+        )
     if len(parts) != TARGET_DEPTH:
         raise CleanTmpError(
             f"削除直前の再検査で階層が変化した: {resolved}（{len(parts)} 階層）"
