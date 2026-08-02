@@ -36,7 +36,9 @@
 ## 判断の仰ぎ方（フェーズ別・空で止めない＝PR7）
 - **大原則**：矛盾・オーナー判断必須で止めるときも、**原案・比較・理由付き推奨/非推奨を必ず添える**（意見なき停止は禁止）。**矛盾は原案検討して提案、他のやれる所をやる、一通り終えたら整理して提示**。
 - **起票してから止める（チャットで流さない）**：論点・矛盾・情報不足を見つけたら、**①ノード起票 → ②ダッシュボード更新（Q/FND いずれの場合も必須）→ ③選択肢＋推奨を添えて停止・質問** の順を必ず守る。チャットで指摘を述べるだけで**起票しないのは禁止**（後から「なぜ起票してない？」になる）。**②は省略不可**——ノードが明細、ダッシュボードが状態の要約で、両方を更新して初めて起票完了。
-  - **ただしハーネス開発は例外**（起票先が Issue になる）＝後述「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」。**打ち上げ義務そのものは変わらない**（起票せずチャットで流すのは依然として禁止）。
+  - **ただし、どちらのシステムにも含有されない汎用ハーネスの開発は例外**（起票先が Issue になる。
+    含有されるハーネスは従来どおりノード起票）＝後述「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」。
+    **打ち上げ義務そのものは変わらない**（起票せずチャットで流すのは依然として禁止）。
   - **起票先の使い分け**：未決の論点・**質問＝Q ノード**（`type: Q`・qa テンプレ・`verification-author` に委譲。決定したら DD へ昇格）／**既存ノードに対して発見した指摘・矛盾・原則違反＝FND ノード**（`doc-system-v2/nodes/04-verification/fnd/`（open/resolved の2状態は path で表現）・`verification-author` に委譲）。**質問はダッシュボードに直接書くのではなく Q ノードを起票し、ダッシュボードはその要約を更新する**。どちらも本文に内容・深刻度・推奨を書き、ID だけで投げず**本文で説明してから判断を仰ぐ**。
   - **処置したら必ずバックリファレンス**：FND を resolved にしたら処置対象ノードに `→FND-x` 辺を付与（削除済みノードは FND 本文に「付与先なし」と明記）。**辺逆転（forward 削除＋backward 付与＋DD-3 凍結＋z バンプ＋`fnd/open/`→`fnd/resolved/` の `git mv`）は手編集でなく `dsv2` ツールで機械実行する**＝`python3 -m dsv2 reverse <FND-slug> --root doc-system-v2`（既定 dry-run／`--apply` で書込・実装＝`dsv2/reverse.py`）。旧 `backref/`（v1専用）は `archive/backref-v1/` に retire 済み（issue #76）。
   - **FND 起票時は ref_version を本文にも記録**：FND 解消時に edges が逆転（FND→対象 → 対象→FND）するため指摘時の ref_version が辺情報から失われる。**FND 起票時に `edges[].ref_version` の値を本文に明記する**（`**指摘時 ref_version**: {ノードID} "{ref_version}"（{ファイル名} v{version} 時点）`・DD-3 制度化）。
@@ -47,8 +49,9 @@
 ## 起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）
 **判定軸は「そのハーネスが doc_system / review_system に含有されるか」**（オーナー訂正・2026-08-02）。
 旧判定軸「in-graph の観測可能成果物を持たない」は**事実に反するため廃止**——
-`doc-system-v2/nodes/05-design/prompt/` に PROMPT ノードが22件実在し、うち20件が
-`.claude/agents`/`.claude/skills` を参照して `carrier: "skill"` を持ち在グラフモデル化されている
+`doc-system-v2/nodes/05-design/prompt/` に PROMPT ノードが22件実在し、うち15件が
+`.claude/agents`/`.claude/skills` を参照して `carrier` を持ち在グラフモデル化されている
+（14件が `carrier: "skill"`・1件が `carrier: "agent"`。著作エージェント系7件は `carrier` を持たない）
 （オーナー確定 DD「skill を LLM プロンプト資産として在グラフの PROMPT 設計ノードにモデル化する」・
 FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝起票対象外と扱わない。**
 
@@ -263,7 +266,7 @@ import・exec＝doc_system 対象。
 - ノード検索/読み込みツール（md2idx 思想）：`archive/docidx-v1/`（**v1-legacy 専用・現行コーパスは対象外**。`python3 -m archive.docidx-v1`・標準ライブラリのみ・対象は `doc-system-v1-archive/`。issue #142 で `docidx/` からの物理移動を一旦保留していたが、issue #172 で共有 YAML リーダ `nodeyaml.py` を `dsv2/nodeyaml.py` へ分離した上で残りを `archive/docidx-v1/` へ `git mv`）。フォーマット依存マップ＝`archive/docidx-v1/README.md`。**v2 検索は `dsv2 index` ＋ grep/Read**（`dsv2-lookup` 参照）。利用入口＝`/docidx`（`.claude/skills/docidx/SKILL.md`・v1-archive 専用と明記済み）・委譲先＝`dsv2-lookup`（`.claude/agents/dsv2-lookup.md`・dsv2-native。旧名 `docidx-lookup`・issue #173 で改名）。各関数の `依存仕様:` docstring に依存 SPEC＋版を明記。
 - FND 辺逆転（バックリファレンス）の機械実行：**v2 は `python3 -m dsv2 reverse`**（実装＝`dsv2/reverse.py`）。旧 v1 専用ツール `backref/` は issue #76 で `archive/backref-v1/` へ retire 済み（フォーマット依存マップは `archive/backref-v1/README.md` に保全・消さない＝PR8）。運用は `reconciliation` が `--apply`（旧 issue #48 の運用を dsv2 へ継承）。
 - **依存仕様の参照原則（全スクリプト共通・再発防止）**：ツールの `依存仕様:`（docstring・README フォーマット依存マップ）は **in-graph の版付きノード（SPEC-x / DD-x ＋ vX.Y.Z）を一次アンカーに明記する**。`docs/doc-system/*`（04-notation・02-meta-schema・config.yaml）・`CLAUDE.md` は **out-of-graph で版を持たない**（ファイル frontmatter version は DD-8/FND-104 で廃止）ため**唯一の根拠にしない**——版が無いと仕様変更を取りこぼす。これらは補助ナビとしてのみ併記。版付きノードが未整備のフォーマット事実は不足を FND/Q で起票する
-（ただし起票先は前掲「起票先はプロジェクト区分で決める」の分類に従う——`dsv2` は両システムに含有される
-コーパス操作ツールのため FND/Q、`asset_parity`／`archive.docidx-v1` 等の**含有されない**汎用ハーネスで
-見つかった依存仕様アンカーの不足は Issue で起票する）。
+  （ただし起票先は前掲「起票先はプロジェクト区分で決める」の分類に従う——`dsv2` は両システムに含有される
+  コーパス操作ツールのため FND/Q、`asset_parity`／`archive.docidx-v1` 等の**含有されない**汎用ハーネスで
+  見つかった依存仕様アンカーの不足は Issue で起票する）。
 - **資産ツリー間の presence/absence 検出（issue #155・検出半分）**：`.claude/skills|agents`（正本）↔ `.github/skills|prompts|agents`（Copilot）↔ `.codex/agents`（Codex CLI agent）↔ `.agents/skills`（Codex CLI skill）の4ツリーが揃っているかを **read-only** で機械検出するツール＝`asset_parity/`（`python3 -m asset_parity check`・標準ライブラリのみ・使い方は `asset_parity/README.md`）。**内容を書き換えるツールではない**（一括変換は 2026-06-15 に廃止済み・`asset-lateral-deploy` 参照）。意図的な非移植（`agy-delegate`／`issue-pipeline`＋`issue-implementer`／`pr-reviewer` の Copilot 非移植等）は `asset_parity/exceptions.py` に記録し、`.claude/tailoring-registry.md` の既存決定と同期させる（新規に非移植を決めたらまず tailoring-registry.md に記録してから exceptions.py に追記）。**CI 組み込み済み**（`.github/workflows/asset-parity.yml`・4ツリーいずれかを触る push/pull_request で自動起動・`MISSING` はビルド失敗／staleness はビルドを止めない・詳細は `asset_parity/README.md`）。

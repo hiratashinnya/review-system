@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
 
-<!-- synced-from: CLAUDE.md@5fe44ae5d51a -->
+<!-- synced-from: CLAUDE.md@240bd864cf2c -->
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
@@ -25,7 +25,7 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **①ノード起票（未決の質問＝Q／既存ノードへの指摘＝FND、`verification-author` に委譲）
    → ②`doc-system-v2/00-dashboard.md` 更新（省略不可）→ ③選択肢＋推奨を添えて停止**。
    チャットで指摘を述べるだけで起票しないのは禁止。
-   **ただし起票先は「どこに成果物が出るか」で変わる**（下記9）。
+   **ただし起票先は下記9の分類（doc_system / review_system に含有されるか）で変わる**。
 3. **「対応不要」を AI が独断で書かない** — 指摘の処置要否・据え置きは**オーナー判断**。
    AI 単独で「対応不要」「将来検討でよい」と結論・クローズしない。AI 同士のコメントを根拠にしない。
 4. **スケジュール独断禁止** — `scheduled:` の繰り越し（次スプリント以降）は
