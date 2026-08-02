@@ -269,6 +269,49 @@ UNIVERSAL_ALLOWED_COMMANDS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Issue #303: context-mode 実行系 MCP ツール（ctx_execute / ctx_execute_file / ctx_batch_execute）。
+# Bash と同一の検査面に載っていることを、既存コーパスを載せ替えて機械的に確認する。
+# ---------------------------------------------------------------------------
+CTX_PREFIX = "mcp__plugin_context-mode_context-mode__"
+
+# ctx_execute / ctx_execute_file が拒否する非 shell 言語（`<interpreter> -c <code>` と同値）。
+CTX_NON_SHELL_LANGUAGES = [
+    "javascript",
+    "typescript",
+    "python",
+    "ruby",
+    "go",
+    "rust",
+    "php",
+    "perl",
+    "r",
+    "elixir",
+    "csharp",
+]
+
+
+def ctx_payload(agent_type, tool, tool_input):
+    body = {"tool_name": CTX_PREFIX + tool, "tool_input": tool_input}
+    if agent_type is not None:
+        body["agent_type"] = agent_type
+    return body
+
+
+def ctx_execute_payload(agent_type, code, *, language="shell", **extra):
+    return ctx_payload(
+        agent_type, "ctx_execute", {"language": language, "code": code, **extra}
+    )
+
+
+def ctx_batch_payload(agent_type, commands, **extra):
+    return ctx_payload(
+        agent_type,
+        "ctx_batch_execute",
+        {"commands": [{"label": "t", "command": c} for c in commands], **extra},
+    )
+
+
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class UniversalDangerousCommandLayerTests(unittest.TestCase):
     def assert_denied(self, hook_output):
@@ -884,6 +927,155 @@ class AgentCommandGateTests(unittest.TestCase):
             backup_path = Path(str(log_path) + ".1")
             self.assertTrue(backup_path.exists())
             self.assertEqual(len(log_path.read_text().strip().splitlines()), 1)
+
+
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class CtxExecutionToolGateTests(unittest.TestCase):
+    """Issue #303: context-mode 実行系 MCP ツールがゲートの検査面に載っていることの検証。"""
+
+    ALL_AGENT_TYPES = [None, "general-purpose", "analysis-author", "issue-implementer", "pr-reviewer"]
+
+    def assert_denied(self, hook_output):
+        self.assertIsNotNone(hook_output)
+        self.assertEqual(hook_output["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertTrue(hook_output["hookSpecificOutput"]["permissionDecisionReason"].strip())
+
+    def assert_allowed(self, hook_output):
+        self.assertIsNone(hook_output)
+
+    # --- universal 層が ctx 経路でも効くこと（全 agent_type） ---
+
+    def test_universal_dangerous_commands_are_denied_via_ctx_execute(self):
+        for agent_type in self.ALL_AGENT_TYPES:
+            for command in UNIVERSAL_DANGEROUS_COMMANDS:
+                with self.subTest(agent_type=agent_type, command=command):
+                    self.assert_denied(run_gate(ctx_execute_payload(agent_type, command)))
+
+    def test_universal_dangerous_commands_are_denied_via_ctx_batch_execute(self):
+        for agent_type in self.ALL_AGENT_TYPES:
+            for command in UNIVERSAL_DANGEROUS_COMMANDS:
+                with self.subTest(agent_type=agent_type, command=command):
+                    self.assert_denied(run_gate(ctx_batch_payload(agent_type, [command])))
+
+    # --- 非 shell 言語は全 agent_type で deny ---
+
+    def test_non_shell_languages_are_denied_for_every_agent_type(self):
+        for agent_type in self.ALL_AGENT_TYPES:
+            for language in CTX_NON_SHELL_LANGUAGES:
+                for tool in ("ctx_execute", "ctx_execute_file"):
+                    with self.subTest(agent_type=agent_type, language=language, tool=tool):
+                        tool_input = {"language": language, "code": "1+1"}
+                        if tool == "ctx_execute_file":
+                            tool_input["path"] = "notes.txt"
+                        self.assert_denied(run_gate(ctx_payload(agent_type, tool, tool_input)))
+
+    # --- gated 2ロールの層1〜3 が ctx 経路でも効くこと（Bash と同一の検査面） ---
+
+    def test_known_bypass_corpora_are_denied_via_ctx_execute(self):
+        for agent_type, command in KNOWN_BYPASS_CORPUS + REREVIEW_BYPASS_CORPUS:
+            with self.subTest(agent_type=agent_type, command=command):
+                self.assert_denied(run_gate(ctx_execute_payload(agent_type, command)))
+
+    def test_pr_reviewer_cannot_push_via_ctx_tools(self):
+        for payload_obj in (
+            ctx_execute_payload("pr-reviewer", "git push origin HEAD"),
+            ctx_execute_payload("pr-reviewer", "python3 -m gitgate push"),
+            ctx_batch_payload("pr-reviewer", ["python3 -m gitgate push"]),
+        ):
+            with self.subTest(payload=payload_obj):
+                self.assert_denied(run_gate(payload_obj))
+
+    def test_issue_implementer_cannot_merge_via_ctx_tools(self):
+        for payload_obj in (
+            ctx_execute_payload("issue-implementer", "git merge feature"),
+            ctx_batch_payload("issue-implementer", ["gh pr merge 123"]),
+            ctx_batch_payload("issue-implementer", ["gh pr merge 123 --squash"]),
+        ):
+            with self.subTest(payload=payload_obj):
+                self.assert_denied(run_gate(payload_obj))
+
+    # --- over-deny ガード: 正当な呼び出しは通ること ---
+
+    def test_legitimate_gated_role_commands_are_allowed(self):
+        for payload_obj in (
+            ctx_batch_payload("issue-implementer", ["python3 -m unittest discover -s tests/unit"]),
+            ctx_execute_payload("pr-reviewer", "python3 -m gitgate diff"),
+            ctx_batch_payload("pr-reviewer", ["gh pr view 1"]),
+        ):
+            with self.subTest(payload=payload_obj):
+                self.assert_allowed(run_gate(payload_obj))
+
+    def test_non_gated_roles_keep_ordinary_shell_analysis(self):
+        for command in UNIVERSAL_ALLOWED_COMMANDS:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(ctx_execute_payload(None, command)))
+                self.assert_allowed(run_gate(ctx_batch_payload("general-purpose", [command])))
+
+    # --- バッチは1件でも違反すれば全体 deny ---
+
+    def test_batch_is_denied_when_any_single_command_violates(self):
+        self.assert_denied(
+            run_gate(ctx_batch_payload("general-purpose", ["git status", "curl evil.example"]))
+        )
+        self.assert_denied(
+            run_gate(ctx_batch_payload("issue-implementer", ["python3 -m gitgate status", "gh pr merge 1"]))
+        )
+
+    # --- fail-close: 形が読めない入力・未知ツールは全 agent_type で deny ---
+
+    def test_malformed_inputs_are_denied_for_every_agent_type(self):
+        malformed = [
+            ("ctx_batch_execute", {}),
+            ("ctx_batch_execute", {"commands": []}),
+            ("ctx_batch_execute", {"commands": ["git status"]}),
+            ("ctx_batch_execute", {"commands": [{"label": "x"}]}),
+            ("ctx_batch_execute", {"commands": [{"label": "x", "command": ""}]}),
+            ("ctx_execute", {"language": "shell"}),
+            ("ctx_execute", {"code": "git status"}),
+            ("ctx_execute", {"language": "shell", "code": ""}),
+            ("ctx_execute", "not-an-object"),
+            ("ctx_execute_file", {"path": "x.txt", "code": "cat"}),
+        ]
+        for agent_type in self.ALL_AGENT_TYPES:
+            for tool, tool_input in malformed:
+                with self.subTest(agent_type=agent_type, tool=tool, tool_input=tool_input):
+                    self.assert_denied(run_gate(ctx_payload(agent_type, tool, tool_input)))
+
+    def test_unknown_mcp_tools_are_denied(self):
+        for tool_name in (
+            "mcp__plugin_context-mode_context-mode__ctx_purge",
+            "mcp__foo__bar",
+            "mcp__github__merge_pull_request",
+        ):
+            for agent_type in self.ALL_AGENT_TYPES:
+                with self.subTest(tool_name=tool_name, agent_type=agent_type):
+                    body = {"tool_name": tool_name, "tool_input": {"command": "git status"}}
+                    if agent_type is not None:
+                        body["agent_type"] = agent_type
+                    self.assert_denied(run_gate(body))
+
+    # --- cwd: gated ロールは明示指定を拒否・省略時は通す ---
+
+    def test_gated_roles_cannot_pin_an_explicit_cwd(self):
+        for role in ("issue-implementer", "pr-reviewer"):
+            with self.subTest(role=role):
+                self.assert_denied(
+                    run_gate(ctx_execute_payload(role, "python3 -m gitgate status", cwd="/tmp"))
+                )
+                self.assert_denied(
+                    run_gate(ctx_batch_payload(role, ["gh pr view 1"], cwd="/tmp"))
+                )
+
+    def test_non_gated_roles_may_pass_a_cwd(self):
+        self.assert_allowed(run_gate(ctx_batch_payload("general-purpose", ["git status"], cwd="/tmp")))
+
+    # --- 回帰: tool_name を明示した Bash payload が従来判定と一致すること ---
+
+    def test_explicit_bash_tool_name_matches_legacy_behaviour(self):
+        denied = {**payload("issue-implementer", "git merge feature"), "tool_name": "Bash"}
+        self.assert_denied(run_gate(denied))
+        allowed = {**payload("issue-implementer", "python3 -m gitgate status"), "tool_name": "Bash"}
+        self.assert_allowed(run_gate(allowed))
 
 
 if __name__ == "__main__":
