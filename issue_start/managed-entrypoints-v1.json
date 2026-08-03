@@ -1,0 +1,17 @@
+{
+  "schema_version": "managed-issue-entrypoints/1",
+  "policy_version": "issue-start/1.0",
+  "managed": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-implementer",
+      "codex_tool": "spawn_agent",
+      "claude_tool": "Task",
+      "binding_marker": "ISSUE_START_BINDING_V1="
+    }
+  ],
+  "unmanaged": [
+    "direct shell/API invocation outside issue-pipeline",
+    "harnesses that do not enable/trust project PreToolUse hooks"
+  ]
+}

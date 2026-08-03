@@ -11,6 +11,17 @@
             "statusMessage": "Enforcing issue-implementer/pr-reviewer push/merge boundary"
           }
         ]
+      },
+      {
+        "matcher": "spawn_agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/issue-start-gate.sh\"",
+            "timeout": 45,
+            "statusMessage": "Checking blocker and branch-source evidence before Issue dispatch"
+          }
+        ]
       }
     ],
     "Stop": [
