@@ -277,14 +277,16 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
     検査対象は ``.claude/agents/reconciliation.md`` **だけではない**（PR #319 R-06）:
     ``CLAUDE.md`` にも同型の追従漏れが残っていた。CLAUDE.md は
     ``inject-governance.sh`` が**毎ターン全エージェントに注入する統治規範の正本**なので、
-    片方だけ直した状態は誤読源として最も影響が大きい。同じドリフトが再発しないよう、
-    掃除ガードを説明する文書をまとめて検査する。
+    片方だけ直した状態は誤読源として最も影響が大きい。さらに ``dsv2/README.md``
+    （フォーマット依存マップ）にも同じ抜けが3件目として残っていた（issue #315 OOS-1）。
+    同じドリフトが再発しないよう、掃除ガードを説明する文書をまとめて検査する。
     """
 
     REPO_ROOT = Path(__file__).resolve().parents[2]
     GUARD_DOCS = (
         REPO_ROOT / ".claude" / "agents" / "reconciliation.md",
         REPO_ROOT / "CLAUDE.md",
+        REPO_ROOT / "dsv2" / "README.md",
     )
     # 保護名が 1 つしか書かれていない旧記述（是正前の実文言）。
     STALE_PHRASES = (
