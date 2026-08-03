@@ -279,31 +279,94 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
     ``inject-governance.sh`` が**毎ターン全エージェントに注入する統治規範の正本**なので、
     片方だけ直した状態は誤読源として最も影響が大きい。さらに ``dsv2/README.md``
     （フォーマット依存マップ）にも同じ抜けが3件目として残っていた（issue #315 OOS-1）。
-    同じドリフトが再発しないよう、掃除ガードを説明する文書をまとめて検査する。
+
+    **round2（issue #315 N-01/N-02）で判明した構造欠陥**: 上記3件の是正後も、
+    実装に最も近い ``dsv2/__init__.py``・``dsv2/cli.py``（module docstring・
+    ``cmd_clean_tmp`` docstring の計3箇所）に同型ドリフトが残存していた（N-01）。
+    これを ``test_every_protected_name_appears_in_the_guard_description`` が
+    検出できなかったのは、判定が**ファイル単位の blob** に対して保護名の存在を見る
+    せいで、**同一ファイル内に正しい行（記述）が1つあれば別の行の欠落を検出できない**
+    という構造欠陥があったため。そこで
+    ``test_bare_handoff_reference_is_always_paired_with_karte`` を追加し、
+    ``_handoff`` に言及する段落は必ず ``_karte`` にも言及していることを
+    **段落単位**（blank line 区切り）で検査する——RST の word-wrap で
+    ``` ``tmp/_handoff`` ``` と ``fail-close``/``拒否`` が別の物理行に分かれる
+    （例: ``dsv2/cli.py:291-292``）ため、単純な「行単位」では拾えない
+    （issue #315 round2 レビュー申し送り）。
+
+    対象文書も **静的な固定リストではなく、`clean-tmp`/`PROTECTED_DIRNAMES` に
+    実際に触れているファイルを動的に絞り込んで**決める（``_discover_guard_docs``）。
+    ``dsv2/*.py`` を候補にすべて数え上げつつ、無関係なモジュール（``dsv2/query.py`` 等）を
+    「ガード説明が見つからない」で誤検出しないようにするため。
     """
 
     REPO_ROOT = Path(__file__).resolve().parents[2]
-    GUARD_DOCS = (
-        REPO_ROOT / ".claude" / "agents" / "reconciliation.md",
-        REPO_ROOT / "CLAUDE.md",
-        REPO_ROOT / "dsv2" / "README.md",
-    )
     # 保護名が 1 つしか書かれていない旧記述（是正前の実文言）。
     STALE_PHRASES = (
         "`_handoff` を含まず symlink でもない",
         "`_handoff` を含むパスを機械的に拒否する）",
         "`_handoff` を機械的に拒否する）",
     )
+    # ガードの列挙文だけが使う bare な RST インライン参照（末尾スラッシュなし）。
+    # 「戻り値のハンドオフ規約」の説明（`tmp/_handoff/<key>.yaml` 等・末尾スラッシュ/
+    # 内容つき）とは書式で区別できるため、無関係な段落を誤検出しない
+    # （dsv2/cleantmp.py の意図的な例示文はこの bare 形を使わないので対象外のまま）。
+    HANDOFF_BARE_REF = "``tmp/_handoff``"
+
+    @classmethod
+    def _candidate_guard_docs(cls):
+        return (
+            cls.REPO_ROOT / ".claude" / "agents" / "reconciliation.md",
+            cls.REPO_ROOT / "CLAUDE.md",
+            cls.REPO_ROOT / "dsv2" / "README.md",
+            *sorted((cls.REPO_ROOT / "dsv2").glob("*.py")),
+        )
+
+    @classmethod
+    def _discover_guard_docs(cls):
+        """`clean-tmp`/`PROTECTED_DIRNAMES` に実際に触れている候補だけを対象にする。
+
+        候補を無条件に GUARD_DOCS へ入れると、掃除ガードと無関係な ``dsv2/*.py``
+        （``query.py`` 等）まで「ガード説明が見つからない」で fail してしまう
+        （リポジトリ全体でこの2語に触れるファイルは7件のみ・issue #315 round2）。
+        """
+        docs = []
+        for path in cls._candidate_guard_docs():
+            text = path.read_text(encoding="utf-8")
+            if "clean-tmp" in text or "PROTECTED_DIRNAMES" in text:
+                docs.append(path)
+        return tuple(docs)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.GUARD_DOCS = cls._discover_guard_docs()
 
     @staticmethod
-    def _guard_blob(path: Path) -> str:
+    def _paragraphs(path: Path):
+        """blank line 区切りの段落に分割する（word-wrap で同じ文が複数の物理行に
+        分かれるケースを1つの検査単位にまとめるため）。"""
         text = path.read_text(encoding="utf-8")
+        blocks = []
+        current = []
+        for line in text.splitlines():
+            if line.strip():
+                current.append(line)
+            elif current:
+                blocks.append(current)
+                current = []
+        if current:
+            blocks.append(current)
+        return ["\n".join(block) for block in blocks]
+
+    @classmethod
+    def _guard_blob(cls, path: Path) -> str:
         return "\n".join(
-            line for line in text.splitlines()
-            if "clean-tmp" in line or "保護名" in line
+            para for para in cls._paragraphs(path)
+            if "clean-tmp" in para or "保護名" in para
         )
 
     def test_every_protected_name_appears_in_the_guard_description(self):
+        self.assertTrue(self.GUARD_DOCS, "ガード対象文書が1件も見つからない")
         for doc in self.GUARD_DOCS:
             with self.subTest(doc=doc.name):
                 blob = self._guard_blob(doc)
@@ -319,6 +382,23 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
             for phrase in self.STALE_PHRASES:
                 with self.subTest(doc=doc.name, phrase=phrase):
                     self.assertNotIn(phrase, text)
+
+    def test_bare_handoff_reference_is_always_paired_with_karte(self):
+        """N-02 是正（issue #315 round2）: ``_handoff`` に言及する段落は、必ず
+        ``_karte`` にも言及していること（段落単位）。ファイル単位の blob 判定では
+        同一ファイル内の別記述に正しい対が1つあれば、この段落の欠落を検出できない
+        ——それが N-01 の3件を素通りさせた原因。"""
+        for doc in self.GUARD_DOCS:
+            with self.subTest(doc=doc.name):
+                offending = [
+                    para for para in self._paragraphs(doc)
+                    if self.HANDOFF_BARE_REF in para and "_karte" not in para
+                ]
+                self.assertEqual(
+                    offending, [],
+                    f"{doc} に `{self.HANDOFF_BARE_REF}` を含み `_karte` を"
+                    f"欠く段落がある: {offending}",
+                )
 
 
 if __name__ == "__main__":

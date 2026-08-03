@@ -31,8 +31,15 @@ verb:
   補完する値は verb で違う——``ingest-review`` は「最後に取り込んだラウンド **＋1**」
   （新しいレビューは必ず次のラウンド）、``append`` / ``check`` は「最後に取り込んだ
   ラウンド **そのまま**」（いま是正中のラウンドを対象にする）。
-  **ポインタが無い・壊れている・必要なキーを欠く場合は補完せず EXIT_ERROR**（fail-close）
-  ——壊れたポインタを「無い」と同じに扱うと、別 Issue の台帳へ黙って書きかねない。
+  **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
+  補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
+  別 Issue の台帳へ黙って書きかねない。
+  **``append`` の ``--round`` 補完だけは例外**：ポインタが無い、または ``issue`` が
+  対象と食い違う場合は fail-close せず、**カルテ内の最大ラウンドへ黙って縮退する**
+  （ポインタが JSON として壊れている場合のみ :func:`_read_active` が拒否する）。
+  ``append`` は停止ゲートではないため縮退しても安全——ラウンドのズレが起きても、
+  **全 Attempt のクローズを要求する ``check`` が fail-close で必ず捕捉する**（K-02）ので、
+  ここで厳格化しても二重の安全網にしかならない。
 
 ``repo_root`` は **公開 CLI フラグとしては持たない**内部専用パラメータ
 （``args`` に属性として渡されたときだけ使う）。実運用は常にリポジトリルートで動くため、
@@ -860,7 +867,7 @@ def _validate_outcome(value: str) -> str:
 
 @_fail_close
 def cmd_check(args) -> int:
-    """当該ラウンドの診断網羅と、**先行 Attempt のクローズ**を検査する。
+    """当該ラウンドの診断網羅と、**全 Attempt のクローズ**を検査する。
 
     合格条件は 2 つ:
       1. 当該ラウンドの Attempt が未解消 finding を網羅している。
@@ -927,7 +934,7 @@ def cmd_check(args) -> int:
             )
         return EXIT_ERROR
 
-    print("OK: 当該ラウンドの Attempt が未解消 finding を網羅し、先行 Attempt も全てクローズ済み")
+    print("OK: 当該ラウンドの Attempt が未解消 finding を網羅し、全 Attempt がクローズ済み")
     return EXIT_OK
 
 
