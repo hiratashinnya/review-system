@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -104,6 +105,22 @@ class KarteTestCase(unittest.TestCase):
         path = paths.karte_path(self.issue, self.root)
         return model.parse(path.read_text(encoding="utf-8"))
 
+    def _karte_text(self) -> str:
+        path = self.root / "tmp" / "_karte" / f"issue-{self.issue}.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _active_path(self) -> Path:
+        return self.root / "tmp" / "_karte" / "active.json"
+
+    def _run_with_stdin(self, func, stdin_text, **kwargs):
+        """標準入力を差し替えて ``cmd_*`` を呼ぶ（``--from -`` の経路・K-13）。"""
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(stdin_text)):
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
+                code = func(self._ns(**kwargs))
+        return code, buffer.getvalue(), errors.getvalue()
+
 
 HARMFUL = {
     "harm": "real",
@@ -170,13 +187,18 @@ class TestIngestReview(KarteTestCase):
         self.assertIn("F-307-01", err)
         self.assertEqual(len(self._karte().findings), 1)  # 何も書かれていない
 
-    def test_not_reraised_finding_becomes_resolved(self):
+    def test_explicit_resolved_declaration_is_required_to_resolve(self):
+        """K-06: 解消は ``status: resolved`` の**明示宣言**でだけ成立する。"""
         self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
-        code, _out, _err = self._ingest(2, ("F-307-01", HARMFUL))
-        self.assertEqual(code, cli.EXIT_OK)
+        code, out, err = self._ingest(
+            2, ("F-307-01", HARMFUL), ("F-307-02", dict(COSMETIC, status="resolved"))
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-02", out)
         karte = self._karte()
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
         self.assertEqual(karte.finding("F-307-02").resolved_round, 2)
+        self.assertEqual(karte.finding("F-307-01").status, "open")
         self.assertEqual(karte.finding("F-307-01").rounds, [1, 2])
 
     def test_round_must_be_monotonic(self):
@@ -279,7 +301,11 @@ class TestAppendSimilarity(KarteTestCase):
         """解消済み finding に対する過去試行は類似グループに数えない（未解消のみが対象）。"""
         self._append(root_cause="same", targets=["a/b.py::f"])
         self._append(root_cause="same", targets=["a/b.py::f"])
-        self._ingest(2, ("new", COSMETIC))  # F-307-01 は再掲されず解消、F-307-02 が新規
+        # F-307-01 を `status: resolved` で明示的に解消し（K-06）、別件 F-307-02 を挙げる。
+        code, _out, err = self._ingest(
+            2, ("F-307-01", dict(HARMFUL, status="resolved")), ("new", COSMETIC)
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
         code, _out, _err = self._append(
             finding_ids=["F-307-02"], root_cause="same", targets=["a/b.py::f"]
         )
@@ -369,6 +395,7 @@ class TestCheck(KarteTestCase):
         self._append(
             finding_ids=["F-307-01", "F-307-02"], root_cause="c1", targets=["a/b.py::f"]
         )
+        self._close(1, "--- a/a/b.py\n+++ b/a/b.py\n@@ -1 +1 @@ def f(self):\n-x\n+y\n")
         code, out, _err = self._run(cli.cmd_check, round="1")
         self.assertEqual(code, cli.EXIT_OK)
         self.assertIn("網羅", out)
@@ -389,11 +416,18 @@ class TestStatus(KarteTestCase):
 
     def test_clean(self):
         self._ingest(1, ("new", HARMFUL))
-        self._ingest(2, ("new", COSMETIC))
-        self._ingest(3, ("F-307-02", COSMETIC))
-        self._ingest(4, ("new", HARMFUL))  # 一旦全解消してから別件を挙げる
+        self._ingest(2, ("F-307-01", HARMFUL), ("new", COSMETIC))
+        self._ingest(
+            3,
+            ("F-307-01", dict(HARMFUL, status="resolved")),
+            ("F-307-02", dict(COSMETIC, status="resolved")),
+        )
         karte = self._karte()
+        self.assertEqual(karte.finding("F-307-01").status, "resolved")
         self.assertEqual(karte.finding("F-307-02").status, "resolved")
+        code, out, _err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn("clean", out)
 
     def test_stalled_when_same_finding_open_for_three_rounds(self):
         """同一 finding_id が 3 ラウンド連続未解消なら無進捗と判定する（受入基準）。"""
@@ -439,7 +473,7 @@ class TestRender(KarteTestCase):
         self._append(root_cause="attrs-overwrite", targets=["pkg/forms.py::build_attrs"])
         self._append(root_cause="attrs-overwrite", targets=["pkg/forms.py::build_attrs"])
         _code, out, _err = self._run(cli.cmd_render)
-        self.assertIn("類似グループ飽和", out)
+        self.assertIn("飽和したアプローチ", out)
         self.assertIn("DIRECTIVE", out)
 
     def test_render_without_karte_is_not_found(self):
@@ -448,6 +482,941 @@ class TestRender(KarteTestCase):
             code = cli.main(["render", "--issue", "999"])
         self.assertEqual(code, cli.EXIT_NOT_FOUND)
         self.assertIn("未検出", errors.getvalue())
+
+
+# --- K-02: close-attempt の呼び忘れで実測信号を無効化できない -------------------
+
+
+class TestCheckRequiresClosedAttempts(KarteTestCase):
+    """K-02: ``check`` は当該ラウンド以前の Attempt が全てクローズ済みであることを要求する。
+
+    実測 touched-set の唯一の供給源が ``close-attempt`` なので、これを呼ばずに
+    ``root_cause`` だけ書き換えて試行を重ねると、宣言信号（``root_cause`` 一致が必須）にも
+    実測信号（測定値ゼロ）にも掛からず無制限に通ってしまう——偽装ではなく**呼び忘れだけ**で
+    ゲートが無効化できた。``check`` は SubagentStop フックの判定根拠なので、ここで落とせば
+    「クローズしないと前に進めない」になる。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+
+    def _diff_for(self, name):
+        return f"--- a/pkg/{name}.py\n+++ b/pkg/{name}.py\n@@ -1 +1 @@ def f(self):\n-x\n+y\n"
+
+    def test_unclosed_attempts_block_check(self):
+        """close せずに root_cause を書き換えて重ねた試行は ``check`` で止まる。"""
+        for index in range(1, 4):
+            code, _out, err = self._append(
+                root_cause=f"rc-{index}", targets=[f"pkg/m{index}.py::f{index}"]
+            )
+            self.assertEqual(code, cli.EXIT_OK, err)  # append 自体は通ってしまう
+        self.assertEqual(len(self._karte().attempts), 3)
+
+        code, _out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("未クローズ", err)
+        for number in (1, 2, 3):
+            self.assertIn(f"--attempt {number}", err)  # どれを閉じればよいか名指しする
+        self.assertIn("close-attempt", err)
+
+    def test_check_passes_once_every_attempt_is_closed(self):
+        """クローズ済みなら通る（対で固定する）。"""
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        self._close(1, self._diff_for("m1"))
+        self._close(2, self._diff_for("m2"))
+        code, out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("クローズ済み", out)
+
+    def test_unclosed_attempt_from_an_earlier_round_also_blocks(self):
+        """当該ラウンドだけでなく**それ以前**の未クローズ Attempt も落とす。"""
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])  # round 1・閉じない
+        self._ingest(2, ("F-307-01", HARMFUL))
+        self._append(round="2", root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        self._close(2, self._diff_for("m2"))
+        code, _out, err = self._run(cli.cmd_check, round="2")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("--attempt 1", err)
+
+    def test_unclosed_attempt_from_a_later_round_also_blocks(self):
+        """**先のラウンド**を名乗った未クローズ Attempt も逃げ道にしない（PR #319 R-03）。
+
+        是正前の pending 検査は ``round <= --round`` で絞っていたため、
+        ``append --round <大きい値>`` で申告したラウンドを飛ばした Attempt は
+        未クローズのまま ``check`` を通せた。既定経路では踏まないとしても、
+        「呼ばれないと進まないように作る」を掲げる以上、呼び出し側がラウンドを
+        正直に申告するという**暗黙の前提**にゲートを依存させない。
+        """
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])  # round 1
+        self._close(1, self._diff_for("m1"))
+        self._append(round="9", root_cause="rc-9", targets=["pkg/m9.py::f9"])  # 未クローズ
+        code, _out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("未クローズ", err)
+        self.assertIn("--attempt 2", err)
+
+
+# --- R-02: check の --round も進行ポインタから補完する ---------------------------
+
+
+class TestCheckRoundFromActivePointer(KarteTestCase):
+    """``check --round`` の省略を進行ポインタで補完する（PR #319 R-02）。
+
+    K-02 で ``check`` は SubagentStop フックの判定根拠になったが、**フックは dispatch
+    prompt を読めない**。他 4 verb は ``--issue``（``ingest-review``/``append`` は
+    ``--round`` も）を補完できるのに ``check`` だけ ``required=True`` で非対称だったため、
+    フック側にラウンド導出を再実装させることになっていた。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._close(1, "--- a/pkg/m1.py\n+++ b/pkg/m1.py\n@@ -1 +1 @@ def f1(self):\n-x\n+y\n")
+
+    def test_round_is_filled_from_the_pointer(self):
+        code, out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("round 1", out)
+
+    def test_pointer_round_is_used_as_is_not_incremented(self):
+        """``ingest-review`` と違って **+1 しない**（ポインタ＝いま是正中のラウンド）。"""
+        self._ingest(2, ("F-307-01", HARMFUL))
+        self._append(round="2", root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        self._close(2, "--- a/pkg/m2.py\n+++ b/pkg/m2.py\n@@ -1 +1 @@ def f2(self):\n-x\n+y\n")
+        code, out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("round 2", out)
+        self.assertNotIn("round 3", out)
+
+    def test_explicit_round_still_wins(self):
+        """明示指定はポインタ（round 1・この構成では OK になる）より優先される。"""
+        code, out, _err = self._run(cli.cmd_check, round="2")
+        self.assertEqual(code, cli.EXIT_ERROR)  # round 2 の Attempt はまだ無い
+        self.assertIn("round 2", out)
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        """不在は他 verb と同じ ``EXIT_ERROR``（ラウンドを推測しない）。"""
+        self._active_path().unlink()
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._active_path().write_text("{ broken", encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("壊れている", err)
+
+    def test_pointer_without_round_is_fail_closed(self):
+        self._active_path().write_text('{"issue": 307}', encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("'round'", err)
+
+    def test_pointer_pointing_at_another_issue_is_fail_closed(self):
+        self._active_path().write_text('{"issue": 999, "round": 4}', encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("食い違う", err)
+
+    def test_round_is_not_required_on_the_cli_surface(self):
+        """argparse が ``--round`` 無しの ``check`` を受け付ける（フックが叩ける形）。"""
+        args = cli.build_parser().parse_args(["check", "--issue", "307"])
+        self.assertIsNone(args.round)
+        self.assertIs(args.func, cli.cmd_check)
+
+
+# --- K-06: 「不在＝解消」の廃止 -------------------------------------------------
+
+
+class TestAbsentFindingIsRejected(KarteTestCase):
+    """K-06: 前ラウンドで未解消だった finding の**不在**は解消ではない（fail-close）。
+
+    是正前は再掲されなかった finding を無条件 resolved にしていたため、部分的なレポートを
+    1 回取り込むだけで ``harm: real`` の指摘が消え ``status`` が ``clean`` を返した
+    （fail-open）。CLAUDE.md「指摘は処置完了まで追う」と正面から擦れる。
+    """
+
+    THIRD = {
+        "harm": "real",
+        "harm_detail": "境界値でインデックスが 1 ずれる",
+        "locus": "pkg/slicer.py::take",
+        "summary": "take が末尾要素を取りこぼす",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC), ("new", self.THIRD))
+
+    def test_absent_open_finding_is_rejected_and_karte_is_untouched(self):
+        before = self._karte_text()
+        code, _out, err = self._ingest(2, ("F-307-01", HARMFUL))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("再掲されていない", err)
+        self.assertIn("F-307-02", err)
+        self.assertIn("F-307-03", err)  # 欠けている ID を**全て**列挙する
+        self.assertEqual(self._karte_text(), before)  # カルテは一切書き換えない
+
+    def test_harm_none_is_not_exempted(self):
+        """``harm: none`` だけ緩めない（そこが抜け道になる）。"""
+        code, _out, err = self._ingest(
+            2, ("F-307-01", HARMFUL), ("F-307-03", self.THIRD)
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("F-307-02", err)  # COSMETIC＝harm none も再掲必須
+
+    def test_explicit_resolved_is_the_only_way_to_close(self):
+        code, out, err = self._ingest(
+            2,
+            ("F-307-01", HARMFUL),
+            ("F-307-02", dict(COSMETIC, status="resolved")),
+            ("F-307-03", dict(self.THIRD, status="resolved")),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-02", out)
+        karte = self._karte()
+        self.assertEqual(karte.finding("F-307-02").status, "resolved")
+        self.assertEqual(karte.finding("F-307-03").resolved_round, 2)
+        self.assertEqual([item.id for item in karte.open_findings()], ["F-307-01"])
+
+    def test_misspelled_status_is_rejected_not_defaulted(self):
+        code, _out, err = self._ingest(
+            2,
+            ("F-307-01", HARMFUL),
+            ("F-307-02", dict(COSMETIC, status="resolve")),
+            ("F-307-03", self.THIRD),
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("status", err)
+
+
+# --- K-05: 再発番検出の偽陽性に対するペア限定エスケープハッチ --------------------
+
+
+DUP_A = {
+    "harm": "real",
+    "harm_detail": "重複 ID を弾けず台帳が二重登録される",
+    "locus": "karte/cli.py::cmd_ingest_review",
+    "summary": "cmd_ingest_review が finding ID の重複を見ていない",
+}
+DUP_B = {
+    "harm": "real",
+    "harm_detail": "欠落した ID を検出できず指摘が消える",
+    "locus": "karte/cli.py::cmd_ingest_review",
+    "summary": "cmd_ingest_review が finding ID の欠落を見ていない",
+}
+DUP_C = {
+    "harm": "real",
+    "harm_detail": "順序が崩れて採番が飛ぶ",
+    "locus": "karte/cli.py::cmd_ingest_review",
+    "summary": "cmd_ingest_review が finding ID の順序を見ていない",
+}
+
+
+class TestDistinctFromEscapeHatch(KarteTestCase):
+    """K-05: 同一 locus の別指摘が偽陽性で弾かれたときの**明示的な**逃げ道。
+
+    同一 locus に複数の指摘が出るのは実務上ふつうで、語尾違いの短い要約同士は
+    bigram Jaccard 0.6 を超えうる。是正前はその瞬間にレポート全体が ``EXIT_ERROR`` になり、
+    上書きも否認もできず**正当な新規指摘を起票できなかった**。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", DUP_A))
+
+    def test_threshold_is_not_relaxed(self):
+        """閾値は動かさない（通すための調整をしない）。"""
+        self.assertEqual(model.DUPLICATE_SIMILARITY_THRESHOLD, 0.6)
+        self.assertTrue(
+            model.is_same_finding(
+                DUP_A["summary"], DUP_A["locus"], DUP_B["summary"], DUP_B["locus"]
+            )
+        )
+
+    def test_false_positive_is_rejected_without_the_hatch(self):
+        code, _out, err = self._ingest(2, ("F-307-01", DUP_A), ("new", DUP_B))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("ID 再発番", err)
+        self.assertIn("distinct_from", err)  # 逃げ道の書き方を示す
+
+    def test_named_pair_is_accepted(self):
+        code, out, err = self._ingest(
+            2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-01"))
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-02", out)
+        self.assertIn("distinct_from", out)  # 監査できるよう出力に残す
+        self.assertEqual([item.id for item in self._karte().findings], ["F-307-01", "F-307-02"])
+
+    def test_hatch_applies_only_to_the_named_pair(self):
+        """判定そのものは無効化しない（名指ししていない相手には効き続ける）。"""
+        self._ingest(2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-01")))
+        code, _out, err = self._ingest(
+            3,
+            ("F-307-01", DUP_A),
+            ("F-307-02", DUP_B),
+            ("new", dict(DUP_C, distinct_from="F-307-01")),
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("ID 再発番", err)
+        self.assertIn("F-307-02", err)  # 名指ししていない F-307-02 とは依然として衝突
+
+    def test_unknown_reference_is_rejected(self):
+        code, _out, err = self._ingest(
+            2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-42"))
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("実在しない", err)
+
+    def test_self_reference_is_rejected(self):
+        code, _out, err = self._ingest(
+            2, ("F-307-01", dict(DUP_A, distinct_from="F-307-01"))
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("自分自身", err)
+
+    def test_reference_to_another_issue_is_rejected(self):
+        code, _out, err = self._ingest(
+            2, ("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-999-01"))
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("issue", err)
+
+
+# --- K-09: 表示（render/status）とゲート（append）の判定を一本化 ----------------
+
+
+class TestSaturationDisplayMatchesGate(KarteTestCase):
+    """K-09: ``render``/``status`` の飽和表示は「同種の再試行が拒否される」を意味する。
+
+    是正前は表示側だけが union-find の連結成分を使っており、推移律で広がるクラスタと
+    ``append`` の pairwise 件数が食い違った——A1(rc=x, logic, T1) と A2(rc=x, logic, T2) は
+    change_kind 経由で 1 クラスタになる一方、A3(rc=x, interface, T2) は A2 とのみ類似
+    （hits=1）なので ``append`` は通る。「``render`` が飽和と言った直後に ``append`` が
+    成功する」状態で、後工程が表示を「次の append が落ちる」と誤読した。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="rc-x", change_kind="logic", targets=["pkg/a.py::f"])
+        self._append(root_cause="rc-x", change_kind="logic", targets=["pkg/b.py::g"])
+
+    def test_display_group_is_shown_for_the_saturated_approach(self):
+        code, out, err = self._run(cli.cmd_render)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("飽和したアプローチ", out)
+        self.assertIn("同種の再試行は append が拒否される", out)
+        self.assertIn("Attempt 1, 2", out)
+        # 表示が何を意味しないかも本文で明示する（誤読の防止が K-09 の主眼）。
+        self.assertIn("次の append が必ず落ちる」という意味ではなく", out)
+
+    def test_same_approach_append_is_actually_rejected(self):
+        """表示どおり、同種の再試行は拒否される。"""
+        code, out, _err = self._append(
+            root_cause="rc-x", change_kind="logic", targets=["pkg/a.py::f"]
+        )
+        self.assertEqual(code, cli.EXIT_SATURATED)
+        self.assertIn("DIRECTIVE", out)
+        self.assertEqual(len(self._karte().attempts), 2)
+
+    def test_different_approach_append_is_allowed_and_not_displayed_as_saturated(self):
+        """A3(rc=x, interface, T2) は A2 としか類似しないので通る（表示とも矛盾しない）。"""
+        _code, before, _err = self._run(cli.cmd_render)
+        self.assertNotIn(
+            "root_cause=rc-x / change_kind=interface", before
+        )  # 表示は logic 系のアプローチだけを飽和と言っている
+
+        code, _out, err = self._append(
+            root_cause="rc-x", change_kind="interface", targets=["pkg/b.py::g"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(len(self._karte().attempts), 3)
+
+    def test_status_groups_use_the_same_judgment(self):
+        _code, out, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(out)
+        self.assertEqual(payload["saturated_groups"], [[1, 2]])
+        self.assertTrue(payload["escalate"])
+
+    def test_only_one_similarity_judgment_exists(self):
+        """2 つ目の類似判定（連結成分）を復活させない（再発防止）。"""
+        self.assertFalse(hasattr(similarity, "cluster"))
+        self.assertFalse(hasattr(cli, "_similar_clusters"))
+
+    def test_display_hits_come_from_the_gate_input_set(self):
+        """判定関数だけでなく**入力集合**も ``append`` と同じであること（PR #319 R-01）。"""
+        karte = self._karte()
+        for number, _members, hits, _candidate in cli._saturated_groups(karte):
+            gate_priors = {
+                view.number
+                for view in cli._priors_for(karte, karte.attempt(number).finding_ids)
+            }
+            with self.subTest(candidate=number):
+                self.assertTrue({hit.prior for hit in hits} <= gate_priors)
+
+
+class TestSaturationScopeIsPerCandidate(KarteTestCase):
+    """K-09 の第2の穴: 表示側の priors が候補ごとにスコープされていなかった（PR #319 R-01）。
+
+    判定関数（``find_hits`` ＋ ``is_saturated``）は 1 つでも、**入力集合が 2 通り**あれば
+    表示とゲートは食い違う。是正前の ``_saturated_groups`` は priors に「未解消 finding を
+    **どれか**共有する全 Attempt」を使い、``append`` は ``_priors_for``（＝候補が対象とする
+    未解消 finding を共有する Attempt）を使っていた。
+
+    そのため未解消 finding が 2 件あり Attempt を finding ごとに分けると:
+      * 過大報告 … finding B の Attempt が finding A の試行まで数えられて飽和表示されるのに、
+        同じアプローチの ``append`` は ``EXIT_OK`` で通る。
+      * 過少報告 … その裏返し（``append`` は拒否するのに ``escalate: no`` のまま表示に出ない）。
+
+    ここでは (a) 表示された members の再試行が実際に ``EXIT_SATURATED`` になること、
+    (b) 表示されない Attempt の再試行が ``EXIT_OK`` で通ること、を**対で**固定する。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))  # F-307-01 / F-307-02 とも未解消
+        # F-307-01 に対して同種を 2 件 ＝ このアプローチは飽和した。
+        self._append(
+            finding_ids=["F-307-01"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/a.py::f"],
+        )
+        self._append(
+            finding_ids=["F-307-01"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/b.py::g"],
+        )
+        # F-307-02 に対しては同じ宣言でもまだ 1 件目 ＝ 飽和していない。
+        self._append(
+            finding_ids=["F-307-02"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/c.py::h"],
+        )
+        self.assertEqual(len(self._karte().attempts), 3)
+
+    def _retry(self, attempt):
+        """``attempt`` の宣言をそのまま繰り返す再試行を ``append`` する。"""
+        return self._append(
+            finding_ids=list(attempt.finding_ids),
+            root_cause=attempt.root_cause,
+            change_kind=attempt.change_kind,
+            targets=list(attempt.targets),
+        )
+
+    def test_groups_are_scoped_to_the_candidate_finding_ids(self):
+        _code, out, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(out)
+        # 是正前は [[1, 2, 3]]（F-307-02 の Attempt 3 まで巻き込んでいた）。
+        self.assertEqual(payload["saturated_groups"], [[1, 2]])
+        self.assertTrue(payload["escalate"])
+
+    def test_every_displayed_member_is_actually_rejected_by_append(self):
+        """(a) 表示された members の再試行は必ず ``EXIT_SATURATED``。"""
+        karte = self._karte()
+        groups = cli._saturated_groups(karte)
+        self.assertTrue(groups, "飽和グループが 1 つも出ていない（前提が崩れている）")
+        for _number, members, _hits, _candidate in groups:
+            for member in members:
+                with self.subTest(member=member):
+                    code, out, err = self._retry(karte.attempt(member))
+                    self.assertEqual(code, cli.EXIT_SATURATED, out + err)
+                    self.assertIn("DIRECTIVE", out)
+        self.assertEqual(len(self._karte().attempts), 3)  # 拒否時は書き込まない
+
+    def test_attempts_outside_the_displayed_groups_can_still_append(self):
+        """(b) 表示されない Attempt の再試行は ``EXIT_OK`` で通る。"""
+        karte = self._karte()
+        gated = {
+            member
+            for _number, members, _hits, _candidate in cli._saturated_groups(karte)
+            for member in members
+        }
+        self.assertNotIn(3, gated)  # 是正前は 3 も飽和扱いされていた
+        code, _out, err = self._retry(karte.attempt(3))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(len(self._karte().attempts), 4)
+
+    def test_render_names_only_the_saturated_approach(self):
+        _code, out, _err = self._run(cli.cmd_render)
+        self.assertIn("飽和したアプローチ", out)
+        self.assertIn("衝突する既存 Attempt 1, 2", out)
+        self.assertNotIn("衝突する既存 Attempt 1, 2, 3", out)
+        self.assertNotIn("Attempt 3 と同種", out)
+
+
+# --- K-12: `_REPO_ROOT` の遅延評価 ----------------------------------------------
+
+
+class TestRepoRootIsResolvedLazily(unittest.TestCase):
+    """K-12: 壊れた ``.git`` でも終了コードが文書化範囲 ``{0,2,3,4}`` の外へ漏れない。
+
+    ``main_worktree_root`` は ``.git`` ファイルが ``gitdir:`` で始まらなければ
+    :class:`paths.KartePathError` を送出する。是正前はこれを**モジュールレベル**で
+    評価していたため、例外はどの ``cmd_*``（``_fail_close`` でラップ済み）の内側でもない
+    **import 時**に飛び、``python3 -m karte <任意の verb>`` が未捕捉例外で終了した。
+    """
+
+    def setUp(self):
+        self.broken = Path(tempfile.mkdtemp(prefix="karte-brokengit-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.broken, ignore_errors=True))
+        (self.broken / "tmp").mkdir()
+        (self.broken / ".git").write_text("this-is-not-a-gitdir-line\n", encoding="utf-8")
+
+    def test_module_level_repo_root_is_not_evaluated_at_import(self):
+        self.assertIsNone(cli._REPO_ROOT)
+
+    def test_main_returns_exit_error_without_traceback(self):
+        errors = io.StringIO()
+        with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = cli.main(["status", "--issue", "1"])
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("拒否（fail-close）", errors.getvalue())
+        self.assertNotIn("Traceback", errors.getvalue())
+
+    def test_direct_cmd_call_is_fail_closed_too(self):
+        """``cmd_*`` 直呼び経路でも同じ（ガードの効力を呼び出し経路に依存させない）。"""
+        for func, kwargs in (
+            (cli.cmd_status, {"json": False}),
+            (cli.cmd_render, {}),
+            (cli.cmd_check, {"round": "1"}),
+        ):
+            with self.subTest(func=func.__name__):
+                errors = io.StringIO()
+                args = argparse.Namespace(issue="1", **kwargs)
+                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with contextlib.redirect_stderr(errors):
+                            code = func(args)
+                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertNotIn("Traceback", errors.getvalue())
+
+    def test_every_verb_over_argv_stays_within_documented_exit_codes(self):
+        argv_cases = (
+            ["render", "--issue", "1"],
+            ["status", "--issue", "1"],
+            ["check", "--issue", "1", "--round", "1"],
+            ["ingest-review", "--issue", "1", "--round", "1", "--from", "review.md"],
+            ["close-attempt", "--issue", "1", "--outcome", "fixed"],
+            ["append", "--issue", "1", "--finding-ids", "F-1-01", "--root-cause", "c",
+             "--change-kind", "logic", "--targets", "a.py::f"],
+        )
+        for argv in argv_cases:
+            with self.subTest(verb=argv[0]):
+                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with contextlib.redirect_stderr(io.StringIO()):
+                            code = cli.main(argv)
+                self.assertIn(code, (cli.EXIT_OK, cli.EXIT_NOT_FOUND,
+                                     cli.EXIT_SATURATED, cli.EXIT_ERROR))
+
+
+# --- K-13: ingest-review を stdin から受け取る ----------------------------------
+
+
+class TestIngestFromStdin(KarteTestCase):
+    """K-13: SubagentStop フックが ``last_assistant_message`` を直接食わせる受け口。
+
+    当初設計の「``pr-reviewer`` がチャットで返す → 主文脈がファイル化して ``ingest-review``」
+    には (a) 主文脈が写し間違える余地、(b) 主文脈が忘れたら台帳に入らない、という
+    二重の穴があった。stdin 経路でも検証は**同じように効く**。
+    """
+
+    def test_report_is_read_from_stdin(self):
+        code, out, err = self._run_with_stdin(
+            cli.cmd_ingest_review, _report(("new", HARMFUL)), round="1", source="-"
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+        self.assertEqual([item.id for item in self._karte().findings], ["F-307-01"])
+
+    def test_issue_and_round_are_filled_from_active_pointer(self):
+        self._ingest(1, ("new", HARMFUL))
+        code, out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", HARMFUL)),
+            issue=None,
+            round=None,
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("round 2", out)  # ポインタが指す最後のラウンドの次
+        self.assertEqual(self._karte().finding("F-307-01").rounds, [1, 2])
+        self.assertEqual(
+            json.loads(self._active_path().read_text(encoding="utf-8")),
+            {"issue": 307, "round": 2},
+        )
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("new", HARMFUL)),
+            issue=None,
+            round=None,
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text("{ not json", encoding="utf-8")
+        before = self._karte_text()
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", HARMFUL)),
+            issue=None,
+            round=None,
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("壊れている", err)
+        self.assertEqual(self._karte_text(), before)
+
+    def test_active_pointer_without_round_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text('{"issue": 307}', encoding="utf-8")
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", HARMFUL)),
+            issue=None,
+            round=None,
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("round", err)
+
+    def test_active_pointer_pointing_at_another_issue_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text('{"issue": 999, "round": 1}', encoding="utf-8")
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review, _report(("F-307-01", HARMFUL)), round=None, source="-"
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("食い違", err)
+
+    def test_empty_stdin_is_fail_closed(self):
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review, "   \n", round="1", source="-"
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("空", err)
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
+
+    def test_unreadable_stdin_is_fail_closed(self):
+        """標準入力が無い（``sys.stdin is None``）状態でも未捕捉例外にしない。"""
+        errors = io.StringIO()
+        with mock.patch.object(sys, "stdin", None):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = cli.cmd_ingest_review(self._ns(round="1", source="-"))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("標準入力", errors.getvalue())
+
+    def test_absence_prohibition_still_applies_on_the_stdin_path(self):
+        """K-06 の不在禁止は stdin 経路でも同じように効く。"""
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
+        before = self._karte_text()
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", HARMFUL)),
+            issue=None,
+            round=None,
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("F-307-02", err)
+        self.assertEqual(self._karte_text(), before)
+
+    def test_duplicate_ids_and_missing_harm_still_rejected_on_the_stdin_path(self):
+        self._ingest(1, ("new", HARMFUL))
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", HARMFUL), ("F-307-01", HARMFUL)),
+            round="2",
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("重複", err)
+
+        broken = dict(HARMFUL)
+        del broken["harm"]
+        code, _out, err = self._run_with_stdin(
+            cli.cmd_ingest_review, _report(("F-307-01", broken)), round="2", source="-"
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("harm", err)
+
+    def test_distinct_from_hatch_still_works_on_the_stdin_path(self):
+        self._ingest(1, ("new", DUP_A))
+        code, out, err = self._run_with_stdin(
+            cli.cmd_ingest_review,
+            _report(("F-307-01", DUP_A), ("new", dict(DUP_B, distinct_from="F-307-01"))),
+            round="2",
+            source="-",
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-02", out)
+
+    def test_stdin_over_argv(self):
+        """公開 CLI 面（``--from -``）でも通ること。"""
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+            with mock.patch.object(sys, "stdin", io.StringIO(_report(("new", HARMFUL)))):
+                with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
+                    code = cli.main(["ingest-review", "--issue", "307", "--round", "1",
+                                     "--from", "-"])
+        self.assertEqual(code, cli.EXIT_OK, errors.getvalue())
+        self.assertIn("F-307-01", buffer.getvalue())
+
+
+# --- K-14: render をフックが注入しやすい形にする --------------------------------
+
+
+class TestRenderForInjection(KarteTestCase):
+    """K-14: SubagentStart フックが ``additionalContext`` としてそのまま注入できる本文。"""
+
+    def test_issue_is_filled_from_active_pointer(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="attrs-overwrite", targets=["pkg/forms.py::build_attrs"])
+        code, out, err = self._run(cli.cmd_render, issue=None)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("issue-307", out)
+        self.assertIn("Attempt 1", out)
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        code, _out, err = self._run(cli.cmd_render, issue=None)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text("[]", encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_render, issue=None)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_output_is_self_contained(self):
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
+        self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite",
+            targets=["pkg/forms.py::build_attrs"], diagnosis="既存 attrs を作り直している",
+        )
+        self._close(
+            1, "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
+        )
+        code, out, err = self._run(cli.cmd_render, issue=None)
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        # 何の本文か・どこから来たか（前後の文脈に依存しない）。
+        self.assertIn("Issue #307", out)
+        self.assertIn("issue-307.md", out)
+        # 受け手が次に何をすべきか（呼ぶべきコマンドを含む）。
+        self.assertIn("python3 -m karte append", out)
+        self.assertIn("python3 -m karte close-attempt", out)
+        # 過去 Attempt（実測・Result 込み）と未解消 finding の一覧。
+        self.assertIn("## Prior attempts（DO NOT repeat these）", out)
+        self.assertIn("実測 touched: pkg/forms.py", out)
+        self.assertIn("→ Result: partial", out)
+        self.assertIn("## Open findings（未解消）", out)
+        self.assertIn("F-307-02", out)
+        self.assertIn("harm_detail:", out)
+        # 端末装飾・対話前提の文言を混ぜない。
+        self.assertNotIn("\x1b[", out)
+        for interactive in ("続けますか", "y/n", "[Y/n]"):
+            self.assertNotIn(interactive, out)
+
+    def test_missing_karte_is_still_not_found(self):
+        code, _out, err = self._run(cli.cmd_render, issue="999")
+        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertIn("未検出", err)
+
+
+# --- K-15: status をフックから実行できるようにする -----------------------------
+
+
+class TestStatusForInjection(KarteTestCase):
+    """K-15: PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に実行し注入する本文。"""
+
+    def test_issue_is_filled_from_active_pointer(self):
+        self._ingest(1, ("new", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("issue-307", out)
+        self.assertIn("harmful-open", out)
+
+    def test_json_also_honors_active_pointer(self):
+        """``--json`` は挙動維持（機械可読用）だが --issue 省略は同じく補完される。"""
+        self._ingest(1, ("new", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, issue=None, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(json.loads(out)["issue"], 307)
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text("not json at all", encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_output_is_self_contained_for_harmful_open(self):
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
+        self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite",
+            targets=["pkg/forms.py::build_attrs"],
+        )
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        # 何の本文か・どこから来たか（前後の文脈に依存しない）。
+        self.assertIn("Issue #307", out)
+        self.assertIn("issue-307.md", out)
+        # verdict（実害あり残存／全件実害なし／無進捗のいずれか）。
+        self.assertIn("verdict: harmful-open（実害あり残存）", out)
+        # 残存 finding と harm 判定。
+        self.assertIn("## 残存 finding（未解消・harm 判定つき）", out)
+        self.assertIn("F-307-01 [harm=real]", out)
+        self.assertIn("F-307-02 [harm=none]", out)
+        # エスカレーション条件のどれに該当するか（この時点では該当しない）。
+        self.assertIn("escalate: no（無進捗・飽和したアプローチのいずれにも該当しない）", out)
+        # 端末装飾・対話前提の文言を混ぜない。
+        self.assertNotIn("\x1b[", out)
+        for interactive in ("続けますか", "y/n", "[Y/n]"):
+            self.assertNotIn(interactive, out)
+
+    def test_escalation_reason_is_explicit_when_stalled(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._ingest(2, ("F-307-01", HARMFUL))
+        self._ingest(3, ("F-307-01", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("escalate: yes（理由: 無進捗（F-307-01））", out)
+
+    def test_missing_karte_is_still_not_found(self):
+        code, _out, err = self._run(cli.cmd_status, issue="999", json=False)
+        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertIn("未検出", err)
+
+
+# --- K-07: 正規化の保持文字クラス ----------------------------------------------
+
+
+class TestNormalizeTextCoversAllScripts(unittest.TestCase):
+    """K-07: 文字クラスを**列挙しない**（列挙すると漏れた文字体系で fail-open する）。
+
+    是正前は ASCII 英数・かな・CJK 統合漢字だけを保持していたため、全角英数・ハングル・
+    アクセント付きラテン・CJK 拡張漢字は空白へ畳まれ、要約がそれらだけで構成されると
+    正規化結果が空になり :func:`model.is_same_finding` が常に False ＝**再発番の見逃し**。
+    """
+
+    SCRIPTS = {
+        "全角英数": "ＡＢＣ１２３",
+        "ハングル": "한글로 쓴 요약",
+        "アクセント付きラテン": "café résumé naïve",
+        "CJK拡張漢字": "𠀋𠀌𠀍𠀎",
+        "キリル": "Проверка",
+        "ギリシャ": "Παράδειγμα",
+    }
+
+    def test_letters_and_digits_survive_normalization(self):
+        for name, text in self.SCRIPTS.items():
+            with self.subTest(script=name):
+                self.assertTrue(model.normalize_text(text))
+                self.assertTrue(model.shingles(text))
+
+    def test_reissued_id_is_detected_for_every_script(self):
+        for name, text in self.SCRIPTS.items():
+            with self.subTest(script=name):
+                self.assertTrue(model.is_same_finding(text, "x.py::f", text, "y.py::g"))
+
+    def test_reworded_restatement_is_detected_for_non_ascii_scripts(self):
+        self.assertTrue(
+            model.is_same_finding(
+                "ＡＢＣ１２３ の初期化が漏れている", "pkg/a.py::init",
+                "ＡＢＣ１２３ の初期化が漏れている（再掲）", "pkg/a.py::init",
+            )
+        )
+
+    def test_symbols_and_punctuation_are_still_folded(self):
+        self.assertEqual(model.normalize_text("a-b_c!!"), "a b c")
+        self.assertEqual(model.normalize_text("  A  B  "), "a b")
+
+    def test_compatibility_normalization_is_not_applied(self):
+        """NFKC は掛けない（全角と半角を同一視すると別物を再発番と誤検出する）。"""
+        self.assertNotEqual(model.normalize_text("ＡＢＣ"), model.normalize_text("ABC"))
+
+    def test_existing_japanese_and_english_cases_do_not_regress(self):
+        self.assertEqual(
+            model.normalize_text("build_attrs が既存 attrs を破棄している"),
+            "build attrs が既存 attrs を破棄している",
+        )
+        self.assertTrue(
+            model.is_same_finding(
+                "build_attrs が既存 attrs を破棄している", "a/b.py::build_attrs",
+                "build_attrs が既存の attrs を破棄している（再掲）", "a/b.py::build_attrs",
+            )
+        )
+        self.assertFalse(
+            model.is_same_finding(
+                "build_attrs が既存 attrs を破棄している", "a/b.py::build_attrs",
+                "build_attrs の docstring が古い", "a/b.py::build_attrs",
+            )
+        )
+
+
+# --- K-04: symlink 再検査の保証範囲（docstring の正直さ） -----------------------
+
+
+class TestAtomicWriteDocstringStatesItsLimits(unittest.TestCase):
+    """K-04: docstring が実装の保証を上回っていないこと（過大な保証表現を持たない）。
+
+    ``Path.write_text`` / ``open("a")`` は symlink を追跡するため、``is_symlink()`` 検査と
+    open の間に差し替えられれば追従する window が残る。「TOCTOU 対策」と書くと、原子的な
+    保証があるかのように読める——実情（best-effort・厳密化は Issue #318）を書く。
+    """
+
+    def test_write_text_atomic_docstring_is_honest(self):
+        doc = paths.write_text_atomic.__doc__
+        # 「TOCTOU 対策」を**保証として**掲げない（是正前は「（TOCTOU 対策・…）」だった）。
+        self.assertNotIn("（TOCTOU 対策", doc)
+        self.assertIn("「TOCTOU 対策」と呼べる強さを持たない", doc)
+        self.assertIn("best-effort", doc)
+        self.assertIn("window", doc)
+        self.assertIn("Issue #318", doc)
+        self.assertIn("O_NOFOLLOW", doc)
+        self.assertIn("_reverify_before_delete", doc)  # より厳密な比較対象を残す
+
+    def test_append_text_docstring_is_honest(self):
+        doc = paths.append_text.__doc__
+        self.assertNotIn("（TOCTOU 対策", doc)
+        self.assertIn("best-effort", doc)
+        self.assertIn("window", doc)
+        self.assertIn("Issue #318", doc)
+
+    def test_reverification_still_rejects_symlinks(self):
+        """保証範囲を狭めるのではなく、正直に書くだけ（検査自体は残す）。"""
+        root = Path(tempfile.mkdtemp(prefix="karte-symlink-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        target = root / "real.md"
+        target.write_text("x\n", encoding="utf-8")
+        link = root / "link.md"
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):  # pragma: no cover - symlink 不可環境
+            self.skipTest("symlink を作れない環境")
+        with self.assertRaises(paths.KartePathError):
+            paths.write_text_atomic(link, "y\n")
+        with self.assertRaises(paths.KartePathError):
+            paths.append_text(link, "y\n")
+        self.assertEqual(target.read_text(encoding="utf-8"), "x\n")
 
 
 # --- パスガード ---------------------------------------------------------------

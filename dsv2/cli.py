@@ -15,8 +15,8 @@
       宣言 slug がコーパスに実在しなければ typo 疑いの WARN を出す（fail-close は変えない・issue #103）。
   * ``build-view``       meta.json ＋本文から単一 doc_view.html を生成（Sub-F #75）。
   * ``clean-tmp <path>`` 書込後の tmp 著作ミラー（``tmp/<sprint>/<parent-id>``）をガード付きで
-      削除（既定 dry-run・``--apply`` で削除）。``tmp/_handoff``・``tmp/`` 外・階層違いは
-      fail-close で拒否する（reconciliation Step 3-3 の掃除手段）。
+      削除（既定 dry-run・``--apply`` で削除）。保護名（``_handoff``・``_karte``）・``tmp/`` 外・
+      階層違いは fail-close で拒否する（reconciliation Step 3-3 の掃除手段）。
 
 終了コード: 0 正常 / 2 未検出または用法エラー（argparse 既定） / 4 前提違反（reverse/rename の
 前提不成立・**check-slug の衝突**）。
@@ -288,8 +288,8 @@ def cmd_build_view(args) -> int:
 def cmd_clean_tmp(args) -> int:
     """書込済み tmp 著作ミラーをガード付きで削除する（reconciliation Step 3-3）。
 
-    ``tmp/<sprint>/<parent-id>`` ちょうど2階層のみ削除し、``tmp/_handoff``・``tmp/`` 外・
-    symlink・階層違いは削除せず EXIT_ERROR（fail-close）。既定は dry-run。
+    ``tmp/<sprint>/<parent-id>`` ちょうど2階層のみ削除し、保護名（``_handoff``・``_karte``）・
+    ``tmp/`` 外・symlink・階層違いは削除せず EXIT_ERROR（fail-close）。既定は dry-run。
 
     ``repo_root`` は **公開 CLI フラグとしては存在しない**内部専用パラメータ
     （``args`` に属性として渡されたときだけ使う）。実運用（reconciliation.md Step 3-3）は

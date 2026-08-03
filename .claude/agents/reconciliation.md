@@ -60,9 +60,9 @@ validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック
    python3 -m dsv2 clean-tmp tmp/<sprint>/<parent-id>            # まず dry-run で対象を確認
    python3 -m dsv2 clean-tmp tmp/<sprint>/<parent-id> --apply    # 検査を通れば削除
    ```
-   **素の `rm -rf` は使わない**（Bash の許可用途に無く、パス解決を誤ると `tmp/_handoff/` やリポジトリ本体を消しうる）。
-   `clean-tmp` は「解決後のパスが `<repo>/tmp/<sprint>/<parent-id>` のちょうど2階層であり `_handoff` を含まず symlink でもない」ことを
-   検査してからしか削除しない（違反は非0終了で**削除せず**返る＝fail-close・実装 `dsv2/cleantmp.py`・テスト `tests/unit/test_dsv2_cleantmp.py`）。
+   **素の `rm -rf` は使わない**（Bash の許可用途に無く、パス解決を誤ると `tmp/_handoff/`・`tmp/_karte/` やリポジトリ本体を消しうる）。
+   `clean-tmp` は「解決後のパスが `<repo>/tmp/<sprint>/<parent-id>` のちょうど2階層であり **保護名（`_handoff`・`_karte`）を構成要素に含まず** symlink でもない」ことを
+   検査してからしか削除しない（違反は非0終了で**削除せず**返る＝fail-close・実装 `dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`・テスト `tests/unit/test_dsv2_cleantmp.py`）。
    非0で返ったら**掃除を諦めて主文脈に報告**する（自前の削除手段に切り替えない）。書込自体は完了しているので `status: done` のまま
    `notes` に掃除失敗を残す。
 
@@ -71,7 +71,7 @@ validation_ok: <reconciliation-validator が返した VALIDATION_OK ブロック
 報告項目（layer / sprint / parent_ids / written_by_parent / applied_self_fix）は**チャットに並べず**、
 後述「ハンドオフ」規約に従って `tmp/_handoff/reconciliation--<batch_id>.yaml` に Write で書く（slug 列で表す）。
 `tmp/_handoff/` は Step 3-3 の削除対象（`tmp/<sprint>/<parent-id>/`）の外なので掃除で消えない
-（`dsv2 clean-tmp` も `_handoff` を含むパスを機械的に拒否する）。
+（`dsv2 clean-tmp` も保護名 `_handoff`・`_karte` を構成要素に含むパスを機械的に拒否する＝`PROTECTED_DIRNAMES`）。
 
 チャットに返すのは**パスと1行要約だけ**：
 
@@ -91,7 +91,7 @@ fail-close で書き込まなかったとき（`validation_ok` 無し・ROLLBACK
 - tmp への書き込みは self_fix 適用（Step 2）に限る（新規ノードの著作はしない＝著作エージェントの専権）。
 - コーパスへの書き込みは Step 3 でのみ行う。
 - `validation_ok` 無し・ROLLBACK 含み・self_fix 適用不能のいずれも、**書き込まずに主文脈へ返す**（fail-close）。
-- Bash は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）・**`python3 -m dsv2 clean-tmp [--apply]`（Step 3-3 の tmp 掃除）**専用。それ以外の本文編集は Write/Edit のみ（場当たり sed/awk/echo 禁止）。**`rm`/`rmdir`/`find -delete` 等の削除コマンドは使わない**——掃除は `clean-tmp` のガード（`tmp/<sprint>/<parent-id>` の2階層限定・`_handoff` 拒否・symlink 拒否）を必ず通す。
+- Bash は `python3 -m dsv2 reverse`（FND 解消の機械実行）・`git mv`（status 遷移の rename）・`python3 -m dsv2 deps/dependents`（書込位置の特定）・**`python3 -m dsv2 clean-tmp [--apply]`（Step 3-3 の tmp 掃除）**専用。それ以外の本文編集は Write/Edit のみ（場当たり sed/awk/echo 禁止）。**`rm`/`rmdir`/`find -delete` 等の削除コマンドは使わない**——掃除は `clean-tmp` のガード（`tmp/<sprint>/<parent-id>` の2階層限定・保護名 `_handoff`／`_karte` 拒否・symlink 拒否）を必ず通す。
 - **バッチは全親を処理する**（一部の親だけ書いて残りを放置しない）。前提確認で1件でも不備があればバッチ全体を書き込まずに返す。
 
 ## ハンドオフ（呼び出し元への受け渡し）
