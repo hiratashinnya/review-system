@@ -2,9 +2,13 @@
 
 verb:
   ``ingest-review``  レビューレポートを ``## Findings`` へ取り込む（ID 重複・未知 ID・
-                     harm 欄欠落・同一指摘への ID 再発番を検証）。
+                     harm 欄欠落・同一指摘への ID 再発番・前ラウンド未解消の不在を検証）。
+                     ``--from -`` で **stdin** からも読める（K-13：SubagentStop フックが
+                     ``last_assistant_message`` を直接食わせるため、人手の中継を挟まない）。
   ``render``         「Prior attempts（DO NOT repeat these）」＋未解消 finding 一覧。
-                     類似グループが飽和していれば転換指令も合成する。
+                     同種の再試行が拒否される段階に達したアプローチは転換指令も合成する。
+                     出力は **subagent のコンテキストへそのまま注入できる自己完結した本文**
+                     （K-14：SubagentStart フックが ``additionalContext`` として注入する）。
   ``append``         Attempt をスキーマ検証つきで追記。類似飽和なら**書き込まず**拒否し、
                      反復された root_cause / targets を名指しした転換指令を stdout に返す。
   ``close-attempt``  修正後の実測 touched-set を ``### Result k`` として追記する
@@ -15,6 +19,13 @@ verb:
 
 終了コード（``dsv2`` に合わせる）:
   0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
+
+進行ポインタ（``tmp/_karte/active.json``）による補完:
+  フック（SubagentStart / SubagentStop）は dispatch prompt を読めないため、Issue 番号と
+  ラウンド番号の唯一の情報源が進行ポインタになる。``--issue`` は全 verb で、``--round`` は
+  ``ingest-review`` / ``append`` で省略でき、省略時はポインタから補完する。
+  **ポインタが無い・壊れている・必要なキーを欠く場合は補完せず EXIT_ERROR**（fail-close）
+  ——壊れたポインタを「無い」と同じに扱うと、別 Issue の台帳へ黙って書きかねない。
 
 ``repo_root`` は **公開 CLI フラグとしては持たない**内部専用パラメータ
 （``args`` に属性として渡されたときだけ使う）。実運用は常にリポジトリルートで動くため、
@@ -45,10 +56,12 @@ EXIT_ERROR = 4
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 
-# linked worktree（`issue-implementer` 等の isolated worktree）でも main worktree の
-# `tmp/_karte/` へ収束させる（K-01）。`.git` がファイルなら `gitdir:` を辿る
-# `paths.main_worktree_root`（ガードは downstream の `_resolved_root` 等で必ず掛かる）。
-_REPO_ROOT = paths.main_worktree_root(Path(__file__).resolve().parent.parent)
+# `karte` パッケージが置かれているディレクトリ（＝repo-root の候補）。
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+
+# repo-root のオーバーライド点。**既定は None（＝未解決）**で、実際の導出は
+# `_repo_root` が呼ばれたときに行う（K-12 の遅延評価）。
+_REPO_ROOT = None
 
 
 class KarteUsageError(Exception):
@@ -86,22 +99,69 @@ def _fail_close(func):
 
 
 def _repo_root(args) -> Path:
+    """repo-root を **呼び出しごとに遅延解決**する（K-12）。
+
+    linked worktree（``issue-implementer`` 等の isolated worktree）でも main worktree の
+    ``tmp/_karte/`` へ収束させる（K-01）。``.git`` がファイルなら ``gitdir:`` を辿る
+    :func:`paths.main_worktree_root` を使う（ガードは downstream の ``_resolved_root`` 等で
+    必ず掛かる）。
+
+    **import 時に評価しない**。``main_worktree_root`` は ``.git`` ファイルが不正形式なら
+    :class:`KartePathError` を送出するが、モジュールレベルで評価すると、その例外は
+    どの ``cmd_*``（:func:`_fail_close` でラップ済み）の内側でもない **import 時**に飛ぶ。
+    結果、``.git`` が壊れた worktree では ``python3 -m karte <任意の verb>`` が未捕捉例外で
+    終了し、文書化された終了コード ``{0,2,3,4}`` の外に漏れていた（K-03 と同種＝観測不能）。
+    ここで解決すれば、経路が ``main()`` でも ``cmd_*`` 直呼びでも必ず ``_fail_close`` の
+    内側に入る＝「ガードの効力を呼び出し経路に依存させない」規律と一貫する。
+
+    結果をキャッシュしない（呼び出しごとに数回の ``.git`` 参照で済み、キャッシュすると
+    プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため）。
+    """
     override = getattr(args, "repo_root", None)
-    return Path(override).resolve() if override else _REPO_ROOT
+    if override:
+        return Path(override).resolve()
+    if _REPO_ROOT is not None:
+        return Path(_REPO_ROOT)
+    return paths.main_worktree_root(_PACKAGE_ROOT)
 
 
-def _read_active(repo_root) -> dict:
+def _read_active(repo_root, *, required: bool = False) -> dict:
+    """進行ポインタ ``tmp/_karte/active.json`` を読む。
+
+    ``required``
+        ``--issue`` / ``--round`` の補完に使う（＝これが唯一の情報源）とき True。
+        ポインタが**まだ無い**場合に ``{}`` を返さず :class:`KarteUsageError` を送出する。
+
+    **壊れている場合は ``required`` によらず常に拒否する**（K-13/K-14）。JSON として
+    読めない・dict でないポインタを黙って「無い」と同じ ``{}`` に潰すと、補完が沈黙の
+    うちに別の値（別 Issue・別ラウンド）へ倒れ、誤った台帳を書き換えても観測できない。
+    「まだ無い」（正常な初期状態）と「壊れている」（異常）は別物として扱う。
+    """
     try:
         path = paths.active_path(repo_root)
-    except KartePathError:
+    except paths.KarteMissing as exc:
+        if required:
+            raise KarteUsageError(f"進行ポインタが無い: {exc}") from None
         return {}
     if not path.is_file():
+        if required:
+            raise KarteUsageError(
+                f"進行ポインタ {path} が無い"
+                "（先に `ingest-review --issue N --round R` を明示指定で実行する）"
+            )
         return {}
     try:
         data = json.loads(paths.read_text(path))
-    except (ValueError, KartePathError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    except ValueError as exc:
+        raise KarteUsageError(
+            f"進行ポインタ {path} が JSON として壊れている: {exc}"
+            "（補完に使えないため取り込まない。ポインタを作り直すこと）"
+        ) from None
+    if not isinstance(data, dict):
+        raise KarteUsageError(
+            f"進行ポインタ {path} の中身が JSON オブジェクトでない: {type(data).__name__}"
+        )
+    return data
 
 
 def _write_active(repo_root, issue: int, round_no: int) -> None:
@@ -112,13 +172,18 @@ def _write_active(repo_root, issue: int, round_no: int) -> None:
 
 
 def _resolve_issue(args) -> int:
-    """``--issue`` 省略時は進行ポインタ ``tmp/_karte/active.json`` を使う。"""
+    """``--issue`` 省略時は進行ポインタ ``tmp/_karte/active.json`` から補完する。
+
+    フック（SubagentStart の ``render`` / SubagentStop の ``ingest-review`` / ``check``）は
+    dispatch prompt を読めないため、Issue 番号の唯一の情報源がこのポインタになる（K-13/K-14）。
+    ポインタが無い・壊れている・``issue`` を欠くときは推測せず fail-close する。
+    """
     if getattr(args, "issue", None) is not None:
         return paths.validate_issue(args.issue)
-    active = _read_active(_repo_root(args))
+    active = _read_active(_repo_root(args), required=True)
     if "issue" not in active:
         raise KarteUsageError(
-            "--issue が未指定で、進行ポインタ tmp/_karte/active.json も無い"
+            "--issue が未指定で、進行ポインタ tmp/_karte/active.json に 'issue' が無い"
             "（先に `ingest-review --issue N --round R` を実行する）"
         )
     return paths.validate_issue(active["issue"])
@@ -129,6 +194,64 @@ def _validate_round(value) -> int:
     if not text.isdigit() or int(text) < 1:
         raise KarteUsageError(f"round は 1 以上の整数: {value!r}")
     return int(text)
+
+
+STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
+
+
+def _resolve_ingest_round(args, issue: int) -> int:
+    """``ingest-review`` のラウンド番号を決める（``--round`` 省略時は進行ポインタ＋1）。
+
+    ポインタが保持しているのは**最後に取り込んだ**ラウンド番号なので、新しいレビュー
+    レポートは必ずその次のラウンドになる（同じ番号で再取り込みすると単調増加の検査に
+    掛かって台帳の状態遷移が壊れる）。フックは「何ラウンド目か」を知る術がないため、
+    ここで決定論的に導出する（K-13）。
+
+    ポインタが無い・壊れている・``round`` を欠く・``issue`` が対象と食い違う場合は
+    推測せず fail-close する（初回の取り込みは ``--issue``/``--round`` を明示して行う）。
+    """
+    if getattr(args, "round", None) is not None:
+        return _validate_round(args.round)
+    active = _read_active(_repo_root(args), required=True)
+    if "round" not in active:
+        raise KarteUsageError(
+            "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
+            "（初回の取り込みは `--round 1` を明示する）"
+        )
+    if "issue" in active and paths.validate_issue(active["issue"]) != issue:
+        raise KarteUsageError(
+            f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
+            "（--round を明示するか、対象 Issue の取り込みからやり直す）"
+        )
+    return _validate_round(active["round"]) + 1
+
+
+def _read_report(args, repo_root) -> str:
+    """レビューレポート本文を ``--from`` から読む（``-`` は標準入力）。
+
+    stdin 経路は K-13（SubagentStop フックが ``last_assistant_message`` をそのまま
+    パイプする）のために設ける。**検証は経路によらず同一**——本文を得たあとの処理は
+    ファイル経路と 1 本の流れに合流するので、ID 重複・未知 ID・harm 欄欠落・
+    K-06 の不在禁止・K-05 の ``distinct_from`` はどちらでも同じように効く。
+
+    空入力は「指摘なし」と解釈しない（fail-close）。フックが本文を渡し損ねた場合と
+    「レビューの結果ゼロ件だった」場合を区別できず、後者を装って台帳の未解消指摘を
+    素通しできてしまうため（K-06 と同じ fail-open の型）。
+    """
+    source = getattr(args, "source", None)
+    if source is None:
+        raise KarteUsageError("--from が未指定（レポートのパスか `-`（標準入力）を指定する）")
+    if str(source) != STDIN_SOURCE:
+        return paths.read_text(paths.resolve_within_repo(source, repo_root))
+    if sys.stdin is None:
+        raise KarteUsageError("`--from -` が指定されたが標準入力が無い")
+    text = sys.stdin.read()
+    if not text.strip():
+        raise KarteUsageError(
+            "`--from -` の標準入力が空（レビューレポート本文が渡されていない）。"
+            "空入力を『指摘なし』とは解釈しない"
+        )
+    return text
 
 
 def _validate_attempt_number(value) -> int:
@@ -195,32 +318,66 @@ def _stalled_ids(karte: model.Karte) -> list:
     )
 
 
-def _saturated_clusters(karte: model.Karte) -> list:
-    """未解消 finding を共有し合う試行群のうち、飽和している類似グループ。"""
+def _saturated_groups(karte: model.Karte) -> list:
+    """「同種の再試行がもう ``append`` できない」アプローチを列挙する（K-09：判定の一本化）。
+
+    **``append`` のゲートとまったく同じ判定関数を使う**（:func:`similarity.find_hits` ＋
+    :func:`similarity.is_saturated`）。違うのは主語だけで、``append`` の主語が「これから
+    書き込もうとしている 1 件」であるのに対し、ここでは「**既に書かれた Attempt k と
+    同じ宣言（root_cause / change_kind / targets）を繰り返す仮想の新規試行**」を主語に
+    置く。したがって表示の意味は 1 つに定まる——
+
+        ここに挙がったアプローチと**同種**の ``append`` は必ず ``EXIT_SATURATED`` になる。
+
+    是正前は表示側だけが :func:`similarity.cluster`（union-find の連結成分）を使っており、
+    推移律で広がるクラスタとゲートの pairwise 件数が食い違っていた。例えば
+    A1(rc=x, logic, T1) と A2(rc=x, logic, T2) は change_kind 経由で 1 つの連結成分になる
+    一方、A3(rc=x, interface, T2) は A2 とのみ類似（hits=1）なので ``append`` は通る
+    ——「``render`` が飽和と言った直後に ``append`` が成功する」＝後工程が誤読した（K-09）。
+    現在はどちらも同じ pairwise 判定なので、A1/A2 と同種の再試行だけが拒否対象として
+    表示され、A3 のような別アプローチは表示にも現れないし拒否もされない。
+
+    仮想の新規試行には実測 ``touched`` を持たせない（``append`` は修正の**前**に走るため
+    新規側に実測値は存在しない）。比較相手の過去 Attempt 側には ``close-attempt`` で
+    取り込んだ実測値を載せる——ここも ``append`` と同じ扱い。
+
+    戻り値は ``(candidate_number, members, hits, candidate_view)`` の列。
+    ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
+    ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
+    """
     open_ids = _open_ids(karte)
-    views = [
-        _view_of(karte, attempt)
-        for attempt in karte.attempts
-        if open_ids & set(attempt.finding_ids)
+    relevant = [
+        attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
     ]
-    return [
-        members
-        for members in similarity.cluster(views)
-        if len(members) >= similarity.SATURATION_THRESHOLD
-    ]
+    priors = [_view_of(karte, attempt) for attempt in relevant]
+    groups: list = []
+    seen: set = set()
+    for attempt in relevant:
+        candidate = similarity.AttemptView(
+            number=attempt.number,
+            root_cause=attempt.root_cause,
+            change_kind=attempt.change_kind,
+            targets=tuple(attempt.targets),
+            touched=(),
+        )
+        hits = similarity.find_hits(candidate, priors)
+        if not similarity.is_saturated(hits):
+            continue
+        members = tuple(sorted({hit.prior for hit in hits}))
+        if members in seen:
+            continue
+        seen.add(members)
+        groups.append((attempt.number, list(members), hits, candidate))
+    return groups
 
 
-def _cluster_directive(karte: model.Karte, members) -> str:
-    """既存クラスタから転換指令を合成する（末尾の試行を「今回」と見なす）。"""
-    views = {view.number: view for view in (_view_of(karte, a) for a in karte.attempts)}
-    latest = views[members[-1]]
-    priors = [views[number] for number in members[:-1]]
-    hits = similarity.find_hits(latest, priors)
-    if not hits:
-        return ""
-    attempt = karte.attempt(members[-1])
+def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate) -> str:
+    """飽和したアプローチの転換指令（``render`` / ``close-attempt`` の表示用）。"""
+    attempt = karte.attempt(candidate_number)
     open_ids = _open_ids(karte) & set(attempt.finding_ids if attempt else [])
-    return similarity.build_directive(latest, hits, open_ids).text()
+    return similarity.build_directive(
+        candidate, hits, open_ids, subject_label="飽和したアプローチ"
+    ).text()
 
 
 # --- verb: ingest-review ------------------------------------------------------
@@ -228,11 +385,18 @@ def _cluster_directive(karte: model.Karte, members) -> str:
 
 @_fail_close
 def cmd_ingest_review(args) -> int:
+    """レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば**一切書かない**）。
+
+    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。
+    ``--issue`` / ``--round`` は進行ポインタから補完できる（:func:`_resolve_issue` /
+    :func:`_resolve_ingest_round`）。検証は経路によらず共通で、ID 重複・未知 ID・
+    harm 欄欠落・ID 再発番（K-05 の ``distinct_from`` で名指ししたペアだけ除外）・
+    **前ラウンド未解消 finding の不在**（K-06）を見る。
+    """
     repo_root = _repo_root(args)
     issue = _resolve_issue(args)
-    round_no = _validate_round(args.round)
-    report_path = paths.resolve_within_repo(args.source, repo_root)
-    report_text = paths.read_text(report_path)
+    round_no = _resolve_ingest_round(args, issue)
+    report_text = _read_report(args, repo_root)
 
     path = paths.karte_path(issue, repo_root, create_dir=True)
     karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
@@ -245,6 +409,7 @@ def cmd_ingest_review(args) -> int:
         )
 
     review = model.parse_review(report_text, issue)
+    previously_open = _open_ids(karte)
 
     errors: list = []
     accepted: list = []  # (finding_id, ReviewFinding, is_new)
@@ -274,6 +439,11 @@ def cmd_ingest_review(args) -> int:
             continue
         seen.add(finding_id)
 
+        bad_refs = _invalid_distinct_refs(karte, seen, finding_id, item)
+        if bad_refs:
+            errors.extend(bad_refs)
+            continue
+
         if is_new:
             duplicate = _find_duplicate(karte, accepted, item)
             if duplicate is not None:
@@ -281,26 +451,45 @@ def cmd_ingest_review(args) -> int:
                     f"{item.lineno} 行目: ID 再発番を検出: {finding_id} は既存の未解消 "
                     f"{duplicate} と同一の指摘（locus/summary が一致）。"
                     "未解消の指摘を再度挙げるときは同じ ID を再利用すること"
+                    f"（別物なら当該ブロックに `distinct_from: {duplicate}` を書いて名指しする）"
                 )
                 continue
         accepted.append((finding_id, item, is_new))
+
+    # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
+    # 欠けていれば取り込みごと拒否する（部分的なレポート 1 通で `harm: real` の指摘が
+    # 消える fail-open だった）。欠けている ID は全て列挙する（1 件ずつ往復させない）。
+    absent = sorted(
+        previously_open - {fid for fid, _item, _is_new in accepted},
+        key=lambda fid: model.parse_finding_id(fid)[1],
+    )
+    if absent:
+        errors.append(
+            "前ラウンドで未解消の finding が今回のレポートに再掲されていない: "
+            f"{', '.join(absent)}"
+            "（不在は解消ではない。解消したなら当該 ID のブロックを `status: resolved` で"
+            "再掲し、未解消なら `status: open` のまま再掲する）"
+        )
 
     if errors:
         for line in errors:
             print(f"拒否（fail-close）: {line}", file=sys.stderr)
         return EXIT_ERROR
 
-    reraised = set()
     created = []
-    for finding_id, item, is_new in accepted:
-        reraised.add(finding_id)
+    resolved = []
+    excluded = []  # distinct_from で重複判定を外したペア（監査用に出力へ残す）
+    for finding_id, item, _is_new in accepted:
         finding = karte.finding(finding_id)
         if finding is None:
             finding = model.Finding(id=finding_id)
             karte.findings.append(finding)
             created.append(finding_id)
-        finding.status = "open"
-        finding.resolved_round = None
+        # K-06: 解消は**明示宣言**でのみ成立する（`harm` の値によらず一律）。
+        finding.status = item.status
+        finding.resolved_round = round_no if item.status == "resolved" else None
+        if item.status == "resolved":
+            resolved.append(finding_id)
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
         finding.locus = item.locus
@@ -308,14 +497,8 @@ def cmd_ingest_review(args) -> int:
         if round_no not in finding.rounds:
             finding.rounds.append(round_no)
         finding.rounds.sort()
-        _ = is_new
-
-    resolved = []
-    for finding in karte.findings:
-        if finding.is_open and finding.id not in reraised:
-            finding.status = "resolved"
-            finding.resolved_round = round_no
-            resolved.append(finding.id)
+        for other in item.distinct_from:
+            excluded.append(f"{finding_id} ↔ {other}")
 
     karte.findings.sort(key=lambda item: item.seq)
     paths.write_text_atomic(path, model.dumps(karte))
@@ -326,18 +509,53 @@ def cmd_ingest_review(args) -> int:
     if created:
         print(f"  新規採番: {', '.join(created)}")
     if resolved:
-        print(f"  解消（今回のレポートで再掲されなかった）: {', '.join(sorted(resolved))}")
+        print(f"  解消（レポートで `status: resolved` と明示された）: {', '.join(sorted(resolved))}")
+    if excluded:
+        print(f"  重複判定の明示的除外（distinct_from）: {'; '.join(excluded)}")
     print(f"  未解消: {', '.join(sorted(_open_ids(karte))) or '(なし)'}")
     print(f"  カルテ: {path}")
     return EXIT_OK
 
 
+def _invalid_distinct_refs(karte: model.Karte, seen: set, finding_id: str, item) -> list:
+    """``distinct_from`` の参照先が実在するか（K-05 のエスケープハッチを監査可能に保つ）。
+
+    名指しできるのは **台帳にある finding** か、**同じレポート内で先に現れた finding** だけ。
+    実在しない ID を書けてしまうと「何と別物か」の名指しが検証されず、重複判定を
+    無効化するだけの呪文になる（＝握りつぶしの経路になる）ので fail-close で拒否する。
+    自分自身の名指しも、判定を外す相手が存在しない無意味な宣言なので拒否する。
+    """
+    errors = []
+    for other in item.distinct_from:
+        if other == finding_id:
+            errors.append(
+                f"{item.lineno} 行目: distinct_from に自分自身は書けない: {other}"
+            )
+        elif karte.finding(other) is None and other not in seen:
+            errors.append(
+                f"{item.lineno} 行目: distinct_from が指す finding ID が実在しない: {other}"
+                "（台帳にあるか、同じレポートで先に現れた ID だけを名指しできる）"
+            )
+    return errors
+
+
 def _find_duplicate(karte: model.Karte, accepted, item):
-    """新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。"""
+    """新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。
+
+    ``item.distinct_from`` で名指しされた相手は比較から外す（K-05）。外れるのは
+    **名指しされたペアだけ**で、判定そのもの・閾値
+    （:data:`model.DUPLICATE_SIMILARITY_THRESHOLD`）は据え置く——偽陽性の逃げ道として
+    閾値を下げると、本来検出したい再発番まで一律に見逃す。
+    """
+    exempt = set(item.distinct_from)
     for finding in karte.open_findings():
+        if finding.id in exempt:
+            continue
         if model.is_same_finding(item.summary, item.locus, finding.summary, finding.locus):
             return finding.id
     for finding_id, other, _is_new in accepted:
+        if finding_id in exempt:
+            continue
         if model.is_same_finding(item.summary, item.locus, other.summary, other.locus):
             return finding_id
     return None
@@ -348,12 +566,40 @@ def _find_duplicate(karte: model.Karte, accepted, item):
 
 @_fail_close
 def cmd_render(args) -> int:
+    """カルテの現在状態を**そのまま注入できる本文**として出力する（K-14）。
+
+    SubagentStart フック（matcher ``issue-fixer``）がこれを実行し、標準出力を
+    ``hookSpecificOutput.additionalContext`` として是正エージェントへ自動注入する。
+    「是正エージェントに ``render`` を引かせる」設計だと、呼び忘れたら過去の試行を
+    知らないまま修正に入る——本件（同じ失敗の繰り返し）で直そうとしている失敗そのものが
+    残るため、注入側に寄せた。
+
+    したがって出力は**自己完結**させる:
+      * 何の本文か・受け手が何をすべきかを冒頭で述べる（前後の文脈に依存しない）。
+      * 過去 Attempt 一覧（実測 touched と Result を含む）／未解消 finding 一覧／
+        飽和したアプローチの転換指令を、この 1 通で完結させる。
+      * 端末装飾（色・カーソル制御）や対話前提の文言（「上記の…」「続けますか」）を混ぜない。
+
+    ``--issue`` は進行ポインタから補完できる（フックは dispatch prompt を読めない）。
+    カルテ未作成は :data:`EXIT_NOT_FOUND` のまま（ガード違反＝EXIT_ERROR と区別する）。
+    """
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
     active = _read_active(_repo_root(args))
     round_no = active.get("round") if active.get("issue") == issue else None
 
     lines = [f"=== Karte: issue-{issue}" + (f" / round {round_no}" if round_no else "") + " ==="]
+    lines.append(
+        f"これは Issue #{issue} の是正ループの診断カルテ（{path}）から機械生成した現在状態である。"
+    )
+    lines.append(
+        "同じ失敗を繰り返さないために、以下の Prior attempts と同じ診断・同じ変更箇所を"
+        "もう一度なぞらないこと。新しい試行は着手前に "
+        f"`python3 -m karte append --issue {issue} --finding-ids <ID...> --root-cause <slug> "
+        "--change-kind <kind> --targets <file::symbol...>` で宣言し、修正後に "
+        f"`python3 -m karte close-attempt --issue {issue} --outcome <fixed|partial|no-change|regressed>` "
+        "で実測差分を記録すること（記録しないと `check` が通らず停止できない）。"
+    )
     lines.append("")
     lines.append("## Prior attempts（DO NOT repeat these）")
     if not karte.attempts:
@@ -397,18 +643,31 @@ def cmd_render(args) -> int:
                 + ", ".join(str(item.number) for item in related)
             )
 
-    clusters = _saturated_clusters(karte)
-    if clusters:
+    groups = _saturated_groups(karte)
+    if groups:
         lines.append("")
-        lines.append("## 類似グループ飽和（次の Attempt は転換が必要）")
-        for members in clusters:
-            lines.append(f"  - Attempt {', '.join(str(number) for number in members)} は同種")
-            directive = _cluster_directive(karte, members)
+        lines.append("## 飽和したアプローチ（同種の再試行は append が拒否される）")
+        lines.append(
+            "  以下と**同種**の Attempt（root_cause が同じで change_kind が同じか targets が"
+            "重なるもの、あるいは実測 touched-set が一致するもの）を append すると "
+            "EXIT_SATURATED で拒否され、カルテには書かれない。"
+        )
+        lines.append(
+            "  ここに挙がっていないアプローチ（root_cause と targets を変えたもの）の append は"
+            "拒否されない——この節は「次の append が必ず落ちる」という意味ではなく、"
+            "「**このアプローチを繰り返す** append が落ちる」という意味である。"
+        )
+        for number, members, hits, candidate in groups:
+            lines.append(
+                f"  - Attempt {number} と同種（root_cause={candidate.root_cause} / "
+                f"change_kind={candidate.change_kind} / "
+                f"targets={', '.join(candidate.targets)}）: "
+                f"衝突する既存 Attempt {', '.join(str(item) for item in members)}"
+            )
+            directive = _group_directive(karte, number, hits, candidate)
             if directive:
                 lines.append(directive)
 
-    lines.append("")
-    lines.append(f"（カルテ本体: {path}）")
     print("\n".join(lines))
     return EXIT_OK
 
@@ -529,10 +788,16 @@ def cmd_close_attempt(args) -> int:
         print("  注意: 差分が空。--base / --diff-file の指定が正しいか確認する")
 
     karte = model.parse(paths.read_text(path))
-    for members in _saturated_clusters(karte):
-        if number in members:
-            print("")
-            print(_cluster_directive(karte, members))
+    for candidate_number, members, hits, candidate in _saturated_groups(karte):
+        if number not in members:
+            continue
+        print("")
+        print(
+            f"  注意: Attempt {candidate_number} と同種のアプローチは飽和した"
+            f"（衝突する既存 Attempt {', '.join(str(item) for item in members)}）。"
+            "同種の append は拒否される"
+        )
+        print(_group_directive(karte, candidate_number, hits, candidate))
     print(f"  カルテ: {path}")
     return EXIT_OK
 
@@ -549,6 +814,19 @@ def _validate_outcome(value: str) -> str:
 
 @_fail_close
 def cmd_check(args) -> int:
+    """当該ラウンドの診断網羅と、**先行 Attempt のクローズ**を検査する。
+
+    合格条件は 2 つ:
+      1. 当該ラウンドの Attempt が未解消 finding を網羅している。
+      2. 当該ラウンド**以前**の Attempt が全て ``close-attempt`` 済み（Result を持つ）。
+
+    2 を課すのが K-02 の是正。実測 touched-set の唯一の供給源は ``close-attempt`` だが、
+    以前は ``check`` も ``append`` も「直前の Attempt がクローズ済みであること」を求めて
+    いなかった。そのため ``root_cause`` を毎回書き換えるだけの試行は、``close-attempt`` を
+    一度も呼ばなければ宣言信号にも実測信号（測定値ゼロ）にも掛からず**無制限に通った**
+    ——偽装ではなく**呼び忘れだけ**でゲートが無効化できた。``check`` は SubagentStop
+    フックの判定根拠なので、ここで落とせば「クローズしないと前に進めない」になる。
+    """
     issue = _resolve_issue(args)
     _path, karte = _load(args, issue)
     round_no = _validate_round(args.round)
@@ -572,7 +850,29 @@ def cmd_check(args) -> int:
     if missing:
         print(f"NG: 診断されていない未解消 finding: {', '.join(missing)}", file=sys.stderr)
         return EXIT_ERROR
-    print("OK: 当該ラウンドの Attempt が未解消 finding を網羅している")
+
+    pending = [
+        item.number
+        for item in karte.attempts
+        if item.round <= round_no and not karte.results_for(item.number)
+    ]
+    if pending:
+        print(
+            "NG: 未クローズの Attempt が残っている: "
+            + ", ".join(str(number) for number in pending)
+            + "（実測 touched-set が供給されず、類似判定の実測信号が働かないまま"
+            "同種の試行を続けられてしまう）",
+            file=sys.stderr,
+        )
+        for number in pending:
+            print(
+                f"  実行: python3 -m karte close-attempt --issue {issue} "
+                f"--attempt {number} --outcome <fixed|partial|no-change|regressed>",
+                file=sys.stderr,
+            )
+        return EXIT_ERROR
+
+    print("OK: 当該ラウンドの Attempt が未解消 finding を網羅し、先行 Attempt も全てクローズ済み")
     return EXIT_OK
 
 
@@ -589,7 +889,9 @@ def _status_payload(karte: model.Karte) -> dict:
     else:
         verdict = "no-harm-only"
     stalled = _stalled_ids(karte)
-    clusters = _saturated_clusters(karte)
+    # K-09: 表示（ここ）とゲート（append）は同じ判定関数を使う。`saturated_groups` は
+    # 「そのアプローチを繰り返す append が拒否される」既存 Attempt の組。
+    saturated = [members for _number, members, _hits, _candidate in _saturated_groups(karte)]
     findings = []
     for finding in karte.findings:
         related = karte.attempts_for_finding(finding.id)
@@ -631,8 +933,8 @@ def _status_payload(karte: model.Karte) -> dict:
         "no_harm_open": [item.id for item in open_findings if item.harm == "none"],
         "stalled_findings": stalled,
         "stall_rounds": STALL_ROUNDS,
-        "saturated_groups": clusters,
-        "escalate": bool(stalled or clusters),
+        "saturated_groups": saturated,
+        "escalate": bool(stalled or saturated),
         "findings": findings,
     }
 
@@ -665,7 +967,10 @@ def cmd_status(args) -> int:
             "Attempt " + ", ".join(str(number) for number in members)
             for members in payload["saturated_groups"]
         )
-        print(f"  類似グループ飽和: {groups}")
+        # K-09: 「同種の再試行が拒否される組」であって「次の append が必ず落ちる」ではない。
+        print(
+            f"  飽和したアプローチ（同種の再試行は append が拒否される）: {groups}"
+        )
     print(f"  escalate: {'yes' if payload['escalate'] else 'no'}")
     for finding in payload["findings"]:
         if finding["status"] != "open":
@@ -694,11 +999,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     ingest = subparsers.add_parser("ingest-review", help="レビューレポートを台帳へ取り込む")
     add_issue(ingest)
-    ingest.add_argument("--round", required=True, help="レビューのラウンド番号（単調増加）")
-    ingest.add_argument("--from", dest="source", required=True, help="レビューレポートのパス")
+    ingest.add_argument(
+        "--round",
+        help="レビューのラウンド番号（単調増加。省略時は tmp/_karte/active.json の次のラウンド）",
+    )
+    ingest.add_argument(
+        "--from",
+        dest="source",
+        required=True,
+        help=f"レビューレポートのパス（`{STDIN_SOURCE}` で標準入力から読む）",
+    )
     ingest.set_defaults(func=cmd_ingest_review)
 
-    render = subparsers.add_parser("render", help="Prior attempts と未解消 finding を出力")
+    render = subparsers.add_parser(
+        "render", help="Prior attempts と未解消 finding を注入用の本文として出力"
+    )
     add_issue(render)
     render.set_defaults(func=cmd_render)
 

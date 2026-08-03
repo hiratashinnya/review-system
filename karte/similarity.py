@@ -26,6 +26,16 @@
     新規 Attempt が対象とする **未解消 finding** を共有する過去 Attempt のうち、
     上記いずれかの信号で類似と判定されたものが **2 件に達したら 3 件目を許さない**。
 
+判定は 1 つしか持たない（K-09）:
+    ``append`` のゲートも ``render`` / ``status`` の表示も :func:`find_hits` ＋
+    :func:`is_saturated` の **pairwise 件数**だけで決める。以前は表示側だけが union-find の
+    連結成分（``cluster``）を使っており、推移律で広がるクラスタとゲートの pairwise 件数が
+    食い違って「``render`` が飽和と言った直後に ``append`` が成功する」状態が起きた
+    ——後工程が表示を「次の ``append`` が落ちる」と誤読する。表示側は「既に書かれた
+    Attempt k の宣言をそのまま繰り返す仮想の新規試行」を主語に置くことで、同じ関数で
+    同じ意味（＝その再試行は拒否される）を出せる（``karte.cli._saturated_groups``）。
+    **2 つ目の類似判定を足さないこと**——足した瞬間に同じ食い違いが再発する。
+
 依存仕様: :mod:`karte` の docstring（Issue #307「類似判定（決定論・2つの独立信号の OR）」）。
 """
 
@@ -166,28 +176,6 @@ def is_saturated(hits) -> bool:
     return len(hits) >= SATURATION_THRESHOLD
 
 
-def cluster(views) -> list:
-    """相互に類似する試行のグループ（連結成分）を返す。``render``/``status`` 用。"""
-    ordered = sorted(views, key=lambda item: item.number)
-    parent = {view.number: view.number for view in ordered}
-
-    def find(node):
-        while parent[node] != node:
-            parent[node] = parent[parent[node]]
-            node = parent[node]
-        return node
-
-    for index, left in enumerate(ordered):
-        for right in ordered[index + 1:]:
-            if compare(right, left) is not None or compare(left, right) is not None:
-                parent[find(right.number)] = find(left.number)
-
-    groups: dict = {}
-    for view in ordered:
-        groups.setdefault(find(view.number), []).append(view.number)
-    return [sorted(members) for _root, members in sorted(groups.items()) if len(members) > 1]
-
-
 @dataclass
 class Directive:
     """アプローチ転換指令（``append`` 拒否時・``render`` 表示時に出す本文）。"""
@@ -206,8 +194,17 @@ PIVOT_AXES = (
 )
 
 
-def build_directive(new: AttemptView, hits, open_finding_ids) -> Directive:
-    """反復された ``root_cause`` / ``targets`` を**名指しした**転換指令を組み立てる。"""
+def build_directive(
+    new: AttemptView, hits, open_finding_ids, *, subject_label: str = "今回の宣言"
+) -> Directive:
+    """反復された ``root_cause`` / ``targets`` を**名指しした**転換指令を組み立てる。
+
+    ``subject_label``
+        ``new`` が何を指すかの見出し。``append`` の拒否時は実際に書き込もうとした宣言
+        （既定「今回の宣言」）、``render`` / ``close-attempt`` の表示時は既存 Attempt の
+        宣言をそのまま繰り返す仮想の再試行（「飽和したアプローチ」）を指す。同じ文面で
+        主語だけが違うため、読み手が取り違えないようラベルを明示させる（K-09）。
+    """
     repeated_root_causes = sorted({hit.root_cause for hit in hits if hit.root_cause})
     repeated_targets = sorted({entry for hit in hits for entry in hit.overlapping_targets})
     measured_priors = sorted(hit.prior for hit in hits if hit.measured)
@@ -234,7 +231,7 @@ def build_directive(new: AttemptView, hits, open_finding_ids) -> Directive:
         if measured_scope:
             lines.append(f"  一致した touched-set: {', '.join(measured_scope)}")
     lines.append(
-        f"  今回の宣言: root_cause={new.root_cause} / change_kind={new.change_kind} / "
+        f"  {subject_label}: root_cause={new.root_cause} / change_kind={new.change_kind} / "
         f"targets={', '.join(new.targets)}"
     )
     lines.append("  指令: 上記の root_cause 仮説と targets を**再び対象にしない**別アプローチを立てること。")

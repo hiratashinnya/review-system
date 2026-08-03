@@ -49,6 +49,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 FORMAT_VERSION = 1
@@ -467,6 +468,41 @@ def _result_from_block(block: Block) -> Result:
 
 NEW_FINDING_TITLES = ("new", "NEW", "new-finding")
 
+DISTINCT_FROM_KEY = "distinct_from"
+
+
+def _optional_status(block: Block) -> str:
+    """レビューレポートの任意キー ``status``（既定 ``open``）を読む（K-06）。
+
+    ``resolved`` と**書いたときだけ**解消として扱う。値の綴り間違いは既定へ倒さず
+    :class:`KarteFormatError`（fail-close）——「resolve」等の誤記を黙って ``open`` に
+    落とすと、レビューアの解消宣言が無言で失われる。
+    """
+    if "status" not in block.fields:
+        return "open"
+    return _require_enum(block, "status", FINDING_STATUSES)
+
+
+def _parse_distinct_from(block: Block, issue: int) -> tuple:
+    """任意キー ``distinct_from``（再発番判定のペア限定エスケープハッチ・K-05）を読む。
+
+    スカラ（``distinct_from: F-307-01``）とリスト（``distinct_from: [F-307-01, F-307-02]``）の
+    両方を受ける。形式違反・対象 issue 違いはここで拒否し、**台帳に実在するか**は
+    台帳を持つ CLI 側で検査する（ここは書式の責務だけを負う）。
+    """
+    raw = block.fields.get(DISTINCT_FROM_KEY, [])
+    if isinstance(raw, str):
+        raw = [raw] if raw.strip() else []
+    ids = check_list(raw, DISTINCT_FROM_KEY)
+    for item in ids:
+        issue_of_id, _seq = parse_finding_id(item)
+        if issue_of_id != issue:
+            raise KarteFormatError(
+                f"{block.lineno} 行目 '{block.title}': {DISTINCT_FROM_KEY} の finding ID の "
+                f"issue 番号が対象と違う: {item}（対象は issue-{issue}）"
+            )
+    return tuple(ids)
+
 
 @dataclass
 class ReviewFinding:
@@ -479,6 +515,8 @@ class ReviewFinding:
     locus: str
     summary: str
     lineno: int
+    status: str = "open"          # ``resolved`` と**明示**したときだけ解消（K-06）
+    distinct_from: tuple = ()     # 再発番判定を無効化する相手 ID（K-05・ペア限定）
 
 
 def parse_review(text: str, issue: int) -> list:
@@ -490,6 +528,17 @@ def parse_review(text: str, issue: int) -> list:
     レポート冒頭の前書き（``# レビュー結果`` とその下の総括文）は無視する。ブロックが
     1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
     ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
+
+    任意キー:
+      ``status``
+          ``open``（既定）／``resolved``。**解消は明示宣言でのみ成立する**（K-06）。
+          再掲されなかった finding を「不在＝解消」と見なす旧仕様は、部分的なレポートを
+          1 回取り込むだけで ``harm: real`` の指摘が消える fail-open だったため廃止した。
+      ``distinct_from``
+          ``F-<issue>-<seq>``（``[a, b]`` で複数可）。再発番判定（:func:`is_same_finding`）の
+          **偽陽性に対する明示的なエスケープハッチ**で、ここに名指しした相手との**ペアに限って**
+          判定を無効化する（K-05）。判定そのもの・閾値は動かさない。ID の実在検査は台帳を持つ
+          CLI 側（``cmd_ingest_review``）で行う。
     """
     blocks = parse_blocks(text, allow_preamble=True)
     if not blocks:
@@ -529,6 +578,8 @@ def parse_review(text: str, issue: int) -> list:
                     locus=check_scalar(block.fields.get("locus", ""), "locus"),
                     summary=_require_nonempty(block, "summary"),
                     lineno=block.lineno,
+                    status=_optional_status(block),
+                    distinct_from=_parse_distinct_from(block, issue),
                 )
             )
         except KarteFormatError as exc:
@@ -579,10 +630,27 @@ def validate_change_kind(value: str) -> str:
 
 
 def normalize_text(value: str) -> str:
-    """比較用の正規化（小文字化・英数字以外を空白に畳む・空白圧縮）。"""
-    lowered = str(value).lower()
-    collapsed = re.sub(r"[^0-9a-z぀-ヿ一-鿿]+", " ", lowered)
-    return " ".join(collapsed.split())
+    """比較用の正規化（``casefold`` ＋ 「文字・数字」以外を区切りへ畳む・空白圧縮）。
+
+    **保持する文字を列挙しない**（K-07）。以前は ``[^0-9a-z ぁ-ヿ 一-鿿]+`` という
+    ホワイトリストで畳んでいたため、全角英数・ハングル・アクセント付きラテン・CJK 拡張漢字
+    （Ext-A 以降）が丸ごと空白になり、要約がそれらだけで構成されると正規化結果が**空文字**に
+    なった。空文字同士は :func:`is_same_finding` の完全一致判定でも n-gram 判定でも
+    「同一ではない」と扱われる（:func:`_jaccard` は空集合を 0.0 で返す）ため、
+    **再発番を見逃す fail-open** になっていた。
+
+    そこで :mod:`unicodedata` の一般カテゴリで「文字（``L*``）・数字（``N*``）」だけを残し、
+    それ以外（記号・句読点・空白・制御）を区切りに畳む。文字体系を列挙しないので、
+    新しい文字種が出てきても取りこぼさない（fail-open が構造的に起きない）。
+
+    NFKC 等の互換正規化は**行わない**——全角と半角、丸数字と数字を勝手に同一視すると、
+    「別物として起票された指摘」を再発番と誤検出しうる（偽陽性は K-05 の逃げ道と違って
+    レビューアが正当な新規指摘を挙げられなくなる方向の害）。畳むのは大小文字だけに留める。
+    """
+    kept = []
+    for char in str(value).casefold():
+        kept.append(char if unicodedata.category(char)[0] in ("L", "N") else " ")
+    return " ".join("".join(kept).split())
 
 
 def shingles(value: str, size: int = SHINGLE_SIZE) -> frozenset:
@@ -619,6 +687,11 @@ def is_same_finding(summary_a: str, locus_a: str, summary_b: str, locus_b: str) 
     locus 一致を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
     誤って同一視しないため——文字 n-gram だけで判定を回すと、短い要約同士が偶然似ただけで
     再発番と誤検出し、レビューアが正当な新規指摘を挙げられなくなる。
+
+    それでも残る偽陽性（同一 locus に出た短い別指摘同士が閾値を超える）には、レビュー
+    レポート側の ``distinct_from``（K-05）で**名指ししたペアだけ**判定を外せる。閾値
+    :data:`DUPLICATE_SIMILARITY_THRESHOLD` は逃がすために動かさない——「通すために閾値を
+    下げる」と、本来検出したい再発番まで一律に見逃す。
     """
     if normalize_text(summary_a) and normalize_text(summary_a) == normalize_text(summary_b):
         return True
