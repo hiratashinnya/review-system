@@ -35,10 +35,10 @@ class FakeCollector:
 
 
 class FakeWaiverProvider:
-    def __init__(self, collection):
+    def __init__(self, collection: Any):
         self.collection = collection
 
-    def collect_waiver_materials(self, repository):
+    def collect_waiver_materials(self, repository: str) -> Any:
         self.repository = repository
         return self.collection
 
@@ -112,6 +112,51 @@ class SharedResolverTests(unittest.TestCase):
             self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
             self.assertFalse(result["permit_issued"])
             self.assertIn("WAIVER_INVALID", result["reasons"])
+
+    def test_provider_collection_material_and_error_contract_is_closed(self):
+        class DerivedCollection(WaiverCollection):
+            pass
+
+        class DerivedMaterial(WaiverMaterial):
+            pass
+
+        snapshot = load("open_direct.json")
+        target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
+        material = waiver_material(target_fp)
+        malformed = (
+            DerivedCollection((material,)),
+            WaiverCollection(cast(Any, [material])),
+            WaiverCollection((material,), cast(Any, ["WAIVER_INVALID"])),
+            WaiverCollection((material,), ("UNKNOWN_COLLECTION_REASON",)),
+            WaiverCollection((material,), cast(Any, (True,))),
+            WaiverCollection((cast(Any, {"evidence": material.evidence}),)),
+            WaiverCollection(
+                (
+                    DerivedMaterial(
+                        material.policy_bytes,
+                        material.waiver_bytes,
+                        material.evidence,
+                    ),
+                )
+            ),
+            WaiverCollection(
+                (
+                    WaiverMaterial(
+                        cast(Any, "not-bytes"),
+                        material.waiver_bytes,
+                        material.evidence,
+                    ),
+                )
+            ),
+        )
+        for collection in malformed:
+            with self.subTest(collection=collection):
+                result = evaluate_snapshot(
+                    snapshot, waiver_provider=FakeWaiverProvider(collection)
+                )
+                self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
+                self.assertFalse(result["permit_issued"])
+                self.assertIn("WAIVER_INVALID", result["reasons"])
 
 
 class ContractTests(unittest.TestCase):

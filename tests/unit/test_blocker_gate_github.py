@@ -2,19 +2,23 @@
 
 import base64
 import json
+from typing import Any
 import unittest
 
 from blocker_gate.github import GitHubCollector
 from blocker_gate.resolver import evaluate_snapshot
 
 
-def response(value, headers=None, status=200):
+def response(
+    value: Any, headers: Any = None, status: int = 200
+) -> tuple[int, Any, bytes]:
     return status, headers or {}, json.dumps(value).encode("utf-8")
 
 
 class FakeTransport:
-    def __init__(self, responses):
+    def __init__(self, responses, post_responses=()):
         self.responses = responses
+        self.post_responses = list(post_responses)
         self.get_calls = []
         self.post_calls = []
 
@@ -24,6 +28,8 @@ class FakeTransport:
 
     def post(self, url, headers, body):
         self.post_calls.append((url, dict(headers), body))
+        if self.post_responses:
+            return self.post_responses.pop(0)
         return self.responses[(url, body)]
 
 
@@ -61,6 +67,144 @@ def pr_page(**overrides):
             }
         }
     }
+
+
+WAIVER_POLICY = b"schema: blocker-gate-policy/v1\n"
+WAIVER_FILE = b"schema: blocker-gate-waiver/v1\n"
+WAIVER_PATH = ".github/blocker-gate/waivers/BW-20260801-001.yml"
+
+
+def signature_page(
+    approval: str,
+    *,
+    oid: Any = None,
+    is_valid: Any = True,
+    state: Any = "VALID",
+    signer_login: Any = "owner-login",
+    was_signed_by_github: Any = False,
+):
+    signer = None if signer_login is None else {"login": signer_login}
+    return {
+        "data": {
+            "repository": {
+                "nameWithOwner": "example/repo",
+                "object": {
+                    "oid": approval if oid is None else oid,
+                    "signature": {
+                        "isValid": is_valid,
+                        "state": state,
+                        "signer": signer,
+                        "wasSignedByGitHub": was_signed_by_github,
+                    },
+                },
+            }
+        }
+    }
+
+
+def waiver_transport(*, rules=None, rulesets=None, signature=None):
+    api = "https://api.github.com/repos/example/repo"
+    head, tree, policy_sha, waiver_sha, approval = (
+        "0" * 40,
+        "1" * 40,
+        "2" * 40,
+        "3" * 40,
+        "4" * 40,
+    )
+    branch_rules = [
+        {
+            "type": "deletion",
+            "ruleset_source_type": "Repository",
+            "ruleset_source": "example/repo",
+            "ruleset_id": 7,
+        },
+        {
+            "type": "non_fast_forward",
+            "ruleset_source_type": "Repository",
+            "ruleset_source": "example/repo",
+            "ruleset_id": 7,
+        },
+    ]
+    if rules is not None:
+        branch_rules = rules
+    rule_details = {
+        7: {
+            "id": 7,
+            "target": "branch",
+            "source_type": "Repository",
+            "source": "example/repo",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}],
+        }
+    }
+    if rulesets is not None:
+        rule_details = rulesets
+    responses = {
+        api: response(
+            {
+                "full_name": "example/repo",
+                "node_id": "R1",
+                "default_branch": "main",
+            }
+        ),
+        api + "/git/ref/heads/main": response(
+            {"ref": "refs/heads/main", "object": {"type": "commit", "sha": head}}
+        ),
+        api + f"/git/commits/{head}": response(
+            {"sha": head, "tree": {"sha": tree}}
+        ),
+        api + f"/git/trees/{tree}?recursive=1": response(
+            {
+                "sha": tree,
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": ".github/blocker-gate/policy.yml",
+                        "type": "blob",
+                        "sha": policy_sha,
+                    },
+                    {"path": WAIVER_PATH, "type": "blob", "sha": waiver_sha},
+                ],
+            }
+        ),
+        api + f"/git/blobs/{policy_sha}": response(
+            {
+                "sha": policy_sha,
+                "encoding": "base64",
+                "content": base64.b64encode(WAIVER_POLICY).decode("ascii"),
+            }
+        ),
+        api + f"/git/blobs/{waiver_sha}": response(
+            {
+                "sha": waiver_sha,
+                "encoding": "base64",
+                "content": base64.b64encode(WAIVER_FILE).decode("ascii"),
+            }
+        ),
+        api + "/rules/branches/main?per_page=100": response(branch_rules),
+        api
+        + f"/commits?path=.github%2Fblocker-gate%2Fwaivers%2FBW-20260801-001.yml&sha={head}&per_page=1": response(
+            [
+                {
+                    "sha": approval,
+                    "author": {"login": "spoofed-author"},
+                    "commit": {"verification": {"verified": True}},
+                }
+            ]
+        ),
+        api + f"/compare/{approval}...{head}": response({"status": "ahead"}),
+    }
+    for ruleset_id, ruleset in rule_details.items():
+        responses[
+            api + f"/rulesets/{ruleset_id}?includes_parents=true"
+        ] = response(ruleset)
+    return FakeTransport(
+        responses,
+        post_responses=(
+            response(signature_page(approval) if signature is None else signature),
+        ),
+    )
 
 
 class GitHubCollectorTests(unittest.TestCase):
@@ -154,70 +298,162 @@ class GitHubCollectorTests(unittest.TestCase):
         self.assertFalse(result["permit_issued"])
 
     def test_waiver_materials_are_read_from_fresh_default_head_and_rules(self):
-        api = "https://api.github.com/repos/example/repo"
-        head, tree, policy_sha, waiver_sha, approval = (
-            "0" * 40,
-            "1" * 40,
-            "2" * 40,
-            "3" * 40,
-            "4" * 40,
-        )
-        policy = b"schema: blocker-gate-policy/v1\n"
-        waiver = b"schema: blocker-gate-waiver/v1\n"
-        waiver_path = ".github/blocker-gate/waivers/BW-20260801-001.yml"
-        transport = FakeTransport(
-            {
-                api: response({"full_name": "example/repo", "node_id": "R1", "default_branch": "main"}),
-                api + "/git/ref/heads/main": response({"ref": "refs/heads/main", "object": {"type": "commit", "sha": head}}),
-                api + f"/git/commits/{head}": response({"sha": head, "tree": {"sha": tree}}),
-                api + f"/git/trees/{tree}?recursive=1": response(
-                    {
-                        "sha": tree,
-                        "truncated": False,
-                        "tree": [
-                            {"path": ".github/blocker-gate/policy.yml", "type": "blob", "sha": policy_sha},
-                            {"path": waiver_path, "type": "blob", "sha": waiver_sha},
-                        ],
-                    }
-                ),
-                api + f"/git/blobs/{policy_sha}": response(
-                    {"sha": policy_sha, "encoding": "base64", "content": base64.b64encode(policy).decode("ascii")}
-                ),
-                api + f"/git/blobs/{waiver_sha}": response(
-                    {"sha": waiver_sha, "encoding": "base64", "content": base64.b64encode(waiver).decode("ascii")}
-                ),
-                api + "/rules/branches/main": response(
-                    [
-                        {"type": "deletion", "ruleset_id": 7},
-                        {"type": "non_fast_forward", "ruleset_id": 7},
-                    ]
-                ),
-                api + "/rulesets/7": response(
-                    {"id": 7, "enforcement": "active", "bypass_actors": []}
-                ),
-                api + f"/commits?path=.github%2Fblocker-gate%2Fwaivers%2FBW-20260801-001.yml&sha={head}&per_page=1": response(
-                    [
-                        {
-                            "sha": approval,
-                            "author": {"login": "owner-login"},
-                            "commit": {"verification": {"verified": True}},
-                        }
-                    ]
-                ),
-                api + f"/compare/{approval}...{head}": response({"status": "ahead"}),
-            }
-        )
+        transport = waiver_transport()
         collection = GitHubCollector(None, transport).collect_waiver_materials("example/repo")
         self.assertEqual(collection.errors, ())
         self.assertEqual(len(collection.materials), 1)
         material = collection.materials[0]
-        self.assertEqual((material.policy_bytes, material.waiver_bytes), (policy, waiver))
+        self.assertEqual(
+            (material.policy_bytes, material.waiver_bytes),
+            (WAIVER_POLICY, WAIVER_FILE),
+        )
         self.assertEqual(
             (material.evidence.default_branch, material.evidence.default_head),
-            ("main", head),
+            ("main", "0" * 40),
         )
         self.assertTrue(material.evidence.signature_verified)
         self.assertTrue(material.evidence.history_bypass_free)
+        self.assertEqual(material.evidence.signer_login, "owner-login")
+        self.assertTrue(transport.post_calls)
+
+    def test_waiver_signer_is_bound_to_graphql_signature_not_rest_author(self):
+        transport = waiver_transport(
+            signature=signature_page("4" * 40, signer_login="different-signer")
+        )
+        collection = GitHubCollector(None, transport).collect_waiver_materials(
+            "example/repo"
+        )
+        self.assertEqual(collection.errors, ())
+        self.assertEqual(
+            collection.materials[0].evidence.signer_login, "different-signer"
+        )
+
+    def test_signature_null_unknown_and_oid_mismatch_fail_close(self):
+        signatures = (
+            signature_page("4" * 40, signer_login=None),
+            signature_page("4" * 40, state="UNKNOWN"),
+            signature_page("4" * 40, is_valid=False),
+            signature_page("4" * 40, is_valid="true"),
+            signature_page("4" * 40, was_signed_by_github=None),
+            signature_page("4" * 40, oid="5" * 40),
+        )
+        for signature in signatures:
+            with self.subTest(signature=signature):
+                collection = GitHubCollector(
+                    None, waiver_transport(signature=signature)
+                ).collect_waiver_materials("example/repo")
+                self.assertTrue(collection.errors)
+                self.assertEqual(collection.materials, ())
+
+    def test_branch_rules_must_form_one_closed_ruleset_identity(self):
+        repository_rule = {
+            "ruleset_source_type": "Repository",
+            "ruleset_source": "example/repo",
+        }
+        cases = (
+            [
+                {"type": "deletion", **repository_rule},
+                {
+                    "type": "non_fast_forward",
+                    **repository_rule,
+                    "ruleset_id": 7,
+                },
+            ],
+            [
+                {"type": "deletion", **repository_rule, "ruleset_id": 7},
+                {
+                    "type": "non_fast_forward",
+                    **repository_rule,
+                    "ruleset_id": 8,
+                },
+            ],
+            [
+                {"type": "deletion", **repository_rule, "ruleset_id": 7},
+                {
+                    "type": "non_fast_forward",
+                    **repository_rule,
+                    "ruleset_id": 7,
+                },
+                {"type": "future_unknown_rule", **repository_rule, "ruleset_id": 7},
+            ],
+            [
+                {
+                    "type": "deletion",
+                    "ruleset_source_type": "Repository",
+                    "ruleset_source": "other/repo",
+                    "ruleset_id": 7,
+                },
+                {
+                    "type": "non_fast_forward",
+                    **repository_rule,
+                    "ruleset_id": 7,
+                },
+            ],
+            [
+                {"type": "deletion", **repository_rule, "ruleset_id": True},
+                {
+                    "type": "non_fast_forward",
+                    **repository_rule,
+                    "ruleset_id": True,
+                },
+            ],
+        )
+        for rules in cases:
+            with self.subTest(rules=rules):
+                collection = GitHubCollector(
+                    None, waiver_transport(rules=rules)
+                ).collect_waiver_materials("example/repo")
+                if all("ruleset_id" in rule for rule in rules) and len(
+                    {rule["ruleset_id"] for rule in rules}
+                ) > 1:
+                    self.assertEqual(collection.errors, ())
+                    proof = collection.materials[0].evidence
+                    self.assertFalse(proof.deletion_protected)
+                    self.assertFalse(proof.non_fast_forward_protected)
+                else:
+                    self.assertEqual(
+                        collection.errors, ("API_PARTIAL_RESPONSE",)
+                    )
+                    self.assertEqual(collection.materials, ())
+
+    def test_ruleset_detail_must_match_source_and_be_active_without_bypass(self):
+        base = {
+            "id": 7,
+            "target": "branch",
+            "source_type": "Repository",
+            "source": "example/repo",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}],
+        }
+        cases = (
+            {**base, "source": "other/repo"},
+            {**base, "enforcement": "evaluate"},
+            {**base, "bypass_actors": [{"actor_type": "Team"}]},
+            {**base, "rules": [{"type": "deletion"}]},
+        )
+        for ruleset in cases:
+            with self.subTest(ruleset=ruleset):
+                collection = GitHubCollector(
+                    None, waiver_transport(rulesets={7: ruleset})
+                ).collect_waiver_materials("example/repo")
+                if (
+                    ruleset["source"] == "example/repo"
+                    and ruleset["rules"]
+                    == [{"type": "deletion"}, {"type": "non_fast_forward"}]
+                ):
+                    self.assertEqual(collection.errors, ())
+                    proof = collection.materials[0].evidence
+                    self.assertFalse(
+                        proof.ruleset_active
+                        and proof.history_bypass_free
+                        and proof.deletion_protected
+                        and proof.non_fast_forward_protected
+                    )
+                else:
+                    self.assertEqual(
+                        collection.errors, ("API_PARTIAL_RESPONSE",)
+                    )
 
 
 if __name__ == "__main__":

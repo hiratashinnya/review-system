@@ -33,6 +33,7 @@ from .model import (
 from .waiver import (
     WaiverCollection,
     WaiverContext,
+    WaiverEvidence,
     WaiverError,
     WaiverMaterial,
     parse_policy_yaml,
@@ -219,13 +220,24 @@ def _apply_verified_waivers(
         collection = provider.collect_waiver_materials(snapshot.repository)
     except Exception:
         return findings, ["WAIVER_INVALID"], False
-    if not isinstance(collection, WaiverCollection):
+    if (
+        type(collection) is not WaiverCollection
+        or type(getattr(collection, "materials", None)) is not tuple
+        or type(getattr(collection, "errors", None)) is not tuple
+    ):
+        return findings, ["WAIVER_INVALID"], False
+    if any(type(reason) is not str or reason not in ERROR_REASONS for reason in collection.errors):
         return findings, ["WAIVER_INVALID"], False
     errors = list(collection.errors)
     verified: dict[str, list[Mapping[str, str]]] = {}
     now = datetime.now(timezone.utc)
     for material in collection.materials:
-        if not isinstance(material, WaiverMaterial):
+        if (
+            type(material) is not WaiverMaterial
+            or type(getattr(material, "policy_bytes", None)) is not bytes
+            or type(getattr(material, "waiver_bytes", None)) is not bytes
+            or type(getattr(material, "evidence", None)) is not WaiverEvidence
+        ):
             errors.append("WAIVER_INVALID")
             continue
         try:

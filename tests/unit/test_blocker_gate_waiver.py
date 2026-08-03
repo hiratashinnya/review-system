@@ -57,6 +57,17 @@ class WaiverParserTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaisesRegex(WaiverError, "WAIVER_SCHEMA_INVALID"):
                 parse_waiver_yaml(raw)
 
+    def test_bool_is_not_accepted_as_integer_policy_or_subject_number(self):
+        policy = (FIXTURES / "policy.yml").read_bytes().replace(b"168", b"true")
+        waiver = (FIXTURES / "waiver_valid.yml").read_bytes().replace(
+            b"number: 10", b"number: true"
+        )
+        for parser, data in ((parse_policy_yaml, policy), (parse_waiver_yaml, waiver)):
+            with self.subTest(parser=parser.__name__), self.assertRaisesRegex(
+                WaiverError, "WAIVER_SCHEMA_INVALID"
+            ):
+                parser(data)
+
 
 class WaiverVerifierTests(unittest.TestCase):
     def setUp(self):
@@ -91,6 +102,37 @@ class WaiverVerifierTests(unittest.TestCase):
         for waiver, context, proof in cases:
             with self.subTest(context=context, proof=proof), self.assertRaisesRegex(WaiverError, "WAIVER_INVALID"):
                 verify_waiver(waiver, self.policy, context, proof)
+
+    def test_evidence_requires_exact_class_scalars_and_true_booleans(self):
+        class ForgedEvidence(WaiverEvidence):
+            pass
+
+        valid = evidence()
+        cases = [
+            ForgedEvidence(**valid.__dict__),
+            evidence(default_branch=1),
+            evidence(default_branch="refs/heads/../main"),
+            evidence(default_head=True),
+            evidence(default_head="0" * 41),
+            evidence(policy_blob_sha=b"sha256:bad"),
+            evidence(waiver_blob_sha="sha256:bad"),
+            evidence(approval_commit=3),
+            evidence(signer_login=True),
+        ]
+        for label in (
+            "commit_is_default_head_ancestor",
+            "signature_verified",
+            "ruleset_active",
+            "history_bypass_free",
+            "deletion_protected",
+            "non_fast_forward_protected",
+        ):
+            cases.append(evidence(**{label: "true"}))
+        for proof in cases:
+            with self.subTest(proof=proof), self.assertRaisesRegex(
+                WaiverError, "WAIVER_INVALID"
+            ):
+                verify_waiver(self.waiver, self.policy, self.context, proof)
 
     def test_public_api_has_no_waiver_lifecycle_writes(self):
         public = set(blocker_gate.__all__)

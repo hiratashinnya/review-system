@@ -13,6 +13,7 @@ _WAIVER_ID = re.compile(r"^BW-[0-9]{8}-[0-9]{3,}$")
 _LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 _REPOSITORY = re.compile(r"^[^/\s]+/[^/\s]+$")
 _FINGERPRINT = re.compile(r"^sha256:[0-9a-f]{64}$")
+_GIT_OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -64,6 +65,19 @@ class WaiverCollection:
 
     materials: tuple[WaiverMaterial, ...] = ()
     errors: tuple[str, ...] = ()
+
+
+def _valid_branch_name(value: Any) -> bool:
+    """git-check-ref-format相当の禁止形を副作用なしで閉じて検査する。"""
+    if type(value) is not str or not 1 <= len(value) <= 255:
+        return False
+    if value == "@" or value.startswith("-") or value.startswith("/") or value.endswith(("/", ".")):
+        return False
+    if ".." in value or "@{" in value or "//" in value:
+        return False
+    if any(ord(char) <= 32 or ord(char) == 127 or char in "~^:?*[\\\\" for char in value):
+        return False
+    return all(part and not part.startswith(".") and not part.endswith(".lock") for part in value.split("/"))
 
 
 def _decode(data: bytes) -> str:
@@ -177,9 +191,9 @@ def parse_policy_yaml(data: bytes) -> dict[str, Any]:
     if any(not isinstance(login, str) or not _LOGIN.fullmatch(login) for login in allowlist):
         raise WaiverError("WAIVER_SCHEMA_INVALID", "approver login")
     lifetime = value["max_waiver_lifetime_hours"]
-    if not isinstance(lifetime, int) or lifetime < 1 or lifetime > 168:
+    if type(lifetime) is not int or lifetime < 1 or lifetime > 168:
         raise WaiverError("WAIVER_SCHEMA_INVALID", "max lifetime")
-    if not isinstance(value["protected_default_branch"], str) or not value["protected_default_branch"]:
+    if not _valid_branch_name(value["protected_default_branch"]):
         raise WaiverError("WAIVER_SCHEMA_INVALID", "protected branch")
     return value
 
@@ -221,7 +235,7 @@ def parse_waiver_yaml(data: bytes) -> dict[str, Any]:
         raise WaiverError("WAIVER_SCHEMA_INVALID", "scope subject")
     _keys(subject, {"type", "number"}, "scope subject")
     expected_type = "issue" if scope["mode"] == "issue-start" else "pull_request"
-    if subject["type"] != expected_type or not isinstance(subject["number"], int) or subject["number"] < 1:
+    if subject["type"] != expected_type or type(subject["number"]) is not int or subject["number"] < 1:
         raise WaiverError("WAIVER_SCHEMA_INVALID", "scope subject")
     fps = scope["finding_fingerprints"]
     if not isinstance(fps, list) or not fps or len(fps) != len(set(fps)):
@@ -238,6 +252,35 @@ def verify_waiver(
     evidence: WaiverEvidence,
 ) -> dict[str, str]:
     """既読のwaiver/policy/evidenceだけを検証する。外部・filesystem書込みは行わない。"""
+    if type(evidence) is not WaiverEvidence:
+        raise WaiverError("WAIVER_INVALID", "evidence type")
+    try:
+        if (
+            not _valid_branch_name(evidence.default_branch)
+            or type(evidence.default_head) is not str
+            or not _GIT_OID.fullmatch(evidence.default_head)
+            or type(evidence.policy_blob_sha) is not str
+            or not _FINGERPRINT.fullmatch(evidence.policy_blob_sha)
+            or type(evidence.waiver_blob_sha) is not str
+            or not _FINGERPRINT.fullmatch(evidence.waiver_blob_sha)
+            or type(evidence.approval_commit) is not str
+            or not _GIT_OID.fullmatch(evidence.approval_commit)
+            or type(evidence.signer_login) is not str
+            or not _LOGIN.fullmatch(evidence.signer_login)
+        ):
+            raise WaiverError("WAIVER_INVALID", "evidence scalar")
+        for label in (
+            "commit_is_default_head_ancestor",
+            "signature_verified",
+            "ruleset_active",
+            "history_bypass_free",
+            "deletion_protected",
+            "non_fast_forward_protected",
+        ):
+            if getattr(evidence, label) is not True:
+                raise WaiverError("WAIVER_INVALID", f"{label} is not exact true")
+    except AttributeError as exc:
+        raise WaiverError("WAIVER_INVALID", "evidence field missing") from exc
     try:
         approved = _utc(waiver["approved_at"], "approved_at")
         expires = _utc(waiver["expires_at"], "expires_at")
@@ -249,7 +292,6 @@ def verify_waiver(
     checks = (
         waiver["policy_version"] == policy["policy_version"] == POLICY_VERSION,
         evidence.default_branch == policy["protected_default_branch"],
-        isinstance(evidence.default_head, str) and bool(re.fullmatch(r"[0-9a-f]{40,64}", evidence.default_head)),
         waiver["repository"] == context.repository,
         scope["mode"] == context.mode,
         scope["subject"]["type"] == context.subject_type,
@@ -258,23 +300,10 @@ def verify_waiver(
         waiver["approved_by"] in policy["approver_allowlist"],
         approved <= now < expires,
         0 < (expires - approved).total_seconds() <= max_seconds,
-        evidence.commit_is_default_head_ancestor,
-        evidence.signature_verified,
         evidence.signer_login == waiver["approved_by"],
-        evidence.ruleset_active,
-        evidence.history_bypass_free,
-        evidence.deletion_protected,
-        evidence.non_fast_forward_protected,
     )
     if not all(checks):
         raise WaiverError("WAIVER_INVALID", "scope, expiry, signer, or ruleset mismatch")
-    for label, value in (
-        ("policy_blob_sha", evidence.policy_blob_sha),
-        ("waiver_blob_sha", evidence.waiver_blob_sha),
-        ("approval_commit", evidence.approval_commit),
-    ):
-        if not isinstance(value, str) or not value:
-            raise WaiverError("WAIVER_INVALID", f"{label} missing")
     return {
         "waiver_id": str(waiver["id"]),
         "policy_blob_sha": evidence.policy_blob_sha,

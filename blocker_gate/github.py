@@ -17,6 +17,37 @@ from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 API_VERSION = "2026-03-10"
 _NEXT = re.compile(r'<([^>]+)>;\s*rel="next"')
+_GIT_OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+_GITHUB_LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
+_RULESET_SOURCE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,98}[A-Za-z0-9])?$")
+_RULESET_SOURCE_TYPES = frozenset({"Repository", "Organization", "Enterprise"})
+_BRANCH_RULE_TYPES = frozenset(
+    {
+        "creation",
+        "update",
+        "deletion",
+        "required_linear_history",
+        "merge_queue",
+        "required_deployments",
+        "required_signatures",
+        "pull_request",
+        "required_status_checks",
+        "non_fast_forward",
+        "commit_message_pattern",
+        "commit_author_email_pattern",
+        "committer_email_pattern",
+        "branch_name_pattern",
+        "tag_name_pattern",
+        "workflows",
+        "code_scanning",
+        "copilot_code_review",
+        "license_compliance_scanning",
+        "file_path_restriction",
+        "max_file_path_length",
+        "file_extension_restriction",
+        "max_file_size",
+    }
+)
 
 
 class GitHubReadError(RuntimeError):
@@ -227,7 +258,7 @@ class GitHubCollector:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         head_oid = pr.get("headRefOid")
         base_ref = pr.get("baseRefName")
-        if not isinstance(head_oid, str) or not re.fullmatch(r"[0-9a-f]{40,64}", head_oid):
+        if type(head_oid) is not str or not _GIT_OID.fullmatch(head_oid):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         if not isinstance(base_ref, str) or not base_ref or not isinstance(default_branch, str) or not default_branch:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
@@ -334,6 +365,161 @@ class GitHubCollector:
         except (ValueError, TypeError) as exc:
             raise GitHubReadError("API_PARTIAL_RESPONSE") from exc
 
+    def _approval_signer(self, repository: str, approval: str) -> str:
+        """approval commitと署名状態・署名者を単一GraphQL応答で束縛する。"""
+        if repository.count("/") != 1:
+            raise GitHubReadError("IDENTITY_MISMATCH")
+        owner, name = repository.split("/", 1)
+        query = """
+        query($owner:String!,$name:String!,$oid:GitObjectID!){
+          repository(owner:$owner,name:$name){
+            nameWithOwner
+            object(oid:$oid){
+              ... on Commit{
+                oid
+                signature{isValid state signer{login} wasSignedByGitHub}
+              }
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"owner": owner, "name": name, "oid": approval})
+        if type(data) is not dict or set(data) != {"repository"}:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        repo = data["repository"]
+        if type(repo) is not dict or set(repo) != {"nameWithOwner", "object"}:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if repo["nameWithOwner"] != repository:
+            raise GitHubReadError("IDENTITY_MISMATCH")
+        commit = repo["object"]
+        if type(commit) is not dict or set(commit) != {"oid", "signature"}:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if commit["oid"] != approval:
+            raise GitHubReadError("IDENTITY_MISMATCH")
+        signature = commit["signature"]
+        if type(signature) is not dict or set(signature) != {
+            "isValid",
+            "state",
+            "signer",
+            "wasSignedByGitHub",
+        }:
+            raise GitHubReadError("WAIVER_INVALID")
+        signer = signature["signer"]
+        if (
+            signature["isValid"] is not True
+            or signature["state"] != "VALID"
+            or type(signature["wasSignedByGitHub"]) is not bool
+            or type(signer) is not dict
+            or set(signer) != {"login"}
+            or type(signer["login"]) is not str
+            or not _GITHUB_LOGIN.fullmatch(signer["login"])
+        ):
+            raise GitHubReadError("WAIVER_INVALID")
+        return signer["login"]
+
+    @staticmethod
+    def _ruleset_source_valid(repository: str, source_type: str, source: str) -> bool:
+        if source_type == "Repository":
+            return source == repository
+        if source_type == "Organization":
+            return source == repository.split("/", 1)[0]
+        return bool(_RULESET_SOURCE.fullmatch(source))
+
+    def _branch_protection_evidence(
+        self, repository: str, branch: str
+    ) -> tuple[bool, bool, bool, bool]:
+        """同一rulesetに閉じた履歴保護だけをwaiver証拠へ昇格する。"""
+        rules = self._list(f"/repos/{repository}/rules/branches/{quote(branch, safe='')}")
+        by_type: dict[str, set[tuple[int, str, str]]] = {}
+        seen: set[tuple[str, int, str, str]] = set()
+        core_keys = {"type", "ruleset_source_type", "ruleset_source", "ruleset_id"}
+        for rule in rules:
+            keys = set(rule)
+            if not core_keys.issubset(keys) or not keys.issubset(core_keys | {"parameters"}):
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            rule_type = rule["type"]
+            source_type = rule["ruleset_source_type"]
+            source = rule["ruleset_source"]
+            ruleset_id = rule["ruleset_id"]
+            if (
+                type(rule_type) is not str
+                or rule_type not in _BRANCH_RULE_TYPES
+                or type(source_type) is not str
+                or source_type not in _RULESET_SOURCE_TYPES
+                or type(source) is not str
+                or not self._ruleset_source_valid(repository, source_type, source)
+                or type(ruleset_id) is not int
+                or ruleset_id < 1
+                or ("parameters" in rule and type(rule["parameters"]) is not dict)
+            ):
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            identity = (ruleset_id, source_type, source)
+            item_key = (rule_type, *identity)
+            if item_key in seen:
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            seen.add(item_key)
+            by_type.setdefault(rule_type, set()).add(identity)
+
+        candidates = by_type.get("deletion", set()) & by_type.get(
+            "non_fast_forward", set()
+        )
+        if not candidates:
+            return False, False, False, False
+
+        active_seen = False
+        for ruleset_id, source_type, source in sorted(candidates):
+            ruleset, _ = self._get(
+                f"/repos/{repository}/rulesets/{ruleset_id}?includes_parents=true"
+            )
+            if type(ruleset) is not dict:
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            required = {
+                "id",
+                "target",
+                "source_type",
+                "source",
+                "enforcement",
+                "bypass_actors",
+                "rules",
+            }
+            if not required.issubset(ruleset):
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            if (
+                type(ruleset["id"]) is not int
+                or ruleset["id"] != ruleset_id
+                or type(ruleset["target"]) is not str
+                or ruleset["target"] != "branch"
+                or type(ruleset["source_type"]) is not str
+                or ruleset["source_type"] != source_type
+                or type(ruleset["source"]) is not str
+                or ruleset["source"] != source
+                or type(ruleset["enforcement"]) is not str
+                or ruleset["enforcement"] not in {"active", "evaluate", "disabled"}
+                or type(ruleset["bypass_actors"]) is not list
+                or type(ruleset["rules"]) is not list
+            ):
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            detail_types: set[str] = set()
+            for detail_rule in ruleset["rules"]:
+                if (
+                    type(detail_rule) is not dict
+                    or type(detail_rule.get("type")) is not str
+                    or detail_rule["type"] not in _BRANCH_RULE_TYPES
+                ):
+                    raise GitHubReadError("API_PARTIAL_RESPONSE")
+                if detail_rule["type"] in {"deletion", "non_fast_forward"} and set(
+                    detail_rule
+                ) != {"type"}:
+                    raise GitHubReadError("API_PARTIAL_RESPONSE")
+                detail_types.add(detail_rule["type"])
+            if not {"deletion", "non_fast_forward"}.issubset(detail_types):
+                raise GitHubReadError("API_PARTIAL_RESPONSE")
+            active = ruleset["enforcement"] == "active"
+            active_seen = active_seen or active
+            if active and ruleset["bypass_actors"] == []:
+                return True, True, True, True
+        return active_seen, False, False, False
+
     def collect_waiver_materials(self, repository: str) -> WaiverCollection:
         """current default head のwaiver真正性材料をread-onlyでfresh収集する。"""
         try:
@@ -356,8 +542,8 @@ class GitHubCollector:
                 or ref.get("ref") != expected_ref
                 or not isinstance(obj, dict)
                 or obj.get("type") != "commit"
-                or not isinstance(obj.get("sha"), str)
-                or not re.fullmatch(r"[0-9a-f]{40,64}", obj["sha"])
+                or type(obj.get("sha")) is not str
+                or not _GIT_OID.fullmatch(obj["sha"])
             ):
                 raise GitHubReadError("IDENTITY_MISMATCH")
             head = obj["sha"]
@@ -367,8 +553,8 @@ class GitHubCollector:
                 not isinstance(head_commit, dict)
                 or head_commit.get("sha") != head
                 or not isinstance(head_tree, dict)
-                or not isinstance(head_tree.get("sha"), str)
-                or not re.fullmatch(r"[0-9a-f]{40,64}", head_tree["sha"])
+                or type(head_tree.get("sha")) is not str
+                or not _GIT_OID.fullmatch(head_tree["sha"])
             ):
                 raise GitHubReadError("API_PARTIAL_RESPONSE")
             tree_sha = head_tree["sha"]
@@ -401,27 +587,12 @@ class GitHubCollector:
                 return WaiverCollection(errors=("WAIVER_SCHEMA_INVALID",))
             policy_bytes = self._blob_bytes(repository, files[policy_path])
 
-            rules, _ = self._get(
-                f"/repos/{repository}/rules/branches/{quote(branch, safe='')}"
-            )
-            if not isinstance(rules, list) or any(not isinstance(rule, dict) for rule in rules):
-                raise GitHubReadError("API_PARTIAL_RESPONSE")
-            rule_types = {rule.get("type") for rule in rules}
-            ruleset_ids = sorted(
-                {
-                    rule["ruleset_id"]
-                    for rule in rules
-                    if isinstance(rule.get("ruleset_id"), int) and not isinstance(rule.get("ruleset_id"), bool)
-                }
-            )
-            ruleset_active = bool(ruleset_ids)
-            history_bypass_free = bool(ruleset_ids)
-            for ruleset_id in ruleset_ids:
-                ruleset, _ = self._get(f"/repos/{repository}/rulesets/{ruleset_id}")
-                if not isinstance(ruleset, dict) or ruleset.get("id") != ruleset_id:
-                    raise GitHubReadError("API_PARTIAL_RESPONSE")
-                ruleset_active = ruleset_active and ruleset.get("enforcement") == "active"
-                history_bypass_free = history_bypass_free and ruleset.get("bypass_actors") == []
+            (
+                ruleset_active,
+                history_bypass_free,
+                deletion_protected,
+                non_fast_forward_protected,
+            ) = self._branch_protection_evidence(repository, branch)
 
             materials: list[WaiverMaterial] = []
             for path in waiver_paths:
@@ -434,14 +605,11 @@ class GitHubCollector:
                     raise GitHubReadError("API_PARTIAL_RESPONSE")
                 commit = history[0]
                 approval = commit.get("sha")
-                details = commit.get("commit")
-                verification = details.get("verification") if isinstance(details, dict) else None
-                author = commit.get("author")
-                if not isinstance(approval, str) or not re.fullmatch(r"[0-9a-f]{40,64}", approval):
+                if type(approval) is not str or not _GIT_OID.fullmatch(approval):
                     raise GitHubReadError("API_PARTIAL_RESPONSE")
+                signer = self._approval_signer(repository, approval)
                 compare, _ = self._get(f"/repos/{repository}/compare/{approval}...{head}")
                 ancestor = isinstance(compare, dict) and compare.get("status") in {"ahead", "identical"}
-                signer = author.get("login") if isinstance(author, dict) else None
                 evidence = WaiverEvidence(
                     default_branch=branch,
                     default_head=head,
@@ -449,12 +617,12 @@ class GitHubCollector:
                     waiver_blob_sha="sha256:" + hashlib.sha256(waiver_bytes).hexdigest(),
                     approval_commit=approval,
                     commit_is_default_head_ancestor=ancestor,
-                    signature_verified=isinstance(verification, dict) and verification.get("verified") is True,
-                    signer_login=signer if isinstance(signer, str) else None,
+                    signature_verified=True,
+                    signer_login=signer,
                     ruleset_active=ruleset_active,
                     history_bypass_free=history_bypass_free,
-                    deletion_protected="deletion" in rule_types,
-                    non_fast_forward_protected="non_fast_forward" in rule_types,
+                    deletion_protected=deletion_protected,
+                    non_fast_forward_protected=non_fast_forward_protected,
                 )
                 materials.append(WaiverMaterial(policy_bytes, waiver_bytes, evidence))
             return WaiverCollection(tuple(materials))
