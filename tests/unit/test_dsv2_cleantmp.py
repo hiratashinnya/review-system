@@ -280,19 +280,40 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
     片方だけ直した状態は誤読源として最も影響が大きい。さらに ``dsv2/README.md``
     （フォーマット依存マップ）にも同じ抜けが3件目として残っていた（issue #315 OOS-1）。
 
-    **round2（issue #315 N-01/N-02）で判明した構造欠陥**: 上記3件の是正後も、
+    **round2（issue #315 N-01）で判明した構造欠陥**: 上記3件の是正後も、
     実装に最も近い ``dsv2/__init__.py``・``dsv2/cli.py``（module docstring・
     ``cmd_clean_tmp`` docstring の計3箇所）に同型ドリフトが残存していた（N-01）。
-    これを ``test_every_protected_name_appears_in_the_guard_description`` が
+    これを当時の ``test_every_protected_name_appears_in_the_guard_description`` が
     検出できなかったのは、判定が**ファイル単位の blob** に対して保護名の存在を見る
-    せいで、**同一ファイル内に正しい行（記述）が1つあれば別の行の欠落を検出できない**
-    という構造欠陥があったため。そこで
-    ``test_bare_handoff_reference_is_always_paired_with_karte`` を追加し、
-    ``_handoff`` に言及する段落は必ず ``_karte`` にも言及していることを
-    **段落単位**（blank line 区切り）で検査する——RST の word-wrap で
-    ``` ``tmp/_handoff`` ``` と ``fail-close``/``拒否`` が別の物理行に分かれる
-    （例: ``dsv2/cli.py:291-292``）ため、単純な「行単位」では拾えない
-    （issue #315 round2 レビュー申し送り）。
+    せいで、**同一ファイル内に正しい記述が1つあれば別の記述の欠落を検出できない**
+    という構造欠陥があったため。
+
+    **round2 是正の1周目（N-01 是正コミット）で追加した
+    ``test_bare_handoff_reference_is_always_paired_with_karte`` は、なお同じ
+    「ファイル単位 blob」判定を残したまま**（``test_every_protected_name_appears_in_the_guard_description``
+    自体は変えず、別テストを追加しただけ）だったため、**N-02 として再指摘**された：
+    ``_guard_blob`` が「``clean-tmp``/``保護名`` を含む全段落を連結してから ``assertIn``」する
+    実装のままで、``dsv2/cli.py`` 内の独立した2つのガード段落（module docstring の bullet と
+    ``cmd_clean_tmp`` docstring）間で保護名を**借用**できてしまっていた。加えて
+    ``test_bare_handoff_reference_is_always_paired_with_karte`` のトリガーが
+    ``` ``tmp/_handoff`` ``` という bare RST 参照形にしか反応しないため、是正後の実際の
+    表記（``保護名（``_handoff``・``_karte``）`` 等・bare 形を使わない）では**一度も
+    トリガーせず trivially に PASS していた**（issue #315 round2 レビュー申し送り）。
+
+    **N-02 是正（本ラウンド）**: 上記2つの構造欠陥を、``_guard_paragraphs`` による
+    **真の段落単位判定**へ統合して解消する——段落を連結せず、``clean-tmp``/``保護名`` に
+    触れ**かつ**具体的な保護名（``_handoff``/``_karte`` のいずれか）を1つ以上挙げている
+    段落だけを「ガード説明」とみなし、その段落**それぞれ単独**で
+    ``cleantmp.PROTECTED_DIRNAMES`` の全メンバーを備えているかを検査する。
+    「具体的な保護名を1つ以上挙げている」の条件を外すと、``_protected_component`` の
+    docstring のように「保護名」という語だけを一般的に使う無関係な段落まで拾って
+    誤検出する。「``clean-tmp``/``保護名`` に触れている」の条件を外すと、
+    「戻り値のハンドオフ規約」（``tmp/_handoff/<key>.yaml`` 等）のような**掃除ガードとは
+    無関係な ``_handoff`` 言及**まで拾って誤検出する（``.claude/agents/reconciliation.md``
+    の「ハンドオフ」節が実例）。両条件を組み合わせることで、``test_bare_handoff_reference_
+    is_always_paired_with_karte`` が意図していた「``_handoff`` に言及して ``_karte`` を
+    欠く段落を検出する」を bare 形に限らず一般化しつつ、この新しい段落単位判定に統合した
+    （重複テストを残さない）。
 
     対象文書も **静的な固定リストではなく、`clean-tmp`/`PROTECTED_DIRNAMES` に
     実際に触れているファイルを動的に絞り込んで**決める（``_discover_guard_docs``）。
@@ -307,11 +328,6 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
         "`_handoff` を含むパスを機械的に拒否する）",
         "`_handoff` を機械的に拒否する）",
     )
-    # ガードの列挙文だけが使う bare な RST インライン参照（末尾スラッシュなし）。
-    # 「戻り値のハンドオフ規約」の説明（`tmp/_handoff/<key>.yaml` 等・末尾スラッシュ/
-    # 内容つき）とは書式で区別できるため、無関係な段落を誤検出しない
-    # （dsv2/cleantmp.py の意図的な例示文はこの bare 形を使わないので対象外のまま）。
-    HANDOFF_BARE_REF = "``tmp/_handoff``"
 
     @classmethod
     def _candidate_guard_docs(cls):
@@ -359,21 +375,55 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
         return ["\n".join(block) for block in blocks]
 
     @classmethod
-    def _guard_blob(cls, path: Path) -> str:
-        return "\n".join(
+    def _guard_paragraphs(cls, path: Path):
+        """段落を連結せず、「ガード説明」段落だけを個別に返す（N-02 是正）。
+
+        選定条件は次の**両方**を満たす段落：
+          1. ``clean-tmp`` または ``保護名`` に触れている（掃除ガードの説明である）。
+          2. ``cleantmp.PROTECTED_DIRNAMES`` のいずれか1つ以上を具体的に挙げている。
+
+        条件1だけだと ``_protected_component`` の docstring のように「保護名」という
+        語だけを一般的に使う無関係な段落（具体名を1つも挙げない）まで拾って誤検出する。
+        条件2だけだと「戻り値のハンドオフ規約」の ``tmp/_handoff/<key>.yaml`` 言及のような
+        掃除ガードとは無関係な ``_handoff`` 参照まで拾って誤検出する
+        （``.claude/agents/reconciliation.md`` の「ハンドオフ」節が実例）。
+        """
+        return [
             para for para in cls._paragraphs(path)
-            if "clean-tmp" in para or "保護名" in para
-        )
+            if ("clean-tmp" in para or "保護名" in para)
+            and any(name in para for name in cleantmp.PROTECTED_DIRNAMES)
+        ]
 
     def test_every_protected_name_appears_in_the_guard_description(self):
+        """K-11 / N-02 是正: 各ガード段落は**単独で**全保護名を備えていること。
+
+        段落を連結してから ``assertIn`` すると、同一ファイル内の別の段落から保護名を
+        「借用」でき、片方の段落だけ欠落していても見逃す（N-02 の再指摘内容）。
+        ここでは段落ごとに独立して不足を検査し、失敗時はどのファイルのどの段落かを
+        メッセージに残す。
+
+        ``test_bare_handoff_reference_is_always_paired_with_karte``（旧・issue #315
+        round2 で追加）はこの段落単位判定に統合済み——``_handoff`` に言及して
+        ``_karte`` を欠く段落は、ここで PROTECTED_DIRNAMES の不足として同じ経路で
+        検出される（bare RST 形に限定されていた旧トリガーの一般化）。
+        """
         self.assertTrue(self.GUARD_DOCS, "ガード対象文書が1件も見つからない")
         for doc in self.GUARD_DOCS:
             with self.subTest(doc=doc.name):
-                blob = self._guard_blob(doc)
-                self.assertTrue(blob, f"clean-tmp のガード説明が見つからない: {doc}")
-                for name in cleantmp.PROTECTED_DIRNAMES:
-                    with self.subTest(protected=name):
-                        self.assertIn(name, blob)
+                guard_paragraphs = self._guard_paragraphs(doc)
+                self.assertTrue(
+                    guard_paragraphs, f"clean-tmp のガード説明が見つからない: {doc}"
+                )
+                for idx, para in enumerate(guard_paragraphs):
+                    missing = [
+                        name for name in cleantmp.PROTECTED_DIRNAMES
+                        if name not in para
+                    ]
+                    with self.subTest(doc=doc.name, paragraph=idx):
+                        self.assertEqual(
+                            missing, [],
+                            f"{doc} の段落 {idx} は保護名 {missing} を欠く: {para!r}",
+                        )
 
     def test_guard_description_is_not_stale_on_a_single_name(self):
         """保護名が 1 つしか書かれていない旧記述が残っていないこと。"""
@@ -382,23 +432,6 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
             for phrase in self.STALE_PHRASES:
                 with self.subTest(doc=doc.name, phrase=phrase):
                     self.assertNotIn(phrase, text)
-
-    def test_bare_handoff_reference_is_always_paired_with_karte(self):
-        """N-02 是正（issue #315 round2）: ``_handoff`` に言及する段落は、必ず
-        ``_karte`` にも言及していること（段落単位）。ファイル単位の blob 判定では
-        同一ファイル内の別記述に正しい対が1つあれば、この段落の欠落を検出できない
-        ——それが N-01 の3件を素通りさせた原因。"""
-        for doc in self.GUARD_DOCS:
-            with self.subTest(doc=doc.name):
-                offending = [
-                    para for para in self._paragraphs(doc)
-                    if self.HANDOFF_BARE_REF in para and "_karte" not in para
-                ]
-                self.assertEqual(
-                    offending, [],
-                    f"{doc} に `{self.HANDOFF_BARE_REF}` を含み `_karte` を"
-                    f"欠く段落がある: {offending}",
-                )
 
 
 if __name__ == "__main__":
