@@ -2,6 +2,7 @@
 source =
     review_system
     docidx
+    blocker_gate
 omit =
     tests/*
     scripts/*
