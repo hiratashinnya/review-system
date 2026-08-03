@@ -13,7 +13,8 @@ verb:
                      反復された root_cause / targets を名指しした転換指令を stdout に返す。
   ``close-attempt``  修正後の実測 touched-set を ``### Result k`` として追記する
                      （実測信号の供給源。Attempt ブロック自体は書き換えない）。
-  ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか。
+  ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか、
+                     および**全 Attempt** が ``close-attempt`` 済みか（実測信号の供給）。
   ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
                      を機械判定する（エスカレーション条件）。既定出力は**そのまま注入できる
                      自己完結した本文**（K-15：PostToolUse フックが ``pr-reviewer`` 呼び出し
@@ -26,7 +27,10 @@ verb:
 進行ポインタ（``tmp/_karte/active.json``）による補完:
   フック（SubagentStart / SubagentStop）は dispatch prompt を読めないため、Issue 番号と
   ラウンド番号の唯一の情報源が進行ポインタになる。``--issue`` は全 verb で、``--round`` は
-  ``ingest-review`` / ``append`` で省略でき、省略時はポインタから補完する。
+  ``ingest-review`` / ``append`` / ``check`` で省略でき、省略時はポインタから補完する。
+  補完する値は verb で違う——``ingest-review`` は「最後に取り込んだラウンド **＋1**」
+  （新しいレビューは必ず次のラウンド）、``append`` / ``check`` は「最後に取り込んだ
+  ラウンド **そのまま**」（いま是正中のラウンドを対象にする）。
   **ポインタが無い・壊れている・必要なキーを欠く場合は補完せず EXIT_ERROR**（fail-close）
   ——壊れたポインタを「無い」と同じに扱うと、別 Issue の台帳へ黙って書きかねない。
 
@@ -230,6 +234,34 @@ def _resolve_ingest_round(args, issue: int) -> int:
     return _validate_round(active["round"]) + 1
 
 
+def _resolve_check_round(args, issue: int) -> int:
+    """``check`` のラウンド番号を決める（``--round`` 省略時は進行ポインタの値を**そのまま**）。
+
+    ``ingest-review`` と違って **+1 しない**——ポインタが保持しているのは「最後に取り込んだ
+    ラウンド」で、``check`` が検査したいのはまさにそのラウンド（いま是正中のラウンド）だから。
+    K-02 で ``check`` は SubagentStop フックの判定根拠になったが、**フックは dispatch prompt を
+    読めない**ため、ここで補完できないとフック側がラウンド導出を再実装することになる
+    （他 4 verb は補完できるのに ``check`` だけ非対称だった）。
+
+    ポインタが無い・壊れている・``round`` を欠く・``issue`` が対象と食い違う場合は推測せず
+    fail-close する（``_resolve_ingest_round`` と同じ扱い）。
+    """
+    if getattr(args, "round", None) is not None:
+        return _validate_round(args.round)
+    active = _read_active(_repo_root(args), required=True)
+    if "round" not in active:
+        raise KarteUsageError(
+            "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
+            "（`--round` を明示するか、先に `ingest-review` を実行する）"
+        )
+    if "issue" in active and paths.validate_issue(active["issue"]) != issue:
+        raise KarteUsageError(
+            f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
+            "（--round を明示するか、対象 Issue の取り込みからやり直す）"
+        )
+    return _validate_round(active["round"])
+
+
 def _read_report(args, repo_root) -> str:
     """レビューレポート本文を ``--from`` から読む（``-`` は標準入力）。
 
@@ -345,6 +377,15 @@ def _saturated_groups(karte: model.Karte) -> list:
     新規側に実測値は存在しない）。比較相手の過去 Attempt 側には ``close-attempt`` で
     取り込んだ実測値を載せる——ここも ``append`` と同じ扱い。
 
+    **比較相手（priors）も ``append`` と同じ集合にする**——すなわち候補ごとに
+    :func:`_priors_for` で「その候補が対象とする**未解消** finding を共有する Attempt」へ
+    絞る。以前はここだけが「未解消 finding をどれか共有する全 Attempt」を priors に使って
+    おり、判定関数が 1 つでも**入力集合が 2 通り**あったため表示とゲートが再び食い違った：
+    未解消 finding が 2 件あり Attempt を finding ごとに分けると、finding B の Attempt は
+    finding A の Attempt 群まで priors に数えられて**飽和表示されるのに ``append`` は通る**
+    （過大報告）。逆向き（``append`` は拒否するのに表示に出ない＝過少報告）も同じ穴の裏側。
+    判定関数だけでなく**入力も一本化**して初めて K-09 の「表示＝ゲート」が成立する。
+
     戻り値は ``(candidate_number, members, hits, candidate_view)`` の列。
     ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
     ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
@@ -353,7 +394,6 @@ def _saturated_groups(karte: model.Karte) -> list:
     relevant = [
         attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
     ]
-    priors = [_view_of(karte, attempt) for attempt in relevant]
     groups: list = []
     seen: set = set()
     for attempt in relevant:
@@ -364,6 +404,8 @@ def _saturated_groups(karte: model.Karte) -> list:
             targets=tuple(attempt.targets),
             touched=(),
         )
+        # `append` と同じ入力集合（候補の finding_ids でスコープした priors）を使う。
+        priors = _priors_for(karte, attempt.finding_ids)
         hits = similarity.find_hits(candidate, priors)
         if not similarity.is_saturated(hits):
             continue
@@ -822,7 +864,7 @@ def cmd_check(args) -> int:
 
     合格条件は 2 つ:
       1. 当該ラウンドの Attempt が未解消 finding を網羅している。
-      2. 当該ラウンド**以前**の Attempt が全て ``close-attempt`` 済み（Result を持つ）。
+      2. **カルテ上の全 Attempt** が ``close-attempt`` 済み（Result を持つ）。
 
     2 を課すのが K-02 の是正。実測 touched-set の唯一の供給源は ``close-attempt`` だが、
     以前は ``check`` も ``append`` も「直前の Attempt がクローズ済みであること」を求めて
@@ -830,10 +872,19 @@ def cmd_check(args) -> int:
     一度も呼ばなければ宣言信号にも実測信号（測定値ゼロ）にも掛からず**無制限に通った**
     ——偽装ではなく**呼び忘れだけ**でゲートが無効化できた。``check`` は SubagentStop
     フックの判定根拠なので、ここで落とせば「クローズしないと前に進めない」になる。
+
+    2 の対象を「当該ラウンド**以前**」ではなく**全 Attempt** にするのは逃げ道を残さない
+    ため。``append --round <大きい値>`` で先のラウンドを名乗った Attempt は、以前は
+    ``round <= --round`` の絞り込みから外れて未クローズのまま ``check`` を通せた
+    ——既定経路では踏まないとしても、「呼ばれないと進まないように作る」を掲げる以上
+    暗黙の前提（＝呼び出し側がラウンドを正直に申告すること）に依存させない。
+
+    ``--round`` は進行ポインタから補完できる（:func:`_resolve_check_round`）。フックは
+    dispatch prompt を読めないので、ここが必須だとフック側でラウンド導出を再実装させる。
     """
     issue = _resolve_issue(args)
     _path, karte = _load(args, issue)
-    round_no = _validate_round(args.round)
+    round_no = _resolve_check_round(args, issue)
 
     attempts = [item for item in karte.attempts if item.round == round_no]
     expected = sorted(
@@ -858,7 +909,7 @@ def cmd_check(args) -> int:
     pending = [
         item.number
         for item in karte.attempts
-        if item.round <= round_no and not karte.results_for(item.number)
+        if not karte.results_for(item.number)
     ]
     if pending:
         print(
@@ -1077,7 +1128,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = subparsers.add_parser("check", help="当該ラウンドの診断網羅を検査")
     add_issue(check)
-    check.add_argument("--round", required=True, help="検査対象のラウンド番号")
+    check.add_argument(
+        "--round",
+        help="検査対象のラウンド番号（省略時は tmp/_karte/active.json の round をそのまま使う）",
+    )
     check.set_defaults(func=cmd_check)
 
     status = subparsers.add_parser("status", help="エスカレーション条件を機械判定")

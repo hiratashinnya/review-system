@@ -167,7 +167,9 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
   `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
-  （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が `_handoff` を機械的に拒否する）。
+  （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が保護名 `_handoff`・`_karte` を構成要素に
+  含むパスを機械的に拒否する＝`dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`。`_karte`＝是正ループの
+  診断カルテ置き場（Issue #307）も同様に掃除対象外）。
   - **`<key>` は呼び出しごとに一意にする**：`authoring-fanout` は各 author へ `target_key`
     （**呼び出しごとの nonce**＋親＋型＋連番）を、`reconciliation` へ `batch_id`（sprint＋layer＋同じ nonce＋先頭親）を
     採番して渡す。親 ID だけをキーにすると、同一親の複数 target や `parent_id` 空の新規ルートが並列で走ったときに

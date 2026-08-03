@@ -265,37 +265,58 @@ class TestCli(unittest.TestCase):
             self.assertFalse(target.exists())  # --apply で実削除される
 
 
-class TestReconciliationDocMatchesProtectedNames(unittest.TestCase):
-    """K-11: `.claude/agents/reconciliation.md` のガード説明が実装に追従していること。
+class TestGuardDocsMatchProtectedNames(unittest.TestCase):
+    """K-11: 掃除ガードの説明が実装（``PROTECTED_DIRNAMES``）に追従していること。
 
     PR #314 で保護名が ``(_handoff, _karte)`` の 2 つになったのに、agent 定義は
     ``_handoff`` だけを挙げたままだった。掃除を実行するのはこの agent なので、
     **実装とドキュメントの不整合は後工程（reconciliation）の誤読に直結する**
     ——「``_karte`` は掃除対象だ」と読んで是正ループの状態を消しにいきかねない。
     保護名を増やしたら記述も増やす、を機械的に固定する。
+
+    検査対象は ``.claude/agents/reconciliation.md`` **だけではない**（PR #319 R-06）:
+    ``CLAUDE.md`` にも同型の追従漏れが残っていた。CLAUDE.md は
+    ``inject-governance.sh`` が**毎ターン全エージェントに注入する統治規範の正本**なので、
+    片方だけ直した状態は誤読源として最も影響が大きい。同じドリフトが再発しないよう、
+    掃除ガードを説明する文書をまとめて検査する。
     """
 
-    AGENT_DOC = (
-        Path(__file__).resolve().parents[2] / ".claude" / "agents" / "reconciliation.md"
+    REPO_ROOT = Path(__file__).resolve().parents[2]
+    GUARD_DOCS = (
+        REPO_ROOT / ".claude" / "agents" / "reconciliation.md",
+        REPO_ROOT / "CLAUDE.md",
+    )
+    # 保護名が 1 つしか書かれていない旧記述（是正前の実文言）。
+    STALE_PHRASES = (
+        "`_handoff` を含まず symlink でもない",
+        "`_handoff` を含むパスを機械的に拒否する）",
+        "`_handoff` を機械的に拒否する）",
     )
 
-    def test_every_protected_name_appears_in_the_guard_description(self):
-        text = self.AGENT_DOC.read_text(encoding="utf-8")
-        guard_lines = [
+    @staticmethod
+    def _guard_blob(path: Path) -> str:
+        text = path.read_text(encoding="utf-8")
+        return "\n".join(
             line for line in text.splitlines()
             if "clean-tmp" in line or "保護名" in line
-        ]
-        self.assertTrue(guard_lines, "clean-tmp のガード説明が見つからない")
-        blob = "\n".join(guard_lines)
-        for name in cleantmp.PROTECTED_DIRNAMES:
-            with self.subTest(protected=name):
-                self.assertIn(name, blob)
+        )
+
+    def test_every_protected_name_appears_in_the_guard_description(self):
+        for doc in self.GUARD_DOCS:
+            with self.subTest(doc=doc.name):
+                blob = self._guard_blob(doc)
+                self.assertTrue(blob, f"clean-tmp のガード説明が見つからない: {doc}")
+                for name in cleantmp.PROTECTED_DIRNAMES:
+                    with self.subTest(protected=name):
+                        self.assertIn(name, blob)
 
     def test_guard_description_is_not_stale_on_a_single_name(self):
         """保護名が 1 つしか書かれていない旧記述が残っていないこと。"""
-        text = self.AGENT_DOC.read_text(encoding="utf-8")
-        self.assertNotIn("`_handoff` を含まず symlink でもない", text)
-        self.assertNotIn("`_handoff` を含むパスを機械的に拒否する）", text)
+        for doc in self.GUARD_DOCS:
+            text = doc.read_text(encoding="utf-8")
+            for phrase in self.STALE_PHRASES:
+                with self.subTest(doc=doc.name, phrase=phrase):
+                    self.assertNotIn(phrase, text)
 
 
 if __name__ == "__main__":

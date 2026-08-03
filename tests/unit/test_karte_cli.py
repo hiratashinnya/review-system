@@ -540,6 +540,94 @@ class TestCheckRequiresClosedAttempts(KarteTestCase):
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("--attempt 1", err)
 
+    def test_unclosed_attempt_from_a_later_round_also_blocks(self):
+        """**先のラウンド**を名乗った未クローズ Attempt も逃げ道にしない（PR #319 R-03）。
+
+        是正前の pending 検査は ``round <= --round`` で絞っていたため、
+        ``append --round <大きい値>`` で申告したラウンドを飛ばした Attempt は
+        未クローズのまま ``check`` を通せた。既定経路では踏まないとしても、
+        「呼ばれないと進まないように作る」を掲げる以上、呼び出し側がラウンドを
+        正直に申告するという**暗黙の前提**にゲートを依存させない。
+        """
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])  # round 1
+        self._close(1, self._diff_for("m1"))
+        self._append(round="9", root_cause="rc-9", targets=["pkg/m9.py::f9"])  # 未クローズ
+        code, _out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("未クローズ", err)
+        self.assertIn("--attempt 2", err)
+
+
+# --- R-02: check の --round も進行ポインタから補完する ---------------------------
+
+
+class TestCheckRoundFromActivePointer(KarteTestCase):
+    """``check --round`` の省略を進行ポインタで補完する（PR #319 R-02）。
+
+    K-02 で ``check`` は SubagentStop フックの判定根拠になったが、**フックは dispatch
+    prompt を読めない**。他 4 verb は ``--issue``（``ingest-review``/``append`` は
+    ``--round`` も）を補完できるのに ``check`` だけ ``required=True`` で非対称だったため、
+    フック側にラウンド導出を再実装させることになっていた。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._close(1, "--- a/pkg/m1.py\n+++ b/pkg/m1.py\n@@ -1 +1 @@ def f1(self):\n-x\n+y\n")
+
+    def test_round_is_filled_from_the_pointer(self):
+        code, out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("round 1", out)
+
+    def test_pointer_round_is_used_as_is_not_incremented(self):
+        """``ingest-review`` と違って **+1 しない**（ポインタ＝いま是正中のラウンド）。"""
+        self._ingest(2, ("F-307-01", HARMFUL))
+        self._append(round="2", root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        self._close(2, "--- a/pkg/m2.py\n+++ b/pkg/m2.py\n@@ -1 +1 @@ def f2(self):\n-x\n+y\n")
+        code, out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("round 2", out)
+        self.assertNotIn("round 3", out)
+
+    def test_explicit_round_still_wins(self):
+        """明示指定はポインタ（round 1・この構成では OK になる）より優先される。"""
+        code, out, _err = self._run(cli.cmd_check, round="2")
+        self.assertEqual(code, cli.EXIT_ERROR)  # round 2 の Attempt はまだ無い
+        self.assertIn("round 2", out)
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        """不在は他 verb と同じ ``EXIT_ERROR``（ラウンドを推測しない）。"""
+        self._active_path().unlink()
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._active_path().write_text("{ broken", encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("壊れている", err)
+
+    def test_pointer_without_round_is_fail_closed(self):
+        self._active_path().write_text('{"issue": 307}', encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("'round'", err)
+
+    def test_pointer_pointing_at_another_issue_is_fail_closed(self):
+        self._active_path().write_text('{"issue": 999, "round": 4}', encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_check)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("食い違う", err)
+
+    def test_round_is_not_required_on_the_cli_surface(self):
+        """argparse が ``--round`` 無しの ``check`` を受け付ける（フックが叩ける形）。"""
+        args = cli.build_parser().parse_args(["check", "--issue", "307"])
+        self.assertIsNone(args.round)
+        self.assertIs(args.func, cli.cmd_check)
+
 
 # --- K-06: 「不在＝解消」の廃止 -------------------------------------------------
 
@@ -759,6 +847,103 @@ class TestSaturationDisplayMatchesGate(KarteTestCase):
         """2 つ目の類似判定（連結成分）を復活させない（再発防止）。"""
         self.assertFalse(hasattr(similarity, "cluster"))
         self.assertFalse(hasattr(cli, "_similar_clusters"))
+
+    def test_display_hits_come_from_the_gate_input_set(self):
+        """判定関数だけでなく**入力集合**も ``append`` と同じであること（PR #319 R-01）。"""
+        karte = self._karte()
+        for number, _members, hits, _candidate in cli._saturated_groups(karte):
+            gate_priors = {
+                view.number
+                for view in cli._priors_for(karte, karte.attempt(number).finding_ids)
+            }
+            with self.subTest(candidate=number):
+                self.assertTrue({hit.prior for hit in hits} <= gate_priors)
+
+
+class TestSaturationScopeIsPerCandidate(KarteTestCase):
+    """K-09 の第2の穴: 表示側の priors が候補ごとにスコープされていなかった（PR #319 R-01）。
+
+    判定関数（``find_hits`` ＋ ``is_saturated``）は 1 つでも、**入力集合が 2 通り**あれば
+    表示とゲートは食い違う。是正前の ``_saturated_groups`` は priors に「未解消 finding を
+    **どれか**共有する全 Attempt」を使い、``append`` は ``_priors_for``（＝候補が対象とする
+    未解消 finding を共有する Attempt）を使っていた。
+
+    そのため未解消 finding が 2 件あり Attempt を finding ごとに分けると:
+      * 過大報告 … finding B の Attempt が finding A の試行まで数えられて飽和表示されるのに、
+        同じアプローチの ``append`` は ``EXIT_OK`` で通る。
+      * 過少報告 … その裏返し（``append`` は拒否するのに ``escalate: no`` のまま表示に出ない）。
+
+    ここでは (a) 表示された members の再試行が実際に ``EXIT_SATURATED`` になること、
+    (b) 表示されない Attempt の再試行が ``EXIT_OK`` で通ること、を**対で**固定する。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))  # F-307-01 / F-307-02 とも未解消
+        # F-307-01 に対して同種を 2 件 ＝ このアプローチは飽和した。
+        self._append(
+            finding_ids=["F-307-01"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/a.py::f"],
+        )
+        self._append(
+            finding_ids=["F-307-01"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/b.py::g"],
+        )
+        # F-307-02 に対しては同じ宣言でもまだ 1 件目 ＝ 飽和していない。
+        self._append(
+            finding_ids=["F-307-02"], root_cause="rc-x", change_kind="logic",
+            targets=["pkg/c.py::h"],
+        )
+        self.assertEqual(len(self._karte().attempts), 3)
+
+    def _retry(self, attempt):
+        """``attempt`` の宣言をそのまま繰り返す再試行を ``append`` する。"""
+        return self._append(
+            finding_ids=list(attempt.finding_ids),
+            root_cause=attempt.root_cause,
+            change_kind=attempt.change_kind,
+            targets=list(attempt.targets),
+        )
+
+    def test_groups_are_scoped_to_the_candidate_finding_ids(self):
+        _code, out, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(out)
+        # 是正前は [[1, 2, 3]]（F-307-02 の Attempt 3 まで巻き込んでいた）。
+        self.assertEqual(payload["saturated_groups"], [[1, 2]])
+        self.assertTrue(payload["escalate"])
+
+    def test_every_displayed_member_is_actually_rejected_by_append(self):
+        """(a) 表示された members の再試行は必ず ``EXIT_SATURATED``。"""
+        karte = self._karte()
+        groups = cli._saturated_groups(karte)
+        self.assertTrue(groups, "飽和グループが 1 つも出ていない（前提が崩れている）")
+        for _number, members, _hits, _candidate in groups:
+            for member in members:
+                with self.subTest(member=member):
+                    code, out, err = self._retry(karte.attempt(member))
+                    self.assertEqual(code, cli.EXIT_SATURATED, out + err)
+                    self.assertIn("DIRECTIVE", out)
+        self.assertEqual(len(self._karte().attempts), 3)  # 拒否時は書き込まない
+
+    def test_attempts_outside_the_displayed_groups_can_still_append(self):
+        """(b) 表示されない Attempt の再試行は ``EXIT_OK`` で通る。"""
+        karte = self._karte()
+        gated = {
+            member
+            for _number, members, _hits, _candidate in cli._saturated_groups(karte)
+            for member in members
+        }
+        self.assertNotIn(3, gated)  # 是正前は 3 も飽和扱いされていた
+        code, _out, err = self._retry(karte.attempt(3))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(len(self._karte().attempts), 4)
+
+    def test_render_names_only_the_saturated_approach(self):
+        _code, out, _err = self._run(cli.cmd_render)
+        self.assertIn("飽和したアプローチ", out)
+        self.assertIn("衝突する既存 Attempt 1, 2", out)
+        self.assertNotIn("衝突する既存 Attempt 1, 2, 3", out)
+        self.assertNotIn("Attempt 3 と同種", out)
 
 
 # --- K-12: `_REPO_ROOT` の遅延評価 ----------------------------------------------
