@@ -15,7 +15,10 @@ verb:
                      （実測信号の供給源。Attempt ブロック自体は書き換えない）。
   ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか。
   ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
-                     を機械判定する（エスカレーション条件）。
+                     を機械判定する（エスカレーション条件）。既定出力は**そのまま注入できる
+                     自己完結した本文**（K-15：PostToolUse フックが ``pr-reviewer`` 呼び出し
+                     完了直後に実行してコンテキストへ注入する。ただし PostToolUse は
+                     ツール呼び出しをブロックできず「判定を可視化する」までが役割）。
 
 終了コード（``dsv2`` に合わせる）:
   0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
@@ -132,7 +135,7 @@ def _read_active(repo_root, *, required: bool = False) -> dict:
         ``--issue`` / ``--round`` の補完に使う（＝これが唯一の情報源）とき True。
         ポインタが**まだ無い**場合に ``{}`` を返さず :class:`KarteUsageError` を送出する。
 
-    **壊れている場合は ``required`` によらず常に拒否する**（K-13/K-14）。JSON として
+    **壊れている場合は ``required`` によらず常に拒否する**（K-13/K-14/K-15）。JSON として
     読めない・dict でないポインタを黙って「無い」と同じ ``{}`` に潰すと、補完が沈黙の
     うちに別の値（別 Issue・別ラウンド）へ倒れ、誤った台帳を書き換えても観測できない。
     「まだ無い」（正常な初期状態）と「壊れている」（異常）は別物として扱う。
@@ -174,8 +177,9 @@ def _write_active(repo_root, issue: int, round_no: int) -> None:
 def _resolve_issue(args) -> int:
     """``--issue`` 省略時は進行ポインタ ``tmp/_karte/active.json`` から補完する。
 
-    フック（SubagentStart の ``render`` / SubagentStop の ``ingest-review`` / ``check``）は
-    dispatch prompt を読めないため、Issue 番号の唯一の情報源がこのポインタになる（K-13/K-14）。
+    フック（SubagentStart の ``render`` / SubagentStop の ``ingest-review`` / ``check`` /
+    PostToolUse の ``status``）は dispatch prompt を読めないため、Issue 番号の唯一の情報源が
+    このポインタになる（K-13/K-14/K-15）。
     ポインタが無い・壊れている・``issue`` を欠くときは推測せず fail-close する。
     """
     if getattr(args, "issue", None) is not None:
@@ -941,8 +945,22 @@ def _status_payload(karte: model.Karte) -> dict:
 
 @_fail_close
 def cmd_status(args) -> int:
+    """エスカレーション条件を機械判定し、**そのまま注入できる本文**として出力する（K-15）。
+
+    PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後にこれを実行し、
+    判定結果をコンテキストへ自動注入する。**PostToolUse はツール呼び出しをブロックできない**
+    （公式ドキュメント：the tool already ran／blocking does not undo the tool call）ため、
+    この verb の役割は「判定を必ず実行し可視化する」までであり、「判定に反した行動
+    （実害あり残存のまま merge する等）を止める」のは別途 PreToolUse で merge 操作を
+    捕まえるゲートが担う（Issue #293／#298・本 verb の対象外）。
+
+    ``--issue`` は進行ポインタ（``tmp/_karte/active.json``）から補完できる（K-13/K-14 と
+    同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
+    エスカレーション条件のどれに該当するかを 1 通で完結させる（端末装飾・対話前提の
+    文言は混ぜない）。機械可読が要るときは ``--json`` を使う（挙動は変えない）。
+    """
     issue = _resolve_issue(args)
-    _path, karte = _load(args, issue)
+    path, karte = _load(args, issue)
     payload = _status_payload(karte)
     if getattr(args, "json", False):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -953,12 +971,16 @@ def cmd_status(args) -> int:
         "harmful-open": "harmful-open（実害あり残存）",
         "no-harm-only": "no-harm-only（全件実害なし）",
     }[payload["verdict"]]
-    print(f"=== status: issue-{issue} ===")
-    print(f"  verdict: {verdict_label}")
-    print(f"  未解消: {', '.join(payload['open_findings']) or '(なし)'}")
-    print(f"  実害あり: {', '.join(payload['harmful_open']) or '(なし)'}")
-    print(f"  実害なし: {', '.join(payload['no_harm_open']) or '(なし)'}")
-    print(
+    lines = [f"=== status: issue-{issue} ==="]
+    lines.append(
+        f"これは Issue #{issue} の是正ループの進捗判定を、診断カルテ（{path}）から"
+        "機械生成した現在状態である（karte status）。"
+    )
+    lines.append(f"  verdict: {verdict_label}")
+    lines.append(f"  未解消: {', '.join(payload['open_findings']) or '(なし)'}")
+    lines.append(f"  実害あり: {', '.join(payload['harmful_open']) or '(なし)'}")
+    lines.append(f"  実害なし: {', '.join(payload['no_harm_open']) or '(なし)'}")
+    lines.append(
         f"  無進捗（{STALL_ROUNDS} ラウンド連続未解消）: "
         f"{', '.join(payload['stalled_findings']) or '(なし)'}"
     )
@@ -968,19 +990,31 @@ def cmd_status(args) -> int:
             for members in payload["saturated_groups"]
         )
         # K-09: 「同種の再試行が拒否される組」であって「次の append が必ず落ちる」ではない。
-        print(
+        lines.append(
             f"  飽和したアプローチ（同種の再試行は append が拒否される）: {groups}"
         )
-    print(f"  escalate: {'yes' if payload['escalate'] else 'no'}")
-    for finding in payload["findings"]:
-        if finding["status"] != "open":
-            continue
+    if payload["escalate"]:
+        reasons = []
+        if payload["stalled_findings"]:
+            reasons.append(f"無進捗（{', '.join(payload['stalled_findings'])}）")
+        if payload["saturated_groups"]:
+            reasons.append("飽和したアプローチあり")
+        lines.append(f"  escalate: yes（理由: {' / '.join(reasons) or '不明'}）")
+    else:
+        lines.append("  escalate: no（無進捗・飽和したアプローチのいずれにも該当しない）")
+    lines.append("")
+    lines.append("## 残存 finding（未解消・harm 判定つき）")
+    open_lines = [item for item in payload["findings"] if item["status"] == "open"]
+    if not open_lines:
+        lines.append("  (未解消の指摘なし)")
+    for finding in open_lines:
         trace = []
         for attempt in finding["attempts"]:
             outcomes = ", ".join(result["outcome"] for result in attempt["results"]) or "未クローズ"
             trace.append(f"Attempt {attempt['attempt']}({attempt['root_cause']}→{outcomes})")
-        print(f"  - {finding['id']}: {finding['summary']}")
-        print(f"      診断/処置: {'; '.join(trace) or '(未診断)'}")
+        lines.append(f"  - {finding['id']} [harm={finding['harm']}]: {finding['summary']}")
+        lines.append(f"      診断/処置: {'; '.join(trace) or '(未診断)'}")
+    print("\n".join(lines))
     return EXIT_OK
 
 

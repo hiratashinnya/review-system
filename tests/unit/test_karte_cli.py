@@ -1050,6 +1050,77 @@ class TestRenderForInjection(KarteTestCase):
         self.assertIn("未検出", err)
 
 
+# --- K-15: status をフックから実行できるようにする -----------------------------
+
+
+class TestStatusForInjection(KarteTestCase):
+    """K-15: PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に実行し注入する本文。"""
+
+    def test_issue_is_filled_from_active_pointer(self):
+        self._ingest(1, ("new", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("issue-307", out)
+        self.assertIn("harmful-open", out)
+
+    def test_json_also_honors_active_pointer(self):
+        """``--json`` は挙動維持（機械可読用）だが --issue 省略は同じく補完される。"""
+        self._ingest(1, ("new", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, issue=None, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(json.loads(out)["issue"], 307)
+
+    def test_missing_active_pointer_is_fail_closed(self):
+        code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_broken_active_pointer_is_fail_closed(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._active_path().write_text("not json at all", encoding="utf-8")
+        code, _out, err = self._run(cli.cmd_status, issue=None, json=False)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("進行ポインタ", err)
+
+    def test_output_is_self_contained_for_harmful_open(self):
+        self._ingest(1, ("new", HARMFUL), ("new", COSMETIC))
+        self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite",
+            targets=["pkg/forms.py::build_attrs"],
+        )
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        # 何の本文か・どこから来たか（前後の文脈に依存しない）。
+        self.assertIn("Issue #307", out)
+        self.assertIn("issue-307.md", out)
+        # verdict（実害あり残存／全件実害なし／無進捗のいずれか）。
+        self.assertIn("verdict: harmful-open（実害あり残存）", out)
+        # 残存 finding と harm 判定。
+        self.assertIn("## 残存 finding（未解消・harm 判定つき）", out)
+        self.assertIn("F-307-01 [harm=real]", out)
+        self.assertIn("F-307-02 [harm=none]", out)
+        # エスカレーション条件のどれに該当するか（この時点では該当しない）。
+        self.assertIn("escalate: no（無進捗・飽和したアプローチのいずれにも該当しない）", out)
+        # 端末装飾・対話前提の文言を混ぜない。
+        self.assertNotIn("\x1b[", out)
+        for interactive in ("続けますか", "y/n", "[Y/n]"):
+            self.assertNotIn(interactive, out)
+
+    def test_escalation_reason_is_explicit_when_stalled(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._ingest(2, ("F-307-01", HARMFUL))
+        self._ingest(3, ("F-307-01", HARMFUL))
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("escalate: yes（理由: 無進捗（F-307-01））", out)
+
+    def test_missing_karte_is_still_not_found(self):
+        code, _out, err = self._run(cli.cmd_status, issue="999", json=False)
+        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertIn("未検出", err)
+
+
 # --- K-07: 正規化の保持文字クラス ----------------------------------------------
 
 
