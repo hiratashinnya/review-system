@@ -101,5 +101,9 @@
       "Bash(ruby -e *)",
       "Bash(node -e *)"
     ]
+  },
+  "env": {
+    "CLAUDE_AFK_TIMEOUT_MS": "2147483647",
+    "CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS": "0"
   }
 }
