@@ -1,0 +1,7 @@
+title: "tmp 掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "調停・本ファイル反映"
+    ref_version: "0.2"

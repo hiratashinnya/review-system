@@ -1,0 +1,9 @@
+title: "保護名追従テストの段落選定条件が実装 docstring の単一保護名記述を取りこぼす"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "reconciliation-調停支援プロンプト-検証＋本ファイル転記"
+    ref_version: "0.1"
+  - to: "調停・本ファイル反映"
+    ref_version: "0.2"
