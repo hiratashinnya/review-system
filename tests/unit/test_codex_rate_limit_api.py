@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -239,11 +240,13 @@ class BashQueryParsingTests(unittest.TestCase):
     """query_rate_limit_api must parse the helper's RL_* lines and signal
     success/fallback via its return code, in both hook scripts."""
 
-    CANNED_REACHED = (
-        "printf '%s\\n' RL_OK=1 RL_REACHED=1 "
-        "RL_REACHED_TYPE=rate_limit_reached RL_RESET_EPOCH=1783767886 "
-        "RL_WINDOW_MINS=300 RL_USED_PERCENT=100 RL_PLAN=plus"
-    )
+    def _canned_reached(self, epoch: int) -> str:
+        """Build the CODEX_RL_QUERY_CMD string for a reached state with given epoch."""
+        return (
+            f"printf '%s\\n' RL_OK=1 RL_REACHED=1 "
+            f"RL_REACHED_TYPE=rate_limit_reached RL_RESET_EPOCH={epoch} "
+            f"RL_WINDOW_MINS=300 RL_USED_PERCENT=100 RL_PLAN=plus"
+        )
 
     def _source(self, script, positional=""):
         return f'''
@@ -253,8 +256,12 @@ source "{script}" {positional}
 '''
 
     def test_watcher_parses_reached(self):
+        # Use a future epoch (now + 1 hour) so the test is not tied to any
+        # specific wall-clock date.
+        future_epoch = int(time.time()) + 3600
+        canned = self._canned_reached(future_epoch)
         body = self._source(WATCHER, "dummy-pane") + f'''
-export CODEX_RL_QUERY_CMD="{self.CANNED_REACHED}"
+export CODEX_RL_QUERY_CMD="{canned}"
 if query_rate_limit_api; then
   printf 'OK REACHED=%s TYPE=%s EPOCH=%s WIN=%s USED=%s PLAN=%s\\n' \
     "$RL_REACHED" "$RL_REACHED_TYPE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
@@ -266,19 +273,23 @@ fi
         result = _run_bash(body)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "OK REACHED=1 TYPE=rate_limit_reached EPOCH=1783767886 "
+            f"OK REACHED=1 TYPE=rate_limit_reached EPOCH={future_epoch} "
             "WIN=300 USED=100 PLAN=plus",
             result.stdout,
         )
 
     def test_stop_hook_parses_reached(self):
+        # Use a future epoch (now + 1 hour) so the test is not tied to any
+        # specific wall-clock date.
+        future_epoch = int(time.time()) + 3600
+        canned = self._canned_reached(future_epoch)
         body = self._source(STOP_HOOK) + f'''
-export CODEX_RL_QUERY_CMD="{self.CANNED_REACHED}"
+export CODEX_RL_QUERY_CMD="{canned}"
 if query_rate_limit_api; then printf 'OK EPOCH=%s\\n' "$RL_RESET_EPOCH"; fi
 '''
         result = _run_bash(body)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("OK EPOCH=1783767886", result.stdout)
+        self.assertIn(f"OK EPOCH={future_epoch}", result.stdout)
 
     def test_query_returns_fallback_when_not_ok(self):
         body = self._source(WATCHER, "dummy-pane") + '''
@@ -289,6 +300,27 @@ if query_rate_limit_api; then printf 'OK\\n'; else printf 'FALLBACK\\n'; fi
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FALLBACK", result.stdout)
         self.assertNotIn("OK", result.stdout)
+
+    def test_watcher_parses_reached_past_epoch(self):
+        # query_rate_limit_api does NOT apply any epoch-staleness check; it
+        # accepts RL_OK=1 unconditionally regardless of whether RL_RESET_EPOCH
+        # is in the past.  This test explicitly documents that contract so that
+        # any future staleness-check addition will require a conscious decision
+        # to keep or change it.
+        past_epoch = int(time.time()) - 7200  # 2 hours ago
+        canned = self._canned_reached(past_epoch)
+        body = self._source(WATCHER, "dummy-pane") + f'''
+export CODEX_RL_QUERY_CMD="{canned}"
+if query_rate_limit_api; then
+  printf 'OK EPOCH=%s\\n' "$RL_RESET_EPOCH"
+else
+  printf 'FALLBACK\\n'
+fi
+'''
+        result = _run_bash(body)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Past-epoch input still succeeds (no staleness gate in query_rate_limit_api).
+        self.assertIn(f"OK EPOCH={past_epoch}", result.stdout)
 
     def test_api_window_is_long_threshold(self):
         body = self._source(STOP_HOOK) + '''
