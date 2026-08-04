@@ -9,7 +9,7 @@ disable-model-invocation: true
 **別モデルファミリ（OpenAI）の視点**で、PR・実装・設計に敵対的/セキュリティレビューを回すための**ユーザー起動の入口**。
 「実装とレビューを別コンテキストに分離」する運用（CLAUDE.md）で、Claude 以外の第二意見が欲しいときに使う。
 `codex exec` は別プロセス・別モデルで走り、**Anthropic のトークンも session limit も消費しない**——opus サブエージェントが
-session 上限のときの代替レビュー経路にもなる（それが主目的の一つ）。
+session 上限で停止したときの**追加の第二意見経路**として使える（`pr-reviewer` の同一構成での再投入を置き換えるものではない）。
 
 > 使い分け：**agy MCP bridge (`mcp__agy__codex_*`) は使わない**（オーナー指示・→ agy 経由の委譲は `agy-delegate`＝Gemini 用）。
 > **in-repo の Claude 自身によるレビュー→コメント→merge は `pr-reviewer`**。本スキルは「別ファミリの第二意見を取りに行く」専用。
