@@ -1,5 +1,5 @@
 title: "dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない"
-version: "0.2.0"
+version: "0.2.2"
 labels: []
 scheduled: "sprint-1"
 edges:
@@ -7,3 +7,5 @@ edges:
     ref_version: "0.1"
   - to: "ノード著作・反映プロセス"
     ref_version: "0.4"
+  - to: "fnd-起票単位は機序で分け対象集合が同型の指摘は既存-fnd-のスコープ拡張とする"
+    ref_version: "0.1"
