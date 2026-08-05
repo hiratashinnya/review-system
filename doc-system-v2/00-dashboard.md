@@ -45,20 +45,24 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 263 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 187 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 190 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **640** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **643** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-08-04 実測（636→640。PR #319（Issue
-> #315）レビュー起点の tmp 掃除ガード追従テスト指摘 FND 4 件を起票——段落分割の粒度・段落選定条件の
-> 語彙依存（WARNING 2件）／検査対象探索の欠陥・4ツリーミラー未同期（ERROR 2件）。既存 open FND
-> 「dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない」は対象を `cleantmp.py` へ拡張し
-> z バンプ（0.2.0→0.2.1・内容更新のみで新規ノードではない）。直前の 632→636 は深刻度の判定
-> 基準・語彙・本文項目に関する FND 3 件＋Q 1 件（2026-07-27）。さらに直前の 621→632 は必須辺規則の欠陥・
-> 設計実装乖離の FND 10 件＋Q 1 件（2026-07-26・#253/#254/#255/#256/#160）。`doc-system-v2/meta.json`
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-08-05 実測（640→643。PR #326——
+> PR #326 自身のレビュー指摘（R-06/R-07）を在グラフ化：FND「検証結果が主文脈経由で writer へ渡り
+> 2段分離の fail-close を迂回できる」（ERROR）・DD「FND 起票単位は機序で分け対象集合が同型の指摘は
+> 既存 FND のスコープ拡張とする」（decided・R-07 の起票単位決定）・Q「オーナー決定の出所表記を
+> in-repo でどこまで検証可能にするか」（open）を新規 3 件起票。既存 open FND 4 件（段落分割
+> 0.1.0→0.1.1／段落選定条件 0.1.0→0.1.1／検査対象探索 0.1.0→0.1.1／dsv2 実装 6 モジュール
+> 0.2.1→0.2.2）はすべて **z バンプ**（本文修正・上記 DD への backref 辺追加のみ・x.y 不変のため
+> 依存元への ref_version 伝播なし・新規ノードではない）。直前の 636→640 は PR #319（Issue #315）起点
+> の tmp 掃除ガード追従テスト指摘 FND 4 件。さらに直前の 632→636 は深刻度の判定基準・語彙・本文項目に
+> 関する FND 3 件＋Q 1 件（2026-07-27）。さらに直前の 621→632 は必須辺規則の欠陥・設計実装乖離の
+> FND 10 件＋Q 1 件（2026-07-26・#253/#254/#255/#256/#160）。`doc-system-v2/meta.json`
 > が古い場合、照会系コマンドは古い集計を読むため、最新値確認前に `index` を再生成する。
-> **2026-08-04 時点**: `python3 doc-system-v2/validate.py` は **640ノード / validate ERROR 53 件**
-> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。**本バッチ起票 4 件による ERROR 増はゼロ**（baseline 維持）。
+> **2026-08-05 時点**: `python3 doc-system-v2/validate.py` は **643ノード / validate ERROR 53 件**
+> （p←mod 42/scm←cfg 7/ds←prs 2/d←p 2）。**本バッチ起票・更新による ERROR 増はゼロ**（baseline 維持）。
 > drift 0 件・PROMPT coverage 欠落 0 件。
 > `python3 -m dsv2 drift` は drift 0 件、`python3 -m dsv2 prompt-coverage` は PROMPT coverage 欠落 0 件。
 >
@@ -75,7 +79,7 @@
 
 ## ⏳ オーナー判断待ち（open FND / Q / PEND 要約）
 
-**計 23 件**（open FND 18・open Q 2・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
+**計 25 件**（open FND 19・open Q 3・open PEND 2・deferred PEND 1）。明細は各ノードファイル（`nodes/04-verification/{fnd,q,pend}/**`）を参照。
 
 > **⚠️ 深刻度判定の基準を是正（2026-07-26・オーナー指示）**: 従来は「`validate.py` が現に落ちるか」
 > 「検査する規則があるか」＝**機械検出可能性**を深刻度の根拠にしていた（先例＝FND-96「live RULE 失敗を
@@ -96,7 +100,7 @@
 > 46〔`p←mod` 39・`scm←cfg` 5・`d←p` 2〕／未決 2＝`ds←prs`。上表の注記を参照）。
 > drift 0・prompt-coverage 0。既存テスト/CI は不変（合成 fixture・pages.yml 非 validate）。
 
-### open FND（18 件）
+### open FND（19 件）
 
 | タイトル（要約） | scheduled | 対応 Issue | 備考 |
 |---|---|---|---|
@@ -108,16 +112,17 @@
 | `src_symbol_eligibility` が担体軸を持たず非 Python 担体の MOD/PRS/ORC を被覆しない | 🗓 sprint-1 | #256 | 規則不備。`author`/`reconciler`/ORC `著作・反映パイプライン実行` の実体は `.claude/agents/*.md`。既存 `carrier` enum で判別可能。**v0.2.0 で ORC を追加（初版は網羅漏れ）・v0.2.1 で改名** |
 | `cfg←src` がキー単位の CFG にファイル単位の SRC を要求し粒度が一致しない | 🗓 sprint-1 | #256 | 規則不備。CFG 14 件が同一 `config.yml` を指すことになる |
 | 設計層 MOD/DM/TERM/PORT/PRS が宣言する実装担体 `spec_inspector/*` が実在しない | 🗓 sprint-1 | #160 | 設計実装乖離。**v0.2.0 で TERM 6 件を追加し 26→32 件全数に forward 辺（初版は網羅漏れ）・v0.2.1 で改名**。実装は `dsv2/` + `validate.py` に別分割で存在 |
-| dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない | 🗓 sprint-1 | #160 | 設計外実装（上記の逆方向）。`viewer`/`rename`/`reverse`/`gitutil`/`yamledit`/`dashboard`/`cleantmp`。**v0.2.0 で深刻度 WARNING→ERROR へ是正・v0.2.1 で対象を 7 本へ拡張（オーナー判断 2026-08-04）**。タイトルの数詞「6」は起票時点の列挙数（改題せず本文に明記） |
+| dsv2 実装 6 モジュールに対応する設計ノード（MOD/P）が存在しない | 🗓 sprint-1 | #160 | 設計外実装（上記の逆方向）。`viewer`/`rename`/`reverse`/`gitutil`/`yamledit`/`dashboard`/`cleantmp`。**v0.2.0 で深刻度 WARNING→ERROR へ是正・v0.2.1 で対象を 7 本へ拡張（オーナー判断 2026-08-04）・v0.2.2（z バンプ）で v0.2.1 のスコープ拡張の決定根拠を DD「FND 起票単位は機序で分け対象集合が同型の指摘は既存 FND のスコープ拡張とする」への backref 辺で在グラフ化**。タイトルの数詞「6」は起票時点の列挙数（改題せず本文に明記） |
 | ORC `検査パイプライン実行` が実在しない CLI `python -m spec_inspector` を本文で参照している | 🗓 sprint-1 | #160 | 担体宣言行を持たないため上記 C1 とは別命題。実体は `doc-system-v2/validate.py:main`。SRC 著作時に `source.file` と本文が矛盾する |
 | tmp 草案の出力先記述が v1 の1親1ファイル形式のまま1ノード2ファイル化に未追随 | 🗓 sprint-1 | #160 | agent 定義 8 ファイルは v2 ミラーレイアウトに追随済みだが、PRS/DS/ORC の設計層3件と `CLAUDE.md` L86 が v1 形式のまま。PRS 本文には廃止済み「YAML フロントマター」記述も同居 |
 | FND の深刻度**語彙**が `05-verification.md`・v2 テンプレート・実コーパスで三者不一致 | 🗓 sprint-1 | #283 | **WARNING**。`critical/major/minor/info`（`docs/doc-system/05-verification.md` L212）／`low/medium/high（または ERROR/WARNING/INFO）`（`templates/verification/fnd.body.md`）／`ERROR/WARNING/INFO`（実コーパス 124/124 件）。推奨＝`ERROR/WARNING/INFO` へ一本化し非適合資産を同期 |
 | resolved FND 4 件の本文に**深刻度行**がなくテンプレ必須項目を欠く | 🗓 sprint-1 | #283 | **INFO**。resolved 117 件中 113 件は保持（WARNING 80/INFO 20/ERROR 13）。4 件は同一 DD 起点のバッチで別骨格。推奨＝本文必須項目を検査する RULE 新設で再発を止める |
 | `docs/doc-system/` の4文書が FND の**状態表現と本文項目**で v2 に未追随 | 🗓 sprint-1 | #283 | **WARNING**。①`01-document-items.md` L106 の「`resolved: true/false` で機械判定」は現に誤答（128 件中 117 件を取り違える）②`dsv2 reverse --apply` が本文/path 矛盾を確定的に生成（同型ドリフト 19 件が実発生済み）③`wontfix` の受け皿が存在しない。推奨＝文書同期を先行し `wontfix` の可否は切り出してオーナー決定 |
-| tmp 掃除ガード追従テストの段落分割が空行基準で箇条書き・表内の保護名借用を見逃す | 🗓 sprint-1 | PR #319（Issue #315） | WARNING。N-02 是正が効いたのは dsv2/*.py のみ。Markdown 3 文書ではブロック全体が 1 段落＝借用の余地が残る。推奨=段落分割の Markdown 対応＋表は書式規約 |
-| 保護名追従テストの段落選定条件が実装 docstring の単一保護名記述を取りこぼす | 🗓 sprint-1 | PR #319（Issue #315） | WARNING。dsv2/cleantmp.py L3–7 が `_handoff` のみのまま検査対象外＝**現に見逃し 1 件**。推奨=記述の即時是正＋選定条件の見直し |
-| tmp 掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす | 🗓 sprint-1 | PR #319（Issue #315） | **ERROR**。①語依存の絞り込みでガード記述が消えた文書は黙って対象外になる ②候補リストが固定で 4 ツリーのミラー・in-graph PROMPT を初めから含まず**現に 3 件を取りこぼし**。推奨＝必須リスト(MUST)＋動的候補(MAY)の 2 層化、4 ツリー分は asset_parity と分担 |
+| tmp 掃除ガード追従テストの段落分割が空行基準で箇条書き・表内の保護名借用を見逃す | 🗓 sprint-1 | PR #319（Issue #315） | WARNING。N-02 是正が効いたのは dsv2/*.py のみ。Markdown 3 文書ではブロック全体が 1 段落＝借用の余地が残る。推奨=段落分割の Markdown 対応＋表は書式規約。**v0.1.1（z バンプ）で実測表の `dsv2/*.py` 行を借用の実例へ訂正**（初版の「.py には借用の余地なし」は事実誤り）。要点・選択肢1・選択肢3・推奨(a)の適用範囲を Markdown＋`.py` docstring へ是正、決着済み留保 2 件を決着記述へ更新 |
+| 保護名追従テストの段落選定条件が実装 docstring の単一保護名記述を取りこぼす | 🗓 sprint-1 | PR #319（Issue #315） | WARNING。dsv2/cleantmp.py L3–7 が `_handoff` のみのまま検査対象外＝**現に見逃し 1 件**。推奨=記述の即時是正＋選定条件の見直し。**v0.1.1（z バンプ）で決着済みの留保を決着記述へ更新** |
+| tmp 掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす | 🗓 sprint-1 | PR #319（Issue #315） | **ERROR**。①語依存の絞り込みでガード記述が消えた文書は黙って対象外になる ②候補リストが固定で 4 ツリーのミラー・in-graph PROMPT を初めから含まず**現に 3 件を取りこぼし**。推奨＝必須リスト(MUST)＋動的候補(MAY)の 2 層化、4 ツリー分は asset_parity と分担。**v0.1.1（z バンプ）で自己参照的な数値（リポジトリ全体で 7 件）を候補集合基準の表現へ言い換え＋DD backref 付与** |
 | reconciliation の tmp 掃除ガードが in-graph PROMPT と Copilot・Codex ミラーに未同期 | 🗓 sprint-1 | PR #319（Issue #315） | **ERROR**。掃除ガードが `.claude/agents/reconciliation.md` にのみ反映され、PROMPT ノード／`.github` ミラー／`.codex` ミラーは「tmp/<sprint>/<parent-id>/ を削除する」のみで clean-tmp・保護名・rm 禁止をすべて欠く。PROMPT は Bash 許可用途に clean-tmp が無く掃除対象粒度も実体と不一致。推奨＝即時同期＋必須検査対象化 |
+| 検証結果が主文脈経由で writer へ渡り2段分離の fail-close を迂回できる | 🗓 sprint-1 | PR #326 | **ERROR**。validator の判定がチャット文字列として主文脈経由で writer へ渡るため、writer 側に真正性の検証手段が無く DD-22 の 2 段分離を迂回できる。本 PR の書込時に**現に逸脱が発生**（writer がハンドオフで自己申告）。分析層 P「草案スキーマ検証」/P「本ファイル転記」が述べる「検証済み草案」の担体（D ノード）も存在しない（PR4/PR6）。推奨＝writer 側の決定論ツール（validate.py/check-slug/drift）再実行によるゲート化＋受領ブロックの形式検査 |
 
 > **起票 10 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
 > 必須辺規則が型内の部分集団を見落としている欠陥、および設計層と実装の双方向の乖離を在グラフ化した。
@@ -138,16 +143,23 @@
 > issue #94 のオーナー判断に基づき、v1→v2 移行 585 ノードの空 `scheduled` は backfill 済み。
 > issue #152 で移行後追加ノードも含めて空 `scheduled` を禁止し、既存空欄は `sprint-1` に整理済み。
 
-### open Q（2 件）
+### open Q（3 件）
 
 | タイトル（要約） | scheduled | 対応 Issue | 備考 |
 |---|---|---|---|
 | `ds←prs` 規則を書き込み実装に限るか永続層アクセス実装へ読み替えるか | 🗓 sprint-1 | #255 | read-only DS 2 件（`config.yaml-ds`/`in-graph-ノードファイル群`）に PRS 入辺なし。規則不備か未著作かが未決のため FND ではなく Q。live ERROR 2 件 |
-| 深刻度の判定基準是正を既存 FND 全件へ遡及適用するか | 🗓 sprint-1 | #283 | 母数＝**FND 131 件（open 14・resolved 117）**。判定根拠がほぼ未記録のため grep で切り分け不能＝全件遡及は約 100 件の人手読み直し。**深刻度は機械消費されず validate 結果は不変**。選択肢＝①全件遡及／②遡及せず以後のみ／③限定遡及。推奨＝③＋基準の in-graph 明文化（母数訂正後も**不変**） |
+| 深刻度の判定基準是正を既存 FND 全件へ遡及適用するか | 🗓 sprint-1 | #283 | 母数＝**FND 131 件（open 14・resolved 117）**。判定根拠がほぼ未記録のため grep で切り分け不能＝全件遡及は約 100 件の人手読み直し。**深刻度は機械消費されず validate 結果は不変**。選択肢＝①全件遡及／②遡及せず以後のみ／③限定遡及。推奨＝③＋基準の in-graph 明文化（母数訂正後も**不変**）。**本バッチ（PR #326）では変更なし**（草案なし・依存元 FND「dsv2 実装 6 モジュール…」の z バンプで x.y=0.2 不変のため `ref_version "0.2"` の伝播も不要） |
+| オーナー決定の出所表記を in-repo でどこまで検証可能にするか | 🗓 sprint-1 | PR #326 | 「オーナー判断（日付）」の実在をリポジトリ内から検証できない（根拠はチャットと gitignore 済みハンドオフのみ）。チャット指示は系外事象で観測不能（PR3/PR4）ゆえ証明は原理的に不可、可能なのは区別。選択肢＝①現状維持／②外部参照併記の必須化／③記録形式の規定／④出所表記を弱める。推奨＝③基軸＋重要決定のみ②併用・遡及は以後のみ |
 
 > `q/open/` ディレクトリは本起票（2026-07-26）が初出のため新規作成した（`decided`/`closed` は既存）。
 > Q「SRC→[dm,port,orc] が MOD を対象外」は **DD-10 へ昇格し decided 化**（2026-07-21）。オーナー確定＝`src→[mod,dm,port,orc]` 拡張①。`q/decided/` へ移動。
 > Q-2 は #157 で DD-23 へ昇格し、傘 SPEC マップ維持・実害顕在時細分化方針として decided 化済み。
+>
+> **DD 新規追加（2026-08-05・PR #326）**: `dd/decided/` に「FND 起票単位は機序で分け対象集合が同型の
+> 指摘は既存 FND のスコープ拡張とする」を追加（2026-08-04 オーナー決定 2 件——起票単位の決定・FND #160
+> のスコープ拡張——の in-repo 記録・R-07 是正）。`edges: []`（RULE-001）で被参照は上表 FND 2 件からの
+> backref＋Q「オーナー決定の出所表記を…」からの参照辺 1 本により確保（本帳票に DD 一覧の節は無いため
+> 注記のみ・明細は `nodes/04-verification/dd/decided/` を参照）。
 
 ### open PEND（2 件・DD-10 起票・2026-07-21）
 

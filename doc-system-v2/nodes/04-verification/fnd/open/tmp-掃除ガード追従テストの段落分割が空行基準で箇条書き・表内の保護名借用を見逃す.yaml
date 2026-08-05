@@ -1,5 +1,5 @@
 title: "tmp 掃除ガード追従テストの段落分割が空行基準で箇条書き・表内の保護名借用を見逃す"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
 edges:

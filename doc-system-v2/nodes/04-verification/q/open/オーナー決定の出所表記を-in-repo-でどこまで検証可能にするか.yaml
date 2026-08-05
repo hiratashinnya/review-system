@@ -1,0 +1,11 @@
+title: "オーナー決定の出所表記を in-repo でどこまで検証可能にするか"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "fnd-起票単位は機序で分け対象集合が同型の指摘は既存-fnd-のスコープ拡張とする"
+    ref_version: "0.1"
+  - to: "tmp-掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす"
+    ref_version: "0.1"
+  - to: "dsv2-実装-6-モジュールに対応する設計ノード-mod-p-が存在しない"
+    ref_version: "0.2"

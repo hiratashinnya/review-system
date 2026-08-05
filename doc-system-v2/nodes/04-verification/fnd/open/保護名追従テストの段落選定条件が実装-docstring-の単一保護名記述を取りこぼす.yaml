@@ -1,5 +1,5 @@
 title: "保護名追従テストの段落選定条件が実装 docstring の単一保護名記述を取りこぼす"
-version: "0.1.0"
+version: "0.1.1"
 labels: []
 scheduled: "sprint-1"
 edges:

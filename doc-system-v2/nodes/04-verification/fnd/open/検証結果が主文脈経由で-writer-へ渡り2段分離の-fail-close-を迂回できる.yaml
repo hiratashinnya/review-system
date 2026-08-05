@@ -1,0 +1,13 @@
+title: "検証結果が主文脈経由で writer へ渡り2段分離の fail-close を迂回できる"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "草案スキーマ検証"
+    ref_version: "0.1"
+  - to: "本ファイル転記"
+    ref_version: "0.1"
+  - to: "reconciliation-validator-検証支援プロンプト-read-only-構造検証・validation_ok-rollback"
+    ref_version: "0.2"
+  - to: "reconciliation-調停支援プロンプト-検証＋本ファイル転記"
+    ref_version: "0.1"
