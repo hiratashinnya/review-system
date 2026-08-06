@@ -20,6 +20,7 @@ CODEX_AGENT_FILES = (
 class TestCodexSubagentInterruptionGuidance(unittest.TestCase):
     def test_required_guidance_exists_in_codex_agents(self):
         for path in CODEX_AGENT_FILES:
+            self.assertTrue(path.exists(), msg=f"{path} が存在しません")
             text = path.read_text(encoding="utf-8")
             for line in REQUIRED_LINES:
                 with self.subTest(path=str(path), line=line):
