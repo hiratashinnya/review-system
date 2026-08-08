@@ -543,6 +543,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "python3 -m gitgate branch-current",
             "python3 -m gitgate new-branch issue-227-agent-command-gate-whitelist",
             "python3 -m gitgate fetch",
+            "python3 -m gitgate publish-info",
             "rtk python3 -m gitgate status",
             'gh pr create --title "fix(hooks): rewrite gate" --body-file /tmp/pr-body.md',
             "gh issue view 227",
@@ -551,6 +552,18 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
+
+    def test_publish_info_only_allows_fixed_origin_and_current_branch(self):
+        self.assert_allowed(
+            run_gate(payload("issue-implementer", "python3 -m gitgate publish-info"))
+        )
+        for command in [
+            "python3 -m gitgate publish-info upstream",
+            "python3 -m gitgate publish-info origin refs/heads/main",
+            "python3 -m gitgate publish-info --remote upstream",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_issue_implementer_now_denied_out_of_allowlist_git_gh(self):
         # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全 deny。gh は impl 集合外を deny。
@@ -635,6 +648,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         impl_allowed = [
             "status", "add p", "commit /tmp/m", "push", "branch-current",
             "new-branch feature", "fetch", "diff", "log -n1",
+            "publish-info",
         ]
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
@@ -643,7 +657,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
-                     "new-branch feature", "fetch"]:
+                     "new-branch feature", "fetch", "publish-info"]:
             with self.subTest(role="pr-reviewer", denied_verb=verb):
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
         for verb in ["merge", "clone", "remote", "reset", "push-force"]:

@@ -20,6 +20,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 - commit/PR 本文には Codex CLI (AI) が実装したことと、変更ファイルの具体的な一覧・理由を明記する（抽象的要約だけで済ませない）。
 - PR body に `Closes #<issue>`（Issueの全スコープをそのPRで満たす場合のみ）＋AI-attribution。
 - テストスイート実行→全パス確認後にPRを開く。
+- push・PR 作成の直前に、明示的な公開ゲート `.agents/skills/worktree-publish/SKILL.md` を必ず読み、その手順に従う。この skill は commit とテスト完了後の worktree でのみ使い、branch 作成・stage・commit・レビュー・merge には使わない。
 - テスト検証は `python3 -m unittest discover -s tests/unit` で行う。**カバレッジ計測（`coverage run`）はこの gated ロールでは deny**（第2次修正・2026-07-15）＝カバレッジは main context 専任なので、必要なら未計測である旨を呼び出し元へ報告する（`coverage report`/`html` 等のレポート出力系は許可だが、計測データ `.coverage` は main context が生成する前提）。
 - `.coverage*`、`htmlcov/`、`_site/`、`doc-system-v2/meta.json`、`doc-system-v2/doc_view.html` は生成物なので commit しない。Pages 公開用の coverage/doc_view は GitHub Actions が artifact として直接デプロイする。ステージ前に `python3 -m gitgate status` で意図せぬ生成物混入がないか確認し、`python3 -m gitgate add <paths…>` で対象ファイルだけをステージする。
 
@@ -34,6 +35,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
   - `branch-current` → `git branch --show-current`
   - `new-branch <name>` → `git switch -c <name>`
   - `fetch` → `git fetch --prune origin`
+  - `publish-info` → 固定 `origin` の fetch URL・全 effective push URL、current branch、local HEAD SHA、同名 remote branch SHAを限定 JSON で取得（引数なし・read-only）
   - `diff [--stat] [<ref>…]` → `git diff …`
   - `log [-n <N>] [--grep <pat>] [--oneline]` → `git log …`
   - `merge`・`pull`・`rebase`・`reset`・`stash`・`show`・`tag` 等に相当する verb は**存在しない**（`merge` は `gh pr merge` を含め pr-reviewer の専権）。
@@ -46,6 +48,8 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 - **PR/Issue タイトルは必ずダブルクォートで囲む**（`--title "fix(hooks): …"`）。conventional-commit の `( )` はダブルクォート内ではリテラルとして許可される（裸の `(` は deny）。
 - **パイプ/grep/cat の代替**：`gh --json`/`--jq`、`python3 -m gitgate log -n <N> --grep <pat> --oneline`、`python3 -m gitgate diff --stat` 等の**ネイティブフラグ**を使う。ファイル閲覧・検索は Bash を経由せずファイル読み取り・検索ツールで行う。
 - **テスト実行**：`python3 -m unittest discover -s tests/unit`（`| tee` でのログ保存は層1で deny されるため使わない）。
+- **公開前確認**：引数なしの `python3 -m gitgate publish-info` で `origin_fetch_url` と `origin_push_urls` の全件が想定 repository、`current_branch` と `remote_ref` が想定 branch、`local_commit` が local HEAD SHA であることを push 前に必ず確認する。`remote_exists: false` は初回 push 前だけ許容する。remote/ref は指定せず、固定 `origin` と current branch の同名 ref だけを読む。
+- **push 後確認**：`python3 -m gitgate fetch` 後に `python3 -m gitgate publish-info` を再実行し、`remote_exists: true`、非 null の `remote_commit`、`remote_commit == local_commit` を必須確認する。不一致・remote SHA 不在・取得失敗なら `gh pr create` の前に停止する。
 
 ## 出力
 PR URL・変更ファイル一覧・テスト結果・スコープ外で見つけた指摘（あれば）を呼び出し元へ返す。マージ・Issueクローズは行わない。
