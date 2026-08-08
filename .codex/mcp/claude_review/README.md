@@ -18,12 +18,22 @@ The allowed workspace root defaults to the server startup directory. Set
 `CLAUDE_REVIEW_MCP_WORKSPACE_ROOT` if the MCP host may launch the server from a
 broader directory than the repository.
 
+Every `claude_review` call automatically injects the shared review instructions
+from:
+
+- `.codex/mcp/claude_review/common_instructions.md`
+
+Set `CLAUDE_REVIEW_MCP_COMMON_INSTRUCTIONS` to point at a different file if a
+repo needs a different shared contract. Relative paths are resolved under the
+workspace root.
+
 ## Tools
 
 - `claude_review`: runs `claude -p` in read-only plan mode. `model` accepts
   `opus` or `fable`; default is `opus`, and `opus` is passed as the fallback.
 - `claude_review_status`: checks `claude --version`, `gh --version`, and local
-  rate-limit state without running `claude -p`.
+  rate-limit state without running `claude -p`; it also reports the common
+  instructions path.
 
 When `pr_number` is provided, the wrapper reads PR metadata and diff with:
 
@@ -43,10 +53,15 @@ that startup cwd. Paths outside that tree return a tool error before any
 The wrapper passes:
 
 ```text
---model <opus|fable> --fallback-model opus --permission-mode plan --tools Read,Glob,Grep,LS --output-format json --no-session-persistence
+--model <opus|fable> --fallback-model opus --safe-mode --permission-mode plan --tools Read,Glob,Grep,LS --output-format json --no-session-persistence
 ```
 
-It does not pass edit, write, shell, bypass, or accept-edits permissions.
+`--safe-mode` disables checkout-controlled CLAUDE.md, skills, plugins, hooks,
+MCP servers, commands, agents, and other project customizations before the
+review child starts. The shared prompt explicitly tells the reviewer to read
+`AGENTS.md`; project customization does not need to remain enabled for that
+contract. Admin-managed Claude policy settings still apply. The wrapper also
+does not pass edit, write, shell, bypass, or accept-edits permissions.
 
 Before calling `claude -p`, it checks only the wrapper-owned cooldown file:
 
@@ -55,13 +70,23 @@ Before calling `claude -p`, it checks only the wrapper-owned cooldown file:
 The wrapper does not inspect Claude Code hook state such as
 `~/.claude/rate-limit-recovery/last-payload.json`; that file can belong to a
 different pane or session. If the wrapper's own file indicates a future reset
-time, the wrapper returns a tool error without spending Claude quota. Otherwise,
-rate-limit detection happens from the actual `claude -p` result, and any detected
-cooldown is stored for the next call.
+time from a `claude_process_error` entry, the wrapper returns a tool error
+without spending Claude quota. Legacy or malformed state entries, including
+entries without a parseable future `reset_at`, are not treated as blocks.
+Otherwise, rate-limit detection happens from the actual `claude -p` process
+result and only records strong error signals such as "you've hit your session
+limit", "too many requests", `429`, or `rate_limit`. For successful JSON output,
+the free-text `result` field is only treated as a rate-limit error when it
+starts like an error message; ordinary successful review text that merely
+discusses rate-limit handling is not stored as a cooldown.
 
 GitHub PR metadata and diffs are appended inside fenced blocks with explicit
 instructions to treat them as untrusted review evidence, not as model
 instructions.
+
+The common instructions file is trusted project configuration and is injected
+before the caller's task-specific prompt. Callers should pass only the concrete
+review request, such as the PR number, risk focus, and any owner-approved scope.
 
 ## Tests
 
