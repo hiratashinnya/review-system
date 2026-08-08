@@ -14,6 +14,8 @@ import re
 import subprocess
 import sys
 
+from branch_source import BranchSourceError, create_branch, parse_new_branch_args
+
 
 class GitgateError(Exception):
     """想定外の引数・不正な leaf 値を検知したときに送出する。git は実行されない。"""
@@ -125,10 +127,13 @@ def verb_branch_current(args):
 
 
 def verb_new_branch(args):
-    if len(args) != 1:
-        raise GitgateError("`new-branch` requires exactly one argument: <branch-name>")
-    name = validate_branch_name(args[0])
-    return ["git", "switch", "-c", name]
+    try:
+        request = parse_new_branch_args(args)
+    except BranchSourceError as exc:
+        raise GitgateError(str(exc)) from exc
+    # `main()` は branch_source policy を実行する。この builder の戻り値も
+    # current HEAD を暗黙継承せず、検証済み exact OID を常に明示する。
+    return ["git", "switch", "-c", request.branch_name, request.base_oid]
 
 
 def verb_fetch(args):
@@ -227,7 +232,19 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
     try:
+        if argv and argv[0] == "new-branch":
+            request = parse_new_branch_args(argv[1:])
+            result = create_branch(request)
+            sys.stderr.write(
+                "gitgate: new-branch source "
+                f"{result.source_kind} {result.repository}@{result.source_oid} "
+                f"policy={result.policy_version}\n"
+            )
+            return 0
         git_argv = build_git_argv(argv)
+    except BranchSourceError as exc:
+        sys.stderr.write(f"gitgate: {exc}\n")
+        return 2
     except GitgateError as exc:
         sys.stderr.write(f"gitgate: {exc}\n")
         return 2
