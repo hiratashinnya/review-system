@@ -71,7 +71,7 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
 - **どちらのシステムにも含有されない汎用開発ハーネス**（そのシステムの仕様グラフが記述する対象ではない）→
   **ノード起票もダッシュボード更新も行わない**。**`/gh-create-issue` で Issue を切って処置する**
   （`area:harness` ラベル）：
-  - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`pr-reviewer`/`gitgate`
+  - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`issue-fixer`/`pr-reviewer`/`gitgate`
   - 実行環境の面倒を見るフック：`on-rate-limit.sh`/`resume-watcher.sh`/`install_pkgs`/
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`、
     `.claude/settings.json`
@@ -156,14 +156,14 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
 - スキル（外部委譲・第二意見レビュー）：`/codex-review`（Codex 公式 CLI `codex exec` への第二意見レビュー委譲の入口＝別モデルファミリ OpenAI。`agy-delegate`＝agy MCP/Gemini とは委譲先の機構が別・in-repo Claude レビュー→merge は `pr-reviewer`。cybersecurity フィルタで最終応答が `ERROR:flagged` に消える件の回避＝防御形式プロンプト＋`~/.codex/sessions/rollout-*.jsonl` フォールバックを規約化。Linux/WSL 専用・全外部ツリー非移植＝`asset_parity/exceptions.py` に登録済み。opus session 上限時の**追加の第二意見経路**として使える（`pr-reviewer` の同一構成での再投入を置き換えるものではなく、再投入した**上で**別ファミリの意見も取る用途））
-- スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し、実装は `issue-implementer`・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
+- スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し、実装は `issue-implementer`・**是正は `issue-fixer`**・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
 - スキル（ノード検索・コンテキスト効率）：`/docidx`（**v1-archive 専用**。現行コーパスは doc-system-v2 のため対象外。実体＝`archive/docidx-v1/`＝`python3 -m archive.docidx-v1`・対象は `doc-system-v1-archive/`。read-only・drift は情報提示のみで判定はしない。issue #172 で `docidx/` から `archive/docidx-v1/` へ退避、共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。v2 コーパスの検索・読込は `dsv2-lookup`（下記）が担う
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
 - サブエージェント（ノード検索）：`dsv2-lookup`（**dsv2-native**＝`python3 -m dsv2 index` の meta.json を grep/python でフィルタ→ `Read` で本文取得、辺は `dsv2 deps`/`dependents` で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は `dsv2` CLI 実行のみ。旧名 `docidx-lookup`・v1 専用 `docidx` との混同を避けるため issue #173 で改名）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
 - サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`/本ファイル）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
-- サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：`issue-implementer`（1 Issue をブランチ→実装→テスト→commit→push→PR まで完結・**merge 不可**）／`pr-reviewer`（PR をレビュー→コメント→**merge 可・push 不可**）。**push/merge の非対称権限は `.claude/hooks/agent-command-gate.sh`（PreToolUse・agent_type ゲート）で機械的に拒否する**が、Bash 文字列の静的検査であり完全な sandbox ではない。プロンプト規律・レビュー分離・GitHub 側の保護と併用する（既知の限界は Issue #129）。両者は非対話（AskUserQuestion なし）＝曖昧は STOP 報告・対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
+- サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：`issue-implementer`（1 Issue をブランチ→実装→テスト→commit→push→PR まで完結・**merge 不可**・**初回実装専任**）／`issue-fixer`（**レビュー指摘を受けた是正ラウンド専任**・権限は implementer と同一＝push 可・merge 不可。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で、`python3 -m karte` を許可される唯一のロール。ただし `ingest-review` は是正当事者に許さない＝主文脈が実行する・#308/#341）／`pr-reviewer`（PR をレビュー→**構造化 finding**（`### F-<issue>-<seq>`＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`expected`/`recheck`/`status`）で返す→**merge 可・push 不可**。指摘があれば自分で直さず `issue-fixer` へ差し戻す）。**push/merge の非対称権限は `.claude/hooks/agent-command-gate.sh`（PreToolUse・agent_type ゲート）で機械的に拒否する**が、Bash 文字列の静的検査であり完全な sandbox ではない。プロンプト規律・レビュー分離・GitHub 側の保護と併用する（既知の限界は Issue #129）。3ロールとも非対話（AskUserQuestion なし）＝曖昧は STOP 報告・対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 
@@ -186,7 +186,7 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
 context-mode プラグイン（グローバル導入）が全 subagent 呼び出しに `<artifact_policy>`（成果物はファイルに書き、
 パスと1行要約だけ返す）を注入する。**これを潰さず、受け渡し方を合わせる**方針で統一する。
 
-- **write 権限があるエージェント（`*-author` / `structured-analysis` / `reconciliation` / `issue-implementer`）**
+- **write 権限があるエージェント（`*-author` / `structured-analysis` / `reconciliation` / `issue-implementer` / `issue-fixer`）**
   → 呼び出し元へ返す項目を **`tmp/_handoff/<agent>--<key>.yaml`** に Write で書き、チャットには
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
@@ -220,17 +220,17 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
   当初（2026-07-29）は tool_name が `mcp__plugin_...` になり **`matcher: "Bash"` の `agent-command-gate.sh` が
   発火しない**ため全エージェント未付与としていたが、**#303 で同フックを実行系 MCP ツールへ拡張し、
   ロール別 allowlist（層1〜3）と危険コマンド層を ctx 経路にも適用した**ので、その範囲で解禁した。
-  - **付与先＝主文脈・`issue-implementer`・`pr-reviewer`・`dsv2-lookup`**（いずれも既に Bash を保有）。
+  - **付与先＝主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・`dsv2-lookup`**（いずれも既に Bash を保有）。
     **Bash 非保有ロール（`spec-inspector` / `asset-auditor` / 各 `*-author` 等）には付与しない**——
     ゲートが効いても「シェル実行能力の新規付与＝権限昇格」は残るため。
   - **`language` は `shell` のみ許可**（ゲートが機械的に強制）。非 shell 言語は
     `<interpreter> -c <code>` と同値で、`permissions.deny` と危険コマンド層が全ロールに対し既に
     禁じている形。静的検査で安全に扱えない（複数のサブプロセス起動 API・文字列結合・eval で
     トークン一致を自明に回避できる）ため、コードではなく**言語そのものを allowlist で絞る**。
-  - **gated 2ロール（`issue-implementer` / `pr-reviewer`）は層1〜3 が ctx 経路にもそのまま掛かる**——
+  - **gated ロール（`issue-implementer` / `issue-fixer` / `pr-reviewer`）は層1〜3 が ctx 経路にもそのまま掛かる**——
     push/merge の非対称は維持され、**シェル記号（パイプ等）も deny される**。出力の絞り込みは
     シェル記号ではなく **`ctx_batch_execute` の `queries` / `ctx_execute` の `intent`** で行う。
-    また gated 2ロールは **`cwd` の明示指定が deny**（省略時は context-mode がプロジェクトルートを補う）。
+    また gated ロールは **`cwd` の明示指定が deny**（省略時は context-mode がプロジェクトルートを補う）。
   - **未知の MCP ツール名・入力形が読めない呼び出しは全 agent_type で fail-close（deny）**。
     Bash 経路の非ゲートロール fail-open（既存ワークフロー救済の例外）とは意図的に非対称。
   - **rtk フック（`matcher: "Bash"`）は ctx 経路では依然発火しない**——統制ではなくトークン節約
@@ -316,4 +316,4 @@ import・exec＝doc_system 対象。
   （ただし起票先は前掲「起票先はプロジェクト区分で決める」の分類に従う——`dsv2` は両システムに含有される
   コーパス操作ツールのため FND/Q、`asset_parity`／`archive.docidx-v1` 等の**含有されない**汎用ハーネスで
   見つかった依存仕様アンカーの不足は Issue で起票する）。
-- **資産ツリー間の presence/absence 検出（issue #155・検出半分）**：`.claude/skills|agents`（正本）↔ `.github/skills|prompts|agents`（Copilot）↔ `.codex/agents`（Codex CLI agent）↔ `.agents/skills`（Codex CLI skill）の4ツリーが揃っているかを **read-only** で機械検出するツール＝`asset_parity/`（`python3 -m asset_parity check`・標準ライブラリのみ・使い方は `asset_parity/README.md`）。**内容を書き換えるツールではない**（一括変換は 2026-06-15 に廃止済み・`asset-lateral-deploy` 参照）。意図的な非移植（`agy-delegate`／`issue-pipeline`＋`issue-implementer`／`pr-reviewer` の Copilot 非移植等）は `asset_parity/exceptions.py` に記録し、`.claude/tailoring-registry.md` の既存決定と同期させる（新規に非移植を決めたらまず tailoring-registry.md に記録してから exceptions.py に追記）。**CI 組み込み済み**（`.github/workflows/asset-parity.yml`・4ツリーいずれかを触る push/pull_request で自動起動・`MISSING` はビルド失敗／staleness はビルドを止めない・詳細は `asset_parity/README.md`）。
+- **資産ツリー間の presence/absence 検出（issue #155・検出半分）**：`.claude/skills|agents`（正本）↔ `.github/skills|prompts|agents`（Copilot）↔ `.codex/agents`（Codex CLI agent）↔ `.agents/skills`（Codex CLI skill）の4ツリーが揃っているかを **read-only** で機械検出するツール＝`asset_parity/`（`python3 -m asset_parity check`・標準ライブラリのみ・使い方は `asset_parity/README.md`）。**内容を書き換えるツールではない**（一括変換は 2026-06-15 に廃止済み・`asset-lateral-deploy` 参照）。意図的な非移植（`agy-delegate`／`issue-pipeline`＋`issue-implementer`／`issue-fixer`／`pr-reviewer` の Copilot 非移植等）は `asset_parity/exceptions.py` に記録し、`.claude/tailoring-registry.md` の既存決定と同期させる（新規に非移植を決めたらまず tailoring-registry.md に記録してから exceptions.py に追記）。**CI 組み込み済み**（`.github/workflows/asset-parity.yml`・4ツリーいずれかを触る push/pull_request で自動起動・`MISSING` はビルド失敗／staleness はビルドを止めない・詳細は `asset_parity/README.md`）。

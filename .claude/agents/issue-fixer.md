@@ -143,6 +143,7 @@ karte_path:   <カルテの絶対パス。メインワークツリー側の
 に制限する（違反は PreToolUse で deny）。`issue-implementer` と同一の制限に、`karte` が1つ足されるだけ。
 
 - **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2,karte}` だけ**。
+  **ただし `karte` は verb 単位で絞られる**——使えるのは `render` / `append` / `close-attempt` / `check` / `status` の5つで、**`ingest-review` は deny**（Issue #341 F-341-04）。取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。取り込みは主文脈が行う。
   **pytest は不可**。`coverage` は `report`/`html`/`xml`/`json` のみで **`coverage run …` は deny**
   （テストは `python3 -m unittest discover`）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/
   `sed`/`awk`/`grep`/`jq`/`pip` 等は先頭語として一律 deny（パス付き `./git` も deny）。

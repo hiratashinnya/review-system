@@ -948,6 +948,84 @@ class AgentCommandGateTests(unittest.TestCase):
         self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
         self.assert_denied(run_gate(payload("issue-fixer", "gh pr merge 1")))
 
+    # ------------------------------------------------------------------
+    # Issue #341 F-341-04: karte は verb 単位で絞る（ingest-review は是正ロールに許さない）
+    # ------------------------------------------------------------------
+    def test_issue_fixer_karte_verbs_are_restricted(self):
+        # 許可される5 verb。是正ラウンドで実際に使うのはこれだけ。
+        for verb in [
+            "render --issue 341",
+            "append --issue 341 --round 2 --finding-ids F-341-01 --root-cause x "
+            "--change-kind logic --targets a.py::f",
+            "close-attempt --issue 341 --outcome fixed",
+            "check --issue 341 --round 2",
+            "status --issue 341",
+        ]:
+            with self.subTest(allowed=verb.split()[0]):
+                self.assert_allowed(
+                    run_gate(payload("issue-fixer", f"python3 -m karte {verb}"))
+                )
+
+    def test_issue_fixer_cannot_run_karte_ingest_review(self):
+        # ingest-review は「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書ける。
+        # 是正当事者がこれを実行できると、自作レポートを --from で食わせて未解消 finding を
+        # 一括 resolved にし、`append` の類似飽和拒否（#307 のループ遮断）を迂回できてしまう。
+        for command in [
+            "python3 -m karte ingest-review --issue 341 --round 2 --from r.md",
+            "python3 -m karte ingest-review",
+            "rtk python3 -m karte ingest-review --issue 1 --round 1 --from r.md",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    def test_bare_karte_and_unknown_karte_verbs_are_denied(self):
+        for command in [
+            "python3 -m karte",
+            "python3 -m karte reset",
+            "python3 -m karte --help",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    # ------------------------------------------------------------------
+    # Issue #341 F-341-08: 実行時例外以外の内部エラーも deny に落ちる
+    # ------------------------------------------------------------------
+    def test_syntax_error_in_the_embedded_python_denies(self):
+        # `sys.excepthook`（#340）はコンパイル前に落ちる SyntaxError を捕まえられない。
+        # フック編集時にごく普通に起こる形なので、シェル側で rc と stdout を見て deny に倒す。
+        broken = self._hook_copy_with(
+            "import json\nimport os", "import json\nimport os\ndef ("
+        )
+        for role, command in [
+            ("pr-reviewer", "git push origin HEAD"),
+            ("issue-fixer", "gh pr merge 1"),
+            ("main", "ls -la"),
+        ]:
+            with self.subTest(role=role, command=command):
+                decision = json.loads(
+                    self._run_hook_file(broken, role, command).stdout
+                )["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn("could not be inspected", decision["permissionDecisionReason"])
+
+    def test_missing_interpreter_denies(self):
+        # `python3` 自体が見つからない/実行できない場合も「stdout 空 ＋ 非0終了」になる。
+        broken = self._hook_copy_with(
+            'python3 - "$tmpfile" > "$gate_out"',
+            'python3-does-not-exist - "$tmpfile" > "$gate_out"',
+        )
+        decision = json.loads(
+            self._run_hook_file(broken, "pr-reviewer", "git push origin HEAD").stdout
+        )["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+
+    def test_normal_allow_is_not_turned_into_deny_by_the_shell_guard(self):
+        # 正常な allow も stdout は空なので、「stdout 空」だけで deny にすると全部壊れる。
+        # rc と併せて見ていることを固定する（over-deny 回帰の防止）。
+        self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
+        self.assert_allowed(run_gate(payload("main", "ls -la")))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 1")))
+
     def test_pr_reviewer_denies_push_but_allows_merge(self):
         self.assert_denied(run_gate(payload("pr-reviewer", "git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))

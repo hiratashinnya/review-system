@@ -142,7 +142,11 @@ tmpfile="$(mktemp)"
 trap 'rm -f "$tmpfile"' EXIT
 cat > "$tmpfile"
 
-python3 - "$tmpfile" <<'PYEOF'
+gate_out="$(mktemp)"
+trap 'rm -f "$tmpfile" "$gate_out"' EXIT
+
+set +e
+python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
 import json
 import os
 import re
@@ -281,6 +285,15 @@ ALLOWED_PYTHON_MODULES = {"unittest", "coverage", "dsv2", "gitgate"}
 PYTHON_MODULES_BY_ROLE = {
     "issue-fixer": {"karte"},
 }
+# `karte` は**状態を書き換える verb を持つ**ため、モジュール単位ではなく verb 単位で絞る
+# （Issue #341 レビュー F-341-04）。`coverage` の `run` を禁じているのと同じ方式。
+#
+# **`ingest-review` を issue-fixer に許さない**のが要点：これは「レビューアの指摘を台帳へ取り込む」
+# 手続きで、`status: resolved` を書ける。是正当事者がこれを実行できると、自作のレポートを `--from` で
+# 食わせて未解消 finding を一括 resolved にし round を進められ、`append` の類似飽和拒否
+# （#307 が入れたループ遮断）を迂回できてしまう＝「指摘した側」と「直す側」の分離が壊れる。
+# 取り込みは主文脈（gated ロールではない）が行う。
+KARTE_ALLOWED_SUBCOMMANDS = {"render", "append", "close-attempt", "check", "status"}
 # coverage は実行系サブコマンド（run）を禁止し、レポート出力系のみ許可する。
 COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
 
@@ -680,6 +693,16 @@ def head_command_violation(tokens, role):
                         f"`python3 -m coverage` only allows the report subcommands "
                         f"<{subs}> (`coverage run <...>` executes arbitrary Python and is denied)"
                     )
+            # Issue #341 F-341-04: karte は verb 単位で絞る（ingest-review は是正ロールに許さない）。
+            if tokens[2] == "karte":
+                subcommand = tokens[3] if len(tokens) >= 4 else ""
+                if subcommand not in KARTE_ALLOWED_SUBCOMMANDS:
+                    subs = "|".join(sorted(KARTE_ALLOWED_SUBCOMMANDS))
+                    return (
+                        f"`python3 -m karte` only allows <{subs}> for this role "
+                        "(`ingest-review` writes finding status and belongs to the reviewing side, "
+                        "not to the role being reviewed)"
+                    )
             return None
         return (
             f"`{head}` is only allowed in the form `{head} -m <{modules}> ...` "
@@ -897,4 +920,21 @@ else:
     debug_payload(payload, "allow", "")
     trace_event(agent_type, tool_name, "allow")
 PYEOF
+gate_status=$?
+gate_stdout="$(cat "$gate_out")"
+
+# Issue #341 F-341-08: 埋め込み Python の `sys.excepthook`（#340）は**実行時例外しか捕まえられない**。
+# 構文エラー（フック編集時にごく普通に起こる）ではモジュールがコンパイルされず excepthook が
+# 設定される前に終わるし、`python3` 自体が無い・実行できない場合も同様で、どちらも
+# 「stdout 空 ＋ 非0終了」になる。ここで受け止めないと従来どおり無条件 `exit 0` で
+# **stdout 空＝allow** に落ち、#340 が塞いだはずの穴が同じ結果のまま残る。
+#
+# 判定は「stdout が空」だけに依らず **rc と併せて**見る：正常な allow も stdout は空なので、
+# 「stdout 空 かつ rc 非0」のときだけ内部エラーとみなす（正常 allow を deny に化けさせない）。
+if [ -z "$gate_stdout" ] && [ "$gate_status" -ne 0 ]; then
+  printf '%s\n' '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "agent-command-gate: the gate could not run (python3 exited '"$gate_status"' with no decision; e.g. a syntax error in the hook or a missing interpreter). Refusing because the command could not be inspected. This is a bug in the hook, not in the command."}}'
+  exit 0
+fi
+
+printf '%s' "$gate_stdout"
 exit 0

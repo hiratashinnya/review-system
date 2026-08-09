@@ -545,8 +545,11 @@ def cmd_ingest_review(args) -> int:
             resolved.append(finding_id)
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
+        finding.severity = item.severity
         finding.locus = item.locus
         finding.summary = item.summary
+        finding.expected = item.expected
+        finding.recheck = item.recheck
         if round_no not in finding.rounds:
             finding.rounds.append(round_no)
         finding.rounds.sort()
@@ -683,12 +686,17 @@ def cmd_render(args) -> int:
     for finding in open_findings:
         stalled = " ★無進捗" if finding.max_consecutive_rounds() >= STALL_ROUNDS else ""
         lines.append(
-            f"  - {finding.id} [harm={finding.harm}] rounds={finding.rounds}{stalled}"
+            f"  - {finding.id} [harm={finding.harm}] [severity={finding.severity}] "
+            f"rounds={finding.rounds}{stalled}"
         )
         lines.append(f"      summary: {finding.summary}")
         lines.append(f"      harm_detail: {finding.harm_detail}")
         if finding.locus:
             lines.append(f"      locus: {finding.locus}")
+        # expected / recheck は是正側の入力契約そのもの（Issue #341 F-341-01）。
+        # ここに出さないと `issue-fixer` は「何をもって解消か」を前ラウンドから引けない。
+        lines.append(f"      expected: {finding.expected}")
+        lines.append(f"      recheck: {finding.recheck}")
         related = karte.attempts_for_finding(finding.id)
         if related:
             lines.append(
@@ -963,8 +971,11 @@ def _status_payload(karte: model.Karte) -> dict:
                 "status": finding.status,
                 "harm": finding.harm,
                 "harm_detail": finding.harm_detail,
+                "severity": finding.severity,
                 "locus": finding.locus,
                 "summary": finding.summary,
+                "expected": finding.expected,
+                "recheck": finding.recheck,
                 "rounds": list(finding.rounds),
                 "resolved_round": finding.resolved_round,
                 "attempts": [

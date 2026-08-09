@@ -10,8 +10,11 @@
     status: open
     harm: real
     harm_detail: required 属性が消え必須入力が素通りする
+    severity: blocker
     locus: review_system/forms.py::build_attrs
     summary: build_attrs が既存 attrs を破棄している
+    expected: 既存 attrs を保ったまま追加分だけマージする
+    recheck: required 付きフィールドを描画し required 属性が残ることを確認する
     rounds: [1, 2]
     resolved_round:
 
@@ -56,6 +59,8 @@ FORMAT_VERSION = 1
 
 CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "revert")
 HARM_LEVELS = ("real", "none")
+# 指摘の優先度（``harm`` とは独立の軸。``harm: none`` でも ``severity: major`` はあり得る）。
+SEVERITIES = ("blocker", "major", "minor")
 FINDING_STATUSES = ("open", "resolved")
 OUTCOMES = ("fixed", "partial", "no-change", "regressed")
 
@@ -253,8 +258,16 @@ class Finding:
     status: str = "open"
     harm: str = "real"
     harm_detail: str = ""
+    severity: str = "major"
     locus: str = ""
     summary: str = ""
+    # ``expected`` / ``recheck`` は**ラウンドをまたぐ**情報なので台帳に持つ（Issue #341 F-341-01）。
+    # ``expected``＝どうなっていれば解消か（``issue-fixer`` の Step 1 診断の入力契約）。
+    # ``recheck``＝次ラウンドで何を実行して解消を判定するか（再レビュー側の判定根拠）。
+    # ここに持たないと 2 ラウンド目以降に台帳から復元できず、是正も再検証も
+    # 「レビューアのチャット発言を覚えている」ことに依存してしまう。
+    expected: str = ""
+    recheck: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
 
@@ -421,8 +434,11 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         status=_require_enum(block, "status", FINDING_STATUSES),
         harm=_require_enum(block, "harm", HARM_LEVELS),
         harm_detail=_require_nonempty(block, "harm_detail"),
+        severity=_require_enum(block, "severity", SEVERITIES),
         locus=str(block.fields.get("locus", "")).strip(),
         summary=_require_nonempty(block, "summary"),
+        expected=_require_nonempty(block, "expected"),
+        recheck=_require_nonempty(block, "recheck"),
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
     )
@@ -512,8 +528,11 @@ class ReviewFinding:
     finding_id: str | None  # None＝``### new``＝採番を CLI に委ねる
     harm: str
     harm_detail: str
+    severity: str
     locus: str
     summary: str
+    expected: str
+    recheck: str
     lineno: int
     status: str = "open"          # ``resolved`` と**明示**したときだけ解消（K-06）
     distinct_from: tuple = ()     # 再発番判定を無効化する相手 ID（K-05・ペア限定）
@@ -528,6 +547,11 @@ def parse_review(text: str, issue: int) -> list:
     レポート冒頭の前書き（``# レビュー結果`` とその下の総括文）は無視する。ブロックが
     1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
     ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
+
+    必須キー: ``harm`` / ``harm_detail`` / ``severity`` / ``summary`` / ``expected`` / ``recheck``
+    （``locus`` は任意）。``severity`` / ``expected`` / ``recheck`` は Issue #341 F-341-01 で
+    必須化した——``pr-reviewer`` の出力契約が必須と宣言している一方で台帳が持っておらず、
+    2 ラウンド目以降に ``expected``（解消条件）と ``recheck``（再検証手順）を復元できなかった。
 
     任意キー:
       ``status``
@@ -575,8 +599,11 @@ def parse_review(text: str, issue: int) -> list:
                     finding_id=finding_id,
                     harm=_require_enum(block, "harm", HARM_LEVELS),
                     harm_detail=_require_nonempty(block, "harm_detail"),
+                    severity=_require_enum(block, "severity", SEVERITIES),
                     locus=check_scalar(block.fields.get("locus", ""), "locus"),
                     summary=_require_nonempty(block, "summary"),
+                    expected=_require_nonempty(block, "expected"),
+                    recheck=_require_nonempty(block, "recheck"),
                     lineno=block.lineno,
                     status=_optional_status(block),
                     distinct_from=_parse_distinct_from(block, issue),
@@ -715,8 +742,11 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "status", finding.status)
     _emit(lines, "harm", finding.harm)
     _emit(lines, "harm_detail", finding.harm_detail)
+    _emit(lines, "severity", finding.severity)
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
+    _emit(lines, "expected", finding.expected)
+    _emit(lines, "recheck", finding.recheck)
     _emit(lines, "rounds", finding.rounds)
     _emit(lines, "resolved_round", "" if finding.resolved_round is None else finding.resolved_round)
     return "\n".join(lines) + "\n"

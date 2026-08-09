@@ -125,14 +125,20 @@ class KarteTestCase(unittest.TestCase):
 HARMFUL = {
     "harm": "real",
     "harm_detail": "必須属性が消えて入力検証が素通りする",
+    "severity": "blocker",
     "locus": "a/b.py::build_attrs",
     "summary": "build_attrs が既存 attrs を破棄している",
+    "expected": "既存 attrs を保ったまま追加分だけマージする",
+    "recheck": "required 付きフィールドを描画し required が残ることを確認する",
 }
 COSMETIC = {
     "harm": "none",
     "harm_detail": "表記ゆれのみで挙動に影響しない",
+    "severity": "minor",
     "locus": "docs/readme.md",
     "summary": "見出しの用語がゆれている",
+    "expected": "用語が用語集の表記に揃っている",
+    "recheck": "該当見出しを読んで表記が揃っていることを確認する",
 }
 
 
@@ -458,6 +464,65 @@ class TestStatus(KarteTestCase):
         self.assertIn("pkg/forms.py::build_attrs", finding["attempts"][0]["results"][0]["touched"])
 
 
+class TestSeverityExpectedRecheck(KarteTestCase):
+    """Issue #341 F-341-01: `pr-reviewer` が必須と宣言した3キーを台帳が実際に持つこと。
+
+    以前は `pr-reviewer.md` が `severity`/`expected`/`recheck` を必須と書いていたのに
+    `parse_review` がそれらを読まず `Finding` にも載っていなかったため、**欠落しても無言で通り**、
+    2 ラウンド目以降に「どうなっていれば解消か（expected）」「何を実行して判定するか（recheck）」を
+    台帳から復元できなかった。ここを固定する。
+    """
+
+    def test_missing_severity_expected_recheck_are_rejected(self):
+        for missing in ("severity", "expected", "recheck"):
+            with self.subTest(missing=missing):
+                fields = {k: v for k, v in HARMFUL.items() if k != missing}
+                code, _out, err = self._ingest(1, ("new", fields))
+                self.assertNotEqual(code, cli.EXIT_OK, f"{missing} 欠落が素通りしている")
+                self.assertIn(missing, err)
+
+    def test_unknown_severity_is_rejected(self):
+        fields = {**HARMFUL, "severity": "critical"}
+        code, _out, err = self._ingest(1, ("new", fields))
+        self.assertNotEqual(code, cli.EXIT_OK)
+        self.assertIn("severity", err)
+
+    def test_three_keys_survive_a_write_read_roundtrip(self):
+        self._ingest(1, ("new", HARMFUL))
+        finding = self._karte().findings[0]
+        self.assertEqual(finding.severity, HARMFUL["severity"])
+        self.assertEqual(finding.expected, HARMFUL["expected"])
+        self.assertEqual(finding.recheck, HARMFUL["recheck"])
+
+    def test_render_shows_expected_and_recheck_for_open_findings(self):
+        # 是正側（issue-fixer）が前ラウンドの解消条件を引ける、が本キーを足した理由そのもの。
+        self._ingest(1, ("new", HARMFUL))
+        code, out, _err = self._run(cli.cmd_render)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn(HARMFUL["expected"], out)
+        self.assertIn(HARMFUL["recheck"], out)
+        self.assertIn("severity=", out)
+
+    def test_status_json_carries_the_three_keys(self):
+        self._ingest(1, ("new", HARMFUL))
+        code, out, _err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK)
+        finding = json.loads(out)["findings"][0]
+        self.assertEqual(finding["severity"], HARMFUL["severity"])
+        self.assertEqual(finding["expected"], HARMFUL["expected"])
+        self.assertEqual(finding["recheck"], HARMFUL["recheck"])
+
+    def test_second_round_can_update_expected_and_recheck(self):
+        # 同じ finding を再掲したとき、解消条件の更新が台帳へ反映される（据え置きではない）。
+        self._ingest(1, ("new", HARMFUL))
+        updated = {**HARMFUL, "expected": "別の期待に更新", "recheck": "別の再検証手順に更新"}
+        code, _out, err = self._ingest(2, ("F-307-01", updated))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        karte = self._karte()
+        self.assertEqual(karte.findings[0].expected, "別の期待に更新")
+        self.assertEqual(karte.findings[0].recheck, "別の再検証手順に更新")
+
+
 class TestRender(KarteTestCase):
     def test_render_lists_prior_attempts_and_open_findings(self):
         self._ingest(1, ("new", HARMFUL))
@@ -643,6 +708,9 @@ class TestAbsentFindingIsRejected(KarteTestCase):
     THIRD = {
         "harm": "real",
         "harm_detail": "境界値でインデックスが 1 ずれる",
+        "severity": "major",
+        "expected": "境界値でもインデックスがずれない",
+        "recheck": "境界値のテストケースを実行して通ることを確認する",
         "locus": "pkg/slicer.py::take",
         "summary": "take が末尾要素を取りこぼす",
     }
@@ -699,18 +767,27 @@ class TestAbsentFindingIsRejected(KarteTestCase):
 DUP_A = {
     "harm": "real",
     "harm_detail": "重複 ID を弾けず台帳が二重登録される",
+    "severity": "major",
+    "expected": "重複 ID を検出して取り込みを拒否する",
+    "recheck": "重複 ID を含むレポートを取り込んで拒否されることを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
     "summary": "cmd_ingest_review が finding ID の重複を見ていない",
 }
 DUP_B = {
     "harm": "real",
     "harm_detail": "欠落した ID を検出できず指摘が消える",
+    "severity": "major",
+    "expected": "欠落した ID を検出して取り込みを拒否する",
+    "recheck": "ID を欠いたレポートを取り込んで拒否されることを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
     "summary": "cmd_ingest_review が finding ID の欠落を見ていない",
 }
 DUP_C = {
     "harm": "real",
     "harm_detail": "順序が崩れて採番が飛ぶ",
+    "severity": "minor",
+    "expected": "採番が連番のまま保たれる",
+    "recheck": "連続して取り込み ID が飛んでいないことを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
     "summary": "cmd_ingest_review が finding ID の順序を見ていない",
 }
@@ -1593,7 +1670,9 @@ class TestModel(unittest.TestCase):
         karte = model.new_karte(307)
         karte.findings.append(
             model.Finding(id="F-307-01", harm="real", harm_detail="壊れる",
-                          locus="a.py::f", summary="要約", rounds=[1, 2])
+                          severity="major", locus="a.py::f", summary="要約",
+                          expected="壊れない", recheck="再現手順を実行して直っていることを見る",
+                          rounds=[1, 2])
         )
         karte.attempts.append(
             model.Attempt(number=1, round=1, finding_ids=["F-307-01"], root_cause="c",
@@ -1670,14 +1749,20 @@ class TestModel(unittest.TestCase):
         `harm: real` のような行がブロック外（＝どの finding にも属さない）で書かれていたら、
         preamble 緩和の対象（自由文）ではなく書式違反として拒否する。
         """
-        text = "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\nlocus: x\nsummary: s\n"
+        text = (
+            "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\n"
+            "severity: minor\nlocus: x\nsummary: s\nexpected: e\nrecheck: r\n"
+        )
         with self.assertRaises(model.KarteFormatError) as ctx:
             model.parse_blocks(text, allow_preamble=True)
         self.assertIn("解釈できない行", str(ctx.exception))
 
     def test_ingest_review_rejects_report_with_key_value_preamble(self):
         """`parse_review` 経由（``ingest-review`` の実入力）でも同じく fail-close する。"""
-        text = "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\nlocus: x\nsummary: s\n"
+        text = (
+            "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\n"
+            "severity: minor\nlocus: x\nsummary: s\nexpected: e\nrecheck: r\n"
+        )
         with self.assertRaises(model.KarteFormatError):
             model.parse_review(text, 307)
 
@@ -1841,7 +1926,9 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
     def test_ingest_from_worktree_is_visible_to_render_from_main(self):
         report = self.root / "tmp" / "review-1.md"
         report.write_text(
-            "### new\nharm: real\nharm_detail: d\nlocus: x\nsummary: s\n", encoding="utf-8"
+            "### new\nharm: real\nharm_detail: d\nseverity: major\nlocus: x\n"
+            "summary: s\nexpected: e\nrecheck: r\n",
+            encoding="utf-8",
         )
         code, out, err = self._run_from(
             self.worktree, cli.cmd_ingest_review, round="1", source=str(report)

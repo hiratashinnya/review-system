@@ -51,10 +51,25 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
   承認/却下ステータスを偽らない＝`pr-reviewer.toml` の絶対規範）。
 
 **②-c 是正 → 再レビュー（指摘があった場合のループ）**
-- 是正は `issue-implementer` へ差し戻す（`pr-reviewer` は push 不可＝コードを書けない）。担当 effort は **②-b でレビューアが決めた降格判断に従う**
-  （明確な指摘なら既定 `high`）。
+- **是正は `issue-fixer` へ差し戻す**（`issue-implementer` ではない＝Issue #308。`pr-reviewer` は push 不可＝コードを書けない）。
+  `issue-implementer` は**初回実装専任**で、是正依頼を受けたら STOP する契約になっている。担当 effort は
+  **②-b でレビューアが決めた降格判断に従う**（明確な指摘なら既定 `high`）。
+- **レビュー結果を先にカルテへ取り込む**（`issue-fixer` を dispatch する前）。`pr-reviewer` は構造化 finding
+  （`### F-<issue>-<seq>` ブロック＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`expected`/`recheck`/`status`）を
+  返すので、主文脈がそれをファイルへ書き出して取り込む：
+  `python3 -m karte ingest-review --issue <N> --round <R> --from <path>`
+  **`ingest-review` は主文脈が実行する**——是正当事者である `issue-fixer` には権限ゲートで許可されていない
+  （自分の指摘を `resolved` にできてしまうため・Issue #341 F-341-04）。
+- **`karte_path` と `round` を主文脈が絶対パスで渡す**：`<main-worktree>/tmp/_karte/issue-<N>.md`。
+  渡し忘れたら `issue-fixer` は STOP する契約（`issue-fixer.toml`「入力」）。
+- `issue-fixer` は**診断してから直す**（`karte render` で前ラウンドの試行・転換指令・未解消 finding の
+  `expected`/`recheck` を引き、`karte append` で診断を登録してからコードを触る）。同じアプローチの3件目は
+  `append` が機械的に拒否する＝**ラウンド上限ではなく類似で切る**。
 - **再レビューは常に既定 effort（`high`・リスク信号表によらない）**（Issue #120 ⑤・`pr-reviewer` を override なしで dispatch）。
 - clean になるまで ②-c を繰り返す。**握りつぶし禁止**：対応不要に見えても FND/Q 起票を主文脈へ提案させ、据え置きはオーナー判断（下記 ③・④）。
+
+> **未了（Issue #310）**：続行/停止の判定に使う**「実害」の定義**と**エスカレーション条件**は #310 で本節に追記する。
+> ここは **#308 で新設した `issue-fixer` がどこからも呼ばれない状態を作らないための最小配線**に留める。
 
 **②-d マージ → クローズ → 次へ**
 - `pr-reviewer` が genuinely clean と判断したら `gh pr merge`（マージは reviewer 専権）。
