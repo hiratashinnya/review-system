@@ -289,7 +289,9 @@ class HookTests(unittest.TestCase):
             "reason": "ISSUE_START_ALLOWED",
         }
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
+        with patch(
+            "issue_start.hook.resolve_github_token", return_value="credential-from-gh"
+        ), patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
             run_hook(
                 stdin=io.StringIO(json.dumps(self.managed_payload())),
                 stdout=stdout,
@@ -300,6 +302,65 @@ class HookTests(unittest.TestCase):
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
         self.assertEqual(evaluate.call_args.args[0].issue, 10)
         self.assertEqual(evaluate.call_args.args[0].repository, "hiratashinnya/review-system")
+        self.assertEqual(evaluate.call_args.kwargs["token"], "credential-from-gh")
+
+    def test_issue_317_equivalent_allows_with_mocked_gh_credential(self):
+        repository = "hiratashinnya/review-system"
+        snapshot = {
+            "schema": "blocker-gate-snapshot/v1",
+            "policy_version": "1.0",
+            "mode": "issue-start",
+            "repository": repository,
+            "subject": {"type": "issue", "number": 317},
+            "roots": [f"{repository}#317"],
+            "virtual_closed": [],
+            "nodes": {
+                f"{repository}#317": {
+                    "node_id": "I317",
+                    "state": "OPEN",
+                    "blocked_by": [f"{repository}#316"],
+                    "parent": None,
+                    "children": [],
+                },
+                f"{repository}#316": {
+                    "node_id": "I316",
+                    "state": "CLOSED_COMPLETED",
+                    "blocked_by": [],
+                    "parent": None,
+                    "children": [],
+                },
+            },
+            "pages_complete": True,
+            "errors": [],
+            "fetched_at": "2026-08-09T00:00:00Z",
+            "graphql_closing_set": [],
+            "delivered_message_closing_set": [],
+            "binding": {},
+        }
+        secret = "credential-from-mocked-gh"
+
+        def evaluate(request, *, token):
+            self.assertEqual(token, secret)
+            return evaluate_issue_start(
+                request,
+                token=token,
+                collector_factory=lambda actual: Collector(snapshot),
+            )
+
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=secret), patch(
+            "issue_start.hook.evaluate_issue_start", side_effect=evaluate
+        ):
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_payload("issue_317"))),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=ROOT,
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
+        self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
 
     def test_claude_runtime_agent_alias_allow_reaches_evaluation(self):
         evidence = {
@@ -319,7 +380,9 @@ class HookTests(unittest.TestCase):
             },
         }
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=evidence
+        ) as evaluate:
             run_hook(
                 stdin=io.StringIO(json.dumps(payload)),
                 stdout=stdout,
@@ -348,7 +411,9 @@ class HookTests(unittest.TestCase):
             "blockers": [blocker],
         }
         stdout = io.StringIO()
-        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence):
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=evidence
+        ):
             run_hook(
                 stdin=io.StringIO(json.dumps(self.managed_payload())),
                 stdout=stdout,

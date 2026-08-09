@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Sequence, TextIO
+
+from blocker_gate.auth import resolve_github_token
 
 from .gate import IssueStartError, IssueStartRequest, evaluate_issue_start, fail_closed
 
@@ -28,8 +29,7 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO, cwd: Path | None
         request = IssueStartRequest(args.entrypoint, args.repository, args.issue)
         from .gate import _request
         request = _request(request.__dict__)
-        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        evidence = evaluate_issue_start(request, token=token)
+        evidence = evaluate_issue_start(request, token=resolve_github_token())
     except IssueStartError as exc:
         evidence = fail_closed(request, exc)
     json.dump(evidence, stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

@@ -16,7 +16,9 @@ python3 -m blocker_gate evaluate --snapshot PATH
 
 `issue` は GitHub REST API `2026-03-10` で Issue本体、blocked-by、parent、sub-issue の
 全pageを読み、対象Issueのdependency/closureを評価する。認証は `GH_TOKEN`、次に
-`GITHUB_TOKEN` を参照する。tokenやAuthorization headerは出力しない。
+`GITHUB_TOKEN`、最後に `gh auth token --hostname github.com` の既存資格情報を参照する。
+`gh` が不在・未認証・timeout・空/異常応答の場合は匿名readを試す。tokenはAPIの
+`Authorization` headerにだけ設定し、tokenやAuthorization headerは出力しない。
 
 `pr` は GraphQL `closingIssuesReferences` を全cursor取得し、同じcore evaluatorへ渡す。
 default branchへ届くmerge/rebase/squash messageの厳密な再構築は #298 のcollector接続責務であり、

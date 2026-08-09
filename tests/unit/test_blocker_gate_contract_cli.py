@@ -280,6 +280,42 @@ class CliIntegrationTests(unittest.TestCase):
                 self.assertEqual(code, 0)
                 self.assertNotIn("super-secret-token", stdout.getvalue() + stderr.getvalue())
 
+    def test_shared_gh_credential_reaches_collector_without_secret_output(self):
+        secret = "credential-from-mocked-gh"
+        stdout, stderr = StringIO(), StringIO()
+        with patch("blocker_gate.cli.resolve_github_token", return_value=secret):
+            code = run(
+                ["issue", "--repository", "example/repo", "--number", "10"],
+                stdout=stdout,
+                stderr=stderr,
+                collector_factory=FakeCollector,
+            )
+        self.assertEqual(code, 0)
+        self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
+
+    def test_anonymous_api_failure_remains_fail_closed(self):
+        class AnonymousFailureCollector(FakeCollector):
+            def __init__(self, token=None):
+                self.asserted_token = token
+                if token is not None:
+                    raise AssertionError("credential failure must use anonymous read")
+
+            def collect_issue(self, repository, number):
+                return load("api_failure.json")
+
+        stdout, stderr = StringIO(), StringIO()
+        with patch("blocker_gate.cli.resolve_github_token", return_value=None):
+            code = run(
+                ["issue", "--repository", "example/repo", "--number", "10"],
+                stdout=stdout,
+                stderr=stderr,
+                collector_factory=AnonymousFailureCollector,
+            )
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(code, 20)
+        self.assertEqual((result["result"], result["primary_reason"]), ("ERROR", "API_UNAVAILABLE"))
+        self.assertFalse(result["permit_issued"])
+
 
 if __name__ == "__main__":
     unittest.main()

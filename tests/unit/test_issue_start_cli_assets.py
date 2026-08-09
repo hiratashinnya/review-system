@@ -33,11 +33,14 @@ class CliContractTests(unittest.TestCase):
                 "reason": reason,
             }
             stdout, stderr = io.StringIO(), io.StringIO()
-            with patch("issue_start.cli.evaluate_issue_start", return_value=evidence):
+            with patch("issue_start.cli.resolve_github_token", return_value=None), patch(
+                "issue_start.cli.evaluate_issue_start", return_value=evidence
+            ) as evaluate:
                 actual = run(ARGS, stdout=stdout, stderr=stderr, cwd=ROOT)
             self.assertEqual(actual, code)
             self.assertEqual(json.loads(stdout.getvalue())["result"], verdict)
             self.assertIn(reason, stderr.getvalue())
+            self.assertIsNone(evaluate.call_args.kwargs["token"])
 
 
 class AssetParityTests(unittest.TestCase):

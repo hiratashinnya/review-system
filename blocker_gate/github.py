@@ -97,7 +97,14 @@ class GitHubCollector:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-    def _decode(self, status: int, body: bytes) -> Any:
+    def _decode(self, status: int, headers: Mapping[str, str], body: bytes) -> Any:
+        if status == 403 and any(
+            isinstance(name, str)
+            and name.lower() == "x-ratelimit-remaining"
+            and str(value).strip() == "0"
+            for name, value in headers.items()
+        ):
+            raise GitHubReadError("API_UNAVAILABLE")
         if status in {401, 403}:
             raise GitHubReadError("API_PERMISSION")
         if status in {404, 410}:
@@ -114,7 +121,7 @@ class GitHubCollector:
     def _get(self, path_or_url: str) -> tuple[Any, Mapping[str, str]]:
         url = path_or_url if path_or_url.startswith("https://") else "https://api.github.com" + path_or_url
         status, headers, body = self._transport.get(url, self._headers)
-        return self._decode(status, body), headers
+        return self._decode(status, headers, body), headers
 
     def _list(self, path: str) -> list[Mapping[str, Any]]:
         separator = "&" if "?" in path else "?"
@@ -226,8 +233,10 @@ class GitHubCollector:
         headers = dict(self._headers)
         headers["Content-Type"] = "application/json"
         body = json.dumps({"query": query, "variables": variables}, separators=(",", ":")).encode("utf-8")
-        status, _, raw = self._transport.post("https://api.github.com/graphql", headers, body)
-        value = self._decode(status, raw)
+        status, response_headers, raw = self._transport.post(
+            "https://api.github.com/graphql", headers, body
+        )
+        value = self._decode(status, response_headers, raw)
         if not isinstance(value, dict) or value.get("errors") or not isinstance(value.get("data"), dict):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         return value["data"]

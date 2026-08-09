@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, TextIO
+
+from blocker_gate.auth import resolve_github_token
 
 from .gate import IssueStartError, evaluate_issue_start, fail_closed, parse_dispatch_payload
 
@@ -43,8 +44,7 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = Non
         request = parse_dispatch_payload(payload, cwd=cwd)
         if request is None:
             return 0
-        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        evidence = evaluate_issue_start(request, token=token)
+        evidence = evaluate_issue_start(request, token=resolve_github_token())
     except (json.JSONDecodeError, UnicodeDecodeError):
         evidence = fail_closed(request, IssueStartError("ISSUE_START_PAYLOAD_INVALID"))
     except IssueStartError as exc:
