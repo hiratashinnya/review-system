@@ -1,4 +1,4 @@
-"""managed Issue 処理開始を blocker/base evidence へ束縛する gate。"""
+"""managed Issue 処理開始を fresh blocker evidence へ束縛する gate。"""
 
 from .gate import (
     ENTRYPOINT_MANIFEST,

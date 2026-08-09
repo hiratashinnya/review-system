@@ -19,7 +19,7 @@
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/issue-start-gate.sh\"",
             "timeout": 45,
-            "statusMessage": "Checking blocker and branch-source evidence before Issue dispatch"
+            "statusMessage": "Checking blocker evidence before Issue dispatch"
           }
         ]
       }

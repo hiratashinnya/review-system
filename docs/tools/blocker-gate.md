@@ -1,7 +1,7 @@
 # blocker-gate CLI contract
 
 `blocker_gate` は Issue-start と PR-merge が共有する read-only dependency resolver である。
-managed Issue dispatch での interception・branch-source policy との結合は
+managed Issue dispatch での interception と、独立した branch-source policy の実行点は
 [`issue-start-and-branch-source.md`](issue-start-and-branch-source.md) を参照する。
 native `blocked-by` と parent/sub-issue を正本とし、relation、Issue、waiver を変更しない。
 policy version は `1.0`、stdout schema は `blocker-gate-result/v1` で固定する。

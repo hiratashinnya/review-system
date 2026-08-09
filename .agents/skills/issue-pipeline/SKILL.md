@@ -37,10 +37,10 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 各 Issue につき次を回す。**主文脈は dispatch と進捗記録に専念し、実装・レビューはしない**。
 
 **②-a 実装（`issue-implementer` へ委譲）**
-- **dispatch の直前に managed Issue-start gate を通す。** `origin/<default>` を fresh fetch して exact OID を確定し、prompt に次の機械可読行をちょうど1つ入れる。PreToolUse hook は repository / Issue / base を再束縛し、`blocker_gate` Issue mode と branch-source policy が両方 ALLOW の場合だけ同じ dispatch を続行する。
+- **dispatch の直前に managed Issue-start gate を通す。** Codex では spawn の `task_name` を exact `issue_<Issue番号>`（例: `issue_297`）とする。PreToolUse hook はこの平文 task name と payload/hook cwd、git worktree、GitHub.com origin から repository / Issue を再束縛し、暗号化される Codex `message` は binding に使わない。Claude は prompt に次の機械可読行をちょうど1つ入れる既存契約を維持する。
   `ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}`
-  正当な stacked branch だけは `base_pr` に same-repository の OPEN PR 番号を明示する。hook/API/permission/pagination/cycle/contract error、target 不明、marker 欠如・重複、OID mismatch は fail-close し、別経路へ迂回しない。#299 完了までは waiver を渡さない。
-- **base は prompt だけでなく branch 作成の machine args にも固定する。** 実装者へ `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]` を渡す。現在 HEAD の暗黙継承は禁止。
+  tool/agent type/entrypoint 不一致、Codex task name/cwd/worktree/origin 不正、Claude marker 欠如・重複、hook/API/permission/pagination/cycle/contract error は fail-close し、別経路へ迂回しない。#299 完了までは waiver を渡さない。
+- **branch-source は dispatch gate と分離し、branch 作成時に評価する。** `origin/<default>` を fresh fetch して exact OID を確定し、実装者へ `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]` を渡す。正当な stacked branch だけは `--base-pr` に same-repository の OPEN PR 番号を明示する。現在 HEAD の暗黙継承は禁止。
 - Codex は `.codex/hooks.json` の `spawn_agent`、Claude は `.claude/settings.json` の `Task` を `/hooks` 等で trusted/enabled にした managed path のみ保護対象。direct shell/API や hook 無効 harness は manifest 上の unmanaged であり、保護済みと扱わない。
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定モデル・既定 effort。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model_reasoning_effort = "xhigh"` override で dispatch。
@@ -113,7 +113,7 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - スコープ拡張は**別 Issue に逃がした**（現 PR を肥大化させていない・⑧）。
 - 先送りは**オーナー許可を取った**（AI 独断で「対応不要/繰り越し」していない・⑨）。
 - 主文脈は実装/レビューを自分でやらず、タスク管理・進捗報告・意思決定に専念した（③）。
-- 各 implement dispatch に fresh な `ISSUE_START_BINDING_V1` が1つあり、hook evidence の policy version / fetched_at / reason と branch-source exact OID を確認した。
+- 各 implement dispatch は Codex で exact `task_name=issue_N`、Claude で fresh な `ISSUE_START_BINDING_V1` 1つを持ち、Issue-start hook evidence の policy version / fetched_at / reason を確認した。後続 `gitgate new-branch` が独立に branch-source exact OID を確認した。
 
 ## 成果物
 - 承認済み処置順 ＋ 各 Issue の PR（merge/close 済み）＋ PR レビューコメント（AI 明記）＋ 起票したサブ Issue/FND/Q（あれば）＋ 進捗ログ。

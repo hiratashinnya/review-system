@@ -6,7 +6,6 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from branch_source import BranchSourceResult
 from issue_start.gate import (
     BINDING_MARKER,
     IssueStartError,
@@ -17,6 +16,7 @@ from issue_start.gate import (
 from issue_start.hook import run as run_hook
 
 
+ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "blocker_gate"
 OID = "a" * 40
 
@@ -45,48 +45,121 @@ class Collector:
         }
 
 
-def request():
-    return IssueStartRequest(
-        "issue-pipeline", "example/repo", 10, "issue-297", "main", OID, None
-    )
+def request(repository="example/repo", issue=10):
+    return IssueStartRequest("issue-pipeline", repository, issue)
 
 
-def source():
-    return BranchSourceResult("example/repo", "main", OID, "default-branch", None)
+def claude_binding():
+    return {
+        "entrypoint": "issue-pipeline",
+        "repository": "example/repo",
+        "issue": 10,
+        "branch_name": "issue-297",
+        "base_ref": "main",
+        "base_oid": OID,
+        "base_pr": None,
+    }
+
+
+class FakeCompleted:
+    def __init__(self, stdout="", returncode=0):
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+def git_runner(*, origin="https://github.com/example/repo.git", inside="true", top=ROOT):
+    def run(argv, **kwargs):
+        if argv == ["git", "rev-parse", "--is-inside-work-tree"]:
+            return FakeCompleted(inside + "\n")
+        if argv == ["git", "rev-parse", "--show-toplevel"]:
+            return FakeCompleted(str(top) + "\n")
+        if argv == ["git", "remote", "get-url", "origin"]:
+            return FakeCompleted(origin + "\n")
+        raise AssertionError(f"unexpected git argv: {argv}")
+    return run
 
 
 class DispatchPayloadTests(unittest.TestCase):
-    def payload(self, binding=None, agent="issue-implementer", tool="spawn_agent"):
-        marker = "" if binding is None else BINDING_MARKER + json.dumps(binding, separators=(",", ":"))
-        return {"tool_name": tool, "tool_input": {"agent_type": agent, "message": marker}}
-
-    def test_codex_and_claude_payloads_share_binding_contract(self):
-        raw = request().__dict__
-        self.assertEqual(parse_dispatch_payload(self.payload(raw)), request())
-        observed_codex = self.payload(raw, tool="collaborationspawn_agent")
-        self.assertEqual(parse_dispatch_payload(observed_codex), request())
-        claude = {"tool_name": "Task", "tool_input": {
-            "subagent_type": "issue-implementer",
-            "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
-        }}
-        self.assertEqual(parse_dispatch_payload(claude), request())
-
-    def test_unknown_missing_duplicate_and_extra_fields_deny(self):
-        cases = [
-            self.payload(),
-            self.payload(request().__dict__, tool="unknown"),
-            {"tool_name": "spawn_agent", "tool_input": {
+    def codex_payload(self, *, task_name="issue_10", tool="collaborationspawn_agent", cwd=ROOT):
+        return {
+            "cwd": str(cwd),
+            "tool_name": tool,
+            "tool_input": {
                 "agent_type": "issue-implementer",
-                "message": "\n".join([BINDING_MARKER + "{}", BINDING_MARKER + "{}"]),
-            }},
-            self.payload({**request().__dict__, "unexpected": True}),
-        ]
-        for payload in cases:
-            with self.subTest(payload=payload):
-                with self.assertRaises(IssueStartError):
-                    parse_dispatch_payload(payload)
+                "fork_turns": "all",
+                "task_name": task_name,
+                # Codex 0.146.0 の実測では message は暗号化値。binding に使わない。
+                "message": "ENC[AQICAH-encrypted-prompt]",
+            },
+        }
 
-    def test_alias_dotted_and_similar_tool_names_are_not_payload_aliases(self):
+    def claude_payload(self, binding=None, *, tool="Task"):
+        raw = claude_binding() if binding is None else binding
+        return {
+            "tool_name": tool,
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
+            },
+        }
+
+    def test_codex_encrypted_message_uses_task_name_and_worktree_origin(self):
+        for tool_name in ("spawn_agent", "collaborationspawn_agent"):
+            with self.subTest(tool_name=tool_name):
+                actual = parse_dispatch_payload(
+                    self.codex_payload(tool=tool_name), cwd=ROOT, runner=git_runner()
+                )
+                self.assertEqual(actual, request())
+
+    def test_codex_accepts_strict_github_https_and_ssh_origins(self):
+        for origin in (
+            "https://github.com/example/repo.git",
+            "git@github.com:example/repo.git",
+            "ssh://git@github.com/example/repo.git",
+        ):
+            with self.subTest(origin=origin):
+                actual = parse_dispatch_payload(
+                    self.codex_payload(), cwd=ROOT, runner=git_runner(origin=origin)
+                )
+                self.assertEqual(actual.repository, "example/repo")
+
+    def test_codex_bad_or_missing_task_name_is_fail_close(self):
+        for task_name in (None, "", "issue_0", "issue_01", "issue-10", "issue_10_more", "xissue_10"):
+            payload = self.codex_payload()
+            if task_name is None:
+                del payload["tool_input"]["task_name"]
+            else:
+                payload["tool_input"]["task_name"] = task_name
+            with self.subTest(task_name=task_name), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_TASK_NAME_INVALID"
+            ):
+                parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
+
+    def test_codex_bad_cwd_worktree_and_origin_are_fail_close(self):
+        cases = [
+            (self.codex_payload(cwd=ROOT.parent), git_runner(), "ISSUE_START_CWD_MISMATCH"),
+            (self.codex_payload(), git_runner(inside="false"), "ISSUE_START_NOT_WORKTREE"),
+            (self.codex_payload(), git_runner(top=ROOT.parent), "ISSUE_START_WORKTREE_ROOT_MISMATCH"),
+            (self.codex_payload(), git_runner(origin="https://evil.example/example/repo.git"), "ISSUE_START_ORIGIN_INVALID"),
+            (self.codex_payload(), git_runner(origin="http://github.com/example/repo.git"), "ISSUE_START_ORIGIN_INVALID"),
+            (self.codex_payload(), git_runner(origin="https://user@github.com/example/repo.git"), "ISSUE_START_ORIGIN_INVALID"),
+        ]
+        for payload, runner, reason in cases:
+            with self.subTest(reason=reason), self.assertRaisesRegex(IssueStartError, reason):
+                parse_dispatch_payload(payload, cwd=ROOT, runner=runner)
+
+    def test_claude_marker_contract_is_unchanged(self):
+        self.assertEqual(parse_dispatch_payload(self.claude_payload()), request())
+        bad = claude_binding()
+        bad.pop("base_oid")
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_UNKNOWN_FIELD"):
+            parse_dispatch_payload(self.claude_payload(bad))
+        wrong_entrypoint = claude_binding()
+        wrong_entrypoint["entrypoint"] = "other-pipeline"
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_ENTRYPOINT_UNKNOWN"):
+            parse_dispatch_payload(self.claude_payload(wrong_entrypoint))
+
+    def test_unknown_or_similar_tool_names_are_not_payload_aliases(self):
         for tool_name in (
             "Agent",
             "collaboration.spawn_agent",
@@ -98,43 +171,45 @@ class DispatchPayloadTests(unittest.TestCase):
             with self.subTest(tool_name=tool_name), self.assertRaisesRegex(
                 IssueStartError, "ISSUE_START_ENTRYPOINT_UNKNOWN"
             ):
-                parse_dispatch_payload(self.payload(request().__dict__, tool=tool_name))
+                parse_dispatch_payload(
+                    self.codex_payload(tool=tool_name), cwd=ROOT, runner=git_runner()
+                )
 
     def test_non_issue_agent_is_explicitly_unmanaged(self):
-        self.assertIsNone(parse_dispatch_payload(self.payload(agent="explorer")))
+        payload = self.codex_payload()
+        payload["tool_input"]["agent_type"] = "explorer"
+        self.assertIsNone(parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner()))
 
-    def test_missing_target_is_fail_close(self):
-        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TARGET_UNKNOWN"):
-            parse_dispatch_payload({"tool_name": "spawn_agent", "tool_input": {"message": "x"}})
+    def test_missing_or_ambiguous_target_is_fail_close(self):
+        missing = self.codex_payload()
+        del missing["tool_input"]["agent_type"]
+        ambiguous = self.codex_payload()
+        ambiguous["tool_input"]["subagent_type"] = "issue-implementer"
+        for payload in (missing, ambiguous):
+            with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TARGET_UNKNOWN"):
+                parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
 
 
 class EvaluationTests(unittest.TestCase):
-    def test_allow_combines_blocker_and_branch_evidence(self):
+    def test_allow_contains_blocker_evidence_only(self):
         collector = Collector(load("closed_direct.json"))
-        result = evaluate_issue_start(
-            request(), collector_factory=lambda token: collector,
-            branch_api_factory=lambda token: object(),
-            branch_verifier=lambda *args, **kwargs: source(),
-        )
+        result = evaluate_issue_start(request(), collector_factory=lambda token: collector)
         self.assertEqual((result["result"], result["exit_code"]), ("ALLOW", 0))
         self.assertEqual(result["reason"], "ISSUE_START_ALLOWED")
-        self.assertEqual(result["branch_source_evidence"]["source_oid"], OID)
+        self.assertNotIn("branch_source_evidence", result)
         self.assertEqual(collector.waiver_calls, 0)
 
-    def test_block_and_collection_error_never_reach_branch_policy(self):
+    def test_block_and_collection_error_preserve_verdict(self):
         for fixture, verdict in [("open_direct.json", "BLOCK"), ("cycle.json", "ERROR")]:
-            calls = []
             result = evaluate_issue_start(
-                request(), collector_factory=lambda token, f=fixture: Collector(load(f)),
-                branch_verifier=lambda *args, **kwargs: calls.append(True),
+                request(), collector_factory=lambda token, f=fixture: Collector(load(f))
             )
             self.assertEqual(result["result"], verdict)
-            self.assertEqual(calls, [])
+            self.assertNotIn("branch_source_evidence", result)
 
     def test_block_report_has_number_title_url_path_and_next_action(self):
         result = evaluate_issue_start(
-            request(), collector_factory=lambda token: Collector(load("open_direct.json")),
-            branch_verifier=lambda *args, **kwargs: self.fail("branch policy must not run"),
+            request(), collector_factory=lambda token: Collector(load("open_direct.json"))
         )
         item = result["blockers"][0]
         self.assertEqual(item["number"], 9)
@@ -147,45 +222,53 @@ class EvaluationTests(unittest.TestCase):
         bad = load("closed_direct.json")
         bad["subject"]["number"] = 11
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BLOCKER_BINDING_MISMATCH"):
-            evaluate_issue_start(
-                request(), collector_factory=lambda token: Collector(bad),
-                branch_verifier=lambda *args, **kwargs: source(),
-            )
+            evaluate_issue_start(request(), collector_factory=lambda token: Collector(bad))
 
 
 class HookTests(unittest.TestCase):
-    def managed_payload(self):
-        return {"tool_name": "spawn_agent", "tool_input": {
-            "agent_type": "issue-implementer",
-            "message": BINDING_MARKER + json.dumps(request().__dict__, separators=(",", ":")),
-        }}
+    def managed_payload(self, task_name="issue_10"):
+        return {
+            "cwd": str(ROOT),
+            "tool_name": "collaborationspawn_agent",
+            "tool_input": {
+                "agent_type": "issue-implementer",
+                "task_name": task_name,
+                "message": "ENC[AQICAH-encrypted-prompt]",
+            },
+        }
 
     def test_malformed_managed_dispatch_emits_deny(self):
         stdout = io.StringIO()
         rc = run_hook(
-            stdin=io.StringIO(json.dumps({
-                "tool_name": "spawn_agent",
-                "tool_input": {"agent_type": "issue-implementer", "message": "missing"},
-            })), stdout=stdout, stderr=io.StringIO()
+            stdin=io.StringIO(json.dumps(self.managed_payload("issue-10"))),
+            stdout=stdout,
+            stderr=io.StringIO(),
+            cwd=ROOT,
         )
         self.assertEqual(rc, 0)
         output = json.loads(stdout.getvalue())
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
 
-    def test_allow_keeps_stdout_empty_and_logs_evidence(self):
+    def test_codex_encrypted_message_allow_reaches_evaluation(self):
         evidence = {
-            "schema_version": "issue-start-evidence/1", "policy_version": "issue-start/1.0",
-            "result": "ALLOW", "exit_code": 0, "reason": "ISSUE_START_ALLOWED",
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "ALLOW",
+            "exit_code": 0,
+            "reason": "ISSUE_START_ALLOWED",
         }
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence):
+        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
             run_hook(
                 stdin=io.StringIO(json.dumps(self.managed_payload())),
                 stdout=stdout,
                 stderr=stderr,
+                cwd=ROOT,
             )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
+        self.assertEqual(evaluate.call_args.args[0].issue, 10)
+        self.assertEqual(evaluate.call_args.args[0].repository, "hiratashinnya/review-system")
 
     def test_block_deny_reason_preserves_actionable_blocker_report(self):
         blocker = {
@@ -210,6 +293,7 @@ class HookTests(unittest.TestCase):
                 stdin=io.StringIO(json.dumps(self.managed_payload())),
                 stdout=stdout,
                 stderr=io.StringIO(),
+                cwd=ROOT,
             )
         reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
         report = json.loads(reason.split(" blockers=", 1)[1])

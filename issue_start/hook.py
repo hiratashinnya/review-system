@@ -40,11 +40,11 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = Non
         payload = json.load(stdin)
         if not isinstance(payload, dict):
             raise IssueStartError("ISSUE_START_PAYLOAD_INVALID")
-        request = parse_dispatch_payload(payload)
+        request = parse_dispatch_payload(payload, cwd=cwd)
         if request is None:
             return 0
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        evidence = evaluate_issue_start(request, cwd=cwd, token=token)
+        evidence = evaluate_issue_start(request, token=token)
     except (json.JSONDecodeError, UnicodeDecodeError):
         evidence = fail_closed(request, IssueStartError("ISSUE_START_PAYLOAD_INVALID"))
     except IssueStartError as exc:

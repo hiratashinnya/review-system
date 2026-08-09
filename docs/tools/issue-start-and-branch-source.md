@@ -2,7 +2,7 @@
 
 ## 決定
 
-Issue-start blocker policy と branch-source policy は、判定材料と reason code が異なるため内部 policy を分離し、managed dispatch adapter で ALLOW を結合する。GitHub standard API と git のみを使うため追加課金はない。
+Issue-start blocker policy と branch-source policy は、判定材料、実行時点、reason code が異なるため別々の interception point で評価する。Issue-start hook は dispatch 直前に #297 blocker だけを評価し、#317 branch-source は後続の `gitgate new-branch` が評価する。GitHub standard API と git のみを使うため追加課金はない。
 
 Issue #317 の interception point は **A: `gitgate new-branch` を primary** とする。現在 HEAD を暗黙継承せず、fresh fetch 後の `origin/<default>` exact OID からだけ branch を作る。正当な stacked branch は `--base-pr N` を明示し、same-repository・OPEN PR・API の head SHA・fetch した PR ref OID がすべて一致した場合だけ許可する。API failure、closed/cross-repository PR、partial response、OID mismatch は fail-close する。
 
@@ -10,18 +10,26 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 ## Managed Issue-start
 
-`issue_start/managed-entrypoints-v1.json` が保護対象の inventory 正本である。現時点では `issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` を managed とする。dispatch prompt には厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。
+`issue_start/managed-entrypoints-v1.json` が保護対象と harness 別 binding transport の inventory 正本である。現時点では `issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` を managed とする。entrypoint、agent type、tool name は manifest の exact value だけを受理し、欠如・不正・複数 transport に一致する曖昧な payload は fail-close する。
 
-公式 Codex manual と CLI source は hook canonical 名を `spawn_agent`、matcher 互換 alias を `Agent` と定義している。一方、Codex CLI 0.146.0 の実 TUI で `collaboration.spawn_agent` を呼んだ PreToolUse stdin は `tool_name: "collaborationspawn_agent"` だった。この版差を閉じるため Codex matcher は3名だけを exact matchし、payload parser は canonical 名と実測名を managed dispatch として受理する。`Agent` は matcher alias であって stdin canonical 名ではないため parser alias にはせず、未観測の `collaboration.spawn_agent` 表記や類似 prefix/suffix 名も受理しない。
+公式 Codex manual と CLI source は hook canonical 名を `spawn_agent`、matcher 互換 alias を `Agent` と定義している。一方、Codex CLI 0.146.0 の実 TUI で `collaboration.spawn_agent` を呼んだ PreToolUse stdin は `tool_name: "collaborationspawn_agent"` だった。この版差を閉じるため Codex matcher は3名だけを exact matchし、payload parser は manifest の canonical 名と実測名だけを managed dispatch として受理する。`Agent` は matcher alias であって stdin canonical 名ではないため parser alias にはせず、未観測の `collaboration.spawn_agent` 表記や類似 prefix/suffix 名も受理しない。
+
+Codex 0.146.0 の `tool_input.message` は PreToolUse 時点で暗号化されるため、binding 材料に使わない。Codex transport は次の平文情報だけで束縛する。
+
+1. `tool_input.task_name` が exact `^issue_([1-9][0-9]*)$` に一致し、capture した10進数を Issue 番号とする。先頭ゼロ、suffix/prefix、ハイフン形は受理しない。
+2. top-level `cwd` と hook 実行 cwd の `realpath` が一致する。
+3. その path が git worktree の top-level であることを `git rev-parse` で確認する。
+4. `origin` を GitHub.com の HTTPS / SSH URL の厳格形式から canonical `OWNER/REPO` へ変換する。他 host、HTTP、credential 付き、複数行は拒否する。
+
+Claude transport は従来どおり dispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 
 PreToolUse hook は次を順に行う。
 
-1. tool / entrypoint / repository / Issue / branch / base の binding を検証する。
+1. harness 別 transport で tool / agent type / entrypoint / repository / Issue の binding を検証する。
 2. `blocker_gate` Issue mode を fresh read し、結果 contract と対象 identity を検証する。Issue #299 完了前は waiver provider を渡さない。
-3. blocker ALLOW 後だけ branch-source policy を fresh read/fetch し、exact base OID を検証する。
-4. 両 policy が ALLOW の場合だけ同じ dispatch を続行する。BLOCK/ERROR、unknown、API/permission/pagination/cycle/contract error は deny する。
+3. blocker が ALLOW の場合だけ同じ dispatch を続行する。BLOCK/ERROR、unknown、API/permission/pagination/cycle/contract error は deny する。
 
-evidence は blocker の `fetched_at`・reason・policy version、対象 binding、branch-source policy version と OID を含む。ALLOW evidence は hook stderr（harness log）へ出し、deny は reason/policy version を PreToolUse response に含める。
+evidence は blocker の `fetched_at`・reason・policy version と対象 binding を含む。branch-source evidence は含めない。ALLOW evidence は hook stderr（harness log）へ出し、deny は reason/policy version を PreToolUse response に含める。
 
 ## Hook parity と限界
 

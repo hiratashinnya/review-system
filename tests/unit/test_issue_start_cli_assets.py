@@ -14,8 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OID = "a" * 40
 ARGS = [
     "--entrypoint", "issue-pipeline", "--repository", "example/repo",
-    "--issue", "10", "--branch-name", "issue-297", "--base-ref", "main",
-    "--base-oid", OID,
+    "--issue", "10",
 ]
 
 
@@ -74,6 +73,17 @@ class AssetParityTests(unittest.TestCase):
             (ROOT / "issue_start" / "managed-entrypoints-v1.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["managed"][0]["entrypoint"], "issue-pipeline")
+        transports = manifest["managed"][0]["binding_transports"]
+        self.assertEqual(manifest["managed"][0]["agent_type"], "issue-implementer")
+        self.assertEqual(
+            set(transports["codex"]["tool_names"]),
+            {"spawn_agent", "collaborationspawn_agent"},
+        )
+        self.assertEqual(
+            transports["codex"]["task_name_pattern"], "^issue_([1-9][0-9]*)$"
+        )
+        self.assertEqual(transports["claude"]["tool_names"], ["Task"])
+        self.assertEqual(transports["claude"]["binding_marker"], "ISSUE_START_BINDING_V1=")
         self.assertTrue(manifest["unmanaged"])
 
 

@@ -17,10 +17,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--entrypoint", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--issue", required=True, type=int)
-    parser.add_argument("--branch-name", required=True)
-    parser.add_argument("--base-ref", required=True)
-    parser.add_argument("--base-oid", required=True)
-    parser.add_argument("--base-pr", type=int)
     return parser
 
 
@@ -29,14 +25,11 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO, cwd: Path | None
     request = None
     try:
         # CLI と hook が同じ request validator を通るよう payload parser 相当の dataclass を作る。
-        request = IssueStartRequest(
-            args.entrypoint, args.repository, args.issue, args.branch_name,
-            args.base_ref, args.base_oid, args.base_pr,
-        )
+        request = IssueStartRequest(args.entrypoint, args.repository, args.issue)
         from .gate import _request
         request = _request(request.__dict__)
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        evidence = evaluate_issue_start(request, cwd=cwd, token=token)
+        evidence = evaluate_issue_start(request, token=token)
     except IssueStartError as exc:
         evidence = fail_closed(request, exc)
     json.dump(evidence, stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
