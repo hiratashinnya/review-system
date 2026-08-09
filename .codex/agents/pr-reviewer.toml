@@ -79,8 +79,9 @@ AGENTS.md/CLAUDE.md は「スケジュール独断禁止」等、**値の決定�
 harm: real
 harm_detail: 是正ラウンドが診断なしで走れるため、同じ直し方の連打が止まらない
 severity: blocker
-locus: .codex/agents/issue-fixer.toml::Step 1
+locus: [.claude/agents/issue-fixer.md::Step 1, .codex/agents/issue-fixer.toml::Step 1]
 summary: Step 1 診断を経ずに編集してよいと読める記述が残っている
+evidence: 両ファイルの Step 1 節を読み、「必須」と書きつつ編集を禁じる文が無いことを確認
 expected: karte append を通す前にファイルを編集してはならない、と一意に読める文にする
 recheck: 該当節を読み、診断前編集を許す解釈の余地が無いことを確認する
 status: open
@@ -92,19 +93,27 @@ status: open
 |---|---|---|---|
 | ブロック見出し | ✔ | `F-<issue>-<seq>` か `new` | 既存 ID の再掲は前者、初出は後者（採番は `karte` が行う） |
 | `harm` | ✔ | `real` / `none` | **実害の有無**。`real`＝放置すると誤動作・データ破壊・境界の穴になる |
-| `harm_detail` | ✔ | 1行 | `harm` の**根拠**。「なぜ実害あり/なしと言えるか」を具体で書く |
+| `harm_detail` | ✔ | 1行 | `harm` の**内容**。「放置すると何が起きるか」を具体で書く |
 | `severity` | ✔ | `blocker` / `major` / `minor` | 処置の優先度。`harm` とは独立 |
-| `locus` | | `file:line` か `file::symbol` | 指摘の所在。1件に1箇所（複数箇所なら指摘を割る） |
+| `locus` | | `file:line` / `file::symbol`、**複数可**（`[a, b]`） | 指摘の所在。同じ欠陥が対称ミラーの複数ファイルに出るときは、箇所ごとに finding を割らず1指摘に複数 locus を書く |
 | `summary` | ✔ | 1行 | 何が問題か |
+| `evidence` | ✔ | 1行 | **そう言える根拠**（読んだファイル/行・実行したコマンドと結果）。`harm_detail` とは別物 |
 | `expected` | ✔ | 1行 | **期待する振る舞い**（どうなっていれば解消か） |
 | `recheck` | ✔ | 1行 | **再検証条件**。次ラウンドでこれを実行して解消を判定する |
 | `status` | | `open`（既定）/ `resolved` | **解消は明示宣言でのみ成立**。再掲しないことは解消を意味しない |
 | `distinct_from` | | `F-<issue>-<seq>`（`[a, b]` 可） | 再発番検出の誤検知を外すエスケープハッチ |
 
 - **値は1行に収める**（改行・NUL は書式違反）。スカラ値を角括弧で始めない（リストと解釈される）。
-- `severity` / `expected` / `recheck` は**台帳へ永続化される**（Issue #341 F-341-01）。次ラウンドの
+- `severity` / `evidence` / `expected` / `recheck` は**台帳へ永続化される**（Issue #341）。次ラウンドの
   `issue-fixer` が `karte render` でこれを引くので、`expected` は**観測可能な状態**、`recheck` は
   **実行できる手順**で書く。
+- **同一欠陥をミラーごとに割らない**：`.claude/` ↔ `.codex/` ↔ `.agents/` の対称ミラーでは1つの欠陥が
+  複数ファイルに同時に現れる。箇所ごとに別 finding にすると**同じ1件が未解消件数を水増しし**、
+  `karte status` の「同一 finding が3ラウンド連続未解消」判定まで歪む。欠陥が同一なら
+  `locus: [a, b]` と書いて1指摘に留める（再発番判定も locus の**交差**で行う）。
+- **`harm: none` でも省略しない（握りつぶし禁止）**：実害なしと判断した指摘も必ず載せる。
+  「実害なし」は「対応不要」ではなく、処置要否・据え置きは**オーナー専権**（AGENTS.md）。
+  `karte` 側でも未解消 finding の全件再掲が必須（K-06）で、載せなければ取り込みごと拒否される。
 
 ### 3. finding ID の再利用規定（**破ると是正ループが壊れる**）
 

@@ -502,7 +502,7 @@ def cmd_ingest_review(args) -> int:
             if duplicate is not None:
                 errors.append(
                     f"{item.lineno} 行目: ID 再発番を検出: {finding_id} は既存の未解消 "
-                    f"{duplicate} と同一の指摘（locus/summary が一致）。"
+                    f"{duplicate} と同一の指摘（locus が交差し summary が一致）。"
                     "未解消の指摘を再度挙げるときは同じ ID を再利用すること"
                     f"（別物なら当該ブロックに `distinct_from: {duplicate}` を書いて名指しする）"
                 )
@@ -546,8 +546,9 @@ def cmd_ingest_review(args) -> int:
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
         finding.severity = item.severity
-        finding.locus = item.locus
+        finding.locus = list(item.locus)
         finding.summary = item.summary
+        finding.evidence = item.evidence
         finding.expected = item.expected
         finding.recheck = item.recheck
         if round_no not in finding.rounds:
@@ -692,7 +693,8 @@ def cmd_render(args) -> int:
         lines.append(f"      summary: {finding.summary}")
         lines.append(f"      harm_detail: {finding.harm_detail}")
         if finding.locus:
-            lines.append(f"      locus: {finding.locus}")
+            lines.append(f"      locus: {', '.join(finding.locus)}")
+        lines.append(f"      evidence: {finding.evidence}")
         # expected / recheck は是正側の入力契約そのもの（Issue #341 F-341-01）。
         # ここに出さないと `issue-fixer` は「何をもって解消か」を前ラウンドから引けない。
         lines.append(f"      expected: {finding.expected}")
@@ -972,8 +974,9 @@ def _status_payload(karte: model.Karte) -> dict:
                 "harm": finding.harm,
                 "harm_detail": finding.harm_detail,
                 "severity": finding.severity,
-                "locus": finding.locus,
+                "locus": list(finding.locus),
                 "summary": finding.summary,
+                "evidence": finding.evidence,
                 "expected": finding.expected,
                 "recheck": finding.recheck,
                 "rounds": list(finding.rounds),

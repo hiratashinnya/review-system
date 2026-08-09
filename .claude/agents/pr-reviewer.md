@@ -78,9 +78,10 @@ CLAUDE.md は「スケジュール独断禁止」等、**値の決定自体を�
 ### F-308-02
 harm: real
 harm_detail: 是正ラウンドが診断なしで走れるため、同じ直し方の連打が止まらない
-locus: .claude/agents/issue-fixer.md::Step 1
 severity: blocker
+locus: [.claude/agents/issue-fixer.md::Step 1, .codex/agents/issue-fixer.toml::Step 1]
 summary: Step 1 診断を経ずに Edit してよいと読める記述が残っている
+evidence: 両ファイルの Step 1 節を Read。「必須」と書きつつ編集を禁じる文が無いことを確認
 expected: karte append を通す前に Edit / Write してはならない、と一意に読める文にする
 recheck: 該当節を Read し、診断前編集を許す解釈の余地が無いことを確認する
 status: open
@@ -88,9 +89,10 @@ status: open
 ### new
 harm: none
 harm_detail: 実行時挙動は変わらない（コメントのみ）
-locus: .claude/hooks/agent-command-gate.sh::header
 severity: minor
+locus: .claude/hooks/agent-command-gate.sh::header
 summary: ヘッダの役割説明が新ロールを列挙していない
+evidence: ヘッダを Read。GATED_ROLES は3ロールだが役割コメントは2ロールのみ
 expected: GATED_ROLES と役割コメントが一致している
 recheck: ヘッダを Read して3ロールが列挙されていることを確認する
 status: open
@@ -102,22 +104,37 @@ status: open
 |---|---|---|---|
 | ブロック見出し | ✔ | `F-<issue>-<seq>` か `new` | 既存 ID の再掲は前者、初出は後者（採番は `karte` が行う） |
 | `harm` | ✔ | `real` \| `none` | **実害の有無**。`real`＝放置すると誤動作・データ破壊・境界の穴になる |
-| `harm_detail` | ✔ | 1行 | `harm` の**根拠**。「なぜ実害あり/なしと言えるか」を具体で書く |
+| `harm_detail` | ✔ | 1行 | `harm` の**内容**。「放置すると何が起きるか」を具体で書く |
 | `severity` | ✔ | `blocker` \| `major` \| `minor` | 処置の優先度。`harm` とは独立（`harm: none` でも `major` はあり得る） |
-| `locus` | | `file:line` か `file::symbol` | 指摘の所在。1件に1箇所（複数箇所なら指摘を割る）。**書式上は任意だが、書かないと是正側が探索から始めることになる**ので、所在が特定できる指摘には必ず書く |
+| `locus` | | `file:line` / `file::symbol`、**複数可**（`[a, b]`） | 指摘の所在。**同じ欠陥が対称ミラー（`.claude/` ↔ `.codex/` 等）の複数ファイルに出るときは、箇所ごとに finding を割らず1指摘に複数 locus を書く**（下記）。書式上は任意だが、書かないと是正側が探索から始めるので特定できるなら必ず書く |
 | `summary` | ✔ | 1行 | 何が問題か |
+| `evidence` | ✔ | 1行 | **そう言える根拠**（読んだファイル/行・実行したコマンドと結果）。`harm_detail`（実害の内容）とは別物——ここが空だと再レビュー側が「実体で確認したのか」を検証できない |
 | `expected` | ✔ | 1行 | **期待する振る舞い**（どうなっていれば解消か） |
 | `recheck` | ✔ | 1行 | **再検証条件**。次ラウンドでこれを実行して解消を判定する |
 | `status` | | `open`（既定）\| `resolved` | **解消は明示宣言でのみ成立**。再掲しないことは解消を意味しない |
 | `distinct_from` | | `F-<issue>-<seq>`（`[a, b]` 可） | 再発番検出の誤検知を外すエスケープハッチ。名指しした相手とのペアにのみ効く |
 
-**`severity` / `expected` / `recheck` は台帳（`## Findings`）へ永続化される**（Issue #341 F-341-01）。
-`karte render` が未解消 finding とともに `expected` / `recheck` を出すので、**次ラウンドの `issue-fixer` は
-「どうなっていれば解消か」「何を実行して判定するか」を台帳から引ける**。裏を返すと、ここを雑に書くと
-是正側が何を直せばよいか分からなくなる——`expected` は**観測可能な状態**で、`recheck` は**実行できる手順**で書く。
+**`severity` / `evidence` / `expected` / `recheck` は台帳（`## Findings`）へ永続化される**（Issue #341）。
+`karte render` が未解消 finding とともに `evidence` / `expected` / `recheck` を出すので、**次ラウンドの
+`issue-fixer` は「なぜそう言えるか」「どうなっていれば解消か」「何を実行して判定するか」を台帳から引ける**。
+裏を返すと、ここを雑に書くと是正側が何を直せばよいか分からなくなる——`expected` は**観測可能な状態**で、
+`recheck` は**実行できる手順**で書く。
+
+**同一欠陥をミラーごとに割らない（`locus` を複数書く）**：本リポジトリは `.claude/` ↔ `.codex/` ↔
+`.agents/` の対称ミラーを持つため、1つの欠陥が複数ファイルに同時に現れる。これを箇所ごとに別 finding に
+すると、**同じ1件の欠陥が未解消件数を2倍3倍に水増しし**、`karte status` の「同一 finding が3ラウンド
+連続未解消」というエスカレーション判定まで歪む。**欠陥が同一なら1指摘のまま `locus: [a, b]` と書く**
+（別の欠陥なら当然別 finding）。再発番判定も locus の**交差**で行うので、片方だけ直して残った再掲を
+「別物」と誤判定しない。
+
+**`harm: none` でも省略しない（握りつぶし禁止）**：実害なしと判断した指摘も**必ずレポートに載せる**。
+「実害なし」は「対応不要」ではなく、処置要否・据え置きは**オーナー専権**（CLAUDE.md）。`karte` 側でも
+未解消 finding の全件再掲が必須（K-06）なので、載せなかった finding があると**取り込み自体が拒否される**
+——黙って消す経路は機械的に塞がれている。`severity` は `harm` と独立なので、`harm: none` でも
+放置コストが高ければ `major` を付けてよい。
 
 - **値は1行に収める**（改行・NUL は書式違反）。`[a, b]` はリストとして解釈されるので、
-  スカラ値を角括弧で始めない。
+  スカラ値を角括弧で始めない（`locus` と `distinct_from` だけがリストを取る）。
 - `harm` の判定基準（実害あり／なしの線引き）は `/issue-pipeline` SKILL.md 側に定義される
   （Issue #310）。それが入るまでは上表の定義（誤動作・データ破壊・境界の穴に至るか）で判定し、
   迷ったら `real` 側に倒して `harm_detail` に迷った理由を書く（握りつぶさない）。

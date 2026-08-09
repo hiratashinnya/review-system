@@ -126,6 +126,7 @@ HARMFUL = {
     "harm": "real",
     "harm_detail": "必須属性が消えて入力検証が素通りする",
     "severity": "blocker",
+    "evidence": "a/b.py:12 を読み、attrs を辞書リテラルで作り直しているのを確認",
     "locus": "a/b.py::build_attrs",
     "summary": "build_attrs が既存 attrs を破棄している",
     "expected": "既存 attrs を保ったまま追加分だけマージする",
@@ -135,6 +136,7 @@ COSMETIC = {
     "harm": "none",
     "harm_detail": "表記ゆれのみで挙動に影響しない",
     "severity": "minor",
+    "evidence": "docs/readme.md の見出しを読み、用語集と表記が違うのを確認",
     "locus": "docs/readme.md",
     "summary": "見出しの用語がゆれている",
     "expected": "用語が用語集の表記に揃っている",
@@ -523,6 +525,69 @@ class TestSeverityExpectedRecheck(KarteTestCase):
         self.assertEqual(karte.findings[0].recheck, "別の再検証手順に更新")
 
 
+class TestLocusListAndEvidence(KarteTestCase):
+    """Issue #341 レビュー feedback: `locus` の複数箇所対応と `evidence` 欄。
+
+    対称ミラー（`.claude/` ↔ `.codex/`）に同じ欠陥が出る本リポジトリでは、`locus` が 1 箇所しか
+    持てないと**同一欠陥が複数 finding に分裂**し、未解消件数が水増しされて `status` の
+    「同一 finding が N ラウンド連続未解消」判定まで歪む。実際に PR #341 のレビューで起きた。
+    """
+
+    def test_locus_accepts_a_list_of_places(self):
+        mirrored = {**HARMFUL, "locus": "[.claude/agents/x.md::out, .codex/agents/x.toml::out]"}
+        code, _out, err = self._ingest(1, ("new", mirrored))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        finding = self._karte().findings[0]
+        self.assertEqual(
+            finding.locus, [".claude/agents/x.md::out", ".codex/agents/x.toml::out"]
+        )
+
+    def test_scalar_locus_is_normalized_to_a_single_element_list(self):
+        # 1 箇所しか無いときに `[...]` を強制しない（書き味を落とさない）。
+        self._ingest(1, ("new", HARMFUL))
+        self.assertEqual(self._karte().findings[0].locus, [HARMFUL["locus"]])
+
+    def test_one_finding_covers_mirrored_places_instead_of_splitting(self):
+        # 2 箇所を 1 指摘で挙げれば未解消件数は 1。分裂させると 2 に水増しされる、が動機。
+        mirrored = {**HARMFUL, "locus": "[a/x.md::out, b/x.toml::out]"}
+        self._ingest(1, ("new", mirrored))
+        code, out, _err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(len(json.loads(out)["findings"]), 1)
+
+    def test_reissued_id_is_detected_when_locus_only_partially_overlaps(self):
+        # 前ラウンドで片方だけ直してミラー側が残った再掲を「別物」と誤判定しないこと
+        # （完全一致ではなく交差で判定する理由）。
+        self._ingest(1, ("new", {**HARMFUL, "locus": "[a/x.md::out, b/x.toml::out]"}))
+        code, _out, err = self._ingest(2, ("new", {**HARMFUL, "locus": "b/x.toml::out"}))
+        self.assertNotEqual(code, cli.EXIT_OK, "再発番が素通りしている")
+        self.assertIn("再発番", err)
+
+    def test_missing_evidence_is_rejected(self):
+        fields = {k: v for k, v in HARMFUL.items() if k != "evidence"}
+        code, _out, err = self._ingest(1, ("new", fields))
+        self.assertNotEqual(code, cli.EXIT_OK, "evidence 欠落が素通りしている")
+        self.assertIn("evidence", err)
+
+    def test_evidence_survives_roundtrip_and_is_shown_by_render(self):
+        self._ingest(1, ("new", HARMFUL))
+        self.assertEqual(self._karte().findings[0].evidence, HARMFUL["evidence"])
+        _code, out, _err = self._run(cli.cmd_render)
+        self.assertIn(HARMFUL["evidence"], out)
+
+    def test_harmless_findings_are_still_carried_in_the_ledger(self):
+        # `harm: none` を握りつぶさない（据え置きはオーナー判断）ことを機械側でも固定する。
+        self._ingest(1, ("new", COSMETIC))
+        findings = self._karte().findings
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].harm, "none")
+        self.assertEqual(findings[0].status, "open")
+        # 再掲を省くと K-06 で取り込みごと拒否される＝黙って消せない。
+        code, _out, err = self._ingest(2, ("new", HARMFUL))
+        self.assertNotEqual(code, cli.EXIT_OK, "harm: none の指摘が黙って消えている")
+        self.assertIn("F-307-01", err)
+
+
 class TestRender(KarteTestCase):
     def test_render_lists_prior_attempts_and_open_findings(self):
         self._ingest(1, ("new", HARMFUL))
@@ -709,6 +774,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
         "harm": "real",
         "harm_detail": "境界値でインデックスが 1 ずれる",
         "severity": "major",
+        "evidence": "境界値のテストを実行して失敗を確認",
         "expected": "境界値でもインデックスがずれない",
         "recheck": "境界値のテストケースを実行して通ることを確認する",
         "locus": "pkg/slicer.py::take",
@@ -768,6 +834,7 @@ DUP_A = {
     "harm": "real",
     "harm_detail": "重複 ID を弾けず台帳が二重登録される",
     "severity": "major",
+    "evidence": "重複 ID のレポートを取り込んで通ることを確認",
     "expected": "重複 ID を検出して取り込みを拒否する",
     "recheck": "重複 ID を含むレポートを取り込んで拒否されることを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
@@ -777,6 +844,7 @@ DUP_B = {
     "harm": "real",
     "harm_detail": "欠落した ID を検出できず指摘が消える",
     "severity": "major",
+    "evidence": "ID を欠いたレポートを取り込んで通ることを確認",
     "expected": "欠落した ID を検出して取り込みを拒否する",
     "recheck": "ID を欠いたレポートを取り込んで拒否されることを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
@@ -786,6 +854,7 @@ DUP_C = {
     "harm": "real",
     "harm_detail": "順序が崩れて採番が飛ぶ",
     "severity": "minor",
+    "evidence": "連続取り込みで ID が飛ぶのを確認",
     "expected": "採番が連番のまま保たれる",
     "recheck": "連続して取り込み ID が飛んでいないことを確認する",
     "locus": "karte/cli.py::cmd_ingest_review",
@@ -1670,7 +1739,8 @@ class TestModel(unittest.TestCase):
         karte = model.new_karte(307)
         karte.findings.append(
             model.Finding(id="F-307-01", harm="real", harm_detail="壊れる",
-                          severity="major", locus="a.py::f", summary="要約",
+                          severity="major", locus=["a.py::f"], summary="要約",
+                          evidence="a.py:1 を読んで確認",
                           expected="壊れない", recheck="再現手順を実行して直っていることを見る",
                           rounds=[1, 2])
         )
@@ -1751,7 +1821,7 @@ class TestModel(unittest.TestCase):
         """
         text = (
             "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\n"
-            "severity: minor\nlocus: x\nsummary: s\nexpected: e\nrecheck: r\n"
+            "severity: minor\nlocus: x\nsummary: s\nevidence: v\nexpected: e\nrecheck: r\n"
         )
         with self.assertRaises(model.KarteFormatError) as ctx:
             model.parse_blocks(text, allow_preamble=True)
@@ -1761,7 +1831,7 @@ class TestModel(unittest.TestCase):
         """`parse_review` 経由（``ingest-review`` の実入力）でも同じく fail-close する。"""
         text = (
             "# レビュー結果\n\nharm: real\n\n### new\nharm: none\nharm_detail: d\n"
-            "severity: minor\nlocus: x\nsummary: s\nexpected: e\nrecheck: r\n"
+            "severity: minor\nlocus: x\nsummary: s\nevidence: v\nexpected: e\nrecheck: r\n"
         )
         with self.assertRaises(model.KarteFormatError):
             model.parse_review(text, 307)
@@ -1927,7 +1997,7 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
         report = self.root / "tmp" / "review-1.md"
         report.write_text(
             "### new\nharm: real\nharm_detail: d\nseverity: major\nlocus: x\n"
-            "summary: s\nexpected: e\nrecheck: r\n",
+            "summary: s\nevidence: v\nexpected: e\nrecheck: r\n",
             encoding="utf-8",
         )
         code, out, err = self._run_from(
