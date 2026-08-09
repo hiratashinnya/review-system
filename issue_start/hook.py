@@ -21,6 +21,19 @@ def _deny(reason: str) -> dict[str, Any]:
     }
 
 
+def _deny_reason(evidence: Mapping[str, Any]) -> str:
+    reason = (
+        f"issue-start-gate: {evidence['result']} {evidence['reason']} "
+        f"policy={evidence['policy_version']}"
+    )
+    blockers = evidence.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        reason += " blockers=" + json.dumps(
+            blockers, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+    return reason
+
+
 def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = None) -> int:
     request = None
     try:
@@ -37,10 +50,12 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = Non
     except IssueStartError as exc:
         evidence = fail_closed(request, exc)
     if evidence["result"] != "ALLOW":
-        json.dump(_deny(
-            f"issue-start-gate: {evidence['result']} {evidence['reason']} "
-            f"policy={evidence['policy_version']}"
-        ), stdout, ensure_ascii=False, separators=(",", ":"))
+        json.dump(
+            _deny(_deny_reason(evidence)),
+            stdout,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
         stdout.write("\n")
         return 0
     # allow は stdout を空に保ち、hook protocol を汚さず evidence を harness log に残す。

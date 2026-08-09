@@ -138,6 +138,12 @@ class EvaluationTests(unittest.TestCase):
 
 
 class HookTests(unittest.TestCase):
+    def managed_payload(self):
+        return {"tool_name": "spawn_agent", "tool_input": {
+            "agent_type": "issue-implementer",
+            "message": BINDING_MARKER + json.dumps(request().__dict__, separators=(",", ":")),
+        }}
+
     def test_malformed_managed_dispatch_emits_deny(self):
         stdout = io.StringIO()
         rc = run_hook(
@@ -151,19 +157,47 @@ class HookTests(unittest.TestCase):
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_allow_keeps_stdout_empty_and_logs_evidence(self):
-        payload = {"tool_name": "spawn_agent", "tool_input": {
-            "agent_type": "issue-implementer",
-            "message": BINDING_MARKER + json.dumps(request().__dict__, separators=(",", ":")),
-        }}
         evidence = {
             "schema_version": "issue-start-evidence/1", "policy_version": "issue-start/1.0",
             "result": "ALLOW", "exit_code": 0, "reason": "ISSUE_START_ALLOWED",
         }
         stdout, stderr = io.StringIO(), io.StringIO()
         with patch("issue_start.hook.evaluate_issue_start", return_value=evidence):
-            run_hook(stdin=io.StringIO(json.dumps(payload)), stdout=stdout, stderr=stderr)
+            run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_payload())),
+                stdout=stdout,
+                stderr=stderr,
+            )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
+
+    def test_block_deny_reason_preserves_actionable_blocker_report(self):
+        blocker = {
+            "number": 9,
+            "repository": "example/repo",
+            "title": "required blocker",
+            "url": "https://github.com/example/repo/issues/9",
+            "path": ["example/repo#10", "example/repo#9"],
+            "next_action": "blockerをcloseしてfresh invocationで再試行する",
+        }
+        evidence = {
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "BLOCK",
+            "exit_code": 10,
+            "reason": "OPEN_BLOCKER",
+            "blockers": [blocker],
+        }
+        stdout = io.StringIO()
+        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence):
+            run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_payload())),
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+        reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
+        report = json.loads(reason.split(" blockers=", 1)[1])
+        self.assertEqual(report, [blocker])
 
 
 if __name__ == "__main__":

@@ -110,7 +110,19 @@ def _validate_repository(value: str) -> str:
 
 
 def _validate_branch(value: str, reason: str) -> str:
-    if value.startswith("-") or not _BRANCH.fullmatch(value) or ".." in value:
+    if (
+        not value
+        or value.startswith(("-", "/"))
+        or value.endswith(("/", "."))
+        or not _BRANCH.fullmatch(value)
+        or ".." in value
+        or "//" in value
+        or "@{" in value
+        or any(
+            not part or part.startswith(".") or part.endswith(".lock")
+            for part in value.split("/")
+        )
+    ):
         raise BranchSourceError(reason, value)
     return value
 
@@ -192,6 +204,19 @@ def _nested_string(raw: Mapping[str, Any], *path: str) -> str:
     return value
 
 
+def _pull_head_oid(pull: Mapping[str, Any], repository: str) -> str:
+    """stacked PR の open/same-repository/head binding を閉じて読む。"""
+    if pull.get("state") != "open":
+        raise BranchSourceError("BRANCH_BASE_PR_NOT_OPEN")
+    head_repo = _nested_string(pull, "head", "repo", "full_name")
+    base_repo = _nested_string(pull, "base", "repo", "full_name")
+    if head_repo.lower() != repository.lower() or base_repo.lower() != repository.lower():
+        raise BranchSourceError("BRANCH_BASE_PR_CROSS_REPOSITORY")
+    return _validate_oid(
+        _nested_string(pull, "head", "sha"), "BRANCH_PR_HEAD_OID_INVALID"
+    )
+
+
 def verify_branch_source(
     request: NewBranchRequest,
     *,
@@ -208,37 +233,50 @@ def verify_branch_source(
     client = api or GitHubBranchClient(os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"))
     repository_data = client.repository(request.repository)
     full_name = _nested_string(repository_data, "full_name")
-    default_branch = _nested_string(repository_data, "default_branch")
+    default_branch = _validate_branch(
+        _nested_string(repository_data, "default_branch"),
+        "BRANCH_DEFAULT_REF_INVALID",
+    )
     if full_name.lower() != request.repository.lower():
         raise BranchSourceError("BRANCH_REPOSITORY_MISMATCH")
     if default_branch != request.base_ref:
         raise BranchSourceError("BRANCH_DEFAULT_REF_MISMATCH")
 
-    _run_git(["git", "fetch", "--prune", "origin"], cwd=workdir, runner=runner)
-
     if request.base_pr is None:
-        remote_ref = f"refs/remotes/origin/{default_branch}^{{commit}}"
+        local_ref = "refs/review-system/branch-source/default"
+        refspec = f"+refs/heads/{default_branch}:{local_ref}"
+        _run_git(
+            ["git", "fetch", "--force", "--no-tags", "origin", refspec],
+            cwd=workdir,
+            runner=runner,
+        )
         observed = _validate_oid(
-            _run_git(["git", "rev-parse", "--verify", remote_ref], cwd=workdir, runner=runner),
+            _run_git(
+                ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                cwd=workdir,
+                runner=runner,
+            ),
             "BRANCH_REMOTE_OID_INVALID",
         )
         if observed != request.base_oid:
             raise BranchSourceError("BRANCH_BASE_OID_MISMATCH")
         source_kind = "default-branch"
     else:
-        pull = client.pull_request(request.repository, request.base_pr)
-        if pull.get("state") != "open":
-            raise BranchSourceError("BRANCH_BASE_PR_NOT_OPEN")
-        head_repo = _nested_string(pull, "head", "repo", "full_name")
-        base_repo = _nested_string(pull, "base", "repo", "full_name")
-        head_oid = _validate_oid(_nested_string(pull, "head", "sha"), "BRANCH_PR_HEAD_OID_INVALID")
-        if head_repo.lower() != request.repository.lower() or base_repo.lower() != request.repository.lower():
-            raise BranchSourceError("BRANCH_BASE_PR_CROSS_REPOSITORY")
+        pull_before = client.pull_request(request.repository, request.base_pr)
+        head_oid = _pull_head_oid(pull_before, request.repository)
         if head_oid != request.base_oid:
             raise BranchSourceError("BRANCH_BASE_OID_MISMATCH")
         local_pr_ref = f"refs/remotes/origin/review-system-pr/{request.base_pr}"
         refspec = f"+refs/pull/{request.base_pr}/head:{local_pr_ref}"
-        _run_git(["git", "fetch", "--force", "origin", refspec], cwd=workdir, runner=runner)
+        _run_git(
+            ["git", "fetch", "--force", "--no-tags", "origin", refspec],
+            cwd=workdir,
+            runner=runner,
+        )
+        pull_after = client.pull_request(request.repository, request.base_pr)
+        rebound_oid = _pull_head_oid(pull_after, request.repository)
+        if rebound_oid != head_oid:
+            raise BranchSourceError("BRANCH_BASE_PR_CHANGED")
         observed = _validate_oid(
             _run_git(
                 ["git", "rev-parse", "--verify", f"{local_pr_ref}^{{commit}}"],
@@ -247,7 +285,7 @@ def verify_branch_source(
             ),
             "BRANCH_REMOTE_OID_INVALID",
         )
-        if observed != head_oid:
+        if observed != rebound_oid:
             raise BranchSourceError("BRANCH_PR_HEAD_MISMATCH")
         source_kind = "same-repository-open-pr"
 
