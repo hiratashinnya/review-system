@@ -12,14 +12,32 @@
             "collaborationspawn_agent"
           ],
           "agent_type_field": "agent_type",
+          "required_tool_input_fields": [
+            "agent_type",
+            "task_name"
+          ],
+          "forbidden_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
           "task_name_pattern": "^issue_([1-9][0-9]*)$",
           "repository_source": "payload.cwd+hook.cwd+worktree.origin"
         },
         "claude": {
           "tool_names": [
-            "Task"
+            "Task",
+            "Agent"
           ],
           "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
           "prompt_field": "prompt",
           "binding_marker": "ISSUE_START_BINDING_V1="
         }

@@ -100,6 +100,7 @@ class DispatchPayloadTests(unittest.TestCase):
             "tool_input": {
                 "subagent_type": "issue-implementer",
                 "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
+                "description": "hook deny probe",
             },
         }
 
@@ -131,7 +132,8 @@ class DispatchPayloadTests(unittest.TestCase):
             else:
                 payload["tool_input"]["task_name"] = task_name
             with self.subTest(task_name=task_name), self.assertRaisesRegex(
-                IssueStartError, "ISSUE_START_TASK_NAME_INVALID"
+                IssueStartError,
+                "ISSUE_START_(TOOL_INPUT_SHAPE_INVALID|TASK_NAME_INVALID)",
             ):
                 parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
 
@@ -148,8 +150,12 @@ class DispatchPayloadTests(unittest.TestCase):
             with self.subTest(reason=reason), self.assertRaisesRegex(IssueStartError, reason):
                 parse_dispatch_payload(payload, cwd=ROOT, runner=runner)
 
-    def test_claude_marker_contract_is_unchanged(self):
-        self.assertEqual(parse_dispatch_payload(self.claude_payload()), request())
+    def test_claude_task_and_runtime_agent_alias_use_marker_contract(self):
+        for tool_name in ("Task", "Agent"):
+            with self.subTest(tool_name=tool_name):
+                self.assertEqual(
+                    parse_dispatch_payload(self.claude_payload(tool=tool_name)), request()
+                )
         bad = claude_binding()
         bad.pop("base_oid")
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_UNKNOWN_FIELD"):
@@ -159,9 +165,29 @@ class DispatchPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_ENTRYPOINT_UNKNOWN"):
             parse_dispatch_payload(self.claude_payload(wrong_entrypoint))
 
+    def test_codex_agent_matcher_alias_is_not_a_codex_payload_alias(self):
+        with self.assertRaisesRegex(
+            IssueStartError, "ISSUE_START_TOOL_INPUT_SHAPE_INVALID"
+        ):
+            parse_dispatch_payload(
+                self.codex_payload(tool="Agent"), cwd=ROOT, runner=git_runner()
+            )
+
+    def test_claude_shape_rejects_codex_field_mixing(self):
+        for field, value in (
+            ("agent_type", "issue-implementer"),
+            ("message", "ENC[AQICAH-encrypted-prompt]"),
+            ("task_name", "issue_10"),
+        ):
+            payload = self.claude_payload(tool="Agent")
+            payload["tool_input"][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_(TARGET_UNKNOWN|TOOL_INPUT_SHAPE_INVALID)"
+            ):
+                parse_dispatch_payload(payload)
+
     def test_unknown_or_similar_tool_names_are_not_payload_aliases(self):
         for tool_name in (
-            "Agent",
             "collaboration.spawn_agent",
             "evil.spawn_agent",
             "evilspawn_agent",
@@ -174,6 +200,11 @@ class DispatchPayloadTests(unittest.TestCase):
                 parse_dispatch_payload(
                     self.codex_payload(tool=tool_name), cwd=ROOT, runner=git_runner()
                 )
+        for tool_name in ("agent", "Agents", "TaskAgent", "Agent_extra"):
+            with self.subTest(tool_name=tool_name), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_ENTRYPOINT_UNKNOWN"
+            ):
+                parse_dispatch_payload(self.claude_payload(tool=tool_name))
 
     def test_non_issue_agent_is_explicitly_unmanaged(self):
         payload = self.codex_payload()
@@ -269,6 +300,35 @@ class HookTests(unittest.TestCase):
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
         self.assertEqual(evaluate.call_args.args[0].issue, 10)
         self.assertEqual(evaluate.call_args.args[0].repository, "hiratashinnya/review-system")
+
+    def test_claude_runtime_agent_alias_allow_reaches_evaluation(self):
+        evidence = {
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "ALLOW",
+            "exit_code": 0,
+            "reason": "ISSUE_START_ALLOWED",
+        }
+        payload = {
+            "tool_name": "Agent",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER
+                + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "hook deny probe",
+            },
+        }
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
+            run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=ROOT,
+            )
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
+        self.assertEqual(evaluate.call_args.args[0], request())
 
     def test_block_deny_reason_preserves_actionable_blocker_report(self):
         blocker = {

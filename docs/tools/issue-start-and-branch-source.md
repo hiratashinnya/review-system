@@ -10,7 +10,7 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 ## Managed Issue-start
 
-`issue_start/managed-entrypoints-v1.json` が保護対象と harness 別 binding transport の inventory 正本である。現時点では `issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` を managed とする。entrypoint、agent type、tool name は manifest の exact value だけを受理し、欠如・不正・複数 transport に一致する曖昧な payload は fail-close する。
+`issue_start/managed-entrypoints-v1.json` が保護対象と harness 別 binding transport の inventory 正本である。現時点では `issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` / runtime `Agent` を managed とする。entrypoint、agent type、tool name、harness 固有の必須 field と混在禁止 field は manifest の exact value だけを受理し、欠如・不正・複数 transport に一致する曖昧な payload は fail-close する。
 
 公式 Codex manual と CLI source は hook canonical 名を `spawn_agent`、matcher 互換 alias を `Agent` と定義している。一方、Codex CLI 0.146.0 の実 TUI で `collaboration.spawn_agent` を呼んだ PreToolUse stdin は `tool_name: "collaborationspawn_agent"` だった。この版差を閉じるため Codex matcher は3名だけを exact matchし、payload parser は manifest の canonical 名と実測名だけを managed dispatch として受理する。`Agent` は matcher alias であって stdin canonical 名ではないため parser alias にはせず、未観測の `collaboration.spawn_agent` 表記や類似 prefix/suffix 名も受理しない。
 
@@ -20,6 +20,8 @@ Codex 0.146.0 の `tool_input.message` は PreToolUse 時点で暗号化され�
 2. top-level `cwd` と hook 実行 cwd の `realpath` が一致する。
 3. その path が git worktree の top-level であることを `git rev-parse` で確認する。
 4. `origin` を GitHub.com の HTTPS / SSH URL の厳格形式から canonical `OWNER/REPO` へ変換する。他 host、HTTP、credential 付き、複数行は拒否する。
+
+Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json` の matcher `Task` が UI 表示 `issue-implementer(hook deny probe)` の実 Agent tool 呼出しを捕捉した一方、PreToolUse stdin の `tool_name` は `Agent` だった。`tool_input` は Claude 固有の `subagent_type` / `prompt` / `description` shape である。この実測差に対応して manifest の Claude transport だけが `Task` と `Agent` を exact 名として持つ。`Agent` は Codex transport の parser alias にはしない。parser は Claude transport で `subagent_type` と `prompt` を必須とし、Codex 固有の `agent_type` / `message` / `task_name` が混在すれば拒否するため、同名 alias を harness 間で無条件に受理しない。小文字化、prefix/suffix、類似名も拒否する。
 
 Claude transport は従来どおり dispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 

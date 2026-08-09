@@ -216,6 +216,29 @@ def _managed_transport(tool_name: str, agent_type: str) -> tuple[Mapping[str, An
     return matches[0]
 
 
+def _validate_tool_input_shape(
+    tool_input: Mapping[str, Any], transport: Mapping[str, Any]
+) -> None:
+    """manifest が宣言する harness 固有 field の必須・混在禁止を検証する。"""
+    required = transport.get("required_tool_input_fields")
+    forbidden = transport.get("forbidden_tool_input_fields")
+    for fields in (required, forbidden):
+        if (
+            not isinstance(fields, list)
+            or not fields
+            or not all(isinstance(field, str) and field for field in fields)
+            or len(fields) != len(set(fields))
+        ):
+            raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    if set(required) & set(forbidden):
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    missing = [field for field in required if field not in tool_input]
+    mixed = [field for field in forbidden if field in tool_input]
+    if missing or mixed:
+        detail = "missing=" + ",".join(missing) + ";mixed=" + ",".join(mixed)
+        raise IssueStartError("ISSUE_START_TOOL_INPUT_SHAPE_INVALID", detail)
+
+
 def parse_dispatch_payload(
     payload: Mapping[str, Any],
     *,
@@ -243,6 +266,7 @@ def parse_dispatch_payload(
     if agent_type not in managed_types:
         return None
     entry, harness, transport = _managed_transport(tool_name, agent_type)
+    _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:
         raise IssueStartError("ISSUE_START_TARGET_UNKNOWN")

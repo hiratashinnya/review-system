@@ -97,10 +97,18 @@ the canonical hook tool name and `Agent` as its matcher-only compatibility
 alias. A trusted, interactive Codex CLI 0.146.0 run in a disposable clone
 observed `tool_name: "collaborationspawn_agent"` on PreToolUse stdin for the UI
 `collaboration.spawn_agent` call. The Issue-start matcher therefore exact
-matches only `spawn_agent`, `Agent`, and `collaborationspawn_agent`. The parser
-accepts the canonical and observed stdin names; it does not accept `Agent`, the
-unobserved dotted display name, or similar prefix/suffix tool names as payload
-aliases.
+matches only `spawn_agent`, `Agent`, and `collaborationspawn_agent`. The Codex
+transport parser accepts only the canonical and observed stdin names; it does
+not accept `Agent`, the unobserved dotted display name, or similar prefix/suffix
+tool names as Codex payload aliases.
+
+Claude Code 2.1.221 Pro produced a separate compatibility case: its configured
+`Task` matcher caught a real Agent tool call whose PreToolUse `tool_name` was
+`Agent` and whose input retained the Claude `subagent_type` / `prompt` /
+`description` shape. The manifest therefore accepts `Agent` only on the Claude
+transport when `subagent_type` and `prompt` are present and Codex
+`agent_type` / `message` / `task_name` fields are absent. A Codex-shaped
+`Agent` payload and any ambiguous/mixed/similar name remain fail-closed.
 
 ### Dogfooding results (Issue #188, 2026-07-11, `codex-cli` 0.142.5)
 

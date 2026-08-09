@@ -61,6 +61,7 @@ class AssetParityTests(unittest.TestCase):
         ):
             with self.subTest(similar_name=similar_name):
                 self.assertIsNone(re.fullmatch(codex_dispatch_matcher, similar_name))
+        # Claude Code 2.1.221 は matcher `Task` で runtime tool_name `Agent` も捕捉する。
         self.assertIn("Task", claude_matchers)
         for script in [
             ROOT / ".codex" / "hooks" / "issue-start-gate.sh",
@@ -82,7 +83,16 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(
             transports["codex"]["task_name_pattern"], "^issue_([1-9][0-9]*)$"
         )
-        self.assertEqual(transports["claude"]["tool_names"], ["Task"])
+        self.assertNotIn("Agent", transports["codex"]["tool_names"])
+        self.assertEqual(set(transports["claude"]["tool_names"]), {"Task", "Agent"})
+        self.assertEqual(
+            set(transports["claude"]["required_tool_input_fields"]),
+            {"subagent_type", "prompt"},
+        )
+        self.assertEqual(
+            set(transports["claude"]["forbidden_tool_input_fields"]),
+            {"agent_type", "message", "task_name"},
+        )
         self.assertEqual(transports["claude"]["binding_marker"], "ISSUE_START_BINDING_V1=")
         self.assertTrue(manifest["unmanaged"])
 
