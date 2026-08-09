@@ -38,7 +38,7 @@ model: sonnet
 - **ヒアドキュメント（`--body "$(cat <<'EOF' … EOF)"`）は廃止**。コミットメッセージ・PR 本文・コメント本文は **Write ツールでファイルへ書き出し**、ファイル渡しフラグで渡す：
   - `python3 -m gitgate commit <file>`（`git commit -F <file>` 相当）
   - `gh pr create --title "…" --body-file <file>`
-  - `gh issue comment <n> --body-file <file>`（`gh pr comment` はこのロールでは不可）
+  （Issue へのコメントは本ロールでは不可——`gh issue comment` は deny される。報告は呼び出し元（`issue-pipeline` 主文脈）経由で行う）
 - **PR/Issue タイトルは必ずダブルクォートで囲む**（`--title "fix(hooks): …"`）。conventional-commit の `( )` はダブルクォート内ではリテラルとして許可される（裸の `(` は deny）。
 - **パイプ/grep/cat の代替**：`gh --json`/`--jq`、`python3 -m gitgate log -n <N> --grep <pat> --oneline`、`python3 -m gitgate diff --stat` 等の**ネイティブフラグ**を使う。ファイル閲覧・検索は Bash を経由せず **Read / Grep / Glob ツール**で行う。
 - **テスト実行**：`python3 -m unittest discover -s tests/unit`（`| tee` でのログ保存は層1で deny されるため使わない）。
