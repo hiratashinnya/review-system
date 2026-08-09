@@ -16,6 +16,8 @@ import argparse
 import contextlib
 import io
 import json
+import re
+import inspect
 import shutil
 import sys
 import tempfile
@@ -586,6 +588,91 @@ class TestLocusListAndEvidence(KarteTestCase):
         code, _out, err = self._ingest(2, ("new", HARMFUL))
         self.assertNotEqual(code, cli.EXIT_OK, "harm: none の指摘が黙って消えている")
         self.assertIn("F-307-01", err)
+
+
+class TestLocusScalarIsCheckedLikeAListItem(unittest.TestCase):
+    """PR #341 再レビュー round-2: `normalize_locus` のスカラ経路の文字検査。
+
+    角括弧を省いて `locus: a.md::x, b.toml::x` と書くと、以前はスカラ 1 要素として受理され、
+    `format_value` が `[a.md::x, b.toml::x]` と書き出すため**台帳を読み直した時点で 2 要素へ
+    静かに割れた**。`is_same_finding` は locus の交差で再発番を判定するので、レポート側（1 要素）と
+    台帳側（2 要素）で照合面がズレ、**同一指摘の再発番を見逃す**方向に効く＝locus を複数化した
+    目的そのものを裏切る。fail-close で拒否することを固定する。
+    """
+
+    def test_scalar_locus_with_a_comma_is_rejected(self):
+        for bad in ["a.md::x, b.toml::x", "a.md::x,b.toml::x"]:
+            with self.subTest(value=bad):
+                with self.assertRaises(model.KarteFormatError) as ctx:
+                    model.normalize_locus(bad)
+                self.assertIn("locus", str(ctx.exception))
+
+    def test_scalar_locus_with_brackets_is_rejected(self):
+        # `[` `]` も同様（リスト記法の書き損じが 1 要素として通ると同じ割れ方をする）。
+        for bad in ["[a.md::x", "a.md::x]"]:
+            with self.subTest(value=bad):
+                with self.assertRaises(model.KarteFormatError):
+                    model.normalize_locus(bad)
+
+    def test_plain_scalar_locus_still_works(self):
+        self.assertEqual(model.normalize_locus("a.md::x"), ["a.md::x"])
+        self.assertEqual(model.normalize_locus(""), [])
+        self.assertEqual(model.normalize_locus("  "), [])
+
+    def test_locus_survives_a_ledger_roundtrip_without_changing_arity(self):
+        # 受理された locus は台帳往復で要素数が変わらない（割れない）。
+        for value in ["a.md::x", ["a.md::x"], ["a.md::x", "b.toml::x"]]:
+            with self.subTest(value=value):
+                finding = model.Finding(
+                    id="F-341-01", harm="real", harm_detail="d", severity="major",
+                    locus=model.normalize_locus(value), summary="s", evidence="e",
+                    expected="x", recheck="r", rounds=[1],
+                )
+                block = model.parse_blocks(model.render_finding(finding))[0]
+                self.assertEqual(
+                    model.normalize_locus(block.fields["locus"]), finding.locus
+                )
+
+
+class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
+    """PR #341 再レビュー round-2: 宣言側（プロンプト・手順書）と実装側のキー集合の drift 検出。
+
+    `evidence` を新設した際、`pr-reviewer` 定義2件だけを更新して配線側3ファイルを取り残した——
+    F-341-01（`pr-reviewer` が必須と宣言したキーを実装が持っていなかった）と**まったく同じ型の
+    drift が向きを変えて再発**した。人手の追従に頼らず機械で固定する。
+    """
+
+    ROOT = Path(__file__).resolve().parents[2]
+    # 構造化 finding のキーを列挙している全ファイル（正本＋配線＋ミラー）。
+    DECLARING_FILES = [
+        "CLAUDE.md",
+        ".claude/skills/issue-pipeline/SKILL.md",
+        ".agents/skills/issue-pipeline/SKILL.md",
+    ]
+
+    def test_key_enumerations_match_the_parser(self):
+        required = set(
+            re.findall(
+                r'_require_(?:enum|nonempty)\(block,\s*"([a-z_]+)"',
+                inspect.getsource(model.parse_review),
+            )
+        )
+        self.assertTrue(required, "parse_review から必須キーを抽出できていない")
+        for name in self.DECLARING_FILES:
+            with self.subTest(file=name):
+                text = (self.ROOT / name).read_text(encoding="utf-8")
+                enumerations = re.findall(
+                    r"`harm`(?:/`[a-z_]+`)+", text
+                )
+                self.assertTrue(enumerations, f"{name} にキー列挙が見つからない")
+                for enumeration in enumerations:
+                    listed = set(re.findall(r"`([a-z_]+)`", enumeration))
+                    missing = required - listed
+                    self.assertFalse(
+                        missing,
+                        f"{name} のキー列挙が必須キー {sorted(missing)} を落としている"
+                        f"（列挙: {enumeration}）",
+                    )
 
 
 class TestRender(KarteTestCase):

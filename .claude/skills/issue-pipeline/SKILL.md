@@ -58,9 +58,12 @@ disable-model-invocation: true
   `issue-implementer` は**初回実装専任**で、是正依頼を受けたら STOP する契約になっている。担当 model は
   **②-b でレビューアが決めた降格判断に従う**（明確な指摘なら `sonnet`）。
 - **レビュー結果を先にカルテへ取り込む**（`issue-fixer` を dispatch する前）。`pr-reviewer` は構造化 finding
-  （`### F-<issue>-<seq>` ブロック＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`expected`/`recheck`/`status`）を
+  （`### F-<issue>-<seq>` ブロック＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status`）を
   返すので、主文脈がそれをファイルへ書き出して取り込む：
   `python3 -m karte ingest-review --issue <N> --round <R> --from <path>`
+  **`--from` に渡すレポートは repo-root 配下（例 `tmp/` 配下）へ書き出す**——`karte` は `resolve_within_repo` で
+  リポジトリ外のパスを fail-close で拒否するため、スクラッチパッド等へ書くと取り込みが失敗する
+  （`tmp/` は gitignore 済みでコーパスを汚さない）。
   （ID の採番・再発番検出・前ラウンド未解消 finding の全件再掲チェックはこの CLI が fail-close で行う）。
   **`ingest-review` は主文脈が実行する**——是正当事者である `issue-fixer` には権限ゲートで許可されていない
   （自分の指摘を `resolved` にできてしまうため・Issue #341 F-341-04）。

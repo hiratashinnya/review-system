@@ -123,11 +123,18 @@ def normalize_locus(value) -> list:
 
     レビューアが 1 箇所しか書かないときに ``[...]`` を強制すると書き味が悪いのでスカラを許し、
     台帳側は常にリストで持つ（表示・比較の分岐を 1 箇所に閉じる）。空は空リスト＝任意キー。
+
+    **スカラ経路もリスト要素と同じ文字検査を通す**（:data:`FORBIDDEN_LIST_ITEM_CHARS`）。
+    ここを緩めると、角括弧を省いて ``locus: a.md::x, b.toml::x`` と書いたときに 1 要素として
+    受理され、:func:`format_value` が ``[a.md::x, b.toml::x]`` と書き出すので、**台帳を読み直した
+    時点で 2 要素へ静かに割れる**。:func:`is_same_finding` は locus の交差で再発番を判定するため、
+    レポート側（1 要素）と台帳側（2 要素）で照合面がズレ、**同一指摘の再発番を見逃す**方向に効く
+    ——locus を複数化した目的そのものを裏切るので、fail-close で拒否する。
     """
     if isinstance(value, (list, tuple)):
         return check_list(value, "locus")
     text = check_scalar(value, "locus")
-    return [text] if text else []
+    return check_list([text], "locus") if text else []
 
 
 def check_list(values, what: str) -> list:
