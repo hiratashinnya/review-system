@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .auth import github_api_failure_reason
 from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, fingerprint
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
@@ -97,13 +98,12 @@ class GitHubCollector:
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-    def _decode(self, status: int, body: bytes) -> Any:
-        if status in {401, 403}:
-            raise GitHubReadError("API_PERMISSION")
+    def _decode(self, status: int, headers: Mapping[str, str], body: bytes) -> Any:
+        common_failure = github_api_failure_reason(status, headers)
+        if common_failure is not None:
+            raise GitHubReadError(common_failure)
         if status in {404, 410}:
             raise GitHubReadError("RELATION_TARGET_UNREADABLE")
-        if status == 429 or status >= 500:
-            raise GitHubReadError("API_UNAVAILABLE")
         if not 200 <= status < 300:
             raise GitHubReadError("API_UNAVAILABLE")
         try:
@@ -114,7 +114,7 @@ class GitHubCollector:
     def _get(self, path_or_url: str) -> tuple[Any, Mapping[str, str]]:
         url = path_or_url if path_or_url.startswith("https://") else "https://api.github.com" + path_or_url
         status, headers, body = self._transport.get(url, self._headers)
-        return self._decode(status, body), headers
+        return self._decode(status, headers, body), headers
 
     def _list(self, path: str) -> list[Mapping[str, Any]]:
         separator = "&" if "?" in path else "?"
@@ -226,8 +226,10 @@ class GitHubCollector:
         headers = dict(self._headers)
         headers["Content-Type"] = "application/json"
         body = json.dumps({"query": query, "variables": variables}, separators=(",", ":")).encode("utf-8")
-        status, _, raw = self._transport.post("https://api.github.com/graphql", headers, body)
-        value = self._decode(status, raw)
+        status, response_headers, raw = self._transport.post(
+            "https://api.github.com/graphql", headers, body
+        )
+        value = self._decode(status, response_headers, raw)
         if not isinstance(value, dict) or value.get("errors") or not isinstance(value.get("data"), dict):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         return value["data"]

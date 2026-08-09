@@ -1,6 +1,8 @@
 # blocker-gate CLI contract
 
 `blocker_gate` は Issue-start と PR-merge が共有する read-only dependency resolver である。
+managed Issue dispatch での interception と、独立した branch-source policy の実行点は
+[`issue-start-and-branch-source.md`](issue-start-and-branch-source.md) を参照する。
 native `blocked-by` と parent/sub-issue を正本とし、relation、Issue、waiver を変更しない。
 policy version は `1.0`、stdout schema は `blocker-gate-result/v1` で固定する。
 
@@ -14,7 +16,9 @@ python3 -m blocker_gate evaluate --snapshot PATH
 
 `issue` は GitHub REST API `2026-03-10` で Issue本体、blocked-by、parent、sub-issue の
 全pageを読み、対象Issueのdependency/closureを評価する。認証は `GH_TOKEN`、次に
-`GITHUB_TOKEN` を参照する。tokenやAuthorization headerは出力しない。
+`GITHUB_TOKEN`、最後に `gh auth token --hostname github.com` の既存資格情報を参照する。
+`gh` が不在・未認証・timeout・空/異常応答の場合は匿名readを試す。tokenはAPIの
+`Authorization` headerにだけ設定し、tokenやAuthorization headerは出力しない。
 
 `pr` は GraphQL `closingIssuesReferences` を全cursor取得し、同じcore evaluatorへ渡す。
 default branchへ届くmerge/rebase/squash messageの厳密な再構築は #298 のcollector接続責務であり、

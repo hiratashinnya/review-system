@@ -232,7 +232,10 @@ class GitHubCollectorTests(unittest.TestCase):
     def test_permission_and_invalid_json_are_error_not_empty_graph(self):
         url = "https://api.github.com/repos/example/repo/issues/10"
         cases = (
+            ((401, {}, b"{}"), "API_PERMISSION"),
             ((403, {}, b"{}"), "API_PERMISSION"),
+            ((403, {"X-RateLimit-Remaining": "0"}, b"{}"), "API_UNAVAILABLE"),
+            ((403, {"x-ratelimit-remaining": "0"}, b"{}"), "API_UNAVAILABLE"),
             ((200, {}, b"not-json"), "API_PARTIAL_RESPONSE"),
         )
         for raw, reason in cases:
@@ -251,6 +254,25 @@ class GitHubCollectorTests(unittest.TestCase):
         headers = transport.get_calls[0][1]
         self.assertEqual(headers["X-GitHub-Api-Version"], "2026-03-10")
         self.assertEqual(headers["Authorization"], "Bearer secret")
+        self.assertEqual(
+            [name for name, value in headers.items() if "secret" in value],
+            ["Authorization"],
+        )
+
+    def test_graphql_rate_limit_exhaustion_is_api_unavailable(self):
+        transport = FakeTransport(
+            {},
+            post_responses=[
+                (403, {"X-RateLimit-Remaining": "0"}, b'{"message":"rate limit"}')
+            ],
+        )
+        snapshot = GitHubCollector("graphql-secret", transport).collect_pull_request(
+            "example/repo", 50, "rebase"
+        )
+        result = evaluate_snapshot(snapshot)
+        self.assertEqual((result["result"], result["primary_reason"]), ("ERROR", "API_UNAVAILABLE"))
+        self.assertNotIn("graphql-secret", json.dumps(snapshot) + json.dumps(result))
+        self.assertNotIn("graphql-secret", transport.post_calls[0][2].decode("utf-8"))
 
     def test_pr_identity_binding_is_closed_and_consistent_on_every_cursor(self):
         valid = GitHubCollector(None, GraphQLTransport([pr_page()])).collect_pull_request(

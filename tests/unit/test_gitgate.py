@@ -10,6 +10,7 @@
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from gitgate import GitgateError, build_git_argv
@@ -40,9 +41,13 @@ class BuildGitArgvHappyPathTests(unittest.TestCase):
         self.assertEqual(build_git_argv(["branch-current"]), ["git", "branch", "--show-current"])
 
     def test_new_branch(self):
+        oid = "a" * 40
         self.assertEqual(
-            build_git_argv(["new-branch", "issue-227-foo"]),
-            ["git", "switch", "-c", "issue-227-foo"],
+            build_git_argv([
+                "new-branch", "issue-227-foo", "--repository", "example/repo",
+                "--base-ref", "main", "--base-oid", oid,
+            ]),
+            ["git", "switch", "-c", "issue-227-foo", oid],
         )
 
     def test_fetch_is_fixed(self):
@@ -171,6 +176,19 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_main_new_branch_runs_policy_instead_of_generic_git_builder(self):
+        result = type("Result", (), {
+            "source_kind": "default-branch", "repository": "example/repo",
+            "source_oid": "a" * 40, "policy_version": "branch-source/1.0",
+        })()
+        argv = [
+            "new-branch", "issue-317", "--repository", "example/repo",
+            "--base-ref", "main", "--base-oid", "a" * 40,
+        ]
+        with patch("gitgate.cli.create_branch", return_value=result) as create:
+            self.assertEqual(gitgate_cli.main(argv), 0)
+        create.assert_called_once()
+
     def test_main_invokes_git_with_shell_false_list(self):
         calls = {}
 

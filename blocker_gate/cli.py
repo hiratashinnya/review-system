@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
+from .auth import resolve_github_token
 from .github import GitHubCollector
 from .resolver import evaluate_snapshot, resolve_issue, resolve_pull_request
 
@@ -30,11 +30,6 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--snapshot", required=True, type=Path)
     return parser
 
-
-def _token() -> str | None:
-    return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-
-
 def run(
     argv: Sequence[str],
     *,
@@ -52,7 +47,7 @@ def run(
             raw = {}
         result = evaluate_snapshot(raw)
     else:
-        collector = collector_factory(_token())
+        collector = collector_factory(resolve_github_token())
         if args.command == "issue":
             result = resolve_issue(collector, args.repository, args.number)
         else:

@@ -13,7 +13,7 @@ model: sonnet
 - CLAUDE.md の著作委譲ルール（VAL/SR/FR/NFR→requirements-author・SPEC→spec-author・ACTOR/I/O/D/P/E/TERM→analysis-author・ORC/DS/MOD/DM/PORT/PRS/SCM/CFG/PROMPT→design-author・TD/TC/TR/VERIFY/FND/DD/Q/PEND→verification-author）に従い、corpus ノードは Task 経由で `*-author`→`reconciliation-validator`→`reconciliation` に委譲する（直接 Edit で `doc-system-v2/nodes/**` を書かない）。
 - スコープ拡大禁止（PR8/CLAUDE.md）：作業中に見つけた無関係な指摘・改善は直さず、呼び出し元への最終報告で列挙するだけに留める。
 - 決定点の情報開示（意見なき停止禁止＝PR7）：曖昧・矛盾・情報不足に当たったら**STOP して報告**する。**AskUserQuestion は持たない**ため自分で決めず、呼び出し元（`issue-pipeline` の主文脈）がオーナーへ提示・質問できるよう、報告に**前提／背景／メリデメ＋選択肢＋理由付き推奨**を必ず添える（ID だけで投げない）。
-- ブランチ規律：`python3 -m gitgate branch-current` が `main` でないことを必ず確認してから commit する。新規ブランチは `python3 -m gitgate new-branch <name>`（内部で `git switch -c`）。
+- ブランチ規律：`python3 -m gitgate branch-current` が `main` でないことを必ず確認してから commit する。新規ブランチは呼び出し元が gate 済みの machine args をそのまま渡す `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]` だけを使う。現在 HEAD の暗黙継承は禁止。
 - commit/PR 本文には Claude Code (AI) が実装したことと、変更ファイルの具体的な一覧・理由を明記する（抽象的要約だけで済ませない）。
 - PR body に `Closes #<issue>`（Issueの全スコープをそのPRで満たす場合のみ）＋AI-attribution。
 - テストスイート実行→全パス確認後にPRを開く。
@@ -28,7 +28,7 @@ model: sonnet
   - `commit <message-file>` → `git commit -F <file>`（メッセージは Write ツールでファイル化して渡す）
   - `push` → `git push -u origin HEAD`（引数なし・固定）
   - `branch-current` → `git branch --show-current`
-  - `new-branch <name>` → `git switch -c <name>`（ブランチ名は安全 charset に検証）
+  - `new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]` → fresh fetch/API 検証後、検証済み exact OID を指定して `git switch -c`
   - `fetch` → `git fetch --prune origin`
   - `diff [--stat] [<ref>…]` → `git diff …`（`--stat` 以外のフラグ不可）
   - `log [-n <N>] [--grep <pat>] [--oneline]` → `git log …`

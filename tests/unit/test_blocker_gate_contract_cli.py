@@ -1,5 +1,6 @@
 """runtime schema、semantic validator、CLI integration contract。"""
 
+from datetime import datetime, timezone
 from io import StringIO
 import json
 import os
@@ -17,10 +18,18 @@ from blocker_gate.waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 ROOT = Path(__file__).parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "blocker_gate"
+WAIVER_VALID_AT = datetime(2026, 8, 2, tzinfo=timezone.utc)
 
 
 def load(name):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def evaluate_during_waiver_validity(raw, waiver_provider):
+    """waiver の有効性以外を検証する契約テストを wall clock から分離する。"""
+    with patch("blocker_gate.resolver.datetime", wraps=datetime) as clock:
+        clock.now.return_value = WAIVER_VALID_AT
+        return evaluate_snapshot(raw, waiver_provider=waiver_provider)
 
 
 class FakeCollector:
@@ -85,16 +94,16 @@ class SharedResolverTests(unittest.TestCase):
         provider = FakeWaiverProvider(
             WaiverCollection((waiver_material(target_fp),))
         )
-        allowed = evaluate_snapshot(snapshot, waiver_provider=provider)
+        allowed = evaluate_during_waiver_validity(snapshot, provider)
         self.assertEqual((allowed["result"], allowed["primary_reason"]), ("ALLOW", "WAIVER_APPLIED"))
         self.assertEqual(allowed["findings"][0]["waiver_evidence"]["approval_commit"], "3" * 40)
 
     def test_arbitrary_mapping_and_unverified_material_never_permit(self):
         snapshot = load("open_direct.json")
         target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
-        arbitrary = evaluate_snapshot(
+        arbitrary = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=cast(
+            cast(
                 Any,
                 lambda _: {
                     "waiver_id": "BW-20260801-001",
@@ -102,9 +111,9 @@ class SharedResolverTests(unittest.TestCase):
                 },
             ),
         )
-        unsigned = evaluate_snapshot(
+        unsigned = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=FakeWaiverProvider(
+            FakeWaiverProvider(
                 WaiverCollection((waiver_material(target_fp, signature_verified=False),))
             ),
         )
@@ -151,8 +160,8 @@ class SharedResolverTests(unittest.TestCase):
         )
         for collection in malformed:
             with self.subTest(collection=collection):
-                result = evaluate_snapshot(
-                    snapshot, waiver_provider=FakeWaiverProvider(collection)
+                result = evaluate_during_waiver_validity(
+                    snapshot, FakeWaiverProvider(collection)
                 )
                 self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
                 self.assertFalse(result["permit_issued"])
@@ -212,9 +221,9 @@ class ContractTests(unittest.TestCase):
     def test_waiver_evidence_correlation_is_closed(self):
         snapshot = load("open_direct.json")
         target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
-        allowed = evaluate_snapshot(
+        allowed = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=FakeWaiverProvider(
+            FakeWaiverProvider(
                 WaiverCollection((waiver_material(target_fp),))
             ),
         )
@@ -270,6 +279,42 @@ class CliIntegrationTests(unittest.TestCase):
                 code = run(argv, stdout=stdout, stderr=stderr, collector_factory=FakeCollector)
                 self.assertEqual(code, 0)
                 self.assertNotIn("super-secret-token", stdout.getvalue() + stderr.getvalue())
+
+    def test_shared_gh_credential_reaches_collector_without_secret_output(self):
+        secret = "credential-from-mocked-gh"
+        stdout, stderr = StringIO(), StringIO()
+        with patch("blocker_gate.cli.resolve_github_token", return_value=secret):
+            code = run(
+                ["issue", "--repository", "example/repo", "--number", "10"],
+                stdout=stdout,
+                stderr=stderr,
+                collector_factory=FakeCollector,
+            )
+        self.assertEqual(code, 0)
+        self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
+
+    def test_anonymous_api_failure_remains_fail_closed(self):
+        class AnonymousFailureCollector(FakeCollector):
+            def __init__(self, token=None):
+                self.asserted_token = token
+                if token is not None:
+                    raise AssertionError("credential failure must use anonymous read")
+
+            def collect_issue(self, repository, number):
+                return load("api_failure.json")
+
+        stdout, stderr = StringIO(), StringIO()
+        with patch("blocker_gate.cli.resolve_github_token", return_value=None):
+            code = run(
+                ["issue", "--repository", "example/repo", "--number", "10"],
+                stdout=stdout,
+                stderr=stderr,
+                collector_factory=AnonymousFailureCollector,
+            )
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(code, 20)
+        self.assertEqual((result["result"], result["primary_reason"]), ("ERROR", "API_UNAVAILABLE"))
+        self.assertFalse(result["permit_issued"])
 
 
 if __name__ == "__main__":
