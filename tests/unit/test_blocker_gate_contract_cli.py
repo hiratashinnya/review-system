@@ -1,5 +1,6 @@
 """runtime schema、semantic validator、CLI integration contract。"""
 
+from datetime import datetime, timezone
 from io import StringIO
 import json
 import os
@@ -17,10 +18,18 @@ from blocker_gate.waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 ROOT = Path(__file__).parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "blocker_gate"
+WAIVER_VALID_AT = datetime(2026, 8, 2, tzinfo=timezone.utc)
 
 
 def load(name):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def evaluate_during_waiver_validity(raw, waiver_provider):
+    """waiver の有効性以外を検証する契約テストを wall clock から分離する。"""
+    with patch("blocker_gate.resolver.datetime", wraps=datetime) as clock:
+        clock.now.return_value = WAIVER_VALID_AT
+        return evaluate_snapshot(raw, waiver_provider=waiver_provider)
 
 
 class FakeCollector:
@@ -85,16 +94,16 @@ class SharedResolverTests(unittest.TestCase):
         provider = FakeWaiverProvider(
             WaiverCollection((waiver_material(target_fp),))
         )
-        allowed = evaluate_snapshot(snapshot, waiver_provider=provider)
+        allowed = evaluate_during_waiver_validity(snapshot, provider)
         self.assertEqual((allowed["result"], allowed["primary_reason"]), ("ALLOW", "WAIVER_APPLIED"))
         self.assertEqual(allowed["findings"][0]["waiver_evidence"]["approval_commit"], "3" * 40)
 
     def test_arbitrary_mapping_and_unverified_material_never_permit(self):
         snapshot = load("open_direct.json")
         target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
-        arbitrary = evaluate_snapshot(
+        arbitrary = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=cast(
+            cast(
                 Any,
                 lambda _: {
                     "waiver_id": "BW-20260801-001",
@@ -102,9 +111,9 @@ class SharedResolverTests(unittest.TestCase):
                 },
             ),
         )
-        unsigned = evaluate_snapshot(
+        unsigned = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=FakeWaiverProvider(
+            FakeWaiverProvider(
                 WaiverCollection((waiver_material(target_fp, signature_verified=False),))
             ),
         )
@@ -151,8 +160,8 @@ class SharedResolverTests(unittest.TestCase):
         )
         for collection in malformed:
             with self.subTest(collection=collection):
-                result = evaluate_snapshot(
-                    snapshot, waiver_provider=FakeWaiverProvider(collection)
+                result = evaluate_during_waiver_validity(
+                    snapshot, FakeWaiverProvider(collection)
                 )
                 self.assertEqual((result["result"], result["exit_code"]), ("ERROR", 20))
                 self.assertFalse(result["permit_issued"])
@@ -212,9 +221,9 @@ class ContractTests(unittest.TestCase):
     def test_waiver_evidence_correlation_is_closed(self):
         snapshot = load("open_direct.json")
         target_fp = evaluate_snapshot(snapshot)["findings"][0]["fingerprint"]
-        allowed = evaluate_snapshot(
+        allowed = evaluate_during_waiver_validity(
             snapshot,
-            waiver_provider=FakeWaiverProvider(
+            FakeWaiverProvider(
                 WaiverCollection((waiver_material(target_fp),))
             ),
         )
