@@ -3,7 +3,11 @@
 import subprocess
 import unittest
 
-from blocker_gate.auth import GH_AUTH_TIMEOUT_SECONDS, resolve_github_token
+from blocker_gate.auth import (
+    GH_AUTH_TIMEOUT_SECONDS,
+    github_api_failure_reason,
+    resolve_github_token,
+)
 
 
 class Completed:
@@ -13,6 +17,22 @@ class Completed:
 
 
 class GitHubTokenResolverTests(unittest.TestCase):
+    def test_common_api_failure_classification(self):
+        cases = (
+            (401, {}, "API_PERMISSION"),
+            (403, {}, "API_PERMISSION"),
+            (403, {"X-RateLimit-Remaining": "0"}, "API_UNAVAILABLE"),
+            (403, {"x-ratelimit-remaining": "0"}, "API_UNAVAILABLE"),
+            (429, {}, "API_UNAVAILABLE"),
+            (503, {}, "API_UNAVAILABLE"),
+            (404, {}, None),
+        )
+        for status, headers, expected in cases:
+            with self.subTest(status=status, headers=headers):
+                self.assertEqual(
+                    github_api_failure_reason(status, headers), expected
+                )
+
     def test_environment_priority_avoids_gh(self):
         def unexpected(*args, **kwargs):
             raise AssertionError("environment credential must avoid gh")

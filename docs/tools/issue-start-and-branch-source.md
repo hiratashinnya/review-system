@@ -6,6 +6,8 @@ Issue-start blocker policy と branch-source policy は、判定材料、実行�
 
 Issue #317 の interception point は **A: `gitgate new-branch` を primary** とする。現在 HEAD を暗黙継承せず、fresh fetch 後の `origin/<default>` exact OID からだけ branch を作る。正当な stacked branch は `--base-pr N` を明示し、same-repository・OPEN PR・API の head SHA・fetch した PR ref OID がすべて一致した場合だけ許可する。API failure、closed/cross-repository PR、partial response、OID mismatch は fail-close する。
 
+branch-source の GitHub API read は blocker gate と同じ共通 resolver を使い、`GH_TOKEN`、`GITHUB_TOKEN`、`gh auth token --hostname github.com` の順で資格情報を解決し、すべて失敗した場合だけ匿名 read を試す。default branch の repository read と stacked PR の fetch 前後の read は、同じ client と資格情報を使う。token は `Authorization` header にだけ設定し、ログ、evidence、例外へ出さない。rate-limit remaining が0の `403` と `429`/`5xx`/通信失敗は `API_UNAVAILABLE`、通常の `401`/`403` は `API_PERMISSION`、不完全応答は `API_PARTIAL_RESPONSE` として branch 作成前に fail-close する。
+
 push gate は本 PR の対象外である。primary gate 後に local history が書き換えられる残余リスクは残るため、push/PR/merge 前の差分検査を追加するなら別の policy/interception point として扱う。PR 作成時は harness ごとに経路が異なり、merge 直前は手戻りが最大なので primary にはしない。
 
 ## Managed Issue-start

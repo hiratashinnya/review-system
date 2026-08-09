@@ -11,6 +11,24 @@ GH_AUTH_TIMEOUT_SECONDS = 3.0
 _GH_AUTH_COMMAND = ("gh", "auth", "token", "--hostname", "github.com")
 
 
+def github_api_failure_reason(
+    status: int, headers: Mapping[str, str]
+) -> str | None:
+    """GitHub API の共通 auth/availability failure を reason へ分類する。"""
+    if status == 403 and any(
+        isinstance(name, str)
+        and name.lower() == "x-ratelimit-remaining"
+        and str(value).strip() == "0"
+        for name, value in headers.items()
+    ):
+        return "API_UNAVAILABLE"
+    if status in {401, 403}:
+        return "API_PERMISSION"
+    if status == 429 or status >= 500:
+        return "API_UNAVAILABLE"
+    return None
+
+
 def resolve_github_token(
     *,
     environ: Mapping[str, str] | None = None,

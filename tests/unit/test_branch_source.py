@@ -1,10 +1,16 @@
 """Issue #317 branch-source policy unit/negative tests。"""
 
+import io
+import json
 import subprocess
+import traceback
 import unittest
+import urllib.error
+from unittest.mock import patch
 
 from branch_source import (
     BranchSourceError,
+    GitHubBranchClient,
     NewBranchRequest,
     create_branch,
     parse_new_branch_args,
@@ -14,6 +20,43 @@ from branch_source import (
 
 OID = "a" * 40
 OTHER = "b" * 40
+
+
+class ApiResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+def api_opener(payloads, requests):
+    remaining = list(payloads)
+
+    def open_url(request, timeout):
+        requests.append(request)
+        response = remaining.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return ApiResponse(response)
+
+    return open_url
+
+
+def http_error(status, headers=None, body=b"{}"):
+    return urllib.error.HTTPError(
+        "https://api.github.com/fixed",
+        status,
+        "safe status",
+        {} if headers is None else headers,
+        io.BytesIO(body),
+    )
 
 
 class FakeApi:
@@ -118,6 +161,124 @@ class BranchSourceTests(unittest.TestCase):
         self.assertEqual(result.source_kind, "same-repository-open-pr")
         self.assertEqual(events, ["api-read", "fetch", "api-read"])
         self.assertEqual(api.pull_calls, 2)
+
+    def test_env_unset_gh_credential_allows_default_branch(self):
+        secret = "gh-default-credential-secret"
+        requests = []
+        gh_result = subprocess.CompletedProcess(
+            ["gh", "auth", "token"], 0, stdout=secret + "\n", stderr=""
+        )
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "blocker_gate.auth.subprocess.run", return_value=gh_result
+        ), patch(
+            "branch_source.policy.urllib.request.urlopen",
+            side_effect=api_opener(
+                [{"full_name": "example/repo", "default_branch": "main"}],
+                requests,
+            ),
+        ):
+            result = verify_branch_source(self.request(), runner=runner_for())
+
+        self.assertEqual(result.source_kind, "default-branch")
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].get_header("Authorization"), "Bearer " + secret)
+        self.assertNotIn(secret, repr(result))
+
+    def test_env_unset_gh_credential_authenticates_all_stacked_reads(self):
+        secret = "gh-stacked-credential-secret"
+        requests = []
+        pull = {
+            "state": "open",
+            "head": {"sha": OID, "repo": {"full_name": "example/repo"}},
+            "base": {"repo": {"full_name": "example/repo"}},
+        }
+        gh_result = subprocess.CompletedProcess(
+            ["gh", "auth", "token"], 0, stdout=secret + "\n", stderr=""
+        )
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "blocker_gate.auth.subprocess.run", return_value=gh_result
+        ), patch(
+            "branch_source.policy.urllib.request.urlopen",
+            side_effect=api_opener(
+                [
+                    {"full_name": "example/repo", "default_branch": "main"},
+                    pull,
+                    pull,
+                ],
+                requests,
+            ),
+        ):
+            result = verify_branch_source(self.request(42), runner=runner_for())
+
+        self.assertEqual(result.source_kind, "same-repository-open-pr")
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(
+            [request.get_header("Authorization") for request in requests],
+            ["Bearer " + secret] * 3,
+        )
+        self.assertNotIn(secret, repr(result))
+
+    def test_gh_failure_falls_back_to_anonymous_read(self):
+        requests = []
+        gh_result = subprocess.CompletedProcess(
+            ["gh", "auth", "token"], 1, stdout="ignored", stderr="safe"
+        )
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "blocker_gate.auth.subprocess.run", return_value=gh_result
+        ), patch(
+            "branch_source.policy.urllib.request.urlopen",
+            side_effect=api_opener(
+                [{"full_name": "example/repo", "default_branch": "main"}],
+                requests,
+            ),
+        ):
+            result = verify_branch_source(self.request(), runner=runner_for())
+
+        self.assertEqual(result.source_kind, "default-branch")
+        self.assertIsNone(requests[0].get_header("Authorization"))
+
+    def test_rate_limit_and_permission_failures_use_common_reasons(self):
+        cases = (
+            (403, {"X-RateLimit-Remaining": "0"}, "API_UNAVAILABLE"),
+            (403, {}, "API_PERMISSION"),
+            (401, {}, "API_PERMISSION"),
+        )
+        for status, headers, reason in cases:
+            secret = f"secret-{status}-{reason}"
+            with self.subTest(status=status, headers=headers), patch(
+                "branch_source.policy.urllib.request.urlopen",
+                side_effect=http_error(status, headers, secret.encode("utf-8")),
+            ):
+                with self.assertRaises(BranchSourceError) as caught:
+                    GitHubBranchClient(secret).repository("example/repo")
+            self.assertEqual(caught.exception.reason, reason)
+            rendered = "".join(
+                traceback.format_exception(
+                    type(caught.exception), caught.exception, caught.exception.__traceback__
+                )
+            )
+            self.assertNotIn(secret, str(caught.exception))
+            self.assertNotIn(secret, rendered)
+
+    def test_failed_gh_and_anonymous_api_fail_close_before_fetch(self):
+        secret = "anonymous-api-response-secret"
+        calls = []
+        gh_result = subprocess.CompletedProcess(
+            ["gh", "auth", "token"], 1, stdout="", stderr=""
+        )
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "blocker_gate.auth.subprocess.run", return_value=gh_result
+        ), patch(
+            "branch_source.policy.urllib.request.urlopen",
+            side_effect=http_error(503, body=secret.encode("utf-8")),
+        ):
+            with self.assertRaises(BranchSourceError) as caught:
+                verify_branch_source(self.request(), runner=runner_for(calls=calls))
+
+        self.assertEqual(caught.exception.reason, "API_UNAVAILABLE")
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertFalse(any(call[:2] == ["git", "fetch"] for call in calls))
+        self.assertFalse(any(call[:3] == ["git", "switch", "-c"] for call in calls))
 
     def test_closed_cross_repo_and_fetched_mismatch_fail_close(self):
         cases = [

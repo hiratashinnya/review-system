@@ -8,7 +8,6 @@ blocker dependency の判定とは材料も失敗理由も異なるため、`blo
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import urllib.error
@@ -16,6 +15,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
+
+from blocker_gate.auth import github_api_failure_reason, resolve_github_token
 
 
 API_VERSION = "2022-11-28"
@@ -83,17 +84,20 @@ class GitHubBranchClient:
             with urllib.request.urlopen(request, timeout=20) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
-            if exc.code in {401, 403, 404}:
-                raise BranchSourceError("BRANCH_API_PERMISSION_OR_NOT_FOUND") from exc
-            raise BranchSourceError("BRANCH_API_ERROR", f"HTTP {exc.code}") from exc
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            raise BranchSourceError("BRANCH_API_ERROR", type(exc).__name__) from exc
+            common_failure = github_api_failure_reason(exc.code, exc.headers or {})
+            if common_failure is not None:
+                raise BranchSourceError(common_failure) from None
+            if exc.code == 404:
+                raise BranchSourceError("BRANCH_API_PERMISSION_OR_NOT_FOUND") from None
+            raise BranchSourceError("API_UNAVAILABLE") from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise BranchSourceError("API_UNAVAILABLE") from None
         try:
             value = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise BranchSourceError("BRANCH_API_PARTIAL_RESPONSE") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise BranchSourceError("API_PARTIAL_RESPONSE") from None
         if not isinstance(value, dict):
-            raise BranchSourceError("BRANCH_API_PARTIAL_RESPONSE")
+            raise BranchSourceError("API_PARTIAL_RESPONSE")
         return value
 
     def repository(self, repository: str) -> Mapping[str, Any]:
@@ -230,7 +234,7 @@ def verify_branch_source(
     if _remote_repository(remote_url).lower() != request.repository.lower():
         raise BranchSourceError("BRANCH_REPOSITORY_MISMATCH")
 
-    client = api or GitHubBranchClient(os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"))
+    client = api or GitHubBranchClient(resolve_github_token())
     repository_data = client.repository(request.repository)
     full_name = _nested_string(repository_data, "full_name")
     default_branch = _validate_branch(

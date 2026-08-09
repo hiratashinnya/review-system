@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .auth import github_api_failure_reason
 from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, fingerprint
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
@@ -98,19 +99,11 @@ class GitHubCollector:
         return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
     def _decode(self, status: int, headers: Mapping[str, str], body: bytes) -> Any:
-        if status == 403 and any(
-            isinstance(name, str)
-            and name.lower() == "x-ratelimit-remaining"
-            and str(value).strip() == "0"
-            for name, value in headers.items()
-        ):
-            raise GitHubReadError("API_UNAVAILABLE")
-        if status in {401, 403}:
-            raise GitHubReadError("API_PERMISSION")
+        common_failure = github_api_failure_reason(status, headers)
+        if common_failure is not None:
+            raise GitHubReadError(common_failure)
         if status in {404, 410}:
             raise GitHubReadError("RELATION_TARGET_UNREADABLE")
-        if status == 429 or status >= 500:
-            raise GitHubReadError("API_UNAVAILABLE")
         if not 200 <= status < 300:
             raise GitHubReadError("API_UNAVAILABLE")
         try:
