@@ -2,12 +2,16 @@
 # PreToolUse(Bash) フックハンドラ（ホワイトリスト方式・Issue #227）。
 #
 # 役割:
-#   "issue-implementer" / "pr-reviewer" サブエージェント種別に対して、push と merge の
+#   "issue-implementer" / "issue-fixer" / "pr-reviewer" サブエージェント種別に対して、push と merge の
 #   非対称な権限境界を機械的に強制する（プロンプト指示ではなくハーネス側で拒否する）。
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
+#     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界・Issue #308）。
+#                           初回実装ではなく**レビュー指摘を受けた是正ラウンド専用**の別ロールで、
+#                           診断カルテ操作のため `python3 -m karte` だけが追加で許可される
+#                           （カルテの書き手を1ロールに絞るための非対称・PYTHON_MODULES_BY_ROLE）。
 #     - pr-reviewer:        merge は可、push は不可（レビュー中に無レビューの変更を紛れ込ませられない）。
 #   それ以外の agent_type（main／general-purpose／各 *-author 等・agent_type 欠如を含む）はこの
-#   ゲートの2ロール専用判定（層1〜3）の対象外＝2ロール専用判定は適用しない（下記 2026-07-11 の
+#   ゲートのロール専用判定（層1〜3）の対象外＝ロール専用判定は適用しない（下記 2026-07-11 の
 #   オーナー判断）。ただし Issue #224 フォローアップ（案B・後述の「全 agent_type 共通の危険コマンド
 #   deny 層」）を追加したため、対象外ロールも危険コマンド（network/exec）だけは deny され、それ以外は
 #   従来通り許可される。
@@ -21,7 +25,7 @@
 #   バイパスは全て `|` `$()` backtick `<<` `<<<` `&&` `(` `)` 等の記号を悪用するものであり、記号自体を
 #   締め出すことで「未列挙の亜種」という問題設定そのものを構造的に消す。
 #
-# 判定（対象2ロールのみ・3層すべてを通過したときだけ許可）:
+# 判定（対象ロールのみ・3層すべてを通過したときだけ許可）:
 #   層1: 危険記号の quote-aware スキャン（dangerous_shell_symbol）
 #        - クォート外（unquoted）: `| & ; ( ) { } < > $ ` 改行` → deny（パイプ・サブシェル・
 #          ブレース展開・コマンド置換・リダイレクト・ヒアドキュメント・チェイン・複数行を記号レベルで
@@ -36,21 +40,22 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate の形のみ**）で
+#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate、加えて
+#        ロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
-#        gated 2ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
+#        gated ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
 #        - 先頭 env 代入（`NAME=value`）・`env` ラッパーは deny（`rtk`/`command`/`builtin`/`exec` の純
 #          ラッパーのみ剥がして内側を再検査）。
 #        - git: 生 `git …` は**全て deny**（raw_git_denied_reason）。git 操作は固定テンプレートの
 #          `python3 -m gitgate <verb>` に誘導する（ユーザ制御フラグが git に届かない＝`--receive-pack`/
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
-#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/push/
-#          branch-current/new-branch/fetch/diff/log／reviewer: diff/log）で allow/deny する（層2 で
+#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl/fixer: status/add/commit/
+#          push/branch-current/new-branch/fetch/diff/log／reviewer: diff/log）で allow/deny する（層2 で
 #          gitgate モジュールは許可済み・ここで verb を追加チェック）。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
-#          （pr/issue は第2トークンも）がロール別集合（impl: pr create / issue view／reviewer: pr
+#          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
 #          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
@@ -62,8 +67,8 @@
 #   あり、`FOO=x curl`（env代入プレフィックス）・`/usr/bin/curl`（絶対パス）・`true; curl`（compound
 #   command）で機械的にすり抜けることが実証された（Issue #224）。中間ワイルドカード `Bash(*curl*)` は
 #   `echo "curl"` のような無害な文字列まで over-match するため不採用。
-#   上記の対象2ロール専用の3層判定とは別に、**agent_type を問わず**（main context 自身・
-#   issue-implementer・pr-reviewer・各 *-author 等すべて）command 文字列を SEGMENT_SPLIT_RE
+#   上記の対象ロール専用の3層判定とは別に、**agent_type を問わず**（main context 自身・
+#   issue-implementer・issue-fixer・pr-reviewer・各 *-author 等すべて）command 文字列を SEGMENT_SPLIT_RE
 #   （`;`/`&&`/`||`/`|`/`(`/`)`/改行/`$(`/backtick）で素朴に（quote-aware ではなく）セグメント分割し、
 #   各セグメントを shell_words でトークン化し、**セグメント内の全独立トークン**の os.path.basename を
 #   判定する（PR #237 critical 修正・オーナー承認済み「独立トークン一致」。旧「先頭語のみ」判定は
@@ -81,8 +86,8 @@
 #   SEGMENT_SPLIT_RE はダブルクォート/シングルクォートの内外を区別しない（quote-aware ではない）ため、
 #   例えば `gh pr create --title "fix(hooks): ..."` の丸括弧でもセグメントは分割されるが、その結果
 #   生じる断片はクォートが対応しなくなり shell_words でのトークン化に失敗し、単に読み飛ばされる
-#   （**fail-open**＝over-match を避けるための意図的な設計。厳格な quote-aware 判定は対象2ロール専用の
-#   層1〜3が別途担う）。この deny 層は対象2ロールにも前置適用されるが、層1（記号の一律 deny）が
+#   （**fail-open**＝over-match を避けるための意図的な設計。厳格な quote-aware 判定は対象ロール専用の
+#   層1〜3が別途担う）。この deny 層は対象ロールにも前置適用されるが、層1（記号の一律 deny）が
 #   既に更に厳格なため実質的な影響はない。
 #
 # 既知の限界（多層防御の一枚に過ぎない・Issue #129）:
@@ -93,7 +98,7 @@
 #     別名サブコマンドでの push は Issue #227 追加修正3（生 git 全 deny＋gitgate ラッパー＋gh フラグ許可
 #     リスト）で遮断済み。ただし gitgate は `python3 -m unittest|coverage` と同じく Python 実行を
 #     許可する一枚に過ぎず、テストファイル経由の任意コード実行までは閉じられない（原理的限界）。
-#   pr-reviewer.md / issue-implementer.md 側のプロンプトレベルの絶対規範と併用する前提。
+#   pr-reviewer.md / issue-implementer.md / issue-fixer.md 側のプロンプトレベルの絶対規範と併用する前提。
 #
 # 入力: PreToolUse フックの stdin JSON（agent_type/subagent_type と tool_input.command を想定）。
 #   command が読めない場合は検査不能として deny する。
@@ -104,7 +109,7 @@
 #   実現不可、②push/merge を専用エージェント以外全面禁止する案は main context の直接 push まで
 #   止めるコストが大きく不採用。よって「対象外ロールは常に許可」という元の設計に確定して戻す
 #   （fail-closed 化による agent_type 詐称防御は失うが、二者択一の上でのオーナー明示判断）。
-#   Issue #227 でもこの fail-open 設計は**変更しない**（対象は2ロールのみ）。
+#   Issue #227 でもこの fail-open 設計は**変更しない**（対象は GATED_ROLES のみ）。
 # デバッグ: AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log を設定すると、受信 payload の redacted JSON と
 #   判定を追記する（オプトイン・機微値はキー名ベースで伏せる）。
 # トレース（Issue #192・常時有効）: 呼ばれるたびに時刻・agent_type・tool_name・判定(allow/deny)のみを
@@ -133,7 +138,7 @@ from datetime import datetime, timezone
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
-GATED_ROLES = {"issue-implementer", "pr-reviewer"}
+GATED_ROLES = {"issue-implementer", "issue-fixer", "pr-reviewer"}
 
 # Issue #303: context-mode の実行系 MCP ツール（`ctx_execute` / `ctx_execute_file` /
 # `ctx_batch_execute`）。これらは任意のコードをサブプロセスで実行でき、実測でホストの
@@ -151,7 +156,7 @@ CTX_EXEC_TOOL_SUFFIXES = {"ctx_execute", "ctx_execute_file", "ctx_batch_execute"
 CTX_ALLOWED_LANGUAGES = {"shell"}
 
 # 層3（Issue #227 追加修正3・オーナー確定 2026-07-13）: git ラッパー方式＋gh フラグ許可リスト。
-# gated 2ロールからは**生 git を一切禁止**し、固定テンプレートで git を呼ぶ薄いラッパー
+# gated ロールからは**生 git を一切禁止**し、固定テンプレートで git を呼ぶ薄いラッパー
 # `python3 -m gitgate <verb>` のみ許可する（ユーザ制御フラグが git に届かない＝exec/write 面を構造的に
 # 閉じる）。verb はロール別集合で allow/deny する（gitgate 自体は全 verb を実装し、ロール制限はここが担う）。
 # gh は per-subcommand の**フラグ許可リスト**で絞り、未知フラグ・`--web`/`--editor` 等の外部起動フラグを
@@ -166,12 +171,23 @@ GITGATE_VERBS_BY_ROLE = {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
+    # issue-fixer（Issue #308）: 是正ラウンド専用。権限は issue-implementer と**同一**
+    # （push 可・merge 不可）。是正も「直して commit して push して PR を更新する」ので
+    # 必要な git 操作は初回実装と変わらない。差は診断（カルテ）必須という契約の側にあり、
+    # ここで verb 集合を絞っても是正の質は上がらず、ただ機能しなくなるだけ。
+    "issue-fixer": {
+        "status", "add", "commit", "push", "branch-current",
+        "new-branch", "fetch", "diff", "log",
+    },
     # pr-reviewer: レビューの読取専用のみ（diff/log）。
     "pr-reviewer": {"diff", "log"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
     "issue-implementer": {("pr", "create"), ("issue", "view")},
+    # issue-fixer は issue-implementer と同一集合（Issue #308）。`pr merge` は当然含めない
+    # ＝merge は pr-reviewer の専権という非対称は是正ロールでも維持される。
+    "issue-fixer": {("pr", "create"), ("issue", "view")},
     "pr-reviewer": {
         ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
         ("pr", "review"), ("pr", "merge"), ("pr", "checkout"), ("issue", "view"),
@@ -247,8 +263,26 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # （`coverage run <なんでも>` は任意 Python 実行経路のため）。「-c 禁止したのに coverage run 素通し」の
 # 不整合を消し、エージェントの混乱・ハルシネーションリスクを下げる（防御力は #129 限界のため不変）。
 ALLOWED_PYTHON_MODULES = {"unittest", "coverage", "dsv2", "gitgate"}
+# ロール別の**追加**モジュール（Issue #308）。基底集合 ALLOWED_PYTHON_MODULES に上乗せする形でのみ
+# 使い、基底から差し引く用途には使わない（絞りたくなったら基底側を直す）。
+#
+# `karte` を issue-fixer にだけ足すのは、カルテ（`tmp/_karte/issue-<N>.md`）の**書き手を
+# issue-fixer に一本化する**という Issue #308 の設計をここでも機械的に担保するため。
+# `python3 -m karte append` はカルテへの追記＝ループ状態の書き換えなので、基底集合に入れて
+# 全 gated ロールへ配ると pr-reviewer（read-only・Write 非付与が fail-close の保証）にまで
+# 書込経路が生えてしまう。`karte` 自体は argparse の固定 CLI で任意コード実行経路を持たず、
+# 書き先も repo-root 配下の `tmp/_karte/` に fail-close で限定されている（`karte/paths.py`）ため、
+# issue-fixer に限れば `dsv2` と同格の「コーパス操作ツール」として扱える。
+PYTHON_MODULES_BY_ROLE = {
+    "issue-fixer": {"karte"},
+}
 # coverage は実行系サブコマンド（run）を禁止し、レポート出力系のみ許可する。
 COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
+
+
+def allowed_python_modules(role):
+    """層2 の python モジュール許可集合（基底＋ロール別の追加分）。"""
+    return ALLOWED_PYTHON_MODULES | PYTHON_MODULES_BY_ROLE.get(role, set())
 
 # 全 agent_type 共通の危険コマンド deny 層（Issue #224 フォローアップ・案B）。settings.json の
 # permissions.deny が env-prefix/abspath/compound で機械的にすり抜けるため、この hook 側で補完する。
@@ -571,16 +605,18 @@ def all_role_dangerous_command_token(command_text):
     return None
 
 
-def head_command_violation(tokens):
+def head_command_violation(tokens, role):
     """層2: 先頭語ホワイトリスト。許可なら None、違反ならその説明を返す。
     パス付き（`/usr/bin/git`・`./git`）は完全一致しないため deny（カレントディレクトリに `git` という
-    名前のスクリプトを置いて実行する迂回を防ぐ＝basename 判定にはしない）。"""
+    名前のスクリプトを置いて実行する迂回を防ぐ＝basename 判定にはしない）。
+    python モジュールの許可集合は**ロール別**（基底＋追加分・Issue #308）。"""
     head = tokens[0]
+    allowed_modules = allowed_python_modules(role)
     if head in ALLOWED_HEAD_COMMANDS:
         return None
     if head in PYTHON_HEAD_COMMANDS:
-        modules = "|".join(sorted(ALLOWED_PYTHON_MODULES))
-        if len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in ALLOWED_PYTHON_MODULES:
+        modules = "|".join(sorted(allowed_modules))
+        if len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in allowed_modules:
             # 第2次修正: coverage は run（任意 Python 実行）を禁止し、レポート出力系のみ許可する。
             if tokens[2] == "coverage":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
@@ -597,7 +633,7 @@ def head_command_violation(tokens):
         )
     return (
         f"`{head}` is not in the allowed command whitelist "
-        f"(git, gh, python3 -m <{'|'.join(sorted(ALLOWED_PYTHON_MODULES))}>)"
+        f"(git, gh, python3 -m <{'|'.join(sorted(allowed_modules))}>)"
     )
 
 
@@ -751,11 +787,12 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): no command word could be found; "
             "refusing because the command cannot be inspected."
         )
-    head_violation = head_command_violation(tokens)
+    head_violation = head_command_violation(tokens, role)
     if head_violation:
+        modules = "|".join(sorted(allowed_python_modules(role)))
         return (
             f"agent-command-gate ({role}): {head_violation}. "
-            "Only git / gh / python3 -m <unittest|coverage|dsv2|gitgate> are allowed for this role "
+            f"Only git / gh / python3 -m <{modules}> are allowed for this role "
             "(whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
         )
     violation = role_command_violation(tokens, role)
@@ -764,7 +801,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): {violation}. "
             "Layer 3 (Issue #227) forbids raw git (use `python3 -m gitgate <verb>`) and allows only "
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
-            "env assignments and cross-role actions (issue-implementer merging, pr-reviewer pushing) are denied."
+            "env assignments and cross-role actions (issue-implementer/issue-fixer merging, pr-reviewer pushing) are denied."
         )
     return None
 
@@ -847,7 +884,7 @@ def ctx_gate_reason(suffix, tool_input_obj, role):
 
     # `cwd` は context-mode 自身が「未指定のときだけプロジェクトルートを補う」動作なので、
     # 明示されている＝モデルが別ディレクトリを狙った場合だけを見ればよい（フックの実行順に依存しない）。
-    # gated 2ロールがリポジトリ外で実行すると、push/merge の非対称が掛かる対象そのものを差し替えられる。
+    # gated ロールがリポジトリ外で実行すると、push/merge の非対称が掛かる対象そのものを差し替えられる。
     if role in GATED_ROLES:
         cwd = tool_input_obj.get("cwd")
         if cwd is not None:
@@ -884,7 +921,7 @@ if is_mcp:
     # `commands[]`）ため専用入口で正規化してから、同じ判定関数へ通す。
     reason = ctx_gate_reason(ctx_tool_suffix(tool_name), tool_input, agent_type)
 elif dangerous_token:
-    # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。対象2ロール専用の層1〜3
+    # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。対象ロール専用の層1〜3
     # より前に判定し、agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」
     # だった穴を、settings.json permissions.deny では塞ぎ切れない env-prefix/abspath/compound 経路について
     # 補完する）。
@@ -895,9 +932,9 @@ elif dangerous_token:
         "independent of agent_type)."
     )
 elif agent_type not in GATED_ROLES:
-    # agent_type が対象2ロール以外（欠如を含む・main context 自身がこれに該当）は2ロール専用判定
+    # agent_type が対象ロール以外（欠如を含む・main context 自身がこれに該当）はロール専用判定
     # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する
-    # （Codex 版と dispatch 順を統一・Issue #227 レビュー F3。2ロールについては下で command 欠落→deny
+    # （Codex 版と dispatch 順を統一・Issue #227 レビュー F3。対象ロールについては下で command 欠落→deny
     # を維持）。危険コマンドは上の全 agent_type 共通層で既に deny 済み。
     pass
 elif not isinstance(command, str) or not command:

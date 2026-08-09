@@ -25,6 +25,15 @@ def run_gate(payload, *, env=None):
         check=True,
         env=merged_env,
     )
+    # フック内部で例外が出ても `exit 0` で終わるため、stdout 無し＝allow と**区別が付かない**
+    # （＝内部エラーが静かに fail-open する）。Issue #308 でロールを追加した際、3つのロール別 dict の
+    # うち1つに登録し忘れると KeyError で落ち、その呼び出しが素通しになることを実際に踏んだ。
+    # テスト側では「traceback を吐いたら失敗」として機械的に捕まえる。
+    if result.stderr.strip():
+        raise AssertionError(
+            "agent-command-gate wrote to stderr (internal error would fail open):\n"
+            + result.stderr
+        )
     if not result.stdout:
         return None
     return json.loads(result.stdout)
@@ -679,6 +688,107 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for role, command in REREVIEW_BYPASS_CORPUS:
             with self.subTest(role=role, command=command):
                 self.assert_denied(run_gate(payload(role, command)))
+
+    # ------------------------------------------------------------------
+    # Issue #308: 是正専用ロール issue-fixer の登録（Claude 版と同一契約）
+    # ------------------------------------------------------------------
+    def test_issue_fixer_is_gated_with_the_same_boundary_as_issue_implementer(self):
+        # 受け入れ基準: issue-fixer は **`git push` は許可・`git merge` / `gh pr merge` は拒否**。
+        self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
+        self.assert_denied(run_gate(payload("issue-fixer", "gh pr merge 123")))
+        self.assert_denied(run_gate(payload("issue-fixer", "git merge feature")))
+        self.assert_denied(run_gate(payload("issue-fixer", "git push -u origin HEAD")))
+        self.assert_denied(run_gate(payload("issue-fixer", "rtk git merge feature")))
+        self.assert_denied(run_gate(payload("issue-fixer", "gh --repo o/r pr merge 123")))
+        self.assert_denied(run_gate(payload("issue-fixer", "python3 -m gitgate merge feature")))
+
+    def test_legitimate_issue_fixer_workflow_is_allowed(self):
+        # 是正ラウンドの正規フロー: karte render → karte append（診断）→ 編集 → test →
+        # add/commit/push → karte close-attempt。gitgate verb は issue-implementer と同集合。
+        commands = [
+            "python3 -m karte render --issue 308",
+            "python3 -m karte append --issue 308 --round 2 --finding-ids F-308-01 "
+            "--root-cause boundfield-attrs-overwrite --change-kind logic "
+            "--targets review_system/forms.py::build_attrs",
+            "python3 -m karte close-attempt --issue 308 --outcome fixed",
+            "python3 -m karte check --issue 308 --round 2",
+            "python3 -m karte status --issue 308",
+            "python3 -m gitgate status",
+            "python3 -m gitgate diff --stat HEAD",
+            "python3 -m gitgate add tests/unit/test_codex_agent_command_gate.py",
+            "python3 -m gitgate commit /tmp/commit-msg.md",
+            "python3 -m gitgate push",
+            "python3 -m gitgate branch-current",
+            "python3 -m gitgate new-branch issue-308-fix-round-2",
+            "python3 -m gitgate fetch",
+            'gh pr create --title "fix(agents): remediate review findings" --body-file /tmp/pr.md',
+            "gh issue view 308",
+            "python3 -m unittest discover -s tests/unit",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("issue-fixer", command)))
+
+    def test_issue_fixer_denied_out_of_allowlist_git_gh(self):
+        denied = [
+            "git status",
+            "git pull --ff-only",
+            "GIT_PAGER=cat git log -n1",
+            "gh pr view 123",
+            "gh pr comment 123 --body-file /tmp/comment.md",
+            "gh pr review 123 --approve --body ok",
+            "gh api repos/o/r/pulls/1/merge",
+            "python3 -c \"import os; os.system('git merge x')\"",
+            "python3 -m karte render --issue 308 | head -n1",
+            "bash -c 'python3 -m karte append'",
+            "python3 -m coverage run -m unittest",
+            "python3 -m pytest tests/unit",
+        ]
+        for command in denied:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    def test_karte_module_is_exclusive_to_issue_fixer(self):
+        # カルテの書き手を issue-fixer に一本化する設計（Issue #308）を層2 で機械的に担保する。
+        for verb in ["render --issue 308", "append --issue 308", "status --issue 308"]:
+            with self.subTest(verb=verb):
+                self.assert_allowed(run_gate(payload("issue-fixer", f"python3 -m karte {verb}")))
+                self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m karte {verb}")))
+                self.assert_denied(
+                    run_gate(payload("issue-implementer", f"python3 -m karte {verb}"))
+                )
+        # ロール別追加分は「基底への上乗せ」であって他ロールの許可を減らさない（回帰防止）。
+        for role in ["issue-fixer", "issue-implementer", "pr-reviewer"]:
+            with self.subTest(role=role, module="unittest"):
+                self.assert_allowed(
+                    run_gate(payload(role, "python3 -m unittest discover -s tests/unit"))
+                )
+        self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m dsv2 index")))
+
+    def test_issue_fixer_is_covered_by_the_known_bypass_corpora(self):
+        # 記号ベースの層1 はロール非依存なので、既知バイパス群は新ロールでもそのまま deny される。
+        # REREVIEW 側は末尾にクロスロール事例（reviewer が `gh pr create` する等）を含み、issue-fixer では
+        # 正当な操作になるものがあるため、**権限が同一の issue-implementer 向け事例だけ**を借りる。
+        corpus = [command for _role, command in KNOWN_BYPASS_CORPUS]
+        corpus += [
+            command
+            for role, command in REREVIEW_BYPASS_CORPUS
+            if role == "issue-implementer"
+        ]
+        for command in corpus:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    def test_every_gated_role_is_registered_in_all_role_tables(self):
+        # 3つのロール別 dict のどれか1つに登録し忘れると KeyError で落ち、**stdout 無し＝allow** として
+        # 素通しになる（run_gate の stderr 検査がこれを失敗に変える）。
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            with self.subTest(role=role):
+                run_gate(payload(role, "python3 -m gitgate diff"))
+                run_gate(payload(role, "python3 -m gitgate push"))
+                run_gate(payload(role, "gh issue view 1"))
+                run_gate(payload(role, "gh pr merge 1"))
+                self.assert_denied(run_gate(payload(role, "git status")))
 
     def test_pr_reviewer_denies_push_but_allows_merge(self):
         self.assert_denied(run_gate(payload("pr-reviewer", "git push origin HEAD")))
