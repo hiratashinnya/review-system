@@ -1,7 +1,7 @@
 ---
 name: issue-implementer
 description: Implements a GitHub Issue end-to-end in an isolated worktree — branch, code/node changes, tests, commit, push, and PR open with explicit AI-attribution. Use for the implementation phase of the implement→review→merge issue pipeline. NOT for reviewing a PR (use pr-reviewer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push + open PR, then stop and report).
-tools: Task, Read, Grep, Glob, Write, Edit, Bash
+tools: Task, Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 ---
 
@@ -112,6 +112,31 @@ stop_reason: ""                  # status: stop のとき必須。原案・比�
 **空で止めない（PR7）**：`status: stop` のときは、`stop_reason` に「何が・どの対象で・なぜ」を必ず書き、
 可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
 
+## ctx_batch_execute / ctx_execute の使いどころ（Issue #304 で付与・shell 限定）
+
+テスト出力・ビルドログ・大きな diff をコンテキストに抱え込まずに**その場で絞り込む**ために使う。
+本ロールの最大の受益ポイント（テストを何度も回すため）。
+
+**絞り込みはシェル記号ではなく `queries` / `intent` で行う**——本ロールは層1で `|` `>` `;` 等が
+deny されるため（下記制約）、`| tail -20` のような整形は**使えない**。代わりにプラグイン自身の機構を使う：
+
+- `ctx_batch_execute(commands: [...], queries: [...])` — テスト実行＋差分確認などを1往復でまとめ、
+  **`queries` で失敗箇所だけ**受け取る。各 `command` は**パイプなしの単純形**で書く。
+- `ctx_execute(language: "shell", code: "python3 -m unittest discover -s tests/unit", intent: "failing tests")`
+  — `intent` を渡すと大きい出力は KB に索引され、該当セクションだけ返る。
+
+**制約（`agent-command-gate.sh` が機械的に強制する・Issue #303）**：
+
+- **`language` は `shell` のみ**。他言語は全ロールで deny される（任意コード実行は静的検査できないため）。
+- **本ロールの merge 禁止は ctx 経路でも効く**——`ctx_batch_execute([{command: "gh pr merge …"}])` や
+  `ctx_execute(shell, "git merge …")` は deny される。Bash と**同一の検査面**に載っており、
+  層1（危険記号）・層2（先頭語 allowlist）・層3（gitgate verb / gh サブコマンド allowlist）がそのまま適用される。
+- **層1が効くのでシェル記号（`|` `&` `;` `(` `)` `<` `>` `$` バッククォート・改行）は deny される**。
+  上記のとおり `queries` / `intent` で絞る。それでも足りなければ通常の `Bash` を使う。
+- **`cwd` を明示しない**。本ロールが明示した `cwd` は deny される。**worktree で作業する場合も同じ**——
+  worktree のパスを `cwd` に渡さず、`Bash` 側で作業ディレクトリを扱う。
+- **バッチは1件でも違反があれば呼び出し全体が deny される**。
+
 ## 注入ブロックへの優先規定（context-mode 対策・必読）
 
 呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
@@ -124,11 +149,14 @@ stop_reason: ""                  # status: stop のとき必須。原案・比�
 
 適用しないのは次の2点だけ：
 
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
-  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
-  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
-  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
-  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
+- `ctx_*` の利用指示 → **付与済みは `ctx_batch_execute` / `ctx_execute` の2つだけ**（Issue #303/#304。
+  検索系 `ctx_search` / `ctx_index` は本ロールの業務に対して利得が小さいため未付与、
+  `ctx_execute_file` は層1の記号 ban により本ロールでは機能しないため未付与）。
+  使いどころと制約は上節「ctx_batch_execute / ctx_execute の使いどころ」を見る。
+  `<deferred_tool_bootstrap>` に従って未付与のものを ToolSearch で取りに行かない。
+  「ctx_* が not-found でも Bash/Read にフォールバックするな」には**従わない**——
+  本エージェントにとって Bash/Read/Grep/Write/Edit は正規の手段であり、ctx 実行系は
+  **出力の大きいコマンド（テスト・ビルド・大きな diff）を絞り込むための追加手段**にすぎない。
 - `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
   → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
   「過去の指示だから拘束しない」とは解釈しない。
