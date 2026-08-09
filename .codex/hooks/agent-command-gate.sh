@@ -378,6 +378,56 @@ def trace_event(agent_type, tool_name, decision):
         pass
 
 
+# Issue #340（#308 実装中に実踏）: このフックは末尾で必ず `exit 0` する。よって埋め込み Python が
+# 未捕捉例外で落ちると **stdout が空のまま終わり、呼び出し側からは allow と区別が付かない**
+# ＝内部エラーがそのまま権限ゲートの素通しに化ける。「検査できないものは deny する」という本フックの
+# 他の判断（payload 破損・トークン化失敗・未知 MCP ツール）と揃えるため、未捕捉例外も deny に落とす。
+# try/except ではなく excepthook で受けるのは、既存の判定ロジックを**再インデントせずに**全体を
+# 覆えるため（数百行を囲うと diff が本質の変更を埋めてレビュー不能になる）。
+# 注意: これは `GATED_ROLES` 外ロールの fail-open（2026-07-11 オーナー確定・ヘッダ参照）とは別物。
+# あちらは「判定した上で許可する」設計判断、こちらは「判定しようとして落ちた」場合の話。
+def deny_on_internal_error(exc_type, exc_value, _traceback):
+    deny(
+        f"agent-command-gate: the gate itself failed with {exc_type.__name__}: {exc_value}; "
+        "refusing because the command could not be inspected. This is a bug in the hook, "
+        "not in the command."
+    )
+    try:
+        trace_event(None, None, "deny")
+    except Exception:
+        pass
+
+
+sys.excepthook = deny_on_internal_error
+
+# Issue #340: gated ロールは**ロール別 dict すべて**に登録されていなければならない。1つでも
+# 欠けると該当ロールの判定が KeyError で落ちる（#308 で `GATED_ROLES` にだけ足して踏んだ）。
+# 上の excepthook があれば deny に倒れるが、それは「壊れたまま止まる」であって正しい状態ではない
+# ので、発生源で fail-close する。`PYTHON_MODULES_BY_ROLE` は**意図的に一部ロールだけ**を持つ
+# 上乗せ表（既定は基底集合）なので、この全ロール必須の検査には含めない。
+missing_role_tables = {}
+for gated_role in sorted(GATED_ROLES):
+    absent = [
+        table_name
+        for table_name, table in (
+            ("GITGATE_VERBS_BY_ROLE", GITGATE_VERBS_BY_ROLE),
+            ("GH_SUBCOMMANDS_BY_ROLE", GH_SUBCOMMANDS_BY_ROLE),
+        )
+        if gated_role not in table
+    ]
+    if absent:
+        missing_role_tables[gated_role] = absent
+if missing_role_tables:
+    raise RuntimeError(
+        "gated role(s) are not registered in every role table: "
+        + "; ".join(
+            f"{gated_role} missing from {', '.join(tables)}"
+            for gated_role, tables in sorted(missing_role_tables.items())
+        )
+        + ". Register the role in every table (or drop it from GATED_ROLES)."
+    )
+
+
 try:
     with open(sys.argv[1]) as f:
         payload = json.load(f)

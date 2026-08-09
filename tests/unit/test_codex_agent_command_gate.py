@@ -790,6 +790,72 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 run_gate(payload(role, "gh pr merge 1"))
                 self.assert_denied(run_gate(payload(role, "git status")))
 
+    # ------------------------------------------------------------------
+    # Issue #340: 内部エラーは allow ではなく deny に落ちる（fail-close）
+    # ------------------------------------------------------------------
+    def _hook_copy_with(self, old, new):
+        """フック本体を1箇所だけ書き換えた一時コピーを作り、そのパスを返す。"""
+        original = HOOK.read_text(encoding="utf-8")
+        self.assertIn(old, original, "書き換え対象がフック本体に見つからない（本体側の改名？）")
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        broken = Path(tmpdir) / "agent-command-gate.sh"
+        broken.write_text(original.replace(old, new, 1), encoding="utf-8")
+        broken.chmod(0o755)
+        return broken
+
+    def _run_hook_file(self, hook_path, agent_type, command):
+        return subprocess.run(
+            [str(hook_path)],
+            input=json.dumps(payload(agent_type, command)),
+            text=True,
+            capture_output=True,
+            check=True,
+            env={**os.environ, "AGENT_COMMAND_GATE_TRACE_LOG": ""},
+        )
+
+    def _decision(self, result):
+        self.assertTrue(result.stdout, "内部エラーが stdout 無し（＝allow）で終わっている")
+        return json.loads(result.stdout)["hookSpecificOutput"]
+
+    def test_half_registered_role_denies_instead_of_failing_open(self):
+        # Issue #308 実装中に実際に踏んだ形の再現: GATED_ROLES にだけロールを足し、
+        # GITGATE_VERBS_BY_ROLE への登録を忘れる。以前はこの状態で KeyError が出て
+        # **stdout 空＝allow** になり、そのロールの gitgate/gh 判定がすべて素通ししていた。
+        broken = self._hook_copy_with(
+            '    "issue-fixer": {\n'
+            '        "status", "add", "commit", "push", "branch-current",\n'
+            '        "new-branch", "fetch", "diff", "log",\n'
+            '    },\n',
+            "",
+        )
+        for command in ["python3 -m gitgate push", "gh pr merge 123", "git status"]:
+            with self.subTest(command=command):
+                decision = self._decision(self._run_hook_file(broken, "issue-fixer", command))
+                self.assertEqual(decision["permissionDecision"], "deny")
+        # 起動時の整合検査が発生源を名指しすること（どの表に足せばよいかが分かる）。
+        reason = self._decision(
+            self._run_hook_file(broken, "issue-fixer", "git status")
+        )["permissionDecisionReason"]
+        self.assertIn("GITGATE_VERBS_BY_ROLE", reason)
+        self.assertIn("issue-fixer", reason)
+
+    def test_internal_error_denies_for_non_gated_roles_too(self):
+        # 対象外ロールの「常に許可」は**判定した上での**設計判断（2026-07-11 オーナー確定）。
+        # 判定そのものが壊れている場合はその前提が崩れるので、こちらも deny に倒す。
+        broken = self._hook_copy_with(
+            "tool_input = payload.get(\"tool_input\")",
+            "tool_input = payload.this_attribute_does_not_exist",
+        )
+        decision = self._decision(self._run_hook_file(broken, "main", "ls -la"))
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("gate itself failed", decision["permissionDecisionReason"])
+
+    def test_role_tables_are_consistent_in_the_shipped_hook(self):
+        # 出荷されているフック本体では整合検査が通り、通常の判定が行われる（起動時 deny しない）。
+        self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
+        self.assert_denied(run_gate(payload("issue-fixer", "gh pr merge 1")))
+
     def test_pr_reviewer_denies_push_but_allows_merge(self):
         self.assert_denied(run_gate(payload("pr-reviewer", "git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))
