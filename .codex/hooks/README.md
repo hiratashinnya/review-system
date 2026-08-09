@@ -90,6 +90,18 @@ Design notes:
 - The Claude counterpart (`.claude/hooks/agent-command-gate.sh`) writes the
   same shape of record to `~/.claude/agent-command-gate-trace.log` for parity.
 
+### Codex 0.146.0 Issue-start dispatch tool name
+
+The official Codex manual and `rust-v0.146.0` source define `spawn_agent` as
+the canonical hook tool name and `Agent` as its matcher-only compatibility
+alias. A trusted, interactive Codex CLI 0.146.0 run in a disposable clone
+observed `tool_name: "collaborationspawn_agent"` on PreToolUse stdin for the UI
+`collaboration.spawn_agent` call. The Issue-start matcher therefore exact
+matches only `spawn_agent`, `Agent`, and `collaborationspawn_agent`. The parser
+accepts the canonical and observed stdin names; it does not accept `Agent`, the
+unobserved dotted display name, or similar prefix/suffix tool names as payload
+aliases.
+
 ### Dogfooding results (Issue #188, 2026-07-11, `codex-cli` 0.142.5)
 
 Ran a real, non-interactive `codex exec` session (in a disposable local clone,

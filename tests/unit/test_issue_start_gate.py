@@ -63,6 +63,8 @@ class DispatchPayloadTests(unittest.TestCase):
     def test_codex_and_claude_payloads_share_binding_contract(self):
         raw = request().__dict__
         self.assertEqual(parse_dispatch_payload(self.payload(raw)), request())
+        observed_codex = self.payload(raw, tool="collaborationspawn_agent")
+        self.assertEqual(parse_dispatch_payload(observed_codex), request())
         claude = {"tool_name": "Task", "tool_input": {
             "subagent_type": "issue-implementer",
             "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
@@ -83,6 +85,20 @@ class DispatchPayloadTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 with self.assertRaises(IssueStartError):
                     parse_dispatch_payload(payload)
+
+    def test_alias_dotted_and_similar_tool_names_are_not_payload_aliases(self):
+        for tool_name in (
+            "Agent",
+            "collaboration.spawn_agent",
+            "evil.spawn_agent",
+            "evilspawn_agent",
+            "collaborationspawn_agent_extra",
+            "collaborationspawn_agents",
+        ):
+            with self.subTest(tool_name=tool_name), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_ENTRYPOINT_UNKNOWN"
+            ):
+                parse_dispatch_payload(self.payload(request().__dict__, tool=tool_name))
 
     def test_non_issue_agent_is_explicitly_unmanaged(self):
         self.assertIsNone(parse_dispatch_payload(self.payload(agent="explorer")))

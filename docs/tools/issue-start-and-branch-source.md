@@ -12,6 +12,8 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 `issue_start/managed-entrypoints-v1.json` が保護対象の inventory 正本である。現時点では `issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` を managed とする。dispatch prompt には厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。
 
+公式 Codex manual と CLI source は hook canonical 名を `spawn_agent`、matcher 互換 alias を `Agent` と定義している。一方、Codex CLI 0.146.0 の実 TUI で `collaboration.spawn_agent` を呼んだ PreToolUse stdin は `tool_name: "collaborationspawn_agent"` だった。この版差を閉じるため Codex matcher は3名だけを exact matchし、payload parser は canonical 名と実測名を managed dispatch として受理する。`Agent` は matcher alias であって stdin canonical 名ではないため parser alias にはせず、未観測の `collaboration.spawn_agent` 表記や類似 prefix/suffix 名も受理しない。
+
 PreToolUse hook は次を順に行う。
 
 1. tool / entrypoint / repository / Issue / branch / base の binding を検証する。

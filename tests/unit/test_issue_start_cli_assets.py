@@ -3,6 +3,7 @@
 import io
 import json
 from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 
@@ -46,7 +47,21 @@ class AssetParityTests(unittest.TestCase):
         claude = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
         codex_matchers = {item.get("matcher") for item in codex["hooks"]["PreToolUse"]}
         claude_matchers = {item.get("matcher") for item in claude["hooks"]["PreToolUse"]}
-        self.assertIn("spawn_agent", codex_matchers)
+        codex_dispatch_matcher = next(
+            matcher for matcher in codex_matchers
+            if isinstance(matcher, str) and "spawn_agent" in matcher
+        )
+        for tool_name in ("spawn_agent", "Agent", "collaborationspawn_agent"):
+            with self.subTest(tool_name=tool_name):
+                self.assertIsNotNone(re.fullmatch(codex_dispatch_matcher, tool_name))
+        for similar_name in (
+            "collaboration.spawn_agent",
+            "evilspawn_agent",
+            "collaborationspawn_agent_extra",
+            "collaborationspawn_agents",
+        ):
+            with self.subTest(similar_name=similar_name):
+                self.assertIsNone(re.fullmatch(codex_dispatch_matcher, similar_name))
         self.assertIn("Task", claude_matchers)
         for script in [
             ROOT / ".codex" / "hooks" / "issue-start-gate.sh",

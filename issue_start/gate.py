@@ -31,6 +31,11 @@ _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 _BRANCH = _REF
+_DISPATCH_PAYLOAD_TOOLS = frozenset({
+    "spawn_agent",
+    "collaborationspawn_agent",
+    "Task",
+})
 
 
 class IssueStartError(Exception):
@@ -127,8 +132,7 @@ def parse_dispatch_payload(payload: Mapping[str, Any]) -> IssueStartRequest | No
         raise IssueStartError("ISSUE_START_TARGET_UNKNOWN")
     if agent_type != "issue-implementer":
         return None
-    leaf_tool = tool_name.rsplit(".", 1)[-1]
-    if leaf_tool not in {"spawn_agent", "Task"}:
+    if tool_name not in _DISPATCH_PAYLOAD_TOOLS:
         raise IssueStartError("ISSUE_START_ENTRYPOINT_UNKNOWN", tool_name)
     prompt = tool_input.get("message", tool_input.get("prompt"))
     if not isinstance(prompt, str):
