@@ -213,18 +213,28 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
 ### ctx_* ツールの付与方針（エージェント単位で選定・2026-07-29）
 context-mode の 11 ツールを**一律禁止にはしない**。実測した性質で2群に分け、ロールごとに選ぶ。
 
-- **実行系＝`ctx_execute` / `ctx_execute_file` / `ctx_batch_execute` は全エージェントに付与しない。**
+- **実行系＝`ctx_execute` / `ctx_batch_execute` は「shell 限定」で Bash 保有ロールにのみ付与する
+  （Issue #303 でゲートを拡張・#304 で解禁・2026-08-09）。`ctx_execute_file` は引き続き全ロール未付与。**
   「sandboxed subprocess」はコンテキストのサンドボックスであって**FS のサンドボックスではない**——実測で
   cwd＝プロジェクトルートのままリポジトリ内にファイルを書けた（注入文の "discard the sandbox FS" は実態と異なる）。
-  加えて tool_name が `mcp__plugin_...` になるため **`matcher: "Bash"` で登録した `agent-command-gate.sh` と
-  rtk フックが発火しない**＝`ctx_execute(shell, "git push")` で `pr-reviewer` の push 禁止・
-  `issue-implementer` の merge 禁止を回避できる（context-mode 自身の security check も `git push` を素通しした）。
-  **`.claude/settings.json` の `permissions.deny` も同様に迂回される**——`Bash(python3 -c *)` /
-  `Bash(bash -c *)` / `Bash(eval *)` / `Bash(node -e *)` 等の任意コード実行禁止と
-  `Bash(curl *)` / `Bash(ssh *)` 等の通信禁止は `Bash(...)` パターンで書かれており、MCP ツール呼び出しには当たらない。
-  `ctx_execute` は javascript / shell / python / perl を実行できるので、**この deny リストが丸ごと無効化される**。
-  よって①ゲート管理下ロールでは**実セキュリティ回避**、②Bash 非保有ロールでは**権限昇格**、
-  ③Bash 保有ロールでも「Bash は専用コマンドのみ」等の**明文化された制限を無効化**する。
+  当初（2026-07-29）は tool_name が `mcp__plugin_...` になり **`matcher: "Bash"` の `agent-command-gate.sh` が
+  発火しない**ため全エージェント未付与としていたが、**#303 で同フックを実行系 MCP ツールへ拡張し、
+  ロール別 allowlist（層1〜3）と危険コマンド層を ctx 経路にも適用した**ので、その範囲で解禁した。
+  - **付与先＝主文脈・`issue-implementer`・`pr-reviewer`・`dsv2-lookup`**（いずれも既に Bash を保有）。
+    **Bash 非保有ロール（`spec-inspector` / `asset-auditor` / 各 `*-author` 等）には付与しない**——
+    ゲートが効いても「シェル実行能力の新規付与＝権限昇格」は残るため。
+  - **`language` は `shell` のみ許可**（ゲートが機械的に強制）。非 shell 言語は
+    `<interpreter> -c <code>` と同値で、`permissions.deny` と危険コマンド層が全ロールに対し既に
+    禁じている形。静的検査で安全に扱えない（複数のサブプロセス起動 API・文字列結合・eval で
+    トークン一致を自明に回避できる）ため、コードではなく**言語そのものを allowlist で絞る**。
+  - **gated 2ロール（`issue-implementer` / `pr-reviewer`）は層1〜3 が ctx 経路にもそのまま掛かる**——
+    push/merge の非対称は維持され、**シェル記号（パイプ等）も deny される**。出力の絞り込みは
+    シェル記号ではなく **`ctx_batch_execute` の `queries` / `ctx_execute` の `intent`** で行う。
+    また gated 2ロールは **`cwd` の明示指定が deny**（省略時は context-mode がプロジェクトルートを補う）。
+  - **未知の MCP ツール名・入力形が読めない呼び出しは全 agent_type で fail-close（deny）**。
+    Bash 経路の非ゲートロール fail-open（既存ワークフロー救済の例外）とは意図的に非対称。
+  - **rtk フック（`matcher: "Bash"`）は ctx 経路では依然発火しない**——統制ではなくトークン節約
+    プロキシなので解禁可否には影響しないが、ctx 経由ではその節約が効かないことを認識して使う。
 - **検索系＝`ctx_search` / `ctx_index` は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する。**
   実測でリポジトリ（作業ツリー）へは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
   `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
@@ -237,9 +247,12 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
 - **`ctx_fetch_and_index`（ネットワーク送信）・`ctx_purge`（KB 破壊）・`ctx_insight`（外部ダッシュボード起動）・
   `ctx_upgrade` / `ctx_stats` / `ctx_doctor`（運用系）は subagent に付与しない**——主文脈が扱う。
 
-この方針を変えるとき（例：ゲートを `ctx_execute` にも拡張して実行系を解禁する）は、
-`.claude/hooks/agent-command-gate.sh` の matcher と入力パース（`tool_input.code` / `commands[]`）を
-先に手当てすること。静的検査の限界は Issue #129 と同じ制約を受ける。
+この方針を変えるとき（例：付与先ロールを増やす・`ctx_execute_file` を解禁する・非 shell 言語を通す）は、
+**先に `.claude/hooks/agent-command-gate.sh` 側の統制を手当てし、付与は別 PR にする**——
+付与が先行すると、ゲート未対応の面が素通しになる状態が生まれる（#303→#304 はこの順序で実施した）。
+静的検査の限界は Issue #129 と同じ制約を受ける。**ゲートは sandbox ではない**——
+`agent_type` の詐称・ハーネス外の実行経路・許可されたテストランナー経由の任意コード実行は閉じきれないので、
+プロンプト規律・レビュー分離・GitHub 側のブランチ保護との併用が引き続き前提。
 
 ## 資産のテーラリング運用（A16）
 - プロセスはスキル等で実現するため、**テーラリングの実体は `.claude/` に置く（docs ではない）**。
