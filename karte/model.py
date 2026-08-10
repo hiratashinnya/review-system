@@ -10,8 +10,12 @@
     status: open
     harm: real
     harm_detail: required 属性が消え必須入力が素通りする
-    locus: review_system/forms.py::build_attrs
+    severity: blocker
+    locus: [review_system/forms.py::build_attrs, .codex/forms.toml::build_attrs]
     summary: build_attrs が既存 attrs を破棄している
+    evidence: forms.py:120 を Read。attrs = {...} で辞書を作り直している
+    expected: 既存 attrs を保ったまま追加分だけマージする
+    recheck: required 付きフィールドを描画し required 属性が残ることを確認する
     rounds: [1, 2]
     resolved_round:
 
@@ -56,6 +60,8 @@ FORMAT_VERSION = 1
 
 CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "revert")
 HARM_LEVELS = ("real", "none")
+# 指摘の優先度（``harm`` とは独立の軸。``harm: none`` でも ``severity: major`` はあり得る）。
+SEVERITIES = ("blocker", "major", "minor")
 FINDING_STATUSES = ("open", "resolved")
 OUTCOMES = ("fixed", "partial", "no-change", "regressed")
 
@@ -110,6 +116,25 @@ def check_scalar(value, what: str) -> str:
         if bad in text:
             raise KarteFormatError(f"{what} に改行/NUL は書けない: {text!r}")
     return text.strip()
+
+
+def normalize_locus(value) -> list:
+    """``locus`` をリストへ正規化する（スカラ 1 件でもリストでも受ける）。
+
+    レビューアが 1 箇所しか書かないときに ``[...]`` を強制すると書き味が悪いのでスカラを許し、
+    台帳側は常にリストで持つ（表示・比較の分岐を 1 箇所に閉じる）。空は空リスト＝任意キー。
+
+    **スカラ経路もリスト要素と同じ文字検査を通す**（:data:`FORBIDDEN_LIST_ITEM_CHARS`）。
+    ここを緩めると、角括弧を省いて ``locus: a.md::x, b.toml::x`` と書いたときに 1 要素として
+    受理され、:func:`format_value` が ``[a.md::x, b.toml::x]`` と書き出すので、**台帳を読み直した
+    時点で 2 要素へ静かに割れる**。:func:`is_same_finding` は locus の交差で再発番を判定するため、
+    レポート側（1 要素）と台帳側（2 要素）で照合面がズレ、**同一指摘の再発番を見逃す**方向に効く
+    ——locus を複数化した目的そのものを裏切るので、fail-close で拒否する。
+    """
+    if isinstance(value, (list, tuple)):
+        return check_list(value, "locus")
+    text = check_scalar(value, "locus")
+    return check_list([text], "locus") if text else []
 
 
 def check_list(values, what: str) -> list:
@@ -253,8 +278,24 @@ class Finding:
     status: str = "open"
     harm: str = "real"
     harm_detail: str = ""
-    locus: str = ""
+    severity: str = "major"
+    # ``locus`` は**リスト**（Issue #341 レビュー feedback）。同じ欠陥が対称ミラー
+    # （`.claude/` ↔ `.codex/` 等）の複数ファイルに出る本リポジトリでは、1 箇所しか持てないと
+    # **同一欠陥が複数 finding に分裂**し、未解消件数が水増しされて `status` の
+    # 「同一 finding が N ラウンド連続未解消」判定まで歪む。1 指摘＝1 欠陥のまま複数箇所を指せる。
+    locus: list = field(default_factory=list)
     summary: str = ""
+    # ``evidence``＝そう言える**根拠**（読んだファイル/行・実行したコマンドと結果）。
+    # ``harm_detail``（実害の内容）と混ざると、再レビュー側が「本当に実体で確認したのか」を
+    # 検証できない。`pr-reviewer` の「指摘の根拠は必ず実体で確認する」を書式側で要求する。
+    evidence: str = ""
+    # ``expected`` / ``recheck`` は**ラウンドをまたぐ**情報なので台帳に持つ（Issue #341 F-341-01）。
+    # ``expected``＝どうなっていれば解消か（``issue-fixer`` の Step 1 診断の入力契約）。
+    # ``recheck``＝次ラウンドで何を実行して解消を判定するか（再レビュー側の判定根拠）。
+    # ここに持たないと 2 ラウンド目以降に台帳から復元できず、是正も再検証も
+    # 「レビューアのチャット発言を覚えている」ことに依存してしまう。
+    expected: str = ""
+    recheck: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
 
@@ -421,8 +462,12 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         status=_require_enum(block, "status", FINDING_STATUSES),
         harm=_require_enum(block, "harm", HARM_LEVELS),
         harm_detail=_require_nonempty(block, "harm_detail"),
-        locus=str(block.fields.get("locus", "")).strip(),
+        severity=_require_enum(block, "severity", SEVERITIES),
+        locus=normalize_locus(block.fields.get("locus", "")),
         summary=_require_nonempty(block, "summary"),
+        evidence=_require_nonempty(block, "evidence"),
+        expected=_require_nonempty(block, "expected"),
+        recheck=_require_nonempty(block, "recheck"),
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
     )
@@ -512,8 +557,12 @@ class ReviewFinding:
     finding_id: str | None  # None＝``### new``＝採番を CLI に委ねる
     harm: str
     harm_detail: str
-    locus: str
+    severity: str
+    locus: list
     summary: str
+    evidence: str
+    expected: str
+    recheck: str
     lineno: int
     status: str = "open"          # ``resolved`` と**明示**したときだけ解消（K-06）
     distinct_from: tuple = ()     # 再発番判定を無効化する相手 ID（K-05・ペア限定）
@@ -528,6 +577,18 @@ def parse_review(text: str, issue: int) -> list:
     レポート冒頭の前書き（``# レビュー結果`` とその下の総括文）は無視する。ブロックが
     1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
     ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
+
+    必須キー: ``harm`` / ``harm_detail`` / ``severity`` / ``summary`` / ``evidence`` /
+    ``expected`` / ``recheck``（``locus`` は任意）。``severity`` / ``expected`` / ``recheck`` は
+    Issue #341 F-341-01 で必須化した——``pr-reviewer`` の出力契約が必須と宣言している一方で
+    台帳が持っておらず、2 ラウンド目以降に ``expected``（解消条件）と ``recheck``（再検証手順）を
+    復元できなかった。``evidence`` は同レビューの書式 feedback で追加——「そう言える根拠」を
+    ``harm_detail``（実害の内容）に混ぜると、再レビュー側が実体確認の有無を検証できない。
+
+    ``locus`` は**スカラでもリストでも書ける**（:func:`normalize_locus` が正規化する）。
+    同じ欠陥が対称ミラーの複数ファイルに出るときは ``locus: [a, b]`` と書いて **1 指摘のまま**
+    複数箇所を指す——箇所ごとに finding を割ると未解消件数が水増しされ、``status`` の
+    「同一 finding が N ラウンド連続未解消」判定まで歪む。
 
     任意キー:
       ``status``
@@ -575,8 +636,12 @@ def parse_review(text: str, issue: int) -> list:
                     finding_id=finding_id,
                     harm=_require_enum(block, "harm", HARM_LEVELS),
                     harm_detail=_require_nonempty(block, "harm_detail"),
-                    locus=check_scalar(block.fields.get("locus", ""), "locus"),
+                    severity=_require_enum(block, "severity", SEVERITIES),
+                    locus=normalize_locus(block.fields.get("locus", "")),
                     summary=_require_nonempty(block, "summary"),
+                    evidence=_require_nonempty(block, "evidence"),
+                    expected=_require_nonempty(block, "expected"),
+                    recheck=_require_nonempty(block, "recheck"),
                     lineno=block.lineno,
                     status=_optional_status(block),
                     distinct_from=_parse_distinct_from(block, issue),
@@ -676,17 +741,22 @@ def _jaccard(left: frozenset, right: frozenset) -> float:
     return len(left & right) / len(left | right)
 
 
-def is_same_finding(summary_a: str, locus_a: str, summary_b: str, locus_b: str) -> bool:
+def is_same_finding(summary_a: str, locus_a, summary_b: str, locus_b) -> bool:
     """「同一指摘に新しい ID を振り直した」かどうかの決定論判定。
 
     2 つの独立した信号の OR:
       * 要約の正規化文字列が完全一致（locus は問わない＝一字一句の再掲）。
-      * locus が一致し、かつ要約の文字 n-gram Jaccard 係数が閾値以上
+      * locus が**交差**し、かつ要約の文字 n-gram Jaccard 係数が閾値以上
         （言い換え・付記つきの再掲）。
 
-    locus 一致を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
+    locus の交差を必須にしているのは、同じ箇所への**別の**指摘（例「docstring が古い」）を
     誤って同一視しないため——文字 n-gram だけで判定を回すと、短い要約同士が偶然似ただけで
     再発番と誤検出し、レビューアが正当な新規指摘を挙げられなくなる。
+
+    ``locus`` は複数箇所を持てる（Issue #341 レビュー feedback）ので、完全一致ではなく
+    **1 箇所でも共通なら同じ箇所とみなす**（``targets`` の交差判定と同じ考え方）。
+    完全一致にすると、前ラウンドで 1 箇所だけ直してミラー側が残った再掲を「別物」と誤判定し、
+    再発番を見逃す。
 
     それでも残る偽陽性（同一 locus に出た短い別指摘同士が閾値を超える）には、レビュー
     レポート側の ``distinct_from``（K-05）で**名指ししたペアだけ**判定を外せる。閾値
@@ -695,7 +765,9 @@ def is_same_finding(summary_a: str, locus_a: str, summary_b: str, locus_b: str) 
     """
     if normalize_text(summary_a) and normalize_text(summary_a) == normalize_text(summary_b):
         return True
-    if normalize_text(locus_a) and normalize_text(locus_a) == normalize_text(locus_b):
+    set_a = {normalize_text(item) for item in normalize_locus(locus_a) if normalize_text(item)}
+    set_b = {normalize_text(item) for item in normalize_locus(locus_b) if normalize_text(item)}
+    if set_a & set_b:
         return (
             _jaccard(shingles(summary_a), shingles(summary_b))
             >= DUPLICATE_SIMILARITY_THRESHOLD
@@ -715,8 +787,12 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "status", finding.status)
     _emit(lines, "harm", finding.harm)
     _emit(lines, "harm_detail", finding.harm_detail)
+    _emit(lines, "severity", finding.severity)
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
+    _emit(lines, "evidence", finding.evidence)
+    _emit(lines, "expected", finding.expected)
+    _emit(lines, "recheck", finding.recheck)
     _emit(lines, "rounds", finding.rounds)
     _emit(lines, "resolved_round", "" if finding.resolved_round is None else finding.resolved_round)
     return "\n".join(lines) + "\n"
