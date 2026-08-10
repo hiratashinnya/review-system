@@ -93,6 +93,17 @@ def _reevaluation_error(result: Mapping[str, Any]) -> dict[str, Any]:
 
 def _evidence(operation: MergeOperation, result: Mapping[str, Any]) -> dict[str, Any]:
     allowed = result["result"] == "ALLOW" and result["permit_issued"] is True
+    result_binding = result.get("binding")
+    binding = dict(result_binding) if isinstance(result_binding, dict) else {}
+    binding.update(
+        {
+            "repository": operation.repository,
+            "pr_number": operation.pr_number,
+            "merge_method": operation.merge_method,
+            "transport": operation.transport,
+            "operation_fingerprint": operation.operation_fingerprint,
+        }
+    )
     return {
         "schema_version": "pr-merge-evidence/1",
         "policy_version": PR_MERGE_POLICY_VERSION,
@@ -100,13 +111,13 @@ def _evidence(operation: MergeOperation, result: Mapping[str, Any]) -> dict[str,
         "exit_code": result["exit_code"],
         "reason": result["primary_reason"],
         "fetched_at": result["fetched_at"],
-        "binding": {
-            "repository": operation.repository,
-            "pr_number": operation.pr_number,
-            "merge_method": operation.merge_method,
-            "transport": operation.transport,
-            "operation_fingerprint": operation.operation_fingerprint,
-        },
+        "binding": binding,
+        "graphql_closing_set": list(result.get("graphql_closing_set", [])),
+        "delivered_message_closing_set": list(
+            result.get("delivered_message_closing_set", [])
+        ),
+        "closing_set": list(result.get("closing_set", [])),
+        "findings": list(result.get("findings", [])),
         "blocker_evidence": dict(result),
         "permit_issued": allowed,
         "merge_api_called": False,
@@ -165,6 +176,10 @@ def fail_closed(
             "transport": operation.transport if operation else None,
             "operation_fingerprint": classification_fingerprint,
         },
+        "graphql_closing_set": [],
+        "delivered_message_closing_set": [],
+        "closing_set": [],
+        "findings": [],
         "blocker_evidence": None,
         "permit_issued": False,
         "merge_api_called": False,

@@ -16,7 +16,7 @@ class ClosingReferenceTests(unittest.TestCase):
     def test_parser_canonicalizes_local_qualified_and_url_references(self):
         actual = parse_closing_references(
             [
-                "Fixes #7, closes Example/Repo#8.\nResolved https://github.com/example/repo/issues/9!"
+                "Fixes: #7, closes : Example/Repo#8.\nResolved:https://github.com/example/repo/issues/9!"
             ],
             "example/repo",
         )
@@ -26,7 +26,7 @@ class ClosingReferenceTests(unittest.TestCase):
         self.assertEqual(parse_closing_references(["fixes performance"], "example/repo"), ())
         for message, reason in (
             ("fixes #0", "CLOSING_KEYWORD_PARSE"),
-            ("closes other/repo#1", "CROSS_REPOSITORY_UNSUPPORTED"),
+            ("closes: other/repo#1", "CROSS_REPOSITORY_UNSUPPORTED"),
         ):
             with self.subTest(message=message), self.assertRaises(ClosingReferenceError) as caught:
                 parse_closing_references([message], "example/repo")
@@ -42,27 +42,27 @@ class DeliveredMessageTests(unittest.TestCase):
             pr_title="PR title",
             pr_body="PR body",
             head_label="owner:topic",
-            commits=[commit("a" * 40, "fixes #7")],
+            commits=[commit("a" * 40, "fixes: #7")],
             settings={"merge_commit_title": "MERGE_MESSAGE", "merge_commit_message": "PR_BODY"},
             commit_title=None,
             commit_message=None,
         )
         self.assertEqual(
             bundle.messages,
-            ("fixes #7", "Merge pull request #50 from owner:topic\n\nPR body"),
+            ("fixes: #7", "Merge pull request #50 from owner:topic\n\nPR body"),
         )
         self.assertTrue(bundle.message_source_fingerprint.startswith("sha256:"))
         self.assertTrue(bundle.delivered_message_fingerprint.startswith("sha256:"))
 
     def test_rebase_drops_originally_empty_commit_and_rejects_override(self):
-        kept = commit("a" * 40, "fixes #7", tree="3" * 40, parent_tree="2" * 40)
-        empty = commit("b" * 40, "fixes #8", tree="4" * 40, parent_tree="4" * 40)
+        kept = commit("a" * 40, "fixes: #7", tree="3" * 40, parent_tree="2" * 40)
+        empty = commit("b" * 40, "fixes: #8", tree="4" * 40, parent_tree="4" * 40)
         bundle = build_delivered_messages(
             repository="example/repo", number=50, merge_method="rebase",
             pr_title="p", pr_body="", head_label="o:h", commits=[kept, empty],
             settings=None, commit_title=None, commit_message=None,
         )
-        self.assertEqual(bundle.messages, ("fixes #7",))
+        self.assertEqual(bundle.messages, ("fixes: #7",))
         with self.assertRaises(ClosingReferenceError) as caught:
             build_delivered_messages(
                 repository="example/repo", number=50, merge_method="rebase",
@@ -72,7 +72,7 @@ class DeliveredMessageTests(unittest.TestCase):
         self.assertEqual(caught.exception.reason, "MERGE_OVERRIDE_AMBIGUOUS")
 
     def test_squash_uses_only_the_effective_squash_message(self):
-        source = commit("a" * 40, "fixes #7")
+        source = commit("a" * 40, "fixes: #7")
         bundle = build_delivered_messages(
             repository="example/repo", number=50, merge_method="squash",
             pr_title="title", pr_body="no closing reference", head_label="o:h",

@@ -246,12 +246,13 @@ keyword   = "close" | "closes" | "closed"
 reference = "#" positive_integer
           | owner "/" repository "#" positive_integer
           | "https://github.com/" owner "/" repository "/issues/" positive_integer ;
-clause    = keyword, 1*WSP, reference ;
+separator = 1*WSP | *WSP, ":", *WSP ;
+clause    = keyword, separator, reference ;
 ```
 
-- keyword は ASCII word boundary で始まり、reference の直後は whitespace、句読点、行末のいずれかでなければならない。
+- keyword は ASCII word boundary で始まり、GitHub が受理する空白またはコロン区切り（例: `Closes: #10`）を経て reference を置く。reference の直後は whitespace、句読点、行末のいずれかでなければならない。
 - `#0`、leading sign、小数、範囲、変数、短縮 URL、`pull/` URL、GitHub 以外の URL は reference ではない。
-- keyword の直後の非空白 token が `#`、`owner/repository#`、`https://github.com/.../issues/` で始まるにもかかわらず grammar を満たさない場合は `ERROR/CLOSING_KEYWORD_PARSE` とする。単なる自然文の “fixes performance” は closing clause ではなく error にしない。
+- separator の直後の非空白 token が `#`、`owner/repository#`、`https://github.com/.../issues/` で始まるにもかかわらず grammar を満たさない場合は `ERROR/CLOSING_KEYWORD_PARSE` とする。単なる自然文の “fixes performance” は closing clause ではなく error にしない。
 - parser は全出現を収集する。同じ Issue の重複は canonical identity で除去する。
 - unqualified `#N` は対象 PR と同じ repository に束縛する。qualified reference が別 repository を指す場合は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` とする。
 - source commitまたは生成messageが欠落、切り詰め、decode不能、pagination未完走なら `ERROR/MESSAGE_SOURCE_INCOMPLETE` とする。

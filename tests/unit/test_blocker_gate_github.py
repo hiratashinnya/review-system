@@ -499,7 +499,7 @@ class GitHubCollectorTests(unittest.TestCase):
                         {
                             "sha": "1" * 40,
                             "commit": {
-                                "message": "Fixes #7",
+                                "message": "Fixes: #7",
                                 "tree": {"sha": "2" * 40},
                             },
                             "parents": [],

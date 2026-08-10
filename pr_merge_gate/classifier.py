@@ -19,7 +19,20 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-_SHELL_CONTROL = re.compile(r"[\n\r;&|<>`] |\$\(|[{}]", re.VERBOSE)
+CLASSIFIER_VERSION = "1.1"
+_GH_NON_MERGE_COMMANDS = frozenset(
+    {
+        "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
+        "release", "repo", "run", "search", "secret", "ssh-key", "status", "variable",
+        "workflow",
+    }
+)
+_GH_NON_MERGE_PR_COMMANDS = frozenset(
+    {
+        "checks", "checkout", "close", "comment", "create", "diff", "edit", "list", "lock",
+        "ready", "reopen", "review", "status", "unlock", "update-branch", "view",
+    }
+)
 _CONNECTOR_MERGE = frozenset(
     {
         "github_merge_pull_request",
@@ -129,6 +142,37 @@ def _unwrap(tokens: list[str]) -> tuple[list[str], list[str]]:
         elif wrapper in {"command", "builtin", "exec"} and remaining and remaining[0] == "--":
             remaining.pop(0)
     return remaining, wrappers
+
+
+def _has_shell_control(command: str) -> bool:
+    """引用内を除くshell制御構文を検出する。"""
+    quote: str | None = None
+    escaped = False
+    for index, character in enumerate(command):
+        if escaped:
+            escaped = False
+            continue
+        if quote == "'":
+            if character == "'":
+                quote = None
+            continue
+        if character == "\\":
+            escaped = True
+            continue
+        if quote == '"':
+            if character == '"':
+                quote = None
+            elif character in {"`", "$"}:
+                return True
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            continue
+        if character in "\n\r;&|<>(){}`":
+            return True
+        if character == "$" and index + 1 < len(command) and command[index + 1] == "(":
+            return True
+    return quote is not None or escaped
 
 
 def _gh_prefix(tokens: list[str]) -> tuple[list[str], str | None]:
@@ -364,22 +408,40 @@ def classify_pre_use(
     command = tool_input.get("command")
     if not isinstance(command, str):
         return _error("CLASSIFIER_UNKNOWN", tool_input)
-    potential = (
-        bool(re.search(r"\bgh\b", command))
-        and bool(re.search(r"(?:\bpr\s+merge\b|/pulls/[^\s]+/merge\b|mergePullRequest|AutoMerge)", command, re.I))
-    )
-    if not potential:
-        return None
-    if _SHELL_CONTROL.search(command):
-        return _error("CLASSIFIER_UNKNOWN", command)
     try:
         tokens = shlex.split(command, posix=True)
     except ValueError:
         return _error("CLASSIFIER_UNKNOWN", command)
     remaining, wrappers = _unwrap(tokens)
-    if not remaining or remaining[0] != "gh":
+    if not remaining:
+        return None
+    if remaining[0] != "gh":
+        if "gh" not in remaining:
+            return None
+        return _error("CLASSIFIER_UNKNOWN", command)
+    if remaining in (["gh", "--version"], ["gh", "--help"], ["gh", "help"], ["gh", "version"]):
+        return None
+    try:
+        subcommand, _ = _gh_prefix(list(remaining))
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if not subcommand:
+        return None
+    is_merge_candidate = (
+        subcommand[0] == "api"
+        or subcommand[:2] == ["pr", "merge"]
+        or subcommand[0] not in _GH_NON_MERGE_COMMANDS | {"pr"}
+        or subcommand[0] == "pr" and (len(subcommand) < 2 or subcommand[1] not in _GH_NON_MERGE_PR_COMMANDS)
+    )
+    if not is_merge_candidate:
+        return None
+    if _has_shell_control(command):
         return _error("CLASSIFIER_UNKNOWN", command)
     rest = _rest_operation(list(remaining), wrappers)
     if rest is not None:
         return rest
+    if subcommand[0] == "api":
+        return None
+    if subcommand[:2] != ["pr", "merge"]:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
     return _cli_operation(payload, list(remaining), wrappers, cwd=cwd, runner=runner)

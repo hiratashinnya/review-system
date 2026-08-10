@@ -35,6 +35,37 @@ class PreUseClassifierTests(unittest.TestCase):
                 classified = classify_pre_use(bash(command))
                 self.assertEqual((classified.kind, classified.reason), (kind, reason))
 
+    def test_token_normalization_closes_quote_escape_and_endpoint_bypasses(self):
+        cases = (
+            'gh -R example/repo pr "merge" 12 --squash',
+            "gh -R example/repo pr mer\\ge 12 --squash",
+            'gh api -X PUT repos/example/repo/pulls/12/mer""ge -f merge_method=squash',
+        )
+        for command in cases:
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertEqual(classified.kind, "merge")
+
+    def test_unknown_alias_wrapper_and_merge_like_extension_fail_close(self):
+        cases = (
+            "gh alias exec land pr merge 12 --squash",
+            "custom-wrapper gh -R example/repo pr merge 12 --squash",
+            "gh extension exec land example/repo#12",
+        )
+        for command in cases:
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+    def test_quoted_shell_punctuation_does_not_create_a_false_bypass(self):
+        classified = classify_pre_use(
+            bash('gh -R example/repo pr merge 12 --squash --body "text; still one arg"')
+        )
+        self.assertEqual(classified.kind, "merge")
+
     def test_rest_merge_endpoint_and_connector_are_bound(self):
         rest = classify_pre_use(
             bash(

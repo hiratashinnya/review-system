@@ -10,9 +10,10 @@ from .model import fingerprint
 
 
 _KEYWORD = re.compile(
-    r"(?<![A-Za-z0-9_])(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\b[ \t]+",
+    r"(?<![A-Za-z0-9_])(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\b",
     re.ASCII | re.IGNORECASE,
 )
+_KEYWORD_SEPARATOR = re.compile(r"(?:\s*:\s*|\s+)")
 _LOCAL_REF = re.compile(r"#([1-9][0-9]*)$")
 _QUALIFIED_REF = re.compile(
     r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)#([1-9][0-9]*)$"
@@ -59,6 +60,10 @@ def parse_closing_references(messages: Sequence[str], repository: str) -> tuple[
     for message in messages:
         for match in _KEYWORD.finditer(message):
             tail = message[match.end():]
+            separator = _KEYWORD_SEPARATOR.match(tail)
+            if separator is None:
+                continue
+            tail = tail[separator.end():]
             raw = re.match(r"\S+", tail)
             if raw is None:
                 continue
