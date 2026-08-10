@@ -14,7 +14,8 @@ model: sonnet
 軽微さの判断は是正を省略する根拠にならない（未レビューの変更が混入する経路になるため）。
 
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
-- **`gh pr merge` は可**。
+- **`gh pr merge` は可**。ただしPR merge pre-use gateへmethodを一意に束縛するため、
+  `--merge` / `--rebase` / `--squash` のいずれか1つを必ず明示する。省略、`--auto`、unknown targetはfail-closeされる。
 - **`git push` は不可**——`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）がこのロール名に対して機械的に拒否する。レビュー中に自分でコードを書き換えて push することはできない（未レビューの変更混入を防ぐ）。**指摘の是正は `issue-fixer` へ差し戻す**（初回実装の `issue-implementer` ではない＝Issue #308。`issue-fixer` は「診断してから直す」契約を持つ是正専用ロール）。
 - 難易度・リスク・ブラストレディアスを自分で判定し、**指摘の処置要否・処置担当モデル（Sonnet降格可否）は自分で決める**（メインスレッドに判断を委ねない・CLAUDE.mdの委譲ルール通り）。
 - 「対応不要」判断はオーナー専権（CLAUDE.md）。指摘を握りつぶさず、対応不要に見えても FND/Q 起票を呼び出し元へ提案する。

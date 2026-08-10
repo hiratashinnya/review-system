@@ -183,9 +183,10 @@ def _binding(snapshot: Snapshot) -> dict[str, Any]:
             "snapshot_fingerprint": fingerprint(_snapshot_graph(snapshot)),
             "attempt": 1,
         }
-    if set(snapshot.binding) != keys:
+    optional_preconditions = {"pr_state", "pr_is_draft"}
+    if set(snapshot.binding) not in {frozenset(keys), frozenset(keys | optional_preconditions)}:
         raise ValueError("PR binding keys mismatch")
-    value = dict(snapshot.binding)
+    value = {key: snapshot.binding[key] for key in keys}
     value["snapshot_fingerprint"] = fingerprint(_snapshot_graph(snapshot))
     return value
 
@@ -323,6 +324,18 @@ def evaluate_snapshot(
                 errors.append("RELATION_TARGET_UNREADABLE")
             elif root.state is not IssueClass.OPEN:
                 findings.append(Finding("TARGET_ISSUE_NOT_OPEN", root_ref, (root_ref,)))
+        else:
+            state = snapshot.binding.get("pr_state")
+            is_draft = snapshot.binding.get("pr_is_draft")
+            pr_ref = f"{snapshot.repository}#{snapshot.subject_number}"
+            if state is not None and state != "OPEN":
+                findings.append(Finding("PR_NOT_OPEN", pr_ref, (pr_ref,)))
+            if is_draft is True:
+                findings.append(Finding("PR_DRAFT", pr_ref, (pr_ref,)))
+            if state is not None and state not in {"OPEN", "CLOSED", "MERGED"}:
+                errors.append("API_PARTIAL_RESPONSE")
+            if is_draft is not None and not isinstance(is_draft, bool):
+                errors.append("API_PARTIAL_RESPONSE")
         findings.extend(
             evaluate_dependencies(snapshot.nodes, snapshot.roots, snapshot.virtual_closed)
         )

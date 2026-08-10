@@ -1,0 +1,385 @@
+"""Managed merge tool input の closed classifier。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import re
+import shlex
+import subprocess
+from typing import Any, Callable, Literal, Mapping, Sequence, cast
+
+from blocker_gate.model import fingerprint
+
+
+_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+_HTTPS_REMOTE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$")
+_SSH_REMOTE = re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$")
+_OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+_REST_MERGE = re.compile(
+    r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
+)
+_SHELL_CONTROL = re.compile(r"[\n\r;&|<>`] |\$\(|[{}]", re.VERBOSE)
+_CONNECTOR_MERGE = frozenset(
+    {
+        "github_merge_pull_request",
+        "mcp__github__merge_pull_request",
+        "mcp__codex_apps__github_merge_pull_request",
+    }
+)
+_CONNECTOR_AUTO = frozenset(
+    {
+        "github_enable_auto_merge",
+        "mcp__github__enable_auto_merge",
+        "mcp__github__enable_pull_request_auto_merge",
+        "mcp__codex_apps__github_enable_auto_merge",
+    }
+)
+
+
+@dataclass(frozen=True)
+class MergeOperation:
+    """同じ intercepted invocation に束縛した即時merge操作。"""
+
+    repository: str
+    pr_number: int
+    merge_method: Literal["merge", "rebase", "squash"]
+    transport: Literal["cli-direct", "cli-wrapped", "rest", "connector"]
+    commit_title: str | None
+    commit_message: str | None
+    expected_head_oid: str | None
+    operation_fingerprint: str
+
+
+@dataclass(frozen=True)
+class PreUseClassification:
+    """closed classifier の merge/block/error 結果。"""
+
+    kind: Literal["merge", "block", "error"]
+    reason: str
+    operation: MergeOperation | None
+    operation_fingerprint: str
+
+
+def _error(reason: str, raw: Any) -> PreUseClassification:
+    return PreUseClassification("error", reason, None, fingerprint({"raw": raw}))
+
+
+def _block(reason: str, raw: Any) -> PreUseClassification:
+    return PreUseClassification("block", reason, None, fingerprint({"raw": raw}))
+
+
+def _canonical_repository(value: str) -> str:
+    if not _REPOSITORY.fullmatch(value) or value.endswith(".git"):
+        raise ValueError("repository")
+    return value
+
+
+def repository_from_cwd(
+    payload: Mapping[str, Any],
+    *,
+    cwd: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> str:
+    """hook payloadのcwdとexact worktree originからcanonical repositoryを得る。"""
+    payload_cwd = payload.get("cwd")
+    if not isinstance(payload_cwd, str) or not Path(payload_cwd).is_absolute():
+        raise ValueError("cwd")
+    try:
+        payload_root = Path(payload_cwd).resolve(strict=True)
+        hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("cwd") from exc
+    if payload_root != hook_root or not hook_root.is_dir():
+        raise ValueError("cwd")
+
+    def run_git(argv: Sequence[str]) -> str:
+        try:
+            completed = runner(
+                list(argv), cwd=str(hook_root), text=True, capture_output=True, shell=False
+            )
+        except OSError as exc:
+            raise ValueError("git") from exc
+        output = completed.stdout
+        if completed.returncode != 0 or not isinstance(output, str) or "\0" in output:
+            raise ValueError("git")
+        output = output.rstrip("\n")
+        if "\n" in output or "\r" in output:
+            raise ValueError("git")
+        return output
+
+    if run_git(["git", "rev-parse", "--show-toplevel"]) != str(hook_root):
+        raise ValueError("worktree")
+    remote = run_git(["git", "remote", "get-url", "origin"])
+    for pattern in (_HTTPS_REMOTE, _SSH_REMOTE):
+        match = pattern.fullmatch(remote)
+        if match is not None:
+            return _canonical_repository(f"{match.group(1)}/{match.group(2)}")
+    raise ValueError("origin")
+
+
+def _unwrap(tokens: list[str]) -> tuple[list[str], list[str]]:
+    wrappers: list[str] = []
+    remaining = list(tokens)
+    while remaining and remaining[0] in {"rtk", "command", "builtin", "exec"}:
+        wrapper = remaining.pop(0)
+        wrappers.append(wrapper)
+        if wrapper == "rtk" and remaining and remaining[0] == "proxy":
+            wrappers.append(remaining.pop(0))
+        elif wrapper in {"command", "builtin", "exec"} and remaining and remaining[0] == "--":
+            remaining.pop(0)
+    return remaining, wrappers
+
+
+def _gh_prefix(tokens: list[str]) -> tuple[list[str], str | None]:
+    if not tokens or tokens.pop(0) != "gh":
+        raise ValueError("gh")
+    repository: str | None = None
+    while tokens and tokens[0].startswith("-"):
+        token = tokens.pop(0)
+        if token in {"-R", "--repo"}:
+            if not tokens or repository is not None:
+                raise ValueError("repo")
+            repository = _canonical_repository(tokens.pop(0))
+        elif token.startswith("--repo=") and repository is None:
+            repository = _canonical_repository(token.split("=", 1)[1])
+        else:
+            raise ValueError("global flag")
+    return tokens, repository
+
+
+def _cli_operation(
+    payload: Mapping[str, Any], tokens: list[str], wrappers: list[str], *, cwd: Path | None,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> PreUseClassification:
+    try:
+        remaining, repository = _gh_prefix(tokens)
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", tokens)
+    if len(remaining) < 2 or remaining[:2] != ["pr", "merge"]:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    args = remaining[2:]
+    if "--auto" in args:
+        return _block("AUTO_MERGE_DENIED", args)
+    methods: list[str] = []
+    pr_number: int | None = None
+    title: str | None = None
+    message: str | None = None
+    expected: str | None = None
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in {"--merge", "--rebase", "--squash"}:
+            methods.append(token[2:])
+            index += 1
+            continue
+        if token in {"--delete-branch"}:
+            index += 1
+            continue
+        value_flags = {
+            "--subject": "title", "-s": "title", "--body": "message", "-b": "message",
+            "--match-head-commit": "expected", "-R": "repository", "--repo": "repository",
+        }
+        field = value_flags.get(token)
+        if field is not None:
+            if index + 1 >= len(args):
+                return _error("CLASSIFIER_UNKNOWN", args)
+            value = args[index + 1]
+            if field == "title" and title is None:
+                title = value
+            elif field == "message" and message is None:
+                message = value
+            elif field == "expected" and expected is None and _OID.fullmatch(value):
+                expected = value
+            elif field == "repository" and repository is None:
+                try:
+                    repository = _canonical_repository(value)
+                except ValueError:
+                    return _error("TARGET_AMBIGUOUS", args)
+            else:
+                return _error("CLASSIFIER_UNKNOWN", args)
+            index += 2
+            continue
+        if token.startswith("--repo=") and repository is None:
+            try:
+                repository = _canonical_repository(token.split("=", 1)[1])
+            except ValueError:
+                return _error("TARGET_AMBIGUOUS", args)
+            index += 1
+            continue
+        if token.startswith("-"):
+            return _error("CLASSIFIER_UNKNOWN", args)
+        if pr_number is not None or not re.fullmatch(r"[1-9][0-9]*", token):
+            return _error("TARGET_AMBIGUOUS", args)
+        pr_number = int(token)
+        index += 1
+    if pr_number is None or len(methods) != 1:
+        return _error("MERGE_METHOD_UNKNOWN" if pr_number is not None else "TARGET_AMBIGUOUS", args)
+    merge_method = cast(Literal["merge", "rebase", "squash"], methods[0])
+    if repository is None:
+        try:
+            repository = repository_from_cwd(payload, cwd=cwd, runner=runner)
+        except ValueError:
+            return _error("TARGET_AMBIGUOUS", args)
+    raw_operation = {
+        "repository": repository, "pr_number": pr_number, "merge_method": merge_method,
+        "transport": "cli-wrapped" if wrappers else "cli-direct", "wrappers": wrappers,
+        "commit_title": title, "commit_message": message, "expected_head_oid": expected,
+    }
+    operation_fp = fingerprint(raw_operation)
+    operation = MergeOperation(
+        repository, pr_number, merge_method, raw_operation["transport"], title, message,
+        expected, operation_fp,
+    )
+    return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
+
+
+def _rest_operation(tokens: list[str], wrappers: list[str]) -> PreUseClassification | None:
+    try:
+        remaining, _ = _gh_prefix(tokens)
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", tokens)
+    if not remaining or remaining.pop(0) != "api":
+        return None
+    endpoint: str | None = None
+    method = "GET"
+    fields: dict[str, str] = {}
+    index = 0
+    while index < len(remaining):
+        token = remaining[index]
+        if token in {"-X", "--method"} and index + 1 < len(remaining):
+            method = remaining[index + 1].upper()
+            index += 2
+        elif token.startswith("--method="):
+            method = token.split("=", 1)[1].upper()
+            index += 1
+        elif token in {"-f", "--raw-field", "-F", "--field"} and index + 1 < len(remaining):
+            raw = remaining[index + 1]
+            if "=" not in raw:
+                return _error("CLASSIFIER_UNKNOWN", remaining)
+            key, value = raw.split("=", 1)
+            if key in fields:
+                return _error("CLASSIFIER_UNKNOWN", remaining)
+            fields[key] = value
+            index += 2
+        elif token.startswith("-"):
+            return _error("CLASSIFIER_UNKNOWN", remaining)
+        elif endpoint is None:
+            endpoint = token
+            index += 1
+        else:
+            return _error("CLASSIFIER_UNKNOWN", remaining)
+    query = fields.get("query", "")
+    if "enablePullRequestAutoMerge" in query:
+        return _block("AUTO_MERGE_DENIED", remaining)
+    if "mergePullRequest" in query:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if endpoint is None:
+        return None
+    match = _REST_MERGE.fullmatch(endpoint)
+    if match is None:
+        return _error("CLASSIFIER_UNKNOWN", remaining) if "merge" in endpoint.casefold() else None
+    if method != "PUT":
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if set(fields) - {"merge_method", "commit_title", "commit_message", "sha"}:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    merge_method = fields.get("merge_method")
+    if merge_method not in {"merge", "rebase", "squash"}:
+        return _error("MERGE_METHOD_UNKNOWN", remaining)
+    merge_method = cast(Literal["merge", "rebase", "squash"], merge_method)
+    expected = fields.get("sha")
+    if expected is not None and not _OID.fullmatch(expected):
+        return _error("IDENTITY_MISMATCH", remaining)
+    repository = f"{match.group(1)}/{match.group(2)}"
+    raw_operation = {
+        "repository": repository, "pr_number": int(match.group(3)),
+        "merge_method": merge_method, "transport": "rest", "wrappers": wrappers,
+        "commit_title": fields.get("commit_title"),
+        "commit_message": fields.get("commit_message"), "expected_head_oid": expected,
+    }
+    operation_fp = fingerprint(raw_operation)
+    operation = MergeOperation(
+        repository, int(match.group(3)), merge_method, "rest",
+        fields.get("commit_title"), fields.get("commit_message"), expected, operation_fp,
+    )
+    return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
+
+
+def _connector_operation(tool_name: str, tool_input: Mapping[str, Any]) -> PreUseClassification:
+    if tool_name in _CONNECTOR_AUTO:
+        return _block("AUTO_MERGE_DENIED", {"tool_name": tool_name, "tool_input": tool_input})
+    expected_keys = {
+        "repository_full_name", "pr_number", "merge_method", "commit_title",
+        "commit_message", "expected_head_sha",
+    }
+    if set(tool_input) - expected_keys:
+        return _error("CLASSIFIER_UNKNOWN", tool_input)
+    repository = tool_input.get("repository_full_name")
+    number = tool_input.get("pr_number")
+    method = tool_input.get("merge_method")
+    title = tool_input.get("commit_title")
+    message = tool_input.get("commit_message")
+    expected = tool_input.get("expected_head_sha")
+    try:
+        repository = _canonical_repository(repository) if isinstance(repository, str) else ""
+    except ValueError:
+        repository = ""
+    if not repository or isinstance(number, bool) or not isinstance(number, int) or number < 1:
+        return _error("TARGET_AMBIGUOUS", tool_input)
+    if method not in {"merge", "rebase", "squash"}:
+        return _error("MERGE_METHOD_UNKNOWN", tool_input)
+    if title is not None and not isinstance(title, str) or message is not None and not isinstance(message, str):
+        return _error("MERGE_OVERRIDE_AMBIGUOUS", tool_input)
+    if expected is not None and (not isinstance(expected, str) or not _OID.fullmatch(expected)):
+        return _error("IDENTITY_MISMATCH", tool_input)
+    raw_operation = {
+        "repository": repository, "pr_number": number, "merge_method": method,
+        "transport": "connector", "commit_title": title, "commit_message": message,
+        "expected_head_oid": expected,
+    }
+    operation_fp = fingerprint(raw_operation)
+    operation = MergeOperation(
+        repository, number, method, "connector", title, message, expected, operation_fp
+    )
+    return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
+
+
+def classify_pre_use(
+    payload: Mapping[str, Any],
+    *,
+    cwd: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> PreUseClassification | None:
+    """Codex/Claude PreToolUse payloadを分類し、非mergeだけNoneで通過させる。"""
+    tool_name = payload.get("tool_name")
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_name, str) or not isinstance(tool_input, dict):
+        return _error("CLASSIFIER_UNKNOWN", payload)
+    if tool_name in _CONNECTOR_MERGE | _CONNECTOR_AUTO:
+        return _connector_operation(tool_name, tool_input)
+    if "merge" in tool_name.casefold() and tool_name.startswith(("mcp__", "github_")):
+        return _error("CLASSIFIER_UNKNOWN", {"tool_name": tool_name})
+    if tool_name not in {"Bash", "bash"}:
+        return None
+    command = tool_input.get("command")
+    if not isinstance(command, str):
+        return _error("CLASSIFIER_UNKNOWN", tool_input)
+    potential = (
+        bool(re.search(r"\bgh\b", command))
+        and bool(re.search(r"(?:\bpr\s+merge\b|/pulls/[^\s]+/merge\b|mergePullRequest|AutoMerge)", command, re.I))
+    )
+    if not potential:
+        return None
+    if _SHELL_CONTROL.search(command):
+        return _error("CLASSIFIER_UNKNOWN", command)
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", command)
+    remaining, wrappers = _unwrap(tokens)
+    if not remaining or remaining[0] != "gh":
+        return _error("CLASSIFIER_UNKNOWN", command)
+    rest = _rest_operation(list(remaining), wrappers)
+    if rest is not None:
+        return rest
+    return _cli_operation(payload, list(remaining), wrappers, cwd=cwd, runner=runner)

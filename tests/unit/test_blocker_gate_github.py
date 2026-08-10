@@ -51,6 +51,10 @@ def pr_page(**overrides):
         "isDraft": False,
         "headRefOid": "0" * 40,
         "baseRefName": "release",
+        "title": "PR title",
+        "body": "",
+        "headRefName": "topic",
+        "headRepositoryOwner": {"login": "example"},
         "closingIssuesReferences": {
             "nodes": [],
             "pageInfo": {"hasNextPage": False, "endCursor": None},
@@ -476,6 +480,56 @@ class GitHubCollectorTests(unittest.TestCase):
                     self.assertEqual(
                         collection.errors, ("API_PARTIAL_RESPONSE",)
                     )
+
+    def test_default_branch_uses_commit_only_closing_reference(self):
+        api = "https://api.github.com/repos/example/repo"
+        transport = GraphQLTransport([pr_page(baseRefName="main")])
+        transport.responses.update(
+            {
+                api: response(
+                    {
+                        "full_name": "example/repo",
+                        "node_id": "R1",
+                        "squash_merge_commit_title": "PR_TITLE",
+                        "squash_merge_commit_message": "COMMIT_MESSAGES",
+                    }
+                ),
+                api + "/pulls/50/commits?per_page=100": response(
+                    [
+                        {
+                            "sha": "1" * 40,
+                            "commit": {
+                                "message": "Fixes #7",
+                                "tree": {"sha": "2" * 40},
+                            },
+                            "parents": [],
+                        }
+                    ]
+                ),
+                api + "/issues/7": response(
+                    {
+                        "number": 7,
+                        "node_id": "I7",
+                        "state": "open",
+                        "state_reason": None,
+                        "parent_issue_url": None,
+                        "repository_url": api,
+                    }
+                ),
+                api + "/issues/7/dependencies/blocked_by?per_page=100": response([]),
+                api + "/issues/7/sub_issues?per_page=100": response([]),
+            }
+        )
+
+        snapshot = GitHubCollector(None, transport).collect_pull_request(
+            "example/repo", 50, "squash"
+        )
+        result = evaluate_snapshot(snapshot)
+
+        self.assertEqual(snapshot["graphql_closing_set"], [])
+        self.assertEqual(snapshot["delivered_message_closing_set"], ["example/repo#7"])
+        self.assertEqual(snapshot["roots"], ["example/repo#7"])
+        self.assertEqual(result["result"], "ALLOW")
 
 
 if __name__ == "__main__":
