@@ -103,6 +103,7 @@ class HookTest(unittest.TestCase):
             self.assertIn("AUTO_MERGE_DENIED", decision["hookSpecificOutput"]["permissionDecisionReason"])
             self.assertEqual(record["reason"], "AUTO_MERGE_DENIED")
             self.assertFalse(record["merge_api_called"])
+            self.assertFalse(record["operation_dispatched"])
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
 
     def test_allow_is_audited_to_stderr_without_tool_result_mutation(self):
@@ -169,7 +170,9 @@ class HookTest(unittest.TestCase):
         self.assertEqual(post_stdout.getvalue(), "")
         self.assertEqual([item["record_type"] for item in records], ["pre_use_decision", "post_use_completion"])
         self.assertFalse(records[0]["merge_api_called"])
+        self.assertFalse(records[0]["operation_dispatched"])
         self.assertTrue(records[1]["merge_api_called"])
+        self.assertTrue(records[1]["operation_dispatched"])
         self.assertEqual(records[0]["invocation_id"], records[1]["invocation_id"])
         self.assertEqual(records[1]["response_outcome"], "success")
 

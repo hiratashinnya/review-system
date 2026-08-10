@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import shlex
+import stat
 import subprocess
 from typing import Any, Callable, Literal, Mapping, Sequence, cast
 
@@ -19,7 +20,9 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.1"
+CLASSIFIER_VERSION = "1.2"
+_MAX_GRAPHQL_QUERY_BYTES = 1_048_576
+_SAFE_NON_GH_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
@@ -33,6 +36,7 @@ _GH_NON_MERGE_PR_COMMANDS = frozenset(
         "ready", "reopen", "review", "status", "unlock", "update-branch", "view",
     }
 )
+_SAFE_ALIAS_FLAGS = frozenset({"--shell"})
 _CONNECTOR_MERGE = frozenset(
     {
         "github_merge_pull_request",
@@ -175,6 +179,60 @@ def _has_shell_control(command: str) -> bool:
     return quote is not None or escaped
 
 
+def _known_safe_gh_shape(tokens: list[str]) -> bool:
+    if len(tokens) >= 2 and tokens[:2] == ["alias", "list"]:
+        return all(token in _SAFE_ALIAS_FLAGS for token in tokens[2:])
+    if tokens in (["extension", "list"], ["extension", "list", "--help"]):
+        return True
+    return False
+
+
+def _unknown_executable_merge_shape(tokens: list[str]) -> bool:
+    if not tokens or tokens[0] in _SAFE_NON_GH_EXECUTABLES:
+        return False
+    if any(tokens[index:index + 2] == ["pr", "merge"] for index in range(1, len(tokens) - 1)):
+        return True
+    if len(tokens) > 2 and tokens[1] == "api":
+        tail = " ".join(tokens[2:]).casefold()
+        return any(marker in tail for marker in ("/pulls/", "graphql", "mergepullrequest", "automerge"))
+    return False
+
+
+def _read_graphql_query_file(
+    reference: str, payload: Mapping[str, Any], *, cwd: Path | None,
+) -> str:
+    if not reference.startswith("@") or reference == "@-":
+        raise ValueError("graphql query source")
+    raw_path = reference[1:]
+    if not raw_path or any(marker in raw_path for marker in ("$", "`", "\0")):
+        raise ValueError("graphql query source")
+    payload_cwd = payload.get("cwd")
+    if not isinstance(payload_cwd, str) or not Path(payload_cwd).is_absolute():
+        raise ValueError("graphql cwd")
+    try:
+        root = Path(payload_cwd).resolve(strict=True)
+        hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
+        if root != hook_root:
+            raise ValueError("graphql cwd")
+        candidate = root / raw_path
+        info = candidate.lstat()
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(root)
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+            raise ValueError("graphql query file")
+        if info.st_size > _MAX_GRAPHQL_QUERY_BYTES:
+            raise ValueError("graphql query file")
+        query = resolved.read_text(encoding="utf-8")
+        after = resolved.stat()
+    except (OSError, RuntimeError, UnicodeDecodeError) as exc:
+        raise ValueError("graphql query file") from exc
+    if (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns) != (
+        after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
+    ) or "\0" in query:
+        raise ValueError("graphql query file")
+    return query
+
+
 def _gh_prefix(tokens: list[str]) -> tuple[list[str], str | None]:
     if not tokens or tokens.pop(0) != "gh":
         raise ValueError("gh")
@@ -278,7 +336,9 @@ def _cli_operation(
     return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
 
 
-def _rest_operation(tokens: list[str], wrappers: list[str]) -> PreUseClassification | None:
+def _rest_operation(
+    payload: Mapping[str, Any], tokens: list[str], wrappers: list[str], *, cwd: Path | None,
+) -> PreUseClassification | None:
     try:
         remaining, _ = _gh_prefix(tokens)
     except ValueError:
@@ -288,6 +348,7 @@ def _rest_operation(tokens: list[str], wrappers: list[str]) -> PreUseClassificat
     endpoint: str | None = None
     method = "GET"
     fields: dict[str, str] = {}
+    typed_fields: set[str] = set()
     index = 0
     while index < len(remaining):
         token = remaining[index]
@@ -305,6 +366,8 @@ def _rest_operation(tokens: list[str], wrappers: list[str]) -> PreUseClassificat
             if key in fields:
                 return _error("CLASSIFIER_UNKNOWN", remaining)
             fields[key] = value
+            if token in {"-F", "--field"}:
+                typed_fields.add(key)
             index += 2
         elif token.startswith("-"):
             return _error("CLASSIFIER_UNKNOWN", remaining)
@@ -314,6 +377,16 @@ def _rest_operation(tokens: list[str], wrappers: list[str]) -> PreUseClassificat
         else:
             return _error("CLASSIFIER_UNKNOWN", remaining)
     query = fields.get("query", "")
+    if endpoint == "graphql" and "query" in typed_fields and query.startswith("@"):
+        try:
+            file_query = _read_graphql_query_file(query, payload, cwd=cwd)
+        except ValueError:
+            return _error("CLASSIFIER_UNKNOWN", remaining)
+        if "enablePullRequestAutoMerge" in file_query:
+            return _block("AUTO_MERGE_DENIED", remaining)
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if endpoint == "graphql" and re.fullmatch(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", query):
+        return _error("CLASSIFIER_UNKNOWN", remaining)
     if "enablePullRequestAutoMerge" in query:
         return _block("AUTO_MERGE_DENIED", remaining)
     if "mergePullRequest" in query:
@@ -416,9 +489,9 @@ def classify_pre_use(
     if not remaining:
         return None
     if remaining[0] != "gh":
-        if "gh" not in remaining:
-            return None
-        return _error("CLASSIFIER_UNKNOWN", command)
+        if "gh" in remaining or _unknown_executable_merge_shape(remaining):
+            return _error("CLASSIFIER_UNKNOWN", command)
+        return None
     if remaining in (["gh", "--version"], ["gh", "--help"], ["gh", "help"], ["gh", "version"]):
         return None
     try:
@@ -426,6 +499,8 @@ def classify_pre_use(
     except ValueError:
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if not subcommand:
+        return None
+    if _known_safe_gh_shape(subcommand):
         return None
     is_merge_candidate = (
         subcommand[0] == "api"
@@ -437,7 +512,7 @@ def classify_pre_use(
         return None
     if _has_shell_control(command):
         return _error("CLASSIFIER_UNKNOWN", command)
-    rest = _rest_operation(list(remaining), wrappers)
+    rest = _rest_operation(payload, list(remaining), wrappers, cwd=cwd)
     if rest is not None:
         return rest
     if subcommand[0] == "api":

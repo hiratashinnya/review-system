@@ -13,10 +13,12 @@ Claude でも project hook 設定を有効化し、表示された project hook 
 1. GitHub Actionsを参照・起動せず、対象worktreeでClaude/Codexの新規sessionを開始する。
 2. hook一覧で、PR merge matcherに対する `PreToolUse` と `PostToolUse` が同じ `pr-merge-gate.sh` を指すことを確認する。
 3. 副作用のない probe として managed auto-merge enable toolを呼び出す。`AUTO_MERGE_DENIED` でtool実行前に拒否されなければfailとする。
-4. audit JSONLの最新 `pre_use_decision` に、現在の `hook_asset_hash`、`hook_event_id`、`classifier_version` があり、`merge_api_called=false` であることを確認する。
-5. 実mergeは通常のレビュー・承認後だけ行う。`ALLOW` のpre recordと同じ `invocation_id` / `operation_fingerprint`を持つ `post_use_completion` が一件あり、`merge_api_called=true` とredacted `response_fingerprint`が記録されることを確認する。
+4. audit JSONLの最新 `pre_use_decision` に、現在の `hook_asset_hash`、`hook_event_id`、`classifier_version` があり、`operation_dispatched=false`、`merge_api_called=false` であることを確認する。
+5. 実mergeは通常のレビュー・承認後だけ行う。`ALLOW` のpre recordと同じ `invocation_id` / `operation_fingerprint`を持つ `post_use_completion` が一件あり、`operation_dispatched=true` とredacted `response_fingerprint`が記録されることを確認する。`merge_api_called=true` はconnectorの明示的な `merged=true` responseでAPI到達を証明できた場合だけである。CLI/RESTの終了コード、connector失敗、未知responseでは `null`（`NOT_PROVEN`）が正しく、Postへ到達した事実だけからAPI呼出し済みと解釈しない。
 
 probeの結果、hook failure、audit書込み失敗、Pre/Post相関欠落、未知alias/wrapper、新しいmerge connectorのいずれかを検出した環境はfail-close扱いとし、managed mergeを実行しない。
+
+file-backed GraphQL（`-F query=@file` / `@-` / `--input`）は、hookの検査後にGitHub CLIが再読する内容へpermitを束縛できないためfail-closeである。未知実行名に続く `pr merge` / merge相当APIもfail-closeにし、known-safeな `gh alias list` / `gh extension list` と、`echo`等の明確な非merge形だけをgate対象外にする。
 
 ## 証跡判定
 

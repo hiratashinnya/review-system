@@ -11,7 +11,7 @@ from pr_merge_gate.audit import AuditError, append_completion, append_decision, 
 def evidence() -> dict:
     return {
         "policy_version": "pr-merge-pre-use/1",
-        "classifier_version": "1.1",
+        "classifier_version": "1.2",
         "hook_asset_hash": "sha256:" + "9" * 64,
         "hook_event_id": "tool-1",
         "invocation_id": "invocation-1",
@@ -65,12 +65,13 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(target.parent.stat().st_mode), 0o700)
             self.assertEqual(record["reason"], "BLOCKER_VIOLATION")
             self.assertFalse(record["merge_api_called"])
+            self.assertFalse(record["operation_dispatched"])
             self.assertEqual(record["head_oid"], "a" * 40)
             self.assertEqual(record["base_ref_name"], "main")
             self.assertEqual(record["default_branch"], "main")
             self.assertEqual(record["closing_set"], ["example/repo#7", "example/repo#8"])
             self.assertEqual(record["dependency_paths"], [["example/repo#7", "example/repo#6"]])
-            self.assertEqual(record["classifier_version"], "1.1")
+            self.assertEqual(record["classifier_version"], "1.2")
             self.assertEqual(record["hook_event_id"], "tool-1")
             serialized = json.dumps(record)
             self.assertNotIn("secret", serialized)
@@ -86,23 +87,67 @@ class AuditTest(unittest.TestCase):
             append_completion(
                 invocation_id="invocation-1", hook_event_id="tool-1",
                 operation_fingerprint="sha256:" + "1" * 64,
-                classifier_version="1.1", asset_hash="sha256:" + "9" * 64,
+                classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
                 tool_name="github_merge_pull_request",
-                tool_response={"merged": True, "message": "sensitive-response"},
+                tool_response={
+                    "structuredContent": {
+                        "result": {"merged": True, "message": "sensitive-response"}
+                    }
+                },
                 path=target,
             )
             records = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
             self.assertEqual(records[1]["record_type"], "post_use_completion")
             self.assertTrue(records[1]["merge_api_called"])
+            self.assertTrue(records[1]["operation_dispatched"])
             self.assertEqual(records[1]["response_outcome"], "success")
             self.assertNotIn("sensitive-response", json.dumps(records[1]))
             with self.assertRaises(AuditError):
                 append_completion(
                     invocation_id="missing", hook_event_id="tool-2",
                     operation_fingerprint="sha256:" + "1" * 64,
-                    classifier_version="1.1", asset_hash="sha256:" + "9" * 64,
+                    classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
                     tool_name="github_merge_pull_request", tool_response={}, path=target,
                 )
+
+    def test_completion_does_not_infer_api_call_from_cli_or_failed_connector(self):
+        cases = (
+            ("cli-direct", {"exit_code": 0}, "success"),
+            ("cli-wrapped", {"exit_code": 2}, "failure"),
+            ("rest", {"exit_code": 1}, "failure"),
+            ("connector", {"isError": True}, "failure"),
+            ("connector", {"merged": False}, "failure"),
+            ("connector", {"message": "result shape unknown"}, "unknown"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            for index, (transport, response, outcome) in enumerate(cases, start=1):
+                allowed = evidence()
+                allowed["result"] = "ALLOW"
+                allowed["permit_issued"] = True
+                allowed["invocation_id"] = f"invocation-{index}"
+                allowed["binding"]["transport"] = transport
+                allowed["binding"]["operation_fingerprint"] = "sha256:" + str(index) * 64
+                append_decision(allowed, path=target)
+                append_completion(
+                    invocation_id=f"invocation-{index}", hook_event_id=f"tool-{index}",
+                    operation_fingerprint="sha256:" + str(index) * 64,
+                    classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
+                    tool_name=(
+                        "github_merge_pull_request" if transport == "connector" else "Bash"
+                    ),
+                    tool_response=response, path=target,
+                )
+            completions = [
+                json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()
+                if '"post_use_completion"' in line
+            ]
+        self.assertEqual(len(completions), len(cases))
+        for completion, (_, _, outcome) in zip(completions, cases):
+            self.assertTrue(completion["operation_dispatched"])
+            self.assertIsNone(completion["merge_api_called"])
+            self.assertEqual(completion["merge_api_call_evidence"], "NOT_PROVEN")
+            self.assertEqual(completion["response_outcome"], outcome)
 
     def test_append_rejects_preexisting_file_with_unsafe_mode(self):
         with tempfile.TemporaryDirectory() as directory:

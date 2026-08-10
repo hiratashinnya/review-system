@@ -6,8 +6,11 @@ from pathlib import Path
 from pr_merge_gate.classifier import classify_pre_use, repository_from_cwd
 
 
-def bash(command):
-    return {"tool_name": "Bash", "tool_input": {"command": command}}
+def bash(command, cwd=None):
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+    if cwd is not None:
+        payload["cwd"] = str(cwd)
+    return payload
 
 
 class PreUseClassifierTests(unittest.TestCase):
@@ -59,6 +62,65 @@ class PreUseClassifierTests(unittest.TestCase):
                     (classified.kind, classified.reason),
                     ("error", "CLASSIFIER_UNKNOWN"),
                 )
+
+    def test_dynamic_alias_merge_shape_fails_closed_but_clear_nonmerge_passes(self):
+        for command in (
+            "$GH pr merge 12 --squash",
+            "g pr merge 12 --squash",
+            "g -R example/repo pr merge 12 --rebase",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+        self.assertIsNone(classify_pre_use(bash("echo pr merge")))
+        self.assertIsNone(classify_pre_use(bash("git status")))
+
+    def test_known_safe_alias_and_extension_list_shapes_are_not_merge(self):
+        for command in (
+            "gh alias list",
+            "gh alias list --shell",
+            "gh extension list",
+            "gh extension list --help",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+        self.assertEqual(classify_pre_use(bash("gh alias exec land")).kind, "error")
+        self.assertEqual(classify_pre_use(bash("gh extension exec land")).kind, "error")
+
+    def test_graphql_inline_file_and_indirection_bypass_corpus_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "merge.graphql").write_text(
+                "mutation { mergePullRequest(input: {}) { clientMutationId } }",
+                encoding="utf-8",
+            )
+            cases = (
+                "gh api graphql -F query=@merge.graphql -F pullRequestId=PR_ID",
+                "gh api graphql -F 'query=@merge.graphql' -F mergeMethod=SQUASH",
+                'gh api graphql -F query=@mer""ge.graphql',
+                "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+                "gh api graphql -F query=@-",
+                "gh api graphql -F query=@missing.graphql",
+                "gh api graphql -F 'query=$QUERY'",
+                "gh api graphql --input payload.json",
+            )
+            for command in cases:
+                with self.subTest(command=command):
+                    classified = classify_pre_use(bash(command, root), cwd=root)
+                    self.assertEqual(classified.kind, "error")
+                    self.assertEqual(classified.reason, "CLASSIFIER_UNKNOWN")
+
+            (root / "auto.graphql").write_text(
+                "mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }",
+                encoding="utf-8",
+            )
+            auto = classify_pre_use(
+                bash("gh api graphql -F query=@auto.graphql", root), cwd=root
+            )
+            self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
 
     def test_quoted_shell_punctuation_does_not_create_a_false_bypass(self):
         classified = classify_pre_use(

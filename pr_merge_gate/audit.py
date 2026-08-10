@@ -109,7 +109,7 @@ def append_decision(
     findings = evidence.get("findings")
     safe_findings = findings if isinstance(findings, list) else []
     record = {
-        "schema_version": "pr-merge-audit/2",
+        "schema_version": "pr-merge-audit/3",
         "record_type": "pre_use_decision",
         "policy_version": evidence.get("policy_version"),
         "classifier_version": evidence.get("classifier_version"),
@@ -137,6 +137,7 @@ def append_decision(
             if isinstance(item, dict) and isinstance(item.get("path"), list)
         ],
         "permit_issued": evidence.get("permit_issued") is True,
+        "operation_dispatched": False,
         "merge_api_called": False,
         "next_action": evidence.get("next_action"),
     }
@@ -169,16 +170,37 @@ def append_completion(
             raise AuditError("pre-use permit missing")
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AuditError(str(exc)) from exc
-    outcome = "observed"
+    outcome = "unknown"
+    explicit_merged: bool | None = None
     if isinstance(tool_response, dict):
-        if tool_response.get("isError") is True:
-            outcome = "error"
+        response_is_error = tool_response.get("isError") is True
+        if response_is_error:
+            outcome = "failure"
         elif isinstance(tool_response.get("exit_code"), int):
-            outcome = "success" if tool_response["exit_code"] == 0 else "error"
-        elif isinstance(tool_response.get("merged"), bool):
-            outcome = "success" if tool_response["merged"] else "error"
+            outcome = "success" if tool_response["exit_code"] == 0 else "failure"
+        result = tool_response.get("result")
+        structured = tool_response.get("structuredContent")
+        candidates = [tool_response]
+        if isinstance(result, dict):
+            candidates.append(result)
+        if isinstance(structured, dict):
+            candidates.append(structured)
+            nested = structured.get("result")
+            if isinstance(nested, dict):
+                candidates.append(nested)
+        if not response_is_error:
+            for candidate in candidates:
+                if isinstance(candidate.get("merged"), bool):
+                    explicit_merged = candidate["merged"]
+                    outcome = "success" if explicit_merged else "failure"
+                    break
+    api_called = (
+        True
+        if permit.get("transport") == "connector" and explicit_merged is True
+        else None
+    )
     record = {
-        "schema_version": "pr-merge-audit/2",
+        "schema_version": "pr-merge-audit/3",
         "record_type": "post_use_completion",
         "policy_version": permit.get("policy_version"),
         "classifier_version": classifier_version,
@@ -194,7 +216,11 @@ def append_completion(
         "response_fingerprint": fingerprint({"tool_response": tool_response}),
         "response_outcome": outcome,
         "permit_issued": True,
-        "merge_api_called": True,
+        "operation_dispatched": True,
+        "merge_api_called": api_called,
+        "merge_api_call_evidence": (
+            "CONNECTOR_MERGED_TRUE" if api_called is True else "NOT_PROVEN"
+        ),
         "next_action": "MERGE_RESPONSE_RECORDED",
     }
     _append_record(record, target)
