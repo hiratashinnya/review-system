@@ -162,10 +162,17 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   `approved <= now < expires` で wall clock 比較する同種のフィクスチャは検査対象外のまま残った）。
   **「絶対日付・固定 epoch は書くな」ではない**——テストの再現性のためにこれらを使うこと自体は正当。
   問題は「wall clock と比較される形で使うのに、その wall clock を制御し忘れる」こと。
-- **下限比較は対象外（誤検出させない）**：例えば `fetched_at`（過去の固定値）が実行時の実時刻から
-  常に導出される値（`completed_at` 等）より**小さい**ことだけを検証する下限比較は、時間経過で
-  壊れる方向がない（固定された過去の値が、進み続ける現在時刻を追い越すことはない）ため対象外。
-  本規律が対象とするのは、**期限・上限側**（`expires_at`/`valid_until`/`deadline` 等）の比較。
+- **対象は上限・下限どちらの境界値も含む（向きではなく「反転しうるか」で決まる）**：
+  `expires_at`/`valid_until`/`deadline`/`not_after`/`resets_at` のような期限・上限側だけでなく、
+  `approved_at`/`not_before` のような窓の開始・下限側も本規律の対象。理由は上限/下限という
+  向きではなく、「authoring 時点で値を wall clock の反対側に置いた場合、時間経過で比較結果が
+  反転しうるか」で決まる——`approved <= now` 型の比較でも、`approved_at` を意図的に未来日にして
+  「まだ承認されていない」を表す fixture を書けば、`expires_at` が過去に転じて壊れるのと対称に、
+  時間経過で `False`→`True` に反転しうる（`blocker_gate/waiver.py:301` の
+  `approved <= now < expires` が両側とも wall clock 比較の対象）。
+  **対象外なのは、値が wall clock と一切比較されない場合に限る**：例えば `fetched_at`
+  （過去の固定値）が同一スナップショット内の他の固定値（`completed_at` 等）とだけ比較される
+  内部整合性チェックは、どちらも wall clock を読まないため時間経過で壊れる方向がない。
 - **機械検査**：`time_fixture_lint`（`python3 -m time_fixture_lint check`）が
   `tests/fixtures/**`・`tests/unit/*.py` を対象フィールド語彙（期限・上限を示唆する語だけに絞り、
   `created_at`/`fetched_at` 等の inert な語は含めない——単純な日付 grep がもたらす大量誤検出を避ける

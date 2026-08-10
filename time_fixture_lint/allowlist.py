@@ -46,6 +46,46 @@ ALLOWLIST: tuple[AllowlistEntry, ...] = (
             "渡されるだけで、real wall clock を読む経路には一切乗らない自己完結ペア。"
         ),
     ),
+    AllowlistEntry(
+        path="tests/fixtures/blocker_gate/schema_only_waiver.yml",
+        name="approved_at",
+        reason=(
+            "WaiverParserTests（test_blocker_gate_waiver.py）が parse_waiver_yaml() の"
+            "schema 解析のみを検証するために使う fixture（#349・F-344-01 是正で"
+            "waiver_valid.yml から分離）。parse_waiver_yaml は文字列をそのまま返すだけで"
+            "verify_waiver（blocker_gate/waiver.py:301 の approved <= now < expires という"
+            "wall clock 比較）を一切呼ばないため、値は不透明な文字列のまま扱われ real clock"
+            "に触れる経路が無い。wall clock 比較を実際に行うテストは waiver_valid.yml を"
+            "使う WaiverVerifierTests（setUp で now= 注入により保護済み）。"
+        ),
+    ),
+    AllowlistEntry(
+        path="tests/fixtures/blocker_gate/schema_only_waiver.yml",
+        name="expires_at",
+        reason=(
+            "上記 approved_at と同じ fixture・同じ理由（parse_waiver_yaml の schema 解析のみ"
+            "で消費され、verify_waiver の wall clock 比較には一切乗らない）。"
+        ),
+    ),
+    AllowlistEntry(
+        path="tests/fixtures/blocker_gate/waiver_unknown_key.yml",
+        name="approved_at",
+        reason=(
+            "test_blocker_gate_waiver.py::WaiverParserTests."
+            "test_unknown_key_and_duplicate_key_are_schema_error が parse_waiver_yaml() の"
+            "スキーマ拒否（未知キー）だけを検証するために使う fixture。parse_waiver_yaml は"
+            "wall clock を一切読まないため verify_waiver の比較経路に乗らない（schema_only_waiver.yml"
+            "の approved_at/expires_at と同じ理由）。"
+        ),
+    ),
+    AllowlistEntry(
+        path="tests/fixtures/blocker_gate/waiver_unknown_key.yml",
+        name="expires_at",
+        reason=(
+            "上記 approved_at と同じ fixture・同じ理由（schema 拒否テストのみで消費され、"
+            "verify_waiver の wall clock 比較には一切乗らない）。"
+        ),
+    ),
 )
 
 

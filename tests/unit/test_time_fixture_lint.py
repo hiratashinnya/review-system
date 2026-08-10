@@ -136,6 +136,143 @@ class ScannerSyntheticTests(unittest.TestCase):
         self.assertEqual(found.reason, entry.reason)
         self.assertIsNone(is_allowlisted(entry.path, "totally-different-name"))
 
+    # --- PR #349 是正: F-344-01（保護判定のスコープ化） ------------------------------
+
+    def test_unrelated_patch_in_separate_function_does_not_protect(self):
+        # clock と無関係な patch() が「別の」テスト関数にあるだけで保護済みと誤判定しないこと
+        # （#339 と同クラスの再武装を再現する評価回帰・F-344-01 の evidence 相当）。
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.yml",
+            'expires_at: "2026-01-08T00:00:00Z"\n',
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_waiver.py",
+            "from unittest.mock import patch\n"
+            "def test_x():\n"
+            "    load('waiver.yml')\n"
+            "\n"
+            "def test_unrelated():\n"
+            "    with patch('widget.cli.resolve_token'):\n"
+            "        pass\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].status, "violation")
+
+    def test_unrelated_patch_in_same_function_does_not_protect(self):
+        # clock と無関係な patch() が「同じ」関数内にあっても、対象文字列が clock 関連語を
+        # 含まなければ保護済みとみなさない（PROTECTION_MARKER_RE の対象語彙narrowing）。
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.yml",
+            'expires_at: "2026-01-08T00:00:00Z"\n',
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_waiver.py",
+            "from unittest.mock import patch\n"
+            "def test_x():\n"
+            "    with patch('widget.cli.resolve_token'):\n"
+            "        load('waiver.yml')\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].status, "violation")
+
+    def test_fixture_and_clock_patch_split_across_local_helpers_is_protected(self):
+        # test_blocker_gate_contract_cli.py の waiver_material()/evaluate_during_waiver_validity()
+        # パターン（fixture を読むヘルパーと clock を patch するヘルパーが別関数）を合成再現し、
+        # 呼び出しグラフの無向連結成分により正しく protected と判定されることを確認する。
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.yml",
+            'expires_at: "2026-01-08T00:00:00Z"\n',
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_waiver.py",
+            "from unittest.mock import patch\n"
+            "def build_material():\n"
+            "    return load('waiver.yml')\n"
+            "\n"
+            "def evaluate_with_clock(material):\n"
+            "    with patch('widget.resolver.datetime') as clock:\n"
+            "        return use(material)\n"
+            "\n"
+            "def test_x():\n"
+            "    material = build_material()\n"
+            "    evaluate_with_clock(material)\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(report.violations, [])
+        statuses = {f.status for f in report.findings}
+        self.assertEqual(statuses, {"protected"})
+
+    def test_python_literal_protected_only_within_its_own_function_scope(self):
+        # scan_python_literals も同じスコープ化の対象（F-344-01 の残存事例）。
+        # 保護マーカーが「別の」関数にあるだけでは保護済みと判定しない。
+        _write(
+            self.root,
+            "tests/unit/test_widget_literal.py",
+            "from unittest.mock import patch\n"
+            "def test_unprotected():\n"
+            '    payload = {"expires_at": "2026-01-08T00:00:00Z"}\n'
+            "    assert payload\n"
+            "\n"
+            "def test_other_protected():\n"
+            "    with patch('widget.resolver.datetime'):\n"
+            "        pass\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].name, "expires_at")
+
+    # --- PR #349 是正: F-344-03（引用符・1行インライン JSON） ------------------------
+
+    def test_single_quoted_yaml_value_unprotected_is_violation(self):
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.yml",
+            "expires_at: '2026-01-08T00:00:00Z'\n",
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_waiver.py",
+            "def test_x():\n    load('waiver.yml')\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].name, "expires_at")
+
+    def test_one_line_inline_json_python_literal_unprotected_is_violation(self):
+        _write(
+            self.root,
+            "tests/unit/test_widget_inline_json.py",
+            "def test_x():\n"
+            '    payload = {"id": "abc", "expires_at": "2026-01-08T00:00:00Z"}\n'
+            "    assert payload\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].name, "expires_at")
+
+    def test_fixture_json_one_line_inline_object_unprotected_is_violation(self):
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.json",
+            '{"id": "abc", "expires_at": "2026-01-08T00:00:00Z"}\n',
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_waiver_json.py",
+            "def test_x():\n    load('waiver.json')\n",
+        )
+        report = scan(self.root)
+        self.assertEqual(len(report.violations), 1)
+        self.assertEqual(report.violations[0].name, "expires_at")
+
 
 class RealRepoRegressionTests(unittest.TestCase):
     """このリポジトリ実物に対する回帰ゲート。allowlist で明示されていない限り violation は0件。"""
@@ -152,10 +289,19 @@ class RealRepoRegressionTests(unittest.TestCase):
             )
 
     def test_known_waiver_fixture_is_protected_not_allowlisted(self):
-        # waiver_valid.yml/waiver_expired.yml は clock 保護（mock.patch/now=注入）で守られて
-        # いるべきで、allowlist で誤魔化していないことを明示的に確認する（Issue #344 の中心事例）。
+        # blocker_gate の waiver fixture のうち、実際に clock 比較を行うテスト
+        # （WaiverVerifierTests・setUp で now= 注入により保護済み）が消費する2種は、
+        # allowlist で誤魔化さず "protected" になっているべきことを明示的に確認する
+        # （Issue #344 の中心事例）。対象ファイル名はここでは断片から組み立てる——
+        # このメソッドの source text に対象名をリテラルで書くと、time_fixture_lint 自身の
+        # 素朴な substring 一致による「参照テスト」判定に、このテストファイル自身が
+        # ヒットしてしまうため（PR #349・F-344-01 是正で保護判定がファイル全文検索から
+        # 参照箇所スコープへ絞られたことで顕在化した自己参照アーティファクト。
+        # schema_only_waiver.yml を切り出した理由の変種）。
+        name_prefix, name_suffixes, name_ext = "waiver_", ("valid", "expired"), ".yml"
+        target_names = {name_prefix + suffix + name_ext for suffix in name_suffixes}
         report = scan(REPO_ROOT)
-        waiver_hits = [f for f in report.findings if "waiver_valid.yml" in f.path or "waiver_expired.yml" in f.path]
+        waiver_hits = [f for f in report.findings if any(name in f.path for name in target_names)]
         self.assertTrue(waiver_hits, "waiver fixtures should have been scanned")
         for f in waiver_hits:
             self.assertEqual(f.status, "protected", f"{f.path}:{f.line} should be protected, got {f.status}")
