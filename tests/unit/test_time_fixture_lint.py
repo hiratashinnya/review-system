@@ -229,6 +229,44 @@ class ScannerSyntheticTests(unittest.TestCase):
         self.assertEqual(len(report.violations), 1)
         self.assertEqual(report.violations[0].name, "expires_at")
 
+    def test_shared_test_utility_helper_masks_unrelated_methods_known_limitation(self):
+        # README「Known residual limitations」を pin する回帰テスト（advisor 指摘）。
+        # 局所呼び出しグラフは無向・ファイル内一律のため、汎用ユーティリティ関数
+        # （assertion wrapper・setup shim 等、本ファイル自身の _write() もその一種）を
+        # 複数のテストメソッドが共有していると、そのうち1つが clock 保護マーカーを持つだけで
+        # 無関係な他のメソッドも同じ連結成分に入り "protected" と誤判定される。
+        # これは意図的に受容している既知の限界であり（call-site 単位のデータフロー解析が
+        # 必要で本ツールの静的解析の範囲を超える）、fixture 共有パターンでは fixture 分離
+        # （schema_only_waiver.yml と同じ対処）で回避する。挙動を prose だけでなくテストで
+        # 固定し、再レビューで「見落とし」ではなく「開示済みの限界」と判断できるようにする。
+        _write(
+            self.root,
+            "tests/fixtures/widget/waiver.yml",
+            'expires_at: "2026-01-08T00:00:00Z"\n',
+        )
+        _write(
+            self.root,
+            "tests/unit/test_widget_hub.py",
+            "from unittest.mock import patch\n"
+            "def helper():\n"
+            "    pass\n"
+            "\n"
+            "def test_unprotected_via_hub():\n"
+            "    helper()\n"
+            "    load('waiver.yml')\n"
+            "\n"
+            "def test_protected_via_hub():\n"
+            "    helper()\n"
+            "    with patch('widget.resolver.datetime'):\n"
+            "        pass\n",
+        )
+        report = scan(self.root)
+        # 既知の限界：test_unprotected_via_hub 自身は clock 保護マーカーを持たないが、
+        # helper() を介して test_protected_via_hub と無向連結するため protected と判定される。
+        self.assertEqual(report.violations, [])
+        statuses = {f.status for f in report.findings}
+        self.assertEqual(statuses, {"protected"})
+
     # --- PR #349 是正: F-344-03（引用符・1行インライン JSON） ------------------------
 
     def test_single_quoted_yaml_value_unprotected_is_violation(self):
@@ -305,6 +343,28 @@ class RealRepoRegressionTests(unittest.TestCase):
         self.assertTrue(waiver_hits, "waiver fixtures should have been scanned")
         for f in waiver_hits:
             self.assertEqual(f.status, "protected", f"{f.path}:{f.line} should be protected, got {f.status}")
+
+    def test_own_test_file_embedded_literals_are_masked_by_shared_write_helper(self):
+        # test_shared_test_utility_helper_masks_unrelated_methods_known_limitation で
+        # 合成的に示した hub masking が、このファイル自身（tests/unit/test_time_fixture_lint.py）
+        # にも実際に起きていることを確認する（advisor 指摘：因果の主張はテストで裏付けてから
+        # 記録する）。このファイルの多数のテストメソッドが _write() を共有するため、
+        # どこか1つのテストが埋め込む clock 保護マーカー（例えば
+        # test_fixture_and_clock_patch_split_across_local_helpers_is_protected の
+        # patch('widget.resolver.datetime')）が _write() を介して他の無関係なメソッドの
+        # 埋め込み fixture 文字列（"expires_at": ... 等）も protected にする。
+        report = scan(REPO_ROOT)
+        own_literal_hits = [
+            f for f in report.findings
+            if f.path == "tests/unit/test_time_fixture_lint.py" and f.name == "expires_at"
+        ]
+        self.assertTrue(
+            own_literal_hits,
+            "expected scan_python_literals to find this file's own embedded "
+            "'expires_at' literal (synthetic fixture content written inline)",
+        )
+        for f in own_literal_hits:
+            self.assertEqual(f.status, "protected", f"{f.path}:{f.line} got {f.status}, not protected")
 
 
 if __name__ == "__main__":
