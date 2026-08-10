@@ -36,6 +36,20 @@ disable-model-invocation: true
 各 Issue につき次を回す。**主文脈は dispatch と進捗記録に専念し、実装・レビューはしない**。
 
 **②-a 実装（`issue-implementer` へ委譲）**
+- **dispatch の直前に managed Issue-start gate を通す（`issue-start-gate` PreToolUse hook）。** Task/Agent の `prompt` に次の機械可読行をちょうど1行だけ含めること（欠如・重複があると hook が `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` で fail-close し、dispatch は deny される）：
+  ```
+  ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}
+  ```
+  - **対象 dispatch**: `issue-implementer`（managed entrypoint）への Task/Agent 呼び出しのみ（`pr-reviewer` / `issue-fixer` には不要）。
+  - **7 field の exact set**（過不足あれば `ISSUE_START_BINDING_UNKNOWN_FIELD` / `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` で deny）：
+    - `entrypoint`: 固定文字列 `"issue-pipeline"`
+    - `repository`: `"OWNER/REPO"` 形式（GitHub origin から `git remote get-url origin` で取得）
+    - `issue`: Issue 番号（整数）
+    - `branch_name`: 実装に使うブランチ名（`python3 -m gitgate new-branch` が返す名前、またはあらかじめ決めた名前）
+    - `base_ref`: デフォルトブランチ名（`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name` で取得）
+    - `base_oid`: ベースコミットの 40 桁 HEX（`origin/<base_ref>` を fresh fetch した後 `git rev-parse origin/<base_ref>` で取得）
+    - `base_pr`: スタック branch の場合は同リポジトリの OPEN PR 番号（整数）、なければ `null`
+  - hook/API/permission エラーは fail-close し、別経路へ迂回しない。
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。

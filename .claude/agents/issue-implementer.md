@@ -20,6 +20,17 @@ model: sonnet
   「`issue-fixer` は定義上つねにカルテを要する」となり、条件分岐なしの fail-close なゲートになる。
 - **権限境界は両ロールで同一**（push 可・merge 不可）。分けているのは契約であって権限ではない。
 
+## dispatch 受信の前提（`issue-start-gate` hook による機械的 deny）
+`issue-pipeline` 主文脈が本ロールを dispatch する際、`issue-start-gate`（PreToolUse hook）は
+Task/Agent の `prompt` に `ISSUE_START_BINDING_V1=` で始まる行をちょうど1つ要求する。
+この行が**欠如・重複・field 過不足**のいずれかだと hook が fail-close で deny し、実装は一切開始されない
+（エラーコード: `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` / `ISSUE_START_BINDING_UNKNOWN_FIELD`）。
+
+**受信側の義務はなく、呼び出し元（`issue-pipeline` 主文脈）が正しい行を組み立てる責務を持つ**
+（`.claude/skills/issue-pipeline/SKILL.md` の ②-a 参照）。本ロールが「binding 行を渡してほしい」と
+依頼する手段はない——**hook が deny した時点で dispatch ごと失敗して返る**。
+dispatch が deny で戻ってきた場合、呼び出し元は binding 行の内容と7 field を見直してから再 dispatch する。
+
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **push・`gh pr create` は可**。
 - **`git merge`／`gh pr merge` は不可**——`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）がこのロール名に対して機械的に拒否する。実装が終わったら PR を開いて **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` ロールの専権。
