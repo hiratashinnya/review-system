@@ -294,14 +294,14 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
         ):
             _fail("PR mode binding missing")
         default_base = binding["base_ref_name"] == binding["default_branch"]
-        if default_base and any(
+        if verdict != "ERROR" and default_base and any(
             binding[key] is None
             for key in ("message_source_fingerprint", "delivered_message_fingerprint")
         ):
             _fail("default-base message binding missing")
         method = binding["merge_method"]
         settings = binding["repository_merge_settings_fingerprint"]
-        if method in {"merge", "squash"} and settings is None:
+        if verdict != "ERROR" and method in {"merge", "squash"} and settings is None:
             _fail("merge settings binding missing")
         if method == "rebase" and settings is not None:
             _fail("rebase settings binding invalid")
