@@ -10,7 +10,7 @@
   "expected_audit": {
     "schema_version": "pr-merge-audit/4",
     "record_type": "pre_use_decision",
-    "classifier_version": "1.3",
+    "classifier_version": "1.4",
     "reason": "AUTO_MERGE_DENIED",
     "permit_issued": false,
     "operation_dispatched": false,
@@ -48,6 +48,54 @@
       "expected_classifier": {
         "kind": "block",
         "reason": "AUTO_MERGE_DENIED"
+      }
+    },
+    {
+      "id": "bash-dynamic-eval",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact payload; the environment variable does not need to exist because PreToolUse must deny before dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "eval \"$CMD\""
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.4",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-dynamic-rest-payload",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact payload; endpoint and body expansion must be denied before dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "gh api -X PUT \"$ENDPOINT\" -f merge_method=squash -f commit_message=\"$BODY\""
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.4",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
       }
     }
   ]

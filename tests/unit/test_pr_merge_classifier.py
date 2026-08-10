@@ -4,7 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pr_merge_gate.classifier import classify_pre_use, repository_from_cwd
+from pr_merge_gate.classifier import (
+    CLASSIFIER_VERSION,
+    classify_pre_use,
+    repository_from_cwd,
+)
 
 
 def bash(command, cwd=None):
@@ -30,6 +34,10 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertEqual(
             fixture["expected_audit"]["schema_version"],
             "pr-merge-audit/4",
+        )
+        self.assertEqual(
+            fixture["expected_audit"]["classifier_version"],
+            CLASSIFIER_VERSION,
         )
         for probe in fixture["probes"]:
             with self.subTest(probe=probe["id"]):
@@ -116,6 +124,47 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertIsNone(classify_pre_use(bash("echo merge 12 --squash")))
         self.assertIsNone(classify_pre_use(bash("git merge 12 --squash")))
         self.assertIsNone(classify_pre_use(bash("git status")))
+
+    def test_dynamic_evaluation_and_merge_arguments_fail_closed_at_expansion_boundary(self):
+        unsafe = (
+            '$CMD',
+            '${CMD}',
+            'command -- "$CMD"',
+            'env CMD=ignored $CMD',
+            'eval "$CMD"',
+            'bash -c "$CMD"',
+            "sh -lc '${CMD}'",
+            'bash script.sh',
+            'gh api -X PUT "$ENDPOINT" -f merge_method=squash',
+            'gh api -X PUT repos/o/r/pulls/12/"$ACTION" -f merge_method=squash',
+            'gh api -X PUT repos/o/r/pulls/12/merge -f merge_method=squash -f commit_message="$BODY"',
+            'gh api graphql -f query="$QUERY"',
+            'g api "$ENDPOINT"',
+            'g "$GROUP" "$COMMAND"',
+        )
+        for command in unsafe:
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+        safe = (
+            'echo "$CMD"',
+            'printf "%s\\n" "$BODY"',
+            'git show "$REF"',
+            'env VALUE=literal echo "$VALUE"',
+            "eval 'echo literal'",
+            "bash -c 'echo \"$HOME\"'",
+            "bash -c 'gh issue view \"$ISSUE\"'",
+            "gh issue view \"$ISSUE\"",
+            "gh api user -f 'literal=$BODY'",
+        )
+        for command in safe:
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
 
     def test_known_safe_alias_and_extension_list_shapes_are_not_merge(self):
         for command in (

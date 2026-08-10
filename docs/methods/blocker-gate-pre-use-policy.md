@@ -64,6 +64,7 @@ MergeTransport =
 - `DeniedAutoMerge` は `BLOCK/AUTO_MERGE_DENIED` とし、元操作を実行しない。
 - `UnknownPotentialManaged` は `ERROR/CLASSIFIER_UNKNOWN` とし、元操作を実行しない。
 - repository、Issue/PR 番号、merge method を tool schema または command AST から一意に確定できない場合は `UnknownPotentialManaged` とする。shell の表示文字列を推測して補完しない。
+- `eval "$CMD"`、`bash -c "$CMD"`、動的実行名、command substitutionは、再評価するliteral command全体をclosed grammarで非managedと証明できる場合以外`UnknownPotentialManaged`とする。`gh api`のendpoint、method、query、field、merge subject/bodyにsingle-quote外のparameter expansionがあればoutbound値を一意に束縛できないため同様にERRORとする。`echo "$VALUE"`等のknown-safe executableへの通常data引数やsingle-quoted literal `$VALUE`は動的実行とは扱わない。
 
 classifier は managed hook が受け取った入力について次の表を完全に適用する。merge の可能性がある入力を「非対象」として通過させる型は設けない。
 
@@ -74,7 +75,7 @@ classifier は managed hook が受け取った入力について次の表を完�
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` を送る `gh api` 等 | `PullRequestMerge/RestPullsMergeEndpoint` | 同じ tool invocation を中断・再開できる場合だけ gate。不能なら ERROR |
 | schema 既知の `github_merge_pull_request` 等 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
 | `gh pr merge --auto`、`github_enable_auto_merge`、auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
-| GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | file内容を安全に検査しても実行時再読へ束縛できないため、registry/fixture 更新まで ERROR |
+| GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、動的実行/parameter expansion、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | 実行時のcommand・endpoint・bodyへ一意に束縛できないため、registry/fixture 更新まで ERROR |
 | known-safeな `gh alias list` / `gh extension list`、またはmerge と Issue-start のどちらでもないことを閉じた grammar で証明できる操作 | gate 対象外 | blocker gate の ALLOW は発行しない |
 
 GitHub UI、managed hook 外の API client、direct push/ref update は classifier の入力ではなく、別 manifest の `unmanaged_paths` に記録する非保証経路である。managed tool 内で同じ操作が観測された場合は unmanaged として通過させず `UnknownPotentialManaged` とする。
@@ -119,7 +120,9 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 - Issue 本体、native blocked-by、parent、sub-issue は GitHub REST API を使用し、`X-GitHub-Api-Version: 2026-03-10` を固定する。
 - PR、default branch、head SHA、base branch、closing Issuesと、選択merge methodが要求するcommit count/message sourceは GitHub GraphQL API を使用する。repository merge-message設定はRESTをfresh readする。REST/GraphQLによる同値の再束縛を併用してよいが、意味を変更してはならない。
 - list/connection は `per_page=100` または `first=100` で全 page/cursor を完走する。`Link rel=next` または `hasNextPage=true` が残る状態で評価へ進まない。
+- PR GraphQLの`commits.totalCount`をpage 1で正の整数として取得し、後続closing-Issue cursorでも同値を要求する。REST commit listは全`Link` pageを完走し、OID重複がなく、収集件数が`totalCount`と一致し、最終OIDが同じpage metadataの`headRefOid`と一致した場合だけmessage sourceとして使用する。件数不明、missing-middle、重複、件数不一致はERRORとする。
 - GraphQL top-level error、partial `errors`、null connection、同一 cursor/page の再訪、順序中の identity 矛盾は `ERROR` とする。
+- page 1のPR metadata取得後に後続cursorが失敗した場合、取得済みrepository/PR/head/base/default/state/draft/commit countはERRORのredacted binding evidenceとして保持する。ただしpartial closing setやmetadataをALLOW/BLOCK判定へ使用せず、permitを発行しない。
 - 1 invocation 当たり最大 10,000 unique Issue nodes、dependency/parent depth 最大 100 とする。超過は `ERROR/GRAPH_LIMIT_EXCEEDED` であり、途中までの graph を ALLOW に使わない。
 - timeout、`403`、`404`（存在確認済み resource を含む）、`410`、`429`、`5xx`、invalid JSON は `ERROR` とする。`429`/`5xx` は `Retry-After` が 30 秒以下の場合だけ最大2回再試行できる。全3 attempt 失敗、30秒超、header 不正なら `ERROR/API_UNAVAILABLE` とする。
 - invocation 外 cache、前回の graph、前回の green status へ fallback しない。
@@ -741,6 +744,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
   "subject": {"type": "pull_request", "number": 123},
   "binding": {
     "head_oid": "0123456789abcdef0123456789abcdef01234567",
+    "expected_commit_count": 3,
     "base_ref_name": "main",
     "default_branch": "main",
     "merge_method": "squash",
@@ -828,7 +832,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "binding": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
         "intercepted_commit_title_fingerprint",
         "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
@@ -838,6 +842,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
+        "expected_commit_count": {"type": ["integer", "null"], "minimum": 1},
         "base_ref_name": {"type": ["string", "null"]},
         "default_branch": {"type": ["string", "null"]},
         "merge_method": {"enum": ["merge", "rebase", "squash", null]},

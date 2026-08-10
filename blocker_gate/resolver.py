@@ -150,6 +150,7 @@ def _unique_reasons(value: Any) -> tuple[str, ...]:
 def _binding(snapshot: Snapshot) -> dict[str, Any]:
     keys = {
         "head_oid",
+        "expected_commit_count",
         "base_ref_name",
         "default_branch",
         "merge_method",
@@ -167,6 +168,7 @@ def _binding(snapshot: Snapshot) -> dict[str, Any]:
     if snapshot.mode == "issue-start":
         return {
             "head_oid": None,
+            "expected_commit_count": None,
             "base_ref_name": None,
             "default_branch": None,
             "merge_method": None,
@@ -187,12 +189,13 @@ def _binding(snapshot: Snapshot) -> dict[str, Any]:
             "pr_state": None,
             "pr_is_draft": None,
         }
-    legacy_keys = keys - {"pr_state", "pr_is_draft"}
-    if set(snapshot.binding) not in {frozenset(legacy_keys), frozenset(keys)}:
+    optional_keys = {"expected_commit_count", "pr_state", "pr_is_draft"}
+    required_keys = keys - optional_keys
+    if not required_keys <= set(snapshot.binding) <= keys:
         raise ValueError("PR binding keys mismatch")
     value = {
         key: snapshot.binding.get(key)
-        if key in {"pr_state", "pr_is_draft"}
+        if key in optional_keys
         else snapshot.binding[key]
         for key in keys
     }
@@ -437,6 +440,7 @@ def _contract_error_result(raw: Mapping[str, Any], reason: str) -> dict[str, Any
         "subject": None,
         "binding": {
             "head_oid": None,
+            "expected_commit_count": None,
             "base_ref_name": None,
             "default_branch": None,
             "merge_method": None,

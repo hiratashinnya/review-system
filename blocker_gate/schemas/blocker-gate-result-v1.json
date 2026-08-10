@@ -46,7 +46,7 @@
     "binding": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
         "intercepted_commit_title_fingerprint",
         "intercepted_commit_message_fingerprint", "message_source_fingerprint",
         "delivered_message_fingerprint", "repository_merge_settings_fingerprint",
@@ -55,6 +55,7 @@
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
+        "expected_commit_count": {"type": ["integer", "null"], "minimum": 1},
         "base_ref_name": {"type": ["string", "null"]},
         "default_branch": {"type": ["string", "null"]},
         "merge_method": {"enum": ["merge", "rebase", "squash", null]},

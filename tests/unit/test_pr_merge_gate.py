@@ -32,6 +32,7 @@ def snapshot(*, head="a" * 40, closing=(), nodes=None, state="OPEN", draft=False
         "delivered_message_closing_set": [],
         "binding": {
             "head_oid": head,
+            "expected_commit_count": 1,
             "base_ref_name": "main",
             "default_branch": "main",
             "merge_method": "rebase",

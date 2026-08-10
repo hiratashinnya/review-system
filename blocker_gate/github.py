@@ -257,6 +257,7 @@ class GitHubCollector:
         required_pr = {
             "id", "number", "state", "isDraft", "headRefOid", "baseRefName",
             "title", "body", "headRefName", "headRepositoryOwner", "closingIssuesReferences",
+            "commits",
         }
         if set(pr) != required_pr:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
@@ -268,9 +269,18 @@ class GitHubCollector:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         head_oid = pr.get("headRefOid")
         base_ref = pr.get("baseRefName")
+        commits = pr.get("commits")
         if type(head_oid) is not str or not _GIT_OID.fullmatch(head_oid):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         if not isinstance(base_ref, str) or not base_ref or not isinstance(default_branch, str) or not default_branch:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if (
+            not isinstance(commits, dict)
+            or set(commits) != {"totalCount"}
+            or isinstance(commits.get("totalCount"), bool)
+            or not isinstance(commits.get("totalCount"), int)
+            or commits["totalCount"] < 1
+        ):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         title = pr.get("title")
         body = pr.get("body")
@@ -296,14 +306,20 @@ class GitHubCollector:
             "default_branch": default_branch,
             "state": pr["state"],
             "is_draft": pr["isDraft"],
+            "commit_count": commits["totalCount"],
             "title": title,
             "body": body or "",
             "head_label": f"{head_owner['login']}:{head_ref_name}",
         }
 
-    def _pr_closing_refs(self, repository: str, number: int) -> tuple[list[str], dict[str, Any]]:
+    def _pr_closing_refs(
+        self,
+        repository: str,
+        number: int,
+        available_metadata: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any]]:
         owner, name = repository.split("/", 1)
-        query = """query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){id nameWithOwner defaultBranchRef{name} pullRequest(number:$number){id number state isDraft headRefOid baseRefName title body headRefName headRepositoryOwner{login} closingIssuesReferences(first:100,after:$cursor){nodes{id number state repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}"""
+        query = """query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){id nameWithOwner defaultBranchRef{name} pullRequest(number:$number){id number state isDraft headRefOid baseRefName title body headRefName headRepositoryOwner{login} commits{totalCount} closingIssuesReferences(first:100,after:$cursor){nodes{id number state repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}"""
         cursor: str | None = None
         seen: set[str | None] = set()
         refs: list[str] = []
@@ -322,6 +338,9 @@ class GitHubCollector:
             page_metadata = self._pr_page_metadata(repo, pr, repository, number)
             if metadata is None:
                 metadata = page_metadata
+                if available_metadata is not None:
+                    available_metadata.clear()
+                    available_metadata.update(page_metadata)
             elif metadata != page_metadata:
                 raise GitHubReadError("IDENTITY_MISMATCH")
             connection = pr.get("closingIssuesReferences")
@@ -398,6 +417,7 @@ class GitHubCollector:
         self, repository: str, number: int
     ) -> tuple[CommitMessageSource, ...]:
         sources: list[CommitMessageSource] = []
+        seen_oids: set[str] = set()
         for raw in self._list(f"/repos/{repository}/pulls/{number}/commits"):
             oid = raw.get("sha")
             commit = raw.get("commit")
@@ -410,6 +430,9 @@ class GitHubCollector:
                 or any(not isinstance(parent, dict) for parent in parents)
             ):
                 raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+            if oid in seen_oids:
+                raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+            seen_oids.add(oid)
             message = commit.get("message")
             tree = commit.get("tree")
             if (
@@ -765,7 +788,9 @@ class GitHubCollector:
                 raise GitHubReadError("IDENTITY_MISMATCH")
             if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt not in {1, 2, 3}:
                 raise GitHubReadError("REEVALUATION_LIMIT")
-            graphql_refs, metadata = self._pr_closing_refs(repository, number)
+            graphql_refs, metadata = self._pr_closing_refs(
+                repository, number, metadata
+            )
             if expected_head_oid is not None and metadata.get("head_oid") != expected_head_oid:
                 raise GitHubReadError("IDENTITY_MISMATCH")
             if metadata.get("base_ref_name") != metadata.get("default_branch"):
@@ -778,7 +803,10 @@ class GitHubCollector:
                     repository, merge_method, metadata["repository_node_id"]
                 )
                 commits = self._pr_commit_sources(repository, number)
-                if commits[-1].oid != metadata.get("head_oid"):
+                if (
+                    len(commits) != metadata.get("commit_count")
+                    or commits[-1].oid != metadata.get("head_oid")
+                ):
                     raise GitHubReadError("IDENTITY_MISMATCH")
                 bundle = build_delivered_messages(
                     repository=repository,
@@ -816,6 +844,7 @@ class GitHubCollector:
                 "state": metadata.get("state"),
                 "is_draft": metadata.get("is_draft"),
                 "head_oid": metadata.get("head_oid"),
+                "expected_commit_count": metadata.get("commit_count"),
                 "base_ref_name": metadata.get("base_ref_name"),
                 "default_branch": metadata.get("default_branch"),
                 "merge_method": merge_method,
@@ -826,6 +855,7 @@ class GitHubCollector:
         )
         binding = {
             "head_oid": metadata.get("head_oid"),
+            "expected_commit_count": metadata.get("commit_count"),
             "base_ref_name": metadata.get("base_ref_name"),
             "default_branch": metadata.get("default_branch"),
             "merge_method": merge_method if merge_method in {"merge", "rebase", "squash"} else None,

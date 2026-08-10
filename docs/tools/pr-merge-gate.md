@@ -36,7 +36,7 @@ resolverのcontrol JSONはPolicy 1.0の`blocker-gate-result/v1`、hook evidence�
 `${HOME}/.local/state/review-system/blocker-gate/audit.jsonl`へ0600でappend+fsyncする。
 raw command、token、header、PR本文、commit messageは保存しない。安全なappendができなければ
 `ERROR/HOOK_INTEGRITY_ERROR` とし、permitを発行しない。
-audit schema `pr-merge-audit/4` は、override fingerprint、message source/delivered fingerprint、
+audit schema `pr-merge-audit/4` は、GraphQL expected commit count、override fingerprint、message source/delivered fingerprint、
 repository merge settings、snapshot、attempt、PR state/draft、blocker Result metadata、formatter/evidence
 version/hashをpre/post相関レコードへ保存する。生messageは保存しない。
 

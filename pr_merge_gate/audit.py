@@ -22,6 +22,7 @@ _CORRELATED_BINDING_FIELDS = (
     "repository",
     "pr_number",
     "head_oid",
+    "expected_commit_count",
     "base_ref_name",
     "default_branch",
     "merge_method",

@@ -2,11 +2,16 @@
 
 import base64
 import json
+from pathlib import Path
+import tempfile
 from typing import Any
 import unittest
 
 from blocker_gate.github import GitHubCollector
 from blocker_gate.resolver import evaluate_snapshot
+from pr_merge_gate.audit import append_decision
+from pr_merge_gate.classifier import MergeOperation
+from pr_merge_gate.gate import evaluate_merge_operation
 
 
 def response(
@@ -55,6 +60,7 @@ def pr_page(**overrides):
         "body": "",
         "headRefName": "topic",
         "headRepositoryOwner": {"login": "example"},
+        "commits": {"totalCount": 1},
         "closingIssuesReferences": {
             "nodes": [],
             "pageInfo": {"hasNextPage": False, "endCursor": None},
@@ -611,6 +617,217 @@ class GitHubCollectorTests(unittest.TestCase):
                     (result["result"], result["permit_issued"]),
                     ("ERROR", False),
                 )
+
+    def test_commit_total_count_rejects_missing_middle_and_duplicate_but_allows_full_pages(self):
+        api = "https://api.github.com/repos/example/repo"
+        commits_url = api + "/pulls/50/commits?per_page=100"
+        second_url = commits_url + "&page=2"
+
+        def item(character):
+            return {
+                "sha": character * 40,
+                "commit": {
+                    "message": f"message-{character}",
+                    "tree": {"sha": "f" * 40},
+                },
+                "parents": [],
+            }
+
+        for label, commit_items, reason in (
+            ("missing-middle", [item("a"), item("c")], "IDENTITY_MISMATCH"),
+            ("duplicate", [item("a"), item("c"), item("c")], "MESSAGE_SOURCE_INCOMPLETE"),
+        ):
+            with self.subTest(label=label):
+                transport = GraphQLTransport(
+                    [
+                        pr_page(
+                            baseRefName="main",
+                            headRefOid="c" * 40,
+                            commits={"totalCount": 3},
+                        )
+                    ]
+                )
+                transport.responses[commits_url] = response(commit_items)
+                snapshot = GitHubCollector(None, transport).collect_pull_request(
+                    "example/repo", 50, "rebase"
+                )
+                result = evaluate_snapshot(snapshot)
+                self.assertIn(reason, snapshot["errors"])
+                self.assertEqual(result["result"], "ERROR")
+                self.assertEqual(result["binding"]["expected_commit_count"], 3)
+
+        transport = GraphQLTransport(
+            [
+                pr_page(
+                    baseRefName="main",
+                    headRefOid="c" * 40,
+                    commits={"totalCount": 3},
+                )
+            ]
+        )
+        transport.responses[commits_url] = response(
+            [item("a"), item("b")],
+            {"Link": f'<{second_url}>; rel="next"'},
+        )
+        transport.responses[second_url] = response([item("c")])
+        result = evaluate_snapshot(
+            GitHubCollector(None, transport).collect_pull_request(
+                "example/repo", 50, "rebase"
+            )
+        )
+        self.assertEqual((result["result"], result["permit_issued"]), ("ALLOW", True))
+        self.assertEqual(result["binding"]["expected_commit_count"], 3)
+
+    def test_graphql_total_count_is_known_and_stable_and_page_errors_preserve_page1_binding(self):
+        first_connection = {
+            "nodes": [],
+            "pageInfo": {"hasNextPage": True, "endCursor": "C1"},
+        }
+        next_connection = {
+            "nodes": [],
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+        }
+        first = pr_page(
+            baseRefName="main",
+            headRefOid="a" * 40,
+            commits={"totalCount": 2},
+            closingIssuesReferences=first_connection,
+        )
+        cases = (
+            (
+                "api-error",
+                [first, {"errors": [{"type": "FORBIDDEN"}]}],
+                "API_PARTIAL_RESPONSE",
+            ),
+            (
+                "cursor-cycle",
+                [
+                    first,
+                    pr_page(
+                        baseRefName="main",
+                        headRefOid="a" * 40,
+                        commits={"totalCount": 2},
+                        closingIssuesReferences=first_connection,
+                    ),
+                ],
+                "PAGINATION_INCOMPLETE",
+            ),
+            (
+                "head-change",
+                [
+                    first,
+                    pr_page(
+                        baseRefName="main",
+                        headRefOid="b" * 40,
+                        commits={"totalCount": 2},
+                        closingIssuesReferences=next_connection,
+                    ),
+                ],
+                "IDENTITY_MISMATCH",
+            ),
+            (
+                "count-change",
+                [
+                    first,
+                    pr_page(
+                        baseRefName="main",
+                        headRefOid="a" * 40,
+                        commits={"totalCount": 3},
+                        closingIssuesReferences=next_connection,
+                    ),
+                ],
+                "IDENTITY_MISMATCH",
+            ),
+        )
+        for label, pages, reason in cases:
+            with self.subTest(label=label):
+                snapshot = GitHubCollector(
+                    None, GraphQLTransport(pages)
+                ).collect_pull_request("example/repo", 50, "rebase")
+                result = evaluate_snapshot(snapshot)
+                self.assertIn(reason, snapshot["errors"])
+                self.assertFalse(snapshot["pages_complete"])
+                self.assertEqual((result["result"], result["mode"]), ("ERROR", "pr-merge"))
+                self.assertEqual(result["binding"]["head_oid"], "a" * 40)
+                self.assertEqual(result["binding"]["base_ref_name"], "main")
+                self.assertEqual(result["binding"]["default_branch"], "main")
+                self.assertEqual(result["binding"]["expected_commit_count"], 2)
+                self.assertEqual(result["binding"]["pr_state"], "OPEN")
+                self.assertFalse(result["binding"]["pr_is_draft"])
+                self.assertFalse(result["permit_issued"])
+
+        unknown_count = GitHubCollector(
+            None,
+            GraphQLTransport(
+                [pr_page(commits={"totalCount": None})]
+            ),
+        ).collect_pull_request("example/repo", 50, "rebase")
+        self.assertIn("API_PARTIAL_RESPONSE", unknown_count["errors"])
+        self.assertFalse(evaluate_snapshot(unknown_count)["permit_issued"])
+
+    def test_partial_graphql_binding_flows_through_gate_and_audit_as_error_evidence(self):
+        operation_fp = "sha256:" + "1" * 64
+        first = pr_page(
+            baseRefName="main",
+            headRefOid="a" * 40,
+            commits={"totalCount": 2},
+            closingIssuesReferences={
+                "nodes": [],
+                "pageInfo": {"hasNextPage": True, "endCursor": "C1"},
+            },
+        )
+        snapshot = GitHubCollector(
+            None,
+            GraphQLTransport([first, {"errors": [{"type": "FORBIDDEN"}]}]),
+        ).collect_pull_request(
+            "example/repo",
+            50,
+            "rebase",
+            operation_fingerprint=operation_fp,
+        )
+
+        class SnapshotCollector:
+            def collect_pull_request(self, *args, **kwargs):
+                return snapshot
+
+        gate_evidence = evaluate_merge_operation(
+            MergeOperation(
+                "example/repo",
+                50,
+                "rebase",
+                "cli-direct",
+                None,
+                None,
+                None,
+                operation_fp,
+            ),
+            collector_factory=lambda token: SnapshotCollector(),
+        )
+        self.assertEqual((gate_evidence["result"], gate_evidence["reason"]), (
+            "ERROR", "API_PARTIAL_RESPONSE"
+        ))
+        gate_evidence.update(
+            {
+                "classifier_version": "1.4",
+                "hook_asset_hash": "sha256:" + "9" * 64,
+                "hook_event_id": "tool-partial",
+                "invocation_id": "invocation-partial",
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            append_decision(gate_evidence, path=target)
+            record = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(record["blocker_result"], "ERROR")
+        self.assertEqual(record["head_oid"], "a" * 40)
+        self.assertEqual(record["expected_commit_count"], 2)
+        self.assertEqual(record["base_ref_name"], "main")
+        self.assertEqual(record["default_branch"], "main")
+        self.assertEqual(record["pr_state"], "OPEN")
+        self.assertFalse(record["pr_is_draft"])
+        self.assertFalse(record["permit_issued"])
+        self.assertFalse(record["operation_dispatched"])
+        self.assertFalse(record["merge_api_called"])
 
     def test_head_and_commit_tail_change_together_changes_fresh_binding(self):
         api = "https://api.github.com/repos/example/repo"

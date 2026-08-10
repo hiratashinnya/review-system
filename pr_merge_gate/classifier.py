@@ -20,10 +20,10 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.3"
+CLASSIFIER_VERSION = "1.4"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_NON_GH_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false", "git"})
-_SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish", "env"})
+_SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
@@ -175,9 +175,30 @@ def _has_shell_control(command: str) -> bool:
             continue
         if character in "\n\r;&|<>(){}`":
             return True
-        if character == "$" and index + 1 < len(command) and command[index + 1] == "(":
+        if character == "$":
             return True
     return quote is not None or escaped
+
+
+def _dynamic_executable(token: str) -> bool:
+    """展開後に実行名が変わるwordを検出する。"""
+    return bool(re.match(r"^(?:\$[A-Za-z_]|\$\{|\$\(|`)", token))
+
+
+def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
+    """文字列再評価器のpayloadを返す。Noneは静的に束縛不能な評価を表す。"""
+    if not tokens:
+        return False, None
+    if tokens[0] == "eval":
+        return True, " ".join(tokens[1:])
+    if tokens[0] not in _SHELL_EVALUATORS:
+        return False, None
+    if len(tokens) == 2 and tokens[1] in {"--help", "--version"}:
+        return False, None
+    for index, token in enumerate(tokens[1:], start=1):
+        if token.startswith("-") and "c" in token[1:]:
+            return True, tokens[index + 1] if index + 1 < len(tokens) else None
+    return True, None
 
 
 def _known_safe_gh_shape(tokens: list[str]) -> bool:
@@ -191,6 +212,23 @@ def _known_safe_gh_shape(tokens: list[str]) -> bool:
 def _unknown_executable_merge_shape(tokens: list[str]) -> bool:
     if not tokens or tokens[0] in _SAFE_NON_GH_EXECUTABLES:
         return False
+    if tokens[0] == "env":
+        executable_index = next(
+            (
+                index
+                for index, token in enumerate(tokens[1:], start=1)
+                if not token.startswith("-") and "=" not in token
+            ),
+            None,
+        )
+        if executable_index is None:
+            return False
+        executable = tokens[executable_index]
+        if _dynamic_executable(executable):
+            return True
+        return _unknown_executable_merge_shape(tokens[executable_index:])
+    if any("$" in token or "`" in token for token in tokens[1:]):
+        return True
     if any(tokens[index:index + 2] == ["pr", "merge"] for index in range(1, len(tokens) - 1)):
         return True
     merge_positions = [index for index, token in enumerate(tokens) if token == "merge"]
@@ -204,10 +242,10 @@ def _unknown_executable_merge_shape(tokens: list[str]) -> bool:
                 or any("=" in token or token.startswith("$") for token in tokens[:index])
             ):
                 return True
-    if tokens[0] in _SHELL_EVALUATORS:
-        evaluated = " ".join(tokens[1:])
-        if re.search(r"(?:\bpr\s+merge\b|\b[^\s]+\s+merge\s+[1-9][0-9]*\b)", evaluated):
-            return True
+    if len(tokens) > 2 and tokens[1] == "api" and any(
+        "$" in token or "`" in token for token in tokens[2:]
+    ):
+        return True
     if len(tokens) > 2 and tokens[1] == "api":
         tail = " ".join(tokens[2:]).casefold()
         return any(marker in tail for marker in ("/pulls/", "graphql", "mergepullrequest", "automerge"))
@@ -482,6 +520,7 @@ def classify_pre_use(
     *,
     cwd: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    _depth: int = 0,
 ) -> PreUseClassification | None:
     """Codex/Claude PreToolUse payloadを分類し、非mergeだけNoneで通過させる。"""
     tool_name = payload.get("tool_name")
@@ -505,6 +544,23 @@ def classify_pre_use(
     if not remaining:
         return None
     if remaining[0] != "gh":
+        if _depth >= 4 or _dynamic_executable(remaining[0]):
+            return _error("CLASSIFIER_UNKNOWN", command)
+        evaluator, evaluated_command = _evaluated_shell_command(remaining)
+        if evaluator:
+            if evaluated_command is None:
+                return _error("CLASSIFIER_UNKNOWN", command)
+            nested = classify_pre_use(
+                {"tool_name": "Bash", "tool_input": {"command": evaluated_command}},
+                cwd=cwd,
+                runner=runner,
+                _depth=_depth + 1,
+            )
+            if nested is not None:
+                if nested.kind == "block":
+                    return _block(nested.reason, command)
+                return _error("CLASSIFIER_UNKNOWN", command)
+            return None
         if "gh" in remaining or _unknown_executable_merge_shape(remaining):
             return _error("CLASSIFIER_UNKNOWN", command)
         return None

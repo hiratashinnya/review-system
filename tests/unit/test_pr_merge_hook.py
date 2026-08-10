@@ -39,6 +39,7 @@ def allow_evidence() -> dict:
             "transport": "connector",
             "operation_fingerprint": "sha256:" + "1" * 64,
             "head_oid": "a" * 40,
+            "expected_commit_count": 1,
             "base_ref_name": "main",
             "default_branch": "main",
         },

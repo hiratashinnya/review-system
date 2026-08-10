@@ -98,7 +98,7 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
             _fail("subject invalid")
     binding = result["binding"]
     binding_keys = {
-        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
         "intercepted_commit_title_fingerprint", "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
         "repository_merge_settings_fingerprint", "operation_fingerprint",
@@ -111,6 +111,13 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
         not isinstance(head_oid, str) or not re.fullmatch(r"[0-9a-f]{40,64}", head_oid)
     ):
         _fail("head_oid invalid")
+    expected_commit_count = binding["expected_commit_count"]
+    if expected_commit_count is not None and (
+        isinstance(expected_commit_count, bool)
+        or not isinstance(expected_commit_count, int)
+        or expected_commit_count < 1
+    ):
+        _fail("expected_commit_count invalid")
     for key in ("base_ref_name", "default_branch"):
         if binding[key] is not None and not isinstance(binding[key], str):
             _fail(f"{key} invalid")
@@ -275,7 +282,7 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
         pr_values = [
             binding[key]
             for key in (
-                "head_oid", "base_ref_name", "default_branch", "merge_method",
+                "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
                 "intercepted_commit_title_fingerprint",
                 "intercepted_commit_message_fingerprint",
                 "message_source_fingerprint", "delivered_message_fingerprint",
@@ -293,6 +300,8 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
             for key in ("head_oid", "base_ref_name", "default_branch", "merge_method", "operation_fingerprint", "snapshot_fingerprint")
         ):
             _fail("PR mode binding missing")
+        if verdict != "ERROR" and binding["expected_commit_count"] is None:
+            _fail("PR commit count binding missing")
         default_base = binding["base_ref_name"] == binding["default_branch"]
         if verdict != "ERROR" and default_base and any(
             binding[key] is None
