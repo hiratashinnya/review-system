@@ -3,6 +3,9 @@ import unittest
 from blocker_gate.closing import (
     ClosingReferenceError,
     CommitMessageSource,
+    DELIVERED_MESSAGE_FORMATTER_VERSION,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT,
     build_delivered_messages,
     parse_closing_references,
 )
@@ -71,7 +74,7 @@ class DeliveredMessageTests(unittest.TestCase):
             )
         self.assertEqual(caught.exception.reason, "MERGE_OVERRIDE_AMBIGUOUS")
 
-    def test_squash_uses_only_the_effective_squash_message(self):
+    def test_squash_uses_only_the_verified_effective_squash_message(self):
         source = commit("a" * 40, "fixes: #7")
         bundle = build_delivered_messages(
             repository="example/repo", number=50, merge_method="squash",
@@ -81,15 +84,44 @@ class DeliveredMessageTests(unittest.TestCase):
             commit_title=None, commit_message=None,
         )
         self.assertEqual(parse_closing_references(bundle.messages, "example/repo"), ())
-        with_messages = build_delivered_messages(
+        ambiguous_sources = [
+            source,
+            commit("b" * 40, "Unicode 本文 🧪\n\nCloses: #7"),
+            commit("c" * 40, "subject\n\nbody: with colon"),
+        ]
+        with self.assertRaises(ClosingReferenceError) as caught:
+            build_delivered_messages(
+                repository="example/repo", number=50, merge_method="squash",
+                pr_title="title", pr_body="", head_label="o:h",
+                commits=ambiguous_sources,
+                settings={
+                    "squash_merge_commit_title": "PR_TITLE",
+                    "squash_merge_commit_message": "COMMIT_MESSAGES",
+                },
+                commit_title=None, commit_message=None,
+            )
+        self.assertEqual(caught.exception.reason, "MERGE_MESSAGE_AMBIGUOUS")
+
+        exact_override = build_delivered_messages(
             repository="example/repo", number=50, merge_method="squash",
-            pr_title="title", pr_body="", head_label="o:h", commits=[source],
-            settings={"squash_merge_commit_title": "PR_TITLE", "squash_merge_commit_message": "COMMIT_MESSAGES"},
-            commit_title=None, commit_message=None,
+            pr_title="title", pr_body="", head_label="o:h",
+            commits=ambiguous_sources,
+            settings={
+                "squash_merge_commit_title": "PR_TITLE",
+                "squash_merge_commit_message": "COMMIT_MESSAGES",
+            },
+            commit_title=None,
+            commit_message="Unicode 本文 🧪\n\nCloses: #7\nbody: with colon",
         )
         self.assertEqual(
-            parse_closing_references(with_messages.messages, "example/repo"),
+            parse_closing_references(exact_override.messages, "example/repo"),
             ("example/repo#7",),
+        )
+        self.assertEqual(DELIVERED_MESSAGE_FORMATTER_VERSION, "github-delivered-message/2")
+        self.assertFalse(SQUASH_COMMIT_MESSAGES_EVIDENCE["verified"])
+        self.assertRegex(
+            SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT,
+            r"^sha256:[0-9a-f]{64}$",
         )
 
 

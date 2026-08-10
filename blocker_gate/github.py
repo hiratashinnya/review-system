@@ -16,6 +16,8 @@ from .auth import github_api_failure_reason
 from .closing import (
     ClosingReferenceError,
     CommitMessageSource,
+    DELIVERED_MESSAGE_FORMATTER_VERSION,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT,
     build_delivered_messages,
     parse_closing_references,
 )
@@ -375,6 +377,13 @@ class GitHubCollector:
                 "repository_node_id": repository_node_id,
                 "api_version": API_VERSION,
                 "merge_method": merge_method,
+                "delivered_message_formatter_version": DELIVERED_MESSAGE_FORMATTER_VERSION,
+                "squash_commit_messages_evidence_fingerprint": (
+                    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT
+                    if merge_method == "squash"
+                    and settings.get("squash_merge_commit_message") == "COMMIT_MESSAGES"
+                    else None
+                ),
                 **settings,
             }
         )
@@ -768,6 +777,9 @@ class GitHubCollector:
                 settings, settings_fingerprint = self._merge_settings(
                     repository, merge_method, metadata["repository_node_id"]
                 )
+                commits = self._pr_commit_sources(repository, number)
+                if commits[-1].oid != metadata.get("head_oid"):
+                    raise GitHubReadError("IDENTITY_MISMATCH")
                 bundle = build_delivered_messages(
                     repository=repository,
                     number=number,
@@ -775,7 +787,7 @@ class GitHubCollector:
                     pr_title=metadata["title"],
                     pr_body=metadata["body"],
                     head_label=metadata["head_label"],
-                    commits=self._pr_commit_sources(repository, number),
+                    commits=commits,
                     settings=settings,
                     commit_title=commit_title,
                     commit_message=commit_message,

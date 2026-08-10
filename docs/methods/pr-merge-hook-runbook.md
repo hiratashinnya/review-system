@@ -10,13 +10,15 @@ Claude でも project hook 設定を有効化し、表示された project hook 
 
 ## Actions 非依存の実発火確認
 
-1. GitHub Actionsを参照・起動せず、対象worktreeでClaude/Codexの新規sessionを開始する。
-2. hook一覧で、PR merge matcherに対する `PreToolUse` と `PostToolUse` が同じ `pr-merge-gate.sh` を指すことを確認する。
-3. 副作用のない probe として managed auto-merge enable toolを呼び出す。`AUTO_MERGE_DENIED` でtool実行前に拒否されなければfailとする。
-4. audit JSONLの最新 `pre_use_decision` に、現在の `hook_asset_hash`、`hook_event_id`、`classifier_version` があり、`operation_dispatched=false`、`merge_api_called=false` であることを確認する。
+1. GitHub Actionsを参照・起動せず、検証対象commitをcheckoutしたworktreeでClaude/Codexの**新規session**を開始する。hook資産変更前から存続しているsessionや、別commitを読み込んだsessionの結果を流用しない。
+2. hook一覧で、PR merge matcherに対する `PreToolUse` と `PostToolUse` が同じ `pr-merge-gate.sh` を指すこと、hookがenabledであること、表示された現在のdefinition hashをtrust済みであることを確認する。
+3. `tests/fixtures/pr_merge_actual_fire_v1.json` の `bash-auto-merge.payload` を、standalone shellではなく製品のBash toolとしてそのまま呼ぶ。具体的なcommandは `gh -R example/repo pr merge 1 --squash --auto` である。実在repositoryへの到達前に `AUTO_MERGE_DENIED` でPreToolUse拒否されなければfailとする。Codex connectorが導入済みなら同fixtureの `codex-connector-auto-merge.payload` も製品toolとして呼ぶ。tool不在は`NOT_TESTED`でありPASSにしない。
+4. 新規sessionが使用したaudit JSONLの最新 `pre_use_decision` がfixtureの`expected_audit`と一致することを確認する。必須値は`pr-merge-audit/4`、classifier `1.3`、現在sessionのasset hash、実際のhook event ID、`AUTO_MERGE_DENIED`、`permit_issued=false`、`operation_dispatched=false`、`merge_api_called=false`であり、同invocationの`post_use_completion`は0件である。
 5. 実mergeは通常のレビュー・承認後だけ行う。`ALLOW` のpre recordと同じ `invocation_id` / `operation_fingerprint`を持つ `post_use_completion` が一件あり、`operation_dispatched=true` とredacted `response_fingerprint`が記録されることを確認する。`merge_api_called=true` はconnectorの明示的な `merged=true` responseでAPI到達を証明できた場合だけである。CLI/RESTの終了コード、connector失敗、未知responseでは `null`（`NOT_PROVEN`）が正しく、Postへ到達した事実だけからAPI呼出し済みと解釈しない。
 
 probeの結果、hook failure、audit書込み失敗、Pre/Post相関欠落、未知alias/wrapper、新しいmerge connectorのいずれかを検出した環境はfail-close扱いとし、managed mergeを実行しない。
+
+このactual-fire確認は静的fixture testやhook関数の直接呼出しでは代替できない。検証対象hashを読み込んだ製品新規sessionが、製品tool dispatchの直前にhookを実際に発火させたauditだけをAC13証跡として採用する。
 
 file-backed GraphQL（`-F query=@file` / `@-` / `--input`）は、hookの検査後にGitHub CLIが再読する内容へpermitを束縛できないためfail-closeである。未知実行名に続く `pr merge` / merge相当APIもfail-closeにし、known-safeな `gh alias list` / `gh extension list` と、`echo`等の明確な非merge形だけをgate対象外にする。
 

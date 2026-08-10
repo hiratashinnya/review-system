@@ -11,7 +11,7 @@ from pr_merge_gate.audit import AuditError, append_completion, append_decision, 
 def evidence() -> dict:
     return {
         "policy_version": "pr-merge-pre-use/1",
-        "classifier_version": "1.2",
+        "classifier_version": "1.3",
         "hook_asset_hash": "sha256:" + "9" * 64,
         "hook_event_id": "tool-1",
         "invocation_id": "invocation-1",
@@ -26,8 +26,25 @@ def evidence() -> dict:
             "head_oid": "a" * 40,
             "base_ref_name": "main",
             "default_branch": "main",
+            "intercepted_commit_title_fingerprint": "sha256:" + "3" * 64,
+            "intercepted_commit_message_fingerprint": "sha256:" + "4" * 64,
+            "message_source_fingerprint": "sha256:" + "5" * 64,
+            "delivered_message_fingerprint": "sha256:" + "6" * 64,
+            "repository_merge_settings_fingerprint": "sha256:" + "7" * 64,
+            "snapshot_fingerprint": "sha256:" + "8" * 64,
+            "attempt": 2,
+            "pr_state": "OPEN",
+            "pr_is_draft": False,
         },
-        "blocker_evidence": {"invocation_id": "inv-1"},
+        "blocker_evidence": {
+            "invocation_id": "inv-1",
+            "policy_version": "1.0",
+            "classifier_version": "blocker-gate/1",
+            "result": "BLOCK",
+            "reasons": ["OPEN_BLOCKER"],
+            "completed_at": "2026-08-10T00:00:01Z",
+            "pages_complete": True,
+        },
         "graphql_closing_set": ["example/repo#7"],
         "delivered_message_closing_set": ["example/repo#8"],
         "closing_set": ["example/repo#7", "example/repo#8"],
@@ -69,9 +86,30 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(record["head_oid"], "a" * 40)
             self.assertEqual(record["base_ref_name"], "main")
             self.assertEqual(record["default_branch"], "main")
+            self.assertEqual(record["schema_version"], "pr-merge-audit/4")
+            self.assertEqual(record["attempt"], 2)
+            self.assertEqual(record["pr_state"], "OPEN")
+            self.assertFalse(record["pr_is_draft"])
+            for key, digit in (
+                ("intercepted_commit_title_fingerprint", "3"),
+                ("intercepted_commit_message_fingerprint", "4"),
+                ("message_source_fingerprint", "5"),
+                ("delivered_message_fingerprint", "6"),
+                ("repository_merge_settings_fingerprint", "7"),
+                ("snapshot_fingerprint", "8"),
+            ):
+                self.assertEqual(record[key], "sha256:" + digit * 64)
+            self.assertEqual(record["blocker_reasons"], ["OPEN_BLOCKER"])
+            self.assertTrue(record["pages_complete"])
+            self.assertEqual(
+                record["delivered_message_formatter_version"],
+                "github-delivered-message/2",
+            )
+            self.assertFalse(record["squash_commit_messages_verified"])
+            self.assertEqual(record["squash_commit_messages_decision"], "fail-close")
             self.assertEqual(record["closing_set"], ["example/repo#7", "example/repo#8"])
             self.assertEqual(record["dependency_paths"], [["example/repo#7", "example/repo#6"]])
-            self.assertEqual(record["classifier_version"], "1.2")
+            self.assertEqual(record["classifier_version"], "1.3")
             self.assertEqual(record["hook_event_id"], "tool-1")
             serialized = json.dumps(record)
             self.assertNotIn("secret", serialized)
@@ -87,7 +125,7 @@ class AuditTest(unittest.TestCase):
             append_completion(
                 invocation_id="invocation-1", hook_event_id="tool-1",
                 operation_fingerprint="sha256:" + "1" * 64,
-                classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
+                classifier_version="1.3", asset_hash="sha256:" + "9" * 64,
                 tool_name="github_merge_pull_request",
                 tool_response={
                     "structuredContent": {
@@ -101,12 +139,21 @@ class AuditTest(unittest.TestCase):
             self.assertTrue(records[1]["merge_api_called"])
             self.assertTrue(records[1]["operation_dispatched"])
             self.assertEqual(records[1]["response_outcome"], "success")
+            self.assertEqual(records[1]["schema_version"], "pr-merge-audit/4")
+            self.assertEqual(records[1]["head_oid"], "a" * 40)
+            self.assertEqual(records[1]["attempt"], 2)
+            self.assertEqual(records[1]["snapshot_fingerprint"], "sha256:" + "8" * 64)
+            self.assertEqual(
+                records[1]["closing_set"],
+                ["example/repo#7", "example/repo#8"],
+            )
+            self.assertFalse(records[1]["squash_commit_messages_verified"])
             self.assertNotIn("sensitive-response", json.dumps(records[1]))
             with self.assertRaises(AuditError):
                 append_completion(
                     invocation_id="missing", hook_event_id="tool-2",
                     operation_fingerprint="sha256:" + "1" * 64,
-                    classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
+                    classifier_version="1.3", asset_hash="sha256:" + "9" * 64,
                     tool_name="github_merge_pull_request", tool_response={}, path=target,
                 )
 
@@ -132,7 +179,7 @@ class AuditTest(unittest.TestCase):
                 append_completion(
                     invocation_id=f"invocation-{index}", hook_event_id=f"tool-{index}",
                     operation_fingerprint="sha256:" + str(index) * 64,
-                    classifier_version="1.2", asset_hash="sha256:" + "9" * 64,
+                    classifier_version="1.3", asset_hash="sha256:" + "9" * 64,
                     tool_name=(
                         "github_merge_pull_request" if transport == "connector" else "Bash"
                     ),

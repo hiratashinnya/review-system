@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -14,6 +15,33 @@ def bash(command, cwd=None):
 
 
 class PreUseClassifierTests(unittest.TestCase):
+    def test_actual_fire_fixture_payloads_match_frozen_classifier_expectations(self):
+        fixture = json.loads(
+            (
+                Path(__file__).parents[1]
+                / "fixtures"
+                / "pr_merge_actual_fire_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            fixture["schema_version"],
+            "pr-merge-actual-fire-probes/1",
+        )
+        self.assertEqual(
+            fixture["expected_audit"]["schema_version"],
+            "pr-merge-audit/4",
+        )
+        for probe in fixture["probes"]:
+            with self.subTest(probe=probe["id"]):
+                classified = classify_pre_use(probe["payload"])
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    (
+                        probe["expected_classifier"]["kind"],
+                        probe["expected_classifier"]["reason"],
+                    ),
+                )
+
     def test_direct_wrapped_and_global_repo_cli_are_bound(self):
         cases = (
             ("gh -R example/repo pr merge 12 --squash --match-head-commit " + "a" * 40, "cli-direct"),
@@ -68,6 +96,15 @@ class PreUseClassifierTests(unittest.TestCase):
             "$GH pr merge 12 --squash",
             "g pr merge 12 --squash",
             "g -R example/repo pr merge 12 --rebase",
+            "$GM merge 12 --squash",
+            "${GM} merge 12 --rebase",
+            "GM merge 12 --squash",
+            "GM='gh pr' $GM merge 12 --squash",
+            "env GM='gh pr' $GM merge 12 --squash",
+            "command -- $GM merge 12 --squash",
+            "g merge 12 --squash",
+            "bash -c 'g merge 12 --squash'",
+            "function g(){ gh pr \"$@\"; }; g merge 12 --squash",
         ):
             with self.subTest(command=command):
                 classified = classify_pre_use(bash(command))
@@ -76,6 +113,8 @@ class PreUseClassifierTests(unittest.TestCase):
                     ("error", "CLASSIFIER_UNKNOWN"),
                 )
         self.assertIsNone(classify_pre_use(bash("echo pr merge")))
+        self.assertIsNone(classify_pre_use(bash("echo merge 12 --squash")))
+        self.assertIsNone(classify_pre_use(bash("git merge 12 --squash")))
         self.assertIsNone(classify_pre_use(bash("git status")))
 
     def test_known_safe_alias_and_extension_list_shapes_are_not_merge(self):

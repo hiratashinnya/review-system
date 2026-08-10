@@ -232,10 +232,10 @@ classic titleのhead-label表記、改行、Unicode/改行正規化をbyte単位
 - overrideの完全な値・指定有無・outbound payloadへの写像を一意に束縛できなければ`ERROR/MERGE_OVERRIDE_AMBIGUOUS`とする。
 - repository の `squash_merge_commit_title`、`squash_merge_commit_message`、PR title/body/numberと、選択設定が要求するcommit件数・完全なmessageを同じattemptでfresh readする。
 - title設定 `PR_TITLE` はfresh PR title、`COMMIT_OR_PR_TITLE` は1 commitならそのcommit title、複数commitならfresh PR titleを選ぶ。
-- body設定 `PR_BODY` はfresh PR body、`COMMIT_MESSAGES` はGitHub default formatterで順序付き全commit messageを構成し、`BLANK` は空文字列とする。
-- unknown enum、null/partial setting、設定とtransportの矛盾は`ERROR/MERGE_SETTINGS_AMBIGUOUS`、truncated入力、#298 fixtureで固定したformatter versionからのdrift、再構築非一意は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とする。推測値、ローカルgit log、前回設定へfallbackしない。
+- body設定 `PR_BODY` はfresh PR body、`BLANK` は空文字列とする。`COMMIT_MESSAGES` は、GitHubが複数commitのsubject/bodyをsquash本文へ並べるbyte-level形式を固定したversioned live fixtureが未成立のため、intercepted body overrideがない限り`ERROR/MERGE_MESSAGE_AMBIGUOUS`でfail-closeする。
+- unknown enum、null/partial setting、設定とtransportの矛盾は`ERROR/MERGE_SETTINGS_AMBIGUOUS`、truncated入力、検証済みformatter versionからのdrift、再構築非一意は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とする。推測値、単純な改行join、ローカルgit log、前回設定へfallbackしない。
 
-merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数として#298でfixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。
+merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数としてversioned live fixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。現在の`COMMIT_MESSAGES`判定は`squash-commit-messages-evidence/1`（`verified=false`、`decision=fail-close`）であり、保護済みとは表示しない。
 
 `DeliveredMessageSet` の各**省略されていない完全な message**を次の grammar で解析する。
 
@@ -833,7 +833,8 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
         "repository_merge_settings_fingerprint",
-        "operation_fingerprint", "snapshot_fingerprint", "attempt"
+        "operation_fingerprint", "snapshot_fingerprint", "attempt",
+        "pr_state", "pr_is_draft"
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
@@ -859,7 +860,9 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "snapshot_fingerprint": {
           "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
         },
-        "attempt": {"type": "integer", "minimum": 1, "maximum": 3}
+        "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+        "pr_state": {"enum": ["OPEN", "CLOSED", "MERGED", null]},
+        "pr_is_draft": {"type": ["boolean", "null"]}
       }
     },
     "graphql_closing_set": {"$ref": "#/$defs/issueSet"},

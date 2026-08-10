@@ -9,7 +9,34 @@ from pathlib import Path
 import stat
 from typing import Any, Mapping
 
+from blocker_gate.closing import (
+    DELIVERED_MESSAGE_FORMATTER_VERSION,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT,
+)
 from blocker_gate.model import fingerprint
+
+
+_AUDIT_SCHEMA_VERSION = "pr-merge-audit/4"
+_CORRELATED_BINDING_FIELDS = (
+    "repository",
+    "pr_number",
+    "head_oid",
+    "base_ref_name",
+    "default_branch",
+    "merge_method",
+    "transport",
+    "intercepted_commit_title_fingerprint",
+    "intercepted_commit_message_fingerprint",
+    "message_source_fingerprint",
+    "delivered_message_fingerprint",
+    "repository_merge_settings_fingerprint",
+    "operation_fingerprint",
+    "snapshot_fingerprint",
+    "attempt",
+    "pr_state",
+    "pr_is_draft",
+)
 
 
 _HOOK_ASSETS = (
@@ -108,8 +135,9 @@ def append_decision(
     blocker = evidence.get("blocker_evidence")
     findings = evidence.get("findings")
     safe_findings = findings if isinstance(findings, list) else []
+    blocker_record = blocker if isinstance(blocker, dict) else {}
     record = {
-        "schema_version": "pr-merge-audit/3",
+        "schema_version": _AUDIT_SCHEMA_VERSION,
         "record_type": "pre_use_decision",
         "policy_version": evidence.get("policy_version"),
         "classifier_version": evidence.get("classifier_version"),
@@ -117,17 +145,23 @@ def append_decision(
         "hook_event_id": evidence.get("hook_event_id"),
         "result": evidence.get("result"),
         "reason": evidence.get("reason"),
-        "repository": binding.get("repository"),
-        "pr_number": binding.get("pr_number"),
-        "head_oid": binding.get("head_oid"),
-        "base_ref_name": binding.get("base_ref_name"),
-        "default_branch": binding.get("default_branch"),
-        "merge_method": binding.get("merge_method"),
-        "transport": binding.get("transport"),
-        "operation_fingerprint": binding.get("operation_fingerprint"),
+        **{key: binding.get(key) for key in _CORRELATED_BINDING_FIELDS},
         "invocation_id": evidence.get("invocation_id"),
-        "blocker_invocation_id": blocker.get("invocation_id") if isinstance(blocker, dict) else None,
+        "blocker_invocation_id": blocker_record.get("invocation_id"),
+        "blocker_policy_version": blocker_record.get("policy_version"),
+        "blocker_classifier_version": blocker_record.get("classifier_version"),
+        "blocker_result": blocker_record.get("result"),
+        "blocker_reasons": blocker_record.get("reasons", []),
+        "blocker_completed_at": blocker_record.get("completed_at"),
+        "pages_complete": blocker_record.get("pages_complete"),
         "fetched_at": evidence.get("fetched_at"),
+        "delivered_message_formatter_version": DELIVERED_MESSAGE_FORMATTER_VERSION,
+        "squash_commit_messages_evidence_version": SQUASH_COMMIT_MESSAGES_EVIDENCE["version"],
+        "squash_commit_messages_evidence_fingerprint": (
+            SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT
+        ),
+        "squash_commit_messages_verified": SQUASH_COMMIT_MESSAGES_EVIDENCE["verified"],
+        "squash_commit_messages_decision": SQUASH_COMMIT_MESSAGES_EVIDENCE["decision"],
         "graphql_closing_set": evidence.get("graphql_closing_set", []),
         "delivered_message_closing_set": evidence.get("delivered_message_closing_set", []),
         "closing_set": evidence.get("closing_set", []),
@@ -200,18 +234,45 @@ def append_completion(
         else None
     )
     record = {
-        "schema_version": "pr-merge-audit/3",
+        "schema_version": _AUDIT_SCHEMA_VERSION,
         "record_type": "post_use_completion",
         "policy_version": permit.get("policy_version"),
         "classifier_version": classifier_version,
         "hook_asset_hash": asset_hash,
         "hook_event_id": hook_event_id,
         "invocation_id": invocation_id,
-        "repository": permit.get("repository"),
-        "pr_number": permit.get("pr_number"),
-        "merge_method": permit.get("merge_method"),
-        "transport": permit.get("transport"),
+        **{key: permit.get(key) for key in _CORRELATED_BINDING_FIELDS},
         "operation_fingerprint": operation_fingerprint,
+        "blocker_invocation_id": permit.get("blocker_invocation_id"),
+        "blocker_policy_version": permit.get("blocker_policy_version"),
+        "blocker_classifier_version": permit.get("blocker_classifier_version"),
+        "blocker_result": permit.get("blocker_result"),
+        "blocker_reasons": permit.get("blocker_reasons", []),
+        "blocker_completed_at": permit.get("blocker_completed_at"),
+        "pages_complete": permit.get("pages_complete"),
+        "fetched_at": permit.get("fetched_at"),
+        "graphql_closing_set": permit.get("graphql_closing_set", []),
+        "delivered_message_closing_set": permit.get(
+            "delivered_message_closing_set", []
+        ),
+        "closing_set": permit.get("closing_set", []),
+        "findings": permit.get("findings", []),
+        "dependency_paths": permit.get("dependency_paths", []),
+        "delivered_message_formatter_version": permit.get(
+            "delivered_message_formatter_version"
+        ),
+        "squash_commit_messages_evidence_version": permit.get(
+            "squash_commit_messages_evidence_version"
+        ),
+        "squash_commit_messages_evidence_fingerprint": permit.get(
+            "squash_commit_messages_evidence_fingerprint"
+        ),
+        "squash_commit_messages_verified": permit.get(
+            "squash_commit_messages_verified"
+        ),
+        "squash_commit_messages_decision": permit.get(
+            "squash_commit_messages_decision"
+        ),
         "tool_name": tool_name,
         "response_fingerprint": fingerprint({"tool_response": tool_response}),
         "response_outcome": outcome,

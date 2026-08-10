@@ -9,6 +9,18 @@ from typing import Mapping, Sequence
 from .model import fingerprint
 
 
+DELIVERED_MESSAGE_FORMATTER_VERSION = "github-delivered-message/2"
+SQUASH_COMMIT_MESSAGES_EVIDENCE = {
+    "version": "squash-commit-messages-evidence/1",
+    "verified": False,
+    "decision": "fail-close",
+    "source": "docs/methods/github-blocker-gate-spike.md#commit-only-close",
+}
+SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT = fingerprint(
+    SQUASH_COMMIT_MESSAGES_EVIDENCE
+)
+
+
 _KEYWORD = re.compile(
     r"(?<![A-Za-z0-9_])(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\b",
     re.ASCII | re.IGNORECASE,
@@ -109,7 +121,7 @@ def build_delivered_messages(
     if not commits:
         raise ClosingReferenceError("MESSAGE_SOURCE_INCOMPLETE")
     source = {
-        "formatter_version": "github-delivered-message/1",
+        "formatter_version": DELIVERED_MESSAGE_FORMATTER_VERSION,
         "repository": repository,
         "number": number,
         "merge_method": merge_method,
@@ -182,9 +194,12 @@ def build_delivered_messages(
                 effective_title = pr_title
         effective_body = commit_message
         if effective_body is None:
+            if body_setting == "COMMIT_MESSAGES":
+                # GitHub が複数 commit の subject/body を squash 本文へ並べる
+                # byte-level 形式を固定できる versioned live fixture がない。
+                raise ClosingReferenceError("MERGE_MESSAGE_AMBIGUOUS")
             effective_body = {
                 "PR_BODY": pr_body,
-                "COMMIT_MESSAGES": "\n\n".join(item.message for item in commits),
                 "BLANK": "",
             }[body_setting]
         delivered = [effective_title + (f"\n\n{effective_body}" if effective_body else "")]

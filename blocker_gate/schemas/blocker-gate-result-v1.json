@@ -50,7 +50,8 @@
         "intercepted_commit_title_fingerprint",
         "intercepted_commit_message_fingerprint", "message_source_fingerprint",
         "delivered_message_fingerprint", "repository_merge_settings_fingerprint",
-        "operation_fingerprint", "snapshot_fingerprint", "attempt"
+        "operation_fingerprint", "snapshot_fingerprint", "attempt",
+        "pr_state", "pr_is_draft"
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
@@ -64,7 +65,9 @@
         "repository_merge_settings_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
         "operation_fingerprint": {"$ref": "#/$defs/fingerprint"},
         "snapshot_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
-        "attempt": {"type": "integer", "minimum": 1, "maximum": 3}
+        "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+        "pr_state": {"enum": ["OPEN", "CLOSED", "MERGED", null]},
+        "pr_is_draft": {"type": ["boolean", "null"]}
       }
     },
     "graphql_closing_set": {"$ref": "#/$defs/issueSet"},

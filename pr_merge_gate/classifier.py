@@ -20,9 +20,10 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.2"
+CLASSIFIER_VERSION = "1.3"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
-_SAFE_NON_GH_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
+_SAFE_NON_GH_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false", "git"})
+_SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish", "env"})
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
@@ -192,6 +193,21 @@ def _unknown_executable_merge_shape(tokens: list[str]) -> bool:
         return False
     if any(tokens[index:index + 2] == ["pr", "merge"] for index in range(1, len(tokens) - 1)):
         return True
+    merge_positions = [index for index, token in enumerate(tokens) if token == "merge"]
+    if merge_positions:
+        for index in merge_positions:
+            tail = tokens[index + 1:]
+            if (
+                any(re.fullmatch(r"[1-9][0-9]*", token) for token in tail)
+                or any(token in {"--merge", "--rebase", "--squash", "--auto"} for token in tail)
+                or tokens[0].startswith("$")
+                or any("=" in token or token.startswith("$") for token in tokens[:index])
+            ):
+                return True
+    if tokens[0] in _SHELL_EVALUATORS:
+        evaluated = " ".join(tokens[1:])
+        if re.search(r"(?:\bpr\s+merge\b|\b[^\s]+\s+merge\s+[1-9][0-9]*\b)", evaluated):
+            return True
     if len(tokens) > 2 and tokens[1] == "api":
         tail = " ".join(tokens[2:]).casefold()
         return any(marker in tail for marker in ("/pulls/", "graphql", "mergepullrequest", "automerge"))

@@ -102,7 +102,7 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
         "intercepted_commit_title_fingerprint", "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
         "repository_merge_settings_fingerprint", "operation_fingerprint",
-        "snapshot_fingerprint", "attempt",
+        "snapshot_fingerprint", "attempt", "pr_state", "pr_is_draft",
     }
     if not isinstance(binding, dict) or set(binding) != binding_keys:
         _fail("binding invalid")
@@ -116,6 +116,10 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
             _fail(f"{key} invalid")
     if binding["merge_method"] not in {"merge", "rebase", "squash", None}:
         _fail("merge_method invalid")
+    if binding["pr_state"] not in {"OPEN", "CLOSED", "MERGED", None}:
+        _fail("pr_state invalid")
+    if binding["pr_is_draft"] is not None and not isinstance(binding["pr_is_draft"], bool):
+        _fail("pr_is_draft invalid")
     for key in (
         "intercepted_commit_title_fingerprint", "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
@@ -276,6 +280,7 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
                 "intercepted_commit_message_fingerprint",
                 "message_source_fingerprint", "delivered_message_fingerprint",
                 "repository_merge_settings_fingerprint",
+                "pr_state", "pr_is_draft",
             )
         ]
         if any(value is not None for value in pr_values):

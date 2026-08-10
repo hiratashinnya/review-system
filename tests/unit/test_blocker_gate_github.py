@@ -481,9 +481,9 @@ class GitHubCollectorTests(unittest.TestCase):
                         collection.errors, ("API_PARTIAL_RESPONSE",)
                     )
 
-    def test_default_branch_uses_commit_only_closing_reference(self):
+    def test_unverified_squash_commit_messages_setting_fails_closed(self):
         api = "https://api.github.com/repos/example/repo"
-        transport = GraphQLTransport([pr_page(baseRefName="main")])
+        transport = GraphQLTransport([pr_page(baseRefName="main", headRefOid="1" * 40)])
         transport.responses.update(
             {
                 api: response(
@@ -527,9 +527,135 @@ class GitHubCollectorTests(unittest.TestCase):
         result = evaluate_snapshot(snapshot)
 
         self.assertEqual(snapshot["graphql_closing_set"], [])
-        self.assertEqual(snapshot["delivered_message_closing_set"], ["example/repo#7"])
-        self.assertEqual(snapshot["roots"], ["example/repo#7"])
-        self.assertEqual(result["result"], "ALLOW")
+        self.assertEqual(snapshot["delivered_message_closing_set"], [])
+        self.assertEqual(snapshot["roots"], [])
+        self.assertIn("MERGE_MESSAGE_AMBIGUOUS", snapshot["errors"])
+        self.assertEqual((result["result"], result["permit_issued"]), ("ERROR", False))
+        self.assertEqual(result["binding"]["pr_state"], "OPEN")
+        self.assertFalse(result["binding"]["pr_is_draft"])
+        self.assertIsNotNone(
+            snapshot["binding"]["repository_merge_settings_fingerprint"]
+        )
+
+    def test_default_branch_commit_tail_must_equal_graphql_head(self):
+        api = "https://api.github.com/repos/example/repo"
+        transport = GraphQLTransport(
+            [pr_page(baseRefName="main", headRefOid="0" * 40)]
+        )
+        transport.responses[
+            api + "/pulls/50/commits?per_page=100"
+        ] = response(
+            [
+                {
+                    "sha": "1" * 40,
+                    "commit": {"message": "message", "tree": {"sha": "2" * 40}},
+                    "parents": [],
+                }
+            ]
+        )
+        snapshot = GitHubCollector(None, transport).collect_pull_request(
+            "example/repo", 50, "rebase"
+        )
+        result = evaluate_snapshot(snapshot)
+        self.assertIn("IDENTITY_MISMATCH", snapshot["errors"])
+        self.assertEqual((result["result"], result["permit_issued"]), ("ERROR", False))
+
+    def test_default_branch_commit_source_must_be_complete_and_fully_paginated(self):
+        api = "https://api.github.com/repos/example/repo"
+        commits_url = api + "/pulls/50/commits?per_page=100"
+        cases = (
+            ("empty", response([]), "MESSAGE_SOURCE_INCOMPLETE"),
+            (
+                "partial",
+                response(
+                    [
+                        {
+                            "sha": "1" * 40,
+                            "commit": {"message": "message"},
+                            "parents": [],
+                        }
+                    ]
+                ),
+                "MESSAGE_SOURCE_INCOMPLETE",
+            ),
+            (
+                "pagination-cycle",
+                response(
+                    [
+                        {
+                            "sha": "1" * 40,
+                            "commit": {
+                                "message": "message",
+                                "tree": {"sha": "2" * 40},
+                            },
+                            "parents": [],
+                        }
+                    ],
+                    {"Link": f'<{commits_url}>; rel="next"'},
+                ),
+                "PAGINATION_INCOMPLETE",
+            ),
+        )
+        for label, commits_response, reason in cases:
+            with self.subTest(label=label):
+                transport = GraphQLTransport(
+                    [pr_page(baseRefName="main", headRefOid="1" * 40)]
+                )
+                transport.responses[commits_url] = commits_response
+                snapshot = GitHubCollector(None, transport).collect_pull_request(
+                    "example/repo", 50, "rebase"
+                )
+                result = evaluate_snapshot(snapshot)
+                self.assertIn(reason, snapshot["errors"])
+                self.assertEqual(
+                    (result["result"], result["permit_issued"]),
+                    ("ERROR", False),
+                )
+
+    def test_head_and_commit_tail_change_together_changes_fresh_binding(self):
+        api = "https://api.github.com/repos/example/repo"
+
+        class ChangingCommitsTransport(GraphQLTransport):
+            def __init__(self):
+                super().__init__(
+                    [
+                        pr_page(baseRefName="main", headRefOid="a" * 40),
+                        pr_page(baseRefName="main", headRefOid="b" * 40),
+                    ]
+                )
+                self.commit_batches = ["a" * 40, "b" * 40]
+
+            def get(self, url, headers):
+                self.get_calls.append((url, dict(headers)))
+                if url == api + "/pulls/50/commits?per_page=100":
+                    oid = self.commit_batches.pop(0)
+                    return response(
+                        [
+                            {
+                                "sha": oid,
+                                "commit": {
+                                    "message": f"message-{oid[0]}",
+                                    "tree": {"sha": "2" * 40},
+                                },
+                                "parents": [],
+                            }
+                        ]
+                    )
+                raise AssertionError(url)
+
+        collector = GitHubCollector(None, ChangingCommitsTransport())
+        first = evaluate_snapshot(
+            collector.collect_pull_request("example/repo", 50, "rebase")
+        )
+        second = evaluate_snapshot(
+            collector.collect_pull_request("example/repo", 50, "rebase")
+        )
+        self.assertEqual((first["result"], second["result"]), ("ALLOW", "ALLOW"))
+        self.assertNotEqual(first["binding"]["head_oid"], second["binding"]["head_oid"])
+        self.assertNotEqual(
+            first["binding"]["message_source_fingerprint"],
+            second["binding"]["message_source_fingerprint"],
+        )
 
 
 if __name__ == "__main__":

@@ -161,6 +161,8 @@ def _binding(snapshot: Snapshot) -> dict[str, Any]:
         "operation_fingerprint",
         "snapshot_fingerprint",
         "attempt",
+        "pr_state",
+        "pr_is_draft",
     }
     if snapshot.mode == "issue-start":
         return {
@@ -182,11 +184,18 @@ def _binding(snapshot: Snapshot) -> dict[str, Any]:
             ),
             "snapshot_fingerprint": fingerprint(_snapshot_graph(snapshot)),
             "attempt": 1,
+            "pr_state": None,
+            "pr_is_draft": None,
         }
-    optional_preconditions = {"pr_state", "pr_is_draft"}
-    if set(snapshot.binding) not in {frozenset(keys), frozenset(keys | optional_preconditions)}:
+    legacy_keys = keys - {"pr_state", "pr_is_draft"}
+    if set(snapshot.binding) not in {frozenset(legacy_keys), frozenset(keys)}:
         raise ValueError("PR binding keys mismatch")
-    value = {key: snapshot.binding[key] for key in keys}
+    value = {
+        key: snapshot.binding.get(key)
+        if key in {"pr_state", "pr_is_draft"}
+        else snapshot.binding[key]
+        for key in keys
+    }
     value["snapshot_fingerprint"] = fingerprint(_snapshot_graph(snapshot))
     return value
 
@@ -439,6 +448,8 @@ def _contract_error_result(raw: Mapping[str, Any], reason: str) -> dict[str, Any
             "operation_fingerprint": fingerprint({"invalid_snapshot": True}),
             "snapshot_fingerprint": None,
             "attempt": 1,
+            "pr_state": None,
+            "pr_is_draft": None,
         },
         "graphql_closing_set": [],
         "delivered_message_closing_set": [],
