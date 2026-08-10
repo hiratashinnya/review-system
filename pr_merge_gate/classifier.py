@@ -20,10 +20,32 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.5"
+CLASSIFIER_VERSION = "1.6"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
+_SHELL_SHORT_OPTIONS = {
+    "bash": frozenset("abefhiklmnpstuvxBCEHPTlrD"),
+    "sh": frozenset("abefhiklmnpstuvx"),
+    "zsh": frozenset("cdfiklnrstuvx"),
+    "fish": frozenset("cdfilnNpPv"),
+}
+_SHELL_LONG_NO_ARG_OPTIONS = {
+    "bash": frozenset(
+        {"--debugger", "--login", "--noediting", "--noprofile", "--norc", "--posix", "--restricted", "--verbose"}
+    ),
+    "sh": frozenset(),
+    "zsh": frozenset({"--globalrcs", "--no-globalrcs", "--no-rcs", "--rcs"}),
+    "fish": frozenset({"--interactive", "--login", "--no-config", "--no-execute", "--private"}),
+}
+_SHELL_LONG_VALUE_OPTIONS = {
+    "bash": frozenset({"--init-file", "--rcfile"}),
+    "sh": frozenset(),
+    "zsh": frozenset(),
+    "fish": frozenset({"--debug", "--debug-output", "--profile", "--profile-startup"}),
+}
+_SHELL_COMMAND_LONG_OPTIONS = {"fish": frozenset({"--command"})}
+_SHELL_UNSUPPORTED_EVALUATING_OPTIONS = {"fish": frozenset({"--init-command"})}
 _SAFE_GIT_BUILTINS = frozenset(
     {
         "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
@@ -35,8 +57,18 @@ _SAFE_GIT_BUILTINS = frozenset(
     }
 )
 _GIT_SHELL_EVALUATING_OPTIONS = frozenset(
-    {"--config-env", "--exec", "--ext-diff", "--receive-pack", "--ssh-command", "--textconv", "--upload-pack"}
+    {
+        "--config-env", "--exec", "--ext-diff", "--open-files-in-pager", "--receive-pack",
+        "--reschedule-failed-exec", "--ssh-command", "--textconv", "--upload-pack",
+    }
 )
+_GIT_SHELL_EVALUATING_SHORT_OPTIONS = {
+    "clone": frozenset({"u"}),
+    "fetch": frozenset({"u"}),
+    "grep": frozenset({"O"}),
+    "pull": frozenset({"u"}),
+    "rebase": frozenset({"x"}),
+}
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
@@ -249,20 +281,68 @@ def _has_active_parameter_expansion(command: str) -> bool:
 
 
 def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
-    """文字列再評価器のpayloadを返す。Noneは静的に束縛不能な評価を表す。"""
+    """shellごとのclosed option grammarでcommand-string payloadを返す。"""
     if not tokens:
         return False, None
     if tokens[0] == "eval":
         if len(tokens) < 2:
             return True, None
         return True, " ".join(tokens[1:])
-    if tokens[0] not in _SHELL_EVALUATORS:
+    shell = tokens[0]
+    if shell not in _SHELL_EVALUATORS:
         return False, None
     if len(tokens) == 2 and tokens[1] in {"--help", "--version"}:
         return False, None
-    for index, token in enumerate(tokens[1:], start=1):
-        if token.startswith("-") and "c" in token[1:]:
-            return True, tokens[index + 1] if index + 1 < len(tokens) else None
+
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return True, None
+        if token.startswith("--"):
+            name, separator, attached = token.partition("=")
+            if name in _SHELL_UNSUPPORTED_EVALUATING_OPTIONS.get(shell, frozenset()):
+                return True, None
+            if name in _SHELL_COMMAND_LONG_OPTIONS.get(shell, frozenset()):
+                if separator:
+                    return True, attached
+                if index + 1 >= len(tokens):
+                    return True, None
+                command = tokens[index + 1]
+                if command in {"-c", "--command"} and index + 2 < len(tokens):
+                    return True, None
+                return True, command
+            if name in _SHELL_LONG_NO_ARG_OPTIONS[shell]:
+                if separator:
+                    return True, None
+                index += 1
+                continue
+            if name in _SHELL_LONG_VALUE_OPTIONS[shell]:
+                if separator:
+                    if not attached:
+                        return True, None
+                    index += 1
+                    continue
+                if index + 1 >= len(tokens):
+                    return True, None
+                index += 2
+                continue
+            return True, None
+        if token.startswith("+") or not token.startswith("-") or token == "-":
+            return True, None
+        cluster = token[1:]
+        if not cluster or not set(cluster) <= _SHELL_SHORT_OPTIONS[shell] | {"c"}:
+            return True, None
+        if cluster.count("c") > 1:
+            return True, None
+        if "c" in cluster:
+            if index + 1 >= len(tokens):
+                return True, None
+            command = tokens[index + 1]
+            if command in {"-c", "--command"} and index + 2 < len(tokens):
+                return True, None
+            return True, command
+        index += 1
     return True, None
 
 
@@ -292,10 +372,17 @@ def _known_safe_git_shape(tokens: list[str]) -> bool:
         break
     if index >= len(tokens) or tokens[index] not in _SAFE_GIT_BUILTINS:
         return False
+    subcommand = tokens[index]
     for token in tokens[index + 1:]:
+        if token == "--":
+            break
         option = token.split("=", 1)[0]
         if option in _GIT_SHELL_EVALUATING_OPTIONS:
             return False
+        if token.startswith("-") and not token.startswith("--"):
+            short_options = _GIT_SHELL_EVALUATING_SHORT_OPTIONS.get(subcommand, frozenset())
+            if any(short_option in token[1:] for short_option in short_options):
+                return False
     return True
 
 

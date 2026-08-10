@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.5",
+  "classifier_version": "1.6",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -100,6 +100,156 @@
     {
       "id": "known-git-builtin",
       "command": "git status",
+      "expected": "none"
+    },
+    {
+      "id": "bash-norc-before-command-string",
+      "command": "bash --norc -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-rcfile-and-short-cluster",
+      "command": "bash --rcfile=/dev/null -lc 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-command-string-missing-payload",
+      "command": "bash --norc -c",
+      "expected": "error"
+    },
+    {
+      "id": "bash-option-terminator-before-command-flag",
+      "command": "bash -- -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-multiple-command-flags-cluster",
+      "command": "bash -cc 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-command-flag-as-payload",
+      "command": "bash -c -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-long-command-option",
+      "command": "fish --command 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-attached-long-command-option",
+      "command": "fish --command='gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-init-command-unsupported-evaluator",
+      "command": "fish -C 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-bash-norc-short-cluster",
+      "command": "bash --norc -lc 'gh issue view 1'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-shell-options-after-payload-are-positional",
+      "command": "bash -c 'gh issue view 1' --norc",
+      "expected": "none"
+    },
+    {
+      "id": "safe-multiple-prefix-options",
+      "command": "bash --norc -l -c 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-fish-long-command-option",
+      "command": "fish --command 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-sh-short-cluster",
+      "command": "sh -lc 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "git-rebase-short-exec",
+      "command": "git rebase -x 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-short-exec",
+      "command": "git rebase -x'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-short-cluster-exec",
+      "command": "git rebase -ix 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-long-exec",
+      "command": "git rebase --exec 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-long-exec",
+      "command": "git rebase --exec='gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-diff-external-evaluator",
+      "command": "git diff --ext-diff",
+      "expected": "error"
+    },
+    {
+      "id": "git-log-textconv-evaluator",
+      "command": "git log --textconv",
+      "expected": "error"
+    },
+    {
+      "id": "git-grep-short-pager-evaluator",
+      "command": "git grep -O 'gh pr merge 1 --squash' pattern",
+      "expected": "error"
+    },
+    {
+      "id": "git-clone-short-upload-pack-evaluator",
+      "command": "git clone -u 'gh pr merge 1 --squash' example/repo",
+      "expected": "error"
+    },
+    {
+      "id": "git-fetch-short-cluster-upload-pack-evaluator",
+      "command": "git fetch -qu 'gh pr merge 1 --squash' origin",
+      "expected": "error"
+    },
+    {
+      "id": "git-pull-long-upload-pack-evaluator",
+      "command": "git pull --upload-pack='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-push-long-receive-pack-evaluator",
+      "command": "git push --receive-pack='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-option-terminator-boundary",
+      "command": "git rebase -- -x",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-rebase",
+      "command": "git rebase main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-push-set-upstream-short-u",
+      "command": "git push -u origin branch",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-rebase-strategy-option-uppercase-x",
+      "command": "git rebase -X theirs main",
       "expected": "none"
     }
   ]
