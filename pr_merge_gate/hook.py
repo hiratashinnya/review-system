@@ -42,12 +42,15 @@ def _hook_context(payload: dict[str, Any], event: str) -> tuple[str, str]:
     tool_use_id = payload.get("tool_use_id")
     if not (
         isinstance(session_id, str) and session_id
-        and isinstance(turn_id, str) and turn_id
         and isinstance(tool_use_id, str) and tool_use_id
+        and (turn_id is None or isinstance(turn_id, str) and turn_id)
     ):
         raise ValueError("hook invocation identity")
     invocation_id = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, "\0".join((session_id, turn_id, tool_use_id)))
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "\0".join((session_id, turn_id if isinstance(turn_id, str) else "", tool_use_id)),
+        )
     )
     return invocation_id, tool_use_id
 

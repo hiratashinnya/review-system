@@ -232,8 +232,11 @@ class HookTest(unittest.TestCase):
             ROOT / ".claude/hooks/pr-merge-gate.sh",
         ):
             with self.subTest(script=script), tempfile.TemporaryDirectory() as directory:
+                script_payload = dict(payload)
+                if ".claude" in script.parts:
+                    script_payload.pop("turn_id")
                 completed = subprocess.run(
-                    ["bash", str(script)], input=json.dumps(payload), text=True,
+                    ["bash", str(script)], input=json.dumps(script_payload), text=True,
                     cwd=ROOT, capture_output=True,
                     env={
                         "HOME": directory,
