@@ -1,0 +1,65 @@
+name: tests
+
+# Issue #344 (手当てA): a `pull_request`-triggered CI workflow that runs the full unit
+# test suite as a PR status check. Before this, only `pages.yml` (push:main only) and
+# `asset-parity.yml` (path-filtered, and never runs unittest at all) existed — a red PR
+# could merge into `main` undetected (see #339: PR #335 merged commit 575680f, which
+# broke `main`, without ever running a test on the PR itself).
+#
+# Relationship to pages.yml (deliberately kept as two separate workflows, not one
+# reusable/shared job — recorded per this issue's AC "重複実行・役割分担について判断根拠"):
+#   - pages.yml's job is Pages *deployment* (push:main only). It happens to run tests
+#     first (coverage-wrapped, because it needs the coverage data to build the HTML it
+#     deploys), but that is a means to its own end, not a PR gate. This change leaves
+#     pages.yml completely untouched: main pushes keep exactly the detection capability
+#     they had before (AC: "current detection capability is not reduced").
+#   - This workflow's only job is to be an always-on PR status check, as cheap and
+#     isolated as possible. It runs the same suite bare (no coverage wrapping, since
+#     nothing here consumes a coverage report) via `python3 -m unittest discover -s
+#     tests/unit`, and requests no Pages-related permissions (`contents: read` only, vs.
+#     pages.yml's `pages: write`/`id-token: write`).
+#   - A `workflow_call`-based common test job was considered and rejected: the two
+#     workflows have different triggers (`pull_request` vs `push: branches: [main]`),
+#     different permission needs, and different downstream steps (deploy vs none) — DRYing
+#     out ~15 lines of `run:` would mean touching the already-working deploy pipeline to
+#     save avoiding a rare double-run (a PR's `pull_request` event and a same-commit
+#     `push:main` event essentially never fire for the same SHA on this repo's flow,
+#     since `main` only advances via PR merge). Isolation of the working deploy pipeline
+#     was weighted higher than that marginal DRY gain.
+#   - Net effect: a `push` to `main` runs the full suite once (pages.yml, unchanged); a
+#     `pull_request` runs it once here. No event runs the suite twice.
+#
+# Cost (AC: "課金を発生させない構成であることが根拠付きで記録されている"): this repository is
+# public, so GitHub Actions has no free-tier cap at all for it — billing only applies to
+# private repositories that exceed the free minutes/storage quota (public repos are
+# unmetered). This workflow therefore adds no cost regardless of how often PRs push.
+# Local measurement: `python3 -m unittest discover -s tests/unit` takes ~90-110s, well
+# within a normal Actions job budget.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run unit test suite
+        run: python3 -m unittest discover -s tests/unit
+
+      - name: Time-dependent test data check (手当てB, issue #344)
+        run: python3 -m time_fixture_lint check
