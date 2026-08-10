@@ -39,9 +39,19 @@ def evidence(**overrides):
 
 
 class WaiverParserTests(unittest.TestCase):
+    """schema 解析のみを検証するクラス（verify_waiver は呼ばない）。
+
+    ``parse_waiver_yaml``/``parse_policy_yaml`` は wall clock を一切読まないため、
+    ここで使う fixture の approved_at/expires_at は不透明な文字列のまま扱われ、
+    clock 保護は不要（time_fixture_lint/allowlist.py に理由を明記して登録済み・#349）。
+    verify_waiver（``approved <= now < expires`` の wall clock 比較）を実際に呼ぶ
+    テストは ``waiver_valid.yml``/``waiver_expired.yml`` を使う ``WaiverVerifierTests``
+    （setUp で now= 注入により clock 保護済み）を参照。
+    """
+
     def test_valid_policy_and_waiver(self):
         policy = parse_policy_yaml((FIXTURES / "policy.yml").read_bytes())
-        waiver = parse_waiver_yaml((FIXTURES / "waiver_valid.yml").read_bytes())
+        waiver = parse_waiver_yaml((FIXTURES / "schema_only_waiver.yml").read_bytes())
         self.assertEqual(policy["policy_version"], "1.0")
         self.assertEqual(waiver["id"], "BW-20260801-001")
 
@@ -59,7 +69,7 @@ class WaiverParserTests(unittest.TestCase):
 
     def test_bool_is_not_accepted_as_integer_policy_or_subject_number(self):
         policy = (FIXTURES / "policy.yml").read_bytes().replace(b"168", b"true")
-        waiver = (FIXTURES / "waiver_valid.yml").read_bytes().replace(
+        waiver = (FIXTURES / "schema_only_waiver.yml").read_bytes().replace(
             b"number: 10", b"number: true"
         )
         for parser, data in ((parse_policy_yaml, policy), (parse_waiver_yaml, waiver)):
