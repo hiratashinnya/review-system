@@ -1,0 +1,106 @@
+{
+  "schema_version": "pr-merge-classifier-shell-corpus/1",
+  "classifier_version": "1.5",
+  "cases": [
+    {
+      "id": "safe-gh-prefix-then-merge",
+      "command": "gh issue view 1; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "shell-c-compound-merge",
+      "command": "bash -c 'gh issue view 1; gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "double-quoted-command-substitution",
+      "command": "echo \"$(gh pr merge 1 --squash)\"",
+      "expected": "error"
+    },
+    {
+      "id": "backtick-command-substitution",
+      "command": "echo `gh pr merge 1 --squash`",
+      "expected": "error"
+    },
+    {
+      "id": "process-substitution",
+      "command": "echo <(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "git-per-invocation-shell-alias",
+      "command": "git -c alias.p='!gh pr merge 1 --squash' p",
+      "expected": "error"
+    },
+    {
+      "id": "git-unknown-alias",
+      "command": "git p",
+      "expected": "error"
+    },
+    {
+      "id": "eval-known-prefix-dynamic-tail",
+      "command": "eval 'echo prefix' \"$TAIL\"",
+      "expected": "error"
+    },
+    {
+      "id": "compound-known-prefix-dynamic-eval-tail",
+      "command": "echo prefix; eval \"$CMD\"",
+      "expected": "error"
+    },
+    {
+      "id": "pipeline-merge-leaf",
+      "command": "printf ok | gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "safe-compound-nonmerge",
+      "command": "gh issue view 1; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "safe-and-list-nonmerge",
+      "command": "echo alpha && printf '%s\\n' beta",
+      "expected": "none"
+    },
+    {
+      "id": "safe-shell-c-compound-nonmerge",
+      "command": "bash -c 'gh issue view 1; echo done'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-eval-literal-compound-nonmerge",
+      "command": "eval 'echo left; echo right'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-command-substitution-data",
+      "command": "echo '$(gh pr merge 1 --squash)'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-backtick-data",
+      "command": "printf '%s\\n' '`gh pr merge 1 --squash`'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-gh-data",
+      "command": "gh issue view '$(gh pr merge 1 --squash)'",
+      "expected": "none"
+    },
+    {
+      "id": "normal-echo-data",
+      "command": "echo \"$VALUE\"",
+      "expected": "none"
+    },
+    {
+      "id": "normal-gh-issue",
+      "command": "gh issue view \"$ISSUE\"",
+      "expected": "none"
+    },
+    {
+      "id": "known-git-builtin",
+      "command": "git status",
+      "expected": "none"
+    }
+  ]
+}

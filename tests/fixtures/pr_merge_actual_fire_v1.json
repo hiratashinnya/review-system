@@ -10,7 +10,7 @@
   "expected_audit": {
     "schema_version": "pr-merge-audit/4",
     "record_type": "pre_use_decision",
-    "classifier_version": "1.4",
+    "classifier_version": "1.5",
     "reason": "AUTO_MERGE_DENIED",
     "permit_issued": false,
     "operation_dispatched": false,
@@ -66,7 +66,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.4",
+        "classifier_version": "1.5",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -90,7 +90,127 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.4",
+        "classifier_version": "1.5",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-safe-prefix-compound-merge",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact compound payload; PreToolUse must deny the complete invocation before either command is dispatched",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "gh issue view 1; gh pr merge 1 --squash"
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.5",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-shell-c-compound-merge",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact literal shell payload; recursive classification must deny before dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "bash -c 'gh issue view 1; gh pr merge 1 --squash'"
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.5",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-command-substitution-merge",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact command-substitution payload; PreToolUse must deny before the substitution executes",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "echo \"$(gh pr merge 1 --squash)\""
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.5",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-git-shell-alias-merge",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact per-invocation Git shell alias; PreToolUse must deny before Git dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "git -c alias.p='!gh pr merge 1 --squash' p"
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.5",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "bash-eval-safe-prefix-dynamic-tail",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact evaluator payload; the dynamic tail need not be defined because PreToolUse must deny before dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "eval 'echo prefix' \"$TAIL\""
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.5",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,

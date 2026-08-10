@@ -808,7 +808,7 @@ class GitHubCollectorTests(unittest.TestCase):
         ))
         gate_evidence.update(
             {
-                "classifier_version": "1.4",
+                "classifier_version": "1.5",
                 "hook_asset_hash": "sha256:" + "9" * 64,
                 "hook_event_id": "tool-partial",
                 "invocation_id": "invocation-partial",

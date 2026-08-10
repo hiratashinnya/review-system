@@ -11,7 +11,7 @@ from pr_merge_gate.audit import AuditError, append_completion, append_decision, 
 def evidence() -> dict:
     return {
         "policy_version": "pr-merge-pre-use/1",
-        "classifier_version": "1.4",
+        "classifier_version": "1.5",
         "hook_asset_hash": "sha256:" + "9" * 64,
         "hook_event_id": "tool-1",
         "invocation_id": "invocation-1",
@@ -111,7 +111,7 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(record["squash_commit_messages_decision"], "fail-close")
             self.assertEqual(record["closing_set"], ["example/repo#7", "example/repo#8"])
             self.assertEqual(record["dependency_paths"], [["example/repo#7", "example/repo#6"]])
-            self.assertEqual(record["classifier_version"], "1.4")
+            self.assertEqual(record["classifier_version"], "1.5")
             self.assertEqual(record["hook_event_id"], "tool-1")
             serialized = json.dumps(record)
             self.assertNotIn("secret", serialized)
@@ -127,7 +127,7 @@ class AuditTest(unittest.TestCase):
             append_completion(
                 invocation_id="invocation-1", hook_event_id="tool-1",
                 operation_fingerprint="sha256:" + "1" * 64,
-                classifier_version="1.4", asset_hash="sha256:" + "9" * 64,
+                classifier_version="1.5", asset_hash="sha256:" + "9" * 64,
                 tool_name="github_merge_pull_request",
                 tool_response={
                     "structuredContent": {
@@ -156,7 +156,7 @@ class AuditTest(unittest.TestCase):
                 append_completion(
                     invocation_id="missing", hook_event_id="tool-2",
                     operation_fingerprint="sha256:" + "1" * 64,
-                    classifier_version="1.4", asset_hash="sha256:" + "9" * 64,
+                    classifier_version="1.5", asset_hash="sha256:" + "9" * 64,
                     tool_name="github_merge_pull_request", tool_response={}, path=target,
                 )
 
@@ -182,7 +182,7 @@ class AuditTest(unittest.TestCase):
                 append_completion(
                     invocation_id=f"invocation-{index}", hook_event_id=f"tool-{index}",
                     operation_fingerprint="sha256:" + str(index) * 64,
-                    classifier_version="1.4", asset_hash="sha256:" + "9" * 64,
+                    classifier_version="1.5", asset_hash="sha256:" + "9" * 64,
                     tool_name=(
                         "github_merge_pull_request" if transport == "connector" else "Bash"
                     ),

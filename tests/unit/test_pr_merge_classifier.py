@@ -166,6 +166,28 @@ class PreUseClassifierTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIsNone(classify_pre_use(bash(command)))
 
+    def test_shell_control_alias_and_substitution_fixture_is_closed(self):
+        fixture = json.loads(
+            (
+                Path(__file__).parents[1]
+                / "fixtures"
+                / "pr_merge_classifier_shell_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(fixture["schema_version"], "pr-merge-classifier-shell-corpus/1")
+        self.assertEqual(fixture["classifier_version"], CLASSIFIER_VERSION)
+        for case in fixture["cases"]:
+            with self.subTest(case=case["id"]):
+                classified = classify_pre_use(bash(case["command"]))
+                if case["expected"] == "none":
+                    self.assertIsNone(classified)
+                else:
+                    self.assertIsNotNone(classified)
+                    self.assertEqual(
+                        (classified.kind, classified.reason),
+                        ("error", "CLASSIFIER_UNKNOWN"),
+                    )
+
     def test_known_safe_alias_and_extension_list_shapes_are_not_merge(self):
         for command in (
             "gh alias list",

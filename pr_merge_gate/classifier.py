@@ -20,10 +20,23 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.4"
+CLASSIFIER_VERSION = "1.5"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
-_SAFE_NON_GH_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false", "git"})
+_SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
+_SAFE_GIT_BUILTINS = frozenset(
+    {
+        "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
+        "clean", "clone", "commit", "config", "describe", "diff", "fetch", "format-patch", "fsck", "gc",
+        "grep", "init", "log", "ls-files", "ls-remote", "merge", "merge-base", "mv", "notes", "pull",
+        "push", "range-diff", "rebase", "reflog", "remote", "repack", "replace", "reset", "restore", "revert",
+        "rev-list", "rev-parse", "rm", "shortlog", "show", "show-ref", "sparse-checkout", "stash", "status",
+        "switch", "tag", "verify-commit", "verify-tag", "worktree",
+    }
+)
+_GIT_SHELL_EVALUATING_OPTIONS = frozenset(
+    {"--config-env", "--exec", "--ext-diff", "--receive-pack", "--ssh-command", "--textconv", "--upload-pack"}
+)
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
@@ -149,11 +162,71 @@ def _unwrap(tokens: list[str]) -> tuple[list[str], list[str]]:
     return remaining, wrappers
 
 
-def _has_shell_control(command: str) -> bool:
-    """引用内を除くshell制御構文を検出する。"""
+def _split_shell_commands(command: str) -> list[str] | None:
+    """実行されるshell構造だけをquote-awareに分割する。Noneは未対応構造。"""
+    commands: list[str] = []
     quote: str | None = None
     escaped = False
-    for index, character in enumerate(command):
+    start = 0
+    index = 0
+    while index < len(command):
+        character = command[index]
+        if escaped:
+            escaped = False
+            index += 1
+            continue
+        if quote == "'":
+            if character == "'":
+                quote = None
+            index += 1
+            continue
+        if character == "\\":
+            escaped = True
+            index += 1
+            continue
+        if quote == '"':
+            if character == '"':
+                quote = None
+            elif character == "`" or (character == "$" and command[index:index + 2] == "$("):
+                return None
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            index += 1
+            continue
+        if character == "`" or (character == "$" and command[index:index + 2] == "$("):
+            return None
+        if character in "<>(){}":
+            return None
+        if character in "\n\r;&|":
+            leaf = command[start:index].strip()
+            if not leaf:
+                return None
+            commands.append(leaf)
+            if character in "&|" and index + 1 < len(command) and command[index + 1] == character:
+                index += 1
+            start = index + 1
+        index += 1
+    if quote is not None or escaped:
+        return None
+    leaf = command[start:].strip()
+    if not leaf:
+        return None if commands else []
+    commands.append(leaf)
+    return commands
+
+
+def _dynamic_executable(token: str) -> bool:
+    """展開後に実行名が変わるwordを検出する。"""
+    return bool(re.match(r"^(?:\$[A-Za-z_]|\$\{|\$\(|`)", token))
+
+
+def _has_active_parameter_expansion(command: str) -> bool:
+    """single quote外で一次評価されるparameter expansionを検出する。"""
+    quote: str | None = None
+    escaped = False
+    for character in command:
         if escaped:
             escaped = False
             continue
@@ -164,25 +237,15 @@ def _has_shell_control(command: str) -> bool:
         if character == "\\":
             escaped = True
             continue
-        if quote == '"':
-            if character == '"':
-                quote = None
-            elif character in {"`", "$"}:
-                return True
+        if character == '"':
+            quote = None if quote == '"' else '"'
             continue
-        if character in {"'", '"'}:
-            quote = character
+        if character == "'" and quote is None:
+            quote = "'"
             continue
-        if character in "\n\r;&|<>(){}`":
-            return True
         if character == "$":
             return True
-    return quote is not None or escaped
-
-
-def _dynamic_executable(token: str) -> bool:
-    """展開後に実行名が変わるwordを検出する。"""
-    return bool(re.match(r"^(?:\$[A-Za-z_]|\$\{|\$\(|`)", token))
+    return False
 
 
 def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
@@ -190,6 +253,8 @@ def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
     if not tokens:
         return False, None
     if tokens[0] == "eval":
+        if len(tokens) < 2:
+            return True, None
         return True, " ".join(tokens[1:])
     if tokens[0] not in _SHELL_EVALUATORS:
         return False, None
@@ -201,6 +266,39 @@ def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
     return True, None
 
 
+def _known_safe_git_shape(tokens: list[str]) -> bool:
+    """Git builtinだけを許可し、alias/config由来のshell評価は閉じる。"""
+    if not tokens or tokens[0] != "git":
+        return False
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+        if token == "-c" or token.startswith("-c") or token == "--config-env" or token.startswith("--config-env="):
+            return False
+        if token in {"-C", "--git-dir", "--work-tree", "--namespace"}:
+            index += 2
+            continue
+        if token.startswith(("--git-dir=", "--work-tree=", "--namespace=")):
+            index += 1
+            continue
+        if token in {"--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks"}:
+            index += 1
+            continue
+        if token.startswith("-"):
+            return False
+        break
+    if index >= len(tokens) or tokens[index] not in _SAFE_GIT_BUILTINS:
+        return False
+    for token in tokens[index + 1:]:
+        option = token.split("=", 1)[0]
+        if option in _GIT_SHELL_EVALUATING_OPTIONS:
+            return False
+    return True
+
+
 def _known_safe_gh_shape(tokens: list[str]) -> bool:
     if len(tokens) >= 2 and tokens[:2] == ["alias", "list"]:
         return all(token in _SAFE_ALIAS_FLAGS for token in tokens[2:])
@@ -210,7 +308,7 @@ def _known_safe_gh_shape(tokens: list[str]) -> bool:
 
 
 def _unknown_executable_merge_shape(tokens: list[str]) -> bool:
-    if not tokens or tokens[0] in _SAFE_NON_GH_EXECUTABLES:
+    if not tokens or tokens[0] in _SAFE_DATA_EXECUTABLES:
         return False
     if tokens[0] == "env":
         executable_index = next(
@@ -536,6 +634,22 @@ def classify_pre_use(
     command = tool_input.get("command")
     if not isinstance(command, str):
         return _error("CLASSIFIER_UNKNOWN", tool_input)
+    if _depth >= 8:
+        return _error("CLASSIFIER_UNKNOWN", command)
+    shell_commands = _split_shell_commands(command)
+    if shell_commands is None:
+        return _error("CLASSIFIER_UNKNOWN", command)
+    if len(shell_commands) > 1:
+        for leaf in shell_commands:
+            classified = classify_pre_use(
+                {"tool_name": "Bash", "tool_input": {"command": leaf}},
+                cwd=cwd,
+                runner=runner,
+                _depth=_depth + 1,
+            )
+            if classified is not None:
+                return _error("CLASSIFIER_UNKNOWN", command)
+        return None
     try:
         tokens = shlex.split(command, posix=True)
     except ValueError:
@@ -543,8 +657,30 @@ def classify_pre_use(
     remaining, wrappers = _unwrap(tokens)
     if not remaining:
         return None
+    if remaining[0] == "env":
+        index = 1
+        while index < len(remaining):
+            token = remaining[index]
+            if token == "--":
+                index += 1
+                break
+            if token in {"-i", "--ignore-environment"}:
+                index += 1
+                continue
+            if token.startswith("-"):
+                return _error("CLASSIFIER_UNKNOWN", command)
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token, flags=re.DOTALL):
+                index += 1
+                continue
+            break
+        if index >= len(remaining):
+            return None
+        remaining = remaining[index:]
+        wrappers.append("env")
     if remaining[0] != "gh":
-        if _depth >= 4 or _dynamic_executable(remaining[0]):
+        if _dynamic_executable(remaining[0]):
+            return _error("CLASSIFIER_UNKNOWN", command)
+        if remaining[0] == "eval" and _has_active_parameter_expansion(command):
             return _error("CLASSIFIER_UNKNOWN", command)
         evaluator, evaluated_command = _evaluated_shell_command(remaining)
         if evaluator:
@@ -561,6 +697,12 @@ def classify_pre_use(
                     return _block(nested.reason, command)
                 return _error("CLASSIFIER_UNKNOWN", command)
             return None
+        if remaining[0] in _SAFE_DATA_EXECUTABLES:
+            return None
+        if remaining[0] == "git":
+            if _known_safe_git_shape(remaining):
+                return None
+            return _error("CLASSIFIER_UNKNOWN", command)
         if "gh" in remaining or _unknown_executable_merge_shape(remaining):
             return _error("CLASSIFIER_UNKNOWN", command)
         return None
@@ -582,8 +724,6 @@ def classify_pre_use(
     )
     if not is_merge_candidate:
         return None
-    if _has_shell_control(command):
-        return _error("CLASSIFIER_UNKNOWN", command)
     rest = _rest_operation(payload, list(remaining), wrappers, cwd=cwd)
     if rest is not None:
         return rest

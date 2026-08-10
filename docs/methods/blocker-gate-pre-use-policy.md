@@ -64,7 +64,9 @@ MergeTransport =
 - `DeniedAutoMerge` は `BLOCK/AUTO_MERGE_DENIED` とし、元操作を実行しない。
 - `UnknownPotentialManaged` は `ERROR/CLASSIFIER_UNKNOWN` とし、元操作を実行しない。
 - repository、Issue/PR 番号、merge method を tool schema または command AST から一意に確定できない場合は `UnknownPotentialManaged` とする。shell の表示文字列を推測して補完しない。
-- `eval "$CMD"`、`bash -c "$CMD"`、動的実行名、command substitutionは、再評価するliteral command全体をclosed grammarで非managedと証明できる場合以外`UnknownPotentialManaged`とする。`gh api`のendpoint、method、query、field、merge subject/bodyにsingle-quote外のparameter expansionがあればoutbound値を一意に束縛できないため同様にERRORとする。`echo "$VALUE"`等のknown-safe executableへの通常data引数やsingle-quoted literal `$VALUE`は動的実行とは扱わない。
+- classifier はknown-safe executable/subcommandを判定する前に、raw command全体をquote-awareに構造解析する。`;`、改行、`&&`、`||`、pipe、backgroundは各leafを再帰分類し、全leafがclosed grammar上のnonmanagedである場合だけgate対象外とする。managed leaf、不可読な構造、実行されるcommand/process substitution、backtickはcomplete invocationを`UnknownPotentialManaged`としてERRORにする。single-quoted `$()` / backtickは実行されないdata literalなのでこの構造判定の対象外とする。
+- `eval "$CMD"`、`bash -c "$CMD"`、動的実行名は、再評価するliteral command全体を同じclosed grammarで非managedと証明できる場合以外`UnknownPotentialManaged`とする。`eval 'echo prefix' "$TAIL"`のように既知安全prefixへ動的tailを連結する形もERRORである。`gh api`のendpoint、method、query、field、merge subject/bodyにsingle-quote外のparameter expansionがあればoutbound値を一意に束縛できないため同様にERRORとする。`echo "$VALUE"`等のknown-safe executableへの通常data引数やsingle-quoted literal `$VALUE`は動的実行とは扱わない。
+- `git` は実行名だけでblanket-safeにしない。既知builtinだけをclosed allowlistでnonmanagedとし、`git -c alias.*=!…`、`--config-env`、shellを評価するoption、未知subcommand/aliasは内容を安全に再分類できない限り`UnknownPotentialManaged`とする。
 
 classifier は managed hook が受け取った入力について次の表を完全に適用する。merge の可能性がある入力を「非対象」として通過させる型は設けない。
 
@@ -75,7 +77,7 @@ classifier は managed hook が受け取った入力について次の表を完�
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` を送る `gh api` 等 | `PullRequestMerge/RestPullsMergeEndpoint` | 同じ tool invocation を中断・再開できる場合だけ gate。不能なら ERROR |
 | schema 既知の `github_merge_pull_request` 等 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
 | `gh pr merge --auto`、`github_enable_auto_merge`、auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
-| GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、動的実行/parameter expansion、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | 実行時のcommand・endpoint・bodyへ一意に束縛できないため、registry/fixture 更新まで ERROR |
+| GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、動的実行/parameter expansion、managed leafを含むcompound、実行されるsubstitution、Git shell alias、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | 実行時のcommand・endpoint・bodyへ一意に束縛できないため、registry/fixture 更新まで ERROR |
 | known-safeな `gh alias list` / `gh extension list`、またはmerge と Issue-start のどちらでもないことを閉じた grammar で証明できる操作 | gate 対象外 | blocker gate の ALLOW は発行しない |
 
 GitHub UI、managed hook 外の API client、direct push/ref update は classifier の入力ではなく、別 manifest の `unmanaged_paths` に記録する非保証経路である。managed tool 内で同じ操作が観測された場合は unmanaged として通過させず `UnknownPotentialManaged` とする。
