@@ -714,6 +714,8 @@ def classify_pre_use(
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if not subcommand:
         return None
+    if subcommand[0] == "api" and _has_active_parameter_expansion(command):
+        return _error("CLASSIFIER_UNKNOWN", command)
     if _known_safe_gh_shape(subcommand):
         return None
     is_merge_candidate = (
