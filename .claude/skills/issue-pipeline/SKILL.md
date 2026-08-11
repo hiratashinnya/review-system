@@ -60,13 +60,32 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   （`base_oid` が40桁hexでない等）はそれぞれ専用の reason code（`ISSUE_START_BRANCH_INVALID`／
   `ISSUE_START_BASE_REF_INVALID`／`ISSUE_START_BASE_OID_INVALID`／`ISSUE_START_BASE_PR_INVALID`等）で
   fail-close する。別経路への迂回はできない。
+- **同じ dispatch に `isolation: "worktree"` を渡す（Issue #350・同じ hook が機械的に強制）。**
+  `Task`/`Agent` 呼び出しのパラメータとして渡す（prompt 本文ではない）。欠落・別値（`"remote"` 等）は
+  `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch そのものが deny される（契約の実体＝
+  `managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
+  `gate.py` の `_validate_isolation`）。
+  - **これが `issue-implementer` の「isolated worktree」を成立させる唯一の手段**：実装者側には
+    worktree を作る verb が無く（`gitgate`）、`cd` も deny される（`agent-command-gate.sh` 層2）ため、
+    渡さなければ実装者は**主文脈と同じ working tree を branch switch して共有する**（＝主文脈の作業ツリーが
+    実装対象ブランチへ意図せず切り替わる。#350 の発端）。
+  - 渡すと cwd は `.claude/worktrees/agent-<id>/` の locked worktree になり、主文脈のメインワークツリーは
+    切り替わらない。**主文脈は自分のツリーで triage・進捗記録を続けられる**。
+  - この worktree の初期 HEAD は `origin/<default>` 相当とは限らない。分岐元の正しさは marker ではなく
+    `gitgate new-branch --base-oid` の fresh 再検証が担保する（上記）。
+  - **要求は `issue-implementer` にだけ掛かる**。他の subagent（`pr-reviewer`・各 `*-author` 等）の
+    dispatch は manifest 上 unmanaged で素通しされるので、`isolation` を付ける必要はない。
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
 - **`handoff_path` を主文脈が絶対パスで渡す**（worktree 曖昧性の除去）：`<main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml`。
   `<main-worktree>` は主文脈の作業ルート（`git rev-parse --show-toplevel` で確定。主文脈は linked worktree ではなくメイン側で回す）。
-  implementer が `.worktrees/<name>/` を cwd にすると相対 `tmp/_handoff/...` はその worktree 配下へ解決され、主文脈から回収できない——
-  **書き先は主文脈が決めて絶対パスで渡し、implementer はそのパスへそのまま書く**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
+  implementer は `isolation: "worktree"` により**常に** `.claude/worktrees/agent-<id>/` を cwd とするので、相対 `tmp/_handoff/...` はその worktree 配下へ解決され、主文脈から回収できない——
+  **書き先は主文脈が決めて絶対パスで渡す**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
+  - **実測注記（2026-08-11・Issue #350 実装時に判明・未決）**：`isolation: "worktree"` 下ではハーネスが **worktree 外への Write を拒否する**ため、
+    implementer は渡された**メインワークツリーの絶対パスへは書けない**。受け渡し方式の変更はオーナー判断待ち（Issue #323 と同箇所なので束ねて決める）。
+    **暫定運用**：implementer は渡されたファイル名のまま自分の worktree 配下の `tmp/_handoff/` へ書き、その絶対パスをチャットで返す。
+    **主文脈は返ってきた絶対パスを Read する**（主文脈は isolated ではないので読める）。
 - 戻り＝`HANDOFF: <渡した handoff_path>` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイル（自分が渡した絶対パス）を Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**
@@ -94,6 +113,24 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 - **`karte_path` と `round` を主文脈が絶対パスで渡す**（`handoff_path` と同じ理由＝worktree 曖昧性の除去）：
   `<main-worktree>/tmp/_karte/issue-<N>.md`。渡し忘れたら `issue-fixer` は STOP する契約（`issue-fixer.md`「入力」）。
   進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
+- **dispatch 前に主文脈が実装者 worktree を明け渡し、メインワークツリーを PR ブランチへ載せる**
+  （isolation 必須化の帰結・Issue #350／F-350-02）。②-a で `isolation: "worktree"` を渡した結果、
+  PR ブランチは実装者の `.claude/worktrees/agent-<id>/` に checkout されたままになっている。
+  `issue-fixer` はメインワークツリーで動く非 isolated ロールであり、`gitgate` にも `issue-fixer.md` にも
+  既存ブランチへ移る verb が無く（生 `git switch`/`checkout` は全 deny）、何もしなければメインワークツリーの
+  `branch-current` が `main` のまま残り、`issue-fixer.md`「ブランチ規律」の契約どおり是正着手前に STOP する。
+  **これは現状唯一成立する経路の開示であり設計選択ではない**（Issue #350 の AC1 と同性質）——`gitgate` に
+  既存ブランチへ移る verb を新設する案、`issue-fixer` にも isolation を掛ける案はいずれも機構の新設に当たり、
+  本節では採らない（別 Issue 化の可否はオーナー判断）。主文脈は `issue-fixer` dispatch 前に次を実行する：
+  1. 実装者 worktree（`git worktree list` で `.claude/worktrees/agent-<id>/` を特定）に回収すべき成果物が
+     残っていないか確認する（通常は無い——`handoff_path` は実装者が絶対パスで返し、暫定運用
+     〔②-a 実測注記〕により worktree 配下に書かれている場合はここで Read する）。
+  2. `git worktree remove --force .claude/worktrees/agent-<id>/` で実装者 worktree を解放する
+     （実装フェーズは完了済みで安全）。
+  3. `git switch <branch>` でメインワークツリーを PR ブランチへ載せる。
+  これでメインワークツリー上の `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める。
+  **本手順は isolation 下でブランチを取得する手段に限定した記述であり**、「実害」定義・エスカレーション条件・
+  カルテ機構全体を扱う ②-c 本文の書き直しは引き続き Issue #310 の残スコープとする（先取り・上書きしない）。
 - `issue-fixer` は**診断してから直す**（`karte render` で前ラウンドの試行・転換指令・未解消 finding の
   `expected`/`recheck` を引き、`karte append` で診断を登録してからコードを触る）。同じアプローチの3件目は
   `append` が機械的に拒否する＝**ラウンド上限ではなく類似で切る**。

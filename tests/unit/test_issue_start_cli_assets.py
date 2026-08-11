@@ -97,6 +97,10 @@ class AssetParityTests(unittest.TestCase):
             {"agent_type", "message", "task_name"},
         )
         self.assertEqual(transports["claude"]["binding_marker"], "ISSUE_START_BINDING_V1=")
+        # Issue #350: worktree 分離は Claude harness の Agent tool `isolation` で与えられる。
+        # Codex の spawn_agent には isolation 概念が無いので要求を持ち込まない（transport 別）。
+        self.assertEqual(transports["claude"]["required_isolation"], "worktree")
+        self.assertNotIn("required_isolation", transports["codex"])
         self.assertTrue(manifest["unmanaged"])
 
 

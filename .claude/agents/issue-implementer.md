@@ -32,6 +32,31 @@ dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契�
 `_claude_request`・`issue_start/managed-entrypoints-v1.json` の `claude` transport・設計根拠＝
 `docs/tools/issue-start-and-branch-source.md`）。
 
+## dispatch 前提：`isolation: "worktree"`（同じ hook が機械的に強制・Issue #350）
+本エージェントへの `Task`/`Agent` dispatch は、**`isolation: "worktree"` を伴わない限り同じ
+`issue-start-gate` が deny する**（reason code `ISSUE_START_ISOLATION_NOT_WORKTREE`・契約の実体＝
+`issue_start/managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
+`issue_start/gate.py` の `_validate_isolation`）。marker と同じく、欠けていれば**本エージェントは
+起動すらされない**。この deny を見た場合も疑うのは呼び出し元の dispatch 引数であって本ファイルではない。
+
+- **なぜ dispatch 側でしか掛けられないのか**：worktree 分離は本ロール自身では実現できない。
+  `gitgate` に worktree を作る verb は無く（`new-branch` は検証済み OID を指定した `git switch -c`）、
+  `agent-command-gate.sh` の層2 は `cd` を deny するため、仮に worktree を作れてもそこへ潜れない。
+  分離を与えられるのは呼び出し元の dispatch だけで、その手段が Agent ツールの `isolation` パラメータ。
+- **分離が効いているときの実際の姿**：cwd は `.claude/worktrees/agent-<id>/` の locked worktree
+  （harness が Issue 番号ではなく agent id で命名する。`.worktrees/<name>/` ではない）。
+  **呼び出し元のメインワークツリーは branch switch されない**ので、主文脈が並行して別の作業を
+  していても衝突しない。`python3 -m unittest` もこの worktree を対象に走る。
+- **分離があっても省略しない規律**：ブランチ確認（`python3 -m gitgate branch-current` が `main` で
+  ないこと）と、ハンドオフの置き場を**自分で決めない**こと（後述「出力」＝ファイル名は呼び出し元が
+  渡したものを使い、書けた**絶対パス**をチャットで返す）。分離される以上、相対パスをそのまま
+  伝えると呼び出し元から見えない。
+- **分離は「書き込み範囲の制約」でもある**：worktree 外への Write はハーネスが拒否する（実測）。
+  メインワークツリー側のファイルを書く前提の手順は成立しない（後述「出力」の実測注記）。
+- **worktree の初期 HEAD は `origin/main` とは限らない**（harness が dispatch 時点のローカル状態から
+  作るため）。ブランチは必ず `gitgate new-branch … --base-oid <fresh OID>` で切る（下記「責務境界」）。
+  この verb は fresh fetch で OID を再検証し、食い違えば `BRANCH_BASE_OID_MISMATCH` で fail-close する。
+
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **push・`gh pr create` は可**。
 - **`git merge`／`gh pr merge` は不可**——`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）がこのロール名に対して機械的に拒否する。実装が終わったら PR を開いて **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` ロールの専権。
@@ -101,10 +126,20 @@ PR URL・変更ファイル一覧・テスト結果・スコープ外で見つ�
 **呼び出し元から渡された `handoff_path`（絶対パス）へそのまま**書く。**チャットにはパスと1行要約だけ**を返す。
 マージ・Issueクローズは行わない。
 
-**ワークツリーで作業する場合も書き先は `handoff_path` 一択**（自分でパスを組み立てない）。
-linked worktree（`.worktrees/<name>/`）を cwd にすると相対 `tmp/_handoff/...` はその worktree 配下に
-解決され、呼び出し元がメインワークツリー側を Read しても存在せず、PR URL・テスト結果・`stop_reason` を
-回収できない。**どのワークツリーで作業していても、呼び出し元が指定した絶対パスへ書く**ことで一意に解決する。
+**書き先は `handoff_path` 一択**（自分でパスを組み立てない）。本ロールは**常に** linked worktree
+（`.claude/worktrees/agent-<id>/`）を cwd として動く（上記「dispatch 前提：`isolation`」）ため、
+相対 `tmp/_handoff/...` は**その worktree 配下**に解決される——呼び出し元がメインワークツリー側を
+Read しても存在せず、PR URL・テスト結果・`stop_reason` を回収できない。だから**書き先は呼び出し元が
+決めて絶対パスで渡す**。
+
+> **実測注記（2026-08-11・Issue #350 実装時に判明・未決）**：`isolation: "worktree"` 下では
+> ハーネスが **worktree 外への Write そのものを拒否する**（実測エラー：`This agent is isolated in
+> the worktree …. Edit the worktree copy of this file instead of the shared-checkout path.`）。
+> つまりメインワークツリーの絶対パスへは**現状書き込めず、この契約は履行できない**。
+> 受け渡し方式をどう変えるかは**オーナー判断待ち**（Issue #323 と同じ箇所の別論点なので束ねて決める）。
+> **暫定運用**：呼び出し元が渡した**ファイル名のまま**（`issue-implementer--issue-<N>.yaml`＝パスの
+> 決定権は呼び出し元に残す）自分の worktree 配下の `tmp/_handoff/` へ書き、**その絶対パスをチャットで
+> 返す**。主文脈は isolated ではないのでその絶対パスを Read できる。
 
 ## ハンドオフ（呼び出し元への受け渡し）
 

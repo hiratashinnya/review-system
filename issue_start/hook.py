@@ -27,6 +27,12 @@ def _deny_reason(evidence: Mapping[str, Any]) -> str:
         f"issue-start-gate: {evidence['result']} {evidence['reason']} "
         f"policy={evidence['policy_version']}"
     )
+    # detail は fail-close の「何を直せばよいか」を持つ唯一の項目（例: isolation の期待値と実測値、
+    # tool_input の missing/mixed field 名）。落とすと deny が不透明な reason code だけになり、
+    # dispatch 側が修正できない。ALLOW 以外でしか表示されないので情報量の増加は deny 経路に閉じる。
+    detail = evidence.get("detail")
+    if isinstance(detail, str) and detail:
+        reason += f" detail={detail}"
     blockers = evidence.get("blockers")
     if isinstance(blockers, list) and blockers:
         reason += " blockers=" + json.dumps(
