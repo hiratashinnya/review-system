@@ -81,7 +81,11 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 - **`handoff_path` を主文脈が絶対パスで渡す**（worktree 曖昧性の除去）：`<main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml`。
   `<main-worktree>` は主文脈の作業ルート（`git rev-parse --show-toplevel` で確定。主文脈は linked worktree ではなくメイン側で回す）。
   implementer は `isolation: "worktree"` により**常に** `.claude/worktrees/agent-<id>/` を cwd とするので、相対 `tmp/_handoff/...` はその worktree 配下へ解決され、主文脈から回収できない——
-  **書き先は主文脈が決めて絶対パスで渡し、implementer はそのパスへそのまま書く**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
+  **書き先は主文脈が決めて絶対パスで渡す**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
+  - **実測注記（2026-08-11・Issue #350 実装時に判明・未決）**：`isolation: "worktree"` 下ではハーネスが **worktree 外への Write を拒否する**ため、
+    implementer は渡された**メインワークツリーの絶対パスへは書けない**。受け渡し方式の変更はオーナー判断待ち（Issue #323 と同箇所なので束ねて決める）。
+    **暫定運用**：implementer は渡されたファイル名のまま自分の worktree 配下の `tmp/_handoff/` へ書き、その絶対パスをチャットで返す。
+    **主文脈は返ってきた絶対パスを Read する**（主文脈は isolated ではないので読める）。
 - 戻り＝`HANDOFF: <渡した handoff_path>` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイル（自分が渡した絶対パス）を Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**

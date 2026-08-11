@@ -48,8 +48,11 @@ dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契�
   **呼び出し元のメインワークツリーは branch switch されない**ので、主文脈が並行して別の作業を
   していても衝突しない。`python3 -m unittest` もこの worktree を対象に走る。
 - **分離があっても省略しない規律**：ブランチ確認（`python3 -m gitgate branch-current` が `main` で
-  ないこと）と、ハンドオフを**絶対パス**で書くこと（後述「出力」）。分離される以上、相対パスは
-  必ず呼び出し元から見えない場所に落ちる。
+  ないこと）と、ハンドオフの置き場を**自分で決めない**こと（後述「出力」＝ファイル名は呼び出し元が
+  渡したものを使い、書けた**絶対パス**をチャットで返す）。分離される以上、相対パスをそのまま
+  伝えると呼び出し元から見えない。
+- **分離は「書き込み範囲の制約」でもある**：worktree 外への Write はハーネスが拒否する（実測）。
+  メインワークツリー側のファイルを書く前提の手順は成立しない（後述「出力」の実測注記）。
 - **worktree の初期 HEAD は `origin/main` とは限らない**（harness が dispatch 時点のローカル状態から
   作るため）。ブランチは必ず `gitgate new-branch … --base-oid <fresh OID>` で切る（下記「責務境界」）。
   この verb は fresh fetch で OID を再検証し、食い違えば `BRANCH_BASE_OID_MISMATCH` で fail-close する。
@@ -126,8 +129,17 @@ PR URL・変更ファイル一覧・テスト結果・スコープ外で見つ�
 **書き先は `handoff_path` 一択**（自分でパスを組み立てない）。本ロールは**常に** linked worktree
 （`.claude/worktrees/agent-<id>/`）を cwd として動く（上記「dispatch 前提：`isolation`」）ため、
 相対 `tmp/_handoff/...` は**その worktree 配下**に解決される——呼び出し元がメインワークツリー側を
-Read しても存在せず、PR URL・テスト結果・`stop_reason` を回収できない。**呼び出し元が指定した
-絶対パスへ書く**ことで一意に解決する。
+Read しても存在せず、PR URL・テスト結果・`stop_reason` を回収できない。だから**書き先は呼び出し元が
+決めて絶対パスで渡す**。
+
+> **実測注記（2026-08-11・Issue #350 実装時に判明・未決）**：`isolation: "worktree"` 下では
+> ハーネスが **worktree 外への Write そのものを拒否する**（実測エラー：`This agent is isolated in
+> the worktree …. Edit the worktree copy of this file instead of the shared-checkout path.`）。
+> つまりメインワークツリーの絶対パスへは**現状書き込めず、この契約は履行できない**。
+> 受け渡し方式をどう変えるかは**オーナー判断待ち**（Issue #323 と同じ箇所の別論点なので束ねて決める）。
+> **暫定運用**：呼び出し元が渡した**ファイル名のまま**（`issue-implementer--issue-<N>.yaml`＝パスの
+> 決定権は呼び出し元に残す）自分の worktree 配下の `tmp/_handoff/` へ書き、**その絶対パスをチャットで
+> 返す**。主文脈は isolated ではないのでその絶対パスを Read できる。
 
 ## ハンドオフ（呼び出し元への受け渡し）
 
