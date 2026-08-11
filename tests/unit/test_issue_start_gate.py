@@ -409,11 +409,12 @@ class HookTests(unittest.TestCase):
         }
         secret = "credential-from-mocked-gh"
 
-        def evaluate(request, *, token):
+        def evaluate(request, *, token, cwd=None):
             self.assertEqual(token, secret)
             return evaluate_issue_start(
                 request,
                 token=token,
+                cwd=cwd,
                 collector_factory=lambda actual: Collector(snapshot),
             )
 

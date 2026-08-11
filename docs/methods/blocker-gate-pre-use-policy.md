@@ -19,6 +19,8 @@ authority: issue-295
 
 管理対象操作は、**同じ invocation の中で GitHub の現状態を読み、判定が `ALLOW` の場合に限って元の操作を一度だけ続行する**。`BLOCK` または `ERROR` なら元操作を実行しない。過去の成功、Actions status、cache、定期監査結果を ALLOW 根拠として再利用しない。
 
+唯一の限定的な例外は 3.3 の到達不能環境 snapshot fallback（Issue #345・Issue-start mode 限定）である。**到達できる所では従来どおり fresh read**であり、GitHub API へ到達できない実行環境でのみ、上限付き staleness の snapshot を使い、期限切れは fail-close する。この例外は「読めないときは通す」ではない——判定材料の鮮度に上限を設けた上で、材料が無い・古い・壊れているときは従来どおり拒否する。
+
 依存の正本は GitHub native `blocked-by`、包含の正本は native parent/sub-issue とする。本文の `Blocked by:`、related link、Project Status は判定根拠にしない。PR が default branch への merge で閉じる Issue は、GraphQL `closingIssuesReferences` と、merge/rebase/squashの各methodでdefault branchへ実際に届くmessageだけをGitHub closing keyword grammarで解析した集合の和集合とする。この closing set を仮想的に `CLOSED/COMPLETED` にして dependency と closure を評価する。default branch 以外への merge、または closing set が空の merge は Issue を閉じないため `ALLOW/NO_CLOSING_EFFECT` 候補となり、Issue link の必須化は本 blocker policy の責務に含めない。
 
 この policy が保証するのは managed path だけである。GitHub UI、hook 外の API、direct push/ref update は unmanaged であり、完全同期や race-free な GitHub 全体の merge 保証は行わない。managed auto-merge の enable/schedule は、検査と merge が別 invocation になるため常に拒否する。
@@ -121,14 +123,31 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 - list/connection は `per_page=100` または `first=100` で全 page/cursor を完走する。`Link rel=next` または `hasNextPage=true` が残る状態で評価へ進まない。
 - GraphQL top-level error、partial `errors`、null connection、同一 cursor/page の再訪、順序中の identity 矛盾は `ERROR` とする。
 - 1 invocation 当たり最大 10,000 unique Issue nodes、dependency/parent depth 最大 100 とする。超過は `ERROR/GRAPH_LIMIT_EXCEEDED` であり、途中までの graph を ALLOW に使わない。
-- timeout、`403`、`404`（存在確認済み resource を含む）、`410`、`429`、`5xx`、invalid JSON は `ERROR` とする。`429`/`5xx` は `Retry-After` が 30 秒以下の場合だけ最大2回再試行できる。全3 attempt 失敗、30秒超、header 不正なら `ERROR/API_UNAVAILABLE` とする。
-- invocation 外 cache、前回の graph、前回の green status へ fallback しない。
+- timeout、`403`、`404`（存在確認済み resource を含む）、`410`、`429`、`5xx`、invalid JSON は `ERROR` とする。`429`/`5xx` は `Retry-After` が 30 秒以下の場合だけ最大2回再試行できる。全3 attempt 失敗、30秒超、header 不正なら `ERROR/API_UNAVAILABLE` とする。`401`/`403` は GitHub provenance（`X-GitHub-Request-Id`）の有無で `ERROR/API_PERMISSION` と `ERROR/API_UNREACHABLE` に分ける（10.2）。
+- invocation 外 cache、前回の graph、前回の green status へ fallback しない。唯一の例外は 3.3 の到達不能時 snapshot fallback であり、そこでも上限付き staleness を超えた材料は使用しない。
 
 ### 3.2 parent/sub-issue の整合性
 
 parent は Issue 本体の `parent_issue_url` と parent endpoint、children は sub-issues endpoint を全 page 読む。`child.parent == parent` と `parent.subIssues contains child` の双方向が一致しない場合は、一度だけ対象 relation を fresh read し直す。再度不一致なら `ERROR/RELATION_INCONSISTENT` とする。
 
 訪問中 node への再入、self relation、parent cycle、dependency cycle は `ERROR/GRAPH_CYCLE` とする。cycle 内 node が closing set に含まれていても ALLOW にしない。
+
+### 3.3 到達不能環境の snapshot fallback（Issue #345［A］・Issue-start mode 限定）
+
+実行環境によっては、client（`urllib` / `gh`）を替えても Issue 系 endpoint に到達できないことがある（実測: Claude Code on the web の GitHub 専用 proxy が endpoint 単位で遮断する）。この環境では 3.1 の fresh read が構造的に成立せず、blocker の有無にかかわらず常に fail-close する。
+
+**#293 の「invocation ごとに fresh read」方針は、この1点に限って次へ改訂する**（他の方針・waiver 仕様・判定ロジックは変えない）。
+
+> 到達できる所では従来どおり invocation ごとの fresh read。**到達できない所でのみ**、上限付き staleness の snapshot を使い、期限切れは fail-close する。
+
+- **API 優先**: 常に 3.1 の fresh read を先に行う。`API_UNREACHABLE` を含む ERROR になった invocation だけが fallback を試みる。`API_PERMISSION`、`API_UNAVAILABLE`、その他の ERROR/BLOCK は fallback しない（到達できているなら stale な材料を使う理由がない）。
+- **材料**: repository の孤立ブランチ `blocker-snapshot` の `snapshot.json`（`blocker-gate-repository-snapshot/v1`）。GitHub Actions が cron 5分で GraphQL から全 Issue と `blockedBy`/`subIssues`/`parent` を一括取得し、単一 commit を force-push する。main と履歴を共有しないため既定ブランチを汚さない。
+- **取得**: gate が `git fetch` で読む。invocation 外 cache・ローカル生成物は材料にしない。
+- **staleness 上限**: `generated_at` から 10 分。超過、未来時刻、時刻の解釈不能はいずれも fail-close する。
+- **identity 束縛**: snapshot の `repository` が invocation の repository と完全一致しなければ fail-close する。対象 Issue が snapshot に無い場合は `ERROR/RELATION_TARGET_UNREADABLE` であり「blocker なし」と読み替えない。
+- **fail-close の非緩和**: snapshot が無い・fetch できない・JSON が壊れている・`pages_complete=false`・`errors` が非空のいずれでも ALLOW にしない。repository 全体を1 snapshot にするため `pages_complete`/`errors` は global であり、ある Issue の収集失敗が無関係な Issue まで fail-close させる。これは fail-close 側の過剰であり意図した挙動とする。
+- **評価**: snapshot から対象 Issue の closure（`blocked_by` ∪ `children` ∪ `parent` の到達集合）を射影し、3.1 経由と同一の evaluator（5章）へ渡す。判定ロジックは分岐させない。
+- **証跡**: どちらの経路で判定したかを invocation ごとに evidence へ残す（`source: "api" | "snapshot"`、snapshot 経路では `snapshot_generated_at`）。
 
 ## 4. PR closing set policy
 
@@ -640,8 +659,9 @@ run_pr_merge(raw_operation):
 | deleted・非可視・404 relation target | 適用不可 | `ERROR/RELATION_TARGET_UNREADABLE` | 拒否 |
 | `hasNextPage` / `Link next` が残る、cursor再訪、page欠落 | 適用不可 | `ERROR/PAGINATION_INCOMPLETE` | 拒否 |
 | GraphQL partial errors / null connection / incomplete delivered-message source | 適用不可 | `ERROR/API_PARTIAL_RESPONSE` または `ERROR/MESSAGE_SOURCE_INCOMPLETE` | 拒否 |
-| API timeout/429/5xx/retry枯渇 | 適用不可 | `ERROR/API_UNAVAILABLE` | 拒否 |
-| 403・権限不足 | 適用不可 | `ERROR/API_PERMISSION` | 拒否 |
+| API 429/5xx/retry枯渇 | 適用不可 | `ERROR/API_UNAVAILABLE` | 拒否 |
+| GitHub 由来の 401/403・権限不足（`X-GitHub-Request-Id` あり） | 適用不可 | `ERROR/API_PERMISSION` | 拒否 |
+| GitHub へ届かない拒否（proxy 生成 403 等・`X-GitHub-Request-Id` なし）、tunnel/DNS/接続 failure、timeout | 適用不可 | `ERROR/API_UNREACHABLE`。§3.3 の snapshot fallback を持つ経路だけがその fallback を試み、失敗すれば ERROR のまま | 拒否 |
 | state/reason/identity/responseが未知・矛盾 | 適用不可 | `ERROR/ISSUE_STATE_UNKNOWN` 等 | 拒否 |
 | BLOCK と ERROR が混在 | 任意 | `ERROR` | 拒否 |
 
@@ -705,7 +725,8 @@ BLOCK:  OPEN_BLOCKER, CLOSURE_OPEN_DESCENDANT,
         TARGET_ISSUE_NOT_OPEN, PR_NOT_OPEN, PR_DRAFT,
         AUTO_MERGE_DENIED
 ERROR:  CLASSIFIER_UNKNOWN, TARGET_AMBIGUOUS, MODE_MISMATCH,
-        API_UNAVAILABLE, API_PERMISSION, API_PARTIAL_RESPONSE,
+        API_UNAVAILABLE, API_PERMISSION, API_UNREACHABLE,
+        API_PARTIAL_RESPONSE,
         PAGINATION_INCOMPLETE,
         GRAPH_LIMIT_EXCEEDED, GRAPH_CYCLE, IDENTITY_MISMATCH,
         ISSUE_STATE_UNKNOWN, RELATION_INCONSISTENT,
@@ -720,6 +741,10 @@ ERROR:  CLASSIFIER_UNKNOWN, TARGET_AMBIGUOUS, MODE_MISMATCH,
 ```
 
 新しい reason の追加、削除、意味変更は policy version 規則に従う。未知 reason を受信した caller は ERROR とする。
+
+`API_UNREACHABLE` は Issue #345［B］で追加した。`API_PERMISSION`（GitHub が下した 401/403 の認可拒否）と、**GitHub まで応答が届いていない拒否**（手前の proxy が生成した 403、tunnel/DNS/接続 failure、timeout）を分離する。切り分けは vendor 固有の文言ではなく provenance で行い、`X-GitHub-Request-Id` を欠く 401/403 を `API_UNREACHABLE` とする（GitHub API の応答は成功・失敗を問わずこの header を持つため、欠落は「GitHub が判断していない」ことの証拠になる）。rate limit 由来の 403 は `X-RateLimit-Remaining` 自体が GitHub provenance なので従来どおり `API_UNAVAILABLE` を優先する。
+
+**policy version の扱い（明示的な判断・要オーナー確認）**: 本追加は `1.0` を据え置いた。理由は、(1) verdict・exit code・評価順・relation/state/closure/waiver semantics のいずれも変えない、(2) 旧 caller にとって `API_UNREACHABLE` は「未知 reason → ERROR」であり、従来の `API_PERMISSION`（同じ ERROR / exit 20）と**外形上の挙動が一致**する、(3) 分離は ERROR 区分**内側**の診断精度の改善に閉じる、の3点。ただし §11 の MAJOR 列挙には「reason 意味の変更」が含まれ、`API_PERMISSION` の外延が狭まる点は MAJOR 相当とも読める。据え置きの是非はオーナー判断とし、`1.1`/`2.0` へ上げる場合は `POLICY_VERSION` 定数・全 snapshot fixture・waiver file の `policy_version` を同時に更新する必要がある（本 PR の scope 外）。
 
 ### 10.3 control JSON
 
@@ -917,7 +942,8 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "errorReason": {
       "enum": [
         "CLASSIFIER_UNKNOWN", "TARGET_AMBIGUOUS", "MODE_MISMATCH",
-        "API_UNAVAILABLE", "API_PERMISSION", "API_PARTIAL_RESPONSE",
+        "API_UNAVAILABLE", "API_PERMISSION", "API_UNREACHABLE",
+        "API_PARTIAL_RESPONSE",
         "PAGINATION_INCOMPLETE", "GRAPH_LIMIT_EXCEEDED", "GRAPH_CYCLE",
         "IDENTITY_MISMATCH", "ISSUE_STATE_UNKNOWN", "RELATION_INCONSISTENT",
         "RELATION_TARGET_UNREADABLE", "CROSS_REPOSITORY_UNSUPPORTED",

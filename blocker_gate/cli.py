@@ -28,6 +28,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate = subparsers.add_parser("evaluate", help="取得済みsnapshotをoffline評価")
     evaluate.add_argument("--snapshot", required=True, type=Path)
+
+    # Issue #345［A］: Actions が孤立ブランチへ置く repository 全体 snapshot の生成。
+    snapshot = subparsers.add_parser(
+        "snapshot", help="repository全体のblocker snapshotをstdoutへ生成"
+    )
+    snapshot.add_argument("--repository", required=True, metavar="OWNER/REPO")
     return parser
 
 def run(
@@ -38,6 +44,21 @@ def run(
     collector_factory: Callable[[str | None], Any] = GitHubCollector,
 ) -> int:
     args = build_parser().parse_args(list(argv))
+    if args.command == "snapshot":
+        # 生成側は verdict を出さない（判定は読取側の gate が行う）。
+        # pages_complete=false / errors 非空でも publish する: 読取側は
+        # それらを見て fail-close でき、遮断された環境へ診断材料が渡る。
+        collector = collector_factory(resolve_github_token())
+        raw = collector.collect_repository(args.repository)
+        json.dump(raw, stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        stdout.write("\n")
+        stderr.write(
+            "blocker-gate snapshot "
+            f"{args.repository} issues={len(raw.get('issues') or {})} "
+            f"pages_complete={raw.get('pages_complete')} "
+            f"errors={','.join(raw.get('errors') or []) or '-'}\n"
+        )
+        return 0
     if args.command == "evaluate":
         try:
             raw: Mapping[str, Any] = json.loads(args.snapshot.read_text(encoding="utf-8"))

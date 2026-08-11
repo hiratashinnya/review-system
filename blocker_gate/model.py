@@ -45,6 +45,9 @@ ERROR_REASONS = frozenset(
         "MODE_MISMATCH",
         "API_UNAVAILABLE",
         "API_PERMISSION",
+        # Issue #345［B］: GitHub まで届かなかった（手前の proxy/network が
+        # 遮断した）ことを、権限拒否 API_PERMISSION から分離する。
+        "API_UNREACHABLE",
         "API_PARTIAL_RESPONSE",
         "PAGINATION_INCOMPLETE",
         "GRAPH_LIMIT_EXCEEDED",
@@ -73,6 +76,7 @@ INCOMPLETE_REASONS = frozenset(
     {
         "API_UNAVAILABLE",
         "API_PERMISSION",
+        "API_UNREACHABLE",
         "API_PARTIAL_RESPONSE",
         "PAGINATION_INCOMPLETE",
         "RELATION_TARGET_UNREADABLE",
