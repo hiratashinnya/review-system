@@ -149,6 +149,17 @@ parent は Issue 本体の `parent_issue_url` と parent endpoint、children は
 - **評価**: snapshot から対象 Issue の closure（`blocked_by` ∪ `children` ∪ `parent` の到達集合）を射影し、3.1 経由と同一の evaluator（5章）へ渡す。判定ロジックは分岐させない。
 - **証跡**: どちらの経路で判定したかを invocation ごとに evidence へ残す（`source: "api" | "snapshot"`、snapshot 経路では `snapshot_generated_at`）。
 
+#### 3.3.1 信頼モデル（この経路が gate の意図を弱めないこと）
+
+snapshot は **repository に push できる者が内容を差し替えうる入力**である。「blocker は無い」と偽った snapshot を置けば、到達不能環境の invocation は ALLOW になる。それでもこの経路は gate の保証を弱めない。理由は次のとおり。
+
+- **偽造には repository への push 権限が要る。** そして push 権限があれば、そもそも **blocker Issue 自体を close できる**し、hook/gate の asset（`issue_start/`・`blocker_gate/`・`.claude/hooks/`）も書き換えられる。したがって snapshot 経路は、攻撃者が既に持っていない能力を新たに与えない。保証境界の性質は 12章および Issue #129 が明示している static gate の限界と同じで、「hook 外の経路・asset 改変までは防がない」という既存の前提の内側に収まる。
+- **正常運用での書き手は Actions workflow だけ**である（`.github/workflows/blocker-snapshot.yml`・`contents: write`）。人手での push を運用上想定しない。
+- **偽造が効く窓は狭い。** staleness 上限 10 分を超えた snapshot は使われないため、置いたまま無期限に効かせることはできない。加えて閉じた schema での parse、`repository` の完全一致、対象 Issue の存在確認、`pages_complete`/`errors` の検査をすべて通す必要がある。
+- **API へ到達できる環境ではこの入力自体が読まれない**（`API_UNREACHABLE` のときだけ fallback する）。したがって既存経路の信頼モデルは一切変わらない。
+
+一方、**この経路が新たに導入しないもの**も明示しておく。判定材料の取得にエージェントの裁量を経由させる方式（Issue #345 の選択肢⑥）は採っていないため、「LLM が判定材料を作れる」という信頼モデルの変更は発生していない。材料は Actions が GitHub API から機械的に生成し、gate は生の JSON を閉じた parser で読むだけである。
+
 ## 4. PR closing set policy
 
 ### 4.1 前提

@@ -51,10 +51,15 @@ class FrozenResolverClockMixin:
 
     def setUp(self):
         super().setUp()
-        patcher = patch("blocker_gate.resolver.datetime", wraps=datetime)
-        clock = patcher.start()
-        clock.now.return_value = EVALUATED_AT
-        self.addCleanup(patcher.stop)
+        # collector 側の `generated_at` も同じ固定時刻にする。実時刻のままだと
+        # 実行時刻が EVALUATED_AT を追い越した後で collector 由来 snapshot の
+        # fetched_at > completed_at になり、テストが黙って別経路
+        # （contract error）へ滑る。
+        for target in ("blocker_gate.resolver.datetime", "blocker_gate.github.datetime"):
+            patcher = patch(target, wraps=datetime)
+            clock = patcher.start()
+            clock.now.return_value = EVALUATED_AT
+            self.addCleanup(patcher.stop)
 
 
 def graphql_node(
