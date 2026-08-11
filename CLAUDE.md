@@ -239,8 +239,13 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     同一 target の二重ディスパッチ検査が効かなくなる）。
     **再試行の冪等性は nonce ではなく `retry_of` の明示で担保する**：失敗した target をやり直すときだけ、
     呼び出し元が `retry_of: <前回の target_key>` を渡して同じキーを再利用させる（新規著作では渡さない）。
-  - **worktree をまたぐ場合は呼び出し元が絶対パスで渡す**（`issue-implementer` の `handoff_path`）。
-    linked worktree 内では相対 `tmp/_handoff/` がその worktree 配下に解決され、呼び出し元から回収できない。
+  - **worktree をまたぐ場合も、呼び出し元が渡すのは「作業ツリールート相対」のパス**（`issue-implementer` /
+    `issue-fixer` の `handoff_path`・Issue #323）。isolated なエージェント（`isolation: "worktree"`）は
+    ハーネスに作業ツリー外への Write を機械的に拒否されるため、呼び出し元のワークツリーの絶対パスへは
+    そもそも書けない。相対パスなら定義上つねに自分の作業ツリー配下へ解決されるので、別ワークツリーを
+    指す誤誘導が検査ではなく構造で消え、isolated / 非 isolated のどちらの構成でも同じ契約が成立する。
+    **回収は「エージェントが書けた絶対パスをチャットで返す」ことで行う**（呼び出し元は isolated ではない
+    のでその絶対パスを Read できる）。ファイル名の採番権は呼び出し元に残す（`<key>` 一意化＝上記）。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で

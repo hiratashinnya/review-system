@@ -78,15 +78,24 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
-- **`handoff_path` を主文脈が絶対パスで渡す**（worktree 曖昧性の除去）：`<main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml`。
-  `<main-worktree>` は主文脈の作業ルート（`git rev-parse --show-toplevel` で確定。主文脈は linked worktree ではなくメイン側で回す）。
-  implementer は `isolation: "worktree"` により**常に** `.claude/worktrees/agent-<id>/` を cwd とするので、相対 `tmp/_handoff/...` はその worktree 配下へ解決され、主文脈から回収できない——
-  **書き先は主文脈が決めて絶対パスで渡す**。渡し忘れたら implementer は STOP する契約（`issue-implementer.md`「入力」）。
-  - **実測注記（2026-08-11・Issue #350 実装時に判明・未決）**：`isolation: "worktree"` 下ではハーネスが **worktree 外への Write を拒否する**ため、
-    implementer は渡された**メインワークツリーの絶対パスへは書けない**。受け渡し方式の変更はオーナー判断待ち（Issue #323 と同箇所なので束ねて決める）。
-    **暫定運用**：implementer は渡されたファイル名のまま自分の worktree 配下の `tmp/_handoff/` へ書き、その絶対パスをチャットで返す。
-    **主文脈は返ってきた絶対パスを Read する**（主文脈は isolated ではないので読める）。
-- 戻り＝`HANDOFF: <渡した handoff_path>` ＋1行要約。**PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈で当該ファイル（自分が渡した絶対パス）を Read して取る**（1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
+- **`handoff_path` は主文脈が「作業ツリールート相対」で採番して渡す**（Issue #323 で確定）：
+  `tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml`。**絶対パスは渡さない**——implementer は
+  `isolation: "worktree"` 下で動き、**ハーネスが作業ツリー外への Write を機械的に拒否する**ため、
+  メインワークツリーの絶対パスへはそもそも書けない（Issue #350 実装時に実測）。相対パスなら定義上つねに
+  implementer 自身の worktree 配下へ解決されるので、「別のワークツリーを指すパス」という脅威が検査ではなく構造で消える。
+  - **ファイル名の採番権は主文脈に残す**（取り違え・注入の防止）。implementer は自分でファイル名を組み立てず、
+    渡された相対パスをそのまま使う。受理条件（相対であること・`..` 不可・`tmp/_handoff/` 直下1ファイル・
+    `issue-<N>` の境界一致・サフィックスの文字種・symlink 不可）を満たさなければ STOP する契約
+    （`issue-implementer.md`「入力」）。渡し忘れも同じく STOP。
+  - **同一 Issue の複数ラウンドは `<suffix>` で分ける**（初回 `…--issue-<N>.yaml` ／ 是正1回目
+    `…--issue-<N>-fix1.yaml` のように主文脈が採番する）。同じファイル名を再利用すると前ラウンドの PR URL・
+    判断根拠・スコープ外指摘を上書き破壊する（`<key>` 一意化＝Issue #278／本件の発端＝Issue #323）。
+    `<suffix>` に使える文字は `[A-Za-z0-9._-]`。
+- 戻り＝`HANDOFF: <implementer が実際に書けた絶対パス>` ＋1行要約。implementer は isolated なので実体は
+  `.claude/worktrees/agent-<id>/tmp/_handoff/…` にあり、**主文脈のメインワークツリー側には存在しない**。
+  **PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈が返ってきた絶対パスを Read して取る**
+  （1行要約だけで判断しない。主文脈は isolated ではないので読める）。**`status: stop`（曖昧・矛盾）なら
+  `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**
 - **初回レビューの model はリスク/難易度で選ぶ**（Issue #120 ④）。レビュー＝Bloom Lv5 評価。下の**リスク信号表**で `sonnet` / `opus` を機械的に引く
@@ -110,9 +119,15 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   （ID の採番・再発番検出・前ラウンド未解消 finding の全件再掲チェックはこの CLI が fail-close で行う）。
   **`ingest-review` は主文脈が実行する**——是正当事者である `issue-fixer` には権限ゲートで許可されていない
   （自分の指摘を `resolved` にできてしまうため・Issue #341 F-341-04）。
-- **`karte_path` と `round` を主文脈が絶対パスで渡す**（`handoff_path` と同じ理由＝worktree 曖昧性の除去）：
+- **`round` と、メインワークツリーの絶対パスとしての `karte_path` を主文脈が渡す**（`handoff_path` とは
+  受け渡し方式が異なる＝下記。カルテは fixer の出力ではなく**ラウンドをまたぐ主文脈側の台帳**のため絶対のまま）：
   `<main-worktree>/tmp/_karte/issue-<N>.md`。渡し忘れたら `issue-fixer` は STOP する契約（`issue-fixer.md`「入力」）。
   進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
+  - **`handoff_path` は `issue-fixer` にも渡す。ただし ②-a と同じ「作業ツリールート相対」**（Issue #323）：
+    `tmp/_handoff/issue-fixer--issue-<N>-<ラウンドを区別するサフィックス>.yaml`。**ラウンドごとに別サフィックスを
+    採番する**（使い回すと前ラウンドの是正記録を上書き破壊する）。`karte_path` だけが絶対パスなのは、カルテが
+    本ロールの出力ではなく**ラウンドをまたぐ主文脈側の台帳**だからで、その受け渡し方式の見直しは Issue #354 の範囲。
+    戻りは `HANDOFF: <fixer が実際に書けた絶対パス>` ＋1行要約で、主文脈はその絶対パスを Read する。
 - **dispatch 前に主文脈が実装者 worktree を明け渡し、メインワークツリーを PR ブランチへ載せる**
   （isolation 必須化の帰結・Issue #350／F-350-02）。②-a で `isolation: "worktree"` を渡した結果、
   PR ブランチは実装者の `.claude/worktrees/agent-<id>/` に checkout されたままになっている。
@@ -122,11 +137,13 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   **これは現状唯一成立する経路の開示であり設計選択ではない**（Issue #350 の AC1 と同性質）——`gitgate` に
   既存ブランチへ移る verb を新設する案、`issue-fixer` にも isolation を掛ける案はいずれも機構の新設に当たり、
   本節では採らない（別 Issue 化の可否はオーナー判断）。主文脈は `issue-fixer` dispatch 前に次を実行する：
-  1. 実装者 worktree（`git worktree list` で `.claude/worktrees/agent-<id>/` を特定）に回収すべき成果物が
-     残っていないか確認する（通常は無い——`handoff_path` は実装者が絶対パスで返し、暫定運用
-     〔②-a 実測注記〕により worktree 配下に書かれている場合はここで Read する）。
+  1. **実装者のハンドオフを先に Read する（必須・条件付きではない）**。②-a の契約により、ハンドオフは
+     **必ず**実装者 worktree 配下（`.claude/worktrees/agent-<id>/tmp/_handoff/…`）に書かれており、
+     次の手順 2 が `--force` でその worktree ごと消す。Read を飛ばすと PR URL・テスト結果・スコープ外指摘が
+     回復不能に失われる。宛先は実装者がチャットで返した絶対パス（`git worktree list` で
+     `.claude/worktrees/agent-<id>/` を特定してもよい）。他に回収すべき成果物が残っていないかも併せて確認する。
   2. `git worktree remove --force .claude/worktrees/agent-<id>/` で実装者 worktree を解放する
-     （実装フェーズは完了済みで安全）。
+     （実装フェーズは完了済みで、手順 1 で回収済みなので安全）。
   3. `git switch <branch>` でメインワークツリーを PR ブランチへ載せる。
   これでメインワークツリー上の `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める。
   **本手順は isolation 下でブランチを取得する手段に限定した記述であり**、「実害」定義・エスカレーション条件・

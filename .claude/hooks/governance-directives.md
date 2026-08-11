@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
 
-<!-- synced-from: CLAUDE.md@95d99c01f203 -->
+<!-- synced-from: CLAUDE.md@8cef48101202 -->
 
 
 <!--
