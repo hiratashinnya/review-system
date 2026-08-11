@@ -54,8 +54,8 @@ Exit codes: `0` no MISSING gaps (and no staleness flags if `--fail-on-stale`) /
 ## Documented exceptions
 
 `asset_parity/exceptions.py` holds a short, explicit list of **already-documented**
-intentional non-mirrors (currently: `agy-delegate`, `issue-pipeline` +
-`issue-implementer`/`pr-reviewer`, all Copilot-only exclusions — see
+intentional non-mirrors (currently: `agy-delegate`,
+`issue-implementer`/`issue-fixer`/`pr-reviewer`, all Copilot-only exclusions — see
 `.claude/tailoring-registry.md`). It intentionally does not invent new exceptions; if
 you make a new deliberate non-mirror decision, record it in `tailoring-registry.md` (or
 the asset's own `SKILL.md`/agent `.md`) first, then add the matching entry there.
