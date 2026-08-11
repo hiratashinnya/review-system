@@ -11,13 +11,14 @@ description: Orchestrate open GitHub Issues end-to-end (implement→PR→review�
 
 1. オープン Issue の依存関係を確認し、推奨処置順を作る。
 2. オーナー合意後、Issue ごとに以下を直列で完了する。
-   - `issue-implementer`: 実装 → commit/push → PR
-   - `pr-reviewer`: レビュー → 必要なら差し戻し → clean 判定後マージ
+   - 実装担当: 実装 → commit/push → PR
+   - レビュー担当: レビュー → 必要なら差し戻し → clean 判定後マージ
 3. `Closes #N` で閉じない場合は Issue を手動クローズする。
 4. 1件が merge & close 完了してから次の Issue に進む。
 
 ## 運用ルール
 
+- Copilot では `issue-implementer` / `pr-reviewer` の専用エージェントは未移植。ここでの「実装担当」「レビュー担当」は、利用可能な実行手段に置き換えて運用する。
 - 曖昧・矛盾・情報不足は握りつぶさず STOP 報告し、前提/選択肢/推奨を添えてオーナー判断を仰ぐ。
 - スコープ外対応は現 PR に混ぜず、別 Issue として切り出す。
 - 先送り・繰り越し・対応不要の判断を AI が独断で決めない。
