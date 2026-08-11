@@ -10,6 +10,7 @@ from issue_start.gate import (
     BINDING_MARKER,
     IssueStartError,
     IssueStartRequest,
+    _validate_tool_input_shape,
     evaluate_issue_start,
     parse_dispatch_payload,
 )
@@ -79,7 +80,9 @@ def git_runner(*, origin="https://github.com/example/repo.git", inside="true", t
     return run
 
 
-class DispatchPayloadTests(unittest.TestCase):
+class DispatchPayloadMixin:
+    """Codex/Claude の正規 dispatch payload を組み立てる共通ヘルパ（テストは持たない）。"""
+
     def codex_payload(self, *, task_name="issue_10", tool="collaborationspawn_agent", cwd=ROOT):
         return {
             "cwd": str(cwd),
@@ -93,17 +96,20 @@ class DispatchPayloadTests(unittest.TestCase):
             },
         }
 
-    def claude_payload(self, binding=None, *, tool="Task"):
+    def claude_payload(self, binding=None, *, tool="Task", isolation="worktree"):
         raw = claude_binding() if binding is None else binding
-        return {
-            "tool_name": tool,
-            "tool_input": {
-                "subagent_type": "issue-implementer",
-                "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
-                "description": "hook deny probe",
-            },
+        tool_input = {
+            "subagent_type": "issue-implementer",
+            "prompt": BINDING_MARKER + json.dumps(raw, separators=(",", ":")),
+            "description": "hook deny probe",
         }
+        # Issue #350: 正規の dispatch は必ず `isolation: "worktree"` を伴う。
+        if isolation is not None:
+            tool_input["isolation"] = isolation
+        return {"tool_name": tool, "tool_input": tool_input}
 
+
+class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
     def test_codex_encrypted_message_uses_task_name_and_worktree_origin(self):
         for tool_name in ("spawn_agent", "collaborationspawn_agent"):
             with self.subTest(tool_name=tool_name):
@@ -219,6 +225,70 @@ class DispatchPayloadTests(unittest.TestCase):
         for payload in (missing, ambiguous):
             with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TARGET_UNKNOWN"):
                 parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
+
+
+class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
+    """Issue #350: Claude dispatch は `isolation: "worktree"` を欠くと deny される。
+
+    分離は role 側では実現できない（gitgate に worktree verb が無く、agent-command-gate の
+    層2 が `cd` を deny する）ので、dispatch 側の指定だけが「isolated worktree」契約を
+    成立させる唯一の手段。欠落は fail-close で拒否する。
+    """
+
+    def test_claude_dispatch_with_worktree_isolation_is_bound(self):
+        payload = self.claude_payload()
+        self.assertEqual(payload["tool_input"]["isolation"], "worktree")
+        for tool_name in ("Task", "Agent"):
+            with self.subTest(tool_name=tool_name):
+                self.assertEqual(
+                    parse_dispatch_payload(self.claude_payload(tool=tool_name)), request()
+                )
+
+    def test_claude_dispatch_without_worktree_isolation_is_denied(self):
+        # None＝field 自体が無い（isolation を渡し忘れた dispatch）。
+        for isolation in (None, "remote", "", "Worktree", "worktree ", 1, True, ["worktree"]):
+            with self.subTest(isolation=isolation), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_ISOLATION_NOT_WORKTREE"
+            ):
+                parse_dispatch_payload(self.claude_payload(isolation=isolation))
+
+    def test_isolation_check_does_not_mask_more_fundamental_shape_errors(self):
+        # required field 欠落は isolation より先に報告する（直す順序を誤らせない）。
+        payload = self.claude_payload(isolation=None)
+        del payload["tool_input"]["prompt"]
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TOOL_INPUT_SHAPE_INVALID"):
+            parse_dispatch_payload(payload)
+
+    def test_codex_transport_carries_no_isolation_requirement(self):
+        # Codex の spawn_agent に isolation パラメータは無い。claude 側の要求を持ち込まない。
+        self.assertEqual(
+            parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()),
+            request(),
+        )
+
+    def test_unmanaged_agents_are_never_required_to_declare_isolation(self):
+        # 非 issue-implementer の dispatch を巻き込むと全委譲が壊れる。素通し（None）を固定する。
+        for agent in ("pr-reviewer", "issue-fixer", "general-purpose", "dsv2-lookup"):
+            payload = self.claude_payload(isolation=None)
+            payload["tool_input"]["subagent_type"] = agent
+            with self.subTest(agent=agent):
+                self.assertIsNone(parse_dispatch_payload(payload))
+
+    def test_broken_manifest_isolation_value_fails_close(self):
+        # manifest 破損（非文字列・空）を「要求なし」と誤読して素通ししない。
+        for broken in ("", None, 1, True, ["worktree"]):
+            transport = {
+                "required_tool_input_fields": ["subagent_type", "prompt"],
+                "forbidden_tool_input_fields": ["agent_type"],
+                "required_isolation": broken,
+            }
+            with self.subTest(broken=broken), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
+            ):
+                _validate_tool_input_shape(
+                    {"subagent_type": "issue-implementer", "prompt": "x", "isolation": "worktree"},
+                    transport,
+                )
 
 
 class EvaluationTests(unittest.TestCase):
@@ -377,6 +447,7 @@ class HookTests(unittest.TestCase):
                 "prompt": BINDING_MARKER
                 + json.dumps(claude_binding(), separators=(",", ":")),
                 "description": "hook deny probe",
+                "isolation": "worktree",
             },
         }
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -392,6 +463,38 @@ class HookTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
         self.assertEqual(evaluate.call_args.args[0], request())
+
+    def test_missing_isolation_denies_before_any_github_evaluation(self):
+        """Issue #350 AC4: `isolation` 欠落を hook が機械的に deny し、直し方を deny 文に載せる。"""
+        payload = {
+            "tool_name": "Agent",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER
+                + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "hook deny probe",
+            },
+        }
+        stdout = io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start"
+        ) as evaluate:
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=io.StringIO(),
+                cwd=ROOT,
+            )
+        self.assertEqual(rc, 0)
+        decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        reason = decision["permissionDecisionReason"]
+        self.assertIn("ISSUE_START_ISOLATION_NOT_WORKTREE", reason)
+        # 「isolation を worktree にせよ」が deny 文だけで読み取れること（reason code だけにしない）。
+        self.assertIn("isolation=worktree", reason)
+        self.assertIn("actual=None", reason)
+        # blocker 判定（GitHub API）まで進まずに落ちる＝dispatch 前に閉じる。
+        evaluate.assert_not_called()
 
     def test_block_deny_reason_preserves_actionable_blocker_report(self):
         blocker = {
