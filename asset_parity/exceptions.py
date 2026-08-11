@@ -8,14 +8,13 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
 
   * `agy-delegate`（スキル＋エージェント）: agy MCP はローカル CLI／Windows Credential
     Manager 認証依存のため、クラウド/別プラットフォームへは非移植。
-  * `issue-pipeline`（スキル）＋ `issue-implementer`／`issue-fixer`／`pr-reviewer`
-    （エージェント）:
+  * `issue-implementer`／`issue-fixer`／`pr-reviewer`（エージェント）:
     gh CLI／Claude Code フック（`agent-command-gate.sh`）／Task 委譲／
-    `bloom-model-tier` に依存する Issue 運用 dev-tooling メタパイプライン。
-    **Codex CLI へは移植済み**（`.agents/skills/issue-pipeline/SKILL.md`・
+    `bloom-model-tier` に依存する Issue 運用 dev-tooling メタパイプラインの
+    サブエージェント群。**Codex CLI へは移植済み**（`.agents/skills/issue-pipeline/SKILL.md`・
     `.codex/agents/issue-implementer.toml`／`issue-fixer.toml`／`pr-reviewer.toml`）だが、
-    **Copilot（`.github/`）へは非移植のまま**（gh CLI／Task 委譲／`bloom-model-tier`
-    に Copilot 等価物なし）。`issue-fixer`（Issue #308 の是正専任ロール）はさらに
+    **Copilot（`.github/`）へはエージェント非移植のまま**（gh CLI／Task 委譲／
+    `bloom-model-tier` に Copilot 等価物なし）。`issue-fixer`（Issue #308 の是正専任ロール）はさらに
     `karte` CLI と PreToolUse フックの両方に依存するため、Copilot 側では契約が成立しない。
   * `codex-review`（スキル）: `codex` CLI／ChatGPT ログイン／`~/.codex/sessions` に
     依存する Linux/WSL 専用の「Codex 公式 CLI への第二意見レビュー委譲」入口。
@@ -58,10 +57,10 @@ _ENV_DEPENDENT = (
     "agy MCP はローカル CLI／Windows Credential Manager 認証依存のため非移植"
     "（.claude/tailoring-registry.md）"
 )
-_ISSUE_PIPELINE_COPILOT = (
-    "gh CLI／Claude Code フック（agent-command-gate.sh）／Task 委譲／bloom-model-tier に"
-    "依存する Issue 運用 dev-tooling メタパイプライン。Codex CLI へは移植済みだが Copilot"
-    "（.github/）には等価物なし（.claude/tailoring-registry.md）"
+_ISSUE_PIPELINE_AGENT_COPILOT = (
+    "issue-implementer/pr-reviewer は gh CLI／Claude Code フック（agent-command-gate.sh）／"
+    "Task 委譲／bloom-model-tier に依存するため Copilot（.github/）には等価物なし"
+    "（.claude/tailoring-registry.md）"
 )
 _ISSUE_FIXER_COPILOT = (
     "Issue 運用パイプラインの是正専任ロール（Issue #308）。親パイプラインと同じ理由で Copilot"
@@ -83,10 +82,9 @@ _GH_CREATE_ISSUE_COPILOT = (
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
     Exemption("agy-delegate", AGENT, GITHUB, _ENV_DEPENDENT),
-    Exemption("issue-pipeline", SKILL, GITHUB, _ISSUE_PIPELINE_COPILOT),
-    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_COPILOT),
+    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
     Exemption("issue-fixer", AGENT, GITHUB, _ISSUE_FIXER_COPILOT),
-    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_COPILOT),
+    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),

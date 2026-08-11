@@ -15,8 +15,8 @@ class TestIsExempt(unittest.TestCase):
     def test_agy_delegate_agent_exempt_from_github(self):
         self.assertIsNotNone(is_exempt("agy-delegate", AGENT, "github"))
 
-    def test_issue_pipeline_skill_exempt_from_github(self):
-        self.assertIsNotNone(is_exempt("issue-pipeline", SKILL, "github"))
+    def test_issue_pipeline_skill_not_exempt_from_github(self):
+        self.assertIsNone(is_exempt("issue-pipeline", SKILL, "github"))
 
     def test_issue_implementer_and_pr_reviewer_agents_exempt_from_github(self):
         self.assertIsNotNone(is_exempt("issue-implementer", AGENT, "github"))

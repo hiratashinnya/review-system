@@ -68,7 +68,7 @@
     orchestration-design/SKILL.md  # A18 制御フロー・fail-close・ログ/版
     prompt-design/SKILL.md         # A19 LLM 雛形・役割制約・注入対策
     impl-design-pipeline/SKILL.md  # A20 実装設計オーケストレータ（disable-model-invocation）
-    issue-pipeline/SKILL.md        # Issue #120 Issue 処理オーケストレータ（disable-model-invocation・dev-tooling メタパイプライン）
+    issue-pipeline/SKILL.md        # Issue #120 Issue 処理オーケストレータ（model-invocable・dev-tooling メタパイプライン）
     codex-review/SKILL.md          # Codex 公式 CLI への第二意見レビュー委譲（disable-model-invocation・全外部ツリー非移植）
   standards/                   # A16 汎用標準（非活性・auto-load されない）
     test-strategy/SKILL.md     # ④ テスト戦略の汎用標準（不変条件＋ノブ一覧）
