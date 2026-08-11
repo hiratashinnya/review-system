@@ -9,9 +9,14 @@
 > **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
 > 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
 > **正本は本ファイル**で、`governance-directives.md` はその配送用の写し。**規約を変えたら写しも合わせる**
-> （食い違ったら本ファイルを正とする）。**追従漏れは `.claude/hooks/check-governance-drift.sh`
-> （PostToolUse）が機械的に検知する**——写しの `<!-- synced-from: CLAUDE.md@<sha> -->` と本ファイルの
-> ハッシュを突き合わせ、食い違う間だけ警告する（反映後に sha を更新して解除）。
+> （食い違ったら本ファイルを正とする）。**追従漏れの検知は二段構え**——
+> `.claude/hooks/check-governance-drift.sh`（PostToolUse）が写しの `<!-- synced-from: CLAUDE.md@<sha> -->`
+> と本ファイルのハッシュを突き合わせ、食い違う間だけ warning を出す（反映後に sha を更新して解除）。
+> **ただしこのフックは常に `exit 0` の fail-open な nag であり、発火条件が
+> `realpath(edited) == $CLAUDE_PROJECT_DIR/CLAUDE.md` のため、linked worktree 側で本ファイルを
+> 編集した場合は沈黙する**（Issue #323 で実測）。この抜け穴を塞ぐのが `tests/unit/test_governance_sync.py`
+> ——marker と現在ハッシュの不一致を CI で **fail-close** に検知する。フックが黙っていても、
+> このテストが赤くなるので追従漏れは merge 前に必ず露見する。
 > subagent 側の対策は各 `.claude/agents/*.md` 末尾の
 > 「注入ブロックへの優先規定」。背景と設計は `.claude/hooks/README.md`。
 
