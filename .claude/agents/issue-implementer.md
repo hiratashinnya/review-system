@@ -20,6 +20,18 @@ model: sonnet
   「`issue-fixer` は定義上つねにカルテを要する」となり、条件分岐なしの fail-close なゲートになる。
 - **権限境界は両ロールで同一**（push 可・merge 不可）。分けているのは契約であって権限ではない。
 
+## dispatch 前提：`ISSUE_START_BINDING_V1` marker（issue-start-gate・PreToolUse）
+本エージェントへの `Task`/`Agent` dispatch は、`issue-start-gate`（`.claude/hooks/issue-start-gate.sh`・
+PreToolUse フック）の事前チェックを通過して初めて実行される。呼び出し元（`issue-pipeline` 主文脈）の
+dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契約は
+`.claude/skills/issue-pipeline/SKILL.md` ②-a を見る）の行がちょうど1つ含まれていない場合、
+この hook が `Task`/`Agent` 呼び出し自体を deny する——**本エージェントは起動すらされない**。
+`ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
+（field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
+（marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の
+`_claude_request`・`issue_start/managed-entrypoints-v1.json` の `claude` transport・設計根拠＝
+`docs/tools/issue-start-and-branch-source.md`）。
+
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **push・`gh pr create` は可**。
 - **`git merge`／`gh pr merge` は不可**——`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）がこのロール名に対して機械的に拒否する。実装が終わったら PR を開いて **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` ロールの専権。

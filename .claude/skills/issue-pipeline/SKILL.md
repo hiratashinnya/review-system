@@ -36,6 +36,31 @@ disable-model-invocation: true
 各 Issue につき次を回す。**主文脈は dispatch と進捗記録に専念し、実装・レビューはしない**。
 
 **②-a 実装（`issue-implementer` へ委譲）**
+- **dispatch の直前に managed Issue-start gate を通す（`issue-start-gate`・`.claude/hooks/issue-start-gate.sh`・PreToolUse）。**
+  この hook は `issue-implementer` への `Task`/`Agent` dispatch の `tool_input.prompt` に、次の機械可読行を
+  **ちょうど1つ**含めることを要求する（契約の実体＝`issue_start/gate.py` の `_claude_request`・
+  `issue_start/managed-entrypoints-v1.json` の `claude` transport）：
+  ```
+  ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}
+  ```
+  - `entrypoint`：この managed entrypoint では常に文字列リテラル `"issue-pipeline"`
+    （`managed-entrypoints-v1.json` の登録値と exact 一致が必須）。
+  - `repository`：`git remote get-url origin` を `OWNER/REPO` の canonical 形へ変換した値
+    （HTTPS/SSH いずれも可・`gate.py` の `_canonical_github_repository` と同じ正規化）。
+  - `issue`：dispatch 対象の Issue 番号（1以上の整数。文字列不可）。
+  - `branch_name`/`base_ref`/`base_oid`：後続で実装者に渡す
+    `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]`
+    と**同じ値**（fresh fetch 済み `origin/<default>` の exact 40 桁 OID）。marker 内のこれらの値は
+    branch-source ALLOW の根拠には**ならない**——`gitgate new-branch` が別途 fresh に再検証する
+    （`docs/tools/issue-start-and-branch-source.md`「決定」節）。
+  - `base_pr`：stacked branch でなければ `null`。stacked のときだけ same-repository の OPEN PR 番号（整数）。
+  - **exact 7 field 以外の混在・fieldの欠如は拒否される**（`set(raw) != {entrypoint, repository, issue,
+    branch_name, base_ref, base_oid, base_pr}` で `ISSUE_START_BINDING_UNKNOWN_FIELD`）。
+  marker が**存在しない・prompt 中に複数行ある**場合は `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` で
+  hook が dispatch そのものを deny する（`issue-implementer` は起動されない）。値の型・形式不正
+  （`base_oid` が40桁hexでない等）はそれぞれ専用の reason code（`ISSUE_START_BRANCH_INVALID`／
+  `ISSUE_START_BASE_REF_INVALID`／`ISSUE_START_BASE_OID_INVALID`／`ISSUE_START_BASE_PR_INVALID`等）で
+  fail-close する。別経路への迂回はできない。
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
