@@ -5,6 +5,7 @@ from pathlib import Path
 import unittest
 
 import blocker_gate
+from blocker_gate.model import POLICY_VERSION
 from blocker_gate.waiver import (
     WaiverContext,
     WaiverError,
@@ -52,7 +53,7 @@ class WaiverParserTests(unittest.TestCase):
     def test_valid_policy_and_waiver(self):
         policy = parse_policy_yaml((FIXTURES / "policy.yml").read_bytes())
         waiver = parse_waiver_yaml((FIXTURES / "schema_only_waiver.yml").read_bytes())
-        self.assertEqual(policy["policy_version"], "1.0")
+        self.assertEqual(policy["policy_version"], POLICY_VERSION)
         self.assertEqual(waiver["id"], "BW-20260801-001")
 
     def test_unknown_key_and_duplicate_key_are_schema_error(self):

@@ -50,7 +50,10 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = Non
         request = parse_dispatch_payload(payload, cwd=cwd)
         if request is None:
             return 0
-        evidence = evaluate_issue_start(request, token=resolve_github_token())
+        # cwd は snapshot fallback（Issue #345）の git fetch 起点。
+        evidence = evaluate_issue_start(
+            request, token=resolve_github_token(), cwd=cwd
+        )
     except (json.JSONDecodeError, UnicodeDecodeError):
         evidence = fail_closed(request, IssueStartError("ISSUE_START_PAYLOAD_INVALID"))
     except IssueStartError as exc:

@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 from .auth import github_api_failure_reason
 from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, fingerprint
+from .snapshot import REPOSITORY_SNAPSHOT_SCHEMA
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 API_VERSION = "2026-03-10"
@@ -80,7 +81,9 @@ class UrlLibReadTransport:
         except HTTPError as exc:
             return exc.code, dict(exc.headers.items()), exc.read()
         except (TimeoutError, URLError) as exc:
-            raise GitHubReadError("API_UNAVAILABLE") from exc
+            # Issue #345［B］: HTTP 応答すら得られていない（DNS/接続/tunnel/timeout）。
+            # GitHub が下した判断ではないので「到達不能」として分類する。
+            raise GitHubReadError("API_UNREACHABLE") from exc
 
 
 class GitHubCollector:
@@ -93,6 +96,12 @@ class GitHubCollector:
         }
         if token:
             self._headers["Authorization"] = "Bearer " + token
+        # Issue #345 F-345-04: 直近の `collect_repository` が消費した GraphQL
+        # rate limit。**telemetry 専用**で判定には一切使わないため、閉じた
+        # snapshot schema へは載せず collector の属性として公開する
+        # （`blocker-gate-repository-snapshot/v1` の top-level key は
+        # `snapshot.parse_repository_snapshot` が完全一致で閉じている）。
+        self.last_rate_limit: dict[str, Any] | None = None
 
     @staticmethod
     def _now() -> str:
@@ -220,6 +229,229 @@ class GitHubCollector:
             "graphql_closing_set": [],
             "delivered_message_closing_set": [],
             "binding": {},
+        }
+
+    # Issue #345［A］: repository 全体の Issue graph を GraphQL で一括取得する。
+    # REST collector（1 Issue あたり最低3 request）を全 open Issue へ広げると
+    # 実測 277 requests/回 になり、Actions の GITHUB_TOKEN 枠 1,000 requests/h を
+    # cron 5分で 3.3 倍超過する。GraphQL なら数 request/回に収まる。
+    #
+    # states filter を掛けず **全 Issue**（closed を含む）を列挙するのは、
+    # `evaluator.validate_graph` が parent/child の双方向一致と全 relation target の
+    # 存在を要求するため。open だけを引くと closed の子/親の逆参照を埋められず、
+    # 正しい graph が RELATION_INCONSISTENT で常時 fail-close する。
+    #
+    # nested connection の `first:50` は Issue #345 の cost 実測と同じ形。
+    # 50 を超える relation は補完せず `PAGINATION_INCOMPLETE` で fail-close する
+    # （policy §3.1 の「全 page 完走」を満たせない状態を ALLOW へ倒さない）。
+    #
+    # Issue #345 F-345-04: `rateLimit` を top-level（`repository` の兄弟）で
+    # 併せて引き、cron 5分の実消費を事後に検証できるようにする（D-345-1 の
+    # 見積り「測定値の約4倍」を裏付ける実測値が無いと、枠内に収まっている
+    # ことを誰も確認できない）。`rateLimit` 自体は判定材料ではなく telemetry。
+    _REPOSITORY_QUERY = (
+        "query($owner:String!,$name:String!,$cursor:String){"
+        "rateLimit{cost remaining resetAt} "
+        "repository(owner:$owner,name:$name){nameWithOwner "
+        "issues(first:100,after:$cursor,orderBy:{field:CREATED_AT,direction:ASC}){"
+        "pageInfo{hasNextPage endCursor} "
+        "nodes{id number state stateReason title url "
+        "parent{number repository{nameWithOwner}} "
+        "blockedBy(first:50){pageInfo{hasNextPage} nodes{number repository{nameWithOwner}}} "
+        "subIssues(first:50){pageInfo{hasNextPage} nodes{number repository{nameWithOwner}}}"
+        "}}}}"
+    )
+
+    @staticmethod
+    def _graphql_state(raw: Mapping[str, Any]) -> str:
+        state = raw.get("state")
+        reason = raw.get("stateReason")
+        if state == "OPEN":
+            return "OPEN"
+        if state == "CLOSED" and reason == "COMPLETED":
+            return "CLOSED_COMPLETED"
+        if state == "CLOSED" and reason == "NOT_PLANNED":
+            return "CLOSED_NOT_PLANNED"
+        return "UNKNOWN"
+
+    @staticmethod
+    def _graphql_ref(repository: str, raw: Any) -> str:
+        """cross-repository な relation target を無言で落とさず、明示的に弾く。"""
+        if not isinstance(raw, dict) or set(raw) != {"number", "repository"}:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        number = raw["number"]
+        owner = raw["repository"]
+        if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if not isinstance(owner, dict) or set(owner) != {"nameWithOwner"}:
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if owner["nameWithOwner"] != repository:
+            raise GitHubReadError("CROSS_REPOSITORY_UNSUPPORTED")
+        return f"{repository}#{number}"
+
+    def _graphql_relation(
+        self, repository: str, connection: Any, errors: list[str]
+    ) -> tuple[list[str], bool]:
+        if (
+            not isinstance(connection, dict)
+            or set(connection) != {"pageInfo", "nodes"}
+            or not isinstance(connection["nodes"], list)
+            or not isinstance(connection["pageInfo"], dict)
+            or set(connection["pageInfo"]) != {"hasNextPage"}
+            or not isinstance(connection["pageInfo"]["hasNextPage"], bool)
+        ):
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        complete = not connection["pageInfo"]["hasNextPage"]
+        if not complete:
+            errors.append("PAGINATION_INCOMPLETE")
+        refs: list[str] = []
+        for item in connection["nodes"]:
+            try:
+                refs.append(self._graphql_ref(repository, item))
+            except GitHubReadError as exc:
+                if exc.reason != "CROSS_REPOSITORY_UNSUPPORTED":
+                    raise
+                errors.append(exc.reason)
+                complete = False
+        return sorted(set(refs)), complete
+
+    @staticmethod
+    def _accumulate_rate_limit(raw: Any, usage: dict[str, Any]) -> None:
+        """GraphQL の ``rateLimit`` を **telemetry としてだけ** 積む（F-345-04）。
+
+        `cost` は page をまたいで合計し、`remaining`/`resetAt` は最後に観測した
+        値を採る（残量は単調に変化するので最新が実態に一番近い）。
+
+        **欠落・型不正でも例外にしない。** この値は verdict にも snapshot 内容にも
+        一切影響しない診断情報であり、ここで fail-close させると「rate limit を
+        測るために snapshot 生成が落ちる」という本末転倒になる。読めなかった場合は
+        単に要約へ出さない（読めた page 数 `pages` が 0 のままになる）。
+        """
+        if not isinstance(raw, dict):
+            return
+        cost = raw.get("cost")
+        remaining = raw.get("remaining")
+        reset_at = raw.get("resetAt")
+        if isinstance(cost, bool) or not isinstance(cost, int) or cost < 0:
+            return
+        usage["cost"] += cost
+        usage["pages"] += 1
+        if not isinstance(remaining, bool) and isinstance(remaining, int) and remaining >= 0:
+            usage["remaining"] = remaining
+        if isinstance(reset_at, str) and reset_at:
+            usage["reset_at"] = reset_at
+
+    def collect_repository(self, repository: str) -> Mapping[str, Any]:
+        """repository 全体の Issue graph を ``blocker-gate-repository-snapshot/v1`` にする。
+
+        ``pages_complete``/``errors`` は repository 全体で1組しか持たない。
+        1 Issue の収集失敗が全 Issue を fail-close させるが、fail-close 側の
+        過剰なので許容する（Issue #345 で意図した挙動として test で固定）。
+        """
+        if repository.count("/") != 1:
+            raise GitHubReadError("IDENTITY_MISMATCH")
+        owner, name = repository.split("/", 1)
+        issues: dict[str, Any] = {}
+        errors: list[str] = []
+        complete = True
+        usage: dict[str, Any] = {"cost": 0, "pages": 0, "remaining": None, "reset_at": None}
+        self.last_rate_limit = None
+        try:
+            cursor: str | None = None
+            seen: set[str | None] = set()
+            while True:
+                if cursor in seen:
+                    raise GitHubReadError("PAGINATION_INCOMPLETE")
+                seen.add(cursor)
+                data = self._graphql(
+                    self._REPOSITORY_QUERY,
+                    {"owner": owner, "name": name, "cursor": cursor},
+                )
+                self._accumulate_rate_limit(data.get("rateLimit"), usage)
+                repo = data.get("repository")
+                if not isinstance(repo, dict) or set(repo) != {"nameWithOwner", "issues"}:
+                    raise GitHubReadError("API_PARTIAL_RESPONSE")
+                if repo["nameWithOwner"] != repository:
+                    raise GitHubReadError("IDENTITY_MISMATCH")
+                connection = repo["issues"]
+                if (
+                    not isinstance(connection, dict)
+                    or set(connection) != {"pageInfo", "nodes"}
+                    or not isinstance(connection["nodes"], list)
+                ):
+                    raise GitHubReadError("API_PARTIAL_RESPONSE")
+                for raw in connection["nodes"]:
+                    expected = {
+                        "id", "number", "state", "stateReason", "title", "url",
+                        "parent", "blockedBy", "subIssues",
+                    }
+                    if not isinstance(raw, dict) or set(raw) != expected:
+                        raise GitHubReadError("API_PARTIAL_RESPONSE")
+                    number = raw["number"]
+                    if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+                        raise GitHubReadError("API_PARTIAL_RESPONSE")
+                    ref = f"{repository}#{number}"
+                    if ref in issues:
+                        raise GitHubReadError("IDENTITY_MISMATCH")
+                    if not isinstance(raw["id"], str) or not raw["id"]:
+                        raise GitHubReadError("IDENTITY_MISMATCH")
+                    title = raw["title"]
+                    url = raw["url"]
+                    if not isinstance(title, str) or not isinstance(url, str) or not url:
+                        raise GitHubReadError("API_PARTIAL_RESPONSE")
+                    blocked, blocked_ok = self._graphql_relation(
+                        repository, raw["blockedBy"], errors
+                    )
+                    children, children_ok = self._graphql_relation(
+                        repository, raw["subIssues"], errors
+                    )
+                    parent: str | None = None
+                    if raw["parent"] is not None:
+                        try:
+                            parent = self._graphql_ref(repository, raw["parent"])
+                        except GitHubReadError as exc:
+                            if exc.reason != "CROSS_REPOSITORY_UNSUPPORTED":
+                                raise
+                            errors.append(exc.reason)
+                            complete = False
+                    complete = complete and blocked_ok and children_ok
+                    issues[ref] = {
+                        "node_id": raw["id"],
+                        "state": self._graphql_state(raw),
+                        "blocked_by": blocked,
+                        "parent": parent,
+                        "children": children,
+                        # title が空の Issue は GitHub 上作れないが、deny report が
+                        # 空文字になるのを避けるため ref で代替する。
+                        "title": title or ref,
+                        "url": url,
+                    }
+                    if len(issues) > 10_000:
+                        raise GitHubReadError("GRAPH_LIMIT_EXCEEDED")
+                page = connection["pageInfo"]
+                if (
+                    not isinstance(page, dict)
+                    or set(page) != {"hasNextPage", "endCursor"}
+                    or not isinstance(page["hasNextPage"], bool)
+                ):
+                    raise GitHubReadError("API_PARTIAL_RESPONSE")
+                if not page["hasNextPage"]:
+                    break
+                cursor = page["endCursor"]
+                if not isinstance(cursor, str) or not cursor:
+                    raise GitHubReadError("PAGINATION_INCOMPLETE")
+        except GitHubReadError as exc:
+            errors.append(exc.reason)
+            complete = False
+        self.last_rate_limit = usage if usage["pages"] else None
+        return {
+            "schema": REPOSITORY_SNAPSHOT_SCHEMA,
+            "policy_version": POLICY_VERSION,
+            "repository": repository,
+            "generated_at": self._now(),
+            "pages_complete": complete,
+            "errors": sorted(set(errors)),
+            "issues": issues,
         }
 
     def _graphql(self, query: str, variables: Mapping[str, Any]) -> Mapping[str, Any]:

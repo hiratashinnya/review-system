@@ -6,6 +6,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from blocker_gate.model import POLICY_VERSION
 from issue_start.gate import (
     BINDING_MARKER,
     IssueStartError,
@@ -378,7 +379,7 @@ class HookTests(unittest.TestCase):
         repository = "hiratashinnya/review-system"
         snapshot = {
             "schema": "blocker-gate-snapshot/v1",
-            "policy_version": "1.0",
+            "policy_version": POLICY_VERSION,
             "mode": "issue-start",
             "repository": repository,
             "subject": {"type": "issue", "number": 317},
@@ -409,11 +410,12 @@ class HookTests(unittest.TestCase):
         }
         secret = "credential-from-mocked-gh"
 
-        def evaluate(request, *, token):
+        def evaluate(request, *, token, cwd=None):
             self.assertEqual(token, secret)
             return evaluate_issue_start(
                 request,
                 token=token,
+                cwd=cwd,
                 collector_factory=lambda actual: Collector(snapshot),
             )
 

@@ -238,10 +238,17 @@ class BranchSourceTests(unittest.TestCase):
         self.assertIsNone(requests[0].get_header("Authorization"))
 
     def test_rate_limit_and_permission_failures_use_common_reasons(self):
+        # Issue #345［B］: branch-source gate も `blocker_gate.auth` の共通写像を
+        # 使うため、到達不能（GitHub まで届いていない 401/403）と真の権限拒否が
+        # ここでも分離される。どちらも fail-close のままで、branch-source には
+        # snapshot fallback を持たせていない（判定材料が Issue graph ではないため）。
+        github = {"X-GitHub-Request-Id": "E000:1"}
         cases = (
             (403, {"X-RateLimit-Remaining": "0"}, "API_UNAVAILABLE"),
-            (403, {}, "API_PERMISSION"),
-            (401, {}, "API_PERMISSION"),
+            (403, github, "API_PERMISSION"),
+            (401, github, "API_PERMISSION"),
+            (403, {}, "API_UNREACHABLE"),
+            (401, {}, "API_UNREACHABLE"),
         )
         for status, headers, reason in cases:
             secret = f"secret-{status}-{reason}"

@@ -86,6 +86,28 @@ ALLOWLIST: tuple[AllowlistEntry, ...] = (
             "verify_waiver の wall clock 比較には一切乗らない）。"
         ),
     ),
+    AllowlistEntry(
+        path="tests/unit/test_blocker_snapshot_fallback.py",
+        name="resetAt",
+        reason=(
+            "GraphQL `rateLimit{cost remaining resetAt}` の実消費を測る telemetry テスト"
+            "（#359・F-345-04）が使う固定レスポンス値。`resetAt` は"
+            "blocker_gate/github.py::GitHubCollector._accumulate_rate_limit が文字列のまま"
+            "`usage['reset_at']` へ写すだけで、判定にも snapshot 内容にも入らず、"
+            "blocker_gate/cli.py の stderr 要約へ echo されて終わる（wall clock と比較する"
+            "コードが経路上に存在しない）。期限として評価されないので、時間経過で"
+            "比較結果が反転する方向が無い。"
+        ),
+    ),
+    AllowlistEntry(
+        path="tests/unit/test_blocker_snapshot_fallback.py",
+        name="reset_at",
+        reason=(
+            "上記 resetAt が `_accumulate_rate_limit` を通って `last_rate_limit` に載った"
+            "後の同じ値（snake_case 側）。同じ理由で inert（stderr へ echo されるだけで"
+            "wall clock と比較されない）。"
+        ),
+    ),
 )
 
 
