@@ -168,16 +168,25 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   `.claude/worktrees/agent-<id>/` が locked worktree として checkout されたまま残っている。
   clean merge 経路は `issue-fixer` を経由しない（②-c の worktree 解放ステップを一度も通らない）ため、
   ここで明示的に解放しないと **clean merge のたびに locked worktree が残留する**（実測：
-  `git worktree list` に残骸が多数存在）。merge & close を確認したら：
-  1. **実装者のハンドオフをまだ回収していなければ先に Read する**（②-a のハンドオフ絶対パス。
-     PR URL・変更ファイル一覧・テスト結果・スコープ外指摘。既に Read 済みなら再読不要——通常は
-     ②-a 完了時点・または ②-b でレビュー対象を確認する際に読んでいるはず）。
-  2. `git worktree remove --force .claude/worktrees/agent-<id>/` で実装者 worktree を解放する
-     （実装・レビューは完了済みで、手順1 で回収済みなので安全。対象 `agent-<id>` は
-     `git worktree list` で特定してよい）。
-  3. ②-c を経由していれば主文脈のメインワークツリーが PR ブランチへ切り替わったままなので、
-     `git switch main` 等で戻す。②-c を経由していない完全な clean merge では主文脈は元々
-     ブランチ切替していないため本手順は不要（②-c 本文の手順3の対）。
+  `git worktree list` に残骸が多数存在）。**②-c を経由済みなら手順1・2は②-c 自身の手順1・2で
+  既に完了しているためスキップする**（未経由のときだけ本節が担う）。merge & close を確認したら：
+  1. **②-c を経由していなければ、実装者のハンドオフを先に Read する（必須・条件付きではない）**。
+     ②-a のハンドオフ絶対パス。PR URL・変更ファイル一覧・テスト結果・スコープ外指摘。
+     （②-c を経由していれば、②-c 自身の手順1で既に Read 済み——再読不要）。
+  2. **②-c を経由していなければ**、`git worktree remove --force .claude/worktrees/agent-<id>/` で
+     実装者 worktree を解放する（実装・レビューは完了済みで、手順1 で回収済みなので安全。対象
+     `agent-<id>` は `git worktree list` で特定してよい）。**②-c を経由していれば、②-c 自身の
+     手順2で既に解放済みなので実行しない**（対象不在の worktree に対する remove は失敗する）。
+  3. **②-c を経由していれば**主文脈のメインワークツリーが PR ブランチへ切り替わったままなので、
+     `git switch main` 等で戻す（②-c 自身の手順3で PR ブランチへ載せた分の対）。②-c を経由していない
+     完全な clean merge では主文脈は元々ブランチ切替していないため本手順は不要。
+
+  > **Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項は不要**：同ファイル ②-a の記述の
+  > とおり Codex の `spawn_agent` には isolation パラメータが無く worktree 分離が行われないため、
+  > `issue-implementer` は呼び出し元と作業ツリーを共有し、Codex 経路ではそもそも
+  > `.claude/worktrees/agent-<id>/` が作られず残留も起きない。`asset_parity/exceptions.py` の
+  > 非移植例外ではなく、isolation 機構の有無という実体差による（Issue #360）。
+
   この手順を怠っても実装・レビュー結果には影響しないが、locked worktree の残留は
   ディスク使用量の増大と `git worktree list` の可読性低下を招くため、**次 Issue へ進む前に必ず実施する**。
 
@@ -223,10 +232,16 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 
 ## エージェント定義がセッション開始時点で固定される制約（既知の制約・回避策・Issue #360）
 
-**主文脈のシステムプロンプト（`.claude/agents/*.md` の内容）はセッション開始時にロードされ、以後その
-セッション内では再ロードされない。** 作業ツリー上のエージェント定義ファイルを同一セッション内で
-`Edit`/`Write` により変更し、あるいは `git switch` で作業ツリーの内容を切り替えても、**そのセッション
-から dispatch する subagent は、そのセッションが起動した時点でロードされた契約のままで動く**。
+**dispatch される subagent のシステムプロンプト（`.claude/agents/*.md` の内容）は、主文脈のセッション
+開始時点でロードされ、以後そのセッション内では再ロードされない。** 作業ツリー上のエージェント定義
+ファイルを同一セッション内で `Edit`/`Write` により変更し、あるいは `git switch` で作業ツリーの内容を
+切り替えても、**そのセッションから dispatch する subagent は、そのセッションが起動した時点でロード
+された契約のままで動く**。
+
+> **本節は Claude Code（`.claude/agents/*.md`・`Task`/`Agent` dispatch）の実測に基づく記述**。
+> Codex CLI（`.codex/agents/*.toml`・`spawn_agent`）や Copilot が同種のセッション固定を持つかは
+> 未検証——確認できていないため、本節の内容を他ツリーへ追従させるかどうかは本 PR のスコープ外とする
+> （Issue #360）。
 
 - **実測（Issue #323 / PR #358 の是正ラウンド）**：主文脈がメインワークツリーを PR ブランチへ
   `git switch` し、作業ツリー上の `.claude/agents/issue-fixer.md` が新契約（`handoff_path` を

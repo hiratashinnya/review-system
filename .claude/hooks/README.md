@@ -294,8 +294,8 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
   `pr-reviewer`・`dsv2-lookup`(いずれも既に Bash を保有)。Bash 非保有ロール(`spec-inspector`/
   `asset-auditor`/各 `*-author` 等)には**引き続き未付与**(ゲートが効いても「シェル実行能力の新規
   付与＝権限昇格」は残るため)。`language` は `shell` のみ許可(非 shell 言語は全ロール deny)。
-  **`ctx_execute_file` は引き続き全ロール未付与のまま**(層1の記号 ban により gated ロールでは
-  機能しないため)。
+  **`ctx_execute_file` は引き続き全ロール未付与のまま**(CLAUDE.md「ctx_* ツールの付与方針」の結論どおり。
+  解禁の要否は別途検討)。
   - 当初(2026-07-29)は「実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、
     かつ tool_name が `mcp__plugin_...` になるため `matcher: "Bash"` の `agent-command-gate.sh` が
     発火しない」ことを理由に**全エージェント未付与**としていたが、**#303 で同フックを実行系 MCP
