@@ -285,13 +285,29 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 どちらのグループも `<session_continuity>` は共通で無効化する。
 
-`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」):
+`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」)。
+以下は現行方針(2026-08-09 時点)。**旧記述(当初 2026-07-29 時点の判断)は既に是正済みで、実行系は
+全面禁止ではない**:
 
-- **実行系(`ctx_execute` / `ctx_execute_file` / `ctx_batch_execute`)は全エージェントに付与しない。**
-  実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、かつ tool_name が
-  `mcp__plugin_...` になるため **`matcher: "Bash"` の `agent-command-gate.sh` と rtk フックが発火しない**
-  ＝push/merge の権限境界を回避できる。
-- **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読む5ロールに付与済み**
+- **実行系(`ctx_execute` / `ctx_batch_execute`)は「shell 限定」で Bash 保有ロールに付与済み**
+  (`Issue #303` でゲートを拡張・`#304` で解禁)。付与先＝主文脈・`issue-implementer`・`issue-fixer`・
+  `pr-reviewer`・`dsv2-lookup`(いずれも既に Bash を保有)。Bash 非保有ロール(`spec-inspector`/
+  `asset-auditor`/各 `*-author` 等)には**引き続き未付与**(ゲートが効いても「シェル実行能力の新規
+  付与＝権限昇格」は残るため)。`language` は `shell` のみ許可(非 shell 言語は全ロール deny)。
+  **`ctx_execute_file` は引き続き全ロール未付与のまま**(層1の記号 ban により gated ロールでは
+  機能しないため)。
+  - 当初(2026-07-29)は「実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、
+    かつ tool_name が `mcp__plugin_...` になるため `matcher: "Bash"` の `agent-command-gate.sh` が
+    発火しない」ことを理由に**全エージェント未付与**としていたが、**#303 で同フックを実行系 MCP
+    ツールへ拡張し、ロール別 allowlist(層1〜3)と危険コマンド層を ctx 経路にも適用した**ため、
+    gated ロール(`issue-implementer`/`issue-fixer`/`pr-reviewer`)では push/merge の権限境界は
+    **ctx 経路でも回避できない**(層1〜3がそのまま掛かり、`cwd` の明示指定も deny される)。
+    「回避できる」という旧記述はこの点で是正済み。
+  - **rtk フック(`matcher: "Bash"`)は ctx 経路では依然発火しない**——ただしこれは
+    `agent-command-gate.sh` と違い**統制(セキュリティゲート)ではなくトークン節約プロキシ**なので、
+    上記の解禁可否そのものには影響しない。ctx 経由ではその節約(トークン圧縮)が効かないことだけ
+    認識して使う(統制フックとトークン節約プロキシは別事実として書き分ける)。
+- **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する**
   (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
   リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
   **ただし `ctx_index` は read-only ではない**(`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
@@ -368,3 +384,25 @@ sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
 
 今回の変更が中核規範に無関係だと判断した場合も、同じく sha を更新して警告を解除する
 (「見た上で不要と判断した」ことの記録になる)。
+
+## 二層防御(編集時フック + CI テスト・Issue #312/#360)
+
+上記フックだけでは追従漏れを取りこぼす経路が残る。**このフックは常に `exit 0` の fail-open な
+nag であり、かつ発火条件が `realpath(edited) == realpath($CLAUDE_PROJECT_DIR/CLAUDE.md)` のため、
+linked worktree 側の `CLAUDE.md` を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
+「marker を更新しないまま merge される」経路が編集時フックだけでは塞ぎきれない。
+
+これを補うのが **`tests/unit/test_governance_sync.py`**(CI・fail-close)。`CLAUDE.md` の現在の
+sha256 先頭12桁と `governance-directives.md` の `synced-from` marker を突き合わせ、不一致なら
+テストを fail させる(`.github/workflows/tests.yml` が全 PR で実行)。ハッシュ算出方式・marker 記法は
+本フックの埋め込み python と同一である必要があり、どちらかを変えるときは両方を同時に変える
+(依存関係はテストファイル冒頭のコメントに明記済み)。
+
+- **編集時フック(`check-governance-drift.sh`)**: 即時フィードバック用の**助言**。fail-open・
+  linked worktree では沈黙する既知の穴がある(上記)。
+- **CI テスト(`test_governance_sync.py`)**: merge 前の**最終防衛線**。fail-close・worktree に依らず
+  リポジトリの実ファイルを直接比較するため沈黙しない。
+
+**どちらか片方に依存しない**: フックは早期発見の利便性、テストは取りこぼし防止の保証という
+異なる役割を担う二層(両方とも機械判定だが、発火タイミングと保証強度が異なる)。フックが黙っていても
+このテストが赤くなるので、追従漏れは merge 前に必ず露見する。
