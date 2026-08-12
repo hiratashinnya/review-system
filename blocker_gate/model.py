@@ -10,7 +10,10 @@ from typing import Any, Iterable, Mapping
 
 # Issue #345 F-345-05（オーナー確定）: ERROR 区分内への reason 追加
 # （`API_UNREACHABLE`）は §11 の規則により MINOR。1.0 → 1.1。
-POLICY_VERSION = "1.1"
+# Issue #363（オーナー確定・2026-08-12）: policy §3.3「材料」の trigger 記述を
+# 実態（外部 cron が主たる起動元）に合わせて修正。判定意味は変えない文言修正
+# のみだが §11 は文言更新も MINOR bump 対象と定めるため 1.1 → 1.2。
+POLICY_VERSION = "1.2"
 CLASSIFIER_VERSION = "1.0"
 RESULT_SCHEMA = "blocker-gate-result/v1"
 SNAPSHOT_SCHEMA = "blocker-gate-snapshot/v1"

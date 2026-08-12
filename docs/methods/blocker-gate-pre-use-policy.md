@@ -1,6 +1,6 @@
 ---
 policy_id: blocker-gate-pre-use
-policy_version: "1.1"
+policy_version: "1.2"
 result_schema: blocker-gate-result/v1
 waiver_schema: blocker-gate-waiver/v1
 classifier_version: "1.0"
@@ -10,7 +10,7 @@ authority: issue-295
 
 # Blocker gate pre-use policy
 
-- Policy version: `1.1`（`1.0` からの差分は Issue #345 の `API_UNREACHABLE` 追加と 3.3 の snapshot fallback。11章の規則により MINOR）
+- Policy version: `1.2`（`1.1` からの差分は Issue #363 による 3.3「材料」の trigger 記述修正——実際の主たる起動元が外部 cron であることを明記し、GitHub 純正 `schedule` だけで5分間隔が保証されると誤読できる表現を除いた。`1.0` からの差分は Issue #345 の `API_UNREACHABLE` 追加と 3.3 の snapshot fallback。いずれも11章の規則により MINOR）
 - 対象: Issue #295（親 #293、実装 #296〜#299）
 - 正本: Issue #294 の「調査後のオーナー決定（現在の正本）」と Issue #295
 - Enforcement boundary: managed tool の Issue 処理開始操作および PR merge 相当操作の pre-use hook
@@ -145,7 +145,7 @@ parent は Issue 本体の `parent_issue_url` と parent endpoint、children は
   2. `reasons` に `API_UNREACHABLE` を含む（`primary_reason` ではなく membership で見る。到達不能環境の実測形は `["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"]` であり、canonical sort の先頭は別 reason になる）。
   3. **その invocation が GitHub の応答を一度も観測していない**＝収集できた node が 0 件である。1 node でも読めていれば、その環境は到達できている＝ stale な材料を使う理由がない。読めた node があるのに 1 node の一過性 timeout で fallback すると、本来 fail-close だった invocation が最大 10 分 stale な材料で ALLOW になりうる。
   `API_PERMISSION`、`API_UNAVAILABLE`、その他の ERROR/BLOCK は fallback しない（到達できているなら stale な材料を使う理由がない）。node が 0 件であることは**積極的に確認**する——確認できない形（field 欠落・型不正）では fallback を開かない。
-- **材料**: repository の孤立ブランチ `blocker-snapshot` の `snapshot.json`（`blocker-gate-repository-snapshot/v1`）。GitHub Actions が cron 5分で GraphQL から全 Issue と `blockedBy`/`subIssues`/`parent` を一括取得し、単一 commit を force-push する。main と履歴を共有しないため既定ブランチを汚さない。
+- **材料**: repository の孤立ブランチ `blocker-snapshot` の `snapshot.json`（`blocker-gate-repository-snapshot/v1`）。GitHub Actions が GraphQL から全 Issue と `blockedBy`/`subIssues`/`parent` を一括取得し、単一 commit を force-push する。main と履歴を共有しないため既定ブランチを汚さない。**この Actions の主たる起動元は外部 cron サービス（cron-job.org）であり、5分間隔で GitHub の `workflow_dispatch` REST API を叩く**（Issue #363・オーナー確定・2026-08-12）。`.github/workflows/blocker-snapshot.yml` にも残る GitHub 純正の `schedule: "*/5 * * * *"` は保険にすぎない——実測（Issue #363 本文）では 74〜104 分間隔でしか発火せず、`*/5` という cron 式を「5分ごとに動く」保証と読むのは誤りである。運用手順（cron-job.org のジョブ設定・PAT 作成条件・疎通確認）は `docs/methods/blocker-snapshot-external-cron-ops.md` を見る。
 - **取得**: gate が `git fetch` で読む。invocation 外 cache・ローカル生成物は材料にしない。
 - **staleness 上限**: `generated_at` から 10 分。超過、未来時刻、時刻の解釈不能はいずれも fail-close する。
 - **identity 束縛**: 次の二つを**両方**要求する。片方でも欠けると identity が snapshot の自己申告だけに閉じる。
@@ -154,6 +154,8 @@ parent は Issue 本体の `parent_issue_url` と parent endpoint、children は
 - **fail-close の非緩和**: snapshot が無い・fetch できない・JSON が壊れている・`pages_complete=false`・`errors` が非空のいずれでも ALLOW にしない。repository 全体を1 snapshot にするため `pages_complete`/`errors` は global であり、ある Issue の収集失敗が無関係な Issue まで fail-close させる。これは fail-close 側の過剰であり意図した挙動とする。
 - **評価**: snapshot から対象 Issue の closure（`blocked_by` ∪ `children` ∪ `parent` の到達集合）を射影し、3.1 経由と同一の evaluator（5章）へ渡す。判定ロジックは分岐させない。
 - **証跡**: どちらの経路で判定したかを invocation ごとに evidence へ残す（`source: "api" | "snapshot"`、snapshot 経路では `snapshot_generated_at`）。
+
+**policy version の扱い（オーナー確定・2026-08-12・Issue #363）**: 本節「材料」の trigger 記述修正により policy version は `1.1` → **`1.2`** とする。根拠は 11章の版規則であり、変更は「主たる起動元は外部 cron である」という**運用事実の文言修正のみ**——判定意味・Result/exit/reason・relation/state/closure/waiver semantics のいずれも変更していない。11章は「型や判定意味を変えない文言…の更新」を MINOR の内側に明記している。同時に更新した対象は `blocker_gate/model.py` の `POLICY_VERSION` 定数、本文中の版表記（frontmatter・冒頭の Policy version 行・6.1 の waiver/policy.yml 例・10.3 の control JSON 例）、`tests/fixtures/blocker_gate/policy.yml`・`waiver_valid.yml`・`waiver_expired.yml`・`schema_only_waiver.yml` の `policy_version`、および対応 test fixture である。`.github/blocker-gate/policy.yml` と実運用 waiver file は本 repository に未作成のため対象外。`tests/fixtures/blocker_gate/waiver_unknown_key.yml` は unknown-key 検査（`_keys()`）が `policy_version` 比較より先に働く fixture であり、その検査経路を変えないために意図的に `1.0` のまま据え置く。
 
 #### 3.3.1 信頼モデル（この経路が gate の意図を弱めないこと）
 
@@ -371,7 +373,7 @@ waiver は current default branch の `.github/blocker-gate/waivers/<id>.yml` �
 ```yaml
 schema: blocker-gate-waiver/v1
 id: BW-20260801-001
-policy_version: "1.1"
+policy_version: "1.2"
 repository: hiratashinnya/review-system
 owner: owner-login
 reason: "期限内に先行検証を行う必要があるため"
@@ -392,7 +394,7 @@ scope:
 
 ```yaml
 schema: blocker-gate-policy/v1
-policy_version: "1.1"
+policy_version: "1.2"
 approver_allowlist:
   - owner-login
 max_waiver_lifetime_hours: 168
@@ -818,7 +820,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
 ```json
 {
   "schema": "blocker-gate-result/v1",
-  "policy_version": "1.1",
+  "policy_version": "1.2",
   "classifier_version": "1.0",
   "invocation_id": "123e4567-e89b-12d3-a456-426614174000",
   "mode": "pr-merge",
@@ -1114,7 +1116,7 @@ version は `MAJOR.MINOR` である。
 - `MINOR`: 型や判定意味を変えない文言、diagnostic、fixture、runbook、allowlist内容の更新。**ERROR 区分内での reason の追加**もここに含む——既存 caller は未知 reason を ERROR として扱う（10.2）ため、追加された reason を知らないままでも verdict・exit code・元操作の可否が変わらず、対応ロジックの改修を要求しないからである。同一 verdict 区分に留まる reason の意味の細分化（ある reason の外延が狭まり、狭まった分を新 reason が引き受ける）も同じ理由で MINOR とする。
 - patch 版は使わない。policyとclassifierの未知 MAJOR、または manifest と実行 asset の版不一致は `ERROR/HOOK_INTEGRITY_ERROR` とする。
 
-MINOR 更新であっても `policy_version` は上げる（据え置かない）。`blocker_gate/waiver.py` は waiver file・`.github/blocker-gate/policy.yml`・実行 asset の `policy_version` が三者とも完全一致することを要求するため、版を上げるときはこの3か所と test fixture を同時に更新する。適用例＝Issue #345 の `API_UNREACHABLE` 追加（`1.0` → `1.1`・10.2）。
+MINOR 更新であっても `policy_version` は上げる（据え置かない）。`blocker_gate/waiver.py` は waiver file・`.github/blocker-gate/policy.yml`・実行 asset の `policy_version` が三者とも完全一致することを要求するため、版を上げるときはこの3か所と test fixture を同時に更新する。適用例＝Issue #345 の `API_UNREACHABLE` 追加（`1.0` → `1.1`・10.2）、Issue #363 の 3.3「材料」trigger 記述修正（`1.1` → `1.2`・3.3）。
 
 ## 12. 保証境界と残存 race
 
