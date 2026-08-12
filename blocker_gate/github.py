@@ -96,6 +96,12 @@ class GitHubCollector:
         }
         if token:
             self._headers["Authorization"] = "Bearer " + token
+        # Issue #345 F-345-04: 直近の `collect_repository` が消費した GraphQL
+        # rate limit。**telemetry 専用**で判定には一切使わないため、閉じた
+        # snapshot schema へは載せず collector の属性として公開する
+        # （`blocker-gate-repository-snapshot/v1` の top-level key は
+        # `snapshot.parse_repository_snapshot` が完全一致で閉じている）。
+        self.last_rate_limit: dict[str, Any] | None = None
 
     @staticmethod
     def _now() -> str:
@@ -238,8 +244,14 @@ class GitHubCollector:
     # nested connection の `first:50` は Issue #345 の cost 実測と同じ形。
     # 50 を超える relation は補完せず `PAGINATION_INCOMPLETE` で fail-close する
     # （policy §3.1 の「全 page 完走」を満たせない状態を ALLOW へ倒さない）。
+    #
+    # Issue #345 F-345-04: `rateLimit` を top-level（`repository` の兄弟）で
+    # 併せて引き、cron 5分の実消費を事後に検証できるようにする（D-345-1 の
+    # 見積り「測定値の約4倍」を裏付ける実測値が無いと、枠内に収まっている
+    # ことを誰も確認できない）。`rateLimit` 自体は判定材料ではなく telemetry。
     _REPOSITORY_QUERY = (
         "query($owner:String!,$name:String!,$cursor:String){"
+        "rateLimit{cost remaining resetAt} "
         "repository(owner:$owner,name:$name){nameWithOwner "
         "issues(first:100,after:$cursor,orderBy:{field:CREATED_AT,direction:ASC}){"
         "pageInfo{hasNextPage endCursor} "
@@ -303,6 +315,32 @@ class GitHubCollector:
                 complete = False
         return sorted(set(refs)), complete
 
+    @staticmethod
+    def _accumulate_rate_limit(raw: Any, usage: dict[str, Any]) -> None:
+        """GraphQL の ``rateLimit`` を **telemetry としてだけ** 積む（F-345-04）。
+
+        `cost` は page をまたいで合計し、`remaining`/`resetAt` は最後に観測した
+        値を採る（残量は単調に変化するので最新が実態に一番近い）。
+
+        **欠落・型不正でも例外にしない。** この値は verdict にも snapshot 内容にも
+        一切影響しない診断情報であり、ここで fail-close させると「rate limit を
+        測るために snapshot 生成が落ちる」という本末転倒になる。読めなかった場合は
+        単に要約へ出さない（読めた page 数 `pages` が 0 のままになる）。
+        """
+        if not isinstance(raw, dict):
+            return
+        cost = raw.get("cost")
+        remaining = raw.get("remaining")
+        reset_at = raw.get("resetAt")
+        if isinstance(cost, bool) or not isinstance(cost, int) or cost < 0:
+            return
+        usage["cost"] += cost
+        usage["pages"] += 1
+        if not isinstance(remaining, bool) and isinstance(remaining, int) and remaining >= 0:
+            usage["remaining"] = remaining
+        if isinstance(reset_at, str) and reset_at:
+            usage["reset_at"] = reset_at
+
     def collect_repository(self, repository: str) -> Mapping[str, Any]:
         """repository 全体の Issue graph を ``blocker-gate-repository-snapshot/v1`` にする。
 
@@ -316,6 +354,8 @@ class GitHubCollector:
         issues: dict[str, Any] = {}
         errors: list[str] = []
         complete = True
+        usage: dict[str, Any] = {"cost": 0, "pages": 0, "remaining": None, "reset_at": None}
+        self.last_rate_limit = None
         try:
             cursor: str | None = None
             seen: set[str | None] = set()
@@ -327,6 +367,7 @@ class GitHubCollector:
                     self._REPOSITORY_QUERY,
                     {"owner": owner, "name": name, "cursor": cursor},
                 )
+                self._accumulate_rate_limit(data.get("rateLimit"), usage)
                 repo = data.get("repository")
                 if not isinstance(repo, dict) or set(repo) != {"nameWithOwner", "issues"}:
                     raise GitHubReadError("API_PARTIAL_RESPONSE")
@@ -402,6 +443,7 @@ class GitHubCollector:
         except GitHubReadError as exc:
             errors.append(exc.reason)
             complete = False
+        self.last_rate_limit = usage if usage["pages"] else None
         return {
             "schema": REPOSITORY_SNAPSHOT_SCHEMA,
             "policy_version": POLICY_VERSION,

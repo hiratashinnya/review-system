@@ -100,18 +100,23 @@ def graphql_node(
     }
 
 
-def graphql_page(nodes, *, has_next=False, cursor=None, repository=REPOSITORY):
-    return {
-        "data": {
-            "repository": {
-                "nameWithOwner": repository,
-                "issues": {
-                    "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
-                    "nodes": list(nodes),
-                },
-            }
+def graphql_page(
+    nodes, *, has_next=False, cursor=None, repository=REPOSITORY, rate_limit=None
+):
+    data = {
+        "repository": {
+            "nameWithOwner": repository,
+            "issues": {
+                "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                "nodes": list(nodes),
+            },
         }
     }
+    # `rateLimit` は telemetry（F-345-04）。省略した page も引き続き受理される
+    # ことが「欠落で生成を落とさない」契約の裏付けになる。
+    if rate_limit is not None:
+        data["rateLimit"] = dict(rate_limit)
+    return {"data": data}
 
 
 class PagedGraphQLTransport:
@@ -397,8 +402,8 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
     def reader(self, snapshot):
         calls = []
 
-        def read(*, cwd=None, runner=None):
-            calls.append((cwd, runner))
+        def read(*, repository, cwd=None, runner=None):
+            calls.append((repository, cwd, runner))
             return parse_repository_snapshot(snapshot)
 
         read.calls = calls
@@ -406,7 +411,7 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
 
     def test_reachable_api_path_never_reads_the_snapshot(self):
         """ローカル環境の fresh read を退行させない（fallback は起動しない）。"""
-        def forbidden(*, cwd=None, runner=None):
+        def forbidden(*, repository=None, cwd=None, runner=None):
             raise AssertionError("到達できている invocation は snapshot を読まない")
 
         allowed = {
@@ -430,7 +435,7 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
 
     def test_permission_error_does_not_trigger_the_fallback(self):
         """真の権限エラーは従来どおり ERROR のまま。stale な材料へ逃げない。"""
-        def forbidden(*, cwd=None, runner=None):
+        def forbidden(*, repository=None, cwd=None, runner=None):
             raise AssertionError("API_PERMISSION は fallback の引き金ではない")
 
         denied = {**unreachable_issue_snapshot(), "errors": ["API_PERMISSION"]}
@@ -479,7 +484,12 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
         self.assertEqual(evidence["fetched_at"], GENERATED_AT)
 
     def test_trigger_uses_reason_membership_not_primary_reason(self):
-        """canonical sort で primary が別 reason になっても fallback は起動する。"""
+        """canonical sort で primary が別 reason になっても fallback は起動する。
+
+        F-345-01 の是正で「読めた node が 0 件」という条件が加わったが、
+        `primary_reason` ではなく `reasons` の membership で見るという判断は
+        そのまま有効である（実測形の primary は別 reason になる）。
+        """
         api_snapshot = unreachable_issue_snapshot(extra_errors=("API_PARTIAL_RESPONSE",))
         self.assertEqual(
             evaluate_snapshot(api_snapshot)["primary_reason"], "API_PARTIAL_RESPONSE"
@@ -488,6 +498,58 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
         evidence = self.evaluate(api_snapshot=api_snapshot, reader=reader)
         self.assertEqual(evidence["source"], "snapshot")
         self.assertEqual(evidence["result"], "ALLOW")
+
+    def test_real_unreachable_shape_still_falls_back(self):
+        """F-345-01 recheck (a): 到達不能環境の実測形で fallback が生きている。
+
+        実測形は `reasons=["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"]` /
+        `nodes={}`。F-345-01 の是正（node 0 件条件の追加）がこの真の到達不能
+        ケースまで殺していないことを固定する。
+        """
+        api_snapshot = unreachable_issue_snapshot(
+            extra_errors=("RELATION_TARGET_UNREADABLE",)
+        )
+        self.assertEqual(api_snapshot["nodes"], {})
+        self.assertEqual(
+            sorted(evaluate_snapshot(api_snapshot)["reasons"]),
+            ["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"],
+        )
+        reader = self.reader(repository_snapshot({10: issue_entry(10)}))
+        evidence = self.evaluate(api_snapshot=api_snapshot, reader=reader)
+        self.assertEqual(evidence["source"], "snapshot")
+        self.assertEqual(evidence["result"], "ALLOW")
+        # 読取側へは invocation の repository が束縛されて渡る（F-345-02）。
+        self.assertEqual([call[0] for call in reader.calls], [REPOSITORY])
+
+    def test_partially_read_invocation_does_not_fall_back(self):
+        """F-345-01 recheck (b): 1 node でも読めていれば fallback しない。
+
+        到達できている環境で 1 node が一過性 timeout / URLError を起こすと
+        `API_UNREACHABLE` が reasons に入る。reasons membership だけを引き金に
+        すると、この invocation が最大10分 stale な材料で ALLOW になりうる。
+        GitHub provenance を観測している以上 fallback しないことを固定する。
+        """
+        def forbidden(*, repository=None, cwd=None, runner=None):
+            raise AssertionError("node を読めた invocation は snapshot を読まない")
+
+        partial = {
+            **unreachable_issue_snapshot(),
+            "nodes": {
+                f"{REPOSITORY}#10": {
+                    "node_id": "I_10",
+                    "state": "OPEN",
+                    "blocked_by": [],
+                    "parent": None,
+                    "children": [],
+                }
+            },
+        }
+        self.assertIn("API_UNREACHABLE", partial["errors"])
+        evidence = self.evaluate(api_snapshot=partial, reader=forbidden)
+        self.assertEqual((evidence["result"], evidence["exit_code"]), ("ERROR", 20))
+        self.assertEqual(evidence["reason"], "API_UNREACHABLE")
+        self.assertEqual(evidence["source"], "api")
+        self.assertIsNone(evidence["snapshot_generated_at"])
 
     def test_staleness_bound_is_enforced_in_both_directions(self):
         reader = self.reader(repository_snapshot({10: issue_entry(10)}))
@@ -521,7 +583,7 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
 
     def test_unavailable_snapshot_never_becomes_allow(self):
         def raising(reason):
-            def read(*, cwd=None, runner=None):
+            def read(*, repository=None, cwd=None, runner=None):
                 raise IssueStartError(reason)
 
             return read
@@ -543,7 +605,7 @@ class GateFallbackTests(FrozenResolverClockMixin, unittest.TestCase):
 class SnapshotReaderTests(unittest.TestCase):
     """`git fetch` → `git show` の固定 argv 契約（shell を経由しない）。"""
 
-    def runner(self, *, show, fetch_returncode=0):
+    def runner(self, *, show, fetch_returncode=0, origin=f"https://github.com/{REPOSITORY}"):
         calls = []
 
         class Completed:
@@ -555,6 +617,8 @@ class SnapshotReaderTests(unittest.TestCase):
             calls.append((argv, kwargs))
             if argv[:2] == ["git", "rev-parse"]:
                 return Completed(str(ROOT) + "\n")
+            if argv[1] == "remote":
+                return Completed(origin + "\n")
             if argv[1] == "fetch":
                 return Completed("", fetch_returncode)
             return Completed(show)
@@ -566,7 +630,9 @@ class SnapshotReaderTests(unittest.TestCase):
     def test_reads_the_orphan_branch_through_origin(self):
         payload = json.dumps(repository_snapshot({10: issue_entry(10)}))
         runner = self.runner(show=payload)
-        snapshot = read_repository_snapshot(cwd=ROOT, runner=runner)
+        snapshot = read_repository_snapshot(
+            repository=REPOSITORY, cwd=ROOT, runner=runner
+        )
         self.assertEqual(snapshot["repository"], REPOSITORY)
         argvs = [argv for argv, _ in runner.calls]
         self.assertIn(
@@ -591,12 +657,64 @@ class SnapshotReaderTests(unittest.TestCase):
     def test_missing_branch_and_broken_payload_fail_close(self):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_SNAPSHOT_FETCH_FAILED"):
             read_repository_snapshot(
-                cwd=ROOT, runner=self.runner(show="", fetch_returncode=1)
+                repository=REPOSITORY,
+                cwd=ROOT,
+                runner=self.runner(show="", fetch_returncode=1),
             )
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_SNAPSHOT_INVALID_JSON"):
-            read_repository_snapshot(cwd=ROOT, runner=self.runner(show="not-json"))
+            read_repository_snapshot(
+                repository=REPOSITORY, cwd=ROOT, runner=self.runner(show="not-json")
+            )
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_SNAPSHOT_INVALID"):
-            read_repository_snapshot(cwd=ROOT, runner=self.runner(show='{"schema":"x"}'))
+            read_repository_snapshot(
+                repository=REPOSITORY, cwd=ROOT, runner=self.runner(show='{"schema":"x"}')
+            )
+
+    def test_origin_pointing_at_another_repository_fails_close(self):
+        """F-345-02: identity 束縛を snapshot の自己申告だけに閉じない。
+
+        origin を攻撃者の管理下へ向けた上で、対象 repository を名乗る snapshot を
+        配れば ALLOW が作れてしまう（policy §3.3.1 の「偽造には対象 repository への
+        push 権限が要る」という論拠がこの経路で崩れる）。origin が要求 repository と
+        一致しない限り、**fetch すら行わない**ことを固定する。
+        """
+        # snapshot 自体は要求 repository を自己申告している（内容検査は通る形）。
+        payload = json.dumps(repository_snapshot({10: issue_entry(10)}))
+        runner = self.runner(show=payload, origin="https://github.com/attacker/repo")
+        with self.assertRaisesRegex(
+            IssueStartError, "ISSUE_START_SNAPSHOT_ORIGIN_MISMATCH"
+        ):
+            read_repository_snapshot(
+                repository=REPOSITORY, cwd=ROOT, runner=runner
+            )
+        verbs = [argv[1] for argv, _ in runner.calls]
+        self.assertNotIn("fetch", verbs)
+        self.assertNotIn("show", verbs)
+
+    def test_origin_is_normalized_like_the_codex_path(self):
+        """ssh 形式・`.git` 付きでも同じ canonical repository に落ちる。"""
+        payload = json.dumps(repository_snapshot({10: issue_entry(10)}))
+        for origin in (
+            f"https://github.com/{REPOSITORY}.git",
+            f"git@github.com:{REPOSITORY}.git",
+            f"ssh://git@github.com/{REPOSITORY}",
+        ):
+            with self.subTest(origin=origin):
+                snapshot = read_repository_snapshot(
+                    repository=REPOSITORY,
+                    cwd=ROOT,
+                    runner=self.runner(show=payload, origin=origin),
+                )
+                self.assertEqual(snapshot["repository"], REPOSITORY)
+
+    def test_unparsable_origin_fails_close(self):
+        payload = json.dumps(repository_snapshot({10: issue_entry(10)}))
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_ORIGIN_INVALID"):
+            read_repository_snapshot(
+                repository=REPOSITORY,
+                cwd=ROOT,
+                runner=self.runner(show=payload, origin="/tmp/local/clone"),
+            )
 
 
 class SnapshotCliTests(unittest.TestCase):
@@ -616,8 +734,13 @@ class SnapshotCliTests(unittest.TestCase):
         parse_repository_snapshot(payload)
         self.assertIn("pages_complete=True", stderr.getvalue())
 
-    def test_incomplete_snapshot_is_still_published_for_diagnosis(self):
-        """生成側は verdict を出さない。読取側が fail-close するので publish する。"""
+    def test_incomplete_snapshot_is_still_published_but_exits_degraded(self):
+        """F-345-03: 部分 publish は維持したまま、恒久故障を exit code で外へ出す。
+
+        生成側は verdict を出さない（判定は読取側）。しかし exit 0 のままだと
+        生成が恒久的に壊れても workflow が緑で終わり、機能が死んでいることに
+        誰も気づけない。JSON は従来どおり stdout へ出しつつ exit 20 を返す。
+        """
         transport = PagedGraphQLTransport([(403, {}, b"{}")])
         stdout, stderr = StringIO(), StringIO()
         code = run_cli(
@@ -626,10 +749,74 @@ class SnapshotCliTests(unittest.TestCase):
             stderr=stderr,
             collector_factory=lambda token: GitHubCollector(token, transport),
         )
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 20)
         payload = json.loads(stdout.getvalue())
         self.assertFalse(payload["pages_complete"])
         self.assertEqual(payload["errors"], ["API_UNREACHABLE"])
+        self.assertIn("DEGRADED", stderr.getvalue())
+
+    def test_errors_alone_are_enough_to_report_degraded(self):
+        """`pages_complete` が真でも `errors` が非空なら劣化として扱う。"""
+        page = graphql_page(
+            [graphql_node(10, parent=11, repository="other/repo")]
+        )
+        transport = PagedGraphQLTransport([page])
+        stdout, stderr = StringIO(), StringIO()
+        code = run_cli(
+            ["snapshot", "--repository", REPOSITORY],
+            stdout=stdout,
+            stderr=stderr,
+            collector_factory=lambda token: GitHubCollector(token, transport),
+        )
+        self.assertEqual(code, 20)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["errors"], ["CROSS_REPOSITORY_UNSUPPORTED"])
+
+    def test_rate_limit_is_measured_and_summarized(self):
+        """F-345-04: cron 5分が枠内に収まることを事後検証できるようにする。"""
+        pages = [
+            graphql_page([graphql_node(10)], has_next=True, cursor="c1", rate_limit={
+                "cost": 2, "remaining": 4998, "resetAt": "2026-08-12T01:00:00Z",
+            }),
+            graphql_page([graphql_node(11)], rate_limit={
+                "cost": 3, "remaining": 4995, "resetAt": "2026-08-12T01:00:00Z",
+            }),
+        ]
+        transport = PagedGraphQLTransport(pages)
+        stdout, stderr = StringIO(), StringIO()
+        collector = GitHubCollector(None, transport)
+        code = run_cli(
+            ["snapshot", "--repository", REPOSITORY],
+            stdout=stdout,
+            stderr=stderr,
+            collector_factory=lambda token: collector,
+        )
+        self.assertEqual(code, 0)
+        # query は rateLimit を top-level（repository の兄弟）で引く。
+        self.assertIn("rateLimit{cost remaining resetAt}", GitHubCollector._REPOSITORY_QUERY)
+        # cost は page をまたいで合計、remaining/resetAt は最後の観測値。
+        self.assertEqual(
+            collector.last_rate_limit,
+            {"cost": 5, "pages": 2, "remaining": 4995, "reset_at": "2026-08-12T01:00:00Z"},
+        )
+        self.assertIn("rate_limit=cost=5,remaining=4995", stderr.getvalue())
+        # telemetry は閉じた snapshot schema へ混ざらない。
+        parse_repository_snapshot(json.loads(stdout.getvalue()))
+
+    def test_missing_rate_limit_never_fails_generation(self):
+        """telemetry の欠落で snapshot 生成を落とさない（判定材料ではない）。"""
+        transport = PagedGraphQLTransport([graphql_page([graphql_node(10)])])
+        stdout, stderr = StringIO(), StringIO()
+        collector = GitHubCollector(None, transport)
+        code = run_cli(
+            ["snapshot", "--repository", REPOSITORY],
+            stdout=stdout,
+            stderr=stderr,
+            collector_factory=lambda token: collector,
+        )
+        self.assertEqual(code, 0)
+        self.assertIsNone(collector.last_rate_limit)
+        self.assertIn("rate_limit=-", stderr.getvalue())
 
 
 if __name__ == "__main__":

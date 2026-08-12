@@ -404,6 +404,7 @@ def _git_output(
 
 def read_repository_snapshot(
     *,
+    repository: str,
     cwd: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> Mapping[str, Any]:
@@ -411,6 +412,14 @@ def read_repository_snapshot(
 
     ローカルの作業ツリーやローカル cache は材料にしない（改竄と stale を
     同時に許すため）。必ず ``origin`` から fetch した ref を読む。
+
+    ``origin`` が invocation の repository を指すことを **fetch より前に**
+    検証する（Issue #345 F-345-02）。これが無いと identity 束縛が snapshot の
+    自己申告 ``repository`` field だけになり、origin を自分の管理下へ向けられる
+    者が対象 repository を名乗る snapshot を配って ALLOW を作れてしまう
+    ——policy §3.3.1 の「偽造には対象 repository への push 権限が要る」という
+    論拠がその経路で成立しなくなる。正規化は Codex 経路
+    （``_codex_repository`` → ``_canonical_github_repository``）と同一とする。
     """
     top_level = _git_output(
         ["git", "rev-parse", "--show-toplevel"],
@@ -424,6 +433,22 @@ def read_repository_snapshot(
         root = Path(top_level).resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise IssueStartError("ISSUE_START_SNAPSHOT_GIT_ERROR", "toplevel") from exc
+    # `_run_git` ではなく `_git_output` を使うのは、snapshot 経路の git 実行に
+    # 揃えて timeout を掛けるため（到達不能環境で git がぶら下がると gate ごと
+    # 止まる）。複数行・空文字は `_canonical_github_repository` が弾く。
+    origin = _canonical_github_repository(
+        _git_output(
+            ["git", "remote", "get-url", "origin"],
+            cwd=root,
+            runner=runner,
+            reason="ISSUE_START_SNAPSHOT_GIT_ERROR",
+        ).strip()
+    )
+    if origin != repository:
+        raise IssueStartError(
+            "ISSUE_START_SNAPSHOT_ORIGIN_MISMATCH",
+            f"origin={origin}; request={repository}",
+        )
     _git_output(
         [
             "git",
@@ -491,17 +516,37 @@ class SnapshotIssueMetadata:
         return value
 
 
-def _snapshot_fallback_required(blocker: Mapping[str, Any]) -> bool:
-    """``primary_reason`` ではなく ``reasons`` 全体で判定する。
+def _snapshot_fallback_required(
+    blocker: Mapping[str, Any], collected: Mapping[str, Any]
+) -> bool:
+    """当該 invocation が GitHub を**一度も観測できていない**ときだけ真を返す。
 
-    到達不能環境の実測形は ``["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"]``
-    であり、canonical sort で primary は別 reason になりうる。
+    条件は3つの AND であり、どれか一つでも欠ければ従来どおり ERROR のまま
+    fail-close する。
+
+    1. verdict が ``ERROR`` である。
+    2. ``reasons`` に ``API_UNREACHABLE`` を含む。``primary_reason`` ではなく
+       membership で見るのは、到達不能環境の実測形が
+       ``["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"]`` であり canonical
+       sort の先頭が別 reason になるため（この理由は F-345-01 の是正後も有効）。
+    3. **収集できた node が1つも無い。** reasons membership だけを引き金にすると、
+       API へ到達できている環境で1 node が一過性 timeout / URLError を起こした
+       だけでも fallback が起動し、本来 fail-close だった invocation が最大10分
+       stale な材料で ALLOW になりうる（F-345-01）。1 node でも読めていれば
+       その invocation は GitHub provenance を観測している＝「到達不能」では
+       ないので、stale な材料を使う理由がない。
+
+    3 は「空である」ことを**積極的に確認**する（key 欠落・型不正では真を返さない）。
+    fallback は許容側の経路なので、観測できないときは開かない。
     """
     reasons = blocker.get("reasons")
+    nodes = collected.get("nodes")
     return (
         blocker.get("result") == "ERROR"
         and isinstance(reasons, list)
         and SNAPSHOT_FALLBACK_REASON in reasons
+        and isinstance(nodes, dict)
+        and not nodes
     )
 
 
@@ -558,23 +603,24 @@ def evaluate_issue_start(
 ) -> dict[str, Any]:
     """fresh blocker read を行い、同じ repository/Issue へ再束縛する。
 
-    Issue #345［A］: **API 優先**。fresh read が ``API_UNREACHABLE`` を返した
-    invocation だけが孤立ブランチ snapshot へ fallback する。到達できる環境の
-    挙動は一切変わらない（従来どおり invocation ごとの fresh read）。
+    Issue #345［A］: **API 優先**。fresh read が ``API_UNREACHABLE`` を返し、かつ
+    node を1つも読めなかった invocation だけが孤立ブランチ snapshot へ fallback
+    する。到達できる環境の挙動は一切変わらない（従来どおり invocation ごとの
+    fresh read）し、部分的に読めた invocation も fallback しない（F-345-01）。
     """
     try:
         collector = collector_factory(token)
         # #299 完了前は waiver provider を渡さない。collector に機能があっても bypass 不可。
-        blocker = evaluate_snapshot(
-            collector.collect_issue(request.repository, request.issue),
-            waiver_provider=None,
-        )
+        collected = collector.collect_issue(request.repository, request.issue)
+        blocker = evaluate_snapshot(collected, waiver_provider=None)
         source = "api"
         snapshot_generated_at: str | None = None
         report_provider: Any = collector
-        if _snapshot_fallback_required(blocker):
+        if _snapshot_fallback_required(blocker, collected):
             read = read_repository_snapshot if snapshot_reader is None else snapshot_reader
-            repository_snapshot = read(cwd=cwd, runner=runner)
+            repository_snapshot = read(
+                repository=request.repository, cwd=cwd, runner=runner
+            )
             _assert_snapshot_fresh(repository_snapshot, now)
             try:
                 projected, metadata = project_issue_snapshot(

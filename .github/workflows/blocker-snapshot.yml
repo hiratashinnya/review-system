@@ -34,6 +34,13 @@ name: blocker-snapshot
 #   - 生成が部分失敗した場合も publish する。`pages_complete: false` / `errors` を
 #     載せて読取側へ渡すことで、遮断された環境にも診断材料が届く。ALLOW には
 #     ならない（読取側が fail-close する）。
+#
+# 可視化（Issue #345 F-345-03）: 上記のとおり「部分 snapshot でも publish する」
+# 設計は維持するが、**publish した後に job を失敗させる**。generator は劣化時に
+# exit 20 を返す（`blocker_gate/cli.py`）。それを step では致命扱いせずに拾って
+# publish まで進め、最後の step で `::error` annotation を出して job を赤くする。
+# こうしないと、恒久故障（例: GITHUB_TOKEN が GraphQL の blockedBy/subIssues/parent
+# を読めない）が起きても workflow が緑のままで、機能が死んでいることに気づけない。
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -60,11 +67,21 @@ jobs:
           python-version: "3.x"
 
       - name: Generate repository blocker snapshot
+        id: generate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -uo pipefail
+          status=0
           python3 -m blocker_gate snapshot \
-            --repository "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/snapshot.json"
+            --repository "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/snapshot.json" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # exit 20 = 劣化（pages_complete=false / errors 非空）だが JSON は完成
+          # している。publish して読取側へ診断材料を渡し、最後の step で失敗させる。
+          if [ "$status" -ne 0 ] && [ "$status" -ne 20 ]; then
+            echo "::error::blocker snapshot generation aborted (exit ${status}); nothing to publish"
+            exit "$status"
+          fi
 
       - name: Publish to the orphan branch
         run: |
@@ -82,3 +99,12 @@ jobs:
           issue #345. This branch shares no history with the default branch and is
           force-pushed as a single commit every run; it is never merged."
           git push --force origin "blocker-snapshot"
+
+      # publish 済みの degraded snapshot を可視化する（Issue #345 F-345-03）。
+      # ここで初めて job を失敗させるので、部分 snapshot は必ず配布された上で
+      # 恒久故障が赤く残る。
+      - name: Fail the job when the published snapshot is degraded
+        if: steps.generate.outputs.status == '20'
+        run: |
+          echo "::error::blocker snapshot is degraded (pages_complete=false or errors non-empty). It was published so that unreachable environments still receive diagnostics, but the gate will fail-close there until this is fixed. See the generator stderr above for the error reasons."
+          exit 1

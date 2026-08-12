@@ -8,7 +8,9 @@ import hashlib
 import json
 from typing import Any, Iterable, Mapping
 
-POLICY_VERSION = "1.0"
+# Issue #345 F-345-05（オーナー確定）: ERROR 区分内への reason 追加
+# （`API_UNREACHABLE`）は §11 の規則により MINOR。1.0 → 1.1。
+POLICY_VERSION = "1.1"
 CLASSIFIER_VERSION = "1.0"
 RESULT_SCHEMA = "blocker-gate-result/v1"
 SNAPSHOT_SCHEMA = "blocker-gate-snapshot/v1"

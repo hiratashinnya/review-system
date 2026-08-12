@@ -90,7 +90,15 @@ class GitHubBranchClient:
             if exc.code == 404:
                 raise BranchSourceError("BRANCH_API_PERMISSION_OR_NOT_FOUND") from None
             raise BranchSourceError("API_UNAVAILABLE") from None
-        except (urllib.error.URLError, TimeoutError, OSError):
+        except (urllib.error.URLError, TimeoutError):
+            # Issue #345 F-345-07: HTTP 応答すら得られていない（DNS/接続/tunnel/
+            # timeout）。GitHub が下した判断ではないので「到達不能」に分類する。
+            # `github_api_failure_reason` 経由の provenance 欠落 401/403 が
+            # API_UNREACHABLE を返すのと同じ意味づけに揃える（blocker_gate の
+            # `UrlLibReadTransport._open` と同一写像）。`URLError` は `OSError`
+            # の subclass なので、この except を残りの `OSError` より前に置く。
+            raise BranchSourceError("API_UNREACHABLE") from None
+        except OSError:
             raise BranchSourceError("API_UNAVAILABLE") from None
         try:
             value = json.loads(raw.decode("utf-8"))
