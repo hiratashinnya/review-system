@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.6",
+  "classifier_version": "1.7",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -173,6 +173,56 @@
       "expected": "none"
     },
     {
+      "id": "absolute-bash-command-string-merge",
+      "command": "/bin/bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "absolute-sh-command-string-merge",
+      "command": "/bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "relative-bash-command-string-merge",
+      "command": "./tools/bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-absolute-bash-literal",
+      "command": "/bin/bash -c 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-relative-sh-literal",
+      "command": "../bin/sh -c 'printf literal'",
+      "expected": "none"
+    },
+    {
+      "id": "ambiguous-path-qualified-shell-like-command",
+      "command": "./tools/bash-wrapper -c 'echo literal'",
+      "expected": "error"
+    },
+    {
+      "id": "git-bisect-run-gh-merge",
+      "command": "git bisect run gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "git-bisect-run-shell-merge",
+      "command": "git bisect run /bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-git-bisect-operation",
+      "command": "git bisect good HEAD",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-bisect-run-literal",
+      "command": "git bisect run echo literal",
+      "expected": "none"
+    },
+    {
       "id": "git-rebase-short-exec",
       "command": "git rebase -x 'gh pr merge 1 --squash' main",
       "expected": "error"
@@ -198,6 +248,16 @@
       "expected": "error"
     },
     {
+      "id": "git-rebase-abbreviated-long-exec",
+      "command": "git rebase --exe 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-abbreviated-long-exec",
+      "command": "git rebase --exe='gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
       "id": "git-diff-external-evaluator",
       "command": "git diff --ext-diff",
       "expected": "error"
@@ -218,8 +278,18 @@
       "expected": "error"
     },
     {
-      "id": "git-fetch-short-cluster-upload-pack-evaluator",
-      "command": "git fetch -qu 'gh pr merge 1 --squash' origin",
+      "id": "git-clone-abbreviated-upload-pack-evaluator",
+      "command": "git clone --upload-p='gh pr merge 1 --squash' example/repo",
+      "expected": "error"
+    },
+    {
+      "id": "git-fetch-abbreviated-upload-pack-evaluator",
+      "command": "git fetch --upload-p='gh pr merge 1 --squash' origin",
+      "expected": "error"
+    },
+    {
+      "id": "git-fetch-separated-abbreviated-upload-pack-evaluator",
+      "command": "git fetch --upload-p 'gh pr merge 1 --squash' origin",
       "expected": "error"
     },
     {
@@ -228,13 +298,33 @@
       "expected": "error"
     },
     {
+      "id": "git-pull-abbreviated-upload-pack-evaluator",
+      "command": "git pull --upload-p='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
       "id": "git-push-long-receive-pack-evaluator",
       "command": "git push --receive-pack='gh pr merge 1 --squash' origin main",
       "expected": "error"
     },
     {
+      "id": "git-push-abbreviated-receive-pack-evaluator",
+      "command": "git push --receive-p='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-grep-abbreviated-pager-evaluator",
+      "command": "git grep --open-files-in-p='gh pr merge 1 --squash' pattern",
+      "expected": "error"
+    },
+    {
       "id": "git-option-terminator-boundary",
       "command": "git rebase -- -x",
+      "expected": "none"
+    },
+    {
+      "id": "git-option-terminator-long-option-data",
+      "command": "git rebase -- --exec=literal --upload-pack=literal",
       "expected": "none"
     },
     {
@@ -245,6 +335,26 @@
     {
       "id": "safe-git-push-set-upstream-short-u",
       "command": "git push -u origin branch",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-fetch-update-head-ok-short-u",
+      "command": "git fetch -u origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-fetch-short-cluster-update-head-ok",
+      "command": "git fetch -qu origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-pull-update-head-ok-short-u",
+      "command": "git pull -u origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-pull-short-cluster-update-head-ok",
+      "command": "git pull -qu origin main",
       "expected": "none"
     },
     {

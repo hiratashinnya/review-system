@@ -176,6 +176,28 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         self.assertEqual(fixture["schema_version"], "pr-merge-classifier-shell-corpus/1")
         self.assertEqual(fixture["classifier_version"], CLASSIFIER_VERSION)
+        case_ids = {case["id"] for case in fixture["cases"]}
+        self.assertTrue(
+            {
+                "git-bisect-run-gh-merge",
+                "safe-git-bisect-run-literal",
+                "absolute-bash-command-string-merge",
+                "safe-absolute-bash-literal",
+                "ambiguous-path-qualified-shell-like-command",
+                "git-rebase-attached-abbreviated-long-exec",
+                "git-clone-abbreviated-upload-pack-evaluator",
+                "git-fetch-abbreviated-upload-pack-evaluator",
+                "git-pull-abbreviated-upload-pack-evaluator",
+                "git-push-abbreviated-receive-pack-evaluator",
+                "git-grep-abbreviated-pager-evaluator",
+                "git-option-terminator-long-option-data",
+                "safe-git-fetch-update-head-ok-short-u",
+                "safe-git-pull-update-head-ok-short-u",
+                "safe-git-push-set-upstream-short-u",
+                "safe-git-rebase-strategy-option-uppercase-x",
+            }
+            <= case_ids
+        )
         for case in fixture["cases"]:
             with self.subTest(case=case["id"]):
                 classified = classify_pre_use(bash(case["command"]))

@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.6"
+CLASSIFIER_VERSION = "1.7"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
@@ -64,9 +64,7 @@ _GIT_SHELL_EVALUATING_OPTIONS = frozenset(
 )
 _GIT_SHELL_EVALUATING_SHORT_OPTIONS = {
     "clone": frozenset({"u"}),
-    "fetch": frozenset({"u"}),
     "grep": frozenset({"O"}),
-    "pull": frozenset({"u"}),
     "rebase": frozenset({"x"}),
 }
 _GH_NON_MERGE_COMMANDS = frozenset(
@@ -288,7 +286,8 @@ def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
         if len(tokens) < 2:
             return True, None
         return True, " ".join(tokens[1:])
-    shell = tokens[0]
+    shell_token = tokens[0]
+    shell = Path(shell_token).name if "/" in shell_token else shell_token
     if shell not in _SHELL_EVALUATORS:
         return False, None
     if len(tokens) == 2 and tokens[1] in {"--help", "--version"}:
@@ -346,10 +345,17 @@ def _evaluated_shell_command(tokens: list[str]) -> tuple[bool, str | None]:
     return True, None
 
 
-def _known_safe_git_shape(tokens: list[str]) -> bool:
-    """Git builtinだけを許可し、alias/config由来のshell評価は閉じる。"""
-    if not tokens or tokens[0] != "git":
+def _git_shell_evaluating_long_option(option: str) -> bool:
+    """Git parse-optionsが受理し得るevaluator long option略記を閉じる。"""
+    if not option.startswith("--") or option == "--":
         return False
+    return any(candidate.startswith(option) for candidate in _GIT_SHELL_EVALUATING_OPTIONS)
+
+
+def _known_safe_git_shape(tokens: list[str]) -> tuple[bool, str | None]:
+    """Git builtinと、再分類が必要なbisect run operandを束縛する。"""
+    if not tokens or tokens[0] != "git":
+        return False, None
     index = 1
     while index < len(tokens):
         token = tokens[index]
@@ -357,7 +363,7 @@ def _known_safe_git_shape(tokens: list[str]) -> bool:
             index += 1
             break
         if token == "-c" or token.startswith("-c") or token == "--config-env" or token.startswith("--config-env="):
-            return False
+            return False, None
         if token in {"-C", "--git-dir", "--work-tree", "--namespace"}:
             index += 2
             continue
@@ -368,22 +374,26 @@ def _known_safe_git_shape(tokens: list[str]) -> bool:
             index += 1
             continue
         if token.startswith("-"):
-            return False
+            return False, None
         break
     if index >= len(tokens) or tokens[index] not in _SAFE_GIT_BUILTINS:
-        return False
+        return False, None
     subcommand = tokens[index]
+    if subcommand == "bisect" and tokens[index + 1:index + 2] == ["run"]:
+        if index + 2 >= len(tokens):
+            return False, None
+        return True, shlex.join(tokens[index + 2:])
     for token in tokens[index + 1:]:
         if token == "--":
             break
         option = token.split("=", 1)[0]
-        if option in _GIT_SHELL_EVALUATING_OPTIONS:
-            return False
+        if _git_shell_evaluating_long_option(option):
+            return False, None
         if token.startswith("-") and not token.startswith("--"):
             short_options = _GIT_SHELL_EVALUATING_SHORT_OPTIONS.get(subcommand, frozenset())
             if any(short_option in token[1:] for short_option in short_options):
-                return False
-    return True
+                return False, None
+    return True, None
 
 
 def _known_safe_gh_shape(tokens: list[str]) -> bool:
@@ -784,12 +794,26 @@ def classify_pre_use(
                     return _block(nested.reason, command)
                 return _error("CLASSIFIER_UNKNOWN", command)
             return None
+        executable_basename = Path(remaining[0]).name
+        if "/" in remaining[0] and any(shell in executable_basename for shell in _SHELL_EVALUATORS):
+            return _error("CLASSIFIER_UNKNOWN", command)
         if remaining[0] in _SAFE_DATA_EXECUTABLES:
             return None
         if remaining[0] == "git":
-            if _known_safe_git_shape(remaining):
+            known_safe, evaluated_command = _known_safe_git_shape(remaining)
+            if not known_safe:
+                return _error("CLASSIFIER_UNKNOWN", command)
+            if evaluated_command is None:
                 return None
-            return _error("CLASSIFIER_UNKNOWN", command)
+            nested = classify_pre_use(
+                {"tool_name": "Bash", "tool_input": {"command": evaluated_command}},
+                cwd=cwd,
+                runner=runner,
+                _depth=_depth + 1,
+            )
+            if nested is not None:
+                return _error("CLASSIFIER_UNKNOWN", command)
+            return None
         if "gh" in remaining or _unknown_executable_merge_shape(remaining):
             return _error("CLASSIFIER_UNKNOWN", command)
         return None
