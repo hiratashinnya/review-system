@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.10",
+  "classifier_version": "1.11",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -438,14 +438,14 @@
       "expected": "error"
     },
     {
-      "id": "safe-prefix-path-trusted-absolute-git-status",
+      "id": "path-prefix-absolute-git-status-denied",
       "command": "PATH=/tmp /usr/bin/git status --short",
-      "expected": "none"
+      "expected": "error"
     },
     {
-      "id": "safe-env-path-trusted-absolute-git-status",
+      "id": "env-path-absolute-git-status-denied",
       "command": "env PATH=/tmp /usr/bin/git status --short",
-      "expected": "none"
+      "expected": "error"
     },
     {
       "id": "safe-prefix-locale-bare-git-status",
@@ -458,9 +458,9 @@
       "expected": "none"
     },
     {
-      "id": "safe-scoped-path-absolute-git-compound",
+      "id": "scoped-path-absolute-git-compound-denied",
       "command": "PATH=/tmp /usr/bin/git status --short; echo done",
-      "expected": "none"
+      "expected": "error"
     },
     {
       "id": "compound-locale-assignment-is-conservative",
@@ -473,9 +473,9 @@
       "expected": "error"
     },
     {
-      "id": "safe-env-ignore-environment-trusted-absolute-git",
+      "id": "ignore-environment-absolute-git-status-denied",
       "command": "env -i /usr/bin/git status --short",
-      "expected": "none"
+      "expected": "error"
     },
     {
       "id": "env-option-terminator-path-bare-git",
@@ -483,9 +483,9 @@
       "expected": "error"
     },
     {
-      "id": "safe-env-option-terminator-path-absolute-git-status",
+      "id": "option-terminator-path-absolute-git-status-denied",
       "command": "env -- PATH=/tmp /usr/bin/git status --short",
-      "expected": "none"
+      "expected": "error"
     },
     {
       "id": "env-option-terminator-git-environment",
@@ -493,9 +493,9 @@
       "expected": "error"
     },
     {
-      "id": "safe-env-ignore-options-locale-absolute-git-status",
+      "id": "ignore-environment-locale-absolute-git-status-denied",
       "command": "env -i -- LC_ALL=C /usr/bin/git status --short",
-      "expected": "none"
+      "expected": "error"
     },
     {
       "id": "command-wrapper-export-compound",
@@ -580,6 +580,116 @@
     {
       "id": "safe-trap-text-data",
       "command": "echo 'trap gh pr merge 1 EXIT'",
+      "expected": "none"
+    },
+    {
+      "id": "path-absolute-git-status-help-viewer",
+      "command": "PATH=/tmp /usr/bin/git status --help",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-global-paginate-status",
+      "command": "PATH=/tmp /usr/bin/git --paginate status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-global-help",
+      "command": "PATH=/tmp /usr/bin/git --help",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-configured-fsmonitor-status",
+      "command": "PATH=/tmp /usr/bin/git -c core.fsmonitor=helper status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-editor-shape",
+      "command": "PATH=/tmp /usr/bin/git commit --edit",
+      "expected": "error"
+    },
+    {
+      "id": "printf-variable-path-compound",
+      "command": "printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "builtin-printf-variable-path-compound",
+      "command": "builtin printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-printf-variable-path-compound",
+      "command": "command printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-printf-option-terminator-data",
+      "command": "printf -- '-v'; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "read-stateful-compound",
+      "command": "read PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "readarray-stateful-compound",
+      "command": "readarray PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "mapfile-stateful-compound",
+      "command": "mapfile PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "declare-stateful-compound",
+      "command": "declare PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "typeset-stateful-compound",
+      "command": "typeset PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "local-stateful-compound",
+      "command": "local PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "let-stateful-compound",
+      "command": "let PATH=1; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "set-stateful-compound",
+      "command": "set -a; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "shopt-stateful-compound",
+      "command": "shopt -s expand_aliases; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "source-stateful-compound",
+      "command": "source /tmp/state.sh; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "dot-stateful-compound",
+      "command": ". /tmp/state.sh; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "eval-stateful-compound",
+      "command": "eval 'PATH=/tmp'; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-locale-absolute-git-compound",
+      "command": "LC_ALL=C /usr/bin/git status --short; echo done",
       "expected": "none"
     }
   ]

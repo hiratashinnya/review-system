@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.10"
+CLASSIFIER_VERSION = "1.11"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
@@ -51,13 +51,13 @@ _TRUSTED_ABSOLUTE_GIT_EXECUTABLES = frozenset({"/bin/git", "/usr/bin/git"})
 _HARMLESS_ENVIRONMENT_VARIABLES = frozenset({"LANG", "LANGUAGE", "LC_ALL"})
 _SHELL_STATE_COMMANDS = frozenset(
     {
-        ".", "alias", "break", "cd", "continue", "declare", "enable", "exec", "exit",
-        "export", "getopts", "hash", "local", "logout", "mapfile", "popd", "pushd", "read",
+        ".", "alias", "bg", "bind", "break", "cd", "complete", "compopt", "continue", "declare",
+        "dirs", "disown", "enable", "exec", "exit", "export", "fc", "fg", "getopts", "hash",
+        "history", "jobs", "kill", "let", "local", "logout", "mapfile", "popd", "pushd", "read",
         "readarray", "readonly", "return", "set", "shift", "shopt", "source", "suspend", "trap",
-        "typeset", "umask", "unalias", "unset", "wait",
+        "typeset", "ulimit", "umask", "unalias", "unset", "wait",
     }
 )
-_GIT_ENVIRONMENT_INDEPENDENT_BUILTINS = frozenset({"status"})
 _SAFE_GIT_BUILTINS = frozenset(
     {
         "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
@@ -284,6 +284,15 @@ def _environment_allows_executable(
     )
 
 
+def _state_independent_data_shape(tokens: list[str]) -> bool:
+    """親shellを変更しないとclosed grammarで証明できるdata commandだけを返す。"""
+    if not tokens or tokens[0] not in _SAFE_DATA_EXECUTABLES:
+        return False
+    if tokens[0] != "printf":
+        return True
+    return len(tokens) == 1 or tokens[1] == "--" or not tokens[1].startswith("-")
+
+
 def _compound_changes_shell_state(command: str) -> bool:
     """後続leafの実行実体へ状態を持ち越し得るcompound leafを検出する。"""
     try:
@@ -298,6 +307,10 @@ def _compound_changes_shell_state(command: str) -> bool:
     remaining, wrappers, assignments, _ = environment
     if not remaining:
         return bool(assignments) and "env" not in wrappers
+    if "exec" in wrappers or remaining[0] == "eval":
+        return True
+    if remaining[0] in _SAFE_DATA_EXECUTABLES:
+        return not _state_independent_data_shape(remaining)
     return remaining[0] in _SHELL_STATE_COMMANDS
 
 
@@ -516,31 +529,9 @@ def _git_environment_allows_shape(
     *,
     ignore_environment: bool,
 ) -> bool:
-    """PATH消去・差替え後もchild helperを起動しないGit形だけを許可する。"""
-    if not ignore_environment and "PATH" not in assignments:
-        return True
-    if not tokens or tokens[0] not in _TRUSTED_ABSOLUTE_GIT_EXECUTABLES:
-        return False
-    index = 1
-    while index < len(tokens):
-        token = tokens[index]
-        if token == "--":
-            index += 1
-            break
-        if token in {"-C", "--git-dir", "--work-tree", "--namespace"}:
-            index += 2
-            continue
-        if token.startswith(("--git-dir=", "--work-tree=", "--namespace=")):
-            index += 1
-            continue
-        if token in {"--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks"}:
-            index += 1
-            continue
-        break
-    return (
-        index < len(tokens)
-        and tokens[index] in _GIT_ENVIRONMENT_INDEPENDENT_BUILTINS
-    )
+    """環境変更下でchild helper閉包を証明できないGit invocationを一律拒否する。"""
+    del tokens
+    return not ignore_environment and "PATH" not in assignments
 
 
 def _known_safe_gh_shape(tokens: list[str]) -> bool:
@@ -938,6 +929,8 @@ def classify_pre_use(
         if "/" in remaining[0] and any(shell in executable_basename for shell in _SHELL_EVALUATORS):
             return _error("CLASSIFIER_UNKNOWN", command)
         if remaining[0] in _SAFE_DATA_EXECUTABLES:
+            if not _state_independent_data_shape(remaining):
+                return _error("CLASSIFIER_UNKNOWN", command)
             return None
         if executable_basename == "git":
             known_safe, evaluated_command = _known_safe_git_shape(remaining)
