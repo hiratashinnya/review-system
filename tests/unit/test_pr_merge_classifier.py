@@ -201,6 +201,18 @@ class PreUseClassifierTests(unittest.TestCase):
                 "safe-git-pull-update-head-ok-short-u",
                 "safe-git-push-set-upstream-short-u",
                 "safe-git-rebase-strategy-option-uppercase-x",
+                "env-path-bare-git-status",
+                "prefix-path-bare-git-status",
+                "compound-path-assignment-bare-git-status",
+                "prefix-git-exec-path-trusted-absolute-git",
+                "git-external-command-environment-payload",
+                "env-path-known-safe-bare-executable",
+                "safe-prefix-path-trusted-absolute-git-status",
+                "safe-env-path-trusted-absolute-git-status",
+                "safe-prefix-locale-bare-git-status",
+                "safe-env-locale-bare-git-status",
+                "safe-scoped-path-absolute-git-compound",
+                "compound-locale-assignment-is-conservative",
             }
             <= case_ids
         )

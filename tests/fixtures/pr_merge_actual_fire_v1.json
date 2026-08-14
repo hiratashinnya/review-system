@@ -10,7 +10,7 @@
   "expected_audit": {
     "schema_version": "pr-merge-audit/4",
     "record_type": "pre_use_decision",
-    "classifier_version": "1.8",
+    "classifier_version": "1.9",
     "reason": "AUTO_MERGE_DENIED",
     "permit_issued": false,
     "operation_dispatched": false,
@@ -66,7 +66,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -90,7 +90,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -114,7 +114,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -138,7 +138,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -162,7 +162,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -186,7 +186,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -210,7 +210,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -234,7 +234,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -258,7 +258,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -282,7 +282,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -306,7 +306,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -330,7 +330,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -354,7 +354,55 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.8",
+        "classifier_version": "1.9",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "env-path-bare-git-status",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact env payload; PATH substitution of bare Git must be denied before env or Git dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "env PATH=/tmp git status --short"
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.9",
+        "reason": "CLASSIFIER_UNKNOWN",
+        "permit_issued": false,
+        "operation_dispatched": false,
+        "merge_api_called": false,
+        "post_use_completion_count": 0
+      }
+    },
+    {
+      "id": "git-external-command-environment-payload",
+      "harnesses": ["Codex", "Claude"],
+      "product_action": "invoke the Bash tool with this exact Git external-command environment payload; the executable payload must be denied before Git dispatch",
+      "payload": {
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "GIT_EXTERNAL_DIFF='gh pr merge 1 --squash' /usr/bin/git diff --ext-diff"
+        }
+      },
+      "expected_classifier": {
+        "kind": "error",
+        "reason": "CLASSIFIER_UNKNOWN"
+      },
+      "expected_audit": {
+        "schema_version": "pr-merge-audit/4",
+        "classifier_version": "1.9",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,

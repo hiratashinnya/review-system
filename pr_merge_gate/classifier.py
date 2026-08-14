@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.8"
+CLASSIFIER_VERSION = "1.9"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
@@ -47,6 +47,11 @@ _SHELL_LONG_VALUE_OPTIONS = {
 _SHELL_COMMAND_LONG_OPTIONS = {"fish": frozenset({"--command"})}
 _SHELL_UNSUPPORTED_EVALUATING_OPTIONS = {"fish": frozenset({"--init-command"})}
 _TRUSTED_GIT_EXECUTABLES = frozenset({"git", "/bin/git", "/usr/bin/git"})
+_TRUSTED_ABSOLUTE_GIT_EXECUTABLES = frozenset({"/bin/git", "/usr/bin/git"})
+_HARMLESS_ENVIRONMENT_VARIABLES = frozenset({"LANG", "LANGUAGE", "LC_ALL"})
+_SHELL_STATE_COMMANDS = frozenset(
+    {".", "alias", "declare", "enable", "export", "hash", "readonly", "set", "shopt", "source", "typeset", "unalias", "unset"}
+)
 _SAFE_GIT_BUILTINS = frozenset(
     {
         "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
@@ -191,6 +196,85 @@ def _unwrap(tokens: list[str]) -> tuple[list[str], list[str]]:
         elif wrapper in {"command", "builtin", "exec"} and remaining and remaining[0] == "--":
             remaining.pop(0)
     return remaining, wrappers
+
+
+def _command_environment(
+    tokens: list[str],
+) -> tuple[list[str], list[str], dict[str, str], bool] | None:
+    """Shell prefixとenv wrapperを解析し、実行commandへ作用する環境を保持する。"""
+    remaining = list(tokens)
+    assignments: dict[str, str] = {}
+    while remaining:
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", remaining[0], flags=re.DOTALL)
+        if match is None:
+            break
+        assignments[match.group(1)] = match.group(2)
+        remaining.pop(0)
+
+    remaining, wrappers = _unwrap(remaining)
+    ignore_environment = False
+    if remaining and remaining[0] == "env":
+        wrappers.append("env")
+        index = 1
+        while index < len(remaining):
+            token = remaining[index]
+            if token == "--":
+                index += 1
+                break
+            if token in {"-i", "--ignore-environment"}:
+                ignore_environment = True
+                index += 1
+                continue
+            if token.startswith("-"):
+                return None
+            match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", token, flags=re.DOTALL)
+            if match is None:
+                break
+            assignments[match.group(1)] = match.group(2)
+            index += 1
+        remaining = remaining[index:]
+        remaining, nested_wrappers = _unwrap(remaining)
+        wrappers.extend(nested_wrappers)
+    return remaining, wrappers, assignments, ignore_environment
+
+
+def _environment_allows_executable(
+    assignments: Mapping[str, str],
+    *,
+    ignore_environment: bool,
+    executable: str,
+) -> bool:
+    """実行実体やGitの外部commandを差し替えない環境だけを許可する。"""
+    names = set(assignments)
+    harmless = all(
+        name in _HARMLESS_ENVIRONMENT_VARIABLES or re.fullmatch(r"LC_[A-Z0-9_]+", name)
+        for name in names
+    )
+    if harmless and not ignore_environment:
+        return True
+    if executable not in _TRUSTED_ABSOLUTE_GIT_EXECUTABLES:
+        return False
+    return all(
+        name == "PATH"
+        or name in _HARMLESS_ENVIRONMENT_VARIABLES
+        or re.fullmatch(r"LC_[A-Z0-9_]+", name)
+        for name in names
+    )
+
+
+def _compound_changes_shell_state(command: str) -> bool:
+    """後続leafの実行実体へ状態を持ち越し得るcompound leafを検出する。"""
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        return True
+    if not tokens:
+        return True
+    if tokens[0] in _SHELL_STATE_COMMANDS:
+        return True
+    return len(tokens) == 1 and re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[0], flags=re.DOTALL
+    ) is not None
 
 
 def _split_shell_commands(command: str) -> list[str] | None:
@@ -744,6 +828,8 @@ def classify_pre_use(
         return _error("CLASSIFIER_UNKNOWN", command)
     if len(shell_commands) > 1:
         for leaf in shell_commands:
+            if _compound_changes_shell_state(leaf):
+                return _error("CLASSIFIER_UNKNOWN", command)
             classified = classify_pre_use(
                 {"tool_name": "Bash", "tool_input": {"command": leaf}},
                 cwd=cwd,
@@ -757,29 +843,18 @@ def classify_pre_use(
         tokens = shlex.split(command, posix=True)
     except ValueError:
         return _error("CLASSIFIER_UNKNOWN", command)
-    remaining, wrappers = _unwrap(tokens)
+    environment = _command_environment(tokens)
+    if environment is None:
+        return _error("CLASSIFIER_UNKNOWN", command)
+    remaining, wrappers, assignments, ignore_environment = environment
     if not remaining:
         return None
-    if remaining[0] == "env":
-        index = 1
-        while index < len(remaining):
-            token = remaining[index]
-            if token == "--":
-                index += 1
-                break
-            if token in {"-i", "--ignore-environment"}:
-                index += 1
-                continue
-            if token.startswith("-"):
-                return _error("CLASSIFIER_UNKNOWN", command)
-            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token, flags=re.DOTALL):
-                index += 1
-                continue
-            break
-        if index >= len(remaining):
-            return None
-        remaining = remaining[index:]
-        wrappers.append("env")
+    if not _environment_allows_executable(
+        assignments,
+        ignore_environment=ignore_environment,
+        executable=remaining[0],
+    ):
+        return _error("CLASSIFIER_UNKNOWN", command)
     if remaining[0] != "gh":
         if _dynamic_executable(remaining[0]):
             return _error("CLASSIFIER_UNKNOWN", command)
@@ -811,6 +886,8 @@ def classify_pre_use(
                 return _error("CLASSIFIER_UNKNOWN", command)
             if evaluated_command is None:
                 return None
+            if ignore_environment or "PATH" in assignments:
+                return _error("CLASSIFIER_UNKNOWN", command)
             nested = classify_pre_use(
                 {"tool_name": "Bash", "tool_input": {"command": evaluated_command}},
                 cwd=cwd,

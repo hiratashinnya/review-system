@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.8",
+  "classifier_version": "1.9",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -391,6 +391,91 @@
       "id": "ambiguous-untrusted-absolute-git-bisect-run",
       "command": "/tmp/git bisect run echo literal",
       "expected": "error"
+    },
+    {
+      "id": "env-path-bare-git-status",
+      "command": "env PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "prefix-path-bare-git-status",
+      "command": "PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "compound-path-assignment-bare-git-status",
+      "command": "PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "compound-export-path-bare-git-status",
+      "command": "export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "prefix-git-exec-path-trusted-absolute-git",
+      "command": "GIT_EXEC_PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-git-exec-path-bare-git",
+      "command": "env GIT_EXEC_PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "git-external-command-environment-payload",
+      "command": "GIT_EXTERNAL_DIFF='gh pr merge 1 --squash' /usr/bin/git diff --ext-diff",
+      "expected": "error"
+    },
+    {
+      "id": "dynamic-loader-environment-trusted-absolute-git",
+      "command": "LD_PRELOAD=/tmp/fake.so /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-path-known-safe-bare-executable",
+      "command": "env PATH=/tmp echo literal",
+      "expected": "error"
+    },
+    {
+      "id": "safe-prefix-path-trusted-absolute-git-status",
+      "command": "PATH=/tmp /usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-env-path-trusted-absolute-git-status",
+      "command": "env PATH=/tmp /usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-prefix-locale-bare-git-status",
+      "command": "LC_ALL=C git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-env-locale-bare-git-status",
+      "command": "env LANG=C git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-scoped-path-absolute-git-compound",
+      "command": "PATH=/tmp /usr/bin/git status --short; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "compound-locale-assignment-is-conservative",
+      "command": "LC_ALL=C; /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-ignore-environment-bare-git",
+      "command": "env -i git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-env-ignore-environment-trusted-absolute-git",
+      "command": "env -i /usr/bin/git status --short",
+      "expected": "none"
     }
   ]
 }
