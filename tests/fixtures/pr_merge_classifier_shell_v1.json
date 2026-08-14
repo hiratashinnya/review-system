@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.9",
+  "classifier_version": "1.10",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -475,6 +475,111 @@
     {
       "id": "safe-env-ignore-environment-trusted-absolute-git",
       "command": "env -i /usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "env-option-terminator-path-bare-git",
+      "command": "env -- PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-env-option-terminator-path-absolute-git-status",
+      "command": "env -- PATH=/tmp /usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "env-option-terminator-git-environment",
+      "command": "env -- GIT_EXEC_PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-env-ignore-options-locale-absolute-git-status",
+      "command": "env -i -- LC_ALL=C /usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "command-wrapper-export-compound",
+      "command": "command export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "locale-prefix-export-compound",
+      "command": "LC_ALL=C export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "builtin-wrapper-unset-compound",
+      "command": "builtin -- unset PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-wrapper-hash-compound",
+      "command": "command hash -p /tmp/git git; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-wrapper-alias-compound",
+      "command": "command alias git=/tmp/git; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-push-child-helper",
+      "command": "PATH=/tmp /usr/bin/git push git@example.invalid:o/r.git HEAD:main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-fetch-child-helper",
+      "command": "PATH=/tmp /usr/bin/git fetch origin main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-pull-child-helper",
+      "command": "PATH=/tmp /usr/bin/git pull origin main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-clone-child-helper",
+      "command": "PATH=/tmp /usr/bin/git clone example.invalid:o/r.git",
+      "expected": "error"
+    },
+    {
+      "id": "ignore-environment-absolute-git-push-child-helper",
+      "command": "env -i /usr/bin/git push origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-environment-safe-data-command",
+      "command": "GIT_DIR=/tmp echo literal",
+      "expected": "error"
+    },
+    {
+      "id": "trap-literal-merge-exit",
+      "command": "trap 'gh pr merge 1 --squash' EXIT",
+      "expected": "error"
+    },
+    {
+      "id": "trap-dynamic-exit",
+      "command": "trap \"$CMD\" EXIT",
+      "expected": "error"
+    },
+    {
+      "id": "trap-option-literal-merge-exit-compound",
+      "command": "command trap -- 'gh pr merge 1 --squash' EXIT; echo done",
+      "expected": "error"
+    },
+    {
+      "id": "function-definition-merge-later",
+      "command": "function merge_later { gh pr merge 1 --squash; }; echo done",
+      "expected": "error"
+    },
+    {
+      "id": "standalone-alias-state",
+      "command": "alias merge_later='gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-trap-text-data",
+      "command": "echo 'trap gh pr merge 1 EXIT'",
       "expected": "none"
     }
   ]

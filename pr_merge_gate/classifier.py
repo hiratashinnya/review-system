@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.9"
+CLASSIFIER_VERSION = "1.10"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
@@ -50,8 +50,14 @@ _TRUSTED_GIT_EXECUTABLES = frozenset({"git", "/bin/git", "/usr/bin/git"})
 _TRUSTED_ABSOLUTE_GIT_EXECUTABLES = frozenset({"/bin/git", "/usr/bin/git"})
 _HARMLESS_ENVIRONMENT_VARIABLES = frozenset({"LANG", "LANGUAGE", "LC_ALL"})
 _SHELL_STATE_COMMANDS = frozenset(
-    {".", "alias", "declare", "enable", "export", "hash", "readonly", "set", "shopt", "source", "typeset", "unalias", "unset"}
+    {
+        ".", "alias", "break", "cd", "continue", "declare", "enable", "exec", "exit",
+        "export", "getopts", "hash", "local", "logout", "mapfile", "popd", "pushd", "read",
+        "readarray", "readonly", "return", "set", "shift", "shopt", "source", "suspend", "trap",
+        "typeset", "umask", "unalias", "unset", "wait",
+    }
 )
+_GIT_ENVIRONMENT_INDEPENDENT_BUILTINS = frozenset({"status"})
 _SAFE_GIT_BUILTINS = frozenset(
     {
         "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
@@ -232,6 +238,16 @@ def _command_environment(
                 break
             assignments[match.group(1)] = match.group(2)
             index += 1
+        while index < len(remaining):
+            match = re.fullmatch(
+                r"([A-Za-z_][A-Za-z0-9_]*)=(.*)",
+                remaining[index],
+                flags=re.DOTALL,
+            )
+            if match is None:
+                break
+            assignments[match.group(1)] = match.group(2)
+            index += 1
         remaining = remaining[index:]
         remaining, nested_wrappers = _unwrap(remaining)
         wrappers.extend(nested_wrappers)
@@ -252,12 +268,6 @@ def _environment_allows_executable(
     )
     if harmless and not ignore_environment:
         return True
-    if executable in _SAFE_DATA_EXECUTABLES and not ignore_environment:
-        return all(
-            name not in {"BASH_ENV", "ENV", "PATH", "SHELLOPTS"}
-            and not name.startswith(("DYLD_", "LD_"))
-            for name in names
-        )
     if executable not in _TRUSTED_ABSOLUTE_GIT_EXECUTABLES:
         return False
     return all(
@@ -276,11 +286,13 @@ def _compound_changes_shell_state(command: str) -> bool:
         return True
     if not tokens:
         return True
-    if tokens[0] in _SHELL_STATE_COMMANDS:
+    environment = _command_environment(tokens)
+    if environment is None:
         return True
-    return len(tokens) == 1 and re.fullmatch(
-        r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[0], flags=re.DOTALL
-    ) is not None
+    remaining, wrappers, assignments, _ = environment
+    if not remaining:
+        return bool(assignments) and "env" not in wrappers
+    return remaining[0] in _SHELL_STATE_COMMANDS
 
 
 def _split_shell_commands(command: str) -> list[str] | None:
@@ -490,6 +502,39 @@ def _known_safe_git_shape(tokens: list[str]) -> tuple[bool, str | None]:
             if any(short_option in token[1:] for short_option in short_options):
                 return False, None
     return True, None
+
+
+def _git_environment_allows_shape(
+    tokens: list[str],
+    assignments: Mapping[str, str],
+    *,
+    ignore_environment: bool,
+) -> bool:
+    """PATH消去・差替え後もchild helperを起動しないGit形だけを許可する。"""
+    if not ignore_environment and "PATH" not in assignments:
+        return True
+    if not tokens or tokens[0] not in _TRUSTED_ABSOLUTE_GIT_EXECUTABLES:
+        return False
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+        if token in {"-C", "--git-dir", "--work-tree", "--namespace"}:
+            index += 2
+            continue
+        if token.startswith(("--git-dir=", "--work-tree=", "--namespace=")):
+            index += 1
+            continue
+        if token in {"--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks"}:
+            index += 1
+            continue
+        break
+    return (
+        index < len(tokens)
+        and tokens[index] in _GIT_ENVIRONMENT_INDEPENDENT_BUILTINS
+    )
 
 
 def _known_safe_gh_shape(tokens: list[str]) -> bool:
@@ -861,6 +906,8 @@ def classify_pre_use(
         executable=remaining[0],
     ):
         return _error("CLASSIFIER_UNKNOWN", command)
+    if remaining[0] in _SHELL_STATE_COMMANDS:
+        return _error("CLASSIFIER_UNKNOWN", command)
     if remaining[0] != "gh":
         if _dynamic_executable(remaining[0]):
             return _error("CLASSIFIER_UNKNOWN", command)
@@ -890,10 +937,14 @@ def classify_pre_use(
             known_safe, evaluated_command = _known_safe_git_shape(remaining)
             if not known_safe:
                 return _error("CLASSIFIER_UNKNOWN", command)
+            if not _git_environment_allows_shape(
+                remaining,
+                assignments,
+                ignore_environment=ignore_environment,
+            ):
+                return _error("CLASSIFIER_UNKNOWN", command)
             if evaluated_command is None:
                 return None
-            if ignore_environment or "PATH" in assignments:
-                return _error("CLASSIFIER_UNKNOWN", command)
             nested = classify_pre_use(
                 {"tool_name": "Bash", "tool_input": {"command": evaluated_command}},
                 cwd=cwd,
