@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.7"
+CLASSIFIER_VERSION = "1.8"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
@@ -46,6 +46,7 @@ _SHELL_LONG_VALUE_OPTIONS = {
 }
 _SHELL_COMMAND_LONG_OPTIONS = {"fish": frozenset({"--command"})}
 _SHELL_UNSUPPORTED_EVALUATING_OPTIONS = {"fish": frozenset({"--init-command"})}
+_TRUSTED_GIT_EXECUTABLES = frozenset({"git", "/bin/git", "/usr/bin/git"})
 _SAFE_GIT_BUILTINS = frozenset(
     {
         "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout", "cherry-pick",
@@ -352,9 +353,14 @@ def _git_shell_evaluating_long_option(option: str) -> bool:
     return any(candidate.startswith(option) for candidate in _GIT_SHELL_EVALUATING_OPTIONS)
 
 
+def _trusted_git_executable(token: str) -> bool:
+    """PATH経由のbare gitと固定system pathだけをGit grammarへ束縛する。"""
+    return token in _TRUSTED_GIT_EXECUTABLES
+
+
 def _known_safe_git_shape(tokens: list[str]) -> tuple[bool, str | None]:
     """Git builtinと、再分類が必要なbisect run operandを束縛する。"""
-    if not tokens or tokens[0] != "git":
+    if not tokens or not _trusted_git_executable(tokens[0]):
         return False, None
     index = 1
     while index < len(tokens):
@@ -799,7 +805,7 @@ def classify_pre_use(
             return _error("CLASSIFIER_UNKNOWN", command)
         if remaining[0] in _SAFE_DATA_EXECUTABLES:
             return None
-        if remaining[0] == "git":
+        if executable_basename == "git":
             known_safe, evaluated_command = _known_safe_git_shape(remaining)
             if not known_safe:
                 return _error("CLASSIFIER_UNKNOWN", command)

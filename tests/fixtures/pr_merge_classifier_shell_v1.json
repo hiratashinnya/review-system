@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.7",
+  "classifier_version": "1.8",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -361,6 +361,36 @@
       "id": "safe-git-rebase-strategy-option-uppercase-x",
       "command": "git rebase -X theirs main",
       "expected": "none"
+    },
+    {
+      "id": "trusted-absolute-git-bisect-run-shell-merge",
+      "command": "/usr/bin/git bisect run /bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "trusted-absolute-git-shell-alias-merge",
+      "command": "/usr/bin/git -c alias.p='!gh pr merge 1 --squash' p",
+      "expected": "error"
+    },
+    {
+      "id": "safe-trusted-absolute-git-status",
+      "command": "/usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-trusted-absolute-git-bisect-run-literal",
+      "command": "/usr/bin/git bisect run echo literal",
+      "expected": "none"
+    },
+    {
+      "id": "ambiguous-relative-git-status",
+      "command": "./git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "ambiguous-untrusted-absolute-git-bisect-run",
+      "command": "/tmp/git bisect run echo literal",
+      "expected": "error"
     }
   ]
 }

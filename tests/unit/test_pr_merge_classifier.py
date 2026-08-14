@@ -181,6 +181,12 @@ class PreUseClassifierTests(unittest.TestCase):
             {
                 "git-bisect-run-gh-merge",
                 "safe-git-bisect-run-literal",
+                "trusted-absolute-git-bisect-run-shell-merge",
+                "trusted-absolute-git-shell-alias-merge",
+                "safe-trusted-absolute-git-status",
+                "safe-trusted-absolute-git-bisect-run-literal",
+                "ambiguous-relative-git-status",
+                "ambiguous-untrusted-absolute-git-bisect-run",
                 "absolute-bash-command-string-merge",
                 "safe-absolute-bash-literal",
                 "ambiguous-path-qualified-shell-like-command",
