@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.11",
+  "classifier_version": "1.12",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -690,6 +690,56 @@
     {
       "id": "safe-locale-absolute-git-compound",
       "command": "LC_ALL=C /usr/bin/git status --short; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "if-control-state-mutation",
+      "command": "if true; then printf -v PATH /tmp; fi; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "while-control-state-mutation",
+      "command": "while false; do printf -v PATH /tmp; done; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "for-control-state-mutation",
+      "command": "for value in one; do printf -v PATH /tmp; done; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "case-control-state-mutation",
+      "command": "case value in value) printf -v PATH /tmp;; esac; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "function-keyword-control-structure",
+      "command": "function helper { printf -v PATH /tmp; }; helper; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "nested-shell-control-state-mutation",
+      "command": "bash -c 'if true; then printf -v PATH /tmp; fi; git status --short'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-control-keyword-arguments",
+      "command": "echo if then elif else fi while until do done for select in case esac function time coproc; printf '%s' if",
+      "expected": "none"
+    },
+    {
+      "id": "safe-single-quoted-control-keyword-data",
+      "command": "printf '%s' 'if; then; while; do; case; esac; function'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-control-keyword-path-data",
+      "command": "git show -- if",
+      "expected": "none"
+    },
+    {
+      "id": "safe-linear-echo-printf",
+      "command": "echo a; printf b",
       "expected": "none"
     }
   ]

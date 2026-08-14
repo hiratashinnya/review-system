@@ -20,9 +20,15 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.11"
+CLASSIFIER_VERSION = "1.12"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
+_SHELL_CONTROL_RESERVED_WORDS = frozenset(
+    {
+        "!", "[[", "]]", "case", "coproc", "do", "done", "elif", "else", "esac", "fi", "for",
+        "function", "if", "in", "select", "then", "time", "until", "while",
+    }
+)
 _SHELL_EVALUATORS = frozenset({"bash", "sh", "zsh", "fish"})
 _SHELL_SHORT_OPTIONS = {
     "bash": frozenset("abefhiklmnpstuvxBCEHPTlrD"),
@@ -315,24 +321,36 @@ def _compound_changes_shell_state(command: str) -> bool:
 
 
 def _split_shell_commands(command: str) -> list[str] | None:
-    """実行されるshell構造だけをquote-awareに分割する。Noneは未対応構造。"""
+    """proof可能なsimple/linear shellだけをquote-awareに分割する。Noneは未対応構造。"""
     commands: list[str] = []
     quote: str | None = None
     escaped = False
+    head_word: list[str] = []
+    head_word_quoted = False
+    head_word_checked = False
     start = 0
     index = 0
     while index < len(command):
         character = command[index]
         if escaped:
+            if not head_word_checked:
+                head_word.append(character)
             escaped = False
             index += 1
             continue
         if quote == "'":
             if character == "'":
                 quote = None
+            elif not head_word_checked:
+                head_word.append(character)
             index += 1
             continue
         if character == "\\":
+            if index + 1 < len(command) and command[index + 1] in "\n\r":
+                index += 2
+                continue
+            if not head_word_checked:
+                head_word_quoted = True
             escaped = True
             index += 1
             continue
@@ -341,9 +359,13 @@ def _split_shell_commands(command: str) -> list[str] | None:
                 quote = None
             elif character == "`" or (character == "$" and command[index:index + 2] == "$("):
                 return None
+            elif not head_word_checked:
+                head_word.append(character)
             index += 1
             continue
         if character in {"'", '"'}:
+            if not head_word_checked:
+                head_word_quoted = True
             quote = character
             index += 1
             continue
@@ -351,7 +373,17 @@ def _split_shell_commands(command: str) -> list[str] | None:
             return None
         if character in "<>(){}":
             return None
+        if character in " \t":
+            if not head_word_checked and head_word:
+                if not head_word_quoted and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS:
+                    return None
+                head_word_checked = True
+            index += 1
+            continue
         if character in "\n\r;&|":
+            if not head_word_checked and head_word:
+                if not head_word_quoted and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS:
+                    return None
             leaf = command[start:index].strip()
             if not leaf:
                 return None
@@ -359,8 +391,20 @@ def _split_shell_commands(command: str) -> list[str] | None:
             if character in "&|" and index + 1 < len(command) and command[index + 1] == character:
                 index += 1
             start = index + 1
+            head_word = []
+            head_word_quoted = False
+            head_word_checked = False
+        elif not head_word_checked:
+            head_word.append(character)
         index += 1
     if quote is not None or escaped:
+        return None
+    if (
+        not head_word_checked
+        and head_word
+        and not head_word_quoted
+        and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS
+    ):
         return None
     leaf = command[start:].strip()
     if not leaf:

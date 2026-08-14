@@ -257,6 +257,16 @@ class PreUseClassifierTests(unittest.TestCase):
                 "dot-stateful-compound",
                 "eval-stateful-compound",
                 "safe-locale-absolute-git-compound",
+                "if-control-state-mutation",
+                "while-control-state-mutation",
+                "for-control-state-mutation",
+                "case-control-state-mutation",
+                "function-keyword-control-structure",
+                "nested-shell-control-state-mutation",
+                "safe-control-keyword-arguments",
+                "safe-single-quoted-control-keyword-data",
+                "safe-git-control-keyword-path-data",
+                "safe-linear-echo-printf",
             }
             <= case_ids
         )
