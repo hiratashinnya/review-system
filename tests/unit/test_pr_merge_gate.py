@@ -18,7 +18,7 @@ def snapshot(*, head="a" * 40, closing=(), nodes=None, state="OPEN", draft=False
     refs = list(closing)
     return {
         "schema": "blocker-gate-snapshot/v1",
-        "policy_version": "1.0",
+        "policy_version": "1.1",
         "mode": "pr-merge",
         "repository": "example/repo",
         "subject": {"type": "pull_request", "number": 50},
