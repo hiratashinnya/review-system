@@ -268,6 +268,12 @@ def _environment_allows_executable(
     )
     if harmless and not ignore_environment:
         return True
+    if executable in _SAFE_DATA_EXECUTABLES and not ignore_environment:
+        return all(
+            name not in {"BASH_ENV", "ENV", "PATH", "SHELLOPTS"}
+            and not name.startswith(("DYLD_", "GIT_", "LD_"))
+            for name in names
+        )
     if executable not in _TRUSTED_ABSOLUTE_GIT_EXECUTABLES:
         return False
     return all(
