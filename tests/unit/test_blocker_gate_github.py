@@ -241,9 +241,15 @@ class GitHubCollectorTests(unittest.TestCase):
 
     def test_permission_and_invalid_json_are_error_not_empty_graph(self):
         url = "https://api.github.com/repos/example/repo/issues/10"
+        # Issue #345［B］: GitHub 由来の 401/403（X-GitHub-Request-Id あり）だけが
+        # API_PERMISSION。header を欠く拒否は GitHub まで届いていないので
+        # API_UNREACHABLE。どちらも ERROR / permit_issued=false のまま。
+        github = {"X-GitHub-Request-Id": "E000:1"}
         cases = (
-            ((401, {}, b"{}"), "API_PERMISSION"),
-            ((403, {}, b"{}"), "API_PERMISSION"),
+            ((401, github, b"{}"), "API_PERMISSION"),
+            ((403, github, b"{}"), "API_PERMISSION"),
+            ((401, {}, b"{}"), "API_UNREACHABLE"),
+            ((403, {}, b"{}"), "API_UNREACHABLE"),
             ((403, {"X-RateLimit-Remaining": "0"}, b"{}"), "API_UNAVAILABLE"),
             ((403, {"x-ratelimit-remaining": "0"}, b"{}"), "API_UNAVAILABLE"),
             ((200, {}, b"not-json"), "API_PARTIAL_RESPONSE"),

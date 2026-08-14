@@ -18,14 +18,29 @@ class Completed:
 
 class GitHubTokenResolverTests(unittest.TestCase):
     def test_common_api_failure_classification(self):
+        # Issue #345［B］: 401/403 は GitHub provenance（X-GitHub-Request-Id）の
+        # 有無で API_PERMISSION と API_UNREACHABLE に分かれる。header なしの
+        # 401/403 が API_UNREACHABLE になるのは仕様変更の本体であって
+        # 巻き添えではない——GitHub API は成功・失敗を問わずこの header を返すため、
+        # 欠落は「GitHub が認可判断を下していない」ことの証拠になる。
+        github = {"X-GitHub-Request-Id": "E000:2416D5:7C99AAB:1A136FC0:6A7AEDBB"}
         cases = (
-            (401, {}, "API_PERMISSION"),
-            (403, {}, "API_PERMISSION"),
+            (401, github, "API_PERMISSION"),
+            (403, github, "API_PERMISSION"),
+            (403, {"x-github-request-id": "E000:1"}, "API_PERMISSION"),
+            # proxy が生成した拒否（GitHub まで届いていない）。
+            (401, {}, "API_UNREACHABLE"),
+            (403, {}, "API_UNREACHABLE"),
+            (403, {"Content-Type": "application/json"}, "API_UNREACHABLE"),
+            # header はあるが空文字＝provenance の証拠にならない。
+            (403, {"X-GitHub-Request-Id": "  "}, "API_UNREACHABLE"),
+            # rate limit header 自体が GitHub provenance。従来どおり優先する。
             (403, {"X-RateLimit-Remaining": "0"}, "API_UNAVAILABLE"),
             (403, {"x-ratelimit-remaining": "0"}, "API_UNAVAILABLE"),
             (429, {}, "API_UNAVAILABLE"),
             (503, {}, "API_UNAVAILABLE"),
             (404, {}, None),
+            (404, github, None),
         )
         for status, headers, expected in cases:
             with self.subTest(status=status, headers=headers):

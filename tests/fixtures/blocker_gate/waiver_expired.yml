@@ -1,6 +1,6 @@
 schema: blocker-gate-waiver/v1
 id: BW-20260701-001
-policy_version: "1.0"
+policy_version: "1.1"
 repository: example/repo
 owner: owner-login
 reason: "過去の期限"

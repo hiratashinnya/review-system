@@ -1,6 +1,6 @@
 ---
 name: issue-pipeline
-description: 複数のオープン GitHub Issue を実装→PR→レビュー→マージ→クローズで1件ずつ処理するオーケストレータ。処置順の確定、issue-implementer/pr-reviewer サブエージェントへの委譲（model は bloom-model-tier、レビュー model はリスクベース）、オーナーとの意思決定、進捗管理を扱う。ユーザーが明示的に起動した場合のみ使う。doc-system-v2 ノード著作には使わない（spec-pipeline / impl-design-pipeline を使う）。
+description: 複数のオープン GitHub Issue を実装→PR→レビュー→マージ→クローズで1件ずつ処理するオーケストレータ。処置順の確定、issue-implementer/pr-reviewer サブエージェントへの委譲（model は bloom-model-tier、レビュー model はリスクベース）、オーナーとの意思決定、進捗管理を扱う。Issue 処理を end-to-end で進めるときに使う。doc-system-v2 ノード著作には使わない（spec-pipeline / impl-design-pipeline を使う）。
 ---
 
 すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、この skill の応答も日本語に統一する。
@@ -40,6 +40,7 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - **dispatch の直前に managed Issue-start gate を通す。** Codex では spawn の `task_name` を exact `issue_<Issue番号>`（例: `issue_297`）とする。PreToolUse hook はこの平文 task name と payload/hook cwd、git worktree、GitHub.com origin から repository / Issue を再束縛し、暗号化される Codex `message` は binding に使わない。Claude は prompt に次の機械可読行をちょうど1つ入れる既存契約を維持する。
   `ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}`
   tool/agent type/entrypoint 不一致、Codex task name/cwd/worktree/origin 不正、Claude marker 欠如・重複、hook/API/permission/pagination/cycle/contract error は fail-close し、別経路へ迂回しない。#299 完了までは waiver を渡さない。
+- **Claude 側は同じ dispatch に `isolation: "worktree"` も渡す（Issue #350）。** 欠落・別値は同じ hook が `ISSUE_START_ISOLATION_NOT_WORKTREE` で deny する（契約＝`managed-entrypoints-v1.json` の `claude` transport の `required_isolation`）。これが `issue-implementer` を `.claude/worktrees/agent-<id>/` の独立 worktree で走らせ、主文脈の作業ツリーを branch switch から守る唯一の手段。**Codex の `spawn_agent` には isolation パラメータが無く、この分離は得られない**——Codex で回すときは主文脈が実装中に他の branch 操作をしない運用で代替する（`.codex/agents/issue-implementer.toml`「作業ツリーは呼び出し元と共有する」）。
 - **branch-source は dispatch gate と分離し、branch 作成時に評価する。** `origin/<default>` を fresh fetch して exact OID を確定し、実装者へ `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]` を渡す。正当な stacked branch だけは `--base-pr` に same-repository の OPEN PR 番号を明示する。現在 HEAD の暗黙継承は禁止。
 - Codex は `.codex/hooks.json` の `spawn_agent`、Claude は `.claude/settings.json` の `Task` を `/hooks` 等で trusted/enabled にした managed path のみ保護対象。direct shell/API や hook 無効 harness は manifest 上の unmanaged であり、保護済みと扱わない。
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定モデル・既定 effort。

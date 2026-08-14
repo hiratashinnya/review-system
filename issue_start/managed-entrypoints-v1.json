@@ -39,7 +39,8 @@
             "task_name"
           ],
           "prompt_field": "prompt",
-          "binding_marker": "ISSUE_START_BINDING_V1="
+          "binding_marker": "ISSUE_START_BINDING_V1=",
+          "required_isolation": "worktree"
         }
       }
     }

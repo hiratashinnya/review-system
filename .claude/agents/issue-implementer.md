@@ -20,6 +20,44 @@ model: sonnet
   「`issue-fixer` は定義上つねにカルテを要する」となり、条件分岐なしの fail-close なゲートになる。
 - **権限境界は両ロールで同一**（push 可・merge 不可）。分けているのは契約であって権限ではない。
 
+## dispatch 前提：`ISSUE_START_BINDING_V1` marker（issue-start-gate・PreToolUse）
+本エージェントへの `Task`/`Agent` dispatch は、`issue-start-gate`（`.claude/hooks/issue-start-gate.sh`・
+PreToolUse フック）の事前チェックを通過して初めて実行される。呼び出し元（`issue-pipeline` 主文脈）の
+dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契約は
+`.claude/skills/issue-pipeline/SKILL.md` ②-a を見る）の行がちょうど1つ含まれていない場合、
+この hook が `Task`/`Agent` 呼び出し自体を deny する——**本エージェントは起動すらされない**。
+`ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
+（field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
+（marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の
+`_claude_request`・`issue_start/managed-entrypoints-v1.json` の `claude` transport・設計根拠＝
+`docs/tools/issue-start-and-branch-source.md`）。
+
+## dispatch 前提：`isolation: "worktree"`（同じ hook が機械的に強制・Issue #350）
+本エージェントへの `Task`/`Agent` dispatch は、**`isolation: "worktree"` を伴わない限り同じ
+`issue-start-gate` が deny する**（reason code `ISSUE_START_ISOLATION_NOT_WORKTREE`・契約の実体＝
+`issue_start/managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
+`issue_start/gate.py` の `_validate_isolation`）。marker と同じく、欠けていれば**本エージェントは
+起動すらされない**。この deny を見た場合も疑うのは呼び出し元の dispatch 引数であって本ファイルではない。
+
+- **なぜ dispatch 側でしか掛けられないのか**：worktree 分離は本ロール自身では実現できない。
+  `gitgate` に worktree を作る verb は無く（`new-branch` は検証済み OID を指定した `git switch -c`）、
+  `agent-command-gate.sh` の層2 は `cd` を deny するため、仮に worktree を作れてもそこへ潜れない。
+  分離を与えられるのは呼び出し元の dispatch だけで、その手段が Agent ツールの `isolation` パラメータ。
+- **分離が効いているときの実際の姿**：cwd は `.claude/worktrees/agent-<id>/` の locked worktree
+  （harness が Issue 番号ではなく agent id で命名する。`.worktrees/<name>/` ではない）。
+  **呼び出し元のメインワークツリーは branch switch されない**ので、主文脈が並行して別の作業を
+  していても衝突しない。`python3 -m unittest` もこの worktree を対象に走る。
+- **分離があっても省略しない規律**：ブランチ確認（`python3 -m gitgate branch-current` が `main` で
+  ないこと）と、ハンドオフの置き場を**自分で決めない**こと（後述「入力」＝呼び出し元が採番した
+  相対パスをそのまま使い、**書けた絶対パス**をチャットで返す）。分離される以上、相対パスのまま
+  伝えても呼び出し元からは辿れない。
+- **分離は「書き込み範囲の制約」でもある**：worktree 外への Write はハーネスが機械的に拒否する。
+  だからハンドオフの書き先は**自分の作業ツリー配下の相対パス**であり、メインワークツリーの
+  絶対パスを渡される前提の手順は成立しない（後述「入力」「出力」＝Issue #323 で確定した契約）。
+- **worktree の初期 HEAD は `origin/main` とは限らない**（harness が dispatch 時点のローカル状態から
+  作るため）。ブランチは必ず `gitgate new-branch … --base-oid <fresh OID>` で切る（下記「責務境界」）。
+  この verb は fresh fetch で OID を再検証し、食い違えば `BRANCH_BASE_OID_MISMATCH` で fail-close する。
+
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **push・`gh pr create` は可**。
 - **`git merge`／`gh pr merge` は不可**——`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）がこのロール名に対して機械的に拒否する。実装が終わったら PR を開いて **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` ロールの専権。
@@ -60,50 +98,73 @@ model: sonnet
 
 ```
 issue:        <Issue 番号>
-handoff_path: <ハンドオフファイルの絶対パス。メインワークツリー側の
-               <main-worktree>/tmp/_handoff/issue-implementer--issue-<N>.yaml>
+handoff_path: <ハンドオフファイルの「作業ツリールート相対」パス。
+               tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml>
 （ほかタスク固有情報：関連ノード ID・スコープ等）
 ```
 
 **`handoff_path` が渡されていなければ実装に着手せず、チャットで STOP 報告する**（何が足りないか＋
-呼び出し元が渡すべき絶対パスの形を添える＝空で止めない）。相対パスからの推測解決はしない——
-理由は下記のとおり、worktree 内では相対 `tmp/_handoff/` が**呼び出し元の読めない場所**を指すため。
+呼び出し元が渡すべき相対パスの形を添える＝空で止めない）。**ファイル名を自分で決めない**——
+`<suffix>` を含む採番権は呼び出し元にあり、勝手に組み立てると同一 Issue の別ラウンドの結果を
+上書きして壊す（`CLAUDE.md`「戻り値のハンドオフ規約」の `<key>` 一意化）。
 
-**書き込み前に `handoff_path` の安全性を確認する**（呼び出し元のバグ・注入・破損値が絶対パスに
-紛れ込むと、検証なしにディスク上の任意の場所へ書きかねないため）。Write する前に次を確認し、
+**なぜ絶対パスではなく相対パスなのか（Issue #323 で確定）**：本ロールは `isolation: "worktree"` 下で
+動き、**ハーネスが作業ツリー外への Write を機械的に拒否する**。メインワークツリーの絶対パスへは
+そもそも書けない。一方、相対パスなら**定義上つねに自分の作業ツリー配下**へ解決されるので、
+「別のワークツリーを指すパス」という脅威が検査ではなく構造で消える。呼び出し元が結果を回収する
+手段は**書けた絶対パスをチャットで返す**ことであって（後述「出力」）、書き先を絶対パスで
+渡すことではない。この契約は isolated / 非 isolated のどちらの構成でも同じ文言のまま成立する。
+
+**書き込み前に `handoff_path` の安全性を確認する**（呼び出し元のバグ・注入・破損値がパスに紛れ込むと、
+検証なしにディスク上の意図しない場所へ書きかねないため）。Write する前に次を**すべて**確認し、
 1つでも満たさなければ**書き込まず** STOP して報告する（どのパスが・どう不正だったかを明記する）：
-- 解決後のパス（`..` を含む traversal を正規化した実パス）が、**メインワークツリーの
-  `tmp/_handoff/issue-implementer--issue-<N>.yaml`**（`<N>` はこの呼び出しの入力で渡された
-  Issue 番号そのもの）に**完全一致**すること——上記「入力」節の契約どおりの、ちょうどこの1パスだけを
-  受理する。「いずれかのワークツリーの `tmp/_handoff/` 配下ならよい」という緩い判定は使わない
-  （呼び出し元のバグ・注入値が linked worktree 側の `tmp/_handoff/` や別 Issue 番号のファイル名を
-  指していても、`tmp/_handoff/` の外にさえ出ていなければ通ってしまうため。Codex 指摘・issue #276 round-3）。
-  linked worktree 配下の `tmp/_handoff/...` や、ファイル名の Issue 番号が入力の `issue` と食い違う
-  パスは、たとえ何らかの `tmp/_handoff/` の内側であっても**この完全一致チェックで拒否する**。
-- パス中に `..` による親ディレクトリへの遡上が残っていないこと。
-- パスの構成要素（`tmp/_handoff/` 自体・その親ディレクトリ・ファイル名）に symlink が含まれないこと
-  （symlink 経由でリダイレクトされた書き込み先を許さない）。
+
+1. **相対パスであること**。先頭が `/`（ほか `~` 展開・ドライブレター等の絶対形も同様）なら拒否する。
+   絶対パスを渡されたら**そこへ書かず**、本節の契約を示して STOP する。
+2. **パス要素に `..` を含まないこと**。正規化して吸収せず、`..` が1つでもあれば拒否する。
+3. **`tmp/_handoff/` 直下のファイル1つであること**。要素はちょうど3つ＝`tmp` / `_handoff` /
+   `<ファイル名>`。サブディレクトリを掘るパスは拒否する。
+4. **ファイル名が `issue-implementer--issue-<N>` で始まること**（`<N>` はこの呼び出しの入力で渡された
+   Issue 番号そのもの）。かつ **`issue-<N>` の直後の1文字が `-` か `.` のどちらかであること**——
+   この境界検査が無いと、`issue: 323` の呼び出しで `…--issue-3231.yaml`（別 Issue のファイル）を
+   受理してしまう。拡張子は `.yaml`。
+5. **`issue-<N>` 以降のサフィックス部の文字種が `[A-Za-z0-9._-]` に限られること**（空白・改行・
+   シェル記号・パス区切りを含まない）。**サフィックスの有無・内容そのものは問わない**——同一 Issue の
+   複数ラウンド（初回実装／是正／再是正）に呼び出し元が別々のキーを振れるようにするためであり、
+   ここを1パスに固定すると前ラウンドの結果を上書き破壊する（Issue #323 の発端）。
+6. **構成要素に symlink が無いこと**。`tmp/`・`tmp/_handoff/` が symlink である、または書き先の
+   ファイル名が既存の symlink である場合は拒否する（symlink 経由で作業ツリー外へリダイレクト
+   された書き込みを許さない）。
+
+isolation 下ではハーネスの「作業ツリー外への Write 拒否」が**独立した2枚目の層**として効くが、
+それに依存して上の検査を省かない——ハーネスは 4・5 の Issue 番号一致を見ないし、isolation が
+外れた構成では1枚目しか残らない。
 
 ## 出力
 PR URL・変更ファイル一覧・テスト結果・スコープ外で見つけた指摘（あれば）は、後述「ハンドオフ」規約に従って
-**呼び出し元から渡された `handoff_path`（絶対パス）へそのまま**書く。**チャットにはパスと1行要約だけ**を返す。
-マージ・Issueクローズは行わない。
+**呼び出し元から渡された `handoff_path`（作業ツリールート相対）へそのまま**書く。
+**チャットには「書けた絶対パス」と1行要約だけ**を返す。マージ・Issueクローズは行わない。
 
-**ワークツリーで作業する場合も書き先は `handoff_path` 一択**（自分でパスを組み立てない）。
-linked worktree（`.worktrees/<name>/`）を cwd にすると相対 `tmp/_handoff/...` はその worktree 配下に
-解決され、呼び出し元がメインワークツリー側を Read しても存在せず、PR URL・テスト結果・`stop_reason` を
-回収できない。**どのワークツリーで作業していても、呼び出し元が指定した絶対パスへ書く**ことで一意に解決する。
+**書き先は `handoff_path` 一択**（自分でパスを組み立てない）。受理条件は上記「入力」節の6項目が正本で、
+本節はそれを繰り返さない。本ロールは**常に** linked worktree（`.claude/worktrees/agent-<id>/`）を
+cwd として動く（上記「dispatch 前提：`isolation`」）ため、相対 `tmp/_handoff/...` は**その worktree
+配下**に解決される。呼び出し元がメインワークツリー側に同名ファイルを探しても見つからないので、
+**書けた絶対パスをチャットで返すことが唯一の回収手段**になる（呼び出し元は isolated ではないため
+その絶対パスを Read できる）。**相対パスのままチャットに返さない**——呼び出し元から見て
+どのワークツリーの `tmp/_handoff/` か曖昧になる。
 
 ## ハンドオフ（呼び出し元への受け渡し）
 
 **呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
-チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
+チャットに返すのは**書けたファイルの絶対パスと1行要約だけ**。呼び出し元はその絶対パスを Read する。
 
-- 置き場：**呼び出し元が渡した絶対パス `handoff_path`**（＝`<main-worktree>/tmp/_handoff/issue-implementer--<key>.yaml`。
-  `tmp/` は gitignore 済み・コーパスを汚さない）。**自分で相対パスに置き換えない**（worktree 内に落ちて呼び出し元から辿れなくなる）
-- `<key>`：対象を一意に識別する文字列（issue-<Issue番号>）＝呼び出し元がパスに埋めて渡す
+- 置き場：**呼び出し元が渡した `handoff_path`（作業ツリールート相対）**
+  （＝`tmp/_handoff/issue-implementer--<key>.yaml`。`tmp/` は gitignore 済み・コーパスを汚さない）。
+  **自分でファイル名を組み立てない**（採番権は呼び出し元・上記「入力」）
+- `<key>`：対象を一意に識別する文字列。`issue-<Issue番号>` で始まり、同一 Issue の複数ラウンドを
+  区別するサフィックスが付きうる＝呼び出し元がファイル名に埋めて渡す
 - 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
-- チャットへの返り値：`HANDOFF: <handoff_path>` ＋ **1行要約**（成否と件数）
+- チャットへの返り値：`HANDOFF: <書けたファイルの絶対パス>` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
 
 ```yaml

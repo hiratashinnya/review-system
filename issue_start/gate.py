@@ -8,6 +8,7 @@ prompt marker 契約を維持する。branch-source policy は ``gitgate new-bra
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import re
 import subprocess
@@ -18,11 +19,29 @@ from typing import Any, Callable, Mapping, Sequence
 from blocker_gate.contract import ContractError, validate_result_semantics
 from blocker_gate.github import GitHubCollector
 from blocker_gate.resolver import evaluate_snapshot
+from blocker_gate.snapshot import (
+    RepositorySnapshotError,
+    parse_repository_snapshot,
+    project_issue_snapshot,
+)
 
 
 ISSUE_START_POLICY_VERSION = "issue-start/1.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
 ENTRYPOINT_MANIFEST = Path(__file__).with_name("managed-entrypoints-v1.json")
+
+# Issue #345［A］: GitHub API へ到達できない実行環境のための snapshot fallback。
+# 孤立ブランチなので main と履歴を共有せず、既定ブランチを汚さない。
+# Actions が cron 5分で単一 commit を force-push し、gate は git fetch で読む。
+SNAPSHOT_BRANCH = "blocker-snapshot"
+SNAPSHOT_PATH = "snapshot.json"
+SNAPSHOT_REMOTE_REF = "refs/remotes/origin/" + SNAPSHOT_BRANCH
+# staleness 上限（オーナー承認済み）。cron 間隔 5分の 2倍を許容上限とする。
+SNAPSHOT_MAX_AGE_SECONDS = 600
+SNAPSHOT_GIT_TIMEOUT_SECONDS = 30.0
+# fallback の機械的な引き金。到達できているのに stale な材料を使わないため、
+# 「GitHub まで届かなかった」ことを表すこの reason だけを引き金にする。
+SNAPSHOT_FALLBACK_REASON = "API_UNREACHABLE"
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
@@ -237,6 +256,37 @@ def _validate_tool_input_shape(
     if missing or mixed:
         detail = "missing=" + ",".join(missing) + ";mixed=" + ",".join(mixed)
         raise IssueStartError("ISSUE_START_TOOL_INPUT_SHAPE_INVALID", detail)
+    _validate_isolation(tool_input, transport)
+
+
+def _validate_isolation(
+    tool_input: Mapping[str, Any], transport: Mapping[str, Any]
+) -> None:
+    """worktree 分離を dispatch の必須条件として強制する（Issue #350）。
+
+    `issue-implementer` は「isolated worktree で実装する」契約だが、その分離は
+    role 側では実現できない——gitgate に worktree verb は無く、agent-command-gate の
+    層2 が `cd` を deny するため、仮に worktree を作れてもそこへ潜れない。分離を
+    与えられるのは dispatch 側だけで、Claude harness では Agent tool の `isolation`
+    パラメータがそれを担う（cwd が `.claude/worktrees/agent-<id>` の locked worktree
+    になり、呼び出し元の main worktree は branch switch されない）。
+
+    指定を欠いた dispatch は main worktree を共有したまま branch switch する＝
+    呼び出し元の作業ツリーを巻き込むので、dispatch 自体を fail-close で拒否する。
+    `required_isolation` を宣言しない transport（Codex の `spawn_agent` には
+    isolation 概念が無い）は素通しする＝claude 側の要求を持ち込まない。
+    """
+    if "required_isolation" not in transport:
+        return
+    expected = transport.get("required_isolation")
+    if not isinstance(expected, str) or not expected:
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    actual = tool_input.get("isolation")
+    if actual != expected:
+        raise IssueStartError(
+            "ISSUE_START_ISOLATION_NOT_WORKTREE",
+            f"expected isolation={expected}; actual={actual!r}",
+        )
 
 
 def parse_dispatch_payload(
@@ -322,7 +372,182 @@ def _error_evidence(request: IssueStartRequest | None, reason: str, detail: str 
         "binding": asdict(request) if request is not None else None,
         "blocker_evidence": None,
         "blockers": [],
+        # 判定へ到達していないので取得経路も確定していない。
+        "source": None,
+        "snapshot_generated_at": None,
     }
+
+
+def _git_output(
+    argv: Sequence[str],
+    *,
+    cwd: Path | None,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+    reason: str,
+) -> str:
+    """snapshot fallback 用の raw git 実行（複数行 stdout を許す）。"""
+    try:
+        completed = runner(
+            list(argv),
+            cwd=None if cwd is None else str(cwd),
+            text=True,
+            capture_output=True,
+            shell=False,
+            timeout=SNAPSHOT_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise IssueStartError(reason, type(exc).__name__) from exc
+    if completed.returncode != 0 or not isinstance(completed.stdout, str):
+        raise IssueStartError(reason, argv[1] if len(argv) > 1 else "git")
+    return completed.stdout
+
+
+def read_repository_snapshot(
+    *,
+    repository: str,
+    cwd: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> Mapping[str, Any]:
+    """孤立ブランチ ``blocker-snapshot`` の ``snapshot.json`` を fetch して読む。
+
+    ローカルの作業ツリーやローカル cache は材料にしない（改竄と stale を
+    同時に許すため）。必ず ``origin`` から fetch した ref を読む。
+
+    ``origin`` が invocation の repository を指すことを **fetch より前に**
+    検証する（Issue #345 F-345-02）。これが無いと identity 束縛が snapshot の
+    自己申告 ``repository`` field だけになり、origin を自分の管理下へ向けられる
+    者が対象 repository を名乗る snapshot を配って ALLOW を作れてしまう
+    ——policy §3.3.1 の「偽造には対象 repository への push 権限が要る」という
+    論拠がその経路で成立しなくなる。正規化は Codex 経路
+    （``_codex_repository`` → ``_canonical_github_repository``）と同一とする。
+    """
+    top_level = _git_output(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=cwd,
+        runner=runner,
+        reason="ISSUE_START_SNAPSHOT_GIT_ERROR",
+    ).strip()
+    if not top_level:
+        raise IssueStartError("ISSUE_START_SNAPSHOT_GIT_ERROR", "rev-parse")
+    try:
+        root = Path(top_level).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise IssueStartError("ISSUE_START_SNAPSHOT_GIT_ERROR", "toplevel") from exc
+    # `_run_git` ではなく `_git_output` を使うのは、snapshot 経路の git 実行に
+    # 揃えて timeout を掛けるため（到達不能環境で git がぶら下がると gate ごと
+    # 止まる）。複数行・空文字は `_canonical_github_repository` が弾く。
+    origin = _canonical_github_repository(
+        _git_output(
+            ["git", "remote", "get-url", "origin"],
+            cwd=root,
+            runner=runner,
+            reason="ISSUE_START_SNAPSHOT_GIT_ERROR",
+        ).strip()
+    )
+    if origin != repository:
+        raise IssueStartError(
+            "ISSUE_START_SNAPSHOT_ORIGIN_MISMATCH",
+            f"origin={origin}; request={repository}",
+        )
+    _git_output(
+        [
+            "git",
+            "fetch",
+            "--no-tags",
+            "--quiet",
+            "origin",
+            f"+refs/heads/{SNAPSHOT_BRANCH}:{SNAPSHOT_REMOTE_REF}",
+        ],
+        cwd=root,
+        runner=runner,
+        reason="ISSUE_START_SNAPSHOT_FETCH_FAILED",
+    )
+    raw = _git_output(
+        ["git", "show", f"{SNAPSHOT_REMOTE_REF}:{SNAPSHOT_PATH}"],
+        cwd=root,
+        runner=runner,
+        reason="ISSUE_START_SNAPSHOT_UNREADABLE",
+    )
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise IssueStartError("ISSUE_START_SNAPSHOT_INVALID_JSON") from exc
+    try:
+        return parse_repository_snapshot(value)
+    except RepositorySnapshotError as exc:
+        raise IssueStartError("ISSUE_START_SNAPSHOT_INVALID", exc.reason) from exc
+
+
+def _assert_snapshot_fresh(
+    snapshot: Mapping[str, Any], now: datetime | None
+) -> None:
+    """上限付き staleness を機械的に強制する。期限切れも未来時刻も fail-close。"""
+    current = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
+    age = (current - snapshot["generated_at_datetime"]).total_seconds()
+    if age < 0:
+        raise IssueStartError(
+            "ISSUE_START_SNAPSHOT_FUTURE",
+            f"generated_at={snapshot['generated_at']}; now={current.isoformat()}",
+        )
+    if age > SNAPSHOT_MAX_AGE_SECONDS:
+        raise IssueStartError(
+            "ISSUE_START_SNAPSHOT_STALE",
+            f"age={int(age)}s; max={SNAPSHOT_MAX_AGE_SECONDS}s;"
+            f" generated_at={snapshot['generated_at']}",
+        )
+
+
+class SnapshotIssueMetadata:
+    """snapshot 由来 BLOCK の deny report を、API を叩かずに組み立てる。
+
+    到達不能環境では title/URL を API から引けない。引きに行くと fallback の
+    意味が消えるので、snapshot が同梱する値だけを使う。
+    """
+
+    def __init__(self, metadata: Mapping[str, Mapping[str, str]]) -> None:
+        self._metadata = metadata
+
+    def issue_metadata(self, repository: str, number: int) -> Mapping[str, Any]:
+        value = self._metadata.get(f"{repository}#{number}")
+        if value is None:
+            raise IssueStartError(
+                "ISSUE_START_SNAPSHOT_REPORT_MISSING", f"{repository}#{number}"
+            )
+        return value
+
+
+def _snapshot_fallback_required(
+    blocker: Mapping[str, Any], collected: Mapping[str, Any]
+) -> bool:
+    """当該 invocation が GitHub を**一度も観測できていない**ときだけ真を返す。
+
+    条件は3つの AND であり、どれか一つでも欠ければ従来どおり ERROR のまま
+    fail-close する。
+
+    1. verdict が ``ERROR`` である。
+    2. ``reasons`` に ``API_UNREACHABLE`` を含む。``primary_reason`` ではなく
+       membership で見るのは、到達不能環境の実測形が
+       ``["API_UNREACHABLE", "RELATION_TARGET_UNREADABLE"]`` であり canonical
+       sort の先頭が別 reason になるため（この理由は F-345-01 の是正後も有効）。
+    3. **収集できた node が1つも無い。** reasons membership だけを引き金にすると、
+       API へ到達できている環境で1 node が一過性 timeout / URLError を起こした
+       だけでも fallback が起動し、本来 fail-close だった invocation が最大10分
+       stale な材料で ALLOW になりうる（F-345-01）。1 node でも読めていれば
+       その invocation は GitHub provenance を観測している＝「到達不能」では
+       ないので、stale な材料を使う理由がない。
+
+    3 は「空である」ことを**積極的に確認**する（key 欠落・型不正では真を返さない）。
+    fallback は許容側の経路なので、観測できないときは開かない。
+    """
+    reasons = blocker.get("reasons")
+    nodes = collected.get("nodes")
+    return (
+        blocker.get("result") == "ERROR"
+        and isinstance(reasons, list)
+        and SNAPSHOT_FALLBACK_REASON in reasons
+        and isinstance(nodes, dict)
+        and not nodes
+    )
 
 
 def _blocker_report(collector: Any, blocker: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -371,15 +596,45 @@ def evaluate_issue_start(
     *,
     collector_factory: Callable[[str | None], Any] = IssueStartGitHubCollector,
     token: str | None = None,
+    cwd: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    now: datetime | None = None,
+    snapshot_reader: Callable[..., Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """fresh blocker read を行い、同じ repository/Issue へ再束縛する。"""
+    """fresh blocker read を行い、同じ repository/Issue へ再束縛する。
+
+    Issue #345［A］: **API 優先**。fresh read が ``API_UNREACHABLE`` を返し、かつ
+    node を1つも読めなかった invocation だけが孤立ブランチ snapshot へ fallback
+    する。到達できる環境の挙動は一切変わらない（従来どおり invocation ごとの
+    fresh read）し、部分的に読めた invocation も fallback しない（F-345-01）。
+    """
     try:
         collector = collector_factory(token)
         # #299 完了前は waiver provider を渡さない。collector に機能があっても bypass 不可。
-        blocker = evaluate_snapshot(
-            collector.collect_issue(request.repository, request.issue),
-            waiver_provider=None,
-        )
+        collected = collector.collect_issue(request.repository, request.issue)
+        blocker = evaluate_snapshot(collected, waiver_provider=None)
+        source = "api"
+        snapshot_generated_at: str | None = None
+        report_provider: Any = collector
+        if _snapshot_fallback_required(blocker, collected):
+            read = read_repository_snapshot if snapshot_reader is None else snapshot_reader
+            repository_snapshot = read(
+                repository=request.repository, cwd=cwd, runner=runner
+            )
+            _assert_snapshot_fresh(repository_snapshot, now)
+            try:
+                projected, metadata = project_issue_snapshot(
+                    repository_snapshot, request.repository, request.issue
+                )
+            except RepositorySnapshotError as exc:
+                raise IssueStartError(
+                    "ISSUE_START_SNAPSHOT_BINDING_MISMATCH", exc.detail or exc.reason
+                ) from exc
+            # 判定は API 経路と同一の evaluator を通す（ロジックを分岐させない）。
+            blocker = evaluate_snapshot(projected, waiver_provider=None)
+            source = "snapshot"
+            snapshot_generated_at = repository_snapshot["generated_at"]
+            report_provider = SnapshotIssueMetadata(metadata)
         validate_result_semantics(blocker, int(blocker["exit_code"]))
         subject = blocker.get("subject")
         if (
@@ -391,7 +646,11 @@ def evaluate_issue_start(
         ):
             raise IssueStartError("ISSUE_START_BLOCKER_BINDING_MISMATCH")
         if blocker["result"] != "ALLOW":
-            blockers = _blocker_report(collector, blocker) if blocker["result"] == "BLOCK" else []
+            blockers = (
+                _blocker_report(report_provider, blocker)
+                if blocker["result"] == "BLOCK"
+                else []
+            )
             return {
                 "schema_version": "issue-start-evidence/1",
                 "policy_version": ISSUE_START_POLICY_VERSION,
@@ -402,6 +661,8 @@ def evaluate_issue_start(
                 "binding": asdict(request),
                 "blocker_evidence": blocker,
                 "blockers": blockers,
+                "source": source,
+                "snapshot_generated_at": snapshot_generated_at,
             }
         return {
             "schema_version": "issue-start-evidence/1",
@@ -413,11 +674,15 @@ def evaluate_issue_start(
             "binding": asdict(request),
             "blocker_evidence": blocker,
             "blockers": [],
+            "source": source,
+            "snapshot_generated_at": snapshot_generated_at,
         }
     except IssueStartError:
         raise
     except ContractError as exc:
         raise IssueStartError("ISSUE_START_CONTRACT_ERROR", str(exc)) from exc
+    except RepositorySnapshotError as exc:
+        raise IssueStartError("ISSUE_START_SNAPSHOT_INVALID", exc.reason) from exc
     except Exception as exc:
         raise IssueStartError("ISSUE_START_EVALUATION_ERROR", type(exc).__name__) from exc
 
