@@ -79,8 +79,9 @@ classifier は managed hook が受け取った入力について次の表を完�
 | `gh pr merge <PR>` / `gh -R owner/repo pr merge <PR>` | `PullRequestMerge/CliDirect` | target/method を束縛して gate |
 | allowlist 済み `rtk`、`command`、`builtin`、`exec` で包んだ上記 command | `PullRequestMerge/CliWrapped` | wrapper を順に構文解析し、shell evaluate せず gate |
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` を送る `gh api` 等 | `PullRequestMerge/RestPullsMergeEndpoint` | 同じ tool invocation を中断・再開できる場合だけ gate。不能なら ERROR |
-| schema 既知の `github_merge_pull_request`、`codex_apps.github.merge_pull_request` 等 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
-| `gh pr merge --auto`、`github_enable_auto_merge`、`codex_apps.github.enable_auto_merge`、auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
+| schema 既知の `github_merge_pull_request`、`mcp__codex_apps__github_merge_pull_request` 等の hookable connector 名 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
+| `codex_apps.github.merge_pull_request`、`codex_apps.github.enable_auto_merge` の hosted Codex Apps tool | `HostedConnectorDisabled` | Codex lifecycle hook の Pre/Post 対象外なので、app inventory の実 app id `connector_76869538009648d5b282a4bb21c3d157` 配下にある `.codex/config.toml` の per-tool `enabled=false` で無効化。audit は期待しない |
+| `gh pr merge --auto`、`github_enable_auto_merge`、hookable connector の auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
 | GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、動的実行/parameter expansion、managed leafを含むcompound、実行されるsubstitution、Git shell alias、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | 実行時のcommand・endpoint・bodyへ一意に束縛できないため、registry/fixture 更新まで ERROR |
 | known-safeな `gh alias list` / `gh extension list`、またはmerge と Issue-start のどちらでもないことを閉じた grammar で証明できる操作 | gate 対象外 | blocker gate の ALLOW は発行しない |
 

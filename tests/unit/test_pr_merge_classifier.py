@@ -1,6 +1,7 @@
 import json
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -20,9 +21,11 @@ def bash(command, cwd=None):
 
 class PreUseClassifierTests(unittest.TestCase):
     def test_actual_fire_fixture_payloads_match_frozen_classifier_expectations(self):
+        root = Path(__file__).parents[2]
         fixture = json.loads(
             (
-                Path(__file__).parents[1]
+                root
+                / "tests"
                 / "fixtures"
                 / "pr_merge_actual_fire_v1.json"
             ).read_text(encoding="utf-8")
@@ -41,6 +44,14 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for probe in fixture["probes"]:
             with self.subTest(probe=probe["id"]):
+                if "expected_product_config" in probe:
+                    expected = probe["expected_product_config"]
+                    config = tomllib.loads((root / expected["path"]).read_text(encoding="utf-8"))
+                    tool = config["apps"][expected["app_id"]]["tools"][expected["tool_key"]]
+                    self.assertEqual(tool["enabled"], expected["enabled"])
+                    self.assertNotIn("payload", probe)
+                    self.assertFalse(expected["audit_expected"])
+                    continue
                 classified = classify_pre_use(probe["payload"])
                 self.assertEqual(
                     (classified.kind, classified.reason),

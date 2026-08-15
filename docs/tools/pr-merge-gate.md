@@ -8,8 +8,9 @@
 - `gh pr merge N --merge|--rebase|--squash` と、`-R/--repo` を持つ同形式
 - `rtk` / `rtk proxy` / `command` / `builtin` / `exec` のallowlist wrapper
 - `gh api -X PUT repos/OWNER/REPO/pulls/N/merge`（merge method明示必須）
-- `github_merge_pull_request`、`codex_apps.github.merge_pull_request` と登録済みMCP canonical tool name
-- CLI/GraphQL/connectorのauto-merge enableは常に `BLOCK/AUTO_MERGE_DENIED`
+- `github_merge_pull_request` と登録済みMCP canonical tool name
+- Codex hosted GitHub Apps の `codex_apps.github.merge_pull_request` と `codex_apps.github.enable_auto_merge` は hook 外なので `.codex/config.toml` で app id `connector_76869538009648d5b282a4bb21c3d157` の該当 tool だけ無効化
+- CLI/GraphQL/hookable connectorのauto-merge enableは常に `BLOCK/AUTO_MERGE_DENIED`
 
 method省略、unknown alias/wrapper/flag/tool、target不明、interception不能なmerge相当操作は
 `ERROR` で拒否する。UI merge、hook外API、direct push/ref updateはunmanagedであり、本gateに

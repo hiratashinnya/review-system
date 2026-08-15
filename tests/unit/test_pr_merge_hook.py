@@ -4,6 +4,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -91,7 +92,7 @@ class HookTest(unittest.TestCase):
             target = Path(directory) / "audit.jsonl"
             code, stdout, stderr = self.invoke(
                 {
-                    "tool_name": "codex_apps.github.enable_auto_merge",
+                    "tool_name": "mcp__codex_apps__github_enable_auto_merge",
                     "tool_input": {"repository_full_name": "example/repo", "pr_number": 50},
                 },
                 target,
@@ -205,6 +206,21 @@ class HookTest(unittest.TestCase):
                 decision["hookSpecificOutput"]["permissionDecisionReason"],
             )
 
+    def test_codex_config_disables_only_hosted_github_merge_tools(self):
+        config = tomllib.loads((ROOT / ".codex/config.toml").read_text(encoding="utf-8"))
+        app_id = "connector_76869538009648d5b282a4bb21c3d157"
+        github = config["apps"][app_id]
+
+        self.assertNotIn("github", config["apps"])
+        self.assertNotIn("enabled", github)
+        self.assertNotIn("default_tools_enabled", github)
+        self.assertEqual(
+            set(github["tools"]),
+            {"merge_pull_request", "enable_auto_merge"},
+        )
+        self.assertFalse(github["tools"]["merge_pull_request"]["enabled"])
+        self.assertFalse(github["tools"]["enable_auto_merge"]["enabled"])
+
     def test_codex_and_claude_install_the_same_pre_use_gate(self):
         codex = json.loads((ROOT / ".codex/hooks.json").read_text(encoding="utf-8"))
         claude = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
@@ -212,6 +228,13 @@ class HookTest(unittest.TestCase):
             "Bash",
             "mcp__codex_apps__github_merge_pull_request",
             "mcp__codex_apps__github_enable_auto_merge",
+            "mcp__github__merge_pull_request",
+            "mcp__github__enable_auto_merge",
+            "mcp__github__enable_pull_request_auto_merge",
+            "github_merge_pull_request",
+            "github_enable_auto_merge",
+        )
+        hosted_tool_names = (
             "codex_apps.github.merge_pull_request",
             "codex_apps.github.enable_auto_merge",
         )
@@ -232,6 +255,8 @@ class HookTest(unittest.TestCase):
                 self.assertEqual(len(matchers), 1)
                 for tool_name in expected_tool_names:
                     self.assertIsNotNone(re.fullmatch(matchers[0], tool_name))
+                for tool_name in hosted_tool_names:
+                    self.assertIsNone(re.fullmatch(matchers[0], tool_name))
             self.assertIn("github_merge_pull_request", config_text)
             self.assertIn("github_enable_auto_merge", config_text)
             self.assertIn(script, config_text)
@@ -244,7 +269,7 @@ class HookTest(unittest.TestCase):
             "turn_id": "turn-probe",
             "tool_use_id": "tool-probe",
             "hook_event_name": "PreToolUse",
-            "tool_name": "codex_apps.github.enable_auto_merge",
+            "tool_name": "mcp__codex_apps__github_enable_auto_merge",
             "tool_input": {"repository_full_name": "example/repo", "pr_number": 50},
         }
         for script in (
