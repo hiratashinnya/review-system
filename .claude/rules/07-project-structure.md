@@ -20,7 +20,7 @@
     ——著作・検証エージェントや仕様策定スキル14件のように**両システムに含有されるハーネス**の改修は、
     従来どおりノード起票＋ダッシュボード更新の対象になる。Issue 運用（`/gh-create-issue`）に回るのは
     `issue-pipeline` 系・実行環境フック等の**どちらのシステムにも含有されない汎用開発ハーネス**の改修に限る。
-    前掲「[起票先はプロジェクト区分で決める](#起票先はプロジェクト区分で決めるハーネス開発は-issue-運用)」参照。
+    前掲「起票先はプロジェクト区分で決める（`.claude/rules/02-decision-process.md`）」参照。
 - MVP ターゲットは doc-system ノード（VAL/SR/FR ＋ `labels: post-mvp`）＝**doc_system 自身**の MVP スコープ（review_system の MVP ではない）。運用ハブ＝`doc-system-v2/00-dashboard.md`。
 - 実装設計のデータ辞書／ドメインモデルは doc-system の DM/TERM ノード（`doc-system-v2/nodes/05-design/dm/`・`doc-system-v2/nodes/03-analysis/term/`＝各ノード1ファイル）。
 - **実装前の凍結セット**：`doc-system-v2/nodes/05-design/` 配下（索引の考え方は `python3 -m dsv2 index` で meta.json 生成→grep/jq で参照。基盤＝`doc-system-v2/nodes/05-design/mod/`）。テスト戦略＝`/test-strategy`。
