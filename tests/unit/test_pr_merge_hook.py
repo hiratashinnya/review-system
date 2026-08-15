@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import stat
 import subprocess
 import tempfile
@@ -90,7 +91,7 @@ class HookTest(unittest.TestCase):
             target = Path(directory) / "audit.jsonl"
             code, stdout, stderr = self.invoke(
                 {
-                    "tool_name": "mcp__codex_apps__github_enable_auto_merge",
+                    "tool_name": "codex_apps.github.enable_auto_merge",
                     "tool_input": {"repository_full_name": "example/repo", "pr_number": 50},
                 },
                 target,
@@ -207,18 +208,33 @@ class HookTest(unittest.TestCase):
     def test_codex_and_claude_install_the_same_pre_use_gate(self):
         codex = json.loads((ROOT / ".codex/hooks.json").read_text(encoding="utf-8"))
         claude = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
-        codex_text = json.dumps(codex)
-        claude_text = json.dumps(claude)
+        expected_tool_names = (
+            "Bash",
+            "mcp__codex_apps__github_merge_pull_request",
+            "mcp__codex_apps__github_enable_auto_merge",
+            "codex_apps.github.merge_pull_request",
+            "codex_apps.github.enable_auto_merge",
+        )
 
-        for text, script in (
-            (codex_text, ".codex/hooks/pr-merge-gate.sh"),
-            (claude_text, ".claude/hooks/pr-merge-gate.sh"),
+        for config, script in (
+            (codex, ".codex/hooks/pr-merge-gate.sh"),
+            (claude, ".claude/hooks/pr-merge-gate.sh"),
         ):
-            self.assertIn("PreToolUse", text)
-            self.assertIn("PostToolUse", text)
-            self.assertIn("github_merge_pull_request", text)
-            self.assertIn("github_enable_auto_merge", text)
-            self.assertIn(script, text)
+            config_text = json.dumps(config)
+            self.assertIn("PreToolUse", config_text)
+            self.assertIn("PostToolUse", config_text)
+            for event in ("PreToolUse", "PostToolUse"):
+                matchers = [
+                    item["matcher"]
+                    for item in config["hooks"][event]
+                    if script in json.dumps(item)
+                ]
+                self.assertEqual(len(matchers), 1)
+                for tool_name in expected_tool_names:
+                    self.assertIsNotNone(re.fullmatch(matchers[0], tool_name))
+            self.assertIn("github_merge_pull_request", config_text)
+            self.assertIn("github_enable_auto_merge", config_text)
+            self.assertIn(script, config_text)
             shell = (ROOT / script).read_text(encoding="utf-8")
             self.assertIn("python3 -m pr_merge_gate.hook", shell)
 
@@ -228,7 +244,7 @@ class HookTest(unittest.TestCase):
             "turn_id": "turn-probe",
             "tool_use_id": "tool-probe",
             "hook_event_name": "PreToolUse",
-            "tool_name": "mcp__codex_apps__github_enable_auto_merge",
+            "tool_name": "codex_apps.github.enable_auto_merge",
             "tool_input": {"repository_full_name": "example/repo", "pr_number": 50},
         }
         for script in (

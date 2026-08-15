@@ -10,7 +10,7 @@
   "expected_audit": {
     "schema_version": "pr-merge-audit/4",
     "record_type": "pre_use_decision",
-    "classifier_version": "1.12",
+    "classifier_version": "1.13",
     "reason": "AUTO_MERGE_DENIED",
     "permit_issued": false,
     "operation_dispatched": false,
@@ -37,9 +37,9 @@
     {
       "id": "codex-connector-auto-merge",
       "harnesses": ["Codex"],
-      "product_action": "invoke the installed GitHub connector tool with this exact payload; absence of the tool is NOT_TESTED, not PASS",
+      "product_action": "invoke the installed Codex GitHub connector tool codex_apps.github.enable_auto_merge with this exact payload; absence of the tool is NOT_TESTED, not PASS",
       "payload": {
-        "tool_name": "mcp__codex_apps__github_enable_auto_merge",
+        "tool_name": "codex_apps.github.enable_auto_merge",
         "tool_input": {
           "repository_full_name": "example/repo",
           "pr_number": 1
@@ -66,7 +66,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -90,7 +90,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -114,7 +114,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -138,7 +138,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -162,7 +162,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -186,7 +186,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -210,7 +210,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -234,7 +234,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -258,7 +258,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -282,7 +282,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -306,7 +306,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -330,7 +330,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -354,7 +354,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -378,7 +378,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -402,7 +402,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -426,7 +426,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -450,7 +450,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -474,7 +474,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -498,7 +498,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -522,7 +522,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -546,7 +546,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,
@@ -570,7 +570,7 @@
       },
       "expected_audit": {
         "schema_version": "pr-merge-audit/4",
-        "classifier_version": "1.12",
+        "classifier_version": "1.13",
         "reason": "CLASSIFIER_UNKNOWN",
         "permit_issued": false,
         "operation_dispatched": false,

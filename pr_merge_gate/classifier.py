@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.12"
+CLASSIFIER_VERSION = "1.13"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -102,6 +102,7 @@ _SAFE_ALIAS_FLAGS = frozenset({"--shell"})
 _CONNECTOR_MERGE = frozenset(
     {
         "github_merge_pull_request",
+        "codex_apps.github.merge_pull_request",
         "mcp__github__merge_pull_request",
         "mcp__codex_apps__github_merge_pull_request",
     }
@@ -109,6 +110,7 @@ _CONNECTOR_MERGE = frozenset(
 _CONNECTOR_AUTO = frozenset(
     {
         "github_enable_auto_merge",
+        "codex_apps.github.enable_auto_merge",
         "mcp__github__enable_auto_merge",
         "mcp__github__enable_pull_request_auto_merge",
         "mcp__codex_apps__github_enable_auto_merge",

@@ -340,25 +340,30 @@ class PreUseClassifierTests(unittest.TestCase):
             )
         )
         self.assertEqual((rest.kind, rest.operation.transport), ("merge", "rest"))
-        connector = classify_pre_use(
-            {
-                "tool_name": "mcp__codex_apps__github_merge_pull_request",
-                "tool_input": {
-                    "repository_full_name": "example/repo",
-                    "pr_number": 12,
-                    "merge_method": "merge",
-                    "commit_title": "title",
-                    "commit_message": "fixes #7",
-                    "expected_head_sha": "c" * 40,
-                },
-            }
-        )
-        self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
+        for tool_name in (
+            "mcp__codex_apps__github_merge_pull_request",
+            "codex_apps.github.merge_pull_request",
+        ):
+            with self.subTest(tool_name=tool_name):
+                connector = classify_pre_use(
+                    {
+                        "tool_name": tool_name,
+                        "tool_input": {
+                            "repository_full_name": "example/repo",
+                            "pr_number": 12,
+                            "merge_method": "merge",
+                            "commit_title": "title",
+                            "commit_message": "fixes #7",
+                            "expected_head_sha": "c" * 40,
+                        },
+                    }
+                )
+                self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
 
     def test_connector_auto_merge_and_unknown_merge_tool_are_denied(self):
         auto = classify_pre_use(
             {
-                "tool_name": "mcp__codex_apps__github_enable_auto_merge",
+                "tool_name": "codex_apps.github.enable_auto_merge",
                 "tool_input": {"repository_full_name": "example/repo", "pr_number": 12},
             }
         )

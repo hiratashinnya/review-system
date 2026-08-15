@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.12",
+  "classifier_version": "1.13",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
