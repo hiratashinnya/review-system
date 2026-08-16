@@ -109,7 +109,8 @@
       "Bash(eval *)",
       "Bash(perl -e *)",
       "Bash(ruby -e *)",
-      "Bash(node -e *)"
+      "Bash(node -e *)",
+      "Edit(/tmp/_karte/**)"
     ]
   },
   "env": {
