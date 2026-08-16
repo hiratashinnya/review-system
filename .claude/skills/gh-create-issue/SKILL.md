@@ -99,6 +99,41 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 
 `area:harness` を付けた場合は、multi-select の `Harness` を1個以上設定する。
 
+### Project へ書き込めない実行環境での代替（本文への記載）
+
+実行環境に Project を読み書きする手段が無い場合がある（例：Claude Code on the web には GitHub Projects 系の
+MCP tool も `gh` CLI も無い）。この場合の既定はこれまでどおり **§7 の fail-close で停止する**こと。
+
+停止を報告した上で**ユーザーが Issue の作成／更新を改めて明示指示した場合に限り**、Issue 本体を作成し、
+設定すべき項目を**本文の末尾に次の見出しで記載する**。Project item への追加・field 設定は行わない（できない）。
+
+```markdown
+## Project fields（実行環境の制約により自動設定できず・要手動設定）
+
+<どの手段が無くて設定できなかったかを1文で書く>
+**live metadata（field ID / option 名）を取得できていないため下記は推奨値**であり、確認済みの option 名ではない。
+
+| フィールド | 推奨値 | 根拠 |
+|---|---|---|
+| Project item | 未追加 | <理由> |
+| Status | `Inbox` | 新規起票 |
+| Workstream | <値 or **要判断**> | <根拠 or live option 未取得> |
+| Priority | <値> | <根拠> |
+| Horizon | **要オーナー確認（AI は既定値を持たない）** | 規約上、AI が未確認で設定してはならない |
+| Review date | <値 or 不要> | `Deferred` のときは必須 |
+| Harness | <値> | `area:harness` のとき1個以上 |
+```
+
+この代替を使うときの規律：
+
+- **live metadata を取得できていない事実を明記する。** 記憶や本文例から option 名を断定しない（§2）。
+  取得できない項目は値を埋めず `要判断` と書く。
+- **`Horizon` は推奨値すら埋めない。** AI が既定値を持たない規定（§5）は本文記載でも変わらないため、
+  常に「要オーナー確認」と書く。`Deferred` と `Review date` も同様にユーザー確認なしに書かない。
+- **`Priority` は根拠を書ける場合だけ推奨値を入れる。** 根拠なしに上げない（§5）。
+- 完了報告（§8）では、本節を書いたことと **Project item が未追加であること**を部分成功として明示する。
+  本文に書けたことをもって「設定済み」と報告しない。
+
 - `Claude Code`: Claude Code 固有の hooks、agents、settings、workflow
 - `Codex`: Codex 固有の hooks、agents、skills、config
 - `GitHub Copilot`: Copilot 固有の skills、prompts、agents、instructions
@@ -122,7 +157,7 @@ parent と blocker を同義に扱わない。既存 relation を読み、self r
 
 1. title/body/labels を指定して Issue を1件作成する。
 2. 短時間 poll/read-back し、選択した Project の confirmed Project item として auto-add されたか確認する。
-3. 未追加なら選択した同じ Project へ明示追加する。別 Project を推測しない。追加に失敗したら fail-close で停止し、Issue URL、Project 未追加、fields 未設定という部分成功状態と回復案を報告する。
+3. 未追加なら選択した同じ Project へ明示追加する。別 Project を推測しない。追加に失敗したら fail-close で停止し、Issue URL、Project 未追加、fields 未設定という部分成功状態と回復案を報告する。実行環境に Project を扱う手段自体が無い場合は §5「Project へ書き込めない実行環境での代替」に従う。
 4. Project item を確認できた後、live に解決した field/option ID で `Status=Inbox`、Workstream、確認済みの Priority/Horizon、必要な Review date/Harness を設定する。
 5. parent/sub-issue と blocked-by/blocking を設定する。
 6. Issue と Project item を再取得し、本文、labels、全 fields、relations が意図どおりか照合する。
