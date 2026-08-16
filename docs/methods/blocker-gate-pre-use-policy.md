@@ -112,7 +112,7 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 | native parent/sub-issue | work item の包含 | closure invariant evaluator の唯一の正本 |
 | related / Issue・PR 本文 / Project fields | 参照・表示 | verdict には使用しない。drift は #299 が監査 |
 
-同一 repository 内 relation のみ policy `1.0` の managed 対象とする。cross-repository node、transfer 後の repository 不一致、削除・非可視 node は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` または `ERROR/RELATION_TARGET_UNREADABLE` とする。`404` を「relation なし」に読み替えない。
+同一 repository 内 relation のみ policy `1.2` の managed 対象とする。cross-repository node、transfer 後の repository 不一致、削除・非可視 node は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` または `ERROR/RELATION_TARGET_UNREADABLE` とする。`404` を「relation なし」に読み替えない。
 
 ## 3. データ取得契約
 
@@ -156,6 +156,8 @@ parent は Issue 本体の `parent_issue_url` と parent endpoint、children は
 - **証跡**: どちらの経路で判定したかを invocation ごとに evidence へ残す（`source: "api" | "snapshot"`、snapshot 経路では `snapshot_generated_at`）。
 
 **policy version の扱い（オーナー確定・2026-08-12・Issue #363）**: 本節「材料」の trigger 記述修正により policy version は `1.1` → **`1.2`** とする。根拠は 11章の版規則であり、変更は「主たる起動元は外部 cron である」という**運用事実の文言修正のみ**——判定意味・Result/exit/reason・relation/state/closure/waiver semantics のいずれも変更していない。11章は「型や判定意味を変えない文言…の更新」を MINOR の内側に明記している。同時に更新した対象は `blocker_gate/model.py` の `POLICY_VERSION` 定数、本文中の版表記（frontmatter・冒頭の Policy version 行・6.1 の waiver/policy.yml 例・10.3 の control JSON 例）、`tests/fixtures/blocker_gate/policy.yml`・`waiver_valid.yml`・`waiver_expired.yml`・`schema_only_waiver.yml` の `policy_version`、および対応 test fixture である。`.github/blocker-gate/policy.yml` と実運用 waiver file は本 repository に未作成のため対象外。`tests/fixtures/blocker_gate/waiver_unknown_key.yml` は unknown-key 検査（`_keys()`）が `policy_version` 比較より先に働く fixture であり、その検査経路を変えないために意図的に `1.0` のまま据え置く。
+
+cascade は上記のコード・文書・fixture に加え、**実際に外部へ公開される成果物**である `blocker-snapshot` 孤立ブランチの `snapshot.json`（`blocker_gate snapshot` 生成時点の `POLICY_VERSION` を `policy_version` field に埋め込む）も対象に含む。この成果物だけは Actions workflow の次回実行でしか更新できないため、bump を merge した直後から次回実行が完了するまでの窓では、公開済み snapshot が旧版の `policy_version` を含んだまま残る。この窓で到達不能環境の Issue-start gate が snapshot を読むと、`blocker_gate/snapshot.py` の `parse_repository_snapshot` が `raw["policy_version"] != POLICY_VERSION` を検出して `SNAPSHOT_POLICY_VERSION_MISMATCH` により fail-close する——`generated_at` は新しく見えても、である。診断手順は `docs/methods/blocker-snapshot-external-cron-ops.md` §4.2 に記載する。
 
 #### 3.3.1 信頼モデル（この経路が gate の意図を弱めないこと）
 
@@ -782,7 +784,7 @@ hook 自体の crash/timeout も caller が `ERROR` と同じ deny として扱�
 
 ### 10.2 reason code
 
-Policy `1.1` の reason code は次を正本とする。
+Policy `1.2` の reason code は次を正本とする。
 
 ```text
 ALLOW:  NO_VIOLATION, NO_CLOSING_EFFECT, WAIVER_APPLIED
@@ -1117,6 +1119,8 @@ version は `MAJOR.MINOR` である。
 - patch 版は使わない。policyとclassifierの未知 MAJOR、または manifest と実行 asset の版不一致は `ERROR/HOOK_INTEGRITY_ERROR` とする。
 
 MINOR 更新であっても `policy_version` は上げる（据え置かない）。`blocker_gate/waiver.py` は waiver file・`.github/blocker-gate/policy.yml`・実行 asset の `policy_version` が三者とも完全一致することを要求するため、版を上げるときはこの3か所と test fixture を同時に更新する。適用例＝Issue #345 の `API_UNREACHABLE` 追加（`1.0` → `1.1`・10.2）、Issue #363 の 3.3「材料」trigger 記述修正（`1.1` → `1.2`・3.3）。
+
+本文中の版リテラル（本節・§2.3・§10.2 冒頭等）が実際の bump に追従しているかどうかは、現時点では人手更新に依存し機械検査されていない（Issue #363 で §10.2・§2.3 双方に取り残しが見つかった）。再発防止のための機械検査はトラッキング Issue #365・調査設計 Issue #366・実装 Issue #367 に分割して起票済みであり、本 PR の範囲には含まない。
 
 ## 12. 保証境界と残存 race
 

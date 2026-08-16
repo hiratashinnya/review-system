@@ -31,8 +31,8 @@ Console（<https://cron-job.org/en/>）でログイン後、次の内容でジ�
 | Schedule | 毎時 `0,5,10,15,20,25,30,35,40,45,50,55` 分・毎時・毎日・毎月・毎曜日（＝5分間隔）／timezone `UTC` |
 | Headers | `Accept: application/vnd.github+json`<br>`Authorization: Bearer <FINE_GRAINED_PAT>`<br>`X-GitHub-Api-Version: 2026-03-10`<br>`Content-Type: application/json` |
 | Body | `{"ref":"main"}` |
-| 成功判定 | HTTP `2xx`（本 endpoint は成功時 `200` を返す） |
-| Save responses | 有効（失敗時の切り分け用。応答本文に機微情報は含まれないことを確認済み） |
+| 成功判定 | HTTP `2xx`（[GitHub REST API docs: Create a workflow dispatch event](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event) によれば成功時は `204 No Content`。実装エージェントは外部 API を実際に叩いて確認できないため未実測——`2xx` 全体を成功とみなす設定にしておけば具体的な code の違いは吸収される） |
+| Save responses | 有効（失敗時の切り分け用。上記 endpoint は成功時 body を返さず、失敗時も GitHub の標準エラー JSON（`message`/`documentation_url` 程度）を返す想定であり、Authorization header 等の機微情報が応答本文に含まれる仕様ではない。ただしこれも実装エージェントが実際に応答を確認したものではなく未実測——気になる場合は §4.3 の実行履歴でオーナーが実際の応答本文を確認すること） |
 
 `<FINE_GRAINED_PAT>` はプレースホルダであり、実際の値は §3 で発行する PAT に置き換える。
 この値を本ドキュメント・commit・PR・Issue コメントのいずれにも平文で残さないこと。
@@ -105,6 +105,26 @@ GitHub の Settings → Developer settings → Personal access tokens → Fine-g
 つまり PAT 期限切れは「気づかれないまま危険側に倒れる」のではなく「気づかれないまま安全側に倒れる」。
 ただし `/issue-pipeline` がリモート環境で使えなくなるため、後述 §4 の疎通確認を定期的に行うこと。
 
+### PAT 更新（rotation）手順
+
+1. GitHub の Settings → Developer settings → Personal access tokens → Fine-grained tokens で、上表
+   （Resource owner / Repository access / Permissions / Expiration）と同じ条件で新しい PAT を発行する。
+2. cron-job.org の Console → 対象ジョブ（§2 の `blocker-snapshot dispatch (review-system)`）→
+   Headers の `Authorization: Bearer <FINE_GRAINED_PAT>` を新しい値に差し替えて保存する。
+3. §4.1・§4.2 の疎通確認を行い、次回 dispatch が成功し snapshot が更新されることを確認する。
+4. 旧 PAT を GitHub の Settings → Developer settings → Personal access tokens で失効（revoke）する。
+
+失効検知の頻度と担当:
+
+- **頻度**: リポジトリオーナーが、少なくとも週1回、§4.1 の `gh run list --workflow=blocker-snapshot.yml
+  --limit 10 --json event,createdAt,conclusion` を実行して確認する。`event=workflow_dispatch` の行が
+  5分間隔で並んでいれば、その時点で PAT が有効であることも同時に確認できる（失効時は cron-job.org 側で
+  `401` になり dispatch が来なくなる＝上記「PAT 期限切れ時の挙動」）。
+- **担当**: 本ドキュメント冒頭「実施者」のとおり、cron-job.org・GitHub PAT はいずれも本リポジトリ外の
+  認証情報であり実装エージェントは扱えないため、上記手順・疎通確認は**リポジトリオーナーが実施する**。
+  発行時に設定した `Expiration` の日付をオーナー自身が追跡し、期限前に本節の手順で更新する
+  （リポジトリ内に自動リマインダーの仕組みは無い）。
+
 ## 4. 疎通確認の方法
 
 ### 4.1 GitHub 側の起動実績を見る
@@ -116,6 +136,16 @@ gh run list --workflow=blocker-snapshot.yml --limit 10 --json event,createdAt,co
 `event=workflow_dispatch` の行が5分間隔前後で並んでいれば外部 cron が機能している。
 `event=schedule` の行しかない場合は外部 cron が止まっている（PAT 失効・cron-job.org 側の障害等）。
 
+**`conclusion` 列も見て `cancelled` を除外すること**: `.github/workflows/blocker-snapshot.yml` は
+`concurrency.group: blocker-snapshot` と `cancel-in-progress: true` を設定しているため、runner の
+キュー待ちが外部 cron の実効間隔（5分）を超えると、実行中の run が次の dispatch に cancel され、
+publish されないまま連鎖する経路が理屈上ある（実測ではまだ観測されていない・Issue #363）。
+`conclusion=cancelled` の run を「実行された」に数えると誤診断するため、`success` の run だけを
+数えて間隔を確認する。`cancelled` が連続する場合は、キュー待ちが5分を超えている可能性があり、
+snapshot が publish されない劣化条件（`.github/workflows/blocker-snapshot.yml` の
+「既知の劣化条件」コメントを参照）に該当しうる。cancel-in-progress の設定自体は本ドキュメントの
+時点では変更しない（是非はオーナー判断）。
+
 ### 4.2 snapshot の鮮度を直接見る
 
 ```
@@ -125,6 +155,17 @@ date -u +%Y-%m-%dT%H:%M:%SZ
 ```
 
 `generated_at` と現在時刻の差が10分以内であることを確認する。
+
+**policy_version bump 直後の注意**（`docs/methods/blocker-gate-pre-use-policy.md` §3.3「policy version
+の扱い」）: `policy_version` を bump する PR が merge された直後は、`generated_at` が10分以内で新しく
+見えても、その snapshot の中身がまだ bump 前の `policy_version` を含んでいることがある——snapshot は
+`blocker_gate snapshot` を実行した時点のコード（`blocker_gate/model.py` の `POLICY_VERSION`）を埋め込む
+ため、merge 後の次回 Actions 実行（外部 cron の5分間隔で通常は完了する）を待つまでは古い版のままである。
+この窓では到達不能環境の gate は `blocker_gate/snapshot.py` が送出する `SNAPSHOT_POLICY_VERSION_MISMATCH`
+により fail-close する。診断するときは `generated_at` の鮮度だけでなく、
+`git show origin/blocker-snapshot:snapshot.json` の `policy_version` フィールドが現行の
+`POLICY_VERSION` と一致しているかも確認すること。不一致であれば、次回の外部 cron dispatch（最大5分）
+を待てば解消する。
 
 ### 4.3 cron-job.org 側の実行履歴を見る
 

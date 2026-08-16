@@ -54,6 +54,13 @@ name: blocker-snapshot
 #   - 生成が部分失敗した場合も publish する。`pages_complete: false` / `errors` を
 #     載せて読取側へ渡すことで、遮断された環境にも診断材料が届く。ALLOW には
 #     ならない（読取側が fail-close する）。
+#   - 下の concurrency.cancel-in-progress: true により、runner のキュー待ちが
+#     外部 cron の実効間隔（5分）を超えると、実行中の run が次の dispatch に
+#     cancel され続け publish されない経路が理屈上ある（実測ではまだ観測され
+#     ていない・Issue #363）。fail-close 側だが #363 の目的（10分以内の鮮度
+#     維持）自体が静かに未達になりうるため、疎通確認では conclusion=cancelled
+#     を success と区別すること（docs/methods/blocker-snapshot-external-cron-ops.md
+#     §4.1）。cancel-in-progress の是非はオーナー判断であり本 PR では変更しない。
 #
 # 可視化（Issue #345 F-345-03）: 上記のとおり「部分 snapshot でも publish する」
 # 設計は維持するが、**publish した後に job を失敗させる**。generator は劣化時に
