@@ -99,6 +99,15 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 
 `area:harness` を付けた場合は、multi-select の `Harness` を1個以上設定する。
 
+- `Claude Code`: Claude Code 固有の hooks、agents、settings、workflow
+- `Codex`: Codex 固有の hooks、agents、skills、config
+- `GitHub Copilot`: Copilot 固有の skills、prompts、agents、instructions
+- `agy`: agy CLI/MCP 固有の連携・認証・委譲
+- `Shared`: 複数 harness が共有する契約・同期基盤。単なる「全 harness」の省略には使わない
+- `Other`: live options に専用項目がない具体的 harness に限る。本文へ harness 名と `Other` を使う理由を書く
+
+共通契約と個別実装の両方に影響する場合は `Shared` と該当 harness を複数選択する。`area:harness` 以外では、Harness は影響が明白な場合だけ設定する。
+
 ### Project へ書き込めない実行環境での代替（本文への記載）
 
 実行環境に Project を読み書きする手段が無い場合がある（例：Claude Code on the web には GitHub Projects 系の
@@ -133,15 +142,6 @@ MCP tool も `gh` CLI も無い）。この場合の既定はこれまでどお�
 - **`Priority` は根拠を書ける場合だけ推奨値を入れる。** 根拠なしに上げない（§5）。
 - 完了報告（§8）では、本節を書いたことと **Project item が未追加であること**を部分成功として明示する。
   本文に書けたことをもって「設定済み」と報告しない。
-
-- `Claude Code`: Claude Code 固有の hooks、agents、settings、workflow
-- `Codex`: Codex 固有の hooks、agents、skills、config
-- `GitHub Copilot`: Copilot 固有の skills、prompts、agents、instructions
-- `agy`: agy CLI/MCP 固有の連携・認証・委譲
-- `Shared`: 複数 harness が共有する契約・同期基盤。単なる「全 harness」の省略には使わない
-- `Other`: live options に専用項目がない具体的 harness に限る。本文へ harness 名と `Other` を使う理由を書く
-
-共通契約と個別実装の両方に影響する場合は `Shared` と該当 harness を複数選択する。`area:harness` 以外では、Harness は影響が明白な場合だけ設定する。
 
 ## 6. relation を設計する
 
