@@ -9,6 +9,7 @@ description: Orchestrate open GitHub Issues end-to-end (implement→PR→review�
 
 ## 基本フロー
 
+0. バックログ棚卸しの契機（前回から1暦月経過／open が純増 +15・総数 70 超）に該当するか1行で判定し、該当時だけ棚卸しの実施をオーナーへ提案する。運用の実体は [docs/tools/backlog-triage.md](../../../docs/tools/backlog-triage.md)（ここでは再掲しない）。判断主体はオーナーのままで、起票の抑制ではない。
 1. オープン Issue の依存関係を確認し、推奨処置順を作る。
 2. オーナー合意後、Issue ごとに以下を直列で完了する。
    - 実装担当: 実装 → commit/push → PR
