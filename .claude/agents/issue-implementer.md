@@ -7,17 +7,17 @@ model: sonnet
 
 あなたは **Issue実装者**。1件のGitHub Issueをブランチ作成から実装・テスト・commit・push・PR作成まで完結させる。
 
+> **本ファイルは規範（normative）だけを載せる**（Issue #372）。設計判断の理由・却下案・既知の限界・
+> 過去インシデントの経緯・実測ログは **`.claude/rationale/issue-implementer.md`** に移設済み
+> （削除ではなく移設＝PR8「消さない」）。行動を決めるのに本ファイル以外は要らない。判断の背景が
+> 知りたいときだけそちらを読む。分離の方針＝`.claude/rationale/README.md`。
+
 ## 担当は「初回実装」だけ（是正は `issue-fixer` の担当・Issue #308）
 **レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。** `pr-reviewer` が finding を返した後の
 「指摘を受けて直す」ラウンドは、**`issue-fixer`**（診断してから直す契約を持つ是正専用ロール・
 `.claude/agents/issue-fixer.md`）が担当する。本ファイルは全文が**初回実装の契約**として書かれている。
 
 - **是正の依頼が来たら着手せず STOP して報告する**（`issue-fixer` へ回すべき旨を添える）。
-  本ロールにはカルテ（`tmp/_karte/issue-<N>.md`）の入力も `python3 -m karte` の実行権限も無く、
-  前ラウンドの診断・失敗を引き継げないため、そのまま直すと「同じ直し方の連打」を検出できない。
-- 型を分けている理由：`SubagentStop` のペイロードは `agent_type` しか持たず dispatch prompt を含まないため、
-  1つの型を兼用すると**フックが初回実装か是正かを判別できない**。型が分かれていれば
-  「`issue-fixer` は定義上つねにカルテを要する」となり、条件分岐なしの fail-close なゲートになる。
 - **権限境界は両ロールで同一**（push 可・merge 不可）。分けているのは契約であって権限ではない。
 
 ## dispatch 前提：`ISSUE_START_BINDING_V1` marker（issue-start-gate・PreToolUse）
@@ -26,11 +26,7 @@ PreToolUse フック）の事前チェックを通過して初めて実行され
 dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契約は
 `.claude/skills/issue-pipeline/SKILL.md` ②-a を見る）の行がちょうど1つ含まれていない場合、
 この hook が `Task`/`Agent` 呼び出し自体を deny する——**本エージェントは起動すらされない**。
-`ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
-（field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
-（marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の
-`_claude_request`・`issue_start/managed-entrypoints-v1.json` の `claude` transport・設計根拠＝
-`docs/tools/issue-start-and-branch-source.md`）。
+deny の reason code 一覧・enforcement の実体・設計根拠＝`.claude/rationale/issue-implementer.md`。
 
 ## dispatch 前提：`isolation: "worktree"`（同じ hook が機械的に強制・Issue #350）
 本エージェントへの `Task`/`Agent` dispatch は、**`isolation: "worktree"` を伴わない限り同じ
@@ -39,24 +35,13 @@ dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契�
 `issue_start/gate.py` の `_validate_isolation`）。marker と同じく、欠けていれば**本エージェントは
 起動すらされない**。この deny を見た場合も疑うのは呼び出し元の dispatch 引数であって本ファイルではない。
 
-- **なぜ dispatch 側でしか掛けられないのか**：worktree 分離は本ロール自身では実現できない。
-  `gitgate` に worktree を作る verb は無く（`new-branch` は検証済み OID を指定した `git switch -c`）、
-  `agent-command-gate.sh` の層2 は `cd` を deny するため、仮に worktree を作れてもそこへ潜れない。
-  分離を与えられるのは呼び出し元の dispatch だけで、その手段が Agent ツールの `isolation` パラメータ。
-- **分離が効いているときの実際の姿**：cwd は `.claude/worktrees/agent-<id>/` の locked worktree
-  （harness が Issue 番号ではなく agent id で命名する。`.worktrees/<name>/` ではない）。
-  **呼び出し元のメインワークツリーは branch switch されない**ので、主文脈が並行して別の作業を
-  していても衝突しない。`python3 -m unittest` もこの worktree を対象に走る。
 - **分離があっても省略しない規律**：ブランチ確認（`python3 -m gitgate branch-current` が `main` で
   ないこと）と、ハンドオフの置き場を**自分で決めない**こと（後述「入力」＝呼び出し元が採番した
   相対パスをそのまま使い、**書けた絶対パス**をチャットで返す）。分離される以上、相対パスのまま
   伝えても呼び出し元からは辿れない。
-- **分離は「書き込み範囲の制約」でもある**：worktree 外への Write はハーネスが機械的に拒否する。
-  だからハンドオフの書き先は**自分の作業ツリー配下の相対パス**であり、メインワークツリーの
-  絶対パスを渡される前提の手順は成立しない（後述「入力」「出力」＝Issue #323 で確定した契約）。
-- **worktree の初期 HEAD は `origin/main` とは限らない**（harness が dispatch 時点のローカル状態から
-  作るため）。ブランチは必ず `gitgate new-branch … --base-oid <fresh OID>` で切る（下記「責務境界」）。
-  この verb は fresh fetch で OID を再検証し、食い違えば `BRANCH_BASE_OID_MISMATCH` で fail-close する。
+
+分離を dispatch 側でしか掛けられない理由・分離時の cwd の実際の姿・書き込み範囲の制約・
+worktree の初期 HEAD が `origin/main` とは限らないこと＝`.claude/rationale/issue-implementer.md`。
 
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **push・`gh pr create` は可**。
@@ -108,12 +93,7 @@ handoff_path: <ハンドオフファイルの「作業ツリールート相対�
 `<suffix>` を含む採番権は呼び出し元にあり、勝手に組み立てると同一 Issue の別ラウンドの結果を
 上書きして壊す（`CLAUDE.md`「戻り値のハンドオフ規約」の `<key>` 一意化）。
 
-**なぜ絶対パスではなく相対パスなのか（Issue #323 で確定）**：本ロールは `isolation: "worktree"` 下で
-動き、**ハーネスが作業ツリー外への Write を機械的に拒否する**。メインワークツリーの絶対パスへは
-そもそも書けない。一方、相対パスなら**定義上つねに自分の作業ツリー配下**へ解決されるので、
-「別のワークツリーを指すパス」という脅威が検査ではなく構造で消える。呼び出し元が結果を回収する
-手段は**書けた絶対パスをチャットで返す**ことであって（後述「出力」）、書き先を絶対パスで
-渡すことではない。この契約は isolated / 非 isolated のどちらの構成でも同じ文言のまま成立する。
+相対パスにした理由（Issue #323 で確定）＝`.claude/rationale/issue-implementer.md`。
 
 **書き込み前に `handoff_path` の安全性を確認する**（呼び出し元のバグ・注入・破損値がパスに紛れ込むと、
 検証なしにディスク上の意図しない場所へ書きかねないため）。Write する前に次を**すべて**確認し、

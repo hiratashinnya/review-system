@@ -11,6 +11,9 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 > 重い調査は `agy-delegate` を積極利用する。
 > 原則：[spec-principles](../spec-principles/SKILL.md)（PR7 空で止めない・PR8 消さない）／規約：[CLAUDE.md](../../../CLAUDE.md)
 > （スコープ拡大禁止・スケジュール独断禁止・AI-attribution・Bloom 委譲）。**このスキルはそれらを再掲せず、上に立って回す**。
+> **本ファイルは規範（normative）だけを載せる**（Issue #372）。設計判断の理由・却下案・残スコープの
+> status note・実測ログは [`.claude/rationale/issue-pipeline.md`](../../rationale/issue-pipeline.md) に
+> 移設済み（削除ではなく移設＝PR8）。分離の方針＝[`.claude/rationale/README.md`](../../rationale/README.md)。
 
 ## 役割分担（DD-22 の対話／非対話境界を厳守）
 - **主文脈＝対話オーナー**：`AskUserQuestion` を持つのはここだけ。**順序決め・オーナー判断・先送り可否・スコープ拡張の起票判断**を担う。
@@ -26,7 +29,7 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 1. `gh issue list` で対象を確定。各 Issue の本文・相互参照（"depends on #N" / "blocked by" / 同一ファイル群を触る等）を読む。
    - **読み取りが重いバッチ（多数 Issue・横断調査が要る）なら read-only 委譲でコンテキストを節約**：一般調査は `general-purpose`/`Explore`、
      大規模な横断影響調査は `agy-delegate`（疎通 OK 時）へ。**ただし「推奨順」を決めるのは主文脈**（対話オーナーが即 AskUserQuestion できるため・DD-22）。
-     専用 `issue-triage` エージェントは作らない（generic な issue 読解で asset-auditor も新規不要と判定・A14 再利用優先／決定は対話側に残す）。
+     専用 `issue-triage` エージェントは作らない（却下理由＝`.claude/rationale/issue-pipeline.md`）。
 2. 依存を有向グラフ化し、**順序必須（前段の成果に依存）**と**並列可（独立）**を分離。ブロッカーを先に、葉を後に。
 3. **原案＋根拠＋メリデメを必ずチャットに提示してから** `AskUserQuestion` で承認/修正を仰ぐ（Issue #120 ③・空で止めない）。
    提示物＝依存グラフ要約・推奨順・並列可否・各 Issue のリスク見立て（② のレビュー model 選定に使う）。
@@ -133,12 +136,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 - **dispatch 前に主文脈が実装者 worktree を明け渡し、メインワークツリーを PR ブランチへ載せる**
   （isolation 必須化の帰結・Issue #350／F-350-02）。②-a で `isolation: "worktree"` を渡した結果、
   PR ブランチは実装者の `.claude/worktrees/agent-<id>/` に checkout されたままになっている。
-  `issue-fixer` はメインワークツリーで動く非 isolated ロールであり、`gitgate` にも `issue-fixer.md` にも
-  既存ブランチへ移る verb が無く（生 `git switch`/`checkout` は全 deny）、何もしなければメインワークツリーの
-  `branch-current` が `main` のまま残り、`issue-fixer.md`「ブランチ規律」の契約どおり是正着手前に STOP する。
-  **これは現状唯一成立する経路の開示であり設計選択ではない**（Issue #350 の AC1 と同性質）——`gitgate` に
-  既存ブランチへ移る verb を新設する案、`issue-fixer` にも isolation を掛ける案はいずれも機構の新設に当たり、
-  本節では採らない（別 Issue 化の可否はオーナー判断）。主文脈は `issue-fixer` dispatch 前に次を実行する：
+  **これは現状唯一成立する経路の開示であり設計選択ではない**（理由・却下した代替案＝
+  `.claude/rationale/issue-pipeline.md`）。主文脈は `issue-fixer` dispatch 前に次を実行する：
   1. **実装者のハンドオフを先に Read する（必須・条件付きではない）**。②-a の契約により、ハンドオフは
      **必ず**実装者 worktree 配下（`.claude/worktrees/agent-<id>/tmp/_handoff/…`）に書かれており、
      次の手順 2 が `--force` でその worktree ごと消す。Read を飛ばすと PR URL・テスト結果・スコープ外指摘が
@@ -148,10 +147,6 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
      （実装フェーズは完了済みで、手順 1 で回収済みなので安全）。
   3. `git switch <branch>` でメインワークツリーを PR ブランチへ載せる。
   これでメインワークツリー上の `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める。
-  **本手順は isolation 下でブランチを取得する手段に限定した記述であり**、カルテ機構への結線を扱う
-  ②-c 本文の書き直しは引き続き Issue #310 の残スコープとする（先取り・上書きしない）。
-  ※「実害」定義・エスカレーション条件は #310 から分離され、**#369 で本 SKILL.md に定義済み**
-  （後述「実害の定義とエスカレーション条件」節）。
 - `issue-fixer` は**診断してから直す**（`karte render` で前ラウンドの試行・転換指令・未解消 finding の
   `expected`/`recheck` を引き、`karte append` で診断を登録してからコードを触る）。同じアプローチの3件目は
   `append` が機械的に拒否する＝**ラウンド上限ではなく類似で切る**。
@@ -164,11 +159,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   空集合に対する「すべて実害なし」の空真判定で全 clean PR が不要に STOP してしまう）。
 - **握りつぶし禁止**：対応不要に見えても FND/Q 起票を主文脈へ提案させ、据え置きはオーナー判断（下記 ③・④）。
 
-> **未了（Issue #310）**：上記の判定基準を **`karte` の呼び出し手順へ結線する**部分——`ingest-review` /
-> `status` の実行タイミング、`tmp/_karte/active.json` の受け渡し、merge 時にカルテ本文を PR コメントへ
-> 投稿する手順——は #310 の残スコープであり、本節はまだその形になっていない。
-> **判定基準そのもの（実害の定義・エスカレーション条件）は #369 で本 SKILL.md に定義済み**で、
-> #310 はそれを参照する（再定義しない）。
+> **未了**：判定基準を `karte` の呼び出し手順へ結線する部分は Issue #310 の残スコープ
+> （詳細＝`.claude/rationale/issue-pipeline.md`）。判定基準そのものは後述の節で定義済み。
 
 **②-d マージ → クローズ → 次へ**
 - `pr-reviewer` が genuinely clean と判断したら `gh pr merge`（マージは reviewer 専権・機械ゲート）。
@@ -192,11 +184,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
      `git switch main` 等で戻す（②-c 自身の手順3で PR ブランチへ載せた分の対）。②-c を経由していない
      完全な clean merge では主文脈は元々ブランチ切替していないため本手順は不要。
 
-  > **Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項は不要**：同ファイル ②-a の記述の
-  > とおり Codex の `spawn_agent` には isolation パラメータが無く worktree 分離が行われないため、
-  > `issue-implementer` は呼び出し元と作業ツリーを共有し、Codex 経路ではそもそも
-  > `.claude/worktrees/agent-<id>/` が作られず残留も起きない。`asset_parity/exceptions.py` の
-  > 非移植例外ではなく、isolation 機構の有無という実体差による（Issue #360）。
+  > **Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項は不要**（理由＝
+  > `.claude/rationale/issue-pipeline.md`。`asset_parity/exceptions.py` の非移植例外ではない）。
 
   この手順を怠っても実装・レビュー結果には影響しないが、locked worktree の残留は
   ディスク使用量の増大と `git worktree list` の可読性低下を招くため、**次 Issue へ進む前に必ず実施する**。
@@ -271,9 +260,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 実害なし判定の指摘も握りつぶさず、主文脈が Issue 起票案＋理由付き推奨を添えて打ち上げ、
 据え置きはオーナーが決める。
 
-> **本節は判定基準のみを定める**（Issue #369）。この基準を `karte` の呼び出し手順へ結線すること
-> （`ingest-review` / `status` の実行タイミング・`active.json` の受け渡し・カルテ本文の PR コメント投稿）は
-> **Issue #310 の残スコープ**であり、本節では扱わない。
+> **本節は判定基準のみを定める**（Issue #369）。`karte` 呼び出し手順への結線は Issue #310 の
+> 残スコープ（詳細＝`.claude/rationale/issue-pipeline.md`）。
 
 ## リスク信号表（②-b 初回レビュー model 選定・bloom-model-tier の軸2を Issue レビューに具体化）
 レビュー＝Bloom Lv5 評価。**判断ボトルネック側の信号が1つでも強く立てば `opus`、すべて網羅性側なら `sonnet`（+high effort）**。
@@ -300,10 +288,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 曖昧は STOP 報告・スコープ外は起票提案）は、**各エージェントの system prompt（`.claude/agents/*.md`）に常設**する（読者が見る場所・版管理・毎回自動適用）。
 - **dispatch prompt には毎回タスク固有情報だけ**を書く。バッチ共通の補足がある場合のみ、CLAUDE.md の規約どおり
   `tmp/<sprint>/issue-pipeline-common.md` に書き出して各 dispatch から参照させる（同一指示をコンテキストに展開しない）。
-- **SubagentStart フックは採らない（設計判断）**：`SubagentStart`（`hookSpecificOutput.additionalContext` で子コンテキストへ注入可）は実在するが、
-  本パイプラインでは採用しない。理由＝(1) 対象2エージェントは本パイプライン専用で、恒常契約は各 `.md` に置く方が可視・版管理でき常に効く（フックだと settings.json ＋シェルに分散）。
-  (2) 本 repo でフックは**機械的に拒否できる境界**（push/merge ゲート＝agent-command-gate）に限定する慣行（PR2・機械判定と運用ルールを混ぜない）。ただし Bash 文字列の静的検査であり、非バイパスの完全防御とは扱わない。
-  助言的指示の配布はその範疇でない。(3) 常時 ON のグローバル副作用は、明示ブロックに比べ保守面が重く不透明で、得られるトークン節約は限定的。
+- **SubagentStart フックは採らない（設計判断）**：恒常契約の配布に `SubagentStart` を使わず、各
+  エージェントの `.md` に常設する（却下理由3点＝`.claude/rationale/issue-pipeline.md`）。
 
 ## エージェント定義のスナップショットが作業ツリーの現在値に追随するとは限らない制約（既知の制約・回避策・Issue #360）
 
@@ -314,44 +300,16 @@ subagent が実際に従う契約がその変更を直ちに反映するとは�
 更新されるか（セッション開始時点で1回だけロードされ以後一切再ロードされないのか、それとも別の単位・
 条件で再ロードされうるのか）は未解明**であり、本節はメカニズムを断定しない。
 
-> **本節は Claude Code（`.claude/agents/*.md`・`Task`/`Agent` dispatch）の実測に基づく記述**。
-> Codex CLI（`.codex/agents/*.toml`・`spawn_agent`）や Copilot が同種のスナップショット挙動を持つかは
-> 未検証——確認できていないため、本節の内容を他ツリーへ追従させるかどうかは本 PR のスコープ外とする
-> （Issue #360）。
+> **本節は Claude Code の実測に基づく**（Codex CLI・Copilot が同種の挙動を持つかは未検証）。
+> 実測①②のログ・欠陥の所在・帰結・機構側対処のスコープ外扱いは `.claude/rationale/issue-pipeline.md`。
 
-- **実測①（Issue #323 / PR #358 の是正ラウンド）**：主文脈がメインワークツリーを PR ブランチへ
-  `git switch` し、作業ツリー上の `.claude/agents/issue-fixer.md` が新契約（`handoff_path` を
-  「作業ツリールート相対」で受理する契約）になった状態で `issue-fixer` を dispatch したところ、
-  起動した `issue-fixer` は**その時点で作業ツリーに反映されていたはずの新契約ではなく旧契約**
-  （`handoff_path` を「メインワークツリーの絶対パス・完全一致」で検証する契約）のまま動き、新契約の
-  形で渡された `handoff_path`（例：`tmp/_handoff/issue-fixer--issue-323-r1.yaml`）を「絶対パスでない／
-  ファイル名が旧契約の完全一致条件を満たさない」として拒否し STOP した。
-- **実測②（PR #361 是正ラウンド1・Issue #360）**：**同一セッション内**で、実測①と同種の場面
-  （PR #358 是正ラウンド）では旧契約が適用された一方、時間的に後続する本 PR の是正ラウンドでは
-  `issue-fixer` が**新契約**（`handoff_path` の絶対パス入力を拒否し STOP）で動いた。**同一セッション
-  内で適用契約が旧→新に変わりうる**ことを示しており、「セッション開始時点で1回だけロードされ以後
-  一切再ロードされない」という単純な固定モデルとは矛盾する。
-- **`issue-fixer` 側の各回の判断自体は正当**：それぞれの回でロードされていた契約に照らせば正しい
-  fail-close であり、欠陥はエージェント定義の記述にはない。欠陥は「作業ツリーの現在の内容」と「その
-  dispatch で実際に適用される契約」がズレうる、かつ**そのズレ方（更新タイミング）が未解明**という、
-  ハーネスのロード挙動そのものにある。
-- **帰結**：**エージェント契約（`.claude/agents/*.md`）を変更する PR は、その変更を実装している
-  セッション自身の中で、変更後の契約が確実に適用されると当てにできない。** `/issue-pipeline` は自分
-  自身の運用資産（`issue-implementer`/`issue-fixer`/`pr-reviewer` の契約）を改修対象にもする
-  （ドッグフーディング）ため、この制約はパイプライン運用に直接効く——同一セッション内でこれらの契約を
-  変える Issue を実装し、同じセッションで変更後の版を dispatch しても、その dispatch がどちらの契約で
-  動くかは事前に確定できない。
 - **回避策**：呼び出し元は、**dispatch した subagent が実際に何を根拠に判断したか（STOP 理由・受理/
   拒否したパス形状等）を都度観察し**、そこから逆算してどちらの契約が適用されたかを判定した上で、
   以後の入力をその場で適用されている契約に合わせる。「作業ツリーの現在の内容だから新契約のはず」
   「前回旧契約だったから今回も旧契約のはず」のどちらも前提にせず、**回ごとに実測して確認する**。
-- **新契約の実地検証にセッション再起動が必須とは限らない**：実測②のとおり、セッションを再起動せず
-  同一セッション内で新契約が適用された例がある。再起動すれば新契約が確実にロードされる保証も、
-  再起動しなければ新契約が確実に適用されない保証も、現時点の実測からは言えない——**新契約が実際に
-  機能するかは、再起動の有無によらず、dispatch のたびに実測で確認する**のが唯一確実な方法である。
-- **本節は制約の明文化と回避手順の共有に留める**：エージェント定義のスナップショット挙動を機構として
-  解消・安定化すること（更新トリガーの解明・動的リロード等）は本節の対象外。機構側の対処が要るかは
-  オーナー判断で別途（Issue #360 Out of scope）。
+- **新契約の実地検証にセッション再起動が必須とは限らない**：再起動すれば新契約が確実にロードされる
+  保証も、再起動しなければ新契約が確実に適用されない保証も、現時点の実測からは言えない——**新契約が
+  実際に機能するかは、再起動の有無によらず、dispatch のたびに実測で確認する**のが唯一確実な方法である。
 
 ## 重い作業は agy を積極利用（Issue #120 ⑦・fail-close）
 横断影響調査・参照/孤児調査・スクラッチ計算・並列サブクエリなどの**重い調査**は `agy-delegate` へ回す。
