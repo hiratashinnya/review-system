@@ -240,6 +240,9 @@ def main(argv=None):
                 f"{result.source_kind} {result.repository}@{result.source_oid} "
                 f"policy={result.policy_version}\n"
             )
+            sys.stderr.write(
+                f"gitgate: switched to new branch '{request.branch_name}' (checkout performed)\n"
+            )
             return 0
         git_argv = build_git_argv(argv)
     except BranchSourceError as exc:
