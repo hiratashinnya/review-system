@@ -60,7 +60,7 @@
 > ——`python3 -m asset_parity check` で 0 MISSING を実測確認済み。機械検査＝`tests/unit/test_contract_split.py`）。
 > **ミラー側の本文（`.codex/agents/*.toml`・`.agents/skills/issue-pipeline/SKILL.md`・
 > `.github/skills/issue-pipeline/SKILL.md`）は経緯を inline に持ったまま**で、同じ trim を波及させるかは
-> Issue #372 の対象外（対象は `.claude/` の4ファイル）＝**要オーナー判断の残件**。当面は `asset_parity` の
-> staleness flag（size ratio）が「canonical が痩せた」信号として立つ想定で、これは正しい検知であって
-> ビルドは止めない。
+> Issue #372 の対象外（対象は `.claude/` の4ファイル）＝**要オーナー判断の残件（Issue #388 で追跡）**。
+> 当面は `asset_parity` の staleness flag（size ratio）が「canonical が痩せた」信号として立つ想定で、
+> これは正しい検知であってビルドは止めない。
 > ※ `gh-create-issue`（スキル）は GitHub Issue の draft／起票規約を扱う repo 運用資産（未テーラリング active・テーラリング対象外）。**Claude Code 版 `.claude/skills/gh-create-issue/SKILL.md` を正本**とし、**Codex 版 `.agents/skills/gh-create-issue/SKILL.md` は手書き mirror**。自然言語の draft／作成依頼で発見可能だが、本文の write 境界により作成の明示依頼がある場合だけ GitHub を変更する。今回のユーザー指定は **Codex と Claude Code の2環境に限定された明示スコープ**であり、GitHub Copilot 版は作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する。`asset_parity/exceptions.py` には `(gh-create-issue, SKILL, GITHUB)` のみ転記し、Codex の `.agents/skills/` は実 mirror があるため例外化しない。
