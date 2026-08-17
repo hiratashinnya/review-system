@@ -176,12 +176,14 @@ snapshot は **repository に push できる者が内容を差し替えうる入
 
 | schema | 生成 | 読取・版照合の実装 | 不一致時の扱い |
 |---|---|---|---|
-| `blocker-gate-repository-snapshot/v1` | Actions（`blocker-snapshot.yml`） | `blocker_gate/snapshot.py::parse_repository_snapshot` が `raw["policy_version"] != POLICY_VERSION` を検査 | `SNAPSHOT_POLICY_VERSION_MISMATCH` で fail-close（3.3「policy version の扱い」に実例あり） |
-| `blocker-gate-snapshot/v1` | `project_issue_snapshot` による射影（同ファイル） | `blocker_gate/resolver.py::parse_snapshot` が同じ完全一致検査（`raw["policy_version"] != POLICY_VERSION`） | 版不一致として fail-close（呼出元 evaluator へ渡らず ERROR 化） |
+| `blocker-gate-repository-snapshot/v1` | Actions（`blocker-snapshot.yml`） | `blocker_gate/snapshot.py::parse_repository_snapshot` が `raw["policy_version"] != POLICY_VERSION` を検査し、内部 reason `SNAPSHOT_POLICY_VERSION_MISMATCH` を持つ `RepositorySnapshotError` を送出する | `issue_start/gate.py::evaluate_issue_start` がこの `RepositorySnapshotError` を捕捉し `IssueStartError("ISSUE_START_SNAPSHOT_INVALID", exc.reason)` へラップする。外部スキーマ `issue-start-evidence/1` に現れる最終 `reason` は **`ISSUE_START_SNAPSHOT_INVALID`** であり、内部 reason `SNAPSHOT_POLICY_VERSION_MISMATCH` は `detail` 側に残るだけである（fail-close の実例は 3.3「policy version の扱い」を見る） |
+| `blocker-gate-snapshot/v1` | `project_issue_snapshot` による射影（同ファイル） | `blocker_gate/resolver.py::parse_snapshot` が同じ完全一致検査（`raw["policy_version"] != POLICY_VERSION`）を行い `ValueError` を送出する | `blocker_gate/resolver.py::evaluate_snapshot` がこの `ValueError` を捕捉し、呼出元 evaluator へは渡さず、外部スキーマ `blocker-gate-result/v1` に現れる最終 `reason: **RESULT_CONTRACT_INVALID**` として ERROR 化する |
 
 **§10.5-5 との違い**：§10.5-5（10章「必須 semantic validation」の共通不変条件5）は `blocker-gate-result/v1`——gate が**出力**する control JSON——についての規定であり、そこでの「policy/classifier major 一致」は caller 側が gate の出力を受理する際の互換性判定である。本節は gate が**入力として読み取る**2つの snapshot schema についての規則であり、対象（出力 vs 入力）・照合粒度（major 一致 vs 完全一致）のいずれも異なる別規定である。読み違えないこと。
 
-**版を上げる際の deploy 含意**：11章の規則により `policy_version` を上げる更新（MINOR 更新でも bump 必須）を merge すると、`blocker-snapshot` 孤立ブランチの `snapshot.json` は Actions（3.3「材料」の外部 cron trigger）の次回実行が完了するまで旧版の `policy_version` を含んだまま残る。この窓の間、到達不能環境の Issue-start gate が snapshot を読むと、`generated_at` の staleness が10分以内でも `SNAPSHOT_POLICY_VERSION_MISMATCH` により fail-close する（誤 ALLOW にはならない）。到達可能な環境は fresh read を使うため、この窓の影響を受けない。窓の長さは Actions の起動間隔（3.3「材料」）に依存し、診断手順は `docs/methods/blocker-snapshot-external-cron-ops.md` §4.2 を見る。
+**版を上げる際の deploy 含意**：`policy_version` を上げる更新を merge した直後の窓で何が起きるかは、3.3「policy version の扱い」の cascade 段落（`blocker-snapshot` 孤立ブランチが Actions 次回実行まで旧版のまま残る／`SNAPSHOT_POLICY_VERSION_MISMATCH` で fail-close する／診断手順は `docs/methods/blocker-snapshot-external-cron-ops.md` §4.2）を見る。本節はその窓が生じる原因である snapshot 入力の版照合規則（上表）を定義するだけで、窓の挙動自体は 3.3 を正本とし、ここでは重複記述しない。
+
+**§11 との関係**：本節（§3.3.2）の追加は、`blocker_gate/snapshot.py::parse_repository_snapshot` と `blocker_gate/resolver.py::parse_snapshot` が既に実装済みだった `policy_version` 完全一致検査の挙動を文書化しただけであり、`policy_version` を上げていない。これは 11章「MINOR 更新であっても `policy_version` は上げる」という一般則の例外ではない——Issue #362 でオーナーが「この追加は既存実装済み挙動の文書化に留まり bump 不要」と明示決定した個別ケースである。
 
 ## 4. PR closing set policy
 
