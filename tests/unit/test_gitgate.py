@@ -7,6 +7,7 @@
   - main() が subprocess.run を shell=False の list 渡しで呼ぶ（monkeypatch で捕捉）。
 """
 
+import io
 import subprocess
 import tempfile
 import unittest
@@ -185,9 +186,19 @@ class MainSubprocessTests(unittest.TestCase):
             "new-branch", "issue-317", "--repository", "example/repo",
             "--base-ref", "main", "--base-oid", "a" * 40,
         ]
-        with patch("gitgate.cli.create_branch", return_value=result) as create:
+        with patch("gitgate.cli.create_branch", return_value=result) as create, \
+             patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
             self.assertEqual(gitgate_cli.main(argv), 0)
         create.assert_called_once()
+        stderr_output = mock_stderr.getvalue()
+        self.assertIn(
+            "gitgate: new-branch source default-branch example/repo@" + "a" * 40 + " policy=branch-source/1.0\n",
+            stderr_output,
+        )
+        self.assertIn(
+            "gitgate: switched to new branch 'issue-317' (checkout performed)\n",
+            stderr_output,
+        )
 
     def test_main_invokes_git_with_shell_false_list(self):
         calls = {}
