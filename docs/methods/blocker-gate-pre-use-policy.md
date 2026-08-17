@@ -170,6 +170,21 @@ snapshot は **repository に push できる者が内容を差し替えうる入
 
 一方、**この経路が新たに導入しないもの**も明示しておく。判定材料の取得にエージェントの裁量を経由させる方式（Issue #345 の選択肢⑥）は採っていないため、「LLM が判定材料を作れる」という信頼モデルの変更は発生していない。材料は Actions が GitHub API から機械的に生成し、gate は生の JSON を閉じた parser で読むだけである。
 
+#### 3.3.2 snapshot 入力の版照合規則（§10.5-5 とは別規定・Issue #362）
+
+到達不能環境の fallback で読む snapshot 入力には次の2つの schema があり、**いずれも `policy_version` の完全一致**（文字列としての exact match。`MAJOR.MINOR` の major だけを見ない）を要求する。不一致は fail-close とする。
+
+| schema | 生成 | 読取・版照合の実装 | 不一致時の扱い |
+|---|---|---|---|
+| `blocker-gate-repository-snapshot/v1` | Actions（`blocker-snapshot.yml`） | `blocker_gate/snapshot.py::parse_repository_snapshot` が `raw["policy_version"] != POLICY_VERSION` を検査し、内部 reason `SNAPSHOT_POLICY_VERSION_MISMATCH` を持つ `RepositorySnapshotError` を送出する | `issue_start/gate.py::evaluate_issue_start` がこの `RepositorySnapshotError` を捕捉し `IssueStartError("ISSUE_START_SNAPSHOT_INVALID", exc.reason)` へラップする。外部スキーマ `issue-start-evidence/1` に現れる最終 `reason` は **`ISSUE_START_SNAPSHOT_INVALID`** であり、内部 reason `SNAPSHOT_POLICY_VERSION_MISMATCH` は `detail` 側に残るだけである（fail-close の実例は 3.3「policy version の扱い」を見る） |
+| `blocker-gate-snapshot/v1` | `project_issue_snapshot` による射影（同ファイル） | `blocker_gate/resolver.py::parse_snapshot` が同じ完全一致検査（`raw["policy_version"] != POLICY_VERSION`）を行い `ValueError` を送出する | `blocker_gate/resolver.py::evaluate_snapshot` がこの `ValueError` を捕捉し、呼出元 evaluator へは渡さず、外部スキーマ `blocker-gate-result/v1` の `primary_reason`（および `reasons`）に現れる最終コードは **`RESULT_CONTRACT_INVALID`** として ERROR 化する |
+
+**§10.5-5 との違い**：§10.5-5（10章「必須 semantic validation」の共通不変条件5）は `blocker-gate-result/v1`——gate が**出力**する control JSON——についての規定であり、そこでの「policy/classifier major 一致」は caller 側が gate の出力を受理する際の互換性判定である。本節は gate が**入力として読み取る**2つの snapshot schema についての規則であり、対象（出力 vs 入力）・照合粒度（major 一致 vs 完全一致）のいずれも異なる別規定である。読み違えないこと。
+
+**版を上げる際の deploy 含意**：`policy_version` を上げる更新を merge した直後の窓で何が起きるかは、3.3「policy version の扱い」の cascade 段落（`blocker-snapshot` 孤立ブランチが Actions 次回実行まで旧版のまま残る／`SNAPSHOT_POLICY_VERSION_MISMATCH` で fail-close する／診断手順は `docs/methods/blocker-snapshot-external-cron-ops.md` §4.2）を見る。本節はその窓が生じる原因である snapshot 入力の版照合規則（上表）を定義するだけで、窓の挙動自体は 3.3 を正本とし、ここでは重複記述しない。
+
+**§11 との関係**：本節（§3.3.2）の追加は、`blocker_gate/snapshot.py::parse_repository_snapshot` と `blocker_gate/resolver.py::parse_snapshot` が既に実装済みだった `policy_version` 完全一致検査の挙動を文書化しただけであり、`policy_version` を上げていない。これは 11章「MINOR 更新であっても `policy_version` は上げる」という一般則の例外ではない——Issue #362 でオーナーが「この追加は既存実装済み挙動の文書化に留まり bump 不要」と明示決定した個別ケースである。
+
 ## 4. PR closing set policy
 
 ### 4.1 前提
