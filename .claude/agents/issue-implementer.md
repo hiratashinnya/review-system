@@ -26,7 +26,9 @@ PreToolUse フック）の事前チェックを通過して初めて実行され
 dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契約は
 `.claude/skills/issue-pipeline/SKILL.md` ②-a を見る）の行がちょうど1つ含まれていない場合、
 この hook が `Task`/`Agent` 呼び出し自体を deny する——**本エージェントは起動すらされない**。
-deny の reason code 一覧・enforcement の実体・設計根拠＝`.claude/rationale/issue-implementer.md`。
+この deny を見た場合、疑うのは呼び出し元の dispatch prompt（marker の付与漏れ・重複・field 不正）
+であって本ファイルではない。deny の reason code 一覧・enforcement の実体・設計根拠＝
+`.claude/rationale/issue-implementer.md`。
 
 ## dispatch 前提：`isolation: "worktree"`（同じ hook が機械的に強制・Issue #350）
 本エージェントへの `Task`/`Agent` dispatch は、**`isolation: "worktree"` を伴わない限り同じ

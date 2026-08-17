@@ -18,6 +18,10 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
    （`CLAUDE.md` ↔ `.claude/hooks/governance-directives.md` は写し＝コピー方式なので
    `tests/unit/test_governance_sync.py` による同期検査が要るが、本ディレクトリは
    **移設＝実体が1箇所しかない**ので同型の同期規律は不要）。
+   **既知のギャップ（Issue #372 是正ラウンド1／F-372-03）**：`tests/unit/test_contract_split.py`
+   の字数上限検査は「規範側の総字数が分離前を超えていないか」だけを見ており、rationale の一節を
+   逐語コピーで規範側へ書き戻す**二重正本**は機械検知できない（分離前の字数を下回っている限り
+   通ってしまう）。当面は PR レビュー時の目視確認に委ねる。
 3. **規範側から1行で辿れる**：移設元の冒頭に本ディレクトリへのリンク1行を置く
    （機械検査＝`tests/unit/test_contract_split.py`）。
 

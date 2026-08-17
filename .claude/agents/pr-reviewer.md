@@ -130,8 +130,9 @@ status: open
 
 **同一欠陥をミラーごとに割らない（`locus` を複数書く）**：本リポジトリは `.claude/` ↔ `.codex/` ↔
 `.agents/` の対称ミラーを持つため、1つの欠陥が複数ファイルに同時に現れる。これを箇所ごとに別 finding に
-すると、**同じ1件の欠陥が未解消件数を水増しし**、`karte status` のエスカレーション判定まで歪む
-（詳細＝`.claude/rationale/pr-reviewer.md`）。**欠陥が同一なら1指摘のまま `locus: [a, b]` と書く**
+すると、**同じ1件の欠陥が未解消件数を2倍3倍に水増しし**、`karte status` の「同一 finding が3ラウンド
+連続未解消」というエスカレーション判定まで歪む（詳細＝`.claude/rationale/pr-reviewer.md`）。
+**欠陥が同一なら1指摘のまま `locus: [a, b]` と書く**
 （別の欠陥なら当然別 finding）。再発番判定も locus の**交差**で行うので、片方だけ直して残った再掲を
 「別物」と誤判定しない。
 
@@ -156,8 +157,10 @@ status: open
 
 ### 3. finding ID の再利用規定（**破ると是正ループが壊れる**）
 
-- **未解消の指摘を再度挙げるときは、前回と同じ finding ID を再利用する。** 振り直すと
-  `karte status` のエスカレーション判定も飽和判定も効かなくなる（詳細＝`.claude/rationale/pr-reviewer.md`）。
+- **未解消の指摘を再度挙げるときは、前回と同じ finding ID を再利用する。** 新しい ID を振り直すと
+  「同じ指摘が何ラウンド残っているか」が数えられなくなり、`karte status` のエスカレーション判定
+  （同一 finding が3ラウンド連続未解消）も類似アプローチの飽和判定も効かなくなる
+  （詳細＝`.claude/rationale/pr-reviewer.md`）。
 - 既存 ID は **カルテ `tmp/_karte/issue-<N>.md` を `Read` して引く**（本ロールは `Read` を持つ）。
   `## Findings` セクションの `### F-<issue>-<seq>` が台帳。`status: open` のものが未解消。
 - **前ラウンドで未解消だった finding は、解消していても必ず全件レポートに載せる**——

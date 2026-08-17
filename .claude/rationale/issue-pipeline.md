@@ -14,7 +14,7 @@
 
 ## 却下案：専用 `issue-triage` エージェントは作らない（移設元：① 処置順の原案）
 
-     専用 `issue-triage` エージェントは作らない（generic な issue 読解で asset-auditor も新規不要と判定・A14 再利用優先／決定は対話側に残す）。
+  専用 `issue-triage` エージェントは作らない（generic な issue 読解で asset-auditor も新規不要と判定・A14 再利用優先／決定は対話側に残す）。
 
 ## ②-c で主文脈が worktree を明け渡す手順が「唯一成立する経路」である理由（移設元：②-c）
 
