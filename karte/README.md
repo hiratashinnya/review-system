@@ -20,8 +20,11 @@ python3 -m karte close-attempt --issue <N> --outcome <fixed|partial|no-change|re
     という一般的な運用ではこれで従来どおり動く。
   - **2つ以上**あれば、どれに記録するつもりか読み取れないため **fail-close**（`EXIT_ERROR`）
     し、未クローズの Attempt 番号を列挙したうえで `--attempt` の明示を要求する。
-  - **0個**（全 Attempt クローズ済み）なら fail-close し、`--attempt` の明示または
-    先に `append` することを促す。
+  - **0個**なら fail-close し、`--attempt` の明示または先に `append` することを促す。
+    「0個」は2通りの状態を含みうるため、`--help`・実際のエラーメッセージはそれぞれを
+    区別して述べる（F-378-03）——
+    - **Attempt が1件も無い**（`append` をまだ1度も呼んでいない）。
+    - **Attempt はあるが全件クローズ済み**（結果は既に記録されている）。
 - **明示時**：その番号をそのまま使う（既存 Attempt の存在・未クローズであることは
   引き続き検証する）。
 
