@@ -81,7 +81,7 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
   `GATED_ROLES` / `GITGATE_VERBS_BY_ROLE` / `GH_SUBCOMMANDS_BY_ROLE` に `issue-fixer` が登録済み。
 - **`karte ingest-review` を本ロールに許さない理由**（Issue #341 F-341-04）：
 
-  取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。取り込みは主文脈が行う。
+  取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。
 
 ## 既知の限界（Issue #129で追跡・過信しない）（移設元：同名の節）
 

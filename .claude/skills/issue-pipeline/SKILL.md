@@ -60,9 +60,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 
   `branch_name`/`base_ref`/`base_oid`/`base_pr` は、後続で実装者へ渡す
   `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]`
-  と**同じ値**にする。ただし marker 内のこれらの値は branch-source ALLOW の根拠には**ならない**——
-  `gitgate new-branch` が別途 fresh に再検証する。
-  （deny の reason code 一覧・enforcement の実体・設計根拠＝`.claude/rationale/issue-pipeline.md`）
+  と**同じ値**にする（marker 内のこれらの値の位置づけ・deny の reason code 一覧・enforcement の実体・
+  設計根拠＝`.claude/rationale/issue-pipeline.md`）。
 - **同じ dispatch に `isolation: "worktree"` を渡す（Issue #350・同じ hook が機械的に強制）。**
   `Task`/`Agent` 呼び出しの**パラメータ**として渡す（prompt 本文ではない）。欠落・別値（`"remote"` 等）は
   dispatch そのものが deny される。
