@@ -15,7 +15,8 @@
 - **機械定義ドキュメント（例外的に正本の一部）**：`docs/doc-system/`（config.yaml・templates・記法・接続マトリクス等。`config.yaml` の `trace_scope` は `docs/**` を除外済み）
 - **エージェント/スキル定義**：`.claude/skills/`・`.claude/agents/`（大半は doc_system 自身の著作・点検・パイプライン運用向け。横展開先＝`.codex/`・`.github/skills|prompts|agents`・`.agents/skills`）
 - **テスト**：`tests/unit/test_dsv2_*.py`・`test_docidx_*.py`・`test_asset_parity_*.py`・`test_agent_command_gate.py`・`test_codex_*.py`・`test_claude_review_mcp.py`（`.codex/mcp/claude_review/server.py` 対象）等
-- **正本の所在**：`doc-system-v2/nodes/**`（ノードグラフ）＋ `.claude/`（資産・規約）＋ 本 `CLAUDE.md`。
+- **正本の所在**：`doc-system-v2/nodes/**`（ノードグラフ）＋ `.claude/`（資産・規約。規約本体＝
+  `CLAUDE.md` ＋ `.claude/rules/*.md`＝本ファイルもその1つ）。
   - **注意：「正本の所在」と「起票先」は別軸**。`.claude/` 配下の改修すべてが Issue 運用になるわけではない
     ——著作・検証エージェントや仕様策定スキル14件のように**両システムに含有されるハーネス**の改修は、
     従来どおりノード起票＋ダッシュボード更新の対象になる。Issue 運用（`/gh-create-issue`）に回るのは

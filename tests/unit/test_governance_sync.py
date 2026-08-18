@@ -1,18 +1,34 @@
-"""`governance-directives.md` の synced-from marker が `CLAUDE.md` に追従しているかの機械検査。
+"""`governance-directives.md` の synced-from marker が**規範の正本集合**に追従しているかの機械検査。
 
 CLAUDE.md 冒頭の規定：中核規範は毎ターン注入され、その配送用の写しが
-`.claude/hooks/governance-directives.md`。**正本は CLAUDE.md** で、規約を変えたら写しも合わせる。
+`.claude/hooks/governance-directives.md`。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md`** で、
+規約を変えたら写しも合わせる。
 追従漏れは `.claude/hooks/check-governance-drift.sh`（PostToolUse）が検知する——が、同フックは
-**常に exit 0 の fail-open な nag** であり、かつ発火条件が
-`realpath(edited) == realpath($CLAUDE_PROJECT_DIR/CLAUDE.md)` なので、linked worktree 側の
-CLAUDE.md を編集した場合は沈黙する（Issue #323 実装時に実測）。結果として「marker を更新しないまま
-merge される」経路が開いたままになる。本テストはその追従を CI で fail-close にする。
+**常に exit 0 の fail-open な nag** であり、かつ発火条件が編集対象ファイルのパス一致なので、
+linked worktree 側の正本を編集した場合は沈黙する（Issue #323 実装時に実測）。結果として
+「marker を更新しないまま merge される」経路が開いたままになる。本テストはその追従を CI で
+fail-close にする。
+
+Issue #387（PR #383）で規範本文が `CLAUDE.md` 単体から `.claude/rules/*.md` へ分割された。
+正本を `CLAUDE.md` 単体のハッシュで見張り続けると、**規範の大半を占める `.claude/rules/` 側の
+変更に対してフックもテストも一切反応しない**（＝写しが黙って規範から乖離する）。そのため
+ハッシュの対象を「正本集合の連結ハッシュ」へ拡張する（オーナー確定方式）。
+marker の形式は従来どおり `<!-- synced-from: CLAUDE.md@<12桁hex> -->` の1行を維持する
+——写し側にファイルごとの marker を並べる案は、どのファイルが drift したかを特定できる利点が
+あるものの、写しの構造変更を要し注入本文を膨らませるため見送った。
 
 依存仕様（フックと同一である必要がある）:
-  - ハッシュ＝`hashlib.sha256(<repo_root>/CLAUDE.md の生バイト).hexdigest()[:12]`
+  - 正本集合＝`<repo_root>/CLAUDE.md` ＋ `<repo_root>/.claude/rules/*.md`（相対パス昇順）
+  - ハッシュ＝各ファイルについて「相対パス(utf-8) + NUL + 生バイト + NUL」を順に連結した
+    バイト列の `hashlib.sha256(...).hexdigest()[:12]`
+    （相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と区別するため）
   - marker＝`<!-- synced-from: CLAUDE.md@<12桁hex> -->`
   （実体＝`.claude/hooks/check-governance-drift.sh` の埋め込み python3。どちらかを変えるときは
   両方を同時に変える。）
+
+併せて、`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の集合が双方向で一致することも
+検査する（F-387-05）。rules を追加して `@` 行を足し忘れると、その規範は誰にも配送されないまま
+何も赤くならないため。
 """
 
 import hashlib
@@ -21,14 +37,37 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CANONICAL = REPO_ROOT / "CLAUDE.md"
+ENTRYPOINT = REPO_ROOT / "CLAUDE.md"
+RULES_DIR = REPO_ROOT / ".claude" / "rules"
+RULES_GLOB = "*.md"
 DELIVERY_COPY = REPO_ROOT / ".claude" / "hooks" / "governance-directives.md"
 
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
+# CLAUDE.md の import 行（例: `@.claude/rules/01-principles.md`）。
+IMPORT_RE = re.compile(r"^@(\S+\.md)\s*$", re.MULTILINE)
+
+
+def canonical_files():
+    """正本集合を相対パス昇順で返す（フックの実装と同一の順序規則）。"""
+    rules = sorted(
+        p.relative_to(REPO_ROOT).as_posix() for p in RULES_DIR.glob(RULES_GLOB)
+    )
+    return ["CLAUDE.md"] + rules
+
+
+def canonical_hash():
+    """正本集合の連結ハッシュ（先頭12桁）。フックの埋め込み python3 と同一実装。"""
+    digest = hashlib.sha256()
+    for rel in canonical_files():
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((REPO_ROOT / rel).read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:12]
 
 
 class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
-    """写しの marker が正本 CLAUDE.md の現在のハッシュと一致することを要求する。"""
+    """写しの marker が正本集合の現在のハッシュと一致することを要求する。"""
 
     def test_delivery_copy_declares_a_sync_marker(self):
         self.assertTrue(
@@ -42,18 +81,80 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
             " check-governance-drift.sh がこの marker を読むため、削除・改名してはならない。",
         )
 
+    def test_canonical_set_covers_the_rules_directory(self):
+        # ハッシュ対象が CLAUDE.md 単体に戻る退行（Issue #387 の再発）を直接止める。
+        files = canonical_files()
+        self.assertIn("CLAUDE.md", files)
+        rules = [rel for rel in files if rel.startswith(".claude/rules/")]
+        self.assertTrue(
+            rules,
+            "`.claude/rules/*.md` が正本集合に1件も入っていない。規範本文は同ディレクトリに"
+            " あるため、CLAUDE.md 単体を見張っても追従漏れを検知できない（Issue #387）。",
+        )
+
     def test_marker_matches_the_current_canonical_hash(self):
-        expected = hashlib.sha256(CANONICAL.read_bytes()).hexdigest()[:12]
+        expected = canonical_hash()
         match = MARKER_RE.search(DELIVERY_COPY.read_text(encoding="utf-8"))
         assert match is not None  # 直前のテストが本体を担保する
         self.assertEqual(
             match.group(1),
             expected,
-            "governance-directives.md の synced-from marker が CLAUDE.md に追従していない。\n"
-            f"  期待値（現在の CLAUDE.md の sha256 先頭12桁）: {expected}\n"
+            "governance-directives.md の synced-from marker が正本集合に追従していない。\n"
+            f"  正本集合: {', '.join(canonical_files())}\n"
+            f"  期待値（連結ハッシュの先頭12桁）: {expected}\n"
             f"  記録値: {match.group(1)}\n"
-            "CLAUDE.md を変更したら、同一 PR で写しの内容を突き合わせた上で marker を"
-            " 上記の期待値へ更新する（CLAUDE.md 冒頭の規定）。",
+            "CLAUDE.md または .claude/rules/*.md を変更したら、同一 PR で写しの内容を"
+            " 突き合わせた上で marker を上記の期待値へ更新する（CLAUDE.md 冒頭の規定）。",
+        )
+
+
+class TestRulesImportsAreComplete(unittest.TestCase):
+    """`.claude/rules/*.md` の集合と CLAUDE.md の `@` import 行が双方向一致すること（F-387-05）。
+
+    `@` import は Claude Code がルールファイルを読み込む唯一の配線なので、rules を足して
+    `@` 行を足し忘れると**その規範は誰にも届かないまま何も赤くならない**。逆に rules を消して
+    `@` 行を残すと解決不能な import になる。どちらの向きも落とす。
+    """
+
+    def _imported(self):
+        text = ENTRYPOINT.read_text(encoding="utf-8")
+        return sorted(set(IMPORT_RE.findall(text)))
+
+    def _present(self):
+        return sorted(
+            p.relative_to(REPO_ROOT).as_posix() for p in RULES_DIR.glob(RULES_GLOB)
+        )
+
+    def test_every_rules_file_is_imported_by_the_entrypoint(self):
+        missing = sorted(set(self._present()) - set(self._imported()))
+        self.assertFalse(
+            missing,
+            f"`.claude/rules/` にあるが CLAUDE.md の `@` import に無いファイル: {missing}\n"
+            "import されないルールファイルは誰にも配送されない。CLAUDE.md の"
+            " 「ルールファイル一覧」に `@<相対パス>` 行を追加すること。",
+        )
+
+    def test_every_import_resolves_to_an_existing_rules_file(self):
+        dangling = sorted(
+            rel
+            for rel in self._imported()
+            if rel.startswith(".claude/rules/") and not (REPO_ROOT / rel).is_file()
+        )
+        self.assertFalse(
+            dangling,
+            f"CLAUDE.md が import しているが実在しないルールファイル: {dangling}\n"
+            "rules を削除・改名したら CLAUDE.md の `@` 行も同一 PR で更新すること。",
+        )
+
+    def test_imports_do_not_point_outside_the_rules_directory(self):
+        # 将来 `@docs/...` のような import が紛れ込むと、正本集合の定義（rules ディレクトリ）と
+        # 配送実体がずれる。ずれる前に落とす。
+        stray = [rel for rel in self._imported() if not rel.startswith(".claude/rules/")]
+        self.assertFalse(
+            stray,
+            f"CLAUDE.md の `@` import が `.claude/rules/` の外を指している: {stray}\n"
+            "正本集合の定義（CLAUDE.md ＋ .claude/rules/*.md）と食い違うため、"
+            " 正本集合の定義ごと見直すこと（本テストとフックの依存仕様を同時に変える）。",
         )
 
 

@@ -29,8 +29,10 @@
   が `pull_request` ごとに実行する。避けられない/意図的な false positive は `time_fixture_lint/allowlist.py`
   に **理由付きで**登録する（`asset_parity/exceptions.py` と同じ「消さず理由を残す」運用）。
 - **本節の記載先について**：`.claude/skills/test-strategy/SKILL.md`（review_system 固有の TD/TC/TR
-  テーラリング資産）ではなく本ファイルに置く。理由＝この規律は review_system の TD/TC/TR 体系に
+  テーラリング資産）ではなく規約の正本側（`CLAUDE.md` から `@` import される本ファイル
+  `.claude/rules/04-test-data.md`）に置く。理由＝この規律は review_system の TD/TC/TR 体系に
   留まらず、doc_system 側のハーネステスト（例：`test_codex_rate_limit_api.py`・`test_agent_command_gate.py`
   は dsv2/Issue 運用ハーネスのテストで review_system の TD/TC/TR 管理対象ではない）にも及ぶ、
   リポジトリ全体にまたがる横断規律のため。`time_fixture_lint` 自体は CI 定義と同じ「どちらの
-  システムにも含有されない汎用開発ハーネス」区分（前掲「起票先はプロジェクト区分で決める」）。
+  システムにも含有されない汎用開発ハーネス」区分（`.claude/rules/02-decision-process.md`
+  「起票先はプロジェクト区分で決める（ハーネス開発は Issue 運用）」）。

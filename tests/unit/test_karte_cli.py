@@ -645,7 +645,9 @@ class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[2]
     # 構造化 finding のキーを列挙している全ファイル（正本＋配線＋ミラー）。
     DECLARING_FILES = [
-        "CLAUDE.md",
+        # 正本。CLAUDE.md 本体から `.claude/rules/` へ分割された際にキー列挙も移動した
+        # （Issue #387 / F-387-01）。検査対象を減らして緑にするのではなく、実体の宣言箇所を追う。
+        ".claude/rules/05-skills-agents.md",
         ".claude/skills/issue-pipeline/SKILL.md",
         ".agents/skills/issue-pipeline/SKILL.md",
     ]

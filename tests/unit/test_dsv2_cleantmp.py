@@ -331,9 +331,17 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
 
     @classmethod
     def _candidate_guard_docs(cls):
+        # 規範の正本は Issue #387 で ``CLAUDE.md`` 単体から ``CLAUDE.md`` ＋
+        # ``.claude/rules/*.md`` へ分割された。``CLAUDE.md`` だけを候補に残すと、
+        # 掃除ガードの記述（現 ``.claude/rules/05-skills-agents.md``）が
+        # ``_discover_guard_docs`` の絞り込みで**候補ごと消える**——テストは緑のまま
+        # 検査対象が1件減る silent な fail-open になる。rules 全体を候補に入れ、
+        # 実際にガードへ触れているファイルだけを動的に拾わせる（分割の仕方が
+        # 将来また変わっても追従する）。
         return (
             cls.REPO_ROOT / ".claude" / "agents" / "reconciliation.md",
             cls.REPO_ROOT / "CLAUDE.md",
+            *sorted((cls.REPO_ROOT / ".claude" / "rules").glob("*.md")),
             cls.REPO_ROOT / "dsv2" / "README.md",
             *sorted((cls.REPO_ROOT / "dsv2").glob("*.py")),
         )

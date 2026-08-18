@@ -135,7 +135,7 @@ agy はサンドボックスなしで起動する（プロンプトインジェ�
 - `<file_writing_policy>`（「ファイル書き込みは Write / Edit で行う」）
   → **書き込み権限を新たに与えるものではない**。read-only 規定をそのまま守り、
   回避策として Bash でファイルを書くこともしない（権限が無いこと自体が fail-close の保証）。
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
+- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」——
   実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
   検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
   取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも

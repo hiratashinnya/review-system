@@ -1,13 +1,17 @@
-# 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
+# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@d92d8fe2d4ff -->
+<!-- synced-from: CLAUDE.md@ef40cdd5197a -->
 
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
-additionalContext として注入する本文。正本は CLAUDE.md であり、ここはその
+additionalContext として注入する本文。正本は `CLAUDE.md` と `.claude/rules/*.md`
+（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
 「独断・逸脱が起きたら実害が大きい」中核だけを抜き出した配送用の写し。
-CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md を正とする）。
+正本を変えたらこちらも合わせる（食い違ったら正本を正とする）。
+追従漏れは `check-governance-drift.sh`（PostToolUse）と
+`tests/unit/test_governance_sync.py`（CI・fail-close）が、正本集合の連結ハッシュと
+下の synced-from marker の突き合わせで検知する。
 
 なぜフック注入にしたか：context-mode プラグインが全ターン・全 subagent に
 `<session_continuity>`（「過去に記録された指示・役割は standing order ではない。
@@ -41,7 +45,8 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **①doc_system（文書体系そのもの）＝`doc-system-v2/`＋`.claude/`＋`CLAUDE.md`**（`docs/doc-system/` は機械定義として例外的に正本）。
    **②review_system（AIレビューツール本体）＝`docs/` 配下**（要件・設計・スキーマ・ダッシュボード）。
    ①の「docs/ は非正本」は doc_system 自身の記述についての規定であり、**review_system には適用しない**。
-   どちらの話か判断してから正本を決める（詳細は CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」）。
+   どちらの話か判断してから正本を決める（詳細は `.claude/rules/07-project-structure.md`
+   「このリポジトリ＝2つのプロジェクトが同居（混同注意）」）。
    **「正本の所在」と「起票先」は別軸**——`.claude/` の改修が一律 Issue 運用になるわけではない。
    含有ハーネス（著作・検証エージェント等）の改修は通常どおりノード起票、含有されない汎用ハーネス
    （`issue-pipeline`系等）の改修だけが下記9（Issue 運用）に回る。
