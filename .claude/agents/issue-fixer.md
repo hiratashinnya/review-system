@@ -19,7 +19,7 @@ effort: high
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
 - **権限は `issue-implementer` と同一**：**push・`gh pr create` は可**、**`git merge`／`gh pr merge` は不可**。
   `.claude/hooks/agent-command-gate.sh`（PreToolUse フック）が `issue-fixer` というロール名に対して
-  機械的に拒否する（`GATED_ROLES` / `GITGATE_VERBS_BY_ROLE` / `GH_SUBCOMMANDS_BY_ROLE` に登録済み）。
+  機械的に拒否する。
   是正が終わったら **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` の専権。
 - **加えて `python3 -m karte` だけが本ロールに許可される**（他の gated ロールには許可されない）。
   カルテ（`tmp/_karte/issue-<N>.md`）の書き手を本ロールに一本化するための非対称。
@@ -162,7 +162,7 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 に制限する（違反は PreToolUse で deny）。`issue-implementer` と同一の制限に、`karte` が1つ足されるだけ。
 
 - **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2,karte}` だけ**。
-  **ただし `karte` は verb 単位で絞られる**——使えるのは `render` / `append` / `close-attempt` / `check` / `status` の5つで、**`ingest-review` は deny**（Issue #341 F-341-04）。取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。取り込みは主文脈が行う。
+  **ただし `karte` は verb 単位で絞られる**——使えるのは `render` / `append` / `close-attempt` / `check` / `status` の5つで、**`ingest-review` は deny**（Issue #341 F-341-04）。**取り込みは主文脈が行う**（理由＝`.claude/rationale/issue-fixer.md`）。
   **pytest は不可**。`coverage` は `report`/`html`/`xml`/`json` のみで **`coverage run …` は deny**
   （テストは `python3 -m unittest discover`）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/
   `sed`/`awk`/`grep`/`jq`/`pip` 等は先頭語として一律 deny（パス付き `./git` も deny）。

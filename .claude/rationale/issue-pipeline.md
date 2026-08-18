@@ -6,8 +6,10 @@
 > すべて移設元に残っている。疑問が生じたときだけ参照する。
 >
 > - **移設元（規範・正本）**：`.claude/skills/issue-pipeline/SKILL.md`
-> - **本文は逐語（verbatim）で移した**（内容の変更・要約・言い換えはしていない）。`##` 見出しだけ
->   移設先で付与し、どの節から来たかを併記している。
+> - **本文は移設元の文言を尊重して移した**（内容の変更・要約はしていない）。ただし `##` 見出しの
+>   付与に加え、複数節をまとめる際・切り出した断片を単独の節として成立させる際に必要な最小限の
+>   接続語・言い換えは補っている（見出しだけを付与した逐語移設ではない）。移設先で `##` 見出しを
+>   付与し、どの節から来たかを併記している。
 > - **相対参照は移設元の文脈を指す**：本文中の「後述」「上記」「下記」「本節」「②-a」等は
 >   移設元ファイル内の位置関係であって、本ファイル内の位置関係ではない。
 > - 分離の方針・4ツリー波及方針は `.claude/rationale/README.md`。
@@ -15,6 +17,53 @@
 ## 却下案：専用 `issue-triage` エージェントは作らない（移設元：① 処置順の原案）
 
   専用 `issue-triage` エージェントは作らない（generic な issue 読解で asset-auditor も新規不要と判定・A14 再利用優先／決定は対話側に残す）。
+
+## `ISSUE_START_BINDING_V1` marker の enforcement の実体と reason code（移設元：②-a・Issue #373）
+
+  この hook は `issue-implementer` への `Task`/`Agent` dispatch の `tool_input.prompt` に、次の機械可読行を
+  **ちょうど1つ**含めることを要求する（契約の実体＝`issue_start/gate.py` の `_claude_request`・
+  `issue_start/managed-entrypoints-v1.json` の `claude` transport）：
+
+  - `entrypoint`：この managed entrypoint では常に文字列リテラル `"issue-pipeline"`
+    （`managed-entrypoints-v1.json` の登録値と exact 一致が必須）。
+  - `repository`：`git remote get-url origin` を `OWNER/REPO` の canonical 形へ変換した値
+    （HTTPS/SSH いずれも可・`gate.py` の `_canonical_github_repository` と同じ正規化）。
+  - `branch_name`/`base_ref`/`base_oid`：marker 内のこれらの値は
+    branch-source ALLOW の根拠には**ならない**——`gitgate new-branch` が別途 fresh に再検証する
+    （`docs/tools/issue-start-and-branch-source.md`「決定」節）。
+  - **exact 7 field 以外の混在・fieldの欠如は拒否される**（`set(raw) != {entrypoint, repository, issue,
+    branch_name, base_ref, base_oid, base_pr}` で `ISSUE_START_BINDING_UNKNOWN_FIELD`）。
+  marker が**存在しない・prompt 中に複数行ある**場合は `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` で
+  hook が dispatch そのものを deny する（`issue-implementer` は起動されない）。値の型・形式不正
+  （`base_oid` が40桁hexでない等）はそれぞれ専用の reason code（`ISSUE_START_BRANCH_INVALID`／
+  `ISSUE_START_BASE_REF_INVALID`／`ISSUE_START_BASE_OID_INVALID`／`ISSUE_START_BASE_PR_INVALID`等）で
+  fail-close する。別経路への迂回はできない。
+
+> **なぜ規範側に I/F 仕様（7 field の表）を残し、ここには enforcement の内部だけを移したか**
+> （Issue #373・オーナー判断）：上記の reason code・内部関数名は**書き手（dispatch する主文脈）が
+> 正しい marker を組み立てるのに使わない**情報であり、間違えれば機械が必ず止める。一方
+> 「どの field に何をどう書くか」は散文が唯一の伝達手段なので規範側に残す（marker 契約の記載漏れで
+> dispatch が必ず deny された実例＝Issue #346）。単に「機械が検証している」と指すだけの一行
+> ポインタへの置換は**採らない**——それでは書き手が何を書けばよいか分からない。
+
+## `isolation: "worktree"` の enforcement の実体・#350 の発端・worktree の初期 HEAD（移設元：②-a・Issue #373）
+
+  欠落・別値（`"remote"` 等）は
+  `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch そのものが deny される（契約の実体＝
+  `managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
+  `gate.py` の `_validate_isolation`）。
+  - **これが `issue-implementer` の「isolated worktree」を成立させる唯一の手段**：実装者側には
+    worktree を作る verb が無く（`gitgate`）、`cd` も deny される（`agent-command-gate.sh` 層2）ため、
+    渡さなければ実装者は主文脈と working tree を共有してしまう（渡さなかった場合の帰結＝規範側
+    SKILL.md 参照。#350 の発端）。
+  - この worktree の初期 HEAD は `origin/<default>` 相当とは限らない。分岐元の正しさは marker ではなく
+    `gitgate new-branch --base-oid` の fresh 再検証が担保する（上記）。
+
+## `handoff_path` を作業ツリールート相対にした理由（移設元：②-a・Issue #373）
+
+  相対パスなら定義上つねに
+  implementer 自身の worktree 配下へ解決されるので、「別のワークツリーを指すパス」という脅威が検査ではなく構造で消える
+  （Issue #350 実装時に、ハーネスが作業ツリー外への Write を機械的に拒否することを実測）。
 
 ## ②-c で主文脈が worktree を明け渡す手順が「唯一成立する経路」である理由（移設元：②-c）
 
