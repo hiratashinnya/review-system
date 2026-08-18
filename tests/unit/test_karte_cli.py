@@ -486,6 +486,21 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         self.assertIn("クローズ済み", err)
         self.assertIn("--attempt", err)
 
+    def test_zero_total_attempts_gives_a_distinct_message_from_all_closed(self):
+        """F-378-01: Attempt が1件も無い場合は「全 Attempt が既にクローズ済み」と誤記しない。
+
+        是正前は unclosed が空になる分岐（Attempt 0件 と 全件クローズ済み の両方を含む）で
+        メッセージが後者だけを述べていた。setUp は ``_ingest`` のみで ``append`` を一度も
+        呼んでいないため、ここは「Attempt が1件も無い」ケースそのもの。
+        """
+        self.assertEqual(self._karte().attempts, [])  # 前提: Attempt 0件
+        code, _out, err = self._close_default_attempt(self._diff_for("m1"))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("--attempt", err)
+        self.assertIn("1件も無い", err)
+        # 「全 Attempt が既にクローズ済み」（事実と異なる）とは述べない。
+        self.assertNotIn("クローズ済み", err)
+
     def test_explicit_attempt_still_overrides_default_resolution(self):
         """明示指定は常に優先される（既定解決ロジックをバイパスする）。"""
         self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
@@ -493,6 +508,26 @@ class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
         code, _out, err = self._close(1, self._diff_for("m1"))  # 複数未クローズでも明示なら通る
         self.assertEqual(code, cli.EXIT_OK, err)
         self.assertEqual(self._karte().results_for(1)[0].attempt, 1)
+
+
+class TestCloseAttemptHelpTextCoversAllThreeBranches(unittest.TestCase):
+    """F-378-02: ``--attempt`` の ``--help`` が3分岐すべてを説明していること。
+
+    是正前は「未クローズが1件ならそれを使う／2件以上なら拒否」の2分岐しか説明しておらず、
+    「未クローズ0件（Attempt が1件も無い、または全件クローズ済み）でも fail-close する」
+    という3つ目の分岐が欠けていた。``karte/README.md`` は既に3分岐を記載しているため、
+    その非対称を固定する回帰テスト。
+    """
+
+    def test_help_text_mentions_the_zero_unclosed_branch(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            with self.assertRaises(SystemExit):
+                cli.build_parser().parse_args(["close-attempt", "--help"])
+        help_text = buffer.getvalue()
+        self.assertIn("2つ以上", help_text)  # 既存2分岐（複数未クローズ）を維持
+        self.assertIn("0", help_text)        # 追加した3つ目の分岐（未クローズ0件）
+        self.assertIn("拒否", help_text)
 
 
 class TestCloseAttemptTargetTouchedMismatchWarning(KarteTestCase):

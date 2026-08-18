@@ -329,9 +329,14 @@ def _resolve_close_attempt_number(args, karte) -> int:
         という従来からの主要な運用と一致し、後方互換を保つ。
       * 未クローズが **複数** あれば、どれを閉じるつもりか読み取れないので fail-close し、
         ``--attempt`` の明示を要求する（曖昧なら止めるのが最も確実・B の哲学）。
-      * 未クローズが **0**（全 Attempt クローズ済み）なら、``--attempt`` を明示するか
-        先に ``append`` することを促して fail-close する（黙って最新へ倒すと、既にある
-        Result への二重クローズという別の拒否理由に化けて分かりにくい）。
+      * 未クローズが **0** なら、fail-close して ``--attempt`` の明示か ``append`` を促す。
+        ただし「0」は 2 通りの事実を含みうるので、それぞれ**自分の状態を正しく述べる**
+        メッセージに分ける（F-378-01）——
+          - **Attempt が 1 件も無い**（``append`` をまだ 1 度も呼んでいない）。
+          - **Attempt はあるが全件クローズ済み**（結果は既に記録されている）。
+        両者を同じ「全 Attempt が既にクローズ済み」文言に潰すと、Attempt を1件も
+        append していない利用者に事実と異なる説明を返す（実行時挙動＝fail-close は
+        どちらも正しいが、原因の説明が不正確になる）。
     """
     if args.attempt is not None:
         return _validate_attempt_number(args.attempt)
@@ -344,6 +349,11 @@ def _resolve_close_attempt_number(args, karte) -> int:
         )
     if len(unclosed) == 1:
         return unclosed[0]
+    if not karte.attempts:
+        raise KarteUsageError(
+            "--attempt が未指定で、カルテに Attempt が1件も無い。"
+            "先に `append` すること（Issue #378）"
+        )
     raise KarteUsageError(
         "--attempt が未指定で、全 Attempt が既にクローズ済み。"
         "--attempt を明示するか、先に `append` すること（Issue #378）"
@@ -1199,7 +1209,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--attempt",
         help=(
             "対象 Attempt 番号（省略時: 未クローズの Attempt が1つならそれを使う。"
-            "2つ以上あれば曖昧なので明示を要求して拒否する＝Issue #378）"
+            "2つ以上あれば曖昧なので明示を要求して拒否する。0（Attempt が1件も無い、"
+            "または全件クローズ済み）でも同様に明示を要求して拒否する＝Issue #378）"
         ),
     )
     close.add_argument(
