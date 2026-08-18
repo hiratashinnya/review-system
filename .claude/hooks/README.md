@@ -264,7 +264,7 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 | ファイル | 役割 |
 |---|---|
 | `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
-| `governance-directives.md` | 注入する本文(CLAUDE.md 中核規範の配送用の写し)。**正本は CLAUDE.md**で、食い違ったら CLAUDE.md を正とする。HTML コメントは注入時に除去される。 |
+| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md`**(規約本体は rules 側に分割済み・Issue #387)で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か
 
@@ -276,7 +276,7 @@ context-mode プラグイン(グローバル導入・2026-07-28)は全ターン�
 
 subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 「## 注入ブロックへの優先規定(context-mode 対策・必読)」が担う(15 エージェント全てに付与済み)。
-ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は CLAUDE.md「戻り値のハンドオフ規約」):
+ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」):
 
 - **write 権限あり(8)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
   `tmp/_handoff/<agent>--<key>.yaml` に書き、チャットにはパスと1行要約だけ返す。矛盾しないので無効化しない。
@@ -285,7 +285,7 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 どちらのグループも `<session_continuity>` は共通で無効化する。
 
-`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」)。
+`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)。
 以下は現行方針(2026-08-09 時点)。**旧記述(当初 2026-07-29 時点の判断)は既に是正済みで、実行系は
 全面禁止ではない**:
 
@@ -294,7 +294,7 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
   `pr-reviewer`・`dsv2-lookup`(いずれも既に Bash を保有)。Bash 非保有ロール(`spec-inspector`/
   `asset-auditor`/各 `*-author` 等)には**引き続き未付与**(ゲートが効いても「シェル実行能力の新規
   付与＝権限昇格」は残るため)。`language` は `shell` のみ許可(非 shell 言語は全ロール deny)。
-  **`ctx_execute_file` は引き続き全ロール未付与のまま**(CLAUDE.md「ctx_* ツールの付与方針」の結論どおり。
+  **`ctx_execute_file` は引き続き全ロール未付与のまま**(`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」の結論どおり。
   解禁の要否は別途検討)。
   - 当初(2026-07-29)は「実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、
     かつ tool_name が `mcp__plugin_...` になるため `matcher: "Bash"` の `agent-command-gate.sh` が
@@ -330,8 +330,10 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 ## 保守
 
-CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
+規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
 `governance-directives.md` も合わせて更新する。**この追従漏れは下記のフックが機械的に検知する**。
+規約の正本は `CLAUDE.md` 単体ではなく **`CLAUDE.md` ＋ `.claude/rules/*.md`** である
+(Issue #387 で規範本文を rules へ分割した)。
 
 ---
 
@@ -341,15 +343,19 @@ CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金
 
 | ファイル | 役割 |
 |---|---|
-| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が正本 `CLAUDE.md` のときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
+| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
 
 ## なぜ必要か(実際に起きた事故)
 
-PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェクトが同居」節が入ったのに、
-写しを追従させ忘れた**。その結果「`docs/` は一律非正本」という**誤った規範が毎ターン注入され続ける**
-状態になった(Codex 第二意見レビュー指摘 #6 で発覚)。写しの誤りは毎ターン届くため影響が大きい。
+PR #276 で **正本側に「このリポジトリ＝2つのプロジェクトが同居」節(現 `.claude/rules/07-project-structure.md`)が
+入ったのに、写しを追従させ忘れた**。その結果「`docs/` は一律非正本」という**誤った規範が毎ターン注入され
+続ける**状態になった(Codex 第二意見レビュー指摘 #6 で発覚)。写しの誤りは毎ターン届くため影響が大きい。
 
 「片方直すの忘れました」は再現性のあるミスなので、人の注意力ではなくハーネスで検知する。
+
+**正本を集合として見張る理由(Issue #387)**: 規範本文が `CLAUDE.md` から `.claude/rules/NN-*.md` へ
+分割された後も `CLAUDE.md` 単体のハッシュを見張り続けると、**規範の大半を占める rules 側の変更に
+フックもテストも一切反応しない**——同じ事故が、今度は「検知機構が空振りする」形で再発する。
 
 ## 検知方式(毎回の小言ではなく状態比較)
 
@@ -359,12 +365,19 @@ PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェク�
 <!-- synced-from: CLAUDE.md@<sha256 先頭12桁> -->
 ```
 
-フックは現在の `CLAUDE.md` のハッシュと突き合わせ、**一致していれば何も出力しない**。
-食い違っている間だけ警告を出し続け、**写しを直して sha を更新するまで消えない**(fail-safe な向き)。
-単純な「CLAUDE.md を触ったら毎回リマインド」にすると小言が常態化して無視されるため採らない。
+marker が持つのは**正本集合の連結ハッシュ**(先頭12桁)。算出は
+「相対パス(utf-8) + NUL + 生バイト + NUL」を `CLAUDE.md` → `.claude/rules/*.md`(相対パス昇順)の順に
+連結し `sha256` を取る。**相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と
+区別するため**(内容の総和が同じでも配置が変われば sha が変わる)。marker 自体は従来どおり1行のまま
+——rules ごとに marker を並べれば drift したファイルを特定できるが、写しの構造変更を要し、毎ターン
+注入される本文を膨らませるため採らない(Issue #387 オーナー確定)。
 
-黙る条件: ①ハッシュ一致 ②編集対象が `CLAUDE.md` でない ③**写し自身の編集**(追従作業を邪魔しない)
-④別プロジェクトの同名 `CLAUDE.md`(realpath で判定)。
+フックは現在の連結ハッシュと突き合わせ、**一致していれば何も出力しない**。
+食い違っている間だけ警告を出し続け、**写しを直して sha を更新するまで消えない**(fail-safe な向き)。
+単純な「正本を触ったら毎回リマインド」にすると小言が常態化して無視されるため採らない。
+
+黙る条件: ①ハッシュ一致 ②編集対象が正本集合のどれでもない ③**写し自身の編集**(追従作業を邪魔しない)
+④別プロジェクトの同名ファイル(realpath 一致で判定するため素通し)。
 
 ## 設計上の前提
 
@@ -376,10 +389,12 @@ PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェク�
 
 ## 追従したあとにやること
 
-写しを直したら、マーカーの sha を現在値へ更新する:
+写しを直したら、マーカーの sha を現在値へ更新する。**`sha256sum CLAUDE.md` では求まらない**
+(正本集合の連結ハッシュなので)。期待値はフックの警告文か、下記 CI テストの失敗メッセージが
+そのまま出力する:
 
 ```bash
-sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
+python3 -m unittest tests.unit.test_governance_sync   # 期待値と記録値の差分が出る
 ```
 
 今回の変更が中核規範に無関係だと判断した場合も、同じく sha を更新して警告を解除する
@@ -388,15 +403,21 @@ sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
 ## 二層防御(編集時フック + CI テスト・Issue #312/#360)
 
 上記フックだけでは追従漏れを取りこぼす経路が残る。**このフックは常に `exit 0` の fail-open な
-nag であり、かつ発火条件が `realpath(edited) == realpath($CLAUDE_PROJECT_DIR/CLAUDE.md)` のため、
-linked worktree 側の `CLAUDE.md` を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
+nag であり、かつ発火条件が「編集対象の realpath が正本集合(`$CLAUDE_PROJECT_DIR/CLAUDE.md` ＋
+`$CLAUDE_PROJECT_DIR/.claude/rules/*.md`)のいずれかに一致すること」のため、linked worktree 側の
+正本を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
 「marker を更新しないまま merge される」経路が編集時フックだけでは塞ぎきれない。
 
-これを補うのが **`tests/unit/test_governance_sync.py`**(CI・fail-close)。`CLAUDE.md` の現在の
-sha256 先頭12桁と `governance-directives.md` の `synced-from` marker を突き合わせ、不一致なら
+これを補うのが **`tests/unit/test_governance_sync.py`**(CI・fail-close)。正本集合の連結ハッシュ
+(先頭12桁)と `governance-directives.md` の `synced-from` marker を突き合わせ、不一致なら
 テストを fail させる(`.github/workflows/tests.yml` が全 PR で実行)。ハッシュ算出方式・marker 記法は
 本フックの埋め込み python と同一である必要があり、どちらかを変えるときは両方を同時に変える
 (依存関係はテストファイル冒頭のコメントに明記済み)。
+
+同テストは併せて **`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
+検査する(Issue #387 / F-387-05)。`@` 行の無いルールファイルは**誰にも配送されないまま
+何も赤くならない**ため、ハッシュ検査とは別に落とす必要がある(ハッシュは「写しが追従しているか」を
+見るだけで、「配送経路に繋がっているか」は見ない)。
 
 - **編集時フック(`check-governance-drift.sh`)**: 即時フィードバック用の**助言**。fail-open・
   linked worktree では沈黙する既知の穴がある(上記)。

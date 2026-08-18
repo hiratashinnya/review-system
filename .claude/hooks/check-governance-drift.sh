@@ -2,8 +2,13 @@
 # PostToolUse(Write|Edit) フックハンドラ。
 #
 # 役割:
-#   正本 `CLAUDE.md` を編集したのに配送用の写し `governance-directives.md` を追従させ忘れる
-#   drift を、機械的に検知してリマインドする。
+#   正本（`CLAUDE.md` ＋ `.claude/rules/*.md`）を編集したのに配送用の写し
+#   `governance-directives.md` を追従させ忘れる drift を、機械的に検知してリマインドする。
+#
+# 正本が「集合」である理由（Issue #387 / PR #383）:
+#   規範本文は CLAUDE.md 単体から `.claude/rules/NN-*.md` へ分割された。CLAUDE.md 単体の
+#   ハッシュを見張り続けると、**規範の大半を占める rules 側の変更に一切反応しない**。
+#   そのため対象を正本集合の連結ハッシュへ拡張する。marker の形式（1行）は維持する。
 #
 # なぜ必要か（実際に起きた・PR #276 / Codex レビュー指摘 #6）:
 #   `governance-directives.md` は CLAUDE.md 中核規範の写しで、UserPromptSubmit フックが毎ターン
@@ -13,7 +18,7 @@
 #
 # 検知方式（nag ではなく状態比較）:
 #   写しの中に `<!-- synced-from: CLAUDE.md@<sha256 先頭12桁> -->` を1行埋めておき、
-#   現在の CLAUDE.md のハッシュと突き合わせる。**一致していれば何も言わない**（毎回の小言を避ける）。
+#   現在の正本集合の連結ハッシュと突き合わせる。**一致していれば何も言わない**（毎回の小言を避ける）。
 #   食い違っている間だけ警告を出し続ける（追従して sha を更新するまで消えない＝fail-safe な向き）。
 #
 # 入力: PostToolUse フックの stdin JSON（`tool_input.file_path` を見る）。
@@ -32,6 +37,7 @@ cat > "$tmpfile"
 repo_root="${CLAUDE_PROJECT_DIR:-$(dirname "$(dirname "$(dirname "$0")")")}"
 
 python3 - "$tmpfile" "$repo_root" <<'PYEOF' || warn "python 実行に失敗（追従チェックを skip）"
+import glob
 import hashlib
 import json
 import os
@@ -39,9 +45,38 @@ import re
 import sys
 
 payload_path, repo_root = sys.argv[1], sys.argv[2]
-CANON = "CLAUDE.md"
+ENTRYPOINT = "CLAUDE.md"
+RULES_GLOB = os.path.join(".claude", "rules", "*.md")
 COPY = os.path.join(".claude", "hooks", "governance-directives.md")
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
+
+
+def canonical_relpaths():
+    """正本集合を相対パス（posix 表記）の昇順で返す。
+
+    依存仕様は `tests/unit/test_governance_sync.py` と同一である必要がある。
+    """
+    rules = sorted(
+        os.path.relpath(p, repo_root).replace(os.sep, "/")
+        for p in glob.glob(os.path.join(repo_root, RULES_GLOB))
+    )
+    return [ENTRYPOINT] + rules
+
+
+def canonical_hash(relpaths):
+    """「相対パス + NUL + 生バイト + NUL」を順に連結した sha256 の先頭12桁。
+
+    相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と区別するため。
+    """
+    digest = hashlib.sha256()
+    for rel in relpaths:
+        with open(os.path.join(repo_root, rel), "rb") as fh:
+            body = fh.read()
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(body)
+        digest.update(b"\0")
+    return digest.hexdigest()[:12]
 
 try:
     with open(payload_path, encoding="utf-8") as f:
@@ -55,22 +90,30 @@ edited = tool_input.get("file_path") if isinstance(tool_input, dict) else None
 if not isinstance(edited, str) or not edited:
     sys.exit(0)
 
-# 編集対象が正本 CLAUDE.md でなければ何もしない（写し自身の編集も対象外＝追従作業を邪魔しない）。
-if os.path.basename(edited) != CANON:
+# 編集対象が正本集合のどれでもなければ何もしない（写し自身の編集も対象外＝追従作業を邪魔しない）。
+# 別プロジェクトの同名ファイルを弾くため、basename ではなく realpath 一致で判定する。
+try:
+    relpaths = canonical_relpaths()
+except OSError as exc:
+    print(f"[check-governance-drift] 正本集合を列挙できない: {exc}", file=sys.stderr)
     sys.exit(0)
-canon_path = os.path.join(repo_root, CANON)
-if os.path.realpath(edited) != os.path.realpath(canon_path):
-    sys.exit(0)  # 別プロジェクトの同名ファイル
+
+edited_real = os.path.realpath(edited)
+canonical_reals = {
+    os.path.realpath(os.path.join(repo_root, rel)): rel for rel in relpaths
+}
+edited_rel = canonical_reals.get(edited_real)
+if edited_rel is None:
+    sys.exit(0)
 
 copy_path = os.path.join(repo_root, COPY)
 try:
-    canon_bytes = open(canon_path, "rb").read()
+    current = canonical_hash(relpaths)
     copy_text = open(copy_path, encoding="utf-8").read()
 except OSError as exc:
     print(f"[check-governance-drift] 正本/写しを読めない: {exc}", file=sys.stderr)
     sys.exit(0)
 
-current = hashlib.sha256(canon_bytes).hexdigest()[:12]
 m = MARKER_RE.search(copy_text)
 recorded = m.group(1) if m else None
 
@@ -86,7 +129,7 @@ print(json.dumps({
     "hookSpecificOutput": {
         "hookEventName": "PostToolUse",
         "additionalContext": (
-            f"⚠️ 規範の追従漏れ検知：`{CANON}`（正本）を編集したが、"
+            f"⚠️ 規範の追従漏れ検知：`{edited_rel}`（正本集合の一部）を編集したが、"
             f"毎ターン注入される写し `{COPY}` が追従していない（{detail}）。\n"
             f"CLAUDE.md の中核規範（PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在）に"
             f"関わる変更なら、写しにも反映すること。**写しの誤りは毎ターン注入されるため影響が大きい**"

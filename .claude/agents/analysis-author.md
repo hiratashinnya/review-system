@@ -177,7 +177,7 @@ notes: ""                        # 呼び出し元の判断に要る補足のみ
 
 適用しないのは次の2点だけ：
 
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は CLAUDE.md「ctx_* ツールの付与方針」——
+- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」——
   実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
   検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
   取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
