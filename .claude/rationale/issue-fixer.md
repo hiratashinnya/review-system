@@ -72,6 +72,17 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 コード変更が不要だった等）はある。この場合だけ `--outcome no-change` を使う——CLI 側がそれ以外の
 `outcome` では空 diff を fail-close で拒否する（Issue #355 の受入基準）。
 
+## ゲート allowlist の内部名と `ingest-review` を deny する理由（移設元：「責務境界」「Bash 実行規律」・Issue #373）
+
+規範側には**本ロールが実際に打てるコマンドの一覧（＝I/F）**だけを残し、統制側の内部構造と
+「なぜ deny なのか」をここへ移した。
+
+- **push/merge の非対称を機械化している実体**：`agent-command-gate.sh` の
+  `GATED_ROLES` / `GITGATE_VERBS_BY_ROLE` / `GH_SUBCOMMANDS_BY_ROLE` に `issue-fixer` が登録済み。
+- **`karte ingest-review` を本ロールに許さない理由**（Issue #341 F-341-04）：
+
+  取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。取り込みは主文脈が行う。
+
 ## 既知の限界（Issue #129で追跡・過信しない）（移設元：同名の節）
 
 `agent-command-gate.sh` の判定はシェル文字列の**静的検査**であり sandbox ではない。`agent_type` の詐称・

@@ -40,53 +40,47 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 
 **②-a 実装（`issue-implementer` へ委譲）**
 - **dispatch の直前に managed Issue-start gate を通す（`issue-start-gate`・`.claude/hooks/issue-start-gate.sh`・PreToolUse）。**
-  この hook は `issue-implementer` への `Task`/`Agent` dispatch の `tool_input.prompt` に、次の機械可読行を
-  **ちょうど1つ**含めることを要求する（契約の実体＝`issue_start/gate.py` の `_claude_request`・
-  `issue_start/managed-entrypoints-v1.json` の `claude` transport）：
+  `issue-implementer` への `Task`/`Agent` dispatch の `tool_input.prompt` に、次の marker 行を
+  **ちょうど1つ**含める。欠落・重複・値の不正はいずれも hook が dispatch そのものを deny する
+  （`issue-implementer` は起動されない）。
   ```
   ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}
   ```
-  - `entrypoint`：この managed entrypoint では常に文字列リテラル `"issue-pipeline"`
-    （`managed-entrypoints-v1.json` の登録値と exact 一致が必須）。
-  - `repository`：`git remote get-url origin` を `OWNER/REPO` の canonical 形へ変換した値
-    （HTTPS/SSH いずれも可・`gate.py` の `_canonical_github_repository` と同じ正規化）。
-  - `issue`：dispatch 対象の Issue 番号（1以上の整数。文字列不可）。
-  - `branch_name`/`base_ref`/`base_oid`：後続で実装者に渡す
-    `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]`
-    と**同じ値**（fresh fetch 済み `origin/<default>` の exact 40 桁 OID）。marker 内のこれらの値は
-    branch-source ALLOW の根拠には**ならない**——`gitgate new-branch` が別途 fresh に再検証する
-    （`docs/tools/issue-start-and-branch-source.md`「決定」節）。
-  - `base_pr`：stacked branch でなければ `null`。stacked のときだけ same-repository の OPEN PR 番号（整数）。
-  - **exact 7 field 以外の混在・fieldの欠如は拒否される**（`set(raw) != {entrypoint, repository, issue,
-    branch_name, base_ref, base_oid, base_pr}` で `ISSUE_START_BINDING_UNKNOWN_FIELD`）。
-  marker が**存在しない・prompt 中に複数行ある**場合は `ISSUE_START_BINDING_MISSING_OR_DUPLICATE` で
-  hook が dispatch そのものを deny する（`issue-implementer` は起動されない）。値の型・形式不正
-  （`base_oid` が40桁hexでない等）はそれぞれ専用の reason code（`ISSUE_START_BRANCH_INVALID`／
-  `ISSUE_START_BASE_REF_INVALID`／`ISSUE_START_BASE_OID_INVALID`／`ISSUE_START_BASE_PR_INVALID`等）で
-  fail-close する。別経路への迂回はできない。
+  **書くべき値＝下表の7 field ちょうど**（過不足はどちらも拒否される。marker は1行の JSON）：
+
+  | field | 型 | 何を書くか |
+  |---|---|---|
+  | `entrypoint` | 文字列 | 常にリテラル `"issue-pipeline"` |
+  | `repository` | 文字列 | `git remote get-url origin` を `OWNER/REPO` 形へ正規化した値（HTTPS/SSH どちらの remote でも同じ値になる） |
+  | `issue` | 整数 | dispatch 対象の Issue 番号（1以上。文字列にしない） |
+  | `branch_name` | 文字列 | 実装者に切らせるブランチ名 |
+  | `base_ref` | 文字列 | 分岐元の既定ブランチ名（例 `main`） |
+  | `base_oid` | 文字列 | fresh fetch 済み `origin/<base_ref>` の exact 40 桁 hex OID |
+  | `base_pr` | 整数 または `null` | stacked branch のときだけ same-repository の OPEN PR 番号。それ以外は `null` |
+
+  `branch_name`/`base_ref`/`base_oid`/`base_pr` は、後続で実装者へ渡す
+  `python3 -m gitgate new-branch <name> --repository OWNER/REPO --base-ref DEFAULT --base-oid OID [--base-pr N]`
+  と**同じ値**にする。ただし marker 内のこれらの値は branch-source ALLOW の根拠には**ならない**——
+  `gitgate new-branch` が別途 fresh に再検証する。
+  （deny の reason code 一覧・enforcement の実体・設計根拠＝`.claude/rationale/issue-pipeline.md`）
 - **同じ dispatch に `isolation: "worktree"` を渡す（Issue #350・同じ hook が機械的に強制）。**
-  `Task`/`Agent` 呼び出しのパラメータとして渡す（prompt 本文ではない）。欠落・別値（`"remote"` 等）は
-  `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch そのものが deny される（契約の実体＝
-  `managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
-  `gate.py` の `_validate_isolation`）。
-  - **これが `issue-implementer` の「isolated worktree」を成立させる唯一の手段**：実装者側には
-    worktree を作る verb が無く（`gitgate`）、`cd` も deny される（`agent-command-gate.sh` 層2）ため、
-    渡さなければ実装者は**主文脈と同じ working tree を branch switch して共有する**（＝主文脈の作業ツリーが
-    実装対象ブランチへ意図せず切り替わる。#350 の発端）。
-  - 渡すと cwd は `.claude/worktrees/agent-<id>/` の locked worktree になり、主文脈のメインワークツリーは
-    切り替わらない。**主文脈は自分のツリーで triage・進捗記録を続けられる**。
-  - この worktree の初期 HEAD は `origin/<default>` 相当とは限らない。分岐元の正しさは marker ではなく
-    `gitgate new-branch --base-oid` の fresh 再検証が担保する（上記）。
+  `Task`/`Agent` 呼び出しの**パラメータ**として渡す（prompt 本文ではない）。欠落・別値（`"remote"` 等）は
+  dispatch そのものが deny される。
+  - **これが `issue-implementer` を独立 worktree で走らせる唯一の手段**：渡さなければ実装者は
+    **主文脈と同じ working tree を branch switch して共有する**（＝主文脈の作業ツリーが実装対象ブランチへ
+    意図せず切り替わる）。渡すと cwd は `.claude/worktrees/agent-<id>/` の locked worktree になり、
+    主文脈のメインワークツリーは切り替わらない——**主文脈は自分のツリーで triage・進捗記録を続けられる**。
   - **要求は `issue-implementer` にだけ掛かる**。他の subagent（`pr-reviewer`・各 `*-author` 等）の
     dispatch は manifest 上 unmanaged で素通しされるので、`isolation` を付ける必要はない。
+  （reason code・enforcement の実体・#350 の発端・この worktree の初期 HEAD に関する注意＝
+  `.claude/rationale/issue-pipeline.md`）
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
   Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
 - dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
 - **`handoff_path` は主文脈が「作業ツリールート相対」で採番して渡す**（Issue #323 で確定）：
   `tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml`。**絶対パスは渡さない**——implementer は
   `isolation: "worktree"` 下で動き、**ハーネスが作業ツリー外への Write を機械的に拒否する**ため、
-  メインワークツリーの絶対パスへはそもそも書けない（Issue #350 実装時に実測）。相対パスなら定義上つねに
-  implementer 自身の worktree 配下へ解決されるので、「別のワークツリーを指すパス」という脅威が検査ではなく構造で消える。
+  メインワークツリーの絶対パスへはそもそも書けない（相対にした設計根拠＝`.claude/rationale/issue-pipeline.md`）。
   - **ファイル名の採番権は主文脈に残す**（取り違え・注入の防止）。implementer は自分でファイル名を組み立てず、
     渡された相対パスをそのまま使う。受理条件（相対であること・`..` 不可・`tmp/_handoff/` 直下1ファイル・
     `issue-<N>` の境界一致・サフィックスの文字種・symlink 不可）を満たさなければ STOP する契約

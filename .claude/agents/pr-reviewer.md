@@ -49,17 +49,17 @@ CLAUDE.md は「スケジュール独断禁止」等、**値の決定自体を�
 
 ## Bash 実行規律（ホワイトリスト方式・Issue #227 追加修正3・ハーネスで機械強制）
 `.claude/hooks/agent-command-gate.sh` が、このロールの Bash を **「シェル記号を含まない単純な1コマンド」** に制限する（違反は PreToolUse で deny）。
-- **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2}` だけ**（第2次修正で **pytest は不可**）。**`python3 -m karte` は本ロールでは deny**（Issue #308＝カルテの書き手を `issue-fixer` に一本化するための非対称）。カルテは `Read` ツールで直接読む（`tmp/_karte/issue-<N>.md`）。`coverage` は **`report`/`html`/`xml`/`json` のみ許可**で **`coverage run …` は deny**（テストは `python3 -m unittest discover`）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/`sed`/`awk`/`grep`/`jq` 等は先頭語として一律 deny（パス付き `./git` も deny）。
-- **生 `git …` は全面 deny**。git 操作は薄いラッパー **`python3 -m gitgate <verb>`** 経由（固定テンプレートを `shell=False` で組むため exec/write フラグが git に届かない）。このロールで使える verb は**読取専用の `diff` / `log` のみ**：
+- **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2}` だけ**（**pytest は不可**）。**`python3 -m karte` は本ロールでは deny**（Issue #308）。カルテは `Read` ツールで直接読む（`tmp/_karte/issue-<N>.md`）。`coverage` は **`report`/`html`/`xml`/`json` のみ許可**で **`coverage run …` は deny**（テストは `python3 -m unittest discover`）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/`sed`/`awk`/`grep`/`jq` 等は先頭語として一律 deny（パス付き `./git` も deny）。
+- **生 `git …` は全面 deny**。git 操作は薄いラッパー **`python3 -m gitgate <verb>`** 経由。このロールで使える verb は**読取専用の `diff` / `log` のみ**：
   - `diff [--stat] [<ref>…]` → `git diff …`（例：`python3 -m gitgate diff main...HEAD`）
   - `log [-n <N>] [--grep <pat>] [--oneline]` → `git log …`
   - `status`・`add`・`commit`・`push`・`fetch`・`new-branch`・`branch-current` verb は**このロールでは deny**（書込・push 系はレビューアの権限外）。`merge` に相当する verb は存在しない（マージは `gh pr merge` 経由）。
-- **gh は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `pr merge` / `pr checkout` / `issue view` のみ**。`gh pr create`・`gh issue comment`・`gh api`・`gh alias`・`gh repo` 等は**使えない**。per-subcommand のフラグ許可リストがあり、`--web`/`--editor` 等の外部起動フラグ・未知フラグは deny。**`gh pr merge --admin` は不可**（第2次修正でブランチ保護バイパスを最小権限で塞ぐため許可フラグから除外。`--squash`/`--merge`/`--rebase`/`--delete-branch` は可）。`gh --repo <owner/repo>`/`-R` の値指定のみ global option として許容（他の gh global option・先頭の環境変数代入（`NAME=value …`）・`env` ラッパーは deny）。
+- **gh は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `pr merge` / `pr checkout` / `issue view` のみ**。`gh pr create`・`gh issue comment`・`gh api`・`gh alias`・`gh repo` 等は**使えない**。per-subcommand のフラグ許可リストがあり、`--web`/`--editor` 等の外部起動フラグ・未知フラグは deny。**`gh pr merge --admin` は不可**（`--squash`/`--merge`/`--rebase`/`--delete-branch` は可）。`gh --repo <owner/repo>`/`-R` の値指定のみ global option として許容（他の gh global option・先頭の環境変数代入（`NAME=value …`）・`env` ラッパーは deny）。
 - **シェル記号は全面禁止**：クォート外の `| & ; ( ) { } < > $ backtick 改行`、ダブルクォート内の `$`・backtick。**パイプ・リダイレクト・コマンド置換・ヒアドキュメント・ブレース展開・`&&`/`;` チェイン・複数行コマンドは使えない**（1回の Bash 呼び出し＝1コマンド）。**ヒアドキュメント（`--body "$(cat <<'EOF' … EOF)"`）は廃止**。
 - **レビュー本文の渡し方**（このロールは `Write` を持たない＝ファイルを作れないため `--body-file` は使えない）：**クォートで囲んだ複数行の `--body`** を使う。
   - 第一選択＝**シングルクォート**：`gh pr comment <n> --body '## レビュー結果\n…\n- `git merge` は…'`（シングルクォート内は改行・backtick・`|`・`( )` すべてリテラルで安全に通る。本文に `'`（アポストロフィ）を含められない点だけ注意——含めるなら言い換える）。
   - 本文にアポストロフィが必要な場合＝**ダブルクォート**で囲み、Markdown のインラインコードの backtick を `\`` とエスケープする（`$` は使えない）。
-  - `gh pr review <n> --approve --body '…'` / `gh pr merge <n>` も同様。**注意**：`gh pr review` は現状 `--body`（インライン）のみ許可で `--body-file` は allowlist 外（over-deny 是正候補・要オーナー判断）。このロールは Write を持たずどのみち `--body` を使うため実害はない。
+  - `gh pr review <n> --approve --body '…'` / `gh pr merge <n>` も同様。`gh pr review` は `--body`（インライン）のみで **`--body-file` は使えない**（本ロールは Write を持たずどのみち `--body` を使う。allowlist をこの形にしている経緯＝`.claude/rationale/pr-reviewer.md`）。
 - **パイプ/grep/cat の代替**：`gh --json`/`--jq`、`gh pr diff`、`python3 -m gitgate log -n <N> --grep <pat> --oneline`、`python3 -m gitgate diff main...HEAD` 等の**ネイティブフラグ**を使う。ファイル閲覧・検索は Bash を経由せず **Read / Grep / Glob ツール**で行う。
 - **テスト実行**：`python3 -m unittest discover -s tests/unit`（`| tee` でのログ保存は層1で deny されるため使わない）。
 

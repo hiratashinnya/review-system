@@ -59,8 +59,8 @@ worktree の初期 HEAD が `origin/main` とは限らないこと＝`.claude/ra
 
 ## Bash 実行規律（ホワイトリスト方式・Issue #227 追加修正3・ハーネスで機械強制）
 `.claude/hooks/agent-command-gate.sh` が、このロールの Bash を **「シェル記号を含まない単純な1コマンド」** に制限する（違反は PreToolUse で deny）。次の書き方に従うこと。
-- **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2}` だけ**（第2次修正で **pytest は不可**＝任意 path/conftest/plugin を実行するため）。**`python3 -m karte` は本ロールでは deny**（Issue #308＝カルテは是正ラウンドの機構で、書き手は `issue-fixer` に一本化されている）。`coverage` は **`report`/`html`/`xml`/`json` のみ許可**で **`coverage run …` は deny**（任意 Python 実行経路のため。テストは `python3 -m unittest discover` を使う）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/`sed`/`awk`/`grep`/`jq`/`pip` 等は先頭語として一律 deny（パス付き `./git` も deny）。
-- **生 `git …` は全面 deny**。git 操作は薄いラッパー **`python3 -m gitgate <verb>`** 経由で行う（gitgate は固定テンプレートの git argv を `shell=False` で組み立てるため、`--receive-pack`/`--upload-pack`/`--output` 等の exec/write フラグがユーザ入力から git に一切届かない）。このロールで使える verb と対応する git 操作：
+- **許可される先頭コマンドは `gh` / `python3 -m {gitgate,unittest,coverage,dsv2}` だけ**（**pytest は不可**）。**`python3 -m karte` は本ロールでは deny**（Issue #308）。`coverage` は **`report`/`html`/`xml`/`json` のみ許可**で **`coverage run …` は deny**（テストは `python3 -m unittest discover` を使う）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/`sed`/`awk`/`grep`/`jq`/`pip` 等は先頭語として一律 deny（パス付き `./git` も deny）。
+- **生 `git …` は全面 deny**。git 操作は薄いラッパー **`python3 -m gitgate <verb>`** 経由で行う。このロールで使える verb と対応する git 操作：
   - `status` → `git status`（引数なし）
   - `add <paths…>` → `git add -- <paths>`（`--` 以降＝オプション解釈なし）
   - `commit <message-file>` → `git commit -F <file>`（メッセージは Write ツールでファイル化して渡す）
