@@ -50,6 +50,28 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
   **ラウンドをまたいで蓄積される呼び出し元側の台帳**であって本ロールの出力ではなく、受け渡し方式の
   見直しは Issue #354 の範囲。
 
+## Step 2 の `close-attempt --base` を明示させる理由（移設元：「Step 2: Fix」ステップ0/4）
+
+`close-attempt` の `--base` 既定は `HEAD`。Step 2 の手順順序は「Edit → テスト → **commit/push** →
+`close-attempt`」なので、`--base` を省略すると commit/push 直後は作業ツリーが HEAD と一致し、
+diff が空になる。空の実測 touched-set が append-only の台帳へ無言で固定されるのは、実測信号
+（次ラウンドの類似判定の入力）が静かに劣化する事故であり、実際に PR #353 是正ラウンド1で発生した
+（Issue #355）。
+
+対策としては (a) `--base` を毎回明示する、(b) `close-attempt` を commit 前（Edit 直後・作業ツリーに
+差分がある状態）に呼ぶよう手順を入れ替える、の2案を検討した。**(b) は採らなかった**——`git diff HEAD`
+は commit 前の状態では**未追跡（untracked）ファイルを含まない**。本ロールの修正が新規ファイル
+（新しいテストファイル等・本リポジトリで頻出）を追加するケースでは、commit 前に呼ぶと touched-set が
+不完全または空になり、#355 が守ろうとしている実測信号をむしろ弱める。commit 後（新規ファイルも
+`/dev/null → b/path` の diff として現れる）に、ステップ0で控えた commit を `--base` に明示して渡す
+(a) の方が、`gitgate add` と `gitgate commit` の間に verb 呼び出しを挟むような手順上の脆さも無く安全。
+`HEAD~1` は「このラウンドの修正が1コミットに収まっている」場合の近似値にすぎず（pre-commit hook 等で
+追加コミットが生じると誤る）、必ずステップ0で控えた実際の commit を使うことを明記している。
+
+`--base` を明示しても diff が本当に空になるケース（レビュー観点の解釈違いで実装は元々正しく、
+コード変更が不要だった等）はある。この場合だけ `--outcome no-change` を使う——CLI 側がそれ以外の
+`outcome` では空 diff を fail-close で拒否する（Issue #355 の受入基準）。
+
 ## 既知の限界（Issue #129で追跡・過信しない）（移設元：同名の節）
 
 `agent-command-gate.sh` の判定はシェル文字列の**静的検査**であり sandbox ではない。`agent_type` の詐称・

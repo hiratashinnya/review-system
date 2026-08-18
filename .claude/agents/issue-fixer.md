@@ -139,6 +139,8 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 
 診断が登録されて初めてコードを触る。以降は通常の実装契約と同じ：
 
+0. `Edit`/`Write` の前に `python3 -m gitgate log -n 1 --oneline` の出力（1行）を控える
+   （ステップ4の `--base` に使う。理由＝`.claude/rationale/issue-fixer.md`）。
 1. `Edit` / `Write` で **Step 1 で宣言した `targets` の範囲**を直す。宣言と実際に触った範囲が
    食い違うと `close-attempt` の実測 touched-set とズレて類似判定が狂うので、範囲が変わったと
    気づいた時点で診断からやり直す（宣言を後付けで合わせない）。
@@ -146,9 +148,11 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 3. `python3 -m gitgate status` → `python3 -m gitgate add <paths…>` → コミットメッセージを `Write` で
    ファイル化 → `python3 -m gitgate commit <file>` → `python3 -m gitgate push`。
 4. **結果をカルテへ記録する**：
-   `python3 -m karte close-attempt --issue <N> --outcome <fixed|partial|no-change|regressed> --note <1行>`
-   → 実際の差分から touched-set を実測して `### Result k` として追記される。ここを飛ばすと
-   次ラウンドの類似判定が宣言信号だけになり、ゲートが弱くなる。
+   `python3 -m karte close-attempt --issue <N> --outcome <fixed|partial|no-change|regressed> --base <ステップ0の値> --note <1行>`
+   → **`--base` を必ず明示する**（既定 `HEAD` は commit/push 後は空 diff を生む＝Issue #355）。
+   複数 Attempt が未クローズなら `--attempt` も明示する（Issue #378）。差分が無いときだけ
+   `--outcome no-change`（それ以外で空 diff は拒否される）。ここを飛ばすと次ラウンドの類似判定が
+   宣言信号だけになり、ゲートが弱くなる。
 5. PR は既存のものを使う（push で更新される）。**新しい PR を開かない。**
 
 ## Bash 実行規律（ホワイトリスト方式・Issue #227 追加修正3・ハーネスで機械強制）
