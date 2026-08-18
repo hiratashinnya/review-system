@@ -13,6 +13,12 @@ verb:
                      反復された root_cause / targets を名指しした転換指令を stdout に返す。
   ``close-attempt``  修正後の実測 touched-set を ``### Result k`` として追記する
                      （実測信号の供給源。Attempt ブロック自体は書き換えない）。
+                     ``--attempt`` 省略時は未クローズの Attempt が1つならそれを使い、
+                     2つ以上あれば fail-close して明示を要求する（Issue #378・詳細は
+                     :func:`_resolve_close_attempt_number`）。実測 diff が空のときは
+                     ``--outcome no-change`` の場合を除き fail-close する（Issue #355・
+                     詳細は README）。宣言 ``targets`` と実測 touched が一切重ならない
+                     ときは警告のみ（拒否はしない・Issue #378 C）。
   ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか、
                      および**全 Attempt** が ``close-attempt`` 済みか（実測信号の供給）。
   ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
@@ -307,6 +313,51 @@ def _validate_attempt_number(value) -> int:
     if not text.isdigit() or int(text) < 1:
         raise KarteUsageError(f"attempt は 1 以上の整数: {value!r}")
     return int(text)
+
+
+def _resolve_close_attempt_number(args, karte) -> int:
+    """``close-attempt`` の ``--attempt`` 省略時の既定値を決める（Issue #378・案 B）。
+
+    以前は「直近で append された Attempt」（``next_attempt_number() - 1``）へ無条件に
+    解決していた。複数 Attempt を先に append してからまとめて close する運用では、
+    **最後に append した Attempt へ全部が吸い込まれ**、誤った Attempt への記録を
+    2 ラウンド連続で誘発した（PR #364 是正ラウンド 2・3）。
+
+    新しい規則:
+      * 未クローズ（``results_for`` が空）の Attempt が **ちょうど 1 つ**なら、それを使う
+        （最新でなくてもよい——曖昧さが無いので安全側）。これが「1 つ append → すぐ close」
+        という従来からの主要な運用と一致し、後方互換を保つ。
+      * 未クローズが **複数** あれば、どれを閉じるつもりか読み取れないので fail-close し、
+        ``--attempt`` の明示を要求する（曖昧なら止めるのが最も確実・B の哲学）。
+      * 未クローズが **0** なら、fail-close して ``--attempt`` の明示か ``append`` を促す。
+        ただし「0」は 2 通りの事実を含みうるので、それぞれ**自分の状態を正しく述べる**
+        メッセージに分ける（F-378-01）——
+          - **Attempt が 1 件も無い**（``append`` をまだ 1 度も呼んでいない）。
+          - **Attempt はあるが全件クローズ済み**（結果は既に記録されている）。
+        両者を同じ「全 Attempt が既にクローズ済み」文言に潰すと、Attempt を1件も
+        append していない利用者に事実と異なる説明を返す（実行時挙動＝fail-close は
+        どちらも正しいが、原因の説明が不正確になる）。
+    """
+    if args.attempt is not None:
+        return _validate_attempt_number(args.attempt)
+    unclosed = [item.number for item in karte.attempts if not karte.results_for(item.number)]
+    if len(unclosed) > 1:
+        raise KarteUsageError(
+            "--attempt が未指定で、未クローズの Attempt が複数ある（"
+            + ", ".join(f"Attempt {number}" for number in unclosed)
+            + "）。どの Attempt に記録するか --attempt で明示すること（Issue #378）"
+        )
+    if len(unclosed) == 1:
+        return unclosed[0]
+    if not karte.attempts:
+        raise KarteUsageError(
+            "--attempt が未指定で、カルテに Attempt が1件も無い。"
+            "先に `append` すること（Issue #378）"
+        )
+    raise KarteUsageError(
+        "--attempt が未指定で、全 Attempt が既にクローズ済み。"
+        "--attempt を明示するか、先に `append` すること（Issue #378）"
+    )
 
 
 def _load(args, issue: int):
@@ -808,11 +859,7 @@ def cmd_append(args) -> int:
 def cmd_close_attempt(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
-    number = (
-        _validate_attempt_number(args.attempt)
-        if args.attempt is not None
-        else karte.next_attempt_number() - 1
-    )
+    number = _resolve_close_attempt_number(args, karte)
     attempt = karte.attempt(number)
     if attempt is None:
         raise KarteUsageError(f"Attempt {number} がカルテに無い（先に `append` する）")
@@ -821,12 +868,23 @@ def cmd_close_attempt(args) -> int:
             f"Attempt {number} には既に Result がある（既存ブロックは書き換えない＝追記のみ）"
         )
 
+    outcome = _validate_outcome(args.outcome)
+
     if args.diff_file:
         diff_path = paths.resolve_within_repo(args.diff_file, _repo_root(args))
         diff_text = paths.read_text(diff_path)
     else:
         diff_text = touched_mod.git_diff(_repo_root(args), args.base)
     measured = model.check_list(touched_mod.parse_diff(diff_text), "touched")
+
+    if not measured and outcome != "no-change":
+        raise KarteUsageError(
+            "実測 touched-set が空（diff が空）。"
+            "--base（既定 HEAD）が対象の変更を含む範囲を正しく指しているか、"
+            "または --diff-file の内容を確認して明示すること。"
+            "差分なしで解消と判定する場合は --outcome no-change を指定する"
+            "（Issue #355）"
+        )
 
     finding_ids = (
         model.validate_finding_ids(args.finding_ids) if args.finding_ids else list(attempt.finding_ids)
@@ -839,16 +897,26 @@ def cmd_close_attempt(args) -> int:
         attempt=number,
         finding_ids=finding_ids,
         touched=measured,
-        outcome=_validate_outcome(args.outcome),
+        outcome=outcome,
         note=model.check_scalar(args.note or "", "note"),
     )
     paths.append_text(path, "\n" + model.render_result(result))
 
     print(f"=== close-attempt: issue-{issue} Attempt {number} ===")
     print(f"  outcome: {result.outcome}")
-    print(f"  実測 touched: {', '.join(result.touched) or '(差分なし)'}")
-    if not result.touched:
-        print("  注意: 差分が空。--base / --diff-file の指定が正しいか確認する")
+    print(f"  実測 touched: {', '.join(result.touched) or '(差分なし・no-change)'}")
+
+    target_files = {item.split("::", 1)[0] for item in attempt.targets}
+    touched_files = {item.split("::", 1)[0] for item in measured}
+    if measured and not (target_files & touched_files):
+        print(
+            "  注意: 宣言 targets（"
+            + ", ".join(attempt.targets)
+            + "）と実測 touched（"
+            + ", ".join(measured)
+            + "）が重ならない。誤った Attempt に記録した可能性がある"
+            "（Issue #378 C）"
+        )
 
     karte = model.parse(paths.read_text(path))
     for candidate_number, members, hits, candidate in _saturated_groups(karte):
@@ -1137,12 +1205,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     close = subparsers.add_parser("close-attempt", help="実測 touched-set を Result として追記")
     add_issue(close)
-    close.add_argument("--attempt", help="対象 Attempt 番号（省略時は最新）")
+    close.add_argument(
+        "--attempt",
+        help=(
+            "対象 Attempt 番号（省略時: 未クローズの Attempt が1つならそれを使う。"
+            "2つ以上あれば曖昧なので明示を要求して拒否する。0（Attempt が1件も無い、"
+            "または全件クローズ済み）でも同様に明示を要求して拒否する＝Issue #378）"
+        ),
+    )
     close.add_argument(
         "--outcome", required=True, choices=list(model.OUTCOMES), help="処置結果"
     )
     close.add_argument("--finding-ids", nargs="+", help="省略時は Attempt の finding_ids")
-    close.add_argument("--base", default="HEAD", help="git diff の比較先（既定 HEAD）")
+    close.add_argument(
+        "--base",
+        default="HEAD",
+        help=(
+            "git diff の比較先（既定 HEAD）。commit・push 後は作業ツリーが HEAD と一致し"
+            "diff が空になる——その場合は変更前の commit（例 HEAD~1）を明示するか"
+            "--diff-file を使う。診断せず空 diff で fixed/partial 等を記録することは"
+            "できない（--outcome no-change の場合のみ例外＝Issue #355）"
+        ),
+    )
     close.add_argument("--diff-file", help="git を呼ばず既存の diff ファイルから算出する")
     close.add_argument("--note", default="", help="結果の補足（1行）")
     close.set_defaults(func=cmd_close_attempt)
