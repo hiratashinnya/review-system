@@ -100,7 +100,7 @@
 > 46〔`p←mod` 39・`scm←cfg` 5・`d←p` 2〕／未決 2＝`ds←prs`。上表の注記を参照）。
 > drift 0・prompt-coverage 0。既存テスト/CI は不変（合成 fixture・pages.yml 非 validate）。
 
-### open FND（19 件）
+### open FND（20 件）
 
 | タイトル（要約） | scheduled | 対応 Issue | 備考 |
 |---|---|---|---|
@@ -123,6 +123,7 @@
 | tmp 掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす | 🗓 sprint-1 | PR #319（Issue #315） | **ERROR**。①語依存の絞り込みでガード記述が消えた文書は黙って対象外になる ②候補リストが固定で 4 ツリーのミラー・in-graph PROMPT を初めから含まず**現に 3 件を取りこぼし**。推奨＝必須リスト(MUST)＋動的候補(MAY)の 2 層化、4 ツリー分は asset_parity と分担。**v0.1.1（z バンプ）で自己参照的な数値（リポジトリ全体で 7 件）を候補集合基準の表現へ言い換え＋DD backref 付与** |
 | reconciliation の tmp 掃除ガードが in-graph PROMPT と Copilot・Codex ミラーに未同期 | 🗓 sprint-1 | PR #319（Issue #315） | **ERROR**。掃除ガードが `.claude/agents/reconciliation.md` にのみ反映され、PROMPT ノード／`.github` ミラー／`.codex` ミラーは「tmp/<sprint>/<parent-id>/ を削除する」のみで clean-tmp・保護名・rm 禁止をすべて欠く。PROMPT は Bash 許可用途に clean-tmp が無く掃除対象粒度も実体と不一致。推奨＝即時同期＋必須検査対象化 |
 | 検証結果が主文脈経由で writer へ渡り2段分離の fail-close を迂回できる | 🗓 sprint-1 | PR #326 | **ERROR**。validator の判定がチャット文字列として主文脈経由で writer へ渡るため、writer 側に真正性の検証手段が無く DD-22 の 2 段分離を迂回できる。本 PR の書込時に**現に逸脱が発生**（writer がハンドオフで自己申告）。分析層 P「草案スキーマ検証」/P「本ファイル転記」が述べる「検証済み草案」の担体（D ノード）も存在しない（PR4/PR6）。推奨＝writer 側の決定論ツール（validate.py/check-slug/drift）再実行によるゲート化＋受領ブロックの形式検査 |
+| CLAUDE.md の行番号引用が rules 分割で全て無効化し FND 3 件の是正指示が実体を外す | 🗓 sprint-1 | #387（PR #383） | **ERROR**。分割で `CLAUDE.md` 本体は 47 行に縮小し、`L86`／`L188–210`／`L192–195` の引用先が消滅。in-graph 3 FND（計 10 箇所）＋本ダッシュボード L117＋`archive/backref-v1` 3 箇所が空振り。とくに `tmp草案…` は**解消条件4（`CLAUDE.md` L86 の是正）が判定不能**＝当該 FND を解消できない。推奨＝行番号引用→節名引用へ一括置換（PR #383 が追加した「行番号での引用は使わない（節名で参照する）」規範への適合）。再発防止 lint の併用可否はオーナー判断 |
 
 > **起票 10 件の追加（2026-07-26・オーナー承認済み）**: 必須辺検証ルールの見直しに伴い、`config.yml` の
 > 必須辺規則が型内の部分集団を見落としている欠陥、および設計層と実装の双方向の乖離を在グラフ化した。
