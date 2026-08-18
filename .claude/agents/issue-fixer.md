@@ -139,8 +139,10 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 
 診断が登録されて初めてコードを触る。以降は通常の実装契約と同じ：
 
-0. `Edit`/`Write` の前に `python3 -m gitgate log -n 1 --oneline` の出力（1行）を控える
-   （ステップ4の `--base` に使う。理由＝`.claude/rationale/issue-fixer.md`）。
+0. `Edit`/`Write` の前に `python3 -m gitgate log -n 1 --oneline` を実行し、出力の**先頭にある
+   短縮コミットハッシュだけ**（空白区切りの1トークン目・件名は含めない）を控える
+   （ステップ4の `--base` に使う。件名込みで渡すと `karte/touched.py::validate_ref` が空白を含む値を
+   拒否して失敗する。理由＝`.claude/rationale/issue-fixer.md`）。
 1. `Edit` / `Write` で **Step 1 で宣言した `targets` の範囲**を直す。宣言と実際に触った範囲が
    食い違うと `close-attempt` の実測 touched-set とズレて類似判定が狂うので、範囲が変わったと
    気づいた時点で診断からやり直す（宣言を後付けで合わせない）。
