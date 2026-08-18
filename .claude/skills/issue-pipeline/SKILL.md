@@ -10,7 +10,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 > ファンアウト実行は `issue-implementer`（実装→PR）と `pr-reviewer`（レビュー→マージ）へ委譲し、
 > 重い調査は `agy-delegate` を積極利用する。
 > 原則：[spec-principles](../spec-principles/SKILL.md)（PR7 空で止めない・PR8 消さない）／規約：[CLAUDE.md](../../../CLAUDE.md)
-> （スコープ拡大禁止・スケジュール独断禁止・AI-attribution・Bloom 委譲）。**このスキルはそれらを再掲せず、上に立って回す**。
+> （スコープ拡大禁止＝[`.claude/rules/03-operational.md`「スコープ拡大禁止」](../../rules/03-operational.md)・
+> スケジュール独断禁止・AI-attribution・Bloom 委譲）。**このスキルはそれらを再掲せず、上に立って回す**。
 > **本ファイルは規範（normative）だけを載せる**（Issue #372）。設計判断の理由・却下案・残スコープの
 > status note・実測ログは [`.claude/rationale/issue-pipeline.md`](../../rationale/issue-pipeline.md) に
 > 移設済み（削除ではなく移設＝PR8）。分離の方針＝[`.claude/rationale/README.md`](../../rationale/README.md)。
@@ -192,7 +193,8 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 
 ### ③ スコープ拡張は別 Issue に逃がす（PR 肥大化の抑制・Issue #120 ⑧）
 レビュー/調査中に**現 PR/Issue のスコープを超える対応**が要ると分かったら、現 PR で直さず **サブ Issue / 別 Issue を起票**（`gh issue create`）。
-- `issue-implementer`/`pr-reviewer` は「スコープ外指摘」を報告して STOP する（自分で直さない・CLAUDE.md スコープ拡大禁止）。**起票の実行は主文脈**。
+- `issue-implementer`/`pr-reviewer` は「スコープ外指摘」を報告して STOP する（自分で直さない・
+  [`.claude/rules/03-operational.md`「スコープ拡大禁止」](../../rules/03-operational.md)）。**起票の実行は主文脈**。
 - doc-system-v2 に関わる指摘なら FND/Q ノード起票（`verification-author` 経由）も併せて主文脈が判断（CLAUDE.md）。
 
 ### ④ 先送りは必ずオーナー許可（独断禁止・Issue #120 ⑨ / CLAUDE.md スケジュール独断禁止）
