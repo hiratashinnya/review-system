@@ -507,11 +507,18 @@ def mark(
     lock_timeout_s: float = 5.0,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """エントリの状態を遷移させる（同一 status への遷移は no-op＝冪等）。
+    """エントリの状態を遷移させる。
 
     逆行遷移（``released`` → ``running`` 等）は ``LEDGER_ILLEGAL_TRANSITION`` で拒否する。
     ``note`` を渡すと ``notes`` に ``{"at": <stamp>, "note": <text>}`` を1件追記する
     （**既存の notes は消さない**）。``closed_at`` は終端状態へ入ったときだけ記録する。
+
+    **同一 status への遷移（``running`` → ``running`` 等）は許可されるが no-op ではない**
+    ——``status`` の値こそ変わらないものの、終端状態なら ``closed_at`` を新しいスタンプで
+    上書きし、``note`` / ``collected_to`` を渡していればそれも反映する（F-309-08：
+    「同一 status は no-op＝冪等」と書いていた旧記述を実装に合わせて訂正）。
+    ``closed_at`` の上書きは**意図的**——「最後にその状態を確認した時刻」が診断で要る。
+    判定入力（``status``）は変わらないので、再実行が状態機械を進めることはない。
     """
     stamp = _stamp(now)
     if status not in STATUSES:
@@ -615,8 +622,22 @@ def resolve_worktree_for_agent(repo_root, *, agent_id: str | None) -> tuple:
     3. それ以外は ``None`` を返して**推測しない**（``how`` は
        ``"ambiguous-running"`` / ``"no-unique-candidate"`` / ``"no-worktree"``）。
 
-    payload の内部形式（``agent_id`` の綴り・値の意味）に依存しないので、V-1 の結果が
-    どちらでも束縛は成立する。
+    payload の内部形式（``agent_id`` の綴り・値の意味）に依存しない＝**V-1 の結果が
+    どちらでも「推測で別 dispatch のエントリを潰す」ことは起きない**、が保証の範囲。
+
+    **束縛が毎回成立するとは限らない**（F-309-03・PR 本文の旧記述を訂正）:
+
+    * V-1 が「一致する」なら経路 1 で毎回束縛できる。
+    * V-1 が「一致しない」場合、経路 2 は「``running`` が1件も無い」ことを要求する。
+      **本 PR（PR-1）には ``running`` から抜ける遷移が1つも実装されていない**
+      （:func:`mark` を呼ぶ出荷経路が無い）ため、最初の束縛で ``running`` が1件でき、
+      **以降の dispatch はすべて ``ambiguous-running`` になる**。つまり差分検出で
+      束縛できるのは事実上**初回の1件だけ**で、残りは束縛されないまま ``open`` に
+      ``notes`` が積まれる。
+    * これは**既知の状態で、解消は PR-3 の担当**（回収・解放段＝``collected`` /
+      ``released`` への掃引を実装して ``running`` を空にする）。PR-1 の側で
+      「running から抜ける遷移」を先に足さないのは、削除・解放経路を統制より先に
+      作らないという順序を守るため。
     """
     on_disk = on_disk_worktrees(repo_root)
     if agent_id and AGENT_ID_RE.fullmatch(agent_id):

@@ -10,6 +10,11 @@
 
 ## 1. 着手前：過去の試行を読む
 
+**この手順書の直後（`---` の下）に `python3 -m karte render --issue <N>` の出力が既に
+添付されている**（K-14：フックが実行して `additionalContext` に載せる。呼び忘れの余地を
+無くすため注入側に寄せてある）。まずそれを読むこと。添付が無い場合＝進行ポインタが
+読めない等でフックが render を落としたときだけ、自分で実行する:
+
 ```
 python3 -m karte render --issue <N>
 ```
@@ -47,12 +52,20 @@ python3 -m karte check --issue <N> --round <R>
 `{"decision":"block"}` で拒否する（`.claude/hooks/subagent-stop-gate.sh`）。
 判定不能（進行ポインタ欠如・破損）も拒否側に倒れる＝fail-close。
 
+**この拒否は同じ停止要求に対して1回だけ**（2回目は `stop_hook_active` により素通しする）。
+判定不能の理由が**あなたには直せないもの**（進行ポインタの再生成＝`ingest-review` は
+是正当事者に許されない）でも詰まないようにするための逃げ道であって、
+「2回止めれば通る」という運用ではない。1回目の block reason を読み、
+できる記録（`append` / `close-attempt`）は必ず済ませてから停止すること。
+
 ## `{issue, round}` の出所
 
-**このフックはデータを押し込まない**（`SubagentStart` payload に dispatch prompt が無い）。
-`<N>` / `<R>` は進行ポインタ `tmp/_karte/active.json` が持っている値であり、
-`karte` CLI は `--issue` / `--round` を省略すればそこから補完する。
-ただし**並行運用時に別 Issue の台帳を書かないよう `--issue` は必ず明示する**。
+**dispatch prompt はフックに届かない**（`SubagentStart` payload に含まれない）。
+`<N>` / `<R>` の唯一の情報源は進行ポインタ `tmp/_karte/active.json` であり、
+フック（注入・停止ゲートとも）もあなたも同じそこを見る。
+`karte` CLI は `--issue` / `--round` を省略すればポインタから補完するが、
+**並行運用時に別 Issue の台帳を書かないよう `--issue` は必ず明示する**
+（フックが実行する `karte render` も同じ理由で `--issue` を明示している）。
 
 カルテの所在は `karte` CLI が `main_worktree_root()`（`.git`→`commondir`）で決定論的に
 解決する——**linked worktree から呼んでも必ずメインワークツリーの台帳に収束する**（K-01）。

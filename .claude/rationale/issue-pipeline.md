@@ -120,17 +120,26 @@
   **カルテ未更新のまま停止することを機械的に拒否する**ゲートであり、`SubagentStart` の
   worktree 束縛は**観測できない状態（worktree ↔ dispatch の所有関係）を観測可能にする**
   ための記録である。恒常契約という「助言的指示の配布」ではない。
-  カルテ手順の注入（`subagent-karte-inject.sh`）だけは助言に当たるが、これは
+  カルテの注入（`subagent-karte-inject.sh`）だけは助言に当たるが、これは
   「呼び忘れたら過去の試行を知らないまま修正に入る」という **#307/#309 が塞ごうとしている失敗
   そのもの**が対象で、`karte/cli.py` の `cmd_render` docstring（K-14）が「注入側に寄せた」と
   記録している設計判断に従う。
+  **K-14 準拠の実体は「フックが `python3 -m karte render --issue <N>` を実行し、その標準出力を
+  `additionalContext` に載せること」**であり、手順書（`karte-protocol.md`）の注入だけでは
+  K-14 を満たさない——手順書は「render を呼べ」という規範であって render の出力ではなく、
+  是正エージェントに render を引かせる形は K-14 が明示的に却下した設計だから。
+  PR-1 の初版は手順書だけを注入しており、この点はレビュー指摘 F-309-04 として是正した
+  （現在は手順書＋render 出力の2節を連結して注入する。render が取れないときは
+  手順書だけに縮退＝注入は助言なので fail-open）。
 - **理由(1)（フックだと settings.json ＋シェルに分散して可視性が落ちる）への対処**：
   注入本文はシェルから分離して `.claude/hooks/karte-protocol.md` に置き（`inject-governance.sh` と
   同作法）、判定ロジックは `issue_start/subagent_hooks.py` に置いて `.sh` は薄い起動口に留めた。
   分散の度合いを、既に同じ構成を採っている `issue-start-gate.sh` と同水準に抑えている。
 - **理由(3)（常時 ON のグローバル副作用）への対処**：3フックとも `matcher` で対象ロールを絞り、
-  **さらにスクリプト内でも `agent_type` を判定して対象外は無出力 exit 0** にした
-  （`agent-command-gate.sh` の「対象外ロールは常に許可」不変条件と同型）。二重にしたのは
+  **さらにスクリプト内でも `agent_type` を判定して対象外は stdout 無出力 exit 0** にした
+  （`agent-command-gate.sh` の「対象外ロールは常に許可」不変条件と同型。ただし stderr には
+  観測した payload のキー集合と判定結果を1行残す——「発火しなかった」と「発火したが対象外と
+  判定した」を V-1/V-2 の実測で区別するため＝F-309-05）。二重にしたのは
   `SubagentStart`/`SubagentStop` の `matcher` が `agent_type` 名で効くかが本 repo で未実測
   （要実測事項 V-2）だから——効かなくても他ロール・主文脈へ副作用が漏れない。
 - **覆した範囲の限定**：#309（PR-1）の時点で worktree の**削除**経路は1つも実装していない。

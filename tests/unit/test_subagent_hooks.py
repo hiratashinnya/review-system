@@ -62,6 +62,7 @@ class HookTestCase(unittest.TestCase):
         self.stdout = io.StringIO()
         self.stderr = io.StringIO()
         self.runner_calls = []
+        self.runner_kwargs = []
 
     def stdin(self, payload):
         return io.StringIO(json.dumps(payload))
@@ -71,6 +72,7 @@ class HookTestCase(unittest.TestCase):
 
         def run(argv, **kwargs):
             self.runner_calls.append(list(argv))
+            self.runner_kwargs.append(kwargs)
             return queue.pop(0) if len(queue) > 1 else queue[0]
 
         return run
@@ -102,6 +104,15 @@ class HookTestCase(unittest.TestCase):
     def assertSilentAllow(self):
         self.assertEqual(self.stdout.getvalue(), "", "対象外は stdout に何も出さない")
 
+    def evidence_lines(self, stderr=None):
+        """stderr の evidence（1行1 JSON）を dict のリストで返す。
+
+        evidence が JSON として読めること自体を検査に含める——人が読む散文ではなく
+        **機械可読な観測ログ**であることが要件（V-1/V-2 の post-merge 実測で使う）。
+        """
+        text = (self.stderr if stderr is None else stderr).getvalue()
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+
 
 class OutOfScopeTests(HookTestCase):
     """対象外ロール・`agent_type` 欠落は **どの verb でも無出力 exit 0**。
@@ -114,13 +125,52 @@ class OutOfScopeTests(HookTestCase):
     def test_karte_inject_is_silent_for_every_non_fixer_role(self):
         for label, payload in OUT_OF_SCOPE_PAYLOADS + [("implementer", {"agent_type": "issue-implementer"})]:
             with self.subTest(label=label):
-                stdout = io.StringIO()
+                stdout, stderr = io.StringIO(), io.StringIO()
                 rc = subagent_hooks.run_karte_inject(
-                    stdin=self.stdin(payload), stdout=stdout, stderr=io.StringIO(),
-                    project_root=ROOT,
+                    stdin=self.stdin(payload), stdout=stdout, stderr=stderr,
+                    project_root=ROOT, cwd=self.root, runner=self.runner(),
                 )
                 self.assertEqual(rc, 0)
                 self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual(self.runner_calls, [], "対象外でサブプロセスを起動しない")
+                self.assertEqual(self.evidence_lines(stderr)[0]["result"], "skip")
+
+    def test_every_verb_writes_one_evidence_line_for_out_of_scope_payloads(self):
+        """対象外・payload 不読でも stderr に evidence を1行残す（F-309-05）。
+
+        無出力 exit 0 のままだと、merge 直後の実測（V-1 / V-2）で「フックが発火しなかった」と
+        「発火したが対象外と判定した」を区別できない——まさに知りたいケース
+        （`agent_type` の綴り違い・payload が読めない）で診断材料がゼロになる。
+        """
+        cases = OUT_OF_SCOPE_PAYLOADS + [("unreadable", None)]
+        for verb, call in (
+            ("karte-inject", lambda **kw: subagent_hooks.run_karte_inject(
+                project_root=ROOT, cwd=self.root, runner=self.runner(), **kw)),
+            ("bind", lambda **kw: subagent_hooks.run_bind(
+                cwd=self.root, now=FIXED_NOW, **kw)),
+            ("stop", lambda **kw: subagent_hooks.run_stop(
+                cwd=self.root, runner=self.runner(), **kw)),
+        ):
+            for label, payload in cases:
+                with self.subTest(verb=verb, label=label):
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    stdin = io.StringIO("{not json") if payload is None else self.stdin(payload)
+                    rc = call(stdin=stdin, stdout=stdout, stderr=stderr)
+                    self.assertEqual(rc, 0)
+                    self.assertEqual(stdout.getvalue(), "", "stdout は無出力のまま")
+                    lines = self.evidence_lines(stderr)
+                    self.assertEqual(len(lines), 1, "evidence はちょうど1行")
+                    line = lines[0]
+                    self.assertEqual(line["hook"], f"subagent-{verb}")
+                    self.assertEqual(line["result"], "skip")
+                    if payload is None:
+                        self.assertEqual(line["reason"], "PAYLOAD_UNREADABLE")
+                        self.assertIsNone(line["payload_keys"], "読めない payload はキーも無い")
+                    else:
+                        self.assertEqual(line["reason"], "OUT_OF_SCOPE")
+                        # 観測したキー集合が載る＝V-2（綴り）の判定材料。値は載せない。
+                        self.assertEqual(line["payload_keys"], sorted(payload))
+                        self.assertNotIn("issue-fixer", json.dumps(line, ensure_ascii=False))
 
     def test_bind_is_silent_and_writes_no_ledger_for_out_of_scope_roles(self):
         for label, payload in OUT_OF_SCOPE_PAYLOADS:
@@ -159,25 +209,110 @@ class OutOfScopeTests(HookTestCase):
 
 
 class KarteInjectTests(HookTestCase):
-    def test_fixer_receives_the_protocol_as_additional_context(self):
+    """注入本文＝**手順書 ＋ ``karte render`` の出力**（K-14・F-309-04）。
+
+    ``karte/cli.py::cmd_render`` の docstring は「SubagentStart フックがこれを実行し
+    標準出力を ``additionalContext`` として自動注入する」と定めており、是正エージェント
+    自身に ``render`` を呼ばせる設計は「呼び忘れたら過去の試行を知らないまま修正に入る」
+    ため**明示的に却下されている**。手順書だけの注入は K-14 を満たさない
+    （手順書は「render を呼べ」という規範であって render の出力ではない）。
+    """
+
+    PROTOCOL = None
+    RENDER_STDOUT = "=== Karte: issue-309 / round 1 ===\n## Prior attempts（DO NOT repeat these）\n  - X"
+
+    def setUp(self):
+        super().setUp()
+        self.PROTOCOL = (ROOT / subagent_hooks.KARTE_PROTOCOL_REL).read_text(
+            encoding="utf-8"
+        ).strip()
+
+    def inject(self, *, project_root=ROOT, results=(FakeCompleted(0),), payload=None):
         rc = subagent_hooks.run_karte_inject(
-            stdin=self.stdin({"agent_type": "issue-fixer"}),
-            stdout=self.stdout, stderr=self.stderr, project_root=ROOT,
+            stdin=self.stdin(payload or {"agent_type": "issue-fixer"}),
+            stdout=self.stdout, stderr=self.stderr,
+            project_root=project_root, cwd=self.root, runner=self.runner(*results),
         )
         self.assertEqual(rc, 0)
-        output = json.loads(self.stdout.getvalue())
-        specific = output["hookSpecificOutput"]
+        return rc
+
+    def context(self):
+        specific = json.loads(self.stdout.getvalue())["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "SubagentStart")
-        body = specific["additionalContext"]
-        self.assertIn("python3 -m karte render", body)
+        return specific["additionalContext"]
+
+    def test_fixer_receives_the_protocol_and_the_rendered_karte(self):
+        self.write_active({"issue": 309, "round": 1})
+        self.inject(results=(FakeCompleted(0, stdout=self.RENDER_STDOUT + "\n"),))
+        body = self.context()
+        # 1節目＝手順書（シェルからも python からも分離されたファイルが唯一の出所）。
         self.assertIn("python3 -m karte append", body)
         self.assertIn("python3 -m karte check", body)
-        # 注入本文はシェルからも python からも分離されたファイルが唯一の出所。
+        # 2節目＝render の出力そのもの（手順書の文言ではなくカルテの中身）。
         self.assertEqual(
-            body, (ROOT / subagent_hooks.KARTE_PROTOCOL_REL).read_text(encoding="utf-8").strip()
+            body, self.PROTOCOL + subagent_hooks.INJECT_SEPARATOR + self.RENDER_STDOUT
         )
+        self.assertIn("Prior attempts", body, "過去の試行が本文として届いている")
 
-    def test_missing_or_empty_protocol_skips_injection_fail_open(self):
+    def test_render_is_invoked_with_an_explicit_issue_from_the_active_pointer(self):
+        """``--issue`` は必ず明示する（並行運用時に別 Issue のカルテを読ませない）。"""
+        self.write_active({"issue": 309, "round": 4})
+        self.inject(results=(FakeCompleted(0, stdout=self.RENDER_STDOUT),))
+        self.assertEqual(
+            self.runner_calls[0][1:], ["-m", "karte", "render", "--issue", "309"]
+        )
+        self.assertEqual(self.runner_kwargs[0]["cwd"], str(self.root))
+        self.assertFalse(self.runner_kwargs[0]["shell"])
+
+    def test_render_failure_degrades_to_the_protocol_only_fail_open(self):
+        """注入は助言なので、render が落ちても手順書だけで注入を続ける（fail-open）。
+
+        停止ゲート（run_stop）の fail-close とは方向が逆であることに注意。
+        """
+        self.write_active({"issue": 309, "round": 1})
+        for label, results in (
+            ("exit-2", (FakeCompleted(2, stderr="未検出"),)),
+            ("empty-stdout", (FakeCompleted(0, stdout="  \n"),)),
+        ):
+            with self.subTest(label=label):
+                self.stdout, self.stderr = io.StringIO(), io.StringIO()
+                self.inject(results=results)
+                self.assertEqual(self.context(), self.PROTOCOL)
+                reasons = [line.get("reason") for line in self.evidence_lines()]
+                self.assertIn("KARTE_RENDER_FAILED", reasons)
+
+    def test_unrunnable_render_degrades_to_the_protocol_only(self):
+        self.write_active({"issue": 309, "round": 1})
+
+        def boom(argv, **kwargs):
+            self.runner_calls.append(list(argv))
+            raise OSError("python3 not found")
+
+        subagent_hooks.run_karte_inject(
+            stdin=self.stdin({"agent_type": "issue-fixer"}),
+            stdout=self.stdout, stderr=self.stderr,
+            project_root=ROOT, cwd=self.root, runner=boom,
+        )
+        self.assertEqual(self.context(), self.PROTOCOL)
+        self.assertIn("KARTE_RENDER_UNRUNNABLE", self.stderr.getvalue())
+
+    def test_missing_active_pointer_skips_render_without_running_it(self):
+        self.inject()
+        self.assertEqual(self.context(), self.PROTOCOL)
+        self.assertEqual(self.runner_calls, [], "issue が決まらないなら render を起動しない")
+        reasons = [line.get("reason") for line in self.evidence_lines()]
+        self.assertIn("ACTIVE_POINTER_UNREADABLE", reasons)
+
+    def test_rendered_karte_is_injected_even_without_the_protocol_file(self):
+        """2節は独立している——片方が落ちてももう片方は届く。"""
+        self.write_active({"issue": 309, "round": 1})
+        self.inject(
+            project_root=self.root,  # 手順書が存在しない一時ルート
+            results=(FakeCompleted(0, stdout=self.RENDER_STDOUT),),
+        )
+        self.assertEqual(self.context(), self.RENDER_STDOUT)
+
+    def test_missing_or_empty_protocol_and_no_karte_injects_nothing_fail_open(self):
         for label, prepare in (
             ("missing", lambda root: None),
             ("empty", lambda root: (root / subagent_hooks.KARTE_PROTOCOL_REL).write_text(
@@ -186,14 +321,17 @@ class KarteInjectTests(HookTestCase):
             with self.subTest(label=label):
                 (self.root / ".claude" / "hooks").mkdir(parents=True, exist_ok=True)
                 prepare(self.root)
-                stdout, stderr = io.StringIO(), io.StringIO()
+                self.stdout, self.stderr = io.StringIO(), io.StringIO()
                 rc = subagent_hooks.run_karte_inject(
                     stdin=self.stdin({"agent_type": "issue-fixer"}),
-                    stdout=stdout, stderr=stderr, project_root=self.root,
+                    stdout=self.stdout, stderr=self.stderr,
+                    project_root=self.root, cwd=self.root, runner=self.runner(),
                 )
                 self.assertEqual(rc, 0)
-                self.assertEqual(stdout.getvalue(), "", "注入は助言＝fail-open")
-                self.assertIn("skip", stderr.getvalue())
+                self.assertEqual(self.stdout.getvalue(), "", "注入は助言＝fail-open")
+                self.assertIn("skip", self.stderr.getvalue())
+                reasons = [line.get("reason") for line in self.evidence_lines()]
+                self.assertIn("NOTHING_TO_INJECT", reasons)
 
 
 class BindTests(HookTestCase):
@@ -394,6 +532,81 @@ class StopKarteGateTests(HookTestCase):
         self.assertEqual(decision["decision"], "block")
         self.assertIn("起動できなかった", decision["reason"])
 
+    def test_reentrant_stop_is_not_blocked_again(self):
+        """一度 block した後の再入（``stop_hook_active``）は判定せず通す（F-309-02）。
+
+        block reason が指す脱出手順は、条件によっては**ブロックされた当人には実行できない**
+        （進行ポインタの再生成に要る ``karte ingest-review`` は是正当事者に許されない＝
+        Issue #308 / #341）。再入判定が無いと、満たしようのない条件を突きつけられたまま
+        永久に停止できない。
+        """
+        # active.json は無い＝1回目なら必ず block する条件。
+        for label, key in (("stop_hook_active", "stop_hook_active"),
+                           ("subagent_stop_hook_active", "subagent_stop_hook_active")):
+            with self.subTest(label=label):
+                self.stdout, self.stderr = io.StringIO(), io.StringIO()
+                payload = {**self.fixer(), key: True}
+                rc = subagent_hooks.run_stop(
+                    stdin=self.stdin(payload), stdout=self.stdout, stderr=self.stderr,
+                    cwd=self.root, runner=self.runner(),
+                )
+                self.assertEqual(rc, 0)
+                self.assertSilentAllow()
+                self.assertEqual(self.runner_calls, [], "再入では karte check も起動しない")
+                reasons = [line.get("reason") for line in self.evidence_lines()]
+                self.assertIn("STOP_HOOK_REENTRY", reasons)
+
+    def test_first_stop_still_blocks_before_the_reentry_escape(self):
+        """再入で通すのは**2回目以降**——1回目は必ず止めて理由を届ける（ゲートを弱めない）。"""
+        rc = subagent_hooks.run_stop(
+            stdin=self.stdin({**self.fixer(), "stop_hook_active": False}),
+            stdout=self.stdout, stderr=self.stderr, cwd=self.root, runner=self.runner(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.decision()["decision"], "block")
+
+    def test_block_reason_only_lists_steps_the_fixer_can_perform(self):
+        """脱出手順は**当人が実行できるもの**だけ（F-309-02）。
+
+        旧 reason は「主文脈が ingest-review を実行すること」を指示していたが、
+        それを読むのはブロックされた `issue-fixer` 自身であり、当の操作は当人には
+        許されていない＝自力では条件を満たせない。
+        """
+        subagent_hooks.run_stop(
+            stdin=self.stdin(self.fixer()), stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, runner=self.runner(),
+        )
+        reason = self.decision()["reason"]
+        self.assertIn("判定不能は fail-close", reason)
+        self.assertIn("1回だけ", reason, "再入で抜けられることを本人に伝える")
+        self.assertIn("stop_reason", reason, "呼び出し元へ報告して停止する道を示す")
+        self.assertIn("是正当事者には許されない", reason)
+
+    def test_repo_root_failure_blocks_the_fixer_fail_close(self):
+        """カルテの置き場を導出できない＝判定不能なので `issue-fixer` は block（fail-close）。"""
+        (self.root / ".git").write_text("not a gitdir line\n", encoding="utf-8")
+        subagent_hooks.run_stop(
+            stdin=self.stdin(self.fixer()), stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, runner=self.runner(),
+        )
+        self.assertEqual(self.decision()["decision"], "block")
+        self.assertIn("REPO_ROOT_UNRESOLVED", self.stderr.getvalue())
+
+    def test_implementer_survives_an_unresolvable_repo_root(self):
+        """`issue-implementer` の SubagentStop は台帳パスを導出しない（F-309-06）。
+
+        本来なにもしない経路なのに導出が例外を投げて未捕捉のまま exit 1 になると、
+        無関係な dispatch にエラーを出す。導出を `issue-fixer` 経路の内側へ移した回帰。
+        """
+        (self.root / ".git").write_text("not a gitdir line\n", encoding="utf-8")
+        rc = subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": "issue-implementer", "agent_id": "abc"}),
+            stdout=self.stdout, stderr=self.stderr, cwd=self.root, runner=self.runner(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertSilentAllow()
+        self.assertEqual(self.runner_calls, [])
+
     def test_implementer_is_not_subject_to_the_karte_gate(self):
         """カルテ規律は是正ラウンド（`issue-fixer`）の契約。実装者は対象外。"""
         rc = subagent_hooks.run_stop(
@@ -455,49 +668,123 @@ class NoDeletionPathTests(HookTestCase):
                 self.assertNotIn("worktree", code)
                 self.assertNotIn("rm ", code)
 
-    def test_karte_check_argv_is_the_only_subprocess_contract(self):
+    def test_karte_argv_builders_are_the_only_subprocess_contract(self):
+        """本 PR がサブプロセスを起動するのは `karte check` と `karte render` の2つだけ。
+
+        どちらも `karte` の read-only / 検査 verb であり、`git worktree remove` は現れない。
+        """
         self.assertEqual(
             subagent_hooks.karte_check_argv(7, 3)[1:],
             ["-m", "karte", "check", "--issue", "7", "--round", "3"],
         )
+        self.assertEqual(
+            subagent_hooks.karte_render_argv(7)[1:],
+            ["-m", "karte", "render", "--issue", "7"],
+        )
+        for argv in (subagent_hooks.karte_check_argv(7, 3), subagent_hooks.karte_render_argv(7)):
+            self.assertNotIn("worktree", argv)
+            self.assertNotIn("remove", argv)
 
 
 @unittest.skipUnless(_HAS_BASH, "bash が無い環境ではフック起動口を検証しない")
 class LauncherWiringTests(unittest.TestCase):
-    """`.sh` 起動口（PYTHONPATH ＋ verb）が実際に python モジュールへ届くこと。
+    """`.sh` 起動口が **cwd に依らず** `$CLAUDE_PROJECT_DIR` 側の実体へ届くこと（F-309-01）。
+
+    `python3 -m` は **sys.path[0] にプロセスの cwd を先に置く**ため、PYTHONPATH に
+    `$CLAUDE_PROJECT_DIR` を入れるだけでは足りない——別ツリー（linked worktree・別 checkout）を
+    cwd に起動されると cwd 側の `issue_start` が正本側を覆い隠し、`ModuleNotFoundError` で
+    exit 1 になる。**停止ゲートにとってこれは fail-close の破れ**（block されず素通りする）。
+
+    そこで全テストを、`issue_start` は持つが `subagent_hooks` を持たない**おとりディレクトリ**を
+    cwd にして走らせる。旧実装（`cd` も `PYTHONSAFEPATH` も無い版）はここで必ず落ちる。
 
     副作用のある経路（台帳への書込・`karte check` 実行）は**実リポジトリを汚すので
-    サブプロセスでは踏まない**。ここで見るのは配線だけ。
+    サブプロセスでは踏まない**。`karte render` は read-only なので踏んでよい。
     """
 
-    def run_hook(self, verb, payload):
+    @classmethod
+    def setUpClass(cls):
+        cls._decoy = tempfile.TemporaryDirectory(prefix="subagent-hooks-decoy-")
+        decoy = Path(cls._decoy.name).resolve()
+        package = decoy / "issue_start"
+        package.mkdir()
+        # `issue_start` はあるが `subagent_hooks` は無い＝cwd が優先されたら
+        # ModuleNotFoundError になる形（レビューアが F-309-01 を再現した状況と同型）。
+        (package / "__init__.py").write_text("", encoding="utf-8")
+        cls.DECOY = decoy
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._decoy.cleanup()
+
+    def run_hook(self, verb, payload, cwd=None):
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT)}
+        env.pop("PYTHONPATH", None)
+        env.pop("PYTHONSAFEPATH", None)
         return subprocess.run(
             ["bash", str(HOOK_SCRIPTS[verb])],
-            input=json.dumps(payload), text=True, capture_output=True, env=env, check=True,
+            input=json.dumps(payload), text=True, capture_output=True, env=env,
+            cwd=str(self.DECOY if cwd is None else cwd), check=True,
         )
 
-    def test_every_launcher_is_silent_for_an_out_of_scope_role(self):
+    def test_every_launcher_reaches_the_module_from_a_foreign_cwd(self):
+        """外部 cwd から起動しても正本側の判定が動く（＝素通りしていない）。
+
+        「無出力 exit 0」だけを見ると、判定が走った結果の対象外なのか、
+        モジュールに届かず落ちたのかを区別できない。evidence 行の存在で前者を確認する
+        （F-309-05 の evidence がここで F-309-01 の検出器としても効く）。
+        """
         for verb in HOOK_SCRIPTS:
             with self.subTest(verb=verb):
                 result = self.run_hook(verb, {"agent_type": "pr-reviewer"})
-                self.assertEqual(result.stdout, "")
-                self.assertEqual(result.stderr, "", "内部エラーが静かに素通りしていない")
+                self.assertEqual(result.stdout, "", "対象外は stdout に何も出さない")
+                self.assertNotIn("ModuleNotFoundError", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                lines = [line for line in result.stderr.splitlines() if line.strip()]
+                self.assertEqual(len(lines), 1, f"evidence 1行だけのはず: {result.stderr!r}")
+                evidence = json.loads(lines[0])
+                self.assertEqual(evidence["result"], "skip")
+                self.assertEqual(evidence["agent_type"], "pr-reviewer")
 
-    def test_karte_inject_launcher_emits_the_protocol(self):
+    def test_karte_inject_launcher_emits_the_protocol_from_a_foreign_cwd(self):
         result = self.run_hook("karte-inject", {"agent_type": "issue-fixer"})
         specific = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "SubagentStart")
-        self.assertIn("python3 -m karte render", specific["additionalContext"])
+        body = specific["additionalContext"]
+        self.assertIn("python3 -m karte render", body)
+        self.assertIn("python3 -m karte append", body)
 
     def test_unknown_verb_is_a_no_op(self):
+        """モジュール直起動の usage 経路（起動口ではなくエントリポイントの契約）。
+
+        cwd を明示するのは、テストランナーの cwd（別 checkout かもしれない）に
+        判定結果を依存させないため——起動口側の cwd 非依存は上の2本が見ている。
+        """
         env = {**os.environ, "PYTHONPATH": str(ROOT)}
         result = subprocess.run(
             ["python3", "-m", "issue_start.subagent_hooks", "release-worktree"],
-            input="{}", text=True, capture_output=True, env=env, check=True,
+            input="{}", text=True, capture_output=True, env=env,
+            cwd=str(ROOT), check=True,
         )
         self.assertEqual(result.stdout, "")
         self.assertIn("usage:", result.stderr)
+
+    def test_launchers_do_not_depend_on_an_inherited_pythonpath(self):
+        """呼び出し元の PYTHONPATH が汚れていても正本側が勝つ。
+
+        `$CLAUDE_PROJECT_DIR` は export される PYTHONPATH の**先頭**に積まれる。
+        """
+        result = self.run_hook("bind", {"agent_type": "pr-reviewer"})
+        self.assertEqual(result.returncode, 0)
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT), "PYTHONPATH": str(self.DECOY)}
+        polluted = subprocess.run(
+            ["bash", str(HOOK_SCRIPTS["bind"])],
+            input=json.dumps({"agent_type": "pr-reviewer"}), text=True,
+            capture_output=True, env=env, cwd=str(self.DECOY), check=True,
+        )
+        self.assertEqual(polluted.stdout, "")
+        self.assertNotIn("ModuleNotFoundError", polluted.stderr)
+        self.assertEqual(json.loads(polluted.stderr.strip())["result"], "skip")
 
 
 class SettingsRegistrationTests(unittest.TestCase):

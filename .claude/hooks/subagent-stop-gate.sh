@@ -10,7 +10,13 @@
 #     エージェントの worktree を別フックが消す致命的な競合が起きるため。
 #
 # 本 PR は worktree を1つも削除しない（`git worktree remove` を呼ぶコードが存在しない）。
+#
+# cwd 非依存の起動（F-309-01・共通作法）: 詳細は subagent-karte-inject.sh の同段コメント。
+# ここが破れると「fail-close であるべき停止ゲートが ModuleNotFoundError で exit 1 になり
+# block されずに素通りする」＝統制が黙って無効化される。
 set -euo pipefail
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONSAFEPATH=1
 exec python3 -m issue_start.subagent_hooks stop

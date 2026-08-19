@@ -5,8 +5,9 @@
 ===================  =====================  ==========================================
 verb                 イベント / matcher     役割
 ===================  =====================  ==========================================
-``karte-inject``     SubagentStart          ``issue-fixer`` へカルテ手順を
-                     ``issue-fixer``        ``additionalContext`` として注入する（助言）
+``karte-inject``     SubagentStart          ``issue-fixer`` へカルテ手順＋
+                     ``issue-fixer``        ``karte render`` の出力を
+                                            ``additionalContext`` として注入する（助言）
 ``bind``             SubagentStart          起動した dispatch の worktree を所有台帳へ
                      implementer / fixer    束縛する（``open`` → ``running``）
 ``stop``             SubagentStop           カルテ未更新のまま停止させない（block）
@@ -27,11 +28,16 @@ fail 方針の非対称（設計判断・``.claude/hooks/README.md`` にも明�
 
 対象外ロールの扱い
 ------------------
-``agent_type`` が対象外・欠落・payload が読めない場合は **常に無出力 exit 0**
+``agent_type`` が対象外・欠落・payload が読めない場合は **常に無出力（stdout）exit 0**
 （``agent-command-gate.sh`` の「対象外ロールは常に許可」不変条件と同型）。**この
 in-script 判定があるので、要実測事項 V-2（``matcher`` が ``agent_type`` 名で効くか）の
 結果がどちらでも契約は成立する**——matcher が効けば発火自体が絞られ、効かなければ
 ここで無出力 exit 0 になる。
+
+**ただし stderr には必ず evidence を1行書く**（F-309-05）。「発火しなかった」と
+「発火したが対象外と判定した」は post-merge の実測（V-1 / V-2）で最も知りたい区別であり、
+無出力 exit 0 のままでは両者が見分けられない。stdout（＝ハーネスへの契約面）は
+無出力のまま、診断は stderr（``claude --debug``）へ寄せる。
 
 依存仕様:
   * :mod:`issue_start.worktree_ledger`（台帳 API・状態遷移）
@@ -54,6 +60,10 @@ TARGET_ROLES = ("issue-implementer", "issue-fixer")
 KARTE_ROLE = "issue-fixer"
 KARTE_PROTOCOL_REL = ".claude/hooks/karte-protocol.md"
 KARTE_CHECK_TIMEOUT_S = 30.0
+KARTE_RENDER_TIMEOUT_S = 30.0
+# 注入本文の区切り（手順書 → 過去の試行）。render 出力は自己完結した本文なので、
+# 手順書とはっきり分けて末尾に置く（直近＝最も読まれる位置に「なぞるな」を置く）。
+INJECT_SEPARATOR = "\n\n---\n\n"
 
 # `issue_start/` の親＝リポジトリルート。フックの起動口が PYTHONPATH に
 # `$CLAUDE_PROJECT_DIR` を入れるため、main worktree 側の実体がここに解決される。
@@ -125,6 +135,32 @@ def _evidence(stderr: TextIO, verb: str, **fields: Any) -> None:
     )
 
 
+def _payload_keys(payload: Mapping[str, Any] | None) -> list | None:
+    """観測した payload のキー集合（読めなければ ``None``）。
+
+    値は載せない（dispatch prompt・パス等が stderr へ漏れる）。**キーの集合だけ**でも
+    「payload は届いたが ``agent_type`` の綴りが違う」と「payload 自体が読めない」を
+    区別できる＝要実測事項 V-2 の判定材料になる（F-309-05）。
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    return sorted(str(key) for key in payload)
+
+
+def _skip_evidence(
+    stderr: TextIO, verb: str, payload: Mapping[str, Any] | None, agent_type: str | None
+) -> int:
+    """対象外・payload 不読の経路の evidence（stdout は無出力のまま exit 0）。"""
+    _evidence(
+        stderr, verb,
+        result="skip",
+        reason="PAYLOAD_UNREADABLE" if payload is None else "OUT_OF_SCOPE",
+        agent_type=agent_type,
+        payload_keys=_payload_keys(payload),
+    )
+    return 0
+
+
 def _block(stdout: TextIO, reason: str) -> int:
     """``SubagentStop`` の停止拒否。**exit code は 0 のまま**（既存ハーネスの前提を壊さない）。"""
     json.dump({"decision": "block", "reason": reason}, stdout, ensure_ascii=False)
@@ -135,39 +171,132 @@ def _block(stdout: TextIO, reason: str) -> int:
 # --- verb: karte-inject（SubagentStart・matcher issue-fixer） --------------------
 
 
+def karte_render_argv(issue: int) -> list:
+    """``karte render`` の argv（``git worktree remove`` を含まないことを明示する境界）。"""
+    return [sys.executable, "-m", "karte", "render", "--issue", str(issue)]
+
+
+def _read_protocol(root: Path, stderr: TextIO) -> str:
+    """注入する手順書本文（読めなければ空文字＝その節だけ落とす）。"""
+    protocol = Path(root) / KARTE_PROTOCOL_REL
+    try:
+        body = protocol.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        _evidence(stderr, "karte-inject", result="protocol-skip", error=type(exc).__name__)
+        return ""
+    if not body:
+        _evidence(stderr, "karte-inject", result="protocol-skip", error="EMPTY_PROTOCOL")
+    return body
+
+
+def _render_karte(
+    stderr: TextIO,
+    *,
+    payload: Mapping[str, Any] | None,
+    cwd: Path | None,
+    runner: Callable[..., subprocess.CompletedProcess],
+) -> str:
+    """``python3 -m karte render --issue <N>`` の出力（取れなければ空文字＝fail-open）。
+
+    ``{issue, round}`` の出所は進行ポインタ ``tmp/_karte/active.json`` だけ
+    （``SubagentStart`` payload に dispatch prompt が無い）。**``--issue`` は必ず明示する**
+    ——並行運用時に別 Issue の台帳を読ませない（``karte-protocol.md`` と同じ規律）。
+
+    ここは**注入＝助言**なので全経路 fail-open（読めなければ黙って節を落とす）。
+    停止ゲート側（:func:`run_stop`）の fail-close とは方向が逆であることに注意
+    （注入の失敗は「知らずに直す」だけだが、停止の誤許可は統制の消失になる）。
+    """
+    try:
+        repo_root = worktree_ledger.main_worktree_root(_cwd_of(payload, cwd))
+    except Exception as exc:
+        _evidence(
+            stderr, "karte-inject", result="render-skip",
+            reason="REPO_ROOT_UNRESOLVED", error=type(exc).__name__,
+        )
+        return ""
+    try:
+        issue, _round = read_active_pointer(repo_root)
+    except ActivePointerError as exc:
+        _evidence(
+            stderr, "karte-inject", result="render-skip",
+            reason="ACTIVE_POINTER_UNREADABLE", detail=str(exc),
+        )
+        return ""
+    try:
+        completed = runner(
+            karte_render_argv(issue),
+            cwd=str(repo_root),
+            text=True,
+            capture_output=True,
+            shell=False,
+            timeout=KARTE_RENDER_TIMEOUT_S,
+        )
+    except Exception as exc:
+        _evidence(
+            stderr, "karte-inject", result="render-skip",
+            reason="KARTE_RENDER_UNRUNNABLE", error=type(exc).__name__, issue=issue,
+        )
+        return ""
+    returncode = getattr(completed, "returncode", None)
+    body = (getattr(completed, "stdout", "") or "").strip()
+    if returncode != 0 or not body:
+        _evidence(
+            stderr, "karte-inject", result="render-skip",
+            reason="KARTE_RENDER_FAILED", exit_code=returncode, issue=issue,
+        )
+        return ""
+    _evidence(stderr, "karte-inject", result="render-ok", issue=issue, chars=len(body))
+    return body
+
+
 def run_karte_inject(
     *,
     stdin: TextIO,
     stdout: TextIO,
     stderr: TextIO,
     project_root: Path | None = None,
+    cwd: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
 ) -> int:
-    """カルテ手順を ``additionalContext`` として注入する（注入は助言＝fail-open）。
+    """カルテ手順＋``karte render`` の出力を ``additionalContext`` に注入する（助言＝fail-open）。
 
-    **フックはデータを押し込まない**——``SubagentStart`` payload に dispatch prompt が
-    無いため、``{issue, round}`` の解決は注入本文が指示する ``karte`` CLI 側
-    （``tmp/_karte/active.json`` からの補完）に委ねる。注入本文をシェルから分離して
-    ``.claude/hooks/karte-protocol.md`` に置くのは ``inject-governance.sh`` と同作法。
+    **注入本文は2節**（この順に連結する）:
+
+    1. **手順書**（``.claude/hooks/karte-protocol.md``）＝毎ラウンド同じ規範。シェルからも
+       python からも分離しておくのは ``inject-governance.sh`` と同作法。
+    2. **``karte render`` の出力**＝そのラウンド固有の状態（Prior attempts・未解消 finding・
+       転換指令）。**K-14 の要求そのもの**——``karte/cli.py::cmd_render`` の docstring は
+       「SubagentStart フックがこれを実行し標準出力を ``additionalContext`` として自動注入する」
+       と定めている。是正エージェント自身に ``render`` を呼ばせる設計は「呼び忘れたら過去の
+       試行を知らないまま修正に入る」ため**明示的に却下されている**ので、ここで実行する
+       （F-309-04：手順書だけを注入していた実装を K-14 に合わせた）。
+
+    2 を「手順書の指示に委ねる」形へ戻さないこと。手順書は 1 として残るが、それは
+    **render を呼べ**という規範であって、**render の出力**の代わりにはならない。
+
+    どちらの節も取れなければ何も注入せず exit 0（注入は助言＝fail-open）。
     """
     payload = load_payload(stdin)
     agent_type = agent_type_of(payload)
     if agent_type != KARTE_ROLE:
-        return 0
+        return _skip_evidence(stderr, "karte-inject", payload, agent_type)
     root = PACKAGE_ROOT if project_root is None else Path(project_root)
-    protocol = root / KARTE_PROTOCOL_REL
-    try:
-        body = protocol.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        _evidence(stderr, "karte-inject", result="skip", error=f"{type(exc).__name__}")
-        return 0
-    if not body:
-        _evidence(stderr, "karte-inject", result="skip", error="EMPTY_PROTOCOL")
+    sections = [
+        section
+        for section in (
+            _read_protocol(root, stderr),
+            _render_karte(stderr, payload=payload, cwd=cwd, runner=runner),
+        )
+        if section
+    ]
+    if not sections:
+        _evidence(stderr, "karte-inject", result="skip", reason="NOTHING_TO_INJECT")
         return 0
     json.dump(
         {
             "hookSpecificOutput": {
                 "hookEventName": "SubagentStart",
-                "additionalContext": body,
+                "additionalContext": INJECT_SEPARATOR.join(sections),
             }
         },
         stdout,
@@ -197,7 +326,7 @@ def run_bind(
     payload = load_payload(stdin)
     agent_type = agent_type_of(payload)
     if agent_type not in TARGET_ROLES:
-        return 0
+        return _skip_evidence(stderr, "bind", payload, agent_type)
     stamp = datetime.now(timezone.utc) if now is None else now
     agent_id = agent_id_of(payload)
     try:
@@ -291,6 +420,47 @@ def karte_check_argv(issue: int, round_no: int) -> list:
     ]
 
 
+def is_reentrant_stop(payload: Mapping[str, Any] | None) -> bool:
+    """**この停止ゲートで一度 block した結果の再入**か（``stop_hook_active``）。
+
+    ``SubagentStop`` payload の ``stop_hook_active`` は「フックが停止を拒否したため
+    エージェントが継続している」ことを表す。2回目以降は**判定を繰り返さず通す**
+    （F-309-02）。
+
+    なぜ必要か: fail-close の block reason が指す脱出手順は、条件によっては
+    **ブロックされた当人には実行できない**（進行ポインタの再生成に要る
+    ``karte ingest-review`` は是正当事者に許されない＝Issue #308 / #341）。再入判定が
+    無いと、当人が満たしようのない条件を突きつけられたまま永久に停止できない。
+    「1回は必ず止めて理由を届ける／2回目は通す」にすることで、fail-close の目的
+    （見落としの防止）を保ったまま無限ループを**構造的に**断つ。
+
+    ゲートを弱めないための前提: 1回目の block は必ず発生し、reason は
+    :func:`_remediation` / :func:`_pointer_remediation` としてエージェントへ届く。
+    握り潰しではなく「同じ判定の繰り返しをやめる」だけである。
+    """
+    if not isinstance(payload, Mapping):
+        return False
+    for key in ("stop_hook_active", "subagent_stop_hook_active"):
+        if payload.get(key) is True:
+            return True
+    return False
+
+
+def _pointer_remediation(detail: str) -> str:
+    """``{issue, round}`` を確定できないときの reason（当人が実行できる手順だけを書く）。"""
+    return (
+        f"issue-fixer の停止を拒否する（Issue #309・判定不能は fail-close）: {detail}\n"
+        "この拒否は**1回だけ**（次の停止要求は stop_hook_active により素通しする）。\n"
+        "issue-fixer 自身が実行できる手順:\n"
+        "  1. 今ラウンドの診断と実測をカルテへ記録する"
+        "（python3 -m karte append … / python3 -m karte close-attempt …）。\n"
+        "  2. 進行ポインタ tmp/_karte/active.json の再生成には karte ingest-review が要るが、"
+        "**これは是正当事者には許されない**（Issue #308 / #341）。自分で作り直そうとせず、"
+        "「進行ポインタが読めないので主文脈が ingest-review で作り直す必要がある」ことを"
+        "ハンドオフの stop_reason に書いて、呼び出し元へ報告して停止すること。"
+    )
+
+
 def _remediation(issue: int, round_no: int, detail: str) -> str:
     return (
         f"issue-fixer の停止を拒否する（Issue #309）: {detail}\n"
@@ -302,6 +472,71 @@ def _remediation(issue: int, round_no: int, detail: str) -> str:
         "--outcome <fixed|partial|no-change|regressed>\n"
         f"  python3 -m karte check --issue {issue} --round {round_no}   # これが exit 0 になれば停止できる"
     )
+
+
+def _karte_stop_gate(
+    *,
+    stdout: TextIO,
+    stderr: TextIO,
+    payload: Mapping[str, Any] | None,
+    cwd: Path | None,
+    runner: Callable[..., subprocess.CompletedProcess],
+) -> int | None:
+    """``issue-fixer`` のカルテ検査段。**block したら exit code、通してよければ ``None``**。
+
+    呼び出し側（:func:`run_stop`）は ``None`` 以外が返ったらそこで打ち切る＝「block したら
+    後段（PR-3 の解放段）へ進まない」を型で表す。
+    """
+    if is_reentrant_stop(payload):
+        _evidence(stderr, "stop", result="allow", reason="STOP_HOOK_REENTRY")
+        return None
+    try:
+        repo_root = worktree_ledger.main_worktree_root(_cwd_of(payload, cwd))
+    except Exception as exc:  # 台帳/カルテの置き場が決まらない＝判定不能（fail-close）
+        _evidence(
+            stderr, "stop", result="block",
+            reason="REPO_ROOT_UNRESOLVED", error=type(exc).__name__,
+        )
+        return _block(
+            stdout,
+            _pointer_remediation(
+                f"カルテの置き場（main worktree root）を導出できない（{type(exc).__name__}: {exc}）"
+            ),
+        )
+    try:
+        issue, round_no = read_active_pointer(repo_root)
+    except ActivePointerError as exc:
+        _evidence(stderr, "stop", result="block", reason="ACTIVE_POINTER_UNREADABLE")
+        return _block(stdout, _pointer_remediation(str(exc)))
+    try:
+        completed = runner(
+            karte_check_argv(issue, round_no),
+            cwd=str(repo_root),
+            text=True,
+            capture_output=True,
+            shell=False,
+            timeout=KARTE_CHECK_TIMEOUT_S,
+        )
+    except Exception as exc:  # 起動不能＝判定不能なので block（fail-close）
+        _evidence(stderr, "stop", result="block", reason="KARTE_CHECK_UNRUNNABLE")
+        return _block(
+            stdout,
+            _remediation(issue, round_no, f"`karte check` を起動できなかった（{type(exc).__name__}）"),
+        )
+    returncode = getattr(completed, "returncode", None)
+    if returncode != 0:
+        stderr_text = (getattr(completed, "stderr", "") or "").strip()
+        _evidence(stderr, "stop", result="block", reason="KARTE_CHECK_FAILED", exit_code=returncode)
+        return _block(
+            stdout,
+            _remediation(
+                issue, round_no,
+                f"`karte check --issue {issue} --round {round_no}` が exit {returncode}"
+                + (f"\n{stderr_text}" if stderr_text else ""),
+            ),
+        )
+    _evidence(stderr, "stop", result="allow", reason="KARTE_CHECK_OK", issue=issue, round=round_no)
+    return None
 
 
 def run_stop(
@@ -316,12 +551,17 @@ def run_stop(
 
     段（**前段で block したら後段へ進まない**）:
 
-    1. ``agent_type`` が対象外 → 無出力 exit 0
-    2. ``agent_type == "issue-fixer"``: ``active.json`` の ``{issue, round}`` で
-       ``python3 -m karte check`` を実行し、非0 または判定不能なら
+    1. ``agent_type`` が対象外 → stdout 無出力・stderr に evidence・exit 0
+    2. ``agent_type == "issue-fixer"``: :func:`_karte_stop_gate`。``active.json`` の
+       ``{issue, round}`` で ``python3 -m karte check`` を実行し、非0 または判定不能なら
        ``{"decision":"block","reason": …}`` を stdout に出して exit 0
+       （**再入＝``stop_hook_active`` のときは判定せず通す**＝F-309-02）
     3. （**PR-3 で追加する回収・解放段の seam**）
     4. 無出力 exit 0
+
+    **``repo_root`` の導出は 2 の内側**（F-309-06）。``issue-implementer`` はこの段を
+    通らないので、台帳パスの導出失敗（``.git`` 破損等）で無関係な dispatch を
+    未捕捉例外＝exit 1 に巻き込まない。
 
     **3 を同じスクリプトの逐次段にするのは意図的**（別フックに分けない）。同一イベントに
     「ブロックするフック」と「削除するフック」を別々に登録すると、ブロックされて継続した
@@ -331,50 +571,14 @@ def run_stop(
     payload = load_payload(stdin)
     agent_type = agent_type_of(payload)
     if agent_type not in TARGET_ROLES:
-        return 0
-
-    repo_root = worktree_ledger.main_worktree_root(_cwd_of(payload, cwd))
+        return _skip_evidence(stderr, "stop", payload, agent_type)
 
     if agent_type == KARTE_ROLE:
-        try:
-            issue, round_no = read_active_pointer(repo_root)
-        except ActivePointerError as exc:
-            _evidence(stderr, "stop", result="block", reason="ACTIVE_POINTER_UNREADABLE")
-            return _block(
-                stdout,
-                "issue-fixer の停止を拒否する（Issue #309・判定不能は fail-close）: "
-                f"{exc}\n"
-                "主文脈が `python3 -m karte ingest-review --issue <N> --round <R> --from -` を"
-                "実行して進行ポインタを作り直すこと（ingest-review は是正当事者には許さない）。",
-            )
-        try:
-            completed = runner(
-                karte_check_argv(issue, round_no),
-                cwd=str(repo_root),
-                text=True,
-                capture_output=True,
-                shell=False,
-                timeout=KARTE_CHECK_TIMEOUT_S,
-            )
-        except Exception as exc:  # 起動不能＝判定不能なので block（fail-close）
-            _evidence(stderr, "stop", result="block", reason="KARTE_CHECK_UNRUNNABLE")
-            return _block(
-                stdout,
-                _remediation(issue, round_no, f"`karte check` を起動できなかった（{type(exc).__name__}）"),
-            )
-        returncode = getattr(completed, "returncode", None)
-        if returncode != 0:
-            stderr_text = (getattr(completed, "stderr", "") or "").strip()
-            _evidence(stderr, "stop", result="block", reason="KARTE_CHECK_FAILED", exit_code=returncode)
-            return _block(
-                stdout,
-                _remediation(
-                    issue, round_no,
-                    f"`karte check --issue {issue} --round {round_no}` が exit {returncode}"
-                    + (f"\n{stderr_text}" if stderr_text else ""),
-                ),
-            )
-        _evidence(stderr, "stop", result="allow", reason="KARTE_CHECK_OK", issue=issue, round=round_no)
+        blocked = _karte_stop_gate(
+            stdout=stdout, stderr=stderr, payload=payload, cwd=cwd, runner=runner
+        )
+        if blocked is not None:
+            return blocked
 
     # --- 3. 回収・解放段（PR-3 で実装する seam） ---------------------------------
     # 本 PR は worktree を1つも削除しない。ここに `collect-worktree`（回収→検証→解放）を
