@@ -11,7 +11,7 @@
 - サブエージェント（ノード検索）：`dsv2-lookup`（**dsv2-native**＝`python3 -m dsv2 index` の meta.json を grep/python でフィルタ→ `Read` で本文取得、辺は `dsv2 deps`/`dependents` で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は `dsv2` CLI 実行のみ。旧名 `docidx-lookup`・v1 専用 `docidx` との混同を避けるため issue #173 で改名）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
 - サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`／`CLAUDE.md` ＋ `.claude/rules/`）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
-- サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：`issue-implementer`（1 Issue をブランチ→実装→テスト→commit→push→PR まで完結・**merge 不可**・**初回実装専任**）／`issue-fixer`（**レビュー指摘を受けた是正ラウンド専任**・権限は implementer と同一＝push 可・merge 不可。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で、`python3 -m karte` を許可される唯一のロール。ただし `ingest-review` は是正当事者に許さない＝主文脈が実行する・#308/#341）／`pr-reviewer`（PR をレビュー→**構造化 finding**（`### F-<issue>-<seq>`＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status`）で返す→**merge 可・push 不可**。指摘があれば自分で直さず `issue-fixer` へ差し戻す）。**push/merge の非対称権限は `.claude/hooks/agent-command-gate.sh`（PreToolUse・agent_type ゲート）で機械的に拒否する**が、Bash 文字列の静的検査であり完全な sandbox ではない。プロンプト規律・レビュー分離・GitHub 側の保護と併用する（既知の限界は Issue #129）。3ロールとも非対話（AskUserQuestion なし）＝曖昧は STOP 報告・対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
+- サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：`issue-implementer`（1 Issue をブランチ→実装→テスト→commit→push→PR まで完結・**merge 不可**・**初回実装専任**）／`issue-fixer`（**レビュー指摘を受けた是正ラウンド専任**・push 可・merge 不可＝implementer と同じ非対称。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で、`python3 -m karte` を許可される唯一のロール。ただし `ingest-review` は是正当事者に許さない＝主文脈が実行する・#308/#341。**implementer と違う点は2つだけ**＝`gitgate adopt-branch`（既存 PR ブランチを自分の worktree で checkout する。implementer は `new-branch` で新規に切るので不要）と、カルテのパスを受け取らず `--issue`/`--round` だけで CLI 経由に触ること・#354）／`pr-reviewer`（PR をレビュー→**構造化 finding**（`### F-<issue>-<seq>`＋`harm`/`harm_detail`/`severity`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status`）で返す→**merge 可・push 不可**。指摘があれば自分で直さず `issue-fixer` へ差し戻す）。**push/merge の非対称権限は `.claude/hooks/agent-command-gate.sh`（PreToolUse・agent_type ゲート）で機械的に拒否する**が、Bash 文字列の静的検査であり完全な sandbox ではない。プロンプト規律・レビュー分離・GitHub 側の保護と併用する（既知の限界は Issue #129）。3ロールとも非対話（AskUserQuestion なし）＝曖昧は STOP 報告・対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 
@@ -58,6 +58,14 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     指す誤誘導が検査ではなく構造で消え、isolated / 非 isolated のどちらの構成でも同じ契約が成立する。
     **回収は「エージェントが書けた絶対パスをチャットで返す」ことで行う**（呼び出し元は isolated ではない
     のでその絶対パスを Read できる）。ファイル名の採番権は呼び出し元に残す（`<key>` 一意化＝上記）。
+  - **入力として渡すのは「呼び出し先が新規に書き、呼び出し元が回収する成果物」のパスだけ**
+    （`handoff_path`）。**呼び出し元が既に所有している共有台帳**（カルテ `tmp/_karte/issue-<N>.md` 等）は
+    **パスを渡さず識別子（`{issue, round}`）だけを渡し**、所在解決は台帳 CLI 側の
+    `main_worktree_root()`（linked worktree からメインへ収束する導出）に一本化する。
+    理由＝パスを渡すと「別 worktree・別 Issue の台帳を掴む」脅威が生まれ、受け手側に完全一致検査を
+    背負わせることになる。渡さなければその脅威は検査ではなく構造で消える（#323 が `handoff_path` で
+    採った考え方の対称形）。#323 の「パスの決定権は呼び出し元に残す」原則は出力側の規律であり、
+    入力側の共有台帳には及ばない（Issue #354）。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で

@@ -12,6 +12,8 @@ from blocker_gate.model import POLICY_VERSION
 from issue_start import worktree_ledger
 from issue_start.gate import (
     BINDING_MARKER,
+    FIX_BINDING_MARKER,
+    IsolationOnlyAck,
     IssueStartError,
     IssueStartRequest,
     _validate_tool_input_shape,
@@ -273,8 +275,10 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
         )
 
     def test_unmanaged_agents_are_never_required_to_declare_isolation(self):
-        # 非 issue-implementer の dispatch を巻き込むと全委譲が壊れる。素通し（None）を固定する。
-        for agent in ("pr-reviewer", "issue-fixer", "general-purpose", "dsv2-lookup"):
+        # unmanaged な dispatch を巻き込むと全委譲が壊れる。素通し（None）を固定する。
+        # **`issue-fixer` は Issue #354 PR-4 で `isolation_only` へ移ったのでここには入らない**
+        # （IsolationOnlyContractTests が別途 deny 側を固定する）。
+        for agent in ("pr-reviewer", "general-purpose", "dsv2-lookup"):
             payload = self.claude_payload(isolation=None)
             payload["tool_input"]["subagent_type"] = agent
             with self.subTest(agent=agent):
@@ -295,6 +299,228 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
                     {"subagent_type": "issue-implementer", "prompt": "x", "isolation": "worktree"},
                     transport,
                 )
+
+
+def fix_binding(**overrides):
+    raw = {
+        "issue": 354,
+        "round": 1,
+        "branch_name": "claude/issue-354-pr4",
+        "expected_oid": "b" * 40,
+        "handoff_path": "tmp/_handoff/issue-fixer--issue-354-fix1.yaml",
+    }
+    raw.update(overrides)
+    return raw
+
+
+def fixer_payload(binding=None, *, tool="Task", isolation="worktree", agent="issue-fixer"):
+    raw = fix_binding() if binding is None else binding
+    tool_input = {
+        "subagent_type": agent,
+        "prompt": "fix findings\n"
+        + FIX_BINDING_MARKER
+        + json.dumps(raw, separators=(",", ":")),
+        "description": "remediation round",
+    }
+    if isolation is not None:
+        tool_input["isolation"] = isolation
+    return {"tool_name": tool, "tool_input": tool_input}
+
+
+class IsolationOnlyContractTests(unittest.TestCase):
+    """Issue #354 PR-4: `issue-fixer` は「分離だけを課す」区分として dispatch を検証される。
+
+    managed（`issue-implementer`）との差は **GitHub API を叩かないこと**であって、
+    shape / isolation / marker の厳しさではない。緩んでいないことをここで固定する。
+    """
+
+    def test_valid_fixer_dispatch_returns_an_isolation_only_ack(self):
+        for tool_name in ("Task", "Agent"):
+            with self.subTest(tool_name=tool_name):
+                ack = parse_dispatch_payload(fixer_payload(tool=tool_name))
+                self.assertEqual(
+                    ack,
+                    IsolationOnlyAck(
+                        entrypoint="issue-pipeline",
+                        agent_type="issue-fixer",
+                        issue=354,
+                        round=1,
+                        branch_name="claude/issue-354-pr4",
+                        handoff_path="tmp/_handoff/issue-fixer--issue-354-fix1.yaml",
+                        expected_oid="b" * 40,
+                    ),
+                )
+
+    def test_missing_or_wrong_isolation_is_denied(self):
+        for isolation in (None, "remote", "", "Worktree", "worktree ", 1, True, ["worktree"]):
+            with self.subTest(isolation=isolation), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_ISOLATION_NOT_WORKTREE"
+            ):
+                parse_dispatch_payload(fixer_payload(isolation=isolation))
+
+    def test_missing_or_duplicated_marker_is_fail_close(self):
+        payload = fixer_payload()
+        payload["tool_input"]["prompt"] = "fix findings without a marker"
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_MISSING_OR_DUPLICATE"):
+            parse_dispatch_payload(payload)
+        duplicated = fixer_payload()
+        line = FIX_BINDING_MARKER + json.dumps(fix_binding(), separators=(",", ":"))
+        duplicated["tool_input"]["prompt"] = line + "\n" + line
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_MISSING_OR_DUPLICATE"):
+            parse_dispatch_payload(duplicated)
+
+    def test_invalid_json_marker_is_fail_close(self):
+        payload = fixer_payload()
+        payload["tool_input"]["prompt"] = FIX_BINDING_MARKER + "{not json"
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_INVALID_JSON"):
+            parse_dispatch_payload(payload)
+        not_object = fixer_payload()
+        not_object["tool_input"]["prompt"] = FIX_BINDING_MARKER + "[1,2]"
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_INVALID_JSON"):
+            parse_dispatch_payload(not_object)
+
+    def test_field_set_must_be_exact(self):
+        extra = fix_binding()
+        extra["repository"] = "example/repo"
+        missing = fix_binding()
+        del missing["expected_oid"]
+        for raw in (extra, missing):
+            with self.subTest(raw=sorted(raw)), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_BINDING_UNKNOWN_FIELD"
+            ):
+                parse_dispatch_payload(fixer_payload(raw))
+
+    def test_field_values_are_validated(self):
+        cases = [
+            ({"issue": 0}, "ISSUE_START_ISSUE_INVALID"),
+            ({"issue": "354"}, "ISSUE_START_ISSUE_INVALID"),
+            ({"issue": True}, "ISSUE_START_ISSUE_INVALID"),
+            ({"round": 0}, "ISSUE_START_ROUND_INVALID"),
+            ({"round": None}, "ISSUE_START_ROUND_INVALID"),
+            ({"round": "1"}, "ISSUE_START_ROUND_INVALID"),
+            ({"branch_name": "-evil"}, "ISSUE_START_BRANCH_INVALID"),
+            ({"branch_name": ""}, "ISSUE_START_BRANCH_INVALID"),
+            ({"expected_oid": "b" * 39}, "ISSUE_START_EXPECTED_OID_INVALID"),
+            ({"expected_oid": "B" * 40}, "ISSUE_START_EXPECTED_OID_INVALID"),
+            ({"expected_oid": None}, "ISSUE_START_EXPECTED_OID_INVALID"),
+        ]
+        for override, reason in cases:
+            with self.subTest(override=override), self.assertRaisesRegex(IssueStartError, reason):
+                parse_dispatch_payload(fixer_payload(fix_binding(**override)))
+
+    def test_handoff_path_must_be_relative_and_bound_to_the_issue(self):
+        bad_paths = [
+            "/abs/tmp/_handoff/issue-fixer--issue-354.yaml",
+            "tmp/_handoff/../../etc/issue-fixer--issue-354.yaml",
+            "tmp/_handoff/sub/issue-fixer--issue-354.yaml",
+            "tmp/_karte/issue-fixer--issue-354.yaml",
+            "tmp/_handoff/issue-fixer--issue-354.txt",
+            # 境界検査: 別 Issue のファイル（`issue-3541`）を受理しない。
+            "tmp/_handoff/issue-fixer--issue-3541.yaml",
+            # agent_type 束縛: implementer 側のハンドオフを上書きさせない。
+            "tmp/_handoff/issue-implementer--issue-354.yaml",
+            "",
+        ]
+        for path in bad_paths:
+            with self.subTest(path=path), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_HANDOFF_PATH_INVALID"
+            ):
+                parse_dispatch_payload(fixer_payload(fix_binding(handoff_path=path)))
+        # サフィックス無し・`.` 区切りはどちらも受理する（ラウンド採番は呼び出し元の裁量）。
+        for path in (
+            "tmp/_handoff/issue-fixer--issue-354.yaml",
+            "tmp/_handoff/issue-fixer--issue-354-fix2.yaml",
+        ):
+            with self.subTest(path=path):
+                ack = parse_dispatch_payload(fixer_payload(fix_binding(handoff_path=path)))
+                self.assertEqual(ack.handoff_path, path)
+
+    def test_shape_errors_are_reported_before_the_marker_is_read(self):
+        payload = fixer_payload(isolation=None)
+        del payload["tool_input"]["prompt"]
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TOOL_INPUT_SHAPE_INVALID"):
+            parse_dispatch_payload(payload)
+
+    def test_codex_field_mixing_is_rejected(self):
+        for field, value in (
+            ("agent_type", "issue-fixer"),
+            ("message", "ENC[AQICAH-encrypted-prompt]"),
+            ("task_name", "issue_354"),
+        ):
+            payload = fixer_payload()
+            payload["tool_input"][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_(TARGET_UNKNOWN|TOOL_INPUT_SHAPE_INVALID)"
+            ):
+                parse_dispatch_payload(payload)
+
+    def test_managed_dispatch_behaviour_is_unchanged(self):
+        """回帰: `isolation_only` の追加が managed 経路（`issue-implementer`）を変えていない。"""
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "dispatch",
+                "isolation": "worktree",
+            },
+        }
+        self.assertEqual(parse_dispatch_payload(payload), request())
+        # `issue-implementer` の marker を `issue-fixer` に流用しても通らない（契約が別）。
+        borrowed = fixer_payload()
+        borrowed["tool_input"]["prompt"] = BINDING_MARKER + json.dumps(
+            claude_binding(), separators=(",", ":")
+        )
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_MISSING_OR_DUPLICATE"):
+            parse_dispatch_payload(borrowed)
+
+    def test_manifest_schema_version_mismatch_is_fail_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.json"
+            path.write_text(
+                json.dumps({
+                    "schema_version": "managed-issue-entrypoints/1",
+                    "policy_version": "issue-start/1.0",
+                    "managed": [],
+                }),
+                encoding="utf-8",
+            )
+            with patch("issue_start.gate.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
+            ):
+                parse_dispatch_payload(fixer_payload())
+
+    def test_an_agent_type_in_both_sections_is_fail_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.json"
+            entry = {
+                "entrypoint": "issue-pipeline",
+                "agent_type": "issue-fixer",
+                "binding_transports": {
+                    "claude": {
+                        "tool_names": ["Task"],
+                        "agent_type_field": "subagent_type",
+                        "required_tool_input_fields": ["subagent_type", "prompt"],
+                        "forbidden_tool_input_fields": ["agent_type"],
+                        "prompt_field": "prompt",
+                        "binding_marker": "ISSUE_FIX_BINDING_V1=",
+                        "required_isolation": "worktree",
+                    }
+                },
+            }
+            path.write_text(
+                json.dumps({
+                    "schema_version": "managed-issue-entrypoints/2",
+                    "policy_version": "issue-start/1.0",
+                    "managed": [entry],
+                    "isolation_only": [entry],
+                }),
+                encoding="utf-8",
+            )
+            with patch("issue_start.gate.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
+            ):
+                parse_dispatch_payload(fixer_payload())
 
 
 class EvaluationTests(unittest.TestCase):
@@ -709,6 +935,63 @@ class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
         self.assertIsNotNone(result["entry_id"])
         self.assertTrue((main / "tmp" / "_worktree" / "ledger.json").is_file())
         self.assertFalse((linked / "tmp").exists())
+
+
+class IsolationOnlyHookTests(HookLedgerMixin, unittest.TestCase):
+    """Issue #354 PR-4: hook 経路での `isolation_only`（`issue-fixer`）の挙動。"""
+
+    def run_dispatch(self, payload):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start"
+        ) as evaluate:
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
+            )
+        self.assertEqual(rc, 0)
+        return stdout.getvalue(), stderr.getvalue(), evaluate
+
+    def test_allowed_without_touching_the_blocker_gate(self):
+        stdout, stderr, evaluate = self.run_dispatch(fixer_payload())
+        self.assertEqual(stdout, "", "分離だけを課す区分は deny しない")
+        # 是正ラウンドは GitHub API を叩かない（API 不通でレビュー是正まで止めないため）。
+        evaluate.assert_not_called()
+        evidence = json.loads(stderr)
+        self.assertEqual(evidence["result"], "ISOLATION_ONLY")
+        self.assertEqual(evidence["reason"], "ISSUE_START_ISOLATION_ONLY_ALLOWED")
+        self.assertIsNone(evidence["blocker_evidence"])
+        self.assertEqual(evidence["binding"]["agent_type"], "issue-fixer")
+        self.assertEqual(evidence["binding"]["round"], 1)
+        self.assertIn("claimed", evidence["worktree_residue"])
+
+    def test_the_ledger_entry_carries_issue_round_branch_and_handoff_path(self):
+        """FR-W4 完全化: marker の値を推測せずそのまま台帳へ載せる。"""
+        _stdout, stderr, _evaluate = self.run_dispatch(fixer_payload())
+        entries = self.ledger_entries()
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["issue"], 354)
+        self.assertEqual(entry["agent_type"], "issue-fixer")
+        self.assertEqual(entry["round"], 1)
+        self.assertEqual(entry["branch_name"], "claude/issue-354-pr4")
+        self.assertEqual(entry["handoff_path"], "tmp/_handoff/issue-fixer--issue-354-fix1.yaml")
+        self.assertEqual(entry["status"], "open")
+        self.assertEqual(json.loads(stderr)["ledger"]["entry_id"], entry["entry_id"])
+
+    def test_denied_dispatch_records_nothing_and_never_evaluates(self):
+        stdout, _stderr, evaluate = self.run_dispatch(fixer_payload(isolation=None))
+        decision = json.loads(stdout)["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        reason = decision["permissionDecisionReason"]
+        self.assertIn("ISSUE_START_ISOLATION_NOT_WORKTREE", reason)
+        self.assertIn("isolation=worktree", reason)
+        evaluate.assert_not_called()
+        self.assertEqual(self.ledger_entries(), [], "deny した dispatch は起票しない")
 
 
 class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):

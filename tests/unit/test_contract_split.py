@@ -39,16 +39,35 @@ import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-# (規範ファイル, rationale ファイル, 分離前の字数＝base c415c80 で実測)
+# (規範ファイル, rationale ファイル, 常駐字数の上限)
+#
+# 既定値は「分離前の字数＝base c415c80 で実測」。`NormativeSideStaysLeaner` の docstring が
+# 定めるとおり、**分離前を超える正当な規範追加が要るときは根拠付きで更新する**（この上限は
+# 経緯の書き戻しを検知するためのもので、規範の正当な追加を妨げる budget ではない）。
+#
+# Issue #354 PR-4（2026-08-19）で2件を再設定した。追加分はいずれも**経緯ではなく規範**で、
+# 内訳は次のとおり（経緯は `.claude/rationale/issue-fixer.md` / `issue-pipeline.md` 側へ書いた）:
+#   * `.claude/agents/issue-fixer.md`（14159 → 15200）: ①`isolation: "worktree"` と
+#     `ISSUE_FIX_BINDING_V1` marker という**新しい dispatch 前提**の開示（欠けると起動されない
+#     ので、書き手が deny の出所を判別するのに要る）、②`adopt-branch` で PR ブランチを取得する
+#     **Step 0 の新設**（isolation 化で必須になった手順）、③カルテを CLI 経由でしか触らない規律。
+#     `karte_path` の3点検査（絶対パス完全一致・`..`・symlink）は**削除**しており、増分は
+#     差し引き後の値。
+#   * `.claude/skills/issue-pipeline/SKILL.md`（21663 → 22000）: ②-c の `issue-fixer` dispatch に
+#     marker の **field 表**を追加（「どの field に何を書くか」は散文が唯一の伝達手段＝Issue #373 で
+#     ②-a について確定した方針の適用）。`karte_path` の受け渡し記述と `git switch <branch>` 手順は
+#     **削除**しており、こちらも差し引き後の値。
+# 上限値は実測（15098 / 21909）の次の100字境界に置く＝意味のある headroom を与えず、次の追加でも
+# 必ずこの comment を更新させる。
 CONTRACTS: tuple[tuple[str, str, int], ...] = (
     (".claude/agents/issue-implementer.md",
      ".claude/rationale/issue-implementer.md", 14293),
     (".claude/agents/issue-fixer.md",
-     ".claude/rationale/issue-fixer.md", 14159),
+     ".claude/rationale/issue-fixer.md", 15200),
     (".claude/agents/pr-reviewer.md",
      ".claude/rationale/pr-reviewer.md", 15051),
     (".claude/skills/issue-pipeline/SKILL.md",
-     ".claude/rationale/issue-pipeline.md", 21663),
+     ".claude/rationale/issue-pipeline.md", 22000),
 )
 
 

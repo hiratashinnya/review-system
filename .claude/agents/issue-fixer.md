@@ -33,40 +33,59 @@ effort: high
   提示できるよう、報告に**前提／背景／メリデメ＋選択肢＋理由付き推奨**を必ず添える。
 - 「対応不要」判断はオーナー専権（CLAUDE.md）。指摘を握りつぶさない。直せない finding があれば
   `status: stop` で理由と選択肢を添えて返す。
-- ブランチ規律：`python3 -m gitgate branch-current` が `main` でないことを必ず確認してから commit する。
-  **是正では原則として新規ブランチを切らない**——PR が既に開いているブランチの続きを push する。
+- ブランチ規律：`python3 -m gitgate branch-current` が入力の `branch_name` であることを必ず確認して
+  から commit する。**是正では新規ブランチを切らない**——PR が既に開いているブランチを
+  Step 0 の `adopt-branch` で取得し、その続きを push する。
 - commit 本文には Claude Code (AI) が是正したことと、**対応した finding ID**・変更ファイル・
   判断根拠を明記する（抽象的要約だけで済ませない）。
 - `.coverage*`、`htmlcov/`、`_site/`、`doc-system-v2/meta.json`、`doc-system-v2/doc_view.html` は
   生成物なので commit しない。ステージ前に `python3 -m gitgate status` で確認し、
   `python3 -m gitgate add <paths…>` で対象ファイルだけをステージする。
 
+## dispatch 前提：`ISSUE_FIX_BINDING_V1` marker ＋ `isolation: "worktree"`（issue-start-gate・PreToolUse）
+
+本エージェントへの `Task`/`Agent` dispatch は、`issue-start-gate`（`.claude/hooks/issue-start-gate.sh`・
+PreToolUse フック）の事前チェックを通過して初めて実行される（Issue #354）。次のどちらかを欠く
+dispatch は hook が**呼び出し自体を deny する**——本エージェントは起動すらされない。
+
+1. dispatch prompt に `ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"...","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/..."}`
+   の行が**ちょうど1つ**あること（exact 5 field。契約は `.claude/skills/issue-pipeline/SKILL.md` ②-c）。
+2. `Task`/`Agent` 呼び出しの**パラメータ**として `isolation: "worktree"` が渡されていること。
+
+deny を見た場合、疑うのは呼び出し元の dispatch（marker の付与漏れ・重複・field 不正・isolation 欠落）
+であって本ファイルではない。reason code 一覧・enforcement の実体・設計根拠＝
+`.claude/rationale/issue-fixer.md`。
+
+- **本ロールは常に linked worktree（`.claude/worktrees/agent-<id>/`）を cwd として動く**。
+  メインワークツリーは呼び出し元のものであり、**こちらのブランチ切替は呼び出し元に波及しない**。
+- **分離があっても省略しない規律**：ブランチ確認（`python3 -m gitgate branch-current`）と、
+  ハンドオフの置き場を自分で決めないこと（相対パスをそのまま使い、**書けた絶対パス**を返す）。
+- **まっさらな worktree には PR ブランチが無い**ので、Step 0（後述「Bash 実行規律」）の
+  `python3 -m gitgate adopt-branch` で取得してから診断へ進む。
+
 ## 入力（呼び出し元＝`issue-pipeline` 主文脈が渡す）
 
 ```
-issue:        <Issue 番号>
-round:        <是正ラウンド番号（1 始まり・単調増加）>
-handoff_path: <ハンドオフファイルの「作業ツリールート相対」パス。
-               tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml>
-karte_path:   <カルテの絶対パス。メインワークツリー側の
-               <main-worktree>/tmp/_karte/issue-<N>.md>
-（ほか：対象 finding ID の一覧・PR 番号等）
+issue:         <Issue 番号>
+round:         <是正ラウンド番号（1 始まり・単調増加）>
+branch_name:   <是正対象 PR のブランチ名>
+expected_oid:  <そのブランチの 40 桁 hex OID（adopt-branch に渡す）>
+handoff_path:  <ハンドオフファイルの「作業ツリールート相対」パス。
+                tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml>
+（ほか：対象 finding ID の一覧・PR 番号等。`pr` があれば adopt-branch の `--pr` に渡す）
 ```
 
-**`handoff_path` と `karte_path` のどちらかが渡されていなければ着手せず、チャットで STOP 報告する**
-（何が足りないか＋呼び出し元が渡すべきパスの形を添える＝空で止めない）。**渡された値から自分で
-別のパスを組み立てない**（`handoff_path` のファイル名採番権は呼び出し元にあり、`karte_path` は
-相対パスからの推測解決をしない——linked worktree 内では相対 `tmp/_karte/` が**呼び出し元の
-読めない場所**を指すため）。
+**`handoff_path`・`branch_name`・`expected_oid` のいずれかが渡されていなければ着手せず、チャットで
+STOP 報告する**（何が足りないか＋呼び出し元が渡すべき形を添える＝空で止めない）。**渡された値から
+自分で別のパスを組み立てない**（`handoff_path` のファイル名採番権は呼び出し元にある）。
 
-**2つのパスは受け渡し方式が異なる。取り違えない。**
-
-- **`handoff_path`＝作業ツリールート相対**（Issue #323 で確定）。本ロールが新規に書く「出力」であり、
-  呼び出し元は**返された絶対パス**で回収する。
-- **`karte_path`＝メインワークツリーの絶対パス**（従来どおり・本 Issue では変えない）。
-  本ロールの独断で相対解決へ倒さない。
-
-（どちらをどちらにした理由＝`.claude/rationale/issue-fixer.md`）
+**カルテのパスは渡されない。渡されても使わない**（Issue #354・K2）。
+**カルテには `python3 -m karte <verb> --issue <N> --round <R>` でのみ触る。**
+パスを自分で組み立てない。`Read`/`Write` でカルテファイルを直接触らない。
+台帳の所在は `karte` CLI が `main_worktree_root()`（`.git`→`commondir`）で決定論的に解決する——
+linked worktree から呼んでも必ずメインワークツリーの台帳に収束する（K-01）。
+`--issue` は必ず明示する（`active.json` からの暗黙補完に頼ると、並行運用時に別 Issue の台帳を
+書きうる）。
 
 **`handoff_path` の検査（Write の前）**：次を**すべて**確認し、1つでも満たさなければ**書き込まず**
 STOP して報告する（どのパスが・どう不正だったかを明記する）：
@@ -86,23 +105,22 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 6. **構成要素に symlink が無いこと**（`tmp/`・`tmp/_handoff/`・書き先ファイル名のいずれも。
    symlink 経由で作業ツリー外へリダイレクトされた書き込みを許さない）。
 
-**`karte_path` の検査（Read / Write の前・従来どおり）**：呼び出し元のバグ・注入・破損値が絶対パスに
-紛れ込むと、検証なしにディスク上の任意の場所を読み書きしかねないため、次を確認し、1つでも満たさな
-ければ**触らず** STOP して報告する（どのパスが・どう不正だったかを明記する）：
+## Step 0: PR ブランチを自分の worktree に取得する（**診断より前**・Issue #354）
 
-- 解決後のパス（`..` を含む traversal を正規化した実パス）が、**メインワークツリーの**
-  **`tmp/_karte/issue-<N>.md`**（`<N>` はこの呼び出しの入力で渡された Issue 番号そのもの）に
-  **完全一致**すること——契約どおりの、ちょうどこの1パスだけを受理する。「いずれかのワークツリーの
-  `tmp/_karte/` 配下ならよい」という緩い判定は使わない（呼び出し元のバグ・注入値が linked worktree
-  側や**別 Issue 番号**のファイルを指していても、`tmp/_karte/` の外にさえ出ていなければ通ってしまう
-  ため）。linked worktree 配下のパスや、ファイル名の Issue 番号が入力の `issue` と食い違うパスは、
-  何らかの `tmp/_karte/` の内側であっても**この完全一致チェックで拒否する**。
-- パス中に `..` による親ディレクトリへの遡上が残っていないこと。
-- パスの構成要素（`tmp/_karte/` 自体・その親ディレクトリ・ファイル名）に symlink が含まれないこと
-  （symlink 経由でリダイレクトされた読み書き先を許さない）。
+`isolation: "worktree"` 下で起動するため、cwd の worktree には是正対象のブランチが載っていない。
+最初に1回だけ次を実行して、検証済み exact OID で既存ブランチを取得する（引数は入力で渡された値）：
 
-`karte` CLI 側にも repo-root 配下・symlink 拒否の fail-close ガードがある（`karte/paths.py`）が、
-**それに依存して自分の検証を省かない**——CLI を経由しない `Read` / `Write` はガードを通らない。
+```
+python3 -m gitgate adopt-branch <branch_name> --repository OWNER/REPO --expected-oid <expected_oid> [--pr <N>]
+```
+
+- 取得後に `python3 -m gitgate branch-current` が `<branch_name>` を返すことを確認する。
+- **取得に失敗したら STOP して報告する**（`BRANCH_ADOPT_ALREADY_CHECKED_OUT`＝先行 worktree が
+  同じブランチを掴んでいる／`BRANCH_ADOPT_OID_MISMATCH`＝remote 先端が期待値と違う／
+  `BRANCH_ADOPT_PR_NOT_OPEN` 等）。**先行 worktree の解放は主文脈の責務**であり、本ロールには
+  解放系 verb が与えられていない（`worktree-release`/`collect-worktree`/`worktree-forget` は
+  どの gated ロールにも付与されない）。reason code をそのまま報告に載せる。
+- **新規ブランチは切らない**（`new-branch` は使わない）。PR が既に開いているブランチの続きを push する。
 
 ## Step 1: Diagnose（**コード編集の前に必須**）
 
@@ -167,10 +185,13 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
   （テストは `python3 -m unittest discover`）。`bash`/`sh`/`eval`/`source`/`xargs`/`curl`/`cat`/`echo`/
   `sed`/`awk`/`grep`/`jq`/`pip` 等は先頭語として一律 deny（パス付き `./git` も deny）。
 - **生 `git …` は全面 deny**。git 操作は **`python3 -m gitgate <verb>`** 経由。使える verb は
-  `issue-implementer` と同じ全 verb：`status` / `add <paths…>` / `commit <message-file>` / `push` /
-  `branch-current` / `new-branch <name>` / `fetch` / `diff [--stat] [<ref>…]` /
-  `log [-n <N>] [--grep <pat>] [--oneline]`。`merge`・`pull`・`rebase`・`reset`・`stash` 等に相当する
-  verb は**存在しない**。
+  `status` / `add <paths…>` / `commit <message-file>` / `push` / `branch-current` /
+  `new-branch <name>` / `fetch` / `diff [--stat] [<ref>…]` /
+  `log [-n <N>] [--grep <pat>] [--oneline]` に加え、**本ロールにだけ与えられた
+  `adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]`**
+  （Issue #354・上記 Step 0）。`merge`・`pull`・`rebase`・`reset`・`stash` 等に相当する verb は
+  **存在しない**。worktree 解放系（`worktree-release` / `collect-worktree` / `worktree-forget`）は
+  **どの gated ロールにも付与されていない**ので使えない（解放は主文脈と `SubagentStop` フックの責務）。
 - **gh は `pr create` と `issue view` のみ**（`issue-implementer` と同集合）。`gh pr merge` は deny。
 - **シェル記号は全面禁止**：クォート外の `| & ; ( ) { } < > $ backtick 改行`、ダブルクォート内の
   `$`・backtick。**パイプ・リダイレクト・コマンド置換・ヒアドキュメント・ブレース展開・`&&`/`;` チェイン・
@@ -188,11 +209,10 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 書く。**チャットには「書けた絶対パス」と1行要約だけ**を返す。マージ・Issueクローズは行わない。
 
 **書き先は `handoff_path` 一択**（自分でファイル名を組み立てない）。受理条件は上記「入力」節が正本で、
-本節はそれを繰り返さない。本ロールは現在**非 isolated**でメインワークツリーを cwd として動くため
-相対 `tmp/_handoff/...` はそのままメインワークツリー配下へ解決されるが、**isolation を課された後**
-（Issue #354）は自分の worktree 配下へ解決される。どちらの構成でも呼び出し元が確実に回収できるよう、
-**書けた絶対パスをチャットで返す**（相対パスのままチャットに返さない——呼び出し元から見て
-どのワークツリーの `tmp/_handoff/` か曖昧になる）。
+本節はそれを繰り返さない。本ロールは `isolation: "worktree"` 下で動くため、相対 `tmp/_handoff/...` は
+**自分の worktree 配下**へ解決される。呼び出し元がメインワークツリー側に同名ファイルを探しても
+見つからないので、**書けた絶対パスをチャットで返すことが唯一の回収手段**になる（相対パスのまま
+チャットに返さない——呼び出し元から見てどのワークツリーの `tmp/_handoff/` か曖昧になる）。
 
 ## ハンドオフ（呼び出し元への受け渡し）
 
@@ -260,6 +280,10 @@ deny されるため、`| tail -20` のような整形は**使えない**：
 ゲートは sandbox ではなく、**「Step 1 を通さずに Edit しない」はフックが直接強制しない
 プロンプトレベルの規範**である。だからこそ多層防御の一枚として自分で守る（詳細＝
 `.claude/rationale/issue-fixer.md`）。
+
+**「カルテを `Read`/`Write` で直接触らない」も同じくプロンプトレベルの規律**（Issue #354）。
+`permissions.deny` は `Read` を塞いでいないので、自分でパスを組み立てて読みに行けば
+K2 の構造的な保証は消える。組み立てないこと自体は自分で守る（理由＝rationale）。
 
 ## 注入ブロックへの優先規定（context-mode 対策・必読）
 

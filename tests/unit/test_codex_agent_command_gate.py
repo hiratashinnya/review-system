@@ -663,9 +663,12 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
         # Issue #354 PR-2（Claude 版と同一契約）: worktree ライフサイクル verb は gitgate に
         # 実装済みだが、GITGATE_VERBS_BY_ROLE には未登録＝どの gated ロールからも deny。
-        # 付与は PR-3/PR-4 で、両ツリー同時に行う。
-        pr2_verbs = [
-            "adopt-branch feature --repository o/r --expected-oid " + "a" * 40,
+        #
+        # **PR-4 で `adopt-branch` だけが `issue-fixer` へ付与された**（両ツリー同時）。よって
+        # 本テストの対象からは外し、`AdoptBranchVerbGrantTests` が期待値を固定する。
+        # 解放系3 verb は引き続きどのロールにも付与しない（Codex 側は worktree 分離自体が
+        # 起きないので、そもそも解放する対象が存在しない）。
+        release_verbs = [
             "worktree-release .claude/worktrees/agent-x",
             "worktree-release .claude/worktrees/agent-x --entry wl-0123456789ab",
             "collect-worktree --entry wl-0123456789ab",
@@ -673,11 +676,33 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "worktree-forget --entry wl-0123456789ab --reason gone",
         ]
         for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
-            for args in pr2_verbs:
+            for args in release_verbs:
                 with self.subTest(role=role, verb=args.split()[0]):
                     self.assert_denied(
                         run_gate(payload(role, f"python3 -m gitgate {args}"))
                     )
+
+    def test_adopt_branch_is_granted_to_issue_fixer_only(self):
+        """Issue #354 PR-4: 付与範囲は Claude 版と**同一の期待値**（両ツリー同時）。
+
+        Codex の `spawn_agent` には isolation パラメータが無く worktree 分離は起きないが、
+        `adopt-branch` は「検証済み exact OID で既存ブランチへ移る」唯一の手段（生
+        `git switch`/`checkout` は層3 で全 deny）なので、Codex 側でも同じく付与する。
+        """
+        adopt = (
+            "python3 -m gitgate adopt-branch claude/issue-354 "
+            "--repository hiratashinnya/review-system --expected-oid " + "b" * 40
+        )
+        self.assert_allowed(run_gate(payload("issue-fixer", adopt)))
+        self.assert_allowed(run_gate(payload("issue-fixer", adopt + " --pr 402")))
+        for role in ["issue-implementer", "pr-reviewer"]:
+            with self.subTest(role=role):
+                self.assert_denied(run_gate(payload(role, adopt)))
+        # FR-W11 回帰: verb を1つ足しても push 可・merge 不可の非対称は動かない。
+        self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
+        for command in ("gh pr merge 402", "git merge feature", "git switch claude/issue-354"):
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
 
     def test_role_gh_subcommand_allowlist_is_exhaustive(self):
         for cmd in ["gh pr create --title \"x\" --body-file f", "gh issue view 227"]:
@@ -845,6 +870,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             '    "issue-fixer": {\n'
             '        "status", "add", "commit", "push", "branch-current",\n'
             '        "new-branch", "fetch", "diff", "log",\n'
+            '        "adopt-branch",\n'
             '    },\n',
             "",
         )

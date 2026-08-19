@@ -52,6 +52,63 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
   **ラウンドをまたいで蓄積される呼び出し元側の台帳**であって本ロールの出力ではなく、受け渡し方式の
   見直しは Issue #354 の範囲。
 
+### `karte_path` は Issue #354（PR-4・K2）で**廃止した**（2026-08-19）
+
+上記の据え置きは #354 で決着し、**`karte_path` の受け渡し自体を無くした**。規範側
+（`.claude/agents/issue-fixer.md`）からは「入力」節の `karte_path` 行・「2つのパスは受け渡し方式が
+異なる」節・「`karte_path` の検査（絶対パス完全一致／`..`／symlink の3点）」節を削除し（区分2＝
+本文の書き換え）、代わりに「カルテには `python3 -m karte <verb> --issue <N> --round <R>` でのみ触る」
+という1文に置き換えた。経緯を保全するため、**なぜ絶対パスにしていたか（上記）と、なぜ廃止できたか
+（以下）の両方をここに残す**（区分1）。
+
+- **廃止できた理由**：`karte` CLI は `karte/paths.py` の `main_worktree_root()`（K-01）で
+  台帳の所在を**決定論的に導出する**（`.git` ファイル → `gitdir:` → `commondir`）。linked worktree
+  から呼んでも必ずメインワークツリーの台帳に収束するので、呼び出し元がパスを教える必要が
+  そもそも無い。教えなければ「別 worktree・別 Issue の台帳を掴む」脅威は**検査ではなく構造で
+  消える**——`issue-fixer.md` が背負っていた3点検査（完全一致・`..`・symlink）は、守るべき脅威が
+  無くなったので削除できた。検査を緩めたのではなく、脅威を消した。
+- **`handoff_path` を相対にした #323 の考え方の対称形**：#323 は「呼び出し先が新規に書き、
+  呼び出し元が回収する成果物」の置き場を相対にして worktree 外への誤誘導を構造的に消した。
+  K2 は「呼び出し元が既に所有している共有台帳」については**パスを渡さない**ことで同じ効果を得る。
+  一般則は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」に1項として明文化した。
+- **残る限界**：規律は機械強制されない。`.claude/settings.json` の `permissions.deny` は
+  `Edit(/tmp/_karte/**)` のままで `Read` を塞いでいない（塞ぐと主文脈の正当な読みも巻き込む）。
+  したがって「自分でパスを組み立てて読みに行かない」は多層防御の一枚として本ロールが守る
+  （規範側「既知の限界」節に明記済み）。
+
+## `isolation: "worktree"` と `ISSUE_FIX_BINDING_V1` marker の enforcement（Issue #354・PR-4）
+
+規範側には「何を渡す契約か」だけを残し、統制の内部をここへ置く。
+
+- **契約の実体**＝`issue_start/managed-entrypoints-v2.json` の `isolation_only` 区分
+  （`agent_type: "issue-fixer"`・`claude` transport の `required_isolation: "worktree"` と
+  `binding_marker: "ISSUE_FIX_BINDING_V1="`）。enforcement＝`issue_start/gate.py` の
+  `_parse_isolation_only` / `_fix_binding` / `_validate_isolation`。
+- **なぜ `managed` ではなく別区分か**：`managed`（`issue-implementer`）は dispatch のたびに
+  GitHub API で blocker を fresh read する。是正ラウンドは**既に開いた PR への処置**で、Issue の
+  着手可否は初回実装の dispatch で判定済みだから、ラウンドごとに再判定する意味が無い。むしろ
+  毎ラウンド API を叩くと、API 不通時にレビュー是正まで fail-close で止まる——「直せない」ではなく
+  「直しに行けない」という、統制の目的から外れた停止になる。よって `isolation_only` は
+  shape 検証（必須/禁止 field・`required_isolation`）と軽量 marker だけを見る。
+- **なぜ marker を要求するか（無検証で素通ししないか）**：worktree 所有台帳（FR-W4）に
+  `{issue, round, branch_name, handoff_path}` が正確に載らないと、どの worktree がどのラウンドの
+  ものか事後に辿れない。加えて `adopt-branch --expected-oid` に渡す値の出所が dispatch 契約側に
+  固定される（是正者に組み立てさせると、掴む commit が dispatch の想定と食い違いうる）。
+  deny 文言も「何を直せばよいか」を具体的に返せる。
+- **reason code**：`ISSUE_START_ISOLATION_NOT_WORKTREE`（isolation 欠落・別値）／
+  `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker の欠如・重複）／
+  `ISSUE_START_BINDING_INVALID_JSON`／`ISSUE_START_BINDING_UNKNOWN_FIELD`（exact 5 field 以外）／
+  `ISSUE_START_ISSUE_INVALID`／`ISSUE_START_ROUND_INVALID`／`ISSUE_START_BRANCH_INVALID`／
+  `ISSUE_START_EXPECTED_OID_INVALID`／`ISSUE_START_HANDOFF_PATH_INVALID`／
+  `ISSUE_START_TOOL_INPUT_SHAPE_INVALID`／`ISSUE_START_MANIFEST_CONTRACT_ERROR`。
+  加えて残留 worktree があれば `ISSUE_START_WORKTREE_RESIDUE` 等（PR-3・全 dispatch 共通）。
+- **`adopt-branch` を本ロールにだけ付与した理由**：isolation を課すと worktree はまっさらで、
+  是正対象ブランチが載っていない。初回実装は `new-branch` で新規に切るので既存ブランチを掴む
+  必要が無く、`issue-implementer` へ付与すると最小権限が広がるだけで得るものが無い。
+  worktree 解放系（`worktree-release`/`collect-worktree`/`worktree-forget`）は**他 dispatch の
+  成果物を消せる**ため、どの gated ロールにも付与しない（実行主体は非 gated の主文脈と
+  `SubagentStop` フックに限る）。allowlist 未登録＝既定 deny なので明示 deny のコードは要らない。
+
 ## Step 2 の `close-attempt --base` を明示させる理由（移設元：「Step 2: Fix」ステップ0/4）
 
 `close-attempt` の `--base` 既定は `HEAD`。Step 2 の手順順序は「Edit → テスト → **commit/push** →

@@ -1,6 +1,5 @@
 {
-  "schema_version": "managed-issue-entrypoints/1",
-  "retired": "退役（Issue #354 PR-4）。正本は managed-entrypoints-v2.json で、issue_start/gate.py はこのファイルを読まない。内容は履歴保全のためそのまま残している（PR8 区分1）。archive/ への git mv は未実施（実施者にファイル移動手段が無かったため・PR 本文に記録）。編集しても挙動は変わらない。",
+  "schema_version": "managed-issue-entrypoints/2",
   "policy_version": "issue-start/1.0",
   "managed": [
     {
@@ -41,6 +40,33 @@
           ],
           "prompt_field": "prompt",
           "binding_marker": "ISSUE_START_BINDING_V1=",
+          "required_isolation": "worktree"
+        }
+      }
+    }
+  ],
+  "isolation_only": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-fixer",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_FIX_BINDING_V1=",
           "required_isolation": "worktree"
         }
       }

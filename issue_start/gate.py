@@ -30,7 +30,15 @@ from . import worktree_ledger
 
 ISSUE_START_POLICY_VERSION = "issue-start/1.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
-ENTRYPOINT_MANIFEST = Path(__file__).with_name("managed-entrypoints-v1.json")
+# Issue #354 PR-4: `isolation_only` 区分を足した manifest v2 が唯一の正本。
+# v1（`managed-entrypoints-v1.json`）は**退役済みで一切読まない**——同ファイルは履歴保全のため
+# 残してあるだけで（PR8 区分1）、編集しても gate の挙動は変わらない。
+MANIFEST_SCHEMA_VERSION = "managed-issue-entrypoints/2"
+ENTRYPOINT_MANIFEST = Path(__file__).with_name("managed-entrypoints-v2.json")
+# 是正ラウンド（`issue-fixer`）用の軽量 binding marker（Issue #354 PR-4）。
+# managed 側の7 field marker とは別契約で、GitHub API を一切叩かない
+# （blocker 判定は初回実装の dispatch で済んでいる＝`_ISOLATION_ONLY_FIELDS` の docstring 参照）。
+FIX_BINDING_MARKER = "ISSUE_FIX_BINDING_V1="
 
 # Issue #345［A］: GitHub API へ到達できない実行環境のための snapshot fallback。
 # 孤立ブランチなので main と履歴を共有せず、既定ブランチを汚さない。
@@ -48,6 +56,10 @@ _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 _BRANCH = _REF
+# 是正 marker の `handoff_path`（作業ツリールート相対・`tmp/_handoff/` 直下の1ファイル）。
+# 受理条件の正本は `.claude/agents/issue-fixer.md`「入力」で、ここはその機械側の前段——
+# 役割側の STOP より dispatch 側の deny の方が早く・具体的に直せる。
+_HANDOFF_PATH = re.compile(r"^tmp/_handoff/(?P<name>[A-Za-z0-9._-]+)\.yaml$")
 _HTTPS_REMOTE = re.compile(
     r"^https://github\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38})/"
     r"([A-Za-z0-9_.-]{1,100}?)(?:\.git)?$"
@@ -84,23 +96,70 @@ class IssueStartRequest:
     issue: int
 
 
+@dataclass(frozen=True)
+class IsolationOnlyAck:
+    """`isolation_only` 区分の dispatch を受理したことの記録（Issue #354 PR-4）。
+
+    **blocker 判定（GitHub API）を伴わない**のが :class:`IssueStartRequest` との本質的な差。
+    是正ラウンドは既に開いた PR への処置であり、Issue の着手可否（open blocker の有無）は
+    初回実装の dispatch で判定済みだから、ラウンドごとに再判定する意味が無い。むしろ
+    毎ラウンド API を叩くと、API 不通のときレビュー是正まで fail-close で止まる——
+    「直せない」ではなく「直しに行けない」という、統制の目的から外れた停止になる。
+
+    したがってこの区分に掛かるのは shape 検証（必須/禁止 field・`required_isolation`）と
+    軽量 marker の検証だけで、通れば dispatch は ALLOW（stdout 無出力）になる。
+    marker を要求する理由は台帳（FR-W4）——`{issue, round, branch_name, handoff_path}` が
+    正確に載っていなければ、どの worktree がどのラウンドのものか事後に辿れない。
+    """
+
+    entrypoint: str
+    agent_type: str
+    issue: int | None
+    round: int | None
+    branch_name: str | None
+    handoff_path: str | None
+    expected_oid: str | None
+
+
 def _manifest() -> Mapping[str, Any]:
     try:
         raw = json.loads(ENTRYPOINT_MANIFEST.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise IssueStartError("ISSUE_START_MANIFEST_ERROR") from exc
-    if not isinstance(raw, dict) or raw.get("policy_version") != ISSUE_START_POLICY_VERSION:
+    if (
+        not isinstance(raw, dict)
+        or raw.get("schema_version") != MANIFEST_SCHEMA_VERSION
+        or raw.get("policy_version") != ISSUE_START_POLICY_VERSION
+    ):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     return raw
 
 
-def _managed_entries() -> list[Mapping[str, Any]]:
-    managed = _manifest().get("managed")
-    if not isinstance(managed, list) or not managed or not all(
-        isinstance(item, dict) for item in managed
+def _entries(key: str, *, required: bool) -> list[Mapping[str, Any]]:
+    value = _manifest().get(key)
+    if value is None and not required:
+        return []
+    if not isinstance(value, list) or (required and not value) or not all(
+        isinstance(item, dict) for item in value
     ):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    return managed
+    return value
+
+
+def _managed_entries() -> list[Mapping[str, Any]]:
+    return _entries("managed", required=True)
+
+
+def _isolation_only_entries() -> list[Mapping[str, Any]]:
+    """`isolation_only` 区分のエントリ（未宣言の manifest では空）。"""
+    return _entries("isolation_only", required=False)
+
+
+def _agent_types(entries: Sequence[Mapping[str, Any]]) -> set[str]:
+    raw = [item.get("agent_type") for item in entries]
+    if not all(isinstance(value, str) and value for value in raw):
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    return set(raw)
 
 
 def _request(raw: Mapping[str, Any]) -> IssueStartRequest:
@@ -214,9 +273,13 @@ def _codex_repository(
     return _canonical_github_repository(origin)
 
 
-def _managed_transport(tool_name: str, agent_type: str) -> tuple[Mapping[str, Any], str, Mapping[str, Any]]:
+def _managed_transport(
+    tool_name: str,
+    agent_type: str,
+    entries: Sequence[Mapping[str, Any]] | None = None,
+) -> tuple[Mapping[str, Any], str, Mapping[str, Any]]:
     matches: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
-    for entry in _managed_entries():
+    for entry in (_managed_entries() if entries is None else entries):
         if entry.get("agent_type") != agent_type:
             continue
         transports = entry.get("binding_transports")
@@ -291,16 +354,97 @@ def _validate_isolation(
         )
 
 
+def _marker_payload(
+    tool_input: Mapping[str, Any], transport: Mapping[str, Any], marker: str
+) -> Mapping[str, Any]:
+    """prompt から binding marker 行をちょうど1つ取り出して JSON として読む。"""
+    prompt_field = transport.get("prompt_field")
+    if not isinstance(prompt_field, str) or not isinstance(marker, str) or not marker:
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    prompt = tool_input.get(prompt_field)
+    if not isinstance(prompt, str):
+        raise IssueStartError("ISSUE_START_BINDING_MISSING")
+    lines = [line for line in prompt.splitlines() if line.startswith(marker)]
+    if len(lines) != 1:
+        raise IssueStartError("ISSUE_START_BINDING_MISSING_OR_DUPLICATE")
+    try:
+        raw = json.loads(lines[0][len(marker):])
+    except json.JSONDecodeError as exc:
+        raise IssueStartError("ISSUE_START_BINDING_INVALID_JSON") from exc
+    if not isinstance(raw, dict):
+        raise IssueStartError("ISSUE_START_BINDING_INVALID_JSON")
+    return raw
+
+
+def _fix_binding(
+    raw: Mapping[str, Any], *, entrypoint: str, agent_type: str
+) -> IsolationOnlyAck:
+    """`ISSUE_FIX_BINDING_V1` marker（exact 5 field）を検証して ack を返す。
+
+    field を絞ったのは、この区分が **GitHub API を叩かない**から——`repository`/`base_*` は
+    blocker 判定と branch-source 判定の材料で、どちらもここでは行わない。代わりに
+    `expected_oid` を持つ：是正者は `gitgate adopt-branch --expected-oid` で既存 PR ブランチを
+    自分の worktree へ取得するので、その値の出所を dispatch 契約側に固定しておく
+    （出所が曖昧なまま是正者に組み立てさせると、掴む commit が dispatch と食い違いうる）。
+    """
+    expected = {"issue", "round", "branch_name", "expected_oid", "handoff_path"}
+    if set(raw) != expected:
+        raise IssueStartError("ISSUE_START_BINDING_UNKNOWN_FIELD")
+    issue = raw.get("issue")
+    round_ = raw.get("round")
+    branch_name = raw.get("branch_name")
+    expected_oid = raw.get("expected_oid")
+    handoff_path = raw.get("handoff_path")
+    if not isinstance(issue, int) or isinstance(issue, bool) or issue < 1:
+        raise IssueStartError("ISSUE_START_ISSUE_INVALID")
+    if not isinstance(round_, int) or isinstance(round_, bool) or round_ < 1:
+        raise IssueStartError("ISSUE_START_ROUND_INVALID")
+    if not isinstance(branch_name, str) or not _BRANCH.fullmatch(branch_name):
+        raise IssueStartError("ISSUE_START_BRANCH_INVALID")
+    if not isinstance(expected_oid, str) or not _OID.fullmatch(expected_oid):
+        raise IssueStartError("ISSUE_START_EXPECTED_OID_INVALID")
+    match = _HANDOFF_PATH.fullmatch(handoff_path) if isinstance(handoff_path, str) else None
+    if match is None:
+        raise IssueStartError(
+            "ISSUE_START_HANDOFF_PATH_INVALID",
+            "expected tmp/_handoff/<name>.yaml (作業ツリールート相対)",
+        )
+    # ファイル名を `{agent_type}--issue-{issue}` に束縛する。境界の1文字（`-` か `.`）まで
+    # 見るのは、`issue-354` の dispatch が `…--issue-3541.yaml`（別 Issue のファイル）を
+    # 受理しないため（`.claude/agents/issue-fixer.md` と同じ検査を dispatch 側でも掛ける）。
+    prefix = f"{agent_type}--issue-{issue}"
+    name = match.group("name")
+    if not (name == prefix or (name.startswith(prefix) and name[len(prefix)] in "-.")):
+        raise IssueStartError(
+            "ISSUE_START_HANDOFF_PATH_INVALID", f"expected file name to start with {prefix}"
+        )
+    return IsolationOnlyAck(
+        entrypoint=entrypoint,
+        agent_type=agent_type,
+        issue=issue,
+        round=round_,
+        branch_name=branch_name,
+        handoff_path=handoff_path,
+        expected_oid=expected_oid,
+    )
+
+
 def parse_dispatch_payload(
     payload: Mapping[str, Any],
     *,
     cwd: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> IssueStartRequest | None:
-    """Codex/Claude の tool payload から managed dispatch binding を読む。
+) -> IssueStartRequest | IsolationOnlyAck | None:
+    """Codex/Claude の tool payload から dispatch binding を読む。
 
-    issue-implementer 以外は manifest 上の unmanaged operation なので対象外。
-    issue-implementer は marker 欠如・重複・tool mismatch をすべて拒否する。
+    manifest の3区分に対応する:
+
+    * ``managed``（`issue-implementer`）→ :class:`IssueStartRequest`。
+      marker 欠如・重複・tool mismatch をすべて拒否し、呼び出し側が blocker 判定へ進む。
+    * ``isolation_only``（`issue-fixer`）→ :class:`IsolationOnlyAck`。
+      shape/isolation/軽量 marker だけを検証し、**GitHub API へは行かない**（理由＝
+      :class:`IsolationOnlyAck` の docstring）。
+    * どちらにも載っていない agent_type → ``None``（unmanaged・素通し）。
     """
     tool_name = payload.get("tool_name")
     tool_input = payload.get("tool_input")
@@ -311,10 +455,15 @@ def parse_dispatch_payload(
     if len(present_targets) != 1 or not isinstance(present_targets[0], str) or not present_targets[0]:
         raise IssueStartError("ISSUE_START_TARGET_UNKNOWN")
     agent_type = present_targets[0]
-    raw_managed_types = [item.get("agent_type") for item in _managed_entries()]
-    if not all(isinstance(value, str) and value for value in raw_managed_types):
+    managed_types = _agent_types(_managed_entries())
+    isolation_only_entries = _isolation_only_entries()
+    isolation_only_types = _agent_types(isolation_only_entries)
+    # 同じ agent_type が両区分に載っていたら、どちらの契約で判定すべきか一意に決まらない。
+    # 「厳しい方」を勝手に選ばず manifest 側の誤りとして fail-close する。
+    if managed_types & isolation_only_types:
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    managed_types = set(raw_managed_types)
+    if agent_type in isolation_only_types:
+        return _parse_isolation_only(tool_name, tool_input, agent_type, isolation_only_entries)
     if agent_type not in managed_types:
         return None
     entry, harness, transport = _managed_transport(tool_name, agent_type)
@@ -341,26 +490,39 @@ def parse_dispatch_payload(
         return _request({"entrypoint": entrypoint, "repository": repository, "issue": issue})
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    prompt_field = transport.get("prompt_field")
-    marker = transport.get("binding_marker")
-    if not isinstance(prompt_field, str) or not isinstance(marker, str) or not marker:
-        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    prompt = tool_input.get(prompt_field)
-    if not isinstance(prompt, str):
-        raise IssueStartError("ISSUE_START_BINDING_MISSING")
-    lines = [line for line in prompt.splitlines() if line.startswith(marker)]
-    if len(lines) != 1:
-        raise IssueStartError("ISSUE_START_BINDING_MISSING_OR_DUPLICATE")
-    try:
-        raw = json.loads(lines[0][len(marker):])
-    except json.JSONDecodeError as exc:
-        raise IssueStartError("ISSUE_START_BINDING_INVALID_JSON") from exc
-    if not isinstance(raw, dict):
-        raise IssueStartError("ISSUE_START_BINDING_INVALID_JSON")
+    raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
     request = _claude_request(raw)
     if request.entrypoint != entrypoint:
         raise IssueStartError("ISSUE_START_ENTRYPOINT_UNKNOWN", request.entrypoint)
     return request
+
+
+def _parse_isolation_only(
+    tool_name: str,
+    tool_input: Mapping[str, Any],
+    agent_type: str,
+    entries: Sequence[Mapping[str, Any]],
+) -> IsolationOnlyAck:
+    """`isolation_only` 区分の dispatch を検証する（GitHub API へは一切行かない）。
+
+    managed 経路と**同じ** :func:`_validate_tool_input_shape` を通すので、
+    `required_isolation` の強制（`ISSUE_START_ISOLATION_NOT_WORKTREE`）は分岐で
+    弱まらない——ここが本区分の存在理由（分離だけを課したい）そのものだから。
+    """
+    entry, harness, transport = _managed_transport(tool_name, agent_type, entries)
+    _validate_tool_input_shape(tool_input, transport)
+    expected_field = transport.get("agent_type_field")
+    if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:
+        raise IssueStartError("ISSUE_START_TARGET_UNKNOWN")
+    entrypoint = entry.get("entrypoint")
+    if not isinstance(entrypoint, str):
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    if harness != "claude":
+        # isolation は Claude harness の Agent tool にしか無い概念（Codex の spawn_agent には
+        # 無い）。他 harness の transport をこの区分に宣言するのは manifest 側の誤り。
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
+    return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
 
 
 def _error_evidence(request: IssueStartRequest | None, reason: str, detail: str = "") -> dict[str, Any]:
@@ -844,4 +1006,42 @@ def record_open_entry(
     except worktree_ledger.LedgerError as exc:
         return {"entry_id": None, "error": exc.reason, "detail": exc.detail}
     except Exception as exc:  # 台帳の事故で dispatch を止めない（本 PR は fail-open）
+        return {"entry_id": None, "error": type(exc).__name__}
+
+
+def record_isolation_only_entry(
+    ack: IsolationOnlyAck,
+    *,
+    now: datetime,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """`isolation_only` の ALLOW を worktree 所有台帳へ ``open`` 起票する（Issue #354 PR-4）。
+
+    **起票は省略できない**——`isolation: "worktree"` を課した以上、是正ラウンドも
+    `.claude/worktrees/agent-<id>/` を占有する。`open` エントリが無いと
+    `SubagentStart`（`worktree_ledger.bind_agent`）が束縛先を見つけられず、その worktree は
+    台帳のどのエントリにも紐づかない＝次の dispatch が `ISSUE_START_WORKTREE_UNCLAIMED` で
+    deny される（統制が機能不全ではなく**過剰 deny**として現れる）。
+
+    managed 側（:func:`record_open_entry`）と違い ``round`` / ``handoff_path`` を
+    **推測せず marker の値で埋める**（FR-W4 の完全化）。台帳の書込失敗は dispatch を
+    止めない（fail-open）＝managed 側と同じ扱い。
+    """
+    try:
+        root = worktree_ledger.main_worktree_root(
+            Path.cwd() if repo_root is None else Path(repo_root)
+        )
+        entry_id = worktree_ledger.open_entry(
+            root,
+            issue=ack.issue,
+            agent_type=ack.agent_type,
+            round=ack.round,
+            branch_name=ack.branch_name,
+            handoff_path=ack.handoff_path,
+            now=now,
+        )
+        return {"entry_id": entry_id, "error": None}
+    except worktree_ledger.LedgerError as exc:
+        return {"entry_id": None, "error": exc.reason, "detail": exc.detail}
+    except Exception as exc:
         return {"entry_id": None, "error": type(exc).__name__}

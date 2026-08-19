@@ -33,7 +33,8 @@ dispatch prompt に `ISSUE_START_BINDING_V1={...}`（7 field・exact JSON。契�
 ## dispatch 前提：`isolation: "worktree"`（同じ hook が機械的に強制・Issue #350）
 本エージェントへの `Task`/`Agent` dispatch は、**`isolation: "worktree"` を伴わない限り同じ
 `issue-start-gate` が deny する**（reason code `ISSUE_START_ISOLATION_NOT_WORKTREE`・契約の実体＝
-`issue_start/managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
+`issue_start/managed-entrypoints-v2.json` の `managed` 区分 `claude` transport の
+`required_isolation`・enforcement＝
 `issue_start/gate.py` の `_validate_isolation`）。marker と同じく、欠けていれば**本エージェントは
 起動すらされない**。この deny を見た場合も疑うのは呼び出し元の dispatch 引数であって本ファイルではない。
 
