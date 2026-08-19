@@ -31,8 +31,9 @@ from . import worktree_ledger
 ISSUE_START_POLICY_VERSION = "issue-start/1.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
 # Issue #354 PR-4: `isolation_only` 区分を足した manifest v2 が唯一の正本。
-# v1（`managed-entrypoints-v1.json`）は**退役済みで一切読まない**——同ファイルは履歴保全のため
-# 残してあるだけで（PR8 区分1）、編集しても gate の挙動は変わらない。
+# v1（`archive/issue-start-manifest-v1/managed-entrypoints-v1.json`）は**退役済みで一切読まない**
+# ——同ファイルは履歴保全のため archive/ へ git mv して残してあるだけで（PR8 区分1）、
+# 編集しても gate の挙動は変わらない。
 MANIFEST_SCHEMA_VERSION = "managed-issue-entrypoints/2"
 ENTRYPOINT_MANIFEST = Path(__file__).with_name("managed-entrypoints-v2.json")
 # 是正ラウンド（`issue-fixer`）用の軽量 binding marker（Issue #354 PR-4）。

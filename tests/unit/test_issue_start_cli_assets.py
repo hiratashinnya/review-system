@@ -75,16 +75,17 @@ class AssetParityTests(unittest.TestCase):
     def test_gate_reads_only_the_v2_manifest(self):
         """Issue #354 PR-4: 正本は v2 で、v1 は退役して**読まれない**。
 
-        v1 ファイル自体は履歴保全のため残してある（PR8 区分1）。残っているせいで
-        「v1 を編集すれば挙動が変わる」と誤読されうるので、読み先が v2 だけであることと
-        v1 が退役を自己申告していることを機械的に固定する。
+        v1 ファイルは archive/issue-start-manifest-v1/ へ git mv 済み（PR8 区分1・
+        archive/docidx-v1・archive/backref-v1 と同じ退役の見え方）。読み先が v2 だけで
+        あることと v1 が退役を自己申告していることを機械的に固定する。
         """
         from issue_start.gate import ENTRYPOINT_MANIFEST, MANIFEST_SCHEMA_VERSION
 
         self.assertEqual(ENTRYPOINT_MANIFEST.name, "managed-entrypoints-v2.json")
         self.assertEqual(MANIFEST_SCHEMA_VERSION, "managed-issue-entrypoints/2")
         retired = json.loads(
-            (ROOT / "issue_start" / "managed-entrypoints-v1.json").read_text(encoding="utf-8")
+            (ROOT / "archive" / "issue-start-manifest-v1" / "managed-entrypoints-v1.json")
+            .read_text(encoding="utf-8")
         )
         self.assertEqual(retired["schema_version"], "managed-issue-entrypoints/1")
         self.assertIn("managed-entrypoints-v2.json", retired["retired"])
