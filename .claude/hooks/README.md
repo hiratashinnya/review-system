@@ -430,14 +430,16 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 ---
 
-# subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309)
+# subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309 / #354)
 
 `issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
 (b) worktree ↔ dispatch の所有関係を**機械可読な台帳**へ記録し、(c) カルテ未更新のまま
-`issue-fixer` が停止することを拒否する。
+`issue-fixer` が停止することを拒否し、(d) 停止した dispatch の worktree を**回収してから解放**する。
 
-> **本 PR(#309 PR-1)の時点で worktree は1つも削除しない。** 削除経路(`git worktree remove`)を
-> 呼ぶコードはこのディレクトリにも `issue_start/` にも存在しない。自動回収・自動解放は後続 PR。
+> **フック自身は `git worktree remove` を呼ばない。** 実体を消してよいかの判断(台帳の状態・
+> パス形状・git 管理下かの検査・回収→検証→解放の段構造)は `gitgate/worktree.py` に集約されており、
+> フックはその verb(`python3 -m gitgate collect-worktree`)を起動するだけ(Issue #354・PR-3)。
+> こうすると「回収せずに解放する」経路がフック側に**作りようがない**(FR-W2)。
 
 ## 構成
 
@@ -445,10 +447,57 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 |---|---|
 | `subagent-karte-inject.sh` | `SubagentStart(issue-fixer)`。`karte-protocol.md` を `additionalContext` として注入する。**失敗時は無出力 exit 0(fail-open)**。 |
 | `subagent-worktree-bind.sh` | `SubagentStart(issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
-| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否する。**判定不能も拒否(fail-close)**。 |
+| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
 | `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
 | `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
-| `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移。 |
+| `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
+| `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget`)。**フックからはサブプロセスとして起動する**。 |
+
+## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354)
+
+**どの失敗経路でも worktree を消さず、台帳を `stale` にして無出力 exit 0 で返す**(＝停止を
+ブロックしない)。解放できないことを理由にエージェントを止め続けても解決しない——当人には
+`gitgate` の worktree verb が許可されていないからで、制御を主文脈へ返し、
+**次 dispatch の gate deny**(下記)で気づかせるのが正しい向き。
+
+| 段 | 失敗したとき |
+|---|---|
+| 台帳の置き場(main worktree root)を導出できない | 何も書かず何も消さず返す |
+| `agent_id` で自分のエントリを引けない | **`running` は掴みにいかない**(他人のものかもしれず、`stale` へ落とすと `WORKTREE_LIVE` の保護が外れる)。同 `agent_type` の最新 `open` だけを `stale` にする |
+| `running` → `stopped` の遷移に失敗 | `stale` にせず evidence だけ残す(状態機械を壊さない) |
+| 回収対象の handoff を一意に決められない(worktree の `tmp/_handoff/` に2件以上) | 起動せず `stale`(どれが成果物か決められないまま消さない) |
+| `collect-worktree` が非0 / 起動不能 / timeout | `stale`(worktree は残る) |
+
+`running` → `stopped` の遷移を**必ず挟む**こと。`collect-worktree` は台帳 status `running` を
+`WORKTREE_LIVE` で拒否し `stopped` のみ受理する(安全側の既定・Issue #354 F-354-01)ので、
+遷移を落とすと自動解放は一度も成功しない。
+
+## 残留 worktree での次 dispatch を deny する(PreToolUse・`issue-start-gate.sh`・Issue #354)
+
+自動解放が失敗した/フックが発火しなかったときの**最後の砦**。`issue_start/gate.py` の
+`assert_no_worktree_residue()` が **全 `Task` dispatch**(managed / unmanaged を問わない)に対して
+判定する。#354 が実測した乗っ取りは `pr-reviewer`＝unmanaged 側で起きたため、managed だけを
+見張っていては正面から塞げない。
+
+| reason | 条件 | deny 文に載る解消コマンド |
+|---|---|---|
+| `ISSUE_START_WORKTREE_RESIDUE` | `stale` / `stopped` / `collected` のエントリが1件以上ある | `python3 -m gitgate collect-worktree --entry <entry-id>`(回収不能なら `worktree-forget --entry <entry-id> --reason <text>`) |
+| `ISSUE_START_WORKTREE_UNCLAIMED` | ディスク上の `agent-*` が `running` / `stopped` のどれにも紐づかない | `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` |
+| `ISSUE_START_WORKTREE_LEDGER_ERROR` | 台帳が読めない/壊れている | (fail-close。台帳を直すまで通さない) |
+
+- **過剰 deny の緩和は deny を弱めることでは行わない**。①deny 文へ必ず解消コマンドを載せる、
+  ②`worktree-forget --reason`(理由必須)の逃げ道を残す、の2つで行う。
+- **`stopped` は2つの集合に同時に現れる**——`unclaimed` 判定では claimed 側に数えて
+  「回収処理中の worktree を孤児と誤診しない」ようにし、residue 判定では検出して
+  「回収段が失敗したまま止まっている」ことに気づけるようにする。どちらか片方を落とすと
+  それぞれ別の失敗になる。
+- **判定前に `sweep_orphans` を1回走らせる**。「占有を主張しているのに worktree が実在しない」
+  `running` / `stopped` を `stale` へ落とす状態→状態の照合で、落とす候補が無ければ台帳へ
+  書き込まない(正常系は no-op)。`open` は掃引しない——live な dispatch と取り残しを状態だけでは
+  区別できず、区別には経過時間が要るため(台帳は TTL 判定を持たない)。
+- **PR-1 の fail-open からの変更点**：台帳が壊れているときの dispatch は #309 では ALLOW だったが、
+  #354 PR-3 で **deny(fail-close)** に倒した。残留の有無を判定できない状態で通すと統制が空振りするため。
+  一方、ALLOW 後の**起票**(`record_open_entry`)は今も fail-open のまま(書けなくても dispatch は通る)。
 
 `.sh` を薄い起動口にして判定ロジックを python モジュールへ置いたのは、`tests/unit/test_subagent_hooks.py`
 から**サブプロセスを介さず**注入点(`repo_root` / `now` / `runner`)込みで検証できるようにするため。
@@ -458,13 +507,18 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 | 対象 | 方針 | 判定不能・失敗時の挙動 |
 |---|---|---|
-| **停止のブロック**(`subagent-stop-gate.sh`) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
-| **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳が書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
-| **worktree の削除**(後続 PR) | **fail-safe＝「消さない」側** | 判定不能・回収失敗なら削除しない |
+| **停止のブロック**(`subagent-stop-gate.sh` の①) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
+| **残留 worktree の deny**(`issue-start-gate.sh`・#354) | **fail-close** | 台帳が読めなければ dispatch を deny する(`ISSUE_START_WORKTREE_LEDGER_ERROR`) |
+| **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳へ書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
+| **worktree の削除**(`subagent-stop-gate.sh` の②) | **fail-safe＝「消さない」側** | 判定不能・回収失敗なら削除せず `stale` にする |
 
-**理由**: ブロックの誤りは「余計に止まる」だけで回復可能だが、削除の誤りは成果物を回復不能に失う。
-台帳の起票で dispatch を止めない(fail-open)のは、観測が正確になったことを実測してから deny を
-有効化する「統制を先に、付与は別 PR」の順序を守るため——deny への昇格は後続 PR。
+**理由**: ブロック・deny の誤りは「余計に止まる」だけで回復可能だが、削除の誤りは成果物を
+回復不能に失う。**起票**だけが fail-open なのは、書けなかった記録のために dispatch を止めても
+何も守れないから(守るべき判定は読み取り側＝residue deny が担う)。
+
+> **#309(PR-1)時点との差**: 当時は残留判定も fail-open(＝deny しない)だった。これは
+> 「観測が正確になったことを実測してから deny を有効化する」という**統制を先に、付与は別 PR**の
+> 順序に従った暫定状態で、#354 PR-3 で fail-close へ倒して統制を発効させた。
 
 ## 対象外ロールの扱い(matcher と in-script 判定の二重)
 

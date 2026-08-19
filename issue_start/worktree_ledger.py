@@ -10,11 +10,11 @@
 
 本モジュールはこの束縛を**観測できる状態**として記録する（FR-W4）。
 
-**本 PR（PR-1）のスコープは記録だけである**:
-  * **worktree を1つも削除しない**——削除経路をこのモジュールは持たない（構造的にゼロ）。
-    解放 verb の実装は PR-2、自動解放は PR-3。
-  * **dispatch を1つも deny しない**——:func:`residue_report` は evidence を組み立てるだけで、
-    その結果を deny 判定に使うのは PR-3。
+**本モジュール自身は worktree を1つも削除しない**——削除経路をこのモジュールは持たない
+（構造的にゼロ）。実体を消すのは :mod:`gitgate.worktree` の ``worktree-release`` /
+``collect-worktree`` だけである（PR-2）。本モジュールが持つのは**状態の記録と突き合わせ**で、
+:func:`residue_report` が組み立てる evidence を dispatch の deny 判定へ使うのは
+:mod:`issue_start.gate`（PR-3）。
 
 置き場の決定（main worktree への収束）
 ------------------------------------
@@ -47,7 +47,17 @@
                                           回収失敗／判定不能 └──▶ stale
     stale ──(主文脈が collect-worktree で回収・解放)──▶ released
     stale ──(worktree-forget --reason)────────────▶ abandoned   ※理由必須・履歴に残す
-    open  ──(SubagentStart が発火せず束縛できない)──▶ open のまま（PR-3 の掃引が stale へ落とす）
+    open  ──(SubagentStart が発火せず束縛できない)──▶ open のまま
+    running / stopped ──(:func:`sweep_orphans`：worktree が実在しない)──▶ stale
+
+``open`` は :func:`sweep_orphans` の対象に**含めない**（Issue #354・PR-3）。``open`` は
+「dispatch を受理したが ``SubagentStart`` がまだ束縛していない」状態であり、**まさに今起動中の
+dispatch**と「発火せず取り残された過去の dispatch」を、状態だけでは区別できない。区別するには
+経過時間を読むしかなく、それは本モジュールが構造的に禁じている（下記「時刻の扱い」）。
+``open`` を掃引すると live な dispatch のエントリを ``stale``＝強制解放の対象へ落としうるため
+採らない。取り残された ``open`` は ``SubagentStop`` 側（:mod:`issue_start.subagent_hooks` の
+解放段）が「自分の entry を引けなかった」ときに ``stale`` へ落とす——そこでは
+「今まさに停止した dispatch のもの」という追加の観測がある。
 
 ``stopped`` は「**所有者の dispatch が停止したことを確認した**」という事実を機械可読に記録する
 中間状態である（Issue #354 F-354-01）。``running`` から ``collected`` への直行辺は持たない
@@ -640,15 +650,15 @@ def resolve_worktree_for_agent(repo_root, *, agent_id: str | None) -> tuple:
 
     * V-1 が「一致する」なら経路 1 で毎回束縛できる。
     * V-1 が「一致しない」場合、経路 2 は「``running`` が1件も無い」ことを要求する。
-      **本 PR（PR-1）には ``running`` から抜ける遷移が1つも実装されていない**
-      （:func:`mark` を呼ぶ出荷経路が無い）ため、最初の束縛で ``running`` が1件でき、
-      **以降の dispatch はすべて ``ambiguous-running`` になる**。つまり差分検出で
-      束縛できるのは事実上**初回の1件だけ**で、残りは束縛されないまま ``open`` に
-      ``notes`` が積まれる。
-    * これは**既知の状態で、解消は PR-3 の担当**（回収・解放段＝``collected`` /
-      ``released`` への掃引を実装して ``running`` を空にする）。PR-1 の側で
-      「running から抜ける遷移」を先に足さないのは、削除・解放経路を統制より先に
-      作らないという順序を守るため。
+      したがって ``running`` を確実に retire できることが差分検出の前提になる。
+      **Issue #354（PR-3）でこの前提が満たされた**——``SubagentStop`` の解放段が
+      ``running`` → ``stopped`` → ``collected`` → ``released`` と進め、進められなかった
+      ものは :func:`sweep_orphans` か gate の deny が拾う。PR-1 時点では
+      ``running`` から抜ける出荷経路が無く「差分検出で束縛できるのは事実上初回の1件だけ」
+      だったが、その制約は解消済み。
+    * それでも retire に失敗した ``running`` が残っている間は ``ambiguous-running`` に
+      なり、その dispatch は束縛されないまま ``open`` に ``notes`` が積まれる（推測して
+      別 dispatch のエントリを潰すよりは束縛しない方を選ぶ、という PR-1 の判断は不変）。
     """
     on_disk = on_disk_worktrees(repo_root)
     if agent_id and AGENT_ID_RE.fullmatch(agent_id):
@@ -670,30 +680,113 @@ def resolve_worktree_for_agent(repo_root, *, agent_id: str | None) -> tuple:
     return None, "no-unique-candidate"
 
 
-def residue_report(repo_root) -> dict:
-    """残留状態の evidence を組み立てる（**本 PR では出力のみ・deny 判定に使わない**）。
+# 「回収が完了していない」＝ residue として deny の材料にする状態（Issue #354・PR-3）。
+# `stopped` を含めるのは、`SubagentStop` が所有者の停止を記録したのに回収段まで到達して
+# いない（＝回収が失敗した／実行されなかった）ことを意味するため。
+RESIDUE_STATUSES = ("stale", "stopped", "collected")
+# 「今このディスク上の worktree を正当に占有している」状態。`stopped` を含めるのは、
+# 停止直後〜回収完了までの短い遷移区間でも worktree の占有は正当だから——ここから漏らすと
+# 回収処理中の worktree を `ISSUE_START_WORKTREE_UNCLAIMED` として誤検出する。
+CLAIMED_STATUSES = ("running", "stopped")
 
-    * ``stale``: 回収/解放が完了していないエントリ（``stale`` / ``stopped`` / ``collected``）。
-      ``collected`` を含めるのは「回収は済んだが解放されていない＝乗っ取りの的」だから。
-      ``stopped`` を含めるのは「所有者は停止したが回収がまだ＝同じく残留」だから。
-    * ``unclaimed``: ディスク上に在るのに ``running`` エントリのどれにも紐づかない worktree。
-    * ``running``: live な dispatch が所有している worktree（正当・deny 対象ではない）。
 
-    この dict を deny 判定へ昇格させるのは PR-3（`ISSUE_START_WORKTREE_RESIDUE` 他）。
-    """
-    entries = read_ledger(repo_root)["entries"]
-    running = {
+def _paths_with_status(entries, statuses) -> set:
+    return {
         item.get("worktree_path")
         for item in entries
-        if item.get("status") == "running" and item.get("worktree_path")
+        if item.get("status") in statuses and item.get("worktree_path")
     }
+
+
+def residue_report(repo_root) -> dict:
+    """残留状態の evidence を組み立てる（deny 判定の材料＝:mod:`issue_start.gate`）。
+
+    * ``stale``: 回収/解放が完了していないエントリ（:data:`RESIDUE_STATUSES`）。
+      ``collected`` を含めるのは「回収は済んだが解放されていない＝乗っ取りの的」だから。
+      ``stopped`` を含めるのは「所有者は停止したが回収がまだ＝同じく残留」だから。
+    * ``unclaimed``: ディスク上に在るのに :data:`CLAIMED_STATUSES` のどのエントリにも
+      紐づかない worktree。
+    * ``running`` / ``stopped`` / ``claimed``: 現在正当に占有されている worktree のパス集合
+      （``claimed`` は前2者の和＝``unclaimed`` の補集合の材料）。
+
+    **``stopped`` は2つの集合に同時に現れる**（``stale`` にも ``claimed`` にも）。これは矛盾
+    ではなく ``stopped`` が持つ二重の性質そのものである——「回収がまだ済んでいない」（＝
+    residue として deny し、主文脈に ``collect-worktree`` を促すべき）と「今まさに回収処理中で
+    worktree の占有は正当」（＝孤児として ``--force-uncollected`` 掃除を促してはならない）。
+    片方だけを反映すると、それぞれ「残留に気づけない」／「回収中の worktree を孤児と誤診する」
+    という別々の失敗になる。
+    """
+    entries = read_ledger(repo_root)["entries"]
+    running = _paths_with_status(entries, ("running",))
+    stopped = _paths_with_status(entries, ("stopped",))
+    claimed = running | stopped
     on_disk = set(on_disk_worktrees(repo_root))
     return {
-        "stale": [
-            item
-            for item in entries
-            if item.get("status") in ("stale", "stopped", "collected")
-        ],
-        "unclaimed": sorted(on_disk - running),
+        "stale": [item for item in entries if item.get("status") in RESIDUE_STATUSES],
+        "unclaimed": sorted(on_disk - claimed),
         "running": sorted(running),
+        "stopped": sorted(stopped),
+        "claimed": sorted(claimed),
     }
+
+
+def sweep_orphans(
+    repo_root,
+    *,
+    now: datetime,
+    lock_timeout_s: float = 5.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list:
+    """占有を主張しているのに worktree が実在しないエントリを ``stale`` へ落とす。
+
+    対象は :data:`CLAIMED_STATUSES`（``running`` / ``stopped``）で ``worktree_path`` を持ち、
+    **その worktree がディスク上に無い**エントリ。これらは「所有者も実体も居ないのに占有を
+    主張し続ける」状態で、放置すると
+      * ``running`` は :func:`resolve_worktree_for_agent` の差分検出を恒久的に
+        ``ambiguous-running`` にして以後の束縛を全部潰す、
+      * ``claimed`` 集合に居座って本物の孤児 worktree の ``unclaimed`` 検出を鈍らせる、
+    という2つの害を出す。``stale`` へ落とせば gate が
+    ``ISSUE_START_WORKTREE_RESIDUE`` で deny し、主文脈が明示的に片付けることになる。
+
+    **判定入力は状態と実在だけで、時刻を一切読まない**（``now`` は notes のスタンプ専用）。
+    ``open`` を対象に含めない理由はモジュール docstring の状態遷移図の注記を見る。
+
+    **落とす候補が1件も無ければ台帳へ書き込まない**（ロックも取らない）。正常系で毎 dispatch
+    ごとに台帳ファイルを触らないため、掃引が新たな失敗要因にならない。
+
+    返り値は ``stale`` へ落とした ``entry_id`` のリスト（起票順）。
+    """
+    entries = read_ledger(repo_root)["entries"]
+    on_disk = set(on_disk_worktrees(repo_root))
+    orphans = [
+        item["entry_id"]
+        for item in entries
+        if item.get("status") in CLAIMED_STATUSES
+        and item.get("worktree_path")
+        and item.get("worktree_path") not in on_disk
+        and isinstance(item.get("entry_id"), str)
+    ]
+    if not orphans:
+        return []
+    stamp = _stamp(now)
+    targets = set(orphans)
+
+    def mutate(document: dict) -> None:
+        for entry in document["entries"]:
+            if entry.get("entry_id") not in targets:
+                continue
+            # 掃引と書込の間に状態が進んでいたら触らない（読み→書きの間の競合を素通しさせない）。
+            if entry.get("status") not in CLAIMED_STATUSES:
+                targets.discard(entry.get("entry_id"))
+                continue
+            entry["status"] = "stale"
+            entry.setdefault("notes", []).append({
+                "at": stamp,
+                "note": (
+                    "sweep-orphans: 占有を主張しているが worktree が実在しないため stale へ落とした"
+                    f"（{entry.get('worktree_path')}）"
+                ),
+            })
+
+    update_ledger(repo_root, mutate, lock_timeout_s=lock_timeout_s, sleep=sleep)
+    return [entry_id for entry_id in orphans if entry_id in targets]
