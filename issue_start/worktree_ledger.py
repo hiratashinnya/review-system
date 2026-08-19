@@ -41,13 +41,22 @@
 
 状態遷移（終端は ``released`` / ``abandoned``）
 --------------------------------------------
-    open ──SubagentStart で agent_id 束縛──▶ running
-                                              │
-                        SubagentStop：回収成功 ├──▶ collected ──解放成功──▶ released
-                        回収失敗／判定不能      └──▶ stale
+    open ──SubagentStart で agent_id 束縛──▶ running ──SubagentStop：所有者停止を確認──▶ stopped
+                                                                                          │
+                                          回収成功 ├──▶ collected ──解放成功──▶ released
+                                          回収失敗／判定不能 └──▶ stale
     stale ──(主文脈が collect-worktree で回収・解放)──▶ released
     stale ──(worktree-forget --reason)────────────▶ abandoned   ※理由必須・履歴に残す
     open  ──(SubagentStart が発火せず束縛できない)──▶ open のまま（PR-3 の掃引が stale へ落とす）
+
+``stopped`` は「**所有者の dispatch が停止したことを確認した**」という事実を機械可読に記録する
+中間状態である（Issue #354 F-354-01）。``running`` から ``collected`` への直行辺は持たない
+——``collected`` を作るのは ``collect-worktree`` 自身なので、直行辺があると
+「回収する前に回収済みにしておく」以外に回収を始める手が無くなり、PR-3 の
+``SubagentStop`` → ``collect-worktree --entry`` の経路が循環して成立しない。
+停止確認を CLI フラグのような**記録されない signal** ではなく状態として持つのは、
+「観測できないものは持たない」（`.claude/rules/01-principles.md`）に従うため。
+``running`` は引き続き回収・解放のいずれからも拒否される（安全側の既定は弱めない）。
 
 同一 status への遷移は no-op（冪等）。逆行遷移は ``LEDGER_ILLEGAL_TRANSITION`` で拒否する。
 ``abandoned`` は非終端状態のどこからでも遷移できる——``worktree-forget`` は PR-3 の deny が
@@ -75,9 +84,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 SCHEMA_VERSION = "worktree-ledger/1"
-STATUSES = ("open", "running", "collected", "released", "stale", "abandoned")
+STATUSES = ("open", "running", "stopped", "collected", "released", "stale", "abandoned")
 TERMINAL_STATUSES = ("released", "abandoned")
-UNRELEASED_STATUSES = ("open", "running", "collected", "stale")
+UNRELEASED_STATUSES = ("open", "running", "stopped", "collected", "stale")
 TMP_DIRNAME = "tmp"
 LEDGER_DIRNAME = "_worktree"
 LEDGER_FILENAME = "ledger.json"
@@ -97,7 +106,9 @@ LOCK_RETRY_INTERVAL_S = 0.05
 # 許可する遷移（自分自身＝冪等 no-op を含む）。ここに無い組は逆行遷移として拒否する。
 _TRANSITIONS: Mapping[str, frozenset] = {
     "open": frozenset({"open", "running", "stale", "abandoned"}),
-    "running": frozenset({"running", "collected", "stale", "abandoned"}),
+    # `running` から `collected` への直行辺は持たない（モジュール docstring 参照）。
+    "running": frozenset({"running", "stopped", "stale", "abandoned"}),
+    "stopped": frozenset({"stopped", "collected", "stale", "abandoned"}),
     "collected": frozenset({"collected", "released", "stale", "abandoned"}),
     "stale": frozenset({"stale", "collected", "released", "abandoned"}),
     "released": frozenset({"released"}),
@@ -578,7 +589,7 @@ def find_by_agent_id(repo_root, agent_id: str) -> dict | None:
 
 
 def unreleased_entries(repo_root) -> list:
-    """``open`` / ``running`` / ``collected`` / ``stale`` のエントリ。"""
+    """``open`` / ``running`` / ``stopped`` / ``collected`` / ``stale`` のエントリ。"""
     entries = read_ledger(repo_root)["entries"]
     return [item for item in entries if item.get("status") in UNRELEASED_STATUSES]
 
@@ -662,8 +673,9 @@ def resolve_worktree_for_agent(repo_root, *, agent_id: str | None) -> tuple:
 def residue_report(repo_root) -> dict:
     """残留状態の evidence を組み立てる（**本 PR では出力のみ・deny 判定に使わない**）。
 
-    * ``stale``: 回収/解放が完了していないエントリ（``stale`` と ``collected``）。
+    * ``stale``: 回収/解放が完了していないエントリ（``stale`` / ``stopped`` / ``collected``）。
       ``collected`` を含めるのは「回収は済んだが解放されていない＝乗っ取りの的」だから。
+      ``stopped`` を含めるのは「所有者は停止したが回収がまだ＝同じく残留」だから。
     * ``unclaimed``: ディスク上に在るのに ``running`` エントリのどれにも紐づかない worktree。
     * ``running``: live な dispatch が所有している worktree（正当・deny 対象ではない）。
 
@@ -677,7 +689,11 @@ def residue_report(repo_root) -> dict:
     }
     on_disk = set(on_disk_worktrees(repo_root))
     return {
-        "stale": [item for item in entries if item.get("status") in ("stale", "collected")],
+        "stale": [
+            item
+            for item in entries
+            if item.get("status") in ("stale", "stopped", "collected")
+        ],
         "unclaimed": sorted(on_disk - running),
         "running": sorted(running),
     }
