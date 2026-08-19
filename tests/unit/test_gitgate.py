@@ -89,6 +89,22 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
         with self.assertRaises(GitgateError):
             build_git_argv([])
 
+    def test_policy_verbs_are_not_reachable_through_the_pure_argv_path(self):
+        # Issue #354 PR-2: `adopt-branch` / `worktree-*` は policy 実行（fresh fetch + API 検証、
+        # 台帳の状態遷移、回収→検証→解放の段構造）を伴うため、`new-branch` と同じく
+        # `build_git_argv` の純 argv ディスパッチには**載せない**。ここに載ると
+        # 「1つの git argv を組んで実行する」形に潰れ、段構造も台帳更新も飛ばされる。
+        for argv in [
+            ["adopt-branch", "feature", "--repository", "o/r", "--expected-oid", "a" * 40],
+            ["worktree-release", ".claude/worktrees/agent-x"],
+            ["collect-worktree", "--entry", "wl-0123456789ab"],
+            ["worktree-forget", "--entry", "wl-0123456789ab", "--reason", "x"],
+        ]:
+            with self.subTest(argv=argv):
+                with self.assertRaises(GitgateError) as ctx:
+                    build_git_argv(argv)
+                self.assertIn("unknown verb", str(ctx.exception))
+
     def test_no_arg_verbs_reject_extra_args(self):
         # Critical 回帰: `push --receive-pack=x`（外部プログラム実行を狙う）は push が引数を取らないため
         # GitgateError となり、`--receive-pack=…` は git に到達しない。

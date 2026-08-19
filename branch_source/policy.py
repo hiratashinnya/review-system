@@ -146,6 +146,29 @@ def _validate_oid(value: str, reason: str = "BRANCH_BASE_OID_INVALID") -> str:
     return normalized
 
 
+# --- 公開 leaf validator（Issue #354 PR-2） -----------------------------------
+# `gitgate/adopt.py`（adopt-branch）は「既存ブランチを exact OID で checkout する」流れであり、
+# `verify_branch_source`/`create_branch`（新規ブランチ作成・default-branch/stacked-PR の二分岐）
+# とは分岐点が異なる。フロー全体をコピー流用せず**必要な部分だけ薄く再実装**する方針を採ったが、
+# leaf 値の検証規則まで二重定義すると「片方だけ緩い」というズレが生まれる。よって leaf validator
+# だけを公開名で共有する（実体は上の private 実装のまま＝既存呼び出しは無改修）。
+
+
+def validate_repository(value: str) -> str:
+    """``OWNER/REPO`` 形式であることを検証して返す。"""
+    return _validate_repository(value)
+
+
+def validate_branch_ref(value: str, reason: str) -> str:
+    """git の ref として安全なブランチ名であることを検証して返す。"""
+    return _validate_branch(value, reason)
+
+
+def validate_oid(value: str, reason: str = "BRANCH_BASE_OID_INVALID") -> str:
+    """40/64 hex の OID であることを検証し、小文字へ正規化して返す。"""
+    return _validate_oid(value, reason)
+
+
 def parse_new_branch_args(args: Sequence[str]) -> NewBranchRequest:
     """固定 schema の new-branch 引数を parse する。未知/重複 flag は拒否。"""
     if not args:
