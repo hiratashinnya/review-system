@@ -775,6 +775,41 @@ class ReleaseStageTests(HookTestCase):
         self.assertEqual(self.status_of(entry_id), "stale")
         self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
 
+    def test_symlinked_handoff_directory_is_not_treated_as_missing(self):
+        """F-354-07: `tmp/_handoff` が symlink なら「列挙して0件」に丸めず解放しない。
+
+        旧実装は ``directory.is_symlink() or not directory.is_dir()`` を一括で
+        ``"empty"`` に倒しており、symlink 越しに誘導された（実際には中身があるかもしれない）
+        ディレクトリを「回収するものが無いと確認した」と誤認していた。symlink を辿らず、
+        列挙もせず、``--allow-missing-handoff`` を使わずに ``stale`` へ落とすことを確認する。
+        """
+        entry_id = self.bind()
+        worktree_dir = self.root / ".claude" / "worktrees" / "agent-abc"
+        elsewhere = self.root / "elsewhere-handoff"
+        elsewhere.mkdir()
+        (elsewhere / "issue-implementer--issue-354.yaml").write_text(
+            "agent: issue-implementer\n", encoding="utf-8"
+        )
+        (worktree_dir / "tmp").mkdir(parents=True)
+        (worktree_dir / "tmp" / "_handoff").symlink_to(elsewhere, target_is_directory=True)
+        self.stop()
+        self.assertEqual(self.collect_calls(), [], "symlink は列挙せず起動もしない")
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue(worktree_dir.is_dir(), "回収できないので worktree は残す")
+        reasons = [line.get("reason") for line in self.evidence_lines()]
+        self.assertIn("HANDOFF_AMBIGUOUS", reasons)
+
+    def test_non_directory_handoff_path_is_not_treated_as_missing(self):
+        """`tmp/_handoff` が regular file（非ディレクトリ）でも同様に解放しない。"""
+        entry_id = self.bind()
+        worktree_dir = self.root / ".claude" / "worktrees" / "agent-abc"
+        (worktree_dir / "tmp").mkdir(parents=True)
+        (worktree_dir / "tmp" / "_handoff").write_text("not a directory\n", encoding="utf-8")
+        self.stop()
+        self.assertEqual(self.collect_calls(), [], "非ディレクトリは列挙せず起動もしない")
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue(worktree_dir.is_dir())
+
     def test_entry_not_found_marks_only_the_open_entry_stale(self):
         """自分のエントリを引けないとき、他人の `running` を `stale` へ落とさない。
 

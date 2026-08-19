@@ -88,10 +88,28 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
     `…--issue-<N>-fix1.yaml` のように主文脈が採番する）。同じファイル名を再利用すると前ラウンドの PR URL・
     判断根拠・スコープ外指摘を上書き破壊する（`<key>` 一意化＝Issue #278／本件の発端＝Issue #323）。
     `<suffix>` に使える文字は `[A-Za-z0-9._-]`。
-- 戻り＝`HANDOFF: <implementer が実際に書けた絶対パス>` ＋1行要約。implementer は isolated なので実体は
-  `.claude/worktrees/agent-<id>/tmp/_handoff/…` にあり、**主文脈のメインワークツリー側には存在しない**。
-  **PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は主文脈が返ってきた絶対パスを Read して取る**
-  （1行要約だけで判断しない。主文脈は isolated ではないので読める）。**`status: stop`（曖昧・矛盾）なら
+- 戻り＝`HANDOFF: <implementer が実際に書けた絶対パス>` ＋1行要約。この絶対パスは
+  `.claude/worktrees/agent-<id>/tmp/_handoff/…`（isolated worktree の内部）を指すが、
+  **`SubagentStop` フックが同期的に `collect-worktree` を実行し、成功時は worktree ごと
+  `git worktree remove --force` で削除する**（下記「②-c／②-d 共通：worktree の解放」）。
+  したがって主文脈がこの絶対パスを Read しようとする時点では、happy path では**既に存在しない**。
+  **この絶対パスは Read しない。**
+  - **回収済みの実体を読む手順**：
+    1. `<main-worktree>/tmp/_worktree/ledger.json`（worktree 所有台帳）を Read する。
+    2. `agent_type == "issue-implementer"` かつ `branch_name == <この dispatch に渡した
+       branch_name>` の**最新エントリ**（`entries` 配列を末尾から見て最初に一致するもの）を
+       特定する。②-c で1 Issue ずつ直列に回している前提の下、この組で一意に定まる
+       （dispatch の直前に主文脈自身が採番した `branch_name` を使う——ISSUE_START_BINDING_V1
+       marker に書いた値と同じもの）。
+    3. そのエントリの `collected_to` を読む。値が入っていれば
+       `<main-worktree>/<collected_to>`（形は `tmp/_handoff/collected/<entry-id>--<basename>`）
+       を Read する——これが implementer が書いた handoff の実体。
+    4. `collected_to` が `null`（＝ `status` が `stopped`/`stale` のまま自動回収が完了して
+       いない）なら、下記「②-c／②-d 共通：worktree の解放」の残留対応手順
+       （`python3 -m gitgate collect-worktree --entry <entry-id>`）を主文脈が実行してから
+       3 を再試行する。
+  **PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は、この回収済みファイルを Read して取る**
+  （1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら
   `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
 
 **②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**

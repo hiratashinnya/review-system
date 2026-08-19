@@ -11,6 +11,7 @@ from typing import Any, Mapping, TextIO
 from blocker_gate.auth import resolve_github_token
 
 from .gate import (
+    ISSUE_START_POLICY_VERSION,
     IssueStartError,
     assert_no_worktree_residue,
     evaluate_issue_start,
@@ -72,7 +73,10 @@ def run(
     2. managed binding を読む（unmanaged なら ``request is None``）
     3. **残留 worktree の deny**（Issue #354・:func:`assert_no_worktree_residue`）。
        **unmanaged も含む全 dispatch に掛かる**ので 2 の結果を待たずここで判定する
-    4. unmanaged ならここで exit 0（blocker 判定は managed のみ）
+    4. unmanaged ならここで exit 0（blocker 判定は managed のみ）。**stdout は無出力のまま
+       だが、stderr へ residue 判定（``swept``/``claimed``/``unclaimed`` を含む）を
+       evidence として1行残す**（F-354-08）——#354 が実測した乗っ取りは unmanaged 側
+       （``pr-reviewer``）で起きたので、まさにこの経路の観測性が欠けていた
     5. blocker 判定 → ALLOW なら台帳へ ``open`` 起票
     """
     request = None
@@ -91,6 +95,24 @@ def run(
             repo_root=ledger_root if ledger_root is not None else cwd, now=stamp
         )
         if request is None:
+            # unmanaged dispatch でも残留判定は走っている（3 で判定済み）。ALLOW（deny しない）
+            # 経路をそのまま黙って返すと、判定が実行されたこと自体が事後に確認できない
+            # （F-354-08：#354 が実測した乗っ取りはまさにこの unmanaged 側で起きた）。
+            # stdout は汚さず（unmanaged は素通しのまま）、stderr にだけ evidence を残す。
+            stderr.write(
+                json.dumps(
+                    {
+                        "schema_version": "issue-start-evidence/1",
+                        "policy_version": ISSUE_START_POLICY_VERSION,
+                        "result": "UNMANAGED",
+                        "worktree_residue": residue,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            )
             return 0
         # cwd は snapshot fallback（Issue #345）の git fetch 起点。
         evidence = evaluate_issue_start(

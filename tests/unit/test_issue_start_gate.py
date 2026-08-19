@@ -860,11 +860,19 @@ class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):
         reason = self.deny_reason(self.unmanaged_dispatch())
         self.assertIn("ISSUE_START_WORKTREE_RESIDUE", reason)
 
-    def test_unmanaged_dispatch_without_residue_stays_silent(self):
+    def test_unmanaged_dispatch_without_residue_still_emits_evidence(self):
+        """F-354-08: unmanaged の ALLOW でも stdout は無出力のまま、stderr に残留判定の
+        evidence（swept / claimed / unclaimed を含む）が残る（従来は無出力だった）。"""
         stdout, stderr, evaluate = self.run_dispatch(self.unmanaged_dispatch())
-        self.assertEqual(stdout, "", "unmanaged は素通し")
-        self.assertEqual(stderr, "", "unmanaged の ALLOW は evidence を出さない（従来どおり）")
+        self.assertEqual(stdout, "", "unmanaged は素通し（deny しない）")
         evaluate.assert_not_called()
+        evidence = json.loads(stderr)
+        self.assertEqual(evidence["result"], "UNMANAGED")
+        residue = evidence["worktree_residue"]
+        self.assertEqual(residue["stale"], [])
+        self.assertEqual(residue["unclaimed"], [])
+        self.assertEqual(residue["swept"], [])
+        self.assertIn("claimed", residue)
 
     def test_orphan_running_entry_is_swept_then_denied(self):
         """worktree が消えた `running` は掃引で `stale` に落ち、その場で deny される。

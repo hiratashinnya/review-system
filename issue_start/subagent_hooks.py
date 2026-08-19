@@ -585,18 +585,29 @@ def _discover_handoff(repo_root: Path, worktree_path: str) -> tuple:
     回収を成立させる。台帳側に ``handoff_path`` が入るようになれば、この探索は
     「台帳の値と一致するか」の裏取りに縮退できる。
 
-    判定は3通りしかない（推測しない）:
+    判定は次のいずれかになる（推測しない）:
 
     * ちょうど1件 → そのパス（``how="unique"``）。ファイル名の妥当性・Issue 番号の一致は
       ``collect-worktree`` 側の6条件検査が見る（ここでは重複して判定しない）。
-    * 0件 → ``(None, "empty")``。**回収するものが無いことを列挙で確認した**状態なので、
-      呼び出し側は ``--allow-missing-handoff`` で解放してよい。
+    * **列挙して**0件 → ``(None, "empty")``。**回収するものが無いことを列挙で確認した**状態
+      なので、呼び出し側は ``--allow-missing-handoff`` で解放してよい。
     * 2件以上 → ``(None, "ambiguous")``。どれが今回の成果物か決められないので**解放しない**
       （呼び出し側が ``stale`` へ落として主文脈の判断へ回す）。
+    * ``tmp/_handoff`` が symlink、または存在するがディレクトリではない（regular file 等）
+      → ``(None, "unreadable")``。**これは「無い」ではなく「列挙できない」**——symlink は
+      構成要素を辿らないと本当に空か分からず、regular file は中身を列挙できない。どちらも
+      「回収するものが無いことを確認した」とは言えないので ``"empty"`` に丸めず、
+      ``iterdir`` の ``OSError`` 経路（下記）と同じ ``"unreadable"`` として扱う（呼び出し側は
+      ``how != "empty"`` なので解放せず ``stale`` へ落とす＝F-354-07）。
+      **本当に存在しない**（``tmp/_handoff`` そのものが無い）場合だけが ``"empty"`` になる。
     """
     directory = Path(repo_root) / worktree_path / HANDOFF_DIR_REL
-    if directory.is_symlink() or not directory.is_dir():
+    if directory.is_symlink():
+        return None, "unreadable"
+    if not directory.exists():
         return None, "empty"
+    if not directory.is_dir():
+        return None, "unreadable"
     try:
         children = sorted(
             child for child in directory.iterdir() if not child.is_dir()
