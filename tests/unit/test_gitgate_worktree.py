@@ -132,9 +132,22 @@ class LedgerFixture(unittest.TestCase):
         return entry_id
 
     def entry_with_status(self, status, **kwargs):
+        """``running`` から目的の状態まで**正規ルートを辿って**遷移させる。
+
+        ``running`` → ``collected`` の直行辺は無い（Issue #354 F-354-01）ので、回収済みを
+        作るには ``stopped`` を経由する。テスト側で近道を作ると状態機械の意味が崩れる。
+        """
         entry_id = self.bound_entry(**kwargs)
-        if status != "running":
-            worktree_ledger.mark(self.root, entry_id, status, now=FIXED_NOW)
+        route = {
+            "running": (),
+            "stopped": ("stopped",),
+            "collected": ("stopped", "collected"),
+            "released": ("stopped", "collected", "released"),
+            "stale": ("stale",),
+            "abandoned": ("abandoned",),
+        }[status]
+        for step in route:
+            worktree_ledger.mark(self.root, entry_id, step, now=FIXED_NOW)
         return entry_id
 
     def status_of(self, entry_id):
@@ -489,6 +502,35 @@ class WorktreeReleaseStatusTests(LedgerFixture):
         self.assertEqual(self.status_of(entry_id), "running")
         self.assertTrue((self.root / WT_REL).is_dir())
 
+    def test_stopped_entry_is_never_released_before_collection(self):
+        # `stopped`＝まだ回収を試みていない。`stale`（回収を試みて失敗した）と違って
+        # `--force-uncollected` の逃げ道を共有しない——共有すると両者の区別が消える。
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        for kwargs in [
+            {},
+            {"force_uncollected": True, "reason": "回収を飛ばしたい"},
+        ]:
+            with self.subTest(kwargs=kwargs):
+                git = FakeGit(self.root, linked=[WT_REL])
+                with self.assertRaises(WorktreeError) as ctx:
+                    worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git, **kwargs)
+                self.assertEqual(ctx.exception.reason, "WORKTREE_NOT_COLLECTED")
+                self.assertEqual(git.removals, [])
+        self.assertEqual(self.status_of(entry_id), "stopped")
+        self.assertTrue((self.root / WT_REL).is_dir())
+
+    def test_reason_without_force_is_recorded_in_the_notes(self):
+        # F-354-04: 受理・検証まで通った `--reason` は必ず台帳に残す。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        worktree_release(
+            self.root, WT_REL, reason="PR-3 の掃引から解放", now=FIXED_NOW, runner=git
+        )
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertIn("worktree-release: PR-3 の掃引から解放", notes)
+
     def test_open_entry_is_rejected_as_not_bound(self):
         entry_id = self.open_entry()
         self.make_worktree()
@@ -606,14 +648,48 @@ class WorktreeReleaseIdempotencyTests(LedgerFixture):
         self.assertEqual(git.removals, [])
         self.assertEqual(self.status_of(entry_id), "released")
 
-    def test_abandoned_entry_is_treated_as_terminal(self):
-        entry_id = self.entry_with_status("abandoned")
+    def test_abandoned_entry_with_residue_is_removed_without_leaving_the_terminal_state(self):
+        # F-354-02: `worktree-forget` は台帳を `abandoned` にするだけで実体を消さない。
+        # ここで実体を見ずに早期 return すると、forget 後に残った worktree を消す経路が
+        # どこにも無くなる（PR-3 の unclaimed deny が恒久化する）。
+        entry_id = self.entry_with_status("stale")
         self.make_worktree()
+        worktree_forget(self.root, entry_id, reason="回収不能", now=FIXED_NOW)
+        self.assertTrue((self.root / WT_REL).is_dir())
         git = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(
+            self.root, WT_REL, reason="forget 後の残留を掃除", now=FIXED_NOW, runner=git
+        )
+        self.assertTrue(outcome.removed)
+        self.assertEqual(len(git.removals), 1)
+        self.assertFalse((self.root / WT_REL).exists())
+        # 台帳は `abandoned` のまま（`released` へ進めると「諦めた」記録が消える）。
+        self.assertEqual(outcome.status, "abandoned")
+        self.assertEqual(self.status_of(entry_id), "abandoned")
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertIn("worktree-release: 終端状態（abandoned）の残留実体を削除した", notes)
+        self.assertIn("worktree-release: forget 後の残留を掃除", notes)
+
+    def test_terminal_entry_without_residue_is_a_no_op(self):
+        entry_id = self.entry_with_status("abandoned")
+        git = FakeGit(self.root, linked=[])
         outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
         self.assertFalse(outcome.removed)
         self.assertEqual(outcome.status, "abandoned")
         self.assertEqual(git.removals, [])
+        self.assertEqual(self.status_of(entry_id), "abandoned")
+        self.assertEqual(self.entry(entry_id)["notes"], [])
+
+    def test_terminal_residue_that_is_not_git_managed_is_not_removed(self):
+        # 終端状態でも「消してよいパスか」の判定は緩めない。
+        entry_id = self.entry_with_status("abandoned")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[])
+        with self.assertRaises(WorktreeError) as ctx:
+            worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertEqual(ctx.exception.reason, "WORKTREE_NOT_GIT_MANAGED")
+        self.assertEqual(git.removals, [])
+        self.assertTrue((self.root / WT_REL).is_dir())
         self.assertEqual(self.status_of(entry_id), "abandoned")
 
 
@@ -640,6 +716,76 @@ class CollectWorktreeTests(LedgerFixture):
         self.assertFalse((self.root / WT_REL).exists())
         self.assertEqual(len(git.removals), 1)
         self.assertEqual(self.entry(entry_id)["collected_to"], expected_dest)
+
+    def test_stopped_entry_walks_the_full_route_to_released(self):
+        # F-354-01: PR-3 の `SubagentStop` は `running` → `stopped` へ落としてから
+        # `collect-worktree --entry` を呼ぶ。その正規ルートが端まで通ることを固定する。
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcome = collect_worktree(self.root, entry_id=entry_id, now=FIXED_NOW, runner=git)
+        expected_dest = (
+            f"tmp/_handoff/collected/{entry_id}--issue-implementer--issue-354-pr2.yaml"
+        )
+        self.assertEqual(outcome.collected_to, expected_dest)
+        self.assertTrue(outcome.released)
+        self.assertEqual((self.root / expected_dest).read_bytes(), HANDOFF_BODY)
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+
+    def test_entry_and_path_mismatch_stops_before_any_side_effect(self):
+        # F-354-03: 食い違いを段6（解放段）まで持ち越すと、別 worktree の handoff を
+        # 回収した上で台帳を `collected` と誤記録した後で落ちる。
+        entry_id = self.entry_with_status("stopped")
+        other = ".claude/worktrees/agent-deadbeef"
+        self.make_worktree()
+        self.make_worktree(other)
+        git = FakeGit(self.root, linked=[WT_REL, other])
+        with self.assertRaises(WorktreeError) as ctx:
+            collect_worktree(
+                self.root,
+                entry_id=entry_id,
+                worktree_path=other,
+                now=FIXED_NOW,
+                runner=git,
+            )
+        self.assertEqual(ctx.exception.reason, "WORKTREE_ENTRY_PATH_MISMATCH")
+        # FS への副作用も台帳への副作用も1つも起きていない。
+        self.assertEqual(git.calls, [])
+        self.assertFalse((self.root / "tmp/_handoff/collected").exists())
+        self.assertEqual(self.status_of(entry_id), "stopped")
+        self.assertIsNone(self.entry(entry_id)["collected_to"])
+        self.assertTrue((self.root / other).is_dir())
+        self.assertTrue((self.root / WT_REL).is_dir())
+
+    def test_reason_is_recorded_even_when_the_handoff_is_collected(self):
+        # F-354-04: 回収に成功した経路でも `--reason` を落とさない。
+        entry_id = self.entry_with_status("stale")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        collect_worktree(
+            self.root,
+            entry_id=entry_id,
+            reason="SubagentStop からの自動回収",
+            now=FIXED_NOW,
+            runner=git,
+        )
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertEqual(
+            notes.count("collect-worktree: SubagentStop からの自動回収"),
+            1,
+            f"理由はちょうど1回だけ記録される: {notes!r}",
+        )
+
+    def test_reason_is_recorded_when_the_entry_was_already_collected(self):
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        collect_worktree(
+            self.root, entry_id=entry_id, reason="解放だけやり直す", now=FIXED_NOW, runner=git
+        )
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertEqual(notes.count("collect-worktree: 解放だけやり直す"), 1, repr(notes))
 
     def test_explicit_form_without_a_ledger_entry(self):
         self.make_worktree()

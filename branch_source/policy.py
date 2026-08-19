@@ -152,6 +152,12 @@ def _validate_oid(value: str, reason: str = "BRANCH_BASE_OID_INVALID") -> str:
 # とは分岐点が異なる。フロー全体をコピー流用せず**必要な部分だけ薄く再実装**する方針を採ったが、
 # leaf 値の検証規則まで二重定義すると「片方だけ緩い」というズレが生まれる。よって leaf validator
 # だけを公開名で共有する（実体は上の private 実装のまま＝既存呼び出しは無改修）。
+#
+# **公開するのは repository と branch だけ**（Issue #354 F-354-05）。OID は adopt 側が
+# 40hex ちょうど（`gitgate/adopt.py::_ADOPT_OID`）に**意図的に厳格化**していて共有できない
+# ——`_validate_oid` は 40hex/64hex の両方を受けるので、共有すると adopt の目的（掴む commit を
+# 一意に固定する）が緩む。呼び出し元の無い `validate_oid` を「共有済み」の顔で置いておくと、
+# 読み手が「OID も共有されている」と誤読するため公開しない。
 
 
 def validate_repository(value: str) -> str:
@@ -162,11 +168,6 @@ def validate_repository(value: str) -> str:
 def validate_branch_ref(value: str, reason: str) -> str:
     """git の ref として安全なブランチ名であることを検証して返す。"""
     return _validate_branch(value, reason)
-
-
-def validate_oid(value: str, reason: str = "BRANCH_BASE_OID_INVALID") -> str:
-    """40/64 hex の OID であることを検証し、小文字へ正規化して返す。"""
-    return _validate_oid(value, reason)
 
 
 def parse_new_branch_args(args: Sequence[str]) -> NewBranchRequest:

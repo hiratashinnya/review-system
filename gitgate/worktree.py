@@ -4,8 +4,10 @@
 
 ``worktree-release``
     linked worktree を**冪等に**解放（削除）する（FR-W5）。台帳の状態が「解放してよい」と
-    言っているときだけ削除する。``running``（live な dispatch が所有）は ``--force-*`` でも
-    上書きできない。
+    言っているときだけ削除する。``running``（live な dispatch が所有）と ``stopped``
+    （停止済みだが未回収）は ``--force-*`` でも上書きできない。
+    **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
+    いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
 
 ``collect-worktree``
     **回収 → 検証 → 解放を1操作に畳む**（候補D・FR-W2）。段構造で、前段が失敗したら後段を
@@ -14,7 +16,9 @@
 
 ``worktree-forget``
     回収不能な ``stale`` エントリを ``abandoned`` へ逃がす。**worktree は消さない**
-    （消すのは ``worktree-release``。責務を混ぜない）。**エントリも消さない**——
+    （消すのは ``worktree-release``。責務を混ぜない。``abandoned`` にした後で
+    ``worktree-release <path>`` を呼べば、台帳を ``released`` へ進めずに実体だけ消える）。
+    **エントリも消さない**——
     `.claude/rules/01-principles.md`「PR8「消さない」の適用範囲」区分1（決定履歴の保全）に
     従い、``reason`` 付きで状態遷移だけを記録する。
 
@@ -206,9 +210,9 @@ def parse_worktree_release_args(args: Sequence[str]) -> ReleaseRequest:
         raise WorktreeError("WORKTREE_ARGUMENT_INVALID", "missing <worktree-path>")
     force = "--force-uncollected" in flags
     reason = values.get("--reason", "")
-    if force:
-        _validate_reason(reason)
-    elif reason:
+    # `--force-uncollected` があれば必須、単独で渡されたときも検証する（受理した理由は
+    # 必ず台帳へ載るので、制御文字・過長のものをここで落とす＝F-354-04）。
+    if force or reason:
         _validate_reason(reason)
     return ReleaseRequest(
         worktree_path=validate_worktree_path(positional),
@@ -232,9 +236,7 @@ def parse_collect_worktree_args(args: Sequence[str]) -> CollectRequest:
         )
     allow_missing = "--allow-missing-handoff" in flags
     reason = values.get("--reason", "")
-    if allow_missing:
-        _validate_reason(reason)
-    elif reason:
+    if allow_missing or reason:
         _validate_reason(reason)
     if positional is not None and entry_id is None and "--handoff" not in values:
         raise WorktreeError("WORKTREE_ARGUMENT_INVALID", "missing --handoff")
@@ -458,6 +460,60 @@ def _mark(repo_root, entry_id: str, status: str, *, now, note: str = "", collect
         raise WorktreeError(exc.reason, exc.detail) from exc
 
 
+def _note(repo_root, entry_id: str, *, now, note: str) -> None:
+    """状態を変えずに notes へ1行残す（受理した ``--reason`` を落とさないため）。"""
+    if not note:
+        return
+    try:
+        add_note(repo_root, entry_id, now=now, note=note)
+    except LedgerError as exc:
+        raise WorktreeError(exc.reason, exc.detail) from exc
+
+
+def _reason_note(verb: str, reason: str, *, flag: str = "") -> str:
+    """受理した ``--reason`` を notes 用の1行に整形する（空 reason なら空文字）。
+
+    **受理・検証まで通った ``--reason`` は必ず台帳に残す**（F-354-04）。``--force-uncollected`` /
+    ``--allow-missing-handoff`` と一緒に渡されたときだけ記録する作りだと、単独で渡された理由が
+    「記録された」と誤認されたまま失われる（PR8 区分1 が保全対象とする一次情報の取りこぼし）。
+    """
+    if not reason:
+        return ""
+    return f"{verb} {flag}: {reason}" if flag else f"{verb}: {reason}"
+
+
+# --- 実体の削除 ----------------------------------------------------------------
+
+
+def _remove_worktree_dir(repo_root, relative: str, *, runner) -> bool:
+    """``relative`` の実体を削除する。既に無ければ ``False``（冪等）。
+
+    「何を消してよいか」の判定はここに集約する——``resolve_within``（構成要素の symlink 検査＋
+    repo-root 外への脱出検査）と ``git worktree list --porcelain`` への登録確認の**両方**を
+    通ったパスだけが ``git worktree remove`` に渡る。呼び出し側は「消してよい状態か」だけを
+    判断し、「消してよいパスか」の判断は持たない。
+    """
+    target = resolve_within(repo_root, relative)
+    if not target.exists():
+        # 既に無い＝解放済みとみなす（`git worktree remove` の失敗を冪等化する）。
+        _run_git(["git", "worktree", "prune"], cwd=repo_root, runner=runner)
+        return False
+    if not target.is_dir():
+        raise WorktreeError("WORKTREE_PATH_NOT_DIR", str(target))
+    if not _is_git_managed(target, repo_root, runner=runner):
+        raise WorktreeError(
+            "WORKTREE_NOT_GIT_MANAGED",
+            f"{relative}（git の linked worktree として登録されていない）",
+        )
+    removed = _run_git(
+        ["git", "worktree", "remove", "--force", str(target)], cwd=repo_root, runner=runner
+    )
+    if removed.returncode != 0:
+        raise WorktreeError("WORKTREE_REMOVE_FAILED", (removed.stderr or "").strip()[:400])
+    _run_git(["git", "worktree", "prune"], cwd=repo_root, runner=runner)
+    return True
+
+
 # --- verb: worktree-release ----------------------------------------------------
 
 
@@ -482,17 +538,29 @@ def worktree_release(
     ================  ====================================================
     ``running``       拒否 ``WORKTREE_LIVE``（``--force-*`` でも上書き不可）
     ``open``          拒否 ``WORKTREE_NOT_BOUND``
+    ``stopped``       拒否 ``WORKTREE_NOT_COLLECTED``（``--force-*`` でも上書き不可）
     ``collected``     実行 → ``released``
     ``stale``         ``--force-uncollected --reason`` 必須
     ``released`` /
-    ``abandoned``     何もせず成功（冪等）
+    ``abandoned``     台帳は進めない。**実体が残っていれば削除する**（残っていなければ no-op）
     エントリ無し       ``--force-uncollected --reason`` 必須（孤児 worktree の掃除経路）
     ================  ====================================================
+
+    ``stopped`` に ``stale`` のような ``--force-uncollected`` の逃げ道を設けないのは、
+    ``stopped``＝「まだ回収を試みていない」・``stale``＝「回収を試みて失敗した」で意味が違うから
+    （同じ強制解除ボタンを共有すると両者の区別が消える）。``stopped`` は
+    :func:`collect_worktree` で回収してから解放する。
+
+    終端状態（``released`` / ``abandoned``）でも**ディスクを見る**（F-354-02）。
+    ``worktree-forget`` は台帳を ``abandoned`` にするだけで worktree を消さないので、
+    ここで実体を見ずに早期 return すると、forget 済みで残った worktree を削除する経路が
+    リポジトリのどこにも無くなる（PR-3 の unclaimed deny が恒久化する）。台帳の状態は
+    進めない——``abandoned`` は終端であり、``released`` へ動かすと「諦めた」記録が消える。
     """
     relative = validate_worktree_path(worktree_path)
     if entry_id is not None:
         _validate_entry_id(entry_id)
-    if force_uncollected:
+    if force_uncollected or reason:
         _validate_reason(reason)
 
     entry = find_entry(repo_root, entry_id=entry_id, worktree_path=relative)
@@ -508,8 +576,27 @@ def worktree_release(
             )
 
     status = entry.get("status") if entry is not None else None
+    resolved_entry_id = entry.get("entry_id") if entry is not None else None
+    note = _reason_note(
+        "worktree-release",
+        reason,
+        flag="--force-uncollected" if force_uncollected else "",
+    )
+
     if status in ("released", "abandoned"):
-        return ReleaseOutcome(relative, entry.get("entry_id"), removed=False, status=status)
+        # 台帳は終端。だが実体が残っていれば消す（唯一の削除経路・docstring 参照）。
+        removed = _remove_worktree_dir(repo_root, relative, runner=runner)
+        if resolved_entry_id is not None:
+            if removed:
+                _note(
+                    repo_root,
+                    resolved_entry_id,
+                    now=now,
+                    note=f"worktree-release: 終端状態（{status}）の残留実体を削除した",
+                )
+            _note(repo_root, resolved_entry_id, now=now, note=note)
+        return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status=status)
+
     if status == "running":
         raise WorktreeError(
             "WORKTREE_LIVE",
@@ -519,6 +606,12 @@ def worktree_release(
         raise WorktreeError(
             "WORKTREE_NOT_BOUND",
             f"{relative}（worktree がまだ束縛されていない＝解放対象を特定できない）",
+        )
+    if status == "stopped":
+        raise WorktreeError(
+            "WORKTREE_NOT_COLLECTED",
+            f"{relative}（所有者は停止したがまだ回収していない。collect-worktree で回収する"
+            "＝--force-uncollected では上書きしない）",
         )
     if status == "stale" and not force_uncollected:
         raise WorktreeError(
@@ -531,33 +624,10 @@ def worktree_release(
             f"{relative}（台帳にエントリが無い。--force-uncollected --reason <text> が要る）",
         )
 
-    resolved_entry_id = entry.get("entry_id") if entry is not None else None
-    note = f"worktree-release --force-uncollected: {reason}" if force_uncollected else ""
-
-    target = resolve_within(repo_root, relative)
-    if not target.exists():
-        # 既に無い＝解放済みとみなす（`git worktree remove` の失敗を冪等化する）。
-        _run_git(["git", "worktree", "prune"], cwd=repo_root, runner=runner)
-        if resolved_entry_id is not None:
-            _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
-        return ReleaseOutcome(relative, resolved_entry_id, removed=False, status="released")
-    if not target.is_dir():
-        raise WorktreeError("WORKTREE_PATH_NOT_DIR", str(target))
-    if not _is_git_managed(target, repo_root, runner=runner):
-        raise WorktreeError(
-            "WORKTREE_NOT_GIT_MANAGED",
-            f"{relative}（git の linked worktree として登録されていない）",
-        )
-
-    removed = _run_git(
-        ["git", "worktree", "remove", "--force", str(target)], cwd=repo_root, runner=runner
-    )
-    if removed.returncode != 0:
-        raise WorktreeError("WORKTREE_REMOVE_FAILED", (removed.stderr or "").strip()[:400])
-    _run_git(["git", "worktree", "prune"], cwd=repo_root, runner=runner)
+    removed = _remove_worktree_dir(repo_root, relative, runner=runner)
     if resolved_entry_id is not None:
         _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
-    return ReleaseOutcome(relative, resolved_entry_id, removed=True, status="released")
+    return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status="released")
 
 
 # --- verb: collect-worktree ----------------------------------------------------
@@ -634,7 +704,7 @@ def collect_worktree(
 
     段（**前段が失敗したら後段を実行しない**）:
 
-    1. 対象特定（台帳 or 明示指定 ＋ パス6条件検査）
+    1. 対象特定（台帳 or 明示指定 ＋ パス6条件検査 ＋ ``--entry`` と ``<worktree-path>`` の一致検査）
     2. 回収元を読む（regular file・上限バイト数）
     3. 回収先へ ``O_CREAT|O_EXCL`` で書く
     4. 読み返して sha256 一致を確認
@@ -643,10 +713,20 @@ def collect_worktree(
 
     「回収に失敗したのに解放が走る」ことは、検査ではなく**この呼び出し順序**が防ぐ
     ——2〜4 のいずれかが例外を投げれば 6 に到達しない。
+
+    **``--entry`` と ``<worktree-path>`` の食い違いは段1 で止める**（F-354-03）。この検査が
+    段6（``worktree_release`` 内）にしか無いと、別 worktree の handoff を回収して回収先に書き、
+    台帳を ``collected`` と誤記録した**後で**落ちる——後続の ``worktree-release`` が未回収の
+    worktree を「回収済み」と誤認して削除しうる（FR-W2 の破れ＝handoff 喪失）。FS と台帳への
+    副作用が1つでも起きる前に止める。
+
+    受理する台帳の状態は ``stopped``（所有者停止済み・未回収）/ ``stale``（回収失敗）/
+    ``collected``（回収済み・解放のみ）とエントリ無し。``running`` は拒否する
+    ——live な dispatch の worktree は回収も解放もしない（安全側の既定）。
     """
     if entry_id is not None:
         _validate_entry_id(entry_id)
-    if allow_missing_handoff:
+    if allow_missing_handoff or reason:
         _validate_reason(reason)
 
     # --- 段1: 対象特定 ---
@@ -665,6 +745,15 @@ def collect_worktree(
             f"{entry_id}（台帳の worktree_path が未束縛。<worktree-path> を明示する）",
         )
     relative_worktree = validate_worktree_path(relative_worktree)
+    if entry is not None:
+        bound = entry.get("worktree_path")
+        if bound is not None and bound != relative_worktree:
+            # `--entry` と `<worktree-path>` が別のものを指している＝どちらが正か決められない。
+            # **FS も台帳も一切触る前に**止める（F-354-03。段6 まで進むと、別 worktree の
+            # handoff を回収した上で「回収済み」と誤記録した後で落ちることになる）。
+            raise WorktreeError(
+                "WORKTREE_ENTRY_PATH_MISMATCH", f"entry={bound}; argument={relative_worktree}"
+            )
     if entry is None:
         # `--entry` 無しの明示指定でも、同じ worktree を指す台帳エントリがあればそれに従う
         # （段6 の解放判定と段5 の記録が別のものを見ると、状態が食い違う）。
@@ -672,6 +761,8 @@ def collect_worktree(
 
     status = entry.get("status") if entry is not None else None
     if status in ("released", "abandoned"):
+        # 回収する対象がもう無い（終端状態）。実体が残っている場合の削除は
+        # `worktree-release` の担当（F-354-02）で、回収 verb はここでは何もしない。
         return CollectOutcome(
             relative_worktree, entry.get("entry_id"), entry.get("collected_to"), released=False
         )
@@ -685,6 +776,7 @@ def collect_worktree(
 
     resolved_entry_id = entry.get("entry_id") if entry is not None else None
     collected_to = entry.get("collected_to") if entry is not None else None
+    reason_recorded = False
 
     if status != "collected":
         relative_handoff = handoff_path
@@ -751,9 +843,12 @@ def collect_worktree(
 
         # --- 段5: 台帳を collected へ ---
         if resolved_entry_id is not None:
-            note = ""
-            if data is None:
-                note = f"collect-worktree --allow-missing-handoff: {reason}"
+            note = _reason_note(
+                "collect-worktree",
+                reason,
+                flag="--allow-missing-handoff" if data is None else "",
+            )
+            reason_recorded = bool(note)
             _mark(
                 repo_root,
                 resolved_entry_id,
@@ -763,13 +858,30 @@ def collect_worktree(
                 collected_to=collected_to,
             )
 
+    # 受理した `--reason` を1度も台帳へ書いていない経路（回収に成功した場合・既に collected
+    # だった場合）でも必ず残す（F-354-04）。段6 側では記録しない——エントリがあるときの
+    # 解放は状態遷移の一部で、理由は「回収の理由」として collect 側に属するため。
+    if resolved_entry_id is not None and not reason_recorded:
+        _note(
+            repo_root,
+            resolved_entry_id,
+            now=now,
+            note=_reason_note("collect-worktree", reason),
+        )
+
     # --- 段6: 解放 ---
     outcome = worktree_release(
         repo_root,
         relative_worktree,
         entry_id=resolved_entry_id,
         force_uncollected=resolved_entry_id is None,
-        reason=reason or "collect-worktree: 台帳エントリの無い worktree を回収後に解放",
+        # 台帳エントリが無い＝`--force-uncollected` が要る経路だけ理由を渡す（エントリがある
+        # 場合の理由は直前で記録済みなので、ここで渡すと同じ理由が2回 notes に載る）。
+        reason=(
+            (reason or "collect-worktree: 台帳エントリの無い worktree を回収後に解放")
+            if resolved_entry_id is None
+            else ""
+        ),
         now=now,
         runner=runner,
     )
@@ -786,6 +898,10 @@ def worktree_forget(repo_root, entry_id: str, *, reason: str, now) -> dict:
 
     PR-3 の deny が恒久的にパイプラインを止めるのを防ぐ唯一の逃げ道なので、``reason`` を
     必須にして「なぜ諦めたか」を必ず残す。**エントリは削除しない**（PR8 区分1＝保全対象）。
+
+    ディスク上に実体が残っている場合は、この verb の**後で** :func:`worktree_release` を
+    呼んで削除する（``abandoned`` のまま実体だけ消える）。この2手順以外に実体を消す経路は
+    無い——回収の記録（``abandoned`` の理由）と実体の削除を1つの verb に混ぜない。
     """
     _validate_entry_id(entry_id)
     _validate_reason(reason)

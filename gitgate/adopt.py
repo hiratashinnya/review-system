@@ -12,9 +12,16 @@
 指定 PR の head として open か」「ローカルに同名ブランチが無いか」を見る。
 
 したがって本モジュールは ``policy.py`` のフローをコピー流用せず、**必要な部分だけを薄く
-再実装**する。ただし leaf 値（repository/branch/OID）の検証規則を二重定義すると
-「片方だけ緩い」というズレが生まれるため、そこは ``branch_source`` の公開 validator を共有する。
-read-only の GitHub client（:class:`GitHubBranchClient`）もそのまま再利用する。
+再実装**する。``repository`` と ``branch`` は検証規則を二重定義すると「片方だけ緩い」という
+ズレが生まれるため、``branch_source`` の公開 validator（:func:`validate_repository` /
+:func:`validate_branch_ref`）を共有する。read-only の GitHub client
+（:class:`GitHubBranchClient`）もそのまま再利用する。
+
+**OID だけは意図的に共有しない**。``branch_source`` 側は 40hex/64hex（SHA-1/SHA-256）の
+どちらも受けるが、``adopt-branch`` は「その worktree が掴む commit を一意に固定する」ことが
+目的なので ``_ADOPT_OID``（40hex ちょうど）で**より厳しく**判定する。ここで共有側の緩い規則に
+揃えると adopt の目的が達成できないため、二重定義ではなく**意図的な非共有**である
+（Issue #354 F-354-05）。
 
 fail-close
 ----------
@@ -34,7 +41,8 @@ reason code:
 
 依存仕様:
   * ``branch_source/policy.py`` の :class:`BranchSourceError` / :class:`GitHubBranchClient` /
-    公開 leaf validator（同一 PR で公開名を追加）。
+    公開 leaf validator（``validate_repository`` / ``validate_branch_ref``。同一 PR で公開名を
+    追加。OID validator は上記のとおり共有しないので公開もしていない）。
   * 起票先区分は `.claude/rules/02-decision-process.md`「起票先はプロジェクト区分で決める」の
     **汎用開発ハーネス**（Issue 運用パイプライン）。out-of-graph のため版なし。
 """

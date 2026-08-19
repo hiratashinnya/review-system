@@ -140,10 +140,45 @@ class OpenEntryTests(LedgerTestCase):
 class TransitionTests(LedgerTestCase):
     def test_forward_transitions_are_allowed(self):
         entry_id = self.open_entry()
-        for status in ("running", "collected", "released"):
+        for status in ("running", "stopped", "collected", "released"):
             worktree_ledger.mark(self.root, entry_id, status, now=LATER)
             self.assertEqual(self.entries()[0]["status"], status)
         self.assertEqual(self.entries()[0]["closed_at"], "2026-08-19T04:16:07Z")
+
+    def test_running_cannot_jump_straight_to_collected(self):
+        # `collected` を作るのは `collect-worktree` 自身なので、`running` から直行できると
+        # 「回収する前に回収済みにする」しか回収を始める手が無くなる（Issue #354 F-354-01）。
+        entry_id = self.open_entry()
+        worktree_ledger.mark(self.root, entry_id, "running", now=LATER)
+        with self.assertRaises(LedgerError) as ctx:
+            worktree_ledger.mark(self.root, entry_id, "collected", now=LATER)
+        self.assertEqual(ctx.exception.reason, "LEDGER_ILLEGAL_TRANSITION")
+        self.assertEqual(self.entries()[0]["status"], "running")
+
+    def test_stopped_is_the_route_from_running_to_collection(self):
+        # `SubagentStop` が「所有者の停止を確認した」事実を記録する中間状態。
+        entry_id = self.open_entry()
+        worktree_ledger.mark(self.root, entry_id, "running", now=LATER)
+        worktree_ledger.mark(self.root, entry_id, "stopped", now=LATER, note="所有者停止を確認")
+        self.assertEqual(self.entries()[0]["status"], "stopped")
+        self.assertEqual(self.entries()[0]["notes"][-1]["note"], "所有者停止を確認")
+        # `stopped` は未解放（＝残留として数える）。
+        self.assertIn("stopped", worktree_ledger.UNRELEASED_STATUSES)
+        self.assertEqual(
+            [item["entry_id"] for item in worktree_ledger.unreleased_entries(self.root)],
+            [entry_id],
+        )
+        worktree_ledger.mark(self.root, entry_id, "collected", now=LATER)
+        self.assertEqual(self.entries()[0]["status"], "collected")
+
+    def test_stopped_cannot_go_back_to_running(self):
+        entry_id = self.open_entry()
+        for status in ("running", "stopped"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        with self.assertRaises(LedgerError) as ctx:
+            worktree_ledger.mark(self.root, entry_id, "running", now=LATER)
+        self.assertEqual(ctx.exception.reason, "LEDGER_ILLEGAL_TRANSITION")
+        self.assertEqual(self.entries()[0]["status"], "stopped")
 
     def test_same_status_is_an_idempotent_no_op(self):
         entry_id = self.open_entry()
@@ -154,10 +189,9 @@ class TransitionTests(LedgerTestCase):
 
     def test_backward_transitions_are_refused(self):
         entry_id = self.open_entry()
-        worktree_ledger.mark(self.root, entry_id, "running", now=LATER)
-        worktree_ledger.mark(self.root, entry_id, "collected", now=LATER)
-        worktree_ledger.mark(self.root, entry_id, "released", now=LATER)
-        for status in ("open", "running", "collected", "stale"):
+        for status in ("running", "stopped", "collected", "released"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        for status in ("open", "running", "stopped", "collected", "stale"):
             with self.subTest(status=status):
                 with self.assertRaises(LedgerError) as ctx:
                     worktree_ledger.mark(self.root, entry_id, status, now=LATER)
@@ -167,12 +201,13 @@ class TransitionTests(LedgerTestCase):
     def test_abandoned_is_reachable_from_every_non_terminal_state(self):
         # `worktree-forget --reason` は deny が恒久的にパイプラインを止めるのを防ぐ
         # 唯一の逃げ道なので、状態で塞がない。
-        for status in ("open", "running", "collected", "stale"):
+        for status in ("open", "running", "stopped", "collected", "stale"):
             with self.subTest(status=status):
                 entry_id = self.open_entry()
                 if status != "open":
                     path = {"running": ["running"],
-                            "collected": ["running", "collected"],
+                            "stopped": ["running", "stopped"],
+                            "collected": ["running", "stopped", "collected"],
                             "stale": ["running", "stale"]}[status]
                     for step in path:
                         worktree_ledger.mark(self.root, entry_id, step, now=LATER)
@@ -469,17 +504,22 @@ class ResidueReportTests(LedgerTestCase):
         )
         stale = self.open_entry(issue=2)
         worktree_ledger.mark(self.root, stale, "stale", now=LATER)
+        stopped = self.open_entry(issue=3)
+        worktree_ledger.mark(self.root, stopped, "running", now=LATER)
+        worktree_ledger.mark(self.root, stopped, "stopped", now=LATER)
         report = worktree_ledger.residue_report(self.root)
         self.assertEqual(report["running"], [".claude/worktrees/agent-live"])
         self.assertEqual(report["unclaimed"], [".claude/worktrees/agent-orphan"])
-        self.assertEqual([item["entry_id"] for item in report["stale"]], [stale])
+        # `stopped`＝所有者は停止したが未回収なので、残留として数える。
+        self.assertEqual(
+            [item["entry_id"] for item in report["stale"]], [stale, stopped]
+        )
         self.assertNotIn(live, [item["entry_id"] for item in report["stale"]])
 
     def test_unreleased_entries_exclude_terminal_states(self):
         released = self.open_entry(issue=1)
-        worktree_ledger.mark(self.root, released, "running", now=LATER)
-        worktree_ledger.mark(self.root, released, "collected", now=LATER)
-        worktree_ledger.mark(self.root, released, "released", now=LATER)
+        for status in ("running", "stopped", "collected", "released"):
+            worktree_ledger.mark(self.root, released, status, now=LATER)
         still_open = self.open_entry(issue=2)
         self.assertEqual(
             [item["entry_id"] for item in worktree_ledger.unreleased_entries(self.root)],
