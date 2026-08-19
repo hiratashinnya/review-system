@@ -127,20 +127,11 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
     採番する**（使い回すと前ラウンドの是正記録を上書き破壊する）。`karte_path` だけが絶対パスなのは、カルテが
     本ロールの出力ではなく**ラウンドをまたぐ主文脈側の台帳**だからで、その受け渡し方式の見直しは Issue #354 の範囲。
     戻りは `HANDOFF: <fixer が実際に書けた絶対パス>` ＋1行要約で、主文脈はその絶対パスを Read する。
-- **dispatch 前に主文脈が実装者 worktree を明け渡し、メインワークツリーを PR ブランチへ載せる**
-  （isolation 必須化の帰結・Issue #350／F-350-02）。②-a で `isolation: "worktree"` を渡した結果、
-  PR ブランチは実装者の `.claude/worktrees/agent-<id>/` に checkout されたままになっている。
-  **これは現状唯一成立する経路の開示であり設計選択ではない**（理由・却下した代替案＝
-  `.claude/rationale/issue-pipeline.md`）。主文脈は `issue-fixer` dispatch 前に次を実行する：
-  1. **実装者のハンドオフを先に Read する（必須・条件付きではない）**。②-a の契約により、ハンドオフは
-     **必ず**実装者 worktree 配下（`.claude/worktrees/agent-<id>/tmp/_handoff/…`）に書かれており、
-     次の手順 2 が `--force` でその worktree ごと消す。Read を飛ばすと PR URL・テスト結果・スコープ外指摘が
-     回復不能に失われる。宛先は実装者がチャットで返した絶対パス（`git worktree list` で
-     `.claude/worktrees/agent-<id>/` を特定してもよい）。他に回収すべき成果物が残っていないかも併せて確認する。
-  2. `git worktree remove --force .claude/worktrees/agent-<id>/` で実装者 worktree を解放する
-     （実装フェーズは完了済みで、手順 1 で回収済みなので安全）。
-  3. `git switch <branch>` でメインワークツリーを PR ブランチへ載せる。
-  これでメインワークツリー上の `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める。
+- **worktree の回収・解放は主文脈の手順ではない**（Issue #354／#374・下記「worktree の解放（②-c／②-d 共通）」）。
+  主文脈が ②-c で行うのは、メインワークツリーを PR ブランチへ載せることだけ：
+  **`git switch <branch>`**。これで `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める
+  （`issue-fixer` は非 isolated なのでこの一手が要る。なぜこの経路しか成立しないのか＝
+  `.claude/rationale/issue-pipeline.md`）。
 - `issue-fixer` は**診断してから直す**（`karte render` で前ラウンドの試行・転換指令・未解消 finding の
   `expected`/`recheck` を引き、`karte append` で診断を登録してからコードを触る）。同じアプローチの3件目は
   `append` が機械的に拒否する＝**ラウンド上限ではなく類似で切る**。
@@ -159,30 +150,33 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 **②-d マージ → クローズ → 次へ**
 - `pr-reviewer` が genuinely clean と判断したら `gh pr merge`（マージは reviewer 専権・機械ゲート）。
 - `Closes #N` で自動クローズされなければ主文脈がクローズ（クローズは主文脈がしてよい）。**merge & close を確認してから次 Issue へ**（Issue #120 ②）。
-- **実装者 worktree を解放する**（isolation 必須化の帰結・Issue #350／②-c と同じ理由・②-c に手順が
-  あるのは是正ラウンドを経由した経路だけで、**指摘なしの clean merge 経路（本節）には従来抜けていた**
-  ＝Issue #360）。②-a で `isolation: "worktree"` を渡した結果、実装者の
-  `.claude/worktrees/agent-<id>/` が locked worktree として checkout されたまま残っている。
-  clean merge 経路は `issue-fixer` を経由しない（②-c の worktree 解放ステップを一度も通らない）ため、
-  ここで明示的に解放しないと **clean merge のたびに locked worktree が残留する**（実測：
-  `git worktree list` に残骸が多数存在）。**②-c を経由済みなら手順1・2は②-c 自身の手順1・2で
-  既に完了しているためスキップする**（未経由のときだけ本節が担う）。merge & close を確認したら：
-  1. **②-c を経由していなければ、実装者のハンドオフを先に Read する（必須・条件付きではない）**。
-     ②-a のハンドオフ絶対パス。PR URL・変更ファイル一覧・テスト結果・スコープ外指摘。
-     （②-c を経由していれば、②-c 自身の手順1で既に Read 済み——再読不要）。
-  2. **②-c を経由していなければ**、`git worktree remove --force .claude/worktrees/agent-<id>/` で
-     実装者 worktree を解放する（実装・レビューは完了済みで、手順1 で回収済みなので安全。対象
-     `agent-<id>` は `git worktree list` で特定してよい）。**②-c を経由していれば、②-c 自身の
-     手順2で既に解放済みなので実行しない**（対象不在の worktree に対する remove は失敗する）。
-  3. **②-c を経由していれば**主文脈のメインワークツリーが PR ブランチへ切り替わったままなので、
-     `git switch main` 等で戻す（②-c 自身の手順3で PR ブランチへ載せた分の対）。②-c を経由していない
-     完全な clean merge では主文脈は元々ブランチ切替していないため本手順は不要。
+- **worktree の回収・解放は主文脈の手順ではない**（下記「worktree の解放（②-c／②-d 共通）」）。
+- **メインワークツリーが `main` 以外に載っていれば `main` へ戻す**。判定は**状態から機械的に導出する**
+  ——`python3 -m gitgate branch-current` が `main` を返さないときだけ `git switch main` を実行する
+  （「②-c を経由したか」という**記憶**に依存しない。②-c を経由した場合はメインワークツリーが
+  PR ブランチに載ったままなので `main` 以外になり、経由しない clean merge では元々 `main` のまま）。
+
+**②-c／②-d 共通：worktree の解放**（Issue #354／#374。**②-c と ②-d で重複して書かない**）
+- **実装者/是正者の worktree は `SubagentStop` フックが自動で回収・解放する**（回収＝ハンドオフを
+  メインワークツリーの `tmp/_handoff/collected/` へ退避してから解放する1操作。回収できなければ
+  解放しない）。**主文脈が手順として実行することは無い**——是正ラウンドを経由したか（②-c）
+  clean merge か（②-d）にも依らない。
+- **残留した場合**（フック未発火・回収失敗）は次の dispatch が
+  `ISSUE_START_WORKTREE_RESIDUE` で deny される。deny 文言のコマンド
+  （`python3 -m gitgate collect-worktree --entry <entry-id>`）を実行して解消する。
+  台帳に紐づかない worktree は `ISSUE_START_WORKTREE_UNCLAIMED` で deny され、
+  `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` で解消する。
+  どうしても回収できないものは `python3 -m gitgate worktree-forget --entry <entry-id> --reason <text>`
+  が唯一の逃げ道（理由は必須＝なぜ諦めたかを台帳に残す）。
+- **不変条件 INV-W**：`.claude/worktrees/agent-*` に存在してよいのは、現在 live もしくは
+  回収処理中の dispatch が所有する worktree だけである。
+- **残留は「ディスク使用量と可読性」の問題ではない**——残留 worktree を live な dispatch が
+  掴むとレビュー・是正が**古い作業ツリーに対して行われ、結果の信頼性そのものが損なわれる**
+  （Issue #354 の実測事象）。だから機構は「掃除の推奨」ではなく**次 dispatch の deny**として
+  実装されている。
 
   > **Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項は不要**（理由＝
   > `.claude/rationale/issue-pipeline.md`。`asset_parity/exceptions.py` の非移植例外ではない）。
-
-  この手順を怠っても実装・レビュー結果には影響しないが、locked worktree の残留は
-  ディスク使用量の増大と `git worktree list` の可読性低下を招くため、**次 Issue へ進む前に必ず実施する**。
 
 ### ③ スコープ拡張は別 Issue に逃がす（PR 肥大化の抑制・Issue #120 ⑧）
 レビュー/調査中に**現 PR/Issue のスコープを超える対応**が要ると分かったら、現 PR で直さず **サブ Issue / 別 Issue を起票**（`gh issue create`）。
@@ -293,9 +287,13 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
     起動した dispatch の `.claude/worktrees/agent-<id>` を **worktree 所有台帳**
     （`tmp/_worktree/ledger.json`）へ束縛する。
   - `SubagentStop`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：
-    `issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否する
-    （判定不能も拒否側＝fail-close）。
-  - **どのフックも worktree を削除しない**（自動回収・自動解放は別 Issue のスコープ）。
+    ①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否し
+    （判定不能も拒否側＝fail-close）、②通ったら台帳を `running`→`stopped` へ進めて
+    `python3 -m gitgate collect-worktree` で回収・解放する（Issue #354）。
+    **block したら②へ進まない**（継続するエージェントの worktree を消さないための単一決定点）。
+  - **フックは `git worktree remove` を直接呼ばない**——実体を消してよいかの判断は
+    `gitgate/worktree.py` に集約されており、フックはその verb を起動するだけ。回収に失敗したら
+    削除せず台帳を `stale` にして返す（次 dispatch の deny が拾う＝上記「worktree の解放」）。
   - 却下時の理由3点と、それを #309 がどこまで覆したかは `.claude/rationale/issue-pipeline.md`。
 
 ## エージェント定義のスナップショットが作業ツリーの現在値に追随するとは限らない制約（既知の制約・回避策・Issue #360）

@@ -1,8 +1,11 @@
-"""Issue #309（PR-1）SubagentStart / SubagentStop フックの単体テスト。
+"""SubagentStart / SubagentStop フックの単体テスト（Issue #309・PR-1 ＋ Issue #354・PR-3）。
 
-本 PR の最重要の不変条件は「**worktree を1つも削除しない**」こと。
-:class:`NoDeletionPathTests` が、出荷コードに削除経路が存在しないことと、
-フックが起動するサブプロセスに `git worktree remove` が一度も現れないことを機械的に固定する。
+最重要の不変条件は「**フック自身は worktree を消さない**」こと。解放は
+`python3 -m gitgate collect-worktree`（回収→検証→解放の段構造）を起動する形だけで行い、
+実体を消してよいかの判断は `gitgate/worktree.py` に集約されている。
+:class:`NoDeletionPathTests` が、出荷コードに直接の削除経路が生えていないことを機械的に固定し、
+:class:`ReleaseStageTests` / :class:`ReleaseStageIntegrationTests` が「回収できなければ
+解放しない」（FR-W2）と `running` → `stopped` の遷移順序（F-354-01）を固定する。
 """
 
 import ast
@@ -33,6 +36,7 @@ SHIPPED_MODULES = [
     ROOT / "issue_start" / "hook.py",
 ]
 _HAS_BASH = shutil.which("bash") is not None
+_HAS_GIT = shutil.which("git") is not None
 
 FIXED_NOW = datetime(2026, 8, 19, 4, 11, 7, tzinfo=timezone.utc)
 
@@ -618,10 +622,384 @@ class StopKarteGateTests(HookTestCase):
         self.assertEqual(self.runner_calls, [])
 
 
-class NoDeletionPathTests(HookTestCase):
-    """**本 PR は worktree を1つも削除しない**（構造的にゼロ）ことの回帰固定。"""
+class ReleaseStageTests(HookTestCase):
+    """Issue #354 PR-3: `SubagentStop` の回収・解放段。
 
-    def test_hooks_never_spawn_a_worktree_subcommand(self):
+    **最重要の順序**は `running` → `stopped` → `collect-worktree`。`collect-worktree` は
+    台帳 status `running` を `WORKTREE_LIVE` で拒否し `stopped` のみ受理する（PR-2 の
+    F-354-01 是正）ため、遷移を挟まないと自動解放は一度も成功しない。
+    """
+
+    def bind(self, *, agent_type="issue-implementer", agent_id="abc", issue=354):
+        self.make_worktree(f"agent-{agent_id}")
+        worktree_ledger.open_entry(
+            self.root, issue=issue, agent_type=agent_type, round=None,
+            branch_name=None, handoff_path=None, now=FIXED_NOW,
+        )
+        return worktree_ledger.bind_agent(
+            self.root, agent_type=agent_type, agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+
+    def write_handoff(self, agent_id, *names):
+        directory = self.root / ".claude" / "worktrees" / f"agent-{agent_id}" / "tmp" / "_handoff"
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (directory / name).write_text("agent: issue-implementer\n", encoding="utf-8")
+        return directory
+
+    def stop(self, *, agent_type="issue-implementer", agent_id="abc", results=(FakeCompleted(0),)):
+        rc = subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": agent_type, "agent_id": agent_id}),
+            stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, now=FIXED_NOW, runner=self.runner(*results),
+        )
+        self.assertEqual(rc, 0)
+        self.assertSilentAllow()
+        return rc
+
+    def status_of(self, entry_id):
+        return {item["entry_id"]: item for item in self.entries()}[entry_id]["status"]
+
+    def collect_calls(self):
+        return [call for call in self.runner_calls if "collect-worktree" in call]
+
+    def test_running_is_moved_to_stopped_before_collect_is_invoked(self):
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        observed = {}
+
+        def run(argv, **kwargs):
+            self.runner_calls.append(list(argv))
+            self.runner_kwargs.append(kwargs)
+            # `collect-worktree` が起動された**時点の**台帳状態を捕まえる。
+            observed["status"] = self.status_of(entry_id)
+            return FakeCompleted(0)
+
+        subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": "issue-implementer", "agent_id": "abc"}),
+            stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, now=FIXED_NOW, runner=run,
+        )
+        self.assertEqual(
+            observed["status"], "stopped",
+            "collect-worktree は running を WORKTREE_LIVE で拒否する（F-354-01）",
+        )
+        self.assertEqual(
+            self.runner_calls[0][1:],
+            [
+                "-m", "gitgate", "collect-worktree", "--entry", entry_id,
+                "--handoff", "tmp/_handoff/issue-implementer--issue-354.yaml",
+            ],
+        )
+        self.assertEqual(self.runner_kwargs[0]["cwd"], str(self.root))
+        self.assertFalse(self.runner_kwargs[0]["shell"])
+        self.assertEqual(self.runner_kwargs[0]["timeout"], subagent_hooks.COLLECT_TIMEOUT_S)
+
+    def test_stopped_note_records_the_owner_stop(self):
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop()
+        notes = [item["note"] for item in self.entries()[0]["notes"]]
+        self.assertTrue(any("停止を確認した" in note for note in notes))
+        self.assertEqual(self.entries()[0]["notes"][0]["at"], "2026-08-19T04:11:07Z")
+        evidence = [line for line in self.evidence_lines() if line.get("result") == "release-ok"]
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]["entry_id"], entry_id)
+        self.assertEqual(evidence[0]["how"], "unique")
+
+    def test_collect_failure_marks_stale_and_never_removes_the_worktree(self):
+        """回収に失敗したらブロックせず `stale` に落として制御を主文脈へ返す。
+
+        次 dispatch を gate が `ISSUE_START_WORKTREE_RESIDUE` で deny するので気づける。
+        **`git worktree remove` は呼ばれない**（＝FR-W2「回収できなければ解放しない」）。
+        """
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop(results=(FakeCompleted(2, stderr="gitgate: COLLECT_HANDOFF_MISSING"),))
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+        tokens = {token for call in self.runner_calls for token in call}
+        self.assertNotIn("remove", tokens, "フックは git worktree remove を直接呼ばない")
+        notes = [item["note"] for item in self.entries()[0]["notes"]]
+        self.assertTrue(any("COLLECT_HANDOFF_MISSING" in note for note in notes))
+
+    def test_unrunnable_or_timed_out_collect_marks_stale_without_deleting(self):
+        for label, error in (
+            ("unrunnable", OSError("python3 not found")),
+            ("timeout", subprocess.TimeoutExpired(cmd="gitgate", timeout=45.0)),
+        ):
+            with self.subTest(label=label):
+                self.setUp()
+                entry_id = self.bind()
+                self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+
+                def boom(argv, **kwargs):
+                    self.runner_calls.append(list(argv))
+                    raise error
+
+                rc = subagent_hooks.run_stop(
+                    stdin=self.stdin({"agent_type": "issue-implementer", "agent_id": "abc"}),
+                    stdout=self.stdout, stderr=self.stderr,
+                    cwd=self.root, now=FIXED_NOW, runner=boom,
+                )
+                self.assertEqual(rc, 0)
+                self.assertSilentAllow()
+                self.assertEqual(self.status_of(entry_id), "stale")
+                self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+
+    def test_missing_handoff_directory_releases_with_allow_missing(self):
+        """列挙して0件と確認できたときだけ `--allow-missing-handoff` を使う。
+
+        「回収せずに解放する」ことにはならない——回収対象が存在しないことを実測している。
+        受理した理由は台帳 notes に残る（`gitgate` 側が記録する）。
+        """
+        entry_id = self.bind()
+        self.stop()
+        argv = self.collect_calls()[0]
+        self.assertIn("--allow-missing-handoff", argv)
+        self.assertNotIn("--handoff", argv)
+        self.assertIn("--reason", argv)
+        self.assertEqual(self.status_of(entry_id), "stopped", "台帳を進めるのは gitgate 側")
+
+    def test_multiple_handoff_candidates_are_not_released(self):
+        """どれが今回の成果物か決められないなら**解放しない**（成果物喪失を避ける）。"""
+        entry_id = self.bind()
+        self.write_handoff(
+            "abc",
+            "issue-implementer--issue-354.yaml",
+            "issue-implementer--issue-354-r2.yaml",
+        )
+        self.stop()
+        self.assertEqual(self.collect_calls(), [], "回収対象が曖昧なら起動もしない")
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+
+    def test_entry_not_found_marks_only_the_open_entry_stale(self):
+        """自分のエントリを引けないとき、他人の `running` を `stale` へ落とさない。
+
+        `running` → `stale` は `WORKTREE_LIVE` の保護を外す＝live な worktree を
+        `--force-uncollected` で強制解放できる状態にする。推測でそこへ落とすのは
+        「削除は fail-safe 側へ倒す」に反するので、落としてよいのは**まだ何も掴んで
+        いない** `open` だけにする。
+        """
+        live = self.bind(agent_id="live")
+        pending = worktree_ledger.open_entry(
+            self.root, issue=354, agent_type="issue-implementer", round=None,
+            branch_name=None, handoff_path=None, now=FIXED_NOW,
+        )
+        self.stop(agent_id="unbound-id")
+        self.assertEqual(self.status_of(live), "running", "他人の live を潰さない")
+        self.assertEqual(self.status_of(pending), "stale")
+        self.assertEqual(self.collect_calls(), [])
+
+    def test_no_ledger_entry_at_all_deletes_nothing(self):
+        self.make_worktree("agent-abc")
+        self.stop()
+        self.assertEqual(self.entries(), [], "エントリを新規作成しない")
+        self.assertEqual(self.collect_calls(), [])
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+        reasons = [line.get("reason") for line in self.evidence_lines()]
+        self.assertIn("ENTRY_NOT_FOUND", reasons)
+
+    def test_unresolvable_repo_root_deletes_nothing(self):
+        (self.root / ".git").write_text("not a gitdir line\n", encoding="utf-8")
+        self.stop()
+        reasons = [line.get("reason") for line in self.evidence_lines()]
+        self.assertIn("REPO_ROOT_UNRESOLVED", reasons)
+        self.assertEqual(self.collect_calls(), [])
+
+    def test_terminal_entry_is_left_alone(self):
+        entry_id = self.bind()
+        for status in ("stopped", "collected", "released"):
+            worktree_ledger.mark(self.root, entry_id, status, now=FIXED_NOW)
+        self.stop()
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertEqual(self.collect_calls(), [])
+
+    def test_release_stage_is_idempotent_for_a_repeated_stop(self):
+        """FR-W5: 同じ停止が2回届いても状態機械は壊れない（`stopped` は冪等）。"""
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        for _round in range(2):
+            self.stdout, self.stderr = io.StringIO(), io.StringIO()
+            self.stop()
+        self.assertEqual(len(self.collect_calls()), 2)
+        self.assertEqual(self.status_of(entry_id), "stopped")
+
+    def test_fixer_blocked_by_the_karte_gate_never_reaches_the_release_stage(self):
+        """**最重要の競合ケース**: block＝エージェントは継続する＝worktree を消してはならない。"""
+        entry_id = self.bind(agent_type="issue-fixer", agent_id="fix")
+        self.write_handoff("fix", "issue-fixer--issue-354-r1.yaml")
+        self.write_active({"issue": 354, "round": 1})
+        rc = subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": "issue-fixer", "agent_id": "fix"}),
+            stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, now=FIXED_NOW,
+            runner=self.runner(FakeCompleted(4, stderr="NG: 未クローズの Attempt")),
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(self.stdout.getvalue())["decision"], "block")
+        self.assertEqual(self.collect_calls(), [], "block したら解放段へ進まない")
+        self.assertEqual(self.status_of(entry_id), "running", "台帳も進めない")
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-fix").is_dir())
+
+    def test_fixer_passing_the_karte_gate_reaches_the_release_stage(self):
+        entry_id = self.bind(agent_type="issue-fixer", agent_id="fix")
+        self.write_handoff("fix", "issue-fixer--issue-354-r1.yaml")
+        self.write_active({"issue": 354, "round": 1})
+        subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": "issue-fixer", "agent_id": "fix"}),
+            stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, now=FIXED_NOW,
+            runner=self.runner(FakeCompleted(0), FakeCompleted(0)),
+        )
+        self.assertSilentAllow()
+        self.assertEqual(self.runner_calls[0][2], "karte")
+        self.assertEqual(len(self.collect_calls()), 1)
+        self.assertEqual(self.status_of(entry_id), "stopped")
+
+
+@unittest.skipUnless(_HAS_GIT, "git が無い環境では実 worktree の統合検証をしない")
+class ReleaseStageIntegrationTests(unittest.TestCase):
+    """`SubagentStop` → 実 `gitgate collect-worktree` の**通し**検証（Issue #354 PR-3）。
+
+    単体テストは `runner` を差し替えるため「argv を組み立てた」ところまでしか見ない。
+    ここでは実 git リポジトリ・実 linked worktree・実 `gitgate` サブプロセスで、
+    **`running` → `stopped` → `collected` → `released` が最後まで通る**ことを確かめる。
+    この通しが無いと F-354-01（`running` のまま `collect-worktree` を呼んで
+    `WORKTREE_LIVE` で必ず落ちる）と同種の取りこぼしを検出できない。
+    """
+
+    ISSUE = 354
+    HANDOFF = "issue-implementer--issue-354.yaml"
+
+    def git(self, *args, cwd=None):
+        completed = subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+            cwd=str(cwd or self.repo), text=True, capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = Path(self._tmp.name).resolve() / "repo"
+        self.repo.mkdir()
+        self.git("init", "-q", "-b", "main")
+        (self.repo / "README.md").write_text("x\n", encoding="utf-8")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "init")
+        self.worktree_rel = ".claude/worktrees/agent-int01"
+        (self.repo / ".claude" / "worktrees").mkdir(parents=True)
+        self.git("worktree", "add", "--detach", "-q", self.worktree_rel, "HEAD")
+        handoff_dir = self.repo / self.worktree_rel / "tmp" / "_handoff"
+        handoff_dir.mkdir(parents=True)
+        (handoff_dir / self.HANDOFF).write_text(
+            "agent: issue-implementer\nstatus: pr_opened\n", encoding="utf-8"
+        )
+        worktree_ledger.open_entry(
+            self.repo, issue=self.ISSUE, agent_type="issue-implementer", round=None,
+            branch_name="claude/issue-354", handoff_path=None, now=FIXED_NOW,
+        )
+        self.entry_id = worktree_ledger.bind_agent(
+            self.repo, agent_type="issue-implementer", agent_id="int01",
+            worktree_path=self.worktree_rel,
+        )
+
+    def real_runner(self, argv, **kwargs):
+        """実サブプロセス実行（`gitgate` を import できるよう PYTHONPATH を渡す）。"""
+        return subprocess.run(
+            argv, env={**os.environ, "PYTHONPATH": str(ROOT)}, **kwargs
+        )
+
+    def entry(self):
+        return worktree_ledger.find_by_agent_id(self.repo, "int01")
+
+    def test_stop_collects_the_handoff_and_releases_the_worktree(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        rc = subagent_hooks.run_stop(
+            stdin=io.StringIO(json.dumps({
+                "agent_type": "issue-implementer", "agent_id": "int01",
+            })),
+            stdout=stdout, stderr=stderr,
+            cwd=self.repo, now=FIXED_NOW, runner=self.real_runner,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "", "解放段は停止をブロックしない")
+
+        entry = self.entry()
+        self.assertEqual(entry["status"], "released")
+        # 回収物がメインワークツリーへ退避され、内容が保たれている。
+        collected = self.repo / entry["collected_to"]
+        self.assertTrue(collected.is_file(), entry["collected_to"])
+        self.assertIn("status: pr_opened", collected.read_text(encoding="utf-8"))
+        self.assertTrue(entry["collected_to"].startswith("tmp/_handoff/collected/"))
+        # 実体も git の登録も消えている（FR-W12: `git worktree list` で事後検証できる）。
+        self.assertFalse((self.repo / self.worktree_rel).exists())
+        listing = self.git("worktree", "list", "--porcelain").stdout
+        self.assertNotIn("agent-int01", listing)
+
+    def test_stop_does_not_release_when_the_handoff_cannot_be_read(self):
+        """回収に失敗したら**解放しない**（FR-W2）。worktree は残り、台帳は `stale`。"""
+        target = self.repo / self.worktree_rel / "tmp" / "_handoff" / self.HANDOFF
+        target.unlink()
+        # symlink は `collect-worktree` の `resolve_within` が拒否する（回収不能の一例）。
+        target.symlink_to(self.repo / "README.md")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        subagent_hooks.run_stop(
+            stdin=io.StringIO(json.dumps({
+                "agent_type": "issue-implementer", "agent_id": "int01",
+            })),
+            stdout=stdout, stderr=stderr,
+            cwd=self.repo, now=FIXED_NOW, runner=self.real_runner,
+        )
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(self.entry()["status"], "stale")
+        self.assertTrue((self.repo / self.worktree_rel).is_dir(), "解放していない")
+
+    def test_a_running_entry_is_never_released_by_gitgate(self):
+        """FR-W3 の直接検証: `running` のまま呼ぶと `gitgate` が `WORKTREE_LIVE` で拒む。
+
+        解放段が `stopped` 遷移を落としたら、この経路に落ちて自動解放が一度も
+        成功しなくなる（F-354-01 の再発検出器）。
+        """
+        completed = self.real_runner(
+            subagent_hooks.collect_worktree_argv(
+                self.entry_id, handoff=f"tmp/_handoff/{self.HANDOFF}"
+            ),
+            cwd=str(self.repo), text=True, capture_output=True,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("WORKTREE_LIVE", completed.stderr)
+        self.assertTrue((self.repo / self.worktree_rel).is_dir())
+        self.assertEqual(self.entry()["status"], "running")
+
+    def test_release_is_idempotent_for_a_repeated_stop(self):
+        """FR-W5: 解放後にもう一度停止が届いても壊れない（終端状態は素通し）。"""
+        payload = json.dumps({"agent_type": "issue-implementer", "agent_id": "int01"})
+        for _round in range(2):
+            stdout = io.StringIO()
+            rc = subagent_hooks.run_stop(
+                stdin=io.StringIO(payload), stdout=stdout, stderr=io.StringIO(),
+                cwd=self.repo, now=FIXED_NOW, runner=self.real_runner,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(self.entry()["status"], "released")
+
+
+class NoDeletionPathTests(HookTestCase):
+    """解放は `gitgate collect-worktree` 経由に限る（フックは直接 worktree を消さない）。
+
+    PR-1（#309）では「worktree を1つも削除しない」が不変条件だった。PR-3（#354）で
+    自動解放が入ったが、**実体を消す判断（台帳の状態・パス形状・git 管理下かの検査・
+    回収→検証→解放の段構造）は `gitgate/worktree.py` に集約されたまま**である。
+    ここではフック側に削除経路が生えていないことを固定する。
+    """
+
+    def test_hooks_never_spawn_a_bare_worktree_remove(self):
         self.write_active({"issue": 309, "round": 1})
         self.make_worktree("agent-abc")
         self.open_entry(agent_type="issue-fixer")
@@ -633,13 +1011,14 @@ class NoDeletionPathTests(HookTestCase):
             subagent_hooks.run_stop(
                 stdin=self.stdin({"agent_type": "issue-fixer", "agent_id": "abc"}),
                 stdout=io.StringIO(), stderr=io.StringIO(),
-                cwd=self.root, runner=self.runner(completed),
+                cwd=self.root, now=FIXED_NOW, runner=self.runner(completed),
             )
         self.assertTrue(self.runner_calls, "karte check は起動されている（前提の確認）")
-        tokens = {token for call in self.runner_calls for token in call}
-        self.assertNotIn("worktree", tokens)
-        self.assertNotIn("remove", tokens)
-        # worktree ディレクトリも台帳エントリも残っている。
+        for call in self.runner_calls:
+            self.assertNotIn("git", call)
+            self.assertNotIn("worktree", call, "裸の `worktree` サブコマンドは現れない")
+            self.assertNotIn("remove", call)
+        # worktree ディレクトリも台帳エントリも、フック自身の手では消えていない。
         self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
         self.assertEqual(len(self.entries()), 1)
 

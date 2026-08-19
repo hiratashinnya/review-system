@@ -516,6 +516,58 @@ class ResidueReportTests(LedgerTestCase):
         )
         self.assertNotIn(live, [item["entry_id"] for item in report["stale"]])
 
+    def test_stopped_is_claimed_and_residue_at_the_same_time(self):
+        """`stopped` の二重の性質（Issue #354・PR-3）を境界条件として固定する。
+
+        * **claimed**（回収処理中の占有は正当）＝ `unclaimed` に出さない。ここを漏らすと
+          `SubagentStop` が停止を記録してから `collect-worktree` が終わるまでの短い区間に
+          走った dispatch が、回収中の worktree を孤児と誤診して
+          `--force-uncollected` の掃除を促してしまう。
+        * **residue**（回収がまだ完了していない）＝ `stale` に出す。ここを漏らすと
+          「回収段が失敗して stopped のまま残った」状態に誰も気づかない。
+        """
+        self.make_worktree("agent-stopping")
+        entry_id = self.open_entry(issue=354)
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id="stopping",
+            worktree_path=".claude/worktrees/agent-stopping",
+        )
+        worktree_ledger.mark(self.root, entry_id, "stopped", now=LATER)
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual(report["stopped"], [".claude/worktrees/agent-stopping"])
+        self.assertEqual(report["claimed"], [".claude/worktrees/agent-stopping"])
+        self.assertEqual(report["running"], [], "stopped は running ではない")
+        self.assertEqual(report["unclaimed"], [], "回収処理中の worktree は孤児ではない")
+        self.assertEqual([item["entry_id"] for item in report["stale"]], [entry_id])
+
+    def test_collected_is_residue_because_it_is_not_released_yet(self):
+        self.make_worktree("agent-c")
+        entry_id = self.open_entry(issue=354)
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id="c",
+            worktree_path=".claude/worktrees/agent-c",
+        )
+        for status in ("stopped", "collected"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual([item["entry_id"] for item in report["stale"]], [entry_id])
+        # `collected` は claimed ではない（回収は終わっている＝解放だけが残っている）。
+        self.assertEqual(report["claimed"], [])
+        self.assertEqual(report["unclaimed"], [".claude/worktrees/agent-c"])
+
+    def test_released_entry_leaves_no_residue(self):
+        entry_id = self.open_entry(issue=354)
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id="r",
+            worktree_path=".claude/worktrees/agent-r",
+        )
+        for status in ("stopped", "collected", "released"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
+        self.assertEqual(report["claimed"], [])
+
     def test_unreleased_entries_exclude_terminal_states(self):
         released = self.open_entry(issue=1)
         for status in ("running", "stopped", "collected", "released"):
@@ -525,6 +577,97 @@ class ResidueReportTests(LedgerTestCase):
             [item["entry_id"] for item in worktree_ledger.unreleased_entries(self.root)],
             [still_open],
         )
+
+
+class SweepOrphansTests(LedgerTestCase):
+    """`sweep_orphans`（Issue #354・PR-3）: 占有の主張と実在の突き合わせ。
+
+    判定入力は**状態と実在だけ**（時刻は notes のスタンプにしか使わない）ので、
+    時間経過でテストが反転する比較が構造的に無い（`.claude/rules/04-test-data.md`）。
+    """
+
+    def bound(self, *, agent_id, issue=354, agent_type="issue-implementer"):
+        self.open_entry(issue=issue, agent_type=agent_type)
+        return worktree_ledger.bind_agent(
+            self.root, agent_type=agent_type, agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+
+    def status_of(self, entry_id):
+        return {item["entry_id"]: item for item in self.entries()}[entry_id]["status"]
+
+    def test_running_entry_without_a_worktree_on_disk_becomes_stale(self):
+        entry_id = self.bound(agent_id="gone")
+        self.assertEqual(
+            worktree_ledger.sweep_orphans(self.root, now=LATER), [entry_id]
+        )
+        self.assertEqual(self.status_of(entry_id), "stale")
+        note = self.entries()[0]["notes"][-1]
+        self.assertIn("sweep-orphans", note["note"])
+        self.assertEqual(note["at"], "2026-08-19T04:16:07Z")
+
+    def test_stopped_entry_without_a_worktree_on_disk_becomes_stale(self):
+        entry_id = self.bound(agent_id="gone")
+        worktree_ledger.mark(self.root, entry_id, "stopped", now=LATER)
+        self.assertEqual(
+            worktree_ledger.sweep_orphans(self.root, now=LATER), [entry_id]
+        )
+        self.assertEqual(self.status_of(entry_id), "stale")
+
+    def test_claimed_entries_with_a_live_worktree_are_left_alone(self):
+        self.make_worktree("agent-live")
+        self.make_worktree("agent-stopping")
+        running = self.bound(agent_id="live", issue=1)
+        stopping = self.bound(agent_id="stopping", issue=2)
+        worktree_ledger.mark(self.root, stopping, "stopped", now=LATER)
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertEqual(self.status_of(running), "running")
+        self.assertEqual(self.status_of(stopping), "stopped")
+
+    def test_open_entries_are_never_swept(self):
+        """`open` は掃引しない——live な dispatch と取り残しを状態だけでは区別できない。
+
+        区別には経過時間が要るが、台帳は TTL 判定を1つも持たない（持たせない）。
+        `open` を落とすと、まさに今起動した dispatch のエントリを `stale`＝強制解放の
+        対象へ落としうる。
+        """
+        entry_id = self.open_entry()
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertEqual(self.status_of(entry_id), "open")
+
+    def test_terminal_entries_are_never_swept(self):
+        released = self.bound(agent_id="a", issue=1)
+        for status in ("stopped", "collected", "released"):
+            worktree_ledger.mark(self.root, released, status, now=LATER)
+        abandoned = self.bound(agent_id="b", issue=2)
+        worktree_ledger.mark(self.root, abandoned, "abandoned", now=LATER)
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertEqual(self.status_of(released), "released")
+        self.assertEqual(self.status_of(abandoned), "abandoned")
+
+    def test_sweep_is_idempotent(self):
+        entry_id = self.bound(agent_id="gone")
+        worktree_ledger.sweep_orphans(self.root, now=LATER)
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertEqual(len(self.entries()[0]["notes"]), 1, "notes を二重に積まない")
+
+    def test_nothing_to_sweep_does_not_touch_the_ledger_file(self):
+        """正常系（掃引対象ゼロ）では台帳ファイルを作らない・触らない。
+
+        gate は**全 dispatch** の直前にこれを呼ぶので、毎回書き込むと掃引そのものが
+        新たな失敗要因（ロック競合・書込エラー）になる。
+        """
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertFalse((self.root / "tmp").exists())
+
+    def test_sweep_does_not_delete_anything_on_disk(self):
+        """掃引は状態を進めるだけ——実体の削除経路をこのモジュールは持たない。"""
+        self.make_worktree("agent-other")
+        entry_id = self.bound(agent_id="gone")
+        worktree_ledger.sweep_orphans(self.root, now=LATER)
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-other").is_dir())
+        self.assertEqual(len(self.entries()), 1)
+        self.assertEqual(self.status_of(entry_id), "stale", "エントリも削除しない")
 
 
 class MainWorktreeRootTests(unittest.TestCase):
