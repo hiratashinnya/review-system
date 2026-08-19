@@ -427,3 +427,71 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 **どちらか片方に依存しない**: フックは早期発見の利便性、テストは取りこぼし防止の保証という
 異なる役割を担う二層(両方とも機械判定だが、発火タイミングと保証強度が異なる)。フックが黙っていても
 このテストが赤くなるので、追従漏れは merge 前に必ず露見する。
+
+---
+
+# subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309)
+
+`issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
+(b) worktree ↔ dispatch の所有関係を**機械可読な台帳**へ記録し、(c) カルテ未更新のまま
+`issue-fixer` が停止することを拒否する。
+
+> **本 PR(#309 PR-1)の時点で worktree は1つも削除しない。** 削除経路(`git worktree remove`)を
+> 呼ぶコードはこのディレクトリにも `issue_start/` にも存在しない。自動回収・自動解放は後続 PR。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `subagent-karte-inject.sh` | `SubagentStart(issue-fixer)`。`karte-protocol.md` を `additionalContext` として注入する。**失敗時は無出力 exit 0(fail-open)**。 |
+| `subagent-worktree-bind.sh` | `SubagentStart(issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
+| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否する。**判定不能も拒否(fail-close)**。 |
+| `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
+| `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
+| `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移。 |
+
+`.sh` を薄い起動口にして判定ロジックを python モジュールへ置いたのは、`tests/unit/test_subagent_hooks.py`
+から**サブプロセスを介さず**注入点(`repo_root` / `now` / `runner`)込みで検証できるようにするため。
+フック本体をシェルの heredoc に埋めると、実リポジトリの台帳・カルテを汚さずに検証できない。
+
+## fail 方針の非対称(設計判断・意図的に方向が逆)
+
+| 対象 | 方針 | 判定不能・失敗時の挙動 |
+|---|---|---|
+| **停止のブロック**(`subagent-stop-gate.sh`) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
+| **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳が書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
+| **worktree の削除**(後続 PR) | **fail-safe＝「消さない」側** | 判定不能・回収失敗なら削除しない |
+
+**理由**: ブロックの誤りは「余計に止まる」だけで回復可能だが、削除の誤りは成果物を回復不能に失う。
+台帳の起票で dispatch を止めない(fail-open)のは、観測が正確になったことを実測してから deny を
+有効化する「統制を先に、付与は別 PR」の順序を守るため——deny への昇格は後続 PR。
+
+## 対象外ロールの扱い(matcher と in-script 判定の二重)
+
+`settings.json` の `matcher` で対象ロールを絞ったうえで、**スクリプト内でも `agent_type` を判定して
+対象外は無出力 exit 0** にしている(`agent-command-gate.sh` の「対象外ロールは常に許可」不変条件と同型)。
+二重にしたのは **`SubagentStart`/`SubagentStop` の `matcher` が `agent_type` 名で効くかが本 repo で未実測**
+だから(`PreToolUse` の `matcher` は tool 名で効く)。効かなくても他ロール・主文脈へ副作用が漏れない。
+
+`agent_type` が読めない(綴りが想定と違う・欠落・payload が JSON として読めない)場合も**無出力 exit 0**。
+推測して別ロールに統制を掛けない。
+
+## 起動口を `bash <path>` で登録している理由
+
+`settings.json` の登録は `bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/<name>.sh`(`issue-start-gate.sh` と同形)。
+実行ビットに依存せずに起動できるので、実行ビットが落ちた状態で配布されてもフックが黙って
+無効化されない。新規に足す登録行は最初から `"$CLAUDE_PROJECT_DIR"` を**クォートして**書く(Issue #270)。
+
+## 所有台帳(`tmp/_worktree/ledger.json`)
+
+- **置き場**: `<main-worktree>/tmp/_worktree/`。`_handoff`・`_karte` と同格で、
+  `dsv2 clean-tmp` の保護名(`PROTECTED_DIRNAMES`)に登録済み＝tmp 掃除で消えない。
+- **main worktree への収束**: フックも gate も linked worktree から起動されうるため、
+  `.git` ファイルの `gitdir:`→`commondir` を辿って必ず main worktree の台帳へ収束させる
+  (`karte/paths.py` の K-01 と同等の導出を `worktree_ledger.py` 内に独立実装。共有モジュール化
+  しないのは Issue #318 が `karte/paths.py` を触るためのファイル競合回避＝選択肢 LG-1 案A)。
+- **時刻**: `now` は必ず引数で注入し、台帳モジュールは `datetime.now()` を呼ばない。
+  **TTL・経過時間による判定を1つも設けない**(判定は状態のみ)ので、時間経過だけでテストが
+  赤くなるクラスの問題が構造的に発生しない(`.claude/rules/04-test-data.md`)。
+- **エントリは削除しない**(履歴として残す＝`.claude/rules/01-principles.md`「PR8「消さない」の
+  適用範囲」区分1)。終端は `released` / `abandoned`。

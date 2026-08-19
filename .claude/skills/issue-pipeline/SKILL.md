@@ -283,8 +283,20 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 曖昧は STOP 報告・スコープ外は起票提案）は、**各エージェントの system prompt（`.claude/agents/*.md`）に常設**する（読者が見る場所・版管理・毎回自動適用）。
 - **dispatch prompt には毎回タスク固有情報だけ**を書く。バッチ共通の補足がある場合のみ、CLAUDE.md の規約どおり
   `tmp/<sprint>/issue-pipeline-common.md` に書き出して各 dispatch から参照させる（同一指示をコンテキストに展開しない）。
-- **SubagentStart フックは採らない（設計判断）**：恒常契約の配布に `SubagentStart` を使わず、各
-  エージェントの `.md` に常設する（却下理由3点＝`.claude/rationale/issue-pipeline.md`）。
+- **恒常契約の配布に `SubagentStart` は使わない**（この点は不変）：`issue-implementer`/`pr-reviewer`/
+  `issue-fixer` の恒常契約は各エージェントの `.md` に常設する（フックへ移さない）。
+- **ただし `SubagentStart`/`SubagentStop` 自体は採用済み**（Issue #309）。用途は恒常契約の配布ではなく、
+  **機械的に拒否できる境界**（＝従来からフックに限定してきた用途）に閉じている：
+  - `SubagentStart`（matcher `issue-fixer`）→ `.claude/hooks/subagent-karte-inject.sh`：
+    カルテ手順（`.claude/hooks/karte-protocol.md`）を `additionalContext` として注入する。
+  - `SubagentStart`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-worktree-bind.sh`：
+    起動した dispatch の `.claude/worktrees/agent-<id>` を **worktree 所有台帳**
+    （`tmp/_worktree/ledger.json`）へ束縛する。
+  - `SubagentStop`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：
+    `issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否する
+    （判定不能も拒否側＝fail-close）。
+  - **どのフックも worktree を削除しない**（自動回収・自動解放は別 Issue のスコープ）。
+  - 却下時の理由3点と、それを #309 がどこまで覆したかは `.claude/rationale/issue-pipeline.md`。
 
 ## エージェント定義のスナップショットが作業ツリーの現在値に追随するとは限らない制約（既知の制約・回避策・Issue #360）
 

@@ -1,8 +1,15 @@
 """dsv2.cleantmp — tmp 著作ミラーの安全削除（ガード付き・reconciliation Step 3-3）。
 
-境界値：``tmp/_handoff`` と ``tmp/_karte`` は拒否／``tmp/`` の外は拒否／階層違いは拒否／
-正常系は削除される。``tmp/_karte``（是正ループの診断カルテ・Issue #307）は掃除で消えると
-ループ状態そのものが失われるため、``_handoff`` と同じ保護名として固定する。
+境界値：``tmp/_handoff``・``tmp/_karte``・``tmp/_worktree`` は拒否／``tmp/`` の外は拒否／
+階層違いは拒否／正常系は削除される。``tmp/_karte``（是正ループの診断カルテ・Issue #307）は
+掃除で消えるとループ状態そのものが失われるため、``_handoff`` と同じ保護名として固定する。
+``tmp/_worktree``（worktree 所有台帳・Issue #309）も同じ——消えると「どの dispatch がどの
+worktree を持っているか」という観測がゼロに戻り、回収・解放（PR-3）の判断材料を失う。
+
+**保護名を増やしたら振る舞いテストも増やす**（F-309-07）：``PROTECTED_DIRNAMES`` への
+追加だけでは「共通経路に載っているから動くはず」という推定に留まり、経路を変えたときの
+回帰を捕まえられない。``plan_clean``（API）と ``cmd_clean_tmp``（CLI）の**両方**で
+拒否されることを保護名ごとに固定する。
 """
 
 import argparse
@@ -18,7 +25,8 @@ from dsv2.cli import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, main
 
 
 def _make_repo(case) -> Path:
-    """``tmp/sprint-1/parent-a``・``tmp/_handoff``・``tmp/_karte`` を持つ疑似リポジトリを作る。"""
+    """``tmp/sprint-1/parent-a`` ＋ 全保護名（``_handoff``/``_karte``/``_worktree``）を持つ
+    疑似リポジトリを作る。"""
     root = Path(tempfile.mkdtemp(prefix="cleantmp-")).resolve()
     case.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
     target = root / "tmp" / "sprint-1" / "parent-a" / "nodes" / "02-spec" / "spec"
@@ -31,6 +39,9 @@ def _make_repo(case) -> Path:
     karte = root / "tmp" / "_karte"
     karte.mkdir(parents=True)
     (karte / "issue-307.md").write_text("# Karte: issue-307\n", encoding="utf-8")
+    worktree = root / "tmp" / "_worktree"
+    worktree.mkdir(parents=True)
+    (worktree / "ledger.json").write_text('{"entries": []}\n', encoding="utf-8")
     (root / "doc-system-v2" / "nodes").mkdir(parents=True)
     return root
 
@@ -72,6 +83,41 @@ class TestPlanGuards(unittest.TestCase):
             cleantmp.plan_clean(self.root / "tmp/_karte/sub", self.root)
         self.assertIn("_karte", str(ctx.exception))
         self.assertTrue((self.root / "tmp/_karte/sub").is_dir())
+
+    def test_rejects_worktree_dir(self):
+        """worktree 所有台帳の置き場は掃除対象外（Issue #309・所有関係の観測が失われる）。"""
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_worktree", self.root)
+        self.assertIn("_worktree", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_worktree/ledger.json").is_file())
+
+    def test_rejects_path_under_worktree(self):
+        """``tmp/_worktree/<sub>`` はちょうど2階層なので階層ガードでは弾けない。
+        保護名ガードが効いていることを固定する（Issue #309・F-309-07）。"""
+        (self.root / "tmp/_worktree/sub").mkdir()
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_worktree/sub", self.root)
+        self.assertIn("_worktree", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_worktree/sub").is_dir())
+
+    def test_every_protected_name_is_covered_by_a_behaviour_test(self):
+        """``PROTECTED_DIRNAMES`` に**新しい名前を足したら**、その名前の振る舞いテストも
+        足されていること（F-309-07 の再発防止）。
+
+        保護名を増やしたのに ``_make_repo`` が作らない＝実際には一度も掃除にかけられて
+        いない、という状態を機械的に捕まえる。ここでは「fixture に実在し、かつ
+        ``plan_clean`` がその名前を理由に拒否する」ことを全メンバーについて確認する。
+        """
+        for name in cleantmp.PROTECTED_DIRNAMES:
+            with self.subTest(protected=name):
+                target = self.root / "tmp" / name
+                self.assertTrue(
+                    target.is_dir(), f"fixture に {name} が無い（_make_repo に追加すること）"
+                )
+                with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+                    cleantmp.plan_clean(target, self.root)
+                self.assertIn(name, str(ctx.exception))
+                self.assertTrue(target.is_dir())
 
     def test_rejects_outside_tmp(self):
         with self.assertRaises(cleantmp.CleanTmpError) as ctx:
@@ -148,6 +194,7 @@ class TestApply(unittest.TestCase):
         self.assertFalse((self.root / "tmp/sprint-1/parent-a").exists())
         self.assertTrue((self.root / "tmp/_handoff/spec-author--parent-a.yaml").is_file())
         self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
+        self.assertTrue((self.root / "tmp/_worktree/ledger.json").is_file())
         self.assertTrue((self.root / "tmp/sprint-1").is_dir())
 
     def test_apply_rejects_symlink_swapped_after_plan(self):
@@ -217,6 +264,15 @@ class TestCli(unittest.TestCase):
         """``dsv2 clean-tmp --apply`` が ``tmp/_karte/`` を削除しない（Issue #307 受入基準）。"""
         self.assertEqual(self._run(self.root / "tmp/_karte", apply_=True), EXIT_ERROR)
         self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
+
+    def test_worktree_is_rejected_with_exit_error(self):
+        """``dsv2 clean-tmp --apply`` が ``tmp/_worktree/`` を削除しない（Issue #309・F-309-07）。
+
+        ``plan_clean`` 側だけでなく CLI 経路でも固定するのは、``_karte`` と同じ扱い
+        （掃除を実行するのは ``reconciliation`` エージェントであり、通るのは CLI 経路）。
+        """
+        self.assertEqual(self._run(self.root / "tmp/_worktree", apply_=True), EXIT_ERROR)
+        self.assertTrue((self.root / "tmp/_worktree/ledger.json").is_file())
 
     def test_outside_tmp_is_rejected_with_exit_error(self):
         self.assertEqual(self._run(self.root / "doc-system-v2/nodes", apply_=True), EXIT_ERROR)

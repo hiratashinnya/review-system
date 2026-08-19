@@ -1,12 +1,15 @@
-"""Issue #297 managed Issue-start adapter/hook tests。"""
+"""Issue #297 managed Issue-start adapter/hook tests（Issue #309 で台帳起票を追加）。"""
 
 import io
 import json
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
 from blocker_gate.model import POLICY_VERSION
+from issue_start import worktree_ledger
 from issue_start.gate import (
     BINDING_MARKER,
     IssueStartError,
@@ -14,6 +17,7 @@ from issue_start.gate import (
     _validate_tool_input_shape,
     evaluate_issue_start,
     parse_dispatch_payload,
+    record_open_entry,
 )
 from issue_start.hook import run as run_hook
 
@@ -21,6 +25,7 @@ from issue_start.hook import run as run_hook
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "blocker_gate"
 OID = "a" * 40
+LEDGER_NOW = datetime(2026, 8, 19, 4, 11, 7, tzinfo=timezone.utc)
 
 
 def load(name):
@@ -327,7 +332,19 @@ class EvaluationTests(unittest.TestCase):
             evaluate_issue_start(request(), collector_factory=lambda token: Collector(bad))
 
 
-class HookTests(unittest.TestCase):
+class HookLedgerMixin:
+    """hook 経路の共通 fixture（テストは持たない）。"""
+
+    def setUp(self):
+        # Issue #309: ALLOW 経路は worktree 所有台帳へ `open` 起票する。実リポジトリの
+        # `tmp/_worktree/` を汚さないよう、台帳の置き場をテストごとに隔離する。
+        self._ledger_tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._ledger_tmp.cleanup)
+        self.ledger_root = Path(self._ledger_tmp.name).resolve()
+
+    def ledger_entries(self):
+        return worktree_ledger.read_ledger(self.ledger_root)["entries"]
+
     def managed_payload(self, task_name="issue_10"):
         return {
             "cwd": str(ROOT),
@@ -339,6 +356,8 @@ class HookTests(unittest.TestCase):
             },
         }
 
+
+class HookTests(HookLedgerMixin, unittest.TestCase):
     def test_malformed_managed_dispatch_emits_deny(self):
         stdout = io.StringIO()
         rc = run_hook(
@@ -346,6 +365,8 @@ class HookTests(unittest.TestCase):
             stdout=stdout,
             stderr=io.StringIO(),
             cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
         )
         self.assertEqual(rc, 0)
         output = json.loads(stdout.getvalue())
@@ -368,6 +389,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
@@ -428,6 +451,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(rc, 0)
         self.assertEqual(stdout.getvalue(), "")
@@ -461,6 +486,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
@@ -486,6 +513,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=io.StringIO(),
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(rc, 0)
         decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
@@ -524,10 +553,143 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=io.StringIO(),
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
         report = json.loads(reason.split(" blockers=", 1)[1])
         self.assertEqual(report, [blocker])
+
+
+class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
+    """Issue #309 PR-1: ALLOW した dispatch を所有台帳へ `open` 起票する（**deny はしない**）。"""
+
+    ALLOW_EVIDENCE = {
+        "schema_version": "issue-start-evidence/1",
+        "policy_version": "issue-start/1.0",
+        "result": "ALLOW",
+        "exit_code": 0,
+        "reason": "ISSUE_START_ALLOWED",
+    }
+
+    def claude_payload(self):
+        return {
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "dispatch",
+                "isolation": "worktree",
+            },
+        }
+
+    def run_allow(self, payload, *, ledger_root=None):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=dict(self.ALLOW_EVIDENCE)
+        ):
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=ROOT,
+                ledger_root=self.ledger_root if ledger_root is None else ledger_root,
+                now=LEDGER_NOW,
+            )
+        return rc, stdout, stderr
+
+    def test_allow_opens_a_ledger_entry_bound_to_the_dispatch(self):
+        rc, stdout, stderr = self.run_allow(self.claude_payload())
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "", "起票は dispatch を deny しない")
+        entries = self.ledger_entries()
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["issue"], 10)
+        self.assertEqual(entry["agent_type"], "issue-implementer")
+        self.assertEqual(entry["branch_name"], "issue-297")
+        self.assertEqual(entry["status"], "open")
+        self.assertEqual(entry["dispatched_at"], "2026-08-19T04:11:07Z")
+        # marker v1 に無い項目は推測せず None のまま（marker 拡張は後続 PR）。
+        self.assertIsNone(entry["round"])
+        self.assertIsNone(entry["handoff_path"])
+        self.assertIsNone(entry["agent_id"])
+        self.assertIsNone(entry["worktree_path"])
+        # evidence（stderr）に entry_id が載る。
+        evidence = json.loads(stderr.getvalue())
+        self.assertEqual(evidence["ledger"]["entry_id"], entry["entry_id"])
+        self.assertIsNone(evidence["ledger"]["error"])
+
+    def test_codex_dispatch_without_a_marker_records_no_branch_name(self):
+        rc, _stdout, _stderr = self.run_allow(self.managed_payload())
+        self.assertEqual(rc, 0)
+        entry = self.ledger_entries()[0]
+        self.assertEqual(entry["agent_type"], "issue-implementer")
+        self.assertIsNone(entry["branch_name"], "Codex transport に branch_name は無い")
+
+    def test_ledger_write_failure_still_allows_the_dispatch(self):
+        """**本 PR は fail-open**（deny への昇格は後続 PR）。"""
+        broken = self.ledger_root / "broken"
+        broken.mkdir()
+        path = worktree_ledger.ledger_path(broken, create_dir=True)
+        path.write_text("{not json", encoding="utf-8")
+        rc, stdout, stderr = self.run_allow(self.claude_payload(), ledger_root=broken)
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "", "台帳が壊れていても deny しない")
+        evidence = json.loads(stderr.getvalue())
+        self.assertEqual(evidence["result"], "ALLOW")
+        self.assertEqual(evidence["ledger"]["error"], "LEDGER_INVALID_JSON")
+        self.assertIsNone(evidence["ledger"]["entry_id"])
+
+    def test_denied_dispatch_records_nothing(self):
+        stdout = io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None):
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_payload("issue-10"))),
+                stdout=stdout,
+                stderr=io.StringIO(),
+                cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+        self.assertEqual(self.ledger_entries(), [], "deny した dispatch は起票しない")
+
+    def test_record_open_entry_never_raises(self):
+        """gate の起票関数は**どんな入力でも例外を投げない**（fail-open の実体）。"""
+        for label, payload in (
+            ("empty", {}),
+            ("no-tool-input", {"tool_name": "Task"}),
+            ("tool-input-not-a-mapping", {"tool_name": "Task", "tool_input": "x"}),
+            ("no-agent-type", {"tool_name": "Task", "tool_input": {"prompt": "x"}}),
+        ):
+            with self.subTest(label=label):
+                result = record_open_entry(
+                    payload, request(), now=LEDGER_NOW, repo_root=self.ledger_root
+                )
+                self.assertIsNone(result["entry_id"])
+                self.assertEqual(result["error"], "LEDGER_AGENT_TYPE_UNREADABLE")
+        self.assertEqual(self.ledger_entries(), [])
+
+    def test_record_open_entry_converges_on_the_main_worktree(self):
+        """linked worktree から起動しても台帳は main worktree 側に1つだけ作られる。"""
+        main = self.ledger_root / "main"
+        gitdir = main / ".git" / "worktrees" / "agent-abc"
+        gitdir.mkdir(parents=True)
+        (gitdir / "commondir").write_text("../..\n", encoding="utf-8")
+        linked = main / ".claude" / "worktrees" / "agent-abc"
+        linked.mkdir(parents=True)
+        (linked / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+
+        result = record_open_entry(
+            self.claude_payload(), request(), now=LEDGER_NOW, repo_root=linked
+        )
+        self.assertIsNotNone(result["entry_id"])
+        self.assertTrue((main / "tmp" / "_worktree" / "ledger.json").is_file())
+        self.assertFalse((linked / "tmp").exists())
 
 
 if __name__ == "__main__":
