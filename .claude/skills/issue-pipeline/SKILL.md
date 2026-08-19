@@ -108,6 +108,14 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
        いない）なら、下記「②-c／②-d 共通：worktree の解放」の残留対応手順
        （`python3 -m gitgate collect-worktree --entry <entry-id>`）を主文脈が実行してから
        3 を再試行する。
+       **`status` が既に `released` なのに `collected_to` が `null` のままのときは別系統**
+       （＝実装者/是正者が handoff ファイルを一度も書かずに dispatch が終了し、
+       `_discover_handoff` が「0件」を返したまま `--allow-missing-handoff` で回収が
+       `released` まで進んだ異常系）。この場合、同じ remediation コマンドは
+       `released`/`abandoned` エントリに対して早期 return する no-op になり
+       `collected_to` は変わらない。**実装者/是正者が異常終了した可能性を疑い、
+       主文脈が直接、worktree の実体（残っていればログ・変更）と対応する PR の有無を
+       確認する**——存在しない実体を待って手順4を繰り返さない。
   **PR URL・変更ファイル一覧・テスト結果・スコープ外指摘は、この回収済みファイルを Read して取る**
   （1行要約だけで判断しない）。**`status: stop`（曖昧・矛盾）なら
   `stop_reason` ごと主文脈で受けてオーナーへ**（PR7）。
