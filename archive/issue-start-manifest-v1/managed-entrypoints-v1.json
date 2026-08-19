@@ -1,5 +1,6 @@
 {
   "schema_version": "managed-issue-entrypoints/1",
+  "retired": "退役（Issue #354 PR-4）。正本は managed-entrypoints-v2.json で、issue_start/gate.py はこのファイルを読まない。内容は履歴保全のためそのまま残している（PR8 区分1）。archive/issue-start-manifest-v1/ へ git mv 済み（commit 1b115c6・F-354-12 で実施）。編集しても挙動は変わらない。",
   "policy_version": "issue-start/1.0",
   "managed": [
     {

@@ -51,9 +51,11 @@
 #        - git: 生 `git …` は**全て deny**（raw_git_denied_reason）。git 操作は固定テンプレートの
 #          `python3 -m gitgate <verb>` に誘導する（ユーザ制御フラグが git に届かない＝`--receive-pack`/
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
-#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl/fixer: status/add/commit/
-#          push/branch-current/new-branch/fetch/diff/log／reviewer: diff/log）で allow/deny する（層2 で
-#          gitgate モジュールは許可済み・ここで verb を追加チェック）。
+#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
+#          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
+#          reviewer: diff/log）で allow/deny する（層2 で gitgate モジュールは許可済み・ここで
+#          verb を追加チェック）。worktree 解放系 verb（worktree-release/collect-worktree/
+#          worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
 #          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
@@ -169,8 +171,23 @@ CTX_ALLOWED_LANGUAGES = {"shell"}
 # の任意ファイル書込）や別名サブコマンド経由の push/merge 迂回（`git send-pack`/`git subtree push`/
 # `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set`）を、静的なフラグ列挙に頼らず
 # 構造的に遮断する（サブコマンド以降の引数を自由にしない）。
+#
+# Issue #354 PR-4 の注意（ロール別テーブルを増やさない）:
+#   * 新しいロール別テーブルを **`GITGATE_VERBS_BY_ROLE` 以外に足さない**。どうしても要るなら
+#     下の「gated ロールは全ロール別 dict に登録必須」自己検査（missing_role_tables）へ必ず
+#     加える。#308 で `GATED_ROLES` にだけロールを足して1つの dict に登録し忘れ、KeyError が
+#     `exit 0` の素通しに化けた（#340 で excepthook を追加した発端）。検査に載せない表を
+#     増やすと、その再発防止が新しい表の分だけ効かなくなる。
+#   * `worktree-release` / `collect-worktree` / `worktree-forget` は**どのロールにも付与しない**。
+#     これらは「他の dispatch の成果物（worktree とその中の未回収ハンドオフ）を消せる」操作で、
+#     実行主体は非 gated の主文脈と `SubagentStop` フックに限る（`gitgate/worktree.py` へ
+#     判断を集約する設計）。**allowlist 未登録＝既定 deny** なので、明示 deny のコードは要らない。
 GITGATE_VERBS_BY_ROLE = {
-    # issue-implementer: 実装→push→PR まで。gitgate の全 verb を許可する。
+    # issue-implementer: 実装→push→PR まで。
+    # **`adopt-branch` は付与しない**（Issue #354 PR-4）: 初回実装は `new-branch` で新規
+    # ブランチを切る契約であり、既存ブランチを掴む必要が無い。既存ブランチの取得は
+    # 「前ラウンドが push 済みの PR ブランチへ是正者が乗る」という**是正ラウンド固有**の
+    # 必要性なので、最小権限のまま是正ロール側にだけ置く。
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
@@ -179,9 +196,13 @@ GITGATE_VERBS_BY_ROLE = {
     # （push 可・merge 不可）。是正も「直して commit して push して PR を更新する」ので
     # 必要な git 操作は初回実装と変わらない。差は診断（カルテ）必須という契約の側にあり、
     # ここで verb 集合を絞っても是正の質は上がらず、ただ機能しなくなるだけ。
+    # **`adopt-branch` だけが追加（Issue #354 PR-4・本 PR 唯一の権限付与）**: 是正者は
+    # `isolation: "worktree"` の下で起動するため、まっさらな worktree に PR ブランチが無い。
+    # 既存ブランチを検証済み exact OID で掴む手段が無ければ着手できない。
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
+        "adopt-branch",
     },
     # pr-reviewer: レビューの読取専用のみ（diff/log）。
     "pr-reviewer": {"diff", "log"},

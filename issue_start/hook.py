@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, TextIO
@@ -12,11 +13,13 @@ from blocker_gate.auth import resolve_github_token
 
 from .gate import (
     ISSUE_START_POLICY_VERSION,
+    IsolationOnlyAck,
     IssueStartError,
     assert_no_worktree_residue,
     evaluate_issue_start,
     fail_closed,
     parse_dispatch_payload,
+    record_isolation_only_entry,
     record_open_entry,
 )
 
@@ -77,7 +80,11 @@ def run(
        だが、stderr へ residue 判定（``swept``/``claimed``/``unclaimed`` を含む）を
        evidence として1行残す**（F-354-08）——#354 が実測した乗っ取りは unmanaged 側
        （``pr-reviewer``）で起きたので、まさにこの経路の観測性が欠けていた
-    5. blocker 判定 → ALLOW なら台帳へ ``open`` 起票
+    5. ``isolation_only``（``issue-fixer``）なら **blocker 判定へ進まず**台帳へ ``open`` 起票して
+       exit 0（Issue #354 PR-4）。shape/isolation/軽量 marker は 2 で検証済みで、Issue の
+       着手可否は初回実装の dispatch で判定済みだから、ラウンドごとに GitHub API を
+       叩かない（叩くと API 不通時にレビュー是正まで止まる）
+    6. blocker 判定 → ALLOW なら台帳へ ``open`` 起票
     """
     request = None
     payload: Mapping[str, Any] | None = None
@@ -110,6 +117,33 @@ def run(
                     ensure_ascii=False,
                     sort_keys=True,
                     separators=(",", ":"),
+                )
+                + "\n"
+            )
+            return 0
+        if isinstance(request, IsolationOnlyAck):
+            # Issue #354 PR-4: 分離だけを課す区分。blocker gate（GitHub API）は呼ばない。
+            evidence = {
+                "schema_version": "issue-start-evidence/1",
+                "policy_version": ISSUE_START_POLICY_VERSION,
+                "result": "ISOLATION_ONLY",
+                "exit_code": 0,
+                "reason": "ISSUE_START_ISOLATION_ONLY_ALLOWED",
+                "binding": asdict(request),
+                "blocker_evidence": None,
+                "blockers": [],
+                "source": None,
+                "snapshot_generated_at": None,
+                "worktree_residue": residue,
+                "ledger": record_isolation_only_entry(
+                    request,
+                    now=stamp,
+                    repo_root=ledger_root if ledger_root is not None else cwd,
+                ),
+            }
+            stderr.write(
+                json.dumps(
+                    evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")
                 )
                 + "\n"
             )

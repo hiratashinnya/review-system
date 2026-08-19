@@ -69,8 +69,9 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
     **主文脈と同じ working tree を branch switch して共有する**（＝主文脈の作業ツリーが実装対象ブランチへ
     意図せず切り替わる）。渡すと cwd は `.claude/worktrees/agent-<id>/` の locked worktree になり、
     主文脈のメインワークツリーは切り替わらない——**主文脈は自分のツリーで triage・進捗記録を続けられる**。
-  - **要求は `issue-implementer` にだけ掛かる**。他の subagent（`pr-reviewer`・各 `*-author` 等）の
-    dispatch は manifest 上 unmanaged で素通しされるので、`isolation` を付ける必要はない。
+  - **要求は `issue-implementer` と `issue-fixer` の2ロールに掛かる**（後者は Issue #354 PR-4 で追加。
+    ②-c 参照）。他の subagent（`pr-reviewer`・各 `*-author` 等）の dispatch は manifest 上 unmanaged で
+    素通しされるので、`isolation` を付ける必要はない。
   （reason code・enforcement の実体・#350 の発端・この worktree の初期 HEAD に関する注意＝
   `.claude/rationale/issue-pipeline.md`）
 - **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
@@ -144,20 +145,44 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   （ID の採番・再発番検出・前ラウンド未解消 finding の全件再掲チェックはこの CLI が fail-close で行う）。
   **`ingest-review` は主文脈が実行する**——是正当事者である `issue-fixer` には権限ゲートで許可されていない
   （自分の指摘を `resolved` にできてしまうため・Issue #341 F-341-04）。
-- **`round` と、メインワークツリーの絶対パスとしての `karte_path` を主文脈が渡す**（`handoff_path` とは
-  受け渡し方式が異なる＝下記。カルテは fixer の出力ではなく**ラウンドをまたぐ主文脈側の台帳**のため絶対のまま）：
-  `<main-worktree>/tmp/_karte/issue-<N>.md`。渡し忘れたら `issue-fixer` は STOP する契約（`issue-fixer.md`「入力」）。
+- **`issue-fixer` の dispatch も `issue-start-gate` を通す**（Issue #354 PR-4）。②-a の
+  `issue-implementer` と同様、次の2つを欠く dispatch は hook が呼び出し自体を deny する。
+  1. dispatch prompt に次の marker 行を**ちょうど1つ**（exact 6 field。過不足はどちらも拒否）：
+     ```
+     ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/issue-fixer--issue-N-fixR.yaml"}
+     ```
+
+     | field | 型 | 何を書くか |
+     |---|---|---|
+     | `issue` | 整数 | 是正対象の Issue 番号（1以上） |
+     | `round` | 整数 | 是正ラウンド番号（1 始まり・単調増加） |
+     | `branch_name` | 文字列 | 既に PR が開いているブランチ名 |
+     | `repository` | 文字列 | `git remote get-url origin` を `OWNER/REPO` 形へ正規化した値（`gitgate adopt-branch --repository` に渡る値・F-354-10） |
+     | `expected_oid` | 文字列 | そのブランチの remote 先端 exact 40 桁 hex OID（`gitgate adopt-branch --expected-oid` に渡る値） |
+     | `handoff_path` | 文字列 | 下記の作業ツリールート相対パス（`tmp/_handoff/issue-fixer--issue-<N>…yaml`） |
+
+  2. `Task`/`Agent` 呼び出しの**パラメータ**として `isolation: "worktree"`。
+  - **②-a との違い＝GitHub API を叩かない**（この区分＝manifest の `isolation_only` は
+    shape・isolation・marker だけを検証する。理由・reason code＝`.claude/rationale/issue-fixer.md`）。
+- **`handoff_path` は ②-a と同じ「作業ツリールート相対」**（Issue #323）：
+  `tmp/_handoff/issue-fixer--issue-<N>-<ラウンドを区別するサフィックス>.yaml`。**ラウンドごとに別サフィックスを
+  採番する**（使い回すと前ラウンドの是正記録を上書き破壊する）。marker の `handoff_path` と実際に渡す値は
+  同じにする（hook がファイル名の `issue-<N>` 束縛まで検査する）。
+  戻りは `HANDOFF: <fixer が実際に書けた絶対パス>` ＋1行要約だが、②-a と同じく
+  `SubagentStop` が worktree ごと回収・解放するので、**回収済みの実体は台帳の `collected_to` から読む**
+  （手順は ②-a の「回収済みの実体を読む手順」と同一。`agent_type == "issue-fixer"` で引く）。
+- **カルテのパスは渡さない**（Issue #354・K2）。渡すのは `{issue, round}` だけで、`issue-fixer` は
+  `python3 -m karte <verb> --issue <N> --round <R>` でのみカルテに触る。所在解決は `karte` CLI の
+  `main_worktree_root()` が担い、linked worktree から呼んでも必ずメインワークツリーの台帳に収束する。
+  一般則＝[`.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」](../../rules/05-skills-agents.md)。
   進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
-  - **`handoff_path` は `issue-fixer` にも渡す。ただし ②-a と同じ「作業ツリールート相対」**（Issue #323）：
-    `tmp/_handoff/issue-fixer--issue-<N>-<ラウンドを区別するサフィックス>.yaml`。**ラウンドごとに別サフィックスを
-    採番する**（使い回すと前ラウンドの是正記録を上書き破壊する）。`karte_path` だけが絶対パスなのは、カルテが
-    本ロールの出力ではなく**ラウンドをまたぐ主文脈側の台帳**だからで、その受け渡し方式の見直しは Issue #354 の範囲。
-    戻りは `HANDOFF: <fixer が実際に書けた絶対パス>` ＋1行要約で、主文脈はその絶対パスを Read する。
+- **メインワークツリーのブランチは切り替えない**（Issue #354 PR-4・FR-W7）。`issue-fixer` は
+  isolation 下で起動し、自分の worktree で `python3 -m gitgate adopt-branch <branch> --expected-oid <OID>`
+  を実行して PR ブランチを取得する。**②-c で主文脈が `git switch` する手順は廃止した**
+  （経緯＝`.claude/rationale/issue-pipeline.md`）。
 - **worktree の回収・解放は主文脈の手順ではない**（Issue #354／#374・下記「worktree の解放（②-c／②-d 共通）」）。
-  主文脈が ②-c で行うのは、メインワークツリーを PR ブランチへ載せることだけ：
-  **`git switch <branch>`**。これで `branch-current` が PR ブランチになり、`issue-fixer` は契約どおり進める
-  （`issue-fixer` は非 isolated なのでこの一手が要る。なぜこの経路しか成立しないのか＝
-  `.claude/rationale/issue-pipeline.md`）。
+  ただし `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した報告を受けたら、
+  先行 worktree の解放（同節の残留対応コマンド）は**主文脈が行う**。
 - `issue-fixer` は**診断してから直す**（`karte render` で前ラウンドの試行・転換指令・未解消 finding の
   `expected`/`recheck` を引き、`karte append` で診断を登録してからコードを触る）。同じアプローチの3件目は
   `append` が機械的に拒否する＝**ラウンド上限ではなく類似で切る**。
@@ -179,8 +204,10 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 - **worktree の回収・解放は主文脈の手順ではない**（下記「worktree の解放（②-c／②-d 共通）」）。
 - **メインワークツリーが `main` 以外に載っていれば `main` へ戻す**。判定は**状態から機械的に導出する**
   ——`python3 -m gitgate branch-current` が `main` を返さないときだけ `git switch main` を実行する
-  （「②-c を経由したか」という**記憶**に依存しない。②-c を経由した場合はメインワークツリーが
-  PR ブランチに載ったままなので `main` 以外になり、経由しない clean merge では元々 `main` のまま）。
+  （「②-c を経由したか」という**記憶**に依存しない）。
+  **Issue #354 PR-4 以降、正常系ではこれは常に no-op**（②-a も ②-c も isolated worktree で走り、
+  メインワークツリーは切り替わらない＝FR-W7）。`main` 以外になっていたら戻した上で**原因を報告する**
+  ——正常系では起こらない状態なので、黙って戻すと FR-W7 の破れを見逃す。
 
 **②-c／②-d 共通：worktree の解放**（Issue #354／#374。**②-c と ②-d で重複して書かない**）
 - **実装者/是正者の worktree は `SubagentStop` フックが自動で回収・解放する**（回収＝ハンドオフを

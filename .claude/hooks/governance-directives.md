@@ -1,12 +1,21 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@ce9f3135fef9 -->
+<!-- synced-from: CLAUDE.md@d620a34d1e2f -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
   足しただけで、上記の中核規範（1〜11）には掛からない。本文は変更せず marker のみ
   現在値へ更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`
   「追従したあとにやること」）。
+
+  Issue #354 PR-4（2026-08-19）: 同じく `.claude/rules/05-skills-agents.md` の変更。
+  ①「戻り値のハンドオフ規約」へ「入力として渡すのは呼び出し先が新規に書く成果物の
+  パスだけ。呼び出し元が既に所有している共有台帳（カルテ等）はパスを渡さず識別子だけを
+  渡す」という1項を追加、②`issue-fixer` の説明から「権限は implementer と同一」を外し
+  `adopt-branch` とカルテ入力の差を明記。**どちらも `/issue-pipeline` のファンアウト
+  設計の細目**で、上記の中核規範（1〜11＝独断禁止・起票義務・正本の所在・品質降格禁止等）
+  には掛からない。本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」
+  ことの記録）。
 -->
 
 

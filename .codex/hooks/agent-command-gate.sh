@@ -66,8 +66,10 @@
 #        - git: 生 `git …` は**全て deny**（raw_git_denied_reason）。git 操作は固定テンプレートの
 #          `python3 -m gitgate <verb>` に誘導する（ユーザ制御フラグが git に届かない＝`--receive-pack`/
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
-#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl/fixer: status/add/commit/
-#          push/branch-current/new-branch/fetch/diff/log／reviewer: diff/log）で allow/deny する。
+#        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
+#          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
+#          reviewer: diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
+#          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
 #          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
@@ -169,8 +171,20 @@ GATED_ROLES = {"issue-implementer", "issue-fixer", "pr-reviewer"}
 # の任意ファイル書込）や別名サブコマンド経由の push/merge 迂回（`git send-pack`/`git subtree push`/
 # `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set`）を、静的なフラグ列挙に頼らず
 # 構造的に遮断する（サブコマンド以降の引数を自由にしない）。
+#
+# Issue #354 PR-4 の注意（ロール別テーブルを増やさない）:
+#   * 新しいロール別テーブルを **`GITGATE_VERBS_BY_ROLE` 以外に足さない**。どうしても要るなら
+#     「gated ロールは全ロール別 dict に登録必須」自己検査（missing_role_tables）へ必ず加える。
+#     #308 で `GATED_ROLES` にだけロールを足して1つの dict に登録し忘れ、KeyError が `exit 0` の
+#     素通しに化けた（#340 の発端）。検査に載せない表を増やすとその再発防止が効かなくなる。
+#   * `worktree-release` / `collect-worktree` / `worktree-forget` は**どのロールにも付与しない**
+#     （他 dispatch の成果物を消せる操作。実行主体は非 gated の主文脈と停止フックに限る）。
+#     **allowlist 未登録＝既定 deny** なので明示 deny のコードは要らない。
 GITGATE_VERBS_BY_ROLE = {
-    # issue-implementer: 実装→push→PR まで。gitgate の全 verb を許可する。
+    # issue-implementer: 実装→push→PR まで。
+    # **`adopt-branch` は付与しない**（Issue #354 PR-4）: 初回実装は `new-branch` で新規
+    # ブランチを切る契約であり、既存ブランチを掴む必要が無い。既存ブランチの取得は
+    # 是正ラウンド固有の必要性なので、最小権限のまま是正ロール側にだけ置く。
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
@@ -179,9 +193,16 @@ GITGATE_VERBS_BY_ROLE = {
     # （push 可・merge 不可）。是正も「直して commit して push して PR を更新する」ので
     # 必要な git 操作は初回実装と変わらない。差は診断（カルテ）必須という契約の側にあり、
     # ここで verb 集合を絞っても是正の質は上がらず、ただ機能しなくなるだけ。
+    # **`adopt-branch` だけが追加**（Issue #354 PR-4）: 既に開いている PR のブランチへ移る手段。
+    # Claude 側は `isolation: "worktree"` の下で起動するため必須になるが、**Codex の
+    # `spawn_agent` には isolation パラメータが無く worktree 分離が起きない**ので、Codex 側の
+    # 是正者はメインワークツリーを共有したまま動く。それでも adopt-branch は「検証済み exact OID で
+    # 既存ブランチへ移る」唯一の手段として意味を持つ（生 `git switch` は層3 で deny）ため、
+    # 2ツリーで同一の verb 集合を保つ。worktree 解放系 verb は Codex 側では発生しない。
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
+        "adopt-branch",
     },
     # pr-reviewer: レビューの読取専用のみ（diff/log）。
     "pr-reviewer": {"diff", "log"},
