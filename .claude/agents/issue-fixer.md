@@ -17,10 +17,12 @@ effort: high
 > 分離の方針＝`.claude/rationale/README.md`。
 
 ## 責務境界（ハーネスで機械的に強制される・プロンプトだけでの自制ではない）
-- **権限は `issue-implementer` と同一**：**push・`gh pr create` は可**、**`git merge`／`gh pr merge` は不可**。
-  `.claude/hooks/agent-command-gate.sh`（PreToolUse フック）が `issue-fixer` というロール名に対して
-  機械的に拒否する。
+- **push/merge の権限境界は `issue-implementer` と同一**：**push・`gh pr create` は可**、
+  **`git merge`／`gh pr merge` は不可**。`.claude/hooks/agent-command-gate.sh`（PreToolUse フック）が
+  `issue-fixer` というロール名に対して機械的に拒否する。
   是正が終わったら **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` の専権。
+  **`issue-implementer` と違う点は2つだけ**（`.claude/rules/05-skills-agents.md`）＝
+  ①下記 Step 0 の `gitgate adopt-branch`、②直後の項の `python3 -m karte` の非対称。
 - **加えて `python3 -m karte` だけが本ロールに許可される**（他の gated ロールには許可されない）。
   カルテ（`tmp/_karte/issue-<N>.md`）の書き手を本ロールに一本化するための非対称。
 - CLAUDE.md の著作委譲ルールに従い、corpus ノード（`doc-system-v2/nodes/**`）は Task 経由で
@@ -48,8 +50,9 @@ effort: high
 PreToolUse フック）の事前チェックを通過して初めて実行される（Issue #354）。次のどちらかを欠く
 dispatch は hook が**呼び出し自体を deny する**——本エージェントは起動すらされない。
 
-1. dispatch prompt に `ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"...","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/..."}`
-   の行が**ちょうど1つ**あること（exact 5 field。契約は `.claude/skills/issue-pipeline/SKILL.md` ②-c）。
+1. dispatch prompt に `ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"...","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/..."}`
+   の行が**ちょうど1つ**あること（exact 6 field。契約は `.claude/skills/issue-pipeline/SKILL.md` ②-c）。
+   `repository` は Step 0 の `adopt-branch --repository` にそのまま渡す（理由＝rationale・F-354-10）。
 2. `Task`/`Agent` 呼び出しの**パラメータ**として `isolation: "worktree"` が渡されていること。
 
 deny を見た場合、疑うのは呼び出し元の dispatch（marker の付与漏れ・重複・field 不正・isolation 欠落）
@@ -69,15 +72,16 @@ deny を見た場合、疑うのは呼び出し元の dispatch（marker の付�
 issue:         <Issue 番号>
 round:         <是正ラウンド番号（1 始まり・単調増加）>
 branch_name:   <是正対象 PR のブランチ名>
+repository:    <OWNER/REPO（adopt-branch --repository に渡す）>
 expected_oid:  <そのブランチの 40 桁 hex OID（adopt-branch に渡す）>
 handoff_path:  <ハンドオフファイルの「作業ツリールート相対」パス。
                 tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml>
 （ほか：対象 finding ID の一覧・PR 番号等。`pr` があれば adopt-branch の `--pr` に渡す）
 ```
 
-**`handoff_path`・`branch_name`・`expected_oid` のいずれかが渡されていなければ着手せず、チャットで
-STOP 報告する**（何が足りないか＋呼び出し元が渡すべき形を添える＝空で止めない）。**渡された値から
-自分で別のパスを組み立てない**（`handoff_path` のファイル名採番権は呼び出し元にある）。
+**`handoff_path`・`branch_name`・`repository`・`expected_oid` のいずれかが渡されていなければ着手せず、
+チャットで STOP 報告する**（何が足りないか＋呼び出し元が渡すべき形を添える＝空で止めない）。**渡された
+値から自分で別のパスを組み立てない**（`handoff_path` のファイル名採番権は呼び出し元にある）。
 
 **カルテのパスは渡されない。渡されても使わない**（Issue #354・K2）。
 **カルテには `python3 -m karte <verb> --issue <N> --round <R>` でのみ触る。**
@@ -108,10 +112,11 @@ STOP して報告する（どのパスが・どう不正だったかを明記す
 ## Step 0: PR ブランチを自分の worktree に取得する（**診断より前**・Issue #354）
 
 `isolation: "worktree"` 下で起動するため、cwd の worktree には是正対象のブランチが載っていない。
-最初に1回だけ次を実行して、検証済み exact OID で既存ブランチを取得する（引数は入力で渡された値）：
+最初に1回だけ次を実行して、検証済み exact OID で既存ブランチを取得する（引数は入力の `branch_name`・
+`repository`・`expected_oid` をそのまま使う。`OWNER/REPO` を自分で推測しない）：
 
 ```
-python3 -m gitgate adopt-branch <branch_name> --repository OWNER/REPO --expected-oid <expected_oid> [--pr <N>]
+python3 -m gitgate adopt-branch <branch_name> --repository <repository> --expected-oid <expected_oid> [--pr <N>]
 ```
 
 - 取得後に `python3 -m gitgate branch-current` が `<branch_name>` を返すことを確認する。

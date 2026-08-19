@@ -147,9 +147,9 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
   （自分の指摘を `resolved` にできてしまうため・Issue #341 F-341-04）。
 - **`issue-fixer` の dispatch も `issue-start-gate` を通す**（Issue #354 PR-4）。②-a の
   `issue-implementer` と同様、次の2つを欠く dispatch は hook が呼び出し自体を deny する。
-  1. dispatch prompt に次の marker 行を**ちょうど1つ**（exact 5 field。過不足はどちらも拒否）：
+  1. dispatch prompt に次の marker 行を**ちょうど1つ**（exact 6 field。過不足はどちらも拒否）：
      ```
-     ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/issue-fixer--issue-N-fixR.yaml"}
+     ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/issue-fixer--issue-N-fixR.yaml"}
      ```
 
      | field | 型 | 何を書くか |
@@ -157,6 +157,7 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
      | `issue` | 整数 | 是正対象の Issue 番号（1以上） |
      | `round` | 整数 | 是正ラウンド番号（1 始まり・単調増加） |
      | `branch_name` | 文字列 | 既に PR が開いているブランチ名 |
+     | `repository` | 文字列 | `git remote get-url origin` を `OWNER/REPO` 形へ正規化した値（`gitgate adopt-branch --repository` に渡る値・F-354-10） |
      | `expected_oid` | 文字列 | そのブランチの remote 先端 exact 40 桁 hex OID（`gitgate adopt-branch --expected-oid` に渡る値） |
      | `handoff_path` | 文字列 | 下記の作業ツリールート相対パス（`tmp/_handoff/issue-fixer--issue-<N>…yaml`） |
 

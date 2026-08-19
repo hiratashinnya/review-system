@@ -95,12 +95,19 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
   ものか事後に辿れない。加えて `adopt-branch --expected-oid` に渡す値の出所が dispatch 契約側に
   固定される（是正者に組み立てさせると、掴む commit が dispatch の想定と食い違いうる）。
   deny 文言も「何を直せばよいか」を具体的に返せる。
+- **`repository` field を追加した理由（F-354-10・2026-08-19）**：当初の marker は `expected_oid` を
+  持つのに `repository` を持たず、`adopt-branch --repository OWNER/REPO` の出所が dispatch 契約に
+  無いまま是正者へ丸投げされていた。是正者は生 `git remote` を deny されており（層3・Bash 実行規律）
+  OWNER/REPO を機械的に得る手段が無い——`expected_oid` を dispatch 契約側に固定した理由（上記）が
+  そのまま `repository` にも当てはまるのに、当初は field が漏れていた。marker へ足すことで、
+  `expected_oid` と同じ「出所を dispatch 契約側に固定する」設計を貫徹する。
 - **reason code**：`ISSUE_START_ISOLATION_NOT_WORKTREE`（isolation 欠落・別値）／
   `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker の欠如・重複）／
-  `ISSUE_START_BINDING_INVALID_JSON`／`ISSUE_START_BINDING_UNKNOWN_FIELD`（exact 5 field 以外）／
+  `ISSUE_START_BINDING_INVALID_JSON`／`ISSUE_START_BINDING_UNKNOWN_FIELD`（exact 6 field 以外）／
   `ISSUE_START_ISSUE_INVALID`／`ISSUE_START_ROUND_INVALID`／`ISSUE_START_BRANCH_INVALID`／
-  `ISSUE_START_EXPECTED_OID_INVALID`／`ISSUE_START_HANDOFF_PATH_INVALID`／
-  `ISSUE_START_TOOL_INPUT_SHAPE_INVALID`／`ISSUE_START_MANIFEST_CONTRACT_ERROR`。
+  `ISSUE_START_REPOSITORY_INVALID`／`ISSUE_START_EXPECTED_OID_INVALID`／
+  `ISSUE_START_HANDOFF_PATH_INVALID`／`ISSUE_START_TOOL_INPUT_SHAPE_INVALID`／
+  `ISSUE_START_MANIFEST_CONTRACT_ERROR`。
   加えて残留 worktree があれば `ISSUE_START_WORKTREE_RESIDUE` 等（PR-3・全 dispatch 共通）。
 - **`adopt-branch` を本ロールにだけ付与した理由**：isolation を課すと worktree はまっさらで、
   是正対象ブランチが載っていない。初回実装は `new-branch` で新規に切るので既存ブランチを掴む
@@ -108,6 +115,15 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
   worktree 解放系（`worktree-release`/`collect-worktree`/`worktree-forget`）は**他 dispatch の
   成果物を消せる**ため、どの gated ロールにも付与しない（実行主体は非 gated の主文脈と
   `SubagentStop` フックに限る）。allowlist 未登録＝既定 deny なので明示 deny のコードは要らない。
+
+## 「権限は同一」の文言を訂正した理由（F-354-11・2026-08-19）
+
+責務境界節冒頭は元々「権限は `issue-implementer` と同一」と無条件に書かれていたが、
+`.claude/rules/05-skills-agents.md` は PR-4 で「implementer と違う点は2つだけ＝`adopt-branch` と
+カルテ入力」へ改訂済みだった。normative 側は karte の非対称だけを直後で開示し、`adopt-branch`
+の非対称は Step 0 の項まで下らないと現れない構成になっており、正本（rules/05）と分岐していた
+（`.claude/rules/01-principles.md`「PR8 消さないの適用範囲」区分2＝古くなった手順書は本文を書き換える、
+に従い追記ではなく冒頭の記述自体を「push/merge の権限境界は同一」＋「違う点は2つだけ」に書き換えた）。
 
 ## Step 2 の `close-attempt --base` を明示させる理由（移設元：「Step 2: Fix」ステップ0/4）
 

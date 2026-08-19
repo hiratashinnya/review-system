@@ -57,17 +57,24 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 #     marker の **field 表**を追加（「どの field に何を書くか」は散文が唯一の伝達手段＝Issue #373 で
 #     ②-a について確定した方針の適用）。`karte_path` の受け渡し記述と `git switch <branch>` 手順は
 #     **削除**しており、こちらも差し引き後の値。
-# 上限値は実測（15098 / 21909）の次の100字境界に置く＝意味のある headroom を与えず、次の追加でも
+#
+# Issue #354 の是正ラウンド（F-354-10/F-354-11・2026-08-19）で2件をさらに再設定した。追加分も
+# **経緯ではなく規範**——`ISSUE_FIX_BINDING_V1` marker への `repository` field 追加（是正者が
+# 生 `git remote` を deny されており OWNER/REPO を機械的に得る手段が無かったため必須になった契約
+# 拡張・field 表の1行）と、責務境界節冒頭の「権限は同一」という記述を `.claude/rules/05-skills-agents.md`
+# の改訂（`adopt-branch` とカルテの2点だけが差、という記述）に合わせた訂正。理由（rationale）は
+# `.claude/rationale/issue-fixer.md` 側へ書き、規範側は事実の記述に留めている。
+# 上限値は実測（15512 / 22068）の次の100字境界に置く＝意味のある headroom を与えず、次の追加でも
 # 必ずこの comment を更新させる。
 CONTRACTS: tuple[tuple[str, str, int], ...] = (
     (".claude/agents/issue-implementer.md",
      ".claude/rationale/issue-implementer.md", 14293),
     (".claude/agents/issue-fixer.md",
-     ".claude/rationale/issue-fixer.md", 15200),
+     ".claude/rationale/issue-fixer.md", 15600),
     (".claude/agents/pr-reviewer.md",
      ".claude/rationale/pr-reviewer.md", 15051),
     (".claude/skills/issue-pipeline/SKILL.md",
-     ".claude/rationale/issue-pipeline.md", 22000),
+     ".claude/rationale/issue-pipeline.md", 22100),
 )
 
 

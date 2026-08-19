@@ -120,6 +120,7 @@ class IsolationOnlyAck:
     branch_name: str | None
     handoff_path: str | None
     expected_oid: str | None
+    repository: str | None
 
 
 def _manifest() -> Mapping[str, Any]:
@@ -279,6 +280,14 @@ def _managed_transport(
     agent_type: str,
     entries: Sequence[Mapping[str, Any]] | None = None,
 ) -> tuple[Mapping[str, Any], str, Mapping[str, Any]]:
+    """`entries` に一致する transport を1件だけ探す（F-354-13）。
+
+    名前は managed 専用に見えるが、`entries` を明示すれば **`isolation_only` 区分の
+    :func:`_parse_isolation_only` からも呼ばれる**——`entries=None` のときだけ
+    :func:`_managed_entries` を既定にする。managed 経路と同じ「重複/欠落は fail-close」
+    ロジックを isolation_only 側でも再利用するための共通化であり、isolation_only の
+    entry が managed 側の shape 検証を経ていないわけではない。
+    """
     matches: list[tuple[Mapping[str, Any], str, Mapping[str, Any]]] = []
     for entry in (_managed_entries() if entries is None else entries):
         if entry.get("agent_type") != agent_type:
@@ -380,20 +389,23 @@ def _marker_payload(
 def _fix_binding(
     raw: Mapping[str, Any], *, entrypoint: str, agent_type: str
 ) -> IsolationOnlyAck:
-    """`ISSUE_FIX_BINDING_V1` marker（exact 5 field）を検証して ack を返す。
+    """`ISSUE_FIX_BINDING_V1` marker（exact 6 field）を検証して ack を返す。
 
-    field を絞ったのは、この区分が **GitHub API を叩かない**から——`repository`/`base_*` は
-    blocker 判定と branch-source 判定の材料で、どちらもここでは行わない。代わりに
-    `expected_oid` を持つ：是正者は `gitgate adopt-branch --expected-oid` で既存 PR ブランチを
-    自分の worktree へ取得するので、その値の出所を dispatch 契約側に固定しておく
-    （出所が曖昧なまま是正者に組み立てさせると、掴む commit が dispatch と食い違いうる）。
+    `base_*` を欠くのは、この区分が **GitHub API を叩かない**から——blocker 判定と
+    branch-source 判定の材料はどちらもここでは行わない。一方 `repository` は持つ：
+    是正者は `gitgate adopt-branch --repository OWNER/REPO --expected-oid` で既存 PR
+    ブランチを自分の worktree へ取得するが、是正者は生 `git remote` を deny されており
+    OWNER/REPO を機械的に得る手段が無い（F-354-10）。`expected_oid` と同じ理由で、
+    値の出所を dispatch 契約側に固定しておく（出所が曖昧なまま是正者に推測させると、
+    掴む repository/commit が dispatch と食い違いうる）。
     """
-    expected = {"issue", "round", "branch_name", "expected_oid", "handoff_path"}
+    expected = {"issue", "round", "branch_name", "repository", "expected_oid", "handoff_path"}
     if set(raw) != expected:
         raise IssueStartError("ISSUE_START_BINDING_UNKNOWN_FIELD")
     issue = raw.get("issue")
     round_ = raw.get("round")
     branch_name = raw.get("branch_name")
+    repository = raw.get("repository")
     expected_oid = raw.get("expected_oid")
     handoff_path = raw.get("handoff_path")
     if not isinstance(issue, int) or isinstance(issue, bool) or issue < 1:
@@ -402,6 +414,8 @@ def _fix_binding(
         raise IssueStartError("ISSUE_START_ROUND_INVALID")
     if not isinstance(branch_name, str) or not _BRANCH.fullmatch(branch_name):
         raise IssueStartError("ISSUE_START_BRANCH_INVALID")
+    if not isinstance(repository, str) or not _REPOSITORY.fullmatch(repository):
+        raise IssueStartError("ISSUE_START_REPOSITORY_INVALID")
     if not isinstance(expected_oid, str) or not _OID.fullmatch(expected_oid):
         raise IssueStartError("ISSUE_START_EXPECTED_OID_INVALID")
     match = _HANDOFF_PATH.fullmatch(handoff_path) if isinstance(handoff_path, str) else None
@@ -427,6 +441,7 @@ def _fix_binding(
         branch_name=branch_name,
         handoff_path=handoff_path,
         expected_oid=expected_oid,
+        repository=repository,
     )
 
 

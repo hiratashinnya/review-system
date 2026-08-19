@@ -306,6 +306,7 @@ def fix_binding(**overrides):
         "issue": 354,
         "round": 1,
         "branch_name": "claude/issue-354-pr4",
+        "repository": "example/repo",
         "expected_oid": "b" * 40,
         "handoff_path": "tmp/_handoff/issue-fixer--issue-354-fix1.yaml",
     }
@@ -348,6 +349,7 @@ class IsolationOnlyContractTests(unittest.TestCase):
                         branch_name="claude/issue-354-pr4",
                         handoff_path="tmp/_handoff/issue-fixer--issue-354-fix1.yaml",
                         expected_oid="b" * 40,
+                        repository="example/repo",
                     ),
                 )
 
@@ -381,10 +383,12 @@ class IsolationOnlyContractTests(unittest.TestCase):
 
     def test_field_set_must_be_exact(self):
         extra = fix_binding()
-        extra["repository"] = "example/repo"
+        extra["base_pr"] = None
         missing = fix_binding()
         del missing["expected_oid"]
-        for raw in (extra, missing):
+        missing_repository = fix_binding()
+        del missing_repository["repository"]
+        for raw in (extra, missing, missing_repository):
             with self.subTest(raw=sorted(raw)), self.assertRaisesRegex(
                 IssueStartError, "ISSUE_START_BINDING_UNKNOWN_FIELD"
             ):
@@ -400,6 +404,10 @@ class IsolationOnlyContractTests(unittest.TestCase):
             ({"round": "1"}, "ISSUE_START_ROUND_INVALID"),
             ({"branch_name": "-evil"}, "ISSUE_START_BRANCH_INVALID"),
             ({"branch_name": ""}, "ISSUE_START_BRANCH_INVALID"),
+            ({"repository": ""}, "ISSUE_START_REPOSITORY_INVALID"),
+            ({"repository": "no-slash"}, "ISSUE_START_REPOSITORY_INVALID"),
+            ({"repository": "owner/repo/extra"}, "ISSUE_START_REPOSITORY_INVALID"),
+            ({"repository": None}, "ISSUE_START_REPOSITORY_INVALID"),
             ({"expected_oid": "b" * 39}, "ISSUE_START_EXPECTED_OID_INVALID"),
             ({"expected_oid": "B" * 40}, "ISSUE_START_EXPECTED_OID_INVALID"),
             ({"expected_oid": None}, "ISSUE_START_EXPECTED_OID_INVALID"),

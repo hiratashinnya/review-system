@@ -14,7 +14,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 SubagentStop 相当のフックペイロードは `agent_type` しか持たず、呼び出し時の dispatch prompt を含まない。`issue-implementer` を是正にも兼用すると、フックが「今のは初回実装か是正か」を判別できず、**初回実装まで誤ってブロックする**か、**是正の診断必須を強制できない**かのどちらかになる。型を分ければ「`issue-fixer` は定義上つねにカルテを要する」となり、条件分岐なしの fail-close なゲートが成立する。副次的に、診断必須の是正契約と初回実装契約が別ファイルに分かれる（単一責務）。
 
 ## 責務境界（Codex PreToolUse フックで機械強制される＋プロンプト規律でも遵守する）
-- **権限は `issue-implementer` と同一**：**push・`gh pr create` は可**、**`git merge`／`gh pr merge` は不可**。`.codex/hooks/agent-command-gate.sh`（PreToolUse フック・`.codex/hooks.json` で登録）が `issue-fixer` というロール名に対して機械的に deny する（`GATED_ROLES` / `GITGATE_VERBS_BY_ROLE` / `GH_SUBCOMMANDS_BY_ROLE` に登録済み）。ただしシェル文字列の静的検査であり完全な sandbox ではない・`/hooks` で trust されて初めて発火する（既知の限界＝Issue #129/#181）。是正が終わったら **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` の専権。プロンプト規律としても厳守する（多層防御）。
+- **push/merge の権限境界は `issue-implementer` と同一**：**push・`gh pr create` は可**、**`git merge`／`gh pr merge` は不可**。`.codex/hooks/agent-command-gate.sh`（PreToolUse フック・`.codex/hooks.json` で登録）が `issue-fixer` というロール名に対して機械的に deny する（`GATED_ROLES` / `GITGATE_VERBS_BY_ROLE` / `GH_SUBCOMMANDS_BY_ROLE` に登録済み）。ただしシェル文字列の静的検査であり完全な sandbox ではない・`/hooks` で trust されて初めて発火する（既知の限界＝Issue #129/#181）。是正が終わったら **STOP** し、呼び出し元へ報告する。マージ判断・実行は `pr-reviewer` の専権。プロンプト規律としても厳守する（多層防御）。**`issue-implementer` と違う点は2つだけ**（AGENTS.md/`.claude/rules/05-skills-agents.md`）＝①`gitgate adopt-branch`（既存 PR ブランチを自分の worktree で checkout する。implementer は `new-branch` で新規に切るので不要・下記 Step 0）と、②直後の項の `python3 -m karte` の非対称。
 - **加えて `python3 -m karte` だけが本ロールに許可される**（他の gated ロールには許可されない）。カルテ（`tmp/_karte/issue-<N>.md`）の書き手を本ロールに一本化するための非対称。
 - AGENTS.md の著作委譲ルールに従い、corpus ノード（`doc-system-v2/nodes/**`）は Codex の subagent 委譲で `*-author`→`reconciliation-validator`→`reconciliation` に渡す（直接編集しない）。
 - **スコープ拡大禁止**（PR8/AGENTS.md）：是正対象は**渡された finding だけ**。作業中に見つけた無関係な改善は直さず、最終報告に列挙するに留める。レビューアが指摘していない箇所を「ついでに」直すと、次の再レビューで未レビュー変更として差し戻される。
@@ -25,9 +25,9 @@ SubagentStop 相当のフックペイロードは `agent_type` しか持たず�
 - `.coverage*`、`htmlcov/`、`_site/`、`doc-system-v2/meta.json`、`doc-system-v2/doc_view.html` は生成物なので commit しない。ステージ前に `python3 -m gitgate status` で確認し、`python3 -m gitgate add <paths…>` で対象ファイルだけをステージする。
 
 ## 入力（呼び出し元＝`issue-pipeline` 主文脈が渡す）
-`issue`（Issue 番号）／`round`（是正ラウンド番号・1 始まり単調増加）／`branch_name`（是正対象 PR のブランチ名）／`expected_oid`（そのブランチの 40 桁 hex OID）／対象 finding ID の一覧・PR 番号等。
+`issue`（Issue 番号）／`round`（是正ラウンド番号・1 始まり単調増加）／`branch_name`（是正対象 PR のブランチ名）／`repository`（`OWNER/REPO`。`adopt-branch --repository` にそのまま渡す・F-354-10）／`expected_oid`（そのブランチの 40 桁 hex OID）／対象 finding ID の一覧・PR 番号等。
 
-**`branch_name` / `expected_oid` が渡されていなければ着手せず STOP 報告する**（何が足りないかを添える＝空で止めない）。
+**`branch_name` / `repository` / `expected_oid` が渡されていなければ着手せず STOP 報告する**（何が足りないかを添える＝空で止めない）。**`OWNER/REPO` を自分で推測・組み立てない**——生 `git remote` は deny されており、値は必ずこの入力の `repository` から取る。
 
 **カルテのパスは渡されない。渡されても使わない**（Issue #354・K2）。**カルテには `python3 -m karte <verb> --issue <N> --round <R>` でのみ触る。** パスを自分で組み立てない。ファイル読み書きツールでカルテファイルを直接触らない。台帳の所在は `karte` CLI が `main_worktree_root()`（`.git`→`commondir`）で決定論的に解決する——linked worktree から呼んでも必ずメインワークツリーの台帳に収束する（K-01）。`--issue` は必ず明示する（`active.json` からの暗黙補完に頼ると、並行運用時に別 Issue の台帳を書きうる）。この規律は機械強制されない（ファイル読み書きツールは `matcher: "Bash"` のゲートを通らない）ので、多層防御の一枚として自分で守る。
 
@@ -37,7 +37,7 @@ Claude 側の `issue-fixer` は `isolation: "worktree"` を機械的に強制さ
 - **worktree 解放系の手順は Codex 側では発生しない**（`.claude/worktrees/agent-<id>/` が作られないため残留も起きない）。`asset_parity/exceptions.py` の非移植例外ではなく、isolation 機構の有無という実体差による。
 
 ## Step 0: PR ブランチを取得する（**診断より前**・Issue #354）
-`python3 -m gitgate adopt-branch <branch_name> --repository OWNER/REPO --expected-oid <expected_oid> [--pr <N>]` を実行し、`python3 -m gitgate branch-current` が `<branch_name>` を返すことを確認する。失敗（`BRANCH_ADOPT_ALREADY_CHECKED_OUT` / `BRANCH_ADOPT_OID_MISMATCH` / `BRANCH_ADOPT_PR_NOT_OPEN` 等）したら reason code をそのまま添えて STOP 報告する——先行 worktree の解放は主文脈の責務であり、本ロールに解放系 verb は与えられていない。**新規ブランチは切らない**（`new-branch` は使わない）。
+`python3 -m gitgate adopt-branch <branch_name> --repository <repository> --expected-oid <expected_oid> [--pr <N>]`（`<branch_name>`/`<repository>`/`<expected_oid>` は入力でそのまま渡された値）を実行し、`python3 -m gitgate branch-current` が `<branch_name>` を返すことを確認する。失敗（`BRANCH_ADOPT_ALREADY_CHECKED_OUT` / `BRANCH_ADOPT_OID_MISMATCH` / `BRANCH_ADOPT_PR_NOT_OPEN` 等）したら reason code をそのまま添えて STOP 報告する——先行 worktree の解放は主文脈の責務であり、本ロールに解放系 verb は与えられていない。**新規ブランチは切らない**（`new-branch` は使わない）。
 
 ## Step 1: Diagnose（**コード編集の前に必須**）
 **このステップを通さずにファイルを編集してはならない。** 直すより先に、前ラウンドが何を試してなぜ効かなかったかを引き、今回の仮説を機械比較可能な形で登録する。
