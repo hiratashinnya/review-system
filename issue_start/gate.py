@@ -25,6 +25,8 @@ from blocker_gate.snapshot import (
     project_issue_snapshot,
 )
 
+from . import worktree_ledger
+
 
 ISSUE_START_POLICY_VERSION = "issue-start/1.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
@@ -689,3 +691,73 @@ def evaluate_issue_start(
 
 def fail_closed(request: IssueStartRequest | None, exc: IssueStartError) -> dict[str, Any]:
     return _error_evidence(request, exc.reason, exc.detail)
+
+
+def _ledger_metadata(payload: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    """台帳起票に載せる付随情報（``agent_type`` / ``branch_name``）を best-effort で読む。
+
+    ここは**判定に使わない**（起票の材料にするだけ）。`parse_dispatch_payload` が既に
+    受理した payload を読み直しているので厳格な検証はせず、読めなければ ``None`` を返す。
+    ``branch_name`` は Claude の marker にしか無い（Codex 経路は ``None``）。
+    """
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, Mapping):
+        return None, None
+    agent_type = None
+    for field in ("agent_type", "subagent_type"):
+        value = tool_input.get(field)
+        if isinstance(value, str) and value:
+            agent_type = value
+            break
+    branch_name = None
+    prompt = tool_input.get("prompt")
+    if isinstance(prompt, str):
+        lines = [line for line in prompt.splitlines() if line.startswith(BINDING_MARKER)]
+        if len(lines) == 1:
+            try:
+                raw = json.loads(lines[0][len(BINDING_MARKER):])
+            except json.JSONDecodeError:
+                raw = None
+            if isinstance(raw, dict) and isinstance(raw.get("branch_name"), str):
+                branch_name = raw["branch_name"]
+    return agent_type, branch_name
+
+
+def record_open_entry(
+    payload: Mapping[str, Any],
+    request: IssueStartRequest,
+    *,
+    now: datetime,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """ALLOW した dispatch を worktree 所有台帳へ ``open`` 起票する（Issue #309・PR-1）。
+
+    **この関数は dispatch を deny しない。** 台帳の書込に失敗しても例外を投げず、
+    ``{"entry_id": None, "error": "<reason>"}`` を返して呼び出し側は ALLOW のまま進む
+    （本 PR は fail-open）。deny へ倒すのは PR-3（統制の発効）——「統制を先に、付与は別 PR」
+    と同じ理由で、**観測が正確になったことを実測してから** deny を有効にする。
+
+    ``round`` / ``handoff_path`` は現行の ``ISSUE_START_BINDING_V1`` marker schema に無いので
+    ``None`` のまま起票する（marker 拡張は PR-4）。
+    """
+    try:
+        root = worktree_ledger.main_worktree_root(
+            Path.cwd() if repo_root is None else Path(repo_root)
+        )
+        agent_type, branch_name = _ledger_metadata(payload)
+        if agent_type is None:
+            return {"entry_id": None, "error": "LEDGER_AGENT_TYPE_UNREADABLE"}
+        entry_id = worktree_ledger.open_entry(
+            root,
+            issue=request.issue,
+            agent_type=agent_type,
+            round=None,
+            branch_name=branch_name,
+            handoff_path=None,
+            now=now,
+        )
+        return {"entry_id": entry_id, "error": None}
+    except worktree_ledger.LedgerError as exc:
+        return {"entry_id": None, "error": exc.reason, "detail": exc.detail}
+    except Exception as exc:  # 台帳の事故で dispatch を止めない（本 PR は fail-open）
+        return {"entry_id": None, "error": type(exc).__name__}

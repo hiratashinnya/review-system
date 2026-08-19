@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, TextIO
 
 from blocker_gate.auth import resolve_github_token
 
-from .gate import IssueStartError, evaluate_issue_start, fail_closed, parse_dispatch_payload
+from .gate import (
+    IssueStartError,
+    evaluate_issue_start,
+    fail_closed,
+    parse_dispatch_payload,
+    record_open_entry,
+)
 
 
 def _deny(reason: str) -> dict[str, Any]:
@@ -41,8 +48,24 @@ def _deny_reason(evidence: Mapping[str, Any]) -> str:
     return reason
 
 
-def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = None) -> int:
+def run(
+    *,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    cwd: Path | None = None,
+    now: datetime | None = None,
+    ledger_root: Path | None = None,
+) -> int:
+    """PreToolUse hook 本体。
+
+    ``now`` / ``ledger_root`` は Issue #309 の worktree 所有台帳への起票のための注入点。
+    ``ledger_root`` を省略すると ``cwd``（さらに省略時はプロセスの cwd）から
+    ``main_worktree_root()`` で main worktree へ収束させる。**時刻を読むのはここ
+    （composition root）だけ**で、``worktree_ledger`` は ``datetime.now()`` を呼ばない。
+    """
     request = None
+    payload: Mapping[str, Any] | None = None
     try:
         payload = json.load(stdin)
         if not isinstance(payload, dict):
@@ -67,6 +90,15 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = Non
         )
         stdout.write("\n")
         return 0
+    # Issue #309: ALLOW した dispatch だけを worktree 所有台帳へ `open` 起票する。
+    # **書込に失敗しても ALLOW のまま**（本 PR は fail-open。deny への昇格は PR-3）。
+    evidence = dict(evidence)
+    evidence["ledger"] = record_open_entry(
+        payload if isinstance(payload, Mapping) else {},
+        request,
+        now=datetime.now(timezone.utc) if now is None else now,
+        repo_root=ledger_root if ledger_root is not None else cwd,
+    )
     # allow は stdout を空に保ち、hook protocol を汚さず evidence を harness log に残す。
     stderr.write(json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
     return 0

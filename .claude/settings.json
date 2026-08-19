@@ -30,6 +30,40 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "matcher": "issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-karte-inject.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "issue-implementer|issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-worktree-bind.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "issue-implementer|issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-stop-gate.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

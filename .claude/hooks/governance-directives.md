@@ -1,6 +1,13 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@80f29b7a216e -->
+<!-- synced-from: CLAUDE.md@ce9f3135fef9 -->
+<!--
+  Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
+  `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
+  足しただけで、上記の中核規範（1〜11）には掛からない。本文は変更せず marker のみ
+  現在値へ更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`
+  「追従したあとにやること」）。
+-->
 
 
 <!--
