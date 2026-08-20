@@ -213,6 +213,8 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - 先送りは**オーナー許可を取った**（AI 独断で「対応不要/繰り越し」していない・⑨）。
 - 主文脈は実装/レビューを自分でやらず、タスク管理・進捗報告・意思決定に専念した（③）。
 - 各 implement dispatch は Codex で exact `task_name=issue_N`、Claude で fresh な `ISSUE_START_BINDING_V1` 1つを持ち、Issue-start hook evidence の policy version / fetched_at / reason を確認した。後続 `gitgate new-branch` が独立に branch-source exact OID を確認した。
+- オーナーの判断を要する事項（PR7 打ち上げ・据え置き・スコープ・矛盾）を、カルテや PR コメント等の副次記録任せにせず**チャットに全文提示して判断を仰いだ**（Issue #379）。
 
 ## 成果物
-- 承認済み処置順 ＋ 各 Issue の PR（merge/close 済み）＋ PR レビューコメント（AI 明記）＋ 起票したサブ Issue/FND/Q（あれば）＋ 進捗ログ。
+- 承認済み処置順 ＋ 各 Issue の PR（merge/close 済み）＋ PR レビューコメント（AI 明記）＋ 起票したサブ Issue/FND/Q（あれば）＋ 進捗ログ ＋ **チャットでのオーナー報告**。
+

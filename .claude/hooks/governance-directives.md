@@ -1,12 +1,10 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@ce9f3135fef9 -->
+<!-- synced-from: CLAUDE.md@8f506723cb58 -->
 <!--
-  Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
-  `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
-  足しただけで、上記の中核規範（1〜11）には掛からない。本文は変更せず marker のみ
-  現在値へ更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`
-  「追従したあとにやること」）。
+  Issue #379（2026-08-20）: `.claude/rules/02-decision-process.md` に
+  「オーナーへの報告はチャットが正本」節を追加したことに伴い、
+  中核規範 12 を追加して marker を現在値へ更新した。
 -->
 
 
@@ -82,3 +80,9 @@ additionalContext として注入する本文。正本は `CLAUDE.md` と `.clau
     本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
     本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
     「PR8「消さない」の適用範囲（2026-08-18・Issue #357）」。
+12. **オーナーへの報告はチャットが正本（Issue #379）** — オーナー判断を要する事項
+    （PR7 打ち上げ・据え置き可否・スコープ判断・矛盾）は、チャットに「何を・なぜ・どうするか」が
+    読み取れる粒度で全文出す（ID や 1 行要約だけで投げない）。PR コメント・カルテ・`tmp/_handoff/`・
+    ノードは永続化目的の副次的記録であり、書いたことをもって報告済みとしない。`<artifact_policy>` 等の
+    要約規律は subagent → 呼び出し元の規約であり、主文脈 → オーナーの報告には適用しない。
+
