@@ -1,6 +1,7 @@
 from copy import deepcopy
 import unittest
 
+from blocker_gate.model import POLICY_VERSION
 from pr_merge_gate.classifier import MergeOperation
 from pr_merge_gate.gate import evaluate_merge_operation, fail_closed
 
@@ -18,7 +19,7 @@ def snapshot(*, head="a" * 40, closing=(), nodes=None, state="OPEN", draft=False
     refs = list(closing)
     return {
         "schema": "blocker-gate-snapshot/v1",
-        "policy_version": "1.1",
+        "policy_version": POLICY_VERSION,
         "mode": "pr-merge",
         "repository": "example/repo",
         "subject": {"type": "pull_request", "number": 50},
