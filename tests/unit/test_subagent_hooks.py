@@ -1241,14 +1241,21 @@ class SettingsRegistrationTests(unittest.TestCase):
     def test_pre_existing_registrations_are_untouched(self):
         """AC「既存エントリに手を入れていない（追加のみ）」の回帰。"""
         pre_tool_use = self.commands("PreToolUse")
-        self.assertEqual(len(pre_tool_use), 3)
+        self.assertEqual(len(pre_tool_use), 4)
         self.assertEqual(
-            pre_tool_use[2],
+            pre_tool_use[0],
+            "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
+        )
+        self.assertEqual(
+            pre_tool_use[3],
             "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
         )
         self.assertEqual(
             self.commands("PostToolUse"),
-            ["${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh"],
+            [
+                "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
+                "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
+            ],
         )
         self.assertEqual(
             self.commands("UserPromptSubmit"),
