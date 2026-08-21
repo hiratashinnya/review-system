@@ -1,0 +1,11 @@
+title: "CLAUDE.md の行番号引用が rules 分割で全て無効化し FND 3 件の是正指示が実体を外す"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "tmp草案の出力先記述がv1の1親1ファイル形式のまま1ノード2ファイル化に未追随"
+    ref_version: "0.1"
+  - to: "tmp-掃除ガード追従テストの段落分割が空行基準で箇条書き・表内の保護名借用を見逃す"
+    ref_version: "0.1"
+  - to: "tmp-掃除ガード追従テストの検査対象探索がガード記述の消滅とミラー文書を見落とす"
+    ref_version: "0.1"

@@ -1,12 +1,15 @@
-"""Issue #297 managed Issue-start adapter/hook tests。"""
+"""Issue #297 managed Issue-start adapter/hook tests（Issue #309 で台帳起票を追加）。"""
 
 import io
 import json
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
 from blocker_gate.model import POLICY_VERSION
+from issue_start import worktree_ledger
 from issue_start.gate import (
     BINDING_MARKER,
     IssueStartError,
@@ -14,6 +17,7 @@ from issue_start.gate import (
     _validate_tool_input_shape,
     evaluate_issue_start,
     parse_dispatch_payload,
+    record_open_entry,
 )
 from issue_start.hook import run as run_hook
 
@@ -21,6 +25,7 @@ from issue_start.hook import run as run_hook
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "blocker_gate"
 OID = "a" * 40
+LEDGER_NOW = datetime(2026, 8, 19, 4, 11, 7, tzinfo=timezone.utc)
 
 
 def load(name):
@@ -327,7 +332,19 @@ class EvaluationTests(unittest.TestCase):
             evaluate_issue_start(request(), collector_factory=lambda token: Collector(bad))
 
 
-class HookTests(unittest.TestCase):
+class HookLedgerMixin:
+    """hook 経路の共通 fixture（テストは持たない）。"""
+
+    def setUp(self):
+        # Issue #309: ALLOW 経路は worktree 所有台帳へ `open` 起票する。実リポジトリの
+        # `tmp/_worktree/` を汚さないよう、台帳の置き場をテストごとに隔離する。
+        self._ledger_tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._ledger_tmp.cleanup)
+        self.ledger_root = Path(self._ledger_tmp.name).resolve()
+
+    def ledger_entries(self):
+        return worktree_ledger.read_ledger(self.ledger_root)["entries"]
+
     def managed_payload(self, task_name="issue_10"):
         return {
             "cwd": str(ROOT),
@@ -339,6 +356,8 @@ class HookTests(unittest.TestCase):
             },
         }
 
+
+class HookTests(HookLedgerMixin, unittest.TestCase):
     def test_malformed_managed_dispatch_emits_deny(self):
         stdout = io.StringIO()
         rc = run_hook(
@@ -346,6 +365,8 @@ class HookTests(unittest.TestCase):
             stdout=stdout,
             stderr=io.StringIO(),
             cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
         )
         self.assertEqual(rc, 0)
         output = json.loads(stdout.getvalue())
@@ -368,6 +389,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
@@ -428,6 +451,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(rc, 0)
         self.assertEqual(stdout.getvalue(), "")
@@ -461,6 +486,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=stderr,
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("ISSUE_START_ALLOWED", stderr.getvalue())
@@ -486,6 +513,8 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=io.StringIO(),
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         self.assertEqual(rc, 0)
         decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
@@ -524,10 +553,377 @@ class HookTests(unittest.TestCase):
                 stdout=stdout,
                 stderr=io.StringIO(),
                 cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
             )
         reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
         report = json.loads(reason.split(" blockers=", 1)[1])
         self.assertEqual(report, [blocker])
+
+
+class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
+    """Issue #309 PR-1: ALLOW した dispatch を所有台帳へ `open` 起票する（**deny はしない**）。"""
+
+    ALLOW_EVIDENCE = {
+        "schema_version": "issue-start-evidence/1",
+        "policy_version": "issue-start/1.0",
+        "result": "ALLOW",
+        "exit_code": 0,
+        "reason": "ISSUE_START_ALLOWED",
+    }
+
+    def claude_payload(self):
+        return {
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "dispatch",
+                "isolation": "worktree",
+            },
+        }
+
+    def run_allow(self, payload, *, ledger_root=None):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=dict(self.ALLOW_EVIDENCE)
+        ):
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=ROOT,
+                ledger_root=self.ledger_root if ledger_root is None else ledger_root,
+                now=LEDGER_NOW,
+            )
+        return rc, stdout, stderr
+
+    def test_allow_opens_a_ledger_entry_bound_to_the_dispatch(self):
+        rc, stdout, stderr = self.run_allow(self.claude_payload())
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "", "起票は dispatch を deny しない")
+        entries = self.ledger_entries()
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["issue"], 10)
+        self.assertEqual(entry["agent_type"], "issue-implementer")
+        self.assertEqual(entry["branch_name"], "issue-297")
+        self.assertEqual(entry["status"], "open")
+        self.assertEqual(entry["dispatched_at"], "2026-08-19T04:11:07Z")
+        # marker v1 に無い項目は推測せず None のまま（marker 拡張は後続 PR）。
+        self.assertIsNone(entry["round"])
+        self.assertIsNone(entry["handoff_path"])
+        self.assertIsNone(entry["agent_id"])
+        self.assertIsNone(entry["worktree_path"])
+        # evidence（stderr）に entry_id が載る。
+        evidence = json.loads(stderr.getvalue())
+        self.assertEqual(evidence["ledger"]["entry_id"], entry["entry_id"])
+        self.assertIsNone(evidence["ledger"]["error"])
+
+    def test_codex_dispatch_without_a_marker_records_no_branch_name(self):
+        rc, _stdout, _stderr = self.run_allow(self.managed_payload())
+        self.assertEqual(rc, 0)
+        entry = self.ledger_entries()[0]
+        self.assertEqual(entry["agent_type"], "issue-implementer")
+        self.assertIsNone(entry["branch_name"], "Codex transport に branch_name は無い")
+
+    def test_broken_ledger_now_denies_fail_close(self):
+        """Issue #354 PR-3 で **fail-open → fail-close** へ倒した箇所（契約変更の明示）。
+
+        PR-1（#309）では台帳が壊れていても ALLOW のままだった——観測が正確になったことを
+        実測してから deny を有効化する「統制を先に、付与は別 PR」の順序を守るため。
+        PR-3 は残留 worktree を deny の材料にするので、**台帳を一意に読めない間は
+        残留の有無を判定できない**＝通してはならない。
+
+        起票（`record_open_entry`）そのものは今も fail-open で、
+        :meth:`test_record_open_entry_never_raises` がその不変条件を保っている。
+        """
+        broken = self.ledger_root / "broken"
+        broken.mkdir()
+        path = worktree_ledger.ledger_path(broken, create_dir=True)
+        path.write_text("{not json", encoding="utf-8")
+        rc, stdout, _stderr = self.run_allow(self.claude_payload(), ledger_root=broken)
+        self.assertEqual(rc, 0)
+        decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        reason = decision["permissionDecisionReason"]
+        self.assertIn("ISSUE_START_WORKTREE_LEDGER_ERROR", reason)
+        self.assertIn("LEDGER_INVALID_JSON", reason)
+        self.assertIn("fail-close", reason)
+
+    def test_allow_evidence_carries_the_worktree_residue_report(self):
+        """FR-W12: 解放の実施/未実施が台帳と突き合わせられる形で evidence に残る。"""
+        _rc, _stdout, stderr = self.run_allow(self.claude_payload())
+        residue = json.loads(stderr.getvalue())["worktree_residue"]
+        self.assertEqual(residue["stale"], [])
+        self.assertEqual(residue["unclaimed"], [])
+        self.assertEqual(residue["swept"], [])
+        self.assertIn("claimed", residue)
+
+    def test_denied_dispatch_records_nothing(self):
+        stdout = io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None):
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_payload("issue-10"))),
+                stdout=stdout,
+                stderr=io.StringIO(),
+                cwd=ROOT,
+                ledger_root=self.ledger_root,
+                now=LEDGER_NOW,
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+        self.assertEqual(self.ledger_entries(), [], "deny した dispatch は起票しない")
+
+    def test_record_open_entry_never_raises(self):
+        """gate の起票関数は**どんな入力でも例外を投げない**（fail-open の実体）。"""
+        for label, payload in (
+            ("empty", {}),
+            ("no-tool-input", {"tool_name": "Task"}),
+            ("tool-input-not-a-mapping", {"tool_name": "Task", "tool_input": "x"}),
+            ("no-agent-type", {"tool_name": "Task", "tool_input": {"prompt": "x"}}),
+        ):
+            with self.subTest(label=label):
+                result = record_open_entry(
+                    payload, request(), now=LEDGER_NOW, repo_root=self.ledger_root
+                )
+                self.assertIsNone(result["entry_id"])
+                self.assertEqual(result["error"], "LEDGER_AGENT_TYPE_UNREADABLE")
+        self.assertEqual(self.ledger_entries(), [])
+
+    def test_record_open_entry_converges_on_the_main_worktree(self):
+        """linked worktree から起動しても台帳は main worktree 側に1つだけ作られる。"""
+        main = self.ledger_root / "main"
+        gitdir = main / ".git" / "worktrees" / "agent-abc"
+        gitdir.mkdir(parents=True)
+        (gitdir / "commondir").write_text("../..\n", encoding="utf-8")
+        linked = main / ".claude" / "worktrees" / "agent-abc"
+        linked.mkdir(parents=True)
+        (linked / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+
+        result = record_open_entry(
+            self.claude_payload(), request(), now=LEDGER_NOW, repo_root=linked
+        )
+        self.assertIsNotNone(result["entry_id"])
+        self.assertTrue((main / "tmp" / "_worktree" / "ledger.json").is_file())
+        self.assertFalse((linked / "tmp").exists())
+
+
+class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):
+    """Issue #354 PR-3（候補C）: 残留 worktree のある状態での次 dispatch を deny する。
+
+    #354 が実測した事象は「残留 worktree があるのに `pr-reviewer` を dispatch し、
+    レビューアが古い作業ツリーを掴んだ」——つまり **unmanaged 側**で起きた。したがって
+    この deny は managed dispatch に限らず**全 `Task` dispatch** に掛かる。
+    """
+
+    def bind(self, agent_id, *, agent_type="issue-implementer", issue=354):
+        worktree_ledger.open_entry(
+            self.ledger_root, issue=issue, agent_type=agent_type, round=None,
+            branch_name=None, handoff_path=None, now=LEDGER_NOW,
+        )
+        return worktree_ledger.bind_agent(
+            self.ledger_root, agent_type=agent_type, agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+
+    def make_worktree(self, name):
+        path = self.ledger_root / ".claude" / "worktrees" / name
+        path.mkdir(parents=True)
+        return path
+
+    def advance(self, entry_id, *statuses):
+        for status in statuses:
+            worktree_ledger.mark(self.ledger_root, entry_id, status, now=LEDGER_NOW)
+
+    def managed_dispatch(self):
+        return {
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "issue-implementer",
+                "prompt": BINDING_MARKER + json.dumps(claude_binding(), separators=(",", ":")),
+                "description": "dispatch",
+                "isolation": "worktree",
+            },
+        }
+
+    def unmanaged_dispatch(self):
+        """manifest に載っていない agent_type（`parse_dispatch_payload` は `None` を返す）。"""
+        return {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "pr-reviewer", "prompt": "review PR #401"},
+        }
+
+    def run_dispatch(self, payload):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        allow = {
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "ALLOW",
+            "exit_code": 0,
+            "reason": "ISSUE_START_ALLOWED",
+        }
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=dict(allow)
+        ) as evaluate:
+            rc = run_hook(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout, stderr=stderr,
+                cwd=ROOT, ledger_root=self.ledger_root, now=LEDGER_NOW,
+            )
+        self.assertEqual(rc, 0)
+        return stdout.getvalue(), stderr.getvalue(), evaluate
+
+    def deny_reason(self, payload):
+        stdout, _stderr, evaluate = self.run_dispatch(payload)
+        decision = json.loads(stdout)["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        # 残留判定は GitHub API より前（ローカルの状態だけで決まる）。
+        evaluate.assert_not_called()
+        return decision["permissionDecisionReason"]
+
+    def test_uncollected_residue_denies_with_the_remediation_command(self):
+        """`stale` / `stopped` / `collected` はいずれも「回収が完了していない」＝deny。"""
+        cases = {
+            "stale": ("stale",),
+            "stopped": ("stopped",),
+            "collected": ("stopped", "collected"),
+        }
+        for label, statuses in cases.items():
+            with self.subTest(status=label):
+                self.setUp()
+                self.make_worktree("agent-left")
+                entry_id = self.bind("left")
+                self.advance(entry_id, *statuses)
+                reason = self.deny_reason(self.managed_dispatch())
+                self.assertIn("ISSUE_START_WORKTREE_RESIDUE", reason)
+                # entry_id / status / worktree_path が deny 文だけで読み取れること。
+                self.assertIn(entry_id, reason)
+                self.assertIn(label, reason)
+                self.assertIn(".claude/worktrees/agent-left", reason)
+                # 解消コマンドを必ず載せる（過剰 deny の緩和はここで行う）。
+                self.assertIn(
+                    "python3 -m gitgate collect-worktree --entry <entry-id>", reason
+                )
+                self.assertIn("worktree-forget", reason, "逃げ道も併記する")
+
+    def test_worktree_not_in_the_ledger_denies_as_unclaimed(self):
+        self.make_worktree("agent-nobody")
+        reason = self.deny_reason(self.managed_dispatch())
+        self.assertIn("ISSUE_START_WORKTREE_UNCLAIMED", reason)
+        self.assertIn(".claude/worktrees/agent-nobody", reason)
+        self.assertIn("worktree-release", reason)
+        self.assertIn("--force-uncollected", reason)
+
+    def test_broken_ledger_denies_fail_close(self):
+        path = worktree_ledger.ledger_path(self.ledger_root, create_dir=True)
+        path.write_text("{not json", encoding="utf-8")
+        reason = self.deny_reason(self.managed_dispatch())
+        self.assertIn("ISSUE_START_WORKTREE_LEDGER_ERROR", reason)
+        self.assertIn("LEDGER_INVALID_JSON", reason)
+
+    def test_a_live_running_dispatch_is_not_denied(self):
+        """`running`＝live な dispatch が正当に占有している。deny しない。"""
+        self.make_worktree("agent-live")
+        self.bind("live")
+        stdout, stderr, evaluate = self.run_dispatch(self.managed_dispatch())
+        self.assertEqual(stdout, "", "live な worktree は残留ではない")
+        evaluate.assert_called_once()
+        residue = json.loads(stderr)["worktree_residue"]
+        self.assertEqual(residue["running"], [".claude/worktrees/agent-live"])
+        self.assertEqual(residue["unclaimed"], [])
+
+    def test_stopped_is_claimed_for_unclaimed_but_still_a_residue(self):
+        """`stopped` の二重の性質の境界（Issue #354 PR-3 の要注意点）。
+
+        回収処理中の worktree を `ISSUE_START_WORKTREE_UNCLAIMED` として誤検出しては
+        ならない（＝claimed 集合に含める）が、`stopped` のまま止まっている＝回収段が
+        失敗している可能性があるので residue としては検出する。**deny の reason は
+        UNCLAIMED ではなく RESIDUE になる**（解消コマンドが `collect-worktree` であって
+        `worktree-release --force-uncollected` ではないから）。
+        """
+        self.make_worktree("agent-stopping")
+        entry_id = self.bind("stopping")
+        self.advance(entry_id, "stopped")
+        reason = self.deny_reason(self.managed_dispatch())
+        self.assertIn("ISSUE_START_WORKTREE_RESIDUE", reason)
+        self.assertNotIn("ISSUE_START_WORKTREE_UNCLAIMED", reason)
+        self.assertIn("collect-worktree", reason)
+
+    def test_unmanaged_dispatch_is_denied_too(self):
+        """#354 の実測事象（残留があるのに `pr-reviewer` を dispatch）を正面から塞ぐ。"""
+        self.make_worktree("agent-left")
+        entry_id = self.bind("left")
+        self.advance(entry_id, "stale")
+        reason = self.deny_reason(self.unmanaged_dispatch())
+        self.assertIn("ISSUE_START_WORKTREE_RESIDUE", reason)
+
+    def test_unmanaged_dispatch_without_residue_still_emits_evidence(self):
+        """F-354-08: unmanaged の ALLOW でも stdout は無出力のまま、stderr に残留判定の
+        evidence（swept / claimed / unclaimed を含む）が残る（従来は無出力だった）。"""
+        stdout, stderr, evaluate = self.run_dispatch(self.unmanaged_dispatch())
+        self.assertEqual(stdout, "", "unmanaged は素通し（deny しない）")
+        evaluate.assert_not_called()
+        evidence = json.loads(stderr)
+        self.assertEqual(evidence["result"], "UNMANAGED")
+        residue = evidence["worktree_residue"]
+        self.assertEqual(residue["stale"], [])
+        self.assertEqual(residue["unclaimed"], [])
+        self.assertEqual(residue["swept"], [])
+        self.assertIn("claimed", residue)
+
+    def test_orphan_running_entry_is_swept_then_denied(self):
+        """worktree が消えた `running` は掃引で `stale` に落ち、その場で deny される。
+
+        放置すると `resolve_worktree_for_agent` が恒久的に `ambiguous-running` になり、
+        以後どの dispatch も束縛できなくなる（PR-1 の既知の詰まり）。
+        """
+        entry_id = self.bind("vanished")  # ディスク上に worktree を作らない
+        reason = self.deny_reason(self.managed_dispatch())
+        self.assertIn("ISSUE_START_WORKTREE_RESIDUE", reason)
+        self.assertIn(entry_id, reason)
+        entries = worktree_ledger.read_ledger(self.ledger_root)["entries"]
+        self.assertEqual(entries[0]["status"], "stale")
+
+    def test_residue_deny_does_not_open_a_ledger_entry(self):
+        self.make_worktree("agent-left")
+        entry_id = self.bind("left")
+        self.advance(entry_id, "stale")
+        self.deny_reason(self.managed_dispatch())
+        self.assertEqual(len(self.ledger_entries()), 1, "deny した dispatch は起票しない")
+
+    def test_blocker_deny_evidence_shape_is_unchanged(self):
+        """回帰: 既存 blocker gate 経路の deny 文（`blockers=` の JSON）が壊れていない。"""
+        blocker = {
+            "number": 9,
+            "repository": "example/repo",
+            "title": "required blocker",
+            "url": "https://github.com/example/repo/issues/9",
+            "path": ["example/repo#10", "example/repo#9"],
+            "next_action": "blockerをcloseしてfresh invocationで再試行する",
+        }
+        evidence = {
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "BLOCK",
+            "exit_code": 10,
+            "reason": "OPEN_BLOCKER",
+            "blockers": [blocker],
+        }
+        stdout = io.StringIO()
+        with patch("issue_start.hook.resolve_github_token", return_value=None), patch(
+            "issue_start.hook.evaluate_issue_start", return_value=evidence
+        ):
+            run_hook(
+                stdin=io.StringIO(json.dumps(self.managed_dispatch())),
+                stdout=stdout, stderr=io.StringIO(),
+                cwd=ROOT, ledger_root=self.ledger_root, now=LEDGER_NOW,
+            )
+        reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("BLOCK OPEN_BLOCKER", reason)
+        self.assertEqual(json.loads(reason.split(" blockers=", 1)[1]), [blocker])
 
 
 if __name__ == "__main__":

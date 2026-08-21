@@ -7,6 +7,7 @@
   - main() が subprocess.run を shell=False の list 渡しで呼ぶ（monkeypatch で捕捉）。
 """
 
+import io
 import subprocess
 import tempfile
 import unittest
@@ -87,6 +88,22 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
             build_git_argv(["pull"])
         with self.assertRaises(GitgateError):
             build_git_argv([])
+
+    def test_policy_verbs_are_not_reachable_through_the_pure_argv_path(self):
+        # Issue #354 PR-2: `adopt-branch` / `worktree-*` は policy 実行（fresh fetch + API 検証、
+        # 台帳の状態遷移、回収→検証→解放の段構造）を伴うため、`new-branch` と同じく
+        # `build_git_argv` の純 argv ディスパッチには**載せない**。ここに載ると
+        # 「1つの git argv を組んで実行する」形に潰れ、段構造も台帳更新も飛ばされる。
+        for argv in [
+            ["adopt-branch", "feature", "--repository", "o/r", "--expected-oid", "a" * 40],
+            ["worktree-release", ".claude/worktrees/agent-x"],
+            ["collect-worktree", "--entry", "wl-0123456789ab"],
+            ["worktree-forget", "--entry", "wl-0123456789ab", "--reason", "x"],
+        ]:
+            with self.subTest(argv=argv):
+                with self.assertRaises(GitgateError) as ctx:
+                    build_git_argv(argv)
+                self.assertIn("unknown verb", str(ctx.exception))
 
     def test_no_arg_verbs_reject_extra_args(self):
         # Critical 回帰: `push --receive-pack=x`（外部プログラム実行を狙う）は push が引数を取らないため
@@ -185,9 +202,19 @@ class MainSubprocessTests(unittest.TestCase):
             "new-branch", "issue-317", "--repository", "example/repo",
             "--base-ref", "main", "--base-oid", "a" * 40,
         ]
-        with patch("gitgate.cli.create_branch", return_value=result) as create:
+        with patch("gitgate.cli.create_branch", return_value=result) as create, \
+             patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
             self.assertEqual(gitgate_cli.main(argv), 0)
         create.assert_called_once()
+        stderr_output = mock_stderr.getvalue()
+        self.assertIn(
+            "gitgate: new-branch source default-branch example/repo@" + "a" * 40 + " policy=branch-source/1.0\n",
+            stderr_output,
+        )
+        self.assertIn(
+            "gitgate: switched to new branch 'issue-317' (checkout performed)\n",
+            stderr_output,
+        )
 
     def test_main_invokes_git_with_shell_false_list(self):
         calls = {}

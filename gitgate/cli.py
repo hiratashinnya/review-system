@@ -13,8 +13,21 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 from branch_source import BranchSourceError, create_branch, parse_new_branch_args
+
+from .adopt import adopt_branch, parse_adopt_branch_args
+from .worktree import (
+    WorktreeError,
+    collect_worktree,
+    default_repo_root,
+    parse_collect_worktree_args,
+    parse_worktree_forget_args,
+    parse_worktree_release_args,
+    worktree_forget,
+    worktree_release,
+)
 
 
 class GitgateError(Exception):
@@ -228,10 +241,89 @@ def build_git_argv(argv):
     return handler(argv[1:])
 
 
+# --- policy 実行を伴う verb（純 argv 経路には載せない） --------------------------
+# `new-branch` / `adopt-branch` / `worktree-*` は「git argv を1つ組み立てて実行する」形に
+# 収まらない（fresh fetch + API 検証、台帳の状態遷移、回収→検証→解放の段構造を伴う）。
+# よって `VERB_HANDLERS`（＝`build_git_argv` の純 argv ディスパッチ）には登録せず、
+# `main()` 側で分岐する。`build_git_argv` にこれらを渡すと `unknown verb` になるのが正しい。
+WORKTREE_VERBS = ("worktree-release", "collect-worktree", "worktree-forget")
+
+
+def _now():
+    """wall clock を読むのは CLI 境界だけ（`.claude/rules/04-test-data.md`）。
+
+    `gitgate/worktree.py` は `now` を引数で受け取るだけで `datetime.now()` を呼ばない。
+    """
+    return datetime.now(timezone.utc)
+
+
+def _run_worktree_verb(verb, args):
+    """`worktree-*` verb を実行し、実施内容を stderr に1行残して 0 を返す。"""
+    repo_root = default_repo_root()
+    if verb == "worktree-release":
+        request = parse_worktree_release_args(args)
+        outcome = worktree_release(
+            repo_root,
+            request.worktree_path,
+            entry_id=request.entry_id,
+            force_uncollected=request.force_uncollected,
+            reason=request.reason,
+            now=_now(),
+        )
+        sys.stderr.write(
+            f"gitgate: worktree-release {outcome.worktree_path} "
+            f"entry={outcome.entry_id or '-'} removed={'yes' if outcome.removed else 'no'} "
+            f"status={outcome.status}\n"
+        )
+        return 0
+    if verb == "collect-worktree":
+        request = parse_collect_worktree_args(args)
+        outcome = collect_worktree(
+            repo_root,
+            entry_id=request.entry_id,
+            worktree_path=request.worktree_path,
+            handoff_path=request.handoff_path,
+            into=request.into,
+            allow_missing_handoff=request.allow_missing_handoff,
+            reason=request.reason,
+            now=_now(),
+        )
+        sys.stderr.write(
+            f"gitgate: collect-worktree {outcome.worktree_path} "
+            f"entry={outcome.entry_id or '-'} collected_to={outcome.collected_to or '-'} "
+            f"released={'yes' if outcome.released else 'no'}\n"
+        )
+        return 0
+    request = parse_worktree_forget_args(args)
+    entry = worktree_forget(
+        repo_root, request.entry_id, reason=request.reason, now=_now()
+    )
+    sys.stderr.write(
+        f"gitgate: worktree-forget {request.entry_id} status={entry.get('status')} "
+        "(worktree は削除していない)\n"
+    )
+    return 0
+
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
     try:
+        if argv and argv[0] == "adopt-branch":
+            request = parse_adopt_branch_args(argv[1:])
+            result = adopt_branch(request)
+            sys.stderr.write(
+                "gitgate: adopt-branch "
+                f"{result.repository}@{result.expected_oid} "
+                f"pr={result.pr if result.pr is not None else '-'} "
+                f"policy={result.policy_version}\n"
+            )
+            sys.stderr.write(
+                f"gitgate: adopted existing branch '{request.branch_name}' (checkout performed)\n"
+            )
+            return 0
+        if argv and argv[0] in WORKTREE_VERBS:
+            return _run_worktree_verb(argv[0], argv[1:])
         if argv and argv[0] == "new-branch":
             request = parse_new_branch_args(argv[1:])
             result = create_branch(request)
@@ -240,9 +332,15 @@ def main(argv=None):
                 f"{result.source_kind} {result.repository}@{result.source_oid} "
                 f"policy={result.policy_version}\n"
             )
+            sys.stderr.write(
+                f"gitgate: switched to new branch '{request.branch_name}' (checkout performed)\n"
+            )
             return 0
         git_argv = build_git_argv(argv)
     except BranchSourceError as exc:
+        sys.stderr.write(f"gitgate: {exc}\n")
+        return 2
+    except WorktreeError as exc:
         sys.stderr.write(f"gitgate: {exc}\n")
         return 2
     except GitgateError as exc:

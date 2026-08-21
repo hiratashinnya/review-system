@@ -660,6 +660,25 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m gitgate {verb}")))
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
 
+    def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
+        # Issue #354 PR-2（Claude 版と同一契約）: worktree ライフサイクル verb は gitgate に
+        # 実装済みだが、GITGATE_VERBS_BY_ROLE には未登録＝どの gated ロールからも deny。
+        # 付与は PR-3/PR-4 で、両ツリー同時に行う。
+        pr2_verbs = [
+            "adopt-branch feature --repository o/r --expected-oid " + "a" * 40,
+            "worktree-release .claude/worktrees/agent-x",
+            "worktree-release .claude/worktrees/agent-x --entry wl-0123456789ab",
+            "collect-worktree --entry wl-0123456789ab",
+            "collect-worktree .claude/worktrees/agent-x --handoff tmp/_handoff/a--issue-1.yaml",
+            "worktree-forget --entry wl-0123456789ab --reason gone",
+        ]
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for args in pr2_verbs:
+                with self.subTest(role=role, verb=args.split()[0]):
+                    self.assert_denied(
+                        run_gate(payload(role, f"python3 -m gitgate {args}"))
+                    )
+
     def test_role_gh_subcommand_allowlist_is_exhaustive(self):
         for cmd in ["gh pr create --title \"x\" --body-file f", "gh issue view 227"]:
             with self.subTest(role="issue-implementer", cmd=cmd):

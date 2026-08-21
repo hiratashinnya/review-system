@@ -732,6 +732,28 @@ class AgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m gitgate {verb}")))
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
 
+    def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
+        # Issue #354 PR-2: `gitgate` 側に adopt-branch / worktree-release / collect-worktree /
+        # worktree-forget を**実装したが、権限は付与していない**（付与は PR-3/PR-4）。
+        # GITGATE_VERBS_BY_ROLE は allowlist なので未登録 verb は既定 deny——この
+        # 「実装が先行しても権限は増えない」性質をテストで固定する。ここが allow に転じたら
+        # それは PR-3/PR-4 の意図的な付与か、allowlist の取り違えかのどちらかであり、
+        # どちらにせよレビューで気付ける状態にしておく。
+        pr2_verbs = [
+            "adopt-branch feature --repository o/r --expected-oid " + "a" * 40,
+            "worktree-release .claude/worktrees/agent-x",
+            "worktree-release .claude/worktrees/agent-x --entry wl-0123456789ab",
+            "collect-worktree --entry wl-0123456789ab",
+            "collect-worktree .claude/worktrees/agent-x --handoff tmp/_handoff/a--issue-1.yaml",
+            "worktree-forget --entry wl-0123456789ab --reason gone",
+        ]
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for args in pr2_verbs:
+                with self.subTest(role=role, verb=args.split()[0]):
+                    self.assert_denied(
+                        run_gate(payload(role, f"python3 -m gitgate {args}"))
+                    )
+
     def test_role_gh_subcommand_allowlist_is_exhaustive(self):
         # 各ロールの gh 許可 (sub, subsub) を網羅 allow・クロスロール／集合外を deny。
         for cmd in ["gh pr create --title \"x\" --body-file f", "gh issue view 227"]:

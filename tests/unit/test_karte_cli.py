@@ -103,6 +103,19 @@ class KarteTestCase(unittest.TestCase):
             note=note,
         )
 
+    def _close_default_attempt(self, diff_text, outcome="partial", note="", tag="default"):
+        """``--attempt`` を**省略**して ``close-attempt`` を呼ぶ（Issue #378 の既定値解決）。"""
+        diff_path = self._write_report(f"diff-{tag}.patch", diff_text)
+        return self._run(
+            cli.cmd_close_attempt,
+            attempt=None,
+            outcome=outcome,
+            finding_ids=None,
+            base="HEAD",
+            diff_file=diff_path,
+            note=note,
+        )
+
     def _karte(self):
         path = paths.karte_path(self.issue, self.root)
         return model.parse(path.read_text(encoding="utf-8"))
@@ -382,6 +395,165 @@ class TestCloseAttempt(KarteTestCase):
         self.assertIn("attempt", err)
 
 
+class TestCloseAttemptEmptyDiff(KarteTestCase):
+    """Issue #355: 空 diff は ``--outcome no-change`` を除き fail-close する。
+
+    是正前は既定 ``--base HEAD`` のまま commit・push 後に ``close-attempt`` を実行すると
+    diff が空になり、``touched: []`` が append-only の台帳へ無言で固定されていた
+    （PR #353 是正ラウンド1 で実際に発生）。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="cause-one", targets=["pkg/forms.py::build_attrs"])
+
+    def test_empty_diff_is_rejected_for_fixed_outcome(self):
+        code, _out, err = self._close(1, "", outcome="fixed")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("no-change", err)
+        self.assertIn("空", err)
+        # 拒否時は何も追記されない（fail-close）。
+        self.assertEqual(self._karte().results_for(1), [])
+
+    def test_empty_diff_is_rejected_for_partial_and_regressed_outcomes(self):
+        for outcome in ("partial", "regressed"):
+            with self.subTest(outcome=outcome):
+                code, _out, err = self._close(1, "", outcome=outcome, note="")
+                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertIn("no-change", err)
+                self.assertEqual(self._karte().results_for(1), [])
+
+    def test_empty_diff_is_allowed_for_no_change_outcome(self):
+        code, out, err = self._close(1, "", outcome="no-change", note="解釈違いで実装は元々正しかった")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("no-change", out)
+        karte = self._karte()
+        self.assertEqual(karte.results_for(1)[0].outcome, "no-change")
+        self.assertEqual(karte.touched_of(1), [])
+
+    def test_non_empty_diff_still_records_normally(self):
+        """回帰防止：空 diff の拒否を足しても、通常の非空 diff は従来どおり通る。"""
+        diff = "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
+        code, _out, err = self._close(1, diff, outcome="fixed")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(self._karte().touched_of(1), ["pkg/forms.py", "pkg/forms.py::build_attrs"])
+
+
+class TestCloseAttemptDefaultAttemptResolution(KarteTestCase):
+    """Issue #378: ``--attempt`` 省略時は未クローズ Attempt が1つのときだけ安全に解決する。
+
+    以前は「直近で append された Attempt」（``next_attempt_number() - 1``）へ無条件に
+    解決していたため、複数 Attempt を先に append してからまとめて close する運用で
+    誤った Attempt へ記録される事故が2ラウンド連続で発生した（PR #364 是正ラウンド2・3）。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+
+    def _diff_for(self, name):
+        return f"--- a/pkg/{name}.py\n+++ b/pkg/{name}.py\n@@ -1 +1 @@ def f(self):\n-x\n+y\n"
+
+    def test_single_unclosed_attempt_is_used_even_when_not_the_latest(self):
+        """未クローズが1つなら、それが最新でなくても曖昧でないので使う（後方互換の核）。"""
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        code, _out, err = self._close(2, self._diff_for("m2"))  # Attempt 2 を先にクローズ
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        code, out, err = self._close_default_attempt(self._diff_for("m1"), outcome="fixed")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("Attempt 1", out)
+        self.assertEqual(self._karte().results_for(1)[0].outcome, "fixed")
+
+    def test_multiple_unclosed_attempts_require_explicit_attempt(self):
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        code, _out, err = self._close_default_attempt(self._diff_for("m1"))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("Attempt 1", err)
+        self.assertIn("Attempt 2", err)
+        self.assertIn("--attempt", err)
+        self.assertEqual(self._karte().results, [])  # 何も追記されない
+
+    def test_zero_unclosed_attempts_gives_a_dedicated_message(self):
+        """全てクローズ済みなら「既に Result がある」より前に、専用のメッセージで拒否する。"""
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._close(1, self._diff_for("m1"))
+        code, _out, err = self._close_default_attempt(self._diff_for("m1"))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("クローズ済み", err)
+        self.assertIn("--attempt", err)
+
+    def test_zero_total_attempts_gives_a_distinct_message_from_all_closed(self):
+        """F-378-01: Attempt が1件も無い場合は「全 Attempt が既にクローズ済み」と誤記しない。
+
+        是正前は unclosed が空になる分岐（Attempt 0件 と 全件クローズ済み の両方を含む）で
+        メッセージが後者だけを述べていた。setUp は ``_ingest`` のみで ``append`` を一度も
+        呼んでいないため、ここは「Attempt が1件も無い」ケースそのもの。
+        """
+        self.assertEqual(self._karte().attempts, [])  # 前提: Attempt 0件
+        code, _out, err = self._close_default_attempt(self._diff_for("m1"))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("--attempt", err)
+        self.assertIn("1件も無い", err)
+        # 「全 Attempt が既にクローズ済み」（事実と異なる）とは述べない。
+        self.assertNotIn("クローズ済み", err)
+
+    def test_explicit_attempt_still_overrides_default_resolution(self):
+        """明示指定は常に優先される（既定解決ロジックをバイパスする）。"""
+        self._append(root_cause="rc-1", targets=["pkg/m1.py::f1"])
+        self._append(root_cause="rc-2", targets=["pkg/m2.py::f2"])
+        code, _out, err = self._close(1, self._diff_for("m1"))  # 複数未クローズでも明示なら通る
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(self._karte().results_for(1)[0].attempt, 1)
+
+
+class TestCloseAttemptHelpTextCoversAllThreeBranches(unittest.TestCase):
+    """F-378-02: ``--attempt`` の ``--help`` が3分岐すべてを説明していること。
+
+    是正前は「未クローズが1件ならそれを使う／2件以上なら拒否」の2分岐しか説明しておらず、
+    「未クローズ0件（Attempt が1件も無い、または全件クローズ済み）でも fail-close する」
+    という3つ目の分岐が欠けていた。``karte/README.md`` は既に3分岐を記載しているため、
+    その非対称を固定する回帰テスト。
+    """
+
+    def test_help_text_mentions_the_zero_unclosed_branch(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            with self.assertRaises(SystemExit):
+                cli.build_parser().parse_args(["close-attempt", "--help"])
+        help_text = buffer.getvalue()
+        self.assertIn("2つ以上", help_text)  # 既存2分岐（複数未クローズ）を維持
+        self.assertIn("0", help_text)        # 追加した3つ目の分岐（未クローズ0件）
+        self.assertIn("拒否", help_text)
+
+
+class TestCloseAttemptTargetTouchedMismatchWarning(KarteTestCase):
+    """Issue #378 C: 宣言 targets と実測 touched の不一致は警告のみ（保険的検知・非ブロック）。"""
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+        self._append(root_cause="cause-one", targets=["pkg/forms.py::build_attrs"])
+
+    def test_disjoint_targets_and_touched_emits_a_warning_but_still_succeeds(self):
+        diff = "--- a/pkg/other.py\n+++ b/pkg/other.py\n@@ -1 +1 @@ def g(self):\n-x\n+y\n"
+        code, out, err = self._close(1, diff, outcome="fixed")
+        self.assertEqual(code, cli.EXIT_OK, err)  # 拒否しない（保険的検知）
+        self.assertIn("重ならない", out)
+        self.assertIn("pkg/forms.py::build_attrs", out)
+        self.assertIn("pkg/other.py", out)
+        self.assertEqual(self._karte().touched_of(1), ["pkg/other.py", "pkg/other.py::g"])
+
+    def test_overlapping_targets_and_touched_emits_no_warning(self):
+        diff = "--- a/pkg/forms.py\n+++ b/pkg/forms.py\n@@ -1 +1 @@ def build_attrs(self):\n-x\n+y\n"
+        code, out, err = self._close(1, diff, outcome="fixed")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertNotIn("重ならない", out)
+
+
 # --- check / status ----------------------------------------------------------
 
 
@@ -645,7 +817,9 @@ class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[2]
     # 構造化 finding のキーを列挙している全ファイル（正本＋配線＋ミラー）。
     DECLARING_FILES = [
-        "CLAUDE.md",
+        # 正本。CLAUDE.md 本体から `.claude/rules/` へ分割された際にキー列挙も移動した
+        # （Issue #387 / F-387-01）。検査対象を減らして緑にするのではなく、実体の宣言箇所を追う。
+        ".claude/rules/05-skills-agents.md",
         ".claude/skills/issue-pipeline/SKILL.md",
         ".agents/skills/issue-pipeline/SKILL.md",
     ]

@@ -25,6 +25,8 @@ from blocker_gate.snapshot import (
     project_issue_snapshot,
 )
 
+from . import worktree_ledger
+
 
 ISSUE_START_POLICY_VERSION = "issue-start/1.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
@@ -689,3 +691,157 @@ def evaluate_issue_start(
 
 def fail_closed(request: IssueStartRequest | None, exc: IssueStartError) -> dict[str, Any]:
     return _error_evidence(request, exc.reason, exc.detail)
+
+
+def _ledger_metadata(payload: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    """台帳起票に載せる付随情報（``agent_type`` / ``branch_name``）を best-effort で読む。
+
+    ここは**判定に使わない**（起票の材料にするだけ）。`parse_dispatch_payload` が既に
+    受理した payload を読み直しているので厳格な検証はせず、読めなければ ``None`` を返す。
+    ``branch_name`` は Claude の marker にしか無い（Codex 経路は ``None``）。
+    """
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, Mapping):
+        return None, None
+    agent_type = None
+    for field in ("agent_type", "subagent_type"):
+        value = tool_input.get(field)
+        if isinstance(value, str) and value:
+            agent_type = value
+            break
+    branch_name = None
+    prompt = tool_input.get("prompt")
+    if isinstance(prompt, str):
+        lines = [line for line in prompt.splitlines() if line.startswith(BINDING_MARKER)]
+        if len(lines) == 1:
+            try:
+                raw = json.loads(lines[0][len(BINDING_MARKER):])
+            except json.JSONDecodeError:
+                raw = None
+            if isinstance(raw, dict) and isinstance(raw.get("branch_name"), str):
+                branch_name = raw["branch_name"]
+    return agent_type, branch_name
+
+
+def _residue_root(repo_root: Path | None) -> Path:
+    """台帳の置き場（main worktree root）を決める。``LedgerError`` はそのまま送出する。"""
+    return worktree_ledger.main_worktree_root(
+        Path.cwd() if repo_root is None else Path(repo_root)
+    )
+
+
+def _residue_items(entries: Sequence[Mapping[str, Any]]) -> str:
+    return "; ".join(
+        f"{entry.get('entry_id')}[{entry.get('status')}]"
+        f"@{entry.get('worktree_path') or '<unbound>'}"
+        for entry in entries
+    )
+
+
+def assert_no_worktree_residue(
+    *,
+    repo_root: Path | None = None,
+    now: datetime,
+) -> dict[str, Any]:
+    """残留 worktree がある状態での次 dispatch を deny する（Issue #354・PR-3・候補C）。
+
+    **`issue-implementer` に限らず全 `Task` dispatch へ掛ける。** #354 が実測した事象は
+    「残留 worktree があるのに `pr-reviewer` を dispatch し、レビューアが古い作業ツリーを
+    掴んだ」というものであり、managed dispatch だけを見張っていては正面から塞げない。
+    過剰 deny の緩和は **deny 文言に必ず解消コマンドを載せる**ことと
+    ``worktree-forget --reason`` の逃げ道で行う（deny を弱めることでは行わない）。
+
+    判定の前に :func:`worktree_ledger.sweep_orphans` を1回走らせる。掃引は「占有を主張して
+    いるのに worktree が実在しない」エントリだけを ``stale`` へ落とす状態→状態の照合で、
+    落とす候補が無ければ台帳へ書き込まない（正常系では no-op）。
+
+    ==============================================  ===================================
+    reason                                          条件
+    ==============================================  ===================================
+    ``ISSUE_START_WORKTREE_RESIDUE``                ``stale`` / ``stopped`` / ``collected``
+                                                    のエントリが1件以上ある
+    ``ISSUE_START_WORKTREE_UNCLAIMED``              ディスク上の ``agent-*`` が
+                                                    ``running`` / ``stopped`` のどれにも
+                                                    紐づかない
+    ``ISSUE_START_WORKTREE_LEDGER_ERROR``           台帳が読めない／壊れている（fail-close）
+    ==============================================  ===================================
+
+    ``open`` / ``running`` / ``stopped`` の worktree は live もしくは回収処理中なので
+    ``unclaimed`` としては扱わない。``stopped`` だけは **residue としても検出する**
+    ——``SubagentStop`` が停止を記録したのに ``collected`` まで進んでいない＝回収段が
+    失敗したか実行されていない、という意味だから（:func:`worktree_ledger.residue_report`
+    の docstring に二重の性質の説明がある）。
+
+    残留が無ければ組み立てた report を返す（呼び出し側が evidence に載せる）。
+    """
+    try:
+        root = _residue_root(repo_root)
+        swept = worktree_ledger.sweep_orphans(root, now=now)
+        report = worktree_ledger.residue_report(root)
+    except worktree_ledger.LedgerError as exc:
+        raise IssueStartError(
+            "ISSUE_START_WORKTREE_LEDGER_ERROR",
+            f"{exc.reason}{': ' + exc.detail if exc.detail else ''}"
+            "（台帳を一意に読めない間は dispatch を通さない＝fail-close）",
+        ) from exc
+    except Exception as exc:
+        raise IssueStartError(
+            "ISSUE_START_WORKTREE_LEDGER_ERROR", type(exc).__name__
+        ) from exc
+
+    if report["stale"]:
+        raise IssueStartError(
+            "ISSUE_START_WORKTREE_RESIDUE",
+            f"未回収の worktree が残っている: {_residue_items(report['stale'])}"
+            "。解消: python3 -m gitgate collect-worktree --entry <entry-id>"
+            "（回収不能なら python3 -m gitgate worktree-forget --entry <entry-id>"
+            " --reason <text>）",
+        )
+    if report["unclaimed"]:
+        raise IssueStartError(
+            "ISSUE_START_WORKTREE_UNCLAIMED",
+            f"台帳のどのエントリにも紐づかない worktree がある: {', '.join(report['unclaimed'])}"
+            "。解消: python3 -m gitgate worktree-release <path> --force-uncollected"
+            " --reason <text>",
+        )
+    return {"swept": swept, **report}
+
+
+def record_open_entry(
+    payload: Mapping[str, Any],
+    request: IssueStartRequest,
+    *,
+    now: datetime,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """ALLOW した dispatch を worktree 所有台帳へ ``open`` 起票する（Issue #309・PR-1）。
+
+    **この関数は dispatch を deny しない。** 台帳の書込に失敗しても例外を投げず、
+    ``{"entry_id": None, "error": "<reason>"}`` を返して呼び出し側は ALLOW のまま進む
+    （本 PR は fail-open）。deny へ倒すのは PR-3（統制の発効）——「統制を先に、付与は別 PR」
+    と同じ理由で、**観測が正確になったことを実測してから** deny を有効にする。
+
+    ``round`` / ``handoff_path`` は現行の ``ISSUE_START_BINDING_V1`` marker schema に無いので
+    ``None`` のまま起票する（marker 拡張は PR-4）。
+    """
+    try:
+        root = worktree_ledger.main_worktree_root(
+            Path.cwd() if repo_root is None else Path(repo_root)
+        )
+        agent_type, branch_name = _ledger_metadata(payload)
+        if agent_type is None:
+            return {"entry_id": None, "error": "LEDGER_AGENT_TYPE_UNREADABLE"}
+        entry_id = worktree_ledger.open_entry(
+            root,
+            issue=request.issue,
+            agent_type=agent_type,
+            round=None,
+            branch_name=branch_name,
+            handoff_path=None,
+            now=now,
+        )
+        return {"entry_id": entry_id, "error": None}
+    except worktree_ledger.LedgerError as exc:
+        return {"entry_id": None, "error": exc.reason, "detail": exc.detail}
+    except Exception as exc:  # 台帳の事故で dispatch を止めない（本 PR は fail-open）
+        return {"entry_id": None, "error": type(exc).__name__}

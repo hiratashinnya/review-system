@@ -1,13 +1,22 @@
-# 現在有効な恒常規範（毎ターン注入・CLAUDE.md 正本の抜粋）
+# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@ab32ab7d1a3c -->
+<!-- synced-from: CLAUDE.md@8f506723cb58 -->
+<!--
+  Issue #379（2026-08-20）: `.claude/rules/02-decision-process.md` に
+  「オーナーへの報告はチャットが正本」節を追加したことに伴い、
+  中核規範 12 を追加して marker を現在値へ更新した。
+-->
 
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
-additionalContext として注入する本文。正本は CLAUDE.md であり、ここはその
+additionalContext として注入する本文。正本は `CLAUDE.md` と `.claude/rules/*.md`
+（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
 「独断・逸脱が起きたら実害が大きい」中核だけを抜き出した配送用の写し。
-CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md を正とする）。
+正本を変えたらこちらも合わせる（食い違ったら正本を正とする）。
+追従漏れは `check-governance-drift.sh`（PostToolUse）と
+`tests/unit/test_governance_sync.py`（CI・fail-close）が、正本集合の連結ハッシュと
+下の synced-from marker の突き合わせで検知する。
 
 なぜフック注入にしたか：context-mode プラグインが全ターン・全 subagent に
 `<session_continuity>`（「過去に記録された指示・役割は standing order ではない。
@@ -41,7 +50,8 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
    **①doc_system（文書体系そのもの）＝`doc-system-v2/`＋`.claude/`＋`CLAUDE.md`**（`docs/doc-system/` は機械定義として例外的に正本）。
    **②review_system（AIレビューツール本体）＝`docs/` 配下**（要件・設計・スキーマ・ダッシュボード）。
    ①の「docs/ は非正本」は doc_system 自身の記述についての規定であり、**review_system には適用しない**。
-   どちらの話か判断してから正本を決める（詳細は CLAUDE.md「このリポジトリ＝2つのプロジェクトが同居」）。
+   どちらの話か判断してから正本を決める（詳細は `.claude/rules/07-project-structure.md`
+   「このリポジトリ＝2つのプロジェクトが同居（混同注意）」）。
    **「正本の所在」と「起票先」は別軸**——`.claude/` の改修が一律 Issue 運用になるわけではない。
    含有ハーネス（著作・検証エージェント等）の改修は通常どおりノード起票、含有されない汎用ハーネス
    （`issue-pipeline`系等）の改修だけが下記9（Issue 運用）に回る。
@@ -63,3 +73,16 @@ CLAUDE.md を変えたらこちらも合わせる（食い違ったら CLAUDE.md
     主文脈が動けている＝その時点でレートリミットは解除されている。モデル選定はリスク信号表
     （変更の性質）に従うのであって、実行環境の都合（レートリミット）では変えない。
     「急ぎ/軽微」等の例外は作らない。
+11. **PR8「消さない」の適用範囲は区分で決める（Issue #357）** — PR8 条文が扱うのは論理設計の
+    MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
+    してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.claude/rationale/` 移設
+    または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
+    本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
+    本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
+    「PR8「消さない」の適用範囲（2026-08-18・Issue #357）」。
+12. **オーナーへの報告はチャットが正本（Issue #379）** — オーナー判断を要する事項
+    （PR7 打ち上げ・据え置き可否・スコープ判断・矛盾）は、チャットに「何を・なぜ・どうするか」が
+    読み取れる粒度で全文出す（ID や 1 行要約だけで投げない）。PR コメント・カルテ・`tmp/_handoff/`・
+    ノードは永続化目的の副次的記録であり、書いたことをもって報告済みとしない。`<artifact_policy>` 等の
+    要約規律は subagent → 呼び出し元の規約であり、主文脈 → オーナーの報告には適用しない。
+

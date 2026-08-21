@@ -24,16 +24,43 @@ name: blocker-snapshot
 #
 # 課金（CLAUDE.md「CI/外部サービス連携のコスト方針」）: 本 repository は public で
 # あり GitHub Actions は無課金・無制限（無料枠の上限自体が存在しない）。
-# cron 5分でも課金は発生しない。
+# cron 5分でも課金は発生しない。外部 cron（cron-job.org）も無料枠（分単位の
+# スケジュールを含め無料と公式トップページに明記）で完結し、GitHub API 消費は
+# 5分間隔＝288 requests/日で fine-grained PAT の 5,000/時 に対し十分収まる
+# （詳細＝docs/methods/blocker-snapshot-external-cron-ops.md）。
+#
+# 主たる起動元（Issue #363・オーナー確定・2026-08-12）: このワークフローの
+# `on:` に残る `schedule: "*/5 * * * *"` は「5分ごとに動く」ことを保証しない。
+# 実測（#363 本文）では GitHub の schedule 配信は 74〜104 分間隔でしか発火せず、
+# */5 という cron 式を見て 5 分ごとと読むのは誤解——その誤解こそが #363 の発端。
+# 現在の主たる起動元は「外部 cron サービス（cron-job.org）が5分間隔で
+# `workflow_dispatch` REST API（`POST /repos/{owner}/{repo}/actions/workflows/
+# blocker-snapshot.yml/dispatches`、body `{"ref":"main"}`）を叩く」構成であり、
+# 下の `schedule:` はその外部 cron が止まったときの保険にすぎない。
+# 運用手順（cron-job.org のジョブ設定・PAT作成・疎通確認）は
+# docs/methods/blocker-snapshot-external-cron-ops.md を正本とする。
 #
 # 既知の劣化条件（いずれも fail-open せず fail-close 側へ倒れる）:
-#   - schedule は高負荷時に遅延・欠落しうる → snapshot が古くなり gate が
-#     staleness 上限（10分）超過で拒否する。
+#   - 外部 cron（cron-job.org）が停止・PAT が失効（401）する → schedule の
+#     保険頻度（実測 74〜104 分）でしか更新されなくなる、または全く更新
+#     されなくなる → snapshot が古くなり gate が staleness 上限（10分）
+#     超過で拒否する（安全側）。
+#   - schedule は（外部 cron が止まった場合の保険としても）高負荷時に
+#     遅延・欠落しうる → 同上。
 #   - public repository の scheduled workflow は 60 日間の無活動で自動停止する
-#     → 同上（古い snapshot は使われない）。
+#     → 同上（古い snapshot は使われない）。ただし workflow_dispatch による
+#     起動はこの60日ルールの対象外（GitHub仕様）であり、外部 cron が動いて
+#     いる限りこの劣化条件は実質的に発生しない。
 #   - 生成が部分失敗した場合も publish する。`pages_complete: false` / `errors` を
 #     載せて読取側へ渡すことで、遮断された環境にも診断材料が届く。ALLOW には
 #     ならない（読取側が fail-close する）。
+#   - 下の concurrency.cancel-in-progress: true により、runner のキュー待ちが
+#     外部 cron の実効間隔（5分）を超えると、実行中の run が次の dispatch に
+#     cancel され続け publish されない経路が理屈上ある（実測ではまだ観測され
+#     ていない・Issue #363）。fail-close 側だが #363 の目的（10分以内の鮮度
+#     維持）自体が静かに未達になりうるため、疎通確認では conclusion=cancelled
+#     を success と区別すること（docs/methods/blocker-snapshot-external-cron-ops.md
+#     §4.1）。cancel-in-progress の是非はオーナー判断であり本 PR では変更しない。
 #
 # 可視化（Issue #345 F-345-03）: 上記のとおり「部分 snapshot でも publish する」
 # 設計は維持するが、**publish した後に job を失敗させる**。generator は劣化時に
@@ -42,8 +69,16 @@ name: blocker-snapshot
 # こうしないと、恒久故障（例: GITHUB_TOKEN が GraphQL の blockedBy/subIssues/parent
 # を読めない）が起きても workflow が緑のままで、機能が死んでいることに気づけない。
 on:
+  # 保険のみ（主たる起動元ではない）。GitHub の schedule delivery は
+  # 高負荷時に遅延・破棄されうると公式ドキュメントが明記しており、実測でも
+  # 74〜104分間隔でしか発火しなかった（#363）。この `*/5` は「最短間隔の
+  # 指定」であって「5分ごとに実行される」保証ではない。
   schedule:
     - cron: "*/5 * * * *"
+  # 主たる起動元。外部 cron（cron-job.org）がこの workflow_dispatch を
+  # 5分間隔で叩く（body `{"ref":"main"}`）。gate（policy §3.3）が読む
+  # snapshot の鮮度はこの外部 cron の稼働に依存する。設定手順は
+  # docs/methods/blocker-snapshot-external-cron-ops.md を見る。
   workflow_dispatch:
 
 permissions:

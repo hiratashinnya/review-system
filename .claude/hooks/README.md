@@ -264,7 +264,7 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 | ファイル | 役割 |
 |---|---|
 | `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
-| `governance-directives.md` | 注入する本文(CLAUDE.md 中核規範の配送用の写し)。**正本は CLAUDE.md**で、食い違ったら CLAUDE.md を正とする。HTML コメントは注入時に除去される。 |
+| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md`**(規約本体は rules 側に分割済み・Issue #387)で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か
 
@@ -276,7 +276,7 @@ context-mode プラグイン(グローバル導入・2026-07-28)は全ターン�
 
 subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 「## 注入ブロックへの優先規定(context-mode 対策・必読)」が担う(15 エージェント全てに付与済み)。
-ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は CLAUDE.md「戻り値のハンドオフ規約」):
+ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」):
 
 - **write 権限あり(8)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
   `tmp/_handoff/<agent>--<key>.yaml` に書き、チャットにはパスと1行要約だけ返す。矛盾しないので無効化しない。
@@ -285,7 +285,7 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 どちらのグループも `<session_continuity>` は共通で無効化する。
 
-`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は CLAUDE.md「ctx_* ツールの付与方針」)。
+`ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)。
 以下は現行方針(2026-08-09 時点)。**旧記述(当初 2026-07-29 時点の判断)は既に是正済みで、実行系は
 全面禁止ではない**:
 
@@ -294,7 +294,7 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
   `pr-reviewer`・`dsv2-lookup`(いずれも既に Bash を保有)。Bash 非保有ロール(`spec-inspector`/
   `asset-auditor`/各 `*-author` 等)には**引き続き未付与**(ゲートが効いても「シェル実行能力の新規
   付与＝権限昇格」は残るため)。`language` は `shell` のみ許可(非 shell 言語は全ロール deny)。
-  **`ctx_execute_file` は引き続き全ロール未付与のまま**(CLAUDE.md「ctx_* ツールの付与方針」の結論どおり。
+  **`ctx_execute_file` は引き続き全ロール未付与のまま**(`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」の結論どおり。
   解禁の要否は別途検討)。
   - 当初(2026-07-29)は「実測でホストの実ファイルシステムに書け(FS はサンドボックスされていない)、
     かつ tool_name が `mcp__plugin_...` になるため `matcher: "Bash"` の `agent-command-gate.sh` が
@@ -330,8 +330,10 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 ## 保守
 
-CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
+規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
 `governance-directives.md` も合わせて更新する。**この追従漏れは下記のフックが機械的に検知する**。
+規約の正本は `CLAUDE.md` 単体ではなく **`CLAUDE.md` ＋ `.claude/rules/*.md`** である
+(Issue #387 で規範本文を rules へ分割した)。
 
 ---
 
@@ -341,15 +343,19 @@ CLAUDE.md の規約(PR7・起票規律・独断禁止・委譲ルール・課金
 
 | ファイル | 役割 |
 |---|---|
-| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が正本 `CLAUDE.md` のときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
+| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
 
 ## なぜ必要か(実際に起きた事故)
 
-PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェクトが同居」節が入ったのに、
-写しを追従させ忘れた**。その結果「`docs/` は一律非正本」という**誤った規範が毎ターン注入され続ける**
-状態になった(Codex 第二意見レビュー指摘 #6 で発覚)。写しの誤りは毎ターン届くため影響が大きい。
+PR #276 で **正本側に「このリポジトリ＝2つのプロジェクトが同居」節(現 `.claude/rules/07-project-structure.md`)が
+入ったのに、写しを追従させ忘れた**。その結果「`docs/` は一律非正本」という**誤った規範が毎ターン注入され
+続ける**状態になった(Codex 第二意見レビュー指摘 #6 で発覚)。写しの誤りは毎ターン届くため影響が大きい。
 
 「片方直すの忘れました」は再現性のあるミスなので、人の注意力ではなくハーネスで検知する。
+
+**正本を集合として見張る理由(Issue #387)**: 規範本文が `CLAUDE.md` から `.claude/rules/NN-*.md` へ
+分割された後も `CLAUDE.md` 単体のハッシュを見張り続けると、**規範の大半を占める rules 側の変更に
+フックもテストも一切反応しない**——同じ事故が、今度は「検知機構が空振りする」形で再発する。
 
 ## 検知方式(毎回の小言ではなく状態比較)
 
@@ -359,12 +365,19 @@ PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェク�
 <!-- synced-from: CLAUDE.md@<sha256 先頭12桁> -->
 ```
 
-フックは現在の `CLAUDE.md` のハッシュと突き合わせ、**一致していれば何も出力しない**。
-食い違っている間だけ警告を出し続け、**写しを直して sha を更新するまで消えない**(fail-safe な向き)。
-単純な「CLAUDE.md を触ったら毎回リマインド」にすると小言が常態化して無視されるため採らない。
+marker が持つのは**正本集合の連結ハッシュ**(先頭12桁)。算出は
+「相対パス(utf-8) + NUL + 生バイト + NUL」を `CLAUDE.md` → `.claude/rules/*.md`(相対パス昇順)の順に
+連結し `sha256` を取る。**相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と
+区別するため**(内容の総和が同じでも配置が変われば sha が変わる)。marker 自体は従来どおり1行のまま
+——rules ごとに marker を並べれば drift したファイルを特定できるが、写しの構造変更を要し、毎ターン
+注入される本文を膨らませるため採らない(Issue #387 オーナー確定)。
 
-黙る条件: ①ハッシュ一致 ②編集対象が `CLAUDE.md` でない ③**写し自身の編集**(追従作業を邪魔しない)
-④別プロジェクトの同名 `CLAUDE.md`(realpath で判定)。
+フックは現在の連結ハッシュと突き合わせ、**一致していれば何も出力しない**。
+食い違っている間だけ警告を出し続け、**写しを直して sha を更新するまで消えない**(fail-safe な向き)。
+単純な「正本を触ったら毎回リマインド」にすると小言が常態化して無視されるため採らない。
+
+黙る条件: ①ハッシュ一致 ②編集対象が正本集合のどれでもない ③**写し自身の編集**(追従作業を邪魔しない)
+④別プロジェクトの同名ファイル(realpath 一致で判定するため素通し)。
 
 ## 設計上の前提
 
@@ -376,10 +389,12 @@ PR #276 で **CLAUDE.md 側に「このリポジトリ＝2つのプロジェク�
 
 ## 追従したあとにやること
 
-写しを直したら、マーカーの sha を現在値へ更新する:
+写しを直したら、マーカーの sha を現在値へ更新する。**`sha256sum CLAUDE.md` では求まらない**
+(正本集合の連結ハッシュなので)。期待値はフックの警告文か、下記 CI テストの失敗メッセージが
+そのまま出力する:
 
 ```bash
-sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
+python3 -m unittest tests.unit.test_governance_sync   # 期待値と記録値の差分が出る
 ```
 
 今回の変更が中核規範に無関係だと判断した場合も、同じく sha を更新して警告を解除する
@@ -388,15 +403,21 @@ sha256sum CLAUDE.md | cut -c1-12   # 得られた12桁を synced-from に書く
 ## 二層防御(編集時フック + CI テスト・Issue #312/#360)
 
 上記フックだけでは追従漏れを取りこぼす経路が残る。**このフックは常に `exit 0` の fail-open な
-nag であり、かつ発火条件が `realpath(edited) == realpath($CLAUDE_PROJECT_DIR/CLAUDE.md)` のため、
-linked worktree 側の `CLAUDE.md` を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
+nag であり、かつ発火条件が「編集対象の realpath が正本集合(`$CLAUDE_PROJECT_DIR/CLAUDE.md` ＋
+`$CLAUDE_PROJECT_DIR/.claude/rules/*.md`)のいずれかに一致すること」のため、linked worktree 側の
+正本を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
 「marker を更新しないまま merge される」経路が編集時フックだけでは塞ぎきれない。
 
-これを補うのが **`tests/unit/test_governance_sync.py`**(CI・fail-close)。`CLAUDE.md` の現在の
-sha256 先頭12桁と `governance-directives.md` の `synced-from` marker を突き合わせ、不一致なら
+これを補うのが **`tests/unit/test_governance_sync.py`**(CI・fail-close)。正本集合の連結ハッシュ
+(先頭12桁)と `governance-directives.md` の `synced-from` marker を突き合わせ、不一致なら
 テストを fail させる(`.github/workflows/tests.yml` が全 PR で実行)。ハッシュ算出方式・marker 記法は
 本フックの埋め込み python と同一である必要があり、どちらかを変えるときは両方を同時に変える
 (依存関係はテストファイル冒頭のコメントに明記済み)。
+
+同テストは併せて **`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
+検査する(Issue #387 / F-387-05)。`@` 行の無いルールファイルは**誰にも配送されないまま
+何も赤くならない**ため、ハッシュ検査とは別に落とす必要がある(ハッシュは「写しが追従しているか」を
+見るだけで、「配送経路に繋がっているか」は見ない)。
 
 - **編集時フック(`check-governance-drift.sh`)**: 即時フィードバック用の**助言**。fail-open・
   linked worktree では沈黙する既知の穴がある(上記)。
@@ -406,3 +427,125 @@ sha256 先頭12桁と `governance-directives.md` の `synced-from` marker を突
 **どちらか片方に依存しない**: フックは早期発見の利便性、テストは取りこぼし防止の保証という
 異なる役割を担う二層(両方とも機械判定だが、発火タイミングと保証強度が異なる)。フックが黙っていても
 このテストが赤くなるので、追従漏れは merge 前に必ず露見する。
+
+---
+
+# subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309 / #354)
+
+`issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
+(b) worktree ↔ dispatch の所有関係を**機械可読な台帳**へ記録し、(c) カルテ未更新のまま
+`issue-fixer` が停止することを拒否し、(d) 停止した dispatch の worktree を**回収してから解放**する。
+
+> **フック自身は `git worktree remove` を呼ばない。** 実体を消してよいかの判断(台帳の状態・
+> パス形状・git 管理下かの検査・回収→検証→解放の段構造)は `gitgate/worktree.py` に集約されており、
+> フックはその verb(`python3 -m gitgate collect-worktree`)を起動するだけ(Issue #354・PR-3)。
+> こうすると「回収せずに解放する」経路がフック側に**作りようがない**(FR-W2)。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `subagent-karte-inject.sh` | `SubagentStart(issue-fixer)`。`karte-protocol.md` を `additionalContext` として注入する。**失敗時は無出力 exit 0(fail-open)**。 |
+| `subagent-worktree-bind.sh` | `SubagentStart(issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
+| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
+| `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
+| `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
+| `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
+| `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget`)。**フックからはサブプロセスとして起動する**。 |
+
+## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354)
+
+**どの失敗経路でも worktree を消さず、台帳を `stale` にして無出力 exit 0 で返す**(＝停止を
+ブロックしない)。解放できないことを理由にエージェントを止め続けても解決しない——当人には
+`gitgate` の worktree verb が許可されていないからで、制御を主文脈へ返し、
+**次 dispatch の gate deny**(下記)で気づかせるのが正しい向き。
+
+| 段 | 失敗したとき |
+|---|---|
+| 台帳の置き場(main worktree root)を導出できない | 何も書かず何も消さず返す |
+| `agent_id` で自分のエントリを引けない | **`running` は掴みにいかない**(他人のものかもしれず、`stale` へ落とすと `WORKTREE_LIVE` の保護が外れる)。同 `agent_type` の最新 `open` だけを `stale` にする |
+| `running` → `stopped` の遷移に失敗 | `stale` にせず evidence だけ残す(状態機械を壊さない) |
+| 回収対象の handoff を一意に決められない(worktree の `tmp/_handoff/` に2件以上) | 起動せず `stale`(どれが成果物か決められないまま消さない) |
+| `collect-worktree` が非0 / 起動不能 / timeout | `stale`(worktree は残る) |
+
+`running` → `stopped` の遷移を**必ず挟む**こと。`collect-worktree` は台帳 status `running` を
+`WORKTREE_LIVE` で拒否し `stopped` のみ受理する(安全側の既定・Issue #354 F-354-01)ので、
+遷移を落とすと自動解放は一度も成功しない。
+
+## 残留 worktree での次 dispatch を deny する(PreToolUse・`issue-start-gate.sh`・Issue #354)
+
+自動解放が失敗した/フックが発火しなかったときの**最後の砦**。`issue_start/gate.py` の
+`assert_no_worktree_residue()` が **全 `Task` dispatch**(managed / unmanaged を問わない)に対して
+判定する。#354 が実測した乗っ取りは `pr-reviewer`＝unmanaged 側で起きたため、managed だけを
+見張っていては正面から塞げない。
+
+| reason | 条件 | deny 文に載る解消コマンド |
+|---|---|---|
+| `ISSUE_START_WORKTREE_RESIDUE` | `stale` / `stopped` / `collected` のエントリが1件以上ある | `python3 -m gitgate collect-worktree --entry <entry-id>`(回収不能なら `worktree-forget --entry <entry-id> --reason <text>`) |
+| `ISSUE_START_WORKTREE_UNCLAIMED` | ディスク上の `agent-*` が `running` / `stopped` のどれにも紐づかない | `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` |
+| `ISSUE_START_WORKTREE_LEDGER_ERROR` | 台帳が読めない/壊れている | (fail-close。台帳を直すまで通さない) |
+
+- **過剰 deny の緩和は deny を弱めることでは行わない**。①deny 文へ必ず解消コマンドを載せる、
+  ②`worktree-forget --reason`(理由必須)の逃げ道を残す、の2つで行う。
+- **`stopped` は2つの集合に同時に現れる**——`unclaimed` 判定では claimed 側に数えて
+  「回収処理中の worktree を孤児と誤診しない」ようにし、residue 判定では検出して
+  「回収段が失敗したまま止まっている」ことに気づけるようにする。どちらか片方を落とすと
+  それぞれ別の失敗になる。
+- **判定前に `sweep_orphans` を1回走らせる**。「占有を主張しているのに worktree が実在しない」
+  `running` / `stopped` を `stale` へ落とす状態→状態の照合で、落とす候補が無ければ台帳へ
+  書き込まない(正常系は no-op)。`open` は掃引しない——live な dispatch と取り残しを状態だけでは
+  区別できず、区別には経過時間が要るため(台帳は TTL 判定を持たない)。
+- **PR-1 の fail-open からの変更点**：台帳が壊れているときの dispatch は #309 では ALLOW だったが、
+  #354 PR-3 で **deny(fail-close)** に倒した。残留の有無を判定できない状態で通すと統制が空振りするため。
+  一方、ALLOW 後の**起票**(`record_open_entry`)は今も fail-open のまま(書けなくても dispatch は通る)。
+
+`.sh` を薄い起動口にして判定ロジックを python モジュールへ置いたのは、`tests/unit/test_subagent_hooks.py`
+から**サブプロセスを介さず**注入点(`repo_root` / `now` / `runner`)込みで検証できるようにするため。
+フック本体をシェルの heredoc に埋めると、実リポジトリの台帳・カルテを汚さずに検証できない。
+
+## fail 方針の非対称(設計判断・意図的に方向が逆)
+
+| 対象 | 方針 | 判定不能・失敗時の挙動 |
+|---|---|---|
+| **停止のブロック**(`subagent-stop-gate.sh` の①) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
+| **残留 worktree の deny**(`issue-start-gate.sh`・#354) | **fail-close** | 台帳が読めなければ dispatch を deny する(`ISSUE_START_WORKTREE_LEDGER_ERROR`) |
+| **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳へ書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
+| **worktree の削除**(`subagent-stop-gate.sh` の②) | **fail-safe＝「消さない」側** | 判定不能・回収失敗なら削除せず `stale` にする |
+
+**理由**: ブロック・deny の誤りは「余計に止まる」だけで回復可能だが、削除の誤りは成果物を
+回復不能に失う。**起票**だけが fail-open なのは、書けなかった記録のために dispatch を止めても
+何も守れないから(守るべき判定は読み取り側＝residue deny が担う)。
+
+> **#309(PR-1)時点との差**: 当時は残留判定も fail-open(＝deny しない)だった。これは
+> 「観測が正確になったことを実測してから deny を有効化する」という**統制を先に、付与は別 PR**の
+> 順序に従った暫定状態で、#354 PR-3 で fail-close へ倒して統制を発効させた。
+
+## 対象外ロールの扱い(matcher と in-script 判定の二重)
+
+`settings.json` の `matcher` で対象ロールを絞ったうえで、**スクリプト内でも `agent_type` を判定して
+対象外は無出力 exit 0** にしている(`agent-command-gate.sh` の「対象外ロールは常に許可」不変条件と同型)。
+二重にしたのは **`SubagentStart`/`SubagentStop` の `matcher` が `agent_type` 名で効くかが本 repo で未実測**
+だから(`PreToolUse` の `matcher` は tool 名で効く)。効かなくても他ロール・主文脈へ副作用が漏れない。
+
+`agent_type` が読めない(綴りが想定と違う・欠落・payload が JSON として読めない)場合も**無出力 exit 0**。
+推測して別ロールに統制を掛けない。
+
+## 起動口を `bash <path>` で登録している理由
+
+`settings.json` の登録は `bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/<name>.sh`(`issue-start-gate.sh` と同形)。
+実行ビットに依存せずに起動できるので、実行ビットが落ちた状態で配布されてもフックが黙って
+無効化されない。新規に足す登録行は最初から `"$CLAUDE_PROJECT_DIR"` を**クォートして**書く(Issue #270)。
+
+## 所有台帳(`tmp/_worktree/ledger.json`)
+
+- **置き場**: `<main-worktree>/tmp/_worktree/`。`_handoff`・`_karte` と同格で、
+  `dsv2 clean-tmp` の保護名(`PROTECTED_DIRNAMES`)に登録済み＝tmp 掃除で消えない。
+- **main worktree への収束**: フックも gate も linked worktree から起動されうるため、
+  `.git` ファイルの `gitdir:`→`commondir` を辿って必ず main worktree の台帳へ収束させる
+  (`karte/paths.py` の K-01 と同等の導出を `worktree_ledger.py` 内に独立実装。共有モジュール化
+  しないのは Issue #318 が `karte/paths.py` を触るためのファイル競合回避＝選択肢 LG-1 案A)。
+- **時刻**: `now` は必ず引数で注入し、台帳モジュールは `datetime.now()` を呼ばない。
+  **TTL・経過時間による判定を1つも設けない**(判定は状態のみ)ので、時間経過だけでテストが
+  赤くなるクラスの問題が構造的に発生しない(`.claude/rules/04-test-data.md`)。
+- **エントリは削除しない**(履歴として残す＝`.claude/rules/01-principles.md`「PR8「消さない」の
+  適用範囲」区分1)。終端は `released` / `abandoned`。

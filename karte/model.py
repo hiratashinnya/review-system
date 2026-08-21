@@ -43,6 +43,20 @@
     どの verb も書き換えない。``close-attempt`` は Attempt を書き換えるのではなく
     対応する ``### Result k`` を追記する（実測 touched-set の記録先）。
 
+改ざん防止の機械的裏付けと既知の限界（Issue #363 F-363-09）:
+  * この追記規律は CLI（本モジュール・``karte/cli.py``）が既存 Attempt/Result への再実行を
+    ``KarteUsageError`` で拒否することで守られる。それに加え ``.claude/settings.json`` の
+    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` を登録し、Edit/Write 系ツールによる
+    ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する（是正当事者自身を含む——
+    権限規則はロールを区別しないので例外を作らない）。``python3 -m karte`` 経由の追記は
+    この deny の対象外で従来どおり機能する。
+  * **既知の限界**：この deny は Claude Code の Edit/Write ツール経由の書込みだけを塞ぐ。
+    Bash 経由の ``sed -i``・``tee``・シェルリダイレクト等でのファイル改変には掛からない。
+    多層防御の一枚であって sandbox ではない（``.claude/hooks/agent-command-gate.sh`` の
+    静的検査と同じ制約＝Issue #129）。訂正が必要な Result の内容誤りは、当事者が
+    この防御を回避して直接書き換えるのではなく、主文脈による確認つき訂正、または
+    安全な訂正用 verb の新設（本 Issue の範囲外）等、当事者以外が介在する経路を通すこと。
+
 値の書式は「1行 1 ``key: value``」のみ（複数行の自由記述は持たない＝決定論パースのため）。
 ``[a, b]`` はリスト、それ以外はスカラ文字列として解釈する。
 
