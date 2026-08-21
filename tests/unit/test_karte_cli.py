@@ -807,21 +807,20 @@ class TestLocusScalarIsCheckedLikeAListItem(unittest.TestCase):
 
 
 class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
-    """PR #341 再レビュー round-2: 宣言側（プロンプト・手順書）と実装側のキー集合の drift 検出。
+    """PR #341 再レビュー round-2: 共通本文 SoT／PF wrapper と実装側の drift 検出。
 
     `evidence` を新設した際、`pr-reviewer` 定義2件だけを更新して配線側3ファイルを取り残した——
     F-341-01（`pr-reviewer` が必須と宣言したキーを実装が持っていなかった）と**まったく同じ型の
-    drift が向きを変えて再発**した。人手の追従に頼らず機械で固定する。
+    drift が向きを変えて再発**した。共通本文 SoT と PF wrapper の役割を混同せず、人手の追従に頼らず
+    機械で固定する。
     """
 
     ROOT = Path(__file__).resolve().parents[2]
-    # 構造化 finding のキーを列挙している全ファイル（正本＋配線＋ミラー）。
+    # 構造化 finding のキーを列挙する実体（共通本文 SoT＋恒常 rules）。
+    # PF wrapper は共通本文へのリンクと PF 固有差分だけを持つため、旧本文の列挙を要求しない。
     DECLARING_FILES = [
-        # 正本。CLAUDE.md 本体から `.claude/rules/` へ分割された際にキー列挙も移動した
-        # （Issue #387 / F-387-01）。検査対象を減らして緑にするのではなく、実体の宣言箇所を追う。
+        ".ai/skills/issue-pipeline/SKILL.md",
         ".claude/rules/05-skills-agents.md",
-        ".claude/skills/issue-pipeline/SKILL.md",
-        ".agents/skills/issue-pipeline/SKILL.md",
     ]
 
     def test_key_enumerations_match_the_parser(self):
