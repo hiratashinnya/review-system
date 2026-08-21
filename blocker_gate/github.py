@@ -13,6 +13,14 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .auth import github_api_failure_reason
+from .closing import (
+    ClosingReferenceError,
+    CommitMessageSource,
+    DELIVERED_MESSAGE_FORMATTER_VERSION,
+    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT,
+    build_delivered_messages,
+    parse_closing_references,
+)
 from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, fingerprint
 from .snapshot import REPOSITORY_SNAPSHOT_SCHEMA
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
@@ -480,7 +488,8 @@ class GitHubCollector:
         default_branch = default_ref.get("name")
         required_pr = {
             "id", "number", "state", "isDraft", "headRefOid", "baseRefName",
-            "closingIssuesReferences",
+            "title", "body", "headRefName", "headRepositoryOwner", "closingIssuesReferences",
+            "commits",
         }
         if set(pr) != required_pr:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
@@ -492,10 +501,34 @@ class GitHubCollector:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         head_oid = pr.get("headRefOid")
         base_ref = pr.get("baseRefName")
+        commits = pr.get("commits")
         if type(head_oid) is not str or not _GIT_OID.fullmatch(head_oid):
             raise GitHubReadError("API_PARTIAL_RESPONSE")
         if not isinstance(base_ref, str) or not base_ref or not isinstance(default_branch, str) or not default_branch:
             raise GitHubReadError("API_PARTIAL_RESPONSE")
+        if (
+            not isinstance(commits, dict)
+            or set(commits) != {"totalCount"}
+            or isinstance(commits.get("totalCount"), bool)
+            or not isinstance(commits.get("totalCount"), int)
+            or commits["totalCount"] < 1
+        ):
+            raise GitHubReadError("API_PARTIAL_RESPONSE")
+        title = pr.get("title")
+        body = pr.get("body")
+        head_ref_name = pr.get("headRefName")
+        head_owner = pr.get("headRepositoryOwner")
+        if (
+            not isinstance(title, str)
+            or body is not None and not isinstance(body, str)
+            or not isinstance(head_ref_name, str)
+            or not head_ref_name
+            or not isinstance(head_owner, dict)
+            or set(head_owner) != {"login"}
+            or not isinstance(head_owner.get("login"), str)
+            or not head_owner["login"]
+        ):
+            raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
         return {
             "repository_node_id": repo["id"],
             "pr_node_id": pr["id"],
@@ -505,11 +538,20 @@ class GitHubCollector:
             "default_branch": default_branch,
             "state": pr["state"],
             "is_draft": pr["isDraft"],
+            "commit_count": commits["totalCount"],
+            "title": title,
+            "body": body or "",
+            "head_label": f"{head_owner['login']}:{head_ref_name}",
         }
 
-    def _pr_closing_refs(self, repository: str, number: int) -> tuple[list[str], dict[str, Any]]:
+    def _pr_closing_refs(
+        self,
+        repository: str,
+        number: int,
+        available_metadata: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any]]:
         owner, name = repository.split("/", 1)
-        query = """query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){id nameWithOwner defaultBranchRef{name} pullRequest(number:$number){id number state isDraft headRefOid baseRefName closingIssuesReferences(first:100,after:$cursor){nodes{id number state repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}"""
+        query = """query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){id nameWithOwner defaultBranchRef{name} pullRequest(number:$number){id number state isDraft headRefOid baseRefName title body headRefName headRepositoryOwner{login} commits{totalCount} closingIssuesReferences(first:100,after:$cursor){nodes{id number state repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}"""
         cursor: str | None = None
         seen: set[str | None] = set()
         refs: list[str] = []
@@ -528,6 +570,9 @@ class GitHubCollector:
             page_metadata = self._pr_page_metadata(repo, pr, repository, number)
             if metadata is None:
                 metadata = page_metadata
+                if available_metadata is not None:
+                    available_metadata.clear()
+                    available_metadata.update(page_metadata)
             elif metadata != page_metadata:
                 raise GitHubReadError("IDENTITY_MISMATCH")
             connection = pr.get("closingIssuesReferences")
@@ -557,11 +602,11 @@ class GitHubCollector:
         assert metadata is not None
         return sorted(set(refs)), metadata
 
-    def _merge_settings_fingerprint(
+    def _merge_settings(
         self, repository: str, merge_method: str, repository_node_id: str
-    ) -> str | None:
+    ) -> tuple[dict[str, str] | None, str | None]:
         if merge_method == "rebase":
-            return None
+            return None, None
         raw, _ = self._get(f"/repos/{repository}")
         if not isinstance(raw, dict) or raw.get("full_name") != repository or raw.get("node_id") != repository_node_id:
             raise GitHubReadError("IDENTITY_MISMATCH")
@@ -571,18 +616,96 @@ class GitHubCollector:
         else:
             names = ("squash_merge_commit_title", "squash_merge_commit_message")
             allowed = ({"PR_TITLE", "COMMIT_OR_PR_TITLE"}, {"PR_BODY", "COMMIT_MESSAGES", "BLANK"})
-        values = [raw.get(name) for name in names]
-        if any(value not in enums for value, enums in zip(values, allowed)):
-            raise GitHubReadError("MERGE_SETTINGS_AMBIGUOUS")
-        return fingerprint(
+        values: list[str] = []
+        for name, enums in zip(names, allowed):
+            value = raw.get(name)
+            if not isinstance(value, str) or value not in enums:
+                raise GitHubReadError("MERGE_SETTINGS_AMBIGUOUS")
+            values.append(value)
+        settings = {names[0]: values[0], names[1]: values[1]}
+        return settings, fingerprint(
             {
                 "repository_node_id": repository_node_id,
                 "api_version": API_VERSION,
                 "merge_method": merge_method,
-                names[0]: values[0],
-                names[1]: values[1],
+                "delivered_message_formatter_version": DELIVERED_MESSAGE_FORMATTER_VERSION,
+                "squash_commit_messages_evidence_fingerprint": (
+                    SQUASH_COMMIT_MESSAGES_EVIDENCE_FINGERPRINT
+                    if merge_method == "squash"
+                    and settings.get("squash_merge_commit_message") == "COMMIT_MESSAGES"
+                    else None
+                ),
+                **settings,
             }
         )
+
+    def _merge_settings_fingerprint(
+        self, repository: str, merge_method: str, repository_node_id: str
+    ) -> str | None:
+        """後方互換用にsettings fingerprintだけを返す。"""
+        return self._merge_settings(repository, merge_method, repository_node_id)[1]
+
+    def _pr_commit_sources(
+        self, repository: str, number: int
+    ) -> tuple[CommitMessageSource, ...]:
+        sources: list[CommitMessageSource] = []
+        seen_oids: set[str] = set()
+        for raw in self._list(f"/repos/{repository}/pulls/{number}/commits"):
+            oid = raw.get("sha")
+            commit = raw.get("commit")
+            parents = raw.get("parents")
+            if (
+                not isinstance(oid, str)
+                or not _GIT_OID.fullmatch(oid)
+                or not isinstance(commit, dict)
+                or not isinstance(parents, list)
+                or any(not isinstance(parent, dict) for parent in parents)
+            ):
+                raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+            if oid in seen_oids:
+                raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+            seen_oids.add(oid)
+            message = commit.get("message")
+            tree = commit.get("tree")
+            if (
+                not isinstance(message, str)
+                or not isinstance(tree, dict)
+                or set(tree) != {"sha"}
+                or not isinstance(tree.get("sha"), str)
+                or not _GIT_OID.fullmatch(tree["sha"])
+            ):
+                raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+            parent_oids: list[str] = []
+            for parent in parents:
+                parent_oid = parent.get("sha")
+                if not isinstance(parent_oid, str) or not _GIT_OID.fullmatch(parent_oid):
+                    raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+                parent_oids.append(parent_oid)
+            first_parent_tree: str | None = None
+            if len(parent_oids) == 1:
+                parent_raw, _ = self._get(
+                    f"/repos/{repository}/git/commits/{quote(parent_oids[0], safe='')}"
+                )
+                parent_tree = parent_raw.get("tree") if isinstance(parent_raw, dict) else None
+                if (
+                    not isinstance(parent_tree, dict)
+                    or not isinstance(parent_tree.get("sha"), str)
+                    or not _GIT_OID.fullmatch(parent_tree["sha"])
+                ):
+                    raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+                first_parent_tree = parent_tree["sha"]
+            sources.append(
+                CommitMessageSource(
+                    oid=oid,
+                    message=message,
+                    tree_oid=tree["sha"],
+                    parent_oids=tuple(parent_oids),
+                    first_parent_tree_oid=first_parent_tree,
+                )
+            )
+        if not sources:
+            raise GitHubReadError("MESSAGE_SOURCE_INCOMPLETE")
+        return tuple(sources)
 
     def _blob_bytes(self, repository: str, sha: str) -> bytes:
         raw, _ = self._get(f"/repos/{repository}/git/blobs/{sha}")
@@ -863,41 +986,87 @@ class GitHubCollector:
         except GitHubReadError as exc:
             return WaiverCollection(errors=(exc.reason,))
 
-    def collect_pull_request(self, repository: str, number: int, merge_method: str) -> Mapping[str, Any]:
+    def collect_pull_request(
+        self,
+        repository: str,
+        number: int,
+        merge_method: str,
+        *,
+        commit_title: str | None = None,
+        commit_message: str | None = None,
+        expected_head_oid: str | None = None,
+        operation_fingerprint: str | None = None,
+        attempt: int = 1,
+    ) -> Mapping[str, Any]:
         errors: list[str] = []
         complete = True
-        refs: list[str] = []
+        graphql_refs: list[str] = []
+        delivered_refs: list[str] = []
         metadata: dict[str, Any] = {}
+        settings_fingerprint: str | None = None
+        message_source_fingerprint: str | None = None
+        delivered_message_fingerprint: str | None = None
         try:
             if merge_method not in {"merge", "rebase", "squash"}:
                 raise GitHubReadError("MERGE_METHOD_UNKNOWN")
-            refs, metadata = self._pr_closing_refs(repository, number)
-            if metadata.get("state") != "OPEN" or metadata.get("is_draft") is True:
-                # managed operation classifier/入口接続は #297。collector単独では
-                # PR preconditionをIssue findingへ偽装せず判定不能として閉じる。
-                errors.append("TARGET_AMBIGUOUS")
-                complete = False
+            if (
+                commit_title is not None and not isinstance(commit_title, str)
+                or commit_message is not None and not isinstance(commit_message, str)
+            ):
+                raise GitHubReadError("MERGE_OVERRIDE_AMBIGUOUS")
+            if expected_head_oid is not None and (
+                not isinstance(expected_head_oid, str) or not _GIT_OID.fullmatch(expected_head_oid)
+            ):
+                raise GitHubReadError("IDENTITY_MISMATCH")
+            if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt not in {1, 2, 3}:
+                raise GitHubReadError("REEVALUATION_LIMIT")
+            graphql_refs, metadata = self._pr_closing_refs(
+                repository, number, metadata
+            )
+            if expected_head_oid is not None and metadata.get("head_oid") != expected_head_oid:
+                raise GitHubReadError("IDENTITY_MISMATCH")
             if metadata.get("base_ref_name") != metadata.get("default_branch"):
-                refs = []
-            else:
-                # merge-methodごとのmessage source再構築は #298 の collector 拡張責務。
-                errors.append("MESSAGE_SOURCE_INCOMPLETE")
-                complete = False
-        except GitHubReadError as exc:
-            errors.append(exc.reason)
-            complete = False
-        nodes, graph_errors, graph_complete = self._collect_graph(repository, refs)
-        errors.extend(graph_errors)
-        settings_fingerprint: str | None = None
-        try:
-            if metadata:
-                settings_fingerprint = self._merge_settings_fingerprint(
+                graphql_refs = []
+                _, settings_fingerprint = self._merge_settings(
                     repository, merge_method, metadata["repository_node_id"]
                 )
+            else:
+                settings, settings_fingerprint = self._merge_settings(
+                    repository, merge_method, metadata["repository_node_id"]
+                )
+                commits = self._pr_commit_sources(repository, number)
+                if (
+                    len(commits) != metadata.get("commit_count")
+                    or commits[-1].oid != metadata.get("head_oid")
+                ):
+                    raise GitHubReadError("IDENTITY_MISMATCH")
+                bundle = build_delivered_messages(
+                    repository=repository,
+                    number=number,
+                    merge_method=merge_method,
+                    pr_title=metadata["title"],
+                    pr_body=metadata["body"],
+                    head_label=metadata["head_label"],
+                    commits=commits,
+                    settings=settings,
+                    commit_title=commit_title,
+                    commit_message=commit_message,
+                )
+                delivered_refs = list(
+                    parse_closing_references(bundle.messages, repository)
+                )
+                message_source_fingerprint = bundle.message_source_fingerprint
+                delivered_message_fingerprint = bundle.delivered_message_fingerprint
         except GitHubReadError as exc:
             errors.append(exc.reason)
             complete = False
-        operation = fingerprint(
+        except ClosingReferenceError as exc:
+            errors.append(exc.reason)
+            complete = False
+        refs = sorted(set(graphql_refs) | set(delivered_refs))
+        nodes, graph_errors, graph_complete = self._collect_graph(repository, refs)
+        errors.extend(graph_errors)
+        operation = operation_fingerprint or fingerprint(
             {
                 "mode": "pr-merge",
                 "repository": repository,
@@ -907,24 +1076,35 @@ class GitHubCollector:
                 "state": metadata.get("state"),
                 "is_draft": metadata.get("is_draft"),
                 "head_oid": metadata.get("head_oid"),
+                "expected_commit_count": metadata.get("commit_count"),
                 "base_ref_name": metadata.get("base_ref_name"),
                 "default_branch": metadata.get("default_branch"),
                 "merge_method": merge_method,
+                "commit_title": commit_title,
+                "commit_message": commit_message,
+                "expected_head_oid": expected_head_oid,
             }
         )
         binding = {
             "head_oid": metadata.get("head_oid"),
+            "expected_commit_count": metadata.get("commit_count"),
             "base_ref_name": metadata.get("base_ref_name"),
             "default_branch": metadata.get("default_branch"),
             "merge_method": merge_method if merge_method in {"merge", "rebase", "squash"} else None,
-            "intercepted_commit_title_fingerprint": None,
-            "intercepted_commit_message_fingerprint": None,
-            "message_source_fingerprint": None,
-            "delivered_message_fingerprint": None,
+            "intercepted_commit_title_fingerprint": (
+                fingerprint({"value": commit_title}) if commit_title is not None else None
+            ),
+            "intercepted_commit_message_fingerprint": (
+                fingerprint({"value": commit_message}) if commit_message is not None else None
+            ),
+            "message_source_fingerprint": message_source_fingerprint,
+            "delivered_message_fingerprint": delivered_message_fingerprint,
             "repository_merge_settings_fingerprint": settings_fingerprint,
             "operation_fingerprint": operation,
             "snapshot_fingerprint": None,
-            "attempt": 1,
+            "attempt": attempt,
+            "pr_state": metadata.get("state"),
+            "pr_is_draft": metadata.get("is_draft"),
         }
         return {
             "schema": SNAPSHOT_SCHEMA,
@@ -938,7 +1118,7 @@ class GitHubCollector:
             "pages_complete": complete and graph_complete,
             "errors": sorted(set(errors)),
             "fetched_at": self._now(),
-            "graphql_closing_set": refs,
-            "delivered_message_closing_set": [],
+            "graphql_closing_set": sorted(set(graphql_refs)),
+            "delivered_message_closing_set": sorted(set(delivered_refs)),
             "binding": binding,
         }

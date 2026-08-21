@@ -20,10 +20,12 @@ python3 -m blocker_gate evaluate --snapshot PATH
 `gh` が不在・未認証・timeout・空/異常応答の場合は匿名readを試す。tokenはAPIの
 `Authorization` headerにだけ設定し、tokenやAuthorization headerは出力しない。
 
-`pr` は GraphQL `closingIssuesReferences` を全cursor取得し、同じcore evaluatorへ渡す。
-default branchへ届くmerge/rebase/squash messageの厳密な再構築は #298 のcollector接続責務であり、
-そのsourceが未接続の状態では `ERROR/MESSAGE_SOURCE_INCOMPLETE` でfail-closeする。
-non-default baseはclosing effectを持たないのでclosing setを空にする。
+`pr` は GraphQL `closingIssuesReferences` を全cursor取得し、選択したmerge methodでdefault branchへ
+届く完全なcommit messageから得たclosing setとunionして、同じcore evaluatorへ渡す。
+source commit、parent/tree、repository message settings、PR/head/base/default、overrideを同じattemptへ
+束縛し、一つでも欠落・曖昧ならfail-closeする。non-default baseはclosing effectを持たないので
+closing setを空にする。managed mergeのpre-use接続は
+[`pr-merge-gate.md`](pr-merge-gate.md)を参照する。
 
 `evaluate` は `blocker-gate-snapshot/v1` fixture/collector出力をoffline評価する。これはunit/integration
 testと将来の入口adapterが同じcoreを使用するための境界であり、waiverやrelationを保存する入口ではない。

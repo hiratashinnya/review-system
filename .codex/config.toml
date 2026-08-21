@@ -1,0 +1,5 @@
+[apps.connector_76869538009648d5b282a4bb21c3d157.tools.merge_pull_request]
+enabled = false
+
+[apps.connector_76869538009648d5b282a4bb21c3d157.tools.enable_auto_merge]
+enabled = false
