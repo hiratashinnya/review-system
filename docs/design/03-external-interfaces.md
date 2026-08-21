@@ -33,6 +33,11 @@ flowchart LR
 ```
 
 > `m3 基準編集`は**系外＝非イベント**（[PR3](../methods/method-inventory.md)・[Q15](../dashboard.md)）。CLI の口にしない。検査は合成時に毎回（[04 lint](04-platform-protocol.md)/P2）。
+>
+> ⚠️ **「検査は合成時に毎回」は要件（S5）・将来設計としての規定であり、現状の挙動ではない**（2026-07-29 是正）。
+> 合成時ロード（`persistence/criteria_repo.py`）は `parsing/lint.py` の `lint_criteria` を**呼んでおらず**、
+> `reviewer criteria lint`（下表）も**未実装**＝**未結線**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
+> なお O-9（方向/矛盾/衝突/locked の合成時警告）は**別物で、F11＝post-MVP**（[12-mvp-scope](../requirements/12-mvp-scope.md)）。
 
 ## CLI サーフェス（サブコマンド一覧）
 
@@ -44,7 +49,7 @@ flowchart LR
 | レビュアー | `reviewer decide <report>` | P5.2(💬・I-6) | **レポートのパスだけ**（💬 決定＋任意の修正欄） | 適用 or 記録 / 0 |
 | レビュアー | `reviewer feedback <report>` | P6.1 | **レポートのパスだけ**（判断/対象外チェック） | DS5 追記 / 0 |
 | メンテナ | `reviewer criteria feedback-draft [--rule <id>]` | P6.2（オンデマンド・[DD11](decisions.md#dd11--観点fb起草p62-のオンデマンド起動口)） | DS5 傾向（任意で rule 絞り） | O-12 観点FB提案 / 0 ・**MVP保留印** |
-| メンテナ | `reviewer criteria lint [paths]` | S5 | 基準/ポリシーのパス（既定＝全件） | lint 結果（O-14 同形式）/ 0 健全・4 不正 |
+| メンテナ | `reviewer criteria lint [paths]` | S5 | 基準/ポリシーのパス（既定＝全件） | lint 結果（O-14 同形式）/ 0 健全・4 不正 ・⚠️ **未実装**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)） |
 | メンテナ | `reviewer criteria scaffold --type <t> --scope <s>` | P6.4 | doc_type・scope | 基準ひな形(O-11) / 0 |
 | メンテナ | `reviewer warnings [--scope <s>]` | P6.5 表示 | scope フィルタ | 新規＋既知警告(O-9) / 0 |
 | 共通 | `reviewer run <paths…>` | PF 駆動入口 | review と同じ | **stdout 制御プロトコル**（[04](04-platform-protocol.md)） |
@@ -96,7 +101,7 @@ def cmd_version() -> int: ...                  # 対応版定数を表示（pars
 | 0 | 成功（空文書 no-op 含む＝良性 fail-open） | レポート出力・0件レポート |
 | 2 | 要求不正（対象なし・revert 対象なし） | 引数ミス |
 | 3 | fail-close（O-14） | 基準パース失敗・LLM 障害・スコープ未解決 |
-| 4 | lint 不正（S5） | `override` 不正値・extends 切れ |
+| 4 | lint 不正（S5） | `override` 不正値・extends 切れ ・⚠️ **現状 exit 4 は返らない**（S5 lint 未結線＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)。`override` 不正値はローダの Enum 変換で未捕捉例外になる） |
 
 - どの異常も**黙って空を返さない**：`FailureNotice{stage+reason+subject+next_action}`（O-14）を**stderr へ可読出力**し、上の code を返す（[DD9](decisions.md#dd9--ログ出力先)）。
 
@@ -119,6 +124,7 @@ reviewer feedback|decide|approve  report.html   ─▶  HTML から review_id �
 - コマンドの**引数はレポートのパスだけ**。対象 finding 群はレポート＋feedback.json から復元（id 入力ゼロ）。
 - UI はブラウザに委譲（チェックボックス/フォーム）。系は **HTML＋クライアント JS を生成するだけ**（サーバレス・stdlib）。
 - ✋衝突（同一 location）は従来どおり適用時に解決（[05 DS3](05-persistence.md)）。一括適用でも finding 単位コミットは不変（[S4](../requirements/13-stabilization.md)）。
+  ⚠️ **実装状況（2026-07-29）**：衝突解決は**未実装**で、衝突単位も「同一 location」では不足（全内容 fix のため**同一ファイル**で後勝ち上書きが起きる）＝[Q27](../dashboard.md#-未決事項決めないと進めない論点)。
 
 ## 入力台帳との対応（[05 I/O](../requirements/05-io-overview.md) の正準番号に整合）
 
