@@ -92,12 +92,19 @@ class BloomModelTierContract(unittest.TestCase):
         "5 評価",
         "6 創造",
     )
-    NEUTRAL_BUDGET_MAPPING = (
+    CODEX_BUDGET_MAPPING = (
         ("最小", "low"),
         ("小", "medium"),
         ("中", "high"),
         ("大", "xhigh"),
         ("最大", "max"),
+    )
+    CLAUDE_BUDGET_MAPPING = (
+        ("最小", "low"),
+        ("小", "medium"),
+        ("中", "high"),
+        ("大", "xhigh"),
+        ("最大", "xhigh"),
     )
     EXPECTED_THRESHOLD_CELLS = {
         "1 記憶": (
@@ -145,7 +152,7 @@ class BloomModelTierContract(unittest.TestCase):
         ):
             self.assertIn(marker, body)
 
-        threshold_table = body[body.index("### 閾値表") : body.index("太字＝")]
+        threshold_table = body[body.index("### 閾値表") : body.index("## 手順")]
         rows = {}
         for line in threshold_table.splitlines():
             if line.startswith("| ") and line.count("|") == 4:
@@ -173,11 +180,12 @@ class BloomModelTierContract(unittest.TestCase):
                     f"閾値表の {level} の{axis}セルが空である。",
                 )
 
-        for neutral_budget, source_budget in self.NEUTRAL_BUDGET_MAPPING:
-            self.assertIn(
-                f"| {neutral_budget} | `{source_budget}` |",
+        self.assertNotIn("太字＝", body)
+        for source_budget in ("low", "medium", "high", "xhigh", "max"):
+            self.assertNotIn(
+                f"`{source_budget}`",
                 body,
-                f"PF中立の推論予算 {neutral_budget} が {source_budget} に写像されていない。",
+                f"共通本文にPF固有の推論予算 {source_budget} を持ち込まない。",
             )
         self.assertNotIn("軸2（Lv4+のみ）", body)
         self.assertNotIn("(該当なし)", body)
@@ -214,7 +222,7 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertIn("`.codex/agents/*.toml`", codex)
         self.assertNotIn("gpt-5.6-luna", codex)
         self.assertNotIn("gpt-5.6-sol", codex)
-        for neutral_budget, codex_budget in self.NEUTRAL_BUDGET_MAPPING:
+        for neutral_budget, codex_budget in self.CODEX_BUDGET_MAPPING:
             self.assertIn(
                 f"| {neutral_budget} | `{codex_budget}` |",
                 codex,
@@ -223,11 +231,13 @@ class BloomModelTierContract(unittest.TestCase):
         claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
         for token in ("haiku", "sonnet", "opus", "effort:"):
             self.assertIn(token, claude)
-        for neutral_budget, claude_budget in self.NEUTRAL_BUDGET_MAPPING:
+        for neutral_budget, claude_budget in self.CLAUDE_BUDGET_MAPPING:
             self.assertIn(
                 f"| {neutral_budget} | `{claude_budget}` |",
                 claude,
             )
+        self.assertNotIn("effort:max", claude)
+        self.assertNotIn("effort: max", claude)
 
         copilot = _read(".github/skills/bloom-model-tier/SKILL.md")
         for model_id in ("claude-sonnet-5", "claude-opus-4-8"):
@@ -246,6 +256,9 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertNotIn("## 共通本文", body)
         self.assertNotIn("軸2（Lv4+のみ）", body)
         self.assertNotIn("(該当なし)", body)
+        self.assertIn("最大の推論予算", body)
+        self.assertIn("`effort: xhigh`", body)
+        self.assertNotIn("`effort: max`", body)
 
 
 class NormativeSideLinksToRationale(unittest.TestCase):
