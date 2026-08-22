@@ -150,11 +150,11 @@ class BloomModelTierContract(unittest.TestCase):
         )
         self.assertNotIn("点検しつつ提案＝Evaluate→最上位モデル層）。", body)
         self.assertIn(
-            "新規に文章/構造を構成＝Create(6)→判断ボトルネック→最上位モデル層 + 大の推論予算",
+            "**新規に文章/構造を構成**＝Create(6)→判断ボトルネック→最上位モデル層 + 大の推論予算",
             body,
         )
         self.assertNotIn(
-            "新規に文章/構造を構成＝Create(6)→判断ボトルネック→最上位モデル層。",
+            "**新規に文章/構造を構成**＝Create(6)→判断ボトルネック→最上位モデル層。",
             body,
         )
         self.assertIn(
