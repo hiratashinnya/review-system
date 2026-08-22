@@ -181,13 +181,19 @@ class BloomModelTierContract(unittest.TestCase):
                 )
 
         self.assertNotIn("太字＝", body)
-        for source_budget in ("low", "medium", "high", "xhigh", "max"):
-            self.assertNotIn(
-                f"`{source_budget}`",
-                body,
-                f"共通本文にPF固有の推論予算 {source_budget} を持ち込まない。",
-            )
-        self.assertNotIn("軸2（Lv4+のみ）", body)
+        pf_budget_pattern = re.compile(
+            r"(?<![A-Za-z0-9_])(?:low|medium|high|xhigh|max)(?![A-Za-z0-9_])"
+        )
+        self.assertIsNone(
+            pf_budget_pattern.search(body),
+            "共通本文に PF 固有の推論予算値を持ち込まない。",
+        )
+        for forbidden_marker in (
+            "Lv4 以上でのみ判定",
+            "Lv4 以上なら軸2を判定",
+            "軸2（Lv4+のみ）",
+        ):
+            self.assertNotIn(forbidden_marker, body)
         self.assertNotIn("(該当なし)", body)
 
         forbidden_pf_tokens = (
@@ -246,6 +252,43 @@ class BloomModelTierContract(unittest.TestCase):
             "共通の推論予算は Copilot の agent frontmatter では表現できず、"
             "モデルIDだけを写像する",
             copilot,
+        )
+
+    def test_claude_frontmatter_description_keeps_pf_mapping(self):
+        claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
+        frontmatter_match = re.match(
+            r"\A---\n(?P<frontmatter>.*?)\n---\n(?P<body>.*)\Z",
+            claude,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(frontmatter_match)
+        assert frontmatter_match is not None
+
+        description_match = re.search(
+            r"^description:\s*(?P<description>.+)$",
+            frontmatter_match.group("frontmatter"),
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(description_match)
+        assert description_match is not None
+        description = description_match.group("description")
+
+        self.assertIn("model tier", description)
+        self.assertIn("reasoning budget", description)
+        for model_tier, model_name in (
+            ("low-tier", "haiku"),
+            ("mid-tier", "sonnet"),
+            ("top-tier", "opus"),
+        ):
+            self.assertRegex(
+                description,
+                rf"\b{re.escape(model_tier)}\b\s*→\s*{re.escape(model_name)}\b",
+            )
+        self.assertRegex(
+            description,
+            r"minimum\s*/\s*small\s*/\s*medium\s*/\s*large\s*/\s*maximum"
+            r"\s*→\s*`?effort:\s*low`?\s*/\s*`?medium`?\s*/\s*`?high`?"
+            r"\s*/\s*`?xhigh`?\s*/\s*`?xhigh`?",
         )
 
     def test_individually_managed_list_is_delta_only(self):
