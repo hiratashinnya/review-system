@@ -4,3 +4,7 @@ agent: agent
 ---
 
 この Prompt の共通本文は [`.ai/skills/spec-pipeline/SKILL.md`](../../.ai/skills/spec-pipeline/SKILL.md) にあります。`/spec-pipeline` で明示起動されたときは、必ず共通本文を読み、その手順を実行してください。
+
+## Copilot Prompt 固有
+
+- この Prompt は、GitHub Copilot で `/spec-pipeline` を明示起動するときに使用します。

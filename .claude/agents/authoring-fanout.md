@@ -10,3 +10,10 @@ skills:
 ## 共通本文
 
 この資産の共通本文は [authoring-fanout の共通本文](../../.ai/agents/authoring-fanout.md) にあります。必ず読み、その指示に従ってください。
+
+## Claude Code 固有の実行契約
+
+- frontmatter の `tools`・`model`・`skills` はClaude Code側のmetadataとしてこのwrapperに残す。
+- Step 2/4/5 の「委譲」はClaude Codeの `Task` 呼び出しで実行する。独立targetのTaskは同一メッセージで並列に発行し、結果を受け取るまでターンを終了しない。
+- `context-mode` の注入ブロックが付与されても、共通本文のハンドオフ・STOP契約を優先する。
+- 本wrapperの `tools` に `ctx_*` は含まれない。未付与のctx_*を追加取得せず、`.claude/rules/`、`CLAUDE.md`、hookの実行制約に従う。

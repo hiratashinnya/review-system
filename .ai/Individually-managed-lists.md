@@ -1,126 +1,49 @@
-# Issue #406 資産対応表
+# PF 個別管理リスト
 
-この表は 2026-08-21 に共有ワークツリーの実在ファイルを調査した結果である。`<name>` は表中の資産名に置き換える。ここにないファイルの存在は仮定しない。
+共通本文の一覧は載せず、PF（Claude Code／Codex CLI／GitHub Copilot／Repo-skill）の loader・wrapper・実行メタデータに生じる差分だけを記録する。共通本文の SoT は `.ai/README.md` の配置規則に従う。
 
-## 共通本文（SoT）
+## loader 差分
 
-### Skills
+| PF | loader 入口 | 個別形式 |
+|---|---|---|
+| Claude Code | `.claude/skills/`、`.claude/agents/` | YAML frontmatter。Agent wrapper に `tools`、`model`、任意の `effort`／`skills` を置く。 |
+| Codex CLI | `.agents/skills/`、`.codex/agents/` | repo-skill は Markdown、custom agent は TOML（`name`／`description`／`developer_instructions`）。Claude の frontmatter を複製しない。 |
+| GitHub Copilot | `.github/skills/`、`.github/prompts/`、`.github/agents/`、`.github/copilot-instructions.md` | Skill／Prompt／Agent／Instructions の loader に分かれる。Agent は YAML frontmatter の `model`／`tools` を使う。 |
+| Repo-skill | `.agents/skills/` | Codex CLI の repo-scoped skill discovery 用。Agent の配置先ではない。 |
 
-| 名前 | 共通本文 |
+## Bloom の model mapping
+
+| PF | mapping |
 |---|---|
-| `align` | [` .ai/skills/align/SKILL.md`](skills/align/SKILL.md) |
-| `architecture-design` | [` .ai/skills/architecture-design/SKILL.md`](skills/architecture-design/SKILL.md) |
-| `asset-lateral-deploy` | [` .ai/skills/asset-lateral-deploy/SKILL.md`](skills/asset-lateral-deploy/SKILL.md) |
-| `asset-pipeline` | [` .ai/skills/asset-pipeline/SKILL.md`](skills/asset-pipeline/SKILL.md) |
-| `bloom-model-tier` | [` .ai/skills/bloom-model-tier/SKILL.md`](skills/bloom-model-tier/SKILL.md) |
-| `codex-review` | [` .ai/skills/codex-review/SKILL.md`](skills/codex-review/SKILL.md) |
-| `coverage-html` | [` .ai/skills/coverage-html/SKILL.md`](skills/coverage-html/SKILL.md) |
-| `docidx` | [` .ai/skills/docidx/SKILL.md`](skills/docidx/SKILL.md) |
-| `domain-model` | [` .ai/skills/domain-model/SKILL.md`](skills/domain-model/SKILL.md) |
-| `gh-create-issue` | [` .ai/skills/gh-create-issue/SKILL.md`](skills/gh-create-issue/SKILL.md) |
-| `impl-design-pipeline` | [` .ai/skills/impl-design-pipeline/SKILL.md`](skills/impl-design-pipeline/SKILL.md) |
-| `issue-pipeline` | [` .ai/skills/issue-pipeline/SKILL.md`](skills/issue-pipeline/SKILL.md) |
-| `mvp-scope` | [` .ai/skills/mvp-scope/SKILL.md`](skills/mvp-scope/SKILL.md) |
-| `orchestration-design` | [` .ai/skills/orchestration-design/SKILL.md`](skills/orchestration-design/SKILL.md) |
-| `prompt-design` | [` .ai/skills/prompt-design/SKILL.md`](skills/prompt-design/SKILL.md) |
-| `schema-design` | [` .ai/skills/schema-design/SKILL.md`](skills/schema-design/SKILL.md) |
-| `spec-pipeline` | [` .ai/skills/spec-pipeline/SKILL.md`](skills/spec-pipeline/SKILL.md) |
-| `spec-principles` | [` .ai/skills/spec-principles/SKILL.md`](skills/spec-principles/SKILL.md) |
-| `test-strategy` | [` .ai/skills/test-strategy/SKILL.md`](skills/test-strategy/SKILL.md) |
-| `value-trace` | [` .ai/skills/value-trace/SKILL.md`](skills/value-trace/SKILL.md) |
+| Claude Code | 軸1は Lv1→`haiku`、Lv2–3→`sonnet`。Lv4–6 は軸2で分岐し、網羅性ボトルネック→`sonnet`＋`effort: high`〜`xhigh`、判断ボトルネック→`opus`。Lv2–3 の推論予算は `effort: low`〜`medium`。 |
+| GitHub Copilot | 中位モデル層→`claude-sonnet-5`、最上位モデル層→`claude-opus-4-8`。低位モデル層は live の利用可能 ID を確認できた場合だけ指定し、確認できなければ架空 ID を追加せず STOP してオーナー確認を求める。Claude の `effort` や Codex の推論予算キーは持ち込まない。 |
+| Codex CLI／Repo-skill | `gpt-5.6` を固定し、低位→`model_reasoning_effort: low`、中位（小〜中）→`low`〜`medium`、中位（大〜最大）→`high`〜`xhigh`、最上位→`xhigh`。写像の適用先は Codex CLI の session/config であり、`.codex/agents/*.toml` は session 設定を継承して `model` を複製しない。 |
 
-### Agents
+## 個別配置・非移植
 
-| 名前 | 共通本文 |
-|---|---|
-| `analysis-author` | [` .ai/agents/analysis-author.md`](agents/analysis-author.md) |
-| `asset-auditor` | [` .ai/agents/asset-auditor.md`](agents/asset-auditor.md) |
-| `authoring-fanout` | [` .ai/agents/authoring-fanout.md`](agents/authoring-fanout.md) |
-| `design-author` | [` .ai/agents/design-author.md`](agents/design-author.md) |
-| `doc-system-config-operator` | [` .ai/agents/doc-system-config-operator.md`](agents/doc-system-config-operator.md) |
-| `doc-system-v2-authoring` | [` .ai/agents/doc-system-v2-authoring.md`](agents/doc-system-v2-authoring.md) |
-| `dsv2-lookup` | [` .ai/agents/dsv2-lookup.md`](agents/dsv2-lookup.md) |
-| `issue-fixer` | [` .ai/agents/issue-fixer.md`](agents/issue-fixer.md) |
-| `issue-implementer` | [` .ai/agents/issue-implementer.md`](agents/issue-implementer.md) |
-| `pr-reviewer` | [` .ai/agents/pr-reviewer.md`](agents/pr-reviewer.md) |
-| `reconciliation-validator` | [` .ai/agents/reconciliation-validator.md`](agents/reconciliation-validator.md) |
-| `reconciliation` | [` .ai/agents/reconciliation.md`](agents/reconciliation.md) |
-| `requirements-author` | [` .ai/agents/requirements-author.md`](agents/requirements-author.md) |
-| `spec-author` | [` .ai/agents/spec-author.md`](agents/spec-author.md) |
-| `spec-inspector` | [` .ai/agents/spec-inspector.md`](agents/spec-inspector.md) |
-| `structured-analysis` | [` .ai/agents/structured-analysis.md`](agents/structured-analysis.md) |
-| `verification-author` | [` .ai/agents/verification-author.md`](agents/verification-author.md) |
+- `codex-review` は `.claude/skills/codex-review/SKILL.md` の Claude 専用。`codex exec`、ChatGPT login、Linux/WSL の session に依存するため、Codex／Copilot／Repo-skill へは配置しない。
+- `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、具体的な MCP tool metadata と Claude 固有の返却手段を持つ。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、利用可能な agy MCP 能力を session で解決する。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
+- `gh-create-issue` は Claude と Repo-skill（`.agents/skills/gh-create-issue/SKILL.md`）に実在する。Copilot 版は作らない。GitHub 変更の明示依頼境界と loader/tool 差分を対象 PF 限定で管理する。
+- `issue-fixer`／`issue-implementer`／`pr-reviewer` は Claude と Codex に実在する。Copilot Agent 版は非移植。Claude hook、Task、gh CLI、`karte`、ロール別 push／merge 境界を Copilot で同一契約にできないため。
 
-### Rationale
+## 追加 wrapper
 
-| 名前 | 共有経緯本文 |
-|---|---|
-| `issue-fixer` | [` .ai/rationale/issue-fixer.md`](rationale/issue-fixer.md) |
-| `issue-implementer` | [` .ai/rationale/issue-implementer.md`](rationale/issue-implementer.md) |
-| `issue-pipeline` | [` .ai/rationale/issue-pipeline.md`](rationale/issue-pipeline.md) |
-| `pr-reviewer` | [` .ai/rationale/pr-reviewer.md`](rationale/pr-reviewer.md) |
-| 索引・分離規則 | [` .ai/rationale/README.md`](rationale/README.md) |
+`doc-system-config-operator` は共通本文を各 loader 形式へ変換した wrapper を追加している。
 
-## PF wrapper / metadata の実在対応
+- Claude: `.claude/agents/doc-system-config-operator.md`（`tools`／`model`／`skills`）
+- Codex: `.codex/agents/doc-system-config-operator.toml`（`name`／`description`／`developer_instructions`）
+- Copilot: `.github/agents/doc-system-config-operator.agent.md`（`model`／`tools`）
 
-### Skills
+関連手順の `doc-system-config` skill は Codex の repo-skill 入口 `.agents/skills/doc-system-config/SKILL.md` にのみ配置する。共通 Agent 本文はこの Codex 固定 path を参照せず、Claude／Codex／Copilot の各 wrapper 入口を維持する。Claude／Copilot に同名 skill を複製しない。
 
-| PF tree | wrapper / metadata パス | 確認できた対応範囲・未配置 |
-|---|---|---|
-| Claude | `.claude/skills/<name>/SKILL.md` | 上記20 Skill 全て。`agy-delegate` は `.ai` 共通一覧にない Claude 固有 Skill。 |
-| Review-system repo skills | `.agents/skills/<name>/SKILL.md` | `codex-review` を除く上記19 Skill。`agy-delegate` と `doc-system-config` は `.ai` 共通一覧にない repo 固有 Skill。`gh-create-issue/agents/openai.yaml` と `issue-pipeline/agents/openai.yaml` も実在する PF metadata。 |
-| GitHub Copilot | `.github/skills/<name>/SKILL.md` | `align`、`architecture-design`、`bloom-model-tier`、`coverage-html`、`docidx`、`domain-model`、`impl-design-pipeline`、`issue-pipeline`、`mvp-scope`、`orchestration-design`、`prompt-design`、`schema-design`、`test-strategy`、`value-trace`。 |
-| GitHub Copilot | `.github/prompts/<name>.prompt.md` | `asset-lateral-deploy`、`asset-pipeline`、`impl-design-pipeline`、`spec-pipeline`。Copilot では明示起動オーケストレータを Prompt に分類している。 |
-| GitHub Copilot | `.github/copilot-instructions.md` | `spec-principles` はこの常時 Instructions に PR1–PR10 のインライン本文として配置している。今回 `.ai/skills/spec-principles/SKILL.md` への参照化は行っていない。`.github/skills/spec-principles/`、`gh-create-issue/`、`codex-review/` は今回の調査では確認できない。 |
+## PF 固有の実行差分
 
-Codex は repo Skill を `.agents/skills/` から探索するため、`.codex/skills/` は作っていない。`.codex/agents/` は次表の Agent metadata 用である。
+- Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
+- Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh`、Stop hook／rate-limit recovery を持つ。Claude の worktree bind/stop hook は配置しない。
+- Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
-### Agents
+## 対象外と rationale の SoT
 
-| PF tree | wrapper / metadata パス | 確認できた対応範囲・未配置 |
-|---|---|---|
-| Claude | `.claude/agents/<name>.md` | `doc-system-config-operator` を除く上記16 Agent。`agy-delegate` は `.ai` 共通一覧にない Claude 固有 Agent。 |
-| Codex | `.codex/agents/<name>.toml` | 上記17 Agent 全て。`agy-delegate.toml` は `.ai` 共通一覧にない Codex 固有 Agent。 |
-| GitHub Copilot | `.github/agents/<name>.agent.md` | `analysis-author`、`asset-auditor`、`authoring-fanout`、`design-author`、`doc-system-v2-authoring`、`dsv2-lookup`、`reconciliation-validator`、`reconciliation`、`requirements-author`、`spec-author`、`spec-inspector`、`structured-analysis`、`verification-author`。`doc-system-config-operator`、`issue-fixer`、`issue-implementer`、`pr-reviewer` はこの tree では未確認。 |
+rules、hooks、常時 instructions の共通化・移行は今回の対象外とする。PF の hook/dispatch/worktree/model/tools 差分は、各 PF wrapper・設定・hook の実物に残す。
 
-### Rationale の互換ポインタ
-
-`.claude/rationale/README.md` と `.claude/rationale/{issue-fixer,issue-implementer,issue-pipeline,pr-reviewer}.md` は実在するが、各1行の `.ai/rationale/` への互換ポインタである。`.ai/rationale/` に重複した正本を置かない。`.agents`、`.codex`、`.github` に対応する rationale ファイルは今回の調査では確認できない。
-
-## PF 固有差分を残す理由
-
-| PF | wrapper / metadata に残る差分 | 差分を残す理由 |
-|---|---|---|
-| Claude | `.claude/agents/*.md` の `tools`・`model`・一部 `effort` frontmatter。`issue-pipeline`、`impl-design-pipeline`、`issue-fixer`、`issue-implementer`、`pr-reviewer` などに Claude の Task/Agent、worktree、hook、context-mode 契約。 | Claude Code の loader と dispatch、許可ツール、hook gate がこの形式を読むため。 |
-| Codex | `.codex/agents/*.toml` は `name`・`description`・`developer_instructions` を持つ。`.codex/agents/README.md` の方針どおり source-platform-only の `tools`・`model` frontmatter は TOML に複製しない。権限境界は `.codex/hooks/agent-command-gate.sh` 等で実装し、Codex 固有の `spawn_agent`、commit/push/merge gate を本文へ追記する。 | Codex custom-agent の形式と実行時 permission gate が Claude の frontmatter と異なるため。権限を共通本文へ混ぜると PF の deny/allow を誤って共有するため。 |
-| GitHub Copilot | `.github/agents/*.agent.md` の `model`・`tools` frontmatter、`Skill` / `Prompt` / `Agent` / `Instructions` の分類。`asset-lateral-deploy`、`asset-pipeline`、`spec-pipeline` は Prompt、`issue-pipeline` は Skill として存在する。 | Copilot はユーザー明示起動・自動発見・専門 Agent・常時適用で起動契約が異なるため。Agent が存在しない Issue 実行系をあるものとして記録しないため。 |
-| Review-system repo skills | `.agents/skills/<name>/SKILL.md` は repo-scoped Skill の metadata と共通本文ポインタ。`impl-design-pipeline` と `issue-pipeline` には Codex の agent/worktree 差分が残る。 | Codex CLI の repo Skill 探索入口であり、Claude/Copilot の Agent metadata とは別の loader を使うため。 |
-
-## rules / hooks / instructions の扱い
-
-Issue #406 では次のファイル群を移行・変更しない。ここは実行時の安全境界または PF の常時適用契約であり、Skill/Agent の共通本文化と同じ変更として扱わない。
-
-| 種別 | 現在の配置 | 今回の扱い |
-|---|---|---|
-| プロジェクト指示 | `AGENTS.md`、`CLAUDE.md` | 移行・変更なし |
-| Claude rules | `.claude/rules/*.md` | 移行・変更なし |
-| Claude hooks | `.claude/hooks/` | 移行・変更なし |
-| Codex hooks / 設定 | `.codex/hooks/`、`.codex/config.toml`、`.codex/hooks.json` | 移行・変更なし |
-| Copilot 常時 Instructions | `.github/copilot-instructions.md` | 移行・変更なし |
-| PF metadata / workflows | `.agents/README.md`、`.codex/README.md`、`.github/workflows/` | 移行・変更なし |
-
-`spec-principles` の共通本文 SoT は [`.ai/skills/spec-principles/SKILL.md`](skills/spec-principles/SKILL.md) である。Copilot instructions の将来の参照化は、owner review 後に選択できる別スコープとする。
-
-Owner review 用の今後の選択肢は次のとおり。
-
-| 選択肢 | 内容 | 推奨 |
-|---|---|---|
-| A（現状維持） | 実行境界は各 PF の rules/hooks/instructions に置き、`.ai` は Skill/Agent/rationale の共通本文だけを持つ。 | **Issue #406 ではこれを推奨**。既存の deny/allow と自動適用範囲を壊さない。 |
-| B（段階的共有） | 重複する prose だけを別 Issue で `.ai` に抽出し、実行可能な hook、PF metadata、入口ファイルは各 tree に残す。 | 将来の重複削減案。owner が対象範囲と機械ゲートをレビューしてから着手する。 |
-| C（全面集約） | rules/instructions まで `.ai` の共通本文に集約し、各 PF wrapper から参照する。 | 非推奨。PF ごとの起動・権限・常時適用 semantics を失うリスクが高く、別設計が必要。 |
-
-## 保守ルール
-
-- 共通の規範本文を変更するときは、まず対応する `.ai` ファイルを変更し、PF wrapper は必要な metadata/差分だけ更新する。
-- rationale は `.ai/rationale/` だけを正本とし、`.claude/rationale/` を本文の編集先にしない。
-- PF にだけ存在する asset、PF 固有の未配置、rules/hooks/instructions の変更は、共通本文の移設と混ぜず、owner review を経た別スコープとして扱う。
+設計経緯・却下案・既知の制約（rationale）の SoT は `.ai/rationale/<name>.md`、索引と分離規則の SoT は `.ai/rationale/README.md`。PF 個別リストは差分の索引であり、rationale の複製先ではない。

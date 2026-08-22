@@ -4,4 +4,9 @@ description = """一時領域 tmp/<sprint>/ に著作されたノードを本反
 developer_instructions = """すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
 
 このエージェントの共通本文は `./.ai/agents/reconciliation-validator.md` にあります。必ず読み、その指示に従ってください。
+
+## Codex 固有の実行境界
+
+- 検証コマンドは Codex の許可済み terminal 経路で実行し、`spawn_agent` で著作や反映を代行しない。validator は read-only のまま `VALIDATION_OK` / `ROLLBACK` を返す。
+- `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。workspace 外の書き込みや未許可 command は fail-close で停止する。
 """

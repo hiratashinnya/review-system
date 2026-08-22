@@ -23,4 +23,6 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 - 付与済みの `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドだけにし、`queries` / `intent` で出力を絞り、`cwd` は明示しない。同じ対象のindexを重複実行しない。
 - hookは静的文字列検査であり完全なsandboxではない。レビュー中に別経路でコード変更・push・karte更新・権限昇格を行わない。共通本文の4部構成とfinding再掲規則を省略しない。
+- `spawn_agent` はレビュー担当の単一責務を分割・代行するために使わない。別担当への引き渡しが必要な場合は finding と次の処置を明記して主文脈へ返す。
+- `.codex/hooks/agent-command-gate.sh` の permission boundary を迂回しない。レビュー中の push、コード変更、karte 更新は fail-close で停止する。
 """

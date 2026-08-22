@@ -16,6 +16,8 @@ model: sonnet
 - Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2}`、gitgateは読み取り専用の `diff` / `log` だけ、`gh` は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `pr merge` / `pr checkout` / `issue view` だけとする。shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - レビューコメントは `gh pr comment` / `gh pr review` のクォート済み `--body` で渡し、自己PRをApproveしたと偽らない。レビュー結果には Claude Code (AI) によるレビューであることと、構造化finding、次の処置を明記する。
 
+オーナー専権事項の判断が必要な場合は `AskUserQuestion` で確認し、回答なしに mergeable や対応不要を決めない。
+
 ## context-mode 固有の規律
 
 - `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドに限り、`queries` / `intent` で出力を絞り、`cwd` は明示しない。同じ対象のindexを重複実行しない。

@@ -4,7 +4,7 @@
 外部ファイル形式の設計は `schema-design`、データ辞書そのものの生成は `structured-analysis`（DFD 分解）が担う。
 本スキルはその**下流＝実装用の内部型設計**だけを担当する（DD 確定の**後**に使う）。
 
-原則：[spec-principles](../../../.claude/skills/spec-principles/SKILL.md)（PR1 もので分ける／PR5 導出は無状態＝イミュータブル化しやすい）。
+原則：[spec-principles](../spec-principles/SKILL.md)（PR1 もので分ける／PR5 導出は無状態＝イミュータブル化しやすい）。
 
 ## 手順
 1. **語彙の棚卸し**：データ辞書で `|` で閉じた語彙＝**Enum 候補**、`{…}` の複合＝**値オブジェクト候補**として印を付ける。
