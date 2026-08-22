@@ -150,7 +150,8 @@ class BloomModelTierContract(unittest.TestCase):
         for line in threshold_table.splitlines():
             if line.startswith("| ") and line.count("|") == 4:
                 columns = [column.strip() for column in line.split("|")]
-                rows[columns[1]] = tuple(columns[2:4])
+                if columns[1] != "Bloom Lv":
+                    rows[columns[1]] = tuple(columns[2:4])
 
         # 軸2を全Lvに適用し、各セルの層と予算を固定した12セル契約。
         self.assertEqual(set(rows), set(self.EXPECTED_THRESHOLD_CELLS))
