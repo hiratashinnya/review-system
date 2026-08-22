@@ -1,8 +1,8 @@
 # テスト戦略（review-system テーラリング済・active）
 
-> 汎用標準 [`.claude/standards/test-strategy`](../../../.claude/standards/test-strategy/SKILL.md) の**不変条件を継承**し、本PJのノブを埋めた版。
-> 由来・差分は [tailoring-registry](../../../.claude/tailoring-registry.md)。実装の足場は [design/02 モジュール構成](../../../docs/design/02-module-architecture.md)。
-> doc-system の **TD/TC/TR 3層**（[DD-009](../../../docs/doc-system/02-meta-schema.md)）に対応済み（移行ログ: [backups/2026-06-10](../../../.claude/backups/2026-06-10/MIGRATION-LOG.md)）。
+> 共通のテスト不変条件を継承し、本PJのノブを埋めた版。実装の足場は
+> [design/02 モジュール構成](../../../docs/design/02-module-architecture.md)。
+> doc-system の **TD/TC/TR 3層**（[DD-009](../../../docs/doc-system/02-meta-schema.md)）に対応済み。
 
 ## doc-system との対応
 
@@ -20,7 +20,7 @@
 - 独立 SPEC ごとに `targets` 配列（`parent_id`＝対象 SPEC の slug・`kind: TD`・`brief`）で渡し、**並列著作**させる。
 - TC/TR は実装・実行が先行条件のため本 fan-out の対象外（TD 確定後、実装着手→コミット→テスト実行を経て別途 verification-author で個別に著作する）。
 - 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/verification-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを Read して取る**。**直接呼びのときは主文脈が `update_slugs`（backref 付与先など既存ノードを更新した slug）を `reconciliation-validator` へ明示的に渡す**（集約役の fan-out を通さないため。渡し忘れると `dsv2 check-slug` が正当な更新を既存 id 衝突と判定して ROLLBACK する）。
-- 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う（エージェントは AskUserQuestion 不可のため判断は skill 側）。
+- 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う。委譲先は対話せず STOP を返し、オーケストレータ主文脈が呼び出し元の対話機構で判断を確定する。
 - **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。付けないと新しいキーが採番され、前回のハンドオフと対応付かなくなる。**新規 target には付けない**（付けないことで他バッチと衝突しないキーが採番される）。
 - **N 個中1個だけ失敗し、その1件だけを再試行する場合は fan-out に戻さない**（`targets` が1件のみだと Step 1-4 で
   オーバースペック STOP になる＝単一対象は `verification-author` を直接呼ぶ）。この直接呼び出しでは、入力の `target_key` に
@@ -40,8 +40,8 @@ unittest 基本／テスト設計＝Markdown（TD）／テスト結果＝TD コ�
 |---|---|
 | 「1関数」の定義・網羅 | `domain` / `core` / `parsing` / `prompts` の**全 public 関数**を unittest（[02](../../../docs/design/02-module-architecture.md) の内向き依存で純粋なので関数単位で回せる） |
 | 非決定の決定化シーム | **`adapters/fake.py` の `FakePlatformAdapter`（record/replay フィクスチャ）**。非決定は LLM のみ＝`PlatformPort` の裏。**アダプタ境界＝テスト境界**にして core を決定化（[10 境界](../../../docs/requirements/10-llm-system-boundary.md)・E） |
-| e2e の駆動・対象 | **Claude Code エージェントが `io/cli` を stdout 駆動で実行**。対象＝代表レビューシナリオ（合成→評価→仕分け→適用→レポート）。3点セットを残す |
-| ログ取得 | **標準出力ダンプ**。`python -m unittest -v` 出力＋アプリ stdout を `tee` で `tests/logs/<id>-<commit>.txt` に保存 |
+| e2e の駆動・対象 | 各PFの実行手段で `io/cli` を stdout 駆動で実行。対象＝代表レビューシナリオ（合成→評価→仕分け→適用→レポート）。3点セットを残す |
+| ログ取得 | **標準出力ダンプ**。テストランナー出力＋アプリ stdout を `tests/logs/<id>-<commit>.txt` に保存（具体的な保存手段はPF wrapperに従う） |
 | ディレクトリ配置 | `tests/unit/`（TC: Python）・`tests/designs/*.md`（TD: テスト設計）・`tests/reports/*.md`（TR: テスト結果）・`tests/logs/*.txt`（ログ） |
 | バージョニング | TD frontmatter に `version`。TR frontmatter に **`result: PASS\|FAIL`・`log_ref`** ＋ ヘッダに `{ TD版 + 実装commit id + プロンプト雛形版 + 基準content_hash(S6) + 実行日時 }`（[S6 版スタンプ](../../../docs/requirements/13-stabilization.md) と一致） |
 | 実行ランナー | **`python -m unittest`**（標準ライブラリのみ・[Q5](../../../docs/dashboard.md)） |
@@ -78,11 +78,8 @@ log_ref: tests/logs/<id>-<commit>.txt   # FAIL 時は必須（RULE-021 対応）
 ## 手順（1サイクル）
 
 1. 実装を**コミット**（commit id を確定）。
-2. `python -m unittest -v 2>&1 | tee tests/logs/<id>-<commit>.txt`。
-   - **`issue-implementer` / `pr-reviewer` ロールから実行する場合はこの形は使えない**（`|`・`2>` が
-     `agent-command-gate` の層1（危険記号 ban・Issue #227）で deny される）。両ロールでは
-     **`python3 -m unittest discover -s tests/unit` を単体で実行**し、ログが必要なら出力を
-     Write ツールで `tests/logs/<id>-<commit>.txt` に書き出す（`| tee` を使わない）。
+2. テストランナーを実行し、標準出力を `tests/logs/<id>-<commit>.txt` に保存する。具体的な
+   コマンド、ログ保存手段、実行制約は各PF wrapperに従う。
 3. TD をコピーして TR を作成、frontmatter に `result` と `log_ref` を追記。
 4. FAIL は TR を残し、根本原因・対処を併記（消さない・上書きしない）。
-5. e2e は Claude Code エージェントで `io/cli` を回し、同じ3点セット（TD/TC/TR/ログ）を残す。
+5. e2e は各PFの実行手段で `io/cli` を回し、同じ3点セット（TD/TC/TR/ログ）を残す。
