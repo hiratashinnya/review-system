@@ -99,6 +99,14 @@ class BloomModelTierContract(unittest.TestCase):
         ("大", "xhigh"),
         ("最大", "max"),
     )
+    CODEX_MODEL_MAPPING = (
+        ("低位モデル層", "model: gpt-5.6-luna"),
+        ("中位モデル層", "model: gpt-5.6-luna"),
+        ("最上位モデル層", "model: gpt-5.6-sol"),
+    )
+    CODEX_REASONING_EFFORTS = frozenset(
+        {"low", "medium", "high", "xhigh", "max"}
+    )
     CLAUDE_BUDGET_MAPPING = (
         ("最小", "low"),
         ("小", "medium"),
@@ -132,6 +140,49 @@ class BloomModelTierContract(unittest.TestCase):
             "最上位モデル層 + 大の推論予算",
         ),
     }
+    EXPECTED_CODEX_CELLS = {
+        "1 記憶": (
+            ("gpt-5.6-luna", "low"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "2 理解": (
+            ("gpt-5.6-luna", "medium"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "3 応用": (
+            ("gpt-5.6-luna", "high"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "4 分析": (
+            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "5 評価": (
+            ("gpt-5.6-luna", "max"),
+            ("gpt-5.6-sol", "high"),
+        ),
+        "6 創造": (
+            ("gpt-5.6-luna", "max"),
+            ("gpt-5.6-sol", "xhigh"),
+        ),
+    }
+
+    @staticmethod
+    def _two_column_mapping(body: str, left_header: str, right_header: str):
+        """指定ヘッダの Markdown 2列表を辞書として返す。"""
+
+        lines = body.splitlines()
+        header = f"| {left_header} | {right_header} |"
+        header_index = lines.index(header)
+        rows = {}
+        for line in lines[header_index + 2 :]:
+            if not line.startswith("|"):
+                break
+            columns = [column.strip() for column in line.strip("|").split("|")]
+            if len(columns) != 2:
+                break
+            rows[columns[0]] = columns[1].strip("`")
+        return rows
 
     def test_common_body_keeps_tie_break_and_judgment_examples_specific(self):
         body = _read(self.COMMON_PATH)
@@ -251,17 +302,25 @@ class BloomModelTierContract(unittest.TestCase):
                 self.assertIn(common_href, _read(path))
 
         codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
-        self.assertIn("`gpt-5.6` を固定", codex)
         self.assertIn("`model_reasoning_effort`", codex)
         self.assertIn("session/config", codex)
         self.assertIn("`.codex/agents/*.toml`", codex)
-        self.assertNotIn("gpt-5.6-luna", codex)
-        self.assertNotIn("gpt-5.6-sol", codex)
-        for neutral_budget, codex_budget in self.CODEX_BUDGET_MAPPING:
-            self.assertIn(
-                f"| {neutral_budget} | `{codex_budget}` |",
+        self.assertEqual(
+            self._two_column_mapping(
                 codex,
-            )
+                "PF 中立のモデル層",
+                "Codex CLI session/config の `model`",
+            ),
+            dict(self.CODEX_MODEL_MAPPING),
+        )
+        self.assertEqual(
+            self._two_column_mapping(
+                codex,
+                "PF 中立の予算",
+                "Codex CLI session/config の `model_reasoning_effort`",
+            ),
+            dict(self.CODEX_BUDGET_MAPPING),
+        )
 
         claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
         for token in ("haiku", "sonnet", "opus", "effort:"):
@@ -281,6 +340,55 @@ class BloomModelTierContract(unittest.TestCase):
             "共通の推論予算は Copilot の agent frontmatter では表現できず、"
             "モデルIDだけを写像する",
             copilot,
+        )
+
+    def test_codex_wrapper_preserves_the_legacy_oracle_mapping(self):
+        """旧 Codex 正本の6x2セルを現行モデル名で意味保存する。"""
+
+        common = _read(self.COMMON_PATH)
+        codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
+        model_mapping = self._two_column_mapping(
+            codex,
+            "PF 中立のモデル層",
+            "Codex CLI session/config の `model`",
+        )
+        budget_mapping = self._two_column_mapping(
+            codex,
+            "PF 中立の予算",
+            "Codex CLI session/config の `model_reasoning_effort`",
+        )
+
+        threshold_table = common[common.index("### 閾値表") : common.index("## 手順")]
+        neutral_rows = {}
+        for line in threshold_table.splitlines():
+            if line.startswith("| ") and line.count("|") == 4:
+                columns = [column.strip() for column in line.split("|")]
+                if columns[1] in self.BLOOM_LEVELS:
+                    neutral_rows[columns[1]] = tuple(columns[2:4])
+
+        actual_cells = {}
+        used_efforts = set()
+        for level, neutral_cells in neutral_rows.items():
+            mapped_cells = []
+            for cell in neutral_cells:
+                model_tier, separator, neutral_budget = cell.partition(" + ")
+                self.assertEqual(separator, " + ", f"{level}: {cell}")
+                self.assertTrue(neutral_budget.endswith("の推論予算"))
+                neutral_budget = neutral_budget.removesuffix("の推論予算")
+                model = model_mapping[model_tier].removeprefix("model: ")
+                effort = budget_mapping[neutral_budget]
+                self.assertIn(effort, self.CODEX_REASONING_EFFORTS)
+                used_efforts.add(effort)
+                mapped_cells.append((model, effort))
+            actual_cells[level] = tuple(mapped_cells)
+
+        self.assertEqual(set(actual_cells), set(self.BLOOM_LEVELS))
+        self.assertTrue(all(len(cells) == 2 for cells in actual_cells.values()))
+        self.assertEqual(actual_cells, self.EXPECTED_CODEX_CELLS)
+        self.assertEqual(used_efforts, self.CODEX_REASONING_EFFORTS)
+        self.assertNotEqual(
+            model_mapping["低位モデル層"],
+            model_mapping["最上位モデル層"],
         )
 
     def test_claude_frontmatter_description_keeps_pf_mapping(self):
