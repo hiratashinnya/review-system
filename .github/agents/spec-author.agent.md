@@ -1,6 +1,6 @@
 ---
 name: spec-author
-description: "Authors SPEC child nodes under a given parent SPEC or FR. Enforces 1-assertion-per-SPEC splitting and -N hierarchy numbering. Use when creating or splitting SPEC nodes. NOT for reading specs (use spec-inspector), NOT for writing to main files (use reconciliation)."
+description: "Authors SPEC child nodes under a given parent SPEC or FR. Enforces one assertion per SPEC, slug identifiers, and child-to-parent dependency edges. Use when creating or splitting SPEC nodes. NOT for reading specs (use spec-inspector), NOT for writing to main files (use reconciliation)."
 model: claude-opus-4-8
 tools:
   - read_file

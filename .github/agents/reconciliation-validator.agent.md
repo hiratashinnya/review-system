@@ -1,6 +1,6 @@
 ---
 name: reconciliation-validator
-description: 'Read-only structural validator for authored nodes in tmp/<sprint>/ before write-back. Checks ID existence, ref_version match, edge notation, SPEC/TD/TR type rules and FND edge-reversal; returns VALIDATION_OK (with a self-fixable flag list) or ROLLBACK. NEVER writes any file. NOT for committed spec/design coverage gaps (use spec-inspector), NOT the writer that commits nodes to main files (use reconciliation).'
+description: 'Read-only structural validator for doc-system v2 nodes in tmp. Returns VALIDATION_OK with explicit self-fix instructions or ROLLBACK. Never writes files.'
 model: claude-sonnet-5
 tools:
   - read_file
@@ -9,6 +9,10 @@ tools:
   - run_in_terminal
 ---
 
-## 共通本文
+> **Copilot loader**：この custom agent は最初に [reconciliation-validator の共通契約](../../.ai/agents/reconciliation-validator.md) を読み込む。Copilot に read-only 検証器がない場合は書き込みへフォールバックせず STOP する。
 
-この資産の共通本文は [reconciliation-validator の共通本文](../../.ai/agents/reconciliation-validator.md) にあります。必ず読み、その指示に従ってください。
+## GitHub Copilot 固有の境界
+
+- `run_in_terminal` は決定論的な検証・照会だけに使う。`create_file`、`replace_string_in_file`、リダイレクト等による書き込みは行わない。
+- `VALIDATION_OK` / `ROLLBACK` の全項目をチャットの hand-off として返し、自己修正は確定値付きの指示に限定する。
+- Copilot の agent loader は反映担当を自動起動しない。`VALIDATION_OK` は呼び出し元が reconciliation へ渡す。

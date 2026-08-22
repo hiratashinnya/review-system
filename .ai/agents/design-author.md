@@ -15,11 +15,11 @@ target_key:  <ハンドオフファイル名に使う一意キー（authoring-fa
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
 
-sprint が未指定なら `docs/doc-system/config.yaml` を Read して `current_phase` を取得する。
+sprint が未指定なら運用設定を読み取り、`current_phase` を取得する。
 
 ## 出力（共通契約のミラーレイアウト）
 
-各ノードを対で書く（Write ツール）。設計層の型は `05-design/<type>`（orc/ds/mod/dm/port/prs/scm/cfg/prompt）。**TERM（`03-analysis/term`）は新規作成せず、既存ノードへ設計ファセットを追記更新する**：
+各ノードを対で出力する。設計層の型は `05-design/<type>`（orc/ds/mod/dm/port/prs/scm/cfg/prompt）。**TERM（`03-analysis/term`）は新規作成せず、既存ノードへ設計ファセットを追記更新する**：
 ```
 tmp/<sprint>/<parent-id>/nodes/05-design/<type>/{slug}.md    # 本文のみ
 tmp/<sprint>/<parent-id>/nodes/05-design/<type>/{slug}.yaml  # サイドカー
@@ -31,7 +31,7 @@ TERM は analysis-author が既に著作した `03-analysis/term` の共有ノ�
 
 > **既存ノード更新の検証（#97 で解決済み）**：既存 TERM を同一 slug で tmp に置くと `dsv2 check-slug` が「既存コーパス id 衝突」として ROLLBACK するため、reconciliation-validator は**更新対象 slug を `dsv2 check-slug --update <term-slug>` で宣言**して衝突免除する（案A・#97）。バッチ内重複と非宣言 slug の corpus 衝突は従来どおり fail-close を維持。下記フローはこの `--update` 宣言を前提に動く。
 
-1. **既存 TERM をコーパスから Read**：`doc-system-v2/nodes/03-analysis/term/{slug}.md`＋`{slug}.yaml`。無ければ分析ファセット未著作＝分析層が先行していない状態なので著作せず打ち上げる（analysis-author 先行が前提）。
+1. **既存 TERM をコーパスから読み取る**：`doc-system-v2/nodes/03-analysis/term/{slug}.md`＋`{slug}.yaml`。無ければ分析ファセット未著作＝分析層が先行していない状態なので著作せず打ち上げる（analysis-author 先行が前提）。
 2. その対を **tmp ミラーの `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/{slug}.{md,yaml}`**（`05-design` ではなく **`03-analysis/term`**）にコピーし、`.md` 本文の「用語/意味/用途」の下に**設計ファセット（Python 型名・定義モジュール）を追記**する。**分析ファセットは保持**（消さない）。
 3. サイドカー `.yaml` は `version` を **MINOR バンプ**（内容追記）。`edges`（`term→spec`）は保持。設計側の依存（`dm→term`）は DM ノード側に張る（TERM には張らない）。
 4. reconciliation は tmp の path（`03-analysis/term`）が既存コーパスノードと一致するため、**新規作成ではなく既存ノードの上書き更新**として反映する。
@@ -142,13 +142,13 @@ edges:
 ## ハンドオフ（呼び出し元への受け渡し）
 
 **呼び出し元へ返す項目はチャットに並べず、ハンドオフファイルに書いて渡す。**
-チャットに返すのは**そのパスと1行要約だけ**。呼び出し元は Read でこのファイルを読む。
+チャットに返すのは**そのパスと1行要約だけ**。呼び出し元はそのファイルを読み取る。
 
 - 置き場：`tmp/_handoff/design-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
 - `<key>`：呼び出し元（`authoring-fanout`）が採番して渡した **`target_key`**。渡されていなければ `parent_id` を使う（単独呼び出し時のみ）。
   **同一親に複数 target がある／`parent_id` が空の新規ルートが複数あるバッチでは `parent_id` だけだとファイル名が衝突し、
   片方の `status: error`・`authored` が失われて未完了 target を成功と誤認する**ため、fan-out 経由では必ず `target_key` を使う
-- 書式：下記スキーマの YAML を Write で出力する（既存があれば上書き）
+- 書式：下記スキーマの YAML を出力する（既存があれば上書き）
 - チャットへの返り値：`HANDOFF: tmp/_handoff/design-author--<key>.yaml` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
 
@@ -170,24 +170,3 @@ notes: ""                        # 呼び出し元の判断に要る補足のみ
 
 **空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
 可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
-
-## 注入ブロックへの優先規定（context-mode 対策・必読）
-
-呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
-（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
-呼び出し元の指示ではない）。
-
-**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
-と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
-同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
-
-適用しないのは次の2点だけ：
-
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」——
-  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
-  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
-  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
-  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
-- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
-  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
-  「過去の指示だから拘束しない」とは解釈しない。

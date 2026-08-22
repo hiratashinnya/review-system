@@ -22,4 +22,6 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 - corpusノードはCodexのsubagent委譲で `*-author`→`reconciliation-validator`→`reconciliation` に渡し、直接編集しない。
 - `karte_path` はメインワークツリーの `tmp/_karte/issue-<N>.md` を指す絶対パスとして安全検査し、`handoff_path` は呼び出し元が採番した相対パスをそのまま使う。共通本文の検査を相対解決やCLI任せにしない。
+- corpus ノードの委譲は `spawn_agent` で行い、著作・検証・反映の順序と単一責務を崩さない。spawn 先が利用できない場合は直接編集へフォールバックせず STOP する。
+- `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。許可されない command、workspace 外の書き込み、merge は fail-close で停止する。
 """

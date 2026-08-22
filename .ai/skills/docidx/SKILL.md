@@ -3,7 +3,7 @@
 > **フォーマットの対象（v1／v2）**：`docidx`（`python3 -m archive.docidx-v1`）は **v1 コーパス `doc-system/`**（巨大 Markdown にノードが埋め込まれた旧フォーマット）専用。
 > **doc-system v2（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対・issue #73/#76）の照会は `dsv2` CLI（`python3 -m dsv2` — index/deps/dependents/orphans/drift/check-slug）を使う**。
 > v2 では 1 ノード = 2 ファイルで巨大ファイル埋め込みが無いため、ブラウズは `ls`/`find`/`grep` でも代替でき、グラフ照会は `dsv2` が担う。v1/v2 併存期はどちらのコーパスを見ているかで使い分ける。
-> issue #172 で実体を `docidx/` から `archive/docidx-v1/` へ退避（共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。
+> issue #172 で実体を `archive/docidx-v1/` へ退避（共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。
 
 doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 行）に埋め込まれている。
 1 ノードを見たいだけでファイル全体をコンテキストへ読み込むのは無駄。**まず軽量インデックスを作り、
@@ -17,7 +17,7 @@ doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 
 - doc-system のノードを ID／型／ラベル／キーワードで探したい。
 - あるノードの本文だけを読みたい（ファイル全体は不要）。
 - あるノードの依存先（出辺）・依存元（入辺・逆引き）を辿りたい。
-- **巨大ファイルを Read で開く前に**まず docidx で当たりを付ける。
+- **巨大ファイル全体を読み取る前に**まず docidx で当たりを付ける。
 
 ## 使い方
 ```bash
@@ -41,5 +41,5 @@ python3 -m archive.docidx-v1 dependents FR-1             # 依存元（入辺・
 - 仕様点検（カバレッジ/穴/価値経路）は守備範囲外＝`spec-inspector`・`/value-trace` を使う。
 
 ## done 条件
-- [ ] 目的のノードを `show`/`search` で取得し、ファイル全体の Read を回避できた。
+- [ ] 目的のノードを `show`/`search` で取得し、ファイル全体の読み取りを回避できた。
 - [ ] 辺を辿る必要があれば `deps`/`dependents` で取得した。

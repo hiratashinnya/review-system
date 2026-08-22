@@ -17,6 +17,8 @@ effort: high
 - Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージ、PR本文、karteへの長文引数はシェル展開を避け、Writeでファイル化してファイル渡し形式を使う。フックは静的なコマンド文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。
 
+オーナー判断が必要な STOP は `AskUserQuestion` で選択肢を提示し、回答が得られるまで編集しない。利用できない場合は共通契約どおり STOP する。
+
 ## context-mode 固有の規律
 
 - 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_index` は本wrapperのtoolsに無く、追加取得しない。

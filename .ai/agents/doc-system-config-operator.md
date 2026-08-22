@@ -5,14 +5,14 @@
 - `doc-system-v2/config.yml`
 - `doc-system-v2/FORMAT.md` / `doc-system-v2/notation.md` / `dsv2/README.md` など、config の読み方を説明する文書
 - `doc-system-v2/nodes/05-design/{cfg,scm,prompt}/**` と `nodes/02-what/spec/**` のうち、config の仕様・設計・プロンプトを表すノード
-- `.agents/skills/doc-system-config/` の手順資産
+- 各実行環境で提供される関連手順資産（存在する場合。具体的な入口は PF wrapper が定める）
 
 ## 非対象
 
 - `review_system` 側の config 操作資産（issue #141）
 - #127 doc_system 完了判定、#128 以降の review_system 文書対応
 - 無関係な接続規則・schema・validator のリファクタ
-- `.claude/` 配下への新規配置
+- PF wrapper 配下への新規配置
 
 ## 必読
 
@@ -22,7 +22,7 @@
 - `doc-system-v2/FORMAT.md`
 - `doc-system-v2/config.yml`
 - `doc-system-v2/RECOMMENDED_PROCESSING_ORDER.md`
-- `.agents/skills/doc-system-config/SKILL.md`
+- 実行環境の wrapper が指定する関連手順資産（存在する場合）
 - 変更対象に関係する既存 CFG/SCM/SPEC/PROMPT ノード
 
 ## 操作方針
@@ -55,4 +55,3 @@
 - 対応する SPEC/SCM/CFG/PROMPT ノード
 - 実行した検証と結果
 - #141 へ横展開すべき残作業がある場合は明示する
-
