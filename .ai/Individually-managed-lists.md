@@ -15,7 +15,7 @@
 
 | PF | mapping |
 |---|---|
-| Claude Code | `model:` は `haiku`／`sonnet`／`opus`。共通の最小／小／中／大／最大を `effort: low`／`medium`／`high`／`xhigh`／`max` へ一対一に写像する。 |
+| Claude Code | `model:` は `haiku`／`sonnet`／`opus`。PF上限の差分として、共通の最大の推論予算だけ `effort: xhigh` へ畳む。 |
 | GitHub Copilot | 中位モデル層→`claude-sonnet-5`、最上位モデル層→`claude-opus-4-8`。共通の予算は frontmatter で表現できず、モデルIDだけを写像する。低位モデル層は live の利用可能 ID を確認できた場合だけ指定し、確認できなければ架空 ID を追加せず STOP してオーナー確認を求める。Claude の `effort` や Codex の推論予算キーは持ち込まない。 |
 | Codex CLI／Repo-skill | `gpt-5.6` を固定し、共通の最小／小／中／大／最大を session/config の `model_reasoning_effort: low`／`medium`／`high`／`xhigh`／`max` へ一対一に写像する。`.codex/agents/*.toml` は session 設定を継承して `model` や予算キーを複製しない。 |
 

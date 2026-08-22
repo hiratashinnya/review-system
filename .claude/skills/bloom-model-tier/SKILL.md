@@ -1,6 +1,6 @@
 ---
 name: bloom-model-tier
-description: Assign a Claude model tier + effort level to a sub-agent's frontmatter (`model:`/`effort:`) by classifying its dominant Bloom's-revised cognitive level AND whether its difficulty is thoroughness-bound or judgment-bound (Remember→haiku; Understand/Apply→sonnet; Analyze/Evaluate/Create→sonnet+high/xhigh effort if thoroughness-bound, else opus). Use when deciding which model/effort a custom agent should run on. NOT runtime control-flow or version-stamp logging (orchestration-design), NOT prompt template design (prompt-design).
+description: Assign a Claude model tier + effort level to a sub-agent's frontmatter (`model:`/`effort:`) by independently mapping the model tier and reasoning budget from the common 12-cell Bloom table (low-tier→haiku, mid-tier→sonnet, top-tier→opus; minimum/small/medium/large/maximum→`effort: low`/`medium`/`high`/`xhigh`/`xhigh`). Use when deciding which model/effort a custom agent should run on. NOT runtime control-flow or version-stamp logging (orchestration-design), NOT prompt template design (prompt-design).
 ---
 
 ## 共通本文
@@ -23,7 +23,7 @@ PF 中立のモデル層を Claude Code の sub-agent frontmatter の `model:` �
 | 小 | `medium` |
 | 中 | `high` |
 | 大 | `xhigh` |
-| 最大 | `max` |
+| 最大 | `xhigh` |
 
 ```yaml
 model: haiku
@@ -35,5 +35,5 @@ effort: xhigh # PF中立: 中位モデル層 + 大の推論予算
 ```
 ```yaml
 model: opus
-effort: max # PF中立: 最上位モデル層 + 最大の推論予算
+effort: xhigh # PF中立: 最上位モデル層 + 最大の推論予算
 ```
