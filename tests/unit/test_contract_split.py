@@ -75,6 +75,111 @@ def _relative_href(target: pathlib.Path, source_dir: pathlib.Path) -> str:
     return pathlib.PurePosixPath(os.path.relpath(target, source_dir)).as_posix()
 
 
+class BloomModelTierContract(unittest.TestCase):
+    """Codex版を基準にした PF 中立本文と各 PF 写像の分離契約。"""
+
+    COMMON_PATH = ".ai/skills/bloom-model-tier/SKILL.md"
+    WRAPPER_PATHS = (
+        ".agents/skills/bloom-model-tier/SKILL.md",
+        ".claude/skills/bloom-model-tier/SKILL.md",
+        ".github/skills/bloom-model-tier/SKILL.md",
+    )
+    BLOOM_LEVELS = (
+        "1 記憶",
+        "2 理解",
+        "3 応用",
+        "4 分析",
+        "5 評価",
+        "6 創造",
+    )
+
+    def test_codex_derived_common_body_keeps_the_full_neutral_contract(self):
+        body = _read(self.COMMON_PATH)
+
+        # Codex 正本から移した意味上の契約。単なる Lv 一覧の短縮版へ退行させない。
+        for level in self.BLOOM_LEVELS:
+            self.assertIn(level, body)
+        for marker in (
+            "過剰な Lv6",
+            "確定したルールや検査結果をテンプレに流し込む",
+            "既存資産やコードの整合性",
+            "外部 CLI やサブエージェントへ手順通りにディスパッチ",
+            "### 軸2：難所の性質",
+            "網羅性ボトルネック",
+            "判断ボトルネック",
+            "## 判定基準（タイブレーク）",
+            "## done（点検観点）",
+        ):
+            self.assertIn(marker, body)
+
+        threshold_table = body[body.index("### 閾値表") : body.index("太字＝")]
+        # 軸2を全Lvに適用し、Lv1/2/3を一つに畳まない12セル契約。
+        for level in self.BLOOM_LEVELS:
+            row = next(
+                line
+                for line in threshold_table.splitlines()
+                if line.startswith(f"| {level} |")
+            )
+            self.assertEqual(
+                row.count("|"),
+                4,
+                f"閾値表の {level} 行が網羅性/判断の2セルを持たない。",
+            )
+        for level in ("4 分析", "5 評価", "6 創造"):
+            self.assertRegex(
+                threshold_table,
+                rf"\| {re.escape(level)} \|[^\n]*(?:小|中|大|最大|最上位)",
+            )
+
+        forbidden_pf_tokens = (
+            "gpt-5.6",
+            "gpt-5.6-luna",
+            "gpt-5.6-sol",
+            "model_reasoning_effort",
+            "haiku",
+            "sonnet",
+            "opus",
+            "effort:",
+            "claude-sonnet-5",
+            "claude-opus-4-8",
+        )
+        for token in forbidden_pf_tokens:
+            self.assertNotIn(
+                token,
+                body,
+                f"共通本文に PF 固有値 {token!r} を持ち込まない。",
+            )
+
+    def test_wrappers_link_common_body_and_keep_pf_mapping_local(self):
+        common_href = "../../../.ai/skills/bloom-model-tier/SKILL.md"
+        for path in self.WRAPPER_PATHS:
+            with self.subTest(wrapper=path):
+                self.assertIn(common_href, _read(path))
+
+        codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
+        self.assertIn("`gpt-5.6` を固定", codex)
+        self.assertIn("`model_reasoning_effort`", codex)
+        self.assertIn("session/config", codex)
+        self.assertIn("`.codex/agents/*.toml`", codex)
+        self.assertNotIn("gpt-5.6-luna", codex)
+        self.assertNotIn("gpt-5.6-sol", codex)
+
+        claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
+        for token in ("haiku", "sonnet", "opus", "effort:"):
+            self.assertIn(token, claude)
+
+        copilot = _read(".github/skills/bloom-model-tier/SKILL.md")
+        for model_id in ("claude-sonnet-5", "claude-opus-4-8"):
+            self.assertIn(model_id, copilot)
+
+    def test_individually_managed_list_is_delta_only(self):
+        body = _read(".ai/Individually-managed-lists.md")
+        self.assertIn("## Bloom の model mapping", body)
+        self.assertNotIn("| Bloom Lv |", body)
+        self.assertNotIn("### 閾値表", body)
+        self.assertNotIn("## 共通本文", body)
+
+
 class NormativeSideLinksToRationale(unittest.TestCase):
     """現行 `.claude` wrapper を入口に canonical rationale へ辿れる。"""
 
