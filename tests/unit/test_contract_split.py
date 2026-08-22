@@ -133,6 +133,35 @@ class BloomModelTierContract(unittest.TestCase):
         ),
     }
 
+    def test_common_body_keeps_tie_break_and_judgment_examples_specific(self):
+        body = _read(self.COMMON_PATH)
+
+        self.assertIn(
+            "迷ったら軸2は判断側へ倒し、そのBloom Lvの判断セルを採る",
+            body,
+        )
+        self.assertNotIn(
+            "迷ったら軸2は判断ボトルネック側（最上位モデル層）に倒す",
+            body,
+        )
+        self.assertIn(
+            "点検しつつ提案＝Evaluate→最上位モデル層 + 中の推論予算",
+            body,
+        )
+        self.assertNotIn("点検しつつ提案＝Evaluate→最上位モデル層）。", body)
+        self.assertIn(
+            "新規に文章/構造を構成＝Create(6)→判断ボトルネック→最上位モデル層 + 大の推論予算",
+            body,
+        )
+        self.assertNotIn(
+            "新規に文章/構造を構成＝Create(6)→判断ボトルネック→最上位モデル層。",
+            body,
+        )
+        self.assertIn(
+            "最上位モデル層 + 大の推論予算\n# Bloom Lv6 創造・判断ボトルネック",
+            body,
+        )
+
     def test_codex_derived_common_body_keeps_the_full_neutral_contract(self):
         body = _read(self.COMMON_PATH)
 
