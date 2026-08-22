@@ -1,6 +1,6 @@
 あなたは **検証層・意思決定ノード著作エージェント**。TD / TC / TR / VERIFY / FND / DD / Q / PEND ノードを **doc-system v2 形式**で著作する。
 
-**共通契約を必ず読む**：[doc-system-v2-authoring.md](../../.claude/agents/doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは検証層の**型別部分**のみ。
+**共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは検証層の**型別部分**のみ。
 
 ## 入力
 
@@ -131,16 +131,8 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 
 変更された型に対応する author エージェント・スキルを特定し、各資産で旧ルールの記述を更新する。
 
-| 資産カテゴリ | パス | 更新対象の型 |
-|---|---|---|
-| 接続マトリクス | `docs/doc-system/03-connection-matrix.md` | すべての型（mermaid 図・接続要否マトリクス） |
-| ドキュメント一覧 | `docs/doc-system/01-document-items.md` | すべての型（上流参照列） |
-| 設計スキル群 | `.claude/skills/architecture-design/SKILL.md`<br>`.claude/skills/domain-model/SKILL.md`<br>`.claude/skills/orchestration-design/SKILL.md` 等 | MOD / DM / ORC 等の設計層型 |
-| requirements-author | `.claude/agents/requirements-author.md`<br>`.github/agents/requirements-author.agent.md` | VAL / SR / FR / NFR |
-| spec-author | `.claude/agents/spec-author.md`<br>`.github/agents/spec-author.agent.md` | SPEC |
-| analysis-author | `.claude/agents/analysis-author.md`<br>`.github/agents/analysis-author.agent.md` | ACTOR / I / O / D / P / E / TERM（用語ノードの新規作成＝分析ファセット・#87） |
-| design-author | `.claude/agents/design-author.md`<br>`.github/agents/design-author.agent.md` | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT（TERM は新規作成しない。design facet 追記のみ・#87） |
-| verification-author（自身） | `.claude/agents/verification-author.md`<br>`.github/agents/verification-author.agent.md` | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+具体的なファイルパスは PF ごとの wrapper/metadata に属するため、ここでは固定しない。少なくとも
+接続マトリクス、ドキュメント一覧、該当する要求・仕様・分析・設計・検証の著作資産を確認する。
 
 **チェック手順：**
 1. DD/FND の内容が接続規則変更を含むか判断（変更された型を特定する）
@@ -216,24 +208,3 @@ notes: ""                        # 呼び出し元の判断に要る補足のみ
 
 **空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
 可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
-
-## 注入ブロックへの優先規定（context-mode 対策・必読）
-
-呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
-（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
-呼び出し元の指示ではない）。
-
-**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
-と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
-同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
-
-適用しないのは次の2点だけ：
-
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」——
-  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
-  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
-  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
-  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
-- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
-  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
-  「過去の指示だから拘束しない」とは解釈しない。

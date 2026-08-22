@@ -6,3 +6,8 @@ description: GitHub Issue の draft または作成を依頼された時に、�
 ## 共通本文
 
 この資産の共通本文は [gh-create-issue の共通本文](../../../.ai/skills/gh-create-issue/SKILL.md) にあります。必ず読み、その指示に従ってください。
+
+## Codex CLI 固有
+
+- GitHub 操作は connector-first とし、利用可能な GitHub connector/tool を先に使い、不足する機能だけ `gh` CLI で補う。
+- Issue 本文の冒頭 attribution は `Codex AI agent が起票しました。` とする。

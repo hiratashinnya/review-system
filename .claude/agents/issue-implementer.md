@@ -21,6 +21,8 @@ model: sonnet
 - Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージとPR本文はWriteでファイル化してファイル渡し形式を使う。フックは静的なコマンド文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。
 
+共通契約のオーナー確認が必要になった場合は `AskUserQuestion` で選択肢を提示し、回答なしに実装範囲を拡張しない。
+
 ## context-mode 固有の規律
 
 - 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。

@@ -5,4 +5,9 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 このエージェントの共通本文は `./.ai/agents/reconciliation.md` にあります。必ず読み、その指示に従ってください。
 
+## Codex 固有の実行境界
+
+- 検証済み成果物の反映と専用 cleanup は Codex の許可済み terminal 経路で行う。著作や検証を `spawn_agent` で代行せず、入力された `VALIDATION_OK` の範囲だけを反映する。
+- `.codex/hooks/agent-command-gate.sh` の permission boundary と workspace 保護を迂回しない。未許可 command、保護パスの削除、入力外の反映は fail-close で停止する。
+
 """

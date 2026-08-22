@@ -1,7 +1,7 @@
 # 価値ベース MVP スコープ
 
 機能を価値で並べ、前提と不可分グループを明示して着手順と MVP ラインを決める。
-原則：[spec-principles](../../../.claude/skills/spec-principles/SKILL.md)（PR8 フル論理＋MVP印）。
+原則：[spec-principles](../spec-principles/SKILL.md)（PR8 フル論理＋MVP印）。
 
 ## 手順
 

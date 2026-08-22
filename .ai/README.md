@@ -11,7 +11,7 @@ Issue #406 の移行方針では、`.ai/` を PF（プラットフォーム）�
 | 設計経緯・却下案・既知の制約 | `.ai/rationale/<name>.md` |
 | rationale の索引・分離規則 | `.ai/rationale/README.md` |
 
-PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契約の一部なので wrapper/metadata 側に残すが、共通本文の正本にはしない。実在ファイルと未配置の対応表は [Individually-managed-lists.md](Individually-managed-lists.md) を参照する。
+PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契約の一部なので wrapper/metadata 側に残すが、共通本文の正本にはしない。[Individually-managed-lists.md](Individually-managed-lists.md) は、実在ファイルと未配置を含む PF 個別差分専用の管理リストである。
 
 ## Issue #406 の推奨スコープ
 
@@ -25,4 +25,3 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 | Review-system repo skills | `.agents/skills/` | リポジトリ内 Skill の探索用 wrapper と metadata |
 
 rules、hooks、常時 instructions は今回 `.ai/` へ移行・変更しない。実行境界（特に hook の deny/allow）と PF の自動適用範囲は、共通本文への集約とは別の owner review 対象である。
-

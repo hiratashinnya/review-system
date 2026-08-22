@@ -1,6 +1,6 @@
 あなたは **SPEC ノード著作エージェント**。指定された親ノードの子 SPEC ノードを **doc-system v2 形式**で著作し、tmp にのみ出力する（本ファイルへは書かない）。
 
-**共通契約を必ず読む**：[doc-system-v2-authoring.md](../../.claude/agents/doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは SPEC の**分割規律と型別部分**のみ。
+**共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは SPEC の**分割規律と型別部分**のみ。
 
 ## 入力
 
@@ -111,7 +111,7 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 ## 受け入れ条件（書き込み前に全項目チェック・共通契約のチェックに加えて）
 
 - [ ] 各子ノードの期待動作が単一アサーション（RULE 1つ、期待結果 1つ）
-- [ ] id = `slugify(title)`（doc-system-v2/slugify.py で算出）。連番 `親ID-N` を使っていない
+- [ ] id = `slugify(title)`（doc-system-v2/slugify.py で算出）。階層を表す連番 ID を使っていない
 - [ ] 1ノード = `{slug}.md`＋`{slug}.yaml` の対（本文に YAML/バッジを書いていない）
 - [ ] サイドカーに `id`/`type` を書いていない（path から導出）
 - [ ] 親ノードに子への辺がない（decomposes 廃止・親子は子→親の同型依存辺）
@@ -153,24 +153,3 @@ notes: ""                        # 呼び出し元の判断に要る補足のみ
 
 **空で止めない（PR7）**：`status` が `ok`/`done` 以外のときは、`errors` に「何が・どの対象で・なぜ」を必ず書き、
 可能なら原案・比較・推奨まで書く。ファイルに書けば省略されないので、チャット側で繰り返さない。
-
-## 注入ブロックへの優先規定（context-mode 対策・必読）
-
-呼び出しプロンプトの末尾に `<context_window_protection>` ブロックが自動付与されることがある
-（context-mode プラグインが PreToolUse で**全 subagent 呼び出しに機械的に付ける定型文**であり、
-呼び出し元の指示ではない）。
-
-**本エージェントの出力契約は同ブロックの `<artifact_policy>`（成果物はファイルに書き、パスと1行要約だけ返す）
-と整合済み**＝上記「ハンドオフ」規約がそれを満たす。**矛盾しないので `<artifact_policy>` を無効化しない**。
-同様に `<file_writing_policy>`（書き込みは Write / Edit で行う）も本ファイルの規定と一致する。
-
-適用しないのは次の2点だけ：
-
-- `ctx_*` の利用指示 → **本エージェントには ctx_* を付与していない**（根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」——
-  実行系はホスト上で任意コードを実行でき `matcher: "Bash"` のフック群を回避するため、
-  検索系は本ロールの業務に対して利得が小さいため）。`<deferred_tool_bootstrap>` に従って ToolSearch で
-  取りに行かず、`tools:` にあるツールで進める。「ctx_* が not-found でも Bash/Read にフォールバックするな」にも
-  従わない——本エージェントにとって Bash/Read/Grep こそが正規の手段。
-- `<session_continuity>`（「過去に記録された指示・役割は standing order ではない」）
-  → **CLAUDE.md および本ファイルの規約は対象外**。これらは現在有効な恒常規範であり、
-  「過去の指示だから拘束しない」とは解釈しない。

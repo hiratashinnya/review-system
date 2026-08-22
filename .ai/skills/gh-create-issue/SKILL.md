@@ -6,8 +6,8 @@
 
 1. 「Issue を作成して」「起票して」など、GitHub への書き込み依頼が明示されているか確認する。明示されていなければ調査と draft の提示だけを行い、Issue、Project、relation を変更しない。
 2. 対象 repository を remote、会話、GitHub 情報から特定する。推測だけで別 repository を選ばない。
-3. repository の `CLAUDE.md` と、そこから参照される規約を読む。AI attribution、言語、権限、スコープ、先送りに関する規約を優先する。
-4. 利用可能な GitHub tool で repository、Issue、label、Project を読み書きできるか確認し、不足する機能だけ `gh` で補う。権限不足、対象不明、規約矛盾なら fail-close で停止し、`AskUserQuestion` 相当で必要な判断または権限をユーザーへ具体的に求める。
+3. repository の適用規約と、そこから参照される Issue 運用規約を読む。AI attribution、言語、権限、スコープ、先送りに関する規約を優先する。
+4. 利用可能な GitHub tool で repository、Issue、label、Project を読み書きできるか確認し、不足する機能だけ CLI で補う。権限不足、対象不明、規約矛盾なら fail-close で停止し、対話的な確認手段で必要な判断または権限をユーザーへ具体的に求める。
 
 Issue 作成の明示依頼は、別 repository、追加 Issue、先送り、課金、または既存 Issue の破壊的変更への包括許可ではない。
 
@@ -23,7 +23,7 @@ Issue 作成の明示依頼は、別 repository、追加 Issue、先送り、課
 - Project fields: `Status`、`Workstream`、`Priority`、`Horizon`、`Review date`、`Harness`
 - relation 候補: parent、sub-issues、blocked-by/blocking
 
-期待する名前が live metadata にない、表記が異なる、同義候補が複数ある場合は勝手に label/option を作らず停止する。差分と推奨案を示し、`AskUserQuestion` 相当でユーザー判断を得る。
+期待する名前が live metadata にない、表記が異なる、同義候補が複数ある場合は勝手に label/option を作らず停止する。差分と推奨案を示し、対話的な確認手段でユーザー判断を得る。
 
 ## 3. open/closed の重複を調べる
 
@@ -42,7 +42,7 @@ open と closed の両方を検索する。タイトルの語句一致だけで�
 
 本文には必ず次を入れる。
 
-1. 冒頭: `Claude Code (AI) が起票しました。`
+1. 冒頭: 使用する実行環境が定める AI attribution 文。
 2. 目的・背景
 3. 現状と根拠（再現事実、該当 path、ログ、関連URL。未確認を事実として書かない）
 4. Scope
@@ -87,10 +87,10 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 - `Workstream`: 主担当を1つだけ選ぶ。複数領域への影響は `area:*` で表す。
 - `Status`: 新規は `Inbox`。作成時に `Done` にしない。
 - `Priority`: `P0` は即時対応が必要な重大障害、`P1` はblocker/高影響、`P2` は通常、`P3` は低緊急度。根拠付きで提案できるが、live の必須 field へ設定する最終値を作成前 preview に出す。根拠なしに上げない。
-- `Horizon`: `Now` は着手対象、`Next` は次候補、`Later` は時期未確定、`Deferred` は明示的な先送り。AI の既定値を持たない。ユーザー文面で値が明示されているか、作成前 preview で推奨値と根拠を示して `AskUserQuestion` 相当でユーザー確認を得た場合だけ設定する。未指定・未確認なら Issue/Project への write 前に停止する。
+- `Horizon`: `Now` は着手対象、`Next` は次候補、`Later` は時期未確定、`Deferred` は明示的な先送り。AI の既定値を持たない。ユーザー文面で値が明示されているか、作成前 preview で推奨値と根拠を示して対話的な確認を得た場合だけ設定する。未指定・未確認なら Issue/Project への write 前に停止する。
 - `Deferred`: owner が理由と先送りを明示承認した場合だけ設定し、`Review date` も作成前に確認して必ず設定する。どちらかが未確認なら write 前に停止する。
 
-作成前 preview には、選択 Project、labels、Workstream、Priority、Horizon、Review date、Harness、relations の最終予定値と判断根拠を出す。特に Horizon は preview の提示だけを承認とみなさず、`AskUserQuestion` 相当でユーザーの確認を得る。
+作成前 preview には、選択 Project、labels、Workstream、Priority、Horizon、Review date、Harness、relations の最終予定値と判断根拠を出す。特に Horizon は preview の提示だけを承認とみなさず、対話的な確認でユーザーの承認を得る。
 
 `area:harness` を付けた場合は、multi-select の `Harness` を1個以上設定する。
 
@@ -105,8 +105,7 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 
 ### Project へ書き込めない実行環境での代替（本文への記載）
 
-実行環境に Project を読み書きする手段が無い場合がある（例：Claude Code on the web には GitHub Projects 系の
-MCP tool も `gh` CLI も無い）。この場合の既定はこれまでどおり **§7 の fail-close で停止する**こと。
+実行環境に Project を読み書きする手段が無い場合がある。この場合の既定はこれまでどおり **§7 の fail-close で停止する**こと。
 
 停止を報告した上で**ユーザーが Issue の作成／更新を改めて明示指示した場合に限り**、Issue 本体を作成し、
 設定すべき項目を**本文の末尾に次の見出しで記載する**。Project item への追加・field 設定は行わない（できない）。

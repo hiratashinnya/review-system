@@ -23,4 +23,6 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 - corpusノードはCodexのsubagent委譲で `*-author`→`reconciliation-validator`→`reconciliation` に渡し、直接編集しない。
 - `handoff_path` は呼び出し元が採番した相対パスをそのまま使い、安全検査後に書き、書けた絶対パスだけを返す。新規ブランチ名やハンドオフ名を自分で推測しない。
+- corpus ノードの委譲は `spawn_agent` で行い、著作→検証→反映の順序を保つ。spawn 先が利用できない場合は直接編集へフォールバックせず STOP する。
+- `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。許可されない command、workspace 外の書き込み、merge は fail-close で停止する。
 """

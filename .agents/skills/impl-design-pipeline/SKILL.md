@@ -10,3 +10,4 @@ description: 実装前の FREEZE SET を作る実装設計フェーズを進行�
 ## Codex CLI 固有
 
 - 共通本文の authoring-fanout、design-author、spec-inspector の役割は維持する。Codex の agent dispatch 方式・利用可能な tool はこの PF の設定に従う。
+- 非対話の fan-out と design-author/spec-inspector の委譲には Codex の `spawn_agent` を使う。主文脈に残す矛盾停止・DD# の暫定決定は対話で確認する。

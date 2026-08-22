@@ -1,8 +1,8 @@
 # 実装設計パイプライン（spec → 実装の橋渡し・凍結セット化）
 
 > 仕様（spec-pipeline）の下流。**論理 DFD＋ドメインモデルが確定**してから、実装前に固める設計物を**順に・チェックポイント付き**で回す。
-> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**規律**＝[AGENTS.md](../../../AGENTS.md) の実装設計フェーズ節に従って各段で実施。
-> 原則：[spec-principles](../../../.claude/skills/spec-principles/SKILL.md)。
+> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**共通の実装設計規律**に従って各段で実施。
+> 原則：[spec-principles](../spec-principles/SKILL.md)。
 > **対話が要る段（総点検の矛盾停止・判断ログ DD# の暫定決定）は主文脈に残す**が、**非対話の並列ノード著作 fan-out は
 > `authoring-fanout` エージェント（`author: design-author`）へ委譲**する（2.5・DD-22 ①-C・issue #121）。
 
