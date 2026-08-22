@@ -9,21 +9,31 @@ description: Assign a Claude model tier + effort level to a sub-agent's frontmat
 
 ## Claude Code 固有の写像
 
-PF 中立のモデル層を Claude Code の sub-agent frontmatter に次のように写像する。
+PF 中立のモデル層を Claude Code の sub-agent frontmatter の `model:` に次のように写像する。モデル層と推論予算は別々に選び、すべてのモデル層で `effort:` の5段階写像を適用できる形にする。
 
-| PF 中立の層 | Claude Code の `model:` | 推論予算 |
-|---|---|---|
-| 低位モデル層 | `haiku` | — |
-| 中位モデル層 | `sonnet` | `effort: low`〜`medium`、網羅性ボトルネックは `high`〜`xhigh` |
-| 最上位モデル層 | `opus` | — |
+| PF 中立のモデル層 | Claude Code の `model:` |
+|---|---|
+| 低位モデル層 | `haiku` |
+| 中位モデル層 | `sonnet` |
+| 最上位モデル層 | `opus` |
+
+| PF 中立の予算 | Claude Code の `effort:` |
+|---|---|
+| 最小 | `low` |
+| 小 | `medium` |
+| 中 | `high` |
+| 大 | `xhigh` |
+| 最大 | `max` |
 
 ```yaml
-model: haiku # Bloom Lv1 記憶
+model: haiku
+effort: low # PF中立: 低位モデル層 + 最小の推論予算
 ```
 ```yaml
 model: sonnet
-effort: xhigh # Bloom Lv5 評価・網羅性ボトルネック（gap 提示のみで裁定はしない）
+effort: xhigh # PF中立: 中位モデル層 + 大の推論予算
 ```
 ```yaml
-model: opus # Bloom Lv6 創造・判断ボトルネック（曖昧な入力から新規構造を構成）
+model: opus
+effort: max # PF中立: 最上位モデル層 + 最大の推論予算
 ```

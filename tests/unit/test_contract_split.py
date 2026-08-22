@@ -92,6 +92,39 @@ class BloomModelTierContract(unittest.TestCase):
         "5 評価",
         "6 創造",
     )
+    NEUTRAL_BUDGET_MAPPING = (
+        ("最小", "low"),
+        ("小", "medium"),
+        ("中", "high"),
+        ("大", "xhigh"),
+        ("最大", "max"),
+    )
+    EXPECTED_THRESHOLD_CELLS = {
+        "1 記憶": (
+            "低位モデル層 + 最小の推論予算",
+            "低位モデル層 + 大の推論予算",
+        ),
+        "2 理解": (
+            "中位モデル層 + 小の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "3 応用": (
+            "中位モデル層 + 中の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "4 分析": (
+            "中位モデル層 + 大の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "5 評価": (
+            "中位モデル層 + 最大の推論予算",
+            "最上位モデル層 + 中の推論予算",
+        ),
+        "6 創造": (
+            "中位モデル層 + 最大の推論予算",
+            "最上位モデル層 + 大の推論予算",
+        ),
+    }
 
     def test_codex_derived_common_body_keeps_the_full_neutral_contract(self):
         body = _read(self.COMMON_PATH)
@@ -113,8 +146,15 @@ class BloomModelTierContract(unittest.TestCase):
             self.assertIn(marker, body)
 
         threshold_table = body[body.index("### 閾値表") : body.index("太字＝")]
-        # 軸2を全Lvに適用し、Lv1/2/3を一つに畳まない12セル契約。
-        for level in self.BLOOM_LEVELS:
+        rows = {}
+        for line in threshold_table.splitlines():
+            if line.startswith("| ") and line.count("|") == 4:
+                columns = [column.strip() for column in line.split("|")]
+                rows[columns[1]] = tuple(columns[2:4])
+
+        # 軸2を全Lvに適用し、各セルの層と予算を固定した12セル契約。
+        self.assertEqual(set(rows), set(self.EXPECTED_THRESHOLD_CELLS))
+        for level, expected_cells in self.EXPECTED_THRESHOLD_CELLS.items():
             row = next(
                 line
                 for line in threshold_table.splitlines()
@@ -125,11 +165,21 @@ class BloomModelTierContract(unittest.TestCase):
                 4,
                 f"閾値表の {level} 行が網羅性/判断の2セルを持たない。",
             )
-        for level in ("4 分析", "5 評価", "6 創造"):
-            self.assertRegex(
-                threshold_table,
-                rf"\| {re.escape(level)} \|[^\n]*(?:小|中|大|最大|最上位)",
+            self.assertEqual(rows[level], expected_cells)
+            for axis, cell in zip(("網羅性", "判断"), rows[level]):
+                self.assertTrue(
+                    cell,
+                    f"閾値表の {level} の{axis}セルが空である。",
+                )
+
+        for neutral_budget, source_budget in self.NEUTRAL_BUDGET_MAPPING:
+            self.assertIn(
+                f"| {neutral_budget} | `{source_budget}` |",
+                body,
+                f"PF中立の推論予算 {neutral_budget} が {source_budget} に写像されていない。",
             )
+        self.assertNotIn("軸2（Lv4+のみ）", body)
+        self.assertNotIn("(該当なし)", body)
 
         forbidden_pf_tokens = (
             "gpt-5.6",
@@ -163,14 +213,29 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertIn("`.codex/agents/*.toml`", codex)
         self.assertNotIn("gpt-5.6-luna", codex)
         self.assertNotIn("gpt-5.6-sol", codex)
+        for neutral_budget, codex_budget in self.NEUTRAL_BUDGET_MAPPING:
+            self.assertIn(
+                f"| {neutral_budget} | `{codex_budget}` |",
+                codex,
+            )
 
         claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
         for token in ("haiku", "sonnet", "opus", "effort:"):
             self.assertIn(token, claude)
+        for neutral_budget, claude_budget in self.NEUTRAL_BUDGET_MAPPING:
+            self.assertIn(
+                f"| {neutral_budget} | `{claude_budget}` |",
+                claude,
+            )
 
         copilot = _read(".github/skills/bloom-model-tier/SKILL.md")
         for model_id in ("claude-sonnet-5", "claude-opus-4-8"):
             self.assertIn(model_id, copilot)
+        self.assertIn(
+            "共通の推論予算は Copilot の agent frontmatter では表現できず、"
+            "モデルIDだけを写像する",
+            copilot,
+        )
 
     def test_individually_managed_list_is_delta_only(self):
         body = _read(".ai/Individually-managed-lists.md")
@@ -178,6 +243,8 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertNotIn("| Bloom Lv |", body)
         self.assertNotIn("### 閾値表", body)
         self.assertNotIn("## 共通本文", body)
+        self.assertNotIn("軸2（Lv4+のみ）", body)
+        self.assertNotIn("(該当なし)", body)
 
 
 class NormativeSideLinksToRationale(unittest.TestCase):

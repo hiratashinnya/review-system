@@ -15,9 +15,9 @@
 
 | PF | mapping |
 |---|---|
-| Claude Code | 軸1は Lv1→`haiku`、Lv2–3→`sonnet`。Lv4–6 は軸2で分岐し、網羅性ボトルネック→`sonnet`＋`effort: high`〜`xhigh`、判断ボトルネック→`opus`。Lv2–3 の推論予算は `effort: low`〜`medium`。 |
-| GitHub Copilot | 中位モデル層→`claude-sonnet-5`、最上位モデル層→`claude-opus-4-8`。低位モデル層は live の利用可能 ID を確認できた場合だけ指定し、確認できなければ架空 ID を追加せず STOP してオーナー確認を求める。Claude の `effort` や Codex の推論予算キーは持ち込まない。 |
-| Codex CLI／Repo-skill | `gpt-5.6` を固定し、低位→`model_reasoning_effort: low`、中位（小〜中）→`low`〜`medium`、中位（大〜最大）→`high`〜`xhigh`、最上位→`xhigh`。写像の適用先は Codex CLI の session/config であり、`.codex/agents/*.toml` は session 設定を継承して `model` を複製しない。 |
+| Claude Code | `model:` は `haiku`／`sonnet`／`opus`。共通の最小／小／中／大／最大を `effort: low`／`medium`／`high`／`xhigh`／`max` へ一対一に写像する。 |
+| GitHub Copilot | 中位モデル層→`claude-sonnet-5`、最上位モデル層→`claude-opus-4-8`。共通の予算は frontmatter で表現できず、モデルIDだけを写像する。低位モデル層は live の利用可能 ID を確認できた場合だけ指定し、確認できなければ架空 ID を追加せず STOP してオーナー確認を求める。Claude の `effort` や Codex の推論予算キーは持ち込まない。 |
+| Codex CLI／Repo-skill | `gpt-5.6` を固定し、共通の最小／小／中／大／最大を session/config の `model_reasoning_effort: low`／`medium`／`high`／`xhigh`／`max` へ一対一に写像する。`.codex/agents/*.toml` は session 設定を継承して `model` や予算キーを複製しない。 |
 
 ## 個別配置・非移植
 
