@@ -256,7 +256,14 @@ GH_FLAG_ALLOWLIST = {
     ("pr", "merge"): {
         # 第2次修正（オーナー確定 2026-07-15）: `--admin`（ブランチ保護バイパス）を除外。将来ブランチ
         # 保護を有効化したとき pr-reviewer が「レビュー経由でのみ merge」不変条件を破る余地を最小権限で塞ぐ。
-        "value": set(),
+        # 第3次修正（Issue #419・2026-08-23）: squash マージで `squash_merge_commit_message:
+        # COMMIT_MESSAGES` 設定のリポジトリは、`--subject`/`--body` を明示しないと
+        # `pr_merge_gate` の `MERGE_MESSAGE_AMBIGUOUS`（GitHub 側の複数commit連結を
+        # byte-level で予測できないための意図的 fail-close）で必ず拒否される
+        # （`blocker_gate/closing.py`）。`--subject`/`--body` を許可し、実際に明示できるようにする。
+        # `gh pr merge` に `--subject`/`--body` の短縮形は無い（`-s` は `--squash` の短縮形として
+        # 既にbool側で使用中であり衝突させない）。
+        "value": {"--subject", "--body"},
         "bool": {"--squash", "-s", "--merge", "-m", "--rebase", "-r", "--delete-branch", "-d"},
     },
     ("pr", "checkout"): {
