@@ -40,10 +40,12 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate、加えて
-#        ロール別追加分＝issue-fixer のみ karte の形のみ**）で
+#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
+#        time_fixture_lint、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
+#        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
+#        coverage/karte と同型でサブコマンドを `check` に絞る（Issue #385・#129 の抜け穴を拡大しない）。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
 #        gated ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
 #        - 先頭 env 代入（`NAME=value`）・`env` ラッパーは deny（`rtk`/`command`/`builtin`/`exec` の純
@@ -294,7 +296,16 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # 除外（この repo は unittest 方針・CLAUDE.md）。coverage は run を禁止し report/html/xml/json のみ許可
 # （`coverage run <なんでも>` は任意 Python 実行経路のため）。「-c 禁止したのに coverage run 素通し」の
 # 不整合を消し、エージェントの混乱・ハルシネーションリスクを下げる（防御力は #129 限界のため不変）。
-ALLOWED_PYTHON_MODULES = {"unittest", "coverage", "dsv2", "gitgate"}
+ALLOWED_PYTHON_MODULES = {
+    "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
+}
+# `asset_parity`/`time_fixture_lint`（Issue #385）: CI が回している read-only 監査コマンド
+# （`python3 -m asset_parity check`・`python3 -m time_fixture_lint check`）。両ツールとも argparse
+# ベースの固定 CLI でサブコマンドは `check` のみ実装し（`asset_parity/cli.py`・`time_fixture_lint/cli.py`）、
+# 自分自身は4ツリー／tests 配下のいずれにも書き込まない（docstring で明記済み）。任意コード実行経路を
+# 持たないため、`dsv2`/`gitgate` と同格の「コーパス/監査ツール」として基底集合に加える。
+# **base集合に加える**のは coverage/karte のような「特定ロール限定」ではなく、issue-implementer/
+# issue-fixer/pr-reviewer の3ロール全員が read-only 監査に使えるべきという Issue #385 の判断による。
 # ロール別の**追加**モジュール（Issue #308）。基底集合 ALLOWED_PYTHON_MODULES に上乗せする形でのみ
 # 使い、基底から差し引く用途には使わない（絞りたくなったら基底側を直す）。
 #
@@ -319,6 +330,12 @@ PYTHON_MODULES_BY_ROLE = {
 KARTE_ALLOWED_SUBCOMMANDS = {"render", "append", "close-attempt", "check", "status"}
 # coverage は実行系サブコマンド（run）を禁止し、レポート出力系のみ許可する。
 COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
+# asset_parity / time_fixture_lint（Issue #385）: 両ツールとも argparse 実装のサブコマンドは `check`
+# のみ（`fix`/`apply`/その他の書込系サブコマンドは実装されていない）。coverage/karte と同型で verb 単位
+# の allowlist を明示しておくことで、将来サブコマンドが増えても他が素通りしない構造にする
+# （Issue #385 AC3・「サブコマンド制限の要否」への対応）。
+ASSET_PARITY_ALLOWED_SUBCOMMANDS = {"check"}
+TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS = {"check"}
 
 
 def allowed_python_modules(role):
@@ -726,6 +743,24 @@ def head_command_violation(tokens, role):
                         f"`python3 -m karte` only allows <{subs}> for this role "
                         "(`ingest-review` writes finding status and belongs to the reviewing side, "
                         "not to the role being reviewed)"
+                    )
+            # Issue #385: asset_parity / time_fixture_lint はどちらも `check` サブコマンドしか
+            # 実装していない read-only 監査ツール。coverage/karte と同型でサブコマンドを固定する。
+            if tokens[2] == "asset_parity":
+                subcommand = tokens[3] if len(tokens) >= 4 else ""
+                if subcommand not in ASSET_PARITY_ALLOWED_SUBCOMMANDS:
+                    subs = "|".join(sorted(ASSET_PARITY_ALLOWED_SUBCOMMANDS))
+                    return (
+                        f"`python3 -m asset_parity` only allows the read-only audit subcommand(s) "
+                        f"<{subs}> (it is a presence/absence checker with no write subcommand)"
+                    )
+            if tokens[2] == "time_fixture_lint":
+                subcommand = tokens[3] if len(tokens) >= 4 else ""
+                if subcommand not in TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS:
+                    subs = "|".join(sorted(TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS))
+                    return (
+                        f"`python3 -m time_fixture_lint` only allows the read-only audit subcommand(s) "
+                        f"<{subs}> (it is a lint checker with no write subcommand)"
                     )
             return None
         return (

@@ -18,7 +18,7 @@ model: sonnet
 ## Claude Code 固有の機械ゲート・権限境界
 
 - `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。実装とPR作成後はSTOPし、マージは `pr-reviewer` に委ねる。
-- Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
+- Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージとPR本文はWriteでファイル化してファイル渡し形式を使う。フックは静的なコマンド文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。
 
 共通契約のオーナー確認が必要になった場合は `AskUserQuestion` で選択肢を提示し、回答なしに実装範囲を拡張しない。

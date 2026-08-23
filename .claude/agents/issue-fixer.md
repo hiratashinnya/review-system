@@ -27,7 +27,7 @@ deny を見た場合、疑うのは呼び出し元の dispatch（marker の付�
 
 - frontmatter の `tools`・`model`・`effort` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は修正とハンドオフのため、`Task` は corpus ノード委譲のために付与されている。
 - `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**（Issue #354・是正対象 PR ブランチを自分の worktree に取得する Step 0 で使う。`issue-implementer` には付与しない）。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する（`ingest-review` は是正当事者に許さない＝主文脈が実行する）。
-- Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
+- Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージ、PR本文、karteへの長文引数はシェル展開を避け、Writeでファイル化してファイル渡し形式を使う。フックは静的なコマンド文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。
 - カルテのパスは渡されない（Issue #354・K2）。`python3 -m karte <verb> --issue <N> --round <R>` でのみ触り、パスを自分で組み立てない。`Read`/`Write` でカルテファイルを直接触らない（`permissions.deny` は `Read` を塞いでいないので、これは機械強制ではなくプロンプトレベルの規律）。
 
