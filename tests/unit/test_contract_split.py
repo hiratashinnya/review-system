@@ -1,80 +1,66 @@
-"""normative / rationale 分離（Issue #372）の機械検査。
+"""normative / rationale 分離（Issue #406）の機械検査。
 
-対象＝Issue 運用パイプラインの契約4ファイル。**規範（normative）** は dispatch のたびに
-常駐するので行動を決めるものだけを載せ、**経緯（rationale）** は
-`.claude/rationale/<name>.md` へ移設する（削除ではなく移設＝PR8「消さない」）。
+対象＝Issue 運用パイプラインの契約4ファイル。**規範（normative）** は
+dispatch のたびに読む現行 `.claude` wrapper、**経緯（rationale）** の正本は
+`.ai/rationale/<name>.md` とする。旧 `.claude/rationale/<name>.md` は本文を持たず、
+正本への相対ポインタだけを持つ。
 
 本テストが固定するのは次の4点。いずれも「分離が静かに崩れる」失敗モードに対応する:
 
-  1. 規範側から rationale へ**1行で辿れる**（リンク切れ・移設し忘れの検知）。
-  2. rationale ファイルが**存在し非空**で、非規範であることと移設元を自己申告している
-     （規範と誤読されて二重の正本になるのを防ぐ）。
-  3. 規範側の常駐字数が分離前を**下回っている**（経緯を規範側へ書き戻す退行の検知）。
+  1. 現行 `.claude` wrapper から `.ai/rationale` の正本へ辿れる
+     （リンク切れ・移設し忘れの検知）。
+  2. `.ai/rationale` の本文が**存在し500文字を超え**、非規範であることと移設元を
+     自己申告している（規範と誤読されて二重の正本になるのを防ぐ）。
+  3. 旧 `.claude/rationale` が対応する `.ai/rationale` を相対参照し、本文を重複保持しない
+     （pointer と canonical rationale の責務を混ぜない）。
   4. `.claude/rationale/` が `asset_parity` の資産として数えられない
      （4ツリー parity に MISSING を生まないという分離の前提の固定）。
 
-**検査範囲外（既知のギャップ・Issue #372 是正ラウンド1／F-372-03）**：`.claude/rationale/README.md`
-「3つの規律」の規律2（正本は1箇所・両方に残さない）を機械検査するテストは無い。上記3は
-「経緯の**総量**が規範側で増えていないか」の字数上限であり、rationale 側の一節を**逐語コピーで
-規範側へ書き戻しても**、字数が分離前の上限を下回っている限りこの budget では検知できない
-（=二重正本の検知は現状カバーされていない）。厳密な逐語重複検出は「rationale の正当な参照
-（節見出しの引用・リンク文言）」と「経緯の丸ごとコピー」を区別する必要があり誤検知リスクが高いため、
-本 PR では追加せず**手動レビュー（PR レビュー時の目視確認）に委ねる**ことをここに明記する。
-自動検知を追加する場合は本節を更新すること。
-
-**`CLAUDE.md` ↔ `.claude/hooks/governance-directives.md` の同期検査
-（`test_governance_sync.py`）と同型の hash 同期は本件には不要**——あちらは「写し＝コピー」
-方式で同じ内容が2箇所にあるため drift を検知する必要があるが、本件は「移設」方式で
-実体が1箇所しかないので drift しようがない。
-
 依存仕様（out-of-graph・版なし・補助ナビ）:
-  * `.claude/rationale/README.md`（分離の判定軸・3つの規律・4ツリー波及方針）
-  * Issue #372（分離の acceptance criteria）
+  * `.claude/rationale/README.md`（正本と pointer の方針・4ツリー波及方針）
+  * Issue #406（rationale の `.ai` SoT 化と旧 `.claude` pointer の acceptance criteria）
 """
 
 from __future__ import annotations
 
+import os
 import pathlib
+import re
 import unittest
+from typing import NamedTuple
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-# (規範ファイル, rationale ファイル, 常駐字数の上限)
-#
-# 既定値は「分離前の字数＝base c415c80 で実測」。`NormativeSideStaysLeaner` の docstring が
-# 定めるとおり、**分離前を超える正当な規範追加が要るときは根拠付きで更新する**（この上限は
-# 経緯の書き戻しを検知するためのもので、規範の正当な追加を妨げる budget ではない）。
-#
-# Issue #354 PR-4（2026-08-19）で2件を再設定した。追加分はいずれも**経緯ではなく規範**で、
-# 内訳は次のとおり（経緯は `.claude/rationale/issue-fixer.md` / `issue-pipeline.md` 側へ書いた）:
-#   * `.claude/agents/issue-fixer.md`（14159 → 15200）: ①`isolation: "worktree"` と
-#     `ISSUE_FIX_BINDING_V1` marker という**新しい dispatch 前提**の開示（欠けると起動されない
-#     ので、書き手が deny の出所を判別するのに要る）、②`adopt-branch` で PR ブランチを取得する
-#     **Step 0 の新設**（isolation 化で必須になった手順）、③カルテを CLI 経由でしか触らない規律。
-#     `karte_path` の3点検査（絶対パス完全一致・`..`・symlink）は**削除**しており、増分は
-#     差し引き後の値。
-#   * `.claude/skills/issue-pipeline/SKILL.md`（21663 → 22000）: ②-c の `issue-fixer` dispatch に
-#     marker の **field 表**を追加（「どの field に何を書くか」は散文が唯一の伝達手段＝Issue #373 で
-#     ②-a について確定した方針の適用）。`karte_path` の受け渡し記述と `git switch <branch>` 手順は
-#     **削除**しており、こちらも差し引き後の値。
-#
-# Issue #354 の是正ラウンド（F-354-10/F-354-11・2026-08-19）で2件をさらに再設定した。追加分も
-# **経緯ではなく規範**——`ISSUE_FIX_BINDING_V1` marker への `repository` field 追加（是正者が
-# 生 `git remote` を deny されており OWNER/REPO を機械的に得る手段が無かったため必須になった契約
-# 拡張・field 表の1行）と、責務境界節冒頭の「権限は同一」という記述を `.claude/rules/05-skills-agents.md`
-# の改訂（`adopt-branch` とカルテの2点だけが差、という記述）に合わせた訂正。理由（rationale）は
-# `.claude/rationale/issue-fixer.md` 側へ書き、規範側は事実の記述に留めている。
-# 上限値は実測（15512 / 22068）の次の100字境界に置く＝意味のある headroom を与えず、次の追加でも
-# 必ずこの comment を更新させる。
-CONTRACTS: tuple[tuple[str, str, int], ...] = (
-    (".claude/agents/issue-implementer.md",
-     ".claude/rationale/issue-implementer.md", 14293),
-    (".claude/agents/issue-fixer.md",
-     ".claude/rationale/issue-fixer.md", 15600),
-    (".claude/agents/pr-reviewer.md",
-     ".claude/rationale/pr-reviewer.md", 15051),
-    (".claude/skills/issue-pipeline/SKILL.md",
-     ".claude/rationale/issue-pipeline.md", 22100),
+class Contract(NamedTuple):
+    """Normative wrapper と canonical/pointer rationale の対応。"""
+
+    normative_path: str
+    canonical_rationale_path: str
+    pointer_path: str
+
+
+# normative wrapper、rationale の正本、旧ポインタは別々の契約対象として保持する。
+CONTRACTS: tuple[Contract, ...] = (
+    Contract(
+        ".claude/agents/issue-implementer.md",
+        ".ai/rationale/issue-implementer.md",
+        ".claude/rationale/issue-implementer.md",
+    ),
+    Contract(
+        ".claude/agents/issue-fixer.md",
+        ".ai/rationale/issue-fixer.md",
+        ".claude/rationale/issue-fixer.md",
+    ),
+    Contract(
+        ".claude/agents/pr-reviewer.md",
+        ".ai/rationale/pr-reviewer.md",
+        ".claude/rationale/pr-reviewer.md",
+    ),
+    Contract(
+        ".claude/skills/issue-pipeline/SKILL.md",
+        ".ai/rationale/issue-pipeline.md",
+        ".claude/rationale/issue-pipeline.md",
+    ),
 )
 
 
@@ -82,42 +68,458 @@ def _read(rel: str) -> str:
     return (REPO_ROOT / rel).read_text(encoding="utf-8")
 
 
-class NormativeSideLinksToRationale(unittest.TestCase):
-    """規律3: 規範側から rationale へ1行で辿れる。"""
+def _relative_href(target: pathlib.Path, source_dir: pathlib.Path) -> str:
+    """Markdown link に現れる、source_dir から target への相対パスを返す。"""
 
-    def test_each_normative_file_references_its_rationale(self):
-        for normative, rationale, _ in CONTRACTS:
-            with self.subTest(normative=normative):
-                self.assertIn(
-                    rationale, _read(normative),
-                    f"{normative} が移設先 {rationale} を参照していない。"
-                    " 経緯を移設したら規範側にリンク1行を残すこと（Issue #372）。",
+    return pathlib.PurePosixPath(os.path.relpath(target, source_dir)).as_posix()
+
+
+class BloomModelTierContract(unittest.TestCase):
+    """Codex版を基準にした PF 中立本文と各 PF 写像の分離契約。"""
+
+    COMMON_PATH = ".ai/skills/bloom-model-tier/SKILL.md"
+    WRAPPER_PATHS = (
+        ".agents/skills/bloom-model-tier/SKILL.md",
+        ".claude/skills/bloom-model-tier/SKILL.md",
+        ".github/skills/bloom-model-tier/SKILL.md",
+    )
+    BLOOM_LEVELS = (
+        "1 記憶",
+        "2 理解",
+        "3 応用",
+        "4 分析",
+        "5 評価",
+        "6 創造",
+    )
+    CODEX_BUDGET_MAPPING = (
+        ("最小", "low"),
+        ("小", "medium"),
+        ("中", "high"),
+        ("大", "xhigh"),
+        ("最大", "max"),
+    )
+    CODEX_MODEL_MAPPING = (
+        ("低位モデル層", "model: gpt-5.6-luna"),
+        ("中位モデル層", "model: gpt-5.6-luna"),
+        ("最上位モデル層", "model: gpt-5.6-sol"),
+    )
+    CODEX_REASONING_EFFORTS = frozenset(
+        {"low", "medium", "high", "xhigh", "max"}
+    )
+    CLAUDE_BUDGET_MAPPING = (
+        ("最小", "low"),
+        ("小", "medium"),
+        ("中", "high"),
+        ("大", "xhigh"),
+        ("最大", "xhigh"),
+    )
+    EXPECTED_THRESHOLD_CELLS = {
+        "1 記憶": (
+            "低位モデル層 + 最小の推論予算",
+            "低位モデル層 + 大の推論予算",
+        ),
+        "2 理解": (
+            "中位モデル層 + 小の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "3 応用": (
+            "中位モデル層 + 中の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "4 分析": (
+            "中位モデル層 + 大の推論予算",
+            "中位モデル層 + 大の推論予算",
+        ),
+        "5 評価": (
+            "中位モデル層 + 最大の推論予算",
+            "最上位モデル層 + 中の推論予算",
+        ),
+        "6 創造": (
+            "中位モデル層 + 最大の推論予算",
+            "最上位モデル層 + 大の推論予算",
+        ),
+    }
+    EXPECTED_CODEX_CELLS = {
+        "1 記憶": (
+            ("gpt-5.6-luna", "low"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "2 理解": (
+            ("gpt-5.6-luna", "medium"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "3 応用": (
+            ("gpt-5.6-luna", "high"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "4 分析": (
+            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-5.6-luna", "xhigh"),
+        ),
+        "5 評価": (
+            ("gpt-5.6-luna", "max"),
+            ("gpt-5.6-sol", "high"),
+        ),
+        "6 創造": (
+            ("gpt-5.6-luna", "max"),
+            ("gpt-5.6-sol", "xhigh"),
+        ),
+    }
+
+    @staticmethod
+    def _two_column_mapping(body: str, left_header: str, right_header: str):
+        """指定ヘッダの Markdown 2列表を辞書として返す。"""
+
+        lines = body.splitlines()
+        header = f"| {left_header} | {right_header} |"
+        header_index = lines.index(header)
+        rows = {}
+        for line in lines[header_index + 2 :]:
+            if not line.startswith("|"):
+                break
+            columns = [column.strip() for column in line.strip("|").split("|")]
+            if len(columns) != 2:
+                break
+            rows[columns[0]] = columns[1].strip("`")
+        return rows
+
+    def test_common_body_keeps_tie_break_and_judgment_examples_specific(self):
+        body = _read(self.COMMON_PATH)
+
+        self.assertIn(
+            "迷ったら軸2は判断側へ倒し、そのBloom Lvの判断セルを採る",
+            body,
+        )
+        self.assertNotIn(
+            "迷ったら軸2は判断ボトルネック側（最上位モデル層）に倒す",
+            body,
+        )
+        self.assertIn(
+            "点検しつつ提案＝Evaluate→最上位モデル層 + 中の推論予算",
+            body,
+        )
+        self.assertNotIn("点検しつつ提案＝Evaluate→最上位モデル層）。", body)
+        self.assertIn(
+            "**新規に文章/構造を構成**＝Create(6)→判断ボトルネック→最上位モデル層 + 大の推論予算",
+            body,
+        )
+        self.assertNotIn(
+            "**新規に文章/構造を構成**＝Create(6)→判断ボトルネック→最上位モデル層。",
+            body,
+        )
+        self.assertIn(
+            "最上位モデル層 + 大の推論予算\n# Bloom Lv6 創造・判断ボトルネック",
+            body,
+        )
+
+    def test_codex_derived_common_body_keeps_the_full_neutral_contract(self):
+        body = _read(self.COMMON_PATH)
+
+        # Codex 正本から移した意味上の契約。単なる Lv 一覧の短縮版へ退行させない。
+        for level in self.BLOOM_LEVELS:
+            self.assertIn(level, body)
+        for marker in (
+            "過剰な Lv6",
+            "確定したルールや検査結果をテンプレに流し込む",
+            "既存資産やコードの整合性",
+            "外部 CLI やサブエージェントへ手順通りにディスパッチ",
+            "### 軸2：難所の性質",
+            "網羅性ボトルネック",
+            "判断ボトルネック",
+            "## 判定基準（タイブレーク）",
+            "## done（点検観点）",
+        ):
+            self.assertIn(marker, body)
+
+        threshold_table = body[body.index("### 閾値表") : body.index("## 手順")]
+        rows = {}
+        for line in threshold_table.splitlines():
+            if line.startswith("| ") and line.count("|") == 4:
+                columns = [column.strip() for column in line.split("|")]
+                if columns[1] != "Bloom Lv":
+                    rows[columns[1]] = tuple(columns[2:4])
+
+        # 軸2を全Lvに適用し、各セルの層と予算を固定した12セル契約。
+        self.assertEqual(set(rows), set(self.EXPECTED_THRESHOLD_CELLS))
+        for level, expected_cells in self.EXPECTED_THRESHOLD_CELLS.items():
+            row = next(
+                line
+                for line in threshold_table.splitlines()
+                if line.startswith(f"| {level} |")
+            )
+            self.assertEqual(
+                row.count("|"),
+                4,
+                f"閾値表の {level} 行が網羅性/判断の2セルを持たない。",
+            )
+            self.assertEqual(rows[level], expected_cells)
+            for axis, cell in zip(("網羅性", "判断"), rows[level]):
+                self.assertTrue(
+                    cell,
+                    f"閾値表の {level} の{axis}セルが空である。",
+                )
+
+        self.assertNotIn("太字＝", body)
+        pf_budget_pattern = re.compile(
+            r"(?<![A-Za-z0-9_])(?:low|medium|high|xhigh|max)(?![A-Za-z0-9_])"
+        )
+        self.assertIsNone(
+            pf_budget_pattern.search(body),
+            "共通本文に PF 固有の推論予算値を持ち込まない。",
+        )
+        for forbidden_marker in (
+            "Lv4 以上でのみ判定",
+            "Lv4 以上なら軸2を判定",
+            "軸2（Lv4+のみ）",
+        ):
+            self.assertNotIn(forbidden_marker, body)
+        self.assertNotIn("(該当なし)", body)
+
+        forbidden_pf_tokens = (
+            "gpt-5.6",
+            "gpt-5.6-luna",
+            "gpt-5.6-sol",
+            "model_reasoning_effort",
+            "haiku",
+            "sonnet",
+            "opus",
+            "effort:",
+            "claude-sonnet-5",
+            "claude-opus-4-8",
+        )
+        for token in forbidden_pf_tokens:
+            self.assertNotIn(
+                token,
+                body,
+                f"共通本文に PF 固有値 {token!r} を持ち込まない。",
+            )
+
+    def test_wrappers_link_common_body_and_keep_pf_mapping_local(self):
+        common_href = "../../../.ai/skills/bloom-model-tier/SKILL.md"
+        for path in self.WRAPPER_PATHS:
+            with self.subTest(wrapper=path):
+                self.assertIn(common_href, _read(path))
+
+        codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
+        self.assertIn("`model_reasoning_effort`", codex)
+        self.assertIn("session/config", codex)
+        self.assertIn("`.codex/agents/*.toml`", codex)
+        self.assertEqual(
+            self._two_column_mapping(
+                codex,
+                "PF 中立のモデル層",
+                "Codex CLI session/config の `model`",
+            ),
+            dict(self.CODEX_MODEL_MAPPING),
+        )
+        self.assertEqual(
+            self._two_column_mapping(
+                codex,
+                "PF 中立の予算",
+                "Codex CLI session/config の `model_reasoning_effort`",
+            ),
+            dict(self.CODEX_BUDGET_MAPPING),
+        )
+
+        claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
+        for token in ("haiku", "sonnet", "opus", "effort:"):
+            self.assertIn(token, claude)
+        for neutral_budget, claude_budget in self.CLAUDE_BUDGET_MAPPING:
+            self.assertIn(
+                f"| {neutral_budget} | `{claude_budget}` |",
+                claude,
+            )
+        self.assertNotIn("effort:max", claude)
+        self.assertNotIn("effort: max", claude)
+
+        copilot = _read(".github/skills/bloom-model-tier/SKILL.md")
+        for model_id in ("claude-sonnet-5", "claude-opus-4-8"):
+            self.assertIn(model_id, copilot)
+        self.assertIn(
+            "共通の推論予算は Copilot の agent frontmatter では表現できず、"
+            "モデルIDだけを写像する",
+            copilot,
+        )
+
+    def test_codex_wrapper_preserves_the_legacy_oracle_mapping(self):
+        """旧 Codex 正本の6x2セルを現行モデル名で意味保存する。"""
+
+        common = _read(self.COMMON_PATH)
+        codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
+        model_mapping = self._two_column_mapping(
+            codex,
+            "PF 中立のモデル層",
+            "Codex CLI session/config の `model`",
+        )
+        budget_mapping = self._two_column_mapping(
+            codex,
+            "PF 中立の予算",
+            "Codex CLI session/config の `model_reasoning_effort`",
+        )
+
+        threshold_table = common[common.index("### 閾値表") : common.index("## 手順")]
+        neutral_rows = {}
+        for line in threshold_table.splitlines():
+            if line.startswith("| ") and line.count("|") == 4:
+                columns = [column.strip() for column in line.split("|")]
+                if columns[1] in self.BLOOM_LEVELS:
+                    neutral_rows[columns[1]] = tuple(columns[2:4])
+
+        actual_cells = {}
+        used_efforts = set()
+        for level, neutral_cells in neutral_rows.items():
+            mapped_cells = []
+            for cell in neutral_cells:
+                model_tier, separator, neutral_budget = cell.partition(" + ")
+                self.assertEqual(separator, " + ", f"{level}: {cell}")
+                self.assertTrue(neutral_budget.endswith("の推論予算"))
+                neutral_budget = neutral_budget.removesuffix("の推論予算")
+                model = model_mapping[model_tier].removeprefix("model: ")
+                effort = budget_mapping[neutral_budget]
+                self.assertIn(effort, self.CODEX_REASONING_EFFORTS)
+                used_efforts.add(effort)
+                mapped_cells.append((model, effort))
+            actual_cells[level] = tuple(mapped_cells)
+
+        self.assertEqual(set(actual_cells), set(self.BLOOM_LEVELS))
+        self.assertTrue(all(len(cells) == 2 for cells in actual_cells.values()))
+        self.assertEqual(actual_cells, self.EXPECTED_CODEX_CELLS)
+        self.assertEqual(used_efforts, self.CODEX_REASONING_EFFORTS)
+        self.assertNotEqual(
+            model_mapping["低位モデル層"],
+            model_mapping["最上位モデル層"],
+        )
+
+    def test_claude_frontmatter_description_keeps_pf_mapping(self):
+        claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
+        frontmatter_match = re.match(
+            r"\A---\n(?P<frontmatter>.*?)\n---\n(?P<body>.*)\Z",
+            claude,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(frontmatter_match)
+        assert frontmatter_match is not None
+
+        description_match = re.search(
+            r"^description:\s*(?P<description>.+)$",
+            frontmatter_match.group("frontmatter"),
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(description_match)
+        assert description_match is not None
+        description = description_match.group("description")
+
+        self.assertIn("model tier", description)
+        self.assertIn("reasoning budget", description)
+        for model_tier, model_name in (
+            ("low-tier", "haiku"),
+            ("mid-tier", "sonnet"),
+            ("top-tier", "opus"),
+        ):
+            self.assertRegex(
+                description,
+                rf"\b{re.escape(model_tier)}\b\s*→\s*{re.escape(model_name)}\b",
+            )
+        self.assertRegex(
+            description,
+            r"minimum\s*/\s*small\s*/\s*medium\s*/\s*large\s*/\s*maximum"
+            r"\s*→\s*`?effort:\s*low`?\s*/\s*`?medium`?\s*/\s*`?high`?"
+            r"\s*/\s*`?xhigh`?\s*/\s*`?xhigh`?",
+        )
+
+    def test_individually_managed_list_is_delta_only(self):
+        body = _read(".ai/Individually-managed-lists.md")
+        self.assertIn("## Bloom の model mapping", body)
+        self.assertNotIn("| Bloom Lv |", body)
+        self.assertNotIn("### 閾値表", body)
+        self.assertNotIn("## 共通本文", body)
+        self.assertNotIn("軸2（Lv4+のみ）", body)
+        self.assertNotIn("(該当なし)", body)
+        self.assertIn("最大の推論予算", body)
+        self.assertIn("`effort: xhigh`", body)
+        self.assertNotIn("`effort: max`", body)
+
+
+class NormativeSideLinksToRationale(unittest.TestCase):
+    """現行 `.claude` wrapper を入口に canonical rationale へ辿れる。"""
+
+    def test_each_normative_wrapper_reaches_canonical_rationale(self):
+        for contract in CONTRACTS:
+            with self.subTest(normative=contract.normative_path):
+                normative_path = REPO_ROOT / contract.normative_path
+                canonical_path = REPO_ROOT / contract.canonical_rationale_path
+                wrapper_body = _read(contract.normative_path)
+                wrapper_links = re.findall(r"\[[^\]]+\]\(([^)]+)\)", wrapper_body)
+                if contract.pointer_path in wrapper_body:
+                    route_paths = [(REPO_ROOT / contract.pointer_path).resolve()]
+                else:
+                    route_paths = [
+                        (normative_path.parent / href).resolve()
+                        for href in wrapper_links
+                        if href.startswith(".") and ".ai/" in href
+                    ]
+                self.assertEqual(
+                    len(route_paths),
+                    1,
+                    f"{contract.normative_path} から canonical rationale へ辿る経路が"
+                    "無い、または複数ある（Issue #406）。",
+                )
+                route_path = route_paths[0]
+                route_body = route_path.read_text(encoding="utf-8")
+                if route_path == (REPO_ROOT / contract.pointer_path).resolve():
+                    expected_href = _relative_href(canonical_path, route_path.parent)
+                    self.assertEqual(
+                        re.findall(r"\[[^\]]+\]\(([^)]+)\)", route_body),
+                        [expected_href],
+                        f"{contract.normative_path} の経由先 {contract.pointer_path} が"
+                        f" {contract.canonical_rationale_path} を指していない。",
+                    )
+                else:
+                    self.assertIn(
+                        contract.canonical_rationale_path,
+                        route_body,
+                        f"{contract.normative_path} の参照先 {route_path.relative_to(REPO_ROOT)}"
+                        f" から {contract.canonical_rationale_path} を辿れない（Issue #406）。",
+                    )
+                self.assertTrue(
+                    canonical_path.is_file(),
+                    f"{contract.canonical_rationale_path} が解決先に存在しない。",
                 )
 
 
 class RationaleSideIsSelfDescribing(unittest.TestCase):
-    """規律2: rationale は非空・非規範を自己申告し、移設元を名乗る。"""
+    """canonical `.ai/rationale` は本文を保持し、非規範と移設元を自己申告する。"""
 
-    def test_rationale_files_exist_and_are_non_empty(self):
-        for _, rationale, _ in CONTRACTS:
-            with self.subTest(rationale=rationale):
-                path = REPO_ROOT / rationale
-                self.assertTrue(path.is_file(), f"{rationale} が存在しない（移設＝削除ではない・PR8）")
-                self.assertGreater(len(_read(rationale).strip()), 500,
-                                   f"{rationale} が実質空——移設ではなく削除になっている疑い（PR8）")
+    def test_canonical_rationale_files_exist_and_exceed_500_characters(self):
+        for contract in CONTRACTS:
+            with self.subTest(rationale=contract.canonical_rationale_path):
+                path = REPO_ROOT / contract.canonical_rationale_path
+                self.assertTrue(
+                    path.is_file(),
+                    f"{contract.canonical_rationale_path} が存在しない（移設＝削除ではない・PR8）",
+                )
+                self.assertGreater(
+                    len(_read(contract.canonical_rationale_path).strip()),
+                    500,
+                    f"{contract.canonical_rationale_path} が500文字以下——canonical rationale"
+                    " が実質空になっている疑い（Issue #406）。",
+                )
 
     def test_rationale_files_declare_non_normative_and_name_their_source(self):
-        for normative, rationale, _ in CONTRACTS:
-            with self.subTest(rationale=rationale):
-                body = _read(rationale)
+        for contract in CONTRACTS:
+            with self.subTest(rationale=contract.canonical_rationale_path):
+                body = _read(contract.canonical_rationale_path)
                 self.assertIn(
-                    "これは規範ではない", body,
-                    f"{rationale} が非規範であることを宣言していない"
+                    "これは規範ではない",
+                    body,
+                    f"{contract.canonical_rationale_path} が非規範であることを宣言していない"
                     "（規範と誤読され二重の正本になる）",
                 )
                 self.assertIn(
-                    normative, body,
-                    f"{rationale} が移設元 {normative} を名乗っていない",
+                    contract.normative_path,
+                    body,
+                    f"{contract.canonical_rationale_path} が移設元 {contract.normative_path} を"
+                    "名乗っていない",
                 )
 
     def test_rationale_readme_exists(self):
@@ -125,26 +527,34 @@ class RationaleSideIsSelfDescribing(unittest.TestCase):
         self.assertTrue(readme.is_file(), ".claude/rationale/README.md（分離の方針）が無い")
 
 
-class NormativeSideStaysLeaner(unittest.TestCase):
-    """規律: 経緯を規範側へ書き戻す退行を止める。
+class RationalePointersAreThin(unittest.TestCase):
+    """旧 `.claude/rationale` は canonical rationale への相対ポインタだけを持つ。"""
 
-    上限は「分離前の字数」そのものに置く（きつい budget にしない）。規範の追加そのものは
-    正当な変更なので閾値で妨げず、**経緯の書き戻しによる肥大**だけを検知する意図。
-    分離前を超える正当な規範追加が要るときは、この期待値を根拠付きで更新する。
+    def test_each_pointer_references_its_canonical_rationale_without_body(self):
+        for contract in CONTRACTS:
+            with self.subTest(pointer=contract.pointer_path):
+                pointer_path = REPO_ROOT / contract.pointer_path
+                canonical_path = REPO_ROOT / contract.canonical_rationale_path
+                expected_href = _relative_href(canonical_path, pointer_path.parent)
+                pointer_body = _read(contract.pointer_path).strip()
+                links = re.findall(r"\[[^\]]+\]\(([^)]+)\)", pointer_body)
 
-    **検査範囲外**：この字数上限は規律2（正本は1箇所）の**代替ではない**。rationale の一節を
-    逐語コピーで規範側へ書き戻しても、分離前の字数を下回っている限りここでは検知できない
-    （二重正本の検知は未カバー・モジュール docstring 参照・F-372-03）。
-    """
-
-    def test_normative_files_are_smaller_than_before_the_split(self):
-        for normative, _, before in CONTRACTS:
-            with self.subTest(normative=normative):
-                after = len(_read(normative))
-                self.assertLess(
-                    after, before,
-                    f"{normative} が分離前（{before}字）以上に膨らんでいる（現在 {after}字）。"
-                    " 経緯を規範側へ書き戻していないか確認すること（Issue #372）。",
+                self.assertRegex(
+                    pointer_body,
+                    r"^\[[^\]]+\]\([^)]+\)$",
+                    f"{contract.pointer_path} が単一の Markdown pointer ではない。"
+                    " canonical rationale 本文を旧パスに重複保持しないこと（Issue #406）。",
+                )
+                self.assertEqual(
+                    links,
+                    [expected_href],
+                    f"{contract.pointer_path} が {contract.canonical_rationale_path} を"
+                    "相対参照していない。",
+                )
+                self.assertEqual(
+                    (pointer_path.parent / expected_href).resolve(),
+                    canonical_path.resolve(),
+                    f"{contract.pointer_path} の相対 pointer が canonical rationale を指していない。",
                 )
 
 
@@ -166,9 +576,10 @@ class RationaleDirIsNotAParityAsset(unittest.TestCase):
         rationale_dir = REPO_ROOT / ".claude" / "rationale"
         leaked = sorted(str(p) for p in canonical_paths if rationale_dir in p.parents)
         self.assertEqual(
-            leaked, [],
+            leaked,
+            [],
             "`.claude/rationale/` の中身が asset_parity の資産として数えられている"
-            "——4ツリーにミラーを要求され MISSING になる（Issue #372）",
+            "——4ツリーにミラーを要求され MISSING になる（Issue #406）",
         )
 
 

@@ -197,7 +197,7 @@ class ContractTests(unittest.TestCase):
     def test_pr_binding_and_method_specific_fingerprints_are_required(self):
         pr = evaluate_snapshot(load("pr_same_parent_child.json"))
         for key in (
-            "head_oid", "base_ref_name", "default_branch", "merge_method",
+            "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
             "operation_fingerprint", "snapshot_fingerprint",
             "message_source_fingerprint", "delivered_message_fingerprint",
         ):

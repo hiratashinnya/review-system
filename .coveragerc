@@ -3,6 +3,7 @@ source =
     review_system
     docidx
     blocker_gate
+    pr_merge_gate
     branch_source
     issue_start
 omit =

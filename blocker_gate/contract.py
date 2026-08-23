@@ -98,11 +98,11 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
             _fail("subject invalid")
     binding = result["binding"]
     binding_keys = {
-        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
         "intercepted_commit_title_fingerprint", "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
         "repository_merge_settings_fingerprint", "operation_fingerprint",
-        "snapshot_fingerprint", "attempt",
+        "snapshot_fingerprint", "attempt", "pr_state", "pr_is_draft",
     }
     if not isinstance(binding, dict) or set(binding) != binding_keys:
         _fail("binding invalid")
@@ -111,11 +111,22 @@ def validate_result_schema(result: Mapping[str, Any]) -> None:
         not isinstance(head_oid, str) or not re.fullmatch(r"[0-9a-f]{40,64}", head_oid)
     ):
         _fail("head_oid invalid")
+    expected_commit_count = binding["expected_commit_count"]
+    if expected_commit_count is not None and (
+        isinstance(expected_commit_count, bool)
+        or not isinstance(expected_commit_count, int)
+        or expected_commit_count < 1
+    ):
+        _fail("expected_commit_count invalid")
     for key in ("base_ref_name", "default_branch"):
         if binding[key] is not None and not isinstance(binding[key], str):
             _fail(f"{key} invalid")
     if binding["merge_method"] not in {"merge", "rebase", "squash", None}:
         _fail("merge_method invalid")
+    if binding["pr_state"] not in {"OPEN", "CLOSED", "MERGED", None}:
+        _fail("pr_state invalid")
+    if binding["pr_is_draft"] is not None and not isinstance(binding["pr_is_draft"], bool):
+        _fail("pr_is_draft invalid")
     for key in (
         "intercepted_commit_title_fingerprint", "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
@@ -271,11 +282,12 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
         pr_values = [
             binding[key]
             for key in (
-                "head_oid", "base_ref_name", "default_branch", "merge_method",
+                "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
                 "intercepted_commit_title_fingerprint",
                 "intercepted_commit_message_fingerprint",
                 "message_source_fingerprint", "delivered_message_fingerprint",
                 "repository_merge_settings_fingerprint",
+                "pr_state", "pr_is_draft",
             )
         ]
         if any(value is not None for value in pr_values):
@@ -288,15 +300,17 @@ def validate_result_semantics(result: Mapping[str, Any], process_exit: int) -> M
             for key in ("head_oid", "base_ref_name", "default_branch", "merge_method", "operation_fingerprint", "snapshot_fingerprint")
         ):
             _fail("PR mode binding missing")
+        if verdict != "ERROR" and binding["expected_commit_count"] is None:
+            _fail("PR commit count binding missing")
         default_base = binding["base_ref_name"] == binding["default_branch"]
-        if default_base and any(
+        if verdict != "ERROR" and default_base and any(
             binding[key] is None
             for key in ("message_source_fingerprint", "delivered_message_fingerprint")
         ):
             _fail("default-base message binding missing")
         method = binding["merge_method"]
         settings = binding["repository_merge_settings_fingerprint"]
-        if method in {"merge", "squash"} and settings is None:
+        if verdict != "ERROR" and method in {"merge", "squash"} and settings is None:
             _fail("merge settings binding missing")
         if method == "rebase" and settings is not None:
             _fail("rebase settings binding invalid")

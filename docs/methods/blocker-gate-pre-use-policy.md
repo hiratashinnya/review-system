@@ -66,6 +66,11 @@ MergeTransport =
 - `DeniedAutoMerge` は `BLOCK/AUTO_MERGE_DENIED` とし、元操作を実行しない。
 - `UnknownPotentialManaged` は `ERROR/CLASSIFIER_UNKNOWN` とし、元操作を実行しない。
 - repository、Issue/PR 番号、merge method を tool schema または command AST から一意に確定できない場合は `UnknownPotentialManaged` とする。shell の表示文字列を推測して補完しない。
+- classifier はknown-safe executable/subcommandを判定する前に、raw command全体をquote-awareに構造解析する。proof可能な構文はsimple commandと`;`、改行、`&&`、`||`、pipe、backgroundで連結したlinear listに限定し、各leafを再帰分類して全leafがclosed grammar上のnonmanagedである場合だけgate対象外とする。各leafのcommand-startに未引用の`if`/`then`/`elif`/`else`/`fi`、`while`/`until`/`do`/`done`、`for`/`select`/`in`、`case`/`esac`、`function`等のcontrol reserved wordが現れる形、braces、subshell、動的または解析不能なcontrol structureは個別構文を推測せずcomplete invocationを`UnknownPotentialManaged`としてERRORにする。同じ語がsingle-quoted dataまたはsimple commandのargument位置にあるだけならcontrol syntaxではなく、`echo if; printf then`のような安全なlinear listはgate対象外のままである。managed leaf、不可読な構造、実行されるcommand/process substitution、backtickもcomplete invocationを`UnknownPotentialManaged`としてERRORにする。single-quoted `$()` / backtickは実行されないdata literalなのでこの構造判定の対象外とする。
+- `eval "$CMD"`、`bash -c "$CMD"`、動的実行名は、再評価するliteral command全体を同じclosed grammarで非managedと証明できる場合以外`UnknownPotentialManaged`とする。shell実行tokenはbare nameだけでなく、`/bin/bash`、`./tools/sh`等のpath-qualified tokenもbasenameへ正規化して既知shellへ束縛する。basenameを既知shellへ束縛できないshell様invocation、payload欠落、または未知optionはERRORとする。shell command-string flagは実行名ごとに、短option cluster内の独立した`c`（`-c`/`-lc`等）と、そのshellが公式に持つ正確なlong optionだけを扱う。`--norc`等のlong option名中の文字`c`をcommand flagと解釈せず、`--`、payload欠落、重複command flag、未知optionはERRORとする。`eval 'echo prefix' "$TAIL"`のように既知安全prefixへ動的tailを連結する形もERRORである。`gh api`のendpoint、method、query、field、merge subject/bodyにsingle-quote外のparameter expansionがあればoutbound値を一意に束縛できないため同様にERRORとする。`echo "$VALUE"`等のknown-safe executableへの通常data引数やsingle-quoted literal `$VALUE`は動的実行とは扱わない。
+- `git` は実行名だけでblanket-safeにしない。Git entrypointはbare `git`または固定trusted system path（`/bin/git`、`/usr/bin/git`）だけをGit closed grammarへ束縛し、basenameが`git`でも相対pathやそれ以外のabsolute pathは任意の偽実装を否定できないため`UnknownPotentialManaged`とする。既知builtinだけをclosed allowlistでnonmanagedとし、`git -c alias.*=!…`、`--config-env`、shellを評価するoption、未知subcommand/aliasは内容を安全に再分類できない限り`UnknownPotentialManaged`とする。`git bisect run <cmd> [<arg>…]`のcommand operandは同じclosed grammarへ再帰投入し、静的nonmanagedだけを通す。shell evaluator option registryはGit parse-optionsが受理する一意なlong略記と`--long=value`、builtin固有short/attached/clusterを同じ意味へ束縛する。少なくともrebase `-x`/`--exec`、clone `-u`/`--upload-pack`、fetch/pull `--upload-pack`、push `--receive-pack`、grep `-O`/`--open-files-in-pager`、diff/log系`--ext-diff`/`--textconv`を含む。fetch/pullの`-u`は`--update-head-ok`、pushの`-u`は`--set-upstream`、rebaseの`-X`はstrategy optionなのでnon-evaluatorとして通し、`--`以後の同名tokenはrevision/path dataとして評価対象外にする。
+- shell prefix assignmentと`env`はcommandから捨てず、実行実体へ作用する環境としてclosed grammarへ含める。`env --`はoption解析だけを終了し、その後に続くassignmentもutilityの実効環境として保持する。bare executableに対する`PATH`変更、`GIT_EXEC_PATH`・`GIT_EXTERNAL_DIFF`等の`GIT_*`、`LD_*`/`DYLD_*`等のdynamic loader、および未知の環境代入は任意実装・外部commandを否定できないため`UnknownPotentialManaged`とする。固定trusted absolute Gitでも、`PATH`変更または`env -i`を伴うcomplete invocationは、全argument、repository config、help/pager/editor/hook/filter/transport helperの閉包を有限のsubcommand allowlistで証明できないため一律ERRORとする。`status --help`、global `--paginate`/`--help`、config由来hook/filter、pager/editor/SSHを起動し得る形を個別に通さない。この境界はfalse positiveを受容するfail-close policyであり、例外を追加するには実行可能childの完全な証明を要求する。`LANG`、`LANGUAGE`、`LC_*`だけを実行実体に影響しない明示的な無害集合とし、`env -i`を伴わないlocale-only環境はnonmanagedのまま、それ以外を推測で通さない。assignment-only、`export`、`unset`、`hash`、`alias`等のshell状態変更を含むcompoundは、prefix assignmentや`command`/`builtin` wrapperを正規化した後の実行tokenで判定し、後続leafの実効環境を独立分類できないためcomplete invocationをERRORにする。一方、`LC_ALL=C git status; echo done`のようなcommand-scopedな無害環境は後続leafへ持ち越さない。
+- `trap`はEXIT/signal時に遅延commandを実行し、function/alias定義や`.`/`source`/`eval`等も現在shellの後続実行を変更する。`read`、`readarray`、`mapfile`、`declare`、`typeset`、`local`、`let`、`set`、`shopt`等を含むstateful builtin・構文は、literal payloadを含む場合でもcomplete invocationの安全性を証明できない限り`UnknownPotentialManaged`とする。known-safe data commandも実行名だけでは許可せずinvocation-level closed grammarへ束縛し、`printf`はoptionなし、または`--`でoption解析を終えた出力形だけをnonmanagedとする。変数へ代入する`printf -v`、未知option、wrapper後の同形はcomplete invocationをERRORにする。quoted trap payload、dynamic payload、option付きtrapをdata literalとして通過させない。ただし通常の`printf '%s' data`、`printf -- '-v'`、`echo 'trap gh pr merge 1 EXIT'`のようにstateを変更しないと証明したdata invocationはgate対象外である。
 
 classifier は managed hook が受け取った入力について次の表を完全に適用する。merge の可能性がある入力を「非対象」として通過させる型は設けない。
 
@@ -74,10 +79,11 @@ classifier は managed hook が受け取った入力について次の表を完�
 | `gh pr merge <PR>` / `gh -R owner/repo pr merge <PR>` | `PullRequestMerge/CliDirect` | target/method を束縛して gate |
 | allowlist 済み `rtk`、`command`、`builtin`、`exec` で包んだ上記 command | `PullRequestMerge/CliWrapped` | wrapper を順に構文解析し、shell evaluate せず gate |
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` を送る `gh api` 等 | `PullRequestMerge/RestPullsMergeEndpoint` | 同じ tool invocation を中断・再開できる場合だけ gate。不能なら ERROR |
-| schema 既知の `github_merge_pull_request` 等 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
-| `gh pr merge --auto`、`github_enable_auto_merge`、auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
-| GraphQL `mergePullRequest`、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | registry/fixture 更新まで ERROR |
-| merge と Issue-start のどちらでもないことを閉じた grammar で証明できる操作 | gate 対象外 | blocker gate の ALLOW は発行しない |
+| schema 既知の `github_merge_pull_request`、`mcp__codex_apps__github_merge_pull_request` 等の hookable connector 名 | `PullRequestMerge/ConnectorMergeTool` | tool-level pre-use で gate。Bash matcher だけなら使用を deny |
+| `codex_apps.github.merge_pull_request`、`codex_apps.github.enable_auto_merge` の hosted Codex Apps tool | `HostedConnectorDisabled` | Codex lifecycle hook の Pre/Post 対象外なので、app inventory の実 app id `connector_76869538009648d5b282a4bb21c3d157` 配下にある `.codex/config.toml` の per-tool `enabled=false` で無効化。audit は期待しない |
+| `gh pr merge --auto`、`github_enable_auto_merge`、hookable connector の auto-merge enable/schedule API | `DeniedAutoMerge` | 常に BLOCK |
+| GraphQL `mergePullRequest`、`@file`/stdin/`--input` query、動的実行/parameter expansion、managed leafを含むcompound、実行されるsubstitution、Git shell alias、未知 alias/wrapper/tool、merge の可能性を否定できない raw API | `UnknownPotentialManaged` | 実行時のcommand・endpoint・bodyへ一意に束縛できないため、registry/fixture 更新まで ERROR |
+| known-safeな `gh alias list` / `gh extension list`、またはmerge と Issue-start のどちらでもないことを閉じた grammar で証明できる操作 | gate 対象外 | blocker gate の ALLOW は発行しない |
 
 GitHub UI、managed hook 外の API client、direct push/ref update は classifier の入力ではなく、別 manifest の `unmanaged_paths` に記録する非保証経路である。managed tool 内で同じ操作が観測された場合は unmanaged として通過させず `UnknownPotentialManaged` とする。
 
@@ -121,7 +127,9 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 - Issue 本体、native blocked-by、parent、sub-issue は GitHub REST API を使用し、`X-GitHub-Api-Version: 2026-03-10` を固定する。
 - PR、default branch、head SHA、base branch、closing Issuesと、選択merge methodが要求するcommit count/message sourceは GitHub GraphQL API を使用する。repository merge-message設定はRESTをfresh readする。REST/GraphQLによる同値の再束縛を併用してよいが、意味を変更してはならない。
 - list/connection は `per_page=100` または `first=100` で全 page/cursor を完走する。`Link rel=next` または `hasNextPage=true` が残る状態で評価へ進まない。
+- PR GraphQLの`commits.totalCount`をpage 1で正の整数として取得し、後続closing-Issue cursorでも同値を要求する。REST commit listは全`Link` pageを完走し、OID重複がなく、収集件数が`totalCount`と一致し、最終OIDが同じpage metadataの`headRefOid`と一致した場合だけmessage sourceとして使用する。件数不明、missing-middle、重複、件数不一致はERRORとする。
 - GraphQL top-level error、partial `errors`、null connection、同一 cursor/page の再訪、順序中の identity 矛盾は `ERROR` とする。
+- page 1のPR metadata取得後に後続cursorが失敗した場合、取得済みrepository/PR/head/base/default/state/draft/commit countはERRORのredacted binding evidenceとして保持する。ただしpartial closing setやmetadataをALLOW/BLOCK判定へ使用せず、permitを発行しない。
 - 1 invocation 当たり最大 10,000 unique Issue nodes、dependency/parent depth 最大 100 とする。超過は `ERROR/GRAPH_LIMIT_EXCEEDED` であり、途中までの graph を ALLOW に使わない。
 - timeout、`403`、`404`（存在確認済み resource を含む）、`410`、`429`、`5xx`、invalid JSON は `ERROR` とする。`429`/`5xx` は `Retry-After` が 30 秒以下の場合だけ最大2回再試行できる。全3 attempt 失敗、30秒超、header 不正なら `ERROR/API_UNAVAILABLE` とする。`401`/`403` は GitHub provenance（`X-GitHub-Request-Id`）の有無で `ERROR/API_PERMISSION` と `ERROR/API_UNREACHABLE` に分ける（10.2）。
 - invocation 外 cache、前回の graph、前回の green status へ fallback しない。唯一の例外は 3.3 の到達不能時 snapshot fallback であり、そこでも上限付き staleness を超えた材料は使用しない。
@@ -287,10 +295,10 @@ classic titleのhead-label表記、改行、Unicode/改行正規化をbyte単位
 - overrideの完全な値・指定有無・outbound payloadへの写像を一意に束縛できなければ`ERROR/MERGE_OVERRIDE_AMBIGUOUS`とする。
 - repository の `squash_merge_commit_title`、`squash_merge_commit_message`、PR title/body/numberと、選択設定が要求するcommit件数・完全なmessageを同じattemptでfresh readする。
 - title設定 `PR_TITLE` はfresh PR title、`COMMIT_OR_PR_TITLE` は1 commitならそのcommit title、複数commitならfresh PR titleを選ぶ。
-- body設定 `PR_BODY` はfresh PR body、`COMMIT_MESSAGES` はGitHub default formatterで順序付き全commit messageを構成し、`BLANK` は空文字列とする。
-- unknown enum、null/partial setting、設定とtransportの矛盾は`ERROR/MERGE_SETTINGS_AMBIGUOUS`、truncated入力、#298 fixtureで固定したformatter versionからのdrift、再構築非一意は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とする。推測値、ローカルgit log、前回設定へfallbackしない。
+- body設定 `PR_BODY` はfresh PR body、`BLANK` は空文字列とする。`COMMIT_MESSAGES` は、GitHubが複数commitのsubject/bodyをsquash本文へ並べるbyte-level形式を固定したversioned live fixtureが未成立のため、intercepted body overrideがない限り`ERROR/MERGE_MESSAGE_AMBIGUOUS`でfail-closeする。
+- unknown enum、null/partial setting、設定とtransportの矛盾は`ERROR/MERGE_SETTINGS_AMBIGUOUS`、truncated入力、検証済みformatter versionからのdrift、再構築非一意は`ERROR/MERGE_MESSAGE_AMBIGUOUS`とする。推測値、単純な改行join、ローカルgit log、前回設定へfallbackしない。
 
-merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数として#298でfixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。
+merge/squash default formatterは、GitHubへ送るpayloadまたはGitHubが生成するmessageとbyte単位で同じsubject/bodyを一意に作る純粋関数としてversioned live fixture化する。fixtureが未成立のmethod/transportはmanaged mergeに使用可能にせずfail-closeする。現在の`COMMIT_MESSAGES`判定は`squash-commit-messages-evidence/1`（`verified=false`、`decision=fail-close`）であり、保護済みとは表示しない。
 
 `DeliveredMessageSet` の各**省略されていない完全な message**を次の grammar で解析する。
 
@@ -301,12 +309,13 @@ keyword   = "close" | "closes" | "closed"
 reference = "#" positive_integer
           | owner "/" repository "#" positive_integer
           | "https://github.com/" owner "/" repository "/issues/" positive_integer ;
-clause    = keyword, 1*WSP, reference ;
+separator = 1*WSP | *WSP, ":", *WSP ;
+clause    = keyword, separator, reference ;
 ```
 
-- keyword は ASCII word boundary で始まり、reference の直後は whitespace、句読点、行末のいずれかでなければならない。
+- keyword は ASCII word boundary で始まり、GitHub が受理する空白またはコロン区切り（例: `Closes: #10`）を経て reference を置く。reference の直後は whitespace、句読点、行末のいずれかでなければならない。
 - `#0`、leading sign、小数、範囲、変数、短縮 URL、`pull/` URL、GitHub 以外の URL は reference ではない。
-- keyword の直後の非空白 token が `#`、`owner/repository#`、`https://github.com/.../issues/` で始まるにもかかわらず grammar を満たさない場合は `ERROR/CLOSING_KEYWORD_PARSE` とする。単なる自然文の “fixes performance” は closing clause ではなく error にしない。
+- separator の直後の非空白 token が `#`、`owner/repository#`、`https://github.com/.../issues/` で始まるにもかかわらず grammar を満たさない場合は `ERROR/CLOSING_KEYWORD_PARSE` とする。単なる自然文の “fixes performance” は closing clause ではなく error にしない。
 - parser は全出現を収集する。同じ Issue の重複は canonical identity で除去する。
 - unqualified `#N` は対象 PR と同じ repository に束縛する。qualified reference が別 repository を指す場合は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` とする。
 - source commitまたは生成messageが欠落、切り詰め、decode不能、pagination未完走なら `ERROR/MESSAGE_SOURCE_INCOMPLETE` とする。
@@ -849,6 +858,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
   "subject": {"type": "pull_request", "number": 123},
   "binding": {
     "head_oid": "0123456789abcdef0123456789abcdef01234567",
+    "expected_commit_count": 3,
     "base_ref_name": "main",
     "default_branch": "main",
     "merge_method": "squash",
@@ -936,15 +946,17 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
     "binding": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "head_oid", "base_ref_name", "default_branch", "merge_method",
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
         "intercepted_commit_title_fingerprint",
         "intercepted_commit_message_fingerprint",
         "message_source_fingerprint", "delivered_message_fingerprint",
         "repository_merge_settings_fingerprint",
-        "operation_fingerprint", "snapshot_fingerprint", "attempt"
+        "operation_fingerprint", "snapshot_fingerprint", "attempt",
+        "pr_state", "pr_is_draft"
       ],
       "properties": {
         "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
+        "expected_commit_count": {"type": ["integer", "null"], "minimum": 1},
         "base_ref_name": {"type": ["string", "null"]},
         "default_branch": {"type": ["string", "null"]},
         "merge_method": {"enum": ["merge", "rebase", "squash", null]},
@@ -967,7 +979,9 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
         "snapshot_fingerprint": {
           "oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]
         },
-        "attempt": {"type": "integer", "minimum": 1, "maximum": 3}
+        "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+        "pr_state": {"enum": ["OPEN", "CLOSED", "MERGED", null]},
+        "pr_is_draft": {"type": ["boolean", "null"]}
       }
     },
     "graphql_closing_set": {"$ref": "#/$defs/issueSet"},
@@ -1123,7 +1137,7 @@ schemaまたはsemantic validation失敗時、callerは受信したResultを利�
 
 永続先は `${XDG_STATE_HOME}/review-system/blocker-gate/audit.jsonl`、`XDG_STATE_HOME` が未設定なら `${HOME}/.local/state/review-system/blocker-gate/audit.jsonl` とする。directory は mode `0700`、file は `0600` とし、symlink・owner不一致・permission過剰を `ERROR/HOOK_INTEGRITY_ERROR` として pre-use 段で拒否する。raw command、token、header、Issue/PR本文、commit message、waiver reason は保存せず、operation/body/reason は SHA-256 fingerprint または定型 reason code だけを残す。
 
-pre-use decision record を append/fsync できなければ permit を発行しない。元操作の完了 record は post-use adapter が同じ `invocation_id` で追記する。元操作後の書込み失敗は既に起きた副作用を取り消せないため stderr と次回 runtime self-check へ監査欠損を残し、#299 が owner action として扱う。欠損した過去 record を後続 invocation の ALLOW 根拠にはしない。
+pre-use decision record を append/fsync できなければ permit を発行しない。元操作の完了 record は post-use adapter が同じ `invocation_id` で追記する。Post到達は `operation_dispatched=true` として記録するが、`merge_api_called=true` はconnectorの明示的な成功responseなどAPI到達を証明できる場合に限る。CLI/RESTのexit、connector失敗、未知responseは `merge_api_called=null` とし、推測でtrueにしない。元操作後の書込み失敗は既に起きた副作用を取り消せないため stderr と次回 runtime self-check へ監査欠損を残し、#299 が owner action として扱う。欠損した過去 record を後続 invocation の ALLOW 根拠にはしない。
 
 各 stage の start/end/error を `invocation_id` で串刺しし、`policy_version`、`classifier_version`、resolver build commit、hook asset hash、policy/waiver blob SHA、repository、target、head/base/default/method、override/message-source/delivered-message/settings fingerprint、取得時刻を版 stamp として残す。
 
