@@ -388,6 +388,18 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertIsNone(classify_pre_use(bash("gh issue view 12")))
         self.assertIsNone(classify_pre_use({"tool_name": "Read", "tool_input": {"path": "x"}}))
 
+    def test_gh_project_subcommands_are_outside_this_gate(self):
+        """`gh project` は merge と無関係だが、旧 allowlist に無く CLASSIFIER_UNKNOWN
+        で誤ブロックされていた（Issue #412）。GitHub Projects v2 の読み書きに使う
+        代表的な subcommand が素通りすることを固定する。"""
+        self.assertIsNone(
+            classify_pre_use(bash("gh project list --owner example --format json"))
+        )
+        self.assertIsNone(classify_pre_use(bash("gh project view 1 --owner example")))
+        self.assertIsNone(
+            classify_pre_use(bash("gh project item-add 1 --owner example --url x"))
+        )
+
 
 class RepositoryBindingTests(unittest.TestCase):
     def test_repository_from_cwd_requires_exact_worktree_and_github_origin(self):

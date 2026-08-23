@@ -684,6 +684,45 @@ class GitHubCollectorTests(unittest.TestCase):
         self.assertEqual((result["result"], result["permit_issued"]), ("ALLOW", True))
         self.assertEqual(result["binding"]["expected_commit_count"], 3)
 
+    def test_commit_tree_with_extra_fields_like_real_github_rest_api_is_accepted(self):
+        """実際の GitHub REST API は commit.tree に sha 以外に url も返す。
+
+        `set(tree) != {"sha"}` のような exact-set 検証は GraphQL 応答（クエリで
+        要求したフィールドしか返らない）には妥当だが、REST 応答は要求していない
+        フィールド（ここでは `url`）を常に含む。この形状で real API を模した
+        fixture を使い、余分なフィールドがあっても commit source が正しく
+        受理されることを固定する（回帰：過去はここで MESSAGE_SOURCE_INCOMPLETE
+        误検知が起きていた）。
+        """
+        api = "https://api.github.com/repos/example/repo"
+        commits_url = api + "/pulls/50/commits?per_page=100"
+        transport = GraphQLTransport(
+            [pr_page(baseRefName="main", headRefOid="1" * 40)]
+        )
+        transport.responses[commits_url] = response(
+            [
+                {
+                    "sha": "1" * 40,
+                    "commit": {
+                        "message": "message",
+                        "tree": {
+                            "sha": "2" * 40,
+                            "url": f"{api}/git/trees/{'2' * 40}",
+                        },
+                        "url": f"{api}/git/commits/{'1' * 40}",
+                    },
+                    "parents": [],
+                    "url": f"{api}/commits/{'1' * 40}",
+                }
+            ]
+        )
+        result = evaluate_snapshot(
+            GitHubCollector(None, transport).collect_pull_request(
+                "example/repo", 50, "rebase"
+            )
+        )
+        self.assertEqual((result["result"], result["permit_issued"]), ("ALLOW", True))
+
     def test_graphql_total_count_is_known_and_stable_and_page_errors_preserve_page1_binding(self):
         first_connection = {
             "nodes": [],

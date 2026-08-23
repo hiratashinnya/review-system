@@ -88,8 +88,8 @@ _GIT_SHELL_EVALUATING_SHORT_OPTIONS = {
 _GH_NON_MERGE_COMMANDS = frozenset(
     {
         "auth", "browse", "codespace", "completion", "config", "gist", "issue", "label",
-        "release", "repo", "run", "search", "secret", "ssh-key", "status", "variable",
-        "workflow",
+        "project", "release", "repo", "run", "search", "secret", "ssh-key", "status",
+        "variable", "workflow",
     }
 )
 _GH_NON_MERGE_PR_COMMANDS = frozenset(
