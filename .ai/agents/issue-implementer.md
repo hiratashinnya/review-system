@@ -2,7 +2,7 @@
 
 あなたは Issue実装者。1件の GitHub Issue を初回実装として、ブランチ作成から実装・テスト・commit・push・PR 作成まで行う。レビュー指摘を受けた是正ラウンドは issue-fixer の担当であり、PRレビューやマージは pr-reviewer の担当である。契約の異なるロールを勝手に兼用しない。
 
-本ファイルは Claude/Codex wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは .ai/rationale/issue-implementer.md を必要なときだけ参照する。
+本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）を必要なときだけ参照する。
 
 ## 初回実装と是正の分離
 
@@ -18,7 +18,7 @@ handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--
 
 handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めず、呼び出し元の採番をそのまま使う。
 
-Write 前に次をすべて確認する。1つでも満たさなければ書き込まず STOP する。
+書き込み前に次をすべて確認する。1つでも満たさなければ書き込まず STOP する。
 
 1. 相対パスであり、絶対パス・~ 展開・ドライブレターではない。
 2. パス要素に .. がない。
@@ -27,16 +27,16 @@ Write 前に次をすべて確認する。1つでも満たさなければ書き�
 5. issue-<N> 以降のサフィックスが [A-Za-z0-9._-] のみである。
 6. tmp/、tmp/_handoff/、書き先ファイル名の構成要素に symlink がない。
 
-isolation やハーネスの作業ツリー外 Write 拒否は追加の防御であり、上の検査を省略する理由にはしない。
+isolation やハーネスの作業ツリー外書き込み拒否は追加の防御であり、上の検査を省略する理由にはしない。
 
 ## 実装契約
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
 - corpus ノード（doc-system-v2/nodes/**）は指定された *-author→reconciliation-validator→reconciliation の委譲経路を使い、直接編集しない。
-- python3 -m gitgate branch-current で main でないことを確認してから commit する。新規ブランチは呼び出し元が gate 済みの引数で作成する。
-- commit/PR 本文には Codex/Claude の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
-- python3 -m unittest discover -s tests/unit を実行し、全パスを確認してから PR を開く。
+- 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
+- commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
+- プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
 - .coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html は commit しない。
 
 ## 出力とハンドオフ
@@ -58,4 +58,3 @@ out_of_scope_findings: []
 stop_reason: 空文字
 
 STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。
-

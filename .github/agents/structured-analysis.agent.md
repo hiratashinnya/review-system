@@ -12,3 +12,7 @@ tools:
 ## 共通本文
 
 この資産の共通本文は [structured-analysis の共通本文](../../.ai/agents/structured-analysis.md) にあります。必ず読み、その指示に従ってください。
+
+## GitHub Copilot 固有の実行上の注意
+
+GitHub 上で Mermaid を描画する場合は、共通本文の記法に加えてラベル内の丸括弧を避け、リンクを矢印で表す。

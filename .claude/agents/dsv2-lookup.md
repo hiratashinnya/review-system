@@ -8,3 +8,10 @@ model: sonnet
 ## 共通本文
 
 この資産の共通本文は [dsv2-lookup の共通本文](../../.ai/agents/dsv2-lookup.md) にあります。必ず読み、その指示に従ってください。
+
+## Claude Code 固有の実行契約
+
+- frontmatter の `tools`・`model` はClaude Codeのloader/dispatch metadataとしてこのwrapperに残す。`Bash`は `dsv2 index`・`deps`・`dependents`の実行に使う。
+- ノード内容はread-onlyであり、付与済みの `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使っても `doc-system-v2/` を変更しない。
+- `ctx_index` は検索用の外部KBへ永続・非冪等に追記するため、read-onlyなコーパス操作とは区別する。同じsourceを再indexせず、初回または対象変更時だけ実行する。
+- `ctx_execute` / `ctx_batch_execute` は `language: "shell"` の単純な読み取り・絞り込みに限定し、`ctx_execute_file`は使わない。`context-mode`、`.claude/rules/`、`CLAUDE.md`、hook gateの制約を適用する。

@@ -1,8 +1,8 @@
 # 実装設計パイプライン（spec → 実装の橋渡し・凍結セット化）
 
 > 仕様（spec-pipeline）の下流。**論理 DFD＋ドメインモデルが確定**してから、実装前に固める設計物を**順に・チェックポイント付き**で回す。
-> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**規律**＝[AGENTS.md](../../../AGENTS.md) の実装設計フェーズ節に従って各段で実施。
-> 原則：[spec-principles](../../../.claude/skills/spec-principles/SKILL.md)。
+> 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**共通の実装設計規律**に従って各段で実施。
+> 原則：[spec-principles](../spec-principles/SKILL.md)。
 > **対話が要る段（総点検の矛盾停止・判断ログ DD# の暫定決定）は主文脈に残す**が、**非対話の並列ノード著作 fan-out は
 > `authoring-fanout` エージェント（`author: design-author`）へ委譲**する（2.5・DD-22 ①-C・issue #121）。
 
@@ -19,7 +19,7 @@
    - 独立親ノードごとに `targets` 配列（`parent_id`・`kind`・`brief`）で渡し、Wave1（MOD/PORT/PRS/DS など依存の薄い基盤層）→Wave2（ORC/DM/SCM/CFG/PROMPT など Wave1 に依存する層）の**2波に分けて並列著作**させる（依存対象を同バッチに混ぜない＝skill が分割）。
    - DM 確定時の TERM 設計ファセット追記（design-author が既存 TERM ノードへ Python 型名/定義モジュールを追記・新規作成しない）も同じ fan-out 経路に乗る。
      **更新した TERM の slug は design-author のハンドオフ `update_slugs` に載って返り、`authoring-fanout` が全 author 分を集約して validator の `--update` 宣言に渡す**（落とすと `dsv2 check-slug` が正当な TERM 更新を既存 id 衝突と判定して ROLLBACK する）。
-   - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/design-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを Read して取る**。
+   - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/design-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを読み取って取得する**。
      **直接呼びのときは主文脈が `update_slugs` を `reconciliation-validator` へ明示的に渡す**（fan-out を通さない＝集約役が居ないため、渡し忘れると TERM 更新が ROLLBACK になる）。
    - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う。
    - **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。新規 target には付けない。
