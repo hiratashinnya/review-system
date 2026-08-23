@@ -991,6 +991,21 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         # reviewer の merge は gh pr merge 経由のみ・`git merge`/gitgate は {diff,log} 集合外＝deny。
         self.assert_denied(run_gate(payload("pr-reviewer", "git merge feature")))
 
+    def test_pr_reviewer_may_pass_subject_and_body_on_squash_merge(self):
+        # Issue #419: squash_merge_commit_message: COMMIT_MESSAGES 設定のリポジトリでは
+        # --body を明示しないと pr_merge_gate の MERGE_MESSAGE_AMBIGUOUS で必ず拒否されるため、
+        # --subject/--body を allowlist に追加した（第3次修正・Claude 版と同一）。
+        self.assert_allowed(
+            run_gate(
+                payload(
+                    "pr-reviewer",
+                    'gh pr merge 123 --squash --subject "fix: title" --body "body text"',
+                )
+            )
+        )
+        # --admin は引き続き除外（第2次修正・ブランチ保護バイパスを許可しない）。
+        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 123 --squash --admin")))
+
     # ------------------------------------------------------------------
     # F1（Issue #227 レビュー）: ブレース展開バイパスの遮断（層1に `{` `}` を追加・Claude 版と同一）
     # ------------------------------------------------------------------
