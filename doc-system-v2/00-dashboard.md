@@ -5,7 +5,7 @@
 > 本文は型別 body policy に従う Markdown、
 > 本帳票は要約のみ。**全件列挙はしない**。
 >
-> **最終更新**: 2026-08-04 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
+> **最終更新**: 2026-08-23 ｜ **current_stage**: `design`（`docs/doc-system/config.yaml`）
 > 本帳票は **v1 の `doc-system/00-dashboard.md` の後継**（issue #76・v1→v2 cutover）。v1 は
 > `doc-system-v1-archive/`（旧 `doc-system/`・`git mv` で履歴保持）へ retire 済み。**正本は本コーパス
 > （`doc-system-v2/nodes/**`）**。旧ダッシュボードの経緯・完了ログは archive 側に保全されている
@@ -17,6 +17,7 @@
 
 | 作業 | 種別 | 状態 |
 |---|---|---|
+| issue #338 — `dsv2-lookup.md` の `python3 -c` 記述是正 | FND 起票＋既存不整合の是正 | ✅ 反映完了・完全解消は保留（2026-08-23）。PR #335 のレビューで `pr-reviewer`（AI）が発見した既存不整合——`.ai/agents/dsv2-lookup.md`「## 手順」2 が、`.claude/settings.json: permissions.deny` と `agent-command-gate.sh` の全 agent_type 共通危険コマンド層の双方で常に deny される `python3 -c "import json; ..."` を唯一の worked example として指示していた——を是正。FND「dsv2-lookup.md の手順に統制下で必ず deny される `python3 -c` 例が残っている」（ERROR・`scheduled: sprint-1`）を起票し（644→645ノード）、同時に呼び出し元（issue-implementer）が本文を `grep -A 20` ベース＋`ctx_batch_execute`/`ctx_execute`（`language: "shell"`）併記の手順へ書き換え済み。**FND は resolved へ移せず open のまま**：本 FND は対象となる in-graph ノードが存在しない（`dsv2-lookup` は `doc-system-v2/nodes/05-design/prompt/` に carrier ノードを持たず `prompt_coverage_targets` にも不在）ため `edges: []` で著作されており、`dsv2 reverse` は `forward` 辺が空だと `noop=True` を返し `fnd/open/`→`fnd/resolved/` の git mv を実行しない実装（手動 git mv は「辺逆転は手編集でなく機械実行する」規約に反するため見送り）。隣接観測として、同型の `python3 -c` 記述が全 `*-author` 共通契約 `.ai/agents/doc-system-v2-authoring.md`「## id / slug 採番」節にも存在すること（影響範囲：`*-author` 7 ロール）、および `dsv2-lookup` 自体が「含有されるハーネス」でありながら PROMPT ノードを持たない構造的ギャップを FND 本文「隣接観測」節に記録。処置要否・①（PROMPT ノード新設で在グラフ化）への格上げの可否はオーナー判断待ち。 |
 | 処置計画の永続化と Phase 0（2026-07-28） | 計画の Issue 階層化＋起票バッチの内部矛盾是正 | 🟡 Phase 0 実施中（2026-07-28）。#127 までの残作業を**3 層 Issue 階層へ永続化**（親 #261 ＝取りまとめ／子 #262-#265 ＝Phase 0-3／孫 ＝#266 と既存 #253-#256・#160-#162）。オーナー確定判断 J1〜J4 を #261 に記録。**Phase 0** では、未マージのまま陳腐化していた `claude/doc-system-dashboard-issue-check-8gq7ay` の起票コミット（`747aa07`）を取り込み、**同バッチが自ら生んだ内部矛盾 2 件を確定記録に入れる前に是正**——①Q ノードの母数が著作時点の値（128＝open 11+resolved 117）のままで、同バッチが FND を 3 件足した結果と不整合（正＝**131＝open 14+resolved 117**）②同 Q が「深刻度行を欠く resolved を特定できたのは 3 件」とする一方、同バッチの FND は edges で**4 件すべて特定済み**。あわせて同型の母数誤りが当該 FND 本文にも残存していることを実測で検出し是正。ダッシュボード側は訂正コメント/#163 close の「未実施」記述と N7 を実態へ更新し、N8 の PR7 様式違反（機構選択の競合を伏せた推奨）を明示、N9 に計画階層を追記。**推奨（Q の選択肢③）は母数訂正後も不変**。 |
 | ダッシュボード・Issue 棚卸し（2026-07-27） | 検算→未起票論点の在グラフ化→処置計画 | 🟡 起票完了・オーナー判断待ち（2026-07-27）。ダッシュボード記載を機械実測で全件検算し**一致を確認**（632ノード／ERROR 53／drift 0／prompt-coverage 0／open FND 11・Q 1・PEND 2＋1）。その上で **①ダッシュボードに直書きされ在グラフ化されていなかった判断待ち（深刻度基準の遡及適用）を Q ノードへ起票**し、著作過程で判明した **FND 3 件**（深刻度の語彙不一致・深刻度行の欠落 4 件・`docs/doc-system/` 4文書の v2 未追随）を追加起票（計 4 ノード＝632→636・**ERROR 増ゼロ**）。あわせて **Issue 側の陳腐化 3 件**（#253〜#256 の「実施スプリント未設定」記述が CLAUDE.md 2026-07-26 改訂と矛盾／同 4 Issue の「FND 未起票」注記が起票済みと乖離／**#163 は受け入れ条件充足済みだが OPEN**）を検出。**3 件とも 2026-07-27 中に処置済み**（#253/#254/#255/#256 へ訂正コメント投稿・#163 は completed で close）。ただし **#160 は同じ「実施スプリント未設定」記述を持ちながら訂正バッチから漏れた**（Phase 1・#263 で処置）。 |
 | issue #160/#253 — 必須辺検証ルールの見直し（全型監査） | 規則監査→Issue 分割→FND/Q 起票 | 🟡 起票完了・処置待ち（2026-07-26）。53 ERROR の内訳を全数照合したところ、**規則の分類粒度不足だけで解消する純粋な false positive は `p←mod` 3 件＋`scm←cfg`（傘）2 件＝計 5 件のみ**で、**残り 46 件（`p←mod` 39・`scm←cfg`（成果物）5・`d←p` 2）はオーナー確定方針の適用後もノード・辺の実著作を要する**（`p←mod` 39 は leaf P への MOD 割り当て＝既存 MOD からの張り替えが中心、`scm←cfg` 5 は O/I→SCM 辺の新規著作）。`ds←prs` 2 は規則不備か未著作かが未決（Q）。従来「全件 backlog・規則欠陥ではない」→ 中間時点で「`p←mod` 42・`scm←cfg` 7 は規則側の欠陥」としていた分類はいずれも訂正する（PR #257 の Codex レビュー指摘・2026-07-26 で判明）。implementation 段の `src` 系規則にも 3 欠陥（必須辺の非対称／非 Python 担体の非被覆／CFG 粒度ミスマッチ）を検出し、**#160 の前提ブロッカー**と判定。シリーズ Issue #253(①scm←cfg)/#254(②p←mod)/#255(③ds←prs＋d←p)/#256(④src 系) に分割し、在グラフへ FND 10 件＋Q 1 件を起票（632ノード・ERROR 53 件で baseline 維持）。`p←mod` はオーナー確定で **「全 leaf が MOD を要する（推移的被覆は不採用）」**方針（MOD:P は1:1でなくてよい・既存 MOD への割当で新設不要・DD-13 改訂＋leaf 限定規則の分離は視野）。#160 のスコープは**維持**（設計実装乖離を切り出さず、整合作業を #160 内で行う）。**関連 Issue #254/#160 本文は本確定方針に反する記述が残っていたため訂正コメントを追記済み**（#254＝推奨A「推移的被覆」を訂正、#160＝ORC `著作・反映パイプライン実行` の材化可否を訂正）。 |
@@ -45,11 +46,14 @@
 | 01-why | `nodes/01-why/` | 14 | VAL / SR |
 | 02-what | `nodes/02-what/` | 263 | FR / NFR / SPEC |
 | 03-analysis | `nodes/03-analysis/` | 98 | ACTOR / I / O / D / P / E / TERM |
-| 04-verification | `nodes/04-verification/` | 190 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
+| 04-verification | `nodes/04-verification/` | 192 | TD / TC / TR / VERIFY / FND / DD / Q / PEND |
 | 05-design | `nodes/05-design/` | 78 | ORC / DS / MOD / DM / PORT / PRS / SCM / CFG / PROMPT |
-| **計** | `nodes/**` | **643** | v1 移行後の増分著作を含む現行実測 |
+| **計** | `nodes/**` | **645** | v1 移行後の増分著作を含む現行実測 |
 
-> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-08-05 実測（640→643。PR #326——
+> ノード数は `python3 -m dsv2 index --root doc-system-v2` の 2026-08-23 実測（644→645。issue #338——
+> `dsv2-lookup.md の手順に統制下で必ず deny される python3 -c 例が残っている` FND（ERROR・open）を
+> 04-verification/fnd に新規1件起票。643→644 は本件と無関係な先行差分（本作業の対象外・詳細未確認）。
+> 以下は 2026-08-05 時点 640→643 実測の既存記録：PR #326——
 > PR #326 自身のレビュー指摘（R-06/R-07）を在グラフ化：FND「検証結果が主文脈経由で writer へ渡り
 > 2段分離の fail-close を迂回できる」（ERROR）・DD「FND 起票単位は機序で分け対象集合が同型の指摘は
 > 既存 FND のスコープ拡張とする」（decided・R-07 の起票単位決定）・Q「オーナー決定の出所表記を
