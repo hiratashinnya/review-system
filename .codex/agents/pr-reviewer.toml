@@ -16,6 +16,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 ## Codex 固有の機械ゲート・権限境界
 
 - `.codex/hooks/agent-command-gate.sh` が `pr-reviewer` を機械的に識別する。`git push` とコード変更は拒否し、`gh pr merge` は許可する。merge時は `--merge` / `--rebase` / `--squash` のいずれか1つを必ず明示し、clean判定後だけ実行する。`python3 -m karte` は本ロールに許可しない。
+- **`--squash` のときは `--subject`/`--body` も明示する**（Issue #419）。リポジトリの `squash_merge_commit_message` 設定が `COMMIT_MESSAGES` だと、`--body` を省略してGitHubの自動整形に任せた場合、`pr_merge_gate` が連結後のbyte-level形式を予測できず `MERGE_MESSAGE_AMBIGUOUS` で必ず拒否する（`blocker_gate/closing.py` の意図的なfail-close）。`--body` を明示すれば `commit_message` が確定しこの分岐を回避できる。
 - Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2}` に限る。gitgateは読み取り専用の `diff` / `log` だけ、`gh` は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `pr merge` / `pr checkout` / `issue view` だけとする。`gh pr create`、`gh api`、`karte`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - レビューコメントはクォート済み `--body` で渡し、自己PRへのApproveを承認済みと偽らない。Codex CLI (AI) によるレビューであること、構造化finding、次の処置、mergeableでない場合の是正先を必ず報告する。オーナー専権の値や対応不要判断はSTOPして確認を求める。
 
