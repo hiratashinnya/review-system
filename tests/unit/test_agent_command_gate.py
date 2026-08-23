@@ -572,6 +572,11 @@ class AgentCommandGateTests(unittest.TestCase):
             "python3 -m coverage run evil.py",
             "python3 -m coverage",  # サブコマンド欠如も deny
             "python3 -m coverage erase",
+            # Issue #385: asset_parity / time_fixture_lint はサブコマンド欠如・`check` 以外は deny。
+            "python3 -m asset_parity",
+            "python3 -m asset_parity fix",
+            "python3 -m time_fixture_lint",
+            "python3 -m time_fixture_lint fix",
         ]
         for command in denied:
             with self.subTest(command=command):
@@ -589,6 +594,11 @@ class AgentCommandGateTests(unittest.TestCase):
             "python3 -m dsv2 index --root doc-system-v2",
             "python3 -m dsv2 reverse FND-1 --root doc-system-v2 --apply",
             "python3 -m gitgate status",
+            # Issue #385: read-only 監査コマンド（check サブコマンドのみ）。
+            "python3 -m asset_parity check",
+            "python3 -m asset_parity check --root . --format json",
+            "python3 -m time_fixture_lint check",
+            "python3 -m time_fixture_lint check --root .",
         ]
         for command in allowed:
             with self.subTest(command=command):
@@ -875,6 +885,43 @@ class AgentCommandGateTests(unittest.TestCase):
                 )
         # ロール別追加分は「基底への上乗せ」であって他ロールの許可を減らさない（回帰防止）。
         self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m dsv2 index")))
+
+    # ------------------------------------------------------------------
+    # Issue #385: asset_parity / time_fixture_lint（read-only 監査ツール）を base集合として
+    # 3 gated ロール全員に `check` サブコマンドのみ許可する。
+    # ------------------------------------------------------------------
+    def test_asset_parity_and_time_fixture_lint_are_check_only_for_every_gated_role(self):
+        # base集合への追加（coverage/karte のような特定ロール限定ではない）なので、
+        # issue-implementer/issue-fixer/pr-reviewer 全員が `check` を実行できる。
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for command in [
+                "python3 -m asset_parity check",
+                "python3 -m asset_parity check --root . --format json",
+                "python3 -m time_fixture_lint check",
+                "python3 -m time_fixture_lint check --root .",
+            ]:
+                with self.subTest(role=role, command=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+        # `check` 以外のサブコマンドは両ツールとも実装されていない（read-only 監査専用）ため deny。
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for command in [
+                "python3 -m asset_parity fix",
+                "python3 -m asset_parity apply",
+                "python3 -m time_fixture_lint fix",
+                "python3 -m time_fixture_lint apply",
+            ]:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        # サブコマンド省略も deny（`python3 -m coverage`/`python3 -m karte` と同じ扱い）。
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for command in ["python3 -m asset_parity", "python3 -m time_fixture_lint"]:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        # 回帰防止: 新規追加が既存の非allowlistモジュール deny を崩していないこと。
+        for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
+            for command in ["python3 -m pip install requests", "python3 -m http.server", "python3 -m pytest tests/unit"]:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
 
     def test_issue_fixer_is_covered_by_the_known_bypass_corpora(self):
         # 記号ベースの層1 はロール非依存なので、既知バイパス群は新ロールでもそのまま deny される。

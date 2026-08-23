@@ -15,7 +15,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 ## Codex 固有の機械ゲート・権限境界
 
 - `.codex/hooks/agent-command-gate.sh` が `issue-fixer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `python3 -m gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**（Issue #354・是正対象 PR ブランチを取得する Step 0 で使う。`issue-implementer` には付与しない）。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。是正後はSTOPし、マージは `pr-reviewer` に委ねる。
-- Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`ingest-review`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは拒否される前提で使わない。
+- Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`ingest-review`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは拒否される前提で使わない。
 - コミットメッセージ、PR本文、karteの長文引数はファイル渡し形式を使う。フックは静的文字列検査であり完全なsandboxではないため、フック外の経路で禁止権限を得ようとしない。
 
 ## Codex 固有の委譲・入力境界
