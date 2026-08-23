@@ -54,9 +54,12 @@ isolated worktree 内部を指すが、**`SubagentStop` フックが同期的に
    （`tmp/_handoff/collected/<entry-id>--<basename>`）を Read する——これが書かれた handoff の実体。
 4. `collected_to` が `null`（`status` が `stopped`/`stale` のまま自動回収が完了していない）なら、
    `python3 -m gitgate collect-worktree --entry <entry-id>` を主文脈が実行してから 3 を再試行する。
-   **`status` が既に `released` なのに `collected_to` が `null` のままなら別系統**（実装者/是正者が
-   handoff を一度も書かずに終了した異常系）——同じコマンドは no-op になるので、worktree の実体
-   （残っていれば）と対応する PR の有無を主文脈が直接確認する。
+   **`status` が `running` のままなら「保留」**（実装者/是正者が handoff を一度も書かずに終了した＝
+   契約違反かクラッシュ・Issue #423）。この状態で `collect-worktree` は `WORKTREE_LIVE` で拒否される
+   ——後述「入れ子 dispatch と「保留」の後始末」節の手順（`worktree-forget`→`worktree-release`）で
+   片付ける。**`status` が既に `released` なのに `collected_to` が `null` のままならさらに別系統**
+   ——`collect-worktree` は no-op になるので、worktree の実体（残っていれば）と対応する PR の有無を
+   主文脈が直接確認する。
 
 `status: stop`（曖昧・矛盾）なら `stop_reason` ごと主文脈で受けてオーナーへ（PR7）。
 
@@ -117,9 +120,33 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
   起動した dispatch の worktree を所有台帳へ束縛する。
 - `SubagentStop`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：
   ①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否し（判定不能も
-  拒否側）、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。
-  **block したら②へ進まない**（単一決定点）。フックは `git worktree remove` を直接呼ばない——実体を
-  消してよいかの判断は `gitgate/worktree.py` に集約されている。
+  拒否側）、②通ったら**その dispatch 自身の handoff が worktree にあるときだけ**台帳を
+  `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**block したら②へ進まない**
+  （単一決定点）。フックは `git worktree remove` を直接呼ばない——実体を消してよいかの判断は
+  `gitgate/worktree.py` に集約されている。
+- **停止イベント＝終了とは限らない**（Issue #423）。②が回収の起点にするのは「自分の handoff
+  （`<agent_type>--issue-<N>…yaml`）が1件ある」という観測だけで、**無ければ台帳を進めず `running` の
+  まま保留する**。理由＝実装者/是正者が入れ子の `Task` 委譲を行うと同じ `agent_id` の停止イベントが
+  委譲のたびに届き、「終了した」と「委譲待ちで一時停止しただけ」を payload からは区別できないため。
+  保留を `stopped`/`stale` へ落とすとそれ自体が residue になり、**同じ dispatch 自身の次の委譲**まで
+  `ISSUE_START_WORKTREE_RESIDUE` で deny される（#338 実装中に実測）。
+
+### 入れ子 dispatch と「保留」の後始末（Issue #423）
+
+`issue-implementer` / `issue-fixer` が自分の内側から subagent へ委譲すること（`*-author`→
+`reconciliation-validator`→`reconciliation` のノード著作チェーンを含む）は**制限していない**。
+入れ子委譲のあいだ停止イベントが繰り返し届き、委譲先の handoff が実装者/是正者の worktree の
+`tmp/_handoff/` に溜まるが、#423 の是正でこれらは「保留」「他人の成果物」として正しく扱われる
+（前掲「`SubagentStart`/`SubagentStop` の配線」）。主文脈が知っておく必要があるのは、その保留が
+残ったまま戻ってきたときの後始末だけである。
+
+- **保留のまま戻ってきた dispatch の後始末**：実装者/是正者が handoff を一度も書かずに終了すると台帳は
+  `running` のまま残る（`ISSUE_START_WORKTREE_RESIDUE` にはならないので次の dispatch は止まらない）。
+  主文脈が `<main-worktree>/tmp/_worktree/ledger.json` の当該エントリを確認し、
+  `python3 -m gitgate worktree-forget --entry <entry-id> --reason <text>` →
+  `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` で片付ける。
+  **`ledger.json` を直接編集しない**——`update_ledger` のロックを経由しない不安全な迂回になる
+  （#338 対応時に3回行われた応急処置の再演を避ける）。
 
 ## 重い作業は agy を積極利用（fail-close）
 

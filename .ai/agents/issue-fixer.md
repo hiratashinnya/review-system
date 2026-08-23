@@ -95,4 +95,4 @@ unresolved_findings: []
 out_of_scope_findings: []
 stop_reason: 空文字
 
-STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。
+STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。**Step 0 の早期 STOP を含め、STOP でもハンドオフは書く**——stop_reason はハンドオフのフィールドであり、チャットの報告だけで済ませない。ハンドオフが1件あることが「この dispatch は終了した」ことを示す唯一の観測可能な signal であり、書かないと作業ツリーの回収・解放が保留されて呼び出し元の手作業になる。handoff_path 自体が渡されておらず着手前に STOP する場合だけは書きようがないので、その旨をチャットで報告する。
