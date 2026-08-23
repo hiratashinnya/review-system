@@ -33,7 +33,7 @@ isolation やハーネスの作業ツリー外書き込み拒否は追加の防�
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
-- corpus ノード（doc-system-v2/nodes/**）は指定された *-author→reconciliation-validator→reconciliation の委譲経路を使い、直接編集しない。
+- corpus ノード（doc-system-v2/nodes/**）は直接編集しない。ただし *-author→reconciliation-validator→reconciliation の著作チェーンを**自分の内側から多段に委譲して回さない**——ノード著作が必要だと判った時点で STOP し、必要な著作対象を添えて呼び出し元へ引き渡す。チェーンを回すのは呼び出し元（issue-pipeline 主文脈）である。多段の入れ子委譲は自分の作業ツリーの回収・解放を妨げ、同じ dispatch 自身の後続委譲を止める実害が観測されている。read-only 調査など1段だけの委譲は禁止しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
 - commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
@@ -57,4 +57,4 @@ tests:
 out_of_scope_findings: []
 stop_reason: 空文字
 
-STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。
+STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。**STOP でもハンドオフは書く**——stop_reason はハンドオフのフィールドであり、チャットの報告だけで済ませない。ハンドオフが1件あることが「この dispatch は終了した」ことを示す唯一の観測可能な signal であり、書かないと作業ツリーの回収・解放が保留されて呼び出し元の手作業になる。handoff_path 自体が渡されておらず着手前に STOP する場合だけは書きようがないので、その旨をチャットで報告する。

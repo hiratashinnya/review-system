@@ -6,9 +6,13 @@
 # 後段へ進まない:
 #   1. `issue-fixer` は `tmp/_karte/active.json` の {issue, round} で `karte check` を実行し、
 #      非0 または判定不能なら `{"decision":"block","reason":...}` を stdout・**exit 0** で返す。
-#   2. 回収・解放段: 台帳を running → stopped へ進めてから
-#      `python3 -m gitgate collect-worktree` を起動する（回収→検証→解放の1操作）。
-#      失敗したら削除せず stale へ落として exit 0（次 dispatch の gate deny が拾う）。
+#   2. 回収・解放段: **その dispatch 自身の handoff が worktree に1件あるときだけ**
+#      台帳を running → stopped へ進めて `python3 -m gitgate collect-worktree` を起動する
+#      （回収→検証→解放の1操作）。失敗したら削除せず stale へ落として exit 0
+#      （次 dispatch の gate deny が拾う）。
+#      handoff が無ければ「終了した」とは言えない（入れ子委譲待ちの一時停止と区別できない）
+#      ので**台帳を進めず running のまま保留する**＝Issue #423。stopped/stale へ落とすと
+#      それ自体が residue になり、同じ dispatch 自身の次の委譲まで gate に拒否される。
 #
 # **2 を別フックに分けないのは意図的**。同一イベントに「ブロックするフック」と
 # 「削除するフック」を別々に登録すると、ブロックされて継続したエージェントの worktree を

@@ -748,19 +748,168 @@ class ReleaseStageTests(HookTestCase):
                 self.assertEqual(self.status_of(entry_id), "stale")
                 self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
 
-    def test_missing_handoff_directory_releases_with_allow_missing(self):
-        """列挙して0件と確認できたときだけ `--allow-missing-handoff` を使う。
+    def test_absent_own_handoff_defers_instead_of_collecting(self):
+        """自分の handoff が無い停止は**保留**する（Issue #423）。
 
-        「回収せずに解放する」ことにはならない——回収対象が存在しないことを実測している。
-        受理した理由は台帳 notes に残る（`gitgate` 側が記録する）。
+        旧実装は「列挙して0件」を「終了したが渡すものが無い」と読み、その場で
+        ``--allow-missing-handoff`` を付けて回収を試みていた。だがこの0件は
+        **「まだ自分の handoff を書く段に到達していない」（入れ子委譲待ちで一時停止中）**と
+        コード上まったく区別がつかない。区別できないものを「終了」と決めつけると、
+        回収試行が失敗して ``stale`` に落ち、その ``stale`` が residue として
+        **同じ dispatch 自身の次の委譲**を gate に拒否させる（#423 の実害）。
+
+        したがって: 台帳は ``running`` のまま・``collect-worktree`` は起動しない・
+        worktree は消さない。判定材料は stderr の evidence に残す。
         """
         entry_id = self.bind()
         self.stop()
+        self.assertEqual(self.collect_calls(), [], "終了と断定できないなら回収を起動しない")
+        self.assertEqual(self.status_of(entry_id), "running", "台帳を一切進めない")
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+        evidence = [
+            line for line in self.evidence_lines() if line.get("result") == "release-deferred"
+        ]
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]["reason"], "HANDOFF_PENDING")
+        notes = [item["note"] for item in self.entries()[0]["notes"]]
+        self.assertTrue(any(subagent_hooks.HANDOFF_PENDING_MARKER in note for note in notes))
+
+    def test_deferring_keeps_the_worktree_out_of_the_residue_report(self):
+        """保留は gate の残留判定に出ない＝**自分の次の入れ子委譲を塞がない**（#423 の核心）。
+
+        ``stopped`` / ``stale`` はどちらも
+        :data:`worktree_ledger.RESIDUE_STATUSES` に入るため、保留をそこへ落とすと
+        ``issue-start-gate`` が ``ISSUE_START_WORKTREE_RESIDUE`` で**同じ dispatch 自身の**
+        次の ``Task`` 委譲を拒否する。``running`` のままなら residue にも unclaimed にも
+        現れない。
+        """
+        self.bind()
+        self.stop()
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual(report["stale"], [], "保留は残留として deny の材料にならない")
+        self.assertEqual(report["unclaimed"], [], "占有は正当なので孤児にもならない")
+        self.assertEqual(report["running"], [".claude/worktrees/agent-abc"])
+
+    def test_repeated_deferrals_record_only_one_note(self):
+        """入れ子委譲のたびに停止イベントが届いても台帳へ積み増さない。
+
+        毎回 notes を足すと観測ログで台帳が埋まるうえ、``update_ledger`` のロック取得回数が
+        dispatch あたり水増しされる（#423 が並列 dispatch のロック競合リスクとして指摘した
+        増幅要因そのもの）。2回目以降は stderr の evidence だけにする。
+        """
+        entry_id = self.bind()
+        for _round in range(3):
+            self.stdout, self.stderr = io.StringIO(), io.StringIO()
+            self.stop()
+        notes = [item["note"] for item in self.entries()[0]["notes"]]
+        pending = [note for note in notes if subagent_hooks.HANDOFF_PENDING_MARKER in note]
+        self.assertEqual(len(pending), 1, f"1行だけのはず: {notes}")
+        self.assertEqual(self.status_of(entry_id), "running")
+
+    def test_handoffs_of_delegated_agents_are_not_mistaken_for_mine(self):
+        """入れ子委譲先の handoff は**自分の成果物ではない**（Issue #423）。
+
+        ``issue-implementer`` が ``verification-author`` → ``reconciliation-validator`` →
+        ``reconciliation`` と委譲すると、委譲先の handoff が**同じ** ``tmp/_handoff/`` に
+        溜まる。所有者を見ずに件数だけ数える旧実装は、1件目を自分の成果物と誤認して回収し
+        （#338 実測）、2件目以降で ``ambiguous`` に落ちて回収不能になっていた。
+        """
+        entry_id = self.bind()
+        self.write_handoff("abc", "verification-author--issue-354-fnd.yaml")
+        self.stop()
+        self.assertEqual(self.collect_calls(), [], "他人の handoff を自分の成果物にしない")
+        self.assertEqual(self.status_of(entry_id), "running")
+        # 委譲先が増えても ambiguous にはならない（保留のまま）。
+        self.write_handoff("abc", "reconciliation--issue-354-batch.yaml")
+        self.stdout, self.stderr = io.StringIO(), io.StringIO()
+        self.stop()
+        self.assertEqual(self.collect_calls(), [])
+        self.assertEqual(self.status_of(entry_id), "running")
+
+    def test_nested_delegation_chain_completes_without_manual_intervention(self):
+        """**Issue #338 と同型の多段入れ子 dispatch の通し回帰**（#423 の受け入れ条件）。
+
+        委譲のたびに届く停止イベントを3回模擬し、そのあいだ台帳が一度も residue にならない
+        こと（＝gate が同じ dispatch 自身の次の委譲を拒否しないこと）と、最後に自分の
+        handoff を書いた停止で初めて回収・解放が走ることを固定する。旧実装ではこの通しが
+        1回目の停止で ``stale`` に落ち、以降すべての委譲が deny されていた。
+        """
+        entry_id = self.bind()
+        delegated = [
+            "verification-author--issue-354-fnd.yaml",
+            "reconciliation-validator--issue-354.yaml",
+            "reconciliation--issue-354-batch.yaml",
+        ]
+        for index, name in enumerate(delegated, start=1):
+            self.stdout, self.stderr = io.StringIO(), io.StringIO()
+            self.stop()  # 委譲へ入る直前の一時停止
+            self.assertEqual(self.status_of(entry_id), "running", f"{index} 回目で進めない")
+            self.assertEqual(
+                worktree_ledger.residue_report(self.root)["stale"], [],
+                f"{index} 回目の停止で residue を作らない（次の委譲を塞がない）",
+            )
+            self.write_handoff("abc", name)  # 委譲先が成果物を置いて戻る
+        self.assertEqual(self.collect_calls(), [], "ここまで一度も回収を起動しない")
+
+        # 実装者本人が自分の handoff を書いて終了する＝初めての「終了」signal。
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stdout, self.stderr = io.StringIO(), io.StringIO()
+        self.stop()
         argv = self.collect_calls()[0]
-        self.assertIn("--allow-missing-handoff", argv)
-        self.assertNotIn("--handoff", argv)
-        self.assertIn("--reason", argv)
+        self.assertIn("--handoff", argv)
+        self.assertIn("tmp/_handoff/issue-implementer--issue-354.yaml", argv)
         self.assertEqual(self.status_of(entry_id), "stopped", "台帳を進めるのは gitgate 側")
+
+    def test_early_stop_is_collected_once_it_writes_its_stop_reason_handoff(self):
+        """Step 0 で早期 STOP した ``issue-fixer`` も自動で回収・解放される。
+
+        両ロールの契約は「STOP 時は stop_reason に…必ず書く」であり、``stop_reason`` は
+        **ハンドオフのフィールド**である（`.ai/agents/issue-fixer.md`「出力とハンドオフ」）。
+        つまり早期 STOP でもハンドオフは書かれるので、それが「終了した」signal として働く。
+        実装は何も書かず ``status: stop`` だけのハンドオフでよい。
+        """
+        entry_id = self.bind(agent_type="issue-fixer", agent_id="fix")
+        directory = (
+            self.root / ".claude" / "worktrees" / "agent-fix" / "tmp" / "_handoff"
+        )
+        directory.mkdir(parents=True)
+        (directory / "issue-fixer--issue-354-r1.yaml").write_text(
+            "agent: issue-fixer\nstatus: stop\nstop_reason: ブランチを取得できない\n",
+            encoding="utf-8",
+        )
+        self.write_active({"issue": 354, "round": 1})
+        subagent_hooks.run_stop(
+            stdin=self.stdin({"agent_type": "issue-fixer", "agent_id": "fix"}),
+            stdout=self.stdout, stderr=self.stderr,
+            cwd=self.root, now=FIXED_NOW,
+            runner=self.runner(FakeCompleted(0), FakeCompleted(0)),
+        )
+        self.assertSilentAllow()
+        argv = self.collect_calls()[0]
+        self.assertIn("tmp/_handoff/issue-fixer--issue-354-r1.yaml", argv)
+        self.assertEqual(self.status_of(entry_id), "stopped")
+
+    def test_already_collected_entry_is_released_without_rediscovering_handoff(self):
+        """回収済みなら handoff を探し直さない（重複再検出で詰まらせない・#423 案3）。
+
+        回収に成功したあと解放だけが失敗すると（worktree が git lock 中など）、台帳は
+        ``collected`` で worktree は残る。次の停止で handoff を探し直すと、回収済みの
+        ファイルや委譲先の handoff を再検出して ``ambiguous`` → ``stale`` に落ち、
+        解放をやり直せなくなる。``collected`` なら探索段ごと飛ばす。
+        """
+        entry_id = self.bind()
+        self.write_handoff(
+            "abc",
+            "issue-implementer--issue-354.yaml",
+            "issue-implementer--issue-354-r2.yaml",
+        )
+        for status in ("stopped", "collected"):
+            worktree_ledger.mark(self.root, entry_id, status, now=FIXED_NOW)
+        self.stop()
+        argv = self.collect_calls()[0]
+        self.assertEqual(argv[1:], ["-m", "gitgate", "collect-worktree", "--entry", entry_id])
+        self.assertNotIn("--handoff", argv)
+        self.assertEqual(self.status_of(entry_id), "collected", "解放するのは gitgate 側")
 
     def test_multiple_handoff_candidates_are_not_released(self):
         """どれが今回の成果物か決められないなら**解放しない**（成果物喪失を避ける）。"""
@@ -1099,6 +1248,27 @@ class NoDeletionPathTests(HookTestCase):
             self.assertNotIn("worktree", argv)
             self.assertNotIn("remove", argv)
 
+    def test_collect_argv_can_never_ask_for_a_missing_handoff_release(self):
+        """フックは ``--allow-missing-handoff`` を**組み立てられない**（Issue #423）。
+
+        「回収するものが無いことを列挙で確認した」という判断は、入れ子委譲待ちの一時停止と
+        見分けがつかない以上フックが自動で下してよいものではない。判断の是非を検査で守るのでは
+        なく、**その argv を作る経路自体を無くす**ことで構造的に守る（同フラグは ``gitgate``
+        側に残り、主文脈が明示的に使う operator 用の逃げ道であり続ける）。
+        """
+        for handoff in (None, "tmp/_handoff/issue-implementer--issue-423.yaml"):
+            with self.subTest(handoff=handoff):
+                argv = subagent_hooks.collect_worktree_argv("wl-0123456789ab", handoff=handoff)
+                self.assertNotIn("--allow-missing-handoff", argv)
+                self.assertNotIn("--reason", argv)
+        source = (ROOT / "issue_start" / "subagent_hooks.py").read_text(encoding="utf-8")
+        literals = {
+            node.value
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        self.assertNotIn("--allow-missing-handoff", literals)
+
 
 @unittest.skipUnless(_HAS_BASH, "bash が無い環境ではフック起動口を検証しない")
 class LauncherWiringTests(unittest.TestCase):
@@ -1260,6 +1430,96 @@ class SettingsRegistrationTests(unittest.TestCase):
         self.assertEqual(
             self.commands("UserPromptSubmit"),
             ["${CLAUDE_PROJECT_DIR}/.claude/hooks/inject-governance.sh"],
+        )
+
+
+class ParallelStopLockContentionTests(HookTestCase):
+    """並列 dispatch が同時に停止イベントを起こしたときの台帳ロック競合（Issue #423 の案4）。
+
+    #423 は「根本原因バグが1 dispatch あたりのロック取得・解放回数を水増しするため、
+    並列度と組み合わさるとロック競合リスクが増える」と**理論的リスク**として指摘し、
+    実測は未了だった。ここでその実測を置く。
+
+    * 保留（``running`` のまま何もしない）に変わったことで、**入れ子委譲1回あたりの
+      ロック取得回数は 2（``stopped`` + ``stale``）から 0〜1（初回の note だけ）へ減る**。
+      増幅要因そのものが消えるので、タイムアウト値を触る前にまず母数が下がる。
+    * ``_acquire_lock`` は wall clock を読まず「``LOCK_RETRY_INTERVAL_S``（50ms）× 固定回数」で
+      待つ。既定 5.0 秒＝**100 回**のリトライで、臨界区間は JSON の読み書き1往復（ミリ秒未満）。
+
+    下の2本は、既定値のまま並列停止が詰まらないことを機械的に固定する（値を変える提案を
+    する場合、この2本が「変える必要がある」ことの根拠になるべき検出器）。
+    """
+
+    def test_concurrent_ledger_updates_all_succeed_under_the_default_timeout(self):
+        import threading
+
+        worktree_ledger.open_entry(
+            self.root, issue=423, agent_type="issue-implementer", round=None,
+            branch_name=None, handoff_path=None, now=FIXED_NOW,
+        )
+        entry_id = self.entries()[0]["entry_id"]
+        writers = 8
+        rounds = 5
+        errors: list = []
+        barrier = threading.Barrier(writers)
+
+        def worker(index):
+            try:
+                barrier.wait()
+                for step in range(rounds):
+                    worktree_ledger.add_note(
+                        self.root, entry_id, now=FIXED_NOW, note=f"w{index}-{step}"
+                    )
+            except Exception as exc:  # LEDGER_LOCK_TIMEOUT 等を落とさず集める
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(index,)) for index in range(writers)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual([str(item) for item in errors], [])
+        notes = self.entries()[0]["notes"]
+        self.assertEqual(len(notes), writers * rounds, "1件も取りこぼさない（原子的置換）")
+
+    def test_the_deferred_path_takes_the_ledger_lock_at_most_once(self):
+        """保留経路のロック取得回数を固定する（水増しの再発検出器）。
+
+        旧実装は停止1回につき ``mark(stopped)`` と ``mark(stale)`` で必ず2回書いていた。
+        新実装は初回の note だけで、2回目以降は**1回も書かない**。
+        """
+        entry_id = self.bind_running()
+        acquired: list = []
+        original = worktree_ledger._acquire_lock
+
+        def counting(directory, **kwargs):
+            acquired.append(str(directory))
+            return original(directory, **kwargs)
+
+        worktree_ledger._acquire_lock = counting
+        self.addCleanup(setattr, worktree_ledger, "_acquire_lock", original)
+        for expected, _round in enumerate((0, 1, 2), start=0):
+            self.stdout, self.stderr = io.StringIO(), io.StringIO()
+            subagent_hooks.run_stop(
+                stdin=self.stdin({"agent_type": "issue-implementer", "agent_id": "abc"}),
+                stdout=self.stdout, stderr=self.stderr,
+                cwd=self.root, now=FIXED_NOW, runner=self.runner(),
+            )
+        self.assertEqual(len(acquired), 1, "初回の note だけ／2回目以降は書かない")
+        self.assertEqual(
+            {item["entry_id"]: item for item in self.entries()}[entry_id]["status"], "running"
+        )
+
+    def bind_running(self):
+        path = self.root / ".claude" / "worktrees" / "agent-abc"
+        path.mkdir(parents=True)
+        worktree_ledger.open_entry(
+            self.root, issue=423, agent_type="issue-implementer", round=None,
+            branch_name=None, handoff_path=None, now=FIXED_NOW,
+        )
+        return worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id="abc",
+            worktree_path=".claude/worktrees/agent-abc",
         )
 
 

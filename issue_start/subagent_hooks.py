@@ -18,12 +18,36 @@ verb                 イベント / matcher     役割
 ``python3 -m gitgate collect-worktree``（回収→検証→解放の段構造・:mod:`gitgate.worktree`）を
 起動する形だけで行う＝「回収せずに解放する」経路がフック側に**作りようがない**（FR-W2）。
 
+「終了」と「一時停止」の区別（Issue #423）
+----------------------------------------
+``SubagentStop`` は**その dispatch が本当に終了したときだけ**発火するとは限らない。
+``issue-implementer`` / ``issue-fixer`` 自身が入れ子の ``Task`` 委譲を行うと、同じ
+``agent_id`` の停止イベントが委譲のたびに届く（Issue #338 実装中に実測）。台帳の状態と
+payload だけでは両者を区別できないため、**区別は「自分の handoff が書けているか」という
+観測可能な成果物**で行う（`.claude/rules/01-principles.md`「観測できないものは持たない」）。
+
+* 自分の handoff が**1件ある** → 契約上の成果物が揃った＝**終了**。回収して解放する。
+* 自分の handoff が**無い** → 終了したのか、まだ書く段に到達していない（入れ子委譲待ちで
+  一時停止しただけ）のか決められない＝**保留**。台帳は ``running`` のまま何もしない。
+
+保留を ``stopped`` / ``stale`` へ落とさないのが要点である。どちらも
+:data:`issue_start.worktree_ledger.RESIDUE_STATUSES` に入るため、落とすと
+``issue-start-gate`` の残留チェックが**同じ dispatch 自身の次の入れ子委譲**まで
+``ISSUE_START_WORKTREE_RESIDUE`` で拒否してしまう（Issue #423 の実害そのもの）。
+
+**したがって本モジュールは ``--allow-missing-handoff`` を組み立てない。**「回収するものが
+無いことを列挙で確認した」という判断は、入れ子委譲待ちの一時停止と見分けがつかない以上、
+フックが自動で下してよいものではない。``gitgate collect-worktree`` 側のこのフラグは残るが、
+**主文脈が明示的に使う operator 用の逃げ道**であって自動経路ではない。
+
 fail 方針の非対称（設計判断・``.claude/hooks/README.md`` にも明記）
 ------------------------------------------------------------------
 * **停止のブロックは fail-close**：``issue-fixer`` のカルテ判定が**不能**なら block する
   （``active.json`` 欠如・破損・``karte check`` を起動できない、を含む）。
 * **worktree の削除は fail-safe＝「消さない」側に倒す**：台帳を引けない・遷移できない・
   回収が失敗した・timeout した——どの経路でも削除せず ``stale`` へ落として返す。
+* **「終了したか判らない」も fail-safe 側**：``stale`` にすら落とさず ``running`` を保つ
+  （``stale`` は「回収を試みて失敗した」を意味する状態で、まだ試みていない保留とは違う）。
 * 両者は**方向が逆**である。ブロックの誤りは「余計に止まる」だけで回復可能だが、削除の
   誤りは成果物を回復不能に失う。削除しなかったぶんの残留は次 dispatch の gate deny
   （``ISSUE_START_WORKTREE_RESIDUE``）が拾う。
@@ -54,6 +78,7 @@ in-script 判定があるので、要実測事項 V-2（``matcher`` が ``agent_
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -73,6 +98,10 @@ KARTE_RENDER_TIMEOUT_S = 30.0
 COLLECT_TIMEOUT_S = 45.0
 # 回収対象の handoff を探すディレクトリ（作業ツリールート相対）。
 HANDOFF_DIR_REL = "tmp/_handoff"
+# 「自分の handoff が無い」ことを台帳へ1度だけ書き残すときの marker（重複追記の抑止に使う）。
+# 入れ子委譲を何段も行う dispatch では停止イベントが何度も届くため、毎回 notes を積むと
+# 台帳が観測ログで埋まり、ロック取得回数も無駄に増える（Issue #423 の並列度の論点）。
+HANDOFF_PENDING_MARKER = "HANDOFF_PENDING"
 # 注入本文の区切り（手順書 → 過去の試行）。render 出力は自己完結した本文なので、
 # 手順書とはっきり分けて末尾に置く（直近＝最も読まれる位置に「なぞるな」を置く）。
 INJECT_SEPARATOR = "\n\n---\n\n"
@@ -551,7 +580,7 @@ def _karte_stop_gate(
     return None
 
 
-def collect_worktree_argv(entry_id: str, *, handoff: str | None, reason: str = "") -> list:
+def collect_worktree_argv(entry_id: str, *, handoff: str | None) -> list:
     """``gitgate collect-worktree`` の argv（**ここが唯一の解放経路**）。
 
     フックは ``git worktree remove`` を直接呼ばない——実体を消してよいかの判断
@@ -559,48 +588,70 @@ def collect_worktree_argv(entry_id: str, *, handoff: str | None, reason: str = "
     :mod:`gitgate.worktree` に集約されており、フックはその verb を起動するだけにする。
     こうすると「回収せずに解放する」経路がフック側に**作りようがない**（FR-W2）。
 
-    ``handoff`` が ``None`` のときだけ ``--allow-missing-handoff`` を付ける。呼び出し側は
-    「worktree の ``tmp/_handoff/`` に回収対象が1つも無い」ことを**実際に列挙して確かめて
-    から**しかこの形を使わない（:func:`_discover_handoff` 参照）。
+    ``handoff`` の2形だけを組み立てる:
+
+    * **パス** → ``--handoff <path>``。自分の handoff を1件に決められた＝回収して解放する。
+    * ``None`` → ``--entry`` だけ。**既に ``collected`` のエントリを解放するだけ**の形で、
+      ``gitgate`` 側は ``collected`` のとき回収段を丸ごと飛ばすので handoff 引数を見ない。
+
+    **``--allow-missing-handoff`` は組み立てない**（Issue #423）。「回収するものが無い」は
+    「まだ書いていない（入れ子委譲待ちで一時停止中）」と区別できないため、フックが自動で
+    その判断を下す経路そのものを無くす。同フラグは ``gitgate`` 側に残るが、主文脈が明示的に
+    使う operator 用の逃げ道である。
     """
     argv = [sys.executable, "-m", "gitgate", "collect-worktree", "--entry", entry_id]
-    if handoff is None:
-        argv += ["--allow-missing-handoff"]
-    else:
+    if handoff is not None:
         argv += ["--handoff", handoff]
-    if reason:
-        argv += ["--reason", reason]
     return argv
 
 
-def _discover_handoff(repo_root: Path, worktree_path: str) -> tuple:
-    """dispatch の worktree から回収対象の handoff を1つに決める。
+def own_handoff_pattern(agent_type: str, issue: int) -> re.Pattern:
+    """**この dispatch 自身が書く** handoff のファイル名にだけ一致する正規表現。
+
+    ``<agent_type>--issue-<N>[<境界><suffix>].yaml`` で、``issue-<N>`` の直後は ``-`` か
+    ``.`` に限る（``issue-3541`` を ``issue-354`` と取り違えないための境界検査）。規則は
+    ``gitgate/worktree.py`` の ``HANDOFF_FILENAME_RE`` および各 agent 契約の
+    「``handoff_path`` の検査」条件4・5 と同一だが、**フックは ``gitgate`` を import しない**
+    （起動するだけ）という境界を保つためここで独立に組み立てる。
+
+    ``agent_type`` を名前に含めるのが要点である。入れ子委譲を行う dispatch では、委譲先
+    （``verification-author`` / ``reconciliation`` 等）の handoff が**同じ**
+    ``tmp/_handoff/`` に溜まる。所有者を見ずに数だけ数えると、他人の成果物1件を自分のものと
+    誤認したり、2件以上で ``ambiguous`` に落ちて回収不能になったりする（Issue #423 の実測）。
+    """
+    return re.compile(
+        rf"^{re.escape(agent_type)}--issue-{int(issue)}(-[A-Za-z0-9._-]*)?\.yaml$"
+    )
+
+
+def _discover_handoff(repo_root: Path, worktree_path: str, *, agent_type: str, issue) -> tuple:
+    """dispatch の worktree から**自分の**回収対象 handoff を1つに決める。
 
     返り値は ``(relative_path | None, how)``。``how`` は evidence 用の識別子。
 
     現行の ``ISSUE_START_BINDING_V1`` marker には ``handoff_path`` が無く、台帳の
-    ``handoff_path`` は ``None`` のまま起票される（marker 拡張は後続 PR）。そのため
-    ``collect-worktree --entry <id>`` だけでは回収元が決まらず ``COLLECT_HANDOFF_UNKNOWN``
-    で必ず落ちる。ここで**実在するファイルを列挙して**決めることで、marker を触らずに
-    回収を成立させる。台帳側に ``handoff_path`` が入るようになれば、この探索は
-    「台帳の値と一致するか」の裏取りに縮退できる。
+    ``handoff_path`` は ``None`` のまま起票される。そのため ``collect-worktree --entry <id>``
+    だけでは回収元が決まらず ``COLLECT_HANDOFF_UNKNOWN`` で必ず落ちる。ここで**実在する
+    ファイルを列挙して**決めることで、marker を触らずに回収を成立させる。
 
     判定は次のいずれかになる（推測しない）:
 
-    * ちょうど1件 → そのパス（``how="unique"``）。ファイル名の妥当性・Issue 番号の一致は
-      ``collect-worktree`` 側の6条件検査が見る（ここでは重複して判定しない）。
-    * **列挙して**0件 → ``(None, "empty")``。**回収するものが無いことを列挙で確認した**状態
-      なので、呼び出し側は ``--allow-missing-handoff`` で解放してよい。
-    * 2件以上 → ``(None, "ambiguous")``。どれが今回の成果物か決められないので**解放しない**
-      （呼び出し側が ``stale`` へ落として主文脈の判断へ回す）。
+    * :func:`own_handoff_pattern` に一致するファイルが**ちょうど1件** → そのパス
+      （``how="unique"``）。これが唯一の「終了した」signal である。
+    * 一致が**0件** → ``(None, "empty")``。``tmp/_handoff`` 自体が無い場合も、他人
+      （委譲先エージェント）の handoff だけがある場合も同じ扱いで、**「終了」とは言えない**。
+      呼び出し側は解放も ``stale`` 化もせず ``running`` のまま保留する（Issue #423）。
+    * 一致が**2件以上** → ``(None, "ambiguous")``。どれが今回の成果物か決められないので
+      **解放しない**（呼び出し側が ``stale`` へ落として主文脈の判断へ回す）。
     * ``tmp/_handoff`` が symlink、または存在するがディレクトリではない（regular file 等）
       → ``(None, "unreadable")``。**これは「無い」ではなく「列挙できない」**——symlink は
-      構成要素を辿らないと本当に空か分からず、regular file は中身を列挙できない。どちらも
-      「回収するものが無いことを確認した」とは言えないので ``"empty"`` に丸めず、
-      ``iterdir`` の ``OSError`` 経路（下記）と同じ ``"unreadable"`` として扱う（呼び出し側は
-      ``how != "empty"`` なので解放せず ``stale`` へ落とす＝F-354-07）。
-      **本当に存在しない**（``tmp/_handoff`` そのものが無い）場合だけが ``"empty"`` になる。
+      構成要素を辿らないと本当に空か分からず、regular file は中身を列挙できない（F-354-07）。
+      保留（``empty``）と違い「観測できていない」異常なので ``stale`` へ落とす。
+    * 台帳の ``issue`` が整数として読めない → ``(None, "unidentifiable")``。自分の handoff を
+      名指しできない＝同じく異常なので ``stale`` へ落とす。
     """
+    if not isinstance(issue, int) or isinstance(issue, bool) or issue < 1:
+        return None, "unidentifiable"
     directory = Path(repo_root) / worktree_path / HANDOFF_DIR_REL
     if directory.is_symlink():
         return None, "unreadable"
@@ -614,11 +665,67 @@ def _discover_handoff(repo_root: Path, worktree_path: str) -> tuple:
         )
     except OSError:
         return None, "unreadable"
-    if not children:
+    pattern = own_handoff_pattern(agent_type, issue)
+    mine = [child for child in children if pattern.fullmatch(child.name)]
+    if not mine:
         return None, "empty"
-    if len(children) > 1:
+    if len(mine) > 1:
         return None, "ambiguous"
-    return f"{HANDOFF_DIR_REL}/{children[0].name}", "unique"
+    return f"{HANDOFF_DIR_REL}/{mine[0].name}", "unique"
+
+
+def _already_deferred(entry: Mapping[str, Any]) -> bool:
+    """このエントリに保留の記録が既にあるか（``notes`` の marker で見る）。"""
+    notes = entry.get("notes")
+    if not isinstance(notes, list):
+        return False
+    return any(
+        isinstance(item, Mapping) and HANDOFF_PENDING_MARKER in str(item.get("note", ""))
+        for item in notes
+    )
+
+
+def _defer(
+    stderr: TextIO,
+    *,
+    repo_root: Path,
+    entry: Mapping[str, Any],
+    entry_id: str,
+    now: datetime,
+    status: Any,
+    agent_type: str,
+) -> None:
+    """自分の handoff がまだ無い停止を**保留**する（台帳の状態は進めない・Issue #423）。
+
+    状態を進めないので ``mark`` は呼ばない。記録として ``notes`` を1行だけ残す——
+    入れ子委譲のたびに停止イベントが届くため毎回積むと台帳が観測ログで埋まり、
+    ``update_ledger`` のロック取得回数も無駄に増える（並列 dispatch 下の競合リスク）。
+    2回目以降は stderr の evidence だけにする。
+
+    **記録に失敗しても何もしない**（保留は「何もしない」が正しい振る舞いなので、
+    記録できないことを理由に状態を動かす必要がない＝fail-safe）。
+    """
+    if not _already_deferred(entry):
+        try:
+            worktree_ledger.add_note(
+                repo_root,
+                entry_id,
+                now=now,
+                note=(
+                    f"SubagentStop: 自分の handoff が未検出のため回収を保留した"
+                    f"（{HANDOFF_PENDING_MARKER}）。入れ子委譲待ちの一時停止と区別できないため"
+                    "台帳は running のまま進めない（Issue #423）"
+                ),
+            )
+        except Exception as exc:
+            _evidence(
+                stderr, "stop", result="release-error", reason="ADD_NOTE_FAILED",
+                error=type(exc).__name__, entry_id=entry_id,
+            )
+    _evidence(
+        stderr, "stop", result="release-deferred", reason="HANDOFF_PENDING",
+        entry_id=entry_id, status=status, agent_type=agent_type,
+    )
 
 
 def _release_stage(
@@ -643,10 +750,13 @@ def _release_stage(
     2. ``agent_id`` で自分のエントリを引く。引けなければ**推測して他人のエントリを潰さず**、
        同 ``agent_type`` の最新 ``open`` エントリだけを ``stale`` へ落とす
        （``open``＝まだ誰の worktree も掴んでいない＝落としても実体は失われない）
-    3. **``running`` → ``stopped`` へ遷移させる**（F-354-01）。``collect-worktree`` は
+    3. **自分の handoff を1つに決める**（:func:`_discover_handoff`）。**台帳を進める前に
+       ここを判定する**（Issue #423）——0件なら :func:`_defer` で ``running`` のまま保留し、
+       以降の段へ進まない。先に ``stopped`` へ進めてしまうと、保留と判った時点で既に
+       residue になっており、gate が同じ dispatch 自身の次の入れ子委譲を拒否する
+    4. **``running`` → ``stopped`` へ遷移させる**（F-354-01）。``collect-worktree`` は
        ``running`` を ``WORKTREE_LIVE`` で拒否し ``stopped`` のみ受理するので、この遷移を
        挟まないと自動解放は一度も成功しない
-    4. 回収対象の handoff を1つに決める（:func:`_discover_handoff`）
     5. ``python3 -m gitgate collect-worktree`` を起動する。exit 0 以外・起動不能・timeout は
        いずれも ``stale``（**削除しない**）
     """
@@ -726,20 +836,6 @@ def _release_stage(
         )
         return
 
-    if status == "running":
-        try:
-            worktree_ledger.mark(
-                repo_root, entry_id, "stopped", now=now,
-                note="SubagentStop: 所有者 dispatch の停止を確認した",
-            )
-        except Exception as exc:
-            _evidence(
-                stderr, "stop", result="release-error", reason="MARK_STOPPED_FAILED",
-                error=type(exc).__name__, entry_id=entry_id,
-            )
-            return
-        status = "stopped"
-
     worktree_path = entry.get("worktree_path")
     if not worktree_path:
         stale(
@@ -749,24 +845,52 @@ def _release_stage(
         )
         return
 
-    handoff, how = _discover_handoff(repo_root, worktree_path)
-    if handoff is None and how != "empty":
-        stale(
-            entry_id,
-            f"SubagentStop: 回収対象の handoff を一意に決められない（{how}）",
-            reason="HANDOFF_AMBIGUOUS", how=how, status=status,
+    # --- 「終了」か「一時停止」かの判定（Issue #423） ---------------------------------
+    # **台帳を進める前に判定する。** 先に `running` → `stopped` へ進めてしまうと、保留と
+    # 判った時点で既に `stopped`（＝residue）になっており、gate が同じ dispatch 自身の
+    # 次の入れ子委譲を `ISSUE_START_WORKTREE_RESIDUE` で拒否する（#423 の実害）。
+    if status == "collected":
+        # 回収は済んでいて解放だけが残っている。**handoff は探さない**——worktree に残った
+        # 回収済みファイルや委譲先の handoff を再検出して `ambiguous` で詰まるのを防ぐ
+        # （#423 の失敗連鎖 3・5）。`gitgate` 側も `collected` なら回収段を飛ばす。
+        handoff, how = None, "already-collected"
+    else:
+        handoff, how = _discover_handoff(
+            repo_root, worktree_path, agent_type=agent_type, issue=entry.get("issue")
         )
-        return
+        if how == "empty":
+            # 自分の handoff がまだ無い＝終了したのか入れ子委譲待ちの一時停止なのか決められない。
+            # **台帳を一切進めない**（`running` のまま）。停止はブロックしないので、当の
+            # dispatch はそのまま次の委譲へ進める。本当に終了していれば handoff を書いた
+            # あとの停止イベントで回収される。
+            _defer(
+                stderr, repo_root=repo_root, entry=entry, entry_id=entry_id,
+                now=now, status=status, agent_type=agent_type,
+            )
+            return
+        if handoff is None:
+            stale(
+                entry_id,
+                f"SubagentStop: 回収対象の handoff を一意に決められない（{how}）",
+                reason="HANDOFF_AMBIGUOUS", how=how, status=status,
+            )
+            return
 
-    argv = collect_worktree_argv(
-        entry_id,
-        handoff=handoff,
-        reason=(
-            ""
-            if handoff is not None
-            else "SubagentStop: worktree の tmp/_handoff に回収対象が1つも無いことを列挙で確認した"
-        ),
-    )
+    if status == "running":
+        try:
+            worktree_ledger.mark(
+                repo_root, entry_id, "stopped", now=now,
+                note="SubagentStop: 所有者 dispatch の停止を確認した（自分の handoff を検出）",
+            )
+        except Exception as exc:
+            _evidence(
+                stderr, "stop", result="release-error", reason="MARK_STOPPED_FAILED",
+                error=type(exc).__name__, entry_id=entry_id,
+            )
+            return
+        status = "stopped"
+
+    argv = collect_worktree_argv(entry_id, handoff=handoff)
     try:
         completed = runner(
             argv, cwd=str(repo_root), text=True, capture_output=True,
@@ -813,8 +937,10 @@ def run_stop(
        ``{issue, round}`` で ``python3 -m karte check`` を実行し、非0 または判定不能なら
        ``{"decision":"block","reason": …}`` を stdout に出して exit 0
        （**再入＝``stop_hook_active`` のときは判定せず通す**＝F-309-02）
-    3. :func:`_release_stage`（Issue #354・PR-3）。``running`` → ``stopped`` へ進めてから
-       ``gitgate collect-worktree`` で回収→解放する。**失敗しても停止をブロックしない**
+    3. :func:`_release_stage`（Issue #354・PR-3）。**自分の handoff を検出できたときだけ**
+       ``running`` → ``stopped`` へ進めて ``gitgate collect-worktree`` で回収→解放する。
+       検出できなければ ``running`` のまま保留する（Issue #423：入れ子委譲待ちの一時停止と
+       区別できないため）。**失敗しても停止をブロックしない**
        （``stale`` へ落として次 dispatch の gate deny へ委ねる）
     4. 無出力 exit 0
 
