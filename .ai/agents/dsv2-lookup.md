@@ -17,10 +17,20 @@
 1. **索引を生成**：`python3 -m dsv2 index --root doc-system-v2`（既定で `<root>/meta.json` に書く。
    `--meta` で出力先を明示してもよい）。meta.json の各ノードは
    `id`/`stage`/`type`/`status`/`title`/`version`/`labels`/`edges`/`yaml_path`/`body_path` を持つ。
-2. **候補特定**：meta.json を `grep`（`title`/`id`/`labels` の文字列一致）や
-   `python3 -c "import json; ..."` でフィルタし、関連ノードの `id`・`body_path` を絞り込む。
-   - 例：`python3 -c "import json,sys; m=json.load(open('doc-system-v2/meta.json')); [print(n['id'], n['type'], n['status'], n['body_path']) for n in m['nodes'] if 'ドリフト' in n['title']]"`
-   - 型で絞るなら `n['type']`（例 `FND`/`SPEC`/`FR`）、状態（open/resolved 等）で絞るなら `n['status']`。
+2. **候補特定**：meta.json を `grep`（`title`/`id`/`labels` の文字列一致。`-A`/`-B` で前後行を含めて
+   1ノード分のブロックごと抜き出す）でフィルタし、関連ノードの `id`・`type`・`status`・`body_path` を
+   絞り込む。**`python3 -c` は使わない**——`.claude/settings.json` の `permissions.deny`
+   （`Bash(python3 -c *)`）と `.claude/hooks/agent-command-gate.sh` の全 agent_type 共通の危険コマンド層
+   の双方が、ロールを問わず常に deny する（FND「dsv2-lookup.md の手順に統制下で必ず deny される
+   `python3 -c` 例が残っている」・issue #338）。
+   - 例：`grep -A 20 'ドリフト' doc-system-v2/meta.json` でヒットしたノードブロックを1件分まるごと
+     出力し、ブロック内の `"id"`/`"type"`/`"status"`/`"body_path"` 行を読む
+     （meta.json は1ノード=約18〜20行の pretty-printed JSON）。
+   - 型で絞るなら `"type"` 行（例 `"fnd"`/`"spec"`/`"fr"`）、状態（open/resolved 等）で絞るなら
+     `"status"` 行を確認する。
+   - 候補が多い・複数キーワードにまたがる等でテキスト整形の絞り込みでは足りない場合は、付与済みの
+     `ctx_batch_execute`（`queries`）／`ctx_execute`（`intent`。ともに `language: "shell"` のみ）で
+     meta.json を索引化した上でキーワード検索してもよい。
 3. **必要分だけ読込**：絞り込んだ候補の `body_path`（＝ `{slug}.md`）だけを直接読む。
    ファイル全体を総当たりで読み込まない（それが本エージェントの存在理由）。必要なら対応する
    `yaml_path`（`{slug}.yaml`）もあわせて読み、メタ属性（`edges`/`labels`/`version` 等）を確認する。
