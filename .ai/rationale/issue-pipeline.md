@@ -22,10 +22,11 @@
 
   この hook は `issue-implementer` への `Task`/`Agent` dispatch の `tool_input.prompt` に、次の機械可読行を
   **ちょうど1つ**含めることを要求する（契約の実体＝`issue_start/gate.py` の `_claude_request`・
-  `issue_start/managed-entrypoints-v1.json` の `claude` transport）：
+  `issue_start/managed-entrypoints-v2.json` の `managed` 区分 `claude` transport。**manifest は
+  Issue #354 PR-4 で v2 へ移行**——v1 ファイルは退役して読まれない）：
 
   - `entrypoint`：この managed entrypoint では常に文字列リテラル `"issue-pipeline"`
-    （`managed-entrypoints-v1.json` の登録値と exact 一致が必須）。
+    （manifest の登録値と exact 一致が必須）。
   - `repository`：`git remote get-url origin` を `OWNER/REPO` の canonical 形へ変換した値
     （HTTPS/SSH いずれも可・`gate.py` の `_canonical_github_repository` と同じ正規化）。
   - `branch_name`/`base_ref`/`base_oid`：marker 内のこれらの値は
@@ -50,8 +51,9 @@
 
   欠落・別値（`"remote"` 等）は
   `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch そのものが deny される（契約の実体＝
-  `managed-entrypoints-v1.json` の `claude` transport の `required_isolation`・enforcement＝
-  `gate.py` の `_validate_isolation`）。
+  `managed-entrypoints-v2.json` の `claude` transport の `required_isolation`・enforcement＝
+  `gate.py` の `_validate_isolation`）。**Issue #354 PR-4 でこの要求は `issue-fixer` にも広がった**
+  （manifest の `isolation_only` 区分。blocker 判定は伴わない＝`.ai/rationale/issue-fixer.md`）。
   - **これが `issue-implementer` の「isolated worktree」を成立させる唯一の手段**：実装者側には
     worktree を作る verb が無く（`gitgate`）、`cd` も deny される（`agent-command-gate.sh` 層2）ため、
     渡さなければ実装者は主文脈と working tree を共有してしまう（渡さなかった場合の帰結＝規範側
@@ -98,10 +100,26 @@
 - **「統制を先に、付与は別 PR」の順序**：観測（PR-1）→ 削除経路の実装（PR-2・ただし gated ロールへは
   未付与のまま）→ 自動実行と deny（PR-3）という順に分けたのは、削除能力が統制より先に効き始める
   状態を作らないため。
-- **解消していない部分**：`issue-fixer` が非 isolated であること自体は変わっていないので、
-  ②-c の `git switch <branch>`（メインワークツリーを PR ブランチへ載せる一手）は残っている。
-  `issue-fixer` の isolation 化は後続 PR のスコープ。上段の「唯一成立する経路」の記述は、
-  **この `git switch` の部分についてのみ**今も有効である。
+- **解消していない部分（PR-3 時点）**：`issue-fixer` が非 isolated であること自体は変わって
+  いなかったので、②-c の `git switch <branch>`（メインワークツリーを PR ブランチへ載せる一手）が
+  残っていた。`issue-fixer` の isolation 化は後続 PR のスコープとした。
+
+### PR-4（#354）で `git switch <branch>` も解消した（2026-08-19）
+
+**上段の「唯一成立する経路」は、`git switch` の部分も含めて全て過去のものになった。**
+オーナー判断で `issue-fixer` にも `isolation: "worktree"` を強制することが確定し、
+「`gitgate` に既存ブランチへ移る verb を新設する案」（PR-2 で `adopt-branch` として実装済み）と
+「`issue-fixer` にも isolation を掛ける案」の**両方を採った**——上段が「本節では採らない」と
+していた2案がまさにそれで、別 Issue（#354）としてオーナーの判断を経て実施した。
+
+- **主文脈の手順から消えたもの**：②-c 手順3 の `git switch <branch>`。是正者は自分の worktree で
+  `python3 -m gitgate adopt-branch <branch> --expected-oid <OID>` を実行してブランチを取得する。
+- **これで FR-W7 が達成される**：パイプライン運用中、主文脈のメインワークツリーの checkout
+  ブランチは**一度も変化しない**（②-d の「`main` へ戻す」も不要になる方向だが、その削除は
+  ②-c 経由以外の要因も絡むため本 PR では触っていない）。
+- **付与の順序**：統制（PR-1 台帳・PR-2 削除経路の集約・PR-3 自動解放と deny）を全て先に
+  merge した上で、PR-4 が初めて gated ロールへ新しい verb（`adopt-branch`）を付与した。
+  「ゲート側の手当てが付与より先行する」順序は #354 の受入基準そのもの。
 
 ## ②-c の残スコープ（Issue #310）と #369 との分担（移設元：②-c 末尾）
 
@@ -123,6 +141,22 @@
   > `issue-implementer` は呼び出し元と作業ツリーを共有し、Codex 経路ではそもそも
   > `.claude/worktrees/agent-<id>/` が作られず残留も起きない。`asset_parity/exceptions.py` の
   > 非移植例外ではなく、isolation 機構の有無という実体差による（Issue #360）。
+
+### `issue-fixer` にも同じ非対称が及ぶ（Issue #354 PR-4）
+
+PR-4 で Claude 側の `issue-fixer` にも `isolation: "worktree"` を強制したが、**Codex 側の
+`issue-fixer` は依然としてメインワークツリーを共有したまま動く**（`spawn_agent` に isolation
+パラメータが無いため）。したがって：
+
+- **`adopt-branch` は2ツリーで同一に付与する**。Codex 側でも「検証済み exact OID で既存ブランチへ
+  移る唯一の手段」として意味を持つ（生 `git switch`/`checkout` は層3 で全 deny のため、
+  この verb が無いと Codex 側の是正者はブランチを移れない）。既に対象ブランチに載っていれば
+  省略できる、という点だけが Claude 側（毎回必須）との差になる。
+- **worktree 解放系の手順・`ISSUE_START_WORKTREE_RESIDUE` の deny は Codex 側では発生しない**
+  （worktree が作られないため）。ここも実体差であって非移植例外ではない。
+- **`isolation_only` 区分の manifest 宣言も Claude transport のみ**（`gate.py` の
+  `_parse_isolation_only` は claude 以外の harness を `ISSUE_START_MANIFEST_CONTRACT_ERROR` で
+  拒否する）。isolation が無い harness へ isolation 要求を持ち込まない、という #350 の方針と同じ。
 
 ## 「実害の定義」節の残スコープ（移設元：実害の定義とエスカレーション条件・末尾）
 

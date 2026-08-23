@@ -30,9 +30,9 @@ self_fix は tmp のサイドカーまたは本文にだけ適用する。対象
 
 - self_fix 後の md/yaml 対を tmp のミラーレイアウトと同じ stage/type/status のコーパス位置へ反映する。
 - 既存ノード更新は対象ファイルを確認してから反映する。新規ノード著作、検証結果の再解釈、無関係な改善はしない。
-- FND の解消は専用の決定論的 reverse 操作だけで行う。dry-run 相当で差分と DD-3 記録を確認し、警告・想定外形・手作業の辺逆転があれば停止する。
+- FND の解消は `python3 -m dsv2 reverse <FND-slug> --root doc-system-v2 --apply` だけで行う（既定 dry-run で差分と DD-3 記録を確認してから `--apply`）。警告・想定外形・手作業の辺逆転があれば停止する。
 - その他の status 遷移は id/履歴を保つ rename 操作で行う。参照 id を変更しない。
-- 全親の全ファイルを反映してから、各親の tmp だけを専用の安全な clean 操作で掃除する。保護名、symlink、想定外の階層を含む削除は拒否し、代替の削除手段へ切り替えない。
+- 全親の全ファイルを反映してから、`python3 -m dsv2 clean-tmp <path> --apply` で各親の tmp だけを掃除する。保護名、symlink、想定外の階層を含む削除は拒否し、代替の削除手段へ切り替えない。
 
 ## fail-close と安全境界
 

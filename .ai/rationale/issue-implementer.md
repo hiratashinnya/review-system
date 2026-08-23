@@ -30,7 +30,8 @@
 `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
 （field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
 （marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の
-`_claude_request`・`issue_start/managed-entrypoints-v1.json` の `claude` transport・設計根拠＝
+`_claude_request`・`archive/issue-start-manifest-v1/managed-entrypoints-v1.json`（Issue #354 PR-4 で
+archive 化・退役済み）の `claude` transport・設計根拠＝
 `docs/tools/issue-start-and-branch-source.md`）。
 
 ## worktree 分離をなぜ dispatch 側でしか掛けられないのか（移設元：「dispatch 前提：`isolation: "worktree"`」節）

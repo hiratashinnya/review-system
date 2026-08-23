@@ -31,7 +31,6 @@ from typing import NamedTuple
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-
 class Contract(NamedTuple):
     """Normative wrapper と canonical/pointer rationale の対応。"""
 

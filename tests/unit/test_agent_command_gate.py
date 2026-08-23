@@ -734,13 +734,16 @@ class AgentCommandGateTests(unittest.TestCase):
 
     def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
         # Issue #354 PR-2: `gitgate` 側に adopt-branch / worktree-release / collect-worktree /
-        # worktree-forget を**実装したが、権限は付与していない**（付与は PR-3/PR-4）。
+        # worktree-forget を**実装したが、権限は付与していない**。
         # GITGATE_VERBS_BY_ROLE は allowlist なので未登録 verb は既定 deny——この
-        # 「実装が先行しても権限は増えない」性質をテストで固定する。ここが allow に転じたら
-        # それは PR-3/PR-4 の意図的な付与か、allowlist の取り違えかのどちらかであり、
-        # どちらにせよレビューで気付ける状態にしておく。
-        pr2_verbs = [
-            "adopt-branch feature --repository o/r --expected-oid " + "a" * 40,
+        # 「実装が先行しても権限は増えない」性質をテストで固定する。
+        #
+        # **PR-4 で `adopt-branch` だけが `issue-fixer` へ意図的に付与された**（統制が全て
+        # merge された後の、この Issue で唯一の権限付与）。よって本テストの対象からは外し、
+        # `AdoptBranchVerbGrantTests` が「fixer だけ allow・他ロールは deny」を固定する。
+        # 解放系3 verb は**引き続きどのロールにも付与しない**（他 dispatch の成果物を消せる
+        # 操作なので、実行主体は非 gated の主文脈と `SubagentStop` フックに限る）。
+        release_verbs = [
             "worktree-release .claude/worktrees/agent-x",
             "worktree-release .claude/worktrees/agent-x --entry wl-0123456789ab",
             "collect-worktree --entry wl-0123456789ab",
@@ -748,7 +751,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "worktree-forget --entry wl-0123456789ab --reason gone",
         ]
         for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
-            for args in pr2_verbs:
+            for args in release_verbs:
                 with self.subTest(role=role, verb=args.split()[0]):
                     self.assert_denied(
                         run_gate(payload(role, f"python3 -m gitgate {args}"))
@@ -940,6 +943,7 @@ class AgentCommandGateTests(unittest.TestCase):
             '    "issue-fixer": {\n'
             '        "status", "add", "commit", "push", "branch-current",\n'
             '        "new-branch", "fetch", "diff", "log",\n'
+            '        "adopt-branch",\n'
             '    },\n',
             "",
         )
@@ -1370,6 +1374,68 @@ class CtxExecutionToolGateTests(unittest.TestCase):
         self.assert_denied(run_gate(denied))
         allowed = {**payload("issue-implementer", "python3 -m gitgate status"), "tool_name": "Bash"}
         self.assert_allowed(run_gate(allowed))
+
+
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class AdoptBranchVerbGrantTests(unittest.TestCase):
+    """Issue #354 PR-4: `adopt-branch` を **issue-fixer にだけ**付与した（本 PR 唯一の権限付与）。
+
+    統制（PR-1 台帳／PR-2 削除経路／PR-3 自動解放と deny）は先行 PR で merge 済みで、
+    ここが初めて gated ロールへ verb を足す。付与の**範囲**が広がっていないことを固定する。
+    """
+
+    ADOPT = (
+        "python3 -m gitgate adopt-branch claude/issue-354 "
+        "--repository hiratashinnya/review-system --expected-oid "
+        + "b" * 40
+    )
+
+    def assert_denied(self, hook_output):
+        self.assertIsNotNone(hook_output, "deny されるべきコマンドが許可された")
+        self.assertEqual(hook_output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_issue_fixer_may_adopt_an_existing_branch(self):
+        self.assertIsNone(run_gate(payload("issue-fixer", self.ADOPT)))
+        self.assertIsNone(
+            run_gate(payload("issue-fixer", self.ADOPT + " --pr 402")),
+            "`--pr` 付きも同じ verb",
+        )
+
+    def test_other_gated_roles_may_not_adopt(self):
+        # issue-implementer は `new-branch` で新規に切る契約（既存ブランチを掴む必要が無い）。
+        # pr-reviewer は読取専用。どちらも最小権限のまま据え置く。
+        for role in ("issue-implementer", "pr-reviewer"):
+            with self.subTest(role=role):
+                self.assert_denied(run_gate(payload(role, self.ADOPT)))
+
+    def test_worktree_release_verbs_stay_denied_for_every_gated_role(self):
+        """他 dispatch の成果物を消せる操作は**どのロールにも**付与しない（allowlist 未登録＝既定 deny）。"""
+        commands = [
+            "python3 -m gitgate worktree-release .claude/worktrees/agent-x --force-uncollected --reason x",
+            "python3 -m gitgate collect-worktree --entry wl-0123456789ab",
+            "python3 -m gitgate worktree-forget --entry wl-0123456789ab --reason x",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_issue_fixer_push_merge_asymmetry_is_unchanged(self):
+        """FR-W11 回帰: verb を1つ足しても push 可・merge 不可の非対称は動かない。"""
+        self.assertIsNone(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
+        for command in (
+            "gh pr merge 402",
+            "gh pr merge 402 --squash",
+            "git merge feature",
+            "git switch claude/issue-354",
+            "python3 -m gitgate merge",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+    def test_the_grant_reaches_the_ctx_execution_path_too(self):
+        self.assertIsNone(run_gate(ctx_execute_payload("issue-fixer", self.ADOPT)))
+        self.assert_denied(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
 
 
 if __name__ == "__main__":

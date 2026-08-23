@@ -14,14 +14,23 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 ## Codex 固有の機械ゲート・権限境界
 
-- `.codex/hooks/agent-command-gate.sh` が `issue-fixer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。是正後はSTOPし、マージは `pr-reviewer` に委ねる。
-- Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`ingest-review`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは拒否される前提で使わない。
+- `.codex/hooks/agent-command-gate.sh` が `issue-fixer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `python3 -m gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**（Issue #354・是正対象 PR ブランチを取得する Step 0 で使う。`issue-implementer` には付与しない）。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。是正後はSTOPし、マージは `pr-reviewer` に委ねる。
+- Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`ingest-review`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは拒否される前提で使わない。
 - コミットメッセージ、PR本文、karteの長文引数はファイル渡し形式を使う。フックは静的文字列検査であり完全なsandboxではないため、フック外の経路で禁止権限を得ようとしない。
 
 ## Codex 固有の委譲・入力境界
 
 - corpusノードはCodexのsubagent委譲で `*-author`→`reconciliation-validator`→`reconciliation` に渡し、直接編集しない。
-- `karte_path` はメインワークツリーの `tmp/_karte/issue-<N>.md` を指す絶対パスとして安全検査し、`handoff_path` は呼び出し元が採番した相対パスをそのまま使う。共通本文の検査を相対解決やCLI任せにしない。
+- **カルテのパスは渡されない（Issue #354・K2）**。`python3 -m karte <verb> --issue <N> --round <R>` でのみ触り、パスを自分で組み立てない。`handoff_path` は呼び出し元が採番した相対パスをそのまま使う。共通本文の検査を相対解決やCLI任せにしない。
 - corpus ノードの委譲は `spawn_agent` で行い、著作・検証・反映の順序と単一責務を崩さない。spawn 先が利用できない場合は直接編集へフォールバックせず STOP する。
 - `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。許可されない command、workspace 外の書き込み、merge は fail-close で停止する。
+
+## Claude 版との非対称（Codex には worktree 分離が無い）
+
+Claude 側の `issue-fixer` は `isolation: "worktree"` を機械的に強制され、まっさらな linked worktree で
+起動するため Step 0 の `adopt-branch` が必須になる。**Codex の `spawn_agent` には isolation パラメータが
+無く worktree 分離が行われない**ので、Codex 側の本ロールはメインワークツリーを共有したまま動く。
+したがって `adopt-branch` は Codex 側でも「検証済み exact OID で既存ブランチへ移る唯一の手段」として
+意味を持つが（既に対象ブランチに載っているなら省略してよい）、worktree 解放系の手順・残留 deny は
+Codex 側では発生しない（`.claude/worktrees/agent-<id>/` が作られないため）。詳細＝`.ai/rationale/issue-fixer.md`。
 """

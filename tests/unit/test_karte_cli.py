@@ -159,6 +159,43 @@ COSMETIC = {
 }
 
 
+class TestExplicitIssueWinsOverActivePointer(KarteTestCase):
+    """Issue #354（K2）: `issue-fixer` は `karte_path` を受け取らず `--issue` を必ず明示する。
+
+    その規律が実際に効くこと——**明示した `--issue` が進行ポインタより優先される**——を
+    ここで固定する。ポインタ補完に落ちると、並行運用（別 Issue のラウンドが挟まる）で
+    別 Issue の台帳を黙って書きうる。ポインタが「別 Issue」を指している状態を作り、
+    明示側が勝つことを検査する。
+    """
+
+    def _point_active_at(self, issue, round_no=1):
+        path = self._active_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"issue": issue, "round": round_no}) + "\n", encoding="utf-8"
+        )
+
+    def test_resolve_issue_prefers_the_explicit_flag(self):
+        self._point_active_at(999)
+        args = argparse.Namespace(issue=str(self.issue), repo_root=str(self.root))
+        self.assertEqual(cli._resolve_issue(args), self.issue)
+        # 省略した場合だけポインタへ落ちる（規律が「明示せよ」である理由そのもの）。
+        fallback = argparse.Namespace(issue=None, repo_root=str(self.root))
+        self.assertEqual(cli._resolve_issue(fallback), 999)
+
+    def test_ingest_and_append_write_the_explicit_issues_karte(self):
+        self._point_active_at(999, round_no=7)
+        code, _out, err = self._ingest(1, ("new", HARMFUL))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        code, _out, err = self._append(round="1")
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", self._karte_text())
+        self.assertFalse(
+            (self.root / "tmp" / "_karte" / "issue-999.md").exists(),
+            "明示した --issue ではなくポインタ側の Issue に書いてはならない",
+        )
+
+
 # --- ingest-review -----------------------------------------------------------
 
 
