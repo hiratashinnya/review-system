@@ -670,7 +670,6 @@ class GitHubCollector:
             if (
                 not isinstance(message, str)
                 or not isinstance(tree, dict)
-                or set(tree) != {"sha"}
                 or not isinstance(tree.get("sha"), str)
                 or not _GIT_OID.fullmatch(tree["sha"])
             ):
