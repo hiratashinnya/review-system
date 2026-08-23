@@ -453,24 +453,41 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 | `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
 | `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget`)。**フックからはサブプロセスとして起動する**。 |
 
-## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354)
+## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354 / #423)
 
-**どの失敗経路でも worktree を消さず、台帳を `stale` にして無出力 exit 0 で返す**(＝停止を
-ブロックしない)。解放できないことを理由にエージェントを止め続けても解決しない——当人には
-`gitgate` の worktree verb が許可されていないからで、制御を主文脈へ返し、
-**次 dispatch の gate deny**(下記)で気づかせるのが正しい向き。
+**どの失敗経路でも worktree を消さない**(＝停止はブロックせず無出力 exit 0 で返す)。解放できない
+ことを理由にエージェントを止め続けても解決しない——当人には `gitgate` の worktree verb が許可されて
+いないからで、制御を主文脈へ返し、**次 dispatch の gate deny**(下記)で気づかせるのが正しい向き。
+
+**消さない側の落とし先は2つあり、区別する**(Issue #423):
+
+- **`stale`＝「回収を試みて失敗した」**。残留として次 dispatch の gate deny が拾う。
+- **`running` のまま保留＝「終了したのかどうかが判らない」**。`stale` にすら落とさない。
+  `SubagentStop` は入れ子の `Task` 委譲でも同じ `agent_id` で届くため、**自分の handoff が1件も
+  無い停止**では「終了した」と「委譲待ちで一時停止しただけ」を payload から区別できない。
+  `stopped` も `stale` も residue 扱い(`RESIDUE_STATUSES`)なので、落とすと**同じ dispatch 自身の
+  次の委譲**まで `ISSUE_START_WORKTREE_RESIDUE` で deny される(#423 の実害そのもの)。
 
 | 段 | 失敗したとき |
 |---|---|
 | 台帳の置き場(main worktree root)を導出できない | 何も書かず何も消さず返す |
 | `agent_id` で自分のエントリを引けない | **`running` は掴みにいかない**(他人のものかもしれず、`stale` へ落とすと `WORKTREE_LIVE` の保護が外れる)。同 `agent_type` の最新 `open` だけを `stale` にする |
+| **自分の handoff(`<agent_type>--issue-<N>…yaml`)が0件** | **保留**。台帳を一切進めず `running` のままにし、`notes` へ1行だけ記録する(2回目以降は stderr の evidence だけ＝ロックを無駄に取らない)。委譲先の handoff しか無い場合も同じ扱い |
+| 自分の handoff が2件以上 / `tmp/_handoff` を列挙できない(symlink・非ディレクトリ) / 台帳の `issue` が読めない | 起動せず `stale`(どれが成果物か決められない・そもそも観測できていない＝いずれも「試みて失敗した」側) |
 | `running` → `stopped` の遷移に失敗 | `stale` にせず evidence だけ残す(状態機械を壊さない) |
-| 回収対象の handoff を一意に決められない(worktree の `tmp/_handoff/` に2件以上) | 起動せず `stale`(どれが成果物か決められないまま消さない) |
 | `collect-worktree` が非0 / 起動不能 / timeout | `stale`(worktree は残る) |
 
-`running` → `stopped` の遷移を**必ず挟む**こと。`collect-worktree` は台帳 status `running` を
-`WORKTREE_LIVE` で拒否し `stopped` のみ受理する(安全側の既定・Issue #354 F-354-01)ので、
-遷移を落とすと自動解放は一度も成功しない。
+**判定の順序が効く**(#423)。handoff の有無は**台帳を進める前**に見る——先に `running` → `stopped`
+を済ませてから保留と判ると、その時点で既に residue になっており、上記の deny が自分自身へ跳ね返る。
+一方 `collect-worktree` は台帳 status `running` を `WORKTREE_LIVE` で拒否し `stopped` のみ受理する
+(安全側の既定・Issue #354 F-354-01)ので、**回収すると決めた後は `running` → `stopped` の遷移を
+必ず挟む**。順序は「自分の handoff を1件に決める → `stopped` へ進める → `collect-worktree`」。
+
+**フックは `--allow-missing-handoff` を組み立てない**(#423)。「回収するものが無いことを列挙で
+確認した」という判断は入れ子委譲待ちの一時停止と見分けがつかず、フックが自動で下してよいものでは
+ない。同フラグは `gitgate` 側に残るが、**主文脈が明示的に使う operator 用の逃げ道**である。
+なお既に `collected` のエントリは handoff を探さず `--entry` だけで解放する(回収済みファイルや
+委譲先の handoff を再検出して詰まらせないため)。
 
 ## 残留 worktree での次 dispatch を deny する(PreToolUse・`issue-start-gate.sh`・Issue #354)
 
@@ -510,7 +527,8 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 | **停止のブロック**(`subagent-stop-gate.sh` の①) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
 | **残留 worktree の deny**(`issue-start-gate.sh`・#354) | **fail-close** | 台帳が読めなければ dispatch を deny する(`ISSUE_START_WORKTREE_LEDGER_ERROR`) |
 | **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳へ書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
-| **worktree の削除**(`subagent-stop-gate.sh` の②) | **fail-safe＝「消さない」側** | 判定不能・回収失敗なら削除せず `stale` にする |
+| **worktree の削除**(`subagent-stop-gate.sh` の②) | **fail-safe＝「消さない」側** | 回収を試みて失敗した(handoff が一意に決まらない・`collect-worktree` が失敗した等)なら削除せず `stale` にする |
+| **「終了したか判らない」停止**(自分の handoff が0件・#423) | **fail-safe＝「触らない」側** | `stale` にすら落とさず `running` のまま保留する(まだ回収を試みていないので `stale` とは別の状態) |
 
 **理由**: ブロック・deny の誤りは「余計に止まる」だけで回復可能だが、削除の誤りは成果物を
 回復不能に失う。**起票**だけが fail-open なのは、書けなかった記録のために dispatch を止めても

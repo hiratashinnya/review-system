@@ -56,7 +56,7 @@ isolated worktree 内部を指すが、**`SubagentStop` フックが同期的に
    `python3 -m gitgate collect-worktree --entry <entry-id>` を主文脈が実行してから 3 を再試行する。
    **`status` が `running` のままなら「保留」**（実装者/是正者が handoff を一度も書かずに終了した＝
    契約違反かクラッシュ・Issue #423）。この状態で `collect-worktree` は `WORKTREE_LIVE` で拒否される
-   ——上記「入れ子 dispatch をさせない」節の後始末手順（`worktree-forget`→`worktree-release`）で
+   ——後述「入れ子 dispatch と「保留」の後始末」節の手順（`worktree-forget`→`worktree-release`）で
    片付ける。**`status` が既に `released` なのに `collected_to` が `null` のままならさらに別系統**
    ——`collect-worktree` は no-op になるので、worktree の実体（残っていれば）と対応する PR の有無を
    主文脈が直接確認する。
@@ -131,21 +131,15 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
   保留を `stopped`/`stale` へ落とすとそれ自体が residue になり、**同じ dispatch 自身の次の委譲**まで
   `ISSUE_START_WORKTREE_RESIDUE` で deny される（#338 実装中に実測）。
 
-### 実装者/是正者に入れ子 dispatch をさせない（ノード著作チェーンは主文脈が回す・Issue #423）
+### 入れ子 dispatch と「保留」の後始末（Issue #423）
 
-**`issue-implementer` / `issue-fixer` に、その内側から複数段の subagent 委譲をさせない。** 特に
-`*-author` →`reconciliation-validator` →`reconciliation` のノード著作チェーンは、主文脈が直接
-オーケストレーションする（`.claude/rules/05-skills-agents.md`「ノード著作の委譲ルール」の 2 段確定は
-主文脈の仕事であって、実装者に丸投げする手順ではない）。
+`issue-implementer` / `issue-fixer` が自分の内側から subagent へ委譲すること（`*-author`→
+`reconciliation-validator`→`reconciliation` のノード著作チェーンを含む）は**制限していない**。
+入れ子委譲のあいだ停止イベントが繰り返し届き、委譲先の handoff が実装者/是正者の worktree の
+`tmp/_handoff/` に溜まるが、#423 の是正でこれらは「保留」「他人の成果物」として正しく扱われる
+（前掲「`SubagentStart`/`SubagentStop` の配線」）。主文脈が知っておく必要があるのは、その保留が
+残ったまま戻ってきたときの後始末だけである。
 
-- **やること**：ノード著作（FND/Q/DD 起票を含む）が要る Issue は、実装 dispatch のスコープから外し、
-  主文脈が `*-author`→`reconciliation-validator`→`reconciliation` を回してから／回した上で実装を
-  dispatch する。実装者が「著作が必要だ」と気づいたら **STOP 報告**させ、主文脈が引き取る。
-- **なぜ**（実害・#338 実測）：入れ子委譲のあいだ停止イベントが繰り返し届き、委譲先の handoff が実装者の
-  worktree の `tmp/_handoff/` に溜まる。#423 の是正でこれらは「保留」「他人の成果物」として正しく
-  扱われるが、**入れ子が深いほど回収の起点が読みにくくなり、失敗時の切り分けコストが主文脈へ跳ね返る**
-  ことは変わらない。多段入れ子を避ければ、この経路の失敗自体が発生しない。
-- **1段だけの委譲は禁止していない**（read-only 調査など）。禁じるのは**成果物を書く多段チェーン**。
 - **保留のまま戻ってきた dispatch の後始末**：実装者/是正者が handoff を一度も書かずに終了すると台帳は
   `running` のまま残る（`ISSUE_START_WORKTREE_RESIDUE` にはならないので次の dispatch は止まらない）。
   主文脈が `<main-worktree>/tmp/_worktree/ledger.json` の当該エントリを確認し、

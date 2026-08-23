@@ -96,5 +96,3 @@ out_of_scope_findings: []
 stop_reason: 空文字
 
 STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。**Step 0 の早期 STOP を含め、STOP でもハンドオフは書く**——stop_reason はハンドオフのフィールドであり、チャットの報告だけで済ませない。ハンドオフが1件あることが「この dispatch は終了した」ことを示す唯一の観測可能な signal であり、書かないと作業ツリーの回収・解放が保留されて呼び出し元の手作業になる。handoff_path 自体が渡されておらず着手前に STOP する場合だけは書きようがないので、その旨をチャットで報告する。
-
-是正の過程で corpus ノード（doc-system-v2/nodes/**）の著作が必要になっても、*-author→reconciliation-validator→reconciliation のチェーンを**自分の内側から多段に委譲して回さない**——STOP して呼び出し元へ引き渡す。多段の入れ子委譲は自分の作業ツリーの回収・解放を妨げ、同じ dispatch 自身の後続委譲を止める実害が観測されている。read-only 調査など1段だけの委譲は禁止しない。

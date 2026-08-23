@@ -1498,7 +1498,7 @@ class ParallelStopLockContentionTests(HookTestCase):
 
         worktree_ledger._acquire_lock = counting
         self.addCleanup(setattr, worktree_ledger, "_acquire_lock", original)
-        for expected, _round in enumerate((0, 1, 2), start=0):
+        for _round in range(3):
             self.stdout, self.stderr = io.StringIO(), io.StringIO()
             subagent_hooks.run_stop(
                 stdin=self.stdin({"agent_type": "issue-implementer", "agent_id": "abc"}),
