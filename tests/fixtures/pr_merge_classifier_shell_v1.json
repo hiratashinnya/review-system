@@ -851,6 +851,26 @@
       "id": "redirect-adjacent-control-keyword-still-detected",
       "command": "while> /dev/null read line; do printf -v PATH /tmp; done; git status",
       "expected": "error"
+    },
+    {
+      "id": "redirect-only-leaf-empty-after-strip",
+      "command": "> file",
+      "expected": "none"
+    },
+    {
+      "id": "exec-only-redirect-leaf-empty-after-strip",
+      "command": "exec > file",
+      "expected": "none"
+    },
+    {
+      "id": "redirect-only-leaf-in-compound-still-detected",
+      "command": "> file; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "exec-only-redirect-leaf-in-compound-still-detected",
+      "command": "exec > file; gh pr merge 1 --squash",
+      "expected": "error"
     }
   ]
 }

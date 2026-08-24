@@ -300,6 +300,10 @@ class PreUseClassifierTests(unittest.TestCase):
                 "redirected-shell-command-string-merge",
                 "redirected-git-bisect-run-merge",
                 "redirect-adjacent-control-keyword-still-detected",
+                "redirect-only-leaf-empty-after-strip",
+                "exec-only-redirect-leaf-empty-after-strip",
+                "redirect-only-leaf-in-compound-still-detected",
+                "exec-only-redirect-leaf-in-compound-still-detected",
             }
             <= case_ids
         )
@@ -500,6 +504,29 @@ class PreUseClassifierTests(unittest.TestCase):
             bash("gh -R example/repo pr merge 12 --squash --auto 2>/dev/null")
         )
         self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
+
+    def test_redirect_only_leaves_pass_through_but_stay_closed_inside_a_compound(self):
+        """PR #429（Issue #428）で `_split_shell_commands()` にredirection除去を
+        入れた副作用として、除去後に実行語が空になるleaf（`> file` 単体・`exec > file`）が
+        素通り（`None`）になった。安全性は検証済みだが固定回帰テストが無かった
+        （F-428-2・Issue #430）。単体のredirect-only/exec-only leafは意図どおり素通りし、
+        同じ空leafがcompound構造の一部としてmerge操作と同居する場合は
+        `_split_shell_commands` がNoneを返しfail-closeのまま（CLASSIFIER_UNKNOWN）。"""
+        for command in ("> file", "exec > file", ">> file", "exec >> file"):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+        for command in (
+            "> file; gh pr merge 1 --squash",
+            "exec > file; gh pr merge 1 --squash",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
 
 
 class RepositoryBindingTests(unittest.TestCase):
