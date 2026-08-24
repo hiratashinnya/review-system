@@ -80,13 +80,21 @@ def parse_diff(text: str) -> list:
     return sorted(touched)
 
 
-def git_diff(repo_root, base: str = "HEAD") -> str:
-    """``git diff --unified=0 --no-color <base>`` の出力を返す（``shell=False`` の固定 argv）。"""
+def git_diff(cwd, base: str = "HEAD") -> str:
+    """``git diff --unified=0 --no-color <base>`` を ``cwd`` で実行し出力を返す
+    （``shell=False`` の固定 argv）。
+
+    ``cwd`` は「どの worktree の変更を測るか」を決める値であり、台帳（``tmp/_karte/``）の
+    所在解決に使う ``karte.paths.main_worktree_root()`` 由来の値と混同してはならない
+    （呼び出し元 :func:`karte.cli._diff_cwd` の docstring・Issue #437）。ここで main worktree
+    の値を渡すと、isolated worktree で行った commit がその cwd の作業ツリーには存在せず
+    diff が常に空になり、fail-close（Issue #355）が spurious に発火する。
+    """
     ref = validate_ref(base)
     argv = ["git", "diff", "--unified=0", "--no-color", ref]
     try:
         completed = subprocess.run(
-            argv, cwd=str(repo_root), shell=False,
+            argv, cwd=str(cwd), shell=False,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
     except OSError as exc:  # pragma: no cover - git 不在環境
