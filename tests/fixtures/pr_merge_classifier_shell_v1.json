@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.13",
+  "classifier_version": "1.14",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -741,6 +741,116 @@
       "id": "safe-linear-echo-printf",
       "command": "echo a; printf b",
       "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stderr-to-stdout",
+      "command": "gh issue view 1 --json body 2>&1",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stderr-to-devnull",
+      "command": "git status --short 2>/dev/null",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stdout-to-file",
+      "command": "gh issue list > issues.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-append-redirect-to-file",
+      "command": "echo done >> log.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-numbered-fd-redirects",
+      "command": "gh issue list 1>out.txt 2>err.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-both-streams-redirect",
+      "command": "gh project list --owner example &> out.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-noclobber-override-redirect",
+      "command": "gh issue list >| issues.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-input-redirect",
+      "command": "git apply < patch.diff",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-then-pipe",
+      "command": "gh issue view 1 2>&1 | head -c 6000",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-redirect-character-data",
+      "command": "echo 'gh pr merge 1 --squash > out'",
+      "expected": "none"
+    },
+    {
+      "id": "heredoc-shell-merge",
+      "command": "bash <<EOF\ngh pr merge 1 --squash\nEOF",
+      "expected": "error"
+    },
+    {
+      "id": "herestring-shell-merge",
+      "command": "bash <<< 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "output-process-substitution-merge",
+      "command": "echo data >(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-target-command-substitution",
+      "command": "gh issue view 1 > $(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-target-backtick-substitution",
+      "command": "gh issue view 1 > `gh pr merge 1 --squash`",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-missing-target",
+      "command": "gh issue view 1 >",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-compound-merge-leaf",
+      "command": "gh issue view 1 > /dev/null; gh pr merge 1 --squash 2>&1",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-brace-group-merge",
+      "command": "{ gh pr merge 1 --squash; } > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-subshell-merge",
+      "command": "(gh pr merge 1 --squash) > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-shell-command-string-merge",
+      "command": "bash -c 'gh pr merge 1 --squash' > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-git-bisect-run-merge",
+      "command": "git bisect run gh pr merge 1 --squash 2>/dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-adjacent-control-keyword-still-detected",
+      "command": "while> /dev/null read line; do printf -v PATH /tmp; done; git status",
+      "expected": "error"
     }
   ]
 }
