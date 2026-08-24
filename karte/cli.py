@@ -76,7 +76,12 @@ EXIT_ERROR = 4
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 
-# `karte` パッケージが置かれているディレクトリ（＝repo-root の候補）。
+# `karte` パッケージが置かれているディレクトリ（＝呼び出し元 worktree root の候補）。
+# `karte` パッケージ自体は呼び出し元 worktree にチェックアウトされて実行される
+# （`issue-implementer`/`issue-fixer` は isolated worktree で走る前提）ため、この値は
+# 「今この process がどの worktree で動いているか」を指す。台帳解決（`_repo_root`）は
+# これを `main_worktree_root()` で main worktree へ変換するが、diff 計算（`_diff_cwd`）は
+# 変換前のこの値をそのまま使う——両者を同じ変換に流用しない（Issue #437）。
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
 # repo-root のオーバーライド点。**既定は None（＝未解決）**で、実際の導出は
@@ -143,6 +148,27 @@ def _repo_root(args) -> Path:
     if _REPO_ROOT is not None:
         return Path(_REPO_ROOT)
     return paths.main_worktree_root(_PACKAGE_ROOT)
+
+
+def _diff_cwd(args) -> Path:
+    """``git diff`` を実行する cwd（呼び出し元 worktree のルート）を解決する（Issue #437）。
+
+    台帳解決（:func:`_repo_root`）とは**意図的に別関数**にする。台帳（``tmp/_karte/``）は
+    worktree 間で共有すべき単一の正本なので :func:`paths.main_worktree_root` で main worktree
+    へ収束させる必要があるが、``git diff`` が測るべきなのは**呼び出し元 worktree そのものの
+    変更**であり、同じ収束をかけると isolated worktree（``issue-implementer``/``issue-fixer``
+    の ``.claude/worktrees/agent-*``）で行った commit が main worktree の作業ツリーには存在せず
+    diff が常に空になる。結果、Issue #355 の空 diff fail-close（本来は正しい安全装置）が、
+    isolated worktree から実行するたび spurious に発火していた（Issue #437）。
+
+    ``_repo_root`` が ``main_worktree_root(_PACKAGE_ROOT)`` で変換するのに対し、ここでは
+    :func:`paths.invoking_worktree_root` で実在確認だけを通した ``_PACKAGE_ROOT`` を
+    そのまま使う——``_PACKAGE_ROOT`` は「``karte`` パッケージが今どの worktree で
+    動いているか」を指す値であり、変換前の時点で既に呼び出し元 worktree のルートである。
+    ``args.repo_root`` override（テスト専用・K-12）は台帳解決専用のパラメータなので
+    ここでは参照しない——実運用でこの値を上書きする公開経路は存在しない。
+    """
+    return paths.invoking_worktree_root(_PACKAGE_ROOT)
 
 
 def _read_active(repo_root, *, required: bool = False) -> dict:
@@ -874,7 +900,9 @@ def cmd_close_attempt(args) -> int:
         diff_path = paths.resolve_within_repo(args.diff_file, _repo_root(args))
         diff_text = paths.read_text(diff_path)
     else:
-        diff_text = touched_mod.git_diff(_repo_root(args), args.base)
+        # 台帳（`_repo_root`）ではなく呼び出し元 worktree（`_diff_cwd`）で diff を測る
+        # （Issue #437・両者を混同すると isolated worktree の commit を見失う）。
+        diff_text = touched_mod.git_diff(_diff_cwd(args), args.base)
     measured = model.check_list(touched_mod.parse_diff(diff_text), "touched")
 
     if not measured and outcome != "no-change":

@@ -126,6 +126,20 @@ def main_worktree_root(candidate) -> Path:
     )
 
 
+def invoking_worktree_root(candidate) -> Path:
+    """``candidate``（呼び出し元 worktree のルート候補）を検証してそのまま返す（Issue #437）。
+
+    :func:`main_worktree_root` と対になる関数だが**変換はしない**。あちらは linked worktree
+    （``issue-implementer``/``issue-fixer`` の isolated worktree）を main worktree へ収束させる
+    ——台帳（``tmp/_karte/``）は worktree 間で共有すべき単一の正本だから。一方 ``git diff`` の
+    対象は**呼び出し元 worktree そのものの変更**であり、同じ収束をかけると isolated worktree
+    で行った commit が main worktree の作業ツリーには存在しないため diff が常に空になり、
+    Issue #355 の空 diff fail-close が spurious に発火する（Issue #437 の症状そのもの）。
+    ここでは ``candidate`` が実在するディレクトリかどうかの検証だけを行い、パスはそのまま返す。
+    """
+    return _resolved_root(candidate)
+
+
 def resolve_within_repo(path, repo_root) -> Path:
     """``path`` が repo-root 配下の安全なパスかを検査し、正規化済みパスを返す。
 

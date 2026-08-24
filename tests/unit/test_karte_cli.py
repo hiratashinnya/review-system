@@ -19,6 +19,7 @@ import json
 import re
 import inspect
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,8 @@ from pathlib import Path
 from unittest import mock
 
 from karte import cli, model, paths, similarity, touched
+
+_HAS_GIT = shutil.which("git") is not None
 
 
 def _make_repo(case) -> Path:
@@ -2309,6 +2312,168 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
 
         # worktree 配下には一切カルテ置き場が作られない（分裂の再発防止）。
         self.assertFalse((self.worktree / "tmp").exists())
+
+
+# --- diff cwd の解決＝呼び出し元 worktree（Issue #437） -------------------------
+
+
+@unittest.skipUnless(_HAS_GIT, "git が無い環境では実 git 統合検証をしない")
+class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
+    """``close-attempt`` の diff 計算 cwd が呼び出し元 worktree に解決すること（Issue #437）。
+
+    是正前は ``touched_mod.git_diff`` の cwd に台帳解決用の ``main_worktree_root(_PACKAGE_ROOT)``
+    をそのまま流用していた。``issue-implementer``/``issue-fixer`` は isolated worktree
+    （``.claude/worktrees/agent-*``）で走る前提のため、そこで行った変更を main worktree の
+    作業ツリーで diff しても常に空になり、Issue #355 の空 diff fail-close が spurious に
+    発火していた。
+
+    ここでは実 git の main リポジトリ＋実 linked worktree（``git worktree add``）を用意し、
+    linked worktree 側の変更が ``close-attempt``（既定 ``--base HEAD``）で正しく実測される
+    ことを固定する。``mock.patch.object(cli, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
+    今どの worktree で動いているか」の代替にすぎない（production では isolated worktree
+    自体に ``karte/`` の実体チェックアウトがあるため ``Path(__file__)`` が自然にそこを指す）。
+    ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`cli._diff_cwd`）は
+    モックしていない。
+
+    **変更を commit ではなく staged のまま残す理由**：``git diff HEAD`` は「working tree
+    （＋index）と HEAD の差分」であり、いったん commit すると working tree は HEAD と
+    一致するため既定 ``--base HEAD`` の diff は commit 済みかどうかに関わらず空になる
+    （README 記載の「commit・push 後は既定 ``--base HEAD`` で diff が空になる」footgun・
+    Issue #355 で意図的に fail-close する対象）。それは cwd の問題ではない別の既知の挙動
+    なので、ここでは「commit する前の変更」で cwd 解決だけを切り分けて検証する。
+    """
+
+    ISSUE = 437
+
+    def git(self, *args, cwd):
+        completed = subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+            cwd=str(cwd), text=True, capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name).resolve()
+
+        self.main_repo = base / "repo"
+        self.main_repo.mkdir()
+        self.git("init", "-q", "-b", "main", ".", cwd=self.main_repo)
+        (self.main_repo / "README.md").write_text("x\n", encoding="utf-8")
+        self.git("add", "README.md", cwd=self.main_repo)
+        self.git("commit", "-qm", "init", cwd=self.main_repo)
+        (self.main_repo / "tmp").mkdir()
+
+        self.worktree_rel = "linked"
+        self.git(
+            "worktree", "add", "-q", "-b", "claude/issue-437-fix", self.worktree_rel, "main",
+            cwd=self.main_repo,
+        )
+        self.linked = self.main_repo / self.worktree_rel
+
+        # linked worktree 側でだけ新規ファイルを作る（isolated worktree での実際の修正を模す）。
+        # `git diff` は untracked ファイルを見ないため add で index に載せる（commit はしない）。
+        target = self.linked / "review_system" / "fix.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("def fixed():\n    return 1\n", encoding="utf-8")
+        self.git("add", "review_system/fix.py", cwd=self.linked)
+
+    def _ns(self, **kwargs):
+        base = {"issue": str(self.ISSUE), "repo_root": str(self.main_repo)}
+        base.update(kwargs)
+        return argparse.Namespace(**base)
+
+    def _run(self, func, **kwargs):
+        buffer = io.StringIO()
+        errors = io.StringIO()
+        with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
+            code = func(self._ns(**kwargs))
+        return code, buffer.getvalue(), errors.getvalue()
+
+    def _write_report(self, name, text) -> str:
+        path = self.main_repo / "tmp" / name
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def _seed_open_finding(self):
+        """台帳へ未解消 finding を1件取り込み、Attempt 1 として宣言する（``close-attempt`` の前提）。"""
+        report = self._write_report(
+            "review-1.md",
+            _report((
+                "new",
+                {
+                    "harm": "real",
+                    "harm_detail": "cwd が main worktree に固定され diff が空になる",
+                    "severity": "blocker",
+                    "locus": "review_system/fix.py::fixed",
+                    "summary": "isolated worktree の変更が touched-set に記録されない",
+                    "evidence": "Issue #437 の再現手順で close-attempt が空 diff で fail-close した",
+                    "expected": "呼び出し元 worktree の変更が touched として記録される",
+                    "recheck": "linked worktree から close-attempt --base HEAD を実行し touched を確認",
+                },
+            )),
+        )
+        code, _out, err = self._run(cli.cmd_ingest_review, round="1", source=report)
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        code, _out, err = self._run(
+            cli.cmd_append,
+            round=None,
+            finding_ids=["F-437-01"],
+            root_cause="diff-cwd-mismatch",
+            change_kind="logic",
+            targets=["review_system/fix.py::fixed"],
+            diagnosis="",
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+    def test_close_attempt_measures_the_invoking_worktrees_own_change(self):
+        self._seed_open_finding()
+
+        with mock.patch.object(cli, "_PACKAGE_ROOT", self.linked):
+            code, out, err = self._run(
+                cli.cmd_close_attempt,
+                attempt=None,
+                outcome="fixed",
+                finding_ids=None,
+                base="HEAD",
+                diff_file=None,
+                note="",
+            )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("review_system/fix.py", out)
+        self.assertNotIn("(差分なし・no-change)", out)
+
+        karte_path = self.main_repo / "tmp" / "_karte" / f"issue-{self.ISSUE}.md"
+        parsed = model.parse(karte_path.read_text(encoding="utf-8"))
+        touched_files = parsed.results_for(1)[0].touched
+        self.assertIn("review_system/fix.py", touched_files)
+        self.assertIn("review_system/fix.py::fixed", touched_files)
+
+    def test_measuring_from_main_worktree_root_finds_nothing(self):
+        """対照実験＝是正前の挙動：cwd を main worktree に固定すると diff は常に空。
+
+        ``_PACKAGE_ROOT`` を main worktree自身に差し替える（是正前の
+        ``main_worktree_root(_PACKAGE_ROOT)`` が常に main worktree を返していたのと同じ状態）。
+        main worktree の作業ツリーには linked worktree の変更が存在しないため diff は空になり、
+        Issue #355 の fail-close が発火する——これが本 Issue の症状そのもの。
+        """
+        self._seed_open_finding()
+
+        with mock.patch.object(cli, "_PACKAGE_ROOT", self.main_repo):
+            code, _out, err = self._run(
+                cli.cmd_close_attempt,
+                attempt=None,
+                outcome="fixed",
+                finding_ids=None,
+                base="HEAD",
+                diff_file=None,
+                note="",
+            )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("実測 touched-set が空", err)
 
 
 if __name__ == "__main__":
