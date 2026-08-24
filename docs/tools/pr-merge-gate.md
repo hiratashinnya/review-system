@@ -41,6 +41,39 @@ audit schema `pr-merge-audit/4` は、GraphQL expected commit count、override f
 repository merge settings、snapshot、attempt、PR state/draft、blocker Result metadata、formatter/evidence
 version/hashをpre/post相関レコードへ保存する。生messageは保存しない。
 
+### pre/post相関のidentity（Issue #414）
+
+pre-use decisionとpost-use completionは `invocation_id` で相関する。
+`invocation_id = uuid5(NAMESPACE_URL, "<session_id>\0<tool_use_id>")` であり、
+**`turn_id` は鍵に含めない**。`tool_use_id` はsession内で1回のtool呼び出しに一意なので
+`turn_id` は識別力を足さない一方、harnessによって `PreToolUse` と `PostToolUse` で
+送出有無が揃わない任意フィールドである（実測：Claude Code は `PreToolUse` で `turn_id` を
+送らない）。鍵に混ぜると同一tool呼び出しがpreとpostで別IDになり、
+`append_completion` がpermitを見つけられず post-use completion が永久に記録されない。
+
+permit走査はJSONとして読めない行を読み飛ばす。append-onlyの共有ログには別プロセスの
+interleaved writeで壊れた行が混じり得るが、1行の破損でpost-use auditが恒久停止するのは
+監査証跡の可用性を落とすだけで安全性を上げない（読み飛ばしはpermitを「見つけられない」
+方向にしか働かず、permitなしでcompletionを発行する経路は増えない＝fail-closeは維持）。
+
+### PostToolUse失敗のreason code（Issue #414）
+
+`PostToolUse` の失敗は `POST_AUDIT_INTEGRITY_ERROR/<code>` で報告する。`<code>` は
+redaction安全な固定語彙で、payload由来の文字列（command・PR本文・token）を含まない。
+
+| code | 意味 |
+|---|---|
+| `PAYLOAD_INVALID` | payloadがJSONでない／`hook_event_name`・`session_id`・`tool_use_id`・`tool_name`・`tool_response` が契約を満たさない |
+| `RECLASSIFIED_NOT_MERGE` | PostToolUseでの再分類がmergeにならない（PreToolUseでdenyされたはずの操作が到達した） |
+| `PERMIT_MISSING` | 一致するpre-use permit（同一 `invocation_id` ＋ `operation_fingerprint` ＋ `permit_issued: true`）が無い |
+| `HOOK_ASSET_UNREADABLE` | hook asset一式のhash計算に失敗した |
+| `AUDIT_FILE_UNSAFE` | audit fileがsymlink／別uid所有／0600以外 |
+| `AUDIT_PATH_INVALID` | `HOME`/`XDG_STATE_HOME` が無い、または絶対pathでない |
+| `AUDIT_READ_FAILED` / `AUDIT_WRITE_FAILED` | audit fileの読み書きがOSレベルで失敗した |
+
+以前は例外クラス名（`AuditError`）だけを出していたため、構造的に別物の複数経路が同じ
+文字列で報告され、報告を受けても再現なしには原因を特定できなかった。
+
 ## 運用確認
 
 両harnessでproject hookをtrust/enabledにし、`/hooks` とdebug logでregistrationとactual fireを

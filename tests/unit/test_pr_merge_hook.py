@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pr_merge_gate.classifier import MergeOperation, PreUseClassification
-from pr_merge_gate.hook import run
+from pr_merge_gate.classifier import MergeOperation, PreUseClassification, classify_pre_use
+from pr_merge_gate.hook import post_run, run
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -178,6 +178,109 @@ class HookTest(unittest.TestCase):
         self.assertTrue(records[1]["operation_dispatched"])
         self.assertEqual(records[0]["invocation_id"], records[1]["invocation_id"])
         self.assertEqual(records[1]["response_outcome"], "success")
+
+    def connector_payload(self, event: str) -> dict:
+        return {
+            "session_id": "session-turn",
+            "tool_use_id": "tool-turn",
+            "hook_event_name": event,
+            "tool_name": "mcp__codex_apps__github_merge_pull_request",
+            "tool_input": {
+                "repository_full_name": "example/repo",
+                "pr_number": 50,
+                "merge_method": "squash",
+            },
+        }
+
+    def correlate(self, pre_turn, post_turn, target: Path) -> list[dict]:
+        pre = self.connector_payload("PreToolUse")
+        if pre_turn is not None:
+            pre["turn_id"] = pre_turn
+        classified = classify_pre_use(pre)
+        permitted = allow_evidence()
+        permitted["binding"]["operation_fingerprint"] = (
+            classified.operation.operation_fingerprint
+        )
+        with patch(
+            "pr_merge_gate.hook.resolve_github_token", return_value="token"
+        ), patch(
+            "pr_merge_gate.hook.evaluate_merge_operation", return_value=permitted
+        ):
+            stdout = io.StringIO()
+            run(
+                stdin=io.StringIO(json.dumps(pre)), stdout=stdout,
+                stderr=io.StringIO(), audit_file=target,
+            )
+            self.assertEqual(stdout.getvalue(), "")
+        post = self.connector_payload("PostToolUse")
+        if post_turn is not None:
+            post["turn_id"] = post_turn
+        post["tool_response"] = {"merged": True}
+        post_stdout = io.StringIO()
+        post_run(
+            stdin=io.StringIO(json.dumps(post)), stdout=post_stdout,
+            stderr=io.StringIO(), audit_file=target,
+        )
+        self.assertEqual(post_stdout.getvalue(), "")
+        return [
+            json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()
+        ]
+
+    def test_pre_post_correlation_survives_asymmetric_turn_id(self):
+        """turn_id が pre/post で揃わなくても同じ permit へ相関する（Issue #414）。
+
+        turn_id は harness ごとに送出有無が異なる任意フィールドで、invocation_id の
+        導出鍵に混ぜると同一 tool 呼び出しが pre と post で別 ID になり
+        `POST_AUDIT_INTEGRITY_ERROR/PERMIT_MISSING` になる。
+        """
+        for pre_turn, post_turn in (
+            (None, "turn-post"), ("turn-pre", None), ("turn-pre", "turn-post"), (None, None),
+        ):
+            with self.subTest(pre=pre_turn, post=post_turn), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / "audit.jsonl"
+                records = self.correlate(pre_turn, post_turn, target)
+                self.assertEqual(
+                    [item["record_type"] for item in records],
+                    ["pre_use_decision", "post_use_completion"],
+                )
+                self.assertEqual(records[0]["invocation_id"], records[1]["invocation_id"])
+                self.assertTrue(records[1]["operation_dispatched"])
+
+    def test_post_use_failures_report_specific_reason_codes(self):
+        """post-use の失敗経路を例外クラス名ではなく固定語彙で識別できる（Issue #414）。"""
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            cases = []
+
+            missing = self.connector_payload("PostToolUse")
+            missing["tool_response"] = {"merged": True}
+            cases.append((missing, "PERMIT_MISSING"))
+
+            invalid = dict(missing)
+            invalid.pop("tool_use_id")
+            cases.append((invalid, "PAYLOAD_INVALID"))
+
+            reclassified = self.connector_payload("PostToolUse")
+            reclassified["tool_name"] = "mcp__codex_apps__github_enable_auto_merge"
+            reclassified["tool_response"] = {"merged": True}
+            cases.append((reclassified, "RECLASSIFIED_NOT_MERGE"))
+
+            for payload, code in cases:
+                with self.subTest(code=code):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    result = post_run(
+                        stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                        stderr=stderr, audit_file=target,
+                    )
+                    decision = json.loads(stdout.getvalue())
+                    self.assertEqual(result, 0)
+                    self.assertEqual(decision["decision"], "block")
+                    self.assertIn(
+                        "POST_AUDIT_INTEGRITY_ERROR/" + code, decision["reason"]
+                    )
+                    self.assertIn(code, stderr.getvalue())
+                    self.assertNotIn("example/repo", decision["reason"])
 
     def test_audit_integrity_failure_changes_allow_to_deny(self):
         merge = operation()

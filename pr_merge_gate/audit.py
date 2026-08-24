@@ -53,7 +53,17 @@ _HOOK_ASSETS = (
 
 
 class AuditError(OSError):
-    """安全なaudit appendを保証できない。"""
+    """安全なaudit appendを保証できない。
+
+    `reason` は redaction安全な固定語彙（payload由来の文字列を含まない）で、失敗した
+    audit経路を呼び出し側が識別するために持つ。message は人間向けの補助情報であって
+    hook出力には載せない（Issue #414: 例外クラス名だけを出力していたため、
+    構造的に別物の4経路が同じ `AuditError` として報告され原因を特定できなかった）。
+    """
+
+    def __init__(self, message: str, *, reason: str = "AUDIT_WRITE_FAILED") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 def audit_path(environ: Mapping[str, str] | None = None) -> Path:
@@ -65,10 +75,10 @@ def audit_path(environ: Mapping[str, str] | None = None) -> Path:
     else:
         home = values.get("HOME")
         if not home:
-            raise AuditError("HOME/XDG_STATE_HOME missing")
+            raise AuditError("HOME/XDG_STATE_HOME missing", reason="AUDIT_PATH_INVALID")
         root = Path(home) / ".local" / "state"
     if not root.is_absolute():
-        raise AuditError("state path must be absolute")
+        raise AuditError("state path must be absolute", reason="AUDIT_PATH_INVALID")
     return root / "review-system" / "blocker-gate" / "audit.jsonl"
 
 
@@ -82,7 +92,7 @@ def hook_asset_hash(root: Path | None = None) -> str:
             digest.update((project_root / relative).read_bytes())
             digest.update(b"\0")
     except OSError as exc:
-        raise AuditError(str(exc)) from exc
+        raise AuditError(str(exc), reason="HOOK_ASSET_UNREADABLE") from exc
     return "sha256:" + digest.hexdigest()
 
 
@@ -90,12 +100,12 @@ def _prepare_target(target: Path) -> None:
     directory = target.parent
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     if directory.is_symlink():
-        raise AuditError("audit directory symlink")
+        raise AuditError("audit directory symlink", reason="AUDIT_FILE_UNSAFE")
     directory.chmod(0o700)
     if target.exists():
         info = target.lstat()
         if stat.S_ISLNK(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600:
-            raise AuditError("unsafe audit file")
+            raise AuditError("unsafe audit file", reason="AUDIT_FILE_UNSAFE")
 
 
 def _append_record(record: Mapping[str, Any], target: Path) -> None:
@@ -122,7 +132,7 @@ def _append_record(record: Mapping[str, Any], target: Path) -> None:
     except AuditError:
         raise
     except OSError as exc:
-        raise AuditError(str(exc)) from exc
+        raise AuditError(str(exc), reason="AUDIT_WRITE_FAILED") from exc
 
 
 def append_decision(
@@ -184,15 +194,24 @@ def append_completion(
     classifier_version: str, asset_hash: str, tool_name: str, tool_response: Any,
     path: Path | None = None, environ: Mapping[str, str] | None = None,
 ) -> None:
-    """対応するpermitがあるtool responseだけをredacted completionとして追記する。"""
+    """対応するpermitがあるtool responseだけをredacted completionとして追記する。
+
+    走査はJSONとして読めない行を読み飛ばす。append-only の共有ログには別プロセスの
+    interleaved write で壊れた行が混じり得るが、1行の破損でpost-use auditが恒久的に
+    停止するのは監査証跡の可用性を落とすだけで安全性を上げない（読み飛ばしは permit を
+    「見つけられない」方向にしか働かず、permit なしでcompletionを発行する経路は増えない）。
+    """
     target = audit_path(environ) if path is None else path
     try:
         _prepare_target(target)
         if not target.exists():
-            raise AuditError("pre-use permit missing")
+            raise AuditError("pre-use permit missing", reason="PERMIT_MISSING")
         permit: Mapping[str, Any] | None = None
         for line in target.read_text(encoding="utf-8").splitlines():
-            candidate = json.loads(line)
+            try:
+                candidate = json.loads(line)
+            except json.JSONDecodeError:
+                continue
             if (
                 isinstance(candidate, dict)
                 and candidate.get("record_type") == "pre_use_decision"
@@ -202,9 +221,11 @@ def append_completion(
             ):
                 permit = candidate
         if permit is None:
-            raise AuditError("pre-use permit missing")
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise AuditError(str(exc)) from exc
+            raise AuditError("pre-use permit missing", reason="PERMIT_MISSING")
+    except AuditError:
+        raise
+    except (OSError, UnicodeDecodeError) as exc:
+        raise AuditError(str(exc), reason="AUDIT_READ_FAILED") from exc
     outcome = "unknown"
     explicit_merged: bool | None = None
     if isinstance(tool_response, dict):

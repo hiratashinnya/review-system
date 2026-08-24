@@ -35,23 +35,26 @@ def _reason(evidence: dict[str, Any]) -> str:
 
 
 def _hook_context(payload: dict[str, Any], event: str) -> tuple[str, str]:
+    """interceptされたtool呼び出しのidentityを `(session_id, tool_use_id)` から導く。
+
+    `turn_id` は鍵に含めない（Issue #414）。tool_use_id はsession内で1回のtool呼び出しに
+    一意なので turn_id は識別力を足さない一方、**PreToolUse と PostToolUse で存在有無が
+    揃う保証がない任意フィールド**である。鍵に混ぜると、同じtool呼び出しなのに pre と post で
+    別の invocation_id が導出され、`append_completion` が permit を見つけられず
+    `POST_AUDIT_INTEGRITY_ERROR/PERMIT_MISSING` になる（実測：Claude Code は PreToolUse で
+    `turn_id` を送らない＝audit.jsonl の invocation_id は `uuid5(session_id\\0\\0tool_use_id)`
+    と完全一致した）。
+    """
     if payload.get("hook_event_name") != event:
         raise ValueError("hook_event_name")
     session_id = payload.get("session_id")
-    turn_id = payload.get("turn_id")
     tool_use_id = payload.get("tool_use_id")
     if not (
         isinstance(session_id, str) and session_id
         and isinstance(tool_use_id, str) and tool_use_id
-        and (turn_id is None or isinstance(turn_id, str) and turn_id)
     ):
         raise ValueError("hook invocation identity")
-    invocation_id = str(
-        uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            "\0".join((session_id, turn_id if isinstance(turn_id, str) else "", tool_use_id)),
-        )
-    )
+    invocation_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "\0".join((session_id, tool_use_id))))
     return invocation_id, tool_use_id
 
 
@@ -143,7 +146,9 @@ def post_run(
         if classification is None:
             return 0
         if classification.kind != "merge" or classification.operation is None:
-            raise AuditError("blocked operation reached PostToolUse")
+            raise AuditError(
+                "blocked operation reached PostToolUse", reason="RECLASSIFIED_NOT_MERGE"
+            )
         invocation_id, hook_event_id = _hook_context(payload, "PostToolUse")
         tool_name = payload.get("tool_name")
         if not isinstance(tool_name, str) or "tool_response" not in payload:
@@ -160,7 +165,12 @@ def post_run(
         )
         return 0
     except (AuditError, json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
-        reason = "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + type(exc).__name__
+        # 例外クラス名ではなくredaction安全な固定語彙のreason codeを出す（Issue #414）。
+        # `AuditError` は構造的に別物の複数経路（permit相関崩れ・再分類のずれ・hook asset
+        # 読み取り不能・audit fileのmode不正・書込失敗）から送出されるため、クラス名だけでは
+        # 原因を切り分けられず、報告を受けても再現なしには特定できなかった。
+        code = exc.reason if isinstance(exc, AuditError) else "PAYLOAD_INVALID"
+        reason = "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + code
         json.dump({"decision": "block", "reason": reason}, stdout, ensure_ascii=False)
         stdout.write("\n")
         stderr.write(reason + "\n")

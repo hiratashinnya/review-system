@@ -199,6 +199,60 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(completion["merge_api_call_evidence"], "NOT_PROVEN")
             self.assertEqual(completion["response_outcome"], outcome)
 
+    def test_completion_scan_skips_corrupt_lines_without_losing_the_permit(self):
+        """壊れた1行でpost-use auditが恒久停止しない（Issue #414）。
+
+        append-onlyの共有ログには別プロセスのinterleaved writeで壊れた行が混じり得る。
+        読み飛ばしはpermitを「見つけられない」方向にしか働かないため、permitなしで
+        completionを発行する経路は増えない（fail-closeは維持）。
+        """
+        allowed = evidence()
+        allowed["result"] = "ALLOW"
+        allowed["permit_issued"] = True
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            append_decision(allowed, path=target)
+            with target.open("a", encoding="utf-8") as handle:
+                handle.write('{"record_type": "pre_use_dec\n')
+            append_completion(
+                invocation_id="invocation-1", hook_event_id="tool-1",
+                operation_fingerprint="sha256:" + "1" * 64,
+                classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                tool_name="github_merge_pull_request", tool_response={"merged": True},
+                path=target,
+            )
+            lines = target.read_text(encoding="utf-8").splitlines()
+            completions = [
+                json.loads(line) for line in lines if '"post_use_completion"' in line
+            ]
+
+            self.assertEqual(len(lines), 3)
+            self.assertEqual(len(completions), 1)
+            self.assertTrue(completions[0]["operation_dispatched"])
+
+    def test_audit_errors_carry_a_redaction_safe_reason_code(self):
+        """AuditErrorの経路をreason codeで識別できる（Issue #414）。"""
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            with self.assertRaises(AuditError) as missing:
+                append_completion(
+                    invocation_id="invocation-1", hook_event_id="tool-1",
+                    operation_fingerprint="sha256:" + "1" * 64,
+                    classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                    tool_name="github_merge_pull_request", tool_response={}, path=target,
+                )
+            self.assertEqual(missing.exception.reason, "PERMIT_MISSING")
+
+            target.write_text("", encoding="utf-8")
+            os.chmod(target, 0o644)
+            with self.assertRaises(AuditError) as unsafe:
+                append_decision(evidence(), path=target)
+            self.assertEqual(unsafe.exception.reason, "AUDIT_FILE_UNSAFE")
+
+        with self.assertRaises(AuditError) as relative:
+            audit_path({"XDG_STATE_HOME": "relative"})
+        self.assertEqual(relative.exception.reason, "AUDIT_PATH_INVALID")
+
     def test_append_rejects_preexisting_file_with_unsafe_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "audit.jsonl"
