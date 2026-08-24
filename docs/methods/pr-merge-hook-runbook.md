@@ -16,7 +16,7 @@ Claude でも project hook 設定を有効化し、表示された project hook 
 4. 新規sessionが使用したaudit JSONLの各最新 `pre_use_decision` がfixtureの`expected_audit`またはprobe固有`expected_audit`と一致することを確認する。必須値は`pr-merge-audit/4`、classifier `1.13`、現在sessionのasset hash、実際のhook event ID、期待reason、`permit_issued=false`、`operation_dispatched=false`、`merge_api_called=false`であり、同invocationの`post_use_completion`は0件である。
 5. 実mergeは通常のレビュー・承認後だけ行う。`ALLOW` のpre recordと同じ `invocation_id` / `operation_fingerprint`を持つ `post_use_completion` が一件あり、`operation_dispatched=true` とredacted `response_fingerprint`が記録されることを確認する。`merge_api_called=true` はconnectorの明示的な `merged=true` responseでAPI到達を証明できた場合だけである。CLI/RESTの終了コード、connector失敗、未知responseでは `null`（`NOT_PROVEN`）が正しく、Postへ到達した事実だけからAPI呼出し済みと解釈しない。
 
-probeの結果、hook failure、audit書込み失敗、Pre/Post相関欠落、未知alias/wrapper、新しいmerge connectorのいずれかを検出した環境はfail-close扱いとし、managed mergeを実行しない。
+probeの結果、hook failure、audit書込み失敗、Pre/Post相関欠落、未知alias/wrapper、新しいmerge connectorのいずれかを検出した環境はfail-close扱いとし、managed mergeを実行しない。Pre/Post相関欠落は `POST_AUDIT_INTEGRITY_ERROR/<code>` として報告される。`<code>` の語彙と切り分けは `docs/tools/pr-merge-gate.md`「PostToolUse失敗のreason code」を参照する（Issue #414 以前は例外クラス名だけを出していたため、`PERMIT_MISSING`・`RECLASSIFIED_NOT_MERGE`・`AUDIT_FILE_UNSAFE` 等が同じ文字列に潰れて切り分けられなかった）。
 
 このactual-fire確認は静的fixture testやhook関数の直接呼出しでは代替できない。検証対象hashを読み込んだ製品新規sessionが、製品tool dispatchの直前にhookを実際に発火させたauditだけをAC13証跡として採用する。
 
