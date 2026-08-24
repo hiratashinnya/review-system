@@ -30,15 +30,28 @@ REPO = "hiratashinnya/review-system"
 class FakeGit:
     """`subprocess.run` 互換のスタブ。argv を記録し、応答を差し替えられる。"""
 
-    def __init__(self, responses=None):
+    def __init__(self, responses=None, timeout_keys=None):
         self.calls = []
+        self.call_kwargs = []
         self.responses = responses or {}
+        # ``timeout_keys`` に挙げた verb（例: "fetch"）が呼ばれたら
+        # ``subprocess.TimeoutExpired`` を送出する（Issue #426・F-426-05）。
+        self.timeout_keys = set(timeout_keys or ())
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
+        self.call_kwargs.append(kwargs)
         key = self._key(argv)
+        if key in self.timeout_keys:
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout", 30))
         rc, out, err = self.responses.get(key, (0, "", ""))
         return subprocess.CompletedProcess(list(argv), rc, out, err)
+
+    def kwargs_for(self, verb):
+        for argv, kwargs in zip(self.calls, self.call_kwargs):
+            if self._key(argv) == verb:
+                return kwargs
+        return None
 
     @staticmethod
     def _key(argv):
@@ -208,6 +221,29 @@ class AdoptBranchGitInteractionTests(unittest.TestCase):
             return git(argv, **kwargs)
 
         adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=checking_runner)
+
+    def test_fetch_call_is_bounded_and_non_interactive(self):
+        # stage 1 の fetch にだけ timeout と GIT_TERMINAL_PROMPT=0 が渡ること（純ローカル操作
+        # には渡さない・Issue #426・F-426-05）。
+        git = FakeGit(default_responses())
+        adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        fetch_kwargs = git.kwargs_for("fetch")
+        self.assertIsNotNone(fetch_kwargs)
+        self.assertGreater(fetch_kwargs.get("timeout"), 0)
+        self.assertEqual(fetch_kwargs.get("env", {}).get("GIT_TERMINAL_PROMPT"), "0")
+        switch_kwargs = git.kwargs_for("switch")
+        self.assertNotIn("timeout", switch_kwargs)
+        self.assertNotIn("env", switch_kwargs)
+
+    def test_fetch_timeout_fails_close(self):
+        # F-426-05: 到達不能/認証待ちの origin で stage 1 の fetch がハングしうる欠陥を、
+        # 有限時間の `subprocess.TimeoutExpired` で切り上げる。他の fetch 失敗と同じ
+        # fail-close（BRANCH_GIT_ERROR）として扱い、switch には到達しない。
+        git = FakeGit(default_responses(), timeout_keys={"fetch"})
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_GIT_ERROR")
+        self.assertNotIn("switch", git.verbs)
 
     def test_remote_oid_mismatch_fails_close_before_switch(self):
         git = FakeGit(default_responses(remote_oid=OTHER_OID))

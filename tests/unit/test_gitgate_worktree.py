@@ -68,22 +68,28 @@ class FakeGit:
         fail_branch_delete=False,
         fail_fetch=False,
         fail_ancestor_check=False,
+        timeout_fetch=False,
     ):
         self.root = Path(root)
         self.linked = list(linked)
         self.calls = []
+        self.call_kwargs = []
         self.fail_branch_delete = fail_branch_delete
         self.fail_fetch = fail_fetch
         self.fail_ancestor_check = fail_ancestor_check
+        self.timeout_fetch = timeout_fetch
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
+        self.call_kwargs.append(kwargs)
         if argv[:3] == ["git", "worktree", "list"]:
             return subprocess.CompletedProcess(argv, 0, self._porcelain(), "")
         if argv[:3] == ["git", "worktree", "remove"]:
             shutil.rmtree(argv[-1], ignore_errors=True)
             return subprocess.CompletedProcess(argv, 0, "", "")
         if argv[:2] == ["git", "fetch"]:
+            if self.timeout_fetch:
+                raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout", 30))
             if self.fail_fetch:
                 return subprocess.CompletedProcess(
                     argv, 1, "", "fatal: unable to access origin\n"
@@ -117,6 +123,14 @@ class FakeGit:
     @property
     def branch_deletes(self):
         return [argv for argv in self.calls if argv[:3] == ["git", "branch", "-D"]]
+
+    @property
+    def fetch_kwargs(self):
+        """``git fetch`` 呼び出しに実際に渡された kwargs（timeout/env の検査用）。"""
+        for argv, kwargs in zip(self.calls, self.call_kwargs):
+            if argv[:2] == ["git", "fetch"]:
+                return kwargs
+        return None
 
 
 class ForbiddenGit:
@@ -866,6 +880,49 @@ class WorktreeReleaseBranchRefCleanupTests(LedgerFixture):
             ),
             notes,
         )
+
+    def test_fetch_timeout_skips_deletion_but_does_not_fail_the_release(self):
+        # F-426-05: 到達不能/認証待ちの origin で fetch がハングしうる欠陥を、有限時間の
+        # `subprocess.TimeoutExpired` で切り上げる。worktree_release() 自体は成功したまま、
+        # 削除をスキップして理由を notes に残す（フェイルオープン契約は変えない）。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], timeout_fetch=True)
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed)
+        self.assertEqual(outcome.status, "released")
+        self.assertEqual(git.branch_deletes, [], "fetch がタイムアウトしたら git branch -D は呼ばない")
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any(
+                note.startswith(
+                    "worktree-release: ローカルブランチ ref claude/issue-354-pr2 の削除をスキップした"
+                )
+                and "タイムアウト" in note
+                for note in notes
+            ),
+            notes,
+        )
+
+    def test_fetch_call_is_bounded_and_non_interactive(self):
+        # fetch 呼び出しにだけ timeout と GIT_TERMINAL_PROMPT=0 が渡ること（純ローカル操作の
+        # 呼び出しには渡さない・Issue #426・F-426-05）。
+        self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        fetch_kwargs = git.fetch_kwargs
+        self.assertIsNotNone(fetch_kwargs)
+        self.assertGreater(fetch_kwargs.get("timeout"), 0)
+        self.assertEqual(fetch_kwargs.get("env", {}).get("GIT_TERMINAL_PROMPT"), "0")
+        # 純ローカル操作（`worktree remove` 等）には timeout/env を渡さない。
+        remove_kwargs = next(
+            kwargs
+            for argv, kwargs in zip(git.calls, git.call_kwargs)
+            if argv[:3] == ["git", "worktree", "remove"]
+        )
+        self.assertNotIn("timeout", remove_kwargs)
+        self.assertNotIn("env", remove_kwargs)
 
 
 # ---------------------------------------------------------------------------

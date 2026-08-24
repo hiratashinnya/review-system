@@ -70,6 +70,7 @@ reason code:
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -86,6 +87,11 @@ from branch_source.policy import (
 )
 
 ADOPT_POLICY_VERSION = "branch-adopt/1.0"
+
+# stage 1 の `git fetch` 用タイムアウト（秒）。到達不能/認証待ちで無期限にハングしないよう、
+# CI/自動化文脈での妥当な既定値として 30 秒を採る（Issue #426・F-426-05。worktree.py 側の
+# `_cleanup_branch_ref` と同じ既定値・同じ根拠）。
+FETCH_TIMEOUT_SECONDS = 30
 
 # adopt は「その worktree が掴む commit」を一意に固定するのが目的なので、abbrev も 64hex も
 # 受け付けない（40hex の full OID ちょうど）。
@@ -162,8 +168,34 @@ def _run_git(
     *,
     cwd: Path,
     runner: Callable[..., subprocess.CompletedProcess],
+    timeout: float | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    return runner(list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False)
+    """``timeout``/``env`` は明示的に渡されたときだけ ``runner`` へ転送する。
+
+    ネットワーク I/O が起こりうる呼び出し（stage 1 の ``git fetch``）だけがこの2つを渡し、
+    それ以外の純ローカル操作（``rev-parse``/``switch``/``branch`` 等）は従来どおり渡さない
+    （Issue #426・F-426-05——ハングしうるのは fetch だけなので、対象を広げない）。
+    """
+    kwargs: dict = {}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if env is not None:
+        kwargs["env"] = env
+    return runner(
+        list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False, **kwargs
+    )
+
+
+def _fetch_env() -> dict:
+    """``git fetch`` を非対話化する env（stdin 経由の認証プロンプト待ちでハングしないため）。
+
+    ``worktree.py::_fetch_env`` と同じ考え方——``os.environ`` を丸ごと引き継いだ上で
+    ``GIT_TERMINAL_PROMPT=0`` だけを上書きする（他の env を握り潰さない）。
+    """
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
 
 
 def _require_ok(
@@ -244,11 +276,21 @@ def adopt_branch(
     workdir = Path.cwd() if cwd is None else cwd
 
     # 1. fresh fetch（判定材料をローカルの古い ref に依存させない）。
-    _require_ok(
-        _run_git(["git", "fetch", "--prune", "origin"], cwd=workdir, runner=runner),
-        "BRANCH_GIT_ERROR",
-        "fetch",
-    )
+    # timeout/env は Issue #426・F-426-05 の是正——到達不能/認証待ちの origin で無期限に
+    # ハングせず、他の fetch 失敗と同じ fail-close（BRANCH_GIT_ERROR）で有限時間に落ちる。
+    try:
+        fetch_completed = _run_git(
+            ["git", "fetch", "--prune", "origin"],
+            cwd=workdir,
+            runner=runner,
+            timeout=FETCH_TIMEOUT_SECONDS,
+            env=_fetch_env(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise BranchSourceError(
+            "BRANCH_GIT_ERROR", f"fetch timed out after {FETCH_TIMEOUT_SECONDS}s"
+        ) from exc
+    _require_ok(fetch_completed, "BRANCH_GIT_ERROR", "fetch")
 
     # 2. remote 先端 == 期待 OID。
     remote_ref = f"refs/remotes/origin/{request.branch_name}"

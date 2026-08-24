@@ -78,7 +78,7 @@ import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 
 from issue_start.worktree_ledger import (
     ENTRY_ID_RE,
@@ -89,6 +89,10 @@ from issue_start.worktree_ledger import (
     mark,
     read_ledger,
 )
+
+# `git fetch` 用のタイムアウト（秒）。到達不能/認証待ちで無期限にハングしないよう、CI/自動化
+# 文脈での妥当な既定値として 30 秒を採る（Issue #426・F-426-05）。
+FETCH_TIMEOUT_SECONDS = 30
 
 # 回収する handoff の上限。想定は数 KB の YAML であり、これを超えるものは「handoff ではない何か」
 # （ログの取り違え・生成物の混入）なので回収せず止める。
@@ -410,8 +414,35 @@ def _run_git(
     *,
     cwd,
     runner: Callable[..., subprocess.CompletedProcess],
+    timeout: float | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    return runner(list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False)
+    """``timeout``/``env`` は明示的に渡されたときだけ ``runner`` へ転送する。
+
+    ネットワーク I/O が起こりうる呼び出し（``git fetch``）だけがこの2つを渡し、それ以外の
+    純ローカル操作（``worktree list``/``worktree remove``/``branch -D`` 等）は従来どおり
+    渡さない（Issue #426・F-426-05——ハングしうるのは fetch だけなので、対象を広げない）。
+    """
+    kwargs: dict = {}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if env is not None:
+        kwargs["env"] = env
+    return runner(
+        list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False, **kwargs
+    )
+
+
+def _fetch_env() -> dict:
+    """``git fetch`` を非対話化する env（stdin 経由の認証プロンプト待ちでハングしないため）。
+
+    ``os.environ`` をコピーした上で ``GIT_TERMINAL_PROMPT=0`` を上書きする——他の環境変数
+    （``PATH``/``GIT_SSH`` 等）を握り潰すと fetch 自体が動かなくなる呼び出し環境がありうるため、
+    既存 env を丸ごと引き継いだ上でこの1変数だけを足す。
+    """
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
 
 
 def linked_worktree_paths(repo_root, *, runner: Callable[..., subprocess.CompletedProcess]) -> list:
@@ -495,6 +526,11 @@ def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subproce
     ない・判定不能（fetch/merge-base 自体の失敗・origin 側 ref が無い等）の場合は削除せずに
     スキップし、理由を ``_note()`` に残す。
 
+    fetch の呼び出しには ``timeout=FETCH_TIMEOUT_SECONDS`` と ``GIT_TERMINAL_PROMPT=0`` を
+    渡す（Issue #426・F-426-05）。到達不能な origin や認証プロンプト待ちで
+    ``worktree_release()`` 全体が無期限にハングすることを防ぐ——タイムアウトも他の fetch 失敗と
+    同様にスキップ＋ ``_note()`` 記録として扱い、フェイルオープン契約は変えない。
+
     このブランチが他の worktree に checked out されている場合の安全網は ``git branch -D``
     自身の拒否に委ねる（``git worktree remove`` の成功が保証するのは「この worktree がもう
     branch_name を掴んでいない」ことだけで、別の linked worktree の不在までは含意しない）。
@@ -525,8 +561,17 @@ def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subproce
 
     try:
         fetch_result = _run_git(
-            ["git", "fetch", "--prune", "origin"], cwd=repo_root, runner=runner
+            ["git", "fetch", "--prune", "origin"],
+            cwd=repo_root,
+            runner=runner,
+            timeout=FETCH_TIMEOUT_SECONDS,
+            env=_fetch_env(),
         )
+    except subprocess.TimeoutExpired:
+        # フェイルオープン: 到達不能/認証待ちの origin で無期限にハングしない
+        # （Issue #426・F-426-05）。worktree_release() 自体は失敗させず、理由だけ記録する。
+        _skip(f"origin の fetch がタイムアウトした（{FETCH_TIMEOUT_SECONDS}秒）")
+        return
     except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
         _skip(f"origin の fetch に失敗: {str(exc)[:200]}")
         return
