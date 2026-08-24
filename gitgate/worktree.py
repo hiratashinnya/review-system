@@ -8,6 +8,15 @@
     （停止済みだが未回収）は ``--force-*`` でも上書きできない。
     **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
     いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
+    **worktree 実体の削除に成功した後は、台帳の ``branch_name`` に対応するローカルブランチ
+    ref も削除する**（``git branch -D``・Issue #426）。放置すると、その ref が
+    ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に引っかかり、次の
+    ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。この ref 削除は
+    **フェイルオープン**——失敗しても worktree 実体の削除という主契約は成立済みなので
+    ``worktree_release()`` 全体を失敗させない。成否は必ず ``_note()`` で台帳に記録する
+    （:func:`_cleanup_branch_ref`）。``adopt_branch()`` 側にも独立の防御（stage 4 の
+    無害な残留 ref の自動回収）を持たせてある——ここでの削除が漏れても adopt 側で救済できる
+    （defense-in-depth・詳細は ``gitgate/adopt.py`` のモジュール docstring）。
 
 ``collect-worktree``
     **回収 → 検証 → 解放を1操作に畳む**（候補D・FR-W2）。段構造で、前段が失敗したら後段を
@@ -470,6 +479,38 @@ def _note(repo_root, entry_id: str, *, now, note: str) -> None:
         raise WorktreeError(exc.reason, exc.detail) from exc
 
 
+def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subprocess.CompletedProcess]) -> None:
+    """worktree 実体の削除**後**に、台帳の ``branch_name`` に対応するローカル ref を消す
+    （Issue #426）。
+
+    ``git worktree remove`` は既にこの呼び出しより前に成功しているため（呼び出し側の前提）、
+    このブランチが他の worktree に checked out されている可能性は無い——cross-check なしで
+    ``git branch -D`` を実行してよい（``adopt_branch`` 側の防御は別途持つが、ここでは不要）。
+
+    **フェイルオープン**：削除の成否に関わらず ``worktree_release()`` 全体は失敗させない
+    （worktree 実体の削除が本義務で、ローカル ref の削除は副次的な後始末）。ただし成否と理由は
+    必ず ``_note()`` で台帳に残す——黙って握り潰さない。
+    """
+    if entry is None:
+        return
+    branch_name = entry.get("branch_name")
+    entry_id = entry.get("entry_id")
+    if not branch_name or entry_id is None:
+        return
+    try:
+        result = _run_git(["git", "branch", "-D", branch_name], cwd=repo_root, runner=runner)
+        ok = result.returncode == 0
+        detail = "" if ok else (result.stderr or "").strip()[:200]
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        ok = False
+        detail = str(exc)[:200]
+    if ok:
+        note = f"worktree-release: ローカルブランチ ref {branch_name} を削除した"
+    else:
+        note = f"worktree-release: ローカルブランチ ref {branch_name} の削除に失敗した（{detail}）"
+    _note(repo_root, entry_id, now=now, note=note)
+
+
 def _reason_note(verb: str, reason: str, *, flag: str = "") -> str:
     """受理した ``--reason`` を notes 用の1行に整形する（空 reason なら空文字）。
 
@@ -594,6 +635,7 @@ def worktree_release(
                     now=now,
                     note=f"worktree-release: 終端状態（{status}）の残留実体を削除した",
                 )
+                _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
             _note(repo_root, resolved_entry_id, now=now, note=note)
         return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status=status)
 
@@ -627,6 +669,8 @@ def worktree_release(
     removed = _remove_worktree_dir(repo_root, relative, runner=runner)
     if resolved_entry_id is not None:
         _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
+        if removed:
+            _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
     return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status="released")
 
 

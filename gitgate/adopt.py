@@ -29,6 +29,27 @@ fail-close
 （``git switch`` に到達するのは全段を通過したときだけ）。API へ到達できない場合も
 ``API_UNREACHABLE`` で fail-close する（「確認できなかった」を「問題なし」に潰さない）。
 
+stage 4（ローカル同名ブランチの検査）の defense-in-depth（Issue #426）
+------------------------------------------------------------------
+``gitgate/worktree.py`` の ``worktree_release()`` は解放時に対応するローカルブランチ ref を
+削除するが（``_cleanup_branch_ref``）、その削除はフェイルオープンであり、また
+``worktree_release()`` を経由しない経路（旧版の実体・手動操作等）で残った stray ref も
+ありうる。そのため stage 4 は「ローカル同名 ref があれば即 ``BRANCH_ADOPT_LOCAL_EXISTS``」
+ではなく、まず**無害な残留 ref か本当の衝突かを判定**する：
+
+1. ローカル ref の tip が ``refs/remotes/origin/<branch>`` の tip（stage 2 で検証済みの
+   ``observed`` を再利用・再取得しない）と一致するか。
+2. ``git worktree list --porcelain`` を見て、そのブランチが**いずれかの worktree**（main を
+   含む・安全側）に checked out されていないか。
+
+**両方を満たすときだけ**「無害な残留 ref」と判定し、``git branch -D`` で削除してから段5へ
+進む（先行 worktree が既に消えている前提が壊れていないことを、削除の直前に確認している）。
+**どちらか一方でも満たさなければ**（tip が食い違う＝別コミットを指すローカル作業／
+``git worktree list`` が到達不能や異常終了＝判定不能／他 worktree が checked out 済み）
+**既存どおり ``BRANCH_ADOPT_LOCAL_EXISTS`` で fail-close する**——未知のローカル作業を
+黙って破棄しない。判定不能は「無害」ではなく「衝突」側に倒す（fail-close の一貫性）。
+reclaim の ``git branch -D`` 自体が失敗した場合も同じ理由で fail-close する。
+
 reason code:
   * ``BRANCH_ARGUMENT_INVALID`` / ``BRANCH_NAME_INVALID`` / ``BRANCH_REPOSITORY_INVALID``
   * ``BRANCH_ADOPT_OID_INVALID`` / ``BRANCH_ADOPT_PR_INVALID``（引数スキーマ）
@@ -164,6 +185,28 @@ def _string_at(raw: Mapping[str, Any], *path: str) -> str:
     return value
 
 
+def _branch_checked_out_elsewhere(
+    branch_name: str, *, cwd: Path, runner: Callable[..., subprocess.CompletedProcess]
+) -> bool:
+    """``git worktree list --porcelain`` を見て、``branch_name`` がいずれかの worktree の
+    HEAD として checked out されているかを判定する（main worktree も含める＝安全側）。
+
+    到達不能・異常終了は「わからない」を「安全（checked out されていない）」に潰さず、
+    checked out 済み扱い（``True``）にする——fail-close。stray ref の自動回収は「明確に
+    無害と確認できたときだけ」行う契約なので、判定不能を無害側に倒さない。
+    """
+    completed = _run_git(
+        ["git", "worktree", "list", "--porcelain"], cwd=cwd, runner=runner
+    )
+    if completed.returncode != 0:
+        return True
+    target = f"branch refs/heads/{branch_name}"
+    for line in (completed.stdout or "").splitlines():
+        if line.strip() == target:
+            return True
+    return False
+
+
 def _verify_pull_request(
     request: AdoptBranchRequest, *, api: BranchApi
 ) -> None:
@@ -231,8 +274,10 @@ def adopt_branch(
         client = api or GitHubBranchClient(resolve_github_token())
         _verify_pull_request(request, api=client)
 
-    # 4. ローカル同名ブランチの不在。isolated worktree は毎回まっさらなので、
-    #    存在する＝想定外の状態（前回の残骸 or 別 dispatch の混線）＝止める。
+    # 4. ローカル同名ブランチの検査。isolated worktree は毎回まっさらなので、存在する＝
+    #    想定外の状態（前回の残骸 or 別 dispatch の混線）。ただし「無害な残留 ref」
+    #    （``worktree_release()`` のブランチ削除がフェイルオープンで漏れた等）と
+    #    「本当の衝突」を区別する（defense-in-depth・Issue #426・モジュール docstring参照）。
     local_ref = f"refs/heads/{request.branch_name}"
     local = _run_git(
         ["git", "rev-parse", "--verify", "--quiet", local_ref],
@@ -240,7 +285,19 @@ def adopt_branch(
         runner=runner,
     )
     if local.returncode == 0:
-        raise BranchSourceError("BRANCH_ADOPT_LOCAL_EXISTS", request.branch_name)
+        local_tip = (local.stdout or "").strip().lower()
+        # tip 一致（追加の git 呼び出し不要・段2 で確認済みの `observed` を再利用）を
+        # 先に見る——不一致ならこの時点で衝突確定であり、worktree list を呼ぶ意味が無い。
+        reclaimable = local_tip == observed and not _branch_checked_out_elsewhere(
+            request.branch_name, cwd=workdir, runner=runner
+        )
+        if not reclaimable:
+            raise BranchSourceError("BRANCH_ADOPT_LOCAL_EXISTS", request.branch_name)
+        deleted = _run_git(
+            ["git", "branch", "-D", request.branch_name], cwd=workdir, runner=runner
+        )
+        if deleted.returncode != 0:
+            raise BranchSourceError("BRANCH_ADOPT_LOCAL_EXISTS", request.branch_name)
 
     # 5. checkout（検証済み exact OID を明示。current HEAD を暗黙継承しない）。
     switched = _run_git(

@@ -58,10 +58,11 @@ class FakeGit:
     git の副作用を模す。呼び出し履歴は ``calls`` に残る。
     """
 
-    def __init__(self, root, linked=()):
+    def __init__(self, root, linked=(), fail_branch_delete=False):
         self.root = Path(root)
         self.linked = list(linked)
         self.calls = []
+        self.fail_branch_delete = fail_branch_delete
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
@@ -69,6 +70,12 @@ class FakeGit:
             return subprocess.CompletedProcess(argv, 0, self._porcelain(), "")
         if argv[:3] == ["git", "worktree", "remove"]:
             shutil.rmtree(argv[-1], ignore_errors=True)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        if argv[:3] == ["git", "branch", "-D"]:
+            if self.fail_branch_delete:
+                return subprocess.CompletedProcess(
+                    argv, 1, "", "error: branch not found\n"
+                )
             return subprocess.CompletedProcess(argv, 0, "", "")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
@@ -84,6 +91,10 @@ class FakeGit:
     @property
     def removals(self):
         return [argv for argv in self.calls if argv[:3] == ["git", "worktree", "remove"]]
+
+    @property
+    def branch_deletes(self):
+        return [argv for argv in self.calls if argv[:3] == ["git", "branch", "-D"]]
 
 
 class ForbiddenGit:
@@ -691,6 +702,110 @@ class WorktreeReleaseIdempotencyTests(LedgerFixture):
         self.assertEqual(git.removals, [])
         self.assertTrue((self.root / WT_REL).is_dir())
         self.assertEqual(self.status_of(entry_id), "abandoned")
+
+
+# ---------------------------------------------------------------------------
+# worktree-release: ローカルブランチ ref の後始末（Issue #426）
+# ---------------------------------------------------------------------------
+
+
+class WorktreeReleaseBranchRefCleanupTests(LedgerFixture):
+    """worktree 実体の削除に成功した後、台帳の ``branch_name`` に対応するローカル ref も
+    削除する（``_cleanup_branch_ref``）。放置すると、次の ``issue-fixer`` の
+    ``gitgate adopt-branch`` が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する（本 Issue の core）。
+    """
+
+    def test_release_deletes_the_local_branch_ref_and_records_success(self):
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed)
+        self.assertEqual(
+            git.branch_deletes, [["git", "branch", "-D", "claude/issue-354-pr2"]]
+        )
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertIn(
+            "worktree-release: ローカルブランチ ref claude/issue-354-pr2 を削除した", notes
+        )
+
+    def test_terminal_state_residual_cleanup_also_deletes_the_branch_ref(self):
+        # F-354-02 の残留実体削除経路（`released`/`abandoned` で実体だけ残っている場合）でも
+        # 同じくブランチ ref を削除する。
+        entry_id = self.entry_with_status("stale")
+        self.make_worktree()
+        worktree_forget(self.root, entry_id, reason="回収不能", now=FIXED_NOW)
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(
+            self.root, WT_REL, reason="forget 後の残留を掃除", now=FIXED_NOW, runner=git
+        )
+        self.assertTrue(outcome.removed)
+        self.assertEqual(
+            git.branch_deletes, [["git", "branch", "-D", "claude/issue-354-pr2"]]
+        )
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertIn(
+            "worktree-release: ローカルブランチ ref claude/issue-354-pr2 を削除した", notes
+        )
+
+    def test_branch_ref_deletion_failure_does_not_fail_the_release_but_is_recorded(self):
+        # A: git branch -D の失敗は worktree_release() 全体をフェイルさせない
+        #    （フェイルオープン）——ただし成否は必ず notes に残す。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], fail_branch_delete=True)
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed)
+        self.assertEqual(outcome.status, "released")
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any(
+                note.startswith(
+                    "worktree-release: ローカルブランチ ref claude/issue-354-pr2 の削除に失敗した"
+                )
+                for note in notes
+            ),
+            notes,
+        )
+
+    def test_no_branch_name_on_the_entry_skips_cleanup_without_error(self):
+        # `branch_name` が無い（旧エントリ／`round`/`handoff` 拡張前等）場合は単に何もしない。
+        entry_id = worktree_ledger.open_entry(
+            self.root,
+            issue=354,
+            agent_type="issue-implementer",
+            round=None,
+            branch_name=None,
+            handoff_path=HANDOFF_REL,
+            now=FIXED_NOW,
+        )
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id=AGENT_ID, worktree_path=WT_REL
+        )
+        for step in ("stopped", "collected"):
+            worktree_ledger.mark(self.root, entry_id, step, now=FIXED_NOW)
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed)
+        self.assertEqual(git.branch_deletes, [])
+
+    def test_crossover_stray_ref_left_behind_no_longer_blocks_a_later_adopt(self):
+        # クロスオーバー回帰（Issue #426）: worktree X を保持していたエントリを解放したら、
+        # その worktree が保持していたブランチのローカル ref も一緒に消える。これにより
+        # 別の adopt_branch() 呼び出し（別 worktree・同じブランチ名）が
+        # `BRANCH_ADOPT_LOCAL_EXISTS` を引かなくなる（gitgate.adopt 側の検証は
+        # tests/unit/test_gitgate_adopt.py が担当。ここでは A 側の削除実行を固定する）。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        # 削除対象が「そのエントリが束縛していたブランチ名」ちょうどであること
+        # （adopt-branch が同名で衝突検査するのはこのブランチ）。
+        deleted_branches = {argv[3] for argv in git.branch_deletes}
+        self.assertEqual(deleted_branches, {"claude/issue-354-pr2"})
 
 
 # ---------------------------------------------------------------------------
