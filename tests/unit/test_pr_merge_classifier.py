@@ -510,8 +510,13 @@ class PreUseClassifierTests(unittest.TestCase):
         入れた副作用として、除去後に実行語が空になるleaf（`> file` 単体・`exec > file`）が
         素通り（`None`）になった。安全性は検証済みだが固定回帰テストが無かった
         （F-428-2・Issue #430）。単体のredirect-only/exec-only leafは意図どおり素通りし、
-        同じ空leafがcompound構造の一部としてmerge操作と同居する場合は
-        `_split_shell_commands` がNoneを返しfail-closeのまま（CLASSIFIER_UNKNOWN）。"""
+        同じ空leafがcompound構造の一部としてmerge操作と同居する場合は引き続き
+        fail-close（CLASSIFIER_UNKNOWN）だが、その発火機構は2ケースで異なる（F-430-01）：
+        `> file; gh pr merge 1 --squash` は redirection strip 後に先頭leafが空文字になり
+        `_split_shell_commands` 自身がNoneを返す一方、`exec > file; gh pr merge 1 --squash`
+        は先頭leafが非空（`"exec"`）で残るため `_split_shell_commands` は
+        `["exec", "gh pr merge 1 --squash"]` を返し、`classify_pre_use` のcompound leaf
+        分類ループがmerge leafを検出してCLASSIFIER_UNKNOWNにする。"""
         for command in ("> file", "exec > file", ">> file", "exec >> file"):
             with self.subTest(command=command):
                 self.assertIsNone(classify_pre_use(bash(command)))
