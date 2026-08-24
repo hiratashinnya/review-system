@@ -8,6 +8,21 @@
     （停止済みだが未回収）は ``--force-*`` でも上書きできない。
     **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
     いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
+    **worktree 実体の削除に成功した後は、台帳の ``branch_name`` に対応するローカルブランチ
+    ref の削除を試みる**（``git branch -D``・Issue #426。F-426-01 で安全化）。放置すると、
+    その ref が ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に
+    引っかかり、次の ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。
+    ただし ``git branch -D`` は force delete でありローカルにしか無いコミットを reflog ごと
+    黙って破棄しうるため、削除の前に fresh fetch した ``refs/remotes/origin/<branch>`` に
+    対してローカル ref の tip が祖先であることを確認し、確認できない場合は削除せずスキップ
+    する（:func:`_cleanup_branch_ref`）。この判定は**フェイルオープン**——削除・スキップの
+    どちらの結果でも worktree 実体の削除という主契約は成立済みなので ``worktree_release()``
+    全体を失敗させない。成否・スキップ理由は必ず ``_note()`` で台帳に記録する。他 worktree
+    が checked out 中のブランチを誤って消さない安全網は ``git branch -D`` 自身の拒否に委ねる
+    （``git worktree remove`` の成功が保証するのは「この worktree がもう branch_name を
+    掴んでいない」ことだけで、別の worktree の不在までは含意しない）。削除されずに stray ref
+    が残った場合の安全網は ``adopt_branch()`` 側の tip 一致検査（``BRANCH_ADOPT_LOCAL_EXISTS``
+    への fail-close、無害なら reclaim。詳細は ``gitgate/adopt.py`` のモジュール docstring）。
 
 ``collect-worktree``
     **回収 → 検証 → 解放を1操作に畳む**（候補D・FR-W2）。段構造で、前段が失敗したら後段を
@@ -63,7 +78,7 @@ import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 
 from issue_start.worktree_ledger import (
     ENTRY_ID_RE,
@@ -74,6 +89,10 @@ from issue_start.worktree_ledger import (
     mark,
     read_ledger,
 )
+
+# `git fetch` 用のタイムアウト（秒）。到達不能/認証待ちで無期限にハングしないよう、CI/自動化
+# 文脈での妥当な既定値として 30 秒を採る（Issue #426・F-426-05）。
+FETCH_TIMEOUT_SECONDS = 30
 
 # 回収する handoff の上限。想定は数 KB の YAML であり、これを超えるものは「handoff ではない何か」
 # （ログの取り違え・生成物の混入）なので回収せず止める。
@@ -395,8 +414,35 @@ def _run_git(
     *,
     cwd,
     runner: Callable[..., subprocess.CompletedProcess],
+    timeout: float | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    return runner(list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False)
+    """``timeout``/``env`` は明示的に渡されたときだけ ``runner`` へ転送する。
+
+    ネットワーク I/O が起こりうる呼び出し（``git fetch``）だけがこの2つを渡し、それ以外の
+    純ローカル操作（``worktree list``/``worktree remove``/``branch -D`` 等）は従来どおり
+    渡さない（Issue #426・F-426-05——ハングしうるのは fetch だけなので、対象を広げない）。
+    """
+    kwargs: dict = {}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if env is not None:
+        kwargs["env"] = env
+    return runner(
+        list(argv), cwd=str(cwd), text=True, capture_output=True, shell=False, **kwargs
+    )
+
+
+def _fetch_env() -> dict:
+    """``git fetch`` を非対話化する env（stdin 経由の認証プロンプト待ちでハングしないため）。
+
+    ``os.environ`` をコピーした上で ``GIT_TERMINAL_PROMPT=0`` を上書きする——他の環境変数
+    （``PATH``/``GIT_SSH`` 等）を握り潰すと fetch 自体が動かなくなる呼び出し環境がありうるため、
+    既存 env を丸ごと引き継いだ上でこの1変数だけを足す。
+    """
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
 
 
 def linked_worktree_paths(repo_root, *, runner: Callable[..., subprocess.CompletedProcess]) -> list:
@@ -468,6 +514,99 @@ def _note(repo_root, entry_id: str, *, now, note: str) -> None:
         add_note(repo_root, entry_id, now=now, note=note)
     except LedgerError as exc:
         raise WorktreeError(exc.reason, exc.detail) from exc
+
+
+def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subprocess.CompletedProcess]) -> None:
+    """worktree 実体の削除**後**に、台帳の ``branch_name`` に対応するローカル ref の削除を
+    試みる（Issue #426・F-426-01 で安全化）。
+
+    ``git branch -D`` は force delete であり、未 push のコミットを reflog ごと黙って
+    破棄しうる。削除の前に fresh fetch した ``refs/remotes/origin/<branch_name>`` に対して
+    ローカル ref の tip が祖先であることを ``git merge-base --is-ancestor`` で確認し、祖先で
+    ない・判定不能（fetch/merge-base 自体の失敗・origin 側 ref が無い等）の場合は削除せずに
+    スキップし、理由を ``_note()`` に残す。
+
+    fetch の呼び出しには ``timeout=FETCH_TIMEOUT_SECONDS`` と ``GIT_TERMINAL_PROMPT=0`` を
+    渡す（Issue #426・F-426-05）。到達不能な origin や認証プロンプト待ちで
+    ``worktree_release()`` 全体が無期限にハングすることを防ぐ——タイムアウトも他の fetch 失敗と
+    同様にスキップ＋ ``_note()`` 記録として扱い、フェイルオープン契約は変えない。
+
+    このブランチが他の worktree に checked out されている場合の安全網は ``git branch -D``
+    自身の拒否に委ねる（``git worktree remove`` の成功が保証するのは「この worktree がもう
+    branch_name を掴んでいない」ことだけで、別の linked worktree の不在までは含意しない）。
+
+    **フェイルオープン**：削除・スキップいずれの結果でも ``worktree_release()`` 全体は
+    失敗させない（worktree 実体の削除が本義務で、ローカル ref の削除は副次的な後始末）。
+    ただし成否・スキップ理由は必ず ``_note()`` で台帳に残す——黙って握り潰さない。削除されず
+    残った stray ref の安全網は ``gitgate/adopt.py`` の ``adopt_branch()`` が持つ tip 一致
+    検査（無害なら reclaim、そうでなければ ``BRANCH_ADOPT_LOCAL_EXISTS`` へ fail-close）。
+    """
+    if entry is None:
+        return
+    branch_name = entry.get("branch_name")
+    entry_id = entry.get("entry_id")
+    if not branch_name or entry_id is None:
+        return
+
+    def _skip(reason: str) -> None:
+        _note(
+            repo_root,
+            entry_id,
+            now=now,
+            note=(
+                f"worktree-release: ローカルブランチ ref {branch_name} の削除を"
+                f"スキップした（{reason}）"
+            ),
+        )
+
+    try:
+        fetch_result = _run_git(
+            ["git", "fetch", "--prune", "origin"],
+            cwd=repo_root,
+            runner=runner,
+            timeout=FETCH_TIMEOUT_SECONDS,
+            env=_fetch_env(),
+        )
+    except subprocess.TimeoutExpired:
+        # フェイルオープン: 到達不能/認証待ちの origin で無期限にハングしない
+        # （Issue #426・F-426-05）。worktree_release() 自体は失敗させず、理由だけ記録する。
+        _skip(f"origin の fetch がタイムアウトした（{FETCH_TIMEOUT_SECONDS}秒）")
+        return
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        _skip(f"origin の fetch に失敗: {str(exc)[:200]}")
+        return
+    if fetch_result.returncode != 0:
+        _skip(f"origin の fetch に失敗: {(fetch_result.stderr or '').strip()[:200]}")
+        return
+
+    try:
+        ancestor_check = _run_git(
+            [
+                "git", "merge-base", "--is-ancestor",
+                f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}",
+            ],
+            cwd=repo_root,
+            runner=runner,
+        )
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        _skip(f"origin 包含の判定に失敗: {str(exc)[:200]}")
+        return
+    if ancestor_check.returncode != 0:
+        _skip(f"origin/{branch_name} に含まれない、または判定不能")
+        return
+
+    try:
+        result = _run_git(["git", "branch", "-D", branch_name], cwd=repo_root, runner=runner)
+        ok = result.returncode == 0
+        detail = "" if ok else (result.stderr or "").strip()[:200]
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        ok = False
+        detail = str(exc)[:200]
+    if ok:
+        note = f"worktree-release: ローカルブランチ ref {branch_name} を削除した"
+    else:
+        note = f"worktree-release: ローカルブランチ ref {branch_name} の削除に失敗した（{detail}）"
+    _note(repo_root, entry_id, now=now, note=note)
 
 
 def _reason_note(verb: str, reason: str, *, flag: str = "") -> str:
@@ -594,6 +733,7 @@ def worktree_release(
                     now=now,
                     note=f"worktree-release: 終端状態（{status}）の残留実体を削除した",
                 )
+                _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
             _note(repo_root, resolved_entry_id, now=now, note=note)
         return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status=status)
 
@@ -627,6 +767,8 @@ def worktree_release(
     removed = _remove_worktree_dir(repo_root, relative, runner=runner)
     if resolved_entry_id is not None:
         _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
+        if removed:
+            _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
     return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status="released")
 
 

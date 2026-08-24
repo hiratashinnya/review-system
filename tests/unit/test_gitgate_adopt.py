@@ -30,20 +30,37 @@ REPO = "hiratashinnya/review-system"
 class FakeGit:
     """`subprocess.run` 互換のスタブ。argv を記録し、応答を差し替えられる。"""
 
-    def __init__(self, responses=None):
+    def __init__(self, responses=None, timeout_keys=None):
         self.calls = []
+        self.call_kwargs = []
         self.responses = responses or {}
+        # ``timeout_keys`` に挙げた verb（例: "fetch"）が呼ばれたら
+        # ``subprocess.TimeoutExpired`` を送出する（Issue #426・F-426-05）。
+        self.timeout_keys = set(timeout_keys or ())
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
+        self.call_kwargs.append(kwargs)
         key = self._key(argv)
+        if key in self.timeout_keys:
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout", 30))
         rc, out, err = self.responses.get(key, (0, "", ""))
         return subprocess.CompletedProcess(list(argv), rc, out, err)
+
+    def kwargs_for(self, verb):
+        for argv, kwargs in zip(self.calls, self.call_kwargs):
+            if self._key(argv) == verb:
+                return kwargs
+        return None
 
     @staticmethod
     def _key(argv):
         if len(argv) >= 2 and argv[1] == "rev-parse":
             return "rev-parse-local" if "--quiet" in argv else "rev-parse-remote"
+        if len(argv) >= 3 and argv[1] == "branch" and argv[2] == "-D":
+            return "branch-delete"
+        if len(argv) >= 3 and argv[1] == "worktree" and argv[2] == "list":
+            return "worktree-list"
         return argv[1] if len(argv) > 1 else ""
 
     @property
@@ -57,14 +74,35 @@ class FakeGit:
         return None
 
 
-def default_responses(remote_oid=OID, local_exists=False):
+def porcelain_worktree_list(*, checked_out_branch=None):
+    """``git worktree list --porcelain`` の疑似出力（main worktree ＋任意で1つの linked）。"""
+    blocks = [f"worktree /repo\nHEAD {'0' * 40}\nbranch refs/heads/main\n"]
+    if checked_out_branch is not None:
+        blocks.append(
+            f"worktree /repo/.claude/worktrees/agent-other\nHEAD {'0' * 40}\n"
+            f"branch refs/heads/{checked_out_branch}\n"
+        )
+    return "\n".join(blocks) + "\n"
+
+
+def default_responses(
+    remote_oid=OID,
+    local_exists=False,
+    local_oid=None,
+    checked_out_branch=None,
+    branch_delete_ok=True,
+):
     return {
         "fetch": (0, "", ""),
         "rev-parse-remote": (0, remote_oid + "\n", ""),
         # `--verify --quiet` は不在なら非0（＝ローカルに同名ブランチが無い）。
-        "rev-parse-local": (0, OID + "\n", "") if local_exists else (1, "", ""),
+        "rev-parse-local": (
+            (0, (local_oid or OID) + "\n", "") if local_exists else (1, "", "")
+        ),
         "switch": (0, "", ""),
         "branch": (0, "", ""),
+        "branch-delete": (0, "", "") if branch_delete_ok else (1, "", "error: cannot delete\n"),
+        "worktree-list": (0, porcelain_worktree_list(checked_out_branch=checked_out_branch), ""),
     }
 
 
@@ -184,6 +222,29 @@ class AdoptBranchGitInteractionTests(unittest.TestCase):
 
         adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=checking_runner)
 
+    def test_fetch_call_is_bounded_and_non_interactive(self):
+        # stage 1 の fetch にだけ timeout と GIT_TERMINAL_PROMPT=0 が渡ること（純ローカル操作
+        # には渡さない・Issue #426・F-426-05）。
+        git = FakeGit(default_responses())
+        adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        fetch_kwargs = git.kwargs_for("fetch")
+        self.assertIsNotNone(fetch_kwargs)
+        self.assertGreater(fetch_kwargs.get("timeout"), 0)
+        self.assertEqual(fetch_kwargs.get("env", {}).get("GIT_TERMINAL_PROMPT"), "0")
+        switch_kwargs = git.kwargs_for("switch")
+        self.assertNotIn("timeout", switch_kwargs)
+        self.assertNotIn("env", switch_kwargs)
+
+    def test_fetch_timeout_fails_close(self):
+        # F-426-05: 到達不能/認証待ちの origin で stage 1 の fetch がハングしうる欠陥を、
+        # 有限時間の `subprocess.TimeoutExpired` で切り上げる。他の fetch 失敗と同じ
+        # fail-close（BRANCH_GIT_ERROR）として扱い、switch には到達しない。
+        git = FakeGit(default_responses(), timeout_keys={"fetch"})
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_GIT_ERROR")
+        self.assertNotIn("switch", git.verbs)
+
     def test_remote_oid_mismatch_fails_close_before_switch(self):
         git = FakeGit(default_responses(remote_oid=OTHER_OID))
         with self.assertRaises(BranchSourceError) as ctx:
@@ -209,8 +270,66 @@ class AdoptBranchGitInteractionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_REMOTE_OID_INVALID")
         self.assertNotIn("switch", git.verbs)
 
-    def test_local_branch_already_exists_is_rejected(self):
+    def test_local_branch_diverging_from_origin_is_rejected(self):
+        # ローカル ref があり、かつ origin の tip と違うコミットを指す＝正体不明のローカル作業。
+        # 「無害な残留 ref」ではないので、tip の不一致だけで即 fail-close する
+        # （`git worktree list` を呼ぶ必要すら無い＝defense-in-depth・Issue #426）。
+        git = FakeGit(default_responses(local_exists=True, local_oid=OTHER_OID))
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        self.assertNotIn("switch", git.verbs)
+        self.assertNotIn("worktree-list", git.verbs)
+        self.assertNotIn("branch-delete", git.verbs)
+
+    def test_stray_local_ref_matching_origin_is_reclaimed_and_adoption_succeeds(self):
+        # adopt-branch 側単体の防御（Issue #426）: worktree-release がブランチ ref を
+        # 消し損ねて（または旧版の実体・手動操作等で）残った stray ref——tip は origin と
+        # 同じで、どの worktree にも checked out されていない——なら、以前は
+        # `BRANCH_ADOPT_LOCAL_EXISTS` で失敗していたところを、無害と判定して自動的に
+        # 削除し、adopt-branch は checkout まで成功する。**ここは FakeGit による adopt.py
+        # 単体の検証**であり、release 側の実際の削除結果を入力にした通し検証ではない
+        # （それは tests/unit/test_gitgate_worktree.py::BranchRefCleanupRealGitIntegrationTests
+        # が実 git で担う・F-426-03）。
         git = FakeGit(default_responses(local_exists=True))
+        result = adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(result.expected_oid, OID)
+        self.assertIn("branch-delete", git.verbs)
+        self.assertEqual(git.argv_for("branch-delete"), ["git", "branch", "-D", BRANCH])
+        # 削除は switch より前に起きる。
+        self.assertLess(
+            git.verbs.index("branch-delete"), git.verbs.index("switch")
+        )
+        self.assertEqual(
+            git.argv_for("switch"), ["git", "switch", "--create", BRANCH, OID]
+        )
+
+    def test_stray_local_ref_checked_out_elsewhere_is_not_reclaimed(self):
+        # tip は origin と一致していても、別 worktree（main を含む）が現に checked out
+        # していれば、無害とは言えない——reclaim せず既存どおり fail-close する。
+        git = FakeGit(
+            default_responses(local_exists=True, checked_out_branch=BRANCH)
+        )
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        self.assertNotIn("switch", git.verbs)
+        self.assertNotIn("branch-delete", git.verbs)
+
+    def test_worktree_list_failure_fails_close_instead_of_reclaiming(self):
+        # 判定不能（`git worktree list` が失敗）は「無害」に倒さない——安全側で拒否する。
+        responses = default_responses(local_exists=True)
+        responses["worktree-list"] = (1, "", "fatal: not a git repository\n")
+        git = FakeGit(responses)
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        self.assertNotIn("switch", git.verbs)
+        self.assertNotIn("branch-delete", git.verbs)
+
+    def test_reclaim_delete_failure_fails_close(self):
+        # 無害と判定できても、`git branch -D` 自体が失敗したら安全側（fail-close）に倒す。
+        git = FakeGit(default_responses(local_exists=True, branch_delete_ok=False))
         with self.assertRaises(BranchSourceError) as ctx:
             adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
         self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
