@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.13"
+CLASSIFIER_VERSION = "1.14"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -322,25 +322,122 @@ def _compound_changes_shell_state(command: str) -> bool:
     return remaining[0] in _SHELL_STATE_COMMANDS
 
 
+def _scan_redirection_target(command: str, index: int) -> int | None:
+    """redirect先のword一語をquote-awareに消費し、次の位置を返す。Noneは未対応構造。
+
+    targetはdata sink（fd/ファイル名）であって実行語ではないため、command
+    substitution（`$(` / backtick）だけを未対応構造として閉じる。
+    """
+    length = len(command)
+    quote: str | None = None
+    escaped = False
+    consumed = False
+    while index < length:
+        character = command[index]
+        if escaped:
+            escaped = False
+            consumed = True
+            index += 1
+            continue
+        if quote == "'":
+            if character == "'":
+                quote = None
+            consumed = True
+            index += 1
+            continue
+        if character == "\\":
+            escaped = True
+            index += 1
+            continue
+        if quote == '"':
+            if character == '"':
+                quote = None
+            elif character == "`" or command[index:index + 2] == "$(":
+                return None
+            consumed = True
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            consumed = True
+            index += 1
+            continue
+        if character in " \t\n\r;&|":
+            break
+        if character == "`" or command[index:index + 2] == "$(":
+            return None
+        if character in "<>(){}":
+            break
+        consumed = True
+        index += 1
+    if quote is not None or escaped or not consumed:
+        return None
+    return index
+
+
+def _scan_redirection(command: str, index: int) -> int | None:
+    """単純なredirection operatorとtargetを消費し、次の位置を返す。Noneは未対応構造。
+
+    許容するのは実行語を差し替えられないfile/fd redirectionだけ:
+    `>` `>>` `<` `>|` `<>` `>&word` `<&word` `&>` `&>>`。
+    heredoc/herestring（`<<` `<<<`）・process substitution（`<(` `>(`）・
+    target欠落・targetのcommand substitutionはNone（未対応構造）。
+    """
+    length = len(command)
+    if command[index] == "&":
+        index += 1
+    operator = command[index]
+    index += 1
+    if operator == "<" and index < length and command[index] == "<":
+        return None
+    if index < length:
+        following = command[index]
+        if following == ">" and operator == ">":
+            index += 1
+        elif following == "&":
+            index += 1
+        elif following == "|" and operator == ">":
+            index += 1
+        elif following == ">" and operator == "<":
+            index += 1
+    while index < length and command[index] in " \t":
+        index += 1
+    if index >= length or command[index] == "(":
+        return None
+    return _scan_redirection_target(command, index)
+
+
 def _split_shell_commands(command: str) -> list[str] | None:
-    """proof可能なsimple/linear shellだけをquote-awareに分割する。Noneは未対応構造。"""
+    """proof可能なsimple/linear shellだけをquote-awareに分割する。Noneは未対応構造。
+
+    単純なfile/fd redirection（`>file` `>>file` `2>&1` `2>/dev/null` `&>file` 等）は
+    実行語を差し替えられないdata sinkなので、leafから除去した上で許容し、除去後の
+    leafを返す（Issue #428）。除去はredirection operatorとそのtarget・直前のfd番号
+    だけに掛かり、残りのwordは元の並びのまま保たれる。heredoc/herestring・
+    process substitution・subshell・brace group・command substitutionは従来どおり
+    None（未対応構造）で fail-close する。
+    """
     commands: list[str] = []
     quote: str | None = None
     escaped = False
     head_word: list[str] = []
     head_word_quoted = False
     head_word_checked = False
-    start = 0
+    kept: list[str] = []
+    leaf_start = 0
+    word_start = 0
     index = 0
     while index < len(command):
         character = command[index]
         if escaped:
             if not head_word_checked:
                 head_word.append(character)
+            kept.append(character)
             escaped = False
             index += 1
             continue
         if quote == "'":
+            kept.append(character)
             if character == "'":
                 quote = None
             elif not head_word_checked:
@@ -353,6 +450,7 @@ def _split_shell_commands(command: str) -> list[str] | None:
                 continue
             if not head_word_checked:
                 head_word_quoted = True
+            kept.append(character)
             escaped = True
             index += 1
             continue
@@ -363,41 +461,66 @@ def _split_shell_commands(command: str) -> list[str] | None:
                 return None
             elif not head_word_checked:
                 head_word.append(character)
+            kept.append(character)
             index += 1
             continue
         if character in {"'", '"'}:
             if not head_word_checked:
                 head_word_quoted = True
             quote = character
+            kept.append(character)
             index += 1
             continue
         if character == "`" or (character == "$" and command[index:index + 2] == "$("):
             return None
-        if character in "<>(){}":
-            return None
-        if character in " \t":
+        if character in "<>" or command[index:index + 2] == "&>":
+            if character in "<>":
+                digits = "".join(kept[word_start:])
+                if digits and digits.isascii() and digits.isdigit():
+                    del kept[word_start:]
+                    if not head_word_checked and len(head_word) >= len(digits):
+                        del head_word[len(head_word) - len(digits):]
+            after = _scan_redirection(command, index)
+            if after is None:
+                return None
             if not head_word_checked and head_word:
                 if not head_word_quoted and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS:
                     return None
                 head_word_checked = True
+            index = after
+            word_start = len(kept)
+            continue
+        if character in "(){}":
+            return None
+        if character in " \t":
+            kept.append(character)
+            if not head_word_checked and head_word:
+                if not head_word_quoted and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS:
+                    return None
+                head_word_checked = True
+            word_start = len(kept)
             index += 1
             continue
         if character in "\n\r;&|":
             if not head_word_checked and head_word:
                 if not head_word_quoted and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS:
                     return None
-            leaf = command[start:index].strip()
+            leaf = "".join(kept[leaf_start:]).strip()
             if not leaf:
                 return None
             commands.append(leaf)
             if character in "&|" and index + 1 < len(command) and command[index + 1] == character:
                 index += 1
-            start = index + 1
+            leaf_start = len(kept)
+            word_start = len(kept)
             head_word = []
             head_word_quoted = False
             head_word_checked = False
-        elif not head_word_checked:
+            index += 1
+            continue
+        if not head_word_checked:
             head_word.append(character)
+        kept.append(character)
         index += 1
     if quote is not None or escaped:
         return None
@@ -408,7 +531,7 @@ def _split_shell_commands(command: str) -> list[str] | None:
         and "".join(head_word) in _SHELL_CONTROL_RESERVED_WORDS
     ):
         return None
-    leaf = command[start:].strip()
+    leaf = "".join(kept[leaf_start:]).strip()
     if not leaf:
         return None if commands else []
     commands.append(leaf)
@@ -933,8 +1056,12 @@ def classify_pre_use(
             if classified is not None:
                 return _error("CLASSIFIER_UNKNOWN", command)
         return None
+    # redirection除去後のleafでtoken化する。除去前のcommandを割ると `2>&1` 等が
+    # 実行語のwordとして混ざり、merge shapeの解析（PR番号・merge method）が
+    # 誤って TARGET_AMBIGUOUS に落ちる（Issue #428）。
+    words = shell_commands[0] if shell_commands else ""
     try:
-        tokens = shlex.split(command, posix=True)
+        tokens = shlex.split(words, posix=True)
     except ValueError:
         return _error("CLASSIFIER_UNKNOWN", command)
     environment = _command_environment(tokens)

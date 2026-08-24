@@ -278,6 +278,28 @@ class PreUseClassifierTests(unittest.TestCase):
                 "safe-single-quoted-control-keyword-data",
                 "safe-git-control-keyword-path-data",
                 "safe-linear-echo-printf",
+                "safe-redirect-stderr-to-stdout",
+                "safe-redirect-stderr-to-devnull",
+                "safe-redirect-stdout-to-file",
+                "safe-append-redirect-to-file",
+                "safe-numbered-fd-redirects",
+                "safe-both-streams-redirect",
+                "safe-noclobber-override-redirect",
+                "safe-input-redirect",
+                "safe-redirect-then-pipe",
+                "safe-quoted-redirect-character-data",
+                "heredoc-shell-merge",
+                "herestring-shell-merge",
+                "output-process-substitution-merge",
+                "redirect-target-command-substitution",
+                "redirect-target-backtick-substitution",
+                "redirect-missing-target",
+                "redirected-compound-merge-leaf",
+                "redirected-brace-group-merge",
+                "redirected-subshell-merge",
+                "redirected-shell-command-string-merge",
+                "redirected-git-bisect-run-merge",
+                "redirect-adjacent-control-keyword-still-detected",
             }
             <= case_ids
         )
@@ -399,6 +421,85 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertIsNone(
             classify_pre_use(bash("gh project item-add 1 --owner example --url x"))
         )
+
+    def test_simple_redirections_do_not_block_unrelated_read_only_commands(self):
+        """単純な file/fd redirection（`2>&1`・`2>/dev/null`・`> file` 等）は実行語を
+        差し替えられない data sink なので、merge と無関係な read-only command が
+        CLASSIFIER_UNKNOWN で誤ブロックされない（Issue #428）。Issue 本文に実測記録の
+        ある3コマンドを含む。"""
+        for command in (
+            'grep -n "pr-merge-gate" .claude/settings.json 2>/dev/null',
+            "gh issue view 412 --json body,title -q .body 2>&1",
+            "gh project list --owner example --format json 2>&1",
+            "gh issue view 412 2>&1 | head -c 6000",
+            "gh issue list > issues.txt",
+            "gh issue list >> issues.txt",
+            "gh issue list >| issues.txt",
+            "gh issue list &> out.txt",
+            "gh issue list &>> out.txt",
+            "gh issue list 1>out.txt 2>err.txt",
+            "gh issue list 2> /dev/null",
+            "git status --short 2>&1",
+            "git apply < patch.diff",
+            "echo done >&2",
+            "echo done >& log.txt",
+            "printf '%s\\n' body > body.txt",
+            "python3 -m unittest discover -s tests/unit 2>&1",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+    def test_redirection_relaxation_keeps_merge_bearing_structures_closed(self):
+        """redirection 緩和後も、merge を隠し得る構造（heredoc/herestring・process
+        substitution・subshell/brace group・command substitution・target 欠落）は
+        CLASSIFIER_UNKNOWN のまま。redirection を付けた素の merge は素通りではなく
+        merge/block として束縛され続ける（Issue #428 の受入条件）。"""
+        closed = (
+            "bash <<EOF\ngh pr merge 1 --squash\nEOF",
+            "bash <<< 'gh pr merge 1 --squash'",
+            "echo <(gh pr merge 1 --squash)",
+            "echo data >(gh pr merge 1 --squash)",
+            'echo "$(gh pr merge 1 --squash)" > /dev/null',
+            "echo `gh pr merge 1 --squash` > /dev/null",
+            "gh issue view 1 > $(gh pr merge 1 --squash)",
+            "gh issue view 1 > `gh pr merge 1 --squash`",
+            "gh issue view 1 >",
+            "gh issue view 1 2>",
+            "bash -c 'gh pr merge 1 --squash' > /dev/null",
+            "{ gh pr merge 1 --squash; } > /dev/null",
+            "(gh pr merge 1 --squash) > /dev/null",
+            "gh issue view 1 > /dev/null; gh pr merge 1 --squash 2>&1",
+            "gh issue view 1 2>&1 | gh pr merge 1 --squash",
+            "git bisect run gh pr merge 1 --squash 2>/dev/null",
+            "git -c alias.p='!gh pr merge 1 --squash' p 2>&1",
+            "$GH pr merge 12 --squash > /dev/null",
+        )
+        for command in closed:
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+        for command in (
+            "gh -R example/repo pr merge 12 --squash > /dev/null",
+            "gh -R example/repo pr merge 12 --squash 2>&1",
+            "gh -R example/repo pr merge 12 --squash 2>/dev/null",
+            "gh -R example/repo pr merge 12 --squash &> merge.log",
+            "gh api -X PUT repos/example/repo/pulls/12/merge -f merge_method=squash > out.json",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertEqual(classified.kind, "merge")
+                self.assertEqual(classified.operation.repository, "example/repo")
+                self.assertEqual(classified.operation.pr_number, 12)
+
+        auto = classify_pre_use(
+            bash("gh -R example/repo pr merge 12 --squash --auto 2>/dev/null")
+        )
+        self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
 
 
 class RepositoryBindingTests(unittest.TestCase):
