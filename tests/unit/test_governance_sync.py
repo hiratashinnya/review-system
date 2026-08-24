@@ -45,6 +45,7 @@ DELIVERY_COPY = REPO_ROOT / ".claude" / "hooks" / "governance-directives.md"
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 # CLAUDE.md の import 行（例: `@.claude/rules/01-principles.md`）。
 IMPORT_RE = re.compile(r"^@(\S+\.md)\s*$", re.MULTILINE)
+COMMON_GUIDANCE = ".ai/guidance/common.md"
 
 
 def canonical_files():
@@ -125,8 +126,11 @@ class TestRulesImportsAreComplete(unittest.TestCase):
             p.relative_to(REPO_ROOT).as_posix() for p in RULES_DIR.glob(RULES_GLOB)
         )
 
+    def _imported_rules(self):
+        return sorted(rel for rel in self._imported() if rel.startswith(".claude/rules/"))
+
     def test_every_rules_file_is_imported_by_the_entrypoint(self):
-        missing = sorted(set(self._present()) - set(self._imported()))
+        missing = sorted(set(self._present()) - set(self._imported_rules()))
         self.assertFalse(
             missing,
             f"`.claude/rules/` にあるが CLAUDE.md の `@` import に無いファイル: {missing}\n"
@@ -137,7 +141,7 @@ class TestRulesImportsAreComplete(unittest.TestCase):
     def test_every_import_resolves_to_an_existing_rules_file(self):
         dangling = sorted(
             rel
-            for rel in self._imported()
+            for rel in self._imported_rules()
             if rel.startswith(".claude/rules/") and not (REPO_ROOT / rel).is_file()
         )
         self.assertFalse(
@@ -146,16 +150,18 @@ class TestRulesImportsAreComplete(unittest.TestCase):
             "rules を削除・改名したら CLAUDE.md の `@` 行も同一 PR で更新すること。",
         )
 
-    def test_imports_do_not_point_outside_the_rules_directory(self):
-        # 将来 `@docs/...` のような import が紛れ込むと、正本集合の定義（rules ディレクトリ）と
-        # 配送実体がずれる。ずれる前に落とす。
-        stray = [rel for rel in self._imported() if not rel.startswith(".claude/rules/")]
-        self.assertFalse(
-            stray,
-            f"CLAUDE.md の `@` import が `.claude/rules/` の外を指している: {stray}\n"
-            "正本集合の定義（CLAUDE.md ＋ .claude/rules/*.md）と食い違うため、"
-            " 正本集合の定義ごと見直すこと（本テストとフックの依存仕様を同時に変える）。",
+    def test_only_common_guidance_is_imported_outside_the_rules_directory(self):
+        external = [
+            rel for rel in self._imported() if not rel.startswith(".claude/rules/")
+        ]
+        self.assertEqual(
+            external,
+            [COMMON_GUIDANCE],
+            "Claude の rules 外 import は、公式 import で直接読む共通 guidance だけを許可する。",
         )
+
+    def test_common_guidance_import_resolves(self):
+        self.assertTrue((REPO_ROOT / COMMON_GUIDANCE).is_file())
 
 
 if __name__ == "__main__":  # pragma: no cover

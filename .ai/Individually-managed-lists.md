@@ -8,7 +8,7 @@
 |---|---|---|
 | Claude Code | `.claude/skills/`、`.claude/agents/` | YAML frontmatter。Agent wrapper に `tools`、`model`、任意の `effort`／`skills` を置く。 |
 | Codex CLI | `.agents/skills/`、`.codex/agents/` | repo-skill は Markdown、custom agent は TOML（`name`／`description`／`developer_instructions`）。Claude の frontmatter を複製しない。 |
-| GitHub Copilot | `.github/skills/`、`.github/prompts/`、`.github/agents/`、`.github/copilot-instructions.md` | Skill／Prompt／Agent／Instructions の loader に分かれる。Agent は YAML frontmatter の `model`／`tools` を使う。 |
+| GitHub Copilot | `.github/skills/`、`.github/prompts/`、`.github/agents/`、`.github/copilot-instructions.md` | Skill／Prompt／Agent／Instructions の loader に分かれる。Agent は YAML frontmatter の `model`／`tools` を使う。常駐入口は共通 guidance と Copilot 固有原稿から生成する。 |
 | Repo-skill | `.agents/skills/` | Codex CLI の repo-scoped skill discovery 用。Agent の配置先ではない。 |
 
 ## Bloom の model mapping
@@ -42,8 +42,8 @@
 - Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh`、Stop hook／rate-limit recovery を持つ。Claude の worktree bind/stop hook は配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
-## 対象外と rationale の SoT
+## 常駐入口と rationale の SoT
 
-rules、hooks、常時 instructions の共通化・移行は今回の対象外とする。PF の hook/dispatch/worktree/model/tools 差分は、各 PF wrapper・設定・hook の実物に残す。
+rules、hooks の共通化・移行は対象外とする。PF の hook/dispatch/worktree/model/tools 差分は、各 PF wrapper・設定・hook の実物または `.ai/guidance/platforms/` の PF 固有原稿に残す。常駐入口は Claude が公式 `@` import、Codex／Copilot が追跡対象の生成物という loader 差分を維持する。
 
 設計経緯・却下案・既知の制約（rationale）の SoT は `.ai/rationale/<name>.md`、索引と分離規則の SoT は `.ai/rationale/README.md`。PF 個別リストは差分の索引であり、rationale の複製先ではない。

@@ -44,3 +44,4 @@
 @.claude/rules/05-skills-agents.md
 @.claude/rules/06-design-phases.md
 @.claude/rules/07-project-structure.md
+@.ai/guidance/common.md
