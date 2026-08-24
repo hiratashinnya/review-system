@@ -9,14 +9,20 @@
     **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
     いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
     **worktree 実体の削除に成功した後は、台帳の ``branch_name`` に対応するローカルブランチ
-    ref も削除する**（``git branch -D``・Issue #426）。放置すると、その ref が
-    ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に引っかかり、次の
-    ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。この ref 削除は
-    **フェイルオープン**——失敗しても worktree 実体の削除という主契約は成立済みなので
-    ``worktree_release()`` 全体を失敗させない。成否は必ず ``_note()`` で台帳に記録する
-    （:func:`_cleanup_branch_ref`）。``adopt_branch()`` 側にも独立の防御（stage 4 の
-    無害な残留 ref の自動回収）を持たせてある——ここでの削除が漏れても adopt 側で救済できる
-    （defense-in-depth・詳細は ``gitgate/adopt.py`` のモジュール docstring）。
+    ref の削除を試みる**（``git branch -D``・Issue #426。F-426-01 で安全化）。放置すると、
+    その ref が ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に
+    引っかかり、次の ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。
+    ただし ``git branch -D`` は force delete でありローカルにしか無いコミットを reflog ごと
+    黙って破棄しうるため、削除の前に fresh fetch した ``refs/remotes/origin/<branch>`` に
+    対してローカル ref の tip が祖先であることを確認し、確認できない場合は削除せずスキップ
+    する（:func:`_cleanup_branch_ref`）。この判定は**フェイルオープン**——削除・スキップの
+    どちらの結果でも worktree 実体の削除という主契約は成立済みなので ``worktree_release()``
+    全体を失敗させない。成否・スキップ理由は必ず ``_note()`` で台帳に記録する。他 worktree
+    が checked out 中のブランチを誤って消さない安全網は ``git branch -D`` 自身の拒否に委ねる
+    （``git worktree remove`` の成功が保証するのは「この worktree がもう branch_name を
+    掴んでいない」ことだけで、別の worktree の不在までは含意しない）。削除されずに stray ref
+    が残った場合の安全網は ``adopt_branch()`` 側の tip 一致検査（``BRANCH_ADOPT_LOCAL_EXISTS``
+    への fail-close、無害なら reclaim。詳細は ``gitgate/adopt.py`` のモジュール docstring）。
 
 ``collect-worktree``
     **回収 → 検証 → 解放を1操作に畳む**（候補D・FR-W2）。段構造で、前段が失敗したら後段を
@@ -480,16 +486,24 @@ def _note(repo_root, entry_id: str, *, now, note: str) -> None:
 
 
 def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subprocess.CompletedProcess]) -> None:
-    """worktree 実体の削除**後**に、台帳の ``branch_name`` に対応するローカル ref を消す
-    （Issue #426）。
+    """worktree 実体の削除**後**に、台帳の ``branch_name`` に対応するローカル ref の削除を
+    試みる（Issue #426・F-426-01 で安全化）。
 
-    ``git worktree remove`` は既にこの呼び出しより前に成功しているため（呼び出し側の前提）、
-    このブランチが他の worktree に checked out されている可能性は無い——cross-check なしで
-    ``git branch -D`` を実行してよい（``adopt_branch`` 側の防御は別途持つが、ここでは不要）。
+    ``git branch -D`` は force delete であり、未 push のコミットを reflog ごと黙って
+    破棄しうる。削除の前に fresh fetch した ``refs/remotes/origin/<branch_name>`` に対して
+    ローカル ref の tip が祖先であることを ``git merge-base --is-ancestor`` で確認し、祖先で
+    ない・判定不能（fetch/merge-base 自体の失敗・origin 側 ref が無い等）の場合は削除せずに
+    スキップし、理由を ``_note()`` に残す。
 
-    **フェイルオープン**：削除の成否に関わらず ``worktree_release()`` 全体は失敗させない
-    （worktree 実体の削除が本義務で、ローカル ref の削除は副次的な後始末）。ただし成否と理由は
-    必ず ``_note()`` で台帳に残す——黙って握り潰さない。
+    このブランチが他の worktree に checked out されている場合の安全網は ``git branch -D``
+    自身の拒否に委ねる（``git worktree remove`` の成功が保証するのは「この worktree がもう
+    branch_name を掴んでいない」ことだけで、別の linked worktree の不在までは含意しない）。
+
+    **フェイルオープン**：削除・スキップいずれの結果でも ``worktree_release()`` 全体は
+    失敗させない（worktree 実体の削除が本義務で、ローカル ref の削除は副次的な後始末）。
+    ただし成否・スキップ理由は必ず ``_note()`` で台帳に残す——黙って握り潰さない。削除されず
+    残った stray ref の安全網は ``gitgate/adopt.py`` の ``adopt_branch()`` が持つ tip 一致
+    検査（無害なら reclaim、そうでなければ ``BRANCH_ADOPT_LOCAL_EXISTS`` へ fail-close）。
     """
     if entry is None:
         return
@@ -497,6 +511,45 @@ def _cleanup_branch_ref(repo_root, entry, *, now, runner: Callable[..., subproce
     entry_id = entry.get("entry_id")
     if not branch_name or entry_id is None:
         return
+
+    def _skip(reason: str) -> None:
+        _note(
+            repo_root,
+            entry_id,
+            now=now,
+            note=(
+                f"worktree-release: ローカルブランチ ref {branch_name} の削除を"
+                f"スキップした（{reason}）"
+            ),
+        )
+
+    try:
+        fetch_result = _run_git(
+            ["git", "fetch", "--prune", "origin"], cwd=repo_root, runner=runner
+        )
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        _skip(f"origin の fetch に失敗: {str(exc)[:200]}")
+        return
+    if fetch_result.returncode != 0:
+        _skip(f"origin の fetch に失敗: {(fetch_result.stderr or '').strip()[:200]}")
+        return
+
+    try:
+        ancestor_check = _run_git(
+            [
+                "git", "merge-base", "--is-ancestor",
+                f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}",
+            ],
+            cwd=repo_root,
+            runner=runner,
+        )
+    except Exception as exc:  # noqa: BLE001 - フェイルオープン: 記録するだけで再送出しない
+        _skip(f"origin 包含の判定に失敗: {str(exc)[:200]}")
+        return
+    if ancestor_check.returncode != 0:
+        _skip(f"origin/{branch_name} に含まれない、または判定不能")
+        return
+
     try:
         result = _run_git(["git", "branch", "-D", branch_name], cwd=repo_root, runner=runner)
         ok = result.returncode == 0

@@ -247,11 +247,14 @@ class AdoptBranchGitInteractionTests(unittest.TestCase):
         self.assertNotIn("branch-delete", git.verbs)
 
     def test_stray_local_ref_matching_origin_is_reclaimed_and_adoption_succeeds(self):
-        # クロスオーバー回帰（Issue #426）: worktree-release がブランチ ref を消し損ねて
-        # （またはこの修正より前の版で消していなくて）残った stray ref——tip は origin と
+        # adopt-branch 側単体の防御（Issue #426）: worktree-release がブランチ ref を
+        # 消し損ねて（または旧版の実体・手動操作等で）残った stray ref——tip は origin と
         # 同じで、どの worktree にも checked out されていない——なら、以前は
         # `BRANCH_ADOPT_LOCAL_EXISTS` で失敗していたところを、無害と判定して自動的に
-        # 削除し、adopt-branch は checkout まで成功する。
+        # 削除し、adopt-branch は checkout まで成功する。**ここは FakeGit による adopt.py
+        # 単体の検証**であり、release 側の実際の削除結果を入力にした通し検証ではない
+        # （それは tests/unit/test_gitgate_worktree.py::BranchRefCleanupRealGitIntegrationTests
+        # が実 git で担う・F-426-03）。
         git = FakeGit(default_responses(local_exists=True))
         result = adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
         self.assertEqual(result.expected_oid, OID)

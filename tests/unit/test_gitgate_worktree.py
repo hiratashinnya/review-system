@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from gitgate.adopt import AdoptBranchRequest, adopt_branch
 from gitgate.worktree import (
     WorktreeError,
     collect_worktree,
@@ -41,6 +42,8 @@ from gitgate.worktree import (
     worktree_release,
 )
 from issue_start import worktree_ledger
+
+_HAS_GIT = shutil.which("git") is not None
 
 # wall clock とは一切比較されない固定スタンプ（診断用のスタンプを台帳に書くだけ）。
 FIXED_NOW = datetime(2026, 8, 19, 12, 0, 0, tzinfo=timezone.utc)
@@ -58,11 +61,20 @@ class FakeGit:
     git の副作用を模す。呼び出し履歴は ``calls`` に残る。
     """
 
-    def __init__(self, root, linked=(), fail_branch_delete=False):
+    def __init__(
+        self,
+        root,
+        linked=(),
+        fail_branch_delete=False,
+        fail_fetch=False,
+        fail_ancestor_check=False,
+    ):
         self.root = Path(root)
         self.linked = list(linked)
         self.calls = []
         self.fail_branch_delete = fail_branch_delete
+        self.fail_fetch = fail_fetch
+        self.fail_ancestor_check = fail_ancestor_check
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
@@ -70,6 +82,16 @@ class FakeGit:
             return subprocess.CompletedProcess(argv, 0, self._porcelain(), "")
         if argv[:3] == ["git", "worktree", "remove"]:
             shutil.rmtree(argv[-1], ignore_errors=True)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        if argv[:2] == ["git", "fetch"]:
+            if self.fail_fetch:
+                return subprocess.CompletedProcess(
+                    argv, 1, "", "fatal: unable to access origin\n"
+                )
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        if argv[:2] == ["git", "merge-base"] and "--is-ancestor" in argv:
+            if self.fail_ancestor_check:
+                return subprocess.CompletedProcess(argv, 1, "", "")
             return subprocess.CompletedProcess(argv, 0, "", "")
         if argv[:3] == ["git", "branch", "-D"]:
             if self.fail_branch_delete:
@@ -792,20 +814,209 @@ class WorktreeReleaseBranchRefCleanupTests(LedgerFixture):
         self.assertTrue(outcome.removed)
         self.assertEqual(git.branch_deletes, [])
 
-    def test_crossover_stray_ref_left_behind_no_longer_blocks_a_later_adopt(self):
-        # クロスオーバー回帰（Issue #426）: worktree X を保持していたエントリを解放したら、
-        # その worktree が保持していたブランチのローカル ref も一緒に消える。これにより
-        # 別の adopt_branch() 呼び出し（別 worktree・同じブランチ名）が
-        # `BRANCH_ADOPT_LOCAL_EXISTS` を引かなくなる（gitgate.adopt 側の検証は
-        # tests/unit/test_gitgate_adopt.py が担当。ここでは A 側の削除実行を固定する）。
+    def test_deleted_branch_name_matches_the_entrys_bound_branch(self):
+        # 削除対象が「そのエントリが束縛していたブランチ名」ちょうどであること
+        # （adopt-branch が同名で衝突検査するのはこのブランチ）。
+        # 注: これは単体レベルの assertion（FakeGit）に留まる——A（release の削除実行）の
+        # 実際の出力が B（adopt-branch の stage 4）の実際の入力になる経路の検証は
+        # 実 git を使う BranchRefCleanupRealGitIntegrationTests（Issue #426・F-426-03）が担う。
         entry_id = self.entry_with_status("collected")
         self.make_worktree()
         git = FakeGit(self.root, linked=[WT_REL])
         worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
-        # 削除対象が「そのエントリが束縛していたブランチ名」ちょうどであること
-        # （adopt-branch が同名で衝突検査するのはこのブランチ）。
         deleted_branches = {argv[3] for argv in git.branch_deletes}
         self.assertEqual(deleted_branches, {"claude/issue-354-pr2"})
+
+    def test_ancestor_check_failure_skips_deletion_and_records_the_reason(self):
+        # F-426-01: ローカル tip が origin に含まれる保証が無い（判定不能を含む）場合は
+        # `git branch -D` を呼ばずスキップし、理由を notes に残す（fail-open のまま破棄だけ止める）。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], fail_ancestor_check=True)
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed, "worktree 実体の削除という主契約は成立する")
+        self.assertEqual(outcome.status, "released")
+        self.assertEqual(git.branch_deletes, [], "祖先性が確認できないなら git branch -D は呼ばない")
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any(
+                note.startswith(
+                    "worktree-release: ローカルブランチ ref claude/issue-354-pr2 の削除をスキップした"
+                )
+                for note in notes
+            ),
+            notes,
+        )
+
+    def test_fetch_failure_skips_deletion_and_records_the_reason(self):
+        # F-426-01: 判定材料（fresh fetch）自体が取れない場合も「無害」側へ倒さずスキップする。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], fail_fetch=True)
+        outcome = worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertTrue(outcome.removed)
+        self.assertEqual(git.branch_deletes, [], "fetch が失敗したら git branch -D は呼ばない")
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any(
+                note.startswith(
+                    "worktree-release: ローカルブランチ ref claude/issue-354-pr2 の削除をスキップした"
+                )
+                for note in notes
+            ),
+            notes,
+        )
+
+
+# ---------------------------------------------------------------------------
+# worktree-release → adopt-branch: 実 git での通し検証（Issue #426・F-426-03）
+# ---------------------------------------------------------------------------
+
+
+@unittest.skipUnless(_HAS_GIT, "git が無い環境では実 git 統合検証をしない")
+class BranchRefCleanupRealGitIntegrationTests(unittest.TestCase):
+    """``worktree_release()`` → ``adopt_branch()`` の実 git 通し検証（Issue #426）。
+
+    :class:`WorktreeReleaseBranchRefCleanupTests` は ``FakeGit`` で argv を見るだけなので、
+    A（release でのブランチ ref 削除・スキップ判定）の実行結果が B（``gitgate/adopt.py`` の
+    stage 4 ローカル ref 検査）の入力になる経路を一度も通っていなかった（F-426-03 の指摘
+    ——``tests/unit/test_gitgate_adopt.py`` 側の「reclaim」テストも ``default_responses`` の
+    手書き応答であって A の実行結果には由来しない）。ここでは実 git リポジトリ・実 ``origin``
+    remote・実 linked worktree・実 subprocess で、その通しを検証する。あわせて、未 push
+    コミットが force delete で失われないこと（F-426-01 の recheck）も実 git 上で固定する。
+    """
+
+    ISSUE = 426
+    BRANCH = "claude/issue-426-crossover-it"
+    HANDOFF = "issue-implementer--issue-426.yaml"
+
+    def git(self, *args, cwd=None):
+        completed = subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+            cwd=str(cwd or self.repo), text=True, capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name).resolve()
+        # `origin` を実物のローカル bare repo として用意する——`_cleanup_branch_ref` /
+        # `adopt_branch` はどちらも `git fetch origin` と `refs/remotes/origin/<branch>` を
+        # 実際に読むため、FakeGit ではその読み取りを再現できない。
+        self.origin = base / "origin.git"
+        subprocess.run(
+            ["git", "init", "-q", "--bare", "-b", "main", str(self.origin)],
+            check=True, capture_output=True, text=True,
+        )
+        self.repo = base / "repo"
+        subprocess.run(
+            ["git", "clone", "-q", str(self.origin), str(self.repo)],
+            check=True, capture_output=True, text=True,
+        )
+        (self.repo / "README.md").write_text("x\n", encoding="utf-8")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "init")
+        self.git("push", "-q", "origin", "main")
+        self.worktree_rel = ".claude/worktrees/agent-issue426it"
+        (self.repo / ".claude" / "worktrees").mkdir(parents=True)
+
+    def _make_linked_worktree_with_branch(self, *, pushed):
+        """``self.BRANCH`` を新規に切った linked worktree を作り、1コミット積む。
+
+        ``pushed=True`` なら origin へ push してローカル tip と origin tip を一致させる
+        （無害な残留 ref になりうるケース）。``pushed=False`` なら push しない（本物の
+        未 push 作業＝force delete で失ってはならないケース）。
+        """
+        self.git("worktree", "add", "-q", "-b", self.BRANCH, self.worktree_rel, "main")
+        worktree_dir = self.repo / self.worktree_rel
+        (worktree_dir / "note.txt").write_text("work\n", encoding="utf-8")
+        self.git("add", "note.txt", cwd=worktree_dir)
+        self.git("commit", "-qm", "work", cwd=worktree_dir)
+        tip = self.git("rev-parse", "HEAD", cwd=worktree_dir).stdout.strip()
+        if pushed:
+            self.git("push", "-q", "origin", self.BRANCH, cwd=worktree_dir)
+        return tip
+
+    def _open_and_bind(self):
+        entry_id = worktree_ledger.open_entry(
+            self.repo, issue=self.ISSUE, agent_type="issue-implementer", round=None,
+            branch_name=self.BRANCH, handoff_path=self.HANDOFF, now=FIXED_NOW,
+        )
+        worktree_ledger.bind_agent(
+            self.repo, agent_type="issue-implementer", agent_id="issue426it",
+            worktree_path=self.worktree_rel,
+        )
+        for step in ("stopped", "collected"):
+            worktree_ledger.mark(self.repo, entry_id, step, now=FIXED_NOW)
+        return entry_id
+
+    def _notes(self, entry_id):
+        for item in worktree_ledger.read_ledger(self.repo)["entries"]:
+            if item.get("entry_id") == entry_id:
+                return [n["note"] for n in item["notes"]]
+        return []
+
+    def _local_ref_oid(self):
+        completed = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{self.BRANCH}"],
+            cwd=str(self.repo), text=True, capture_output=True,
+        )
+        return completed.stdout.strip() if completed.returncode == 0 else None
+
+    def test_pushed_local_ref_is_deleted_and_the_next_adopt_succeeds_without_manual_cleanup(self):
+        # クロスオーバー本体（Issue #426 の AC・F-426-03）: A（release）の実削除結果が
+        # B（adopt-branch）の実チェックアウトへそのまま繋がることを、実 git の1本の通しで
+        # 確認する——手動介入なしで adopt-branch が成功する。
+        tip = self._make_linked_worktree_with_branch(pushed=True)
+        entry_id = self._open_and_bind()
+
+        outcome = worktree_release(
+            self.repo, self.worktree_rel, now=FIXED_NOW, runner=subprocess.run
+        )
+        self.assertTrue(outcome.removed)
+        self.assertEqual(outcome.status, "released")
+        # A: ローカル ref は実際に消えている。
+        self.assertIsNone(self._local_ref_oid(), "release 後もローカル ref が残っている")
+        notes = self._notes(entry_id)
+        self.assertTrue(
+            any(f"ローカルブランチ ref {self.BRANCH} を削除した" in note for note in notes), notes
+        )
+
+        # B: 同じブランチ・同じ OID で adopt-branch が「手動介入なしで」成功する。
+        request = AdoptBranchRequest(self.BRANCH, "example/example-repo", tip)
+        result = adopt_branch(request, cwd=self.repo, runner=subprocess.run)
+        self.assertEqual(result.expected_oid, tip)
+        head = self.git("rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(head, tip, "adopt-branch が検証済み OID へ checkout している")
+
+    def test_unpushed_local_commit_survives_release_and_the_skip_is_recorded(self):
+        # F-426-01 の recheck: 未 push コミットは force delete で失われず、
+        # コミットは到達可能なままである。
+        tip = self._make_linked_worktree_with_branch(pushed=False)
+        entry_id = self._open_and_bind()
+
+        outcome = worktree_release(
+            self.repo, self.worktree_rel, now=FIXED_NOW, runner=subprocess.run
+        )
+        self.assertTrue(outcome.removed, "worktree 実体の削除という主契約は成立する")
+        local_oid = self._local_ref_oid()
+        self.assertEqual(local_oid, tip, "未 push コミットを保持する ref は残るはず")
+        log_check = subprocess.run(
+            ["git", "log", "-1", "--format=%H", tip],
+            cwd=str(self.repo), text=True, capture_output=True,
+        )
+        self.assertEqual(log_check.returncode, 0, "コミットは到達可能なままである")
+        self.assertEqual(log_check.stdout.strip(), tip)
+        notes = self._notes(entry_id)
+        self.assertTrue(
+            any(
+                f"ローカルブランチ ref {self.BRANCH} の削除をスキップした" in note
+                for note in notes
+            ),
+            notes,
+        )
 
 
 # ---------------------------------------------------------------------------
