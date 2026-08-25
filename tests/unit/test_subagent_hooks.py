@@ -1433,9 +1433,13 @@ class SettingsRegistrationTests(unittest.TestCase):
         )
 
     def test_gate_registrations_quote_project_dir(self):
-        commands = self.commands("PreToolUse")
+        commands = [
+            command
+            for command in self.commands("PreToolUse")
+            if "agent-command-gate.sh" in command
+        ]
         self.assertEqual(
-            commands[1:3],
+            commands,
             [
                 "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
                 "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
