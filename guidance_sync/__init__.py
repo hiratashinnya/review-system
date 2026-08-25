@@ -2,6 +2,7 @@
 
 from .sync import (
     COMMON_SOURCE,
+    PRINCIPLES_SOURCE,
     TARGETS,
     check,
     render,
@@ -11,6 +12,7 @@ from .sync import (
 
 __all__ = [
     "COMMON_SOURCE",
+    "PRINCIPLES_SOURCE",
     "TARGETS",
     "check",
     "render",

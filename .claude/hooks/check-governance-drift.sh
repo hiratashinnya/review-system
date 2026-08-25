@@ -2,13 +2,14 @@
 # PostToolUse(Write|Edit) フックハンドラ。
 #
 # 役割:
-#   正本（`CLAUDE.md` ＋ `.claude/rules/*.md`）を編集したのに配送用の写し
+#   正本（`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`）を編集したのに配送用の写し
 #   `governance-directives.md` を追従させ忘れる drift を、機械的に検知してリマインドする。
 #
 # 正本が「集合」である理由（Issue #387 / PR #383）:
 #   規範本文は CLAUDE.md 単体から `.claude/rules/NN-*.md` へ分割された。CLAUDE.md 単体の
 #   ハッシュを見張り続けると、**規範の大半を占める rules 側の変更に一切反応しない**。
-#   そのため対象を正本集合の連結ハッシュへ拡張する。marker の形式（1行）は維持する。
+#   そのため対象を正本集合の連結ハッシュへ拡張する。Issue #406 で Claude が公式 import する
+#   common guidance も同じ集合へ加えた。marker の形式（1行）は維持する。
 #
 # なぜ必要か（実際に起きた・PR #276 / Codex レビュー指摘 #6）:
 #   `governance-directives.md` は CLAUDE.md 中核規範の写しで、UserPromptSubmit フックが毎ターン
@@ -47,6 +48,7 @@ import sys
 payload_path, repo_root = sys.argv[1], sys.argv[2]
 ENTRYPOINT = "CLAUDE.md"
 RULES_GLOB = os.path.join(".claude", "rules", "*.md")
+COMMON_GUIDANCE = os.path.join(".ai", "guidance", "common.md")
 COPY = os.path.join(".claude", "hooks", "governance-directives.md")
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 
@@ -60,7 +62,7 @@ def canonical_relpaths():
         os.path.relpath(p, repo_root).replace(os.sep, "/")
         for p in glob.glob(os.path.join(repo_root, RULES_GLOB))
     )
-    return [ENTRYPOINT] + rules
+    return [ENTRYPOINT] + rules + [COMMON_GUIDANCE]
 
 
 def canonical_hash(relpaths):
@@ -131,7 +133,7 @@ print(json.dumps({
         "additionalContext": (
             f"⚠️ 規範の追従漏れ検知：`{edited_rel}`（正本集合の一部）を編集したが、"
             f"毎ターン注入される写し `{COPY}` が追従していない（{detail}）。\n"
-            f"CLAUDE.md の中核規範（PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在）に"
+            f"Claude の正本集合にある中核規範（PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在）に"
             f"関わる変更なら、写しにも反映すること。**写しの誤りは毎ターン注入されるため影響が大きい**"
             f"（実例＝PR #276 / Codex 指摘 #6：`docs/` の正本性を誤ったまま注入し続けた）。\n"
             f"反映が済んだら（または今回の変更が中核規範に無関係だと判断したら）、写しの1行目付近の\n"

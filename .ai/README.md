@@ -29,6 +29,7 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 
 - Claude: `CLAUDE.md` の公式 `@.ai/guidance/common.md` import。生成・生成物同期検査の対象外。
 - Codex／Copilot: `.ai/guidance/common.md` と `.ai/guidance/platforms/*.md` から `python3 -m guidance_sync render` で `AGENTS.md`／`.github/copilot-instructions.md` を生成する。生成物は追跡し、先頭 marker に生成元と各 SHA-256 を記録する。
-- 検査: `python3 -m guidance_sync check` は working tree、`python3 -m guidance_sync staged-check` は staged index を検査する。後者は自動生成・自動 stage を行わない。
+- 仕様原則: `.ai/skills/spec-principles/SKILL.md` が PR1–PR10 の正本で、common の原則節は常駐 guidance 用の意味保存写しである。common と生成物は正本 hash を marker に持ち、正本だけを変更して写しを更新しない drift を検知する。
+- 検査: `python3 -m guidance_sync check` は working tree、`python3 -m guidance_sync staged-check` は staged index を検査する。後者は自動生成・自動 stage を行わず、spec-principles を変更した場合は common と両生成物の明示 stage も要求する。
 
 導入手順と pre-commit hook は [`.githooks/README.md`](../.githooks/README.md) を参照する。

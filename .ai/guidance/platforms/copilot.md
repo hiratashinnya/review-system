@@ -2,6 +2,11 @@
 
 この節は GitHub Copilot の loader と利用可能資産を記録する。共通の規範は直前の共通 guidance を正とする。
 
+## PR7 の Copilot 実行契約
+
+- 仕様設計・点検中の矛盾は、共通 guidance の PR7 にある ①Q/FND ノード起票、②対象ダッシュボード更新、③原案・比較・理由付き推奨を添えて停止、の順を省略しない。チャットだけで停止しない。
+- ノード著作は利用可能な `verification-author`、検証・反映は `reconciliation-validator` → `reconciliation` を使う。これは Copilot で共通の意味を実行するための能力対応であり、Claude／Codex 固有の hook、command gate、worktree を持ち込まない。
+
 ## Skills（用途に応じて自動選択）
 
 | Skill | 用途 |

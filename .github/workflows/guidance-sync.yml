@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".ai/guidance/**"
+      - ".ai/skills/spec-principles/SKILL.md"
       - "AGENTS.md"
       - ".github/copilot-instructions.md"
       - "guidance_sync/**"
@@ -13,6 +14,7 @@ on:
   pull_request:
     paths:
       - ".ai/guidance/**"
+      - ".ai/skills/spec-principles/SKILL.md"
       - "AGENTS.md"
       - ".github/copilot-instructions.md"
       - "guidance_sync/**"

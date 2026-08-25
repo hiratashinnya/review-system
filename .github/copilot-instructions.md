@@ -1,6 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: 32e1680c012a7f6bc6a2c6a80e85382b35aa4a5417117540a4bb09a20239db90 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 8596efac09c1723c3952aaf2584692d671bf764a26c5d4dd65d13411064678e3 -->
+<!-- common-source: .ai/guidance/common.md; sha256: e5f87fc66f749b30b74b862f02253882241791054a5917be2b8a14e19b8c3b0a -->
+<!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: d1ac7ffe3ad9d5a9a9724c16c567539e975ab7923f443fa255411092a0a3afb0 -->
 
 # プロジェクト共通 guidance
 
@@ -27,13 +28,17 @@
 
 ## 仕様設計・点検の原則
 
+<!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
+
+この節は `.ai/skills/spec-principles/SKILL.md` の常駐 guidance 用の意味保存写しであり、原則の正本ではない。正本を変更したら、この節と上記 hash を同時に更新する。
+
 - PR1 もので分ける：入出力は「もの（実体）＋発生源（外部アクター）」で分け、使い道や内部発生プロセスでは分けない。
 - PR2 判定軸を混ぜない：機械判定できる機構と、人が妥当性を確認する運用ルールを分ける。
 - PR3 系外は非イベント：システムを介さない変更はイベント化せず、必要な検査は処理時に行う。
 - PR4 観測できないものは持たない：顛末を観測できない事象に対する機能は作らない。
 - PR5 状態の要否：毎回作り直せる導出物は状態化せず、過去を覚えなければ成立しない情報だけを状態にする。
 - PR6 価値経路を遮断しない：すべての入力をプロセスから価値ある出力まで連続させる。
-- PR7 矛盾は停止して打ち上げる：勝手に解決せず、原案・比較・理由付き推奨を添える。
+- PR7 矛盾は停止して打ち上げる：既存決定と両立しない事実は勝手に解決せず止めて確認する。ただし空で止めず、原案・比較・理由付き推奨を必ず添える。仕様設計・点検で止める前に、未決論点・質問は Q ノード（`type: Q`、決定時に DD へ昇格）、既存ノードへの指摘・矛盾は FND ノードとして起票する。必ず ①Q/FND ノード起票、②対象プロジェクトのダッシュボード更新（Q/FND とも必須）、③推奨を添えて停止、の順にし、チャットだけの未起票停止は禁止する。FND を resolved にしたら処置対象へ `→FND-x` 辺を付け、FND 起票時の `edges[].ref_version` を本文にも記録する。要件フェーズでは暫定で進めず他を進め、設計フェーズでは推奨案を DD に暫定決定として記録する。
 - PR8 フル論理設計に MVP 印を付ける：論理は完全に作り、MVP 外を削除せず印で残す。
 - PR9 DFD レベリング：階層をまたいで上位と下位を直結しない。
 - PR10 認識合わせ先行：重い作業ほど、手順・成果物・未決事項・停止条件を先に揃える。
@@ -48,6 +53,11 @@
 # GitHub Copilot 固有 guidance
 
 この節は GitHub Copilot の loader と利用可能資産を記録する。共通の規範は直前の共通 guidance を正とする。
+
+## PR7 の Copilot 実行契約
+
+- 仕様設計・点検中の矛盾は、共通 guidance の PR7 にある ①Q/FND ノード起票、②対象ダッシュボード更新、③原案・比較・理由付き推奨を添えて停止、の順を省略しない。チャットだけで停止しない。
+- ノード著作は利用可能な `verification-author`、検証・反映は `reconciliation-validator` → `reconciliation` を使う。これは Copilot で共通の意味を実行するための能力対応であり、Claude／Codex 固有の hook、command gate、worktree を持ち込まない。
 
 ## Skills（用途に応じて自動選択）
 

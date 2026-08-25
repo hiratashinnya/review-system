@@ -8,17 +8,17 @@
 
 > **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
 > 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
-> **正本は本ファイルと `.claude/rules/` 配下のルールファイル群**で、`governance-directives.md` はその配送用の写し。
+> **正本は本ファイル、`.claude/rules/` 配下のルールファイル群、公式 import する `.ai/guidance/common.md`**で、`governance-directives.md` はその配送用の写し。
 > **規約を変えたら写しも合わせる**（食い違ったら正本を正とする）。**追従漏れの検知は二段構え**——
 > `.claude/hooks/check-governance-drift.sh`（PostToolUse）が写しの `<!-- synced-from: CLAUDE.md@<sha> -->`
-> と**正本集合（本ファイル＋`.claude/rules/*.md`）の連結ハッシュ**を突き合わせ、食い違う間だけ
+> と**正本集合（本ファイル＋`.claude/rules/*.md`＋`.ai/guidance/common.md`）の連結ハッシュ**を突き合わせ、食い違う間だけ
 > warning を出す（反映後に sha を更新して解除）。**ハッシュ対象を集合にしたのは Issue #387 の是正**
 > ——規範本文を `.claude/rules/` へ分割した後も本ファイル単体を見張っていると、規範の大半を占める
 > rules 側の変更に対してフックもテストも一切反応しない。
 > **ただしこのフックは常に `exit 0` の fail-open な nag であり、発火条件が
 > 「編集対象の realpath が正本集合のいずれかに一致すること」のため、linked worktree 側で正本を
 > 編集した場合は沈黙する**（Issue #323 で実測）。この抜け穴を塞ぐのが `tests/unit/test_governance_sync.py`
-> ——marker と現在ハッシュの不一致に加え、`.claude/rules/*.md` と下記 `@` import 行の集合が
+> ——marker と現在ハッシュの不一致に加え、common guidance が正本集合に入ること、`.claude/rules/*.md` と下記 `@` import 行の集合が
 > 双方向一致することも CI で **fail-close** に検知する。フックが黙っていても、
 > このテストが赤くなるので追従漏れは merge 前に必ず露見する。
 > subagent 側の対策は各 `.claude/agents/*.md` 末尾の

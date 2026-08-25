@@ -264,7 +264,7 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 | ファイル | 役割 |
 |---|---|
 | `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
-| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md`**(規約本体は rules 側に分割済み・Issue #387)で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
+| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`**（Issue #387 / #406）で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か
 
@@ -332,8 +332,9 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
 `governance-directives.md` も合わせて更新する。**この追従漏れは下記のフックが機械的に検知する**。
-規約の正本は `CLAUDE.md` 単体ではなく **`CLAUDE.md` ＋ `.claude/rules/*.md`** である
-(Issue #387 で規範本文を rules へ分割した)。
+規約の正本は `CLAUDE.md` 単体ではなく **`CLAUDE.md` ＋ `.claude/rules/*.md` ＋
+`.ai/guidance/common.md`** である（Issue #387 で rules へ分割、Issue #406 で公式 import する
+common guidance を追加）。
 
 ---
 
@@ -343,7 +344,7 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 
 | ファイル | 役割 |
 |---|---|
-| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
+| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
 
 ## なぜ必要か(実際に起きた事故)
 
@@ -366,7 +367,8 @@ PR #276 で **正本側に「このリポジトリ＝2つのプロジェクト�
 ```
 
 marker が持つのは**正本集合の連結ハッシュ**(先頭12桁)。算出は
-「相対パス(utf-8) + NUL + 生バイト + NUL」を `CLAUDE.md` → `.claude/rules/*.md`(相対パス昇順)の順に
+「相対パス(utf-8) + NUL + 生バイト + NUL」を `CLAUDE.md` → `.claude/rules/*.md`(相対パス昇順) →
+`.ai/guidance/common.md` の順に
 連結し `sha256` を取る。**相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と
 区別するため**(内容の総和が同じでも配置が変われば sha が変わる)。marker 自体は従来どおり1行のまま
 ——rules ごとに marker を並べれば drift したファイルを特定できるが、写しの構造変更を要し、毎ターン
@@ -404,7 +406,7 @@ python3 -m unittest tests.unit.test_governance_sync   # 期待値と記録値の
 
 上記フックだけでは追従漏れを取りこぼす経路が残る。**このフックは常に `exit 0` の fail-open な
 nag であり、かつ発火条件が「編集対象の realpath が正本集合(`$CLAUDE_PROJECT_DIR/CLAUDE.md` ＋
-`$CLAUDE_PROJECT_DIR/.claude/rules/*.md`)のいずれかに一致すること」のため、linked worktree 側の
+`$CLAUDE_PROJECT_DIR/.claude/rules/*.md` ＋ `$CLAUDE_PROJECT_DIR/.ai/guidance/common.md`)のいずれかに一致すること」のため、linked worktree 側の
 正本を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
 「marker を更新しないまま merge される」経路が編集時フックだけでは塞ぎきれない。
 
@@ -414,7 +416,7 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 本フックの埋め込み python と同一である必要があり、どちらかを変えるときは両方を同時に変える
 (依存関係はテストファイル冒頭のコメントに明記済み)。
 
-同テストは併せて **`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
+同テストは併せて **common guidance が正本集合へ含まれること**と、**`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
 検査する(Issue #387 / F-387-05)。`@` 行の無いルールファイルは**誰にも配送されないまま
 何も赤くならない**ため、ハッシュ検査とは別に落とす必要がある(ハッシュは「写しが追従しているか」を
 見るだけで、「配送経路に繋がっているか」は見ない)。

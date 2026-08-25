@@ -9,16 +9,22 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMON_SOURCE = ".ai/guidance/common.md"
+PRINCIPLES_SOURCE = ".ai/skills/spec-principles/SKILL.md"
 TARGETS: Mapping[str, str] = {
     "AGENTS.md": ".ai/guidance/platforms/codex.md",
     ".github/copilot-instructions.md": ".ai/guidance/platforms/copilot.md",
 }
+PRINCIPLES_MARKER_RE = re.compile(
+    rb"<!--\s*principles-source:\s*\.ai/skills/spec-principles/SKILL\.md;\s*"
+    rb"sha256:\s*([0-9a-f]{64})\s*-->"
+)
 
 
 def _sha256(data: bytes) -> str:
@@ -29,6 +35,37 @@ def _body(data: bytes) -> bytes:
     """原稿間の結合を決定的にするため、末尾改行をちょうど1つにする。"""
 
     return data.rstrip(b"\n") + b"\n"
+
+
+def _principles_marker(principles: bytes) -> bytes:
+    return (
+        f"<!-- principles-source: {PRINCIPLES_SOURCE}; "
+        f"sha256: {_sha256(principles)} -->"
+    ).encode("utf-8")
+
+
+def _source_dependency_errors(*, load: Callable[[str], bytes]) -> list[str]:
+    """共通 guidance の意味保存写しが spec-principles 正本に追従しているか返す。"""
+
+    try:
+        common = load(COMMON_SOURCE)
+        principles = load(PRINCIPLES_SOURCE)
+    except (OSError, RuntimeError) as exc:
+        return [f"原稿依存を読めません: {exc}"]
+
+    expected = _sha256(principles)
+    match = PRINCIPLES_MARKER_RE.search(common)
+    if match is None:
+        return [
+            f"{COMMON_SOURCE} に {PRINCIPLES_SOURCE} の principles-source marker がありません"
+        ]
+    recorded = match.group(1).decode("ascii")
+    if recorded != expected:
+        return [
+            f"{COMMON_SOURCE} の principles-source hash が {PRINCIPLES_SOURCE} と一致しません: "
+            f"記録 {recorded} / 現在 {expected}"
+        ]
+    return []
 
 
 def rendered_bytes(
@@ -43,10 +80,12 @@ def rendered_bytes(
     except KeyError as exc:  # pragma: no cover - 呼び出し側のプログラミングエラー
         raise ValueError(f"生成対象ではありません: {target}") from exc
     common = load(COMMON_SOURCE)
+    principles = load(PRINCIPLES_SOURCE)
     platform = load(platform_source)
     marker = (
         "<!-- generated-by: python3 -m guidance_sync render; edit-source-only -->\n"
         f"<!-- common-source: {COMMON_SOURCE}; sha256: {_sha256(common)} -->\n"
+        f"{_principles_marker(principles).decode('utf-8')}\n"
         f"<!-- platform-source: {platform_source}; sha256: {_sha256(platform)} -->\n\n"
     ).encode("utf-8")
     return marker + _body(common) + b"\n" + _body(platform)
@@ -76,7 +115,7 @@ def check(root: Path = REPO_ROOT) -> list[str]:
     """working tree の生成物 drift を返す。空なら整合している。"""
 
     load = _filesystem_loader(root)
-    errors: list[str] = []
+    errors = _source_dependency_errors(load=load)
     for target in TARGETS:
         path = root / target
         if not path.is_file():
@@ -165,7 +204,10 @@ def staged_check(
         return [str(exc)]
 
     required_targets: set[str] = set()
+    require_common = PRINCIPLES_SOURCE in staged
     if COMMON_SOURCE in staged:
+        required_targets.update(TARGETS)
+    if require_common:
         required_targets.update(TARGETS)
     for target, platform_source in TARGETS.items():
         if platform_source in staged or target in staged:
@@ -175,6 +217,12 @@ def staged_check(
 
     errors: list[str] = []
     load = _index_loader(root, runner=runner)
+    if require_common and COMMON_SOURCE not in staged:
+        errors.append(
+            f"{PRINCIPLES_SOURCE} の変更に対応する意味保存写しが stage されていません: "
+            f"{COMMON_SOURCE}"
+        )
+    errors.extend(_source_dependency_errors(load=load))
     for target in sorted(required_targets):
         if target not in staged:
             errors.append(
