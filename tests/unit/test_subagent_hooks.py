@@ -1432,6 +1432,20 @@ class SettingsRegistrationTests(unittest.TestCase):
             ["${CLAUDE_PROJECT_DIR}/.claude/hooks/inject-governance.sh"],
         )
 
+    def test_gate_registrations_quote_project_dir(self):
+        commands = [
+            command
+            for command in self.commands("PreToolUse")
+            if "agent-command-gate.sh" in command
+        ]
+        self.assertEqual(
+            commands,
+            [
+                "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
+                "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
+            ],
+        )
+
 
 class ParallelStopLockContentionTests(HookTestCase):
     """並列 dispatch が同時に停止イベントを起こしたときの台帳ロック競合（Issue #423 の案4）。
