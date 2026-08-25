@@ -65,11 +65,17 @@ redaction安全な固定語彙で、payload由来の文字列（command・PR本�
 |---|---|
 | `PAYLOAD_INVALID` | payloadがJSONでない／`hook_event_name`・`session_id`・`tool_use_id`・`tool_name`・`tool_response` が契約を満たさない |
 | `RECLASSIFIED_NOT_MERGE` | PostToolUseでの再分類がmergeにならない（PreToolUseでdenyされたはずの操作が到達した） |
-| `PERMIT_MISSING` | 一致するpre-use permit（同一 `invocation_id` ＋ `operation_fingerprint` ＋ `permit_issued: true`）が無い |
+| `PERMIT_MISSING` | この `invocation_id` を持つpermit済みpre-useレコードが1件も見つからない（auditファイル不在／pre-use hookが動かなかった／当該行が破損して読み飛ばされた、のいずれか） |
+| `PERMIT_OPERATION_MISMATCH` | `invocation_id` のpermitは在るが `operation_fingerprint` が食い違う＝許可した操作と実行された操作が別物（Issue #436）。実測された発生源は、同一PreToolUseイベントに登録された別hookが `hookSpecificOutput.updatedInput` で `tool_input.command` を書き換え（例: `gh pr merge …` → `rtk gh pr merge …`）、本gateが分類した文字列と実際に実行された文字列がずれるケース |
 | `HOOK_ASSET_UNREADABLE` | hook asset一式のhash計算に失敗した |
 | `AUDIT_FILE_UNSAFE` | audit fileがsymlink／別uid所有／0600以外 |
 | `AUDIT_PATH_INVALID` | `HOME`/`XDG_STATE_HOME` が無い、または絶対pathでない |
 | `AUDIT_READ_FAILED` / `AUDIT_WRITE_FAILED` | audit fileの読み書きがOSレベルで失敗した |
+
+`PERMIT_MISSING` と `PERMIT_OPERATION_MISMATCH` はいずれもfail-close（completionを追記せず
+PostToolUseをblockする）である点は同じだが、原因（相関鍵の欠落／整合性違反）は別物であり、
+Issue #436はこれを分けた（Issue #414が例外クラス名だけの報告を割った理由がそのまま一段下にも
+当てはまる）。
 
 以前は例外クラス名（`AuditError`）だけを出していたため、構造的に別物の複数経路が同じ
 文字列で報告され、報告を受けても再現なしには原因を特定できなかった。
