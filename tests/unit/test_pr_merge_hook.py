@@ -282,6 +282,82 @@ class HookTest(unittest.TestCase):
                     self.assertIn(code, stderr.getvalue())
                     self.assertNotIn("example/repo", decision["reason"])
 
+    def test_command_rewritten_after_pre_use_is_reported_as_operation_mismatch(self):
+        """別hookの `updatedInput` 書き換えを PERMIT_MISSING と混同しない（Issue #436）。
+
+        同じ PreToolUse イベントに登録された別のhook（実測では rtk の
+        `RTK auto-rewrite`）が `hookSpecificOutput.updatedInput` で `tool_input.command`
+        を書き換えると、本gateが分類・permit した文字列（`gh pr merge …`）と実際に
+        実行され PostToolUse に届く文字列（`rtk gh pr merge …`）がずれる。後者は
+        `wrappers=["rtk"]` / `transport="cli-wrapped"` として別の
+        `operation_fingerprint` になるため permit 走査が外れる。
+
+        これは相関鍵の欠落ではなく「許可した操作と実行された操作が別物」という整合性
+        違反であり、そう報告されなければ調査は毎回ログ破損の疑いへ空振りする。
+        """
+        pre = {
+            "session_id": "session-rewrite",
+            "tool_use_id": "tool-rewrite",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "gh pr merge 50 --repo example/repo --squash",
+            },
+        }
+        classified = classify_pre_use(pre)
+        self.assertEqual(classified.kind, "merge")
+        self.assertEqual(classified.operation.transport, "cli-direct")
+        permitted = allow_evidence()
+        permitted["binding"]["operation_fingerprint"] = (
+            classified.operation.operation_fingerprint
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "pr_merge_gate.hook.resolve_github_token", return_value="token"
+        ), patch(
+            "pr_merge_gate.hook.evaluate_merge_operation", return_value=permitted
+        ):
+            target = Path(directory) / "audit.jsonl"
+            stdout = io.StringIO()
+            run(
+                stdin=io.StringIO(json.dumps(pre)), stdout=stdout,
+                stderr=io.StringIO(), audit_file=target,
+            )
+            self.assertEqual(stdout.getvalue(), "")
+
+            post = dict(pre)
+            post["hook_event_name"] = "PostToolUse"
+            post["tool_input"] = {
+                "command": "rtk " + pre["tool_input"]["command"],
+            }
+            post["tool_response"] = {"exit_code": 0}
+            rewritten = classify_pre_use(post)
+            self.assertEqual(rewritten.operation.transport, "cli-wrapped")
+            self.assertNotEqual(
+                rewritten.operation.operation_fingerprint,
+                classified.operation.operation_fingerprint,
+            )
+
+            post_stdout = io.StringIO()
+            post_stderr = io.StringIO()
+            post_run(
+                stdin=io.StringIO(json.dumps(post)), stdout=post_stdout,
+                stderr=post_stderr, audit_file=target,
+            )
+            decision = json.loads(post_stdout.getvalue())
+            records = [
+                json.loads(line)
+                for line in target.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(decision["decision"], "block")
+        self.assertIn(
+            "POST_AUDIT_INTEGRITY_ERROR/PERMIT_OPERATION_MISMATCH", decision["reason"]
+        )
+        self.assertIn("PERMIT_OPERATION_MISMATCH", post_stderr.getvalue())
+        self.assertNotIn("example/repo", decision["reason"])
+        self.assertEqual([item["record_type"] for item in records], ["pre_use_decision"])
+        self.assertTrue(records[0]["permit_issued"])
+
     def test_audit_integrity_failure_changes_allow_to_deny(self):
         merge = operation()
         classification = PreUseClassification(

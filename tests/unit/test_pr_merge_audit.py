@@ -253,6 +253,80 @@ class AuditTest(unittest.TestCase):
             audit_path({"XDG_STATE_HOME": "relative"})
         self.assertEqual(relative.exception.reason, "AUDIT_PATH_INVALID")
 
+    def test_permit_lookup_separates_absence_from_operation_mismatch(self):
+        """相関失敗を「permitが無い」と「別の操作が実行された」に分ける（Issue #436）。
+
+        どちらも fail-close（completionを追記しない）である点は同じだが、原因も処置も
+        別物なので reason code を分ける。混同すると、実際には permit が完全な形で
+        残っているのに `PERMIT_MISSING` と報告され、interleaved write によるログ破損を
+        疑って調査が空振りする（Issue #436 の実測でこれが起きた）。
+        """
+        allowed = evidence()
+        allowed["result"] = "ALLOW"
+        allowed["permit_issued"] = True
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            append_decision(allowed, path=target)
+
+            with self.assertRaises(AuditError) as mismatch:
+                append_completion(
+                    invocation_id="invocation-1", hook_event_id="tool-1",
+                    operation_fingerprint="sha256:" + "f" * 64,
+                    classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                    tool_name="Bash", tool_response={"exit_code": 0}, path=target,
+                )
+            self.assertEqual(mismatch.exception.reason, "PERMIT_OPERATION_MISMATCH")
+
+            with self.assertRaises(AuditError) as absent:
+                append_completion(
+                    invocation_id="invocation-unknown", hook_event_id="tool-1",
+                    operation_fingerprint="sha256:" + "1" * 64,
+                    classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                    tool_name="Bash", tool_response={"exit_code": 0}, path=target,
+                )
+            self.assertEqual(absent.exception.reason, "PERMIT_MISSING")
+
+            denied = evidence()
+            denied["invocation_id"] = "invocation-denied"
+            append_decision(denied, path=target)
+            with self.assertRaises(AuditError) as unpermitted:
+                append_completion(
+                    invocation_id="invocation-denied", hook_event_id="tool-1",
+                    operation_fingerprint="sha256:" + "1" * 64,
+                    classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                    tool_name="Bash", tool_response={"exit_code": 0}, path=target,
+                )
+            self.assertEqual(unpermitted.exception.reason, "PERMIT_MISSING")
+
+            self.assertEqual(
+                [json.loads(line)["record_type"]
+                 for line in target.read_text(encoding="utf-8").splitlines()],
+                ["pre_use_decision", "pre_use_decision"],
+            )
+
+    def test_corrupt_permit_line_is_absence_not_mismatch(self):
+        """破損して読み飛ばされた permit は「無い」側に倒す（Issue #436）。
+
+        読み飛ばした行の invocation_id は観測できないので、`PERMIT_OPERATION_MISMATCH`
+        （＝permitは在るが操作が違う）と主張してはならない。
+        """
+        allowed = evidence()
+        allowed["result"] = "ALLOW"
+        allowed["permit_issued"] = True
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            append_decision(allowed, path=target)
+            corrupted = target.read_text(encoding="utf-8")[:-40] + "\n"
+            target.write_text(corrupted, encoding="utf-8")
+            with self.assertRaises(AuditError) as absent:
+                append_completion(
+                    invocation_id="invocation-1", hook_event_id="tool-1",
+                    operation_fingerprint="sha256:" + "1" * 64,
+                    classifier_version="1.6", asset_hash="sha256:" + "9" * 64,
+                    tool_name="Bash", tool_response={"exit_code": 0}, path=target,
+                )
+            self.assertEqual(absent.exception.reason, "PERMIT_MISSING")
+
     def test_append_rejects_preexisting_file_with_unsafe_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "audit.jsonl"
