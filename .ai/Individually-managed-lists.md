@@ -70,7 +70,7 @@
 
 ### 各 hook の概要
 
-#### 1–5. pr-merge-gate
+#### 1・5. pr-merge-gate
 
 - **概要**: PR merge 前に blocker evidence を検査し、未解消なら merge 操作を拒否する。PostToolUse 側では merge 応答を記録する。
 - **スコープ**: Bash・merge 系 MCP ツール呼び出し。
@@ -131,7 +131,7 @@
 
 - **概要**: セッション開始・再開時に必要パッケージをインストールする。
 - **スコープ**: SessionStart（startup／resume）。Claude 専用。
-- **実装構成**: [`.claude/hooks/install_pkgs.sh`](.claude/hooks/install_pkgs.sh)
+- **実装構成**: [`.claude/hooks/install_pkgs/install_pkgs.sh`](.claude/hooks/install_pkgs/install_pkgs.sh)
 
 #### 14. orchestrator-context
 
@@ -148,6 +148,7 @@
 | `.claude/hooks/lib-pane-guard.sh` | Claude | `on-rate-limit.sh`／`resume-watcher.sh` が source する共有ライブラリ（状態パス・ペイン判定・tmux ラッパ） |
 | `.claude/hooks/resume-watcher.sh` | Claude | `on-rate-limit.sh` から setsid で起動される復帰 watcher |
 | `.codex/hooks/codex-rate-limit-watcher.sh` | Codex | Codex 版の復帰 watcher（tmux pane 監視） |
+| `.codex/hooks/codex-rate-limit-query.py` | Codex | `codex-rate-limit-stop-hook.sh` の rate-limit API 問い合わせに使う補助スクリプト |
 | `.codex/hooks/codex-with-rate-limit-recovery.sh` | Codex | レートリミット復帰付きで Codex CLI を起動するラッパ |
 
 ## 常駐入口と rationale の SoT
