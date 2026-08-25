@@ -200,6 +200,20 @@ def append_completion(
     interleaved write で壊れた行が混じり得るが、1行の破損でpost-use auditが恒久的に
     停止するのは監査証跡の可用性を落とすだけで安全性を上げない（読み飛ばしは permit を
     「見つけられない」方向にしか働かず、permit なしでcompletionを発行する経路は増えない）。
+
+    相関に失敗したときのreason codeは2つに分ける（Issue #436）。どちらもfail-closeで
+    completionを追記しない点は同じだが、原因も処置もまったく別物なので、Issue #414が
+    `AuditError` のクラス名を reason code へ割った理由がそのまま一段下にも当てはまる。
+
+    - `PERMIT_MISSING`: この `invocation_id` を持つ permit 済みpre-useレコードが1件も
+      見つからない。auditファイル不在・pre-use hookが動かなかった・当該行が破損して
+      読み飛ばされた、のいずれか。
+    - `PERMIT_OPERATION_MISMATCH`: `invocation_id` の permit は在るが
+      `operation_fingerprint` が食い違う。**許可した操作と実行された操作が別物**という
+      意味で、相関鍵の欠落ではなく整合性違反そのものを指す。実測された発生源は、
+      同じPreToolUseイベントに登録された別hookが `hookSpecificOutput.updatedInput` で
+      `tool_input.command` を書き換え（例: `gh pr merge …` → `rtk gh pr merge …`）、
+      本gateが分類した文字列と実際に実行された文字列がずれるケース（Issue #436）。
     """
     target = audit_path(environ) if path is None else path
     try:
@@ -207,20 +221,28 @@ def append_completion(
         if not target.exists():
             raise AuditError("pre-use permit missing", reason="PERMIT_MISSING")
         permit: Mapping[str, Any] | None = None
+        invocation_permitted = False
         for line in target.read_text(encoding="utf-8").splitlines():
             try:
                 candidate = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if (
+            if not (
                 isinstance(candidate, dict)
                 and candidate.get("record_type") == "pre_use_decision"
                 and candidate.get("invocation_id") == invocation_id
-                and candidate.get("operation_fingerprint") == operation_fingerprint
                 and candidate.get("permit_issued") is True
             ):
+                continue
+            invocation_permitted = True
+            if candidate.get("operation_fingerprint") == operation_fingerprint:
                 permit = candidate
         if permit is None:
+            if invocation_permitted:
+                raise AuditError(
+                    "permitted operation does not match dispatched operation",
+                    reason="PERMIT_OPERATION_MISMATCH",
+                )
             raise AuditError("pre-use permit missing", reason="PERMIT_MISSING")
     except AuditError:
         raise
