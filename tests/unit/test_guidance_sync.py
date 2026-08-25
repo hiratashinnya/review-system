@@ -256,6 +256,7 @@ class PreCommitHookIntegrationTests(unittest.TestCase):
         self.git("init", "-q")
         self.git("config", "user.name", "test")
         self.git("config", "user.email", "test@example.com")
+        (self.root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
 
         package = self.root / "guidance_sync"
         package.mkdir()
