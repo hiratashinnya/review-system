@@ -11,7 +11,13 @@ import uuid
 
 from blocker_gate.auth import resolve_github_token
 
-from .audit import AuditError, append_completion, append_decision, hook_asset_hash
+from .audit import (
+    AuditError,
+    append_completion,
+    append_decision,
+    hook_asset_hash,
+    rotate_records,
+)
 from .classifier import CLASSIFIER_VERSION, PreUseClassification, classify_pre_use
 from .gate import PrMergeGateError, evaluate_merge_operation, fail_closed
 
@@ -133,6 +139,36 @@ def run(
     return 0
 
 
+def _rotate_audit(payload: dict[str, Any], audit_file: Path | None, stderr: TextIO) -> None:
+    """PostToolUse経路だけでaudit.jsonlを件数ローテーションする（Issue #435 項目2）。
+
+    **分類より前に呼ぶ**。`post_run` は「mergeと再分類できた場合」だけ完了記録へ進み、
+    それ以外のBashコマンドは早期returnするので、分類の後ろに置くとマージ成立時
+    （実測3日で14件）にしか起動せず、増加要因の大半を占めるdenyレコード（同期間で約330件）
+    の蓄積をまったく抑えられない。PreToolUse（`run`）側からは呼ばない——permit発行前に
+    read-modify-writeを挟むと、これから相関する自分自身のpermitを消し得る。
+
+    失敗は握り潰してstderrへ出すだけにする。ローテーションはpermit経路ではなく衛生処理で
+    あり、ここでblockすると **mergeと無関係なBashコマンドまで一律で止まる**。auditが実際に
+    危険な状態なら、その後の `append_completion` が従来どおりfail-closeする。
+    """
+    try:
+        protected: str | None = _hook_context(payload, "PostToolUse")[0]
+    except ValueError:
+        protected = None
+    try:
+        removed = rotate_records(protect_invocation_id=protected, path=audit_file)
+    except AuditError as exc:
+        stderr.write(
+            "Codex AI agent PR merge gate: AUDIT_ROTATION_SKIPPED/" + exc.reason + "\n"
+        )
+        return
+    if removed:
+        stderr.write(
+            f"Codex AI agent PR merge gate: AUDIT_ROTATED removed={removed}\n"
+        )
+
+
 def post_run(
     *, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = None,
     audit_file: Path | None = None,
@@ -142,6 +178,7 @@ def post_run(
         payload = json.load(stdin)
         if not isinstance(payload, dict):
             raise ValueError("payload")
+        _rotate_audit(payload, audit_file, stderr)
         classification = classify_pre_use(payload, cwd=cwd)
         if classification is None:
             return 0
@@ -157,6 +194,8 @@ def post_run(
             invocation_id=invocation_id,
             hook_event_id=hook_event_id,
             operation_fingerprint=classification.operation.operation_fingerprint,
+            repository=classification.operation.repository,
+            pr_number=classification.operation.pr_number,
             classifier_version=CLASSIFIER_VERSION,
             asset_hash=hook_asset_hash(),
             tool_name=tool_name,
@@ -174,6 +213,14 @@ def post_run(
         json.dump({"decision": "block", "reason": reason}, stdout, ensure_ascii=False)
         stdout.write("\n")
         stderr.write(reason + "\n")
+        # completionを書けなかった経路では破損行のスキップをレコードに残せないので、
+        # ここでstderrへ出す（Issue #435 項目1）。件数はpayload由来の文字列を含まない。
+        skipped = getattr(exc, "skipped_unparsable_lines", 0)
+        if skipped:
+            stderr.write(
+                "Codex AI agent PR merge gate: "
+                f"AUDIT_UNPARSABLE_LINES_SKIPPED count={skipped}\n"
+            )
         return 0
 
 

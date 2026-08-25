@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.14",
+  "classifier_version": "1.15",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -870,6 +870,161 @@
     {
       "id": "exec-only-redirect-leaf-in-compound-still-detected",
       "command": "exec > file; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "safe-head-cd-literal-absolute",
+      "command": "cd /home/example/repo && git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-relative",
+      "command": "cd tests/unit && gh issue view 1",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-parent",
+      "command": "cd .. && git status",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-quoted-space",
+      "command": "cd '/tmp/with space' && git status",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-standalone",
+      "command": "cd /home/example/repo",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-semicolon-nonmerge",
+      "command": "cd /home/example/repo; git status",
+      "expected": "none"
+    },
+    {
+      "id": "head-cd-expansion-operand",
+      "command": "cd $HOME && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-braced-expansion-operand",
+      "command": "cd \"${REPO}\" && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-command-substitution-operand",
+      "command": "cd \"$(pwd)\" && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-tilde-operand",
+      "command": "cd ~/ws && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-glob-operand",
+      "command": "cd /tmp/*/repo && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-option-operand",
+      "command": "cd -P /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-previous-directory-operand",
+      "command": "cd - && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-two-operand-substitution",
+      "command": "cd /tmp /var && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-without-operand",
+      "command": "cd && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-with-path-assignment-prefix",
+      "command": "PATH=/tmp cd /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-with-command-wrapper",
+      "command": "command cd /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "non-head-cd-literal-leaf",
+      "command": "gh issue view 1 && cd /tmp",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-cli-merge",
+      "command": "cd /home/example/repo && gh -R example/repo pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-bare-merge",
+      "command": "cd /home/example/repo && gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-rest-merge",
+      "command": "cd /home/example/repo && gh api -X PUT repos/example/repo/pulls/1/merge -f merge_method=squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-nested-shell-merge",
+      "command": "cd /home/example/repo && bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-auto-merge",
+      "command": "cd /home/example/repo && gh -R example/repo pr merge 1 --squash --auto",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-state-mutation-then-merge",
+      "command": "cd /home/example/repo && export PATH=/tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-single",
+      "command": "echo 'diff <<a>> b'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-double",
+      "command": "git commit -m \"fix: parse a<<b\"",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-inside-word",
+      "command": "echo a'<<'b",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-with-apostrophe",
+      "command": "gh issue comment 1 --body \"it's a << b\"",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-herestring-marker-data",
+      "command": "grep -n '<<<' notes.md",
+      "expected": "none"
+    },
+    {
+      "id": "unquoted-heredoc-still-closed",
+      "command": "cat << EOF",
+      "expected": "error"
+    },
+    {
+      "id": "unquoted-herestring-still-closed",
+      "command": "python3 -m json.tool <<< '{}'",
       "expected": "error"
     }
   ]

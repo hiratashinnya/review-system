@@ -37,13 +37,22 @@ resolverのcontrol JSONはPolicy 1.0の`blocker-gate-result/v1`、hook evidence�
 `${HOME}/.local/state/review-system/blocker-gate/audit.jsonl`へ0600でappend+fsyncする。
 raw command、token、header、PR本文、commit messageは保存しない。安全なappendができなければ
 `ERROR/HOOK_INTEGRITY_ERROR` とし、permitを発行しない。
-audit schema `pr-merge-audit/4` は、GraphQL expected commit count、override fingerprint、message source/delivered fingerprint、
+audit schema `pr-merge-audit/5` は、GraphQL expected commit count、override fingerprint、message source/delivered fingerprint、
 repository merge settings、snapshot、attempt、PR state/draft、blocker Result metadata、formatter/evidence
 version/hashをpre/post相関レコードへ保存する。生messageは保存しない。
+`/4` からの差分は `post_use_completion` の3フィールド追加だけで、pre側のフィールドは変わらない
+（Issue #435 の項目1と項目3を1回のバンプへ集約した）。
 
-### pre/post相関のidentity（Issue #414）
+| フィールド | 意味 |
+|---|---|
+| `skipped_unparsable_lines` | permit走査で読み飛ばした壊れた行数（項目1） |
+| `permit_operation_fingerprint` | permit側の `operation_fingerprint`（dispatch側は従来どおり `operation_fingerprint`） |
+| `operation_fingerprint_matches_permit` | 上記2つが一致したか。透過ラッパーの書き換えでは `false` になり得る（項目3） |
 
-pre-use decisionとpost-use completionは `invocation_id` で相関する。
+### pre/post相関のidentity（Issue #414・#435）
+
+pre-use decisionとpost-use completionは `invocation_id` と **PR identity（`repository` と
+`pr_number`）**で相関する。
 `invocation_id = uuid5(NAMESPACE_URL, "<session_id>\0<tool_use_id>")` であり、
 **`turn_id` は鍵に含めない**。`tool_use_id` はsession内で1回のtool呼び出しに一意なので
 `turn_id` は識別力を足さない一方、harnessによって `PreToolUse` と `PostToolUse` で
@@ -51,10 +60,51 @@ pre-use decisionとpost-use completionは `invocation_id` で相関する。
 送らない）。鍵に混ぜると同一tool呼び出しがpreとpostで別IDになり、
 `append_completion` がpermitを見つけられず post-use completion が永久に記録されない。
 
+**PR identityでの照合はIssue #435 項目3の緩和**である。以前は `operation_fingerprint`
+（コマンド全文由来のhash）を照合していたが過敏で、直近のマージ14件中13件を誤って
+fail-closeさせていた。原因は、同じPreToolUseイベントに登録された別hook（実測ではrtk）が
+`hookSpecificOutput.updatedInput` で `tool_input.command` を `gh pr merge …` →
+`rtk gh pr merge …` へ書き換え、`transport` が `cli-direct`→`cli-wrapped` に変わって
+fingerprintが一致しなくなること。rtkの書き換え自体はオーナー判断で不可侵なので、照合側を
+PR identityへ緩めた。**代償（オーナー承認済み）は、同一PRに対するmerge method・flagの改竄を
+検知しなくなること**。dispatch時の値は `operation_fingerprint` と
+`permit_operation_fingerprint` の両方をレコードに残すので事後追跡はできる。
+**別のPRへの差し替えは引き続き `PERMIT_OPERATION_MISMATCH` で fail-close する。**
+
 permit走査はJSONとして読めない行を読み飛ばす。append-onlyの共有ログには別プロセスの
 interleaved writeで壊れた行が混じり得るが、1行の破損でpost-use auditが恒久停止するのは
 監査証跡の可用性を落とすだけで安全性を上げない（読み飛ばしはpermitを「見つけられない」
 方向にしか働かず、permitなしでcompletionを発行する経路は増えない＝fail-closeは維持）。
+**読み飛ばしは無音にしない**（Issue #435 項目1）——成功時は `post_use_completion` の
+`skipped_unparsable_lines` に、completionを書けなかった失敗時は
+`AUDIT_UNPARSABLE_LINES_SKIPPED count=<n>` としてstderrに出す。件数はpayload由来の
+文字列を含まないのでredactionを壊さない。
+
+### auditの件数ローテーション（Issue #435 項目2）
+
+audit.jsonlは **300件を超えたら直近100件だけ残す**（`pr_merge_gate/audit.py::rotate_records`）。
+時間基準は採らない——`pre_use_decision` の大半が自身のtimestampを持たず、現行スキーマでは
+保持期間を機械判定できない（Issue #436 の実測：331件/574KB・約110件/日）。
+
+起動点は **PostToolUse hookのみ**で、`post_run` の**分類より前**に置く。分類の後ろに置くと
+「mergeと再分類できた場合」の分岐にしか入らず、マージ成立時（実測3日で14件）しか起動しない。
+増加要因の大半はdenyレコード（同期間で約330件）なのでそれでは抑えられない。PreToolUse
+（`run`）側からは起動しない——permit発行前にread-modify-writeを挟むと、これから相関する
+自分自身のpermitを消し得る。
+
+レース安全は次の3点で構造的に担保する。
+
+1. 起動点が分類前なので、この呼び出し自身が書く `post_use_completion` はまだ存在しない。
+2. 対応する `pre_use_decision` permitは直近100件にほぼ必ず入るが「ほぼ」では誤
+   `PERMIT_MISSING` を生むため、当該 `invocation_id` の行は位置に関係なく必ず残す。
+3. 読み書きは `flock` 排他下で **同一inodeをin-placeに切り詰める**。`os.replace` による
+   inode差し替えだと、ロック解放を待っていた別プロセスのappendが孤立inodeへ書き込み、
+   レコードが黙って失われる。appendも同じロックを取るので追記と切り詰めは直列化される。
+
+ローテーションの失敗はblockではなく `AUDIT_ROTATION_SKIPPED/<code>` としてstderrへ出すだけに
+する。ローテーションはpermit経路ではなく衛生処理であり、ここでblockすると merge と無関係な
+Bashコマンドまで一律で止まる。auditが実際に危険な状態なら、その後の `append_completion` が
+従来どおりfail-closeする。
 
 ### PostToolUse失敗のreason code（Issue #414）
 
@@ -66,7 +116,7 @@ redaction安全な固定語彙で、payload由来の文字列（command・PR本�
 | `PAYLOAD_INVALID` | payloadがJSONでない／`hook_event_name`・`session_id`・`tool_use_id`・`tool_name`・`tool_response` が契約を満たさない |
 | `RECLASSIFIED_NOT_MERGE` | PostToolUseでの再分類がmergeにならない（PreToolUseでdenyされたはずの操作が到達した） |
 | `PERMIT_MISSING` | この `invocation_id` を持つpermit済みpre-useレコードが1件も見つからない（auditファイル不在／pre-use hookが動かなかった／当該行が破損して読み飛ばされた、のいずれか） |
-| `PERMIT_OPERATION_MISMATCH` | `invocation_id` のpermitは在るが `operation_fingerprint` が食い違う＝許可した操作と実行された操作が別物（Issue #436）。実測された発生源は、同一PreToolUseイベントに登録された別hookが `hookSpecificOutput.updatedInput` で `tool_input.command` を書き換え（例: `gh pr merge …` → `rtk gh pr merge …`）、本gateが分類した文字列と実際に実行された文字列がずれるケース |
+| `PERMIT_OPERATION_MISMATCH` | `invocation_id` のpermitは在るが PR identity（`repository` / `pr_number`）が食い違う＝**許可したPRと実行されたPRが別物**（Issue #436で分離・#435で照合単位をPRへ変更）。透過ラッパーによるコマンド文字列の書き換えではもう発生しない |
 | `HOOK_ASSET_UNREADABLE` | hook asset一式のhash計算に失敗した |
 | `AUDIT_FILE_UNSAFE` | audit fileがsymlink／別uid所有／0600以外 |
 | `AUDIT_PATH_INVALID` | `HOME`/`XDG_STATE_HOME` が無い、または絶対pathでない |
@@ -79,6 +129,18 @@ Issue #436はこれを分けた（Issue #414が例外クラス名だけの報告
 
 以前は例外クラス名（`AuditError`）だけを出していたため、構造的に別物の複数経路が同じ
 文字列で報告され、報告を受けても再現なしには原因を特定できなかった。
+
+### blockしないstderr診断（Issue #435）
+
+次の2つは **`decision: block` を伴わず stderr にだけ出る**運用診断で、上表の
+`POST_AUDIT_INTEGRITY_ERROR/<code>` とは別物である。監査証跡の劣化を運用者へ知らせるための
+信号であって、merge可否の判定には使わない。
+
+| 行 | 意味 |
+|---|---|
+| `AUDIT_ROTATION_SKIPPED/<code>` | 件数ローテーションを見送った。`<code>` は上表と同じ固定語彙 |
+| `AUDIT_ROTATED removed=<n>` | 件数ローテーションで `<n>` 行を切り詰めた |
+| `AUDIT_UNPARSABLE_LINES_SKIPPED count=<n>` | permit走査で壊れた行を `<n>` 件読み飛ばした（completionを書けた場合はレコードの `skipped_unparsable_lines` 側に載る） |
 
 ## 運用確認
 
