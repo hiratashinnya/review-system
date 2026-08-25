@@ -282,18 +282,20 @@ class HookTest(unittest.TestCase):
                     self.assertIn(code, stderr.getvalue())
                     self.assertNotIn("example/repo", decision["reason"])
 
-    def test_command_rewritten_after_pre_use_is_reported_as_operation_mismatch(self):
-        """別hookの `updatedInput` 書き換えを PERMIT_MISSING と混同しない（Issue #436）。
+    def test_command_rewritten_after_pre_use_still_correlates_to_the_same_pr(self):
+        """透過ラッパーの `updatedInput` 書き換えで誤fail-closeしない（Issue #435 項目3）。
 
         同じ PreToolUse イベントに登録された別のhook（実測では rtk の
         `RTK auto-rewrite`）が `hookSpecificOutput.updatedInput` で `tool_input.command`
         を書き換えると、本gateが分類・permit した文字列（`gh pr merge …`）と実際に
         実行され PostToolUse に届く文字列（`rtk gh pr merge …`）がずれる。後者は
         `wrappers=["rtk"]` / `transport="cli-wrapped"` として別の
-        `operation_fingerprint` になるため permit 走査が外れる。
-
-        これは相関鍵の欠落ではなく「許可した操作と実行された操作が別物」という整合性
-        違反であり、そう報告されなければ調査は毎回ログ破損の疑いへ空振りする。
+        `operation_fingerprint` になるため、fingerprint照合では相関が外れ、直近のマージ
+        14件中13件が `PERMIT_MISSING`（PR #442以降は `PERMIT_OPERATION_MISMATCH`）へ
+        落ちていた。rtkの書き換え自体はオーナー判断で不可侵なので、照合を PR identity
+        （`repository` + `pr_number`）へ緩める（Issue #435 項目3・オーナー承認済み）。
+        書き換えは PR identity を変えないため、相関は維持されつつ「別のPRへ差し替える」
+        改竄は引き続き検知できる。
         """
         pre = {
             "session_id": "session-rewrite",
@@ -343,6 +345,72 @@ class HookTest(unittest.TestCase):
                 stdin=io.StringIO(json.dumps(post)), stdout=post_stdout,
                 stderr=post_stderr, audit_file=target,
             )
+            records = [
+                json.loads(line)
+                for line in target.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(post_stdout.getvalue(), "")
+        self.assertEqual(
+            [item["record_type"] for item in records],
+            ["pre_use_decision", "post_use_completion"],
+        )
+        self.assertTrue(records[0]["permit_issued"])
+        self.assertTrue(records[1]["operation_dispatched"])
+        self.assertEqual(records[0]["invocation_id"], records[1]["invocation_id"])
+        self.assertEqual(records[1]["pr_number"], 50)
+        self.assertFalse(records[1]["operation_fingerprint_matches_permit"])
+        self.assertEqual(
+            records[1]["permit_operation_fingerprint"],
+            classified.operation.operation_fingerprint,
+        )
+        self.assertEqual(
+            records[1]["operation_fingerprint"],
+            rewritten.operation.operation_fingerprint,
+        )
+
+    def test_dispatch_against_a_different_pr_is_still_fail_closed(self):
+        """PR identityが違えば従来どおり fail-close する（Issue #435 項目3の緩和限界）。
+
+        緩和したのは「同じPRに対するコマンド文字列の差」だけで、**別のPRへの差し替え**は
+        許可した操作と実行された操作が別物という整合性違反のまま検知する。
+        """
+        pre = {
+            "session_id": "session-swap",
+            "tool_use_id": "tool-swap",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "gh pr merge 50 --repo example/repo --squash",
+            },
+        }
+        permitted = allow_evidence()
+        permitted["binding"]["operation_fingerprint"] = (
+            classify_pre_use(pre).operation.operation_fingerprint
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "pr_merge_gate.hook.resolve_github_token", return_value="token"
+        ), patch(
+            "pr_merge_gate.hook.evaluate_merge_operation", return_value=permitted
+        ):
+            target = Path(directory) / "audit.jsonl"
+            run(
+                stdin=io.StringIO(json.dumps(pre)), stdout=io.StringIO(),
+                stderr=io.StringIO(), audit_file=target,
+            )
+
+            post = dict(pre)
+            post["hook_event_name"] = "PostToolUse"
+            post["tool_input"] = {
+                "command": "gh pr merge 51 --repo example/repo --squash",
+            }
+            post["tool_response"] = {"exit_code": 0}
+            post_stdout = io.StringIO()
+            post_stderr = io.StringIO()
+            post_run(
+                stdin=io.StringIO(json.dumps(post)), stdout=post_stdout,
+                stderr=post_stderr, audit_file=target,
+            )
             decision = json.loads(post_stdout.getvalue())
             records = [
                 json.loads(line)
@@ -356,7 +424,182 @@ class HookTest(unittest.TestCase):
         self.assertIn("PERMIT_OPERATION_MISMATCH", post_stderr.getvalue())
         self.assertNotIn("example/repo", decision["reason"])
         self.assertEqual([item["record_type"] for item in records], ["pre_use_decision"])
-        self.assertTrue(records[0]["permit_issued"])
+
+    def filler(self, target: Path, count: int) -> None:
+        """0600のaudit.jsonlへ `count` 件のdeny相当pre recordを積む。"""
+        line = json.dumps(
+            {
+                "schema_version": "pr-merge-audit/5",
+                "record_type": "pre_use_decision",
+                "invocation_id": "filler",
+                "result": "ERROR",
+                "reason": "CLASSIFIER_UNKNOWN",
+                "permit_issued": False,
+            },
+            sort_keys=True, separators=(",", ":"),
+        )
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target.write_text((line + "\n") * count, encoding="utf-8")
+        target.chmod(0o600)
+
+    def test_post_tool_use_rotates_before_the_non_merge_early_return(self):
+        """非merge Bashコマンドの PostToolUse でもローテーションが起動する。
+
+        `post_run` は「mergeと再分類できた場合」だけ完了記録へ進み、それ以外は早期
+        returnする。ローテーション判定を分類の後ろに置くとマージ成立時（実測3日で14件）
+        にしか起動せず、増加要因の大半を占めるdenyレコード（同期間で約330件）を抑え
+        られない。分類より前に置くことをここで固定する（Issue #435 項目2）。
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            self.filler(target, 400)
+            payload = {
+                "session_id": "session-rotate",
+                "tool_use_id": "tool-rotate",
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "gh issue view 1"},
+                "tool_response": {"exit_code": 0},
+            }
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = post_run(
+                stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                stderr=stderr, audit_file=target,
+            )
+            lines = target.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual((code, stdout.getvalue()), (0, ""))
+        self.assertEqual(len(lines), 100)
+        self.assertIn("AUDIT_ROTATED removed=300", stderr.getvalue())
+
+    def test_pre_tool_use_never_rotates(self):
+        """PreToolUse経路からはローテーションしない（Issue #435 項目2の設計制約）。
+
+        permit発行前に read-modify-write を挟むと、これから相関する自分自身のpermitを
+        消し得る。起動点をPostToolUseだけに閉じることで、その経路自体を作らない。
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            self.filler(target, 400)
+            code, stdout, stderr = self.invoke(
+                {
+                    "tool_name": "mcp__codex_apps__github_enable_auto_merge",
+                    "tool_input": {"repository_full_name": "example/repo", "pr_number": 50},
+                },
+                target,
+            )
+            lines = target.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn("AUTO_MERGE_DENIED", stdout)
+        self.assertEqual(len(lines), 401)
+
+    def test_rotation_before_classification_keeps_the_permit_and_the_completion(self):
+        """ローテーションが自分のpermit/completionを消さない（Issue #435 項目2）。
+
+        - permit（PreToolUseで既に書かれている）は `protect_invocation_id` により
+          直近100件の外にあっても残る。
+        - completionはローテーションより後に追記されるので、そもそも削除対象になり得ない。
+        """
+        payload = self.connector_payload("PreToolUse")
+        permitted = allow_evidence()
+        permitted["binding"]["operation_fingerprint"] = (
+            classify_pre_use(payload).operation.operation_fingerprint
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "pr_merge_gate.hook.resolve_github_token", return_value="token"
+        ), patch(
+            "pr_merge_gate.hook.evaluate_merge_operation", return_value=permitted
+        ):
+            target = Path(directory) / "audit.jsonl"
+            run(
+                stdin=io.StringIO(json.dumps(payload)), stdout=io.StringIO(),
+                stderr=io.StringIO(), audit_file=target,
+            )
+            permit_line = target.read_text(encoding="utf-8")
+            filler = json.dumps(
+                {
+                    "record_type": "pre_use_decision",
+                    "invocation_id": "filler",
+                    "permit_issued": False,
+                },
+                sort_keys=True, separators=(",", ":"),
+            )
+            with target.open("a", encoding="utf-8") as handle:
+                handle.write((filler + "\n") * 400)
+
+            post = self.connector_payload("PostToolUse")
+            post["tool_response"] = {"merged": True}
+            post_stdout = io.StringIO()
+            post_run(
+                stdin=io.StringIO(json.dumps(post)), stdout=post_stdout,
+                stderr=io.StringIO(), audit_file=target,
+            )
+            records = [
+                json.loads(line)
+                for line in target.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(post_stdout.getvalue(), "")
+        self.assertEqual(records[0], json.loads(permit_line))
+        self.assertEqual(records[-1]["record_type"], "post_use_completion")
+        self.assertEqual(records[0]["invocation_id"], records[-1]["invocation_id"])
+        self.assertTrue(records[-1]["operation_dispatched"])
+        self.assertEqual(len(records), 102)
+
+    def test_rotation_failure_never_blocks_an_unrelated_command(self):
+        """ローテーション失敗はblockではなくstderr報告に留める（Issue #435 項目2）。
+
+        ローテーションはpermit経路ではなく衛生処理であり、ここでblockすると merge と
+        無関係なBashコマンドまで一律で止まる。auditが危険な状態なら、その後の
+        `append_completion` が従来どおり fail-close する。
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            self.filler(target, 400)
+            target.chmod(0o644)
+            payload = {
+                "session_id": "session-unsafe",
+                "tool_use_id": "tool-unsafe",
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "gh issue view 1"},
+                "tool_response": {"exit_code": 0},
+            }
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = post_run(
+                stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                stderr=stderr, audit_file=target,
+            )
+            lines = target.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual((code, stdout.getvalue()), (0, ""))
+        self.assertIn("AUDIT_ROTATION_SKIPPED/AUDIT_FILE_UNSAFE", stderr.getvalue())
+        self.assertEqual(len(lines), 400)
+
+    def test_post_use_failure_reports_the_skipped_unparsable_line_count(self):
+        """completionが書けない経路でも破損行の読み飛ばしを可観測にする（項目1）。"""
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            target.write_text("broken\n{\n", encoding="utf-8")
+            target.chmod(0o600)
+            payload = self.connector_payload("PostToolUse")
+            payload["tool_response"] = {"merged": True}
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            post_run(
+                stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                stderr=stderr, audit_file=target,
+            )
+            decision = json.loads(stdout.getvalue())
+
+        self.assertIn("POST_AUDIT_INTEGRITY_ERROR/PERMIT_MISSING", decision["reason"])
+        self.assertNotIn("count=", decision["reason"])
+        self.assertIn("AUDIT_UNPARSABLE_LINES_SKIPPED count=2", stderr.getvalue())
 
     def test_audit_integrity_failure_changes_allow_to_deny(self):
         merge = operation()

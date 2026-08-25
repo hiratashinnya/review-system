@@ -36,7 +36,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         self.assertEqual(
             fixture["expected_audit"]["schema_version"],
-            "pr-merge-audit/4",
+            "pr-merge-audit/5",
         )
         self.assertEqual(
             fixture["expected_audit"]["classifier_version"],
@@ -304,6 +304,37 @@ class PreUseClassifierTests(unittest.TestCase):
                 "exec-only-redirect-leaf-empty-after-strip",
                 "redirect-only-leaf-in-compound-still-detected",
                 "exec-only-redirect-leaf-in-compound-still-detected",
+                "safe-head-cd-literal-absolute",
+                "safe-head-cd-literal-relative",
+                "safe-head-cd-literal-parent",
+                "safe-head-cd-literal-quoted-space",
+                "safe-head-cd-literal-standalone",
+                "safe-head-cd-literal-semicolon-nonmerge",
+                "head-cd-expansion-operand",
+                "head-cd-braced-expansion-operand",
+                "head-cd-command-substitution-operand",
+                "head-cd-tilde-operand",
+                "head-cd-glob-operand",
+                "head-cd-option-operand",
+                "head-cd-previous-directory-operand",
+                "head-cd-two-operand-substitution",
+                "head-cd-without-operand",
+                "head-cd-with-path-assignment-prefix",
+                "head-cd-with-command-wrapper",
+                "non-head-cd-literal-leaf",
+                "head-cd-literal-then-cli-merge",
+                "head-cd-literal-then-bare-merge",
+                "head-cd-literal-then-rest-merge",
+                "head-cd-literal-then-nested-shell-merge",
+                "head-cd-literal-then-auto-merge",
+                "head-cd-literal-then-state-mutation-then-merge",
+                "safe-quoted-heredoc-marker-single",
+                "safe-quoted-heredoc-marker-double",
+                "safe-quoted-heredoc-marker-inside-word",
+                "safe-quoted-heredoc-marker-with-apostrophe",
+                "safe-quoted-herestring-marker-data",
+                "unquoted-heredoc-still-closed",
+                "unquoted-herestring-still-closed",
             }
             <= case_ids
         )
@@ -524,6 +555,104 @@ class PreUseClassifierTests(unittest.TestCase):
         for command in (
             "> file; gh pr merge 1 --squash",
             "exec > file; gh pr merge 1 --squash",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+
+    def test_head_cd_to_a_literal_path_no_longer_blocks_unrelated_commands(self):
+        """先頭leafの `cd <literal-path>` は誤ブロックしない（Issue #435 項目4(1)）。
+
+        `cd` は `_SHELL_STATE_COMMANDS` の一員として一律 CLASSIFIER_UNKNOWN に落ちて
+        いたが、classifier 1.14 の実測で最頻の誤ブロック形が `cd /abs/path && <非merge>`
+        だった。cwdは後続leafの**実行実体**を選ばないので、operandにexpansion・glob・
+        tilde・option・prefix assignment・wrapperが無い形だけを開ける。
+        """
+        for command in (
+            "cd /home/example/repo && git status --short",
+            "cd /home/example/repo; git status",
+            "cd tests/unit && gh issue view 1",
+            "cd .. && git status",
+            "cd '/tmp/with space' && git status",
+            "cd /home/example/repo",
+            "cd /home/example/repo && python3 -m unittest discover -s tests/unit 2>&1",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+    def test_head_cd_relaxation_cannot_hide_a_merge_or_a_dynamic_operand(self):
+        """`cd` 緩和でmergeを隠せない・operandを動的にできない（Issue #435 項目4(1)）。
+
+        under-block（mergeの見逃し）が出ないことを固定する。compound内のmerge leafは
+        従来どおり CLASSIFIER_UNKNOWN であり、`cd` の位置・operandの形・prefix・wrapper
+        のいずれかが証明可能な範囲を外れたら閉じたままになる。
+        """
+        for command in (
+            "cd /home/example/repo && gh -R example/repo pr merge 1 --squash",
+            "cd /home/example/repo && gh pr merge 1 --squash",
+            "cd /home/example/repo && gh -R example/repo pr merge 1 --squash --auto",
+            "cd /home/example/repo && bash -c 'gh pr merge 1 --squash'",
+            "cd /home/example/repo && git bisect run gh pr merge 1 --squash",
+            "cd /home/example/repo && gh api -X PUT repos/example/repo/pulls/1/merge "
+            "-f merge_method=squash",
+            "cd /home/example/repo; gh pr merge 1 --squash",
+            "cd /home/example/repo && export PATH=/tmp && git status",
+            "gh issue view 1 && cd /tmp",
+            "echo start && cd /tmp && git status",
+            "cd $HOME && git status",
+            'cd "${REPO}" && git status',
+            'cd "$(pwd)" && git status',
+            "cd ~/ws && git status",
+            "cd /tmp/*/repo && git status",
+            "cd -P /tmp && git status",
+            "cd - && git status",
+            "cd /tmp /var && git status",
+            "cd && git status",
+            "PATH=/tmp cd /tmp && git status",
+            "command cd /tmp && git status",
+            "exec cd /tmp && git status",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+    def test_quoted_heredoc_markers_are_data_but_real_heredocs_stay_closed(self):
+        """quote内の `<<` を heredoc と誤認しない（Issue #435 項目4(2)）。
+
+        quote内の `<<` / `<<<` はdata（コマンド引数の文字）であって redirection operator
+        ではないため、実行語を持ち込めない。逆にquoteの外の `<<` / `<<<` は本物の
+        heredoc/herestringで、受け手がstdinを評価する実行体（`bash` 等）ならmergeを
+        隠せるため CLASSIFIER_UNKNOWN のまま閉じる（緩和しない）。
+        """
+        for command in (
+            "echo 'diff <<a>> b'",
+            'git commit -m "fix: parse a<<b"',
+            "echo a'<<'b",
+            'echo a"<<"b',
+            "gh issue comment 1 --body \"it's a << b\"",
+            "grep -n '<<<' notes.md",
+            "gh issue list --search 'a<<b'",
+            'echo "$BRANCH << done"',
+            "printf '%s' '<<EOF'",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+        for command in (
+            "cat << EOF",
+            "bash <<EOF\ngh pr merge 1 --squash\nEOF",
+            "bash <<< 'gh pr merge 1 --squash'",
+            "python3 -m json.tool <<< '{}'",
+            "echo a << b",
         ):
             with self.subTest(command=command):
                 classified = classify_pre_use(bash(command))

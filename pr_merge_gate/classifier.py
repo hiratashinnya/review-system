@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.14"
+CLASSIFIER_VERSION = "1.15"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -301,7 +301,33 @@ def _state_independent_data_shape(tokens: list[str]) -> bool:
     return len(tokens) == 1 or tokens[1] == "--" or not tokens[1].startswith("-")
 
 
-def _compound_changes_shell_state(command: str) -> bool:
+def _literal_cd_leaf(tokens: Sequence[str]) -> bool:
+    """後続leafの実行実体を差し替えないと証明できる `cd <literal-path>` を判定する。
+
+    Issue #435 項目4(1)の緩和。`cd` は `_SHELL_STATE_COMMANDS` の一員として一律に
+    `CLASSIFIER_UNKNOWN` へ落ちていたが、`cd /abs/path && <非merge>` は実運用で最も多い
+    誤ブロックの形だった。許すのは次を全部満たす形だけで、いずれも「後続leafが実行する
+    実体をこのleafが選び直せない」ことの証明に対応する。
+
+    - operandがちょうど1つ（`cd` 単独＝`$HOME` 依存、`cd -`＝`$OLDPWD` 依存、
+      `cd -P/-L` 等のoption付き、operand 2つ＝`cd old new` の置換形はすべて除く）。
+    - operandにexpansion（`$` / backtick）・glob（`* ? [ ]`）・tilde展開が無い。
+      `shlex.split` はquoteを剥がすため「quoteされた `$`」と「生の `$`」を区別できないので、
+      どちらも拒否する側へ倒す（`cd '/tmp/with space'` は展開文字が無いので通る）。
+    - prefix assignmentもwrapper（`env`/`command`/`builtin`/`exec`/`rtk`）も無い。
+
+    cwd自体は実行実体を選ばない——merge先repositoryは `repository_from_cwd()` が
+    **実行時のcwd**から束縛し直すので、`cd` でrepositoryを偽装する経路も生まれない。
+    """
+    if len(tokens) != 2 or tokens[0] != "cd":
+        return False
+    operand = tokens[1]
+    if not operand or operand.startswith(("-", "~")):
+        return False
+    return not any(marker in operand for marker in ("$", "`", "*", "?", "[", "]", "\0"))
+
+
+def _compound_changes_shell_state(command: str, *, first: bool = False) -> bool:
     """後続leafの実行実体へ状態を持ち越し得るcompound leafを検出する。"""
     try:
         tokens = shlex.split(command, posix=True)
@@ -315,6 +341,8 @@ def _compound_changes_shell_state(command: str) -> bool:
     remaining, wrappers, assignments, _ = environment
     if not remaining:
         return bool(assignments) and "env" not in wrappers
+    if first and not wrappers and not assignments and _literal_cd_leaf(remaining):
+        return False
     if "exec" in wrappers or remaining[0] == "eval":
         return True
     if remaining[0] in _SAFE_DATA_EXECUTABLES:
@@ -1044,8 +1072,11 @@ def classify_pre_use(
     if shell_commands is None:
         return _error("CLASSIFIER_UNKNOWN", command)
     if len(shell_commands) > 1:
-        for leaf in shell_commands:
-            if _compound_changes_shell_state(leaf):
+        for position, leaf in enumerate(shell_commands):
+            # `cd <literal-path>` の緩和は**先頭leafに限る**（Issue #435 項目4(1)）。
+            # 単体leafとして再帰分類すると位置情報が消えるため、位置を見る責務は
+            # ここ（compound側）に残す。
+            if _compound_changes_shell_state(leaf, first=position == 0):
                 return _error("CLASSIFIER_UNKNOWN", command)
             classified = classify_pre_use(
                 {"tool_name": "Bash", "tool_input": {"command": leaf}},
@@ -1077,6 +1108,8 @@ def classify_pre_use(
     ):
         return _error("CLASSIFIER_UNKNOWN", command)
     if remaining[0] in _SHELL_STATE_COMMANDS:
+        if not wrappers and not assignments and _literal_cd_leaf(remaining):
+            return None
         return _error("CLASSIFIER_UNKNOWN", command)
     if remaining[0] != "gh":
         if _dynamic_executable(remaining[0]):
