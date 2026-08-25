@@ -145,6 +145,8 @@ class HookTest(unittest.TestCase):
             },
         }
         classified = __import__("pr_merge_gate.classifier", fromlist=["classify_pre_use"]).classify_pre_use(payload)
+        assert classified is not None
+        assert classified.operation is not None
         permitted = allow_evidence()
         permitted["binding"]["operation_fingerprint"] = classified.operation.operation_fingerprint
         calls = []
@@ -197,6 +199,8 @@ class HookTest(unittest.TestCase):
         if pre_turn is not None:
             pre["turn_id"] = pre_turn
         classified = classify_pre_use(pre)
+        assert classified is not None
+        assert classified.operation is not None
         permitted = allow_evidence()
         permitted["binding"]["operation_fingerprint"] = (
             classified.operation.operation_fingerprint
@@ -307,7 +311,9 @@ class HookTest(unittest.TestCase):
             },
         }
         classified = classify_pre_use(pre)
+        assert classified is not None
         self.assertEqual(classified.kind, "merge")
+        assert classified.operation is not None
         self.assertEqual(classified.operation.transport, "cli-direct")
         permitted = allow_evidence()
         permitted["binding"]["operation_fingerprint"] = (
@@ -333,6 +339,8 @@ class HookTest(unittest.TestCase):
             }
             post["tool_response"] = {"exit_code": 0}
             rewritten = classify_pre_use(post)
+            assert rewritten is not None
+            assert rewritten.operation is not None
             self.assertEqual(rewritten.operation.transport, "cli-wrapped")
             self.assertNotEqual(
                 rewritten.operation.operation_fingerprint,
@@ -384,9 +392,12 @@ class HookTest(unittest.TestCase):
                 "command": "gh pr merge 50 --repo example/repo --squash",
             },
         }
+        classified = classify_pre_use(pre)
+        assert classified is not None
+        assert classified.operation is not None
         permitted = allow_evidence()
         permitted["binding"]["operation_fingerprint"] = (
-            classify_pre_use(pre).operation.operation_fingerprint
+            classified.operation.operation_fingerprint
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "pr_merge_gate.hook.resolve_github_token", return_value="token"
@@ -504,9 +515,12 @@ class HookTest(unittest.TestCase):
         - completionはローテーションより後に追記されるので、そもそも削除対象になり得ない。
         """
         payload = self.connector_payload("PreToolUse")
+        classified = classify_pre_use(payload)
+        assert classified is not None
+        assert classified.operation is not None
         permitted = allow_evidence()
         permitted["binding"]["operation_fingerprint"] = (
-            classify_pre_use(payload).operation.operation_fingerprint
+            classified.operation.operation_fingerprint
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "pr_merge_gate.hook.resolve_github_token", return_value="token"
