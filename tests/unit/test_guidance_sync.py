@@ -242,5 +242,92 @@ class StagedIndexTests(unittest.TestCase):
         self.assertIn("一致しません", errors[0])
 
 
+@unittest.skipUnless(
+    subprocess.run(["git", "--version"], capture_output=True).returncode == 0,
+    "git required",
+)
+class PreCommitHookIntegrationTests(unittest.TestCase):
+    """追跡中の pre-commit hook を一時 repository で実体起動する。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.git("init", "-q")
+        self.git("config", "user.name", "test")
+        self.git("config", "user.email", "test@example.com")
+
+        package = self.root / "guidance_sync"
+        package.mkdir()
+        for source in (REPO_ROOT / "guidance_sync").glob("*.py"):
+            (package / source.name).write_bytes(source.read_bytes())
+
+        self.hook = self.root / ".githooks" / "pre-commit"
+        self.hook.parent.mkdir()
+        source_hook = REPO_ROOT / ".githooks" / "pre-commit"
+        self.hook.write_bytes(source_hook.read_bytes())
+        self.hook.chmod(source_hook.stat().st_mode & 0o777)
+
+        for relative in [PRINCIPLES_SOURCE, *TARGETS.values()]:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"source:{relative}\n", encoding="utf-8")
+        write_common(self.root, f"source:{COMMON_SOURCE}")
+        render(self.root)
+        self.git("add", "--", ".")
+        self.git("commit", "-qm", "initial")
+
+    def git(self, *args):
+        completed = subprocess.run(
+            ["git", *args], cwd=self.root, text=True, capture_output=True, check=False
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed
+
+    def repository_state(self):
+        index_tree = self.git("write-tree").stdout.strip()
+        status = self.git("status", "--porcelain=v1", "-z").stdout
+        tracked = self.git("ls-files", "-z").stdout.split("\0")
+        working_tree = {
+            relative: (self.root / relative).read_bytes()
+            for relative in tracked
+            if relative
+        }
+        return index_tree, status, working_tree
+
+    def run_hook(self):
+        return subprocess.run(
+            [str(self.hook)],
+            cwd=self.root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_consistent_index_exits_zero_without_mutation(self):
+        write_common(self.root, "consistent staged change")
+        render(self.root)
+        self.git("add", "--", COMMON_SOURCE, *TARGETS.keys())
+        before = self.repository_state()
+
+        completed = self.run_hook()
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("guidance-sync: staged-check OK", completed.stdout)
+        self.assertEqual(self.repository_state(), before)
+
+    def test_inconsistent_index_fails_without_mutation(self):
+        write_common(self.root, "inconsistent staged change")
+        render(self.root)
+        self.git("add", "--", COMMON_SOURCE)
+        before = self.repository_state()
+
+        completed = self.run_hook()
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("stage されていません", completed.stdout)
+        self.assertEqual(self.repository_state(), before)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
