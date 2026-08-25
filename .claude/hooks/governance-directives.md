@@ -1,6 +1,6 @@
-# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` の抜粋）
+# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@e8103432a705 -->
+<!-- synced-from: CLAUDE.md@e11e9755c26b -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -25,8 +25,8 @@
 
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
-additionalContext として注入する本文。正本は `CLAUDE.md` と `.claude/rules/*.md`
-（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
+additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude/rules/*.md`、
+公式 import される `.ai/guidance/common.md`（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
 「独断・逸脱が起きたら実害が大きい」中核だけを抜き出した配送用の写し。
 正本を変えたらこちらも合わせる（食い違ったら正本を正とする）。
 追従漏れは `check-governance-drift.sh`（PostToolUse）と
@@ -100,4 +100,3 @@ additionalContext として注入する本文。正本は `CLAUDE.md` と `.clau
     読み取れる粒度で全文出す（ID や 1 行要約だけで投げない）。PR コメント・カルテ・`tmp/_handoff/`・
     ノードは永続化目的の副次的記録であり、書いたことをもって報告済みとしない。`<artifact_policy>` 等の
     要約規律は subagent → 呼び出し元の規約であり、主文脈 → オーナーの報告には適用しない。
-

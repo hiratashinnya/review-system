@@ -1,8 +1,3 @@
-<!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: e5f87fc66f749b30b74b862f02253882241791054a5917be2b8a14e19b8c3b0a -->
-<!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/codex.md; sha256: 8abc296ee3cbb906812790bae7c49289c55624998e9ff93892d65a0713df723a -->
-
 # プロジェクト共通 guidance
 
 この文書は Claude Code、Codex、GitHub Copilot に共通する意味内容の Source of Truth である。PF 固有の loader、tools、model、hook、dispatch、worktree などの実行機構はここへ混ぜず、各 PF の設定・原稿に残す。
@@ -49,18 +44,3 @@
 - corpus ノード（`doc-system-v2/nodes/**`）は対応する `*-author` が一時出力し、`reconciliation-validator` の read-only 検証後に `reconciliation` が反映する。主文脈や他ロールは直接編集しない。
 - review_system 本体の実装は Python を使用し、原則として標準ライブラリだけに依存する。
 - 共通 AI 資産の正本は `.ai/` 配下に置く。PF の実行入口は正本そのものではなく、公式 import または追跡対象の生成物として接続する。
-
-# Codex 固有 guidance
-
-- Codex 固有の設定・hook・custom agent は `.codex/` 配下に置く。
-- Codex repo skill は `.agents/skills/` 配下に置く。
-- 実装、commit、push、PR 作成、PR レビュー、修正は、Codex が利用可能な subagent に委譲する。
-- shell 経由で GitHub 本文を投稿する場合は body file を優先し、バッククォートや `$()` の shell 展開を防ぐ。
-- secondary worktree からの remote 操作後にローカル checkout／cleanup が競合した場合は、remote 状態を確認してから後処理する。
-
-## Codex rate-limit recovery
-
-- project-local Stop hook は rate-limit の兆候がある場合だけ `/status` を送り、cooldown で再帰を抑える。
-- cloud／hosted／no-tmux／tmux-unavailable の no-op 経路では、状態ディレクトリ、payload、ログなどの永続副作用を起こさない。
-- tmux pane 注入ガードの既定は `^codex$` とし、wrapper が必要な環境だけ明示的に上書きする。
-- Codex 資産を `.claude/` に混ぜない。Codex hooks/config/custom agents は `.codex/`、repo skills は `.agents/skills/` に置く。

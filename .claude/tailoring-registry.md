@@ -48,22 +48,8 @@
 > ※ `issue-fixer`（エージェント・Issue #308 で新規追加・**未テーラリング active**・テーラリング対象外）は上記パイプラインの**是正ラウンド専任**ロール（初回実装＝`issue-implementer`／レビュー・マージ＝`pr-reviewer` と単一責務で分割）。権限境界は `issue-implementer` と同一（push 可・merge 不可）で、差は「診断カルテ（`karte`）へ根本原因・変更種別・対象シンボルを登録してからでないと編集しない」という契約の側にある。**`python3 -m karte` を許可されるのは本ロールだけ**——カルテの書き手を1ロールに絞ることで、`pr-reviewer` の read-only fail-close（`Write` 非付与）を書込経路からも守る（`agent-command-gate.sh` の `PYTHON_MODULES_BY_ROLE`）。**Codex CLI へは移植済み**（`.codex/agents/issue-fixer.toml`＋`.codex/hooks/agent-command-gate.sh` の `GATED_ROLES` 登録）。**Copilot（`.github/`）へは非移植**：親パイプラインと同じ理由（gh CLI／フック／Task 委譲／`bloom-model-tier` に Copilot 等価物なし）に加え、本ロールは `karte` CLI と PreToolUse フックの両方に依存するため Copilot 側で契約が成立しない。`asset_parity/exceptions.py` に `(issue-fixer, AGENT, GITHUB)` を転記済み。
 > ※ `docidx`（スキル）＋ `dsv2-lookup`（エージェント・旧名 `docidx-lookup`。実体は v2-native で v1-legacy 専用の `docidx` と紛らわしいため issue #173 で改名）はノード検索/読み込みツール（実体 `archive/docidx-v1/`・Python 標準ライブラリのみ・汎用・テーラリング対象外・issue #172 で `docidx/` から退避、共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。doc-system フォーマット仕様（SPEC/notation）に依存＝依存マップは `archive/docidx-v1/README.md`・各関数 `依存仕様:` docstring（フォーマット改版時に見直す）。
 > ※ `asset_parity`（Issue #155・実体 `asset_parity/`・スキル/エージェントではない裸ツール＝`dsv2`/`docidx` と同区分）は上記4資産ツリー（`.claude/` 正本／`.github/`／`.codex/agents/`／`.agents/skills/`）の presence/absence を read-only 検出する（`python3 -m asset_parity check`）。本台帳の非移植決定（`agy-delegate`・`issue-implementer`／`issue-fixer`／`pr-reviewer` の Copilot 非移植）を `asset_parity/exceptions.py` に転記して「意図的な非ミラー」として除外している——**本台帳が一次情報源**であり、`exceptions.py` はそれをコード化したもの（新しい非移植を決めたら本台帳を先に更新し、`exceptions.py` を追従させる）。使い方は `asset_parity/README.md`。**CI 組み込み済み**（Issue #155 フォローアップ・`.github/workflows/asset-parity.yml`）：4ツリーいずれかのパスを触る `push`/`pull_request` で自動起動し、`MISSING` があれば非0終了でビルド失敗（`--fail-on-stale` は未指定のため staleness flag はビルドを止めない・判断根拠は `asset_parity/README.md` の「CI wiring」節）。マトリクスは `$GITHUB_STEP_SUMMARY` にも出力。
-> ※ `.claude/rationale/`（Issue #372 で新設・**非活性の置き場**＝`.claude/standards/` と同区分）は、契約文書の
-> **経緯（rationale）** の保管先。`issue-pipeline`（SKILL.md）と `issue-implementer`／`issue-fixer`／`pr-reviewer`
-> （エージェント）の4契約から、**設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログ**を
-> `.claude/rationale/<name>.md` へ**移設**した（削除ではなく移設＝PR8）。規範（責務境界・入出力契約・実行規律・
-> 停止条件）だけを従来の場所に残し、dispatch のたびに常駐する量を削るのが目的。判定軸・3つの規律は
-> `.claude/rationale/README.md` が正本。
-> **4ツリー波及方針（本 Issue の決定）＝経緯の正本は `.claude/rationale/` に1箇所だけ置き、ツリー中立に扱う。**
-> `.codex/agents/*.toml` は単一ファイル形式のため「別ファイルへの分離」をツリー内では取れないが、**同一
-> リポジトリなのでリポジトリ相対パスで本ディレクトリを参照できる**ので、各ツリーの規範側はリンクを持つだけでよく
-> **ツリーごとの経緯ファイルは作らない**。したがって**新しい非対称は生じず `asset_parity/exceptions.py` への
-> 追記は不要**（`asset_parity/inventory.py` の `scan_canonical()` が列挙するのは `.claude/skills/*/SKILL.md` と
-> `.claude/agents/*.md` の非再帰 glob だけなので、本ディレクトリは資産として数えられず `MISSING` を生まない
-> ——`python3 -m asset_parity check` で 0 MISSING を実測確認済み。機械検査＝`tests/unit/test_contract_split.py`）。
-> **ミラー側の本文（`.codex/agents/*.toml`・`.agents/skills/issue-pipeline/SKILL.md`・
-> `.github/skills/issue-pipeline/SKILL.md`）は経緯を inline に持ったまま**で、同じ trim を波及させるかは
-> Issue #372 の対象外（対象は `.claude/` の4ファイル）＝**要オーナー判断の残件（Issue #388 で追跡）**。
-> 当面は `asset_parity` の staleness flag（size ratio）が「canonical が痩せた」信号として立つ想定で、
-> これは正しい検知であってビルドは止めない。
+> ※ rationale の本文 SoT は Issue #406 で `.ai/rationale/` へ移管済み。旧 `.claude/rationale/` は
+> Claude 互換 pointer であり、本文の正本ではない。規範 wrapper と PF 固有の実行機構は各 PF 側に残し、
+> rationale 本文を複製しない。索引・分離規則の SoT は `.ai/rationale/README.md`、機械検査は
+> `tests/unit/test_contract_split.py` が担う。
 > ※ `gh-create-issue`（スキル）は GitHub Issue の draft／起票規約を扱う repo 運用資産（未テーラリング active・テーラリング対象外）。**Claude Code 版 `.claude/skills/gh-create-issue/SKILL.md` を正本**とし、**Codex 版 `.agents/skills/gh-create-issue/SKILL.md` は手書き mirror**。自然言語の draft／作成依頼で発見可能だが、本文の write 境界により作成の明示依頼がある場合だけ GitHub を変更する。今回のユーザー指定は **Codex と Claude Code の2環境に限定された明示スコープ**であり、GitHub Copilot 版は作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する。`asset_parity/exceptions.py` には `(gh-create-issue, SKILL, GITHUB)` のみ転記し、Codex の `.agents/skills/` は実 mirror があるため例外化しない。
