@@ -1437,8 +1437,8 @@ class SettingsRegistrationTests(unittest.TestCase):
         self.assertEqual(
             commands[1:3],
             [
-                "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/agent-command-gate.sh",
-                "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/agent-command-gate.sh",
+                "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
+                "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\"",
             ],
         )
 
