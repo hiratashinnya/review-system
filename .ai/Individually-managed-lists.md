@@ -44,8 +44,8 @@
 
 ## Hook 構成一覧
 
-**確認日時**: 2026-08-25T23:22:05+00:00
-**調査時 commit**: `fadf57602fd87cd55b86ae7690ffbe1dd8faaa4f`
+**確認日時**: 2026-08-26T02:45:06+00:00
+**調査時 commit**: `54ce1f8c91ee2d3dd613acde701672e6ab0eee15`（前回確認 2026-08-25T23:22:05+00:00 `fadf576` 以降、hook 構成・件数に変更なし。実装構成リンクの誤り（`.ai/` 起点の相対パス欠落、pr-merge-gate／issue-start-gate の参照先誤り）を是正）
 
 ### ライフサイクル hook 一覧（PF 別適用有無）
 
@@ -74,70 +74,70 @@
 
 - **概要**: PR merge 前に blocker evidence を検査し、未解消なら merge 操作を拒否する。PostToolUse 側では merge 応答を記録する。
 - **スコープ**: Bash・merge 系 MCP ツール呼び出し。
-- **PF 間差異**: Claude（`.claude/hooks/pr-merge-gate.sh`）と Codex（`.codex/hooks/pr-merge-gate.sh`）で個別実装。matcher のツール名が PF の MCP 体系に合わせて異なる。
-- **実装構成**: [`.claude/hooks/README.md`](.claude/hooks/README.md)、[`.codex/hooks/README.md`](.codex/hooks/README.md)
+- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `pr_merge_gate`（`python3 -m pr_merge_gate.hook`）に一本化されており、`.claude/hooks/pr-merge-gate.sh`／`.codex/hooks/pr-merge-gate.sh` はそれぞれの PF から起動するだけの薄いラッパースクリプト（別ファイルだが中身はほぼ同一）。差異は matcher のツール名が PF の MCP 体系に合わせて異なる点のみ。
+- **実装構成**: [`docs/tools/pr-merge-gate.md`](../docs/tools/pr-merge-gate.md)、[`docs/tools/blocker-gate.md`](../docs/tools/blocker-gate.md)（`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook を扱っていない）
 
 #### 2–3. agent-command-gate
 
 - **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push／merge 等の操作を非対称に制限する。ctx_execute 系 MCP ツールにも拡張済み（Issue #303）。
 - **スコープ**: Bash、context-mode 実行系ツール。
 - **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。
-- **実装構成**: [`.claude/hooks/agent-command-gate.sh`](.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](.codex/hooks/agent-command-gate.sh)。既知の限界は Issue #129。
+- **実装構成**: [`.claude/hooks/agent-command-gate.sh`](../.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](../.codex/hooks/agent-command-gate.sh)（`.codex/hooks/README.md` の「PreToolUse command gate」節にも概要あり）。既知の限界は Issue #129。
 
 #### 4. issue-start-gate
 
 - **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する。
-- **スコープ**: Task（Claude）／spawn_agent（Codex）。
-- **PF 間差異**: matcher がディスパッチ機構名に合わせて異なる。
-- **実装構成**: [`.claude/hooks/issue-start-gate.sh`](.claude/hooks/issue-start-gate.sh)、[`.codex/hooks/issue-start-gate.sh`](.codex/hooks/issue-start-gate.sh)
+- **スコープ**: Task／runtime Agent（Claude）／spawn_agent（Codex）。
+- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher・binding 材料がディスパッチ機構名（Claude の `Task`/`Agent` と marker `ISSUE_START_BINDING_V1` 、Codex の `spawn_agent` と `task_name`/`cwd` 平文情報）に合わせて異なる点。
+- **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）
 
 #### 6. check-governance-drift
 
 - **概要**: 正本集合（`CLAUDE.md`＋`.claude/rules/*.md`＋`.ai/guidance/common.md`）の連結ハッシュと `governance-directives.md` の marker を突き合わせ、乖離があれば warning を出す（fail-open nag）。
 - **スコープ**: Write／Edit 後。Claude 専用。
-- **実装構成**: [`.claude/hooks/check-governance-drift.sh`](.claude/hooks/check-governance-drift.sh)
+- **実装構成**: [`.claude/hooks/check-governance-drift.sh`](../.claude/hooks/check-governance-drift.sh)（`.claude/hooks/README.md` の「規範の追従漏れ検知フック」節）
 
 #### 7. subagent-karte-inject
 
 - **概要**: `issue-fixer` 起動時にカルテ（`tmp/_karte/`）の診断コンテキストを注入する。
 - **スコープ**: SubagentStart（issue-fixer）。Claude 専用。
-- **実装構成**: [`.claude/hooks/subagent-karte-inject.sh`](.claude/hooks/subagent-karte-inject.sh)
+- **実装構成**: [`.claude/hooks/subagent-karte-inject.sh`](../.claude/hooks/subagent-karte-inject.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
 #### 8. subagent-worktree-bind
 
 - **概要**: `issue-implementer`／`issue-fixer` 起動時に linked worktree を割り当てる。
 - **スコープ**: SubagentStart。Claude 専用（Codex は worktree bind 非採用）。
-- **実装構成**: [`.claude/hooks/subagent-worktree-bind.sh`](.claude/hooks/subagent-worktree-bind.sh)
+- **実装構成**: [`.claude/hooks/subagent-worktree-bind.sh`](../.claude/hooks/subagent-worktree-bind.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
 #### 9. subagent-stop-gate
 
 - **概要**: `issue-implementer`／`issue-fixer` 停止時に worktree の後処理を行う。
 - **スコープ**: SubagentStop。Claude 専用。
-- **実装構成**: [`.claude/hooks/subagent-stop-gate.sh`](.claude/hooks/subagent-stop-gate.sh)
+- **実装構成**: [`.claude/hooks/subagent-stop-gate.sh`](../.claude/hooks/subagent-stop-gate.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
 #### 10. on-rate-limit（Claude）／ 11. codex-rate-limit-stop-hook（Codex）
 
 - **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex は Stop hook で同等の検知を行う。
 - **PF 間差異**: ライフサイクルイベント名と復帰機構が異なる。Claude は `on-rate-limit.sh`→`resume-watcher.sh`（`lib-pane-guard.sh` を共有ライブラリとして source）。Codex は `codex-rate-limit-stop-hook.sh`（補助: `codex-rate-limit-watcher.sh`、`codex-with-rate-limit-recovery.sh`）。
-- **実装構成**: [`.claude/hooks/README.md`](.claude/hooks/README.md)、[`.codex/hooks/README.md`](.codex/hooks/README.md)
+- **実装構成**: [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「レートリミット自動再開フック」節）、[`.codex/hooks/README.md`](../.codex/hooks/README.md)（「Files」節以降）
 
 #### 12. inject-governance
 
 - **概要**: 毎ターン、正本（`CLAUDE.md`＋`.claude/rules/*.md`）の中核規範を `governance-directives.md` 経由で注入する。
 - **スコープ**: UserPromptSubmit（全 matcher）。Claude 専用。
-- **実装構成**: [`.claude/hooks/inject-governance.sh`](.claude/hooks/inject-governance.sh)
+- **実装構成**: [`.claude/hooks/inject-governance.sh`](../.claude/hooks/inject-governance.sh)（`.claude/hooks/README.md` の「規約注入フック」節）
 
 #### 13. install_pkgs
 
 - **概要**: セッション開始・再開時に必要パッケージをインストールする。
 - **スコープ**: SessionStart（startup／resume）。Claude 専用。
-- **実装構成**: [`.claude/hooks/install_pkgs/install_pkgs.sh`](.claude/hooks/install_pkgs/install_pkgs.sh)
+- **実装構成**: [`.claude/hooks/install_pkgs/install_pkgs.sh`](../.claude/hooks/install_pkgs/install_pkgs.sh)
 
 #### 14. orchestrator-context
 
 - **概要**: セッション開始時に主文脈（orchestrator）のコンテキストを設定する。
 - **スコープ**: SessionStart（startup／clear／compact）。Claude 専用。
-- **実装構成**: [`.claude/hooks/orchestrator-context.sh`](.claude/hooks/orchestrator-context.sh)
+- **実装構成**: [`.claude/hooks/orchestrator-context.sh`](../.claude/hooks/orchestrator-context.sh)（`.claude/hooks/README.md` の「オーケストレータ委譲ルール注入フック」節）
 
 ### 補助スクリプト（hook 呼び出し実体ではないもの）
 
