@@ -16,6 +16,32 @@ method省略、unknown alias/wrapper/flag/tool、target不明、interception不�
 `ERROR` で拒否する。UI merge、hook外API、direct push/ref updateはunmanagedであり、本gateに
 保護されているとは表示しない。
 
+### connector `tool_input` の受理キー集合（Issue #447）
+
+connector系tool（`_CONNECTOR_MERGE` / `_CONNECTOR_AUTO`）の `tool_input` は、次の**2形式の
+どちらか一方**に収まるkey集合だけを受理する。実際に稼働するGitHub connectorのスキーマが
+provider毎に異なるためで、union（1つの集合）にはしない。
+
+| 形式 | identity key | 使うconnector |
+|---|---|---|
+| 形式A | `repository_full_name` + `pr_number` | Codex hosted GitHub Apps 系（`codex_apps.github.*`・`mcp__codex_apps__*`） |
+| 形式B | `owner` + `repo` + `pullNumber` | GitHub MCP server（`mcp__github__merge_pull_request` 等） |
+
+どちらの形式も `merge_method` / `commit_title` / `commit_message` / `expected_head_sha` を
+追加で取り得る。
+
+- **両形式のidentity keyが混在した呼び出し（例 `{owner, repo, pr_number}`）は
+  `ERROR/CLASSIFIER_UNKNOWN` でfail-closeする**。優先順位は付けない——ゲートが片方の
+  フィールドでidentityを束縛し、下流のconnectorが他方を採用すると「許可したPRと実行された
+  PRが別物」になり得る（`PERMIT_OPERATION_MISMATCH` と同種の脅威）。
+- どちらの形式にも属さないkeyが1つでも混じれば `ERROR/CLASSIFIER_UNKNOWN`。
+- identity抽出後の検証（repository名の正規表現、PR番号の正整数判定＝`bool` は除外、
+  merge methodの3値列挙、override（title/message）の型、expected headのOID形式）は
+  **両形式で同一のコードパスを共有する**ので、形式Bだけ緩いということはない。
+- 受理文法が変わったので `CLASSIFIER_VERSION` は `1.15` → `1.16`。この版はpr-merge
+  evidence/auditにだけ載る値で、`blocker_gate` 側の `classifier_version`（Policy 1.0）とは
+  別物であり、`blocker_gate/contract.py` の突合には影響しない。
+
 ## 実行順序
 
 1. tool name/inputをshell evaluateせずclosed classifyし、repository/PR/method/override/headを束縛する。

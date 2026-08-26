@@ -20,7 +20,7 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.15"
+CLASSIFIER_VERSION = "1.16"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -115,6 +115,27 @@ _CONNECTOR_AUTO = frozenset(
         "mcp__github__enable_pull_request_auto_merge",
         "mcp__codex_apps__github_enable_auto_merge",
     }
+)
+# connector の `tool_input` は **形式ごとの部分集合判定**で受理する（Issue #447）。
+# 形式A＝Codex hosted GitHub Apps 系の `repository_full_name` + `pr_number`、
+# 形式B＝GitHub MCP server（Claude Code on the web で実際に提供されるスキーマ）の
+# `owner` + `repo` + `pullNumber`。両者を1つの union 集合へまとめると
+# `{owner, repo, pr_number, merge_method}` のような**実在しない組合せ**まで受理され、
+# 「closed grammar で証明できる形だけ通す」という本分類器の前提が崩れるため採らない。
+_CONNECTOR_OPTIONAL_KEYS = frozenset(
+    {"merge_method", "commit_title", "commit_message", "expected_head_sha"}
+)
+_CONNECTOR_FULL_NAME_IDENTITY = frozenset({"repository_full_name", "pr_number"})
+_CONNECTOR_OWNER_REPO_IDENTITY = frozenset({"owner", "repo", "pullNumber"})
+_CONNECTOR_SHAPES = (
+    (
+        _CONNECTOR_FULL_NAME_IDENTITY,
+        _CONNECTOR_FULL_NAME_IDENTITY | _CONNECTOR_OPTIONAL_KEYS,
+    ),
+    (
+        _CONNECTOR_OWNER_REPO_IDENTITY,
+        _CONNECTOR_OWNER_REPO_IDENTITY | _CONNECTOR_OPTIONAL_KEYS,
+    ),
 )
 
 
@@ -1007,16 +1028,42 @@ def _rest_operation(
 
 
 def _connector_operation(tool_name: str, tool_input: Mapping[str, Any]) -> PreUseClassification:
+    """connector tool の `tool_input` を2形式の閉じた文法だけで束縛する。
+
+    受理するのは次の**どちらか一方**に収まる key 集合に限る（Issue #447）。
+
+    - 形式A: `repository_full_name` + `pr_number`（Codex hosted GitHub Apps 系）
+    - 形式B: `owner` + `repo` + `pullNumber`（GitHub MCP server）
+
+    どちらの形式も `merge_method` / `commit_title` / `commit_message` /
+    `expected_head_sha` を追加で取り得る。identity を抽出したあとの検証
+    （repository の正規表現・PR番号の正整数判定・merge method の3値・override の型・
+    expected head の OID 形式）は**両形式で同一のコードパスを共有する**。
+    """
     if tool_name in _CONNECTOR_AUTO:
         return _block("AUTO_MERGE_DENIED", {"tool_name": tool_name, "tool_input": tool_input})
-    expected_keys = {
-        "repository_full_name", "pr_number", "merge_method", "commit_title",
-        "commit_message", "expected_head_sha",
-    }
-    if set(tool_input) - expected_keys:
+    keys = set(tool_input)
+    matched = [shape for shape in _CONNECTOR_SHAPES if keys & shape[0]]
+    if len(matched) > 1:
+        # 形式Aと形式Bのidentity keyが混在した呼び出し（chimera）。どちらを採るかを
+        # 決めると、ゲートが束縛したPRと下流connectorが実行するPRが食い違い得る
+        # （`PERMIT_OPERATION_MISMATCH` と同種の脅威）。優先順位は付けず fail-close する。
         return _error("CLASSIFIER_UNKNOWN", tool_input)
-    repository = tool_input.get("repository_full_name")
-    number = tool_input.get("pr_number")
+    # identity keyが1つも無い場合は形式Aとして解釈し、`TARGET_AMBIGUOUS` を返す
+    # 従来の reason code を維持する（identityが欠落している事実は形式に依らない）。
+    identity_keys, allowed_keys = matched[0] if matched else _CONNECTOR_SHAPES[0]
+    if keys - allowed_keys:
+        return _error("CLASSIFIER_UNKNOWN", tool_input)
+    if identity_keys is _CONNECTOR_OWNER_REPO_IDENTITY:
+        owner = tool_input.get("owner")
+        repo = tool_input.get("repo")
+        repository = (
+            f"{owner}/{repo}" if isinstance(owner, str) and isinstance(repo, str) else None
+        )
+        number = tool_input.get("pullNumber")
+    else:
+        repository = tool_input.get("repository_full_name")
+        number = tool_input.get("pr_number")
     method = tool_input.get("merge_method")
     title = tool_input.get("commit_title")
     message = tool_input.get("commit_message")

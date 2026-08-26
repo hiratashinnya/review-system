@@ -428,6 +428,138 @@ class PreUseClassifierTests(unittest.TestCase):
                 )
                 self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
 
+    def test_github_mcp_owner_repo_connector_shape_is_bound(self):
+        """GitHub MCP server が実際に提供する `{owner, repo, pullNumber, ...}` 形式
+        （形式B）を束縛する。旧実装は `repository_full_name`/`pr_number` 形式（形式A）
+        しか受理せず、この形式のmerge要求を必ず `CLASSIFIER_UNKNOWN` で拒否していた
+        （Issue #447）。"""
+        for tool_name in (
+            "mcp__github__merge_pull_request",
+            "github_merge_pull_request",
+        ):
+            with self.subTest(tool_name=tool_name):
+                connector = classify_pre_use(
+                    {
+                        "tool_name": tool_name,
+                        "tool_input": {
+                            "owner": "example",
+                            "repo": "repo",
+                            "pullNumber": 12,
+                            "merge_method": "squash",
+                            "commit_title": "title",
+                            "commit_message": "fixes #7",
+                        },
+                    }
+                )
+                self.assertEqual(
+                    (connector.kind, connector.operation.transport), ("merge", "connector")
+                )
+                self.assertEqual(connector.operation.repository, "example/repo")
+                self.assertEqual(connector.operation.pr_number, 12)
+                self.assertEqual(connector.operation.merge_method, "squash")
+
+    def test_owner_repo_connector_shape_accepts_optional_expected_head(self):
+        connector = classify_pre_use(
+            {
+                "tool_name": "mcp__github__merge_pull_request",
+                "tool_input": {
+                    "owner": "example",
+                    "repo": "repo",
+                    "pullNumber": 12,
+                    "merge_method": "merge",
+                    "expected_head_sha": "c" * 40,
+                },
+            }
+        )
+        self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
+        self.assertEqual(connector.operation.expected_head_oid, "c" * 40)
+
+    def test_both_connector_shapes_share_one_identity_validation_path(self):
+        """新しい形式Bの分岐だけ検証が緩くならないことを固定する。repository名の
+        正規表現・PR番号の正整数判定・merge methodの3値・override型・expected headの
+        OID形式は両形式で同じコードパスを通る（Issue #447）。"""
+        base = {
+            "owner": "example",
+            "repo": "repo",
+            "pullNumber": 12,
+            "merge_method": "merge",
+        }
+        cases = (
+            ({**base, "owner": "exa/mple"}, "TARGET_AMBIGUOUS"),
+            ({**base, "owner": ""}, "TARGET_AMBIGUOUS"),
+            ({**base, "repo": "repo.git"}, "TARGET_AMBIGUOUS"),
+            ({**base, "repo": "re po"}, "TARGET_AMBIGUOUS"),
+            ({**base, "owner": 12}, "TARGET_AMBIGUOUS"),
+            ({**base, "pullNumber": 0}, "TARGET_AMBIGUOUS"),
+            ({**base, "pullNumber": -1}, "TARGET_AMBIGUOUS"),
+            ({**base, "pullNumber": "12"}, "TARGET_AMBIGUOUS"),
+            ({**base, "pullNumber": True}, "TARGET_AMBIGUOUS"),
+            ({"owner": "example", "repo": "repo", "merge_method": "merge"}, "TARGET_AMBIGUOUS"),
+            ({**base, "merge_method": "fast-forward"}, "MERGE_METHOD_UNKNOWN"),
+            ({"owner": "example", "repo": "repo", "pullNumber": 12}, "MERGE_METHOD_UNKNOWN"),
+            ({**base, "commit_title": 7}, "MERGE_OVERRIDE_AMBIGUOUS"),
+            ({**base, "commit_message": []}, "MERGE_OVERRIDE_AMBIGUOUS"),
+            ({**base, "expected_head_sha": "z" * 40}, "IDENTITY_MISMATCH"),
+            ({**base, "expected_head_sha": 12}, "IDENTITY_MISMATCH"),
+        )
+        for tool_input, reason in cases:
+            with self.subTest(tool_input=tool_input):
+                classified = classify_pre_use(
+                    {"tool_name": "mcp__github__merge_pull_request", "tool_input": tool_input}
+                )
+                self.assertEqual((classified.kind, classified.reason), ("error", reason))
+
+    def test_mixed_and_unknown_connector_keys_fail_close(self):
+        """形式Aと形式Bのidentity keyが混在した呼び出し（chimera）は優先順位を付けず
+        fail-closeする。どちらかを採ると、ゲートが束縛したPRと下流connectorが実行する
+        PRが別物になり得る（Issue #447）。未知キーの混入も同じく拒否する。"""
+        for tool_input in (
+            {"owner": "example", "repo": "repo", "pr_number": 12, "merge_method": "merge"},
+            {
+                "repository_full_name": "example/repo",
+                "pr_number": 12,
+                "pullNumber": 99,
+                "merge_method": "merge",
+            },
+            {
+                "repository_full_name": "example/repo",
+                "owner": "other",
+                "repo": "repo",
+                "pullNumber": 12,
+                "merge_method": "merge",
+            },
+            {"repository_full_name": "example/repo", "owner": "other", "merge_method": "merge"},
+            {
+                "owner": "example",
+                "repo": "repo",
+                "pullNumber": 12,
+                "merge_method": "merge",
+                "auto_merge": True,
+            },
+            {
+                "repository_full_name": "example/repo",
+                "pr_number": 12,
+                "merge_method": "merge",
+                "pullNumberr": 12,
+            },
+        ):
+            with self.subTest(tool_input=tool_input):
+                classified = classify_pre_use(
+                    {"tool_name": "mcp__github__merge_pull_request", "tool_input": tool_input}
+                )
+                self.assertEqual(
+                    (classified.kind, classified.reason), ("error", "CLASSIFIER_UNKNOWN")
+                )
+
+    def test_owner_repo_shape_auto_merge_is_still_denied(self):
+        auto = classify_pre_use(
+            {
+                "tool_name": "mcp__github__enable_pull_request_auto_merge",
+                "tool_input": {"owner": "example", "repo": "repo", "pullNumber": 12},
+            }
+        )
+        self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
+
     def test_connector_auto_merge_and_unknown_merge_tool_are_denied(self):
         auto = classify_pre_use(
             {
