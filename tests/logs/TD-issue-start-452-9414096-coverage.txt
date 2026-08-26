@@ -1,0 +1,30 @@
+Issue #452 coverage execution log
+=================================
+
+Execution context: issue-pipeline main context after owner approval
+Source revision: 9414096879915575e10b597c1181adf8f9a92c7e
+
+Command:
+uv run --with coverage python -m coverage run -m unittest discover -s tests -p test_*.py
+
+Result:
+Ran 1331 tests
+OK
+
+HTML command/result:
+coverage html
+Wrote HTML report to htmlcov/index.html
+
+Coverage summary:
+TOTAL: 5957 statements, 861 missed, 86%
+issue_start/codex_binding.py: 71%
+issue_start/gate.py: 83%
+issue_start/hook.py: 93%
+issue_start/worktree_ledger.py: 90%
+
+Warnings:
+- docidx module-not-imported (non-fatal; unittest result remained OK)
+
+Repository hygiene:
+- htmlcov/ is a generated coverage artifact and is not committed.
+- python3 -m gitgate status after generation reported a clean worktree.
