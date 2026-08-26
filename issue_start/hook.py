@@ -73,7 +73,9 @@ def run(
     段（前段で deny したら後段へ進まない）:
 
     1. payload を読む（読めなければ ``ISSUE_START_PAYLOAD_INVALID`` で deny）
-    2. managed binding を読む（unmanaged なら ``request is None``）
+    2. managed binding を読む（unmanaged なら ``request is None``）。Codex binding は
+       spawn 成功前に consume せず非破壊検証に留める。現行 Codex transport は必要な
+       runtime observation を欠くため、manifest 検査がこの段で fail-close する
     3. **残留 worktree の deny**（Issue #354・:func:`assert_no_worktree_residue`）。
        **unmanaged も含む全 dispatch に掛かる**ので 2 の結果を待たずここで判定する
     4. unmanaged ならここで exit 0（blocker 判定は managed のみ）。**stdout は無出力のまま

@@ -1,21 +1,27 @@
 # Codex Issue workspace durable binding 判断記録
 
-Status: accepted（Issue #452）  
-Date: 2026-08-26
+Status: fail-close degradation（Issue #452 review round 1）  
+Date: 2026-08-27
 
 ## 問題と現行保証
 
 Claude の `issue-implementer` / `issue-fixer` は Agent tool の `isolation: "worktree"`、
 SubagentStart/Stop、ownership ledger、collect/release により `.claude/worktrees/agent-*` へ束縛される。
-Codex は `collaboration.spawn_agent` に isolation 引数がなく、従来 implementer は平文 task name と
-spawn 時 cwd/origin だけを検証し、fixer transport は manifest に存在しなかった。専用 worktree、branch、
-expected OID、handoff、round、task の再利用禁止は暗号化 message 内の運用情報に留まり、agent 起動後の
-command は別 cwd/origin/branch でも role 権限さえ合えば実行できた。
+Codex は `collaboration.spawn_agent` に `cwd` / `workspace` / `isolation` 引数がない。
+spawn の PreToolUse `cwd` は main-thread の turn/session cwd であり child cwd ではなく、
+各 tool の PreToolUse も `exec_command.workdir` を含まない。さらに current payload は actual
+agent identity と spawn 成功観測を信頼済み値として与えない。したがって次の4値は、
+実 transport が提供するまで機械保証できない。
+
+- child workspace
+- 各 tool の実効 workspace
+- actual agent identity
+- spawn 成功
 
 権限面では既に `agent-command-gate.sh` が implementer/fixer の push 可・merge 不可、reviewer の
 push/自己修正不可を機械化している。この非対称と Claude isolation lifecycle は変更しない。
 
-## 採用方式
+## 採用方式（fail-close 縮退）
 
 主文脈が agent 起動前に、main worktree の `tmp/_worktree/ledger.json` へ次を `platform: codex` の
 `open` entry として記録する。
@@ -26,21 +32,21 @@ push/自己修正不可を機械化している。この非対称と Claude isol
 
 task key は implementer が `issue_<N>`、fixer が `issue_<N>_fix_r<R>` の canonical form とする。
 prepare は workspace が main 配下の `.worktrees/<1要素>` であり、`git worktree list --porcelain` に
-登録済みで、origin/branch/HEAD が指定値と完全一致する場合だけ成功する。同一 task key は終端後も再利用を
-拒否し、同一 workspace の非終端 ownership 重複も拒否する。
+登録済みで、origin/branch/HEAD が指定値と完全一致する場合だけ `open` entry を作る。
+この entry は「dispatch された」証拠ではなく、将来 transport 用の prepare-only 記録である。
 
-spawn PreToolUse は tool name/role/task key と未期限・未消費の entry を一意に照合し、Git facts を再検証して
-`running` へ一度だけ遷移する。Codex fixer は Claude と同じ `isolation_only` 区分に Codex transport を持ち、
-blocker API を再実行せず既存の karte diagnose → fix → test → commit → push → handoff 契約へ入る。
+manifest の Codex implementer/fixer transport は `availability: unavailable` とし、既存の
+trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で dispatch を拒否する。
+新設 all-tool hook が未 trust で実行されなくても、dispatch 自体がこの既存 hook で止まる。
 
-全 tool の PreToolUse は top-level role と payload cwd を active entry へ照合し、origin/branch/worktree登録を
-再確認する。HEAD は spawn 時には expected OID と完全一致を要求し、起動後は agent 自身の正当な commit を
-許すため expected OID の descendant のみ許可する。別 cwd、別 origin、別 branch、履歴を付け替えた OID、
-欠落/重複/期限切れ binding は tool 実行前に fail-close する。
+spawn 前の binding 検証は非破壊とし、`open -> running` には遷移させない。
+residue deny、blocker deny、API failure、router failure の後も agent/handoff 不在の entry を
+`running` に永久消費しない。将来 transport を有効化するには、trusted start observer が
+actual `agent_id` と workspace を同時に観測し、その identity を1度だけ `running` へ bind する。
+各 command は role/workspace に加え `agent_id` 一致を必須とし、stale thread を
+`CODEX_BINDING_AGENT_MISMATCH` で拒否する。
 
-終了時は handoff を同じ相対 path で main worktree へ collect し、ledger を `collected`、その後 ownership を
-`released` にする。`collected_to` は entry に残す。途中失敗では entry を削除せず open/running/stopped/
-collected の非終端状態に残すため、主文脈が同じ task key で回収を再試行できる。
+実 transport が上記観測を提供して有効化された後だけ、handoff の collect/release を使う。
 
 ## 却下案
 
@@ -52,14 +58,10 @@ collected の非終端状態に残すため、主文脈が同じ task key で回
 
 ## Security trade-off と限界
 
-ledger は暗号学的署名ではなく、main worktree のファイル境界と hook を信頼境界にする。主文脈は prepare/
-collect/release を実行できるが gated agent には当該 module を allowlist せず、自己 binding の作成・解放を
-許さない。全 tool hook により Bash 以外の write tool も workspace 検証対象になる。
-
-起動後の HEAD は expected OID の descendant を許容するため、同じ branch 上の外部 descendant commit は
-区別しない。これは agent 自身の commit を PostToolUse なしで許すための最小緩和であり、origin/branch/cwd と
-ownership の一致は毎回維持する。より強い commit ごとの OID 更新は将来 AgentRun identity が導入された時に
-検討する。
+ledger は暗号学的署名ではなく、main worktree のファイル境界と trusted hook を信頼境界にする。
+しかし、信頼できるのは payload が実際に運ぶ値だけであり、task key を agent identity の代用にしたり、
+turn cwd を effective tool cwd の代用にしたりしない。この制約による dispatch 不可は、
+誤った保証を発効させるより安全な縮退である。
 
 ## bootstrap PR の finding 方針
 

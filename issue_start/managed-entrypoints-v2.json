@@ -21,8 +21,14 @@
             "prompt"
           ],
           "task_name_pattern": "^issue_([1-9][0-9]*)$",
-          "repository_source": "durable-binding+payload.cwd+hook.cwd+worktree.origin",
-          "binding_source": "tmp/_worktree/ledger.json#platform=codex"
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
         },
         "claude": {
           "tool_names": [
@@ -67,7 +73,14 @@
             "isolation"
           ],
           "task_name_pattern": "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
-          "binding_source": "tmp/_worktree/ledger.json#platform=codex"
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
         },
         "claude": {
           "tool_names": [

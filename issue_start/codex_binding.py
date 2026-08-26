@@ -1,8 +1,13 @@
 """Codex Issue dispatch を専用 worktree へ事前束縛する durable ledger。
 
 ``collaboration.spawn_agent`` の ``message`` は暗号化されるため、binding の入力には使わない。
-主文脈が ``prepare`` で ownership ledger に記録した値を、spawn の PreToolUse が task key で
-一度だけ ``consume`` し、その後は全 tool の PreToolUse が workspace と Git facts を再検証する。
+主文脈が ``prepare`` で ownership ledger に記録した値は、spawn 前には非破壊で
+検証するだけとする。``open -> running`` の不可逆遷移は、spawn 成功後に trusted
+observer が actual agent identity と実効 workspace を同時に観測したときだけ行う。
+
+現行 Codex transport は child/effective workspace、actual agent identity、spawn 成功のいずれも
+trusted payload として提供しない。そのため dispatch は issue-start gate で fail-close し、
+本 module の bind/verify API は将来 transport が必要な観測値を提供するまで発効させない。
 
 状態は既存 :mod:`issue_start.worktree_ledger` の ``open -> running -> stopped ->
 collected -> released`` を使う。失敗時に entry を削除・終端化しないので、主文脈は同じ task key で
@@ -346,6 +351,7 @@ def prepare_binding(
             "prepared_at": prepared_at,
             "expires_at": expires_at,
             "consumed_at": None,
+            "bound_at": None,
         }
         entries.append(entry)
         created.update(entry)
@@ -425,18 +431,21 @@ def _assert_live_facts(
     return facts
 
 
-def consume_spawn_binding(
+def validate_spawn_binding(
     *,
     repo_root: Path | str,
-    workspace: Path | str,
     role: str,
     task_key: str,
     now: datetime,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
-    """spawn 前に task key を一度だけ消費し ``running`` にする。"""
+    """spawn 前に prepared binding を非破壊で再検証する。
 
-    root, entry = _one_by_task(repo_root, task_key)
+    PreToolUse 通過後に residue/blocker/API/router が失敗しても ``open`` を保つ。
+    spawn 成功はこの層で観測できないため、``agent_id`` や ``status`` を書き込まない。
+    """
+
+    _root, entry = _one_by_task(repo_root, task_key)
     _assert_entry_shape(entry)
     if entry["agent_type"] != role:
         raise CodexBindingError("CODEX_BINDING_ROLE_MISMATCH", role)
@@ -444,9 +453,47 @@ def consume_spawn_binding(
         raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
     if now.astimezone(timezone.utc) >= _parse_stamp(entry["expires_at"]):
         raise CodexBindingError("CODEX_BINDING_EXPIRED", task_key)
+    _assert_live_facts(
+        entry, workspace=entry["workspace"], runner=runner, allow_descendant=False
+    )
+    return dict(entry)
+
+
+def bind_agent_identity(
+    *,
+    repo_root: Path | str,
+    workspace: Path | str,
+    role: str,
+    task_key: str,
+    agent_id: str,
+    now: datetime,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> dict[str, Any]:
+    """trusted start observer が actual identity を1度だけ ``running`` へ束縛する。
+
+    ``workspace`` と ``agent_id`` は transport の trusted observation でなければならない。
+    現行 Codex はその observation を提供しないため、dispatch 経路からは本関数を
+    呼ばない。同一 identity の再通知だけを冪等に扱い、別 identity の上書きは拒否する。
+    """
+
+    if not isinstance(agent_id, str) or not worktree_ledger.AGENT_ID_RE.fullmatch(agent_id):
+        raise CodexBindingError("CODEX_BINDING_AGENT_ID_INVALID", repr(agent_id))
+    root, entry = _one_by_task(repo_root, task_key)
+    _assert_entry_shape(entry)
+    if entry["agent_type"] != role:
+        raise CodexBindingError("CODEX_BINDING_ROLE_MISMATCH", role)
+    if entry["status"] == "running":
+        if entry.get("agent_id") != agent_id:
+            raise CodexBindingError("CODEX_BINDING_AGENT_MISMATCH", agent_id)
+        _assert_live_facts(entry, workspace=workspace, runner=runner, allow_descendant=True)
+        return dict(entry)
+    if entry["status"] != "open":
+        raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
+    if now.astimezone(timezone.utc) >= _parse_stamp(entry["expires_at"]):
+        raise CodexBindingError("CODEX_BINDING_EXPIRED", task_key)
     _assert_live_facts(entry, workspace=workspace, runner=runner, allow_descendant=False)
-    consumed_at = _stamp(now)
-    consumed: dict[str, Any] = {}
+    bound_at = _stamp(now)
+    bound: dict[str, Any] = {}
 
     def mutate(document: dict) -> None:
         matches = [
@@ -457,18 +504,23 @@ def consume_spawn_binding(
             reason = "CODEX_BINDING_MISSING" if not matches else "CODEX_BINDING_DUPLICATE"
             raise CodexBindingError(reason, task_key)
         target = matches[0]
+        if target.get("status") == "running":
+            if target.get("agent_id") == agent_id:
+                bound.update(target)
+                return
+            raise CodexBindingError("CODEX_BINDING_AGENT_MISMATCH", agent_id)
         if target.get("status") != "open":
             raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
         target["status"] = "running"
-        target["agent_id"] = task_key
-        target["consumed_at"] = consumed_at
-        consumed.update(target)
+        target["agent_id"] = agent_id
+        target["bound_at"] = bound_at
+        bound.update(target)
 
     try:
         worktree_ledger.update_ledger(root, mutate)
     except worktree_ledger.LedgerError as exc:
         raise CodexBindingError(exc.reason, exc.detail) from exc
-    return dict(consumed)
+    return dict(bound)
 
 
 def verify_command_binding(
@@ -476,12 +528,15 @@ def verify_command_binding(
     repo_root: Path | str,
     workspace: Path | str,
     role: str,
+    agent_id: str,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
-    """全 tool command 前に workspace/role と live Git facts を active entry へ照合する。"""
+    """全 tool command 前に actual identity/workspace/role と live Git facts を照合する。"""
 
     if role not in TARGET_ROLES:
         raise CodexBindingError("CODEX_BINDING_ROLE_INVALID", role)
+    if not isinstance(agent_id, str) or not worktree_ledger.AGENT_ID_RE.fullmatch(agent_id):
+        raise CodexBindingError("CODEX_BINDING_AGENT_ID_INVALID", repr(agent_id))
     resolved = str(Path(workspace).resolve(strict=True))
     _root, entries = _codex_entries(repo_root)
     matches = [
@@ -495,6 +550,8 @@ def verify_command_binding(
     if len(matches) != 1:
         raise CodexBindingError("CODEX_BINDING_ACTIVE_DUPLICATE", f"{role}:{resolved}")
     entry = matches[0]
+    if entry.get("agent_id") != agent_id:
+        raise CodexBindingError("CODEX_BINDING_AGENT_MISMATCH", agent_id)
     _assert_live_facts(entry, workspace=workspace, runner=runner, allow_descendant=True)
     return dict(entry)
 
@@ -603,7 +660,12 @@ def _deny(reason: str) -> dict[str, Any]:
 def run_hook(
     *, stdin: TextIO, stdout: TextIO, stderr: TextIO, cwd: Path | None = None
 ) -> int:
-    """Codex 全 tool PreToolUse adapter。対象外 role は無出力で素通しする。"""
+    """Codex 全 tool PreToolUse adapter。対象外 role は無出力で素通しする。
+
+    現行 payload の ``cwd`` は turn/session cwd であり ``exec_command.workdir`` ではなく、
+    actual ``agent_id`` も提供されない。存在しない観測値を推測しないため、
+    対象 role は常に fail-close する。
+    """
 
     try:
         payload = json.load(stdin)
@@ -612,25 +674,10 @@ def run_hook(
         role = payload.get("agent_type")
         if role not in TARGET_ROLES:
             return 0
-        payload_cwd = payload.get("cwd")
-        if not isinstance(payload_cwd, str) or not Path(payload_cwd).is_absolute():
-            raise CodexBindingError("CODEX_BINDING_CWD_INVALID", repr(payload_cwd))
-        actual_cwd = Path.cwd() if cwd is None else cwd
-        try:
-            if Path(payload_cwd).resolve(strict=True) != actual_cwd.resolve(strict=True):
-                raise CodexBindingError("CODEX_BINDING_CWD_MISMATCH", payload_cwd)
-        except (OSError, RuntimeError) as exc:
-            raise CodexBindingError("CODEX_BINDING_CWD_INVALID", payload_cwd) from exc
-        entry = verify_command_binding(
-            repo_root=actual_cwd, workspace=payload_cwd, role=role
+        raise CodexBindingError(
+            "CODEX_BINDING_TRANSPORT_UNAVAILABLE",
+            "trusted child/effective workspace, actual agent_id, and spawn-success observation are absent",
         )
-        stderr.write(json.dumps({
-            "schema_version": "codex-workspace-binding-evidence/1",
-            "result": "ALLOW",
-            "entry_id": entry["entry_id"],
-            "task_key": entry["task_key"],
-            "workspace": entry["workspace"],
-        }, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
     except (json.JSONDecodeError, UnicodeDecodeError):
         exc = CodexBindingError("CODEX_BINDING_PAYLOAD_INVALID")
         json.dump(_deny(exc.reason), stdout, ensure_ascii=False, separators=(",", ":"))

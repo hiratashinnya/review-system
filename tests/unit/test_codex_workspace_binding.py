@@ -7,19 +7,22 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from issue_start import worktree_ledger
 from issue_start.codex_binding import (
     CodexBindingError,
+    bind_agent_identity,
     collect_binding,
-    consume_spawn_binding,
     inspect_git_facts,
     prepare_binding,
     release_binding,
     run_hook,
+    validate_spawn_binding,
     verify_command_binding,
 )
-from issue_start.gate import CodexIsolationOnlyAck, parse_dispatch_payload
+from issue_start.gate import IssueStartError, parse_dispatch_payload
+from issue_start.hook import run as run_issue_start_hook
 
 
 NOW = datetime(2026, 8, 26, 9, 0, 0, tzinfo=timezone.utc)
@@ -70,28 +73,81 @@ class RealGitBindingTests(unittest.TestCase):
         values.update(overrides)
         return prepare_binding(**values)
 
-    def consume(self, **overrides):
+    def validate(self, **overrides):
         values = {
             "repo_root": self.workspace,
-            "workspace": self.workspace,
             "role": "issue-implementer",
             "task_key": self.task_key,
             "now": NOW + timedelta(seconds=1),
         }
         values.update(overrides)
-        return consume_spawn_binding(**values)
+        return validate_spawn_binding(**values)
 
-    def test_prepare_consume_verify_collect_release_lifecycle(self):
+    def bind(self, agent_id="agent-owner", **overrides):
+        values = {
+            "repo_root": self.workspace,
+            "workspace": self.workspace,
+            "role": "issue-implementer",
+            "task_key": self.task_key,
+            "agent_id": agent_id,
+            "now": NOW + timedelta(seconds=1),
+        }
+        values.update(overrides)
+        return bind_agent_identity(**values)
+
+    def issue_start_payload(self):
+        return {
+            "cwd": str(self.main),
+            "tool_name": "collaborationspawn_agent",
+            "tool_input": {
+                "agent_type": "issue-implementer",
+                "task_name": self.task_key,
+                "message": "ENC[not-a-binding]",
+            },
+        }
+
+    def run_issue_start(self, evidence):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("issue_start.gate._require_transport_available"), patch(
+            "issue_start.hook.resolve_github_token", return_value=None
+        ), patch("issue_start.hook.evaluate_issue_start", return_value=evidence) as evaluate:
+            rc = run_issue_start_hook(
+                stdin=io.StringIO(json.dumps(self.issue_start_payload())),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=self.main,
+                ledger_root=self.main,
+                now=NOW + timedelta(seconds=1),
+            )
+        self.assertEqual(rc, 0)
+        return stdout.getvalue(), stderr.getvalue(), evaluate
+
+    def assert_prepared_open(self):
+        entry = next(
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == self.task_key
+        )
+        self.assertEqual(entry["status"], "open")
+        self.assertIsNone(entry["agent_id"])
+
+    def test_prepare_validate_bind_verify_collect_release_lifecycle(self):
         prepared = self.prepare()
         self.assertEqual(prepared["status"], "open")
         self.assertEqual(prepared["platform"], "codex")
         self.assertEqual(prepared["worktree_path"], ".worktrees/issue-10")
-        running = self.consume()
+        validated = self.validate()
+        self.assertEqual(validated["status"], "open", "spawn 前 validation は consume しない")
+        self.assertIsNone(validated["agent_id"])
+        running = self.bind()
         self.assertEqual(running["status"], "running")
+        self.assertEqual(running["agent_id"], "agent-owner")
+        self.assertIsNone(running["consumed_at"])
+        self.assertEqual(running["bound_at"], "2026-08-26T09:00:01Z")
         verified = verify_command_binding(
             repo_root=self.workspace,
             workspace=self.workspace,
             role="issue-implementer",
+            agent_id="agent-owner",
         )
         self.assertEqual(verified["task_key"], self.task_key)
 
@@ -103,6 +159,7 @@ class RealGitBindingTests(unittest.TestCase):
             repo_root=self.workspace,
             workspace=self.workspace,
             role="issue-implementer",
+            agent_id="agent-owner",
         )
 
         source = self.workspace / self.handoff
@@ -122,9 +179,9 @@ class RealGitBindingTests(unittest.TestCase):
 
     def test_task_reuse_and_expired_prepare_fail_close(self):
         self.prepare()
-        self.consume()
+        self.bind()
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_TASK_REUSED"):
-            self.consume(now=NOW + timedelta(seconds=2))
+            self.validate(now=NOW + timedelta(seconds=2))
 
         # 別 task の prepare は許可されるが、期限後の consume は拒否し open のまま残す。
         second = self.main / ".worktrees" / "issue-11"
@@ -136,33 +193,104 @@ class RealGitBindingTests(unittest.TestCase):
             role="issue-implementer", task_key="issue_11", now=NOW, ttl_seconds=30,
         )
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_EXPIRED"):
-            consume_spawn_binding(
-                repo_root=second, workspace=second, role="issue-implementer",
+            validate_spawn_binding(
+                repo_root=second, role="issue-implementer",
                 task_key="issue_11", now=NOW + timedelta(seconds=31),
             )
         entries = worktree_ledger.read_ledger(self.main)["entries"]
         expired = next(item for item in entries if item.get("task_key") == "issue_11")
         self.assertEqual(expired["status"], "open")
 
+    def test_blocker_and_api_denies_leave_binding_retryable(self):
+        self.prepare()
+        for result, reason in (("BLOCK", "OPEN_BLOCKER"), ("ERROR", "API_UNAVAILABLE")):
+            with self.subTest(result=result):
+                stdout, _stderr, evaluate = self.run_issue_start({
+                    "schema_version": "issue-start-evidence/1",
+                    "policy_version": "issue-start/1.0",
+                    "result": result,
+                    "exit_code": 10 if result == "BLOCK" else 20,
+                    "reason": reason,
+                    "blockers": [],
+                })
+                self.assertEqual(
+                    json.loads(stdout)["hookSpecificOutput"]["permissionDecision"], "deny"
+                )
+                evaluate.assert_called_once()
+                self.assert_prepared_open()
+
+    def test_router_failure_after_allow_can_retry_the_same_open_binding(self):
+        self.prepare()
+        allow = {
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "ALLOW",
+            "exit_code": 0,
+            "reason": "ISSUE_START_ALLOWED",
+            "blockers": [],
+        }
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt):
+                stdout, stderr, evaluate = self.run_issue_start(allow)
+                self.assertEqual(stdout, "")
+                self.assertIn("ISSUE_START_ALLOWED", stderr)
+                evaluate.assert_called_once()
+                self.assert_prepared_open()
+
+    def test_residue_deny_leaves_binding_retryable(self):
+        self.prepare()
+        residue_path = self.main / ".claude" / "worktrees" / "agent-residue"
+        residue_path.mkdir(parents=True)
+        worktree_ledger.open_entry(
+            self.main,
+            issue=99,
+            agent_type="issue-implementer",
+            round=None,
+            branch_name=None,
+            handoff_path=None,
+            now=NOW,
+        )
+        residue_id = worktree_ledger.bind_agent(
+            self.main,
+            agent_type="issue-implementer",
+            agent_id="residue",
+            worktree_path=".claude/worktrees/agent-residue",
+        )
+        worktree_ledger.mark(self.main, residue_id, "stopped", now=NOW)
+        stdout, _stderr, evaluate = self.run_issue_start({
+            "schema_version": "issue-start-evidence/1",
+            "policy_version": "issue-start/1.0",
+            "result": "ALLOW",
+            "exit_code": 0,
+            "reason": "ISSUE_START_ALLOWED",
+            "blockers": [],
+        })
+        self.assertIn("ISSUE_START_WORKTREE_RESIDUE", stdout)
+        evaluate.assert_not_called()
+        self.assert_prepared_open()
+
     def test_wrong_cwd_origin_branch_and_stale_oid_fail_close(self):
         self.prepare()
-        self.consume()
+        self.bind()
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_ACTIVE_MISSING"):
             verify_command_binding(
-                repo_root=self.workspace, workspace=self.main, role="issue-implementer"
+                repo_root=self.workspace, workspace=self.main, role="issue-implementer",
+                agent_id="agent-owner",
             )
 
         git(self.workspace, "remote", "set-url", "origin", "https://github.com/evil/repo.git")
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_ORIGIN_MISMATCH"):
             verify_command_binding(
-                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer"
+                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer",
+                agent_id="agent-owner",
             )
         git(self.workspace, "remote", "set-url", "origin", "https://github.com/example/repo.git")
 
         git(self.workspace, "switch", "-c", "codex/wrong-branch")
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_BRANCH_MISMATCH"):
             verify_command_binding(
-                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer"
+                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer",
+                agent_id="agent-owner",
             )
         git(self.workspace, "switch", "codex/issue-10")
 
@@ -172,8 +300,30 @@ class RealGitBindingTests(unittest.TestCase):
         git(self.workspace, "commit", "--amend", "-m", "rewritten root")
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_STALE_OID"):
             verify_command_binding(
-                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer"
+                repo_root=self.workspace, workspace=self.workspace, role="issue-implementer",
+                agent_id="agent-owner",
             )
+
+    def test_actual_agent_identity_is_bound_once_and_stale_thread_is_denied(self):
+        self.prepare()
+        owner = self.bind("agent-owner")
+        self.assertEqual(self.bind("agent-owner")["entry_id"], owner["entry_id"])
+        with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_AGENT_MISMATCH"):
+            self.bind("agent-stale")
+        with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_AGENT_MISMATCH"):
+            verify_command_binding(
+                repo_root=self.workspace,
+                workspace=self.workspace,
+                role="issue-implementer",
+                agent_id="agent-stale",
+            )
+        verified = verify_command_binding(
+            repo_root=self.workspace,
+            workspace=self.workspace,
+            role="issue-implementer",
+            agent_id="agent-owner",
+        )
+        self.assertEqual(verified["agent_id"], "agent-owner")
 
     def test_missing_handoff_and_task_role_round_mismatch_fail_before_write(self):
         bad = (
@@ -187,7 +337,7 @@ class RealGitBindingTests(unittest.TestCase):
                 self.prepare(**override)
         self.assertEqual(worktree_ledger.read_ledger(self.main)["entries"], [])
 
-    def test_hook_requires_active_binding_for_target_roles_and_skips_others(self):
+    def test_hook_fails_closed_for_target_roles_until_transport_observations_exist(self):
         missing_stdout = io.StringIO()
         run_hook(
             stdin=io.StringIO(json.dumps({
@@ -201,7 +351,7 @@ class RealGitBindingTests(unittest.TestCase):
             "deny",
         )
         self.prepare()
-        self.consume()
+        self.bind()
         stdout = io.StringIO()
         run_hook(
             stdin=io.StringIO(json.dumps({
@@ -210,7 +360,9 @@ class RealGitBindingTests(unittest.TestCase):
             })),
             stdout=stdout, stderr=io.StringIO(), cwd=self.workspace,
         )
-        self.assertEqual(stdout.getvalue(), "")
+        decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("CODEX_BINDING_TRANSPORT_UNAVAILABLE", decision["permissionDecisionReason"])
         unmanaged = io.StringIO()
         run_hook(
             stdin=io.StringIO(json.dumps({"agent_type": "pr-reviewer"})),
@@ -218,7 +370,32 @@ class RealGitBindingTests(unittest.TestCase):
         )
         self.assertEqual(unmanaged.getvalue(), "")
 
-    def test_codex_fixer_transport_consumes_the_canonical_round_task(self):
+    def test_hook_never_treats_turn_cwd_as_the_effective_tool_workspace(self):
+        self.prepare()
+        self.bind()
+        other = self.main / ".worktrees" / "other"
+        for payload_cwd in (self.main, self.workspace, other):
+            stdout = io.StringIO()
+            run_hook(
+                stdin=io.StringIO(json.dumps({
+                    "agent_type": "issue-implementer",
+                    "cwd": str(payload_cwd),
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "git status"},
+                })),
+                stdout=stdout,
+                stderr=io.StringIO(),
+                cwd=self.workspace,
+            )
+            with self.subTest(payload_cwd=payload_cwd):
+                decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn(
+                    "CODEX_BINDING_TRANSPORT_UNAVAILABLE",
+                    decision["permissionDecisionReason"],
+                )
+
+    def test_codex_fixer_transport_is_denied_without_consuming_the_open_binding(self):
         prepare_binding(
             issue=10, round_number=2, repository=REPOSITORY, workspace=self.workspace,
             branch_name="codex/issue-10", expected_oid=self.oid,
@@ -226,7 +403,7 @@ class RealGitBindingTests(unittest.TestCase):
             role="issue-fixer", task_key="issue_10_fix_r2", now=NOW,
         )
         payload = {
-            "cwd": str(self.workspace),
+            "cwd": str(self.main),
             "tool_name": "collaborationspawn_agent",
             "tool_input": {
                 "agent_type": "issue-fixer",
@@ -234,15 +411,14 @@ class RealGitBindingTests(unittest.TestCase):
                 "message": "ENC[not-a-binding]",
             },
         }
-        ack = parse_dispatch_payload(payload, cwd=self.workspace, now=NOW + timedelta(seconds=1))
-        self.assertIsInstance(ack, CodexIsolationOnlyAck)
-        self.assertEqual((ack.issue, ack.round, ack.repository), (10, 2, REPOSITORY))
-        self.assertEqual(ack.handoff_path, "tmp/_handoff/issue-fixer--issue-10-r2.yaml")
-        with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_TASK_REUSED"):
-            consume_spawn_binding(
-                repo_root=self.workspace, workspace=self.workspace, role="issue-fixer",
-                task_key="issue_10_fix_r2", now=NOW + timedelta(seconds=2),
-            )
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+            parse_dispatch_payload(payload, cwd=self.main, now=NOW + timedelta(seconds=1))
+        entry = next(
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == "issue_10_fix_r2"
+        )
+        self.assertEqual(entry["status"], "open")
+        self.assertIsNone(entry["agent_id"])
 
 
 class UnregisteredWorktreeTests(unittest.TestCase):

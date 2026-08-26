@@ -16,6 +16,7 @@ from issue_start.gate import (
     IsolationOnlyAck,
     IssueStartError,
     IssueStartRequest,
+    _require_transport_available,
     _validate_tool_input_shape,
     evaluate_issue_start,
     parse_dispatch_payload,
@@ -116,10 +117,13 @@ def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
 class DispatchPayloadMixin:
     def setUp(self):
         binding = patch(
-            "issue_start.gate._consume_codex_binding", side_effect=fake_codex_binding
+            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
         )
         binding.start()
         self.addCleanup(binding.stop)
+        availability = patch("issue_start.gate._require_transport_available")
+        availability.start()
+        self.addCleanup(availability.stop)
 
     """Codex/Claude の正規 dispatch payload を組み立てる共通ヘルパ（テストは持たない）。"""
 
@@ -334,6 +338,25 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
                     {"subagent_type": "issue-implementer", "prompt": "x", "isolation": "worktree"},
                     transport,
                 )
+
+    def test_codex_availability_must_be_explicit_and_well_formed(self):
+        for transport in (
+            {},
+            {"availability": "unknown"},
+            {"availability": "unavailable"},
+            {"availability": "unavailable", "missing_observations": []},
+            {"availability": "unavailable", "missing_observations": ["x", "x"]},
+        ):
+            with self.subTest(transport=transport), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
+            ):
+                _require_transport_available("codex", transport)
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+            _require_transport_available(
+                "codex",
+                {"availability": "unavailable", "missing_observations": ["actual_agent_id"]},
+            )
+        _require_transport_available("claude", {})
 
 
 def fix_binding(**overrides):
@@ -611,10 +634,13 @@ class HookLedgerMixin:
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
         binding = patch(
-            "issue_start.gate._consume_codex_binding", side_effect=fake_codex_binding
+            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
         )
         binding.start()
         self.addCleanup(binding.stop)
+        availability = patch("issue_start.gate._require_transport_available")
+        availability.start()
+        self.addCleanup(availability.stop)
 
     def ledger_entries(self):
         return worktree_ledger.read_ledger(self.ledger_root)["entries"]
@@ -833,6 +859,52 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
         reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
         report = json.loads(reason.split(" blockers=", 1)[1])
         self.assertEqual(report, [blocker])
+
+
+class CodexUnavailableTransportHookTests(unittest.TestCase):
+    """Issue #452 round 1: 新all-tool hook未trust時も既存dispatch hookで拒否する。"""
+
+    def test_existing_issue_start_hook_fails_closed_before_evaluation(self):
+        payloads = [
+            {
+                "cwd": str(ROOT),
+                "tool_name": "collaborationspawn_agent",
+                "tool_input": {
+                    "agent_type": "issue-implementer",
+                    "task_name": "issue_10",
+                    "message": "ENC[not-a-binding]",
+                },
+            },
+            {
+                "cwd": str(ROOT),
+                "tool_name": "collaborationspawn_agent",
+                "tool_input": {
+                    "agent_type": "issue-fixer",
+                    "task_name": "issue_10_fix_r1",
+                    "message": "ENC[not-a-binding]",
+                },
+            },
+        ]
+        for payload in payloads:
+            with self.subTest(role=payload["tool_input"]["agent_type"]):
+                stdout = io.StringIO()
+                with patch("issue_start.hook.evaluate_issue_start") as evaluate:
+                    rc = run_hook(
+                        stdin=io.StringIO(json.dumps(payload)),
+                        stdout=stdout,
+                        stderr=io.StringIO(),
+                        cwd=ROOT,
+                        now=LEDGER_NOW,
+                    )
+                self.assertEqual(rc, 0)
+                decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn(
+                    "ISSUE_START_TRANSPORT_UNAVAILABLE",
+                    decision["permissionDecisionReason"],
+                )
+                self.assertIn("actual_agent_id", decision["permissionDecisionReason"])
+                evaluate.assert_not_called()
 
 
 class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):

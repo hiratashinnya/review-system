@@ -105,6 +105,16 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(
             transports["codex"]["task_name_pattern"], "^issue_([1-9][0-9]*)$"
         )
+        self.assertEqual(transports["codex"]["availability"], "unavailable")
+        self.assertEqual(
+            transports["codex"]["missing_observations"],
+            [
+                "child_workspace",
+                "effective_tool_workspace",
+                "actual_agent_id",
+                "spawn_success",
+            ],
+        )
         self.assertNotIn("Agent", transports["codex"]["tool_names"])
         self.assertEqual(set(transports["claude"]["tool_names"]), {"Task", "Agent"})
         self.assertEqual(
@@ -133,7 +143,8 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(entry["entrypoint"], "issue-pipeline")
         self.assertEqual(entry["agent_type"], "issue-fixer")
         transports = entry["binding_transports"]
-        # Claude は tool isolation、Codex は事前 durable binding で同じ isolation_only へ到達する。
+        # Claude は tool isolation で到達する。Codex は shape を正規識別するが、
+        # runtime observation 不足を manifest が宣言し dispatch 前に fail-close する。
         self.assertEqual(set(transports), {"claude", "codex"})
         codex = transports["codex"]
         self.assertEqual(set(codex["tool_names"]), {"spawn_agent", "collaborationspawn_agent"})
@@ -146,7 +157,17 @@ class AssetParityTests(unittest.TestCase):
             codex["task_name_pattern"],
             "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
         )
-        self.assertEqual(codex["binding_source"], "tmp/_worktree/ledger.json#platform=codex")
+        self.assertEqual(codex["availability"], "unavailable")
+        self.assertEqual(
+            codex["missing_observations"],
+            [
+                "child_workspace",
+                "effective_tool_workspace",
+                "actual_agent_id",
+                "spawn_success",
+            ],
+        )
+        self.assertIn("prepare-only", codex["binding_source"])
         claude = transports["claude"]
         self.assertEqual(set(claude["tool_names"]), {"Task", "Agent"})
         self.assertEqual(claude["agent_type_field"], "subagent_type")
@@ -164,6 +185,31 @@ class AssetParityTests(unittest.TestCase):
         managed = {item["agent_type"] for item in manifest["managed"]}
         isolation_only = {item["agent_type"] for item in manifest["isolation_only"]}
         self.assertFalse(managed & isolation_only)
+
+    def test_existing_pre_tool_use_trust_indices_are_preserved(self):
+        hooks = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+        groups = hooks["hooks"]["PreToolUse"]
+        commands = [group["hooks"][0]["command"] for group in groups]
+        self.assertIn("pr-merge-gate.sh", commands[0])
+        self.assertIn("agent-command-gate.sh", commands[1])
+        self.assertIn("issue-start-gate.sh", commands[2])
+        self.assertIn("codex-workspace-binding-gate.sh", commands[3])
+        self.assertEqual(len(groups), 4)
+
+    def test_new_binding_hook_trust_does_not_enable_the_transport(self):
+        manifest = json.loads(
+            (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
+        )
+        codex_transports = [
+            entry["binding_transports"]["codex"]
+            for section in ("managed", "isolation_only")
+            for entry in manifest[section]
+        ]
+        self.assertTrue(codex_transports)
+        self.assertTrue(all(item["availability"] == "unavailable" for item in codex_transports))
+        readme = (ROOT / ".codex" / "hooks" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("pre_tool_use:3:0", readme)
+        self.assertIn("Trusting group 3 does not enable the transport", readme)
 
 
 if __name__ == "__main__":

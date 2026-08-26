@@ -99,7 +99,7 @@ class IssueStartRequest:
 
 @dataclass(frozen=True)
 class CodexIssueStartRequest(IssueStartRequest):
-    """durable binding を消費済みの Codex 初回実装 request。"""
+    """durable binding を非破壊検証済みの Codex 初回実装 request。"""
 
     round: int
     branch_name: str
@@ -138,7 +138,7 @@ class IsolationOnlyAck:
 
 @dataclass(frozen=True)
 class CodexIsolationOnlyAck(IsolationOnlyAck):
-    """durable binding を消費済みの Codex 是正 dispatch。"""
+    """durable binding を非破壊検証済みの Codex 是正 dispatch。"""
 
     workspace: str
     task_key: str
@@ -332,6 +332,35 @@ def _managed_transport(
     return matches[0]
 
 
+def _require_transport_available(harness: str, transport: Mapping[str, Any]) -> None:
+    """manifest で unavailable と宣言した transport を parser 入口で拒否する。
+
+    Codex の project hook trust は group index 単位である。新しい all-tool hook が
+    untrusted で実行対象に入っていない状態でも、既存 index の issue-start hook が
+    この検査を実行して dispatch を fail-close する。
+    """
+
+    if harness == "codex" and "availability" not in transport:
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    availability = transport.get("availability", "available")
+    if availability == "available":
+        return
+    if availability != "unavailable":
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    missing = transport.get("missing_observations")
+    if (
+        not isinstance(missing, list)
+        or not missing
+        or not all(isinstance(item, str) and item for item in missing)
+        or len(missing) != len(set(missing))
+    ):
+        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    raise IssueStartError(
+        "ISSUE_START_TRANSPORT_UNAVAILABLE",
+        f"harness={harness}; missing_observations={','.join(missing)}",
+    )
+
+
 def _validate_tool_input_shape(
     tool_input: Mapping[str, Any], transport: Mapping[str, Any]
 ) -> None:
@@ -515,6 +544,7 @@ def parse_dispatch_payload(
     if agent_type not in managed_types:
         return None
     entry, harness, transport = _managed_transport(tool_name, agent_type)
+    _require_transport_available(harness, transport)
     _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:
@@ -534,7 +564,7 @@ def parse_dispatch_payload(
         if match is None or match.lastindex != 1:
             raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
         issue = int(match.group(1))
-        binding = _consume_codex_binding(
+        binding = _validate_codex_binding(
             payload,
             tool_input,
             agent_type=agent_type,
@@ -588,6 +618,7 @@ def _parse_isolation_only(
     弱まらない——ここが本区分の存在理由（分離だけを課したい）そのものだから。
     """
     entry, harness, transport = _managed_transport(tool_name, agent_type, entries)
+    _require_transport_available(harness, transport)
     _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:
@@ -596,7 +627,7 @@ def _parse_isolation_only(
     if not isinstance(entrypoint, str):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     if harness == "codex":
-        binding = _consume_codex_binding(
+        binding = _validate_codex_binding(
             payload, tool_input, agent_type=agent_type, cwd=cwd, now=now, runner=runner
         )
         return CodexIsolationOnlyAck(
@@ -618,7 +649,7 @@ def _parse_isolation_only(
     return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
 
 
-def _consume_codex_binding(
+def _validate_codex_binding(
     payload: Mapping[str, Any],
     tool_input: Mapping[str, Any],
     *,
@@ -627,27 +658,25 @@ def _consume_codex_binding(
     now: datetime,
     runner: Callable[..., subprocess.CompletedProcess[str]],
 ) -> dict[str, Any]:
-    """Codex spawn を暗号化 message ではなく durable task binding へ照合する。"""
+    """Codex spawn を durable task binding へ非破壊で照合する。
 
-    from .codex_binding import CodexBindingError, consume_spawn_binding
+    spawn payload の ``cwd`` は turn/session cwd であり child workspace ではないため、
+    workspace として使わない。検証対象は prepare 時に Git facts を固定した
+    ledger entry 自身であり、この処理は ``open`` から状態遷移させない。
+    """
+
+    from .codex_binding import CodexBindingError, validate_spawn_binding
 
     task_key = tool_input.get("task_name")
-    payload_cwd = payload.get("cwd")
     if not isinstance(task_key, str):
         raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
-    if not isinstance(payload_cwd, str) or not Path(payload_cwd).is_absolute():
-        raise IssueStartError("ISSUE_START_CWD_INVALID")
     try:
-        workspace = Path(payload_cwd).resolve(strict=True)
         hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise IssueStartError("ISSUE_START_CWD_INVALID") from exc
-    if workspace != hook_root:
-        raise IssueStartError("ISSUE_START_CWD_MISMATCH")
     try:
-        return consume_spawn_binding(
+        return validate_spawn_binding(
             repo_root=hook_root,
-            workspace=workspace,
             role=agent_type,
             task_key=task_key,
             now=now,
@@ -1119,7 +1148,8 @@ def record_open_entry(
     ``None`` のまま起票する（marker 拡張は PR-4）。
     """
     if isinstance(request, CodexIssueStartRequest):
-        # Codex は spawn 前 prepare で既に open、parse 時に running へ一度だけ遷移済み。
+        # Codex は spawn 前 prepare で既に open。parse は非破壊で、trusted start
+        # observer が actual identity/workspace を観測するまで running へ遷移しない。
         # Claude 用の best-effort open を重ねると ownership が二重になる。
         return {"entry_id": request.ledger_entry_id, "error": None, "platform": "codex"}
     try:
@@ -1164,6 +1194,8 @@ def record_isolation_only_entry(
     止めない（fail-open）＝managed 側と同じ扱い。
     """
     if isinstance(ack, CodexIsolationOnlyAck):
+        # Codex の prepare-only open を返す。actual identity を観測していないこの段で
+        # running や回収可能と推測しない。
         return {"entry_id": ack.ledger_entry_id, "error": None, "platform": "codex"}
     try:
         root = worktree_ledger.main_worktree_root(

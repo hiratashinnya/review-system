@@ -10,10 +10,11 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 ## Codex CLI 固有の dispatch 契約
 
 - GitHub の Issue/PR 操作は connector-first とし、利用可能な GitHub connector/tool を先に使い、不足する機能だけ `gh` CLI で補う。
-- Codex implementer の `task_name` は exact `issue_<Issue番号>`、fixer は exact `issue_<Issue番号>_fix_r<round>` とする。task key は一度使ったら release 後も再利用しない。
-- `spawn_agent` の前に専用 `.worktrees/<name>` を用意し、`python3 -m issue_start.codex_binding prepare --issue N --round R --repository OWNER/REPO --workspace ABS --branch BRANCH --expected-oid OID --handoff REL --role issue-implementer|issue-fixer --task-key KEY` を主文脈で成功させる。prepare は Issue・round・repository・workspace・branch・expected OID・handoff・role・task key を main worktree の ownership ledger へ期限付きで記録する。暗号化 message は binding に使わない。
-- spawn の PreToolUse は binding を一度だけ consume し、全 tool PreToolUse は cwd/origin/branch と expected OID（または agent が作った descendant）を再検証する。別cwd・別origin・別branch・stale OID・未登録worktree・欠落handoff・期限切れ・task再利用は fail-close。hook 無効 harness や direct shell は保護済み経路として扱わない。
-- agent 終了後は `python3 -m issue_start.codex_binding collect --task-key KEY --repo-root MAIN` で handoff を main worktree へ回収し、続けて `python3 -m issue_start.codex_binding release --task-key KEY --repo-root MAIN` で ownership を解放する。成功時は ledger の `released` と `collected_to` を確認し、失敗時は非終端 entry を消さず同じ task key で回収を再試行する。
+- Codex implementer/fixer transport は現行 `unavailable`。`spawn_agent` が child workspace を受け取れず、PreToolUse が各 tool の実効 workdir・actual agent identity・spawn 成功を trusted 値として運ばないため、保護済み dispatch として宣言しない。
+- Codex implementer の reserved `task_name` は exact `issue_<Issue番号>`、fixer は exact `issue_<Issue番号>_fix_r<round>`。ただし、runtime が上記3観測と child workspace を提供し、manifest の availability を別の検証済み変更で有効化するまでこの key で spawn しない。
+- 既存 index の issue-start hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で Codex implementer/fixer dispatch を fail-close する。all-tool binding hook の未 trust を理由に別 role・unmanaged worker・direct shell へ迂回しない。turn/session `cwd` を child/effective workspace、task key を agent identity とみなさない。
+- `prepare` は将来 transport 用の prepare-only ledger 記録であり、dispatch 成功を意味しない。spawn 前の照合で `open -> running` を consume せず、将来の trusted start observer が actual agent identity と workspace を同時に観測したときだけ1度束縛する。
+- `collect` / `release` は trusted start で `running` に束縛され、実 handoff が存在する entry に限る。dispatch deny・API failure・router failure で `open` のままの entry を回収済みと推測しない。
 - 実装担当は `.codex/agents/issue-implementer.toml`、是正担当は `.codex/agents/issue-fixer.toml`、レビュー担当は `.codex/agents/pr-reviewer.toml` の developer_instructions にある恒常契約を適用する。implementer/fixer は push 可・merge 不可、reviewer は自己修正/push 不可という hook 機械ゲートを維持する。
-- この binding 機構を導入する bootstrap PR 自身に finding が出た場合、未導入の Codex fixerを worker・implementer・別roleへ偽装して迂回しない。bootstrap PR は独立 reviewer の finding を記録して STOP し、merge 後の main から正規 fixer transport を起動するか、オーナーが明示した bootstrap 処置だけを別記録で行う。
+- この binding 機構を導入する bootstrap PR 自身に finding が出た場合、未導入の Codex fixerを worker・implementer・別roleへ偽装して迂回しない。bootstrap PR は独立 reviewer の finding を記録して STOP し、runtime 観測が揃うまで正規 Codex fixer を予定しない。オーナーが明示した bootstrap 処置だけを role 偽装と分離した記録で行う。
 - 実装の model／effort は Bloom ルーブリック、初回レビューの effort は共通本文のリスク信号で選ぶ。再レビューは既定 `high`、レート制限を理由に降格しない。

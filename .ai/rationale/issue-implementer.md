@@ -27,13 +27,19 @@
 
 ## `ISSUE_START_BINDING_V1` deny の切り分けと enforcement の実体（移設元：「dispatch 前提：`ISSUE_START_BINDING_V1` marker」節）
 
-### Codex durable binding（Issue #452・2026-08-26）
+### Codex durable binding（Issue #452・2026-08-26、round 1 訂正 2026-08-27）
 
 Codex の message は暗号化されるため、Issue/round/repository/workspace/branch/OID/handoff/role/task key の
-正本には使わない。主文脈が既存 ownership ledger へ prepare し、spawn hook が task key で一回だけ consume、
-全 tool hook が active workspace と Git facts を再検証する。判断・却下案・security trade-off の正本は
-`docs/methods/codex-workspace-binding.md`。従来の task_name+cwd+origin だけの方式は task再利用と command 時の
-workspace逸脱を閉じられないため退役した。
+正本には使わない。当初は主文脈が ownership ledger へ prepare し、spawn hook が
+task key で consume、全 tool hook が workspace/Git facts を再検証する方式を採用した。
+
+PR #453 round 1 で、spawn payload `cwd` は main-thread の turn/session cwd で child workspace ではなく、
+tool payload は `exec_command.workdir`、actual agent identity、spawn 成功を提供しないことが確定した。
+task key を agent identity、turn cwd を effective workspace の代用にした当初方式は保証不能である。
+現行は Codex transport を unavailable と宣言し、既存 trusted issue-start hook で dispatch を fail-close する。
+spawn 前検証は非破壊で `open` を保ち、将来 trusted start observer が actual identity と workspace を
+観測できるときだけ `running` へ束縛する。判断・却下案・security trade-off の正本は
+`docs/methods/codex-workspace-binding.md`。
 
 `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
 （field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt

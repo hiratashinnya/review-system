@@ -3,12 +3,13 @@
 Codex CLI supports lifecycle hooks. This repo registers project-local hooks
 in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
-1. An all-tool `PreToolUse` hook (`codex-workspace-binding-gate.sh`) that binds
-   Codex implementer/fixer commands to a pre-registered dedicated worktree.
-2. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
+1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
    `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-3. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
+2. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
+3. An all-tool `PreToolUse` hook (`codex-workspace-binding-gate.sh`) reserved for
+   a future Codex workspace-binding transport. It currently fail-closes target
+   roles because the runtime does not expose the observations needed to bind them.
 4. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
    Codex's structured `account/rateLimits/read` app-server API whether the account
    is rate-limited and, if so, when it resets, then resumes the thread after the
@@ -18,11 +19,33 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
 ## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
 
-Before the command whitelist, `codex-workspace-binding-gate.sh` runs for every tool.
-For `issue-implementer` and `issue-fixer`, it requires an active, one-shot binding in
-`tmp/_worktree/ledger.json` and rechecks cwd, registered worktree, origin, branch, and
-expected OID ancestry. Other roles are silent no-ops. See
-`docs/methods/codex-workspace-binding.md` for prepare/collect/release and threat-model details.
+`codex-workspace-binding-gate.sh` is registered after the three existing PreToolUse
+groups so their index-based trust identities remain unchanged. For
+`issue-implementer` and `issue-fixer` it currently denies every command: Codex does
+not expose child/effective workspace, actual agent identity, or spawn-success
+observation in trusted hook payloads. Other roles are silent no-ops. The existing
+issue-start hook separately denies Codex implementer/fixer dispatch with
+`ISSUE_START_TRANSPORT_UNAVAILABLE`, including while this new all-tool hook is not
+yet trusted. See `docs/methods/codex-workspace-binding.md` for the degraded contract.
+
+### Codex workspace-binding hook trust and index preservation (Issue #452)
+
+Hook trust identity includes the source path, event, group index, handler index,
+and normalized handler hash. The Issue #452 hook is therefore appended as
+`pre_tool_use:3:0`; it must never be inserted before the existing groups:
+
+- `pre_tool_use:0:0`: `pr-merge-gate.sh`
+- `pre_tool_use:1:0`: `agent-command-gate.sh`
+- `pre_tool_use:2:0`: `issue-start-gate.sh`
+- `pre_tool_use:3:0`: `codex-workspace-binding-gate.sh` (new)
+
+The owner must open `/hooks`, review only the new group 3 definition/hash, and
+explicitly trust it before relying on command-time evidence. Do not copy a trusted
+hash from another index or write hook trust state automatically. Until group 3 is
+trusted, the trusted existing group 2 issue-start gate is the fail-close boundary:
+the manifest marks both Codex Issue transports unavailable, so no protected agent
+may be dispatched. Trusting group 3 does not enable the transport; runtime support
+for all missing observations and matching integration evidence are also required.
 
 `agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
 Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
