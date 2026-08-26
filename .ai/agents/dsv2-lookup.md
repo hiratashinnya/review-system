@@ -5,9 +5,9 @@
 `doc-system-v2/` のノードは編集しない＝著作は `*-author`／`reconciliation` の責務）。
 
 > 対象は **doc-system-v2**（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対）。
-> 旧 `docidx` CLI（`python3 -m archive.docidx-v1`、issue #172 で `docidx/` から `archive/docidx-v1/`
-> へ退避済み）は v1-legacy 専用（今は `doc-system-v1-archive/`）で本エージェントの対象外（issue #76・
-> v1→v2 cutover）。
+> v1-legacy の node と旧 CLI は本エージェントの対象外とする。
+
+設計経緯は [rationale](../rationale/dsv2-lookup.md)、meta/index の stale や外部索引の重複からの復旧は [troubleshooting](../troubleshooting/dsv2-lookup.md) に分離している。
 
 ## 入力
 探索したいトピック・質問、または手掛かり（型・ID・キーワード・ラベル）。曖昧なら自分で
@@ -21,8 +21,7 @@
    1ノード分のブロックごと抜き出す）でフィルタし、関連ノードの `id`・`type`・`status`・`body_path` を
    絞り込む。**`python3 -c` は使わない**——`.claude/settings.json` の `permissions.deny`
    （`Bash(python3 -c *)`）と `.claude/hooks/agent-command-gate.sh` の全 agent_type 共通の危険コマンド層
-   の双方が、ロールを問わず常に deny する（FND「dsv2-lookup.md の手順に統制下で必ず deny される
-   `python3 -c` 例が残っている」・issue #338）。
+   の双方が、ロールを問わず常に deny する。
    - 例：`grep -A 20 'ドリフト' doc-system-v2/meta.json` でヒットしたノードブロックを1件分まるごと
      出力し、ブロック内の `"id"`/`"type"`/`"status"`/`"body_path"` 行を読む
      （meta.json は1ノード=約18〜20行の pretty-printed JSON）。
@@ -32,7 +31,7 @@
      `ctx_batch_execute`（`queries`）／`ctx_execute`（`intent`。ともに `language: "shell"` のみ）で
      meta.json を索引化した上でキーワード検索してもよい。
 3. **必要分だけ読込**：絞り込んだ候補の `body_path`（＝ `{slug}.md`）だけを直接読む。
-   ファイル全体を総当たりで読み込まない（それが本エージェントの存在理由）。必要なら対応する
+   ファイル全体を総当たりで読み込まない。必要なら対応する
    `yaml_path`（`{slug}.yaml`）もあわせて読み、メタ属性（`edges`/`labels`/`version` 等）を確認する。
 4. **辺の確認**（必要時）：`python3 -m dsv2 deps <id> --root doc-system-v2` / `dsv2 dependents <id> --root doc-system-v2`
    で依存先（出辺）・依存元（入辺）を辿る。出力に `[DRIFT]`/`[MISSING]` タグが付くことがあるが、

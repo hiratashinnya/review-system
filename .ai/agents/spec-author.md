@@ -2,6 +2,8 @@
 
 **共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは SPEC の**分割規律と型別部分**のみ。
 
+設計経緯は [rationale](../rationale/spec-author.md) に分離している。
+
 ## 入力
 
 ```
@@ -10,7 +12,7 @@ sprint:      <current_phase 値（例: sprint-1）>
 target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
               未指定なら parent_id を使う（単独呼び出し時のみ）。
               **fan-out を介さず単一失敗 target の再試行として直接呼ばれた場合**は、呼び出し元が前回の
-              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す（issue #278）。
+              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す。
               省略すると parent_id 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされない>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
@@ -63,7 +65,7 @@ tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
 
 ### 3. 親子の辺（サイドカーに含める）
 
-- **親→子の辺は持たない**（`decomposes` 廃止・DD-014）。親子は**子→親の同型依存辺**で表す。
+- **親→子の辺は持たない**。親子は**子→親の同型依存辺**で表す。
 - 子ノードは親 SPEC を**無名依存辺**で参照する（FR を直接参照しない）。`kind`/`status` は書かない。
 
 ### 4. サイドカー（`id`/`type` は書かない・path から導出）
@@ -80,7 +82,7 @@ edges:
 ```
 
 `scheduled` の**既定は `current_phase`**（config.yaml）。無計画な空は禁止。別フェーズ（`sprint-N`）へ回すのは**オーナー承認時のみ**で、承認の旨を残す。post-mvp の大枠は `labels`。
-SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verification 発火で現在は沈黙する。
+SPEC←TD の被依存辺は `must_be_linked_from` の verification 発火で現在は沈黙する。
 
 ### 5. 本文フォーマット
 
@@ -114,10 +116,10 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 - [ ] id = `slugify(title)`（doc-system-v2/slugify.py で算出）。階層を表す連番 ID を使っていない
 - [ ] 1ノード = `{slug}.md`＋`{slug}.yaml` の対（本文に YAML/バッジを書いていない）
 - [ ] サイドカーに `id`/`type` を書いていない（path から導出）
-- [ ] 親ノードに子への辺がない（decomposes 廃止・親子は子→親の同型依存辺）
+- [ ] 親ノードに子への辺がない（親子は子→親の同型依存辺）
 - [ ] 子ノードが親 SPEC へ依存辺を張る（FR を直接参照していない）・`kind`/`status` を書いていない
 - [ ] `to` は単数 slug（リスト記法を使っていない）
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照）
 - [ ] `condition` 属性が全子ノードに存在（RULE-016 ERROR）
 - [ ] edges の `to` がすべて実在する slug（RULE-007: always_error）
 - [ ] `ref_version`（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）

@@ -1,4 +1,4 @@
-# `.ai/rationale/` — 契約文書の「経緯」の保管先（非活性・dispatch 時にロードされない）
+# `.ai/rationale/` — ADR／契約文書の「経緯」の保管先（非活性・dispatch 時にロードされない）
 
 Claude Code (AI) が Issue #372 で新設した。**規範（normative）と経緯（rationale）を分離**し、
 dispatch のたびに常駐するのは前者だけにするための置き場。
@@ -8,7 +8,8 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 | | 置き場 | 中身 |
 |---|---|---|
 | **規範（normative）** | `.claude/agents/<name>.md`・`.claude/skills/<name>/SKILL.md`（従来どおり） | ロールが**行動を決めるのに必要なもの**だけ＝責務境界・入出力契約・実行規律・停止条件 |
-| **経緯（rationale）** | **`.ai/rationale/<name>.md`（本ディレクトリ）** | 設計判断の理由・**却下案**・既知の限界・過去インシデントの経緯・実測ログ |
+| **ADR／経緯（rationale）** | **`.ai/rationale/<name>.md`（本ディレクトリ）** | 設計判断の理由・**却下案**・既知の限界・変更経緯 |
+| **troubleshooting** | **`.ai/troubleshooting/<asset>-<incident>.md`** | 障害の症状・復旧手順・回避策・実測ログ（本ディレクトリには置かない） |
 
 ## 3つの規律
 
@@ -46,9 +47,15 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 
 ## 4ツリーへの波及方針（Issue #372 で決定）
 
-**経緯の正本は本ディレクトリに1箇所だけ置き、ツリー中立（tree-neutral）に扱う。**
+**ADR／rationale の正本は本ディレクトリに1箇所だけ置き、ツリー中立（tree-neutral）に扱う。**
 `.codex/agents/*.toml` は単一ファイル形式のため「別ファイルへ分離」という構造をツリー内では
 取れないが、**同一リポジトリなのでリポジトリ相対パスで本ディレクトリを参照できる**。
 よって各ツリーの規範側は本ディレクトリへのリンクを持つだけでよく、**ツリーごとの経緯ファイルは作らない**
 （＝新しい非対称は生じないので `asset_parity/exceptions.py` への追記も不要）。
 記録＝`.claude/tailoring-registry.md`。
+
+troubleshooting は ADR／rationale と別責務であり、障害・復旧記録の正本は
+`.ai/troubleshooting/` に置く。共有 schema の正本は `.ai/schema/` に置き、配置契約は
+[`../schema/asset-placement-v1.json`](../schema/asset-placement-v1.json) と
+[`../schema/README.md`](../schema/README.md) を参照する。いずれも PF tree の
+asset parity 対象ではない。

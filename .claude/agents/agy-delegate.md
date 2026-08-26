@@ -9,6 +9,8 @@ model: sonnet
 使い捨ての well-scoped タスク（調査・スクラッチコード・画像生成・独立並列クエリ）を
 Gemini 3.5 Flash（High）に委譲し、結果を回収して呼び出し元へ返す。
 
+PF 固有の障害復旧は [`.ai/troubleshooting/agy-delegate.md`](../../.ai/troubleshooting/agy-delegate.md) に分離している。
+
 移譲先のモデルは agy print-mode で **Gemini 3.5 Flash 固定**。速い tool-calling と短いタスク向き。
 重い推論はホストモデル（あなた自身）で行い、無理に移譲しない。
 
@@ -23,7 +25,6 @@ Gemini 3.5 Flash（High）に委譲し、結果を回収して呼び出し元へ
 
 ## workspace は必ず Windows パスで渡す
 
-agy は Windows プロセスのため、**WSL パス（`/mnt/c/...`）を渡すと `[WinError 267]` で失敗する**。
 `workspace` / `workspaces` には**必ず Windows 形式**（`C:\Users\...`）を渡す。
 
 - 変換規則：`/mnt/c/Users/foo/bar` → `C:\Users\foo\bar`（`/mnt/<drive>/` を `<DRIVE>:\` に、`/` を `\` に）。

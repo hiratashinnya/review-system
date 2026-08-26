@@ -2,6 +2,7 @@
 
 from .sync import (
     COMMON_SOURCE,
+    NON_GUIDANCE_SHARED_DIRS,
     PRINCIPLES_SOURCE,
     TARGETS,
     check,
@@ -12,6 +13,7 @@ from .sync import (
 
 __all__ = [
     "COMMON_SOURCE",
+    "NON_GUIDANCE_SHARED_DIRS",
     "PRINCIPLES_SOURCE",
     "TARGETS",
     "check",

@@ -1,6 +1,6 @@
 # asset_parity — cross-platform asset drift/presence detector
 
-Detects presence/absence drift across the four asset trees that exist for this repo
+Detects presence/absence drift across the four loader-facing asset trees that exist for this repo
 (issue #155, detection half — a separate task handles the currently-known content
 gaps such as issue-pipeline porting):
 
@@ -51,6 +51,23 @@ Exit codes: `0` no MISSING gaps (and no staleness flags if `--fail-on-stale`) /
    canonical `.claude/` counterpart at all (the reverse-direction gap; not counted in
    the missing-count/exit code).
 
+## Non-active shared material (Issue #407)
+
+The parity inventory has an intentionally narrow canonical boundary. It enumerates
+only `.claude/skills/*/SKILL.md` and `.claude/agents/*.md`; shared AI material is
+not a fifth asset tree and must not create mirror obligations:
+
+| Material | Shared source of truth | Inventory treatment |
+|---|---|---|
+| Normative skill/agent body | `.ai/skills/` / `.ai/agents/` | linked from a loader wrapper; not scanned as a second asset |
+| ADR / rationale | `.ai/rationale/` | inactive record; ignored |
+| Troubleshooting | `.ai/troubleshooting/` | inactive record; ignored |
+| Shared schema | `.ai/schema/` | inactive contract; ignored |
+
+The placement contract is `.ai/schema/asset-placement-v1.json`. Do not add a new
+parity exception for one of these directories: if a record is reported as an
+asset, the inventory boundary is wrong and should be fixed instead.
+
 ## Documented exceptions
 
 `asset_parity/exceptions.py` holds a short, explicit list of **already-documented**
@@ -78,7 +95,7 @@ tree), not a one-off documented carve-out:
 | Module | Responsibility |
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
-| `inventory.py` | Canonical asset enumeration + invocation-mode classification |
+| `inventory.py` | Canonical asset enumeration + invocation-mode classification + active-root boundary |
 | `trees.py` | Per-tree naming conventions + applicability rules |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |

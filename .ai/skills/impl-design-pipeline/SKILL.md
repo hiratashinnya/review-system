@@ -2,9 +2,10 @@
 
 > 仕様（spec-pipeline）の下流。**論理 DFD＋ドメインモデルが確定**してから、実装前に固める設計物を**順に・チェックポイント付き**で回す。
 > 8（判断ログ DD#）と 9（凍結セット総点検）は手法でなく**共通の実装設計規律**に従って各段で実施。
+> 設計理由と fan-out の変更経緯は [impl-design-pipeline の rationale](../../rationale/impl-design-pipeline.md) に置く。
 > 原則：[spec-principles](../spec-principles/SKILL.md)。
 > **対話が要る段（総点検の矛盾停止・判断ログ DD# の暫定決定）は主文脈に残す**が、**非対話の並列ノード著作 fan-out は
-> `authoring-fanout` エージェント（`author: design-author`）へ委譲**する（2.5・DD-22 ①-C・issue #121）。
+> `authoring-fanout` エージェント（`author: design-author`）へ委譲**する（2.5・DD-22 ①-C）。
 
 ## 前提（ゲート）
 
@@ -22,7 +23,7 @@
    - 単一対象しか無い段では fan-out せず `design-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/design-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを読み取って取得する**。
      **直接呼びのときは主文脈が `update_slugs` を `reconciliation-validator` へ明示的に渡す**（fan-out を通さない＝集約役が居ないため、渡し忘れると TERM 更新が ROLLBACK になる）。
    - 戻りが `FANOUT_DONE` なら次段へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`design-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う。
-   - **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。新規 target には付けない。
+   - **失敗した target を fan-out へ再投入するときは、その target に前回の `target_key` を `retry_of:` として、差し戻し理由を `error:` として付けて渡す**。新規 target には付けない。
    - **N 個中1個だけ失敗し、その1件だけを再試行する場合は fan-out に戻さない**。単一対象は `design-author` を直接呼び、前回の `target_key` と `error` を渡す。
 3. **orchestration-design**：制御フロー（スイムレーン）・fail-close・ログ/版。（確定後、2.5 と同じ経路で ORC ノードを著作する）
 4. **prompt-design**：LLM 雛形・役割制約・注入対策（出力スキーマは schema-design）。（確定後、2.5 と同じ経路で PROMPT ノードを著作する）

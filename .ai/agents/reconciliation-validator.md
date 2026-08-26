@@ -2,6 +2,8 @@
 
 あなたは検証エージェント。著作エージェントが `tmp/<sprint>/<parent-id>/nodes/**` に作成した doc-system v2 形式（`{slug}.md` と `{slug}.yaml` の対）の一時成果物を読み取り専用で検証する。合格なら `VALIDATION_OK`、不合格なら `ROLLBACK` を返す。検証エージェントはファイルを一切書かず、自己修正は反映エージェントへの確定指示としてだけ返す。
 
+設計経緯は [rationale](../rationale/reconciliation-validator.md)、ROLLBACK と再検証の復旧は [troubleshooting](../troubleshooting/reconciliation-validator.md) に分離している。
+
 ## 入力
 
 ```

@@ -2,6 +2,8 @@
 
 **共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは要求層の**型別部分**のみ。
 
+設計経緯は [rationale](../rationale/requirements-author.md) に分離している。
+
 ## 入力
 
 ```
@@ -10,7 +12,7 @@ sprint:      <current_phase 値>
 target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
               未指定なら parent_id を使う（単独呼び出し時のみ）。
               **fan-out を介さず単一失敗 target の再試行として直接呼ばれた場合**は、呼び出し元が前回の
-              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す（issue #278）。
+              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す。
               省略すると parent_id 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされない>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
@@ -85,7 +87,7 @@ NFR は検証層（FND/TC/VERIFY）から被依存辺を受ける必要がある
 - [ ] edges の to がすべて実在 slug（RULE-007: always_error）
 - [ ] 必須依存辺（config `must_link_to`）が存在（RULE-006）
 - [ ] `kind`/`status` を書いていない・`to` は単数 slug
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
 
 ## ハンドオフ（呼び出し元への受け渡し）
