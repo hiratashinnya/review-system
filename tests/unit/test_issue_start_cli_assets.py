@@ -133,8 +133,20 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(entry["entrypoint"], "issue-pipeline")
         self.assertEqual(entry["agent_type"], "issue-fixer")
         transports = entry["binding_transports"]
-        # isolation は Claude harness にしか無い概念。Codex transport は宣言しない。
-        self.assertEqual(set(transports), {"claude"})
+        # Claude は tool isolation、Codex は事前 durable binding で同じ isolation_only へ到達する。
+        self.assertEqual(set(transports), {"claude", "codex"})
+        codex = transports["codex"]
+        self.assertEqual(set(codex["tool_names"]), {"spawn_agent", "collaborationspawn_agent"})
+        self.assertEqual(codex["agent_type_field"], "agent_type")
+        self.assertEqual(set(codex["required_tool_input_fields"]), {"agent_type", "task_name"})
+        self.assertEqual(
+            set(codex["forbidden_tool_input_fields"]), {"subagent_type", "prompt", "isolation"}
+        )
+        self.assertEqual(
+            codex["task_name_pattern"],
+            "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
+        )
+        self.assertEqual(codex["binding_source"], "tmp/_worktree/ledger.json#platform=codex")
         claude = transports["claude"]
         self.assertEqual(set(claude["tool_names"]), {"Task", "Agent"})
         self.assertEqual(claude["agent_type_field"], "subagent_type")
