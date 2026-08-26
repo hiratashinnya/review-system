@@ -74,7 +74,7 @@
 
 - **概要**: PR merge 前に blocker evidence を検査し、未解消なら merge 操作を拒否する。PostToolUse 側では merge 応答を記録する。
 - **スコープ**: Bash・merge 系 MCP ツール呼び出し。
-- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `pr_merge_gate`（`python3 -m pr_merge_gate.hook`）に一本化されており、`.claude/hooks/pr-merge-gate.sh`／`.codex/hooks/pr-merge-gate.sh` はそれぞれの PF から起動するだけの薄いラッパースクリプト（別ファイルだが中身はほぼ同一）。差異は matcher のツール名が PF の MCP 体系に合わせて異なる点のみ。
+- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `pr_merge_gate`（`python3 -m pr_merge_gate.hook`）に一本化されており、`.claude/hooks/pr-merge-gate.sh`／`.codex/hooks/pr-merge-gate.sh` はそれぞれの PF から起動するだけの薄いラッパースクリプト（別ファイルだが中身はほぼ同一）。matcher のツール名リストは `.claude/settings.json`／`.codex/hooks.json` で完全に同一で、差異は Codex 側の matcher だけが `^(?:...)$` で正規表現全体をアンカーしている点のみ。
 - **実装構成**: [`docs/tools/pr-merge-gate.md`](../docs/tools/pr-merge-gate.md)、[`docs/tools/blocker-gate.md`](../docs/tools/blocker-gate.md)（`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook を扱っていない）
 
 #### 2–3. agent-command-gate
@@ -86,10 +86,10 @@
 
 #### 4. issue-start-gate
 
-- **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する。
+- **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する（managed dispatch のみ）。加えて、これとは独立した安全機構として、残留 worktree があれば managed／unmanaged を問わず**全 dispatch を fail-close で deny する**（Issue #354）。自動解放が失敗した場合やフックが発火しなかった場合の最後の砦として機能する。
 - **スコープ**: Task／runtime Agent（Claude）／spawn_agent（Codex）。
 - **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher・binding 材料がディスパッチ機構名（Claude の `Task`/`Agent` と marker `ISSUE_START_BINDING_V1` 、Codex の `spawn_agent` と `task_name`/`cwd` 平文情報）に合わせて異なる点。
-- **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）
+- **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）。残留 worktree deny の詳細は [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「残留 worktree での次 dispatch を deny する」節）
 
 #### 6. check-governance-drift
 
