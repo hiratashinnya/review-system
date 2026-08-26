@@ -121,6 +121,31 @@
   merge した上で、PR-4 が初めて gated ロールへ新しい verb（`adopt-branch`）を付与した。
   「ゲート側の手当てが付与より先行する」順序は #354 の受入基準そのもの。
 
+### Issue #374 の verb 候補監査と最終配置（2026-08-26）
+
+#354 の完了後に #374 のスコープを再束縛した結果、旧 ②-c／②-d の約50行に含まれていた候補は
+次のように収束した。ここで新しい包括 verb を重ねないのは、状態遷移・削除・branch 取得の責務を
+再び1つへ混ぜず、既存の機械ゲートを単一の決定点として保つためである。
+
+| 旧手順／条件 | 機械的に決まるか | 現行の決定点 | 結論 |
+|---|---|---|---|
+| handoff 回収後の worktree 解放 | 決まる。台帳 status と回収成否で判定できる | `collect-worktree` → `worktree-release` | verb 化済み。主文脈の通常手順から削除 |
+| 未回収／孤児 worktree の後始末 | 通常経路は決まる。回収不能を諦める判断だけは理由を要する | residue deny が `collect-worktree`／`worktree-release` を案内。`worktree-forget` は理由必須 | 機械判定とオーナー判断を分離したまま維持 |
+| PR branch への切替 | branch・repository・expected OID から決まる | isolated な `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない |
+| メイン worktree を `main` へ戻す | 現行構成では発生しない | FR-W7（主文脈の checkout を不変にする） | 手順を廃止。復帰 verb は作らない |
+| 「②-c を経由したか」の分岐 | 経路の記憶は不要 | 所有台帳の status、handoff の存在、SubagentStop、次 dispatch の residue deny | 状態から導出。②-c／②-d の二重記述を削除済み |
+
+権限境界も #354 の確定状態を引き継ぐ。`adopt-branch` は既存 PR branch を必要とする
+`issue-fixer` にだけ付与し、worktree 解放系3 verb は他 dispatch の成果物を消し得るため gated role の
+allowlist へは付与しない。実行主体は非 gated の主文脈と停止フックに限定する。この非対称は
+「allowlist への登録漏れ」ではなく、操作主体を狭める意図した deny である。
+
+自動テストは、実 git を使う `SubagentStop` → `collect-worktree` → release の通し検証と、release 後に
+`adopt-branch` が成功する検証を持つ。一方、#374 の受入基準にある「実際に `/issue-pipeline` を1件回し、
+clean merge 経路・是正経由経路の両方で残留しない」という**ライブ運用の両経路実測**は、Issue #354 の
+Issue 記録と現行リポジトリから確認できる証拠だけでは完了扱いにしない。自動テストの代替ともみなさず、
+両経路の観測記録が揃うまで残条件として扱う。
+
 ## ②-c の残スコープ（Issue #310）と #369 との分担（移設元：②-c 末尾）
 
   **本手順は isolation 下でブランチを取得する手段に限定した記述であり**、カルテ機構への結線を扱う

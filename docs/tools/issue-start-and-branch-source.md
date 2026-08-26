@@ -29,7 +29,7 @@ Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json`
 
 Claude transport は従来どおり dispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 
-Claude transport は加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。`issue-implementer` は「独立 worktree で実装する」契約だが、その分離は role 側では作れない——`gitgate` に worktree verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex transport は `spawn_agent` に isolation 概念が無いので `required_isolation` を宣言せず、この要求を持ち込まない（transport 別の宣言であり、manifest に key が無ければ検査自体を行わない）。deny reason には reason code に加えて `detail`（期待値と実測値）を載せ、dispatch 側が何を直せばよいか読み取れるようにする。
+Claude transport は加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。`issue-implementer` は「独立 worktree で実装する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex transport は `spawn_agent` に isolation 概念が無いので `required_isolation` を宣言せず、この要求を持ち込まない（transport 別の宣言であり、manifest に key が無ければ検査自体を行わない）。deny reason には reason code に加えて `detail`（期待値と実測値）を載せ、dispatch 側が何を直せばよいか読み取れるようにする。
 
 PreToolUse hook は次を順に行う。
 

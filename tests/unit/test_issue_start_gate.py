@@ -238,7 +238,8 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
 class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
     """Issue #350: Claude dispatch は `isolation: "worktree"` を欠くと deny される。
 
-    分離は role 側では実現できない（gitgate に worktree verb が無く、agent-command-gate の
+    分離は role 側では実現できない（gitgate に worktree を作成・移動する verb が無く、
+    agent-command-gate の
     層2 が `cd` を deny する）ので、dispatch 側の指定だけが「isolated worktree」契約を
     成立させる唯一の手段。欠落は fail-close で拒否する。
     """

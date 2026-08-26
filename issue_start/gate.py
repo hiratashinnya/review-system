@@ -340,7 +340,8 @@ def _validate_isolation(
     """worktree 分離を dispatch の必須条件として強制する（Issue #350）。
 
     `issue-implementer` は「isolated worktree で実装する」契約だが、その分離は
-    role 側では実現できない——gitgate に worktree verb は無く、agent-command-gate の
+    role 側では実現できない——gitgate に worktree を作成・移動する
+    verb は無く、agent-command-gate の
     層2 が `cd` を deny するため、仮に worktree を作れてもそこへ潜れない。分離を
     与えられるのは dispatch 側だけで、Claude harness では Agent tool の `isolation`
     パラメータがそれを担う（cwd が `.claude/worktrees/agent-<id>` の locked worktree
