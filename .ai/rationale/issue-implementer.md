@@ -27,6 +27,14 @@
 
 ## `ISSUE_START_BINDING_V1` deny の切り分けと enforcement の実体（移設元：「dispatch 前提：`ISSUE_START_BINDING_V1` marker」節）
 
+### Codex durable binding（Issue #452・2026-08-26）
+
+Codex の message は暗号化されるため、Issue/round/repository/workspace/branch/OID/handoff/role/task key の
+正本には使わない。主文脈が既存 ownership ledger へ prepare し、spawn hook が task key で一回だけ consume、
+全 tool hook が active workspace と Git facts を再検証する。判断・却下案・security trade-off の正本は
+`docs/methods/codex-workspace-binding.md`。従来の task_name+cwd+origin だけの方式は task再利用と command 時の
+workspace逸脱を閉じられないため退役した。
+
 `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
 （field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
 （marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の

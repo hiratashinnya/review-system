@@ -164,3 +164,14 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 ハーネス外の実行経路・許可されたテストランナー経由の任意コード実行は閉じきれない。
 「Step 1 を通さずに Edit しない」は**プロンプトレベルの規範**であり、フックが直接強制するものではない
 （`Edit` は `matcher: "Bash"` のゲートを通らない）。多層防御の一枚として守る。
+## Codex fixer transport と bootstrap 境界（Issue #452・2026-08-26）
+
+Codex fixer は `issue_<N>_fix_r<R>` の task key と durable ownership ledger により、事前検証済みの
+`.worktrees/<name>`、branch、expected OID、handoff へ束縛してから `isolation_only` transport で起動する。
+暗号化 message を binding に使わず、全 tool command 前に workspace/Git facts を再検証する。Claude の
+`isolation: worktree` と SubagentStop lifecycle はそのまま維持する。方式比較と security trade-off は
+`docs/methods/codex-workspace-binding.md`。
+
+この transport を導入する bootstrap PR の finding を、未導入 fixerを worker/implementerへ偽装して直す案は
+却下した。レビューと修正の分離、karte の書き手、権限非対称を同時に破るためである。原則は finding を記録して
+STOPし、merge 後の main から正規 fixerを起動する。例外はオーナーが明示した bootstrap 処置として別記録にする。

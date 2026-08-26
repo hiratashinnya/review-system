@@ -88,7 +88,39 @@ def git_runner(*, origin="https://github.com/example/repo.git", inside="true", t
     return run
 
 
+def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
+    """旧 parser 単体テストを durable ledger の I/O から分離する seam。"""
+    from issue_start.gate import _codex_repository
+
+    task_key = tool_input["task_name"]
+    repository = _codex_repository(payload, cwd=cwd, runner=runner)
+    issue = int(task_key.split("_")[1])
+    round_number = 1 if agent_type == "issue-implementer" else int(task_key.rsplit("r", 1)[1])
+    return {
+        "entry_id": "wl-000000000001",
+        "issue": issue,
+        "round": round_number,
+        "repository": repository,
+        "workspace": str(cwd),
+        "branch_name": "codex/issue-bound",
+        "expected_oid": OID,
+        "handoff_path": (
+            f"tmp/_handoff/issue-implementer--issue-{issue}.yaml"
+            if agent_type == "issue-implementer"
+            else f"tmp/_handoff/issue-fixer--issue-{issue}-r{round_number}.yaml"
+        ),
+        "task_key": task_key,
+    }
+
+
 class DispatchPayloadMixin:
+    def setUp(self):
+        binding = patch(
+            "issue_start.gate._consume_codex_binding", side_effect=fake_codex_binding
+        )
+        binding.start()
+        self.addCleanup(binding.stop)
+
     """Codex/Claude の正規 dispatch payload を組み立てる共通ヘルパ（テストは持たない）。"""
 
     def codex_payload(self, *, task_name="issue_10", tool="collaborationspawn_agent", cwd=ROOT):
@@ -124,7 +156,10 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
                 actual = parse_dispatch_payload(
                     self.codex_payload(tool=tool_name), cwd=ROOT, runner=git_runner()
                 )
-                self.assertEqual(actual, request())
+                self.assertEqual((actual.entrypoint, actual.repository, actual.issue),
+                                 ("issue-pipeline", "example/repo", 10))
+                self.assertEqual(actual.task_key, "issue_10")
+                self.assertEqual(actual.ledger_entry_id, "wl-000000000001")
 
     def test_codex_accepts_strict_github_https_and_ssh_origins(self):
         for origin in (
@@ -270,8 +305,8 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
     def test_codex_transport_carries_no_isolation_requirement(self):
         # Codex の spawn_agent に isolation パラメータは無い。claude 側の要求を持ち込まない。
         self.assertEqual(
-            parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()),
-            request(),
+            parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()).task_key,
+            "issue_10",
         )
 
     def test_unmanaged_agents_are_never_required_to_declare_isolation(self):
@@ -575,6 +610,11 @@ class HookLedgerMixin:
         self._ledger_tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
+        binding = patch(
+            "issue_start.gate._consume_codex_binding", side_effect=fake_codex_binding
+        )
+        binding.start()
+        self.addCleanup(binding.stop)
 
     def ledger_entries(self):
         return worktree_ledger.read_ledger(self.ledger_root)["entries"]
@@ -854,12 +894,13 @@ class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
         self.assertEqual(evidence["ledger"]["entry_id"], entry["entry_id"])
         self.assertIsNone(evidence["ledger"]["error"])
 
-    def test_codex_dispatch_without_a_marker_records_no_branch_name(self):
-        rc, _stdout, _stderr = self.run_allow(self.managed_payload())
+    def test_codex_dispatch_does_not_open_a_second_legacy_entry(self):
+        rc, _stdout, stderr = self.run_allow(self.managed_payload())
         self.assertEqual(rc, 0)
-        entry = self.ledger_entries()[0]
-        self.assertEqual(entry["agent_type"], "issue-implementer")
-        self.assertIsNone(entry["branch_name"], "Codex transport に branch_name は無い")
+        self.assertEqual(self.ledger_entries(), [])
+        evidence = json.loads(stderr.getvalue())
+        self.assertEqual(evidence["ledger"]["entry_id"], "wl-000000000001")
+        self.assertEqual(evidence["ledger"]["platform"], "codex")
 
     def test_broken_ledger_now_denies_fail_close(self):
         """Issue #354 PR-3 で **fail-open → fail-close** へ倒した箇所（契約変更の明示）。

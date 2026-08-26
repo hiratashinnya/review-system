@@ -1,7 +1,7 @@
 """Managed Issue dispatch 直前の blocker policy adapter。
 
-Codex は暗号化される prompt を binding に使わず、平文 task_name と
-hook 実行 worktree から Issue/repository を一意に導く。Claude は既存の
+Codex は暗号化される prompt を binding に使わず、平文 task_name を main worktree の
+durable ownership ledger に事前記録された workspace/Git facts へ一度だけ照合する。Claude は既存の
 prompt marker 契約を維持する。branch-source policy は ``gitgate new-branch`` の
 独立 gate であり、dispatch 直前の blocker 判定には混ぜない。
 """
@@ -98,6 +98,19 @@ class IssueStartRequest:
 
 
 @dataclass(frozen=True)
+class CodexIssueStartRequest(IssueStartRequest):
+    """durable binding を消費済みの Codex 初回実装 request。"""
+
+    round: int
+    branch_name: str
+    handoff_path: str
+    expected_oid: str
+    workspace: str
+    task_key: str
+    ledger_entry_id: str
+
+
+@dataclass(frozen=True)
 class IsolationOnlyAck:
     """`isolation_only` 区分の dispatch を受理したことの記録（Issue #354 PR-4）。
 
@@ -121,6 +134,15 @@ class IsolationOnlyAck:
     handoff_path: str | None
     expected_oid: str | None
     repository: str | None
+
+
+@dataclass(frozen=True)
+class CodexIsolationOnlyAck(IsolationOnlyAck):
+    """durable binding を消費済みの Codex 是正 dispatch。"""
+
+    workspace: str
+    task_key: str
+    ledger_entry_id: str
 
 
 def _manifest() -> Mapping[str, Any]:
@@ -449,6 +471,7 @@ def parse_dispatch_payload(
     payload: Mapping[str, Any],
     *,
     cwd: Path | None = None,
+    now: datetime | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> IssueStartRequest | IsolationOnlyAck | None:
     """Codex/Claude の tool payload から dispatch binding を読む。
@@ -479,7 +502,16 @@ def parse_dispatch_payload(
     if managed_types & isolation_only_types:
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     if agent_type in isolation_only_types:
-        return _parse_isolation_only(tool_name, tool_input, agent_type, isolation_only_entries)
+        return _parse_isolation_only(
+            tool_name,
+            tool_input,
+            agent_type,
+            isolation_only_entries,
+            payload=payload,
+            cwd=cwd,
+            now=datetime.now(timezone.utc) if now is None else now,
+            runner=runner,
+        )
     if agent_type not in managed_types:
         return None
     entry, harness, transport = _managed_transport(tool_name, agent_type)
@@ -502,8 +534,33 @@ def parse_dispatch_payload(
         if match is None or match.lastindex != 1:
             raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
         issue = int(match.group(1))
-        repository = _codex_repository(payload, cwd=cwd, runner=runner)
-        return _request({"entrypoint": entrypoint, "repository": repository, "issue": issue})
+        binding = _consume_codex_binding(
+            payload,
+            tool_input,
+            agent_type=agent_type,
+            cwd=cwd,
+            now=datetime.now(timezone.utc) if now is None else now,
+            runner=runner,
+        )
+        if binding["issue"] != issue:
+            raise IssueStartError("CODEX_BINDING_TASK_KEY_MISMATCH", task_name)
+        request = _request({
+            "entrypoint": entrypoint,
+            "repository": binding["repository"],
+            "issue": binding["issue"],
+        })
+        return CodexIssueStartRequest(
+            entrypoint=request.entrypoint,
+            repository=request.repository,
+            issue=request.issue,
+            round=binding["round"],
+            branch_name=binding["branch_name"],
+            handoff_path=binding["handoff_path"],
+            expected_oid=binding["expected_oid"],
+            workspace=binding["workspace"],
+            task_key=binding["task_key"],
+            ledger_entry_id=binding["entry_id"],
+        )
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
@@ -518,6 +575,11 @@ def _parse_isolation_only(
     tool_input: Mapping[str, Any],
     agent_type: str,
     entries: Sequence[Mapping[str, Any]],
+    *,
+    payload: Mapping[str, Any],
+    cwd: Path | None,
+    now: datetime,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
 ) -> IsolationOnlyAck:
     """`isolation_only` 区分の dispatch を検証する（GitHub API へは一切行かない）。
 
@@ -533,12 +595,66 @@ def _parse_isolation_only(
     entrypoint = entry.get("entrypoint")
     if not isinstance(entrypoint, str):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
+    if harness == "codex":
+        binding = _consume_codex_binding(
+            payload, tool_input, agent_type=agent_type, cwd=cwd, now=now, runner=runner
+        )
+        return CodexIsolationOnlyAck(
+            entrypoint=entrypoint,
+            agent_type=agent_type,
+            issue=binding["issue"],
+            round=binding["round"],
+            branch_name=binding["branch_name"],
+            handoff_path=binding["handoff_path"],
+            expected_oid=binding["expected_oid"],
+            repository=binding["repository"],
+            workspace=binding["workspace"],
+            task_key=binding["task_key"],
+            ledger_entry_id=binding["entry_id"],
+        )
     if harness != "claude":
-        # isolation は Claude harness の Agent tool にしか無い概念（Codex の spawn_agent には
-        # 無い）。他 harness の transport をこの区分に宣言するのは manifest 側の誤り。
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
     return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
+
+
+def _consume_codex_binding(
+    payload: Mapping[str, Any],
+    tool_input: Mapping[str, Any],
+    *,
+    agent_type: str,
+    cwd: Path | None,
+    now: datetime,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> dict[str, Any]:
+    """Codex spawn を暗号化 message ではなく durable task binding へ照合する。"""
+
+    from .codex_binding import CodexBindingError, consume_spawn_binding
+
+    task_key = tool_input.get("task_name")
+    payload_cwd = payload.get("cwd")
+    if not isinstance(task_key, str):
+        raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
+    if not isinstance(payload_cwd, str) or not Path(payload_cwd).is_absolute():
+        raise IssueStartError("ISSUE_START_CWD_INVALID")
+    try:
+        workspace = Path(payload_cwd).resolve(strict=True)
+        hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise IssueStartError("ISSUE_START_CWD_INVALID") from exc
+    if workspace != hook_root:
+        raise IssueStartError("ISSUE_START_CWD_MISMATCH")
+    try:
+        return consume_spawn_binding(
+            repo_root=hook_root,
+            workspace=workspace,
+            role=agent_type,
+            task_key=task_key,
+            now=now,
+            runner=runner,
+        )
+    except CodexBindingError as exc:
+        raise IssueStartError(exc.reason, exc.detail) from exc
 
 
 def _error_evidence(request: IssueStartRequest | None, reason: str, detail: str = "") -> dict[str, Any]:
@@ -1002,6 +1118,10 @@ def record_open_entry(
     ``round`` / ``handoff_path`` は現行の ``ISSUE_START_BINDING_V1`` marker schema に無いので
     ``None`` のまま起票する（marker 拡張は PR-4）。
     """
+    if isinstance(request, CodexIssueStartRequest):
+        # Codex は spawn 前 prepare で既に open、parse 時に running へ一度だけ遷移済み。
+        # Claude 用の best-effort open を重ねると ownership が二重になる。
+        return {"entry_id": request.ledger_entry_id, "error": None, "platform": "codex"}
     try:
         root = worktree_ledger.main_worktree_root(
             Path.cwd() if repo_root is None else Path(repo_root)
@@ -1043,6 +1163,8 @@ def record_isolation_only_entry(
     **推測せず marker の値で埋める**（FR-W4 の完全化）。台帳の書込失敗は dispatch を
     止めない（fail-open）＝managed 側と同じ扱い。
     """
+    if isinstance(ack, CodexIsolationOnlyAck):
+        return {"entry_id": ack.ledger_entry_id, "error": None, "platform": "codex"}
     try:
         root = worktree_ledger.main_worktree_root(
             Path.cwd() if repo_root is None else Path(repo_root)

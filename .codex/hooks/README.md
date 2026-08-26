@@ -1,12 +1,15 @@
 # Codex CLI hooks
 
-Codex CLI supports lifecycle hooks. This repo registers two project-local hooks
+Codex CLI supports lifecycle hooks. This repo registers project-local hooks
 in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
-1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
+1. An all-tool `PreToolUse` hook (`codex-workspace-binding-gate.sh`) that binds
+   Codex implementer/fixer commands to a pre-registered dedicated worktree.
+2. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
    `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-2. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
+3. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
+4. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
    Codex's structured `account/rateLimits/read` app-server API whether the account
    is rate-limited and, if so, when it resets, then resumes the thread after the
    reset (Issue #195). Tmux pane text scraping (`/status` + banner regex) is kept
@@ -14,6 +17,12 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
    local/tmux-only; cloud and non-tmux environments are safe no-ops.
 
 ## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
+
+Before the command whitelist, `codex-workspace-binding-gate.sh` runs for every tool.
+For `issue-implementer` and `issue-fixer`, it requires an active, one-shot binding in
+`tmp/_worktree/ledger.json` and rechecks cwd, registered worktree, origin, branch, and
+expected OID ancestry. Other roles are silent no-ops. See
+`docs/methods/codex-workspace-binding.md` for prepare/collect/release and threat-model details.
 
 `agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
 Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
@@ -255,6 +264,7 @@ resolution is still unverified, but it is now known to be moot until the
 | File | Role |
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` and `Stop` hooks. Trust them with `/hooks` before relying on them. |
+| `codex-workspace-binding-gate.sh` | All-tool PreToolUse adapter for durable Codex implementer/fixer workspace bindings. |
 | `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `codex-rate-limit-query.py` | Structured rate-limit query helper (Issue #195). Drives `codex app-server --stdio` over JSON-RPC (`initialize` → `initialized` → `account/rateLimits/read`) and prints normalized `RL_*=value` lines (reached / reset epoch / window / used%). Standard-library only. Exit 0 = queried; non-zero = API unavailable (caller falls back to text). |
 | `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases; queries the rate-limit API and, when reached, spawns the watcher with the API reset epoch (`--recover-once-epoch`). Falls back to `/status` + banner text only when the API is unavailable. |

@@ -94,7 +94,7 @@ def run(
         payload = json.load(stdin)
         if not isinstance(payload, dict):
             raise IssueStartError("ISSUE_START_PAYLOAD_INVALID")
-        request = parse_dispatch_payload(payload, cwd=cwd)
+        request = parse_dispatch_payload(payload, cwd=cwd, now=stamp)
         # Issue #354 PR-3: 残留 worktree のある状態では**どの** dispatch も通さない
         # （managed / unmanaged を問わない＝#354 が実測した乗っ取りは `pr-reviewer`＝
         # unmanaged 側で起きたため）。台帳が読めなければ fail-close。
