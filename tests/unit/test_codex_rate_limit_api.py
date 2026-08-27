@@ -513,6 +513,133 @@ class StopHookApiFailureCooldownTests(unittest.TestCase):
         self.assertIn("recent rate-limit check", self._log_text())
 
 
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
+    """Regression: RL_REACHED=1 with no usable RL_RESET_EPOCH must fall
+    through to the legacy pane/status text detector instead of exiting.
+
+    ``account/rateLimits/read``'s ``rateLimitReachedType`` enum (verified via
+    ``codex app-server generate-json-schema`` on codex-cli 0.149.1,
+    ``GetAccountRateLimitsResponse.json``) includes workspace credits/usage
+    values (``workspace_owner_credits_depleted`` etc.) alongside
+    ``rate_limit_reached``. ``codex-rate-limit-query.py`` only inspects the
+    ``primary``/``secondary`` windows, not ``individualLimit``
+    (``SpendControlLimitSnapshot``), so a workspace credits/usage reached-type
+    can leave ``RL_RESET_EPOCH`` empty even though the account genuinely is
+    rate-limited. Previously the Stop hook treated this exactly like "not
+    rate-limited" and exited, silently never trying the legacy text detector
+    even when the visible banner text does carry a parseable reset cue (as it
+    does for the real captured banner "You've hit your usage limit. Upgrade
+    to Pro ... or try again at 12:22 PM."). It must now behave like the
+    RL_OK=0 (API unavailable) case and fall through to that detector.
+
+    Runs the real (non-sourced) codex-rate-limit-stop-hook.sh end-to-end,
+    with tmux stubbed out via a fake ``tmux`` executable placed first on
+    PATH and CODEX_RL_QUERY_CMD standing in for the Python query helper.
+    """
+
+    # Same minimal stub as StopHookApiFailureCooldownTests: capture-pane
+    # returns no banner text, so the legacy fallback's own AND-regex never
+    # matches and no watcher process is actually spawned by these tests —
+    # only that control reached the fallback section is asserted (via its
+    # own "no rate-limit text" no-op log line).
+    _FAKE_TMUX = textwrap.dedent(
+        """\
+        #!/usr/bin/env bash
+        case "$1" in
+          display-message)
+            printf 'codex\\n'
+            ;;
+          capture-pane)
+            printf ''
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+        """
+    )
+
+    def setUp(self):
+        self.bin_dir = tempfile.mkdtemp(prefix="codex-rl-fake-tmux-")
+        self.state_dir = tempfile.mkdtemp(prefix="codex-rl-stop-hook-state-")
+        self.addCleanup(shutil.rmtree, self.bin_dir, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
+
+        fake_tmux = Path(self.bin_dir) / "tmux"
+        fake_tmux.write_text(self._FAKE_TMUX)
+        fake_tmux.chmod(0o755)
+
+    def _run_stop_hook(self, query_cmd):
+        env = dict(os.environ)
+        env["PATH"] = f"{self.bin_dir}:{env.get('PATH', '')}"
+        env["TMUX"] = "codex-rl-test-socket,0,0"
+        env["CODEX_RL_TMUX_PANE"] = "%0"
+        env["CODEX_RL_STATE_DIR"] = self.state_dir
+        env["CODEX_RL_API_CHECK"] = "1"
+        env["CODEX_RL_QUERY_CMD"] = query_cmd
+        return subprocess.run(
+            ["bash", str(STOP_HOOK)],
+            input="",
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+
+    def _log_text(self):
+        log_path = Path(self.state_dir) / "stop-hook.log"
+        return log_path.read_text() if log_path.exists() else ""
+
+    def test_reached_without_epoch_falls_back_to_text_detector(self):
+        result = self._run_stop_hook(
+            "printf '%s\\n' RL_OK=1 RL_REACHED=1 "
+            "RL_REACHED_TYPE=workspace_owner_credits_depleted "
+            "RL_RESET_EPOCH= RL_WINDOW_MINS= RL_USED_PERCENT=100 RL_PLAN=plus"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self._log_text()
+        self.assertIn("no usable resetsAt from primary/secondary window", log)
+        # Proves control actually reached the fallback section below (not
+        # just that the new log line was printed) — this line only appears
+        # from the legacy-text-detection code path.
+        self.assertIn("no rate-limit text in Stop payload/pane; no-op", log)
+
+    def test_reached_with_epoch_still_spawns_watcher_without_fallback(self):
+        future_epoch = int(time.time()) + 3600
+        result = self._run_stop_hook(
+            "printf '%s\\n' RL_OK=1 RL_REACHED=1 "
+            "RL_REACHED_TYPE=rate_limit_reached "
+            f"RL_RESET_EPOCH={future_epoch} RL_WINDOW_MINS=300 "
+            "RL_USED_PERCENT=100 RL_PLAN=plus"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self._log_text()
+        self.assertIn("spawning watcher for reset epoch", log)
+        self.assertNotIn("no usable resetsAt", log)
+        # Must exit before ever reaching the legacy fallback section.
+        self.assertNotIn("no rate-limit text in Stop payload/pane; no-op", log)
+
+    def test_not_reached_still_no_ops_without_fallback(self):
+        result = self._run_stop_hook("printf '%s\\n' RL_OK=1 RL_REACHED=0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self._log_text()
+        self.assertIn("not rate-limited; no-op", log)
+        self.assertNotIn("no rate-limit text in Stop payload/pane; no-op", log)
+
+    def test_long_window_still_skips_without_fallback(self):
+        result = self._run_stop_hook(
+            "printf '%s\\n' RL_OK=1 RL_REACHED=1 "
+            "RL_REACHED_TYPE=workspace_owner_usage_limit_reached "
+            f"RL_RESET_EPOCH={int(time.time()) + 604800} "
+            "RL_WINDOW_MINS=10080 RL_USED_PERCENT=100 RL_PLAN=plus"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self._log_text()
+        self.assertIn("long/weekly window", log)
+        self.assertNotIn("no rate-limit text in Stop payload/pane; no-op", log)
+
+
 class HelperCompileTests(unittest.TestCase):
     def test_query_helper_compiles(self):
         result = subprocess.run(

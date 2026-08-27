@@ -214,31 +214,43 @@ if is_truthy "$API_CHECK"; then
     fi
     case "$RL_RESET_EPOCH" in
       ''|*[!0-9]*)
-        log "api: limit reached but no usable resetsAt; automatic recovery not attempted"
+        # RL_REACHED=1 だがバインド対象の primary/secondary window に resetsAt が
+        # 無い。account/rateLimits/read の rateLimitReachedType には workspace の
+        # credits/usage 系の値(workspace_owner_credits_depleted 等・codex-cli
+        # 0.149.1 の `codex app-server generate-json-schema` 出力
+        # GetAccountRateLimitsResponse.json / RateLimitReachedType enum で確認)
+        # があり、それらの実際のリセット時刻は primary/secondary ではなく
+        # individualLimit(SpendControlLimitSnapshot、resetsAt必須)側に載る
+        # 可能性がある。codex-rate-limit-query.py は現状 individualLimit を
+        # 読まないため、この場合 RL_RESET_EPOCH が空になり得る。API は「制限中」
+        # とまでは断定できているので、当てずっぽうに時刻を出す代わりに legacy
+        # text fallback(画面の resets/try-again 文言)に委ねる。
+        log "api: limit reached but no usable resetsAt from primary/secondary window (type=${RL_REACHED_TYPE:-none}); falling back to pane/status text detection"
+        ;;
+      *)
+        log "api: rate limit reached (${RL_REACHED_TYPE}); spawning watcher for reset epoch ${RL_RESET_EPOCH}"
+        setsid bash "${HOOK_DIR}/codex-rate-limit-watcher.sh" --recover-once-epoch "$PANE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
+          >> "$LOG" 2>&1 < /dev/null &
         exit 0
         ;;
     esac
-    log "api: rate limit reached (${RL_REACHED_TYPE}); spawning watcher for reset epoch ${RL_RESET_EPOCH}"
-    setsid bash "${HOOK_DIR}/codex-rate-limit-watcher.sh" --recover-once-epoch "$PANE" "$RL_RESET_EPOCH" "$RL_WINDOW_MINS" \
-      >> "$LOG" 2>&1 < /dev/null &
-    exit 0
+  else
+    # API check attempted but failed (RL_OK=0: codex not on PATH, not logged
+    # in, app-server error, or the query hit --timeout with no response). Write
+    # the SAME per-pane cooldown file a successful check would (Issue #199):
+    # without this, a persistently hanging/unavailable app-server never wrote
+    # the cooldown file (it was previously only written on API success, or on
+    # the legacy text path below when banner text actually matched), so every
+    # single Stop event re-ran the full ~CODEX_RL_API_TIMEOUT-second (default
+    # 12s) query forever. Reusing STATUS_COOLDOWN here bounds the retry cadence
+    # to the same, already-accepted rate as a healthy API's steady-state
+    # polling, and this Stop event still falls through to the (cheap) text
+    # fallback below so a genuine banner already on screen is still caught
+    # immediately — only the *next* Stop, if still within the cooldown window,
+    # skips re-querying.
+    printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
+    log "api: query failed/unavailable (cooldown applied to bound retries); falling back to pane/status text detection"
   fi
-
-  # API check attempted but failed (RL_OK=0: codex not on PATH, not logged
-  # in, app-server error, or the query hit --timeout with no response). Write
-  # the SAME per-pane cooldown file a successful check would (Issue #199):
-  # without this, a persistently hanging/unavailable app-server never wrote
-  # the cooldown file (it was previously only written on API success, or on
-  # the legacy text path below when banner text actually matched), so every
-  # single Stop event re-ran the full ~CODEX_RL_API_TIMEOUT-second (default
-  # 12s) query forever. Reusing STATUS_COOLDOWN here bounds the retry cadence
-  # to the same, already-accepted rate as a healthy API's steady-state
-  # polling, and this Stop event still falls through to the (cheap) text
-  # fallback below so a genuine banner already on screen is still caught
-  # immediately — only the *next* Stop, if still within the cooldown window,
-  # skips re-querying.
-  printf '%s' "$now" > "$cooldown_file" 2>/dev/null || true
-  log "api: query failed/unavailable (cooldown applied to bound retries); falling back to pane/status text detection"
 fi
 
 # --- fallback: legacy pane/status text detection --------------------------

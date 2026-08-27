@@ -341,12 +341,25 @@ before injecting `continue`.
 **Replace vs. fallback (acceptance criterion 3).** The API is the *primary*
 detector and is trusted fully when it answers (it is the account's own
 authoritative state, not a screen guess). The existing text/regex path is
-**kept as a fallback**, reached only when the API cannot be queried: `codex`
-not on `PATH`, not logged in, an app-server error/timeout, or an older Codex
-release without the method. This is the conservative choice — it strictly adds
-reliability without removing the previously tested safety net, and matches this
-codebase's defensive "never guess-fire, degrade gracefully" style. Disable the
-API path entirely with `CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
+**kept as a fallback**, reached when the API cannot be queried (`codex` not on
+`PATH`, not logged in, an app-server error/timeout, or an older Codex release
+without the method), *and also* when the API answers with `rateLimitReachedType`
+non-null (the account is genuinely rate-limited) but the `primary`/`secondary`
+windows carry no usable `resetsAt`. The latter case matters for the workspace
+credits/usage `rateLimitReachedType` values (`workspace_owner_credits_depleted`,
+`workspace_member_credits_depleted`, `workspace_owner_usage_limit_reached`,
+`workspace_member_usage_limit_reached` — confirmed via `codex app-server
+generate-json-schema`'s `GetAccountRateLimitsResponse.json` on codex-cli 0.149.1),
+whose reset time is plausibly carried by `individualLimit`
+(`SpendControlLimitSnapshot`) rather than `primary`/`secondary`; this helper does
+not read `individualLimit` yet, so `RL_RESET_EPOCH` can come back empty for those
+reached-types even though the account genuinely is limited and the visible pane
+banner (e.g. "You've hit your usage limit. Upgrade to Pro ... or try again at
+12:22 PM.") still carries a parseable reset cue for the text fallback to use.
+This is the conservative choice — it strictly adds reliability without removing
+the previously tested safety net, and matches this codebase's defensive "never
+guess-fire, degrade gracefully" style. Disable the API path entirely with
+`CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
 
 **Known residual trade-offs**, flagged rather than resolved unilaterally:
 
