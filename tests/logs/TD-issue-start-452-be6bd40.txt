@@ -1,0 +1,36 @@
+TD-issue-start-452 / implementation commit be6bd40
+environment: Linux, Python unittest, real git linked worktree
+
+Focused tests
+  python3 -m unittest tests.unit.test_codex_workspace_binding
+  Ran 7 tests in 0.376s — OK
+
+  python3 -m unittest tests.unit.test_issue_start_gate
+  Ran 58 tests in 0.108s — OK
+
+  python3 -m unittest tests.unit.test_worktree_ledger
+  Ran 54 tests in 0.104s — OK
+
+  python3 -m unittest tests.unit.test_subagent_hooks
+  Ran 70 tests in 1.668s — OK
+
+Initial full run (commit 901b528)
+  python3 -m unittest discover -s tests -p 'test_*.py'
+  Ran 1331 tests in 106.360s
+  FAILED (failures=1, skipped=1)
+  Failure: test_isolation_only_section_declares_the_fixer_contract expected the retired
+  Claude-only manifest shape and did not yet accept the new Codex fixer transport.
+  Fix: update the asset assertion to require both transports and validate the Codex fields.
+
+Final full run (commit be6bd40)
+  python3 -m unittest discover -s tests -p 'test_*.py'
+  Ran 1331 tests in 103.616s — OK (skipped=1)
+
+Asset audit
+  python3 -m asset_parity check
+  38 assets checked; 0 MISSING; 14 informational staleness flags
+
+Coverage
+  python3 -m coverage run -m unittest discover -s tests -p 'test_*.py'
+  NOT RUN: /usr/bin/python3: No module named coverage
+  coverage-html skill forbids automatic installation; owner decision required.

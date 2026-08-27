@@ -21,7 +21,14 @@
             "prompt"
           ],
           "task_name_pattern": "^issue_([1-9][0-9]*)$",
-          "repository_source": "payload.cwd+hook.cwd+worktree.origin"
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
         },
         "claude": {
           "tool_names": [
@@ -50,6 +57,31 @@
       "entrypoint": "issue-pipeline",
       "agent_type": "issue-fixer",
       "binding_transports": {
+        "codex": {
+          "tool_names": [
+            "spawn_agent",
+            "collaborationspawn_agent"
+          ],
+          "agent_type_field": "agent_type",
+          "required_tool_input_fields": [
+            "agent_type",
+            "task_name"
+          ],
+          "forbidden_tool_input_fields": [
+            "subagent_type",
+            "prompt",
+            "isolation"
+          ],
+          "task_name_pattern": "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
+        },
         "claude": {
           "tool_names": [
             "Task",
