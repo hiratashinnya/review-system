@@ -9,7 +9,7 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 |---|---|---|
 | **規範（normative）** | `.claude/agents/<name>.md`・`.claude/skills/<name>/SKILL.md`（従来どおり） | ロールが**行動を決めるのに必要なもの**だけ＝責務境界・入出力契約・実行規律・停止条件 |
 | **ADR／経緯（rationale）** | **`.ai/rationale/<name>.md`（本ディレクトリ）** | 設計判断の理由・**却下案**・既知の限界・変更経緯 |
-| **troubleshooting** | **`.ai/troubleshooting/<asset>-<incident>.md`** | 障害の症状・復旧手順・回避策・実測ログ（本ディレクトリには置かない） |
+| **troubleshooting** | **`.ai/troubleshooting/<asset>.md`** | asset ごとの index。incident は本文見出しで分け、障害の症状・復旧手順・回避策・実測ログを記録する（本ディレクトリには置かない） |
 
 ## 3つの規律
 

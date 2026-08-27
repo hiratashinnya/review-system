@@ -56,7 +56,9 @@
           "if": {"properties": {"category": {"const": "troubleshooting"}}},
           "then": {
             "properties": {
-              "path": {"pattern": "^\\.ai/troubleshooting/[^/]+\\.md$"}
+              "path": {
+                "pattern": "^\\.ai/troubleshooting/(?:agy-delegate|analysis-author|asset-auditor|authoring-fanout|codex-review|design-author|doc-system-v2-authoring|dsv2-lookup|gh-create-issue|issue-fixer|issue-implementer|issue-pipeline|pr-reviewer|reconciliation|reconciliation-validator|verification-author)\\.md$"
+              }
             }
           }
         },

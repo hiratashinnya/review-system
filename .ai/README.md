@@ -10,7 +10,7 @@ Issue #406 の移行方針では、`.ai/` を PF（プラットフォーム）�
 | Agent | `.ai/agents/<name>.md` |
 | ADR／設計経緯・却下案・既知の制約 | `.ai/rationale/<name>.md` |
 | rationale の索引・分離規則 | `.ai/rationale/README.md` |
-| 障害・復旧記録 | `.ai/troubleshooting/<asset>-<incident>.md` |
+| 障害・復旧記録 | `.ai/troubleshooting/<asset>.md` |
 | 共通 schema | `.ai/schema/<name>-v<major>.json` |
 | リポジトリ共通の常駐 guidance | `.ai/guidance/common.md` |
 
@@ -42,5 +42,7 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 配置の機械可読な契約は [`.ai/schema/asset-placement-v1.json`](schema/asset-placement-v1.json)
 にあり、`asset_parity` の inventory は `.claude/skills/*/SKILL.md` と
 `.claude/agents/*.md` だけを canonical asset として列挙する。
+troubleshooting は asset ごとに 1 ファイルの index とし、個別 incident はその本文の
+見出しで区切る。新しい index を追加するときは schema の許可リストと回帰テストも更新する。
 
 導入手順と pre-commit hook は [`.githooks/README.md`](../.githooks/README.md) を参照する。

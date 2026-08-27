@@ -88,7 +88,7 @@ class AiAssetPlacementContractTests(unittest.TestCase):
         examples = {
             "normative": ".ai/skills/example/SKILL.md",
             "rationale": ".ai/rationale/example.md",
-            "troubleshooting": ".ai/troubleshooting/example-runtime.md",
+            "troubleshooting": ".ai/troubleshooting/issue-pipeline.md",
             "shared-schema": ".ai/schema/asset-placement-v1.json",
         }
         for condition in conditions:
@@ -97,6 +97,24 @@ class AiAssetPlacementContractTests(unittest.TestCase):
             with self.subTest(category=category):
                 self.assertIsNotNone(re.fullmatch(pattern, examples[category]))
                 self.assertIsNone(re.fullmatch(pattern, ".claude/rationale/example.md"))
+
+    def test_troubleshooting_filename_contract_rejects_incident_suffixes(self):
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        conditions = schema["$defs"]["entry"]["allOf"]
+        troubleshooting = next(
+            condition
+            for condition in conditions
+            if condition["if"]["properties"]["category"]["const"] == "troubleshooting"
+        )
+        pattern = troubleshooting["then"]["properties"]["path"]["pattern"]
+        paths = sorted(
+            path
+            for path in (REPO_ROOT / ".ai/troubleshooting").glob("*.md")
+            if path.name != "README.md"
+        )
+        self.assertTrue(paths)
+        self.assertTrue(all(re.fullmatch(pattern, f".ai/troubleshooting/{path.name}") for path in paths))
+        self.assertIsNone(re.fullmatch(pattern, ".ai/troubleshooting/issue-pipeline-runtime.md"))
 
     def test_tailoring_registry_records_the_placement_authority(self):
         registry = (REPO_ROOT / ".claude/tailoring-registry.md").read_text(encoding="utf-8")
