@@ -6,6 +6,12 @@ result: PASS
 log_ref: tests/logs/TD-issue-start-452-be6bd40.txt
 ---
 
+> **Superseded evidence（PR #453 round 2）**: このTRは旧head `be6bd40` とTD version 1に対する
+> 実測履歴であり、削除せず保存する。記載された spawn consume・task keyからの正規起動・
+> `open -> running` lifecycle は現行 Codex transport の保証ではない。現行契約は
+> `tests/designs/TD-issue-start-452.md` version 2の unavailable deny とexpired-open refreshであり、
+> 対応する新TRを別ファイルに記録する。
+
 # 目的
 
 Codex issue-implementer/fixer が暗号化 message ではなく durable binding により専用 worktree へ束縛され、

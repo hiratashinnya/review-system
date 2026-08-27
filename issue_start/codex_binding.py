@@ -10,9 +10,11 @@ trusted payload として提供しない。そのため dispatch は issue-start
 本 module の bind/verify API は将来 transport が必要な観測値を提供するまで発効させない。
 
 状態は既存 :mod:`issue_start.worktree_ledger` の ``open -> running -> stopped ->
-collected -> released`` を使う。失敗時に entry を削除・終端化しないので、主文脈は同じ task key で
-``collect`` / ``release`` を再実行して回収できる。Claude の ``.claude/worktrees`` lifecycle は
-既存 entry のまま分岐させず、Codex entry だけ ``platform: codex`` で識別する。
+collected -> released`` を使う。spawn 前の失敗では ``open`` を削除・終端化せず、TTL 内はそのまま
+再検証できる。TTL を越えた ``open`` は同一 canonical task と完全に同じ dispatch identity の場合だけ
+同じ entry を原子的に refresh し、旧期限を ``refresh_history`` へ残す。Claude の
+``.claude/worktrees`` lifecycle は既存 entry のまま分岐させず、Codex entry だけ
+``platform: codex`` で識別する。
 """
 
 from __future__ import annotations
@@ -319,7 +321,53 @@ def prepare_binding(
             if item.get("platform") == "codex" and item.get("task_key") == task_key
         ]
         if same_task:
-            raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
+            if len(same_task) != 1:
+                raise CodexBindingError("CODEX_BINDING_DUPLICATE", task_key)
+            target = same_task[0]
+            _assert_entry_shape(target)
+            if target.get("status") != "open":
+                raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
+            if now.astimezone(timezone.utc) < _parse_stamp(target["expires_at"]):
+                raise CodexBindingError("CODEX_BINDING_TASK_REUSED", task_key)
+            identity = {
+                "issue": issue,
+                "round": round_number,
+                "repository": repository,
+                "workspace": facts.workspace,
+                "worktree_path": facts.worktree_path,
+                "branch_name": branch_name,
+                "expected_oid": expected_oid,
+                "handoff_path": handoff,
+                "agent_type": role,
+                "task_key": task_key,
+            }
+            mismatches = [
+                key for key, value in identity.items() if target.get(key) != value
+            ]
+            if mismatches:
+                raise CodexBindingError(
+                    "CODEX_BINDING_REFRESH_IDENTITY_MISMATCH", ",".join(mismatches)
+                )
+            if target.get("agent_id") is not None or target.get("bound_at") is not None:
+                raise CodexBindingError("CODEX_BINDING_LEDGER_CORRUPT", "open identity")
+            history = target.setdefault("refresh_history", [])
+            notes = target.setdefault("notes", [])
+            if not isinstance(history, list) or not isinstance(notes, list):
+                raise CodexBindingError("CODEX_BINDING_LEDGER_CORRUPT", "refresh audit")
+            history.append({
+                "refreshed_at": prepared_at,
+                "previous_prepared_at": target.get("prepared_at"),
+                "previous_expires_at": target["expires_at"],
+                "new_expires_at": expires_at,
+            })
+            notes.append({
+                "at": prepared_at,
+                "note": "codex expired open binding refreshed for retry",
+            })
+            target["prepared_at"] = prepared_at
+            target["expires_at"] = expires_at
+            created.update(target)
+            return
         active_workspace = [
             item for item in entries
             if item.get("platform") == "codex"
@@ -352,6 +400,7 @@ def prepare_binding(
             "expires_at": expires_at,
             "consumed_at": None,
             "bound_at": None,
+            "refresh_history": [],
         }
         entries.append(entry)
         created.update(entry)

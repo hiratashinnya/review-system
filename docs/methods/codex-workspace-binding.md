@@ -41,7 +41,12 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
 
 spawn 前の binding 検証は非破壊とし、`open -> running` には遷移させない。
 residue deny、blocker deny、API failure、router failure の後も agent/handoff 不在の entry を
-`running` に永久消費しない。将来 transport を有効化するには、trusted start observer が
+`running` に永久消費しない。TTL 内は同じ entry を再検証し、TTL を越えた `open` は同一 canonical
+task・repository・workspace・branch・OID・handoff・role・roundの場合だけ、台帳ロック下で同じ entryを
+新しいTTLへ原子的にrefreshする。旧prepared/expires時刻は `refresh_history` に残す。別identity、期限内の
+二重prepare、running/terminal taskは従来どおりdenyする。
+
+将来 transport を有効化するには、trusted start observer が
 actual `agent_id` と workspace を同時に観測し、その identity を1度だけ `running` へ bind する。
 各 command は role/workspace に加え `agent_id` 一致を必須とし、stale thread を
 `CODEX_BINDING_AGENT_MISMATCH` で拒否する。
@@ -66,9 +71,10 @@ turn cwd を effective tool cwd の代用にしたりしない。この制約に
 ## bootstrap PR の finding 方針
 
 本機構を導入する PR 自身の独立レビューで finding が出た場合、未導入 Codex fixerを別roleへ偽装して
-起動しない。finding と再確認方法を記録して STOP し、原則は本 PR merge 後の main から正規 fixer transport
-を起動する。merge 前修正が不可避なら、オーナーが明示した bootstrap 処置として通常 fixer round と分離して
-記録し、同じ reviewer 文脈を修正担当にしない。
+起動しない。現行runtimeはmerge後も unavailable であり、trusted observation が追加されるまでは正規
+Codex fixer transportを起動できるとは宣言しない。finding と再確認方法を記録してSTOPし、merge前修正が
+不可避な場合だけ、オーナーが明示したbootstrap処置として通常worker fallbackを別記録にする。同じreviewer
+文脈を修正担当にせず、この例外を正規fixer起動またはtransport保証の証拠として扱わない。
 
 ## 後続影響確認
 

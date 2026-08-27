@@ -4,8 +4,10 @@ import io
 import json
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Barrier
 import unittest
 from unittest.mock import patch
 
@@ -176,8 +178,11 @@ class RealGitBindingTests(unittest.TestCase):
         )
         self.assertEqual(released["status"], "released")
         self.assertEqual(released["collected_to"], self.handoff)
+        current_oid = git(self.workspace, "rev-parse", "HEAD")
+        with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_TASK_REUSED"):
+            self.prepare(now=NOW + timedelta(seconds=4), expected_oid=current_oid)
 
-    def test_task_reuse_and_expired_prepare_fail_close(self):
+    def test_running_task_reuse_and_expired_validate_fail_close(self):
         self.prepare()
         self.bind()
         with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_TASK_REUSED"):
@@ -200,6 +205,60 @@ class RealGitBindingTests(unittest.TestCase):
         entries = worktree_ledger.read_ledger(self.main)["entries"]
         expired = next(item for item in entries if item.get("task_key") == "issue_11")
         self.assertEqual(expired["status"], "open")
+
+    def test_expired_open_can_be_atomically_refreshed_with_audit_history(self):
+        prepared = self.prepare(ttl_seconds=30)
+        with self.assertRaisesRegex(CodexBindingError, "CODEX_BINDING_EXPIRED"):
+            self.validate(now=NOW + timedelta(seconds=31))
+
+        refreshed = self.prepare(now=NOW + timedelta(seconds=31), ttl_seconds=30)
+        self.assertEqual(refreshed["entry_id"], prepared["entry_id"])
+        self.assertEqual(refreshed["status"], "open")
+        self.assertEqual(refreshed["prepared_at"], "2026-08-26T09:00:31Z")
+        self.assertEqual(refreshed["expires_at"], "2026-08-26T09:01:01Z")
+        self.assertEqual(refreshed["refresh_history"], [{
+            "refreshed_at": "2026-08-26T09:00:31Z",
+            "previous_prepared_at": "2026-08-26T09:00:00Z",
+            "previous_expires_at": "2026-08-26T09:00:30Z",
+            "new_expires_at": "2026-08-26T09:01:01Z",
+        }])
+        self.assertIn("expired open binding refreshed", refreshed["notes"][-1]["note"])
+        validated = self.validate(now=NOW + timedelta(seconds=32))
+        self.assertEqual(validated["entry_id"], prepared["entry_id"])
+
+    def test_expired_open_refresh_rejects_different_identity_and_concurrent_reuse(self):
+        self.prepare(ttl_seconds=30)
+        with self.assertRaisesRegex(
+            CodexBindingError, "CODEX_BINDING_REFRESH_IDENTITY_MISMATCH"
+        ):
+            self.prepare(
+                now=NOW + timedelta(seconds=31),
+                ttl_seconds=30,
+                handoff_path="tmp/_handoff/issue-implementer--issue-10-retry.yaml",
+            )
+
+        barrier = Barrier(2)
+
+        def concurrent_prepare():
+            barrier.wait()
+            try:
+                return "OK", self.prepare(now=NOW + timedelta(seconds=31), ttl_seconds=30)
+            except CodexBindingError as exc:
+                return exc.reason, None
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _index: concurrent_prepare(), range(2)))
+        self.assertEqual(
+            sorted(reason for reason, _entry in results),
+            ["CODEX_BINDING_TASK_REUSED", "OK"],
+        )
+        refreshed = next(entry for reason, entry in results if reason == "OK")
+        entries = [
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == self.task_key
+        ]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["entry_id"], refreshed["entry_id"])
 
     def test_blocker_and_api_denies_leave_binding_retryable(self):
         self.prepare()

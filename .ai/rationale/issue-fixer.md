@@ -178,4 +178,6 @@ SubagentStart/Stop lifecycle は弱めない。方式比較と security trade-of
 この transport を導入する bootstrap PR の finding を、未導入 fixerを worker/implementerへ偽装して直す案は
 却下した。レビューと修正の分離、karte の書き手、権限非対称を同時に破るためである。原則は finding を記録して
 STOPし、runtime が必要な trusted observation を提供するまで正規 Codex fixer の起動を予定しない。
-例外はオーナーが明示した bootstrap 処置として別記録にする。
+例外はオーナーが明示した bootstrap 処置として通常worker fallbackを別記録にし、正規fixer transportの
+起動実績または保証として扱わない。PR #453の旧TD/TRに残るspawn consume成功はsuperseded evidenceであり、
+現行契約は既存trusted issue-start hookとall-tool hookによるunavailable denyである。
