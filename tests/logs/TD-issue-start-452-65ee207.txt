@@ -1,0 +1,24 @@
+TD: TD-issue-start-452 version 2
+implementation_commit: 65ee207a0bca906e8e29b42081d9e92822426a7a
+date: 2026-08-27
+
+focused:
+  python3 -m unittest tests.unit.test_codex_workspace_binding tests.unit.test_issue_start_gate tests.unit.test_issue_start_cli_assets tests.unit.test_subagent_hooks tests.unit.test_worktree_ledger
+  Ran 206 tests in 2.533s
+  OK
+
+full:
+  python3 -m unittest discover -s tests -p 'test_*.py'
+  Ran 1342 tests in 102.116s
+  OK
+
+asset_parity:
+  python3 -m asset_parity check
+  38 assets checked; 0 MISSING; 14 informational staleness flags
+
+diff_check:
+  git diff --check
+  PASS
+
+coverage:
+  NOT RUN in fallback worker context; main context owns the pending coverage-html run.
