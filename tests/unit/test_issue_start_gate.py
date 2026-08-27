@@ -281,6 +281,11 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
     agent-command-gate の
     層2 が `cd` を deny する）ので、dispatch 側の指定だけが「isolated worktree」契約を
     成立させる唯一の手段。欠落は fail-close で拒否する。
+
+    Codex の局所 isolation parser は availability 検査より後にある。この class は setUp で
+    availability gate を差し替えて parser 単体を検証するが、本番の Codex implementer/fixer は
+    ``ISSUE_START_TRANSPORT_UNAVAILABLE`` で先に拒否され、all-tool hook も
+    ``CODEX_BINDING_TRANSPORT_UNAVAILABLE`` で fail-close する。
     """
 
     def test_claude_dispatch_with_worktree_isolation_is_bound(self):
@@ -307,8 +312,9 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TOOL_INPUT_SHAPE_INVALID"):
             parse_dispatch_payload(payload)
 
-    def test_codex_transport_carries_no_isolation_requirement(self):
-        # Codex の spawn_agent に isolation パラメータは無い。claude 側の要求を持ち込まない。
+    def test_codex_local_parser_carries_no_isolation_requirement_after_availability_gate(self):
+        # setUp で availability gate を差し替えた局所契約。現行 production dispatch の
+        # availability: unavailable を解除したり、保護済み transport の稼働を示したりしない。
         self.assertEqual(
             parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()).task_key,
             "issue_10",

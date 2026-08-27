@@ -388,7 +388,7 @@ def _validate_tool_input_shape(
 def _validate_isolation(
     tool_input: Mapping[str, Any], transport: Mapping[str, Any]
 ) -> None:
-    """worktree 分離を dispatch の必須条件として強制する（Issue #350）。
+    """availability gate 通過後の transport に worktree 分離を強制する（Issue #350）。
 
     `issue-implementer` は「isolated worktree で実装する」契約だが、その分離は
     role 側では実現できない——gitgate に worktree を作成・移動する
@@ -400,8 +400,13 @@ def _validate_isolation(
 
     指定を欠いた dispatch は main worktree を共有したまま branch switch する＝
     呼び出し元の作業ツリーを巻き込むので、dispatch 自体を fail-close で拒否する。
-    `required_isolation` を宣言しない transport（Codex の `spawn_agent` には
-    isolation 概念が無い）は素通しする＝claude 側の要求を持ち込まない。
+    この局所検査は :func:`_require_transport_available` より後でだけ呼ぶ。
+    `required_isolation` を宣言しない transport はここだけを素通しするが、現行 Codex
+    implementer/fixer transport は ``availability: unavailable`` なので本関数へ到達せず、
+    ``ISSUE_START_TRANSPORT_UNAVAILABLE`` で先に拒否される。加えて対象 role の tool 実行は
+    all-tool binding hook が ``CODEX_BINDING_TRANSPORT_UNAVAILABLE`` で拒否する。したがって
+    Codex の ``spawn_agent`` に isolation 概念が無いことは、保護済み dispatch の許可を
+    意味しない。
     """
     if "required_isolation" not in transport:
         return
