@@ -15,6 +15,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 ## Codex 固有の機械ゲート・権限境界
 
+- 現行 Codex transport は child/effective workspace・actual agent identity・spawn 成功を trusted 観測できないため unavailable であり、issue-start hook が dispatch を fail-close する。turn/session cwd や task key を代用して保護済み transport と解釈せず、別 role へ迂回せず STOP する。
 - `.codex/hooks/agent-command-gate.sh` が `issue-implementer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。実装とPR作成後はSTOPし、マージは `pr-reviewer` に委ねる。
 - Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージとPR本文はファイル渡し形式を使う。フックは静的文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。

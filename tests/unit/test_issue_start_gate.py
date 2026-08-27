@@ -16,6 +16,7 @@ from issue_start.gate import (
     IsolationOnlyAck,
     IssueStartError,
     IssueStartRequest,
+    _require_transport_available,
     _validate_tool_input_shape,
     evaluate_issue_start,
     parse_dispatch_payload,
@@ -88,7 +89,42 @@ def git_runner(*, origin="https://github.com/example/repo.git", inside="true", t
     return run
 
 
+def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
+    """旧 parser 単体テストを durable ledger の I/O から分離する seam。"""
+    from issue_start.gate import _codex_repository
+
+    task_key = tool_input["task_name"]
+    repository = _codex_repository(payload, cwd=cwd, runner=runner)
+    issue = int(task_key.split("_")[1])
+    round_number = 1 if agent_type == "issue-implementer" else int(task_key.rsplit("r", 1)[1])
+    return {
+        "entry_id": "wl-000000000001",
+        "issue": issue,
+        "round": round_number,
+        "repository": repository,
+        "workspace": str(cwd),
+        "branch_name": "codex/issue-bound",
+        "expected_oid": OID,
+        "handoff_path": (
+            f"tmp/_handoff/issue-implementer--issue-{issue}.yaml"
+            if agent_type == "issue-implementer"
+            else f"tmp/_handoff/issue-fixer--issue-{issue}-r{round_number}.yaml"
+        ),
+        "task_key": task_key,
+    }
+
+
 class DispatchPayloadMixin:
+    def setUp(self):
+        binding = patch(
+            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
+        )
+        binding.start()
+        self.addCleanup(binding.stop)
+        availability = patch("issue_start.gate._require_transport_available")
+        availability.start()
+        self.addCleanup(availability.stop)
+
     """Codex/Claude の正規 dispatch payload を組み立てる共通ヘルパ（テストは持たない）。"""
 
     def codex_payload(self, *, task_name="issue_10", tool="collaborationspawn_agent", cwd=ROOT):
@@ -124,7 +160,10 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
                 actual = parse_dispatch_payload(
                     self.codex_payload(tool=tool_name), cwd=ROOT, runner=git_runner()
                 )
-                self.assertEqual(actual, request())
+                self.assertEqual((actual.entrypoint, actual.repository, actual.issue),
+                                 ("issue-pipeline", "example/repo", 10))
+                self.assertEqual(actual.task_key, "issue_10")
+                self.assertEqual(actual.ledger_entry_id, "wl-000000000001")
 
     def test_codex_accepts_strict_github_https_and_ssh_origins(self):
         for origin in (
@@ -270,8 +309,8 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
     def test_codex_transport_carries_no_isolation_requirement(self):
         # Codex の spawn_agent に isolation パラメータは無い。claude 側の要求を持ち込まない。
         self.assertEqual(
-            parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()),
-            request(),
+            parse_dispatch_payload(self.codex_payload(), cwd=ROOT, runner=git_runner()).task_key,
+            "issue_10",
         )
 
     def test_unmanaged_agents_are_never_required_to_declare_isolation(self):
@@ -299,6 +338,25 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
                     {"subagent_type": "issue-implementer", "prompt": "x", "isolation": "worktree"},
                     transport,
                 )
+
+    def test_codex_availability_must_be_explicit_and_well_formed(self):
+        for transport in (
+            {},
+            {"availability": "unknown"},
+            {"availability": "unavailable"},
+            {"availability": "unavailable", "missing_observations": []},
+            {"availability": "unavailable", "missing_observations": ["x", "x"]},
+        ):
+            with self.subTest(transport=transport), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
+            ):
+                _require_transport_available("codex", transport)
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+            _require_transport_available(
+                "codex",
+                {"availability": "unavailable", "missing_observations": ["actual_agent_id"]},
+            )
+        _require_transport_available("claude", {})
 
 
 def fix_binding(**overrides):
@@ -575,6 +633,14 @@ class HookLedgerMixin:
         self._ledger_tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
+        binding = patch(
+            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
+        )
+        binding.start()
+        self.addCleanup(binding.stop)
+        availability = patch("issue_start.gate._require_transport_available")
+        availability.start()
+        self.addCleanup(availability.stop)
 
     def ledger_entries(self):
         return worktree_ledger.read_ledger(self.ledger_root)["entries"]
@@ -795,6 +861,52 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
         self.assertEqual(report, [blocker])
 
 
+class CodexUnavailableTransportHookTests(unittest.TestCase):
+    """Issue #452 round 1: 新all-tool hook未trust時も既存dispatch hookで拒否する。"""
+
+    def test_existing_issue_start_hook_fails_closed_before_evaluation(self):
+        payloads = [
+            {
+                "cwd": str(ROOT),
+                "tool_name": "collaborationspawn_agent",
+                "tool_input": {
+                    "agent_type": "issue-implementer",
+                    "task_name": "issue_10",
+                    "message": "ENC[not-a-binding]",
+                },
+            },
+            {
+                "cwd": str(ROOT),
+                "tool_name": "collaborationspawn_agent",
+                "tool_input": {
+                    "agent_type": "issue-fixer",
+                    "task_name": "issue_10_fix_r1",
+                    "message": "ENC[not-a-binding]",
+                },
+            },
+        ]
+        for payload in payloads:
+            with self.subTest(role=payload["tool_input"]["agent_type"]):
+                stdout = io.StringIO()
+                with patch("issue_start.hook.evaluate_issue_start") as evaluate:
+                    rc = run_hook(
+                        stdin=io.StringIO(json.dumps(payload)),
+                        stdout=stdout,
+                        stderr=io.StringIO(),
+                        cwd=ROOT,
+                        now=LEDGER_NOW,
+                    )
+                self.assertEqual(rc, 0)
+                decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn(
+                    "ISSUE_START_TRANSPORT_UNAVAILABLE",
+                    decision["permissionDecisionReason"],
+                )
+                self.assertIn("actual_agent_id", decision["permissionDecisionReason"])
+                evaluate.assert_not_called()
+
+
 class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
     """Issue #309 PR-1: ALLOW した dispatch を所有台帳へ `open` 起票する（**deny はしない**）。"""
 
@@ -854,12 +966,13 @@ class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
         self.assertEqual(evidence["ledger"]["entry_id"], entry["entry_id"])
         self.assertIsNone(evidence["ledger"]["error"])
 
-    def test_codex_dispatch_without_a_marker_records_no_branch_name(self):
-        rc, _stdout, _stderr = self.run_allow(self.managed_payload())
+    def test_codex_dispatch_does_not_open_a_second_legacy_entry(self):
+        rc, _stdout, stderr = self.run_allow(self.managed_payload())
         self.assertEqual(rc, 0)
-        entry = self.ledger_entries()[0]
-        self.assertEqual(entry["agent_type"], "issue-implementer")
-        self.assertIsNone(entry["branch_name"], "Codex transport に branch_name は無い")
+        self.assertEqual(self.ledger_entries(), [])
+        evidence = json.loads(stderr.getvalue())
+        self.assertEqual(evidence["ledger"]["entry_id"], "wl-000000000001")
+        self.assertEqual(evidence["ledger"]["platform"], "codex")
 
     def test_broken_ledger_now_denies_fail_close(self):
         """Issue #354 PR-3 で **fail-open → fail-close** へ倒した箇所（契約変更の明示）。

@@ -33,6 +33,17 @@
             "statusMessage": "Checking blocker evidence before Issue dispatch"
           }
         ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/codex-workspace-binding-gate.sh\"",
+            "timeout": 15,
+            "statusMessage": "Fail-closing unavailable Codex workspace binding transport"
+          }
+        ]
       }
     ],
     "PostToolUse": [

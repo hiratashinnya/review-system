@@ -451,11 +451,18 @@ def _latest(entries, predicate) -> dict | None:
 
 
 def latest_open_entry(repo_root, agent_type: str) -> dict | None:
-    """同じ ``agent_type`` の最新の ``open`` エントリ（無ければ ``None``）。"""
+    """同じ ``agent_type`` の最新の Claude ``open`` エントリ（無ければ ``None``）。
+
+    Codex は spawn 前に workspace が確定しており :mod:`issue_start.codex_binding` が task key
+    で直接束縛する。ここへ混ぜると Claude ``SubagentStart`` が Codex entry を横取りするため、
+    platform 欠如（既存 entry）または ``claude`` だけを対象にする。
+    """
     entries = read_ledger(repo_root)["entries"]
     return _latest(
         entries,
-        lambda item: item.get("status") == "open" and item.get("agent_type") == agent_type,
+        lambda item: item.get("status") == "open"
+        and item.get("agent_type") == agent_type
+        and item.get("platform", "claude") == "claude",
     )
 
 
@@ -496,7 +503,9 @@ def bind_agent(
             return
         target = _latest(
             entries,
-            lambda item: item.get("status") == "open" and item.get("agent_type") == agent_type,
+            lambda item: item.get("status") == "open"
+            and item.get("agent_type") == agent_type
+            and item.get("platform", "claude") == "claude",
         )
         if target is None:
             bound["entry_id"] = None
@@ -762,6 +771,7 @@ def sweep_orphans(
         item["entry_id"]
         for item in entries
         if item.get("status") in CLAIMED_STATUSES
+        and item.get("platform", "claude") == "claude"
         and item.get("worktree_path")
         and item.get("worktree_path") not in on_disk
         and isinstance(item.get("entry_id"), str)
