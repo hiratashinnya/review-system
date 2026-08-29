@@ -12,13 +12,13 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 ## Managed Issue-start
 
-`issue_start/managed-entrypoints-v2.json` が保護対象と harness 別 binding transport の inventory 正本である（`schema_version: managed-issue-entrypoints/2`。v1 ファイルは Issue #354 PR-4 で退役し、gate は読まない）。`issue-pipeline` から `issue-implementer` への Codex `spawn_agent` と Claude `Task` / runtime `Agent` を `managed` とする。entrypoint、agent type、tool name、harness 固有の必須 field と混在禁止 field は manifest の exact value だけを受理し、欠如・不正・複数 transport に一致する曖昧な payload は fail-close する。
+`issue_start/managed-entrypoints-v2.json` が保護対象と harness 別 binding transport の inventory 正本である（`schema_version: managed-issue-entrypoints/2`。v1 ファイルは Issue #354 PR-4 で退役し、gate は読まない）。`issue-pipeline` から `issue-implementer` への Claude `Task` / runtime `Agent` を稼働中の `managed` transport とする。Codex `spawn_agent` の entry も inventory には置くが、現行値は `availability: unavailable` であり、保護済み dispatch が可能という宣言ではない。既存 trusted issue-start hook は parser 入口で `ISSUE_START_TRANSPORT_UNAVAILABLE`、新しい全 tool binding hook は対象 role の tool 実行を `CODEX_BINDING_TRANSPORT_UNAVAILABLE` で fail-close する。entrypoint、agent type、tool name、harness 固有の必須 field と混在禁止 field は manifest の exact value だけを受理し、欠如・不正・複数 transport に一致する曖昧な payload は fail-close する。
 
-manifest は加えて `isolation_only` 区分を持つ（Issue #354 PR-4）。`issue-pipeline` から `issue-fixer` への Claude `Task` / runtime `Agent` がこれに当たり、**shape 検証・`required_isolation` の強制・軽量 marker `ISSUE_FIX_BINDING_V1=<JSON>`（exact 5 field＝`issue`/`round`/`branch_name`/`expected_oid`/`handoff_path`）の検証だけを行い、blocker gate（GitHub API）は呼ばない**。是正ラウンドは既に開いた PR への処置で Issue の着手可否は初回実装の dispatch で判定済みであり、ラウンドごとに API を叩くと到達不能時にレビュー是正まで fail-close で止まるためである。marker を無検証にせず要求するのは、worktree 所有台帳へ `{issue, round, branch_name, handoff_path}` を正確に載せるため（FR-W4）と、`gitgate adopt-branch --expected-oid` に渡す値の出所を dispatch 契約側へ固定するためである。同じ `agent_type` が `managed` と `isolation_only` の両方に載っていれば、どちらの契約で判定すべきか一意に決まらないので manifest の誤りとして fail-close する。`isolation_only` の transport は Claude のみを宣言する（Codex `spawn_agent` に isolation 概念が無いため、他 harness の宣言は `ISSUE_START_MANIFEST_CONTRACT_ERROR`）。
+manifest は加えて `isolation_only` 区分を持つ（Issue #354 PR-4）。稼働中の経路は `issue-pipeline` から `issue-fixer` への Claude `Task` / runtime `Agent` であり、**shape 検証・`required_isolation` の強制・軽量 marker `ISSUE_FIX_BINDING_V1=<JSON>`（exact 6 field＝`issue`/`round`/`branch_name`/`repository`/`expected_oid`/`handoff_path`）の検証だけを行い、blocker gate（GitHub API）は呼ばない**。是正ラウンドは既に開いた PR への処置で Issue の着手可否は初回実装の dispatch で判定済みであり、ラウンドごとに API を叩くと到達不能時にレビュー是正まで fail-close で止まるためである。marker を無検証にせず要求するのは、worktree 所有台帳へ `{issue, round, branch_name, handoff_path}` を正確に載せるため（FR-W4）と、`gitgate adopt-branch --repository OWNER/REPO --expected-oid` に渡す値の出所を dispatch 契約側へ固定するためである。同じ `agent_type` が `managed` と `isolation_only` の両方に載っていれば、どちらの契約で判定すべきか一意に決まらないので manifest の誤りとして fail-close する。Codex の `issue-fixer` entry は将来 transport の exact shape を inventory に固定するため存在するが、`availability: unavailable` なので shape・isolation・marker 検査へ進む前に拒否される。
 
 公式 Codex manual と CLI source は hook canonical 名を `spawn_agent`、matcher 互換 alias を `Agent` と定義している。一方、Codex CLI 0.146.0 の実 TUI で `collaboration.spawn_agent` を呼んだ PreToolUse stdin は `tool_name: "collaborationspawn_agent"` だった。この版差を閉じるため Codex matcher は3名だけを exact matchし、payload parser は manifest の canonical 名と実測名だけを managed dispatch として受理する。`Agent` は matcher alias であって stdin canonical 名ではないため parser alias にはせず、未観測の `collaboration.spawn_agent` 表記や類似 prefix/suffix 名も受理しない。
 
-Codex 0.146.0 の `tool_input.message` は PreToolUse 時点で暗号化されるため、binding 材料に使わない。Codex transport は次の平文情報だけで束縛する。
+Codex 0.146.0 の `tool_input.message` は PreToolUse 時点で暗号化されるため、binding 材料に使わない。以下は将来 transport を有効化するときの parser/binding 契約であり、現行の `prepare` が作る ledger entry は prepare-only で dispatch 成功を表さない。現行 dispatch はこの照合より前の availability gate で拒否される。
 
 1. `tool_input.task_name` が exact `^issue_([1-9][0-9]*)$` に一致し、capture した10進数を Issue 番号とする。先頭ゼロ、suffix/prefix、ハイフン形は受理しない。
 2. top-level `cwd` と hook 実行 cwd の `realpath` が一致する。
@@ -29,7 +29,7 @@ Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json`
 
 Claude transport は従来どおり dispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 
-Claude transport は加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。`issue-implementer` は「独立 worktree で実装する」契約だが、その分離は role 側では作れない——`gitgate` に worktree verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex transport は `spawn_agent` に isolation 概念が無いので `required_isolation` を宣言せず、この要求を持ち込まない（transport 別の宣言であり、manifest に key が無ければ検査自体を行わない）。deny reason には reason code に加えて `detail`（期待値と実測値）を載せ、dispatch 側が何を直せばよいか読み取れるようにする。
+Claude transport は加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。`issue-implementer` は「独立 worktree で実装する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。局所 isolation parser は、availability gate を通った transport だけを対象に、manifest に `required_isolation` が無ければ検査を行わない。Codex entry が `required_isolation` を持たないのは `spawn_agent` に isolation 概念が無いためだが、現行 Codex transport はその局所検査へ到達せず `ISSUE_START_TRANSPORT_UNAVAILABLE` で先に拒否されるため、「isolation 要求なし」は dispatch の許可を意味しない。deny reason には reason code に加えて `detail`（期待値と実測値）を載せ、dispatch 側が何を直せばよいか読み取れるようにする。
 
 PreToolUse hook は次を順に行う。
 
@@ -41,7 +41,8 @@ evidence は blocker の `fetched_at`・reason・policy version と対象 bindin
 
 ## Hook parity と限界
 
-- Codex: `.codex/hooks.json` → `.codex/hooks/issue-start-gate.sh`
+- Codex dispatch: `.codex/hooks.json` → `.codex/hooks/issue-start-gate.sh`（`ISSUE_START_TRANSPORT_UNAVAILABLE`）
+- Codex all-tool binding: `.codex/hooks.json` → `.codex/hooks/codex-workspace-binding-gate.sh`（`CODEX_BINDING_TRANSPORT_UNAVAILABLE`）
 - Claude: `.claude/settings.json` → `.claude/hooks/issue-start-gate.sh`
 - 共通 core: `python3 -m issue_start.hook`
 
