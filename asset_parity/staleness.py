@@ -40,6 +40,16 @@ class StaleSignal:
     flagged: bool
     flag_reasons: tuple[str, ...]
 
+    @property
+    def canonical_epoch(self) -> int | None:
+        """Deprecated alias for ``parity_seed_epoch``."""
+        return self.parity_seed_epoch
+
+    @property
+    def canonical_lines(self) -> int:
+        """Deprecated alias for ``parity_seed_lines``."""
+        return self.parity_seed_lines
+
 
 def git_last_commit_epoch(path: Path, root: Path) -> int | None:
     """Unix-epoch seconds of the last commit touching `path`, or None (fail-soft).

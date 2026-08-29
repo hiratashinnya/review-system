@@ -13,6 +13,7 @@ from asset_parity.inventory import (
     NON_NORMATIVE_SHARED_DIRS,
     PARITY_SEED_AGENTS_DIR,
     PARITY_SEED_SKILLS_DIR,
+    is_canonical_asset_path,
     is_parity_seed_path,
     scan_parity_seeds,
 )
@@ -73,6 +74,10 @@ class AiAssetPlacementContractTests(unittest.TestCase):
         ))
         self.assertEqual(COMMON_SOT_SKILLS_DIR, ".ai/skills")
         self.assertEqual(COMMON_SOT_AGENTS_DIR, ".ai/agents")
+        self.assertEqual(
+            is_canonical_asset_path(".claude/agents/example.md", REPO_ROOT),
+            is_parity_seed_path(".claude/agents/example.md", REPO_ROOT),
+        )
 
     def test_non_normative_records_cannot_be_parity_seeds(self):
         for directory in SHARED_DIRS:

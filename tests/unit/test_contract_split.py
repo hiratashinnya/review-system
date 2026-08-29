@@ -1,7 +1,8 @@
 """normative / rationale 分離（Issue #406）の機械検査。
 
-対象＝Issue 運用パイプラインの契約4ファイル。**規範（normative）** は
-dispatch のたびに読む現行 `.claude` wrapper、**経緯（rationale）** の正本は
+対象＝Issue 運用パイプラインの loader-facing wrapper 4ファイル。共通規範本文の SoT は
+`.ai/agents` / `.ai/skills`、dispatch のたびに読む `.claude` はPF固有契約と共通本文参照を持つ
+parity seedである。**経緯（rationale）** の正本は
 `.ai/rationale/<name>.md` とする。旧 `.claude/rationale/<name>.md` は本文を持たず、
 正本への相対ポインタだけを持つ。
 
@@ -13,7 +14,7 @@ dispatch のたびに読む現行 `.claude` wrapper、**経緯（rationale）** 
      自己申告している（規範と誤読されて二重の正本になるのを防ぐ）。
   3. 旧 `.claude/rationale` が対応する `.ai/rationale` を相対参照し、本文を重複保持しない
      （pointer と canonical rationale の責務を混ぜない）。
-  4. `.claude/rationale/` が `asset_parity` の資産として数えられない
+  4. `.ai/rationale/` が `asset_parity` の資産として数えられない
      （4ツリー parity に MISSING を生まないという分離の前提の固定）。
 
 依存仕様（out-of-graph・版なし・補助ナビ）:
@@ -32,14 +33,14 @@ from typing import NamedTuple
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 class Contract(NamedTuple):
-    """Normative wrapper と canonical/pointer rationale の対応。"""
+    """Loader-facing wrapper と canonical/pointer rationale の対応。"""
 
     normative_path: str
     canonical_rationale_path: str
     pointer_path: str
 
 
-# normative wrapper、rationale の正本、旧ポインタは別々の契約対象として保持する。
+# loader-facing wrapper、rationale の正本、旧ポインタは別々の契約対象として保持する。
 CONTRACTS: tuple[Contract, ...] = (
     Contract(
         ".claude/agents/issue-implementer.md",

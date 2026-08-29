@@ -69,6 +69,15 @@ The placement contract is `.ai/schema/asset-placement-v1.json`. Do not add a new
 parity exception for one of these directories: if a record is reported as an
 asset, the inventory boundary is wrong and should be fixed instead.
 
+### Terminology migration compatibility
+
+`parity seed` is the primary term and API from `asset-parity-report/v2`. Existing
+consumers remain supported during migration: `scan_canonical()`,
+`Asset.canonical_path`, `StaleSignal.canonical_epoch` / `canonical_lines`, and JSON
+`canonical_path` / `canonical_lines` remain deprecated aliases for the corresponding
+`parity_seed_*` names. New integrations should use the v2 names; the JSON payload
+publishes both names and a `compatibility.deprecated_keys` map.
+
 ## Documented exceptions
 
 `asset_parity/exceptions.py` holds a short, explicit list of **already-documented**

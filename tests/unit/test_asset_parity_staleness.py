@@ -52,6 +52,8 @@ class TestCompare(unittest.TestCase):
         mirror = self._write("mirror.md", 20)
         result = staleness.compare(canon, mirror, self.root, commit_epoch_fn=lambda p, r: None)
         self.assertIsNone(result.parity_seed_epoch)
+        self.assertIsNone(result.canonical_epoch)
+        self.assertEqual(result.canonical_lines, result.parity_seed_lines)
         self.assertIsNone(result.day_gap)
         self.assertFalse(result.flagged)
 

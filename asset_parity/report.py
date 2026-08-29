@@ -149,18 +149,27 @@ def to_jsonable(report: Report) -> dict:
                 "reasons": list(s.flag_reasons),
                 "day_gap": s.day_gap,
                 "parity_seed_lines": s.parity_seed_lines,
+                "canonical_lines": s.parity_seed_lines,
                 "mirror_lines": s.mirror_lines,
                 "size_ratio": s.size_ratio,
             }
         return d
 
     return {
+        "schema": "asset-parity-report/v2",
+        "compatibility": {
+            "deprecated_keys": {
+                "canonical_path": "parity_seed_path",
+                "canonical_lines": "parity_seed_lines",
+            },
+        },
         "assets": [
             {
                 "name": row.asset.name,
                 "kind": row.asset.kind,
                 "mode": row.asset.mode,
                 "parity_seed_path": str(row.asset.parity_seed_path),
+                "canonical_path": str(row.asset.parity_seed_path),
                 "trees": {tree: cell_json(cell) for tree, cell in row.cells.items()},
             }
             for row in report.rows

@@ -1,8 +1,8 @@
-"""asset_parity.inventory — 正本（.claude/skills, .claude/agents）棚卸しの契約。"""
+"""asset_parity.inventory — loader-facing parity seed棚卸しの契約。"""
 
 import unittest
 
-from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, scan_parity_seeds
+from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, scan_canonical, scan_parity_seeds
 
 from tests.unit.asset_parity_fixtures import make_tree
 
@@ -42,6 +42,12 @@ class TestScanParitySeeds(unittest.TestCase):
         asset = self.by_name[(SKILL, "plain-skill")]
         self.assertTrue(asset.parity_seed_path.is_file())
         self.assertEqual(asset.parity_seed_path.name, "SKILL.md")
+
+    def test_deprecated_canonical_api_remains_compatible(self):
+        legacy_assets = scan_canonical(self.root)
+        self.assertEqual(legacy_assets, self.assets)
+        asset = self.by_name[(SKILL, "plain-skill")]
+        self.assertEqual(asset.canonical_path, asset.parity_seed_path)
 
 
 if __name__ == "__main__":

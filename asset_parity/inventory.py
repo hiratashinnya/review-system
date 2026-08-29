@@ -52,6 +52,11 @@ class Asset:
     mode: str | None
     parity_seed_path: Path
 
+    @property
+    def canonical_path(self) -> Path:
+        """Deprecated alias for ``parity_seed_path``; retained for compatibility."""
+        return self.parity_seed_path
+
 
 def scan_parity_seeds(root: Path) -> list[Asset]:
     """Enumerate parity seeds under `.claude/skills/` and `.claude/agents/`.
@@ -109,3 +114,13 @@ def is_parity_seed_path(path: Path | str, root: Path) -> bool:
     if parts[:2] == tuple(PARITY_SEED_AGENTS_DIR.split("/")):
         return parts[-1].endswith(".md") and len(parts) == 3
     return False
+
+
+def scan_canonical(root: Path) -> list[Asset]:
+    """Deprecated compatibility alias for :func:`scan_parity_seeds`."""
+    return scan_parity_seeds(root)
+
+
+def is_canonical_asset_path(path: Path | str, root: Path) -> bool:
+    """Deprecated compatibility alias for :func:`is_parity_seed_path`."""
+    return is_parity_seed_path(path, root)
