@@ -121,6 +121,42 @@
   merge した上で、PR-4 が初めて gated ロールへ新しい verb（`adopt-branch`）を付与した。
   「ゲート側の手当てが付与より先行する」順序は #354 の受入基準そのもの。
 
+### Issue #374 の verb 候補監査と最終配置（2026-08-26）
+
+#354 の完了後に #374 のスコープを再束縛した結果、旧 ②-c／②-d の約50行に含まれていた候補は
+次のように収束した。ここで新しい包括 verb を重ねないのは、状態遷移・削除・branch 取得の責務を
+再び1つへ混ぜず、既存の機械ゲートを単一の決定点として保つためである。
+
+| 旧手順／条件 | 機械的に決まるか | 現行の決定点 | 結論 |
+|---|---|---|---|
+| handoff 回収後の worktree 解放 | 決まる。台帳 status と回収成否で判定できる | `collect-worktree` → `worktree-release` | verb 化済み。主文脈の通常手順から削除 |
+| 未回収／孤児 worktree の後始末 | 通常経路は決まる。回収不能を諦める判断だけは理由を要する | residue deny が `collect-worktree`／`worktree-release` を案内。`worktree-forget` は理由必須 | 機械判定とオーナー判断を分離したまま維持 |
+| PR branch への切替 | branch・repository・expected OID から決まる | 稼働中の Claude isolated `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない。Codex fixer transport は現行 unavailable |
+| メイン worktree を `main` へ戻す | 現行構成では発生しない | FR-W7（主文脈の checkout を不変にする） | 手順を廃止。復帰 verb は作らない |
+| 「②-c を経由したか」の分岐 | 経路の記憶は不要 | 所有台帳の status、handoff の存在、SubagentStop、次 dispatch の residue deny | 状態から導出。②-c／②-d の二重記述を削除済み |
+
+権限境界も #354 の確定状態を引き継ぐ。稼働中の Claude transport では、`adopt-branch` は既存 PR branch を
+必要とする `issue-fixer` にだけ付与する。worktree 解放系3 verb は他 dispatch の成果物を消し得るため
+gated role の allowlist へは付与せず、実行主体を非 gated の主文脈と停止フックに限定する。この非対称は
+「allowlist への登録漏れ」ではなく、操作主体を狭める意図した deny である。
+
+Issue #452 後の Codex implementer/fixer transport は `availability: unavailable` である。既存 trusted
+issue-start hook が dispatch を `ISSUE_START_TRANSPORT_UNAVAILABLE` で、新しい all-tool binding hook が
+対象 role の tool 実行を `CODEX_BINDING_TRANSPORT_UNAVAILABLE` でそれぞれ fail-close する。Codex の
+`prepare` は将来 transport 用の prepare-only ledger 記録であり、dispatch 成功や canonical lifecycle の
+開始を表さない。したがって owner-approved Codex worker fallback で `adopt-branch` 相当の作業を行っても、
+正規 fixer transport の起動実績や canonical remediation lifecycle の証拠には数えない。
+
+自動テストは、実 git を使う `SubagentStop` → `collect-worktree` → release の通し検証と、release 後に
+`adopt-branch` が成功する検証を持つ。一方、#374 の受入基準にある「実際に `/issue-pipeline` を1件回し、
+clean merge 経路・是正経由経路の両方で残留しない」という**ライブ運用の両経路実測**は未充足であり、
+自動テストの代替ともみなさない。PR #453 は finding → 修正 → 再レビュー → merge の live process の
+部分証拠だが、owner-approved Codex worker fallback を使っており、対象 worktree の実行前後一覧、handoff、
+ledger の `status: released` と非空の `collected_to` が記録されていないため、canonical remediation
+lifecycle の証拠には足りない。PR #451 も draft・未レビュー・未マージで lifecycle 記録が無く、現状を
+clean canary 済みとは扱わない。clean と canonical remediation の各経路で必要な観測記録が揃うまで
+F-374-01 は open の残条件として維持する。
+
 ## ②-c の残スコープ（Issue #310）と #369 との分担（移設元：②-c 末尾）
 
   **本手順は isolation 下でブランチを取得する手段に限定した記述であり**、カルテ機構への結線を扱う
@@ -136,27 +172,38 @@
 
 ## Codex 版に worktree 解放手順が不要な理由（移設元：②-d）
 
-  > **Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項は不要**：同ファイル ②-a の記述の
-  > とおり Codex の `spawn_agent` には isolation パラメータが無く worktree 分離が行われないため、
-  > `issue-implementer` は呼び出し元と作業ツリーを共有し、Codex 経路ではそもそも
-  > `.claude/worktrees/agent-<id>/` が作られず残留も起きない。`asset_parity/exceptions.py` の
-  > 非移植例外ではなく、isolation 機構の有無という実体差による（Issue #360）。
+> **失効済みの履歴（2026-08-27・Issue #452 / PR #453）**：以下は Issue #360 時点の
+> Codex transport が稼働していた期間に限る説明である。Issue #452 で Codex implementer/fixer は
+> `availability: unavailable` へ縮退し、現在は既存 trusted issue-start hook が
+> `ISSUE_START_TRANSPORT_UNAVAILABLE`、all-tool binding hook が
+> `CODEX_BINDING_TRANSPORT_UNAVAILABLE` で二段 fail-close する。したがって現在の Codex には、
+> 「共有 worktree で agent が稼働するので解放手順が不要」という適用可能な経路自体がない。
 
-### `issue-fixer` にも同じ非対称が及ぶ（Issue #354 PR-4）
+  > **Issue #360 当時、Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項が不要だった理由**：
+  > 当時の `spawn_agent` には isolation パラメータが無く worktree 分離が行われなかったため、
+  > `issue-implementer` は呼び出し元と作業ツリーを共有し、Codex 経路では
+  > `.claude/worktrees/agent-<id>/` が作られず残留も起きなかった。`asset_parity/exceptions.py` の
+  > 非移植例外ではなく、isolation 機構の有無という実体差による説明だった。
 
-PR-4 で Claude 側の `issue-fixer` にも `isolation: "worktree"` を強制したが、**Codex 側の
-`issue-fixer` は依然としてメインワークツリーを共有したまま動く**（`spawn_agent` に isolation
-パラメータが無いため）。したがって：
+### `issue-fixer` にも同じ非対称が及んだ期間（Issue #354 PR-4、Issue #452 で失効）
 
-- **`adopt-branch` は2ツリーで同一に付与する**。Codex 側でも「検証済み exact OID で既存ブランチへ
-  移る唯一の手段」として意味を持つ（生 `git switch`/`checkout` は層3 で全 deny のため、
-  この verb が無いと Codex 側の是正者はブランチを移れない）。既に対象ブランチに載っていれば
-  省略できる、という点だけが Claude 側（毎回必須）との差になる。
-- **worktree 解放系の手順・`ISSUE_START_WORKTREE_RESIDUE` の deny は Codex 側では発生しない**
-  （worktree が作られないため）。ここも実体差であって非移植例外ではない。
-- **`isolation_only` 区分の manifest 宣言も Claude transport のみ**（`gate.py` の
-  `_parse_isolation_only` は claude 以外の harness を `ISSUE_START_MANIFEST_CONTRACT_ERROR` で
-  拒否する）。isolation が無い harness へ isolation 要求を持ち込まない、という #350 の方針と同じ。
+以下は #354 PR-4 の merge 後から 2026-08-27 の Issue #452 / PR #453 merge までの履歴である。
+この期間、Claude 側の `issue-fixer` には `isolation: "worktree"` を強制した一方、Codex 側の
+`issue-fixer` はメインワークツリーを共有していた（`spawn_agent` に isolation パラメータが無いため）。
+当時の帰結は次のとおりだった。
+
+- **`adopt-branch` は2ツリーで同一に付与していた**。Codex 側でも「検証済み exact OID で既存ブランチへ
+  移る唯一の手段」として意味を持ち、生 `git switch`/`checkout` は層3で deny していた。
+- **worktree 解放系の手順・`ISSUE_START_WORKTREE_RESIDUE` の deny は Codex 側では発生しなかった**。
+  worktree を作らない当時の実体差であって、非移植例外ではなかった。
+- **`isolation_only` 区分の manifest 宣言は Claude transport のみだった**。isolation が無い harness へ
+  isolation 要求を持ち込まない、という #350 の方針に基づく当時の契約だった。
+
+Issue #452 後は上記3点を現行 Codex lifecycle へ適用しない。manifest には将来 transport の shape を
+固定する Codex entry があるが `availability: unavailable` であり、`prepare` が作る entry も
+prepare-only で dispatch 成功を表さない。owner-approved worker fallback が共有 worktree で
+`adopt-branch` 相当の作業をしても、正規 Codex fixer transport や canonical remediation lifecycle の
+実績には数えない。現在到達可能な canonical isolation lifecycle は Claude transport だけである。
 
 ## 「実害の定義」節の残スコープ（移設元：実害の定義とエスカレーション条件・末尾）
 
