@@ -127,6 +127,49 @@ class AiAssetPlacementContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, registry)
 
+    def test_agent_contracts_do_not_reintroduce_migrated_rationale(self):
+        migrated = {
+            ".ai/agents/authoring-fanout.md": (
+                "なぜ nonce は「バッチごと」",
+                "未完了 target を成功と誤認するため",
+            ),
+            ".ai/agents/analysis-author.md": ("同一親に複数 target がある",),
+            ".ai/agents/design-author.md": ("正当な TERM 更新を既存 id 衝突と判定",),
+            ".ai/agents/requirements-author.md": ("同一親に複数 target がある",),
+            ".ai/agents/spec-author.md": ("同一親に複数 target がある",),
+            ".ai/agents/verification-author.md": (
+                "同一親に複数 target がある",
+                "元の指摘時の ref_version",
+            ),
+            ".ai/agents/dsv2-lookup.md": ("従来は JSON 全体を会話に取り込んで",),
+            ".ai/agents/issue-fixer.md": ("唯一の観測可能な signal",),
+            ".ai/agents/issue-implementer.md": ("唯一の観測可能な signal",),
+            ".ai/agents/doc-system-v2-authoring.md": ("従来どおり",),
+        }
+        for relative, forbidden_snippets in migrated.items():
+            body = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            for snippet in forbidden_snippets:
+                with self.subTest(relative=relative, snippet=snippet):
+                    self.assertNotIn(snippet, body)
+
+    def test_migrated_design_reasons_are_preserved_in_rationale(self):
+        expected = {
+            ".ai/rationale/authoring-fanout.md": (
+                "未完了 target を成功と誤認できる",
+                "正当な更新が slug 衝突として ROLLBACK",
+            ),
+            ".ai/rationale/dsv2-lookup.md": ("検索結果を会話へ丸ごと取り込む",),
+            ".ai/rationale/issue-fixer.md": ("dispatch が終了したことを呼び出し元が観測",),
+            ".ai/rationale/issue-implementer.md": ("dispatch が終了したことを呼び出し元が観測",),
+            ".ai/rationale/verification-author.md": ("指摘時に対象のどの版を参照したか",),
+            ".ai/rationale/doc-system-v2-authoring.md": ("current_stage",),
+        }
+        for relative, required_snippets in expected.items():
+            body = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            for snippet in required_snippets:
+                with self.subTest(relative=relative, snippet=snippet):
+                    self.assertIn(snippet, body)
+
 
 if __name__ == "__main__":
     unittest.main()

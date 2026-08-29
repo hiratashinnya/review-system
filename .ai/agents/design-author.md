@@ -36,11 +36,10 @@ TERM は analysis-author が既に著作した `03-analysis/term` の共有ノ�
 1. **既存 TERM をコーパスから読み取る**：`doc-system-v2/nodes/03-analysis/term/{slug}.md`＋`{slug}.yaml`。無ければ分析ファセット未著作＝分析層が先行していない状態なので著作せず打ち上げる（analysis-author 先行が前提）。
 2. その対を **tmp ミラーの `tmp/<sprint>/<parent-id>/nodes/03-analysis/term/{slug}.{md,yaml}`**（`05-design` ではなく **`03-analysis/term`**）にコピーし、`.md` 本文の「用語/意味/用途」の下に**設計ファセット（Python 型名・定義モジュール）を追記**する。**分析ファセットは保持**（消さない）。
 3. サイドカー `.yaml` は `version` を **MINOR バンプ**（内容追記）。`edges`（`term→spec`）は保持。設計側の依存（`dm→term`）は DM ノード側に張る（TERM には張らない）。
-4. reconciliation は tmp の path（`03-analysis/term`）が既存コーパスノードと一致するため、**新規作成ではなく既存ノードの上書き更新**として反映する。
+4. reconciliation は tmp の path（`03-analysis/term`）を既存ノードの上書き更新として反映する。
 5. **更新した TERM の slug を、ハンドオフ YAML の `update_slugs` に必ず列挙する**（後述「ハンドオフ」）。
    呼び出し元（`authoring-fanout` / pipeline skill）はこれを validator へ `--update` 宣言として渡す。
-   ここで返し忘れると validator は宣言なしで `dsv2 check-slug` を回し、**正当な TERM 更新を既存 id 衝突と判定して ROLLBACK** する
-   （更新宣言は out-of-band 契約＝判定するのは著作した本エージェント・`reconciliation-validator.md` Step 2-2）。
+   更新宣言は out-of-band 契約として `reconciliation-validator.md` Step 2-2 に従う。
 
 これは**ノード成果物**の置き場。呼び出し元へ返す報告項目（著作した slug 群・エラー等）はここではなく
 後述「ハンドオフ」規約の `tmp/_handoff/design-author--<target_key>.yaml` に書き、チャットにはパスと1行要約だけを返す。
@@ -148,8 +147,7 @@ edges:
 
 - 置き場：`tmp/_handoff/design-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
 - `<key>`：呼び出し元（`authoring-fanout`）が採番して渡した **`target_key`**。渡されていなければ `parent_id` を使う（単独呼び出し時のみ）。
-  **同一親に複数 target がある／`parent_id` が空の新規ルートが複数あるバッチでは `parent_id` だけだとファイル名が衝突し、
-  片方の `status: error`・`authored` が失われて未完了 target を成功と誤認する**ため、fan-out 経由では必ず `target_key` を使う
+  fan-out 経由では必ず `target_key` を使う。
 - 書式：下記スキーマの YAML を出力する（既存があれば上書き）
 - チャットへの返り値：`HANDOFF: tmp/_handoff/design-author--<key>.yaml` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
@@ -163,8 +161,7 @@ status: ok                       # ok | error（未完・差し戻しは error�
 authored:                        # 著作した slug 群（本文 .md ＋ サイドカー .yaml の対が揃ったもの）
   - <slug>
 update_slugs: []                 # 新規著作ではなく「既存コーパスノードを更新」した slug 群（**TERM の設計ファセット追記**が典型・無ければ空）。
-                                 # 呼び出し元がこれを validator へ `--update` 宣言として渡す。**未申告だと
-                                 # dsv2 check-slug が TERM 更新を既存 id 衝突と判定し、正当な更新が ROLLBACK になる**
+                                 # 呼び出し元がこれを validator へ `--update` 宣言として渡す
 skipped: []                      # 既存につき更新しなかった等・理由を1行で
 errors: []                       # status: error のとき必須（何が・どの slug で・なぜ）
 notes: ""                        # 呼び出し元の判断に要る補足のみ（1〜3行）

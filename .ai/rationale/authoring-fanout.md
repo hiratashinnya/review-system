@@ -14,6 +14,10 @@ DD-22 の ①-C ハイブリッドは、対話入口を skill、非対話の著�
 
 nonce を取得できない実行環境では旧形式へフォールバックするが、既存 hand-off の存在確認を必須にして衝突を fail-close する。再試行の冪等性は nonce の再利用ではなく `retry_of` の明示で担保する。過去の nonce を今回の nonce と値比較しないのは、再試行が別時刻のバッチから来るためである。
 
+`retry_of` は完全一致で parent、kind、index を検査し、対応する hand-off の実在も要求する。部分一致を許すと別 target の hand-off を上書きできるためである。新規 target の hand-off が既に存在する場合と、target key や `(parent_id, kind, brief)` が重複する場合も同じ理由で停止する。各 author が fan-out 経由では `parent_id` ではなく `target_key` を使う契約もここに由来する。同一親の複数 target や複数の新規 root を `parent_id` だけで識別すると、片方の `status` や `authored` が失われ、未完了 target を成功と誤認できる。
+
+fan-out が author の `update_slugs` を和集合にして validator へ渡すのは、宣言が欠けると既存ノードへの正当な更新が slug 衝突として ROLLBACK されるためである。返却された hand-off path と target key の一致、および reconciliation の `written_by_parent` に全 parent があることを検査するのは、別 target の結果や一部だけの書込をバッチ完了として受理しないためである。
+
 ## 変更履歴
 
 上記のキー規則、非数字 nonce の扱い、`retry_of` の構造検査は issue #278 の F1/F2/F5 の修正を反映したもの。これらの記録は本文へ戻さず、現行の検査手順だけを本文に残す。

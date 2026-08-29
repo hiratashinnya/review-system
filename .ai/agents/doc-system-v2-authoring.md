@@ -24,7 +24,7 @@ v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー
   ```
 - グローバル一意はここで保証しない＝**reconciliation-validator が書込前に `dsv2 check-slug` で fail-close**
   判定する（DD-22・Sub-D）。著作側は衝突しにくい**識別的なタイトル**を付ける責務のみ。
-- 階層（旧 `X-N` 親子）は **path でも id でも表さない**。親子関係は **同型間の無名依存辺**（子→親）で表す。
+- 階層は **path でも id でも表さず**、`X-N` 連番を使わない。親子関係は **同型間の無名依存辺**（子→親）で表す。
 
 ## サイドカー `{slug}.yaml` のキー（これ以外禁止）
 
@@ -73,8 +73,7 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
 
 ## sprint の取得
 
-`sprint` 未指定なら `doc-system-v2/config.yml` の `current_stage` ではなく、運用の current phase
-（従来どおり `docs/doc-system/config.yaml` の `current_phase`）を用いる。指示で渡されたら従う。
+`sprint` 未指定なら `docs/doc-system/config.yaml` の `current_phase` を用いる。指示で渡されたら従う。
 
 ## 受け入れチェック（全型共通・書込前）
 
