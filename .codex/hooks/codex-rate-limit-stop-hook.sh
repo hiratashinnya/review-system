@@ -254,8 +254,14 @@ if is_truthy "$API_CHECK"; then
 fi
 
 # --- fallback: legacy pane/status text detection --------------------------
-# Reached only when the API could not be queried (codex not on PATH, not logged
-# in, app-server error/timeout, or an older Codex without the method).
+# Reached via either of two paths (see README.md "Replace vs. fallback"):
+#   1. the API could not be queried at all (codex not on PATH, not logged in,
+#      app-server error/timeout, or an older Codex without the method); or
+#   2. the API answered RL_REACHED=1 but neither primary/secondary window is
+#      usable as the binding one (empty RL_RESET_EPOCH — e.g. a workspace
+#      credits/usage limit tracked outside those windows; see the
+#      "api: limit reached but no usable resetsAt" case above).
+# Both paths fall through to the same pane/status text detection below.
 before="$(pane_tail 80)"
 if ! is_truthy "$STATUS_ON_EVERY_STOP" && ! has_rate_limit_text "$payload" "$before"; then
   log "no rate-limit text in Stop payload/pane; no-op"

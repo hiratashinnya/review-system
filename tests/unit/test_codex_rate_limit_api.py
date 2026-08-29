@@ -34,6 +34,8 @@ import time
 import unittest
 from pathlib import Path
 
+from tests.unit.test_codex_rate_limit_banner_regex import CREDITS_BANNER_EXAMPLE
+
 ROOT = Path(__file__).resolve().parents[2]
 STOP_HOOK = ROOT / ".codex" / "hooks" / "codex-rate-limit-stop-hook.sh"
 WATCHER = ROOT / ".codex" / "hooks" / "codex-rate-limit-watcher.sh"
@@ -167,6 +169,40 @@ class SummarizeRateLimitsTests(unittest.TestCase):
     def test_missing_snapshot_raises(self):
         with self.assertRaises(ValueError):
             QMOD.summarize_rate_limits({"unexpected": True}, NOW)
+
+    def test_reached_without_exhausted_window_returns_no_reset(self):
+        # Issue #456 / F-455-2 regression: rateLimitReachedType is non-null
+        # (e.g. a workspace credits/usage limit outside primary/secondary),
+        # but neither window is exhausted (usedPercent < 100). Previously
+        # pick_binding_window's "future" fallback (meant only for idle/
+        # informational calls) kicked in here too and returned an unrelated
+        # window's resetsAt, so RL_RESET_EPOCH was never empty and the Stop
+        # hook's "no usable resetsAt -> fall back to text detection" branch
+        # never fired. It must now stay empty so that fallback actually runs.
+        result = {
+            "rateLimits": {
+                "primary": {
+                    "usedPercent": 10,
+                    "windowDurationMins": 300,
+                    "resetsAt": 1783767886,
+                },
+                "secondary": {
+                    "usedPercent": 5,
+                    "windowDurationMins": 10080,
+                    "resetsAt": 1784354686,
+                },
+                "planType": "plus",
+                "rateLimitReachedType": "workspace_owner_credits_depleted",
+            }
+        }
+        fields = QMOD.summarize_rate_limits(result, NOW)
+        self.assertEqual(fields["RL_REACHED"], 1)
+        self.assertEqual(
+            fields["RL_REACHED_TYPE"], "workspace_owner_credits_depleted"
+        )
+        self.assertEqual(fields["RL_RESET_EPOCH"], "")
+        self.assertEqual(fields["RL_WINDOW_MINS"], "")
+        self.assertEqual(fields["RL_USED_PERCENT"], "")
 
 
 class QueryHelperProcessTests(unittest.TestCase):
@@ -538,12 +574,19 @@ class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
     PATH and CODEX_RL_QUERY_CMD standing in for the Python query helper.
     """
 
-    # Same minimal stub as StopHookApiFailureCooldownTests: capture-pane
-    # returns no banner text, so the legacy fallback's own AND-regex never
-    # matches and no watcher process is actually spawned by these tests —
-    # only that control reached the fallback section is asserted (via its
-    # own "no rate-limit text" no-op log line).
-    _FAKE_TMUX = textwrap.dedent(
+    # Unlike StopHookApiFailureCooldownTests' minimal stub, capture-pane here
+    # returns the real credits/usage-limit banner text the owner reported
+    # (CREDITS_BANNER_EXAMPLE, also used by test_codex_rate_limit_banner_regex.py),
+    # read from a file so the banner's apostrophe/parens do not have to survive
+    # bash quoting inside this generated script. That text satisfies
+    # has_rate_limit_text's AND regex (phrase + reset cue), so the legacy
+    # fallback path runs all the way to its tail — requesting /status,
+    # capturing the status text, and spawning the one-shot watcher — instead
+    # of stopping at its "no rate-limit text" no-op branch (Issue #456 /
+    # F-455-3: the previous always-empty stub could only prove control
+    # *entered* the fallback section, not that the section's actual text
+    # detection worked end-to-end).
+    _FAKE_TMUX_TEMPLATE = textwrap.dedent(
         """\
         #!/usr/bin/env bash
         case "$1" in
@@ -551,7 +594,7 @@ class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
             printf 'codex\\n'
             ;;
           capture-pane)
-            printf ''
+            cat "{banner_file}"
             ;;
           *)
             exit 0
@@ -566,8 +609,13 @@ class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.bin_dir, ignore_errors=True)
         self.addCleanup(shutil.rmtree, self.state_dir, ignore_errors=True)
 
+        banner_file = Path(self.bin_dir) / "banner.txt"
+        banner_file.write_text(CREDITS_BANNER_EXAMPLE)
+
         fake_tmux = Path(self.bin_dir) / "tmux"
-        fake_tmux.write_text(self._FAKE_TMUX)
+        fake_tmux.write_text(
+            self._FAKE_TMUX_TEMPLATE.format(banner_file=str(banner_file))
+        )
         fake_tmux.chmod(0o755)
 
     def _run_stop_hook(self, query_cmd):
@@ -578,6 +626,9 @@ class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
         env["CODEX_RL_STATE_DIR"] = self.state_dir
         env["CODEX_RL_API_CHECK"] = "1"
         env["CODEX_RL_QUERY_CMD"] = query_cmd
+        # Skip the (default 3s) post-/status wait; the fake tmux's
+        # capture-pane response does not depend on real elapsed time.
+        env["CODEX_RL_STATUS_WAIT"] = "0"
         return subprocess.run(
             ["bash", str(STOP_HOOK)],
             input="",
@@ -600,10 +651,28 @@ class StopHookReachedWithoutResetEpochFallsBackTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         log = self._log_text()
         self.assertIn("no usable resetsAt from primary/secondary window", log)
-        # Proves control actually reached the fallback section below (not
-        # just that the new log line was printed) — this line only appears
-        # from the legacy-text-detection code path.
-        self.assertIn("no rate-limit text in Stop payload/pane; no-op", log)
+        # Proves control reached the fallback section AND that the real
+        # banner text drove it to completion (not just the no-op branch):
+        # the fake tmux's capture-pane returns CREDITS_BANNER_EXAMPLE, which
+        # satisfies has_rate_limit_text's AND regex, so the "no rate-limit
+        # text" no-op line must NOT appear, and the /status request +
+        # watcher-spawn log lines that only exist further down this same
+        # code path must.
+        self.assertNotIn("no rate-limit text in Stop payload/pane; no-op", log)
+        self.assertIn(
+            "rate-limit candidate detected (text fallback); requesting /status",
+            log,
+        )
+        self.assertIn("captured /status output to", log)
+        self.assertIn("spawning one-shot watcher", log)
+
+        status_files = list(Path(self.state_dir).glob("status.*.txt"))
+        self.assertEqual(
+            len(status_files),
+            1,
+            "expected exactly one captured /status file to be written",
+        )
+        self.assertIn(CREDITS_BANNER_EXAMPLE, status_files[0].read_text())
 
     def test_reached_with_epoch_still_spawns_watcher_without_fallback(self):
         future_epoch = int(time.time()) + 3600
