@@ -3,8 +3,8 @@
 Primary output: an asset × tree presence matrix (the thing that would have caught the
 `issue-pipeline`-missing-from-two-trees case an earlier manual audit found). Secondary,
 informational-only output: a lightweight staleness flag for pairs present in both the
-canonical tree and a mirror, and a list of assets that exist in a mirror tree but have
-no canonical `.claude/` counterpart at all (the reverse-direction gap).
+parity seed and a mirror, and a list of assets that exist in a mirror tree but have
+no `.claude/` parity-seed counterpart at all (the reverse-direction gap).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import staleness as staleness_mod
 from .exceptions import is_exempt
-from .inventory import Asset, scan_canonical
+from .inventory import Asset, scan_parity_seeds
 from .trees import ALL_TREES, TREE_LABELS, applicable_trees, expected_paths, mirror_root_dirs
 
 STATUS_PRESENT = "present"
@@ -62,7 +62,7 @@ def build_report(
     commit_epoch_fn=staleness_mod.git_last_commit_epoch,
     is_exempt_fn=is_exempt,
 ) -> Report:
-    assets = scan_canonical(root)
+    assets = scan_parity_seeds(root)
     rows: list[AssetRow] = []
 
     for asset in assets:
@@ -84,7 +84,7 @@ def build_report(
             found = next((p for p in candidates if p.is_file()), None)
             if found is not None:
                 stale = staleness_mod.compare(
-                    asset.canonical_path, found, root,
+                    asset.parity_seed_path, found, root,
                     day_threshold=day_threshold,
                     size_ratio_threshold=size_ratio_threshold,
                     commit_epoch_fn=commit_epoch_fn,
@@ -105,8 +105,8 @@ def build_report(
 
 
 def _find_orphans(root: Path, assets: list[Asset]) -> dict[str, list[str]]:
-    """Assets that exist in a mirror tree but have no canonical `.claude/` counterpart."""
-    canonical_names = {(a.kind, a.name) for a in assets}
+    """Assets that exist in a mirror tree but have no `.claude/` parity seed."""
+    seed_names = {(a.kind, a.name) for a in assets}
     orphans: dict[str, list[str]] = {}
 
     for tree in ALL_TREES:
@@ -122,7 +122,7 @@ def _find_orphans(root: Path, assets: list[Asset]) -> dict[str, list[str]]:
                     names = {p.name.removesuffix(".agent.md")
                              for p in mirror_dir.glob("*.agent.md")}
                     names |= {p.stem for p in mirror_dir.glob("*.toml")}
-                extra = sorted(n for n in names if (kind, n) not in canonical_names)
+                extra = sorted(n for n in names if (kind, n) not in seed_names)
                 if extra:
                     orphans.setdefault(tree, [])
                     for n in extra:
@@ -148,7 +148,7 @@ def to_jsonable(report: Report) -> dict:
                 "flagged": s.flagged,
                 "reasons": list(s.flag_reasons),
                 "day_gap": s.day_gap,
-                "canonical_lines": s.canonical_lines,
+                "parity_seed_lines": s.parity_seed_lines,
                 "mirror_lines": s.mirror_lines,
                 "size_ratio": s.size_ratio,
             }
@@ -160,7 +160,7 @@ def to_jsonable(report: Report) -> dict:
                 "name": row.asset.name,
                 "kind": row.asset.kind,
                 "mode": row.asset.mode,
-                "canonical_path": str(row.asset.canonical_path),
+                "parity_seed_path": str(row.asset.parity_seed_path),
                 "trees": {tree: cell_json(cell) for tree, cell in row.cells.items()},
             }
             for row in report.rows
@@ -213,7 +213,7 @@ def render_text(report: Report) -> str:
 
     if report.orphans:
         lines.append("")
-        lines.append("Orphans in mirror trees (present in a mirror, no canonical .claude/ "
+        lines.append("Orphans in mirror trees (present in a mirror, no .claude/ parity-seed "
                      "counterpart — informational only, not counted above):")
         for tree in ALL_TREES:
             names = report.orphans.get(tree)

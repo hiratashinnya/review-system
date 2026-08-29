@@ -40,8 +40,9 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 `.ai/schema/`（共有 schema）はいずれも loader-facing asset ではない。規範本文へ
 混入させず、PF tree へ複製せず、必要なときだけリポジトリ相対リンクで参照する。
 配置の機械可読な契約は [`.ai/schema/asset-placement-v1.json`](schema/asset-placement-v1.json)
-にあり、`asset_parity` の inventory は `.claude/skills/*/SKILL.md` と
-`.claude/agents/*.md` だけを canonical asset として列挙する。
+にある。`asset_parity` の inventory は parity matrix の loader-facing **比較起点（parity seed）**として
+`.claude/skills/*/SKILL.md` と `.claude/agents/*.md` を列挙する。この seed は PF wrapper の発見起点であり、
+共通本文の編集正本ではない。共通本文の SoT は `.ai/skills/` と `.ai/agents/` にある。
 troubleshooting は asset ごとに 1 ファイルの index とし、個別 incident はその本文の
 見出しで区切る。新しい index を追加するときは schema の許可リストと回帰テストも更新する。
 

@@ -2,15 +2,15 @@
 
 import unittest
 
-from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, scan_canonical
+from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, scan_parity_seeds
 
 from tests.unit.asset_parity_fixtures import make_tree
 
 
-class TestScanCanonical(unittest.TestCase):
+class TestScanParitySeeds(unittest.TestCase):
     def setUp(self):
         self.root = make_tree(self)
-        self.assets = scan_canonical(self.root)
+        self.assets = scan_parity_seeds(self.root)
         self.by_name = {(a.kind, a.name): a for a in self.assets}
 
     def test_finds_all_real_assets(self):
@@ -38,10 +38,10 @@ class TestScanCanonical(unittest.TestCase):
         asset = self.by_name[(AGENT, "plain-agent")]
         self.assertIsNone(asset.mode)
 
-    def test_canonical_path_points_at_real_file(self):
+    def test_parity_seed_path_points_at_real_file(self):
         asset = self.by_name[(SKILL, "plain-skill")]
-        self.assertTrue(asset.canonical_path.is_file())
-        self.assertEqual(asset.canonical_path.name, "SKILL.md")
+        self.assertTrue(asset.parity_seed_path.is_file())
+        self.assertEqual(asset.parity_seed_path.name, "SKILL.md")
 
 
 if __name__ == "__main__":

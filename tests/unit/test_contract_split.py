@@ -559,26 +559,26 @@ class RationalePointersAreThin(unittest.TestCase):
 
 
 class RationaleDirIsNotAParityAsset(unittest.TestCase):
-    """規律: `.claude/rationale/` は 4ツリー parity の対象外（MISSING を生まない）。
+    """規律: `.ai/rationale/` は PF wrapper parity の対象外（MISSING を生まない）。
 
     これは分離の前提そのもの——ここが崩れると `.github`/`.codex`/`.agents` に
     経緯ファイルのミラーを要求され、`asset_parity check` が MISSING で落ちる。
     """
 
-    def test_scan_canonical_ignores_the_rationale_dir(self):
+    def test_scan_parity_seeds_ignores_the_rationale_dir(self):
         import sys
 
         if str(REPO_ROOT) not in sys.path:
             sys.path.insert(0, str(REPO_ROOT))
-        from asset_parity.inventory import scan_canonical
+        from asset_parity.inventory import scan_parity_seeds
 
-        canonical_paths = {a.canonical_path for a in scan_canonical(REPO_ROOT)}
-        rationale_dir = REPO_ROOT / ".claude" / "rationale"
-        leaked = sorted(str(p) for p in canonical_paths if rationale_dir in p.parents)
+        seed_paths = {a.parity_seed_path for a in scan_parity_seeds(REPO_ROOT)}
+        rationale_dir = REPO_ROOT / ".ai" / "rationale"
+        leaked = sorted(str(p) for p in seed_paths if rationale_dir in p.parents)
         self.assertEqual(
             leaked,
             [],
-            "`.claude/rationale/` の中身が asset_parity の資産として数えられている"
+            "`.ai/rationale/` の中身が asset_parity のseedとして数えられている"
             "——4ツリーにミラーを要求され MISSING になる（Issue #406）",
         )
 

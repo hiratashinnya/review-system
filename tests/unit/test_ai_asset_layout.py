@@ -8,11 +8,13 @@ import unittest
 from pathlib import Path
 
 from asset_parity.inventory import (
-    CANONICAL_AGENTS_DIR,
-    CANONICAL_SKILLS_DIR,
+    COMMON_SOT_AGENTS_DIR,
+    COMMON_SOT_SKILLS_DIR,
     NON_NORMATIVE_SHARED_DIRS,
-    is_canonical_asset_path,
-    scan_canonical,
+    PARITY_SEED_AGENTS_DIR,
+    PARITY_SEED_SKILLS_DIR,
+    is_parity_seed_path,
+    scan_parity_seeds,
 )
 from guidance_sync import NON_GUIDANCE_SHARED_DIRS, TARGETS
 
@@ -47,33 +49,38 @@ class AiAssetPlacementContractTests(unittest.TestCase):
                 self.assertIn(relative, ai_readme)
                 self.assertIn(marker, ai_readme)
 
-    def test_inventory_has_only_loader_facing_canonical_roots(self):
-        assets = scan_canonical(REPO_ROOT)
+    def test_inventory_has_only_loader_facing_parity_seed_roots(self):
+        assets = scan_parity_seeds(REPO_ROOT)
         self.assertTrue(assets)
-        self.assertTrue(all(is_canonical_asset_path(asset.canonical_path, REPO_ROOT)
+        self.assertTrue(all(is_parity_seed_path(asset.parity_seed_path, REPO_ROOT)
                             for asset in assets))
         self.assertTrue(all(
-            str(asset.canonical_path).startswith(
-                str(REPO_ROOT / CANONICAL_SKILLS_DIR)
-            ) or str(asset.canonical_path).startswith(
-                str(REPO_ROOT / CANONICAL_AGENTS_DIR)
+            str(asset.parity_seed_path).startswith(
+                str(REPO_ROOT / PARITY_SEED_SKILLS_DIR)
+            ) or str(asset.parity_seed_path).startswith(
+                str(REPO_ROOT / PARITY_SEED_AGENTS_DIR)
             )
             for asset in assets
         ))
-        self.assertTrue(is_canonical_asset_path(
+        self.assertTrue(is_parity_seed_path(
             ".claude/skills/example/SKILL.md", REPO_ROOT
         ))
-        self.assertFalse(is_canonical_asset_path(
+        self.assertFalse(is_parity_seed_path(
+            ".ai/agents/example.md", REPO_ROOT
+        ))
+        self.assertFalse(is_parity_seed_path(
             ".ai/rationale/example.md", REPO_ROOT
         ))
+        self.assertEqual(COMMON_SOT_SKILLS_DIR, ".ai/skills")
+        self.assertEqual(COMMON_SOT_AGENTS_DIR, ".ai/agents")
 
-    def test_non_normative_records_cannot_be_canonical_assets(self):
+    def test_non_normative_records_cannot_be_parity_seeds(self):
         for directory in SHARED_DIRS:
             with self.subTest(directory=directory):
                 self.assertTrue(directory.is_dir())
                 for path in directory.rglob("*"):
                     if path.is_file():
-                        self.assertFalse(is_canonical_asset_path(path, REPO_ROOT))
+                        self.assertFalse(is_parity_seed_path(path, REPO_ROOT))
 
     def test_guidance_sync_does_not_load_non_normative_records(self):
         self.assertEqual(set(TARGETS), {"AGENTS.md", ".github/copilot-instructions.md"})

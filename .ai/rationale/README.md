@@ -7,7 +7,8 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 
 | | 置き場 | 中身 |
 |---|---|---|
-| **規範（normative）** | `.claude/agents/<name>.md`・`.claude/skills/<name>/SKILL.md`（従来どおり） | ロールが**行動を決めるのに必要なもの**だけ＝責務境界・入出力契約・実行規律・停止条件 |
+| **共通規範本文の SoT** | `.ai/agents/<name>.md`・`.ai/skills/<name>/SKILL.md` | ロールが**行動を決めるのに必要な共通部分**＝責務境界・入出力契約・実行規律・停止条件 |
+| **PF wrapper／parity seed** | `.claude/agents/<name>.md`・`.claude/skills/<name>/SKILL.md` | Claude 固有 metadata・実行契約と共通 SoT への参照。`asset_parity` が比較行を発見する起点であり、共通本文の編集正本ではない |
 | **ADR／経緯（rationale）** | **`.ai/rationale/<name>.md`（本ディレクトリ）** | 設計判断の理由・**却下案**・既知の限界・変更経緯 |
 | **troubleshooting** | **`.ai/troubleshooting/<asset>.md`** | asset ごとの index。incident は本文見出しで分け、障害の症状・復旧手順・回避策・実測ログを記録する（本ディレクトリには置かない） |
 
@@ -41,7 +42,7 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
   skill は `.claude/skills/<name>/SKILL.md`。本ディレクトリはどちらでもないので
   auto-load されない（`.claude/standards/` と同じ「非活性の置き場」の位置づけ）。
 - **`asset_parity` の資産としても数えられない**：`asset_parity/inventory.py` の
-  `scan_canonical()` が列挙するのは `.claude/skills/*/SKILL.md` と `.claude/agents/*.md` だけ。
+  `scan_parity_seeds()` が parity seed として列挙するのは `.claude/skills/*/SKILL.md` と `.claude/agents/*.md` だけ。
   本ディレクトリは走査対象外なので、4ツリー（`.claude` / `.github` / `.codex` / `.agents`）に
   ミラーを要求されない＝`MISSING` を発生させない（`python3 -m asset_parity check` で実測確認済み）。
 
@@ -50,7 +51,7 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 **ADR／rationale の正本は本ディレクトリに1箇所だけ置き、ツリー中立（tree-neutral）に扱う。**
 `.codex/agents/*.toml` は単一ファイル形式のため「別ファイルへ分離」という構造をツリー内では
 取れないが、**同一リポジトリなのでリポジトリ相対パスで本ディレクトリを参照できる**。
-よって各ツリーの規範側は本ディレクトリへのリンクを持つだけでよく、**ツリーごとの経緯ファイルは作らない**
+よって各 PF wrapper は本ディレクトリへのリンクを持つだけでよく、**ツリーごとの経緯ファイルは作らない**
 （＝新しい非対称は生じないので `asset_parity/exceptions.py` への追記も不要）。
 記録＝`.claude/tailoring-registry.md`。
 

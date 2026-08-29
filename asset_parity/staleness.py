@@ -1,4 +1,4 @@
-"""Lightweight staleness signal between a canonical asset and one of its mirrors.
+"""Lightweight staleness signal between a parity seed and one of its mirrors.
 
 This is explicitly **not** a semantic diff — the issue #155 audit that motivated this
 tool found that cross-format content comparison (e.g. Claude Code SKILL.md prose vs. a
@@ -31,10 +31,10 @@ CommitEpochFn = Callable[[Path, Path], "int | None"]
 
 @dataclasses.dataclass(frozen=True)
 class StaleSignal:
-    canonical_epoch: int | None
+    parity_seed_epoch: int | None
     mirror_epoch: int | None
     day_gap: float | None
-    canonical_lines: int
+    parity_seed_lines: int
     mirror_lines: int
     size_ratio: float | None
     flagged: bool
@@ -70,7 +70,7 @@ def _line_count(path: Path) -> int:
 
 
 def compare(
-    canonical_path: Path,
+    parity_seed_path: Path,
     mirror_path: Path,
     root: Path,
     *,
@@ -78,7 +78,7 @@ def compare(
     size_ratio_threshold: float = DEFAULT_SIZE_RATIO_THRESHOLD,
     commit_epoch_fn: CommitEpochFn = git_last_commit_epoch,
 ) -> StaleSignal:
-    c_epoch = commit_epoch_fn(canonical_path, root)
+    c_epoch = commit_epoch_fn(parity_seed_path, root)
     m_epoch = commit_epoch_fn(mirror_path, root)
     reasons: list[str] = []
 
@@ -88,7 +88,7 @@ def compare(
         if day_gap > day_threshold:
             reasons.append(f"last-commit gap {day_gap:.0f}d > {day_threshold}d threshold")
 
-    c_lines = _line_count(canonical_path)
+    c_lines = _line_count(parity_seed_path)
     m_lines = _line_count(mirror_path)
     size_ratio = None
     if c_lines and m_lines:
@@ -102,10 +102,10 @@ def compare(
         reasons.append("empty file on one side")
 
     return StaleSignal(
-        canonical_epoch=c_epoch,
+        parity_seed_epoch=c_epoch,
         mirror_epoch=m_epoch,
         day_gap=day_gap,
-        canonical_lines=c_lines,
+        parity_seed_lines=c_lines,
         mirror_lines=m_lines,
         size_ratio=size_ratio,
         flagged=bool(reasons),

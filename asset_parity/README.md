@@ -6,7 +6,7 @@ gaps such as issue-pipeline porting):
 
 | Tree | Convention | Who reads it |
 |---|---|---|
-| `.claude/skills/<name>/SKILL.md` / `.claude/agents/<name>.md` | **canonical** | Claude Code |
+| `.claude/skills/<name>/SKILL.md` / `.claude/agents/<name>.md` | **parity seed (loader wrapper)** | Claude Code |
 | `.github/skills/<name>/SKILL.md` (or `.github/prompts/<name>.prompt.md` for `disable-model-invocation: true` orchestrator skills) / `.github/agents/<name>.agent.md` | mirror | GitHub Copilot |
 | `.codex/agents/<name>.toml` | mirror (agents only) | Codex CLI (agent) |
 | `.agents/skills/<name>/SKILL.md` | mirror (skills only) | Codex CLI (documented repo-scoped skill discovery path — top-level `.agents/`, not nested under `.codex/`) |
@@ -36,25 +36,26 @@ Exit codes: `0` no MISSING gaps (and no staleness flags if `--fail-on-stale`) /
 
 ## What it reports
 
-1. **Presence/absence matrix** (primary output) — for every canonical `.claude/`
+1. **Presence/absence matrix** (primary output) — for every parity-seed `.claude/`
    skill/agent, whether it's present in each of the three mirror trees, using each
    tree's actual naming convention (verified against real files, not assumed).
    Cell states: `OK` present / `MISSING` expected but absent / `exempt` documented or
    structural non-mirror / `n/a` that tree doesn't apply to this asset kind (e.g.
    Codex has no skill-shaped tree, `.agents/skills/` has no agent-shaped tree).
 2. **Staleness flags** (secondary, heuristic) — for pairs present in both the
-   canonical tree and a mirror: a large last-commit-date gap or line-count ratio is
+   parity seed and a mirror: a large last-commit-date gap or line-count ratio is
    flagged as "worth a human/LLM look". This is **not** a semantic diff (that needs an
    LLM/human per the audit that motivated this tool) — false positives are fine, it's
    a flag, not a blocker. Never affects the exit code unless `--fail-on-stale` is set.
 3. **Orphans in mirror** (informational) — assets that exist in a mirror tree with no
-   canonical `.claude/` counterpart at all (the reverse-direction gap; not counted in
+   `.claude/` parity-seed counterpart at all (the reverse-direction gap; not counted in
    the missing-count/exit code).
 
 ## Non-active shared material (Issue #407)
 
-The parity inventory has an intentionally narrow canonical boundary. It enumerates
-only `.claude/skills/*/SKILL.md` and `.claude/agents/*.md`; shared AI material is
+The parity inventory has an intentionally narrow seed boundary. It enumerates only
+`.claude/skills/*/SKILL.md` and `.claude/agents/*.md` as loader-facing comparison
+seeds; shared AI material is
 not a fifth asset tree and must not create mirror obligations:
 
 | Material | Shared source of truth | Inventory treatment |
@@ -95,7 +96,7 @@ tree), not a one-off documented carve-out:
 | Module | Responsibility |
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
-| `inventory.py` | Canonical asset enumeration + invocation-mode classification + active-root boundary |
+| `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
 | `trees.py` | Per-tree naming conventions + applicability rules |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
@@ -131,7 +132,7 @@ merges on fuzzy judgment calls. The matrix is also written to
 `$GITHUB_STEP_SUMMARY` so it renders as a readable table in the Actions UI
 regardless of pass/fail.
 
-Note: at the time this workflow was added, the canonical tree already had a
+Note: at the time this workflow was added, the parity-seed tree already had a
 few genuine `MISSING` entries against `.github` (see `check` output) that
 predate this PR. Wiring the check into CI surfaces them as an actionable
 red build rather than fixing them — fixing pre-existing mirror gaps is a
