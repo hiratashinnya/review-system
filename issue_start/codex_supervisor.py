@@ -448,15 +448,18 @@ def run_supervised(
         raise CodexSupervisorError("CODEX_SUPERVISOR_PROMPT_INVALID")
     if spec.timeout_seconds <= 0:
         raise CodexSupervisorError("CODEX_SUPERVISOR_TIMEOUT_INVALID")
-    if resume_thread is None:
-        entry = codex_binding.validate_spawn_binding(
-            repo_root=spec.repo_root, role=spec.role, task_key=spec.task_key, now=now
-        )
-    else:
-        entry = codex_binding.verify_command_binding(
-            repo_root=spec.repo_root, workspace=spec.workspace, role=spec.role,
-            agent_id=resume_thread,
-        )
+    try:
+        if resume_thread is None:
+            entry = codex_binding.validate_spawn_binding(
+                repo_root=spec.repo_root, role=spec.role, task_key=spec.task_key, now=now
+            )
+        else:
+            entry = codex_binding.verify_command_binding(
+                repo_root=spec.repo_root, workspace=spec.workspace, role=spec.role,
+                agent_id=resume_thread,
+            )
+    except codex_binding.CodexBindingError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
     if entry["workspace"] != str(spec.workspace.resolve(strict=True)):
         raise CodexSupervisorError("CODEX_SUPERVISOR_WORKSPACE_MISMATCH")
     if entry["handoff_path"] != spec.handoff_path:

@@ -196,7 +196,7 @@ class CodexSupervisorTests(unittest.TestCase):
         for protected in (".git", ".codex", ".agents"):
             target = str(self.workspace / protected)
             index = command.index(target)
-            self.assertEqual(command[index - 2], "--ro-bind")
+            self.assertEqual(command[index - 1], "--ro-bind")
 
     def test_missing_duplicate_and_malformed_jsonl_fail_close(self):
         self.assert_reason(
@@ -295,7 +295,7 @@ class CodexSupervisorTests(unittest.TestCase):
         handoff.symlink_to(target)
 
         self.assert_reason(
-            "CODEX_SUPERVISOR_HANDOFF_MISSING", FakeRunner(self.success_lines())
+            "CODEX_BINDING_HANDOFF_SYMLINK", FakeRunner(self.success_lines())
         )
 
     def test_publish_allowlist_preserves_role_asymmetry_and_merge_denial(self):
