@@ -2,6 +2,8 @@
 
 **共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは検証層の**型別部分**のみ。
 
+設計経緯は [rationale](../rationale/verification-author.md)、status と接続規則の不一致からの復旧は [troubleshooting](../troubleshooting/verification-author.md) に分離している。
+
 ## 入力
 
 ```
@@ -10,7 +12,7 @@ sprint:      <current_phase 値>
 target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
               未指定なら parent_id を使う（単独呼び出し時のみ）。
               **fan-out を介さず単一失敗 target の再試行として直接呼ばれた場合**は、呼び出し元が前回の
-              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す（issue #278）。
+              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す。
               省略すると parent_id 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされない>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
@@ -90,7 +92,7 @@ log_ref: "ci/..."   # PASS/FAIL いずれでも必須（なしは RULE-021 ERROR
 
 ### FND の解消ライフサイクルとバックリファレンス辺（DD-16）
 
-**FND は状態（open／resolved）で辺の向きが逆転する**（`fnd_lifecycle` ルール・DD-16・config.yml）。**状態は path（`fnd/open/` か `fnd/resolved/`）から導出**する（旧 `resolved: true` フィールドは v2 で廃止）。
+**FND は状態（open／resolved）で辺の向きが逆転する**（`fnd_lifecycle` ルール・DD-16・config.yml）。**状態は path（`fnd/open/` か `fnd/resolved/`）から導出**する（`resolved: true` フィールドは v2 で廃止）。
 
 - **未解消 FND**（`fnd/open/`）: `FND → 指摘対象要素`（forward 辺・サイドカー `edges:` に記載）を必ず持つ（`fnd_lifecycle.unresolved.must_link_to`）。**新規 FND の起票は必ず `fnd/open/`**。
 - **resolved FND**（`fnd/resolved/`）: `処置対象 → FND`（backward 辺）が必須（`fnd_lifecycle.resolved.must_be_linked_from`）。かつ元 forward 辺は削除済みであること（`fnd_lifecycle.resolved.must_not_link_to`・WARNING）。
@@ -109,7 +111,6 @@ log_ref: "ci/..."   # PASS/FAIL いずれでも必須（なしは RULE-021 ERROR
 
 ### FND 起票時の ref_version 本文記録（DD-3 制度化）
 
-FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転するため、元の指摘時の ref_version（どの版の対象を指摘したか）が辺情報から失われる。
 **FND を起票する際、edges[].ref_version の値を本文にも必ず明記する**（DD-3 決定）。
 
 ```
@@ -125,7 +126,7 @@ FND 解消時に edges が「FND→対象」から「対象→FND」へ逆転す
 
 ### 接続規則変更を伴う DD・FND の伝播チェック
 
-DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接続規則（`must_link_to` / `must_be_linked_from`）の追加・変更・削除**を含む場合、機械判定の正本（config.yml）だけでなく、その規則を人間/LLM 向けに表現する **out-of-graph 著作資産にも必ず同期**する。伝播漏れは次回著作時に旧ルールの誤った辺を再生産する（FND-99 パターン）。
+DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接続規則（`must_link_to` / `must_be_linked_from`）の追加・変更・削除**を含む場合、機械判定の正本（config.yml）だけでなく、その規則を人間/LLM 向けに表現する **out-of-graph 著作資産にも必ず同期**する。
 
 **伝播対象（該当行を確認・更新する）：**
 
@@ -157,7 +158,7 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 | TR に log_ref なし | `log_ref` をサイドカーに書く（PASS でも必須・RULE-021 ERROR）|
 | 反映済みの affects を残す | 反映後は `DD→X` を削除し `X→DD` を張る |
 | 矛盾を contradicts 辺で表す | FND を起票し `FND→A`・`FND→B` の2辺で表す |
-| config.yml の接続規則変更を著作資産に伝播しない | 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧にも同期する（FND-99 パターン）。処置内容に同期資産リストを記録する |
+| config.yml の接続規則変更を著作資産に伝播しない | 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧にも同期する。処置内容に同期資産リストを記録する |
 
 ---
 
@@ -172,7 +173,7 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 - [ ] TR に result 属性（サイドカー）あり（RULE-020 ERROR）
 - [ ] TR に log_ref あり（PASS/FAIL 問わず・RULE-021 ERROR）
 - [ ] DD/Q/PEND の義務辺が未反映のまま放置されていない（反映済は X→DD に置換）
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185。FND/DD/Q/PEND の `scheduled`/実施スプリントは特にこの対象）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照。FND/DD/Q/PEND の `scheduled`/実施スプリントは特にこの対象）
 - [ ] ref_version（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
 - [ ] **FND 解消時**: `dsv2 reverse` による解消なら処置対象ノードに `→ FND` backref が付与される（処置対象削除の場合は FND 本文に「削除済みのため付与先なし」を明記）
 - [ ] **接続規則変更を伴う DD・FND の場合**: 変更型に対応する author エージェント・スキル・接続マトリクス・ドキュメント一覧への同期が完了しているか、または同期不要と判断した根拠を本文に記録したか
@@ -184,8 +185,7 @@ DD の決定内容または FND の処置が **`doc-system-v2/config.yml` の接
 
 - 置き場：`tmp/_handoff/verification-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
 - `<key>`：呼び出し元（`authoring-fanout`）が採番して渡した **`target_key`**。渡されていなければ `parent_id` を使う（単独呼び出し時のみ）。
-  **同一親に複数 target がある／`parent_id` が空の新規ルートが複数あるバッチでは `parent_id` だけだとファイル名が衝突し、
-  片方の `status: error`・`authored` が失われて未完了 target を成功と誤認する**ため、fan-out 経由では必ず `target_key` を使う
+  fan-out 経由では必ず `target_key` を使う。
 - 書式：下記スキーマの YAML をファイル書き込み能力で出力する（既存があれば上書き）
 - チャットへの返り値：`HANDOFF: tmp/_handoff/verification-author--<key>.yaml` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
@@ -199,8 +199,7 @@ status: ok                       # ok | error（未完・差し戻しは error�
 authored:                        # 著作した slug 群（本文 .md ＋ サイドカー .yaml の対が揃ったもの）
   - <slug>
 update_slugs: []                 # 新規著作ではなく「既存コーパスノードを更新」した slug 群（backref 付与先等・無ければ空）。
-                                 # 呼び出し元がこれを validator へ `--update` 宣言として渡す。未申告だと
-                                 # dsv2 check-slug が正当な更新を既存 id 衝突と判定して ROLLBACK になる
+                                 # 呼び出し元が validator へ `--update` 宣言として渡す
 skipped: []                      # 既存につき更新しなかった等・理由を1行で
 errors: []                       # status: error のとき必須（何が・どの slug で・なぜ）
 notes: ""                        # 呼び出し元の判断に要る補足のみ（1〜3行）

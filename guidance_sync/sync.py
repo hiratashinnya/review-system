@@ -1,6 +1,8 @@
 """`.ai/guidance/` から PF 常駐入口を生成し、drift を検査する。
 
 Claude は公式 ``@`` import で共通原稿を直接読むため、この生成対象には含めない。
+`.ai/rationale/`、`.ai/troubleshooting/`、`.ai/schema/` は非活性の共有記録／契約で
+あり、常駐 guidance の入力にも生成物にも含めない。
 pre-commit 向け検査は working tree を参照せず staged index だけを読み、自動生成も
 自動 stage も行わない。
 """
@@ -21,6 +23,13 @@ TARGETS: Mapping[str, str] = {
     "AGENTS.md": ".ai/guidance/platforms/codex.md",
     ".github/copilot-instructions.md": ".ai/guidance/platforms/copilot.md",
 }
+# Deliberately documented here so a new source cannot silently turn inactive
+# records into a PF-wide always-loaded guidance dependency.
+NON_GUIDANCE_SHARED_DIRS: tuple[str, ...] = (
+    ".ai/rationale/",
+    ".ai/troubleshooting/",
+    ".ai/schema/",
+)
 PRINCIPLES_MARKER_RE = re.compile(
     rb"<!--\s*principles-source:\s*\.ai/skills/spec-principles/SKILL\.md;\s*"
     rb"sha256:\s*([0-9a-f]{64})\s*-->"

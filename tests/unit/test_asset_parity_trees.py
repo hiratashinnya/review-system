@@ -11,11 +11,11 @@ ROOT = Path("/repo")
 
 
 def _skill(name, mode=MODE_SKILL):
-    return Asset(name=name, kind=SKILL, mode=mode, canonical_path=ROOT / ".claude/skills" / name / "SKILL.md")
+    return Asset(name=name, kind=SKILL, mode=mode, parity_seed_path=ROOT / ".claude/skills" / name / "SKILL.md")
 
 
 def _agent(name):
-    return Asset(name=name, kind=AGENT, mode=None, canonical_path=ROOT / ".claude/agents" / f"{name}.md")
+    return Asset(name=name, kind=AGENT, mode=None, parity_seed_path=ROOT / ".claude/agents" / f"{name}.md")
 
 
 class TestApplicableTrees(unittest.TestCase):

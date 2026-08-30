@@ -6,6 +6,8 @@
 > 正本は `doc-system-v2/FORMAT.md`・`doc-system-v2/config.yml`・`doc-system-v2/schema/sidecar.schema.json`。
 > 本ファイルはその著作向け要約。食い違ったら FORMAT.md を正とする。
 
+scheduled の設計経緯は [rationale](../rationale/doc-system-v2-authoring.md)、値の明示がない backfill の復旧は [troubleshooting](../troubleshooting/doc-system-v2-authoring.md) に分離している。
+
 ## 1ノード = 2ファイル
 
 v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー `{slug}.yaml`（属性）** の対。
@@ -22,7 +24,7 @@ v2 は 1ノード = **本文 `{slug}.md`（Markdown のみ）＋ サイドカー
   ```
 - グローバル一意はここで保証しない＝**reconciliation-validator が書込前に `dsv2 check-slug` で fail-close**
   判定する（DD-22・Sub-D）。著作側は衝突しにくい**識別的なタイトル**を付ける責務のみ。
-- 階層（旧 `X-N` 親子）は **path でも id でも表さない**。親子関係は **同型間の無名依存辺**（子→親）で表す。
+- 階層は **path でも id でも表さず**、`X-N` 連番を使わない。親子関係は **同型間の無名依存辺**（子→親）で表す。
 
 ## サイドカー `{slug}.yaml` のキー（これ以外禁止）
 
@@ -44,11 +46,11 @@ edges:
 - TR 専用: `result: PASS|FAIL` ＋ `log_ref`。設計要素の実現担体は `carrier`（値集合の SoT = `schema/sidecar.schema.json` enum: `skill`/`agent`/`command`/`instructions`/`hooks`/`code`）。
 - **`scheduled` の既定 = `current_phase`**（config.yaml）。「無計画な空」は禁止。後フェーズへ回すのはオーナー承認時のみで、その旨を残す（空/別値）。post-mvp の大枠は `labels` で表す。
 
-### `scheduled` 値決定の自己判定禁止（再発防止・Issue #185／PR #150）
+### `scheduled` 値決定の自己判定禁止
 
 新規ノード著作時に `scheduled` を既定 `current_phase` へ設定する上記の運用は確立済みの標準動作であり、この既定適用自体は自己判定に当たらない。しかし**既存ノードの `scheduled` を一括変更・backfill する著作**（新規作成に伴わない値の書き換え）で、書き込む具体的な値を指示元（Issue 本文・オーナーコメント・呼び出し元指示）が明示していない場合は次を厳守する：
 
-- `current_phase` と一致する・件数が機械検算と合う・`validate.py`/`dsv2 drift` がクリーン等、いかに機械的に検証可能であっても、それを根拠に値の妥当性を自己判定して著作を進めてはならない（プロジェクト運用規約の「スケジュール独断禁止」＝`scheduled` の値決定はオーナー専権。実インシデント：PR #150 で `scheduled: "sprint-1"` への558件一括backfillが、指示側の値明示が無いまま `current_phase` 一致を根拠に「許容範囲」と自己判定された）。
+- `current_phase` と一致する・件数が機械検算と合う・`validate.py`/`dsv2 drift` がクリーン等、いかに機械的に検証可能であっても、それを根拠に値の妥当性を自己判定して著作を進めてはならない（`scheduled` の値決定はオーナー専権）。
 - **STOP しなくてよいケース**：指示元が具体的な値そのものを明示している場合（例：「`scheduled` を `sprint-1` に設定してください」「このノードは `sprint-2` へ繰り越してください」）。その明示指示を機械的に反映するだけなので自己判定には当たらず、通常どおり著作してよい。
 - **STOP すべきケース**：値が指示に明示されておらず、著作エージェント側で妥当性を推測して補う必要がある場合。著作を中断し、呼び出し元へ対象 slug・件数・推測した値・推測根拠を明記して STOP し、オーナー確認を要請する。
 
@@ -71,8 +73,7 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
 
 ## sprint の取得
 
-`sprint` 未指定なら `doc-system-v2/config.yml` の `current_stage` ではなく、運用の current phase
-（従来どおり `docs/doc-system/config.yaml` の `current_phase`）を用いる。指示で渡されたら従う。
+`sprint` 未指定なら `docs/doc-system/config.yaml` の `current_phase` を用いる。指示で渡されたら従う。
 
 ## 受け入れチェック（全型共通・書込前）
 
@@ -81,5 +82,5 @@ tmp/<sprint>/<parent-id>/nodes/<stage>/<type>/[<status>/]{slug}.yaml
 - [ ] サイドカーに `id`/`type`/`status` を書いていない（path から導出）
 - [ ] edges は無名（`kind`/`status` なし）・`to` は単数 slug・`ref_version` は参照先 version の x.y
 - [ ] `to` の slug がすべて実在（RULE-007: always_error）／必須依存辺が存在（config `must_link_to`）
-- [ ] `scheduled` が非空（既定 = current_phase・空はオーナー承認済み後送りのみ）。**既存ノードの一括変更/backfill で値を自己判定していない**（上記「`scheduled` 値決定の自己判定禁止」参照・Issue #185）
+- [ ] `scheduled` が非空（既定 = current_phase・空はオーナー承認済み後送りのみ）。**既存ノードの一括変更/backfill で値を自己判定していない**（上記「`scheduled` 値決定の自己判定禁止」参照）
 - [ ] tmp のミラー path が `nodes/<stage>/<type>/[<status>/]` に一致（config.yml layout）

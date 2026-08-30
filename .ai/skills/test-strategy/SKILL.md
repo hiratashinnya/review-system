@@ -1,8 +1,9 @@
-# テスト戦略（review-system テーラリング済・active）
+# テスト戦略（review-system テーラリング済）
 
 > 共通のテスト不変条件を継承し、本PJのノブを埋めた版。実装の足場は
 > [design/02 モジュール構成](../../../docs/design/02-module-architecture.md)。
 > doc-system の **TD/TC/TR 3層**（[DD-009](../../../docs/doc-system/02-meta-schema.md)）に対応済み。
+> fan-out の retry 契約の背景は [test-strategy の rationale](../../rationale/test-strategy.md) に置く。
 
 ## doc-system との対応
 
@@ -13,7 +14,7 @@
 | **TR**（テスト結果） | テスト結果 Markdown（ケースコピー＋実測） | `tests/reports/<id>-<commit>.md` | `TR-<area>-<nnn>-<commit>` |
 | ログ | stdout ダンプ（TR の log_ref が参照） | `tests/logs/<id>-<commit>.txt` | — |
 
-## TD ノード著作 fan-out（非対話・エージェント委譲・issue #121）
+## TD ノード著作 fan-out（非対話・エージェント委譲）
 
 上記「本PJの実体」（`tests/designs/*.md` 等）とは別に、doc-system-v2 の在グラフ表現として **TD ノード**（`04-verification/td`・→ SPEC・`condition` が対応 SPEC と一致）を著作する。凍結セット（SPEC 群）が確定し、対応する TD の親（SPEC 単位）が複数・独立にバッチ着手できる状態になったら、著作を主文脈で場当たりに行わず **`authoring-fanout`** エージェントに **`author: verification-author`** で委譲する：
 
@@ -21,12 +22,12 @@
 - TC/TR は実装・実行が先行条件のため本 fan-out の対象外（TD 確定後、実装着手→コミット→テスト実行を経て別途 verification-author で個別に著作する）。
 - 単一 SPEC しか無い段では fan-out せず `verification-author` を直接呼ぶ（fan-out はオーバースペック）。このとき戻りは `HANDOFF: tmp/_handoff/verification-author--<parent-id>.yaml` ＋1行要約なので、**著作 slug 群・エラー・`update_slugs` は当該ファイルを読み取って取得する**。**直接呼びのときは主文脈が `update_slugs`（backref 付与先など既存ノードを更新した slug）を `reconciliation-validator` へ明示的に渡す**（集約役の fan-out を通さないため。渡し忘れると `dsv2 check-slug` が正当な更新を既存 id 衝突と判定して ROLLBACK する）。
 - 戻りが `FANOUT_DONE` なら次段（実装・テスト実行）へ。**`ROLLBACK`/`STOP`/矛盾報告が返ったら主文脈で受け止め**、`verification-author` の再起動 or PR7 起票（Q/DD → オーナー）を行う。委譲先は対話せず STOP を返し、オーケストレータ主文脈が呼び出し元の対話機構で判断を確定する。
-- **失敗した target を fan-out へ再投入するときは、その target に `retry_of:`（報告の `target_keys` に載っていた前回の `target_key`）と `error:`（差し戻し理由）を付けて渡す**（issue #278）。付けないと新しいキーが採番され、前回のハンドオフと対応付かなくなる。**新規 target には付けない**（付けないことで他バッチと衝突しないキーが採番される）。
+- **失敗した target を fan-out へ再投入するときは、その target に前回の `target_key` を `retry_of:` として、差し戻し理由を `error:` として付けて渡す**。**新規 target には付けない**。
 - **N 個中1個だけ失敗し、その1件だけを再試行する場合は fan-out に戻さない**（`targets` が1件のみだと Step 1-4 で
   オーバースペック STOP になる＝単一対象は `verification-author` を直接呼ぶ）。この直接呼び出しでは、入力の `target_key` に
   **前回の `target_key`（同じく前回 STOP 報告の `target_keys` の値）をそのまま渡す**（`error` も併せて渡す）。
   省略すると `parent_id` 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされず、
-  本 issue #278 の目的（同一 target のやり直し結果を一意に対応付ける）が満たされない。
+  同一 target のやり直し結果を一意に対応付けられなくなる。
 - 対話が要る段（TD の condition と SPEC の不一致など矛盾の裁定）は主文脈に残す（DD-22 ①-C ハイブリッド）。
 
 ## 継承する不変条件（標準のまま）

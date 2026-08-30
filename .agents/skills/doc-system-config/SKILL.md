@@ -8,17 +8,18 @@ description: doc-system-v2/config.yml の作成・解説・変更を支援する
 # doc-system-config
 
 `doc-system-v2/config.yml` を触る前に、設定変更の根拠・影響・検証をそろえるための手順。
+適用範囲の設計経緯は [doc-system-config の rationale](../../../.ai/rationale/doc-system-config.md) に置く。
 
 ## いつ使うか
 
 - doc-system v2 の config キーや接続規則を説明する。
 - `must_link_to` / `must_be_linked_from` / `exact_link_counts` / `fnd_lifecycle` / `rule_activation` / `prompt_coverage_targets` / `trace_scope` などを変更する。
 - config 変更に必要な SPEC/SCM/CFG/PROMPT ノードの有無を確認する。
-- GitHub issue #140 の範囲で doc-system 側 config 操作を支援する。
+- doc-system 側の config 操作を支援する。
 
 ## 使わない場合
 
-- review_system 側の config 操作エージェント化。これは issue #141。
+- review_system 側の config 操作エージェント化。
 - 一般的な構造化 config スキーマ設計。新しい外部ファイル形式をゼロから設計する時は `schema-design` を使う。
 - corpus ノードの直接著作。ノード作成・更新は AGENTS.md の authoring pipeline に委譲する。
 
@@ -40,9 +41,9 @@ description: doc-system-v2/config.yml の作成・解説・変更を支援する
    - `SCM` は SPEC への辺が必要。
    - 根拠が無ければ config だけを変更せず、必要ノードの著作を先に計画する。
 4. **変更を最小化する**
-   - issue #140 では doc-system 側だけを扱う。
-   - #141 review_system 横展開に必要な差分は残作業として列挙し、この PR で実装しない。
-   - #127 / #128 以降には進まない。
+   - doc-system 側だけを扱う。
+   - review_system 側の横展開に必要な差分は残作業として列挙し、この変更で実装しない。
+   - 追加の config 機能へはスコープを拡張しない。
 5. **検証する**
    ```bash
    python3 -m dsv2 index --root doc-system-v2
@@ -69,5 +70,5 @@ description: doc-system-v2/config.yml の作成・解説・変更を支援する
 
 - [ ] 変更した config キーと理由を説明できる。
 - [ ] 対応する SPEC/SCM/CFG/PROMPT ノードまたは「根拠未整備のため停止」を明示した。
-- [ ] #140 の範囲に収まっており、#141 の横展開を実装していない。
+- [ ] doc-system 側の範囲に収まっており、review_system 側の横展開を実装していない。
 - [ ] dsv2 index/dashboard/validate/drift/prompt-coverage が通っている。

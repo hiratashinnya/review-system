@@ -8,15 +8,15 @@
 import unittest
 from pathlib import Path
 
-from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, scan_canonical
+from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, scan_parity_seeds
 from asset_parity.report import build_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestRealTree(unittest.TestCase):
-    def test_scan_canonical_finds_known_assets_without_crashing(self):
-        assets = scan_canonical(REPO_ROOT)
+    def test_scan_parity_seeds_finds_known_assets_without_crashing(self):
+        assets = scan_parity_seeds(REPO_ROOT)
         names = {(a.kind, a.name): a for a in assets}
         self.assertGreater(len(assets), 20)
         self.assertIn((SKILL, "spec-principles"), names)
@@ -26,7 +26,7 @@ class TestRealTree(unittest.TestCase):
         self.assertIn((AGENT, "issue-implementer"), names)
 
     def test_shared_contract_doc_without_frontmatter_excluded(self):
-        assets = scan_canonical(REPO_ROOT)
+        assets = scan_parity_seeds(REPO_ROOT)
         names = {(a.kind, a.name) for a in assets}
         self.assertNotIn((AGENT, "doc-system-v2-authoring"), names)
 

@@ -5,9 +5,9 @@
 `doc-system-v2/` のノードは編集しない＝著作は `*-author`／`reconciliation` の責務）。
 
 > 対象は **doc-system-v2**（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対）。
-> 旧 `docidx` CLI（`python3 -m archive.docidx-v1`、issue #172 で `docidx/` から `archive/docidx-v1/`
-> へ退避済み）は v1-legacy 専用（今は `doc-system-v1-archive/`）で本エージェントの対象外（issue #76・
-> v1→v2 cutover）。
+> v1-legacy の node と旧 CLI は本エージェントの対象外とする。
+
+設計経緯は [rationale](../rationale/dsv2-lookup.md)、meta/index の stale や外部索引の重複からの復旧は [troubleshooting](../troubleshooting/dsv2-lookup.md) に分離している。
 
 ## 入力
 探索したいトピック・質問、または手掛かり（型・ID・キーワード・ラベル）。曖昧なら自分で
@@ -21,8 +21,7 @@
    1ノード分のブロックごと抜き出す）でフィルタし、関連ノードの `id`・`type`・`status`・`body_path` を
    絞り込む。**`python3 -c` は使わない**——`.claude/settings.json` の `permissions.deny`
    （`Bash(python3 -c *)`）と `.claude/hooks/agent-command-gate.sh` の全 agent_type 共通の危険コマンド層
-   の双方が、ロールを問わず常に deny する（FND「dsv2-lookup.md の手順に統制下で必ず deny される
-   `python3 -c` 例が残っている」・issue #338）。
+   の双方が、ロールを問わず常に deny する。
    - 例：`grep -A 20 'ドリフト' doc-system-v2/meta.json` でヒットしたノードブロックを1件分まるごと
      出力し、ブロック内の `"id"`/`"type"`/`"status"`/`"body_path"` 行を読む
      （meta.json は1ノード=約18〜20行の pretty-printed JSON）。
@@ -32,7 +31,7 @@
      `ctx_batch_execute`（`queries`）／`ctx_execute`（`intent`。ともに `language: "shell"` のみ）で
      meta.json を索引化した上でキーワード検索してもよい。
 3. **必要分だけ読込**：絞り込んだ候補の `body_path`（＝ `{slug}.md`）だけを直接読む。
-   ファイル全体を総当たりで読み込まない（それが本エージェントの存在理由）。必要なら対応する
+   ファイル全体を総当たりで読み込まない。必要なら対応する
    `yaml_path`（`{slug}.yaml`）もあわせて読み、メタ属性（`edges`/`labels`/`version` 等）を確認する。
 4. **辺の確認**（必要時）：`python3 -m dsv2 deps <id> --root doc-system-v2` / `dsv2 dependents <id> --root doc-system-v2`
    で依存先（出辺）・依存元（入辺）を辿る。出力に `[DRIFT]`/`[MISSING]` タグが付くことがあるが、
@@ -50,20 +49,16 @@
 
 1. 利用可能な索引機能でコーパスを索引に入れる。
 2. 利用可能な検索機能で該当箇所のスニペットだけ取る。
-3. 確定した候補だけ本文を開く。辺の traversal は従来どおり `dsv2 deps` / `dependents`。
+3. 確定した候補だけ本文を開く。辺の traversal は `dsv2 deps` / `dependents` を使う。
 
-索引は**リポジトリ（作業ツリー）には書かない**。ただし外部索引は read-only ではなく、同じ内容でも
-呼ぶたびに永続 FTS5 ストアへ追記される（非冪等）。**同じコーパスを毎回 index し直さない**（既に
-同じ source が既に登録済みなら索引処理を飛ばし、ノードが増減したときだけ更新する）。
-`dsv2 index` の meta.json 方式と
-併用してよく、置き換えではない——**id/type/stage/status/labels/edges の構造的な絞り込みは meta.json、
-本文の語句検索は外部検索機能が得意。
+索引は**リポジトリ（作業ツリー）には書かない**。**同じコーパスを毎回 index し直さない**。
+同じ source が登録済みなら索引処理を飛ばし、ノードが増減したときだけ更新する。
+`dsv2 index` の meta.json 方式と併用する。**id/type/stage/status/labels/edges の構造的な絞り込みは meta.json、
+本文の語句検索は外部検索機能を使う**。
 
 ## 索引結果の絞り込み
 
-`dsv2 index` が吐く meta.json の**加工**が本ロールの中核業務であり、ここが最大の受益ポイント。
-従来は JSON 全体を会話に取り込んでから絞り込んでいたが、**加工そのものをサンドボックス側で実行**して
-絞り込み結果だけ受け取れる。
+`dsv2 index` が吐く meta.json は**サンドボックス側で加工**し、絞り込み結果だけを受け取る。
 
 利用可能な実行機能で `dsv2 index` / `deps` / `dependents` をまとめて実行し、必要な断片だけ受け取ってよい。
 meta.json の絞り込みは利用可能な構造化フィルタで行う。

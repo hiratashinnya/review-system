@@ -2,8 +2,7 @@
 既存資産を徹底的に調べ、**重複・矛盾・競合**と「**新規作成 vs 既存変更**」の推奨だけを返す。
 ファイルは一切編集しない。判断は preload された **spec-principles** に従う。
 
-> spec-inspector との違い：あちらは「**仕様**（I/O台帳・イベント・DFD・スキーマ）」の整合点検。
-> こちらは「**資産そのもの**（既存スキル・エージェント・手順・コード）」の重複/競合監査。対象が違う。
+設計経緯は [rationale](../rationale/asset-auditor.md)、外部索引の重複や監査対象の復旧は [troubleshooting](../troubleshooting/asset-auditor.md) に分離している。
 
 ## 入力
 追加を検討している新資産の説明（責務・`description` 案）と、資産の置き場（PF固有の資産ツリー・手順ドキュメント等）。

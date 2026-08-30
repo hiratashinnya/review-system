@@ -4,10 +4,7 @@
 
 `.claude/` 配下の**スキル・サブエージェント・原則**を、GitHub Copilot など別プラットフォームで使える形式に変換する。
 
-**方針（2026-06-15 改定）**：**スクリプト一括変換は廃止**。エージェントが**資産1つずつ種別・起動方式を判断し、下表の対応に従って手書き変換**する。
-理由＝旧スクリプト方式は全サブエージェントを `.instructions.md` に量産し、Copilot の「instructions＝自動適用の常時コンテキスト」という意味を取り違えていた。**instructions の量産は禁止**（エージェントは agent に、ユーザー起動コマンドは prompt/skill に振り分ける）。
-
-> 旧スクリプト `scripts/lateral_deploy.py`（とそのテスト）は本方針改定で**削除済み**（オーナー判断・2026-06-15）。一括変換は instructions 量産を招くため廃し、エージェント手書きに一本化した。
+設計理由・変更履歴は [asset-lateral-deploy の rationale](../../rationale/asset-lateral-deploy.md) に置く。**スクリプト一括変換は使わず**、エージェントが**資産1つずつ種別・起動方式を判断し、下表の対応に従って手書き変換**する。**instructions の量産は禁止**（エージェントは agent に、ユーザー起動コマンドは prompt/skill に振り分ける）。
 
 ---
 
@@ -33,7 +30,7 @@ Copilot には Claude Code と対応する **4 種**のカスタマイズ実体�
 
 ## YAML フロントマター対応表（公式仕様準拠）
 
-> 出典は本文末尾「参考（公式ドキュメント）」。フィールド名のハイフン有無まで公式に合わせること。
+フィールド名のハイフン有無までターゲット PF の公式仕様に合わせること。
 
 ### A. Skill → Skill（`.claude/skills/<name>/SKILL.md` → `.github/skills/<name>/SKILL.md`）
 
@@ -104,18 +101,4 @@ Copilot には Claude Code と対応する **4 種**のカスタマイズ実体�
 - ✓ 各フロントマターが対応表のフィールド名（ハイフン有無含む）どおり。
 
 ---
-
-## 参考（公式ドキュメント・要確認）
-
-対応表は以下の公式仕様に基づく。改定時は再確認すること。
-
-**GitHub Copilot**
-- Custom agents（`.github/agents/*.agent.md`）: https://code.visualstudio.com/docs/agent-customization/custom-agents ／ https://docs.github.com/en/copilot/reference/custom-agents-configuration
-- Prompt files（`.github/prompts/*.prompt.md`）: https://code.visualstudio.com/docs/agent-customization/prompt-files
-- Custom instructions（`.github/instructions/*.instructions.md` ・ `copilot-instructions.md`）: https://code.visualstudio.com/docs/agent-customization/custom-instructions
-- Agent Skills（`.github/skills/<name>/SKILL.md`・2025-12-18 GA）: https://code.visualstudio.com/docs/agent-customization/agent-skills ／ https://github.blog/changelog/2025-12-18-github-copilot-now-supports-agent-skills/
-
-**Claude Code**
-- Skills（`.claude/skills/<name>/SKILL.md`）: https://code.claude.com/docs/en/skills
-- Subagents（`.claude/agents/<name>.md`）: https://code.claude.com/docs/en/sub-agents
 

@@ -37,6 +37,10 @@ model/effort 選定根拠（/bloom-model-tier・Issue #308）:
 条件分岐なしの fail-close なゲートが成立する。副次的に、診断必須の是正契約と初回実装契約が
 別ファイルに分かれる（単一責務）。
 
+## STOP 時も hand-off を書く理由
+
+hand-off は dispatch が終了したことを呼び出し元が観測する signal である。STOP 時にチャットだけで報告すると、作業ツリーの回収・解放を開始できず手作業が必要になる。このため、`handoff_path` 自体が未提供で書込不能な着手前 STOP を除き、成功・失敗のどちらでも1件の hand-off を残す。
+
 ## `handoff_path` を相対にした理由・`karte_path` を絶対に据え置いた理由（移設元：「入力」節）
 
 - `handoff_path`（作業ツリールート相対）について：

@@ -89,16 +89,37 @@ class TestBuildReport(unittest.TestCase):
     def test_orphan_in_mirror_detected(self):
         codex_orphans = self.report.orphans.get(CODEX, [])
         self.assertIn("codex-only-agent (agent)", codex_orphans)
-        # 正本に実在する asset は orphan として出ない
+        # parity seedに実在する asset は orphan として出ない
         self.assertNotIn("plain-agent (agent)", codex_orphans)
 
     def test_render_json_round_trips(self):
         payload = to_jsonable(self.report)
+        self.assertEqual(payload["schema"], "asset-parity-report/v2")
         self.assertEqual(payload["summary"]["missing_count"], 4)
         names = {a["name"] for a in payload["assets"]}
         self.assertIn("plain-skill", names)
         json_text = render_json(self.report)
         self.assertIn('"missing_count": 4', json_text)
+
+    def test_json_retains_deprecated_canonical_keys(self):
+        payload = to_jsonable(self.report)
+        asset = payload["assets"][0]
+        self.assertEqual(asset["canonical_path"], asset["parity_seed_path"])
+        stale_payloads = [
+            cell["stale"]
+            for item in payload["assets"]
+            for cell in item["trees"].values()
+            if "stale" in cell
+        ]
+        self.assertTrue(stale_payloads)
+        self.assertTrue(all(
+            stale["canonical_lines"] == stale["parity_seed_lines"]
+            for stale in stale_payloads
+        ))
+        self.assertEqual(
+            payload["compatibility"]["deprecated_keys"]["canonical_path"],
+            "parity_seed_path",
+        )
 
 
 if __name__ == "__main__":

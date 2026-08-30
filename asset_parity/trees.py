@@ -1,4 +1,4 @@
-"""Per-tree mirror path conventions for the three non-canonical asset trees.
+"""Per-tree mirror path conventions for the three parity target trees.
 
 Verified against the actual repo layout (not assumed) as part of the issue #155 audit:
 
@@ -10,7 +10,7 @@ Verified against the actual repo layout (not assumed) as part of the issue #155 
                       repo-scoped skill discovery path)  (no agent-shaped tree)
 
 One additional, *structural* (not per-asset-exception) rule comes straight out of
-`.claude/skills/asset-lateral-deploy/SKILL.md`'s routing decision tree: a canonical
+`.claude/skills/asset-lateral-deploy/SKILL.md`'s routing decision tree: a parity-seed
 skill's `disable-model-invocation`/`user-invocable` frontmatter changes *which* Copilot
 file form is expected, not whether one is:
 
@@ -85,10 +85,10 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
 
 
 def mirror_root_dirs(tree: str, kind: str, root: Path) -> list[Path]:
-    """Directory (or directories) to scan for "extra" assets not in the canonical tree.
+    """Directory (or directories) to scan for "extra" assets not in the parity seed.
 
     Used for the orphans-in-mirror informational report (assets that exist in a mirror
-    but have no canonical `.claude/` counterpart at all — the reverse-direction gap).
+    but have no `.claude/` parity-seed counterpart at all — the reverse-direction gap).
     """
     if tree not in applicable_trees(kind):
         return []

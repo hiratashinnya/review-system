@@ -1,7 +1,7 @@
 ---
 name: test-strategy
 description: Test strategy for THIS project (review-system) — unittest per public function, TD (Markdown test design) + TC (Python unittest code) + TR (test result with result/log_ref frontmatter), commit-before-test, same 3-set for Claude Code e2e. Use when planning HOW to test the implementation. NOT spec/design (see domain-model/schema-design), NOT asset auditing (see asset-auditor).
-status: tailored (active) — derived from .claude/standards/test-strategy
+status: tailored — derived from .claude/standards/test-strategy
 ---
 
 ## 共通本文

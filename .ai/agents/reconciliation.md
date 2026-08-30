@@ -4,6 +4,8 @@
 
 2段パイプラインは `*-author`（tmp 著作）→ `reconciliation-validator`（読み取り専用検証）→ `reconciliation`（self_fix 適用と本反映）である。検証が ROLLBACK、入力不足、対象不一致、self_fix 不明確のいずれかなら、何も反映せず主文脈へ返す。
 
+設計経緯は [rationale](../rationale/reconciliation.md)、blocked・clean-tmp 失敗からの復旧は [troubleshooting](../troubleshooting/reconciliation.md) に分離している。
+
 ## 入力
 
 ```

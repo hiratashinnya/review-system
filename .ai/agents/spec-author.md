@@ -2,6 +2,8 @@
 
 **共通契約を必ず読む**：[doc-system-v2-authoring.md](doc-system-v2-authoring.md)（1ノード=`{slug}.md`＋`{slug}.yaml` の対・id=`slugify(title)`・無名辺・tmp ミラーレイアウト・サイドカーキー）。本ファイルは SPEC の**分割規律と型別部分**のみ。
 
+設計経緯は [rationale](../rationale/spec-author.md) に分離している。
+
 ## 入力
 
 ```
@@ -10,7 +12,7 @@ sprint:      <current_phase 値（例: sprint-1）>
 target_key:  <ハンドオフファイル名に使う一意キー（authoring-fanout が採番して渡す）。
               未指定なら parent_id を使う（単独呼び出し時のみ）。
               **fan-out を介さず単一失敗 target の再試行として直接呼ばれた場合**は、呼び出し元が前回の
-              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す（issue #278）。
+              target_key（前回の STOP 報告の target_keys に載っていた値）をそのまま渡す。
               省略すると parent_id 単独キーにフォールバックし、前回の失敗ハンドオフと同じ場所に上書きされない>
 error:       <前回の差し戻しエラー（再試行時のみ）>
 ```
@@ -63,7 +65,7 @@ tmp/<sprint>/<parent-id>/nodes/02-what/spec/{slug}.yaml  # サイドカー
 
 ### 3. 親子の辺（サイドカーに含める）
 
-- **親→子の辺は持たない**（`decomposes` 廃止・DD-014）。親子は**子→親の同型依存辺**で表す。
+- **親→子の辺は持たない**。親子は**子→親の同型依存辺**で表す。
 - 子ノードは親 SPEC を**無名依存辺**で参照する（FR を直接参照しない）。`kind`/`status` は書かない。
 
 ### 4. サイドカー（`id`/`type` は書かない・path から導出）
@@ -80,7 +82,7 @@ edges:
 ```
 
 `scheduled` の**既定は `current_phase`**（config.yaml）。無計画な空は禁止。別フェーズ（`sprint-N`）へ回すのは**オーナー承認時のみ**で、承認の旨を残す。post-mvp の大枠は `labels`。
-SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verification 発火で現在は沈黙する。
+SPEC←TD の被依存辺は `must_be_linked_from` の verification 発火で現在は沈黙する。
 
 ### 5. 本文フォーマット
 
@@ -114,10 +116,10 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 - [ ] id = `slugify(title)`（doc-system-v2/slugify.py で算出）。階層を表す連番 ID を使っていない
 - [ ] 1ノード = `{slug}.md`＋`{slug}.yaml` の対（本文に YAML/バッジを書いていない）
 - [ ] サイドカーに `id`/`type` を書いていない（path から導出）
-- [ ] 親ノードに子への辺がない（decomposes 廃止・親子は子→親の同型依存辺）
+- [ ] 親ノードに子への辺がない（親子は子→親の同型依存辺）
 - [ ] 子ノードが親 SPEC へ依存辺を張る（FR を直接参照していない）・`kind`/`status` を書いていない
 - [ ] `to` は単数 slug（リスト記法を使っていない）
-- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照・Issue #185）
+- [ ] `scheduled` が非空（既定 = current_phase）。空はオーナー承認済みの後送りのみ。**既存ノードの一括変更/backfill で値を自己判定していない**（doc-system-v2-authoring.md「`scheduled` 値決定の自己判定禁止」参照）
 - [ ] `condition` 属性が全子ノードに存在（RULE-016 ERROR）
 - [ ] edges の `to` がすべて実在する slug（RULE-007: always_error）
 - [ ] `ref_version`（x.y）が全辺にあり参照先サイドカー version の現在 x.y と一致（RULE-004）
@@ -129,8 +131,7 @@ SPEC←TD の被依存辺（旧 RULE-015）は `must_be_linked_from` の verific
 
 - 置き場：`tmp/_handoff/spec-author--<key>.yaml`（`tmp/` は gitignore 済み・コーパスを汚さない）
 - `<key>`：呼び出し元（`authoring-fanout`）が採番して渡した **`target_key`**。渡されていなければ `parent_id` を使う（単独呼び出し時のみ）。
-  **同一親に複数 target がある／`parent_id` が空の新規ルートが複数あるバッチでは `parent_id` だけだとファイル名が衝突し、
-  片方の `status: error`・`authored` が失われて未完了 target を成功と誤認する**ため、fan-out 経由では必ず `target_key` を使う
+  fan-out 経由では必ず `target_key` を使う。
 - 書式：下記スキーマの YAML をファイル書き込み能力で出力する（既存があれば上書き）
 - チャットへの返り値：`HANDOFF: tmp/_handoff/spec-author--<key>.yaml` ＋ **1行要約**（成否と件数）
 - **`tmp/_handoff/` は `reconciliation` の tmp 掃除の対象外**（掃除されるのは `tmp/<sprint>/<parent-id>/` 配下）
@@ -144,8 +145,7 @@ status: ok                       # ok | error（未完・差し戻しは error�
 authored:                        # 著作した slug 群（本文 .md ＋ サイドカー .yaml の対が揃ったもの）
   - <slug>
 update_slugs: []                 # 新規著作ではなく「既存コーパスノードを更新」した slug 群（親サイドカー更新等・無ければ空）。
-                                 # 呼び出し元がこれを validator へ `--update` 宣言として渡す。未申告だと
-                                 # dsv2 check-slug が正当な更新を既存 id 衝突と判定して ROLLBACK になる
+                                 # 呼び出し元が validator へ `--update` 宣言として渡す
 skipped: []                      # 既存につき更新しなかった等・理由を1行で
 errors: []                       # status: error のとき必須（何が・どの slug で・なぜ）
 notes: ""                        # 呼び出し元の判断に要る補足のみ（1〜3行）

@@ -1,5 +1,7 @@
 # Issue 処理パイプライン（implement → PR → review → merge → close）
 
+設計経緯や判断理由は [rationale](../../rationale/issue-pipeline.md)、障害・復旧手順は [troubleshooting](../../troubleshooting/issue-pipeline.md) を必要なときだけ参照する。
+
 複数のオープン GitHub Issue を1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順・オーナー判断・進捗管理に専念し、実装・レビューは利用可能な専用担当へ委譲する。
 
 ## 役割分担

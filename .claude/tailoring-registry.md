@@ -52,4 +52,10 @@
 > Claude 互換 pointer であり、本文の正本ではない。規範 wrapper と PF 固有の実行機構は各 PF 側に残し、
 > rationale 本文を複製しない。索引・分離規則の SoT は `.ai/rationale/README.md`、機械検査は
 > `tests/unit/test_contract_split.py` が担う。
+> ※ Issue #407 の文書分離規律：実行時に必要な規範は `.ai/skills/`／`.ai/agents/`（PF wrapper は各
+> loader の metadata のみ）、ADR／設計経緯は `.ai/rationale/`、障害・復旧記録は
+> `.ai/troubleshooting/`、PF 中立の機械可読契約は `.ai/schema/` に置く。後三者は非活性であり、
+> `.claude`／`.codex`／`.github`／`.agents` へミラーしない。配置契約の schema は
+> `.ai/schema/asset-placement-v1.json`、inventory 境界と回帰検査は
+> `asset_parity/inventory.py`／`tests/unit/test_ai_asset_layout.py` が正本である。
 > ※ `gh-create-issue`（スキル）は GitHub Issue の draft／起票規約を扱う repo 運用資産（未テーラリング active・テーラリング対象外）。**Claude Code 版 `.claude/skills/gh-create-issue/SKILL.md` を正本**とし、**Codex 版 `.agents/skills/gh-create-issue/SKILL.md` は手書き mirror**。自然言語の draft／作成依頼で発見可能だが、本文の write 境界により作成の明示依頼がある場合だけ GitHub を変更する。今回のユーザー指定は **Codex と Claude Code の2環境に限定された明示スコープ**であり、GitHub Copilot 版は作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する。`asset_parity/exceptions.py` には `(gh-create-issue, SKILL, GITHUB)` のみ転記し、Codex の `.agents/skills/` は実 mirror があるため例外化しない。

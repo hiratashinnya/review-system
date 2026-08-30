@@ -1,7 +1,8 @@
 """normative / rationale 分離（Issue #406）の機械検査。
 
-対象＝Issue 運用パイプラインの契約4ファイル。**規範（normative）** は
-dispatch のたびに読む現行 `.claude` wrapper、**経緯（rationale）** の正本は
+対象＝Issue 運用パイプラインの loader-facing wrapper 4ファイル。共通規範本文の SoT は
+`.ai/agents` / `.ai/skills`、dispatch のたびに読む `.claude` はPF固有契約と共通本文参照を持つ
+parity seedである。**経緯（rationale）** の正本は
 `.ai/rationale/<name>.md` とする。旧 `.claude/rationale/<name>.md` は本文を持たず、
 正本への相対ポインタだけを持つ。
 
@@ -13,7 +14,7 @@ dispatch のたびに読む現行 `.claude` wrapper、**経緯（rationale）** 
      自己申告している（規範と誤読されて二重の正本になるのを防ぐ）。
   3. 旧 `.claude/rationale` が対応する `.ai/rationale` を相対参照し、本文を重複保持しない
      （pointer と canonical rationale の責務を混ぜない）。
-  4. `.claude/rationale/` が `asset_parity` の資産として数えられない
+  4. `.ai/rationale/` が `asset_parity` の資産として数えられない
      （4ツリー parity に MISSING を生まないという分離の前提の固定）。
 
 依存仕様（out-of-graph・版なし・補助ナビ）:
@@ -32,14 +33,14 @@ from typing import NamedTuple
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 class Contract(NamedTuple):
-    """Normative wrapper と canonical/pointer rationale の対応。"""
+    """Loader-facing wrapper と canonical/pointer rationale の対応。"""
 
     normative_path: str
     canonical_rationale_path: str
     pointer_path: str
 
 
-# normative wrapper、rationale の正本、旧ポインタは別々の契約対象として保持する。
+# loader-facing wrapper、rationale の正本、旧ポインタは別々の契約対象として保持する。
 CONTRACTS: tuple[Contract, ...] = (
     Contract(
         ".claude/agents/issue-implementer.md",
@@ -559,26 +560,26 @@ class RationalePointersAreThin(unittest.TestCase):
 
 
 class RationaleDirIsNotAParityAsset(unittest.TestCase):
-    """規律: `.claude/rationale/` は 4ツリー parity の対象外（MISSING を生まない）。
+    """規律: `.ai/rationale/` は PF wrapper parity の対象外（MISSING を生まない）。
 
     これは分離の前提そのもの——ここが崩れると `.github`/`.codex`/`.agents` に
     経緯ファイルのミラーを要求され、`asset_parity check` が MISSING で落ちる。
     """
 
-    def test_scan_canonical_ignores_the_rationale_dir(self):
+    def test_scan_parity_seeds_ignores_the_rationale_dir(self):
         import sys
 
         if str(REPO_ROOT) not in sys.path:
             sys.path.insert(0, str(REPO_ROOT))
-        from asset_parity.inventory import scan_canonical
+        from asset_parity.inventory import scan_parity_seeds
 
-        canonical_paths = {a.canonical_path for a in scan_canonical(REPO_ROOT)}
-        rationale_dir = REPO_ROOT / ".claude" / "rationale"
-        leaked = sorted(str(p) for p in canonical_paths if rationale_dir in p.parents)
+        seed_paths = {a.parity_seed_path for a in scan_parity_seeds(REPO_ROOT)}
+        rationale_dir = REPO_ROOT / ".ai" / "rationale"
+        leaked = sorted(str(p) for p in seed_paths if rationale_dir in p.parents)
         self.assertEqual(
             leaked,
             [],
-            "`.claude/rationale/` の中身が asset_parity の資産として数えられている"
+            "`.ai/rationale/` の中身が asset_parity のseedとして数えられている"
             "——4ツリーにミラーを要求され MISSING になる（Issue #406）",
         )
 

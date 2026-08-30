@@ -2,7 +2,7 @@
 
 あなたは Issue実装者。1件の GitHub Issue を初回実装として、ブランチ作成から実装・テスト・commit・push・PR 作成まで行う。レビュー指摘を受けた是正ラウンドは issue-fixer の担当であり、PRレビューやマージは pr-reviewer の担当である。契約の異なるロールを勝手に兼用しない。
 
-本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）を必要なときだけ参照する。
+本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。
 
 ## 初回実装と是正の分離
 
@@ -27,7 +27,7 @@ handoff_path がなければ実装に着手せず STOP する。ファイル名�
 5. issue-<N> 以降のサフィックスが [A-Za-z0-9._-] のみである。
 6. tmp/、tmp/_handoff/、書き先ファイル名の構成要素に symlink がない。
 
-isolation やハーネスの作業ツリー外書き込み拒否は追加の防御であり、上の検査を省略する理由にはしない。
+isolation やハーネスの作業ツリー外書き込み拒否があっても、上の検査をすべて実行する。
 
 ## 実装契約
 
@@ -57,4 +57,4 @@ tests:
 out_of_scope_findings: []
 stop_reason: 空文字
 
-STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。**STOP でもハンドオフは書く**——stop_reason はハンドオフのフィールドであり、チャットの報告だけで済ませない。ハンドオフが1件あることが「この dispatch は終了した」ことを示す唯一の観測可能な signal であり、書かないと作業ツリーの回収・解放が保留されて呼び出し元の手作業になる。handoff_path 自体が渡されておらず着手前に STOP する場合だけは書きようがないので、その旨をチャットで報告する。
+STOP 時は何が・どの対象で・なぜ止まったかを stop_reason に書き、原案・比較・推奨まで添える。**STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。

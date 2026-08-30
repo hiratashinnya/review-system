@@ -8,8 +8,10 @@ Issue #406 の移行方針では、`.ai/` を PF（プラットフォーム）�
 |---|---|
 | Skill | `.ai/skills/<name>/SKILL.md` |
 | Agent | `.ai/agents/<name>.md` |
-| 設計経緯・却下案・既知の制約 | `.ai/rationale/<name>.md` |
+| ADR／設計経緯・却下案・既知の制約 | `.ai/rationale/<name>.md` |
 | rationale の索引・分離規則 | `.ai/rationale/README.md` |
+| 障害・復旧記録 | `.ai/troubleshooting/<asset>.md` |
+| 共通 schema | `.ai/schema/<name>-v<major>.json` |
 | リポジトリ共通の常駐 guidance | `.ai/guidance/common.md` |
 
 PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契約の一部なので wrapper/metadata 側に残すが、共通本文の正本にはしない。[Individually-managed-lists.md](Individually-managed-lists.md) は、実在ファイルと未配置を含む PF 個別差分専用の管理リストである。
@@ -31,5 +33,17 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 - Codex／Copilot: `.ai/guidance/common.md` と `.ai/guidance/platforms/*.md` から `python3 -m guidance_sync render` で `AGENTS.md`／`.github/copilot-instructions.md` を生成する。生成物は追跡し、先頭 marker に生成元と各 SHA-256 を記録する。
 - 仕様原則: `.ai/skills/spec-principles/SKILL.md` が PR1–PR10 の正本で、common の原則節は常駐 guidance 用の意味保存写しである。common と生成物は正本 hash を marker に持ち、正本だけを変更して写しを更新しない drift を検知する。
 - 検査: `python3 -m guidance_sync check` は working tree、`python3 -m guidance_sync staged-check` は staged index を検査する。後者は自動生成・自動 stage を行わず、spec-principles を変更した場合は common と両生成物の明示 stage も要求する。
+
+## 非活性文書の境界（Issue #407）
+
+`.ai/rationale/`（ADR／設計経緯）、`.ai/troubleshooting/`（障害・復旧記録）、
+`.ai/schema/`（共有 schema）はいずれも loader-facing asset ではない。規範本文へ
+混入させず、PF tree へ複製せず、必要なときだけリポジトリ相対リンクで参照する。
+配置の機械可読な契約は [`.ai/schema/asset-placement-v1.json`](schema/asset-placement-v1.json)
+にある。`asset_parity` の inventory は parity matrix の loader-facing **比較起点（parity seed）**として
+`.claude/skills/*/SKILL.md` と `.claude/agents/*.md` を列挙する。この seed は PF wrapper の発見起点であり、
+共通本文の編集正本ではない。共通本文の SoT は `.ai/skills/` と `.ai/agents/` にある。
+troubleshooting は asset ごとに 1 ファイルの index とし、個別 incident はその本文の
+見出しで区切る。新しい index を追加するときは schema の許可リストと回帰テストも更新する。
 
 導入手順と pre-commit hook は [`.githooks/README.md`](../.githooks/README.md) を参照する。

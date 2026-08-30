@@ -3,14 +3,11 @@
 > **フォーマットの対象（v1／v2）**：`docidx`（`python3 -m archive.docidx-v1`）は **v1 コーパス `doc-system/`**（巨大 Markdown にノードが埋め込まれた旧フォーマット）専用。
 > **doc-system v2（`doc-system-v2/nodes/**` ＝ 1ノード=`{slug}.md`＋`{slug}.yaml` の対・issue #73/#76）の照会は `dsv2` CLI（`python3 -m dsv2` — index/deps/dependents/orphans/drift/check-slug）を使う**。
 > v2 では 1 ノード = 2 ファイルで巨大ファイル埋め込みが無いため、ブラウズは `ls`/`find`/`grep` でも代替でき、グラフ照会は `dsv2` が担う。v1/v2 併存期はどちらのコーパスを見ているかで使い分ける。
-> issue #172 で実体を `archive/docidx-v1/` へ退避（共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。
+> format の移行経緯は [docidx の rationale](../../rationale/docidx.md) に置く。
 
-doc-system のノードは巨大な Markdown（例: `02-what/03-spec.md` 4,900+ 行）に埋め込まれている。
-1 ノードを見たいだけでファイル全体をコンテキストへ読み込むのは無駄。**まず軽量インデックスを作り、
-必要なノードだけをオンデマンドで読み込む**のが docidx（実体＝`archive/docidx-v1/`・`python3 -m archive.docidx-v1`）。
+巨大なファイル全体を読む前に、**まず軽量インデックスを作り、必要なノードだけをオンデマンドで読み込む**。
 
-委譲したいとき（探索ループを別コンテキストに逃がしてダイジェストだけ受け取る）は
-サブエージェント **`dsv2-lookup`**（旧名 `docidx-lookup`・issue #173 で v2-native であることが分かる名前へ改名）を使う。フォーマット依存の詳細は `archive/docidx-v1/README.md` の
+探索ループを別コンテキストへ委譲するときはサブエージェント **`dsv2-lookup`** を使う。フォーマット依存の詳細は `archive/docidx-v1/README.md` の
 「フォーマット依存マップ」を参照。
 
 ## いつ使うか
