@@ -7,6 +7,10 @@ handoff 作成だけを担当し、Git publish は終了後に host 側の既存
 
 from __future__ import annotations
 
+import argparse
+import base64
+import binascii
+import hashlib
 import json
 import os
 import queue
@@ -18,7 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Protocol, Sequence, TextIO
+from typing import Any, Callable, Collection, Mapping, Protocol, Sequence, TextIO
 
 from . import codex_binding, worktree_ledger
 
@@ -30,6 +34,9 @@ _THREAD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _RATE_LIMIT = re.compile(r"rate.?limit|too many requests|usage limit", re.IGNORECASE)
 _DENIED_ITEM_MARKERS = ("web_search", "subagent", "collaboration", "agent_tool")
 _PROTECTED_ROOTS = (".git", ".codex", ".agents")
+_PATCH_ROOTS = (".codex/", ".agents/")
+_MAX_PATCH_OPERATIONS = 32
+_MAX_PATCH_BYTES = 1_048_576
 
 
 class CodexSupervisorError(RuntimeError):
@@ -551,3 +558,147 @@ def publish_allowlist(role: str) -> tuple[str, ...]:
     if role == "issue-fixer":
         return ("gitgate.add", "gitgate.commit", "gitgate.push")
     raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID", role)
+
+
+def validate_protected_patch(
+    workspace: Path | str,
+    document: Mapping[str, Any],
+    *,
+    role: str,
+    allowed_paths: Collection[str],
+) -> tuple[dict[str, Any], ...]:
+    """内側Codexがstagingへ出したprotected asset patchをhost側で検査する。
+
+    ``allowed_paths`` はowner-approved ChangePlanからhostが渡すexact path集合であり、
+    agent promptやpatch自身から導出しない。deleteとself-expanding globは受け付けない。
+    """
+
+    if role not in codex_binding.TARGET_ROLES:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID", role)
+    if document.get("schema_version") != 1 or document.get("role") != role:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_SCHEMA_INVALID")
+    operations = document.get("operations")
+    if not isinstance(operations, list) or not (1 <= len(operations) <= _MAX_PATCH_OPERATIONS):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_OPERATIONS_INVALID")
+    root = Path(workspace).resolve(strict=True)
+    approved = set(allowed_paths)
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for operation in operations:
+        if not isinstance(operation, dict) or set(operation) != {
+            "path", "base_sha256", "content_base64"
+        }:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_OPERATION_INVALID")
+        relative = operation["path"]
+        if (
+            not isinstance(relative, str)
+            or relative.startswith("/")
+            or "\\" in relative
+            or any(part in {"", ".", ".."} for part in Path(relative).parts)
+            or not relative.startswith(_PATCH_ROOTS)
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_PATH_INVALID", repr(relative))
+        if relative not in approved:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_PATH_NOT_APPROVED", relative)
+        if relative in seen:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_PATH_DUPLICATE", relative)
+        seen.add(relative)
+        target = root / relative
+        try:
+            resolved_parent = target.parent.resolve(strict=True)
+            resolved_parent.relative_to(root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_PARENT_INVALID", relative) from exc
+        if target.is_symlink():
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_SYMLINK", relative)
+        base_digest = operation["base_sha256"]
+        if not isinstance(base_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", base_digest):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_DIGEST_INVALID", relative)
+        try:
+            current = target.read_bytes()
+        except OSError as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_TARGET_MISSING", relative) from exc
+        if hashlib.sha256(current).hexdigest() != base_digest:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_BASE_MISMATCH", relative)
+        encoded = operation["content_base64"]
+        if not isinstance(encoded, str):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative)
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative) from exc
+        if len(content) > _MAX_PATCH_BYTES or b"\x00" in content:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative)
+        normalized.append({"path": relative, "content": content, "base_sha256": base_digest})
+    return tuple(normalized)
+
+
+def apply_protected_patch(
+    workspace: Path | str,
+    operations: Sequence[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    """検証済みexact operationsをatomic replaceする。未検証documentは受け取らない。"""
+
+    root = Path(workspace).resolve(strict=True)
+    applied: list[str] = []
+    for operation in operations:
+        relative = operation.get("path")
+        content = operation.get("content")
+        base_digest = operation.get("base_sha256")
+        if not isinstance(relative, str) or not isinstance(content, bytes):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_NOT_VALIDATED")
+        target = root / relative
+        if target.is_symlink() or not target.is_file():
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_TARGET_CHANGED", relative)
+        if hashlib.sha256(target.read_bytes()).hexdigest() != base_digest:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_TARGET_CHANGED", relative)
+        temporary = target.with_name(f".{target.name}.supervisor-tmp-{os.getpid()}")
+        try:
+            with temporary.open("xb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+        applied.append(relative)
+    return tuple(applied)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    probe = subparsers.add_parser("probe", help="モデル無呼出でbubblewrap境界を検証する")
+    probe.add_argument("--workspace", required=True)
+    probe.add_argument("--bwrap", required=True)
+    probe.add_argument("--python", required=True)
+    plan = subparsers.add_parser("publish-plan", help="role別host publish allowlistを表示する")
+    plan.add_argument("--role", required=True, choices=sorted(codex_binding.TARGET_ROLES))
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        if args.command == "probe":
+            command = build_sandbox_probe_command(
+                args.workspace, bwrap_executable=args.bwrap, python_executable=args.python
+            )
+            completed = subprocess.run(command, cwd=args.workspace, capture_output=True, text=True)
+            result = validate_probe_result(completed.stdout, completed.returncode)
+            print(json.dumps(result, sort_keys=True))
+            return 0
+        if args.command == "publish-plan":
+            print(json.dumps({"role": args.role, "allow": publish_allowlist(args.role)}))
+            return 0
+    except CodexSupervisorError as exc:
+        print(json.dumps({"status": "denied", "reason": exc.reason, "detail": exc.detail}))
+        return 2
+    raise AssertionError(args.command)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

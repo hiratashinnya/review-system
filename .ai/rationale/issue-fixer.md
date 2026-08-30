@@ -168,20 +168,21 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 ハーネス外の実行経路・許可されたテストランナー経由の任意コード実行は閉じきれない。
 「Step 1 を通さずに Edit しない」は**プロンプトレベルの規範**であり、フックが直接強制するものではない
 （`Edit` は `matcher: "Bash"` のゲートを通らない）。多層防御の一枚として守る。
-## Codex fixer transport と bootstrap 境界（Issue #452・2026-08-26、round 1 訂正 2026-08-27）
+## Codex fixer transport と bootstrap 境界（Issue #452・2026-08-26、supervisor採用 2026-08-30）
 
 当初は `issue_<N>_fix_r<R>` task key と durable ownership ledger により、事前検証済みの
 `.worktrees/<name>`、branch、expected OID、handoff へ束縛した Codex `isolation_only` transport を
 宣言した。しかし PR #453 round 1 で、`spawn_agent` は child workspace を受け取れず、
 PreToolUse も effective tool workdir、actual agent identity、spawn 成功を運ばないことが確定した。
-事前 worktree/ledger だけでは実 agent の束縛にならないため、現行 Codex fixer transport は
-unavailable として既存 trusted issue-start hook で fail-close する。Claude の `isolation: worktree` と
-SubagentStart/Stop lifecycle は弱めない。方式比較と security trade-off は
+事前worktree/ledgerだけでは実agentの束縛にならないため、`collaboration.spawn_agent`のCodex fixer transportは
+unavailableとして既存trusted issue-start hookでfail-closeする。恒久経路はrepo supervisorが別Codex CLI processの
+PID/start token、JSONL thread、workspaceを観測し、外側OS sandboxと内側Codex sandboxで束縛する方式だけとした。
+Claudeの`isolation: worktree`とSubagentStart/Stop lifecycleは弱めない。方式比較とsecurity trade-offは
 `docs/methods/codex-workspace-binding.md`。
 
 この transport を導入する bootstrap PR の finding を、未導入 fixerを worker/implementerへ偽装して直す案は
 却下した。レビューと修正の分離、karte の書き手、権限非対称を同時に破るためである。原則は finding を記録して
-STOPし、runtime が必要な trusted observation を提供するまで正規 Codex fixer の起動を予定しない。
-例外はオーナーが明示した bootstrap 処置として通常worker fallbackを別記録にし、正規fixer transportの
-起動実績または保証として扱わない。PR #453の旧TD/TRに残るspawn consume成功はsuperseded evidenceであり、
-現行契約は既存trusted issue-start hookとall-tool hookによるunavailable denyである。
+STOPし、supervisor経路が独立reviewと段階的probeを通るまで正規Codex fixerの起動を予定しない。
+例外はオーナーが明示したbootstrap処置として別記録にし、正規fixer transportの起動実績または保証として扱わない。
+PR #453の旧spawn consume成功はsuperseded evidenceであり、spawn_agent経路はunavailable deny、別process経路は
+supervisorのP0〜P4 evidenceを正本とする。

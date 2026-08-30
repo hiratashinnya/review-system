@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -14,10 +16,12 @@ from issue_start.codex_supervisor import (
     CodexSupervisorError,
     ProcessResult,
     SupervisorSpec,
+    apply_protected_patch,
     build_codex_command,
     build_sandbox_probe_command,
     publish_allowlist,
     run_supervised,
+    validate_protected_patch,
     validate_probe_result,
 )
 
@@ -321,6 +325,68 @@ class CodexSupervisorTests(unittest.TestCase):
         expected["main"] = True
         with self.assertRaisesRegex(CodexSupervisorError, "BOUNDARY_MISMATCH"):
             validate_probe_result(json.dumps(expected), 0)
+
+    def test_protected_patch_requires_owner_exact_path_digest_and_schema(self):
+        relative = ".codex/seed"
+        target = self.workspace / relative
+        original = target.read_bytes()
+        replacement = b"updated\n"
+        document = {
+            "schema_version": 1,
+            "role": "issue-implementer",
+            "operations": [{
+                "path": relative,
+                "base_sha256": hashlib.sha256(original).hexdigest(),
+                "content_base64": base64.b64encode(replacement).decode("ascii"),
+            }],
+        }
+
+        operations = validate_protected_patch(
+            self.workspace,
+            document,
+            role="issue-implementer",
+            allowed_paths={relative},
+        )
+        self.assertEqual(apply_protected_patch(self.workspace, operations), (relative,))
+        self.assertEqual(target.read_bytes(), replacement)
+
+        for mutation, reason in (
+            ({"allowed_paths": set()}, "PATCH_PATH_NOT_APPROVED"),
+            ({"allowed_paths": {".codex/../seed"}}, "PATCH_PATH_INVALID"),
+        ):
+            with self.subTest(reason=reason):
+                candidate = dict(document)
+                candidate["operations"] = [dict(document["operations"][0])]
+                if ".." in next(iter(mutation["allowed_paths"]), ""):
+                    candidate["operations"][0]["path"] = ".codex/../seed"
+                with self.assertRaisesRegex(CodexSupervisorError, reason):
+                    validate_protected_patch(
+                        self.workspace,
+                        candidate,
+                        role="issue-implementer",
+                        allowed_paths=mutation["allowed_paths"],
+                    )
+
+    def test_protected_patch_rechecks_base_before_apply(self):
+        relative = ".agents/seed"
+        target = self.workspace / relative
+        original = target.read_bytes()
+        document = {
+            "schema_version": 1,
+            "role": "issue-fixer",
+            "operations": [{
+                "path": relative,
+                "base_sha256": hashlib.sha256(original).hexdigest(),
+                "content_base64": base64.b64encode(b"fixed\n").decode("ascii"),
+            }],
+        }
+        operations = validate_protected_patch(
+            self.workspace, document, role="issue-fixer", allowed_paths={relative}
+        )
+        target.write_text("raced\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(CodexSupervisorError, "PATCH_TARGET_CHANGED"):
+            apply_protected_patch(self.workspace, operations)
 
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):

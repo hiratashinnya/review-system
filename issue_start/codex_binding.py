@@ -5,9 +5,10 @@
 検証するだけとする。``open -> running`` の不可逆遷移は、spawn 成功後に trusted
 observer が actual agent identity と実効 workspace を同時に観測したときだけ行う。
 
-現行 Codex transport は child/effective workspace、actual agent identity、spawn 成功のいずれも
-trusted payload として提供しない。そのため dispatch は issue-start gate で fail-close し、
-本 module の bind/verify API は将来 transport が必要な観測値を提供するまで発効させない。
+``collaboration.spawn_agent`` transportはchild/effective workspace、actual agent identity、spawn成功の
+いずれもtrusted payloadとして提供しないため、issue-start gateでfail-closeする。別経路のrepo supervisorは
+Issue専用worktreeで別Codex CLI processを起動し、OS PID/start tokenとJSONL threadをtrusted observationとして
+取得した場合だけ本moduleのbind/verify APIを使う。
 
 状態は既存 :mod:`issue_start.worktree_ledger` の ``open -> running -> stopped ->
 collected -> released`` を使う。spawn 前の失敗では ``open`` を削除・終端化せず、TTL 内はそのまま
@@ -521,8 +522,9 @@ def bind_agent_identity(
     """trusted start observer が actual identity を1度だけ ``running`` へ束縛する。
 
     ``workspace`` と ``agent_id`` は transport の trusted observation でなければならない。
-    現行 Codex はその observation を提供しないため、dispatch 経路からは本関数を
-    呼ばない。同一 identity の再通知だけを冪等に扱い、別 identity の上書きは拒否する。
+    ``collaboration.spawn_agent``経路からは呼ばない。repo supervisorが別processのPID/start tokenを
+    先に記録し、同一processのJSONL threadを観測した場合だけ呼ぶ。同一identityの再通知だけを
+    冪等に扱い、別identityの上書きは拒否する。
     """
 
     if not isinstance(agent_id, str) or not worktree_ledger.AGENT_ID_RE.fullmatch(agent_id):
