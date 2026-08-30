@@ -328,7 +328,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
         bwrap = shutil.which("bwrap")
         if bwrap is None:
             self.skipTest("bubblewrap is not installed")
-        with tempfile.TemporaryDirectory() as temporary:
+        # fixture 自体を /tmp 配下へ置くと、検証対象の private tmpfs が
+        # fixture mount を隠すため、repository workspace 配下に一時作成する。
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:
             main = Path(temporary) / "main"
             main.mkdir()
             git(main, "init", "-b", "main")
