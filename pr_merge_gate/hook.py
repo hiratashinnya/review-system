@@ -32,11 +32,159 @@ def _deny(reason: str) -> dict[str, Any]:
     }
 
 
+# reason codeの正本＝docs/methods/blocker-gate-pre-use-policy.md §10.2。
+# `_reason()` は評価根拠（BLOCK/ERROR）と reason に応じて群を分け、
+# 「マージ操作と分類できたか」「分類できた場合ポリシー違反かどうか」で
+# メッセージの断定表現を出し分ける（Issue #457）。
+
+# BLOCK群：マージ操作と分類され、ポリシー上ブロックされた（"元のmerge操作は送信しません"は事実）。
+_BLOCK_REASONS = frozenset(
+    {
+        "OPEN_BLOCKER",
+        "CLOSURE_OPEN_DESCENDANT",
+        "TARGET_ISSUE_NOT_OPEN",
+        "PR_NOT_OPEN",
+        "PR_DRAFT",
+        "AUTO_MERGE_DENIED",
+    }
+)
+
+# 分類不能群：マージ操作かどうか自体を確認できなかった（マージ操作ではない可能性が高い）。
+_UNCLASSIFIED_REASONS = frozenset(
+    {
+        "CLASSIFIER_UNKNOWN",
+        "TARGET_AMBIGUOUS",
+        "MODE_MISMATCH",
+    }
+)
+
+# 外部要因・内部エラー群：マージ操作と分類はできたが、安全確認自体が完了できなかった
+# （docs/methods/blocker-gate-pre-use-policy.md §10.2のERROR一覧からBLOCK群・分類不能群を
+# 除いたもの）。3群目として明示frozenset化する（暗黙のelseにしない）——policy改訂で新規
+# reason codeが追加された際、この集合に含めるかどうかを機械テスト
+# （test_pr_merge_hook.py::test_all_policy_reason_codes_are_classified_into_exactly_one_group）
+# がpolicy本文と突合して検知できるようにするため（Issue #457 F-457-01）。
+_EXTERNAL_INTERNAL_ERROR_REASONS = frozenset(
+    {
+        "API_UNAVAILABLE",
+        "API_PERMISSION",
+        "API_UNREACHABLE",
+        "API_PARTIAL_RESPONSE",
+        "PAGINATION_INCOMPLETE",
+        "GRAPH_LIMIT_EXCEEDED",
+        "GRAPH_CYCLE",
+        "IDENTITY_MISMATCH",
+        "ISSUE_STATE_UNKNOWN",
+        "RELATION_INCONSISTENT",
+        "RELATION_TARGET_UNREADABLE",
+        "CROSS_REPOSITORY_UNSUPPORTED",
+        "MERGE_METHOD_UNKNOWN",
+        "MERGE_SETTINGS_AMBIGUOUS",
+        "MERGE_OVERRIDE_AMBIGUOUS",
+        "MERGE_MESSAGE_AMBIGUOUS",
+        "REBASE_MESSAGE_AMBIGUOUS",
+        "MESSAGE_SOURCE_INCOMPLETE",
+        "CLOSING_KEYWORD_PARSE",
+        "WAIVER_SCHEMA_INVALID",
+        "WAIVER_INVALID",
+        "REEVALUATION_LIMIT",
+        "RESULT_CONTRACT_INVALID",
+        "HOOK_INTEGRITY_ERROR",
+        "INTERNAL_ERROR",
+    }
+)
+
+_REASON_DETAILS: dict[str, str] = {
+    # BLOCK群
+    "OPEN_BLOCKER": "未解決の依存Issue（blocked-by）が残っています。",
+    "CLOSURE_OPEN_DESCENDANT": "親Issueをcloseする一方で子Issueが未解決のままです。",
+    "TARGET_ISSUE_NOT_OPEN": "対象Issueがopen状態ではありません。",
+    "PR_NOT_OPEN": "対象PRがopen状態ではありません。",
+    "PR_DRAFT": "対象PRがdraftのままです。",
+    "AUTO_MERGE_DENIED": "auto-mergeの有効化はこのゲートで常に拒否します。",
+    # 分類不能群
+    "CLASSIFIER_UNKNOWN": "コマンドがマージ操作かどうかをclassifierが確定できませんでした。",
+    "TARGET_AMBIGUOUS": "対象repository/PR/Issueを一意に確定できませんでした。",
+    "MODE_MISMATCH": "issue-startとpr-mergeのどちらの操作か確定できませんでした。",
+    # 外部要因・内部エラー群
+    "API_UNAVAILABLE": "GitHub APIへの到達に失敗しました（429/5xxまたはretry枯渇）。",
+    "API_PERMISSION": "GitHubが認可を拒否しました（401/403、GitHub発信）。",
+    "API_UNREACHABLE": "GitHubまで応答が届いていません（proxy/tunnel/DNS/timeout等）。",
+    "API_PARTIAL_RESPONSE": "GraphQLの応答が部分的でした。",
+    "PAGINATION_INCOMPLETE": "pagination（cursor/page）を完走できませんでした。",
+    "GRAPH_LIMIT_EXCEEDED": "依存グラフの探索上限を超えました。",
+    "GRAPH_CYCLE": "依存関係に循環を検出しました。",
+    "IDENTITY_MISMATCH": "取得内容がintercept時の識別情報と一致しません。",
+    "ISSUE_STATE_UNKNOWN": "Issueの状態を判定できませんでした。",
+    "RELATION_INCONSISTENT": "parent/sub-issueの関係が双方向で一致しません。",
+    "RELATION_TARGET_UNREADABLE": "関係先のnodeを読み取れませんでした（削除・非可視等）。",
+    "CROSS_REPOSITORY_UNSUPPORTED": "リポジトリをまたぐ関係はこのゲートの対象外です。",
+    "MERGE_METHOD_UNKNOWN": "merge methodを一意に確定できませんでした。",
+    "MERGE_SETTINGS_AMBIGUOUS": "repositoryのmerge設定を一意に再構築できませんでした。",
+    "MERGE_OVERRIDE_AMBIGUOUS": "commit title/bodyのoverrideを一意に束縛できませんでした。",
+    "MERGE_MESSAGE_AMBIGUOUS": "merge/squash commit messageを一意に再構築できませんでした。",
+    "REBASE_MESSAGE_AMBIGUOUS": "rebase後に届くcommit messageを一意に決定できませんでした。",
+    "MESSAGE_SOURCE_INCOMPLETE": "commit messageの取得元が不完全でした。",
+    "CLOSING_KEYWORD_PARSE": "closing keywordの構文解析に失敗しました。",
+    "WAIVER_SCHEMA_INVALID": "waiverファイルのschemaが不正です。",
+    "WAIVER_INVALID": "waiverの真正性検証に失敗しました。",
+    "REEVALUATION_LIMIT": "再評価3回でも状態が安定しませんでした。",
+    "RESULT_CONTRACT_INVALID": "判定結果がschema/semantic契約を満たしませんでした。",
+    "HOOK_INTEGRITY_ERROR": "hook自身の監査書き込み等、内部整合性チェックに失敗しました。",
+    "INTERNAL_ERROR": "hook内部で想定外の例外が発生しました。",
+}
+
+
 def _reason(evidence: dict[str, Any]) -> str:
-    return (
+    result = evidence["result"]
+    reason = evidence["reason"]
+    header = (
         "Codex AI agent PR merge gate: "
-        f"{evidence['result']}/{evidence['reason']} (policy {evidence['policy_version']}); "
-        "元のmerge操作は送信しません。blocker/API/hook状態を解消後に再実行してください。"
+        f"{result}/{reason} (policy {evidence['policy_version']});"
+    )
+    detail = _REASON_DETAILS.get(reason)
+    detail_part = f" {detail}" if detail else ""
+
+    if reason in _UNCLASSIFIED_REASONS:
+        # マージ操作と断定していないことを表す（「元のmerge操作は送信しません」のような
+        # 断定表現は使わない）。実態は「マージ操作かどうか確認できなかったため念のため
+        # 実行を見送った」であり、マージ操作でない可能性が高い（Issue #457）。
+        return (
+            f"{header}{detail_part} "
+            "元の操作をマージ操作と断定できなかったため、念のため実行を見送りました"
+            "（実際にはマージ操作ではない可能性があります）。マージ操作でない場合は、"
+            "コマンドをより単純な1行の形に書き直すか、`python3 -m gitgate` 経由の"
+            "操作を使って再実行してください。マージ操作である場合は、blocker/API/"
+            "hook状態を解消後に再実行してください。"
+        )
+    if reason in _BLOCK_REASONS:
+        return (
+            f"{header}{detail_part} "
+            "マージ操作と判定され、ポリシー違反のため元のmerge操作は送信しません。"
+            "上記の状況を解消してから再実行してください。"
+        )
+    if reason in _EXTERNAL_INTERNAL_ERROR_REASONS:
+        # 外部要因・内部エラー群（マージ操作と分類はできたが、安全確認自体が完了できなかった）。
+        # マージ操作と分類できた経路（BLOCK/ERROR双方が通る evaluate_merge_operation・
+        # append_decision失敗時のHOOK_INTEGRITY_ERROR）から来るためBLOCK群と同じ断定はできないが、
+        # 分類不能群のように「マージ操作ではない可能性が高い」とも言えない。
+        return (
+            f"{header}{detail_part} "
+            "マージ操作と判定されましたが、安全確認自体を完了できませんでした。"
+            "元のmerge操作は送信しません。API到達性やhookの状態を確認のうえ再実行してください。"
+        )
+    # 3群のいずれにも属さない未知reason（policy改訂の取りこぼし等）。ここへ到達するcodeは
+    # docs/methods/blocker-gate-pre-use-policy.md §10.2に実装が追従できていないことを意味する。
+    # マージ操作かどうか自体を断定できないため、BLOCK群・外部要因群のような「マージ操作と
+    # 判定された」という表現を使わない（分類不能群と同じ理由でIssue #457のharmが再発するのを
+    # 防ぐ・F-457-01）。
+    return (
+        f"{header}{detail_part} "
+        "reason codeが既知の3群（BLOCK群／分類不能群／外部要因・内部エラー群）のいずれにも"
+        "一致しませんでした。マージ操作かどうかを断定できないため、念のため元の操作は"
+        "送信しません。pr_merge_gate側の実装がpolicy改訂に追従できていない可能性があるため、"
+        "docs/methods/blocker-gate-pre-use-policy.md §10.2 と pr_merge_gate/hook.py の対応を"
+        "確認してください。"
     )
 
 
@@ -139,6 +287,38 @@ def run(
     return 0
 
 
+# PostToolUse失敗のreason code説明（正本＝docs/tools/pr-merge-gate.md「PostToolUse失敗の
+# reason code」表・Issue #414/#436）。POST_AUDIT_INTEGRITY_ERROR/<code> のメッセージへ要約を
+# 含める（Issue #457）。
+_POST_AUDIT_REASON_DETAILS: dict[str, str] = {
+    "PAYLOAD_INVALID": (
+        "payloadがJSONでない、または必須フィールド"
+        "（hook_event_name/session_id/tool_use_id/tool_name/tool_response）が"
+        "契約を満たしていません。"
+    ),
+    "RECLASSIFIED_NOT_MERGE": (
+        "PreToolUseでdenyされたはずの操作がPostToolUseへ到達し、"
+        "再分類でmerge操作と判定できませんでした。"
+    ),
+    "PERMIT_MISSING": (
+        "対応するpre-use permitレコードが見つかりません"
+        "（auditファイル不在／pre-use hook未発火／該当行が破損して読み飛ばされた、のいずれか）。"
+    ),
+    "PERMIT_OPERATION_MISMATCH": (
+        "permitはありますが、許可したPRと実行されたPRが別物です。"
+    ),
+    "HOOK_ASSET_UNREADABLE": "hook asset一式のhash計算に失敗しました。",
+    "AUDIT_FILE_UNSAFE": (
+        "audit fileがsymlink・別uid所有・0600以外のいずれかで安全ではありません。"
+    ),
+    "AUDIT_PATH_INVALID": (
+        "HOME/XDG_STATE_HOMEが未設定、または絶対パスではありません。"
+    ),
+    "AUDIT_READ_FAILED": "audit fileの読み取りがOSレベルで失敗しました。",
+    "AUDIT_WRITE_FAILED": "audit fileの書き込みがOSレベルで失敗しました。",
+}
+
+
 def _rotate_audit(payload: dict[str, Any], audit_file: Path | None, stderr: TextIO) -> None:
     """PostToolUse経路だけでaudit.jsonlを件数ローテーションする（Issue #435 項目2）。
 
@@ -209,7 +389,13 @@ def post_run(
         # 読み取り不能・audit fileのmode不正・書込失敗）から送出されるため、クラス名だけでは
         # 原因を切り分けられず、報告を受けても再現なしには特定できなかった。
         code = exc.reason if isinstance(exc, AuditError) else "PAYLOAD_INVALID"
-        reason = "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + code
+        detail = _POST_AUDIT_REASON_DETAILS.get(code)
+        # detail不在時は末尾に裸のセミコロンを残さない（現行9codeは全件detailがあり
+        # 到達不能だが、将来codeが増えてdetail未整備のまま追加された場合に備える・F-457-02）。
+        detail_part = f"; {detail}" if detail else ""
+        reason = (
+            "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + code + detail_part
+        )
         json.dump({"decision": "block", "reason": reason}, stdout, ensure_ascii=False)
         stdout.write("\n")
         stderr.write(reason + "\n")
