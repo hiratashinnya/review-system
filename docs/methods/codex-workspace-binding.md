@@ -90,6 +90,8 @@ ledger は暗号学的署名ではなく、main worktree のファイル境界�
 信頼境界にする。inner Codexはworktree内容を変更できるためhandoffやpatch内容自体は信頼せず、hostがpath、digest、
 Git factsを再検証する。bubblewrap/user namespaceが利用できないhostでは保護を弱めて起動せず、P1 probeをfail-closeする。
 Codex API通信自体はmodel利用に必要だが、model-generated shellのnetworkとweb searchは別に無効化する。
+P1のwrite/network probe payloadはcoverageやvenvのruntime差を混ぜない固定`/usr/bin/python3`を使う。実Codex runtimeは
+同じouter commandの`codex --version`をmodel無呼出で起動し、device/mount構造testと分けて確認する。
 
 ## bootstrap PR の finding 方針
 

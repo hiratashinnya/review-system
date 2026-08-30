@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -399,6 +398,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
         bwrap = shutil.which("bwrap")
         if bwrap is None:
             self.skipTest("bubblewrap is not installed")
+        system_python = Path("/usr/bin/python3")
+        if not system_python.is_file():
+            self.skipTest("fixed system Python is not installed")
         # fixture 自体を /tmp 配下へ置くと、検証対象の private tmpfs が
         # fixture mount を隠すため、repository workspace 配下に一時作成する。
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:
@@ -418,7 +420,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             workspace.parent.mkdir()
             git(main, "worktree", "add", "-b", "probe", str(workspace), "HEAD")
             command = build_sandbox_probe_command(
-                workspace, bwrap_executable=bwrap, python_executable=sys.executable
+                workspace, bwrap_executable=bwrap, python_executable=system_python
             )
             random_device = command.index("/dev/urandom")
             self.assertEqual(command[random_device - 1], "--dev-bind")
@@ -444,6 +446,31 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 )
             self.assertFalse((main / ".supervisor-probe").exists())
             self.assertFalse((workspace / ".supervisor-probe").exists())
+
+            codex = shutil.which("codex")
+            if codex is not None:
+                supervised = build_codex_command(
+                    SupervisorSpec(
+                        repo_root=main,
+                        workspace=workspace,
+                        role="issue-implementer",
+                        task_key="issue-452-runtime-probe",
+                        handoff_path="tmp/_handoff/issue-implementer--issue-452-runtime-probe.yaml",
+                    ),
+                    bwrap_executable=bwrap,
+                    codex_executable=codex,
+                )
+                separator = supervised.index("--")
+                runtime_probe = supervised[: separator + 1] + (codex, "--version")
+                runtime = subprocess.run(
+                    runtime_probe,
+                    cwd=workspace,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertEqual(runtime.returncode, 0, runtime.stderr)
+                self.assertIn("codex", runtime.stdout.lower())
 
 
 if __name__ == "__main__":

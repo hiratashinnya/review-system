@@ -38,7 +38,8 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 10. modelを呼ばないP1 bubblewrap probeで、対象worktreeだけwrite可、main/共通Git/`.codex`/`.agents`は
     write不可、`/tmp`はprivate、shell network不可であることをhost側実測する。Python起動に必要な
     `/dev/urandom`だけを`--dev-bind`直後に`--remount-ro`し、device集合やwrite範囲を追加しないことも
-    command順序の契約で確認する。
+    command順序の契約で確認する。payloadは固定`/usr/bin/python3`を使ってcoverage/venv差を除外し、同じouter
+    sandbox内の`codex --version`も利用可能なhostでmodel無呼出確認する。
 11. protected patchはowner-approved exact path、schema、base SHA-256、path traversal/symlink/sizeをhostが
     検証し、apply直前にもdigestを再確認することを確認する。
 
