@@ -10,10 +10,43 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pr_merge_gate.classifier import MergeOperation, PreUseClassification, classify_pre_use
-from pr_merge_gate.hook import _reason, post_run, run
+from pr_merge_gate.hook import (
+    _BLOCK_REASONS,
+    _EXTERNAL_INTERNAL_ERROR_REASONS,
+    _UNCLASSIFIED_REASONS,
+    _reason,
+    post_run,
+    run,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
+POLICY_DOC = ROOT / "docs/methods/blocker-gate-pre-use-policy.md"
+
+
+def _load_policy_reason_codes() -> dict[str, set[str]]:
+    """docs/methods/blocker-gate-pre-use-policy.md §10.2のreason code正本をparseする。
+
+    正本はコードブロック中の `ALLOW:` / `BLOCK:` / `ERROR:` から始まる複数行のcode列挙。
+    ここをhardcodeせず実ファイルをparseするのは、policy改訂（新規code追加）が実装の
+    3群分類から取りこぼされたときにテストが検知できるようにするため（Issue #457 F-457-01）。
+    """
+    text = POLICY_DOC.read_text(encoding="utf-8")
+    heading = "### 10.2 reason code"
+    start = text.index(heading)
+    block_start = text.index("```text", start)
+    block_end = text.index("```", block_start + len("```text"))
+    block = text[block_start + len("```text"):block_end]
+
+    sections = re.split(r"\n(?=(?:ALLOW|BLOCK|ERROR):)", block.strip())
+    codes: dict[str, set[str]] = {}
+    for section in sections:
+        label, _, rest = section.partition(":")
+        label = label.strip()
+        assert label in ("ALLOW", "BLOCK", "ERROR"), f"unexpected label: {label!r}"
+        codes[label] = set(re.findall(r"[A-Z][A-Z0-9_]*", rest))
+    assert set(codes) == {"ALLOW", "BLOCK", "ERROR"}
+    return codes
 
 
 def operation() -> MergeOperation:
@@ -772,6 +805,72 @@ class HookTest(unittest.TestCase):
                     "マージ操作と判定されましたが、安全確認自体を完了できませんでした", message
                 )
                 self.assertIn(expected_detail, message)
+
+    def test_all_policy_reason_codes_are_classified_into_exactly_one_group(self):
+        """docs §10.2のBLOCK/ERROR全codeが実装の3群のいずれかにちょうど1回現れる（Issue #457 F-457-01）。
+
+        policy改訂で新規reason codeが追加・削除された際、`_reason()` の3群
+        （`_BLOCK_REASONS`／`_UNCLASSIFIED_REASONS`／`_EXTERNAL_INTERNAL_ERROR_REASONS`）
+        への反映が漏れると、この突合がfail-closeに検知する。反映漏れの未知codeは暗黙に
+        「マージ操作と判定されました」と断定する群（外部要因・内部エラー群）へ落ちてしまい、
+        Issue #457が是正した誤断定が復活しうるため、突合を機械化した。
+        """
+        policy_codes = _load_policy_reason_codes()
+
+        # 3群は互いに素であること（同じcodeが2群に重複していないか）。
+        self.assertEqual(_BLOCK_REASONS & _UNCLASSIFIED_REASONS, set())
+        self.assertEqual(_BLOCK_REASONS & _EXTERNAL_INTERNAL_ERROR_REASONS, set())
+        self.assertEqual(_UNCLASSIFIED_REASONS & _EXTERNAL_INTERNAL_ERROR_REASONS, set())
+
+        # BLOCK群はpolicyのBLOCK codeと完全一致する。
+        self.assertEqual(set(_BLOCK_REASONS), policy_codes["BLOCK"])
+
+        # ERROR codeは分類不能群または外部要因・内部エラー群のどちらかにちょうど1回現れる。
+        implemented_error_codes = _UNCLASSIFIED_REASONS | _EXTERNAL_INTERNAL_ERROR_REASONS
+        self.assertEqual(implemented_error_codes, policy_codes["ERROR"])
+
+    def test_reason_unknown_code_not_in_any_group_uses_neutral_wording(self):
+        """3群いずれにも属さない未知codeは断定表現を使わない（Issue #457 F-457-01 recheck）。
+
+        `__UNKNOWN__` は3群のどこにも登録されていない未知reason（policy改訂の取りこぼしを
+        模擬）。フォールバックがBLOCK群・外部要因群と同じ「マージ操作と判定されました」を
+        返すと、Issue #457が是正した誤断定が新規codeについてだけ黙って復活する。
+        """
+        self.assertNotIn("__UNKNOWN__", _BLOCK_REASONS)
+        self.assertNotIn("__UNKNOWN__", _UNCLASSIFIED_REASONS)
+        self.assertNotIn("__UNKNOWN__", _EXTERNAL_INTERNAL_ERROR_REASONS)
+
+        evidence = {"result": "ERROR", "reason": "__UNKNOWN__", "policy_version": "1.2"}
+        message = _reason(evidence)
+
+        self.assertNotIn("マージ操作と判定されました", message)
+        self.assertNotIn("元のmerge操作は送信しません", message)
+        self.assertIn("断定できない", message)
+
+    def test_post_audit_integrity_error_message_has_no_dangling_semicolon_without_detail(self):
+        """detail不在のPOST_AUDIT_INTEGRITY_ERRORは裸のセミコロンで終わらない（Issue #457 F-457-02）。
+
+        現行9codeは全件detailがあり到達不能だが、将来codeが増えてdetailが未整備のまま
+        追加された場合に備えて固定する。
+        """
+        with patch(
+            "pr_merge_gate.hook._POST_AUDIT_REASON_DETAILS", {}
+        ):
+            with tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / "audit.jsonl"
+                payload = self.connector_payload("PostToolUse")
+                payload["tool_response"] = {"merged": True}
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                post_run(
+                    stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                    stderr=stderr, audit_file=target,
+                )
+                decision = json.loads(stdout.getvalue())
+
+        self.assertIn("POST_AUDIT_INTEGRITY_ERROR/PERMIT_MISSING", decision["reason"])
+        self.assertFalse(decision["reason"].rstrip().endswith(";"))
+        self.assertNotIn(";;", decision["reason"])
 
     def test_post_audit_integrity_error_message_includes_reason_code_meaning(self):
         """POST_AUDIT_INTEGRITY_ERROR/<code> がdocs記載の意味を要約して含む（Issue #457）。"""

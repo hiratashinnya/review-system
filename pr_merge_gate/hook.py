@@ -58,9 +58,41 @@ _UNCLASSIFIED_REASONS = frozenset(
     }
 )
 
-# 上記2群以外のERROR reason（docs/methods/blocker-gate-pre-use-policy.md §10.2のERROR一覧から
-# BLOCK群・分類不能群を除いたもの）は「マージ操作と分類はできたが、安全確認自体が完了できなかった」
-# 外部要因・内部エラー群として扱う。
+# 外部要因・内部エラー群：マージ操作と分類はできたが、安全確認自体が完了できなかった
+# （docs/methods/blocker-gate-pre-use-policy.md §10.2のERROR一覧からBLOCK群・分類不能群を
+# 除いたもの）。3群目として明示frozenset化する（暗黙のelseにしない）——policy改訂で新規
+# reason codeが追加された際、この集合に含めるかどうかを機械テスト
+# （test_pr_merge_hook.py::test_all_policy_reason_codes_are_classified_into_exactly_one_group）
+# がpolicy本文と突合して検知できるようにするため（Issue #457 F-457-01）。
+_EXTERNAL_INTERNAL_ERROR_REASONS = frozenset(
+    {
+        "API_UNAVAILABLE",
+        "API_PERMISSION",
+        "API_UNREACHABLE",
+        "API_PARTIAL_RESPONSE",
+        "PAGINATION_INCOMPLETE",
+        "GRAPH_LIMIT_EXCEEDED",
+        "GRAPH_CYCLE",
+        "IDENTITY_MISMATCH",
+        "ISSUE_STATE_UNKNOWN",
+        "RELATION_INCONSISTENT",
+        "RELATION_TARGET_UNREADABLE",
+        "CROSS_REPOSITORY_UNSUPPORTED",
+        "MERGE_METHOD_UNKNOWN",
+        "MERGE_SETTINGS_AMBIGUOUS",
+        "MERGE_OVERRIDE_AMBIGUOUS",
+        "MERGE_MESSAGE_AMBIGUOUS",
+        "REBASE_MESSAGE_AMBIGUOUS",
+        "MESSAGE_SOURCE_INCOMPLETE",
+        "CLOSING_KEYWORD_PARSE",
+        "WAIVER_SCHEMA_INVALID",
+        "WAIVER_INVALID",
+        "REEVALUATION_LIMIT",
+        "RESULT_CONTRACT_INVALID",
+        "HOOK_INTEGRITY_ERROR",
+        "INTERNAL_ERROR",
+    }
+)
 
 _REASON_DETAILS: dict[str, str] = {
     # BLOCK群
@@ -131,15 +163,28 @@ def _reason(evidence: dict[str, Any]) -> str:
             "マージ操作と判定され、ポリシー違反のため元のmerge操作は送信しません。"
             "上記の状況を解消してから再実行してください。"
         )
-    # 外部要因・内部エラー群（マージ操作と分類はできたが、安全確認自体が完了できなかった）。
-    # 未知のreason（policy改訂の取りこぼし等）もdetailなしでこの群として扱う——
-    # マージ操作と分類できた経路（BLOCK/ERROR双方が通る evaluate_merge_operation・
-    # append_decision失敗時のHOOK_INTEGRITY_ERROR）から来るためBLOCK群と同じ断定はできないが、
-    # 分類不能群のように「マージ操作ではない可能性が高い」とも言えない。
+    if reason in _EXTERNAL_INTERNAL_ERROR_REASONS:
+        # 外部要因・内部エラー群（マージ操作と分類はできたが、安全確認自体が完了できなかった）。
+        # マージ操作と分類できた経路（BLOCK/ERROR双方が通る evaluate_merge_operation・
+        # append_decision失敗時のHOOK_INTEGRITY_ERROR）から来るためBLOCK群と同じ断定はできないが、
+        # 分類不能群のように「マージ操作ではない可能性が高い」とも言えない。
+        return (
+            f"{header}{detail_part} "
+            "マージ操作と判定されましたが、安全確認自体を完了できませんでした。"
+            "元のmerge操作は送信しません。API到達性やhookの状態を確認のうえ再実行してください。"
+        )
+    # 3群のいずれにも属さない未知reason（policy改訂の取りこぼし等）。ここへ到達するcodeは
+    # docs/methods/blocker-gate-pre-use-policy.md §10.2に実装が追従できていないことを意味する。
+    # マージ操作かどうか自体を断定できないため、BLOCK群・外部要因群のような「マージ操作と
+    # 判定された」という表現を使わない（分類不能群と同じ理由でIssue #457のharmが再発するのを
+    # 防ぐ・F-457-01）。
     return (
         f"{header}{detail_part} "
-        "マージ操作と判定されましたが、安全確認自体を完了できませんでした。"
-        "元のmerge操作は送信しません。API到達性やhookの状態を確認のうえ再実行してください。"
+        "reason codeが既知の3群（BLOCK群／分類不能群／外部要因・内部エラー群）のいずれにも"
+        "一致しませんでした。マージ操作かどうかを断定できないため、念のため元の操作は"
+        "送信しません。pr_merge_gate側の実装がpolicy改訂に追従できていない可能性があるため、"
+        "docs/methods/blocker-gate-pre-use-policy.md §10.2 と pr_merge_gate/hook.py の対応を"
+        "確認してください。"
     )
 
 
@@ -345,9 +390,11 @@ def post_run(
         # 原因を切り分けられず、報告を受けても再現なしには特定できなかった。
         code = exc.reason if isinstance(exc, AuditError) else "PAYLOAD_INVALID"
         detail = _POST_AUDIT_REASON_DETAILS.get(code)
-        detail_part = f" {detail}" if detail else ""
+        # detail不在時は末尾に裸のセミコロンを残さない（現行9codeは全件detailがあり
+        # 到達不能だが、将来codeが増えてdetail未整備のまま追加された場合に備える・F-457-02）。
+        detail_part = f"; {detail}" if detail else ""
         reason = (
-            "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + code + ";" + detail_part
+            "Codex AI agent PR merge gate: POST_AUDIT_INTEGRITY_ERROR/" + code + detail_part
         )
         json.dump({"decision": "block", "reason": reason}, stdout, ensure_ascii=False)
         stdout.write("\n")

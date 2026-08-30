@@ -121,9 +121,17 @@ Bashコマンドまで一律で止まる。auditが実際に危険な状態な�
 | BLOCK群 | `OPEN_BLOCKER`、`CLOSURE_OPEN_DESCENDANT`、`TARGET_ISSUE_NOT_OPEN`、`PR_NOT_OPEN`、`PR_DRAFT`、`AUTO_MERGE_DENIED` | マージ操作と分類され、ポリシー上ブロックされた。「元のmerge操作は送信しません」は事実として述べ、reason別の状況説明を添える |
 | 分類不能群 | `CLASSIFIER_UNKNOWN`、`TARGET_AMBIGUOUS`、`MODE_MISMATCH` | マージ操作かどうか自体を確認できず、念のため見送った（マージ操作ではない可能性が高い）。「元のmerge操作は送信しません」のような断定表現は使わず、マージ操作でない場合の代替手段（コマンドの単純化・`python3 -m gitgate` 経由）を案内する |
 | 外部要因・内部エラー群 | 上記2群以外のERROR reason（`API_UNAVAILABLE`・`API_PERMISSION`・`GRAPH_CYCLE`・`WAIVER_INVALID`・`HOOK_INTEGRITY_ERROR`等） | マージ操作と分類はできたが、安全確認自体が完了できなかった。reason別の失敗理由を添えて再実行を案内する |
+| （3群のいずれにも属さない未知reason） | policy改訂で新規追加されたが実装の3群へ未反映のcode等 | マージ操作かどうかを断定できないため、BLOCK群・外部要因群のような「マージ操作と判定されました」という表現は使わない。実装側のreason code分類を見直すよう案内する |
 
 reason別の一言説明は `pr_merge_gate/hook.py::_REASON_DETAILS` を正本とする（本表は群の対応
-関係だけを示す）。
+関係だけを示す）。3群は `_BLOCK_REASONS`・`_UNCLASSIFIED_REASONS`・
+`_EXTERNAL_INTERNAL_ERROR_REASONS` の3つのfrozensetとして明示的に定義されており（暗黙のelse
+による分類はしない）、`docs/methods/blocker-gate-pre-use-policy.md` §10.2のBLOCK/ERROR全codeが
+この3群のいずれかにちょうど1回現れることを
+`tests/unit/test_pr_merge_hook.py::test_all_policy_reason_codes_are_classified_into_exactly_one_group`
+がpolicy本文と突合してfail-closeに検知する（Issue #457 F-457-01。policy改訂への追従漏れで、
+反映されていない新規codeが黙って外部要因・内部エラー群へ落ち「マージ操作と判定されました」と
+誤断定するのを防ぐ）。
 
 ### PostToolUse失敗のreason code（Issue #414）
 
