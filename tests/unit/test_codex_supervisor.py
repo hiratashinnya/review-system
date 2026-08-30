@@ -354,7 +354,13 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
 
             if completed.returncode != 0 and "Operation not permitted" in completed.stderr:
                 self.skipTest("kernel does not permit unprivileged bubblewrap namespaces")
-            validate_probe_result(completed.stdout, completed.returncode)
+            try:
+                validate_probe_result(completed.stdout, completed.returncode)
+            except CodexSupervisorError as exc:
+                self.fail(
+                    f"sandbox probe failed: {exc}; stdout={completed.stdout!r}; "
+                    f"stderr={completed.stderr!r}"
+                )
             self.assertFalse((main / ".supervisor-probe").exists())
             self.assertFalse((workspace / ".supervisor-probe").exists())
 
