@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pr_merge_gate.classifier import MergeOperation, PreUseClassification, classify_pre_use
-from pr_merge_gate.hook import post_run, run
+from pr_merge_gate.hook import _reason, post_run, run
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -734,6 +734,62 @@ class HookTest(unittest.TestCase):
                 record = json.loads(audit.read_text(encoding="utf-8"))
                 self.assertEqual(record["hook_event_id"], "tool-probe")
                 self.assertTrue(record["hook_asset_hash"].startswith("sha256:"))
+
+    def test_reason_block_group_states_the_merge_was_denied(self):
+        """BLOCK群はマージ操作と分類済みなので「元のmerge操作は送信しません」は事実（Issue #457）。"""
+        evidence = {"result": "BLOCK", "reason": "OPEN_BLOCKER", "policy_version": "1.2"}
+        message = _reason(evidence)
+        self.assertIn("BLOCK/OPEN_BLOCKER", message)
+        self.assertIn("元のmerge操作は送信しません", message)
+        self.assertIn("未解決の依存Issue", message)
+
+    def test_reason_unclassified_group_does_not_assert_it_was_a_merge_operation(self):
+        """分類不能群（CLASSIFIER_UNKNOWN等）はマージ操作だったと断定しない（Issue #457 AC）。
+
+        「元のmerge操作は送信しません」のような断定表現を含めない——実態は
+        「マージ操作かどうか確認できなかったため念のため見送った」であり、対象操作は
+        マージ操作ではない可能性が高い（例: 通常の `git commit` 等が誤って
+        `ERROR/CLASSIFIER_UNKNOWN` で止められるケース）。
+        """
+        for reason in ("CLASSIFIER_UNKNOWN", "TARGET_AMBIGUOUS", "MODE_MISMATCH"):
+            with self.subTest(reason=reason):
+                evidence = {"result": "ERROR", "reason": reason, "policy_version": "1.2"}
+                message = _reason(evidence)
+                self.assertNotIn("元のmerge操作は送信しません", message)
+                self.assertIn("マージ操作と断定できなかった", message)
+                self.assertIn("gitgate", message)
+
+    def test_reason_external_error_group_states_classification_succeeded_but_check_failed(self):
+        """外部要因・内部エラー群はマージ操作と分類できたが安全確認が完了できなかった旨を出す（Issue #457）。"""
+        for reason, expected_detail in (
+            ("API_UNAVAILABLE", "GitHub APIへの到達に失敗しました"),
+            ("HOOK_INTEGRITY_ERROR", "内部整合性チェックに失敗しました"),
+        ):
+            with self.subTest(reason=reason):
+                evidence = {"result": "ERROR", "reason": reason, "policy_version": "1.2"}
+                message = _reason(evidence)
+                self.assertIn(
+                    "マージ操作と判定されましたが、安全確認自体を完了できませんでした", message
+                )
+                self.assertIn(expected_detail, message)
+
+    def test_post_audit_integrity_error_message_includes_reason_code_meaning(self):
+        """POST_AUDIT_INTEGRITY_ERROR/<code> がdocs記載の意味を要約して含む（Issue #457）。"""
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "audit.jsonl"
+            payload = self.connector_payload("PostToolUse")
+            payload["tool_response"] = {"merged": True}
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            post_run(
+                stdin=io.StringIO(json.dumps(payload)), stdout=stdout,
+                stderr=stderr, audit_file=target,
+            )
+            decision = json.loads(stdout.getvalue())
+
+        self.assertIn("POST_AUDIT_INTEGRITY_ERROR/PERMIT_MISSING", decision["reason"])
+        self.assertIn("対応するpre-use permitレコードが見つかりません", decision["reason"])
+        self.assertIn("対応するpre-use permitレコードが見つかりません", stderr.getvalue())
 
 
 if __name__ == "__main__":
