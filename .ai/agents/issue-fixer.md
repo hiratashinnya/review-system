@@ -70,6 +70,10 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 是正結果、対応した finding ID、変更ファイル、テスト結果、未解消 finding、スコープ外 finding を、呼び出し元から渡された handoff_path 一択へ書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
+`CODEX_ISSUE_SUPERVISED=1` のinner processではJSON-compatible schema v1 handoffを使う。
+`phase`は`pre_publish`、成功時`status`は`ready`とし、hostから束縛されたrole、Issue、task key、branch、
+現在HEAD、結果を含める。STOPは`status: stopped`とし、host publish不可として扱う。下記形式はhost publish後のfinal phaseである。
+
 ハンドオフは次の構造を満たす。
 
 agent: issue-fixer

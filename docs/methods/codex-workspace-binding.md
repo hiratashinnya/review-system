@@ -44,16 +44,22 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
 別 `codex exec` processを起動し、次の二段境界を適用する。
 
 - 外側bubblewrap: `/`、main checkout、共通Git領域をread-only、対象worktreeだけwriteable、`/tmp`をprivate
-  tmpfs、network namespaceをunshareする。Python/Codexの起動に必要なOS entropyは`/dev/urandom`だけを
+  tmpfsにする。Codex制御processのAPI通信は維持し、model生成toolのdata-plane networkは内側の
+  `network_access=false`、web/apps無効化、禁止event監視で別に拒否する。Python/Codexの起動に必要なOS entropyは`/dev/urandom`だけを
   `--dev-bind`した直後に`--remount-ro`し、`--dev /dev`でdevice集合やwrite範囲を広げない。通常の
   `--ro-bind`はnested user namespaceでdevice accessを保証しないため採用しない。
 - 内側Codex: `workspace-write`、approval `never`、user config無視、web search disabled、shell network false、
-  multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。
+  multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。hostは
+  protected role wrapperを起動前に読み、固定developer instructionsと`CODEX_ISSUE_ROLE`へ束縛する。common本文の
+  loader指示もこのtrusted wrapperから与え、task promptをrole identityとして採用しない。
 - `.git`、`.codex/**`、`.agents/**` は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な
   場合はinner processがstagingへschema v1 patchを出し、hostがowner-approved exact path、base SHA-256、
   path traversal、symlink、件数・サイズを検証してatomic applyする。
 - inner processは編集・テスト・handoffだけを行う。commit/push/PRはexit後にhostがrole別allowlistと既存
   `gitgate`を通して行い、implementer/fixerにmergeを許可しない。
+
+inner handoffはJSON-compatible schema v1の`pre_publish` phaseとし、ready、role、Issue、task key、branch、
+現在HEAD、resultをhostが完全照合する。STOP、任意の非空file、host publish後のfinal handoffとは区別する。
 
 Codex公式のnon-interactive契約に従い、stdout JSONLの`thread.started`を1件だけ受理する。supervisorは
 OS PIDと`/proc/<pid>/stat`のprocess start tokenを先に記録し、同一attemptの`thread.started`を観測してから
@@ -71,7 +77,10 @@ task・repository・workspace・branch・OID・handoff・role・roundの場合�
 
 supervisor自身がtrusted start observerとなり、actual thread ID、workspace、PID/start tokenを同時に記録して
 identityを1度だけ`running`へbindする。resumeはrole/workspace/thread一致を必須とし、stale threadを拒否する。
-成功handoffだけをcollect/releaseへ渡す。
+成功handoffだけをcollect/releaseへ渡す。start/resumeはledger lock下でattemptを予約し、active PID/start token
+または有効leaseがある二重起動を拒否する。resumeは最新eventが同一threadの未消費`paused_rate_limit`の場合だけ
+許可する。CLIの`run`/`resume`がこの入口を呼び、`publish`は最新success、handoff、fresh Git facts、role allowlistを
+再検証して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
 
 ## 却下案
 
@@ -90,7 +99,9 @@ ledger は暗号学的署名ではなく、main worktree のファイル境界�
 信頼境界にする。inner Codexはworktree内容を変更できるためhandoffやpatch内容自体は信頼せず、hostがpath、digest、
 Git factsを再検証する。bubblewrap/user namespaceが利用できないhostでは保護を弱めて起動せず、P1 probeをfail-closeする。
 Codex API通信自体はmodel利用に必要だが、model-generated shellのnetworkとweb searchは別に無効化する。
-P1のwrite/network probe payloadはcoverageやvenvのruntime差を混ぜない固定`/usr/bin/python3`を使う。実Codex runtimeは
+P1のwrite/network probe payloadはcoverageやvenvのruntime差を混ぜない固定`/usr/bin/python3`を使う。host `/tmp`
+sentinelの不可視性とhost local listenerへの到達不能を測り、各isolationを個別に外したnegative controlが必ず失敗する
+ことも確認する。実Codex runtimeは
 同じouter commandの`codex --version`をmodel無呼出で起動し、device/mount構造testと分けて確認する。
 
 ## bootstrap PR の finding 方針

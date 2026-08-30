@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 3
+version: 4
 condition: boundary
 ---
 
@@ -41,7 +41,16 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     command順序の契約で確認する。payloadは固定`/usr/bin/python3`を使ってcoverage/venv差を除外し、同じouter
     sandbox内の`codex --version`も利用可能なhostでmodel無呼出確認する。
 11. protected patchはowner-approved exact path、schema、base SHA-256、path traversal/symlink/sizeをhostが
-    検証し、apply直前にもdigestを再確認することを確認する。
+    検証し、apply直前にもdigestを再確認し、既存permission bitsを保持することを確認する。
+12. Codex API control-planeはouter network namespaceで遮断せず、inner tool data-planeはCodex sandbox設定で
+    拒否する。protected role wrapperがdeveloper instructionsへ固定され、task promptのrole差替えを採用しない。
+13. handoffはschema v1のpre-publish ready/STOP/finalを分離し、role/Issue/task/branch/HEAD/resultを照合する。
+    active attempt reservationを並行start/resumeで競合させ、最新の未消費rate-limit pauseだけresume可能とする。
+14. process token、spawn ledger callback、stdin初期化の例外でchildをkill/waitし、process identity未観測時は
+    bindingをopenのまま保つ。P1はhost tmp sentinel/local listenerを使い、各isolationを外したnegative controlが
+    必ず失敗することを確認する。
+15. CLI run/resumeからPopen直前まで、fake successからpublish dry-runまで到達し、最新success、handoff、fresh
+    Git facts、role allowlistを満たす固定gitgate/gh executor以外を拒否する。
 
 # 期待結果
 
@@ -54,3 +63,4 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - `collaboration.spawn_agent`はunavailableのまま、別process supervisorだけがCodex実装roleの正規経路となる。
 - JSONL、process、Git facts、handoffの一つでも不正なら成功にせず、回収可能な非終端ledger entryを保持する。
 - inner processはcommit/push/PR/mergeを持たず、host publish allowlistがimplementerとfixerの非対称を維持する。
+- start/resumeは一意attemptへ直列化され、pre-publish handoffからhost publish後finalへのphase遷移が監査できる。

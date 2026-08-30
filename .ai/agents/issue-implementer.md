@@ -43,6 +43,11 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
+`CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
+JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
+hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果を含める。STOPは`status: stopped`とし、
+hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish完了後のfinal phaseであり、inner成功証跡に流用しない。
+
 agent: issue-implementer
 status: pr_opened
 issue: Issue番号

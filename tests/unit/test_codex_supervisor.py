@@ -1,11 +1,14 @@
 import base64
 import hashlib
+import io
 import json
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -15,9 +18,14 @@ from issue_start.codex_supervisor import (
     CodexSupervisorError,
     ProcessResult,
     SupervisorSpec,
+    SubprocessJsonlRunner,
+    _reserve_attempt,
     apply_protected_patch,
     build_codex_command,
+    build_parser,
     build_sandbox_probe_command,
+    execute_publish_action,
+    execute_sandbox_probe,
     publish_allowlist,
     run_supervised,
     validate_protected_patch,
@@ -91,8 +99,17 @@ class CodexSupervisorTests(unittest.TestCase):
         git(self.main, "remote", "add", "origin", "https://github.com/example/repo.git")
         (self.main / ".codex").mkdir()
         (self.main / ".agents").mkdir()
+        (self.main / ".ai" / "agents").mkdir(parents=True)
+        (self.main / ".codex" / "agents").mkdir()
         (self.main / ".codex" / "seed").write_text("seed\n", encoding="utf-8")
         (self.main / ".agents" / "seed").write_text("seed\n", encoding="utf-8")
+        (self.main / ".ai" / "agents" / "issue-implementer.md").write_text(
+            "Common implementer contract.\n", encoding="utf-8"
+        )
+        (self.main / ".codex" / "agents" / "issue-implementer.toml").write_text(
+            'name = "issue-implementer"\ndeveloper_instructions = "Trusted wrapper."\n',
+            encoding="utf-8",
+        )
         (self.main / "seed.txt").write_text("seed\n", encoding="utf-8")
         git(self.main, "add", ".")
         git(self.main, "commit", "-m", "seed")
@@ -133,7 +150,17 @@ class CodexSupervisorTests(unittest.TestCase):
     def handoff_file(self):
         target = self.workspace / self.handoff
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("status: ready\n", encoding="utf-8")
+        target.write_text(json.dumps({
+            "schema_version": 1,
+            "phase": "pre_publish",
+            "status": "ready",
+            "role": "issue-implementer",
+            "issue": 10,
+            "task_key": self.task_key,
+            "branch": "codex/issue-10",
+            "head_oid": git(self.workspace, "rev-parse", "HEAD"),
+            "result": {"summary": "ready"},
+        }), encoding="utf-8")
 
     def run_supervisor(self, runner, **overrides):
         values = {
@@ -176,16 +203,16 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(entry["status"], "running")
         self.assertEqual(entry["agent_id"], "thread-10")
         states = [attempt["state"] for attempt in entry["supervisor_attempts"]]
-        self.assertEqual(states, ["spawned", "running", "succeeded"])
-        self.assertEqual(entry["supervisor_attempts"][0]["pid"], 4242)
-        self.assertEqual(entry["supervisor_attempts"][0]["process_start_token"], "123456")
+        self.assertEqual(states, ["reserved", "spawned", "running", "succeeded"])
+        self.assertEqual(entry["supervisor_attempts"][1]["pid"], 4242)
+        self.assertEqual(entry["supervisor_attempts"][1]["process_start_token"], "123456")
 
     def test_command_pins_model_reasoning_sandbox_and_disabled_capabilities(self):
         command = build_codex_command(
             self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
         )
         joined = " ".join(command)
-        self.assertIn("--unshare-net", command)
+        self.assertNotIn("--unshare-net", command)
         self.assertIn("--sandbox workspace-write", joined)
         self.assertIn("--ask-for-approval never", joined)
         self.assertIn("--ignore-user-config", command)
@@ -196,6 +223,8 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("sandbox_workspace_write.network_access=false", command)
         self.assertIn("agents.enabled=false", command)
         self.assertIn("features.multi_agent=false", command)
+        self.assertIn("developer_instructions=", joined)
+        self.assertIn("CODEX_ISSUE_ROLE", command)
         random_device = command.index("/dev/urandom")
         self.assertEqual(command[random_device - 1], "--dev-bind")
         self.assertEqual(command[random_device + 1], "/dev/urandom")
@@ -294,6 +323,96 @@ class CodexSupervisorTests(unittest.TestCase):
             "CODEX_SUPERVISOR_PROCESS_IDENTITY_MISSING",
             FakeRunner(self.success_lines(), announce_process=False),
         )
+        entry = self.entry()
+        self.assertEqual(entry["status"], "open")
+        self.assertIsNone(entry["agent_id"])
+        self.assertIsNone(entry["bound_at"])
+        self.assertNotIn("running", [item["state"] for item in entry["supervisor_attempts"]])
+
+    def test_attempt_reservation_denies_parallel_start(self):
+        _reserve_attempt(self.spec, now=NOW + timedelta(seconds=1), resume_thread=None)
+        with self.assertRaisesRegex(CodexSupervisorError, "ATTEMPT_ACTIVE"):
+            _reserve_attempt(self.spec, now=NOW + timedelta(seconds=2), resume_thread=None)
+
+    def test_runner_kills_and_waits_when_post_popen_initialization_fails(self):
+        class Process:
+            pid = 999999
+            stdin = io.StringIO()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            waited = False
+
+            def poll(self):
+                return None
+
+            def wait(self):
+                self.waited = True
+                return -9
+
+        process = Process()
+        runner = SubprocessJsonlRunner(popen=lambda *args, **kwargs: process)
+        with mock.patch(
+            "issue_start.codex_supervisor._process_start_token",
+            side_effect=CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_TOKEN_UNAVAILABLE"),
+        ), mock.patch("issue_start.codex_supervisor.os.killpg") as killpg:
+            with self.assertRaisesRegex(CodexSupervisorError, "TOKEN_UNAVAILABLE"):
+                runner(
+                    ("ignored",), cwd=self.workspace, env={}, prompt="task", timeout_seconds=1,
+                    on_process_started=lambda pid, token: None,
+                    on_stdout_line=lambda line: None,
+                )
+        killpg.assert_called_once_with(process.pid, 9)
+        self.assertTrue(process.waited)
+
+    def test_runner_cleans_up_when_process_started_callback_fails(self):
+        class Process:
+            pid = 999998
+            stdin = io.StringIO()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            waited = False
+
+            def poll(self):
+                return None
+
+            def wait(self):
+                self.waited = True
+                return -9
+
+        process = Process()
+        runner = SubprocessJsonlRunner(popen=lambda *args, **kwargs: process)
+        with mock.patch(
+            "issue_start.codex_supervisor._process_start_token", return_value="123"
+        ), mock.patch("issue_start.codex_supervisor.os.killpg") as killpg:
+            with self.assertRaisesRegex(CodexSupervisorError, "LEDGER_WRITE"):
+                runner(
+                    ("ignored",), cwd=self.workspace, env={}, prompt="task", timeout_seconds=1,
+                    on_process_started=lambda pid, token: (_ for _ in ()).throw(
+                        CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_WRITE")
+                    ),
+                    on_stdout_line=lambda line: None,
+                )
+        killpg.assert_called_once_with(process.pid, 9)
+        self.assertTrue(process.waited)
+
+    def test_resume_requires_latest_unconsumed_rate_limit_pause(self):
+        paused = FakeRunner([
+            json.dumps({"type": "thread.started", "thread_id": "thread-10"}),
+            json.dumps({"type": "error", "message": "rate limit exceeded"}),
+        ], exit_code=1)
+        self.run_supervisor(paused)
+        self.handoff_file()
+        self.run_supervisor(
+            FakeRunner(self.success_lines()),
+            now=NOW + timedelta(seconds=2),
+            resume_thread="thread-10",
+        )
+        self.assert_reason(
+            "CODEX_SUPERVISOR_RESUME_STATE_INVALID",
+            FakeRunner(self.success_lines()),
+            now=NOW + timedelta(seconds=3),
+            resume_thread="thread-10",
+        )
 
     def test_handoff_symlink_is_rejected(self):
         target = self.workspace / "actual.yaml"
@@ -306,6 +425,38 @@ class CodexSupervisorTests(unittest.TestCase):
             "CODEX_BINDING_HANDOFF_SYMLINK", FakeRunner(self.success_lines())
         )
 
+    def test_handoff_requires_pre_publish_schema_and_matching_role(self):
+        self.handoff_file()
+        target = self.workspace / self.handoff
+        document = json.loads(target.read_text(encoding="utf-8"))
+        document["role"] = "issue-fixer"
+        target.write_text(json.dumps(document), encoding="utf-8")
+        self.assert_reason(
+            "CODEX_SUPERVISOR_HANDOFF_BINDING_MISMATCH",
+            FakeRunner(self.success_lines()),
+        )
+
+    def test_stopped_handoff_never_authorizes_success(self):
+        self.handoff_file()
+        target = self.workspace / self.handoff
+        document = json.loads(target.read_text(encoding="utf-8"))
+        document["status"] = "stopped"
+        target.write_text(json.dumps(document), encoding="utf-8")
+        self.assert_reason(
+            "CODEX_SUPERVISOR_HANDOFF_STOPPED",
+            FakeRunner(self.success_lines()),
+        )
+
+    def test_role_contract_name_must_match_bound_role(self):
+        wrapper = self.workspace / ".codex/agents/issue-implementer.toml"
+        wrapper.write_text(
+            'name = "issue-fixer"\ndeveloper_instructions = "wrong"\n', encoding="utf-8"
+        )
+        with self.assertRaisesRegex(CodexSupervisorError, "ROLE_CONTRACT_MISMATCH"):
+            build_codex_command(
+                self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+
     def test_publish_allowlist_preserves_role_asymmetry_and_merge_denial(self):
         implementer = publish_allowlist("issue-implementer")
         fixer = publish_allowlist("issue-fixer")
@@ -314,6 +465,60 @@ class CodexSupervisorTests(unittest.TestCase):
         for actions in (implementer, fixer):
             self.assertNotIn("git.merge", actions)
             self.assertNotIn("gh.pr.merge", actions)
+
+    def test_cli_exposes_run_resume_and_publish_executors(self):
+        parser = build_parser()
+        common = [
+            "--repo-root", str(self.workspace), "--workspace", str(self.workspace),
+            "--role", "issue-implementer", "--task-key", self.task_key,
+            "--handoff-path", self.handoff,
+        ]
+        run = parser.parse_args([
+            "run", *common, "--prompt-file", "prompt.txt",
+            "--bwrap", str(self.bwrap), "--codex", str(self.codex),
+        ])
+        resume = parser.parse_args([
+            "resume", *common, "--prompt-file", "prompt.txt",
+            "--bwrap", str(self.bwrap), "--codex", str(self.codex),
+            "--thread", "thread-10",
+        ])
+        publish = parser.parse_args([
+            "publish", *common, "--action", "gitgate.push",
+        ])
+        self.assertEqual((run.command, resume.thread, publish.action),
+                         ("run", "thread-10", "gitgate.push"))
+
+    def test_publish_executor_requires_success_and_routes_through_gitgate(self):
+        self.handoff_file()
+        self.run_supervisor(FakeRunner(self.success_lines()))
+        calls = []
+
+        def publish_runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return subprocess.CompletedProcess(command, 0, "pushed\n", "")
+
+        result = execute_publish_action(
+            self.spec, action="gitgate.push", action_args=(), runner=publish_runner
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(calls[0][0][-3:], ["-m", "gitgate", "push"])
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_ACTION_DENIED"):
+            execute_publish_action(
+                self.spec, action="gh.pr.merge", action_args=(), runner=publish_runner
+            )
+
+        body = self.workspace / "tmp/pr-body.md"
+        body.parent.mkdir(exist_ok=True)
+        body.write_text("body\n", encoding="utf-8")
+        with mock.patch("issue_start.codex_supervisor.shutil.which", return_value="/usr/bin/gh"):
+            execute_publish_action(
+                self.spec,
+                action="gh.pr.create",
+                action_args=("title", str(body), "main"),
+                runner=publish_runner,
+            )
+        final = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
+        self.assertEqual((final["phase"], final["status"]), ("final", "pr_opened"))
 
     def test_probe_validator_requires_exact_boundary_result(self):
         expected = {
@@ -392,6 +597,28 @@ class CodexSupervisorTests(unittest.TestCase):
         with self.assertRaisesRegex(CodexSupervisorError, "PATCH_TARGET_CHANGED"):
             apply_protected_patch(self.workspace, operations)
 
+    def test_protected_patch_preserves_executable_mode(self):
+        relative = ".codex/seed"
+        target = self.workspace / relative
+        target.chmod(0o751)
+        original = target.read_bytes()
+        operations = validate_protected_patch(
+            self.workspace,
+            {
+                "schema_version": 1,
+                "role": "issue-implementer",
+                "operations": [{
+                    "path": relative,
+                    "base_sha256": hashlib.sha256(original).hexdigest(),
+                    "content_base64": base64.b64encode(b"updated\n").decode("ascii"),
+                }],
+            },
+            role="issue-implementer",
+            allowed_paths={relative},
+        )
+        apply_protected_patch(self.workspace, operations)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o751)
+
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):
     def test_model_free_probe_allows_only_worktree_and_private_tmp(self):
@@ -411,6 +638,11 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             git(main, "config", "user.name", "Sandbox Probe")
             (main / ".codex").mkdir()
             (main / ".agents").mkdir()
+            (main / ".codex" / "agents").mkdir()
+            (main / ".codex" / "agents" / "issue-implementer.toml").write_text(
+                'name = "issue-implementer"\ndeveloper_instructions = "Trusted wrapper."\n',
+                encoding="utf-8",
+            )
             (main / ".codex" / "seed").write_text("seed\n", encoding="utf-8")
             (main / ".agents" / "seed").write_text("seed\n", encoding="utf-8")
             (main / "seed.txt").write_text("seed\n", encoding="utf-8")
@@ -419,8 +651,19 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             workspace = main / ".worktrees" / "probe"
             workspace.parent.mkdir()
             git(main, "worktree", "add", "-b", "probe", str(workspace), "HEAD")
+            sentinel = Path("/tmp") / f"codex-probe-test-{os.getpid()}"
+            sentinel.write_text("control", encoding="utf-8")
+            self.addCleanup(sentinel.unlink, missing_ok=True)
+            try:
+                listener = socket.socket()
+            except PermissionError:
+                self.skipTest("test sandbox does not permit local control sockets")
+            self.addCleanup(listener.close)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(4)
             command = build_sandbox_probe_command(
-                workspace, bwrap_executable=bwrap, python_executable=system_python
+                workspace, bwrap_executable=bwrap, python_executable=system_python,
+                host_tmp_sentinel=sentinel, control_port=listener.getsockname()[1],
             )
             random_device = command.index("/dev/urandom")
             self.assertEqual(command[random_device - 1], "--dev-bind")
@@ -430,6 +673,19 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 ("--remount-ro", "/dev/urandom"),
             )
             self.assertNotIn("--dev", command)
+
+            no_network_isolation = build_sandbox_probe_command(
+                workspace, bwrap_executable=bwrap, python_executable=system_python,
+                host_tmp_sentinel=sentinel, control_port=listener.getsockname()[1],
+                isolate_network=False,
+            )
+            no_tmp_isolation = build_sandbox_probe_command(
+                workspace, bwrap_executable=bwrap, python_executable=system_python,
+                host_tmp_sentinel=sentinel, control_port=listener.getsockname()[1],
+                isolate_tmp=False,
+            )
+            self.assertNotIn("--unshare-net", no_network_isolation)
+            self.assertNotIn("--tmpfs", no_tmp_isolation)
 
             completed = subprocess.run(
                 command, cwd=workspace, capture_output=True, text=True, timeout=15
@@ -446,6 +702,11 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 )
             self.assertFalse((main / ".supervisor-probe").exists())
             self.assertFalse((workspace / ".supervisor-probe").exists())
+
+            listener.close()
+            execute_sandbox_probe(
+                workspace, bwrap_executable=bwrap, python_executable=system_python
+            )
 
             codex = shutil.which("codex")
             if codex is not None:
