@@ -45,7 +45,8 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
 
 - 外側bubblewrap: `/`、main checkout、共通Git領域をread-only、対象worktreeだけwriteable、`/tmp`をprivate
   tmpfs、network namespaceをunshareする。Python/Codexの起動に必要なOS entropyは`/dev/urandom`だけを
-  read-onlyで明示bindし、`--dev`や`--dev-bind`でdevice write範囲を広げない。
+  `--dev-bind`した直後に`--remount-ro`し、`--dev /dev`でdevice集合やwrite範囲を広げない。通常の
+  `--ro-bind`はnested user namespaceでdevice accessを保証しないため採用しない。
 - 内側Codex: `workspace-write`、approval `never`、user config無視、web search disabled、shell network false、
   multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。
 - `.git`、`.codex/**`、`.agents/**` は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な

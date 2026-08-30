@@ -198,10 +198,10 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("agents.enabled=false", command)
         self.assertIn("features.multi_agent=false", command)
         random_device = command.index("/dev/urandom")
-        self.assertEqual(command[random_device - 1], "--ro-bind")
+        self.assertEqual(command[random_device - 1], "--dev-bind")
         self.assertEqual(command[random_device + 1], "/dev/urandom")
+        self.assertEqual(command[random_device + 2 : random_device + 4], ("--remount-ro", "/dev/urandom"))
         self.assertNotIn("--dev", command)
-        self.assertNotIn("--dev-bind", command)
         for protected in (".git", ".codex", ".agents"):
             target = str(self.workspace / protected)
             index = command.index(target)
@@ -421,10 +421,13 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 workspace, bwrap_executable=bwrap, python_executable=sys.executable
             )
             random_device = command.index("/dev/urandom")
-            self.assertEqual(command[random_device - 1], "--ro-bind")
+            self.assertEqual(command[random_device - 1], "--dev-bind")
             self.assertEqual(command[random_device + 1], "/dev/urandom")
+            self.assertEqual(
+                command[random_device + 2 : random_device + 4],
+                ("--remount-ro", "/dev/urandom"),
+            )
             self.assertNotIn("--dev", command)
-            self.assertNotIn("--dev-bind", command)
 
             completed = subprocess.run(
                 command, cwd=workspace, capture_output=True, text=True, timeout=15

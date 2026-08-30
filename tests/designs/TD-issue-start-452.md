@@ -37,7 +37,8 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 9. rate limit後のresume commandが同じrole/model/reasoning/thread/worktreeを維持することを確認する。
 10. modelを呼ばないP1 bubblewrap probeで、対象worktreeだけwrite可、main/共通Git/`.codex`/`.agents`は
     write不可、`/tmp`はprivate、shell network不可であることをhost側実測する。Python起動に必要な
-    `/dev/urandom`だけをread-only bindし、device write範囲を追加しないこともcommand契約で確認する。
+    `/dev/urandom`だけを`--dev-bind`直後に`--remount-ro`し、device集合やwrite範囲を追加しないことも
+    command順序の契約で確認する。
 11. protected patchはowner-approved exact path、schema、base SHA-256、path traversal/symlink/sizeをhostが
     検証し、apply直前にもdigestを再確認することを確認する。
 

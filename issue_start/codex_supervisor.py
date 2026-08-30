@@ -332,7 +332,8 @@ def build_codex_command(
     return tuple([
         bwrap, "--die-with-parent", "--new-session", "--unshare-net",
         "--ro-bind", "/", "/", "--bind", str(workspace), str(workspace),
-        "--ro-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
+        "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
+        "--remount-ro", _RANDOM_DEVICE,
         *protected, "--tmpfs", "/tmp", "--setenv", "TMPDIR", "/tmp",
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
         "--", *inner,
@@ -372,7 +373,8 @@ def build_sandbox_probe_command(
     return tuple([
         bwrap, "--die-with-parent", "--new-session", "--unshare-net",
         "--ro-bind", "/", "/", "--bind", str(root), str(root),
-        "--ro-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
+        "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
+        "--remount-ro", _RANDOM_DEVICE,
         "--ro-bind", str(root / ".git"), str(root / ".git"),
         "--ro-bind", str(root / ".codex"), str(root / ".codex"),
         "--ro-bind", str(root / ".agents"), str(root / ".agents"),
