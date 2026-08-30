@@ -38,8 +38,19 @@ _HAS_BASH = shutil.which("bash") is not None
 #   "You've hit your session limit · resets 10:50pm (Asia/Tokyo)"
 REAL_BANNER_EXAMPLE = "You've hit your session limit · resets 10:50pm (Asia/Tokyo)"
 
+# Real credits/usage-limit banner text reported by the owner (ChatGPT-plan
+# usage cap, distinct wording from the session-limit banner above; wraps
+# across multiple terminal lines as Codex actually renders it):
+CREDITS_BANNER_EXAMPLE = (
+    "You've hit your usage limit. Upgrade to Pro\n"
+    "(https://chatgpt.com/explore/pro), visit\n"
+    "https://chatgpt.com/codex/settings/usage to purchase more credits\n"
+    "or try again at 12:22 PM."
+)
+
 TRUE_POSITIVES = [
     ("real captured banner (PR #66)", REAL_BANNER_EXAMPLE),
+    ("real credits/usage-limit banner (owner report)", CREDITS_BANNER_EXAMPLE),
     ("weekly limit banner", "You've hit your weekly limit · resets Mon"),
     (
         "usage limit + relative try-again",
@@ -226,6 +237,18 @@ class RateLimitBannerRegexTests(unittest.TestCase):
         # the (tightened) banner gate and still yield a parseable reset time.
         self.assertTrue(watcher_text_has_rate_limit_banner(REAL_BANNER_EXAMPLE))
         epoch = watcher_parse_reset_from_text(REAL_BANNER_EXAMPLE).strip()
+        self.assertRegex(epoch, r"^\d+$")
+
+    def test_regression_credits_banner_example_round_trips(self):
+        # The real credits/usage-limit banner text the owner reported must
+        # also pass the AND banner gate and yield a parseable (non-WEEKLY)
+        # reset time from its "try again at 12:22 PM" cue, both for the Stop
+        # hook's own detector and the watcher's independent re-confirmation.
+        self.assertTrue(
+            stop_hook_has_rate_limit_text("", CREDITS_BANNER_EXAMPLE)
+        )
+        self.assertTrue(watcher_text_has_rate_limit_banner(CREDITS_BANNER_EXAMPLE))
+        epoch = watcher_parse_reset_from_text(CREDITS_BANNER_EXAMPLE).strip()
         self.assertRegex(epoch, r"^\d+$")
 
     def test_debounce_fixture_matches_banner_but_has_no_parseable_reset(self):

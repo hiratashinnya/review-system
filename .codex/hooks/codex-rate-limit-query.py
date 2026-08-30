@@ -53,14 +53,22 @@ def _windows(snapshot):
             yield name, win
 
 
-def pick_binding_window(snapshot, now):
+def pick_binding_window(snapshot, now, *, reached):
     """Choose the window whose reset gates recovery.
 
     When a limit is reached, recovery must wait for every *exhausted* window to
     reset, so the binding window is the exhausted one that resets latest. When
-    nothing is exhausted (idle / informational call), fall back to the window
-    with the highest usage that still has a future reset time, so callers can
-    surface a meaningful used-percent/reset even when not limited.
+    reached but no window is exhausted, the cause is not one of primary/
+    secondary (e.g. a workspace credits/usage limit tracked elsewhere in the
+    snapshot) — returning a "most-used future window" here would surface an
+    unrelated window's reset time as if it gated recovery, so the caller must
+    get ``None`` (Issue #456 / F-455-2) and fall back to reading the on-screen
+    banner text instead of guessing.
+
+    When *not* reached (idle / informational call), there is no gating window
+    by definition; fall back to the window with the highest usage that still
+    has a future reset time, so callers can surface a meaningful
+    used-percent/reset even when not limited.
     """
     exhausted = [
         win
@@ -71,6 +79,9 @@ def pick_binding_window(snapshot, now):
     ]
     if exhausted:
         return max(exhausted, key=lambda w: w["resetsAt"])
+
+    if reached:
+        return None
 
     future = [
         win
@@ -97,7 +108,7 @@ def summarize_rate_limits(response, now):
     reached_type = snapshot.get("rateLimitReachedType")
     reached = reached_type is not None
 
-    binding = pick_binding_window(snapshot, now)
+    binding = pick_binding_window(snapshot, now, reached=reached)
     reset_epoch = ""
     window_mins = ""
     used_percent = ""
