@@ -132,7 +132,7 @@ class CodexSupervisorTests(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("status: ready\n", encoding="utf-8")
 
-    def run(self, runner, **overrides):
+    def run_supervisor(self, runner, **overrides):
         values = {
             "spec": self.spec,
             "prompt": "Implement only the assigned work unit.",
@@ -158,14 +158,14 @@ class CodexSupervisorTests(unittest.TestCase):
 
     def assert_reason(self, reason, runner, **overrides):
         with self.assertRaises(CodexSupervisorError) as caught:
-            self.run(runner, **overrides)
+            self.run_supervisor(runner, **overrides)
         self.assertEqual(caught.exception.reason, reason)
 
     def test_success_binds_only_after_process_and_thread_then_records_evidence(self):
         self.handoff_file()
         runner = FakeRunner(self.success_lines())
 
-        result = self.run(runner)
+        result = self.run_supervisor(runner)
 
         self.assertEqual(result.status, "succeeded")
         self.assertEqual(result.thread_id, "thread-10")
@@ -242,7 +242,7 @@ class CodexSupervisorTests(unittest.TestCase):
             json.dumps({"type": "error", "message": "rate limit exceeded"}),
         ], exit_code=1)
 
-        result = self.run(runner)
+        result = self.run_supervisor(runner)
 
         self.assertEqual(result.status, "paused_rate_limit")
         self.assertIsNotNone(result.resume_command)
@@ -258,7 +258,7 @@ class CodexSupervisorTests(unittest.TestCase):
             json.dumps({"type": "thread.started", "thread_id": "thread-10"}),
             json.dumps({"type": "error", "message": "rate limit exceeded"}),
         ], exit_code=1)
-        self.run(first)
+        self.run_supervisor(first)
         second = FakeRunner(self.success_lines("thread-other"))
 
         self.assert_reason(
