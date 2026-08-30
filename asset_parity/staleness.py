@@ -27,9 +27,10 @@ DEFAULT_DAY_THRESHOLD = 30
 DEFAULT_SIZE_RATIO_THRESHOLD = 2.0  # flag if one side has >2x the lines of the other
 
 CommitEpochFn = Callable[[Path, Path], "int | None"]
+_UNSET = object()
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, init=False)
 class StaleSignal:
     parity_seed_epoch: int | None
     mirror_epoch: int | None
@@ -39,6 +40,47 @@ class StaleSignal:
     size_ratio: float | None
     flagged: bool
     flag_reasons: tuple[str, ...]
+
+    def __init__(
+        self,
+        parity_seed_epoch: int | None | object = _UNSET,
+        mirror_epoch: int | None | object = _UNSET,
+        day_gap: float | None | object = _UNSET,
+        parity_seed_lines: int | object = _UNSET,
+        mirror_lines: int | object = _UNSET,
+        size_ratio: float | None | object = _UNSET,
+        flagged: bool | object = _UNSET,
+        flag_reasons: tuple[str, ...] | object = _UNSET,
+        *,
+        canonical_epoch: int | None | object = _UNSET,
+        canonical_lines: int | object = _UNSET,
+    ) -> None:
+        """Accept v2 names and deprecated constructor keywords fail-closed."""
+        resolved_epoch = _resolve_compat_value(
+            "parity_seed_epoch", parity_seed_epoch, "canonical_epoch", canonical_epoch
+        )
+        resolved_lines = _resolve_compat_value(
+            "parity_seed_lines", parity_seed_lines, "canonical_lines", canonical_lines
+        )
+        required = {
+            "mirror_epoch": mirror_epoch,
+            "day_gap": day_gap,
+            "mirror_lines": mirror_lines,
+            "size_ratio": size_ratio,
+            "flagged": flagged,
+            "flag_reasons": flag_reasons,
+        }
+        missing = [name for name, value in required.items() if value is _UNSET]
+        if missing:
+            raise TypeError(f"missing required argument(s): {', '.join(missing)}")
+        object.__setattr__(self, "parity_seed_epoch", resolved_epoch)
+        object.__setattr__(self, "mirror_epoch", mirror_epoch)
+        object.__setattr__(self, "day_gap", day_gap)
+        object.__setattr__(self, "parity_seed_lines", resolved_lines)
+        object.__setattr__(self, "mirror_lines", mirror_lines)
+        object.__setattr__(self, "size_ratio", size_ratio)
+        object.__setattr__(self, "flagged", flagged)
+        object.__setattr__(self, "flag_reasons", flag_reasons)
 
     @property
     def canonical_epoch(self) -> int | None:
@@ -72,6 +114,23 @@ def git_last_commit_epoch(path: Path, root: Path) -> int | None:
     return int(out) if out.isdigit() else None
 
 
+def _resolve_compat_value(
+    primary_name: str,
+    primary_value: object,
+    legacy_name: str,
+    legacy_value: object,
+) -> object:
+    if primary_value is _UNSET and legacy_value is _UNSET:
+        raise TypeError(f"missing required argument: {primary_name}")
+    if (
+        primary_value is not _UNSET
+        and legacy_value is not _UNSET
+        and primary_value != legacy_value
+    ):
+        raise TypeError(f"{primary_name} and {legacy_name} disagree")
+    return legacy_value if primary_value is _UNSET else primary_value
+
+
 def _line_count(path: Path) -> int:
     try:
         return len(path.read_text(encoding="utf-8").splitlines())
@@ -80,14 +139,22 @@ def _line_count(path: Path) -> int:
 
 
 def compare(
-    parity_seed_path: Path,
-    mirror_path: Path,
-    root: Path,
+    parity_seed_path: Path | object = _UNSET,
+    mirror_path: Path | object = _UNSET,
+    root: Path | object = _UNSET,
     *,
+    canonical_path: Path | object = _UNSET,
     day_threshold: int = DEFAULT_DAY_THRESHOLD,
     size_ratio_threshold: float = DEFAULT_SIZE_RATIO_THRESHOLD,
     commit_epoch_fn: CommitEpochFn = git_last_commit_epoch,
 ) -> StaleSignal:
+    parity_seed_path = _resolve_compat_value(
+        "parity_seed_path", parity_seed_path, "canonical_path", canonical_path
+    )
+    if mirror_path is _UNSET:
+        raise TypeError("missing required argument: mirror_path")
+    if root is _UNSET:
+        raise TypeError("missing required argument: root")
     c_epoch = commit_epoch_fn(parity_seed_path, root)
     m_epoch = commit_epoch_fn(mirror_path, root)
     reasons: list[str] = []

@@ -2,7 +2,7 @@
 
 import unittest
 
-from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, scan_canonical, scan_parity_seeds
+from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, Asset, scan_canonical, scan_parity_seeds
 
 from tests.unit.asset_parity_fixtures import make_tree
 
@@ -48,6 +48,29 @@ class TestScanParitySeeds(unittest.TestCase):
         self.assertEqual(legacy_assets, self.assets)
         asset = self.by_name[(SKILL, "plain-skill")]
         self.assertEqual(asset.canonical_path, asset.parity_seed_path)
+
+    def test_deprecated_constructor_keyword_remains_compatible(self):
+        path = self.root / ".claude/agents/example.md"
+        legacy = Asset(name="example", kind=AGENT, mode=None, canonical_path=path)
+        self.assertEqual(legacy.parity_seed_path, path)
+        same = Asset(
+            name="example",
+            kind=AGENT,
+            mode=None,
+            parity_seed_path=path,
+            canonical_path=path,
+        )
+        self.assertEqual(same.parity_seed_path, path)
+
+    def test_conflicting_constructor_names_fail_closed(self):
+        with self.assertRaisesRegex(TypeError, "disagree"):
+            Asset(
+                name="example",
+                kind=AGENT,
+                mode=None,
+                parity_seed_path=self.root / "new.md",
+                canonical_path=self.root / "old.md",
+            )
 
 
 if __name__ == "__main__":

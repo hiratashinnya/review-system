@@ -78,6 +78,11 @@ consumers remain supported during migration: `scan_canonical()`,
 `parity_seed_*` names. New integrations should use the v2 names; the JSON payload
 publishes both names and a `compatibility.deprecated_keys` map.
 
+Legacy keyword calls are also accepted: `Asset(canonical_path=...)`,
+`StaleSignal(canonical_epoch=..., canonical_lines=...)`, and
+`compare(canonical_path=...)`. Passing a legacy and v2 name together is accepted only
+when the values match; conflicting values raise `TypeError` rather than choosing one.
+
 ## Documented exceptions
 
 `asset_parity/exceptions.py` holds a short, explicit list of **already-documented**
