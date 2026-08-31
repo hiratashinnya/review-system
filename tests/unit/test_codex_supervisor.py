@@ -856,11 +856,42 @@ class CodexSupervisorTests(unittest.TestCase):
         message = workspace / "tmp/fixer-message.txt"
         message.write_text("fix fixture\n", encoding="utf-8")
         execute_publish_action(spec, action="gitgate.commit", action_args=(str(message),), runner=fixer_runner)
-        execute_publish_action(spec, action="gitgate.push", action_args=(), runner=fixer_runner)
+        with mock.patch(
+            "issue_start.codex_supervisor._write_final_handoff",
+            side_effect=RuntimeError("injected finalization crash"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "injected finalization crash"):
+                execute_publish_action(
+                    spec, action="gitgate.push", action_args=(), runner=fixer_runner
+                )
+        crashed = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(crashed["phase"], "pre_publish")
+        entry = next(
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == task_key
+        )
+        self.assertEqual(entry["publish_attempts"][-1]["state"], "completed")
+
+        no_second_push = mock.Mock(side_effect=AssertionError("push must not be rerun"))
+        execute_publish_action(
+            spec, action="gitgate.push", action_args=(), runner=no_second_push
+        )
+        no_second_push.assert_not_called()
         final = json.loads(target.read_text(encoding="utf-8"))
         self.assertEqual((final["phase"], final["status"]), ("final", "fixed"))
         self.assertEqual(final["finding_ids"], ["F-10-01"])
         self.assertNotIn("result", final)
+        entry = next(
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == task_key
+        )
+        self.assertEqual(entry["publish_attempts"][-1]["state"], "finalized")
+
+        repeated = execute_publish_action(
+            spec, action="gitgate.push", action_args=(), runner=no_second_push
+        )
+        no_second_push.assert_not_called()
+        self.assertEqual(repeated.stdout, "https://github.com/example/repo/pull/9\n")
 
     def test_pr_create_crash_recovers_existing_exact_pr_and_final_idempotently(self):
         (self.workspace / "seed.txt").write_text("implemented\n", encoding="utf-8")
@@ -937,6 +968,23 @@ class CodexSupervisorTests(unittest.TestCase):
                     self.spec, action="gh.pr.create", action_args=action_args,
                     runner=pr_runner("wrong-base"),
                 )
+            with mock.patch(
+                "issue_start.codex_supervisor._write_final_handoff",
+                side_effect=RuntimeError("injected finalization crash"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "injected finalization crash"):
+                    execute_publish_action(
+                        self.spec, action="gh.pr.create", action_args=action_args,
+                        runner=pr_runner(),
+                    )
+            crashed = json.loads(
+                (self.workspace / self.handoff).read_text(encoding="utf-8")
+            )
+            self.assertEqual(crashed["phase"], "pre_publish")
+            self.assertEqual(
+                self.entry()["publish_attempts"][-1]["state"], "completed"
+            )
+
             completed = execute_publish_action(
                 self.spec, action="gh.pr.create", action_args=action_args,
                 runner=pr_runner(),
@@ -944,20 +992,14 @@ class CodexSupervisorTests(unittest.TestCase):
             self.assertIn("/pull/101", completed.stdout)
             final = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
             self.assertEqual(final["pr_url"], "https://github.com/example/repo/pull/101")
+            self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "finalized")
 
-            # final write後・ledger finish前のcrashも同じPR factsで冪等に完了する。
-            def reopen_reserved(document):
-                target = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
-                self.assertEqual(target["publish_attempts"][-1]["state"], "completed")
-                target["publish_attempts"].pop()
-
-            worktree_ledger.update_ledger(self.main, reopen_reserved)
             repeated = execute_publish_action(
                 self.spec, action="gh.pr.create", action_args=action_args,
                 runner=pr_runner(),
             )
             self.assertIn("/pull/101", repeated.stdout)
-            self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "completed")
+            self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "finalized")
 
     def test_probe_validator_requires_exact_boundary_result(self):
         expected = {

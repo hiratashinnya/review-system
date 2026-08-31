@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 7
+version: 8
 condition: boundary
 ---
 
@@ -68,6 +68,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     statusを保つworktree内容差替え、同一parentだがpre-indexと別treeのcommitをcrash recoveryで成功扱いしない。
 22. gh.pr.create成功後・finish前のcrashをfake GitHub factsで再現し、repository/head/base/head OID/owner/open/non-draftが
     一意一致するPRだけを回収する。final handoff書込前後の両方で同じURLへ冪等完成し、別base等は拒否する。
+23. implementerのexisting exact PR回収とfixer pushで、`completed`記録直後・final handoff atomic replace前のcrashを
+    注入する。再開時にimplementerはfresh PR factsを再照合し、fixerはupstream/headを再照合する一方、PR create/pushを
+    再実行せず同じrole別finalへ収束し、handoff保存後だけ`finalized`を記録する。final済み再実行も同じ結果を維持する。
 
 # 期待結果
 
@@ -86,3 +89,4 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - attempt/publish ownerが生存する限りleaseだけでownershipを奪わず、owner終了後の回収でも旧fenceからの更新を拒否する。
 - protected path planとpublish段間Git factsはmain ledgerのtrusted入力・CAS証跡であり、task promptやaction引数を承認根拠にしない。
 - owner planのbase digest、worktree content、index/commit tree、GitHub PR factsの一つでも不一致ならcrash recoveryを成功にしない。
+- 最終外部効果の`completed`とhandoff保存後の`finalized`を分離し、その間のcrashでも外部操作を重複実行しない。

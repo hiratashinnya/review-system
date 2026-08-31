@@ -95,6 +95,10 @@ lease付きでledger順序予約する。owner crash後は期限切れreservatio
 次段のexpected値へCAS束縛し、同じporcelain statusを保つ内容差替えも拒否する。commit回収では新commit treeが
 予約前index treeと一致することを要求する。PR create回収ではGitHubのrepository/head/base/head OID/owner/open/non-draft
 factsが一意に一致する既存PRだけを採用し、final handoffの作成済み/未作成どちらからも冪等に完了する。
+最終publish actionの外部効果を確認したら先に`completed` eventをdurable保存し、その後にfinal handoffを
+atomic replaceして`finalized` eventを記録する。`completed`後・final保存前の再開では、implementerはGitHubの
+fresh exact PR factsを再照合し、fixerはupstream/head一致を再照合してfinalだけを再生成する。PR createやpushは
+再実行しない。final保存後・`finalized`記録前も同じ証拠とURLへ収束させる。
 
 ## 却下案
 

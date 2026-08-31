@@ -1302,6 +1302,168 @@ def _read_handoff_document(spec: SupervisorSpec) -> dict[str, Any] | None:
     return document if isinstance(document, dict) else None
 
 
+def _action_args_sha256(action_args: Sequence[str]) -> str:
+    return hashlib.sha256(
+        json.dumps(list(action_args), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _completed_final_action_evidence(
+    spec: SupervisorSpec,
+    entry: Mapping[str, Any],
+    *,
+    action: str,
+    action_args: Sequence[str],
+    snapshot: Mapping[str, Any],
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> tuple[Mapping[str, Any], dict[str, Any] | None]:
+    """completed済みfinal actionをfresh factsと元reservationへ再束縛する。"""
+
+    events = entry.get("publish_attempts")
+    if not isinstance(events, list):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+    completed = next(
+        (
+            event for event in reversed(events)
+            if isinstance(event, dict) and event.get("state") == "completed"
+        ),
+        None,
+    )
+    if completed is None or completed.get("action") != action:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+    if completed.get("post_snapshot") != dict(snapshot):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_CAS_MISMATCH", "finalization")
+    reservation = next(
+        (
+            event for event in reversed(events)
+            if isinstance(event, dict)
+            and event.get("state") == "reserved"
+            and event.get("publish_id") == completed.get("publish_id")
+            and event.get("action") == action
+        ),
+        None,
+    )
+    if reservation is None or reservation.get("action_args_sha256") != _action_args_sha256(action_args):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_RECOVERY_ARGS_MISMATCH")
+    if spec.role == "issue-implementer":
+        if action != "gh.pr.create" or len(action_args) != 3:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+        external = _existing_open_pr_facts(
+            spec, entry, base=action_args[2], head_oid=snapshot["head_oid"], runner=runner
+        )
+        if external is None:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+        recorded = completed.get("external_effect")
+        if recorded not in (None, {}) and recorded != external:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+        return completed, external
+    if action != "gitgate.push" or action_args:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+    if snapshot.get("upstream_oid") != snapshot.get("head_oid"):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_REMOTE_MISMATCH")
+    return completed, None
+
+
+def _record_publish_finalized(
+    spec: SupervisorSpec,
+    *,
+    action: str,
+    publish_id: str,
+    pr_url: str,
+    snapshot: Mapping[str, Any],
+) -> None:
+    """final handoffのatomic replace後にdurable finalization eventを冪等記録する。"""
+
+    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+
+    def mutate(document: dict[str, Any]) -> None:
+        target = next(
+            item for item in document["entries"] if item.get("entry_id") == entry["entry_id"]
+        )
+        events = target.get("publish_attempts")
+        if not isinstance(events, list) or not events:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        latest = events[-1]
+        if latest.get("state") == "finalized":
+            if (
+                latest.get("action") == action
+                and latest.get("publish_id") == publish_id
+                and latest.get("pr_url") == pr_url
+                and latest.get("post_snapshot") == dict(snapshot)
+            ):
+                return
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        if (
+            latest.get("state") != "completed"
+            or latest.get("action") != action
+            or latest.get("publish_id") != publish_id
+            or latest.get("post_snapshot") != dict(snapshot)
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        events.append({
+            "at": _stamp(datetime.now(timezone.utc)),
+            "publish_id": publish_id,
+            "state": "finalized",
+            "action": action,
+            "pr_url": pr_url,
+            "post_snapshot": dict(snapshot),
+        })
+
+    try:
+        worktree_ledger.update_ledger(root, mutate)
+    except worktree_ledger.LedgerError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+
+
+def _build_final_handoff(
+    spec: SupervisorSpec,
+    entry: Mapping[str, Any],
+    result: Mapping[str, Any],
+    *,
+    pr_url: str,
+) -> dict[str, Any]:
+    if spec.role == "issue-implementer":
+        final = {
+            "schema_version": 1, "phase": "final", "agent": spec.role,
+            "status": "pr_opened", "issue": entry["issue"],
+            "branch": entry["branch_name"], "pr_url": pr_url,
+            "changed_files": result["changed_files"], "tests": result["tests"],
+            "out_of_scope_findings": result["out_of_scope_findings"],
+            "stop_reason": "",
+        }
+    else:
+        url_pattern = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
+        if re.fullmatch(url_pattern, result["pr_url"]) is None:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_URL_INVALID")
+        final = {
+            "schema_version": 1, "phase": "final", "agent": spec.role,
+            "status": "fixed", "issue": entry["issue"], "round": result["round"],
+            "branch": entry["branch_name"], "pr_url": result["pr_url"],
+            "finding_ids": result["finding_ids"], "diagnosis": result["diagnosis"],
+            "outcome": result["outcome"], "changed_files": result["changed_files"],
+            "tests": result["tests"],
+            "unresolved_findings": result["unresolved_findings"],
+            "out_of_scope_findings": result["out_of_scope_findings"],
+            "stop_reason": "",
+        }
+    _validate_final_handoff(spec.role, final)
+    return final
+
+
+def _write_final_handoff(spec: SupervisorSpec, final: Mapping[str, Any]) -> None:
+    target = spec.workspace / spec.handoff_path
+    temporary = target.with_name(f".{target.name}.supervisor-final-{os.getpid()}")
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            json.dump(final, handle, ensure_ascii=False, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def execute_publish_action(
     spec: SupervisorSpec,
     *,
@@ -1339,40 +1501,44 @@ def execute_publish_action(
         events = entry.get("publish_attempts")
         if not isinstance(events, list) or not events:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
-        if events[-1].get("state") == "completed" and events[-1].get("action") == action:
-            return subprocess.CompletedProcess(
-                [action], 0, existing_final["pr_url"] + "\n", ""
-            )
-        if events[-1].get("state") != "reserved" or events[-1].get("action") != action:
+        latest_state = events[-1].get("state")
+        if latest_state not in {"reserved", "completed", "finalized"} or events[-1].get("action") != action:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
-        if spec.role == "issue-implementer":
-            if len(action_args) != 3:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
-            external_effect = _existing_open_pr_facts(
-                spec, entry, base=action_args[2],
-                head_oid=codex_binding.inspect_git_facts(spec.workspace).head_oid,
-                runner=runner,
+        snapshot = _publish_git_snapshot(spec.workspace)
+        if latest_state == "reserved":
+            if spec.role == "issue-implementer":
+                if len(action_args) != 3:
+                    raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+                external_effect = _existing_open_pr_facts(
+                    spec, entry, base=action_args[2], head_oid=snapshot["head_oid"], runner=runner
+                )
+                if external_effect is None or external_effect["url"] != existing_final["pr_url"]:
+                    raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+            else:
+                external_effect = None
+            completed_actions = tuple(
+                event["action"] for event in events if event.get("state") == "completed"
             )
-            if external_effect is None or external_effect["url"] != existing_final["pr_url"]:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
-        else:
-            if action_args:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
-            external_effect = None
-        completed_actions = tuple(
-            event["action"] for event in events if event.get("state") == "completed"
+            _publish_id, recovered = _reserve_publish_action(
+                spec, action=action, sequence=completed_actions + (action,),
+                snapshot=snapshot, initial_head_oid=entry["expected_oid"],
+                action_args_sha256=_action_args_sha256(action_args),
+                external_effect=external_effect,
+            )
+            if not recovered:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+            _root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+        completed, external = _completed_final_action_evidence(
+            spec, entry, action=action, action_args=action_args,
+            snapshot=snapshot, runner=runner,
         )
-        args_digest = hashlib.sha256(
-            json.dumps(list(action_args), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        _publish_id, recovered = _reserve_publish_action(
-            spec, action=action, sequence=completed_actions + (action,),
-            snapshot=_publish_git_snapshot(spec.workspace),
-            initial_head_oid=entry["expected_oid"],
-            action_args_sha256=args_digest, external_effect=external_effect,
+        observed_url = external["url"] if external is not None else existing_final["pr_url"]
+        if observed_url != existing_final["pr_url"]:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+        _record_publish_finalized(
+            spec, action=action, publish_id=completed["publish_id"],
+            pr_url=observed_url, snapshot=snapshot,
         )
-        if not recovered:
-            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
         return subprocess.CompletedProcess([action], 0, existing_final["pr_url"] + "\n", "")
     handoff = _validate_handoff(spec, entry, allow_descendant=True)
     sequence = _publish_sequence(spec.role, handoff)
@@ -1382,6 +1548,36 @@ def execute_publish_action(
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     if facts.branch_name != entry.get("branch_name"):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_BRANCH_MISMATCH")
+    publish_events = entry.get("publish_attempts")
+    completed_actions = (
+        [event.get("action") for event in publish_events if event.get("state") == "completed"]
+        if isinstance(publish_events, list)
+        else []
+    )
+    if completed_actions == list(sequence):
+        final_action = "gh.pr.create" if spec.role == "issue-implementer" else "gitgate.push"
+        if (
+            action != final_action
+            or not publish_events
+            or publish_events[-1].get("state") != "completed"
+            or publish_events[-1].get("action") != action
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        snapshot = _publish_git_snapshot(spec.workspace)
+        completed, external = _completed_final_action_evidence(
+            spec, entry, action=action, action_args=action_args,
+            snapshot=snapshot, runner=runner,
+        )
+        observed_url = external["url"] if external is not None else handoff["result"]["pr_url"]
+        final = _build_final_handoff(
+            spec, entry, handoff["result"], pr_url=observed_url
+        )
+        _write_final_handoff(spec, final)
+        _record_publish_finalized(
+            spec, action=action, publish_id=completed["publish_id"],
+            pr_url=observed_url, snapshot=snapshot,
+        )
+        return subprocess.CompletedProcess([action], 0, observed_url + "\n", "")
     if action == "protected_patch.apply":
         if len(action_args) != 1:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
@@ -1548,48 +1744,31 @@ def execute_publish_action(
             if match is None:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_URL_INVALID")
             pr_url = match.group(0)
-        if (spec.role == "issue-fixer" and action == "gitgate.push") or action == "gh.pr.create":
-            result = handoff["result"]
-            if spec.role == "issue-implementer":
-                final = {
-                    "schema_version": 1, "phase": "final", "agent": spec.role,
-                    "status": "pr_opened", "issue": entry["issue"],
-                    "branch": entry["branch_name"], "pr_url": pr_url,
-                    "changed_files": result["changed_files"], "tests": result["tests"],
-                    "out_of_scope_findings": result["out_of_scope_findings"],
-                    "stop_reason": "",
-                }
-            else:
-                url_pattern = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
-                if re.fullmatch(url_pattern, result["pr_url"]) is None:
-                    raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_URL_INVALID")
-                final = {
-                    "schema_version": 1, "phase": "final", "agent": spec.role,
-                    "status": "fixed", "issue": entry["issue"], "round": result["round"],
-                    "branch": entry["branch_name"], "pr_url": result["pr_url"],
-                    "finding_ids": result["finding_ids"], "diagnosis": result["diagnosis"],
-                    "outcome": result["outcome"], "changed_files": result["changed_files"],
-                    "tests": result["tests"],
-                    "unresolved_findings": result["unresolved_findings"],
-                    "out_of_scope_findings": result["out_of_scope_findings"],
-                    "stop_reason": "",
-                }
-            _validate_final_handoff(spec.role, final)
-            target = spec.workspace / spec.handoff_path
-            temporary = target.with_name(f".{target.name}.supervisor-final-{os.getpid()}")
-            try:
-                with temporary.open("x", encoding="utf-8") as handle:
-                    json.dump(final, handle, ensure_ascii=False, sort_keys=True)
-                    handle.write("\n")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(temporary, target)
-            finally:
-                temporary.unlink(missing_ok=True)
+        final_action = (spec.role == "issue-fixer" and action == "gitgate.push") or action == "gh.pr.create"
+        post_snapshot = _publish_git_snapshot(spec.workspace)
+        completed_publish_id: str | None = None
         if publish_id is not None:
             _finish_publish_action(
                 spec, publish_id=publish_id, action=action, state="completed",
-                evidence={"post_snapshot": _publish_git_snapshot(spec.workspace)},
+                evidence={"post_snapshot": post_snapshot},
+            )
+            completed_publish_id = publish_id
+            publish_id = None
+        if final_action:
+            result = handoff["result"]
+            observed_url = pr_url if spec.role == "issue-implementer" else result["pr_url"]
+            if completed_publish_id is None:
+                _root, refreshed_entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+                completed_event = next(
+                    event for event in reversed(refreshed_entry["publish_attempts"])
+                    if event.get("state") == "completed" and event.get("action") == action
+                )
+                completed_publish_id = completed_event["publish_id"]
+            final = _build_final_handoff(spec, entry, result, pr_url=observed_url)
+            _write_final_handoff(spec, final)
+            _record_publish_finalized(
+                spec, action=action, publish_id=completed_publish_id,
+                pr_url=observed_url, snapshot=post_snapshot,
             )
         return completed
     except BaseException as exc:
