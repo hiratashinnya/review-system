@@ -19,6 +19,7 @@ from issue_start.codex_supervisor import (
     ProcessResult,
     SupervisorSpec,
     SubprocessJsonlRunner,
+    _canonical_json_sha256,
     _reserve_attempt,
     _record_attempt,
     _publish_git_snapshot,
@@ -711,6 +712,7 @@ class CodexSupervisorTests(unittest.TestCase):
             snapshot=snapshot,
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=args_digest,
+            handoff_sha256=_canonical_json_sha256(handoff),
             now=NOW + timedelta(seconds=2),
         )
         self.assertIsNotNone(publish_id)
@@ -747,6 +749,7 @@ class CodexSupervisorTests(unittest.TestCase):
             snapshot=_publish_git_snapshot(self.workspace),
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=commit_digest,
+            handoff_sha256=_canonical_json_sha256(handoff),
             now=NOW + timedelta(seconds=3),
         )
         self.assertIsNotNone(commit_id)
@@ -873,6 +876,15 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(entry["publish_attempts"][-1]["state"], "completed")
 
         no_second_push = mock.Mock(side_effect=AssertionError("push must not be rerun"))
+        altered = json.loads(json.dumps(crashed))
+        altered["result"]["diagnosis"]["root_cause"] = "schema-valid substitution"
+        target.write_text(json.dumps(altered), encoding="utf-8")
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_HANDOFF_MISMATCH"):
+            execute_publish_action(
+                spec, action="gitgate.push", action_args=(), runner=no_second_push
+            )
+        no_second_push.assert_not_called()
+        target.write_text(json.dumps(crashed), encoding="utf-8")
         execute_publish_action(
             spec, action="gitgate.push", action_args=(), runner=no_second_push
         )
@@ -887,6 +899,15 @@ class CodexSupervisorTests(unittest.TestCase):
         )
         self.assertEqual(entry["publish_attempts"][-1]["state"], "finalized")
 
+        altered_final = json.loads(json.dumps(final))
+        altered_final["tests"]["summary"] = "schema-valid final substitution"
+        target.write_text(json.dumps(altered_final), encoding="utf-8")
+        with self.assertRaisesRegex(CodexSupervisorError, "FINAL_INTENT_MISMATCH"):
+            execute_publish_action(
+                spec, action="gitgate.push", action_args=(), runner=no_second_push
+            )
+        no_second_push.assert_not_called()
+        target.write_text(json.dumps(final), encoding="utf-8")
         repeated = execute_publish_action(
             spec, action="gitgate.push", action_args=(), runner=no_second_push
         )
@@ -935,6 +956,7 @@ class CodexSupervisorTests(unittest.TestCase):
             snapshot=_publish_git_snapshot(self.workspace),
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=args_digest,
+            handoff_sha256=_canonical_json_sha256(handoff),
             now=NOW + timedelta(seconds=4),
         )
         self.assertIsNotNone(publish_id)
@@ -985,6 +1007,23 @@ class CodexSupervisorTests(unittest.TestCase):
                 self.entry()["publish_attempts"][-1]["state"], "completed"
             )
 
+            altered = json.loads(json.dumps(crashed))
+            altered["result"]["tests"]["summary"] = "schema-valid substitution"
+            (self.workspace / self.handoff).write_text(
+                json.dumps(altered), encoding="utf-8"
+            )
+            no_pr_query = mock.Mock(
+                side_effect=AssertionError("mismatched handoff must fail before PR query")
+            )
+            with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_HANDOFF_MISMATCH"):
+                execute_publish_action(
+                    self.spec, action="gh.pr.create", action_args=action_args,
+                    runner=no_pr_query,
+                )
+            no_pr_query.assert_not_called()
+            (self.workspace / self.handoff).write_text(
+                json.dumps(crashed), encoding="utf-8"
+            )
             completed = execute_publish_action(
                 self.spec, action="gh.pr.create", action_args=action_args,
                 runner=pr_runner(),
@@ -994,6 +1033,19 @@ class CodexSupervisorTests(unittest.TestCase):
             self.assertEqual(final["pr_url"], "https://github.com/example/repo/pull/101")
             self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "finalized")
 
+            altered_final = json.loads(json.dumps(final))
+            altered_final["changed_files"] = ["different.txt"]
+            (self.workspace / self.handoff).write_text(
+                json.dumps(altered_final), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(CodexSupervisorError, "FINAL_INTENT_MISMATCH"):
+                execute_publish_action(
+                    self.spec, action="gh.pr.create", action_args=action_args,
+                    runner=pr_runner(),
+                )
+            (self.workspace / self.handoff).write_text(
+                json.dumps(final), encoding="utf-8"
+            )
             repeated = execute_publish_action(
                 self.spec, action="gh.pr.create", action_args=action_args,
                 runner=pr_runner(),

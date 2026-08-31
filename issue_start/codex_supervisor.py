@@ -1115,7 +1115,9 @@ def _reserve_publish_action(
     snapshot: Mapping[str, Any],
     initial_head_oid: str,
     action_args_sha256: str,
+    handoff_sha256: str | None,
     external_effect: Mapping[str, Any] | None = None,
+    final_handoff_sha256: str | None = None,
     now: datetime | None = None,
 ) -> tuple[str | None, bool]:
     root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
@@ -1153,6 +1155,8 @@ def _reserve_publish_action(
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTIVE")
             if active.get("action_args_sha256") != action_args_sha256:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_RECOVERY_ARGS_MISMATCH")
+            if handoff_sha256 is not None and active.get("handoff_sha256") != handoff_sha256:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_HANDOFF_MISMATCH")
             effect_observed = _publish_effect_observed(
                 action, active.get("pre_snapshot", {}), snapshot
             ) or (action == "gh.pr.create" and external_effect is not None)
@@ -1165,6 +1169,12 @@ def _reserve_publish_action(
                     "recovered_after_owner_exit": True,
                     "post_snapshot": dict(snapshot),
                     "external_effect": dict(external_effect or {}),
+                    "handoff_sha256": active.get("handoff_sha256"),
+                    **(
+                        {"final_handoff_sha256": final_handoff_sha256}
+                        if final_handoff_sha256 is not None
+                        else {}
+                    ),
                 })
                 recovered = True
             else:
@@ -1182,6 +1192,8 @@ def _reserve_publish_action(
             return
         if len(completed) >= len(sequence) or action != sequence[len(completed)]:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ORDER_INVALID", action)
+        if handoff_sha256 is None or re.fullmatch(r"[0-9a-f]{64}", handoff_sha256) is None:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_HANDOFF_MISMATCH")
         previous = next(
             (event for event in reversed(events) if event.get("state") == "completed"),
             None,
@@ -1201,6 +1213,7 @@ def _reserve_publish_action(
             "lease_expires_at": lease,
             "pre_snapshot": dict(snapshot),
             "action_args_sha256": action_args_sha256,
+            "handoff_sha256": handoff_sha256,
         })
 
     try:
@@ -1308,6 +1321,14 @@ def _action_args_sha256(action_args: Sequence[str]) -> str:
     ).hexdigest()
 
 
+def _canonical_json_sha256(document: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            document, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _completed_final_action_evidence(
     spec: SupervisorSpec,
     entry: Mapping[str, Any],
@@ -1316,6 +1337,7 @@ def _completed_final_action_evidence(
     action_args: Sequence[str],
     snapshot: Mapping[str, Any],
     runner: Callable[..., subprocess.CompletedProcess[str]],
+    handoff_sha256: str | None,
 ) -> tuple[Mapping[str, Any], dict[str, Any] | None]:
     """completed済みfinal actionをfresh factsと元reservationへ再束縛する。"""
 
@@ -1345,6 +1367,13 @@ def _completed_final_action_evidence(
     )
     if reservation is None or reservation.get("action_args_sha256") != _action_args_sha256(action_args):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_RECOVERY_ARGS_MISMATCH")
+    bound_handoff_sha256 = reservation.get("handoff_sha256")
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", str(bound_handoff_sha256)) is None
+        or completed.get("handoff_sha256") != bound_handoff_sha256
+        or (handoff_sha256 is not None and handoff_sha256 != bound_handoff_sha256)
+    ):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_HANDOFF_MISMATCH")
     if spec.role == "issue-implementer":
         if action != "gh.pr.create" or len(action_args) != 3:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
@@ -1362,6 +1391,13 @@ def _completed_final_action_evidence(
     if snapshot.get("upstream_oid") != snapshot.get("head_oid"):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_REMOTE_MISMATCH")
     return completed, None
+
+
+def _require_completed_final_intent(
+    completed: Mapping[str, Any], final: Mapping[str, Any]
+) -> None:
+    if completed.get("final_handoff_sha256") != _canonical_json_sha256(final):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_FINAL_INTENT_MISMATCH")
 
 
 def _record_publish_finalized(
@@ -1523,24 +1559,27 @@ def execute_publish_action(
                 spec, action=action, sequence=completed_actions + (action,),
                 snapshot=snapshot, initial_head_oid=entry["expected_oid"],
                 action_args_sha256=_action_args_sha256(action_args),
-                external_effect=external_effect,
+                handoff_sha256=None, external_effect=external_effect,
+                final_handoff_sha256=_canonical_json_sha256(existing_final),
             )
             if not recovered:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
             _root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
         completed, external = _completed_final_action_evidence(
             spec, entry, action=action, action_args=action_args,
-            snapshot=snapshot, runner=runner,
+            snapshot=snapshot, runner=runner, handoff_sha256=None,
         )
         observed_url = external["url"] if external is not None else existing_final["pr_url"]
         if observed_url != existing_final["pr_url"]:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+        _require_completed_final_intent(completed, existing_final)
         _record_publish_finalized(
             spec, action=action, publish_id=completed["publish_id"],
             pr_url=observed_url, snapshot=snapshot,
         )
         return subprocess.CompletedProcess([action], 0, existing_final["pr_url"] + "\n", "")
     handoff = _validate_handoff(spec, entry, allow_descendant=True)
+    handoff_sha256 = _canonical_json_sha256(handoff)
     sequence = _publish_sequence(spec.role, handoff)
     try:
         facts = codex_binding.inspect_git_facts(spec.workspace)
@@ -1566,12 +1605,13 @@ def execute_publish_action(
         snapshot = _publish_git_snapshot(spec.workspace)
         completed, external = _completed_final_action_evidence(
             spec, entry, action=action, action_args=action_args,
-            snapshot=snapshot, runner=runner,
+            snapshot=snapshot, runner=runner, handoff_sha256=handoff_sha256,
         )
         observed_url = external["url"] if external is not None else handoff["result"]["pr_url"]
         final = _build_final_handoff(
             spec, entry, handoff["result"], pr_url=observed_url
         )
+        _require_completed_final_intent(completed, final)
         _write_final_handoff(spec, final)
         _record_publish_finalized(
             spec, action=action, publish_id=completed["publish_id"],
@@ -1664,6 +1704,19 @@ def execute_publish_action(
         external_effect = _existing_open_pr_facts(
             spec, entry, base=action_args[2], head_oid=snapshot_before["head_oid"], runner=runner
         )
+    recovery_final_handoff_sha256: str | None = None
+    if spec.role == "issue-fixer" and action == "gitgate.push":
+        recovery_final_handoff_sha256 = _canonical_json_sha256(
+            _build_final_handoff(
+                spec, entry, handoff["result"], pr_url=handoff["result"]["pr_url"]
+            )
+        )
+    elif action == "gh.pr.create" and external_effect is not None:
+        recovery_final_handoff_sha256 = _canonical_json_sha256(
+            _build_final_handoff(
+                spec, entry, handoff["result"], pr_url=external_effect["url"]
+            )
+        )
     publish_id, recovered = _reserve_publish_action(
         spec,
         action=action,
@@ -1671,7 +1724,9 @@ def execute_publish_action(
         snapshot=snapshot_before,
         initial_head_oid=handoff["head_oid"],
         action_args_sha256=action_args_sha256,
+        handoff_sha256=handoff_sha256,
         external_effect=external_effect,
+        final_handoff_sha256=recovery_final_handoff_sha256,
     )
     head_before = facts.head_oid
     try:
@@ -1746,17 +1801,27 @@ def execute_publish_action(
             pr_url = match.group(0)
         final_action = (spec.role == "issue-fixer" and action == "gitgate.push") or action == "gh.pr.create"
         post_snapshot = _publish_git_snapshot(spec.workspace)
+        final: dict[str, Any] | None = None
+        observed_url = ""
+        if final_action:
+            result = handoff["result"]
+            observed_url = pr_url if spec.role == "issue-implementer" else result["pr_url"]
+            final = _build_final_handoff(spec, entry, result, pr_url=observed_url)
+        completion_evidence: dict[str, Any] = {
+            "post_snapshot": post_snapshot,
+            "handoff_sha256": handoff_sha256,
+        }
+        if final is not None:
+            completion_evidence["final_handoff_sha256"] = _canonical_json_sha256(final)
         completed_publish_id: str | None = None
         if publish_id is not None:
             _finish_publish_action(
                 spec, publish_id=publish_id, action=action, state="completed",
-                evidence={"post_snapshot": post_snapshot},
+                evidence=completion_evidence,
             )
             completed_publish_id = publish_id
             publish_id = None
         if final_action:
-            result = handoff["result"]
-            observed_url = pr_url if spec.role == "issue-implementer" else result["pr_url"]
             if completed_publish_id is None:
                 _root, refreshed_entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
                 completed_event = next(
@@ -1764,7 +1829,9 @@ def execute_publish_action(
                     if event.get("state") == "completed" and event.get("action") == action
                 )
                 completed_publish_id = completed_event["publish_id"]
-            final = _build_final_handoff(spec, entry, result, pr_url=observed_url)
+                _require_completed_final_intent(completed_event, final)
+            if final is None:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
             _write_final_handoff(spec, final)
             _record_publish_finalized(
                 spec, action=action, publish_id=completed_publish_id,

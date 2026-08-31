@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 8
+version: 9
 condition: boundary
 ---
 
@@ -71,6 +71,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 23. implementerのexisting exact PR回収とfixer pushで、`completed`記録直後・final handoff atomic replace前のcrashを
     注入する。再開時にimplementerはfresh PR factsを再照合し、fixerはupstream/headを再照合する一方、PR create/pushを
     再実行せず同じrole別finalへ収束し、handoff保存後だけ`finalized`を記録する。final済み再実行も同じ結果を維持する。
+24. publish reservation、completed、finalized間でcanonical pre-publish/final intent digestを追跡する。両roleの
+    completed後・final前にchanged files、tests、out-of-scope findings、finding IDs、diagnosis、outcomeをschema-validに
+    差し替えてもfail-closeし、PR create/pushを再実行しない。final保存後のschema-valid差替えも同様に拒否する。
 
 # 期待結果
 
@@ -90,3 +93,4 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - protected path planとpublish段間Git factsはmain ledgerのtrusted入力・CAS証跡であり、task promptやaction引数を承認根拠にしない。
 - owner planのbase digest、worktree content、index/commit tree、GitHub PR factsの一つでも不一致ならcrash recoveryを成功にしない。
 - 最終外部効果の`completed`とhandoff保存後の`finalized`を分離し、その間のcrashでも外部操作を重複実行しない。
+- reservation/completedへ束縛したcanonical handoff/final intent digestと異なるpayloadからfinalを確定しない。
