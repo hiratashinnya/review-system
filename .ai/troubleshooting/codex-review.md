@@ -18,3 +18,5 @@ Trusted Access for Cyber の登録は無課金方針とオーナー認可が必�
 repo supervisor経路ではcanonical `~/.codex/sessions`を直接共有せず、main worktreeの
 `tmp/_codex_sessions/<task-key>/sessions`を同じmount先へtask単位でbindする。initial/resumeでmarkerが
 継続しない場合は、このsourceの欠落・symlink・modeとouter commandの`--bind`を確認し、fresh threadへ置換しない。
+clean hostではsupervisorが非symlinkの`~/.codex/sessions` targetを作成するため、未存在を手作業で事前作成せず、
+作成失敗reasonとHOMEの所有権を確認する。workspace shellからtask markerを書換できた場合は隔離失敗として停止する。

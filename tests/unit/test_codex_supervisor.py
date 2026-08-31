@@ -20,6 +20,9 @@ from issue_start.codex_supervisor import (
     SupervisorSpec,
     SubprocessJsonlRunner,
     _reserve_attempt,
+    _record_attempt,
+    _publish_git_snapshot,
+    _reserve_publish_action,
     _validate_final_handoff,
     apply_protected_patch,
     build_codex_command,
@@ -92,6 +95,11 @@ class CodexSupervisorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        self.test_home = Path(self.temp.name) / "home"
+        self.test_home.mkdir()
+        home_patch = mock.patch.dict(os.environ, {"HOME": str(self.test_home)})
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
         self.main = Path(self.temp.name) / "main"
         self.main.mkdir()
         git(self.main, "init", "-b", "main")
@@ -145,6 +153,7 @@ class CodexSupervisorTests(unittest.TestCase):
             handoff_path=self.handoff,
             role="issue-implementer",
             task_key=self.task_key,
+            protected_paths=(".agents/seed", ".codex/seed"),
             now=NOW,
         )
         self.spec = SupervisorSpec(
@@ -244,6 +253,7 @@ class CodexSupervisorTests(unittest.TestCase):
         session_index = command.index(session_target)
         self.assertEqual(command[session_index - 2], "--bind")
         self.assertIn("tmp/_codex_sessions/issue_10/sessions", command[session_index - 1])
+        self.assertTrue((self.test_home / ".codex/sessions").is_dir())
         random_device = command.index("/dev/urandom")
         self.assertEqual(command[random_device - 1], "--dev-bind")
         self.assertEqual(command[random_device + 1], "/dev/urandom")
@@ -354,6 +364,58 @@ class CodexSupervisorTests(unittest.TestCase):
         _reserve_attempt(self.spec, now=NOW + timedelta(seconds=1), resume_thread=None)
         with self.assertRaisesRegex(CodexSupervisorError, "ATTEMPT_ACTIVE"):
             _reserve_attempt(self.spec, now=NOW + timedelta(seconds=2), resume_thread=None)
+        with self.assertRaisesRegex(CodexSupervisorError, "ATTEMPT_ACTIVE"):
+            _reserve_attempt(self.spec, now=NOW + timedelta(seconds=120), resume_thread=None)
+
+    def test_expired_attempt_owner_is_fenced_for_initial_and_resume(self):
+        def expire_latest():
+            root, entry = worktree_ledger.main_worktree_root(self.workspace), self.entry()
+
+            def mutate(document):
+                target = next(item for item in document["entries"] if item["entry_id"] == entry["entry_id"])
+                latest = target["supervisor_attempts"][-1]
+                latest["owner_pid"] = 99999999
+                latest["owner_start_token"] = "1"
+                latest["lease_expires_at"] = "2026-08-30T00:00:00Z"
+
+            worktree_ledger.update_ledger(root, mutate)
+
+        old_initial = _reserve_attempt(
+            self.spec, now=NOW + timedelta(seconds=1), resume_thread=None
+        )
+        expire_latest()
+        new_initial = _reserve_attempt(
+            self.spec, now=NOW + timedelta(seconds=120), resume_thread=None
+        )
+        self.assertNotEqual(old_initial, new_initial)
+        with self.assertRaisesRegex(CodexSupervisorError, "ATTEMPT_FENCED"):
+            _record_attempt(
+                self.spec, attempt_id=old_initial, now=NOW + timedelta(seconds=121),
+                state="spawned", evidence={"pid": 1, "process_start_token": "1"},
+            )
+
+        # resumeも、期限切れ旧ownerではなく直前pauseをbasisに新fenceを取得する。
+        def seed_pause(document):
+            target = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
+            target["supervisor_attempts"].append({
+                "at": "2026-08-30T00:03:00Z", "attempt_id": new_initial,
+                "state": "paused_rate_limit", "thread_id": "thread-10",
+            })
+
+        worktree_ledger.update_ledger(self.main, seed_pause)
+        old_resume = _reserve_attempt(
+            self.spec, now=NOW + timedelta(seconds=181), resume_thread="thread-10"
+        )
+        expire_latest()
+        new_resume = _reserve_attempt(
+            self.spec, now=NOW + timedelta(seconds=300), resume_thread="thread-10"
+        )
+        self.assertNotEqual(old_resume, new_resume)
+        with self.assertRaisesRegex(CodexSupervisorError, "ATTEMPT_FENCED"):
+            _record_attempt(
+                self.spec, attempt_id=old_resume, now=NOW + timedelta(seconds=301),
+                state="running", evidence={"thread_id": "thread-10"},
+            )
 
     def test_runner_kills_and_waits_when_post_popen_initialization_fails(self):
         class Process:
@@ -604,7 +666,7 @@ class CodexSupervisorTests(unittest.TestCase):
         body.write_text("body\n", encoding="utf-8")
         with mock.patch("issue_start.codex_supervisor.shutil.which", return_value="/usr/bin/gh"):
             (self.workspace / "seed.txt").write_text("dirty after push\n", encoding="utf-8")
-            with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_GIT_STATE_INVALID"):
+            with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_CAS_MISMATCH"):
                 execute_publish_action(
                     self.spec,
                     action="gh.pr.create",
@@ -630,6 +692,153 @@ class CodexSupervisorTests(unittest.TestCase):
         final = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
         self.assertEqual((final["phase"], final["status"]), ("final", "pr_opened"))
         self.assertEqual(final["pr_url"], "https://github.com/example/repo/pull/99")
+        self.assertNotIn("result", final)
+
+    def test_publish_recovers_dead_owner_and_fences_inter_stage_git_replacement(self):
+        (self.workspace / "seed.txt").write_text("implemented\n", encoding="utf-8")
+        self.handoff_file()
+        self.run_supervisor(FakeRunner(self.success_lines()))
+        handoff = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
+        snapshot = _publish_git_snapshot(self.workspace)
+        args_digest = hashlib.sha256(b'["seed.txt"]').hexdigest()
+        publish_id, recovered = _reserve_publish_action(
+            self.spec,
+            action="gitgate.add",
+            sequence=("gitgate.add", "gitgate.commit", "gitgate.push", "gh.pr.create"),
+            snapshot=snapshot,
+            initial_head_oid=handoff["head_oid"],
+            action_args_sha256=args_digest,
+            now=NOW + timedelta(seconds=2),
+        )
+        self.assertIsNotNone(publish_id)
+        self.assertFalse(recovered)
+        git(self.workspace, "add", "seed.txt")
+
+        def expire_publish(document):
+            target = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
+            latest = target["publish_attempts"][-1]
+            latest["owner_pid"] = 99999999
+            latest["owner_start_token"] = "1"
+            latest["lease_expires_at"] = "2026-08-30T00:00:00Z"
+
+        worktree_ledger.update_ledger(self.main, expire_publish)
+        runner = mock.Mock(side_effect=AssertionError("recovered action must not execute twice"))
+        completed = execute_publish_action(
+            self.spec, action="gitgate.add", action_args=("seed.txt",), runner=runner
+        )
+        self.assertIn("recovered", completed.stdout)
+        runner.assert_not_called()
+        self.assertTrue(self.entry()["publish_attempts"][-1]["recovered_after_owner_exit"])
+
+        git(self.workspace, "commit", "-m", "untrusted clean replacement")
+        message = self.workspace / "tmp/commit-message.txt"
+        message.parent.mkdir(exist_ok=True)
+        message.write_text("expected publish\n", encoding="utf-8")
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_CAS_MISMATCH"):
+            execute_publish_action(
+                self.spec, action="gitgate.commit", action_args=(str(message),)
+            )
+
+    def test_publish_protected_paths_come_only_from_binding_plan(self):
+        target = self.workspace / ".ai/agents/issue-implementer.md"
+        original = target.read_bytes()
+        document = {
+            "schema_version": 1,
+            "role": "issue-implementer",
+            "operations": [{
+                "path": ".ai/agents/issue-implementer.md",
+                "base_sha256": hashlib.sha256(original).hexdigest(),
+                "content_base64": base64.b64encode(b"weakened\n").decode("ascii"),
+            }],
+        }
+        patch_file = self.workspace / "tmp/unapproved-protected-patch.json"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_bytes = json.dumps(document).encode("utf-8")
+        patch_file.write_bytes(patch_bytes)
+        self.handoff_file({
+            "changed_files": [".ai/agents/issue-implementer.md"],
+            "tests": {"command": "python3 -m unittest", "result": "pass", "summary": "ok"},
+            "out_of_scope_findings": [],
+            "protected_patch": {
+                "path": "tmp/unapproved-protected-patch.json",
+                "sha256": hashlib.sha256(patch_bytes).hexdigest(),
+            },
+        })
+        self.run_supervisor(FakeRunner(self.success_lines()))
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_ARGS_INVALID"):
+            execute_publish_action(
+                self.spec,
+                action="protected_patch.apply",
+                action_args=(str(patch_file), ".ai/agents/issue-implementer.md"),
+            )
+        with self.assertRaisesRegex(CodexSupervisorError, "PATCH_PATH_NOT_APPROVED"):
+            execute_publish_action(
+                self.spec,
+                action="protected_patch.apply",
+                action_args=(str(patch_file),),
+            )
+        self.assertEqual(target.read_bytes(), original)
+
+    def test_fixer_publish_generates_role_specific_final_after_push(self):
+        workspace = self.main / ".worktrees" / "issue-10-fix"
+        git(self.main, "worktree", "add", "-b", "codex/issue-10-fix", str(workspace), "HEAD")
+        oid = git(workspace, "rev-parse", "HEAD")
+        handoff_path = "tmp/_handoff/issue-fixer--issue-10-r2.yaml"
+        task_key = "issue_10_fix_r2"
+        prepare_binding(
+            issue=10, round_number=2, repository="example/repo", workspace=workspace,
+            branch_name="codex/issue-10-fix", expected_oid=oid,
+            handoff_path=handoff_path, role="issue-fixer", task_key=task_key, now=NOW,
+        )
+        spec = SupervisorSpec(
+            repo_root=workspace, workspace=workspace, role="issue-fixer",
+            task_key=task_key, handoff_path=handoff_path, timeout_seconds=30,
+        )
+        (workspace / "seed.txt").write_text("fixed\n", encoding="utf-8")
+        target = workspace / handoff_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps({
+            "schema_version": 1, "phase": "pre_publish", "status": "ready",
+            "role": "issue-fixer", "issue": 10, "task_key": task_key,
+            "branch": "codex/issue-10-fix", "head_oid": oid,
+            "result": {
+                "round": 2, "pr_url": "https://github.com/example/repo/pull/9",
+                "finding_ids": ["F-10-01"],
+                "diagnosis": {
+                    "root_cause": "fixture", "change_kind": "logic",
+                    "targets": ["seed.txt"], "karte_attempt": 1,
+                },
+                "outcome": "fixed", "changed_files": ["seed.txt"],
+                "tests": {"command": "python3 -m unittest", "result": "pass", "summary": "ok"},
+                "unresolved_findings": [], "out_of_scope_findings": [],
+                "protected_patch": None,
+            },
+        }), encoding="utf-8")
+        run_supervised(
+            spec, prompt="Fix assigned findings.", now=NOW + timedelta(seconds=1),
+            bwrap_executable=self.bwrap, codex_executable=self.codex,
+            runner=FakeRunner(self.success_lines("thread-fixer")),
+        )
+
+        def fixer_runner(command, **kwargs):
+            if command[-3:-1] == ["gitgate", "add"]:
+                git(workspace, "add", "seed.txt")
+            elif command[-3:-1] == ["gitgate", "commit"]:
+                git(workspace, "commit", "-F", command[-1])
+            elif command[-1] == "push":
+                git(workspace, "config", "branch.codex/issue-10-fix.remote", "origin")
+                git(workspace, "config", "branch.codex/issue-10-fix.merge", "refs/heads/codex/issue-10-fix")
+                git(workspace, "update-ref", "refs/remotes/origin/codex/issue-10-fix", git(workspace, "rev-parse", "HEAD"))
+            return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+        execute_publish_action(spec, action="gitgate.add", action_args=("seed.txt",), runner=fixer_runner)
+        message = workspace / "tmp/fixer-message.txt"
+        message.write_text("fix fixture\n", encoding="utf-8")
+        execute_publish_action(spec, action="gitgate.commit", action_args=(str(message),), runner=fixer_runner)
+        execute_publish_action(spec, action="gitgate.push", action_args=(), runner=fixer_runner)
+        final = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual((final["phase"], final["status"]), ("final", "fixed"))
+        self.assertEqual(final["finding_ids"], ["F-10-01"])
         self.assertNotIn("result", final)
 
     def test_probe_validator_requires_exact_boundary_result(self):
@@ -764,7 +973,7 @@ class CodexSupervisorTests(unittest.TestCase):
         execute_publish_action(
             self.spec,
             action="protected_patch.apply",
-            action_args=(str(patch_file), ".codex/seed"),
+            action_args=(str(patch_file),),
         )
         self.assertEqual(target.read_bytes(), b"patched\n")
 
@@ -876,18 +1085,39 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 task_key="issue_452_session_probe",
                 handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.yaml",
             )
-            initial = build_codex_command(
-                fake_spec, bwrap_executable=bwrap, codex_executable=fake_codex
-            )
-            resumed = build_codex_command(
-                fake_spec, bwrap_executable=bwrap, codex_executable=fake_codex,
-                resume_thread="thread-session-probe",
-            )
-            first = subprocess.run(initial, cwd=workspace, capture_output=True, text=True, timeout=15)
-            second = subprocess.run(resumed, cwd=workspace, capture_output=True, text=True, timeout=15)
-            self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
-            marker = main / "tmp/_codex_sessions/issue_452_session_probe/sessions/supervised-marker"
-            self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
+            clean_home = Path(temporary) / "clean-home"
+            clean_home.mkdir()
+            with mock.patch.dict(os.environ, {"HOME": str(clean_home)}):
+                initial = build_codex_command(
+                    fake_spec, bwrap_executable=bwrap, codex_executable=fake_codex
+                )
+                resumed = build_codex_command(
+                    fake_spec, bwrap_executable=bwrap, codex_executable=fake_codex,
+                    resume_thread="thread-session-probe",
+                )
+                first = subprocess.run(
+                    initial, cwd=workspace, capture_output=True, text=True, timeout=15
+                )
+                second = subprocess.run(
+                    resumed, cwd=workspace, capture_output=True, text=True, timeout=15
+                )
+                self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
+                marker = main / "tmp/_codex_sessions/issue_452_session_probe/sessions/supervised-marker"
+                self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
+                codex = shutil.which("codex")
+                if codex is not None:
+                    separator = initial.index("--")
+                    denied_shell = initial[: separator + 1] + (
+                        codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        "sh", "-c",
+                        "printf hacked > \"$HOME/.codex/sessions/supervised-marker\"; "
+                        "rm -f \"$HOME/.codex/sessions/supervised-marker\"",
+                    )
+                    denied = subprocess.run(
+                        denied_shell, cwd=workspace, capture_output=True, text=True, timeout=15
+                    )
+                    self.assertNotEqual(denied.returncode, 0, denied.stdout)
+                    self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
 
             codex = shutil.which("codex")
             if codex is not None:

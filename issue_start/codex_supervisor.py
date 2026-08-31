@@ -46,6 +46,7 @@ _MAX_PATCH_OPERATIONS = 32
 _MAX_PATCH_BYTES = 1_048_576
 _RANDOM_DEVICE = "/dev/urandom"
 _ATTEMPT_LEASE_SECONDS = 60
+_PUBLISH_LEASE_SECONDS = 60
 _HANDOFF_SCHEMA_VERSION = 1
 _SESSION_STATE_ROOT = Path("tmp/_codex_sessions")
 
@@ -365,8 +366,20 @@ def _prepare_session_state(spec: SupervisorSpec) -> tuple[Path, Path]:
             raise CodexSupervisorError("CODEX_SUPERVISOR_SESSION_STATE_SYMLINK", str(path))
         path.mkdir(mode=0o700, exist_ok=True)
         path.chmod(0o700)
-    session_target = Path.home() / ".codex" / "sessions"
-    if not session_target.is_dir() or session_target.is_symlink():
+    codex_home = Path.home() / ".codex"
+    session_target = codex_home / "sessions"
+    for path in (codex_home, session_target):
+        if path.is_symlink():
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(path)
+            )
+        try:
+            path.mkdir(mode=0o700, exist_ok=True)
+        except OSError as exc:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(path)
+            ) from exc
+    if not session_target.is_dir():
         raise CodexSupervisorError(
             "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(session_target)
         )
@@ -570,7 +583,24 @@ def _record_attempt(
         attempts = target.setdefault("supervisor_attempts", [])
         if not isinstance(attempts, list):
             raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "supervisor_attempts")
-        attempts.append({"at": stamp, "attempt_id": attempt_id, "state": state, **dict(evidence)})
+        if not attempts or not isinstance(attempts[-1], dict):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_FENCED", attempt_id)
+        latest = attempts[-1]
+        if latest.get("attempt_id") != attempt_id:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_FENCED", attempt_id)
+        owner_pid = latest.get("owner_pid")
+        owner_token = latest.get("owner_start_token")
+        if owner_pid != os.getpid() or not _process_identity_alive(owner_pid, owner_token):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_FENCED", attempt_id)
+        attempts.append({
+            "at": stamp,
+            "attempt_id": attempt_id,
+            "state": state,
+            "owner_pid": owner_pid,
+            "owner_start_token": owner_token,
+            "lease_expires_at": latest.get("lease_expires_at"),
+            **dict(evidence),
+        })
 
     try:
         worktree_ledger.update_ledger(root, mutate)
@@ -596,6 +626,8 @@ def _reserve_attempt(
     attempt_id = secrets.token_hex(16)
     stamp = _stamp(now)
     lease = _stamp(now + timedelta(seconds=_ATTEMPT_LEASE_SECONDS))
+    owner_pid = os.getpid()
+    owner_start_token = _process_start_token(owner_pid)
 
     def mutate(document: dict[str, Any]) -> None:
         target = next(
@@ -608,8 +640,11 @@ def _reserve_attempt(
         if not isinstance(attempts, list):
             raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "supervisor_attempts")
         latest = attempts[-1] if attempts else None
+        resume_basis = latest
         if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
-            if _process_identity_alive(latest.get("pid"), latest.get("process_start_token")):
+            if _process_identity_alive(
+                latest.get("owner_pid"), latest.get("owner_start_token")
+            ) or _process_identity_alive(latest.get("pid"), latest.get("process_start_token")):
                 raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_ACTIVE")
             lease_value = latest.get("lease_expires_at")
             if isinstance(lease_value, str):
@@ -618,10 +653,25 @@ def _reserve_attempt(
                         raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_ACTIVE")
                 except ValueError as exc:
                     raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "lease_expires_at") from exc
+            attempts.append({
+                "at": stamp,
+                "attempt_id": latest.get("attempt_id"),
+                "state": "expired",
+                "reason": "owner_exit_after_lease",
+            })
+            if resume_thread is not None:
+                resume_basis = next(
+                    (
+                        event for event in reversed(attempts[:-1])
+                        if isinstance(event, dict)
+                        and event.get("state") == "paused_rate_limit"
+                    ),
+                    None,
+                )
         if resume_thread is not None:
-            if not isinstance(latest, dict) or latest.get("state") != "paused_rate_limit":
+            if not isinstance(resume_basis, dict) or resume_basis.get("state") != "paused_rate_limit":
                 raise CodexSupervisorError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
-            if latest.get("thread_id") != resume_thread:
+            if resume_basis.get("thread_id") != resume_thread:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_RESUME_THREAD_MISMATCH")
         attempts.append({
             "at": stamp,
@@ -629,6 +679,8 @@ def _reserve_attempt(
             "state": "reserved",
             "lease_expires_at": lease,
             "resume_thread": resume_thread,
+            "owner_pid": owner_pid,
+            "owner_start_token": owner_start_token,
         })
 
     try:
@@ -957,11 +1009,74 @@ def _publish_sequence(role: str, handoff: Mapping[str, Any]) -> tuple[str, ...]:
     return prefix + tail
 
 
+def _publish_git_snapshot(workspace: Path) -> dict[str, Any]:
+    """publish段間CASに使うHEAD/index/worktree/upstream factsを採取する。"""
+
+    facts = codex_binding.inspect_git_facts(workspace)
+    index = _git_check(workspace, ["write-tree"])
+    status = _git_check(workspace, ["status", "--porcelain=v1", "-z"])
+    if index.returncode != 0 or status.returncode != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_CHECK_FAILED")
+    upstream = _git_check(workspace, ["rev-parse", "@{upstream}"])
+    parent = _git_check(workspace, ["rev-parse", "HEAD^"])
+    return {
+        "head_oid": facts.head_oid,
+        "head_parent_oid": parent.stdout.strip() if parent.returncode == 0 else None,
+        "index_tree_oid": index.stdout.strip(),
+        "status_sha256": hashlib.sha256(status.stdout.encode("utf-8")).hexdigest(),
+        "clean": not bool(status.stdout),
+        "upstream_oid": upstream.stdout.strip() if upstream.returncode == 0 else None,
+    }
+
+
+def _publish_effect_observed(
+    action: str, before: Mapping[str, Any], after: Mapping[str, Any]
+) -> bool:
+    """owner crash後に、予約済みactionが完了したことをGit factsだけで保守的に判定する。"""
+
+    if action == "protected_patch.apply":
+        return (
+            before.get("head_oid") == after.get("head_oid")
+            and before.get("index_tree_oid") == after.get("index_tree_oid")
+            and before.get("status_sha256") != after.get("status_sha256")
+        )
+    if action == "gitgate.add":
+        return (
+            before.get("head_oid") == after.get("head_oid")
+            and before.get("index_tree_oid") != after.get("index_tree_oid")
+        )
+    if action == "gitgate.commit":
+        return (
+            before.get("head_oid") != after.get("head_oid")
+            and after.get("head_parent_oid") == before.get("head_oid")
+            and after.get("clean") is True
+        )
+    if action == "gitgate.push":
+        return (
+            before.get("head_oid") == after.get("head_oid")
+            and after.get("upstream_oid") == after.get("head_oid")
+        )
+    return False
+
+
 def _reserve_publish_action(
-    spec: SupervisorSpec, *, action: str, sequence: Sequence[str]
-) -> str:
+    spec: SupervisorSpec,
+    *,
+    action: str,
+    sequence: Sequence[str],
+    snapshot: Mapping[str, Any],
+    initial_head_oid: str,
+    action_args_sha256: str,
+    now: datetime | None = None,
+) -> tuple[str | None, bool]:
     root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
     publish_id = secrets.token_hex(16)
+    current_time = now or datetime.now(timezone.utc)
+    stamp = _stamp(current_time)
+    lease = _stamp(current_time + timedelta(seconds=_PUBLISH_LEASE_SECONDS))
+    owner_pid = os.getpid()
+    owner_start_token = _process_start_token(owner_pid)
+    recovered = False
 
     def mutate(document: dict[str, Any]) -> None:
         target = next(
@@ -970,20 +1085,78 @@ def _reserve_publish_action(
         events = target.setdefault("publish_attempts", [])
         if not isinstance(events, list):
             raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "publish_attempts")
+        nonlocal recovered
         if events and events[-1].get("state") == "reserved":
-            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTIVE")
+            active = events[-1]
+            if _process_identity_alive(
+                active.get("owner_pid"), active.get("owner_start_token")
+            ):
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTIVE")
+            try:
+                expires = datetime.fromisoformat(
+                    str(active.get("lease_expires_at", "")).replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise CodexSupervisorError(
+                    "CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID", "lease"
+                ) from exc
+            if current_time < expires:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTIVE")
+            if active.get("action_args_sha256") != action_args_sha256:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_RECOVERY_ARGS_MISMATCH")
+            if active.get("action") == action and _publish_effect_observed(
+                action, active.get("pre_snapshot", {}), snapshot
+            ):
+                events.append({
+                    "at": stamp,
+                    "publish_id": active.get("publish_id"),
+                    "state": "completed",
+                    "action": action,
+                    "recovered_after_owner_exit": True,
+                    "post_snapshot": dict(snapshot),
+                })
+                recovered = True
+            else:
+                events.append({
+                    "at": stamp,
+                    "publish_id": active.get("publish_id"),
+                    "state": "expired",
+                    "action": active.get("action"),
+                    "reason": "owner_exit_after_lease",
+                })
         completed = [event.get("action") for event in events if event.get("state") == "completed"]
         if completed != list(sequence[: len(completed)]):
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        if recovered:
+            return
         if len(completed) >= len(sequence) or action != sequence[len(completed)]:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ORDER_INVALID", action)
-        events.append({"publish_id": publish_id, "state": "reserved", "action": action})
+        previous = next(
+            (event for event in reversed(events) if event.get("state") == "completed"),
+            None,
+        )
+        if previous is None:
+            if snapshot.get("head_oid") != initial_head_oid:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_CAS_MISMATCH", "initial-head")
+        elif previous.get("post_snapshot") != dict(snapshot):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_CAS_MISMATCH", action)
+        events.append({
+            "at": stamp,
+            "publish_id": publish_id,
+            "state": "reserved",
+            "action": action,
+            "owner_pid": owner_pid,
+            "owner_start_token": owner_start_token,
+            "lease_expires_at": lease,
+            "pre_snapshot": dict(snapshot),
+            "action_args_sha256": action_args_sha256,
+        })
 
     try:
         worktree_ledger.update_ledger(root, mutate)
     except worktree_ledger.LedgerError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
-    return publish_id
+    return (None, True) if recovered else (publish_id, False)
 
 
 def _finish_publish_action(
@@ -1001,7 +1174,12 @@ def _finish_publish_action(
         latest = events[-1]
         if latest.get("publish_id") != publish_id or latest.get("state") != "reserved":
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        if latest.get("owner_pid") != os.getpid() or not _process_identity_alive(
+            latest.get("owner_pid"), latest.get("owner_start_token")
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_FENCED", publish_id)
         events.append({
+            "at": _stamp(datetime.now(timezone.utc)),
             "publish_id": publish_id, "state": state, "action": action, **dict(evidence)
         })
 
@@ -1042,7 +1220,7 @@ def execute_publish_action(
     if facts.branch_name != entry.get("branch_name"):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_BRANCH_MISMATCH")
     if action == "protected_patch.apply":
-        if len(action_args) < 2:
+        if len(action_args) != 1:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
         patch_file = Path(action_args[0])
         patch_binding = handoff["result"]["protected_patch"]
@@ -1059,7 +1237,11 @@ def execute_publish_action(
         except json.JSONDecodeError as exc:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_SCHEMA_INVALID") from exc
         patch_operations = validate_protected_patch(
-            spec.workspace, patch_document, role=spec.role, allowed_paths=action_args[1:]
+            spec.workspace,
+            patch_document,
+            role=spec.role,
+            allowed_paths=entry.get("protected_paths", ()),
+            allow_already_applied=True,
         )
         command: list[str] | None = None
     elif action == "gitgate.add":
@@ -1087,10 +1269,25 @@ def execute_publish_action(
             gh, "pr", "create", "--title", title, "--body-file", body_file,
             "--base", base, "--head", facts.branch_name,
         ]
-    publish_id = _reserve_publish_action(spec, action=action, sequence=sequence)
+    snapshot_before = _publish_git_snapshot(spec.workspace)
+    action_args_sha256 = hashlib.sha256(
+        json.dumps(list(action_args), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    publish_id, recovered = _reserve_publish_action(
+        spec,
+        action=action,
+        sequence=sequence,
+        snapshot=snapshot_before,
+        initial_head_oid=handoff["head_oid"],
+        action_args_sha256=action_args_sha256,
+    )
     head_before = facts.head_oid
     try:
-        if action == "gitgate.add":
+        if recovered:
+            completed = subprocess.CompletedProcess(
+                [action], 0, "recovered after prior host exit\n", ""
+            )
+        elif action == "gitgate.add":
             if _git_check(spec.workspace, ["diff", "--cached", "--quiet"]).returncode != 0:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_STATE_INVALID", "pre-add")
         elif action == "gitgate.commit":
@@ -1103,7 +1300,9 @@ def execute_publish_action(
                 upstream = _git_check(spec.workspace, ["rev-parse", "@{upstream}"])
                 if upstream.returncode != 0 or upstream.stdout.strip() != head_before:
                     raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_REMOTE_MISMATCH")
-        if command is None:
+        if recovered:
+            pass
+        elif command is None:
             applied = apply_protected_patch(spec.workspace, patch_operations)
             completed = subprocess.CompletedProcess(
                 ["protected_patch.apply"], 0, json.dumps({"applied": applied}), ""
@@ -1122,6 +1321,13 @@ def execute_publish_action(
             spec.workspace, ["diff", "--cached", "--quiet"]
         ).returncode == 0:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_STATE_INVALID", "post-add")
+        if action == "gitgate.add":
+            staged = _git_check(spec.workspace, ["diff", "--cached", "--name-only", "-z"])
+            staged_paths = sorted(item for item in staged.stdout.split("\0") if item)
+            if staged.returncode != 0 or staged_paths != sorted(handoff["result"]["changed_files"]):
+                raise CodexSupervisorError(
+                    "CODEX_SUPERVISOR_PUBLISH_GIT_STATE_INVALID", "staged-paths"
+                )
         if action == "gitgate.commit":
             if current.head_oid == head_before or _git_check(
                 spec.workspace, ["status", "--porcelain"]
@@ -1178,16 +1384,19 @@ def execute_publish_action(
                 os.replace(temporary, target)
             finally:
                 temporary.unlink(missing_ok=True)
-        _finish_publish_action(
-            spec, publish_id=publish_id, action=action, state="completed",
-            evidence={"head_oid": current.head_oid},
-        )
+        if publish_id is not None:
+            _finish_publish_action(
+                spec, publish_id=publish_id, action=action, state="completed",
+                evidence={"post_snapshot": _publish_git_snapshot(spec.workspace)},
+            )
         return completed
     except BaseException as exc:
         reason = exc.reason if isinstance(exc, CodexSupervisorError) else type(exc).__name__
-        _finish_publish_action(
-            spec, publish_id=publish_id, action=action, state="failed", evidence={"reason": reason}
-        )
+        if publish_id is not None:
+            _finish_publish_action(
+                spec, publish_id=publish_id, action=action, state="failed",
+                evidence={"reason": reason}
+            )
         if isinstance(exc, (OSError, subprocess.SubprocessError)):
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_EXEC_FAILED", action) from exc
         raise
@@ -1199,6 +1408,7 @@ def validate_protected_patch(
     *,
     role: str,
     allowed_paths: Collection[str],
+    allow_already_applied: bool = False,
 ) -> tuple[dict[str, Any], ...]:
     """内側Codexがstagingへ出したprotected asset patchをhost側で検査する。
 
@@ -1251,8 +1461,6 @@ def validate_protected_patch(
             current = target.read_bytes()
         except OSError as exc:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_TARGET_MISSING", relative) from exc
-        if hashlib.sha256(current).hexdigest() != base_digest:
-            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_BASE_MISMATCH", relative)
         encoded = operation["content_base64"]
         if not isinstance(encoded, str):
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative)
@@ -1262,7 +1470,16 @@ def validate_protected_patch(
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative) from exc
         if len(content) > _MAX_PATCH_BYTES or b"\x00" in content:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_CONTENT_INVALID", relative)
-        normalized.append({"path": relative, "content": content, "base_sha256": base_digest})
+        current_digest = hashlib.sha256(current).hexdigest()
+        already_applied = current == content
+        if current_digest != base_digest and not (allow_already_applied and already_applied):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_BASE_MISMATCH", relative)
+        normalized.append({
+            "path": relative,
+            "content": content,
+            "base_sha256": base_digest,
+            "already_applied": already_applied,
+        })
     return tuple(normalized)
 
 

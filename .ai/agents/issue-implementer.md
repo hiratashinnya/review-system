@@ -49,7 +49,9 @@ hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果�
 hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish完了後のfinal phaseであり、inner成功証跡に流用しない。
 `result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
 protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
-hostはprotected patch（宣言時のみ）→add→commit→push→PR createを順番に実行し、最終handoffを生成する。
+hostはbinding prepare時にownerがmain ledgerへ記録したexact protected pathだけを承認し、promptやpublish CLIで
+pathを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを段間Git factsのCAS付きで
+順番に実行し、最終handoffを生成する。
 
 schema_version: 1
 phase: final

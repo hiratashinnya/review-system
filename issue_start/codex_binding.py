@@ -29,7 +29,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from . import worktree_ledger
@@ -48,6 +48,7 @@ _FIXER_TASK = re.compile(r"^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$")
 _HTTPS_REMOTE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$")
 _SSH_REMOTE = re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$")
 _HANDOFF_SUFFIX = re.compile(r"^[A-Za-z0-9._-]*$")
+_PROTECTED_PLAN_ROOTS = (".codex/", ".agents/", ".ai/agents/")
 
 
 class CodexBindingError(RuntimeError):
@@ -280,6 +281,7 @@ def prepare_binding(
     role: str,
     task_key: str,
     now: datetime,
+    protected_paths: Sequence[str] = (),
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
@@ -295,6 +297,25 @@ def prepare_binding(
         task_key=task_key,
         handoff_path=handoff_path,
     )
+    approved_paths: list[str] = []
+    if isinstance(protected_paths, (str, bytes)):
+        raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID")
+    for value in protected_paths:
+        if not isinstance(value, str):
+            raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", repr(value))
+        parsed = PurePosixPath(value)
+        if (
+            not value
+            or parsed.is_absolute()
+            or str(parsed) != value
+            or any(part in {"", ".", ".."} for part in parsed.parts)
+            or not value.startswith(_PROTECTED_PLAN_ROOTS)
+        ):
+            raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", value)
+        approved_paths.append(value)
+    if len(set(approved_paths)) != len(approved_paths):
+        raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", "duplicate")
+    approved_paths.sort()
     if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool) or not (
         MIN_TTL_SECONDS <= ttl_seconds <= MAX_TTL_SECONDS
     ):
@@ -341,6 +362,7 @@ def prepare_binding(
                 "handoff_path": handoff,
                 "agent_type": role,
                 "task_key": task_key,
+                "protected_paths": approved_paths,
             }
             mismatches = [
                 key for key, value in identity.items() if target.get(key) != value
@@ -402,6 +424,7 @@ def prepare_binding(
             "consumed_at": None,
             "bound_at": None,
             "refresh_history": [],
+            "protected_paths": approved_paths,
         }
         entries.append(entry)
         created.update(entry)
@@ -753,6 +776,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--handoff", dest="handoff_path", required=True)
     prepare.add_argument("--role", choices=sorted(TARGET_ROLES), required=True)
     prepare.add_argument("--task-key", required=True)
+    prepare.add_argument("--protected-path", dest="protected_paths", action="append", default=[])
     prepare.add_argument("--ttl-seconds", type=int, default=DEFAULT_TTL_SECONDS)
     for name in ("collect", "release"):
         action = sub.add_parser(name)
@@ -774,6 +798,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repository=args.repository, workspace=args.workspace,
                 branch_name=args.branch_name, expected_oid=args.expected_oid,
                 handoff_path=args.handoff_path, role=args.role, task_key=args.task_key,
+                protected_paths=args.protected_paths,
                 ttl_seconds=args.ttl_seconds, now=now,
             )
         elif args.command == "collect":

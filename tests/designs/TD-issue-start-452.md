@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 5
+version: 6
 condition: boundary
 ---
 
@@ -57,6 +57,13 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 17. pre-publish resultとimplementer/fixer finalを別schema validatorへ通し、PR URL欠落、wrong status、STOP、
     任意resultを拒否する。protected patch（宣言時のみ）→add→commit→push→implementer PR createをledger順序、
     staged/clean/HEAD/upstream/URLで確認し、direct push、dirty PR create、未適用patchを拒否する。
+18. initial/resume双方で旧runnerをlease期限後まで停止し、live owner中は新reservationを拒否する。owner終了後に
+    新fenceを取得したら旧attemptのspawn/running eventをCAS拒否し、新ownerだけが進行することを確認する。
+19. publish action直前/直後のowner crashを予約leaseとGit snapshotで回収し、add後のclean commit差替えを
+    HEAD/index tree CASで拒否する。protected exact pathはbinding prepare時のowner planだけから読み、publish
+    CLIによる追加を拒否する。
+20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free `codex sandbox` shellは
+    task markerの作成・変更・削除を拒否され、outer Codex control processだけが同じmarkerを保存できることを確認する。
 
 # 期待結果
 
@@ -72,3 +79,5 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - start/resumeは一意attemptへ直列化され、pre-publish handoffからhost publish後finalへのphase遷移が監査できる。
 - 対象PR自身はtrusted role contractを変更できず、session rolloutはtask間で共有されずresume間だけ永続する。
 - host publishは途中飛ばし・並行実行・成果未確認を成功にせず、既存consumer互換のrole別finalだけを出力する。
+- attempt/publish ownerが生存する限りleaseだけでownershipを奪わず、owner終了後の回収でも旧fenceからの更新を拒否する。
+- protected path planとpublish段間Git factsはmain ledgerのtrusted入力・CAS証跡であり、task promptやaction引数を承認根拠にしない。

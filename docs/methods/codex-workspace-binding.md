@@ -54,9 +54,12 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
   developer instructions、`CODEX_ISSUE_ROLE`、digestを束縛する。task promptや対象PRの変更をrole identityとして採用しない。
 - canonical `~/.codex` の認証・configはread-onlyのまま、main `tmp/_codex_sessions/<task-key>/sessions`だけを
   `~/.codex/sessions`へwrite bindする。Codex制御processはrolloutを永続化でき、inner workspace shellはCodex
-  sandboxによりworkspace外のsession stateを書き換えられない。initial/resumeは同じtask directoryを再利用する。
+  sandboxによりworkspace外のsession stateを書き換えられない。clean hostではhost supervisorが非symlinkの
+  `~/.codex/sessions` mount targetを先に作成し、initial/resumeは同じtask directoryを再利用する。
 - `.git`、`.codex/**`、`.agents/**`、実行roleの`.ai/agents/<role>.md`は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な
-  場合はinner processがstagingへschema v1 patchを出し、hostがowner-approved exact path、base SHA-256、
+  場合はinner processがstagingへschema v1 patchを出す。exact pathはbinding prepare時の
+  `--protected-path`でmain ownership ledgerへowner planとして先に記録し、publish CLIやpromptから追加しない。
+  hostがこのdurable plan、base SHA-256、
   path traversal、symlink、件数・サイズを検証してatomic applyする。
 - inner processは編集・テスト・handoffだけを行う。commit/push/PRはexit後にhostがrole別allowlistと既存
   `gitgate`を通して行い、implementer/fixerにmergeを許可しない。
@@ -82,11 +85,14 @@ task・repository・workspace・branch・OID・handoff・role・roundの場合�
 
 supervisor自身がtrusted start observerとなり、actual thread ID、workspace、PID/start tokenを同時に記録して
 identityを1度だけ`running`へbindする。resumeはrole/workspace/thread一致を必須とし、stale threadを拒否する。
-成功handoffだけをcollect/releaseへ渡す。start/resumeはledger lock下でattemptを予約し、active PID/start token
-または有効leaseがある二重起動を拒否する。resumeは最新eventが同一threadの未消費`paused_rate_limit`の場合だけ
+成功handoffだけをcollect/releaseへ渡す。start/resumeはledger lock下でattemptを予約し、supervisor owner
+PID/start tokenが生存する限りlease期限後も二重起動を拒否する。owner終了後のlease回収では新fencing tokenを
+発行し、旧attemptのspawn/running/terminal eventをCAS拒否する。resumeは最新eventが同一threadの未消費`paused_rate_limit`の場合だけ
 許可する。CLIの`run`/`resume`がこの入口を呼び、`publish`は最新success、handoff、fresh Git facts、role allowlistを
-再検証する。protected patch（宣言時のみ）→add→commit→push→implementerのPR createをledgerで順序予約し、
-staged/clean/HEAD/upstream/PR URLの各成果を確認して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
+再検証する。protected patch（宣言時のみ）→add→commit→push→implementerのPR createをowner PID/start tokenと
+lease付きでledger順序予約する。owner crash後は期限切れreservationを回収し、実行済み効果をGit factsから
+保守的に照合する。各completed eventのHEAD/index tree/worktree/upstream snapshotを次段のexpected値へCAS束縛し、
+cleanなHEAD差替えも拒否して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
 
 ## 却下案
 
