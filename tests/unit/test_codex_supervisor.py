@@ -153,7 +153,10 @@ class CodexSupervisorTests(unittest.TestCase):
             handoff_path=self.handoff,
             role="issue-implementer",
             task_key=self.task_key,
-            protected_paths=(".agents/seed", ".codex/seed"),
+            protected_paths=(
+                f".agents/seed={hashlib.sha256((self.workspace / '.agents/seed').read_bytes()).hexdigest()}",
+                f".codex/seed={hashlib.sha256((self.workspace / '.codex/seed').read_bytes()).hexdigest()}",
+            ),
             now=NOW,
         )
         self.spec = SupervisorSpec(
@@ -730,13 +733,31 @@ class CodexSupervisorTests(unittest.TestCase):
         runner.assert_not_called()
         self.assertTrue(self.entry()["publish_attempts"][-1]["recovered_after_owner_exit"])
 
-        git(self.workspace, "commit", "-m", "untrusted clean replacement")
         message = self.workspace / "tmp/commit-message.txt"
         message.parent.mkdir(exist_ok=True)
         message.write_text("expected publish\n", encoding="utf-8")
+        commit_args = (str(message),)
+        commit_digest = hashlib.sha256(
+            json.dumps(list(commit_args), separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        commit_id, recovered = _reserve_publish_action(
+            self.spec,
+            action="gitgate.commit",
+            sequence=("gitgate.add", "gitgate.commit", "gitgate.push", "gh.pr.create"),
+            snapshot=_publish_git_snapshot(self.workspace),
+            initial_head_oid=handoff["head_oid"],
+            action_args_sha256=commit_digest,
+            now=NOW + timedelta(seconds=3),
+        )
+        self.assertIsNotNone(commit_id)
+        self.assertFalse(recovered)
+        (self.workspace / "seed.txt").write_text("different tree\n", encoding="utf-8")
+        git(self.workspace, "add", "seed.txt")
+        git(self.workspace, "commit", "-m", "untrusted clean replacement")
+        worktree_ledger.update_ledger(self.main, expire_publish)
         with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_CAS_MISMATCH"):
             execute_publish_action(
-                self.spec, action="gitgate.commit", action_args=(str(message),)
+                self.spec, action="gitgate.commit", action_args=commit_args
             )
 
     def test_publish_protected_paths_come_only_from_binding_plan(self):
@@ -840,6 +861,103 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual((final["phase"], final["status"]), ("final", "fixed"))
         self.assertEqual(final["finding_ids"], ["F-10-01"])
         self.assertNotIn("result", final)
+
+    def test_pr_create_crash_recovers_existing_exact_pr_and_final_idempotently(self):
+        (self.workspace / "seed.txt").write_text("implemented\n", encoding="utf-8")
+        self.handoff_file()
+        self.run_supervisor(FakeRunner(self.success_lines()))
+
+        def gitgate_runner(command, **kwargs):
+            if command[-3:-1] == ["gitgate", "add"]:
+                git(self.workspace, "add", "seed.txt")
+            elif command[-3:-1] == ["gitgate", "commit"]:
+                git(self.workspace, "commit", "-F", command[-1])
+            elif command[-1] == "push":
+                git(self.workspace, "config", "branch.codex/issue-10.remote", "origin")
+                git(self.workspace, "config", "branch.codex/issue-10.merge", "refs/heads/codex/issue-10")
+                git(self.workspace, "update-ref", "refs/remotes/origin/codex/issue-10", git(self.workspace, "rev-parse", "HEAD"))
+            return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+        execute_publish_action(
+            self.spec, action="gitgate.add", action_args=("seed.txt",), runner=gitgate_runner
+        )
+        message = self.workspace / "tmp/pr-crash-message.txt"
+        message.parent.mkdir(exist_ok=True)
+        message.write_text("publish\n", encoding="utf-8")
+        execute_publish_action(
+            self.spec, action="gitgate.commit", action_args=(str(message),), runner=gitgate_runner
+        )
+        execute_publish_action(
+            self.spec, action="gitgate.push", action_args=(), runner=gitgate_runner
+        )
+        body = self.workspace / "tmp/pr-crash-body.md"
+        body.write_text("body\n", encoding="utf-8")
+        action_args = ("title", str(body), "main")
+        args_digest = hashlib.sha256(
+            json.dumps(list(action_args), separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        handoff = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
+        publish_id, recovered = _reserve_publish_action(
+            self.spec,
+            action="gh.pr.create",
+            sequence=("gitgate.add", "gitgate.commit", "gitgate.push", "gh.pr.create"),
+            snapshot=_publish_git_snapshot(self.workspace),
+            initial_head_oid=handoff["head_oid"],
+            action_args_sha256=args_digest,
+            now=NOW + timedelta(seconds=4),
+        )
+        self.assertIsNotNone(publish_id)
+        self.assertFalse(recovered)
+
+        def expire_publish(document):
+            target = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
+            latest = target["publish_attempts"][-1]
+            latest["owner_pid"] = 99999999
+            latest["owner_start_token"] = "1"
+            latest["lease_expires_at"] = "2026-08-30T00:00:00Z"
+
+        worktree_ledger.update_ledger(self.main, expire_publish)
+        head_oid = git(self.workspace, "rev-parse", "HEAD")
+
+        def pr_runner(base="main"):
+            def run(command, **kwargs):
+                self.assertIn("list", command, "recovery must not create a second PR")
+                candidate = [{
+                    "url": "https://github.com/example/repo/pull/101",
+                    "headRefName": "codex/issue-10", "baseRefName": base,
+                    "headRepositoryOwner": {"login": "example"},
+                    "headRefOid": head_oid, "isDraft": False, "state": "OPEN",
+                }]
+                return subprocess.CompletedProcess(command, 0, json.dumps(candidate), "")
+            return run
+
+        with mock.patch("issue_start.codex_supervisor.shutil.which", return_value="/usr/bin/gh"):
+            with self.assertRaisesRegex(CodexSupervisorError, "PR_RECOVERY_MISMATCH"):
+                execute_publish_action(
+                    self.spec, action="gh.pr.create", action_args=action_args,
+                    runner=pr_runner("wrong-base"),
+                )
+            completed = execute_publish_action(
+                self.spec, action="gh.pr.create", action_args=action_args,
+                runner=pr_runner(),
+            )
+            self.assertIn("/pull/101", completed.stdout)
+            final = json.loads((self.workspace / self.handoff).read_text(encoding="utf-8"))
+            self.assertEqual(final["pr_url"], "https://github.com/example/repo/pull/101")
+
+            # final write後・ledger finish前のcrashも同じPR factsで冪等に完了する。
+            def reopen_reserved(document):
+                target = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
+                self.assertEqual(target["publish_attempts"][-1]["state"], "completed")
+                target["publish_attempts"].pop()
+
+            worktree_ledger.update_ledger(self.main, reopen_reserved)
+            repeated = execute_publish_action(
+                self.spec, action="gh.pr.create", action_args=action_args,
+                runner=pr_runner(),
+            )
+            self.assertIn("/pull/101", repeated.stdout)
+            self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "completed")
 
     def test_probe_validator_requires_exact_boundary_result(self):
         expected = {
@@ -976,6 +1094,48 @@ class CodexSupervisorTests(unittest.TestCase):
             action_args=(str(patch_file),),
         )
         self.assertEqual(target.read_bytes(), b"patched\n")
+        target.write_bytes(b"swapped\n")
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_CAS_MISMATCH"):
+            execute_publish_action(
+                self.spec, action="gitgate.add", action_args=(".codex/seed",)
+            )
+
+    def test_protected_patch_base_digest_must_match_owner_plan(self):
+        target = self.workspace / ".codex/seed"
+        original = target.read_bytes()
+        patch_document = {
+            "schema_version": 1,
+            "role": "issue-implementer",
+            "operations": [{
+                "path": ".codex/seed",
+                "base_sha256": hashlib.sha256(original).hexdigest(),
+                "content_base64": base64.b64encode(b"patched\n").decode("ascii"),
+            }],
+        }
+        patch_file = self.workspace / "tmp/protected-patch-plan-mismatch.json"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_bytes = json.dumps(patch_document).encode("utf-8")
+        patch_file.write_bytes(patch_bytes)
+        self.handoff_file({
+            "changed_files": [".codex/seed"],
+            "tests": {"command": "python3 -m unittest", "result": "pass", "summary": "ok"},
+            "out_of_scope_findings": [],
+            "protected_patch": {
+                "path": "tmp/protected-patch-plan-mismatch.json",
+                "sha256": hashlib.sha256(patch_bytes).hexdigest(),
+            },
+        })
+        self.run_supervisor(FakeRunner(self.success_lines()))
+
+        def replace_owner_digest(document):
+            entry = next(item for item in document["entries"] if item.get("task_key") == self.task_key)
+            next(item for item in entry["protected_plan"] if item["path"] == ".codex/seed")["base_sha256"] = "b" * 64
+
+        worktree_ledger.update_ledger(self.main, replace_owner_digest)
+        with self.assertRaisesRegex(CodexSupervisorError, "PATCH_PLAN_DIGEST_MISMATCH"):
+            execute_publish_action(
+                self.spec, action="protected_patch.apply", action_args=(str(patch_file),)
+            )
 
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):

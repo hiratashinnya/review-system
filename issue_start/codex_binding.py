@@ -49,6 +49,7 @@ _HTTPS_REMOTE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$")
 _SSH_REMOTE = re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$")
 _HANDOFF_SUFFIX = re.compile(r"^[A-Za-z0-9._-]*$")
 _PROTECTED_PLAN_ROOTS = (".codex/", ".agents/", ".ai/agents/")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CodexBindingError(RuntimeError):
@@ -297,25 +298,28 @@ def prepare_binding(
         task_key=task_key,
         handoff_path=handoff_path,
     )
-    approved_paths: list[str] = []
+    approved_plan: list[dict[str, str]] = []
     if isinstance(protected_paths, (str, bytes)):
         raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID")
     for value in protected_paths:
         if not isinstance(value, str):
             raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", repr(value))
-        parsed = PurePosixPath(value)
+        relative, separator, base_digest = value.rpartition("=")
+        parsed = PurePosixPath(relative)
         if (
-            not value
+            separator != "="
+            or not relative
             or parsed.is_absolute()
-            or str(parsed) != value
+            or str(parsed) != relative
             or any(part in {"", ".", ".."} for part in parsed.parts)
-            or not value.startswith(_PROTECTED_PLAN_ROOTS)
+            or not relative.startswith(_PROTECTED_PLAN_ROOTS)
+            or _SHA256.fullmatch(base_digest) is None
         ):
             raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", value)
-        approved_paths.append(value)
-    if len(set(approved_paths)) != len(approved_paths):
+        approved_plan.append({"path": relative, "base_sha256": base_digest})
+    if len({item["path"] for item in approved_plan}) != len(approved_plan):
         raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", "duplicate")
-    approved_paths.sort()
+    approved_plan.sort(key=lambda item: item["path"])
     if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool) or not (
         MIN_TTL_SECONDS <= ttl_seconds <= MAX_TTL_SECONDS
     ):
@@ -362,7 +366,7 @@ def prepare_binding(
                 "handoff_path": handoff,
                 "agent_type": role,
                 "task_key": task_key,
-                "protected_paths": approved_paths,
+                "protected_plan": approved_plan,
             }
             mismatches = [
                 key for key, value in identity.items() if target.get(key) != value
@@ -424,7 +428,7 @@ def prepare_binding(
             "consumed_at": None,
             "bound_at": None,
             "refresh_history": [],
-            "protected_paths": approved_paths,
+            "protected_plan": approved_plan,
         }
         entries.append(entry)
         created.update(entry)
@@ -776,7 +780,10 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--handoff", dest="handoff_path", required=True)
     prepare.add_argument("--role", choices=sorted(TARGET_ROLES), required=True)
     prepare.add_argument("--task-key", required=True)
-    prepare.add_argument("--protected-path", dest="protected_paths", action="append", default=[])
+    prepare.add_argument(
+        "--protected-path", dest="protected_paths", action="append", default=[],
+        metavar="PATH=BASE_SHA256",
+    )
     prepare.add_argument("--ttl-seconds", type=int, default=DEFAULT_TTL_SECONDS)
     for name in ("collect", "release"):
         action = sub.add_parser(name)

@@ -1009,6 +1009,48 @@ def _publish_sequence(role: str, handoff: Mapping[str, Any]) -> tuple[str, ...]:
     return prefix + tail
 
 
+def _worktree_content_sha256(workspace: Path) -> str:
+    """tracked diffとuntracked contentを含むworktree内容fingerprintを返す。"""
+
+    try:
+        tracked = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "--binary", "HEAD", "--"],
+            cwd=workspace, capture_output=True, check=False,
+        )
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=workspace, capture_output=True, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_CHECK_FAILED") from exc
+    if tracked.returncode != 0 or untracked.returncode != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_CHECK_FAILED")
+    digest = hashlib.sha256(b"tracked\0" + tracked.stdout + b"\0untracked\0")
+    for raw_relative in sorted(item for item in untracked.stdout.split(b"\0") if item):
+        relative = os.fsdecode(raw_relative)
+        target = workspace / relative
+        try:
+            target.resolve(strict=False).relative_to(workspace)
+            metadata = target.lstat()
+            if stat.S_ISREG(metadata.st_mode):
+                content = target.read_bytes()
+            elif stat.S_ISLNK(metadata.st_mode):
+                content = os.fsencode(os.readlink(target))
+            else:
+                raise OSError("unsupported untracked file type")
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PUBLISH_CONTENT_SNAPSHOT_INVALID", relative
+            ) from exc
+        digest.update(raw_relative)
+        digest.update(b"\0")
+        digest.update(str(stat.S_IMODE(metadata.st_mode)).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(content)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def _publish_git_snapshot(workspace: Path) -> dict[str, Any]:
     """publish段間CASに使うHEAD/index/worktree/upstream factsを採取する。"""
 
@@ -1019,11 +1061,16 @@ def _publish_git_snapshot(workspace: Path) -> dict[str, Any]:
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_CHECK_FAILED")
     upstream = _git_check(workspace, ["rev-parse", "@{upstream}"])
     parent = _git_check(workspace, ["rev-parse", "HEAD^"])
+    head_tree = _git_check(workspace, ["rev-parse", "HEAD^{tree}"])
+    if head_tree.returncode != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_CHECK_FAILED")
     return {
         "head_oid": facts.head_oid,
         "head_parent_oid": parent.stdout.strip() if parent.returncode == 0 else None,
+        "head_tree_oid": head_tree.stdout.strip(),
         "index_tree_oid": index.stdout.strip(),
         "status_sha256": hashlib.sha256(status.stdout.encode("utf-8")).hexdigest(),
+        "worktree_content_sha256": _worktree_content_sha256(workspace),
         "clean": not bool(status.stdout),
         "upstream_oid": upstream.stdout.strip() if upstream.returncode == 0 else None,
     }
@@ -1049,6 +1096,7 @@ def _publish_effect_observed(
         return (
             before.get("head_oid") != after.get("head_oid")
             and after.get("head_parent_oid") == before.get("head_oid")
+            and after.get("head_tree_oid") == before.get("index_tree_oid")
             and after.get("clean") is True
         )
     if action == "gitgate.push":
@@ -1067,6 +1115,7 @@ def _reserve_publish_action(
     snapshot: Mapping[str, Any],
     initial_head_oid: str,
     action_args_sha256: str,
+    external_effect: Mapping[str, Any] | None = None,
     now: datetime | None = None,
 ) -> tuple[str | None, bool]:
     root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
@@ -1104,9 +1153,10 @@ def _reserve_publish_action(
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTIVE")
             if active.get("action_args_sha256") != action_args_sha256:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_RECOVERY_ARGS_MISMATCH")
-            if active.get("action") == action and _publish_effect_observed(
+            effect_observed = _publish_effect_observed(
                 action, active.get("pre_snapshot", {}), snapshot
-            ):
+            ) or (action == "gh.pr.create" and external_effect is not None)
+            if active.get("action") == action and effect_observed:
                 events.append({
                     "at": stamp,
                     "publish_id": active.get("publish_id"),
@@ -1114,6 +1164,7 @@ def _reserve_publish_action(
                     "action": action,
                     "recovered_after_owner_exit": True,
                     "post_snapshot": dict(snapshot),
+                    "external_effect": dict(external_effect or {}),
                 })
                 recovered = True
             else:
@@ -1189,6 +1240,68 @@ def _finish_publish_action(
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
 
 
+def _existing_open_pr_facts(
+    spec: SupervisorSpec,
+    entry: Mapping[str, Any],
+    *,
+    base: str,
+    head_oid: str,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> dict[str, Any] | None:
+    """reserved PR create回収用にrepository/head/base/OIDをGitHubから再観測する。"""
+
+    gh = shutil.which("gh")
+    if gh is None:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_GH_UNAVAILABLE")
+    command = [
+        gh, "pr", "list", "--repo", entry["repository"],
+        "--head", entry["branch_name"], "--base", base, "--state", "open",
+        "--json", "url,headRefName,baseRefName,headRepositoryOwner,headRefOid,isDraft,state",
+        "--limit", "2",
+    ]
+    completed = runner(
+        command, cwd=spec.workspace, text=True, capture_output=True, check=False
+    )
+    if completed.returncode != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_FAILED")
+    try:
+        candidates = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_INVALID") from exc
+    if not isinstance(candidates, list) or len(candidates) > 1:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_INVALID")
+    if not candidates:
+        return None
+    candidate = candidates[0]
+    owner = entry["repository"].split("/", 1)[0]
+    expected_url = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
+    if (
+        not isinstance(candidate, dict)
+        or set(candidate) != {
+            "url", "headRefName", "baseRefName", "headRepositoryOwner",
+            "headRefOid", "isDraft", "state",
+        }
+        or re.fullmatch(expected_url, candidate.get("url", "")) is None
+        or candidate.get("headRefName") != entry["branch_name"]
+        or candidate.get("baseRefName") != base
+        or candidate.get("headRefOid") != head_oid
+        or candidate.get("headRepositoryOwner") != {"login": owner}
+        or candidate.get("isDraft") is not False
+        or candidate.get("state") != "OPEN"
+    ):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+    return dict(candidate)
+
+
+def _read_handoff_document(spec: SupervisorSpec) -> dict[str, Any] | None:
+    target = spec.workspace / spec.handoff_path
+    try:
+        document = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return document if isinstance(document, dict) else None
+
+
 def execute_publish_action(
     spec: SupervisorSpec,
     *,
@@ -1211,6 +1324,56 @@ def execute_publish_action(
     attempts = entry.get("supervisor_attempts")
     if not isinstance(attempts, list) or not attempts or attempts[-1].get("state") != "succeeded":
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ATTEMPT_INVALID")
+    existing_final = _read_handoff_document(spec)
+    if existing_final is not None and existing_final.get("phase") == "final":
+        _validate_final_handoff(spec.role, existing_final)
+        expected_action = "gh.pr.create" if spec.role == "issue-implementer" else "gitgate.push"
+        expected_url = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
+        if (
+            action != expected_action
+            or existing_final.get("issue") != entry.get("issue")
+            or existing_final.get("branch") != entry.get("branch_name")
+            or re.fullmatch(expected_url, existing_final.get("pr_url", "")) is None
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_FINAL_HANDOFF_BINDING_MISMATCH")
+        events = entry.get("publish_attempts")
+        if not isinstance(events, list) or not events:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        if events[-1].get("state") == "completed" and events[-1].get("action") == action:
+            return subprocess.CompletedProcess(
+                [action], 0, existing_final["pr_url"] + "\n", ""
+            )
+        if events[-1].get("state") != "reserved" or events[-1].get("action") != action:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        if spec.role == "issue-implementer":
+            if len(action_args) != 3:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+            external_effect = _existing_open_pr_facts(
+                spec, entry, base=action_args[2],
+                head_oid=codex_binding.inspect_git_facts(spec.workspace).head_oid,
+                runner=runner,
+            )
+            if external_effect is None or external_effect["url"] != existing_final["pr_url"]:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
+        else:
+            if action_args:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+            external_effect = None
+        completed_actions = tuple(
+            event["action"] for event in events if event.get("state") == "completed"
+        )
+        args_digest = hashlib.sha256(
+            json.dumps(list(action_args), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        _publish_id, recovered = _reserve_publish_action(
+            spec, action=action, sequence=completed_actions + (action,),
+            snapshot=_publish_git_snapshot(spec.workspace),
+            initial_head_oid=entry["expected_oid"],
+            action_args_sha256=args_digest, external_effect=external_effect,
+        )
+        if not recovered:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_LEDGER_INVALID")
+        return subprocess.CompletedProcess([action], 0, existing_final["pr_url"] + "\n", "")
     handoff = _validate_handoff(spec, entry, allow_descendant=True)
     sequence = _publish_sequence(spec.role, handoff)
     try:
@@ -1236,13 +1399,30 @@ def execute_publish_action(
             patch_document = json.loads(patch_bytes)
         except json.JSONDecodeError as exc:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_SCHEMA_INVALID") from exc
+        plan = entry.get("protected_plan")
+        if not isinstance(plan, list) or any(
+            not isinstance(item, dict)
+            or set(item) != {"path", "base_sha256"}
+            or not isinstance(item["path"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", item["base_sha256"]) is None
+            for item in plan
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PROTECTED_PLAN_INVALID")
+        approved_base = {item["path"]: item["base_sha256"] for item in plan}
+        if len(approved_base) != len(plan):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PROTECTED_PLAN_INVALID")
         patch_operations = validate_protected_patch(
             spec.workspace,
             patch_document,
             role=spec.role,
-            allowed_paths=entry.get("protected_paths", ()),
+            allowed_paths=approved_base,
             allow_already_applied=True,
         )
+        if any(
+            approved_base.get(operation["path"]) != operation["base_sha256"]
+            for operation in patch_operations
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_PLAN_DIGEST_MISMATCH")
         command: list[str] | None = None
     elif action == "gitgate.add":
         if sorted(action_args) != sorted(handoff["result"]["changed_files"]):
@@ -1273,6 +1453,21 @@ def execute_publish_action(
     action_args_sha256 = hashlib.sha256(
         json.dumps(list(action_args), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+    external_effect: dict[str, Any] | None = None
+    publish_events = entry.get("publish_attempts")
+    latest_publish = publish_events[-1] if isinstance(publish_events, list) and publish_events else None
+    if (
+        action == "gh.pr.create"
+        and isinstance(latest_publish, dict)
+        and latest_publish.get("state") == "reserved"
+        and latest_publish.get("action") == action
+        and not _process_identity_alive(
+            latest_publish.get("owner_pid"), latest_publish.get("owner_start_token")
+        )
+    ):
+        external_effect = _existing_open_pr_facts(
+            spec, entry, base=action_args[2], head_oid=snapshot_before["head_oid"], runner=runner
+        )
     publish_id, recovered = _reserve_publish_action(
         spec,
         action=action,
@@ -1280,12 +1475,19 @@ def execute_publish_action(
         snapshot=snapshot_before,
         initial_head_oid=handoff["head_oid"],
         action_args_sha256=action_args_sha256,
+        external_effect=external_effect,
     )
     head_before = facts.head_oid
     try:
         if recovered:
             completed = subprocess.CompletedProcess(
-                [action], 0, "recovered after prior host exit\n", ""
+                [action], 0,
+                (
+                    external_effect["url"] + "\n"
+                    if action == "gh.pr.create" and external_effect is not None
+                    else "recovered after prior host exit\n"
+                ),
+                "",
             )
         elif action == "gitgate.add":
             if _git_check(spec.workspace, ["diff", "--cached", "--quiet"]).returncode != 0:

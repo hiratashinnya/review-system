@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 6
+version: 7
 condition: boundary
 ---
 
@@ -64,6 +64,10 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     CLIによる追加を拒否する。
 20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free `codex sandbox` shellは
     task markerの作成・変更・削除を拒否され、outer Codex control processだけが同じmarkerを保存できることを確認する。
+21. protected owner planにexact pathとbase SHA-256を一体保存し、patch内digest差替えを拒否する。同じporcelain
+    statusを保つworktree内容差替え、同一parentだがpre-indexと別treeのcommitをcrash recoveryで成功扱いしない。
+22. gh.pr.create成功後・finish前のcrashをfake GitHub factsで再現し、repository/head/base/head OID/owner/open/non-draftが
+    一意一致するPRだけを回収する。final handoff書込前後の両方で同じURLへ冪等完成し、別base等は拒否する。
 
 # 期待結果
 
@@ -81,3 +85,4 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - host publishは途中飛ばし・並行実行・成果未確認を成功にせず、既存consumer互換のrole別finalだけを出力する。
 - attempt/publish ownerが生存する限りleaseだけでownershipを奪わず、owner終了後の回収でも旧fenceからの更新を拒否する。
 - protected path planとpublish段間Git factsはmain ledgerのtrusted入力・CAS証跡であり、task promptやaction引数を承認根拠にしない。
+- owner planのbase digest、worktree content、index/commit tree、GitHub PR factsの一つでも不一致ならcrash recoveryを成功にしない。

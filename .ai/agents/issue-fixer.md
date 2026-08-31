@@ -76,7 +76,7 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 `result`にはfinal生成に必要なround、既存PR URL、finding_ids、diagnosis、outcome、changed_files、tests、
 unresolved_findings、out_of_scope_findings、protected_patchを過不足なく入れる。protected asset変更がなければ
 `protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。承認対象pathはbinding
-prepare時にownerがmain ledgerへ記録し、promptやpublish CLIから追加しない。hostはprotected patch
+prepare時にownerがmain ledgerへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→pushを順番に実行し、既存consumer形式のfinal handoffを生成する。
 
 ハンドオフは次の構造を満たす。

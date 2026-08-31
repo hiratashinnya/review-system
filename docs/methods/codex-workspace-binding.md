@@ -58,8 +58,8 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
   `~/.codex/sessions` mount targetを先に作成し、initial/resumeは同じtask directoryを再利用する。
 - `.git`、`.codex/**`、`.agents/**`、実行roleの`.ai/agents/<role>.md`は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な
   場合はinner processがstagingへschema v1 patchを出す。exact pathはbinding prepare時の
-  `--protected-path`でmain ownership ledgerへowner planとして先に記録し、publish CLIやpromptから追加しない。
-  hostがこのdurable plan、base SHA-256、
+  `--protected-path <path>=<base-sha256>`でmain ownership ledgerへowner planとして先に記録し、publish CLIや
+  promptからpath/digestを追加しない。hostがこのdurable plan、patch内の同一base SHA-256、
   path traversal、symlink、件数・サイズを検証してatomic applyする。
 - inner processは編集・テスト・handoffだけを行う。commit/push/PRはexit後にhostがrole別allowlistと既存
   `gitgate`を通して行い、implementer/fixerにmergeを許可しない。
@@ -91,8 +91,10 @@ PID/start tokenが生存する限りlease期限後も二重起動を拒否する
 許可する。CLIの`run`/`resume`がこの入口を呼び、`publish`は最新success、handoff、fresh Git facts、role allowlistを
 再検証する。protected patch（宣言時のみ）→add→commit→push→implementerのPR createをowner PID/start tokenと
 lease付きでledger順序予約する。owner crash後は期限切れreservationを回収し、実行済み効果をGit factsから
-保守的に照合する。各completed eventのHEAD/index tree/worktree/upstream snapshotを次段のexpected値へCAS束縛し、
-cleanなHEAD差替えも拒否して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
+保守的に照合する。各completed eventのHEAD/HEAD tree/index tree/tracked diff/untracked content/upstream snapshotを
+次段のexpected値へCAS束縛し、同じporcelain statusを保つ内容差替えも拒否する。commit回収では新commit treeが
+予約前index treeと一致することを要求する。PR create回収ではGitHubのrepository/head/base/head OID/owner/open/non-draft
+factsが一意に一致する既存PRだけを採用し、final handoffの作成済み/未作成どちらからも冪等に完了する。
 
 ## 却下案
 
