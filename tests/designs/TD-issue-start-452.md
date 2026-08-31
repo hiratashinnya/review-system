@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 4
+version: 5
 condition: boundary
 ---
 
@@ -51,6 +51,12 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     必ず失敗することを確認する。
 15. CLI run/resumeからPopen直前まで、fake successからpublish dry-runまで到達し、最新success、handoff、fresh
     Git facts、role allowlistを満たす固定gitgate/gh executor以外を拒否する。
+16. host mainのwrapper+common bundleと対象branchのdigestを両roleで比較し、nameを維持したinstructions/common
+    改竄もPopen前に拒否する。task専用sessions mountへmodel-free fake Codexがinitial markerを保存し、別processの
+    resumeが同じmarkerを読めることを確認する。
+17. pre-publish resultとimplementer/fixer finalを別schema validatorへ通し、PR URL欠落、wrong status、STOP、
+    任意resultを拒否する。protected patch（宣言時のみ）→add→commit→push→implementer PR createをledger順序、
+    staged/clean/HEAD/upstream/URLで確認し、direct push、dirty PR create、未適用patchを拒否する。
 
 # 期待結果
 
@@ -64,3 +70,5 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - JSONL、process、Git facts、handoffの一つでも不正なら成功にせず、回収可能な非終端ledger entryを保持する。
 - inner processはcommit/push/PR/mergeを持たず、host publish allowlistがimplementerとfixerの非対称を維持する。
 - start/resumeは一意attemptへ直列化され、pre-publish handoffからhost publish後finalへのphase遷移が監査できる。
+- 対象PR自身はtrusted role contractを変更できず、session rolloutはtask間で共有されずresume間だけ永続する。
+- host publishは途中飛ばし・並行実行・成果未確認を成功にせず、既存consumer互換のrole別finalだけを出力する。

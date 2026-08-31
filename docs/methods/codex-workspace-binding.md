@@ -49,17 +49,22 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
   `--dev-bind`した直後に`--remount-ro`し、`--dev /dev`でdevice集合やwrite範囲を広げない。通常の
   `--ro-bind`はnested user namespaceでdevice accessを保証しないため採用しない。
 - 内側Codex: `workspace-write`、approval `never`、user config無視、web search disabled、shell network false、
-  multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。hostは
-  protected role wrapperを起動前に読み、固定developer instructionsと`CODEX_ISSUE_ROLE`へ束縛する。common本文の
-  loader指示もこのtrusted wrapperから与え、task promptをrole identityとして採用しない。
-- `.git`、`.codex/**`、`.agents/**` は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な
+  multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。hostはmain
+  canonicalのprotected role wrapperとcommon本文をbundle化し、対象branchの同bundle digestが一致した場合だけ
+  developer instructions、`CODEX_ISSUE_ROLE`、digestを束縛する。task promptや対象PRの変更をrole identityとして採用しない。
+- canonical `~/.codex` の認証・configはread-onlyのまま、main `tmp/_codex_sessions/<task-key>/sessions`だけを
+  `~/.codex/sessions`へwrite bindする。Codex制御processはrolloutを永続化でき、inner workspace shellはCodex
+  sandboxによりworkspace外のsession stateを書き換えられない。initial/resumeは同じtask directoryを再利用する。
+- `.git`、`.codex/**`、`.agents/**`、実行roleの`.ai/agents/<role>.md`は対象worktreeのwrite bindより後にread-onlyで再mountする。変更が必要な
   場合はinner processがstagingへschema v1 patchを出し、hostがowner-approved exact path、base SHA-256、
   path traversal、symlink、件数・サイズを検証してatomic applyする。
 - inner processは編集・テスト・handoffだけを行う。commit/push/PRはexit後にhostがrole別allowlistと既存
   `gitgate`を通して行い、implementer/fixerにmergeを許可しない。
 
 inner handoffはJSON-compatible schema v1の`pre_publish` phaseとし、ready、role、Issue、task key、branch、
-現在HEAD、resultをhostが完全照合する。STOP、任意の非空file、host publish後のfinal handoffとは区別する。
+現在HEADとrole別result schemaをhostが完全照合する。STOP、任意の非空file、host publish後のfinal handoffとは
+区別する。implementer finalは`pr_opened`と検証済みPR URL、fixer finalは`fixed`とround/PR/finding/diagnosisを含む
+既存consumer schemaへhostが生成し、同じrole別validatorを通す。
 
 Codex公式のnon-interactive契約に従い、stdout JSONLの`thread.started`を1件だけ受理する。supervisorは
 OS PIDと`/proc/<pid>/stat`のprocess start tokenを先に記録し、同一attemptの`thread.started`を観測してから
@@ -80,7 +85,8 @@ identityを1度だけ`running`へbindする。resumeはrole/workspace/thread一�
 成功handoffだけをcollect/releaseへ渡す。start/resumeはledger lock下でattemptを予約し、active PID/start token
 または有効leaseがある二重起動を拒否する。resumeは最新eventが同一threadの未消費`paused_rate_limit`の場合だけ
 許可する。CLIの`run`/`resume`がこの入口を呼び、`publish`は最新success、handoff、fresh Git facts、role allowlistを
-再検証して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
+再検証する。protected patch（宣言時のみ）→add→commit→push→implementerのPR createをledgerで順序予約し、
+staged/clean/HEAD/upstream/PR URLの各成果を確認して固定`gitgate`/`gh pr create` executorだけを呼ぶ。
 
 ## 却下案
 

@@ -47,7 +47,12 @@ PR URL、変更ファイル、テスト結果、スコープ外 finding を、�
 JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
 hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果を含める。STOPは`status: stopped`とし、
 hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish完了後のfinal phaseであり、inner成功証跡に流用しない。
+`result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
+protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
+hostはprotected patch（宣言時のみ）→add→commit→push→PR createを順番に実行し、最終handoffを生成する。
 
+schema_version: 1
+phase: final
 agent: issue-implementer
 status: pr_opened
 issue: Issue番号
