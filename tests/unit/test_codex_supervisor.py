@@ -713,6 +713,7 @@ class CodexSupervisorTests(unittest.TestCase):
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=args_digest,
             handoff_sha256=_canonical_json_sha256(handoff),
+            handoff_document=handoff,
             now=NOW + timedelta(seconds=2),
         )
         self.assertIsNotNone(publish_id)
@@ -750,6 +751,7 @@ class CodexSupervisorTests(unittest.TestCase):
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=commit_digest,
             handoff_sha256=_canonical_json_sha256(handoff),
+            handoff_document=handoff,
             now=NOW + timedelta(seconds=3),
         )
         self.assertIsNotNone(commit_id)
@@ -859,6 +861,61 @@ class CodexSupervisorTests(unittest.TestCase):
         message = workspace / "tmp/fixer-message.txt"
         message.write_text("fix fixture\n", encoding="utf-8")
         execute_publish_action(spec, action="gitgate.commit", action_args=(str(message),), runner=fixer_runner)
+        pre_publish = json.loads(target.read_text(encoding="utf-8"))
+        publish_id, recovered = _reserve_publish_action(
+            spec,
+            action="gitgate.push",
+            sequence=("gitgate.add", "gitgate.commit", "gitgate.push"),
+            snapshot=_publish_git_snapshot(workspace),
+            initial_head_oid=pre_publish["head_oid"],
+            action_args_sha256=hashlib.sha256(b"[]").hexdigest(),
+            handoff_sha256=_canonical_json_sha256(pre_publish),
+            handoff_document=pre_publish,
+            now=NOW + timedelta(seconds=4),
+        )
+        self.assertIsNotNone(publish_id)
+        self.assertFalse(recovered)
+        fixer_runner(["python3", "-m", "gitgate", "push"])
+
+        def expire_fixer_publish(document):
+            item = next(
+                candidate for candidate in document["entries"]
+                if candidate.get("task_key") == task_key
+            )
+            item["publish_attempts"][-1].update({
+                "owner_pid": 99999999,
+                "owner_start_token": "1",
+                "lease_expires_at": "2026-08-30T00:00:00Z",
+            })
+
+        worktree_ledger.update_ledger(self.main, expire_fixer_publish)
+        substituted_final = {
+            "schema_version": 1, "phase": "final", "agent": "issue-fixer",
+            "status": "fixed", "issue": 10, "round": 2,
+            "branch": "codex/issue-10-fix",
+            "pr_url": "https://github.com/example/repo/pull/9",
+            "finding_ids": ["F-10-99"],
+            "diagnosis": {
+                "root_cause": "substituted", "change_kind": "logic",
+                "targets": ["different.txt"], "karte_attempt": 99,
+            },
+            "outcome": "fixed", "changed_files": ["different.txt"],
+            "tests": {"command": "python3 -m unittest", "result": "pass", "summary": "fake"},
+            "unresolved_findings": [], "out_of_scope_findings": [], "stop_reason": "",
+        }
+        target.write_text(json.dumps(substituted_final), encoding="utf-8")
+        no_second_push = mock.Mock(side_effect=AssertionError("push must not be rerun"))
+        with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_HANDOFF_MISMATCH"):
+            execute_publish_action(
+                spec, action="gitgate.push", action_args=(), runner=no_second_push
+            )
+        no_second_push.assert_not_called()
+        entry = next(
+            item for item in worktree_ledger.read_ledger(self.main)["entries"]
+            if item.get("task_key") == task_key
+        )
+        self.assertEqual(entry["publish_attempts"][-1]["state"], "reserved")
+        target.write_text(json.dumps(pre_publish), encoding="utf-8")
         with mock.patch(
             "issue_start.codex_supervisor._write_final_handoff",
             side_effect=RuntimeError("injected finalization crash"),
@@ -875,7 +932,6 @@ class CodexSupervisorTests(unittest.TestCase):
         )
         self.assertEqual(entry["publish_attempts"][-1]["state"], "completed")
 
-        no_second_push = mock.Mock(side_effect=AssertionError("push must not be rerun"))
         altered = json.loads(json.dumps(crashed))
         altered["result"]["diagnosis"]["root_cause"] = "schema-valid substitution"
         target.write_text(json.dumps(altered), encoding="utf-8")
@@ -957,6 +1013,7 @@ class CodexSupervisorTests(unittest.TestCase):
             initial_head_oid=handoff["head_oid"],
             action_args_sha256=args_digest,
             handoff_sha256=_canonical_json_sha256(handoff),
+            handoff_document=handoff,
             now=NOW + timedelta(seconds=4),
         )
         self.assertIsNotNone(publish_id)
@@ -985,6 +1042,30 @@ class CodexSupervisorTests(unittest.TestCase):
             return run
 
         with mock.patch("issue_start.codex_supervisor.shutil.which", return_value="/usr/bin/gh"):
+            substituted_final = {
+                "schema_version": 1, "phase": "final", "agent": "issue-implementer",
+                "status": "pr_opened", "issue": 10, "branch": "codex/issue-10",
+                "pr_url": "https://github.com/example/repo/pull/101",
+                "changed_files": ["different.txt"],
+                "tests": {"command": "python3 -m unittest", "result": "pass", "summary": "fake"},
+                "out_of_scope_findings": ["substituted"], "stop_reason": "",
+            }
+            (self.workspace / self.handoff).write_text(
+                json.dumps(substituted_final), encoding="utf-8"
+            )
+            no_pr_query = mock.Mock(
+                side_effect=AssertionError("reserved final must fail before PR query")
+            )
+            with self.assertRaisesRegex(CodexSupervisorError, "PUBLISH_HANDOFF_MISMATCH"):
+                execute_publish_action(
+                    self.spec, action="gh.pr.create", action_args=action_args,
+                    runner=no_pr_query,
+                )
+            no_pr_query.assert_not_called()
+            self.assertEqual(self.entry()["publish_attempts"][-1]["state"], "reserved")
+            (self.workspace / self.handoff).write_text(
+                json.dumps(handoff), encoding="utf-8"
+            )
             with self.assertRaisesRegex(CodexSupervisorError, "PR_RECOVERY_MISMATCH"):
                 execute_publish_action(
                     self.spec, action="gh.pr.create", action_args=action_args,

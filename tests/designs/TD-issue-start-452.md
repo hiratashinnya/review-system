@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 9
+version: 10
 condition: boundary
 ---
 
@@ -74,6 +74,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 24. publish reservation、completed、finalized間でcanonical pre-publish/final intent digestを追跡する。両roleの
     completed後・final前にchanged files、tests、out-of-scope findings、finding IDs、diagnosis、outcomeをschema-validに
     差し替えてもfail-closeし、PR create/pushを再実行しない。final保存後のschema-valid差替えも同様に拒否する。
+25. implementer PR createとfixer pushの外部効果後・completed前をdead reservationとして作り、handoffをschema-valid
+    finalへ差し替える。外部操作/照会を再実行せずreservedのまま拒否し、completed/finalizedを追記しない。元の
+    pre-publishを復元した場合だけreservation保存内容から同じfinalへ回収できることを確認する。
 
 # 期待結果
 
@@ -94,3 +97,4 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - owner planのbase digest、worktree content、index/commit tree、GitHub PR factsの一つでも不一致ならcrash recoveryを成功にしない。
 - 最終外部効果の`completed`とhandoff保存後の`finalized`を分離し、その間のcrashでも外部操作を重複実行しない。
 - reservation/completedへ束縛したcanonical handoff/final intent digestと異なるpayloadからfinalを確定しない。
+- reserved中のfinal phaseは不可能状態として外部照会前に拒否し、reservation保存済みpre-publish内容だけを回収元にする。

@@ -98,10 +98,12 @@ factsが一意に一致する既存PRだけを採用し、final handoffの作成
 最終publish actionの外部効果を確認したら先に`completed` eventをdurable保存し、その後にfinal handoffを
 atomic replaceして`finalized` eventを記録する。`completed`後・final保存前の再開では、implementerはGitHubの
 fresh exact PR factsを再照合し、fixerはupstream/head一致を再照合してfinalだけを再生成する。PR createやpushは
-再実行しない。各reservationはcanonical pre-publish handoff digestへ束縛し、completed eventは同digestと
+再実行しない。各reservationはcanonical pre-publish handoffの内容とdigestへ束縛し、completed eventは同内容・digestと
 role別final intent digestを保持する。再開時に現在のpre-publishまたはfinalをcanonical化して照合し、schema-validでも
 changed files、tests、finding、diagnosis、outcome、URL等が異なる差替えは拒否する。final保存後・`finalized`記録前も
-同じ証拠・payload・URLへ収束させる。
+同じ証拠・payload・URLへ収束させる。latest eventが`reserved`の間にhandoffが`final`へ変わることは正規遷移では
+ないため、外部効果の有無を照会せずfail-closeし、`completed`/`finalized`を追記しない。元のpre-publish handoffを
+復元した再開だけが、reservation保存内容からfinal intentを導出して外部操作を重複せず回収できる。
 
 ## 却下案
 
