@@ -27,7 +27,7 @@
 
 ## `ISSUE_START_BINDING_V1` deny の切り分けと enforcement の実体（移設元：「dispatch 前提：`ISSUE_START_BINDING_V1` marker」節）
 
-### Codex durable binding（Issue #452・2026-08-26、round 1 訂正 2026-08-27）
+### Codex durable binding（Issue #452・2026-08-26、supervisor採用 2026-08-30）
 
 Codex の message は暗号化されるため、Issue/round/repository/workspace/branch/OID/handoff/role/task key の
 正本には使わない。当初は主文脈が ownership ledger へ prepare し、spawn hook が
@@ -36,9 +36,10 @@ task key で consume、全 tool hook が workspace/Git facts を再検証する�
 PR #453 round 1 で、spawn payload `cwd` は main-thread の turn/session cwd で child workspace ではなく、
 tool payload は `exec_command.workdir`、actual agent identity、spawn 成功を提供しないことが確定した。
 task key を agent identity、turn cwd を effective workspace の代用にした当初方式は保証不能である。
-現行は Codex transport を unavailable と宣言し、既存 trusted issue-start hook で dispatch を fail-close する。
-spawn 前検証は非破壊で `open` を保ち、将来 trusted start observer が actual identity と workspace を
-観測できるときだけ `running` へ束縛する。判断・却下案・security trade-off の正本は
+`collaboration.spawn_agent` transportはunavailableのまま既存trusted issue-start hookでfail-closeする。
+恒久経路はrepo supervisorがIssue専用worktreeで別Codex CLI processをOS sandbox下に起動する方式だけとした。
+supervisorがPID/start tokenとJSONL threadをtrusted observationとして取得し、両方が揃ってから`running`へ
+束縛する。inner processはhandoffまで、publishはhost gateへ分離する。判断・却下案・security trade-offの正本は
 `docs/methods/codex-workspace-binding.md`。
 
 `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`

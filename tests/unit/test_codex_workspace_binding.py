@@ -396,6 +396,25 @@ class RealGitBindingTests(unittest.TestCase):
                 self.prepare(**override)
         self.assertEqual(worktree_ledger.read_ledger(self.main)["entries"], [])
 
+    def test_prepare_persists_only_normalized_owner_protected_paths(self):
+        digest = "a" * 64
+        prepared = self.prepare(protected_paths=(f".codex/agents/example.toml={digest}",))
+        self.assertEqual(prepared["protected_plan"], [{
+            "path": ".codex/agents/example.toml", "base_sha256": digest,
+        }])
+        for candidate in ("../escape", "/absolute", ".codex/../escape", "docs/not-protected"):
+            with self.subTest(candidate=candidate):
+                self.setUp()
+                self.addCleanup(self.temp.cleanup)
+                with self.assertRaisesRegex(
+                    CodexBindingError, "CODEX_BINDING_PROTECTED_PATH_INVALID"
+                ):
+                    self.prepare(protected_paths=(f"{candidate}={digest}",))
+        with self.assertRaisesRegex(
+            CodexBindingError, "CODEX_BINDING_PROTECTED_PATH_INVALID"
+        ):
+            self.prepare(protected_paths=(".codex/agents/example.toml",))
+
     def test_hook_fails_closed_for_target_roles_until_transport_observations_exist(self):
         missing_stdout = io.StringIO()
         run_hook(

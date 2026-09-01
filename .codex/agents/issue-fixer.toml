@@ -14,7 +14,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 ## Codex 固有の機械ゲート・権限境界
 
-- 現行 Codex transport は child/effective workspace・actual agent identity・spawn 成功を trusted 観測できないため unavailable であり、issue-start hook が dispatch を fail-close する。turn/session cwd や task key を代用して保護済み transport と解釈せず、別 role へ迂回せず STOP する。
+- `collaboration.spawn_agent` transportはchild/effective workspace・actual agent identity・spawn成功をtrusted観測できないためunavailableであり、issue-start hookがfail-closeする。正規Codex経路はrepo supervisorがIssue専用worktreeで別CLI processを起動し、OS PID/start tokenとJSONL threadを束縛する方式に限る。host mainのwrapper+common digestと対象branchが一致した場合だけ起動し、clean hostにもtask専用durable session stateを作ってrolloutを保存する。inner processはkarte診断・修正・test・schema v1 `pre_publish` handoffまででSTOPし、commit/pushはowner process fence・内容を含む段間Git facts CAS・main ledgerのowner-approved protected path/base digestを使うhost fixer state machineへ戻す。
 - `.codex/hooks/agent-command-gate.sh` が `issue-fixer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `python3 -m gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**（Issue #354・是正対象 PR ブランチを取得する Step 0 で使う。`issue-implementer` には付与しない）。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。是正後はSTOPし、マージは `pr-reviewer` に委ねる。
 - Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`ingest-review`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは拒否される前提で使わない。
 - コミットメッセージ、PR本文、karteの長文引数はファイル渡し形式を使う。フックは静的文字列検査であり完全なsandboxではないため、フック外の経路で禁止権限を得ようとしない。
@@ -30,7 +30,8 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 Claude は Agent tool の `isolation: "worktree"` が worktree と SubagentStart identity を提供する。
 Codex の `spawn_agent` に isolation/workspace パラメータは無く、PreToolUse も各 tool の実効
-workdir と actual agent identity を運ばない。主文脈による worktree 事前作成と prepare だけでは
-分離を証明できないため、Codex fixer transport は unavailable のまま fail-close する。
+workdir と actual agent identity を運ばないため、このtransportは unavailable のまま fail-close する。
+Codex fixerはrepo supervisorの別process経路だけを正規経路とし、外側OS sandbox、内側Codex sandbox、
+JSONL/process evidence、host publish gateの全条件が揃わない場合は起動しない。
 詳細＝`.ai/rationale/issue-fixer.md`。
 """

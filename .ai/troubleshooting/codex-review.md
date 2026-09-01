@@ -15,3 +15,8 @@ Trusted Access for Cyber の登録は無課金方針とオーナー認可が必�
 
 `which codex` と `codex exec --help` で CLI の存在を確認する。クラウド／ヘッドレスで CLI や ChatGPT login が使えない場合は実行を試さず、環境制約と未実施理由を報告する。`~/.codex/sessions` が利用できない場合も rollout 回収を試さず STOP とする。
 
+repo supervisor経路ではcanonical `~/.codex/sessions`を直接共有せず、main worktreeの
+`tmp/_codex_sessions/<task-key>/sessions`を同じmount先へtask単位でbindする。initial/resumeでmarkerが
+継続しない場合は、このsourceの欠落・symlink・modeとouter commandの`--bind`を確認し、fresh threadへ置換しない。
+clean hostではsupervisorが非symlinkの`~/.codex/sessions` targetを作成するため、未存在を手作業で事前作成せず、
+作成失敗reasonとHOMEの所有権を確認する。workspace shellからtask markerを書換できた場合は隔離失敗として停止する。

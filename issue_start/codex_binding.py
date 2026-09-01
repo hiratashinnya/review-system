@@ -5,9 +5,10 @@
 検証するだけとする。``open -> running`` の不可逆遷移は、spawn 成功後に trusted
 observer が actual agent identity と実効 workspace を同時に観測したときだけ行う。
 
-現行 Codex transport は child/effective workspace、actual agent identity、spawn 成功のいずれも
-trusted payload として提供しない。そのため dispatch は issue-start gate で fail-close し、
-本 module の bind/verify API は将来 transport が必要な観測値を提供するまで発効させない。
+``collaboration.spawn_agent`` transportはchild/effective workspace、actual agent identity、spawn成功の
+いずれもtrusted payloadとして提供しないため、issue-start gateでfail-closeする。別経路のrepo supervisorは
+Issue専用worktreeで別Codex CLI processを起動し、OS PID/start tokenとJSONL threadをtrusted observationとして
+取得した場合だけ本moduleのbind/verify APIを使う。
 
 状態は既存 :mod:`issue_start.worktree_ledger` の ``open -> running -> stopped ->
 collected -> released`` を使う。spawn 前の失敗では ``open`` を削除・終端化せず、TTL 内はそのまま
@@ -28,7 +29,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from . import worktree_ledger
@@ -47,6 +48,8 @@ _FIXER_TASK = re.compile(r"^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$")
 _HTTPS_REMOTE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$")
 _SSH_REMOTE = re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$")
 _HANDOFF_SUFFIX = re.compile(r"^[A-Za-z0-9._-]*$")
+_PROTECTED_PLAN_ROOTS = (".codex/", ".agents/", ".ai/agents/")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CodexBindingError(RuntimeError):
@@ -279,6 +282,7 @@ def prepare_binding(
     role: str,
     task_key: str,
     now: datetime,
+    protected_paths: Sequence[str] = (),
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
@@ -294,6 +298,28 @@ def prepare_binding(
         task_key=task_key,
         handoff_path=handoff_path,
     )
+    approved_plan: list[dict[str, str]] = []
+    if isinstance(protected_paths, (str, bytes)):
+        raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID")
+    for value in protected_paths:
+        if not isinstance(value, str):
+            raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", repr(value))
+        relative, separator, base_digest = value.rpartition("=")
+        parsed = PurePosixPath(relative)
+        if (
+            separator != "="
+            or not relative
+            or parsed.is_absolute()
+            or str(parsed) != relative
+            or any(part in {"", ".", ".."} for part in parsed.parts)
+            or not relative.startswith(_PROTECTED_PLAN_ROOTS)
+            or _SHA256.fullmatch(base_digest) is None
+        ):
+            raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", value)
+        approved_plan.append({"path": relative, "base_sha256": base_digest})
+    if len({item["path"] for item in approved_plan}) != len(approved_plan):
+        raise CodexBindingError("CODEX_BINDING_PROTECTED_PATH_INVALID", "duplicate")
+    approved_plan.sort(key=lambda item: item["path"])
     if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool) or not (
         MIN_TTL_SECONDS <= ttl_seconds <= MAX_TTL_SECONDS
     ):
@@ -340,6 +366,7 @@ def prepare_binding(
                 "handoff_path": handoff,
                 "agent_type": role,
                 "task_key": task_key,
+                "protected_plan": approved_plan,
             }
             mismatches = [
                 key for key, value in identity.items() if target.get(key) != value
@@ -401,6 +428,7 @@ def prepare_binding(
             "consumed_at": None,
             "bound_at": None,
             "refresh_history": [],
+            "protected_plan": approved_plan,
         }
         entries.append(entry)
         created.update(entry)
@@ -521,8 +549,9 @@ def bind_agent_identity(
     """trusted start observer が actual identity を1度だけ ``running`` へ束縛する。
 
     ``workspace`` と ``agent_id`` は transport の trusted observation でなければならない。
-    現行 Codex はその observation を提供しないため、dispatch 経路からは本関数を
-    呼ばない。同一 identity の再通知だけを冪等に扱い、別 identity の上書きは拒否する。
+    ``collaboration.spawn_agent``経路からは呼ばない。repo supervisorが別processのPID/start tokenを
+    先に記録し、同一processのJSONL threadを観測した場合だけ呼ぶ。同一identityの再通知だけを
+    冪等に扱い、別identityの上書きは拒否する。
     """
 
     if not isinstance(agent_id, str) or not worktree_ledger.AGENT_ID_RE.fullmatch(agent_id):
@@ -751,6 +780,10 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--handoff", dest="handoff_path", required=True)
     prepare.add_argument("--role", choices=sorted(TARGET_ROLES), required=True)
     prepare.add_argument("--task-key", required=True)
+    prepare.add_argument(
+        "--protected-path", dest="protected_paths", action="append", default=[],
+        metavar="PATH=BASE_SHA256",
+    )
     prepare.add_argument("--ttl-seconds", type=int, default=DEFAULT_TTL_SECONDS)
     for name in ("collect", "release"):
         action = sub.add_parser(name)
@@ -772,6 +805,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repository=args.repository, workspace=args.workspace,
                 branch_name=args.branch_name, expected_oid=args.expected_oid,
                 handoff_path=args.handoff_path, role=args.role, task_key=args.task_key,
+                protected_paths=args.protected_paths,
                 ttl_seconds=args.ttl_seconds, now=now,
             )
         elif args.command == "collect":
