@@ -239,6 +239,13 @@ class CodexSupervisorTests(unittest.TestCase):
             self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
         )
         joined = " ".join(command)
+        inner = command[command.index("--") + 1 :]
+        self.assertEqual(
+            inner[:4],
+            (str(self.codex), "--ask-for-approval", "never", "exec"),
+        )
+        self.assertNotEqual(inner[:2], (str(self.codex), "exec"))
+        self.assertNotIn("--ask-for-approval", inner[inner.index("exec") + 1 :])
         self.assertNotIn("--unshare-net", command)
         self.assertIn("--sandbox workspace-write", joined)
         self.assertIn("--ask-for-approval never", joined)
@@ -269,6 +276,26 @@ class CodexSupervisorTests(unittest.TestCase):
             target = str(self.workspace / protected)
             index = command.index(target)
             self.assertEqual(command[index - 1], "--ro-bind")
+
+    def test_global_approval_scope_is_identical_for_initial_and_resume(self):
+        for resume_thread in (None, "thread-cli-compat"):
+            with self.subTest(resume_thread=resume_thread):
+                command = build_codex_command(
+                    self.spec,
+                    bwrap_executable=self.bwrap,
+                    codex_executable=self.codex,
+                    resume_thread=resume_thread,
+                )
+                inner = command[command.index("--") + 1 :]
+                self.assertEqual(
+                    inner[:4],
+                    (str(self.codex), "--ask-for-approval", "never", "exec"),
+                )
+                self.assertNotIn("--ask-for-approval", inner[inner.index("exec") + 1 :])
+                if resume_thread is None:
+                    self.assertEqual(inner[-1], "-")
+                else:
+                    self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
 
     def test_missing_duplicate_and_malformed_jsonl_fail_close(self):
         self.assert_reason(
@@ -1311,6 +1338,33 @@ class CodexSupervisorTests(unittest.TestCase):
             execute_publish_action(
                 self.spec, action="protected_patch.apply", action_args=(str(patch_file),)
             )
+
+
+class InstalledCodexCliCompatibilityTests(unittest.TestCase):
+    def test_global_approval_scope_parses_and_legacy_exec_scope_is_rejected(self):
+        codex = shutil.which("codex")
+        if codex is None:
+            self.skipTest("installed Codex CLI is unavailable")
+
+        accepted = (
+            ("--ask-for-approval", "never", "exec", "--help"),
+            ("--ask-for-approval", "never", "exec", "resume", "--help"),
+        )
+        for args in accepted:
+            with self.subTest(args=args):
+                result = subprocess.run(
+                    [codex, *args], capture_output=True, text=True, timeout=15
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+        legacy = subprocess.run(
+            [codex, "exec", "--ask-for-approval", "never", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        self.assertNotEqual(legacy.returncode, 0)
+        self.assertIn("--ask-for-approval", legacy.stderr)
 
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):
