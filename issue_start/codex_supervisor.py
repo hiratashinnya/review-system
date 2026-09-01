@@ -410,8 +410,9 @@ def build_codex_command(
             )
         protected.extend(("--ro-bind", str(target), str(target)))
     inner = [
-        codex, "exec", "--cd", str(workspace), "--sandbox", "workspace-write",
-        "--ask-for-approval", "never", "--ignore-user-config", "--json",
+        codex, "--ask-for-approval", "never", "exec",
+        "--cd", str(workspace), "--sandbox", "workspace-write",
+        "--ignore-user-config", "--json",
         "--model", spec.model,
         "--config", f'model_reasoning_effort="{spec.reasoning_effort}"',
         "--config", f"developer_instructions={json.dumps(role_contract, ensure_ascii=False)}",

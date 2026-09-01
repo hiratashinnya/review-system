@@ -77,6 +77,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 25. implementer PR createとfixer pushの外部効果後・completed前をdead reservationとして作り、handoffをschema-valid
     finalへ差し替える。外部操作/照会を再実行せずreservedのまま拒否し、completed/finalizedを追記しない。元の
     pre-publishを復元した場合だけreservation保存内容から同じfinalへ回収できることを確認する。
+26. initial/resume双方のinner argvで`--ask-for-approval never`がglobal optionとして`exec`前にあり、旧
+    `codex exec --ask-for-approval never`順序を構造上拒否する。installed Codex CLIのmodel-free `--help` parserで
+    新順序を受理し、旧順序を非0で拒否することを確認する。
 
 # 期待結果
 
