@@ -23,8 +23,11 @@
 ### ②-a 実装
 
 - 実装担当を dispatch する前に、PF の Issue-start 契約（存在する場合）で Issue、repository、branch、base を再束縛する。契約エラーは別経路へ迂回せず fail-close する。
+- Issue-start 契約が ALLOW を返した直後、実装担当を dispatch する前に、Project の `Status` を `In progress` にする。BLOCK なら着手しないので `In progress` にはせず、`Blocked` を立てるのは同期ツール（`project_status_sync`）に委ねる。同期ツールは `In progress` / `In review` を書き込み対象から外しているため、着手中の Issue が cron に巻き戻されることはない。
+- **`Status` の書き込みは主文脈が行い、実装担当には行わせない**。実装担当は isolated な作業ツリーで動く狭い権限のロールであり、Projects への書き込みをその allowlist へ足すのは実装ロールへの権限拡大になる。主文脈は既に GitHub 操作とオーケストレーションを担っている。
 - dispatch には Issue 番号、関連ノード、作業スコープなどタスク固有情報だけを渡す。恒常的な共有契約は各 PF の常設設定またはこの共通本文を参照させる。
 - 戻り値は変更ファイル、テスト結果、PR（ある場合）、スコープ外指摘を含むハンドオフとする。STOP は主文脈が受けてオーナーへ打ち上げる。
+- **実装担当が STOP を返したら、`Status` を `Ready` へ戻してからオーナーへ打ち上げる**。戻さないと STOP した Issue が `In progress` のまま滞留し、同期ツールも（`In progress` を対象外にしているため）その滞留を解消できない。
 
 ### ②-b 初回レビュー
 
