@@ -434,7 +434,7 @@ class CodexSupervisorTests(unittest.TestCase):
             build_codex_command(
                 self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
             )
-        placeholder.chmod(0o400)
+        placeholder.chmod(0o600)
         placeholder.write_text("copied secret", encoding="utf-8")
         placeholder.chmod(0o400)
         with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
@@ -1645,10 +1645,21 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 codex = shutil.which("codex")
                 if codex is not None:
                     separator = initial.index("--")
+                    allowed_shell = initial[: separator + 1] + (
+                        codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
+                    )
+                    allowed = subprocess.run(
+                        allowed_shell, cwd=workspace, capture_output=True, text=True, timeout=15
+                    )
+                    self.assertEqual(allowed.returncode, 0, allowed.stderr)
+                    self.assertEqual(
+                        (workspace / "sandbox-marker").read_text(encoding="utf-8"),
+                        "workspace",
+                    )
                     denied_shell = initial[: separator + 1] + (
                         codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c",
-                        f"printf workspace > {workspace / 'sandbox-marker'}; "
                         "printf hacked > \"$CODEX_HOME/sessions/supervised-marker\"; "
                         "rm -f \"$CODEX_HOME/auth.json\"; "
                         "printf hacked > \"$CODEX_SQLITE_HOME/denied\"",
@@ -1657,10 +1668,6 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         denied_shell, cwd=workspace, capture_output=True, text=True, timeout=15
                     )
                     self.assertNotEqual(denied.returncode, 0, denied.stdout)
-                    self.assertEqual(
-                        (workspace / "sandbox-marker").read_text(encoding="utf-8"),
-                        "workspace",
-                    )
                     self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
                     self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
                     self.assertFalse((runtime_home / "sqlite/denied").exists())
