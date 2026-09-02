@@ -62,8 +62,10 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 19. publish action直前/直後のowner crashを予約leaseとGit snapshotで回収し、add後のclean commit差替えを
     HEAD/index tree CASで拒否する。protected exact pathはbinding prepare時のowner planだけから読み、publish
     CLIによる追加を拒否する。
-20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free `codex sandbox` shellは
-    task markerの作成・変更・削除を拒否され、outer Codex control processだけが同じmarkerを保存できることを確認する。
+20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free
+    `codex sandbox -P :workspace -C <workspace>` shell（legacy `--sandbox`とは併用しない）はworkspace markerだけを
+    作成でき、task runtime-homeのsession marker変更、auth削除、SQLite作成を拒否されることを確認する。outer Codex
+    control processだけが同じsession markerを保存できることも確認する。
 21. protected owner planにexact pathとbase SHA-256を一体保存し、patch内digest差替えを拒否する。同じporcelain
     statusを保つworktree内容差替え、同一parentだがpre-indexと別treeのcommitをcrash recoveryで成功扱いしない。
 22. gh.pr.create成功後・finish前のcrashをfake GitHub factsで再現し、repository/head/base/head OID/owner/open/non-draftが

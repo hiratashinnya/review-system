@@ -1511,6 +1511,27 @@ class InstalledCodexCliCompatibilityTests(unittest.TestCase):
         self.assertNotEqual(legacy.returncode, 0)
         self.assertIn("--ask-for-approval", legacy.stderr)
 
+    def test_workspace_permission_profile_sandbox_helper_parses(self):
+        codex = shutil.which("codex")
+        if codex is None:
+            self.skipTest("installed Codex CLI is unavailable")
+
+        result = subprocess.run(
+            [
+                codex,
+                "sandbox",
+                "-P",
+                ":workspace",
+                "-C",
+                str(Path.cwd()),
+                "--help",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):
     def test_model_free_probe_allows_only_worktree_and_private_tmp(self):
@@ -1649,8 +1670,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "--setenv", "HOME", str(clean_home),
                     ) + initial[separator : separator + 1]
                     allowed_shell = sandbox_outer + (
-                        codex, "--sandbox", "workspace-write",
-                        "sandbox", "-C", str(workspace),
+                        codex, "sandbox", "-P", ":workspace", "-C", str(workspace),
                         "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
                     )
                     allowed = subprocess.run(
@@ -1662,8 +1682,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "workspace",
                     )
                     denied_shell = sandbox_outer + (
-                        codex, "--sandbox", "workspace-write",
-                        "sandbox", "-C", str(workspace),
+                        codex, "sandbox", "-P", ":workspace", "-C", str(workspace),
                         "sh", "-c",
                         "printf hacked > \"$CODEX_HOME/sessions/supervised-marker\"; "
                         "rm -f \"$CODEX_HOME/auth.json\"; "
