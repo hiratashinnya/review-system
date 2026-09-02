@@ -62,8 +62,13 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 19. publish action直前/直後のowner crashを予約leaseとGit snapshotで回収し、add後のclean commit差替えを
     HEAD/index tree CASで拒否する。protected exact pathはbinding prepare時のowner planだけから読み、publish
     CLIによる追加を拒否する。
-20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free `codex sandbox` shellは
-    task markerの作成・変更・削除を拒否され、outer Codex control processだけが同じmarkerを保存できることを確認する。
+20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free
+    `codex sandbox -P :workspace -C <workspace>` shell（legacy `--sandbox`とは併用しない）はworkspace markerだけを
+    作成でき、task runtime-homeのsession marker変更、auth削除、SQLite作成を拒否されることを確認する。outer Codex
+    control processだけが同じsession markerを保存できることも確認する。outerはPID namespaceを分離し、read-only root
+    bind後にfresh `/proc`をmountすることでnested sandboxのuid mapを成立させる。fresh procを欠く旧構成はuid mapの
+    read-only failureになる負例も確認する。このnested-bwrap回帰はlocal control socketを使うP1 probeから独立して実行し、
+    socket禁止だけを理由に全体がskipされないようにする。
 21. protected owner planにexact pathとbase SHA-256を一体保存し、patch内digest差替えを拒否する。同じporcelain
     statusを保つworktree内容差替え、同一parentだがpre-indexと別treeのcommitをcrash recoveryで成功扱いしない。
 22. gh.pr.create成功後・finish前のcrashをfake GitHub factsで再現し、repository/head/base/head OID/owner/open/non-draftが
@@ -80,6 +85,15 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 26. initial/resume双方のinner argvで`--ask-for-approval never`がglobal optionとして`exec`前にあり、旧
     `codex exec --ask-for-approval never`順序を構造上拒否する。installed Codex CLIのmodel-free `--help` parserで
     新順序を受理し、旧順序を非0で拒否することを確認する。
+27. task専用`runtime-home`を唯一のwritable `CODEX_HOME`とし、`sessions`/`sqlite`/0-byte auth placeholderを
+    private modeで準備する。task key containment、各managed componentのsymlink/type/owner/mode、placeholderの
+    size/mode/hardlink、host authのregular/non-symlinkをfail-closeし、full home bind後のauth read-only bind順と
+    `CODEX_HOME`/`CODEX_SQLITE_HOME`/trusted `sqlite_home`の一致を確認する。initial/resumeは同じhome、task A/Bは
+    非共有とする。model-free app-serverでsessions-onlyとSQLite-onlyのROFS負例、full homeではstdinを開いたまま
+    initialize応答を受けてからinitialized通知を送り正常終了すること、host auth hash/mtime不変を確認する。inner
+    sandboxはworkspace markerだけwriteでき、runtime/auth/sqliteを拒否する。
+    fresh homeにproject-local config/hooks/rulesをcopyせず、trusted role注入、outer sandbox、publish gate、JSONL denyへ
+    安全制御を残す。active/paused/publish pendingを考慮したGCは本修正へ混ぜず、別設計・別Issueで扱う。
 
 # 期待結果
 

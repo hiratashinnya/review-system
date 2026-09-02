@@ -38,6 +38,7 @@ MODEL = "gpt-5.6-sol"
 REASONING_EFFORT = "xhigh"
 DEFAULT_TIMEOUT_SECONDS = 1800
 _THREAD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_TASK_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _RATE_LIMIT = re.compile(r"rate.?limit|too many requests|usage limit", re.IGNORECASE)
 _DENIED_ITEM_MARKERS = ("web_search", "subagent", "collaboration", "agent_tool")
 _PROTECTED_ROOTS = (".git", ".codex", ".agents")
@@ -70,6 +71,15 @@ class SupervisorSpec:
     model: str = MODEL
     reasoning_effort: str = REASONING_EFFORT
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True)
+class RuntimeHome:
+    root: Path
+    sqlite: Path
+    sessions: Path
+    auth_source: Path
+    auth_target: Path
 
 
 @dataclass(frozen=True)
@@ -355,35 +365,102 @@ def _trusted_role_instructions(spec: SupervisorSpec) -> tuple[str, str]:
     return trusted_bundle, trusted_digest
 
 
-def _prepare_session_state(spec: SupervisorSpec) -> tuple[Path, Path]:
-    """task専用durable sessions sourceとcanonical mount先を確定する。"""
+def _private_directory(path: Path) -> Path:
+    """管理対象directoryを作成し、symlink/type/owner/modeをfail-close検査する。"""
 
+    if path.is_symlink():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_SYMLINK", str(path))
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_INVALID", str(path)) from exc
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_INVALID", str(path)) from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_WRONG_TYPE", str(path))
+    if metadata.st_uid != os.geteuid():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_FOREIGN_OWNER", str(path))
+    if stat.S_IMODE(metadata.st_mode) & 0o077:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_LOOSE_MODE", str(path))
+    return path.resolve(strict=True)
+
+
+def _prepare_runtime_home(spec: SupervisorSpec) -> RuntimeHome:
+    """task専用の唯一のwritable CODEX_HOMEとread-only auth mountを準備する。"""
+
+    if not _TASK_KEY.fullmatch(spec.task_key):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_TASK_KEY_INVALID", spec.task_key)
     main_root = Path(worktree_ledger.main_worktree_root(spec.workspace)).resolve(strict=True)
-    state_root = main_root / _SESSION_STATE_ROOT
-    session_source = state_root / spec.task_key / "sessions"
-    for path in (main_root / "tmp", state_root, session_source.parent, session_source):
-        if path.is_symlink():
-            raise CodexSupervisorError("CODEX_SUPERVISOR_SESSION_STATE_SYMLINK", str(path))
-        path.mkdir(mode=0o700, exist_ok=True)
-        path.chmod(0o700)
-    codex_home = Path.home() / ".codex"
-    session_target = codex_home / "sessions"
-    for path in (codex_home, session_target):
-        if path.is_symlink():
-            raise CodexSupervisorError(
-                "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(path)
-            )
+    shared_tmp = main_root / "tmp"
+    if shared_tmp.is_symlink():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_SYMLINK", str(shared_tmp))
+    try:
+        shared_tmp.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    shared_metadata = shared_tmp.lstat()
+    if not stat.S_ISDIR(shared_metadata.st_mode):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_INVALID", str(shared_tmp))
+    if shared_metadata.st_uid != os.geteuid():
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_RUNTIME_HOME_FOREIGN_OWNER", str(shared_tmp)
+        )
+
+    state_root = _private_directory(main_root / _SESSION_STATE_ROOT)
+    task_root = _private_directory(state_root / spec.task_key)
+    runtime_root = _private_directory(task_root / "runtime-home")
+    sessions = _private_directory(runtime_root / "sessions")
+    sqlite = _private_directory(runtime_root / "sqlite")
+    if runtime_root.parent != task_root or task_root.parent != state_root:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_OUTSIDE_ROOT", str(runtime_root))
+
+    auth_source = Path.home() / ".codex" / "auth.json"
+    if auth_source.is_symlink():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source))
+    try:
+        source_metadata = auth_source.lstat()
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source)) from exc
+    if not stat.S_ISREG(source_metadata.st_mode):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source))
+
+    auth_target = runtime_root / "auth.json"
+    if auth_target.is_symlink():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target))
+    if not auth_target.exists():
         try:
-            path.mkdir(mode=0o700, exist_ok=True)
+            descriptor = os.open(
+                auth_target,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+                0o400,
+            )
+            os.close(descriptor)
         except OSError as exc:
             raise CodexSupervisorError(
-                "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(path)
+                "CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target)
             ) from exc
-    if not session_target.is_dir():
+    target_metadata = auth_target.lstat()
+    if (
+        not stat.S_ISREG(target_metadata.st_mode)
+        or target_metadata.st_uid != os.geteuid()
+        or target_metadata.st_size != 0
+        or target_metadata.st_nlink != 1
+        or stat.S_IMODE(target_metadata.st_mode) not in (0o400, 0o444)
+    ):
         raise CodexSupervisorError(
-            "CODEX_SUPERVISOR_SESSION_TARGET_INVALID", str(session_target)
+            "CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target)
         )
-    return session_source.resolve(strict=True), session_target.resolve(strict=True)
+    return RuntimeHome(
+        root=runtime_root,
+        sqlite=sqlite,
+        sessions=sessions,
+        auth_source=auth_source.resolve(strict=True),
+        auth_target=auth_target.resolve(strict=True),
+    )
 
 
 def build_codex_command(
@@ -399,7 +476,7 @@ def build_codex_command(
     bwrap = _require_executable(bwrap_executable, "CODEX_SUPERVISOR_BWRAP_UNAVAILABLE")
     codex = _require_executable(codex_executable, "CODEX_SUPERVISOR_CODEX_UNAVAILABLE")
     role_contract, role_digest = _trusted_role_instructions(spec)
-    session_source, session_target = _prepare_session_state(spec)
+    runtime = _prepare_runtime_home(spec)
     protected: list[str] = []
     protected_paths = [workspace / relative for relative in _PROTECTED_ROOTS]
     protected_paths.append(workspace / ".ai" / "agents" / f"{spec.role}.md")
@@ -416,6 +493,7 @@ def build_codex_command(
         "--model", spec.model,
         "--config", f'model_reasoning_effort="{spec.reasoning_effort}"',
         "--config", f"developer_instructions={json.dumps(role_contract, ensure_ascii=False)}",
+        "--config", f"sqlite_home={json.dumps(str(runtime.sqlite))}",
         "--config", 'web_search="disabled"',
         "--config", "sandbox_workspace_write.network_access=false",
         "--config", "sandbox_workspace_write.exclude_slash_tmp=true",
@@ -431,12 +509,16 @@ def build_codex_command(
     else:
         inner.append("-")
     return tuple([
-        bwrap, "--die-with-parent", "--new-session",
-        "--ro-bind", "/", "/", "--bind", str(workspace), str(workspace),
+        bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
+        "--ro-bind", "/", "/", "--proc", "/proc",
+        "--bind", str(workspace), str(workspace),
         "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
         "--remount-ro", _RANDOM_DEVICE,
-        "--bind", str(session_source), str(session_target),
+        "--bind", str(runtime.root), str(runtime.root),
+        "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
         *protected, "--tmpfs", "/tmp", "--setenv", "TMPDIR", "/tmp",
+        "--setenv", "CODEX_HOME", str(runtime.root),
+        "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
         "--setenv", "CODEX_ISSUE_ROLE", spec.role,
         "--setenv", "CODEX_ISSUE_ROLE_CONTRACT_SHA256", role_digest,
