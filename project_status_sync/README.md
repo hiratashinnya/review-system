@@ -28,6 +28,25 @@ python3 -m project_status_sync sync \
   Actions の `GITHUB_TOKEN` へは意図的に fallback しない——fallback すると
   「権限不足」と「secret 未設定」を切り分けられなくなる。
 
+### GitHub Actions からの実行（`.github/workflows/project-status-sync.yml`）
+
+現在の trigger は **`workflow_dispatch` のみ**で、`--apply` は入力 `apply`（既定 `false`）が
+`true` のときだけ付く。**`schedule`（cron）は本 PR ではあえて入れていない**
+（PR #465 の finding F-460-01・オーナー確定 2026-09-03）。
+
+理由：`inputs.apply` を足すだけでは merge から20分以内に cron が `--apply` で発火し、
+「まず dry-run で変更計画を確認する」という初回確認が20分タイマーとの競争になって実質的に
+成立しない。Project への書き込みには復元手段が無いため、確認が先に成立するようにする。
+
+運用の順序：
+
+1. merge 後、オーナーが `workflow_dispatch` を `apply: false`（既定）で実行する。
+2. `$GITHUB_STEP_SUMMARY` に出る変更計画を確認する。
+3. 問題なければ **後続 PR で `on: schedule`（20分間隔）を有効化**して常用に入る。
+   その PR では、`schedule` 発火時に `inputs.apply` が空文字になる（`inputs` は
+   `workflow_dispatch` でのみ存在する）ため、schedule 時に `--apply` を付けるかどうかを
+   明示的に決めること。現状のワークフローは既定を dry-run 側に倒してある。
+
 ### exit code
 
 | code | 意味 |
