@@ -509,8 +509,9 @@ def build_codex_command(
     else:
         inner.append("-")
     return tuple([
-        bwrap, "--die-with-parent", "--new-session",
-        "--ro-bind", "/", "/", "--bind", str(workspace), str(workspace),
+        bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
+        "--ro-bind", "/", "/", "--proc", "/proc",
+        "--bind", str(workspace), str(workspace),
         "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
         "--remount-ro", _RANDOM_DEVICE,
         "--bind", str(runtime.root), str(runtime.root),

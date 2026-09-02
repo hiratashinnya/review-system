@@ -65,7 +65,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 20. `.codex/sessions`未作成のclean HOMEでinitialと別process resumeを通す。model-free
     `codex sandbox -P :workspace -C <workspace>` shell（legacy `--sandbox`とは併用しない）はworkspace markerだけを
     作成でき、task runtime-homeのsession marker変更、auth削除、SQLite作成を拒否されることを確認する。outer Codex
-    control processだけが同じsession markerを保存できることも確認する。
+    control processだけが同じsession markerを保存できることも確認する。outerはPID namespaceを分離し、read-only root
+    bind後にfresh `/proc`をmountすることでnested sandboxのuid mapを成立させる。fresh procを欠く旧構成はuid mapの
+    read-only failureになる負例も確認する。
 21. protected owner planにexact pathとbase SHA-256を一体保存し、patch内digest差替えを拒否する。同じporcelain
     statusを保つworktree内容差替え、同一parentだがpre-indexと別treeのcommitをcrash recoveryで成功扱いしない。
 22. gh.pr.create成功後・finish前のcrashをfake GitHub factsで再現し、repository/head/base/head OID/owner/open/non-draftが

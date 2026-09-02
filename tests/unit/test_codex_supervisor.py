@@ -253,6 +253,14 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertNotEqual(inner[:2], (str(self.codex), "exec"))
         self.assertNotIn("--ask-for-approval", inner[inner.index("exec") + 1 :])
         self.assertNotIn("--unshare-net", command)
+        self.assertIn("--unshare-pid", command)
+        root_bind_index = command.index("--ro-bind")
+        proc_index = command.index("--proc")
+        self.assertEqual(command[proc_index : proc_index + 2], ("--proc", "/proc"))
+        self.assertEqual(
+            command[root_bind_index : root_bind_index + 5],
+            ("--ro-bind", "/", "/", "--proc", "/proc"),
+        )
         self.assertIn("--sandbox workspace-write", joined)
         self.assertIn("--ask-for-approval never", joined)
         self.assertIn("--ignore-user-config", command)
@@ -1669,6 +1677,20 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     sandbox_outer = initial[:separator] + (
                         "--setenv", "HOME", str(clean_home),
                     ) + initial[separator : separator + 1]
+                    legacy_outer = list(sandbox_outer)
+                    legacy_outer.remove("--unshare-pid")
+                    proc_index = legacy_outer.index("--proc")
+                    del legacy_outer[proc_index : proc_index + 2]
+                    legacy_shell = tuple(legacy_outer) + (
+                        codex, "sandbox", "-P", ":workspace", "-C", str(workspace),
+                        "true",
+                    )
+                    legacy = subprocess.run(
+                        legacy_shell, cwd=workspace, capture_output=True, text=True, timeout=15
+                    )
+                    self.assertNotEqual(legacy.returncode, 0, legacy.stdout)
+                    self.assertIn("uid map", legacy.stderr)
+                    self.assertIn("Read-only file system", legacy.stderr)
                     allowed_shell = sandbox_outer + (
                         codex, "sandbox", "-P", ":workspace", "-C", str(workspace),
                         "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
