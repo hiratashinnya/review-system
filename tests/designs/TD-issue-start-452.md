@@ -88,8 +88,9 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     private modeで準備する。task key containment、各managed componentのsymlink/type/owner/mode、placeholderの
     size/mode/hardlink、host authのregular/non-symlinkをfail-closeし、full home bind後のauth read-only bind順と
     `CODEX_HOME`/`CODEX_SQLITE_HOME`/trusted `sqlite_home`の一致を確認する。initial/resumeは同じhome、task A/Bは
-    非共有とする。model-free app-serverでsessions-onlyとSQLite-onlyのROFS負例、full homeのinitialize成功、host
-    auth hash/mtime不変を確認する。inner sandboxはworkspace markerだけwriteでき、runtime/auth/sqliteを拒否する。
+    非共有とする。model-free app-serverでsessions-onlyとSQLite-onlyのROFS負例、full homeではstdinを開いたまま
+    initialize応答を受けてからinitialized通知を送り正常終了すること、host auth hash/mtime不変を確認する。inner
+    sandboxはworkspace markerだけwriteでき、runtime/auth/sqliteを拒否する。
     fresh homeにproject-local config/hooks/rulesをcopyせず、trusted role注入、outer sandbox、publish gate、JSONL denyへ
     安全制御を残す。active/paused/publish pendingを考慮したGCは本修正へ混ぜず、別設計・別Issueで扱う。
 

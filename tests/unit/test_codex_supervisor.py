@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import os
+import select
 import shutil
 import socket
 import stat
@@ -40,6 +41,21 @@ from issue_start.codex_supervisor import (
 
 
 NOW = datetime(2026, 8, 30, 0, 0, tzinfo=timezone.utc)
+_APP_SERVER_INITIALIZE = json.dumps(
+    {
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "clientInfo": {
+                "name": "supervisor-test",
+                "title": "Supervisor Test",
+                "version": "1",
+            },
+            "capabilities": {},
+        },
+    }
+) + "\n"
+_APP_SERVER_INITIALIZED = json.dumps({"method": "initialized", "params": {}}) + "\n"
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -47,6 +63,42 @@ def git(cwd: Path, *args: str) -> str:
         ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
     )
     return completed.stdout.strip()
+
+
+def _run_app_server_initialize(command, *, cwd: Path, env=None):
+    """stdioを閉じる前にinitialize応答を受け、現行lifecycleを完了する。"""
+
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        process.stdin.write(_APP_SERVER_INITIALIZE)
+        process.stdin.flush()
+        readable, _, _ = select.select([process.stdout], [], [], 15)
+        if not readable:
+            process.kill()
+            stdout, stderr = process.communicate(timeout=5)
+            raise AssertionError(
+                f"app-server initialize timed out; stdout={stdout!r}; stderr={stderr!r}"
+            )
+        first_line = process.stdout.readline()
+        if first_line:
+            process.stdin.write(_APP_SERVER_INITIALIZED)
+            process.stdin.flush()
+        process.stdin.close()
+        process.stdin = None
+        stdout_tail, stderr = process.communicate(timeout=15)
+        return process.returncode, first_line + stdout_tail, stderr
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
 
 
 class FakeRunner:
@@ -1540,6 +1592,38 @@ class InstalledCodexCliCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_app_server_initialize_responds_before_stdin_closes(self):
+        codex = shutil.which("codex")
+        if codex is None:
+            self.skipTest("installed Codex CLI is unavailable")
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:
+            runtime_home = Path(temporary) / "runtime-home"
+            sqlite_home = runtime_home / "sqlite"
+            sqlite_home.mkdir(parents=True)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "CODEX_HOME": str(runtime_home),
+                    "CODEX_SQLITE_HOME": str(sqlite_home),
+                }
+            )
+            command = (
+                codex,
+                "--config",
+                f"sqlite_home={json.dumps(str(sqlite_home))}",
+                "app-server",
+            )
+            returncode, stdout, stderr = _run_app_server_initialize(
+                command, cwd=Path.cwd(), env=env
+            )
+            self.assertEqual(returncode, 0, f"stdout={stdout!r}; stderr={stderr!r}")
+            responses = [json.loads(line) for line in stdout.splitlines()]
+            self.assertTrue(
+                any(response.get("id") == 1 and "result" in response for response in responses),
+                f"stdout={stdout!r}; stderr={stderr!r}",
+            )
+
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):
     def test_model_free_probe_allows_only_worktree_and_private_tmp(self):
@@ -1748,33 +1832,21 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
 
                 runtime_home = Path(supervised[supervised.index("CODEX_HOME") + 1])
                 sqlite_home = Path(supervised[supervised.index("CODEX_SQLITE_HOME") + 1])
-                initialize = json.dumps(
-                    {
-                        "id": 1,
-                        "method": "initialize",
-                        "params": {
-                            "clientInfo": {"name": "supervisor-test", "version": "1"},
-                            "capabilities": {},
-                        },
-                    }
-                ) + "\n"
                 app_server = supervised[: separator + 1] + (
                     codex,
                     "--config",
                     f"sqlite_home={json.dumps(str(sqlite_home))}",
                     "app-server",
                 )
-                initialized = subprocess.run(
-                    app_server,
-                    cwd=workspace,
-                    input=initialize,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
+                returncode, stdout, stderr = _run_app_server_initialize(
+                    app_server, cwd=workspace
                 )
-                self.assertEqual(initialized.returncode, 0, initialized.stderr)
-                responses = [json.loads(line) for line in initialized.stdout.splitlines()]
-                self.assertTrue(any(response.get("id") == 1 for response in responses))
+                self.assertEqual(returncode, 0, f"stdout={stdout!r}; stderr={stderr!r}")
+                responses = [json.loads(line) for line in stdout.splitlines()]
+                self.assertTrue(
+                    any(response.get("id") == 1 and "result" in response for response in responses),
+                    f"stdout={stdout!r}; stderr={stderr!r}",
+                )
                 self.assertEqual(hashlib.sha256(host_auth.read_bytes()).hexdigest(), auth_digest)
                 self.assertEqual(host_auth.stat().st_mtime_ns, auth_mtime)
                 self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
@@ -1818,7 +1890,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
 
                 sessions_only = subprocess.run(
                     legacy_command(legacy_sessions),
-                    input=initialize,
+                    input=_APP_SERVER_INITIALIZE,
                     capture_output=True,
                     text=True,
                     timeout=15,
@@ -1828,7 +1900,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
 
                 sqlite_only = subprocess.run(
                     legacy_command(legacy_sessions, legacy_sqlite),
-                    input=initialize,
+                    input=_APP_SERVER_INITIALIZE,
                     capture_output=True,
                     text=True,
                     timeout=15,
