@@ -1626,6 +1626,103 @@ class InstalledCodexCliCompatibilityTests(unittest.TestCase):
 
 
 class BubblewrapSandboxProbeTests(unittest.TestCase):
+    def test_nested_sandbox_private_proc_regression_does_not_require_socket(self):
+        bwrap = shutil.which("bwrap")
+        codex = shutil.which("codex")
+        if bwrap is None:
+            self.skipTest("bubblewrap is not installed")
+        if codex is None:
+            self.skipTest("installed Codex CLI is unavailable")
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:
+            fixture = Path(temporary)
+            workspace = fixture / "workspace"
+            runtime_home = fixture / "runtime-home"
+            clean_home = fixture / "clean-home"
+            for path in (workspace, runtime_home, clean_home):
+                path.mkdir()
+            git(workspace, "init", "-b", "main")
+
+            outer = (
+                bwrap,
+                "--die-with-parent",
+                "--new-session",
+                "--unshare-pid",
+                "--ro-bind",
+                "/",
+                "/",
+                "--proc",
+                "/proc",
+                "--bind",
+                str(workspace),
+                str(workspace),
+                "--bind",
+                str(runtime_home),
+                str(runtime_home),
+                "--tmpfs",
+                "/tmp",
+                "--setenv",
+                "TMPDIR",
+                "/tmp",
+                "--setenv",
+                "HOME",
+                str(clean_home),
+                "--setenv",
+                "CODEX_HOME",
+                str(runtime_home),
+                "--chdir",
+                str(workspace),
+                "--",
+            )
+            sandbox = (
+                codex,
+                "sandbox",
+                "-P",
+                ":workspace",
+                "-C",
+                str(workspace),
+            )
+            marker = workspace / "nested-sandbox-marker"
+            allowed = subprocess.run(
+                outer + sandbox + ("sh", "-c", f"printf allowed > {marker}"),
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if allowed.returncode != 0 and "Operation not permitted" in allowed.stderr:
+                self.skipTest("kernel does not permit nested bubblewrap namespaces")
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+            self.assertEqual(marker.read_text(encoding="utf-8"), "allowed")
+
+            denied_target = runtime_home / "denied"
+            denied = subprocess.run(
+                outer
+                + sandbox
+                + ("sh", "-c", 'printf denied > "$CODEX_HOME/denied"'),
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            self.assertNotEqual(denied.returncode, 0, denied.stdout)
+            self.assertFalse(denied_target.exists())
+
+            legacy_outer = list(outer)
+            legacy_outer.remove("--unshare-pid")
+            proc_index = legacy_outer.index("--proc")
+            del legacy_outer[proc_index : proc_index + 2]
+            legacy = subprocess.run(
+                tuple(legacy_outer) + sandbox + ("true",),
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            self.assertNotEqual(legacy.returncode, 0, legacy.stdout)
+            self.assertIn("uid map", legacy.stderr)
+            self.assertIn("Read-only file system", legacy.stderr)
+
     def test_model_free_probe_allows_only_worktree_and_private_tmp(self):
         bwrap = shutil.which("bwrap")
         if bwrap is None:
