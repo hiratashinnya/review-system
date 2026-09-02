@@ -1646,7 +1646,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 if codex is not None:
                     separator = initial.index("--")
                     allowed_shell = initial[: separator + 1] + (
-                        codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        codex, "--config", 'project_root_markers=[".git"]',
+                        "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
                     )
                     allowed = subprocess.run(
@@ -1658,7 +1659,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "workspace",
                     )
                     denied_shell = initial[: separator + 1] + (
-                        codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        codex, "--config", 'project_root_markers=[".git"]',
+                        "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c",
                         "printf hacked > \"$CODEX_HOME/sessions/supervised-marker\"; "
                         "rm -f \"$CODEX_HOME/auth.json\"; "
