@@ -80,6 +80,14 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 26. initial/resume双方のinner argvで`--ask-for-approval never`がglobal optionとして`exec`前にあり、旧
     `codex exec --ask-for-approval never`順序を構造上拒否する。installed Codex CLIのmodel-free `--help` parserで
     新順序を受理し、旧順序を非0で拒否することを確認する。
+27. task専用`runtime-home`を唯一のwritable `CODEX_HOME`とし、`sessions`/`sqlite`/0-byte auth placeholderを
+    private modeで準備する。task key containment、各managed componentのsymlink/type/owner/mode、placeholderの
+    size/mode/hardlink、host authのregular/non-symlinkをfail-closeし、full home bind後のauth read-only bind順と
+    `CODEX_HOME`/`CODEX_SQLITE_HOME`/trusted `sqlite_home`の一致を確認する。initial/resumeは同じhome、task A/Bは
+    非共有とする。model-free app-serverでsessions-onlyとSQLite-onlyのROFS負例、full homeのinitialize成功、host
+    auth hash/mtime不変を確認する。inner sandboxはworkspace markerだけwriteでき、runtime/auth/sqliteを拒否する。
+    fresh homeにproject-local config/hooks/rulesをcopyせず、trusted role注入、outer sandbox、publish gate、JSONL denyへ
+    安全制御を残す。active/paused/publish pendingを考慮したGCは本修正へ混ぜず、別設計・別Issueで扱う。
 
 # 期待結果
 

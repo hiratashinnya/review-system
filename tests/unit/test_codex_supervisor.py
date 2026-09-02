@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import socket
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -98,6 +99,11 @@ class CodexSupervisorTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.test_home = Path(self.temp.name) / "home"
         self.test_home.mkdir()
+        (self.test_home / ".codex").mkdir()
+        (self.test_home / ".codex" / "auth.json").write_text(
+            '{"OPENAI_API_KEY": null}\n', encoding="utf-8"
+        )
+        (self.test_home / ".codex" / "auth.json").chmod(0o600)
         home_patch = mock.patch.dict(os.environ, {"HOME": str(self.test_home)})
         home_patch.start()
         self.addCleanup(home_patch.stop)
@@ -260,11 +266,30 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("developer_instructions=", joined)
         self.assertIn("CODEX_ISSUE_ROLE", command)
         self.assertIn("CODEX_ISSUE_ROLE_CONTRACT_SHA256", command)
-        session_target = str(Path.home() / ".codex/sessions")
-        session_index = command.index(session_target)
-        self.assertEqual(command[session_index - 2], "--bind")
-        self.assertIn("tmp/_codex_sessions/issue_10/sessions", command[session_index - 1])
-        self.assertTrue((self.test_home / ".codex/sessions").is_dir())
+        runtime_home = self.main / "tmp/_codex_sessions/issue_10/runtime-home"
+        runtime_index = command.index(str(runtime_home))
+        self.assertEqual(command[runtime_index - 1], "--bind")
+        self.assertEqual(command[runtime_index + 1], str(runtime_home))
+        auth_source = str(self.test_home / ".codex/auth.json")
+        auth_index = command.index(auth_source)
+        self.assertGreater(auth_index, runtime_index)
+        self.assertEqual(command[auth_index - 1], "--ro-bind")
+        self.assertEqual(command[auth_index + 1], str(runtime_home / "auth.json"))
+        self.assertNotIn(str(self.test_home / ".codex/sessions"), command)
+        codex_home_index = command.index("CODEX_HOME")
+        sqlite_home_index = command.index("CODEX_SQLITE_HOME")
+        self.assertEqual(command[codex_home_index + 1], str(runtime_home))
+        self.assertEqual(command[sqlite_home_index + 1], str(runtime_home / "sqlite"))
+        self.assertIn(f'sqlite_home="{runtime_home / "sqlite"}"', command)
+        self.assertTrue((runtime_home / "sessions").is_dir())
+        self.assertTrue((runtime_home / "sqlite").is_dir())
+        self.assertEqual(
+            {path.name for path in runtime_home.iterdir()},
+            {"auth.json", "sessions", "sqlite"},
+        )
+        placeholder = runtime_home / "auth.json"
+        self.assertEqual((placeholder.stat().st_size, stat.S_IMODE(placeholder.stat().st_mode)), (0, 0o400))
+        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", command)
         random_device = command.index("/dev/urandom")
         self.assertEqual(command[random_device - 1], "--dev-bind")
         self.assertEqual(command[random_device + 1], "/dev/urandom")
@@ -296,6 +321,126 @@ class CodexSupervisorTests(unittest.TestCase):
                     self.assertEqual(inner[-1], "-")
                 else:
                     self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
+
+    def test_task_runtime_home_is_reused_for_resume_and_isolated_between_tasks(self):
+        initial = build_codex_command(
+            self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+        )
+        resumed = build_codex_command(
+            self.spec,
+            bwrap_executable=self.bwrap,
+            codex_executable=self.codex,
+            resume_thread="thread-runtime-home",
+        )
+        second_spec = SupervisorSpec(
+            repo_root=self.workspace,
+            workspace=self.workspace,
+            role=self.spec.role,
+            task_key="issue_10_second",
+            handoff_path=self.handoff,
+        )
+        second = build_codex_command(
+            second_spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+        )
+
+        def codex_home(command):
+            index = command.index("CODEX_HOME")
+            return Path(command[index + 1])
+
+        self.assertEqual(codex_home(initial), codex_home(resumed))
+        self.assertNotEqual(codex_home(initial), codex_home(second))
+        self.assertEqual(codex_home(initial).name, "runtime-home")
+
+    def test_runtime_home_rejects_task_path_component_and_auth_tampering(self):
+        def spec(task_key):
+            return SupervisorSpec(
+                repo_root=self.workspace,
+                workspace=self.workspace,
+                role=self.spec.role,
+                task_key=task_key,
+                handoff_path=self.handoff,
+            )
+
+        with self.assertRaisesRegex(CodexSupervisorError, "TASK_KEY_INVALID"):
+            build_codex_command(
+                spec("../escape"),
+                bwrap_executable=self.bwrap,
+                codex_executable=self.codex,
+            )
+
+        build_codex_command(
+            self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+        )
+        state_root = self.main / "tmp/_codex_sessions"
+        external = self.main / "external-runtime"
+        external.mkdir(mode=0o700)
+        (state_root / "symlinked").symlink_to(external, target_is_directory=True)
+        with self.assertRaisesRegex(CodexSupervisorError, "RUNTIME_HOME_SYMLINK"):
+            build_codex_command(
+                spec("symlinked"), bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+
+        (state_root / "wrong_type").write_text("not a directory", encoding="utf-8")
+        with self.assertRaisesRegex(CodexSupervisorError, "RUNTIME_HOME_WRONG_TYPE"):
+            build_codex_command(
+                spec("wrong_type"), bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+
+        loose = state_root / "loose"
+        loose.mkdir(mode=0o700)
+        loose.chmod(0o755)
+        with self.assertRaisesRegex(CodexSupervisorError, "RUNTIME_HOME_LOOSE_MODE"):
+            build_codex_command(
+                spec("loose"), bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+
+        with mock.patch("issue_start.codex_supervisor.os.geteuid", return_value=os.geteuid() + 1):
+            with self.assertRaisesRegex(CodexSupervisorError, "RUNTIME_HOME_FOREIGN_OWNER"):
+                build_codex_command(
+                    spec("foreign"),
+                    bwrap_executable=self.bwrap,
+                    codex_executable=self.codex,
+                )
+
+        hardlink_task = state_root / "hardlink"
+        hardlink_task.mkdir(mode=0o700)
+        hardlink_root = hardlink_task / "runtime-home"
+        hardlink_root.mkdir(mode=0o700)
+        (hardlink_root / "sessions").mkdir(mode=0o700)
+        (hardlink_root / "sqlite").mkdir(mode=0o700)
+        other = hardlink_root / "other"
+        other.touch(mode=0o400)
+        os.link(other, hardlink_root / "auth.json")
+        with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
+            build_codex_command(
+                spec("hardlink"), bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+
+        symlink_home = self.main / "symlink-home"
+        (symlink_home / ".codex").mkdir(parents=True)
+        (symlink_home / "real-auth.json").write_text("{}", encoding="utf-8")
+        (symlink_home / ".codex/auth.json").symlink_to(symlink_home / "real-auth.json")
+        with mock.patch.dict(os.environ, {"HOME": str(symlink_home)}):
+            with self.assertRaisesRegex(CodexSupervisorError, "AUTH_SOURCE_INVALID"):
+                build_codex_command(
+                    spec("auth_symlink"),
+                    bwrap_executable=self.bwrap,
+                    codex_executable=self.codex,
+                )
+
+        placeholder = self.main / "tmp/_codex_sessions/issue_10/runtime-home/auth.json"
+        placeholder.chmod(0o600)
+        with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
+            build_codex_command(
+                self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
+        placeholder.chmod(0o400)
+        placeholder.write_text("copied secret", encoding="utf-8")
+        placeholder.chmod(0o400)
+        with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
+            build_codex_command(
+                self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+            )
 
     def test_missing_duplicate_and_malformed_jsonl_fail_close(self):
         self.assert_reason(
@@ -1463,8 +1608,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             fake_codex.write_text(
                 "#!/bin/sh\n"
                 "case \" $* \" in\n"
-                "  *\" resume \"*) test -f \"$HOME/.codex/sessions/supervised-marker\" ;;\n"
-                "  *) printf 'saved\\n' > \"$HOME/.codex/sessions/supervised-marker\" ;;\n"
+                "  *\" resume \"*) test -f \"$CODEX_HOME/sessions/supervised-marker\" ;;\n"
+                "  *) printf 'saved\\n' > \"$CODEX_HOME/sessions/supervised-marker\" ;;\n"
                 "esac\n",
                 encoding="utf-8",
             )
@@ -1476,6 +1621,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             )
             clean_home = Path(temporary) / "clean-home"
             clean_home.mkdir()
+            (clean_home / ".codex").mkdir()
+            (clean_home / ".codex/auth.json").write_text("{}\n", encoding="utf-8")
+            (clean_home / ".codex/auth.json").chmod(0o600)
             with mock.patch.dict(os.environ, {"HOME": str(clean_home)}):
                 initial = build_codex_command(
                     fake_spec, bwrap_executable=bwrap, codex_executable=fake_codex
@@ -1491,7 +1639,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     resumed, cwd=workspace, capture_output=True, text=True, timeout=15
                 )
                 self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
-                marker = main / "tmp/_codex_sessions/issue_452_session_probe/sessions/supervised-marker"
+                runtime_home = main / "tmp/_codex_sessions/issue_452_session_probe/runtime-home"
+                marker = runtime_home / "sessions/supervised-marker"
                 self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
                 codex = shutil.which("codex")
                 if codex is not None:
@@ -1499,17 +1648,28 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     denied_shell = initial[: separator + 1] + (
                         codex, "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c",
-                        "printf hacked > \"$HOME/.codex/sessions/supervised-marker\"; "
-                        "rm -f \"$HOME/.codex/sessions/supervised-marker\"",
+                        f"printf workspace > {workspace / 'sandbox-marker'}; "
+                        "printf hacked > \"$CODEX_HOME/sessions/supervised-marker\"; "
+                        "rm -f \"$CODEX_HOME/auth.json\"; "
+                        "printf hacked > \"$CODEX_SQLITE_HOME/denied\"",
                     )
                     denied = subprocess.run(
                         denied_shell, cwd=workspace, capture_output=True, text=True, timeout=15
                     )
                     self.assertNotEqual(denied.returncode, 0, denied.stdout)
+                    self.assertEqual(
+                        (workspace / "sandbox-marker").read_text(encoding="utf-8"),
+                        "workspace",
+                    )
                     self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
+                    self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
+                    self.assertFalse((runtime_home / "sqlite/denied").exists())
 
             codex = shutil.which("codex")
-            if codex is not None:
+            host_auth = Path.home() / ".codex/auth.json"
+            if codex is not None and host_auth.is_file() and not host_auth.is_symlink():
+                auth_digest = hashlib.sha256(host_auth.read_bytes()).hexdigest()
+                auth_mtime = host_auth.stat().st_mtime_ns
                 supervised = build_codex_command(
                     SupervisorSpec(
                         repo_root=main,
@@ -1532,6 +1692,97 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 )
                 self.assertEqual(runtime.returncode, 0, runtime.stderr)
                 self.assertIn("codex", runtime.stdout.lower())
+
+                runtime_home = Path(supervised[supervised.index("CODEX_HOME") + 1])
+                sqlite_home = Path(supervised[supervised.index("CODEX_SQLITE_HOME") + 1])
+                initialize = json.dumps(
+                    {
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "clientInfo": {"name": "supervisor-test", "version": "1"},
+                            "capabilities": {},
+                        },
+                    }
+                ) + "\n"
+                app_server = supervised[: separator + 1] + (
+                    codex,
+                    "--config",
+                    f"sqlite_home={json.dumps(str(sqlite_home))}",
+                    "app-server",
+                )
+                initialized = subprocess.run(
+                    app_server,
+                    cwd=workspace,
+                    input=initialize,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertEqual(initialized.returncode, 0, initialized.stderr)
+                responses = [json.loads(line) for line in initialized.stdout.splitlines()]
+                self.assertTrue(any(response.get("id") == 1 for response in responses))
+                self.assertEqual(hashlib.sha256(host_auth.read_bytes()).hexdigest(), auth_digest)
+                self.assertEqual(host_auth.stat().st_mtime_ns, auth_mtime)
+                self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
+
+                legacy_home = main / "legacy-codex-home"
+                legacy_sessions = legacy_home / "sessions"
+                legacy_sqlite = legacy_home / "sqlite"
+                legacy_sessions.mkdir(parents=True)
+                legacy_sqlite.mkdir()
+                (legacy_home / "auth.json").write_text("{}\n", encoding="utf-8")
+
+                def legacy_command(*writable):
+                    mounts = []
+                    for path in writable:
+                        mounts.extend(("--bind", str(path), str(path)))
+                    return (
+                        bwrap,
+                        "--die-with-parent",
+                        "--new-session",
+                        "--ro-bind",
+                        "/",
+                        "/",
+                        "--dev-bind",
+                        "/dev/urandom",
+                        "/dev/urandom",
+                        "--remount-ro",
+                        "/dev/urandom",
+                        *mounts,
+                        "--setenv",
+                        "CODEX_HOME",
+                        str(legacy_home),
+                        "--setenv",
+                        "CODEX_SQLITE_HOME",
+                        str(legacy_sqlite),
+                        "--",
+                        codex,
+                        "--config",
+                        f"sqlite_home={json.dumps(str(legacy_sqlite))}",
+                        "app-server",
+                    )
+
+                sessions_only = subprocess.run(
+                    legacy_command(legacy_sessions),
+                    input=initialize,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertNotEqual(sessions_only.returncode, 0)
+                self.assertIn("Read-only file system", sessions_only.stderr)
+
+                sqlite_only = subprocess.run(
+                    legacy_command(legacy_sessions, legacy_sqlite),
+                    input=initialize,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertNotEqual(sqlite_only.returncode, 0)
+                self.assertIn("Read-only file system", sqlite_only.stderr)
+                self.assertTrue(any(legacy_sqlite.iterdir()))
 
 
 if __name__ == "__main__":
