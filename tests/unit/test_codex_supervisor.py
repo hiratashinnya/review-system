@@ -1649,8 +1649,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "--setenv", "HOME", str(clean_home),
                     ) + initial[separator : separator + 1]
                     allowed_shell = sandbox_outer + (
-                        codex, "--config", 'project_root_markers=[".git"]',
-                        "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        codex, "--sandbox", "workspace-write",
+                        "sandbox", "-C", str(workspace),
                         "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
                     )
                     allowed = subprocess.run(
@@ -1662,8 +1662,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "workspace",
                     )
                     denied_shell = sandbox_outer + (
-                        codex, "--config", 'project_root_markers=[".git"]',
-                        "sandbox", "-P", "workspace-write", "-C", str(workspace),
+                        codex, "--sandbox", "workspace-write",
+                        "sandbox", "-C", str(workspace),
                         "sh", "-c",
                         "printf hacked > \"$CODEX_HOME/sessions/supervised-marker\"; "
                         "rm -f \"$CODEX_HOME/auth.json\"; "
