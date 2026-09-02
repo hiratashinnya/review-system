@@ -1645,7 +1645,10 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 codex = shutil.which("codex")
                 if codex is not None:
                     separator = initial.index("--")
-                    allowed_shell = initial[: separator + 1] + (
+                    sandbox_outer = initial[:separator] + (
+                        "--setenv", "HOME", str(clean_home),
+                    ) + initial[separator : separator + 1]
+                    allowed_shell = sandbox_outer + (
                         codex, "--config", 'project_root_markers=[".git"]',
                         "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c", f"printf workspace > {workspace / 'sandbox-marker'}",
@@ -1658,7 +1661,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         (workspace / "sandbox-marker").read_text(encoding="utf-8"),
                         "workspace",
                     )
-                    denied_shell = initial[: separator + 1] + (
+                    denied_shell = sandbox_outer + (
                         codex, "--config", 'project_root_markers=[".git"]',
                         "sandbox", "-P", "workspace-write", "-C", str(workspace),
                         "sh", "-c",
