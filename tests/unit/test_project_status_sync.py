@@ -104,6 +104,88 @@ def run_apply_decision(event_name: str, apply_input: str) -> list[str]:
     return proc.stdout.split()
 
 
+SYNC_STEP_NAME = "- name: Sync Project Status"
+
+
+def extract_sync_step_script() -> str:
+    """`Sync Project Status` step の `run:` ブロック**全体**を bash script として取り出す。
+
+    `extract_apply_decision` が抜き出すのは判定区間だけで、そこで組み立てた
+    `apply_args` が CLI 呼び出しへ渡ることまでは見ていない。判定区間と CLI 呼び出しの
+    **接続**（`"${apply_args[@]}"` の展開）が落ちても、判定側の test は素通りする。
+    ここでは step の実物を丸ごと実行できる形で取り出し、その接続を実測する。
+    """
+
+    lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, line in enumerate(lines) if line.strip() == SYNC_STEP_NAME]
+    if len(starts) != 1:
+        raise AssertionError(
+            f"`{SYNC_STEP_NAME}` step をワークフローから一意に特定できない"
+            f"（一致 {len(starts)} 件）"
+        )
+    start = starts[0]
+    indent = len(lines[start]) - len(lines[start].lstrip())
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        if (
+            len(lines[i]) - len(lines[i].lstrip()) <= indent
+            and stripped.startswith("- name:")
+        ):
+            end = i
+            break
+    block = lines[start:end]
+    run_at = [i for i, line in enumerate(block) if line.strip() == "run: |"]
+    if len(run_at) != 1:
+        raise AssertionError("step の `run: |` ブロックを一意に特定できない")
+    body = block[run_at[0] + 1 :]
+    body_indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
+    return "\n".join(line[body_indent:] if line.strip() else "" for line in body)
+
+
+def run_sync_step(event_name: str, apply_input: str, *, script: str | None = None) -> list[str]:
+    """step の run ブロックを実行し、CLI に実際に渡された argv を返す。
+
+    `python3` を PATH 上のスタブへ差し替えて argv を捕捉する。substring 一致では
+    「`case` 節はあるが argv へ渡っていない」を検出できないため、実物を走らせて
+    受け渡しそのものを固定する。
+    """
+
+    body = extract_sync_step_script() if script is None else script
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bindir = root / "bin"
+        bindir.mkdir()
+        argv_log = root / "argv.txt"
+        stub = bindir / "python3"
+        stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$PSS_ARGV_LOG"\n', encoding="utf-8")
+        stub.chmod(0o755)
+        proc = subprocess.run(
+            ["bash", "-c", body],
+            env={
+                "PATH": f"{bindir}:/usr/bin:/bin",
+                "EVENT_NAME": event_name,
+                "APPLY": apply_input,
+                "PSS_ARGV_LOG": str(argv_log),
+                "GITHUB_REPOSITORY": REPO,
+                "RUNNER_TEMP": str(root),
+                "GITHUB_STEP_SUMMARY": str(root / "summary.md"),
+                "GITHUB_OUTPUT": str(root / "output.txt"),
+            },
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise AssertionError(
+                f"step の run ブロックが exit {proc.returncode} で失敗した: {proc.stderr}"
+            )
+        if not argv_log.exists():
+            raise AssertionError("`python3 -m project_status_sync sync` が呼ばれていない")
+        return [line for line in argv_log.read_text(encoding="utf-8").splitlines() if line]
+
+
 def ref(number: int) -> str:
     return f"{REPO}#{number}"
 
@@ -643,6 +725,93 @@ class ApplyDecisionTest(unittest.TestCase):
         """将来 trigger が増えたときは書き込まない側（fail-safe）へ倒れる。"""
         self.assertEqual(run_apply_decision("push", ""), [])
         self.assertEqual(run_apply_decision("push", "true"), [])
+
+
+class ApplyArgsReachTheCliTest(unittest.TestCase):
+    """判定結果が CLI の argv まで実際に届くことを固定する（Issue #470）。
+
+    `ApplyDecisionTest` は判定区間だけを実行するので、`apply_args` を組み立てた後で
+    それを CLI 呼び出しへ展開し忘れる退行を検出できない。ここでは step の run ブロックを
+    丸ごと実行し、`python3` スタブが受け取った argv を直接検査する。
+    """
+
+    def setUp(self):
+        if shutil.which("bash") is None:
+            self.skipTest("bash が無い環境では run ブロックを実行できない")
+
+    def test_the_cli_is_invoked_with_the_expected_arguments(self):
+        argv = run_sync_step("workflow_dispatch", "false")
+        self.assertEqual(argv[:3], ["-m", "project_status_sync", "sync"])
+        for flag in ("--repository", "--project-id", "--project-number", "--snapshot", "--report"):
+            self.assertIn(flag, argv)
+
+    def test_schedule_run_passes_apply_to_the_cli(self):
+        """保険経路（純正 `schedule`）でも `--apply` が argv に載る。"""
+        self.assertIn("--apply", run_sync_step("schedule", ""))
+
+    def test_external_cron_dispatch_passes_apply_to_the_cli(self):
+        """主たる起動元（外部 cron）は body の `inputs.apply=true` で常用運転になる。"""
+        self.assertIn("--apply", run_sync_step("workflow_dispatch", "true"))
+
+    def test_manual_dry_run_reaches_the_cli_without_apply(self):
+        """手動 dry-run は CLI までは届き、`--apply` だけが付かない。"""
+        argv = run_sync_step("workflow_dispatch", "false")
+        self.assertIn("sync", argv)
+        self.assertNotIn("--apply", argv)
+
+    def test_dropping_the_expansion_is_detected(self):
+        """`"${apply_args[@]}"` の展開を落とす退行を、本 test が実際に検出することを示す。
+
+        判定区間だけを見る test はこの壊し方を素通りする（判定は正しいまま argv に
+        届かない）。負のコントロールとして固定しておく。
+        """
+        broken = extract_sync_step_script().replace('"${apply_args[@]}"', "", 1)
+        self.assertNotIn('"${apply_args[@]}"', broken)
+        self.assertNotIn("--apply", run_sync_step("schedule", "", script=broken))
+
+
+class ExternalCronDocsTest(unittest.TestCase):
+    """外部 cron が主たる起動元であることと body 要件の文書化を固定する（Issue #470）。
+
+    挙動では表現できない運用契約（`inputs.apply=true` を起動側が明示する）なので、
+    文書からの消失を機械的に検出する。
+    """
+
+    OPS_DOC = REPO_ROOT / "docs" / "methods" / "project-status-sync-external-cron-ops.md"
+    BLOCKER_OPS_DOC = REPO_ROOT / "docs" / "methods" / "blocker-snapshot-external-cron-ops.md"
+    README = REPO_ROOT / "project_status_sync" / "README.md"
+    CRON_BODY = '{"ref":"main","inputs":{"apply":"true"}}'
+
+    def readme_actions_section(self) -> str:
+        text = self.README.read_text(encoding="utf-8")
+        return text.split("### GitHub Actions からの実行", 1)[1].split("\n### ", 1)[0]
+
+    def test_workflow_trigger_comment_states_the_external_cron_contract(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        triggers = text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertIn('"inputs":{"apply":"true"}', triggers)
+        self.assertIn("docs/methods/project-status-sync-external-cron-ops.md", triggers)
+        # 純正 schedule が保険であり cron 式どおりに発火しないこと（Issue #363）。
+        self.assertIn("Issue #363", triggers)
+
+    def test_readme_warns_about_reusing_the_blocker_snapshot_body(self):
+        section = self.readme_actions_section()
+        self.assertIn('{"ref":"main"}', section)
+        self.assertIn(self.CRON_BODY, section)
+        self.assertIn("docs/methods/project-status-sync-external-cron-ops.md", section)
+        self.assertIn("Issue #363", section)
+
+    def test_ops_doc_covers_endpoint_body_and_pat(self):
+        text = self.OPS_DOC.read_text(encoding="utf-8")
+        self.assertIn("actions/workflows/project-status-sync.yml/dispatches", text)
+        self.assertIn(self.CRON_BODY, text)
+        self.assertIn("Actions: Read and write", text)
+        # PAT 再利用の可否は実測できていない（オーナーが設定後に確認する）。
+        self.assertIn("未検証", text)
+
+    def test_blocker_snapshot_ops_doc_warns_against_reuse(self):
+        text = self.BLOCKER_OPS_DOC.read_text(encoding="utf-8")
+        self.assertIn("project-status-sync-external-cron-ops.md", text)
 
 
 class IssuePipelineSkillTest(unittest.TestCase):

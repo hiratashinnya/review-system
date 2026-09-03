@@ -30,24 +30,44 @@ python3 -m project_status_sync sync \
 
 ### GitHub Actions からの実行（`.github/workflows/project-status-sync.yml`）
 
-trigger は **`schedule`（`*/20 * * * *`）と `workflow_dispatch` の2つ**。
+trigger は **`schedule`（`*/20 * * * *`）と `workflow_dispatch` の2つ**だが、
+**常用運転の起動元は外部 cron（cron-job.org）から叩く `workflow_dispatch`** である
+（`blocker-snapshot` と同じ流儀。設定手順の正本＝
+`docs/methods/project-status-sync-external-cron-ops.md`）。
 
-| trigger | `--apply` | 用途 |
-|---|---|---|
-| `schedule`（cron・20分間隔） | **常に付く** | 常用運転。ボードを gate の判定に追従させる |
-| `workflow_dispatch` | 入力 `apply`（既定 `false`）が `true` のときだけ付く | 手動 dry-run／臨時の手動同期 |
+| 起動元 | trigger | `--apply` | 位置づけ |
+|---|---|---|---|
+| **外部 cron（cron-job.org・20分間隔）** | `workflow_dispatch` | body に `"inputs":{"apply":"true"}` を入れたときだけ付く | **主たる起動元**。ボードを gate の判定に追従させる |
+| GitHub 純正 `schedule` | `schedule` | **常に付く** | 外部 cron が止まったときの保険。発火間隔は cron 式どおりにならない（下記） |
+| 人手の手動実行 | `workflow_dispatch` | 入力 `apply`（既定 `false`）が `true` のときだけ付く | 手動 dry-run／臨時の手動同期 |
+
+> **外部 cron の body には `inputs.apply` を必ず書く。** `blocker-snapshot` 用の既存ジョブの
+> body は `{"ref":"main"}` で `inputs` を含まない（`docs/methods/blocker-snapshot-external-cron-ops.md` §2）。
+> **それをそのまま流用すると `apply` が既定の `false` に落ち、常用運転が永久に dry-run になる**
+> ——Status が同期されないまま CI だけ緑で回り続ける、Issue #470 が塞いだのと同型の静かな未達。
+> 本ワークフロー用の正しい body は `{"ref":"main","inputs":{"apply":"true"}}`。
+
+**純正 `schedule` の `*/20` は「20分ごとに動く」という意味ではない**。GitHub の `schedule`
+配信は cron 式どおりの間隔を保証せず、実測で 74〜104 分間隔でしか発火しなかった（Issue #363）。
+だから常用運転は外部 cron に持たせ、`schedule` はそれが止まったときの保険として残している。
+保険経路が遅れて劣化するのはボード表示の鮮度だけで、issue-start gate の判定そのものは
+`blocker-snapshot` 側の snapshot を読むので影響を受けない。
 
 **`--apply` の分岐は `github.event_name`（trigger 名）で行い、`inputs.apply` の値だけでは
 判定しない**。`inputs` は `workflow_dispatch` でのみ存在し、`schedule` 発火時は空文字に
 なる。空文字は「未定義」ではないので `${APPLY:-false}` のような既定値は効かず、
-`inputs.apply` 任せの分岐は **cron 実行を永久に dry-run にする**——Status が同期されない
-まま CI だけ緑で回り続ける静かな未達になる（Issue #470）。ワークフロー側の分岐は
-`case "$EVENT_NAME" in ... esac` に閉じてあり、`tests/unit/test_project_status_sync.py`
-がその区間を抜き出して bash で実行し、trigger ごとの `--apply` 付与を固定している。
+`inputs.apply` 任せの分岐は **`schedule` 経由の実行を永久に dry-run にする**（Issue #470）。
+逆に `workflow_dispatch` を無条件 apply にもしない——外部 cron と人手の dispatch は event 名で
+原理的に区別できず、無条件にすると手動 dry-run 経路（PR #465 の finding F-460-01 で回復した）を
+失うため。**起動する側が `inputs` を明示する**のが唯一の解になる。
+ワークフロー側の分岐は `case "$EVENT_NAME" in ... esac` に閉じてあり、
+`tests/unit/test_project_status_sync.py` がその区間を抜き出して bash で実行し、trigger ごとの
+`--apply` 付与を固定している。加えて step の `run:` ブロック全体を実行し、組み立てた
+`apply_args` が `python3 -m project_status_sync sync` の argv に実際に渡ることも固定している。
 未知の trigger が増えた場合は dry-run 側へ倒れる（fail-safe）。
 
-cron 有効化に先立ち、初回の変更計画は human-in-the-loop で確認済み（Issue #470・
-オーナー承認 2026-09-03）。Project への書き込みには復元手段が無いため、cron と同時に
+常用運転に先立ち、初回の変更計画は human-in-the-loop で確認済み（Issue #470・
+オーナー承認 2026-09-03）。Project への書き込みには復元手段が無いため、定期実行と同時に
 入れると初回確認が20分タイマーとの競争になって成立しない——という理由で確認を先行させた
 （PR #465 の finding F-460-01）。
 
@@ -114,15 +134,27 @@ waiver（`blocker_gate.waiver`）は適用しない。ボードは「依存グ�
 ### 鮮度上限が 60 分である理由
 
 degraded 判定（`pages_complete` / `errors`）は「壊れた snapshot」しか捕まえられず、
-「壊れていないが古い」snapshot は素通りする。gate は staleness 10 分で fail-close するが、
-本ワークフローは20分周期のため同じ値だと通常運転で自分を弾く。60 分なら通常運転では
-発火せず、`blocker-snapshot` が実際に停止した異常だけを捕まえられる。
+「壊れていないが古い」snapshot は素通りする。だから `generated_at` に鮮度上限を置く。
 
-なお GitHub の `schedule` 配信は cron 式どおりの間隔を保証せず、実測で数十分〜100 分規模の
-遅延・欠落が起こる（Issue #363）。これは 60 分という上限を弱めない——読む snapshot の鮮度を
-決めるのは `blocker-snapshot` 側の cadence（外部 cron・約5分）であって本ワークフローの
-発火間隔ではないため、本ワークフローが遅れて発火しても snapshot は通常どおり新しい。
-遅延で劣化するのはボード表示が gate に追いつくまでの時間だけで、gate の判定には影響しない。
+**この上限が守っているものは gate の 10 分とは別物**であり、そこから値が決まる。
+
+- gate の 10 分は「着手を拒否してよいか」という**判定**の鮮度に効く。古い材料で ALLOW 側へ
+  倒すと実害が出るので、短い上限で fail-close する。
+- 本ツールの上限は「**ボード表示**を書き換えてよいか」に効く。読む snapshot の鮮度を決めるのは
+  `blocker-snapshot` 側の cadence（外部 cron・約5分）であって本ワークフローの起動間隔ではない
+  ので、`blocker-snapshot` が健全なら本ワークフローがいつ起動しても snapshot は 0〜5 分と新しい。
+  つまりこの上限は通常運転の鮮度を守るためのものではなく、**`blocker-snapshot` が実際に
+  止まったこと**を検出するために置いている。
+
+したがって値は「一過性の揺らぎでは発火せず、停止だけを捕まえる」水準に取る。60 分は snapshot
+cadence（5 分）の 12 周期分にあたり、runner のキュー待ち・`cancel-in-progress` による1〜2 回の
+取りこぼし・外部 cron の jitter といった揺らぎでは到達しない。到達したときは `blocker-snapshot`
+の停止（PAT 失効・cron-job.org 側の障害等）とみなしてよい。ここで gate と同じ 10 分を採ると、
+揺らぎのたびにボード同期が赤くなり「止まっている」と「遅れている」を区別できなくなる。
+
+本ワークフロー自身の起動が遅れた場合（純正 `schedule` の保険経路は実測 74〜104 分間隔・
+Issue #363）に劣化するのは、ボード表示が gate に追いつくまでの時間だけである。読む snapshot が
+古くなるわけではないので 60 分の上限は弱まらず、gate の判定にも影響しない。
 
 ## 禁止事項（機械的に守る）
 

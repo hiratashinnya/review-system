@@ -15,7 +15,7 @@ name: project-status-sync
 # 障害ドメイン・cadence・PAT スコープを独立させる。
 #
 # cadence: gate の5分は「拒否判定の鮮度」に効くための頻度であり、ボード表示に
-# 同じ厳しさは要らない。cron は20分間隔とし、ツール側の鮮度上限（60分）が
+# 同じ厳しさは要らない。20分間隔で回し、ツール側の鮮度上限（60分）が
 # blocker-snapshot の停止だけを捕まえるようにする。
 #
 # `pull_request_target` は使わない（public repository で secret が露出する経路を
@@ -37,13 +37,27 @@ name: project-status-sync
 # cron より先に済ませたのは、Project への書き込みに復元手段が無く
 # （project_status_sync/README.md「使い方」）、cron を同時に入れると初回確認が
 # 20分タイマーとの競争になって実質的に成立しないため（PR #465 の finding
-# F-460-01）。確認が済んだので本ワークフローは常用（cron）へ移行する。
+# F-460-01）。確認が済んだので本ワークフローは常用へ移行する。
 # `workflow_dispatch`（`apply` 既定 `false`）は手動 dry-run の経路として残す。
 on:
-  # cadence は20分（上の「cadence」コメント参照）。なお GitHub の schedule 配信は
-  # cron 式どおりの間隔を保証せず、遅延・欠落しうる（Issue #363 の実測）。本
-  # ワークフローが遅れて劣化するのはボード表示の鮮度だけで、issue-start gate の
-  # 判定そのものは blocker-snapshot 側を読むので影響を受けない。
+  # === 主たる起動元は「外部 cron（cron-job.org）から叩く workflow_dispatch」===
+  # 設定手順の正本＝docs/methods/project-status-sync-external-cron-ops.md。cadence は
+  # 20分（上の「cadence」コメント参照）。**外部 cron の body には `inputs.apply` を
+  # 明示すること**——
+  #   {"ref":"main","inputs":{"apply":"true"}}
+  # `inputs` を省くと `apply` は下の `default: false` に落ち、常用運転が永久 dry-run に
+  # なる（Status が同期されないまま CI は緑＝Issue #470 が塞いだのと同型の静かな未達）。
+  # blocker-snapshot 用の既存ジョブ（docs/methods/blocker-snapshot-external-cron-ops.md §2）の
+  # body は `{"ref":"main"}` で inputs を含まないので、**そのまま流用してはいけない**。
+  # なお `workflow_dispatch` を無条件 apply にはしない——外部 cron と人手の dispatch は
+  # event 名で原理的に区別できず、無条件 apply にすると PR #465 の finding F-460-01 で
+  # 回復した手動 dry-run 経路を失う。正解は起動する側が inputs を明示することだけ。
+  #
+  # === 純正 schedule は外部 cron が止まったときの保険 ===
+  # GitHub の schedule 配信は cron 式どおりの間隔を保証しない。実測では 74〜104 分間隔でしか
+  # 発火しなかった（Issue #363）ので、下の `*/20` を「20分ごとに動く」と読んではいけない。
+  # 保険としては有効で、遅れて劣化するのはボード表示の鮮度だけ——issue-start gate の判定
+  # そのものは blocker-snapshot 側の snapshot を読むので影響を受けない。
   schedule:
     - cron: "*/20 * * * *"
   workflow_dispatch:
@@ -100,11 +114,16 @@ jobs:
           apply_args=()
           case "$EVENT_NAME" in
             schedule)
-              # cron＝常用運転。確認済みの遷移表に従って実際に書き込む。
+              # 純正 schedule＝外部 cron が止まったときの保険。起動できた以上は
+              # 確認済みの遷移表に従って実際に書き込む（inputs を渡す術がないため
+              # ここは無条件）。
               apply_args+=(--apply)
               ;;
             workflow_dispatch)
-              # 手動実行の既定は dry-run。入力が明示的に true のときだけ書き込む。
+              # 主たる起動元（外部 cron）と人手の手動実行が共有する経路。event 名では
+              # 両者を区別できないので、既定は dry-run に倒し、入力が明示的に true の
+              # ときだけ書き込む。外部 cron は body に "inputs":{"apply":"true"} を
+              # 入れて常用運転を成立させる（上の on: コメント参照）。
               if [ "${APPLY:-false}" = "true" ]; then
                 apply_args+=(--apply)
               fi
