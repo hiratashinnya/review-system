@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 import io
 import json
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -51,6 +53,55 @@ STATUS_FIELD_ID = "PVTSSF_test"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "project-status-sync.yml"
 BLOCKER_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "blocker-snapshot.yml"
+
+# ワークフローの「`--apply` を付けるか」の判定だけを切り出すためのマーカー
+# （`.github/workflows/project-status-sync.yml` の Sync Project Status step）。
+APPLY_DECISION_START = "# >>> apply-decision"
+APPLY_DECISION_END = "# <<< apply-decision <<<"
+
+
+def extract_apply_decision() -> str:
+    """ワークフローから `--apply` 付与の判定部分だけを bash script として取り出す。
+
+    YAML パーサは使わない（本 repository の標準ライブラリ縛りとワークフロー test の
+    既存流儀に合わせる）。マーカーで挟んだ区間をそのまま取るので、判定ロジックの
+    **実物**を実行して固定できる（substring 一致では「cron が dry-run に倒れる」を
+    検出できない——Issue #470 の罠がまさにその形だった）。
+    """
+
+    text = WORKFLOW.read_text(encoding="utf-8")
+    if APPLY_DECISION_START not in text or APPLY_DECISION_END not in text:
+        raise AssertionError(
+            "apply-decision マーカーがワークフローから消えている。"
+            "マーカーを消すと cron 経路の --apply 付与が検証されなくなる。"
+        )
+    body = text.split(APPLY_DECISION_START, 1)[1].split(APPLY_DECISION_END, 1)[0]
+    return body[body.index("apply_args=()") :]
+
+
+def run_apply_decision(event_name: str, apply_input: str) -> list[str]:
+    """判定部分を bash で実行し、組み立てられた追加 argv を返す。"""
+
+    script = "\n".join(
+        [
+            "set -uo pipefail",
+            extract_apply_decision(),
+            # `set -u` 下で空配列を展開しても落ちない形にする。
+            'printf "%s\\n" ${apply_args[@]+"${apply_args[@]}"}',
+        ]
+    )
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        env={
+            "PATH": "/usr/bin:/bin",
+            "EVENT_NAME": event_name,
+            "APPLY": apply_input,
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout.split()
 
 
 def ref(number: int) -> str:
@@ -536,6 +587,62 @@ class WorkflowTest(unittest.TestCase):
         text = BLOCKER_WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("project_status_sync", text)
         self.assertNotIn("PROJECT_SYNC_TOKEN", text)
+
+
+class WorkflowCronTest(unittest.TestCase):
+    """cron 有効化と、cron 経路で `--apply` が付くことを固定する（Issue #470）。"""
+
+    def triggers(self) -> str:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        return text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+
+    def test_schedule_is_enabled_at_twenty_minutes(self):
+        triggers = self.triggers()
+        self.assertIn("schedule:", triggers)
+        self.assertIn('- cron: "*/20 * * * *"', triggers)
+
+    def test_manual_dry_run_path_is_kept(self):
+        """手動 dry-run（`workflow_dispatch` の既定 false）を失わない。"""
+        triggers = self.triggers()
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn("apply:", triggers)
+        self.assertIn("type: boolean", triggers)
+        self.assertIn("default: false", triggers)
+
+    def test_event_name_is_available_to_the_step(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("EVENT_NAME: ${{ github.event_name }}", text)
+
+
+class ApplyDecisionTest(unittest.TestCase):
+    """ワークフロー実物の判定部分を bash で実行して挙動を固定する（Issue #470）。"""
+
+    def setUp(self):
+        if shutil.which("bash") is None:
+            self.skipTest("bash が無い環境では判定部分を実行できない")
+
+    def test_schedule_applies_even_though_inputs_apply_is_empty(self):
+        """cron の run では `inputs.apply` が空文字。それでも `--apply` が付く。
+
+        これが Issue #470 の核心。`[ "${APPLY:-false}" = "true" ]` だけで分岐すると、
+        空文字は「未定義」ではないので `:-` の既定値が効かず dry-run に倒れ、
+        cron が永久に書き込まないまま CI は緑で回り続ける（静かな未達）。
+        """
+        self.assertEqual(run_apply_decision("schedule", ""), ["--apply"])
+
+    def test_manual_dispatch_defaults_to_dry_run(self):
+        self.assertEqual(run_apply_decision("workflow_dispatch", "false"), [])
+
+    def test_manual_dispatch_applies_only_when_input_is_true(self):
+        self.assertEqual(run_apply_decision("workflow_dispatch", "true"), ["--apply"])
+
+    def test_manual_dispatch_with_empty_input_stays_dry_run(self):
+        self.assertEqual(run_apply_decision("workflow_dispatch", ""), [])
+
+    def test_unknown_trigger_falls_back_to_dry_run(self):
+        """将来 trigger が増えたときは書き込まない側（fail-safe）へ倒れる。"""
+        self.assertEqual(run_apply_decision("push", ""), [])
+        self.assertEqual(run_apply_decision("push", "true"), [])
 
 
 class IssuePipelineSkillTest(unittest.TestCase):

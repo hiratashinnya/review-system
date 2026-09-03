@@ -15,9 +15,8 @@ name: project-status-sync
 # 障害ドメイン・cadence・PAT スコープを独立させる。
 #
 # cadence: gate の5分は「拒否判定の鮮度」に効くための頻度であり、ボード表示に
-# 同じ厳しさは要らない。cron を有効化するときは20分間隔とし、ツール側の鮮度上限
-# （60分）が blocker-snapshot の停止だけを捕まえるようにする（本 PR では cron を
-# 入れていない。理由は下の `on:` のコメント）。
+# 同じ厳しさは要らない。cron は20分間隔とし、ツール側の鮮度上限（60分）が
+# blocker-snapshot の停止だけを捕まえるようにする。
 #
 # `pull_request_target` は使わない（public repository で secret が露出する経路を
 # 作らないため）。secret `PROJECT_SYNC_TOKEN` は classic PAT（scope は `project`
@@ -31,18 +30,22 @@ name: project-status-sync
 # report.json を孤立ブランチへ force-push した後で `::error` を出して job を
 # 失敗させる。逆にするとレポートが残らないまま落ちる（Issue #345 F-345-03 と同型）。
 #
-# 初回運用は human-in-the-loop（PR #465 F-460-01・オーナー確定 2026-09-03）:
-# 本 PR では `on:` に `schedule` を**入れない**。cron の有効化は後続 PR で行う。
-# 理由: `workflow_dispatch.inputs.apply` を足すだけでは、merge から20分以内に cron が
-# `--apply` で発火してしまい、「まず dry-run で変更計画を確認する」という初回確認が
-# 20分タイマーとの競争になって実質的に成立しない。Project には書き込みの復元手段が
-# 無い（project_status_sync/README.md「使い方」）ため、確認を先に成立させる。
-# 運用: merge 後にオーナーが `workflow_dispatch`（`apply: false`）で dry-run し、
-# `$GITHUB_STEP_SUMMARY` の変更計画を確認してから常用（cron）に入る。
-# cron を有効化する後続 PR での注意: `schedule` 発火時は `inputs` が存在せず
-# `inputs.apply` が空文字になるので、schedule 時に `--apply` を付けるかどうかを
-# その PR で明示的に決めること（下の `APPLY` の既定は dry-run 側に倒してある）。
+# 初回確認は完了済み（Issue #470・オーナー承認 2026-09-03）:
+# cron を入れる前に human-in-the-loop の初回確認を通した——`workflow_dispatch`
+# （`apply: false`）の dry-run で変更計画を確認し、オーナー承認のうえ `apply: true`
+# で初回書き込みを実施（`applied: 4`・オーナー専権フィールドは不変）。この確認を
+# cron より先に済ませたのは、Project への書き込みに復元手段が無く
+# （project_status_sync/README.md「使い方」）、cron を同時に入れると初回確認が
+# 20分タイマーとの競争になって実質的に成立しないため（PR #465 の finding
+# F-460-01）。確認が済んだので本ワークフローは常用（cron）へ移行する。
+# `workflow_dispatch`（`apply` 既定 `false`）は手動 dry-run の経路として残す。
 on:
+  # cadence は20分（上の「cadence」コメント参照）。なお GitHub の schedule 配信は
+  # cron 式どおりの間隔を保証せず、遅延・欠落しうる（Issue #363 の実測）。本
+  # ワークフローが遅れて劣化するのはボード表示の鮮度だけで、issue-start gate の
+  # 判定そのものは blocker-snapshot 側を読むので影響を受けない。
+  schedule:
+    - cron: "*/20 * * * *"
   workflow_dispatch:
     inputs:
       apply:
@@ -79,16 +82,38 @@ jobs:
         id: sync
         env:
           PROJECT_SYNC_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
-          # `inputs` は workflow_dispatch でのみ存在する。それ以外の trigger では
-          # 空文字になるので、下の既定値で dry-run 側（--apply なし）へ倒れる。
+          # `inputs` は workflow_dispatch でのみ存在する。schedule で発火した run では
+          # 空文字になるため、この値だけで分岐してはいけない（下の run: 参照）。
           APPLY: ${{ inputs.apply }}
+          # 分岐の一次情報は trigger 名。空文字に依存しない判定にするため。
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -uo pipefail
-          # CLI の既定は dry-run。`--apply` は入力が明示的に true のときだけ付ける。
+          # `--apply` の付与は **trigger 名** で決める。APPLY の値だけで分岐しないこと:
+          # schedule 発火時は `inputs` が存在せず APPLY が **空文字** になる。空文字は
+          # 「未定義」ではないので `${APPLY:-false}` の既定値は効かず、APPLY 任せの
+          # 分岐だと cron 実行が永久に dry-run で回り続ける——Status が同期されない
+          # まま CI は緑、という静かな未達になる（Issue #470）。
+          # >>> apply-decision: tests/unit/test_project_status_sync.py がこの区間を
+          # 抜き出して bash で実行し、trigger ごとの --apply 付与を固定している。
+          # マーカー行ごと消さないこと。 >>>
           apply_args=()
-          if [ "${APPLY:-false}" = "true" ]; then
-            apply_args+=(--apply)
-          fi
+          case "$EVENT_NAME" in
+            schedule)
+              # cron＝常用運転。確認済みの遷移表に従って実際に書き込む。
+              apply_args+=(--apply)
+              ;;
+            workflow_dispatch)
+              # 手動実行の既定は dry-run。入力が明示的に true のときだけ書き込む。
+              if [ "${APPLY:-false}" = "true" ]; then
+                apply_args+=(--apply)
+              fi
+              ;;
+            *)
+              # 未知の trigger は dry-run 側へ倒す（fail-safe）。
+              ;;
+          esac
+          # <<< apply-decision <<<
           status=0
           python3 -m project_status_sync sync \
             --repository "$GITHUB_REPOSITORY" \

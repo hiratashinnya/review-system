@@ -30,22 +30,26 @@ python3 -m project_status_sync sync \
 
 ### GitHub Actions からの実行（`.github/workflows/project-status-sync.yml`）
 
-現在の trigger は **`workflow_dispatch` のみ**で、`--apply` は入力 `apply`（既定 `false`）が
-`true` のときだけ付く。**`schedule`（cron）は本 PR ではあえて入れていない**
-（PR #465 の finding F-460-01・オーナー確定 2026-09-03）。
+trigger は **`schedule`（`*/20 * * * *`）と `workflow_dispatch` の2つ**。
 
-理由：`inputs.apply` を足すだけでは merge から20分以内に cron が `--apply` で発火し、
-「まず dry-run で変更計画を確認する」という初回確認が20分タイマーとの競争になって実質的に
-成立しない。Project への書き込みには復元手段が無いため、確認が先に成立するようにする。
+| trigger | `--apply` | 用途 |
+|---|---|---|
+| `schedule`（cron・20分間隔） | **常に付く** | 常用運転。ボードを gate の判定に追従させる |
+| `workflow_dispatch` | 入力 `apply`（既定 `false`）が `true` のときだけ付く | 手動 dry-run／臨時の手動同期 |
 
-運用の順序：
+**`--apply` の分岐は `github.event_name`（trigger 名）で行い、`inputs.apply` の値だけでは
+判定しない**。`inputs` は `workflow_dispatch` でのみ存在し、`schedule` 発火時は空文字に
+なる。空文字は「未定義」ではないので `${APPLY:-false}` のような既定値は効かず、
+`inputs.apply` 任せの分岐は **cron 実行を永久に dry-run にする**——Status が同期されない
+まま CI だけ緑で回り続ける静かな未達になる（Issue #470）。ワークフロー側の分岐は
+`case "$EVENT_NAME" in ... esac` に閉じてあり、`tests/unit/test_project_status_sync.py`
+がその区間を抜き出して bash で実行し、trigger ごとの `--apply` 付与を固定している。
+未知の trigger が増えた場合は dry-run 側へ倒れる（fail-safe）。
 
-1. merge 後、オーナーが `workflow_dispatch` を `apply: false`（既定）で実行する。
-2. `$GITHUB_STEP_SUMMARY` に出る変更計画を確認する。
-3. 問題なければ **後続 PR で `on: schedule`（20分間隔）を有効化**して常用に入る。
-   その PR では、`schedule` 発火時に `inputs.apply` が空文字になる（`inputs` は
-   `workflow_dispatch` でのみ存在する）ため、schedule 時に `--apply` を付けるかどうかを
-   明示的に決めること。現状のワークフローは既定を dry-run 側に倒してある。
+cron 有効化に先立ち、初回の変更計画は human-in-the-loop で確認済み（Issue #470・
+オーナー承認 2026-09-03）。Project への書き込みには復元手段が無いため、cron と同時に
+入れると初回確認が20分タイマーとの競争になって成立しない——という理由で確認を先行させた
+（PR #465 の finding F-460-01）。
 
 ### exit code
 
@@ -113,6 +117,12 @@ degraded 判定（`pages_complete` / `errors`）は「壊れた snapshot」し�
 「壊れていないが古い」snapshot は素通りする。gate は staleness 10 分で fail-close するが、
 本ワークフローは20分周期のため同じ値だと通常運転で自分を弾く。60 分なら通常運転では
 発火せず、`blocker-snapshot` が実際に停止した異常だけを捕まえられる。
+
+なお GitHub の `schedule` 配信は cron 式どおりの間隔を保証せず、実測で数十分〜100 分規模の
+遅延・欠落が起こる（Issue #363）。これは 60 分という上限を弱めない——読む snapshot の鮮度を
+決めるのは `blocker-snapshot` 側の cadence（外部 cron・約5分）であって本ワークフローの
+発火間隔ではないため、本ワークフローが遅れて発火しても snapshot は通常どおり新しい。
+遅延で劣化するのはボード表示が gate に追いつくまでの時間だけで、gate の判定には影響しない。
 
 ## 禁止事項（機械的に守る）
 
