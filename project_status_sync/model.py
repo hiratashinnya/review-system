@@ -41,9 +41,13 @@ WRITABLE_TARGETS = frozenset({READY, BLOCKED})
 # 読み書きしないので、この一覧は「守るべき対象の宣言」であり test の固定点。
 OWNER_ONLY_FIELDS = ("Horizon", "Priority", "Review date", "Workstream", "Harness")
 
-# snapshot の鮮度上限（秒）。gate は staleness 10 分で fail-close するが、
-# 本ツールは 15〜30 分周期のため同じ値だと通常運転で自分を弾く。60 分なら
-# 通常運転では発火せず、blocker-snapshot が実際に停止した異常だけを捕まえる。
+# snapshot の鮮度上限（秒）。gate の staleness 10 分は「着手を拒否してよいか」という
+# 判定の鮮度を守る制約であり、本ツールの60分とは基準が別物（README「鮮度上限が60分で
+# ある理由」）。本ツールが読む snapshot の鮮度を決めるのは blocker-snapshot 側の
+# cadence（約5分）であって本ワークフロー自身の発火間隔ではないので、blocker-snapshot
+# が健全な限り本ワークフローがいつ起動しても snapshot は0〜5分と新しい。60分は
+# snapshot cadence の12周期分にあたり、一過性の揺らぎでは発火せず、blocker-snapshot
+# が実際に停止した異常だけを捕まえる水準として取っている。
 MAX_SNAPSHOT_AGE_SECONDS = 3600
 
 # 遷移表に無いケース。書かず report へ理由付きで記録し、CI は赤くしない。
