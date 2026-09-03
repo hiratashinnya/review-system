@@ -37,6 +37,13 @@ Console（<https://cron-job.org/en/>）でログイン後、次の内容でジ�
 `<FINE_GRAINED_PAT>` はプレースホルダであり、実際の値は §3 で発行する PAT に置き換える。
 この値を本ドキュメント・commit・PR・Issue コメントのいずれにも平文で残さないこと。
 
+> **他のワークフローへ本ジョブ設定を流用しないこと。** 上表の Body `{"ref":"main"}` は
+> `inputs` を含まない。`workflow_dispatch` の入力で挙動が変わるワークフローにこの body を
+> 向けると、入力はワークフロー定義の既定値に落ちる。実例＝`project-status-sync.yml` は
+> `inputs.apply` が `true` のときだけ Project へ書き込むため、この body を流用すると
+> 常用運転が永久に dry-run になる（Issue #470）。同ワークフロー用の手順は
+> `docs/methods/project-status-sync-external-cron-ops.md` にある。
+
 ### API で作る場合の等価な設定（参考・Console 操作の代替）
 
 ```bash
