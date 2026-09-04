@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 10
+version: 11
 condition: boundary
 ---
 
@@ -36,9 +36,11 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
    禁止tool event、handoff不正を作り、PID/start token記録後かつ`thread.started`後だけ`running`になることを確認する。
 9. rate limit後のresume commandが同じrole/model/reasoning/thread/worktreeを維持することを確認する。
 10. modelを呼ばないP1 bubblewrap probeで、対象worktreeだけwrite可、main/共通Git/`.codex`/`.agents`は
-    write不可、`/tmp`はprivate、shell network不可であることをhost側実測する。Python起動に必要な
-    `/dev/urandom`だけを`--dev-bind`直後に`--remount-ro`し、device集合やwrite範囲を追加しないことも
-    command順序の契約で確認する。payloadは固定`/usr/bin/python3`を使ってcoverage/venv差を除外し、同じouter
+    write不可、`/tmp`はprivate、shell network不可であることをhost側実測する。read-only root bind直後に
+    bubblewrapが最小のprivate `/dev`を作り、そのmountをread-onlyへ戻すことをcommand順序で確認する。host
+    `/dev`のbindは禁止し、`/dev/null`、DEVNULL subprocess、PTY作成・PTY subprocessが動く一方、device node追加、
+    `/dev/kvm`、`/dev/dri`、`/dev/fuse`、既存host PTYの露出がないことを実測する。旧`/dev/urandom`限定構成では
+    `/dev/null`がerrno 13で拒否される負例も確認する。payloadは固定`/usr/bin/python3`を使ってcoverage/venv差を除外し、同じouter
     sandbox内の`codex --version`も利用可能なhostでmodel無呼出確認する。
 11. protected patchはowner-approved exact path、schema、base SHA-256、path traversal/symlink/sizeをhostが
     検証し、apply直前にもdigestを再確認し、既存permission bitsを保持することを確認する。
@@ -106,6 +108,7 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - `collaboration.spawn_agent`はunavailableのまま、別process supervisorだけがCodex実装roleの正規経路となる。
 - JSONL、process、Git facts、handoffの一つでも不正なら成功にせず、回収可能な非終端ledger entryを保持する。
 - inner processはcommit/push/PR/mergeを持たず、host publish allowlistがimplementerとfixerの非対称を維持する。
+- outer processはhost `/dev`を共有せず、read-onlyなprivate device集合でCodexに必要なnull/PTYだけを利用できる。
 - start/resumeは一意attemptへ直列化され、pre-publish handoffからhost publish後finalへのphase遷移が監査できる。
 - 対象PR自身はtrusted role contractを変更できず、session rolloutはtask間で共有されずresume間だけ永続する。
 - host publishは途中飛ばし・並行実行・成果未確認を成功にせず、既存consumer互換のrole別finalだけを出力する。

@@ -1,8 +1,10 @@
 import base64
+import errno
 import hashlib
 import io
 import json
 import os
+import pty
 import select
 import shutil
 import socket
@@ -310,8 +312,12 @@ class CodexSupervisorTests(unittest.TestCase):
         proc_index = command.index("--proc")
         self.assertEqual(command[proc_index : proc_index + 2], ("--proc", "/proc"))
         self.assertEqual(
-            command[root_bind_index : root_bind_index + 5],
-            ("--ro-bind", "/", "/", "--proc", "/proc"),
+            command[root_bind_index : root_bind_index + 7],
+            ("--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev"),
+        )
+        self.assertEqual(
+            command[root_bind_index + 7 : root_bind_index + 9],
+            ("--proc", "/proc"),
         )
         self.assertIn("--sandbox workspace-write", joined)
         self.assertIn("--ask-for-approval never", joined)
@@ -350,11 +356,8 @@ class CodexSupervisorTests(unittest.TestCase):
         placeholder = runtime_home / "auth.json"
         self.assertEqual((placeholder.stat().st_size, stat.S_IMODE(placeholder.stat().st_mode)), (0, 0o400))
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", command)
-        random_device = command.index("/dev/urandom")
-        self.assertEqual(command[random_device - 1], "--dev-bind")
-        self.assertEqual(command[random_device + 1], "/dev/urandom")
-        self.assertEqual(command[random_device + 2 : random_device + 4], ("--remount-ro", "/dev/urandom"))
-        self.assertNotIn("--dev", command)
+        self.assertNotIn("--dev-bind", command)
+        self.assertNotIn("/dev/urandom", command)
         for protected in (
             ".git", ".codex", ".agents", ".ai/agents/issue-implementer.md"
         ):
@@ -363,6 +366,7 @@ class CodexSupervisorTests(unittest.TestCase):
             self.assertEqual(command[index - 1], "--ro-bind")
 
     def test_global_approval_scope_is_identical_for_initial_and_resume(self):
+        outer_commands = []
         for resume_thread in (None, "thread-cli-compat"):
             with self.subTest(resume_thread=resume_thread):
                 command = build_codex_command(
@@ -372,6 +376,13 @@ class CodexSupervisorTests(unittest.TestCase):
                     resume_thread=resume_thread,
                 )
                 inner = command[command.index("--") + 1 :]
+                root_bind_index = command.index("--ro-bind")
+                self.assertEqual(
+                    command[root_bind_index : root_bind_index + 7],
+                    ("--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev"),
+                )
+                self.assertNotIn("--dev-bind", command)
+                outer_commands.append(command[: command.index("--") + 1])
                 self.assertEqual(
                     inner[:4],
                     (str(self.codex), "--ask-for-approval", "never", "exec"),
@@ -381,6 +392,7 @@ class CodexSupervisorTests(unittest.TestCase):
                     self.assertEqual(inner[-1], "-")
                 else:
                     self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
+        self.assertEqual(outer_commands[0], outer_commands[1])
 
     def test_task_runtime_home_is_reused_for_resume_and_isolated_between_tasks(self):
         initial = build_codex_command(
@@ -1651,6 +1663,10 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 "--ro-bind",
                 "/",
                 "/",
+                "--dev",
+                "/dev",
+                "--remount-ro",
+                "/dev",
                 "--proc",
                 "/proc",
                 "--bind",
@@ -1674,6 +1690,67 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 str(workspace),
                 "--",
             )
+            host_master, host_slave = pty.openpty()
+            self.addCleanup(os.close, host_master)
+            self.addCleanup(os.close, host_slave)
+            host_pty = os.ttyname(host_slave)
+            device_script = (
+                "import errno,json,os,pathlib,pty,subprocess;"
+                "out={'host_pty_hidden':not pathlib.Path(os.environ['HOST_PTY']).exists(),"
+                "'restricted_devices_absent':all(not pathlib.Path(p).exists() for p in "
+                "('/dev/kvm','/dev/dri','/dev/fuse'))};"
+                "fd=os.open('/dev/null',os.O_RDWR);"
+                "out['null_read']=os.read(fd,1)==b'';out['null_write']=os.write(fd,b'x')==1;os.close(fd);"
+                "out['devnull_subprocess']=subprocess.run(['sh','-c','exit 0'],stdin=subprocess.DEVNULL,"
+                "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0;"
+                "master,slave=pty.openpty();out['openpty']=os.ttyname(slave).startswith('/dev/pts/');"
+                "child=subprocess.Popen(['sh','-c','printf pty-ok'],stdin=subprocess.DEVNULL,stdout=slave,stderr=slave);"
+                "os.close(slave);out['pty_subprocess']=child.wait()==0 and os.read(master,6)==b'pty-ok';os.close(master);"
+                "\ntry:pathlib.Path('/dev/supervisor-device').touch();out['dev_mount_read_only']=False\n"
+                "except OSError as exc:out['dev_mount_read_only']=exc.errno==errno.EROFS\n"
+                "print(json.dumps(out,sort_keys=True))"
+            )
+            device = subprocess.run(
+                outer[:-1] + ("--setenv", "HOST_PTY", host_pty, "--", "/usr/bin/python3", "-c", device_script),
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if device.returncode != 0 and "Operation not permitted" in device.stderr:
+                self.skipTest("kernel does not permit unprivileged bubblewrap namespaces")
+            self.assertEqual(device.returncode, 0, device.stderr)
+            self.assertEqual(
+                json.loads(device.stdout),
+                {
+                    "dev_mount_read_only": True,
+                    "devnull_subprocess": True,
+                    "host_pty_hidden": True,
+                    "null_read": True,
+                    "null_write": True,
+                    "openpty": True,
+                    "pty_subprocess": True,
+                    "restricted_devices_absent": True,
+                },
+            )
+
+            urandom_only = subprocess.run(
+                (
+                    bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
+                    "--ro-bind", "/", "/", "--proc", "/proc",
+                    "--dev-bind", "/dev/urandom", "/dev/urandom",
+                    "--remount-ro", "/dev/urandom", "--", "/usr/bin/python3", "-c",
+                    "import errno,os;\ntry:os.open('/dev/null',os.O_RDWR)\n"
+                    "except OSError as exc:print(exc.errno);raise SystemExit(0 if exc.errno==errno.EACCES else 2)\n"
+                    "raise SystemExit(3)",
+                ),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            self.assertEqual(urandom_only.returncode, 0, urandom_only.stderr)
+            self.assertEqual(urandom_only.stdout.strip(), "13")
+
             sandbox = (
                 codex,
                 "sandbox",
@@ -1771,14 +1848,12 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 workspace, bwrap_executable=bwrap, python_executable=system_python,
                 host_tmp_sentinel=sentinel, control_port=listener.getsockname()[1],
             )
-            random_device = command.index("/dev/urandom")
-            self.assertEqual(command[random_device - 1], "--dev-bind")
-            self.assertEqual(command[random_device + 1], "/dev/urandom")
+            root_bind_index = command.index("--ro-bind")
             self.assertEqual(
-                command[random_device + 2 : random_device + 4],
-                ("--remount-ro", "/dev/urandom"),
+                command[root_bind_index + 3 : root_bind_index + 7],
+                ("--dev", "/dev", "--remount-ro", "/dev"),
             )
-            self.assertNotIn("--dev", command)
+            self.assertNotIn("--dev-bind", command)
 
             no_network_isolation = build_sandbox_probe_command(
                 workspace, bwrap_executable=bwrap, python_executable=system_python,
@@ -1966,11 +2041,10 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         "--ro-bind",
                         "/",
                         "/",
-                        "--dev-bind",
-                        "/dev/urandom",
-                        "/dev/urandom",
+                        "--dev",
+                        "/dev",
                         "--remount-ro",
-                        "/dev/urandom",
+                        "/dev",
                         *mounts,
                         "--setenv",
                         "CODEX_HOME",

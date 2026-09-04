@@ -45,7 +45,6 @@ _PROTECTED_ROOTS = (".git", ".codex", ".agents")
 _PATCH_ROOTS = (".codex/", ".agents/", ".ai/agents/")
 _MAX_PATCH_OPERATIONS = 32
 _MAX_PATCH_BYTES = 1_048_576
-_RANDOM_DEVICE = "/dev/urandom"
 _ATTEMPT_LEASE_SECONDS = 60
 _PUBLISH_LEASE_SECONDS = 60
 _HANDOFF_SCHEMA_VERSION = 1
@@ -510,10 +509,9 @@ def build_codex_command(
         inner.append("-")
     return tuple([
         bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
-        "--ro-bind", "/", "/", "--proc", "/proc",
+        "--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev",
+        "--proc", "/proc",
         "--bind", str(workspace), str(workspace),
-        "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
-        "--remount-ro", _RANDOM_DEVICE,
         "--bind", str(runtime.root), str(runtime.root),
         "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
         *protected, "--tmpfs", "/tmp", "--setenv", "TMPDIR", "/tmp",
@@ -571,9 +569,8 @@ def build_sandbox_probe_command(
         tmp_mount.extend(("--tmpfs", "/tmp"))
     return tuple([
         bwrap, "--die-with-parent", "--new-session", *isolation,
-        "--ro-bind", "/", "/", "--bind", str(root), str(root),
-        "--dev-bind", _RANDOM_DEVICE, _RANDOM_DEVICE,
-        "--remount-ro", _RANDOM_DEVICE,
+        "--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev",
+        "--bind", str(root), str(root),
         "--ro-bind", str(root / ".git"), str(root / ".git"),
         "--ro-bind", str(root / ".codex"), str(root / ".codex"),
         "--ro-bind", str(root / ".agents"), str(root / ".agents"),
