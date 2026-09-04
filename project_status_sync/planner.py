@@ -132,8 +132,8 @@ def build_plan(
             continue
         node = issues.get(item.issue_ref)
         if node is None:
-            # snapshot（約5分間隔）と本ワークフロー（15〜30分間隔）は周期が違う
-            # ので、起票直後の item がここに落ちるのは構造上必ず起きる。故障では
+            # snapshot（約5分間隔）と本ワークフロー（20分間隔）は周期が違うので、
+            # 起票直後の item がここに落ちるのは構造上必ず起きる。故障では
             # ないので赤くせず、次回実行で自動収束する。
             skipped.append(
                 SkippedItem(
