@@ -198,6 +198,32 @@ class TransitionTests(LedgerTestCase):
                 self.assertEqual(ctx.exception.reason, "LEDGER_ILLEGAL_TRANSITION")
         self.assertEqual(self.entries()[0]["status"], "released")
 
+    def test_collected_can_defer_release_and_then_resume(self):
+        """Issue #464: 回収済み・削除だけロック失敗＝`release_pending`。gate が `released` へ。"""
+        entry_id = self.open_entry()
+        for status in ("running", "stopped", "collected", "release_pending"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+            self.assertEqual(self.entries()[0]["status"], status)
+        # 冪等な再試行に耐える。
+        worktree_ledger.mark(self.root, entry_id, "release_pending", now=LATER)
+        self.assertEqual(self.entries()[0]["status"], "release_pending")
+        worktree_ledger.mark(self.root, entry_id, "released", now=LATER)
+        self.assertEqual(self.entries()[0]["status"], "released")
+        self.assertEqual(self.entries()[0]["closed_at"], "2026-08-19T04:16:07Z")
+
+    def test_release_pending_cannot_go_back_to_collected_or_running(self):
+        entry_id = self.open_entry()
+        for status in ("running", "stopped", "collected", "release_pending"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        for bad in ("collected", "running", "stopped", "open"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(LedgerError) as ctx:
+                    worktree_ledger.mark(self.root, entry_id, bad, now=LATER)
+                self.assertEqual(ctx.exception.reason, "LEDGER_ILLEGAL_TRANSITION")
+        # fail-safe 退避（stale）と forget の逃げ道（abandoned）は残す。
+        worktree_ledger.mark(self.root, entry_id, "stale", now=LATER)
+        self.assertEqual(self.entries()[0]["status"], "stale")
+
     def test_abandoned_is_reachable_from_every_non_terminal_state(self):
         # `worktree-forget --reason` は deny が恒久的にパイプラインを止めるのを防ぐ
         # 唯一の逃げ道なので、状態で塞がない。
@@ -577,6 +603,46 @@ class ResidueReportTests(LedgerTestCase):
             [item["entry_id"] for item in worktree_ledger.unreleased_entries(self.root)],
             [still_open],
         )
+
+    def _release_pending(self, *, agent_id="rp", issue=464, on_disk=True):
+        if on_disk:
+            self.make_worktree(f"agent-{agent_id}")
+        entry_id = self.open_entry(issue=issue)
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+        for status in ("stopped", "collected", "release_pending"):
+            worktree_ledger.mark(self.root, entry_id, status, now=LATER)
+        return entry_id
+
+    def test_release_pending_is_claimed_but_not_residue(self):
+        """Issue #464: 回収済み・削除だけロック失敗は次 dispatch を止めない。"""
+        entry_id = self._release_pending()
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual(report["stale"], [], "release_pending は residue ではない")
+        self.assertEqual(report["release_pending"], [".claude/worktrees/agent-rp"])
+        self.assertEqual(report["claimed"], [".claude/worktrees/agent-rp"])
+        self.assertEqual(report["unclaimed"], [], "削除待ちの占有は孤児ではない")
+        self.assertEqual(
+            [item["entry_id"]
+             for item in worktree_ledger.deferred_release_entries(self.root)],
+            [entry_id],
+        )
+        self.assertIn("release_pending", worktree_ledger.UNRELEASED_STATUSES)
+
+    def test_release_pending_with_a_vanished_worktree_is_not_swept(self):
+        """worktree が消えた `release_pending`＝削除成功。`sweep_orphans` は触らず、
+        gate の `_finish_deferred_releases` が `released` へ進める（`stale` に落とさない）。"""
+        entry_id = self._release_pending(on_disk=False)
+        self.assertEqual(worktree_ledger.sweep_orphans(self.root, now=LATER), [])
+        self.assertEqual(
+            {e["entry_id"]: e for e in self.entries()}[entry_id]["status"],
+            "release_pending",
+        )
+        report = worktree_ledger.residue_report(self.root)
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
 
 
 class SweepOrphansTests(LedgerTestCase):

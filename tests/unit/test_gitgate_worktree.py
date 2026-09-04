@@ -31,6 +31,7 @@ from unittest.mock import patch
 from gitgate.adopt import AdoptBranchRequest, adopt_branch
 from gitgate.worktree import (
     WorktreeError,
+    _is_worktree_lock_failure,
     collect_worktree,
     parse_collect_worktree_args,
     parse_worktree_forget_args,
@@ -69,6 +70,7 @@ class FakeGit:
         fail_fetch=False,
         fail_ancestor_check=False,
         timeout_fetch=False,
+        remove_stderr=None,
     ):
         self.root = Path(root)
         self.linked = list(linked)
@@ -78,6 +80,9 @@ class FakeGit:
         self.fail_fetch = fail_fetch
         self.fail_ancestor_check = fail_ancestor_check
         self.timeout_fetch = timeout_fetch
+        # None 以外なら `git worktree remove` を rc 1 + この stderr で失敗させる
+        # （Issue #464: worktree ロック時の遅延解放の検証用）。
+        self.remove_stderr = remove_stderr
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
@@ -85,6 +90,8 @@ class FakeGit:
         if argv[:3] == ["git", "worktree", "list"]:
             return subprocess.CompletedProcess(argv, 0, self._porcelain(), "")
         if argv[:3] == ["git", "worktree", "remove"]:
+            if self.remove_stderr is not None:
+                return subprocess.CompletedProcess(argv, 1, "", self.remove_stderr)
             shutil.rmtree(argv[-1], ignore_errors=True)
             return subprocess.CompletedProcess(argv, 0, "", "")
         if argv[:2] == ["git", "fetch"]:
@@ -438,6 +445,50 @@ class ParseArgsTests(unittest.TestCase):
     def test_forget_rejects_a_positional_argument(self):
         with self.assertRaises(WorktreeError):
             parse_worktree_forget_args([WT_REL, "--entry", "wl-0123456789ab", "--reason", "x"])
+
+
+# ---------------------------------------------------------------------------
+# _is_worktree_lock_failure（Issue #464・F-464-01 是正）
+# ---------------------------------------------------------------------------
+
+
+class IsWorktreeLockFailureTests(unittest.TestCase):
+    """連結一致（"locked working tree" / "locked worktree"）に絞ったことの固定。"""
+
+    def test_the_real_git_lock_message_matches(self):
+        self.assertTrue(
+            _is_worktree_lock_failure(
+                "fatal: cannot remove a locked working tree, lock reason: "
+                "claude agent agent-x (pid 2373979 start 146149358)\n"
+                "use 'remove -f -f' to override or unlock first\n"
+            )
+        )
+        self.assertTrue(
+            _is_worktree_lock_failure("fatal: 'agent-x' is a locked worktree\n")
+        )
+
+    def test_index_lock_is_not_a_worktree_lock(self):
+        # F-464-01 の反例: 削除対象パスが常に `.claude/worktrees/agent-<id>` を含むため
+        # 旧実装（"lock" と "working tree"/"worktree" の独立判定）は index.lock も
+        # 誤って worktree ロックとして受理していた。
+        self.assertFalse(
+            _is_worktree_lock_failure(
+                "fatal: Unable to create "
+                "'/repo/.git/worktrees/agent-x/index.lock': File exists.\n"
+            )
+        )
+
+    def test_permission_denied_is_not_a_lock_failure(self):
+        self.assertFalse(
+            _is_worktree_lock_failure(
+                "fatal: failed to delete '/repo/.claude/worktrees/agent-x': "
+                "Permission denied\n"
+            )
+        )
+
+    def test_empty_or_missing_detail_is_not_a_lock_failure(self):
+        self.assertFalse(_is_worktree_lock_failure(None))
+        self.assertFalse(_is_worktree_lock_failure(""))
 
 
 # ---------------------------------------------------------------------------
@@ -904,6 +955,37 @@ class WorktreeReleaseBranchRefCleanupTests(LedgerFixture):
             notes,
         )
 
+    def test_cleanup_branch_ref_false_skips_fetch_and_branch_delete(self):
+        # Issue #464・F-464-06: `issue-start-gate` の毎 dispatch 経路が渡す
+        # `cleanup_branch_ref=False` は `_cleanup_branch_ref`（`git fetch` を伴う）を
+        # 丸ごと呼ばない——worktree 実体の削除という主契約はそのまま成立する。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(
+            self.root, WT_REL, now=FIXED_NOW, runner=git, cleanup_branch_ref=False
+        )
+        self.assertTrue(outcome.removed)
+        self.assertEqual(outcome.status, "released")
+        self.assertEqual(git.branch_deletes, [])
+        fetch_calls = [argv for argv in git.calls if argv[:2] == ["git", "fetch"]]
+        self.assertEqual(fetch_calls, [])
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertFalse(
+            any("ローカルブランチ ref" in note for note in notes),
+            "cleanup_branch_ref=False のときは ref 掃除の note も一切残らない",
+        )
+
+    def test_cleanup_branch_ref_defaults_to_true(self):
+        # 既定は従来どおりフル掃除（互換性の固定）。
+        entry_id = self.entry_with_status("collected")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        worktree_release(self.root, WT_REL, now=FIXED_NOW, runner=git)
+        self.assertEqual(
+            git.branch_deletes, [["git", "branch", "-D", "claude/issue-354-pr2"]]
+        )
+
     def test_fetch_call_is_bounded_and_non_interactive(self):
         # fetch 呼び出しにだけ timeout と GIT_TERMINAL_PROMPT=0 が渡ること（純ローカル操作の
         # 呼び出しには渡さない・Issue #426・F-426-05）。
@@ -1368,6 +1450,125 @@ class CollectWorktreeTests(LedgerFixture):
                     collect_worktree(
                         self.root, now=FIXED_NOW, runner=ForbiddenGit(), **kwargs
                     )
+
+
+# ---------------------------------------------------------------------------
+# collect-worktree: 回収済みで削除だけロック失敗＝遅延解放（Issue #464）
+# ---------------------------------------------------------------------------
+
+
+class CollectWorktreeDeferredReleaseTests(LedgerFixture):
+    """回収（コピー＋sha 検証＋台帳 ``collected``）は済んだのに ``git worktree remove`` が
+    worktree ロック（停止途中のエージェントが保持）で失敗した場合、例外を投げず
+    ``release_pending`` にして削除だけを後段（``issue-start-gate``）へ遅延する。
+    成果物は ``collected_to`` へ退避済みで失われていないので、``stale`` に落として次
+    dispatch を止める必要がない。
+    """
+
+    LOCK_STDERR = (
+        "fatal: cannot remove a locked working tree, lock reason: "
+        "claude agent agent-x (pid 2373979 start 146149358)\n"
+        "use 'remove -f -f' to override or unlock first\n"
+    )
+
+    def test_lock_failure_defers_release_without_losing_the_handoff(self):
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], remove_stderr=self.LOCK_STDERR)
+        outcome = collect_worktree(
+            self.root, entry_id=entry_id, now=FIXED_NOW, runner=git
+        )
+        expected_dest = (
+            f"tmp/_handoff/collected/{entry_id}--issue-implementer--issue-354-pr2.yaml"
+        )
+        # 回収（コピー＋sha 検証）は完了している。
+        self.assertEqual(outcome.collected_to, expected_dest)
+        self.assertEqual((self.root / expected_dest).read_bytes(), HANDOFF_BODY)
+        self.assertFalse(outcome.released)
+        # 台帳は `release_pending`（`stale` ではない）＝次 dispatch を止めない。
+        self.assertEqual(self.status_of(entry_id), "release_pending")
+        # worktree は残る（削除できていない）。実際の削除試行は1回だけ。
+        self.assertTrue((self.root / WT_REL).is_dir())
+        self.assertEqual(len(git.removals), 1)
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(any("Issue #464" in note for note in notes), notes)
+
+    def test_gate_style_retry_finishes_the_release_once_the_lock_is_gone(self):
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        locked = FakeGit(self.root, linked=[WT_REL], remove_stderr=self.LOCK_STDERR)
+        collect_worktree(self.root, entry_id=entry_id, now=FIXED_NOW, runner=locked)
+        self.assertEqual(self.status_of(entry_id), "release_pending")
+        # 次 dispatch でロックが外れた想定＝素の worktree_release で `released` になる。
+        unlocked = FakeGit(self.root, linked=[WT_REL])
+        outcome = worktree_release(
+            self.root, WT_REL, entry_id=entry_id, now=FIXED_NOW, runner=unlocked
+        )
+        self.assertTrue(outcome.removed)
+        self.assertEqual(outcome.status, "released")
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+
+    def test_re_collecting_a_release_pending_entry_only_redoes_the_release(self):
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        locked = FakeGit(self.root, linked=[WT_REL], remove_stderr=self.LOCK_STDERR)
+        collect_worktree(self.root, entry_id=entry_id, now=FIXED_NOW, runner=locked)
+        self.assertEqual(self.status_of(entry_id), "release_pending")
+        unlocked = FakeGit(self.root, linked=[WT_REL])
+        outcome = collect_worktree(
+            self.root, entry_id=entry_id, now=FIXED_NOW, runner=unlocked
+        )
+        self.assertTrue(outcome.released)
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+
+    def test_non_lock_remove_failure_still_fails_close(self):
+        # ロック以外の削除失敗は従来どおり例外を送出する（fail-close は弱めない）。
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        git = FakeGit(
+            self.root, linked=[WT_REL],
+            remove_stderr="fatal: could not remove: Permission denied\n",
+        )
+        with self.assertRaises(WorktreeError) as ctx:
+            collect_worktree(self.root, entry_id=entry_id, now=FIXED_NOW, runner=git)
+        self.assertEqual(ctx.exception.reason, "WORKTREE_REMOVE_FAILED")
+        # 回収は済んでいる（段5）が、release_pending へは倒さない
+        # ——呼び出し側（SubagentStop）が従来どおり `stale` に落とす。
+        self.assertEqual(self.status_of(entry_id), "collected")
+
+    def test_index_lock_failure_is_not_treated_as_a_worktree_lock(self):
+        # F-464-01: `index.lock`（別レイヤのロック）は worktree ロックとして誤マッチしない。
+        # 回収（段5・collected）までは成功するが、段6 は release_pending へ倒さず
+        # 従来どおり WorktreeError を送出して fail-close する。
+        entry_id = self.entry_with_status("stopped")
+        self.make_worktree()
+        git = FakeGit(
+            self.root, linked=[WT_REL],
+            remove_stderr=(
+                "fatal: Unable to create "
+                "'/repo/.git/worktrees/agent-x/index.lock': File exists.\n"
+            ),
+        )
+        with self.assertRaises(WorktreeError) as ctx:
+            collect_worktree(self.root, entry_id=entry_id, now=FIXED_NOW, runner=git)
+        self.assertEqual(ctx.exception.reason, "WORKTREE_REMOVE_FAILED")
+        self.assertEqual(self.status_of(entry_id), "collected")
+
+    def test_lock_failure_without_a_collected_handoff_is_not_deferred(self):
+        # 回収するものが無い（--allow-missing-handoff）経路は collected_to が無いので
+        # release_pending にせず従来どおり例外を送出する。
+        entry_id = self.entry_with_status("stale")
+        self.make_worktree(handoff=None)
+        git = FakeGit(self.root, linked=[WT_REL], remove_stderr=self.LOCK_STDERR)
+        with self.assertRaises(WorktreeError) as ctx:
+            collect_worktree(
+                self.root, entry_id=entry_id, allow_missing_handoff=True,
+                reason="crashed before writing the handoff",
+                now=FIXED_NOW, runner=git,
+            )
+        self.assertEqual(ctx.exception.reason, "WORKTREE_REMOVE_FAILED")
 
 
 # ---------------------------------------------------------------------------

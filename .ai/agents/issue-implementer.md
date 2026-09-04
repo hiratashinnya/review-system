@@ -43,6 +43,8 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
+STOP でも通常完了でも、ここに書いた handoff は SubagentStop フックが worktree の解放前に main 作業ツリーの `tmp/_handoff/collected/<entry-id>--<ファイル名>` へ回収し、内容一致を sha256 で検証する。呼び出し元が返した絶対パスを Read できないとき（worktree が既に解放済み・ファイル変更ゼロで STOP して worktree が消えた場合を含む）は、この回収済みコピーが正本の記録になる。したがって「STOP でもハンドオフは書く」ことと「呼び出し元は必ず Read して判断する」は、worktree が消えても両立する。
+
 `CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
 JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
 hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果を含める。STOPは`status: stopped`とし、

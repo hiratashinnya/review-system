@@ -51,6 +51,11 @@ fail 方針の非対称（設計判断・``.claude/hooks/README.md`` にも明�
 * 両者は**方向が逆**である。ブロックの誤りは「余計に止まる」だけで回復可能だが、削除の
   誤りは成果物を回復不能に失う。削除しなかったぶんの残留は次 dispatch の gate deny
   （``ISSUE_START_WORKTREE_RESIDUE``）が拾う。
+* **「回収は済んだが削除だけ git ロックで失敗した」は保留 = ``release_pending``**（Issue #464）。
+  ``collect-worktree`` が handoff を退避（``collected_to``）してから ``git worktree remove`` で
+  詰まった場合、成果物は失われていないので ``stale`` へ落とさない。この停止イベントの時点では
+  ロックはまだエージェントプロセスが握っているため、解放段はここで何もせず
+  （``RELEASE_PENDING_DEFERRED``）、削除は次 dispatch の gate がロックの外れた後に引き取る。
 * **解放段の失敗は停止をブロックしない**：block できるのはカルテ段だけで、解放段は evidence を
   残して exit 0 する。解放できないことを理由にエージェントを止め続けても解決しない（当人には
   ``gitgate`` の worktree verb が許可されていない）ので、制御を主文脈へ返して deny で気づかせる。
@@ -758,7 +763,11 @@ def _release_stage(
        ``running`` を ``WORKTREE_LIVE`` で拒否し ``stopped`` のみ受理するので、この遷移を
        挟まないと自動解放は一度も成功しない
     5. ``python3 -m gitgate collect-worktree`` を起動する。exit 0 以外・起動不能・timeout は
-       いずれも ``stale``（**削除しない**）
+       いずれも ``stale``（**削除しない**）。exit 0 のときの evidence ``result`` は2種に分かれる
+       （Issue #464・F-464-05）——``release-ok``＝回収は成功し実体の削除も完了した、
+       ``release-deferred``＝回収は成功したが実体の削除は worktree ロックで ``release_pending``
+       へ遅延した（成果物は失われていない。削除は次 dispatch の gate が引き取る）。判別は
+       ``gitgate collect-worktree`` が stderr へ書く ``released={yes|no}`` を読んで行う。
     """
     agent_id = agent_id_of(payload)
     try:
@@ -824,6 +833,16 @@ def _release_stage(
     if status in ("released", "abandoned"):
         _evidence(
             stderr, "stop", result="release-skip", reason="ALREADY_TERMINAL",
+            entry_id=entry_id, status=status,
+        )
+        return
+    if status == worktree_ledger.DEFERRED_RELEASE_STATUS:
+        # 回収は完了済みで worktree の物理削除だけが残っている（git ロック待ち・Issue #464）。
+        # ロックはこの停止イベントの時点ではまだエージェントプロセスが握っているため、
+        # ここで `collect-worktree` を再起動しても無駄。削除は次 dispatch の gate
+        # （`assert_no_worktree_residue`）がロックの外れた後に引き取る。
+        _evidence(
+            stderr, "stop", result="release-skip", reason="RELEASE_PENDING_DEFERRED",
             entry_id=entry_id, status=status,
         )
         return
@@ -913,8 +932,18 @@ def _release_stage(
             reason="COLLECT_FAILED", exit_code=returncode,
         )
         return
+    # `gitgate collect-worktree` は exit 0 でも実際に解放できたとは限らない
+    # （Issue #464：worktree ロックで削除だけ遅延し ``release_pending`` に留まる場合がある）。
+    # `gitgate/cli.py::_run_worktree_verb` が stderr へ書く
+    # ``released={yes|no}`` を読み、``released=no`` のときは ``release-deferred`` として
+    # evidence を分ける（F-464-05）。**``release-ok`` は「回収は成功した・解放済みとは限らない」
+    # ことを意味する**——判別できない旧形式の出力（stderr が空/読めない等）は安全側で
+    # ``release-ok`` のまま扱う（誤って deferred だと騒ぐより、後段の gate deny が実際の
+    # 残留を必ず拾うので実害は無い）。
+    release_detail = (getattr(completed, "stderr", "") or "")
+    result = "release-deferred" if "released=no" in release_detail else "release-ok"
     _evidence(
-        stderr, "stop", result="release-ok", entry_id=entry_id,
+        stderr, "stop", result=result, entry_id=entry_id,
         worktree_path=worktree_path, handoff=handoff, how=how,
     )
 

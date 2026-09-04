@@ -70,6 +70,8 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 是正結果、対応した finding ID、変更ファイル、テスト結果、未解消 finding、スコープ外 finding を、呼び出し元から渡された handoff_path 一択へ書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
+STOP でも通常完了でも、ここに書いた handoff は SubagentStop フックが worktree の解放前に main 作業ツリーの `tmp/_handoff/collected/<entry-id>--<ファイル名>` へ回収し、内容一致を sha256 で検証する。呼び出し元が返した絶対パスを Read できないとき（worktree が既に解放済み・Step 0 の早期 STOP で worktree が消えた場合を含む）は、この回収済みコピーが正本の記録になる。したがって「STOP でもハンドオフは書く」ことと「呼び出し元は必ず Read して判断する」は、worktree が消えても両立する。
+
 `CODEX_ISSUE_SUPERVISED=1` のinner processではJSON-compatible schema v1 handoffを使う。
 `phase`は`pre_publish`、成功時`status`は`ready`とし、hostから束縛されたrole、Issue、task key、branch、
 現在HEAD、結果を含める。STOPは`status: stopped`とし、host publish不可として扱う。下記形式はhost publish後のfinal phaseである。

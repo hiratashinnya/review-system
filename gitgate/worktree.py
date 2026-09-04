@@ -8,8 +8,13 @@
     （停止済みだが未回収）は ``--force-*`` でも上書きできない。
     **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
     いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
-    **worktree 実体の削除に成功した後は、台帳の ``branch_name`` に対応するローカルブランチ
-    ref の削除を試みる**（``git branch -D``・Issue #426。F-426-01 で安全化）。放置すると、
+    **worktree 実体の削除に成功し、かつ ``cleanup_branch_ref=True``（既定）のときは、台帳の
+    ``branch_name`` に対応するローカルブランチ ref の削除を試みる**（``git branch -D``・
+    Issue #426。F-426-01 で安全化）。``cleanup_branch_ref=False`` を渡す呼び出し元
+    （``issue-start-gate`` の毎 dispatch 経路・Issue #464 F-464-06）ではこの削除を丸ごと
+    スキップする——``git fetch`` を伴うため、毎 dispatch のホットパスにネットワーク I/O を
+    持ち込まない。フル掃除は ``SessionStart`` フックが別途 ``cleanup_branch_ref=True`` で
+    行う。放置すると、
     その ref が ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に
     引っかかり、次の ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。
     ただし ``git branch -D`` は force delete でありローカルにしか無いコミットを reflog ごと
@@ -28,6 +33,11 @@
     **回収 → 検証 → 解放を1操作に畳む**（候補D・FR-W2）。段構造で、前段が失敗したら後段を
     実行しない——特に「handoff を回収できていないのに worktree を消す」ことが起こらない。
     これは検査で守るのではなく、呼び出し順序そのもので守る。
+    **回収は済んだが最後の ``git worktree remove`` が worktree ロックで失敗した場合**
+    （停止途中のエージェントがまだ掴んでいる・Issue #464）は、成果物が ``collected_to`` へ
+    退避済みで失われていないので例外を投げず、台帳を ``release_pending`` にして削除だけを
+    ``issue-start-gate`` の次回実行へ遅らせる（``ISSUE_START_WORKTREE_RESIDUE`` で次
+    dispatch を止めない）。
 
 ``worktree-forget``
     回収不能な ``stale`` エントリを ``abandoned`` へ逃がす。**worktree は消さない**
@@ -81,6 +91,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from issue_start.worktree_ledger import (
+    DEFERRED_RELEASE_STATUS,
     ENTRY_ID_RE,
     WORKTREE_PATH_RE,
     LedgerError,
@@ -624,6 +635,30 @@ def _reason_note(verb: str, reason: str, *, flag: str = "") -> str:
 # --- 実体の削除 ----------------------------------------------------------------
 
 
+def _is_worktree_lock_failure(detail: str | None) -> bool:
+    """``git worktree remove`` の失敗が **worktree ロック**由来か（Issue #464・F-464-01 是正）。
+
+    停止途中のエージェントプロセスが worktree を掴んだままだと
+    ``fatal: cannot remove a locked working tree, lock reason: ...`` で失敗する。
+    git のロック時メッセージは版差があるが、いずれも "locked working tree" または
+    "locked worktree" という**連結した語句**を含む。この判定は連結一致に絞る——
+    「"lock" と "working tree"/"worktree" がそれぞれ独立に含まれるか」を見ていた旧実装は、
+    削除対象パスが常に ``.claude/worktrees/agent-<id>`` を含むため後半の条件がほぼ常に真になり
+    実効条件が ``"lock" in stderr`` だけに縮退していた（F-464-01）。結果として
+    ``fatal: Unable to create '<repo>/.git/worktrees/agent-x/index.lock': File exists.`` の
+    ような ``index.lock``（別レイヤのロック＝非 worktree ロック失敗）も誤って worktree ロック
+    と判定し、本来 ``stale``（``ISSUE_START_WORKTREE_RESIDUE`` で解消コマンド付き deny）へ
+    落ちるべきものが ``release_pending``（deny 網の外）へ落ちうる不具合があった。連結一致に
+    絞ることで、``index.lock`` 等の別レイヤのロックは "locked working tree"/"locked worktree"
+    を含まないため誤マッチしない。ロック以外の削除失敗（権限・submodule 等）は対象にしない
+    ——それらは従来どおり ``WORKTREE_REMOVE_FAILED`` を送出して fail-close させる。
+    """
+    if not detail:
+        return False
+    lowered = detail.lower()
+    return "locked working tree" in lowered or "locked worktree" in lowered
+
+
 def _remove_worktree_dir(repo_root, relative: str, *, runner) -> bool:
     """``relative`` の実体を削除する。既に無ければ ``False``（冪等）。
 
@@ -665,8 +700,18 @@ def worktree_release(
     reason: str = "",
     now,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    cleanup_branch_ref: bool = True,
 ) -> ReleaseOutcome:
     """linked worktree を冪等に解放する（FR-W5）。
+
+    ``cleanup_branch_ref``（既定 ``True``・Issue #464 F-464-06）: worktree 実体の削除に
+    成功した後の :func:`_cleanup_branch_ref`（``git fetch`` を伴うローカル ref 削除）を
+    呼ぶかどうか。``issue-start-gate`` の毎 dispatch 経路（
+    :func:`issue_start.gate._finish_deferred_releases`）は ``False`` を渡し、ネットワーク
+    I/O を毎 dispatch のホットパスから除く——``SessionStart`` フックが**別途**
+    ``cleanup_branch_ref=True``（既定）でフル掃除を行う。``git worktree remove`` 自体は
+    ローカル操作でロック時は即失敗するため安価であり、mid-session の削除試行を止める理由には
+    ならない。ネットワーク I/O だけを毎 dispatch のホットパスから外す。
 
     判定順序に意味がある——**状態判定はパス構文検査の直後・FS/git 操作より前**に済ませる。
     こうすると「消してはいけないもの（``running``）」に対して git が一切呼ばれないし、
@@ -679,6 +724,8 @@ def worktree_release(
     ``open``          拒否 ``WORKTREE_NOT_BOUND``
     ``stopped``       拒否 ``WORKTREE_NOT_COLLECTED``（``--force-*`` でも上書き不可）
     ``collected``     実行 → ``released``
+    ``release_pending`` 実行 → ``released``（回収済み・削除だけロックで遅延していた・Issue #464。
+                      worktree が既に消えていれば冪等 no-op で ``released``）
     ``stale``         ``--force-uncollected --reason`` 必須
     ``released`` /
     ``abandoned``     台帳は進めない。**実体が残っていれば削除する**（残っていなければ no-op）
@@ -733,7 +780,8 @@ def worktree_release(
                     now=now,
                     note=f"worktree-release: 終端状態（{status}）の残留実体を削除した",
                 )
-                _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
+                if cleanup_branch_ref:
+                    _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
             _note(repo_root, resolved_entry_id, now=now, note=note)
         return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status=status)
 
@@ -767,7 +815,7 @@ def worktree_release(
     removed = _remove_worktree_dir(repo_root, relative, runner=runner)
     if resolved_entry_id is not None:
         _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
-        if removed:
+        if removed and cleanup_branch_ref:
             _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
     return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status="released")
 
@@ -856,6 +904,15 @@ def collect_worktree(
     「回収に失敗したのに解放が走る」ことは、検査ではなく**この呼び出し順序**が防ぐ
     ——2〜4 のいずれかが例外を投げれば 6 に到達しない。
 
+    **回収は済んだが段6 の ``git worktree remove`` が worktree ロックで失敗した場合**
+    （Issue #464）は例外を送出せず、エントリを ``release_pending`` にして
+    ``CollectOutcome(released=False)`` を返す。成果物は段3〜5 で ``collected_to`` へ退避済み
+    で失われておらず、ロック（停止途中のエージェントプロセスが保持）はエージェントが完全に
+    終了すれば外れる。実体の削除は次 dispatch で ``issue-start-gate`` が引き取る
+    （:func:`issue_start.gate.assert_no_worktree_residue`）。**回収が成功していない経路
+    （``collected_to`` 無し）／ロック以外の削除失敗では従来どおり例外を送出する**——
+    fail-close は弱めない。
+
     **``--entry`` と ``<worktree-path>`` の食い違いは段1 で止める**（F-354-03）。この検査が
     段6（``worktree_release`` 内）にしか無いと、別 worktree の handoff を回収して回収先に書き、
     台帳を ``collected`` と誤記録した**後で**落ちる——後続の ``worktree-release`` が未回収の
@@ -863,7 +920,8 @@ def collect_worktree(
     副作用が1つでも起きる前に止める。
 
     受理する台帳の状態は ``stopped``（所有者停止済み・未回収）/ ``stale``（回収失敗）/
-    ``collected``（回収済み・解放のみ）とエントリ無し。``running`` は拒否する
+    ``collected``（回収済み・解放のみ）/ ``release_pending``（回収済み・削除だけロック失敗・
+    段6 だけをやり直す）とエントリ無し。``running`` は拒否する
     ——live な dispatch の worktree は回収も解放もしない（安全側の既定）。
     """
     if entry_id is not None:
@@ -920,7 +978,9 @@ def collect_worktree(
     collected_to = entry.get("collected_to") if entry is not None else None
     reason_recorded = False
 
-    if status != "collected":
+    # `collected`（回収済み・解放のみ）と `release_pending`（回収済み・削除だけ git ロックで
+    # 失敗した・Issue #464）はどちらも回収段を飛ばして段6 だけをやり直す。
+    if status not in ("collected", DEFERRED_RELEASE_STATUS):
         relative_handoff = handoff_path
         if relative_handoff is None and entry is not None:
             relative_handoff = entry.get("handoff_path")
@@ -1012,21 +1072,53 @@ def collect_worktree(
         )
 
     # --- 段6: 解放 ---
-    outcome = worktree_release(
-        repo_root,
-        relative_worktree,
-        entry_id=resolved_entry_id,
-        force_uncollected=resolved_entry_id is None,
-        # 台帳エントリが無い＝`--force-uncollected` が要る経路だけ理由を渡す（エントリがある
-        # 場合の理由は直前で記録済みなので、ここで渡すと同じ理由が2回 notes に載る）。
-        reason=(
-            (reason or "collect-worktree: 台帳エントリの無い worktree を回収後に解放")
-            if resolved_entry_id is None
-            else ""
-        ),
-        now=now,
-        runner=runner,
-    )
+    try:
+        outcome = worktree_release(
+            repo_root,
+            relative_worktree,
+            entry_id=resolved_entry_id,
+            force_uncollected=resolved_entry_id is None,
+            # 台帳エントリが無い＝`--force-uncollected` が要る経路だけ理由を渡す（エントリが
+            # ある場合の理由は直前で記録済みなので、ここで渡すと同じ理由が2回 notes に載る）。
+            reason=(
+                (reason or "collect-worktree: 台帳エントリの無い worktree を回収後に解放")
+                if resolved_entry_id is None
+                else ""
+            ),
+            now=now,
+            runner=runner,
+        )
+    except WorktreeError as exc:
+        # 回収（コピー＋sha 検証＋台帳 `collected` 記録）は完了しているのに `git worktree
+        # remove` だけが失敗した（Issue #464）。典型は、停止途中のエージェントプロセスが
+        # まだ worktree を git ロックしている `WORKTREE_REMOVE_FAILED`。成果物は
+        # `collected_to`（main worktree 側の tmp/_handoff/collected/）へ退避済みで失われて
+        # いないので、**削除だけを後段へ遅延する**：エントリを `release_pending` にして
+        # `ISSUE_START_WORKTREE_RESIDUE` の対象から外し（成果物が安全なのに次 dispatch を
+        # 止めない）、ロックが外れた後に `issue-start-gate` が削除を引き取る。
+        # **回収が成功した経路に限る**——`collected_to` が無い／ロック以外の削除失敗では
+        # 従来どおり例外を送出して fail-close する（取りこぼしを見逃さない）。
+        if (
+            resolved_entry_id is not None
+            and collected_to is not None
+            and exc.reason == "WORKTREE_REMOVE_FAILED"
+            and _is_worktree_lock_failure(exc.detail)
+        ):
+            _mark(
+                repo_root,
+                resolved_entry_id,
+                DEFERRED_RELEASE_STATUS,
+                now=now,
+                note=(
+                    "collect-worktree: handoff は回収済み（collected_to）だが git の "
+                    "worktree ロックで削除できなかった。削除を issue-start-gate へ遅延する"
+                    f"（Issue #464 / {(exc.detail or '')[:160]}）"
+                ),
+            )
+            return CollectOutcome(
+                relative_worktree, resolved_entry_id, collected_to, released=False
+            )
+        raise
     return CollectOutcome(
         relative_worktree, resolved_entry_id, collected_to, released=outcome.status == "released"
     )

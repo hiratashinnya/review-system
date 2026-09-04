@@ -708,6 +708,47 @@ class ReleaseStageTests(HookTestCase):
         self.assertEqual(evidence[0]["entry_id"], entry_id)
         self.assertEqual(evidence[0]["how"], "unique")
 
+    def test_release_ok_evidence_when_gitgate_reports_released_yes(self):
+        """Issue #464・F-464-05: ``gitgate`` の stderr が ``released=yes`` なら
+        ``release-ok``（従来どおり）。"""
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop(results=(
+            FakeCompleted(
+                0,
+                stderr=(
+                    "gitgate: collect-worktree .claude/worktrees/agent-abc "
+                    f"entry={entry_id} collected_to=tmp/_handoff/collected/x.yaml "
+                    "released=yes\n"
+                ),
+            ),
+        ))
+        evidence = [line for line in self.evidence_lines() if line.get("entry_id") == entry_id]
+        results = [line.get("result") for line in evidence]
+        self.assertIn("release-ok", results)
+        self.assertNotIn("release-deferred", results)
+
+    def test_release_deferred_evidence_when_gitgate_reports_released_no(self):
+        """Issue #464・F-464-05: 回収は成功したが worktree ロックで削除だけ遅延した
+        （``gitgate`` の stderr が ``released=no``）場合、evidence を ``release-ok`` と
+        区別する（旧実装は無条件に ``release-ok`` を書いていた）。"""
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop(results=(
+            FakeCompleted(
+                0,
+                stderr=(
+                    "gitgate: collect-worktree .claude/worktrees/agent-abc "
+                    f"entry={entry_id} collected_to=tmp/_handoff/collected/x.yaml "
+                    "released=no\n"
+                ),
+            ),
+        ))
+        evidence = [line for line in self.evidence_lines() if line.get("entry_id") == entry_id]
+        results = [line.get("result") for line in evidence]
+        self.assertIn("release-deferred", results)
+        self.assertNotIn("release-ok", results)
+
     def test_collect_failure_marks_stale_and_never_removes_the_worktree(self):
         """回収に失敗したらブロックせず `stale` に落として制御を主文脈へ返す。
 
@@ -1001,6 +1042,23 @@ class ReleaseStageTests(HookTestCase):
         self.assertEqual(self.status_of(entry_id), "released")
         self.assertEqual(self.collect_calls(), [])
 
+    def test_release_pending_entry_is_skipped_at_subagent_stop(self):
+        """Issue #464: 回収済み・削除だけ git ロックで遅延したエントリの再停止では何もしない。
+
+        ロックはこの停止イベントの時点ではまだエージェントプロセスが握っているので
+        ``collect-worktree`` を再起動しても無駄。削除は次 dispatch の gate が引き取る。
+        台帳を ``stale`` にも進めず、worktree も消さない。
+        """
+        entry_id = self.bind()
+        for status in ("stopped", "collected", "release_pending"):
+            worktree_ledger.mark(self.root, entry_id, status, now=FIXED_NOW)
+        self.stop()
+        self.assertEqual(self.collect_calls(), [], "release_pending では回収を起動しない")
+        self.assertEqual(self.status_of(entry_id), "release_pending", "台帳を進めない")
+        self.assertTrue((self.root / ".claude" / "worktrees" / "agent-abc").is_dir())
+        reasons = [line.get("reason") for line in self.evidence_lines()]
+        self.assertIn("RELEASE_PENDING_DEFERRED", reasons)
+
     def test_release_stage_is_idempotent_for_a_repeated_stop(self):
         """FR-W5: 同じ停止が2回届いても状態機械は壊れない（`stopped` は冪等）。"""
         entry_id = self.bind()
@@ -1172,6 +1230,50 @@ class ReleaseStageIntegrationTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(self.entry()["status"], "released")
+
+    def test_locked_worktree_defers_release_then_the_gate_finishes_it(self):
+        """Issue #464 の通し回帰（実 git・実 worktree ロック）。
+
+        SubagentStop 時点で worktree が git ロックされていると ``git worktree remove`` が
+        失敗する。handoff の回収（main worktree 側への退避）は成功しているので ``stale`` に
+        落とさず ``release_pending`` にし、次 dispatch の gate（``assert_no_worktree_residue``）
+        がロックの外れた後に削除を完了させる。手動の ``collect-worktree`` /
+        ``worktree-release --force-uncollected`` を要しない。
+        """
+        from issue_start.gate import assert_no_worktree_residue
+
+        self.git("worktree", "lock", self.worktree_rel)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        rc = subagent_hooks.run_stop(
+            stdin=io.StringIO(json.dumps({
+                "agent_type": "issue-implementer", "agent_id": "int01",
+            })),
+            stdout=stdout, stderr=stderr,
+            cwd=self.repo, now=FIXED_NOW, runner=self.real_runner,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout.getvalue(), "", "解放段は停止をブロックしない")
+
+        entry = self.entry()
+        self.assertEqual(entry["status"], "release_pending", "stale に落とさない")
+        collected = self.repo / entry["collected_to"]
+        self.assertTrue(collected.is_file(), entry["collected_to"])
+        self.assertIn("status: pr_opened", collected.read_text(encoding="utf-8"))
+        self.assertTrue((self.repo / self.worktree_rel).is_dir(), "削除はロックで失敗")
+
+        # 次 dispatch: 残留判定は release_pending を residue/unclaimed として扱わない。
+        # ロックが外れた（＝エージェント終了）想定で unlock してから gate を回す。
+        self.git("worktree", "unlock", self.worktree_rel)
+        report = assert_no_worktree_residue(
+            repo_root=self.repo, now=FIXED_NOW, runner=subprocess.run
+        )
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
+        finished = report["deferred_release_finished"]
+        self.assertEqual([item["entry_id"] for item in finished], [entry["entry_id"]])
+        self.assertTrue(finished[0]["released"])
+        self.assertEqual(self.entry()["status"], "released")
+        self.assertFalse((self.repo / self.worktree_rel).exists())
 
 
 class NoDeletionPathTests(HookTestCase):
