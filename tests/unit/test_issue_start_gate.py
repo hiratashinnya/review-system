@@ -2,6 +2,8 @@
 
 import io
 import json
+import shutil
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +20,7 @@ from issue_start.gate import (
     IssueStartRequest,
     _require_transport_available,
     _validate_tool_input_shape,
+    assert_no_worktree_residue,
     evaluate_issue_start,
     parse_dispatch_payload,
     record_open_entry,
@@ -1335,6 +1338,139 @@ class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):
         reason = json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecisionReason"]
         self.assertIn("BLOCK OPEN_BLOCKER", reason)
         self.assertEqual(json.loads(reason.split(" blockers=", 1)[1]), [blocker])
+
+
+class _GateFakeGit:
+    """`assert_no_worktree_residue` の `_finish_deferred_releases` 用の最小 git スタブ。
+
+    `worktree_release` が呼ぶのは `git worktree list --porcelain` / `git worktree remove` /
+    `git worktree prune` だけ（`branch_name` が None のエントリでは `git fetch` 等は走らない）。
+    """
+
+    def __init__(self, root, *, linked=(), fail_remove_stderr=None):
+        self.root = Path(root)
+        self.linked = list(linked)
+        self.fail_remove_stderr = fail_remove_stderr
+        self.calls = []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append(list(argv))
+        if argv[:3] == ["git", "worktree", "list"]:
+            blocks = [f"worktree {self.root}\nHEAD {'0' * 40}\nbranch refs/heads/main\n"]
+            for rel in self.linked:
+                blocks.append(f"worktree {self.root / rel}\nHEAD {'0' * 40}\n")
+            return subprocess.CompletedProcess(argv, 0, "\n".join(blocks) + "\n", "")
+        if argv[:3] == ["git", "worktree", "remove"]:
+            if self.fail_remove_stderr is not None:
+                return subprocess.CompletedProcess(argv, 1, "", self.fail_remove_stderr)
+            shutil.rmtree(argv[-1], ignore_errors=True)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+
+class DeferredReleaseGateTests(unittest.TestCase):
+    """Issue #464: `release_pending`（回収済み・削除だけ git ロックで遅延）の gate 側の扱い。
+
+    * `ISSUE_START_WORKTREE_RESIDUE` / `ISSUE_START_WORKTREE_UNCLAIMED` で deny しない
+      ——成果物は `collected_to` へ退避済みで失われていない。
+    * ロックが外れていれば `_finish_deferred_releases` が削除を完了させ `released` にする。
+      worktree ディレクトリが既に消えていても冪等に `released` へ進める。
+    * fail-close は弱めない——`stale` / `collected` は従来どおり deny する。
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name).resolve()
+
+    def make_worktree(self, name):
+        path = self.root / ".claude" / "worktrees" / name
+        path.mkdir(parents=True)
+        return path
+
+    def entry_at(self, *statuses, agent_id="rp", issue=464, on_disk=True):
+        if on_disk:
+            self.make_worktree(f"agent-{agent_id}")
+        worktree_ledger.open_entry(
+            self.root, issue=issue, agent_type="issue-implementer", round=None,
+            branch_name=None, handoff_path=None, now=LEDGER_NOW,
+        )
+        entry_id = worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+        for status in statuses:
+            worktree_ledger.mark(self.root, entry_id, status, now=LEDGER_NOW)
+        return entry_id
+
+    def status_of(self, entry_id):
+        return {
+            e["entry_id"]: e
+            for e in worktree_ledger.read_ledger(self.root)["entries"]
+        }[entry_id]["status"]
+
+    def test_release_pending_does_not_deny_and_the_gate_finishes_the_release(self):
+        entry_id = self.entry_at("stopped", "collected", "release_pending")
+        git = _GateFakeGit(self.root, linked=[".claude/worktrees/agent-rp"])
+        report = assert_no_worktree_residue(
+            repo_root=self.root, now=LEDGER_NOW, runner=git
+        )
+        self.assertEqual(report["stale"], [], "release_pending は residue ではない")
+        self.assertEqual(report["unclaimed"], [], "削除待ちの占有は孤児ではない")
+        self.assertEqual(
+            [item["entry_id"] for item in report["deferred_release_finished"]], [entry_id]
+        )
+        self.assertTrue(report["deferred_release_finished"][0]["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / ".claude" / "worktrees" / "agent-rp").exists())
+
+    def test_release_pending_with_a_vanished_worktree_advances_to_released(self):
+        # ハーネスの auto-clean で worktree ごと消えているケース（症状B）。
+        entry_id = self.entry_at(
+            "stopped", "collected", "release_pending", on_disk=False
+        )
+        git = _GateFakeGit(self.root, linked=[])
+        report = assert_no_worktree_residue(
+            repo_root=self.root, now=LEDGER_NOW, runner=git
+        )
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
+        self.assertTrue(report["deferred_release_finished"][0]["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+
+    def test_still_locked_release_pending_does_not_block_the_dispatch(self):
+        entry_id = self.entry_at("stopped", "collected", "release_pending")
+        git = _GateFakeGit(
+            self.root, linked=[".claude/worktrees/agent-rp"],
+            fail_remove_stderr=(
+                "fatal: cannot remove a locked working tree, lock reason: still busy\n"
+            ),
+        )
+        report = assert_no_worktree_residue(
+            repo_root=self.root, now=LEDGER_NOW, runner=git
+        )
+        # まだロックされていても deny しない（成果物は安全）。
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
+        self.assertFalse(report["deferred_release_finished"][0]["released"])
+        self.assertEqual(
+            report["deferred_release_finished"][0]["error"], "WORKTREE_REMOVE_FAILED"
+        )
+        self.assertEqual(self.status_of(entry_id), "release_pending", "次回へ持ち越す")
+        self.assertIn(".claude/worktrees/agent-rp", report["claimed"])
+        self.assertIn(".claude/worktrees/agent-rp", report["release_pending"])
+
+    def test_stale_and_collected_still_deny_so_fail_close_is_intact(self):
+        for statuses in (("stale",), ("stopped", "collected")):
+            with self.subTest(statuses=statuses):
+                self.setUp()
+                self.entry_at(*statuses, agent_id="x")
+                git = _GateFakeGit(self.root, linked=[".claude/worktrees/agent-x"])
+                with self.assertRaises(IssueStartError) as ctx:
+                    assert_no_worktree_residue(
+                        repo_root=self.root, now=LEDGER_NOW, runner=git
+                    )
+                self.assertEqual(ctx.exception.reason, "ISSUE_START_WORKTREE_RESIDUE")
 
 
 if __name__ == "__main__":

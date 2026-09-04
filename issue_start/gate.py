@@ -1067,10 +1067,70 @@ def _residue_items(entries: Sequence[Mapping[str, Any]]) -> str:
     )
 
 
+def _finish_deferred_releases(
+    root: Path,
+    *,
+    now: datetime,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> list[dict[str, Any]]:
+    """``release_pending`` エントリの遅延していた worktree 削除をここで完了させる（Issue #464）。
+
+    ``gitgate collect-worktree`` が handoff の回収（コピー＋sha 検証＋台帳 ``collected``
+    記録）まで成功したのに ``git worktree remove`` が停止途中のエージェントの worktree
+    ロックで失敗した場合、エントリは ``release_pending`` に留まる。成果物は既に main
+    worktree の ``tmp/_handoff/collected/`` にあり失われていない。ロックはエージェントが
+    完全に終了すれば外れるので、次 dispatch のこの地点で ``worktree_release`` をリトライする。
+
+    * 削除できれば ``released``。worktree ディレクトリが既に無い（ハーネスの auto-clean）
+      場合も冪等 no-op で ``released`` へ進む。
+    * まだロックされている等で失敗しても **dispatch を止めない**（成果物は安全なので
+      ``ISSUE_START_WORKTREE_RESIDUE`` の理由がない）。``release_pending`` のまま次回へ
+      持ち越す——:func:`worktree_ledger.residue_report` が claimed 扱いにするので
+      ``ISSUE_START_WORKTREE_UNCLAIMED`` にもならない。
+
+    fail-close は弱めていない：``release_pending`` へ入るのは ``collected_to`` が設定され
+    sha 検証まで通った回収成功エントリだけ（:mod:`gitgate.worktree` の catch 条件）。回収
+    できていないエントリは従来どおり ``stale`` / ``stopped`` / ``collected`` に留まり deny の
+    対象になる。**削除の実体は :mod:`gitgate.worktree` に集約されたまま**——ここはその verb を
+    呼ぶだけ。
+    """
+    from gitgate.worktree import WorktreeError, worktree_release
+
+    finished: list[dict[str, Any]] = []
+    for entry in worktree_ledger.deferred_release_entries(root):
+        entry_id = entry.get("entry_id")
+        worktree_path = entry.get("worktree_path")
+        if (
+            not isinstance(entry_id, str)
+            or not isinstance(worktree_path, str)
+            or not worktree_path
+        ):
+            continue
+        try:
+            outcome = worktree_release(
+                root,
+                worktree_path,
+                entry_id=entry_id,
+                reason="issue-start-gate: 遅延していた解放を完了した（Issue #464）",
+                now=now,
+                runner=runner,
+            )
+        except WorktreeError as exc:
+            finished.append(
+                {"entry_id": entry_id, "released": False, "error": exc.reason}
+            )
+            continue
+        finished.append(
+            {"entry_id": entry_id, "released": outcome.status == "released"}
+        )
+    return finished
+
+
 def assert_no_worktree_residue(
     *,
     repo_root: Path | None = None,
     now: datetime,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
     """残留 worktree がある状態での次 dispatch を deny する（Issue #354・PR-3・候補C）。
 
@@ -1084,11 +1144,18 @@ def assert_no_worktree_residue(
     いるのに worktree が実在しない」エントリだけを ``stale`` へ落とす状態→状態の照合で、
     落とす候補が無ければ台帳へ書き込まない（正常系では no-op）。
 
+    掃引の直後に :func:`_finish_deferred_releases` を走らせる（Issue #464）。``SubagentStop``
+    が handoff を回収したのに ``git worktree remove`` が worktree ロックで失敗して
+    ``release_pending`` に留まったエントリの削除を、ロックの外れたこの地点でリトライする
+    ——成功すれば ``released``、失敗しても dispatch は止めない（成果物は既に退避済み）。
+
     ==============================================  ===================================
     reason                                          条件
     ==============================================  ===================================
     ``ISSUE_START_WORKTREE_RESIDUE``                ``stale`` / ``stopped`` / ``collected``
                                                     のエントリが1件以上ある
+                                                    （``release_pending`` は**含めない**
+                                                    ——回収済みで削除だけ遅延・Issue #464）
     ``ISSUE_START_WORKTREE_UNCLAIMED``              ディスク上の ``agent-*`` が
                                                     ``running`` / ``stopped`` のどれにも
                                                     紐づかない
@@ -1106,6 +1173,7 @@ def assert_no_worktree_residue(
     try:
         root = _residue_root(repo_root)
         swept = worktree_ledger.sweep_orphans(root, now=now)
+        deferred_release_finished = _finish_deferred_releases(root, now=now, runner=runner)
         report = worktree_ledger.residue_report(root)
     except worktree_ledger.LedgerError as exc:
         raise IssueStartError(
@@ -1133,7 +1201,11 @@ def assert_no_worktree_residue(
             "。解消: python3 -m gitgate worktree-release <path> --force-uncollected"
             " --reason <text>",
         )
-    return {"swept": swept, **report}
+    return {
+        "swept": swept,
+        "deferred_release_finished": deferred_release_finished,
+        **report,
+    }
 
 
 def record_open_entry(

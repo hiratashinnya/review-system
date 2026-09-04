@@ -45,6 +45,7 @@
                                                                                           │
                                           回収成功 ├──▶ collected ──解放成功──▶ released
                                           回収失敗／判定不能 └──▶ stale
+    collected ──回収成功・削除だけロック失敗──▶ release_pending ──(gate が削除を再試行)──▶ released
     stale ──(主文脈が collect-worktree で回収・解放)──▶ released
     stale ──(worktree-forget --reason)────────────▶ abandoned   ※理由必須・履歴に残す
     open  ──(SubagentStart が発火せず束縛できない)──▶ open のまま
@@ -67,6 +68,16 @@ dispatch**と「発火せず取り残された過去の dispatch」を、状態�
 停止確認を CLI フラグのような**記録されない signal** ではなく状態として持つのは、
 「観測できないものは持たない」（`.claude/rules/01-principles.md`）に従うため。
 ``running`` は引き続き回収・解放のいずれからも拒否される（安全側の既定は弱めない）。
+
+``release_pending`` は「**handoff の回収は完了した（``collected_to`` 設定・sha 検証済み）が
+``git worktree remove`` が停止途中のエージェントの worktree ロックで失敗した**」状態
+（Issue #464）。成果物は失われていないので :data:`RESIDUE_STATUSES` には**含めない**
+（次 dispatch を ``ISSUE_START_WORKTREE_RESIDUE`` で止めない）。ただしディスク上の
+worktree は正当な占有として ``claimed`` に数える——実体の削除はロックが外れた後に
+``issue-start-gate``（:func:`issue_start.gate.assert_no_worktree_residue`）が引き取り、
+``release_pending`` → ``released`` へ進める（worktree が既に消えていれば冪等 no-op で
+``released``）。回収できていないエントリは従来どおり ``stale`` / ``stopped`` / ``collected``
+に留まり deny の対象になる（fail-close は弱めていない）。
 
 同一 status への遷移は no-op（冪等）。逆行遷移は ``LEDGER_ILLEGAL_TRANSITION`` で拒否する。
 ``abandoned`` は非終端状態のどこからでも遷移できる——``worktree-forget`` は PR-3 の deny が
@@ -94,9 +105,14 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 SCHEMA_VERSION = "worktree-ledger/1"
-STATUSES = ("open", "running", "stopped", "collected", "released", "stale", "abandoned")
+STATUSES = (
+    "open", "running", "stopped", "collected", "release_pending",
+    "released", "stale", "abandoned",
+)
 TERMINAL_STATUSES = ("released", "abandoned")
-UNRELEASED_STATUSES = ("open", "running", "stopped", "collected", "stale")
+UNRELEASED_STATUSES = (
+    "open", "running", "stopped", "collected", "release_pending", "stale",
+)
 TMP_DIRNAME = "tmp"
 LEDGER_DIRNAME = "_worktree"
 LEDGER_FILENAME = "ledger.json"
@@ -119,7 +135,15 @@ _TRANSITIONS: Mapping[str, frozenset] = {
     # `running` から `collected` への直行辺は持たない（モジュール docstring 参照）。
     "running": frozenset({"running", "stopped", "stale", "abandoned"}),
     "stopped": frozenset({"stopped", "collected", "stale", "abandoned"}),
-    "collected": frozenset({"collected", "released", "stale", "abandoned"}),
+    "collected": frozenset(
+        {"collected", "release_pending", "released", "stale", "abandoned"}
+    ),
+    # `release_pending`＝回収済みで `git worktree remove` だけがロックで失敗した状態
+    # （Issue #464）。gate が削除を再試行して `released` へ進める。回収不能へ逆戻り
+    # させる必要はないので `collected` へは戻さない（`stale` への退避は fail-safe 用）。
+    "release_pending": frozenset(
+        {"release_pending", "released", "stale", "abandoned"}
+    ),
     "stale": frozenset({"stale", "collected", "released", "abandoned"}),
     "released": frozenset({"released"}),
     "abandoned": frozenset({"abandoned"}),
@@ -608,9 +632,25 @@ def find_by_agent_id(repo_root, agent_id: str) -> dict | None:
 
 
 def unreleased_entries(repo_root) -> list:
-    """``open`` / ``running`` / ``stopped`` / ``collected`` / ``stale`` のエントリ。"""
+    """``open`` / ``running`` / ``stopped`` / ``collected`` / ``release_pending`` /
+    ``stale`` のエントリ。"""
     entries = read_ledger(repo_root)["entries"]
     return [item for item in entries if item.get("status") in UNRELEASED_STATUSES]
+
+
+def deferred_release_entries(repo_root) -> list:
+    """``git worktree remove`` を後段へ遅延した（``release_pending``）エントリ（Issue #464）。
+
+    handoff の回収（コピー＋sha 検証＋台帳 ``collected`` 記録）まで済んでいるのに、停止
+    途中のエージェントプロセスが worktree を git ロックしたままで物理削除だけが失敗した
+    状態。呼び出し側（:func:`issue_start.gate.assert_no_worktree_residue`）はロックが
+    外れた次 dispatch のこの地点で ``gitgate`` の解放を再試行する。**本モジュール自身は
+    worktree を削除しない**（この関数は台帳を読むだけ）。
+    """
+    entries = read_ledger(repo_root)["entries"]
+    return [
+        item for item in entries if item.get("status") == DEFERRED_RELEASE_STATUS
+    ]
 
 
 # --- ディスク上の worktree との突き合わせ ----------------------------------------
@@ -693,9 +733,16 @@ def resolve_worktree_for_agent(repo_root, *, agent_id: str | None) -> tuple:
 # `stopped` を含めるのは、`SubagentStop` が所有者の停止を記録したのに回収段まで到達して
 # いない（＝回収が失敗した／実行されなかった）ことを意味するため。
 RESIDUE_STATUSES = ("stale", "stopped", "collected")
+# `release_pending`＝回収は完了済み（`collected_to` 設定・sha 検証済み）で worktree の
+# 物理削除だけが git ロックで未了（Issue #464）。成果物は失われていないため **residue に
+# 含めない**（次 dispatch を止めない）。削除は `issue-start-gate` が引き取る。
+DEFERRED_RELEASE_STATUS = "release_pending"
 # 「今このディスク上の worktree を正当に占有している」状態。`stopped` を含めるのは、
 # 停止直後〜回収完了までの短い遷移区間でも worktree の占有は正当だから——ここから漏らすと
 # 回収処理中の worktree を `ISSUE_START_WORKTREE_UNCLAIMED` として誤検出する。
+# `release_pending` を含めるのも同じ理由（削除待ちの占有は正当・Issue #464）。ただし
+# `sweep_orphans` の対象（下記 CLAIMED_STATUSES）には入れない——`release_pending` で
+# worktree が消えていれば「削除成功」なので `stale` へ落とさず gate が `released` へ進める。
 CLAIMED_STATUSES = ("running", "stopped")
 
 
@@ -715,8 +762,11 @@ def residue_report(repo_root) -> dict:
       ``stopped`` を含めるのは「所有者は停止したが回収がまだ＝同じく残留」だから。
     * ``unclaimed``: ディスク上に在るのに :data:`CLAIMED_STATUSES` のどのエントリにも
       紐づかない worktree。
+    * ``release_pending``: 回収済みで削除だけが git ロックで未了のパス集合（Issue #464）。
+      ``stale`` には出さない（成果物は安全）が ``claimed`` には数える（削除待ちの占有は正当）。
     * ``running`` / ``stopped`` / ``claimed``: 現在正当に占有されている worktree のパス集合
-      （``claimed`` は前2者の和＝``unclaimed`` の補集合の材料）。
+      （``claimed`` は ``running`` / ``stopped`` / ``release_pending`` の和＝``unclaimed`` の
+      補集合の材料）。
 
     **``stopped`` は2つの集合に同時に現れる**（``stale`` にも ``claimed`` にも）。これは矛盾
     ではなく ``stopped`` が持つ二重の性質そのものである——「回収がまだ済んでいない」（＝
@@ -728,13 +778,15 @@ def residue_report(repo_root) -> dict:
     entries = read_ledger(repo_root)["entries"]
     running = _paths_with_status(entries, ("running",))
     stopped = _paths_with_status(entries, ("stopped",))
-    claimed = running | stopped
+    release_pending = _paths_with_status(entries, (DEFERRED_RELEASE_STATUS,))
+    claimed = running | stopped | release_pending
     on_disk = set(on_disk_worktrees(repo_root))
     return {
         "stale": [item for item in entries if item.get("status") in RESIDUE_STATUSES],
         "unclaimed": sorted(on_disk - claimed),
         "running": sorted(running),
         "stopped": sorted(stopped),
+        "release_pending": sorted(release_pending),
         "claimed": sorted(claimed),
     }
 

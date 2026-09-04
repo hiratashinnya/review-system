@@ -51,6 +51,11 @@ fail 方針の非対称（設計判断・``.claude/hooks/README.md`` にも明�
 * 両者は**方向が逆**である。ブロックの誤りは「余計に止まる」だけで回復可能だが、削除の
   誤りは成果物を回復不能に失う。削除しなかったぶんの残留は次 dispatch の gate deny
   （``ISSUE_START_WORKTREE_RESIDUE``）が拾う。
+* **「回収は済んだが削除だけ git ロックで失敗した」は保留 = ``release_pending``**（Issue #464）。
+  ``collect-worktree`` が handoff を退避（``collected_to``）してから ``git worktree remove`` で
+  詰まった場合、成果物は失われていないので ``stale`` へ落とさない。この停止イベントの時点では
+  ロックはまだエージェントプロセスが握っているため、解放段はここで何もせず
+  （``RELEASE_PENDING_DEFERRED``）、削除は次 dispatch の gate がロックの外れた後に引き取る。
 * **解放段の失敗は停止をブロックしない**：block できるのはカルテ段だけで、解放段は evidence を
   残して exit 0 する。解放できないことを理由にエージェントを止め続けても解決しない（当人には
   ``gitgate`` の worktree verb が許可されていない）ので、制御を主文脈へ返して deny で気づかせる。
@@ -824,6 +829,16 @@ def _release_stage(
     if status in ("released", "abandoned"):
         _evidence(
             stderr, "stop", result="release-skip", reason="ALREADY_TERMINAL",
+            entry_id=entry_id, status=status,
+        )
+        return
+    if status == worktree_ledger.DEFERRED_RELEASE_STATUS:
+        # 回収は完了済みで worktree の物理削除だけが残っている（git ロック待ち・Issue #464）。
+        # ロックはこの停止イベントの時点ではまだエージェントプロセスが握っているため、
+        # ここで `collect-worktree` を再起動しても無駄。削除は次 dispatch の gate
+        # （`assert_no_worktree_residue`）がロックの外れた後に引き取る。
+        _evidence(
+            stderr, "stop", result="release-skip", reason="RELEASE_PENDING_DEFERRED",
             entry_id=entry_id, status=status,
         )
         return
