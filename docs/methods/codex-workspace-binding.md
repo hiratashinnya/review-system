@@ -45,9 +45,10 @@ trusted issue-start PreToolUse hook が `ISSUE_START_TRANSPORT_UNAVAILABLE` で 
 
 - 外側bubblewrap: `/`、main checkout、共通Git領域をread-only、対象worktreeだけwriteable、`/tmp`をprivate
   tmpfsにする。Codex制御processのAPI通信は維持し、model生成toolのdata-plane networkは内側の
-  `network_access=false`、web/apps無効化、禁止event監視で別に拒否する。Python/Codexの起動に必要なOS entropyは`/dev/urandom`だけを
-  `--dev-bind`した直後に`--remount-ro`し、`--dev /dev`でdevice集合やwrite範囲を広げない。通常の
-  `--ro-bind`はnested user namespaceでdevice accessを保証しないため採用しない。
+  `network_access=false`、web/apps無効化、禁止event監視で別に拒否する。read-only root bindの直後にbubblewrapの
+  `--dev /dev`でhostとは別の最小device集合を作り、続けて`--remount-ro /dev`でdevice nodeの追加・変更を拒否する。
+  `/dev/null`、entropy、PTYはこのprivate集合から利用する。host `/dev`の`--dev-bind`は禁止し、host PTYや
+  `/dev/kvm`、`/dev/dri`、`/dev/fuse`等をouter processへ露出しない。
 - 内側Codex: `workspace-write`、approval `never`、user config無視、web search disabled、shell network false、
   multi-agent disabled、apps disabledを明示し、model `gpt-5.6-sol` / reasoning `xhigh`を固定する。hostはmain
   canonicalのprotected role wrapperとcommon本文をbundle化し、対象branchの同bundle digestが一致した場合だけ
@@ -115,6 +116,9 @@ changed files、tests、finding、diagnosis、outcome、URL等が異なる差替
 - Codex本体、`spawn_agent` schema、runtime hook payloadの変更: 本repoはCodex本体の開発・配布主体でなく、
   owner決定により将来も恒久候補外とする。
 - 内側Codexへcommit/pushを許可: `.git` writeと認証情報をモデルprocessへ渡し、role別publish gateを迂回する。
+- `/dev/urandom`だけをhostからbindする構成: device集合は狭いが、現行Codexが使う`/dev/null`とPTYが
+  nested user namespace内でerrno 13またはPTY枯渇になり、制御processを起動できない。
+- host `/dev`全体の`--dev-bind`: null/PTYは動くがhost PTYと任意deviceを露出し、Issue worktreeに限定した境界を広げる。
 
 ## Security trade-off と限界
 
@@ -122,9 +126,10 @@ ledger は暗号学的署名ではなく、main worktree のファイル境界�
 信頼境界にする。inner Codexはworktree内容を変更できるためhandoffやpatch内容自体は信頼せず、hostがpath、digest、
 Git factsを再検証する。bubblewrap/user namespaceが利用できないhostでは保護を弱めて起動せず、P1 probeをfail-closeする。
 Codex API通信自体はmodel利用に必要だが、model-generated shellのnetworkとweb searchは別に無効化する。
-P1のwrite/network probe payloadはcoverageやvenvのruntime差を混ぜない固定`/usr/bin/python3`を使う。host `/tmp`
+P1のwrite/network/device probe payloadはcoverageやvenvのruntime差を混ぜない固定`/usr/bin/python3`を使う。host `/tmp`
 sentinelの不可視性とhost local listenerへの到達不能を測り、各isolationを個別に外したnegative controlが必ず失敗する
-ことも確認する。実Codex runtimeは
+ことも確認する。private `/dev`ではnull/PTY動作、mountのread-only、host PTYと高権限deviceの非露出を測り、
+旧urandom限定構成がerrno 13になる負例を残す。実Codex runtimeは
 同じouter commandの`codex --version`をmodel無呼出で起動し、device/mount構造testと分けて確認する。
 
 ## bootstrap PR の finding 方針
