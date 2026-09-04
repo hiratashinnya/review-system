@@ -708,6 +708,47 @@ class ReleaseStageTests(HookTestCase):
         self.assertEqual(evidence[0]["entry_id"], entry_id)
         self.assertEqual(evidence[0]["how"], "unique")
 
+    def test_release_ok_evidence_when_gitgate_reports_released_yes(self):
+        """Issue #464・F-464-05: ``gitgate`` の stderr が ``released=yes`` なら
+        ``release-ok``（従来どおり）。"""
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop(results=(
+            FakeCompleted(
+                0,
+                stderr=(
+                    "gitgate: collect-worktree .claude/worktrees/agent-abc "
+                    f"entry={entry_id} collected_to=tmp/_handoff/collected/x.yaml "
+                    "released=yes\n"
+                ),
+            ),
+        ))
+        evidence = [line for line in self.evidence_lines() if line.get("entry_id") == entry_id]
+        results = [line.get("result") for line in evidence]
+        self.assertIn("release-ok", results)
+        self.assertNotIn("release-deferred", results)
+
+    def test_release_deferred_evidence_when_gitgate_reports_released_no(self):
+        """Issue #464・F-464-05: 回収は成功したが worktree ロックで削除だけ遅延した
+        （``gitgate`` の stderr が ``released=no``）場合、evidence を ``release-ok`` と
+        区別する（旧実装は無条件に ``release-ok`` を書いていた）。"""
+        entry_id = self.bind()
+        self.write_handoff("abc", "issue-implementer--issue-354.yaml")
+        self.stop(results=(
+            FakeCompleted(
+                0,
+                stderr=(
+                    "gitgate: collect-worktree .claude/worktrees/agent-abc "
+                    f"entry={entry_id} collected_to=tmp/_handoff/collected/x.yaml "
+                    "released=no\n"
+                ),
+            ),
+        ))
+        evidence = [line for line in self.evidence_lines() if line.get("entry_id") == entry_id]
+        results = [line.get("result") for line in evidence]
+        self.assertIn("release-deferred", results)
+        self.assertNotIn("release-ok", results)
+
     def test_collect_failure_marks_stale_and_never_removes_the_worktree(self):
         """回収に失敗したらブロックせず `stale` に落として制御を主文脈へ返す。
 

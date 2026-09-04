@@ -8,8 +8,13 @@
     （停止済みだが未回収）は ``--force-*`` でも上書きできない。
     **実体の削除経路はここだけ**——``abandoned``（``worktree-forget`` 済み）で実体が残って
     いる場合も、台帳を進めずに実体だけ削除する（F-354-02）。
-    **worktree 実体の削除に成功した後は、台帳の ``branch_name`` に対応するローカルブランチ
-    ref の削除を試みる**（``git branch -D``・Issue #426。F-426-01 で安全化）。放置すると、
+    **worktree 実体の削除に成功し、かつ ``cleanup_branch_ref=True``（既定）のときは、台帳の
+    ``branch_name`` に対応するローカルブランチ ref の削除を試みる**（``git branch -D``・
+    Issue #426。F-426-01 で安全化）。``cleanup_branch_ref=False`` を渡す呼び出し元
+    （``issue-start-gate`` の毎 dispatch 経路・Issue #464 F-464-06）ではこの削除を丸ごと
+    スキップする——``git fetch`` を伴うため、毎 dispatch のホットパスにネットワーク I/O を
+    持ち込まない。フル掃除は ``SessionStart`` フックが別途 ``cleanup_branch_ref=True`` で
+    行う。放置すると、
     その ref が ``gitgate adopt-branch`` の stage 4（同名ローカル ref の存在検査）に
     引っかかり、次の ``issue-fixer`` の adopt が ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗する。
     ただし ``git branch -D`` は force delete でありローカルにしか無いコミットを reflog ごと
@@ -631,19 +636,27 @@ def _reason_note(verb: str, reason: str, *, flag: str = "") -> str:
 
 
 def _is_worktree_lock_failure(detail: str | None) -> bool:
-    """``git worktree remove`` の失敗が **worktree ロック**由来か（Issue #464）。
+    """``git worktree remove`` の失敗が **worktree ロック**由来か（Issue #464・F-464-01 是正）。
 
     停止途中のエージェントプロセスが worktree を掴んだままだと
     ``fatal: cannot remove a locked working tree, lock reason: ...`` で失敗する。
-    git のロック時メッセージは版差があるが、いずれも "lock" と "working tree"（または
-    "worktree"）の両方を含む。``index.lock`` 等の別レイヤのロックは "working tree" を
-    含まないので誤マッチしない。ロック以外の削除失敗（権限・submodule 等）は対象にしない
+    git のロック時メッセージは版差があるが、いずれも "locked working tree" または
+    "locked worktree" という**連結した語句**を含む。この判定は連結一致に絞る——
+    「"lock" と "working tree"/"worktree" がそれぞれ独立に含まれるか」を見ていた旧実装は、
+    削除対象パスが常に ``.claude/worktrees/agent-<id>`` を含むため後半の条件がほぼ常に真になり
+    実効条件が ``"lock" in stderr`` だけに縮退していた（F-464-01）。結果として
+    ``fatal: Unable to create '<repo>/.git/worktrees/agent-x/index.lock': File exists.`` の
+    ような ``index.lock``（別レイヤのロック＝非 worktree ロック失敗）も誤って worktree ロック
+    と判定し、本来 ``stale``（``ISSUE_START_WORKTREE_RESIDUE`` で解消コマンド付き deny）へ
+    落ちるべきものが ``release_pending``（deny 網の外）へ落ちうる不具合があった。連結一致に
+    絞ることで、``index.lock`` 等の別レイヤのロックは "locked working tree"/"locked worktree"
+    を含まないため誤マッチしない。ロック以外の削除失敗（権限・submodule 等）は対象にしない
     ——それらは従来どおり ``WORKTREE_REMOVE_FAILED`` を送出して fail-close させる。
     """
     if not detail:
         return False
     lowered = detail.lower()
-    return "lock" in lowered and ("working tree" in lowered or "worktree" in lowered)
+    return "locked working tree" in lowered or "locked worktree" in lowered
 
 
 def _remove_worktree_dir(repo_root, relative: str, *, runner) -> bool:
@@ -687,8 +700,18 @@ def worktree_release(
     reason: str = "",
     now,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    cleanup_branch_ref: bool = True,
 ) -> ReleaseOutcome:
     """linked worktree を冪等に解放する（FR-W5）。
+
+    ``cleanup_branch_ref``（既定 ``True``・Issue #464 F-464-06）: worktree 実体の削除に
+    成功した後の :func:`_cleanup_branch_ref`（``git fetch`` を伴うローカル ref 削除）を
+    呼ぶかどうか。``issue-start-gate`` の毎 dispatch 経路（
+    :func:`issue_start.gate._finish_deferred_releases`）は ``False`` を渡し、ネットワーク
+    I/O を毎 dispatch のホットパスから除く——``SessionStart`` フックが**別途**
+    ``cleanup_branch_ref=True``（既定）でフル掃除を行う。``git worktree remove`` 自体は
+    ローカル操作でロック時は即失敗するため安価であり、mid-session の削除試行を止める理由には
+    ならない。ネットワーク I/O だけを毎 dispatch のホットパスから外す。
 
     判定順序に意味がある——**状態判定はパス構文検査の直後・FS/git 操作より前**に済ませる。
     こうすると「消してはいけないもの（``running``）」に対して git が一切呼ばれないし、
@@ -757,7 +780,8 @@ def worktree_release(
                     now=now,
                     note=f"worktree-release: 終端状態（{status}）の残留実体を削除した",
                 )
-                _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
+                if cleanup_branch_ref:
+                    _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
             _note(repo_root, resolved_entry_id, now=now, note=note)
         return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status=status)
 
@@ -791,7 +815,7 @@ def worktree_release(
     removed = _remove_worktree_dir(repo_root, relative, runner=runner)
     if resolved_entry_id is not None:
         _mark(repo_root, resolved_entry_id, "released", now=now, note=note)
-        if removed:
+        if removed and cleanup_branch_ref:
             _cleanup_branch_ref(repo_root, entry, now=now, runner=runner)
     return ReleaseOutcome(relative, resolved_entry_id, removed=removed, status="released")
 

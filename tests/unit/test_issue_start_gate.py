@@ -1409,6 +1409,30 @@ class DeferredReleaseGateTests(unittest.TestCase):
             for e in worktree_ledger.read_ledger(self.root)["entries"]
         }[entry_id]["status"]
 
+    def entry(self, entry_id):
+        for item in worktree_ledger.read_ledger(self.root)["entries"]:
+            if item.get("entry_id") == entry_id:
+                return item
+        return None
+
+    def entry_with_branch(
+        self, *statuses, agent_id="rp", issue=464,
+        branch_name="claude/issue-464-fix", on_disk=True,
+    ):
+        if on_disk:
+            self.make_worktree(f"agent-{agent_id}")
+        worktree_ledger.open_entry(
+            self.root, issue=issue, agent_type="issue-implementer", round=None,
+            branch_name=branch_name, handoff_path=None, now=LEDGER_NOW,
+        )
+        entry_id = worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer", agent_id=agent_id,
+            worktree_path=f".claude/worktrees/agent-{agent_id}",
+        )
+        for status in statuses:
+            worktree_ledger.mark(self.root, entry_id, status, now=LEDGER_NOW)
+        return entry_id
+
     def test_release_pending_does_not_deny_and_the_gate_finishes_the_release(self):
         entry_id = self.entry_at("stopped", "collected", "release_pending")
         git = _GateFakeGit(self.root, linked=[".claude/worktrees/agent-rp"])
@@ -1471,6 +1495,72 @@ class DeferredReleaseGateTests(unittest.TestCase):
                         repo_root=self.root, now=LEDGER_NOW, runner=git
                     )
                 self.assertEqual(ctx.exception.reason, "ISSUE_START_WORKTREE_RESIDUE")
+
+    def test_release_pending_escalates_to_stale_after_repeated_failures(self):
+        """Issue #464・F-464-02: 恒久的に削除できない ``release_pending`` は無制限に
+        リトライされず、連続失敗が閾値（3）を超えたら ``stale`` へ落ちて通常の
+        ``ISSUE_START_WORKTREE_RESIDUE`` に合流する。"""
+        entry_id = self.entry_at("stopped", "collected", "release_pending")
+        git = _GateFakeGit(
+            self.root, linked=[".claude/worktrees/agent-rp"],
+            fail_remove_stderr=(
+                "fatal: cannot remove a locked working tree, lock reason: still busy\n"
+            ),
+        )
+        for attempt in range(1, 4):
+            with self.subTest(attempt=attempt):
+                report = assert_no_worktree_residue(
+                    repo_root=self.root, now=LEDGER_NOW, runner=git
+                )
+                self.assertEqual(report["stale"], [], f"attempt {attempt} は deny しない")
+                self.assertEqual(self.status_of(entry_id), "release_pending")
+        with self.assertRaises(IssueStartError) as ctx:
+            assert_no_worktree_residue(repo_root=self.root, now=LEDGER_NOW, runner=git)
+        self.assertEqual(ctx.exception.reason, "ISSUE_START_WORKTREE_RESIDUE")
+        self.assertEqual(self.status_of(entry_id), "stale", "4回目で stale へ落ちる")
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any("4回連続で失敗" in note and "Issue #464" in note for note in notes), notes
+        )
+
+    def test_generic_exception_during_retry_does_not_deny_but_is_recorded(self):
+        """Issue #464・F-464-03: ``WorktreeError`` 以外（runner 起因の ``TypeError`` 等）も
+        ``_finish_deferred_releases`` の中で吸収され、台帳は健全なまま dispatch を続ける
+        （旧実装は外側の ``except Exception`` に抜けて
+        ``ISSUE_START_WORKTREE_LEDGER_ERROR`` で全 dispatch を deny していた）。"""
+        entry_id = self.entry_at("stopped", "collected", "release_pending")
+
+        class _RaisingGit:
+            def __init__(self):
+                self.calls = []
+
+            def __call__(self, argv, **kwargs):
+                self.calls.append(list(argv))
+                raise TypeError("boom")
+
+        git = _RaisingGit()
+        report = assert_no_worktree_residue(repo_root=self.root, now=LEDGER_NOW, runner=git)
+        self.assertEqual(report["stale"], [])
+        self.assertEqual(report["unclaimed"], [])
+        self.assertFalse(report["deferred_release_finished"][0]["released"])
+        self.assertEqual(report["deferred_release_finished"][0]["error"], "TypeError")
+        self.assertEqual(self.status_of(entry_id), "release_pending")
+
+    def test_deferred_release_does_not_fetch_or_delete_the_branch_ref(self):
+        """Issue #464・F-464-06: 毎 dispatch の事前チェック（``_finish_deferred_releases``）は
+        ``cleanup_branch_ref=False`` を渡すため、削除成功時でも ``git fetch``／
+        ``git branch -D`` は一切走らない（フル掃除は ``SessionStart`` フックへ委ねる）。"""
+        entry_id = self.entry_with_branch("stopped", "collected", "release_pending")
+        git = _GateFakeGit(self.root, linked=[".claude/worktrees/agent-rp"])
+        report = assert_no_worktree_residue(repo_root=self.root, now=LEDGER_NOW, runner=git)
+        self.assertTrue(report["deferred_release_finished"][0]["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+        fetch_calls = [argv for argv in git.calls if argv[:2] == ["git", "fetch"]]
+        self.assertEqual(fetch_calls, [], "ローカルブランチ ref 掃除の git fetch はホットパスから外れている")
+        branch_delete_calls = [
+            argv for argv in git.calls if argv[:3] == ["git", "branch", "-D"]
+        ]
+        self.assertEqual(branch_delete_calls, [])
 
 
 if __name__ == "__main__":
