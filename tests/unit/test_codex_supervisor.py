@@ -37,6 +37,8 @@ from issue_start.codex_supervisor import (
     execute_sandbox_probe,
     publish_allowlist,
     run_supervised,
+    validate_broker_protocol,
+    validate_cli_compatibility,
     validate_protected_patch,
     validate_probe_result,
 )
@@ -257,6 +259,8 @@ class CodexSupervisorTests(unittest.TestCase):
             "bwrap_executable": self.bwrap,
             "codex_executable": self.codex,
             "runner": runner,
+            "compatibility_checker": lambda _command: None,
+            "broker_checker": lambda _command: None,
         }
         values.update(overrides)
         return run_supervised(**values)
@@ -329,6 +333,12 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("sandbox_workspace_write.network_access=false", command)
         self.assertIn("agents.enabled=false", command)
         self.assertIn("features.multi_agent=false", command)
+        self.assertIn("features.shell_tool=false", command)
+        self.assertIn("features.unified_exec=false", command)
+        self.assertIn("features.code_mode=false", command)
+        self.assertIn("features.code_mode_host=false", command)
+        self.assertIn("mcp_servers.issue_exec_broker.required=true", command)
+        self.assertIn('mcp_servers.issue_exec_broker.enabled_tools=["execute"]', command)
         self.assertIn("developer_instructions=", joined)
         self.assertIn("CODEX_ISSUE_ROLE", command)
         self.assertIn("CODEX_ISSUE_ROLE_CONTRACT_SHA256", command)
@@ -351,7 +361,7 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertTrue((runtime_home / "sqlite").is_dir())
         self.assertEqual(
             {path.name for path in runtime_home.iterdir()},
-            {"auth.json", "sessions", "sqlite"},
+            {"auth.json", "sessions", "sqlite", "broker-bundle"},
         )
         placeholder = runtime_home / "auth.json"
         self.assertEqual((placeholder.stat().st_size, stat.S_IMODE(placeholder.stat().st_mode)), (0, 0o400))
@@ -393,6 +403,92 @@ class CodexSupervisorTests(unittest.TestCase):
                 else:
                     self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
         self.assertEqual(outer_commands[0], outer_commands[1])
+
+    def test_model_free_cli_preflight_requires_disabled_process_features_and_single_mcp(self):
+        command = build_codex_command(
+            self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex,
+            attempt_id="a" * 32, broker_fence="b" * 32,
+        )
+
+        def compatible(argv, **_kwargs):
+            if argv[1:3] == ["features", "list"]:
+                names = (
+                    "shell_tool", "unified_exec", "code_mode", "code_mode_host",
+                    "multi_agent", "apps", "plugins", "remote_plugin", "browser_use",
+                    "computer_use",
+                )
+                return subprocess.CompletedProcess(argv, 0, "".join(
+                    f"{name} stable false\n" for name in names
+                ), "")
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps([{"name": "issue_exec_broker", "enabled": True}]), ""
+            )
+
+        validate_cli_compatibility(command, runner=compatible)
+
+        def leaked(argv, **kwargs):
+            result = compatible(argv, **kwargs)
+            if argv[1:3] == ["features", "list"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, result.stdout.replace("shell_tool stable false", "shell_tool stable true"), ""
+                )
+            return result
+
+        with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
+            validate_cli_compatibility(command, runner=leaked)
+
+        def extra_mcp(argv, **kwargs):
+            if argv[1:3] == ["mcp", "list"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, json.dumps([
+                        {"name": "issue_exec_broker", "enabled": True},
+                        {"name": "untrusted", "enabled": True},
+                    ]), ""
+                )
+            return compatible(argv, **kwargs)
+
+        with self.assertRaisesRegex(CodexSupervisorError, "MCP_CATALOG_INVALID"):
+            validate_cli_compatibility(command, runner=extra_mcp)
+
+    def test_broker_protocol_crash_is_fail_close_before_runner(self):
+        self.handoff_file()
+        runner = FakeRunner(self.success_lines())
+
+        def crash(_command):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED")
+
+        self.assert_reason(
+            "CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED", runner,
+            broker_checker=crash,
+        )
+        self.assertEqual(runner.calls, [])
+        self.assertEqual(self.entry()["supervisor_attempts"][-1]["state"], "failed")
+
+    def test_installed_cli_and_broker_accept_supervised_config_without_model(self):
+        codex = shutil.which("codex")
+        if codex is None:
+            self.skipTest("codex is not installed")
+        fence = "c" * 32
+        attempt = _reserve_attempt(
+            self.spec, now=NOW, resume_thread=None, broker_fence=fence
+        )
+        command = build_codex_command(
+            self.spec, bwrap_executable=self.bwrap, codex_executable=codex,
+            attempt_id=attempt, broker_fence=fence,
+        )
+        validate_cli_compatibility(command)
+        validate_broker_protocol(command)
+
+    def test_codex_payload_visible_in_broker_child_mounts_is_rejected(self):
+        visible_codex = self.workspace / "codex-visible"
+        visible_codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        visible_codex.chmod(0o755)
+
+        with self.assertRaisesRegex(CodexSupervisorError, "CODEX_CHILD_VISIBLE"):
+            build_codex_command(
+                self.spec, bwrap_executable=self.bwrap, codex_executable=visible_codex,
+                attempt_id="a" * 32, broker_fence="b" * 32,
+            )
 
     def test_task_runtime_home_is_reused_for_resume_and_isolated_between_tasks(self):
         initial = build_codex_command(
@@ -1088,6 +1184,8 @@ class CodexSupervisorTests(unittest.TestCase):
             spec, prompt="Fix assigned findings.", now=NOW + timedelta(seconds=1),
             bwrap_executable=self.bwrap, codex_executable=self.codex,
             runner=FakeRunner(self.success_lines("thread-fixer")),
+            compatibility_checker=lambda _command: None,
+            broker_checker=lambda _command: None,
         )
 
         def fixer_runner(command, **kwargs):
@@ -1815,6 +1913,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             git(main, "init", "-b", "main")
             git(main, "config", "user.email", "test@example.invalid")
             git(main, "config", "user.name", "Sandbox Probe")
+            git(main, "remote", "add", "origin", "https://github.com/example/repo.git")
             (main / ".codex").mkdir()
             (main / ".agents").mkdir()
             (main / ".ai" / "agents").mkdir(parents=True)
@@ -1889,7 +1988,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 workspace, bwrap_executable=bwrap, python_executable=system_python
             )
 
-            fake_codex = workspace / "fake-codex"
+            fake_codex = Path(temporary) / "fake-codex"
             fake_codex.write_text(
                 "#!/bin/sh\n"
                 "case \" $* \" in\n"
@@ -1901,8 +2000,14 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             fake_codex.chmod(0o755)
             fake_spec = SupervisorSpec(
                 repo_root=main, workspace=workspace, role="issue-implementer",
-                task_key="issue_452_session_probe",
+                task_key="issue_452",
                 handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.yaml",
+            )
+            prepare_binding(
+                issue=452, round_number=1, repository="example/repo", workspace=workspace,
+                branch_name="probe", expected_oid=git(workspace, "rev-parse", "HEAD"),
+                handoff_path=fake_spec.handoff_path, role="issue-implementer",
+                task_key=fake_spec.task_key, protected_paths=(), now=NOW,
             )
             clean_home = Path(temporary) / "clean-home"
             clean_home.mkdir()
@@ -1924,7 +2029,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     resumed, cwd=workspace, capture_output=True, text=True, timeout=15
                 )
                 self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
-                runtime_home = main / "tmp/_codex_sessions/issue_452_session_probe/runtime-home"
+                runtime_home = main / "tmp/_codex_sessions/issue_452/runtime-home"
                 marker = runtime_home / "sessions/supervised-marker"
                 self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
                 codex = shutil.which("codex")

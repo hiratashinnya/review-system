@@ -56,6 +56,11 @@ publish CLIでpath/digestを追加しない。protected patch（宣言時のみ�
 段間Git factsのCAS付きで
 順番に実行し、最終handoffを生成する。
 
+同inner processでは汎用shellや任意argvを使わず、supervisorが公開したtask-bound command brokerの
+action-specific schemaだけを使う。broker catalogに無いcommandが必要なら別launcherを探さずSTOPし、必要な
+actionと安全な固定grammarを呼び出し元へ提案する。PATH変更、absolute executable、copy/symlink、Node payload、
+native launcherによってprocess境界を迂回しない。
+
 schema_version: 1
 phase: final
 agent: issue-implementer

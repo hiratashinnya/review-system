@@ -106,6 +106,28 @@ changed files、tests、finding、diagnosis、outcome、URL等が異なる差替
 ないため、外部効果の有無を照会せずfail-closeし、`completed`/`finalized`を追記しない。元のpre-publish handoffを
 復元した再開だけが、reservation保存内容からfinal intentを導出して外部操作を重複せず回収できる。
 
+### inner command broker（F-452-19）
+
+inner Codexへ汎用shell、任意argv、実行ファイルpathを渡さない。supervisorは自身と同じcommit由来の
+`codex_exec_broker.py`をtask専用runtime homeへ複製し、owner・mode・hardlink数・SHA-256を確認してread-only
+mountする。brokerだけがmain ledger directoryへwriteでき、task key、role、workspace、attempt ID、attempt fence、
+handoff path、boundary versionを各requestの前にCAS照合する。request IDはattempt内で一度だけ使用でき、実argvは
+ledgerへ保存せずaction/argv digest、PID/start token、exit/timeoutだけを記録する。
+
+Codex CLIにはprocessを作れるbuilt-in feature（shell、unified exec、code mode、multi-agent、apps/plugins、browser、
+computer）をすべて明示的に無効化し、required MCPを1台・toolを`execute` 1個だけ登録する。起動前にmodel/API/threadを
+使わず、installed CLIのfeature一覧・MCP catalog parserとbrokerのinitialize/tools-list handshakeを検査する。unknown
+feature、複数MCP、required tool欠落、source/boundary不一致は起動前にfail-closeする。initialとresumeは同じ設定と
+attempt fenceを使う。
+
+brokerの入力はactionごとのclosed schemaであり、shell string、executable、任意argv、wrapper、launcher、absolute path、
+path traversalを受理しない。read/list/search、束縛済みhandoffへのatomic write、固定形のread-only Git、標準unittest、
+承認済みread-only auditだけを扱う。process actionはさらに別のbubblewrapへ入り、workspaceだけをwrite可能、共通Gitと
+role/protected assetをread-only、host home/auth/Codex installationを非mount、networkをunshareする。Git readはpager、
+global/system config、external diff、textconvを無効化する。installed Codexのresolved payloadが`/usr`、`/etc`、
+workspace、共通Gitのいずれかに含まれて子境界へ見える配置なら、境界を弱めずsupervisor起動前に拒否する。これにより`codex`、absolute launcher、copy/symlink、native
+launcher、`node codex.js`、`/proc/self/exe`のいずれも任意process入口へ到達せず、nested CodexをAPI呼出前に拒否する。
+
 ## 却下案
 
 - 暗号化 message の復号・解析: hook が信頼できる平文として観測できず、transport 実装にも依存する。
@@ -116,6 +138,8 @@ changed files、tests、finding、diagnosis、outcome、URL等が異なる差替
 - Codex本体、`spawn_agent` schema、runtime hook payloadの変更: 本repoはCodex本体の開発・配布主体でなく、
   owner決定により将来も恒久候補外とする。
 - 内側Codexへcommit/pushを許可: `.git` writeと認証情報をモデルprocessへ渡し、role別publish gateを迂回する。
+- PATHから`codex`だけを外す: absolute path、symlink/copy、Node payload、native launcherを防げず、実行境界にならない。
+- shell command文字列をdenylistで検査する: quoting、wrapper、別interpreterを有限に列挙できず、未知形を安全と証明できない。
 - `/dev/urandom`だけをhostからbindする構成: device集合は狭いが、現行Codexが使う`/dev/null`とPTYが
   nested user namespace内でerrno 13またはPTY枯渇になり、制御processを起動できない。
 - host `/dev`全体の`--dev-bind`: null/PTYは動くがhost PTYと任意deviceを露出し、Issue worktreeに限定した境界を広げる。
