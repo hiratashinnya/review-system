@@ -105,6 +105,25 @@ def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, s
     return result
 
 
+def _codex_launch_path(codex: Path) -> str:
+    """Build the smallest PATH needed by an env-based Codex launcher shebang."""
+
+    try:
+        first = codex.open("rb").readline(256).decode("utf-8", errors="strict").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID") from exc
+    directories = ["/usr/bin", "/bin"]
+    if first.startswith("#!/usr/bin/env "):
+        interpreter_name = first.removeprefix("#!/usr/bin/env ").split()[0]
+        if not re.fullmatch(r"[A-Za-z0-9_.+-]+", interpreter_name):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID")
+        interpreter = shutil.which(interpreter_name)
+        if interpreter is None:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_INTERPRETER_UNAVAILABLE")
+        directories.insert(0, str(Path(interpreter).resolve(strict=True).parent))
+    return ":".join(dict.fromkeys(directories))
+
+
 class CodexSupervisorError(RuntimeError):
     """Supervisor が fail-close した理由コード付き例外。"""
 
@@ -724,6 +743,7 @@ def build_codex_command(
     workspace = spec.workspace.resolve(strict=True)
     bwrap = _require_executable(bwrap_executable, "CODEX_SUPERVISOR_BWRAP_UNAVAILABLE")
     codex = _require_executable(codex_executable, "CODEX_SUPERVISOR_CODEX_UNAVAILABLE")
+    launch_path = _codex_launch_path(codex)
     role_contract, role_digest = _trusted_role_instructions(spec)
     runtime = _prepare_runtime_home(spec)
     broker = _prepare_broker_bundle(
@@ -795,7 +815,7 @@ def build_codex_command(
         "--ro-bind", str(broker.root), str(broker.root),
         "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
         *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "TMPDIR", "/tmp",
-        "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",
+        "--setenv", "PATH", launch_path,
         "--setenv", "CODEX_HOME", str(runtime.root),
         "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
