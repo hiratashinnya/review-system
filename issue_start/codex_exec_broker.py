@@ -186,7 +186,7 @@ def _read_document(path: Path) -> dict[str, Any]:
 
 
 def _write_document(path: Path, document: Mapping[str, Any]) -> None:
-    temporary = path.with_name(path.name + ".new")
+    temporary = path.with_name(path.name + f".{os.getpid()}.{secrets.token_hex(8)}.new")
     payload = json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     try:
         with temporary.open("x", encoding="utf-8") as handle:

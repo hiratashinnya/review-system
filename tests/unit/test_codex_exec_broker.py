@@ -2,7 +2,9 @@ import hashlib
 import fcntl
 import json
 import os
+import signal
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -372,6 +374,72 @@ class CodexExecBrokerTests(unittest.TestCase):
         )
         matches = [event for event in self.events() if event.get("request_id") == "after-crash"]
         self.assertEqual(len(matches), 1)
+
+    def test_sigkill_at_each_ledger_crash_point_recovers_once(self):
+        real_replace = os.replace
+        real_fsync = os.fsync
+
+        def die():
+            os.kill(os.getpid(), signal.SIGKILL)
+
+        def run_crash(request_id, install, *, persisted):
+            pid = os.fork()
+            if pid == 0:
+                install(die)
+                self.broker._append_event(
+                    {"state": "completed", "action": "audit", "argv_sha256": "b" * 64},
+                    request_id=request_id,
+                )
+                os._exit(120)
+            _, status = os.waitpid(pid, 0)
+            self.assertTrue(os.WIFSIGNALED(status), (request_id, status))
+            self.assertEqual(os.WTERMSIG(status), signal.SIGKILL)
+            if persisted:
+                with self.assertRaisesRegex(BrokerError, "BROKER_REQUEST_REPLAY"):
+                    self.broker._append_event(
+                        {"state": "completed", "action": "audit", "argv_sha256": "b" * 64},
+                        request_id=request_id,
+                    )
+            else:
+                self.broker._append_event(
+                    {"state": "completed", "action": "audit", "argv_sha256": "b" * 64},
+                    request_id=request_id,
+                )
+            matches = [item for item in self.events() if item.get("request_id") == request_id]
+            self.assertEqual(len(matches), 1, request_id)
+
+        run_crash(
+            "killed-after-lock",
+            lambda kill: mock.patch.object(codex_exec_broker, "_read_document", side_effect=kill).start(),
+            persisted=False,
+        )
+        run_crash(
+            "killed-before-replace",
+            lambda kill: mock.patch.object(os, "replace", side_effect=kill).start(),
+            persisted=False,
+        )
+
+        def install_after_replace(kill):
+            def replace_then_kill(source, target):
+                real_replace(source, target)
+                kill()
+            mock.patch.object(os, "replace", side_effect=replace_then_kill).start()
+
+        run_crash("killed-after-replace", install_after_replace, persisted=True)
+
+        def install_after_directory_fsync(kill):
+            def fsync_then_maybe_kill(descriptor):
+                real_fsync(descriptor)
+                if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                    kill()
+            mock.patch.object(os, "fsync", side_effect=fsync_then_maybe_kill).start()
+
+        run_crash("killed-after-fsync", install_after_directory_fsync, persisted=True)
+        run_crash(
+            "killed-before-unlock",
+            lambda kill: mock.patch.object(codex_exec_broker.durable_lock, "release", side_effect=kill).start(),
+            persisted=True,
+        )
 
 
 if __name__ == "__main__":
