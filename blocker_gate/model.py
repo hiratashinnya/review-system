@@ -13,7 +13,12 @@ from typing import Any, Iterable, Mapping
 # Issue #363（オーナー確定・2026-08-12）: policy §3.3「材料」の trigger 記述を
 # 実態（外部 cron が主たる起動元）に合わせて修正。判定意味は変えない文言修正
 # のみだが §11 は文言更新も MINOR bump 対象と定めるため 1.1 → 1.2。
-POLICY_VERSION = "1.2"
+# Issue #466（オーナー確定・2026-09-05）: closed Issue の state reason 分類を
+# 「認識済み2値以外はすべて UNKNOWN」から「closed なら解決済み側へ倒す」へ改める。
+# `IssueClass` へ `CLOSED_OTHER` を追加する **型の変更**であり、同じ入力の verdict が
+# `ERROR/ISSUE_STATE_UNKNOWN` から ALLOW 候補へ移る **verdict 区分をまたぐ意味変更**
+# でもあるため、§11 の規則により MAJOR。1.2 → 2.0。
+POLICY_VERSION = "2.0"
 CLASSIFIER_VERSION = "1.0"
 RESULT_SCHEMA = "blocker-gate-result/v1"
 SNAPSHOT_SCHEMA = "blocker-gate-snapshot/v1"
@@ -23,7 +28,60 @@ class IssueClass(str, Enum):
     OPEN = "OPEN"
     CLOSED_COMPLETED = "CLOSED_COMPLETED"
     CLOSED_NOT_PLANNED = "CLOSED_NOT_PLANNED"
+    # closed であることは確実だが、reason が認識済みの2値（COMPLETED /
+    # NOT_PLANNED）のどちらでもない。`DUPLICATE`、reason 欠落（古い closed Issue）、
+    # および本 policy 版が知らない将来の reason がここに入る。dependency 上の意味は
+    # 他の CLOSED_* と同じ「解決済み」。
+    CLOSED_OTHER = "CLOSED_OTHER"
     UNKNOWN = "UNKNOWN"
+
+
+# GitHub `IssueStateReason` として policy 2.0 時点で認識している語彙（Issue #466）。
+# **分類のための表ではなく、検知のための表**である——ここに無い reason 値を観測したら
+# 「GitHub 側に語彙が増えた」ことを運用者へ知らせる。判定は `classify_issue_state` の
+# closed/open だけで決まるので、この集合が古くなっても run は止まらない。
+KNOWN_STATE_REASONS = frozenset({"COMPLETED", "NOT_PLANNED", "DUPLICATE", "REOPENED"})
+
+
+def classify_issue_state(state: Any, reason: Any) -> tuple[IssueClass, str | None]:
+    """GitHub の ``state``/``state reason`` を ``IssueClass`` へ写す唯一の正本。
+
+    REST（``open``/``closed``・``not_planned``）と GraphQL（``OPEN``/``CLOSED``・
+    ``NOT_PLANNED``）で大小文字だけが違うので、ここで正規化して1か所に畳む。
+    判定の一次情報源を経路ごとに分岐させない（Issue #466 AC4）。
+
+    返すのは ``(IssueClass, 認識外だった reason 値 | None)`` の2つ組。第2要素は
+    **telemetry 専用**であり verdict には一切影響しない。`KNOWN_STATE_REASONS`
+    に無い reason を観測したことだけを呼出側へ伝える（Issue #466 AC5 の「未知値を
+    事前に分類せず、増えたことを検知する」）。
+
+    依存仕様: ``docs/methods/blocker-gate-pre-use-policy.md`` §2.2（policy 2.0）。
+    """
+    if not isinstance(state, str):
+        # 欠落・型不正＝状態を読めていない。fail-close は弱めない。
+        return IssueClass.UNKNOWN, None
+    if reason is not None and not isinstance(reason, str):
+        # reason field が文字列でも null でもない＝応答が矛盾している。
+        return IssueClass.UNKNOWN, None
+    reason_token = reason.upper() if isinstance(reason, str) else None
+    unrecognized = (
+        reason_token
+        if reason_token is not None and reason_token not in KNOWN_STATE_REASONS
+        else None
+    )
+    state_token = state.upper()
+    if state_token == "OPEN":
+        return IssueClass.OPEN, unrecognized
+    if state_token == "CLOSED":
+        if reason_token == "COMPLETED":
+            return IssueClass.CLOSED_COMPLETED, None
+        if reason_token == "NOT_PLANNED":
+            return IssueClass.CLOSED_NOT_PLANNED, None
+        # GitHub が closed と返している以上、blocker としては解決済みである
+        # （policy §2.2 の散文が元々そう定めていた）。reason を推測して
+        # COMPLETED / NOT_PLANNED のどちらかへ寄せることはしない。
+        return IssueClass.CLOSED_OTHER, unrecognized
+    return IssueClass.UNKNOWN, None
 
 
 class Verdict(str, Enum):

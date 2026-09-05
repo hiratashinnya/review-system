@@ -1,6 +1,6 @@
 schema: blocker-gate-waiver/v1
 id: BW-20260801-001
-policy_version: "1.2"
+policy_version: "2.0"
 repository: example/repo
 owner: owner-login
 reason: "期限内に先行検証を行う必要があるため"

@@ -4,13 +4,41 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from .auth import resolve_github_token
 from .github import GitHubCollector
+from .model import POLICY_VERSION
 from .resolver import evaluate_snapshot, resolve_issue, resolve_pull_request
+
+
+# annotation 1行に詰め込む Issue ref の上限。超過分は件数だけ残す
+# （Actions の annotation は1行表示であり、長すぎると読めなくなる）。
+_MAX_REPORTED_REFS = 5
+
+
+def format_unrecognized_state_reasons(raw: Any) -> str:
+    """collector が観測した「本 policy 版が知らない state reason」を1行にする。
+
+    Issue #466: 未知 reason は `CLOSED_OTHER` として closed 側へ倒すため判定は
+    止まらない。止まらない以上、増えたこと自体を外へ出さないと誰も気づけないので、
+    ここで検知結果を可視化する。**telemetry であり判定材料ではない**——欠落・型不正は
+    例外にせず空文字を返す（`last_rate_limit` と同じ扱い）。
+    """
+    if not isinstance(raw, dict) or not raw:
+        return ""
+    parts: list[str] = []
+    for reason, refs in sorted(raw.items()):
+        if not isinstance(reason, str):
+            continue
+        listed = sorted(refs) if isinstance(refs, (set, frozenset, list, tuple)) else []
+        head = ",".join(listed[:_MAX_REPORTED_REFS])
+        suffix = f"(+{len(listed) - _MAX_REPORTED_REFS})" if len(listed) > _MAX_REPORTED_REFS else ""
+        parts.append(f"{reason}={head}{suffix}" if head else reason)
+    return "; ".join(parts)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +104,28 @@ def run(
             f"errors={','.join(errors) or '-'} "
             f"rate_limit={rate_limit}\n"
         )
+        # Issue #466: policy 2.0 が知らない state reason の観測を外へ出す。
+        # **exit code は変えない**——未知 reason は `CLOSED_OTHER` として closed 側へ
+        # 倒すので判定は続行でき、ここで job を失敗させると「GitHub が enum を1つ
+        # 増やしただけ」で gate の材料供給が止まる。逆に何も出さないと、判定が
+        # 通ってしまう分だけ誰も語彙の増加に気づけない。だから止めずに知らせる。
+        unrecognized = format_unrecognized_state_reasons(
+            getattr(collector, "unrecognized_state_reasons", None)
+        )
+        if unrecognized:
+            stderr.write(
+                "blocker-gate snapshot UNRECOGNIZED_STATE_REASON "
+                f"{unrecognized}\n"
+            )
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                # Actions の annotation（run 一覧・summary に出る）。warning なので
+                # job は緑のまま＝運用者には届くが自動化は止まらない。
+                stderr.write(
+                    "::warning title=blocker-gate: unrecognized issue state reason::"
+                    f"policy {POLICY_VERSION} が知らない state reason を観測した: "
+                    f"{unrecognized}. closed として評価を続行している"
+                    " (blocker_gate.model.KNOWN_STATE_REASONS を更新すること)\n"
+                )
         if degraded:
             stderr.write(
                 "blocker-gate snapshot DEGRADED: snapshot は publish したが"
