@@ -11,13 +11,11 @@ from __future__ import annotations
 
 import argparse
 import ctypes
-import fcntl
 import hashlib
 import json
 import os
 import pty
 import re
-import secrets
 import select
 import signal
 import stat
@@ -28,6 +26,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from . import durable_lock
 
 
 BOUNDARY_VERSION = "codex-exec-broker/2"
@@ -49,6 +49,11 @@ _LANDLOCK_SYSCALLS = {
     "x86_64": (444, 445, 446),
     "aarch64": (444, 445, 446),
     "riscv64": (444, 445, 446),
+}
+_DYNAMIC_LOADERS = {
+    "x86_64": "/lib64/ld-linux-x86-64.so.2",
+    "aarch64": "/lib/ld-linux-aarch64.so.1",
+    "riscv64": "/lib/ld-linux-riscv64-lp64d.so.1",
 }
 
 
@@ -100,6 +105,13 @@ def _landlock_syscalls() -> tuple[int, int, int]:
         raise BrokerError("BROKER_EXEC_GUARD_UNAVAILABLE", "preexec") from exc
 
 
+def _dynamic_loader() -> Path:
+    try:
+        return Path(_DYNAMIC_LOADERS[os.uname().machine]).resolve(strict=True)
+    except (AttributeError, KeyError, OSError) as exc:
+        raise BrokerError("BROKER_EXEC_GUARD_UNAVAILABLE", "preexec") from exc
+
+
 def _landlock_abi() -> int:
     create_ruleset, _add_rule, _restrict_self = _landlock_syscalls()
     libc = ctypes.CDLL(None, use_errno=True)
@@ -145,90 +157,19 @@ def _restrict_execution(executables: Sequence[Path]) -> None:
         os.close(ruleset)
 
 
-def _lock_owner() -> dict[str, Any]:
-    return {
-        "version": 1,
-        "pid": os.getpid(),
-        "process_start_token": _process_start_token(os.getpid()),
-        "nonce": secrets.token_hex(16),
-    }
-
-
-def _lock_owner_alive(owner: Mapping[str, Any]) -> bool:
-    if (
-        set(owner) != {"version", "pid", "process_start_token", "nonce"}
-        or owner.get("version") != 1
-        or not isinstance(owner.get("pid"), int)
-        or isinstance(owner.get("pid"), bool)
-        or owner["pid"] <= 0
-        or not isinstance(owner.get("process_start_token"), str)
-        or not owner["process_start_token"].isdigit()
-        or not isinstance(owner.get("nonce"), str)
-        or not _HEX.fullmatch(owner["nonce"])
-    ):
-        raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
-    try:
-        actual = _process_start_token(owner["pid"])
-    except BrokerError as exc:
-        if exc.reason == "BROKER_PROCESS_TOKEN_UNAVAILABLE":
-            return False
-        raise
-    if actual != owner["process_start_token"]:
-        raise BrokerError("BROKER_LEDGER_LOCK_PID_REUSED", "ledger")
-    return True
-
-
 def _acquire_ledger_lock(path: Path) -> int:
     try:
-        descriptor = os.open(
-            path,
-            os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
+        return durable_lock.acquire(
+            path, attempts=max(1, int(_LOCK_WAIT_SECONDS / 0.01)),
+            interval=0.01, sleep=time.sleep,
         )
-    except OSError as exc:
-        raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger") from exc
-    try:
-        metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_nlink != 1
-            or stat.S_IMODE(metadata.st_mode) != 0o600
-        ):
-            raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
-        deadline = time.monotonic() + _LOCK_WAIT_SECONDS
-        while True:
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    raise BrokerError("BROKER_LEDGER_LOCKED", "ledger")
-                time.sleep(0.01)
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        prior = os.read(descriptor, 4096)
-        if prior.strip():
-            try:
-                owner = json.loads(prior)
-            except json.JSONDecodeError as exc:
-                raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger") from exc
-            if not isinstance(owner, dict):
-                raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
-            if _lock_owner_alive(owner):
-                raise BrokerError("BROKER_LEDGER_LOCK_INCONSISTENT", "ledger")
-        payload = json.dumps(_lock_owner(), sort_keys=True, separators=(",", ":")).encode()
-        os.ftruncate(descriptor, 0)
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        os.write(descriptor, payload)
-        os.fsync(descriptor)
-        return descriptor
-    except BaseException:
-        try:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-        except OSError:
-            pass
-        os.close(descriptor)
-        raise
+    except durable_lock.DurableLockError as exc:
+        reasons = {
+            "LOCK_TIMEOUT": "BROKER_LEDGER_LOCKED",
+            "LOCK_PID_REUSED": "BROKER_LEDGER_LOCK_PID_REUSED",
+            "LOCK_OWNER_INCONSISTENT": "BROKER_LEDGER_LOCK_INCONSISTENT",
+        }
+        raise BrokerError(reasons.get(exc.reason, "BROKER_LEDGER_LOCK_TAMPERED"), "ledger") from exc
 
 
 def _read_document(path: Path) -> dict[str, Any]:
@@ -314,6 +255,7 @@ class Broker:
             if not executable.is_file() or not os.access(executable, os.X_OK):
                 raise BrokerError("BROKER_EXECUTABLE_UNAVAILABLE", "startup")
         _landlock_abi()
+        _dynamic_loader()
         relative = Path(self.handoff_path)
         if relative.is_absolute() or ".." in relative.parts or not self.handoff_path.startswith("tmp/_handoff/"):
             raise BrokerError("BROKER_HANDOFF_PATH_INVALID", "startup")
@@ -372,10 +314,7 @@ class Broker:
             mutate(document)
             _write_document(self.ledger, document)
         finally:
-            os.ftruncate(descriptor, 0)
-            os.fsync(descriptor)
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
+            durable_lock.release(descriptor)
 
     def _append_event(self, event: Mapping[str, Any], *, request_id: str | None = None) -> None:
         def mutate(document: dict[str, Any]) -> None:
@@ -528,7 +467,9 @@ class Broker:
 
     def _run_process(self, command: Sequence[str], cwd: Path, timeout: int, use_pty: bool) -> dict[str, Any]:
         sandboxed = self._sandbox_command(command, cwd)
-        allowed_exec = (self.bwrap, self.python, Path("/usr/bin/git").resolve(strict=True))
+        allowed_exec = (
+            self.bwrap, self.python, Path("/usr/bin/git").resolve(strict=True), _dynamic_loader()
+        )
         child_env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
 
         def guard() -> None:
