@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Collection, Mapping, Protocol, Sequence, TextIO
 
-from . import codex_binding, codex_exec_broker, worktree_ledger
+from . import codex_binding, codex_exec_broker, durable_lock, worktree_ledger
 
 
 MODEL = "gpt-5.6-sol"
@@ -137,8 +137,11 @@ class RuntimeHome:
 
 @dataclass(frozen=True)
 class BrokerBundle:
+    root: Path
     source: Path
     source_sha256: str
+    lock_source: Path
+    lock_source_sha256: str
     ledger: Path
     git_common: Path
     process_command: tuple[str, ...]
@@ -537,35 +540,43 @@ def _prepare_broker_bundle(
     """supervisor自身のbroker sourceだけをprivate bundleへ固定する。"""
 
     bundle = _private_directory(runtime.root / "broker-bundle")
-    source = Path(codex_exec_broker.__file__).resolve(strict=True)
-    payload = source.read_bytes()
-    digest = hashlib.sha256(payload).hexdigest()
-    target = bundle / "codex_exec_broker.py"
-    if not target.exists():
+    def install(source: Path, name: str) -> tuple[Path, str]:
+        payload = source.read_bytes()
+        digest = hashlib.sha256(payload).hexdigest()
+        target = bundle / name
+        if not target.exists():
+            try:
+                descriptor = os.open(
+                    target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o400
+                )
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except OSError as exc:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
         try:
-            descriptor = os.open(
-                target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o400
-            )
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(payload)
-                handle.flush()
-                os.fsync(handle.fileno())
+            metadata = target.lstat()
+            target_digest = hashlib.sha256(target.read_bytes()).hexdigest()
         except OSError as exc:
             raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
-    try:
-        metadata = target.lstat()
-        target_digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
-    if (
-        target.is_symlink()
-        or not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_uid != os.geteuid()
-        or metadata.st_nlink != 1
-        or stat.S_IMODE(metadata.st_mode) not in {0o400, 0o444}
-        or target_digest != digest
-    ):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_TAMPERED")
+        if (
+            target.is_symlink()
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) not in {0o400, 0o444}
+            or target_digest != digest
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_TAMPERED")
+        return target.resolve(strict=True), digest
+
+    target, digest = install(
+        Path(codex_exec_broker.__file__).resolve(strict=True), "codex_exec_broker.py"
+    )
+    lock_target, lock_digest = install(
+        Path(durable_lock.__file__).resolve(strict=True), "durable_lock.py"
+    )
     main_root = Path(worktree_ledger.main_worktree_root(spec.workspace)).resolve(strict=True)
     ledger = worktree_ledger.ledger_path(main_root, create_dir=True).resolve(strict=True)
     common_text = codex_binding._git_output(
@@ -588,9 +599,12 @@ def _prepare_broker_bundle(
         "--role", spec.role, "--task-key", spec.task_key, "--attempt-id", attempt_id,
         "--fence", broker_fence, "--handoff-path", spec.handoff_path,
         "--bwrap", bwrap_executable, "--python", python, "--git-common", str(git_common),
-        "--source-sha256", digest,
+        "--source-sha256", digest, "--lock-source-sha256", lock_digest,
     )
-    return BrokerBundle(target.resolve(strict=True), digest, ledger, git_common, command)
+    return BrokerBundle(
+        bundle.resolve(strict=True), target, digest, lock_target, lock_digest,
+        ledger, git_common, command,
+    )
 
 
 def _broker_config(bundle: BrokerBundle, timeout_seconds: int) -> tuple[str, ...]:
@@ -778,7 +792,7 @@ def build_codex_command(
         "--bind", str(workspace), str(workspace),
         "--bind", str(runtime.root), str(runtime.root),
         "--bind", str(broker.ledger.parent), str(broker.ledger.parent),
-        "--ro-bind", str(broker.source), str(broker.source),
+        "--ro-bind", str(broker.root), str(broker.root),
         "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
         *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "TMPDIR", "/tmp",
         "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",

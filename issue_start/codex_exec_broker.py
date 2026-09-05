@@ -27,7 +27,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from . import durable_lock
+try:
+    from . import durable_lock
+except ImportError:  # trusted standalone bundle prepared by codex_supervisor
+    import durable_lock  # type: ignore[no-redef]
 
 
 BOUNDARY_VERSION = "codex-exec-broker/2"
@@ -215,6 +218,7 @@ class Broker:
         python: Path,
         git_common: Path,
         source_sha256: str,
+        lock_source_sha256: str,
     ) -> None:
         self.ledger = ledger.resolve(strict=True)
         self.workspace = workspace.resolve(strict=True)
@@ -227,6 +231,7 @@ class Broker:
         self.python = python.resolve(strict=True)
         self.git_common = git_common.resolve(strict=True)
         self.source_sha256 = source_sha256
+        self.lock_source_sha256 = lock_source_sha256
         self.server_pid = os.getpid()
         self.server_start_token = _process_start_token(self.server_pid)
         self._validate_static()
@@ -239,6 +244,9 @@ class Broker:
     def _validate_static(self) -> None:
         source = Path(__file__).resolve(strict=True)
         if hashlib.sha256(source.read_bytes()).hexdigest() != self.source_sha256:
+            raise BrokerError("BROKER_SOURCE_TAMPERED", "startup")
+        lock_source = Path(durable_lock.__file__).resolve(strict=True)
+        if hashlib.sha256(lock_source.read_bytes()).hexdigest() != self.lock_source_sha256:
             raise BrokerError("BROKER_SOURCE_TAMPERED", "startup")
         if BOUNDARY_VERSION != os.environ.get("CODEX_EXEC_BROKER_BOUNDARY"):
             raise BrokerError("BROKER_BOUNDARY_MISMATCH", "startup")
@@ -755,6 +763,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--git-common", type=Path, required=True)
     parser.add_argument("--source-sha256", required=True)
+    parser.add_argument("--lock-source-sha256", required=True)
     return parser
 
 
@@ -766,6 +775,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             attempt_id=args.attempt_id, fence=args.fence, handoff_path=args.handoff_path,
             bwrap=args.bwrap, python=args.python, git_common=args.git_common,
             source_sha256=args.source_sha256,
+            lock_source_sha256=args.lock_source_sha256,
         )
         return serve(broker)
     except BrokerError as exc:

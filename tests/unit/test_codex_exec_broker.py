@@ -71,6 +71,7 @@ class CodexExecBrokerTests(unittest.TestCase):
         )
         self.bwrap = shutil.which("bwrap") or "/usr/bin/false"
         source = Path(codex_exec_broker.__file__).resolve()
+        lock_source = Path(codex_exec_broker.durable_lock.__file__).resolve()
         self.broker_args = {
             "ledger": worktree_ledger.ledger_path(self.main), "workspace": self.workspace,
             "role": "issue-implementer", "task_key": self.task_key,
@@ -78,6 +79,7 @@ class CodexExecBrokerTests(unittest.TestCase):
             "bwrap": Path(self.bwrap), "python": Path("/usr/bin/python3"),
             "git_common": self.main / ".git",
             "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "lock_source_sha256": hashlib.sha256(lock_source.read_bytes()).hexdigest(),
         }
         boundary = mock.patch.dict(
             os.environ, {"CODEX_EXEC_BROKER_BOUNDARY": BOUNDARY_VERSION}
@@ -210,6 +212,8 @@ class CodexExecBrokerTests(unittest.TestCase):
     def test_source_tamper_and_boundary_mismatch_fail_at_startup(self):
         with self.assertRaisesRegex(BrokerError, "SOURCE_TAMPERED"):
             Broker(**{**self.broker_args, "source_sha256": "0" * 64})
+        with self.assertRaisesRegex(BrokerError, "SOURCE_TAMPERED"):
+            Broker(**{**self.broker_args, "lock_source_sha256": "0" * 64})
         with mock.patch.dict(os.environ, {"CODEX_EXEC_BROKER_BOUNDARY": "old"}):
             with self.assertRaisesRegex(BrokerError, "BOUNDARY_MISMATCH"):
                 Broker(**self.broker_args)
