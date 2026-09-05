@@ -457,6 +457,12 @@ class Broker:
         role_contract = self.workspace / ".ai" / "agents" / f"{self.role}.md"
         if role_contract.exists() or role_contract.is_symlink():
             protected.extend(("--ro-bind", str(role_contract), str(role_contract)))
+        bundle_root = Path(__file__).resolve(strict=True).parent
+        guarded = (
+            str(self.python), str(Path(__file__).resolve(strict=True)),
+            "--guard-exec", str(self.python), str(Path("/usr/bin/git").resolve(strict=True)),
+            "--", *command,
+        )
         return (
             str(self.bwrap), "--die-with-parent", "--new-session",
             "--unshare-user", "--uid", "0", "--gid", "0", "--unshare-pid", "--unshare-net",
@@ -466,29 +472,24 @@ class Broker:
             "--dir", "/proc", "--tmpfs", "/tmp", "--dir", "/tmp/home", "--clearenv",
             "--bind", str(self.workspace), str(self.workspace),
             "--ro-bind", str(self.git_common), str(self.git_common), *protected,
+            "--ro-bind", str(bundle_root), str(bundle_root),
             "--setenv", "HOME", "/tmp/home", "--setenv", "TMPDIR", "/tmp",
             "--setenv", "PATH", "/usr/bin:/bin",
             "--setenv", "GIT_CONFIG_GLOBAL", "/dev/null",
             "--setenv", "GIT_CONFIG_NOSYSTEM", "1", "--setenv", "GIT_PAGER", "cat",
             "--setenv", "PAGER", "cat",
-            "--setenv", "PYTHONDONTWRITEBYTECODE", "1", "--chdir", str(cwd), "--", *command,
+            "--setenv", "PYTHONDONTWRITEBYTECODE", "1", "--chdir", str(cwd), "--", *guarded,
         )
 
     def _run_process(self, command: Sequence[str], cwd: Path, timeout: int, use_pty: bool) -> dict[str, Any]:
         sandboxed = self._sandbox_command(command, cwd)
-        allowed_exec = (
-            self.bwrap, self.python, Path("/usr/bin/git").resolve(strict=True), _dynamic_loader()
-        )
         child_env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
-
-        def guard() -> None:
-            _restrict_execution(allowed_exec)
 
         def spawn(**kwargs) -> subprocess.Popen[bytes]:
             try:
                 return subprocess.Popen(
                     sandboxed, cwd=cwd, stdin=subprocess.DEVNULL,
-                    start_new_session=True, env=child_env, preexec_fn=guard, **kwargs,
+                    start_new_session=True, env=child_env, **kwargs,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
                 raise BrokerError("BROKER_EXEC_GUARD_FAILED", "preexec") from exc
@@ -768,8 +769,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _guard_exec(argv: Sequence[str]) -> int:
+    if len(argv) < 5 or argv[0] != "--guard-exec" or argv[3] != "--":
+        raise BrokerError("BROKER_EXEC_GUARD_INVALID", "preexec")
+    python = Path(argv[1]).resolve(strict=True)
+    git = Path(argv[2]).resolve(strict=True)
+    command = tuple(argv[4:])
+    if not command or Path(command[0]).resolve(strict=True) not in {python, git}:
+        raise BrokerError("BROKER_EXEC_GUARD_INVALID", "preexec")
+    _restrict_execution((python, git, _dynamic_loader()))
+    os.execve(command[0], list(command), dict(os.environ))
+    return 2
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    values = list(sys.argv[1:] if argv is None else argv)
+    if values[:1] == ["--guard-exec"]:
+        try:
+            return _guard_exec(values)
+        except (BrokerError, OSError) as exc:
+            reason = exc.reason if isinstance(exc, BrokerError) else "BROKER_EXEC_GUARD_FAILED"
+            print(json.dumps({"status": "denied", "reason": reason, "stage": "preexec"}), file=sys.stderr)
+            return 126
+    args = build_parser().parse_args(values)
     try:
         broker = Broker(
             ledger=args.ledger, workspace=args.workspace, role=args.role, task_key=args.task_key,
