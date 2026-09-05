@@ -458,7 +458,8 @@ class Broker:
         if role_contract.exists() or role_contract.is_symlink():
             protected.extend(("--ro-bind", str(role_contract), str(role_contract)))
         return (
-            str(self.bwrap), "--die-with-parent", "--new-session", "--unshare-pid", "--unshare-net",
+            str(self.bwrap), "--die-with-parent", "--new-session",
+            "--unshare-user", "--uid", "0", "--gid", "0", "--unshare-pid", "--unshare-net",
             "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin",
             "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64",
             "--ro-bind", "/etc", "/etc", "--dev", "/dev", "--remount-ro", "/dev",
