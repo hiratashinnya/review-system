@@ -96,6 +96,12 @@ gate と board が別の答えを出すこと自体が本 Issue の解こうと�
 waiver（`blocker_gate.waiver`）は適用しない。ボードは「依存グラフが実際にどうなって
 いるか」を映す方が誤解が少なく、waiver 適用の可否は Issue #460 のスコープ外。
 
+Issue の状態分類も再実装しない。`stateReason` が `DUPLICATE`（「Close as duplicate」）・
+欠落・GitHub が将来追加する未知値のいずれであっても、blocker gate と同じ
+`blocker_gate.model.classify_issue_state` が `CLOSED_OTHER`（解決済み）へ写すため、
+**日常的な duplicate クローズで本ツールが `ISSUE_STATE_UNKNOWN` abort に落ちることはない**
+（Issue #466・policy 2.0 §2.2）。abort が残るのは `state` 自体を読めない場合だけである。
+
 ## 遷移表
 
 | 現在の Status | ブロッカーあり | ブロッカーなし |

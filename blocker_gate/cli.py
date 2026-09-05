@@ -4,13 +4,51 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from .auth import resolve_github_token
 from .github import GitHubCollector
+from .model import POLICY_VERSION
 from .resolver import evaluate_snapshot, resolve_issue, resolve_pull_request
+
+
+# annotation 1行に詰め込む Issue ref の上限。超過分は件数だけ残す
+# （Actions の annotation は1行表示であり、長すぎると読めなくなる）。
+_MAX_REPORTED_REFS = 5
+
+
+def format_unrecognized_state_reasons(raw: Any) -> str:
+    """collector が観測した「本 policy 版が説明できない state reason」を1行にする。
+
+    Issue #466: 未知 reason は `CLOSED_OTHER` として closed 側へ倒すため判定は
+    止まらない。止まらない以上、増えたこと自体を外へ出さないと誰も気づけないので、
+    ここで検知結果を可視化する。**telemetry であり判定材料ではない**——欠落・型不正は
+    例外にせず空文字を返す（`last_rate_limit` と同じ扱い）。
+
+    型が壊れた入力の切り捨ては **比較（`sorted`）より前**に行う。Issue #466 の
+    再レビュー F-466-03: 型が混在した dict をそのまま `sorted` へ渡すと、ループ内の
+    `isinstance` ガードへ到達する前に `TypeError` が出る。ここで例外が漏れると
+    snapshot JSON を stdout へ書き終えた後に落ちて exit code が 0/20 以外になり、
+    workflow が publish 経路ごと失敗する——判定材料でない telemetry が判定材料の
+    供給を止めてしまう。
+    """
+    if not isinstance(raw, dict) or not raw:
+        return ""
+    items = [(key, value) for key, value in raw.items() if isinstance(key, str)]
+    parts: list[str] = []
+    for reason, refs in sorted(items):
+        listed = (
+            sorted(ref for ref in refs if isinstance(ref, str))
+            if isinstance(refs, (set, frozenset, list, tuple))
+            else []
+        )
+        head = ",".join(listed[:_MAX_REPORTED_REFS])
+        suffix = f"(+{len(listed) - _MAX_REPORTED_REFS})" if len(listed) > _MAX_REPORTED_REFS else ""
+        parts.append(f"{reason}={head}{suffix}" if head else reason)
+    return "; ".join(parts)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +114,31 @@ def run(
             f"errors={','.join(errors) or '-'} "
             f"rate_limit={rate_limit}\n"
         )
+        # Issue #466: policy 2.0 が知らない state reason の観測を外へ出す。
+        # **exit code は変えない**——未知 reason は `CLOSED_OTHER` として closed 側へ
+        # 倒すので判定は続行でき、ここで job を失敗させると「GitHub が enum を1つ
+        # 増やしただけ」で gate の材料供給が止まる。逆に何も出さないと、判定が
+        # 通ってしまう分だけ誰も語彙の増加に気づけない。だから止めずに知らせる。
+        unrecognized = format_unrecognized_state_reasons(
+            getattr(collector, "unrecognized_state_reasons", None)
+        )
+        if unrecognized:
+            stderr.write(
+                "blocker-gate snapshot UNRECOGNIZED_STATE_REASON "
+                f"{unrecognized}\n"
+            )
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                # Actions の annotation（run 一覧・summary に出る）。warning なので
+                # job は緑のまま＝運用者には届くが自動化は止まらない。
+                stderr.write(
+                    "::warning title=blocker-gate: unrecognized issue state reason::"
+                    f"policy {POLICY_VERSION} が説明できない state reason を観測した: "
+                    f"{unrecognized}. closed として評価を続行している"
+                    " (`REASON` 形式は GitHub 側の語彙が増えた合図なので"
+                    " blocker_gate.model.KNOWN_STATE_REASONS を、"
+                    " `STATE+REASON` 形式は state と両立しない矛盾応答なので"
+                    " blocker_gate.model.STATE_REASON_COMPATIBILITY を確認すること)\n"
+                )
         if degraded:
             stderr.write(
                 "blocker-gate snapshot DEGRADED: snapshot は publish したが"
