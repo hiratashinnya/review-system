@@ -105,11 +105,11 @@ def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, s
     return result
 
 
-def _codex_launch_path(codex: Path) -> str:
+def _codex_launch_path(codex: Path | str) -> str:
     """Build the smallest PATH needed by an env-based Codex launcher shebang."""
 
     try:
-        first = codex.open("rb").readline(256).decode("utf-8", errors="strict").strip()
+        first = Path(codex).open("rb").readline(256).decode("utf-8", errors="strict").strip()
     except (OSError, UnicodeDecodeError) as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID") from exc
     directories = ["/usr/bin", "/bin"]
