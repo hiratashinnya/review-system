@@ -14,6 +14,7 @@ import json
 import unittest
 from unittest.mock import patch
 
+from blocker_gate.cli import format_unrecognized_state_reasons
 from blocker_gate.cli import run as run_cli
 from blocker_gate.github import GitHubCollector
 from blocker_gate.model import (
@@ -182,11 +183,35 @@ class ClassifierTests(unittest.TestCase):
             classify_issue_state("CLOSED", "SOME_FUTURE_REASON"),
             (IssueClass.CLOSED_OTHER, "SOME_FUTURE_REASON"),
         )
-        # 既知語彙（DUPLICATE を含む）と reason 欠落は検知対象ではない。
-        # そうしないと duplicate クローズ1件で警告が常時鳴りっぱなしになる。
-        for reason in (None, *sorted(KNOWN_STATE_REASONS)):
-            with self.subTest(reason=reason):
-                self.assertIsNone(classify_issue_state("CLOSED", reason)[1])
+        # その state と両立する既知語彙（DUPLICATE を含む）と reason 欠落は
+        # 検知対象ではない。そうしないと duplicate クローズ1件で警告が
+        # 常時鳴りっぱなしになる。
+        for state, reason in (
+            ("CLOSED", None),
+            ("CLOSED", "COMPLETED"),
+            ("CLOSED", "NOT_PLANNED"),
+            ("CLOSED", "DUPLICATE"),
+            ("OPEN", None),
+            ("OPEN", "REOPENED"),
+        ):
+            with self.subTest(state=state, reason=reason):
+                self.assertIsNone(classify_issue_state(state, reason)[1])
+
+    def test_contradictory_state_and_reason_stays_detectable(self):
+        """F-466-02: `CLOSED`+`REOPENED` を無警告で吸収しない。
+
+        policy 1.2 ではこの矛盾応答が `UNKNOWN` → `ERROR` として必ず表に出ていた。
+        2.0 は判定を `CLOSED_OTHER`（解決済み）に倒すが、**観測手段までは消さない**。
+        """
+        issue_class, telemetry = classify_issue_state("CLOSED", "REOPENED")
+        self.assertIs(issue_class, IssueClass.CLOSED_OTHER)
+        self.assertEqual(telemetry, "CLOSED+REOPENED")
+        # 既知語彙であること自体は変えていない（語彙の増加ではなく矛盾として拾う）。
+        self.assertIn("REOPENED", KNOWN_STATE_REASONS)
+        # REST の小文字語彙でも同じ token になる（AC4）。
+        self.assertEqual(classify_issue_state("closed", "reopened")[1], "CLOSED+REOPENED")
+        # 一方 DUPLICATE は引き続き鳴らない（鳴りっぱなしの警告を作らない）。
+        self.assertIsNone(classify_issue_state("CLOSED", "DUPLICATE")[1])
 
     def test_unreadable_state_or_reason_stays_unknown(self):
         """fail-close は弱めない。読めないものは `UNKNOWN` のまま。"""
@@ -203,6 +228,20 @@ class ClassifierTests(unittest.TestCase):
                 self.assertEqual(
                     classify_issue_state(state, reason), (IssueClass.UNKNOWN, None)
                 )
+
+    def test_reason_type_check_precedes_the_state_branch(self):
+        """F-466-01: policy §2.2 の表は上から順に適用する（行2 が行3 に優先）。
+
+        `state` が読めていても `state reason` が文字列でも null でもなければ
+        応答が矛盾しているので `UNKNOWN`。`OPEN` 行へは到達しない。
+        """
+        for state in ("OPEN", "open", "CLOSED", "closed"):
+            for reason in (7, ["COMPLETED"], {"value": "COMPLETED"}, object()):
+                with self.subTest(state=state, reason=reason):
+                    self.assertEqual(
+                        classify_issue_state(state, reason),
+                        (IssueClass.UNKNOWN, None),
+                    )
 
     def test_rest_and_graphql_casing_land_on_the_same_class(self):
         """判定の一次情報源を経路ごとに分岐させない（AC4・大小文字だけ吸収する）。"""
@@ -312,12 +351,56 @@ class SnapshotCliDetectionTests(FrozenClockMixin, unittest.TestCase):
                 graphql_node(9, state="CLOSED", state_reason="DUPLICATE"),
                 graphql_node(8, state="CLOSED", state_reason=None),
                 graphql_node(7, state="OPEN"),
+                graphql_node(6, state="OPEN", state_reason="REOPENED"),
             ],
             env={"GITHUB_ACTIONS": "true"},
         )
         self.assertEqual(code, 0)
         self.assertNotIn("UNRECOGNIZED_STATE_REASON", stderr)
         self.assertNotIn("::warning", stderr)
+
+    def test_contradictory_state_and_reason_reaches_the_operator(self):
+        """F-466-02: `CLOSED`+`REOPENED` は判定を止めずに運用者へ届く。"""
+        code, stdout, stderr = self.run_snapshot(
+            [
+                graphql_node(9, state="CLOSED", state_reason="REOPENED"),
+                graphql_node(8, state="CLOSED", state_reason="DUPLICATE"),
+            ],
+            env={"GITHUB_ACTIONS": "true"},
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("UNRECOGNIZED_STATE_REASON", stderr)
+        self.assertIn(f"CLOSED+REOPENED={REPOSITORY}#9", stderr)
+        self.assertIn("::warning title=blocker-gate:", stderr)
+        self.assertNotIn("::error", stderr)
+        # 鳴らすのは矛盾した1件だけ。DUPLICATE は巻き込まない。
+        self.assertNotIn("DUPLICATE", stderr)
+        # 判定は解決済み側のまま（検知は verdict を動かさない）。
+        payload = json.loads(stdout)
+        self.assertEqual(payload["issues"][f"{REPOSITORY}#9"]["state"], "CLOSED_OTHER")
+
+
+class TelemetryFormattingTests(unittest.TestCase):
+    """F-466-03: telemetry の整形は判定材料の供給を止めない（例外を投げない）。"""
+
+    def test_non_string_keys_are_dropped_before_sorting(self):
+        """キー型が混在しても `sorted` の手前で落とすので `TypeError` にならない。"""
+        self.assertEqual(format_unrecognized_state_reasons({1: set(), "A": set()}), "A")
+
+    def test_malformed_telemetry_never_raises(self):
+        cases = (
+            (None, ""),
+            ({}, ""),
+            ([("A", set())], ""),
+            ({1: {"x"}, None: {"y"}}, ""),
+            ({"A": {1, "b"}}, "A=b"),
+            ({"A": 7}, "A"),
+            ({"B": {"r2"}, "A": {"r1"}}, "A=r1; B=r2"),
+            ({"CLOSED+REOPENED": {f"{REPOSITORY}#9"}}, f"CLOSED+REOPENED={REPOSITORY}#9"),
+        )
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(format_unrecognized_state_reasons(raw), expected)
 
 
 class ProjectStatusSyncAgreementTests(FrozenClockMixin, unittest.TestCase):

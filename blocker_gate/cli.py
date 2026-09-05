@@ -21,20 +21,30 @@ _MAX_REPORTED_REFS = 5
 
 
 def format_unrecognized_state_reasons(raw: Any) -> str:
-    """collector が観測した「本 policy 版が知らない state reason」を1行にする。
+    """collector が観測した「本 policy 版が説明できない state reason」を1行にする。
 
     Issue #466: 未知 reason は `CLOSED_OTHER` として closed 側へ倒すため判定は
     止まらない。止まらない以上、増えたこと自体を外へ出さないと誰も気づけないので、
     ここで検知結果を可視化する。**telemetry であり判定材料ではない**——欠落・型不正は
     例外にせず空文字を返す（`last_rate_limit` と同じ扱い）。
+
+    型が壊れた入力の切り捨ては **比較（`sorted`）より前**に行う。Issue #466 の
+    再レビュー F-466-03: 型が混在した dict をそのまま `sorted` へ渡すと、ループ内の
+    `isinstance` ガードへ到達する前に `TypeError` が出る。ここで例外が漏れると
+    snapshot JSON を stdout へ書き終えた後に落ちて exit code が 0/20 以外になり、
+    workflow が publish 経路ごと失敗する——判定材料でない telemetry が判定材料の
+    供給を止めてしまう。
     """
     if not isinstance(raw, dict) or not raw:
         return ""
+    items = [(key, value) for key, value in raw.items() if isinstance(key, str)]
     parts: list[str] = []
-    for reason, refs in sorted(raw.items()):
-        if not isinstance(reason, str):
-            continue
-        listed = sorted(refs) if isinstance(refs, (set, frozenset, list, tuple)) else []
+    for reason, refs in sorted(items):
+        listed = (
+            sorted(ref for ref in refs if isinstance(ref, str))
+            if isinstance(refs, (set, frozenset, list, tuple))
+            else []
+        )
         head = ",".join(listed[:_MAX_REPORTED_REFS])
         suffix = f"(+{len(listed) - _MAX_REPORTED_REFS})" if len(listed) > _MAX_REPORTED_REFS else ""
         parts.append(f"{reason}={head}{suffix}" if head else reason)
@@ -122,9 +132,12 @@ def run(
                 # job は緑のまま＝運用者には届くが自動化は止まらない。
                 stderr.write(
                     "::warning title=blocker-gate: unrecognized issue state reason::"
-                    f"policy {POLICY_VERSION} が知らない state reason を観測した: "
+                    f"policy {POLICY_VERSION} が説明できない state reason を観測した: "
                     f"{unrecognized}. closed として評価を続行している"
-                    " (blocker_gate.model.KNOWN_STATE_REASONS を更新すること)\n"
+                    " (`REASON` 形式は GitHub 側の語彙が増えた合図なので"
+                    " blocker_gate.model.KNOWN_STATE_REASONS を、"
+                    " `STATE+REASON` 形式は state と両立しない矛盾応答なので"
+                    " blocker_gate.model.STATE_REASON_COMPATIBILITY を確認すること)\n"
                 )
         if degraded:
             stderr.write(

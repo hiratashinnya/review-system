@@ -100,15 +100,18 @@ IssueClass =
   | UNKNOWN
 ```
 
-分類規則は次のとおりである。**分岐は `state` で決まり、`state reason` は closed をさらに細分するだけである。**
+分類規則は次のとおりである。**表は上から順に評価し、最初に一致した行だけを適用する。** 行1・行2 の fail-close 判定を通過して初めて `state` による分岐（行3 以降）に入るため、どの入力も落ちる行は一つに定まる。その分岐に入った後は、**分岐は `state` で決まり、`state reason` は closed をさらに細分するだけである。**
 
-| GitHub state | state reason | IssueClass | dependency 上の意味 |
-|---|---|---|---|
-| `OPEN` | 任意 | `OPEN` | 未解決 |
-| `CLOSED` | `COMPLETED` | `CLOSED_COMPLETED` | 解決済み |
-| `CLOSED` | `NOT_PLANNED` | `CLOSED_NOT_PLANNED` | 解決済み。state reason は evidence に保持 |
-| `CLOSED` | 上記以外（`DUPLICATE`、欠落 / null、本 policy 版が知らない将来の reason） | `CLOSED_OTHER` | 解決済み。認識外 reason は下記の検知経路へ出す |
-| `state` を読めない（欠落・型不正・上記以外の値）、または `state reason` が文字列でも null でもない | 任意 | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| # | GitHub state | state reason | IssueClass | dependency 上の意味 |
+|---|---|---|---|---|
+| 1 | 読めない（欠落・型不正・`OPEN` / `CLOSED` 以外の値） | 任意 | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| 2 | 任意 | 文字列でも null でもない | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| 3 | `OPEN` | 任意（行2 を通過済みなので文字列または null） | `OPEN` | 未解決 |
+| 4 | `CLOSED` | `COMPLETED` | `CLOSED_COMPLETED` | 解決済み |
+| 5 | `CLOSED` | `NOT_PLANNED` | `CLOSED_NOT_PLANNED` | 解決済み。state reason は evidence に保持 |
+| 6 | `CLOSED` | 上記以外（`DUPLICATE`、欠落 / null、本 policy 版が知らない将来の reason） | `CLOSED_OTHER` | 解決済み。説明できない reason は下記の検知経路へ出す |
+
+適用順を明示するのは、行の条件だけでは排他にならないためである（Issue #466 再レビュー F-466-01）。例えば `(state = OPEN, state reason = 7)` は行2 に当たって `UNKNOWN` であり、行3 には到達しない——`state` を読めていても `state reason` が文字列でも null でもない応答は矛盾しているので、fail-close 側に倒す。実装 `blocker_gate/model.py::classify_issue_state` もこの順（`state` の型 → `state reason` の型 → `state` による分岐）で書かれている。
 
 PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` とする。物理 state は変更しない。GitHub が closed と返す blocker は state reason にかかわらず解決済みとし、open blocker だけを dependency violation とする。waiver は後述の限定条件でのみ使用できる。
 
@@ -117,9 +120,18 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 **未知 state reason の扱い＝分類ではなく検知（Issue #466）**: GitHub が将来 `IssueStateReason` に値を追加した場合、その値は本 policy 版にとって未知である。**未知値を事前に分類しようとしない**（何が追加されるかは追加されるまで分からないので、`CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` のどちらへ寄せる規則も根拠を持てない）。代わりに次の2つを分けて満たす。
 
 - **判定**: closed である事実だけを使って `CLOSED_OTHER`（解決済み）とし、gate も同期も止めない。
-- **検知**: 本 policy 版が認識している reason 語彙（`blocker_gate/model.py` の `KNOWN_STATE_REASONS` ＝ `COMPLETED` / `NOT_PLANNED` / `DUPLICATE` / `REOPENED`）に無い値を観測したら、収集器がそれを **telemetry として記録**し、`blocker_gate snapshot` が stderr へ `UNRECOGNIZED_STATE_REASON` 行を、GitHub Actions 上では `::warning` annotation を出す。閉じた snapshot schema（`blocker-gate-repository-snapshot/v1`）には載せない——判定材料ではないからで、`rateLimit` telemetry（3.3・F-345-04）と同じ扱いである。**exit code は変えない**（未知 reason だけで snapshot 生成を失敗させない）。
+- **検知**: 本 policy 版が **説明できない** `(state, state reason)` の観測を、収集器が **telemetry として記録**し、`blocker_gate snapshot` が stderr へ `UNRECOGNIZED_STATE_REASON` 行を、GitHub Actions 上では `::warning` annotation を出す。閉じた snapshot schema（`blocker-gate-repository-snapshot/v1`）には載せない——判定材料ではないからで、`rateLimit` telemetry（3.3・F-345-04）と同じ扱いである。**exit code は変えない**（検知だけで snapshot 生成を失敗させない）。
 
-この検知は「GitHub 側の語彙が増えた」ことを運用者へ届けるためのものであり、届いた後に `KNOWN_STATE_REASONS` と本表を更新するかどうかはオーナー判断である。`DUPLICATE` は policy `2.0` 時点で既知語彙に含まれるため、duplicate クローズを1件行っただけでは検知は鳴らない（鳴りっぱなしの警告を作らない）。
+「説明できない観測」は次の2種類であり、telemetry token の形で区別する。
+
+| 種類 | 条件 | token 形式 | 運用者の確認先 |
+|---|---|---|---|
+| 語彙の増加 | 本 policy 版が認識している reason 語彙（`blocker_gate/model.py` の `KNOWN_STATE_REASONS` ＝ `COMPLETED` / `NOT_PLANNED` / `DUPLICATE` / `REOPENED`）に無い値 | `REASON`（例 `SOME_FUTURE_REASON`） | `KNOWN_STATE_REASONS` と上の分類表 |
+| 矛盾応答 | 語彙は既知だが、その `state` と両立しない組み合わせ（`blocker_gate/model.py` の `STATE_REASON_COMPATIBILITY` ＝ `OPEN` は `REOPENED`、`CLOSED` は `COMPLETED` / `NOT_PLANNED` / `DUPLICATE`） | `STATE+REASON`（例 `CLOSED+REOPENED`） | GitHub 応答そのもの。policy 側の想定漏れなら `STATE_REASON_COMPATIBILITY` |
+
+矛盾応答を別建てで検知するのは Issue #466 再レビュー F-466-02 の是正である。policy `1.2` までは `CLOSED` + `REOPENED` のような内部矛盾した応答が `UNKNOWN` → `ERROR/ISSUE_STATE_UNKNOWN` として必ず表に出ていた。2.0 の写像変更でこれは `CLOSED_OTHER` に吸収されるため、**判定を止めない代わりに観測手段だけが消えないよう**、検知側で拾い直す。**判定は `CLOSED_OTHER`（解決済み）のまま変えない**——closed という観測事実は矛盾していないので、そこを fail-close へ戻す理由はない。
+
+この検知は「GitHub 側の語彙が増えた」「GitHub の応答が想定と噛み合っていない」ことを運用者へ届けるためのものであり、届いた後に上記2つの集合と本表を更新するかどうかはオーナー判断である。`DUPLICATE` は policy `2.0` 時点で `CLOSED` と両立する既知語彙に含まれるため、duplicate クローズを1件行っただけでは検知は鳴らない（鳴りっぱなしの警告を作らない）。同様に `OPEN` + `REOPENED` は正常な組み合わせなので鳴らない。
 
 分類の実装は `blocker_gate/model.py::classify_issue_state` 1か所だけとし、REST 経路（小文字語彙）と GraphQL 経路（大文字語彙）はどちらもこれを呼ぶ。**判定の一次情報源を取得経路ごとに分岐させない。**
 

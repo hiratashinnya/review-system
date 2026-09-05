@@ -110,10 +110,11 @@ class GitHubCollector:
         # （`blocker-gate-repository-snapshot/v1` の top-level key は
         # `snapshot.parse_repository_snapshot` が完全一致で閉じている）。
         self.last_rate_limit: dict[str, Any] | None = None
-        # Issue #466: 直近の収集で観測した「本 policy 版が知らない state reason」。
+        # Issue #466: 直近の収集で観測した「本 policy 版が説明できない state reason」
+        # ＝未知語彙、および state と両立しない矛盾組み合わせ（F-466-02）。
         # `last_rate_limit` と同じく **telemetry 専用**で判定には一切使わないため、
         # 閉じた snapshot schema へは載せず collector の属性として公開する。
-        # reason 値 -> それを返した Issue ref の集合。
+        # telemetry token（`REASON` または `STATE+REASON`）-> それを返した Issue ref の集合。
         self.unrecognized_state_reasons: dict[str, set[str]] = {}
 
     def _classify(self, ref: str, state: Any, reason: Any) -> str:

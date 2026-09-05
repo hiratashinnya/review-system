@@ -42,6 +42,40 @@ class IssueClass(str, Enum):
 # closed/open だけで決まるので、この集合が古くなっても run は止まらない。
 KNOWN_STATE_REASONS = frozenset({"COMPLETED", "NOT_PLANNED", "DUPLICATE", "REOPENED"})
 
+# 各 `state` と両立する reason 語彙（Issue #466 再レビュー F-466-02）。
+# `KNOWN_STATE_REASONS` は「語彙として見たことがあるか」だけを表すので、
+# **見たことのある語彙どうしの矛盾した組み合わせ**（`CLOSED` なのに `REOPENED`）を
+# 素通ししてしまう。policy `1.2` まではこの組み合わせが `UNKNOWN`→`ERROR` で
+# 可視だったため、2.0 の写像変更で観測手段だけが失われないよう検知側で補う。
+# **判定には使わない**——`CLOSED`+`REOPENED` の verdict は他の CLOSED_* と同じ
+# 「解決済み」のままで、ここで拾うのは telemetry だけである。
+STATE_REASON_COMPATIBILITY: Mapping[str, frozenset[str]] = {
+    "OPEN": frozenset({"REOPENED"}),
+    "CLOSED": frozenset({"COMPLETED", "NOT_PLANNED", "DUPLICATE"}),
+}
+
+
+def _state_reason_telemetry(state_token: str, reason_token: str | None) -> str | None:
+    """観測した `(state, reason)` のうち、本 policy 版が説明できないものを返す。
+
+    返り値は telemetry 用の token で、判定には一切使わない（`None`＝説明できている）。
+
+    - 語彙自体が未知（`KNOWN_STATE_REASONS` 外）→ その reason 値をそのまま返す。
+      「GitHub 側の語彙が増えた」ことを表す。
+    - 語彙は既知だが、その `state` と両立しない組み合わせ → `"<STATE>+<REASON>"`。
+      GitHub の応答が内部矛盾していることを表す（例: `CLOSED+REOPENED`）。
+
+    `DUPLICATE` は `CLOSED` と両立する既知語彙なので鳴らない（duplicate クローズ1件で
+    警告が鳴りっぱなしになるのを避ける・policy §2.2）。
+    """
+    if reason_token is None:
+        return None
+    if reason_token not in KNOWN_STATE_REASONS:
+        return reason_token
+    if reason_token not in STATE_REASON_COMPATIBILITY.get(state_token, frozenset()):
+        return f"{state_token}+{reason_token}"
+    return None
+
 
 def classify_issue_state(state: Any, reason: Any) -> tuple[IssueClass, str | None]:
     """GitHub の ``state``/``state reason`` を ``IssueClass`` へ写す唯一の正本。
@@ -50,10 +84,16 @@ def classify_issue_state(state: Any, reason: Any) -> tuple[IssueClass, str | Non
     ``NOT_PLANNED``）で大小文字だけが違うので、ここで正規化して1か所に畳む。
     判定の一次情報源を経路ごとに分岐させない（Issue #466 AC4）。
 
-    返すのは ``(IssueClass, 認識外だった reason 値 | None)`` の2つ組。第2要素は
-    **telemetry 専用**であり verdict には一切影響しない。`KNOWN_STATE_REASONS`
-    に無い reason を観測したことだけを呼出側へ伝える（Issue #466 AC5 の「未知値を
-    事前に分類せず、増えたことを検知する」）。
+    返すのは ``(IssueClass, 説明できなかった観測の telemetry token | None)`` の2つ組。
+    第2要素は **telemetry 専用**であり verdict には一切影響しない。未知語彙
+    （`KNOWN_STATE_REASONS` 外）と、既知語彙どうしの矛盾した組み合わせ
+    （`STATE_REASON_COMPATIBILITY` 外・例 ``CLOSED``+``REOPENED``）の両方を
+    呼出側へ伝える（Issue #466 AC5 の「未知値を事前に分類せず、増えたことを
+    検知する」＋ 再レビュー F-466-02）。
+
+    **評価順は fail-close 側が先**（policy §2.2 の分類表と同順）。``state`` を
+    読めない場合と ``state reason`` が文字列でも null でもない場合を先に
+    ``UNKNOWN`` へ落としてから、``state`` による分岐に入る。
 
     依存仕様: ``docs/methods/blocker-gate-pre-use-policy.md`` §2.2（policy 2.0）。
     """
@@ -64,19 +104,18 @@ def classify_issue_state(state: Any, reason: Any) -> tuple[IssueClass, str | Non
         # reason field が文字列でも null でもない＝応答が矛盾している。
         return IssueClass.UNKNOWN, None
     reason_token = reason.upper() if isinstance(reason, str) else None
-    unrecognized = (
-        reason_token
-        if reason_token is not None and reason_token not in KNOWN_STATE_REASONS
-        else None
-    )
     state_token = state.upper()
+    unrecognized = _state_reason_telemetry(state_token, reason_token)
     if state_token == "OPEN":
         return IssueClass.OPEN, unrecognized
     if state_token == "CLOSED":
+        # telemetry は全分岐で `_state_reason_telemetry` の判断へ委ねる（両者とも
+        # `CLOSED` と両立する既知語彙なので実際には常に None になるが、`None` を
+        # 個別にハードコードすると互換表が唯一の正本でなくなる）。
         if reason_token == "COMPLETED":
-            return IssueClass.CLOSED_COMPLETED, None
+            return IssueClass.CLOSED_COMPLETED, unrecognized
         if reason_token == "NOT_PLANNED":
-            return IssueClass.CLOSED_NOT_PLANNED, None
+            return IssueClass.CLOSED_NOT_PLANNED, unrecognized
         # GitHub が closed と返している以上、blocker としては解決済みである
         # （policy §2.2 の散文が元々そう定めていた）。reason を推測して
         # COMPLETED / NOT_PLANNED のどちらかへ寄せることはしない。
