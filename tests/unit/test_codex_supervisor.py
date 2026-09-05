@@ -464,15 +464,20 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(runner.calls, [])
         self.assertEqual(self.entry()["supervisor_attempts"][-1]["state"], "failed")
 
-    def test_installed_cli_accepts_supervised_feature_and_mcp_config_without_model(self):
+    def test_installed_cli_and_broker_accept_supervised_config_without_model(self):
         codex = shutil.which("codex")
         if codex is None:
             self.skipTest("codex is not installed")
+        fence = "c" * 32
+        attempt = _reserve_attempt(
+            self.spec, now=NOW, resume_thread=None, broker_fence=fence
+        )
         command = build_codex_command(
             self.spec, bwrap_executable=self.bwrap, codex_executable=codex,
-            attempt_id="a" * 32, broker_fence="b" * 32,
+            attempt_id=attempt, broker_fence=fence,
         )
         validate_cli_compatibility(command)
+        validate_broker_protocol(command)
 
     def test_codex_payload_visible_in_broker_child_mounts_is_rejected(self):
         visible_codex = self.workspace / "codex-visible"
