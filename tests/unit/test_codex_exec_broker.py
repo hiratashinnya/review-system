@@ -379,18 +379,20 @@ class CodexExecBrokerTests(unittest.TestCase):
         real_replace = os.replace
         real_fsync = os.fsync
 
-        def die():
+        def die(*_args, **_kwargs):
             os.kill(os.getpid(), signal.SIGKILL)
 
         def run_crash(request_id, install, *, persisted):
             pid = os.fork()
             if pid == 0:
-                install(die)
-                self.broker._append_event(
-                    {"state": "completed", "action": "audit", "argv_sha256": "b" * 64},
-                    request_id=request_id,
-                )
-                os._exit(120)
+                try:
+                    install(die)
+                    self.broker._append_event(
+                        {"state": "completed", "action": "audit", "argv_sha256": "b" * 64},
+                        request_id=request_id,
+                    )
+                finally:
+                    os._exit(120)
             _, status = os.waitpid(pid, 0)
             self.assertTrue(os.WIFSIGNALED(status), (request_id, status))
             self.assertEqual(os.WTERMSIG(status), signal.SIGKILL)
