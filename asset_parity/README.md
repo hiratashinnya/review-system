@@ -127,14 +127,26 @@ tree), not a one-off documented carve-out:
 - **Text + JSON, one command**: text for a human running it locally, JSON for
   CI/other tooling to parse; `--format both` when you want both at once.
 
-## CI wiring (issue #155 follow-up, closed)
+## CI wiring (issue #155 follow-up, closed; paths filter corrected in #467)
 
 `.github/workflows/asset-parity.yml` runs `python3 -m asset_parity check` on
 every `push`/`pull_request` whose diff touches any of the four asset trees
-(`.claude/skills|agents`, `.github/skills|agents`, `.codex/agents`,
-`.agents/skills`) — the `paths:` filter deliberately spans all four, so the
-check fires regardless of which platform/tool made the change (Claude Code,
-Copilot, Codex CLI, or a human), not just when `.claude/` changes.
+(`.claude/skills|agents`, `.github/skills|prompts|agents`, `.codex/agents`,
+`.agents/skills`) — the `paths:` filter deliberately spans all seven mirror
+roots (GitHub Copilot alone has two: `.github/skills/**` for plain skills and
+`.github/prompts/**` for `disable-model-invocation: true` orchestrator
+skills), so the check fires regardless of which platform/tool made the
+change (Claude Code, Copilot, Codex CLI, or a human), not just when
+`.claude/` changes. It also fires on `.ai/**` (the shared normative source
+under "Non-active shared material" above) as a *trigger-only* addition —
+this does not add `.ai/` to the inventory `check` reads (that boundary is
+Issue #407's decision and is unchanged), it only makes sure a PR that edits
+`.ai/` doesn't skip the check that verifies the `.claude/` wrapper linking to
+it. `tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
+list against `asset_parity/trees.py`/`inventory.py` so the two can't drift
+apart silently again (Issue #467 — a prior drift where `trees.py` already
+scanned `.github/prompts/` but `paths:` omitted it went undetected until a
+manual audit).
 
 Failure policy: the workflow uses the tool's **default** exit-code contract
 (no `--fail-on-stale`) — a genuine `MISSING` gap (present in `.claude/`,
