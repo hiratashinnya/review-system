@@ -26,6 +26,7 @@ from issue_start.codex_supervisor import (
     SupervisorSpec,
     SubprocessJsonlRunner,
     _canonical_json_sha256,
+    _codex_launch_path,
     _minimal_process_env,
     _reserve_attempt,
     _record_attempt,
@@ -2062,6 +2063,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     separator = initial.index("--")
                     sandbox_outer = initial[:separator] + (
                         "--setenv", "HOME", str(clean_home),
+                        "--setenv", "PATH", _codex_launch_path(codex),
                     ) + initial[separator : separator + 1]
                     legacy_outer = list(sandbox_outer)
                     legacy_outer.remove("--unshare-pid")
