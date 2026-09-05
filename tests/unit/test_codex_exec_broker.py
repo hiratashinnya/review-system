@@ -46,8 +46,8 @@ class CodexExecBrokerTests(unittest.TestCase):
         self.workspace = self.main / ".worktrees/broker"
         self.workspace.parent.mkdir()
         git(self.main, "worktree", "add", "-b", "codex/broker", str(self.workspace), "HEAD")
-        self.handoff = "tmp/_handoff/issue-implementer--issue-452-f19.json"
-        self.task_key = "issue_452_f19_test"
+        self.handoff = "tmp/_handoff/issue-implementer--issue-452-f19.yaml"
+        self.task_key = "issue_452"
         oid = git(self.workspace, "rev-parse", "HEAD")
         prepare_binding(
             issue=452, round_number=1, repository="example/repo", workspace=self.workspace,

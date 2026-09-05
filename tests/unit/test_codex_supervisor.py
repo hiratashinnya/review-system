@@ -1179,6 +1179,8 @@ class CodexSupervisorTests(unittest.TestCase):
             spec, prompt="Fix assigned findings.", now=NOW + timedelta(seconds=1),
             bwrap_executable=self.bwrap, codex_executable=self.codex,
             runner=FakeRunner(self.success_lines("thread-fixer")),
+            compatibility_checker=lambda _command: None,
+            broker_checker=lambda _command: None,
         )
 
         def fixer_runner(command, **kwargs):
