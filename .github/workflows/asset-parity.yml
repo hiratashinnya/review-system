@@ -3,17 +3,36 @@ name: asset-parity
 # Issue #155: cross-platform asset (skills/agents) sync check.
 # Any of the four asset trees can be updated by any platform/tool (Claude Code,
 # GitHub Copilot, Codex CLI, or a human editing the files directly) — the
-# `paths:` filter below intentionally covers all four trees so this workflow
-# fires regardless of which one changed, not just `.claude/`.
+# `paths:` filter below intentionally covers all four trees (seven mirror
+# roots in total, since GitHub Copilot alone has two: `.github/skills/**` for
+# plain skills and `.github/prompts/**` for `disable-model-invocation: true`
+# orchestrator skills — see `asset_parity/trees.py::mirror_root_dirs()`) so
+# this workflow fires regardless of which one changed, not just `.claude/`.
+# `.github/prompts/**` was missing from this list until Issue #467 even
+# though `trees.py` already scanned it — this is exactly the class of drift
+# `tests/unit/test_asset_parity_ci_paths.py` now guards against.
+#
+# Issue #467: `.ai/**` below is a *trigger-only* addition — the common
+# normative Source of Truth that `.claude/skills|agents/` wrappers link to
+# (see `asset_parity/README.md`'s "Non-active shared material (Issue #407)"
+# section). This does NOT reopen or widen Issue #407's decision: `.ai/` stays
+# outside `scan_parity_seeds()`/`staleness.compare()` — `asset_parity check`
+# still does not read `.ai/` content. Trigger condition (when this workflow
+# runs) and inspection scope (what `check` reads) are separate axes; adding
+# `.ai/**` here only ensures a PR that edits the shared source doesn't
+# silently skip the check that verifies its `.claude/` wrapper still mirrors
+# correctly elsewhere.
 on:
   push:
     paths:
       - ".claude/skills/**"
       - ".claude/agents/**"
       - ".github/skills/**"
+      - ".github/prompts/**"
       - ".github/agents/**"
       - ".codex/agents/**"
       - ".agents/skills/**"
+      - ".ai/**"
       - "asset_parity/**"
       - ".github/workflows/asset-parity.yml"
   pull_request:
@@ -21,9 +40,11 @@ on:
       - ".claude/skills/**"
       - ".claude/agents/**"
       - ".github/skills/**"
+      - ".github/prompts/**"
       - ".github/agents/**"
       - ".codex/agents/**"
       - ".agents/skills/**"
+      - ".ai/**"
       - "asset_parity/**"
       - ".github/workflows/asset-parity.yml"
   workflow_dispatch:
