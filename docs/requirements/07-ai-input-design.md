@@ -1,8 +1,40 @@
 # 07. AI 入力設計（レビュー時の LLM 入出力）
 
-> **🟢 確定・MVP 実装準拠**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）：本書の入出力契約は確定し、**MVP 実装がこれに準拠**している。
-> 準拠する実装＝`review_system/core/evaluate.py`（④評価＋⑤契約検証）・`review_system/ports/platform.py`（`PlatformPort` 契約＝PF 差し替え可）・
-> `review_system/prompts/registry.py`（プロンプト雛形と版＝S6 版スタンプ）。テスト＝`tests/unit/test_pipeline_e2e.py`（`FakePlatformAdapter` で決定化）。
+> **🟢 契約（本書が定める入出力の形）は確定**（2026-07-27・[A2](../dashboard.md#-ネクストアクション次にやる候補)）。
+> ただし**契約の確定と、それを強制する実装の存在は別物**なので、実装済み範囲を以下に限定して読むこと
+> （2026-07-29 Codex 第4巡レビュー指摘・過大表示の是正）。
+>
+> **実装済み（＝コードで動く範囲）**：
+> - **有効な findings JSON の受理**：`adapters/file_platform.py` の `FilePlatformAdapter` が
+>   `--findings <path>` の JSON を `json.loads` し、下記スキーマの形をドメイン型
+>   （`Finding`/`UnmatchedFinding`/`SuggestedFix{description, diff}`）へ写像する。
+> - **単一 fix の全内容上書き**：`core/apply.py` の `apply_auto` が 🤖 区分の `suggested_fix.diff` を
+>   `persistence/workspace_git.py` の `commit_fix`（`write_text`）へ渡し、対象ファイルを**丸ごと置換**する。
+> - **契約検証テスト**：`tests/unit/test_cli_p2.py` が `FilePlatformAdapter` で実 JSON をパースし
+>   `suggested_fix.diff` まで検証し、CLI 経由で `--findings f.json` を適用まで通す。
+>
+> **未実装（＝本書の記述は要件/設計であって、現状それを保証する制御は無い）**：
+> - **プロンプト雛形そのものが無い**。`prompts/registry.py` は `TEMPLATE_VERSIONS`／`REVIEW_VERSION` の
+>   **版定数だけ**で、下記「入力の構成」の役割文・観点パック・出力スキーマ指定を組み立てる**ビルダーが存在しない**。
+> - **入力を渡す経路が無い**。`FilePlatformAdapter.review(pack, targets, references)` は
+>   3引数を**いずれも使わず**、あらかじめ人手/Claude が書いた JSON を読むだけ（＝PF 駆動 MVP の実体・[DD8](../design/decisions.md)）。
+>   したがって「routing 用メタを入力に載せない」「`rule_id` を与えた集合から選ばせる」等は
+>   **プロンプト側の規律**であって、コードが強制しているわけではない。
+> - **`suggested_fix.diff` が本当に「修正後ファイルの全内容」かを検査する制御が無い**。
+>   受け取った文字列をそのまま全上書きするため、部分断片が来ればファイルはその断片で置き換わる。
+>   テストも「文字列が読めること」までで、**全内容であることの検証はしていない**。
+> - **同一ファイルに複数 finding があるときの衝突検出・統合が無い**（後勝ち上書き）＝
+>   [Q27](../dashboard.md#-未決事項決めないと進めない論点)。
+>
+> 📝 **2026-07-28 訂正**：本書の JSON 例は `suggested_fix` を**文字列**で示しており、実装の型
+> `SuggestedFix{description, diff}`（`domain/review.py`）と食い違っていた（Codex 第二意見レビュー指摘）。
+> **本 PR で例をオブジェクト形式へ修正済み**。当初これを「実 JSON の契約検証が無い」と記載したが**それは誤り**で、
+> 上記のとおり検証は存在する。誤った記述は Q26 からも撤回した。
+>
+> 📝 **2026-07-29 再訂正**：上記のオブジェクト化の際、`diff` の値を **unified diff 風**（`-…/+…`）で例示してしまったが、
+> それも実装の意味と食い違っていた（Codex 第3巡レビュー指摘）。**MVP の `suggested_fix.diff` は「修正後ファイルの全内容」**
+> （`persistence/workspace_git.py:61-67` `commit_fix` が `write_text` で丸ごと上書き）。例を全内容形式へ差し替え、
+> 下の出力スキーマ節に契約を明記した。
 
 レビュー実行時に LLM へ「何を渡し・何を返させるか」の設計。これが MVP の中核。
 対象は**役割①レビュー時の LLM**（文書＋合成基準 → 指摘）。役割②（合成前の本文矛盾チェック）は
@@ -46,7 +78,7 @@ LLM の仕事は **「観点違反の発見＋`rule id` 付与＋修正原案」
       "location": { "file": "src/UserCard.tsx", "line_range": [1, 1] },
       "quote": "function userCard() {",
       "rationale": "コンポーネントが camelCase。PascalCase にすべき。",
-      "suggested_fix": "function UserCard() {"
+      "suggested_fix": { "description": "PascalCase へ改名", "diff": "function UserCard() {\n  if (cond) {\n    const [open, setOpen] = useState(false);\n  }\n}\n" }
     }
   ],
   "unmatched": [
@@ -64,6 +96,13 @@ LLM の仕事は **「観点違反の発見＋`rule id` 付与＋修正原案」
 - `severity` / `mode` は**含めない**（プログラムが `rule_id → determinism×severity → ポリシー` で付与）。
 - `unmatched` は「観点としては妥当そうだが既存 id に当たらない」指摘の受け皿（Q7）。
   育成ループ（[04](04-feedback-loop.md)）で新ルール候補の素材になる。
+- ⚠️ **`suggested_fix.diff` の中身は「修正後ファイルの全内容」**（MVP・unified diff **ではない**）。
+  フィールド名は歴史的経緯で `diff` だが、実装は受け取った文字列を**そのままファイルへ書き戻す**：
+  `core/apply.py` の `apply_auto` が `workspace.commit_fix(exec_id, key, rel, fix.diff)` を呼び、
+  `persistence/workspace_git.py:61-67` の `commit_fix` が `target.write_text(new_content)` で丸ごと上書きする。
+  `core/apply.py` の docstring にも「MVP は `SuggestedFix.diff` を『新しいファイル内容』として適用する
+  （unified diff 適用は post-MVP）」と明記されている。**unified diff 形式のパッチ適用は post-MVP**。
+  → LLM には `location.file` の**修正後の全文**を返させる（部分パッチを返させない）。
 
 ## 後段との接続
 
