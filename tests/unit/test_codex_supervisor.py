@@ -1908,6 +1908,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             git(main, "init", "-b", "main")
             git(main, "config", "user.email", "test@example.invalid")
             git(main, "config", "user.name", "Sandbox Probe")
+            git(main, "remote", "add", "origin", "https://github.com/example/repo.git")
             (main / ".codex").mkdir()
             (main / ".agents").mkdir()
             (main / ".ai" / "agents").mkdir(parents=True)
@@ -1982,7 +1983,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 workspace, bwrap_executable=bwrap, python_executable=system_python
             )
 
-            fake_codex = workspace / "fake-codex"
+            fake_codex = Path(temporary) / "fake-codex"
             fake_codex.write_text(
                 "#!/bin/sh\n"
                 "case \" $* \" in\n"
@@ -1994,8 +1995,14 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
             fake_codex.chmod(0o755)
             fake_spec = SupervisorSpec(
                 repo_root=main, workspace=workspace, role="issue-implementer",
-                task_key="issue_452_session_probe",
+                task_key="issue_452",
                 handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.yaml",
+            )
+            prepare_binding(
+                issue=452, round_number=1, repository="example/repo", workspace=workspace,
+                branch_name="probe", expected_oid=git(workspace, "rev-parse", "HEAD"),
+                handoff_path=fake_spec.handoff_path, role="issue-implementer",
+                task_key=fake_spec.task_key, protected_paths=(), now=NOW,
             )
             clean_home = Path(temporary) / "clean-home"
             clean_home.mkdir()
@@ -2017,7 +2024,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     resumed, cwd=workspace, capture_output=True, text=True, timeout=15
                 )
                 self.assertEqual((first.returncode, second.returncode), (0, 0), second.stderr)
-                runtime_home = main / "tmp/_codex_sessions/issue_452_session_probe/runtime-home"
+                runtime_home = main / "tmp/_codex_sessions/issue_452/runtime-home"
                 marker = runtime_home / "sessions/supervised-marker"
                 self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
                 codex = shutil.which("codex")
