@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 11
+version: 12
 condition: boundary
 ---
 
@@ -96,6 +96,15 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     sandboxはworkspace markerだけwriteでき、runtime/auth/sqliteを拒否する。
     fresh homeにproject-local config/hooks/rulesをcopyせず、trusted role注入、outer sandbox、publish gate、JSONL denyへ
     安全制御を残す。active/paused/publish pendingを考慮したGCは本修正へ混ぜず、別設計・別Issueで扱う。
+28. initial/resume双方でshell/unified exec/code mode/multi-agent/apps/plugins/browser/computerを明示的に無効化し、
+    required MCP 1台・`execute` 1 toolだけを登録する。model/API/thread開始前のCLI parser/catalogとMCP handshakeで
+    未知feature、複数server、tool欠落、source digest/boundary mismatchを拒否する。broker requestはtask/role/workspace/
+    attempt/fence/request IDへCAS束縛し、action別closed schema以外のshell string、任意executable/argv、absolute path、
+    wrapper、copy/symlink、native/Node/`/proc/self/exe` launcherをpre-execで拒否する。read/list/search/handoff、固定Git read、
+    unittest、auditの正例を確認し、process childではworkspace writeだけを許可してcommon Git、main、host auth/Codex、networkを
+    拒否する。installed Codexのresolved payloadが子mount内にある配置も起動前に拒否する。Git pager/global・system
+    config/external diff/textconvを無効化し、PTY、timeout、broker crash、replay、stale
+    attempt、handoff親symlink、ledger eventのargv非保存を確認する。
 
 # 期待結果
 
@@ -118,3 +127,5 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
 - 最終外部効果の`completed`とhandoff保存後の`finalized`を分離し、その間のcrashでも外部操作を重複実行しない。
 - reservation/completedへ束縛したcanonical handoff/final intent digestと異なるpayloadからfinalを確定しない。
 - reserved中のfinal phaseは不可能状態として外部照会前に拒否し、reservation保存済みpre-publish内容だけを回収元にする。
+- innerが利用できるprocess入口はtask-bound brokerのclosed actionだけであり、nested Codexのlauncher/payload/API経路は
+  shell文字列のdenylistに依存せず、installed CLIのmodel-free preflightと子OS sandboxで実行前に拒否される。

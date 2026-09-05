@@ -42,6 +42,11 @@ supervisorがPID/start tokenとJSONL threadをtrusted observationとして取得
 束縛する。inner processはhandoffまで、publishはhost gateへ分離する。判断・却下案・security trade-offの正本は
 `docs/methods/codex-workspace-binding.md`。
 
+F-452-19以後のsupervisor innerでは、Codex built-inのshell/unified exec/code modeを無効化し、task/attempt/fenceへ
+束縛した単一MCP brokerだけをprocess入口にする。PATH denyやprompt規範ではabsolute launcher、copy、Node payloadを
+閉じられないためである。brokerは任意argvを受けず、action別closed grammarから固定argvを組み立て、network/auth/
+Codex installationをmountしない子bubblewrapで実行する。commit/push/PRは従来どおりhost publishの責務である。
+
 `ISSUE_START_BINDING_MISSING_OR_DUPLICATE`（marker 欠如・複数行）や `ISSUE_START_BINDING_UNKNOWN_FIELD`
 （field 過不足）等の deny を見た場合、本ファイルの実装ロジックではなく呼び出し元の dispatch prompt
 （marker の付与漏れ・重複・field 不正）を疑う（enforcement の実体＝`issue_start/gate.py` の
