@@ -52,7 +52,57 @@ _SESSION_STATE_ROOT = Path("tmp/_codex_sessions")
 _BROKER_FEATURES = (
     "shell_tool", "unified_exec", "code_mode", "code_mode_host", "multi_agent",
     "apps", "plugins", "remote_plugin", "browser_use", "computer_use",
+    "hooks", "shell_snapshot", "skill_mcp_dependency_install", "skill_search",
+    "workspace_dependencies", "auth_elicitation", "plugin_sharing",
+    "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
+    "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
 )
+_KNOWN_CLI_FEATURES = frozenset({
+    "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
+    "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
+    "background_paginated_rollout_migration", "browser_use", "browser_use_external",
+    "browser_use_full_cdp_access", "chronicle", "code_mode", "code_mode_buffered_exec",
+    "code_mode_host", "code_mode_interrupt", "code_mode_only", "codex_git_commit",
+    "collaboration_modes", "compaction_image_budget", "computer_use",
+    "concurrent_reasoning_summaries", "current_time_reminder", "cwd_relative_turn_diffs",
+    "default_mode_request_user_input", "deferred_executor", "deferred_tool_world_state",
+    "elevated_windows_sandbox", "enable_fanout", "enable_mcp_apps",
+    "enable_request_compression", "exec_permission_approvals", "executed_tool_call_metadata",
+    "executor_capability_discovery", "experimental_windows_sandbox",
+    "external_agent_memory_import", "external_migration", "fast_mode", "goals",
+    "guardian_approval", "guardian_enhanced_node_repl_transcripts",
+    "guardian_node_repl_transcript_images", "guardian_reuse_parent_compaction", "guardianv2",
+    "hooks", "image_detail_original", "image_generation", "image_resize_notice",
+    "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_updates", "item_ids",
+    "js_repl", "js_repl_tools_only", "local_thread_store_compression", "mcp_2026_07_28",
+    "memories", "mentions_v2", "multi_agent", "multi_agent_mode", "multi_agent_v2",
+    "network_proxy", "non_prefixed_mcp_tool_names", "personality", "plugin_hooks",
+    "plugin_sharing", "plugins", "prevent_idle_sleep", "psp", "realtime_conversation",
+    "recommended_plugins", "remote_compaction_v2", "remote_control", "remote_models",
+    "remote_plugin", "request_permissions_tool", "request_rule", "resize_all_images",
+    "respect_system_proxy", "responses_websockets", "responses_websockets_v2",
+    "retain_client_developer_messages", "rollout_budget", "runtime_metrics", "search_tool",
+    "secret_auth_storage", "send_async_message", "shell_snapshot", "shell_tool",
+    "shell_zsh_fork", "skill_env_var_dependency_prompt", "skill_mcp_dependency_install",
+    "skill_search", "sqlite", "standalone_web_search", "steer",
+    "terminal_resize_reflow", "terminal_visualization_instructions", "token_budget",
+    "tool_call_mcp_elicitation", "tool_search", "tool_search_always_defer_mcp_tools",
+    "tool_suggest", "tui_app_server", "unavailable_dummy_tools",
+    "unbounded_connection_retries", "undo", "unified_exec", "unified_exec_zsh_fork",
+    "unified_image_budget", "use_agent_identity", "use_legacy_landlock",
+    "use_linux_sandbox_bwrap", "view_image", "web_search_cached", "web_search_request",
+    "workspace_dependencies", "workspace_owner_usage_nudge",
+})
+_PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
+
+
+def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return the non-secret environment shared with supervised subprocesses."""
+
+    values = os.environ if source is None else source
+    result = {name: values[name] for name in _PROCESS_ENV_ALLOWLIST if values.get(name)}
+    result.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+    return result
 
 
 class CodexSupervisorError(RuntimeError):
@@ -576,7 +626,7 @@ def validate_cli_compatibility(
 
     codex, values, runtime_home = _inner_config_values(command)
     overrides = [argument for value in values for argument in ("--config", value)]
-    env = dict(os.environ)
+    env = _minimal_process_env()
     env["CODEX_HOME"] = runtime_home
     env["CODEX_SQLITE_HOME"] = str(Path(runtime_home) / "sqlite")
     try:
@@ -597,6 +647,8 @@ def validate_cli_compatibility(
         fields = line.split()
         if len(fields) >= 3:
             states[fields[0]] = fields[-1]
+    if set(states) != _KNOWN_CLI_FEATURES:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN")
     if any(states.get(name) != "false" for name in _BROKER_FEATURES):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED")
     try:
@@ -629,7 +681,7 @@ def validate_broker_protocol(command: Sequence[str]) -> None:
         json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}),
         json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
     )) + "\n"
-    env = dict(os.environ)
+    env = _minimal_process_env()
     env["CODEX_EXEC_BROKER_BOUNDARY"] = codex_exec_broker.BOUNDARY_VERSION
     try:
         completed = subprocess.run(
@@ -696,6 +748,19 @@ def build_codex_command(
         "--config", "features.remote_plugin=false",
         "--config", "features.browser_use=false",
         "--config", "features.computer_use=false",
+        "--config", "features.hooks=false",
+        "--config", "features.shell_snapshot=false",
+        "--config", "features.skill_mcp_dependency_install=false",
+        "--config", "features.skill_search=false",
+        "--config", "features.workspace_dependencies=false",
+        "--config", "features.auth_elicitation=false",
+        "--config", "features.plugin_sharing=false",
+        "--config", "features.tool_call_mcp_elicitation=false",
+        "--config", "features.tool_suggest=false",
+        "--config", "features.request_permissions_tool=false",
+        "--config", "features.exec_permission_approvals=false",
+        "--config", "features.executor_capability_discovery=false",
+        "--config", "features.deferred_executor=false",
         "--config", "apps._default.enabled=false",
     ]
     for value in _broker_config(broker, spec.timeout_seconds):
@@ -715,7 +780,8 @@ def build_codex_command(
         "--bind", str(broker.ledger.parent), str(broker.ledger.parent),
         "--ro-bind", str(broker.source), str(broker.source),
         "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
-        *protected, "--tmpfs", "/tmp", "--setenv", "TMPDIR", "/tmp",
+        *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "TMPDIR", "/tmp",
+        "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",
         "--setenv", "CODEX_HOME", str(runtime.root),
         "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
@@ -1251,7 +1317,7 @@ def run_supervised(
         (compatibility_checker or validate_cli_compatibility)(command)
         (broker_checker or validate_broker_protocol)(command)
         process = actual_runner(
-            command, cwd=spec.workspace, env=os.environ, prompt=prompt,
+            command, cwd=spec.workspace, env=_minimal_process_env(), prompt=prompt,
             timeout_seconds=spec.timeout_seconds, on_process_started=process_started,
             on_stdout_line=observer.feed,
         )

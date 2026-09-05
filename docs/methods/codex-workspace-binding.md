@@ -114,11 +114,12 @@ mountする。brokerだけがmain ledger directoryへwriteでき、task key、ro
 handoff path、boundary versionを各requestの前にCAS照合する。request IDはattempt内で一度だけ使用でき、実argvは
 ledgerへ保存せずaction/argv digest、PID/start token、exit/timeoutだけを記録する。
 
-Codex CLIにはprocessを作れるbuilt-in feature（shell、unified exec、code mode、multi-agent、apps/plugins、browser、
-computer）をすべて明示的に無効化し、required MCPを1台・toolを`execute` 1個だけ登録する。起動前にmodel/API/threadを
-使わず、installed CLIのfeature一覧・MCP catalog parserとbrokerのinitialize/tools-list handshakeを検査する。unknown
-feature、複数MCP、required tool欠落、source/boundary不一致は起動前にfail-closeする。initialとresumeは同じ設定と
-attempt fenceを使う。
+Codex CLIにはprocessまたは外部依存を作れるbuilt-in feature（shell、unified exec、code mode、multi-agent、apps/plugins、
+browser/computer、hooks、shell snapshot、skill MCP dependency install/search、workspace dependency、auth/tool
+elicitation）をすべて明示的に無効化し、required MCPを1台・toolを`execute` 1個だけ登録する。起動前にmodel/API/threadを
+使わず、installed CLIのfeature一覧を既知catalogとexact比較し、MCP catalog parserとbrokerのinitialize/tools-list
+handshakeを検査する。状態がfalseでもunknown feature、複数MCP、required tool欠落、source/boundary不一致は起動前に
+fail-closeする。initialとresumeは同じ設定とattempt fenceを使う。
 
 brokerの入力はactionごとのclosed schemaであり、shell string、executable、任意argv、wrapper、launcher、absolute path、
 path traversalを受理しない。read/list/search、束縛済みhandoffへのatomic write、固定形のread-only Git、標準unittest、
@@ -127,6 +128,16 @@ role/protected assetをread-only、host home/auth/Codex installationを非mount�
 global/system config、external diff、textconvを無効化する。installed Codexのresolved payloadが`/usr`、`/etc`、
 workspace、共通Gitのいずれかに含まれて子境界へ見える配置なら、境界を弱めずsupervisor起動前に拒否する。これにより`codex`、absolute launcher、copy/symlink、native
 launcher、`node codex.js`、`/proc/self/exe`のいずれも任意process入口へ到達せず、nested CodexをAPI呼出前に拒否する。
+各commandのbwrap起動前にLandlock EXECUTEを適用し、検証済みbwrap、Python、Gitのinode以外のexecを子孫processでも
+拒否する。command namespaceの`/proc`は空directoryとし、親/self executableの再実行経路を公開しない。Landlock ABIを
+確認できないkernel/architectureではbroker startupを拒否する。
+
+hostからouter Codex、outerからbroker、brokerからcommand childの各process境界は継承環境をclearし、PATH、locale、
+task-bound runtime値だけを再構成する。OPENAI/GitHub/cloud token等のraw secretはcommand環境・stdout/stderr・ledgerへ
+渡さない。broker ledgerの排他はunlinkするO_EXCL fileを使わず、同一inodeのkernel `flock`を使う。kernelがprocess終了時に
+ownerを解放するためdead ownerだけを自動回復でき、live ownerはtimeoutで拒否する。PID/start token/nonce metadataと
+inode type/owner/mode/link数を検証し、PID reuseと改竄はfail-closeする。ledger本体は従来どおりfsync付きatomic replace、
+request ID replay拒否によりcrash後もeventを重複させない。
 
 ## 却下案
 

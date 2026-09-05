@@ -1,4 +1,5 @@
 import hashlib
+import fcntl
 import json
 import os
 import shutil
@@ -11,7 +12,13 @@ from unittest import mock
 
 from issue_start import codex_exec_broker, worktree_ledger
 from issue_start.codex_binding import prepare_binding
-from issue_start.codex_exec_broker import BOUNDARY_VERSION, Broker, BrokerError, _tool_schema
+from issue_start.codex_exec_broker import (
+    BOUNDARY_VERSION,
+    Broker,
+    BrokerError,
+    _acquire_ledger_lock,
+    _tool_schema,
+)
 from issue_start.codex_supervisor import SupervisorSpec, _reserve_attempt
 
 
@@ -248,6 +255,119 @@ class CodexExecBrokerTests(unittest.TestCase):
         self.assertTrue(process_events)
         self.assertRegex(process_events[-1]["process_start_token"], r"^[0-9]+$")
         self.assertTrue(all("argv" not in item for item in process_events))
+
+    def test_allowed_unittest_descendant_exec_is_os_denied(self):
+        if shutil.which("bwrap") is None:
+            self.skipTest("bubblewrap is not installed")
+        tests = self.workspace / "tests"
+        tests.mkdir(exist_ok=True)
+        (tests / "__init__.py").write_text("", encoding="utf-8")
+        host_codex = shutil.which("codex") or "/host/codex-not-installed"
+        (tests / "test_exec_guard.py").write_text(
+            "import os, pathlib, shutil, subprocess, unittest\n"
+            "class ExecGuard(unittest.TestCase):\n"
+            " def denied(self, argv):\n"
+            "  with self.assertRaises((FileNotFoundError, PermissionError)):\n"
+            "   subprocess.run(argv, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            " def test_all_nested_forms(self):\n"
+            f"  self.denied([{host_codex!r}, '--version'])\n"
+            "  self.denied(['codex', '--version'])\n"
+            "  root=pathlib.Path.cwd()\n"
+            "  copied=root/'copied-native'; shutil.copy2('/usr/bin/git', copied); copied.chmod(0o755)\n"
+            "  self.denied([str(copied), '--version'])\n"
+            "  linked=root/'linked-node'; linked.symlink_to('/usr/bin/node')\n"
+            "  self.denied([str(linked), '--version'])\n"
+            "  script=root/'codex.js'; script.write_text('process.exit(0)')\n"
+            "  self.denied(['/usr/bin/node', str(script)])\n"
+            "  self.denied(['/usr/bin/node', '--version'])\n"
+            "  self.assertFalse(pathlib.Path('/proc/self/exe').exists())\n",
+            encoding="utf-8",
+        )
+        result = self.broker.execute(self.request(
+            "python_test", {"target": "tests.test_exec_guard"}, request_id="exec-guard"
+        ))
+        self.assertEqual(result["exit_code"], 0, result)
+        combined = result["stdout"] + result["stderr"]
+        self.assertNotIn("thread.started", combined)
+        self.assertNotIn("turn.started", combined)
+        self.assertNotIn("OPENAI", combined)
+
+    def test_process_environment_drops_host_secrets(self):
+        if shutil.which("bwrap") is None:
+            self.skipTest("bubblewrap is not installed")
+        tests = self.workspace / "tests"
+        tests.mkdir(exist_ok=True)
+        (tests / "__init__.py").write_text("", encoding="utf-8")
+        (tests / "test_env_guard.py").write_text(
+            "import os, unittest\n"
+            "class EnvGuard(unittest.TestCase):\n"
+            " def test_env(self):\n"
+            "  self.assertEqual(os.environ['HOME'], '/tmp/home')\n"
+            "  self.assertEqual(os.environ['TMPDIR'], '/tmp')\n"
+            "  self.assertEqual(os.environ['PATH'], '/usr/bin:/bin')\n"
+            "  self.assertNotIn('OPENAI_API_KEY', os.environ)\n"
+            "  self.assertNotIn('GH_TOKEN', os.environ)\n"
+            "  self.assertNotIn('AWS_SECRET_ACCESS_KEY', os.environ)\n",
+            encoding="utf-8",
+        )
+        sentinels = {
+            "OPENAI_API_KEY": "sentinel-openai", "GH_TOKEN": "sentinel-gh",
+            "AWS_SECRET_ACCESS_KEY": "sentinel-aws",
+        }
+        with mock.patch.dict(os.environ, sentinels):
+            result = self.broker.execute(self.request(
+                "python_test", {"target": "tests.test_env_guard"}, request_id="env-guard"
+            ))
+        self.assertEqual(result["exit_code"], 0, result)
+        serialized = json.dumps({"result": result, "events": self.events()})
+        for secret in sentinels.values():
+            self.assertNotIn(secret, serialized)
+
+    def test_ledger_lock_recovers_only_dead_exact_owner(self):
+        lock = self.workspace / "durable.lock"
+        dead_owner = {
+            "version": 1, "pid": 99999999, "process_start_token": "1",
+            "nonce": "a" * 32,
+        }
+        lock.write_text(json.dumps(dead_owner), encoding="utf-8")
+        lock.chmod(0o600)
+        descriptor = _acquire_ledger_lock(lock)
+        try:
+            self.assertEqual(json.loads(lock.read_text())["pid"], os.getpid())
+        finally:
+            os.ftruncate(descriptor, 0)
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+        reused = {**dead_owner, "pid": os.getpid(), "process_start_token": "0"}
+        lock.write_text(json.dumps(reused), encoding="utf-8")
+        with self.assertRaisesRegex(BrokerError, "LOCK_PID_REUSED"):
+            _acquire_ledger_lock(lock)
+        lock.write_text("not-json", encoding="utf-8")
+        with self.assertRaisesRegex(BrokerError, "LOCK_TAMPERED"):
+            _acquire_ledger_lock(lock)
+
+    def test_ledger_lock_crash_points_are_idempotent(self):
+        lock = self.broker.ledger.with_name(self.broker.ledger.name + ".lock")
+        descriptor = _acquire_ledger_lock(lock)
+        with mock.patch.object(codex_exec_broker, "_LOCK_WAIT_SECONDS", 0):
+            with self.assertRaisesRegex(BrokerError, "LEDGER_LOCKED"):
+                _acquire_ledger_lock(lock)
+        os.ftruncate(descriptor, 0)
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+        def crash_before_replace(_document):
+            raise RuntimeError("crash-before-replace")
+
+        with self.assertRaisesRegex(RuntimeError, "crash-before-replace"):
+            self.broker._locked_update(crash_before_replace)
+        self.broker._append_event(
+            {"state": "completed", "action": "audit", "argv_sha256": "a" * 64},
+            request_id="after-crash",
+        )
+        matches = [event for event in self.events() if event.get("request_id") == "after-crash"]
+        self.assertEqual(len(matches), 1)
 
 
 if __name__ == "__main__":

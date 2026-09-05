@@ -19,11 +19,14 @@ from pathlib import Path
 from issue_start import worktree_ledger
 from issue_start.codex_binding import prepare_binding
 from issue_start.codex_supervisor import (
+    _BROKER_FEATURES,
+    _KNOWN_CLI_FEATURES,
     CodexSupervisorError,
     ProcessResult,
     SupervisorSpec,
     SubprocessJsonlRunner,
     _canonical_json_sha256,
+    _minimal_process_env,
     _reserve_attempt,
     _record_attempt,
     _publish_git_snapshot,
@@ -133,7 +136,7 @@ class FakeRunner:
         on_process_started,
         on_stdout_line,
     ):
-        self.calls.append((tuple(command), cwd, prompt, timeout_seconds))
+        self.calls.append((tuple(command), cwd, prompt, timeout_seconds, dict(env)))
         if self.announce_process:
             on_process_started(4242, "123456")
         for line in self.lines:
@@ -337,6 +340,10 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("features.unified_exec=false", command)
         self.assertIn("features.code_mode=false", command)
         self.assertIn("features.code_mode_host=false", command)
+        self.assertIn("features.hooks=false", command)
+        self.assertIn("features.shell_snapshot=false", command)
+        self.assertIn("features.skill_mcp_dependency_install=false", command)
+        self.assertIn("--clearenv", command)
         self.assertIn("mcp_servers.issue_exec_broker.required=true", command)
         self.assertIn('mcp_servers.issue_exec_broker.enabled_tools=["execute"]', command)
         self.assertIn("developer_instructions=", joined)
@@ -412,13 +419,9 @@ class CodexSupervisorTests(unittest.TestCase):
 
         def compatible(argv, **_kwargs):
             if argv[1:3] == ["features", "list"]:
-                names = (
-                    "shell_tool", "unified_exec", "code_mode", "code_mode_host",
-                    "multi_agent", "apps", "plugins", "remote_plugin", "browser_use",
-                    "computer_use",
-                )
                 return subprocess.CompletedProcess(argv, 0, "".join(
-                    f"{name} stable false\n" for name in names
+                    f"{name} stable {'false' if name in _BROKER_FEATURES else 'true'}\n"
+                    for name in sorted(_KNOWN_CLI_FEATURES)
                 ), "")
             return subprocess.CompletedProcess(
                 argv, 0, json.dumps([{"name": "issue_exec_broker", "enabled": True}]), ""
@@ -437,6 +440,17 @@ class CodexSupervisorTests(unittest.TestCase):
         with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
             validate_cli_compatibility(command, runner=leaked)
 
+        def unknown(argv, **kwargs):
+            result = compatible(argv, **kwargs)
+            if argv[1:3] == ["features", "list"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, result.stdout + "future_process_feature stable false\n", ""
+                )
+            return result
+
+        with self.assertRaisesRegex(CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"):
+            validate_cli_compatibility(command, runner=unknown)
+
         def extra_mcp(argv, **kwargs):
             if argv[1:3] == ["mcp", "list"]:
                 return subprocess.CompletedProcess(
@@ -449,6 +463,17 @@ class CodexSupervisorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(CodexSupervisorError, "MCP_CATALOG_INVALID"):
             validate_cli_compatibility(command, runner=extra_mcp)
+
+    def test_supervisor_process_environment_is_minimal(self):
+        source = {
+            "PATH": "/trusted/bin", "LANG": "C.UTF-8", "TERM": "xterm",
+            "OPENAI_API_KEY": "sentinel-openai", "GH_TOKEN": "sentinel-gh",
+            "AWS_SECRET_ACCESS_KEY": "sentinel-aws", "UNRELATED": "sentinel-other",
+        }
+        self.assertEqual(
+            _minimal_process_env(source),
+            {"PATH": "/trusted/bin", "LANG": "C.UTF-8", "TERM": "xterm"},
+        )
 
     def test_broker_protocol_crash_is_fail_close_before_runner(self):
         self.handoff_file()

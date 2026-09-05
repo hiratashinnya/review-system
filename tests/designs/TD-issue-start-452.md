@@ -1,6 +1,6 @@
 ---
 id: TD-issue-start-452
-version: 12
+version: 13
 condition: boundary
 ---
 
@@ -105,6 +105,18 @@ processのPID/start tokenとJSONL threadを観測し、OS sandboxでIssue専用w
     拒否する。installed Codexのresolved payloadが子mount内にある配置も起動前に拒否する。Git pager/global・system
     config/external diff/textconvを無効化し、PTY、timeout、broker crash、replay、stale
     attempt、handoff親symlink、ledger eventのargv非保存を確認する。
+29. installed CLIのfeature catalogを既知集合とexact比較し、未知featureを状態にかかわらず起動前に拒否する。
+    hooks、shell snapshot、skill MCP dependency install、skill search、workspace dependency、auth/tool elicitationを
+    initial/resume双方で明示的に無効化する。allowed unittestの実childからPATH、absolute path、symlink、workspaceへ
+    copyしたnative、Nodeによるcodex.js、native Node、procfs再実行を試し、Landlock EXECUTE allowlistと空のprocfsにより
+    専用denyとなること、nested thread/turn/API markerが0であることをmodel-freeに確認する。
+30. hostからouter Codex、outerからbroker、brokerからcommand childの各process境界で環境をclearし、PATH・locale等の
+    最小allowlistだけを再構成する。OPENAI/GH/AWS sentinelをhostへ置いてもchild環境、stdout、stderr、broker ledgerの
+    どこにも値が現れず、通常unittest、固定Git read、auditが成功することを確認する。
+31. broker ledgerはunlink型lockではなく永続inodeのkernel advisory lockを使い、process exit/SIGKILL時にkernelがownerを
+    解放する。lock metadataのPID/start token/nonce、inode type/owner/mode/link数を検証し、live owner、PID reuse、symlink・
+    非regular・改竄を拒否する。lock取得後、ledger atomic replace前後、fsync後、unlock前の停止から再実行し、request IDごとの
+    eventが一意で重複しないことを確認する。
 
 # 期待結果
 

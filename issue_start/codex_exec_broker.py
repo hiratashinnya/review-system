@@ -10,11 +10,14 @@ installation, or the host network.
 from __future__ import annotations
 
 import argparse
+import ctypes
+import fcntl
 import hashlib
 import json
 import os
 import pty
 import re
+import secrets
 import select
 import signal
 import stat
@@ -27,7 +30,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-BOUNDARY_VERSION = "codex-exec-broker/1"
+BOUNDARY_VERSION = "codex-exec-broker/2"
 TOOL_NAME = "execute"
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _TASK_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -37,6 +40,28 @@ _MODULE = re.compile(r"^tests(?:\.[a-zA-Z_][a-zA-Z0-9_]*)+$")
 _MAX_OUTPUT = 1_048_576
 _PROCESS_ACTIONS = frozenset({"git_read", "python_test", "audit"})
 _DIRECT_ACTIONS = frozenset({"read_file", "list_files", "search_text", "handoff_write"})
+_LOCK_WAIT_SECONDS = 5
+_LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
+_LANDLOCK_CREATE_RULESET_VERSION = 1
+_LANDLOCK_RULE_PATH_BENEATH = 1
+_PR_SET_NO_NEW_PRIVS = 38
+_LANDLOCK_SYSCALLS = {
+    "x86_64": (444, 445, 446),
+    "aarch64": (444, 445, 446),
+    "riscv64": (444, 445, 446),
+}
+
+
+class _LandlockRulesetAttr(ctypes.Structure):
+    _fields_ = [("handled_access_fs", ctypes.c_uint64)]
+
+
+class _LandlockPathBeneathAttr(ctypes.Structure):
+    _fields_ = [
+        ("allowed_access", ctypes.c_uint64),
+        ("parent_fd", ctypes.c_int32),
+        ("reserved", ctypes.c_uint32),
+    ]
 
 
 class BrokerError(RuntimeError):
@@ -66,6 +91,144 @@ def _process_start_token(pid: int) -> str:
     if not token.isdigit():
         raise BrokerError("BROKER_PROCESS_TOKEN_INVALID", "spawn")
     return token
+
+
+def _landlock_syscalls() -> tuple[int, int, int]:
+    try:
+        return _LANDLOCK_SYSCALLS[os.uname().machine]
+    except (AttributeError, KeyError) as exc:
+        raise BrokerError("BROKER_EXEC_GUARD_UNAVAILABLE", "preexec") from exc
+
+
+def _landlock_abi() -> int:
+    create_ruleset, _add_rule, _restrict_self = _landlock_syscalls()
+    libc = ctypes.CDLL(None, use_errno=True)
+    result = libc.syscall(create_ruleset, 0, 0, _LANDLOCK_CREATE_RULESET_VERSION)
+    if result < 1:
+        raise BrokerError("BROKER_EXEC_GUARD_UNAVAILABLE", "preexec")
+    return int(result)
+
+
+def _restrict_execution(executables: Sequence[Path]) -> None:
+    """Allow exec only for host-validated executable inodes; inherited by descendants."""
+
+    _landlock_abi()
+    create_ruleset, add_rule, restrict_self = _landlock_syscalls()
+    libc = ctypes.CDLL(None, use_errno=True)
+    ruleset_attr = _LandlockRulesetAttr(_LANDLOCK_ACCESS_FS_EXECUTE)
+    ruleset = libc.syscall(
+        create_ruleset, ctypes.byref(ruleset_attr), ctypes.sizeof(ruleset_attr), 0
+    )
+    if ruleset < 0:
+        raise OSError(ctypes.get_errno(), "landlock_create_ruleset")
+    try:
+        for executable in executables:
+            descriptor = os.open(
+                executable, getattr(os, "O_PATH", os.O_RDONLY) | os.O_CLOEXEC
+            )
+            try:
+                rule = _LandlockPathBeneathAttr(
+                    _LANDLOCK_ACCESS_FS_EXECUTE, descriptor, 0
+                )
+                if libc.syscall(
+                    add_rule, ruleset, _LANDLOCK_RULE_PATH_BENEATH,
+                    ctypes.byref(rule), 0,
+                ) != 0:
+                    raise OSError(ctypes.get_errno(), "landlock_add_rule")
+            finally:
+                os.close(descriptor)
+        if libc.prctl(_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), "prctl")
+        if libc.syscall(restrict_self, ruleset, 0) != 0:
+            raise OSError(ctypes.get_errno(), "landlock_restrict_self")
+    finally:
+        os.close(ruleset)
+
+
+def _lock_owner() -> dict[str, Any]:
+    return {
+        "version": 1,
+        "pid": os.getpid(),
+        "process_start_token": _process_start_token(os.getpid()),
+        "nonce": secrets.token_hex(16),
+    }
+
+
+def _lock_owner_alive(owner: Mapping[str, Any]) -> bool:
+    if (
+        set(owner) != {"version", "pid", "process_start_token", "nonce"}
+        or owner.get("version") != 1
+        or not isinstance(owner.get("pid"), int)
+        or isinstance(owner.get("pid"), bool)
+        or owner["pid"] <= 0
+        or not isinstance(owner.get("process_start_token"), str)
+        or not owner["process_start_token"].isdigit()
+        or not isinstance(owner.get("nonce"), str)
+        or not _HEX.fullmatch(owner["nonce"])
+    ):
+        raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
+    try:
+        actual = _process_start_token(owner["pid"])
+    except BrokerError as exc:
+        if exc.reason == "BROKER_PROCESS_TOKEN_UNAVAILABLE":
+            return False
+        raise
+    if actual != owner["process_start_token"]:
+        raise BrokerError("BROKER_LEDGER_LOCK_PID_REUSED", "ledger")
+    return True
+
+
+def _acquire_ledger_lock(path: Path) -> int:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except OSError as exc:
+        raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
+        deadline = time.monotonic() + _LOCK_WAIT_SECONDS
+        while True:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise BrokerError("BROKER_LEDGER_LOCKED", "ledger")
+                time.sleep(0.01)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        prior = os.read(descriptor, 4096)
+        if prior.strip():
+            try:
+                owner = json.loads(prior)
+            except json.JSONDecodeError as exc:
+                raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger") from exc
+            if not isinstance(owner, dict):
+                raise BrokerError("BROKER_LEDGER_LOCK_TAMPERED", "ledger")
+            if _lock_owner_alive(owner):
+                raise BrokerError("BROKER_LEDGER_LOCK_INCONSISTENT", "ledger")
+        payload = json.dumps(_lock_owner(), sort_keys=True, separators=(",", ":")).encode()
+        os.ftruncate(descriptor, 0)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+        return descriptor
+    except BaseException:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(descriptor)
+        raise
 
 
 def _read_document(path: Path) -> dict[str, Any]:
@@ -150,6 +313,7 @@ class Broker:
         for executable in (self.bwrap, self.python, Path("/usr/bin/git")):
             if not executable.is_file() or not os.access(executable, os.X_OK):
                 raise BrokerError("BROKER_EXECUTABLE_UNAVAILABLE", "startup")
+        _landlock_abi()
         relative = Path(self.handoff_path)
         if relative.is_absolute() or ".." in relative.parts or not self.handoff_path.startswith("tmp/_handoff/"):
             raise BrokerError("BROKER_HANDOFF_PATH_INVALID", "startup")
@@ -202,26 +366,16 @@ class Broker:
 
     def _locked_update(self, mutate) -> None:
         lock = self.ledger.with_name(self.ledger.name + ".lock")
-        deadline = time.monotonic() + 5
-        descriptor = -1
-        while descriptor < 0:
-            try:
-                descriptor = os.open(
-                    lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o600
-                )
-            except FileExistsError:
-                if time.monotonic() >= deadline:
-                    raise BrokerError("BROKER_LEDGER_LOCKED", "ledger")
-                time.sleep(0.01)
+        descriptor = _acquire_ledger_lock(lock)
         try:
-            os.write(descriptor, f"{os.getpid()}\n".encode())
-            os.fsync(descriptor)
             document = _read_document(self.ledger)
             mutate(document)
             _write_document(self.ledger, document)
         finally:
+            os.ftruncate(descriptor, 0)
+            os.fsync(descriptor)
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
-            lock.unlink(missing_ok=True)
 
     def _append_event(self, event: Mapping[str, Any], *, request_id: str | None = None) -> None:
         def mutate(document: dict[str, Any]) -> None:
@@ -361,10 +515,11 @@ class Broker:
             "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin",
             "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64",
             "--ro-bind", "/etc", "/etc", "--dev", "/dev", "--remount-ro", "/dev",
-            "--proc", "/proc", "--tmpfs", "/tmp", "--dir", "/tmp/home",
+            "--dir", "/proc", "--tmpfs", "/tmp", "--dir", "/tmp/home", "--clearenv",
             "--bind", str(self.workspace), str(self.workspace),
             "--ro-bind", str(self.git_common), str(self.git_common), *protected,
             "--setenv", "HOME", "/tmp/home", "--setenv", "TMPDIR", "/tmp",
+            "--setenv", "PATH", "/usr/bin:/bin",
             "--setenv", "GIT_CONFIG_GLOBAL", "/dev/null",
             "--setenv", "GIT_CONFIG_NOSYSTEM", "1", "--setenv", "GIT_PAGER", "cat",
             "--setenv", "PAGER", "cat",
@@ -373,13 +528,25 @@ class Broker:
 
     def _run_process(self, command: Sequence[str], cwd: Path, timeout: int, use_pty: bool) -> dict[str, Any]:
         sandboxed = self._sandbox_command(command, cwd)
+        allowed_exec = (self.bwrap, self.python, Path("/usr/bin/git").resolve(strict=True))
+        child_env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
+
+        def guard() -> None:
+            _restrict_execution(allowed_exec)
+
+        def spawn(**kwargs) -> subprocess.Popen[bytes]:
+            try:
+                return subprocess.Popen(
+                    sandboxed, cwd=cwd, stdin=subprocess.DEVNULL,
+                    start_new_session=True, env=child_env, preexec_fn=guard, **kwargs,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise BrokerError("BROKER_EXEC_GUARD_FAILED", "preexec") from exc
+
         if use_pty:
             master, slave = pty.openpty()
             try:
-                process = subprocess.Popen(
-                    sandboxed, cwd=cwd, stdin=subprocess.DEVNULL, stdout=slave, stderr=slave,
-                    start_new_session=True, close_fds=True,
-                )
+                process = spawn(stdout=slave, stderr=slave, close_fds=True)
             finally:
                 os.close(slave)
             process_start_token = _process_start_token(process.pid)
@@ -416,10 +583,7 @@ class Broker:
             stdout = output.decode("utf-8", errors="replace")
             stderr = ""
         else:
-            process = subprocess.Popen(
-                sandboxed, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, start_new_session=True,
-            )
+            process = spawn(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             process_start_token = _process_start_token(process.pid)
             try:
                 out, err = process.communicate(timeout=timeout)
