@@ -1,0 +1,29 @@
+{
+  "abort": null,
+  "applied": [],
+  "counts": {
+    "applied": 0,
+    "considered": 67,
+    "out_of_scope": 33,
+    "planned": 0,
+    "skipped": 0,
+    "warnings": 0
+  },
+  "generated_at": "2026-09-05T18:15:23Z",
+  "mode": "apply",
+  "planned": [],
+  "project": {
+    "id": "PVT_kwHOBPTOrM4BezS3",
+    "number": 1,
+    "title": "review-system Development"
+  },
+  "repository": "hiratashinnya/review-system",
+  "schema": "project-status-sync-report/v1",
+  "skipped": [],
+  "snapshot": {
+    "errors": [],
+    "generated_at": "2026-09-05T18:10:26Z",
+    "pages_complete": true
+  },
+  "warnings": []
+}
