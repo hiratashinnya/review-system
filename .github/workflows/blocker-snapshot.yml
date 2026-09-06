@@ -1,0 +1,145 @@
+name: blocker-snapshot
+
+# Issue #345［A］: GitHub API の Issue 系 endpoint へ到達できない実行環境
+# （実測: Claude Code on the web の GitHub 専用 proxy が endpoint 単位で遮断）でも
+# issue-start gate が blocker を判定できるよう、repository 全体の Issue 依存 graph を
+# 孤立ブランチ `blocker-snapshot` の `snapshot.json` へ publish する。
+# gate 側は `git fetch` でこれを読む（policy §3.3）。
+#
+# 孤立ブランチである理由（オーナー指摘）: 既定ブランチへ commit すると main が
+# 5分ごとに進み、`git log` が実質使えなくなる。`--orphan` は main と履歴を
+# 共有しないので、main へのマージも main からのマージも一切不要。
+# さらに毎回 **単一 commit を force-push** するため履歴も増えない
+# （読取側の fetch は常に1 commit 分で済む）。
+#
+# 生成方式が GraphQL 一括である理由（オーナー承認済み・Issue #345 実測）:
+# 既存 REST collector を全 Issue へ広げると 1 実行 277 requests になり、
+# Actions の GITHUB_TOKEN 枠 1,000 requests/h を cron 5分で 3.3 倍超過する。
+# GraphQL なら 1 実行あたり数 request（枠は別建ての 5,000 points/h）で収まる。
+# なお本実装は closed Issue も列挙する（Issue 本文の測定は open のみ）。
+# 理由は evaluator が parent/child の双方向一致と全 relation target の存在を
+# 要求するため——open だけでは closed の親子の逆参照を埋められない。
+# ページ数は「全 Issue 数 / 100」に増えるが（本 repository で約4ページ）、
+# 消費は依然として枠の 1% 未満であり cron 5分は成立する。
+#
+# 課金（CLAUDE.md「CI/外部サービス連携のコスト方針」）: 本 repository は public で
+# あり GitHub Actions は無課金・無制限（無料枠の上限自体が存在しない）。
+# cron 5分でも課金は発生しない。外部 cron（cron-job.org）も無料枠（分単位の
+# スケジュールを含め無料と公式トップページに明記）で完結し、GitHub API 消費は
+# 5分間隔＝288 requests/日で fine-grained PAT の 5,000/時 に対し十分収まる
+# （詳細＝docs/methods/blocker-snapshot-external-cron-ops.md）。
+#
+# 主たる起動元（Issue #363・オーナー確定・2026-08-12）: このワークフローの
+# `on:` に残る `schedule: "*/5 * * * *"` は「5分ごとに動く」ことを保証しない。
+# 実測（#363 本文）では GitHub の schedule 配信は 74〜104 分間隔でしか発火せず、
+# */5 という cron 式を見て 5 分ごとと読むのは誤解——その誤解こそが #363 の発端。
+# 現在の主たる起動元は「外部 cron サービス（cron-job.org）が5分間隔で
+# `workflow_dispatch` REST API（`POST /repos/{owner}/{repo}/actions/workflows/
+# blocker-snapshot.yml/dispatches`、body `{"ref":"main"}`）を叩く」構成であり、
+# 下の `schedule:` はその外部 cron が止まったときの保険にすぎない。
+# 運用手順（cron-job.org のジョブ設定・PAT作成・疎通確認）は
+# docs/methods/blocker-snapshot-external-cron-ops.md を正本とする。
+#
+# 既知の劣化条件（いずれも fail-open せず fail-close 側へ倒れる）:
+#   - 外部 cron（cron-job.org）が停止・PAT が失効（401）する → schedule の
+#     保険頻度（実測 74〜104 分）でしか更新されなくなる、または全く更新
+#     されなくなる → snapshot が古くなり gate が staleness 上限（10分）
+#     超過で拒否する（安全側）。
+#   - schedule は（外部 cron が止まった場合の保険としても）高負荷時に
+#     遅延・欠落しうる → 同上。
+#   - public repository の scheduled workflow は 60 日間の無活動で自動停止する
+#     → 同上（古い snapshot は使われない）。ただし workflow_dispatch による
+#     起動はこの60日ルールの対象外（GitHub仕様）であり、外部 cron が動いて
+#     いる限りこの劣化条件は実質的に発生しない。
+#   - 生成が部分失敗した場合も publish する。`pages_complete: false` / `errors` を
+#     載せて読取側へ渡すことで、遮断された環境にも診断材料が届く。ALLOW には
+#     ならない（読取側が fail-close する）。
+#   - 下の concurrency.cancel-in-progress: true により、runner のキュー待ちが
+#     外部 cron の実効間隔（5分）を超えると、実行中の run が次の dispatch に
+#     cancel され続け publish されない経路が理屈上ある（実測ではまだ観測され
+#     ていない・Issue #363）。fail-close 側だが #363 の目的（10分以内の鮮度
+#     維持）自体が静かに未達になりうるため、疎通確認では conclusion=cancelled
+#     を success と区別すること（docs/methods/blocker-snapshot-external-cron-ops.md
+#     §4.1）。cancel-in-progress の是非はオーナー判断であり本 PR では変更しない。
+#
+# 可視化（Issue #345 F-345-03）: 上記のとおり「部分 snapshot でも publish する」
+# 設計は維持するが、**publish した後に job を失敗させる**。generator は劣化時に
+# exit 20 を返す（`blocker_gate/cli.py`）。それを step では致命扱いせずに拾って
+# publish まで進め、最後の step で `::error` annotation を出して job を赤くする。
+# こうしないと、恒久故障（例: GITHUB_TOKEN が GraphQL の blockedBy/subIssues/parent
+# を読めない）が起きても workflow が緑のままで、機能が死んでいることに気づけない。
+on:
+  # 保険のみ（主たる起動元ではない）。GitHub の schedule delivery は
+  # 高負荷時に遅延・破棄されうると公式ドキュメントが明記しており、実測でも
+  # 74〜104分間隔でしか発火しなかった（#363）。この `*/5` は「最短間隔の
+  # 指定」であって「5分ごとに実行される」保証ではない。
+  schedule:
+    - cron: "*/5 * * * *"
+  # 主たる起動元。外部 cron（cron-job.org）がこの workflow_dispatch を
+  # 5分間隔で叩く（body `{"ref":"main"}`）。gate（policy §3.3）が読む
+  # snapshot の鮮度はこの外部 cron の稼働に依存する。設定手順は
+  # docs/methods/blocker-snapshot-external-cron-ops.md を見る。
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: blocker-snapshot
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate repository blocker snapshot
+        id: generate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          status=0
+          python3 -m blocker_gate snapshot \
+            --repository "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/snapshot.json" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # exit 20 = 劣化（pages_complete=false / errors 非空）だが JSON は完成
+          # している。publish して読取側へ診断材料を渡し、最後の step で失敗させる。
+          if [ "$status" -ne 0 ] && [ "$status" -ne 20 ]; then
+            echo "::error::blocker snapshot generation aborted (exit ${status}); nothing to publish"
+            exit "$status"
+          fi
+
+      - name: Publish to the orphan branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --orphan は tracked file を作業ツリーから外し index を空にする。
+          # 以降 index には snapshot.json しか入らないので、commit も1ファイルだけ。
+          git switch --orphan "blocker-snapshot"
+          cp "$RUNNER_TEMP/snapshot.json" snapshot.json
+          git add snapshot.json
+          git commit --quiet -m "chore(blocker-snapshot): refresh issue dependency snapshot
+
+          Generated by GitHub Actions (.github/workflows/blocker-snapshot.yml) for
+          issue #345. This branch shares no history with the default branch and is
+          force-pushed as a single commit every run; it is never merged."
+          git push --force origin "blocker-snapshot"
+
+      # publish 済みの degraded snapshot を可視化する（Issue #345 F-345-03）。
+      # ここで初めて job を失敗させるので、部分 snapshot は必ず配布された上で
+      # 恒久故障が赤く残る。
+      - name: Fail the job when the published snapshot is degraded
+        if: steps.generate.outputs.status == '20'
+        run: |
+          echo "::error::blocker snapshot is degraded (pages_complete=false or errors non-empty). It was published so that unreachable environments still receive diagnostics, but the gate will fail-close there until this is fixed. See the generator stderr above for the error reasons."
+          exit 1

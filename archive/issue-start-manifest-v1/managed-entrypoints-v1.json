@@ -1,0 +1,53 @@
+{
+  "schema_version": "managed-issue-entrypoints/1",
+  "retired": "退役（Issue #354 PR-4）。正本は managed-entrypoints-v2.json で、issue_start/gate.py はこのファイルを読まない。内容は履歴保全のためそのまま残している（PR8 区分1）。archive/issue-start-manifest-v1/ へ git mv 済み（commit 1b115c6・F-354-12 で実施）。編集しても挙動は変わらない。",
+  "policy_version": "issue-start/1.0",
+  "managed": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-implementer",
+      "binding_transports": {
+        "codex": {
+          "tool_names": [
+            "spawn_agent",
+            "collaborationspawn_agent"
+          ],
+          "agent_type_field": "agent_type",
+          "required_tool_input_fields": [
+            "agent_type",
+            "task_name"
+          ],
+          "forbidden_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "task_name_pattern": "^issue_([1-9][0-9]*)$",
+          "repository_source": "payload.cwd+hook.cwd+worktree.origin"
+        },
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_START_BINDING_V1=",
+          "required_isolation": "worktree"
+        }
+      }
+    }
+  ],
+  "unmanaged": [
+    "direct shell/API invocation outside issue-pipeline",
+    "harnesses that do not enable/trust project PreToolUse hooks"
+  ]
+}

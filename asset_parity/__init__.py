@@ -1,9 +1,9 @@
 """asset_parity — cross-platform asset drift/presence detector (issue #155, detection half).
 
-Four asset trees mirror the canonical `.claude/` skills/agents onto other AI-coding
+Four loader-facing asset trees are compared from the `.claude/` parity seed onto other AI-coding
 platforms: `.github/` (GitHub Copilot), `.codex/agents/` (Codex CLI agents), and
 `.agents/skills/` (Codex CLI's documented repo-scoped skill discovery path). Nothing
-previously checked whether these trees stay in sync after the canonical tree changes.
+previously checked whether these trees stay in sync after the parity seed changes.
 
 This package is a **read-only reporting tool**, not a content generator/synchronizer
 (a prior bulk-conversion script, `scripts/lateral_deploy.py`, was deliberately deleted

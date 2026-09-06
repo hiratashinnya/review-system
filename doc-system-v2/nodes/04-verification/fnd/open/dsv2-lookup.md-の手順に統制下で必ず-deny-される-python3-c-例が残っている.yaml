@@ -1,0 +1,5 @@
+title: "dsv2-lookup.md の手順に統制下で必ず deny される `python3 -c` 例が残っている"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges: []

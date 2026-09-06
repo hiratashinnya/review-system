@@ -1,0 +1,1031 @@
+{
+  "schema_version": "pr-merge-classifier-shell-corpus/1",
+  "classifier_version": "1.15",
+  "cases": [
+    {
+      "id": "safe-gh-prefix-then-merge",
+      "command": "gh issue view 1; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "shell-c-compound-merge",
+      "command": "bash -c 'gh issue view 1; gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "double-quoted-command-substitution",
+      "command": "echo \"$(gh pr merge 1 --squash)\"",
+      "expected": "error"
+    },
+    {
+      "id": "backtick-command-substitution",
+      "command": "echo `gh pr merge 1 --squash`",
+      "expected": "error"
+    },
+    {
+      "id": "process-substitution",
+      "command": "echo <(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "git-per-invocation-shell-alias",
+      "command": "git -c alias.p='!gh pr merge 1 --squash' p",
+      "expected": "error"
+    },
+    {
+      "id": "git-unknown-alias",
+      "command": "git p",
+      "expected": "error"
+    },
+    {
+      "id": "eval-known-prefix-dynamic-tail",
+      "command": "eval 'echo prefix' \"$TAIL\"",
+      "expected": "error"
+    },
+    {
+      "id": "compound-known-prefix-dynamic-eval-tail",
+      "command": "echo prefix; eval \"$CMD\"",
+      "expected": "error"
+    },
+    {
+      "id": "pipeline-merge-leaf",
+      "command": "printf ok | gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "safe-compound-nonmerge",
+      "command": "gh issue view 1; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "safe-and-list-nonmerge",
+      "command": "echo alpha && printf '%s\\n' beta",
+      "expected": "none"
+    },
+    {
+      "id": "safe-shell-c-compound-nonmerge",
+      "command": "bash -c 'gh issue view 1; echo done'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-eval-literal-compound-nonmerge",
+      "command": "eval 'echo left; echo right'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-command-substitution-data",
+      "command": "echo '$(gh pr merge 1 --squash)'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-backtick-data",
+      "command": "printf '%s\\n' '`gh pr merge 1 --squash`'",
+      "expected": "none"
+    },
+    {
+      "id": "single-quoted-gh-data",
+      "command": "gh issue view '$(gh pr merge 1 --squash)'",
+      "expected": "none"
+    },
+    {
+      "id": "normal-echo-data",
+      "command": "echo \"$VALUE\"",
+      "expected": "none"
+    },
+    {
+      "id": "normal-gh-issue",
+      "command": "gh issue view \"$ISSUE\"",
+      "expected": "none"
+    },
+    {
+      "id": "known-git-builtin",
+      "command": "git status",
+      "expected": "none"
+    },
+    {
+      "id": "bash-norc-before-command-string",
+      "command": "bash --norc -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-rcfile-and-short-cluster",
+      "command": "bash --rcfile=/dev/null -lc 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-command-string-missing-payload",
+      "command": "bash --norc -c",
+      "expected": "error"
+    },
+    {
+      "id": "bash-option-terminator-before-command-flag",
+      "command": "bash -- -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-multiple-command-flags-cluster",
+      "command": "bash -cc 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "bash-command-flag-as-payload",
+      "command": "bash -c -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-long-command-option",
+      "command": "fish --command 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-attached-long-command-option",
+      "command": "fish --command='gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "fish-init-command-unsupported-evaluator",
+      "command": "fish -C 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-bash-norc-short-cluster",
+      "command": "bash --norc -lc 'gh issue view 1'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-shell-options-after-payload-are-positional",
+      "command": "bash -c 'gh issue view 1' --norc",
+      "expected": "none"
+    },
+    {
+      "id": "safe-multiple-prefix-options",
+      "command": "bash --norc -l -c 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-fish-long-command-option",
+      "command": "fish --command 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-sh-short-cluster",
+      "command": "sh -lc 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "absolute-bash-command-string-merge",
+      "command": "/bin/bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "absolute-sh-command-string-merge",
+      "command": "/bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "relative-bash-command-string-merge",
+      "command": "./tools/bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-absolute-bash-literal",
+      "command": "/bin/bash -c 'echo literal'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-relative-sh-literal",
+      "command": "../bin/sh -c 'printf literal'",
+      "expected": "none"
+    },
+    {
+      "id": "ambiguous-path-qualified-shell-like-command",
+      "command": "./tools/bash-wrapper -c 'echo literal'",
+      "expected": "error"
+    },
+    {
+      "id": "git-bisect-run-gh-merge",
+      "command": "git bisect run gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "git-bisect-run-shell-merge",
+      "command": "git bisect run /bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-git-bisect-operation",
+      "command": "git bisect good HEAD",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-bisect-run-literal",
+      "command": "git bisect run echo literal",
+      "expected": "none"
+    },
+    {
+      "id": "git-rebase-short-exec",
+      "command": "git rebase -x 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-short-exec",
+      "command": "git rebase -x'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-short-cluster-exec",
+      "command": "git rebase -ix 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-long-exec",
+      "command": "git rebase --exec 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-long-exec",
+      "command": "git rebase --exec='gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-abbreviated-long-exec",
+      "command": "git rebase --exe 'gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-rebase-attached-abbreviated-long-exec",
+      "command": "git rebase --exe='gh pr merge 1 --squash' main",
+      "expected": "error"
+    },
+    {
+      "id": "git-diff-external-evaluator",
+      "command": "git diff --ext-diff",
+      "expected": "error"
+    },
+    {
+      "id": "git-log-textconv-evaluator",
+      "command": "git log --textconv",
+      "expected": "error"
+    },
+    {
+      "id": "git-grep-short-pager-evaluator",
+      "command": "git grep -O 'gh pr merge 1 --squash' pattern",
+      "expected": "error"
+    },
+    {
+      "id": "git-clone-short-upload-pack-evaluator",
+      "command": "git clone -u 'gh pr merge 1 --squash' example/repo",
+      "expected": "error"
+    },
+    {
+      "id": "git-clone-abbreviated-upload-pack-evaluator",
+      "command": "git clone --upload-p='gh pr merge 1 --squash' example/repo",
+      "expected": "error"
+    },
+    {
+      "id": "git-fetch-abbreviated-upload-pack-evaluator",
+      "command": "git fetch --upload-p='gh pr merge 1 --squash' origin",
+      "expected": "error"
+    },
+    {
+      "id": "git-fetch-separated-abbreviated-upload-pack-evaluator",
+      "command": "git fetch --upload-p 'gh pr merge 1 --squash' origin",
+      "expected": "error"
+    },
+    {
+      "id": "git-pull-long-upload-pack-evaluator",
+      "command": "git pull --upload-pack='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-pull-abbreviated-upload-pack-evaluator",
+      "command": "git pull --upload-p='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-push-long-receive-pack-evaluator",
+      "command": "git push --receive-pack='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-push-abbreviated-receive-pack-evaluator",
+      "command": "git push --receive-p='gh pr merge 1 --squash' origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-grep-abbreviated-pager-evaluator",
+      "command": "git grep --open-files-in-p='gh pr merge 1 --squash' pattern",
+      "expected": "error"
+    },
+    {
+      "id": "git-option-terminator-boundary",
+      "command": "git rebase -- -x",
+      "expected": "none"
+    },
+    {
+      "id": "git-option-terminator-long-option-data",
+      "command": "git rebase -- --exec=literal --upload-pack=literal",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-rebase",
+      "command": "git rebase main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-push-set-upstream-short-u",
+      "command": "git push -u origin branch",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-fetch-update-head-ok-short-u",
+      "command": "git fetch -u origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-fetch-short-cluster-update-head-ok",
+      "command": "git fetch -qu origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-pull-update-head-ok-short-u",
+      "command": "git pull -u origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-pull-short-cluster-update-head-ok",
+      "command": "git pull -qu origin main",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-rebase-strategy-option-uppercase-x",
+      "command": "git rebase -X theirs main",
+      "expected": "none"
+    },
+    {
+      "id": "trusted-absolute-git-bisect-run-shell-merge",
+      "command": "/usr/bin/git bisect run /bin/sh -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "trusted-absolute-git-shell-alias-merge",
+      "command": "/usr/bin/git -c alias.p='!gh pr merge 1 --squash' p",
+      "expected": "error"
+    },
+    {
+      "id": "safe-trusted-absolute-git-status",
+      "command": "/usr/bin/git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-trusted-absolute-git-bisect-run-literal",
+      "command": "/usr/bin/git bisect run echo literal",
+      "expected": "none"
+    },
+    {
+      "id": "ambiguous-relative-git-status",
+      "command": "./git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "ambiguous-untrusted-absolute-git-bisect-run",
+      "command": "/tmp/git bisect run echo literal",
+      "expected": "error"
+    },
+    {
+      "id": "env-path-bare-git-status",
+      "command": "env PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "prefix-path-bare-git-status",
+      "command": "PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "compound-path-assignment-bare-git-status",
+      "command": "PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "compound-export-path-bare-git-status",
+      "command": "export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "prefix-git-exec-path-trusted-absolute-git",
+      "command": "GIT_EXEC_PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-git-exec-path-bare-git",
+      "command": "env GIT_EXEC_PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "git-external-command-environment-payload",
+      "command": "GIT_EXTERNAL_DIFF='gh pr merge 1 --squash' /usr/bin/git diff --ext-diff",
+      "expected": "error"
+    },
+    {
+      "id": "dynamic-loader-environment-trusted-absolute-git",
+      "command": "LD_PRELOAD=/tmp/fake.so /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-path-known-safe-bare-executable",
+      "command": "env PATH=/tmp echo literal",
+      "expected": "error"
+    },
+    {
+      "id": "path-prefix-absolute-git-status-denied",
+      "command": "PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-path-absolute-git-status-denied",
+      "command": "env PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-prefix-locale-bare-git-status",
+      "command": "LC_ALL=C git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-env-locale-bare-git-status",
+      "command": "env LANG=C git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "scoped-path-absolute-git-compound-denied",
+      "command": "PATH=/tmp /usr/bin/git status --short; echo done",
+      "expected": "error"
+    },
+    {
+      "id": "compound-locale-assignment-is-conservative",
+      "command": "LC_ALL=C; /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-ignore-environment-bare-git",
+      "command": "env -i git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "ignore-environment-absolute-git-status-denied",
+      "command": "env -i /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-option-terminator-path-bare-git",
+      "command": "env -- PATH=/tmp git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "option-terminator-path-absolute-git-status-denied",
+      "command": "env -- PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "env-option-terminator-git-environment",
+      "command": "env -- GIT_EXEC_PATH=/tmp /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "ignore-environment-locale-absolute-git-status-denied",
+      "command": "env -i -- LC_ALL=C /usr/bin/git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-wrapper-export-compound",
+      "command": "command export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "locale-prefix-export-compound",
+      "command": "LC_ALL=C export PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "builtin-wrapper-unset-compound",
+      "command": "builtin -- unset PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-wrapper-hash-compound",
+      "command": "command hash -p /tmp/git git; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-wrapper-alias-compound",
+      "command": "command alias git=/tmp/git; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-push-child-helper",
+      "command": "PATH=/tmp /usr/bin/git push git@example.invalid:o/r.git HEAD:main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-fetch-child-helper",
+      "command": "PATH=/tmp /usr/bin/git fetch origin main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-pull-child-helper",
+      "command": "PATH=/tmp /usr/bin/git pull origin main",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-clone-child-helper",
+      "command": "PATH=/tmp /usr/bin/git clone example.invalid:o/r.git",
+      "expected": "error"
+    },
+    {
+      "id": "ignore-environment-absolute-git-push-child-helper",
+      "command": "env -i /usr/bin/git push origin main",
+      "expected": "error"
+    },
+    {
+      "id": "git-environment-safe-data-command",
+      "command": "GIT_DIR=/tmp echo literal",
+      "expected": "error"
+    },
+    {
+      "id": "trap-literal-merge-exit",
+      "command": "trap 'gh pr merge 1 --squash' EXIT",
+      "expected": "error"
+    },
+    {
+      "id": "trap-dynamic-exit",
+      "command": "trap \"$CMD\" EXIT",
+      "expected": "error"
+    },
+    {
+      "id": "trap-option-literal-merge-exit-compound",
+      "command": "command trap -- 'gh pr merge 1 --squash' EXIT; echo done",
+      "expected": "error"
+    },
+    {
+      "id": "function-definition-merge-later",
+      "command": "function merge_later { gh pr merge 1 --squash; }; echo done",
+      "expected": "error"
+    },
+    {
+      "id": "standalone-alias-state",
+      "command": "alias merge_later='gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-trap-text-data",
+      "command": "echo 'trap gh pr merge 1 EXIT'",
+      "expected": "none"
+    },
+    {
+      "id": "path-absolute-git-status-help-viewer",
+      "command": "PATH=/tmp /usr/bin/git status --help",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-global-paginate-status",
+      "command": "PATH=/tmp /usr/bin/git --paginate status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-global-help",
+      "command": "PATH=/tmp /usr/bin/git --help",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-configured-fsmonitor-status",
+      "command": "PATH=/tmp /usr/bin/git -c core.fsmonitor=helper status --short",
+      "expected": "error"
+    },
+    {
+      "id": "path-absolute-git-editor-shape",
+      "command": "PATH=/tmp /usr/bin/git commit --edit",
+      "expected": "error"
+    },
+    {
+      "id": "printf-variable-path-compound",
+      "command": "printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "builtin-printf-variable-path-compound",
+      "command": "builtin printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "command-printf-variable-path-compound",
+      "command": "command printf -v PATH /tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-printf-option-terminator-data",
+      "command": "printf -- '-v'; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "read-stateful-compound",
+      "command": "read PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "readarray-stateful-compound",
+      "command": "readarray PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "mapfile-stateful-compound",
+      "command": "mapfile PATH; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "declare-stateful-compound",
+      "command": "declare PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "typeset-stateful-compound",
+      "command": "typeset PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "local-stateful-compound",
+      "command": "local PATH=/tmp; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "let-stateful-compound",
+      "command": "let PATH=1; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "set-stateful-compound",
+      "command": "set -a; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "shopt-stateful-compound",
+      "command": "shopt -s expand_aliases; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "source-stateful-compound",
+      "command": "source /tmp/state.sh; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "dot-stateful-compound",
+      "command": ". /tmp/state.sh; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "eval-stateful-compound",
+      "command": "eval 'PATH=/tmp'; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "safe-locale-absolute-git-compound",
+      "command": "LC_ALL=C /usr/bin/git status --short; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "if-control-state-mutation",
+      "command": "if true; then printf -v PATH /tmp; fi; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "while-control-state-mutation",
+      "command": "while false; do printf -v PATH /tmp; done; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "for-control-state-mutation",
+      "command": "for value in one; do printf -v PATH /tmp; done; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "case-control-state-mutation",
+      "command": "case value in value) printf -v PATH /tmp;; esac; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "function-keyword-control-structure",
+      "command": "function helper { printf -v PATH /tmp; }; helper; git status --short",
+      "expected": "error"
+    },
+    {
+      "id": "nested-shell-control-state-mutation",
+      "command": "bash -c 'if true; then printf -v PATH /tmp; fi; git status --short'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-control-keyword-arguments",
+      "command": "echo if then elif else fi while until do done for select in case esac function time coproc; printf '%s' if",
+      "expected": "none"
+    },
+    {
+      "id": "safe-single-quoted-control-keyword-data",
+      "command": "printf '%s' 'if; then; while; do; case; esac; function'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-git-control-keyword-path-data",
+      "command": "git show -- if",
+      "expected": "none"
+    },
+    {
+      "id": "safe-linear-echo-printf",
+      "command": "echo a; printf b",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stderr-to-stdout",
+      "command": "gh issue view 1 --json body 2>&1",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stderr-to-devnull",
+      "command": "git status --short 2>/dev/null",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-stdout-to-file",
+      "command": "gh issue list > issues.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-append-redirect-to-file",
+      "command": "echo done >> log.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-numbered-fd-redirects",
+      "command": "gh issue list 1>out.txt 2>err.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-both-streams-redirect",
+      "command": "gh project list --owner example &> out.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-noclobber-override-redirect",
+      "command": "gh issue list >| issues.txt",
+      "expected": "none"
+    },
+    {
+      "id": "safe-input-redirect",
+      "command": "git apply < patch.diff",
+      "expected": "none"
+    },
+    {
+      "id": "safe-redirect-then-pipe",
+      "command": "gh issue view 1 2>&1 | head -c 6000",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-redirect-character-data",
+      "command": "echo 'gh pr merge 1 --squash > out'",
+      "expected": "none"
+    },
+    {
+      "id": "heredoc-shell-merge",
+      "command": "bash <<EOF\ngh pr merge 1 --squash\nEOF",
+      "expected": "error"
+    },
+    {
+      "id": "herestring-shell-merge",
+      "command": "bash <<< 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "output-process-substitution-merge",
+      "command": "echo data >(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-target-command-substitution",
+      "command": "gh issue view 1 > $(gh pr merge 1 --squash)",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-target-backtick-substitution",
+      "command": "gh issue view 1 > `gh pr merge 1 --squash`",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-missing-target",
+      "command": "gh issue view 1 >",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-compound-merge-leaf",
+      "command": "gh issue view 1 > /dev/null; gh pr merge 1 --squash 2>&1",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-brace-group-merge",
+      "command": "{ gh pr merge 1 --squash; } > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-subshell-merge",
+      "command": "(gh pr merge 1 --squash) > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-shell-command-string-merge",
+      "command": "bash -c 'gh pr merge 1 --squash' > /dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirected-git-bisect-run-merge",
+      "command": "git bisect run gh pr merge 1 --squash 2>/dev/null",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-adjacent-control-keyword-still-detected",
+      "command": "while> /dev/null read line; do printf -v PATH /tmp; done; git status",
+      "expected": "error"
+    },
+    {
+      "id": "redirect-only-leaf-empty-after-strip",
+      "command": "> file",
+      "expected": "none"
+    },
+    {
+      "id": "exec-only-redirect-leaf-empty-after-strip",
+      "command": "exec > file",
+      "expected": "none"
+    },
+    {
+      "id": "redirect-only-leaf-in-compound-still-detected",
+      "command": "> file; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "exec-only-redirect-leaf-in-compound-still-detected",
+      "command": "exec > file; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "safe-head-cd-literal-absolute",
+      "command": "cd /home/example/repo && git status --short",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-relative",
+      "command": "cd tests/unit && gh issue view 1",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-parent",
+      "command": "cd .. && git status",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-quoted-space",
+      "command": "cd '/tmp/with space' && git status",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-standalone",
+      "command": "cd /home/example/repo",
+      "expected": "none"
+    },
+    {
+      "id": "safe-head-cd-literal-semicolon-nonmerge",
+      "command": "cd /home/example/repo; git status",
+      "expected": "none"
+    },
+    {
+      "id": "head-cd-expansion-operand",
+      "command": "cd $HOME && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-braced-expansion-operand",
+      "command": "cd \"${REPO}\" && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-command-substitution-operand",
+      "command": "cd \"$(pwd)\" && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-tilde-operand",
+      "command": "cd ~/ws && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-glob-operand",
+      "command": "cd /tmp/*/repo && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-option-operand",
+      "command": "cd -P /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-previous-directory-operand",
+      "command": "cd - && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-two-operand-substitution",
+      "command": "cd /tmp /var && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-without-operand",
+      "command": "cd && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-with-path-assignment-prefix",
+      "command": "PATH=/tmp cd /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-with-command-wrapper",
+      "command": "command cd /tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "non-head-cd-literal-leaf",
+      "command": "gh issue view 1 && cd /tmp",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-cli-merge",
+      "command": "cd /home/example/repo && gh -R example/repo pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-bare-merge",
+      "command": "cd /home/example/repo && gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-rest-merge",
+      "command": "cd /home/example/repo && gh api -X PUT repos/example/repo/pulls/1/merge -f merge_method=squash",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-nested-shell-merge",
+      "command": "cd /home/example/repo && bash -c 'gh pr merge 1 --squash'",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-auto-merge",
+      "command": "cd /home/example/repo && gh -R example/repo pr merge 1 --squash --auto",
+      "expected": "error"
+    },
+    {
+      "id": "head-cd-literal-then-state-mutation-then-merge",
+      "command": "cd /home/example/repo && export PATH=/tmp && git status",
+      "expected": "error"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-single",
+      "command": "echo 'diff <<a>> b'",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-double",
+      "command": "git commit -m \"fix: parse a<<b\"",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-inside-word",
+      "command": "echo a'<<'b",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-heredoc-marker-with-apostrophe",
+      "command": "gh issue comment 1 --body \"it's a << b\"",
+      "expected": "none"
+    },
+    {
+      "id": "safe-quoted-herestring-marker-data",
+      "command": "grep -n '<<<' notes.md",
+      "expected": "none"
+    },
+    {
+      "id": "unquoted-heredoc-still-closed",
+      "command": "cat << EOF",
+      "expected": "error"
+    },
+    {
+      "id": "unquoted-herestring-still-closed",
+      "command": "python3 -m json.tool <<< '{}'",
+      "expected": "error"
+    }
+  ]
+}

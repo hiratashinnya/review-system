@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# staged index だけを検査する。自動生成・自動 stage は行わない。
+python3 -m guidance_sync staged-check

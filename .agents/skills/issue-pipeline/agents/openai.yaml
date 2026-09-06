@@ -1,0 +1,6 @@
+interface:
+  display_name: "Issue Pipeline"
+  short_description: "GitHub Issue を implement→PR→review→merge→close で順次完結する"
+  default_prompt: "$issue-pipeline を使って、オープン Issue の処理順を提案し、1件ずつ implement→PR→review→merge→close まで進めてください。"
+policy:
+  allow_implicit_invocation: true

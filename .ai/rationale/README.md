@@ -1,0 +1,62 @@
+# `.ai/rationale/` — ADR／契約文書の「経緯」の保管先（非活性・dispatch 時にロードされない）
+
+Claude Code (AI) が Issue #372 で新設した。**規範（normative）と経緯（rationale）を分離**し、
+dispatch のたびに常駐するのは前者だけにするための置き場。
+
+## 何が入るか（分離の判定軸）
+
+| | 置き場 | 中身 |
+|---|---|---|
+| **共通規範本文の SoT** | `.ai/agents/<name>.md`・`.ai/skills/<name>/SKILL.md` | ロールが**行動を決めるのに必要な共通部分**＝責務境界・入出力契約・実行規律・停止条件 |
+| **PF wrapper／parity seed** | `.claude/agents/<name>.md`・`.claude/skills/<name>/SKILL.md` | Claude 固有 metadata・実行契約と共通 SoT への参照。`asset_parity` が比較行を発見する起点であり、共通本文の編集正本ではない |
+| **ADR／経緯（rationale）** | **`.ai/rationale/<name>.md`（本ディレクトリ）** | 設計判断の理由・**却下案**・既知の限界・変更経緯 |
+| **troubleshooting** | **`.ai/troubleshooting/<asset>.md`** | asset ごとの index。incident は本文見出しで分け、障害の症状・復旧手順・回避策・実測ログを記録する（本ディレクトリには置かない） |
+
+## 3つの規律
+
+1. **消さない（PR8）**：経緯は削除ではなく**移設**する。移設は**移設元の文言を尊重して**行い、
+   内容の追加・削除・意味の変更はしない。ただし `##` 見出しの付与に加え、複数節をまとめる際・
+   切り出した断片を単独の節として成立させる際に必要な**最小限の接続語・言い換え**は補ってよい
+   （全文一言一句を複製する逐語（verbatim）移設までは求めない）——「移設」と「削除」を diff で
+   区別できることが目的であり、要約・骨格の入れ替え・意味を変える言い換えはしない。
+2. **正本は1箇所**：移設した経緯は移設元から取り除く。**両方に残さない**
+   （`CLAUDE.md` ↔ `.claude/hooks/governance-directives.md` は写し＝コピー方式なので
+   `tests/unit/test_governance_sync.py` による同期検査が要るが、本ディレクトリは
+   **移設＝実体が1箇所しかない**ので同型の同期規律は不要）。
+   **既知のギャップ（Issue #372 是正ラウンド1／F-372-03）**：`tests/unit/test_contract_split.py`
+   の字数上限検査は「規範側の総字数が分離前を超えていないか」だけを見ており、rationale の一節を
+   逐語コピーで規範側へ書き戻す**二重正本**は機械検知できない（分離前の字数を下回っている限り
+   通ってしまう）。当面は PR レビュー時の目視確認に委ねる。
+3. **規範側から1行で辿れる**：移設元の冒頭に本ディレクトリへのリンク1行を置く
+   （機械検査＝`tests/unit/test_contract_split.py`）。
+
+## 読み方の注意
+
+各ファイルの本文は移設元の文言を尊重して移してある（規律1）ため、`「後述」`『上記』`「下記」`「本節」等の
+**相対参照は移設元（規範側）の文脈を指す**。移設先での位置関係と読み替えないこと。
+節見出し（`##`）だけは移設先で付与しており、どの節から来たかを併記している。
+
+## 非活性であること（機械的な裏付け）
+
+- **Claude Code の agent/skill 探索対象ではない**：subagent 定義は `.claude/agents/*.md`、
+  skill は `.claude/skills/<name>/SKILL.md`。本ディレクトリはどちらでもないので
+  auto-load されない（`.claude/standards/` と同じ「非活性の置き場」の位置づけ）。
+- **`asset_parity` の資産としても数えられない**：`asset_parity/inventory.py` の
+  `scan_parity_seeds()` が parity seed として列挙するのは `.claude/skills/*/SKILL.md` と `.claude/agents/*.md` だけ。
+  本ディレクトリは走査対象外なので、4ツリー（`.claude` / `.github` / `.codex` / `.agents`）に
+  ミラーを要求されない＝`MISSING` を発生させない（`python3 -m asset_parity check` で実測確認済み）。
+
+## 4ツリーへの波及方針（Issue #372 で決定）
+
+**ADR／rationale の正本は本ディレクトリに1箇所だけ置き、ツリー中立（tree-neutral）に扱う。**
+`.codex/agents/*.toml` は単一ファイル形式のため「別ファイルへ分離」という構造をツリー内では
+取れないが、**同一リポジトリなのでリポジトリ相対パスで本ディレクトリを参照できる**。
+よって各 PF wrapper は本ディレクトリへのリンクを持つだけでよく、**ツリーごとの経緯ファイルは作らない**
+（＝新しい非対称は生じないので `asset_parity/exceptions.py` への追記も不要）。
+記録＝`.claude/tailoring-registry.md`。
+
+troubleshooting は ADR／rationale と別責務であり、障害・復旧記録の正本は
+`.ai/troubleshooting/` に置く。共有 schema の正本は `.ai/schema/` に置き、配置契約は
+[`../schema/asset-placement-v1.json`](../schema/asset-placement-v1.json) と
+[`../schema/README.md`](../schema/README.md) を参照する。いずれも PF tree の
+asset parity 対象ではない。

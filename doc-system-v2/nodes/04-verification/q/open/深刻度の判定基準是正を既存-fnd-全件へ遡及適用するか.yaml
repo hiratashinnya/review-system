@@ -1,0 +1,11 @@
+title: "深刻度の判定基準是正を既存 FND 全件へ遡及適用するか"
+version: "0.1.2"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "dsv2-実装-6-モジュールに対応する設計ノード-mod-p-が存在しない"
+    ref_version: "0.2"
+  - to: "設計層の接続チェーン-dm→mod→d-が欠落しており-mod→p-dm→p-の強制が-pr1-違反を生む"
+    ref_version: "0.4"
+  - to: "cfg←src-がキー単位の-cfg-にファイル単位の-src-を要求し粒度が一致しない"
+    ref_version: "0.1"

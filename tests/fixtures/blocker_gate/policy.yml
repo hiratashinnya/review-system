@@ -1,0 +1,6 @@
+schema: blocker-gate-policy/v1
+policy_version: "2.0"
+approver_allowlist:
+  - owner-login
+max_waiver_lifetime_hours: 168
+protected_default_branch: main

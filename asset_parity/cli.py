@@ -1,8 +1,9 @@
 """asset_parity の CLI（``python3 -m asset_parity ...``）。
 
 サブコマンド:
-  * ``check``  4資産ツリー（`.claude/` 正本 ／ `.github/` Copilot ／ `.codex/agents/`
-    Codex CLI agent ／ `.agents/skills/` Codex CLI skill）の presence/absence マトリクスを
+  * ``check``  `.ai/` common SoT から生成・接続された loader-facing 4資産ツリーを検査する。
+    対象は `.claude/` parity seed ／ `.github/` Copilot ／ `.codex/agents/`
+    Codex CLI agent ／ `.agents/skills/` Codex CLI skill。presence/absence マトリクスを
     出力し、非対応 gap があれば非0で終了する（CI 向け）。既知の意図的非移植
     （`.claude/tailoring-registry.md` 記載）は ``exempt`` として除外し、毎回ノイズ扱いしない。
 

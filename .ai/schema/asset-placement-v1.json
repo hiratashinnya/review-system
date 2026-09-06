@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/schemas/asset-placement-v1.json",
+  "title": "review-system AI asset placement/v1",
+  "description": "PF-neutral AI asset placement records. The schema is documentation and validation metadata, not a loader entrypoint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "entries"],
+  "properties": {
+    "schema": {"const": "ai-asset-placement/v1"},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "category", "path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "category": {
+          "enum": ["normative", "rationale", "troubleshooting", "shared-schema"]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"category": {"const": "normative"}}},
+          "then": {
+            "properties": {
+              "path": {
+                "pattern": "^(?:\\.ai/(?:skills/[^/]+/SKILL\\.md|agents/[^/]+\\.md)|\\.claude/(?:skills/[^/]+/SKILL\\.md|agents/[^/]+\\.md)|\\.agents/skills/[^/]+/SKILL\\.md|\\.codex/agents/[^/]+\\.toml|\\.github/(?:skills/[^/]+/SKILL\\.md|prompts/[^/]+\\.prompt\\.md|agents/[^/]+\\.agent\\.md))$"
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"category": {"const": "rationale"}}},
+          "then": {
+            "properties": {
+              "path": {"pattern": "^\\.ai/rationale/[^/]+\\.md$"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"category": {"const": "troubleshooting"}}},
+          "then": {
+            "properties": {
+              "path": {
+                "pattern": "^\\.ai/troubleshooting/(?:agy-delegate|analysis-author|asset-auditor|authoring-fanout|codex-review|design-author|doc-system-v2-authoring|dsv2-lookup|gh-create-issue|issue-fixer|issue-implementer|issue-pipeline|pr-reviewer|reconciliation|reconciliation-validator|verification-author)\\.md$"
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"category": {"const": "shared-schema"}}},
+          "then": {
+            "properties": {
+              "path": {"pattern": "^\\.ai/schema/[^/]+-v[1-9][0-9]*\\.json$"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,175 @@
+name: project-status-sync
+
+# Issue #460: GitHub Project「review-system Development」の `Status` を、
+# blocker-snapshot.yml が publish 済みの `snapshot.json` から同期する。
+# `Blocked` を設定する経路が built-in workflow に存在せず、「gate は着手を
+# fail-close で拒否するのにボードは Ready のまま」という食い違いが常時起こりうる
+# 状態を解消する。
+#
+# blocker-snapshot.yml に相乗りさせない理由（Issue #460 Scope §2）:
+# 同ワークフローは issue-start gate に食わせる fail-close の生命線であり、
+# `concurrency.cancel-in-progress: true` が付いている。Project 書き込みを足すと
+# (a) runner のキュー待ちが外部 cron 間隔を超えたときに書き込み途中で run が
+# cancel され Project が中途半端に残る、(b) Project 書き込みの失敗が gate 用
+# snapshot の publish を巻き込む——という形で gate 本体の信頼性を下げる。
+# 障害ドメイン・cadence・PAT スコープを独立させる。
+#
+# cadence: gate の5分は「拒否判定の鮮度」に効くための頻度であり、ボード表示に
+# 同じ厳しさは要らない。20分間隔で回し、ツール側の鮮度上限（60分）が
+# blocker-snapshot の停止だけを捕まえるようにする。
+#
+# `pull_request_target` は使わない（public repository で secret が露出する経路を
+# 作らないため）。secret `PROJECT_SYNC_TOKEN` は classic PAT（scope は `project`
+# のみ・`repo`/`workflow` は付けない）。Actions の GITHUB_TOKEN では Projects V2 に
+# 書き込めない（`permissions:` の `repository-projects` は旧 classic projects 用）。
+#
+# 課金（CLAUDE.md「CI/外部サービス連携のコスト方針」）: 本 repository は public で
+# あり GitHub Actions は無課金・無制限。PAT も無料。追加コストは発生しない。
+#
+# 可視化: blocker-snapshot.yml と同じく **publish してから赤くする**。
+# report.json を孤立ブランチへ force-push した後で `::error` を出して job を
+# 失敗させる。逆にするとレポートが残らないまま落ちる（Issue #345 F-345-03 と同型）。
+#
+# 初回確認は完了済み（Issue #470・オーナー承認 2026-09-03）:
+# cron を入れる前に human-in-the-loop の初回確認を通した——`workflow_dispatch`
+# （`apply: false`）の dry-run で変更計画を確認し、オーナー承認のうえ `apply: true`
+# で初回書き込みを実施（`applied: 4`・オーナー専権フィールドは不変）。この確認を
+# cron より先に済ませたのは、Project への書き込みに復元手段が無く
+# （project_status_sync/README.md「使い方」）、cron を同時に入れると初回確認が
+# 20分タイマーとの競争になって実質的に成立しないため（PR #465 の finding
+# F-460-01）。確認が済んだので本ワークフローは常用へ移行する。
+# `workflow_dispatch`（`apply` 既定 `false`）は手動 dry-run の経路として残す。
+on:
+  # === 主たる起動元は「外部 cron（cron-job.org）から叩く workflow_dispatch」===
+  # 設定手順の正本＝docs/methods/project-status-sync-external-cron-ops.md。cadence は
+  # 20分（上の「cadence」コメント参照）。**外部 cron の body には `inputs.apply` を
+  # 明示すること**——
+  #   {"ref":"main","inputs":{"apply":"true"}}
+  # `inputs` を省くと `apply` は下の `default: false` に落ち、常用運転が永久 dry-run に
+  # なる（Status が同期されないまま CI は緑＝Issue #470 が塞いだのと同型の静かな未達）。
+  # blocker-snapshot 用の既存ジョブ（docs/methods/blocker-snapshot-external-cron-ops.md §2）の
+  # body は `{"ref":"main"}` で inputs を含まないので、**そのまま流用してはいけない**。
+  # なお `workflow_dispatch` を無条件 apply にはしない——外部 cron と人手の dispatch は
+  # event 名で原理的に区別できず、無条件 apply にすると PR #465 の finding F-460-01 で
+  # 回復した手動 dry-run 経路を失う。正解は起動する側が inputs を明示することだけ。
+  #
+  # === 純正 schedule は外部 cron が止まったときの保険 ===
+  # GitHub の schedule 配信は cron 式どおりの間隔を保証しない。実測では 74〜104 分間隔でしか
+  # 発火しなかった（Issue #363）ので、下の `*/20` を「20分ごとに動く」と読んではいけない。
+  # 保険としては有効で、遅れて劣化するのはボード表示の鮮度だけ——issue-start gate の判定
+  # そのものは blocker-snapshot 側の snapshot を読むので影響を受けない。
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Project へ実際に書き込む（false = dry-run。変更計画を run summary に出すだけ）"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: project-status-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch the published blocker snapshot
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth 1 origin "+refs/heads/blocker-snapshot:refs/remotes/origin/blocker-snapshot"
+          git show "origin/blocker-snapshot:snapshot.json" > "$RUNNER_TEMP/snapshot.json"
+
+      - name: Sync Project Status
+        id: sync
+        env:
+          PROJECT_SYNC_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}
+          # `inputs` は workflow_dispatch でのみ存在する。schedule で発火した run では
+          # 空文字になるため、この値だけで分岐してはいけない（下の run: 参照）。
+          APPLY: ${{ inputs.apply }}
+          # 分岐の一次情報は trigger 名。空文字に依存しない判定にするため。
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -uo pipefail
+          # `--apply` の付与は **trigger 名** で決める。APPLY の値だけで分岐しないこと:
+          # schedule 発火時は `inputs` が存在せず APPLY が **空文字** になる。空文字は
+          # 「未定義」ではないので `${APPLY:-false}` の既定値は効かず、APPLY 任せの
+          # 分岐だと cron 実行が永久に dry-run で回り続ける——Status が同期されない
+          # まま CI は緑、という静かな未達になる（Issue #470）。
+          # >>> apply-decision: tests/unit/test_project_status_sync.py がこの区間を
+          # 抜き出して bash で実行し、trigger ごとの --apply 付与を固定している。
+          # マーカー行ごと消さないこと。 >>>
+          apply_args=()
+          case "$EVENT_NAME" in
+            schedule)
+              # 純正 schedule＝外部 cron が止まったときの保険。起動できた以上は
+              # 確認済みの遷移表に従って実際に書き込む（inputs を渡す術がないため
+              # ここは無条件）。
+              apply_args+=(--apply)
+              ;;
+            workflow_dispatch)
+              # 主たる起動元（外部 cron）と人手の手動実行が共有する経路。event 名では
+              # 両者を区別できないので、既定は dry-run に倒し、入力が明示的に true の
+              # ときだけ書き込む。外部 cron は body に "inputs":{"apply":"true"} を
+              # 入れて常用運転を成立させる（上の on: コメント参照）。
+              if [ "${APPLY:-false}" = "true" ]; then
+                apply_args+=(--apply)
+              fi
+              ;;
+            *)
+              # 未知の trigger は dry-run 側へ倒す（fail-safe）。
+              ;;
+          esac
+          # <<< apply-decision <<<
+          status=0
+          python3 -m project_status_sync sync \
+            --repository "$GITHUB_REPOSITORY" \
+            --project-id "PVT_kwHOBPTOrM4BezS3" \
+            --project-number 1 \
+            --snapshot "$RUNNER_TEMP/snapshot.json" \
+            --report "$RUNNER_TEMP/report.json" \
+            "${apply_args[@]}" >> "$GITHUB_STEP_SUMMARY" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # exit 20 = 中断または警告。report.json は書けているので publish して
+          # から赤くする。それ以外の非 0 は report が無いので即座に落とす。
+          if [ "$status" -ne 0 ] && [ "$status" -ne 20 ]; then
+            echo "::error::project-status-sync aborted (exit ${status}); nothing to publish"
+            exit "$status"
+          fi
+
+      - name: Publish the report to the orphan branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --orphan は tracked file を作業ツリーから外し index を空にする。
+          # 以降 index には report.json しか入らないので commit も1ファイルだけ。
+          git switch --orphan "project-status-sync-report"
+          cp "$RUNNER_TEMP/report.json" report.json
+          git add report.json
+          git commit --quiet -m "chore(project-status-sync): refresh project status sync report
+
+          Generated by GitHub Actions (.github/workflows/project-status-sync.yml) for
+          issue #460. This branch shares no history with the default branch and is
+          force-pushed as a single commit every run; it is never merged."
+          git push --force origin "project-status-sync-report"
+
+      # publish 済みの report を可視化する。ここで初めて job を失敗させるので、
+      # 中断・警告はレポートが配布された上で赤く残る。
+      - name: Fail the job when the sync reported a problem
+        if: steps.sync.outputs.status == '20'
+        run: |
+          echo "::error::project-status-sync reported an abort or a warning. The report was published to the 'project-status-sync-report' branch and the run summary above lists the details. Skipped items (NOT_IN_SNAPSHOT / STATUS_UNSET / STATUS_UNKNOWN) never cause this failure."
+          exit 1

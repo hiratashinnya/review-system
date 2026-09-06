@@ -2,11 +2,96 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash|mcp__codex_apps__github_merge_pull_request|mcp__codex_apps__github_enable_auto_merge|mcp__github__merge_pull_request|mcp__github__enable_auto_merge|mcp__github__enable_pull_request_auto_merge|github_merge_pull_request|github_enable_auto_merge",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
+            "timeout": 120
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_context-mode_context-mode__ctx_execute|mcp__plugin_context-mode_context-mode__ctx_execute_file|mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-command-gate.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
+            "timeout": 45
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-karte-inject.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "issue-implementer|issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-worktree-bind.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "issue-implementer|issue-fixer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-stop-gate.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|mcp__codex_apps__github_merge_pull_request|mcp__codex_apps__github_enable_auto_merge|mcp__github__merge_pull_request|mcp__github__enable_auto_merge|mcp__github__enable_pull_request_auto_merge|github_merge_pull_request|github_enable_auto_merge",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
+            "timeout": 10
           }
         ]
       }
@@ -20,6 +105,17 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/on-rate-limit.sh",
             "timeout": 15,
             "statusMessage": "rate limit検知: 自動再開ウォッチャを起動中(WSLのみ)"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/inject-governance.sh",
+            "timeout": 10
           }
         ]
       }
@@ -40,6 +136,16 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/orchestrator-context.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start-worktree-release.sh",
+            "timeout": 45
           }
         ]
       }
@@ -67,7 +173,12 @@
       "Bash(eval *)",
       "Bash(perl -e *)",
       "Bash(ruby -e *)",
-      "Bash(node -e *)"
+      "Bash(node -e *)",
+      "Edit(/tmp/_karte/**)"
     ]
+  },
+  "env": {
+    "CLAUDE_AFK_TIMEOUT_MS": "2147483647",
+    "CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS": "0"
   }
 }

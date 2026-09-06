@@ -1,112 +1,51 @@
 ---
 name: issue-pipeline
-description: Orchestrate a batch of open GitHub Issues through implement→PR→review→merge→close, one Issue at a time. The main thread stays thin — it triages processing order, dispatches issue-implementer / pr-reviewer sub-agents (model tier via bloom-model-tier, risk-based reviewer model), exchanges decisions with the owner via AskUserQuestion (showing premises/tradeoffs first), and tracks progress. Run only when explicitly invoked. NOT for authoring doc-system-v2 nodes (use spec-pipeline / impl-design-pipeline).
-disable-model-invocation: true
+description: Orchestrate a batch of open GitHub Issues through implement→PR→review→merge→close, one Issue at a time. The main thread stays thin — it triages processing order, dispatches issue-implementer / pr-reviewer sub-agents (model tier via bloom-model-tier, risk-based reviewer model), exchanges decisions with the owner via AskUserQuestion (showing premises/tradeoffs first), and tracks progress. Use when issue handling should proceed end-to-end with governance. NOT for authoring doc-system-v2 nodes (use spec-pipeline / impl-design-pipeline).
 ---
 
-# Issue 処理パイプライン（implement → PR → review → merge → close の連続処理）
+> **共通本文（必読）**: [`.ai/skills/issue-pipeline/SKILL.md`](../../../.ai/skills/issue-pipeline/SKILL.md)。実行前に必ず読み、Claude Code 固有の起動・権限・hook 制約を追加適用する。
 
-> 複数のオープン Issue を **1件ずつ完結**させる repo 運用オーケストレータ。主文脈（このスキルの呼び出し元）は
-> **よほど軽微でない限り自分で実装せず**、タスク管理・進捗報告・オーナーとの意思決定に専念する（Issue #120 ③）。
-> ファンアウト実行は `issue-implementer`（実装→PR）と `pr-reviewer`（レビュー→マージ）へ委譲し、
-> 重い調査は `agy-delegate` を積極利用する。
-> 原則：[spec-principles](../spec-principles/SKILL.md)（PR7 空で止めない・PR8 消さない）／規約：[CLAUDE.md](../../../CLAUDE.md)
-> （スコープ拡大禁止・スケジュール独断禁止・AI-attribution・Bloom 委譲）。**このスキルはそれらを再掲せず、上に立って回す**。
+設計判断の根拠は [issue-pipeline の canonical rationale](../../../.ai/rationale/issue-pipeline.md) を参照してください。
+Claude 固有の rationale pointer は [`.claude/rationale/issue-pipeline.md`](../../rationale/issue-pipeline.md) です。
+worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../../../.ai/troubleshooting/issue-pipeline.md) を必要なときだけ参照してください。
 
-## 役割分担（DD-22 の対話／非対話境界を厳守）
-- **主文脈＝対話オーナー**：`AskUserQuestion` を持つのはここだけ。**順序決め・オーナー判断・先送り可否・スコープ拡張の起票判断**を担う。
-- **`issue-implementer` / `pr-reviewer`＝非対話ファンアウト**：`AskUserQuestion` を持たない。曖昧・矛盾に当たったら**STOP して報告**（意見なき停止禁止＝原案＋比較＋推奨を添えて返す）。
-  対話ロジックを非対話エージェントに埋め込まない／順序・オーナー判断を主文脈から外へ出さない（DD-22）。
-- **権限境界はハーネスで機械強制**（`.claude/hooks/agent-command-gate.sh`・PreToolUse）：`issue-implementer` は push/PR 可・merge 不可、
-  `pr-reviewer` は merge 可・push 不可。プロンプトの自制ではなく機械ゲート（既知の限界は Issue #129・多層防御の一枚）。
+## Claude Code 固有の dispatch 契約
 
-## 段（各 Issue を直列に回す。バッチ内 Issue は ① で順序確定）
+- 主文脈だけが `AskUserQuestion` を使い、順序・オーナー判断・先送り・スコープ拡張を担う。`issue-implementer`、`issue-fixer`、`pr-reviewer` は非対話で STOP 報告する。
+- `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
+- 実装は `issue-implementer`、レビュー／マージは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。実装者は merge 不可、レビュー者は push 不可の機械ゲートを前提にする。
+- `.claude/agents/*.md` の変更内容が同一セッションの dispatch に直ちに反映されるとは限らない。変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。
 
-### ① 処置順の原案 → オーナー承認（主文脈・対話）
-オープン Issue 一覧から**推奨処置順**を立てる（Issue #120 ①）。
-1. `gh issue list` で対象を確定。各 Issue の本文・相互参照（"depends on #N" / "blocked by" / 同一ファイル群を触る等）を読む。
-   - **読み取りが重いバッチ（多数 Issue・横断調査が要る）なら read-only 委譲でコンテキストを節約**：一般調査は `general-purpose`/`Explore`、
-     大規模な横断影響調査は `agy-delegate`（疎通 OK 時）へ。**ただし「推奨順」を決めるのは主文脈**（対話オーナーが即 AskUserQuestion できるため・DD-22）。
-     専用 `issue-triage` エージェントは作らない（generic な issue 読解で asset-auditor も新規不要と判定・A14 再利用優先／決定は対話側に残す）。
-2. 依存を有向グラフ化し、**順序必須（前段の成果に依存）**と**並列可（独立）**を分離。ブロッカーを先に、葉を後に。
-3. **原案＋根拠＋メリデメを必ずチャットに提示してから** `AskUserQuestion` で承認/修正を仰ぐ（Issue #120 ③・空で止めない）。
-   提示物＝依存グラフ要約・推奨順・並列可否・各 Issue のリスク見立て（② のレビュー model 選定に使う）。
+### `issue-implementer` dispatch（`ISSUE_START_BINDING_V1` marker ＋ `isolation: "worktree"`）
 
-### ② 1 Issue を完結（承認された順に直列。前 Issue が merge & close 済みになってから次へ・Issue #120 ②）
-各 Issue につき次を回す。**主文脈は dispatch と進捗記録に専念し、実装・レビューはしない**。
+`Task`/`Agent` dispatch の `tool_input.prompt` に、次の marker 行をちょうど1つ含める。欠落・重複・値の不正はいずれも hook が dispatch そのものを deny する。
 
-**②-a 実装（`issue-implementer` へ委譲）**
-- **model/effort は [bloom-model-tier](../bloom-model-tier/SKILL.md) のルーブリックで決める**（Issue #120 ④）。実装は既定 `sonnet`。
-  Bloom Lv6・判断ボトルネック（曖昧仕様からの新規構造化・不可逆な設計判断を含む Issue）なら `model: opus` override で dispatch。
-- dispatch prompt には**タスク固有情報のみ**（Issue 番号・関連ノード ID・スコープ）＋**共通契約への参照**（下記「共通指示の配り方」）。
-- 戻り＝PR URL・変更ファイル一覧・テスト結果・スコープ外指摘。**STOP 報告（曖昧・矛盾）なら主文脈で受けてオーナーへ**（PR7）。
+```
+ISSUE_START_BINDING_V1={"entrypoint":"issue-pipeline","repository":"OWNER/REPO","issue":N,"branch_name":"BRANCH","base_ref":"DEFAULT","base_oid":"40-HEX","base_pr":null}
+```
 
-**②-b 初回レビュー（`pr-reviewer` へ委譲・model はリスクで選ぶ）**
-- **初回レビューの model はリスク/難易度で選ぶ**（Issue #120 ④）。レビュー＝Bloom Lv5 評価。下の**リスク信号表**で `sonnet` / `opus` を機械的に引く
-  （「判断で」で済ませない）。既定 override なし＝`sonnet`、opus 該当時のみ `model: opus` で dispatch。
-- **指摘の処置要否・処置担当モデル（Sonnet 降格可否）は `pr-reviewer` 自身が決める**（Issue #120 ④・主文脈は決めない）。
-  レビューアが「指摘は明確・機械的 → Sonnet で処置」と判断したら、主文脈はその指示どおり ②-c を回すだけ（降格判断を横取りしない）。
-- **レビュー指摘・処置結果は PR レビューコメントに残す**（Issue #120 ⑥・Claude Code(AI) 明記＋具体的な変更/根拠。`gh pr comment`。
-  承認/却下ステータスを偽らない＝`pr-reviewer.md` の絶対規範）。
+exact 7 field（過不足はどちらも拒否）：`entrypoint`（常にリテラル `"issue-pipeline"`）／`repository`（`OWNER/REPO` 正規化）／`issue`／`branch_name`／`base_ref`（既定ブランチ名）／`base_oid`（fresh fetch 済み exact 40 桁 hex）／`base_pr`（stacked branch のときだけ OPEN PR 番号、それ以外 `null`）。
+`branch_name`/`base_ref`/`base_oid`/`base_pr` は後続の `python3 -m gitgate new-branch` へ渡す値と同じにする。同じ dispatch に `isolation: "worktree"`（`Task`/`Agent` のパラメータとして渡し、prompt 本文には書かない）を渡す。
 
-**②-c 是正 → 再レビュー（指摘があった場合のループ）**
-- 是正は `issue-implementer` へ差し戻す（`pr-reviewer` は push 不可＝コードを書けない）。担当 model は **②-b でレビューアが決めた降格判断に従う**
-  （明確な指摘なら `sonnet`）。
-- **再レビューは常に Sonnet**（Issue #120 ⑤・`pr-reviewer` を override なし＝既定 `sonnet` で dispatch）。
-- clean になるまで ②-c を繰り返す。**握りつぶし禁止**：対応不要に見えても FND/Q 起票を主文脈へ提案させ、据え置きはオーナー判断（下記 ③・④）。
+`handoff_path` は主文脈が作業ツリールート相対で採番して渡す：
+`tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml`。絶対パスは渡さない。同一 Issue の複数ラウンドは `<suffix>` で分ける。handoff 回収は troubleshooting の手順に従う。
 
-**②-d マージ → クローズ → 次へ**
-- `pr-reviewer` が genuinely clean と判断したら `gh pr merge`（マージは reviewer 専権・機械ゲート）。
-- `Closes #N` で自動クローズされなければ主文脈がクローズ（クローズは主文脈がしてよい）。**merge & close を確認してから次 Issue へ**（Issue #120 ②）。
+### `issue-fixer` dispatch（`ISSUE_FIX_BINDING_V1` marker）
 
-### ③ スコープ拡張は別 Issue に逃がす（PR 肥大化の抑制・Issue #120 ⑧）
-レビュー/調査中に**現 PR/Issue のスコープを超える対応**が要ると分かったら、現 PR で直さず **サブ Issue / 別 Issue を起票**（`gh issue create`）。
-- `issue-implementer`/`pr-reviewer` は「スコープ外指摘」を報告して STOP する（自分で直さない・CLAUDE.md スコープ拡大禁止）。**起票の実行は主文脈**。
-- doc-system-v2 に関わる指摘なら FND/Q ノード起票（`verification-author` 経由）も併せて主文脈が判断（CLAUDE.md）。
+`issue-implementer` と同様、次の marker と `isolation: "worktree"` を欠く dispatch は hook が呼び出し自体を deny する。
 
-### ④ 先送りは必ずオーナー許可（独断禁止・Issue #120 ⑨ / CLAUDE.md スケジュール独断禁止）
-指摘・対応を先送り/繰り越すときは、**背景・検討結果・メリデメを提示した上で `AskUserQuestion` で許可を取る**。
-- **AI が単独で「対応不要」「後でよい」「次スプリント繰り越し」と結論づけない**（CLAUDE.md・過去インシデント）。
-- `scheduled` は空のまま「今実施 vs 繰り越し＋推奨」を添えて委ねる。判断者と理由をコメント/ノードに明記。
+```
+ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"OWNER/REPO","expected_oid":"40-HEX","handoff_path":"tmp/_handoff/issue-fixer--issue-N-fixR.yaml"}
+```
 
-## リスク信号表（②-b 初回レビュー model 選定・bloom-model-tier の軸2を Issue レビューに具体化）
-レビュー＝Bloom Lv5 評価。**判断ボトルネック側の信号が1つでも強く立てば `opus`、すべて網羅性側なら `sonnet`（+high effort）**。
+exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（既に PR が開いているブランチ名）／`repository`（`gitgate adopt-branch --repository` に渡す値）／`expected_oid`（remote 先端 exact 40 桁 hex）／`handoff_path`。
+`isolation_only` 区分では shape・isolation・marker だけを検証する。
 
-| 信号 | Sonnet 寄り（網羅性ボトルネック） | Opus 寄り（判断ボトルネック） |
-|---|---|---|
-| ブラストレディアス | 局所（1〜数ファイル・限定モジュール） | コーパス横断・共有資産・多数ノードの ref_version 伝搬 |
-| 変更規模 | 小（数十行・定型追加） | 大（構造改変・広域リファクタ） |
-| パターンの新規性 | 既存パターン踏襲（テンプレ流し込み・既存に倣う） | 前例なし・新規構造の創出・設計判断を含む |
-| 触る対象の性質 | プローズ/資産テキスト・ドキュメント | 権限ゲート/フック/セキュリティ境界・doc-system グラフ構造・型 |
-| 可逆性 | 容易に差し戻せる | 不可逆・広範囲に波及 |
-| 仕様の明確さ | 受け入れ基準が一意 | 曖昧・利害 trade-off・解釈の余地 |
+- **メインワークツリーのブランチは切り替えない**。`issue-fixer` は自分の worktree で `python3 -m gitgate adopt-branch <branch> --repository <repository> --expected-oid <expected_oid>` を実行して PR ブランチを取得する。
+- **レビュー結果を先にカルテへ取り込む**（dispatch 前）：`python3 -m karte ingest-review --issue <N> --round <R> --from <repo-root 配下のパス>`。これは主文脈が実行する。
+- **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
+- `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
-- 迷ったら **opus 側に倒す**（bloom-model-tier のタイブレーク＝effort は品質の代理変数にすぎない・安全側）。選定根拠を1行残す（信号→model）。
-- **再レビューは表に依らず常に Sonnet**（Issue #120 ⑤）。是正の担当 model は**レビューアの降格判断に従う**（主文脈が決めない・Issue #120 ④）。
+## 重い作業は agy を積極利用（fail-close）
 
-## 共通指示の配り方（dispatch テンプレをリーンに保つ）
-`issue-implementer`/`pr-reviewer` の**恒常的な共通契約**（決定点で前提/背景/メリデメ＋選択肢＋推奨を報告に添える・PR コメントは AI 明記＋具体・
-曖昧は STOP 報告・スコープ外は起票提案）は、**各エージェントの system prompt（`.claude/agents/*.md`）に常設**する（読者が見る場所・版管理・毎回自動適用）。
-- **dispatch prompt には毎回タスク固有情報だけ**を書く。バッチ共通の補足がある場合のみ、CLAUDE.md の規約どおり
-  `tmp/<sprint>/issue-pipeline-common.md` に書き出して各 dispatch から参照させる（同一指示をコンテキストに展開しない）。
-- **SubagentStart フックは採らない（設計判断）**：`SubagentStart`（`hookSpecificOutput.additionalContext` で子コンテキストへ注入可）は実在するが、
-  本パイプラインでは採用しない。理由＝(1) 対象2エージェントは本パイプライン専用で、恒常契約は各 `.md` に置く方が可視・版管理でき常に効く（フックだと settings.json ＋シェルに分散）。
-  (2) 本 repo でフックは**機械的に拒否できる境界**（push/merge ゲート＝agent-command-gate）に限定する慣行（PR2・機械判定と運用ルールを混ぜない）。ただし Bash 文字列の静的検査であり、非バイパスの完全防御とは扱わない。
-  助言的指示の配布はその範疇でない。(3) 常時 ON のグローバル副作用は、明示ブロックに比べ保守面が重く不透明で、得られるトークン節約は限定的。
-
-## 重い作業は agy を積極利用（Issue #120 ⑦・fail-close）
-横断影響調査・参照/孤児調査・スクラッチ計算・並列サブクエリなどの**重い調査**は `agy-delegate` へ回す。
-- `agy-delegate` は**移譲前に必ず疎通チェック**（`antigravity_status`）し、NG（クラウド/ヘッドレス等）なら**移譲せず主文脈が直接遂行にフォールバック**（fail-close）。
-- **正本への書き込み・確定著作・無検証コード採用は移譲しない**（agy 産は素案/レポート＝入力にすぎない・`agy-delegate.md` のガバナンス境界）。
-
-## 点検観点（done）
-- ① 推奨順を依存グラフ＋根拠付きで提示し、`AskUserQuestion` でオーナー承認を得た（独断で処理を始めていない）。
-- 各 Issue が **implement→PR→review→merge→close** を1件ずつ完結（前 Issue の close 確認後に次へ）。
-- 実装 model は bloom-model-tier、初回レビュー model はリスク信号表で選定し**根拠を1行残した**。是正降格は**レビューアが決めた**。**再レビューは Sonnet**。
-- レビュー指摘・処置結果が **PR レビューコメント**に AI 明記＋具体で残っている（Issue #120 ⑥）。
-- スコープ拡張は**別 Issue に逃がした**（現 PR を肥大化させていない・⑧）。
-- 先送りは**オーナー許可を取った**（AI 独断で「対応不要/繰り越し」していない・⑨）。
-- 主文脈は実装/レビューを自分でやらず、タスク管理・進捗報告・意思決定に専念した（③）。
-
-## 成果物
-- 承認済み処置順 ＋ 各 Issue の PR（merge/close 済み）＋ PR レビューコメント（AI 明記）＋ 起票したサブ Issue/FND/Q（あれば）＋ 進捗ログ。
+横断影響調査・参照/孤児調査・スクラッチ計算などの重い調査は `agy-delegate` へ回す。移譲前に必ず疎通チェックし、NG なら移譲せず主文脈が直接遂行する。正本への書き込み・確定著作・無検証コード採用は移譲しない。

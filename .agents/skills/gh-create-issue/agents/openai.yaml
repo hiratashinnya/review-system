@@ -1,0 +1,6 @@
+interface:
+  display_name: "Create GitHub Issue"
+  short_description: "GitHub Issueを分類規約どおり安全に作成する手順"
+  default_prompt: "$gh-create-issue を使って、この開発項目を規約どおりGitHub Issueとして作成してください。"
+policy:
+  allow_implicit_invocation: true

@@ -1,12 +1,12 @@
 # asset_parity — cross-platform asset drift/presence detector
 
-Detects presence/absence drift across the four asset trees that exist for this repo
+Detects presence/absence drift across the four loader-facing asset trees that exist for this repo
 (issue #155, detection half — a separate task handles the currently-known content
 gaps such as issue-pipeline porting):
 
 | Tree | Convention | Who reads it |
 |---|---|---|
-| `.claude/skills/<name>/SKILL.md` / `.claude/agents/<name>.md` | **canonical** | Claude Code |
+| `.claude/skills/<name>/SKILL.md` / `.claude/agents/<name>.md` | **parity seed (loader wrapper)** | Claude Code |
 | `.github/skills/<name>/SKILL.md` (or `.github/prompts/<name>.prompt.md` for `disable-model-invocation: true` orchestrator skills) / `.github/agents/<name>.agent.md` | mirror | GitHub Copilot |
 | `.codex/agents/<name>.toml` | mirror (agents only) | Codex CLI (agent) |
 | `.agents/skills/<name>/SKILL.md` | mirror (skills only) | Codex CLI (documented repo-scoped skill discovery path — top-level `.agents/`, not nested under `.codex/`) |
@@ -36,26 +36,58 @@ Exit codes: `0` no MISSING gaps (and no staleness flags if `--fail-on-stale`) /
 
 ## What it reports
 
-1. **Presence/absence matrix** (primary output) — for every canonical `.claude/`
+1. **Presence/absence matrix** (primary output) — for every parity-seed `.claude/`
    skill/agent, whether it's present in each of the three mirror trees, using each
    tree's actual naming convention (verified against real files, not assumed).
    Cell states: `OK` present / `MISSING` expected but absent / `exempt` documented or
    structural non-mirror / `n/a` that tree doesn't apply to this asset kind (e.g.
    Codex has no skill-shaped tree, `.agents/skills/` has no agent-shaped tree).
 2. **Staleness flags** (secondary, heuristic) — for pairs present in both the
-   canonical tree and a mirror: a large last-commit-date gap or line-count ratio is
+   parity seed and a mirror: a large last-commit-date gap or line-count ratio is
    flagged as "worth a human/LLM look". This is **not** a semantic diff (that needs an
    LLM/human per the audit that motivated this tool) — false positives are fine, it's
    a flag, not a blocker. Never affects the exit code unless `--fail-on-stale` is set.
 3. **Orphans in mirror** (informational) — assets that exist in a mirror tree with no
-   canonical `.claude/` counterpart at all (the reverse-direction gap; not counted in
+   `.claude/` parity-seed counterpart at all (the reverse-direction gap; not counted in
    the missing-count/exit code).
+
+## Non-active shared material (Issue #407)
+
+The parity inventory has an intentionally narrow seed boundary. It enumerates only
+`.claude/skills/*/SKILL.md` and `.claude/agents/*.md` as loader-facing comparison
+seeds; shared AI material is
+not a fifth asset tree and must not create mirror obligations:
+
+| Material | Shared source of truth | Inventory treatment |
+|---|---|---|
+| Normative skill/agent body | `.ai/skills/` / `.ai/agents/` | linked from a loader wrapper; not scanned as a second asset |
+| ADR / rationale | `.ai/rationale/` | inactive record; ignored |
+| Troubleshooting | `.ai/troubleshooting/` | inactive record; ignored |
+| Shared schema | `.ai/schema/` | inactive contract; ignored |
+
+The placement contract is `.ai/schema/asset-placement-v1.json`. Do not add a new
+parity exception for one of these directories: if a record is reported as an
+asset, the inventory boundary is wrong and should be fixed instead.
+
+### Terminology migration compatibility
+
+`parity seed` is the primary term and API from `asset-parity-report/v2`. Existing
+consumers remain supported during migration: `scan_canonical()`,
+`Asset.canonical_path`, `StaleSignal.canonical_epoch` / `canonical_lines`, and JSON
+`canonical_path` / `canonical_lines` remain deprecated aliases for the corresponding
+`parity_seed_*` names. New integrations should use the v2 names; the JSON payload
+publishes both names and a `compatibility.deprecated_keys` map.
+
+Legacy keyword calls are also accepted: `Asset(canonical_path=...)`,
+`StaleSignal(canonical_epoch=..., canonical_lines=...)`, and
+`compare(canonical_path=...)`. Passing a legacy and v2 name together is accepted only
+when the values match; conflicting values raise `TypeError` rather than choosing one.
 
 ## Documented exceptions
 
 `asset_parity/exceptions.py` holds a short, explicit list of **already-documented**
-intentional non-mirrors (currently: `agy-delegate`, `issue-pipeline` +
-`issue-implementer`/`pr-reviewer`, all Copilot-only exclusions — see
+intentional non-mirrors (currently: `agy-delegate`,
+`issue-implementer`/`issue-fixer`/`pr-reviewer`, all Copilot-only exclusions — see
 `.claude/tailoring-registry.md`). It intentionally does not invent new exceptions; if
 you make a new deliberate non-mirror decision, record it in `tailoring-registry.md` (or
 the asset's own `SKILL.md`/agent `.md`) first, then add the matching entry there.
@@ -78,7 +110,7 @@ tree), not a one-off documented carve-out:
 | Module | Responsibility |
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
-| `inventory.py` | Canonical asset enumeration + invocation-mode classification |
+| `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
 | `trees.py` | Per-tree naming conventions + applicability rules |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
@@ -95,14 +127,26 @@ tree), not a one-off documented carve-out:
 - **Text + JSON, one command**: text for a human running it locally, JSON for
   CI/other tooling to parse; `--format both` when you want both at once.
 
-## CI wiring (issue #155 follow-up, closed)
+## CI wiring (issue #155 follow-up, closed; paths filter corrected in #467)
 
 `.github/workflows/asset-parity.yml` runs `python3 -m asset_parity check` on
 every `push`/`pull_request` whose diff touches any of the four asset trees
-(`.claude/skills|agents`, `.github/skills|agents`, `.codex/agents`,
-`.agents/skills`) — the `paths:` filter deliberately spans all four, so the
-check fires regardless of which platform/tool made the change (Claude Code,
-Copilot, Codex CLI, or a human), not just when `.claude/` changes.
+(`.claude/skills|agents`, `.github/skills|prompts|agents`, `.codex/agents`,
+`.agents/skills`) — the `paths:` filter deliberately spans all seven mirror
+roots (GitHub Copilot alone has two: `.github/skills/**` for plain skills and
+`.github/prompts/**` for `disable-model-invocation: true` orchestrator
+skills), so the check fires regardless of which platform/tool made the
+change (Claude Code, Copilot, Codex CLI, or a human), not just when
+`.claude/` changes. It also fires on `.ai/**` (the shared normative source
+under "Non-active shared material" above) as a *trigger-only* addition —
+this does not add `.ai/` to the inventory `check` reads (that boundary is
+Issue #407's decision and is unchanged), it only makes sure a PR that edits
+`.ai/` doesn't skip the check that verifies the `.claude/` wrapper linking to
+it. `tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
+list against `asset_parity/trees.py`/`inventory.py` so the two can't drift
+apart silently again (Issue #467 — a prior drift where `trees.py` already
+scanned `.github/prompts/` but `paths:` omitted it went undetected until a
+manual audit).
 
 Failure policy: the workflow uses the tool's **default** exit-code contract
 (no `--fail-on-stale`) — a genuine `MISSING` gap (present in `.claude/`,
@@ -114,7 +158,7 @@ merges on fuzzy judgment calls. The matrix is also written to
 `$GITHUB_STEP_SUMMARY` so it renders as a readable table in the Actions UI
 regardless of pass/fail.
 
-Note: at the time this workflow was added, the canonical tree already had a
+Note: at the time this workflow was added, the parity-seed tree already had a
 few genuine `MISSING` entries against `.github` (see `check` output) that
 predate this PR. Wiring the check into CI surfaces them as an actionable
 red build rather than fixing them — fixing pre-existing mirror gaps is a

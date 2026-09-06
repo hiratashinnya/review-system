@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/schemas/blocker-gate-result-v1.json",
+  "title": "blocker-gate-result/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "policy_version", "classifier_version", "invocation_id",
+    "mode", "result", "exit_code", "primary_reason", "reasons",
+    "repository", "subject", "binding", "graphql_closing_set",
+    "delivered_message_closing_set", "closing_set", "findings", "fetched_at",
+    "completed_at", "pages_complete", "permit_issued"
+  ],
+  "properties": {
+    "schema": {"const": "blocker-gate-result/v1"},
+    "policy_version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+$"},
+    "classifier_version": {"type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+$"},
+    "invocation_id": {"type": "string", "format": "uuid"},
+    "mode": {"enum": ["issue-start", "pr-merge"]},
+    "result": {"enum": ["ALLOW", "BLOCK", "ERROR"]},
+    "exit_code": {"enum": [0, 10, 20]},
+    "primary_reason": {"$ref": "#/$defs/reason"},
+    "reasons": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/reason"}
+    },
+    "repository": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+        {"type": "null"}
+      ]
+    },
+    "subject": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["type", "number"],
+          "properties": {
+            "type": {"enum": ["issue", "pull_request"]},
+            "number": {"type": "integer", "minimum": 1}
+          }
+        },
+        {"type": "null"}
+      ]
+    },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "head_oid", "expected_commit_count", "base_ref_name", "default_branch", "merge_method",
+        "intercepted_commit_title_fingerprint",
+        "intercepted_commit_message_fingerprint", "message_source_fingerprint",
+        "delivered_message_fingerprint", "repository_merge_settings_fingerprint",
+        "operation_fingerprint", "snapshot_fingerprint", "attempt",
+        "pr_state", "pr_is_draft"
+      ],
+      "properties": {
+        "head_oid": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40,64}$"},
+        "expected_commit_count": {"type": ["integer", "null"], "minimum": 1},
+        "base_ref_name": {"type": ["string", "null"]},
+        "default_branch": {"type": ["string", "null"]},
+        "merge_method": {"enum": ["merge", "rebase", "squash", null]},
+        "intercepted_commit_title_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "intercepted_commit_message_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "message_source_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "delivered_message_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "repository_merge_settings_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "operation_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "snapshot_fingerprint": {"oneOf": [{"$ref": "#/$defs/fingerprint"}, {"type": "null"}]},
+        "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+        "pr_state": {"enum": ["OPEN", "CLOSED", "MERGED", null]},
+        "pr_is_draft": {"type": ["boolean", "null"]}
+      }
+    },
+    "graphql_closing_set": {"$ref": "#/$defs/issueSet"},
+    "delivered_message_closing_set": {"$ref": "#/$defs/issueSet"},
+    "closing_set": {"$ref": "#/$defs/issueSet"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "subject", "path", "fingerprint", "waiver_id"],
+        "properties": {
+          "code": {"$ref": "#/$defs/findingCode"},
+          "subject": {"$ref": "#/$defs/issueRef"},
+          "path": {"type": "array", "items": {"$ref": "#/$defs/issueRef"}},
+          "fingerprint": {"$ref": "#/$defs/fingerprint"},
+          "waiver_id": {"type": ["string", "null"], "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
+          "waiver_evidence": {
+            "type": "object", "additionalProperties": false,
+            "required": [
+              "waiver_id", "policy_blob_sha", "waiver_blob_sha",
+              "approval_commit", "expires_at"
+            ],
+            "properties": {
+              "waiver_id": {"type": "string", "pattern": "^BW-[0-9]{8}-[0-9]{3,}$"},
+              "policy_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "waiver_blob_sha": {"$ref": "#/$defs/fingerprint"},
+              "approval_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+              "expires_at": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      }
+    },
+    "fetched_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "pages_complete": {"type": "boolean"},
+    "permit_issued": {"type": "boolean"}
+  },
+  "$defs": {
+    "issueRef": {"type": "string", "pattern": "^[^/]+/[^/#]+#[1-9][0-9]*$"},
+    "issueSet": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/issueRef"}},
+    "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "allowReason": {"enum": ["NO_VIOLATION", "NO_CLOSING_EFFECT", "WAIVER_APPLIED"]},
+    "blockReason": {"enum": ["OPEN_BLOCKER", "CLOSURE_OPEN_DESCENDANT", "TARGET_ISSUE_NOT_OPEN", "PR_NOT_OPEN", "PR_DRAFT", "AUTO_MERGE_DENIED"]},
+    "errorReason": {
+      "enum": [
+        "CLASSIFIER_UNKNOWN", "TARGET_AMBIGUOUS", "MODE_MISMATCH",
+        "API_UNAVAILABLE", "API_PERMISSION", "API_UNREACHABLE",
+        "API_PARTIAL_RESPONSE",
+        "PAGINATION_INCOMPLETE", "GRAPH_LIMIT_EXCEEDED", "GRAPH_CYCLE",
+        "IDENTITY_MISMATCH", "ISSUE_STATE_UNKNOWN", "RELATION_INCONSISTENT",
+        "RELATION_TARGET_UNREADABLE", "CROSS_REPOSITORY_UNSUPPORTED",
+        "MERGE_METHOD_UNKNOWN", "MERGE_SETTINGS_AMBIGUOUS",
+        "MERGE_OVERRIDE_AMBIGUOUS", "MERGE_MESSAGE_AMBIGUOUS",
+        "REBASE_MESSAGE_AMBIGUOUS", "MESSAGE_SOURCE_INCOMPLETE",
+        "CLOSING_KEYWORD_PARSE", "WAIVER_SCHEMA_INVALID", "WAIVER_INVALID",
+        "REEVALUATION_LIMIT", "RESULT_CONTRACT_INVALID", "HOOK_INTEGRITY_ERROR",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "reason": {"anyOf": [{"$ref": "#/$defs/allowReason"}, {"$ref": "#/$defs/blockReason"}, {"$ref": "#/$defs/errorReason"}]},
+    "findingCode": {"anyOf": [{"$ref": "#/$defs/blockReason"}, {"$ref": "#/$defs/errorReason"}]}
+  },
+  "allOf": [
+    {"if": {"properties": {"result": {"const": "ALLOW"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 0},
+       "permit_issued": {"const": true},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/allowReason"},
+       "reasons": {"items": {"$ref": "#/$defs/allowReason"}}
+     }}},
+    {"if": {"properties": {"result": {"const": "BLOCK"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 10},
+       "permit_issued": {"const": false},
+       "pages_complete": {"const": true},
+       "primary_reason": {"$ref": "#/$defs/blockReason"},
+       "reasons": {"items": {"$ref": "#/$defs/blockReason"}}
+     }}},
+    {"if": {"properties": {"result": {"const": "ERROR"}}},
+     "then": {"properties": {
+       "exit_code": {"const": 20},
+       "permit_issued": {"const": false},
+       "primary_reason": {"$ref": "#/$defs/errorReason"},
+       "reasons": {
+         "items": {"anyOf": [
+           {"$ref": "#/$defs/blockReason"},
+           {"$ref": "#/$defs/errorReason"}
+         ]},
+         "contains": {"$ref": "#/$defs/errorReason"}
+       }
+     }}}
+  ]
+}

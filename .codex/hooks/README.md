@@ -1,12 +1,16 @@
 # Codex CLI hooks
 
-Codex CLI supports lifecycle hooks. This repo registers two project-local hooks
+Codex CLI supports lifecycle hooks. This repo registers project-local hooks
 in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
 1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
    `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-2. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
+2. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
+3. An all-tool `PreToolUse` hook (`codex-workspace-binding-gate.sh`) reserved for
+   a future Codex workspace-binding transport. It currently fail-closes target
+   roles because the runtime does not expose the observations needed to bind them.
+4. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
    Codex's structured `account/rateLimits/read` app-server API whether the account
    is rate-limited and, if so, when it resets, then resumes the thread after the
    reset (Issue #195). Tmux pane text scraping (`/status` + banner regex) is kept
@@ -14,6 +18,34 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
    local/tmux-only; cloud and non-tmux environments are safe no-ops.
 
 ## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
+
+`codex-workspace-binding-gate.sh` is registered after the three existing PreToolUse
+groups so their index-based trust identities remain unchanged. For
+`issue-implementer` and `issue-fixer` it currently denies every command: Codex does
+not expose child/effective workspace, actual agent identity, or spawn-success
+observation in trusted hook payloads. Other roles are silent no-ops. The existing
+issue-start hook separately denies Codex implementer/fixer dispatch with
+`ISSUE_START_TRANSPORT_UNAVAILABLE`, including while this new all-tool hook is not
+yet trusted. See `docs/methods/codex-workspace-binding.md` for the degraded contract.
+
+### Codex workspace-binding hook trust and index preservation (Issue #452)
+
+Hook trust identity includes the source path, event, group index, handler index,
+and normalized handler hash. The Issue #452 hook is therefore appended as
+`pre_tool_use:3:0`; it must never be inserted before the existing groups:
+
+- `pre_tool_use:0:0`: `pr-merge-gate.sh`
+- `pre_tool_use:1:0`: `agent-command-gate.sh`
+- `pre_tool_use:2:0`: `issue-start-gate.sh`
+- `pre_tool_use:3:0`: `codex-workspace-binding-gate.sh` (new)
+
+The owner must open `/hooks`, review only the new group 3 definition/hash, and
+explicitly trust it before relying on command-time evidence. Do not copy a trusted
+hash from another index or write hook trust state automatically. Until group 3 is
+trusted, the trusted existing group 2 issue-start gate is the fail-close boundary:
+the manifest marks both Codex Issue transports unavailable, so no protected agent
+may be dispatched. Trusting group 3 does not enable the transport; runtime support
+for all missing observations and matching integration evidence are also required.
 
 `agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
 Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
@@ -89,6 +121,26 @@ Design notes:
   read, and cannot influence, the allow/deny decision.
 - The Claude counterpart (`.claude/hooks/agent-command-gate.sh`) writes the
   same shape of record to `~/.claude/agent-command-gate-trace.log` for parity.
+
+### Codex 0.146.0 Issue-start dispatch tool name
+
+The official Codex manual and `rust-v0.146.0` source define `spawn_agent` as
+the canonical hook tool name and `Agent` as its matcher-only compatibility
+alias. A trusted, interactive Codex CLI 0.146.0 run in a disposable clone
+observed `tool_name: "collaborationspawn_agent"` on PreToolUse stdin for the UI
+`collaboration.spawn_agent` call. The Issue-start matcher therefore exact
+matches only `spawn_agent`, `Agent`, and `collaborationspawn_agent`. The Codex
+transport parser accepts only the canonical and observed stdin names; it does
+not accept `Agent`, the unobserved dotted display name, or similar prefix/suffix
+tool names as Codex payload aliases.
+
+Claude Code 2.1.221 Pro produced a separate compatibility case: its configured
+`Task` matcher caught a real Agent tool call whose PreToolUse `tool_name` was
+`Agent` and whose input retained the Claude `subagent_type` / `prompt` /
+`description` shape. The manifest therefore accepts `Agent` only on the Claude
+transport when `subagent_type` and `prompt` are present and Codex
+`agent_type` / `message` / `task_name` fields are absent. A Codex-shaped
+`Agent` payload and any ambiguous/mixed/similar name remain fail-closed.
 
 ### Dogfooding results (Issue #188, 2026-07-11, `codex-cli` 0.142.5)
 
@@ -235,6 +287,7 @@ resolution is still unverified, but it is now known to be moot until the
 | File | Role |
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` and `Stop` hooks. Trust them with `/hooks` before relying on them. |
+| `codex-workspace-binding-gate.sh` | All-tool PreToolUse adapter for durable Codex implementer/fixer workspace bindings. |
 | `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `codex-rate-limit-query.py` | Structured rate-limit query helper (Issue #195). Drives `codex app-server --stdio` over JSON-RPC (`initialize` → `initialized` → `account/rateLimits/read`) and prints normalized `RL_*=value` lines (reached / reset epoch / window / used%). Standard-library only. Exit 0 = queried; non-zero = API unavailable (caller falls back to text). |
 | `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases; queries the rate-limit API and, when reached, spawns the watcher with the API reset epoch (`--recover-once-epoch`). Falls back to `/status` + banner text only when the API is unavailable. |
@@ -321,12 +374,25 @@ before injecting `continue`.
 **Replace vs. fallback (acceptance criterion 3).** The API is the *primary*
 detector and is trusted fully when it answers (it is the account's own
 authoritative state, not a screen guess). The existing text/regex path is
-**kept as a fallback**, reached only when the API cannot be queried: `codex`
-not on `PATH`, not logged in, an app-server error/timeout, or an older Codex
-release without the method. This is the conservative choice — it strictly adds
-reliability without removing the previously tested safety net, and matches this
-codebase's defensive "never guess-fire, degrade gracefully" style. Disable the
-API path entirely with `CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
+**kept as a fallback**, reached when the API cannot be queried (`codex` not on
+`PATH`, not logged in, an app-server error/timeout, or an older Codex release
+without the method), *and also* when the API answers with `rateLimitReachedType`
+non-null (the account is genuinely rate-limited) but the `primary`/`secondary`
+windows carry no usable `resetsAt`. The latter case matters for the workspace
+credits/usage `rateLimitReachedType` values (`workspace_owner_credits_depleted`,
+`workspace_member_credits_depleted`, `workspace_owner_usage_limit_reached`,
+`workspace_member_usage_limit_reached` — confirmed via `codex app-server
+generate-json-schema`'s `GetAccountRateLimitsResponse.json` on codex-cli 0.149.1),
+whose reset time is plausibly carried by `individualLimit`
+(`SpendControlLimitSnapshot`) rather than `primary`/`secondary`; this helper does
+not read `individualLimit` yet, so `RL_RESET_EPOCH` can come back empty for those
+reached-types even though the account genuinely is limited and the visible pane
+banner (e.g. "You've hit your usage limit. Upgrade to Pro ... or try again at
+12:22 PM.") still carries a parseable reset cue for the text fallback to use.
+This is the conservative choice — it strictly adds reliability without removing
+the previously tested safety net, and matches this codebase's defensive "never
+guess-fire, degrade gracefully" style. Disable the API path entirely with
+`CODEX_RL_API_CHECK=0` (forces the legacy text behavior).
 
 **Known residual trade-offs**, flagged rather than resolved unilaterally:
 

@@ -51,7 +51,9 @@ class TestCompare(unittest.TestCase):
         canon = self._write("canon.md", 20)
         mirror = self._write("mirror.md", 20)
         result = staleness.compare(canon, mirror, self.root, commit_epoch_fn=lambda p, r: None)
+        self.assertIsNone(result.parity_seed_epoch)
         self.assertIsNone(result.canonical_epoch)
+        self.assertEqual(result.canonical_lines, result.parity_seed_lines)
         self.assertIsNone(result.day_gap)
         self.assertFalse(result.flagged)
 
@@ -61,6 +63,79 @@ class TestCompare(unittest.TestCase):
         result = staleness.compare(canon, mirror, self.root, commit_epoch_fn=lambda p, r: None)
         self.assertTrue(result.flagged)
         self.assertIn("empty file on one side", result.flag_reasons)
+
+    def test_deprecated_compare_keyword_remains_compatible(self):
+        seed = self._write("seed.md", 20)
+        mirror = self._write("mirror.md", 20)
+        result = staleness.compare(
+            canonical_path=seed,
+            mirror_path=mirror,
+            root=self.root,
+            commit_epoch_fn=lambda p, r: None,
+        )
+        self.assertEqual(result.parity_seed_lines, 20)
+        same = staleness.compare(
+            parity_seed_path=seed,
+            canonical_path=seed,
+            mirror_path=mirror,
+            root=self.root,
+            commit_epoch_fn=lambda p, r: None,
+        )
+        self.assertEqual(same.parity_seed_lines, 20)
+
+    def test_conflicting_compare_path_names_fail_closed(self):
+        seed = self._write("seed.md", 20)
+        old_seed = self._write("old-seed.md", 20)
+        mirror = self._write("mirror.md", 20)
+        with self.assertRaisesRegex(TypeError, "disagree"):
+            staleness.compare(
+                parity_seed_path=seed,
+                canonical_path=old_seed,
+                mirror_path=mirror,
+                root=self.root,
+            )
+
+    def test_deprecated_stale_signal_constructor_keywords_remain_compatible(self):
+        legacy = staleness.StaleSignal(
+            canonical_epoch=1,
+            mirror_epoch=2,
+            day_gap=0.0,
+            canonical_lines=3,
+            mirror_lines=4,
+            size_ratio=4 / 3,
+            flagged=False,
+            flag_reasons=(),
+        )
+        self.assertEqual(legacy.parity_seed_epoch, 1)
+        self.assertEqual(legacy.parity_seed_lines, 3)
+        same = staleness.StaleSignal(
+            parity_seed_epoch=1,
+            canonical_epoch=1,
+            mirror_epoch=2,
+            day_gap=0.0,
+            parity_seed_lines=3,
+            canonical_lines=3,
+            mirror_lines=4,
+            size_ratio=4 / 3,
+            flagged=False,
+            flag_reasons=(),
+        )
+        self.assertEqual(same.parity_seed_lines, 3)
+
+    def test_conflicting_stale_signal_names_fail_closed(self):
+        with self.assertRaisesRegex(TypeError, "disagree"):
+            staleness.StaleSignal(
+                parity_seed_epoch=1,
+                canonical_epoch=2,
+                mirror_epoch=2,
+                day_gap=0.0,
+                parity_seed_lines=3,
+                canonical_lines=4,
+                mirror_lines=4,
+                size_ratio=1.0,
+                flagged=False,
+                flag_reasons=(),
+            )
 
     def test_git_last_commit_epoch_returns_none_outside_git_repo(self):
         canon = self._write("canon.md", 5)

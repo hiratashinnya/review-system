@@ -1,0 +1,111 @@
+{
+  "schema_version": "managed-issue-entrypoints/2",
+  "policy_version": "issue-start/1.0",
+  "managed": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-implementer",
+      "binding_transports": {
+        "codex": {
+          "tool_names": [
+            "spawn_agent",
+            "collaborationspawn_agent"
+          ],
+          "agent_type_field": "agent_type",
+          "required_tool_input_fields": [
+            "agent_type",
+            "task_name"
+          ],
+          "forbidden_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "task_name_pattern": "^issue_([1-9][0-9]*)$",
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
+        },
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_START_BINDING_V1=",
+          "required_isolation": "worktree"
+        }
+      }
+    }
+  ],
+  "isolation_only": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-fixer",
+      "binding_transports": {
+        "codex": {
+          "tool_names": [
+            "spawn_agent",
+            "collaborationspawn_agent"
+          ],
+          "agent_type_field": "agent_type",
+          "required_tool_input_fields": [
+            "agent_type",
+            "task_name"
+          ],
+          "forbidden_tool_input_fields": [
+            "subagent_type",
+            "prompt",
+            "isolation"
+          ],
+          "task_name_pattern": "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
+          "availability": "unavailable",
+          "missing_observations": [
+            "child_workspace",
+            "effective_tool_workspace",
+            "actual_agent_id",
+            "spawn_success"
+          ],
+          "binding_source": "tmp/_worktree/ledger.json#platform=codex (prepare-only; not an enabled transport)"
+        },
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_FIX_BINDING_V1=",
+          "required_isolation": "worktree"
+        }
+      }
+    }
+  ],
+  "unmanaged": [
+    "direct shell/API invocation outside issue-pipeline",
+    "harnesses that do not enable/trust project PreToolUse hooks"
+  ]
+}
