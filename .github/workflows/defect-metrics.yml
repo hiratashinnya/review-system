@@ -1,0 +1,164 @@
+name: defect-metrics
+
+# Issue #488: 欠陥混入率（派生 Issue/PR）の指標を週次で算出し、孤立ブランチ
+# `defect-metrics` の `report.json` へ publish する。指標の定義は散文ではなく
+# `defect_metrics/` のコードに固定してある（Issue #368 の再現不能の再発防止）。
+#
+# 孤立ブランチである理由（`.github/workflows/blocker-snapshot.yml` と同じ方式・
+# Issue #488「提案挙動」2.）: 既定ブランチへ commit すると main の履歴が計測結果で
+# 進み、`git log` が読めなくなる。`--orphan` は main と履歴を共有しないので、main への
+# マージも main からのマージも一切不要。さらに毎回 **単一 commit を force-push** する
+# ため履歴も増えず、読む側の fetch は常に 1 commit 分で済む。
+#
+# 主たる起動元は外部 cron（Issue #363 の実測・オーナー確定 2026-08-12）: GitHub の
+# `schedule:` は指定間隔での発火を保証しない（#363 の実測では `*/5` でも 74〜104 分
+# 間隔でしか発火しなかった）。したがって下の `schedule:` は**保険**であり、主たる
+# 起動元は外部 cron サービス（cron-job.org）からの `workflow_dispatch` である。
+# 頻度は週次とする——本指標は日単位では動かず、窓幅も既定7日であるため。
+# 外部 cron の実設定と初回到達の確認は本 Issue のスコープ外で **#489** が担う
+# （手順の正本＝docs/methods/defect-metrics-external-cron-ops.md）。
+#
+# 課金（`.claude/rules/03-operational.md`「CI/外部サービス連携のコスト方針」）:
+# 本 repository は public であり GitHub Actions は無課金・無制限（無料枠の上限自体が
+# 存在しない）。ジョブは週1回・数十秒。API 消費は `gh issue list` / `gh pr list` を
+# report step と verify-baseline step で1回ずつ、計4コマンドである。`gh` は 100 件/
+# ページでページングするため、Issue 246 件・merged PR 228 件（2026-09-06 時点）では
+# それぞれ 3 ページ＝約 6 リクエスト、2 step 合計で **約 12 リクエスト/実行**になる
+# （GITHUB_TOKEN の 1,000 requests/h 枠に対し無視できる。件数が増えれば比例して
+# 増えるが、週1回である限り枠に対して桁が違う）。fine-grained PAT の枠は別建てで
+# 5,000 requests/時（外部 cron の dispatch がこちらを使う）。数値の正本は
+# docs/methods/defect-metrics-external-cron-ops.md §6 で、両者は一致させること。
+# 外部 cron（cron-job.org）も無料枠で完結する（公式トップページに「from
+# minute-by-minute to once in a year. Absolutely free.」と明記）。したがって本構成は
+# 全経路が無課金であり、オーナーの課金認可を要しない。
+#
+# 既知の劣化条件（いずれも安全側＝「気づける方向」へ倒れる）:
+#   - 外部 cron 停止・PAT 失効(401) → `schedule` の保険頻度でしか更新されなくなる。
+#     report.json の `generated_at` が古くなるので、読む側は鮮度で気づける。
+#   - public repository の scheduled workflow は 60 日間の無活動で自動停止する
+#     → 同上。ただし `workflow_dispatch` 起動はこの 60 日ルールの対象外（GitHub 仕様）。
+#   - `gh` の出力スキーマ変更・取得失敗 → generator が exit 1 で止まり publish しない
+#     （壊れたレポートを配らない fail-close）。job は赤くなる。
+#   - `gh ... list` の取得件数が `--limit` に達した（＝古い側が黙って落ちた）→ 同じく
+#     exit 1 で止まり publish しない（`defect_metrics/collect.py` の
+#     `_ensure_not_truncated`）。`gh` 自身は成功終了するため、この検出が無いと
+#     「正常な体裁で誤った数字」を配ることになる。
+#   - 閾値超過（exit 20）は **generator の失敗ではなく計測結果**である。publish は
+#     必ず行い、その後で `::warning` を出して可視化する（job は緑のまま）。
+#   - 記録済み基線の再現不能（verify-baseline が exit 21）は **人が確認すべき事象**
+#     である。publish は必ず行い、その後で `::error` を出して **job を失敗させる**
+#     （blocker-snapshot.yml が degraded snapshot を publish してから job を失敗させる
+#     のと同じ順序・F-345-03）。`::warning` では GitHub が通知しないため、緑のまま
+#     基線と定義の乖離が積み上がる——それは Issue #488 が解こうとした「散文定義による
+#     再現不能」の再発そのものを、誰にも気づかせないまま許すことになる。
+#     照合結果は step ログ（既定 90 日で失効）だけでなく report.json の
+#     `baseline_verification` にも載るので、読取側（#461）へも届く。
+on:
+  # 保険のみ（主たる起動元ではない・上記コメント参照）。毎週月曜 03:17 UTC。
+  # 分をずらしているのは、毎時 0 分に集中する GitHub 側の scheduled workflow の
+  # 混雑を避けるため（公式ドキュメントの推奨）。
+  schedule:
+    - cron: "17 3 * * 1"
+  # 主たる起動元。外部 cron（cron-job.org）が週次でこの workflow_dispatch を叩く
+  # （body `{"ref":"main"}`）。設定手順は
+  # docs/methods/defect-metrics-external-cron-ops.md を正本とする。
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: defect-metrics
+  # 週次で重ならないため cancel は不要。取りこぼしを作らない側に倒す。
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Compute the defect-rate report
+        id: compute
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          status=0
+          python3 -m defect_metrics report \
+            --repository "$GITHUB_REPOSITORY" \
+            --output "$RUNNER_TEMP/report.json" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # exit 20 = 閾値判定が「異常」。レポート自体は完成しているので publish する。
+          if [ "$status" -ne 0 ] && [ "$status" -ne 20 ]; then
+            echo "::error::defect metrics computation failed (exit ${status}); nothing to publish"
+            exit "$status"
+          fi
+
+      - name: Verify that the recorded baseline is still reproducible
+        # 指標定義（コード）と記録済み基線（Issue #488「現状と根拠」）が食い違ったら
+        # 気づけるようにする。過去の窓に対する測定なので、通常は永久に同じ値を返す。
+        # 値が動いたら「定義を変えた」か「過去の Issue/PR 本文を編集した」のどちらかで、
+        # どちらも人が確認すべき事象である。
+        # この step 自体は失敗させず終了コードを output へ退避する（compute step と
+        # 同じ形）。レポートの publish を先に完了させるためであり、見逃すためでは
+        # ない——不一致は publish 後の最終 step が `::error` ＋ exit 1 で job を
+        # 赤くする（F-488-01(a)）。
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          status=0
+          python3 -m defect_metrics verify-baseline \
+            --repository "$GITHUB_REPOSITORY" || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # ここでは失敗させない（publish を先に完了させる）。exit 21（不一致）と
+          # それ以外の失敗（取得・解釈エラー）の区別は最後の step が行う。
+
+      - name: Publish to the orphan branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --orphan は tracked file を作業ツリーから外し index を空にする。
+          # 以降 index には report.json しか入らないので、commit も1ファイルだけ。
+          git switch --orphan "defect-metrics"
+          cp "$RUNNER_TEMP/report.json" report.json
+          git add report.json
+          git commit --quiet -m "chore(defect-metrics): refresh defect-rate report
+
+          Generated by GitHub Actions (.github/workflows/defect-metrics.yml) for
+          issue #488. This branch shares no history with the default branch and is
+          force-pushed as a single commit every run; it is never merged."
+          git push --force origin "defect-metrics"
+
+      - name: Annotate when the published report is anomalous
+        if: steps.compute.outputs.status == '20'
+        run: |
+          echo "::warning::defect-metrics report is anomalous (baseline 0.68 exceeded and/or 50%+ regression vs the trailing 4 weeks). The report was published to the 'defect-metrics' orphan branch; see report.json threshold.alerts for the reason."
+
+      # publish 済みのレポートを配った上で、基線の再現不能を赤く残す（F-488-01(a)）。
+      # ここで初めて job を失敗させるので、レポートは必ず配布された上で人に届く。
+      # `::warning` にしないのは、GitHub が run failure では通知する一方 warning
+      # annotation では通知せず、緑のまま基線と定義の乖離が積み上がるため。
+      - name: Fail the job when the recorded baseline could not be reproduced
+        if: steps.baseline.outputs.status != '0'
+        env:
+          BASELINE_STATUS: ${{ steps.baseline.outputs.status }}
+        run: |
+          set -uo pipefail
+          if [ "$BASELINE_STATUS" = "21" ]; then
+            echo "::error::defect-metrics baseline window (2026-08-02..2026-08-16) no longer reproduces the values recorded in issue #488. Either the metric definition changed or the underlying issue/PR bodies were edited; both need a human decision. The report was still published to the 'defect-metrics' orphan branch; see its baseline_verification.mismatches (and the step log above) for the mismatch list."
+          else
+            echo "::error::defect-metrics baseline verification could not run (exit ${BASELINE_STATUS}); whether the recorded baseline still reproduces is unknown for this run. The report was still published; read its baseline_verification field, which carries the same check computed during report generation."
+          fi
+          exit 1
