@@ -50,6 +50,7 @@
 ### ②-d マージ → クローズ
 
 - clean 判定後に、マージ権限を持つ担当が merge する。
+- merge は merge commit 方式（`gh pr merge --merge`）で行い、`--squash` は使わない。
 - `Closes #N` で自動クローズされない場合は主文脈がクローズする。merge と close を確認してから次の Issue に進む。
 
 ## スコープ・先送り・矛盾
