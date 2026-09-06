@@ -6,10 +6,15 @@
     指定窓（既定＝``--now`` から遡る7日）の指標を算出し、機械可読な JSON を出力する。
     異常（:mod:`defect_metrics.threshold`）のときだけ stderr にアラート行を出し、
     exit code :data:`EXIT_ANOMALY` を返す。**異常でなければ stderr へ何も書かない。**
+    レポートには基線窓の照合結果も ``baseline_verification`` として同梱する
+    （:func:`verify_baseline`）——照合結果が Actions のログにしか残らないと、
+    レポートを読む側へ届かないまま失効するため。
 ``verify-baseline``
-    基線窓（``2026-08-02T00:00Z 〜 2026-08-16T00:00Z``）に対して同じ算出を行い、
+    基線窓（``2026-08-02T00:00Z 〜 2026-08-16T00:00Z``）に対して同じ照合を単独で行い、
     Issue #488「現状と根拠」の実測値（22 PR / 41 Issue / 1.86 / 派生 15 / 0.68）を
-    再現できるかを機械的に照合する。ズレたら exit :data:`EXIT_BASELINE_MISMATCH`。
+    再現できるかを機械的に確かめる。ズレたら exit :data:`EXIT_BASELINE_MISMATCH`
+    （``.github/workflows/defect-metrics.yml`` はこれを拾い、レポートを publish した**後で**
+    job を失敗させる）。
 
 wall clock の読み取り
 ---------------------
@@ -54,7 +59,12 @@ from .model import (
     format_timestamp,
     parse_timestamp,
 )
-from .threshold import Evaluation, evaluate
+from .threshold import (
+    TRAILING_AGGREGATION,
+    TRAILING_AGGREGATION_DETAIL,
+    Evaluation,
+    evaluate,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -106,6 +116,71 @@ def gather(
     return issues, pulls
 
 
+def _measured_baseline_values(metrics: WindowMetrics) -> dict[str, object]:
+    """基線と突き合わせる5つの実測値（比率は基線定数と同じ表示精度へ丸める）。"""
+    return {
+        "merged_prs": metrics.merged_prs,
+        "created_issues": metrics.created_issues,
+        "derived_issues": metrics.derived_issues,
+        "issues_per_pr": (
+            None if metrics.issues_per_pr is None else round(metrics.issues_per_pr, RATIO_DIGITS)
+        ),
+        "derived_per_pr": (
+            None if metrics.derived_per_pr is None else round(metrics.derived_per_pr, RATIO_DIGITS)
+        ),
+    }
+
+
+def _mismatches(metrics: WindowMetrics) -> list[str]:
+    """基線窓の実測値が記録済み基線と食い違う項目を列挙する（一致すれば空）。"""
+    measured = _measured_baseline_values(metrics)
+    expected = {
+        "merged_prs": BASELINE_MERGED_PRS,
+        "created_issues": BASELINE_ALL_ISSUES,
+        "derived_issues": BASELINE_DERIVED_ISSUES,
+        "issues_per_pr": BASELINE_ISSUES_PER_PR,
+        "derived_per_pr": BASELINE_DERIVED_PER_PR,
+    }
+    return [
+        f"{name}: expected {want}, got {measured[name]}"
+        for name, want in expected.items()
+        if want != measured[name]
+    ]
+
+
+def verify_baseline(
+    issues: list[IssueRecord],
+    pulls: list[PullRequestRecord],
+) -> tuple[dict[str, object], list[str]]:
+    """基線窓を再計測し、記録済み基線と照合した結果を機械可読な形で返す。
+
+    戻り値の第1要素は ``report.json`` の ``baseline_verification`` および
+    ``verify-baseline`` の stdout に載せる dict、第2要素は不一致の一覧である。
+
+    **この結果をレポートに載せる理由**（Issue #488 F-488-01(b)）: 照合を Actions の step
+    ログにしか残さないと、既定 90 日で失効し、レポートを読む側（#461 の報告経路）へは
+    一切届かない。閾値超過が ``threshold.anomaly`` として永続化される一方で基線検証だけが
+    揮発するという非対称は、「散文定義による再現不能」という Issue #488 が解こうとした問題の
+    再発を、誰にも気づかれないまま許すことになる。
+    """
+    metrics = compute_window_metrics(BASELINE_WINDOW, issues, pulls)
+    mismatches = _mismatches(metrics)
+    payload: dict[str, object] = {
+        "baseline_window": BASELINE_WINDOW.as_dict(),
+        "recorded": {
+            "merged_prs": BASELINE_MERGED_PRS,
+            "created_issues": BASELINE_ALL_ISSUES,
+            "derived_issues": BASELINE_DERIVED_ISSUES,
+            "issues_per_pr": BASELINE_ISSUES_PER_PR,
+            "derived_per_pr": BASELINE_DERIVED_PER_PR,
+        },
+        "measured": _measured_baseline_values(metrics),
+        "reproduced": not mismatches,
+        "mismatches": mismatches,
+    }
+    return payload, mismatches
+
+
 def build_report(
     repository: str,
     window: Window,
@@ -118,6 +193,15 @@ def build_report(
     trailing_window = window.shifted_back(TRAILING_WINDOW)
     trailing = compute_window_metrics(trailing_window, issues, pulls)
     evaluation = evaluate(current, trailing)
+    verification, _ = verify_baseline(issues, pulls)
+
+    trailing_block = dict(trailing.as_dict())
+    # フィールド名 `trailing_4_weeks` だけでは「プールド比」か「週次比の平均」か読めないため、
+    # 集計方法を値として同梱する（Issue #488 F-488-03・根拠は threshold.py の docstring）。
+    trailing_block["aggregation"] = {
+        "method": TRAILING_AGGREGATION,
+        "detail": TRAILING_AGGREGATION_DETAIL,
+    }
 
     report: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
@@ -126,7 +210,7 @@ def build_report(
         "repository": repository,
         "generated_at": format_timestamp(now),
         "report_window": current.as_dict(),
-        "trailing_4_weeks": trailing.as_dict(),
+        "trailing_4_weeks": trailing_block,
         "baseline": {
             "source": "Issue #368「現状と根拠」（2026-09-06 訂正）／Issue #488「現状と根拠」",
             "window": BASELINE_WINDOW.as_dict(),
@@ -136,6 +220,7 @@ def build_report(
             "derived_issues": BASELINE_DERIVED_ISSUES,
             "derived_per_pr": BASELINE_DERIVED_PER_PR,
         },
+        "baseline_verification": verification,
         "threshold": evaluation.as_dict(),
     }
     return report, evaluation
@@ -164,43 +249,10 @@ def _cmd_report(args: argparse.Namespace, stdout, stderr) -> int:
     return EXIT_ANOMALY
 
 
-def _mismatches(metrics: WindowMetrics) -> list[str]:
-    expected = (
-        ("merged_prs", BASELINE_MERGED_PRS, metrics.merged_prs),
-        ("created_issues", BASELINE_ALL_ISSUES, metrics.created_issues),
-        ("derived_issues", BASELINE_DERIVED_ISSUES, metrics.derived_issues),
-        (
-            "issues_per_pr",
-            BASELINE_ISSUES_PER_PR,
-            None if metrics.issues_per_pr is None else round(metrics.issues_per_pr, RATIO_DIGITS),
-        ),
-        (
-            "derived_per_pr",
-            BASELINE_DERIVED_PER_PR,
-            None if metrics.derived_per_pr is None else round(metrics.derived_per_pr, RATIO_DIGITS),
-        ),
-    )
-    return [
-        f"{name}: expected {want}, got {got}" for name, want, got in expected if want != got
-    ]
-
-
 def _cmd_verify_baseline(args: argparse.Namespace, stdout, stderr) -> int:
     issues, pulls = gather(args.repository, args.issues_json, args.pulls_json, args.limit)
-    metrics = compute_window_metrics(BASELINE_WINDOW, issues, pulls)
-    stdout.write(
-        json.dumps(
-            {
-                "baseline_window": BASELINE_WINDOW.as_dict(),
-                "measured": metrics.as_dict(),
-                "mismatches": _mismatches(metrics),
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n"
-    )
-    mismatches = _mismatches(metrics)
+    payload, mismatches = verify_baseline(issues, pulls)
+    stdout.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
     if mismatches:
         for line in mismatches:
             stderr.write(f"BASELINE_MISMATCH: {line}\n")

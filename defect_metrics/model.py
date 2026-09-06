@@ -36,6 +36,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 #: publish する JSON レポートのスキーマ版（読取側の互換判定用）。
+#: 本 PR（Issue #488）で新設した初版であり、同 PR 内のレビュー是正で
+#: ``baseline_verification`` / ``trailing_4_weeks.aggregation`` を追加した際も **1 のまま
+#: 据え置く**——未 merge の初版がまだ確定していない途中であり、是正だけを理由に版を
+#: もう一度動かさない（`.ai/guidance/common.md`「正本・実装規約」）。
 SCHEMA_VERSION = 1
 
 #: 派生 Issue と判定する地平線。Issue 起票時刻から遡ってこの時間内に merge された

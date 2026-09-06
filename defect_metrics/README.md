@@ -47,6 +47,43 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 **異常でなければ何も報告しない**——`alerts` が空のとき CLI は stderr に一切書かず exit 0 を返す
 （レポート JSON 自体は毎回 publish するが、それは「異常の報告」ではなく計測結果の保存である）。
 
+### 「直近4週」はプールド比（週次比の平均ではない）
+
+Issue #488 本文の「直近4週**平均**から 50% 以上悪化」には2通りの読み方がある。
+
+- **(A) プールド比**：直近28日を**ひとまとめの窓**として `derived_issues / merged_prs` を取る。
+- **(B) 週次比の平均**：週ごとに比を出し、その4本を平均する。
+
+本ツールは **(A) を採る**。理由は3つある。
+
+1. **少 PR 週の比が平均を支配する**。(B) は週ごとの比を等しい重みで平均するので、merged PR が
+   1本しかない週の `1/1 = 1.0` が、10本 merge された週の `0/10 = 0.0` と同じ重みになる。
+   週次比が `0/12, 0/10, 0/9, 1/1` の例では (A) が `1/32 ≒ 0.031`、(B) が `0.25` となり、
+   レポート窓 0.10 に対して **(A) では `TRAILING_REGRESSION` が立ち (B) では立たない**。
+   分母の少ない週ほど比が暴れるという性質が、そのまま判定の反転になる。
+2. **分母0の週の扱いを定義できない**。(B) は merge が 0 本の週の比が算出不能になり、
+   「除いて平均する」「0 とみなす」のどちらを選んでも新しい恣意が入る。(A) なら 28 日を
+   まとめた分母が 0 のときだけ `skipped` にすればよく、判断が1箇所で済む。
+3. **レポート窓側の集計と揃う**。レポート窓（既定7日）も窓全体の比なので、(A) なら
+   「同じ計算を幅の違う窓に当てているだけ」になる。(B) は比較の両辺で集計方法が変わる。
+
+この選択は `report.json` にも載る（`trailing_4_weeks.aggregation.method = "pooled"` と
+`threshold.trailing_aggregation`）。フィールド名 `trailing_4_weeks` だけでは (A)/(B) を
+区別できず、Issue #488 が排除しようとした「散文定義の曖昧さ」が閾値側に残ってしまうため。
+Issue #488 本文の「平均」という語との差異も、同じフィールドの `detail` で追跡できる。
+
+### 基線の再現検証はレポートにも載る
+
+`report.json` の `baseline_verification` に、基線窓（2026-08-02〜08-16）の再計測値・
+記録済み基線・`reproduced`・`mismatches` が入る（`verify-baseline` サブコマンドと同じ照合を
+`report` 側でも行う）。Actions の step ログは既定 90 日で失効し、レポートを読む側（#461 の
+報告経路）にも届かないため、照合結果を計測結果と同じ場所へ永続化する。
+
+`reproduced` が `false` のとき、`threshold` の基線比較（定数 `0.68`）は
+**「記録済み基線とは別定義の値」との比較**になっている。ワークフローはこの場合、レポートを
+publish した**後で** job を失敗させる（`.github/workflows/defect-metrics.yml`・
+`docs/methods/defect-metrics-external-cron-ops.md` §4.1）。
+
 比較の精度を2本で意図的に変えている。
 
 - 基線比較は**表示精度（小数2桁）どうし**。基線 0.68 は実測 15/22 = 0.6818… を2桁で記録した値で
@@ -79,9 +116,19 @@ python3 -m defect_metrics verify-baseline --repository OWNER/REPO
 | `--now` | 現在時刻の固定。**本パッケージが wall clock を読むのはこの既定分岐 1 箇所だけ**（`cli.resolve_now`） |
 | `--issues-json` / `--pulls-json` | `gh ... --json` 出力を保存したファイルから読む（ネットワーク・認証に依存せず再現できる） |
 | `--output` | 出力先ファイル（省略時 stdout） |
-| `--limit` | `gh ... list --limit`（既定 2000） |
+| `--limit` | `gh ... list --limit`（既定 2000）。**取得件数がこの値に達したら打ち切りとみなして `CollectionError` で止まる**（下記） |
 
 終了コード：`0`=正常 / `20`=異常検知 / `21`=基線再現の不一致（`verify-baseline`）/ `1`=取得・解釈エラー。
+
+### 取得件数の打ち切りは致命エラー（fail-close）
+
+`gh ... list --limit N` は**新しい方から N 件**を返して打ち切る。全件が N を超えると古い側が
+黙って落ち、まず基線窓（過去の固定窓）の再現が壊れ、次に `is_derived` の参照先 PR 辞書が欠ける。
+`gh` 自身は成功終了し JSON も正当なので、スキーマ検査には掛からない——**レポートは正常な体裁の
+まま誤った数字を載せる**。そこで `collect._ensure_not_truncated` が「取得件数が `--limit` に
+達した」時点で `CollectionError` を送出し、レポートを publish しない fail-close に乗せる
+（ちょうど `--limit` 件のときは打ち切りかどうか区別できないので、打ち切り側に倒す）。
+既定値を上げるだけの対処は同じ穴を先送りするだけなので採らない。
 
 ## 5. 時刻依存 test data の扱い
 
@@ -112,5 +159,8 @@ Issue #488「現状と根拠」の実測表に対し、本ツールが同じ値�
   PR を含まない）／`gh pr list --state merged --json number,mergedAt`。`gh` の出力スキーマが
   変わったら `defect_metrics/collect.py` の `load_issues` / `load_pulls` が
   `CollectionError` で fail-close する。
+- 取得件数の上限：`gh ... list --limit` が新しい側から打ち切る仕様に依存する。件数が
+  `--limit` に達したら `collect._ensure_not_truncated` が `CollectionError` で fail-close する
+  （§4「取得件数の打ち切りは致命エラー」）。
 - publish 方式：`.github/workflows/blocker-snapshot.yml`（孤立ブランチへの単一 commit
   force-push）と同一。

@@ -21,6 +21,34 @@
   ないうえ、float だと ``0.2 * 1.5 == 0.30000000000000004`` の表現誤差で「ちょうど1.5倍」が
   裏返るため（:attr:`~defect_metrics.metrics.WindowMetrics.derived_per_pr_exact`）。
 
+「直近4週」はプールド比であって週次比の平均ではない（Issue #488 の是正・F-488-03）
+-------------------------------------------------------------------------------
+Issue #488 本文の「直近4週**平均**から 50% 以上悪化」という文言には2通りの読み方がある。
+
+(A) **プールド比**: 直近28日をひとまとめの窓として ``derived_issues / merged_prs`` を取る。
+(B) **週次比の平均**: 週ごとに比を出し、その4本を平均する。
+
+本ツールは **(A) プールド比**を採る（:data:`TRAILING_AGGREGATION`）。実装上は
+:func:`defect_metrics.cli.build_report` が 28 日窓へ
+:func:`defect_metrics.metrics.compute_window_metrics` を1回だけ適用する形になっている。
+
+**(A) を採る理由**（(B) を採らない理由でもある）:
+
+* **少 PR 週の比が平均を支配する**。(B) は週ごとの比を同じ重みで平均するため、merged PR が
+  1 本しかない週の ``1/1 = 1.0`` が、10 本 merge された週の ``0/10 = 0.0`` と同じ重みになる。
+  週次比 ``0/12, 0/10, 0/9, 1/1`` の例では (A) が ``1/32 ≒ 0.031``、(B) が ``0.25`` となり、
+  レポート窓 0.10 に対して (B) だけが「悪化していない」と読む——**分母の少ない週ほど比が
+  暴れる**という統計上の性質が、そのまま判定の反転になる。
+* **分母0の週の扱いを定義できない**。(B) では merge が 0 本の週の比が算出不能になり、
+  「その週を除いて平均する」「0 とみなす」のいずれを採っても新しい恣意が入る。(A) なら
+  28 日をまとめた分母が 0 のときだけ ``skipped`` にすればよく、判断が1箇所で済む。
+* **レポート窓側の集計と揃う**。レポート窓（既定7日）も窓全体の比であり、(A) なら
+  「同じ計算を幅の違う窓に当てているだけ」になる。(B) は比較の両辺で集計方法が変わる。
+
+この選択は ``report.json`` にも載せる（``trailing_4_weeks.aggregation`` と
+``threshold.trailing_aggregation``）——フィールド名 ``trailing_4_weeks`` だけでは (A)/(B) の
+どちらか読めないため。Issue #488 本文の「平均」という語との差異も同じフィールドで追跡できる。
+
 比較不能な条件（分母0・直近4週のデータが無い）は「異常なし」に倒さず ``skipped``
 として明示する——観測できていないことを「正常」と読ませないため（PR4）。
 """
@@ -39,6 +67,18 @@ _REGRESSION_FRACTION = Fraction(str(REGRESSION_FACTOR))
 
 BASELINE_EXCEEDED = "BASELINE_EXCEEDED"
 TRAILING_REGRESSION = "TRAILING_REGRESSION"
+
+#: 「直近4週」の集計方法。``pooled`` = 28 日をひとまとめの窓として比を取る
+#: （週次比4本の平均ではない）。上記 docstring の (A)。
+TRAILING_AGGREGATION = "pooled"
+
+#: ``report.json`` の読み手（#461 の報告経路など）が (A)/(B) を取り違えないための説明文。
+TRAILING_AGGREGATION_DETAIL = (
+    "直近28日をひとまとめの窓として derived_issues / merged_prs を取るプールド比。"
+    "週次比4本の平均ではない（Issue #488 本文の「直近4週平均」という文言との差異）。"
+    "少 PR 週の比が平均を支配することと、分母0の週の扱いが定義できないことを避けるための選択"
+    "（根拠＝defect_metrics/threshold.py の docstring・defect_metrics/README.md §3）。"
+)
 
 SKIP_NO_DENOMINATOR = "NO_DENOMINATOR"
 SKIP_NO_TRAILING_DATA = "NO_TRAILING_DATA"
@@ -75,6 +115,10 @@ class Evaluation:
         return {
             "baseline_derived_per_pr": BASELINE_DERIVED_PER_PR,
             "regression_factor": REGRESSION_FACTOR,
+            "trailing_aggregation": {
+                "method": TRAILING_AGGREGATION,
+                "detail": TRAILING_AGGREGATION_DETAIL,
+            },
             "anomaly": self.anomaly,
             "alerts": [a.as_dict() for a in self.alerts],
             "skipped": [s.as_dict() for s in self.skipped],

@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -154,11 +155,11 @@ class WindowMetricsTests(unittest.TestCase):
         self.issues = [
             issue(101, "2026-08-02T00:00:00Z", "#1 の直後に壊れた"),  # 窓外 PR 参照でも派生
             issue(102, "2026-08-04T00:00:00Z", "#2 の retrospective"),
-            issue(103, "2026-08-05T00:00:00Z", "無関係な新機能"),
+            # 窓内で close される唯一の Issue（closed_issues / open_issue_net_change 用）。
+            issue(103, "2026-08-05T00:00:00Z", "無関係", closed="2026-08-09T00:00:00Z"),
             issue(104, "2026-08-14T00:00:00Z", "#3 は 72h 超過なので派生ではない"),
             issue(105, "2026-08-20T00:00:00Z", "#3"),  # 窓外の起票
         ]
-        self.issues[2] = issue(103, "2026-08-05T00:00:00Z", "無関係", closed="2026-08-09T00:00:00Z")
 
     def test_counts_and_ratios(self):
         result = metrics.compute_window_metrics(self.window, self.issues, self.pulls)
@@ -306,6 +307,27 @@ class ThresholdTests(unittest.TestCase):
         result = threshold.evaluate(wm(merged=10, derived=1), wm(merged=0, derived=0))
         self.assertEqual([s.code for s in result.skipped], [threshold.SKIP_NO_TRAILING_DATA])
 
+    def test_trailing_comparison_is_pooled_not_a_mean_of_weekly_ratios(self):
+        """直近4週はプールド比（28日をひとまとめ）であり、週次比4本の平均ではない。
+
+        週次比が ``0/12, 0/10, 0/9, 1/1`` の場合、プールド比は ``1/32 ≒ 0.031`` だが
+        週次比の平均は ``0.25`` になる。レポート窓 ``1/10 = 0.10`` に対し、前者では
+        1.5 倍を超えて ``TRAILING_REGRESSION`` が立ち、後者では立たない——集計方法の
+        選択がそのまま判定を反転させるため、どちらを採ったかを固定する
+        （選択と根拠＝``defect_metrics/threshold.py`` の docstring・README §3）。
+        """
+        pooled_trailing = wm(merged=12 + 10 + 9 + 1, derived=1)  # 1/32
+        result = threshold.evaluate(wm(merged=10, derived=1), pooled_trailing)
+        self.assertEqual([a.code for a in result.alerts], [threshold.TRAILING_REGRESSION])
+        # 週次比の平均（0.25）を採っていたら 0.10 は 1.5 倍に届かず、立たないはずだった。
+        weekly_mean = (0 / 12 + 0 / 10 + 0 / 9 + 1 / 1) / 4
+        self.assertLess(1 / 10, weekly_mean * model.REGRESSION_FACTOR)
+
+    def test_aggregation_method_is_reported_in_the_payload(self):
+        payload = threshold.evaluate(wm(merged=10, derived=1), wm(merged=10, derived=1)).as_dict()
+        self.assertEqual(payload["trailing_aggregation"]["method"], threshold.TRAILING_AGGREGATION)
+        self.assertIn("平均ではない", payload["trailing_aggregation"]["detail"])
+
 
 class CollectTests(unittest.TestCase):
     def test_load_issues(self):
@@ -332,6 +354,39 @@ class CollectTests(unittest.TestCase):
             collect.load_issues([{"number": 1}])
         with self.assertRaises(collect.CollectionError):
             collect.load_pulls([{"mergedAt": "2026-08-02T00:00:00Z"}])
+
+
+class FetchTruncationTests(unittest.TestCase):
+    """取得件数が ``--limit`` に達したら publish しない fail-close に乗せる。
+
+    ``gh ... list --limit N`` は新しい側から N 件で打ち切るため、超過分（古い側）が
+    黙って落ちても ``gh`` は成功終了し JSON も正当である。スキーマ検査には掛からないので、
+    件数そのものを見ないと「正常な体裁で誤った数字」を publish してしまう。
+    """
+
+    def _issues(self, count: int) -> list[dict]:
+        return [
+            {"number": n, "createdAt": "2026-08-02T00:00:00Z", "closedAt": None, "body": ""}
+            for n in range(1, count + 1)
+        ]
+
+    def test_issue_fetch_at_the_limit_is_treated_as_truncated(self):
+        with mock.patch.object(collect, "_run_gh", return_value=self._issues(5)):
+            with self.assertRaises(collect.CollectionError) as caught:
+                collect.fetch_issues("owner/repo", limit=5)
+        self.assertIn("--limit", str(caught.exception))
+
+    def test_issue_fetch_below_the_limit_passes(self):
+        with mock.patch.object(collect, "_run_gh", return_value=self._issues(4)):
+            self.assertEqual(len(collect.fetch_issues("owner/repo", limit=5)), 4)
+
+    def test_pull_fetch_counts_the_raw_payload_not_the_merged_rows(self):
+        """未 merge 行を落とした後の件数で比べると打ち切りを見逃すので、生 payload で見る。"""
+        payload = [{"number": 1, "mergedAt": "2026-08-02T00:00:00Z"}]
+        payload += [{"number": n, "mergedAt": None} for n in range(2, 6)]  # 計5件・merged は1件
+        with mock.patch.object(collect, "_run_gh", return_value=payload):
+            with self.assertRaises(collect.CollectionError):
+                collect.fetch_pulls("owner/repo", limit=5)
 
 
 class CliTests(unittest.TestCase):
@@ -362,6 +417,14 @@ class CliTests(unittest.TestCase):
                 ],
                 handle,
             )
+
+    def drift_the_baseline_window(self) -> None:
+        """基線窓に merged PR を1本足し、記録済み基線を再現できない状態にする。"""
+        with open(self.pulls_path, encoding="utf-8") as handle:
+            pulls = json.load(handle)
+        pulls.append({"number": 90001, "mergedAt": "2026-08-05T00:00:00Z"})
+        with open(self.pulls_path, "w", encoding="utf-8") as handle:
+            json.dump(pulls, handle)
 
     def run_cli(self, argv: list[str]) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()
@@ -450,16 +513,64 @@ class CliTests(unittest.TestCase):
         self.assertEqual(json.loads(out)["mismatches"], [])
 
     def test_verify_baseline_fails_on_drifted_data(self):
-        with open(self.pulls_path, encoding="utf-8") as handle:
-            pulls = json.load(handle)
-        pulls.append({"number": 90001, "mergedAt": "2026-08-05T00:00:00Z"})
-        with open(self.pulls_path, "w", encoding="utf-8") as handle:
-            json.dump(pulls, handle)
-        code, _, err = self.run_cli(
+        self.drift_the_baseline_window()
+        code, out, err = self.run_cli(
             ["verify-baseline", "--repository", "hiratashinnya/review-system"]
         )
         self.assertEqual(code, cli.EXIT_BASELINE_MISMATCH)
         self.assertIn("BASELINE_MISMATCH", err)
+        payload = json.loads(out)
+        self.assertFalse(payload["reproduced"])
+        self.assertTrue(any("merged_prs" in line for line in payload["mismatches"]))
+
+    def report_payload(self) -> dict:
+        _, out, _ = self.run_cli(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--window-start",
+                "2026-08-02",
+                "--window-end",
+                "2026-08-16",
+                "--now",
+                "2026-08-16T00:00:00Z",
+            ]
+        )
+        return json.loads(out)
+
+    def test_report_carries_the_baseline_verification_result(self):
+        """基線照合の結果は step ログだけでなく report.json にも載る（Issue #488 F-488-01）。
+
+        Actions の step ログは既定 90 日で失効し、レポートを読む側（#461）にも届かない。
+        閾値超過が ``threshold`` として永続化される一方で基線検証だけが揮発する非対称を
+        作らないため、``report`` サブコマンドも同じ照合結果を同梱する。
+        """
+        verification = self.report_payload()["baseline_verification"]
+        self.assertTrue(verification["reproduced"])
+        self.assertEqual(verification["mismatches"], [])
+        self.assertEqual(verification["measured"]["merged_prs"], model.BASELINE_MERGED_PRS)
+        self.assertEqual(verification["measured"]["derived_per_pr"], model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual(verification["recorded"]["derived_per_pr"], model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual(
+            verification["baseline_window"]["start"], model.format_timestamp(model.BASELINE_WINDOW.start)
+        )
+
+    def test_report_baseline_verification_records_the_drift(self):
+        self.drift_the_baseline_window()
+        verification = self.report_payload()["baseline_verification"]
+        self.assertFalse(verification["reproduced"])
+        self.assertTrue(any("merged_prs" in line for line in verification["mismatches"]))
+
+    def test_report_states_the_trailing_aggregation_method(self):
+        """``trailing_4_weeks`` という名前だけでは読めない集計方法を値として持つ。"""
+        payload = self.report_payload()
+        self.assertEqual(
+            payload["trailing_4_weeks"]["aggregation"]["method"], threshold.TRAILING_AGGREGATION
+        )
+        self.assertEqual(
+            payload["threshold"]["trailing_aggregation"]["method"], threshold.TRAILING_AGGREGATION
+        )
 
     def test_collection_error_exits_1(self):
         out, err = io.StringIO(), io.StringIO()

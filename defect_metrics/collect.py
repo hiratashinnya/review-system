@@ -8,6 +8,18 @@
   ``--pulls-json``）。再現検証と単体テストがネットワーク・認証に依存しないようにするため。
 
 どちらの経路でも :func:`load_issues` / :func:`load_pulls` が同じ形へ正規化する。
+
+取得件数の打ち切りは致命エラーにする
+------------------------------------
+``gh ... list --limit N`` は **新しい方から N 件** を返して打ち切る。全件が N を超えると
+古い側が黙って落ちるため、まず基線窓（過去の固定窓）の再現が壊れ、次に
+:func:`defect_metrics.metrics.is_derived` の参照先 PR 辞書が欠ける。``gh`` 自身は成功終了し
+JSON も正当なので、この欠落は :func:`load_issues` / :func:`load_pulls` のスキーマ検査には
+掛からない——**レポートは正常な体裁のまま誤った数字を載せる**。そこで
+:func:`_ensure_not_truncated` が「取得件数が ``--limit`` に達した」時点で
+:class:`CollectionError` を送出し、``.github/workflows/defect-metrics.yml`` が宣言する
+fail-close（generator が exit 1 で止まり publish しない）へ乗せる。
+``--limit`` を上げるだけでは同じ穴を先送りするだけなので、既定値の引き上げではなく検出で扱う。
 """
 
 from __future__ import annotations
@@ -119,39 +131,57 @@ def _run_gh(args: list[str]) -> object:
         raise CollectionError(f"`gh {' '.join(args)}` の出力が JSON ではない: {exc}") from exc
 
 
-def fetch_issues(repository: str, limit: int = DEFAULT_FETCH_LIMIT) -> list[IssueRecord]:
-    return load_issues(
-        _run_gh(
-            [
-                "issue",
-                "list",
-                "--repo",
-                repository,
-                "--state",
-                "all",
-                "--limit",
-                str(limit),
-                "--json",
-                ISSUE_FIELDS,
-            ]
+def _ensure_not_truncated(kind: str, payload: object, limit: int) -> None:
+    """取得件数が ``--limit`` に達していたら :class:`CollectionError` にする。
+
+    ちょうど ``limit`` 件のときは「全件がたまたま ``limit`` 件」なのか「打ち切られた」のかを
+    区別できない。区別できない側は**打ち切り扱い**にする（誤った数字を publish するより、
+    レポートを作らずに止まる方が安全＝fail-close）。
+    """
+    if isinstance(payload, list) and len(payload) >= limit:
+        raise CollectionError(
+            f"{kind} の取得件数が --limit ({limit}) に達した。"
+            "`gh ... list` は新しい側から打ち切るため古い側が黙って落ち、基線窓の再現も"
+            "派生判定の参照先 PR も誤る。--limit を十分大きい値へ上げて再実行すること"
+            "（誤った数字を publish しないための fail-close）。"
         )
+
+
+def fetch_issues(repository: str, limit: int = DEFAULT_FETCH_LIMIT) -> list[IssueRecord]:
+    payload = _run_gh(
+        [
+            "issue",
+            "list",
+            "--repo",
+            repository,
+            "--state",
+            "all",
+            "--limit",
+            str(limit),
+            "--json",
+            ISSUE_FIELDS,
+        ]
     )
+    _ensure_not_truncated("issue", payload, limit)
+    return load_issues(payload)
 
 
 def fetch_pulls(repository: str, limit: int = DEFAULT_FETCH_LIMIT) -> list[PullRequestRecord]:
-    return load_pulls(
-        _run_gh(
-            [
-                "pr",
-                "list",
-                "--repo",
-                repository,
-                "--state",
-                "merged",
-                "--limit",
-                str(limit),
-                "--json",
-                PULL_FIELDS,
-            ]
-        )
+    payload = _run_gh(
+        [
+            "pr",
+            "list",
+            "--repo",
+            repository,
+            "--state",
+            "merged",
+            "--limit",
+            str(limit),
+            "--json",
+            PULL_FIELDS,
+        ]
     )
+    # 打ち切り判定は正規化前の生 payload で行う（load_pulls は未 merge 行を落とすため、
+    # 正規化後の件数で比べると打ち切りを見逃す）。
+    _ensure_not_truncated("pull request", payload, limit)
+    return load_pulls(payload)

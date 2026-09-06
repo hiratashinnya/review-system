@@ -155,8 +155,23 @@ gh run list --workflow=defect-metrics.yml --limit 10 --json event,createdAt,conc
 `event=workflow_dispatch` の行が週次で並んでいれば外部 cron が機能している。
 `event=schedule` の行しかない場合は外部 cron が止まっている（PAT 失効・cron-job.org 側の障害等）。
 
-`conclusion` は `success` のほか、閾値超過時も `success`（`::warning` を出すだけで job は
-落とさない）である点に注意する。`failure` はレポート生成そのものの失敗を意味する。
+`conclusion` の読み方は次のとおり（`.github/workflows/defect-metrics.yml`）。
+
+| `conclusion` | 意味 |
+|---|---|
+| `success` | レポートを publish し、基線も再現できた。**閾値超過（`threshold.anomaly = true`）でも `success` になる**——閾値超過は generator の失敗ではなく計測結果であり、`::warning` で可視化するだけで job は落とさない |
+| `failure` | 次の3種類がある。①レポート生成そのものの失敗（`gh` の取得失敗・出力スキーマ変更・取得件数が `--limit` に達した打ち切り）＝**publish されていない**。②**記録済み基線の再現不能**（`verify-baseline` が exit 21）＝レポートは publish された上で、その後の step が `::error` ＋ `exit 1` で job を赤くしている。③`verify-baseline` step 自体が動かなかった（取得エラー等）＝レポートは publish されており、基線の照合結果は `report.json` の `baseline_verification` を読む |
+
+3者の区別は、失敗した step 名（`Compute the defect-rate report` か
+`Fail the job when the recorded baseline could not be reproduced` か）と、`::error`
+annotation の文面で付く。`defect-metrics` ブランチの `report.json` が更新されているのは
+②③だけである。②の詳細は同じ `report.json` の `baseline_verification.mismatches` に
+永続化されている（§4.2）。
+
+②を `::warning` に留めない理由は、GitHub が run failure では通知する一方 `::warning`
+annotation では通知しないためである。基線が再現しなくなるのは「指標定義を変えた」か
+「過去の Issue/PR 本文を編集した」かのどちらかで、いずれも人の判断が要る。緑のまま
+放置されると、Issue #488 が解こうとした「散文定義による再現不能」がそのまま再発する。
 
 ### 4.2 レポートの鮮度と内容を直接見る
 
@@ -174,6 +189,14 @@ git show origin/defect-metrics:report.json
   `false` のときは何も報告しない（`alerts` は空配列）。
 - `threshold.skipped` が空でないときは「異常なし」ではなく「判定できなかった」である
   （分母0・直近4週にデータ無し）。正常と読み替えないこと。
+- `baseline_verification.reproduced` が `true` か。`false` のときは
+  `baseline_verification.mismatches` に「どの値がいくつからいくつへ動いたか」が入っており、
+  同じ run は `conclusion = failure` になっている（§4.1）。**この場合、その run の
+  レポート自体は publish されているが、`threshold` の基線比較（定数 0.68）は
+  「記録済み基線とは別定義の値」との比較になっている**ため、数字を額面どおりに読まないこと。
+- `trailing_4_weeks.aggregation.method` が `pooled` であること。直近4週の比は
+  **28 日をひとまとめにしたプールド比**であり、週次比4本の平均ではない
+  （Issue #488 本文の「直近4週平均」という文言との差異。根拠＝`defect_metrics/README.md` §3）。
 
 ### 4.3 cron-job.org 側の実行履歴を見る
 
@@ -210,10 +233,18 @@ gh run list --workflow=defect-metrics.yml --limit 1
 - **GitHub Actions**: 本 repository は **public** のため実行時間の課金は発生しない（public
   リポジトリには無料枠の上限自体が存在せず、課金は private リポジトリが無料枠を超えた分に
   だけ適用される）。
-- **GitHub API 消費**: 1 実行あたり `gh issue list` / `gh pr list` の2系統（`verify-baseline`
-  step を含めても4系統）で、`GITHUB_TOKEN` の 5,000 requests/h 枠に対し無視できる。
-  外部 cron の `POST .../dispatches` は週1回＝**約 4 requests/月**で、fine-grained PAT の
-  5,000 requests/時 に対し十分収まる。
+- **GitHub API 消費（Actions 側・`GITHUB_TOKEN`）**: 1 実行あたり `gh issue list` /
+  `gh pr list` を report step と `verify-baseline` step で1回ずつ、計4コマンド実行する。
+  `gh` は 100 件/ページでページングするため、Issue 246 件・merged PR 228 件（2026-09-06
+  時点）ではそれぞれ **3 ページ＝約 6 リクエスト**、2 step 合計で **約 12 リクエスト/実行**
+  になる。`GITHUB_TOKEN` の枠は **1,000 requests/h** であり、週1回・約 12 リクエストは
+  無視できる（件数の増加に比例して増えるが、週1回である限り枠に対して桁が違う）。
+  この数値は `.github/workflows/defect-metrics.yml` 冒頭のコメントと一致させること。
+- **GitHub API 消費（外部 cron 側・fine-grained PAT）**: `POST .../dispatches` は週1回＝
+  **約 4 requests/月**。fine-grained PAT の枠は `GITHUB_TOKEN` とは別建ての
+  **5,000 requests/時** であり、十分収まる（前例＝`docs/methods/blocker-snapshot-external-cron-ops.md`
+  §6 が同じ 5,000 requests/時 を PAT の枠として記載している。**5,000 は PAT の枠であって
+  `GITHUB_TOKEN` の枠ではない**）。
 - **cron-job.org**: 公式トップページに「from minute-by-minute to once in a year. Absolutely
   free.」と明記。週次はもちろん無料枠内である。
 
