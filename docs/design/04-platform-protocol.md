@@ -69,6 +69,15 @@ class GuardingPlatform:                     # SafePlatformPort 実装
                    "suggested_fix": null } ] }
 ```
 
+> `suggested_fix.diff` は **MVP では「修正後ファイルの全内容」**（unified diff ではない）。
+> `core/apply.py`→`persistence/workspace_git.py` の `commit_fix` が `write_text` で**丸ごと上書き**するため、
+> 意味としてはこれ以外にあり得ない（[07](../requirements/07-ai-input-design.md)）。
+>
+> ⚠️ **実装状況（2026-07-29）**：これは**規約であって強制ではない**。`FilePlatformAdapter` は
+> `json.loads` した `diff` 文字列を素通しするだけで、**「全内容であること」を検査する制御は無い**。
+> 部分断片が来ればファイルはその断片で置き換わる。また**同一ファイルに複数 finding があると後勝ちで上書きされる**
+> （[Q27](../dashboard.md#-未決事項決めないと進めない論点)・[05 DS3](05-persistence.md)）。
+
 > `findings.length + unmatched.length` が PF の出した item 総数（**取りこぼしゼロの保存則**・S1）。`rule_id` 実在・`location.file` 必須はシステムが検証（[02 分解 P3.3/P4.1](../process/02-decomposition.md)）。
 
 ## 2. PF → System：公開ツール（決定的オペレーション）

@@ -1,10 +1,55 @@
-# 評価基準ファイル スキーマ仕様（確定・MVP 実装準拠）
+# 評価基準ファイル スキーマ仕様（記法は確定・**S5 lint は一部のみ実効／値レベル lint は未結線**）
 
 > A1「評価基準ファイルのスキーマを実際に書く」の成果物。
-> **🟢 確定**（2026-07-27・[A1](../dashboard.md#-ネクストアクション次にやる候補)）：本仕様は叩き台段階を終え、**MVP 実装がこれに準拠**している。
-> 準拠する実装＝`review_system/parsing/frontmatter.py`（Q5a 自前 mini-YAML パーサ）・`review_system/parsing/lint.py`（S5 事前 lint）・
-> `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。いずれもテスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
+> **🟢 記法は確定**（2026-07-27・[A1](../dashboard.md#-ネクストアクション次にやる候補)）：叩き台段階を終え、**MVP のパース経路がこれに準拠**している。
+> 準拠する実装＝`review_system/parsing/frontmatter.py`（Q5a 自前 mini-YAML パーサ）・
+> `review_system/persistence/criteria_repo.py`（`.md`→`ComposedRule` / policy→`PolicyMatrix`）。テスト済み（`tests/unit/test_parsing.py`・`test_criteria_repo.py`）。
 > policy 記法は [Q24 決定＝A（パーサ拡張：引用キー `"*"` ＋3段ブロックネスト・フロー非対応）](../dashboard.md)／[DD16](../design/decisions.md) を反映済み。
+>
+> ⚠️ **確定していない部分（2026-07-28 起票／2026-07-29 精緻化・第4巡で網羅化）**：本書が S5 として規定する検査は**一括では成立していない**。
+> `review_system/parsing/lint.py` の `lint_criteria` は**本番経路のどこからも呼ばれていない**（grep で確認）が、
+> 「何が効いていて何が効いていないか」は項目ごとに違う。**一括して「実行時に強制されない」「必須キーが未結線」と書くのは誤り**なので、
+> 下表の**4分類**で読むこと（→ [Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
+>
+> **分類の定義**（「止まるか」と「S5/O-14 として止まるか」は別問題）
+>
+> | 記号 | 意味 |
+> |---|---|
+> | ✅ **統制された拒否** | 実行前/ロード時に**確実に止まる**。※ただし現状 O-14 形式ではない（後述） |
+> | ⛔ **未捕捉例外で拒否** | 止まりはするが、`KeyError`/`ValueError` が**そのままトレースバックとして表面化**する。lint 違反として集約されず、どのファイル・どの行が悪いかも示されない |
+> | ❌ **無検査で通過** | **検査が存在せず、不正な値がそのまま生きる**。動作は静かに変わる（＝最も危険） |
+> | 🕳 **黙って対象外/空扱い** | エラーにも警告にもならず、**その基準が評価から消える**（「網羅した」という偽の安心） |
+>
+> **criteria（`.md`）**
+>
+> | 検査項目 | 現状 | 実体 |
+> |---|---|---|
+> | **記法サブセット外**（フロー `{}`/`[]`・アンカー `&`/`*`・複数行 `\|`/`>`・タグ `!!`・マージ `<<`・複数ドキュメント・タブ/奇数インデント・閉じ `---` 欠落） | ✅ **統制された拒否**（パース時に `MiniYamlError`・行番号つき） | `parsing/frontmatter.py`（`_tokenize`/`_parse_scalar`/`_extract_body`） |
+> | **`rules[].override` / `severity` / `determinism` の値域** | ⛔ **未捕捉例外で拒否**（`ValueError`/`KeyError`） | `persistence/criteria_repo.py:33-35`（`Determinism(...)`・`_SEVERITY[...]`・`OverrideRule(...)`） |
+> | **`rules[].id`・`determinism`・`severity`・`override` の“キー欠落”** | ⛔ **未捕捉例外で拒否**。ローダが `r["id"]` 等で**直接添字参照**するため `KeyError` になる（`lint.py` の「`rules[N]` に id が無い」メッセージには**ならない**） | `persistence/criteria_repo.py:31-37` |
+> | **`doc_type` / `scope` の欠落・typo** | 🕳 **黙って対象外**。`discover_criteria` が `fm.get("doc_type") == …` の完全一致で絞るため、**そのファイルは一致せず無言でスキップ**される | `persistence/criteria_repo.py:64-68` |
+> | **`rules` キーの欠落** | 🕳 **黙って空扱い**（`fm.get("rules") or []`）。当該ファイルの基準はゼロ件になる。※全ファイルが空なら `core/pipeline.py:45-47` が「基準がゼロ」で O-14 を返すが、**他に1件でも基準があれば気付けない** | `persistence/criteria_repo.py:30` |
+> | **`rules[].enabled` の型** | ❌ **無検査で通過**。`bool(r.get("enabled", True))` で**何でも真偽値に潰す**ため、`enabled: "false"`（引用された文字列）は **True** になる | `persistence/criteria_repo.py:36` |
+> | **`id` 一意性・`extends` 先の存在・`version` の MAJOR 対応** | ❌ **無検査で通過**。`lint.py` に実装はあるが**本番から呼ばれない**（テスト専用）。重複 id は後勝ち、`extends` はロード時に**参照すらされない**、未対応 MAJOR もそのまま読まれる | `parsing/lint.py:52-95`（未結線） |
+> | **マッピング入れ子の段数上限（4段以上を弾く）** | ❌ **検査自体が存在しない**。lint を結線しても効かない＝**新規実装が要る** | `frontmatter.py` は入れ子を**深さ任意**で読む（同ファイル docstring 明記） |
+>
+> **policy（`.yaml`）** — こちらは **lint 関数そのものが存在しない**（`lint_policy` は未実装。`SUPPORTED_POLICY_MAJOR` は `reviewer version` の**表示にしか使われていない**・[08 §4](../design/08-logging-and-versioning.md)）
+>
+> | 検査項目 | 現状 | 実体 |
+> |---|---|---|
+> | **記法サブセット外** | ✅ **統制された拒否**（`MiniYamlError`。`.yaml` はファイル全体をパース） | `parsing/frontmatter.py` |
+> | **`matrix` の determinism トークン・`mode` の値域** | ⛔ **未捕捉例外で拒否**（`Determinism(...)`・`ApplicationMode(...)` が `ValueError`） | `persistence/criteria_repo.py:48-51` |
+> | **`matrix` 行の severity キー** | ❌ **無検査で通過**。`{sev: ApplicationMode(mode) …}` の `sev` は**生文字列のままキーになる**だけで語彙照合されない。typo（`erorr` 等）は `PolicyMatrix.resolve` で**引けず None** → S2 により黙って `HUMAN_ONLY` に倒れる（＝ポリシーが無視されたことに気付けない） | `persistence/criteria_repo.py:50`／`domain/policy.py:27` |
+> | **`overrides[].rule` / `.mode` のキー欠落** | ⛔ **未捕捉例外で拒否**（`o["rule"]`/`o["mode"]` の `KeyError`） | `persistence/criteria_repo.py:52-54` |
+> | **必須キー（`matrix`）の欠落** | 🕳 **黙って空扱い**（`fm.get("matrix") or {}`）。空マトリクスは `resolve` が全件 None を返し、**全指摘が黙って人間側へ倒れる** | `persistence/criteria_repo.py:48`／`domain/policy.py:24-27` |
+> | **`version` の MAJOR 対応** | ❌ **無検査で通過**。`load_policy_file` は `version` を**読みも検査もしない** | `persistence/criteria_repo.py:44-55` |
+>
+> さらに、上表の ⛔ は**未捕捉例外として上がる**だけで、S5 が求める **O-14 形式の通知にはなっていない**
+> （`core/pipeline.py` の `deps.load_criteria(...)`／`deps.load_policy(...)` 呼び出しは try/except に包まれていない）。
+> つまり「**書いたら実行前に止まる**」は**記法違反については統制された形で成立**、
+> **値域違反・必須キー欠落については「落ちる」だけで成立とは言えず**、
+> **`id` 一意性/`extends`/`version`/段数/`enabled` 型/policy severity 語彙については不成立（無検査）**、
+> **`doc_type`/`scope`/`rules`/`matrix` の欠落に至っては止まりすらしない（黙って消える）**。
 > 詳細な背景は [../requirements/01-criteria-files.md](../requirements/01-criteria-files.md) を参照。
 
 ## 設計の出発点：情報の「読み手」から決める
@@ -105,6 +150,11 @@ rules:
 **範囲外は実行前に fail-close（[13-stabilization](../requirements/13-stabilization.md) S5 の lint＝パーサが検証器を兼ねる）**。
 ここで対応文法を明文化し、基準を書く人が「使ってよい記法」を一意に知れるようにする。
 
+> ⚠️ **実装状況（2026-07-29）**：この fail-close は**記法サブセット外**については実装済み（`parsing/frontmatter.py` が
+> `MiniYamlError` を投げる）。ただし **(a) 入れ子の段数上限は検査されない**（未実装）、**(b) 値レベルの lint（必須キー・
+> `extends`・`id` 一意性・`version` MAJOR）は本番経路に結線されていない**、**(c) 失敗は未捕捉例外で上がり O-14 形式ではない**。
+> 冒頭の表と [Q26](../dashboard.md#-未決事項決めないと進めない論点) を参照。
+
 **対応する記法（mini-YAML サブセット）**
 
 | 種別 | 記法 | 例 |
@@ -123,16 +173,22 @@ rules:
 
 - 基準フロントマター：`マッピング → 列(`rules:`) → マッピング(各ルールはスカラのみのフラットな辞書)`。
 - ポリシー：`マッピング → マッピング(`matrix:`) → マッピング(`determinism`) → スカラ(severity→mode)` ＋ `列(`overrides:`) → マッピング`。**3段ネスト**（Q24=A）。
-- すなわち**マッピングの入れ子は最大3段＋ブロック列1種**まで（基準は2段、policy は3段）。これを超える構造は**非対応＝fail-close**。
+- すなわち**マッピングの入れ子は最大3段＋ブロック列1種**まで（基準は2段、policy は3段）。これを超える構造は**規定上は非対応**だが、
+  ⚠️ **段数の検査は未実装**（`parsing/frontmatter.py` は入れ子を深さ任意で読む）＝4段以上を書いても**現状は素通りする**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
 
-**非対応（書いたら実行前 lint で停止・S5）**
+**非対応（規定）**
 
 フロースタイル `{…}` / `[…]`、アンカー/エイリアス `&` `*`、複数行スカラ `|` `>`、明示タグ `!!str` 等、
 マージキー `<<`、複数ドキュメント（境界の2本目以降）、4段以上のマッピング入れ子、タブインデント。
-→ いずれも**「読めなかった」を黙って空扱いにせず**、どのファイル・何行目・なぜ不可かを **O-14 で明示**（Q17 fail-close）。
+→ いずれも**「読めなかった」を黙って空扱いにせず**、どのファイル・何行目・なぜ不可かを **O-14 で明示**する（Q17 fail-close）**のが要件**。
+
+⚠️ **実装状況**：**4段以上の入れ子以外はパース時に拒否される**（`MiniYamlError`・行番号と理由を持つ）。
+4段以上の入れ子は**検査が無く素通り**。また拒否は**未捕捉例外**であり、**O-14 通知としては出ていない**。→ [Q26](../dashboard.md#-未決事項決めないと進めない論点)
 
 > なぜ自前か：このフロントマターは**ルーティング用の小さな構造**で、上記サブセットで必要十分。
-> パーサ＝検証器（S5）を兼ね、**`override∈{locked,tighten-only,open}`・`extends` 先の存在・必須キー**まで同じ通り道で検査する（[13](../requirements/13-stabilization.md) S5）。
+> パーサ＝検証器（S5）を兼ね、**`override∈{locked,tighten-only,open}`・`extends` 先の存在・必須キー**まで同じ通り道で検査する（[13](../requirements/13-stabilization.md) S5）——**これは要件・設計であって現状ではない**。
+> 実際には `override` の値域は**ローダ側の Enum 変換**（`persistence/criteria_repo.py`）が弾き、`extends` 先の存在と必須キーは
+> `parsing/lint.py` に実装があるものの**本番経路から呼ばれていない**（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
 > 将来サブセットを広げたくなったら、この表に1行足してからパーサを拡張する（**文法を先に決める**）。
 
 #### `determinism` の3値（基準を書く人が宣言する）

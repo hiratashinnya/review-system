@@ -44,8 +44,12 @@ class FeedbackStore(Protocol):            # DS5
 
 - `discover` は `criteria/org → teams/<t> → projects/<p>` の同 `doc_type` を集め、**自前パーサ**（`parsing/frontmatter.py`＝[S5 検証器](../requirements/13-stabilization.md)）で `CriteriaFile{frontmatter, rules[], body}` に読む。
 - 合成（継承マージ・方向ゲート・本文矛盾）は `core/compose`。**毎回合成**（[Q15](../dashboard.md)・安価）。本文矛盾(LLM)だけ DS2 でキャッシュ。
-- 編集は**系外＝非イベント**（[PR3](../methods/method-inventory.md)）。システムは書かない。lint は `criteria lint`／合成時に毎回（[04](04-platform-protocol.md)）。
-- `version` は `"MAJOR.MINOR"` 文字列で読み、**MAJOR が `parsing.SUPPORTED_CRITERIA_MAJOR`（定数・[08 §4](08-logging-and-versioning.md)）に無ければ S5 fail-close**。MINOR は情報のみ。
+- 編集は**系外＝非イベント**（[PR3](../methods/method-inventory.md)）。システムは書かない。
+- lint は `criteria lint`／合成時に毎回（[04](04-platform-protocol.md)）——⚠️ **これは要件（S5）としての規定であって、現状の挙動ではない**。
+  `reviewer criteria lint` は**未実装**で、合成時ロード（`persistence/criteria_repo.py`）も `lint_criteria` を**呼んでいない**＝**未結線**
+  （[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。**現に効いているのは構文サブセット検査（`MiniYamlError`）と Enum/辞書変換の値域拒否だけ**。
+- `version` は `"MAJOR.MINOR"` 文字列で読み、**MAJOR が `parsing.lint.SUPPORTED_CRITERIA_MAJOR`（定数・[08 §4](08-logging-and-versioning.md)）に無ければ S5 fail-close**。MINOR は情報のみ。
+  ⚠️ **実装状況**：この MAJOR 判定は `parsing/lint.py` の `lint_criteria` 内にあり、**本番のロード経路（`persistence/criteria_repo.py`）からは呼ばれていない**＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)。
 
 ## DS2 矛盾チェックキャッシュ（JSON・[DD4](decisions.md#dd4--ds2ds4ds5-の保存形式)）
 
@@ -81,6 +85,14 @@ class GitWorkspaceRepository:
 | 実行 ID 一括 revert | その実行の全 finding コミットを revert |
 
 - **衝突**（同一 location）は適用前に `core/apply` が解決（[Q20](../dashboard.md) 2段：LLM マージ→不可は人）してから `commit_fix`（[02 P5.2](../process/02-decomposition.md)）。
+  ⚠️ **実装状況（2026-07-29 Codex 第4巡レビュー指摘）**：**この解決は未実装**で、しかも**衝突単位の定義が全内容 fix の意味と食い違っている**。
+  `core/apply.py:29-37` は 🤖 の finding を**順に**回して `commit_fix(exec_id, key, rel, fix.diff)` を呼び、
+  `workspace_git.py:61-67` はその `diff`（＝修正後ファイルの**全内容**）で対象を `write_text` する。
+  よって**同一ファイルに 2 件以上の finding があると、location が別でも後続の全内容が先行の修正を丸ごと消す（後勝ち上書き）**。
+  「同一 location」を衝突単位に採ると、この**同一ファイル・別 location** の破壊を取りこぼす。
+  → 衝突単位は少なくとも**同一ファイル**へ拡張し、同一ファイルの複数 fix を**統合してから 1 回書く**か
+  **安全側に適用を拒否して人へ回す**契約とテストが要る。**製品コードの変更を伴うため実施はオーナー判断**＝
+  [Q27](../dashboard.md#-未決事項決めないと進めない論点)。
 - 前提：**git バイナリ存在**（[DD5](decisions.md#dd5--ds3-内部-git-ワークスペースの実体) で明示）。`subprocess` 駆動・外部 Python 依存なし。
 
 ## DS4 警告レジャー（JSONL append-only・[schema](../schema/README.md#警告の既出判定warning-ledger)）
