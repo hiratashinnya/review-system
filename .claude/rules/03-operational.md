@@ -93,7 +93,7 @@
 - **本節を `.ai/` ではなくここへ置く理由**：セッション記憶は Claude Code 固有の機構であり、
   PF 非依存の共通本文（`.ai/guidance/common.md`）へ置くと Codex・Copilot に無関係な記述が混ざるため。
 - **先行事例**：Issue #482 / PR #483 が起票先の2軸判断を記憶から `.ai/skills/gh-create-issue/SKILL.md` §3
-  （`.ai/skills/gh-create-issue/SKILL.md`）へ移設した。本節はその後、記憶の全件を同様に棚卸しして
+  へ移設した。本節はその後、記憶の全件を同様に棚卸しして
   移設した Issue #484 の成果である（移設先＝`.ai/guidance/common.md`「言語・対外記録」「作業分離・判断境界」
   「正本・実装規約」、`.ai/skills/issue-pipeline/SKILL.md` ②-d、`.claude/rules/02-decision-process.md`
   「オーナーへの報告はチャットが正本」）。
