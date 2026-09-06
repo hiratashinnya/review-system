@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@e11e9755c26b -->
+<!-- synced-from: CLAUDE.md@3959c4ad74d5 -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -20,6 +20,17 @@
   Issue #379（2026-08-20）: `.claude/rules/02-decision-process.md` に
   「オーナーへの報告はチャットが正本」節を追加したことに伴い、
   中核規範 12 を追加して marker を現在値へ更新した。
+
+  Issue #484（2026-09-06）: セッション記憶にしか無かった作業規則5件を正本へ移設した。
+  ①`.ai/guidance/common.md` へ3項（節番号を引くときのファイルパス併記／merge・push 等
+  取り消しにくい操作の実行前報告／版付き文書の bump 規律＝見送らない・1 PR で複数回上げない）、
+  ②`.ai/skills/issue-pipeline/SKILL.md` ②-d へ merge commit 方式（`--squash` 不使用）の明記、
+  ③`.claude/rules/02-decision-process.md`「オーナーへの報告はチャットが正本」へ報告タイミング
+  （実行前）の1項、④`.claude/rules/03-operational.md` へ新節「セッション記憶と正本の使い分け」
+  （置き場の判定規則・迷ったらリポジトリ側へ倒す）を追加。**このうち③は中核規範 12 に掛かる**
+  （形式＝チャットが正本、に加えてタイミング＝実行前を要求する）ため、中核規範 12 に
+  タイミング要素を1文追記した上で marker を現在値へ更新した。①②④は中核規範（1〜12）の
+  射程外と判断し本文へは反映していない（「見た上で不要と判断した」ことの記録）。
 -->
 
 
@@ -100,3 +111,6 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     読み取れる粒度で全文出す（ID や 1 行要約だけで投げない）。PR コメント・カルテ・`tmp/_handoff/`・
     ノードは永続化目的の副次的記録であり、書いたことをもって報告済みとしない。`<artifact_policy>` 等の
     要約規律は subagent → 呼び出し元の規約であり、主文脈 → オーナーの報告には適用しない。
+    **報告のタイミングは「実行前」（Issue #484）**——merge・push・force 系操作・外部への投稿など、
+    取り消しにくい／共有状態に影響する操作は、実行前にチャットで報告し確認を得る。事後のまとめ報告は
+    事前報告の代替にならない。clean 判定や過去に一度得た承認を事前確認の代わりにしない。
