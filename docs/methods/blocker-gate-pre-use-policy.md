@@ -1,6 +1,6 @@
 ---
 policy_id: blocker-gate-pre-use
-policy_version: "1.2"
+policy_version: "2.0"
 result_schema: blocker-gate-result/v1
 waiver_schema: blocker-gate-waiver/v1
 classifier_version: "1.0"
@@ -10,7 +10,7 @@ authority: issue-295
 
 # Blocker gate pre-use policy
 
-- Policy version: `1.2`（`1.1` からの差分は Issue #363 による 3.3「材料」の trigger 記述修正——実際の主たる起動元が外部 cron であることを明記し、GitHub 純正 `schedule` だけで5分間隔が保証されると誤読できる表現を除いた。`1.0` からの差分は Issue #345 の `API_UNREACHABLE` 追加と 3.3 の snapshot fallback。いずれも11章の規則により MINOR）
+- Policy version: `2.0`（`1.2` からの差分は Issue #466 による 2.2 の state classifier 改訂——closed Issue を state reason にかかわらず解決済み側へ倒し、`IssueClass` に `CLOSED_OTHER` を追加した。型の追加と verdict 区分をまたぐ意味変更を伴うため11章の規則により MAJOR。`1.1`→`1.2` は Issue #363 による 3.3「材料」の trigger 記述修正——実際の主たる起動元が外部 cron であることを明記し、GitHub 純正 `schedule` だけで5分間隔が保証されると誤読できる表現を除いた。`1.0`→`1.1` は Issue #345 の `API_UNREACHABLE` 追加と 3.3 の snapshot fallback。後の2つはいずれも11章の規則により MINOR）
 - 対象: Issue #295（親 #293、実装 #296〜#299）
 - 正本: Issue #294 の「調査後のオーナー決定（現在の正本）」と Issue #295
 - Enforcement boundary: managed tool の Issue 処理開始操作および PR merge 相当操作の pre-use hook
@@ -96,19 +96,44 @@ IssueClass =
   | OPEN
   | CLOSED_COMPLETED
   | CLOSED_NOT_PLANNED
+  | CLOSED_OTHER
   | UNKNOWN
 ```
 
-分類規則は次のとおりである。
+分類規則は次のとおりである。**表は上から順に評価し、最初に一致した行だけを適用する。** 行1・行2 の fail-close 判定を通過して初めて `state` による分岐（行3 以降）に入るため、どの入力も落ちる行は一つに定まる。その分岐に入った後は、**分岐は `state` で決まり、`state reason` は closed をさらに細分するだけである。**
 
-| GitHub state | state reason | IssueClass | dependency 上の意味 |
-|---|---|---|---|
-| `OPEN` | null / reopened | `OPEN` | 未解決 |
-| `CLOSED` | `COMPLETED` | `CLOSED_COMPLETED` | 解決済み |
-| `CLOSED` | `NOT_PLANNED` | `CLOSED_NOT_PLANNED` | 解決済み。state reason は evidence に保持 |
-| その他、欠落、矛盾 | 任意 | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| # | GitHub state | state reason | IssueClass | dependency 上の意味 |
+|---|---|---|---|---|
+| 1 | 読めない（欠落・型不正・`OPEN` / `CLOSED` 以外の値） | 任意 | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| 2 | 任意 | 文字列でも null でもない | `UNKNOWN` | `ERROR/ISSUE_STATE_UNKNOWN` |
+| 3 | `OPEN` | 任意（行2 を通過済みなので文字列または null） | `OPEN` | 未解決 |
+| 4 | `CLOSED` | `COMPLETED` | `CLOSED_COMPLETED` | 解決済み |
+| 5 | `CLOSED` | `NOT_PLANNED` | `CLOSED_NOT_PLANNED` | 解決済み。state reason は evidence に保持 |
+| 6 | `CLOSED` | 上記以外（`DUPLICATE`、欠落 / null、本 policy 版が知らない将来の reason） | `CLOSED_OTHER` | 解決済み。説明できない reason は下記の検知経路へ出す |
+
+適用順を明示するのは、行の条件だけでは排他にならないためである（Issue #466 再レビュー F-466-01）。例えば `(state = OPEN, state reason = 7)` は行2 に当たって `UNKNOWN` であり、行3 には到達しない——`state` を読めていても `state reason` が文字列でも null でもない応答は矛盾しているので、fail-close 側に倒す。実装 `blocker_gate/model.py::classify_issue_state` もこの順（`state` の型 → `state reason` の型 → `state` による分岐）で書かれている。
 
 PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` とする。物理 state は変更しない。GitHub が closed と返す blocker は state reason にかかわらず解決済みとし、open blocker だけを dependency violation とする。waiver は後述の限定条件でのみ使用できる。
+
+**`CLOSED_OTHER` を置く理由（Issue #466・オーナー確定・2026-09-05）**: policy `1.2` までの分類表は closed の認識済み2 reason 以外をすべて `UNKNOWN` に落としていた。これは同じ §2.2 の散文（「GitHub が closed と返す blocker は state reason にかかわらず解決済みとし、open blocker だけを dependency violation とする」）と矛盾しており、**GitHub の「Close as duplicate」という日常操作**や、state reason を持たない古い closed Issue が、blocker gate の issue-start（`ERROR/ISSUE_STATE_UNKNOWN` で着手拒否）と Project Status 同期（run 全体を abort）の双方を止めうる状態にあった。散文を正として表を直す。**closed を解決済みとして扱うことは fail-open ではない**——「GitHub が closed と返した」という観測事実そのものが判定材料であり、推測は入っていない。推測が要るのは reason の意味づけの方なので、そこを `CLOSED_OTHER` という単一クラスに畳んで**行わない**。`state` 自体を読めない場合の fail-close は従来どおり `UNKNOWN` として残す（弱めていない）。
+
+**未知 state reason の扱い＝分類ではなく検知（Issue #466）**: GitHub が将来 `IssueStateReason` に値を追加した場合、その値は本 policy 版にとって未知である。**未知値を事前に分類しようとしない**（何が追加されるかは追加されるまで分からないので、`CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` のどちらへ寄せる規則も根拠を持てない）。代わりに次の2つを分けて満たす。
+
+- **判定**: closed である事実だけを使って `CLOSED_OTHER`（解決済み）とし、gate も同期も止めない。
+- **検知**: 本 policy 版が **説明できない** `(state, state reason)` の観測を、収集器が **telemetry として記録**し、`blocker_gate snapshot` が stderr へ `UNRECOGNIZED_STATE_REASON` 行を、GitHub Actions 上では `::warning` annotation を出す。閉じた snapshot schema（`blocker-gate-repository-snapshot/v1`）には載せない——判定材料ではないからで、`rateLimit` telemetry（3.3・F-345-04）と同じ扱いである。**exit code は変えない**（検知だけで snapshot 生成を失敗させない）。
+
+「説明できない観測」は次の2種類であり、telemetry token の形で区別する。
+
+| 種類 | 条件 | token 形式 | 運用者の確認先 |
+|---|---|---|---|
+| 語彙の増加 | 本 policy 版が認識している reason 語彙（`blocker_gate/model.py` の `KNOWN_STATE_REASONS` ＝ `COMPLETED` / `NOT_PLANNED` / `DUPLICATE` / `REOPENED`）に無い値 | `REASON`（例 `SOME_FUTURE_REASON`） | `KNOWN_STATE_REASONS` と上の分類表 |
+| 矛盾応答 | 語彙は既知だが、その `state` と両立しない組み合わせ（`blocker_gate/model.py` の `STATE_REASON_COMPATIBILITY` ＝ `OPEN` は `REOPENED`、`CLOSED` は `COMPLETED` / `NOT_PLANNED` / `DUPLICATE`） | `STATE+REASON`（例 `CLOSED+REOPENED`） | GitHub 応答そのもの。policy 側の想定漏れなら `STATE_REASON_COMPATIBILITY` |
+
+矛盾応答を別建てで検知するのは Issue #466 再レビュー F-466-02 の是正である。policy `1.2` までは `CLOSED` + `REOPENED` のような内部矛盾した応答が `UNKNOWN` → `ERROR/ISSUE_STATE_UNKNOWN` として必ず表に出ていた。2.0 の写像変更でこれは `CLOSED_OTHER` に吸収されるため、**判定を止めない代わりに観測手段だけが消えないよう**、検知側で拾い直す。**判定は `CLOSED_OTHER`（解決済み）のまま変えない**——closed という観測事実は矛盾していないので、そこを fail-close へ戻す理由はない。
+
+この検知は「GitHub 側の語彙が増えた」「GitHub の応答が想定と噛み合っていない」ことを運用者へ届けるためのものであり、届いた後に上記2つの集合と本表を更新するかどうかはオーナー判断である。`DUPLICATE` は policy `2.0` 時点で `CLOSED` と両立する既知語彙に含まれるため、duplicate クローズを1件行っただけでは検知は鳴らない（鳴りっぱなしの警告を作らない）。同様に `OPEN` + `REOPENED` は正常な組み合わせなので鳴らない。
+
+分類の実装は `blocker_gate/model.py::classify_issue_state` 1か所だけとし、REST 経路（小文字語彙）と GraphQL 経路（大文字語彙）はどちらもこれを呼ぶ。**判定の一次情報源を取得経路ごとに分岐させない。**
 
 ### 2.3 Relation の意味
 
@@ -118,7 +143,7 @@ PR closing set 内の Issue は post-merge 仮想状態で `CLOSED_COMPLETED` �
 | native parent/sub-issue | work item の包含 | closure invariant evaluator の唯一の正本 |
 | related / Issue・PR 本文 / Project fields | 参照・表示 | verdict には使用しない。drift は #299 が監査 |
 
-同一 repository 内 relation のみ policy `1.2` の managed 対象とする。cross-repository node、transfer 後の repository 不一致、削除・非可視 node は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` または `ERROR/RELATION_TARGET_UNREADABLE` とする。`404` を「relation なし」に読み替えない。
+同一 repository 内 relation のみ policy `2.0` の managed 対象とする。cross-repository node、transfer 後の repository 不一致、削除・非可視 node は `ERROR/CROSS_REPOSITORY_UNSUPPORTED` または `ERROR/RELATION_TARGET_UNREADABLE` とする。`404` を「relation なし」に読み替えない。
 
 ## 3. データ取得契約
 
@@ -164,6 +189,8 @@ parent は Issue 本体の `parent_issue_url` と parent endpoint、children は
 - **証跡**: どちらの経路で判定したかを invocation ごとに evidence へ残す（`source: "api" | "snapshot"`、snapshot 経路では `snapshot_generated_at`）。
 
 **policy version の扱い（オーナー確定・2026-08-12・Issue #363）**: 本節「材料」の trigger 記述修正により policy version は `1.1` → **`1.2`** とする。根拠は 11章の版規則であり、変更は「主たる起動元は外部 cron である」という**運用事実の文言修正のみ**——判定意味・Result/exit/reason・relation/state/closure/waiver semantics のいずれも変更していない。11章は「型や判定意味を変えない文言…の更新」を MINOR の内側に明記している。同時に更新した対象は `blocker_gate/model.py` の `POLICY_VERSION` 定数、本文中の版表記（frontmatter・冒頭の Policy version 行・6.1 の waiver/policy.yml 例・10.3 の control JSON 例）、`tests/fixtures/blocker_gate/policy.yml`・`waiver_valid.yml`・`waiver_expired.yml`・`schema_only_waiver.yml` の `policy_version`、および対応 test fixture である。`.github/blocker-gate/policy.yml` と実運用 waiver file は本 repository に未作成のため対象外。`tests/fixtures/blocker_gate/waiver_unknown_key.yml` は unknown-key 検査（`_keys()`）が `policy_version` 比較より先に働く fixture であり、その検査経路を変えないために意図的に `1.0` のまま据え置く。
+
+**policy version の扱い（オーナー確定・2026-09-05・Issue #466）**: 2.2 の state classifier 改訂により policy version は `1.2` → **`2.0`** とする。根拠は11章の版規則であり、①`IssueClass` へ `CLOSED_OTHER` を追加する**型の変更**、②同じ入力（closed かつ reason が `DUPLICATE`/欠落/未知）の verdict が `ERROR/ISSUE_STATE_UNKNOWN` から ALLOW 候補へ移る**verdict 区分をまたぐ意味変更**、③11章が MAJOR として名指しする **state semantics の変更**——の3点がいずれも MAJOR に該当する。reason code の増減は無い。同時に更新した対象は `blocker_gate/model.py` の `POLICY_VERSION` 定数、本文中の版表記（frontmatter・冒頭の Policy version 行・2.3・6.1 の waiver/policy.yml 例・6.1 の approver 記述・10.2 冒頭・10.3 の control JSON 例）、`tests/fixtures/blocker_gate/` 配下の snapshot JSON 14件と `policy.yml`・`waiver_valid.yml`・`waiver_expired.yml`・`schema_only_waiver.yml` の `policy_version`、および対応 test である。`.github/blocker-gate/policy.yml` と実運用 waiver file は本 repository に未作成のため対象外。`tests/fixtures/blocker_gate/waiver_unknown_key.yml` は unknown-key 検査（`_keys()`）が `policy_version` 比較より先に働く fixture であり、その検査経路を変えないために意図的に `1.0` のまま据え置く。
 
 cascade は上記のコード・文書・fixture に加え、**実際に外部へ公開される成果物**である `blocker-snapshot` 孤立ブランチの `snapshot.json`（`blocker_gate snapshot` 生成時点の `POLICY_VERSION` を `policy_version` field に埋め込む）も対象に含む。この成果物だけは Actions workflow の次回実行でしか更新できないため、bump を merge した直後から次回実行が完了するまでの窓では、公開済み snapshot が旧版の `policy_version` を含んだまま残る。この窓で到達不能環境の Issue-start gate が snapshot を読むと、`blocker_gate/snapshot.py` の `parse_repository_snapshot` が `raw["policy_version"] != POLICY_VERSION` を検出して `SNAPSHOT_POLICY_VERSION_MISMATCH` により fail-close する——`generated_at` は新しく見えても、である。診断手順は `docs/methods/blocker-snapshot-external-cron-ops.md` §4.2 に記載する。
 
@@ -357,7 +384,7 @@ closing set が空なら dependency/closure の root は空であり、`ALLOW/NO
 
 Issue mode の root は対象 Issue、PR mode の root は closing set の全 Issue とする。各 root から native blocked-by を深さ優先で辿り、経路を canonical node 列で保存する。
 
-1. 仮想状態を含む `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` blocker はその枝を解決済みとして終了する。closed node より上流の relation は target の未解決 blocker path に含めない。
+1. 仮想状態を含む `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` / `CLOSED_OTHER` blocker はその枝を解決済みとして終了する。closed node より上流の relation は target の未解決 blocker path に含めない。
 2. `OPEN` blocker は `BLOCK/OPEN_BLOCKER` である。さらに blocked-by を辿り、transitive path と cycle を収集する。
 3. `UNKNOWN` は `ERROR/ISSUE_STATE_UNKNOWN` とする。
 4. direct と transitive finding をすべて返す。1件見つけて取得を打ち切らない。途中の API error があれば BLOCK ではなく ERROR を最終 verdict とする。
@@ -372,7 +399,7 @@ closure は dependency と独立に評価し、最後に同じ Result へ統合�
 Invariant: CLOSED(parent) implies every direct and transitive sub-issue is CLOSED.
 ```
 
-ここで `CLOSED` は物理 `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` と PR mode の virtual `CLOSED_COMPLETED` の両方を含む。descendant の `OPEN` は violation である。
+ここで `CLOSED` は物理 `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` / `CLOSED_OTHER` と PR mode の virtual `CLOSED_COMPLETED` の両方を含む。descendant の `OPEN` は violation である。
 
 - Issue mode の scope は対象 Issue、その全 ancestor、対象 Issue の全 descendant とする。
 - PR mode の scope は closing set 各 Issue、その全 ancestor、closing set 各 Issue の全 descendant の和集合とする。
@@ -399,7 +426,7 @@ waiver は current default branch の `.github/blocker-gate/waivers/<id>.yml` �
 ```yaml
 schema: blocker-gate-waiver/v1
 id: BW-20260801-001
-policy_version: "1.2"
+policy_version: "2.0"
 repository: hiratashinnya/review-system
 owner: owner-login
 reason: "期限内に先行検証を行う必要があるため"
@@ -420,7 +447,7 @@ scope:
 
 ```yaml
 schema: blocker-gate-policy/v1
-policy_version: "1.2"
+policy_version: "2.0"
 approver_allowlist:
   - owner-login
 max_waiver_lifetime_hours: 168
@@ -451,7 +478,7 @@ waiver は finding を正規化した次の UTF-8 JSON（key sort、余分な空
 
 対象にできる code は `OPEN_BLOCKER` だけである。closure violation、対象 closed、auto-merge、classifier/API/parse/pagination/cycle/identity/permission ERROR は waive できない。新しい finding または path 変化は別 fingerprint となり、既存 waiver を適用しない。
 
-`owner` は waiver の理由・scope・期限・失効処理に説明責任を持つ人、`approved_by` は例外を許可する人である。policy `1.2` では両者とも GitHub login を用い、`approved_by` は allowlist 必須とする。単独 owner repository では同一 login を許容するが、機械 verifier はその判断を推測せず schema と allowlist だけを検証する。`reason` の妥当性とリスク受容は owner/approver がレビューし、#296 は文字列の存在・長さ・禁止制御文字だけを機械検証する。
+`owner` は waiver の理由・scope・期限・失効処理に説明責任を持つ人、`approved_by` は例外を許可する人である。policy `2.0` では両者とも GitHub login を用い、`approved_by` は allowlist 必須とする。単独 owner repository では同一 login を許容するが、機械 verifier はその判断を推測せず schema と allowlist だけを検証する。`reason` の妥当性とリスク受容は owner/approver がレビューし、#296 は文字列の存在・長さ・禁止制御文字だけを機械検証する。
 
 ### 6.3 真正性検証
 
@@ -741,7 +768,7 @@ run_pr_merge(raw_operation):
 | direct `OPEN` blocker | なし | `BLOCK/OPEN_BLOCKER` | 拒否 |
 | open blocker の先に transitive `OPEN` blocker | なし | 各 path を `BLOCK/OPEN_BLOCKER` | 拒否 |
 | direct/transitive `OPEN` blocker | 全 finding に有効な exact waiver | `ALLOW/WAIVER_APPLIED` 候補 | 他 finding で決定 |
-| `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` blocker | 不要 | その枝を解決済み | 上流へは辿らない |
+| `CLOSED_COMPLETED` / `CLOSED_NOT_PLANNED` / `CLOSED_OTHER` blocker | 不要 | その枝を解決済み | 上流へは辿らない |
 | blocker が same-PR closing set 内 | 不要 | virtual closed、finding なし | 他 finding で決定 |
 | direct/transitive dependency cycle / self edge | 適用不可 | `ERROR/GRAPH_CYCLE` | 拒否 |
 | related link だけが存在 | 適用不可 | dependency finding なし | verdict に使用しない |
@@ -753,7 +780,8 @@ run_pr_merge(raw_operation):
 | API 429/5xx/retry枯渇 | 適用不可 | `ERROR/API_UNAVAILABLE` | 拒否 |
 | GitHub 由来の 401/403・権限不足（`X-GitHub-Request-Id` あり） | 適用不可 | `ERROR/API_PERMISSION` | 拒否 |
 | GitHub へ届かない拒否（proxy 生成 403 等・`X-GitHub-Request-Id` なし）、tunnel/DNS/接続 failure、timeout | 適用不可 | `ERROR/API_UNREACHABLE`。§3.3 の snapshot fallback を持つ経路だけがその fallback を試み、失敗すれば ERROR のまま | 拒否 |
-| state/reason/identity/responseが未知・矛盾 | 適用不可 | `ERROR/ISSUE_STATE_UNKNOWN` 等 | 拒否 |
+| identity/responseが未知・矛盾、または `state` を読めない | 適用不可 | `ERROR/ISSUE_STATE_UNKNOWN` 等 | 拒否 |
+| `state` は closed と読めるが reason が未知（`DUPLICATE`・欠落・将来追加値） | 不要 | `CLOSED_OTHER`。ERROR にしない（2.2 の検知経路へ出す） | 他 finding で決定 |
 | BLOCK と ERROR が混在 | 任意 | `ERROR` | 拒否 |
 
 ### 9.2 parent/sub-issue closure invariant
@@ -808,7 +836,7 @@ hook 自体の crash/timeout も caller が `ERROR` と同じ deny として扱�
 
 ### 10.2 reason code
 
-Policy `1.2` の reason code は次を正本とする。
+Policy `2.0` の reason code は次を正本とする。**Issue #466 は reason code を1つも増減していない**（変えたのは 2.2 の state 分類で、`ISSUE_STATE_UNKNOWN` に落ちる入力の範囲が狭まっただけである）。
 
 ```text
 ALLOW:  NO_VIOLATION, NO_CLOSING_EFFECT, WAIVER_APPLIED
@@ -846,7 +874,7 @@ stdout は UTF-8 JSON を一件だけ出す。title/body/commit message/token �
 ```json
 {
   "schema": "blocker-gate-result/v1",
-  "policy_version": "1.2",
+  "policy_version": "2.0",
   "classifier_version": "1.0",
   "invocation_id": "123e4567-e89b-12d3-a456-426614174000",
   "mode": "pr-merge",
@@ -1147,7 +1175,17 @@ version は `MAJOR.MINOR` である。
 - `MINOR`: 型や判定意味を変えない文言、diagnostic、fixture、runbook、allowlist内容の更新。**ERROR 区分内での reason の追加**もここに含む——既存 caller は未知 reason を ERROR として扱う（10.2）ため、追加された reason を知らないままでも verdict・exit code・元操作の可否が変わらず、対応ロジックの改修を要求しないからである。同一 verdict 区分に留まる reason の意味の細分化（ある reason の外延が狭まり、狭まった分を新 reason が引き受ける）も同じ理由で MINOR とする。
 - patch 版は使わない。policyとclassifierの未知 MAJOR、または manifest と実行 asset の版不一致は `ERROR/HOOK_INTEGRITY_ERROR` とする。
 
-MINOR 更新であっても `policy_version` は上げる（据え置かない）。`blocker_gate/waiver.py` は waiver file・`.github/blocker-gate/policy.yml`・実行 asset の `policy_version` が三者とも完全一致することを要求するため、版を上げるときはこの3か所と test fixture を同時に更新する。適用例＝Issue #345 の `API_UNREACHABLE` 追加（`1.0` → `1.1`・10.2）、Issue #363 の 3.3「材料」trigger 記述修正（`1.1` → `1.2`・3.3）。
+MINOR 更新であっても `policy_version` は上げる（据え置かない）。`blocker_gate/waiver.py` は waiver file・`.github/blocker-gate/policy.yml`・実行 asset の `policy_version` が三者とも完全一致することを要求するため、版を上げるときはこの3か所と test fixture を同時に更新する。適用例＝Issue #345 の `API_UNREACHABLE` 追加（`1.0` → `1.1`・10.2）、Issue #363 の 3.3「材料」trigger 記述修正（`1.1` → `1.2`・3.3）、Issue #466 の 2.2 state classifier 改訂（`1.2` → `2.0`・MAJOR・3.3）。
+
+**同一 PR 内での再 bump 要否（オーナー確定・2026-09-06・Issue #466 / PR #479）**：1回の PR で `policy_version` を複数回動かすことはしない——バージョンアップは儀式ではない。ある版（例：上記の `2.0`）を出す PR の中でレビュー指摘を受けた是正が入っても、それだけを理由に版を再度動かすのは正当ではない。是正を理由に版を動かしてよいのは次の3条件に限る。
+
+1. **MAJOR/MINOR の種別変更**：是正によって、直前に付けた版区分（MAJOR/MINOR）自体が誤りだったと判明した場合（例：MINOR として出したが実際は verdict 区分をまたぐ意味変更だった）。
+2. **上げ忘れの補填**：是正対象の変更自体が独立して版を要求するのに、直前の commit で bump し忘れていた場合。
+3. **文書間のズレの是正**：`policy_version` の三者一致（waiver file・`.github/blocker-gate/policy.yml`・実行 asset）や本文中の版リテラルが、既に決めた版と食い違っている場合の修正。
+
+**上段の MINOR 一般則との関係**：直前の段落（「MINOR 更新であっても `policy_version` は上げる（据え置かない）」）は「意味のある変更をしたのに版を上げない」ことを禁じる規則であり、**新しい版を確定して出すとき**に必ず番号を動かすことを求める。本項はこれとは別の場面——**同一 PR 内で、まだ merge されていない一つの版遷移の途中に追加の是正が入ったとき**——を扱い、その追加是正だけを理由に**もう一度**版を動かすこと（例：`2.0` の是正で `2.1` を出す）を、上記3条件のいずれかに当たらない限り抑止する。前者は「動かすべき時に動かさない」ことへの歯止め、本項は「同じ遷移の中で儀式的に何度も動かす」ことへの歯止めであり、両者は矛盾しない。
+
+**本 PR での適用**：Issue #466 の是正ラウンド1（commit ca20496）は §2.2 の state classifier 記述・検知の欠落（F-466-01〜F-466-03）を修正したが、`POLICY_VERSION` は `2.0` のまま据え置いた。上記3条件のいずれにも当たらないと判断したためである——(1) 種別変更ではない：F-466-01/F-466-03 は判定意味を変えない表記・実装の明確化、F-466-02 は telemetry（判定材料ではない）の外延変更であり、いずれも MAJOR/MINOR の区分自体は変わらない。(2) 上げ忘れではない：`2.0` はこの PR で新設する未 merge の版であり、この是正はその `2.0` を確定させる前段の記述整備に当たる。ここで `2.1` へ進めると `2.0` が世に出ないまま欠番になり、直前の適用例リストの記載（「Issue #466 の 2.2 state classifier 改訂（`1.2` → `2.0`）」）とも食い違う。(3) 文書間のズレでもない：三者一致・本文中の版リテラルはいずれも `2.0` のまま揃っている。
 
 本文中の版リテラル（本節・§2.3・§10.2 冒頭等）が実際の bump に追従しているかどうかは、現時点では人手更新に依存し機械検査されていない（Issue #363 で §10.2・§2.3 双方に取り残しが見つかった）。再発防止のための機械検査はトラッキング Issue #365・調査設計 Issue #366・実装 Issue #367 に分割して起票済みであり、本 PR の範囲には含まない。
 

@@ -247,13 +247,69 @@ class RepositoryCollectorTests(FrozenResolverClockMixin, unittest.TestCase):
         self.assertEqual(raw["issues"][f"{REPOSITORY}#11"]["parent"], f"{REPOSITORY}#10")
         parse_repository_snapshot(raw)
 
-    def test_closed_without_known_reason_is_unknown_state(self):
-        for state_reason in (None, "DUPLICATE", "REOPENED"):
+    def test_closed_is_resolved_whatever_the_state_reason(self):
+        """Issue #466: closed の blocker は state reason に関わらず解決済みにする。
+
+        以前はここで `UNKNOWN` を固定していた（policy §2.2 の分類表の側）。しかし
+        同じ §2.2 の散文は「GitHub が closed と返す blocker は state reason に
+        かかわらず解決済みとし、open blocker だけを dependency violation とする」と
+        定めており、表と散文が矛盾していた。散文を正として policy 2.0 で表を直し、
+        `DUPLICATE`（「Close as duplicate」）・reason 欠落（古い closed Issue）・
+        本 policy 版が知らない将来の reason をすべて `CLOSED_OTHER` にする。
+        """
+        for state_reason in (None, "DUPLICATE", "REOPENED", "SOME_FUTURE_REASON"):
             with self.subTest(state_reason=state_reason):
                 raw, _ = self.collect(
-                    [graphql_page([graphql_node(10, state="CLOSED", state_reason=state_reason)])]
+                    [
+                        graphql_page(
+                            [
+                                graphql_node(10, blocked_by=(9,)),
+                                graphql_node(9, state="CLOSED", state_reason=state_reason),
+                            ]
+                        )
+                    ]
                 )
-                self.assertEqual(raw["issues"][f"{REPOSITORY}#10"]["state"], "UNKNOWN")
+                self.assertEqual(
+                    raw["issues"][f"{REPOSITORY}#9"]["state"], "CLOSED_OTHER"
+                )
+                # 生成 → parse → 射影 → 評価まで gate と同じ経路で通し、
+                # `ERROR/ISSUE_STATE_UNKNOWN` にならないことを固定する。
+                projected, _ = project_issue_snapshot(
+                    parse_repository_snapshot(raw), REPOSITORY, 10
+                )
+                result = evaluate_snapshot(projected)
+                self.assertEqual(
+                    (result["result"], result["primary_reason"]),
+                    ("ALLOW", "NO_VIOLATION"),
+                )
+
+    def test_unreadable_state_still_fails_close(self):
+        """Issue #466: `state` 自体を読めない場合の fail-close は弱めない。"""
+        for state, state_reason in (
+            (None, "COMPLETED"),
+            ("ARCHIVED", None),
+            (True, None),
+            ("CLOSED", 7),
+        ):
+            with self.subTest(state=state, state_reason=state_reason):
+                raw, _ = self.collect(
+                    [
+                        graphql_page(
+                            [
+                                graphql_node(10, blocked_by=(9,)),
+                                graphql_node(9, state=state, state_reason=state_reason),
+                            ]
+                        )
+                    ]
+                )
+                self.assertEqual(raw["issues"][f"{REPOSITORY}#9"]["state"], "UNKNOWN")
+                projected, _ = project_issue_snapshot(
+                    parse_repository_snapshot(raw), REPOSITORY, 10
+                )
+                result = evaluate_snapshot(projected)
+                self.assertEqual(result["result"], "ERROR")
+                self.assertIn("ISSUE_STATE_UNKNOWN", result["reasons"])
+                self.assertFalse(result["permit_issued"])
 
     def test_truncated_relation_connection_fails_close(self):
         """Issue #345 落とし穴2: `first:` を超えた relation は補完せず fail-close する。"""

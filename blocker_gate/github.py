@@ -21,7 +21,7 @@ from .closing import (
     build_delivered_messages,
     parse_closing_references,
 )
-from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, fingerprint
+from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, classify_issue_state, fingerprint
 from .snapshot import REPOSITORY_SNAPSHOT_SCHEMA
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
@@ -110,6 +110,19 @@ class GitHubCollector:
         # （`blocker-gate-repository-snapshot/v1` の top-level key は
         # `snapshot.parse_repository_snapshot` が完全一致で閉じている）。
         self.last_rate_limit: dict[str, Any] | None = None
+        # Issue #466: 直近の収集で観測した「本 policy 版が説明できない state reason」
+        # ＝未知語彙、および state と両立しない矛盾組み合わせ（F-466-02）。
+        # `last_rate_limit` と同じく **telemetry 専用**で判定には一切使わないため、
+        # 閉じた snapshot schema へは載せず collector の属性として公開する。
+        # telemetry token（`REASON` または `STATE+REASON`）-> それを返した Issue ref の集合。
+        self.unrecognized_state_reasons: dict[str, set[str]] = {}
+
+    def _classify(self, ref: str, state: Any, reason: Any) -> str:
+        """REST/GraphQL 双方が使う唯一の state 分類経路（Issue #466 AC4）。"""
+        issue_class, unrecognized = classify_issue_state(state, reason)
+        if unrecognized is not None:
+            self.unrecognized_state_reasons.setdefault(unrecognized, set()).add(ref)
+        return issue_class.value
 
     @staticmethod
     def _now() -> str:
@@ -163,18 +176,6 @@ class GitHubCollector:
                 raise GitHubReadError("CROSS_REPOSITORY_UNSUPPORTED")
         return f"{repository}#{number}"
 
-    @staticmethod
-    def _state(raw: Mapping[str, Any]) -> str:
-        state = raw.get("state")
-        reason = raw.get("state_reason")
-        if state == "open":
-            return "OPEN"
-        if state == "closed" and reason == "completed":
-            return "CLOSED_COMPLETED"
-        if state == "closed" and reason == "not_planned":
-            return "CLOSED_NOT_PLANNED"
-        return "UNKNOWN"
-
     def _collect_graph(self, repository: str, roots: list[str]) -> tuple[dict[str, Any], list[str], bool]:
         nodes: dict[str, Any] = {}
         pending = list(roots)
@@ -203,7 +204,9 @@ class GitHubCollector:
                     parent = self._ref(repository, parent_raw)
                 nodes[ref] = {
                     "node_id": issue["node_id"],
-                    "state": self._state(issue),
+                    "state": self._classify(
+                        ref, issue.get("state"), issue.get("state_reason")
+                    ),
                     "blocked_by": blocked,
                     "parent": parent,
                     "children": children,
@@ -220,6 +223,7 @@ class GitHubCollector:
         return nodes, sorted(set(errors)), complete
 
     def collect_issue(self, repository: str, number: int) -> Mapping[str, Any]:
+        self.unrecognized_state_reasons = {}
         root = f"{repository}#{number}"
         nodes, errors, complete = self._collect_graph(repository, [root])
         return {
@@ -269,18 +273,6 @@ class GitHubCollector:
         "subIssues(first:50){pageInfo{hasNextPage} nodes{number repository{nameWithOwner}}}"
         "}}}}"
     )
-
-    @staticmethod
-    def _graphql_state(raw: Mapping[str, Any]) -> str:
-        state = raw.get("state")
-        reason = raw.get("stateReason")
-        if state == "OPEN":
-            return "OPEN"
-        if state == "CLOSED" and reason == "COMPLETED":
-            return "CLOSED_COMPLETED"
-        if state == "CLOSED" and reason == "NOT_PLANNED":
-            return "CLOSED_NOT_PLANNED"
-        return "UNKNOWN"
 
     @staticmethod
     def _graphql_ref(repository: str, raw: Any) -> str:
@@ -364,6 +356,7 @@ class GitHubCollector:
         complete = True
         usage: dict[str, Any] = {"cost": 0, "pages": 0, "remaining": None, "reset_at": None}
         self.last_rate_limit = None
+        self.unrecognized_state_reasons = {}
         try:
             cursor: str | None = None
             seen: set[str | None] = set()
@@ -425,7 +418,7 @@ class GitHubCollector:
                     complete = complete and blocked_ok and children_ok
                     issues[ref] = {
                         "node_id": raw["id"],
-                        "state": self._graphql_state(raw),
+                        "state": self._classify(ref, raw["state"], raw["stateReason"]),
                         "blocked_by": blocked,
                         "parent": parent,
                         "children": children,
@@ -997,6 +990,7 @@ class GitHubCollector:
         operation_fingerprint: str | None = None,
         attempt: int = 1,
     ) -> Mapping[str, Any]:
+        self.unrecognized_state_reasons = {}
         errors: list[str] = []
         complete = True
         graphql_refs: list[str] = []
