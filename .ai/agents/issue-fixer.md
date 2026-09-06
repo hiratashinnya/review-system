@@ -81,6 +81,11 @@ unresolved_findings、out_of_scope_findings、protected_patchを過不足なく�
 prepare時にownerがmain ledgerへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→pushを順番に実行し、既存consumer形式のfinal handoffを生成する。
 
+同inner processでは汎用shellや任意argvを使わず、supervisorが公開したtask-bound command brokerの
+action-specific schemaだけを使う。broker catalogに無いcommandが必要なら別launcherを探さずSTOPし、必要な
+actionと安全な固定grammarを呼び出し元へ提案する。PATH変更、absolute executable、copy/symlink、Node payload、
+native launcherによってprocess境界を迂回しない。karte bridgeはhost側の専用状態遷移に従い、本brokerへ混ぜない。
+
 ハンドオフは次の構造を満たす。
 
 schema_version: 1

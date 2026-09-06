@@ -104,6 +104,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from . import durable_lock
+
 SCHEMA_VERSION = "worktree-ledger/1"
 STATUSES = (
     "open", "running", "stopped", "collected", "release_pending",
@@ -307,19 +309,13 @@ def _acquire_lock(
 ) -> int:
     lock_path = directory / LEDGER_LOCK_FILENAME
     attempts = max(1, int(lock_timeout_s / LOCK_RETRY_INTERVAL_S))
-    for index in range(attempts):
-        try:
-            return os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError:
-            if index == attempts - 1:
-                break
-            sleep(LOCK_RETRY_INTERVAL_S)
-        except OSError as exc:
-            raise LedgerError("LEDGER_LOCK_ERROR", str(lock_path)) from exc
-    raise LedgerError(
-        "LEDGER_LOCK_TIMEOUT",
-        f"{lock_path}（別プロセスが保持中。残留していれば手で削除する）",
-    )
+    try:
+        return durable_lock.acquire(
+            lock_path, attempts=attempts, interval=LOCK_RETRY_INTERVAL_S, sleep=sleep
+        )
+    except durable_lock.DurableLockError as exc:
+        reason = "LEDGER_LOCK_TIMEOUT" if exc.reason == "LOCK_TIMEOUT" else "LEDGER_LOCK_ERROR"
+        raise LedgerError(reason, f"{lock_path}: {exc.reason}") from exc
 
 
 def _write_atomic(path: Path, document: Mapping[str, Any]) -> None:
@@ -355,7 +351,7 @@ def update_ledger(
     ``mutate`` は台帳 document をその場で書き換える（戻り値は見ない）。
     ``mutate`` が例外を投げたら**一切書かずに**ロックを解放して送出しなおす（fail-close）。
 
-    ロックは同一ディレクトリの ``ledger.json.lock`` を ``O_CREAT|O_EXCL`` で取る。
+    ロックは同一ディレクトリの永続 ``ledger.json.lock`` inodeをkernel ``flock`` で取る。
     取れなければ ``LOCK_RETRY_INTERVAL_S`` 刻みで固定回数リトライし、尽きたら
     ``LEDGER_LOCK_TIMEOUT``（fail-close）。**待ち時間の判定に wall clock を読まない**
     （``sleep`` を注入すればテストは実時間に依存しない）。
@@ -372,11 +368,7 @@ def update_ledger(
         _write_atomic(path, document)
         return document
     finally:
-        os.close(lock_fd)
-        try:
-            os.unlink(str(directory / LEDGER_LOCK_FILENAME))
-        except OSError:
-            pass
+        durable_lock.release(lock_fd)
 
 
 # --- エントリ操作 --------------------------------------------------------------

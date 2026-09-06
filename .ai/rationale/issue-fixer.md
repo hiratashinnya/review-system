@@ -186,3 +186,8 @@ STOPし、supervisor経路が独立reviewと段階的probeを通るまで正規C
 例外はオーナーが明示したbootstrap処置として別記録にし、正規fixer transportの起動実績または保証として扱わない。
 PR #453の旧spawn consume成功はsuperseded evidenceであり、spawn_agent経路はunavailable deny、別process経路は
 supervisorのP0〜P4 evidenceを正本とする。
+
+F-452-19以後のsupervisor innerでは汎用process toolを無効化し、task/attempt/fenceへ束縛した単一MCP brokerだけを
+process入口にする。PATH denyやprompt規範ではabsolute launcher、copy、Node payloadを閉じられないためである。
+brokerは任意argvを受けず、固定Git/unittest/auditだけをnetwork/auth/Codex installation非mountの子bubblewrapで
+実行する。karteの診断proposal・host登録・resumeとclose-attemptはF-452-17の状態遷移であり、このbrokerへは混ぜない。

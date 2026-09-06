@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Collection, Mapping, Protocol, Sequence, TextIO
 
-from . import codex_binding, worktree_ledger
+from . import codex_binding, codex_exec_broker, durable_lock, worktree_ledger
 
 
 MODEL = "gpt-5.6-sol"
@@ -49,6 +49,80 @@ _ATTEMPT_LEASE_SECONDS = 60
 _PUBLISH_LEASE_SECONDS = 60
 _HANDOFF_SCHEMA_VERSION = 1
 _SESSION_STATE_ROOT = Path("tmp/_codex_sessions")
+_BROKER_FEATURES = (
+    "shell_tool", "unified_exec", "code_mode", "code_mode_host", "multi_agent",
+    "apps", "plugins", "remote_plugin", "browser_use", "computer_use",
+    "hooks", "shell_snapshot", "skill_mcp_dependency_install", "skill_search",
+    "workspace_dependencies", "auth_elicitation", "plugin_sharing",
+    "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
+    "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
+)
+_KNOWN_CLI_FEATURES = frozenset({
+    "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
+    "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
+    "background_paginated_rollout_migration", "browser_use", "browser_use_external",
+    "browser_use_full_cdp_access", "chronicle", "code_mode", "code_mode_buffered_exec",
+    "code_mode_host", "code_mode_interrupt", "code_mode_only", "codex_git_commit",
+    "collaboration_modes", "compaction_image_budget", "computer_use",
+    "concurrent_reasoning_summaries", "current_time_reminder", "cwd_relative_turn_diffs",
+    "default_mode_request_user_input", "deferred_executor", "deferred_tool_world_state",
+    "elevated_windows_sandbox", "enable_fanout", "enable_mcp_apps",
+    "enable_request_compression", "exec_permission_approvals", "executed_tool_call_metadata",
+    "executor_capability_discovery", "experimental_windows_sandbox",
+    "external_agent_memory_import", "external_migration", "fast_mode", "goals",
+    "guardian_approval", "guardian_enhanced_node_repl_transcripts",
+    "guardian_node_repl_transcript_images", "guardian_reuse_parent_compaction", "guardianv2",
+    "hooks", "image_detail_original", "image_generation", "image_resize_notice",
+    "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_updates", "item_ids",
+    "js_repl", "js_repl_tools_only", "local_thread_store_compression", "mcp_2026_07_28",
+    "memories", "mentions_v2", "multi_agent", "multi_agent_mode", "multi_agent_v2",
+    "network_proxy", "non_prefixed_mcp_tool_names", "personality", "plugin_hooks",
+    "plugin_sharing", "plugins", "prevent_idle_sleep", "psp", "realtime_conversation",
+    "recommended_plugins", "remote_compaction_v2", "remote_control", "remote_models",
+    "remote_plugin", "request_permissions_tool", "request_rule", "resize_all_images",
+    "respect_system_proxy", "responses_websockets", "responses_websockets_v2",
+    "retain_client_developer_messages", "rollout_budget", "runtime_metrics", "search_tool",
+    "secret_auth_storage", "send_async_message", "shell_snapshot", "shell_tool",
+    "shell_zsh_fork", "skill_env_var_dependency_prompt", "skill_mcp_dependency_install",
+    "skill_search", "sqlite", "standalone_web_search", "steer",
+    "terminal_resize_reflow", "terminal_visualization_instructions", "token_budget",
+    "tool_call_mcp_elicitation", "tool_search", "tool_search_always_defer_mcp_tools",
+    "tool_suggest", "tui_app_server", "unavailable_dummy_tools",
+    "unbounded_connection_retries", "undo", "unified_exec", "unified_exec_zsh_fork",
+    "unified_image_budget", "use_agent_identity", "use_legacy_landlock",
+    "use_linux_sandbox_bwrap", "view_image", "web_search_cached", "web_search_request",
+    "workspace_dependencies", "workspace_owner_usage_nudge",
+})
+_PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
+
+
+def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return the non-secret environment shared with supervised subprocesses."""
+
+    values = os.environ if source is None else source
+    result = {name: values[name] for name in _PROCESS_ENV_ALLOWLIST if values.get(name)}
+    result.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+    return result
+
+
+def _codex_launch_path(codex: Path | str) -> str:
+    """Build the smallest PATH needed by an env-based Codex launcher shebang."""
+
+    try:
+        with Path(codex).open("rb") as handle:
+            first = handle.readline(256).decode("utf-8", errors="strict").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID") from exc
+    directories = ["/usr/bin", "/bin"]
+    if first.startswith("#!/usr/bin/env "):
+        interpreter_name = first.removeprefix("#!/usr/bin/env ").split()[0]
+        if not re.fullmatch(r"[A-Za-z0-9_.+-]+", interpreter_name):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID")
+        interpreter = shutil.which(interpreter_name)
+        if interpreter is None:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_INTERPRETER_UNAVAILABLE")
+        directories.insert(0, str(Path(interpreter).resolve(strict=True).parent))
+    return ":".join(dict.fromkeys(directories))
 
 
 class CodexSupervisorError(RuntimeError):
@@ -79,6 +153,18 @@ class RuntimeHome:
     sessions: Path
     auth_source: Path
     auth_target: Path
+
+
+@dataclass(frozen=True)
+class BrokerBundle:
+    root: Path
+    source: Path
+    source_sha256: str
+    lock_source: Path
+    lock_source_sha256: str
+    ledger: Path
+    git_common: Path
+    process_command: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -462,20 +548,209 @@ def _prepare_runtime_home(spec: SupervisorSpec) -> RuntimeHome:
     )
 
 
+def _prepare_broker_bundle(
+    spec: SupervisorSpec,
+    runtime: RuntimeHome,
+    *,
+    bwrap_executable: str,
+    codex_executable: str,
+    attempt_id: str,
+    broker_fence: str,
+) -> BrokerBundle:
+    """supervisor自身のbroker sourceだけをprivate bundleへ固定する。"""
+
+    bundle = _private_directory(runtime.root / "broker-bundle")
+    def install(source: Path, name: str) -> tuple[Path, str]:
+        payload = source.read_bytes()
+        digest = hashlib.sha256(payload).hexdigest()
+        target = bundle / name
+        if not target.exists():
+            try:
+                descriptor = os.open(
+                    target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o400
+                )
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except OSError as exc:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
+        try:
+            metadata = target.lstat()
+            target_digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
+        if (
+            target.is_symlink()
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) not in {0o400, 0o444}
+            or target_digest != digest
+        ):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_TAMPERED")
+        return target.resolve(strict=True), digest
+
+    target, digest = install(
+        Path(codex_exec_broker.__file__).resolve(strict=True), "codex_exec_broker.py"
+    )
+    lock_target, lock_digest = install(
+        Path(durable_lock.__file__).resolve(strict=True), "durable_lock.py"
+    )
+    main_root = Path(worktree_ledger.main_worktree_root(spec.workspace)).resolve(strict=True)
+    ledger = worktree_ledger.ledger_path(main_root, create_dir=True).resolve(strict=True)
+    common_text = codex_binding._git_output(
+        ["git", "rev-parse", "--git-common-dir"], cwd=spec.workspace, runner=subprocess.run
+    )
+    git_common = (spec.workspace / common_text).resolve(strict=True)
+    codex_payload = Path(codex_executable).resolve(strict=True)
+    visible_roots = (Path("/usr"), Path("/etc"), spec.workspace.resolve(strict=True), git_common)
+    for root in visible_roots:
+        try:
+            codex_payload.relative_to(root)
+        except ValueError:
+            continue
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_CODEX_CHILD_VISIBLE", str(codex_payload)
+        )
+    python = _require_executable("/usr/bin/python3", "CODEX_SUPERVISOR_PYTHON_UNAVAILABLE")
+    command = (
+        python, str(target), "--ledger", str(ledger), "--workspace", str(spec.workspace.resolve(strict=True)),
+        "--role", spec.role, "--task-key", spec.task_key, "--attempt-id", attempt_id,
+        "--fence", broker_fence, "--handoff-path", spec.handoff_path,
+        "--bwrap", bwrap_executable, "--python", python, "--git-common", str(git_common),
+        "--source-sha256", digest, "--lock-source-sha256", lock_digest,
+    )
+    return BrokerBundle(
+        bundle.resolve(strict=True), target, digest, lock_target, lock_digest,
+        ledger, git_common, command,
+    )
+
+
+def _broker_config(bundle: BrokerBundle, timeout_seconds: int) -> tuple[str, ...]:
+    command, *args = bundle.process_command
+    return (
+        f"mcp_servers.issue_exec_broker.command={json.dumps(command)}",
+        f"mcp_servers.issue_exec_broker.args={json.dumps(args)}",
+        "mcp_servers.issue_exec_broker.required=true",
+        'mcp_servers.issue_exec_broker.enabled_tools=["execute"]',
+        "mcp_servers.issue_exec_broker.startup_timeout_sec=10",
+        f"mcp_servers.issue_exec_broker.tool_timeout_sec={max(1, timeout_seconds)}",
+    )
+
+
+def _inner_config_values(command: Sequence[str]) -> tuple[str, tuple[str, ...], str]:
+    try:
+        separator = command.index("--")
+        inner = command[separator + 1 :]
+        codex = inner[0]
+        values = tuple(inner[index + 1] for index, item in enumerate(inner[:-1]) if item == "--config")
+        runtime_home = command[command.index("CODEX_HOME") + 1]
+    except (ValueError, IndexError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
+    return codex, values, runtime_home
+
+
+def validate_cli_compatibility(
+    command: Sequence[str],
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> None:
+    """model/API/thread開始前にinstalled CLIのfeature/MCP parserを検証する。"""
+
+    codex, values, runtime_home = _inner_config_values(command)
+    overrides = [argument for value in values for argument in ("--config", value)]
+    env = _minimal_process_env()
+    env["CODEX_HOME"] = runtime_home
+    env["CODEX_SQLITE_HOME"] = str(Path(runtime_home) / "sqlite")
+    try:
+        features = runner(
+            [codex, "features", "list", *overrides], env=env,
+            text=True, capture_output=True, check=False,
+        )
+        servers = runner(
+            [codex, "mcp", "list", "--json", *overrides], env=env,
+            text=True, capture_output=True, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_PREFLIGHT_FAILED") from exc
+    if features.returncode != 0 or servers.returncode != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED")
+    states: dict[str, str] = {}
+    for line in features.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 3:
+            states[fields[0]] = fields[-1]
+    if set(states) != _KNOWN_CLI_FEATURES:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN")
+    if any(states.get(name) != "false" for name in _BROKER_FEATURES):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED")
+    try:
+        catalog = json.loads(servers.stdout)
+    except json.JSONDecodeError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CONFIG_INVALID") from exc
+    if (
+        not isinstance(catalog, list)
+        or len(catalog) != 1
+        or catalog[0].get("name") != "issue_exec_broker"
+        or catalog[0].get("enabled") is not True
+    ):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CATALOG_INVALID")
+
+
+def validate_broker_protocol(command: Sequence[str]) -> None:
+    """required MCPが単一toolを返すことをmodel-free handshakeで固定する。"""
+
+    _codex, values, _runtime_home = _inner_config_values(command)
+    config = {value.split("=", 1)[0]: value.split("=", 1)[1] for value in values if "=" in value}
+    try:
+        executable = json.loads(config["mcp_servers.issue_exec_broker.command"])
+        arguments = json.loads(config["mcp_servers.issue_exec_broker.args"])
+    except (KeyError, json.JSONDecodeError, TypeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CONFIG_INVALID") from exc
+    requests = "\n".join((
+        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                    "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                               "clientInfo": {"name": "supervisor-preflight", "version": "1"}}}),
+        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}),
+        json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
+    )) + "\n"
+    env = _minimal_process_env()
+    env["CODEX_EXEC_BROKER_BOUNDARY"] = codex_exec_broker.BOUNDARY_VERSION
+    try:
+        completed = subprocess.run(
+            [executable, *arguments], input=requests, env=env,
+            text=True, capture_output=True, check=False, timeout=15,
+        )
+        responses = [json.loads(line) for line in completed.stdout.splitlines()]
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED") from exc
+    tools = next((item.get("result", {}).get("tools") for item in responses if item.get("id") == 2), None)
+    if completed.returncode != 0 or not isinstance(tools, list) or [tool.get("name") for tool in tools] != ["execute"]:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED")
+
+
 def build_codex_command(
     spec: SupervisorSpec,
     *,
     bwrap_executable: Path | str,
     codex_executable: Path | str,
     resume_thread: str | None = None,
+    attempt_id: str = "0" * 32,
+    broker_fence: str = "0" * 32,
 ) -> tuple[str, ...]:
     """外側 bubblewrap と内側 Codex sandbox の二段 command を組み立てる。"""
 
     workspace = spec.workspace.resolve(strict=True)
     bwrap = _require_executable(bwrap_executable, "CODEX_SUPERVISOR_BWRAP_UNAVAILABLE")
     codex = _require_executable(codex_executable, "CODEX_SUPERVISOR_CODEX_UNAVAILABLE")
+    launch_path = _codex_launch_path(codex)
     role_contract, role_digest = _trusted_role_instructions(spec)
     runtime = _prepare_runtime_home(spec)
+    broker = _prepare_broker_bundle(
+        spec, runtime, bwrap_executable=bwrap, codex_executable=codex,
+        attempt_id=attempt_id, broker_fence=broker_fence
+    )
     protected: list[str] = []
     protected_paths = [workspace / relative for relative in _PROTECTED_ROOTS]
     protected_paths.append(workspace / ".ai" / "agents" / f"{spec.role}.md")
@@ -499,8 +774,32 @@ def build_codex_command(
         "--config", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
         "--config", "agents.enabled=false",
         "--config", "features.multi_agent=false",
+        "--config", "features.shell_tool=false",
+        "--config", "features.unified_exec=false",
+        "--config", "features.code_mode=false",
+        "--config", "features.code_mode_host=false",
+        "--config", "features.apps=false",
+        "--config", "features.plugins=false",
+        "--config", "features.remote_plugin=false",
+        "--config", "features.browser_use=false",
+        "--config", "features.computer_use=false",
+        "--config", "features.hooks=false",
+        "--config", "features.shell_snapshot=false",
+        "--config", "features.skill_mcp_dependency_install=false",
+        "--config", "features.skill_search=false",
+        "--config", "features.workspace_dependencies=false",
+        "--config", "features.auth_elicitation=false",
+        "--config", "features.plugin_sharing=false",
+        "--config", "features.tool_call_mcp_elicitation=false",
+        "--config", "features.tool_suggest=false",
+        "--config", "features.request_permissions_tool=false",
+        "--config", "features.exec_permission_approvals=false",
+        "--config", "features.executor_capability_discovery=false",
+        "--config", "features.deferred_executor=false",
         "--config", "apps._default.enabled=false",
     ]
+    for value in _broker_config(broker, spec.timeout_seconds):
+        inner.extend(("--config", value))
     if resume_thread is not None:
         if not _THREAD_ID.fullmatch(resume_thread):
             raise CodexSupervisorError("CODEX_SUPERVISOR_THREAD_ID_INVALID", resume_thread)
@@ -513,13 +812,17 @@ def build_codex_command(
         "--proc", "/proc",
         "--bind", str(workspace), str(workspace),
         "--bind", str(runtime.root), str(runtime.root),
+        "--bind", str(broker.ledger.parent), str(broker.ledger.parent),
+        "--ro-bind", str(broker.root), str(broker.root),
         "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
-        *protected, "--tmpfs", "/tmp", "--setenv", "TMPDIR", "/tmp",
+        *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "TMPDIR", "/tmp",
+        "--setenv", "PATH", launch_path,
         "--setenv", "CODEX_HOME", str(runtime.root),
         "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
         "--setenv", "CODEX_ISSUE_ROLE", spec.role,
         "--setenv", "CODEX_ISSUE_ROLE_CONTRACT_SHA256", role_digest,
+        "--setenv", "CODEX_EXEC_BROKER_BOUNDARY", codex_exec_broker.BOUNDARY_VERSION,
         "--", *inner,
     ])
 
@@ -679,6 +982,8 @@ def _record_attempt(
             "owner_pid": owner_pid,
             "owner_start_token": owner_token,
             "lease_expires_at": latest.get("lease_expires_at"),
+            "broker_fence": latest.get("broker_fence"),
+            "broker_boundary_version": latest.get("broker_boundary_version"),
             **dict(evidence),
         })
 
@@ -698,7 +1003,8 @@ def _process_identity_alive(pid: Any, token: Any) -> bool:
 
 
 def _reserve_attempt(
-    spec: SupervisorSpec, *, now: datetime, resume_thread: str | None
+    spec: SupervisorSpec, *, now: datetime, resume_thread: str | None,
+    broker_fence: str | None = None,
 ) -> str:
     """ledger lock下でactive process/leaseとresume stateをCAS検査する。"""
 
@@ -708,6 +1014,9 @@ def _reserve_attempt(
     lease = _stamp(now + timedelta(seconds=_ATTEMPT_LEASE_SECONDS))
     owner_pid = os.getpid()
     owner_start_token = _process_start_token(owner_pid)
+    fence = broker_fence or secrets.token_hex(16)
+    if not re.fullmatch(r"[0-9a-f]{32}", fence):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_FENCE_INVALID")
 
     def mutate(document: dict[str, Any]) -> None:
         target = next(
@@ -761,6 +1070,8 @@ def _reserve_attempt(
             "resume_thread": resume_thread,
             "owner_pid": owner_pid,
             "owner_start_token": owner_start_token,
+            "broker_fence": fence,
+            "broker_boundary_version": codex_exec_broker.BOUNDARY_VERSION,
         })
 
     try:
@@ -953,6 +1264,8 @@ def run_supervised(
     codex_executable: Path | str,
     runner: ProcessRunner | None = None,
     resume_thread: str | None = None,
+    compatibility_checker: Callable[[Sequence[str]], None] | None = None,
+    broker_checker: Callable[[Sequence[str]], None] | None = None,
 ) -> SupervisedResult:
     """prepared bindingを検証し、process/thread観測をledgerへ残す。"""
 
@@ -978,11 +1291,22 @@ def run_supervised(
         raise CodexSupervisorError("CODEX_SUPERVISOR_WORKSPACE_MISMATCH")
     if entry["handoff_path"] != spec.handoff_path:
         raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_MISMATCH")
-    attempt_id = _reserve_attempt(spec, now=now, resume_thread=resume_thread)
-    command = build_codex_command(
-        spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
-        resume_thread=resume_thread,
+    broker_fence = secrets.token_hex(16)
+    attempt_id = _reserve_attempt(
+        spec, now=now, resume_thread=resume_thread, broker_fence=broker_fence
     )
+    try:
+        command = build_codex_command(
+            spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
+            resume_thread=resume_thread, attempt_id=attempt_id, broker_fence=broker_fence,
+        )
+    except BaseException as exc:
+        reason = exc.reason if isinstance(exc, CodexSupervisorError) else type(exc).__name__
+        _record_attempt(
+            spec, attempt_id=attempt_id, now=now, state="failed",
+            evidence={"thread_id": None, "reason": reason},
+        )
+        raise
     actual_runner = runner or SubprocessJsonlRunner()
     bound_thread: str | None = None
     process_identity: tuple[int, str] | None = None
@@ -1025,8 +1349,10 @@ def run_supervised(
 
     observer = CodexJsonlObserver(started)
     try:
+        (compatibility_checker or validate_cli_compatibility)(command)
+        (broker_checker or validate_broker_protocol)(command)
         process = actual_runner(
-            command, cwd=spec.workspace, env=os.environ, prompt=prompt,
+            command, cwd=spec.workspace, env=_minimal_process_env(), prompt=prompt,
             timeout_seconds=spec.timeout_seconds, on_process_started=process_started,
             on_stdout_line=observer.feed,
         )
@@ -1043,7 +1369,8 @@ def run_supervised(
         if state == "paused_rate_limit":
             resume = build_codex_command(
                 spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
-                resume_thread=observer.thread_id,
+                resume_thread=observer.thread_id, attempt_id=attempt_id,
+                broker_fence=broker_fence,
             )
             _record_attempt(spec, attempt_id=attempt_id, now=now, state=state, evidence=evidence)
             return SupervisedResult(state, observer.thread_id or "", observer.terminal_event, process, resume)

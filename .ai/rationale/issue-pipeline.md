@@ -147,6 +147,13 @@ issue-start hook が dispatch を `ISSUE_START_TRANSPORT_UNAVAILABLE` で、新�
 開始を表さない。したがって owner-approved Codex worker fallback で `adopt-branch` 相当の作業を行っても、
 正規 fixer transport の起動実績や canonical remediation lifecycle の証拠には数えない。
 
+F-452-19では、repo supervisor配下のinner Codexに汎用process toolを残したまま「nested Codexを呼ばない」と
+指示する案も不採用とした。PATH除外はabsolute path、symlink/copy、Node payload、native launcherを塞げず、shell
+文字列denylistも未知wrapperを安全と証明できない。そこでinstalled CLIがprocess featureを全無効化できることを
+model-free preflightし、単一required MCPのclosed action brokerだけを渡す。brokerが起動する固定Git/unittest/auditは
+さらにnetwork/auth/Codex installationをmountしない子OS sandboxへ入る。このbootstrap workerによる実装自体は、
+修正前supervisorのP3/P4成功証拠には数えない。
+
 自動テストは、実 git を使う `SubagentStop` → `collect-worktree` → release の通し検証と、release 後に
 `adopt-branch` が成功する検証を持つ。一方、#374 の受入基準にある「実際に `/issue-pipeline` を1件回し、
 clean merge 経路・是正経由経路の両方で残留しない」という**ライブ運用の両経路実測**は未充足であり、

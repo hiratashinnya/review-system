@@ -18,7 +18,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from issue_start import worktree_ledger
+from issue_start import durable_lock, worktree_ledger
 from issue_start.worktree_ledger import LedgerError
 
 
@@ -272,8 +272,8 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
     def test_lock_held_by_another_writer_times_out_fail_close(self):
         directory = worktree_ledger.ledger_dir(self.root, create=True)
         lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
-        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        self.addCleanup(lambda: os.close(fd))
+        fd = durable_lock.acquire(lock, attempts=1, interval=0, sleep=lambda _value: None)
+        self.addCleanup(lambda: durable_lock.release(fd))
         slept = []
         with self.assertRaises(LedgerError) as ctx:
             worktree_ledger.update_ledger(
@@ -290,7 +290,9 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
     def test_lock_is_released_after_a_successful_update(self):
         self.open_entry()
         directory = worktree_ledger.ledger_dir(self.root)
-        self.assertFalse((directory / worktree_ledger.LEDGER_LOCK_FILENAME).exists())
+        lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
+        self.assertTrue(lock.is_file())
+        self.assertEqual(lock.read_bytes(), b"")
         self.assertFalse((directory / worktree_ledger.LEDGER_TMP_FILENAME).exists())
 
     def test_mutate_failure_writes_nothing_and_releases_the_lock(self):
@@ -302,7 +304,9 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
             worktree_ledger.update_ledger(self.root, boom)
         self.assertEqual(len(self.entries()), 1)
         directory = worktree_ledger.ledger_dir(self.root)
-        self.assertFalse((directory / worktree_ledger.LEDGER_LOCK_FILENAME).exists())
+        lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
+        self.assertTrue(lock.is_file())
+        self.assertEqual(lock.read_bytes(), b"")
 
     def test_mutate_producing_a_broken_document_is_refused(self):
         self.open_entry()
