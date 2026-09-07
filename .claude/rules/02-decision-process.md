@@ -58,7 +58,11 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`、
     `.claude/settings.json`
   - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`bloom-model-tier`/
-    `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`/`asset_parity`
+    `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
+  - 共有 gate / start / branch / sync / metrics ツール：`blocker_gate`/`pr_merge_gate`/`issue_start`/
+    `branch_source`/`project_status_sync`/`guidance_sync`/`defect_metrics`
+  - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`（どちらも read-only 監査。
+    `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）
   - 是正ループ用ツール：`karte`
   - 点検・監査ツール（read-only）：`asset-auditor`（資産の重複/矛盾/競合監査。特定システムの仕様グラフが
     記述する対象ではなく資産全体を横断するため）
@@ -73,6 +77,9 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
 **根拠**：どちらに分類しても理由は同じ——**どちらのシステムの成果物でもない**（＝そのシステムの仕様
 グラフが記述する対象ではない）ものだけを Issue 運用に回す。「ハーネスは in-graph の成果物を持たない」
 という一般化はしない（含有されるハーネスは在グラフの成果物＝PROMPT ノード等を持つ）。
+
+**この列挙は判定表そのものとして保守する**：新しい汎用ハーネス（リポジトリ直下のツール、hook、CLI、
+workflow 補助など）を追加したときは、**同一 PR でこの列挙にも追記して、起票先を本表から引ける状態を保つ**。
 
 **本節は係属中の FND の帰趨を先取りしない**：`dsv2` 実装6モジュールに対応する設計ノード（MOD/P）の
 過不足を指摘する open FND（severity ERROR・`scheduled: sprint-1`・対応 Issue #160）が別途係属中。

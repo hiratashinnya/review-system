@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@8355be60f63f -->
+<!-- synced-from: CLAUDE.md@e4ae8f8243c7 -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -37,6 +37,12 @@
   追加しただけ。上記の中核規範（1〜12＝独断禁止・起票義務・正本の所在・実行前報告等）
   には掛からない。本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」
   ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
+
+  Issue #492（2026-09-07）: `.claude/rules/02-decision-process.md` の起票先判定表へ
+  `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/
+  `guidance_sync`/`defect_metrics`/`time_fixture_lint` を列挙し、汎用ハーネス追加時は
+  同一 PR で表も更新する義務を明文化した。これは中核規範 9 の具体例を増やす変更なので、
+  下記 9 に同じ代表例と追随義務を追記して marker を現在値へ更新する。
 -->
 
 
@@ -95,9 +101,11 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
    review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
    Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック・
-   `agy-delegate`等の外部委譲補助・`asset_parity`・`karte`・CI 定義）＝**ノード起票もダッシュボード更新も
-   せず `/gh-create-issue` で Issue 化**（`area:harness`）。`.claude/` 全体を対象外扱いしない。
-   **上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
+   `agy-delegate`等の外部委譲補助・`blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/
+   `project_status_sync`/`guidance_sync`/`defect_metrics`・`asset_parity`/`time_fixture_lint`・
+   `karte`・CI 定義）＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
+   （`area:harness`）。`.claude/` 全体を対象外扱いしない。**新しい汎用ハーネスを追加したときは
+   同一 PR でこの判定表も更新する**。**上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
    両方に及ぶ変更・境界事例は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。
 10. **レートリミット由来の品質降格は禁止（絶対規範）** — サブエージェントがレートリミット／
     セッション上限で停止しても、**モデル降格・effort 低下・サブエージェント委譲の取りやめ
