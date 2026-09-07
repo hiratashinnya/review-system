@@ -1222,6 +1222,10 @@ def cmd_status(args) -> int:
     同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
     エスカレーション条件のどれに該当するかを 1 通で完結させる（端末装飾・対話前提の
     文言は混ぜない）。機械可読が要るときは ``--json`` を使う（挙動は変えない）。
+
+    本文出力は ``blocking_findings`` / ``blocking_harmful`` / ``undecided_disposition`` の
+    3 集合を**包含関係の順に**行として出す（PR #496 F-495-07）。``--json`` にだけ
+    ``blocking_harmful`` を出して本文では読み手に積を取らせる、という非対称を残さないため。
     """
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -1262,6 +1266,15 @@ def cmd_status(args) -> int:
     # 判定結果の面でも見えるようにする（誰かが気づく必要を残さない）。
     lines.append(
         f"  clean を妨げる未解消: {', '.join(payload['blocking_findings']) or '(なし)'}"
+    )
+    # PR #496 F-495-07: 機械向け（``--json`` の ``blocking_harmful``）だけが積を取らずに済み、
+    # 人間の読み手は上の「clean を妨げる未解消」行と「実害あり」行の積を自分で取る、という
+    # 非対称を残さない。この行以下の 3 行は包含関係の順
+    # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
+    # 3 つの集合の関係を読み手が取り違えないようにする。
+    lines.append(
+        "  clean を妨げる実害あり（verdict harmful-open を成立させている集合）: "
+        f"{', '.join(payload['blocking_harmful']) or '(なし)'}"
     )
     lines.append(
         "  実害あり・disposition 未決定（clean を妨げる／scope: out でも免除されない）: "

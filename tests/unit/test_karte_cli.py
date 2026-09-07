@@ -2923,6 +2923,126 @@ class TestBlockingHarmfulKey(KarteTestCase):
         self.assertEqual(payload["blocking_harmful"], [])
 
 
+class TestBlockingHarmfulLineInStatusText(KarteTestCase):
+    """PR #496 F-495-07: 本文出力（非 ``--json``）にも「clean を妨げる実害あり」行を出す。
+
+    F-495-06 で ``--json`` の payload には ``blocking_harmful`` を足したが、``expected`` が
+    ``--json`` に限定されていたため本文出力は触れられず、**機械向けには積を取らずに済むのに
+    人間向けには「clean を妨げる未解消」行と「実害あり」行の積を取らせる**非対称が残った。
+    誤読しても過大に blocking とみなす側へ倒れるので merge を素通しさせる方向には効かないが、
+    F-495-05 と同型の「verdict と内訳の取り違え」を人間側に残したままにする理由はない。
+
+    ここでは (a) 当該行が存在すること、(b) その中身が ``blocking_harmful`` と一致し
+    ``harmful_open`` とは別物であること、(c) 3 集合が包含関係の順に並ぶこと、を固定する。
+    """
+
+    LABEL = "  clean を妨げる実害あり"
+
+    def _text(self):
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return out
+
+    def _payload(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def _line(self, text, label):
+        matches = [line for line in text.splitlines() if line.startswith(label)]
+        self.assertEqual(len(matches), 1, f"{label!r} の行がちょうど1つでない: {matches}")
+        return matches[0]
+
+    def _ids_in(self, line):
+        return re.findall(r"F-\d+-\d+", line)
+
+    def test_line_lists_exactly_the_blocking_harmful_findings(self):
+        """``fix-here`` の未修正が出て、申し送り済みの ``harm: real`` は出ない。"""
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="fix-here")),
+            ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertEqual(payload["blocking_harmful"], ["F-307-01"])
+
+        line = self._line(self._text(), self.LABEL)
+        self.assertEqual(self._ids_in(line), payload["blocking_harmful"])
+        # 「実害あり」行（台帳上の未解消 harm: real 全件）とは別物であることも同時に見る。
+        harmful_line = self._line(self._text(), "  実害あり（未解消")
+        self.assertEqual(self._ids_in(harmful_line), payload["harmful_open"])
+        self.assertNotEqual(self._ids_in(line), self._ids_in(harmful_line))
+
+    def test_line_is_empty_when_no_harm_only(self):
+        """``no-harm-only`` では空（``harmful_open`` は空でないのに、である）。"""
+        self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
+            ("new", COSMETIC),
+        )
+        text = self._text()
+        self.assertIn("verdict: no-harm-only", text)
+        self.assertEqual(self._ids_in(self._line(text, self.LABEL)), [])
+        self.assertIn("(なし)", self._line(text, self.LABEL))
+        self.assertEqual(self._ids_in(self._line(text, "  実害あり（未解消")), ["F-307-01"])
+
+    def test_line_is_present_on_a_clean_verdict_too(self):
+        """行の有無を verdict で分岐させない（読み手が毎回同じ場所を見られる）。"""
+        self._ingest(1, ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")))
+        text = self._text()
+        self.assertIn("verdict: clean", text)
+        self.assertIn("(なし)", self._line(text, self.LABEL))
+
+    def test_three_sets_are_printed_in_containment_order(self):
+        """包含関係（妨げる未解消 ⊇ 妨げる実害あり ⊇ 未決定）の順に並べる。"""
+        self._ingest(
+            1,
+            ("new", OUT_OF_SCOPE_HARMFUL),                       # 未決定の実害あり
+            ("new", dict(HARMFUL, disposition="fix-here")),      # 決定済み・未修正の実害あり
+            ("new", COSMETIC),                                   # 実害なし
+        )
+        text = self._text()
+        order = [
+            text.index("  clean を妨げる未解消:"),
+            text.index(self.LABEL),
+            text.index("  実害あり・disposition 未決定"),
+        ]
+        self.assertEqual(order, sorted(order))
+
+        payload = self._payload()
+        self.assertEqual(
+            self._ids_in(self._line(text, "  clean を妨げる未解消:")),
+            payload["blocking_findings"],
+        )
+        self.assertEqual(
+            self._ids_in(self._line(text, self.LABEL)), payload["blocking_harmful"]
+        )
+        self.assertEqual(
+            self._ids_in(self._line(text, "  実害あり・disposition 未決定")),
+            payload["undecided_disposition"],
+        )
+        self.assertLessEqual(
+            set(payload["undecided_disposition"]), set(payload["blocking_harmful"])
+        )
+        self.assertLessEqual(
+            set(payload["blocking_harmful"]), set(payload["blocking_findings"])
+        )
+
+    def test_verdict_label_and_the_line_do_not_contradict_each_other(self):
+        """``harmful-open`` のときだけ当該行が非空（ラベルと行が食い違わない）。"""
+        for fields, verdict, expected in (
+            ((("new", OUT_OF_SCOPE_HARMFUL),), "harmful-open", ["F-307-01"]),
+            ((("new", COSMETIC),), "no-harm-only", []),
+        ):
+            with self.subTest(verdict=verdict):
+                self.setUp()  # 台帳を作り直す（Issue ごとに1本のため）
+                self._ingest(1, *fields)
+                text = self._text()
+                self.assertIn(f"verdict: {verdict}", text)
+                self.assertEqual(self._ids_in(self._line(text, self.LABEL)), expected)
+
+
 class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
     """Issue #495 互換性: ``scope`` を持たない**既存カルテ**を読めること（移行措置）。
 
