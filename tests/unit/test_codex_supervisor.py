@@ -441,16 +441,46 @@ class CodexSupervisorTests(unittest.TestCase):
         with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
             validate_cli_compatibility(command, runner=leaked)
 
-        def unknown(argv, **kwargs):
+        def removed(argv, **kwargs):
             result = compatible(argv, **kwargs)
             if argv[1:3] == ["features", "list"]:
-                return subprocess.CompletedProcess(
-                    argv, 0, result.stdout + "future_process_feature stable false\n", ""
-                )
+                return subprocess.CompletedProcess(argv, 0, "".join(
+                    f"{line}\n" for line in result.stdout.splitlines()
+                    if not line.startswith("shell_tool ")
+                ), "")
             return result
 
-        with self.assertRaisesRegex(CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"):
-            validate_cli_compatibility(command, runner=unknown)
+        with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
+            validate_cli_compatibility(command, runner=removed)
+
+        def added(extra):
+            def runner(argv, **kwargs):
+                result = compatible(argv, **kwargs)
+                if argv[1:3] == ["features", "list"]:
+                    return subprocess.CompletedProcess(argv, 0, result.stdout + extra, "")
+                return result
+
+            return runner
+
+        # catalog 外の feature は増えてよい。process 能力を示唆しない名前は状態を問わず通す。
+        for extra in (
+            "bedrock_setup_wizard stable true\n",
+            "content_item_kinds stable true\n",
+            "code_mode_prewarm stable false\n",
+            "future_process_feature stable false\n",
+        ):
+            with self.subTest(accepted=extra.split()[0]):
+                validate_cli_compatibility(command, runner=added(extra))
+
+        # process 能力を示唆する未レビューの名前が有効なままなら fail-close する。
+        for extra in (
+            "future_process_feature stable true\n",
+            "code_mode_prewarm stable true\n",
+            "remote_shell_v2 stable experimental\n",
+        ):
+            with self.subTest(rejected=extra.split()[0]):
+                with self.assertRaisesRegex(CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"):
+                    validate_cli_compatibility(command, runner=added(extra))
 
         def extra_mcp(argv, **kwargs):
             if argv[1:3] == ["mcp", "list"]:

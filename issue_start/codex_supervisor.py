@@ -57,6 +57,9 @@ _BROKER_FEATURES = (
     "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
     "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
 )
+# レビュー済み feature catalog（codex-cli 0.153.4 時点で 119 件を人手分類済み）。
+# process 能力を持つものは _BROKER_FEATURES 側で「必ず false」を要求しており、ここに残るのは
+# その分類で無害と判断した名前。catalog 全体との完全一致は要求しない（Issue #491）。
 _KNOWN_CLI_FEATURES = frozenset({
     "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
     "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
@@ -92,6 +95,20 @@ _KNOWN_CLI_FEATURES = frozenset({
     "unified_image_budget", "use_agent_identity", "use_legacy_landlock",
     "use_linux_sandbox_bwrap", "view_image", "web_search_cached", "web_search_request",
     "workspace_dependencies", "workspace_owner_usage_nudge",
+})
+# 未レビュー feature が process 実行能力を再獲得しうるかを name の token から疑うための語彙。
+# _BROKER_FEATURES は「今の CLI に在ると分かっている危険な名前」の列挙にすぎず、CLI が別名で
+# 同じ能力を出してきた場合を捕まえられない。その穴を埋めるのがこの拒否語彙で、レビュー済み
+# catalog の外にある名前だけを対象に照合する（catalog 内は上記のとおり分類済みのため）。
+# 新しい process 系 feature が有効なまま現れたら fail-close するので、人手で分類し直して
+# _BROKER_FEATURES（config override で必ず無効化する）か _KNOWN_CLI_FEATURES（無害と判断）の
+# どちらかへ追記する運用で追随する。
+_PROCESS_CAPABILITY_MARKERS = frozenset({
+    "agent", "agents", "app", "apps", "approval", "approvals", "bash", "broker",
+    "browser", "code", "command", "commands", "computer", "container", "daemon",
+    "exec", "hook", "hooks", "mcp", "network", "permission", "permissions",
+    "plugin", "plugins", "process", "proxy", "remote", "sandbox", "shell",
+    "skill", "skills", "spawn", "subprocess", "terminal", "tool", "tools", "vm",
 })
 _PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
 
@@ -651,12 +668,38 @@ def _inner_config_values(command: Sequence[str]) -> tuple[str, tuple[str, ...], 
     return codex, values, runtime_home
 
 
+def _unreviewed_process_features(states: Mapping[str, str]) -> tuple[str, ...]:
+    """レビュー済み catalog 外で process 能力を示唆し、かつ無効化されていない feature を返す。"""
+
+    return tuple(sorted(
+        name
+        for name, state in states.items()
+        if name not in _KNOWN_CLI_FEATURES
+        and state != "false"
+        and _PROCESS_CAPABILITY_MARKERS & set(name.split("_"))
+    ))
+
+
 def validate_cli_compatibility(
     command: Sequence[str],
     *,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> None:
-    """model/API/thread開始前にinstalled CLIのfeature/MCP parserを検証する。"""
+    """model/API/thread開始前にinstalled CLIのfeature/MCP parserを検証する。
+
+    feature catalog は完全一致ではなく必要な部分集合で検査する（Issue #491）。守るのは
+    「内側 Codex が broker 以外の process 実行能力を得ない」ことで、そのために
+    (1) ``_BROKER_FEATURES`` が全て present かつ ``false`` であること、(2) レビュー済み
+    catalog ``_KNOWN_CLI_FEATURES`` の外にある feature が process 能力を示唆する名前を
+    持つなら無効化されていること、の2点だけを要求する。許すのは、catalog にも拒否語彙にも
+    掛からない feature の増減——すなわち CLI 更新への追随である。
+    完全一致をやめた理由は、CLI が feature を1件でも増減するとその版では必ず fail-close し、
+    人手で catalog を追随させない限り恒常的に赤くなるため（codex-cli 0.153.4 実測で
+    ``codex features list`` は 135 件を返し、catalog の 119 件と一致しない）。
+    「未レビューの危険名が出現しただけで fail-close」ではなく「有効なまま出現したら
+    fail-close」にしたのは、``false`` の feature は能力を与えず、appearance だけを見ると
+    同じ人手追随を名前の部分集合に対して繰り返すことになるため。
+    """
 
     codex, values, runtime_home = _inner_config_values(command)
     overrides = [argument for value in values for argument in ("--config", value)]
@@ -681,10 +724,16 @@ def validate_cli_compatibility(
         fields = line.split()
         if len(fields) >= 3:
             states[fields[0]] = fields[-1]
-    if set(states) != _KNOWN_CLI_FEATURES:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN")
-    if any(states.get(name) != "false" for name in _BROKER_FEATURES):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED")
+    enabled = tuple(sorted(name for name in _BROKER_FEATURES if states.get(name) != "false"))
+    if enabled:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED", " ".join(enabled)
+        )
+    unreviewed = _unreviewed_process_features(states)
+    if unreviewed:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN", " ".join(unreviewed)
+        )
     try:
         catalog = json.loads(servers.stdout)
     except json.JSONDecodeError as exc:
