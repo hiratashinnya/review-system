@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@3959c4ad74d5 -->
+<!-- synced-from: CLAUDE.md@b1519aa38065 -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -31,6 +31,18 @@
   （形式＝チャットが正本、に加えてタイミング＝実行前を要求する）ため、中核規範 12 に
   タイミング要素を1文追記した上で marker を現在値へ更新した。①②④は中核規範（1〜12）の
   射程外と判断し本文へは反映していない（「見た上で不要と判断した」ことの記録）。
+
+  Issue #495（2026-09-07）: レビューのスコープ外指摘が実害判定・カルテ記録・`karte status`
+  の verdict を一度に迂回できた欠陥（PR #490 で実際に流出＝Issue #493）への是正。
+  ①`.claude/rules/03-operational.md`「スコープ拡大禁止」の列挙先を構造化された経路
+  （`pr-reviewer` は同じ finding 列へ `scope: out`／implementer・fixer は
+  `out_of_scope_findings` に finding と同じキー）へ更新、
+  ②`.claude/rules/05-skills-agents.md` の `pr-reviewer` 構造化 finding のキー列挙へ `scope` を追加、
+  ③`.ai/guidance/common.md` は変更していない。**このうち①は中核規範 3（「対応不要」を AI が
+  独断で書かない）に掛かる**——「スコープ外」というラベルが実質的に「対応不要」の言い換えとして
+  機能していたため、中核規範 3 に1文を追記した上で marker を現在値へ更新した。②は
+  `pr-reviewer` の出力書式の細目で中核規範（1〜12）の射程外と判断し本文へは反映していない
+  （「見た上で不要と判断した」ことの記録）。
 -->
 
 
@@ -64,6 +76,9 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **ただし起票先は下記9の分類（doc_system / review_system に含有されるか）で変わる**。
 3. **「対応不要」を AI が独断で書かない** — 指摘の処置要否・据え置きは**オーナー判断**。
    AI 単独で「対応不要」「将来検討でよい」と結論・クローズしない。AI 同士のコメントを根拠にしない。
+   **「スコープ外」も処置不要の言い換えにしない（Issue #495）**——スコープ外の指摘も同じ
+   finding の列に `scope: out` として記録し、`harm` を必ず付ける。実害ありの指摘は処置方針
+   （当該 PR で直す／別 Issue へ申し送る／オーナー明示の waive）が決まるまで clean にしない。
 4. **スケジュール独断禁止** — `scheduled:` の繰り越し（次スプリント以降）は
    オーナー確認なしに設定しない。「実害ゼロ・軽微・後でよい」は独断の根拠にならない。
 5. **ノード著作は必ず委譲** — VAL/SR/FR/NFR→`requirements-author`、SPEC→`spec-author`、

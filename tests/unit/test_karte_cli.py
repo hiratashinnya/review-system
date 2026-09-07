@@ -144,6 +144,7 @@ HARMFUL = {
     "harm": "real",
     "harm_detail": "必須属性が消えて入力検証が素通りする",
     "severity": "blocker",
+    "scope": "in",
     "evidence": "a/b.py:12 を読み、attrs を辞書リテラルで作り直しているのを確認",
     "locus": "a/b.py::build_attrs",
     "summary": "build_attrs が既存 attrs を破棄している",
@@ -154,11 +155,26 @@ COSMETIC = {
     "harm": "none",
     "harm_detail": "表記ゆれのみで挙動に影響しない",
     "severity": "minor",
+    "scope": "in",
     "evidence": "docs/readme.md の見出しを読み、用語集と表記が違うのを確認",
     "locus": "docs/readme.md",
     "summary": "見出しの用語がゆれている",
     "expected": "用語が用語集の表記に揃っている",
     "recheck": "該当見出しを読んで表記が揃っていることを確認する",
+}
+# Issue #495: スコープ外と申告された実害ありの指摘（`pr-reviewer` が「スコープ外事項」として
+# finding の列から外していたもの・PR #490 で実際に流出した形）。`scope: out` でも harm 判定と
+# 台帳記録と verdict のゲートは同じに掛かる。
+OUT_OF_SCOPE_HARMFUL = {
+    "harm": "real",
+    "harm_detail": "派生 Issue 判定が URL 形式の PR 参照を取りこぼし後工程が誤読する",
+    "severity": "major",
+    "scope": "out",
+    "evidence": "defect_metrics/derive.py:40 を読み、`#N` 記法だけを見ているのを確認",
+    "locus": "defect_metrics/derive.py::derive_issue",
+    "summary": "派生 Issue 判定が `#N` 記法にのみ依存している",
+    "expected": "URL 形式の PR 参照も派生 Issue として拾う",
+    "recheck": "URL 形式の参照を含む fixture で derive_issue を実行して拾えることを確認する",
 }
 
 
@@ -1074,6 +1090,7 @@ class TestAbsentFindingIsRejected(KarteTestCase):
         "harm": "real",
         "harm_detail": "境界値でインデックスが 1 ずれる",
         "severity": "major",
+        "scope": "in",
         "evidence": "境界値のテストを実行して失敗を確認",
         "expected": "境界値でもインデックスがずれない",
         "recheck": "境界値のテストケースを実行して通ることを確認する",
@@ -1134,6 +1151,7 @@ DUP_A = {
     "harm": "real",
     "harm_detail": "重複 ID を弾けず台帳が二重登録される",
     "severity": "major",
+    "scope": "in",
     "evidence": "重複 ID のレポートを取り込んで通ることを確認",
     "expected": "重複 ID を検出して取り込みを拒否する",
     "recheck": "重複 ID を含むレポートを取り込んで拒否されることを確認する",
@@ -1144,6 +1162,7 @@ DUP_B = {
     "harm": "real",
     "harm_detail": "欠落した ID を検出できず指摘が消える",
     "severity": "major",
+    "scope": "in",
     "evidence": "ID を欠いたレポートを取り込んで通ることを確認",
     "expected": "欠落した ID を検出して取り込みを拒否する",
     "recheck": "ID を欠いたレポートを取り込んで拒否されることを確認する",
@@ -1154,6 +1173,7 @@ DUP_C = {
     "harm": "real",
     "harm_detail": "順序が崩れて採番が飛ぶ",
     "severity": "minor",
+    "scope": "in",
     "evidence": "連続取り込みで ID が飛ぶのを確認",
     "expected": "採番が連番のまま保たれる",
     "recheck": "連続して取り込み ID が飛んでいないことを確認する",
@@ -2296,7 +2316,7 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
     def test_ingest_from_worktree_is_visible_to_render_from_main(self):
         report = self.root / "tmp" / "review-1.md"
         report.write_text(
-            "### new\nharm: real\nharm_detail: d\nseverity: major\nlocus: x\n"
+            "### new\nharm: real\nharm_detail: d\nseverity: major\nscope: in\nlocus: x\n"
             "summary: s\nevidence: v\nexpected: e\nrecheck: r\n",
             encoding="utf-8",
         )
@@ -2407,6 +2427,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
                     "harm": "real",
                     "harm_detail": "cwd が main worktree に固定され diff が空になる",
                     "severity": "blocker",
+                    "scope": "in",
                     "locus": "review_system/fix.py::fixed",
                     "summary": "isolated worktree の変更が touched-set に記録されない",
                     "evidence": "Issue #437 の再現手順で close-attempt が空 diff で fail-close した",
@@ -2474,6 +2495,360 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
             )
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("実測 touched-set が空", err)
+
+
+# --- Issue #495: スコープ外指摘の実害判定・記録・verdict の迂回を塞ぐ ------------
+
+
+class TestScopeIsRequiredAndNotAnExemption(KarteTestCase):
+    """Issue #495 提案挙動 1・2: finding を一本化し ``scope`` を必須キーにする。
+
+    是正前は「スコープ外事項」と分類された指摘が finding の列に入らず、``harm`` も
+    付かず、カルテにも入らず、``status`` の verdict にも影響しなかった。**「スコープ外」と
+    書くだけで実害判定・記録・ゲートのすべてを迂回できた**（PR #490 → Issue #493 の流出）。
+    ``scope`` は申告として残すが免除力を持たない、を機械側で固定する。
+    """
+
+    def test_missing_scope_is_rejected(self):
+        fields = {k: v for k, v in HARMFUL.items() if k != "scope"}
+        code, _out, err = self._ingest(1, ("new", fields))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("scope", err)
+        # 拒否時は台帳を作らない（fail-close）。
+        self.assertFalse((self.root / "tmp" / "_karte" / "issue-307.md").exists())
+
+    def test_unknown_scope_value_is_rejected(self):
+        code, _out, err = self._ingest(1, ("new", {**HARMFUL, "scope": "outside"}))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("scope", err)
+
+    def test_out_of_scope_finding_lands_in_the_same_ledger_column(self):
+        code, out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+        finding = self._karte().finding("F-307-01")
+        self.assertEqual(finding.scope, "out")
+        self.assertEqual(finding.harm, "real")      # 実害判定は免除されない
+        self.assertEqual(finding.status, "open")
+
+    def test_out_of_scope_finding_still_requires_a_harm_judgment(self):
+        fields = {k: v for k, v in OUT_OF_SCOPE_HARMFUL.items() if k != "harm"}
+        code, _out, err = self._ingest(1, ("new", fields))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("harm", err)
+
+    def test_absence_prohibition_applies_to_out_of_scope_findings_too(self):
+        """``scope: out`` だけ再掲を免除しない（そこが抜け道になる・K-06 と同じ理由）。"""
+        self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL), ("new", HARMFUL))
+        code, _out, err = self._ingest(2, ("F-307-02", HARMFUL))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("F-307-01", err)
+
+    def test_scope_survives_a_ledger_roundtrip_and_is_shown(self):
+        self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
+        self.assertIn("scope: out", self._karte_text())
+        _code, rendered, _err = self._run(cli.cmd_render)
+        self.assertIn("[scope=out]", rendered)
+        self.assertIn("免除にならない", rendered)
+        _code, out, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(out)
+        self.assertEqual(payload["findings"][0]["scope"], "out")
+        self.assertEqual(payload["out_of_scope_open"], ["F-307-01"])
+
+
+class TestVerdictGateOnDisposition(KarteTestCase):
+    """Issue #495 提案挙動 3・4・5: ``harm: real`` は処置方針が決まるまで clean を妨げる。
+
+    属性を足すだけでは「判断が要ることに誰かが気づく」必要が残るため、判定は機械側
+    （verdict）に置く。``deferred``/``waived`` は ``status: open`` のまま**verdict の上でだけ**
+    clean を妨げなくなる二層にする——``resolved`` に倒すと「別 Issue へ移したと書くだけで
+    指摘が消える」経路ができ、本 Issue が塞ぐ穴が形を変えて再発する。
+    """
+
+    def _verdict(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def test_regression_out_of_scope_harmful_without_disposition_is_not_clean(self):
+        """**PR #490 の失敗の再現**：`harm: real` × `scope: out` × disposition 未決定。
+
+        是正前は当該指摘が finding の列に入らないため、台帳には残り 0 件・verdict は
+        ``clean`` になり、その clean を根拠に merge 承認が求められた。同じ状態を
+        「finding として記録されている」形で作り、**verdict が ``clean`` にならない**ことを固定する。
+        """
+        code, _out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._verdict()
+        self.assertNotEqual(payload["verdict"], "clean")
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["undecided_disposition"], ["F-307-01"])
+        self.assertEqual(payload["blocking_findings"], ["F-307-01"])
+
+        _code, text, _err = self._run(cli.cmd_status, json=False)
+        self.assertIn("disposition=未決定", text)
+        self.assertIn("clean を妨げる未解消: F-307-01", text)
+
+    def test_in_scope_harmful_without_disposition_is_not_clean_either(self):
+        """``scope: in`` でも同じ（``scope`` の値でゲートを変えない）。"""
+        self._ingest(1, ("new", HARMFUL))
+        self.assertEqual(self._verdict()["undecided_disposition"], ["F-307-01"])
+
+    def test_fix_here_still_blocks_until_actually_resolved(self):
+        self._ingest(1, ("new", dict(HARMFUL, disposition="fix-here")))
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["undecided_disposition"], [])   # 決定はしている
+        self.assertEqual(payload["blocking_findings"], ["F-307-01"])  # が、まだ直っていない
+
+        self._ingest(2, ("F-307-01", dict(HARMFUL, disposition="fix-here", status="resolved")))
+        self.assertEqual(self._verdict()["verdict"], "clean")
+
+    def test_deferred_clears_the_verdict_but_stays_open(self):
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "clean")
+        # 二層：verdict は通るが台帳では未解消のまま残り、`resolved` と区別できる。
+        self.assertEqual(payload["open_findings"], ["F-307-01"])
+        self.assertEqual(self._karte().finding("F-307-01").status, "open")
+        self.assertIsNone(self._karte().finding("F-307-01").resolved_round)
+        self.assertEqual(payload["deferred_findings"], [{"id": "F-307-01", "deferred_to": "#493"}])
+        self.assertEqual(payload["blocking_findings"], [])
+
+    def test_waived_clears_the_verdict_but_stays_open(self):
+        code, _out, err = self._ingest(
+            1,
+            (
+                "new",
+                dict(
+                    HARMFUL,
+                    disposition="waived",
+                    waived_by="owner",
+                    waived_reason="運用で回避済みとオーナーが明示判断",
+                ),
+            ),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "clean")
+        self.assertEqual(self._karte().finding("F-307-01").status, "open")
+        self.assertEqual(payload["waived_findings"][0]["waived_by"], "owner")
+
+    def test_deferred_requires_a_target_issue(self):
+        code, _out, err = self._ingest(1, ("new", dict(HARMFUL, disposition="deferred")))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("deferred_to", err)
+        self.assertFalse((self.root / "tmp" / "_karte" / "issue-307.md").exists())
+
+    def test_deferred_to_must_resolve_to_an_issue(self):
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="別 Issue で対応する")),
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("deferred_to", err)
+
+    def test_waived_requires_owner_and_reason(self):
+        for missing in ("waived_by", "waived_reason"):
+            with self.subTest(missing=missing):
+                fields = dict(
+                    HARMFUL,
+                    disposition="waived",
+                    waived_by="owner",
+                    waived_reason="オーナーが明示的に処置不要と判断",
+                )
+                del fields[missing]
+                code, _out, err = self._ingest(1, ("new", fields))
+                self.assertEqual(code, cli.EXIT_ERROR)
+                self.assertIn(missing, err)
+
+    def test_unknown_disposition_is_rejected(self):
+        code, _out, err = self._ingest(1, ("new", dict(HARMFUL, disposition="ignore")))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("disposition", err)
+
+    def test_companion_keys_without_a_disposition_are_rejected(self):
+        code, _out, err = self._ingest(1, ("new", dict(HARMFUL, deferred_to="#493")))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("disposition", err)
+
+    def test_companion_keys_of_another_disposition_are_rejected(self):
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493", waived_by="owner")),
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("waived_by", err)
+
+    def test_no_harm_only_is_unchanged_by_the_new_gate(self):
+        """回帰防止：``harm: none`` だけの状態は従来どおり ``no-harm-only``（clean ではない）。"""
+        self._ingest(1, ("new", COSMETIC))
+        self.assertEqual(self._verdict()["verdict"], "no-harm-only")
+
+    def test_disposition_survives_a_ledger_roundtrip(self):
+        self._ingest(
+            1,
+            ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
+        )
+        finding = self._karte().finding("F-307-01")
+        self.assertEqual(finding.disposition, "deferred")
+        self.assertEqual(finding.deferred_to, "#493")
+        _code, rendered, _err = self._run(cli.cmd_render)
+        self.assertIn("申し送り先: #493", rendered)
+
+    def test_dropping_the_disposition_on_a_later_round_reopens_the_gate(self):
+        """書き忘れは未決定へ倒れる（fail-close 側）。据え置きで clean を維持しない。"""
+        self._ingest(
+            1, ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493"))
+        )
+        self.assertEqual(self._verdict()["verdict"], "clean")
+        self._ingest(2, ("F-307-01", HARMFUL))
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["undecided_disposition"], ["F-307-01"])
+
+
+class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
+    """Issue #495 互換性: ``scope`` を持たない**既存カルテ**を読めること（移行措置）。
+
+    `tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると是正ループが止まる。
+    台帳側だけ ``scope`` を任意にし、欠落は ``in`` として読む。**新規の取り込みでは必須**
+    （そちらを緩めると `scope` を足した意味が無くなる）。
+    """
+
+    LEGACY = (
+        "# Karte: issue-307\n"
+        "<!-- karte-format: 1 -->\n"
+        "\n## Findings\n"
+        "\n### F-307-01\n"
+        "status: open\n"
+        "harm: real\n"
+        "harm_detail: 既存カルテには scope が無い\n"
+        "severity: major\n"
+        "locus: pkg/a.py::f\n"
+        "summary: 旧書式のカルテ\n"
+        "evidence: 旧書式のカルテを読んで確認\n"
+        "expected: 読めること\n"
+        "recheck: render/status を実行して落ちないことを確認する\n"
+        "rounds: [1]\n"
+        "resolved_round: \n"
+        "\n## Attempts\n"
+    )
+
+    def _write_legacy(self):
+        path = self.root / "tmp" / "_karte" / f"issue-{self.issue}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.LEGACY, encoding="utf-8")
+        (self.root / "tmp" / "_karte" / "active.json").write_text(
+            json.dumps({"issue": self.issue, "round": 1}) + "\n", encoding="utf-8"
+        )
+        return path
+
+    def test_legacy_karte_parses_with_the_default_scope(self):
+        self._write_legacy()
+        finding = self._karte().finding("F-307-01")
+        self.assertEqual(finding.scope, model.DEFAULT_SCOPE)
+        self.assertEqual(finding.scope, "in")
+        self.assertEqual(finding.disposition, "")
+
+    def test_render_and_status_still_work_on_a_legacy_karte(self):
+        self._write_legacy()
+        code, out, err = self._run(cli.cmd_render)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["findings"][0]["scope"], "in")
+        self.assertEqual(payload["verdict"], "harmful-open")
+
+    def test_next_ingest_writes_the_scope_back(self):
+        """移行措置は読み取りだけ——次の取り込みでは ``scope`` を必須にしたまま。"""
+        self._write_legacy()
+        legacy_fields = {k: v for k, v in HARMFUL.items() if k != "scope"}
+        code, _out, err = self._ingest(2, ("F-307-01", legacy_fields))
+        self.assertEqual(code, cli.EXIT_ERROR, "台帳側の移行措置を取り込み側へ広げてはならない")
+        self.assertIn("scope", err)
+
+        code, _out, err = self._ingest(2, ("F-307-01", HARMFUL))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("scope: in", self._karte_text())
+
+    def test_invalid_scope_in_the_ledger_is_still_rejected(self):
+        """「無い」（既定へ倒す）と「値が不正」（倒すと意味が変わる）を分ける。"""
+        path = self._write_legacy()
+        path.write_text(
+            self.LEGACY.replace("severity: major\n", "severity: major\nscope: outside\n"),
+            encoding="utf-8",
+        )
+        code, _out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("scope", err)
+
+
+class TestHandoffOutOfScopeFindingsAreIngestible(KarteTestCase):
+    """Issue #495 提案挙動 6: ハンドオフの ``out_of_scope_findings`` も同じ列へ寄せる。
+
+    `pr-reviewer` だけ直しても半分しか塞がらない——PR #490 では `issue-implementer` が3件、
+    `issue-fixer` が3件のスコープ外指摘をハンドオフ YAML に書いており、これらも同様に
+    カルテ外で実害判定を受けていなかった。**取り込みは主文脈が行う**（当事者ロールには
+    `ingest-review` を許さない）ので、ここで固定するのは「ハンドオフの各要素が finding の
+    書式へそのまま写せて取り込める」ことと、「取り込んだ結果 clean が妨げられる」こと。
+    """
+
+    HANDOFF_ENTRIES = [
+        {
+            "harm": "real",
+            "harm_detail": "URL 形式の PR 参照を取りこぼし後工程が誤読する",
+            "severity": "major",
+            "scope": "out",
+            "locus": "defect_metrics/derive.py::derive_issue",
+            "summary": "派生 Issue 判定が `#N` 記法にのみ依存している",
+            "evidence": "derive.py:40 を読み `#N` だけを見ているのを確認",
+            "expected": "URL 形式の PR 参照も派生 Issue として拾う",
+            "recheck": "URL 形式の fixture で derive_issue を実行して拾えることを確認する",
+        },
+        {
+            "harm": "none",
+            "harm_detail": "命名が揺れているだけで挙動には影響しない",
+            "severity": "minor",
+            "scope": "out",
+            "locus": "defect_metrics/report.py::render",
+            "summary": "レポート見出しの語が用語集と揃っていない",
+            "evidence": "report.py:12 を読み用語集と表記が違うのを確認",
+            "expected": "用語集の表記に揃っている",
+            "recheck": "レポートを生成して見出しの表記を確認する",
+        },
+    ]
+
+    def test_handoff_entries_are_ingested_as_findings_and_block_clean(self):
+        code, out, err = self._ingest(
+            1, *[("new", entry) for entry in self.HANDOFF_ENTRIES]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("F-307-01", out)
+        self.assertIn("F-307-02", out)
+
+        karte = self._karte()
+        self.assertEqual([item.scope for item in karte.findings], ["out", "out"])
+        self.assertEqual(karte.finding("F-307-01").harm, "real")
+
+        _code, payload_text, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(payload_text)
+        self.assertNotEqual(payload["verdict"], "clean")
+        self.assertEqual(payload["undecided_disposition"], ["F-307-01"])
+        self.assertEqual(payload["out_of_scope_open"], ["F-307-01", "F-307-02"])
+
+    def test_entry_missing_a_finding_key_is_rejected_not_silently_dropped(self):
+        """キーを揃えないハンドオフは取り込みごと拒否される（無言の欠落を作らない）。"""
+        broken = {k: v for k, v in self.HANDOFF_ENTRIES[0].items() if k != "recheck"}
+        code, _out, err = self._ingest(1, ("new", broken))
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("recheck", err)
 
 
 if __name__ == "__main__":

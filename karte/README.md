@@ -4,7 +4,76 @@
 
 verb の一覧・追記規律・改ざん防止の仕組みは `karte/cli.py` と `karte/model.py` のモジュール
 docstring を正本とする。本 README は `close-attempt` の**既定値の解決規則**（Issue #378 AC
-「既定値の解決規則が `--help` および README から読み取れるようにする」）を掃引的に説明する。
+「既定値の解決規則が `--help` および README から読み取れるようにする」）と、
+**`scope` / `disposition` と verdict のゲート**（Issue #495）を掃引的に説明する。
+
+## `scope` / `disposition` と `status` の verdict（Issue #495）
+
+### なぜ入れたか
+
+「スコープ外事項」と分類された指摘は、以前は finding の列に入らなかった。その結果
+**実害判定（`harm`）・カルテ記録・`status` の verdict のすべてを一度に迂回**でき、実害ありの
+指摘が未処置のまま `clean` を通過して merge された（PR #490。merge 後に実害ありと確定し
+Issue #493 として流出）。迂回に必要なのは「スコープ外」と書くことだけで、特別な権限も操作も
+要らなかった。そこで **`## Findings` をスコープの内外を問わない単一の列**にし、
+「スコープ外」というラベルが実害判定の免除として機能しないようにした。
+
+### `scope`（必須・免除力なし）
+
+- 値は `in`（当該 PR のスコープ内）／`out`（スコープ外）。
+- **`ingest-review` では必須**。欠落は取り込みごと拒否する（`harm` 欄欠落と同じ扱い）。
+  任意キーにすると書かれないため。
+- **レビューアの申告であって確定ではない**。主文脈・オーナーが覆せる。
+- **`scope: out` は実害判定・記録・verdict のいずれの免除にもならない。** スコープの内外は
+  「誰がいつ直すか」の話であって「実害があるか」の話ではない（判定軸を混ぜない）。
+- **移行措置**：`scope` を持たない**既存カルテ**は `in` として読む（`tmp/` は版管理外だが、
+  進行中の Issue の台帳が読めなくなると是正ループが止まるため）。緩和は**台帳の読み取りだけ**で、
+  新規の `ingest-review` は必須のまま。値が不正（`scope: outside` 等）なら台帳側でも拒否する
+  ——「無い」（既定へ倒してよい）と「値が不正」（倒すと意味が変わる）は別物。
+
+### `disposition`（`harm: real` に対するオーナー判断の記録）
+
+| 値 | 意味 | 必須の付随キー | verdict への影響 |
+|---|---|---|---|
+| （未記載） | 未決定 | — | **`clean` を妨げる** |
+| `fix-here` | 当該 PR で直す | — | 直って `status: resolved` になるまで `clean` を妨げる |
+| `deferred` | 別 Issue へ申し送る | `deferred_to` | 妨げない（`status` は `open` のまま） |
+| `waived` | オーナーが明示的に処置不要を許可 | `waived_by` / `waived_reason` | 妨げない（`status` は `open` のまま） |
+
+- `deferred_to` は `#123` / `123` / Issue の URL のいずれかで書く。散文（「別 Issue で対応」）は
+  行き先を解決できないため拒否する。
+- `waived` に許可者と理由を要求するのは、`.claude/rules/03-operational.md`
+  「『対応不要』を AI が独断で書かない」の機械化。
+- 宣言した `disposition` に属さない付随キー（例：`deferred` なのに `waived_by`）は拒否する。
+  取り違えて古い方針を現行の方針と誤読するのを防ぐため。
+- 値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
+  （fail-close 側）。
+
+### verdict の定義
+
+`clean` は「未解消 finding が 0 件」ではなく **「`clean` を妨げる未解消 finding が 0 件」**。
+
+- `blocking_findings`（`status --json`）＝未解消かつ `disposition` が `deferred`/`waived`
+  **以外**の finding。これが空のときだけ `clean`。
+- そのうち `harm: real` があれば `harmful-open`、無ければ `no-harm-only`。
+- `undecided_disposition`＝`harm: real` かつ `disposition` 未決定のまま未解消の finding。
+  **`scope: out` でも免除されない**。
+
+### `deferred` を `resolved` にしない（二層にする理由）
+
+`status: resolved` は「当該 PR で実際に直った」だけに限定する。`deferred` を `resolved` に
+倒すと「**別 Issue へ移したと書くだけで指摘が台帳から消える**」経路ができ、本 Issue が塞ごうと
+している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま残し、
+**verdict の上でだけ** `clean` を妨げなくする。
+
+### ハンドオフの `out_of_scope_findings`
+
+`issue-implementer` / `issue-fixer` がハンドオフに書く `out_of_scope_findings` も、finding と
+同じキー（`harm`/`harm_detail`/`severity`/`scope: out`/`locus`/`summary`/`evidence`/
+`expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
+（`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
+`ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` の
+`KARTE_ALLOWED_SUBCOMMANDS`）。
 
 ## `close-attempt` の既定値解決規則
 
