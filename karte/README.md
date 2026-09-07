@@ -87,14 +87,33 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - `blocking_findings`（`status --json`）＝未解消の finding のうち、**`harm: real` かつ
   `disposition` が `deferred`/`waived`** のものを除いた残り。これが空のときだけ `clean`。
 - そのうち `harm: real` があれば `harmful-open`、無ければ `no-harm-only`。
+- `blocking_harmful`＝**`clean` を妨げる実害あり**（`blocking_findings` ∩ `harmful_open`）。
+  `harmful-open` の verdict を成立させている当の集合。
 - `undecided_disposition`＝`harm: real` かつ `disposition` 未決定のまま未解消の finding。
   **`scope: out` でも免除されない**。
 - **`no-harm-only` は「台帳の未解消が全件実害なし」ではない**。意味は「**`clean` を妨げる**
   未解消がすべて実害なし」であり、申し送り（`deferred`）／処置不要（`waived`）と決めた
   `harm: real` の finding は `status: open` のまま別に残りうる。`harmful_open`（`--json`）と
   `status` の「実害あり」行は**台帳上の未解消全件**の内訳なので、そこには残った `harm: real`
-  も出る（verdict と食い違って見えるのはこのため。`clean` を妨げる実害ありだけを見たいときは
-  `blocking_findings` と `harmful_open` の積、または `undecided_disposition` を使う）。
+  も出る（verdict と食い違って見えるのはこのため）。
+
+#### `harm: real` の 3 集合の包含関係（PR #496 F-495-06）
+
+`undecided_disposition` ⊆ `blocking_harmful` ⊆ `harmful_open`。
+
+| キー | 含むもの | 用途 |
+|---|---|---|
+| `harmful_open` | 未解消かつ `harm: real` の**全件**（`deferred`/`waived` を含む） | 台帳上の実害ありの内訳 |
+| `blocking_harmful` | そのうち `clean` を妨げるもの（＝`disposition` が未決定か `fix-here`） | **verdict `harmful-open` の説明** |
+| `undecided_disposition` | さらにそのうち `disposition` が未決定のもの | オーナー判断がまだ要るもの |
+
+`blocking_harmful` と `undecided_disposition` の差は `fix-here`（当該 PR で直すと決めたが
+まだ直っていない）の分。`undecided_disposition` が空でも `fix-here` が残れば `harmful-open`
+のままなので、**verdict の説明に `undecided_disposition` を使わない**。
+
+消費者に `blocking_findings` と `harmful_open` の積を取らせず `blocking_harmful` を直接返すのは、
+積の取り方を各消費者に委ねると F-495-05 と同型の誤読（verdict と内訳の意味の取り違え）が
+消費者側で再発するため。
 
 ### `deferred` を `resolved` にしない（二層にする理由）
 

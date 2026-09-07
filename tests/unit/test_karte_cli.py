@@ -2827,6 +2827,102 @@ class TestNoHarmOnlyLabelIsNotOverclaimed(KarteTestCase):
         self.assertEqual(payload["blocking_findings"], ["F-307-02"])
 
 
+class TestBlockingHarmfulKey(KarteTestCase):
+    """PR #496 F-495-06: 「``clean`` を妨げる実害あり」を payload が直接返すこと。
+
+    是正前は ``blocking_findings``（clean を妨げる全件）と ``harmful_open``（台帳上の
+    未解消 ``harm: real`` 全件）しか無く、``verdict == "harmful-open"`` を成立させている
+    当の集合を得るには**消費者が積を自分で取る**必要があった。F-495-05 は同じ取り違え
+    （verdict と内訳の意味の混同）が本文表示で起きた事例であり、積の取り方を消費者に
+    委ねる限り同型の誤読が消費者側で再発する。``blocking_harmful`` として直接出す。
+
+    ``undecided_disposition`` で代用できないことも併せて固定する——``fix-here`` と決めた
+    未修正の finding は「決定済みだが clean を妨げる実害あり」であり、
+    ``undecided_disposition`` には入らないのに ``harmful-open`` を成立させる。
+    """
+
+    def _payload(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def _assert_is_the_intersection(self, payload):
+        """不変条件：``blocking_harmful`` ＝ 積、かつ 3 集合が包含関係にあること。"""
+        self.assertEqual(
+            payload["blocking_harmful"],
+            [
+                fid
+                for fid in payload["blocking_findings"]
+                if fid in set(payload["harmful_open"])
+            ],
+        )
+        self.assertLessEqual(
+            set(payload["undecided_disposition"]), set(payload["blocking_harmful"])
+        )
+        self.assertLessEqual(
+            set(payload["blocking_harmful"]), set(payload["harmful_open"])
+        )
+
+    def test_undecided_harmful_appears_in_blocking_harmful(self):
+        code, _out, err = self._ingest(1, ("new", OUT_OF_SCOPE_HARMFUL))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertEqual(payload["verdict"], "harmful-open")
+        self.assertEqual(payload["blocking_harmful"], ["F-307-01"])
+        self._assert_is_the_intersection(payload)
+
+    def test_fix_here_is_blocking_harmful_but_not_undecided(self):
+        """``undecided_disposition`` で verdict を説明できないことの証拠。"""
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="fix-here")),
+            ("new", dict(OUT_OF_SCOPE_HARMFUL, disposition="deferred", deferred_to="#493")),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertEqual(payload["verdict"], "harmful-open")
+        # 処置方針は両方とも決まっている（未決定は 0 件）。
+        self.assertEqual(payload["undecided_disposition"], [])
+        # それでも `fix-here` の未修正が clean を妨げる実害ありとして残る。
+        self.assertEqual(payload["blocking_harmful"], ["F-307-01"])
+        # 申し送り済みの方は `harmful_open` には出るが `blocking_harmful` には出ない。
+        self.assertEqual(payload["harmful_open"], ["F-307-01", "F-307-02"])
+        self._assert_is_the_intersection(payload)
+
+    def test_deferred_harmful_is_excluded_even_when_no_harm_open_remains(self):
+        """``no-harm-only`` のとき ``blocking_harmful`` は空（``harmful_open`` とは別物）。"""
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
+            ("new", COSMETIC),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertEqual(payload["verdict"], "no-harm-only")
+        self.assertEqual(payload["harmful_open"], ["F-307-01"])
+        self.assertEqual(payload["blocking_findings"], ["F-307-02"])
+        self.assertEqual(payload["blocking_harmful"], [])
+        self._assert_is_the_intersection(payload)
+
+    def test_clean_verdict_has_an_empty_blocking_harmful(self):
+        code, _out, err = self._ingest(
+            1, ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493"))
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertEqual(payload["verdict"], "clean")
+        self.assertEqual(payload["blocking_harmful"], [])
+        self._assert_is_the_intersection(payload)
+
+    def test_key_is_present_even_when_the_ledger_has_no_findings(self):
+        """キーの存在は台帳の中身に依存しない（消費者が有無を分岐しなくてよい）。"""
+        code, _out, err = self._ingest(1, ("new", dict(HARMFUL, status="resolved")))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._payload()
+        self.assertIn("blocking_harmful", payload)
+        self.assertEqual(payload["blocking_harmful"], [])
+
+
 class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):
     """Issue #495 互換性: ``scope`` を持たない**既存カルテ**を読めること（移行措置）。
 

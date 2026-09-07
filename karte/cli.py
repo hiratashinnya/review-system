@@ -1107,8 +1107,17 @@ def _status_payload(karte: model.Karte) -> dict:
     打ち上げる対象であり、``disposition`` を 2 行書いて ``clean`` へ変えられてはならない。
 
     ``harmful_open``（``status --json``）は**台帳上の未解消かつ ``harm: real``** の全件で、
-    ``deferred``/``waived`` と決まったものも含む。「clean を妨げる実害あり」は
-    ``blocking_findings`` と ``harmful_open`` の積、または ``undecided_disposition`` で見る。
+    ``deferred``/``waived`` と決まったものも含む。したがって ``harmful_open`` は verdict の
+    説明にはならない——**「clean を妨げる実害あり」＝ ``blocking_findings`` ∩ ``harmful_open``**
+    であり、これを ``blocking_harmful`` として payload へ直接出す（PR #496 F-495-06）。
+    消費者に積を取らせない：積の取り方を各消費者に委ねると、F-495-05 と同型の
+    「verdict と内訳の意味の取り違え」が消費者側で再発する。
+
+    3 つの集合は ``undecided_disposition`` ⊆ ``blocking_harmful`` ⊆ ``harmful_open``
+    という包含関係にある。``blocking_harmful`` と ``undecided_disposition`` の差は
+    ``disposition: fix-here``（当該 PR で直すと決めたが未修正）の分であり、
+    ``verdict == "harmful-open"`` を説明するのは ``blocking_harmful`` の方
+    （``undecided_disposition`` が空でも ``fix-here`` が残れば ``harmful-open`` になる）。
     """
     open_findings = karte.open_findings()
     harmful = [item for item in open_findings if item.harm == "real"]
@@ -1175,6 +1184,9 @@ def _status_payload(karte: model.Karte) -> dict:
         "no_harm_open": [item.id for item in open_findings if item.harm == "none"],
         # Issue #495: verdict のゲート材料。`blocking_findings` が空のときだけ clean。
         "blocking_findings": [item.id for item in blocking],
+        # PR #496 F-495-06: `blocking_findings` ∩ `harmful_open`＝「clean を妨げる実害あり」。
+        # verdict `harmful-open` を成立させている当の集合なので、消費者に積を取らせず出す。
+        "blocking_harmful": [item.id for item in blocking_harmful],
         "undecided_disposition": [item.id for item in undecided],
         "deferred_findings": [
             {"id": item.id, "deferred_to": item.deferred_to}
