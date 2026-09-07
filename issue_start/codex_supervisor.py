@@ -724,7 +724,10 @@ def validate_cli_compatibility(
         fields = line.split()
         if len(fields) >= 3:
             states[fields[0]] = fields[-1]
-    enabled = tuple(sorted(name for name in _BROKER_FEATURES if states.get(name) != "false"))
+    enabled = tuple(sorted(
+        f"{name}={states.get(name, '<absent>')}"
+        for name in _BROKER_FEATURES if states.get(name) != "false"
+    ))
     if enabled:
         raise CodexSupervisorError(
             "CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED", " ".join(enabled)
