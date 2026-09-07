@@ -111,12 +111,26 @@ DEFAULT_SCOPE = "in"
 #   ``fix-here`` … 当該 PR で直す（直るまで clean を妨げる）。
 #   ``deferred``  … 別 Issue へ申し送る（``deferred_to`` 必須）。
 #   ``waived``    … オーナーが明示的に処置不要を許可（``waived_by``/``waived_reason`` 必須。
-#                   CLAUDE.md「『対応不要』を AI が独断で書かない」の機械化）。
+#                   CLAUDE.md「『対応不要』を AI が独断で書かない」に対する**記録の強制**で、
+#                   許可者本人であることの機械検証ではない＝:func:`parse_disposition` の
+#                   「既知の限界」）。
 DISPOSITIONS = ("fix-here", "deferred", "waived")
 # verdict の上でだけ ``clean`` を妨げなくなる disposition（Issue #495 の二層設計）。
 # ``status`` は ``open`` のまま残す——``deferred`` を ``resolved`` にすると
 # 「別 Issue へ移したと書くだけで指摘が消える」経路ができ、本 Issue が塞ぐ穴が形を変えて再発する。
 CLEARING_DISPOSITIONS = ("deferred", "waived")
+# **解除力は ``harm: real`` の finding にだけ与える**（オーナー確定・2026-09-07・PR #496 F-495-01）。
+# ``disposition`` はそもそも「``harm: real`` に対するオーナー判断の記録」として導入した
+# （:data:`DISPOSITIONS` の説明・Issue #495「提案挙動」3〜5 はいずれも ``harm: real`` が主語）。
+# 解除力を harm の値によらず与えると、``harm: none`` の未解消 finding に ``deferred`` と
+# 適当な Issue 番号を 2 行書くだけで verdict が ``no-harm-only`` から ``clean`` へ変わり、
+# 「未解消がすべて ``none`` になったらオーナーへ打ち上げる」既存の STOP
+# （`.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」）を AI が単独で
+# 消せてしまう——本 Issue が塞いだ「ラベルを書くだけで clean を通す」経路と同型のものを
+# ``harm: none`` 側に新設することになる。
+# ``harm: none`` に ``disposition`` を書くこと自体は拒否しない（申し送り先の記録は残せる）。
+# 記録は残るが verdict は動かない、という非対称でよい。
+CLEARING_HARM = "real"
 
 SECTION_FINDINGS = "Findings"
 SECTION_ATTEMPTS = "Attempts"
@@ -385,9 +399,19 @@ def parse_disposition(block: Block) -> Disposition:
     * ``deferred`` は ``deferred_to``（行き先 Issue）を必須にする——リンク無しの申し送りは
       行き先不明になり、「別 Issue へ回す」と書くだけで指摘を消せる経路になる。
     * ``waived`` は ``waived_by`` と ``waived_reason`` を必須にする。これは
-      `.claude/rules/03-operational.md`「『対応不要』を AI が独断で書かない」の機械化で、
-      誰が許可したかと理由が無い処置不要を台帳へ入れられなくする。
+      `.claude/rules/03-operational.md`「『対応不要』を AI が独断で書かない」に対する
+      **記録の強制**で、誰が許可したかと理由が無い処置不要を台帳へ入れられなくする。
     * 宣言した ``disposition`` に属さない付随キーは空でなければならない（取り違え防止）。
+
+    **既知の限界（オーナー判断そのものは機械強制していない・PR #496 F-495-04）**:
+    ``waived_by``/``waived_reason`` は自由記述のスカラであり、**書いた主体がオーナー本人か
+    どうかを機械側は区別しない**。``ingest-review`` を実行するのは主文脈（AI）であり、
+    `.claude/hooks/agent-command-gate.sh` の ``KARTE_ALLOWED_SUBCOMMANDS`` が締め出して
+    いるのは是正当事者ロールだけである。``deferred_to`` も :data:`DEFERRED_TO_RE` の
+    **形式**だけを検査し、指す Issue が実在するかは検証しない。したがってここで強制して
+    いるのは**記録**であって**オーナー判断**ではない——多層防御の一枚であって sandbox では
+    ない（本モジュール docstring「改ざん防止の機械的裏付けと既知の限界」と同じ制約＝
+    Issue #129）。運用規律（`.claude/rules/03-operational.md`）との併用が前提。
     """
     kind = _optional_enum(block, "disposition", DISPOSITIONS, "")
     values = {key: _optional_scalar(block, key) for key in DISPOSITION_ALL_KEYS}
@@ -483,11 +507,19 @@ class Finding:
     def blocks_clean(self) -> bool:
         """未解消のまま verdict の ``clean`` を妨げるか（Issue #495 の二層設計）。
 
-        ``deferred`` / ``waived`` は ``status: open`` のまま残しつつ、**verdict の上でだけ**
-        clean を妨げない。``status`` を ``resolved`` に倒さないのは、「別 Issue へ移したと
-        書くだけで指摘が台帳から消える」経路を作らないため。
+        ``harm: real`` の finding に限り、``deferred`` / ``waived`` は ``status: open`` の
+        まま残しつつ **verdict の上でだけ** clean を妨げない。``status`` を ``resolved`` に
+        倒さないのは、「別 Issue へ移したと書くだけで指摘が台帳から消える」経路を作らないため。
+
+        **``harm: none`` には解除力を与えない**（:data:`CLEARING_HARM`・オーナー確定
+        2026-09-07）。``harm: none`` の finding に ``disposition`` を書いても記録が残るだけで
+        verdict は ``no-harm-only`` のまま——実害なしの指摘だけが残った状態はオーナーへ
+        打ち上げる（AI が 2 行書いて STOP を消せる経路を作らない）。
         """
-        return self.is_open and self.disposition not in CLEARING_DISPOSITIONS
+        if not self.is_open:
+            return False
+        cleared = self.harm == CLEARING_HARM and self.disposition in CLEARING_DISPOSITIONS
+        return not cleared
 
     @property
     def needs_disposition(self) -> bool:
@@ -552,7 +584,11 @@ class Karte:
         return [item for item in self.findings if item.is_open]
 
     def blocking_findings(self) -> list:
-        """``clean`` を妨げる未解消 finding（``deferred``/``waived`` を除く・Issue #495）。"""
+        """``clean`` を妨げる未解消 finding（Issue #495）。
+
+        除かれるのは **``harm: real`` かつ** ``deferred``/``waived`` のものだけ
+        （:data:`CLEARING_HARM`）。``harm: none`` は ``disposition`` を書いても残る。
+        """
         return [item for item in self.findings if item.blocks_clean]
 
     def undecided_findings(self) -> list:

@@ -1745,8 +1745,8 @@ class TestStatusForInjection(KarteTestCase):
         # 何の本文か・どこから来たか（前後の文脈に依存しない）。
         self.assertIn("Issue #307", out)
         self.assertIn("issue-307.md", out)
-        # verdict（実害あり残存／全件実害なし／無進捗のいずれか）。
-        self.assertIn("verdict: harmful-open（実害あり残存）", out)
+        # verdict（clean を妨げる実害あり残存／実害なしのみ／無進捗のいずれか）。
+        self.assertIn("verdict: harmful-open（clean を妨げる実害ありが残存）", out)
         # 残存 finding と harm 判定。
         self.assertIn("## 残存 finding（未解消・harm 判定つき）", out)
         self.assertIn("F-307-01 [harm=real]", out)
@@ -2710,6 +2710,121 @@ class TestVerdictGateOnDisposition(KarteTestCase):
         payload = self._verdict()
         self.assertEqual(payload["verdict"], "harmful-open")
         self.assertEqual(payload["undecided_disposition"], ["F-307-01"])
+
+
+class TestClearingPowerIsLimitedToHarmReal(KarteTestCase):
+    """PR #496 F-495-01（オーナー確定 2026-09-07）: 解除力は ``harm: real`` にだけ与える。
+
+    ``disposition`` は「``harm: real`` に対するオーナー判断の記録」として導入した
+    （Issue #495 提案挙動 3〜5 はいずれも ``harm: real`` が主語）。解除力を ``harm`` の値に
+    よらず与えると、**``harm: none`` の未解消 finding に ``deferred`` と適当な Issue 番号を
+    2 行書くだけで verdict が ``no-harm-only`` から ``clean`` へ変わり**、
+    `.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」の
+    「未解消がすべて実害なしになったらオーナーへ打ち上げる」STOP を AI が単独で消せる
+    ——本 Issue が塞いだ「ラベルを書くだけで clean を通す」経路と同型のものを
+    ``harm: none`` 側に新設することになる。その経路が開かないことを固定する。
+    """
+
+    def _verdict(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def test_no_harm_finding_with_deferred_stays_no_harm_only(self):
+        code, _out, err = self._ingest(
+            1, ("new", dict(COSMETIC, disposition="deferred", deferred_to="#1"))
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "no-harm-only")
+        self.assertNotEqual(payload["verdict"], "clean")
+        # clean を妨げる側に残る（＝オーナーへの打ち上げ条件が生きている）。
+        self.assertEqual(payload["blocking_findings"], ["F-307-01"])
+        # 記録自体は残す（拒否はしない）——動かないのは verdict だけ。
+        self.assertEqual(
+            payload["deferred_findings"], [{"id": "F-307-01", "deferred_to": "#1"}]
+        )
+        self.assertEqual(self._karte().finding("F-307-01").disposition, "deferred")
+
+    def test_no_harm_finding_with_waived_stays_no_harm_only(self):
+        code, _out, err = self._ingest(
+            1,
+            (
+                "new",
+                dict(
+                    COSMETIC,
+                    disposition="waived",
+                    waived_by="owner",
+                    waived_reason="表記ゆれは許容するとオーナーが明示判断",
+                ),
+            ),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "no-harm-only")
+        self.assertEqual(payload["blocking_findings"], ["F-307-01"])
+
+    def test_harm_real_deferred_alone_is_still_clean(self):
+        """対照：``harm: real`` 側の解除力は Issue #495 の設計どおり残る。"""
+        self._ingest(1, ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")))
+        self.assertEqual(self._verdict()["verdict"], "clean")
+
+    def test_a_deferred_no_harm_finding_cannot_hide_behind_a_deferred_harmful_one(self):
+        """``harm: real`` を申し送っても、残る ``harm: none`` が clean を通させない。"""
+        self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
+            ("new", dict(COSMETIC, disposition="deferred", deferred_to="#494")),
+        )
+        payload = self._verdict()
+        self.assertEqual(payload["verdict"], "no-harm-only")
+        self.assertEqual(payload["blocking_findings"], ["F-307-02"])
+
+
+class TestNoHarmOnlyLabelIsNotOverclaimed(KarteTestCase):
+    """PR #496 F-495-05: ``no-harm-only`` のラベルが「全件実害なし」を騙らないこと。
+
+    新定義では ``harm: real`` を ``deferred``/``waived`` と決めると blocking から外れるため、
+    実害ありが ``status: open`` で残ったまま ``no-harm-only`` になりうる。同じ出力の
+    「実害あり」行にはその finding が出るので、ラベルが「全件実害なし」のままだと本文が
+    自己矛盾し、`.ai/skills/issue-pipeline/SKILL.md` の STOP はオーナーへ偽の前提
+    （残りは全件実害なし）で打ち上げることになる。
+    """
+
+    def test_status_text_does_not_contradict_itself(self):
+        code, _out, err = self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
+            ("new", COSMETIC),
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+        code, out, err = self._run(cli.cmd_status, json=False)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        # verdict は no-harm-only（clean を妨げる未解消は harm: none だけ）。
+        self.assertIn("verdict: no-harm-only", out)
+        # にもかかわらず「実害あり」行には申し送り済みの F-307-01 が出る。
+        harmful_line = next(
+            line for line in out.splitlines() if line.startswith("  実害あり")
+        )
+        self.assertIn("F-307-01", harmful_line)
+        # ラベルが「全件実害なし」を騙らない（自己矛盾しない）。
+        self.assertNotIn("全件実害なし", out)
+        self.assertIn("申し送り/処置不要と決めた実害ありは別に残りうる", out)
+
+    def test_json_payload_still_lists_the_deferred_harmful_finding(self):
+        """``harmful_open`` は台帳上の未解消全件（申し送り済みを含む）の内訳のまま。"""
+        self._ingest(
+            1,
+            ("new", dict(HARMFUL, disposition="deferred", deferred_to="#493")),
+            ("new", COSMETIC),
+        )
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "no-harm-only")
+        self.assertEqual(payload["harmful_open"], ["F-307-01"])
+        self.assertEqual(payload["blocking_findings"], ["F-307-02"])
 
 
 class TestExistingKarteWithoutScopeIsStillReadable(KarteTestCase):

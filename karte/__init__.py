@@ -46,7 +46,10 @@
   **``harm: real`` かつ ``disposition`` 未決定の finding が残る間は verdict を ``clean`` に
   しない**。``deferred``/``waived`` は ``status: open`` のまま verdict の上でだけ clean を
   妨げなくする二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで指摘が消える」
-  経路が生まれる）。書式と移行措置の詳細は ``karte/README.md``。
+  経路が生まれる）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
+  ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
+  「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
+  書式と移行措置の詳細は ``karte/README.md``。
 
 依存仕様:
   * Issue #307「是正ループの診断カルテ CLI を追加し『類似アプローチの反復』を機械判定する」

@@ -1095,12 +1095,20 @@ def _status_payload(karte: model.Karte) -> dict:
     """verdict とエスカレーション材料を機械判定する（Issue #495 でゲートを追加）。
 
     verdict は**未解消件数ではなく「clean を妨げる未解消 finding」**で決める。
-    ``disposition: deferred``（別 Issue へ申し送り）と ``waived``（オーナーが明示的に
-    処置不要を許可）は ``status: open`` のまま台帳に残しつつ、verdict の上でだけ
-    clean を妨げない（:attr:`model.Finding.blocks_clean`）。逆に ``harm: real`` で
-    disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の申告）でも
-    clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
+    ``harm: real`` の finding に限り、``disposition: deferred``（別 Issue へ申し送り）と
+    ``waived``（オーナーが明示的に処置不要を許可）は ``status: open`` のまま台帳に残しつつ、
+    verdict の上でだけ clean を妨げない（:attr:`model.Finding.blocks_clean`）。逆に
+    ``harm: real`` で disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の
+    申告）でも clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
     のが Issue #495 の欠陥そのものだから、その迂回を機械側で塞ぐ。
+
+    ``harm: none`` には解除力を与えない（:data:`model.CLEARING_HARM`・オーナー確定
+    2026-09-07）。実害なしの未解消だけが残る状態は ``no-harm-only`` のままオーナーへ
+    打ち上げる対象であり、``disposition`` を 2 行書いて ``clean`` へ変えられてはならない。
+
+    ``harmful_open``（``status --json``）は**台帳上の未解消かつ ``harm: real``** の全件で、
+    ``deferred``/``waived`` と決まったものも含む。「clean を妨げる実害あり」は
+    ``blocking_findings`` と ``harmful_open`` の積、または ``undecided_disposition`` で見る。
     """
     open_findings = karte.open_findings()
     harmful = [item for item in open_findings if item.harm == "real"]
@@ -1212,10 +1220,17 @@ def cmd_status(args) -> int:
 
     verdict_label = {
         # Issue #495: clean の定義は「未解消 0 件」ではなく「clean を妨げる未解消 0 件」。
-        # `deferred`/`waived` は `status: open` のまま残るが verdict を妨げない。
+        # `harm: real` の `deferred`/`waived` は `status: open` のまま残るが verdict を妨げない。
+        # PR #496 F-495-05: `no-harm-only` は「台帳の未解消が全件実害なし」ではない——
+        # 申し送り／処置不要と決めた `harm: real` が別に残りうる（下の「実害あり」行に出る）。
+        # ラベルを「全件実害なし」のままにすると、同じ出力の中で自己矛盾し、
+        # オーナーへ偽の前提で打ち上げることになる。
         "clean": "clean（clean を妨げる未解消の指摘なし）",
-        "harmful-open": "harmful-open（実害あり残存）",
-        "no-harm-only": "no-harm-only（全件実害なし）",
+        "harmful-open": "harmful-open（clean を妨げる実害ありが残存）",
+        "no-harm-only": (
+            "no-harm-only（clean を妨げる未解消はすべて実害なし。"
+            "申し送り/処置不要と決めた実害ありは別に残りうる）"
+        ),
     }[payload["verdict"]]
     lines = [f"=== status: issue-{issue} ==="]
     lines.append(
@@ -1224,8 +1239,13 @@ def cmd_status(args) -> int:
     )
     lines.append(f"  verdict: {verdict_label}")
     lines.append(f"  未解消: {', '.join(payload['open_findings']) or '(なし)'}")
-    lines.append(f"  実害あり: {', '.join(payload['harmful_open']) or '(なし)'}")
-    lines.append(f"  実害なし: {', '.join(payload['no_harm_open']) or '(なし)'}")
+    # F-495-05: この2行は**台帳上の未解消全件**の harm 別内訳であり、clean を妨げるか否かとは
+    # 別の軸（申し送り/処置不要と決めた実害ありもここに出る）。次の行と読み分けられるよう明示する。
+    lines.append(
+        "  実害あり（未解消・申し送り/処置不要と決めたものを含む）: "
+        f"{', '.join(payload['harmful_open']) or '(なし)'}"
+    )
+    lines.append(f"  実害なし（未解消）: {', '.join(payload['no_harm_open']) or '(なし)'}")
     # Issue #495: 「スコープ外」「別 Issue へ回す」が実害判定・ゲートの免除にならないことを
     # 判定結果の面でも見えるようにする（誰かが気づく必要を残さない）。
     lines.append(

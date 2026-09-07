@@ -33,7 +33,9 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 ### `disposition`（`harm: real` に対するオーナー判断の記録）
 
-| 値 | 意味 | 必須の付随キー | verdict への影響 |
+下表の「verdict への影響」は **`harm: real` の finding についての話**である（次項参照）。
+
+| 値 | 意味 | 必須の付随キー | verdict への影響（`harm: real`） |
 |---|---|---|---|
 | （未記載） | 未決定 | — | **`clean` を妨げる** |
 | `fix-here` | 当該 PR で直す | — | 直って `status: resolved` になるまで `clean` を妨げる |
@@ -43,21 +45,56 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 - `deferred_to` は `#123` / `123` / Issue の URL のいずれかで書く。散文（「別 Issue で対応」）は
   行き先を解決できないため拒否する。
 - `waived` に許可者と理由を要求するのは、`.claude/rules/03-operational.md`
-  「『対応不要』を AI が独断で書かない」の機械化。
+  「『対応不要』を AI が独断で書かない」に対する **記録の強制**（許可者と理由を書かずに
+  `waived` を通せなくする）。**オーナー判断そのものの機械強制ではない**——下記「既知の限界」。
 - 宣言した `disposition` に属さない付随キー（例：`deferred` なのに `waived_by`）は拒否する。
   取り違えて古い方針を現行の方針と誤読するのを防ぐため。
 - 値は毎ラウンドのレポートで上書きされる。**書き忘れると未決定へ倒れて `clean` を妨げる**
-  （fail-close 側）。
+  （fail-close 側）。だれがそれを書くか（＝毎ラウンドの再掲を誰が担うか）は
+  `.ai/skills/issue-pipeline/SKILL.md` ②-c を正本とする（**主文脈**が、オーナーの決定を
+  次ラウンドの取り込みレポートへ書き足してから `ingest-review` する。レビュー担当は
+  `disposition` を書かない契約）。
+
+### `clean` の解除力は `harm: real` にだけ与える（オーナー確定・2026-09-07）
+
+`harm: none` の finding に `disposition: deferred` / `waived` を書いても **verdict は動かない**
+（記録としては残る）。`harm: none` の未解消がある間は verdict が `no-harm-only` のままになり、
+「未解消がすべて実害なしになったらオーナーへ打ち上げる」STOP
+（`.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」）が生きる。
+
+理由：`disposition` はそもそも「`harm: real` に対するオーナー判断の記録」として導入した
+（Issue #495 の提案挙動 3〜5 はいずれも `harm: real` が主語）。解除力を `harm` の値によらず
+与えると、実害なしの指摘に `deferred` と適当な Issue 番号を 2 行書くだけで verdict が
+`clean` へ変わり、**AI が単独で既存のオーナー STOP を消せる**。それは本 Issue が塞いだ
+「ラベルを書くだけで clean を通す」経路と同型のものを `harm: none` 側へ新設することになる。
+
+### 既知の限界（多層防御の一枚であって sandbox ではない）
+
+- `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
+  機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
+  `.claude/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは
+  是正当事者ロール（`issue-fixer` 等）だけである。
+- `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
+  検証しない**。
+- したがってここで強制しているのは **記録**であって**オーナー判断**ではない。カルテの改ざん
+  防止（`karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」）と同じく、静的検査で
+  閉じきれない面はプロンプト規律・レビュー分離・GitHub 側の保護と併用して塞ぐ（Issue #129）。
 
 ### verdict の定義
 
 `clean` は「未解消 finding が 0 件」ではなく **「`clean` を妨げる未解消 finding が 0 件」**。
 
-- `blocking_findings`（`status --json`）＝未解消かつ `disposition` が `deferred`/`waived`
-  **以外**の finding。これが空のときだけ `clean`。
+- `blocking_findings`（`status --json`）＝未解消の finding のうち、**`harm: real` かつ
+  `disposition` が `deferred`/`waived`** のものを除いた残り。これが空のときだけ `clean`。
 - そのうち `harm: real` があれば `harmful-open`、無ければ `no-harm-only`。
 - `undecided_disposition`＝`harm: real` かつ `disposition` 未決定のまま未解消の finding。
   **`scope: out` でも免除されない**。
+- **`no-harm-only` は「台帳の未解消が全件実害なし」ではない**。意味は「**`clean` を妨げる**
+  未解消がすべて実害なし」であり、申し送り（`deferred`）／処置不要（`waived`）と決めた
+  `harm: real` の finding は `status: open` のまま別に残りうる。`harmful_open`（`--json`）と
+  `status` の「実害あり」行は**台帳上の未解消全件**の内訳なので、そこには残った `harm: real`
+  も出る（verdict と食い違って見えるのはこのため。`clean` を妨げる実害ありだけを見たいときは
+  `blocking_findings` と `harmful_open` の積、または `undecided_disposition` を使う）。
 
 ### `deferred` を `resolved` にしない（二層にする理由）
 
