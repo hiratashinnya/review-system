@@ -2,7 +2,11 @@
 
 verb:
   ``ingest-review``  レビューレポートを ``## Findings`` へ取り込む（ID 重複・未知 ID・
-                     harm 欄欠落・同一指摘への ID 再発番・前ラウンド未解消の不在を検証）。
+                     harm/scope 欄欠落・disposition の不整合・同一指摘への ID 再発番・
+                     前ラウンド未解消の不在を検証）。``## Findings`` は**スコープの内外を
+                     問わない単一の列**で、``issue-implementer``/``issue-fixer`` の
+                     ハンドオフ ``out_of_scope_findings`` も同じ書式へ写してここへ取り込む
+                     （取り込みの実行は主文脈・Issue #495）。
                      ``--from -`` で **stdin** からも読める（K-13：SubagentStop フックが
                      ``last_assistant_message`` を直接食わせるため、人手の中継を挟まない）。
   ``render``         「Prior attempts（DO NOT repeat these）」＋未解消 finding 一覧。
@@ -22,7 +26,12 @@ verb:
   ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか、
                      および**全 Attempt** が ``close-attempt`` 済みか（実測信号の供給）。
   ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
-                     を機械判定する（エスカレーション条件）。既定出力は**そのまま注入できる
+                     を機械判定する（エスカレーション条件）。**``clean`` は「未解消 0 件」では
+                     なく「clean を妨げる未解消 0 件」**＝``harm: real`` で
+                     ``disposition`` 未決定の finding が1件でも残る間は ``clean`` を返さない
+                     （``scope: out`` でも免除しない）。``disposition: deferred``/``waived``
+                     だけが ``status: open`` のまま verdict を妨げなくなる（Issue #495）。
+                     既定出力は**そのまま注入できる
                      自己完結した本文**（K-15：PostToolUse フックが ``pr-reviewer`` 呼び出し
                      完了直後に実行してコンテキストへ注入する。ただし PostToolUse は
                      ツール呼び出しをブロックできず「判定を可視化する」までが役割）。
@@ -520,8 +529,9 @@ def cmd_ingest_review(args) -> int:
     入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。
     ``--issue`` / ``--round`` は進行ポインタから補完できる（:func:`_resolve_issue` /
     :func:`_resolve_ingest_round`）。検証は経路によらず共通で、ID 重複・未知 ID・
-    harm 欄欠落・ID 再発番（K-05 の ``distinct_from`` で名指ししたペアだけ除外）・
-    **前ラウンド未解消 finding の不在**（K-06）を見る。
+    harm 欄欠落・**``scope`` 欄欠落**（Issue #495）・**``disposition`` の不整合**
+    （``deferred`` に ``deferred_to`` が無い等）・ID 再発番（K-05 の ``distinct_from`` で
+    名指ししたペアだけ除外）・**前ラウンド未解消 finding の不在**（K-06）を見る。
     """
     repo_root = _repo_root(args)
     issue = _resolve_issue(args)
@@ -623,6 +633,15 @@ def cmd_ingest_review(args) -> int:
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
         finding.severity = item.severity
+        # Issue #495: `scope` と `disposition` 系もレポートの値で毎ラウンド上書きする
+        # （他の欄と同じ扱い）。据え置きにすると「1 度書いた disposition が、以後
+        # 書かれなくても残り続ける」ことになり、レポート側の記述と台帳が静かにずれる。
+        # 書き忘れは未決定へ倒れて verdict のゲートに掛かる＝fail-close 側へ倒れる。
+        finding.scope = item.scope
+        finding.disposition = item.disposition
+        finding.deferred_to = item.deferred_to
+        finding.waived_by = item.waived_by
+        finding.waived_reason = item.waived_reason
         finding.locus = list(item.locus)
         finding.summary = item.summary
         finding.evidence = item.evidence
@@ -647,6 +666,17 @@ def cmd_ingest_review(args) -> int:
     if excluded:
         print(f"  重複判定の明示的除外（distinct_from）: {'; '.join(excluded)}")
     print(f"  未解消: {', '.join(sorted(_open_ids(karte))) or '(なし)'}")
+    out_of_scope = sorted(item.id for item in karte.open_findings() if item.scope == "out")
+    if out_of_scope:
+        # Issue #495: スコープ外の申告も同じ列に入ったことを取り込み時点で見せる
+        # （別経路へ逃がしていないことの可視化）。
+        print(f"  うち scope: out（実害判定・verdict の免除にはならない）: {', '.join(out_of_scope)}")
+    undecided = sorted(item.id for item in karte.undecided_findings())
+    if undecided:
+        print(
+            "  実害あり・disposition 未決定（clean を妨げる。fix-here / deferred / waived を決める）: "
+            + ", ".join(undecided)
+        )
     print(f"  カルテ: {path}")
     return EXIT_OK
 
@@ -765,8 +795,22 @@ def cmd_render(args) -> int:
         stalled = " ★無進捗" if finding.max_consecutive_rounds() >= STALL_ROUNDS else ""
         lines.append(
             f"  - {finding.id} [harm={finding.harm}] [severity={finding.severity}] "
-            f"rounds={finding.rounds}{stalled}"
+            f"[scope={finding.scope}] [disposition={finding.disposition or '未決定'}]"
+            f" rounds={finding.rounds}{stalled}"
         )
+        # Issue #495: 是正側にも「スコープ外の申告は処置免除ではない」ことを本文で示す
+        # （`scope: out` を理由に直さず素通しする、が塞ごうとしている経路そのもの）。
+        if finding.scope == "out":
+            lines.append(
+                "      注意: scope: out（スコープ外の申告）は実害判定・記録・verdict の"
+                "免除にならない。処置方針（disposition）は主文脈／オーナーが決める。"
+            )
+        if finding.disposition == "deferred":
+            lines.append(f"      申し送り先: {finding.deferred_to}（この PR では直さない）")
+        if finding.disposition == "waived":
+            lines.append(
+                f"      処置不要（waived）: {finding.waived_by} / {finding.waived_reason}"
+            )
         lines.append(f"      summary: {finding.summary}")
         lines.append(f"      harm_detail: {finding.harm_detail}")
         if finding.locus:
@@ -1048,11 +1092,41 @@ def cmd_check(args) -> int:
 
 
 def _status_payload(karte: model.Karte) -> dict:
+    """verdict とエスカレーション材料を機械判定する（Issue #495 でゲートを追加）。
+
+    verdict は**未解消件数ではなく「clean を妨げる未解消 finding」**で決める。
+    ``harm: real`` の finding に限り、``disposition: deferred``（別 Issue へ申し送り）と
+    ``waived``（オーナーが明示的に処置不要を許可）は ``status: open`` のまま台帳に残しつつ、
+    verdict の上でだけ clean を妨げない（:attr:`model.Finding.blocks_clean`）。逆に
+    ``harm: real`` で disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の
+    申告）でも clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
+    のが Issue #495 の欠陥そのものだから、その迂回を機械側で塞ぐ。
+
+    ``harm: none`` には解除力を与えない（:data:`model.CLEARING_HARM`・オーナー確定
+    2026-09-07）。実害なしの未解消だけが残る状態は ``no-harm-only`` のままオーナーへ
+    打ち上げる対象であり、``disposition`` を 2 行書いて ``clean`` へ変えられてはならない。
+
+    ``harmful_open``（``status --json``）は**台帳上の未解消かつ ``harm: real``** の全件で、
+    ``deferred``/``waived`` と決まったものも含む。したがって ``harmful_open`` は verdict の
+    説明にはならない——**「clean を妨げる実害あり」＝ ``blocking_findings`` ∩ ``harmful_open``**
+    であり、これを ``blocking_harmful`` として payload へ直接出す（PR #496 F-495-06）。
+    消費者に積を取らせない：積の取り方を各消費者に委ねると、F-495-05 と同型の
+    「verdict と内訳の意味の取り違え」が消費者側で再発する。
+
+    3 つの集合は ``undecided_disposition`` ⊆ ``blocking_harmful`` ⊆ ``harmful_open``
+    という包含関係にある。``blocking_harmful`` と ``undecided_disposition`` の差は
+    ``disposition: fix-here``（当該 PR で直すと決めたが未修正）の分であり、
+    ``verdict == "harmful-open"`` を説明するのは ``blocking_harmful`` の方
+    （``undecided_disposition`` が空でも ``fix-here`` が残れば ``harmful-open`` になる）。
+    """
     open_findings = karte.open_findings()
     harmful = [item for item in open_findings if item.harm == "real"]
-    if not open_findings:
+    blocking = karte.blocking_findings()
+    undecided = karte.undecided_findings()
+    blocking_harmful = [item for item in blocking if item.harm == "real"]
+    if not blocking:
         verdict = "clean"
-    elif harmful:
+    elif blocking_harmful:
         verdict = "harmful-open"
     else:
         verdict = "no-harm-only"
@@ -1070,6 +1144,11 @@ def _status_payload(karte: model.Karte) -> dict:
                 "harm": finding.harm,
                 "harm_detail": finding.harm_detail,
                 "severity": finding.severity,
+                "scope": finding.scope,
+                "disposition": finding.disposition,
+                "deferred_to": finding.deferred_to,
+                "waived_by": finding.waived_by,
+                "waived_reason": finding.waived_reason,
                 "locus": list(finding.locus),
                 "summary": finding.summary,
                 "evidence": finding.evidence,
@@ -1103,6 +1182,23 @@ def _status_payload(karte: model.Karte) -> dict:
         "open_findings": [item.id for item in open_findings],
         "harmful_open": [item.id for item in harmful],
         "no_harm_open": [item.id for item in open_findings if item.harm == "none"],
+        # Issue #495: verdict のゲート材料。`blocking_findings` が空のときだけ clean。
+        "blocking_findings": [item.id for item in blocking],
+        # PR #496 F-495-06: `blocking_findings` ∩ `harmful_open`＝「clean を妨げる実害あり」。
+        # verdict `harmful-open` を成立させている当の集合なので、消費者に積を取らせず出す。
+        "blocking_harmful": [item.id for item in blocking_harmful],
+        "undecided_disposition": [item.id for item in undecided],
+        "deferred_findings": [
+            {"id": item.id, "deferred_to": item.deferred_to}
+            for item in open_findings
+            if item.disposition == "deferred"
+        ],
+        "waived_findings": [
+            {"id": item.id, "waived_by": item.waived_by, "waived_reason": item.waived_reason}
+            for item in open_findings
+            if item.disposition == "waived"
+        ],
+        "out_of_scope_open": [item.id for item in open_findings if item.scope == "out"],
         "stalled_findings": stalled,
         "stall_rounds": STALL_ROUNDS,
         "saturated_groups": saturated,
@@ -1126,6 +1222,10 @@ def cmd_status(args) -> int:
     同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
     エスカレーション条件のどれに該当するかを 1 通で完結させる（端末装飾・対話前提の
     文言は混ぜない）。機械可読が要るときは ``--json`` を使う（挙動は変えない）。
+
+    本文出力は ``blocking_findings`` / ``blocking_harmful`` / ``undecided_disposition`` の
+    3 集合を**包含関係の順に**行として出す（PR #496 F-495-07）。``--json`` にだけ
+    ``blocking_harmful`` を出して本文では読み手に積を取らせる、という非対称を残さないため。
     """
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -1135,9 +1235,18 @@ def cmd_status(args) -> int:
         return EXIT_OK
 
     verdict_label = {
-        "clean": "clean（未解消の指摘なし）",
-        "harmful-open": "harmful-open（実害あり残存）",
-        "no-harm-only": "no-harm-only（全件実害なし）",
+        # Issue #495: clean の定義は「未解消 0 件」ではなく「clean を妨げる未解消 0 件」。
+        # `harm: real` の `deferred`/`waived` は `status: open` のまま残るが verdict を妨げない。
+        # PR #496 F-495-05: `no-harm-only` は「台帳の未解消が全件実害なし」ではない——
+        # 申し送り／処置不要と決めた `harm: real` が別に残りうる（下の「実害あり」行に出る）。
+        # ラベルを「全件実害なし」のままにすると、同じ出力の中で自己矛盾し、
+        # オーナーへ偽の前提で打ち上げることになる。
+        "clean": "clean（clean を妨げる未解消の指摘なし）",
+        "harmful-open": "harmful-open（clean を妨げる実害ありが残存）",
+        "no-harm-only": (
+            "no-harm-only（clean を妨げる未解消はすべて実害なし。"
+            "申し送り/処置不要と決めた実害ありは別に残りうる）"
+        ),
     }[payload["verdict"]]
     lines = [f"=== status: issue-{issue} ==="]
     lines.append(
@@ -1146,8 +1255,53 @@ def cmd_status(args) -> int:
     )
     lines.append(f"  verdict: {verdict_label}")
     lines.append(f"  未解消: {', '.join(payload['open_findings']) or '(なし)'}")
-    lines.append(f"  実害あり: {', '.join(payload['harmful_open']) or '(なし)'}")
-    lines.append(f"  実害なし: {', '.join(payload['no_harm_open']) or '(なし)'}")
+    # F-495-05: この2行は**台帳上の未解消全件**の harm 別内訳であり、clean を妨げるか否かとは
+    # 別の軸（申し送り/処置不要と決めた実害ありもここに出る）。次の行と読み分けられるよう明示する。
+    lines.append(
+        "  実害あり（未解消・申し送り/処置不要と決めたものを含む）: "
+        f"{', '.join(payload['harmful_open']) or '(なし)'}"
+    )
+    lines.append(f"  実害なし（未解消）: {', '.join(payload['no_harm_open']) or '(なし)'}")
+    # Issue #495: 「スコープ外」「別 Issue へ回す」が実害判定・ゲートの免除にならないことを
+    # 判定結果の面でも見えるようにする（誰かが気づく必要を残さない）。
+    lines.append(
+        f"  clean を妨げる未解消: {', '.join(payload['blocking_findings']) or '(なし)'}"
+    )
+    # PR #496 F-495-07: 機械向け（``--json`` の ``blocking_harmful``）だけが積を取らずに済み、
+    # 人間の読み手は上の「clean を妨げる未解消」行と「実害あり」行の積を自分で取る、という
+    # 非対称を残さない。この行以下の 3 行は包含関係の順
+    # （clean を妨げる未解消 ⊇ clean を妨げる実害あり ⊇ 実害あり・disposition 未決定）に並べ、
+    # 3 つの集合の関係を読み手が取り違えないようにする。
+    lines.append(
+        "  clean を妨げる実害あり（verdict harmful-open を成立させている集合）: "
+        f"{', '.join(payload['blocking_harmful']) or '(なし)'}"
+    )
+    lines.append(
+        "  実害あり・disposition 未決定（clean を妨げる／scope: out でも免除されない）: "
+        f"{', '.join(payload['undecided_disposition']) or '(なし)'}"
+    )
+    lines.append(
+        "  申し送り（disposition: deferred・status は open のまま）: "
+        + (
+            ", ".join(
+                f"{item['id']}→{item['deferred_to']}" for item in payload["deferred_findings"]
+            )
+            or "(なし)"
+        )
+    )
+    lines.append(
+        "  処置不要（disposition: waived・オーナー明示）: "
+        + (
+            ", ".join(
+                f"{item['id']}（{item['waived_by']}）" for item in payload["waived_findings"]
+            )
+            or "(なし)"
+        )
+    )
+    lines.append(
+        f"  スコープ外の申告（scope: out・未解消）: "
+        f"{', '.join(payload['out_of_scope_open']) or '(なし)'}"
+    )
     lines.append(
         f"  無進捗（{STALL_ROUNDS} ラウンド連続未解消）: "
         f"{', '.join(payload['stalled_findings']) or '(なし)'}"
@@ -1180,7 +1334,11 @@ def cmd_status(args) -> int:
         for attempt in finding["attempts"]:
             outcomes = ", ".join(result["outcome"] for result in attempt["results"]) or "未クローズ"
             trace.append(f"Attempt {attempt['attempt']}({attempt['root_cause']}→{outcomes})")
-        lines.append(f"  - {finding['id']} [harm={finding['harm']}]: {finding['summary']}")
+        disposition = finding["disposition"] or "未決定"
+        lines.append(
+            f"  - {finding['id']} [harm={finding['harm']}] [scope={finding['scope']}] "
+            f"[disposition={disposition}]: {finding['summary']}"
+        )
         lines.append(f"      診断/処置: {'; '.join(trace) or '(未診断)'}")
     print("\n".join(lines))
     return EXIT_OK
