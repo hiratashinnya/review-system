@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@3959c4ad74d5 -->
+<!-- synced-from: CLAUDE.md@8355be60f63f -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -31,6 +31,12 @@
   （形式＝チャットが正本、に加えてタイミング＝実行前を要求する）ため、中核規範 12 に
   タイミング要素を1文追記した上で marker を現在値へ更新した。①②④は中核規範（1〜12）の
   射程外と判断し本文へは反映していない（「見た上で不要と判断した」ことの記録）。
+
+  PR #494（2026-09-07）: `.claude/rules/05-skills-agents.md` のスキル一覧へ
+  `/branch-hygiene`（マージ済みローカルブランチ ref の棚卸し・削除スキル）の1行を
+  追加しただけ。上記の中核規範（1〜12＝独断禁止・起票義務・正本の所在・実行前報告等）
+  には掛からない。本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」
+  ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
 -->
 
 
