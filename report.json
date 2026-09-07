@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "tool": "defect_metrics",
+  "issue": 488,
+  "repository": "hiratashinnya/review-system",
+  "generated_at": "2026-09-07T08:23:00Z",
+  "report_window": {
+    "window": {
+      "start": "2026-08-31T08:23:00Z",
+      "end": "2026-09-07T08:23:00Z",
+      "days": 7.0,
+      "boundary": "start <= t < end (UTC)"
+    },
+    "denominator": {
+      "merged_prs": 16
+    },
+    "primary": {
+      "definition": "窓内に作成された Issue のうち、本文が参照する #N に 「起票時刻から遡って72時間以内に merge された PR」を1つ以上含むもの（派生 Issue）",
+      "derived_issues": 9,
+      "derived_per_pr": 0.56,
+      "derived_issue_numbers": [
+        472,
+        480,
+        481,
+        482,
+        484,
+        491,
+        492,
+        493,
+        495
+      ]
+    },
+    "secondary": {
+      "definition": "窓内に作成された全 Issue 数（起票粒度の変化に汚染される副指標）",
+      "created_issues": 20,
+      "issues_per_pr": 1.25
+    },
+    "open_issue_net_change": {
+      "created": 20,
+      "closed": 17,
+      "net": 3
+    }
+  },
+  "trailing_4_weeks": {
+    "window": {
+      "start": "2026-08-03T08:23:00Z",
+      "end": "2026-08-31T08:23:00Z",
+      "days": 28.0,
+      "boundary": "start <= t < end (UTC)"
+    },
+    "denominator": {
+      "merged_prs": 67
+    },
+    "primary": {
+      "definition": "窓内に作成された Issue のうち、本文が参照する #N に 「起票時刻から遡って72時間以内に merge された PR」を1つ以上含むもの（派生 Issue）",
+      "derived_issues": 29,
+      "derived_per_pr": 0.43,
+      "derived_issue_numbers": [
+        318,
+        337,
+        338,
+        339,
+        344,
+        345,
+        354,
+        355,
+        356,
+        360,
+        362,
+        363,
+        365,
+        378,
+        379,
+        381,
+        392,
+        409,
+        412,
+        414,
+        415,
+        419,
+        426,
+        428,
+        430,
+        431,
+        434,
+        435,
+        436
+      ]
+    },
+    "secondary": {
+      "definition": "窓内に作成された全 Issue 数（起票粒度の変化に汚染される副指標）",
+      "created_issues": 72,
+      "issues_per_pr": 1.07
+    },
+    "open_issue_net_change": {
+      "created": 72,
+      "closed": 62,
+      "net": 10
+    },
+    "aggregation": {
+      "method": "pooled",
+      "detail": "直近28日をひとまとめの窓として derived_issues / merged_prs を取るプールド比。週次比4本の平均ではない（Issue #488 本文の「直近4週平均」という文言との差異）。少 PR 週の比が平均を支配することと、分母0の週の扱いが定義できないことを避けるための選択（根拠＝defect_metrics/threshold.py の docstring・defect_metrics/README.md §3）。"
+    }
+  },
+  "baseline": {
+    "source": "Issue #368「現状と根拠」（2026-09-06 訂正）／Issue #488「現状と根拠」",
+    "window": {
+      "start": "2026-08-02T00:00:00Z",
+      "end": "2026-08-16T00:00:00Z",
+      "days": 14.0,
+      "boundary": "start <= t < end (UTC)"
+    },
+    "merged_prs": 22,
+    "created_issues": 41,
+    "issues_per_pr": 1.86,
+    "derived_issues": 15,
+    "derived_per_pr": 0.68
+  },
+  "baseline_verification": {
+    "baseline_window": {
+      "start": "2026-08-02T00:00:00Z",
+      "end": "2026-08-16T00:00:00Z",
+      "days": 14.0,
+      "boundary": "start <= t < end (UTC)"
+    },
+    "recorded": {
+      "merged_prs": 22,
+      "created_issues": 41,
+      "derived_issues": 15,
+      "issues_per_pr": 1.86,
+      "derived_per_pr": 0.68
+    },
+    "measured": {
+      "merged_prs": 22,
+      "created_issues": 41,
+      "derived_issues": 15,
+      "issues_per_pr": 1.86,
+      "derived_per_pr": 0.68
+    },
+    "reproduced": true,
+    "mismatches": []
+  },
+  "threshold": {
+    "baseline_derived_per_pr": 0.68,
+    "regression_factor": 1.5,
+    "trailing_aggregation": {
+      "method": "pooled",
+      "detail": "直近28日をひとまとめの窓として derived_issues / merged_prs を取るプールド比。週次比4本の平均ではない（Issue #488 本文の「直近4週平均」という文言との差異）。少 PR 週の比が平均を支配することと、分母0の週の扱いが定義できないことを避けるための選択（根拠＝defect_metrics/threshold.py の docstring・defect_metrics/README.md §3）。"
+    },
+    "anomaly": false,
+    "alerts": [],
+    "skipped": []
+  }
+}
