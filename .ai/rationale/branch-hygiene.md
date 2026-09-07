@@ -1,6 +1,8 @@
-# branch-hygiene — 設計経緯・却下案・既知の制約
+# branch-hygiene — 設計経緯・却下案・既知の制約（rationale・非規範）
 
-Claude Code (AI) が新設。ローカルブランチ ref の棚卸し・分類・削除をオーナー確認つきで行う repo 運用スキル。共通本文の SoT は `.ai/skills/branch-hygiene/SKILL.md`。
+> **これは規範ではない。** 正本は `.ai/skills/branch-hygiene/SKILL.md`（共通本文）であり、本文はこの repo 運用スキルの設計背景・却下案・既知の制約を保管する。
+
+Claude Code (AI) が新設。ローカルブランチ ref の棚卸し・分類・削除をオーナー確認つきで行う repo 運用スキル。
 
 ## 発端
 
