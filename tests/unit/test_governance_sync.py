@@ -47,6 +47,7 @@ ENTRYPOINT = REPO_ROOT / "CLAUDE.md"
 RULES_DIR = REPO_ROOT / ".claude" / "rules"
 RULES_GLOB = "*.md"
 DELIVERY_COPY = REPO_ROOT / ".claude" / "hooks" / "governance-directives.md"
+DECISION_PROCESS_RULE = REPO_ROOT / ".claude" / "rules" / "02-decision-process.md"
 
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 # CLAUDE.md の import 行（例: `@.claude/rules/01-principles.md`）。
@@ -223,6 +224,31 @@ class TestGovernanceDriftHook(unittest.TestCase):
             output = json.loads(completed.stdout)
             context = output["hookSpecificOutput"]["additionalContext"]
             self.assertIn(f"`{COMMON_GUIDANCE}`（正本集合の一部）", context)
+
+
+class TestHarnessClassificationTable(unittest.TestCase):
+    def test_root_level_generic_harnesses_are_listed_in_the_decision_table(self):
+        text = DECISION_PROCESS_RULE.read_text(encoding="utf-8")
+        for name in (
+            "blocker_gate",
+            "pr_merge_gate",
+            "time_fixture_lint",
+            "issue_start",
+            "project_status_sync",
+            "branch_source",
+            "guidance_sync",
+            "defect_metrics",
+        ):
+            self.assertIn(
+                f"`{name}`",
+                text,
+                f"{name} の区分を `.claude/rules/02-decision-process.md` の判定表から直接引けるようにすること。",
+            )
+
+    def test_decision_table_declares_follow_up_when_new_generic_harnesses_are_added(self):
+        text = DECISION_PROCESS_RULE.read_text(encoding="utf-8")
+        self.assertIn("新しい汎用ハーネス", text)
+        self.assertIn("同一 PR でこの列挙にも追記", text)
 
 
 if __name__ == "__main__":  # pragma: no cover
