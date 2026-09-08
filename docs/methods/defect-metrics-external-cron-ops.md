@@ -265,8 +265,10 @@ gh run list --workflow=defect-metrics.yml --limit 1
 - `verify-baseline` step が live データに対して緑であり続けること（2026-09-06 時点の実測では
   22 PR / 41 Issue / 1.86 / 派生 15 / 0.68 を再現済み＝`defect_metrics/README.md` §6。
   Issue #493 で参照の記法を `#N`・`OWNER/REPO#N`・完全 URL の3つへ広げた後も、2026-09-08 に
-  基線窓を再計算して **同じ値**であることを確認済み＝同 §6.1。したがって本ドキュメントに
-  記載した基線値は据え置き。この 2026-09-08 の再計算は §8 が定める merge 前検証の実施例である）。
+  基線窓を**手動走査で**再計算して **同じ値**であることを確認済み＝同 §6.1。したがって本
+  ドキュメントに記載した基線値は据え置き。**同 §6.1 は `gh issue view --jq` で基線値そのものを
+  数え直した記録であって、§8 が定める merge 前検証の実施例ではない**——§8 が求めるのは
+  `python3 -m defect_metrics verify-baseline` の実行であり、その実施例は §8.1 末尾に示す）。
 - 報告経路（#461）へレポートを源として追加する際の読み取り可否。
 
 ## 8. 指標定義を変更する PR の merge 前検証（実施者＝主文脈）
@@ -298,8 +300,16 @@ python3 -m defect_metrics verify-baseline --repository hiratashinnya/review-syst
 | `21` | `false` | `mismatches` に「どの値がいくつからいくつへ動いたか」が入る。**この差分が定義変更の意図どおりかを人が判断する**。意図どおりなら基線定数・`defect_metrics/README.md` §6・本ドキュメント §7 の記載値を**同じ PR で**更新する。意図しない差分なら定義変更側を直す。判断が付かなければ merge せずオーナーへ打ち上げる |
 | `1` | — | 取得・解釈エラー（`gh` の失敗・`--repository` の形式不正・`--limit` 到達による打ち切り等）。**検証できていないので「影響なし」と読まない** |
 
-確認した結果（実行日・`reproduced`・据え置きか更新か）は、その PR の本文またはレビューコメントに残す。
-実例＝Issue #493 の再計算（2026-09-08・`reproduced: true`・据え置き）＝`defect_metrics/README.md` §6.1。
+確認した結果（実行日・対象コミット・実行したコマンド・終了コード・stdout の JSON・据え置きか更新か）は、
+その PR の本文またはレビューコメントに残す。
+
+実例＝Issue #493 / PR #500 の merge 前検証（2026-09-08・対象コミット `6500294`・exit `0`・
+`reproduced: true` / `mismatches: []`・基線定数は据え置き）＝
+<https://github.com/hiratashinnya/review-system/pull/500#issuecomment-5585529120>。
+
+`defect_metrics/README.md` §6.1 は同じ Issue #493 の記録だが、**本節の実施例ではない**——
+そちらは `gh issue view --jq` で基線値そのものを数え直した手動走査であり、`verify-baseline` を
+実行していない（したがって上表が判定に使う `reproduced` を出力しない）。
 
 ### 8.2 なぜ主文脈が担うのか（当事者ロールは実行できない）
 
