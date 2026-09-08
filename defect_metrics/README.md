@@ -24,36 +24,52 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 |---|---|---|
 | 窓 | `lo <= t < hi` の半開区間・UTC | `model.Window` |
 | 分母 | 窓内に merge された PR 数（`mergedAt`） | `metrics.compute_window_metrics` |
-| 分子（主指標） | 窓内に作成された Issue のうち、本文が参照する PR（**`#N` 記法と同一リポジトリの完全 URL を同一の参照として数える**）に「起票時刻から遡って **72 時間**以内に merge された PR」を1つ以上含むもの＝**派生 Issue** | `metrics.is_derived` / `metrics.referenced_numbers` / `model.DERIVATION_HORIZON` |
+| 分子（主指標） | 窓内に作成された Issue のうち、本文が参照する PR（**`#N` 記法・同一リポジトリの `OWNER/REPO#N` 記法・同一リポジトリの完全 URL の3つを同一の参照として数える**）に「起票時刻から遡って **72 時間**以内に merge された PR」を1つ以上含むもの＝**派生 Issue** | `metrics.is_derived` / `metrics.referenced_numbers` / `model.DERIVATION_HORIZON` |
 | 分子（副指標） | 窓内に作成された**全** Issue 数（起票粒度の変化に汚染されるため主指標と対で出す） | `WindowMetrics.created_issues` |
 | open Issue 純増 | 窓内作成 − 窓内 close | `WindowMetrics.open_issue_net_change` |
 
 補足：
 
-- 参照は**本文だけ**を見る（タイトル・コメントは見ない）。`owner/repo#N` のような他リポジトリ
-  参照、`##` 見出し、`&#187;` のような HTML entity は除外する（＝`metrics.ISSUE_REFERENCE_RE`）。
-- **`#N` 記法と完全 URL（`https://github.com/OWNER/REPO/pull/N`）は同じ参照として数える**
-  （§2.1）。
+- 参照は**本文だけ**を見る（タイトル・コメントは見ない）。`##` 見出しや `&#187;` のような
+  HTML entity は除外する（＝`metrics.ISSUE_REFERENCE_RE`）。`owner/repo#N` のような
+  リポジトリ修飾付きの形は owner/repo を見て採否を決める（自リポジトリなら数え、
+  他リポジトリなら数えない＝`metrics.QUALIFIED_REFERENCE_RE`）。
+- **`#N` 記法・`OWNER/REPO#N` 記法・完全 URL（`https://github.com/OWNER/REPO/pull/N`）は
+  同じ参照として数える**（§2.1）。
 
-### 2.1 なぜ両記法を同一視するか（Issue #493・オーナー確定＝案 (a)）
+### 2.1 なぜ3記法を同一視するか（Issue #493・オーナー確定＝案 (a)）
 
-人間にとって `#487` と `https://github.com/hiratashinnya/review-system/pull/487` は同じ意味であり、
-画面上の見え方も変わらない。ところが **この記法差はツールからは見えない**。`#N` だけを拾っていると、
-主指標の正しさが「起票者が `#N` 記法で書き続ける」という **どこにも記録されていない前提** に乗る。
+人間にとって `#487`・`hiratashinnya/review-system#487`・
+`https://github.com/hiratashinnya/review-system/pull/487` は同じ意味であり、画面上の見え方も変わらない。
+ところが **この記法差はツールからは見えない**。一部の記法だけを拾っていると、主指標の正しさが
+「起票者がその記法で書き続ける」という **どこにも記録されていない前提** に乗る。
 前提が崩れれば（起票者の習慣の変化・Issue テンプレートの導入・別ツールによる自動起票など）主指標は
 静かに下振れし、その下振れは「欠陥混入が減った」ように見える。誰も疑わない。これは Issue #488 が
 解こうとした失敗（散文定義による再現不能）が、定義の所在から記法への依存へ移動して残っていた形である。
 
-- 実装＝`metrics.URL_REFERENCE_RE` と `metrics.referenced_numbers`。両記法を **PR 番号へ正規化した
-  集合** で扱うので、同じ PR を両記法で書いた本文が二重計上されることはない。
-- **自リポジトリの URL だけを採る**。`#N` 側が `org/repo#N` を除外している以上、URL 側だけ他リポジトリを
-  拾うと、他リポジトリの PR 番号が自リポジトリの PR 番号として誤ヒットする。判定に使う `OWNER/REPO` は
-  `--repository` の値であり、読めない形式なら `ValueError` で止める（黙って旧定義へ戻らない＝PR4）。
+- 実装＝`metrics.ISSUE_REFERENCE_RE` / `metrics.QUALIFIED_REFERENCE_RE` / `metrics.URL_REFERENCE_RE`
+  と `metrics.referenced_numbers`。3記法を **PR 番号へ正規化した集合** で扱うので、同じ PR を
+  複数記法で書いた本文が二重計上されることはない。
+- **リポジトリ修飾付きの2記法（`OWNER/REPO#N` と完全 URL）は自リポジトリのものだけを採る**。
+  他リポジトリを拾うと、他リポジトリの PR 番号が自リポジトリの PR 番号として誤ヒットする。
+  逆に自リポジトリを指す `OWNER/REPO#N` まで落とすと、`#N` と URL で塞いだ穴が第三の記法に残る
+  （Issue #493 のレビュー指摘 F-493-01）。判定に使う `OWNER/REPO` は `--repository` の値であり、
+  読めない形式なら `ValueError` で止める（黙って旧定義へ戻らない＝PR4）。この検証は
+  **窓内 Issue の有無に依らず CLI 入口で無条件に走る**（F-493-02。`referenced_numbers` の内側に
+  だけ置くと、窓内に作成 Issue が無い入力では一度も呼ばれずデータ依存になる）。
+- **リポジトリを改名すると旧 slug の参照は落ちる（既知の前提・オーナー判断 2026-09-08）。**
+  照合は `--repository` の slug との完全一致なので、改名前に書かれた `OWNER/OLD-REPO#N` と
+  `https://github.com/OWNER/OLD-REPO/pull/N` は、GitHub 側が旧 URL を転送していても参照として
+  数えられなくなり、派生 Issue 数だけが静かに下がる。基線窓にはこの2記法由来の派生が0件のため
+  `verify-baseline` でも検知できない。**API で正準 slug を引いて改名へ追随する案は採らない**
+  ——ネットワーク照会は「`--issues-json` / `--pulls-json` だけで決定的に再現できる」という
+  本ツールの性質（§4）を崩し、算出のたびに外部状態へ依存させるため。改名が実際に起きた時点で
+  別途扱う（F-493-03）。
 - `/issues/N` 形式の URL も受ける。`#N` は Issue と PR を区別しない記法であり、GitHub は PR への
   `/issues/N` URL を `/pull/N` へ転送する。PR でない番号は merged PR 辞書を引いた時点で自然に落ちる。
 - **却下案（記録・消さない）**: (b) 現状維持して前提を明記するだけ＝記録するだけで検出はしないので
-  PR4「観測できないものは持たない」に反する。(c) `#N` のみ・URL のみ・両方の内訳を `report.json` へ
-  出す＝記法の移り変わり自体は観測できるが、(a) が両記法を同一視する以上、内訳は指標の正しさには
+  PR4「観測できないものは持たない」に反する。(c) 記法別の内訳を `report.json` へ出す＝記法の
+  移り変わり自体は観測できるが、(a) が全記法を同一視する以上、内訳は指標の正しさには
   不要でありスキーマを広げるコストに見合わない（オーナー判断）。将来 記法差の分析が必要になった
   時点で改めて検討する。
 - 派生判定の参照先 PR は**窓の内外を問わない**。窓の先頭直前に merge された PR に由来する
@@ -159,9 +175,19 @@ python3 -m defect_metrics verify-baseline --repository OWNER/REPO
 `.claude/rules/04-test-data.md`「時刻依存 test data の規律」に従い、wall clock を読む経路を
 `cli.resolve_now` の1箇所に閉じ込め、`--now` / `now=` で必ず注入できるようにしてある。
 指標算出（`metrics`）と閾値判定（`threshold`）は現在時刻を一切読まず、渡された窓とレコード
-だけで決まる純粋な計算である。したがって `tests/unit/test_defect_metrics.py` は絶対日付を
-多用しても時間経過で赤くならない。`python3 -m time_fixture_lint check` の対象語彙
-（`expires_at` 等の境界値フィールド名）に該当するフィールドは持たない。
+だけで決まる純粋な計算である。
+
+**この性質はテスト構成に依存しない**——`tests/unit/test_defect_metrics.py` に今後どんな
+テストを足しても、`cli.resolve_now` の既定分岐を通さない限り絶対日付は wall clock と
+比較されず、時間経過だけで赤くなることはない。したがって本パッケージのテストで気を付ける
+べき点は次の1つに集約される：**`resolve_now` の既定分岐（`--now` 未指定）を呼ぶテストでは、
+固定日付と比較せず「UTC の aware datetime を返すこと」だけを検査する**（現在その分岐を
+呼ぶのは `WindowResolutionTests.test_resolve_now_without_injection_returns_aware_utc` の
+1件のみ）。窓の決定が現在時刻に依存する経路と閾値判定の「直近4週」は、必ず `--now` / `now=`
+で固定値を注入する。
+
+`python3 -m time_fixture_lint check` の対象語彙（`expires_at` 等の境界値フィールド名）に
+該当するフィールドは、本パッケージも本テストも持たない。
 
 ## 6. 実データでの一致確認（2026-09-06 実測）
 
@@ -175,32 +201,46 @@ Issue #488「現状と根拠」の実測表に対し、本ツールが同じ値�
 基線窓の派生 Issue 15 件の内訳（`derived_issue_numbers`）：
 #302 #317 #318 #337 #338 #339 #344 #345 #354 #355 #356 #360 #362 #363 #365。
 
-### 6.1 URL 記法を同一視した後の再計算（2026-09-08 実測・**変化なし**）
+### 6.1 記法を広げた後の再計算（2026-09-08 実測・**変化なし**）
 
-Issue #493 で定義を広げた（§2.1）ので、基線窓を再計算した。**上表の値はいずれも変わらなかった。**
-したがって `model.BASELINE_*` の5定数・`verify-baseline` の期待値・本 README・
-`docs/methods/defect-metrics-external-cron-ops.md` の記載値はすべて据え置きである。
+Issue #493 で定義を広げた（§2.1）ので、追加した2記法それぞれについて基線窓を再計算した。
+**上表の値はいずれも変わらなかった。** したがって `model.BASELINE_*` の5定数・`verify-baseline`
+の期待値・本 README・`docs/methods/defect-metrics-external-cron-ops.md` の記載値はすべて据え置きである。
 
-根拠（`gh issue view <N> --json number,createdAt,body` を実データに対して実行した結果）:
+走査範囲：基線窓に作成された Issue の番号は **302〜367** に収まる（#301 は `2026-08-01T15:12:55Z` で
+窓の手前、#368 は `2026-08-16T05:27:06Z` で窓の外。Issue/PR は作成順に採番されるので、この2点で
+範囲が閉じる）。以下いずれも、Issue・PR の別を問わない**上位集合の全番号**の本文を走査している。
 
-- 基線窓に作成された Issue の番号は **302〜367** に収まる（#301 は `2026-08-01T15:12:55Z` で窓の手前、
-  #368 は `2026-08-16T05:27:06Z` で窓の外。Issue/PR は作成順に採番されるので、この2点で範囲が閉じる）。
-- 302〜367 の**全番号**（Issue・PR の別を問わない上位集合）の本文を走査した結果、自リポジトリの完全
-  URL は #323 → `issues/323` と #339 → `issues/339` の **自己参照2件だけ**で、どちらも Issue であって
-  merged PR ではない。
-- 参照の追加は派生判定を **増やす方向にしか働かない**（`is_derived` は参照集合のいずれかが条件を
-  満たせば true）。新たに拾える参照が無いので派生 Issue は 15 件のまま、分母（merged PR）と副指標
-  （全 Issue 数）は定義自体が変わっていないので不変。
-- 同じ走査を 2 行目の窓（2026-08-16 〜 09-06・番号 368〜479）にも掛けた。自リポジトリの完全 URL を
-  含む本文は #385・#452・#471・#456 の4件で、#385/#452 は自己参照、#471 の参照先 #470 は Issue
-  （merged PR ではない）、#456 の参照先 PR #455 は **同じ本文に `#455` が既にある**ため参照集合が
-  変わらない。よって 2 行目も変化なし。
+**完全 URL（初回実装時の確認・`gh issue view <N> --json number,createdAt,body`）**
+
+- 302〜367 の本文に現れる自リポジトリの完全 URL は #323 → `issues/323` と #339 → `issues/339` の
+  **自己参照2件だけ**で、どちらも Issue であって merged PR ではない。
+- 2 行目の窓（2026-08-16 〜 09-06・番号 368〜479）では #385・#452・#471・#456 の4件。#385/#452 は
+  自己参照、#471 の参照先 #470 は Issue（merged PR ではない）、#456 の参照先 PR #455 は
+  **同じ本文に `#455` が既にある**ため参照集合が変わらない。
+
+**`OWNER/REPO#N`（F-493-01 の是正時の確認・2026-09-08）**
+
+- 走査コマンドは `gh issue view <N> --json body --jq '(.body // "")|test("review-system#";"i")'`
+  を 302〜367 と 368〜479 の**全番号に対して1件ずつ**実行するもの（真偽値を返すので、判定が
+  ランキングや目視に依存しない）。
+- 基線窓の該当は **#320 と #345 の2件だけ**。#320 は URL が `/pull/320` で **Issue ではなく PR** の
+  ため分子の母集団（`gh issue list` が返す Issue）に入らない。#345 は Issue だが
+  `derived_issue_numbers`（下記）に既に含まれており、参照が増えても派生判定は変わらない。
+- 2 行目の窓（368〜479）は **該当0件**。
+
+**共通の理由**：参照の追加は派生判定を **増やす方向にしか働かない**（`is_derived` は参照集合の
+いずれかが条件を満たせば true）。新たに派生になる Issue が無い以上、派生 Issue は 15 件のまま、
+分母（merged PR）と副指標（全 Issue 数）は定義自体が変わっていないので不変。なお、この判断が
+誤っていた場合は `verify-baseline`（`report` サブコマンドにも同梱）が実データに対して
+`reproduced: false` を返し、ワークフローが job を失敗させる（§3「基線の再現検証はレポートにも
+載る」）ので、誤りは黙って通らない。
 
 ## 7. 依存仕様
 
 - 指標定義の一次アンカー：Issue #488「提案挙動」および「現状と根拠」の実測表、
   Issue #368「現状と根拠」（2026-09-06 訂正済み）、Issue #493「提案挙動（オーナー確定：案 (a)）」
-  （参照の記法＝`#N` と完全 URL の同一視・§2.1）。
+  （参照の記法＝`#N`・`OWNER/REPO#N`・完全 URL の同一視・§2.1）。
 - 入力フォーマット：`gh issue list --json number,createdAt,closedAt,body`（`--state all` は
   PR を含まない）／`gh pr list --state merged --json number,mergedAt`。`gh` の出力スキーマが
   変わったら `defect_metrics/collect.py` の `load_issues` / `load_pulls` が

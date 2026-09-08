@@ -41,7 +41,7 @@ from .collect import (
     load_pulls,
     read_json_file,
 )
-from .metrics import WindowMetrics, compute_window_metrics
+from .metrics import WindowMetrics, compute_window_metrics, normalise_repository
 from .model import (
     BASELINE_ALL_ISSUES,
     BASELINE_DERIVED_ISSUES,
@@ -272,8 +272,9 @@ def build_parser() -> argparse.ArgumentParser:
         target.add_argument(
             "--repository",
             required=True,
-            help="OWNER/REPO（取得先であると同時に、本文中の完全 URL 参照を自リポジトリの"
-            "ものだけに絞る判定にも使う・Issue #493）",
+            help="OWNER/REPO（取得先であると同時に、本文中のリポジトリ修飾付き参照"
+            "＝OWNER/REPO#N と完全 URL を自リポジトリのものだけに絞る判定にも使う・"
+            "Issue #493。形式が読めなければ窓内 Issue の有無に依らず exit 1）",
         )
         target.add_argument("--issues-json", help="gh issue list --json 出力（省略時は gh を実行）")
         target.add_argument("--pulls-json", help="gh pr list --json 出力（省略時は gh を実行）")
@@ -308,6 +309,12 @@ def main(argv: list[str] | None = None, stdout=None, stderr=None) -> int:
     stderr = stderr if stderr is not None else sys.stderr
     args = build_parser().parse_args(argv)
     try:
+        # ``--repository`` の形式検証は入口で無条件に行う（Issue #493 F-493-02）。
+        # ``referenced_numbers`` の内側にだけ置くと、窓内に作成 Issue が1件も無い入力では
+        # 一度も呼ばれず、宣言している fail-close が「そのデータに派生判定対象があるか」
+        # というデータ依存の偶然になる。``add_common`` が全サブコマンドへ必須で付けるため、
+        # ここは常に評価される。
+        normalise_repository(args.repository)
         if args.command == "report":
             return _cmd_report(args, stdout, stderr)
         if args.command == "verify-baseline":

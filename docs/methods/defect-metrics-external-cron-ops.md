@@ -2,7 +2,7 @@
 
 - 対象: Issue #488（本ツールの実装）、Issue #489（外部 cron の実設定と初回到達の実測確認）、
   Issue #370（親・欠陥分類の供給と再計測）、Issue #368（基線の定義）、
-  Issue #493（参照の記法＝`#N` と完全 URL の同一視）
+  Issue #493（参照の記法＝`#N`・`OWNER/REPO#N`・完全 URL の同一視）
 - 関連正本: `.github/workflows/defect-metrics.yml`、`defect_metrics/README.md`
 - 前例: `docs/methods/blocker-snapshot-external-cron-ops.md`（同じ方式・同じ粒度）
 - 実施者: 本ドキュメントの手順（cron-job.org のジョブ登録・PAT 発行・疎通確認）は
@@ -262,6 +262,7 @@ gh run list --workflow=defect-metrics.yml --limit 1
 - `generated_at` が期待実行時刻と整合し、週次で更新され続けること。
 - `verify-baseline` step が live データに対して緑であり続けること（2026-09-06 時点の実測では
   22 PR / 41 Issue / 1.86 / 派生 15 / 0.68 を再現済み＝`defect_metrics/README.md` §6。
-  Issue #493 で参照の記法を `#N` と完全 URL の両方へ広げた後も、2026-09-08 に基線窓を再計算して
-  **同じ値**であることを確認済み＝同 §6.1。したがって本ドキュメントに記載した基線値は据え置き）。
+  Issue #493 で参照の記法を `#N`・`OWNER/REPO#N`・完全 URL の3つへ広げた後も、2026-09-08 に
+  基線窓を再計算して **同じ値**であることを確認済み＝同 §6.1。したがって本ドキュメントに
+  記載した基線値は据え置き）。
 - 報告経路（#461）へレポートを源として追加する際の読み取り可否。
