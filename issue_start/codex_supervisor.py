@@ -56,10 +56,16 @@ _BROKER_FEATURES = (
     "workspace_dependencies", "auth_elicitation", "plugin_sharing",
     "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
     "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
+    "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
+    "code_mode_only", "multi_agent_mode", "multi_agent_v2",
 )
-# レビュー済み feature catalog（codex-cli 0.153.4 時点で 119 件を人手分類済み）。
-# process 能力を持つものは _BROKER_FEATURES 側で「必ず false」を要求しており、ここに残るのは
-# その分類で無害と判断した名前。catalog 全体との完全一致は要求しない（Issue #491）。
+# codex-cli 0.153.4 の ``codex features list`` で観測した feature 名のスナップショット。
+# **この集合は「無害と検証済み」を意味しない**——`_BROKER_FEATURES` に挙げた名前だけが
+# 「config override で必ず false へ倒し、preflight でも false を要求する」検証済みの扱いで、
+# それ以外の名前は個別の無害性検証を経ていない（Issue #491 の指摘 F-491-02）。
+# ここでの役割は、後述の拒否語彙を「0.153.4 に既にあった名前」へ適用しないことだけである
+# （既知の名前を語彙で弾いても CLI 更新への追随にならないため）。catalog 全体との完全一致は
+# 要求しない。
 _KNOWN_CLI_FEATURES = frozenset({
     "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
     "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
@@ -101,15 +107,37 @@ _KNOWN_CLI_FEATURES = frozenset({
 # 同じ能力を出してきた場合を捕まえられない。その穴を埋めるのがこの拒否語彙で、レビュー済み
 # catalog の外にある名前だけを対象に照合する（catalog 内は上記のとおり分類済みのため）。
 # 新しい process 系 feature が有効なまま現れたら fail-close するので、人手で分類し直して
-# _BROKER_FEATURES（config override で必ず無効化する）か _KNOWN_CLI_FEATURES（無害と判断）の
-# どちらかへ追記する運用で追随する。
+# _BROKER_FEATURES（config override で必ず無効化する）か _KNOWN_CLI_FEATURES（0.153.4 の
+# スナップショットへの追記）へ回す運用で追随する。
+# 語彙は実行・インタプリタ/REPL・sandbox 弱体化の3クラスを網羅する（Issue #491・F-491-01）。
+# 一般語（run/node/js 等）を含めるので benign な新 feature でも fail-close しうるが、
+# 本検査は安全側へ倒すためのものなので取りこぼしよりも過検出を選ぶ。
 _PROCESS_CAPABILITY_MARKERS = frozenset({
     "agent", "agents", "app", "apps", "approval", "approvals", "bash", "broker",
     "browser", "code", "command", "commands", "computer", "container", "daemon",
     "exec", "hook", "hooks", "mcp", "network", "permission", "permissions",
     "plugin", "plugins", "process", "proxy", "remote", "sandbox", "shell",
     "skill", "skills", "spawn", "subprocess", "terminal", "tool", "tools", "vm",
+    # 実行・起動
+    "eval", "fork", "run", "runner", "script", "worker", "pty", "tty", "ssh",
+    # インタプリタ / REPL
+    "deno", "interpreter", "js", "node", "python", "repl", "sh", "wasm", "zsh",
+    # sandbox 弱体化 / 権限昇格
+    "bwrap", "docker", "elevated", "escalate", "landlock", "privileged", "root",
+    "seatbelt", "sudo",
 })
+# 上記のうち、トークン一致では取りこぼす連結名（``guardianv2`` のように CLI は区切りなしで
+# 連結する）を捕まえるため部分文字列一致まで引き上げる高シグナル語（Issue #491・F-491-03）。
+# 全 marker を部分文字列一致にすると ``code`` が ``codex_git_commit`` に当たる類の誤検出が
+# 増えるため、単独で process 実行能力を強く示唆する語だけに限定する。
+_HIGH_SIGNAL_PROCESS_MARKERS = frozenset({
+    "broker", "exec", "proc", "repl", "sandbox", "shell", "spawn", "subprocess",
+})
+# feature 名のトークン分割。``codex features list`` はトップレベル名のみを出力する前提だが、
+# CLI 側の命名は ``_`` / ``-`` / ``.`` が混在しうるので全て等価な区切りとして扱う。
+_FEATURE_NAME_SEPARATOR = re.compile(r"[^a-z0-9]+")
+# ``codex features list`` の見出し行。これと空行だけが「feature ではない行」として許容される。
+_FEATURE_LIST_HEADER = ("name", "maturity", "state")
 _PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
 
 
@@ -668,15 +696,52 @@ def _inner_config_values(command: Sequence[str]) -> tuple[str, tuple[str, ...], 
     return codex, values, runtime_home
 
 
+def _parse_feature_states(stdout: str) -> dict[str, str]:
+    """``codex features list`` の各行を ``name -> state`` へ写す。未パース行は fail-close する。
+
+    許容するのは空行と既知のヘッダ行（``name maturity state``）だけで、それ以外に
+    3 フィールドへ分解できない行があれば ``CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED`` を送出する。
+    黙って捨てると、その feature は ``states`` に載らず後段の2検査（``_BROKER_FEATURES`` の
+    無効化確認・未レビュー process feature の検出）から消え、catalog 外・拒否語彙該当・有効の
+    3条件を満たしていても素通りする（fail-open。Issue #491・F-491-04）。
+    ``fields[-1]`` を state とみなすのは「name maturity state」の3列を前提とした読みで、
+    説明列が増えた版では state でない語を読む。その場合も ``!= "false"`` により fail-close 側へ
+    倒れるが、前提が崩れたことは列数の変化として上の許容判定に現れる。
+    """
+
+    states: dict[str, str] = {}
+    for line in stdout.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        if tuple(field.lower() for field in fields) == _FEATURE_LIST_HEADER:
+            continue
+        if len(fields) < 3:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED", f"unparsed features line: {line.strip()}"
+            )
+        states[fields[0]] = fields[-1]
+    return states
+
+
+def _suggests_process_capability(name: str) -> bool:
+    """feature 名が process 実行能力を示唆するかを大小文字・区切り非依存で判定する。"""
+
+    lowered = name.lower()
+    if any(marker in lowered for marker in _HIGH_SIGNAL_PROCESS_MARKERS):
+        return True
+    return bool(_PROCESS_CAPABILITY_MARKERS & set(_FEATURE_NAME_SEPARATOR.split(lowered)))
+
+
 def _unreviewed_process_features(states: Mapping[str, str]) -> tuple[str, ...]:
-    """レビュー済み catalog 外で process 能力を示唆し、かつ無効化されていない feature を返す。"""
+    """0.153.4 の catalog 外で process 能力を示唆し、かつ無効化されていない feature を返す。"""
 
     return tuple(sorted(
         name
         for name, state in states.items()
         if name not in _KNOWN_CLI_FEATURES
         and state != "false"
-        and _PROCESS_CAPABILITY_MARKERS & set(name.split("_"))
+        and _suggests_process_capability(name)
     ))
 
 
@@ -689,8 +754,8 @@ def validate_cli_compatibility(
 
     feature catalog は完全一致ではなく必要な部分集合で検査する（Issue #491）。守るのは
     「内側 Codex が broker 以外の process 実行能力を得ない」ことで、そのために
-    (1) ``_BROKER_FEATURES`` が全て present かつ ``false`` であること、(2) レビュー済み
-    catalog ``_KNOWN_CLI_FEATURES`` の外にある feature が process 能力を示唆する名前を
+    (1) ``_BROKER_FEATURES`` が全て present かつ ``false`` であること、(2) 0.153.4 の
+    観測 catalog ``_KNOWN_CLI_FEATURES`` の外にある feature が process 能力を示唆する名前を
     持つなら無効化されていること、の2点だけを要求する。許すのは、catalog にも拒否語彙にも
     掛からない feature の増減——すなわち CLI 更新への追随である。
     完全一致をやめた理由は、CLI が feature を1件でも増減するとその版では必ず fail-close し、
@@ -719,11 +784,7 @@ def validate_cli_compatibility(
         raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_PREFLIGHT_FAILED") from exc
     if features.returncode != 0 or servers.returncode != 0:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED")
-    states: dict[str, str] = {}
-    for line in features.stdout.splitlines():
-        fields = line.split()
-        if len(fields) >= 3:
-            states[fields[0]] = fields[-1]
+    states = _parse_feature_states(features.stdout)
     enabled = tuple(sorted(
         f"{name}={states.get(name, '<absent>')}"
         for name in _BROKER_FEATURES if states.get(name) != "false"
@@ -848,6 +909,15 @@ def build_codex_command(
         "--config", "features.exec_permission_approvals=false",
         "--config", "features.executor_capability_discovery=false",
         "--config", "features.deferred_executor=false",
+        # 0.153.4 の catalog に実在する shell_tool / unified_exec / code_mode / multi_agent の
+        # 派生。名前どおりの能力を持つなら broker を迂回できるため、本体と同じく必ず false へ
+        # 倒す（Issue #491・F-491-02）。
+        "--config", "features.shell_zsh_fork=false",
+        "--config", "features.unified_exec_zsh_fork=false",
+        "--config", "features.code_mode_buffered_exec=false",
+        "--config", "features.code_mode_only=false",
+        "--config", "features.multi_agent_mode=false",
+        "--config", "features.multi_agent_v2=false",
         "--config", "apps._default.enabled=false",
     ]
     for value in _broker_config(broker, spec.timeout_seconds):

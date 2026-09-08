@@ -344,6 +344,17 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("features.hooks=false", command)
         self.assertIn("features.shell_snapshot=false", command)
         self.assertIn("features.skill_mcp_dependency_install=false", command)
+        self.assertIn("features.shell_zsh_fork=false", command)
+        self.assertIn("features.unified_exec_zsh_fork=false", command)
+        self.assertIn("features.code_mode_buffered_exec=false", command)
+        self.assertIn("features.code_mode_only=false", command)
+        self.assertIn("features.multi_agent_mode=false", command)
+        self.assertIn("features.multi_agent_v2=false", command)
+        # _BROKER_FEATURES は「preflight で false を要求する集合」なので、その全件に対して
+        # config override を出していなければ要求と出力が食い違う（Issue #491・F-491-02）。
+        for feature in _BROKER_FEATURES:
+            with self.subTest(feature=feature):
+                self.assertIn(f"features.{feature}=false", command)
         self.assertIn("--clearenv", command)
         self.assertIn("mcp_servers.issue_exec_broker.required=true", command)
         self.assertIn('mcp_servers.issue_exec_broker.enabled_tools=["execute"]', command)
@@ -473,14 +484,72 @@ class CodexSupervisorTests(unittest.TestCase):
                 validate_cli_compatibility(command, runner=added(extra))
 
         # process 能力を示唆する未レビューの名前が有効なままなら fail-close する。
+        # 第3列は fixture と同じ列意味（name maturity state）で書く（Issue #491・F-491-04）。
         for extra in (
             "future_process_feature stable true\n",
             "code_mode_prewarm stable true\n",
-            "remote_shell_v2 stable experimental\n",
+            "remote_shell_v2 stable true\n",
+            # 実行・インタプリタ・sandbox 弱体化クラスの語彙（F-491-01）。
+            "python_repl stable true\n",
+            "node_runner stable true\n",
+            "disable_landlock stable true\n",
+            "js_eval_tool_v2 stable true\n",
+            "elevated_container_launch stable true\n",
+            # 区切りなしの連結名・別区切り・大小文字混在（F-491-03）。
+            "execpolicy stable true\n",
+            "shellv2 stable true\n",
+            "subprocesses stable true\n",
+            "sandboxing stable true\n",
+            "Shell_Tool stable true\n",
+            # - / . も _ と等価な区切りとして扱う（高シグナル語の部分文字列一致では拾えない
+            # 語彙で区切りの等価性そのものを固定する）。
+            "browser-relay stable true\n",
+            "alpha.python.bridge stable true\n",
         ):
             with self.subTest(rejected=extra.split()[0]):
                 with self.assertRaisesRegex(CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"):
                     validate_cli_compatibility(command, runner=added(extra))
+
+        # catalog 内でも _BROKER_FEATURES へ移した派生名が有効なら fail-close する（F-491-02）。
+        for feature in (
+            "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
+            "code_mode_only", "multi_agent_mode", "multi_agent_v2",
+        ):
+            with self.subTest(broker_derivative=feature):
+                self.assertIn(feature, _BROKER_FEATURES)
+
+                def leaked_derivative(argv, _feature=feature, **kwargs):
+                    result = compatible(argv, **kwargs)
+                    if argv[1:3] == ["features", "list"]:
+                        return subprocess.CompletedProcess(argv, 0, result.stdout.replace(
+                            f"{_feature} stable false", f"{_feature} stable true"
+                        ), "")
+                    return result
+
+                with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
+                    validate_cli_compatibility(command, runner=leaked_derivative)
+
+        # 3列に満たない行は黙って捨てず fail-close する。空行とヘッダ行だけは許容（F-491-04）。
+        def unparsed(argv, **kwargs):
+            result = compatible(argv, **kwargs)
+            if argv[1:3] == ["features", "list"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, result.stdout + "remote_shell_v2 experimental\n", ""
+                )
+            return result
+
+        with self.assertRaisesRegex(CodexSupervisorError, "CLI_CONFIG_UNSUPPORTED"):
+            validate_cli_compatibility(command, runner=unparsed)
+
+        def decorated(argv, **kwargs):
+            result = compatible(argv, **kwargs)
+            if argv[1:3] == ["features", "list"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, "NAME MATURITY STATE\n" + result.stdout + "\n", ""
+                )
+            return result
+
+        validate_cli_compatibility(command, runner=decorated)
 
         def extra_mcp(argv, **kwargs):
             if argv[1:3] == ["mcp", "list"]:
