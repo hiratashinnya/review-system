@@ -3,6 +3,29 @@
 分母・分子の定義は :mod:`defect_metrics.model` の docstring に固定してある。
 本モジュールはその定義を実行するだけで、閾値判定は :mod:`defect_metrics.threshold`
 が担う（機械判定と運用ルールを混ぜない＝PR2）。
+
+同じ PR を指す3記法をすべて同一視する（Issue #493・オーナー確定＝案 (a)）
+------------------------------------------------------------------------
+``#487``、``OWNER/REPO#487``、``https://github.com/OWNER/REPO/pull/487`` は、参照先が
+同じリポジトリである限り人間にとって同じ意味であり、画面上の見え方も変わらない。
+**この記法差はツールからは見えない**ため、一部の記法だけを拾う実装は主指標の正しさを
+「起票者がその記法で書き続ける」という**どこにも記録されていない前提**へ乗せることになる。
+前提が崩れれば（起票者の習慣の変化・Issue テンプレートの導入・別ツールによる自動起票など）
+主指標は静かに下振れし、しかもその下振れは「欠陥混入が減った」ように見える。
+Issue #488 が定義をコードへ固定して塞いだのと同じ穴が、定義の所在から記法への依存へ移動して
+残っていた形である。
+
+そこで :data:`ISSUE_REFERENCE_RE`（``#N``）・:data:`QUALIFIED_REFERENCE_RE`（``OWNER/REPO#N``）・
+:data:`URL_REFERENCE_RE`（完全 URL）の3つを拾い、:func:`referenced_numbers` が
+**PR 番号へ正規化した集合**として返す。集合なので同一 PR を複数記法で書いた本文が
+二重計上されることはない。``OWNER/REPO#N`` と URL は**計測対象リポジトリのものだけ**を採る
+——他リポジトリの PR 番号を拾うと、それが自リポジトリの PR 番号として誤ヒットするため。
+この判定に使う ``OWNER/REPO`` を :func:`is_derived` / :func:`compute_window_metrics` が
+引数で受け取る（照合規則と、リポジトリ改名時の挙動＝:func:`normalise_repository`）。
+
+却下案（消さない）＝(b) 現状維持して前提を明記するだけ（記録するが検出しないので PR4 違反）、
+(c) ``#N`` のみ／URL のみ／両方の内訳を ``report.json`` へ出す（内訳は指標の正しさには不要で
+スキーマを広げるコストに見合わない・オーナー判断）。詳細は ``defect_metrics/README.md`` §2.1。
 """
 
 from __future__ import annotations
@@ -19,21 +42,104 @@ from .model import (
     Window,
 )
 
-# Issue/PR 本文中の `#N` 参照。
-#   - 直前が英数・``_``・``/``・``#``・``&`` の場合は参照とみなさない
-#     （``abc#12``／``org/repo#12`` のような他リポジトリ参照、``##`` 見出し、
-#     ``&#187;`` のような HTML entity を除外する）。
+# Issue/PR 本文中の `#N` 参照（リポジトリを明示しない短縮形＝自リポジトリを指す）。
+#   - 直前が英数・``_``・``/``・``#``・``&`` の場合はこの記法とみなさない
+#     （``abc#12``／``org/repo#12`` のようなリポジトリ修飾付きの形、``##`` 見出し、
+#     ``&#187;`` のような HTML entity を除外する）。リポジトリ修飾付きの形は
+#     :data:`QUALIFIED_REFERENCE_RE` が owner/repo を見て採否を決める。
 #   - 直後が英数・``_`` の場合も除外する（``#1abc`` は Issue 番号ではない）。
 # 本文以外（タイトル・コメント）は見ない。Issue #488 が「本文が参照する `#N`」と
 # 定義しているため、参照元を本文に固定する。
 ISSUE_REFERENCE_RE = re.compile(r"(?<![0-9A-Za-z_/#&])#(\d{1,7})(?![0-9A-Za-z_])")
 
+# 同じ参照の ``OWNER/REPO#N`` 形式（リポジトリ完全指定の短縮形・Issue #493 の是正で追加）。
+#   ``hiratashinnya/review-system#487`` は、参照先が計測対象リポジトリである限り ``#487`` と
+#   完全に同じ意味である。:data:`ISSUE_REFERENCE_RE` の否定後読みは ``/`` を除外するため
+#   この形を一律に落とすが、その除外が正しいのは**他リポジトリ**を指す場合だけであり、
+#   自リポジトリを指す場合まで落とすと ``#N`` と URL で塞いだ穴が第三の記法に残る。
+#   - ``owner``/``repo`` を捕獲して :func:`normalise_repository` の結果と照合し、
+#     計測対象リポジトリのものだけを採る（他リポジトリは従来どおり参照とみなさない）。
+#   - 先頭の否定後読みは ``#N`` 側と同じ字種にする。これにより
+#     ``https://github.com/OWNER/REPO#12`` のような URL の途中（owner の直前が ``/``）には
+#     一致しない＝URL は :data:`URL_REFERENCE_RE` だけが扱う、と役割が分かれる。
+QUALIFIED_REFERENCE_RE = re.compile(
+    r"(?<![0-9A-Za-z_/#&])([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)#(\d{1,7})(?![0-9A-Za-z_])"
+)
 
-def referenced_numbers(body: str | None) -> set[int]:
-    """本文が参照する ``#N`` の集合。"""
+# 同じ参照の完全 URL 形式（Issue #493 で採用した案 (a)）。
+#   ``https://github.com/OWNER/REPO/pull/487`` は人間にとって ``#487`` と同じ意味であり、
+#   画面上の見え方も変わらない。記法の違いはツールからは見えないので、``#N`` だけを拾うと
+#   指標の正しさが「起票者が ``#N`` で書き続ける」という**どこにも記録されていない前提**に
+#   乗る（Issue #493「目的・背景」）。全記法を同じ参照として正規化してその前提を外す。
+#   - ``owner``/``repo`` を捕獲するのは**計測対象リポジトリのものだけを採る**ため。
+#     ``#N`` 側が ``org/repo#12`` を除外している以上、URL 側だけ他リポジトリを拾うと
+#     他リポジトリの PR 番号が自リポジトリの PR 番号として誤ヒットする。
+#   - ``/issues/N`` も受ける。``#N`` は Issue と PR を区別しない記法であり、GitHub は
+#     PR への ``/issues/N`` URL を ``/pull/N`` へ転送する。派生判定は merged PR の辞書を
+#     引くだけなので、PR でない番号は :func:`is_derived` 側で自然に落ちる。
+#   - 直後が数字なら除外する（番号の途中で切らない）。``/pull/487/files`` や
+#     ``/pull/487#issuecomment-1`` のような続きは番号の後ろに来るので影響しない。
+URL_REFERENCE_RE = re.compile(
+    r"https?://(?:www\.)?github\.com/"
+    r"([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/"
+    r"(?:pull|issues)/(\d{1,7})(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def normalise_repository(repository: str) -> str:
+    """``OWNER/REPO`` を小文字化して返す（GitHub の owner/repo は大小を区別しない）。
+
+    形式が読めないときは ``ValueError`` で止める。黙って「リポジトリ修飾付きの参照なし」に
+    倒すと、主指標が静かに ``#N`` 記法だけの旧定義へ戻り、しかもそれが観測できない
+    （Issue #493 が問題にした失敗そのものの再現）。この検証は
+    :func:`defect_metrics.cli.main` が**窓内 Issue の有無に依らず入口で無条件に**呼ぶ
+    ——``referenced_numbers`` からの呼び出しだけに頼ると、窓内に作成 Issue が1件も無い入力で
+    不正な ``--repository`` が素通りし、宣言している fail-close がデータ依存になる。
+
+    **リポジトリ改名時は旧 slug の参照が落ちる（既知の前提・オーナー判断 2026-09-08）。**
+    照合は ``--repository`` の slug との完全一致で行うため、リポジトリを改名すると、
+    改名前に書かれた ``OWNER/OLD-REPO#N`` および ``https://github.com/OWNER/OLD-REPO/pull/N``
+    は（GitHub 側が旧 URL を新 URL へ転送していても）参照として数えられなくなり、
+    派生 Issue 数だけが静かに下がる。基線窓にはこの2記法由来の派生が0件のため
+    ``verify-baseline`` でも検知できない。**API で正準 slug を引いて改名に追随する案は
+    本 PR の範囲外とする**——ネットワーク照会は「``--issues-json`` / ``--pulls-json`` だけで
+    決定的に再現できる」という本ツールの性質（``README.md`` §4）を崩し、算出のたびに
+    外部状態へ依存させることになるため、改名が実際に起きた時点で別途扱う。
+    """
+    text = (repository or "").strip().strip("/")
+    parts = text.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"repository は OWNER/REPO 形式でなければならない: {repository!r}")
+    return text.lower()
+
+
+def _is_measured_repository(match: "re.Match[str]", owner_repo: str) -> bool:
+    """``match`` の第1・第2捕獲群（owner / repo）が計測対象リポジトリを指すか。"""
+    return f"{match.group(1)}/{match.group(2)}".lower() == owner_repo
+
+
+def referenced_numbers(body: str | None, repository: str) -> set[int]:
+    """本文が参照する PR/Issue 番号の集合。
+
+    ``#N`` 記法・``OWNER/REPO#N`` 記法・``https://github.com/OWNER/REPO/pull/N`` 形式の
+    完全 URL を**同一の参照**として扱い、**番号へ正規化した集合**で返す
+    （Issue #493 オーナー確定・案 (a)）。集合なので、同じ PR を複数記法で書いた本文が
+    二重計上されることはない。
+
+    ``repository`` は計測対象の ``OWNER/REPO``。``OWNER/REPO#N`` と URL の2記法は
+    これと一致するものだけを採る（他リポジトリを指すものは参照とみなさない
+    ——他リポジトリの番号を自リポジトリの番号として誤ヒットさせないため）。
+    """
+    owner_repo = normalise_repository(repository)
     if not body:
         return set()
-    return {int(m.group(1)) for m in ISSUE_REFERENCE_RE.finditer(body)}
+    numbers = {int(m.group(1)) for m in ISSUE_REFERENCE_RE.finditer(body)}
+    for pattern in (QUALIFIED_REFERENCE_RE, URL_REFERENCE_RE):
+        for match in pattern.finditer(body):
+            if _is_measured_repository(match, owner_repo):
+                numbers.add(int(match.group(3)))
+    return numbers
 
 
 def _ratio(numerator: int, denominator: int) -> float | None:
@@ -104,7 +210,9 @@ class WindowMetrics:
             "denominator": {"merged_prs": self.merged_prs},
             "primary": {
                 "definition": (
-                    "窓内に作成された Issue のうち、本文が参照する #N に "
+                    "窓内に作成された Issue のうち、本文が参照する PR "
+                    "（#N 記法・同一リポジトリの OWNER/REPO#N 記法・同一リポジトリの完全 URL の"
+                    "3記法を同一の参照として数える）に "
                     "「起票時刻から遡って72時間以内に merge された PR」を"
                     "1つ以上含むもの（派生 Issue）"
                 ),
@@ -128,14 +236,19 @@ class WindowMetrics:
 def is_derived(
     issue: IssueRecord,
     merged_by_number: dict[int, PullRequestRecord],
+    repository: str,
 ) -> bool:
     """``issue`` が派生 Issue か（:mod:`defect_metrics.model` の定義どおり）。
 
     参照先 PR は**窓の内外を問わない**。窓の先頭直前に merge された PR に由来する
     起票を落とさないため（分子は「窓内に作成された Issue」で絞り、参照先の merge
     時刻は起票時刻からの相対距離だけで判定する）。
+
+    ``repository`` は :func:`referenced_numbers` がリポジトリ修飾付きの記法
+    （``OWNER/REPO#N`` と完全 URL）の採否を決めるために使う計測対象 ``OWNER/REPO``
+    （Issue #493）。
     """
-    for number in referenced_numbers(issue.body):
+    for number in referenced_numbers(issue.body, repository):
         pull = merged_by_number.get(number)
         if pull is None:
             continue
@@ -152,16 +265,19 @@ def compute_window_metrics(
     window: Window,
     issues: list[IssueRecord],
     pulls: list[PullRequestRecord],
+    repository: str,
 ) -> WindowMetrics:
     """``window`` に対する指標を算出する。
 
     ``issues`` / ``pulls`` は窓で絞り込む前の全件を渡す（絞り込みは本関数が行う）。
+    ``repository`` は計測対象の ``OWNER/REPO``（``OWNER/REPO#N`` と完全 URL の参照を
+    自リポジトリのものだけに絞るために使う・Issue #493）。
     """
     merged_by_number = {p.number: p for p in pulls}
     merged_prs = sum(1 for p in pulls if window.contains(p.merged_at))
     created = [i for i in issues if window.contains(i.created_at)]
     closed_issues = sum(1 for i in issues if window.contains(i.closed_at))
-    derived = [i for i in created if is_derived(i, merged_by_number)]
+    derived = [i for i in created if is_derived(i, merged_by_number, repository)]
     return WindowMetrics(
         window=window,
         merged_prs=merged_prs,

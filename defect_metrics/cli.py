@@ -41,7 +41,7 @@ from .collect import (
     load_pulls,
     read_json_file,
 )
-from .metrics import WindowMetrics, compute_window_metrics
+from .metrics import WindowMetrics, compute_window_metrics, normalise_repository
 from .model import (
     BASELINE_ALL_ISSUES,
     BASELINE_DERIVED_ISSUES,
@@ -151,6 +151,7 @@ def _mismatches(metrics: WindowMetrics) -> list[str]:
 def verify_baseline(
     issues: list[IssueRecord],
     pulls: list[PullRequestRecord],
+    repository: str,
 ) -> tuple[dict[str, object], list[str]]:
     """基線窓を再計測し、記録済み基線と照合した結果を機械可読な形で返す。
 
@@ -163,7 +164,7 @@ def verify_baseline(
     揮発するという非対称は、「散文定義による再現不能」という Issue #488 が解こうとした問題の
     再発を、誰にも気づかれないまま許すことになる。
     """
-    metrics = compute_window_metrics(BASELINE_WINDOW, issues, pulls)
+    metrics = compute_window_metrics(BASELINE_WINDOW, issues, pulls, repository)
     mismatches = _mismatches(metrics)
     payload: dict[str, object] = {
         "baseline_window": BASELINE_WINDOW.as_dict(),
@@ -189,11 +190,11 @@ def build_report(
     now: datetime,
 ) -> tuple[dict[str, object], Evaluation]:
     """レポート JSON と閾値判定結果を作る。"""
-    current = compute_window_metrics(window, issues, pulls)
+    current = compute_window_metrics(window, issues, pulls, repository)
     trailing_window = window.shifted_back(TRAILING_WINDOW)
-    trailing = compute_window_metrics(trailing_window, issues, pulls)
+    trailing = compute_window_metrics(trailing_window, issues, pulls, repository)
     evaluation = evaluate(current, trailing)
-    verification, _ = verify_baseline(issues, pulls)
+    verification, _ = verify_baseline(issues, pulls, repository)
 
     trailing_block = dict(trailing.as_dict())
     # フィールド名 `trailing_4_weeks` だけでは「プールド比」か「週次比の平均」か読めないため、
@@ -251,7 +252,7 @@ def _cmd_report(args: argparse.Namespace, stdout, stderr) -> int:
 
 def _cmd_verify_baseline(args: argparse.Namespace, stdout, stderr) -> int:
     issues, pulls = gather(args.repository, args.issues_json, args.pulls_json, args.limit)
-    payload, mismatches = verify_baseline(issues, pulls)
+    payload, mismatches = verify_baseline(issues, pulls, args.repository)
     stdout.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
     if mismatches:
         for line in mismatches:
@@ -268,7 +269,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def add_common(target: argparse.ArgumentParser) -> None:
-        target.add_argument("--repository", required=True, help="OWNER/REPO")
+        target.add_argument(
+            "--repository",
+            required=True,
+            help="OWNER/REPO（取得先であると同時に、本文中のリポジトリ修飾付き参照"
+            "＝OWNER/REPO#N と完全 URL を自リポジトリのものだけに絞る判定にも使う・"
+            "Issue #493。形式が読めなければ窓内 Issue の有無に依らず exit 1）",
+        )
         target.add_argument("--issues-json", help="gh issue list --json 出力（省略時は gh を実行）")
         target.add_argument("--pulls-json", help="gh pr list --json 出力（省略時は gh を実行）")
         target.add_argument(
@@ -302,6 +309,12 @@ def main(argv: list[str] | None = None, stdout=None, stderr=None) -> int:
     stderr = stderr if stderr is not None else sys.stderr
     args = build_parser().parse_args(argv)
     try:
+        # ``--repository`` の形式検証は入口で無条件に行う（Issue #493 F-493-02）。
+        # ``referenced_numbers`` の内側にだけ置くと、窓内に作成 Issue が1件も無い入力では
+        # 一度も呼ばれず、宣言している fail-close が「そのデータに派生判定対象があるか」
+        # というデータ依存の偶然になる。``add_common`` が全サブコマンドへ必須で付けるため、
+        # ここは常に評価される。
+        normalise_repository(args.repository)
         if args.command == "report":
             return _cmd_report(args, stdout, stderr)
         if args.command == "verify-baseline":

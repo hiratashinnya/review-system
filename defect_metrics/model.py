@@ -15,9 +15,19 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 * **窓**: ``lo <= t < hi`` の半開区間・UTC（:class:`Window`）。閉区間にすると
   隣接窓が境界の1点を二重計上する。
 * **分母**: 窓内に merge された PR 数（``mergedAt`` が窓に入るもの）。
-* **分子（主指標）**: 窓内に作成された Issue のうち、本文が参照する ``#N`` に
+* **分子（主指標）**: 窓内に作成された Issue のうち、本文が参照する PR に
   「その Issue の起票時刻から遡って :data:`DERIVATION_HORIZON` 以内に merge された
   PR」が1つ以上含まれるもの＝**派生 Issue**。
+  **参照の記法は ``#N``・同一リポジトリの ``OWNER/REPO#N``・同一リポジトリの完全 URL
+  （``https://github.com/OWNER/REPO/pull/N``）の3つを同じ参照として数える**
+  （Issue #493 オーナー確定・案 (a)）。人間にとって ``#487``・``OWNER/REPO#487``・
+  ``.../pull/487`` は同じ意味であり、記法差はツールからは見えない。一部の記法だけを
+  拾っていると、指標の正しさが「起票者がその記法で書き続ける」という**どこにも記録されて
+  いない前提**に乗り、前提が崩れたときに主指標が静かに下振れする（そして「欠陥混入が減った」
+  ように見える）。3記法を PR 番号へ正規化した集合で扱うので、同じ PR を複数記法で書いた本文が
+  二重計上されることはない。実装＝:func:`defect_metrics.metrics.referenced_numbers`。
+  リポジトリ修飾付きの2記法は計測対象リポジトリのものだけを採る（照合規則と改名時の挙動＝
+  :func:`defect_metrics.metrics.normalise_repository`）。
 * **分子（副指標）**: 窓内に作成された全 Issue 数。起票粒度の変化に汚染されるため
   主指標と対で出す（Issue #488「現状と根拠」＝直近窓の改善が対策由来か起票粒度の
   変化かを分離できるようにする）。
@@ -28,6 +38,16 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 基線窓 ``2026-08-02 〜 08-16``: merged PR 22 / 全 Issue 41 / 全 Issue/PR 1.86 /
 派生 Issue 15 / 派生/PR 0.68。:data:`BASELINE_WINDOW` と :data:`BASELINE_DERIVED_PER_PR`
 はこの実測値であり、閾値判定（:mod:`defect_metrics.threshold`）の基線でもある。
+
+**Issue #493（``OWNER/REPO#N`` と完全 URL の同一視）による再計算の結果＝変化なし**
+（2026-09-08 実測）。定義を広げると基線窓の派生 Issue 数が増えうるため、追加した2記法の
+それぞれについて基線窓（番号 302〜367。#301 は 2026-08-01T15:12Z で窓の手前、#368 は
+2026-08-16T05:27Z で窓の外）の本文を走査した。完全 URL は #323→323・#339→339 の自己参照
+2件だけ、``OWNER/REPO#N`` は #320（Issue ではなく PR＝分子の母集団外）と #345（既に派生と
+数えられている Issue）の2件だけで、どちらの記法でも新たに派生になる Issue は無い。
+参照の追加は派生判定を増やす方向にしか働かないため、派生 Issue は 15 件のまま・分母と
+副指標は定義が変わっていないので、下記5定数はいずれも据え置きである（「変わらなかった」
+ことを記録する＝Issue #493 Acceptance criteria。走査の手順は ``README.md`` §6.1）。
 """
 
 from __future__ import annotations
@@ -40,6 +60,16 @@ from datetime import datetime, timedelta, timezone
 #: ``baseline_verification`` / ``trailing_4_weeks.aggregation`` を追加した際も **1 のまま
 #: 据え置く**——未 merge の初版がまだ確定していない途中であり、是正だけを理由に版を
 #: もう一度動かさない（`.ai/guidance/common.md`「正本・実装規約」）。
+#:
+#: Issue #493（``#N``・``OWNER/REPO#N``・完全 URL を同一の参照として数える）でも
+#: **1 のまま据え置く**。本定数が表すのは**読取側のパース互換**であり、フィールドの
+#: 追加・削除・型変更は無い（変わったのは ``report_window.primary.definition`` の**文言**
+#: だけで、これは値としてレポートに載るので読み手は定義の変化をレポート自体から観測できる）。
+#: 基線値も再計算の結果 変化しなかった（上記モジュール docstring）ため、
+#: ``baseline_verification.reproduced`` が転ぶこともない。据え置く判断を黙って行わず、
+#: ここに理由を残す。同 PR のレビュー是正で ``OWNER/REPO#N`` を足した際も、未 merge の
+#: 初版がまだ確定していない途中である以上、是正だけを理由に版を動かさない
+#: （`.ai/guidance/common.md`「正本・実装規約」の再 bump 規律）。
 SCHEMA_VERSION = 1
 
 #: 派生 Issue と判定する地平線。Issue 起票時刻から遡ってこの時間内に merge された
@@ -125,6 +155,7 @@ BASELINE_WINDOW = Window(
 )
 
 #: 基線窓の実測値（Issue #488「現状と根拠」の表）。
+#: Issue #493 で参照の記法を3つへ広げた後も再計算で同値であることを確認済み（上記 docstring）。
 BASELINE_MERGED_PRS = 22
 BASELINE_ALL_ISSUES = 41
 BASELINE_DERIVED_ISSUES = 15
