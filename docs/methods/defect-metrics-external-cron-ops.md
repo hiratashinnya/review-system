@@ -5,9 +5,11 @@
   Issue #493（参照の記法＝`#N`・`OWNER/REPO#N`・完全 URL の同一視）
 - 関連正本: `.github/workflows/defect-metrics.yml`、`defect_metrics/README.md`
 - 前例: `docs/methods/blocker-snapshot-external-cron-ops.md`（同じ方式・同じ粒度）
-- 実施者: 本ドキュメントの手順（cron-job.org のジョブ登録・PAT 発行・疎通確認）は
+- 実施者: §2〜§4 の手順（cron-job.org のジョブ登録・PAT 発行・疎通確認）は
   **リポジトリオーナーが Console 上で手動実施する**。実装エージェント（`issue-implementer` 等）は
   実施しない・実施できない（GitHub 外のサービスの認証情報を扱うため）。
+  **§8（指標定義を変更する PR の merge 前検証）だけは実施者が異なり、主文脈が担う**——
+  GitHub 外の認証情報を必要とせず、リポジトリ内のツール実行だけで完結するため（理由の詳細＝§8.2）。
 
 ## 1. 背景（なぜこの手順が必要か）
 
@@ -264,5 +266,57 @@ gh run list --workflow=defect-metrics.yml --limit 1
   22 PR / 41 Issue / 1.86 / 派生 15 / 0.68 を再現済み＝`defect_metrics/README.md` §6。
   Issue #493 で参照の記法を `#N`・`OWNER/REPO#N`・完全 URL の3つへ広げた後も、2026-09-08 に
   基線窓を再計算して **同じ値**であることを確認済み＝同 §6.1。したがって本ドキュメントに
-  記載した基線値は据え置き）。
+  記載した基線値は据え置き。この 2026-09-08 の再計算は §8 が定める merge 前検証の実施例である）。
 - 報告経路（#461）へレポートを源として追加する際の読み取り可否。
+
+## 8. 指標定義を変更する PR の merge 前検証（実施者＝主文脈）
+
+**`defect_metrics/` の指標定義——参照の検出（`#N`・`OWNER/REPO#N`・完全 URL）、窓の決め方、
+分母・分子の定義——を変更する PR は、merge する前に主文脈が実データに対して `verify-baseline` を
+実行し、記録済み基線への影響（変化の有無）を確認する。**
+
+これは #489 の完了後も残る**恒常的な運用**である。#489 が埋めるのは merge **後**の定期実行に
+よる検知であって、merge **前**の検証ではない。定期実行が実稼働しても、誤った基線定数を含む PR が
+merge されてしまえば、露見するのは次の週次実行（＝job が赤くなる）まで遅れる。
+
+本節をここに置くのは、`verify-baseline` の運用がすべて本ドキュメントに集まっているためである
+（§4.1 の `conclusion` の読み方・§7 の live 実測）。
+
+### 8.1 手順
+
+対象 PR ブランチの作業コピー（linked worktree、または `git archive` で展開したコピー）で実行する。
+
+```
+python3 -m defect_metrics verify-baseline --repository hiratashinnya/review-system
+```
+
+判定は終了コードと stdout の JSON（`reproduced` / `mismatches`）で行う。
+
+| 終了コード | `reproduced` | 読み方と処置 |
+|---|---|---|
+| `0` | `true` | 記録済み基線が再現した。定義変更は基線に影響していないので、基線定数（`defect_metrics/model.py` の `BASELINE_*`）と各文書の記載値は据え置く |
+| `21` | `false` | `mismatches` に「どの値がいくつからいくつへ動いたか」が入る。**この差分が定義変更の意図どおりかを人が判断する**。意図どおりなら基線定数・`defect_metrics/README.md` §6・本ドキュメント §7 の記載値を**同じ PR で**更新する。意図しない差分なら定義変更側を直す。判断が付かなければ merge せずオーナーへ打ち上げる |
+| `1` | — | 取得・解釈エラー（`gh` の失敗・`--repository` の形式不正・`--limit` 到達による打ち切り等）。**検証できていないので「影響なし」と読まない** |
+
+確認した結果（実行日・`reproduced`・据え置きか更新か）は、その PR の本文またはレビューコメントに残す。
+実例＝Issue #493 の再計算（2026-09-08・`reproduced: true`・据え置き）＝`defect_metrics/README.md` §6.1。
+
+### 8.2 なぜ主文脈が担うのか（当事者ロールは実行できない）
+
+- **当事者ロール（`issue-implementer` / `issue-fixer` / `pr-reviewer`）は `python3 -m defect_metrics` を
+  実行できない。** `.claude/hooks/agent-command-gate.sh` の allowlist が
+  `python3 -m <asset_parity|coverage|dsv2|gitgate|karte|time_fixture_lint|unittest>` に限られており、
+  `defect_metrics` はそこに含まれない（2026-09-08 に実測して deny を確認）。この allowlist を
+  広げるべきかどうかは Issue #493 のレビュー finding F-493-09 として Issue #489 へ申し送り済みであり、
+  本節は**現時点の allowlist を前提に**担い手を定める。
+- **CI では代替できない。** `.github/workflows/defect-metrics.yml` の `on:` は `schedule` と
+  `workflow_dispatch` だけで、`pull_request` トリガを持たない。したがって実データに対する
+  `verify-baseline` は、誰も実行しなければ merge 後の定期実行が初回になる。
+- 主文脈はこのゲートの対象外なので実データで実行できる。**実行できる者が実行しなければ、
+  誤った基線定数が定期実行まで露見しないまま merge される**——これが本節を置く理由である。
+
+### 8.3 適用外
+
+`defect_metrics/` を触る PR でも、指標定義を変えない変更（docstring・README の文言、テストの追加、
+CLI の出力整形など）は本節の対象外である。判断に迷う場合は実行する側に倒す——`verify-baseline` は
+read-only で、`gh` の list を2回叩くだけである。
