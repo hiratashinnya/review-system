@@ -23,14 +23,19 @@ verb:
                      ``--outcome no-change`` の場合を除き fail-close する（Issue #355・
                      詳細は README）。宣言 ``targets`` と実測 touched が一切重ならない
                      ときは警告のみ（拒否はしない・Issue #378 C）。
-  ``check``          当該ラウンドの Attempt が存在し未解消 finding を網羅しているか、
-                     および**全 Attempt** が ``close-attempt`` 済みか（実測信号の供給）。
+  ``check``          当該ラウンドの Attempt が存在し**診断が要る**未解消 finding を
+                     網羅しているか、および**全 Attempt** が ``close-attempt`` 済みか
+                     （実測信号の供給）。``disposition: deferred``/``waived``＝「当該 PR では
+                     処置しない」と決まった finding は診断網羅の要求から外す（Issue #503
+                     観測1。外す前は毎ラウンド必ず 1 回 block し、停止ゲートが形骸化した）。
   ``status``         実害あり残存 / 全件実害なし / 無進捗（同一 finding が3ラウンド連続未解消）
                      を機械判定する（エスカレーション条件）。**``clean`` は「未解消 0 件」では
                      なく「clean を妨げる未解消 0 件」**＝``harm: real`` で
                      ``disposition`` 未決定の finding が1件でも残る間は ``clean`` を返さない
                      （``scope: out`` でも免除しない）。``disposition: deferred``/``waived``
                      だけが ``status: open`` のまま verdict を妨げなくなる（Issue #495）。
+                     無進捗判定も同じ除外を受ける（Issue #503 観測3。誰も直さないと決めた
+                     finding に進捗が無いのは当然で、拾うと ``escalate`` が偽陽性になる）。
                      既定出力は**そのまま注入できる
                      自己完結した本文**（K-15：PostToolUse フックが ``pr-reviewer`` 呼び出し
                      完了直後に実行してコンテキストへ注入する。ただし PostToolUse は
@@ -440,9 +445,18 @@ def _priors_for(karte: model.Karte, finding_ids) -> list:
 
 
 def _stalled_ids(karte: model.Karte) -> list:
+    """無進捗（同一 finding が ``STALL_ROUNDS`` ラウンド連続未解消）の finding ID。
+
+    対象は :meth:`model.Karte.remediation_findings`＝**この PR で是正が求められている**
+    未解消 finding に限る（Issue #503 観測3）。``disposition: deferred``/``waived`` は
+    「誰も直さないと決めた」finding なので、進捗が無いのは当然であり無進捗ではない。
+    除外前は ``deferred`` を 1 件でも抱えたまま 3 ラウンド以上回る PR が**毎回**
+    ``escalate: yes`` を出し、本物の無進捗（是正が 3 ラウンド連続で効いていない）が
+    偽陽性に紛れて見落とされる状態になっていた。
+    """
     return sorted(
         item.id
-        for item in karte.open_findings()
+        for item in karte.remediation_findings()
         if item.max_consecutive_rounds() >= STALL_ROUNDS
     )
 
@@ -791,8 +805,12 @@ def cmd_render(args) -> int:
     open_findings = karte.open_findings()
     if not open_findings:
         lines.append("  (未解消の指摘なし)")
+    stalled_ids = set(_stalled_ids(karte))
     for finding in open_findings:
-        stalled = " ★無進捗" if finding.max_consecutive_rounds() >= STALL_ROUNDS else ""
+        # Issue #503: 無進捗の印も `_stalled_ids`（単一の判定）から引く。ここだけ
+        # `max_consecutive_rounds` を直に見ていると、`status` は無進捗と言わないのに
+        # `render` だけが是正担当へ ★無進捗 を見せる、という食い違いが残る。
+        stalled = " ★無進捗" if finding.id in stalled_ids else ""
         lines.append(
             f"  - {finding.id} [harm={finding.harm}] [severity={finding.severity}] "
             f"[scope={finding.scope}] [disposition={finding.disposition or '未決定'}]"
@@ -1020,8 +1038,19 @@ def cmd_check(args) -> int:
     """当該ラウンドの診断網羅と、**全 Attempt のクローズ**を検査する。
 
     合格条件は 2 つ:
-      1. 当該ラウンドの Attempt が未解消 finding を網羅している。
+      1. 当該ラウンドの Attempt が、**この PR で是正が求められている**未解消 finding
+         （:meth:`model.Karte.remediation_findings`）を網羅している。
       2. **カルテ上の全 Attempt** が ``close-attempt`` 済み（Result を持つ）。
+
+    1 の対象から ``disposition: deferred``/``waived`` を除くのが Issue #503 の是正
+    （観測1）。除外前は「直さないと決まった finding」にも診断を要求していたため、
+    是正担当が指示どおりそれを触らずに他を完璧に是正しても ``check`` が必ず
+    ``EXIT_ERROR`` を返し、SubagentStop の停止ゲートが**毎ラウンド 1 回 block**した。
+    診断を求めるべきなのは「これから直す finding」であって「直さないと決まった
+    finding」ではない——後者に診断を書かせることは、`.claude/rules/03-operational.md`
+    「スコープ拡大禁止」に反する記録を台帳へ入れさせることでもある。**除外規則は
+    ``status`` の verdict・無進捗検知と同じ単一の述語**（``needs_remediation``）を
+    使う（判定経路ごとに実装しない）。
 
     2 を課すのが K-02 の是正。実測 touched-set の唯一の供給源は ``close-attempt`` だが、
     以前は ``check`` も ``append`` も「直前の Attempt がクローズ済みであること」を求めて
@@ -1045,20 +1074,32 @@ def cmd_check(args) -> int:
 
     attempts = [item for item in karte.attempts if item.round == round_no]
     expected = sorted(
-        item.id for item in karte.open_findings() if round_no in item.rounds
+        item.id for item in karte.remediation_findings() if round_no in item.rounds
+    )
+    # Issue #503: 除外した finding は黙って落とさず必ず見せる（何を診断しなくてよいのか、
+    # なぜそう判定したのかを読み手が台帳を開かずに確認できるようにする）。
+    excused = sorted(
+        f"{item.id}（{item.disposition}）"
+        for item in karte.open_findings()
+        if item.cleared_by_disposition and round_no in item.rounds
     )
     print(f"=== check: issue-{issue} round {round_no} ===")
     if not attempts:
         print(
             f"NG: round {round_no} の Attempt が 1 件も無い"
-            f"（未解消 finding: {', '.join(expected) or '(なし)'}）",
+            f"（診断が要る未解消 finding: {', '.join(expected) or '(なし)'}）",
             file=sys.stderr,
         )
         return EXIT_ERROR
     covered = {fid for item in attempts for fid in item.finding_ids}
     missing = [fid for fid in expected if fid not in covered]
     print(f"  Attempt: {', '.join(str(item.number) for item in attempts)}")
-    print(f"  対象の未解消 finding: {', '.join(expected) or '(なし)'}")
+    print(f"  診断が要る未解消 finding: {', '.join(expected) or '(なし)'}")
+    if excused:
+        print(
+            "  診断不要（disposition で当該 PR では処置しないと決定済み・status は open のまま）: "
+            + ", ".join(excused)
+        )
     if missing:
         print(f"NG: 診断されていない未解消 finding: {', '.join(missing)}", file=sys.stderr)
         return EXIT_ERROR
@@ -1097,7 +1138,8 @@ def _status_payload(karte: model.Karte) -> dict:
     verdict は**未解消件数ではなく「clean を妨げる未解消 finding」**で決める。
     ``harm: real`` の finding に限り、``disposition: deferred``（別 Issue へ申し送り）と
     ``waived``（オーナーが明示的に処置不要を許可）は ``status: open`` のまま台帳に残しつつ、
-    verdict の上でだけ clean を妨げない（:attr:`model.Finding.blocks_clean`）。逆に
+    verdict の上でだけ clean を妨げない（:attr:`model.Finding.needs_remediation`——
+    ``check`` の診断網羅要求・無進捗検知と**同じ単一の述語**・Issue #503）。逆に
     ``harm: real`` で disposition が**未決定**のものは、``scope`` が ``out``（スコープ外の
     申告）でも clean を妨げる——「スコープ外」と書くだけで実害判定・記録・ゲートを迂回できた
     のが Issue #495 の欠陥そのものだから、その迂回を機械側で塞ぐ。
@@ -1121,7 +1163,7 @@ def _status_payload(karte: model.Karte) -> dict:
     """
     open_findings = karte.open_findings()
     harmful = [item for item in open_findings if item.harm == "real"]
-    blocking = karte.blocking_findings()
+    blocking = karte.remediation_findings()
     undecided = karte.undecided_findings()
     blocking_harmful = [item for item in blocking if item.harm == "real"]
     if not blocking:

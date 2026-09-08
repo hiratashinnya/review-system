@@ -79,7 +79,11 @@
 
 依存仕様: :mod:`karte` の docstring（Issue #307「カルテの実体」「finding ID による結合」
 「Attempt の機械比較可能ヘッダ」）／Issue #495「提案挙動」1〜6（finding の一本化・``scope``・
-``disposition``・verdict ゲート・``deferred`` を ``resolved`` にしない・ハンドオフの取り込み）。
+``disposition``・verdict ゲート・``deferred`` を ``resolved`` にしない・ハンドオフの取り込み）／
+Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述語
+:attr:`Finding.needs_remediation` へ集約し、verdict・``check``・無進捗検知が共有する）・
+「観測2」（``change_kind`` に文書のみの変更を表す ``doc`` を追加し、既存の ``config`` 記録は
+遡って読み替えない）。
 """
 
 from __future__ import annotations
@@ -90,7 +94,29 @@ from dataclasses import dataclass, field
 
 FORMAT_VERSION = 1
 
-CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "revert")
+# ``change_kind``＝是正の変更種別。類似判定の**宣言信号**（:mod:`karte.similarity`）が
+# ``root_cause`` 一致に加えて見る軸であり、飽和検知（同じアプローチの無駄連打の停止）の入力。
+#
+# ``doc``（Issue #503 観測2・2026-09-09 追加）＝**文書だけを変更する是正**
+# （README・`docs/**`・エージェント定義本文・docstring のみ。コードの挙動を変えない）。
+# 追加前は文書のみのラウンドで実態に合う値が無く、是正担当が已むなく ``config`` を選んだ
+# （Issue #493 の是正ラウンド2 で実測）。実態と違う値が入ると (a) 後から読む者が
+# 「設定を変えた是正」と誤読し、(b) 飽和判定が**別の ``config`` 変更との距離を実態より近く**
+# 算出する——是正ラウンドの相当数は文書のみの変更なので、再発頻度は低くない。
+#
+# **既存カルテの ``config`` 記録は遡って読み替えない**（Issue #503・本 PR で確定）。
+# 台帳は追記のみ（本モジュール docstring「追記規律」）で、書かれた Attempt ブロックは
+# どの verb も書き換えないから、過去の ``config`` は ``config`` のまま残る。移行スクリプトも
+# 読み替えマップも持たない。理由は 2 つ——
+#   * 遡って書き換えると append-only の不変条件（＝改ざん防止の前提）を自ら破ることになる。
+#   * 「当時どう申告したか」は飽和判定が実際に使った入力であり、後から書き換えると
+#     過去ラウンドの判定結果を再現できなくなる（監査可能性の喪失）。
+# **飽和判定への影響**は「新しい ``doc`` の Attempt は、過去の ``config`` の Attempt と
+# ``change_kind`` 経由では類似と判定されなくなる」ことに限られる（``root_cause`` 一致＋
+# ``targets`` 交差、あるいは実測 touched-set 一致の経路は従来どおり効く）。すなわち
+# 語彙追加は飽和判定を**緩める方向**に働きうるが、それは「実態が違う変更を同種と数えていた」
+# 過大計上の解消であって、検知力の意図的な低下ではない。
+CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "doc", "revert")
 HARM_LEVELS = ("real", "none")
 # 指摘の優先度（``harm`` とは独立の軸。``harm: none`` でも ``severity: major`` はあり得る）。
 SEVERITIES = ("blocker", "major", "minor")
@@ -115,9 +141,16 @@ DEFAULT_SCOPE = "in"
 #                   許可者本人であることの機械検証ではない＝:func:`parse_disposition` の
 #                   「既知の限界」）。
 DISPOSITIONS = ("fix-here", "deferred", "waived")
-# verdict の上でだけ ``clean`` を妨げなくなる disposition（Issue #495 の二層設計）。
+# 「当該 PR では処置しない」とオーナーが決めた disposition（Issue #495 の二層設計）。
 # ``status`` は ``open`` のまま残す——``deferred`` を ``resolved`` にすると
 # 「別 Issue へ移したと書くだけで指摘が消える」経路ができ、本 Issue が塞ぐ穴が形を変えて再発する。
+#
+# **この 2 定数を参照してよいのは :attr:`Finding.cleared_by_disposition` だけ**
+# （Issue #503）。判定経路ごとに個別実装すると同じ取りこぼしが経路の数だけ生まれる
+# ——実際、Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` の
+# 診断網羅要求（観測1）と無進捗検知（観測3）が同じ穴を別々に開けていた。以後
+# ``deferred``/``waived`` を参照する判定を足すときは、この述語を経由させれば自動的に
+# 同じ規則が効く。
 CLEARING_DISPOSITIONS = ("deferred", "waived")
 # **解除力は ``harm: real`` の finding にだけ与える**（オーナー確定・2026-09-07・PR #496 F-495-01）。
 # ``disposition`` はそもそも「``harm: real`` に対するオーナー判断の記録」として導入した
@@ -504,22 +537,41 @@ class Finding:
         return self.status == "open"
 
     @property
-    def blocks_clean(self) -> bool:
-        """未解消のまま verdict の ``clean`` を妨げるか（Issue #495 の二層設計）。
+    def cleared_by_disposition(self) -> bool:
+        """「当該 PR では処置しない」とオーナー判断で決まったか（Issue #495／#503）。
 
-        ``harm: real`` の finding に限り、``deferred`` / ``waived`` は ``status: open`` の
-        まま残しつつ **verdict の上でだけ** clean を妨げない。``status`` を ``resolved`` に
-        倒さないのは、「別 Issue へ移したと書くだけで指摘が台帳から消える」経路を作らないため。
+        **``deferred``/``waived`` の除外規則はここ 1 箇所にだけ書く。** ``status`` の
+        verdict・``check`` の診断網羅要求・無進捗検知は、いずれもこの述語を経由する
+        :attr:`needs_remediation` を通して同じ規則を共有する（Issue #503）。
 
         **``harm: none`` には解除力を与えない**（:data:`CLEARING_HARM`・オーナー確定
         2026-09-07）。``harm: none`` の finding に ``disposition`` を書いても記録が残るだけで
         verdict は ``no-harm-only`` のまま——実害なしの指摘だけが残った状態はオーナーへ
         打ち上げる（AI が 2 行書いて STOP を消せる経路を作らない）。
+
+        ``status`` を ``resolved`` に倒さないのは、「別 Issue へ移したと書くだけで指摘が
+        台帳から消える」経路を作らないため（二層設計）。よってこの述語が ``True`` でも
+        finding は ``status: open`` のまま台帳に残る。
         """
-        if not self.is_open:
-            return False
-        cleared = self.harm == CLEARING_HARM and self.disposition in CLEARING_DISPOSITIONS
-        return not cleared
+        return self.harm == CLEARING_HARM and self.disposition in CLEARING_DISPOSITIONS
+
+    @property
+    def needs_remediation(self) -> bool:
+        """**この PR で是正が求められている未解消 finding か**（Issue #503・判定の単一点）。
+
+        3 つの判定経路がこの述語だけを共有する:
+          * ``status`` の verdict … ``clean`` を妨げる未解消 finding
+            （:meth:`Karte.remediation_findings`）。
+          * ``check`` の診断網羅要求 … 当該ラウンドで診断（Attempt）が要る finding。
+          * 無進捗検知 … 「3 ラウンド連続で未解消」を数える対象。
+
+        Issue #495 の実装は除外を verdict 算出にしか入れておらず、``check`` は
+        ``deferred`` の finding にも診断を要求して**毎ラウンド必ず 1 回 block**し
+        （Issue #503 観測1）、無進捗検知は誰も直さないと決めた finding を拾って
+        ``escalate: yes`` を偽陽性で出していた（同 観測3）。どちらも「常に鳴るゲートは
+        本物を検出できなくなる」形で安全機構を形骸化させるため、除外を 1 箇所へ寄せる。
+        """
+        return self.is_open and not self.cleared_by_disposition
 
     @property
     def needs_disposition(self) -> bool:
@@ -583,13 +635,15 @@ class Karte:
     def open_findings(self) -> list:
         return [item for item in self.findings if item.is_open]
 
-    def blocking_findings(self) -> list:
-        """``clean`` を妨げる未解消 finding（Issue #495）。
+    def remediation_findings(self) -> list:
+        """**この PR で是正が求められている未解消 finding**（Issue #503・単一の集合）。
 
+        verdict の「``clean`` を妨げる未解消」（``status --json`` の ``blocking_findings``）・
+        ``check`` の診断網羅要求・無進捗検知は、いずれもこの 1 つの集合を使う。
         除かれるのは **``harm: real`` かつ** ``deferred``/``waived`` のものだけ
         （:data:`CLEARING_HARM`）。``harm: none`` は ``disposition`` を書いても残る。
         """
-        return [item for item in self.findings if item.blocks_clean]
+        return [item for item in self.findings if item.needs_remediation]
 
     def undecided_findings(self) -> list:
         """``harm: real`` かつ disposition 未決定のまま未解消の finding（Issue #495）。"""
