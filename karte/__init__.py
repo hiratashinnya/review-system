@@ -44,9 +44,10 @@
   **スコープの内外を問わない単一の列**とし、``scope``（``in``/``out``・必須・免除力なし）と
   ``disposition``（``fix-here``/``deferred``/``waived``＝オーナー判断の記録）を持たせ、
   **``harm: real`` かつ ``disposition`` 未決定の finding が残る間は verdict を ``clean`` に
-  しない**。``deferred``/``waived`` は ``status: open`` のまま verdict の上でだけ clean を
-  妨げなくする二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで指摘が消える」
-  経路が生まれる）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
+  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、**「是正を要する
+  finding」の集合からだけ外す**二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで
+  指摘が消える」経路が生まれる）。この除外は verdict だけでなく ``check`` の診断網羅要求・
+  無進捗検知にも同じく効く（下記「除外規則は 1 箇所に置く」）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
   ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
   「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
   書式と移行措置の詳細は ``karte/README.md``。

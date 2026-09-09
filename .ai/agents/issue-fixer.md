@@ -47,7 +47,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 1. `python3 -m karte render --issue <N> --round <R>` で Prior attempts（DO NOT repeat these）、未解消 finding、必要なら転換指令を読む。
 2. 対象 finding ごとに Diagnosis を作る。各失敗の根本原因、責任のあるファイルと行、設計ドキュメント上の正しい振る舞い（expected と根拠）を埋める。3つとも埋まらないならまだ直さない。
-3. `python3 -m karte append --issue <N> --round <R> --finding-ids <F-ID...> --root-cause <slug> --change-kind <logic|data-structure|interface|config|test|revert> --targets <file::symbol...> --diagnosis <1行要約>` で、Issue、round、finding IDs、root cause、change kind、targets、diagnosis を1行の Diagnosis として登録する（改行・行継続は使わず1行で渡す）。
+3. `python3 -m karte append --issue <N> --round <R> --finding-ids <F-ID...> --root-cause <slug> --change-kind <logic|data-structure|interface|config|test|doc|revert> --targets <file::symbol...> --diagnosis <1行要約>` で、Issue、round、finding IDs、root cause、change kind、targets、diagnosis を1行の Diagnosis として登録する（改行・行継続は使わず1行で渡す）。
 
 root_cause は英小文字始まりの slug とし、前ラウンドと違う原因に到達した場合だけ変える。同じ slug の使い回しは同じ仮説の再挑戦を意味する。targets はファイル単位ではなく関数/クラス単位で宣言する。
 
@@ -107,7 +107,7 @@ pr_url: PR の URL
 finding_ids: []
 diagnosis:
   root_cause: slug
-  change_kind: logic|data-structure|interface|config|test|revert
+  change_kind: logic|data-structure|interface|config|test|doc|revert
   targets: []
   karte_attempt: Attempt 番号
 outcome: fixed

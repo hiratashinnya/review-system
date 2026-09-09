@@ -128,8 +128,10 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 `status: resolved` は「当該 PR で実際に直った」だけに限定する。`deferred` を `resolved` に
 倒すと「**別 Issue へ移したと書くだけで指摘が台帳から消える**」経路ができ、本 Issue が塞ごうと
-している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま残し、
-**verdict の上でだけ** `clean` を妨げなくする。
+している穴が形を変えて再発する。よって `deferred`/`waived` は `status: open` のまま台帳に残し、
+**「是正を要する finding」の集合からだけ外す**（`Finding.needs_remediation` が偽になる）。
+この除外は verdict だけの話ではない——verdict・`check` の診断網羅要求・無進捗検知（`escalate`）の
+3 経路が同じ 1 つの述語を共有する（次節）。
 
 ### `deferred`/`waived` の除外は 1 箇所に置く（Issue #503）
 
