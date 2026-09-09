@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from branch_source import BranchSourceError
 from gitgate.adopt import AdoptBranchRequest, adopt_branch
 from gitgate.worktree import (
     WorktreeError,
@@ -36,6 +37,8 @@ from gitgate.worktree import (
     parse_collect_worktree_args,
     parse_worktree_forget_args,
     parse_worktree_release_args,
+    parse_worktree_sweep_args,
+    sweep_abandoned_running,
     validate_collect_dest,
     validate_handoff_relpath,
     validate_worktree_path,
@@ -71,9 +74,14 @@ class FakeGit:
         fail_ancestor_check=False,
         timeout_fetch=False,
         remove_stderr=None,
+        dirty_status=False,
+        locked=(),
     ):
         self.root = Path(root)
         self.linked = list(linked)
+        # Issue #502: `git status --porcelain` の出力（空＝clean）と、porcelain の `locked` 行。
+        self.dirty_status = dirty_status
+        self.locked = set(locked)
         self.calls = []
         self.call_kwargs = []
         self.fail_branch_delete = fail_branch_delete
@@ -94,6 +102,10 @@ class FakeGit:
                 return subprocess.CompletedProcess(argv, 1, "", self.remove_stderr)
             shutil.rmtree(argv[-1], ignore_errors=True)
             return subprocess.CompletedProcess(argv, 0, "", "")
+        if argv[:2] == ["git", "status"]:
+            return subprocess.CompletedProcess(
+                argv, 0, " M review_system/x.py\n" if self.dirty_status else "", ""
+            )
         if argv[:2] == ["git", "fetch"]:
             if self.timeout_fetch:
                 raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout", 30))
@@ -117,10 +129,14 @@ class FakeGit:
     def _porcelain(self):
         blocks = [f"worktree {self.root}\nHEAD {'0' * 40}\nbranch refs/heads/main\n"]
         for relative in self.linked:
-            blocks.append(
+            block = (
                 f"worktree {self.root / relative}\nHEAD {'0' * 40}\n"
                 f"branch refs/heads/claude/issue-354\n"
             )
+            if relative in self.locked:
+                # git はロックされた worktree に `locked [<reason>]` 行を出す（Issue #502）。
+                block += "locked in use by a running agent\n"
+            blocks.append(block)
         return "\n".join(blocks) + "\n"
 
     @property
@@ -1569,6 +1585,332 @@ class CollectWorktreeDeferredReleaseTests(LedgerFixture):
                 now=FIXED_NOW, runner=git,
             )
         self.assertEqual(ctx.exception.reason, "WORKTREE_REMOVE_FAILED")
+
+
+# ---------------------------------------------------------------------------
+# worktree-sweep-abandoned（Issue #502・観測1）
+# ---------------------------------------------------------------------------
+
+
+class SweepArgumentTests(unittest.TestCase):
+    def test_both_flags_are_required(self):
+        # `--reason` は「なぜ掃引したか」の一次情報、`--no-live-dispatch` は
+        # 「live な dispatch が1つも無いことを観測した」という申告。どちらも必須。
+        for args in (
+            [],
+            ["--reason", "x"],
+            ["--no-live-dispatch"],
+            ["--no-live-dispatch", "--reason", "   "],
+            ["--no-live-dispatch", "--reason", "x", "--force"],
+        ):
+            with self.subTest(args=args):
+                with self.assertRaises(WorktreeError):
+                    parse_worktree_sweep_args(args)
+
+    def test_accepts_the_full_form(self):
+        request = parse_worktree_sweep_args(
+            ["--no-live-dispatch", "--reason", "rate limit recovery"]
+        )
+        self.assertTrue(request.no_live_dispatch)
+        self.assertEqual(request.reason, "rate limit recovery")
+
+
+class SweepAbandonedRunningTests(LedgerFixture):
+    """異常終了で ``running`` のまま残った worktree の自動回収・解放（Issue #502 観測1）。
+
+    観測1 の実測（Issue #493 の是正ラウンド1）: `issue-fixer` がレートリミットで異常終了し
+    ``SubagentStop`` が発火せず、entry が ``running`` / worktree がブランチを掴んだまま残り、
+    次の dispatch の ``adopt-branch`` が2回とも ``BRANCH_ADOPT_LOCAL_EXISTS`` で失敗した。
+    """
+
+    REASON = "resume-watcher: レートリミット解除を確認しペインがアイドルの地点で掃引した"
+
+    def sweep(self, git, *, no_live_dispatch=True):
+        return sweep_abandoned_running(
+            self.root,
+            now=FIXED_NOW,
+            reason=self.REASON,
+            no_live_dispatch=no_live_dispatch,
+            runner=git,
+        )
+
+    def test_running_is_untouched_without_the_no_live_dispatch_observation(self):
+        """**Issue #423 回帰**: 入れ子委譲中の正当な ``running`` を誤って解放しない。
+
+        ``running`` は「異常終了の取り残し」でも「入れ子委譲待ちの一時停止」でもありうる。
+        状態だけでは区別できないので、区別は**呼び出し地点の観測**に委ねる——観測の申告が
+        無ければ台帳も git も**一切触らない**（`ForbiddenGit` が git 到達を機械的に否定する）。
+        """
+        entry_id = self.entry_with_status("running")
+        self.make_worktree()
+        self.assertEqual(self.sweep(ForbiddenGit(), no_live_dispatch=False), [])
+        self.assertEqual(self.status_of(entry_id), "running")
+        self.assertTrue((self.root / WT_REL).is_dir())
+        self.assertEqual(self.entry(entry_id).get("notes"), [])
+
+    def test_locked_worktree_is_left_alone(self):
+        """**Issue #423 回帰（多層防御の2枚目）**: git が ``locked`` と報告した worktree は
+        live とみなして触らない——ハーネスが live な agent worktree をロックする構成では、
+        観測の申告が誤っていてもここで守られる。"""
+        entry_id = self.entry_with_status("running")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], locked=[WT_REL])
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["kept-locked"])
+        self.assertEqual(self.status_of(entry_id), "running")
+        self.assertTrue((self.root / WT_REL).is_dir())
+        self.assertEqual(git.removals, [])
+
+    def test_abandoned_running_with_a_handoff_is_collected_and_released(self):
+        # 自分の handoff がある＝成果物を回収してから解放する（`collect-worktree` と同じ段）。
+        entry_id = self.entry_with_status("running")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+        expected_dest = (
+            f"tmp/_handoff/collected/{entry_id}--issue-implementer--issue-354-pr2.yaml"
+        )
+        self.assertEqual(self.entry(entry_id)["collected_to"], expected_dest)
+        self.assertEqual((self.root / expected_dest).read_bytes(), HANDOFF_BODY)
+        # ローカルブランチ ref も掃除される＝次の adopt-branch を塞がない。
+        self.assertEqual(
+            git.branch_deletes, [["git", "branch", "-D", "claude/issue-354-pr2"]]
+        )
+
+    def test_abandoned_running_without_a_handoff_is_released_when_discardable(self):
+        # 観測1 そのもの: handoff 未作成・作業ツリー clean・HEAD が origin に含まれる。
+        # 主文脈が手で確認していた3条件を機械化し、確認できたときだけ解放する。
+        entry_id = self.entry_with_status("running")
+        self.make_worktree(handoff=None)
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+        self.assertFalse((self.root / WT_REL).exists())
+
+    def test_dirty_worktree_without_a_handoff_is_kept_and_escalated(self):
+        # 未コミット/未追跡の変更がある＝失われる作業がありうる。解放せず `stale` へ落として
+        # 既存の ISSUE_START_WORKTREE_RESIDUE deny（解消コマンド付き）へ合流させる。
+        entry_id = self.entry_with_status("running")
+        self.make_worktree(handoff=None)
+        git = FakeGit(self.root, linked=[WT_REL], dirty_status=True)
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["kept-unsafe"])
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / WT_REL).is_dir())
+        self.assertEqual(git.removals, [])
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(any("捨ててよいと確認できなかった" in note for note in notes), notes)
+
+    def test_unpushed_commits_without_a_handoff_are_kept_and_escalated(self):
+        # HEAD が origin/<branch> に含まれない＝未 push のコミットがありうる（fail-close）。
+        entry_id = self.entry_with_status("running")
+        self.make_worktree(handoff=None)
+        git = FakeGit(self.root, linked=[WT_REL], fail_ancestor_check=True)
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["kept-unsafe"])
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / WT_REL).is_dir())
+
+    def test_undecidable_fetch_is_not_treated_as_discardable(self):
+        entry_id = self.entry_with_status("running")
+        self.make_worktree(handoff=None)
+        git = FakeGit(self.root, linked=[WT_REL], fail_fetch=True)
+        self.assertEqual([item.action for item in self.sweep(git)], ["kept-unsafe"])
+        self.assertEqual(self.status_of(entry_id), "stale")
+
+    def test_ambiguous_handoff_is_kept_and_escalated(self):
+        # 自分の handoff が2件以上＝どれが今回の成果物か決められないので解放しない。
+        entry_id = self.entry_with_status("running")
+        directory = self.make_worktree()
+        (directory / "tmp" / "_handoff" / "issue-implementer--issue-354-b.yaml").write_bytes(
+            HANDOFF_BODY
+        )
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["kept-unresolved"])
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / WT_REL).is_dir())
+
+    def test_other_agents_handoffs_do_not_count_as_ours(self):
+        # 入れ子委譲先（`verification-author` 等）の handoff は同じ tmp/_handoff に溜まる。
+        # 所有者を見ずに数えると他人の成果物を自分のものと誤認する（Issue #423 の実測）。
+        entry_id = self.entry_with_status("running")
+        directory = self.make_worktree(handoff=None)
+        handoff_dir = directory / "tmp" / "_handoff"
+        handoff_dir.mkdir(parents=True)
+        (handoff_dir / "verification-author--issue-354.yaml").write_bytes(HANDOFF_BODY)
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcomes = self.sweep(git)
+        # 「自分の handoff は無い」と判定され、捨ててよいかの確認へ進む（＝clean なので解放）。
+        self.assertEqual([item.action for item in outcomes], ["released"])
+        self.assertEqual(self.status_of(entry_id), "released")
+
+    def test_only_running_entries_are_candidates(self):
+        # `stopped` / `collected` / `stale` は既存の gate（RESIDUE deny）の担当で、
+        # 掃引が横取りしない（責務を混ぜない）。
+        for status in ("stopped", "collected", "stale"):
+            with self.subTest(status=status):
+                # 状態ごとに台帳を作り直す（同一 agent_id を使い回すと束縛が絡む）。
+                self.setUp()
+                entry_id = self.entry_with_status(status)
+                self.make_worktree()
+                self.assertEqual(self.sweep(ForbiddenGit()), [])
+                self.assertEqual(self.status_of(entry_id), status)
+
+    def test_one_failing_entry_does_not_stop_the_others(self):
+        # 掃引は entry ごとに独立。1件の事故が他を巻き込まない。
+        first = self.entry_with_status("running")
+        self.make_worktree()
+        other_rel = ".claude/worktrees/agent-deadbeefcafe"
+        second = worktree_ledger.open_entry(
+            self.root, issue=354, agent_type="issue-implementer", round=None,
+            branch_name="claude/issue-354-other", handoff_path=HANDOFF_REL, now=FIXED_NOW,
+        )
+        worktree_ledger.bind_agent(
+            self.root, agent_type="issue-implementer",
+            agent_id="deadbeefcafe", worktree_path=other_rel,
+        )
+        # 2件目は worktree の実体が無い（＝解放できない）。
+        git = FakeGit(self.root, linked=[WT_REL])
+        outcomes = {item.entry_id: item.action for item in self.sweep(git)}
+        self.assertEqual(outcomes[first], "released")
+        self.assertIn(outcomes[second], ("kept-unsafe", "kept-unresolved", "kept-error"))
+        self.assertEqual(self.status_of(first), "released")
+        self.assertEqual(self.status_of(second), "stale")
+
+
+@unittest.skipUnless(_HAS_GIT, "git が無い環境では実 git 統合検証をしない")
+class AbandonedSweepRealGitIntegrationTests(unittest.TestCase):
+    """掃引 → ``adopt-branch`` の実 git 通し検証（Issue #502 の受け入れ基準）。
+
+    「1回目の dispatch を異常終了させた状態から、2回目が**手動介入なしで**
+    ``adopt-branch`` できる」ことを、実 git リポジトリ・実 origin・実 linked worktree で
+    1本の通しとして固定する。:class:`SweepAbandonedRunningTests` は ``FakeGit`` で
+    argv と台帳を見るだけなので、掃引の実行結果が ``adopt-branch`` の stage 4 の入力に
+    なる経路を通っていない（`BranchRefCleanupRealGitIntegrationTests` と同じ考え方）。
+    """
+
+    ISSUE = 502
+    BRANCH = "claude/issue-502-sweep-it"
+    AGENT_ID = "issue502it"
+
+    def git(self, *args, cwd=None):
+        completed = subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+            cwd=str(cwd or self.repo), text=True, capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name).resolve()
+        self.origin = base / "origin.git"
+        subprocess.run(
+            ["git", "init", "-q", "--bare", "-b", "main", str(self.origin)],
+            check=True, capture_output=True, text=True,
+        )
+        self.repo = base / "repo"
+        subprocess.run(
+            ["git", "clone", "-q", str(self.origin), str(self.repo)],
+            check=True, capture_output=True, text=True,
+        )
+        (self.repo / "README.md").write_text("x\n", encoding="utf-8")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "init")
+        self.git("push", "-q", "origin", "main")
+        self.worktree_rel = f".claude/worktrees/agent-{self.AGENT_ID}"
+        (self.repo / ".claude" / "worktrees").mkdir(parents=True)
+
+    def _abnormally_terminated_dispatch(self):
+        """1回目の dispatch が push 済みで異常終了した状態を作る。
+
+        ``SubagentStop`` が発火しなかったので台帳は ``running`` のまま・worktree も
+        ブランチを掴んだまま残る（Issue #502 観測1 の実測どおりの形）。
+        """
+        self.git("worktree", "add", "-q", "-b", self.BRANCH, self.worktree_rel, "main")
+        worktree_dir = self.repo / self.worktree_rel
+        (worktree_dir / "note.txt").write_text("work\n", encoding="utf-8")
+        self.git("add", "note.txt", cwd=worktree_dir)
+        self.git("commit", "-qm", "work", cwd=worktree_dir)
+        tip = self.git("rev-parse", "HEAD", cwd=worktree_dir).stdout.strip()
+        self.git("push", "-q", "origin", self.BRANCH, cwd=worktree_dir)
+        entry_id = worktree_ledger.open_entry(
+            self.repo, issue=self.ISSUE, agent_type="issue-implementer", round=None,
+            branch_name=self.BRANCH, handoff_path=None, now=FIXED_NOW,
+        )
+        worktree_ledger.bind_agent(
+            self.repo, agent_type="issue-implementer",
+            agent_id=self.AGENT_ID, worktree_path=self.worktree_rel,
+        )
+        return entry_id, tip
+
+    def test_second_dispatch_can_adopt_without_manual_intervention(self):
+        entry_id, tip = self._abnormally_terminated_dispatch()
+        # 掃引前は adopt-branch が塞がれる（Issue #502 の症状の再現）。
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(
+                AdoptBranchRequest(self.BRANCH, "example/example-repo", tip),
+                cwd=self.repo, runner=subprocess.run,
+            )
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        # 失敗文言が復旧手順へ直結する（掴んでいる worktree path と台帳 entry_id を含む）。
+        detail = str(ctx.exception)
+        self.assertIn(self.worktree_rel.rsplit("/", 1)[-1], detail)
+        self.assertIn(entry_id, detail)
+
+        outcomes = sweep_abandoned_running(
+            self.repo, now=FIXED_NOW,
+            reason="resume-watcher: レートリミット復帰イベント（live な dispatch 無し）",
+            no_live_dispatch=True, runner=subprocess.run,
+        )
+        self.assertEqual([item.action for item in outcomes], ["released"])
+        self.assertFalse((self.repo / self.worktree_rel).exists())
+
+        # 掃引後は手動介入なしで adopt-branch が通る（受け入れ基準そのもの）。
+        result = adopt_branch(
+            AdoptBranchRequest(self.BRANCH, "example/example-repo", tip),
+            cwd=self.repo, runner=subprocess.run,
+        )
+        self.assertEqual(result.expected_oid, tip)
+
+    def test_primary_checkout_holding_the_branch_is_reported_with_a_recovery_step(self):
+        """観測2 の実 git 検証: メインワークツリーが対象ブランチを掴んでいる状態。
+
+        受け入れ基準は「手動介入なしで通るか、**失敗理由から復旧手順へ直結できる**」。
+        primary checkout の切替は agent worktree の解放とは別問題で gitgate では戻せない
+        （レビューアが切り替えたまま戻していない状態）ため、後者を満たす。
+        """
+        self.git("switch", "-q", "-c", self.BRANCH)
+        (self.repo / "note.txt").write_text("work\n", encoding="utf-8")
+        self.git("add", "note.txt")
+        self.git("commit", "-qm", "work")
+        tip = self.git("rev-parse", "HEAD").stdout.strip()
+        self.git("push", "-q", "origin", self.BRANCH)
+
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(
+                AdoptBranchRequest(self.BRANCH, "example/example-repo", tip),
+                cwd=self.repo, runner=subprocess.run,
+            )
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        detail = str(ctx.exception)
+        self.assertIn("primary checkout", detail)
+        self.assertIn(str(self.repo), detail)
+        self.assertIn("git switch", detail)
+        # 掃引は primary checkout を対象にしない（台帳の running ではない）。
+        self.assertEqual(
+            sweep_abandoned_running(
+                self.repo, now=FIXED_NOW, reason="x", no_live_dispatch=True,
+                runner=subprocess.run,
+            ),
+            [],
+        )
 
 
 # ---------------------------------------------------------------------------

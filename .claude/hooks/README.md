@@ -8,7 +8,7 @@
 | ファイル | 役割 |
 |---|---|
 | `on-rate-limit.sh` | `StopFailure(rate_limit)` フックハンドラ。WSL を積極検知したときだけ watcher を切り離し起動。非WSL は no-op。**検知時刻を状態ファイルへ記録し、tmux の status-bar へ一瞬フラッシュ**(入力欄には触れない=out-of-band)。 |
-| `resume-watcher.sh` | リセット時刻まで待機し、tmux ペインへ継続メッセージ + Enter を送出して再開。**状態認識ガード**(前景が claude でなければ注入しない/稼働中は注入しない。アイドルなら注入。制限バナー有無は情報ログのみ)・多重起動防止つき。**継続メッセージには①の検知時刻・解除時刻・現在時刻・解除済みである旨を自動で埋め込む**(検知時刻を LLM の文脈にも届ける)。 |
+| `resume-watcher.sh` | リセット時刻まで待機し、tmux ペインへ継続メッセージ + Enter を送出して再開。**状態認識ガード**(前景が claude でなければ注入しない/稼働中は注入しない。アイドルなら注入。制限バナー有無は情報ログのみ)・多重起動防止つき。**継続メッセージには①の検知時刻・解除時刻・現在時刻・解除済みである旨を自動で埋め込む**(検知時刻を LLM の文脈にも届ける)。**注入直前に worktree 掃引を1度だけ行う**(Issue #502・後述)。 |
 | `lib-pane-guard.sh` | 上記2スクリプトが `source` する共有ライブラリ。状態ディレクトリ(`RL_STATE_DIR`)・ペイン前景判定(`rl_is_claude_pane`)・デフォルト正規表現(`RL_PANE_CMD_RE`)・tmux の timeout ラッパ(`rl_tmux`)・ペインID正規化(`rl_pane_slug`)・検知時刻ファイルのパス(`rl_hit_file`)を1箇所に集約(二重実装の drift 防止)。 |
 
 ## 設計上の前提(公式仕様)
@@ -178,6 +178,36 @@ LLM が「さっきレートリミットに当たったから」と誤って未�
 | `CLAUDE_RL_VERIFY_WAIT` | `20` | 注入後に状態を再確認するまでの待機秒 |
 | `CLAUDE_RL_PANE_CMD_RE` | <code>^(claude&#124;node&#124;bun&#124;deno)$</code> | 注入を許可する前景コマンドの正規表現(拡張正規表現・完全一致)。これに一致しない(シェル等に戻った/ペインが閉じた)ときは注入せず終了。既定は `node`/`bun`/`deno` を含む(B5)。独自ラッパ等でさらに変則な前景コマンドになる環境では実値で上書きする |
 | `CLAUDE_RL_STATE_DIR` | `~/.claude/rate-limit-recovery` | 状態ファイル(ログ・ロック・hit-time)の置き場。主に Python unittest から一時ディレクトリへ隔離するためのフック(D2) |
+| `CLAUDE_RL_SWEEP_WORKTREES` | `1` | 復帰時の worktree 掃引(Issue #502・下記)を行うか。`0` で無効化 |
+
+## 復帰イベントに相乗りする worktree 掃引(Issue #502)
+
+レートリミット・セッション上限で `issue-implementer` / `issue-fixer` が**異常終了**すると
+`SubagentStop` 自体が発火せず、worktree 所有台帳(`tmp/_worktree/ledger.json`)の entry が
+`status: running` のまま残り、worktree も対象ブランチを掴んだまま残留する。この状態では後続
+dispatch の `gitgate adopt-branch` が stage 4 で必ず `BRANCH_ADOPT_LOCAL_EXISTS` になり、
+主文脈が手作業で解放するまで是正ループが完全に止まる(#493 の是正ラウンド1で実測)。
+
+**復帰の契機は既存のレートリミット復帰イベントに相乗りさせる**(オーナー指示 2026-09-08・
+検知経路を二重化しない)。watcher は注入の直前——「解除を確認した」かつ「ペインがアイドル
+(`pane_guard` が WORKING を返さない＝どのサブエージェントも実行中でない)」を**両方**観測できた
+唯一の地点——で `python3 -m gitgate worktree-sweep-abandoned --no-live-dispatch --reason <text>` を
+**1度だけ**実行する。
+
+- **`running` の2つの意味を分ける材料はこの観測しかない**。`running` は「異常終了の取り残し」
+  でも「入れ子委譲待ちの正当な保留」(Issue #423)でもありうる。状態・payload だけでは区別できず、
+  経過時間で区別するのは台帳の設計(TTL を持たない)に反する。よって `gitgate` 側は
+  `--no-live-dispatch` の申告が無ければ**何もしない**——うっかり別経路から呼んでも #423 の保留を
+  壊さない。多層防御として、git が `locked` と報告する worktree も掃引対象から外す。
+- **成果物を失わない側に倒す**。自分の handoff が1件あれば回収(sha 検証)してから解放し、
+  handoff が無い場合は「作業ツリーが clean かつ HEAD が `origin/<branch>` に含まれる」ことを
+  **積極的に確認できたときだけ**解放する。確認できなければ `stale` へ落とし、既存の
+  `ISSUE_START_WORKTREE_RESIDUE` deny(解消コマンド付き)へ合流させる。
+- 掃引の結果は `watcher.log` と ledger entry の `notes`(`worktree-sweep-abandoned:` 行)に残り、
+  何か解放/保留したときは**継続メッセージにも1文だけ添える**(主文脈が「解放済みか」を知らずに
+  再投入して adopt-branch の失敗で初めて気づく、を避ける)。
+- `worktree-sweep-abandoned` verb は**どの gated ロールにも付与しない**
+  (`GITGATE_VERBS_BY_ROLE` 未登録＝既定 deny)。実行主体はこの watcher と非 gated の主文脈だけ。
 
 ## ログ
 
@@ -453,7 +483,7 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 | `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
 | `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
 | `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
-| `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget`)。**フックからはサブプロセスとして起動する**。 |
+| `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget` / `worktree-sweep-abandoned`)。**フックからはサブプロセスとして起動する**。最後の1つは異常終了で `running` のまま残った entry の掃引で、`resume-watcher.sh` が復帰イベントで起動する(Issue #502・上記「復帰イベントに相乗りする worktree 掃引」)。 |
 
 ## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354 / #423)
 

@@ -10,8 +10,12 @@
 #   2) 時刻を取得できたらリセット(+マージン)まで sleep。最後まで取得できず制限バナーだけ
 #      観測できた場合は、当てずっぽうに時刻発火せず「バナー消滅(=リセット発生)」まで待つ。
 #      バナーを一度も観測できなければ注入しない(誤発火防止)。
-#   3) ペインへ継続メッセージ + Enter を送出
-#   4) まだ制限中ならバックオフして再送(上限あり)
+#   3) 注入直前に worktree 掃引を1度だけ実行(Issue #502)。ここは「解除済み」かつ「ペインが
+#      アイドル = live な dispatch が無い」を両方観測できた唯一の地点であり、異常終了で
+#      `running` のまま残った worktree 所有台帳 entry を安全に解放できる契機になる。
+#      検知経路は二重化せず、この復帰イベントに相乗りさせる(オーナー指示 2026-09-08)。
+#   4) ペインへ継続メッセージ + Enter を送出
+#   5) まだ制限中ならバックオフして再送(上限あり)
 #
 # 設定(すべて環境変数で上書き可):
 set -u
@@ -151,7 +155,10 @@ build_continue_msg() {
     [ -n "${reset_str:-}" ] && parts="${parts}解除 ${reset_str} ごろ／"
   fi
   parts="${parts}現在 ${now_str}"
-  printf 'レートリミットは解除されました(%s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。' "$parts"
+  # Issue #502: 復帰時の worktree 掃引の結果があれば1文だけ添える(未実施/対象なしのときは空)。
+  # 主文脈が「異常終了した dispatch の worktree が解放済みかどうか」を知らずに再投入すると、
+  # adopt-branch の失敗を見て初めて気づくことになるため、復帰メッセージ自体に載せる。
+  printf 'レートリミットは解除されました(%s)。制限は解除済みです。サブエージェント利用などの通常プロセスに戻って続けてください。%s' "$parts" "${SWEEP_MSG:-}"
 }
 
 # hit-file(1行目=検知時の session_id・2行目=検知時刻)から、自 session と一致する検知時刻だけを
@@ -177,6 +184,52 @@ resolve_hit_str() {
 if [ "${CLAUDE_RL_SOURCE_FOR_TEST:-0}" = "1" ]; then
   return 0 2>/dev/null || exit 0
 fi
+
+# --- Issue #502: 復帰イベントに相乗りする worktree 掃引 ---
+# 異常終了(レートリミット/セッション上限による強制停止)では SubagentStop が発火せず、
+# worktree 所有台帳の entry が `running` のまま残り、worktree も対象ブランチを掴んだままになる。
+# その状態では次の dispatch の `gitgate adopt-branch` が必ず BRANCH_ADOPT_LOCAL_EXISTS で失敗し、
+# 主文脈が手作業で解放するまで是正ループが止まる(Issue #502 観測1)。
+#
+# **検知経路は二重化しない**(オーナー指示 2026-09-08)。異常終了の主因はレートリミットなので、
+# 復帰の契機は既にここにある「解除を確認し、かつペインがアイドル」という観測に相乗りさせる。
+# ペインがアイドル = どのサブエージェントも実行中でない、という観測が、`running` の2つの意味
+# (入れ子委譲待ちの正当な保留 = Issue #423 / 異常終了の取り残し)を分ける唯一の材料である。
+# その観測を `--no-live-dispatch` として gitgate へ明示的に渡す(これが無いと gitgate 側は
+# 何もしない = 誤って普通の経路から呼んでも #423 の保留を壊さない)。
+#
+# 掃引自体は best-effort。失敗しても watcher の本務(再開注入)は続ける。
+REPO_ROOT="$(cd "${HOOK_DIR}/../.." 2>/dev/null && pwd)"
+SWEEP_MSG=""
+SWEEP_DONE=0
+sweep_abandoned_worktrees() {
+  [ "${CLAUDE_RL_SWEEP_WORKTREES:-1}" = "0" ] && { log "worktree sweep: 無効化されています(CLAUDE_RL_SWEEP_WORKTREES=0)"; return 0; }
+  [ "$SWEEP_DONE" -eq 1 ] && return 0
+  SWEEP_DONE=1
+  if [ -z "${REPO_ROOT}" ] || [ ! -d "${REPO_ROOT}/gitgate" ]; then
+    log "worktree sweep: リポジトリルートを特定できず(REPO_ROOT='${REPO_ROOT}'); skip"
+    return 0
+  fi
+  local out rc
+  out="$(cd "$REPO_ROOT" && python3 -m gitgate worktree-sweep-abandoned \
+    --no-live-dispatch \
+    --reason "resume-watcher: レートリミット解除を確認しペインがアイドル(live な dispatch 無し)の地点で掃引した (Issue #502)" 2>&1)"
+  rc=$?
+  log "worktree sweep: rc=${rc} ${out}"
+  if [ "$rc" -eq 0 ]; then
+    # 処置が要る側(kept-)を優先して知らせる。両方あるときに "解放しました" だけを出すと、
+    # 残っている方を主文脈が見落とす。
+    case "$out" in
+      *"action=kept-"*)
+        SWEEP_MSG="なお、running のまま残っていた agent worktree のうち自動解放できなかったものがあります(Issue #502)。tmp/_worktree/ledger.json の notes を確認し、ISSUE_START_WORKTREE_RESIDUE の解消手順で処置してください。"
+        ;;
+      *"action=released"*)
+        SWEEP_MSG="なお、異常終了で running のまま残っていた agent worktree を復帰時に自動回収・解放しました(Issue #502)。詳細は ~/.claude/rate-limit-recovery/watcher.log と tmp/_worktree/ledger.json の notes を参照してください。"
+        ;;
+    esac
+  fi
+  return 0
+}
 
 # --- 多重起動防止(同一ペインに watcher は1つだけ) ---
 # fd オープン失敗と lock 取得失敗を区別する(Issue #240 B4)。旧実装は `exec 9>… || true` で
@@ -318,6 +371,10 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
     exit 0
   fi
   # アイドル → 注入して再開(制限バナーの有無は問わない。情報としてのみ記録)
+  # 掃引は注入の**直前**に1度だけ行う(Issue #502): ここは「解除済み」かつ「ペインがアイドル
+  # = live な dispatch が無い」ことを両方観測できた唯一の地点で、その観測こそが
+  # 「異常終了で取り残された running」と「入れ子委譲待ちの running(#423)」を分ける材料である。
+  sweep_abandoned_worktrees
   msg="$(build_continue_msg)"
   if is_limit_screen; then
     log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & limit banner still visible; send '${msg}'"

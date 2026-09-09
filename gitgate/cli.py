@@ -25,6 +25,8 @@ from .worktree import (
     parse_collect_worktree_args,
     parse_worktree_forget_args,
     parse_worktree_release_args,
+    parse_worktree_sweep_args,
+    sweep_abandoned_running,
     worktree_forget,
     worktree_release,
 )
@@ -246,7 +248,12 @@ def build_git_argv(argv):
 # 収まらない（fresh fetch + API 検証、台帳の状態遷移、回収→検証→解放の段構造を伴う）。
 # よって `VERB_HANDLERS`（＝`build_git_argv` の純 argv ディスパッチ）には登録せず、
 # `main()` 側で分岐する。`build_git_argv` にこれらを渡すと `unknown verb` になるのが正しい。
-WORKTREE_VERBS = ("worktree-release", "collect-worktree", "worktree-forget")
+WORKTREE_VERBS = (
+    "worktree-release",
+    "collect-worktree",
+    "worktree-forget",
+    "worktree-sweep-abandoned",
+)
 
 
 def _now():
@@ -292,6 +299,27 @@ def _run_worktree_verb(verb, args):
             f"gitgate: collect-worktree {outcome.worktree_path} "
             f"entry={outcome.entry_id or '-'} collected_to={outcome.collected_to or '-'} "
             f"released={'yes' if outcome.released else 'no'}\n"
+        )
+        return 0
+    if verb == "worktree-sweep-abandoned":
+        request = parse_worktree_sweep_args(args)
+        outcomes = sweep_abandoned_running(
+            repo_root,
+            now=_now(),
+            reason=request.reason,
+            no_live_dispatch=request.no_live_dispatch,
+        )
+        released = sum(1 for item in outcomes if item.action == "released")
+        for item in outcomes:
+            sys.stderr.write(
+                f"gitgate: worktree-sweep-abandoned {item.worktree_path} "
+                f"entry={item.entry_id} action={item.action}"
+                + (f" detail={item.detail}" if item.detail else "")
+                + "\n"
+            )
+        sys.stderr.write(
+            f"gitgate: worktree-sweep-abandoned candidates={len(outcomes)} "
+            f"released={released}\n"
         )
         return 0
     request = parse_worktree_forget_args(args)
