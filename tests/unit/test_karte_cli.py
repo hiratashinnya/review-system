@@ -13,6 +13,7 @@
 """
 
 import argparse
+import ast
 import contextlib
 import io
 import json
@@ -22,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -3180,6 +3182,447 @@ class TestHandoffOutOfScopeFindingsAreIngestible(KarteTestCase):
         code, _out, err = self._ingest(1, ("new", broken))
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("recheck", err)
+
+
+# --- Issue #503: deferred/waived の除外を単一の判定へ集約する --------------------
+
+
+# 「当該 PR では処置しない」と決まった finding（HARMFUL / COSMETIC / OUT_OF_SCOPE_HARMFUL の
+# どれとも要約・locus が重ならないので、同一台帳に並べても再発番判定に掛からない）。
+SECOND_HARMFUL = {
+    "harm": "real",
+    "harm_detail": "期限切れの waiver が素通りして処置不要が無期限に効き続ける",
+    "severity": "major",
+    "scope": "out",
+    "evidence": "blocker_gate/waiver.py:301 を読み、上限側の比較が欠けているのを確認",
+    "locus": "blocker_gate/waiver.py::is_valid",
+    "summary": "waiver の有効期限が下限側でしか検査されていない",
+    "expected": "上限・下限の双方で有効期限を検査する",
+    "recheck": "期限切れ waiver の fixture で is_valid が False を返すことを確認する",
+}
+DEFERRED = dict(SECOND_HARMFUL, disposition="deferred", deferred_to="#491")
+WAIVED = dict(
+    SECOND_HARMFUL,
+    disposition="waived",
+    waived_by="owner",
+    waived_reason="運用で回避済みとオーナーが 2026-09-09 に明示判断",
+)
+DIFF = "--- a/a/b.py\n+++ b/a/b.py\n@@ -1 +1 @@ def f(self):\n-x\n+y\n"
+
+
+class TestCheckExcludesDeferredAndWaived(KarteTestCase):
+    """Issue #503 観測1: ``check`` は「直さないと決まった finding」に診断を要求しない。
+
+    是正前は ``check`` が未解消 finding を一律に診断網羅の対象としていたため、是正担当が
+    指示どおり ``disposition: deferred`` の finding を触らずに他を完璧に是正しても
+    **必ず ``EXIT_ERROR``** を返し、SubagentStop の停止ゲートが毎ラウンド 1 回 block した
+    （Issue #493 の是正ラウンド1 で実測）。``check`` を通す唯一の手段は「触らないと決まった
+    finding を自分の診断として台帳に記録する」ことで、それは `.claude/rules/03-operational.md`
+    「スコープ拡大禁止」に反する。**常に鳴るゲートは本物（診断を怠ったケース）を検出できない**。
+    """
+
+    def setUp(self):
+        super().setUp()
+        # F-307-01＝これから直す指摘（診断が要る）／F-307-02＝申し送り済み（診断は要らない）。
+        self._ingest(1, ("new", HARMFUL), ("new", DEFERRED))
+
+    def _diagnose_first_only(self):
+        code, _out, err = self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        code, _out, err = self._close(1, DIFF)
+        self.assertEqual(code, cli.EXIT_OK, err)
+
+    def test_check_passes_when_the_only_undiagnosed_finding_is_deferred(self):
+        """受入基準：``deferred`` を1件含み、それ以外を診断・クローズしたら ``EXIT_OK``。"""
+        self._diagnose_first_only()
+        code, out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_OK, err + out)
+        self.assertIn("網羅", out)
+
+    def test_waived_findings_are_excluded_too(self):
+        self._ingest(2, ("F-307-01", HARMFUL), ("F-307-02", WAIVED))
+        code, _out, err = self._append(
+            round="2", finding_ids=["F-307-01"], root_cause="attrs-overwrite",
+            targets=["a/b.py::f"],
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self._close(1, DIFF)
+        code, out, err = self._run(cli.cmd_check, round="2")
+        self.assertEqual(code, cli.EXIT_OK, err + out)
+
+    def test_excluded_findings_are_reported_not_silently_dropped(self):
+        """除外は黙って落とさない（何を診断しなくてよいのかを出力で確認できる）。"""
+        self._diagnose_first_only()
+        _code, out, _err = self._run(cli.cmd_check, round="1")
+        self.assertIn("診断が要る未解消 finding: F-307-01", out)
+        self.assertIn("診断不要", out)
+        self.assertIn("F-307-02（deferred）", out)
+
+    def test_undecided_finding_is_still_required(self):
+        """回帰防止：``disposition`` 未決定の実害ありは従来どおり診断を要求する。"""
+        code, _out, err = self._append(
+            finding_ids=["F-307-02"], root_cause="waiver-window", targets=["a/b.py::f"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self._close(1, DIFF)
+        code, _out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("F-307-01", err)
+        self.assertNotIn("F-307-02", err)  # 申し送り済みは NG の理由にならない
+
+    def test_fix_here_finding_is_still_required(self):
+        """``fix-here``＝当該 PR で直すと決めた指摘は診断を要求し続ける。"""
+        self._ingest(
+            2, ("F-307-01", dict(HARMFUL, disposition="fix-here")), ("F-307-02", DEFERRED)
+        )
+        code, _out, err = self._append(
+            round="2", finding_ids=["F-307-02"], root_cause="waiver-window",
+            targets=["a/b.py::f"],
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self._close(1, DIFF)
+        code, _out, err = self._run(cli.cmd_check, round="2")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("F-307-01", err)
+
+    def test_closing_every_attempt_is_still_required(self):
+        """回帰防止：合格条件2（全 Attempt のクローズ）は除外の対象外（K-02 を弱めない）。"""
+        code, _out, err = self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        code, _out, err = self._run(cli.cmd_check, round="1")
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("未クローズ", err)
+
+
+class TestDispositionExclusionIsASingleJudgment(KarteTestCase):
+    """Issue #503 観測1＋観測3: ``check`` / 無進捗検知 / verdict が同じ規則を共有すること。
+
+    Issue #495 の実装は除外を verdict 算出（``blocking_findings``）にだけ入れ、他の判定経路へ
+    反映しなかった。その結果**同じ取りこぼしが経路の数だけ別々に開いた**——``check`` は
+    ``deferred`` にも診断を要求し（観測1）、無進捗検知は誰も直さないと決めた finding を拾って
+    ``escalate: yes`` を偽陽性で出した（観測3）。判定経路ごとに個別実装しないこと自体を
+    ここで固定する。
+    """
+
+    # (ラベル, finding の内容, 「この PR で是正が求められるか」)
+    CASES = (
+        ("未決定", dict(SECOND_HARMFUL), True),
+        ("fix-here", dict(SECOND_HARMFUL, disposition="fix-here"), True),
+        ("deferred", DEFERRED, False),
+        ("waived", WAIVED, False),
+        # 解除力は harm: real にだけ与える（PR #496 F-495-01）＝harm: none は除外されない。
+        ("harm-none-deferred",
+         dict(COSMETIC, disposition="deferred", deferred_to="#491"), True),
+    )
+
+    def _payload(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def _seed(self, fields):
+        """F-307-01＝常に診断が要る錨、F-307-02＝検査対象。錨だけを診断してクローズする。"""
+        code, _out, err = self._ingest(1, ("new", HARMFUL), ("new", fields))
+        self.assertEqual(code, cli.EXIT_OK, err)
+        code, _out, err = self._append(
+            finding_ids=["F-307-01"], root_cause="attrs-overwrite", targets=["a/b.py::f"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self._close(1, DIFF)
+
+    def test_check_and_status_agree_on_every_disposition(self):
+        for label, fields, needs_remediation in self.CASES:
+            with self.subTest(disposition=label):
+                self.setUp()  # 台帳は Issue ごとに1本なので毎回作り直す
+                self._seed(fields)
+
+                check_code, _out, check_err = self._run(cli.cmd_check, round="1")
+                in_blocking = "F-307-02" in self._payload()["blocking_findings"]
+
+                self.assertEqual(
+                    in_blocking,
+                    needs_remediation,
+                    "status の blocking_findings が期待と違う",
+                )
+                self.assertEqual(
+                    check_code != cli.EXIT_OK,
+                    needs_remediation,
+                    f"check が status と食い違う（check={check_code} / err={check_err}）",
+                )
+                if needs_remediation:
+                    self.assertIn("F-307-02", check_err)
+
+    def test_stall_detection_uses_the_same_rule(self):
+        """無進捗検知の対象も ``blocking_findings`` と一致する（3経路目）。"""
+        for label, fields, needs_remediation in self.CASES:
+            with self.subTest(disposition=label):
+                self.setUp()
+                self._ingest(1, ("new", HARMFUL), ("new", fields))
+                self._ingest(2, ("F-307-01", HARMFUL), ("F-307-02", fields))
+                self._ingest(3, ("F-307-01", HARMFUL), ("F-307-02", fields))
+                payload = self._payload()
+                self.assertEqual(
+                    "F-307-02" in payload["stalled_findings"], needs_remediation
+                )
+                self.assertEqual(
+                    "F-307-02" in payload["blocking_findings"], needs_remediation
+                )
+
+    CLEARING_CONSTANTS = ("CLEARING_DISPOSITIONS", "CLEARING_HARM")
+
+    @staticmethod
+    def _referenced_names(source):
+        """``source`` が**コードとして**参照している名前（散文・docstring は数えない）。"""
+        tree = ast.parse(textwrap.dedent(source))
+        return {
+            node.attr if isinstance(node, ast.Attribute) else node.id
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Attribute, ast.Name))
+        }
+
+    def test_the_exclusion_rule_lives_in_exactly_one_place(self):
+        """除外規則の実装箇所が1つであること（判定経路ごとの再実装を復活させない）。
+
+        ``CLEARING_DISPOSITIONS`` / ``CLEARING_HARM`` を**コードとして**参照してよいのは
+        :attr:`model.Finding.cleared_by_disposition` だけ。CLI 側（``check`` / 無進捗検知 /
+        verdict）は :attr:`model.Finding.needs_remediation` 経由でのみこの規則へ触る。
+        docstring からの相互参照（``:data:`model.CLEARING_HARM``` 等）は読み手の道標なので
+        数えない——見るのは実際の参照であって言及ではない。
+        """
+        cli_names = self._referenced_names(inspect.getsource(cli))
+        for constant in self.CLEARING_CONSTANTS:
+            with self.subTest(constant=constant):
+                self.assertNotIn(constant, cli_names)
+
+        for func in (
+            model.Karte.remediation_findings,
+            cli._stalled_ids,
+            cli.cmd_check,
+            cli._status_payload,
+        ):
+            with self.subTest(consumer=func.__qualname__):
+                names = self._referenced_names(inspect.getsource(func))
+                for constant in self.CLEARING_CONSTANTS:
+                    self.assertNotIn(constant, names)
+
+        # 単一の述語（cleared_by_disposition）だけが定数を参照する。
+        owner = self._referenced_names(
+            inspect.getsource(model.Finding.cleared_by_disposition.fget)
+        )
+        for constant in self.CLEARING_CONSTANTS:
+            self.assertIn(constant, owner)
+        # needs_remediation は定数ではなくその述語を経由する（規則の二重化を作らない）。
+        via = self._referenced_names(
+            inspect.getsource(model.Finding.needs_remediation.fget)
+        )
+        self.assertIn("cleared_by_disposition", via)
+        for constant in self.CLEARING_CONSTANTS:
+            self.assertNotIn(constant, via)
+
+    def test_predicate_is_the_conjunction_of_open_and_not_cleared(self):
+        for status, harm, disposition, expected in (
+            ("open", "real", "", True),
+            ("open", "real", "deferred", False),
+            ("open", "real", "waived", False),
+            ("open", "none", "deferred", True),
+            ("resolved", "real", "", False),
+            ("resolved", "real", "deferred", False),
+        ):
+            with self.subTest(status=status, harm=harm, disposition=disposition):
+                finding = model.Finding(
+                    id="F-503-01", status=status, harm=harm, disposition=disposition
+                )
+                self.assertEqual(finding.needs_remediation, expected)
+
+
+class TestStallDetectionExcludesDeferredAndWaived(KarteTestCase):
+    """Issue #503 観測3: 誰も直さないと決めた finding を無進捗として数えない。
+
+    ``deferred`` は「この PR では直さない」とオーナーが決めた finding なので、**進捗が無いのは
+    当然**である。にもかかわらず無進捗検知がこれを拾い ``escalate: yes`` を出していた
+    （Issue #493 の round 3 で実測）。``escalate: yes`` は
+    `.ai/skills/issue-pipeline/SKILL.md` が定めるオーナー打ち上げ条件の1つであり、
+    ``deferred`` を1件でも抱えたまま3ラウンド以上回る PR は毎回この偽陽性を出す
+    ——本物の無進捗が偽陽性に紛れて見落とされる（観測1と同じ形骸化）。
+    """
+
+    def _payload(self):
+        code, out, err = self._run(cli.cmd_status, json=True)
+        self.assertEqual(code, cli.EXIT_OK, err)
+        return json.loads(out)
+
+    def _three_rounds(self, *findings):
+        for round_no in (1, 2, 3):
+            titles = [
+                ("new" if round_no == 1 else model.format_finding_id(self.issue, index + 1), fields)
+                for index, fields in enumerate(findings)
+            ]
+            code, _out, err = self._ingest(round_no, *titles)
+            self.assertEqual(code, cli.EXIT_OK, err)
+
+    def test_deferred_finding_is_not_stalled_and_does_not_escalate(self):
+        self._three_rounds(DEFERRED)
+        payload = self._payload()
+        self.assertEqual(payload["open_findings"], ["F-307-01"])  # 台帳には残る
+        self.assertEqual(payload["stalled_findings"], [])
+        self.assertFalse(payload["escalate"])
+        _code, text, _err = self._run(cli.cmd_status, json=False)
+        self.assertIn("escalate: no", text)
+        self.assertIn("無進捗（3 ラウンド連続未解消）: (なし)", text)
+
+    def test_waived_finding_is_not_stalled_either(self):
+        self._three_rounds(WAIVED)
+        payload = self._payload()
+        self.assertEqual(payload["stalled_findings"], [])
+        self.assertFalse(payload["escalate"])
+
+    def test_a_real_stall_is_still_detected_next_to_a_deferred_one(self):
+        """回帰防止：本物の無進捗は従来どおり検出する（検知力を落とさない）。"""
+        self._three_rounds(DEFERRED, HARMFUL)
+        payload = self._payload()
+        self.assertEqual(payload["stalled_findings"], ["F-307-02"])
+        self.assertTrue(payload["escalate"])
+        _code, text, _err = self._run(cli.cmd_status, json=False)
+        self.assertIn("escalate: yes（理由: 無進捗（F-307-02））", text)
+        self.assertNotIn("F-307-01）", text.split("escalate:")[1])
+
+    def test_harm_none_deferred_is_still_stalled(self):
+        """解除力は ``harm: real`` にだけ（PR #496 F-495-01 の非対称を無進捗側でも保つ）。"""
+        self._three_rounds(dict(COSMETIC, disposition="deferred", deferred_to="#491"))
+        payload = self._payload()
+        self.assertEqual(payload["stalled_findings"], ["F-307-01"])
+        self.assertTrue(payload["escalate"])
+
+    def test_render_does_not_mark_a_deferred_finding_as_stalled(self):
+        """``render`` の ★無進捗 も同じ判定から引く（是正担当に食い違う印を見せない）。"""
+        self._three_rounds(DEFERRED, HARMFUL)
+        _code, out, _err = self._run(cli.cmd_render)
+        marked = [line for line in out.splitlines() if "★無進捗" in line]
+        self.assertEqual(len(marked), 1, out)
+        self.assertIn("F-307-02", marked[0])
+
+
+# --- Issue #503 観測2: change_kind に文書のみの変更を表す値を足す -----------------
+
+
+class TestDocChangeKind(KarteTestCase):
+    """Issue #503 観測2: 文書だけの是正ラウンドで実態に合う ``change_kind`` を選べること。
+
+    追加前は ``append --change-kind doc`` が ``invalid choice`` で ``exit 2`` になり、是正担当は
+    実態と違う ``config`` を選ばざるを得なかった（Issue #493 の是正ラウンド2 で実測）。
+    実態と違う値が入ると (a) 後から読む者が「設定を変えた是正」と誤読し、(b) 飽和判定が
+    別の ``config`` 変更との距離を実態より近く算出する。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._ingest(1, ("new", HARMFUL))
+
+    def test_doc_is_an_accepted_change_kind(self):
+        self.assertIn("doc", model.CHANGE_KINDS)
+        code, out, err = self._append(
+            change_kind="doc", root_cause="stale-doc", targets=["karte/README.md"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertIn("change_kind: doc", out)
+        self.assertEqual(self._karte().attempt(1).change_kind, "doc")
+
+    def test_doc_is_on_the_public_cli_surface(self):
+        args = cli.build_parser().parse_args([
+            "append", "--issue", "307", "--finding-ids", "F-307-01",
+            "--root-cause", "stale-doc", "--change-kind", "doc",
+            "--targets", "karte/README.md",
+        ])
+        self.assertEqual(args.change_kind, "doc")
+
+    def test_doc_survives_a_ledger_roundtrip(self):
+        self._append(change_kind="doc", root_cause="stale-doc", targets=["karte/README.md"])
+        self.assertIn("change_kind: doc", self._karte_text())
+        _code, out, _err = self._run(cli.cmd_status, json=True)
+        payload = json.loads(out)
+        self.assertEqual(payload["findings"][0]["attempts"][0]["change_kind"], "doc")
+
+    def test_existing_config_records_are_not_reinterpreted(self):
+        """既存カルテの ``config`` 記録は遡って読み替えない（台帳は追記のみ）。
+
+        遡って書き換えると (1) append-only の不変条件（改ざん防止の前提）を自ら破り、
+        (2)「当時どう申告したか」＝飽和判定が実際に使った入力が失われて過去ラウンドの
+        判定結果を再現できなくなる。読み替えマップも移行 verb も持たないことを固定する。
+        """
+        self._append(change_kind="config", root_cause="threshold", targets=["cfg/a.yml"])
+        # 語彙追加後に後続ラウンドを回しても、過去の申告は config のまま残る。
+        self._close(1, DIFF)
+        self._append(change_kind="doc", root_cause="stale-doc", targets=["karte/README.md"])
+        karte = self._karte()
+        self.assertEqual(karte.attempt(1).change_kind, "config")
+        self.assertEqual(karte.attempt(2).change_kind, "doc")
+        self.assertIn("change_kind: config", self._karte_text())
+        for verb in ("migrate", "rewrite-change-kind", "remap"):
+            self.assertNotIn(verb, cli.build_parser().format_help())
+
+    def test_doc_and_config_are_distinct_for_the_declared_signal(self):
+        """飽和判定への影響：``change_kind`` 軸では別種として扱われる（緩む方向）。"""
+        prior = similarity.AttemptView(1, "rc", "config", ("cfg/a.yml",), ())
+        candidate = similarity.AttemptView(2, "rc", "doc", ("docs/b.md",), ())
+        self.assertIsNone(similarity.compare(candidate, prior))
+
+    def test_other_similarity_signals_are_untouched(self):
+        """``targets`` 交差・実測 touched-set 一致の経路は従来どおり効く（緩めたのは1軸だけ）。"""
+        prior = similarity.AttemptView(1, "rc", "config", ("docs/b.md",), ())
+        overlapping = similarity.AttemptView(2, "rc", "doc", ("docs/b.md",), ())
+        self.assertIsNotNone(similarity.compare(overlapping, prior))
+
+        measured_prior = similarity.AttemptView(
+            1, "rc-one", "config", ("cfg/a.yml",), ("docs/b.md",)
+        )
+        relabeled = similarity.AttemptView(2, "rc-two", "doc", ("docs/b.md",), ())
+        hit = similarity.compare(relabeled, measured_prior)
+        self.assertIsNotNone(hit)
+        self.assertTrue(hit.measured)
+
+
+class TestReadmeDocumentsTheJudgmentRules(unittest.TestCase):
+    """Issue #503 受入基準: ``check`` の判定規則と ``change_kind`` の決定が README にあること。
+
+    ``status`` の verdict 側だけが README で説明され、``check`` の判定規則がどこにも書かれて
+    いなかったことが、両者の食い違い（同じ台帳から機械が2つの異なる結論を出す状態）を
+    「散文を読まないと判断できない」ものにしていた。
+    """
+
+    README = (
+        Path(__file__).resolve().parents[2] / "karte" / "README.md"
+    ).read_text(encoding="utf-8")
+
+    def test_check_judgment_rules_are_documented(self):
+        self.assertIn("### `check` の判定規則", self.README)
+        self.assertIn("needs_remediation", self.README)
+        self.assertIn("`deferred` / `waived` の finding は対象から外れる", self.README)
+        # 合格条件2（全 Attempt のクローズ）も落とさず併記されている。
+        self.assertIn("`close-attempt` 済み", self.README)
+        # 互換性（exit code に依存する CI・フックの挙動が変わること）。
+        self.assertIn("`EXIT_OK` になる", self.README)
+
+    def test_single_judgment_point_is_documented(self):
+        self.assertIn("除外は 1 箇所に置く", self.README)
+        for consumer in ("verdict", "診断網羅", "無進捗検知"):
+            self.assertIn(consumer, self.README)
+
+    def test_change_kind_vocabulary_and_decisions_are_documented(self):
+        self.assertIn("### `change_kind` の語彙", self.README)
+        self.assertIn("| `doc` |", self.README)
+        # 既存 `config` 記録を遡って読み替えないこと（観測2の決定）。
+        self.assertIn("遡って読み替えない", self.README)
+        # 飽和判定への影響。
+        self.assertIn("飽和判定への影響", self.README)
+
+    def test_documented_vocabulary_matches_the_implementation(self):
+        for kind in model.CHANGE_KINDS:
+            with self.subTest(change_kind=kind):
+                self.assertIn(f"| `{kind}` |", self.README)
 
 
 if __name__ == "__main__":
