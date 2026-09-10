@@ -3,6 +3,13 @@
 > LLM 呼び出し6箇所（[10](../requirements/10-llm-system-boundary.md) L1–L6）の**プロンプトを何でどう組むか**を固める。実体は `prompts/`（雛形＋ビルダー・[02](02-module-architecture.md)）。
 > 中核は L1 評価。組み立ては `ReviewPromptBuilder`（[01 §6](01-class-design.md)）＝**役割制約→観点→対象→参照→出力スキーマ**の順次積み上げ（[02 P3.1](../process/02-decomposition.md)）。
 > 版管理は [DD7](decisions.md#dd7--プロンプト雛形のバージョニング)（雛形 id ごと整数版）。版スタンプ(S6)に載る（[08](08-logging-and-versioning.md)）。
+>
+> ⚠️ **実装状況（2026-07-29 追記・Codex 第4巡レビュー）**：**本書は設計であって、実装されているのは版定数だけ**。
+> `review_system/prompts/` にあるのは `registry.py`（`TEMPLATE_VERSIONS`／`REVIEW_VERSION`）のみで、
+> **`prompts/templates/<id>.md` も `ReviewPromptBuilder` も存在しない**。MVP は PF 駆動（[DD8](decisions.md)）で、
+> Claude が本書の規約に沿って手で書いた `findings.json` を `FilePlatformAdapter` が読む形＝
+> **プロンプトの組み立てはコードの外**にある（[07 入力設計](../requirements/07-ai-input-design.md)）。
+> 版スタンプ（S6）だけは `registry.REVIEW_VERSION`→`core/pipeline.py` で実際に結線されている（[08 §4](08-logging-and-versioning.md)）。
 
 ## 雛形カタログ（id・版・用途）
 

@@ -31,10 +31,23 @@
   レビュー是正、`pr-reviewer` のレビュー中に見つけた別件、その他同種のファンアウトロール）。
 - **処置**：作業中にスコープ外の問題（無関係な改善点・別の不具合・別 Issue 相当の指摘）を見つけたら、
   - **自分で直さない**。
-  - ハンドオフ・最終報告に**列挙するだけ**に留める（`issue-implementer`/`issue-fixer` は
-    ハンドオフの `out_of_scope_findings` に記録する）。
+  - **構造化された列挙先へ出す**（Issue #495 で経路を一本化した）：
+    - `pr-reviewer` は**別セクションやチャットの散文へ逃がさず、通常の finding として同じ列**に入れ、
+      `scope: out` と申告する（書式は `.ai/agents/pr-reviewer.md`）。
+    - `issue-implementer`/`issue-fixer` はハンドオフの `out_of_scope_findings` に、
+      finding と同じキー（`harm`/`harm_detail`/`severity`/`locus`/`summary`/`evidence`/
+      `expected`/`recheck`＋`scope: out`）を揃えて記録する。
+  - **「スコープ外」は実害判定の免除ではない**：`harm` は必ず付ける。主文脈は
+    `python3 -m karte ingest-review` でこれらを**カルテの finding 列へ取り込み**、
+    `harm: real` の指摘は処置方針（`disposition: fix-here|deferred|waived`）が決まるまで
+    `karte status` の verdict が `clean` にならない（機械ゲート）。
   - 対応要否・別 Issue 化の判断と実行は**呼び出し元（主文脈）に委ねる**
     （`/issue-pipeline` の運用では「スコープ拡張は別 Issue に逃がす」・起票の実行は主文脈が担う）。
+    `waived`（処置不要）は**オーナーの明示判断**による。機械が強制するのは**記録**
+    （許可者 `waived_by` と理由 `waived_reason` を書かずに `waived` を通せない）までで、
+    **記録者がオーナー本人かは検証していない**（`deferred_to` も形式検査だけで Issue の
+    実在は見ない）。多層防御の一枚であって sandbox ではないため、本節の運用規律と併用する
+    ——既知の限界は `karte/README.md`「既知の限界（多層防御の一枚であって sandbox ではない）」。
   - doc-system-v2 に関わる指摘であれば、FND/Q ノード起票（`verification-author` 経由）の要否も
     主文脈が判断する。
 - **理由**：スコープ外の変更が紛れ込むと、レビューアが把握していない差分として PR に混入し、

@@ -51,6 +51,72 @@ _ATTEMPT_LEASE_SECONDS = 60
 _PUBLISH_LEASE_SECONDS = 60
 _HANDOFF_SCHEMA_VERSION = 1
 _SESSION_STATE_ROOT = Path("tmp/_codex_sessions")
+_REQUIRED_DISABLED_FEATURES = (
+    "multi_agent", "apps", "plugins", "remote_plugin", "browser_use", "computer_use",
+    "hooks", "shell_snapshot", "skill_mcp_dependency_install", "skill_search",
+    "workspace_dependencies", "auth_elicitation", "plugin_sharing",
+    "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
+    "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
+    # Issue #491: alternate process-capability variants must not bypass the
+    # permission-profile route selected by Issue #452.
+    "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
+    "code_mode_only", "multi_agent_mode", "multi_agent_v2",
+)
+# codex-cli 0.153.4 の ``codex features list`` で観測した名前のスナップショット。
+# この集合は無害性の allowlist ではない。catalog 外の名前だけを下の process 能力語彙で
+# fail-close 判定し、既知 feature は ``_REQUIRED_DISABLED_FEATURES`` で個別に固定する。
+_KNOWN_CLI_FEATURES = frozenset({
+    "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
+    "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
+    "background_paginated_rollout_migration", "browser_use", "browser_use_external",
+    "browser_use_full_cdp_access", "chronicle", "code_mode", "code_mode_buffered_exec",
+    "code_mode_host", "code_mode_interrupt", "code_mode_only", "codex_git_commit",
+    "collaboration_modes", "compaction_image_budget", "computer_use",
+    "concurrent_reasoning_summaries", "current_time_reminder", "cwd_relative_turn_diffs",
+    "default_mode_request_user_input", "deferred_executor", "deferred_tool_world_state",
+    "elevated_windows_sandbox", "enable_fanout", "enable_mcp_apps",
+    "enable_request_compression", "exec_permission_approvals", "executed_tool_call_metadata",
+    "executor_capability_discovery", "experimental_windows_sandbox",
+    "external_agent_memory_import", "external_migration", "fast_mode", "goals",
+    "guardian_approval", "guardian_enhanced_node_repl_transcripts",
+    "guardian_node_repl_transcript_images", "guardian_reuse_parent_compaction", "guardianv2",
+    "hooks", "image_detail_original", "image_generation", "image_resize_notice",
+    "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_updates", "item_ids",
+    "js_repl", "js_repl_tools_only", "local_thread_store_compression", "mcp_2026_07_28",
+    "memories", "mentions_v2", "multi_agent", "multi_agent_mode", "multi_agent_v2",
+    "network_proxy", "non_prefixed_mcp_tool_names", "personality", "plugin_hooks",
+    "plugin_sharing", "plugins", "prevent_idle_sleep", "psp", "realtime_conversation",
+    "recommended_plugins", "remote_compaction_v2", "remote_control", "remote_models",
+    "remote_plugin", "request_permissions_tool", "request_rule", "resize_all_images",
+    "respect_system_proxy", "responses_websockets", "responses_websockets_v2",
+    "retain_client_developer_messages", "rollout_budget", "runtime_metrics", "search_tool",
+    "secret_auth_storage", "send_async_message", "shell_snapshot", "shell_tool",
+    "shell_zsh_fork", "skill_env_var_dependency_prompt", "skill_mcp_dependency_install",
+    "skill_search", "sqlite", "standalone_web_search", "steer",
+    "terminal_resize_reflow", "terminal_visualization_instructions", "token_budget",
+    "tool_call_mcp_elicitation", "tool_search", "tool_search_always_defer_mcp_tools",
+    "tool_suggest", "tui_app_server", "unavailable_dummy_tools",
+    "unbounded_connection_retries", "undo", "unified_exec", "unified_exec_zsh_fork",
+    "unified_image_budget", "use_agent_identity", "use_legacy_landlock",
+    "use_linux_sandbox_bwrap", "view_image", "web_search_cached", "web_search_request",
+    "workspace_dependencies", "workspace_owner_usage_nudge",
+})
+_PROCESS_CAPABILITY_MARKERS = frozenset({
+    "agent", "agents", "app", "apps", "approval", "approvals", "bash", "broker",
+    "browser", "code", "command", "commands", "computer", "container", "daemon",
+    "exec", "hook", "hooks", "mcp", "network", "permission", "permissions",
+    "plugin", "plugins", "process", "proxy", "remote", "sandbox", "shell",
+    "skill", "skills", "spawn", "subprocess", "terminal", "tool", "tools", "vm",
+    "eval", "fork", "run", "runner", "script", "worker", "pty", "tty", "ssh",
+    "deno", "interpreter", "js", "node", "python", "repl", "sh", "wasm", "zsh",
+    "bwrap", "docker", "elevated", "escalate", "landlock", "privileged", "root",
+    "seatbelt", "sudo",
+})
+_HIGH_SIGNAL_PROCESS_MARKERS = frozenset({
+    "broker", "exec", "proc", "repl", "sandbox", "shell", "spawn", "subprocess",
+})
+_FEATURE_NAME_SEPARATOR = re.compile(r"[^a-z0-9]+")
+_FEATURE_LIST_HEADER = ("name", "maturity", "state")
 _PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
 _PERMISSION_PROFILE_SCHEMA = "codex-permission-profile/1"
 _PERMISSION_PROFILE_VERSION = "0.153.4"
@@ -1495,6 +1561,89 @@ def _run_active_boundary_probe(
             pass
 
 
+def _parse_feature_states(stdout: str) -> dict[str, str]:
+    """``codex features list`` を厳密に読む。未知の行形式を黙って捨てない。"""
+
+    states: dict[str, str] = {}
+    for line in stdout.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        if tuple(field.lower() for field in fields) == _FEATURE_LIST_HEADER:
+            continue
+        if len(fields) != 3:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED",
+                f"unparsed features line: {line.strip()}",
+            )
+        name, _maturity, state = fields
+        if name in states:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED", f"duplicate feature: {name}"
+            )
+        states[name] = state
+    return states
+
+
+def _suggests_process_capability(name: str) -> bool:
+    """feature名が未レビューのprocess実行能力を示唆するか判定する。"""
+
+    lowered = name.lower()
+    if any(marker in lowered for marker in _HIGH_SIGNAL_PROCESS_MARKERS):
+        return True
+    return bool(_PROCESS_CAPABILITY_MARKERS & set(_FEATURE_NAME_SEPARATOR.split(lowered)))
+
+
+def _unreviewed_process_features(states: Mapping[str, str]) -> tuple[str, ...]:
+    return tuple(sorted(
+        name
+        for name, state in states.items()
+        if name not in _KNOWN_CLI_FEATURES
+        and state != "false"
+        and _suggests_process_capability(name)
+    ))
+
+
+def _validate_feature_catalog(
+    codex: Path | str,
+    values: Sequence[str],
+    runtime_home: Path | str,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> dict[str, str]:
+    """model/API開始前にprocess featureの無効化と未知能力を検査する。"""
+
+    overrides = [argument for value in values for argument in ("--config", value)]
+    env = _minimal_process_env()
+    env["CODEX_HOME"] = str(runtime_home)
+    env["CODEX_SQLITE_HOME"] = str(Path(runtime_home) / "sqlite")
+    try:
+        completed = runner(
+            [str(codex), "features", "list", *overrides],
+            env=env, text=True, capture_output=True, check=False,
+        )
+    except (OSError, subprocess.SubprocessError, TypeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_PREFLIGHT_FAILED") from exc
+    if getattr(completed, "returncode", 1) != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED")
+    states = _parse_feature_states(getattr(completed, "stdout", ""))
+    enabled = tuple(sorted(
+        f"{name}={states.get(name, '<absent>')}"
+        for name in _REQUIRED_DISABLED_FEATURES
+        if states.get(name) != "false"
+    ))
+    if enabled:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED", " ".join(enabled)
+        )
+    unreviewed = _unreviewed_process_features(states)
+    if unreviewed:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN", " ".join(unreviewed)
+        )
+    return states
+
+
 def validate_cli_compatibility(
     command: Sequence[str],
     *,
@@ -1541,6 +1690,9 @@ def validate_cli_compatibility(
     )
     _validate_external_configs(workspace, Path(runtime_home).resolve(strict=True))
     codex_source = _ro_bind_source(command, codex)
+    _validate_feature_catalog(
+        codex_source, values, runtime_home, runner=runner,
+    )
     expected_deny_paths = (
         Path(runtime_home).resolve(strict=True),
         (Path(runtime_home) / "auth.json").resolve(strict=True),
@@ -1645,6 +1797,12 @@ def build_codex_command(
         "--config", "features.exec_permission_approvals=false",
         "--config", "features.executor_capability_discovery=false",
         "--config", "features.deferred_executor=false",
+        "--config", "features.shell_zsh_fork=false",
+        "--config", "features.unified_exec_zsh_fork=false",
+        "--config", "features.code_mode_buffered_exec=false",
+        "--config", "features.code_mode_only=false",
+        "--config", "features.multi_agent_mode=false",
+        "--config", "features.multi_agent_v2=false",
         "--config", "apps._default.enabled=false",
     ]
     if resume_thread is not None:

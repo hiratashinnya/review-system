@@ -1,0 +1,862 @@
+"""defect_metrics（欠陥混入率の機械計測・Issue #488）の単体テスト。
+
+時刻依存 test data の扱い（`.claude/rules/04-test-data.md`「時刻依存 test data の規律」）
+--------------------------------------------------------------------------------------
+本テストは絶対日付を多用するが、**wall clock を読む経路は 1 つしかない**
+（`defect_metrics.cli.resolve_now`）。指標算出・閾値判定はいずれも渡された窓と
+レコードだけで決まる純粋関数であり、実行時刻に依存しない。窓の決定が現在時刻に
+依存する経路（``--window-start``/``--window-end`` を省略した場合と、閾値判定の
+「直近4週」）を検証するテストでは、必ず ``--now`` / ``now=`` で固定値を注入する
+（``resolve_now`` の既定分岐だけは注入せずに呼ぶが、そこでは固定日付と比較せず
+「UTC の aware datetime を返すこと」しか検査しないため、時間経過で結果が反転しない）。
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from defect_metrics import cli, collect, metrics, model, threshold  # noqa: E402
+
+
+#: 計測対象リポジトリ。参照の URL 形式は**このリポジトリのものだけ**を採るため、
+#: 指標算出の各関数へ引き渡す必要がある（Issue #493）。
+REPO = "hiratashinnya/review-system"
+
+
+def ts(text: str) -> datetime:
+    return model.parse_timestamp(text)
+
+
+def issue(number: int, created: str, body: str = "", closed: str | None = None) -> model.IssueRecord:
+    return model.IssueRecord(
+        number=number,
+        created_at=ts(created),
+        closed_at=ts(closed) if closed else None,
+        body=body,
+    )
+
+
+def pull(number: int, merged: str) -> model.PullRequestRecord:
+    return model.PullRequestRecord(number=number, merged_at=ts(merged))
+
+
+class TimestampTests(unittest.TestCase):
+    def test_date_only_is_midnight_utc(self):
+        self.assertEqual(ts("2026-08-02"), datetime(2026, 8, 2, tzinfo=timezone.utc))
+
+    def test_trailing_z_is_accepted(self):
+        self.assertEqual(ts("2026-08-02T03:04:05Z"), datetime(2026, 8, 2, 3, 4, 5, tzinfo=timezone.utc))
+
+    def test_offset_is_normalised_to_utc(self):
+        self.assertEqual(ts("2026-08-02T09:00:00+09:00"), datetime(2026, 8, 2, tzinfo=timezone.utc))
+
+    def test_naive_input_is_treated_as_utc(self):
+        self.assertEqual(ts("2026-08-02T00:00:00"), datetime(2026, 8, 2, tzinfo=timezone.utc))
+
+    def test_empty_is_rejected(self):
+        with self.assertRaises(ValueError):
+            ts("   ")
+
+    def test_format_timestamp_is_z_suffixed(self):
+        self.assertEqual(model.format_timestamp(ts("2026-08-02T00:00:00+00:00")), "2026-08-02T00:00:00Z")
+
+
+class WindowTests(unittest.TestCase):
+    def setUp(self):
+        self.window = model.Window(start=ts("2026-08-02"), end=ts("2026-08-16"))
+
+    def test_boundary_is_half_open(self):
+        """start は含み end は含まない（隣接窓が境界を二重計上しない）。"""
+        self.assertTrue(self.window.contains(ts("2026-08-02T00:00:00Z")))
+        self.assertTrue(self.window.contains(ts("2026-08-15T23:59:59Z")))
+        self.assertFalse(self.window.contains(ts("2026-08-16T00:00:00Z")))
+        self.assertFalse(self.window.contains(ts("2026-08-01T23:59:59Z")))
+
+    def test_none_is_never_contained(self):
+        self.assertFalse(self.window.contains(None))
+
+    def test_days(self):
+        self.assertEqual(self.window.days, 14.0)
+
+    def test_shifted_back_is_adjacent(self):
+        trailing = self.window.shifted_back(timedelta(days=28))
+        self.assertEqual(trailing.end, self.window.start)
+        self.assertEqual(trailing.start, ts("2026-07-05"))
+
+    def test_empty_or_inverted_window_is_rejected(self):
+        with self.assertRaises(ValueError):
+            model.Window(start=ts("2026-08-16"), end=ts("2026-08-02"))
+        with self.assertRaises(ValueError):
+            model.Window(start=ts("2026-08-02"), end=ts("2026-08-02"))
+
+    def test_naive_boundary_is_rejected(self):
+        with self.assertRaises(ValueError):
+            model.Window(start=datetime(2026, 8, 2), end=datetime(2026, 8, 16))
+
+
+class ReferenceExtractionTests(unittest.TestCase):
+    def test_plain_references(self):
+        self.assertEqual(metrics.referenced_numbers("PR #123 が原因。#45 も参照。", REPO), {123, 45})
+
+    def test_cross_repo_and_heading_and_entity_are_excluded(self):
+        body = "owner/repo#99 と ## 見出し と &#187; と abc#77"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), set())
+
+    def test_all_three_notations_for_the_same_pr_are_one_reference(self):
+        """3記法を併記しても参照集合の要素数は増えない（Issue #493 F-493-01）。"""
+        body = (
+            f"#487 と {REPO}#487 と "
+            f"https://github.com/{REPO}/pull/487 はすべて同じ PR を指す。"
+        )
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_trailing_word_characters_are_excluded(self):
+        self.assertEqual(metrics.referenced_numbers("#12abc", REPO), set())
+
+    def test_empty_body(self):
+        self.assertEqual(metrics.referenced_numbers(None, REPO), set())
+        self.assertEqual(metrics.referenced_numbers("", REPO), set())
+
+
+class QualifiedReferenceExtractionTests(unittest.TestCase):
+    """``OWNER/REPO#N``（リポジトリ完全指定の短縮形）も同じ参照として扱う（Issue #493 F-493-01）。
+
+    この記法は本 repository の Issue/PR 本文に実在する（例＝#320 の本文の
+    ``hiratashinnya/review-system#301``）。`#N` と完全 URL だけを拾っていると、
+    同じ「記法が変わると主指標が静かに下振れする」穴が第三の記法に残る。
+    """
+
+    def test_self_repository_qualified_form_is_a_reference(self):
+        self.assertEqual(metrics.referenced_numbers(f"PR {REPO}#487 が原因", REPO), {487})
+
+    def test_other_repository_qualified_form_is_excluded(self):
+        """他リポジトリの完全指定は従来どおり参照にしない（番号の誤ヒットを防ぐ）。"""
+        self.assertEqual(metrics.referenced_numbers("other/repo#487 を参考にした", REPO), set())
+
+    def test_owner_and_repo_are_case_insensitive(self):
+        self.assertEqual(metrics.referenced_numbers("HiratashInnya/Review-System#487", REPO), {487})
+
+    def test_line_start_and_list_marker_are_accepted(self):
+        body = f"- Closes {REPO}#302\n{REPO}#303 も同時に解消する"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {302, 303})
+
+    def test_trailing_word_characters_are_excluded(self):
+        self.assertEqual(metrics.referenced_numbers(f"{REPO}#12abc", REPO), set())
+
+    def test_repository_root_url_with_a_fragment_is_not_a_reference(self):
+        """``https://github.com/OWNER/REPO#12`` は PR/Issue を指す URL ではない。
+
+        owner の直前が ``/`` になるため本記法の否定後読みで落ち、``URL_REFERENCE_RE`` も
+        ``/pull/`` ``/issues/`` を要求するので拾わない。URL の扱いは URL 側の正規表現に
+        一本化されている。
+        """
+        self.assertEqual(
+            metrics.referenced_numbers(f"https://github.com/{REPO}#12", REPO), set()
+        )
+
+
+class UrlReferenceExtractionTests(unittest.TestCase):
+    """完全 URL 形式も ``#N`` と同じ参照として扱う（Issue #493 オーナー確定・案 (a)）。"""
+
+    def test_full_url_is_a_reference(self):
+        body = "原因は https://github.com/hiratashinnya/review-system/pull/487 だと思われる。"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_issues_path_is_also_accepted(self):
+        """``#N`` は Issue/PR を区別しない記法なので、URL 側も ``/issues/N`` を受ける。"""
+        body = "https://github.com/hiratashinnya/review-system/issues/487"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_both_notations_for_the_same_pr_are_counted_once(self):
+        """同一 PR を両記法で書いた本文が二重計上されない（番号へ正規化した集合で持つ）。"""
+        body = "#487 と https://github.com/hiratashinnya/review-system/pull/487 は同じ PR。"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_other_repository_url_is_excluded(self):
+        """``org/repo#12`` を除外している以上、他リポジトリの URL も参照にしない。
+
+        ここを緩めると、他リポジトリの PR 番号が自リポジトリの PR 番号として誤ヒットする。
+        """
+        body = "https://github.com/other/project/pull/487 を参考にした"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), set())
+
+    def test_owner_and_repo_are_case_insensitive(self):
+        body = "https://github.com/HiratashInnya/Review-System/pull/487"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_trailing_path_and_fragment_do_not_break_the_number(self):
+        body = (
+            "https://github.com/hiratashinnya/review-system/pull/487/files と "
+            "https://github.com/hiratashinnya/review-system/pull/455#issuecomment-1"
+        )
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487, 455})
+
+    def test_url_inside_a_markdown_link_is_found(self):
+        body = "[#487](https://github.com/hiratashinnya/review-system/pull/487)"
+        self.assertEqual(metrics.referenced_numbers(body, REPO), {487})
+
+    def test_malformed_repository_is_rejected(self):
+        """``OWNER/REPO`` が読めないときは黙って旧定義へ戻らず止める（PR4）。"""
+        for bad in ("", "review-system", "a/b/c"):
+            with self.assertRaises(ValueError):
+                metrics.referenced_numbers("#1", bad)
+
+
+class DerivedIssueTests(unittest.TestCase):
+    def setUp(self):
+        self.pulls = {
+            10: pull(10, "2026-08-03T00:00:00Z"),
+            11: pull(11, "2026-08-10T00:00:00Z"),
+        }
+
+    def test_within_horizon_is_derived(self):
+        self.assertTrue(
+            metrics.is_derived(issue(1, "2026-08-04T00:00:00Z", "#10 の後で壊れた"), self.pulls, REPO)
+        )
+
+    def test_exact_horizon_boundary_is_inclusive(self):
+        """merge から丁度 72 時間後の起票は派生に含める（境界を含む）。"""
+        self.assertTrue(metrics.is_derived(issue(1, "2026-08-06T00:00:00Z", "#10"), self.pulls, REPO))
+
+    def test_just_past_horizon_is_not_derived(self):
+        self.assertFalse(metrics.is_derived(issue(1, "2026-08-06T00:00:01Z", "#10"), self.pulls, REPO))
+
+    def test_pull_merged_after_creation_is_not_derived(self):
+        """起票より後に merge された PR は原因になりえない。"""
+        self.assertFalse(metrics.is_derived(issue(1, "2026-08-09T00:00:00Z", "#11"), self.pulls, REPO))
+
+    def test_unknown_reference_is_ignored(self):
+        self.assertFalse(metrics.is_derived(issue(1, "2026-08-04T00:00:00Z", "#999"), self.pulls, REPO))
+
+    def test_multiple_references_count_once(self):
+        target = issue(1, "2026-08-04T00:00:00Z", "#10 と #999 と #11")
+        self.assertTrue(metrics.is_derived(target, self.pulls, REPO))
+
+    def test_url_only_reference_is_derived(self):
+        """URL 形式だけで PR を参照している本文も派生として拾う（Issue #493 の主眼）。"""
+        target = issue(
+            1,
+            "2026-08-04T00:00:00Z",
+            "https://github.com/hiratashinnya/review-system/pull/10 の merge 後に壊れた",
+        )
+        self.assertTrue(metrics.is_derived(target, self.pulls, REPO))
+
+    def test_url_to_another_repository_is_not_derived(self):
+        target = issue(1, "2026-08-04T00:00:00Z", "https://github.com/other/project/pull/10")
+        self.assertFalse(metrics.is_derived(target, self.pulls, REPO))
+
+    def test_qualified_only_reference_is_derived(self):
+        """``OWNER/REPO#N`` だけで PR を参照している本文も派生として拾う（F-493-01）。"""
+        target = issue(1, "2026-08-04T00:00:00Z", f"PR {REPO}#10 の merge 後に壊れた")
+        self.assertTrue(metrics.is_derived(target, self.pulls, REPO))
+
+    def test_qualified_reference_to_another_repository_is_not_derived(self):
+        target = issue(1, "2026-08-04T00:00:00Z", "other/project#10 の merge 後に壊れた")
+        self.assertFalse(metrics.is_derived(target, self.pulls, REPO))
+
+
+class WindowMetricsTests(unittest.TestCase):
+    def setUp(self):
+        self.window = model.Window(start=ts("2026-08-02"), end=ts("2026-08-16"))
+        self.pulls = [
+            pull(1, "2026-08-01T12:00:00Z"),  # 窓外（直前）
+            pull(2, "2026-08-03T00:00:00Z"),
+            pull(3, "2026-08-10T00:00:00Z"),
+            pull(4, "2026-08-16T00:00:00Z"),  # 窓外（終端は含まない）
+        ]
+        self.issues = [
+            issue(101, "2026-08-02T00:00:00Z", "#1 の直後に壊れた"),  # 窓外 PR 参照でも派生
+            issue(102, "2026-08-04T00:00:00Z", "#2 の retrospective"),
+            # 窓内で close される唯一の Issue（closed_issues / open_issue_net_change 用）。
+            issue(103, "2026-08-05T00:00:00Z", "無関係", closed="2026-08-09T00:00:00Z"),
+            issue(104, "2026-08-14T00:00:00Z", "#3 は 72h 超過なので派生ではない"),
+            issue(105, "2026-08-20T00:00:00Z", "#3"),  # 窓外の起票
+        ]
+
+    def test_counts_and_ratios(self):
+        result = metrics.compute_window_metrics(self.window, self.issues, self.pulls, REPO)
+        self.assertEqual(result.merged_prs, 2)
+        self.assertEqual(result.created_issues, 4)
+        self.assertEqual(result.derived_issues, 2)
+        self.assertEqual(result.derived_issue_numbers, (101, 102))
+        self.assertEqual(result.closed_issues, 1)
+        self.assertEqual(result.open_issue_net_change, 3)
+        self.assertAlmostEqual(result.issues_per_pr, 2.0)
+        self.assertAlmostEqual(result.derived_per_pr, 1.0)
+
+    def test_zero_denominator_yields_none_not_zero(self):
+        empty = model.Window(start=ts("2026-09-01"), end=ts("2026-09-02"))
+        result = metrics.compute_window_metrics(empty, self.issues, self.pulls, REPO)
+        self.assertEqual(result.merged_prs, 0)
+        self.assertIsNone(result.issues_per_pr)
+        self.assertIsNone(result.derived_per_pr)
+
+    def test_primary_and_secondary_are_reported_separately(self):
+        payload = metrics.compute_window_metrics(
+            self.window, self.issues, self.pulls, REPO
+        ).as_dict()
+        self.assertIn("derived_per_pr", payload["primary"])
+        self.assertIn("issues_per_pr", payload["secondary"])
+        self.assertNotEqual(payload["primary"]["derived_issues"], payload["secondary"]["created_issues"])
+
+
+#: 同じ PR を指す3記法（Issue #493）。どれで書いても計数が変わらないことを検証するために使う。
+REFERENCE_STYLES = ("hash", "qualified", "url")
+
+
+def _reference(number: int, style: str) -> str:
+    """派生 Issue が原因 PR を指すときの表記。3記法はいずれも同じ意味である。"""
+    if style == "url":
+        return f"https://github.com/{REPO}/pull/{number}"
+    if style == "qualified":
+        return f"{REPO}#{number}"
+    return f"#{number}"
+
+
+def _baseline_dataset(
+    reference_style: str = "hash",
+) -> tuple[list[model.IssueRecord], list[model.PullRequestRecord]]:
+    """Issue #488「現状と根拠」の基線窓の計数（22 PR / 41 Issue / 派生 15）を再現する合成データ。
+
+    実データそのものではなく「同じ計数になる最小構成」であり、検証対象は
+    分母・分子・比率・丸めの算術と窓の境界条件（実データ由来の値は
+    ``verify-baseline`` サブコマンドが GitHub から取得して照合する）。
+
+    ``reference_style`` は派生 Issue が原因 PR を指す表記（:data:`REFERENCE_STYLES`）。
+    どれでも同じ計数になることが Issue #493 の主張そのものなので、切り替えられるようにする。
+    """
+    pulls = [pull(1000 + i, f"2026-08-{2 + (i % 13):02d}T06:00:00Z") for i in range(22)]
+    issues: list[model.IssueRecord] = []
+    # 派生 15 件: 直前の merge（同日 06:00）を 12 時間後に参照する。
+    for i in range(15):
+        issues.append(
+            issue(
+                2000 + i,
+                f"2026-08-{2 + (i % 13):02d}T18:00:00Z",
+                f"{_reference(1000 + i, reference_style)} の merge 後に判明",
+            )
+        )
+    # 非派生 26 件: PR を参照しない起票（41 - 15）。
+    for i in range(26):
+        issues.append(issue(3000 + i, f"2026-08-{2 + (i % 13):02d}T20:00:00Z", "PR 参照なしの新規起票"))
+    # 窓外のノイズ（境界条件の確認用）。PR 側の下限境界は WindowMetricsTests が見る
+    # ——ここで基線窓の直前に merged PR を置くと「直近4週」窓（07-05〜08-02）の分母が
+    # 1 になり派生率 0 の比較対象が生まれてしまい、基線再現の検証と閾値判定の検証が
+    # 混ざるため、この合成データでは置かない。
+    issues.append(issue(4000, "2026-08-16T00:00:00Z", "終端は含まない"))
+    issues.append(issue(4001, "2026-08-01T23:59:59Z", "起点未満は含まない"))
+    pulls.append(pull(4002, "2026-08-16T00:00:00Z"))
+    return issues, pulls
+
+
+class BaselineReproductionTests(unittest.TestCase):
+    def test_recorded_baseline_constants_match_issue_368_correction(self):
+        self.assertEqual(model.BASELINE_WINDOW.start, ts("2026-08-02T00:00:00Z"))
+        self.assertEqual(model.BASELINE_WINDOW.end, ts("2026-08-16T00:00:00Z"))
+        self.assertEqual(model.BASELINE_WINDOW.days, 14.0)
+        self.assertEqual(model.BASELINE_MERGED_PRS, 22)
+        self.assertEqual(model.BASELINE_ALL_ISSUES, 41)
+        self.assertEqual(model.BASELINE_DERIVED_ISSUES, 15)
+        self.assertEqual(model.BASELINE_ISSUES_PER_PR, 1.86)
+        self.assertEqual(model.BASELINE_DERIVED_PER_PR, 0.68)
+
+    def test_baseline_window_reproduces_the_recorded_measurements(self):
+        issues, pulls = _baseline_dataset()
+        result = metrics.compute_window_metrics(model.BASELINE_WINDOW, issues, pulls, REPO)
+        self.assertEqual(result.merged_prs, model.BASELINE_MERGED_PRS)
+        self.assertEqual(result.created_issues, model.BASELINE_ALL_ISSUES)
+        self.assertEqual(result.derived_issues, model.BASELINE_DERIVED_ISSUES)
+        self.assertEqual(round(result.issues_per_pr, 2), model.BASELINE_ISSUES_PER_PR)
+        self.assertEqual(round(result.derived_per_pr, 2), model.BASELINE_DERIVED_PER_PR)
+
+    def test_every_notation_reproduces_the_same_baseline(self):
+        """派生 Issue が原因 PR をどの記法で指していても基線を再現する（Issue #493）。
+
+        記法が変わっただけで主指標が下振れする（＝「欠陥混入が減った」ように見える）ことが
+        Issue #493 の実害であり、この検査がその再発を止める。記法を1つ足したら
+        :data:`REFERENCE_STYLES` に追加するだけでこの検査が及ぶ。
+        """
+        for style in REFERENCE_STYLES:
+            with self.subTest(style=style):
+                issues, pulls = _baseline_dataset(reference_style=style)
+                result = metrics.compute_window_metrics(
+                    model.BASELINE_WINDOW, issues, pulls, REPO
+                )
+                self.assertEqual(result.derived_issues, model.BASELINE_DERIVED_ISSUES)
+                self.assertEqual(round(result.derived_per_pr, 2), model.BASELINE_DERIVED_PER_PR)
+
+    def test_mixed_notation_for_the_same_pr_is_not_double_counted(self):
+        """同一 PR を3記法で書いた本文が派生 Issue を二重に増やさない。"""
+        issues, pulls = _baseline_dataset()
+        both = issue(
+            5000,
+            "2026-08-02T18:00:00Z",
+            f"#1000 と {REPO}#1000 と https://github.com/{REPO}/pull/1000 は同じ PR",
+        )
+        result = metrics.compute_window_metrics(
+            model.BASELINE_WINDOW, [*issues, both], pulls, REPO
+        )
+        self.assertEqual(result.derived_issues, model.BASELINE_DERIVED_ISSUES + 1)
+        self.assertIn(5000, result.derived_issue_numbers)
+
+    def test_shifted_start_changes_the_number(self):
+        """窓の起点を1日ずらすと値が変わる＝散文の定義では再現できないことの実証（Issue #368）。"""
+        issues, pulls = _baseline_dataset()
+        shifted = model.Window(start=ts("2026-08-01"), end=ts("2026-08-16"))
+        result = metrics.compute_window_metrics(shifted, issues, pulls, REPO)
+        self.assertNotEqual(
+            round(result.issues_per_pr, 2), round(model.BASELINE_ISSUES_PER_PR, 2)
+        )
+
+
+def wm(merged: int, derived: int, created: int = 0, closed: int = 0) -> metrics.WindowMetrics:
+    return metrics.WindowMetrics(
+        window=model.Window(start=ts("2026-09-01"), end=ts("2026-09-08")),
+        merged_prs=merged,
+        created_issues=created,
+        derived_issues=derived,
+        closed_issues=closed,
+    )
+
+
+class ThresholdTests(unittest.TestCase):
+    def test_normal_case_reports_nothing(self):
+        result = threshold.evaluate(wm(merged=10, derived=3), wm(merged=40, derived=12))
+        self.assertFalse(result.anomaly)
+        self.assertEqual(result.alerts, ())
+        self.assertEqual(result.render_alert_lines(), [])
+
+    def test_baseline_exceeded(self):
+        result = threshold.evaluate(wm(merged=10, derived=7), wm(merged=40, derived=28))
+        codes = {a.code for a in result.alerts}
+        self.assertIn(threshold.BASELINE_EXCEEDED, codes)
+        self.assertTrue(result.anomaly)
+
+    def test_baseline_equal_is_not_exceeded(self):
+        """基線 0.68 に一致するだけでは異常としない（「超えた場合」と定義されている）。"""
+        result = threshold.evaluate(wm(merged=100, derived=68), wm(merged=100, derived=68))
+        self.assertEqual([a.code for a in result.alerts], [])
+
+    def test_baseline_window_itself_is_not_an_anomaly(self):
+        """基線そのもの（15/22 = 0.6818…）を基線超過にしない＝表示精度どうしで比較する。"""
+        current = wm(merged=model.BASELINE_MERGED_PRS, derived=model.BASELINE_DERIVED_ISSUES)
+        self.assertGreater(float(current.derived_per_pr_exact), model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual(current.derived_per_pr_rounded, model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual([a.code for a in threshold.evaluate(current, None).alerts], [])
+
+    def test_trailing_regression(self):
+        """直近4週 0.20 に対し 0.30（1.5 倍）で悪化と判定する。基線 0.68 は超えない。"""
+        result = threshold.evaluate(wm(merged=10, derived=3), wm(merged=100, derived=20))
+        codes = {a.code for a in result.alerts}
+        self.assertEqual(codes, {threshold.TRAILING_REGRESSION})
+
+    def test_trailing_regression_just_below_factor(self):
+        result = threshold.evaluate(wm(merged=100, derived=29), wm(merged=100, derived=20))
+        self.assertEqual([a.code for a in result.alerts], [])
+
+    def test_trailing_zero_rate_flags_only_when_current_is_positive(self):
+        self.assertEqual(
+            [a.code for a in threshold.evaluate(wm(merged=10, derived=0), wm(merged=10, derived=0)).alerts],
+            [],
+        )
+        self.assertEqual(
+            [a.code for a in threshold.evaluate(wm(merged=10, derived=1), wm(merged=10, derived=0)).alerts],
+            [threshold.TRAILING_REGRESSION],
+        )
+
+    def test_zero_denominator_is_skipped_not_normal(self):
+        result = threshold.evaluate(wm(merged=0, derived=0), wm(merged=10, derived=1))
+        self.assertFalse(result.anomaly)
+        self.assertEqual([s.code for s in result.skipped], [threshold.SKIP_NO_DENOMINATOR])
+
+    def test_missing_trailing_data_is_skipped(self):
+        result = threshold.evaluate(wm(merged=10, derived=1), wm(merged=0, derived=0))
+        self.assertEqual([s.code for s in result.skipped], [threshold.SKIP_NO_TRAILING_DATA])
+
+    def test_trailing_comparison_is_pooled_not_a_mean_of_weekly_ratios(self):
+        """直近4週はプールド比（28日をひとまとめ）であり、週次比4本の平均ではない。
+
+        週次比が ``0/12, 0/10, 0/9, 1/1`` の場合、プールド比は ``1/32 ≒ 0.031`` だが
+        週次比の平均は ``0.25`` になる。レポート窓 ``1/10 = 0.10`` に対し、前者では
+        1.5 倍を超えて ``TRAILING_REGRESSION`` が立ち、後者では立たない——集計方法の
+        選択がそのまま判定を反転させるため、どちらを採ったかを固定する
+        （選択と根拠＝``defect_metrics/threshold.py`` の docstring・README §3）。
+        """
+        pooled_trailing = wm(merged=12 + 10 + 9 + 1, derived=1)  # 1/32
+        result = threshold.evaluate(wm(merged=10, derived=1), pooled_trailing)
+        self.assertEqual([a.code for a in result.alerts], [threshold.TRAILING_REGRESSION])
+        # 週次比の平均（0.25）を採っていたら 0.10 は 1.5 倍に届かず、立たないはずだった。
+        weekly_mean = (0 / 12 + 0 / 10 + 0 / 9 + 1 / 1) / 4
+        self.assertLess(1 / 10, weekly_mean * model.REGRESSION_FACTOR)
+
+    def test_aggregation_method_is_reported_in_the_payload(self):
+        payload = threshold.evaluate(wm(merged=10, derived=1), wm(merged=10, derived=1)).as_dict()
+        self.assertEqual(payload["trailing_aggregation"]["method"], threshold.TRAILING_AGGREGATION)
+        self.assertIn("平均ではない", payload["trailing_aggregation"]["detail"])
+
+
+class CollectTests(unittest.TestCase):
+    def test_load_issues(self):
+        payload = [
+            {"number": 1, "createdAt": "2026-08-02T00:00:00Z", "closedAt": "", "body": "x"},
+            {"number": 2, "createdAt": "2026-08-03T00:00:00Z", "closedAt": None, "body": None},
+        ]
+        records = collect.load_issues(payload)
+        self.assertEqual([r.number for r in records], [1, 2])
+        self.assertIsNone(records[0].closed_at)
+        self.assertEqual(records[1].body, "")
+
+    def test_load_pulls_skips_unmerged(self):
+        payload = [
+            {"number": 1, "mergedAt": "2026-08-02T00:00:00Z"},
+            {"number": 2, "mergedAt": None},
+        ]
+        self.assertEqual([r.number for r in collect.load_pulls(payload)], [1])
+
+    def test_malformed_payload_raises(self):
+        with self.assertRaises(collect.CollectionError):
+            collect.load_issues({"not": "a list"})
+        with self.assertRaises(collect.CollectionError):
+            collect.load_issues([{"number": 1}])
+        with self.assertRaises(collect.CollectionError):
+            collect.load_pulls([{"mergedAt": "2026-08-02T00:00:00Z"}])
+
+
+class FetchTruncationTests(unittest.TestCase):
+    """取得件数が ``--limit`` に達したら publish しない fail-close に乗せる。
+
+    ``gh ... list --limit N`` は新しい側から N 件で打ち切るため、超過分（古い側）が
+    黙って落ちても ``gh`` は成功終了し JSON も正当である。スキーマ検査には掛からないので、
+    件数そのものを見ないと「正常な体裁で誤った数字」を publish してしまう。
+    """
+
+    def _issues(self, count: int) -> list[dict]:
+        return [
+            {"number": n, "createdAt": "2026-08-02T00:00:00Z", "closedAt": None, "body": ""}
+            for n in range(1, count + 1)
+        ]
+
+    def test_issue_fetch_at_the_limit_is_treated_as_truncated(self):
+        with mock.patch.object(collect, "_run_gh", return_value=self._issues(5)):
+            with self.assertRaises(collect.CollectionError) as caught:
+                collect.fetch_issues("owner/repo", limit=5)
+        self.assertIn("--limit", str(caught.exception))
+
+    def test_issue_fetch_below_the_limit_passes(self):
+        with mock.patch.object(collect, "_run_gh", return_value=self._issues(4)):
+            self.assertEqual(len(collect.fetch_issues("owner/repo", limit=5)), 4)
+
+    def test_pull_fetch_counts_the_raw_payload_not_the_merged_rows(self):
+        """未 merge 行を落とした後の件数で比べると打ち切りを見逃すので、生 payload で見る。"""
+        payload = [{"number": 1, "mergedAt": "2026-08-02T00:00:00Z"}]
+        payload += [{"number": n, "mergedAt": None} for n in range(2, 6)]  # 計5件・merged は1件
+        with mock.patch.object(collect, "_run_gh", return_value=payload):
+            with self.assertRaises(collect.CollectionError):
+                collect.fetch_pulls("owner/repo", limit=5)
+
+
+class CliTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        issues, pulls = _baseline_dataset()
+        self.issues_path = os.path.join(self.tmp.name, "issues.json")
+        self.pulls_path = os.path.join(self.tmp.name, "pulls.json")
+        self.write_issues(issues)
+        with open(self.pulls_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                [
+                    {"number": p.number, "mergedAt": model.format_timestamp(p.merged_at)}
+                    for p in pulls
+                ],
+                handle,
+            )
+
+    def write_issues(self, issues: list[model.IssueRecord]) -> None:
+        with open(self.issues_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                [
+                    {
+                        "number": i.number,
+                        "createdAt": model.format_timestamp(i.created_at),
+                        "closedAt": model.format_timestamp(i.closed_at) if i.closed_at else None,
+                        "body": i.body,
+                    }
+                    for i in issues
+                ],
+                handle,
+            )
+
+    def drift_the_baseline_window(self) -> None:
+        """基線窓に merged PR を1本足し、記録済み基線を再現できない状態にする。"""
+        with open(self.pulls_path, encoding="utf-8") as handle:
+            pulls = json.load(handle)
+        pulls.append({"number": 90001, "mergedAt": "2026-08-05T00:00:00Z"})
+        with open(self.pulls_path, "w", encoding="utf-8") as handle:
+            json.dump(pulls, handle)
+
+    def run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(
+            [*argv, "--issues-json", self.issues_path, "--pulls-json", self.pulls_path],
+            stdout=out,
+            stderr=err,
+        )
+        return code, out.getvalue(), err.getvalue()
+
+    def test_report_over_the_baseline_window(self):
+        code, out, err = self.run_cli(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--window-start",
+                "2026-08-02",
+                "--window-end",
+                "2026-08-16",
+                "--now",
+                "2026-08-16T00:00:00Z",
+            ]
+        )
+        payload = json.loads(out)
+        self.assertEqual(payload["schema_version"], model.SCHEMA_VERSION)
+        self.assertEqual(payload["generated_at"], "2026-08-16T00:00:00Z")
+        self.assertEqual(payload["report_window"]["denominator"]["merged_prs"], 22)
+        self.assertEqual(payload["report_window"]["primary"]["derived_issues"], 15)
+        self.assertEqual(payload["report_window"]["primary"]["derived_per_pr"], 0.68)
+        self.assertEqual(payload["report_window"]["secondary"]["created_issues"], 41)
+        self.assertEqual(payload["report_window"]["secondary"]["issues_per_pr"], 1.86)
+        self.assertEqual(payload["report_window"]["open_issue_net_change"]["net"], 41)
+        self.assertIn("trailing_4_weeks", payload)
+        # 直近4週に merged PR が無いので比較は skip され、基線 0.68 は超えていない。
+        self.assertFalse(payload["threshold"]["anomaly"])
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(err, "")  # 異常でなければ何も報告しない
+
+    def test_anomalous_window_exits_20_and_reports(self):
+        code, out, err = self.run_cli(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--window-start",
+                "2026-08-02",
+                "--window-end",
+                "2026-08-04",
+                "--now",
+                "2026-08-04T00:00:00Z",
+            ]
+        )
+        payload = json.loads(out)
+        self.assertTrue(payload["threshold"]["anomaly"])
+        self.assertEqual(code, cli.EXIT_ANOMALY)
+        self.assertIn(threshold.BASELINE_EXCEEDED, err)
+
+    def test_output_file(self):
+        target = os.path.join(self.tmp.name, "report.json")
+        code, out, _ = self.run_cli(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--window-start",
+                "2026-08-02",
+                "--window-end",
+                "2026-08-16",
+                "--now",
+                "2026-08-16T00:00:00Z",
+                "--output",
+                target,
+            ]
+        )
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(out, "")
+        with open(target, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["report_window"]["denominator"]["merged_prs"], 22)
+
+    def test_verify_baseline_passes_on_matching_data(self):
+        code, out, err = self.run_cli(
+            ["verify-baseline", "--repository", "hiratashinnya/review-system"]
+        )
+        self.assertEqual(code, cli.EXIT_OK, err)
+        self.assertEqual(json.loads(out)["mismatches"], [])
+
+    def test_verify_baseline_passes_for_every_reference_notation(self):
+        """記法が変わっても基線を再現する（Issue #493 の受入基準）。"""
+        for style in REFERENCE_STYLES:
+            with self.subTest(style=style):
+                issues, _ = _baseline_dataset(reference_style=style)
+                self.write_issues(issues)
+                code, out, err = self.run_cli(
+                    ["verify-baseline", "--repository", "hiratashinnya/review-system"]
+                )
+                self.assertEqual(code, cli.EXIT_OK, err)
+                payload = json.loads(out)
+                self.assertTrue(payload["reproduced"])
+                self.assertEqual(
+                    payload["measured"]["derived_issues"], model.BASELINE_DERIVED_ISSUES
+                )
+
+    def test_verify_baseline_rejects_a_malformed_repository(self):
+        """``OWNER/REPO`` が読めないときは黙って旧定義へ戻らず取得・解釈エラーで止まる。"""
+        code, _, err = self.run_cli(["verify-baseline", "--repository", "review-system"])
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("OWNER/REPO", err)
+
+    def test_malformed_repository_is_rejected_even_without_in_window_issues(self):
+        """``--repository`` の検証は窓内 Issue の有無に依らず走る（Issue #493 F-493-02）。
+
+        検証を ``referenced_numbers`` の内側にだけ置くと、基線窓に作成 Issue が1件も無い入力では
+        一度も呼ばれず、宣言している fail-close が「そのデータに派生判定対象があるか」という
+        データ依存の偶然になる。ここでは基線窓の外にしか Issue が無いデータを与える。
+        """
+        self.write_issues([issue(9001, "2026-07-01T00:00:00Z", "窓の外の起票")])
+        code, _, err = self.run_cli(["verify-baseline", "--repository", "review-system"])
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("OWNER/REPO", err)
+        # 同じ入力でも repository が正しければ入口検証を通過し、基線照合まで到達する
+        # （＝上の exit 1 が「入力が空だから」ではなく「repository が不正だから」であること）。
+        code, _, _ = self.run_cli(
+            ["verify-baseline", "--repository", "hiratashinnya/review-system"]
+        )
+        self.assertEqual(code, cli.EXIT_BASELINE_MISMATCH)
+
+    def test_malformed_repository_is_rejected_by_the_report_subcommand_too(self):
+        """入口検証はサブコマンドに依らない（``report`` でも同じく exit 1）。"""
+        code, _, err = self.run_cli(
+            ["report", "--repository", "review-system", "--now", "2026-08-16T00:00:00Z"]
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("OWNER/REPO", err)
+
+    def test_verify_baseline_fails_on_drifted_data(self):
+        self.drift_the_baseline_window()
+        code, out, err = self.run_cli(
+            ["verify-baseline", "--repository", "hiratashinnya/review-system"]
+        )
+        self.assertEqual(code, cli.EXIT_BASELINE_MISMATCH)
+        self.assertIn("BASELINE_MISMATCH", err)
+        payload = json.loads(out)
+        self.assertFalse(payload["reproduced"])
+        self.assertTrue(any("merged_prs" in line for line in payload["mismatches"]))
+
+    def report_payload(self) -> dict:
+        _, out, _ = self.run_cli(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--window-start",
+                "2026-08-02",
+                "--window-end",
+                "2026-08-16",
+                "--now",
+                "2026-08-16T00:00:00Z",
+            ]
+        )
+        return json.loads(out)
+
+    def test_report_carries_the_baseline_verification_result(self):
+        """基線照合の結果は step ログだけでなく report.json にも載る（Issue #488 F-488-01）。
+
+        Actions の step ログは既定 90 日で失効し、レポートを読む側（#461）にも届かない。
+        閾値超過が ``threshold`` として永続化される一方で基線検証だけが揮発する非対称を
+        作らないため、``report`` サブコマンドも同じ照合結果を同梱する。
+        """
+        verification = self.report_payload()["baseline_verification"]
+        self.assertTrue(verification["reproduced"])
+        self.assertEqual(verification["mismatches"], [])
+        self.assertEqual(verification["measured"]["merged_prs"], model.BASELINE_MERGED_PRS)
+        self.assertEqual(verification["measured"]["derived_per_pr"], model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual(verification["recorded"]["derived_per_pr"], model.BASELINE_DERIVED_PER_PR)
+        self.assertEqual(
+            verification["baseline_window"]["start"], model.format_timestamp(model.BASELINE_WINDOW.start)
+        )
+
+    def test_report_baseline_verification_records_the_drift(self):
+        self.drift_the_baseline_window()
+        verification = self.report_payload()["baseline_verification"]
+        self.assertFalse(verification["reproduced"])
+        self.assertTrue(any("merged_prs" in line for line in verification["mismatches"]))
+
+    def test_report_states_the_trailing_aggregation_method(self):
+        """``trailing_4_weeks`` という名前だけでは読めない集計方法を値として持つ。"""
+        payload = self.report_payload()
+        self.assertEqual(
+            payload["trailing_4_weeks"]["aggregation"]["method"], threshold.TRAILING_AGGREGATION
+        )
+        self.assertEqual(
+            payload["threshold"]["trailing_aggregation"]["method"], threshold.TRAILING_AGGREGATION
+        )
+
+    def test_report_definition_states_that_all_notations_are_one_reference(self):
+        """採用した定義（3記法を同一視する）はレポート自体からも読める（Issue #493）。"""
+        definition = self.report_payload()["report_window"]["primary"]["definition"]
+        self.assertIn("#N", definition)
+        self.assertIn("OWNER/REPO#N", definition)
+        self.assertIn("URL", definition)
+
+    def test_collection_error_exits_1(self):
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(
+            [
+                "report",
+                "--repository",
+                "hiratashinnya/review-system",
+                "--issues-json",
+                os.path.join(self.tmp.name, "missing.json"),
+                "--pulls-json",
+                self.pulls_path,
+                "--now",
+                "2026-08-16T00:00:00Z",
+            ],
+            stdout=out,
+            stderr=err,
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("defect_metrics:", err.getvalue())
+
+
+class WindowResolutionTests(unittest.TestCase):
+    """窓の決め方が現在時刻に依存する経路は、必ず ``now`` を固定して検証する。"""
+
+    NOW = ts("2026-09-06T00:00:00Z")
+
+    def test_both_ends_given(self):
+        window = cli.resolve_window(self.NOW, "2026-08-02", "2026-08-16", 7)
+        self.assertEqual((window.start, window.end), (ts("2026-08-02"), ts("2026-08-16")))
+
+    def test_start_only_extends_forward(self):
+        window = cli.resolve_window(self.NOW, "2026-08-02", None, 7)
+        self.assertEqual(window.end, ts("2026-08-09"))
+
+    def test_end_only_extends_backward(self):
+        window = cli.resolve_window(self.NOW, None, "2026-08-16", 7)
+        self.assertEqual(window.start, ts("2026-08-09"))
+
+    def test_no_ends_uses_injected_now(self):
+        window = cli.resolve_window(self.NOW, None, None, 7)
+        self.assertEqual(window.end, self.NOW)
+        self.assertEqual(window.start, ts("2026-08-30"))
+
+    def test_resolve_now_prefers_the_injected_value(self):
+        self.assertEqual(cli.resolve_now("2026-09-06T00:00:00Z"), self.NOW)
+
+    def test_resolve_now_without_injection_returns_aware_utc(self):
+        """既定分岐は wall clock を読むため、固定日付とは比較せず tz だけを検査する。"""
+        value = cli.resolve_now(None)
+        self.assertIsNotNone(value.tzinfo)
+        self.assertEqual(value.utcoffset(), timedelta(0))
+
+
+if __name__ == "__main__":
+    unittest.main()

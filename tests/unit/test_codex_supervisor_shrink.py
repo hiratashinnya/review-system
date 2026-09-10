@@ -908,6 +908,13 @@ class DirectCommandTests(unittest.TestCase):
                 seen = {}
 
                 def runner(probe_command, **kwargs):
+                    if list(probe_command[1:3]) == ["features", "list"]:
+                        output = "".join(
+                            f"{name} stable "
+                            f"{'false' if name in supervisor._REQUIRED_DISABLED_FEATURES else 'true'}\n"
+                            for name in sorted(supervisor._KNOWN_CLI_FEATURES)
+                        )
+                        return subprocess.CompletedProcess(probe_command, 0, output, "")
                     seen["command"] = probe_command
                     seen["kwargs"] = kwargs
                     return subprocess.CompletedProcess(probe_command, 0, json.dumps(expected), "")

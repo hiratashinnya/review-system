@@ -24,6 +24,8 @@ from issue_start.codex_supervisor import (
     SupervisorSpec,
     SubprocessJsonlRunner,
     _CODEX_CONTROL_ALIAS,
+    _KNOWN_CLI_FEATURES,
+    _REQUIRED_DISABLED_FEATURES,
     _canonical_json_sha256,
     _codex_launch_path,
     _minimal_process_env,
@@ -347,6 +349,15 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("features.hooks=false", command)
         self.assertIn("features.shell_snapshot=false", command)
         self.assertIn("features.skill_mcp_dependency_install=false", command)
+        self.assertIn("features.shell_zsh_fork=false", command)
+        self.assertIn("features.unified_exec_zsh_fork=false", command)
+        self.assertIn("features.code_mode_buffered_exec=false", command)
+        self.assertIn("features.code_mode_only=false", command)
+        self.assertIn("features.multi_agent_mode=false", command)
+        self.assertIn("features.multi_agent_v2=false", command)
+        for feature in _REQUIRED_DISABLED_FEATURES:
+            with self.subTest(feature=feature):
+                self.assertIn(f"features.{feature}=false", command)
         self.assertIn("--clearenv", command)
         self.assertFalse(any("issue_exec_broker" in item for item in command))
         self.assertIn("developer_instructions=", joined)
@@ -422,6 +433,85 @@ class CodexSupervisorTests(unittest.TestCase):
                 else:
                     self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
         self.assertEqual(outer_commands[0], outer_commands[1])
+
+    def test_model_free_feature_catalog_preserves_issue_491_fail_close(self):
+        command = build_codex_command(
+            self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
+        )
+        separator = command.index("--")
+        command = tuple((
+            *command[:separator], "--ro-bind", str(self.codex), str(self.codex),
+            *command[separator:],
+        ))
+        boundary = {
+            "workspace": {"read": True, "write": True, "exec": True},
+            "runtime": {"read": False, "write": False, "exec": False},
+            "runtime_auth": {"read": False, "write": False, "exec": False},
+            "host_auth": {"read": False, "write": False, "exec": False},
+            "install": {"read": False, "write": False, "exec": False},
+            "network": {"tcp": False, "unix": False},
+            "environment": {
+                "HOME": None, "CODEX_HOME": None, "TMPDIR": None,
+                "PATH": "/usr/bin:/bin",
+            },
+            "inherited_fds": [],
+            "proc": {"self_status": True, "pid1": True},
+        }
+
+        def feature_text(extra="", *, remove=None, enable=None):
+            return "".join(
+                f"{name} stable "
+                f"{'true' if name == enable else 'false' if name in _REQUIRED_DISABLED_FEATURES else 'true'}\n"
+                for name in sorted(_KNOWN_CLI_FEATURES) if name != remove
+            ) + extra
+
+        def runner_for(feature_output):
+            def runner(argv, **_kwargs):
+                if list(argv[1:3]) == ["features", "list"]:
+                    return subprocess.CompletedProcess(argv, 0, feature_output, "")
+                return subprocess.CompletedProcess(argv, 0, json.dumps(boundary), "")
+            return runner
+
+        validate_cli_compatibility(command, runner=runner_for(feature_text()))
+        for feature in (
+            "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
+            "code_mode_only", "multi_agent_mode", "multi_agent_v2",
+        ):
+            with self.subTest(derived_feature=feature):
+                with self.assertRaisesRegex(
+                    CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"
+                ):
+                    validate_cli_compatibility(
+                        command, runner=runner_for(feature_text(enable=feature))
+                    )
+        with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
+            validate_cli_compatibility(
+                command, runner=runner_for(feature_text(remove="shell_zsh_fork"))
+            )
+        for extra in (
+            "future_process_feature stable true\n",
+            "python_repl stable true\n",
+            "node_runner stable true\n",
+            "disable_landlock stable true\n",
+            "execpolicy stable true\n",
+            "Shell-Tool stable true\n",
+        ):
+            with self.subTest(unknown_process=extra.split()[0]):
+                with self.assertRaisesRegex(
+                    CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"
+                ):
+                    validate_cli_compatibility(
+                        command, runner=runner_for(feature_text(extra))
+                    )
+        validate_cli_compatibility(
+            command,
+            runner=runner_for(feature_text("bedrock_setup_wizard stable true\n")),
+        )
+        with self.assertRaisesRegex(CodexSupervisorError, "CLI_CONFIG_UNSUPPORTED"):
+            validate_cli_compatibility(
+                command,
+                runner=runner_for(feature_text("remote_shell_v2 experimental\n")),
+            )
 
     def test_supervisor_process_environment_is_minimal(self):
         source = {

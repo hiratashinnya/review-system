@@ -17,7 +17,7 @@
 | プロンプト雛形 | `<id>:<MAJOR.MINOR>`（例 `review:3.1`・[DD7](decisions.md)） | prompts/templates | 出力スキーマの型/構造が変わる⇒[07 対応表](07-system-prompts.md)で世代切替 |
 | PF/モデル | `platform_id` / `model_id`（[04 capabilities](04-platform-protocol.md)） | 版スタンプ | （外部識別子） |
 
-> **版↔対応ロジックの一覧**は[07 §版管理](07-system-prompts.md)（プロンプト）と各パーサ（基準/ポリシー）が持つ。**未対応 MAJOR は実行前 fail-close**（[13 S5](../requirements/13-stabilization.md)）、MINOR 差は許容（情報のみ）。
+> **版↔対応ロジックの一覧**は[07 §版管理](07-system-prompts.md)（プロンプト）と各パーサ（基準/ポリシー）が持つ。**未対応 MAJOR は実行前 fail-close**（[13 S5](../requirements/13-stabilization.md)）、MINOR 差は許容（情報のみ）。⚠️ この fail-close は**要件であって現状ではない**（判定を持つ `lint_criteria` が未結線＝[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。
 
 ### 版スタンプ（O-1 に必須・[01 ProvenanceStamp](01-class-design.md) に `execution_id` 追加）
 
@@ -65,7 +65,7 @@ class ProvenanceStamp:                 # S6
 対応する版は**ソースの定数**として持つ（コメント不可）。理由＝`reviewer version`／`--help` がそれを読んで表示でき、lint も同じ定数で判定できる（単一ソース）。
 
 ```python
-# parsing/frontmatter.py — 基準/ポリシーが読める MAJOR の集合（S5 lint がこれで判定）
+# parsing/lint.py — 基準/ポリシーが読める MAJOR の集合（S5 lint がこれで判定）
 SUPPORTED_CRITERIA_MAJOR: frozenset[int] = frozenset({1})   # 未対応 MAJOR は fail-close
 SUPPORTED_POLICY_MAJOR:   frozenset[int] = frozenset({1})
 # MINOR は情報のみ（処理は MAJOR で分岐）。version は "MAJOR.MINOR" 文字列で読む（整数化しない）
@@ -77,7 +77,21 @@ TEMPLATE_VERSIONS: dict[str, str] = {
 }
 ```
 
-- `reviewer version`（[03](03-external-interfaces.md)）＝この2定数を表示。lint（S5）と版スタンプ（S6）も**同じ定数**を参照（DRY）。
+- **設計上の意図**：`reviewer version`（[03](03-external-interfaces.md)）・lint（S5）・版スタンプ（S6）が
+  **それぞれの用途の定数を単一ソースとして共有する**（コメントに書かず定数化する＝DRY）。
+  ただし **3 用途が同一の定数を参照するわけではない**（criteria/policy の MAJOR と、プロンプト雛形の版は別物）。
+  ⚠️ **実装状況（2026-07-29 是正・旧記述「lint と版スタンプも同じ定数を参照」は実装と不一致だったので撤回）**：
+  **利用関係は4本に分かれ、うち結線されているのは版表示と版スタンプだけ**。
+
+  | 用途 | 参照する定数 | 参照元（実装） | 状態 |
+  |---|---|---|---|
+  | **版表示**（`reviewer version`） | `SUPPORTED_CRITERIA_MAJOR`・`SUPPORTED_POLICY_MAJOR`・`TEMPLATE_VERSIONS` | `io/cli.py:74-78` | ✅ **結線済み**（3つとも表示するだけ） |
+  | **criteria lint**（MAJOR 対応判定） | `SUPPORTED_CRITERIA_MAJOR` | `parsing/lint.py:65`（`lint_criteria` 内） | ❌ **未結線**＝`lint_criteria` を本番経路が呼ばない（[Q26](../dashboard.md#-未決事項決めないと進めない論点)）。**未対応 MAJOR の基準ファイルは現状 fail-close せずそのまま読まれる** |
+  | **policy lint**（MAJOR 対応判定） | `SUPPORTED_POLICY_MAJOR` | **無し** | ❌ **検査そのものが存在しない**。`SUPPORTED_POLICY_MAJOR` は `io/cli.py:75` の**表示にしか使われておらず**、`persistence/criteria_repo.py` の `load_policy_file` は `version` を読みも検査もしない（[Q26](../dashboard.md#-未決事項決めないと進めない論点) A-4） |
+  | **prompt 版スタンプ**（S6） | `TEMPLATE_VERSIONS['review']` 由来の `REVIEW_VERSION` | `prompts/registry.py:19` → `core/pipeline.py:24,72`（`ProvenanceStamp.prompt_template_version`） | ✅ **結線済み**（`tests/unit/test_pr_fixes.py` がハードコード禁止を担保） |
+
+  なお `prompts/registry.py` が持つのは**版定数だけ**で、雛形の本文もビルダーも実装されていない
+  （[07 入力設計](../requirements/07-ai-input-design.md) の「実装済み/未実装」注記を参照）。
 - **MAJOR を上げる＝対応ハンドラ世代を上げる**ので、定数の更新と[07 対応表](07-system-prompts.md)・パーサ/ビルダーの改修は**同時**に行う（版↔ロジックを一目で追える）。
 
 ## 5. 影響範囲（他設計へ）

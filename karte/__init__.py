@@ -37,10 +37,41 @@
 
 標準ライブラリのみ（外部依存なし）。
 
+スコープ外指摘を別経路にしない（Issue #495）:
+  「スコープ外」と分類された指摘が finding の列に入らないと、実害判定（``harm``）・カルテ記録・
+  ``status`` の verdict をまとめて迂回でき、実害ありの指摘が未処置のまま ``clean`` を通過する
+  （PR #490 で実際に起き、Issue #493 が merge 後に流出した）。``## Findings`` を
+  **スコープの内外を問わない単一の列**とし、``scope``（``in``/``out``・必須・免除力なし）と
+  ``disposition``（``fix-here``/``deferred``/``waived``＝オーナー判断の記録）を持たせ、
+  **``harm: real`` かつ ``disposition`` 未決定の finding が残る間は verdict を ``clean`` に
+  しない**。``deferred``/``waived`` は ``status: open`` のまま台帳に残し、**「是正を要する
+  finding」の集合からだけ外す**二層（``resolved`` に倒すと「別 Issue へ移したと書くだけで
+  指摘が消える」経路が生まれる）。この除外は verdict だけでなく ``check`` の診断網羅要求・
+  無進捗検知にも同じく効く（下記「除外規則は 1 箇所に置く」）。**この解除力は ``harm: real`` にだけ与える**（オーナー確定・2026-09-07）
+  ——``harm: none`` にも与えると、実害なしの指摘に ``deferred`` と書くだけで
+  「未解消がすべて実害なしになったら打ち上げる」既存の STOP を消せてしまう。
+  書式と移行措置の詳細は ``karte/README.md``。
+
+除外規則は 1 箇所に置く（Issue #503）:
+  ``deferred``/``waived``＝「当該 PR では処置しない」と決まった finding を判定から外す規則は、
+  :attr:`karte.model.Finding.needs_remediation` **だけ**に実装する。``status`` の verdict・
+  ``check`` の診断網羅要求・無進捗検知（``escalate``）はこの 1 つの述語を共有する。
+  Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` は
+  ``deferred`` にも診断を要求して**毎ラウンド必ず 1 回 block**し（観測1）、無進捗検知は
+  誰も直さないと決めた finding を拾って ``escalate: yes`` を偽陽性で出していた（観測3）
+  ——同じ取りこぼしが経路の数だけ別々に開いた。以後 ``deferred`` を参照する判定を足すときは、
+  この述語を経由させれば自動的に同じ規則が効く。
+  併せて ``change_kind`` に ``doc``（文書のみの是正）を追加した（観測2。既存カルテの
+  ``config`` 記録は遡って読み替えない＝``karte.model`` の :data:`~karte.model.CHANGE_KINDS`）。
+
 依存仕様:
   * Issue #307「是正ループの診断カルテ CLI を追加し『類似アプローチの反復』を機械判定する」
     （提案挙動・受入基準の一次アンカー）。
   * Issue #315「karte レビュー残指摘の全件処置」（K-02/K-04〜K-07/K-09/K-11〜K-15）。
+  * Issue #495「レビューのスコープ外指摘が実害判定とカルテを迂回でき、実害ありの指摘が
+    未処置のまま merge される」（提案挙動 1〜6・受入基準）。
+  * Issue #503「``karte check`` が ``disposition: deferred``/``waived`` の finding にも診断を
+    要求し、停止ゲートが毎ラウンド必ず 1 回 block する」（提案挙動・観測2・観測3・受入基準）。
   * ``dsv2/cleantmp.py`` docstring（パスガードの様式・削除直前の再検査の考え方）。
     ※ ``karte.paths`` 側の再検査は best-effort であり原子的ではない（K-04・Issue #318 で厳密化）。
   * CLAUDE.md「戻り値のハンドオフ規約」（``tmp/_handoff/`` はハンドオフ＝1回の戻り値。

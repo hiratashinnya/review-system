@@ -11,6 +11,11 @@
     harm: real
     harm_detail: required 属性が消え必須入力が素通りする
     severity: blocker
+    scope: in
+    disposition: fix-here
+    deferred_to:
+    waived_by:
+    waived_reason:
     locus: [review_system/forms.py::build_attrs, .codex/forms.toml::build_attrs]
     summary: build_attrs が既存 attrs を破棄している
     evidence: forms.py:120 を Read。attrs = {...} で辞書を作り直している
@@ -57,11 +62,28 @@
     この防御を回避して直接書き換えるのではなく、主文脈による確認つき訂正、または
     安全な訂正用 verb の新設（本 Issue の範囲外）等、当事者以外が介在する経路を通すこと。
 
+スコープ外指摘の一本化（Issue #495）:
+  ``## Findings`` は**スコープの内外を問わない単一の指摘台帳**である。スコープ外の指摘を
+  別のセクション・別の経路（チャットでの列挙）へ逃がすと、実害判定（``harm``）・カルテ記録・
+  ``status`` の verdict をまとめて迂回でき、実害ありの指摘が未処置のまま ``clean`` を
+  通過する（PR #490 でこれが起き、Issue #493 が merge 後に流出した）。よって
+  * ``scope``（``in``/``out``）は**申告**として残すが**免除力を持たない**、
+  * ``harm: real`` にはオーナー判断（``disposition``）の記録を要求し、
+  * 未決定のまま残る間は verdict を ``clean`` にしない、
+  という3点で経路を1本に閉じる。``issue-implementer``/``issue-fixer`` のハンドオフ
+  ``out_of_scope_findings`` も、同じ書式の finding ブロックへ写して ``ingest-review``
+  （実行するのは主文脈）でこの列に取り込む。
+
 値の書式は「1行 1 ``key: value``」のみ（複数行の自由記述は持たない＝決定論パースのため）。
 ``[a, b]`` はリスト、それ以外はスカラ文字列として解釈する。
 
 依存仕様: :mod:`karte` の docstring（Issue #307「カルテの実体」「finding ID による結合」
-「Attempt の機械比較可能ヘッダ」）。
+「Attempt の機械比較可能ヘッダ」）／Issue #495「提案挙動」1〜6（finding の一本化・``scope``・
+``disposition``・verdict ゲート・``deferred`` を ``resolved`` にしない・ハンドオフの取り込み）／
+Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述語
+:attr:`Finding.needs_remediation` へ集約し、verdict・``check``・無進捗検知が共有する）・
+「観測2」（``change_kind`` に文書のみの変更を表す ``doc`` を追加し、既存の ``config`` 記録は
+遡って読み替えない）。
 """
 
 from __future__ import annotations
@@ -72,12 +94,76 @@ from dataclasses import dataclass, field
 
 FORMAT_VERSION = 1
 
-CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "revert")
+# ``change_kind``＝是正の変更種別。類似判定の**宣言信号**（:mod:`karte.similarity`）が
+# ``root_cause`` 一致に加えて見る軸であり、飽和検知（同じアプローチの無駄連打の停止）の入力。
+#
+# ``doc``（Issue #503 観測2・2026-09-09 追加）＝**文書だけを変更する是正**
+# （README・`docs/**`・エージェント定義本文・docstring のみ。コードの挙動を変えない）。
+# 追加前は文書のみのラウンドで実態に合う値が無く、是正担当が已むなく ``config`` を選んだ
+# （Issue #493 の是正ラウンド2 で実測）。実態と違う値が入ると (a) 後から読む者が
+# 「設定を変えた是正」と誤読し、(b) 飽和判定が**別の ``config`` 変更との距離を実態より近く**
+# 算出する——是正ラウンドの相当数は文書のみの変更なので、再発頻度は低くない。
+#
+# **既存カルテの ``config`` 記録は遡って読み替えない**（Issue #503・本 PR で確定）。
+# 台帳は追記のみ（本モジュール docstring「追記規律」）で、書かれた Attempt ブロックは
+# どの verb も書き換えないから、過去の ``config`` は ``config`` のまま残る。移行スクリプトも
+# 読み替えマップも持たない。理由は 2 つ——
+#   * 遡って書き換えると append-only の不変条件（＝改ざん防止の前提）を自ら破ることになる。
+#   * 「当時どう申告したか」は飽和判定が実際に使った入力であり、後から書き換えると
+#     過去ラウンドの判定結果を再現できなくなる（監査可能性の喪失）。
+# **飽和判定への影響**は「新しい ``doc`` の Attempt は、過去の ``config`` の Attempt と
+# ``change_kind`` 経由では類似と判定されなくなる」ことに限られる（``root_cause`` 一致＋
+# ``targets`` 交差、あるいは実測 touched-set 一致の経路は従来どおり効く）。すなわち
+# 語彙追加は飽和判定を**緩める方向**に働きうるが、それは「実態が違う変更を同種と数えていた」
+# 過大計上の解消であって、検知力の意図的な低下ではない。
+CHANGE_KINDS = ("logic", "data-structure", "interface", "config", "test", "doc", "revert")
 HARM_LEVELS = ("real", "none")
 # 指摘の優先度（``harm`` とは独立の軸。``harm: none`` でも ``severity: major`` はあり得る）。
 SEVERITIES = ("blocker", "major", "minor")
 FINDING_STATUSES = ("open", "resolved")
 OUTCOMES = ("fixed", "partial", "no-change", "regressed")
+
+# ``scope``（Issue #495）＝レビューアの**申告**としての当該 PR スコープ内/外。
+# **免除力を持たない**——``scope: out`` でも ``harm`` の判定・台帳への記録・verdict の
+# ゲートはまったく同じに掛かる。スコープ外指摘を別経路（チャットでの列挙）へ逃がすと、
+# 実害判定もカルテ記録も verdict も一度に迂回でき、実害ありの指摘が未処置のまま
+# clean を通過した（PR #490 → Issue #493 の流出経路）。`scope` は監査材料として残すだけ。
+SCOPES = ("in", "out")
+# 移行措置（Issue #495・互換性）: ``scope`` を持たない**既存カルテ**は ``in`` として読む。
+# `tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると是正ループが止まるため。
+# **新規の ``ingest-review`` では必須**（:func:`parse_review` は既定へ倒さず拒否する）。
+DEFAULT_SCOPE = "in"
+# ``disposition``（Issue #495）＝``harm: real`` の指摘に対するオーナー判断の記録。
+#   ``fix-here`` … 当該 PR で直す（直るまで clean を妨げる）。
+#   ``deferred``  … 別 Issue へ申し送る（``deferred_to`` 必須）。
+#   ``waived``    … オーナーが明示的に処置不要を許可（``waived_by``/``waived_reason`` 必須。
+#                   CLAUDE.md「『対応不要』を AI が独断で書かない」に対する**記録の強制**で、
+#                   許可者本人であることの機械検証ではない＝:func:`parse_disposition` の
+#                   「既知の限界」）。
+DISPOSITIONS = ("fix-here", "deferred", "waived")
+# 「当該 PR では処置しない」とオーナーが決めた disposition（Issue #495 の二層設計）。
+# ``status`` は ``open`` のまま残す——``deferred`` を ``resolved`` にすると
+# 「別 Issue へ移したと書くだけで指摘が消える」経路ができ、本 Issue が塞ぐ穴が形を変えて再発する。
+#
+# **この 2 定数を参照してよいのは :attr:`Finding.cleared_by_disposition` だけ**
+# （Issue #503）。判定経路ごとに個別実装すると同じ取りこぼしが経路の数だけ生まれる
+# ——実際、Issue #495 の実装が除外を verdict 算出にしか入れなかったため、``check`` の
+# 診断網羅要求（観測1）と無進捗検知（観測3）が同じ穴を別々に開けていた。以後
+# ``deferred``/``waived`` を参照する判定を足すときは、この述語を経由させれば自動的に
+# 同じ規則が効く。
+CLEARING_DISPOSITIONS = ("deferred", "waived")
+# **解除力は ``harm: real`` の finding にだけ与える**（オーナー確定・2026-09-07・PR #496 F-495-01）。
+# ``disposition`` はそもそも「``harm: real`` に対するオーナー判断の記録」として導入した
+# （:data:`DISPOSITIONS` の説明・Issue #495「提案挙動」3〜5 はいずれも ``harm: real`` が主語）。
+# 解除力を harm の値によらず与えると、``harm: none`` の未解消 finding に ``deferred`` と
+# 適当な Issue 番号を 2 行書くだけで verdict が ``no-harm-only`` から ``clean`` へ変わり、
+# 「未解消がすべて ``none`` になったらオーナーへ打ち上げる」既存の STOP
+# （`.ai/skills/issue-pipeline/SKILL.md`「実害の定義とエスカレーション」）を AI が単独で
+# 消せてしまう——本 Issue が塞いだ「ラベルを書くだけで clean を通す」経路と同型のものを
+# ``harm: none`` 側に新設することになる。
+# ``harm: none`` に ``disposition`` を書くこと自体は拒否しない（申し送り先の記録は残せる）。
+# 記録は残るが verdict は動かない、という非対称でよい。
+CLEARING_HARM = "real"
 
 SECTION_FINDINGS = "Findings"
 SECTION_ATTEMPTS = "Attempts"
@@ -88,6 +174,10 @@ DOC_HEADER_RE = re.compile(r"^#\s+Karte:\s+issue-([1-9][0-9]*)\s*$")
 ATTEMPT_TITLE_RE = re.compile(r"^Attempt\s+([1-9][0-9]*)$")
 RESULT_TITLE_RE = re.compile(r"^Result\s+([1-9][0-9]*)$")
 KEY_RE = re.compile(r"^([a-z][a-z0-9_]*):(.*)$")
+# ``deferred_to``（Issue #495）は**行き先を機械的に解決できる形**だけを受ける。
+# 「別 Issue で対応」のような散文を許すと、申し送りの宛先が不明のまま clean を通せてしまい、
+# `deferred` を必須化した目的（リンク無しの申し送りを作らない）が達成できない。
+DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9]*)$")
 
 # 台帳の値に持ち込めない文字（1行 key: value ＋ `[a, b]` 記法を壊すため）。
 FORBIDDEN_VALUE_CHARS = ("\n", "\r", "\0")
@@ -281,6 +371,123 @@ def _require_int_list(block: Block, key: str) -> list:
     return numbers
 
 
+def _optional_enum(block: Block, key: str, allowed, default: str) -> str:
+    """任意キーを列挙で検証する（未記載・空は ``default``・綴り違いは fail-close）。
+
+    「無い」（＝既定へ倒してよい）と「値が不正」（＝倒すと意味が変わる）を分ける。
+    :func:`_optional_status` と同じ考え方で、綴り間違いを黙って既定へ落とさない。
+    """
+    raw = block.fields.get(key, "")
+    if isinstance(raw, list):
+        raise KarteFormatError(
+            f"{block.lineno} 行目 '{block.title}': '{key}' はリストではなく単一の値で書く"
+        )
+    text = str(raw).strip()
+    if not text:
+        return default
+    if text not in allowed:
+        raise KarteFormatError(
+            f"{block.lineno} 行目 '{block.title}': '{key}' は {list(allowed)} のいずれか: {text!r}"
+        )
+    return text
+
+
+def _optional_scalar(block: Block, key: str) -> str:
+    raw = block.fields.get(key, "")
+    if isinstance(raw, list):
+        raise KarteFormatError(
+            f"{block.lineno} 行目 '{block.title}': '{key}' はリストではなく単一の値で書く"
+        )
+    return check_scalar(raw, key)
+
+
+@dataclass
+class Disposition:
+    """``harm: real`` の指摘に対するオーナー判断の記録（Issue #495）。
+
+    ``kind`` が空文字＝**未決定**。未決定のまま未解消で残る ``harm: real`` の finding が
+    1 件でもある間、``status`` の verdict は ``clean`` を返さない（:mod:`karte.cli`）。
+    """
+
+    kind: str = ""
+    deferred_to: str = ""
+    waived_by: str = ""
+    waived_reason: str = ""
+
+
+# ``disposition`` の値ごとに**必須**の付随キーと、**書いてはならない**付随キー。
+# 片方だけを検査すると「別の kind の付随キーが残ったまま」の台帳を許してしまい、
+# 後から読んだ側が古い申し送り先を現行の処置方針と誤読する（PR2：機械判定できる所は機械で）。
+DISPOSITION_REQUIRED_KEYS = {
+    "fix-here": (),
+    "deferred": ("deferred_to",),
+    "waived": ("waived_by", "waived_reason"),
+}
+DISPOSITION_ALL_KEYS = ("deferred_to", "waived_by", "waived_reason")
+
+
+def parse_disposition(block: Block) -> Disposition:
+    """``disposition`` とその付随キーを読む（未記載は未決定・不整合は fail-close）。
+
+    * ``deferred`` は ``deferred_to``（行き先 Issue）を必須にする——リンク無しの申し送りは
+      行き先不明になり、「別 Issue へ回す」と書くだけで指摘を消せる経路になる。
+    * ``waived`` は ``waived_by`` と ``waived_reason`` を必須にする。これは
+      `.claude/rules/03-operational.md`「『対応不要』を AI が独断で書かない」に対する
+      **記録の強制**で、誰が許可したかと理由が無い処置不要を台帳へ入れられなくする。
+    * 宣言した ``disposition`` に属さない付随キーは空でなければならない（取り違え防止）。
+
+    **既知の限界（オーナー判断そのものは機械強制していない・PR #496 F-495-04）**:
+    ``waived_by``/``waived_reason`` は自由記述のスカラであり、**書いた主体がオーナー本人か
+    どうかを機械側は区別しない**。``ingest-review`` を実行するのは主文脈（AI）であり、
+    `.claude/hooks/agent-command-gate.sh` の ``KARTE_ALLOWED_SUBCOMMANDS`` が締め出して
+    いるのは是正当事者ロールだけである。``deferred_to`` も :data:`DEFERRED_TO_RE` の
+    **形式**だけを検査し、指す Issue が実在するかは検証しない。したがってここで強制して
+    いるのは**記録**であって**オーナー判断**ではない——多層防御の一枚であって sandbox では
+    ない（本モジュール docstring「改ざん防止の機械的裏付けと既知の限界」と同じ制約＝
+    Issue #129）。運用規律（`.claude/rules/03-operational.md`）との併用が前提。
+    """
+    kind = _optional_enum(block, "disposition", DISPOSITIONS, "")
+    values = {key: _optional_scalar(block, key) for key in DISPOSITION_ALL_KEYS}
+    where = f"{block.lineno} 行目 '{block.title}'"
+
+    if not kind:
+        present = [key for key, value in values.items() if value]
+        if present:
+            raise KarteFormatError(
+                f"{where}: 'disposition' が無いのに {', '.join(present)} が書かれている"
+                f"（先に disposition を {list(DISPOSITIONS)} から決める）"
+            )
+        return Disposition()
+
+    missing = [key for key in DISPOSITION_REQUIRED_KEYS[kind] if not values[key]]
+    if missing:
+        raise KarteFormatError(
+            f"{where}: 'disposition: {kind}' には {', '.join(missing)} が必須"
+            "（deferred は行き先 Issue、waived は誰がどの理由で許可したかを残す）"
+        )
+    extra = [
+        key
+        for key in DISPOSITION_ALL_KEYS
+        if values[key] and key not in DISPOSITION_REQUIRED_KEYS[kind]
+    ]
+    if extra:
+        raise KarteFormatError(
+            f"{where}: 'disposition: {kind}' では {', '.join(extra)} を書けない"
+            "（別の処置方針の付随キーが残っていると現行の方針を誤読する）"
+        )
+    if kind == "deferred" and not DEFERRED_TO_RE.match(values["deferred_to"]):
+        raise KarteFormatError(
+            f"{where}: 'deferred_to' は Issue 番号（`#123` / `123`）か Issue の URL で書く: "
+            f"{values['deferred_to']!r}（散文の申し送りは行き先を解決できない）"
+        )
+    return Disposition(
+        kind=kind,
+        deferred_to=values["deferred_to"],
+        waived_by=values["waived_by"],
+        waived_reason=values["waived_reason"],
+    )
+
+
 # --- モデル ------------------------------------------------------------------
 
 
@@ -310,6 +517,14 @@ class Finding:
     # 「レビューアのチャット発言を覚えている」ことに依存してしまう。
     expected: str = ""
     recheck: str = ""
+    # ``scope``（Issue #495）＝レビューアの申告（当該 PR のスコープ内/外）。**免除力を持たない**。
+    # 既定は :data:`DEFAULT_SCOPE`＝``scope`` を持たない既存カルテの移行措置でもある。
+    scope: str = DEFAULT_SCOPE
+    # ``disposition``（Issue #495）＝オーナー判断の記録。空文字＝未決定。
+    disposition: str = ""
+    deferred_to: str = ""
+    waived_by: str = ""
+    waived_reason: str = ""
     rounds: list = field(default_factory=list)
     resolved_round: int | None = None
 
@@ -320,6 +535,52 @@ class Finding:
     @property
     def is_open(self) -> bool:
         return self.status == "open"
+
+    @property
+    def cleared_by_disposition(self) -> bool:
+        """「当該 PR では処置しない」とオーナー判断で決まったか（Issue #495／#503）。
+
+        **``deferred``/``waived`` の除外規則はここ 1 箇所にだけ書く。** ``status`` の
+        verdict・``check`` の診断網羅要求・無進捗検知は、いずれもこの述語を経由する
+        :attr:`needs_remediation` を通して同じ規則を共有する（Issue #503）。
+
+        **``harm: none`` には解除力を与えない**（:data:`CLEARING_HARM`・オーナー確定
+        2026-09-07）。``harm: none`` の finding に ``disposition`` を書いても記録が残るだけで
+        verdict は ``no-harm-only`` のまま——実害なしの指摘だけが残った状態はオーナーへ
+        打ち上げる（AI が 2 行書いて STOP を消せる経路を作らない）。
+
+        ``status`` を ``resolved`` に倒さないのは、「別 Issue へ移したと書くだけで指摘が
+        台帳から消える」経路を作らないため（二層設計）。よってこの述語が ``True`` でも
+        finding は ``status: open`` のまま台帳に残る。
+        """
+        return self.harm == CLEARING_HARM and self.disposition in CLEARING_DISPOSITIONS
+
+    @property
+    def needs_remediation(self) -> bool:
+        """**この PR で是正が求められている未解消 finding か**（Issue #503・判定の単一点）。
+
+        3 つの判定経路がこの述語だけを共有する:
+          * ``status`` の verdict … ``clean`` を妨げる未解消 finding
+            （:meth:`Karte.remediation_findings`）。
+          * ``check`` の診断網羅要求 … 当該ラウンドで診断（Attempt）が要る finding。
+          * 無進捗検知 … 「3 ラウンド連続で未解消」を数える対象。
+
+        Issue #495 の実装は除外を verdict 算出にしか入れておらず、``check`` は
+        ``deferred`` の finding にも診断を要求して**毎ラウンド必ず 1 回 block**し
+        （Issue #503 観測1）、無進捗検知は誰も直さないと決めた finding を拾って
+        ``escalate: yes`` を偽陽性で出していた（同 観測3）。どちらも「常に鳴るゲートは
+        本物を検出できなくなる」形で安全機構を形骸化させるため、除外を 1 箇所へ寄せる。
+        """
+        return self.is_open and not self.cleared_by_disposition
+
+    @property
+    def needs_disposition(self) -> bool:
+        """``harm: real`` なのにオーナー判断（disposition）が未決定のまま未解消か。
+
+        ``scope`` の値によらない——``scope: out``（スコープ外の申告）は実害判定・記録・
+        ゲートのいずれの免除にもならない、が Issue #495 の要点そのもの。
+        """
+        return self.is_open and self.harm == "real" and not self.disposition
 
     def max_consecutive_rounds(self) -> int:
         """未解消のまま連続して挙げられたラウンド数の最大値（無進捗判定に使う）。"""
@@ -373,6 +634,20 @@ class Karte:
 
     def open_findings(self) -> list:
         return [item for item in self.findings if item.is_open]
+
+    def remediation_findings(self) -> list:
+        """**この PR で是正が求められている未解消 finding**（Issue #503・単一の集合）。
+
+        verdict の「``clean`` を妨げる未解消」（``status --json`` の ``blocking_findings``）・
+        ``check`` の診断網羅要求・無進捗検知は、いずれもこの 1 つの集合を使う。
+        除かれるのは **``harm: real`` かつ** ``deferred``/``waived`` のものだけ
+        （:data:`CLEARING_HARM`）。``harm: none`` は ``disposition`` を書いても残る。
+        """
+        return [item for item in self.findings if item.needs_remediation]
+
+    def undecided_findings(self) -> list:
+        """``harm: real`` かつ disposition 未決定のまま未解消の finding（Issue #495）。"""
+        return [item for item in self.findings if item.needs_disposition]
 
     def next_seq(self) -> int:
         return max((item.seq for item in self.findings), default=0) + 1
@@ -471,6 +746,11 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
                 f"{block.lineno} 行目: resolved_round は整数: {resolved_round!r}"
             )
         resolved = int(resolved_round.strip())
+    # 移行措置（Issue #495）: ``scope`` は**台帳側では任意**で、欠落は :data:`DEFAULT_SCOPE`
+    # として読む。`tmp/_karte/` に実在する既存カルテ（本 Issue 起票時点で 19 件）を
+    # 読めなくすると進行中の是正ループが止まるため。新規取り込み（:func:`parse_review`）
+    # 側では必須にしてあるので、以後書かれるカルテには必ず ``scope`` が載る。
+    disposition = parse_disposition(block)
     return Finding(
         id=block.title,
         status=_require_enum(block, "status", FINDING_STATUSES),
@@ -482,6 +762,11 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
         evidence=_require_nonempty(block, "evidence"),
         expected=_require_nonempty(block, "expected"),
         recheck=_require_nonempty(block, "recheck"),
+        scope=_optional_enum(block, "scope", SCOPES, DEFAULT_SCOPE),
+        disposition=disposition.kind,
+        deferred_to=disposition.deferred_to,
+        waived_by=disposition.waived_by,
+        waived_reason=disposition.waived_reason,
         rounds=_require_int_list(block, "rounds"),
         resolved_round=resolved,
     )
@@ -577,9 +862,15 @@ class ReviewFinding:
     evidence: str
     expected: str
     recheck: str
+    scope: str                    # ``in``/``out``（必須・Issue #495。免除力は持たない）
     lineno: int
     status: str = "open"          # ``resolved`` と**明示**したときだけ解消（K-06）
     distinct_from: tuple = ()     # 再発番判定を無効化する相手 ID（K-05・ペア限定）
+    # オーナー判断の記録（任意。未決定のまま ``harm: real`` が残ると verdict が clean を返さない）。
+    disposition: str = ""
+    deferred_to: str = ""
+    waived_by: str = ""
+    waived_reason: str = ""
 
 
 def parse_review(text: str, issue: int) -> list:
@@ -592,8 +883,13 @@ def parse_review(text: str, issue: int) -> list:
     1 件も無いときは「解釈できない行」ではなく **finding ブロックが無い** と報告する
     ——書式違反の指摘より「取り込むものが無い」ことの方が呼び出し側の処置に直結する。
 
-    必須キー: ``harm`` / ``harm_detail`` / ``severity`` / ``summary`` / ``evidence`` /
-    ``expected`` / ``recheck``（``locus`` は任意）。``severity`` / ``expected`` / ``recheck`` は
+    必須キー: ``harm`` / ``harm_detail`` / ``severity`` / ``scope`` / ``summary`` /
+    ``evidence`` / ``expected`` / ``recheck``（``locus`` は任意）。``scope`` は Issue #495 で
+    必須化した——スコープ外と分類された指摘が finding の列に入らず、実害判定・カルテ記録・
+    verdict のすべてを迂回して ``clean`` を通過した（PR #490 → Issue #493）。任意キーにすると
+    書かれないので、欠落は取り込みごと拒否する（``harm`` 欠落と同じ扱い）。
+    **台帳（:func:`parse`）側では任意**＝``scope`` を持たない既存カルテを読むための移行措置。
+    ``severity`` / ``expected`` / ``recheck`` は
     Issue #341 F-341-01 で必須化した——``pr-reviewer`` の出力契約が必須と宣言している一方で
     台帳が持っておらず、2 ラウンド目以降に ``expected``（解消条件）と ``recheck``（再検証手順）を
     復元できなかった。``evidence`` は同レビューの書式 feedback で追加——「そう言える根拠」を
@@ -614,6 +910,11 @@ def parse_review(text: str, issue: int) -> list:
           **偽陽性に対する明示的なエスケープハッチ**で、ここに名指しした相手との**ペアに限って**
           判定を無効化する（K-05）。判定そのもの・閾値は動かさない。ID の実在検査は台帳を持つ
           CLI 側（``cmd_ingest_review``）で行う。
+      ``disposition`` / ``deferred_to`` / ``waived_by`` / ``waived_reason``
+          オーナー判断の記録（Issue #495・詳細は :func:`parse_disposition`）。
+          **レビューアが埋める欄ではない**——取り込み時点で未決定なのが通常で、
+          未決定の ``harm: real`` が未解消で残る間は ``status`` の verdict が ``clean`` を
+          返さない。決まった処置方針を主文脈が次ラウンドのレポートに書いて取り込む。
     """
     blocks = parse_blocks(text, allow_preamble=True)
     if not blocks:
@@ -644,6 +945,7 @@ def parse_review(text: str, issue: int) -> list:
                 continue
             finding_id = block.title
         try:
+            disposition = parse_disposition(block)
             findings.append(
                 ReviewFinding(
                     title=block.title,
@@ -656,9 +958,14 @@ def parse_review(text: str, issue: int) -> list:
                     evidence=_require_nonempty(block, "evidence"),
                     expected=_require_nonempty(block, "expected"),
                     recheck=_require_nonempty(block, "recheck"),
+                    scope=_require_enum(block, "scope", SCOPES),
                     lineno=block.lineno,
                     status=_optional_status(block),
                     distinct_from=_parse_distinct_from(block, issue),
+                    disposition=disposition.kind,
+                    deferred_to=disposition.deferred_to,
+                    waived_by=disposition.waived_by,
+                    waived_reason=disposition.waived_reason,
                 )
             )
         except KarteFormatError as exc:
@@ -802,6 +1109,11 @@ def render_finding(finding: Finding) -> str:
     _emit(lines, "harm", finding.harm)
     _emit(lines, "harm_detail", finding.harm_detail)
     _emit(lines, "severity", finding.severity)
+    _emit(lines, "scope", finding.scope)
+    _emit(lines, "disposition", finding.disposition)
+    _emit(lines, "deferred_to", finding.deferred_to)
+    _emit(lines, "waived_by", finding.waived_by)
+    _emit(lines, "waived_reason", finding.waived_reason)
     _emit(lines, "locus", finding.locus)
     _emit(lines, "summary", finding.summary)
     _emit(lines, "evidence", finding.evidence)

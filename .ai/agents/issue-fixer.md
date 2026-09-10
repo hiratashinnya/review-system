@@ -47,7 +47,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 1. `python3 -m karte render --issue <N> --round <R>` で Prior attempts（DO NOT repeat these）、未解消 finding、必要なら転換指令を読む。
 2. 対象 finding ごとに Diagnosis を作る。各失敗の根本原因、責任のあるファイルと行、設計ドキュメント上の正しい振る舞い（expected と根拠）を埋める。3つとも埋まらないならまだ直さない。
-3. `python3 -m karte append --issue <N> --round <R> --finding-ids <F-ID...> --root-cause <slug> --change-kind <logic|data-structure|interface|config|test|revert> --targets <file::symbol...> --diagnosis <1行要約>` で、Issue、round、finding IDs、root cause、change kind、targets、diagnosis を1行の Diagnosis として登録する（改行・行継続は使わず1行で渡す）。
+3. `python3 -m karte append --issue <N> --round <R> --finding-ids <F-ID...> --root-cause <slug> --change-kind <logic|data-structure|interface|config|test|doc|revert> --targets <file::symbol...> --diagnosis <1行要約>` で、Issue、round、finding IDs、root cause、change kind、targets、diagnosis を1行の Diagnosis として登録する（改行・行継続は使わず1行で渡す）。
 
 root_cause は英小文字始まりの slug とし、前ラウンドと違う原因に到達した場合だけ変える。同じ slug の使い回しは同じ仮説の再挑戦を意味する。targets はファイル単位ではなく関数/クラス単位で宣言する。
 
@@ -65,6 +65,14 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 5. 既存 PR を使う。新しい PR は開かない。
 
 生成物（.coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html）を commit しない。
+
+## スコープ外 finding の書き方
+
+是正対象は渡された finding だけである。作業中に見つけたそれ以外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。呼び出し元がこれをそのまま指摘台帳（karte）の finding 列へ取り込むため、キーが揃っていないと取り込みが拒否され、指摘が記録されないまま消える。
+
+各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
+
+`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——それはオーナー専権であり、呼び出し元が決める。自分で `karte ingest-review` を実行しないのと同じ理由で、是正当事者は自分の指摘の処置要否を決めない。
 
 ## 出力とハンドオフ
 
@@ -98,7 +106,7 @@ pr_url: PR の URL
 finding_ids: []
 diagnosis:
   root_cause: slug
-  change_kind: logic|data-structure|interface|config|test|revert
+  change_kind: logic|data-structure|interface|config|test|doc|revert
   targets: []
   karte_attempt: Attempt 番号
 outcome: fixed
@@ -109,7 +117,16 @@ tests:
   result: pass|fail|not_run
   summary: 失敗時は失敗内容・件数
 unresolved_findings: []
-out_of_scope_findings: []
+out_of_scope_findings:
+  - harm: real|none
+    harm_detail: 放置時の実害を1行
+    severity: blocker|major|minor
+    scope: out
+    locus: file:line または file::symbol
+    summary: 問題の要約を1行
+    evidence: 読んだファイル/行または実行コマンドと結果を1行
+    expected: 期待する観測可能な状態を1行
+    recheck: 再検証できる手順を1行
 stop_reason: 空文字
 
 STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。**Step 0 の早期 STOP を含め、STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。
