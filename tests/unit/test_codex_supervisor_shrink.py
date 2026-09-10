@@ -819,8 +819,7 @@ class DirectCommandTests(unittest.TestCase):
                     for index, item in enumerate(probe[:-1])
                     if item == "--tmpfs"
                 )
-                self.assertEqual(tmpfs_targets.count("/run"), 1)
-                self.assertEqual(tmpfs_targets.count("/tmp"), 1)
+                self.assertEqual(tmpfs_targets, ("/run", "/tmp"))
                 payload = json.loads(probe[-1])
                 self.assertEqual(payload["runtime"], str(runtime.root))
                 self.assertEqual(payload["host_auth"], str(home / ".codex/auth.json"))
