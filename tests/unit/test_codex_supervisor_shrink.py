@@ -441,6 +441,11 @@ class DirectCommandTests(unittest.TestCase):
                 profile = supervisor.generate_permission_profile(
                     spec, runtime, codex_executable=codex
                 )
+                feature_overrides = tuple(
+                    argument
+                    for name in supervisor._REQUIRED_DISABLED_FEATURES
+                    for argument in ("--config", f"features.{name}=false")
+                )
                 command = (
                     str(root / "bwrap"), "--clearenv", "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root), "--setenv", "TMPDIR", "/tmp",
@@ -797,7 +802,7 @@ class DirectCommandTests(unittest.TestCase):
                     "--setenv", "TMPDIR", "/tmp",
                     "--", str(alias), "--profile", profile.name, "--strict-config",
                     "--ask-for-approval", "never", "exec", "-C", str(workspace),
-                    "--ignore-user-config", "--json", "-",
+                    "--ignore-user-config", "--json", *feature_overrides, "-",
                 )
                 probe = supervisor._build_active_boundary_probe_command(
                     command, python_executable="/usr/bin/python3", workspace=workspace,
@@ -946,6 +951,11 @@ class DirectCommandTests(unittest.TestCase):
                 )
                 install_roots = supervisor._resolved_codex_install_roots(installed_codex)
                 alias = supervisor._CODEX_CONTROL_ALIAS
+                feature_overrides = tuple(
+                    argument
+                    for name in supervisor._REQUIRED_DISABLED_FEATURES
+                    for argument in ("--config", f"features.{name}=false")
+                )
                 command = (
                     bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
                     "--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev",
@@ -960,7 +970,7 @@ class DirectCommandTests(unittest.TestCase):
                     "--chdir", str(workspace), "--", str(alias),
                     "--profile", profile.name, "--strict-config",
                     "--ask-for-approval", "never", "exec", "-C", str(workspace),
-                    "--ignore-user-config", "--json", "-",
+                    "--ignore-user-config", "--json", *feature_overrides, "-",
                 )
                 try:
                     evidence = supervisor.validate_cli_compatibility(

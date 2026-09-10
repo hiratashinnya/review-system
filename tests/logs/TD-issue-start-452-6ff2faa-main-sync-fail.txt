@@ -1,0 +1,12 @@
+command: python3 -m unittest tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_launch_control tests.unit.test_issue_start_gate tests.unit.test_worktree_ledger tests.unit.test_issue_start_cli_assets
+commit: 6ff2faa
+result: FAIL
+ran: 292
+skipped: 12
+errors: 1
+
+ERROR tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+CODEX_SUPERVISOR_PROCESS_TOOL_NOT_DISABLED: apps=true auth_elicitation=true browser_use=true computer_use=true hooks=true multi_agent=true plugin_sharing=true plugins=true remote_plugin=true shell_snapshot=true skill_mcp_dependency_install=true skill_search=true tool_call_mcp_elicitation=true tool_suggest=true unified_exec_zsh_fork=true workspace_dependencies=true
+initial hypothesis: `--config`のsubcommand後置によりoverrideが適用されない可能性を疑った。
+recheck: `codex --help`、`codex features list --help`、前置/後置双方のmodel-free実測で後置も有効と反証した。
+root cause: installed profile testの手組みcommandがproduction builderのrequired-disabled `--config features.*=false`を一件も含まない古いfixtureだった。
