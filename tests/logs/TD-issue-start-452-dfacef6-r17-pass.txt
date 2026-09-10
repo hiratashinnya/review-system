@@ -1,0 +1,30 @@
+Issue #452 PR #506 round 17 post-commit verification
+commit: dfacef6
+environment: local Codex test sandbox; installed Codex and bwrap available
+
+command: python3 -m unittest -v tests.unit.test_issue_start_gate tests.unit.test_codex_launch_control
+result: Ran 128 tests in 4.849s; OK (skipped=9)
+security-boundary cases observed PASS outside the pure helper seam:
+- CodexLaunchIntentTests.test_executable_evidence_rechecks_path_digest_and_version
+- CodexLaunchIntentTests.test_executable_evidence_rejects_foreign_owner_or_writable_by_others
+- CodexLaunchIntentTests.test_actual_project_trust_path_accepts_its_exclusive_group_parents
+- CodexLaunchIntentTests.test_additional_nss_group_principal_is_rejected
+- CodexLaunchIntentTests.test_group_membership_lookup_fails_closed
+- CodexLaunchIntentTests.test_group_writable_parent_requires_an_exclusive_current_uid_group
+- CodexLaunchIntentTests.test_installed_codex_is_accepted_with_stable_evidence
+The nine skips are legacy Codex spawn/prepare transport cases intentionally retired by Issue #452;
+the installed-Codex NOT_TESTED branch was not exercised on this host and is not counted as evidence.
+
+command: python3 -m asset_parity check
+result: PASS; 39 assets checked; 0 MISSING; 13 informational staleness flags
+
+command: python3 -m unittest discover -s tests/unit
+result: Ran 1789 tests in 125.136s; OK (skipped=9)
+The nine skips have the same retired-transport classification as the focused run.
+No failure or error was observed.
+
+Operational evidence boundary:
+- This run proves the hermetic pure tests and the available-host executable checks.
+- A future CI skip caused by missing installed Codex means NOT_TESTED, not PASS evidence.
+- Existing separately recorded skip-0 real-host permission-profile matrix remains the positive
+  installed Codex+bwrap boundary evidence; it is not replaced by this unit run.
