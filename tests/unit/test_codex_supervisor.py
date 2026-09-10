@@ -23,6 +23,7 @@ from issue_start.codex_supervisor import (
     ProcessResult,
     SupervisorSpec,
     SubprocessJsonlRunner,
+    _CODEX_CONTROL_ALIAS,
     _canonical_json_sha256,
     _codex_launch_path,
     _minimal_process_env,
@@ -2070,7 +2071,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     codex_executable=codex,
                 )
                 separator = supervised.index("--")
-                runtime_probe = supervised[: separator + 1] + (codex, "--version")
+                native_alias = supervised[separator + 1]
+                self.assertEqual(native_alias, str(_CODEX_CONTROL_ALIAS))
+                runtime_probe = supervised[: separator + 1] + (native_alias, "--version")
                 runtime = subprocess.run(
                     runtime_probe,
                     cwd=workspace,
@@ -2084,7 +2087,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 runtime_home = Path(supervised[supervised.index("CODEX_HOME") + 1])
                 sqlite_home = Path(supervised[supervised.index("CODEX_SQLITE_HOME") + 1])
                 app_server = supervised[: separator + 1] + (
-                    codex,
+                    native_alias,
                     "--config",
                     f"sqlite_home={json.dumps(str(sqlite_home))}",
                     "app-server",

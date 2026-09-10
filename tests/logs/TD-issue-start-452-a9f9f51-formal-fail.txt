@@ -1,0 +1,57 @@
+Issue #452 formal full-test focused reproduction (FAIL history)
+================================================================
+
+Execution timestamp (UTC): 2026-09-10T00:20:17Z
+Source revision: a9f9f51a63fcb2c6379cb2f3e0b5021610026a62
+Environment: Linux 6.18.33.2-microsoft-standard-WSL2 x86_64 GNU/Linux
+Python: 3.12.3
+Codex: codex-cli 0.153.4
+Bubblewrap: 0.9.0
+Execution boundary: host (outside the outer test sandbox), model/API/Claude not used
+
+Command 1:
+rtk python3 -m unittest tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_cli_preflight_runs_active_profile_probe_and_returns_evidence
+
+Result 1:
+E
+======================================================================
+ERROR: test_cli_preflight_runs_active_profile_probe_and_returns_evidence (tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_cli_preflight_runs_active_profile_probe_and_returns_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_codex_supervisor_shrink.py", line 899, in test_cli_preflight_runs_active_profile_probe_and_returns_evidence
+    evidence = supervisor.validate_cli_compatibility(command, runner=runner)
+  File "issue_start/codex_supervisor.py", line 1543, in validate_cli_compatibility
+    codex_source = _ro_bind_source(command, codex)
+  File "issue_start/codex_supervisor.py", line 927, in _ro_bind_source
+    raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_ALIAS_INVALID", expected)
+issue_start.codex_supervisor.CodexSupervisorError: CODEX_SUPERVISOR_CODEX_ALIAS_INVALID: <temporary>/codex-install/bin/codex
+
+----------------------------------------------------------------------
+Ran 1 test in 0.017s
+
+FAILED (errors=1)
+
+Command 2:
+rtk python3 -m unittest tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_model_free_probe_allows_only_worktree_and_private_tmp
+
+Result 2:
+F
+======================================================================
+FAIL: test_model_free_probe_allows_only_worktree_and_private_tmp (tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_model_free_probe_allows_only_worktree_and_private_tmp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_codex_supervisor.py", line 2081, in test_model_free_probe_allows_only_worktree_and_private_tmp
+    self.assertEqual(runtime.returncode, 0, runtime.stderr)
+AssertionError: 127 != 0 : /usr/bin/env: 'node': No such file or directory
+
+----------------------------------------------------------------------
+Ran 1 test in 0.495s
+
+FAILED (failures=1)
+
+Evidence classification:
+- This file is a FAIL history only. It is not acceptance or completion evidence.
+- Both failures were reproduced after the Issue #452 implementation at the source revision above.
+- Candidate cause 1: the synthetic preflight fixture supplies a shell-script Codex path without the production native single-file alias bind required by validate_cli_compatibility.
+- Candidate cause 2: the runtime probe replaces the production native alias with the npm launcher while the production child PATH deliberately excludes node and the installed tree is not mounted.
+- Required disposition: compare each fixture with the current native alias/profile contract, change only stale assumptions, then execute post-commit tests. This pre-fix log must not be reused as PASS evidence.

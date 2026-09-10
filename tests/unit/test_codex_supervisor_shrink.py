@@ -777,6 +777,12 @@ class DirectCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             home, workspace, codex, runtime, spec = self._profile_fixture(root)
+            # This active-profile fixture models the production native executable
+            # boundary.  The runner seam below means the bytes are never executed,
+            # but the command must still carry the one read-only private alias bind
+            # that validate_cli_compatibility authorizes in production.
+            codex.write_bytes(b"\x7fELFfixture-native-codex")
+            alias = supervisor._CODEX_CONTROL_ALIAS
             with mock.patch.dict(os.environ, {"HOME": str(home)}):
                 supervisor.snapshot_credentials(runtime)
                 profile = supervisor.generate_permission_profile(
@@ -784,25 +790,26 @@ class DirectCommandTests(unittest.TestCase):
                 )
                 command = (
                     str(root / "bwrap"), "--die-with-parent", "--new-session",
-                    "--unshare-pid", "--tmpfs", "/tmp", "--clearenv",
+                    "--unshare-pid", "--tmpfs", "/run", "--dir", str(alias.parent),
+                    "--ro-bind", str(codex), str(alias), "--tmpfs", "/tmp", "--clearenv",
                     "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root),
                     "--setenv", "TMPDIR", "/tmp",
-                    "--", str(codex), "--profile", profile.name, "--strict-config",
+                    "--", str(alias), "--profile", profile.name, "--strict-config",
                     "--ask-for-approval", "never", "exec", "-C", str(workspace),
                     "--ignore-user-config", "--json", "-",
                 )
                 probe = supervisor._build_active_boundary_probe_command(
                     command, python_executable="/usr/bin/python3", workspace=workspace,
                     runtime_home=runtime.root, host_auth=home / ".codex/auth.json",
-                    codex=str(codex), tcp_port=31000,
+                    codex=str(alias), tcp_port=31000,
                     unix_path=workspace / ".probe.sock",
                 )
                 separator = probe.index("--")
                 inner = probe[separator + 1:]
                 self.assertEqual(
                     inner[:8],
-                    (str(codex), "--profile", "issue-supervised", "sandbox",
+                    (str(alias), "--profile", "issue-supervised", "sandbox",
                      "-P", "issue-supervised", "-C", str(workspace)),
                 )
                 self.assertNotIn("--strict-config", inner)
@@ -865,15 +872,19 @@ class DirectCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             home, workspace, codex, runtime, spec = self._profile_fixture(root)
+            codex.write_bytes(b"\x7fELFfixture-native-codex")
+            alias = supervisor._CODEX_CONTROL_ALIAS
             with mock.patch.dict(os.environ, {"HOME": str(home)}):
                 supervisor.snapshot_credentials(runtime)
                 profile = supervisor.generate_permission_profile(
                     spec, runtime, codex_executable=codex
                 )
                 command = (
-                    str(root / "bwrap"), "--clearenv", "--setenv", "HOME", str(runtime.root),
+                    str(root / "bwrap"), "--tmpfs", "/run", "--dir", str(alias.parent),
+                    "--ro-bind", str(codex), str(alias),
+                    "--clearenv", "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root), "--setenv", "TMPDIR", "/tmp",
-                    "--", str(codex), "--profile", profile.name, "--strict-config",
+                    "--", str(alias), "--profile", profile.name, "--strict-config",
                     "--ask-for-approval", "never", "exec", "-C", str(workspace),
                     "--ignore-user-config", "--json", "-",
                 )
@@ -900,7 +911,7 @@ class DirectCommandTests(unittest.TestCase):
                 self.assertEqual(evidence, expected)
                 separator = seen["command"].index("--")
                 self.assertEqual(seen["command"][separator + 1:separator + 7], (
-                    str(codex), "--profile", "issue-supervised", "sandbox", "-P",
+                    str(alias), "--profile", "issue-supervised", "sandbox", "-P",
                     "issue-supervised",
                 ))
                 supervisor.cleanup_credentials(runtime)
