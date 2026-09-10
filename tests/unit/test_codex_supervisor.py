@@ -472,7 +472,19 @@ class CodexSupervisorTests(unittest.TestCase):
                 return subprocess.CompletedProcess(argv, 0, json.dumps(boundary), "")
             return runner
 
-        validate_cli_compatibility(command, runner=runner_for(feature_text()))
+        def validate(feature_output):
+            with mock.patch(
+                "issue_start.codex_supervisor._run_active_boundary_probe",
+                return_value=boundary,
+            ):
+                return validate_cli_compatibility(
+                    command, runner=runner_for(feature_output)
+                )
+
+        validate(feature_text())
+        validate(feature_text().replace(
+            "shell_zsh_fork stable false", "shell_zsh_fork under development false"
+        ))
         for feature in (
             "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
             "code_mode_only", "multi_agent_mode", "multi_agent_v2",
@@ -481,13 +493,9 @@ class CodexSupervisorTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"
                 ):
-                    validate_cli_compatibility(
-                        command, runner=runner_for(feature_text(enable=feature))
-                    )
+                    validate(feature_text(enable=feature))
         with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
-            validate_cli_compatibility(
-                command, runner=runner_for(feature_text(remove="shell_zsh_fork"))
-            )
+            validate(feature_text(remove="shell_zsh_fork"))
         for extra in (
             "future_process_feature stable true\n",
             "python_repl stable true\n",
@@ -500,18 +508,10 @@ class CodexSupervisorTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"
                 ):
-                    validate_cli_compatibility(
-                        command, runner=runner_for(feature_text(extra))
-                    )
-        validate_cli_compatibility(
-            command,
-            runner=runner_for(feature_text("bedrock_setup_wizard stable true\n")),
-        )
+                    validate(feature_text(extra))
+        validate(feature_text("bedrock_setup_wizard stable true\n"))
         with self.assertRaisesRegex(CodexSupervisorError, "CLI_CONFIG_UNSUPPORTED"):
-            validate_cli_compatibility(
-                command,
-                runner=runner_for(feature_text("remote_shell_v2 experimental\n")),
-            )
+            validate(feature_text("remote_shell_v2 experimental\n"))
 
     def test_supervisor_process_environment_is_minimal(self):
         source = {

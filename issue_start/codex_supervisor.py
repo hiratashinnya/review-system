@@ -1571,12 +1571,12 @@ def _parse_feature_states(stdout: str) -> dict[str, str]:
             continue
         if tuple(field.lower() for field in fields) == _FEATURE_LIST_HEADER:
             continue
-        if len(fields) != 3:
+        if len(fields) < 3:
             raise CodexSupervisorError(
                 "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED",
                 f"unparsed features line: {line.strip()}",
             )
-        name, _maturity, state = fields
+        name, state = fields[0], fields[-1]
         if name in states:
             raise CodexSupervisorError(
                 "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED", f"duplicate feature: {name}"

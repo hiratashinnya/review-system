@@ -1,0 +1,14 @@
+command: python3 -m unittest tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_launch_control tests.unit.test_issue_start_gate tests.unit.test_worktree_ledger tests.unit.test_issue_start_cli_assets
+commit: 79d030c
+result: FAIL
+ran: 292
+skipped: 12
+errors: 2
+
+ERROR tests.unit.test_codex_supervisor.CodexSupervisorTests.test_model_free_feature_catalog_preserves_issue_491_fail_close
+CODEX_SUPERVISOR_PROBE_NOT_TESTED: [Errno 1] Operation not permitted
+cause: feature-catalog unitの成功経路が検査対象外のactive boundary socket作成まで実行し、test sandboxのsocket禁止に到達した。
+
+ERROR tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED: unparsed features line: apply_patch_preserve_line_endings        under development  false
+cause: merge解決でparserをexact 3 tokenに強め、main #491が許容する複数語maturity（先頭name・末尾state）を拒否した。
