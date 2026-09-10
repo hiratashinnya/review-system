@@ -89,7 +89,8 @@ unresolved_findings、out_of_scope_findings、protected_patchを過不足なく�
 run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→pushを順番に実行し、既存consumer形式のfinal handoffを生成する。
 
-同inner processはdirect `codex exec -C` のbuilt-in workspace-write sandboxだけを使う。data-plane networkと
+同inner processはgenerated `issue-supervised` permission profileが`:workspace`を継承して与える
+workspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 karte bridgeはhost側の専用状態遷移に従う。
 

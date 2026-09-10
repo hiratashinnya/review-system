@@ -64,7 +64,8 @@ publish CLIでpath/digestを追加しない。protected patch（宣言時のみ�
 段間Git factsのCAS付きで
 順番に実行し、最終handoffを生成する。
 
-同inner processはdirect `codex exec -C` のbuilt-in workspace-write sandboxだけを使う。data-plane networkと
+同inner processはgenerated `issue-supervised` permission profileが`:workspace`を継承して与える
+workspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
 schema_version: 1

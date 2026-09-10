@@ -436,8 +436,8 @@ class LaunchControlTests(unittest.TestCase):
         original = source.read_bytes()
         source.write_bytes(original + b" ")
         source.chmod(0o600)
-        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
-                                    "ISSUE_SOURCE_INVALID"):
+        with self._manifest_patch(), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"):
             codex_launch_intent.load_launch_intent(
                 codex_launch_intent.LaunchRequest(10, "issue-implementer", "cp-10"),
                 cwd=self.workspace,
@@ -449,8 +449,8 @@ class LaunchControlTests(unittest.TestCase):
         plan["protected_plan"] = [{"path": ".codex/hooks.json", "base_sha256": "a" * 64}]
         plan_path.write_text(json.dumps(plan), encoding="utf-8")
         plan_path.chmod(0o600)
-        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
-                                    "CANONICAL_LEDGER_MISMATCH"):
+        with self._manifest_patch(), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "CANONICAL_LEDGER_MISMATCH"):
             codex_launch_intent.load_launch_intent(
                 codex_launch_intent.LaunchRequest(10, "issue-implementer", "cp-10"),
                 cwd=self.workspace,

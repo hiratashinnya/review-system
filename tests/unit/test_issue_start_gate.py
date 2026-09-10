@@ -119,6 +119,25 @@ class CodexLaunchIntentTests(unittest.TestCase):
         return GitFacts(str(workspace), str(self.root), ".worktrees/issue-10",
                         "example/repo", "codex/issue-10", OID)
 
+    @staticmethod
+    def manifest_evidence(value, *, reason):
+        """Return deterministic evidence for pure manifest/intent tests."""
+
+        path = "/usr/bin/bwrap" if reason == "BWRAP_EXECUTABLE_INVALID" else "/opt/test/codex"
+        return path, {
+            "path": path,
+            "sha256": ("b" if reason == "BWRAP_EXECUTABLE_INVALID" else "c") * 64,
+            "version": "test-bwrap 1" if reason == "BWRAP_EXECUTABLE_INVALID" else "test-codex 1",
+            "uid": os.getuid(),
+            "mode": "0755",
+        }
+
+    def manifest_evidence_patch(self):
+        return patch(
+            "issue_start.codex_launch_intent._stable_executable_evidence",
+            side_effect=self.manifest_evidence,
+        )
+
     def ledger_entry(self, *, role="issue-implementer", round_number=None):
         facts = self.facts()
         return {
@@ -139,15 +158,16 @@ class CodexLaunchIntentTests(unittest.TestCase):
 
     def generate(self, request, *, plan=None, source_material=None, manifest=None,
                  entry=None, facts=None):
-        return codex_launch_intent.generate_launch_intent(
-            request, plan=plan or codex_change_plan(
-                self.root, role=request.role, fixer_round=request.fixer_round),
-            manifest=manifest or self.manifest, repo_root=self.root,
-            source_material=source_material or {"issue": ISSUE_SNAPSHOT},
-            canonical_facts=facts or self.facts(),
-            canonical_entry=entry or self.ledger_entry(
-                role=request.role, round_number=request.fixer_round),
-        )
+        with self.manifest_evidence_patch():
+            return codex_launch_intent.generate_launch_intent(
+                request, plan=plan or codex_change_plan(
+                    self.root, role=request.role, fixer_round=request.fixer_round),
+                manifest=manifest or self.manifest, repo_root=self.root,
+                source_material=source_material or {"issue": ISSUE_SNAPSHOT},
+                canonical_facts=facts or self.facts(),
+                canonical_entry=entry or self.ledger_entry(
+                    role=request.role, round_number=request.fixer_round),
+            )
 
     def request(self, **changes):
         values = {
@@ -311,6 +331,8 @@ class CodexLaunchIntentTests(unittest.TestCase):
             )
 
     def test_installed_codex_is_accepted_with_stable_evidence(self):
+        if shutil.which("codex") is None:
+            self.skipTest("NOT_TESTED: installed Codex is unavailable")
         path, evidence = codex_launch_intent._stable_executable_evidence(
             "codex", reason="CODEX_EXECUTABLE_INVALID",
         )
@@ -464,8 +486,9 @@ class CodexLaunchIntentTests(unittest.TestCase):
         return target
 
     def load(self, request):
-        with patch("issue_start.codex_launch_intent.inspect_git_facts",
-                   return_value=self.facts()):
+        with self.manifest_evidence_patch(), patch(
+                "issue_start.codex_launch_intent.inspect_git_facts",
+                return_value=self.facts()):
             return codex_launch_intent.load_launch_intent(request, cwd=self.root)
 
     def test_loader_requires_existing_secure_owner_plan(self):
@@ -607,8 +630,9 @@ class CodexLaunchIntentTests(unittest.TestCase):
     def hook(self, command):
         stdout = io.StringIO()
         payload = {"tool_name": "Bash", "tool_input": {"command": command}}
-        with patch("issue_start.codex_launch_intent.inspect_git_facts",
-                   return_value=self.facts()):
+        with self.manifest_evidence_patch(), patch(
+                "issue_start.codex_launch_intent.inspect_git_facts",
+                return_value=self.facts()):
             rc = codex_launch_intent.run_hook(
                 stdin=io.StringIO(json.dumps(payload)), stdout=stdout, cwd=self.root
             )
