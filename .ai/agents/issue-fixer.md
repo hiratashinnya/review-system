@@ -77,14 +77,13 @@ STOP でも通常完了でも、ここに書いた handoff は SubagentStop フ�
 現在HEAD、結果を含める。STOPは`status: stopped`とし、host publish不可として扱う。下記形式はhost publish後のfinal phaseである。
 `result`にはfinal生成に必要なround、既存PR URL、finding_ids、diagnosis、outcome、changed_files、tests、
 unresolved_findings、out_of_scope_findings、protected_patchを過不足なく入れる。protected asset変更がなければ
-`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。承認対象pathはbinding
-prepare時にownerがmain ledgerへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
+`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。承認対象pathはsupervisor
+run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→pushを順番に実行し、既存consumer形式のfinal handoffを生成する。
 
-同inner processでは汎用shellや任意argvを使わず、supervisorが公開したtask-bound command brokerの
-action-specific schemaだけを使う。broker catalogに無いcommandが必要なら別launcherを探さずSTOPし、必要な
-actionと安全な固定grammarを呼び出し元へ提案する。PATH変更、absolute executable、copy/symlink、Node payload、
-native launcherによってprocess境界を迂回しない。karte bridgeはhost側の専用状態遷移に従い、本brokerへ混ぜない。
+同inner processはdirect `codex exec -C` のbuilt-in workspace-write sandboxだけを使う。data-plane networkと
+raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
+karte bridgeはhost側の専用状態遷移に従う。
 
 ハンドオフは次の構造を満たす。
 

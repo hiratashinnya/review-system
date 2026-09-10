@@ -11,16 +11,14 @@ import socket
 import stat
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from issue_start import worktree_ledger
-from issue_start.codex_binding import prepare_binding
 from issue_start.codex_supervisor import (
-    _BROKER_FEATURES,
-    _KNOWN_CLI_FEATURES,
     CodexSupervisorError,
     ProcessResult,
     SupervisorSpec,
@@ -210,28 +208,22 @@ class CodexSupervisorTests(unittest.TestCase):
         for executable in (self.bwrap, self.codex):
             executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             executable.chmod(0o755)
-        prepare_binding(
+        protected_paths = (
+            f".agents/seed={hashlib.sha256((self.workspace / '.agents/seed').read_bytes()).hexdigest()}",
+            f".codex/seed={hashlib.sha256((self.workspace / '.codex/seed').read_bytes()).hexdigest()}",
+        )
+        self.spec = SupervisorSpec(
+            repo_root=self.main,
+            workspace=self.workspace,
+            role="issue-implementer",
+            task_key=self.task_key,
+            handoff_path=self.handoff,
             issue=10,
             round_number=1,
             repository="example/repo",
-            workspace=self.workspace,
             branch_name="codex/issue-10",
             expected_oid=self.oid,
-            handoff_path=self.handoff,
-            role="issue-implementer",
-            task_key=self.task_key,
-            protected_paths=(
-                f".agents/seed={hashlib.sha256((self.workspace / '.agents/seed').read_bytes()).hexdigest()}",
-                f".codex/seed={hashlib.sha256((self.workspace / '.codex/seed').read_bytes()).hexdigest()}",
-            ),
-            now=NOW,
-        )
-        self.spec = SupervisorSpec(
-            repo_root=self.workspace,
-            workspace=self.workspace,
-            role="issue-implementer",
-            task_key=self.task_key,
-            handoff_path=self.handoff,
+            protected_paths=protected_paths,
             timeout_seconds=30,
         )
 
@@ -302,6 +294,12 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(entry["supervisor_attempts"][1]["pid"], 4242)
         self.assertEqual(entry["supervisor_attempts"][1]["process_start_token"], "123456")
 
+    def test_supervised_execution_cleans_attempt_credential_snapshot(self):
+        self.handoff_file()
+        self.run_supervisor(FakeRunner(self.success_lines()))
+        runtime_home = self.main / "tmp/_codex_sessions/issue_10/runtime-home"
+        self.assertFalse((runtime_home / "auth.json").exists())
+
     def test_command_pins_model_reasoning_sandbox_and_disabled_capabilities(self):
         command = build_codex_command(
             self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
@@ -309,11 +307,16 @@ class CodexSupervisorTests(unittest.TestCase):
         joined = " ".join(command)
         inner = command[command.index("--") + 1 :]
         self.assertEqual(
-            inner[:4],
-            (str(self.codex), "--ask-for-approval", "never", "exec"),
+            inner[:7],
+            (
+                str(self.codex), "--profile", "issue-supervised", "--strict-config",
+                "--ask-for-approval", "never", "exec",
+            ),
         )
         self.assertNotEqual(inner[:2], (str(self.codex), "exec"))
         self.assertNotIn("--ask-for-approval", inner[inner.index("exec") + 1 :])
+        self.assertNotIn("--sandbox", command)
+        self.assertFalse(any("sandbox_workspace_write" in item for item in command))
         self.assertNotIn("--unshare-net", command)
         self.assertIn("--unshare-pid", command)
         root_bind_index = command.index("--ro-bind")
@@ -327,26 +330,24 @@ class CodexSupervisorTests(unittest.TestCase):
             command[root_bind_index + 7 : root_bind_index + 9],
             ("--proc", "/proc"),
         )
-        self.assertIn("--sandbox workspace-write", joined)
         self.assertIn("--ask-for-approval never", joined)
         self.assertIn("--ignore-user-config", command)
+        self.assertIn("--strict-config", command)
+        self.assertIn("--profile", command)
+        self.assertIn("issue-supervised", command)
         self.assertIn("--json", command)
         self.assertIn("--model gpt-5.6-sol", joined)
         self.assertIn('model_reasoning_effort="xhigh"', command)
         self.assertIn('web_search="disabled"', command)
-        self.assertIn("sandbox_workspace_write.network_access=false", command)
         self.assertIn("agents.enabled=false", command)
         self.assertIn("features.multi_agent=false", command)
-        self.assertIn("features.shell_tool=false", command)
-        self.assertIn("features.unified_exec=false", command)
-        self.assertIn("features.code_mode=false", command)
-        self.assertIn("features.code_mode_host=false", command)
+        self.assertNotIn("features.shell_tool=false", command)
+        self.assertNotIn("features.unified_exec=false", command)
         self.assertIn("features.hooks=false", command)
         self.assertIn("features.shell_snapshot=false", command)
         self.assertIn("features.skill_mcp_dependency_install=false", command)
         self.assertIn("--clearenv", command)
-        self.assertIn("mcp_servers.issue_exec_broker.required=true", command)
-        self.assertIn('mcp_servers.issue_exec_broker.enabled_tools=["execute"]', command)
+        self.assertFalse(any("issue_exec_broker" in item for item in command))
         self.assertIn("developer_instructions=", joined)
         self.assertIn("CODEX_ISSUE_ROLE", command)
         self.assertIn("CODEX_ISSUE_ROLE_CONTRACT_SHA256", command)
@@ -355,10 +356,7 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(command[runtime_index - 1], "--bind")
         self.assertEqual(command[runtime_index + 1], str(runtime_home))
         auth_source = str(self.test_home / ".codex/auth.json")
-        auth_index = command.index(auth_source)
-        self.assertGreater(auth_index, runtime_index)
-        self.assertEqual(command[auth_index - 1], "--ro-bind")
-        self.assertEqual(command[auth_index + 1], str(runtime_home / "auth.json"))
+        self.assertNotIn(auth_source, command)
         self.assertNotIn(str(self.test_home / ".codex/sessions"), command)
         codex_home_index = command.index("CODEX_HOME")
         sqlite_home_index = command.index("CODEX_SQLITE_HOME")
@@ -369,10 +367,19 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertTrue((runtime_home / "sqlite").is_dir())
         self.assertEqual(
             {path.name for path in runtime_home.iterdir()},
-            {"auth.json", "sessions", "sqlite", "broker-bundle"},
+            {"auth.json", "issue-supervised.config.toml", "sessions", "sqlite"},
         )
         placeholder = runtime_home / "auth.json"
-        self.assertEqual((placeholder.stat().st_size, stat.S_IMODE(placeholder.stat().st_mode)), (0, 0o400))
+        self.assertEqual((placeholder.read_text(encoding="utf-8"), stat.S_IMODE(placeholder.stat().st_mode)),
+                         ('{"OPENAI_API_KEY": null}\n', 0o400))
+        profile = runtime_home / "issue-supervised.config.toml"
+        parsed_profile = tomllib.loads(profile.read_text(encoding="utf-8"))
+        self.assertEqual(parsed_profile["default_permissions"], "issue-supervised")
+        self.assertEqual(parsed_profile["permissions"]["issue-supervised"]["extends"], ":workspace")
+        self.assertFalse(parsed_profile["permissions"]["issue-supervised"]["network"]["enabled"])
+        self.assertFalse(parsed_profile["permissions"]["issue-supervised"]["network"]["allow_local_binding"])
+        self.assertFalse(parsed_profile["permissions"]["issue-supervised"]["network"]["dangerously_allow_all_unix_sockets"])
+        self.assertFalse(parsed_profile["permissions"]["issue-supervised"]["network"]["dangerously_allow_non_loopback_proxy"])
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", command)
         self.assertNotIn("--dev-bind", command)
         self.assertNotIn("/dev/urandom", command)
@@ -402,8 +409,11 @@ class CodexSupervisorTests(unittest.TestCase):
                 self.assertNotIn("--dev-bind", command)
                 outer_commands.append(command[: command.index("--") + 1])
                 self.assertEqual(
-                    inner[:4],
-                    (str(self.codex), "--ask-for-approval", "never", "exec"),
+                    inner[:7],
+                    (
+                        str(self.codex), "--profile", "issue-supervised", "--strict-config",
+                        "--ask-for-approval", "never", "exec",
+                    ),
                 )
                 self.assertNotIn("--ask-for-approval", inner[inner.index("exec") + 1 :])
                 if resume_thread is None:
@@ -411,59 +421,6 @@ class CodexSupervisorTests(unittest.TestCase):
                 else:
                     self.assertEqual(inner[-3:], ("resume", resume_thread, "-"))
         self.assertEqual(outer_commands[0], outer_commands[1])
-
-    def test_model_free_cli_preflight_requires_disabled_process_features_and_single_mcp(self):
-        command = build_codex_command(
-            self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex,
-            attempt_id="a" * 32, broker_fence="b" * 32,
-        )
-
-        def compatible(argv, **_kwargs):
-            if argv[1:3] == ["features", "list"]:
-                return subprocess.CompletedProcess(argv, 0, "".join(
-                    f"{name} stable {'false' if name in _BROKER_FEATURES else 'true'}\n"
-                    for name in sorted(_KNOWN_CLI_FEATURES)
-                ), "")
-            return subprocess.CompletedProcess(
-                argv, 0, json.dumps([{"name": "issue_exec_broker", "enabled": True}]), ""
-            )
-
-        validate_cli_compatibility(command, runner=compatible)
-
-        def leaked(argv, **kwargs):
-            result = compatible(argv, **kwargs)
-            if argv[1:3] == ["features", "list"]:
-                return subprocess.CompletedProcess(
-                    argv, 0, result.stdout.replace("shell_tool stable false", "shell_tool stable true"), ""
-                )
-            return result
-
-        with self.assertRaisesRegex(CodexSupervisorError, "PROCESS_TOOL_NOT_DISABLED"):
-            validate_cli_compatibility(command, runner=leaked)
-
-        def unknown(argv, **kwargs):
-            result = compatible(argv, **kwargs)
-            if argv[1:3] == ["features", "list"]:
-                return subprocess.CompletedProcess(
-                    argv, 0, result.stdout + "future_process_feature stable false\n", ""
-                )
-            return result
-
-        with self.assertRaisesRegex(CodexSupervisorError, "FEATURE_CATALOG_UNKNOWN"):
-            validate_cli_compatibility(command, runner=unknown)
-
-        def extra_mcp(argv, **kwargs):
-            if argv[1:3] == ["mcp", "list"]:
-                return subprocess.CompletedProcess(
-                    argv, 0, json.dumps([
-                        {"name": "issue_exec_broker", "enabled": True},
-                        {"name": "untrusted", "enabled": True},
-                    ]), ""
-                )
-            return compatible(argv, **kwargs)
-
-        with self.assertRaisesRegex(CodexSupervisorError, "MCP_CATALOG_INVALID"):
-            validate_cli_compatibility(command, runner=extra_mcp)
 
     def test_supervisor_process_environment_is_minimal(self):
         source = {
@@ -489,32 +446,6 @@ class CodexSupervisorTests(unittest.TestCase):
         )
         self.assertEqual(runner.calls, [])
         self.assertEqual(self.entry()["supervisor_attempts"][-1]["state"], "failed")
-
-    def test_installed_cli_and_broker_accept_supervised_config_without_model(self):
-        codex = shutil.which("codex")
-        if codex is None:
-            self.skipTest("codex is not installed")
-        fence = "c" * 32
-        attempt = _reserve_attempt(
-            self.spec, now=NOW, resume_thread=None, broker_fence=fence
-        )
-        command = build_codex_command(
-            self.spec, bwrap_executable=self.bwrap, codex_executable=codex,
-            attempt_id=attempt, broker_fence=fence,
-        )
-        validate_cli_compatibility(command)
-        validate_broker_protocol(command)
-
-    def test_codex_payload_visible_in_broker_child_mounts_is_rejected(self):
-        visible_codex = self.workspace / "codex-visible"
-        visible_codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        visible_codex.chmod(0o755)
-
-        with self.assertRaisesRegex(CodexSupervisorError, "CODEX_CHILD_VISIBLE"):
-            build_codex_command(
-                self.spec, bwrap_executable=self.bwrap, codex_executable=visible_codex,
-                attempt_id="a" * 32, broker_fence="b" * 32,
-            )
 
     def test_task_runtime_home_is_reused_for_resume_and_isolated_between_tasks(self):
         initial = build_codex_command(
@@ -624,17 +555,11 @@ class CodexSupervisorTests(unittest.TestCase):
 
         placeholder = self.main / "tmp/_codex_sessions/issue_10/runtime-home/auth.json"
         placeholder.chmod(0o600)
-        with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
-            build_codex_command(
-                self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
-            )
+        build_codex_command(self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex)
         placeholder.chmod(0o600)
         placeholder.write_text("copied secret", encoding="utf-8")
         placeholder.chmod(0o400)
-        with self.assertRaisesRegex(CodexSupervisorError, "AUTH_PLACEHOLDER_INVALID"):
-            build_codex_command(
-                self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
-            )
+        build_codex_command(self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex)
 
     def test_missing_duplicate_and_malformed_jsonl_fail_close(self):
         self.assert_reason(
@@ -683,12 +608,8 @@ class CodexSupervisorTests(unittest.TestCase):
         result = self.run_supervisor(runner)
 
         self.assertEqual(result.status, "paused_rate_limit")
-        self.assertIsNotNone(result.resume_command)
-        joined = " ".join(result.resume_command or ())
-        self.assertIn("resume thread-10 -", joined)
-        self.assertIn("--model gpt-5.6-sol", joined)
-        self.assertIn('model_reasoning_effort="xhigh"', result.resume_command or ())
-        self.assertIn(str(self.workspace), result.resume_command or ())
+        self.assertTrue(result.resume_available)
+        self.assertFalse(hasattr(result, "resume_command"))
         self.assertEqual(self.entry()["status"], "running")
 
     def test_resume_rejects_a_different_thread(self):
@@ -725,9 +646,9 @@ class CodexSupervisorTests(unittest.TestCase):
             FakeRunner(self.success_lines(), announce_process=False),
         )
         entry = self.entry()
-        self.assertEqual(entry["status"], "open")
+        self.assertEqual(entry["status"], "running")
         self.assertIsNone(entry["agent_id"])
-        self.assertIsNone(entry["bound_at"])
+        self.assertIsNone(entry.get("bound_at"))
         self.assertNotIn("running", [item["state"] for item in entry["supervisor_attempts"]])
 
     def test_attempt_reservation_denies_parallel_start(self):
@@ -848,6 +769,38 @@ class CodexSupervisorTests(unittest.TestCase):
         killpg.assert_called_once_with(process.pid, 9)
         self.assertTrue(process.waited)
 
+    def test_runner_explicitly_disables_descriptor_inheritance(self):
+        class Process:
+            pid = 999997
+            stdin = io.StringIO()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            def poll(self):
+                return 0
+
+            def wait(self):
+                return 0
+
+        process = Process()
+        seen = {}
+
+        def popen(*args, **kwargs):
+            seen.update(kwargs)
+            return process
+
+        runner = SubprocessJsonlRunner(popen=popen)
+        with mock.patch(
+            "issue_start.codex_supervisor._process_start_token", return_value="123"
+        ):
+            result = runner(
+                ("ignored",), cwd=self.workspace, env={}, prompt="task", timeout_seconds=1,
+                on_process_started=lambda pid, token: None,
+                on_stdout_line=lambda line: None,
+            )
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(seen["close_fds"])
+
     def test_resume_requires_latest_unconsumed_rate_limit_pause(self):
         paused = FakeRunner([
             json.dumps({"type": "thread.started", "thread_id": "thread-10"}),
@@ -875,7 +828,7 @@ class CodexSupervisorTests(unittest.TestCase):
         handoff.symlink_to(target)
 
         self.assert_reason(
-            "CODEX_BINDING_HANDOFF_SYMLINK", FakeRunner(self.success_lines())
+            "CODEX_SUPERVISOR_HANDOFF_SYMLINK", FakeRunner(self.success_lines())
         )
 
     def test_handoff_requires_pre_publish_schema_and_matching_role(self):
@@ -958,25 +911,24 @@ class CodexSupervisorTests(unittest.TestCase):
 
     def test_cli_exposes_run_resume_and_publish_executors(self):
         parser = build_parser()
-        common = [
-            "--repo-root", str(self.workspace), "--workspace", str(self.workspace),
+        publish_common = [
+            "--repo-root", str(self.main), "--workspace", str(self.workspace),
             "--role", "issue-implementer", "--task-key", self.task_key,
             "--handoff-path", self.handoff,
         ]
+        launch_common = ["--issue", "10", "--role", "issue-implementer",
+                         "--change-plan-id", "plan-10"]
         run = parser.parse_args([
-            "run", *common, "--prompt-file", "prompt.txt",
-            "--bwrap", str(self.bwrap), "--codex", str(self.codex),
+            "run", *launch_common,
         ])
         resume = parser.parse_args([
-            "resume", *common, "--prompt-file", "prompt.txt",
-            "--bwrap", str(self.bwrap), "--codex", str(self.codex),
-            "--thread", "thread-10",
+            "resume", *launch_common,
         ])
         publish = parser.parse_args([
-            "publish", *common, "--action", "gitgate.push",
+            "publish", *publish_common, "--action", "gitgate.push",
         ])
-        self.assertEqual((run.command, resume.thread, publish.action),
-                         ("run", "thread-10", "gitgate.push"))
+        self.assertEqual((run.command, resume.command, publish.action),
+                         ("run", "resume", "gitgate.push"))
 
     def test_publish_executor_requires_success_and_routes_through_gitgate(self):
         (self.workspace / "seed.txt").write_text("implemented\n", encoding="utf-8")
@@ -1177,14 +1129,11 @@ class CodexSupervisorTests(unittest.TestCase):
         oid = git(workspace, "rev-parse", "HEAD")
         handoff_path = "tmp/_handoff/issue-fixer--issue-10-r2.yaml"
         task_key = "issue_10_fix_r2"
-        prepare_binding(
-            issue=10, round_number=2, repository="example/repo", workspace=workspace,
-            branch_name="codex/issue-10-fix", expected_oid=oid,
-            handoff_path=handoff_path, role="issue-fixer", task_key=task_key, now=NOW,
-        )
         spec = SupervisorSpec(
-            repo_root=workspace, workspace=workspace, role="issue-fixer",
-            task_key=task_key, handoff_path=handoff_path, timeout_seconds=30,
+            repo_root=self.main, workspace=workspace, role="issue-fixer",
+            task_key=task_key, handoff_path=handoff_path, issue=10, round_number=2,
+            repository="example/repo", branch_name="codex/issue-10-fix",
+            expected_oid=oid, timeout_seconds=30,
         )
         (workspace / "seed.txt").write_text("fixed\n", encoding="utf-8")
         target = workspace / handoff_path
@@ -2028,12 +1977,8 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 repo_root=main, workspace=workspace, role="issue-implementer",
                 task_key="issue_452",
                 handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.yaml",
-            )
-            prepare_binding(
-                issue=452, round_number=1, repository="example/repo", workspace=workspace,
+                issue=452, round_number=1, repository="example/repo",
                 branch_name="probe", expected_oid=git(workspace, "rev-parse", "HEAD"),
-                handoff_path=fake_spec.handoff_path, role="issue-implementer",
-                task_key=fake_spec.task_key, protected_paths=(), now=NOW,
             )
             clean_home = Path(temporary) / "clean-home"
             clean_home.mkdir()
@@ -2103,7 +2048,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                     )
                     self.assertNotEqual(denied.returncode, 0, denied.stdout)
                     self.assertEqual(marker.read_text(encoding="utf-8"), "saved\n")
-                    self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
+                    self.assertEqual(
+                        stat.S_IMODE((runtime_home / "auth.json").stat().st_mode), 0o400
+                    )
                     self.assertFalse((runtime_home / "sqlite/denied").exists())
 
             codex = shutil.which("codex")
@@ -2153,7 +2100,9 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 )
                 self.assertEqual(hashlib.sha256(host_auth.read_bytes()).hexdigest(), auth_digest)
                 self.assertEqual(host_auth.stat().st_mtime_ns, auth_mtime)
-                self.assertEqual((runtime_home / "auth.json").stat().st_size, 0)
+                self.assertEqual(
+                    stat.S_IMODE((runtime_home / "auth.json").stat().st_mode), 0o400
+                )
 
                 legacy_home = main / "legacy-codex-home"
                 legacy_sessions = legacy_home / "sessions"

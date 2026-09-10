@@ -100,6 +100,7 @@ import os
 import re
 import time
 import uuid
+from contextlib import AbstractContextManager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -233,7 +234,7 @@ def ledger_dir(repo_root, *, create: bool = False) -> Path:
     if not tmp.exists():
         if not create:
             return tmp / LEDGER_DIRNAME
-        tmp.mkdir(parents=True)
+        tmp.mkdir(parents=True, exist_ok=True)
     if not tmp.is_dir():
         raise LedgerError("LEDGER_TMP_NOT_DIR", str(tmp))
 
@@ -243,7 +244,7 @@ def ledger_dir(repo_root, *, create: bool = False) -> Path:
     if not target.exists():
         if not create:
             return target
-        target.mkdir(parents=True)
+        target.mkdir(parents=True, exist_ok=True)
     if not target.is_dir():
         raise LedgerError("LEDGER_DIR_NOT_DIR", str(target))
     return target
@@ -322,7 +323,8 @@ def _write_atomic(path: Path, document: Mapping[str, Any]) -> None:
     tmp_path = path.with_name(LEDGER_TMP_FILENAME)
     text = json.dumps(document, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
     try:
-        fd = os.open(str(tmp_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        fd = os.open(str(tmp_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                     | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     except FileExistsError as exc:
         raise LedgerError("LEDGER_TMP_EXISTS", str(tmp_path)) from exc
     except OSError as exc:
@@ -330,7 +332,14 @@ def _write_atomic(path: Path, document: Mapping[str, Any]) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(str(tmp_path), str(path))
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except OSError as exc:
         try:
             os.unlink(str(tmp_path))
@@ -356,19 +365,64 @@ def update_ledger(
     ``LEDGER_LOCK_TIMEOUT``（fail-close）。**待ち時間の判定に wall clock を読まない**
     （``sleep`` を注入すればテストは実時間に依存しない）。
     """
-    directory = ledger_dir(repo_root, create=True)
-    path = directory / LEDGER_FILENAME
-    if path.is_symlink():
-        raise LedgerError("LEDGER_FILE_SYMLINK", str(path))
-    lock_fd = _acquire_lock(directory, lock_timeout_s=lock_timeout_s, sleep=sleep)
-    try:
-        document = read_ledger(repo_root)
-        mutate(document)
-        _validate_document(document, "in-memory")
-        _write_atomic(path, document)
-        return document
-    finally:
-        durable_lock.release(lock_fd)
+    with acquire_ledger_lease(
+        repo_root, lock_timeout_s=lock_timeout_s, sleep=sleep,
+    ) as lease:
+        mutate(lease.document)
+        lease.commit()
+        return lease.document
+
+
+class LedgerLease(AbstractContextManager["LedgerLease"]):
+    """短い複合操作の間だけ ledger flock を保持する明示的 lease。
+
+    descriptor は :mod:`durable_lock` が ``O_CLOEXEC`` で開く。呼び出し側は
+    ``finally`` または context manager で必ず解放し、外部 process の長時間実行中へ
+    lease を持ち越してはならない。
+    """
+
+    def __init__(self, repo_root, *, lock_timeout_s: float,
+                 sleep: Callable[[float], None]) -> None:
+        self.repo_root = Path(repo_root)
+        self.directory = ledger_dir(repo_root, create=True)
+        self.path = self.directory / LEDGER_FILENAME
+        if self.path.is_symlink():
+            raise LedgerError("LEDGER_FILE_SYMLINK", str(self.path))
+        self._fd: int | None = _acquire_lock(
+            self.directory, lock_timeout_s=lock_timeout_s, sleep=sleep,
+        )
+        try:
+            self.document = read_ledger(repo_root)
+        except BaseException:
+            self.release()
+            raise
+
+    @property
+    def closed(self) -> bool:
+        return self._fd is None
+
+    def commit(self) -> None:
+        if self.closed:
+            raise LedgerError("LEDGER_LEASE_CLOSED", str(self.path))
+        _validate_document(self.document, "in-memory")
+        _write_atomic(self.path, self.document)
+
+    def release(self) -> None:
+        descriptor, self._fd = self._fd, None
+        if descriptor is not None:
+            durable_lock.release(descriptor)
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self.release()
+
+
+def acquire_ledger_lease(
+    repo_root, *, lock_timeout_s: float = 5.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> LedgerLease:
+    """ledger を読み込んだ状態で exclusive lock を所有する lease を返す。"""
+
+    return LedgerLease(repo_root, lock_timeout_s=lock_timeout_s, sleep=sleep)
 
 
 # --- エントリ操作 --------------------------------------------------------------
@@ -469,8 +523,8 @@ def _latest(entries, predicate) -> dict | None:
 def latest_open_entry(repo_root, agent_type: str) -> dict | None:
     """同じ ``agent_type`` の最新の Claude ``open`` エントリ（無ければ ``None``）。
 
-    Codex は spawn 前に workspace が確定しており :mod:`issue_start.codex_binding` が task key
-    で直接束縛する。ここへ混ぜると Claude ``SubagentStart`` が Codex entry を横取りするため、
+    Codex supervisorは`.worktrees/`配下と独立launch recordを使う。ここへ混ぜると
+    Claude ``SubagentStart`` がCodex supervisor entryを横取りするため、
     platform 欠如（既存 entry）または ``claude`` だけを対象にする。
     """
     entries = read_ledger(repo_root)["entries"]

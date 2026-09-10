@@ -51,15 +51,13 @@ hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果�
 hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish完了後のfinal phaseであり、inner成功証跡に流用しない。
 `result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
 protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
-hostはbinding prepare時にownerがmain ledgerへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
+hostはsupervisor run時にownerがimmutable launch recordへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
 publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを内容を含む
 段間Git factsのCAS付きで
 順番に実行し、最終handoffを生成する。
 
-同inner processでは汎用shellや任意argvを使わず、supervisorが公開したtask-bound command brokerの
-action-specific schemaだけを使う。broker catalogに無いcommandが必要なら別launcherを探さずSTOPし、必要な
-actionと安全な固定grammarを呼び出し元へ提案する。PATH変更、absolute executable、copy/symlink、Node payload、
-native launcherによってprocess境界を迂回しない。
+同inner processはdirect `codex exec -C` のbuilt-in workspace-write sandboxだけを使う。data-plane networkと
+raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
 schema_version: 1
 phase: final

@@ -295,3 +295,14 @@ prepare-only で dispatch 成功を表さない。owner-approved worker fallback
 - **本節は制約の明文化と回避手順の共有に留める**：エージェント定義のスナップショット挙動を機構として
   解消・安定化すること（更新トリガーの解明・動的リロード等）は本節の対象外。機構側の対処が要るかは
   オーナー判断で別途（Issue #360 Out of scope）。
+
+## Issue #452 方針転換（2026-09-06、F-452-20）
+
+`spawn_agent`用prepare bindingは、公式custom agent schemaにper-subagent cwdがなく親workspaceを継承する
+事実から退役した。Codex本体の上流改修は利用者側の候補から恒久的に外す。manifest Codex entry、TTL/refresh、
+collect/release、all-tool binding hookを削除し、既知roleはissue-start gate最早期で常時denyする。
+
+supervisorは作り直さず、owner launch specとattemptを単一transactionで記録する形へ縮小する。full MCP broker、
+EXECUTE allowlist、command毎bwrap、空procfs、feature catalog完全一致は不採用。direct Codex commandとdata-plane
+network denyを採り、local thread生成は成功証拠にせず残余リスクとして受容する。auth/installed tree read denyは
+legacy workspace-writeとpermission profileが非合成なので、profile契約へ更新しない限り未検証のまま成功扱いしない。

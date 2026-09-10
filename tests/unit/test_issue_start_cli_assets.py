@@ -98,24 +98,7 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(manifest["managed"][0]["entrypoint"], "issue-pipeline")
         transports = manifest["managed"][0]["binding_transports"]
         self.assertEqual(manifest["managed"][0]["agent_type"], "issue-implementer")
-        self.assertEqual(
-            set(transports["codex"]["tool_names"]),
-            {"spawn_agent", "collaborationspawn_agent"},
-        )
-        self.assertEqual(
-            transports["codex"]["task_name_pattern"], "^issue_([1-9][0-9]*)$"
-        )
-        self.assertEqual(transports["codex"]["availability"], "unavailable")
-        self.assertEqual(
-            transports["codex"]["missing_observations"],
-            [
-                "child_workspace",
-                "effective_tool_workspace",
-                "actual_agent_id",
-                "spawn_success",
-            ],
-        )
-        self.assertNotIn("Agent", transports["codex"]["tool_names"])
+        self.assertNotIn("codex", transports)
         self.assertEqual(set(transports["claude"]["tool_names"]), {"Task", "Agent"})
         self.assertEqual(
             set(transports["claude"]["required_tool_input_fields"]),
@@ -129,7 +112,6 @@ class AssetParityTests(unittest.TestCase):
         # Issue #350: worktree 分離は Claude harness の Agent tool `isolation` で与えられる。
         # Codex の spawn_agent には isolation 概念が無いので要求を持ち込まない（transport 別）。
         self.assertEqual(transports["claude"]["required_isolation"], "worktree")
-        self.assertNotIn("required_isolation", transports["codex"])
         self.assertTrue(manifest["unmanaged"])
 
     def test_isolation_only_section_declares_the_fixer_contract(self):
@@ -143,31 +125,7 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(entry["entrypoint"], "issue-pipeline")
         self.assertEqual(entry["agent_type"], "issue-fixer")
         transports = entry["binding_transports"]
-        # Claude は tool isolation で到達する。Codex は shape を正規識別するが、
-        # runtime observation 不足を manifest が宣言し dispatch 前に fail-close する。
-        self.assertEqual(set(transports), {"claude", "codex"})
-        codex = transports["codex"]
-        self.assertEqual(set(codex["tool_names"]), {"spawn_agent", "collaborationspawn_agent"})
-        self.assertEqual(codex["agent_type_field"], "agent_type")
-        self.assertEqual(set(codex["required_tool_input_fields"]), {"agent_type", "task_name"})
-        self.assertEqual(
-            set(codex["forbidden_tool_input_fields"]), {"subagent_type", "prompt", "isolation"}
-        )
-        self.assertEqual(
-            codex["task_name_pattern"],
-            "^issue_([1-9][0-9]*)_fix_r([1-9][0-9]*)$",
-        )
-        self.assertEqual(codex["availability"], "unavailable")
-        self.assertEqual(
-            codex["missing_observations"],
-            [
-                "child_workspace",
-                "effective_tool_workspace",
-                "actual_agent_id",
-                "spawn_success",
-            ],
-        )
-        self.assertIn("prepare-only", codex["binding_source"])
+        self.assertEqual(set(transports), {"claude"})
         claude = transports["claude"]
         self.assertEqual(set(claude["tool_names"]), {"Task", "Agent"})
         self.assertEqual(claude["agent_type_field"], "subagent_type")
@@ -193,23 +151,65 @@ class AssetParityTests(unittest.TestCase):
         self.assertIn("pr-merge-gate.sh", commands[0])
         self.assertIn("agent-command-gate.sh", commands[1])
         self.assertIn("issue-start-gate.sh", commands[2])
-        self.assertIn("codex-workspace-binding-gate.sh", commands[3])
+        self.assertIn("codex-launch-intent-gate.sh", commands[3])
+        self.assertEqual(groups[3]["matcher"], "Bash")
         self.assertEqual(len(groups), 4)
 
-    def test_new_binding_hook_trust_does_not_enable_the_transport(self):
+    def test_codex_launch_manifest_derives_every_non_owner_input(self):
+        manifest = json.loads(
+            (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
+        )
+        launch = manifest["codex_supervisor_launch"]
+        self.assertEqual(launch["schema_version"], "codex-launch-intent/1")
+        self.assertEqual(launch["change_plan_schema"], "codex-change-plan/2")
+        self.assertEqual(launch["change_plan_root"], "tmp/_codex_control/change-plans")
+        self.assertEqual(launch["canonical_ledger_platform"], "codex-supervisor")
+        self.assertEqual(launch["reservation_contract"], "same-entry/intent-digest-v1")
+        self.assertEqual(launch["issuer_contract"], {
+            "schema_version": "codex-change-plan-issuance/1",
+            "command": "python3 -m issue_start.codex_launch_control issue",
+            "sources_root": "tmp/_codex_control/sources",
+        })
+        self.assertEqual(set(launch["roles"]), {"issue-implementer", "issue-fixer"})
+        self.assertEqual(launch["executables"], {
+            "bwrap": "/usr/bin/bwrap",
+            "codex": {"lookup_name": "codex",
+                      "sandbox_alias": "/run/issue-supervised/codex"},
+        })
+        self.assertEqual(launch["permission_profile"], "issue-supervised")
+        for role, config in launch["roles"].items():
+            with self.subTest(role=role):
+                self.assertEqual(
+                    set(config),
+                    {"model", "reasoning_effort", "task_key_template", "handoff_template",
+                     "prompt_template"},
+                )
+                self.assertTrue(all(isinstance(value, str) and value for value in config.values()))
+                self.assertIn("{issue_snapshot}", config["prompt_template"])
+        self.assertIn("{karte_snapshot}", launch["roles"]["issue-fixer"]["prompt_template"])
+
+    def test_codex_launch_hook_asset_is_registered_and_executable(self):
+        script = ROOT / ".codex/hooks/codex-launch-intent-gate.sh"
+        self.assertTrue(script.is_file())
+        self.assertTrue(script.stat().st_mode & 0o111)
+        self.assertIn("python3 -m issue_start.codex_launch_intent hook",
+                      script.read_text(encoding="utf-8"))
+        self.assertIn("--git-common-dir", script.read_text(encoding="utf-8"))
+        self.assertIn('cd "$PROJECT_ROOT"', script.read_text(encoding="utf-8"))
+
+    def test_retired_binding_hook_and_manifest_transport_are_absent(self):
         manifest = json.loads(
             (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
         )
         codex_transports = [
-            entry["binding_transports"]["codex"]
+            entry["binding_transports"].get("codex")
             for section in ("managed", "isolation_only")
             for entry in manifest[section]
         ]
-        self.assertTrue(codex_transports)
-        self.assertTrue(all(item["availability"] == "unavailable" for item in codex_transports))
+        self.assertTrue(all(item is None for item in codex_transports))
         readme = (ROOT / ".codex" / "hooks" / "README.md").read_text(encoding="utf-8")
-        self.assertIn("pre_tool_use:3:0", readme)
-        self.assertIn("Trusting group 3 does not enable the transport", readme)
+        self.assertNotIn("pre_tool_use:3:0", readme)
+        self.assertFalse((ROOT / ".codex" / "hooks" / "codex-workspace-binding-gate.sh").exists())
 
 
 if __name__ == "__main__":

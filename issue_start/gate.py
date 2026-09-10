@@ -1,9 +1,8 @@
 """Managed Issue dispatch 直前の blocker policy adapter。
 
-Codex は暗号化される prompt を binding に使わず、平文 task_name を main worktree の
-durable ownership ledger に事前記録された workspace/Git facts へ一度だけ照合する。Claude は既存の
-prompt marker 契約を維持する。branch-source policy は ``gitgate new-branch`` の
-独立 gate であり、dispatch 直前の blocker 判定には混ぜない。
+Claude transport は marker 契約を維持する。Codex の ``spawn_agent`` transport は
+per-subagent workspace を指定・観測できないため、既知 implementer/fixer dispatch を
+payload の詳細検証より先に常時 deny する。Codex supervisor はこの gate とは別経路である。
 """
 
 from __future__ import annotations
@@ -98,19 +97,6 @@ class IssueStartRequest:
 
 
 @dataclass(frozen=True)
-class CodexIssueStartRequest(IssueStartRequest):
-    """durable binding を非破壊検証済みの Codex 初回実装 request。"""
-
-    round: int
-    branch_name: str
-    handoff_path: str
-    expected_oid: str
-    workspace: str
-    task_key: str
-    ledger_entry_id: str
-
-
-@dataclass(frozen=True)
 class IsolationOnlyAck:
     """`isolation_only` 区分の dispatch を受理したことの記録（Issue #354 PR-4）。
 
@@ -134,15 +120,6 @@ class IsolationOnlyAck:
     handoff_path: str | None
     expected_oid: str | None
     repository: str | None
-
-
-@dataclass(frozen=True)
-class CodexIsolationOnlyAck(IsolationOnlyAck):
-    """durable binding を非破壊検証済みの Codex 是正 dispatch。"""
-
-    workspace: str
-    task_key: str
-    ledger_entry_id: str
 
 
 def _manifest() -> Mapping[str, Any]:
@@ -264,39 +241,6 @@ def _canonical_github_repository(remote_url: str) -> str:
     raise IssueStartError("ISSUE_START_ORIGIN_INVALID")
 
 
-def _codex_repository(
-    payload: Mapping[str, Any],
-    *,
-    cwd: Path | None,
-    runner: Callable[..., subprocess.CompletedProcess[str]],
-) -> str:
-    payload_cwd = payload.get("cwd")
-    if not isinstance(payload_cwd, str) or not payload_cwd or not Path(payload_cwd).is_absolute():
-        raise IssueStartError("ISSUE_START_CWD_INVALID")
-    try:
-        payload_root = Path(payload_cwd).resolve(strict=True)
-        hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise IssueStartError("ISSUE_START_CWD_INVALID") from exc
-    if not payload_root.is_dir() or payload_root != hook_root:
-        raise IssueStartError("ISSUE_START_CWD_MISMATCH")
-    if _run_git(["git", "rev-parse", "--is-inside-work-tree"], cwd=hook_root, runner=runner) != "true":
-        raise IssueStartError("ISSUE_START_NOT_WORKTREE")
-    top_level = _run_git(
-        ["git", "rev-parse", "--show-toplevel"], cwd=hook_root, runner=runner
-    )
-    try:
-        git_root = Path(top_level).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise IssueStartError("ISSUE_START_WORKTREE_ROOT_INVALID") from exc
-    if git_root != hook_root:
-        raise IssueStartError("ISSUE_START_WORKTREE_ROOT_MISMATCH")
-    origin = _run_git(
-        ["git", "remote", "get-url", "origin"], cwd=hook_root, runner=runner
-    )
-    return _canonical_github_repository(origin)
-
-
 def _managed_transport(
     tool_name: str,
     agent_type: str,
@@ -333,15 +277,8 @@ def _managed_transport(
 
 
 def _require_transport_available(harness: str, transport: Mapping[str, Any]) -> None:
-    """manifest で unavailable と宣言した transport を parser 入口で拒否する。
+    """manifest で unavailable と宣言した稼働中transportをparser入口で拒否する。"""
 
-    Codex の project hook trust は group index 単位である。新しい all-tool hook が
-    untrusted で実行対象に入っていない状態でも、既存 index の issue-start hook が
-    この検査を実行して dispatch を fail-close する。
-    """
-
-    if harness == "codex" and "availability" not in transport:
-        raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     availability = transport.get("availability", "available")
     if availability == "available":
         return
@@ -388,7 +325,7 @@ def _validate_tool_input_shape(
 def _validate_isolation(
     tool_input: Mapping[str, Any], transport: Mapping[str, Any]
 ) -> None:
-    """availability gate 通過後の transport に worktree 分離を強制する（Issue #350）。
+    """manifest transport に worktree 分離を強制する（Issue #350）。
 
     `issue-implementer` は「isolated worktree で実装する」契約だが、その分離は
     role 側では実現できない——gitgate に worktree を作成・移動する
@@ -400,13 +337,8 @@ def _validate_isolation(
 
     指定を欠いた dispatch は main worktree を共有したまま branch switch する＝
     呼び出し元の作業ツリーを巻き込むので、dispatch 自体を fail-close で拒否する。
-    この局所検査は :func:`_require_transport_available` より後でだけ呼ぶ。
-    `required_isolation` を宣言しない transport はここだけを素通しするが、現行 Codex
-    implementer/fixer transport は ``availability: unavailable`` なので本関数へ到達せず、
-    ``ISSUE_START_TRANSPORT_UNAVAILABLE`` で先に拒否される。加えて対象 role の tool 実行は
-    all-tool binding hook が ``CODEX_BINDING_TRANSPORT_UNAVAILABLE`` で拒否する。したがって
-    Codex の ``spawn_agent`` に isolation 概念が無いことは、保護済み dispatch の許可を
-    意味しない。
+    Codex transportはmanifestに存在せず、既知roleのCodex dispatchは
+    :func:`parse_dispatch_payload` 冒頭でこの検査より前に常時拒否される。
     """
     if "required_isolation" not in transport:
         return
@@ -524,6 +456,16 @@ def parse_dispatch_payload(
     tool_input = payload.get("tool_input")
     if not isinstance(tool_name, str) or not isinstance(tool_input, dict):
         raise IssueStartError("ISSUE_START_PAYLOAD_INVALID")
+    # Codex transport は manifest binding を持たない。既知 tool/role の組合せは malformed
+    # payload であっても marker/ledger/cwd/API を一切読む前に同じ理由で拒否する。
+    if tool_name in {"spawn_agent", "collaborationspawn_agent"} and (
+        tool_input.get("agent_type") in {"issue-implementer", "issue-fixer"}
+        or tool_input.get("subagent_type") in {"issue-implementer", "issue-fixer"}
+    ):
+        raise IssueStartError(
+            "ISSUE_START_TRANSPORT_UNAVAILABLE",
+            "harness=codex; per-subagent workspace selection/observation unavailable",
+        )
     targets = [tool_input.get(field) for field in ("agent_type", "subagent_type")]
     present_targets = [target for target in targets if target is not None]
     if len(present_targets) != 1 or not isinstance(present_targets[0], str) or not present_targets[0]:
@@ -558,45 +500,6 @@ def parse_dispatch_payload(
     entrypoint = entry.get("entrypoint")
     if not isinstance(entrypoint, str):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    if harness == "codex":
-        task_name = tool_input.get("task_name")
-        pattern = transport.get("task_name_pattern")
-        if not isinstance(task_name, str) or not isinstance(pattern, str):
-            raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
-        try:
-            match = re.fullmatch(pattern, task_name)
-        except re.error as exc:
-            raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR") from exc
-        if match is None or match.lastindex != 1:
-            raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
-        issue = int(match.group(1))
-        binding = _validate_codex_binding(
-            payload,
-            tool_input,
-            agent_type=agent_type,
-            cwd=cwd,
-            now=datetime.now(timezone.utc) if now is None else now,
-            runner=runner,
-        )
-        if binding["issue"] != issue:
-            raise IssueStartError("CODEX_BINDING_TASK_KEY_MISMATCH", task_name)
-        request = _request({
-            "entrypoint": entrypoint,
-            "repository": binding["repository"],
-            "issue": binding["issue"],
-        })
-        return CodexIssueStartRequest(
-            entrypoint=request.entrypoint,
-            repository=request.repository,
-            issue=request.issue,
-            round=binding["round"],
-            branch_name=binding["branch_name"],
-            handoff_path=binding["handoff_path"],
-            expected_oid=binding["expected_oid"],
-            workspace=binding["workspace"],
-            task_key=binding["task_key"],
-            ledger_entry_id=binding["entry_id"],
-        )
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
@@ -632,64 +535,10 @@ def _parse_isolation_only(
     entrypoint = entry.get("entrypoint")
     if not isinstance(entrypoint, str):
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
-    if harness == "codex":
-        binding = _validate_codex_binding(
-            payload, tool_input, agent_type=agent_type, cwd=cwd, now=now, runner=runner
-        )
-        return CodexIsolationOnlyAck(
-            entrypoint=entrypoint,
-            agent_type=agent_type,
-            issue=binding["issue"],
-            round=binding["round"],
-            branch_name=binding["branch_name"],
-            handoff_path=binding["handoff_path"],
-            expected_oid=binding["expected_oid"],
-            repository=binding["repository"],
-            workspace=binding["workspace"],
-            task_key=binding["task_key"],
-            ledger_entry_id=binding["entry_id"],
-        )
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
     return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
-
-
-def _validate_codex_binding(
-    payload: Mapping[str, Any],
-    tool_input: Mapping[str, Any],
-    *,
-    agent_type: str,
-    cwd: Path | None,
-    now: datetime,
-    runner: Callable[..., subprocess.CompletedProcess[str]],
-) -> dict[str, Any]:
-    """Codex spawn を durable task binding へ非破壊で照合する。
-
-    spawn payload の ``cwd`` は turn/session cwd であり child workspace ではないため、
-    workspace として使わない。検証対象は prepare 時に Git facts を固定した
-    ledger entry 自身であり、この処理は ``open`` から状態遷移させない。
-    """
-
-    from .codex_binding import CodexBindingError, validate_spawn_binding
-
-    task_key = tool_input.get("task_name")
-    if not isinstance(task_key, str):
-        raise IssueStartError("ISSUE_START_TASK_NAME_INVALID")
-    try:
-        hook_root = (Path.cwd() if cwd is None else cwd).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise IssueStartError("ISSUE_START_CWD_INVALID") from exc
-    try:
-        return validate_spawn_binding(
-            repo_root=hook_root,
-            role=agent_type,
-            task_key=task_key,
-            now=now,
-            runner=runner,
-        )
-    except CodexBindingError as exc:
-        raise IssueStartError(exc.reason, exc.detail) from exc
 
 
 def _error_evidence(request: IssueStartRequest | None, reason: str, detail: str = "") -> dict[str, Any]:
@@ -750,7 +599,7 @@ def read_repository_snapshot(
     者が対象 repository を名乗る snapshot を配って ALLOW を作れてしまう
     ——policy §3.3.1 の「偽造には対象 repository への push 権限が要る」という
     論拠がその経路で成立しなくなる。正規化は Codex 経路
-    （``_codex_repository`` → ``_canonical_github_repository``）と同一とする。
+    （``_canonical_github_repository``）と同一とする。
     """
     top_level = _git_output(
         ["git", "rev-parse", "--show-toplevel"],
@@ -1027,7 +876,7 @@ def _ledger_metadata(payload: Mapping[str, Any]) -> tuple[str | None, str | None
 
     ここは**判定に使わない**（起票の材料にするだけ）。`parse_dispatch_payload` が既に
     受理した payload を読み直しているので厳格な検証はせず、読めなければ ``None`` を返す。
-    ``branch_name`` は Claude の marker にしか無い（Codex 経路は ``None``）。
+    ``branch_name`` は稼働中のClaude markerから得る。
     """
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, Mapping):
@@ -1316,11 +1165,6 @@ def record_open_entry(
     ``round`` / ``handoff_path`` は現行の ``ISSUE_START_BINDING_V1`` marker schema に無いので
     ``None`` のまま起票する（marker 拡張は PR-4）。
     """
-    if isinstance(request, CodexIssueStartRequest):
-        # Codex は spawn 前 prepare で既に open。parse は非破壊で、trusted start
-        # observer が actual identity/workspace を観測するまで running へ遷移しない。
-        # Claude 用の best-effort open を重ねると ownership が二重になる。
-        return {"entry_id": request.ledger_entry_id, "error": None, "platform": "codex"}
     try:
         root = worktree_ledger.main_worktree_root(
             Path.cwd() if repo_root is None else Path(repo_root)
@@ -1362,10 +1206,6 @@ def record_isolation_only_entry(
     **推測せず marker の値で埋める**（FR-W4 の完全化）。台帳の書込失敗は dispatch を
     止めない（fail-open）＝managed 側と同じ扱い。
     """
-    if isinstance(ack, CodexIsolationOnlyAck):
-        # Codex の prepare-only open を返す。actual identity を観測していないこの段で
-        # running や回収可能と推測しない。
-        return {"entry_id": ack.ledger_entry_id, "error": None, "platform": "codex"}
     try:
         root = worktree_ledger.main_worktree_root(
             Path.cwd() if repo_root is None else Path(repo_root)

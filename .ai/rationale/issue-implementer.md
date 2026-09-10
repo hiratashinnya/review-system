@@ -97,3 +97,10 @@ hand-off は dispatch が終了したことを呼び出し元が観測する sig
 - **生 `git …` を deny して `gitgate` 経由にしている理由**：gitgate は固定テンプレートの git argv を
   `shell=False` で組み立てるため、`--receive-pack`/`--upload-pack`/`--output` 等の exec/write フラグが
   ユーザ入力から git に一切届かない。
+
+## Issue #452 F-452-20 による更新（2026-09-06）
+
+旧prepare bindingと単一MCP brokerは退役した。正規Codex implementerはrepo supervisorのimmutable launch
+record、PID/start-token、JSONL、direct workspace command、host publish state machineへ束縛する。protected
+planはrun入力からのみ記録し、implementerはhost publishでpush/PR create可・merge不可を維持する。nested
+Codexのlocal threadは成功証拠に数えず、model/API到達遮断を実装後のfake endpointで検証する。
