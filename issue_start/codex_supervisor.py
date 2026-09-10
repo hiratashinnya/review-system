@@ -61,6 +61,9 @@ _REQUIRED_DISABLED_FEATURES = (
     # permission-profile route selected by Issue #452.
     "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
     "code_mode_only", "multi_agent_mode", "multi_agent_v2",
+    # 0.153.4実catalogでactiveかつmain #491 snapshot外。installed registry上も
+    # automation/tool capabilityとして現れるため、known allowへ入れず明示的に無効化する。
+    "in_app_local_automation", "sleep_tool",
 )
 # codex-cli 0.153.4 の ``codex features list`` で観測した名前のスナップショット。
 # この集合は無害性の allowlist ではない。catalog 外の名前だけを下の process 能力語彙で
@@ -1803,6 +1806,8 @@ def build_codex_command(
         "--config", "features.code_mode_only=false",
         "--config", "features.multi_agent_mode=false",
         "--config", "features.multi_agent_v2=false",
+        "--config", "features.in_app_local_automation=false",
+        "--config", "features.sleep_tool=false",
         "--config", "apps._default.enabled=false",
     ]
     if resume_thread is not None:

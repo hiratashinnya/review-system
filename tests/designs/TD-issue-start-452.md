@@ -47,6 +47,9 @@ recovery、権限非対称、model-originated commandのmodel/API到達遮断を
    - TTL/refresh/prepared stateがない。
 4. direct commandを構築する。
    - `codex exec -C <worktree>`、workspace-write相当、approval never、network deny、shell env none。
+   - Issue #491で確認した派生6 featureと、0.153.4実catalogで追加観測したautomation/tool featureを
+     明示的にfalseへ固定する。feature listは複数語maturityを含め先頭name・末尾stateで厳密に読み、
+     catalog外で有効なprocess能力名はknown扱いへ自動追加せずfail-closeする。
    - MCP broker、feature catalog完全一致、Landlock EXECUTE allowlist、fresh-bwrap/command、空procfsがない。
 5. fake auth、fake endpoint listener、fake installed Codex markerでmodel-free probeを行う。
    - 親listener positive control成功。

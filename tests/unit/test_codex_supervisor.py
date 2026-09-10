@@ -355,6 +355,8 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertIn("features.code_mode_only=false", command)
         self.assertIn("features.multi_agent_mode=false", command)
         self.assertIn("features.multi_agent_v2=false", command)
+        self.assertIn("features.in_app_local_automation=false", command)
+        self.assertIn("features.sleep_tool=false", command)
         for feature in _REQUIRED_DISABLED_FEATURES:
             with self.subTest(feature=feature):
                 self.assertIn(f"features.{feature}=false", command)

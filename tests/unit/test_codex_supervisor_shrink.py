@@ -441,11 +441,6 @@ class DirectCommandTests(unittest.TestCase):
                 profile = supervisor.generate_permission_profile(
                     spec, runtime, codex_executable=codex
                 )
-                feature_overrides = tuple(
-                    argument
-                    for name in supervisor._REQUIRED_DISABLED_FEATURES
-                    for argument in ("--config", f"features.{name}=false")
-                )
                 command = (
                     str(root / "bwrap"), "--clearenv", "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root), "--setenv", "TMPDIR", "/tmp",
@@ -802,7 +797,7 @@ class DirectCommandTests(unittest.TestCase):
                     "--setenv", "TMPDIR", "/tmp",
                     "--", str(alias), "--profile", profile.name, "--strict-config",
                     "--ask-for-approval", "never", "exec", "-C", str(workspace),
-                    "--ignore-user-config", "--json", *feature_overrides, "-",
+                    "--ignore-user-config", "--json", "-",
                 )
                 probe = supervisor._build_active_boundary_probe_command(
                     command, python_executable="/usr/bin/python3", workspace=workspace,
