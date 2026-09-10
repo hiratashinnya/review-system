@@ -556,19 +556,27 @@ class CodexLaunchIntentTests(unittest.TestCase):
         fake_plan = codex_change_plan(self.root)
         fake_plan["owner_approval"]["actor"] = "inner-self-claim"
         (fake / "plan-10.json").write_text(json.dumps(fake_plan), encoding="utf-8")
-        with patch("issue_start.codex_launch_intent.worktree_ledger.main_worktree_root",
-                   return_value=self.root), patch(
-                       "issue_start.codex_launch_intent.inspect_git_facts",
-                       return_value=self.facts()):
+        with self.manifest_evidence_patch() as evidence, patch(
+                "issue_start.codex_launch_intent._executable_evidence",
+                side_effect=AssertionError("pure test reached host executable evidence")), patch(
+                    "issue_start.codex_launch_intent.worktree_ledger.main_worktree_root",
+                    return_value=self.root), patch(
+                        "issue_start.codex_launch_intent.inspect_git_facts",
+                        return_value=self.facts()):
             intent = codex_launch_intent.load_launch_intent(self.request(), cwd=child)
+        self.assertEqual(evidence.call_count, 2)
         self.assertEqual(intent.change_plan_id, "plan-10")
         self.assertNotIn("inner-self-claim", intent.prompt)
 
     def test_loader_observes_live_git_for_the_canonical_ledger_workspace(self):
         self.write_plan()
-        with patch("issue_start.codex_launch_intent.inspect_git_facts",
-                   return_value=self.facts()) as inspect:
+        with self.manifest_evidence_patch() as evidence, patch(
+                "issue_start.codex_launch_intent._executable_evidence",
+                side_effect=AssertionError("pure test reached host executable evidence")), patch(
+                    "issue_start.codex_launch_intent.inspect_git_facts",
+                    return_value=self.facts()) as inspect:
             codex_launch_intent.load_launch_intent(self.request(), cwd=self.root)
+        self.assertEqual(evidence.call_count, 2)
         inspect.assert_called_once_with(self.facts().workspace)
 
     def test_fixer_loader_requires_karte(self):
