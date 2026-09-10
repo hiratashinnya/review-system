@@ -24,7 +24,8 @@ Claude transportのmarker/isolation契約は変更しない。
    immutable intent digestとattemptにより拡張する。第2entryは作らない。secure canonical stateが無ければ
    fail-closeする。
 4. private `/tmp`/`/dev`、worktree書込限定、main/common Git/protected assets read-onlyのOS境界で
-   `codex exec -C <worktree> --sandbox workspace-write`を実行する。
+   `codex --profile issue-supervised --strict-config exec -C <worktree>`を実行する。profileがworkspace-write相当を
+   設定し、literal `--sandbox`は併用せずcompatibility検査が`LEGACY_SANDBOX_PRESENT`で拒否する。
 5. PIDと`/proc/<pid>/stat` start tokenを記録し、同じprocessのJSONL `thread.started`を1度だけ束縛する。
 6. `turn.completed`、exit 0、schema v1 `pre_publish` handoffを全て確認して初めて成功とする。
 7. commit/push/PR createはhost publish state machineが段間Git facts CASを検査して実行する。
