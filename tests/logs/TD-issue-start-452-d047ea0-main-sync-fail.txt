@@ -1,0 +1,16 @@
+command: python3 -m unittest tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_launch_control tests.unit.test_issue_start_gate tests.unit.test_worktree_ledger tests.unit.test_issue_start_cli_assets
+commit: d047ea0
+result: FAIL
+ran: 292
+skipped: 12
+errors: 2
+
+ERROR test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe
+NameError: name 'feature_overrides' is not defined
+cause: fixture補正patchが同形commandの別testへ部分適用され、定義のない展開だけが入った。
+
+ERROR test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: in_app_local_automation sleep_tool
+cause: override適用後、0.153.4実catalogにmain #491 snapshot外でactiveなautomation/tool feature 2件を観測し、未知process能力fail-closeが正常作動した。
+classification evidence: `codex features list`で両名がstable/true、installed binary registryで`in_app_local_automation`はin-app機能群、`sleep_tool`はExtensionItemのSleep/tool群に登録されることをmodel-freeで確認した。
+disposition: inner実装に不要なautomation/tool capabilityのため、両featureを既知安全扱いにせずrequired-disabledへ追加し、production commandとpreflightの双方でfalseを強制する。

@@ -7,9 +7,8 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
    `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
 2. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
-3. An all-tool `PreToolUse` hook (`codex-workspace-binding-gate.sh`) reserved for
-   a future Codex workspace-binding transport. It currently fail-closes target
-   roles because the runtime does not expose the observations needed to bind them.
+3. A Bash `PreToolUse` hook (`codex-launch-intent-gate.sh`) that shape-checks the
+   exact minimal-input supervisor command before the authoritative runtime checks.
 4. A `Stop` hook (`codex-rate-limit-*.sh`) for rate-limit recovery. It now asks
    Codex's structured `account/rateLimits/read` app-server API whether the account
    is rate-limited and, if so, when it resets, then resumes the thread after the
@@ -19,33 +18,48 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
 ## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
 
-`codex-workspace-binding-gate.sh` is registered after the three existing PreToolUse
-groups so their index-based trust identities remain unchanged. For
-`issue-implementer` and `issue-fixer` it currently denies every command: Codex does
-not expose child/effective workspace, actual agent identity, or spawn-success
-observation in trusted hook payloads. Other roles are silent no-ops. The existing
-issue-start hook separately denies Codex implementer/fixer dispatch with
-`ISSUE_START_TRANSPORT_UNAVAILABLE`, including while this new all-tool hook is not
-yet trusted. See `docs/methods/codex-workspace-binding.md` for the degraded contract.
+Issue #452 で Codex workspace-binding transport と all-tool binding hook は退役した。
+`spawn_agent` の implementer/fixer は issue-start gate が常時
+`ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否し、正規経路は repo supervisor の別 process に限る。
 
-### Codex workspace-binding hook trust and index preservation (Issue #452)
+### Codex supervisor launch-intent gate
 
-Hook trust identity includes the source path, event, group index, handler index,
-and normalized handler hash. The Issue #452 hook is therefore appended as
-`pre_tool_use:3:0`; it must never be inserted before the existing groups:
+親AIが手入力できる正規commandは次の4値だけである。
 
-- `pre_tool_use:0:0`: `pr-merge-gate.sh`
-- `pre_tool_use:1:0`: `agent-command-gate.sh`
-- `pre_tool_use:2:0`: `issue-start-gate.sh`
-- `pre_tool_use:3:0`: `codex-workspace-binding-gate.sh` (new)
+```text
+python3 -m issue_start.codex_supervisor (run|resume) --issue N --role ROLE --change-plan-id ID [--fixer-round N]
+```
 
-The owner must open `/hooks`, review only the new group 3 definition/hash, and
-explicitly trust it before relying on command-time evidence. Do not copy a trusted
-hash from another index or write hook trust state automatically. Until group 3 is
-trusted, the trusted existing group 2 issue-start gate is the fail-close boundary:
-the manifest marks both Codex Issue transports unavailable, so no protected agent
-may be dispatched. Trusting group 3 does not enable the transport; runtime support
-for all missing observations and matching integration evidence are also required.
+repository/workspace/branch/OID/task key/handoff/protected plan/model/effort/executable/runtime/profile/promptは
+`managed-entrypoints-v2.json`、host main worktreeのprivateな
+`tmp/_codex_control/change-plans/<ID>.json`、canonical worktree ledger、live Gitから同じgeneratorが
+導出する。owner approvalはhost control-planeの運用記録であり、個人の暗号学的な本人証明とは称さない。
+inner agentがchild workspaceへ置いた同名planはauthorityにならない。
+
+production stateはowner承認後に`python3 -m issue_start.codex_launch_control issue`で発行する。このCLIは
+PreToolUse launch hookの対象ではないcontrol-plane専用入口で、登録済み`.worktrees/*`とcapture済み構造化sourceを
+受ける。worktree作成とGitHub captureはcaller責務であり、issuerはnetwork/model/Claudeを使用しない。
+ledger pending→sources→ledger complete→planの順で公開し、partial stateはlaunchが拒否、同一要求retryが修復する。
+
+network denyのinner processでもACを読めるよう、change planはprivate control root内の構造化Issue/AC
+snapshotについてpath、SHA-256、取得元・取得時刻・取得主体を保持する。fixerは構造化karte snapshotの
+exact roundとopen finding IDも必須である。generatorは同じFDで検査・読取したsnapshotのdigestと意味を
+照合してpromptへ展開し、URLだけをtask promptとはみなさない。private rootはcurrent-user所有0700、
+fileは0600/single-linkを要求し、各componentをdirfd/openat/O_NOFOLLOWで辿る。PreToolUseは実行前に
+同generatorをdry-runし、型・値域・role/round/Issue/AC/karte整合、host approval record、canonical
+ledger/live Git、manifestのmodel/effort/profile/template/path、実行ファイルのowner/mode/digest/versionを
+fail-close検査する。raw commandと先頭に`rtk`を1個置く形だけが正規形であり、fieldの順序・個数も
+上記どおり固定する。追加・重複field、compound command、`env`・assignment・別wrapperによる変形は
+拒否する。無関係なBashとdirect `codex exec`はこのhookの対象外である。
+
+このhookは早期フィードバックでありauthority/receiptではない。supervisor自身が4入力以外を受け取らず、
+process起動直前に同じrequestからintentを再生成してplan/manifest/Issue/karte/ledger/role/executable/Gitと
+実command/profileを再照合する。change-planのowner側永続化とcanonical ledger entryの発行はhost control
+planeの責務で、同entryへimmutable intent digestとattemptを追記し、第2entryを作らない。
+snapshot/change-planを作るcontrol planeはmodel-originated write surfaceの外に置かなければならない。
+
+任意のshell wrapperや別interpreterに隠したdirect Codex起動をPreToolUseで完全封鎖することは範囲外である。
+それを行うには全commandのshell解析・pre-exec brokerへ戻る必要があるため、既知の残余リスクとして受容する。
 
 `agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
 Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
@@ -122,17 +136,16 @@ Design notes:
 - The Claude counterpart (`.claude/hooks/agent-command-gate.sh`) writes the
   same shape of record to `~/.claude/agent-command-gate-trace.log` for parity.
 
-### Codex 0.146.0 Issue-start dispatch tool name
+### 退役transportの調査記録: Codex 0.146.0 Issue-start tool name
 
 The official Codex manual and `rust-v0.146.0` source define `spawn_agent` as
 the canonical hook tool name and `Agent` as its matcher-only compatibility
 alias. A trusted, interactive Codex CLI 0.146.0 run in a disposable clone
 observed `tool_name: "collaborationspawn_agent"` on PreToolUse stdin for the UI
-`collaboration.spawn_agent` call. The Issue-start matcher therefore exact
-matches only `spawn_agent`, `Agent`, and `collaborationspawn_agent`. The Codex
-transport parser accepts only the canonical and observed stdin names; it does
-not accept `Agent`, the unobserved dotted display name, or similar prefix/suffix
-tool names as Codex payload aliases.
+`collaboration.spawn_agent` call. The Issue-start matcher therefore catches the
+known `spawn_agent`, `Agent`, and `collaborationspawn_agent` spellings. After
+Issue #452, known Codex implementer/fixer calls are denied before manifest or
+payload parsing; this record does not define an available Codex binding transport.
 
 Claude Code 2.1.221 Pro produced a separate compatibility case: its configured
 `Task` matcher caught a real Agent tool call whose PreToolUse `tool_name` was
@@ -287,7 +300,6 @@ resolution is still unverified, but it is now known to be moot until the
 | File | Role |
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` and `Stop` hooks. Trust them with `/hooks` before relying on them. |
-| `codex-workspace-binding-gate.sh` | All-tool PreToolUse adapter for durable Codex implementer/fixer workspace bindings. |
 | `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `codex-rate-limit-query.py` | Structured rate-limit query helper (Issue #195). Drives `codex app-server --stdio` over JSON-RPC (`initialize` → `initialized` → `account/rateLimits/read`) and prints normalized `RL_*=value` lines (reached / reset epoch / window / used%). Standard-library only. Exit 0 = queried; non-zero = API unavailable (caller falls back to text). |
 | `codex-rate-limit-stop-hook.sh` | Stop hook handler. Detects cloud/no-tmux no-op cases; queries the rate-limit API and, when reached, spawns the watcher with the API reset epoch (`--recover-once-epoch`). Falls back to `/status` + banner text only when the API is unavailable. |

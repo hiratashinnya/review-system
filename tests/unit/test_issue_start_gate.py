@@ -1,17 +1,23 @@
 """Issue #297 managed Issue-start adapter/hook tests（Issue #309 で台帳起票を追加）。"""
 
 import io
+import hashlib
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from blocker_gate.model import POLICY_VERSION
 from issue_start import worktree_ledger
+from issue_start import codex_launch_intent
+from issue_start.codex_supervisor_workspace import GitFacts
 from issue_start.gate import (
     BINDING_MARKER,
     FIX_BINDING_MARKER,
@@ -32,6 +38,708 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "blocker_gate"
 OID = "a" * 40
 LEDGER_NOW = datetime(2026, 8, 19, 4, 11, 7, tzinfo=timezone.utc)
+ISSUE_SNAPSHOT = json.dumps({
+    "schema_version": "codex-issue-snapshot/2", "repository": "example/repo",
+    "issue": 10, "url": "https://github.com/example/repo/issues/10",
+    "title": "Issue 10", "body": "Implement the requested boundary.",
+    "acceptance_criteria": ["implement safely"],
+    "capture": {"captured_at": "2026-09-06T23:00:00Z",
+                "captured_by": "capture-operator", "capture_method": "github-api"},
+}, sort_keys=True)
+KARTE_SNAPSHOT = json.dumps({
+    "schema_version": "codex-karte-snapshot/2", "issue": 10, "round": 3,
+    "open_findings": [{"id": "F-10-01", "status": "open", "summary": "fix this"}],
+    "capture": {"captured_at": "2026-09-06T23:30:00Z",
+                "captured_by": "karte-exporter", "capture_method": "karte-cli"},
+}, sort_keys=True)
+
+
+def digest(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def codex_change_plan(root, *, issue=10, role="issue-implementer", fixer_round=None,
+                      change_plan_id="plan-10", approved=True):
+    repository = "example/repo"
+    return {
+        "schema_version": "codex-change-plan/2",
+        "change_plan_id": change_plan_id,
+        "owner_approval": {
+            "status": "approved" if approved else "draft", "actor": "repo-owner",
+            "recorded_at": "2026-09-07T00:00:00Z",
+        },
+        "issue": issue,
+        "role": role,
+        "fixer_round": fixer_round,
+        "ledger_entry_id": "wl-123456789abc",
+        "issue_source": {
+            "path": f"tmp/_codex_control/sources/issue-{issue}.json",
+            "sha256": digest(ISSUE_SNAPSHOT),
+            "provenance": {
+                "source_type": "github-issue-snapshot",
+                **json.loads(ISSUE_SNAPSHOT)["capture"],
+            },
+        },
+        "finding_ids": [] if role == "issue-implementer" else [f"F-{issue}-01"],
+        "karte_source": None if role == "issue-implementer" else {
+            "path": f"tmp/_codex_control/sources/karte-{issue}-r{fixer_round}.json",
+            "sha256": digest(KARTE_SNAPSHOT),
+            "provenance": {
+                "source_type": "finding-karte-snapshot",
+                **json.loads(KARTE_SNAPSHOT)["capture"],
+            },
+        },
+        "protected_plan": [{"path": ".codex/hooks.json", "base_sha256": "b" * 64}],
+    }
+
+
+class CodexLaunchIntentTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.manifest = json.loads(
+            (ROOT / "issue_start/managed-entrypoints-v2.json").read_text(encoding="utf-8")
+        )
+        manifest = self.root / "issue_start/managed-entrypoints-v2.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.parent.chmod(0o755)
+        manifest.write_text(json.dumps(self.manifest), encoding="utf-8")
+        manifest.chmod(0o644)
+        for relative in (".codex/agents/issue-implementer.toml",
+                         ".ai/agents/issue-implementer.md",
+                         ".codex/agents/issue-fixer.toml",
+                         ".ai/agents/issue-fixer.md"):
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / relative).read_bytes())
+
+    def facts(self):
+        workspace = self.root / ".worktrees/issue-10"
+        return GitFacts(str(workspace), str(self.root), ".worktrees/issue-10",
+                        "example/repo", "codex/issue-10", OID)
+
+    @staticmethod
+    def manifest_evidence(value, *, reason):
+        """Return deterministic evidence for pure manifest/intent tests."""
+
+        path = "/usr/bin/bwrap" if reason == "BWRAP_EXECUTABLE_INVALID" else "/opt/test/codex"
+        return path, {
+            "path": path,
+            "sha256": ("b" if reason == "BWRAP_EXECUTABLE_INVALID" else "c") * 64,
+            "version": "test-bwrap 1" if reason == "BWRAP_EXECUTABLE_INVALID" else "test-codex 1",
+            "uid": os.getuid(),
+            "mode": "0755",
+        }
+
+    def manifest_evidence_patch(self):
+        return patch(
+            "issue_start.codex_launch_intent._stable_executable_evidence",
+            side_effect=self.manifest_evidence,
+        )
+
+    def ledger_entry(self, *, role="issue-implementer", round_number=None):
+        facts = self.facts()
+        return {
+            "entry_id": "wl-123456789abc", "issue": 10, "agent_type": role,
+            "platform": "codex-supervisor",
+            "round": round_number, "repository": facts.repository,
+            "workspace": facts.workspace, "branch_name": facts.branch_name,
+            "initial_oid": facts.head_oid, "status": "open",
+            "change_plan_id": "plan-10", "issuance_status": "complete",
+            "approved_by": "repo-owner", "approval_recorded_at": "2026-09-07T00:00:00Z",
+            "task_key": ("issue_10" if role == "issue-implementer" else
+                         f"issue_10_fix_r{round_number}"),
+            "handoff_path": ("tmp/_handoff/issue-implementer--issue-10.yaml"
+                             if role == "issue-implementer" else
+                             f"tmp/_handoff/issue-fixer--issue-10-r{round_number}.yaml"),
+            "protected_plan": [{"path": ".codex/hooks.json", "base_sha256": "b" * 64}],
+        }
+
+    def generate(self, request, *, plan=None, source_material=None, manifest=None,
+                 entry=None, facts=None):
+        with self.manifest_evidence_patch():
+            return codex_launch_intent.generate_launch_intent(
+                request, plan=plan or codex_change_plan(
+                    self.root, role=request.role, fixer_round=request.fixer_round),
+                manifest=manifest or self.manifest, repo_root=self.root,
+                source_material=source_material or {"issue": ISSUE_SNAPSHOT},
+                canonical_facts=facts or self.facts(),
+                canonical_entry=entry or self.ledger_entry(
+                    role=request.role, round_number=request.fixer_round),
+            )
+
+    def request(self, **changes):
+        values = {
+            "issue": 10, "role": "issue-implementer",
+            "change_plan_id": "plan-10", "fixer_round": None,
+        }
+        values.update(changes)
+        return codex_launch_intent.LaunchRequest(**values)
+
+    def test_pure_generator_derives_every_non_owner_input(self):
+        intent = self.generate(self.request())
+        self.assertEqual(intent.schema_version, "codex-launch-intent/1")
+        self.assertEqual(intent.task_key, "issue_10")
+        self.assertEqual(intent.handoff_path,
+                         "tmp/_handoff/issue-implementer--issue-10.yaml")
+        self.assertEqual((intent.model, intent.reasoning_effort), ("gpt-5.6-sol", "xhigh"))
+        self.assertEqual(intent.bwrap_executable, "/usr/bin/bwrap")
+        self.assertTrue(Path(intent.codex_executable).is_absolute())
+        self.assertEqual(set(intent.executable_evidence), {"bwrap", "codex"})
+        self.assertEqual(intent.permission_profile, "issue-supervised")
+        self.assertEqual(intent.runtime_root,
+                         "tmp/_codex_sessions/issue_10/runtime-home")
+        self.assertIn("Acceptance criteria", intent.prompt)
+        self.assertEqual(intent.source_provenance["issue"]["url"],
+                         "https://github.com/example/repo/issues/10")
+        self.assertEqual(intent.source_provenance["issue"]["sha256"], digest(ISSUE_SNAPSHOT))
+        self.assertEqual(intent.protected_paths,
+                         (f".codex/hooks.json={'b' * 64}",))
+
+    def test_fixer_derives_round_findings_karte_and_prompt(self):
+        request = self.request(role="issue-fixer", fixer_round=3)
+        intent = self.generate(
+            request, source_material={"issue": ISSUE_SNAPSHOT, "karte": KARTE_SNAPSHOT}
+        )
+        self.assertEqual(intent.task_key, "issue_10_fix_r3")
+        self.assertEqual(intent.handoff_path,
+                         "tmp/_handoff/issue-fixer--issue-10-r3.yaml")
+        self.assertIn("F-10-01", intent.prompt)
+        self.assertIn("tmp/_codex_control/sources/karte-10-r3.json", intent.prompt)
+        self.assertIn("fix this", intent.prompt)
+
+    def test_source_digest_and_provenance_are_fail_closed(self):
+        plan = codex_change_plan(self.root)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "ISSUE_SOURCE_INVALID"):
+            self.generate(self.request(), plan=plan,
+                          source_material={"issue": ISSUE_SNAPSHOT + "tampered"})
+        plan = codex_change_plan(self.root)
+        plan["issue_source"]["provenance"]["source_type"] = "handwritten"
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "ISSUE_SOURCE_INVALID"):
+            self.generate(self.request(), plan=plan)
+
+    def test_manual_input_types_ranges_and_role_round_are_fail_closed(self):
+        cases = [
+            (self.request(issue=True), "ISSUE_INVALID"),
+            (self.request(issue=0), "ISSUE_INVALID"),
+            (self.request(role="pr-reviewer"), "ROLE_INVALID"),
+            (self.request(change_plan_id="../escape"), "CHANGE_PLAN_ID_INVALID"),
+            (self.request(fixer_round=1), "FIXER_ROUND_FORBIDDEN"),
+            (self.request(role="issue-fixer"), "FIXER_ROUND_INVALID"),
+            (self.request(role="issue-fixer", fixer_round=0), "FIXER_ROUND_INVALID"),
+        ]
+        for request, reason in cases:
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, reason
+            ):
+                self.generate(request, plan=codex_change_plan(self.root))
+
+    def test_plan_approval_identity_and_sources_must_match_request(self):
+        mutations = [
+            ({"owner_approval": {"status": "draft", "actor": "repo-owner",
+                                  "recorded_at": "2026-09-07T00:00:00Z"}}, "CHANGE_PLAN"),
+            ({"issue": 11}, "CHANGE_PLAN_MISMATCH"),
+            ({"role": "issue-fixer"}, "CHANGE_PLAN_MISMATCH"),
+            ({"change_plan_id": "other"}, "CHANGE_PLAN_MISMATCH"),
+            ({"issue_source": {"number": 10, "url": "https://evil.invalid/10"}},
+             "ISSUE_SOURCE"),
+            ({"finding_ids": ["F-11-01"]}, "IMPLEMENTER_SOURCE"),
+            ({"karte_source": codex_change_plan(
+                self.root, role="issue-fixer", fixer_round=1)["karte_source"]},
+             "IMPLEMENTER_SOURCE"),
+        ]
+        for changes, reason in mutations:
+            plan = codex_change_plan(self.root)
+            plan.update(changes)
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, reason
+            ):
+                self.generate(self.request(), plan=plan)
+
+    def test_ledger_and_protected_plan_are_strict(self):
+        plans = []
+        bad_path = codex_change_plan(self.root)
+        bad_path["protected_plan"][0]["path"] = "src/app.py"
+        plans.append((bad_path, "PROTECTED_PLAN_INVALID"))
+        duplicate = codex_change_plan(self.root)
+        duplicate["protected_plan"] *= 2
+        plans.append((duplicate, "PROTECTED_PLAN_INVALID"))
+        duplicate_digest = codex_change_plan(self.root)
+        duplicate_digest["protected_plan"].append(
+            {"path": ".codex/hooks.json", "base_sha256": "c" * 64}
+        )
+        plans.append((duplicate_digest, "PROTECTED_PLAN_INVALID"))
+        for plan, reason in plans:
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, reason
+            ):
+                self.generate(self.request(), plan=plan)
+
+        stale = self.ledger_entry()
+        stale["initial_oid"] = "c" * 40
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CANONICAL_LEDGER_MISMATCH"):
+            self.generate(self.request(), entry=stale)
+
+    def test_manifest_semantic_values_are_exact(self):
+        mutations = [
+            ("roles", lambda value: value["roles"]["issue-implementer"].update(
+                reasoning_effort="low")),
+            ("permission_profile", lambda value: value.update(permission_profile="legacy")),
+            ("runtime_root_template", lambda value: value.update(
+                runtime_root_template="../../escape/{task_key}")),
+            ("executables", lambda value: value["executables"]["codex"].update(
+                lookup_name="../codex")),
+        ]
+        for label, mutate in mutations:
+            manifest = json.loads(json.dumps(self.manifest))
+            mutate(manifest["codex_supervisor_launch"])
+            with self.subTest(label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "MANIFEST_INVALID"
+            ):
+                self.generate(self.request(), manifest=manifest)
+
+    def test_executable_evidence_rejects_foreign_owner_or_writable_by_others(self):
+        executable = self.root / "test-codex"
+        executable.write_text("#!/bin/sh\necho test-codex-1\n", encoding="utf-8")
+        executable.chmod(0o755)
+        with patch("issue_start.codex_launch_intent.os.getuid",
+                   return_value=os.getuid() + 10000), self.assertRaisesRegex(
+                       codex_launch_intent.LaunchIntentError,
+                       "TEST_EXECUTABLE_INVALID",
+                   ):
+            codex_launch_intent._executable_evidence(
+                str(executable), reason="TEST_EXECUTABLE_INVALID",
+            )
+        executable.chmod(0o775)
+        with patch(
+            "issue_start.codex_launch_intent._group_is_exclusive_to_current_uid",
+            return_value=False,
+        ), self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                  "TEST_EXECUTABLE_INVALID"):
+            codex_launch_intent._executable_evidence(
+                str(executable), reason="TEST_EXECUTABLE_INVALID",
+            )
+        executable.chmod(0o757)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "TEST_EXECUTABLE_INVALID"):
+            codex_launch_intent._executable_evidence(
+                str(executable), reason="TEST_EXECUTABLE_INVALID",
+            )
+
+    def test_installed_codex_is_accepted_with_stable_evidence(self):
+        if shutil.which("codex") is None:
+            self.skipTest("NOT_TESTED: installed Codex is unavailable")
+        path, evidence = codex_launch_intent._stable_executable_evidence(
+            "codex", reason="CODEX_EXECUTABLE_INVALID",
+        )
+        self.assertTrue(Path(path).is_absolute())
+        self.assertEqual(evidence["path"], path)
+        self.assertRegex(evidence["sha256"], r"^[0-9a-f]{64}$")
+        self.assertTrue(evidence["version"])
+
+    def test_executable_evidence_rechecks_path_digest_and_version(self):
+        first = self.root / "first-codex"
+        second = self.root / "second-codex"
+        for path, version in ((first, "first-1"), (second, "second-2")):
+            path.write_text(f"#!/bin/sh\necho {version}\n", encoding="utf-8")
+            path.chmod(0o755)
+        with patch("issue_start.codex_launch_intent.shutil.which",
+                   side_effect=[str(first), str(second)]), self.assertRaisesRegex(
+                       codex_launch_intent.LaunchIntentError,
+                       "executable evidence changed",
+                   ):
+            codex_launch_intent._stable_executable_evidence(
+                "codex", reason="CODEX_EXECUTABLE_INVALID",
+            )
+        baseline = {
+            "path": str(first), "sha256": "a" * 64, "version": "codex 1",
+            "uid": os.getuid(), "mode": "0755",
+        }
+        for field, changed in (("sha256", "b" * 64), ("version", "codex 2")):
+            replacement = dict(baseline)
+            replacement[field] = changed
+            with self.subTest(field=field), patch(
+                "issue_start.codex_launch_intent._executable_evidence",
+                side_effect=[(str(first), baseline), (str(first), replacement)],
+            ), self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                      "executable evidence changed"):
+                codex_launch_intent._stable_executable_evidence(
+                    "codex", reason="CODEX_EXECUTABLE_INVALID",
+                )
+
+    def test_group_writable_parent_requires_an_exclusive_current_uid_group(self):
+        directory = self.root / "shared-by-current-user-only"
+        directory.mkdir()
+        directory.chmod(0o770)
+        codex_launch_intent._check_directory(
+            directory.stat(), private=False, reason="TEST_DIRECTORY_INVALID",
+        )
+        with patch(
+            "issue_start.codex_launch_intent._group_is_exclusive_to_current_uid",
+            return_value=False,
+        ), self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                  "unsafe group-writable directory"):
+            codex_launch_intent._check_directory(
+                directory.stat(), private=False, reason="TEST_DIRECTORY_INVALID",
+            )
+
+    def test_actual_project_trust_path_accepts_its_exclusive_group_parents(self):
+        raw = codex_launch_intent._read_same_fd(
+            ROOT, PurePosixPath("issue_start/managed-entrypoints-v2.json"),
+            reason="MANIFEST_INVALID", leaf_private=False,
+        )
+        self.assertIn(b'"codex_supervisor_launch"', raw)
+
+    def test_additional_nss_group_principal_is_rejected(self):
+        uid = os.getuid()
+        gid = os.getgid()
+        current = SimpleNamespace(pw_uid=uid, pw_gid=gid, pw_name="current")
+        other = SimpleNamespace(pw_uid=uid + 1, pw_gid=gid + 1, pw_name="other")
+        group = SimpleNamespace(gr_gid=gid, gr_mem=["current", "other"])
+        accounts = {"current": current, "other": other}
+        with patch("issue_start.codex_launch_intent.pwd.getpwuid", return_value=current), \
+                patch("issue_start.codex_launch_intent.pwd.getpwall",
+                      return_value=[current, other]), \
+                patch("issue_start.codex_launch_intent.pwd.getpwnam",
+                      side_effect=lambda name: accounts[name]), \
+                patch("issue_start.codex_launch_intent.grp.getgrgid", return_value=group):
+            self.assertFalse(codex_launch_intent._group_is_exclusive_to_current_uid(gid))
+
+    def test_group_membership_lookup_fails_closed(self):
+        with patch("issue_start.codex_launch_intent.grp.getgrgid",
+                   side_effect=OSError("NSS unavailable")):
+            self.assertFalse(
+                codex_launch_intent._group_is_exclusive_to_current_uid(os.getgid())
+            )
+
+    def test_structured_issue_requires_matching_issue_and_nonempty_ac(self):
+        for field, value in (("issue", 11), ("acceptance_criteria", [])):
+            snapshot = json.loads(ISSUE_SNAPSHOT)
+            snapshot[field] = value
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root)
+            plan["issue_source"]["sha256"] = digest(raw)
+            with self.subTest(field=field), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(self.request(), plan=plan, source_material={"issue": raw})
+
+    def test_fixer_karte_exactly_binds_round_status_and_open_ids(self):
+        request = self.request(role="issue-fixer", fixer_round=3)
+        for label, change in (
+            ("round", lambda value: value.update(round=2)),
+            ("resolved", lambda value: value["open_findings"][0].update(status="resolved")),
+            ("extra", lambda value: value["open_findings"].append(
+                {"id": "F-10-02", "status": "open", "summary": "unexpected"})),
+        ):
+            snapshot = json.loads(KARTE_SNAPSHOT)
+            change(snapshot)
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            plan["karte_source"]["sha256"] = digest(raw)
+            with self.subTest(label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(request, plan=plan,
+                              source_material={"issue": ISSUE_SNAPSHOT, "karte": raw})
+
+    def write_plan(self, plan=None, *, write_karte=False):
+        plan = plan or codex_change_plan(self.root)
+        control = self.root / "tmp/_codex_control"
+        sources = control / "sources"
+        plans = control / "change-plans"
+        for directory in (control, sources, plans):
+            directory.mkdir(parents=True, exist_ok=True)
+            directory.chmod(0o700)
+        (self.root / "tmp").chmod(0o755)
+        source = self.root / plan["issue_source"]["path"]
+        source.write_text(ISSUE_SNAPSHOT, encoding="utf-8")
+        source.chmod(0o600)
+        if write_karte:
+            karte = self.root / plan["karte_source"]["path"]
+            karte.write_text(KARTE_SNAPSHOT, encoding="utf-8")
+            karte.chmod(0o600)
+        target = plans / "plan-10.json"
+        target.write_text(json.dumps(plan), encoding="utf-8")
+        target.chmod(0o600)
+        ledger_dir = self.root / "tmp/_worktree"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        ledger_dir.chmod(0o755)
+        ledger = ledger_dir / "ledger.json"
+        ledger.write_text(json.dumps({"schema_version": "worktree-ledger/1",
+                                      "entries": [self.ledger_entry(
+                                          role=plan["role"], round_number=plan["fixer_round"])]}),
+                          encoding="utf-8")
+        ledger.chmod(0o600)
+        workspace = Path(self.facts().workspace)
+        for relative in (".codex/agents/issue-implementer.toml",
+                         ".ai/agents/issue-implementer.md",
+                         ".codex/agents/issue-fixer.toml",
+                         ".ai/agents/issue-fixer.md"):
+            target_role = workspace / relative
+            target_role.parent.mkdir(parents=True, exist_ok=True)
+            target_role.write_bytes((self.root / relative).read_bytes())
+        return target
+
+    def load(self, request):
+        with self.manifest_evidence_patch(), patch(
+                "issue_start.codex_launch_intent.inspect_git_facts",
+                return_value=self.facts()):
+            return codex_launch_intent.load_launch_intent(request, cwd=self.root)
+
+    def test_loader_requires_existing_secure_owner_plan(self):
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CHANGE_PLAN_MISSING"):
+            self.load(self.request())
+        target = self.write_plan()
+        self.assertEqual(self.load(self.request()).task_key, "issue_10")
+        target.chmod(0o666)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CHANGE_PLAN_MISSING"):
+            self.load(self.request())
+
+    def test_private_control_state_rejects_writable_parent_symlink_and_hardlink(self):
+        target = self.write_plan()
+        control = self.root / "tmp/_codex_control"
+        control.chmod(0o770)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CHANGE_PLAN_MISSING"):
+            self.load(self.request())
+        control.chmod(0o700)
+
+        alternate = target.with_name("alternate.json")
+        target.rename(alternate)
+        target.symlink_to(alternate.name)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CHANGE_PLAN_MISSING"):
+            self.load(self.request())
+        target.unlink()
+        os.link(alternate, target)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "CHANGE_PLAN_MISSING"):
+            self.load(self.request())
+
+    def test_secure_reader_keeps_the_fstat_checked_fd_during_rename_swap(self):
+        target = self.write_plan()
+        original = target.read_bytes()
+        real_read = os.read
+        swapped = False
+
+        def swap_after_first_read(fd, count):
+            nonlocal swapped
+            chunk = real_read(fd, count)
+            if chunk and not swapped:
+                swapped = True
+                target.rename(target.with_suffix(".original"))
+                target.write_text('{"attacker": true}', encoding="utf-8")
+                target.chmod(0o600)
+            return chunk
+
+        with patch("issue_start.codex_launch_intent.os.read", side_effect=swap_after_first_read):
+            actual = codex_launch_intent._read_same_fd(
+                self.root, PurePosixPath("tmp/_codex_control/change-plans/plan-10.json"),
+                reason="CHANGE_PLAN_MISSING",
+                private_from=PurePosixPath("tmp/_codex_control"),
+            )
+        self.assertTrue(swapped)
+        self.assertEqual(actual, original)
+
+    def test_child_workspace_plan_cannot_replace_main_control_state(self):
+        self.write_plan()
+        child = self.root / ".worktrees/attacker"
+        fake = child / "tmp/_codex_control/change-plans"
+        fake.mkdir(parents=True)
+        fake_plan = codex_change_plan(self.root)
+        fake_plan["owner_approval"]["actor"] = "inner-self-claim"
+        (fake / "plan-10.json").write_text(json.dumps(fake_plan), encoding="utf-8")
+        with self.manifest_evidence_patch() as evidence, patch(
+                "issue_start.codex_launch_intent._executable_evidence",
+                side_effect=AssertionError("pure test reached host executable evidence")), patch(
+                    "issue_start.codex_launch_intent.worktree_ledger.main_worktree_root",
+                    return_value=self.root), patch(
+                        "issue_start.codex_launch_intent.inspect_git_facts",
+                        return_value=self.facts()):
+            intent = codex_launch_intent.load_launch_intent(self.request(), cwd=child)
+        self.assertEqual(evidence.call_count, 2)
+        self.assertEqual(intent.change_plan_id, "plan-10")
+        self.assertNotIn("inner-self-claim", intent.prompt)
+
+    def test_loader_observes_live_git_for_the_canonical_ledger_workspace(self):
+        self.write_plan()
+        with self.manifest_evidence_patch() as evidence, patch(
+                "issue_start.codex_launch_intent._executable_evidence",
+                side_effect=AssertionError("pure test reached host executable evidence")), patch(
+                    "issue_start.codex_launch_intent.inspect_git_facts",
+                    return_value=self.facts()) as inspect:
+            codex_launch_intent.load_launch_intent(self.request(), cwd=self.root)
+        self.assertEqual(evidence.call_count, 2)
+        inspect.assert_called_once_with(self.facts().workspace)
+
+    def test_fixer_loader_requires_karte(self):
+        request = self.request(role="issue-fixer", fixer_round=3)
+        plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+        self.write_plan(plan)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "KARTE_SOURCE_INVALID"):
+            self.load(request)
+        self.write_plan(plan, write_karte=True)
+        self.assertEqual(self.load(request).round_number, 3)
+
+    def test_loader_rejects_tampered_issue_snapshot(self):
+        self.write_plan()
+        source = self.root / "tmp/_codex_control/sources/issue-10.json"
+        source.write_text(ISSUE_SNAPSHOT + "tampered", encoding="utf-8")
+        source.chmod(0o600)
+        with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
+                                    "ISSUE_SOURCE_INVALID"):
+            self.load(self.request())
+
+    def test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed(self):
+        cases = (
+            ("manifest-foreign-group", "manifest", 0o660, False, "MANIFEST_INVALID"),
+            ("manifest-world-write", "manifest", 0o646, True, "MANIFEST_INVALID"),
+            ("ledger-foreign-group", "ledger", 0o660, False, "CANONICAL_LEDGER_INVALID"),
+            ("ledger-world-write", "ledger", 0o606, True, "CANONICAL_LEDGER_INVALID"),
+        )
+        for label, leaf, mode, group_is_exclusive, reason in cases:
+            with self.subTest(label=label):
+                self.write_plan()
+                target = (self.root / "issue_start/managed-entrypoints-v2.json"
+                          if leaf == "manifest"
+                          else self.root / "tmp/_worktree/ledger.json")
+                target.chmod(mode)
+                with patch(
+                    "issue_start.codex_launch_intent._group_is_exclusive_to_current_uid",
+                    return_value=group_is_exclusive,
+                ), self.assertRaisesRegex(codex_launch_intent.LaunchIntentError, reason):
+                    self.load(self.request())
+                target.chmod(0o644 if leaf == "manifest" else 0o600)
+
+    def test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure(self):
+        for leaf, reason in (("manifest", "MANIFEST_INVALID"),
+                             ("ledger", "CANONICAL_LEDGER_INVALID")):
+            with self.subTest(leaf=leaf):
+                self.write_plan()
+                target = (self.root / "issue_start/managed-entrypoints-v2.json"
+                          if leaf == "manifest"
+                          else self.root / "tmp/_worktree/ledger.json")
+                target.chmod(0o660)
+                with patch("issue_start.codex_launch_intent.grp.getgrgid",
+                           side_effect=OSError("NSS unavailable")), self.assertRaisesRegex(
+                               codex_launch_intent.LaunchIntentError, reason,
+                           ):
+                    self.load(self.request())
+                target.chmod(0o644 if leaf == "manifest" else 0o600)
+
+    def hook(self, command):
+        stdout = io.StringIO()
+        payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+        with self.manifest_evidence_patch(), patch(
+                "issue_start.codex_launch_intent.inspect_git_facts",
+                return_value=self.facts()):
+            rc = codex_launch_intent.run_hook(
+                stdin=io.StringIO(json.dumps(payload)), stdout=stdout, cwd=self.root
+            )
+        return rc, stdout.getvalue()
+
+    def test_hook_dry_runs_same_generator_and_leaves_no_receipt(self):
+        self.write_plan()
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
+        command = ("python3 -m issue_start.codex_supervisor run --issue 10 "
+                   "--role issue-implementer --change-plan-id plan-10")
+        rc, output = self.hook(command)
+        self.assertEqual((rc, output), (0, ""))
+        self.assertEqual(sorted(path.relative_to(self.root).as_posix()
+                                for path in self.root.rglob("*")), before)
+
+    def test_hook_denies_noncanonical_supervisor_and_missing_plan(self):
+        absolute_python = str(Path(sys.executable).resolve())
+        commands = [
+            ("python3 -m issue_start.codex_supervisor run --issue 10", "COMMAND_INVALID"),
+            ("rtk python3 -m issue_start.codex_supervisor run --issue 10", "COMMAND_INVALID"),
+            (f"{absolute_python} -m issue_start.codex_supervisor run --issue 10",
+             "COMMAND_INVALID"),
+            (f"env {absolute_python} -m issue_start.codex_supervisor run --issue 10",
+             "COMMAND_INVALID"),
+            ("python3 -m issue_start.codex_supervisor run --issue 10 "
+             "--role issue-implementer --change-plan-id missing", "CHANGE_PLAN_MISSING"),
+            ("python3 -m issue_start.codex_supervisor run --issue 10 "
+             "--role issue-implementer --change-plan-id plan-10 --workspace /tmp/x",
+             "COMMAND_INVALID"),
+            ("python3 -m issue_start.codex_supervisor run --issue 10 "
+             "--role issue-implementer --change-plan-id plan-10; true", "COMMAND_INVALID"),
+            ("python3 -m issue_start.codex_supervisor run --issue 01 "
+             "--role issue-implementer --change-plan-id plan-10", "COMMAND_INVALID"),
+            ("python3 -m issue_start.codex_supervisor run --issue 10 --issue 11 "
+             "--role issue-implementer --change-plan-id plan-10", "COMMAND_INVALID"),
+        ]
+        for command, reason in commands:
+            with self.subTest(reason=reason):
+                rc, output = self.hook(command)
+                self.assertEqual(rc, 0)
+                decision = json.loads(output)["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn(reason, decision["permissionDecisionReason"])
+
+    def test_hook_applies_identical_validation_to_raw_and_rtk_launch(self):
+        self.write_plan()
+        raw = ("python3 -m issue_start.codex_supervisor run --issue 10 "
+               "--role issue-implementer --change-plan-id plan-10")
+        absolute = str(Path(sys.executable).resolve()) + raw.removeprefix("python3")
+        for command in (raw, "rtk " + raw):
+            with self.subTest(command=command):
+                self.assertEqual(self.hook(command), (0, ""))
+        for command in (raw + " --workspace /tmp/x",
+                        "rtk " + raw + " --workspace /tmp/x"):
+            with self.subTest(command=command):
+                decision = json.loads(self.hook(command)[1])["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn("COMMAND_INVALID", decision["permissionDecisionReason"])
+        for command in ("env " + raw, "env PYTHONPATH=/tmp " + raw,
+                        "rtk env -i " + absolute):
+            with self.subTest(command=command):
+                decision = json.loads(self.hook(command)[1])["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn("COMMAND_INVALID", decision["permissionDecisionReason"])
+
+    def test_hook_accepts_exact_fixer_resume_and_requires_round(self):
+        plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+        self.write_plan(plan, write_karte=True)
+        exact = ("python3 -m issue_start.codex_supervisor resume --issue 10 "
+                 "--role issue-fixer --change-plan-id plan-10 --fixer-round 3")
+        self.assertEqual(self.hook(exact), (0, ""))
+        decision = json.loads(self.hook(exact.removesuffix(" --fixer-round 3"))[1])[
+            "hookSpecificOutput"
+        ]
+        self.assertIn("FIXER_ROUND_INVALID", decision["permissionDecisionReason"])
+    def test_hook_classifies_relevance_before_rejecting_compound_commands(self):
+        self.assertEqual(self.hook("git status && git diff"), (0, ""))
+        self.assertEqual(self.hook("git status\ngit diff"), (0, ""))
+        command = ("git status && python3 -m issue_start.codex_supervisor run "
+                   "--issue 10 --role issue-implementer --change-plan-id plan-10")
+        decision = json.loads(self.hook(command)[1])["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("COMMAND_INVALID", decision["permissionDecisionReason"])
+        self.assertEqual(self.hook("git status\ncodex exec -C /tmp/worktree task"), (0, ""))
+        decision = json.loads(self.hook(
+            "git status\npython3 -m issue_start.codex_supervisor run --issue 10"
+        )[1])["hookSpecificOutput"]
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("COMMAND_INVALID", decision["permissionDecisionReason"])
+
+    def test_hook_ignores_unrelated_bash_and_rejects_invalid_payload(self):
+        self.assertEqual(self.hook("python3 -m unittest")[1], "")
+        self.assertEqual(self.hook("env codex exec -C /tmp/worktree task"), (0, ""))
+        self.assertEqual(self.hook("sh -c 'codex exec -C /tmp/worktree task'"), (0, ""))
+        stdout = io.StringIO()
+        codex_launch_intent.run_hook(
+            stdin=io.StringIO("[]"), stdout=stdout, cwd=self.root
+        )
+        self.assertIn("HOOK_PAYLOAD_INVALID", stdout.getvalue())
 
 
 def load(name):
@@ -119,11 +827,6 @@ def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
 
 class DispatchPayloadMixin:
     def setUp(self):
-        binding = patch(
-            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
-        )
-        binding.start()
-        self.addCleanup(binding.stop)
         availability = patch("issue_start.gate._require_transport_available")
         availability.start()
         self.addCleanup(availability.stop)
@@ -157,6 +860,7 @@ class DispatchPayloadMixin:
 
 
 class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
+    @unittest.skip("Codex prepare/binding transport retired by Issue #452")
     def test_codex_encrypted_message_uses_task_name_and_worktree_origin(self):
         for tool_name in ("spawn_agent", "collaborationspawn_agent"):
             with self.subTest(tool_name=tool_name):
@@ -168,6 +872,7 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
                 self.assertEqual(actual.task_key, "issue_10")
                 self.assertEqual(actual.ledger_entry_id, "wl-000000000001")
 
+    @unittest.skip("Codex prepare/binding transport retired by Issue #452")
     def test_codex_accepts_strict_github_https_and_ssh_origins(self):
         for origin in (
             "https://github.com/example/repo.git",
@@ -180,6 +885,7 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
                 )
                 self.assertEqual(actual.repository, "example/repo")
 
+    @unittest.skip("Codex payload details are intentionally not parsed")
     def test_codex_bad_or_missing_task_name_is_fail_close(self):
         for task_name in (None, "", "issue_0", "issue_01", "issue-10", "issue_10_more", "xissue_10"):
             payload = self.codex_payload()
@@ -193,6 +899,7 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
             ):
                 parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
 
+    @unittest.skip("Codex payload details are intentionally not parsed")
     def test_codex_bad_cwd_worktree_and_origin_are_fail_close(self):
         cases = [
             (self.codex_payload(cwd=ROOT.parent), git_runner(), "ISSUE_START_CWD_MISMATCH"),
@@ -272,8 +979,8 @@ class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
         del missing["tool_input"]["agent_type"]
         ambiguous = self.codex_payload()
         ambiguous["tool_input"]["subagent_type"] = "issue-implementer"
-        for payload in (missing, ambiguous):
-            with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TARGET_UNKNOWN"):
+        for payload, reason in ((missing, "TARGET_UNKNOWN"), (ambiguous, "TRANSPORT_UNAVAILABLE")):
+            with self.assertRaisesRegex(IssueStartError, reason):
                 parse_dispatch_payload(payload, cwd=ROOT, runner=git_runner())
 
 
@@ -315,6 +1022,7 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TOOL_INPUT_SHAPE_INVALID"):
             parse_dispatch_payload(payload)
 
+    @unittest.skip("Codex prepare/binding parser retired by Issue #452")
     def test_codex_local_parser_carries_no_isolation_requirement_after_availability_gate(self):
         # setUp で availability gate を差し替えた局所契約。現行 production dispatch の
         # availability: unavailable を解除したり、保護済み transport の稼働を示したりしない。
@@ -348,26 +1056,6 @@ class IsolationContractTests(DispatchPayloadMixin, unittest.TestCase):
                     {"subagent_type": "issue-implementer", "prompt": "x", "isolation": "worktree"},
                     transport,
                 )
-
-    def test_codex_availability_must_be_explicit_and_well_formed(self):
-        for transport in (
-            {},
-            {"availability": "unknown"},
-            {"availability": "unavailable"},
-            {"availability": "unavailable", "missing_observations": []},
-            {"availability": "unavailable", "missing_observations": ["x", "x"]},
-        ):
-            with self.subTest(transport=transport), self.assertRaisesRegex(
-                IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
-            ):
-                _require_transport_available("codex", transport)
-        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
-            _require_transport_available(
-                "codex",
-                {"availability": "unavailable", "missing_observations": ["actual_agent_id"]},
-            )
-        _require_transport_available("claude", {})
-
 
 def fix_binding(**overrides):
     raw = {
@@ -643,11 +1331,6 @@ class HookLedgerMixin:
         self._ledger_tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
-        binding = patch(
-            "issue_start.gate._validate_codex_binding", side_effect=fake_codex_binding
-        )
-        binding.start()
-        self.addCleanup(binding.stop)
         availability = patch("issue_start.gate._require_transport_available")
         availability.start()
         self.addCleanup(availability.stop)
@@ -682,6 +1365,7 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
         output = json.loads(stdout.getvalue())
         self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    @unittest.skip("Codex transport no longer reaches blocker evaluation")
     def test_codex_encrypted_message_allow_reaches_evaluation(self):
         evidence = {
             "schema_version": "issue-start-evidence/1",
@@ -708,6 +1392,7 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
         self.assertEqual(evaluate.call_args.args[0].repository, "hiratashinnya/review-system")
         self.assertEqual(evaluate.call_args.kwargs["token"], "credential-from-gh")
 
+    @unittest.skip("Codex transport no longer reaches blocker evaluation")
     def test_issue_317_equivalent_allows_with_mocked_gh_credential(self):
         repository = "hiratashinnya/review-system"
         snapshot = {
@@ -837,6 +1522,7 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
         # blocker 判定（GitHub API）まで進まずに落ちる＝dispatch 前に閉じる。
         evaluate.assert_not_called()
 
+    @unittest.skip("Codex transport no longer reaches blocker evaluation")
     def test_block_deny_reason_preserves_actionable_blocker_report(self):
         blocker = {
             "number": 9,
@@ -872,7 +1558,24 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
 
 
 class CodexUnavailableTransportHookTests(unittest.TestCase):
-    """Issue #452 round 1: 新all-tool hook未trust時も既存dispatch hookで拒否する。"""
+    """Issue #452: Codex bindingなしで既存dispatch hookが最早期拒否する。"""
+
+    def test_malformed_codex_dispatch_is_denied_without_binding_side_effects(self):
+        cases = [
+            {"agent_type": "issue-implementer"},
+            {"agent_type": "issue-fixer", "task_name": None, "prompt": "mixed"},
+            {"agent_type": "issue-implementer", "subagent_type": "issue-fixer"},
+        ]
+        for tool_input in cases:
+            with self.subTest(tool_input=tool_input), \
+                 patch("issue_start.gate._manifest") as manifest, \
+                 patch("issue_start.gate.worktree_ledger.read_ledger") as ledger:
+                with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+                    parse_dispatch_payload({
+                        "tool_name": "collaborationspawn_agent", "tool_input": tool_input,
+                    }, runner=unittest.mock.Mock(side_effect=AssertionError("git called")))
+                manifest.assert_not_called()
+                ledger.assert_not_called()
 
     def test_existing_issue_start_hook_fails_closed_before_evaluation(self):
         payloads = [
@@ -913,7 +1616,7 @@ class CodexUnavailableTransportHookTests(unittest.TestCase):
                     "ISSUE_START_TRANSPORT_UNAVAILABLE",
                     decision["permissionDecisionReason"],
                 )
-                self.assertIn("actual_agent_id", decision["permissionDecisionReason"])
+                self.assertIn("per-subagent workspace", decision["permissionDecisionReason"])
                 evaluate.assert_not_called()
 
 
@@ -976,6 +1679,7 @@ class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
         self.assertEqual(evidence["ledger"]["entry_id"], entry["entry_id"])
         self.assertIsNone(evidence["ledger"]["error"])
 
+    @unittest.skip("Codex prepare/binding ledger side effect retired by Issue #452")
     def test_codex_dispatch_does_not_open_a_second_legacy_entry(self):
         rc, _stdout, stderr = self.run_allow(self.managed_payload())
         self.assertEqual(rc, 0)

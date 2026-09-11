@@ -31,7 +31,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Collection, Mapping, Protocol, Sequence, TextIO
 
-from . import codex_binding, codex_exec_broker, durable_lock, worktree_ledger
+from . import codex_supervisor_workspace as supervisor_workspace
+from . import codex_launch_intent
+from . import worktree_ledger
 
 
 MODEL = "gpt-5.6-sol"
@@ -49,23 +51,23 @@ _ATTEMPT_LEASE_SECONDS = 60
 _PUBLISH_LEASE_SECONDS = 60
 _HANDOFF_SCHEMA_VERSION = 1
 _SESSION_STATE_ROOT = Path("tmp/_codex_sessions")
-_BROKER_FEATURES = (
-    "shell_tool", "unified_exec", "code_mode", "code_mode_host", "multi_agent",
-    "apps", "plugins", "remote_plugin", "browser_use", "computer_use",
+_REQUIRED_DISABLED_FEATURES = (
+    "multi_agent", "apps", "plugins", "remote_plugin", "browser_use", "computer_use",
     "hooks", "shell_snapshot", "skill_mcp_dependency_install", "skill_search",
     "workspace_dependencies", "auth_elicitation", "plugin_sharing",
     "tool_call_mcp_elicitation", "tool_suggest", "request_permissions_tool",
     "exec_permission_approvals", "executor_capability_discovery", "deferred_executor",
+    # Issue #491: alternate process-capability variants must not bypass the
+    # permission-profile route selected by Issue #452.
     "shell_zsh_fork", "unified_exec_zsh_fork", "code_mode_buffered_exec",
     "code_mode_only", "multi_agent_mode", "multi_agent_v2",
+    # 0.153.4実catalogでactiveかつmain #491 snapshot外。installed registry上も
+    # automation/tool capabilityとして現れるため、known allowへ入れず明示的に無効化する。
+    "in_app_local_automation", "sleep_tool",
 )
-# codex-cli 0.153.4 の ``codex features list`` で観測した feature 名のスナップショット。
-# **この集合は「無害と検証済み」を意味しない**——`_BROKER_FEATURES` に挙げた名前だけが
-# 「config override で必ず false へ倒し、preflight でも false を要求する」検証済みの扱いで、
-# それ以外の名前は個別の無害性検証を経ていない（Issue #491 の指摘 F-491-02）。
-# ここでの役割は、後述の拒否語彙を「0.153.4 に既にあった名前」へ適用しないことだけである
-# （既知の名前を語彙で弾いても CLI 更新への追随にならないため）。catalog 全体との完全一致は
-# 要求しない。
+# codex-cli 0.153.4 の ``codex features list`` で観測した名前のスナップショット。
+# この集合は無害性の allowlist ではない。catalog 外の名前だけを下の process 能力語彙で
+# fail-close 判定し、既知 feature は ``_REQUIRED_DISABLED_FEATURES`` で個別に固定する。
 _KNOWN_CLI_FEATURES = frozenset({
     "apply_patch_freeform", "apply_patch_preserve_line_endings", "apply_patch_streaming_events",
     "apps", "apps_mcp_path_override", "artifact", "auth_elicitation",
@@ -82,7 +84,8 @@ _KNOWN_CLI_FEATURES = frozenset({
     "guardian_approval", "guardian_enhanced_node_repl_transcripts",
     "guardian_node_repl_transcript_images", "guardian_reuse_parent_compaction", "guardianv2",
     "hooks", "image_detail_original", "image_generation", "image_resize_notice",
-    "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_updates", "item_ids",
+    "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_local_automation",
+    "in_app_updates", "item_ids",
     "js_repl", "js_repl_tools_only", "local_thread_store_compression", "mcp_2026_07_28",
     "memories", "mentions_v2", "multi_agent", "multi_agent_mode", "multi_agent_v2",
     "network_proxy", "non_prefixed_mcp_tool_names", "personality", "plugin_hooks",
@@ -93,7 +96,7 @@ _KNOWN_CLI_FEATURES = frozenset({
     "retain_client_developer_messages", "rollout_budget", "runtime_metrics", "search_tool",
     "secret_auth_storage", "send_async_message", "shell_snapshot", "shell_tool",
     "shell_zsh_fork", "skill_env_var_dependency_prompt", "skill_mcp_dependency_install",
-    "skill_search", "sqlite", "standalone_web_search", "steer",
+    "skill_search", "sleep_tool", "sqlite", "standalone_web_search", "steer",
     "terminal_resize_reflow", "terminal_visualization_instructions", "token_budget",
     "tool_call_mcp_elicitation", "tool_search", "tool_search_always_defer_mcp_tools",
     "tool_suggest", "tui_app_server", "unavailable_dummy_tools",
@@ -102,43 +105,30 @@ _KNOWN_CLI_FEATURES = frozenset({
     "use_linux_sandbox_bwrap", "view_image", "web_search_cached", "web_search_request",
     "workspace_dependencies", "workspace_owner_usage_nudge",
 })
-# 未レビュー feature が process 実行能力を再獲得しうるかを name の token から疑うための語彙。
-# _BROKER_FEATURES は「今の CLI に在ると分かっている危険な名前」の列挙にすぎず、CLI が別名で
-# 同じ能力を出してきた場合を捕まえられない。その穴を埋めるのがこの拒否語彙で、レビュー済み
-# catalog の外にある名前だけを対象に照合する（catalog 内は上記のとおり分類済みのため）。
-# 新しい process 系 feature が有効なまま現れたら fail-close するので、人手で分類し直して
-# _BROKER_FEATURES（config override で必ず無効化する）か _KNOWN_CLI_FEATURES（0.153.4 の
-# スナップショットへの追記）へ回す運用で追随する。
-# 語彙は実行・インタプリタ/REPL・sandbox 弱体化の3クラスを網羅する（Issue #491・F-491-01）。
-# 一般語（run/node/js 等）を含めるので benign な新 feature でも fail-close しうるが、
-# 本検査は安全側へ倒すためのものなので取りこぼしよりも過検出を選ぶ。
 _PROCESS_CAPABILITY_MARKERS = frozenset({
     "agent", "agents", "app", "apps", "approval", "approvals", "bash", "broker",
     "browser", "code", "command", "commands", "computer", "container", "daemon",
     "exec", "hook", "hooks", "mcp", "network", "permission", "permissions",
     "plugin", "plugins", "process", "proxy", "remote", "sandbox", "shell",
     "skill", "skills", "spawn", "subprocess", "terminal", "tool", "tools", "vm",
-    # 実行・起動
     "eval", "fork", "run", "runner", "script", "worker", "pty", "tty", "ssh",
-    # インタプリタ / REPL
     "deno", "interpreter", "js", "node", "python", "repl", "sh", "wasm", "zsh",
-    # sandbox 弱体化 / 権限昇格
     "bwrap", "docker", "elevated", "escalate", "landlock", "privileged", "root",
     "seatbelt", "sudo",
 })
-# 上記のうち、トークン一致では取りこぼす連結名（``guardianv2`` のように CLI は区切りなしで
-# 連結する）を捕まえるため部分文字列一致まで引き上げる高シグナル語（Issue #491・F-491-03）。
-# 全 marker を部分文字列一致にすると ``code`` が ``codex_git_commit`` に当たる類の誤検出が
-# 増えるため、単独で process 実行能力を強く示唆する語だけに限定する。
 _HIGH_SIGNAL_PROCESS_MARKERS = frozenset({
     "broker", "exec", "proc", "repl", "sandbox", "shell", "spawn", "subprocess",
 })
-# feature 名のトークン分割。``codex features list`` はトップレベル名のみを出力する前提だが、
-# CLI 側の命名は ``_`` / ``-`` / ``.`` が混在しうるので全て等価な区切りとして扱う。
 _FEATURE_NAME_SEPARATOR = re.compile(r"[^a-z0-9]+")
-# ``codex features list`` の見出し行。これと空行だけが「feature ではない行」として許容される。
 _FEATURE_LIST_HEADER = ("name", "maturity", "state")
 _PROCESS_ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM")
+_PERMISSION_PROFILE_SCHEMA = "codex-permission-profile/1"
+_PERMISSION_PROFILE_VERSION = "0.153.4"
+_PERMISSION_PROFILE_NAME = "issue-supervised"
+_PERMISSION_PROFILE_FILE = f"{_PERMISSION_PROFILE_NAME}.config.toml"
+_PERMISSION_PROFILE_ACTIONS = frozenset({"deny", "read", "write"})
+_LEGACY_SANDBOX_KEYS = frozenset({"sandbox_mode", "sandbox_workspace_write"})
+_CODEX_CONTROL_ALIAS = Path("/run/issue-supervised/codex")
 
 
 def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -155,8 +145,12 @@ def _codex_launch_path(codex: Path | str) -> str:
 
     try:
         with Path(codex).open("rb") as handle:
-            first = handle.readline(256).decode("utf-8", errors="strict").strip()
-    except (OSError, UnicodeDecodeError) as exc:
+            prefix = handle.read(256)
+        if prefix.startswith(b"\x7fELF"):
+            first = ""
+        else:
+            first = prefix.splitlines()[0].decode("utf-8", errors="strict").strip()
+    except (OSError, UnicodeDecodeError, IndexError) as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_LAUNCHER_INVALID") from exc
     directories = ["/usr/bin", "/bin"]
     if first.startswith("#!/usr/bin/env "):
@@ -186,6 +180,12 @@ class SupervisorSpec:
     role: str
     task_key: str
     handoff_path: str
+    issue: int = 0
+    round_number: int = 1
+    repository: str = ""
+    branch_name: str = ""
+    expected_oid: str = ""
+    protected_paths: tuple[str, ...] = ()
     model: str = MODEL
     reasoning_effort: str = REASONING_EFFORT
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
@@ -201,15 +201,37 @@ class RuntimeHome:
 
 
 @dataclass(frozen=True)
-class BrokerBundle:
-    root: Path
+class CredentialSnapshot:
+    """一回の inner 起動だけに有効な task-private credential の証跡。"""
+
     source: Path
-    source_sha256: str
-    lock_source: Path
-    lock_source_sha256: str
-    ledger: Path
-    git_common: Path
-    process_command: tuple[str, ...]
+    target: Path
+    source_digest: str
+    target_digest: str
+
+
+@dataclass(frozen=True)
+class PermissionProfile:
+    """Supervisor が生成した task-private permission profile の証跡。"""
+
+    schema_version: str
+    cli_version: str
+    name: str
+    path: Path
+    digest: str
+    deny_paths: tuple[Path, ...]
+
+
+@dataclass(frozen=True)
+class ChangePlan:
+    """owner が永続化した protected-path 計画（親AI入力ではない）。"""
+
+    plan_id: str
+    issue: int
+    role: str
+    round_number: int
+    protected_paths: tuple[str, ...]
+    digest: str
 
 
 @dataclass(frozen=True)
@@ -229,7 +251,7 @@ class SupervisedResult:
     thread_id: str
     terminal_event: str | None
     process: ProcessResult
-    resume_command: tuple[str, ...] | None = None
+    resume_available: bool = False
 
 
 class ProcessRunner(Protocol):
@@ -293,7 +315,7 @@ class SubprocessJsonlRunner:
         process = self._popen(
             list(command), cwd=cwd, env=dict(env), stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            start_new_session=True, bufsize=1,
+            start_new_session=True, close_fds=True, bufsize=1,
         )
         token = ""
         threads: list[threading.Thread] = []
@@ -519,8 +541,331 @@ def _private_directory(path: Path) -> Path:
     return path.resolve(strict=True)
 
 
+def _reject_symlink_components(path: Path, *, reason: str) -> None:
+    """既存の絶対pathを構成する全 component が symlink でないことを確認する。"""
+
+    if not path.is_absolute():
+        raise CodexSupervisorError(reason, str(path))
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        try:
+            if current.is_symlink():
+                raise CodexSupervisorError(reason, str(current))
+        except OSError as exc:
+            raise CodexSupervisorError(reason, str(current)) from exc
+
+
+def _private_file_metadata(
+    path: Path, *, reason: str, modes: Collection[int] = (0o400, 0o600),
+) -> os.stat_result:
+    """秘密を格納するregular fileのowner/mode/link/typeを検査する。"""
+
+    _reject_symlink_components(path, reason=reason)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise CodexSupervisorError(reason, str(path)) from exc
+    if (
+        path.is_symlink()
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) not in modes
+    ):
+        raise CodexSupervisorError(reason, str(path))
+    return metadata
+
+
+def _private_directory_metadata(path: Path, *, reason: str) -> os.stat_result:
+    """profile/runtime parent directoryをpureに検査する。"""
+
+    _reject_symlink_components(path, reason=reason)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise CodexSupervisorError(reason, str(path)) from exc
+    if (
+        path.is_symlink() or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        raise CodexSupervisorError(reason, str(path))
+    return metadata
+
+
+def _credential_fingerprint(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev, metadata.st_ino, metadata.st_uid, metadata.st_gid,
+        metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns,
+        metadata.st_nlink, stat.S_IMODE(metadata.st_mode),
+    )
+
+
+def _open_private_directory_fd(path: Path, *, reason: str) -> int:
+    """Open a managed private directory and keep the directory identity pinned."""
+
+    _reject_symlink_components(path, reason=reason)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+    except OSError as exc:
+        raise CodexSupervisorError(reason, str(path)) from exc
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        os.close(descriptor)
+        raise CodexSupervisorError(reason, str(path))
+    return descriptor
+
+
+def _open_private_file_at(
+    directory_fd: int, name: str, *, reason: str, modes: Collection[int] = (0o400, 0o600),
+) -> tuple[int, os.stat_result]:
+    """Open a private regular file relative to a pinned directory descriptor."""
+
+    if not name or "/" in name or name in {".", ".."}:
+        raise CodexSupervisorError(reason, name)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(name, flags, dir_fd=directory_fd)
+    except OSError as exc:
+        raise CodexSupervisorError(reason, name) from exc
+    try:
+        metadata = os.fstat(descriptor)
+    except OSError as exc:
+        os.close(descriptor)
+        raise CodexSupervisorError(reason, name) from exc
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) not in modes
+    ):
+        os.close(descriptor)
+        raise CodexSupervisorError(reason, name)
+    return descriptor, metadata
+
+
+def _read_private_file_at(
+    directory_fd: int, name: str, *, reason: str, modes: Collection[int] = (0o400, 0o600),
+) -> tuple[os.stat_result, bytes]:
+    """Read a private file while checking the same FD and directory entry."""
+
+    descriptor, before = _open_private_file_at(directory_fd, name, reason=reason, modes=modes)
+    try:
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        if _credential_fingerprint(after) != _credential_fingerprint(before):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_TARGET_CHANGED", name)
+        try:
+            pathname = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_TARGET_CHANGED", name) from exc
+        if _credential_fingerprint(pathname) != _credential_fingerprint(after):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_TARGET_CHANGED", name)
+        return after, b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _validate_auth_source(source: Path) -> os.stat_result:
+    return _private_file_metadata(
+        source, reason="CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", modes=(0o400, 0o600)
+    )
+
+
+def _remove_stale_auth_target(target: Path) -> None:
+    """前回attemptのauth snapshotを、正当なfileに限って破棄する。
+
+    ``stat`` と ``unlink`` の完全な原子化は Linux の標準 API だけでは提供され
+    ないため、同 UID の別 host process が private 0700 directory を改ざんできる
+    場合はこの supervisor の threat boundary 外とする。その前提でも、dirfd 相対
+    O_NOFOLLOW open/fstat と直前再検査で symlink/rename/regular swap の誤削除を
+    fail-close する。
+    """
+
+    try:
+        parent_fd = _open_private_directory_fd(
+            target.parent, reason="CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED"
+        )
+    except CodexSupervisorError as exc:
+        if isinstance(exc.__cause__, FileNotFoundError):
+            return
+        raise
+    try:
+        try:
+            descriptor, metadata = _open_private_file_at(
+                parent_fd, target.name,
+                reason="CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", modes=(0o400, 0o600),
+            )
+        except CodexSupervisorError as exc:
+            if exc.__cause__ is not None and isinstance(exc.__cause__, FileNotFoundError):
+                return
+            raise
+        try:
+            try:
+                current = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            except OSError as exc:
+                raise CodexSupervisorError(
+                    "CODEX_SUPERVISOR_AUTH_TARGET_CHANGED", str(target)
+                ) from exc
+            if _credential_fingerprint(current) != _credential_fingerprint(metadata):
+                raise CodexSupervisorError(
+                    "CODEX_SUPERVISOR_AUTH_TARGET_CHANGED", str(target)
+                )
+            try:
+                os.unlink(target.name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                return
+        finally:
+            os.close(descriptor)
+        try:
+            os.fsync(parent_fd)
+        except OSError as exc:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED", str(target)
+            ) from exc
+    except CodexSupervisorError:
+        raise
+    except OSError as exc:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED", str(target)
+        ) from exc
+    finally:
+        os.close(parent_fd)
+
+
+def _cleanup_published_snapshot_after_failure(
+    target: Path, *, original: BaseException,
+) -> None:
+    """Remove a published target before propagating any post-publish failure."""
+
+    try:
+        _remove_stale_auth_target(target)
+    except BaseException as cleanup_error:
+        cleanup_reason = (
+            cleanup_error.reason
+            if isinstance(cleanup_error, CodexSupervisorError)
+            else type(cleanup_error).__name__
+        )
+        original_reason = (
+            original.reason if isinstance(original, CodexSupervisorError) else type(original).__name__
+        )
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED",
+            f"{cleanup_reason}; original={original_reason}",
+        ) from original
+
+
+def snapshot_credentials(runtime: RuntimeHome) -> CredentialSnapshot:
+    """auth.jsonをattempt専用runtimeへ検査付きでsnapshotする。
+
+    source pathは開く前後のmetadataを比較し、targetはO_EXCL/O_NOFOLLOWの一時fileを
+    fsyncしてからatomicに公開する。source digestはこの関数の戻り値だけに保持し、ledger
+    やログへは渡さない。
+    """
+
+    source = runtime.auth_source
+    target = runtime.auth_target
+    before = _validate_auth_source(source)
+    _remove_stale_auth_target(target)
+    temporary = target.with_name(
+        f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    )
+    published = False
+    try:
+        descriptor = os.open(
+            source,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            opened = os.fstat(descriptor)
+            if _credential_fingerprint(opened) != _credential_fingerprint(before):
+                raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_CHANGED")
+            with os.fdopen(descriptor, "rb") as handle:
+                descriptor = -1
+                payload = handle.read()
+        finally:
+            if descriptor != -1:
+                os.close(descriptor)
+        after = _validate_auth_source(source)
+        if _credential_fingerprint(after) != _credential_fingerprint(before):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_CHANGED")
+        source_digest = hashlib.sha256(payload).hexdigest()
+        temporary_fd = os.open(
+            temporary,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+            0o400,
+        )
+        with os.fdopen(temporary_fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fchmod(handle.fileno(), 0o400)
+            os.fsync(handle.fileno())
+        # parentはprivate directoryとして作成済みであり、rename後にdirectoryもsyncする。
+        os.replace(temporary, target)
+        published = True
+        directory_fd = _open_private_directory_fd(
+            target.parent, reason="CODEX_SUPERVISOR_AUTH_SNAPSHOT_FAILED"
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        target_directory_fd = _open_private_directory_fd(
+            target.parent, reason="CODEX_SUPERVISOR_AUTH_TARGET_INVALID"
+        )
+        try:
+            metadata, target_payload = _read_private_file_at(
+                target_directory_fd, target.name,
+                reason="CODEX_SUPERVISOR_AUTH_TARGET_INVALID", modes=(0o400,),
+            )
+        finally:
+            os.close(target_directory_fd)
+        target_digest = hashlib.sha256(target_payload).hexdigest()
+        if metadata.st_size != len(payload) or target_digest != source_digest:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SNAPSHOT_MISMATCH")
+        return CredentialSnapshot(source, target, source_digest, target_digest)
+    except BaseException as original:
+        try:
+            temporary.unlink()
+        except BaseException:
+            pass
+        if published:
+            _cleanup_published_snapshot_after_failure(target, original=original)
+        if isinstance(original, CodexSupervisorError):
+            raise
+        if isinstance(original, (OSError, ValueError)):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SNAPSHOT_FAILED") from original
+        raise
+
+
+def cleanup_credentials(runtime: RuntimeHome) -> None:
+    """attempt終了時にcredential snapshotを検査付きで消去する。"""
+
+    _remove_stale_auth_target(runtime.auth_target)
+
+
+def cleanup_credential_target(target: Path | str) -> None:
+    """commandから抽出したruntimeのauth snapshotを終了時に消去する。"""
+
+    _remove_stale_auth_target(Path(target))
+
+
 def _prepare_runtime_home(spec: SupervisorSpec) -> RuntimeHome:
-    """task専用の唯一のwritable CODEX_HOMEとread-only auth mountを準備する。"""
+    """task専用の唯一のwritable CODEX_HOMEを準備する。"""
 
     if not _TASK_KEY.fullmatch(spec.task_key):
         raise CodexSupervisorError("CODEX_SUPERVISOR_TASK_KEY_INVALID", spec.task_key)
@@ -548,139 +893,313 @@ def _prepare_runtime_home(spec: SupervisorSpec) -> RuntimeHome:
     if runtime_root.parent != task_root or task_root.parent != state_root:
         raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_OUTSIDE_ROOT", str(runtime_root))
 
-    auth_source = Path.home() / ".codex" / "auth.json"
-    if auth_source.is_symlink():
-        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source))
-    try:
-        source_metadata = auth_source.lstat()
-    except OSError as exc:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source)) from exc
-    if not stat.S_ISREG(source_metadata.st_mode):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_SOURCE_INVALID", str(auth_source))
+    auth_source = (Path.home() / ".codex" / "auth.json").absolute()
+    _validate_auth_source(auth_source)
 
     auth_target = runtime_root / "auth.json"
-    if auth_target.is_symlink():
-        raise CodexSupervisorError("CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target))
-    if not auth_target.exists():
-        try:
-            descriptor = os.open(
-                auth_target,
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
-                0o400,
-            )
-            os.close(descriptor)
-        except OSError as exc:
-            raise CodexSupervisorError(
-                "CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target)
-            ) from exc
-    target_metadata = auth_target.lstat()
-    if (
-        not stat.S_ISREG(target_metadata.st_mode)
-        or target_metadata.st_uid != os.geteuid()
-        or target_metadata.st_size != 0
-        or target_metadata.st_nlink != 1
-        or stat.S_IMODE(target_metadata.st_mode) not in (0o400, 0o444)
-    ):
-        raise CodexSupervisorError(
-            "CODEX_SUPERVISOR_AUTH_PLACEHOLDER_INVALID", str(auth_target)
-        )
     return RuntimeHome(
         root=runtime_root,
         sqlite=sqlite,
         sessions=sessions,
         auth_source=auth_source.resolve(strict=True),
-        auth_target=auth_target.resolve(strict=True),
+        auth_target=auth_target,
     )
 
 
-def _prepare_broker_bundle(
-    spec: SupervisorSpec,
-    runtime: RuntimeHome,
-    *,
-    bwrap_executable: str,
-    codex_executable: str,
-    attempt_id: str,
-    broker_fence: str,
-) -> BrokerBundle:
-    """supervisor自身のbroker sourceだけをprivate bundleへ固定する。"""
+def _profile_path_metadata(path: Path, *, reason: str) -> os.stat_result:
+    """permission profile/parent の filesystem metadata を symlink-free に読む。"""
 
-    bundle = _private_directory(runtime.root / "broker-bundle")
-    def install(source: Path, name: str) -> tuple[Path, str]:
-        payload = source.read_bytes()
-        digest = hashlib.sha256(payload).hexdigest()
-        target = bundle / name
-        if not target.exists():
-            try:
-                descriptor = os.open(
-                    target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o400
-                )
-                with os.fdopen(descriptor, "wb") as handle:
-                    handle.write(payload)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-            except OSError as exc:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
-        try:
-            metadata = target.lstat()
-            target_digest = hashlib.sha256(target.read_bytes()).hexdigest()
-        except OSError as exc:
-            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_INVALID") from exc
-        if (
-            target.is_symlink()
-            or not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_nlink != 1
-            or stat.S_IMODE(metadata.st_mode) not in {0o400, 0o444}
-            or target_digest != digest
-        ):
-            raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_BUNDLE_TAMPERED")
-        return target.resolve(strict=True), digest
+    _reject_symlink_components(path, reason=reason)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise CodexSupervisorError(reason, str(path)) from exc
+    if (
+        path.is_symlink()
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) != 0o400
+    ):
+        raise CodexSupervisorError(reason, str(path))
+    return metadata
 
-    target, digest = install(
-        Path(codex_exec_broker.__file__).resolve(strict=True), "codex_exec_broker.py"
-    )
-    lock_target, lock_digest = install(
-        Path(durable_lock.__file__).resolve(strict=True), "durable_lock.py"
-    )
-    main_root = Path(worktree_ledger.main_worktree_root(spec.workspace)).resolve(strict=True)
-    ledger = worktree_ledger.ledger_path(main_root, create_dir=True).resolve(strict=True)
-    common_text = codex_binding._git_output(
-        ["git", "rev-parse", "--git-common-dir"], cwd=spec.workspace, runner=subprocess.run
-    )
-    git_common = (spec.workspace / common_text).resolve(strict=True)
-    codex_payload = Path(codex_executable).resolve(strict=True)
-    visible_roots = (Path("/usr"), Path("/etc"), spec.workspace.resolve(strict=True), git_common)
-    for root in visible_roots:
-        try:
-            codex_payload.relative_to(root)
-        except ValueError:
-            continue
-        raise CodexSupervisorError(
-            "CODEX_SUPERVISOR_CODEX_CHILD_VISIBLE", str(codex_payload)
+
+def _absolute_existing_path(value: Path | str, *, reason: str) -> Path:
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise CodexSupervisorError(reason, str(candidate))
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise CodexSupervisorError(reason, str(candidate)) from exc
+    _reject_symlink_components(resolved, reason=reason)
+    if resolved == Path("/"):
+        raise CodexSupervisorError(reason, str(candidate))
+    return resolved
+
+
+def _resolved_codex_install_roots(codex: Path | str) -> tuple[Path, ...]:
+    """resolved Codex executable tree を profile deny 用の最小 root 集合へ変換する。"""
+
+    executable = _absolute_existing_path(codex, reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID")
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_INVALID", str(executable))
+    roots = [executable.parent]
+    # npm 配布では executable が package 配下の bin/ または vendor/bin にある。
+    # package.json を見つけた最初の祖先を install root として併記する。
+    for parent in executable.parents:
+        if (parent / "package.json").is_file():
+            roots.append(parent)
+            break
+    else:
+        # package manifestを持たない配布物でも、標準的な <root>/bin/codex
+        # 形式ならbinの親までをinstall rootとしてdenyする。
+        if executable.parent.name in {"bin", "lib", "dist"}:
+            roots.append(executable.parent.parent)
+    return tuple(dict.fromkeys(path.resolve(strict=True) for path in roots))
+
+
+def _resolved_codex_runtime_executable(codex: Path | str) -> Path:
+    """Resolve the npm launcher to the native binary Codex re-executes in sandbox."""
+
+    executable = _absolute_existing_path(codex, reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID")
+    try:
+        with executable.open("rb") as handle:
+            prefix = handle.read(4)
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_INVALID") from exc
+    if prefix == b"\x7fELF":
+        return executable
+    package_root = executable.parent.parent
+    if executable.name == "codex.js" and (package_root / "package.json").is_file():
+        candidates = tuple(
+            candidate.resolve(strict=True)
+            for candidate in package_root.glob(
+                "node_modules/@openai/codex-*/vendor/*/bin/codex"
+            )
+            if candidate.is_file() and os.access(candidate, os.X_OK)
         )
-    python = _require_executable("/usr/bin/python3", "CODEX_SUPERVISOR_PYTHON_UNAVAILABLE")
-    command = (
-        python, str(target), "--ledger", str(ledger), "--workspace", str(spec.workspace.resolve(strict=True)),
-        "--role", spec.role, "--task-key", spec.task_key, "--attempt-id", attempt_id,
-        "--fence", broker_fence, "--handoff-path", spec.handoff_path,
-        "--bwrap", bwrap_executable, "--python", python, "--git-common", str(git_common),
-        "--source-sha256", digest, "--lock-source-sha256", lock_digest,
+        if len(candidates) != 1:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_NATIVE_UNAVAILABLE")
+        return candidates[0]
+    return executable
+
+
+def _ro_bind_source(command: Sequence[str], target: Path | str) -> Path:
+    expected = str(target)
+    matches = [
+        Path(command[index + 1]).resolve(strict=True)
+        for index, item in enumerate(command[:-2])
+        if item == "--ro-bind" and command[index + 2] == expected
+    ]
+    if len(matches) != 1:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_ALIAS_INVALID", expected)
+    return matches[0]
+
+
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _minimal_deny_roots(values: Sequence[Path | str]) -> tuple[Path, ...]:
+    """Return a deterministic ancestor-only deny set for the Codex sandbox."""
+
+    resolved = tuple(dict.fromkeys(Path(value).resolve(strict=True) for value in values))
+    roots: list[Path] = []
+    for path in sorted(resolved, key=lambda item: (len(item.parts), str(item))):
+        if any(root == path or root in path.parents for root in roots):
+            continue
+        roots.append(path)
+    return tuple(roots)
+
+
+def _render_permission_profile(
+    *, deny_paths: Sequence[Path], profile_name: str,
+) -> str:
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", profile_name):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID", profile_name)
+    paths = _minimal_deny_roots(deny_paths)
+    if not paths:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID", "empty deny set")
+    lines = [
+        f"default_permissions = {_toml_string(profile_name)}",
+        'shell_environment_policy.inherit = "none"',
+        'shell_environment_policy.set.PATH = "/usr/bin:/bin"',
+        "",
+        f"[permissions.{profile_name}]",
+        f"description = {_toml_string(f'{_PERMISSION_PROFILE_SCHEMA}:{_PERMISSION_PROFILE_VERSION}')}",
+        'extends = ":workspace"',
+        "",
+        f"[permissions.{profile_name}.filesystem]",
+    ]
+    lines.extend(f"{_toml_string(str(path))} = \"deny\"" for path in paths)
+    lines.extend([
+        "",
+        f"[permissions.{profile_name}.network]",
+        "enabled = false",
+        "allow_local_binding = false",
+        "dangerously_allow_all_unix_sockets = false",
+        "dangerously_allow_non_loopback_proxy = false",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _write_private_profile(path: Path, content: str) -> str:
+    """profileをO_EXCL/O_NOFOLLOWで作り、既存同一profileだけ冪等再利用する。"""
+
+    parent = path.parent
+    _private_directory(parent)
+    payload = content.encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest()
+    if path.exists() or path.is_symlink():
+        _profile_path_metadata(path, reason="CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID")
+        try:
+            if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_TAMPERED", str(path))
+        except OSError as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID", str(path)) from exc
+        return digest
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o400,
+        )
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except FileExistsError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_TAMPERED", str(temporary)) from exc
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_WRITE_FAILED", str(path)) from exc
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    _profile_path_metadata(path, reason="CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID")
+    return digest
+
+
+def validate_permission_profile(
+    profile: PermissionProfile | Path | str,
+    *,
+    expected_deny_paths: Sequence[Path | str] | None = None,
+    expected_digest: str | None = None,
+    expected_runtime_root: Path | str | None = None,
+) -> PermissionProfile:
+    """生成物とeffective critical設定を同一pure validatorで再検査する。"""
+
+    path = profile.path if isinstance(profile, PermissionProfile) else Path(profile)
+    if not path.is_absolute() or path.name != _PERMISSION_PROFILE_FILE:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID", str(path))
+    if expected_runtime_root is not None:
+        try:
+            runtime_root = Path(expected_runtime_root).resolve(strict=True)
+            if path.parent.resolve(strict=True) != runtime_root:
+                raise CodexSupervisorError(
+                    "CODEX_SUPERVISOR_PERMISSION_PROFILE_OUTSIDE_RUNTIME", str(path)
+                )
+        except (OSError, RuntimeError) as exc:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PERMISSION_PROFILE_OUTSIDE_RUNTIME", str(path)
+            ) from exc
+    _private_directory_metadata(
+        path.parent, reason="CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID"
     )
-    return BrokerBundle(
-        bundle.resolve(strict=True), target, digest, lock_target, lock_digest,
-        ledger, git_common, command,
+    _profile_path_metadata(path, reason="CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID")
+    try:
+        payload = path.read_bytes()
+        document = tomllib.loads(payload.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_INVALID", str(path)) from exc
+    digest = hashlib.sha256(payload).hexdigest()
+    if expected_digest is not None and digest != expected_digest:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_TAMPERED", str(path))
+    expected_name = profile.name if isinstance(profile, PermissionProfile) else _PERMISSION_PROFILE_NAME
+    if set(document) != {"default_permissions", "permissions", "shell_environment_policy"}:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_SCHEMA_INVALID")
+    if document.get("default_permissions") != expected_name:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    profiles = document.get("permissions")
+    if not isinstance(profiles, dict) or set(profiles) != {expected_name}:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_SCHEMA_INVALID")
+    selected = profiles.get(expected_name) if isinstance(profiles, dict) else None
+    if not isinstance(selected, dict) or set(selected) != {
+        "description", "extends", "filesystem", "network"
+    } or selected.get("extends") != ":workspace" or selected.get("description") != (
+        f"{_PERMISSION_PROFILE_SCHEMA}:{_PERMISSION_PROFILE_VERSION}"
+    ):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_SCHEMA_INVALID")
+    if document.get("shell_environment_policy") != {
+        "inherit": "none", "set": {"PATH": "/usr/bin:/bin"},
+    }:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    filesystem = selected.get("filesystem")
+    network = selected.get("network")
+    if not isinstance(filesystem, dict) or not isinstance(network, dict):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_SCHEMA_INVALID")
+    if set(network) != {
+        "enabled", "allow_local_binding", "dangerously_allow_all_unix_sockets",
+        "dangerously_allow_non_loopback_proxy",
+    } or any(network.get(key) is not False for key in network):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    if not filesystem or any(
+        not isinstance(key, str) or not Path(key).is_absolute()
+        or str(Path(key)) != key or value not in _PERMISSION_PROFILE_ACTIONS
+        for key, value in filesystem.items()
+    ):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    paths = tuple(Path(key).resolve(strict=True) for key, value in filesystem.items()
+                  if value == "deny")
+    if any(value != "deny" for value in filesystem.values()):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    if expected_deny_paths is not None:
+        expected = _minimal_deny_roots(expected_deny_paths)
+        if paths != expected:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH")
+    return PermissionProfile(
+        schema_version=_PERMISSION_PROFILE_SCHEMA,
+        cli_version=_PERMISSION_PROFILE_VERSION,
+        name=expected_name,
+        path=path.resolve(strict=True), digest=digest, deny_paths=paths,
     )
 
 
-def _broker_config(bundle: BrokerBundle, timeout_seconds: int) -> tuple[str, ...]:
-    command, *args = bundle.process_command
-    return (
-        f"mcp_servers.issue_exec_broker.command={json.dumps(command)}",
-        f"mcp_servers.issue_exec_broker.args={json.dumps(args)}",
-        "mcp_servers.issue_exec_broker.required=true",
-        'mcp_servers.issue_exec_broker.enabled_tools=["execute"]',
-        "mcp_servers.issue_exec_broker.startup_timeout_sec=10",
-        f"mcp_servers.issue_exec_broker.tool_timeout_sec={max(1, timeout_seconds)}",
+def generate_permission_profile(
+    spec: SupervisorSpec, runtime: RuntimeHome, *, codex_executable: Path | str,
+) -> PermissionProfile:
+    """versioned generatorをSoTとしてtask-private CODEX_HOMEへprofileを生成する。"""
+
+    root = spec.workspace.resolve(strict=True)
+    runtime_executable = _resolved_codex_runtime_executable(codex_executable)
+    profile_name = _PERMISSION_PROFILE_NAME
+    auth_home = runtime.auth_source.parent.resolve(strict=True)
+    deny_paths = [
+        runtime.root.resolve(strict=True), runtime.auth_target.resolve(strict=True),
+        auth_home, runtime.auth_source.resolve(strict=True),
+        *_resolved_codex_install_roots(runtime_executable),
+    ]
+    normalized = _minimal_deny_roots(deny_paths)
+    for path in normalized:
+        if path == Path("/") or path == root or root in path.parents:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_DENY_PATH_INVALID", str(path))
+    target = runtime.root / _PERMISSION_PROFILE_FILE
+    content = _render_permission_profile(deny_paths=normalized, profile_name=profile_name)
+    digest = _write_private_profile(target, content)
+    return validate_permission_profile(
+        target, expected_deny_paths=normalized, expected_digest=digest,
+        expected_runtime_root=runtime.root,
     )
 
 
@@ -689,25 +1208,365 @@ def _inner_config_values(command: Sequence[str]) -> tuple[str, tuple[str, ...], 
         separator = command.index("--")
         inner = command[separator + 1 :]
         codex = inner[0]
-        values = tuple(inner[index + 1] for index, item in enumerate(inner[:-1]) if item == "--config")
-        runtime_home = command[command.index("CODEX_HOME") + 1]
+        config_indexes = [index for index, item in enumerate(inner) if item == "--config"]
+        if any(index + 1 >= len(inner) for index in config_indexes):
+            raise ValueError("config value missing")
+        values = tuple(inner[index + 1] for index in config_indexes)
+        runtime_home = _command_setenv(command, "CODEX_HOME")
     except (ValueError, IndexError) as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
     return codex, values, runtime_home
 
 
-def _parse_feature_states(stdout: str) -> dict[str, str]:
-    """``codex features list`` の各行を ``name -> state`` へ写す。未パース行は fail-close する。
+def _inner_argv(command: Sequence[str]) -> tuple[str, ...]:
+    try:
+        separator = command.index("--")
+    except ValueError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
+    inner = tuple(command[separator + 1 :])
+    if not inner:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID")
+    return inner
 
-    許容するのは空行と既知のヘッダ行（``name maturity state``）だけで、それ以外に
-    3 フィールドへ分解できない行があれば ``CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED`` を送出する。
-    黙って捨てると、その feature は ``states`` に載らず後段の2検査（``_BROKER_FEATURES`` の
-    無効化確認・未レビュー process feature の検出）から消え、catalog 外・拒否語彙該当・有効の
-    3条件を満たしていても素通りする（fail-open。Issue #491・F-491-04）。
-    ``fields[-1]`` を state とみなすのは「name maturity state」の3列を前提とした読みで、
-    説明列が増えた版では state でない語を読む。その場合も ``!= "false"`` により fail-close 側へ
-    倒れるが、前提が崩れたことは列数の変化として上の許容判定に現れる。
+
+def _command_setenv(command: Sequence[str], name: str) -> str:
+    matches: list[str] = []
+    for index, item in enumerate(command[:-2]):
+        if item == "--setenv" and command[index + 1] == name:
+            matches.append(command[index + 2])
+    if len(matches) != 1:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ENVIRONMENT_INVALID", name)
+    return matches[0]
+
+
+def _contains_legacy_sandbox(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return any(key in _LEGACY_SANDBOX_KEYS or _contains_legacy_sandbox(item)
+                   for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_legacy_sandbox(item) for item in value)
+    return False
+
+
+def _external_critical_values_mismatch(document: Mapping[str, Any]) -> bool:
+    """profileより先に評価されうるconfigのcritical permission overrideを拒否する。"""
+
+    if "default_permissions" in document and document["default_permissions"] != _PERMISSION_PROFILE_NAME:
+        return True
+    environment = document.get("shell_environment_policy")
+    if environment is not None and environment != {"inherit": "none"}:
+        return True
+    permissions = document.get("permissions")
+    if not isinstance(permissions, Mapping):
+        return permissions is not None
+    selected = permissions.get(_PERMISSION_PROFILE_NAME)
+    if selected is None:
+        return False
+    if not isinstance(selected, Mapping):
+        return True
+    if set(selected) - {"description", "extends", "filesystem", "network"}:
+        return True
+    if selected.get("extends") not in (None, ":workspace"):
+        return True
+    filesystem = selected.get("filesystem")
+    if filesystem is not None and (
+        not isinstance(filesystem, Mapping)
+        or any(value != "deny" for value in filesystem.values())
+    ):
+        return True
+    network = selected.get("network")
+    if network is not None and (
+        not isinstance(network, Mapping)
+        or any(value is not False for value in network.values())
+    ):
+        return True
+    return False
+
+
+def _candidate_config_paths(
+    workspace: Path, runtime_home: Path | None = None,
+) -> tuple[Path, ...]:
+    """Codexが自動的に読みうるruntime/project/system configの既知path。"""
+
+    candidates: list[Path] = []
+    if runtime_home is not None:
+        candidates.append(runtime_home / "config.toml")
+    candidates.extend([
+        workspace / ".codex" / "config.toml",
+        Path("/etc/codex/config.toml"),
+        Path("/etc/codex/managed_config.toml"),
+        Path("/etc/codex/managed-config.toml"),
+    ])
+    return tuple(dict.fromkeys(path.absolute() for path in candidates))
+
+
+def _validate_external_configs(workspace: Path, runtime_home: Path | None = None) -> None:
+    for path in _candidate_config_paths(workspace, runtime_home):
+        if not path.exists() and not path.is_symlink():
+            continue
+        _reject_symlink_components(path, reason="CODEX_SUPERVISOR_CONFIG_INVALID")
+        try:
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode):
+                raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID", str(path))
+            document = tomllib.loads(path.read_text(encoding="utf-8"))
+        except CodexSupervisorError:
+            raise
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID", str(path)) from exc
+        if _contains_legacy_sandbox(document):
+            raise CodexSupervisorError("CODEX_SUPERVISOR_LEGACY_SANDBOX_PRESENT", str(path))
+        if _external_critical_values_mismatch(document):
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PERMISSION_PROFILE_EFFECTIVE_MISMATCH", str(path)
+            )
+
+
+def _active_boundary_probe_script() -> str:
+    """Return the model-free script run by the real permission-profile boundary."""
+
+    # Keep this script deliberately independent from Codex/model/API behavior.  It is
+    # run by ``codex sandbox -P issue-supervised`` and therefore exercises the same
+    # generated profile that will guard the eventual ``codex exec`` process.
+    return """import json, os, pathlib, socket, subprocess, sys
+P = pathlib.Path
+payload = json.loads(sys.argv[1])
+
+def read(path):
+    try:
+        if P(path).is_dir():
+            list(P(path).iterdir())
+        else:
+            with open(path, "rb") as handle:
+                handle.read(1)
+        return True
+    except OSError:
+        return False
+
+def write(path):
+    try:
+        if P(path).is_dir():
+            marker = P(path) / (".issue-supervised-probe-" + str(os.getpid()))
+            descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.close(descriptor)
+            marker.unlink()
+        else:
+            descriptor = os.open(path, os.O_WRONLY)
+            os.close(descriptor)
+        return True
+    except OSError:
+        return False
+
+def execute(path):
+    try:
+        if P(path).is_dir():
+            os.chdir(path)
+        else:
+            subprocess.run(
+                [path, "--version"], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=True, timeout=3,
+            )
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+def triple(path):
+    return {"read": read(path), "write": write(path), "exec": execute(path)}
+
+def connect(family, address):
+    try:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.connect(address)
+        sock.close()
+        return True
+    except OSError:
+        return False
+
+targets = {
+    "workspace": payload["workspace"],
+    "runtime": payload["runtime"],
+    "runtime_auth": payload["runtime_auth"],
+    "host_auth": payload["host_auth"],
+    "install": payload["install"],
+}
+out = {key: triple(path) for key, path in targets.items()}
+unix_address = payload["unix_path"]
+if unix_address.startswith("@"):
+    unix_address = "\\0" + unix_address[1:]
+out["network"] = {
+    "tcp": connect(socket.AF_INET, ("127.0.0.1", int(payload["tcp_port"]))),
+    "unix": connect(socket.AF_UNIX, unix_address),
+}
+out["environment"] = {
+    key: os.environ.get(key) for key in ("HOME", "CODEX_HOME", "TMPDIR", "PATH")
+}
+out["inherited_fds"] = [fd for fd in range(3, 64) if P("/proc/self/fd/" + str(fd)).exists()]
+out["proc"] = {"self_status": P("/proc/self/status").is_file(), "pid1": P("/proc/1/status").is_file()}
+print(json.dumps(out, sort_keys=True))
+"""
+
+
+def _build_active_boundary_probe_command(
+    command: Sequence[str], *, python_executable: Path | str,
+    workspace: Path, runtime_home: Path, host_auth: Path, codex: str,
+    tcp_port: int, unix_path: Path, install_probe: Path | str | None = None,
+) -> tuple[str, ...]:
+    """Replace the active inner exec with a profile-bound, model-free probe.
+
+    Codex 0.153.4 was measured before selecting this route: ``doctor --json``
+    loads the base config but rejects ``--profile`` as a runtime-only option.
+    ``sandbox -P issue-supervised`` is the installed CLI's profile-aware,
+    model/API-free route, so its success and JSON result are the only completion
+    evidence accepted by the default preflight.
     """
+
+    try:
+        separator = command.index("--")
+    except ValueError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
+    python = _require_executable(python_executable, "CODEX_SUPERVISOR_PYTHON_UNAVAILABLE")
+    outer = list(command[:separator])
+    payload = json.dumps({
+        "workspace": str(workspace), "runtime": str(runtime_home),
+        "runtime_auth": str(runtime_home / "auth.json"),
+        "host_auth": str(host_auth), "install": str(install_probe or codex),
+        "tcp_port": tcp_port, "unix_path": str(unix_path),
+    }, sort_keys=True)
+    inner = (
+        # 0.153.4 rejects --strict-config for the sandbox subcommand; the
+        # supervisor's static validator provides the strict fail-closed check
+        # before this model-free profile load.
+        codex, "--profile", _PERMISSION_PROFILE_NAME,
+        "sandbox", "-P", _PERMISSION_PROFILE_NAME, "-C", str(workspace), "--",
+        python, "-c", _active_boundary_probe_script(), payload,
+    )
+    return tuple((*outer, "--", *inner))
+
+
+def _validate_active_boundary_probe(
+    stdout: str, exit_code: int, *, workspace: Path, runtime_home: Path,
+) -> dict[str, Any]:
+    """Validate every required result; a skipped/missing probe is never a pass."""
+
+    if exit_code != 0:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED", str(exit_code))
+    try:
+        observed = json.loads(stdout)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED") from exc
+    expected = {
+        "workspace": {"read": True, "write": True, "exec": True},
+        "runtime": {"read": False, "write": False, "exec": False},
+        "runtime_auth": {"read": False, "write": False, "exec": False},
+        "host_auth": {"read": False, "write": False, "exec": False},
+        "install": {"read": False, "write": False, "exec": False},
+        "network": {"tcp": False, "unix": False},
+        "environment": {
+            "HOME": None, "CODEX_HOME": None, "TMPDIR": None,
+            "PATH": "/usr/bin:/bin",
+        },
+        "inherited_fds": [],
+        "proc": {"self_status": True, "pid1": True},
+    }
+    if observed != expected:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_PROBE_BOUNDARY_MISMATCH",
+            json.dumps(observed, sort_keys=True),
+        )
+    return observed
+
+
+def _run_active_boundary_probe(
+    command: Sequence[str], *, workspace: Path, runtime_home: Path,
+    host_auth: Path, codex: str, install_probe: Path,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> dict[str, Any]:
+    """Run the boundary probe through the same outer bwrap and generated profile."""
+
+    # Linux abstract namespace avoids AF_UNIX's short pathname limit without
+    # hiding the listener behind the outer sandbox's private /tmp mount.
+    unix_address = f"\0issue-supervised-{os.getpid()}-{secrets.token_hex(8)}"
+    unix_probe_value = "@" + unix_address[1:]
+    try:
+        tcp_listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        unix_listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        tcp_listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp_listener.bind(("127.0.0.1", 0))
+        tcp_listener.listen(4)
+        unix_listener.bind(unix_address)
+        unix_listener.listen(4)
+        tcp_listener.settimeout(0.05)
+        unix_listener.settimeout(0.05)
+        probe_command = _build_active_boundary_probe_command(
+            command, python_executable="/usr/bin/python3", workspace=workspace,
+            runtime_home=runtime_home, host_auth=host_auth, codex=codex,
+            tcp_port=tcp_listener.getsockname()[1], unix_path=Path(unix_probe_value),
+            install_probe=install_probe,
+        )
+        try:
+            completed = runner(
+                probe_command,
+                cwd=workspace,
+                env={
+                    "PATH": "/usr/bin:/bin", "HOME": str(runtime_home),
+                    "CODEX_HOME": str(runtime_home), "TMPDIR": "/tmp",
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError, TypeError) as exc:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PROBE_NOT_TESTED", str(exc)[:4096]
+            ) from exc
+        if getattr(completed, "returncode", 1) != 0:
+            detail = str(getattr(completed, "stderr", "")).strip()
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PROBE_NOT_TESTED",
+                detail[:4096] or str(getattr(completed, "returncode", 1)),
+            )
+        result = _validate_active_boundary_probe(
+            getattr(completed, "stdout", ""), getattr(completed, "returncode", 1),
+            workspace=workspace, runtime_home=runtime_home,
+        )
+        requests = {"tcp": 0, "unix": 0}
+        for key, listener in (("tcp", tcp_listener), ("unix", unix_listener)):
+            while True:
+                try:
+                    connection, _address = listener.accept()
+                except (TimeoutError, socket.timeout):
+                    break
+                else:
+                    requests[key] += 1
+                    connection.close()
+        if any(requests.values()):
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_PROBE_BOUNDARY_MISMATCH",
+                json.dumps({"listener_requests": requests}, sort_keys=True),
+            )
+        return result
+    except CodexSupervisorError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise CodexSupervisorError(
+            "CODEX_SUPERVISOR_PROBE_NOT_TESTED", str(exc)[:4096]
+        ) from exc
+    finally:
+        try:
+            tcp_listener.close()
+        except UnboundLocalError:
+            pass
+        try:
+            unix_listener.close()
+        except UnboundLocalError:
+            pass
+
+
+def _parse_feature_states(stdout: str) -> dict[str, str]:
+    """``codex features list`` を厳密に読む。未知の行形式を黙って捨てない。"""
 
     states: dict[str, str] = {}
     for line in stdout.splitlines():
@@ -718,14 +1577,20 @@ def _parse_feature_states(stdout: str) -> dict[str, str]:
             continue
         if len(fields) < 3:
             raise CodexSupervisorError(
-                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED", f"unparsed features line: {line.strip()}"
+                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED",
+                f"unparsed features line: {line.strip()}",
             )
-        states[fields[0]] = fields[-1]
+        name, state = fields[0], fields[-1]
+        if name in states:
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED", f"duplicate feature: {name}"
+            )
+        states[name] = state
     return states
 
 
 def _suggests_process_capability(name: str) -> bool:
-    """feature 名が process 実行能力を示唆するかを大小文字・区切り非依存で判定する。"""
+    """feature名が未レビューのprocess実行能力を示唆するか判定する。"""
 
     lowered = name.lower()
     if any(marker in lowered for marker in _HIGH_SIGNAL_PROCESS_MARKERS):
@@ -734,8 +1599,6 @@ def _suggests_process_capability(name: str) -> bool:
 
 
 def _unreviewed_process_features(states: Mapping[str, str]) -> tuple[str, ...]:
-    """0.153.4 の catalog 外で process 能力を示唆し、かつ無効化されていない feature を返す。"""
-
     return tuple(sorted(
         name
         for name, state in states.items()
@@ -745,49 +1608,33 @@ def _unreviewed_process_features(states: Mapping[str, str]) -> tuple[str, ...]:
     ))
 
 
-def validate_cli_compatibility(
-    command: Sequence[str],
+def _validate_feature_catalog(
+    codex: Path | str,
+    values: Sequence[str],
+    runtime_home: Path | str,
     *,
-    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> None:
-    """model/API/thread開始前にinstalled CLIのfeature/MCP parserを検証する。
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> dict[str, str]:
+    """model/API開始前にprocess featureの無効化と未知能力を検査する。"""
 
-    feature catalog は完全一致ではなく必要な部分集合で検査する（Issue #491）。守るのは
-    「内側 Codex が broker 以外の process 実行能力を得ない」ことで、そのために
-    (1) ``_BROKER_FEATURES`` が全て present かつ ``false`` であること、(2) 0.153.4 の
-    観測 catalog ``_KNOWN_CLI_FEATURES`` の外にある feature が process 能力を示唆する名前を
-    持つなら無効化されていること、の2点だけを要求する。許すのは、catalog にも拒否語彙にも
-    掛からない feature の増減——すなわち CLI 更新への追随である。
-    完全一致をやめた理由は、CLI が feature を1件でも増減するとその版では必ず fail-close し、
-    人手で catalog を追随させない限り恒常的に赤くなるため（codex-cli 0.153.4 実測で
-    ``codex features list`` は 135 件を返し、catalog の 119 件と一致しない）。
-    「未レビューの危険名が出現しただけで fail-close」ではなく「有効なまま出現したら
-    fail-close」にしたのは、``false`` の feature は能力を与えず、appearance だけを見ると
-    同じ人手追随を名前の部分集合に対して繰り返すことになるため。
-    """
-
-    codex, values, runtime_home = _inner_config_values(command)
     overrides = [argument for value in values for argument in ("--config", value)]
     env = _minimal_process_env()
-    env["CODEX_HOME"] = runtime_home
+    env["CODEX_HOME"] = str(runtime_home)
     env["CODEX_SQLITE_HOME"] = str(Path(runtime_home) / "sqlite")
     try:
-        features = runner(
-            [codex, "features", "list", *overrides], env=env,
-            text=True, capture_output=True, check=False,
+        completed = runner(
+            [str(codex), "features", "list", *overrides],
+            env=env, text=True, capture_output=True, check=False,
         )
-        servers = runner(
-            [codex, "mcp", "list", "--json", *overrides], env=env,
-            text=True, capture_output=True, check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, subprocess.SubprocessError, TypeError) as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_PREFLIGHT_FAILED") from exc
-    if features.returncode != 0 or servers.returncode != 0:
+    if getattr(completed, "returncode", 1) != 0:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CLI_CONFIG_UNSUPPORTED")
-    states = _parse_feature_states(features.stdout)
+    states = _parse_feature_states(getattr(completed, "stdout", ""))
     enabled = tuple(sorted(
         f"{name}={states.get(name, '<absent>')}"
-        for name in _BROKER_FEATURES if states.get(name) != "false"
+        for name in _REQUIRED_DISABLED_FEATURES
+        if states.get(name) != "false"
     ))
     if enabled:
         raise CodexSupervisorError(
@@ -798,49 +1645,93 @@ def validate_cli_compatibility(
         raise CodexSupervisorError(
             "CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN", " ".join(unreviewed)
         )
+    return states
+
+
+def validate_cli_compatibility(
+    command: Sequence[str],
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> dict[str, Any]:
+    """Validate config and exercise the active generated permission profile."""
+
+    codex, values, runtime_home = _inner_config_values(command)
+    inner = _inner_argv(command)
+    if any(item == "--sandbox" or item.startswith("sandbox_workspace_write")
+           or item.startswith("sandbox_mode=") for item in command):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_LEGACY_SANDBOX_PRESENT")
+    if "--profile" not in command:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_MISSING")
+    profile_index = command.index("--profile")
     try:
-        catalog = json.loads(servers.stdout)
-    except json.JSONDecodeError as exc:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CONFIG_INVALID") from exc
-    if (
-        not isinstance(catalog, list)
-        or len(catalog) != 1
-        or catalog[0].get("name") != "issue_exec_broker"
-        or catalog[0].get("enabled") is not True
-    ):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CATALOG_INVALID")
+        profile = command[profile_index + 1]
+    except IndexError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_MISSING") from exc
+    if profile != _PERMISSION_PROFILE_NAME or "--strict-config" not in command:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PERMISSION_PROFILE_MISSING")
+    if "--ignore-user-config" not in inner or "--ask-for-approval" not in command:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID")
+    try:
+        approval_index = command.index("--ask-for-approval")
+        if command[approval_index + 1] != "never":
+            raise CodexSupervisorError("CODEX_SUPERVISOR_APPROVAL_POLICY_INVALID")
+        cwd_index = inner.index("-C")
+        workspace = Path(inner[cwd_index + 1]).resolve(strict=True)
+    except (ValueError, IndexError, OSError, RuntimeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
+    if not Path(runtime_home).is_absolute() or not Path(runtime_home).exists():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RUNTIME_HOME_INVALID", runtime_home)
+    if _command_setenv(command, "HOME") != runtime_home:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ENVIRONMENT_INVALID", "HOME")
+    if _command_setenv(command, "CODEX_HOME") != runtime_home:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ENVIRONMENT_INVALID", "CODEX_HOME")
+    if _command_setenv(command, "TMPDIR") != "/tmp":
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ENVIRONMENT_INVALID", "TMPDIR")
+    profile_path = Path(runtime_home) / _PERMISSION_PROFILE_FILE
+    host_codex_home = (Path.home() / ".codex").resolve(strict=True)
+    validate_permission_profile(
+        profile_path, expected_runtime_root=Path(runtime_home)
+    )
+    _validate_external_configs(workspace, Path(runtime_home).resolve(strict=True))
+    codex_source = _ro_bind_source(command, codex)
+    _validate_feature_catalog(
+        codex_source, values, runtime_home, runner=runner,
+    )
+    expected_deny_paths = (
+        Path(runtime_home).resolve(strict=True),
+        (Path(runtime_home) / "auth.json").resolve(strict=True),
+        host_codex_home,
+        (host_codex_home / "auth.json").resolve(strict=True),
+        *_resolved_codex_install_roots(codex_source),
+    )
+    checked_profile = validate_permission_profile(
+        profile_path, expected_deny_paths=_minimal_deny_roots(expected_deny_paths),
+        expected_runtime_root=Path(runtime_home),
+    )
+    install_roots = _resolved_codex_install_roots(codex_source)
+    install_probes = tuple(
+        path for path in checked_profile.deny_paths
+        if any(root == path or root in path.parents for root in install_roots)
+    )
+    if not install_probes:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED", "install deny empty")
+    return _run_active_boundary_probe(
+        command,
+        workspace=workspace,
+        runtime_home=Path(runtime_home).resolve(strict=True),
+        host_auth=(host_codex_home / "auth.json").resolve(strict=True),
+        codex=codex, install_probe=install_probes[0],
+        runner=runner,
+    )
+
+
+_DEFAULT_CLI_COMPATIBILITY_CHECKER = validate_cli_compatibility
 
 
 def validate_broker_protocol(command: Sequence[str]) -> None:
-    """required MCPが単一toolを返すことをmodel-free handshakeで固定する。"""
-
-    _codex, values, _runtime_home = _inner_config_values(command)
-    config = {value.split("=", 1)[0]: value.split("=", 1)[1] for value in values if "=" in value}
-    try:
-        executable = json.loads(config["mcp_servers.issue_exec_broker.command"])
-        arguments = json.loads(config["mcp_servers.issue_exec_broker.args"])
-    except (KeyError, json.JSONDecodeError, TypeError) as exc:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_MCP_CONFIG_INVALID") from exc
-    requests = "\n".join((
-        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                    "params": {"protocolVersion": "2025-06-18", "capabilities": {},
-                               "clientInfo": {"name": "supervisor-preflight", "version": "1"}}}),
-        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}),
-        json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-    )) + "\n"
-    env = _minimal_process_env()
-    env["CODEX_EXEC_BROKER_BOUNDARY"] = codex_exec_broker.BOUNDARY_VERSION
-    try:
-        completed = subprocess.run(
-            [executable, *arguments], input=requests, env=env,
-            text=True, capture_output=True, check=False, timeout=15,
-        )
-        responses = [json.loads(line) for line in completed.stdout.splitlines()]
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED") from exc
-    tools = next((item.get("result", {}).get("tools") for item in responses if item.get("id") == 2), None)
-    if completed.returncode != 0 or not isinstance(tools, list) or [tool.get("name") for tool in tools] != ["execute"]:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_PREFLIGHT_FAILED")
+    """退役済みbrokerがcommandへ再混入していないことを確認する互換入口。"""
+    if any("issue_exec_broker" in item or "codex_exec_broker" in item for item in command):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_RETIRED_BROKER_PRESENT")
 
 
 def build_codex_command(
@@ -850,20 +1741,28 @@ def build_codex_command(
     codex_executable: Path | str,
     resume_thread: str | None = None,
     attempt_id: str = "0" * 32,
-    broker_fence: str = "0" * 32,
 ) -> tuple[str, ...]:
-    """外側 bubblewrap と内側 Codex sandbox の二段 command を組み立てる。"""
+    """外側 bubblewrap と permission-profile inner Codex の二段 commandを組み立てる。"""
 
     workspace = spec.workspace.resolve(strict=True)
     bwrap = _require_executable(bwrap_executable, "CODEX_SUPERVISOR_BWRAP_UNAVAILABLE")
-    codex = _require_executable(codex_executable, "CODEX_SUPERVISOR_CODEX_UNAVAILABLE")
-    launch_path = _codex_launch_path(codex)
+    codex_source = _require_executable(
+        _resolved_codex_runtime_executable(codex_executable),
+        "CODEX_SUPERVISOR_CODEX_UNAVAILABLE",
+    )
+    launch_path = _codex_launch_path(codex_source)
     role_contract, role_digest = _trusted_role_instructions(spec)
     runtime = _prepare_runtime_home(spec)
-    broker = _prepare_broker_bundle(
-        spec, runtime, bwrap_executable=bwrap, codex_executable=codex,
-        attempt_id=attempt_id, broker_fence=broker_fence
-    )
+    try:
+        with Path(codex_source).open("rb") as handle:
+            native_elf = handle.read(4) == b"\x7fELF"
+    except OSError as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_INVALID") from exc
+    codex = str(_CODEX_CONTROL_ALIAS) if native_elf else codex_source
+    codex_alias_bind = (
+        "--tmpfs", "/run", "--dir", str(_CODEX_CONTROL_ALIAS.parent),
+        "--ro-bind", codex_source, codex,
+    ) if native_elf else ()
     protected: list[str] = []
     protected_paths = [workspace / relative for relative in _PROTECTED_ROOTS]
     protected_paths.append(workspace / ".ai" / "agents" / f"{spec.role}.md")
@@ -874,23 +1773,16 @@ def build_codex_command(
             )
         protected.extend(("--ro-bind", str(target), str(target)))
     inner = [
-        codex, "--ask-for-approval", "never", "exec",
-        "--cd", str(workspace), "--sandbox", "workspace-write",
+        codex, "--profile", _PERMISSION_PROFILE_NAME, "--strict-config",
+        "--ask-for-approval", "never", "exec", "-C", str(workspace),
         "--ignore-user-config", "--json",
         "--model", spec.model,
         "--config", f'model_reasoning_effort="{spec.reasoning_effort}"',
         "--config", f"developer_instructions={json.dumps(role_contract, ensure_ascii=False)}",
         "--config", f"sqlite_home={json.dumps(str(runtime.sqlite))}",
         "--config", 'web_search="disabled"',
-        "--config", "sandbox_workspace_write.network_access=false",
-        "--config", "sandbox_workspace_write.exclude_slash_tmp=true",
-        "--config", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
         "--config", "agents.enabled=false",
         "--config", "features.multi_agent=false",
-        "--config", "features.shell_tool=false",
-        "--config", "features.unified_exec=false",
-        "--config", "features.code_mode=false",
-        "--config", "features.code_mode_host=false",
         "--config", "features.apps=false",
         "--config", "features.plugins=false",
         "--config", "features.remote_plugin=false",
@@ -909,42 +1801,59 @@ def build_codex_command(
         "--config", "features.exec_permission_approvals=false",
         "--config", "features.executor_capability_discovery=false",
         "--config", "features.deferred_executor=false",
-        # 0.153.4 の catalog に実在する shell_tool / unified_exec / code_mode / multi_agent の
-        # 派生。名前どおりの能力を持つなら broker を迂回できるため、本体と同じく必ず false へ
-        # 倒す（Issue #491・F-491-02）。
         "--config", "features.shell_zsh_fork=false",
         "--config", "features.unified_exec_zsh_fork=false",
         "--config", "features.code_mode_buffered_exec=false",
         "--config", "features.code_mode_only=false",
         "--config", "features.multi_agent_mode=false",
         "--config", "features.multi_agent_v2=false",
+        "--config", "features.in_app_local_automation=false",
+        "--config", "features.sleep_tool=false",
         "--config", "apps._default.enabled=false",
     ]
-    for value in _broker_config(broker, spec.timeout_seconds):
-        inner.extend(("--config", value))
     if resume_thread is not None:
         if not _THREAD_ID.fullmatch(resume_thread):
             raise CodexSupervisorError("CODEX_SUPERVISOR_THREAD_ID_INVALID", resume_thread)
         inner.extend(("resume", resume_thread, "-"))
     else:
         inner.append("-")
+    snapshot_credentials(runtime)
+    try:
+        generate_permission_profile(spec, runtime, codex_executable=codex_source)
+    except BaseException as original:
+        try:
+            cleanup_credentials(runtime)
+        except BaseException as cleanup_error:
+            cleanup_reason = (
+                cleanup_error.reason
+                if isinstance(cleanup_error, CodexSupervisorError)
+                else type(cleanup_error).__name__
+            )
+            original_reason = (
+                original.reason
+                if isinstance(original, CodexSupervisorError)
+                else type(original).__name__
+            )
+            raise CodexSupervisorError(
+                "CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED",
+                f"{cleanup_reason}; original={original_reason}",
+            ) from original
+        raise
     return tuple([
         bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
         "--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev",
         "--proc", "/proc",
         "--bind", str(workspace), str(workspace),
         "--bind", str(runtime.root), str(runtime.root),
-        "--bind", str(broker.ledger.parent), str(broker.ledger.parent),
-        "--ro-bind", str(broker.root), str(broker.root),
-        "--ro-bind", str(runtime.auth_source), str(runtime.auth_target),
-        *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "TMPDIR", "/tmp",
+        *codex_alias_bind,
+        *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "HOME", str(runtime.root),
+        "--setenv", "TMPDIR", "/tmp",
         "--setenv", "PATH", launch_path,
         "--setenv", "CODEX_HOME", str(runtime.root),
         "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
         "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
         "--setenv", "CODEX_ISSUE_ROLE", spec.role,
         "--setenv", "CODEX_ISSUE_ROLE_CONTRACT_SHA256", role_digest,
-        "--setenv", "CODEX_EXEC_BROKER_BOUNDARY", codex_exec_broker.BOUNDARY_VERSION,
         "--", *inner,
     ])
 
@@ -959,7 +1868,7 @@ def build_sandbox_probe_command(
     isolate_tmp: bool = True,
     isolate_network: bool = True,
 ) -> tuple[str, ...]:
-    """モデルを呼ばずに write/network/private tmp 境界を実測する command。"""
+    """補助 negative-control 用 synthetic command（completion evidence には使わない）。"""
 
     root = Path(workspace).resolve(strict=True)
     bwrap = _require_executable(bwrap_executable, "CODEX_SUPERVISOR_BWRAP_UNAVAILABLE")
@@ -981,7 +1890,7 @@ def build_sandbox_probe_command(
         "except OSError:out['network']=False\n"
         "print(json.dumps(out,sort_keys=True))"
     )
-    git_common = codex_binding._git_output(
+    git_common = supervisor_workspace.git_output(
         ["git", "rev-parse", "--git-common-dir"], cwd=root, runner=subprocess.run
     )
     git_path = (root / git_common).resolve(strict=True)
@@ -1031,7 +1940,7 @@ def validate_probe_result(stdout: str, exit_code: int) -> dict[str, bool]:
 def execute_sandbox_probe(
     workspace: Path | str, *, bwrap_executable: Path | str, python_executable: Path | str
 ) -> dict[str, bool]:
-    """正規境界に加えtmp/network isolationを個別に外したnegative controlを実行する。"""
+    """補助 negative control を実行する（active completion evidence には昇格しない）。"""
 
     sentinel_handle, sentinel_name = tempfile.mkstemp(prefix="codex-supervisor-control-", dir="/tmp")
     os.close(sentinel_handle)
@@ -1075,7 +1984,7 @@ def _record_attempt(
     state: str,
     evidence: Mapping[str, Any],
 ) -> None:
-    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+    root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
     stamp = _stamp(now)
 
     def mutate(document: dict[str, Any]) -> None:
@@ -1104,8 +2013,7 @@ def _record_attempt(
             "owner_pid": owner_pid,
             "owner_start_token": owner_token,
             "lease_expires_at": latest.get("lease_expires_at"),
-            "broker_fence": latest.get("broker_fence"),
-            "broker_boundary_version": latest.get("broker_boundary_version"),
+            "transport_contract": latest.get("transport_contract"),
             **dict(evidence),
         })
 
@@ -1126,79 +2034,21 @@ def _process_identity_alive(pid: Any, token: Any) -> bool:
 
 def _reserve_attempt(
     spec: SupervisorSpec, *, now: datetime, resume_thread: str | None,
-    broker_fence: str | None = None,
 ) -> str:
-    """ledger lock下でactive process/leaseとresume stateをCAS検査する。"""
-
-    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+    """launch record生成とattempt予約を同じledger transactionで行う。"""
     attempt_id = secrets.token_hex(16)
-    stamp = _stamp(now)
-    lease = _stamp(now + timedelta(seconds=_ATTEMPT_LEASE_SECONDS))
-    owner_pid = os.getpid()
-    owner_start_token = _process_start_token(owner_pid)
-    fence = broker_fence or secrets.token_hex(16)
-    if not re.fullmatch(r"[0-9a-f]{32}", fence):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_BROKER_FENCE_INVALID")
-
-    def mutate(document: dict[str, Any]) -> None:
-        target = next(
-            (item for item in document["entries"] if item.get("entry_id") == entry["entry_id"]),
-            None,
-        )
-        if target is None:
-            raise CodexSupervisorError("CODEX_SUPERVISOR_BINDING_MISSING", spec.task_key)
-        attempts = target.setdefault("supervisor_attempts", [])
-        if not isinstance(attempts, list):
-            raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "supervisor_attempts")
-        latest = attempts[-1] if attempts else None
-        resume_basis = latest
-        if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
-            if _process_identity_alive(
-                latest.get("owner_pid"), latest.get("owner_start_token")
-            ) or _process_identity_alive(latest.get("pid"), latest.get("process_start_token")):
-                raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_ACTIVE")
-            lease_value = latest.get("lease_expires_at")
-            if isinstance(lease_value, str):
-                try:
-                    if now < datetime.fromisoformat(lease_value.replace("Z", "+00:00")):
-                        raise CodexSupervisorError("CODEX_SUPERVISOR_ATTEMPT_ACTIVE")
-                except ValueError as exc:
-                    raise CodexSupervisorError("CODEX_SUPERVISOR_LEDGER_CORRUPT", "lease_expires_at") from exc
-            attempts.append({
-                "at": stamp,
-                "attempt_id": latest.get("attempt_id"),
-                "state": "expired",
-                "reason": "owner_exit_after_lease",
-            })
-            if resume_thread is not None:
-                resume_basis = next(
-                    (
-                        event for event in reversed(attempts[:-1])
-                        if isinstance(event, dict)
-                        and event.get("state") == "paused_rate_limit"
-                    ),
-                    None,
-                )
-        if resume_thread is not None:
-            if not isinstance(resume_basis, dict) or resume_basis.get("state") != "paused_rate_limit":
-                raise CodexSupervisorError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
-            if resume_basis.get("thread_id") != resume_thread:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_RESUME_THREAD_MISMATCH")
-        attempts.append({
-            "at": stamp,
-            "attempt_id": attempt_id,
-            "state": "reserved",
-            "lease_expires_at": lease,
-            "resume_thread": resume_thread,
-            "owner_pid": owner_pid,
-            "owner_start_token": owner_start_token,
-            "broker_fence": fence,
-            "broker_boundary_version": codex_exec_broker.BOUNDARY_VERSION,
-        })
-
     try:
-        worktree_ledger.update_ledger(root, mutate)
-    except worktree_ledger.LedgerError as exc:
+        supervisor_workspace.reserve_launch_attempt(
+            repo_root=spec.repo_root, workspace=spec.workspace, issue=spec.issue,
+            round_number=spec.round_number, repository=spec.repository,
+            branch_name=spec.branch_name, expected_oid=spec.expected_oid,
+            role=spec.role, task_key=spec.task_key, handoff_path=spec.handoff_path,
+            protected_paths=spec.protected_paths, attempt_id=attempt_id,
+            resume_thread=resume_thread, owner_pid=os.getpid(),
+            owner_start_token=_process_start_token(os.getpid()), now=now,
+            lease_seconds=_ATTEMPT_LEASE_SECONDS,
+        )
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     return attempt_id
 
@@ -1208,13 +2058,13 @@ def _validate_handoff(
 ) -> dict[str, Any]:
     handoff = spec.workspace / spec.handoff_path
     try:
-        codex_binding._assert_no_symlink_components(spec.workspace, spec.handoff_path)
+        supervisor_workspace.assert_no_symlink_components(spec.workspace, spec.handoff_path)
         if not handoff.is_file() or handoff.is_symlink():
             raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_MISSING")
         document = json.loads(handoff.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_SCHEMA_INVALID") from exc
-    except codex_binding.CodexBindingError as exc:
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     except OSError as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_MISSING") from exc
@@ -1251,8 +2101,8 @@ def _validate_handoff(
     ):
         raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_SCHEMA_INVALID")
     try:
-        head = codex_binding.inspect_git_facts(spec.workspace).head_oid
-    except codex_binding.CodexBindingError as exc:
+        head = supervisor_workspace.inspect_git_facts(spec.workspace).head_oid
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     if document.get("head_oid") != head:
         if not allow_descendant:
@@ -1388,40 +2238,38 @@ def run_supervised(
     resume_thread: str | None = None,
     compatibility_checker: Callable[[Sequence[str]], None] | None = None,
     broker_checker: Callable[[Sequence[str]], None] | None = None,
+    reserved_attempt_id: str | None = None,
+    pre_spawn_validator: Callable[
+        [Sequence[str], str], supervisor_workspace.CanonicalLaunchReservationLease | None
+    ] | None = None,
 ) -> SupervisedResult:
-    """prepared bindingを検証し、process/thread観測をledgerへ残す。"""
+    """owner launch specを原子的に予約し、process/thread観測をledgerへ残す。"""
 
-    if spec.role not in codex_binding.TARGET_ROLES:
+    if spec.role not in supervisor_workspace.TARGET_ROLES:
         raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID", spec.role)
     if not isinstance(prompt, str) or not prompt.strip():
         raise CodexSupervisorError("CODEX_SUPERVISOR_PROMPT_INVALID")
     if spec.timeout_seconds <= 0:
         raise CodexSupervisorError("CODEX_SUPERVISOR_TIMEOUT_INVALID")
-    try:
-        if resume_thread is None:
-            entry = codex_binding.validate_spawn_binding(
-                repo_root=spec.repo_root, role=spec.role, task_key=spec.task_key, now=now
-            )
-        else:
-            entry = codex_binding.verify_command_binding(
-                repo_root=spec.repo_root, workspace=spec.workspace, role=spec.role,
-                agent_id=resume_thread,
-            )
-    except codex_binding.CodexBindingError as exc:
-        raise CodexSupervisorError(exc.reason, exc.detail) from exc
-    if entry["workspace"] != str(spec.workspace.resolve(strict=True)):
-        raise CodexSupervisorError("CODEX_SUPERVISOR_WORKSPACE_MISMATCH")
-    if entry["handoff_path"] != spec.handoff_path:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_MISMATCH")
-    broker_fence = secrets.token_hex(16)
-    attempt_id = _reserve_attempt(
-        spec, now=now, resume_thread=resume_thread, broker_fence=broker_fence
+    attempt_id = reserved_attempt_id or _reserve_attempt(
+        spec, now=now, resume_thread=resume_thread
     )
+    try:
+        _root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    credential_runtime: Path | None = None
     try:
         command = build_codex_command(
             spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
-            resume_thread=resume_thread, attempt_id=attempt_id, broker_fence=broker_fence,
+            resume_thread=resume_thread, attempt_id=attempt_id,
         )
+        try:
+            _codex, _config_values, runtime_home = _inner_config_values(command)
+            credential_runtime = Path(runtime_home)
+        except CodexSupervisorError:
+            # unit fake runner等でcommandを差し替えた場合はcleanup対象を持たない。
+            credential_runtime = None
     except BaseException as exc:
         reason = exc.reason if isinstance(exc, CodexSupervisorError) else type(exc).__name__
         _record_attempt(
@@ -1432,20 +2280,31 @@ def run_supervised(
     actual_runner = runner or SubprocessJsonlRunner()
     bound_thread: str | None = None
     process_identity: tuple[int, str] | None = None
+    launch_lease: supervisor_workspace.CanonicalLaunchReservationLease | None = None
 
     def process_started(pid: int, token: str) -> None:
-        nonlocal process_identity
+        nonlocal process_identity, launch_lease
         if process_identity is not None:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_DUPLICATE")
         if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PID_INVALID", repr(pid))
         if not isinstance(token, str) or not token.isdigit():
             raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_TOKEN_INVALID", repr(token))
+        if launch_lease is not None:
+            current_lease = launch_lease
+            try:
+                current_lease.record_process_started(pid, token, now=now)
+            except supervisor_workspace.SupervisorWorkspaceError as exc:
+                raise CodexSupervisorError(exc.reason, exc.detail) from exc
+            finally:
+                current_lease.release()
+                launch_lease = None
+        else:
+            _record_attempt(
+                spec, attempt_id=attempt_id, now=now, state="spawned",
+                evidence={"pid": pid, "process_start_token": token},
+            )
         process_identity = (pid, token)
-        _record_attempt(
-            spec, attempt_id=attempt_id, now=now, state="spawned",
-            evidence={"pid": pid, "process_start_token": token},
-        )
 
     def started(thread_id: str) -> None:
         nonlocal bound_thread
@@ -1455,9 +2314,9 @@ def run_supervised(
             )
         if process_identity is None:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PROCESS_IDENTITY_MISSING")
-        codex_binding.bind_agent_identity(
+        supervisor_workspace.bind_thread(
             repo_root=spec.repo_root, workspace=spec.workspace, role=spec.role,
-            task_key=spec.task_key, agent_id=thread_id, now=now,
+            task_key=spec.task_key, thread_id=thread_id, now=now,
         )
         bound_thread = thread_id
         _record_attempt(
@@ -1470,14 +2329,30 @@ def run_supervised(
         )
 
     observer = CodexJsonlObserver(started)
+    boundary_evidence: Mapping[str, Any] | None = None
+    pending_error: BaseException | None = None
     try:
-        (compatibility_checker or validate_cli_compatibility)(command)
+        checker = compatibility_checker or validate_cli_compatibility
+        boundary_evidence = checker(command)
+        # The default production checker must return a complete, observed probe.  A
+        # caller-supplied checker is an explicit test/integration seam and remains
+        # responsible for its own evidence contract.
+        if compatibility_checker is None and checker is _DEFAULT_CLI_COMPATIBILITY_CHECKER:
+            if not isinstance(boundary_evidence, Mapping):
+                raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED")
         (broker_checker or validate_broker_protocol)(command)
-        process = actual_runner(
-            command, cwd=spec.workspace, env=_minimal_process_env(), prompt=prompt,
-            timeout_seconds=spec.timeout_seconds, on_process_started=process_started,
-            on_stdout_line=observer.feed,
-        )
+        if pre_spawn_validator is not None:
+            launch_lease = pre_spawn_validator(command, attempt_id)
+        try:
+            process = actual_runner(
+                command, cwd=spec.workspace, env=_minimal_process_env(), prompt=prompt,
+                timeout_seconds=spec.timeout_seconds, on_process_started=process_started,
+                on_stdout_line=observer.feed,
+            )
+        finally:
+            if launch_lease is not None:
+                launch_lease.release()
+                launch_lease = None
         evidence = {
             "pid": process.pid,
             "process_start_token": process.process_start_token,
@@ -1487,25 +2362,51 @@ def run_supervised(
             "timed_out": process.timed_out,
             "killed": process.killed,
         }
+        if isinstance(boundary_evidence, Mapping):
+            evidence["boundary_probe"] = dict(boundary_evidence)
+            evidence["security_completion"] = "PASS"
         state = observer.finalize(process, handoff_exists=True)
         if state == "paused_rate_limit":
-            resume = build_codex_command(
-                spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
-                resume_thread=observer.thread_id, attempt_id=attempt_id,
-                broker_fence=broker_fence,
-            )
             _record_attempt(spec, attempt_id=attempt_id, now=now, state=state, evidence=evidence)
-            return SupervisedResult(state, observer.thread_id or "", observer.terminal_event, process, resume)
+            return SupervisedResult(
+                state, observer.thread_id or "", observer.terminal_event, process,
+                resume_available=True,
+            )
         _validate_handoff(spec, entry)
         _record_attempt(spec, attempt_id=attempt_id, now=now, state=state, evidence=evidence)
         return SupervisedResult(state, observer.thread_id or "", observer.terminal_event, process)
     except BaseException as exc:
+        pending_error = exc
         reason = exc.reason if isinstance(exc, CodexSupervisorError) else type(exc).__name__
+        failure_evidence: dict[str, Any] = {"thread_id": bound_thread, "reason": reason}
+        if reason == "CODEX_SUPERVISOR_PROBE_NOT_TESTED":
+            failure_evidence["security_completion"] = "NOT_TESTED"
         _record_attempt(
             spec, attempt_id=attempt_id, now=now, state="failed",
-            evidence={"thread_id": bound_thread, "reason": reason},
+            evidence=failure_evidence,
         )
         raise
+    finally:
+        if credential_runtime is not None:
+            try:
+                cleanup_credential_target(credential_runtime / "auth.json")
+            except BaseException as cleanup_error:
+                cleanup_reason = (
+                    cleanup_error.reason
+                    if isinstance(cleanup_error, CodexSupervisorError)
+                    else type(cleanup_error).__name__
+                )
+                if pending_error is not None:
+                    original_reason = (
+                        pending_error.reason
+                        if isinstance(pending_error, CodexSupervisorError)
+                        else type(pending_error).__name__
+                    )
+                    raise CodexSupervisorError(
+                        "CODEX_SUPERVISOR_AUTH_CLEANUP_FAILED",
+                        f"{cleanup_reason}; original={original_reason}",
+                    ) from pending_error
+                raise
 
 
 def publish_allowlist(role: str) -> tuple[str, ...]:
@@ -1583,7 +2484,7 @@ def _worktree_content_sha256(workspace: Path) -> str:
 def _publish_git_snapshot(workspace: Path) -> dict[str, Any]:
     """publish段間CASに使うHEAD/index/worktree/upstream factsを採取する。"""
 
-    facts = codex_binding.inspect_git_facts(workspace)
+    facts = supervisor_workspace.inspect_git_facts(workspace)
     index = _git_check(workspace, ["write-tree"])
     status = _git_check(workspace, ["status", "--porcelain=v1", "-z"])
     if index.returncode != 0 or status.returncode != 0:
@@ -1650,7 +2551,7 @@ def _reserve_publish_action(
     final_handoff_sha256: str | None = None,
     now: datetime | None = None,
 ) -> tuple[str | None, bool]:
-    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+    root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
     publish_id = secrets.token_hex(16)
     current_time = now or datetime.now(timezone.utc)
     stamp = _stamp(current_time)
@@ -1779,7 +2680,7 @@ def _reserve_publish_action(
 def _finish_publish_action(
     spec: SupervisorSpec, *, publish_id: str, action: str, state: str, evidence: Mapping[str, Any]
 ) -> None:
-    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+    root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
 
     def mutate(document: dict[str, Any]) -> None:
         target = next(
@@ -1967,7 +2868,7 @@ def _record_publish_finalized(
 ) -> None:
     """final handoffのatomic replace後にdurable finalization eventを冪等記録する。"""
 
-    root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+    root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
 
     def mutate(document: dict[str, Any]) -> None:
         target = next(
@@ -2068,13 +2969,12 @@ def execute_publish_action(
 
     if action not in publish_allowlist(spec.role):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ACTION_DENIED", action)
-    _root, entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
     try:
-        codex_binding.verify_command_binding(
-            repo_root=spec.repo_root, workspace=spec.workspace, role=spec.role,
-            agent_id=entry.get("agent_id", ""),
+        entry = supervisor_workspace.verify_active(
+            repo_root=spec.repo_root, task_key=spec.task_key,
+            workspace=spec.workspace, role=spec.role,
         )
-    except codex_binding.CodexBindingError as exc:
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     attempts = entry.get("supervisor_attempts")
     if not isinstance(attempts, list) or not attempts or attempts[-1].get("state") != "succeeded":
@@ -2117,8 +3017,8 @@ def execute_publish_action(
     handoff_sha256 = _canonical_json_sha256(handoff)
     sequence = _publish_sequence(spec.role, handoff)
     try:
-        facts = codex_binding.inspect_git_facts(spec.workspace)
-    except codex_binding.CodexBindingError as exc:
+        facts = supervisor_workspace.inspect_git_facts(spec.workspace)
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     if facts.branch_name != entry.get("branch_name"):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_BRANCH_MISMATCH")
@@ -2305,7 +3205,7 @@ def execute_publish_action(
                 "CODEX_SUPERVISOR_PUBLISH_EXIT_NONZERO",
                 f"{completed.returncode}:{completed.stderr.strip()[:300]}",
             )
-        current = codex_binding.inspect_git_facts(spec.workspace)
+        current = supervisor_workspace.inspect_git_facts(spec.workspace)
         if action == "gitgate.add" and _git_check(
             spec.workspace, ["diff", "--cached", "--quiet"]
         ).returncode == 0:
@@ -2360,7 +3260,7 @@ def execute_publish_action(
             publish_id = None
         if final_action:
             if completed_publish_id is None:
-                _root, refreshed_entry = codex_binding._one_by_task(spec.repo_root, spec.task_key)
+                _root, refreshed_entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
                 completed_event = next(
                     event for event in reversed(refreshed_entry["publish_attempts"])
                     if event.get("state") == "completed" and event.get("action") == action
@@ -2401,7 +3301,7 @@ def validate_protected_patch(
     agent promptやpatch自身から導出しない。deleteとself-expanding globは受け付けない。
     """
 
-    if role not in codex_binding.TARGET_ROLES:
+    if role not in supervisor_workspace.TARGET_ROLES:
         raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID", role)
     if document.get("schema_version") != 1 or document.get("role") != role:
         raise CodexSupervisorError("CODEX_SUPERVISOR_PATCH_SCHEMA_INVALID")
@@ -2505,6 +3405,133 @@ def apply_protected_patch(
     return tuple(applied)
 
 
+def _spec_from_intent(intent: codex_launch_intent.LaunchIntent) -> SupervisorSpec:
+    try:
+        main_root = Path(worktree_ledger.main_worktree_root(intent.workspace)).resolve(strict=True)
+    except (OSError, worktree_ledger.LedgerError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CONTROL_ROOT_INVALID") from exc
+    return SupervisorSpec(
+        repo_root=main_root, workspace=Path(intent.workspace), role=intent.role,
+        task_key=intent.task_key, handoff_path=intent.handoff_path,
+        issue=intent.issue, round_number=intent.round_number,
+        repository=intent.repository, branch_name=intent.branch_name,
+        expected_oid=intent.expected_oid, protected_paths=intent.protected_paths,
+    )
+
+
+def validate_pre_spawn_authority(
+    request: codex_launch_intent.LaunchRequest,
+    intent: codex_launch_intent.LaunchIntent,
+    spec: SupervisorSpec, *, digest: str, command: Sequence[str], attempt_id: str,
+    owner_pid: int, owner_start_token: str, cwd: Path | None = None,
+) -> supervisor_workspace.CanonicalLaunchReservationLease:
+    """Last host-side gate immediately before ``Popen``."""
+
+    try:
+        fresh = codex_launch_intent.load_launch_intent(request, cwd=cwd)
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    if fresh != intent or codex_launch_intent.intent_digest(fresh) != digest:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_INTENT_CHANGED")
+    _bundle, role_digest = _trusted_role_instructions(spec)
+    if role_digest != intent.role_contract_digest:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_CONTRACT_DIGEST_MISMATCH")
+    inner_codex, _config_values, runtime_home = _inner_config_values(command)
+    expected_runtime = (spec.repo_root / intent.runtime_root).resolve(strict=True)
+    inner = _inner_argv(command)
+    if (not command or command[0] != intent.bwrap_executable
+            or inner_codex != str(_CODEX_CONTROL_ALIAS)
+            or inner[:3] != (str(_CODEX_CONTROL_ALIAS), "--profile", intent.permission_profile)
+            or Path(runtime_home).resolve(strict=True) != expected_runtime
+            or _command_setenv(command, "CODEX_ISSUE_ROLE") != intent.role
+            or _command_setenv(command, "CODEX_ISSUE_ROLE_CONTRACT_SHA256") != role_digest
+            or str(_ro_bind_source(command, _CODEX_CONTROL_ALIAS))
+            != intent.executable_evidence["codex"]["path"]):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_INTENT_COMMAND_MISMATCH")
+    profile = validate_permission_profile(
+        expected_runtime / _PERMISSION_PROFILE_FILE,
+        expected_runtime_root=expected_runtime,
+    )
+    if profile.name != intent.permission_profile:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_INTENT_COMMAND_MISMATCH")
+    try:
+        return supervisor_workspace.verify_canonical_launch_reservation(
+            repo_root=spec.repo_root, ledger_entry_id=intent.ledger_entry_id,
+            attempt_id=attempt_id, intent_digest=digest,
+            owner_pid=owner_pid, owner_start_token=owner_start_token,
+            workspace=spec.workspace, repository=spec.repository,
+            branch_name=spec.branch_name, expected_oid=spec.expected_oid,
+        )
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+
+
+def execute_launch_request(
+    request: codex_launch_intent.LaunchRequest, *, mode: str,
+    now: datetime | None = None, cwd: Path | None = None,
+    runner: ProcessRunner | None = None,
+    compatibility_checker: Callable[[Sequence[str]], None] | None = None,
+    broker_checker: Callable[[Sequence[str]], None] | None = None,
+) -> SupervisedResult:
+    """Resolve four owner inputs and enforce the authoritative pre-spawn fence."""
+
+    if mode not in {"run", "resume"}:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_LAUNCH_MODE_INVALID")
+    moment = datetime.now(timezone.utc) if now is None else now
+    try:
+        intent = codex_launch_intent.load_launch_intent(request, cwd=cwd)
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    if not intent.role_contract_digest:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_CONTRACT_INVALID")
+    spec = _spec_from_intent(intent)
+    digest = codex_launch_intent.intent_digest(intent)
+    attempt_id = secrets.token_hex(16)
+    owner_pid = os.getpid()
+    owner_token = _process_start_token(owner_pid)
+    try:
+        _entry, resume_thread = supervisor_workspace.reserve_canonical_launch_attempt(
+            repo_root=spec.repo_root, ledger_entry_id=intent.ledger_entry_id,
+            workspace=spec.workspace, issue=spec.issue, round_number=spec.round_number,
+            repository=spec.repository, branch_name=spec.branch_name,
+            expected_oid=spec.expected_oid, role=spec.role, task_key=spec.task_key,
+            handoff_path=spec.handoff_path, protected_paths=spec.protected_paths,
+            intent_digest=digest, attempt_id=attempt_id, mode=mode,
+            owner_pid=owner_pid, owner_start_token=owner_token, now=moment,
+            lease_seconds=_ATTEMPT_LEASE_SECONDS,
+        )
+    except supervisor_workspace.SupervisorWorkspaceError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+
+    def pre_spawn(
+        command: Sequence[str], current_attempt_id: str,
+    ) -> supervisor_workspace.CanonicalLaunchReservationLease:
+        return validate_pre_spawn_authority(
+            request, intent, spec, digest=digest, command=command,
+            attempt_id=current_attempt_id, owner_pid=owner_pid,
+            owner_start_token=owner_token, cwd=cwd,
+        )
+
+    return run_supervised(
+        spec, prompt=intent.prompt, now=moment,
+        bwrap_executable=intent.bwrap_executable,
+        codex_executable=intent.codex_executable, runner=runner,
+        resume_thread=resume_thread, compatibility_checker=compatibility_checker,
+        broker_checker=broker_checker, reserved_attempt_id=attempt_id,
+        pre_spawn_validator=pre_spawn,
+    )
+
+
+class _StoreOnce(argparse.Action):
+    """Reject duplicate security-sensitive CLI fields instead of last-value wins."""
+
+    def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace,
+                 values: object, option_string: str | None = None) -> None:
+        if getattr(namespace, self.dest, None) is not None:
+            parser.error(f"duplicate option: {option_string}")
+        setattr(namespace, self.dest, values)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2513,24 +3540,18 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--bwrap", required=True)
     probe.add_argument("--python", required=True)
     plan = subparsers.add_parser("publish-plan", help="role別host publish allowlistを表示する")
-    plan.add_argument("--role", required=True, choices=sorted(codex_binding.TARGET_ROLES))
+    plan.add_argument("--role", required=True, choices=sorted(supervisor_workspace.TARGET_ROLES))
     for verb in ("run", "resume"):
         launch = subparsers.add_parser(verb, help=f"supervisor {verb} executor")
-        launch.add_argument("--repo-root", required=True)
-        launch.add_argument("--workspace", required=True)
-        launch.add_argument("--role", required=True, choices=sorted(codex_binding.TARGET_ROLES))
-        launch.add_argument("--task-key", required=True)
-        launch.add_argument("--handoff-path", required=True)
-        launch.add_argument("--prompt-file", required=True)
-        launch.add_argument("--bwrap", required=True)
-        launch.add_argument("--codex", required=True)
-        launch.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
-        if verb == "resume":
-            launch.add_argument("--thread", required=True)
+        launch.add_argument("--issue", type=int, required=True, action=_StoreOnce)
+        launch.add_argument("--role", required=True,
+                            choices=sorted(supervisor_workspace.TARGET_ROLES), action=_StoreOnce)
+        launch.add_argument("--change-plan-id", required=True, action=_StoreOnce)
+        launch.add_argument("--fixer-round", type=int, action=_StoreOnce)
     publish = subparsers.add_parser("publish", help="validated host publish executor")
     publish.add_argument("--repo-root", required=True)
     publish.add_argument("--workspace", required=True)
-    publish.add_argument("--role", required=True, choices=sorted(codex_binding.TARGET_ROLES))
+    publish.add_argument("--role", required=True, choices=sorted(supervisor_workspace.TARGET_ROLES))
     publish.add_argument("--task-key", required=True)
     publish.add_argument("--handoff-path", required=True)
     publish.add_argument("--action", required=True)
@@ -2542,6 +3563,11 @@ def _spec_from_args(args: argparse.Namespace) -> SupervisorSpec:
     return SupervisorSpec(
         repo_root=Path(args.repo_root), workspace=Path(args.workspace), role=args.role,
         task_key=args.task_key, handoff_path=args.handoff_path,
+        issue=getattr(args, "issue", 0), round_number=getattr(args, "round_number", 1),
+        repository=getattr(args, "repository", ""),
+        branch_name=getattr(args, "branch_name", ""),
+        expected_oid=getattr(args, "expected_oid", ""),
+        protected_paths=tuple(getattr(args, "protected_paths", ())),
         timeout_seconds=getattr(args, "timeout", DEFAULT_TIMEOUT_SECONDS),
     )
 
@@ -2559,18 +3585,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps({"role": args.role, "allow": publish_allowlist(args.role)}))
             return 0
         if args.command in {"run", "resume"}:
-            try:
-                prompt = Path(args.prompt_file).read_text(encoding="utf-8")
-            except OSError as exc:
-                raise CodexSupervisorError("CODEX_SUPERVISOR_PROMPT_FILE_INVALID") from exc
-            result = run_supervised(
-                _spec_from_args(args), prompt=prompt, now=datetime.now(timezone.utc),
-                bwrap_executable=args.bwrap, codex_executable=args.codex,
-                resume_thread=getattr(args, "thread", None),
+            result = execute_launch_request(
+                codex_launch_intent.LaunchRequest(
+                    args.issue, args.role, args.change_plan_id, args.fixer_round,
+                ),
+                mode=args.command,
             )
             print(json.dumps({
                 "status": result.status, "thread_id": result.thread_id,
                 "terminal_event": result.terminal_event,
+                "resume_available": result.resume_available,
             }, sort_keys=True))
             return 0
         if args.command == "publish":

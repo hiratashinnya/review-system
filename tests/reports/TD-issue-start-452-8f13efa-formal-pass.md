@@ -2,6 +2,8 @@
 id: TD-issue-start-452
 version: 6
 condition: normal
+result: PASS
+log_ref: tests/logs/TD-issue-start-452-8f13efa-formal-pass.txt
 ---
 
 # 目的
@@ -81,3 +83,14 @@ listener request 0と到達失敗を証拠とする。legacy `--sandbox workspac
 非合成によりread denyを証明できない構成はAC達成扱いにしない。
 PreToolUseはexact launchの早期guardrailであり、任意のdirect Codex shell wrapperを完全封鎖しない。
 same-UIDの非協調host processによるprivate control state外乱は既存threat boundary外とする。
+
+## 実測
+
+- ヘッダ: TD version 6 / implementation commit `8f13efa1372301417de46f642161e07ff8c682ea` / prompt template version: N/A（model/API/Claudeを起動しない実行基盤テストであり、production prompt templateを入力しない） / baseline content hash: N/A（S6基準コンテンツを入力とするテストではない） / 2026-09-10 23:57:27–23:59:55 JST / Linux 6.18.33.2-microsoft-standard-WSL2 x86_64, host Python 3.12.3
+- 実行コマンド: `rtk uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'`
+- ログ: `tests/logs/TD-issue-start-452-8f13efa-formal-pass.txt`
+- 結果: `1789 tests`、`OK (skipped=10)`、実行時間 `146.934s`、script footer `COMMAND_EXIT_CODE="0"`。
+- coverage: 主文脈が実行した`rtk uv run --with coverage coverage report`でTOTAL `9007` statements / `1391` missing / `85%`を確認し、HTMLレポートを`htmlcov/index.html`へ生成した。`.coverage`と`htmlcov/`は生成物としてcommit対象外。
+- warning: coverage.pyが`docidx`について`module-not-imported`を1件報告した。テスト本体はexit 0でPASSしており、coverage集計は生成済みである。
+- 証拠同一性: TD SHA-256 `1165c2b2709c7a93ba43e9af6ba2b925ccd93023c4f1042c02915f3c6a0ffca3`、Git正規化後ログ SHA-256 `d99b09be9d49ae894fc6a14b717287779be9d3495b70d6762f304db80f1339b2`。
+- 証拠区分: 本TRは実装commit `8f13efa`に対するpost-sync正式full-suite PASS証拠である。既存のFAIL/PASS TR/logは履歴として保持し、転用・上書きしていない。

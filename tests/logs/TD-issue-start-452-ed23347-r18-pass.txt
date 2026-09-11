@@ -1,0 +1,30 @@
+Issue #452 round 18 post-commit verification evidence
+implementation commit: ed23347
+environment: local host, Python 3.12
+
+1. Remaining F-452-13 tests
+command: python3 -m unittest tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_child_workspace_plan_cannot_replace_main_control_state tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_loader_observes_live_git_for_the_canonical_ledger_workspace
+result: PASS (2 tests, skipped=0)
+
+2. Launch-intent gate and launch-control focused suite
+command: python3 -m unittest tests.unit.test_issue_start_gate tests.unit.test_codex_launch_control
+result: PASS (128 tests, skipped=9)
+skip classification: installed executable operational checks unavailable in isolated fixtures; not counted as positive boundary evidence
+
+3. Direct executable/NSS security boundary tests
+command: python3 -m unittest tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_executable_evidence_rejects_foreign_owner_or_writable_by_others tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_installed_codex_is_accepted_with_stable_evidence tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_executable_evidence_rechecks_path_digest_and_version tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_group_writable_parent_requires_an_exclusive_current_uid_group tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_actual_project_trust_path_accepts_its_exclusive_group_parents tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_additional_nss_group_principal_is_rejected tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_group_membership_lookup_fails_closed tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure
+result: PASS (8 tests, skipped=0)
+boundary note: these tests remain direct; the new pure-test seam does not mock them
+
+4. Full unit suite
+command: python3 -m unittest discover -s tests/unit
+result: PASS (1789 tests, skipped=9; 122.774 seconds)
+
+Environment-only rerun note:
+- The first sandboxed full run reported 2 unrelated watcher parser failures and skipped=13.
+- Reproduction with xtrace showed `.codex/hooks/codex-rate-limit-watcher.sh:375` could not append to
+  `/home/hiras/.codex/rate-limit-recovery/watcher.log` because the managed filesystem exposed it read-only.
+  That redirection failure emptied `out` before parsing and produced FALLBACK.
+- `git diff 8f13efa..ed23347` showed no change to the watcher or its tests. The same two tests passed
+  outside the managed filesystem sandbox, and the full suite above then passed outside it.
+- This environment artifact is not treated as an implementation failure or positive security evidence.

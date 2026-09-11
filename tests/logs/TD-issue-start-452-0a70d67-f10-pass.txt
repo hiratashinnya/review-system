@@ -1,0 +1,50 @@
+Issue #452 F-452-10 post-fix verification (PASS)
+================================================
+
+Execution timestamp (UTC): 2026-09-10T09:00:50Z
+Implementation revision: 0a70d67a026a33e58541c0f6ebc0a39495cc7a70
+Environment: Linux 6.18.33.2-microsoft-standard-WSL2 x86_64 GNU/Linux
+Python: 3.12.3
+Codex: codex-cli 0.153.4
+Bubblewrap: 0.9.0
+Execution boundary: host (outside the outer test sandbox)
+Claude/external AI/model API used: no
+
+Command 1:
+python3 -m unittest tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_cli_preflight_runs_active_profile_probe_and_returns_evidence tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_model_free_probe_allows_only_worktree_and_private_tmp
+
+Result 1:
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.349s
+
+OK
+
+Command 2:
+python3 -m unittest tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_supervisor tests.unit.test_issue_start_gate tests.unit.test_issue_start_cli_assets tests.unit.test_worktree_ledger
+
+Result 2:
+.........................................................................................................................................s.sss.......s.ss.....s....................s.................................................................................
+----------------------------------------------------------------------
+Ran 261 tests in 24.143s
+
+OK (skipped=9)
+
+Command 3 (skip classification and explicit installed-probe confirmation):
+python3 -m unittest -v tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_supervisor tests.unit.test_issue_start_gate tests.unit.test_issue_start_cli_assets tests.unit.test_worktree_ledger
+
+Result 3 summary:
+- Ran 261 tests in 23.977s
+- OK (skipped=9)
+- test_installed_codex_profile_normal_and_negative_matrix_is_model_free: ok
+- test_model_free_probe_allows_only_worktree_and_private_tmp: ok
+- test_cli_preflight_runs_active_profile_probe_and_returns_evidence: ok
+- test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe: ok
+- The 9 skips are explicit tests for retired/unreachable Codex spawn/blocker-evaluation paths; none is one of the active native-alias or model-free profile probes above.
+
+Boundary assertions retained:
+- the native executable is exposed only by the read-only alias /run/issue-supervised/codex;
+- the child PATH remains /usr/bin:/bin;
+- the original Codex install tree, Node launcher dependency, host auth/runtime paths, and network/listeners remain denied;
+- --version and app-server execute through the preserved native alias;
+- no local thread creation or model/API call is used as evidence.

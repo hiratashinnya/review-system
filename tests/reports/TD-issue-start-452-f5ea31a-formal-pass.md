@@ -2,6 +2,8 @@
 id: TD-issue-start-452
 version: 6
 condition: normal
+result: PASS
+log_ref: tests/logs/TD-issue-start-452-f5ea31a-formal-pass.txt
 ---
 
 # 目的
@@ -47,9 +49,6 @@ recovery、権限非対称、model-originated commandのmodel/API到達遮断を
    - TTL/refresh/prepared stateがない。
 4. direct commandを構築する。
    - `codex exec -C <worktree>`、workspace-write相当、approval never、network deny、shell env none。
-   - Issue #491で確認した派生6 featureと、0.153.4実catalogで追加観測したautomation/tool featureを
-     明示的にfalseへ固定する。feature listは複数語maturityを含め先頭name・末尾stateで厳密に読み、
-     catalog外で有効なprocess能力名はknown扱いへ自動追加せずfail-closeする。
    - MCP broker、feature catalog完全一致、Landlock EXECUTE allowlist、fresh-bwrap/command、空procfsがない。
 5. fake auth、fake endpoint listener、fake installed Codex markerでmodel-free probeを行う。
    - 親listener positive control成功。
@@ -81,3 +80,14 @@ listener request 0と到達失敗を証拠とする。legacy `--sandbox workspac
 非合成によりread denyを証明できない構成はAC達成扱いにしない。
 PreToolUseはexact launchの早期guardrailであり、任意のdirect Codex shell wrapperを完全封鎖しない。
 same-UIDの非協調host processによるprivate control state外乱は既存threat boundary外とする。
+
+## 実測
+
+- ヘッダ: TD version 6 / implementation commit `f5ea31a8be0ab92ee18e2a09d2117a2af37ebf67` / prompt template version: N/A（model/API/Claudeを起動しない実行基盤テストであり、production prompt templateを入力しない） / baseline content hash: N/A（S6基準コンテンツを入力とするテストではない） / 2026-09-10 18:11:32–18:13:53 JST / Linux 6.18.33.2-microsoft-standard-WSL2 x86_64, host Python 3.12.3
+- 実行コマンド: `rtk uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'`
+- ログ: `tests/logs/TD-issue-start-452-f5ea31a-formal-pass.txt`
+- 結果: `1633 tests`、`OK (skipped=9)`、実行時間 `140.541s`、script footer `COMMAND_EXIT_CODE="0"`。
+- coverage: 主文脈が実行した`rtk uv run --with coverage coverage report`でTOTAL `8959` statements / `1385` missing / `85%`を確認し、HTMLレポートを`htmlcov/index.html`へ生成した。`.coverage`と`htmlcov/`は生成物としてcommit対象外。
+- warning: coverage.pyが`docidx`について`module-not-imported`を1件報告した。テスト本体はexit 0でPASSしており、coverage集計は生成済みである。
+- 証拠同一性: TD SHA-256 `8a8291e50e2ef24da86caa8c264ed2fc70e7f651b46aa55bf3c988d7a4e3ccb2`、Git正規化後ログ SHA-256 `dc4d3a4eecec6d7cfdf85006d583856f4072423849dd243a2f54a7168b8d47de`。
+- 証拠区分: 本TRは実装commit `f5ea31a`に対する正式full-suite PASS証拠である。既存のFAIL TR/logは失敗履歴として保持し、転用・上書きしていない。

@@ -1,0 +1,63 @@
+Script started on 2026-09-10 23:57:27+09:00 [COMMAND="rtk uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'" <not executed on terminal>]
+...........................................................................................usage: asset_parity [-h] {check} ...
+asset_parity: error: argument command: invalid choice: 'not-a-command' (choose from 'check')
+......................................................................................................................................................................................................error: --type が必要（MVP は AI 型推定なし）
+...report.html
+error: feedback.json を読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+.report.html
+error: feedback の内容が不正: feedback item に finding_id/decision が必要: {'finding_id': 'x'}
+.report.html
+recorded 1 feedback item(s)
+.report.html
+error: feedback.json の review_id がレポートと一致しない
+.report.html
+O-14 [apply] revert に失敗（deadbeef）: fatal: bad revision 'deadbeef' -> 一部のみ revert された可能性。ワークスペースを手動確認のこと
+.report.html
+O-14 [apply] commits 状態ファイルを読めない: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte -> .review-state の当該 .commits.json を確認のこと
+.report.html
+O-14 [apply] commits 状態ファイルを読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2) -> .review-state の当該 .commits.json を確認のこと
+.report.html
+O-14 [apply] commits 状態ファイルの形式が不正: {'ref': 'abc'} -> .review-state の当該 .commits.json を確認のこと
+O-14 [apply] commits 状態ファイルの形式が不正: [1, 2, 3] -> .review-state の当該 .commits.json を確認のこと
+.report.html
+reverted 1 commit(s) for 2026-09-10T14:58:26.929212+00:00-ae10441a767a
+.report.html
+...............................................................................................................................................................................................................................................................................................................................................未検出: NOPE-999
+..........................................................................................=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-c3my3ysy/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+拒否（fail-close）: boom（TOCTOU 疑い）
+.=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-l8apb68o/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み
+.=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-8j81__k6/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-5_6qxsjf/tmp/_handoff（'_handoff' を含むパスは削除しない）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-lf73749p/tmp/_karte（'_karte' を含むパスは削除しない）
+.=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-nb5517fl/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-nb5517fl/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み
+.未検出: 対象が存在しない（掃除不要）: /tmp/cleantmp-n65muo0_/tmp/sprint-1/nope
+.拒否（fail-close）: tmp/ の外を指している: /tmp/cleantmp-0v9r9pbo/doc-system-v2/nodes（許可範囲は /tmp/cleantmp-0v9r9pbo/tmp/<sprint>/<parent-id>）
+.usage: dsv2 [-h] [--root ROOT] [--meta META]
+            {index,deps,dependents,orphans,drift,prompt-coverage,dashboard,reverse,rename,check-slug,clean-tmp,build-view} ...
+dsv2: error: unrecognized arguments: --repo-root /tmp/cleantmp-mp1ydjae
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-khyczy6_/tmp/_worktree（'_worktree' を含むパスは削除しない）
+.....................未検出: nope
+....エラー: child-spec: 改名先 slug が既に存在する（衝突）
+....エラー: nope: ノードが見つからない
+...........................................................................................................................................................gitgate: `push` takes no arguments; unexpected: ['--receive-pack=sh -c evil']
+....................................................................................................................................................................................................................s.sss.......s.ss.....s....................s......................................................................................................................................................................................................................................................................................................................................................................................................................................................s................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 1789 tests in 146.934s
+
+OK (skipped=10)
+/home/hiras/.cache/uv/archive-v0/rIT-FmI5Oy9vzNuC/lib/python3.13/site-packages/coverage/inorout.py:558: CoverageWarning: Module docidx was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.16.0/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+
+Script done on 2026-09-10 23:59:55+09:00 [COMMAND_EXIT_CODE="0"]

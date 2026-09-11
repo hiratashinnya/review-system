@@ -1,0 +1,32 @@
+Issue #452 related supervisor tests (FAIL history)
+==================================================
+
+Source revision: 96c904dc91f7f76971ab199d3a5b1dc86c0e82f6
+Execution boundary: host (outside the outer test sandbox)
+Claude/external AI/model API used: no
+
+Command:
+python3 -m unittest tests.unit.test_codex_supervisor_shrink tests.unit.test_codex_supervisor
+
+Result:
+F..............................................................................................
+======================================================================
+FAIL: test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe (tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_codex_supervisor_shrink.py", line 817, in test_active_profile_probe_is_model_free_and_not_synthetic_outer_probe
+    self.assertEqual(probe.count("--tmpfs"), 1)
+AssertionError: 2 != 1
+
+----------------------------------------------------------------------
+Ran 95 tests in 9.895s
+
+FAILED (failures=1)
+
+Evidence classification:
+- This file is FAIL history only and is not completion evidence.
+- The production-shaped fixture correctly has private tmpfs mounts at both /run
+  (for the native Codex alias) and /tmp. The stale assertion counted all tmpfs
+  options instead of checking the two required targets independently.
+- Production code and its native alias, PATH, install/auth/runtime, and network
+  restrictions were not changed.

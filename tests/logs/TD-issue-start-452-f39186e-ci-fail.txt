@@ -1,0 +1,23 @@
+GitHub Actions failure evidence for PR #506 after the round 17 fix
+run: https://github.com/hiratashinnya/review-system/actions/runs/34541663123/job/103085452899
+tested PR head: f39186e84b711347d17ff269aa5e7f9d7f78f698
+runner: ubuntu-24.04 / Python 3.14.7
+command: python3 -m unittest discover -s tests/unit
+result: FAILED (errors=2, skipped=17; 1789 tests)
+
+Both errors occurred in pure launch-intent tests which called load_launch_intent directly,
+bypassing CodexLaunchIntentTests.manifest_evidence_patch:
+- test_issue_start_gate.CodexLaunchIntentTests.test_child_workspace_plan_cannot_replace_main_control_state
+- test_issue_start_gate.CodexLaunchIntentTests.test_loader_observes_live_git_for_the_canonical_ledger_workspace
+
+Observed common traceback path:
+  load_launch_intent -> generate_launch_intent -> _validate_manifest
+  -> _stable_executable_evidence -> _executable_evidence
+  -> Path('/usr/bin/bwrap').resolve(strict=True)
+  -> LaunchIntentError: BWRAP_EXECUTABLE_INVALID: FileNotFoundError
+
+The failures happened on the post-fix implementation at f39186e. They are evidence of a
+remaining hermetic-test defect, not success evidence and not a pre-implementation log.
+No production validator, permission profile, or deny behavior failed. The intended
+child-control-state and live-Git assertions were never reached because executable validation
+failed first.

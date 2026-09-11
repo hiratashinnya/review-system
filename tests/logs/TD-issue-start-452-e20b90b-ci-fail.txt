@@ -1,0 +1,51 @@
+GitHub Actions failure evidence for PR #506
+run: https://github.com/hiratashinnya/review-system/actions/runs/34493490224/job/102925911253
+tested PR head: e20b90b333dc8c4c69622162ac20c23c8a51f50a
+runner: ubuntu-24.04 / Python 3.14.7
+command: python3 -m unittest discover -s tests/unit
+result: FAILED (failures=22, errors=7, skipped=15; 1789 tests)
+
+Classification A — pure launch-intent tests reached the installed bwrap boundary first
+(27 failure/error records; observed reason BWRAP_EXECUTABLE_INVALID: FileNotFoundError):
+- test_issue_start_gate.CodexLaunchIntentTests.test_child_workspace_plan_cannot_replace_main_control_state
+- test_issue_start_gate.CodexLaunchIntentTests.test_fixer_derives_round_findings_karte_and_prompt
+- test_issue_start_gate.CodexLaunchIntentTests.test_fixer_loader_requires_karte
+- test_issue_start_gate.CodexLaunchIntentTests.test_loader_observes_live_git_for_the_canonical_ledger_workspace
+- test_issue_start_gate.CodexLaunchIntentTests.test_loader_requires_existing_secure_owner_plan
+- test_issue_start_gate.CodexLaunchIntentTests.test_pure_generator_derives_every_non_owner_input
+- test_issue_start_gate.CodexLaunchIntentTests.test_fixer_karte_exactly_binds_round_status_and_open_ids [round]
+- test_issue_start_gate.CodexLaunchIntentTests.test_fixer_karte_exactly_binds_round_status_and_open_ids [resolved]
+- test_issue_start_gate.CodexLaunchIntentTests.test_fixer_karte_exactly_binds_round_status_and_open_ids [extra]
+- test_issue_start_gate.CodexLaunchIntentTests.test_hook_accepts_exact_fixer_resume_and_requires_round
+- test_issue_start_gate.CodexLaunchIntentTests.test_hook_applies_identical_validation_to_raw_and_rtk_launch [raw]
+- test_issue_start_gate.CodexLaunchIntentTests.test_hook_applies_identical_validation_to_raw_and_rtk_launch [rtk]
+- test_issue_start_gate.CodexLaunchIntentTests.test_hook_dry_runs_same_generator_and_leaves_no_receipt
+- test_issue_start_gate.CodexLaunchIntentTests.test_ledger_and_protected_plan_are_strict [bad path]
+- test_issue_start_gate.CodexLaunchIntentTests.test_ledger_and_protected_plan_are_strict [duplicate]
+- test_issue_start_gate.CodexLaunchIntentTests.test_ledger_and_protected_plan_are_strict [duplicate digest]
+- test_issue_start_gate.CodexLaunchIntentTests.test_loader_rejects_tampered_issue_snapshot
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [CHANGE_PLAN]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [CHANGE_PLAN_MISMATCH issue]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [CHANGE_PLAN_MISMATCH role]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [CHANGE_PLAN_MISMATCH plan id]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [ISSUE_SOURCE]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [IMPLEMENTER_SOURCE finding ids]
+- test_issue_start_gate.CodexLaunchIntentTests.test_plan_approval_identity_and_sources_must_match_request [IMPLEMENTER_SOURCE karte]
+- test_issue_start_gate.CodexLaunchIntentTests.test_source_digest_and_provenance_are_fail_closed
+- test_issue_start_gate.CodexLaunchIntentTests.test_structured_issue_requires_matching_issue_and_nonempty_ac [issue]
+- test_issue_start_gate.CodexLaunchIntentTests.test_structured_issue_requires_matching_issue_and_nonempty_ac [acceptance_criteria]
+
+Classification B — installed Codex operational probe ran where Codex was absent
+(1 error; observed reason CODEX_EXECUTABLE_INVALID: not found):
+- test_issue_start_gate.CodexLaunchIntentTests.test_installed_codex_is_accepted_with_stable_evidence
+
+Classification C — launch-control pure tamper test called the raw loader outside its existing manifest seam
+(1 failure; observed reason BWRAP_EXECUTABLE_INVALID: FileNotFoundError):
+- test_codex_launch_control.LaunchControlTests.test_post_issuance_source_and_plan_tamper_fail_closed
+
+Root cause and treatment:
+- A/C are hermetic-test boundary defects. Inject deterministic executable evidence only while testing
+  manifest/intent consumers, so each negative test reaches and asserts its intended reason.
+- B is an operational integration observation. Absence is NOT_TESTED/skip, never positive evidence.
+- Executable ownership/mode/path/version validation tests remain direct and are not hidden by the seam.
+- The previously recorded real-host installed Codex+bwrap boundary matrix remains the skip-0 positive evidence.

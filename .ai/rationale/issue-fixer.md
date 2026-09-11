@@ -191,3 +191,10 @@ F-452-19以後のsupervisor innerでは汎用process toolを無効化し、task/
 process入口にする。PATH denyやprompt規範ではabsolute launcher、copy、Node payloadを閉じられないためである。
 brokerは任意argvを受けず、固定Git/unittest/auditだけをnetwork/auth/Codex installation非mountの子bubblewrapで
 実行する。karteの診断proposal・host登録・resumeとclose-attemptはF-452-17の状態遷移であり、このbrokerへは混ぜない。
+
+### F-452-20による現行決定（2026-09-06）
+
+直前のF-452-19 broker設計は履歴として保持するが現行契約ではない。prepare bindingとfull brokerを退役し、
+fixerもrepo supervisorのimmutable launch recordとdirect workspace commandを使う。host karte bridge
+（F-452-17）は後続のまま維持し、縮小PRだけで実装済みとはみなさない。fixerはhost publishでpush可・merge不可、
+reviewer自己修正不可、bootstrap waiverと別context再レビューを維持する。
