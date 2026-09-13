@@ -26,15 +26,17 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 レートリミット・セッション上限でサブエージェントが強制停止すると、停止フックが発火せず ledger entry が `running` のまま残り、worktree も対象ブランチを掴んだまま残る。この状態では後続 dispatch の `python3 -m gitgate adopt-branch` が必ず `BRANCH_ADOPT_LOCAL_EXISTS` で失敗する。
 
-**通常は手作業が要らない。** レートリミット復帰の watcher が、解除を確認しペインがアイドル（live な dispatch が1つも無い）と観測した地点で `python3 -m gitgate worktree-sweep-abandoned --no-live-dispatch --reason <text>` を1度だけ実行し、次のように処置する。
+**通常は手作業が要らない。** レートリミット復帰の watcher が、解除を確認し**当該ペインが**アイドルと観測した地点で `python3 -m gitgate worktree-sweep-abandoned --no-live-dispatch --reason <text>` を1度だけ実行し、次のように処置する。
 
 - 自分の handoff がある → 回収して解放（`released`）。
 - handoff が無く、作業ツリーが clean かつ HEAD が `origin/<branch>` に含まれる → 失われる作業が無いので解放（`released`）。
 - それ以外（未コミット/未追跡の変更、未 push のコミット、handoff が一意に決まらない、git が `locked` と報告） → **解放せず** `stale` へ落とすか `running` のまま残す。
 
+**`--no-live-dispatch` の観測範囲は watcher に渡された単一 tmux ペインに限られる。** ペイン状態の判定は引数で渡された1ペインしか見ないのに対し、台帳（`tmp/_worktree/ledger.json`）はリポジトリ全体で共有される。したがってこの申告は「**そのペインからは**サブエージェントが実行中でない」以上のことを主張せず、別ペイン・別セッションで live な dispatch が動いていても真になりうる。**別ペイン・別セッションの live な dispatch を守るのは git の `locked` 判定だけ**であり、`git worktree list --porcelain` が `locked` と報告する worktree を掃引対象から外すことで担保する。ハーネスが live な agent worktree をロックしない構成ではこの保護が成立しないため、その環境では `CLAUDE_RL_SWEEP_WORKTREES=0` で掃引そのものを止める。
+
 自動解放されなかったものは、従来どおり次の dispatch が `ISSUE_START_WORKTREE_RESIDUE` で deny し、その文言のコマンドで処置する。掃引の実行ログは `~/.claude/rate-limit-recovery/watcher.log`、判断の理由は ledger entry の `notes`（`worktree-sweep-abandoned:` 行）に残る。
 
-**主文脈がこの verb を手で叩かない。** 「live な dispatch が1つも無い」という観測が成立するのは復帰イベントの地点だけで、それ以外から呼ぶと入れ子委譲中の正当な `running` を巻き込みうる。手作業で片付けるときは従来どおり `collect-worktree` / `worktree-forget` → `worktree-release` を使う。
+**主文脈がこの verb を手で叩かない。** 「当該ペインからは live な dispatch が無い」という観測が成立するのは復帰イベントの地点だけで、それ以外から呼ぶと入れ子委譲中の正当な `running` を巻き込みうる（上記のとおり、その場合に残る歯止めは `locked` 判定だけである）。手作業で片付けるときは従来どおり `collect-worktree` / `worktree-forget` → `worktree-release` を使う。
 
 ## `adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で失敗したとき
 
