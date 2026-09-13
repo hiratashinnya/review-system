@@ -55,8 +55,10 @@ quote-aware に単一文字列を「`;` `&` `|` `\n` `\r` で連結した linear
 1.15 以前は unquoted の `(` `)` `{` `}` のいずれかを検出した時点で leaf 全体を `None` に
 していた。`$(...)` ・バックティック（command substitution）はこの判定より前段の独立した
 チェックで既に検出・拒否されているため、`${VAR}` 形式の**単純パラメータ展開**まで一律に
-拒否する必要はなく、`cd ${REPO}` のような実運用で頻出する非merge commandまで誤ブロック
-していた。1.16 でこの過剰拒否だけを緩和する。
+拒否する必要はなく、`echo ${VALUE}` のような実運用で頻出する非merge commandまで誤ブロック
+していた（`cd` は本節の緩和と別の経路——`_literal_cd_leaf` が operand 中の `$` を無条件拒否
+するため、`cd ${REPO}` は1.16後も CLASSIFIER_UNKNOWN のままである。2節の「先頭 leaf に限った
+`cd <literal-path>` の**非展開** operand」と整合する）。1.16 でこの過剰拒否だけを緩和する。
 
 ### 3.2 許可する形
 
@@ -67,6 +69,11 @@ quote-aware に単一文字列を「`;` `&` `|` `\n` `\r` で連結した linear
   - `_PARAM_EXPANSION_BODY_CHAR` に一致する文字
     （`[A-Za-z0-9_:=+?#%/!.,^*@-]`。変数名・`:-` `:=` `:+` `:?` `#` `##` `%` `%%` `/` 等の
     パラメータ展開演算子記号を許容する範囲）。
+  - **例外**：直前の文字が `\` でエスケープされた1文字は、`_split_shell_commands()` の
+    escape 処理がこの深度追跡ブロックより前段で消費するため、`_PARAM_EXPANSION_BODY_CHAR`
+    の判定を経ずに通過する（`${VAR:-\x}` の `x` は許可文字集合の外でも通る）。bash 自身も
+    `\` でメタ文字を無効化するため classifier の受理内容と bash の実際の解釈は一致しており、
+    fail-open ではない意図的な挙動（詳細は3.3）。
 - 上記以外の文字（quote・redirect開始・leaf区切り・空白・裸の `(`・裸の `{` 等）が
   深度 > 0 の間に現れた場合は、その時点で `None`（fail-close）とする。
 - 入力全体を読み終えた時点で深度が 0 に戻っていなければ `None`（`${` が閉じていない）。
@@ -84,8 +91,20 @@ quote-aware に単一文字列を「`;` `&` `|` `\n` `\r` で連結した linear
   「`${` を開いたまま `;` で leaf を分割し、深度カウンタが別の leaf へ状態を持ち越す」余地を
   構造的に排除している——深度 > 0 のまま許可しない文字に遭遇した時点で即座に `None` を返すため、
   leaf 分割そのものが起こらない。
+- **例外**：3.2 で述べたとおり `\` でエスケープされた1文字だけは、上記の許可文字集合判定を
+  経ずに通過する。escape 処理は深度追跡ブロックより前段にあるため。これは fail-open ではない
+  ——bash 自身も `\` の直後の1文字をメタ文字として評価しないため、classifier が受理する内容と
+  bash が実際に解釈する内容は一致したままである。
 
-### 3.4 実行語位置での扱いは変えていない
+### 3.4 redirect target との併用は不可
+
+`${...}` の許可は**引数位置**（3.2）に限られ、redirect target（`_scan_redirection_target()`）
+には及ばない。`_scan_redirection_target()` は `{` に到達すると target 走査を打ち切り
+（未対応構造として `break`）、本体ループの裸の `(){}` 一律拒否（3.3）に落ちる。したがって
+`> ${LOGFILE}` のように redirect target 内に `${...}` を書いた形は、1.16 以降も
+`CLASSIFIER_UNKNOWN` のまま拒否される。
+
+### 3.5 実行語位置での扱いは変えていない
 
 `${VAR}` を**実行語（コマンド名）の位置**で使う形（例: `${CMD} merge 1 --squash`）は、
 `_split_shell_commands()` を通過した後も `_dynamic_executable()` が別途検出し、
@@ -93,7 +112,21 @@ quote-aware に単一文字列を「`;` `&` `|` `\n` `\r` で連結した linear
 「非展開の引数位置での `${VAR}` が leaf 分割の時点で一律拒否される」過剰拒否だけであり、
 動的な実行実体の解決を許可する変更ではない。
 
-### 3.5 回避パターンの再確認
+### 3.6 `gh pr merge` の title/message引数もparameter expansionを拒否する
+
+3.2 の緩和により、以前は `_split_shell_commands()` の一律拒否で `gh pr merge` コマンド
+自体が leaf 分割の時点で `CLASSIFIER_UNKNOWN` になっていた
+`gh pr merge 1 --squash --body ${B}`（unquoted）のような形が、leaf 分割を通過して
+`_cli_operation()` まで到達するようになった。`_cli_operation()` は title（`--subject`/`-s`）・
+message（`--body`/`-b`）の値を `commit_title`/`commit_message` としてそのまま
+`MergeOperation` へ束縛するため、`gh api` 経路（`_has_active_parameter_expansion` による
+`subcommand[0] == "api"` の検査）と同様のガードが無いと、パラメータ展開を含む値が
+未解決のまま merge 操作として受理されてしまう。これを閉じるため、`_cli_operation()` は
+title/message の値取得時点で `_has_active_parameter_expansion()` を適用し、有効な
+`$` を含む値は `error/CLASSIFIER_UNKNOWN` にする（quote の有無を問わない——`--body ${B}`・
+`--body "${B}"` のどちらも shlex による dequote 後は同一の値になるため、同じ判定になる）。
+
+### 3.7 回避パターンの再確認
 
 サブシェル（`( ... )`）・ブレースグループ（`{ ...; }`）・command substitution
 （`$(...)` ・バックティック）を使って merge 操作を隠す既知の回避パターンは、3.3 のとおり
@@ -113,3 +146,11 @@ quote-aware に単一文字列を「`;` `&` `|` `\n` `\r` で連結した linear
 される構文の集合、束縛される operation の形）を変える改修は、このファイルの版と
 上記3箇所を同一 PR で bump する。文言修正のみで判定を変えない改訂は bump 不要
 （`.ai/guidance/common.md`「正本・実装規約」の一般則）。
+
+**機械検査が及ぶ範囲は上記4箇所のうち3箇所（コード定数＋fixture2箇所）に限る**：
+`tests/unit/test_pr_merge_classifier.py` は `pr_merge_classifier_shell_v1.json`
+（`fixture["classifier_version"]`）・`pr_merge_actual_fire_v1.json`
+（`fixture["expected_audit"]["classifier_version"]`）の双方を `CLASSIFIER_VERSION` と
+突き合わせる `assertEqual` を持つが、**本ファイル frontmatter 自体を比較する機械検査は無い**。
+frontmatter は手動同期であり、drift しても CI では検知できない（改訂時は本節の手順に従って
+手動で合わせる）。

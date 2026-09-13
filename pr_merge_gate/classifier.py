@@ -464,6 +464,11 @@ def _split_shell_commands(command: str) -> list[str] | None:
     それ以外（quote・`$(`・backtick・redirect・leaf区切り・空白・裸の`(`など）は
     その場でNoneにしてfail-closeする——「単純」パラメータ展開の範囲を明確に
     区切り、深度カウンタが別leafへ跨いで状態を持ち越す余地を作らないため。
+    ただし直前の文字が`\`でエスケープされた1文字は、この深度追跡ブロックより
+    前段にあるescape処理が先に消費するため、`_PARAM_EXPANSION_BODY_CHAR`の
+    判定を経ずに通過する（bashの`\`によるメタ文字無効化と整合するための意図的な
+    挙動でfail-openではない。依存仕様:
+    `docs/methods/pr-merge-gate-classifier-policy.md` §3.2/3.3）。
     裸の`{`（`${`以外の文脈）・裸の`}`（深度0での出現）・`(` `)`は従来どおり
     無条件拒否のままである。ネストした command substitution
     （`$(...)` ・backtick）は `_PARAM_EXPANSION_BODY_CHAR` に含まれないため、
@@ -923,8 +928,14 @@ def _cli_operation(
                 return _error("CLASSIFIER_UNKNOWN", args)
             value = args[index + 1]
             if field == "title" and title is None:
+                # Issue #431是正（F-431-05）: `${...}`緩和で開いた新経路をgh api経路と
+                # 同じ_has_active_parameter_expansionで閉じる（title/messageの動的な値を拒否）。
+                if _has_active_parameter_expansion(value):
+                    return _error("CLASSIFIER_UNKNOWN", args)
                 title = value
             elif field == "message" and message is None:
+                if _has_active_parameter_expansion(value):
+                    return _error("CLASSIFIER_UNKNOWN", args)
                 message = value
             elif field == "expected" and expected is None and _OID.fullmatch(value):
                 expected = value

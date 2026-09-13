@@ -688,12 +688,44 @@ class PreUseClassifierTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIsNone(classify_pre_use(bash(command)))
 
+    def test_cli_merge_title_and_message_reject_parameter_expansion(self):
+        """`${...}` 緩和（3.2）で `gh pr merge` が leaf分割を通過するようになった結果、
+        `_cli_operation()` の title/message にも `gh api` 経路と同種のガードが要る
+        （Issue #431 是正・F-431-05）。unquoted・quoted のどちらも shlex dequote 後は
+        同じ値になるため、両方とも CLASSIFIER_UNKNOWN で拒否されることを固定する。
+        依存仕様: docs/methods/pr-merge-gate-classifier-policy.md §3.6。"""
+        for command in (
+            "gh pr merge 1 --squash --body ${B}",
+            'gh pr merge 1 --squash --body "${B}"',
+            "gh pr merge 1 --squash --subject ${T}",
+            'gh pr merge 1 --squash --subject "${T}"',
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+        # 対照：literal な title/message は従来どおり merge に束縛される。
+        classified = classify_pre_use(
+            bash(
+                "gh -R example/repo pr merge 1 --squash "
+                '--body "static text" --subject "static title"'
+            )
+        )
+        self.assertEqual(classified.kind, "merge")
+        self.assertEqual(classified.operation.commit_message, "static text")
+        self.assertEqual(classified.operation.commit_title, "static title")
+
     def test_unquoted_parameter_expansion_still_fail_closes_on_unsupported_content(self):
         """`${...}` の緩和は範囲を厳密に区切っており、深度が閉じない・許可対象外の
         文字（quote・space・command substitution・backtick）が中に現れる・実行語位置で
         使われる・merge leafと同居する、のいずれの形も引き続き CLASSIFIER_UNKNOWN で
-        fail-closeすることを固定する（Issue #431。ネストしたcommand substitutionは
-        既存のcommand substitution検出が深度追跡より先に発火する）。"""
+        fail-closeすることを固定する（Issue #431。深度追跡ブロックはquote-open判定・
+        既存のcommand substitution検出より前段にあるため、`${...}`内部に現れるネストした
+        command substitutionは既存の検出ではなく、深度追跡自身の許可文字集合判定
+        （`_PARAM_EXPANSION_BODY_CHAR`）によってfail-closeされる）。"""
         for command in (
             "echo {VALUE}",
             "echo (VALUE)",
