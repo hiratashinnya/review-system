@@ -12,6 +12,10 @@
 #                           診断カルテ操作のため `python3 -m karte` だけが追加で許可される
 #                           （カルテの書き手を1ロールに絞るための非対称・PYTHON_MODULES_BY_ROLE）。
 #     - pr-reviewer:        merge は可、push は不可（レビュー中に無レビューの変更を紛れ込ませられない）。
+#                           **ブランチ切替も不可**（Issue #502 観測2・両ツリー同時）: `gh pr checkout` は
+#                           レビューアが共有するワークツリーのブランチを切り替え、戻し忘れると以後の
+#                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
+#                           差分は `gh pr diff` / `gh pr view` / `gitgate diff|log` で読める。
 #   それ以外の agent_type（main／各 *-author 等・agent_type 欠如を含む）はこのゲートのロール専用
 #   判定（層1〜3）の対象外＝ロール専用判定は適用しない。ただし Issue #224 フォローアップ（案B・
 #   後述の「全 agent_type 共通の危険コマンド deny 層」）を追加したため、対象外ロールも危険コマンド
@@ -74,7 +78,8 @@
 #          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
-#          view/diff/checks/comment/review/merge/checkout・issue view）に無ければ deny。さらに
+#          view/diff/checks/comment/review/merge・issue view。**`pr checkout` は Issue #502 で除外**）に
+#          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
 #        コマンド・config/alias/env 注入による push/merge 迂回（`git send-pack`/`git subtree push`/
@@ -215,9 +220,16 @@ GH_SUBCOMMANDS_BY_ROLE = {
     # issue-fixer は issue-implementer と同一集合（Issue #308）。`pr merge` は当然含めない
     # ＝merge は pr-reviewer の専権という非対称は是正ロールでも維持される。
     "issue-fixer": {("pr", "create"), ("issue", "view")},
+    # pr-reviewer から **`gh pr checkout` を外した**（Issue #502 観測2・両ツリー同時）。
+    # Claude 版と同一の期待値にする。Codex の `spawn_agent` には isolation が無く
+    # レビューアはそもそもメインワークツリーを共有したまま動くので、`gh pr checkout` が
+    # 呼び出し元の primary checkout を切り替える害は Claude 版と同じかそれ以上に直接的。
+    # 「切り替えたら戻す」は戻し忘れ・異常終了で破れる fail-open な規律なので採らず、
+    # 切替能力そのものを取り上げる（差分は `gh pr diff` / `gh pr view` /
+    # `python3 -m gitgate diff|log` で読める）。根拠は `.ai/rationale/pr-reviewer.md`。
     "pr-reviewer": {
         ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
-        ("pr", "review"), ("pr", "merge"), ("pr", "checkout"), ("issue", "view"),
+        ("pr", "review"), ("pr", "merge"), ("issue", "view"),
     },
 }
 # gh の per-subcommand フラグ許可リスト（Issue #227 追加修正3）。各 (sub, subsub) に value フラグ
@@ -268,10 +280,9 @@ GH_FLAG_ALLOWLIST = {
         "value": {"--subject", "--body"},
         "bool": {"--squash", "-s", "--merge", "-m", "--rebase", "-r", "--delete-branch", "-d"},
     },
-    ("pr", "checkout"): {
-        "value": set(),
-        "bool": set(),
-    },
+    # `("pr", "checkout")` のフラグ集合は **意図的に置かない**（Issue #502 観測2）。
+    # `GH_SUBCOMMANDS_BY_ROLE` からも外したので到達しないが、ここに残しておくと
+    # 「フラグは定義済み＝許可されている」と誤読され、再付与の敷居が下がる。
 }
 # Codex がシェルコマンドの hook tool_name として使う canonical 名は "Bash"
 # （codex-rs/core/src/tools/hook_names.rs HookToolName::bash()）。git/gh はこの Bash ツール経由で走る。

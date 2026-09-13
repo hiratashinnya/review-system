@@ -67,6 +67,45 @@
   最小権限で塞ぐため。
 - **`gh pr review --body-file` が allowlist 外である件**：over-deny 是正候補・要オーナー判断。
   このロールは `Write` を持たずどのみち `--body` を使うため実害はない。
+- **`gh pr checkout` を allowlist から外した理由**（Issue #502 観測2・2026-09-09）：下記の節を参照。
+
+## `gh pr checkout` を「戻す契約」ではなく「切り替えない」で塞いだ根拠（Issue #502 観測2）
+
+**事象**：`pr-reviewer` は `isolation` 指定なしで起動する（Claude 版）／`spawn_agent` に isolation 概念が
+無い（Codex 版）ため、いずれも**呼び出し元と同じ作業ツリーの上で動く**。2026-09-08、PR #500 の是正
+ラウンド2 で本ロールが `gh pr checkout` によりメインワークツリーを PR ブランチへ切り替え、`main` へ
+戻さずに終了した（`git reflog` の `checkout: moving from main to claude/issue-493-…` が
+`pr-reviewer` dispatch の実行中と一致）。以後の `issue-fixer` dispatch は
+`gitgate adopt-branch` の stage 4（同名ローカル ref の存在検査）で 2回とも
+`BRANCH_ADOPT_LOCAL_EXISTS` となり、主文脈が `git switch main` で復旧するまで是正に着手できなかった。
+
+**選択肢**：
+
+1. **契約に「切り替えたら戻す」と書く**（規範のみ）。
+   - 利点：`gh pr checkout` が使えるままなので、ローカルでテストを走らせたいときの自由度が残る。
+   - 欠点：**fail-open である**。戻し忘れ・レートリミットによる異常終了・セッション上限のいずれでも
+     破れ、破れたときの症状（次 dispatch が必ず詰まる）は今回実際に起きた事象そのもの。加えて
+     本ロールは `git`／`gitgate switch` を持たないため、**戻す手段が `gh pr checkout <既定ブランチ>` の
+     ような迂回しかなく**、契約を守れる保証が構造として無い。
+2. **`gh pr checkout` を allowlist から外す**（機械強制）。★採用
+   - 利点：fail-close。切替能力そのものが無くなるので、戻し忘れ・異常終了という失敗経路が消える。
+     レビューに checkout は不要で、差分は `gh pr diff` / `gh pr view` / `python3 -m gitgate diff|log`
+     で読める（本ロールの契約は「読んだ差分・ファイル本文で確認する」であって「チェックアウトして
+     動かす」ではない）。
+   - 欠点：レビューア自身がローカルでテストを実行して確認する経路が狭まる。ただし本ロールは
+     `Write`/`Edit` を持たず、CI 結果は `gh pr checks` で読めるため、実害は小さいと判断した。
+3. **切替を検知して自動で戻す仕組みを足す**。
+   - 却下：新しい検知経路と復旧経路を1つずつ増やすことになり、Issue #502 のオーナー指摘
+     （「検知経路を二重化しない」）に反する。壊れうる部品を増やして fail-open を延命する形。
+
+**採用の根拠**：`.claude/rules/05-skills-agents.md` が定める push/merge の非対称は
+「レビューアが共有状態を書き換えられない」ことを機械的に保証する設計であり、**ブランチ切替は
+その非対称の穴だった**（push は塞がれているのに、作業ツリーの HEAD は動かせた）。穴は規範ではなく
+ゲートで塞ぐ、という既存の方針（Issue #227 以降の allowlist 化）と揃う。
+
+**限界**：`.claude/hooks/agent-command-gate.sh` は静的なコマンド文字列検査であり sandbox ではない
+（Issue #129）。本変更は「善意のエージェントが自然に踏む逸脱」を塞ぐもので、意図的な迂回までは
+閉じない。
 
 ## 既知の限界（Issue #129で追跡・過信しない）（移設元：同名の節）
 

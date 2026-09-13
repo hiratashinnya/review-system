@@ -50,6 +50,25 @@ stage 4（ローカル同名ブランチの検査）の defense-in-depth（Issue
 黙って破棄しない。判定不能は「無害」ではなく「衝突」側に倒す（fail-close の一貫性）。
 reclaim の ``git branch -D`` 自体が失敗した場合も同じ理由で fail-close する。
 
+失敗文言に「誰が掴んでいるか」を載せる（Issue #502）
+--------------------------------------------------
+``BRANCH_ADOPT_LOCAL_EXISTS`` は**復旧手順へ直結する**必要がある。旧実装はブランチ名しか
+返さず、主文脈が ``tmp/_worktree/ledger.json`` と ``.git/worktrees/`` を手で突き合わせる
+羽目になっていた（Issue #502 の実測）。:func:`describe_local_ref_conflict` が掴んでいる主体を
+区別して文言に載せる:
+
+* **primary checkout（メインワークツリー）** — `pr-reviewer` 等が差分確認のためブランチを
+  切り替えたまま戻していない場合（Issue #502 観測2）。``gitgate`` の worktree verb では
+  解消できないので、``git switch <既定ブランチ>`` へ誘導する。
+* **agent worktree** — 異常終了で残った dispatch の worktree（同観測1）。台帳エントリ
+  （``entry_id`` と ``status``）を引けたら併記し、``collect-worktree --entry`` へ誘導する。
+* **その他の linked worktree** — 台帳の管理外。パスを出して手当てを促す。
+* **tip 不一致** — そもそも掴んでいる主体の問題ではなく、正体不明のローカル作業がある。
+  ``git worktree list`` を呼ばずに local/origin の OID を出して止める（既存の
+  短絡判定を維持する＝呼ぶ意味が無い）。
+
+台帳の参照は**best-effort**（診断のためだけ）で、引けなくても判定（fail-close）は変わらない。
+
 reason code:
   * ``BRANCH_ARGUMENT_INVALID`` / ``BRANCH_NAME_INVALID`` / ``BRANCH_REPOSITORY_INVALID``
   * ``BRANCH_ADOPT_OID_INVALID`` / ``BRANCH_ADOPT_PR_INVALID``（引数スキーマ）
@@ -217,26 +236,129 @@ def _string_at(raw: Mapping[str, Any], *path: str) -> str:
     return value
 
 
-def _branch_checked_out_elsewhere(
+HOLDER_PRIMARY = "primary"
+HOLDER_AGENT = "agent-worktree"
+HOLDER_LINKED = "linked-worktree"
+HOLDER_UNKNOWN = "unknown"
+
+# `.claude/worktrees/agent-<id>` の形（`issue_start.worktree_ledger.WORKTREE_PATH_RE` と同じ
+# 形状だが、ここでは絶対パスの末尾に対する部分一致で使うので独立に持つ）。
+_AGENT_WORKTREE_SUFFIX = re.compile(r"\.claude/worktrees/agent-[A-Za-z0-9_-]{1,64}$")
+
+
+def _branch_holder(
     branch_name: str, *, cwd: Path, runner: Callable[..., subprocess.CompletedProcess]
-) -> bool:
-    """``git worktree list --porcelain`` を見て、``branch_name`` がいずれかの worktree の
-    HEAD として checked out されているかを判定する（main worktree も含める＝安全側）。
+) -> tuple[str | None, str | None]:
+    """``branch_name`` を checked out している worktree を種別つきで返す（Issue #502）。
+
+    返り値は ``(種別, パス)``。種別は :data:`HOLDER_PRIMARY`（porcelain の先頭レコード＝
+    メインワークツリー）／:data:`HOLDER_AGENT`（``.claude/worktrees/agent-<id>``）／
+    :data:`HOLDER_LINKED`（その他の linked worktree）／:data:`HOLDER_UNKNOWN`
+    （``git worktree list`` が失敗＝判定不能）／``None``（どこも掴んでいない）。
 
     到達不能・異常終了は「わからない」を「安全（checked out されていない）」に潰さず、
-    checked out 済み扱い（``True``）にする——fail-close。stray ref の自動回収は「明確に
-    無害と確認できたときだけ」行う契約なので、判定不能を無害側に倒さない。
+    :data:`HOLDER_UNKNOWN` にする——fail-close。stray ref の自動回収は「明確に無害と確認
+    できたときだけ」行う契約なので、判定不能を無害側に倒さない。
     """
     completed = _run_git(
         ["git", "worktree", "list", "--porcelain"], cwd=cwd, runner=runner
     )
     if completed.returncode != 0:
-        return True
+        return HOLDER_UNKNOWN, None
     target = f"branch refs/heads/{branch_name}"
+    index = -1
+    path: str | None = None
     for line in (completed.stdout or "").splitlines():
-        if line.strip() == target:
-            return True
-    return False
+        stripped = line.strip()
+        if stripped.startswith("worktree "):
+            index += 1
+            path = stripped[len("worktree "):].strip()
+            continue
+        if stripped != target:
+            continue
+        if index == 0:
+            return HOLDER_PRIMARY, path
+        if path and _AGENT_WORKTREE_SUFFIX.search(path.replace("\\", "/")):
+            return HOLDER_AGENT, path
+        return HOLDER_LINKED, path
+    return None, None
+
+
+def _ledger_entry_for_worktree(holder_path: str | None, *, cwd: Path):
+    """掴んでいる worktree に対応する台帳エントリ（best-effort・引けなければ ``None``）。
+
+    診断文言を厚くするためだけの参照であり、**判定（fail-close）には一切使わない**。
+    台帳が読めない・パスが main worktree の外・そもそも台帳が無い、のいずれでも黙って
+    ``None`` を返す（ここで例外を外へ出すと、診断のために adopt が別の理由で落ちる）。
+    """
+    if not holder_path:
+        return None
+    try:
+        from issue_start.worktree_ledger import main_worktree_root
+
+        from .worktree import find_entry
+
+        root = Path(main_worktree_root(cwd))
+        relative = Path(holder_path).resolve().relative_to(root.resolve()).as_posix()
+        return find_entry(root, worktree_path=relative)
+    except Exception:  # noqa: BLE001 - 診断が引けないことで adopt を落とさない
+        return None
+
+
+def describe_local_ref_conflict(
+    branch_name: str,
+    *,
+    holder_kind: str | None,
+    holder_path: str | None = None,
+    entry=None,
+    local_tip: str | None = None,
+    remote_tip: str | None = None,
+) -> str:
+    """``BRANCH_ADOPT_LOCAL_EXISTS`` の detail を組み立てる（純関数・Issue #502）。
+
+    「何が起きたか」だけでなく「**誰が掴んでいるか**」と「次に何を実行するか」を必ず含める。
+    """
+    if holder_kind == HOLDER_PRIMARY:
+        return (
+            f"{branch_name}（**メインワークツリー（primary checkout）** "
+            f"{holder_path or '<path unknown>'} が同じブランチを checkout したままになっている。"
+            "agent worktree ではないので gitgate の worktree verb では解消しない。"
+            "解消: そのワークツリーで `git switch <既定ブランチ>` を実行して戻す"
+            "（レビュー担当がブランチを切り替えたまま戻していない場合がある＝Issue #502 観測2））"
+        )
+    if holder_kind in (HOLDER_AGENT, HOLDER_LINKED):
+        if entry is not None:
+            attribution = (
+                f"台帳 entry={entry.get('entry_id')}[{entry.get('status')}]"
+            )
+            remedy = (
+                "解消: python3 -m gitgate collect-worktree --entry "
+                f"{entry.get('entry_id')}"
+                "（回収不能なら python3 -m gitgate worktree-forget --entry "
+                f"{entry.get('entry_id')} --reason <text> のあと "
+                "python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>）"
+            )
+        else:
+            attribution = "台帳に対応するエントリが無い"
+            remedy = (
+                "解消: python3 -m gitgate worktree-release <path> --force-uncollected "
+                "--reason <text>（主文脈が実行する）"
+            )
+        label = "agent worktree" if holder_kind == HOLDER_AGENT else "linked worktree"
+        return (
+            f"{branch_name}（{label} {holder_path or '<path unknown>'} が同じブランチを"
+            f"掴んでいる。{attribution}。{remedy}）"
+        )
+    if holder_kind == HOLDER_UNKNOWN:
+        return (
+            f"{branch_name}（ローカル ref が残っているが `git worktree list` を実行できず、"
+            "どのワークツリーが掴んでいるか判定できない。判定不能は衝突側に倒す＝fail-close）"
+        )
+    return (
+        f"{branch_name}（ローカル ref が origin と別のコミットを指す: "
+        f"local={local_tip or '<unknown>'} / origin={remote_tip or '<unknown>'}。"
+        "未 push のローカル作業がありうるため自動回収しない。内容を確認したうえで手当てする）"
+    )
 
 
 def _verify_pull_request(
@@ -330,16 +452,45 @@ def adopt_branch(
         local_tip = (local.stdout or "").strip().lower()
         # tip 一致（追加の git 呼び出し不要・段2 で確認済みの `observed` を再利用）を
         # 先に見る——不一致ならこの時点で衝突確定であり、worktree list を呼ぶ意味が無い。
-        reclaimable = local_tip == observed and not _branch_checked_out_elsewhere(
+        if local_tip != observed:
+            raise BranchSourceError(
+                "BRANCH_ADOPT_LOCAL_EXISTS",
+                describe_local_ref_conflict(
+                    request.branch_name,
+                    holder_kind=None,
+                    local_tip=local_tip,
+                    remote_tip=observed,
+                ),
+            )
+        holder_kind, holder_path = _branch_holder(
             request.branch_name, cwd=workdir, runner=runner
         )
-        if not reclaimable:
-            raise BranchSourceError("BRANCH_ADOPT_LOCAL_EXISTS", request.branch_name)
+        if holder_kind is not None:
+            # 掴んでいる主体を失敗文言に載せて復旧手順へ直結させる（Issue #502）。
+            # 台帳参照は best-effort で、引けなくても fail-close の判定は変わらない。
+            entry = (
+                _ledger_entry_for_worktree(holder_path, cwd=workdir)
+                if holder_kind in (HOLDER_AGENT, HOLDER_LINKED)
+                else None
+            )
+            raise BranchSourceError(
+                "BRANCH_ADOPT_LOCAL_EXISTS",
+                describe_local_ref_conflict(
+                    request.branch_name,
+                    holder_kind=holder_kind,
+                    holder_path=holder_path,
+                    entry=entry,
+                ),
+            )
         deleted = _run_git(
             ["git", "branch", "-D", request.branch_name], cwd=workdir, runner=runner
         )
         if deleted.returncode != 0:
-            raise BranchSourceError("BRANCH_ADOPT_LOCAL_EXISTS", request.branch_name)
+            raise BranchSourceError(
+                "BRANCH_ADOPT_LOCAL_EXISTS",
+                f"{request.branch_name}（無害な残留 ref と判定したが `git branch -D` に"
+                f"失敗した: {(deleted.stderr or '').strip()[:200]}）",
+            )
 
     # 5. checkout（検証済み exact OID を明示。current HEAD を暗黙継承しない）。
     switched = _run_git(

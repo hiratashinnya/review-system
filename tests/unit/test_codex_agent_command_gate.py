@@ -595,8 +595,9 @@ class CodexAgentCommandGateTests(unittest.TestCase):
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
         # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log}、gh は
-        # {pr view/diff/checks/comment/review/merge/checkout, issue view}。
+        # {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補（要オーナー判断）。
+        # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
         commands = [
             "gh pr view 123",
             "gh pr diff 123",
@@ -606,7 +607,6 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "gh pr review 123 --approve --body 'mergeable'",
             "gh pr merge 123",
             "gh pr merge 123 --squash --delete-branch",
-            "gh pr checkout 123",
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
@@ -638,6 +638,30 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for command in denied:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
+    def test_pr_reviewer_cannot_switch_the_working_tree_branch(self):
+        """Issue #502 観測2 の回帰（Claude 版と同一の期待値・両ツリー同時）。
+
+        Codex の `spawn_agent` には isolation が無く、レビューアは呼び出し元とワークツリーを
+        共有したまま動く。`gh pr checkout` はその作業ツリーのブランチを切り替えてしまい、
+        戻し忘れ・異常終了があると以後の `gitgate adopt-branch` が
+        `BRANCH_ADOPT_LOCAL_EXISTS` で必ず失敗する。切替能力そのものを取り上げて塞ぐ
+        （根拠は `.ai/rationale/pr-reviewer.md`）。
+        """
+        for command in [
+            "gh pr checkout 123",
+            "gh pr checkout 123 --repo hiratashinnya/review-system",
+            "gh -R hiratashinnya/review-system pr checkout 123",
+            "git checkout claude/issue-493",
+            "git switch claude/issue-493",
+            "python3 -m gitgate adopt-branch claude/issue-493 "
+            "--repository hiratashinnya/review-system --expected-oid " + "a" * 40,
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+        for command in ["gh pr diff 123", "gh pr view 123", "python3 -m gitgate diff main...HEAD"]:
+            with self.subTest(allowed=command):
+                self.assert_allowed(run_gate(payload("pr-reviewer", command)))
 
     # ------------------------------------------------------------------
     # 層3: ロール非対称（従来からの契約）
@@ -684,6 +708,9 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "collect-worktree --entry wl-0123456789ab",
             "collect-worktree .claude/worktrees/agent-x --handoff tmp/_handoff/a--issue-1.yaml",
             "worktree-forget --entry wl-0123456789ab --reason gone",
+            # Issue #502: 異常終了で残った running を掃引する verb も同じ区分＝どのロールにも
+            # 付与しない（Claude 版と同一の期待値）。
+            "worktree-sweep-abandoned --no-live-dispatch --reason x",
         ]
         for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
             for args in release_verbs:
@@ -722,11 +749,13 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "gh pr view 1", "gh pr diff 1", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
             "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
-            "gh pr checkout 1", "gh issue view 1",
+            "gh issue view 1",
         ]
         for cmd in reviewer_gh_allowed:
             with self.subTest(role="pr-reviewer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("pr-reviewer", cmd)))
+        # Issue #502 観測2: `gh pr checkout` は reviewer 集合から外した。
+        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr checkout 1")))
         # 第2次修正: `gh pr merge --admin`（ブランチ保護バイパス）は許可フラグから除外＝deny。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --admin")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --squash --admin")))

@@ -16,8 +16,13 @@ import unittest
 
 from branch_source import BranchSourceError
 from gitgate.adopt import (
+    HOLDER_AGENT,
+    HOLDER_LINKED,
+    HOLDER_PRIMARY,
+    HOLDER_UNKNOWN,
     AdoptBranchRequest,
     adopt_branch,
+    describe_local_ref_conflict,
     parse_adopt_branch_args,
 )
 
@@ -74,9 +79,14 @@ class FakeGit:
         return None
 
 
-def porcelain_worktree_list(*, checked_out_branch=None):
-    """``git worktree list --porcelain`` の疑似出力（main worktree ＋任意で1つの linked）。"""
-    blocks = [f"worktree /repo\nHEAD {'0' * 40}\nbranch refs/heads/main\n"]
+def porcelain_worktree_list(*, checked_out_branch=None, main_branch="main"):
+    """``git worktree list --porcelain`` の疑似出力（main worktree ＋任意で1つの linked）。
+
+    ``main_branch`` は **primary checkout（先頭レコード）**が掴んでいるブランチ。Issue #502
+    観測2（`pr-reviewer` がメインワークツリーを切り替えたまま戻さない）を再現するために、
+    ここへ対象ブランチを置けるようにしてある。
+    """
+    blocks = [f"worktree /repo\nHEAD {'0' * 40}\nbranch refs/heads/{main_branch}\n"]
     if checked_out_branch is not None:
         blocks.append(
             f"worktree /repo/.claude/worktrees/agent-other\nHEAD {'0' * 40}\n"
@@ -91,6 +101,7 @@ def default_responses(
     local_oid=None,
     checked_out_branch=None,
     branch_delete_ok=True,
+    main_branch="main",
 ):
     return {
         "fetch": (0, "", ""),
@@ -102,7 +113,13 @@ def default_responses(
         "switch": (0, "", ""),
         "branch": (0, "", ""),
         "branch-delete": (0, "", "") if branch_delete_ok else (1, "", "error: cannot delete\n"),
-        "worktree-list": (0, porcelain_worktree_list(checked_out_branch=checked_out_branch), ""),
+        "worktree-list": (
+            0,
+            porcelain_worktree_list(
+                checked_out_branch=checked_out_branch, main_branch=main_branch
+            ),
+            "",
+        ),
     }
 
 
@@ -359,6 +376,94 @@ class AdoptBranchGitInteractionTests(unittest.TestCase):
         with self.assertRaises(BranchSourceError) as ctx:
             adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
         self.assertEqual(ctx.exception.reason, "BRANCH_GIT_ERROR")
+
+
+class LocalRefConflictDiagnosticsTests(unittest.TestCase):
+    """Issue #502: ``BRANCH_ADOPT_LOCAL_EXISTS`` の文言が復旧手順へ直結すること。
+
+    旧実装はブランチ名しか返さず、主文脈が ``tmp/_worktree/ledger.json`` と
+    ``.git/worktrees/`` を手で突き合わせる必要があった（Issue #502 の実測）。**掴んでいる
+    主体を種別ごとに区別して出す**ことを固定する——agent worktree（台帳の entry_id 付き）と
+    primary checkout（メインワークツリー）では解消コマンドが別物だから。
+    """
+
+    def test_primary_checkout_holder_is_reported_distinctly(self):
+        # 観測2: メインワークツリーが PR ブランチを checkout したまま戻っていない。
+        git = FakeGit(default_responses(local_exists=True, main_branch=BRANCH))
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertEqual(ctx.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        detail = str(ctx.exception)
+        self.assertIn("primary checkout", detail)
+        self.assertIn("/repo", detail)
+        self.assertIn("git switch", detail)
+        # agent worktree 向けの解消コマンドを誤って案内しない。
+        self.assertNotIn("collect-worktree", detail)
+        # 判定は従来どおり fail-close（checkout も branch -D もしない）。
+        self.assertNotIn("switch", git.verbs)
+        self.assertNotIn("branch-delete", git.verbs)
+
+    def test_agent_worktree_holder_is_reported_with_its_path(self):
+        # 観測1: 異常終了で残った agent worktree がブランチを掴んでいる。
+        git = FakeGit(default_responses(local_exists=True, checked_out_branch=BRANCH))
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        detail = str(ctx.exception)
+        self.assertIn("agent worktree", detail)
+        self.assertIn(".claude/worktrees/agent-other", detail)
+        self.assertIn("gitgate", detail)
+        self.assertNotIn("primary checkout", detail)
+
+    def test_tip_mismatch_reports_both_oids_without_calling_worktree_list(self):
+        # tip 不一致は「誰が掴んでいるか」の問題ではない。既存の短絡（worktree list を
+        # 呼ばない）を維持したまま、local/origin の OID を出して復旧の判断材料にする。
+        git = FakeGit(default_responses(local_exists=True, local_oid=OTHER_OID))
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        detail = str(ctx.exception)
+        self.assertIn(OTHER_OID, detail)
+        self.assertIn(OID, detail)
+        self.assertNotIn("worktree-list", git.verbs)
+
+    def test_undecidable_holder_says_so_instead_of_guessing(self):
+        responses = default_responses(local_exists=True)
+        responses["worktree-list"] = (1, "", "fatal: not a git repository\n")
+        git = FakeGit(responses)
+        with self.assertRaises(BranchSourceError) as ctx:
+            adopt_branch(AdoptBranchRequest(BRANCH, REPO, OID), runner=git)
+        self.assertIn("判定できない", str(ctx.exception))
+
+    def test_ledger_entry_is_named_when_it_can_be_resolved(self):
+        # 台帳を引けたときは entry_id と status を併記し、解消コマンドをその entry_id で出す
+        # （純関数として検証する＝実 worktree/実台帳に依存しない）。
+        detail = describe_local_ref_conflict(
+            BRANCH,
+            holder_kind=HOLDER_AGENT,
+            holder_path="/repo/.claude/worktrees/agent-af16bc30fd78815b4",
+            entry={"entry_id": "wl-20b979a7943c", "status": "running"},
+        )
+        self.assertIn("wl-20b979a7943c", detail)
+        self.assertIn("running", detail)
+        self.assertIn("collect-worktree --entry wl-20b979a7943c", detail)
+
+    def test_missing_ledger_entry_still_gives_an_actionable_command(self):
+        detail = describe_local_ref_conflict(
+            BRANCH,
+            holder_kind=HOLDER_LINKED,
+            holder_path="/repo/.claude/worktrees-other/x",
+            entry=None,
+        )
+        self.assertIn("台帳に対応するエントリが無い", detail)
+        self.assertIn("worktree-release", detail)
+
+    def test_every_holder_kind_produces_a_non_empty_actionable_detail(self):
+        for kind in (HOLDER_PRIMARY, HOLDER_AGENT, HOLDER_LINKED, HOLDER_UNKNOWN, None):
+            with self.subTest(holder_kind=kind):
+                detail = describe_local_ref_conflict(
+                    BRANCH, holder_kind=kind, holder_path="/repo/x"
+                )
+                self.assertIn(BRANCH, detail)
+                self.assertTrue(detail.strip())
 
 
 class AdoptBranchPullRequestVerificationTests(unittest.TestCase):

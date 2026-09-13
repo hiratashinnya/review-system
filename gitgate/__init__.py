@@ -28,11 +28,17 @@ verb 一覧:
     worktree-release … linked worktree を冪等に解放（削除）する（#354・PR-2・FR-W5）
     collect-worktree … handoff を回収 → 検証 → 解放まで1操作で行う（#354・PR-2・FR-W2）
     worktree-forget  … 回収不能な stale エントリを abandoned へ逃がす（worktree は消さない・#354・PR-2）
+    worktree-sweep-abandoned
+                     … 異常終了（レートリミット等で SubagentStop が発火しなかった経路）で
+                       running のまま残ったエントリを回収・解放する（#502・観測1）。
+                       `--no-live-dispatch`（live な dispatch が無いことの観測申告）が
+                       無ければ何もしない＝#423 の入れ子委譲中 running を誤解放しない。
 
   **verb を実装することと、あるロールがそれを実行できることは別**である。ロール別許可は
   ゲート側 allowlist（GITGATE_VERBS_BY_ROLE）が持ち、**未登録の verb は既定 deny**。
   Issue #354 PR-2 時点で worktree 系4 verb はどのロールにも未登録＝どの gated ロールからも
-  実行できない（付与は PR-3/PR-4）。
+  実行できない（付与は PR-3/PR-4）。#502 で追加した worktree-sweep-abandoned も同じく
+  どのロールにも付与しない（実行主体はレートリミット復帰フックと主文脈）。
 
 依存仕様:
   - 設計ブリーフ: Issue #227 追加修正3（git ラッパー方式・オーナー確定）。

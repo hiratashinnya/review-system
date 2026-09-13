@@ -661,9 +661,11 @@ class AgentCommandGateTests(unittest.TestCase):
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
         # 層3（Issue #227 追加修正3・gitgate 方式）: pr-reviewer の gitgate verb は読取専用の
-        # {diff, log} のみ、gh は {pr view/diff/checks/comment/review/merge/checkout, issue view}。
+        # {diff, log} のみ、gh は {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補
         # （要オーナー判断）。ここでは --body 形のみ allow で検証する。
+        # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（下記
+        # `test_pr_reviewer_cannot_switch_the_primary_checkout` が deny を固定する）。
         commands = [
             "gh pr view 123",
             "gh pr diff 123",
@@ -673,7 +675,6 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh pr review 123 --approve --body 'mergeable'",
             "gh pr merge 123",
             "gh pr merge 123 --squash --delete-branch",
-            "gh pr checkout 123",
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
@@ -707,6 +708,42 @@ class AgentCommandGateTests(unittest.TestCase):
         for command in denied:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
+
+    def test_pr_reviewer_cannot_switch_the_primary_checkout(self):
+        """Issue #502 観測2 の回帰: レビューアはワークツリーのブランチを切り替えられない。
+
+        `pr-reviewer` は `isolation` 指定なしで起動し**メインワークツリー上で動く**ため、
+        `gh pr checkout` は呼び出し元の primary checkout を PR ブランチへ切り替える。実測
+        （PR #500 の是正ラウンド2）では切り替えたまま `main` へ戻さずに終了し、以後の
+        `gitgate adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で必ず失敗して是正ループが
+        止まった。「切り替えたら戻す」契約は戻し忘れ・異常終了で破れる fail-open な規律
+        なので採らず、**切替能力そのものを取り上げた**（根拠は `.ai/rationale/pr-reviewer.md`）。
+
+        切替の入口は `gh pr checkout` だけではないので、生 git / gitgate 経由の同義形も
+        まとめて deny されることを固定する。
+        """
+        for command in [
+            "gh pr checkout 123",
+            "gh pr checkout 123 --repo hiratashinnya/review-system",
+            "gh -R hiratashinnya/review-system pr checkout 123",
+            "rtk gh pr checkout 123",
+            "git checkout claude/issue-493",
+            "git switch claude/issue-493",
+            "python3 -m gitgate adopt-branch claude/issue-493 "
+            "--repository hiratashinnya/review-system --expected-oid " + "a" * 40,
+            "python3 -m gitgate new-branch claude/issue-493",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+        # 差分を読む正規経路は塞がない（over-deny 回帰の防止）。
+        for command in [
+            "gh pr diff 123",
+            "gh pr view 123",
+            "python3 -m gitgate diff main...HEAD",
+            "python3 -m gitgate log -n20 --oneline",
+        ]:
+            with self.subTest(allowed=command):
+                self.assert_allowed(run_gate(payload("pr-reviewer", command)))
 
     # ------------------------------------------------------------------
     # 層3: ロール非対称（従来からの契約）
@@ -759,6 +796,10 @@ class AgentCommandGateTests(unittest.TestCase):
             "collect-worktree --entry wl-0123456789ab",
             "collect-worktree .claude/worktrees/agent-x --handoff tmp/_handoff/a--issue-1.yaml",
             "worktree-forget --entry wl-0123456789ab --reason gone",
+            # Issue #502: 異常終了で残った running を掃引する verb も同じ区分（他 dispatch の
+            # 成果物を消しうる）＝どのロールにも付与しない。実行主体はレートリミット復帰
+            # フック（resume-watcher.sh）と主文脈だけ。
+            "worktree-sweep-abandoned --no-live-dispatch --reason x",
         ]
         for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
             for args in release_verbs:
@@ -776,11 +817,14 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh pr view 1", "gh pr diff 1", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
             "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
-            "gh pr checkout 1", "gh issue view 1",
+            "gh issue view 1",
         ]
         for cmd in reviewer_gh_allowed:
             with self.subTest(role="pr-reviewer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("pr-reviewer", cmd)))
+        # Issue #502 観測2: `gh pr checkout` は reviewer 集合から外した（primary checkout を
+        # 切り替えたまま戻さない経路を塞ぐ）。
+        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr checkout 1")))
         # 第2次修正: `gh pr merge --admin`（ブランチ保護バイパス）は許可フラグから除外＝deny。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --admin")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --squash --admin")))
@@ -1476,6 +1520,9 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
             "python3 -m gitgate worktree-release .claude/worktrees/agent-x --force-uncollected --reason x",
             "python3 -m gitgate collect-worktree --entry wl-0123456789ab",
             "python3 -m gitgate worktree-forget --entry wl-0123456789ab --reason x",
+            # Issue #502: 異常終了で残った running の掃引 verb も同じ区分（他 dispatch の
+            # worktree を消しうる）。実行主体はレートリミット復帰フックと主文脈だけ。
+            "python3 -m gitgate worktree-sweep-abandoned --no-live-dispatch --reason x",
         ]
         for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
             for command in commands:
