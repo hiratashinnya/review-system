@@ -177,6 +177,83 @@ class RateLimitHookTests(unittest.TestCase):
         msg = build_msg(override="CUSTOM RESUME TEXT")
         self.assertEqual(msg, "CUSTOM RESUME TEXT")
 
+    # --- Issue #502: 復帰イベントに相乗りする worktree 掃引 --------------------
+    def test_build_msg_appends_the_sweep_note_when_present(self):
+        # 掃引結果を復帰メッセージ自体に載せる（主文脈が「解放済みか」を知らずに再投入すると
+        # adopt-branch の失敗で初めて気づくことになるため）。
+        body = (
+            'HIT_STR=""; reset_epoch=""; CONTINUE_MSG_OVERRIDE=""; '
+            'SWEEP_MSG="SWEPT-MARKER"; build_continue_msg'
+        )
+        self.assertIn("SWEPT-MARKER", _run(body).stdout)
+
+    def test_build_msg_is_unchanged_when_no_sweep_happened(self):
+        # 掃引が未実施／対象なしのときは1文字も足さない（回帰防止）。
+        self.assertNotIn("SWEPT", build_msg())
+        self.assertTrue(build_msg().endswith("続けてください。"))
+
+    def test_watcher_sweeps_only_with_the_no_live_dispatch_observation(self):
+        """掃引の起動口が「復帰イベント＋アイドル観測」に閉じていることを固定する。
+
+        `running` は入れ子委譲待ちの正当な保留でもある（Issue #423）ため、`gitgate` 側は
+        `--no-live-dispatch` の申告が無ければ何もしない。watcher がその申告を渡していること・
+        検知経路を別に増やしていないこと（`gitgate` 呼び出しがこの1箇所だけであること）を
+        本文の静的検査で確認する。
+        """
+        source = WATCHER.read_text(encoding="utf-8")
+        self.assertIn("worktree-sweep-abandoned", source)
+        self.assertIn("--no-live-dispatch", source)
+        self.assertEqual(
+            source.count("python3 -m gitgate"), 1,
+            "掃引の起動口は1箇所だけ（検知経路を二重化しない・Issue #502 オーナー指摘）",
+        )
+        # 注入ループ（アイドル確認済みの地点）から呼ばれている。
+        inject_section = source.split("--- 注入(状態認識", 1)[-1]
+        self.assertIn("sweep_abandoned_worktrees", inject_section)
+
+    def test_sweep_can_be_disabled_by_an_environment_variable(self):
+        self.assertIn("CLAUDE_RL_SWEEP_WORKTREES", WATCHER.read_text(encoding="utf-8"))
+
+    def test_pane_state_is_re_evaluated_after_the_sweep(self):
+        """**F-502-06 回帰**: 掃引で開いた「判定→送出」の間隔を、再評価と上限で塞ぐ。
+
+        掃引はネットワーク I/O（候補ごとの `git fetch`）を含むため、アイドル判定と
+        `send-keys` の間隔がミリ秒からネットワーク待ちのオーダーへ広がる。その間に
+        セッションが再開していると、大原則「稼働中セッションへは絶対に割り込まない」に
+        反して継続メッセージを注入してしまう。掃引の**後**にもう一度 `pane_guard` を
+        取り直し、かつ掃引自体を `timeout` で有界にすることを本文で固定する。
+        """
+        source = WATCHER.read_text(encoding="utf-8")
+        after_sweep = source.split("  sweep_abandoned_worktrees\n", 1)[-1]
+        before_send = after_sweep.split("send-keys", 1)[0]
+        self.assertIn("pane_guard", before_send)
+        self.assertIn('log "post-sweep', before_send)
+        # 掃引の所要時間そのものにも上限を掛ける（再評価と併用＝多層）。
+        self.assertIn("CLAUDE_RL_SWEEP_TIMEOUT", source)
+        self.assertIn("timeout -k 5 $SWEEP_TIMEOUT", source)
+
+    def test_every_sweep_outcome_that_needs_attention_gets_a_resume_note(self):
+        """**F-502-07 回帰**: `action=release-pending` も継続メッセージの1文に載せる。
+
+        `release-pending`（回収済みで削除だけ遅延）は `action=released` の部分文字列では
+        ないため、`*"action=released"*` だけでは拾えず、README が謳う「何か解放/保留した
+        ときは1文添える」と挙動がずれていた。
+        """
+        source = WATCHER.read_text(encoding="utf-8")
+        for pattern in (
+            '*"action=kept-"*',
+            '*"action=release-pending"*',
+            '*"action=released"*',
+        ):
+            self.assertIn(pattern, source)
+        # `release-pending` の枝は `released` より**前**に置く（case は先勝ちだが、
+        # `action=released` は `action=release-pending` に一致しないので順序自体は
+        # 安全側。ここでは「両方の枝が存在し、片方が他方を隠していない」ことを固定する）。
+        self.assertLess(
+            source.index('*"action=release-pending"*'),
+            source.index('*"action=released"*'),
+        )
+
     # --- shared lib helpers --------------------------------------------------
     def test_pane_slug_normalizes_non_alnum(self):
         self.assertEqual(_run('rl_pane_slug "%3"').stdout, "_3")
