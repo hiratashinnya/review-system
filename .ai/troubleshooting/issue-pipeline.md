@@ -28,9 +28,9 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 **通常は手作業が要らない。** レートリミット復帰の watcher が、解除を確認し**当該ペインが**アイドルと観測した地点で `python3 -m gitgate worktree-sweep-abandoned --no-live-dispatch --reason <text>` を1度だけ実行し、次のように処置する。
 
-- 自分の handoff がある → 回収して解放（`released`）。
+- 自分の handoff がある → 回収し、**回収後に作業ツリーが clean なときだけ**解放（`released`。git のロック等で削除だけが遅れる場合は `release-pending`）。**handoff の存在は clean 検査を免除しない。**
 - handoff が無く、作業ツリーが clean かつ HEAD が `origin/<branch>` に含まれる → 失われる作業が無いので解放（`released`）。
-- それ以外（未コミット/未追跡の変更、未 push のコミット、handoff が一意に決まらない、git が `locked` と報告） → **解放せず** `stale` へ落とすか `running` のまま残す。
+- それ以外（回収後も残る未コミット/未追跡の変更、未 push のコミット、handoff が一意に決まらない、git が `locked` と報告） → **解放せず** `stale` へ落とすか `running` のまま残す。handoff を回収できていても dirty ならこちら（`kept-unsafe`）に落ちる。
 
 **`--no-live-dispatch` の観測範囲は watcher に渡された単一 tmux ペインに限られる。** ペイン状態の判定は引数で渡された1ペインしか見ないのに対し、台帳（`tmp/_worktree/ledger.json`）はリポジトリ全体で共有される。したがってこの申告は「**そのペインからは**サブエージェントが実行中でない」以上のことを主張せず、別ペイン・別セッションで live な dispatch が動いていても真になりうる。**別ペイン・別セッションの live な dispatch を守るのは git の `locked` 判定だけ**であり、`git worktree list --porcelain` が `locked` と報告する worktree を掃引対象から外すことで担保する。ハーネスが live な agent worktree をロックしない構成ではこの保護が成立しないため、その環境では `CLAUDE_RL_SWEEP_WORKTREES=0` で掃引そのものを止める。
 
