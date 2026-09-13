@@ -214,6 +214,46 @@ class RateLimitHookTests(unittest.TestCase):
     def test_sweep_can_be_disabled_by_an_environment_variable(self):
         self.assertIn("CLAUDE_RL_SWEEP_WORKTREES", WATCHER.read_text(encoding="utf-8"))
 
+    def test_pane_state_is_re_evaluated_after_the_sweep(self):
+        """**F-502-06 回帰**: 掃引で開いた「判定→送出」の間隔を、再評価と上限で塞ぐ。
+
+        掃引はネットワーク I/O（候補ごとの `git fetch`）を含むため、アイドル判定と
+        `send-keys` の間隔がミリ秒からネットワーク待ちのオーダーへ広がる。その間に
+        セッションが再開していると、大原則「稼働中セッションへは絶対に割り込まない」に
+        反して継続メッセージを注入してしまう。掃引の**後**にもう一度 `pane_guard` を
+        取り直し、かつ掃引自体を `timeout` で有界にすることを本文で固定する。
+        """
+        source = WATCHER.read_text(encoding="utf-8")
+        after_sweep = source.split("  sweep_abandoned_worktrees\n", 1)[-1]
+        before_send = after_sweep.split("send-keys", 1)[0]
+        self.assertIn("pane_guard", before_send)
+        self.assertIn('log "post-sweep', before_send)
+        # 掃引の所要時間そのものにも上限を掛ける（再評価と併用＝多層）。
+        self.assertIn("CLAUDE_RL_SWEEP_TIMEOUT", source)
+        self.assertIn("timeout -k 5 $SWEEP_TIMEOUT", source)
+
+    def test_every_sweep_outcome_that_needs_attention_gets_a_resume_note(self):
+        """**F-502-07 回帰**: `action=release-pending` も継続メッセージの1文に載せる。
+
+        `release-pending`（回収済みで削除だけ遅延）は `action=released` の部分文字列では
+        ないため、`*"action=released"*` だけでは拾えず、README が謳う「何か解放/保留した
+        ときは1文添える」と挙動がずれていた。
+        """
+        source = WATCHER.read_text(encoding="utf-8")
+        for pattern in (
+            '*"action=kept-"*',
+            '*"action=release-pending"*',
+            '*"action=released"*',
+        ):
+            self.assertIn(pattern, source)
+        # `release-pending` の枝は `released` より**前**に置く（case は先勝ちだが、
+        # `action=released` は `action=release-pending` に一致しないので順序自体は
+        # 安全側。ここでは「両方の枝が存在し、片方が他方を隠していない」ことを固定する）。
+        self.assertLess(
+            source.index('*"action=release-pending"*'),
+            source.index('*"action=released"*'),
+        )
+
     # --- shared lib helpers --------------------------------------------------
     def test_pane_slug_normalizes_non_alnum(self):
         self.assertEqual(_run('rl_pane_slug "%3"').stdout, "_3")

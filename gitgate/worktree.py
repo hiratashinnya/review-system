@@ -68,10 +68,14 @@
     #423 の入れ子委譲中エントリを守る）。
 
     **成果物を失わない側に倒す**: 自分の handoff が1件あれば ``collect-worktree`` と同じ段
-    （回収 → sha 検証 → 解放）を通す。handoff が無い場合は「捨ててよいと**積極的に確認**できた」
-    ときだけ解放する（作業ツリーが clean かつ HEAD が ``origin/<branch>`` に含まれる）。確認
+    （回収 → sha 検証）を通し、**その上で作業ツリーが clean であることを確認できたときだけ**
+    解放する。handoff が無い場合は「捨ててよいと**積極的に確認**できた」ときだけ解放する
+    （作業ツリーが clean かつ HEAD が ``origin/<branch>`` に含まれる）。確認
     できなければ解放せず ``stale`` へ落とし、既存の ``ISSUE_START_WORKTREE_RESIDUE`` deny
-    （解消コマンド付き）へ合流させる。
+    （解消コマンド付き）へ合流させる。**clean 検査を handoff の有無で免除しない**
+    （F-502-01）——実体の削除は ``git worktree remove --force`` であり、dirty/untracked を
+    問答無用で消す。handoff が書けていることは「作業ツリーに未コミットの何かが残っていない」
+    ことを含意しない。
 
 本 PR のスコープ（重要）
 ----------------------
@@ -991,6 +995,7 @@ def collect_worktree(
     now,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     max_bytes: int = DEFAULT_MAX_HANDOFF_BYTES,
+    release: bool = True,
 ) -> CollectOutcome:
     """handoff を回収してから worktree を解放する1操作（候補D・FR-W2）。
 
@@ -1025,6 +1030,14 @@ def collect_worktree(
     ``collected``（回収済み・解放のみ）/ ``release_pending``（回収済み・削除だけロック失敗・
     段6 だけをやり直す）とエントリ無し。``running`` は拒否する
     ——live な dispatch の worktree は回収も解放もしない（安全側の既定）。
+
+    ``release``（既定 ``True``）を偽にすると**段1〜5 だけを実行して段6 を飛ばす**。
+    「回収は必ず先に済ませたいが、解放してよいかは回収後に追加で判定したい」呼び出し元
+    （:func:`_sweep_one` の clean 検査＝Issue #502 F-502-01）のための分割点である。偽で
+    返ったときエントリは ``collected`` に留まり、成果物は ``collected_to`` へ退避済み。
+    解放したくなったら**同じ引数でもう一度呼べばよい**——``collected`` は段2〜5 を飛ばして
+    段6 だけを実行するので、``release_pending`` への遅延（Issue #464）を含む解放段の契約を
+    そのまま再利用できる。
     """
     if entry_id is not None:
         _validate_entry_id(entry_id)
@@ -1174,6 +1187,14 @@ def collect_worktree(
         )
 
     # --- 段6: 解放 ---
+    if not release:
+        # 呼び出し元が「解放してよいか」を回収後に追加判定する（F-502-01 の clean 検査）。
+        # 段1〜5 は完了済み＝成果物は `collected_to` へ退避済みなので、ここで止めても失う
+        # ものは無い。エントリは `collected` のままなので、解放したくなったら同じ呼び出しを
+        # もう一度行えば段6 だけが走る。
+        return CollectOutcome(
+            relative_worktree, resolved_entry_id, collected_to, released=False
+        )
     try:
         outcome = worktree_release(
             repo_root,
@@ -1309,25 +1330,19 @@ def _own_handoff(repo_root, entry) -> tuple:
     return f"{'/'.join(HANDOFF_DIR_PARTS)}/{mine[0]}", "unique"
 
 
-def _is_discardable(repo_root, entry, *, runner) -> tuple:
-    """handoff が無い worktree を「捨ててよい」と**積極的に確認**する（Issue #502）。
+def _is_worktree_clean(repo_root, entry, *, runner) -> tuple:
+    """作業ツリーに未コミット/未追跡の変更が無いことを確認する（Issue #502・F-502-01）。
 
-    返り値は ``(bool, 理由)``。真を返すのは次の**すべて**を観測できたときだけで、1つでも
-    観測できなければ偽（fail-close）——「判定できなかった」を「捨ててよい」に潰さない。
+    返り値は ``(bool, 理由)``。真を返すのは ``git status --porcelain`` を実際に実行できて、
+    その出力が空だったときだけ——**判定できなかったときは偽**（fail-close）。
+    「見られなかった」を「捨ててよい」に潰さない。
 
-    1. 台帳に ``branch_name`` がある（origin 包含を判定する相手が決まる）。
-    2. 作業ツリーが clean（``git status --porcelain`` が空）＝未コミットの変更も未追跡
-       ファイルも無い。
-    3. ``HEAD`` が fresh fetch 後の ``refs/remotes/origin/<branch_name>`` に含まれる
-       ＝未 push のコミットが無い。
-
-    これは Issue #502 で主文脈が手作業で確認した内容（「作業ツリー clean・HEAD が remote と
-    同一・ハンドオフ未作成で、失われる作業は無かった」）を機械化したものである。
+    **この関門は handoff の有無で免除しない**。実体を消す :func:`_remove_worktree_dir` は
+    ``git worktree remove --force`` を使い、dirty / untracked を問答無用で消す。handoff を
+    書き終えていることは「作業ツリーに未コミットの何かが残っていない」ことを含意しないため、
+    handoff がある経路（:func:`_sweep_one` の ``how == "unique"``）でも回収の**後で**必ず通す。
     """
     relative = entry.get("worktree_path")
-    branch_name = entry.get("branch_name")
-    if not isinstance(branch_name, str) or not branch_name:
-        return False, "台帳に branch_name が無く origin 包含を判定できない"
     try:
         target = resolve_within(repo_root, relative)
     except WorktreeError as exc:
@@ -1339,6 +1354,37 @@ def _is_discardable(repo_root, entry, *, runner) -> tuple:
         return False, "git status を実行できない（判定不能）"
     if (status.stdout or "").strip():
         return False, "作業ツリーに未コミット/未追跡の変更がある"
+    return True, ""
+
+
+def _is_discardable(repo_root, entry, *, runner) -> tuple:
+    """handoff が無い worktree を「捨ててよい」と**積極的に確認**する（Issue #502）。
+
+    返り値は ``(bool, 理由)``。真を返すのは次の**すべて**を観測できたときだけで、1つでも
+    観測できなければ偽（fail-close）——「判定できなかった」を「捨ててよい」に潰さない。
+
+    1. 台帳に ``branch_name`` がある（origin 包含を判定する相手が決まる）。
+    2. 作業ツリーが clean（:func:`_is_worktree_clean`）＝未コミットの変更も未追跡
+       ファイルも無い。
+    3. ``HEAD`` が fresh fetch 後の ``refs/remotes/origin/<branch_name>`` に含まれる
+       ＝未 push のコミットが無い。
+
+    これは Issue #502 で主文脈が手作業で確認した内容（「作業ツリー clean・HEAD が remote と
+    同一・ハンドオフ未作成で、失われる作業は無かった」）を機械化したものである。
+    条件2 は handoff がある経路でも必要なので :func:`_is_worktree_clean` へ切り出してある
+    （F-502-01）。
+    """
+    relative = entry.get("worktree_path")
+    branch_name = entry.get("branch_name")
+    if not isinstance(branch_name, str) or not branch_name:
+        return False, "台帳に branch_name が無く origin 包含を判定できない"
+    clean, why = _is_worktree_clean(repo_root, entry, runner=runner)
+    if not clean:
+        return False, why
+    try:
+        target = resolve_within(repo_root, relative)
+    except WorktreeError as exc:  # pragma: no cover - 直前の clean 検査が同じ解決に成功済み
+        return False, f"worktree のパスを解決できない（{exc.reason}）"
     try:
         fetched = _run_git(
             ["git", "fetch", "--prune", "origin"],
@@ -1401,6 +1447,8 @@ def sweep_abandoned_running(
     ``release-pending`` 回収は済んだが削除だけ git ロックで遅延した（Issue #464）
     ``kept-locked``     ``git worktree list`` が ``locked`` と報告した＝live とみなし触らない
     ``kept-unsafe``     捨ててよいと確認できなかった＝解放せず ``stale`` へ落とした
+                        （handoff が無い場合は回収前の ``_is_discardable``、handoff がある
+                        場合は**回収後**の clean 検査で落ちたもの＝F-502-01）
     ``kept-unresolved`` handoff を一意に決められない＝解放せず ``stale`` へ落とした
     ``kept-error``      回収・解放が失敗した＝``stale`` へ落とした
     ==================  ==========================================================
@@ -1415,7 +1463,6 @@ def sweep_abandoned_running(
         entry
         for entry in _entries(repo_root)
         if entry.get("status") == "running"
-        and entry.get("platform", "claude") == "claude"
         and isinstance(entry.get("entry_id"), str)
         and isinstance(entry.get("worktree_path"), str)
         and entry.get("worktree_path")
@@ -1510,13 +1557,58 @@ def _sweep_one(repo_root, entry, *, now, reason, locked, runner) -> SweepEntryOu
             f": {reason}"
         ),
     )
+    # 回収（段1〜5）と解放（段6）を分けて呼ぶ。**回収を先に確定させる**ことで、この後の
+    # clean 検査で解放を止めても成果物は `collected_to` へ退避済みになる（F-502-01）。
     try:
-        outcome = collect_worktree(
+        collected = collect_worktree(
             repo_root,
             entry_id=entry_id,
             handoff_path=handoff,
             allow_missing_handoff=handoff is None,
             reason=f"{SWEEP_MARKER}: {reason}",
+            now=now,
+            runner=runner,
+            release=False,
+        )
+    except WorktreeError as exc:
+        _sweep_stale(
+            repo_root,
+            entry_id,
+            now=now,
+            note=(
+                f"{SWEEP_MARKER}: 回収に失敗した（{exc.reason}）。"
+                f"主文脈が処置する（Issue #502）: {reason}"
+            ),
+        )
+        return SweepEntryOutcome(entry_id, relative, "kept-error", exc.reason)
+
+    if how == "unique":
+        # handoff がある経路にも clean 検査を通す（F-502-01）。`git worktree remove --force`
+        # は dirty/untracked を問答無用で消すため、「handoff が書けている＝完走した」を
+        # 「捨ててよい」の代わりにしない。`how == "empty"` は上の `_is_discardable` で
+        # 同じ検査（＋origin 包含）を既に通しているので二重には実行しない。
+        clean, why = _is_worktree_clean(repo_root, entry, runner=runner)
+        if not clean:
+            _sweep_stale(
+                repo_root,
+                entry_id,
+                now=now,
+                note=(
+                    f"{SWEEP_MARKER}: handoff は回収した"
+                    f"（collected_to={collected.collected_to or '-'}）が、作業ツリーが clean と"
+                    f"確認できなかったため解放しない（{why}）。主文脈が内容を確認して処置する"
+                    f"（Issue #502）: {reason}"
+                ),
+            )
+            return SweepEntryOutcome(entry_id, relative, "kept-unsafe", why)
+
+    # 段6 だけをやり直す（エントリは `collected`）。`release_pending` への遅延（Issue #464）を
+    # 含む解放段の契約をそのまま再利用するため、`worktree_release` を直接呼ばない。
+    # `reason` は回収段で既に台帳へ書いているので渡さない（同じ理由を2回 notes に載せない）。
+    try:
+        outcome = collect_worktree(
+            repo_root,
+            entry_id=entry_id,
             now=now,
             runner=runner,
         )
@@ -1526,7 +1618,7 @@ def _sweep_one(repo_root, entry, *, now, reason, locked, runner) -> SweepEntryOu
             entry_id,
             now=now,
             note=(
-                f"{SWEEP_MARKER}: 回収・解放に失敗した（{exc.reason}）。"
+                f"{SWEEP_MARKER}: 解放に失敗した（{exc.reason}）。"
                 f"主文脈が処置する（Issue #502）: {reason}"
             ),
         )

@@ -10,10 +10,11 @@
 #   2) 時刻を取得できたらリセット(+マージン)まで sleep。最後まで取得できず制限バナーだけ
 #      観測できた場合は、当てずっぽうに時刻発火せず「バナー消滅(=リセット発生)」まで待つ。
 #      バナーを一度も観測できなければ注入しない(誤発火防止)。
-#   3) 注入直前に worktree 掃引を1度だけ実行(Issue #502)。ここは「解除済み」かつ「ペインが
-#      アイドル = live な dispatch が無い」を両方観測できた唯一の地点であり、異常終了で
-#      `running` のまま残った worktree 所有台帳 entry を安全に解放できる契機になる。
-#      検知経路は二重化せず、この復帰イベントに相乗りさせる(オーナー指示 2026-09-08)。
+#   3) 注入直前に worktree 掃引を1度だけ実行(Issue #502)。ここは「解除済み」かつ「当該ペインが
+#      アイドル」を両方観測できた地点であり、異常終了で `running` のまま残った worktree
+#      所有台帳 entry を安全に解放できる契機になる。検知経路は二重化せず、この復帰イベントに
+#      相乗りさせる(オーナー指示 2026-09-08)。掃引は `timeout` で括り、終わったら
+#      pane_guard を取り直してから 4) へ進む(F-502-06)。
 #   4) ペインへ継続メッセージ + Enter を送出
 #   5) まだ制限中ならバックオフして再送(上限あり)
 #
@@ -193,15 +194,31 @@ fi
 #
 # **検知経路は二重化しない**(オーナー指示 2026-09-08)。異常終了の主因はレートリミットなので、
 # 復帰の契機は既にここにある「解除を確認し、かつペインがアイドル」という観測に相乗りさせる。
-# ペインがアイドル = どのサブエージェントも実行中でない、という観測が、`running` の2つの意味
-# (入れ子委譲待ちの正当な保留 = Issue #423 / 異常終了の取り残し)を分ける唯一の材料である。
-# その観測を `--no-live-dispatch` として gitgate へ明示的に渡す(これが無いと gitgate 側は
-# 何もしない = 誤って普通の経路から呼んでも #423 の保留を壊さない)。
+# 当該ペインがアイドル = このペインからは何のサブエージェントも実行中でない、という観測が、
+# `running` の2つの意味(入れ子委譲待ちの正当な保留 = Issue #423 / 異常終了の取り残し)を分ける
+# 唯一の材料である。その観測を `--no-live-dispatch` として gitgate へ明示的に渡す(これが無いと
+# gitgate 側は何もしない = 誤って普通の経路から呼んでも #423 の保留を壊さない)。
+#
+# **観測の届く範囲は `$PANE` ただ1つ**(F-502-02)。`pane_guard` は引数で渡されたこのペインしか
+# 見ないのに対し、worktree 所有台帳はリポジトリ全体で共有される。したがって別ペイン・別セッション
+# で live な dispatch が動いていても `--no-live-dispatch` は真になりうる。そこを守るのは gitgate
+# 側の `git worktree list --porcelain` の `locked` 判定だけであり、ハーネスが live な agent
+# worktree をロックしない構成ではクロスペインの保護は成立しない(その場合は
+# CLAUDE_RL_SWEEP_WORKTREES=0 で掃引を止める)。
 #
 # 掃引自体は best-effort。失敗しても watcher の本務(再開注入)は続ける。
 REPO_ROOT="$(cd "${HOOK_DIR}/../.." 2>/dev/null && pwd)"
 SWEEP_MSG=""
 SWEEP_DONE=0
+# 掃引全体の上限秒(F-502-06)。掃引は候補ごとに `git fetch`(各30秒上限)を回すため、候補数に
+# 比例して所要時間が伸びる。アイドル判定と send-keys の間隔が青天井に広がると、その間に
+# 再開したセッションへ割り込みうるので、掃引側にも上限を掛けて間隔を有界にする。
+SWEEP_TIMEOUT="${CLAUDE_RL_SWEEP_TIMEOUT:-120}"
+# 非数値は既定へ倒す(この値は非クォートで展開して `timeout` の引数列に混ぜるため、
+# 数字だけであることを構文で保証してから使う)。
+case "$SWEEP_TIMEOUT" in
+  ''|*[!0-9]*) SWEEP_TIMEOUT=120 ;;
+esac
 sweep_abandoned_worktrees() {
   [ "${CLAUDE_RL_SWEEP_WORKTREES:-1}" = "0" ] && { log "worktree sweep: 無効化されています(CLAUDE_RL_SWEEP_WORKTREES=0)"; return 0; }
   [ "$SWEEP_DONE" -eq 1 ] && return 0
@@ -210,18 +227,34 @@ sweep_abandoned_worktrees() {
     log "worktree sweep: リポジトリルートを特定できず(REPO_ROOT='${REPO_ROOT}'); skip"
     return 0
   fi
-  local out rc
-  out="$(cd "$REPO_ROOT" && python3 -m gitgate worktree-sweep-abandoned \
-    --no-live-dispatch \
-    --reason "resume-watcher: レートリミット解除を確認しペインがアイドル(live な dispatch 無し)の地点で掃引した (Issue #502)" 2>&1)"
+  local out rc reason limiter
+  reason="resume-watcher: レートリミット解除を確認し当該ペインがアイドル(このペインに live な dispatch 無し)の地点で掃引した (Issue #502)"
+  # `timeout` があれば必ず被せる(-k 5 は rl_tmux と同じ考え方=SIGTERM を無視するプロセスを
+  # 5秒後に SIGKILL)。無い環境では上限なしでそのまま起動する(掃引を落とすより実行する側に倒す
+  # ——後段の pane_guard 再評価が割り込みは防ぐ)。**起動口は1箇所に保つ**(検知経路の二重化を
+  # 静的検査で禁じているため、timeout の有無で gitgate の起動行そのものを分岐させない)。
+  if command -v timeout >/dev/null 2>&1; then
+    limiter="timeout -k 5 $SWEEP_TIMEOUT"
+  else
+    limiter=""
+    log "worktree sweep: timeout コマンドが無いため上限を掛けられない(そのまま起動する)"
+  fi
+  # shellcheck disable=SC2086 # limiter は上で組み立てた固定語の並び。分割されること自体が意図。
+  out="$(cd "$REPO_ROOT" && $limiter python3 -m gitgate worktree-sweep-abandoned \
+    --no-live-dispatch --reason "$reason" 2>&1)"
   rc=$?
+  [ "$rc" -eq 124 ] && log "worktree sweep: ${SWEEP_TIMEOUT}s で打ち切った(timeout)"
   log "worktree sweep: rc=${rc} ${out}"
   if [ "$rc" -eq 0 ]; then
     # 処置が要る側(kept-)を優先して知らせる。両方あるときに "解放しました" だけを出すと、
-    # 残っている方を主文脈が見落とす。
+    # 残っている方を主文脈が見落とす。`release-pending` は `released` の部分文字列ではない
+    # ので独立の枝が要る(F-502-07: 拾い漏れると回収済み・削除遅延だけ1文が付かなかった)。
     case "$out" in
       *"action=kept-"*)
         SWEEP_MSG="なお、running のまま残っていた agent worktree のうち自動解放できなかったものがあります(Issue #502)。tmp/_worktree/ledger.json の notes を確認し、ISSUE_START_WORKTREE_RESIDUE の解消手順で処置してください。"
+        ;;
+      *"action=release-pending"*)
+        SWEEP_MSG="なお、異常終了で running のまま残っていた agent worktree の handoff を復帰時に回収しました(Issue #502)。worktree 実体の削除は git のロックで遅延しており、次の dispatch で issue-start-gate が引き取ります。詳細は ~/.claude/rate-limit-recovery/watcher.log と tmp/_worktree/ledger.json の notes を参照してください。"
         ;;
       *"action=released"*)
         SWEEP_MSG="なお、異常終了で running のまま残っていた agent worktree を復帰時に自動回収・解放しました(Issue #502)。詳細は ~/.claude/rate-limit-recovery/watcher.log と tmp/_worktree/ledger.json の notes を参照してください。"
@@ -371,10 +404,23 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
     exit 0
   fi
   # アイドル → 注入して再開(制限バナーの有無は問わない。情報としてのみ記録)
-  # 掃引は注入の**直前**に1度だけ行う(Issue #502): ここは「解除済み」かつ「ペインがアイドル
-  # = live な dispatch が無い」ことを両方観測できた唯一の地点で、その観測こそが
+  # 掃引は注入の**直前**に1度だけ行う(Issue #502): ここは「解除済み」かつ「当該ペインがアイドル
+  # = このペインに live な dispatch が無い」ことを両方観測できた地点で、その観測こそが
   # 「異常終了で取り残された running」と「入れ子委譲待ちの running(#423)」を分ける材料である。
   sweep_abandoned_worktrees
+  # 注入前ガード2(掃引後の再評価・F-502-06): 掃引はネットワーク I/O を含み秒〜分オーダーに
+  # なりうる。上のアイドル判定と本文送出の間隔がそのぶん広がるため、掃引の**あとで**もう一度
+  # ペイン状態を確かめてから注入する。大原則「稼働中セッションへは絶対に割り込まない」は、
+  # 判定と送出の間隔が広がるほど守りにくくなるので、間隔を空けた側で必ず取り直す。
+  pane_guard; _g=$?
+  if [ "$_g" -eq 1 ]; then
+    log "post-sweep: 対象ペインが消失 or 前景が claude でない; 注入せず終了"
+    exit 0
+  fi
+  if [ "$_g" -eq 2 ]; then
+    log "post-sweep: 掃引中にペインが WORKING へ遷移(別経路で再開済み); 注入せず終了"
+    exit 0
+  fi
   msg="$(build_continue_msg)"
   if is_limit_screen; then
     log "inject attempt ${attempt}/${MAX_ATTEMPTS}: idle & limit banner still visible; send '${msg}'"

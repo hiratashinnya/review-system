@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import gitgate.worktree
 from branch_source import BranchSourceError
 from gitgate.adopt import AdoptBranchRequest, adopt_branch
 from gitgate.worktree import (
@@ -1680,6 +1681,34 @@ class SweepAbandonedRunningTests(LedgerFixture):
             git.branch_deletes, [["git", "branch", "-D", "claude/issue-354-pr2"]]
         )
 
+    def test_dirty_worktree_with_a_handoff_is_collected_but_not_released(self):
+        """**F-502-01 回帰**: handoff がある経路も clean 検査を省かない。
+
+        実体の削除は ``git worktree remove --force`` なので、dirty / untracked は問答無用で
+        消える。「handoff が書けている＝完走した」を「捨ててよい」の代わりにすると、未コミットの
+        作業内容が回復不能に失われる。回収（sha 検証）は先に確定させ、解放だけを止める。
+        """
+        entry_id = self.entry_with_status("running")
+        self.make_worktree()
+        git = FakeGit(self.root, linked=[WT_REL], dirty_status=True)
+        outcomes = self.sweep(git)
+        self.assertEqual([item.action for item in outcomes], ["kept-unsafe"])
+        # 解放していない＝実体もローカルブランチ ref も残る。
+        self.assertEqual(self.status_of(entry_id), "stale")
+        self.assertTrue((self.root / WT_REL).is_dir())
+        self.assertEqual(git.removals, [])
+        self.assertEqual(git.branch_deletes, [])
+        # だが handoff の回収は済んでいる（成果物を失わない側に倒す）。
+        expected_dest = (
+            f"tmp/_handoff/collected/{entry_id}--issue-implementer--issue-354-pr2.yaml"
+        )
+        self.assertEqual(self.entry(entry_id)["collected_to"], expected_dest)
+        self.assertEqual((self.root / expected_dest).read_bytes(), HANDOFF_BODY)
+        notes = [item["note"] for item in self.entry(entry_id)["notes"]]
+        self.assertTrue(
+            any("clean と確認できなかった" in note for note in notes), notes
+        )
+
     def test_abandoned_running_without_a_handoff_is_released_when_discardable(self):
         # 観測1 そのもの: handoff 未作成・作業ツリー clean・HEAD が origin に含まれる。
         # 主文脈が手で確認していた3条件を機械化し、確認できたときだけ解放する。
@@ -1760,6 +1789,17 @@ class SweepAbandonedRunningTests(LedgerFixture):
                 self.make_worktree()
                 self.assertEqual(self.sweep(ForbiddenGit()), [])
                 self.assertEqual(self.status_of(entry_id), status)
+
+    def test_candidates_do_not_filter_on_keys_the_ledger_never_writes(self):
+        """**F-502-03 回帰**: 台帳が持たないキーへの述語を候補条件に置かない。
+
+        常に真になる比較は挙動を変えないが、「台帳にその次元がある」と読ませる（名前と実体の
+        不一致）。台帳のキー集合は ``open_entry`` / ``bind_agent`` が書くものが全てである。
+        """
+        entry_id = self.entry_with_status("running")
+        self.assertNotIn("platform", self.entry(entry_id))
+        source = Path(gitgate.worktree.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("platform", source)
 
     def test_one_failing_entry_does_not_stop_the_others(self):
         # 掃引は entry ごとに独立。1件の事故が他を巻き込まない。
