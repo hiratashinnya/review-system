@@ -335,6 +335,17 @@ class PreUseClassifierTests(unittest.TestCase):
                 "safe-quoted-herestring-marker-data",
                 "unquoted-heredoc-still-closed",
                 "unquoted-herestring-still-closed",
+                "safe-simple-parameter-expansion-argument",
+                "safe-nested-parameter-expansion-argument",
+                "safe-parameter-expansion-then-nonmerge",
+                "bare-brace-expansion-still-closed",
+                "unclosed-parameter-expansion-still-closed",
+                "parameter-expansion-with-command-substitution-still-closed",
+                "parameter-expansion-with-backtick-still-closed",
+                "parameter-expansion-with-quote-still-closed",
+                "parameter-expansion-with-space-still-closed",
+                "parameter-expansion-leaf-then-merge-still-closed",
+                "parameter-expansion-executable-position-still-closed",
             }
             <= case_ids
         )
@@ -653,6 +664,46 @@ class PreUseClassifierTests(unittest.TestCase):
             "bash <<< 'gh pr merge 1 --squash'",
             "python3 -m json.tool <<< '{}'",
             "echo a << b",
+        ):
+            with self.subTest(command=command):
+                classified = classify_pre_use(bash(command))
+                self.assertIsNotNone(classified)
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+    def test_unquoted_simple_parameter_expansion_relaxes_false_positives(self):
+        """unquoted の単純パラメータ展開 `${...}` は深度カウンタで許可される
+        （Issue #431）。`_split_shell_commands()` は従来 unquoted の `(` `)` `{` `}`
+        いずれかで一律 CLASSIFIER_UNKNOWN に落ちており、`${VAR}` を引数位置で使う
+        非merge commandまで誤ブロックしていた。ネストした `${VAR:-${OTHER}}` も
+        深度カウンタで対応できることを固定する。依存仕様:
+        docs/methods/pr-merge-gate-classifier-policy.md §3。"""
+        for command in (
+            "echo ${VALUE}",
+            "echo ${VALUE:-${OTHER}}",
+            "echo ${VALUE}; echo done",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+    def test_unquoted_parameter_expansion_still_fail_closes_on_unsupported_content(self):
+        """`${...}` の緩和は範囲を厳密に区切っており、深度が閉じない・許可対象外の
+        文字（quote・space・command substitution・backtick）が中に現れる・実行語位置で
+        使われる・merge leafと同居する、のいずれの形も引き続き CLASSIFIER_UNKNOWN で
+        fail-closeすることを固定する（Issue #431。ネストしたcommand substitutionは
+        既存のcommand substitution検出が深度追跡より先に発火する）。"""
+        for command in (
+            "echo {VALUE}",
+            "echo (VALUE)",
+            "echo ${VALUE",
+            "echo ${VALUE:-$(pwd)}",
+            "echo ${VALUE:-`pwd`}",
+            "echo ${VALUE:-'default'}",
+            "echo ${VALUE:-default value}",
+            "echo ${DUMMY}; gh pr merge 1 --squash",
+            "${GM} merge 1 --squash",
         ):
             with self.subTest(command=command):
                 classified = classify_pre_use(bash(command))

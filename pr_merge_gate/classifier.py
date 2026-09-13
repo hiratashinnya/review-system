@@ -1,4 +1,8 @@
-"""Managed merge tool input の closed classifier。"""
+"""Managed merge tool input の closed classifier。
+
+依存仕様: docs/methods/pr-merge-gate-classifier-policy.md（classifier_version は
+本ファイルの `CLASSIFIER_VERSION` と一致させる）。
+"""
 
 from __future__ import annotations
 
@@ -20,7 +24,12 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-CLASSIFIER_VERSION = "1.15"
+# Issue #431（オーナー承認済み方針）: unquoted の単純パラメータ展開 `${...}` を
+# ネスト深度カウンタで許可する緩和。`_split_shell_commands` が unquoted `(){}` を
+# 一律 `None`（CLASSIFIER_UNKNOWN）にしていた挙動を変更するため 1.15 → 1.16。
+# 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md classifier_version 1.16。
+_PARAM_EXPANSION_BODY_CHAR = re.compile(r"[A-Za-z0-9_:=+?#%/!.,^*@-]")
+CLASSIFIER_VERSION = "1.16"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -444,6 +453,23 @@ def _split_shell_commands(command: str) -> list[str] | None:
     だけに掛かり、残りのwordは元の並びのまま保たれる。heredoc/herestring・
     process substitution・subshell・brace group・command substitutionは従来どおり
     None（未対応構造）で fail-close する。
+
+    unquoted の単純パラメータ展開 `${...}` だけは、ネスト深度カウンタで対応する
+    `}` まで許可対象として扱う（Issue #431。依存仕様は
+    `docs/methods/pr-merge-gate-classifier-policy.md`）。`${` の出現ごとに深度を
+    +1、対応する `}` で -1 し、深度が0に戻らないまま入力が終わればNoneとする。
+    この判定はquote-openチェックより前段に置いてあり、深度>0の間はネストした
+    `${`の再帰的な開始・対応する`}`の終了、および `_PARAM_EXPANSION_BODY_CHAR`
+    （英数字・`_`・パラメータ展開演算子記号）に一致する文字だけを許可し、
+    それ以外（quote・`$(`・backtick・redirect・leaf区切り・空白・裸の`(`など）は
+    その場でNoneにしてfail-closeする——「単純」パラメータ展開の範囲を明確に
+    区切り、深度カウンタが別leafへ跨いで状態を持ち越す余地を作らないため。
+    裸の`{`（`${`以外の文脈）・裸の`}`（深度0での出現）・`(` `)`は従来どおり
+    無条件拒否のままである。ネストした command substitution
+    （`$(...)` ・backtick）は `_PARAM_EXPANSION_BODY_CHAR` に含まれないため、
+    深度>0のこのブロック自身が拒否する（既存の独立したcommand substitution
+    検出はquote-openより後段にあり、深度>0の間はこのブロックが先に評価されて
+    fail-closeするので出番がない）。
     """
     commands: list[str] = []
     quote: str | None = None
@@ -454,6 +480,7 @@ def _split_shell_commands(command: str) -> list[str] | None:
     kept: list[str] = []
     leaf_start = 0
     word_start = 0
+    param_depth = 0
     index = 0
     while index < len(command):
         character = command[index]
@@ -492,6 +519,30 @@ def _split_shell_commands(command: str) -> list[str] | None:
             kept.append(character)
             index += 1
             continue
+        if character == "$" and command[index:index + 2] == "${":
+            param_depth += 1
+            if not head_word_checked:
+                head_word.append(character)
+                head_word.append("{")
+            kept.append(character)
+            kept.append("{")
+            index += 2
+            continue
+        if param_depth > 0:
+            if character == "}":
+                param_depth -= 1
+                if not head_word_checked:
+                    head_word.append(character)
+                kept.append(character)
+                index += 1
+                continue
+            if _PARAM_EXPANSION_BODY_CHAR.fullmatch(character):
+                if not head_word_checked:
+                    head_word.append(character)
+                kept.append(character)
+                index += 1
+                continue
+            return None
         if character in {"'", '"'}:
             if not head_word_checked:
                 head_word_quoted = True
@@ -550,7 +601,7 @@ def _split_shell_commands(command: str) -> list[str] | None:
             head_word.append(character)
         kept.append(character)
         index += 1
-    if quote is not None or escaped:
+    if quote is not None or escaped or param_depth != 0:
         return None
     if (
         not head_word_checked

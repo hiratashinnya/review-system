@@ -1,6 +1,6 @@
 {
   "schema_version": "pr-merge-classifier-shell-corpus/1",
-  "classifier_version": "1.15",
+  "classifier_version": "1.16",
   "cases": [
     {
       "id": "safe-gh-prefix-then-merge",
@@ -1025,6 +1025,61 @@
     {
       "id": "unquoted-herestring-still-closed",
       "command": "python3 -m json.tool <<< '{}'",
+      "expected": "error"
+    },
+    {
+      "id": "safe-simple-parameter-expansion-argument",
+      "command": "echo ${VALUE}",
+      "expected": "none"
+    },
+    {
+      "id": "safe-nested-parameter-expansion-argument",
+      "command": "echo ${VALUE:-${OTHER}}",
+      "expected": "none"
+    },
+    {
+      "id": "safe-parameter-expansion-then-nonmerge",
+      "command": "echo ${VALUE}; echo done",
+      "expected": "none"
+    },
+    {
+      "id": "bare-brace-expansion-still-closed",
+      "command": "echo {VALUE}",
+      "expected": "error"
+    },
+    {
+      "id": "unclosed-parameter-expansion-still-closed",
+      "command": "echo ${VALUE",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-with-command-substitution-still-closed",
+      "command": "echo ${VALUE:-$(pwd)}",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-with-backtick-still-closed",
+      "command": "echo ${VALUE:-`pwd`}",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-with-quote-still-closed",
+      "command": "echo ${VALUE:-'default'}",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-with-space-still-closed",
+      "command": "echo ${VALUE:-default value}",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-leaf-then-merge-still-closed",
+      "command": "echo ${DUMMY}; gh pr merge 1 --squash",
+      "expected": "error"
+    },
+    {
+      "id": "parameter-expansion-executable-position-still-closed",
+      "command": "${GM} merge 1 --squash",
       "expected": "error"
     }
   ]
