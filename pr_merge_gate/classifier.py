@@ -464,9 +464,9 @@ def _split_shell_commands(command: str) -> list[str] | None:
     それ以外（quote・`$(`・backtick・redirect・leaf区切り・空白・裸の`(`など）は
     その場でNoneにしてfail-closeする——「単純」パラメータ展開の範囲を明確に
     区切り、深度カウンタが別leafへ跨いで状態を持ち越す余地を作らないため。
-    ただし直前の文字が`\`でエスケープされた1文字は、この深度追跡ブロックより
+    ただし直前の文字が`\\`でエスケープされた1文字は、この深度追跡ブロックより
     前段にあるescape処理が先に消費するため、`_PARAM_EXPANSION_BODY_CHAR`の
-    判定を経ずに通過する（bashの`\`によるメタ文字無効化と整合するための意図的な
+    判定を経ずに通過する（bashの`\\`によるメタ文字無効化と整合するための意図的な
     挙動でfail-openではない。依存仕様:
     `docs/methods/pr-merge-gate-classifier-policy.md` §3.2/3.3）。
     裸の`{`（`${`以外の文脈）・裸の`}`（深度0での出現）・`(` `)`は従来どおり
