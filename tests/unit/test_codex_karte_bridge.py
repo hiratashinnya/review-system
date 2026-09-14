@@ -3,7 +3,11 @@ from dataclasses import replace
 from datetime import timedelta
 import json
 import os
+from pathlib import Path
+import shutil
 import subprocess
+import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -270,6 +274,42 @@ class KarteBridgeTests(unittest.TestCase):
             with self.assertRaisesRegex(supervisor.CodexSupervisorError, "PROBE_BOUNDARY_MISMATCH"):
                 supervisor._validate_active_boundary_probe(json.dumps(bad), 0,
                     workspace=self.workspace, runtime_home=self.main, diagnosis_only=True)
+
+    @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap required for model-free mount probe")
+    def test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes(self):
+        # Production private /tmp must not hide the fixture itself.
+        self.doCleanups()
+        temporary = tempfile.TemporaryDirectory
+        base = Path(__file__).resolve().parents[2] / "tmp"
+        base.mkdir(exist_ok=True)
+        with mock.patch.object(fixtures.tempfile, "TemporaryDirectory",
+                               side_effect=lambda: temporary(dir=base, prefix="f17-probe-")):
+            self.setUp()
+        command = supervisor.build_codex_command(
+            self.spec, bwrap_executable=shutil.which("bwrap"),
+            codex_executable=self.codex, diagnosis_only=True)
+        script = '''import json, pathlib, sys
+out = {}
+for key, path in zip(("code", "karte", "git", "proposal"), sys.argv[1:]):
+    try:
+        pathlib.Path(path).write_text("probe")
+        out[key] = True
+    except OSError:
+        out[key] = False
+print(json.dumps(out))
+'''
+        probe = [*command[:command.index("--")], "--", sys.executable, "-c", script,
+                 str(self.workspace / "seed.txt"), str(self.central),
+                 str(self.main / ".git" / "probe"), str(self.proposal)]
+        observed = subprocess.run(probe, text=True, capture_output=True, timeout=15)
+        if observed.returncode and any(text in observed.stderr for text in (
+                "Operation not permitted", "No permissions to create", "Permission denied")):
+            self.skipTest("outer namespace unavailable: " + observed.stderr.strip())
+        self.assertEqual(observed.returncode, 0, observed.stderr)
+        self.assertEqual(json.loads(observed.stdout),
+                         {"code": False, "karte": False, "git": False, "proposal": True})
+        self.assertEqual(self.central.read_text(), self.baseline)
+        self.assertEqual((self.workspace / "seed.txt").read_text(), "seed\n")
 
     def test_handoff_diagnosis_substitution_is_rejected(self):
         self.register()
