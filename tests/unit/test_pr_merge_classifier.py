@@ -4,12 +4,28 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from typing import Optional, TypeVar
 
 from pr_merge_gate.classifier import (
     CLASSIFIER_VERSION,
     classify_pre_use,
     repository_from_cwd,
 )
+
+_T = TypeVar("_T")
+
+
+def _non_none(value: Optional[_T]) -> _T:
+    """`classify_pre_use()` の `Optional` 戻り値を非 `None` として絞り込む。
+
+    `unittest.TestCase.assertIsNotNone` は `TypeGuard` を持たず pyright の型絞り込みに
+    効かない（Issue #510）。本ヘルパーは通常の `assert` で None を排除し、戻り値の型注釈
+    （`Optional` を含まない `_T`）によって呼び出し側の型を絞り込む。既存の
+    `assertIsNotNone`/`assertIsNone` 呼び出しは弱めず維持し、本ヘルパーは型絞り込み専用の
+    追加ステップとして使う。
+    """
+    assert value is not None
+    return value
 
 
 def bash(command, cwd=None):
@@ -52,7 +68,7 @@ class PreUseClassifierTests(unittest.TestCase):
                     self.assertNotIn("payload", probe)
                     self.assertFalse(expected["audit_expected"])
                     continue
-                classified = classify_pre_use(probe["payload"])
+                classified = _non_none(classify_pre_use(probe["payload"]))
                 self.assertEqual(
                     (classified.kind, classified.reason),
                     (
@@ -68,7 +84,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command, transport in cases:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(classified.kind, "merge")
                 self.assertEqual(classified.operation.repository, "example/repo")
                 self.assertEqual(classified.operation.pr_number, 12)
@@ -82,7 +98,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command, kind, reason in cases:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual((classified.kind, classified.reason), (kind, reason))
 
     def test_token_normalization_closes_quote_escape_and_endpoint_bypasses(self):
@@ -93,7 +109,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command in cases:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(classified.kind, "merge")
 
     def test_unknown_alias_wrapper_and_merge_like_extension_fail_close(self):
@@ -104,7 +120,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command in cases:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(
                     (classified.kind, classified.reason),
                     ("error", "CLASSIFIER_UNKNOWN"),
@@ -126,7 +142,7 @@ class PreUseClassifierTests(unittest.TestCase):
             "function g(){ gh pr \"$@\"; }; g merge 12 --squash",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(
                     (classified.kind, classified.reason),
                     ("error", "CLASSIFIER_UNKNOWN"),
@@ -155,7 +171,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command in unsafe:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
@@ -356,6 +372,7 @@ class PreUseClassifierTests(unittest.TestCase):
                     self.assertIsNone(classified)
                 else:
                     self.assertIsNotNone(classified)
+                    classified = _non_none(classified)
                     self.assertEqual(
                         (classified.kind, classified.reason),
                         ("error", "CLASSIFIER_UNKNOWN"),
@@ -370,8 +387,8 @@ class PreUseClassifierTests(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertIsNone(classify_pre_use(bash(command)))
-        self.assertEqual(classify_pre_use(bash("gh alias exec land")).kind, "error")
-        self.assertEqual(classify_pre_use(bash("gh extension exec land")).kind, "error")
+        self.assertEqual(_non_none(classify_pre_use(bash("gh alias exec land"))).kind, "error")
+        self.assertEqual(_non_none(classify_pre_use(bash("gh extension exec land"))).kind, "error")
 
     def test_graphql_inline_file_and_indirection_bypass_corpus_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -392,7 +409,7 @@ class PreUseClassifierTests(unittest.TestCase):
             )
             for command in cases:
                 with self.subTest(command=command):
-                    classified = classify_pre_use(bash(command, root), cwd=root)
+                    classified = _non_none(classify_pre_use(bash(command, root), cwd=root))
                     self.assertEqual(classified.kind, "error")
                     self.assertEqual(classified.reason, "CLASSIFIER_UNKNOWN")
 
@@ -400,22 +417,28 @@ class PreUseClassifierTests(unittest.TestCase):
                 "mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }",
                 encoding="utf-8",
             )
-            auto = classify_pre_use(
-                bash("gh api graphql -F query=@auto.graphql", root), cwd=root
+            auto = _non_none(
+                classify_pre_use(
+                    bash("gh api graphql -F query=@auto.graphql", root), cwd=root
+                )
             )
             self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
 
     def test_quoted_shell_punctuation_does_not_create_a_false_bypass(self):
-        classified = classify_pre_use(
-            bash('gh -R example/repo pr merge 12 --squash --body "text; still one arg"')
+        classified = _non_none(
+            classify_pre_use(
+                bash('gh -R example/repo pr merge 12 --squash --body "text; still one arg"')
+            )
         )
         self.assertEqual(classified.kind, "merge")
 
     def test_rest_merge_endpoint_and_connector_are_bound(self):
-        rest = classify_pre_use(
-            bash(
-                "gh api -X PUT repos/example/repo/pulls/12/merge "
-                "-f merge_method=squash -f sha=" + "b" * 40
+        rest = _non_none(
+            classify_pre_use(
+                bash(
+                    "gh api -X PUT repos/example/repo/pulls/12/merge "
+                    "-f merge_method=squash -f sha=" + "b" * 40
+                )
             )
         )
         self.assertEqual((rest.kind, rest.operation.transport), ("merge", "rest"))
@@ -424,30 +447,36 @@ class PreUseClassifierTests(unittest.TestCase):
             "codex_apps.github.merge_pull_request",
         ):
             with self.subTest(tool_name=tool_name):
-                connector = classify_pre_use(
-                    {
-                        "tool_name": tool_name,
-                        "tool_input": {
-                            "repository_full_name": "example/repo",
-                            "pr_number": 12,
-                            "merge_method": "merge",
-                            "commit_title": "title",
-                            "commit_message": "fixes #7",
-                            "expected_head_sha": "c" * 40,
-                        },
-                    }
+                connector = _non_none(
+                    classify_pre_use(
+                        {
+                            "tool_name": tool_name,
+                            "tool_input": {
+                                "repository_full_name": "example/repo",
+                                "pr_number": 12,
+                                "merge_method": "merge",
+                                "commit_title": "title",
+                                "commit_message": "fixes #7",
+                                "expected_head_sha": "c" * 40,
+                            },
+                        }
+                    )
                 )
                 self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
 
     def test_connector_auto_merge_and_unknown_merge_tool_are_denied(self):
-        auto = classify_pre_use(
-            {
-                "tool_name": "codex_apps.github.enable_auto_merge",
-                "tool_input": {"repository_full_name": "example/repo", "pr_number": 12},
-            }
+        auto = _non_none(
+            classify_pre_use(
+                {
+                    "tool_name": "codex_apps.github.enable_auto_merge",
+                    "tool_input": {"repository_full_name": "example/repo", "pr_number": 12},
+                }
+            )
         )
-        unknown = classify_pre_use(
-            {"tool_name": "mcp__future__merge_pull_request", "tool_input": {}}
+        unknown = _non_none(
+            classify_pre_use(
+                {"tool_name": "mcp__future__merge_pull_request", "tool_input": {}}
+            )
         )
         self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
         self.assertEqual((unknown.kind, unknown.reason), ("error", "CLASSIFIER_UNKNOWN"))
@@ -522,7 +551,7 @@ class PreUseClassifierTests(unittest.TestCase):
         )
         for command in closed:
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
@@ -537,13 +566,15 @@ class PreUseClassifierTests(unittest.TestCase):
             "gh api -X PUT repos/example/repo/pulls/12/merge -f merge_method=squash > out.json",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(classified.kind, "merge")
                 self.assertEqual(classified.operation.repository, "example/repo")
                 self.assertEqual(classified.operation.pr_number, 12)
 
-        auto = classify_pre_use(
-            bash("gh -R example/repo pr merge 12 --squash --auto 2>/dev/null")
+        auto = _non_none(
+            classify_pre_use(
+                bash("gh -R example/repo pr merge 12 --squash --auto 2>/dev/null")
+            )
         )
         self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
 
@@ -568,7 +599,7 @@ class PreUseClassifierTests(unittest.TestCase):
             "exec > file; gh pr merge 1 --squash",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
@@ -629,7 +660,7 @@ class PreUseClassifierTests(unittest.TestCase):
             "exec cd /tmp && git status",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
@@ -666,7 +697,7 @@ class PreUseClassifierTests(unittest.TestCase):
             "echo a << b",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
@@ -701,17 +732,19 @@ class PreUseClassifierTests(unittest.TestCase):
             'gh pr merge 1 --squash --subject "${T}"',
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
                     ("error", "CLASSIFIER_UNKNOWN"),
                 )
         # 対照：literal な title/message は従来どおり merge に束縛される。
-        classified = classify_pre_use(
-            bash(
-                "gh -R example/repo pr merge 1 --squash "
-                '--body "static text" --subject "static title"'
+        classified = _non_none(
+            classify_pre_use(
+                bash(
+                    "gh -R example/repo pr merge 1 --squash "
+                    '--body "static text" --subject "static title"'
+                )
             )
         )
         self.assertEqual(classified.kind, "merge")
@@ -738,7 +771,7 @@ class PreUseClassifierTests(unittest.TestCase):
             "${GM} merge 1 --squash",
         ):
             with self.subTest(command=command):
-                classified = classify_pre_use(bash(command))
+                classified = _non_none(classify_pre_use(bash(command)))
                 self.assertIsNotNone(classified)
                 self.assertEqual(
                     (classified.kind, classified.reason),
