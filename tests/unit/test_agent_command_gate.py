@@ -604,6 +604,37 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
+    def test_pyright_type_checking_is_allowed_but_write_and_watch_flags_are_denied(self):
+        # Issue #510: gated ロールが自分の受入基準（reportOptionalMemberAccess 等）を自分で検証
+        # できるよう、`pyright` を層2 の先頭語ホワイトリストへ追加した。型検査そのもの（診断用の
+        # 多数のフラグ・複数ファイル指定）は allowlist を作らず自由に使わせる一方、書込系フラグ
+        # `--createstub`（stub 生成）と対話系フラグ `-w`/`--watch`（監視モードで終了しない）だけを
+        # 層3（pyright_violation）で狙い撃ちして deny する（`coverage run` 禁止・`karte` の verb 単位
+        # allowlist と同型の絞り方）。issue-implementer/issue-fixer/pr-reviewer のいずれからも同様に
+        # 検証できることを確認する（3ロール共通で層2/3 の判定を通る）。
+        allowed = [
+            "pyright tests/unit/test_pr_merge_classifier.py",
+            "pyright --outputjson tests/unit/test_pr_merge_classifier.py",
+            "pyright --project pyrightconfig.json",
+            "pyright --stats tests/unit/test_pr_merge_classifier.py",
+            "pyright --pythonversion 3.11 tests/unit/test_pr_merge_classifier.py",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in allowed:
+                with self.subTest(role=role, command=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+
+        denied = [
+            "pyright --createstub tests.unit.test_pr_merge_classifier",
+            "pyright --createstub=tests.unit.test_pr_merge_classifier",
+            "pyright -w tests/unit/test_pr_merge_classifier.py",
+            "pyright --watch tests/unit/test_pr_merge_classifier.py",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in denied:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
     # ------------------------------------------------------------------
     # 正当パターン（Issue #227 受け入れ基準2）
     # ------------------------------------------------------------------

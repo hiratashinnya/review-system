@@ -45,12 +45,14 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
+#        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
 #        time_fixture_lint、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
 #        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
 #        coverage/karte と同型でサブコマンドを `check` に絞る（Issue #385・#129 の抜け穴を拡大しない）。
+#        `pyright` は node バイナリの型検査ツールで python モジュールではないため先頭語として追加した
+#        （Issue #510）。層3 でも書込系・対話系フラグだけを狙い撃ちで deny する（後述）。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
 #        gated ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
 #        - 先頭 env 代入（`NAME=value`）・`env` ラッパーは deny（`rtk`/`command`/`builtin`/`exec` の純
@@ -68,6 +70,10 @@
 #          view/diff/checks/comment/review/merge・issue view。**`pr checkout` は Issue #502 で除外**）に
 #          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
+#        - pyright: 型検査そのもの（診断用の多数のフラグ・複数ファイル指定）は自由に使わせた上で、
+#          書込系フラグ `--createstub`（stub ファイルを生成する）と対話系フラグ `-w`/`--watch`
+#          （監視モードで終了しない）だけを denylist で狙い撃ちして拒否する（`coverage run` 禁止・
+#          `karte` の verb 単位 allowlist と同型の絞り方＝Issue #510）。
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
 #        コマンド・config/alias/env 注入による push/merge 迂回（`git send-pack`/`git subtree push`/
 #        `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set` 等）を列挙不要で fail-close 遮断する。
@@ -303,7 +309,10 @@ DANGEROUS_UNQUOTED_CHARS = set("|&;(){}<>$`\n")
 DANGEROUS_DOUBLE_QUOTED_CHARS = set("$`")
 
 # 層2（Issue #227）: 先頭語ホワイトリスト。ここに無い先頭語は一律 deny（列挙不要）。
-ALLOWED_HEAD_COMMANDS = {"git", "gh"}
+# `pyright`（Issue #510）: node バイナリの型検査ツール。gated ロールが自分の受入基準
+# （reportOptionalMemberAccess 等）を自分で検証できるようにするための追加。書込系・対話系
+# フラグは層3 の pyright_violation() で個別に拒否する（下記）。
+ALLOWED_HEAD_COMMANDS = {"git", "gh", "pyright"}
 PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # python は「モジュール実行（-m）で、かつ以下のモジュール」に限る（オーナー確定）。
 # `python3 -c ...`・素の `python3 script.py`・その他のモジュールは deny。
@@ -784,7 +793,7 @@ def head_command_violation(tokens, role):
         )
     return (
         f"`{head}` is not in the allowed command whitelist "
-        f"(git, gh, python3 -m <{'|'.join(sorted(allowed_modules))}>)"
+        f"({', '.join(sorted(ALLOWED_HEAD_COMMANDS))}, python3 -m <{'|'.join(sorted(allowed_modules))}>)"
     )
 
 
@@ -809,6 +818,27 @@ def gitgate_violation(tokens, role):
             f"`gitgate {verb}`".rstrip()
             + f" is not in this role's gitgate verb allowlist ({allowed})"
         )
+    return None
+
+
+# 層3(pyright・Issue #510): 書込系フラグ（stub生成）と対話系フラグ（監視モード・プロセスが
+# 終了しない）だけを denylist で狙い撃ちして拒否する。型検査そのもの（診断用の多数のフラグ・
+# 複数ファイル指定）は allowlist を作らず自由に使わせる（`coverage run` 禁止・`karte` の
+# verb 単位 allowlist と同型の絞り方＝固定した危険操作だけを個別に塞ぐ）。
+PYRIGHT_DENIED_FLAGS = {"--createstub", "-w", "--watch"}
+
+
+def pyright_violation(tokens):
+    """層3(pyright): PYRIGHT_DENIED_FLAGS のいずれかがトークンとして現れれば deny する。
+    `--createstub=foo` のような `=` 連結形も名前部分だけを見て検出する。"""
+    for token in tokens[1:]:
+        name = token.split("=", 1)[0]
+        if name in PYRIGHT_DENIED_FLAGS:
+            denied = ", ".join(sorted(PYRIGHT_DENIED_FLAGS))
+            return (
+                f"`pyright {name}` is not allowed for this role (write/interactive flags "
+                f"<{denied}> are denied; type-checking itself is allowed)"
+            )
     return None
 
 
@@ -896,14 +926,17 @@ def gh_violation(tokens, role):
 
 def role_command_violation(tokens, role):
     """層3: ロール別許可判定。層1・層2 を通過した時点で tokens は「記号を含まない単純な1コマンド」かつ
-    先頭語は git/gh/python -m <module> のいずれか。git は生実行を deny（gitgate ラッパー経由に誘導）、
-    gh はサブコマンド＋フラグ許可リスト、python -m gitgate は verb をロール別集合で判定する。
+    先頭語は git/gh/pyright/python -m <module> のいずれか。git は生実行を deny（gitgate ラッパー経由に
+    誘導）、gh はサブコマンド＋フラグ許可リスト、pyright は書込系・対話系フラグだけを denylist で拒否
+    （Issue #510）、python -m gitgate は verb をロール別集合で判定する。
     その他の python モジュール（unittest 等）は層2 で許可済みでここでは制限しない。"""
     head = tokens[0]
     if head == "git":
         return raw_git_denied_reason(role)
     if head == "gh":
         return gh_violation(tokens, role)
+    if head == "pyright":
+        return pyright_violation(tokens)
     if head in PYTHON_HEAD_COMMANDS and len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] == "gitgate":
         return gitgate_violation(tokens, role)
     return None
@@ -943,8 +976,8 @@ def gate_reason(command_text, role):
         modules = "|".join(sorted(allowed_python_modules(role)))
         return (
             f"agent-command-gate ({role}): {head_violation}. "
-            f"Only git / gh / python3 -m <{modules}> are allowed for this role "
-            "(whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
+            f"Only {' / '.join(sorted(ALLOWED_HEAD_COMMANDS))} / python3 -m <{modules}> are allowed "
+            "for this role (whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
         )
     violation = role_command_violation(tokens, role)
     if violation:
