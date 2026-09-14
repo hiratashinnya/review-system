@@ -292,6 +292,9 @@ def reserve_launch_attempt(
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LEDGER_CORRUPT")
         latest = attempts[-1] if attempts else None
         basis = latest
+        if role == "issue-fixer" and resume_thread is None and entry.get("karte_bridge", {}).get("state") in {
+                "registering", "registered", "closing", "closed"}:
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
             if alive(latest.get("owner_pid"), latest.get("owner_start_token")) \
                     or alive(latest.get("pid"), latest.get("process_start_token")):
@@ -320,8 +323,11 @@ def reserve_launch_attempt(
             )
             if not isinstance(basis, dict) or basis.get("thread_id") != resume_thread:
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
-            if basis.get("state") != "paused_rate_limit":
+            if basis.get("state") not in {"paused_rate_limit", "paused_karte_registered"}:
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
+            if basis.get("state") == "paused_karte_registered":
+                from .codex_karte_bridge import verify_registered
+                verify_registered(entry)
         attempts.append({
             "at": at, "attempt_id": attempt_id, "state": "reserved",
             "lease_expires_at": lease, "resume_thread": resume_thread,
@@ -420,7 +426,8 @@ def reserve_canonical_launch_attempt(
             event for event in reversed(attempts)
             if isinstance(event, dict) and event.get("attempt_id") not in expired_ids
         ), None)
-        paused = basis if isinstance(basis, dict) and basis.get("state") == "paused_rate_limit" else None
+        paused = basis if isinstance(basis, dict) and basis.get("state") in {
+            "paused_rate_limit", "paused_karte_registered"} else None
         if mode == "run" and paused is not None:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if mode == "resume":
@@ -428,6 +435,9 @@ def reserve_canonical_launch_attempt(
                     or paused.get("thread_id") != entry.get("agent_id"):
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
             resume_thread = entry["agent_id"]
+            if paused.get("state") == "paused_karte_registered":
+                from .codex_karte_bridge import verify_registered
+                verify_registered(entry)
         else:
             if isinstance(basis, dict) and basis.get("state") == "succeeded":
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RUN_STATE_INVALID")

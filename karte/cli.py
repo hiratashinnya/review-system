@@ -123,6 +123,9 @@ def _fail_close(func):
     @functools.wraps(func)
     def wrapper(args) -> int:
         try:
+            if func.__name__ in {"cmd_ingest_review", "cmd_append", "cmd_close_attempt"}:
+                with paths.writer_lock(_repo_root(args)):
+                    return func(args)
             return func(args)
         except KarteNotFound as exc:
             print(f"未検出: {exc}", file=sys.stderr)

@@ -33,6 +33,7 @@ from typing import Any, Callable, Collection, Mapping, Protocol, Sequence, TextI
 
 from . import codex_supervisor_workspace as supervisor_workspace
 from . import codex_launch_intent
+from . import codex_karte_bridge as karte_bridge
 from . import worktree_ledger
 
 
@@ -189,6 +190,7 @@ class SupervisorSpec:
     model: str = MODEL
     reasoning_effort: str = REASONING_EFFORT
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+    finding_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1391,6 +1393,8 @@ targets = {
     "host_auth": payload["host_auth"],
     "install": payload["install"],
 }
+if "proposal" in payload:
+    targets["proposal"] = payload["proposal"]
 out = {key: triple(path) for key, path in targets.items()}
 unix_address = payload["unix_path"]
 if unix_address.startswith("@"):
@@ -1428,12 +1432,15 @@ def _build_active_boundary_probe_command(
         raise CodexSupervisorError("CODEX_SUPERVISOR_CONFIG_INVALID") from exc
     python = _require_executable(python_executable, "CODEX_SUPERVISOR_PYTHON_UNAVAILABLE")
     outer = list(command[:separator])
-    payload = json.dumps({
+    payload_values = {
         "workspace": str(workspace), "runtime": str(runtime_home),
         "runtime_auth": str(runtime_home / "auth.json"),
         "host_auth": str(host_auth), "install": str(install_probe or codex),
         "tcp_port": tcp_port, "unix_path": str(unix_path),
-    }, sort_keys=True)
+    }
+    if "CODEX_ISSUE_DIAGNOSIS_DIR" in command:
+        payload_values["proposal"] = _command_setenv(command, "CODEX_ISSUE_DIAGNOSIS_DIR")
+    payload = json.dumps(payload_values, sort_keys=True)
     inner = (
         # 0.153.4 rejects --strict-config for the sandbox subcommand; the
         # supervisor's static validator provides the strict fail-closed check
@@ -1447,6 +1454,7 @@ def _build_active_boundary_probe_command(
 
 def _validate_active_boundary_probe(
     stdout: str, exit_code: int, *, workspace: Path, runtime_home: Path,
+    diagnosis_only: bool = False,
 ) -> dict[str, Any]:
     """Validate every required result; a skipped/missing probe is never a pass."""
 
@@ -1470,6 +1478,9 @@ def _validate_active_boundary_probe(
         "inherited_fds": [],
         "proc": {"self_status": True, "pid1": True},
     }
+    if diagnosis_only:
+        expected["workspace"]["write"] = False
+        expected["proposal"] = {"read": True, "write": True, "exec": True}
     if observed != expected:
         raise CodexSupervisorError(
             "CODEX_SUPERVISOR_PROBE_BOUNDARY_MISMATCH",
@@ -1531,6 +1542,7 @@ def _run_active_boundary_probe(
         result = _validate_active_boundary_probe(
             getattr(completed, "stdout", ""), getattr(completed, "returncode", 1),
             workspace=workspace, runtime_home=runtime_home,
+            diagnosis_only="CODEX_ISSUE_DIAGNOSIS_DIR" in command,
         )
         requests = {"tcp": 0, "unix": 0}
         for key, listener in (("tcp", tcp_listener), ("unix", unix_listener)):
@@ -1741,6 +1753,7 @@ def build_codex_command(
     codex_executable: Path | str,
     resume_thread: str | None = None,
     attempt_id: str = "0" * 32,
+    diagnosis_only: bool = False,
 ) -> tuple[str, ...]:
     """外側 bubblewrap と permission-profile inner Codex の二段 commandを組み立てる。"""
 
@@ -1764,6 +1777,14 @@ def build_codex_command(
         "--ro-bind", codex_source, codex,
     ) if native_elf else ()
     protected: list[str] = []
+    diagnosis_mount: list[str] = []
+    if diagnosis_only:
+        if spec.role != "issue-fixer":
+            raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID")
+        proposal_directory = karte_bridge.proposal_path(spec).parent
+        proposal_directory.mkdir(parents=True, exist_ok=True)
+        diagnosis_mount = ["--bind", str(proposal_directory), str(proposal_directory),
+                           "--setenv", "CODEX_ISSUE_DIAGNOSIS_DIR", str(proposal_directory)]
     protected_paths = [workspace / relative for relative in _PROTECTED_ROOTS]
     protected_paths.append(workspace / ".ai" / "agents" / f"{spec.role}.md")
     for target in protected_paths:
@@ -1843,10 +1864,11 @@ def build_codex_command(
         bwrap, "--die-with-parent", "--new-session", "--unshare-pid",
         "--ro-bind", "/", "/", "--dev", "/dev", "--remount-ro", "/dev",
         "--proc", "/proc",
-        "--bind", str(workspace), str(workspace),
+        "--ro-bind" if diagnosis_only else "--bind", str(workspace), str(workspace),
         "--bind", str(runtime.root), str(runtime.root),
         *codex_alias_bind,
-        *protected, "--tmpfs", "/tmp", "--clearenv", "--setenv", "HOME", str(runtime.root),
+        *protected, "--tmpfs", "/tmp", "--clearenv", *diagnosis_mount,
+        "--setenv", "HOME", str(runtime.root),
         "--setenv", "TMPDIR", "/tmp",
         "--setenv", "PATH", launch_path,
         "--setenv", "CODEX_HOME", str(runtime.root),
@@ -2091,6 +2113,10 @@ def _validate_handoff(
     _validate_pre_publish_result(spec.role, document["result"])
     if spec.role == "issue-fixer":
         result = document["result"]
+        try:
+            karte_bridge.verify_registered(entry, result=result)
+        except karte_bridge.KarteBridgeError as exc:
+            raise CodexSupervisorError(exc.reason) from exc
         url_pattern = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
         if result["round"] != entry.get("round") or re.fullmatch(
             url_pattern, result["pr_url"]
@@ -2259,10 +2285,23 @@ def run_supervised(
     except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
     credential_runtime: Path | None = None
+    diagnosis_mode = False
     try:
+        if spec.role == "issue-fixer":
+            record = entry.get("karte_bridge")
+            diagnosis_mode = record is None or record.get("state") == "diagnosing"
+            if diagnosis_mode:
+                record = karte_bridge.prepare_diagnosis(
+                    spec, git_snapshot=_publish_git_snapshot(spec.workspace))
+            else:
+                record = karte_bridge.verify_registered(entry)
+                if resume_thread != record["thread_id"]:
+                    raise CodexSupervisorError("CODEX_SUPERVISOR_KARTE_THREAD_MISMATCH")
+            prompt += karte_bridge.diagnosis_prompt(spec, record)
         command = build_codex_command(
             spec, bwrap_executable=bwrap_executable, codex_executable=codex_executable,
             resume_thread=resume_thread, attempt_id=attempt_id,
+            diagnosis_only=diagnosis_mode,
         )
         try:
             _codex, _config_values, runtime_home = _inner_config_values(command)
@@ -2331,6 +2370,7 @@ def run_supervised(
     observer = CodexJsonlObserver(started)
     boundary_evidence: Mapping[str, Any] | None = None
     pending_error: BaseException | None = None
+    diagnosis_ready = False
     try:
         checker = compatibility_checker or validate_cli_compatibility
         boundary_evidence = checker(command)
@@ -2372,6 +2412,14 @@ def run_supervised(
                 state, observer.thread_id or "", observer.terminal_event, process,
                 resume_available=True,
             )
+        if diagnosis_mode:
+            _record_attempt(spec, attempt_id=attempt_id, now=now,
+                            state="diagnosis_ready", evidence=evidence)
+            diagnosis_ready = True
+            karte_bridge.register_diagnosis(spec, git_snapshot=_publish_git_snapshot(spec.workspace))
+            return SupervisedResult("paused_karte_registered", observer.thread_id or "",
+                                    observer.terminal_event, process, resume_available=True)
+        _root, entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
         _validate_handoff(spec, entry)
         _record_attempt(spec, attempt_id=attempt_id, now=now, state=state, evidence=evidence)
         return SupervisedResult(state, observer.thread_id or "", observer.terminal_event, process)
@@ -2381,10 +2429,11 @@ def run_supervised(
         failure_evidence: dict[str, Any] = {"thread_id": bound_thread, "reason": reason}
         if reason == "CODEX_SUPERVISOR_PROBE_NOT_TESTED":
             failure_evidence["security_completion"] = "NOT_TESTED"
-        _record_attempt(
-            spec, attempt_id=attempt_id, now=now, state="failed",
-            evidence=failure_evidence,
-        )
+        if not diagnosis_ready:
+            _record_attempt(
+                spec, attempt_id=attempt_id, now=now, state="failed",
+                evidence=failure_evidence,
+            )
         raise
     finally:
         if credential_runtime is not None:
@@ -2418,7 +2467,7 @@ def publish_allowlist(role: str) -> tuple[str, ...]:
             "gitgate.push", "gh.pr.create",
         )
     if role == "issue-fixer":
-        return ("protected_patch.apply", "gitgate.add", "gitgate.commit", "gitgate.push")
+        return ("protected_patch.apply", "gitgate.add", "gitgate.commit", "gitgate.push", "karte.close-attempt")
     raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_INVALID", role)
 
 
@@ -2436,6 +2485,8 @@ def _publish_sequence(role: str, handoff: Mapping[str, Any]) -> tuple[str, ...]:
     tail = ("gitgate.add", "gitgate.commit", "gitgate.push")
     if role == "issue-implementer":
         tail += ("gh.pr.create",)
+    else:
+        tail += ("karte.close-attempt",)
     return prefix + tail
 
 
@@ -2607,7 +2658,7 @@ def _reserve_publish_action(
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_HANDOFF_MISMATCH")
             effect_observed = _publish_effect_observed(
                 action, active.get("pre_snapshot", {}), snapshot
-            ) or (action == "gh.pr.create" and external_effect is not None)
+            ) or (action in {"gh.pr.create", "karte.close-attempt"} and external_effect is not None)
             if active.get("action") == action and effect_observed:
                 events.append({
                     "at": stamp,
@@ -2844,10 +2895,11 @@ def _completed_final_action_evidence(
         if recorded not in (None, {}) and recorded != external:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_RECOVERY_MISMATCH")
         return completed, external, bound_handoff
-    if action != "gitgate.push" or action_args:
+    if action != "karte.close-attempt" or action_args:
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
     if snapshot.get("upstream_oid") != snapshot.get("head_oid"):
         raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_REMOTE_MISMATCH")
+    karte_bridge.verify_registered(entry, result=bound_handoff["result"], require_closed=True)
     return completed, None, bound_handoff
 
 
@@ -2982,7 +3034,7 @@ def execute_publish_action(
     existing_final = _read_handoff_document(spec)
     if existing_final is not None and existing_final.get("phase") == "final":
         _validate_final_handoff(spec.role, existing_final)
-        expected_action = "gh.pr.create" if spec.role == "issue-implementer" else "gitgate.push"
+        expected_action = "gh.pr.create" if spec.role == "issue-implementer" else "karte.close-attempt"
         expected_url = rf"https://github\.com/{re.escape(entry['repository'])}/pull/[1-9][0-9]*"
         if (
             action != expected_action
@@ -3029,7 +3081,7 @@ def execute_publish_action(
         else []
     )
     if completed_actions == list(sequence):
-        final_action = "gh.pr.create" if spec.role == "issue-implementer" else "gitgate.push"
+        final_action = "gh.pr.create" if spec.role == "issue-implementer" else "karte.close-attempt"
         if (
             action != final_action
             or not publish_events
@@ -3107,6 +3159,10 @@ def execute_publish_action(
         if action_args:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
         command = [sys.executable, "-m", "gitgate", "push"]
+    elif action == "karte.close-attempt":
+        if action_args:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
+        command = None
     else:
         if len(action_args) != 3:
             raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_ARGS_INVALID", action)
@@ -3140,7 +3196,10 @@ def execute_publish_action(
             spec, entry, base=action_args[2], head_oid=snapshot_before["head_oid"], runner=runner
         )
     recovery_final_handoff_sha256: str | None = None
-    if spec.role == "issue-fixer" and action == "gitgate.push":
+    if action == "karte.close-attempt":
+        record = karte_bridge.verify_registered(entry, result=handoff["result"])
+        if record["state"] == "closed":
+            external_effect = {"karte_sha256": record["close"]["after_sha256"]}
         recovery_final_handoff_sha256 = _canonical_json_sha256(
             _build_final_handoff(
                 spec, entry, handoff["result"], pr_url=handoff["result"]["pr_url"]
@@ -3182,15 +3241,20 @@ def execute_publish_action(
         elif action == "gitgate.commit":
             if _git_check(spec.workspace, ["diff", "--cached", "--quiet"]).returncode == 0:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_STATE_INVALID", "pre-commit")
-        elif action in {"gitgate.push", "gh.pr.create"}:
+        elif action in {"gitgate.push", "gh.pr.create", "karte.close-attempt"}:
             if _git_check(spec.workspace, ["status", "--porcelain"]).stdout.strip():
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_GIT_STATE_INVALID", "dirty")
-            if action == "gh.pr.create":
+            if action in {"gh.pr.create", "karte.close-attempt"}:
                 upstream = _git_check(spec.workspace, ["rev-parse", "@{upstream}"])
                 if upstream.returncode != 0 or upstream.stdout.strip() != head_before:
                     raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_REMOTE_MISMATCH")
         if recovered:
             pass
+        elif action == "karte.close-attempt":
+            receipt = karte_bridge.close_attempt(
+                spec, result=handoff["result"], head_oid=head_before)
+            completed = subprocess.CompletedProcess(
+                [action], 0, json.dumps({"karte_sha256": receipt["close"]["after_sha256"]}), "")
         elif command is None:
             applied = apply_protected_patch(spec.workspace, patch_operations)
             completed = subprocess.CompletedProcess(
@@ -3235,7 +3299,7 @@ def execute_publish_action(
             if match is None:
                 raise CodexSupervisorError("CODEX_SUPERVISOR_PUBLISH_PR_URL_INVALID")
             pr_url = match.group(0)
-        final_action = (spec.role == "issue-fixer" and action == "gitgate.push") or action == "gh.pr.create"
+        final_action = action in {"karte.close-attempt", "gh.pr.create"}
         post_snapshot = _publish_git_snapshot(spec.workspace)
         final: dict[str, Any] | None = None
         observed_url = ""
@@ -3416,6 +3480,7 @@ def _spec_from_intent(intent: codex_launch_intent.LaunchIntent) -> SupervisorSpe
         issue=intent.issue, round_number=intent.round_number,
         repository=intent.repository, branch_name=intent.branch_name,
         expected_oid=intent.expected_oid, protected_paths=intent.protected_paths,
+        finding_ids=intent.finding_ids,
     )
 
 
@@ -3485,6 +3550,11 @@ def execute_launch_request(
     if not intent.role_contract_digest:
         raise CodexSupervisorError("CODEX_SUPERVISOR_ROLE_CONTRACT_INVALID")
     spec = _spec_from_intent(intent)
+    if spec.role == "issue-fixer" and mode == "resume":
+        _root, previous_entry = supervisor_workspace.one_by_task(spec.repo_root, spec.task_key)
+        previous = previous_entry.get("supervisor_attempts", [])
+        if previous and previous[-1].get("state") == "diagnosis_ready":
+            karte_bridge.register_diagnosis(spec, git_snapshot=_publish_git_snapshot(spec.workspace))
     digest = codex_launch_intent.intent_digest(intent)
     attempt_id = secrets.token_hex(16)
     owner_pid = os.getpid()
@@ -3604,7 +3674,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps({"status": "published", "action": args.action,
                               "stdout": completed.stdout}, sort_keys=True))
             return 0
-    except CodexSupervisorError as exc:
+    except (CodexSupervisorError, karte_bridge.KarteBridgeError) as exc:
         print(json.dumps({"status": "denied", "reason": exc.reason, "detail": exc.detail}))
         return 2
     raise AssertionError(args.command)

@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import os
 import re
+import stat
+import fcntl
+from contextlib import contextmanager
 from pathlib import Path
 
 TMP_DIRNAME = "tmp"
@@ -49,6 +52,22 @@ class KarteMissing(KartePathError):
     落としたい。:class:`KartePathError` の派生なので、ガード違反として一括で捕まえる
     既存の経路（``except KartePathError``）の fail-close はそのまま効く。
     """
+
+
+@contextmanager
+def writer_lock(repo_root):
+    """Serialize CLI mutations and host bridge CAS on one stable lock inode."""
+    directory = karte_dir(repo_root, create=True)
+    fd = os.open(directory / ".writer.lock",
+                 os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise KartePathError("カルテ writer lock は単一の通常ファイルでなければならない")
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 def validate_issue(value) -> int:
