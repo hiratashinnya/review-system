@@ -886,8 +886,9 @@ def _parse_distinct_from(block: Block, issue: int) -> tuple:
 # **理由付きで**登録して抑制する（消さず理由を残す運用）。
 
 # 処置方針（disposition）の語彙。**オーナー専権**の判断であり、レビュー担当も
-# 是正担当も ``harm_detail`` に書いてはならない（書くなら ``expected`` か、
-# 決定後に ``disposition``/``deferred_to``/``waived_reason`` へ）。
+# 是正担当も ``harm_detail`` に書いてはならない（どこで直すべきかという見立ては
+# そもそもどの欄にも書かず、決まったオーナー判断だけが
+# ``disposition``/``deferred_to``/``waived_reason`` に載る）。
 DISPOSITION_TERMS = (
     "対応不要",
     "処置不要",
@@ -953,9 +954,10 @@ def check_harm_detail(harm_detail: str, *, issue: int, block: Block) -> str:
         raise KarteFormatError(
             f"{block.lineno} 行目 '{block.title}': harm_detail に処置方針・判断経緯の語彙が"
             f"含まれる: {hits}。harm_detail には**放置時の実害**だけを書く"
-            "（別 Issue にすべき等の見立ては expected へ、決まったオーナー判断は "
-            "disposition/deferred_to/waived_reason へ）。実害の記述としてその語が"
-            "不可避なら karte/allowlist.py へ理由付きで登録する。"
+            "（どこで直すべきかという見立ては書かない。決まったオーナー判断だけが "
+            "disposition/deferred_to/waived_reason に載る）。実害の記述としてその語が"
+            "不可避なら、まず言い換えを試し、それでも残るなら karte/allowlist.py へ"
+            "理由付きで登録する。"
         )
     return harm_detail
 

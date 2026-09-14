@@ -1,10 +1,12 @@
 """``harm_detail`` の内容 lint（Issue #511）の回帰テスト。
 
 対象は ``ingest-review`` の入力パス（:func:`karte.model.parse_review`）と、
-誤検出の抑制経路（:mod:`karte.allowlist`）。
+誤検出の抑制経路（:mod:`karte.allowlist`）、および **CLI 境界**
+（:func:`karte.cli.cmd_ingest_review` の終了コードと台帳の未更新）。
 
 Issue #511 の受け入れ基準に一対一で対応する:
   * 「対応不要の理由」を ``harm_detail`` に書いたレポートが拒否されること。
+  * その拒否が ``ingest-review`` の終了コードとして観測でき、台帳が更新されないこと。
   * 正当な実害記述が拒否されないこと。
   * allowlist 経由の例外登録が機能し、登録には理由の記載が必須であること。
 
@@ -14,7 +16,12 @@ wall clock を一切読まない（語彙一致は純粋関数）ため対象外
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import io
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -24,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from karte import allowlist as karte_allowlist  # noqa: E402
+from karte import cli  # noqa: E402
 from karte import model  # noqa: E402
 
 ISSUE = 511
@@ -219,19 +227,85 @@ class HarmDetailAllowlistTests(unittest.TestCase):
                 self.assertTrue(model.find_harm_detail_terms(entry.harm_detail))
 
 
+class IngestReviewCliTests(unittest.TestCase):
+    """CLI 境界での観測を固定する（レビュー finding F-511-04）。
+
+    受入基準は「``python3 -m karte ingest-review`` で拒否されること」であり、実体は
+    **終了コード**と**台帳が更新されないこと**の 2 つ。:func:`karte.model.parse_review`
+    単体の送出だけを固定していると、書き込み前に必ず parse を通すという現在の
+    呼び出し順が将来入れ替わっても（＝拒否したのに台帳へ書かれても）気づけない。
+    """
+
+    issue = ISSUE
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="karte-511-")).resolve()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        (self.root / "tmp").mkdir()
+
+    def _ingest(self, round_no: int, body: str):
+        source = self.root / "tmp" / f"review-{round_no}.md"
+        source.write_text(body, encoding="utf-8")
+        args = argparse.Namespace(
+            issue=str(self.issue),
+            repo_root=str(self.root),
+            round=str(round_no),
+            source=str(source),
+        )
+        out, errors = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(errors):
+            code = cli.cmd_ingest_review(args)
+        return code, out.getvalue(), errors.getvalue()
+
+    def _karte_text(self) -> str:
+        path = self.root / "tmp" / "_karte" / f"issue-{self.issue}.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def test_violating_report_fails_the_cli_and_leaves_the_karte_untouched(self):
+        code, _, errors = self._ingest(1, review_report(VALID_HARM_DETAIL))
+        self.assertEqual(code, cli.EXIT_OK, errors)
+        before = self._karte_text()
+        self.assertIn(f"F-{ISSUE}-01", before)
+
+        code, _, errors = self._ingest(
+            2, review_report(REAL_DISPOSITION_LEAK, title=f"F-{ISSUE}-01")
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn("harm_detail", errors)
+        self.assertEqual(self._karte_text(), before)
+
+
 class ContractSyncTests(unittest.TestCase):
-    """契約（`.ai/agents/pr-reviewer.md`）側の是正が残っていることの回帰。"""
+    """契約（`.ai/agents/*.md`）側の是正が残っていることの回帰。"""
 
     CONTRACT = REPO_ROOT / ".ai" / "agents" / "pr-reviewer.md"
+    HANDOFF_ROLES = (
+        REPO_ROOT / ".ai" / "agents" / "issue-implementer.md",
+        REPO_ROOT / ".ai" / "agents" / "issue-fixer.md",
+    )
 
     def test_contract_no_longer_tells_reviewer_to_write_disposition_into_harm_detail(self):
         text = self.CONTRACT.read_text(encoding="utf-8")
         self.assertNotIn("harm_detail と expected に書いて", text)
 
-    def test_contract_states_the_division_between_harm_detail_and_expected(self):
+    def test_contract_does_not_relocate_the_verdict_into_expected(self):
+        """見立ての置き場を expected へ付け替えていない（F-511-02）。"""
         text = self.CONTRACT.read_text(encoding="utf-8")
-        self.assertIn("harm_detail と expected の分担", text)
-        self.assertIn("karte ingest-review", text)
+        self.assertNotIn("見立ては expected", text)
+        self.assertIn("見立てはどの欄にも書かない", text)
+
+    def test_contract_limits_harm_detail_to_observable_harm(self):
+        text = self.CONTRACT.read_text(encoding="utf-8")
+        self.assertIn("harm_detail に書くのは実害だけ", text)
+        self.assertIn("karte/allowlist.py", text)
+
+    def test_handoff_roles_carry_the_same_harm_detail_constraint(self):
+        """``out_of_scope_findings`` の生産者にも同じ内容制約がある（F-511-03）。"""
+        for path in self.HANDOFF_ROLES:
+            with self.subTest(role=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("放置したときに何が壊れるかという観測可能な実害だけ", text)
+                self.assertIn("処置方針・判断経緯は書かない", text)
 
 
 if __name__ == "__main__":
