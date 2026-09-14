@@ -6,8 +6,8 @@ verb の一覧・追記規律・改ざん防止の仕組みは `karte/cli.py` �
 docstring を正本とする。本 README は `close-attempt` の**既定値の解決規則**（Issue #378 AC
 「既定値の解決規則が `--help` および README から読み取れるようにする」）と、
 **`scope` / `disposition` と verdict のゲート**（Issue #495）、**`check` の判定規則と
-`deferred`/`waived` の除外の集約**（Issue #503）、**`change_kind` の語彙**（同 観測2）を
-掃引的に説明する。
+`deferred`/`waived` の除外の集約**（Issue #503）、**`change_kind` の語彙**（同 観測2）、
+**`harm_detail` の内容 lint と allowlist**（Issue #511）を掃引的に説明する。
 
 ## `scope` / `disposition` と `status` の verdict（Issue #495）
 
@@ -231,6 +231,64 @@ python3 -m karte check [--issue <N>] [--round <R>]
 （`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
 `ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` の
 `KARTE_ALLOWED_SUBCOMMANDS`）。
+
+## `harm_detail` の内容 lint（Issue #511）
+
+### なぜ入れたか（混入の実例）
+
+`harm_detail` は **放置したときに何が壊れるか** だけを書く欄である。ところが実運用では
+**処置方針（disposition）と判断経緯**が同じ欄へ書かれ、そのまま台帳へ入った（PR #509 /
+Issue #431 のレビュー。`F-431-07`「…本PRの差分範囲外の既存行における既存パターンで、
+新規追加テストによる新規発生ではない」＝対応不要と判断した理由、`F-431-02`
+「…（オーナー確認済み・…で fix-here）」＝プロセス上の経緯）。
+
+これは書き手の不注意だけが原因ではなく、**契約が誤指示を出し、機械検査がそれを通す**
+という構造に支えられていた——`.ai/agents/pr-reviewer.md` は「処置方針はオーナー専権であり
+書かない」と述べる一方、同じ節で「別 Issue にすべきだと考える場合も…**harm_detail と
+expected に書いて**返す」と指示していた。Issue #511 は契約側（自己矛盾の除去・`expected`
+との分担の明記）と機械側（本 lint）の**両方**を同時に塞ぐ。
+
+### 何を拒否するか
+
+`ingest-review` は `harm_detail` に次の語彙を検出したら、他の検証エラーと同様に
+**レポート全体の取り込みを拒否**し（fail-close）、該当行と検出語を示す。
+
+| 区分 | 語彙（`karte/model.py`） |
+|---|---|
+| 処置方針（`DISPOSITION_TERMS`） | `対応不要` / `処置不要` / `修正不要` / `対応は不要` / `別 Issue` / `別の Issue` / `申し送り` / `繰り越し` / `据え置き` / `次スプリント` / `本 PR で直す` / `fix-here` / `deferred` / `waived` |
+| 判断経緯（`PROCESS_TERMS`） | `オーナー確認済み` / `新規発生ではない` / `差分範囲外` / `スコープ外` |
+
+- 照合は決定論的な部分文字列一致。前処理で ASCII 大小文字を畳み、空白を除去するので
+  「別 Issue」と「別Issue」は同一視される。形態素解析器のような外部依存は持てない
+  （標準ライブラリのみ）。
+- **書き換え先**：別 Issue にすべき等の見立ては `expected` へ。決まったオーナー判断は
+  `disposition` / `deferred_to` / `waived_reason` へ（レビュー担当が書く欄ではない）。
+- **適用範囲は新規の `ingest-review` だけ**。既存カルテを読む側（`karte/model.py` の
+  `parse`）には掛けない——`tmp/` は版管理外だが、進行中の Issue の台帳が読めなくなると
+  是正ループが止まる（`scope` 必須化と同じ移行方針）。
+
+### false positive の抑制（`karte/allowlist.py`）
+
+部分文字列一致である以上、**実害そのものを述べるためにその語を使わざるを得ない**ケースが
+原理的に残る（例：`karte` 自身をレビューしたときの「`deferred` の finding が診断網羅から
+外れない」）。その場合は `karte/allowlist.py` の `ALLOWLIST` へ
+`AllowlistEntry(issue=..., term=..., harm_detail=..., reason=...)` を追加する。
+
+- **`reason` は必須**。空のまま登録すると `ValueError` でモジュールの import 自体が失敗する
+  （理由なき例外登録を作れない）。`time_fixture_lint/allowlist.py`・
+  `asset_parity/exceptions.py` と同じ「消さず理由を残す」運用。
+- 抑制の粒度は **`harm_detail` の全文一致**。語彙単位や Issue 単位で抑制すると
+  「一度例外を認めた語は以後その Issue のあいだ書き放題」になり、lint が塞いだはずの経路が
+  そのまま開く。文面を書き換えたら登録し直す必要がある（＝再承認が要る）ことは、
+  この粒度の意図した性質である。
+- **まず言い換えを試すこと**。allowlist は逃げ道ではなく、言い換え不能を記録する場所。
+
+### 既知の限界（語彙一致の取りこぼし）
+
+決定論的な語彙一致なので、**語彙表に無い言い回しの処置方針は通る**（fail-open 側）。
+本 lint は「観測された混入の型を確実に捕まえる」ことを狙ったもので、処置方針の混入一般を
+機械的に完全排除するものではない。契約（`.ai/agents/pr-reviewer.md`）・レビュー分離と
+併用する（`karte/model.py` の「改ざん防止の…既知の限界」と同じ多層防御の考え方＝Issue #129）。
 
 ## `close-attempt` の既定値解決規則
 

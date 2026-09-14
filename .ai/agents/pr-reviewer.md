@@ -20,7 +20,7 @@
 
 ### F-<issue>-<seq> または new
 harm: real | none
-harm_detail: 放置時の実害を1行
+harm_detail: 放置時の実害を1行（処置方針・判断経緯は書かない）
 severity: blocker | major | minor
 scope: in | out
 locus: file:line または file::symbol（複数なら [a, b]）
@@ -42,9 +42,12 @@ distinct_from: F-<issue>-<seq>（必要な場合だけ）
 - **`scope: out` は実害判定の免除ではない。** スコープの内外は「誰がいつ直すか」の話であり「実害があるか」の話ではない。スコープ外と判断した指摘にも harm を必ず付け、迷ったら real 側に倒す。
 - **scope は申告であって確定ではない。** 主文脈・オーナーがこれを覆せる。自分の scope 判断を根拠に、指摘の記録・実害判定・報告を省略しない。
 - **処置方針（disposition）は書かない。** 当該 PR で直すか、別 Issue へ申し送るか、処置不要とするかはオーナー専権であり、レビュー担当が決めない。実害ありで処置方針が未決定の指摘が残る間、呼び出し元の clean 判定は成立しない。
-- 別 Issue にすべきだと考える場合も、自分で Issue を立てず、finding としてその旨を harm_detail と expected に書いて呼び出し元へ返す。
+- 別 Issue にすべきだと考える場合も、自分で Issue を立てず、finding として呼び出し元へ返す。その見立ては expected（期待する観測可能な状態）にだけ書き、harm_detail には放置時の実害だけを書く。
+- **harm_detail と expected の分担**：harm_detail は「放置すると何が壊れるか」という観測可能な実害だけを書く欄で、「対応不要と判断した理由」「オーナー確認済み」「本 PR の差分範囲外」「新規発生ではない」のような処置方針・判断経緯を書く欄ではない。処置方針に類する見立ては expected 側へ回す。決まったオーナー判断は disposition / deferred_to / waived_reason に記録されるもので、レビュー担当が書く欄ではない。これは呼び出し元の取り込み（`python3 -m karte ingest-review`）が機械的に検査し、処置方針・判断経緯の語彙を harm_detail に検出したらレポート全体の取り込みを拒否する（実害の記述としてその語が不可避な場合は `karte/allowlist.py` への理由付き登録が要るので、まず言い換えを試す）。
 
 過去の失敗（PR #490）：スコープ外事項として finding の外に列挙した指摘が harm を付けられず、記録台帳にも入らず、clean 判定を素通りして merge された。merge 後に実害ありと確定し、別 Issue として流出した。
+
+過去の失敗（PR #509・Issue #431）：harm_detail に「対応不要と判断した理由」「オーナー確認済み」といった処置方針・判断経緯が書かれたまま台帳へ取り込まれ、オーナーの指摘で是正した。本節が「別 Issue にすべきなら harm_detail と expected に書け」と指示して自らの「処置方針は書かない」に反していたことと、取り込み側に内容検査が無かったことの両方が原因で、Issue #511 でそれぞれを塞いだ。
 
 ## Finding ID と出力
 

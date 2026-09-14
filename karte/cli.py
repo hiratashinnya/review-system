@@ -2,7 +2,9 @@
 
 verb:
   ``ingest-review``  レビューレポートを ``## Findings`` へ取り込む（ID 重複・未知 ID・
-                     harm/scope 欄欠落・disposition の不整合・同一指摘への ID 再発番・
+                     harm/scope 欄欠落・**``harm_detail`` への処置方針/経緯の混入**
+                     （Issue #511・:func:`karte.model.check_harm_detail`）・
+                     disposition の不整合・同一指摘への ID 再発番・
                      前ラウンド未解消の不在を検証）。``## Findings`` は**スコープの内外を
                      問わない単一の列**で、``issue-implementer``/``issue-fixer`` の
                      ハンドオフ ``out_of_scope_findings`` も同じ書式へ写してここへ取り込む
