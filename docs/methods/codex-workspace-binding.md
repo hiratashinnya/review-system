@@ -61,8 +61,8 @@ runtime親AIがsupervisorへ渡す値は従来どおりIssue、role、change-pla
 control-plane CLIのworkspace/source/approver/protected pathは発行時だけの入力であり、runtime launchへ転記しない。
 
 attemptはowner PID/start-token、intent digest、leaseを持つ。生存processは時刻だけで奪わない。
-rate limit pauseからのresume threadは親入力を禁止し、ledger lock内のlatest
-`paused_rate_limit` attemptとentry `agent_id`が一致するときだけ自動導出する。run時にpauseが残れば
+rate limitまたは登録済み診断pauseからのresume threadは親入力を禁止し、ledger lock内のlatest
+`paused_rate_limit` / `paused_karte_registered` attemptとentry `agent_id`が一致するときだけ自動導出する。run時にpauseが残れば
 `RESUME_REQUIRED`、resume時のmissing/old/later failure/active/mismatchは拒否する。
 
 Popen直前に同じ4入力からintentを再読し、全field/evidence digest、latest reservation、owner process identity、

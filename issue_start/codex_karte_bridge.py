@@ -56,15 +56,33 @@ def _transaction(spec):
 
 def _read(path: Path) -> str:
     # Files produced by the inner are untrusted, including hardlink aliases.
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    except OSError as exc:
+        raise KarteBridgeError("FILE_INVALID") from exc
     try:
         metadata = os.fstat(fd)
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                or metadata.st_size > 8 * 1024 * 1024):
             raise KarteBridgeError("FILE_INVALID")
         with os.fdopen(fd, "r", encoding="utf-8", closefd=False) as handle:
             return handle.read()
     finally:
         os.close(fd)
+
+
+def _proposal(path: Path) -> dict:
+    def unique(pairs):
+        document = {}
+        for key, value in pairs:
+            if key in document:
+                raise KarteBridgeError("PROPOSAL_MISMATCH")
+            document[key] = value
+        return document
+    try:
+        return json.loads(_read(path), object_pairs_hook=unique)
+    except (ValueError, UnicodeError) as exc:
+        raise KarteBridgeError("PROPOSAL_MISMATCH") from exc
 
 
 def _replace(path: Path, text: str) -> None:
@@ -171,11 +189,12 @@ def register_diagnosis(spec, *, git_snapshot: dict) -> dict:
         if (latest.get("thread_id") != entry.get("agent_id")
                 or latest.get("terminal_event") != "turn.completed" or latest.get("exit_code") != 0):
             raise KarteBridgeError("TERMINAL_MISSING")
-        proposal = json.loads(_read(proposal_path(spec)))
+        proposal = _proposal(proposal_path(spec))
         required = {"schema_version", "phase", "identity", "finding_ids", "karte_sha256",
                     "root_cause", "change_kind", "targets", "diagnosis"}
         if (not isinstance(proposal, dict) or set(proposal) != required
-                or proposal["schema_version"] != 1 or proposal["phase"] != "diagnosis_proposal"
+                or type(proposal["schema_version"]) is not int or proposal["schema_version"] != 1
+                or proposal["phase"] != "diagnosis_proposal"
                 or proposal["identity"] != record["identity"]
                 or proposal["finding_ids"] != record["finding_ids"]
                 or proposal["karte_sha256"] != record["before_sha256"]):
@@ -230,7 +249,7 @@ def verify_registered(entry: dict, *, result: dict | None = None,
         raise KarteBridgeError("NOT_REGISTERED")
     relative = f"tmp/_diagnosis/{entry['task_key']}/proposal.json"
     workspace.assert_no_symlink_components(Path(entry["workspace"]), relative)
-    proposal = json.loads(_read(Path(entry["workspace"]) / relative))
+    proposal = _proposal(Path(entry["workspace"]) / relative)
     if _sha(json.dumps(proposal, sort_keys=True, ensure_ascii=False)) != record["proposal_sha256"]:
         raise KarteBridgeError("PROPOSAL_REPLAY")
     root = paths.main_worktree_root(entry["workspace"])

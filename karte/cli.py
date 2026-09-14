@@ -123,7 +123,7 @@ def _fail_close(func):
     @functools.wraps(func)
     def wrapper(args) -> int:
         try:
-            if func.__name__ in {"cmd_ingest_review", "cmd_append", "cmd_close_attempt"}:
+            if func.__name__ in {"cmd_append", "cmd_close_attempt"}:
                 with paths.writer_lock(_repo_root(args)):
                     return func(args)
             return func(args)
@@ -554,6 +554,13 @@ def cmd_ingest_review(args) -> int:
     issue = _resolve_issue(args)
     round_no = _resolve_ingest_round(args, issue)
     report_text = _read_report(args, repo_root)
+
+    with paths.writer_lock(repo_root):
+        return _ingest_review_locked(args, repo_root, issue, round_no, report_text)
+
+
+def _ingest_review_locked(args, repo_root, issue, round_no, report_text) -> int:
+    """Hold the shared writer lock from the first karte read through replacement."""
 
     path = paths.karte_path(issue, repo_root, create_dir=True)
     karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)

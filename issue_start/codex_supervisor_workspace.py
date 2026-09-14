@@ -477,6 +477,7 @@ def verify_canonical_launch_reservation(
         ledger_lease = worktree_ledger.acquire_ledger_lease(repo_root)
     except worktree_ledger.LedgerError as exc:
         raise SupervisorWorkspaceError(exc.reason, exc.detail) from exc
+    karte_lock = None
     try:
         document = ledger_lease.document
         matches = [item for item in document["entries"]
@@ -505,6 +506,12 @@ def verify_canonical_launch_reservation(
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED") from exc
         if actual_owner_token != owner_start_token:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED")
+        if entry.get("agent_type") == "issue-fixer" and entry.get("karte_bridge", {}).get("state") == "registered":
+            from karte import paths as karte_paths
+            from .codex_karte_bridge import verify_registered
+            karte_lock = karte_paths.writer_lock(repo_root)
+            karte_lock.__enter__()
+            verify_registered(entry)
         facts = inspect_git_facts(workspace)
         if (facts.repository, facts.branch_name, facts.head_oid) != (
             repository, branch_name, expected_oid,
@@ -513,8 +520,11 @@ def verify_canonical_launch_reservation(
         return CanonicalLaunchReservationLease(
             ledger_lease, ledger_entry_id=ledger_entry_id, attempt_id=attempt_id,
             owner_pid=owner_pid, owner_start_token=owner_start_token,
+            karte_lock=karte_lock,
         )
     except BaseException:
+        if karte_lock is not None:
+            karte_lock.__exit__(None, None, None)
         ledger_lease.release()
         raise
 
@@ -524,12 +534,13 @@ class CanonicalLaunchReservationLease:
 
     def __init__(self, ledger_lease: worktree_ledger.LedgerLease, *,
                  ledger_entry_id: str, attempt_id: str, owner_pid: int,
-                 owner_start_token: str) -> None:
+                 owner_start_token: str, karte_lock=None) -> None:
         self._ledger_lease = ledger_lease
         self._ledger_entry_id = ledger_entry_id
         self._attempt_id = attempt_id
         self._owner_pid = owner_pid
         self._owner_start_token = owner_start_token
+        self._karte_lock = karte_lock
 
     @property
     def closed(self) -> bool:
@@ -572,6 +583,9 @@ class CanonicalLaunchReservationLease:
             self.release()
 
     def release(self) -> None:
+        if self._karte_lock is not None:
+            self._karte_lock.__exit__(None, None, None)
+            self._karte_lock = None
         self._ledger_lease.release()
 
 

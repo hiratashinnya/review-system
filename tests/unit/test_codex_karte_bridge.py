@@ -199,7 +199,7 @@ class KarteBridgeTests(unittest.TestCase):
                 repo_root=self.main, workspace=self.workspace, issue=10, round_number=2,
                 repository=self.spec.repository, branch_name=self.spec.branch_name,
                 expected_oid=self.spec.expected_oid, role=self.spec.role, task_key=self.spec.task_key,
-                handoff_path=self.spec.handoff_path, protected_paths=(), attempt_id="fresh",
+                handoff_path=self.spec.handoff_path, protected_paths=self.spec.protected_paths, attempt_id="fresh",
                 resume_thread=None, owner_pid=os.getpid(), owner_start_token="1",
                 now=fixtures.NOW, lease_seconds=60)
         with self.assertRaisesRegex(supervisor.CodexSupervisorError, "RESUME_STATE_INVALID"):
@@ -212,6 +212,64 @@ class KarteBridgeTests(unittest.TestCase):
         self.assertIn(("--ro-bind", str(self.workspace), str(self.workspace)), triplets)
         self.assertIn(("--bind", str(self.proposal.parent), str(self.proposal.parent)), triplets)
         self.assertNotIn(("--bind", str(self.workspace), str(self.workspace)), triplets)
+
+    def test_canonical_resume_consumes_registered_pause_and_rechecks_before_spawn(self):
+        self.register()
+        entry = self.entry()
+        owner = os.getpid()
+        token = supervisor._process_start_token(owner)
+        reserved, thread = workspace.reserve_canonical_launch_attempt(
+            repo_root=self.main, ledger_entry_id=entry["entry_id"], workspace=self.workspace,
+            issue=10, round_number=2, repository=self.spec.repository, branch_name=self.spec.branch_name,
+            expected_oid=self.spec.expected_oid, role=self.spec.role, task_key=self.spec.task_key,
+            handoff_path=self.spec.handoff_path, protected_paths=self.spec.protected_paths,
+            intent_digest="a" * 64, attempt_id="resume-canonical", mode="resume",
+            owner_pid=owner, owner_start_token=token, now=fixtures.NOW, lease_seconds=60)
+        self.assertEqual(thread, "thread-fixer")
+        self.assertEqual(reserved["entry_id"], entry["entry_id"])
+        self.central.write_text(self.central.read_text() + "\n")
+        with self.assertRaisesRegex(bridge.KarteBridgeError, "STALE_DIGEST"):
+            workspace.verify_canonical_launch_reservation(
+                repo_root=self.main, ledger_entry_id=entry["entry_id"], attempt_id="resume-canonical",
+                intent_digest="a" * 64, owner_pid=owner, owner_start_token=token,
+                workspace=self.workspace, repository=self.spec.repository,
+                branch_name=self.spec.branch_name, expected_oid=self.spec.expected_oid)
+
+    def test_malformed_duplicate_key_and_symlink_proposals_are_rejected(self):
+        for content in ("{", '{"schema_version":1,"schema_version":1}', "symlink"):
+            with self.subTest(content=content):
+                if self.entry_exists():
+                    self.doCleanups()
+                    self.setUp()
+                def invalid(command, **kwargs):
+                    output = self.proposal_runner(command, **kwargs)
+                    if content == "symlink":
+                        self.proposal.unlink()
+                        self.proposal.symlink_to(self.central)
+                    else:
+                        self.proposal.write_text(content)
+                    return output
+                with self.assertRaises((bridge.KarteBridgeError, workspace.SupervisorWorkspaceError)):
+                    self.launch(invalid)
+                self.assertEqual(self.central.read_text(), self.baseline)
+
+    def test_active_diagnosis_probe_requires_code_read_only_and_proposal_write(self):
+        observed = {
+            "workspace": {"read": True, "write": False, "exec": True},
+            "proposal": {"read": True, "write": True, "exec": True},
+            **{key: {"read": False, "write": False, "exec": False}
+               for key in ("runtime", "runtime_auth", "host_auth", "install")},
+            "network": {"tcp": False, "unix": False},
+            "environment": {"HOME": None, "CODEX_HOME": None, "TMPDIR": None, "PATH": "/usr/bin:/bin"},
+            "inherited_fds": [], "proc": {"self_status": True, "pid1": True}}
+        supervisor._validate_active_boundary_probe(json.dumps(observed), 0,
+            workspace=self.workspace, runtime_home=self.main, diagnosis_only=True)
+        for key, value in (("workspace", True), ("proposal", False)):
+            bad = json.loads(json.dumps(observed))
+            bad[key]["write"] = value
+            with self.assertRaisesRegex(supervisor.CodexSupervisorError, "PROBE_BOUNDARY_MISMATCH"):
+                supervisor._validate_active_boundary_probe(json.dumps(bad), 0,
+                    workspace=self.workspace, runtime_home=self.main, diagnosis_only=True)
 
     def test_handoff_diagnosis_substitution_is_rejected(self):
         self.register()
