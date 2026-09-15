@@ -92,6 +92,7 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.yaml",
         "prompt_template": (
             "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. "
+            "Host-derived handoff path (write only this exact path): {handoff_path}\n\n"
             "Verified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}"
         ),
     },
@@ -101,7 +102,8 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.yaml",
         "prompt_template": (
             "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan "
-            "{change_plan_id}. Verified Issue and Acceptance Criteria snapshot follows:\n\n"
+            "{change_plan_id}. Host-derived handoff path (write only this exact path): "
+            "{handoff_path}\n\nVerified Issue and Acceptance Criteria snapshot follows:\n\n"
             "{issue_snapshot}\n\nVerified finding karte ({karte_path}) follows:\n\n"
             "{karte_snapshot}"
         ),
@@ -638,13 +640,17 @@ def generate_launch_intent(
         (runtime, "RUNTIME_ROOT_INVALID", PurePosixPath("tmp/_codex_sessions")),
     ):
         _safe_relative(candidate, root=root, reason=reason)
-    prompt = role_config["prompt_template"].format_map(values)
     protected_values = _protected_paths(plan["protected_plan"])
     canonical_protected = canonical_entry.get("protected_plan")
     if (canonical_entry.get("task_key") != task_key
             or canonical_entry.get("handoff_path") != handoff
             or canonical_protected != plan["protected_plan"]):
         _fail("CANONICAL_LEDGER_MISMATCH", "derived launch fields")
+    # The handoff is a host-derived output target. Do not expose it as a
+    # LaunchRequest/CLI input; inject it only after the manifest template and
+    # canonical ledger agree on the exact role-specific path.
+    values["handoff_path"] = handoff
+    prompt = role_config["prompt_template"].format_map(values)
     provenance: dict[str, Mapping[str, Any]] = {
         "issue": {"url": issue_envelope["url"], "sha256": issue_descriptor["sha256"],
                   **issue_descriptor["provenance"]},

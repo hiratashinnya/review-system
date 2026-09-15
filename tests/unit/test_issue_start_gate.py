@@ -192,6 +192,11 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertEqual(intent.runtime_root,
                          "tmp/_codex_sessions/issue_10/runtime-home")
         self.assertIn("Acceptance criteria", intent.prompt)
+        self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+        self.assertIn(
+            f"Host-derived handoff path (write only this exact path): {intent.handoff_path}",
+            intent.prompt,
+        )
         self.assertEqual(intent.source_provenance["issue"]["url"],
                          "https://github.com/example/repo/issues/10")
         self.assertEqual(intent.source_provenance["issue"]["sha256"], digest(ISSUE_SNAPSHOT))
@@ -206,6 +211,11 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertEqual(intent.task_key, "issue_10_fix_r3")
         self.assertEqual(intent.handoff_path,
                          "tmp/_handoff/issue-fixer--issue-10-r3.yaml")
+        self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+        self.assertIn(
+            f"Host-derived handoff path (write only this exact path): {intent.handoff_path}",
+            intent.prompt,
+        )
         self.assertIn("F-10-01", intent.prompt)
         self.assertIn("tmp/_codex_control/sources/karte-10-r3.json", intent.prompt)
         self.assertIn("fix this", intent.prompt)
@@ -294,6 +304,12 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 runtime_root_template="../../escape/{task_key}")),
             ("executables", lambda value: value["executables"]["codex"].update(
                 lookup_name="../codex")),
+            ("legacy handoff template", lambda value: value["roles"][
+                "issue-implementer"].update(
+                    handoff_template="tmp/_handoff/legacy-issue-{issue}.yaml")),
+            ("unknown handoff placeholder", lambda value: value["roles"][
+                "issue-fixer"].update(
+                    prompt_template="write {unknown_handoff_path}")),
         ]
         for label, mutate in mutations:
             manifest = json.loads(json.dumps(self.manifest))
@@ -302,6 +318,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 codex_launch_intent.LaunchIntentError, "MANIFEST_INVALID"
             ):
                 self.generate(self.request(), manifest=manifest)
+
+    def test_handoff_path_is_host_derived_and_not_a_request_input(self):
+        with self.assertRaises(TypeError):
+            codex_launch_intent.LaunchRequest(
+                issue=10, role="issue-implementer", change_plan_id="plan-10",
+                fixer_round=None, handoff_path="tmp/_handoff/attacker.yaml",
+            )
 
     def test_executable_evidence_rejects_foreign_owner_or_writable_by_others(self):
         executable = self.root / "test-codex"

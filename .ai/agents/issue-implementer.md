@@ -13,10 +13,10 @@
 呼び出し元 issue-pipeline 主文脈から次を受け取る。
 
 issue: Issue 番号
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
 ほかタスク固有情報：関連ノード ID・スコープ等
 
-handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めず、呼び出し元の採番をそのまま使う。
+handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めない。Codex supervisor経路では親AI/CLIの自由入力を受けず、manifestのrole別handoff_templateをcanonical ledgerと照合したhost導出値だけがpromptにexact 1回提示される。
 
 書き込み前に次をすべて確認する。1つでも満たさなければ書き込まず STOP する。
 

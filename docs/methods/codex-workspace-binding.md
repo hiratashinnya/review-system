@@ -38,6 +38,11 @@ Claude transportのmarker/isolation契約は変更しない。
 限定する。repository、branch、OID、task key、handoff、finding ID、content digest、model、runtimeは入力させず、
 live Git、manifest、source内容から導出する。承認者と時刻は監査用の運用記録であり、暗号学的な本人証明ではない。
 
+role別の handoff_template はmanifestの正本であり、launch intentはcanonical ledgerの同一role・round・task
+entryと照合してからhandoffを導出する。導出済みのrole別相対pathだけをhost promptへexact 1回注入し、
+LaunchRequestやsupervisor CLIの自由入力、legacy/unknown template、prompt内の任意pathは受け付けず
+fail-closeする。innerは提示された1 pathだけへschema v1 handoffを書き込む。
+
 issuerはworktreeを作成せず、GitHubにも接続しない。worktree登録とsnapshot captureはcallerであるhost運用の
 責務である。capture側はIssueを`github-api`、karteを`karte-cli`で取得・exportした時点のactorとUTC秒を
 snapshot schema v2の`capture`へ記録する。issuerはこの記録を形式・source種別・未来時刻でないことまで検証して

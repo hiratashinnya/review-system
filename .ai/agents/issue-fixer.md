@@ -10,13 +10,13 @@
 
 issue: Issue 番号
 round: 是正ラウンド番号（1 始まり・単調増加）
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
 branch_name: 是正対象 PR のブランチ名
 repository: OWNER/REPO（Step 0 でブランチを取得する際に使う）
 expected_oid: そのブランチの検証済み OID（Step 0 でブランチを取得する際に使う）
 ほか：対象 finding ID の一覧・PR 番号等
 
-handoff_path・branch_name・repository・expected_oid のいずれかが渡されていなければ着手せず STOP して報告する。足りない値と、呼び出し元が渡すべき形を添える。渡された値から別の値を組み立てない。
+handoff_path・branch_name・repository・expected_oid のいずれかが渡されていなければ着手せず STOP して報告する。足りない値と、呼び出し元が渡すべき形を添える。渡された値から別の値を組み立てない。Codex supervisor経路では親AI/CLIの自由入力を受けず、manifestのrole別handoff_templateをcanonical ledgerと照合したhost導出値だけがpromptにexact 1回提示される。
 
 handoff_path は作業ツリールート相対の出力であり、呼び出し元が採番する。カルテには `python3 -m karte render` / `append` / `close-attempt` の各操作でのみ触れ、パスを自分で組み立てない——台帳の所在解決は `--issue`/`--round` の識別子だけで `karte` CLI 側（`main_worktree_root()`）に一本化されており、呼び出し元からパスを渡されることはない。
 
