@@ -222,6 +222,61 @@ class KarteBridgeTests(unittest.TestCase):
                 self.assertEqual(resumed.status, "succeeded")
                 self.assertEqual(len(model.parse(self.central.read_text()).attempts), 1)
 
+    def test_canonical_run_during_diagnosis_is_non_destructive_and_resume_converges(self):
+        """F-452-24: diagnosis_ready/diagnosingもrunを拒否しresumeで収束する。"""
+        # Issuer-created canonical entryは最初のrun前に存在する。期限切れの
+        # seed attemptを置くことで、canonical reserveが新規entryを作らず
+        # 既存entryだけを引き継ぐproduction経路を再現する。
+        workspace.reserve_launch_attempt(
+            repo_root=self.main, workspace=self.workspace, issue=10, round_number=2,
+            repository=self.spec.repository, branch_name=self.spec.branch_name,
+            expected_oid=self.spec.expected_oid, role=self.spec.role,
+            task_key=self.spec.task_key, handoff_path=self.spec.handoff_path,
+            protected_paths=self.spec.protected_paths, attempt_id="issuer-attempt",
+            resume_thread=None, owner_pid=99999999, owner_start_token="1",
+            now=fixtures.NOW - timedelta(seconds=1), lease_seconds=0,
+        )
+        intent = self.canonical_intent()
+
+        def crash_before_register(*args, **kwargs):
+            raise RuntimeError("diagnosis registration crash")
+
+        with mock.patch.object(bridge, "register_diagnosis", side_effect=crash_before_register), \
+                mock.patch.object(
+                    supervisor.codex_launch_intent, "load_launch_intent", return_value=intent,
+                ), mock.patch.object(
+                    supervisor, "validate_pre_spawn_authority", return_value=None,
+                ):
+            with self.assertRaisesRegex(RuntimeError, "diagnosis registration crash"):
+                self.execute_canonical(intent, mode="run", runner=self.proposal_runner)
+
+        entry = self.entry()
+        self.assertEqual(entry["karte_bridge"]["state"], "diagnosing")
+        self.assertEqual(entry["supervisor_attempts"][-1]["state"], "diagnosis_ready")
+        ledger_path = worktree_ledger.ledger_path(self.main)
+        before = ledger_path.read_bytes()
+        runner = mock.Mock()
+        with mock.patch.object(
+            supervisor.codex_launch_intent, "load_launch_intent", return_value=intent,
+        ):
+            with self.assertRaisesRegex(
+                supervisor.CodexSupervisorError, "RESUME_REQUIRED",
+            ):
+                self.execute_canonical(intent, mode="run", runner=runner)
+        self.assertEqual(ledger_path.read_bytes(), before)
+        runner.assert_not_called()
+
+        with mock.patch.object(
+            supervisor.codex_launch_intent, "load_launch_intent", return_value=intent,
+        ), mock.patch.object(
+            supervisor, "validate_pre_spawn_authority", return_value=None,
+        ):
+            resumed = self.execute_canonical(
+                intent, mode="resume", runner=self.fix_runner,
+            )
+        self.assertEqual(resumed.status, "succeeded")
+        self.assertEqual(len(model.parse(self.central.read_text()).attempts), 1)
+
     def test_diagnosis_dirty_tree_never_registers(self):
         def dirty(command, **kwargs):
             value = self.proposal_runner(command, **kwargs)

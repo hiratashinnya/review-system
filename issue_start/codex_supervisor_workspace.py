@@ -409,7 +409,7 @@ def reserve_canonical_launch_attempt(
             role == "issue-fixer"
             and mode == "run"
             and isinstance(bridge_record, dict)
-            and bridge_record.get("state") == "registering"
+            and bridge_record.get("state") in {"diagnosing", "registering"}
             and isinstance(latest, dict)
             and latest.get("state") == "diagnosis_ready"
         ):
