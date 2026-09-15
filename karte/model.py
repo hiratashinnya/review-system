@@ -74,6 +74,14 @@
   ``out_of_scope_findings`` も、同じ書式の finding ブロックへ写して ``ingest-review``
   （実行するのは主文脈）でこの列に取り込む。
 
+``harm_detail`` の内容 lint（Issue #511）:
+  ``harm_detail`` は**放置時の実害だけ**を書く欄で、処置方針（「対応不要」「別 Issue」）や
+  判断経緯（「オーナー確認済み」「新規発生ではない」）を書く欄ではない。
+  :func:`check_harm_detail` が :func:`parse_review`（＝``ingest-review`` の入力）に対して
+  これを機械的に検査し、違反はレポート全体の取り込みごと拒否する（fail-close）。
+  既知の誤検出は :mod:`karte.allowlist` へ**理由付きで**登録して抑制する。
+  **既存カルテを読む :func:`parse` 側には掛けない**（``scope`` 必須化と同じ移行方針）。
+
 値の書式は「1行 1 ``key: value``」のみ（複数行の自由記述は持たない＝決定論パースのため）。
 ``[a, b]`` はリスト、それ以外はスカラ文字列として解釈する。
 
@@ -83,7 +91,8 @@
 Issue #503「提案挙動」（``deferred``/``waived`` の除外を単一の述語
 :attr:`Finding.needs_remediation` へ集約し、verdict・``check``・無進捗検知が共有する）・
 「観測2」（``change_kind`` に文書のみの変更を表す ``doc`` を追加し、既存の ``config`` 記録は
-遡って読み替えない）。
+遡って読み替えない）／Issue #511「提案挙動」（``harm_detail`` に処置方針・経緯の語彙を
+検出したら取り込みごと拒否し、該当行と検出語を示す）。
 """
 
 from __future__ import annotations
@@ -91,6 +100,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+
+from .allowlist import is_allowlisted
 
 FORMAT_VERSION = 1
 
@@ -848,6 +859,109 @@ def _parse_distinct_from(block: Block, issue: int) -> tuple:
     return tuple(ids)
 
 
+# --- harm_detail の内容 lint（Issue #511） -------------------------------------
+#
+# ``harm_detail`` は**放置したときに何が壊れるか**だけを書く欄である
+# （`.ai/agents/pr-reviewer.md` の finding 書式定義）。ところが実運用では
+# **処置方針（disposition）と判断経緯**が同じ欄へ書かれ、そのまま台帳へ入った
+# （Issue #511「実際に発生した混入」＝PR #509 の F-431-07「…本PRの差分範囲外の既存行に
+# おける既存パターンで、新規追加テストによる新規発生ではない」／F-431-02
+# 「…（オーナー確認済み・…で fix-here）」）。
+#
+# これは書き手の不注意だけが原因ではない——**契約が誤指示を出し、機械検査がそれを通す**
+# という構造に支えられていた（`.ai/agents/pr-reviewer.md` が「別 Issue にすべきだと
+# 考える場合も…harm_detail と expected に書いて返す」と指示する一方、同じ節が
+# 「処置方針は書かない。オーナー専権」と述べていた自己矛盾）。契約側は Issue #511 で
+# 是正済みで、本 lint はその機械側の半分である。
+#
+# **なぜ実害があるか**：処置方針が ``harm_detail`` に混ざると、(a) オーナーが決める前に
+# 「対応不要」等の結論が台帳へ既成事実として載り、(b) ``disposition``/``waived_reason``
+# という**そのための欄**が空のまま verdict ゲートを素通りする見かけになり、
+# (c) 後から読む者が「実害」と「処置方針」を区別できなくなる。
+#
+# **判定の性質**：決定論的な部分文字列一致（形態素解析器のような外部依存は持てない
+# ＝標準ライブラリのみの制約）。照合前に ASCII 大小文字を畳み、空白を除去するので
+# 「別 Issue」と「別Issue」は同一視される。取りこぼし（fail-open）はありうるが、
+# 観測された混入の型は確実に捕まえる。誤検出は :mod:`karte.allowlist` へ
+# **理由付きで**登録して抑制する（消さず理由を残す運用）。
+
+# 処置方針（disposition）の語彙。**オーナー専権**の判断であり、レビュー担当も
+# 是正担当も ``harm_detail`` に書いてはならない（どこで直すべきかという見立ては
+# そもそもどの欄にも書かず、決まったオーナー判断だけが
+# ``disposition``/``deferred_to``/``waived_reason`` に載る）。
+DISPOSITION_TERMS = (
+    "対応不要",
+    "処置不要",
+    "修正不要",
+    "対応は不要",
+    "別 Issue",
+    "別の Issue",
+    "申し送り",
+    "繰り越し",
+    "据え置き",
+    "次スプリント",
+    "本 PR で直す",
+    "fix-here",
+    "deferred",
+    "waived",
+)
+# 判断経緯・プロセスの語彙。「なぜそう判断したか」であって「放置すると何が壊れるか」
+# ではない。観測された混入（Issue #511）はすべてこの型だった。
+PROCESS_TERMS = (
+    "オーナー確認済み",
+    "新規発生ではない",
+    "差分範囲外",
+    "スコープ外",
+)
+HARM_DETAIL_FORBIDDEN_TERMS = DISPOSITION_TERMS + PROCESS_TERMS
+
+
+def normalize_for_term_match(value: str) -> str:
+    """語彙照合用の正規化（ASCII 大小文字を畳み、空白をすべて除去する）。
+
+    :func:`normalize_text`（再発番判定用）とは別物で、**記号を落とさない**
+    ——``fix-here`` のハイフンを落とすと ``fix here`` 以外の無関係な並びまで
+    一致しうるため。空白の除去は「別 Issue」「別Issue」の表記ゆれを吸収する。
+    """
+    return "".join(str(value).casefold().split())
+
+
+def find_harm_detail_terms(harm_detail: str) -> list:
+    """``harm_detail`` に含まれる禁止語彙を出現順ではなく定義順で返す（無ければ空）。"""
+    text = normalize_for_term_match(harm_detail)
+    return [
+        term
+        for term in HARM_DETAIL_FORBIDDEN_TERMS
+        if normalize_for_term_match(term) in text
+    ]
+
+
+def check_harm_detail(harm_detail: str, *, issue: int, block: Block) -> str:
+    """``harm_detail`` の内容 lint（fail-close・Issue #511）。
+
+    :data:`HARM_DETAIL_FORBIDDEN_TERMS` のいずれかを含み、かつ
+    :mod:`karte.allowlist` に理由付きで登録されていなければ
+    :class:`KarteFormatError` を送出する。呼び出し元（:func:`parse_review`）が
+    他の検証エラーと同じ列に集約するので、取り込みは**レポート全体**として拒否される
+    （1 件だけ黙って落とすと、指摘が記録されないまま消える）。
+    """
+    hits = [
+        term
+        for term in find_harm_detail_terms(harm_detail)
+        if is_allowlisted(issue, term, harm_detail) is None
+    ]
+    if hits:
+        raise KarteFormatError(
+            f"{block.lineno} 行目 '{block.title}': harm_detail に処置方針・判断経緯の語彙が"
+            f"含まれる: {hits}。harm_detail には**放置時の実害**だけを書く"
+            "（どこで直すべきかという見立ては書かない。決まったオーナー判断だけが "
+            "disposition/deferred_to/waived_reason に載る）。実害の記述としてその語が"
+            "不可避なら、まず言い換えを試し、それでも残るなら karte/allowlist.py へ"
+            "理由付きで登録する。"
+        )
+    return harm_detail
+
+
 @dataclass
 class ReviewFinding:
     """レビューレポート 1 件分（台帳へ取り込む前の素）。"""
@@ -894,6 +1008,12 @@ def parse_review(text: str, issue: int) -> list:
     台帳が持っておらず、2 ラウンド目以降に ``expected``（解消条件）と ``recheck``（再検証手順）を
     復元できなかった。``evidence`` は同レビューの書式 feedback で追加——「そう言える根拠」を
     ``harm_detail``（実害の内容）に混ぜると、再レビュー側が実体確認の有無を検証できない。
+
+    ``harm_detail`` は**非空であることに加えて内容も検査する**（Issue #511・
+    :func:`check_harm_detail`）。処置方針・判断経緯の語彙を含むレポートは取り込みごと
+    拒否する。**この lint は新規の ``ingest-review`` にだけ掛かり**、既存カルテを読む
+    :func:`parse` 側には掛けない（``tmp/`` は版管理外だが、進行中の Issue の台帳が
+    読めなくなると是正ループが止まる——``scope`` 必須化と同じ移行方針）。
 
     ``locus`` は**スカラでもリストでも書ける**（:func:`normalize_locus` が正規化する）。
     同じ欠陥が対称ミラーの複数ファイルに出るときは ``locus: [a, b]`` と書いて **1 指摘のまま**
@@ -946,12 +1066,18 @@ def parse_review(text: str, issue: int) -> list:
             finding_id = block.title
         try:
             disposition = parse_disposition(block)
+            harm = _require_enum(block, "harm", HARM_LEVELS)
+            # ``harm`` の検証を先に済ませてから内容 lint を掛ける（欄の欠落という
+            # より基本的な違反を、内容違反が覆い隠さないようにするため）。
+            harm_detail = check_harm_detail(
+                _require_nonempty(block, "harm_detail"), issue=issue, block=block
+            )
             findings.append(
                 ReviewFinding(
                     title=block.title,
                     finding_id=finding_id,
-                    harm=_require_enum(block, "harm", HARM_LEVELS),
-                    harm_detail=_require_nonempty(block, "harm_detail"),
+                    harm=harm,
+                    harm_detail=harm_detail,
                     severity=_require_enum(block, "severity", SEVERITIES),
                     locus=normalize_locus(block.fields.get("locus", "")),
                     summary=_require_nonempty(block, "summary"),

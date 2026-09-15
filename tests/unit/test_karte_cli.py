@@ -3191,7 +3191,11 @@ class TestHandoffOutOfScopeFindingsAreIngestible(KarteTestCase):
 # どれとも要約・locus が重ならないので、同一台帳に並べても再発番判定に掛からない）。
 SECOND_HARMFUL = {
     "harm": "real",
-    "harm_detail": "期限切れの waiver が素通りして処置不要が無期限に効き続ける",
+    # ``harm_detail`` は放置時の実害だけを書く（Issue #511 の内容 lint）。以前の文面は
+    # 「…処置不要が無期限に効き続ける」で、waiver の意味を説明するために処置方針の語彙
+    # （``処置不要``）を含んでいたため取り込みで拒否されるようになった。実害そのものは
+    # 「失効したはずの免除が効き続ける」ことなので、その語彙を使わずに言い換える。
+    "harm_detail": "期限切れの waiver が素通りし、失効したはずの免除が無期限に効き続ける",
     "severity": "major",
     "scope": "out",
     "evidence": "blocker_gate/waiver.py:301 を読み、上限側の比較が欠けているのを確認",
