@@ -404,6 +404,20 @@ def reserve_canonical_launch_attempt(
         if not isinstance(attempts, list):
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LEDGER_CORRUPT")
         latest = attempts[-1] if attempts else None
+        bridge_record = entry.get("karte_bridge")
+        if (
+            role == "issue-fixer"
+            and mode == "run"
+            and isinstance(bridge_record, dict)
+            and bridge_record.get("state") == "registering"
+            and isinstance(latest, dict)
+            and latest.get("state") == "diagnosis_ready"
+        ):
+            # ``register_diagnosis`` commits its WAL before replacing the
+            # central karte.  A run during that window must leave the
+            # recovery state untouched; the same thread's resume performs
+            # the idempotent registration first.
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
             if alive(latest.get("owner_pid"), latest.get("owner_start_token")) \
                     or alive(latest.get("pid"), latest.get("process_start_token")):

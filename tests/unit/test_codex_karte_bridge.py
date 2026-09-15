@@ -145,6 +145,83 @@ class KarteBridgeTests(unittest.TestCase):
                 bridge.register_diagnosis(self.spec, git_snapshot=supervisor._publish_git_snapshot(self.workspace))
                 self.assertEqual(len(model.parse(self.central.read_text()).attempts), 1)
 
+    def canonical_intent(self):
+        entry = self.entry()
+        return supervisor.codex_launch_intent.LaunchIntent(
+            schema_version="codex-launch-intent/1", issue=10,
+            role="issue-fixer", round_number=2, change_plan_id="plan-10",
+            repository=self.spec.repository, workspace=str(self.workspace),
+            branch_name=self.spec.branch_name, expected_oid=self.spec.expected_oid,
+            task_key=self.spec.task_key, handoff_path=self.spec.handoff_path,
+            model="gpt-5.6-sol", reasoning_effort="xhigh",
+            bwrap_executable=str(self.bwrap), codex_executable=str(self.codex),
+            executable_evidence={"codex": {"path": str(self.codex), "sha256": "a" * 64}},
+            permission_profile="issue-supervised",
+            runtime_root=f"tmp/_codex_sessions/{self.spec.task_key}/runtime-home",
+            protected_paths=self.spec.protected_paths, finding_ids=self.spec.finding_ids,
+            source_provenance={"issue": {"sha256": "b" * 64}}, prompt="fix fixture",
+            ledger_entry_id=entry["entry_id"], plan_digest="c" * 64,
+            manifest_digest="d" * 64, canonical_entry_digest="e" * 64,
+            role_contract_digest="f" * 64,
+        )
+
+    def execute_canonical(self, intent, *, mode, runner):
+        request = supervisor.codex_launch_intent.LaunchRequest(
+            10, "issue-fixer", "plan-10", fixer_round=2,
+        )
+        return supervisor.execute_launch_request(
+            request, mode=mode, now=fixtures.NOW + timedelta(seconds=2),
+            runner=runner, compatibility_checker=lambda _command: {},
+            broker_checker=lambda _command: None,
+        )
+
+    def test_canonical_run_during_registration_is_non_destructive_and_resume_converges(self):
+        """F-452-23: runは登録復旧を汚さず、同一thread resumeで1 Attemptに収束する。"""
+        original = bridge._replace
+        for point in ("before", "after"):
+            with self.subTest(point=point):
+                if point == "after":
+                    self.doCleanups()
+                    self.setUp()
+
+                def crash(path, text):
+                    if point == "after":
+                        original(path, text)
+                    raise RuntimeError("registration crash")
+
+                with mock.patch.object(bridge, "_replace", side_effect=crash):
+                    with self.assertRaisesRegex(RuntimeError, "registration crash"):
+                        self.launch()
+                self.assertEqual(self.entry()["karte_bridge"]["state"], "registering")
+                self.assertEqual(self.entry()["supervisor_attempts"][-1]["state"],
+                                 "diagnosis_ready")
+                intent = self.canonical_intent()
+                before = json.dumps(worktree_ledger.read_ledger(self.main), sort_keys=True)
+                runner = mock.Mock()
+                with mock.patch.object(
+                    supervisor.codex_launch_intent, "load_launch_intent", return_value=intent,
+                ):
+                    with self.assertRaisesRegex(
+                        supervisor.CodexSupervisorError, "RESUME_REQUIRED",
+                    ):
+                        self.execute_canonical(intent, mode="run", runner=runner)
+                self.assertEqual(
+                    before,
+                    json.dumps(worktree_ledger.read_ledger(self.main), sort_keys=True),
+                )
+                runner.assert_not_called()
+
+                with mock.patch.object(
+                    supervisor.codex_launch_intent, "load_launch_intent", return_value=intent,
+                ), mock.patch.object(
+                    supervisor, "validate_pre_spawn_authority", return_value=None,
+                ):
+                    resumed = self.execute_canonical(
+                        intent, mode="resume", runner=self.fix_runner,
+                    )
+                self.assertEqual(resumed.status, "succeeded")
+                self.assertEqual(len(model.parse(self.central.read_text()).attempts), 1)
+
     def test_diagnosis_dirty_tree_never_registers(self):
         def dirty(command, **kwargs):
             value = self.proposal_runner(command, **kwargs)
