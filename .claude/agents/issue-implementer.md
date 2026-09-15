@@ -1,7 +1,7 @@
 ---
 name: issue-implementer
 description: Implements a GitHub Issue end-to-end in an isolated worktree — branch, code/node changes, tests, commit, push, and PR open with explicit AI-attribution. Use for the FIRST implementation phase of the implement→review→merge issue pipeline. NOT for remediation rounds after a review (use issue-fixer, which must diagnose into the karte before editing), NOT for reviewing a PR (use pr-reviewer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push + open PR, then stop and report).
-tools: Task, Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
+tools: Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 ---
 
@@ -11,7 +11,7 @@ model: sonnet
 
 ## Claude Code 固有の設定・起動ゲート
 
-- frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Task` は corpus ノード委譲、`Write` / `Edit` は実装とハンドオフ、その他は調査・検証に使う。
+- frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は実装とハンドオフ、その他は調査・検証に使う。**`Task` は保有しない**（Issue #517・構造的 fail-close の第一層）——本ロールが `Task` でゲート対象外のサブエージェント（`general-purpose` 等）を spawn し、`agent-command-gate.sh` の allowlist を迂回できた経路を閉じるため。corpus ノードを要する変更に当たったら、直接編集も委譲もせず STOP して主文脈へ報告する（委譲経路 `*-author`→`reconciliation-validator`→`reconciliation` の実行は主文脈が担う）。
 - 呼び出し元の `Task` / `Agent` dispatch は `.claude/hooks/issue-start-gate.sh` の `ISSUE_START_BINDING_V1` marker 検査を通過しなければ起動しない。markerは呼び出し元が渡し、本ロールが推測・補完しない。
 - dispatch には `isolation: "worktree"` が必須で、同じ起動ゲートが欠落を拒否する。分離されていても、共通本文のhandoff_path安全検査、`branch-current`確認、書けた絶対パスの返却を省略しない。
 

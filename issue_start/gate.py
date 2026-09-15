@@ -40,6 +40,17 @@ ENTRYPOINT_MANIFEST = Path(__file__).with_name("managed-entrypoints-v2.json")
 # （blocker 判定は初回実装の dispatch で済んでいる＝`_ISOLATION_ONLY_FIELDS` の docstring 参照）。
 FIX_BINDING_MARKER = "ISSUE_FIX_BINDING_V1="
 
+# Issue #517: `issue-implementer`/`issue-fixer` は frontmatter の `tools:` に `Task` を保有して
+# おり、ゲート対象外のサブエージェント（`general-purpose` 等）を spawn して
+# `.claude/hooks/agent-command-gate.sh` の allowlist（push/merge 非対称・`karte ingest-review`
+# 禁止・危険コマンド層）を丸ごと迂回できた（PR #516 の実装中に実測）。第一層は frontmatter から
+# `Task` を外す構造的 fail-close（`.claude/agents/issue-implementer.md`・`issue-fixer.md`）。
+# ここはその防御が将来 frontmatter の復元等で失われた場合の第二層——Task/Agent dispatch の
+# **呼び出し元** agent_type が GATED_ROLES に属するなら、dispatch 先を問わず deny する。
+# `agent-command-gate.sh`（Bash・実行系 MCP 経路）が top-level `agent_type` を呼び出し元識別に
+# 実用しているのと同じ規約を踏襲する（Issue #517 の事前調査）。
+GATED_ROLES = {"issue-implementer", "issue-fixer", "pr-reviewer"}
+
 # Issue #345［A］: GitHub API へ到達できない実行環境のための snapshot fallback。
 # 孤立ブランチなので main と履歴を共有せず、既定ブランチを汚さない。
 # Actions が cron 5分で単一 commit を force-push し、gate は git fetch で読む。
@@ -434,6 +445,30 @@ def _fix_binding(
     )
 
 
+def _caller_agent_type(payload: Mapping[str, Any]) -> str | None:
+    """Task/Agent dispatch の**呼び出し元**の agent_type を top-level payload から読む（Issue #517）。
+
+    ``tool_input.agent_type``/``tool_input.subagent_type`` は dispatch **先**（callee）の値
+    であり、ここでは意図的に見ない——取り違えると「誰が呼んだか」の判定が「誰を呼んだか」の
+    値で行われてしまう。top-level の ``agent_type``/``subagent_type``/``agent.type`` は
+    ``.claude/hooks/agent-command-gate.sh``（Bash・実行系 MCP 経路）が呼び出し元識別に既に
+    実用している同じ規約——Claude Code の PreToolUse payload は「どの subagent コンテキストで
+    この hook が発火したか」を top-level に載せる（ツール種別に依存しない）という前提に立つ。
+    フィールドが存在しない環境（未確認）では常に ``None`` を返し、呼び出し側の判定は
+    無害な no-op になる（frontmatter からの `Task` 除去＝第一層が主たる防御であることに変わりはない）。
+    """
+    for key in ("agent_type", "subagent_type"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    agent = payload.get("agent")
+    if isinstance(agent, dict):
+        value = agent.get("type")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def parse_dispatch_payload(
     payload: Mapping[str, Any],
     *,
@@ -451,11 +486,22 @@ def parse_dispatch_payload(
       shape/isolation/軽量 marker だけを検証し、**GitHub API へは行かない**（理由＝
       :class:`IsolationOnlyAck` の docstring）。
     * どちらにも載っていない agent_type → ``None``（unmanaged・素通し）。
+
+    最初に行うのは上記3区分と無関係な検査——**呼び出し元**（:func:`_caller_agent_type`）が
+    :data:`GATED_ROLES` に属するなら、dispatch 先が何であっても deny する（Issue #517 第二層）。
     """
     tool_name = payload.get("tool_name")
     tool_input = payload.get("tool_input")
     if not isinstance(tool_name, str) or not isinstance(tool_input, dict):
         raise IssueStartError("ISSUE_START_PAYLOAD_INVALID")
+    caller_agent_type = _caller_agent_type(payload)
+    if caller_agent_type in GATED_ROLES:
+        raise IssueStartError(
+            "ISSUE_START_GATED_ROLE_TASK_DENIED",
+            f"caller agent_type={caller_agent_type} may not dispatch Task/Agent "
+            "(GATED_ROLES must not spawn subagents; this closes the "
+            "agent-command-gate.sh allowlist-bypass route recorded in Issue #517)",
+        )
     # Codex transport は manifest binding を持たない。既知 tool/role の組合せは malformed
     # payload であっても marker/ledger/cwd/API を一切読む前に同じ理由で拒否する。
     if tool_name in {"spawn_agent", "collaborationspawn_agent"} and (

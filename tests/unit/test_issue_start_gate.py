@@ -21,6 +21,7 @@ from issue_start.codex_supervisor_workspace import GitFacts
 from issue_start.gate import (
     BINDING_MARKER,
     FIX_BINDING_MARKER,
+    GATED_ROLES,
     IsolationOnlyAck,
     IssueStartError,
     IssueStartRequest,
@@ -1285,6 +1286,101 @@ class IsolationOnlyContractTests(unittest.TestCase):
                 IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
             ):
                 parse_dispatch_payload(fixer_payload())
+
+
+class GatedRoleTaskDispatchTests(DispatchPayloadMixin, unittest.TestCase):
+    """Issue #517 第二層: 呼び出し元が GATED_ROLES のとき、dispatch 先によらず deny する。
+
+    `agent-command-gate.sh`（Bash 経路）が top-level `agent_type` を呼び出し元識別に使う
+    のと同じ規約を、`Task`/`Agent` の PreToolUse（本モジュール）にも適用する
+    （frontmatter からの `Task` 除去＝第一層が復元された場合の第二層）。
+    """
+
+    def test_gated_role_caller_is_denied_regardless_of_dispatch_target(self):
+        # F-510-01 で実測されたバイパス（issue-implementer/issue-fixer が general-purpose を
+        # spawn する）に加え、pr-reviewer・GATED_ROLES 間の相互 dispatch もすべて deny する。
+        for caller in sorted(GATED_ROLES):
+            for callee in ("general-purpose", "issue-implementer", "issue-fixer"):
+                payload = {
+                    "agent_type": caller,
+                    "tool_name": "Task",
+                    "tool_input": {
+                        "subagent_type": callee,
+                        "prompt": "do something",
+                        "description": "bypass attempt",
+                    },
+                }
+                with self.subTest(caller=caller, callee=callee), self.assertRaisesRegex(
+                    IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"
+                ):
+                    parse_dispatch_payload(payload)
+
+    def test_gated_role_caller_is_denied_via_top_level_subagent_type_alias(self):
+        # 呼び出し元識別は `agent_type`/`subagent_type`/`agent.type` のどれで来ても捕まえる
+        # （`agent-command-gate.sh` の `first_string` と同じ規約）。
+        for top_level_field, agent_value in (
+            ("subagent_type", "issue-fixer"),
+            ("agent_type", "issue-implementer"),
+        ):
+            payload = {
+                top_level_field: agent_value,
+                "tool_name": "Task",
+                "tool_input": {
+                    "subagent_type": "general-purpose",
+                    "prompt": "x",
+                    "description": "y",
+                },
+            }
+            with self.subTest(field=top_level_field), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"
+            ):
+                parse_dispatch_payload(payload)
+        nested_agent_payload = {
+            "agent": {"type": "pr-reviewer"},
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "general-purpose",
+                "prompt": "x",
+                "description": "y",
+            },
+        }
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"):
+            parse_dispatch_payload(nested_agent_payload)
+
+    def test_callee_field_alone_is_not_mistaken_for_the_caller(self):
+        # tool_input.subagent_type（dispatch 先）に GATED_ROLES の値があっても、それだけでは
+        # 「呼び出し元が gated」と誤判定しない（caller と callee の取り違え防止の回帰）。
+        payload = self.claude_payload()
+        self.assertEqual(payload["tool_input"]["subagent_type"], "issue-implementer")
+        self.assertNotIn("agent_type", payload)
+        self.assertEqual(parse_dispatch_payload(payload), request())
+
+    def test_main_context_dispatch_is_unaffected(self):
+        # caller フィールド自体が無い（main context からの dispatch）は従来どおり通る。
+        for tool_name in ("Task", "Agent"):
+            with self.subTest(tool_name=tool_name):
+                self.assertEqual(
+                    parse_dispatch_payload(self.claude_payload(tool=tool_name)), request()
+                )
+        ack = parse_dispatch_payload(fixer_payload())
+        self.assertIsInstance(ack, IsolationOnlyAck)
+
+    def test_non_gated_caller_dispatch_is_unaffected(self):
+        # main context 以外でも、GATED_ROLES に属さない呼び出し元（`authoring-fanout` 等の
+        # 委譲役）は今回の第二層に引っかからない。
+        for caller in ("general-purpose", "dsv2-lookup", "authoring-fanout"):
+            payload = {
+                "agent_type": caller,
+                "tool_name": "Task",
+                "tool_input": {
+                    "subagent_type": "issue-implementer",
+                    "prompt": BINDING_MARKER + json.dumps(claude_binding(), separators=(",", ":")),
+                    "description": "dispatch",
+                    "isolation": "worktree",
+                },
+            }
+            with self.subTest(caller=caller):
+                self.assertEqual(parse_dispatch_payload(payload), request())
 
 
 class EvaluationTests(unittest.TestCase):
