@@ -7,6 +7,10 @@
 `GATED_ROLES`/`_caller_agent_type`）が復元時の第二層になる。本テストは第一層が今後の編集で
 無言のうちに巻き戻らないことを機械的に固定する。
 
+**`pr-reviewer` も対象に含める**（F-510-09）。層2 の `GATED_ROLES` は3ロール全てを対象にする一方、
+本テストは元々2ロールしか見ておらず、`pr-reviewer` に将来 `Task` が付与されても検出できなかった
+（「現在保有していない」ことは対象外の理由にならない——将来の無言の巻き戻りを防ぐのが本テストの目的）。
+
 標準ライブラリのみで frontmatter の `tools:` 行を素朴にパースする（本リポジトリのフロントマターは
 自前パーサ方針＝Q5/Q5a と同じ考え方——YAML ライブラリへ依存しない）。
 """
@@ -17,10 +21,33 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# `pr-reviewer` はそもそも `Task` を保有していない（Issue #517 の out of scope）ため対象外。
 GATED_ROLE_AGENT_FILES = {
     "issue-implementer": ROOT / ".claude/agents/issue-implementer.md",
     "issue-fixer": ROOT / ".claude/agents/issue-fixer.md",
+    "pr-reviewer": ROOT / ".claude/agents/pr-reviewer.md",
+}
+
+# ロールごとの非 Task 期待ツール集合（`pr-reviewer` は Write/Edit を持たず ctx_search/ctx_index を
+# 追加で持つなど、implementer/fixer と厳密には異なる＝F-510-09 で3ロール化した際に単一集合の
+# 完全一致検査から per-role 集合へ変更した）。
+EXPECTED_NON_TASK_TOOLS = {
+    "issue-implementer": {
+        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
+        "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_execute",
+    },
+    "issue-fixer": {
+        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
+        "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_execute",
+    },
+    "pr-reviewer": {
+        "Read", "Grep", "Glob", "Bash",
+        "mcp__plugin_context-mode_context-mode__ctx_search",
+        "mcp__plugin_context-mode_context-mode__ctx_index",
+        "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_execute",
+    },
 }
 
 
@@ -53,11 +80,6 @@ class GatedRoleTaskFrontmatterTests(unittest.TestCase):
 
     def test_gated_role_frontmatter_still_lists_the_expected_non_task_tools(self):
         # allow-form: 除去が Task だけに限定されていること（他ツールを巻き込んで壊していない）。
-        expected_present = {
-            "Read", "Grep", "Glob", "Write", "Edit", "Bash",
-            "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
-            "mcp__plugin_context-mode_context-mode__ctx_execute",
-        }
         for role, path in GATED_ROLE_AGENT_FILES.items():
             with self.subTest(role=role):
                 tools_line = _tools_line(path)
@@ -66,7 +88,7 @@ class GatedRoleTaskFrontmatterTests(unittest.TestCase):
                     for tool in tools_line[len("tools:"):].split(",")
                     if tool.strip()
                 }
-                self.assertEqual(declared, expected_present)
+                self.assertEqual(declared, EXPECTED_NON_TASK_TOOLS[role])
 
 
 if __name__ == "__main__":

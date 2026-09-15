@@ -1315,26 +1315,22 @@ class GatedRoleTaskDispatchTests(DispatchPayloadMixin, unittest.TestCase):
                 ):
                     parse_dispatch_payload(payload)
 
-    def test_gated_role_caller_is_denied_via_top_level_subagent_type_alias(self):
-        # 呼び出し元識別は `agent_type`/`subagent_type`/`agent.type` のどれで来ても捕まえる
-        # （`agent-command-gate.sh` の `first_string` と同じ規約）。
-        for top_level_field, agent_value in (
-            ("subagent_type", "issue-fixer"),
-            ("agent_type", "issue-implementer"),
-        ):
-            payload = {
-                top_level_field: agent_value,
-                "tool_name": "Task",
-                "tool_input": {
-                    "subagent_type": "general-purpose",
-                    "prompt": "x",
-                    "description": "y",
-                },
-            }
-            with self.subTest(field=top_level_field), self.assertRaisesRegex(
-                IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"
-            ):
-                parse_dispatch_payload(payload)
+    def test_gated_role_caller_is_denied_via_top_level_agent_type_or_nested_agent_type(self):
+        # 呼び出し元識別は top-level `agent_type` と nested `agent.type` で捕まえる
+        # （`agent-command-gate.sh` の `first_string` と同じ規約のうち、Task/Agent 経路で
+        # tool_input 側の callee フィールド名と衝突しない2つだけを使う）。**`subagent_type` は
+        # top-level では見ない**（F-510-02・下の test_top_level_subagent_type_alone_does_not_... 参照）。
+        payload = {
+            "agent_type": "issue-implementer",
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "general-purpose",
+                "prompt": "x",
+                "description": "y",
+            },
+        }
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"):
+            parse_dispatch_payload(payload)
         nested_agent_payload = {
             "agent": {"type": "pr-reviewer"},
             "tool_name": "Task",
@@ -1347,6 +1343,40 @@ class GatedRoleTaskDispatchTests(DispatchPayloadMixin, unittest.TestCase):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"):
             parse_dispatch_payload(nested_agent_payload)
 
+    def test_top_level_subagent_type_alone_does_not_identify_the_caller(self):
+        """F-510-02: `subagent_type` は Task/Agent の tool_input における callee（dispatch 先）の
+        フィールド名そのものであり、top-level に同名フィールドが現れても caller 識別に使わない。
+
+        旧実装は top-level `subagent_type` も caller 候補に含めていたため、main context が gated
+        ロール（`issue-fixer` 等）へ正当に dispatch する際に top-level にも tool_input と同じ値の
+        `subagent_type` が乗る形（実ハーネスでの実測形）を「呼び出し元が gated ロール」と誤判定し、
+        `/issue-pipeline` の Task dispatch 全体が deny されて起動不能になりうるバグがあった
+        （harm_detail 参照）。この回帰を固定する。
+        """
+        # tool_input と同じ値が top-level にも乗る形（main context → issue-implementer への
+        # 正当な dispatch 相当）。
+        implementer_payload = self.claude_payload()
+        implementer_payload["subagent_type"] = "issue-implementer"
+        self.assertEqual(parse_dispatch_payload(implementer_payload), request())
+
+        # 同様に main context → issue-fixer（isolation_only 区分）への正当な dispatch 相当。
+        fixer = fixer_payload()
+        fixer["subagent_type"] = "issue-fixer"
+        ack = parse_dispatch_payload(fixer)
+        self.assertIsInstance(ack, IsolationOnlyAck)
+
+        # tool_input と異なる値でも同様（`subagent_type` は一律 caller 識別に使わない）。
+        mismatched = {
+            "subagent_type": "issue-fixer",
+            "tool_name": "Task",
+            "tool_input": {
+                "subagent_type": "general-purpose",
+                "prompt": "x",
+                "description": "y",
+            },
+        }
+        self.assertIsNone(parse_dispatch_payload(mismatched))
+
     def test_callee_field_alone_is_not_mistaken_for_the_caller(self):
         # tool_input.subagent_type（dispatch 先）に GATED_ROLES の値があっても、それだけでは
         # 「呼び出し元が gated」と誤判定しない（caller と callee の取り違え防止の回帰）。
@@ -1354,6 +1384,27 @@ class GatedRoleTaskDispatchTests(DispatchPayloadMixin, unittest.TestCase):
         self.assertEqual(payload["tool_input"]["subagent_type"], "issue-implementer")
         self.assertNotIn("agent_type", payload)
         self.assertEqual(parse_dispatch_payload(payload), request())
+
+    def test_codex_spawn_agent_gated_caller_is_denied_regardless_of_dispatch_target(self):
+        # F-510-05 recheck: 「Codex 側ゲートで gated ロールからの spawn_agent が deny される」を
+        # 固定する。Codex の spawn_agent dispatch も `issue_start.gate.parse_dispatch_payload`
+        # （`.codex/hooks/issue-start-gate.sh` 経由・Claude 版と共有実装）を通るため、caller が
+        # GATED_ROLES に属していれば同じ `ISSUE_START_GATED_ROLE_TASK_DENIED` で拒否される
+        # （dispatch 先が `general-purpose` のような未知ロールでも、Codex 固有の
+        # `ISSUE_START_TRANSPORT_UNAVAILABLE` チェックより前に検出される）。
+        for tool_name in ("spawn_agent", "collaborationspawn_agent"):
+            payload = {
+                "agent_type": "issue-fixer",
+                "tool_name": tool_name,
+                "tool_input": {
+                    "agent_type": "general-purpose",
+                    "task_name": "issue_10",
+                },
+            }
+            with self.subTest(tool_name=tool_name), self.assertRaisesRegex(
+                IssueStartError, "ISSUE_START_GATED_ROLE_TASK_DENIED"
+            ):
+                parse_dispatch_payload(payload)
 
     def test_main_context_dispatch_is_unaffected(self):
         # caller フィールド自体が無い（main context からの dispatch）は従来どおり通る。

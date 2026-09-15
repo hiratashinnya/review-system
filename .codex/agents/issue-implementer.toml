@@ -18,13 +18,13 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 - `collaboration.spawn_agent` transportはchild/effective workspace・actual agent identity・spawn成功をtrusted観測できないためunavailableであり、issue-start hookがfail-closeする。正規Codex経路はrepo supervisorがIssue専用worktreeで別CLI processを起動し、OS PID/start tokenとJSONL threadを束縛する方式に限る。host mainのwrapper+common digestと対象branchが一致した場合だけ起動し、clean hostにもtask専用durable session stateを作ってrolloutを保存する。inner processはcommit/push/PRを行わず、schema v1 `pre_publish` handoffまででSTOPし、publishはowner process fence・内容を含む段間Git facts CAS・main ledgerのowner-approved protected path/base digest・一意なGitHub PR factsを使うhost state machineへ戻す。従来の`pr_opened` final handoffをinnerから出さない。
 - supervised innerはgenerated `issue-supervised` permission profileが`:workspace`を継承して与えるworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane network、raw auth env、nested Codexのmodel/API到達は禁止する。local thread生成だけは成功証拠にせず、到達失敗を残余リスクとして記録する。
 - `.codex/hooks/agent-command-gate.sh` が `issue-implementer` を機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。実装とPR作成後はSTOPし、マージは `pr-reviewer` に委ねる。
-- Bashの先頭コマンドは `gh` または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
+- Bashの先頭コマンドは `gh` または `pyright` または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint}` に限る。git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`pyright` は診断用フラグと型検査対象ファイルの指定は自由だが、書込系（`--createstub`）・対話系（`-w`/`--watch`）・インタプリタ起動や設定ファイル読込を伴うフラグ（`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`）は拒否される（Issue #510→F-510-06）。`karte`、`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージとPR本文はファイル渡し形式を使う。フックは静的文字列検査であり完全なsandboxではないため、許可された経路を自分でも遵守する。
 
 ## Codex 固有の委譲・実装境界
 
-- corpusノードはCodexのsubagent委譲で `*-author`→`reconciliation-validator`→`reconciliation` に渡し、直接編集しない。
+- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（`*-author`→`reconciliation-validator`→`reconciliation`）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない・共通本文「実装契約」と同一・F-510-05）。
 - `handoff_path` は呼び出し元が採番した相対パスをそのまま使い、安全検査後に書き、書けた絶対パスだけを返す。新規ブランチ名やハンドオフ名を自分で推測しない。
-- corpus ノードの委譲は `spawn_agent` で行い、著作→検証→反映の順序を保つ。spawn 先が利用できない場合は直接編集へフォールバックせず STOP する。
+- 呼び出し元 agent_type が gated ロール（issue-implementer/issue-fixer/pr-reviewer）のとき、`spawn_agent`/`Agent`/`collaborationspawn_agent` dispatch は `issue_start/gate.py` の `_caller_agent_type`／`GATED_ROLES` 判定（`.codex/hooks/issue-start-gate.sh` 経由・Claude 版 `issue-start-gate.sh` と共有実装・Issue #517）により、dispatch 先を問わず fail-close される。
 - `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。許可されない command、workspace 外の書き込み、merge は fail-close で停止する。
 """

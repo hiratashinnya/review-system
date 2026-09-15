@@ -445,6 +445,40 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             run_gate(payload("pr-reviewer", 'gh pr comment 123 --body "cost: $5 and `date`"'))
         )
 
+    def test_pyright_type_checking_is_allowed_but_unlisted_flags_are_denied(self):
+        # Issue #510→F-510-06: Claude 版 F-510-03 と同一設計を Codex 側にも導入する。`pyright` を
+        # 層2 の先頭語ホワイトリストへ追加し、層3（pyright_violation）は allowlist 方式
+        # （PYRIGHT_FLAG_ALLOWLIST・gh と同型）で絞る。診断用の安全なフラグと位置引数（型検査対象
+        # ファイル）だけを許可し、書込系・対話系・インタプリタ起動/設定ファイル読込を伴うフラグは
+        # いずれも allowlist に無いため一律 deny する。
+        allowed = [
+            "pyright tests/unit/test_pr_merge_classifier.py",
+            "pyright --outputjson tests/unit/test_pr_merge_classifier.py",
+            "pyright --stats tests/unit/test_pr_merge_classifier.py",
+            "pyright --pythonversion 3.11 tests/unit/test_pr_merge_classifier.py",
+            "pyright --pythonplatform Linux tests/unit/test_pr_merge_classifier.py",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in allowed:
+                with self.subTest(role=role, command=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+
+        denied = [
+            "pyright --createstub tests.unit.test_pr_merge_classifier",
+            "pyright -w tests/unit/test_pr_merge_classifier.py",
+            "pyright --watch tests/unit/test_pr_merge_classifier.py",
+            "pyright --pythonpath /usr/bin/python3 tests/unit/test_pr_merge_classifier.py",
+            "pyright --venvpath /tmp/venvs tests/unit/test_pr_merge_classifier.py",
+            "pyright -v /tmp/venvs tests/unit/test_pr_merge_classifier.py",
+            "pyright --project pyrightconfig.json",
+            "pyright -p pyrightconfig.json",
+            "pyright --typeshedpath /tmp/typeshed tests/unit/test_pr_merge_classifier.py",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in denied:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
     # ------------------------------------------------------------------
     # 層2: 先頭語ホワイトリスト
     # ------------------------------------------------------------------

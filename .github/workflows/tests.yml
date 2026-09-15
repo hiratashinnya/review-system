@@ -89,7 +89,11 @@ jobs:
           node-version: "20"
 
       - name: Install pyright
-        run: npm install -g pyright
+        # F-510-10: バージョン固定（npm install -g pyright のみだと最新版が無言で入り、
+        # リポジトリ側の変更ゼロでも pyright の新版が診断を追加/変更した瞬間に merge を左右する
+        # fail-close ゲートの判定基準が実行日依存になる）。更新は意図的な変更としてこの行を
+        # 編集する PR に載せる。
+        run: npm install -g pyright@1.1.390
 
       - name: Type-check declared files (Issue #510, fail-close on the declared list only)
         run: |

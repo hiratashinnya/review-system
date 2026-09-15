@@ -70,10 +70,13 @@
 #          view/diff/checks/comment/review/merge・issue view。**`pr checkout` は Issue #502 で除外**）に
 #          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
-#        - pyright: 型検査そのもの（診断用の多数のフラグ・複数ファイル指定）は自由に使わせた上で、
-#          書込系フラグ `--createstub`（stub ファイルを生成する）と対話系フラグ `-w`/`--watch`
-#          （監視モードで終了しない）だけを denylist で狙い撃ちして拒否する（`coverage run` 禁止・
-#          `karte` の verb 単位 allowlist と同型の絞り方＝Issue #510）。
+#        - pyright: gh と同型の**フラグ許可リスト方式**（PYRIGHT_FLAG_ALLOWLIST）で絞る
+#          （Issue #510→F-510-03）。診断用の安全なフラグ（`--outputjson`/`--stats`/`--verbose`/
+#          `--pythonversion`/`--pythonplatform` 等）と位置引数（型検査対象ファイル）だけを許可し、
+#          それ以外は一律 deny する。元実装は「書込系 `--createstub`・対話系 `-w`/`--watch` だけを
+#          個別に拒否する」denylist だったが、`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/
+#          `--typeshedpath` のような**インタプリタ起動・設定ファイル読込を伴うフラグ**が
+#          素通りしていた（F-510-03・gh の denylist 放棄＝Issue #227 と同じ理由で allowlist へ転換）。
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
 #        コマンド・config/alias/env 注入による push/merge 迂回（`git send-pack`/`git subtree push`/
 #        `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set` 等）を列挙不要で fail-close 遮断する。
@@ -155,10 +158,20 @@ import shlex
 import sys
 from datetime import datetime, timezone
 
+# GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・2ファイル重複定義の解消）。
+# この hook は stdin スクリプト（`python3 - <tmpfile>`）として実行され、Python は path[0] を
+# 空文字列（cwd）にする。gated ロールに対し `cwd` の明示指定は既に deny されており（層3 相当の
+# 前提）フック実行時の cwd は常にプロジェクトルートに固定されるため、`sys.path` へ明示的に
+# cwd を足した上で通常 import する。import 失敗時は下の `sys.excepthook`
+# （`deny_on_internal_error`）がまだ設定されていないため Python の既定挙動で非0終了するが、
+# 外側の bash ラッパー（本ファイル末尾）が「stdout 空 かつ rc 非0」を内部エラーとして検知し
+# 一般化した deny メッセージを返す＝fail-close は維持される。
+sys.path.insert(0, os.getcwd())
+from issue_start.gated_roles import GATED_ROLES
+
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
-GATED_ROLES = {"issue-implementer", "issue-fixer", "pr-reviewer"}
 
 # Issue #303: context-mode の実行系 MCP ツール（`ctx_execute` / `ctx_execute_file` /
 # `ctx_batch_execute`）。これらは任意のコードをサブプロセスで実行でき、実測でホストの
@@ -821,24 +834,66 @@ def gitgate_violation(tokens, role):
     return None
 
 
-# 層3(pyright・Issue #510): 書込系フラグ（stub生成）と対話系フラグ（監視モード・プロセスが
-# 終了しない）だけを denylist で狙い撃ちして拒否する。型検査そのもの（診断用の多数のフラグ・
-# 複数ファイル指定）は allowlist を作らず自由に使わせる（`coverage run` 禁止・`karte` の
-# verb 単位 allowlist と同型の絞り方＝固定した危険操作だけを個別に塞ぐ）。
-PYRIGHT_DENIED_FLAGS = {"--createstub", "-w", "--watch"}
+# 層3(pyright・Issue #510→F-510-03): denylist ではなく **allowlist 方式**（gh の
+# GH_FLAG_ALLOWLIST と同型）に統一する。旧実装は書込系フラグ（stub生成）と対話系フラグ
+# （監視モード）だけを denylist で狙い撃ちしていたが、`--pythonpath`/`--venvpath`/`-v`/
+# `--project`/`-p`/`--typeshedpath` のようなインタプリタ起動・設定ファイル読込を伴うフラグが
+# 素通りしていた（F-510-03）。ここに無いフラグは一律 deny し、位置引数（型検査対象ファイル）は
+# 自由（診断そのものを妨げない）。value フラグは値を取り（次トークンまたは `=`/連結）、
+# bool フラグは値を取らない——gh_flag_violation と同じ消費規則。
+PYRIGHT_FLAG_ALLOWLIST = {
+    "value": {"--pythonversion", "--pythonplatform"},
+    "bool": {
+        "--outputjson", "--stats", "--verbose", "--lib",
+        "--skipunannotated", "--ignoreexternal", "--dependencies",
+        "-h", "--help", "-V", "--version",
+    },
+}
 
 
 def pyright_violation(tokens):
-    """層3(pyright): PYRIGHT_DENIED_FLAGS のいずれかがトークンとして現れれば deny する。
-    `--createstub=foo` のような `=` 連結形も名前部分だけを見て検出する。"""
-    for token in tokens[1:]:
-        name = token.split("=", 1)[0]
-        if name in PYRIGHT_DENIED_FLAGS:
-            denied = ", ".join(sorted(PYRIGHT_DENIED_FLAGS))
+    """層3(pyright・F-510-03): PYRIGHT_FLAG_ALLOWLIST に無いフラグは一律 deny する。
+    `--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`（インタプリタ起動・
+    設定ファイル読込）・`--createstub`（書込）・`-w`/`--watch`（対話）はいずれも allowlist に
+    無いため、個別の denylist を持たずに一括で deny される。位置引数（型検査対象ファイル）は自由。"""
+    value_flags = PYRIGHT_FLAG_ALLOWLIST["value"]
+    bool_flags = PYRIGHT_FLAG_ALLOWLIST["bool"]
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            break  # 以降はすべて位置引数（型検査対象ファイル）
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            has_eq = "=" in token
+            if name in value_flags:
+                index += 1 if has_eq else 2
+                continue
+            if name in bool_flags:
+                index += 1
+                continue
             return (
-                f"`pyright {name}` is not allowed for this role (write/interactive flags "
-                f"<{denied}> are denied; type-checking itself is allowed)"
+                f"`pyright {name}` is not in this role's pyright flag allowlist "
+                "(type-checking itself is allowed; interpreter-launching/config-reading "
+                "flags such as --pythonpath/--venvpath/--project/--typeshedpath are denied)"
             )
+        if token.startswith("-") and len(token) >= 2:
+            short = token[:2]
+            attached = token[2:]
+            if short in value_flags:
+                index += 1 if attached else 2
+                continue
+            if short in bool_flags:
+                if attached:
+                    return f"`pyright {token}` is not allowed (combined short flags are not permitted)"
+                index += 1
+                continue
+            return (
+                f"`pyright {short}` is not in this role's pyright flag allowlist "
+                "(type-checking itself is allowed; interpreter-launching/config-reading "
+                "flags such as --pythonpath/--venvpath/--project/--typeshedpath are denied)"
+            )
+        index += 1  # 位置引数（型検査対象ファイル）
     return None
 
 

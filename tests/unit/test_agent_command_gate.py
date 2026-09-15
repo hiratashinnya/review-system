@@ -604,20 +604,23 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
-    def test_pyright_type_checking_is_allowed_but_write_and_watch_flags_are_denied(self):
-        # Issue #510: gated ロールが自分の受入基準（reportOptionalMemberAccess 等）を自分で検証
-        # できるよう、`pyright` を層2 の先頭語ホワイトリストへ追加した。型検査そのもの（診断用の
-        # 多数のフラグ・複数ファイル指定）は allowlist を作らず自由に使わせる一方、書込系フラグ
-        # `--createstub`（stub 生成）と対話系フラグ `-w`/`--watch`（監視モードで終了しない）だけを
-        # 層3（pyright_violation）で狙い撃ちして deny する（`coverage run` 禁止・`karte` の verb 単位
-        # allowlist と同型の絞り方）。issue-implementer/issue-fixer/pr-reviewer のいずれからも同様に
-        # 検証できることを確認する（3ロール共通で層2/3 の判定を通る）。
+    def test_pyright_type_checking_is_allowed_but_unlisted_flags_are_denied(self):
+        # Issue #510→F-510-03: gated ロールが自分の受入基準（reportOptionalMemberAccess 等）を
+        # 自分で検証できるよう、`pyright` を層2 の先頭語ホワイトリストへ追加した。層3
+        # （pyright_violation）は **allowlist 方式**（PYRIGHT_FLAG_ALLOWLIST・gh と同型）で絞る。
+        # 診断用の安全なフラグと位置引数（型検査対象ファイル）だけを許可し、それ以外は一律 deny
+        # する。旧実装は書込系 `--createstub`・対話系 `-w`/`--watch` だけを denylist で個別に
+        # 拒否していたが、`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`
+        # のようなインタプリタ起動・設定ファイル読込を伴うフラグが素通りしていた（F-510-03）。
+        # issue-implementer/issue-fixer/pr-reviewer のいずれからも同様に検証できることを確認する
+        # （3ロール共通で層2/3 の判定を通る）。
         allowed = [
             "pyright tests/unit/test_pr_merge_classifier.py",
             "pyright --outputjson tests/unit/test_pr_merge_classifier.py",
-            "pyright --project pyrightconfig.json",
             "pyright --stats tests/unit/test_pr_merge_classifier.py",
             "pyright --pythonversion 3.11 tests/unit/test_pr_merge_classifier.py",
+            "pyright --pythonplatform Linux tests/unit/test_pr_merge_classifier.py",
+            "pyright --verbose tests/unit/test_pr_merge_classifier.py",
         ]
         for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
             for command in allowed:
@@ -625,10 +628,18 @@ class AgentCommandGateTests(unittest.TestCase):
                     self.assert_allowed(run_gate(payload(role, command)))
 
         denied = [
+            # 旧 denylist が拒否していた書込系・対話系フラグ（allowlist へ転換後も引き続き deny）。
             "pyright --createstub tests.unit.test_pr_merge_classifier",
             "pyright --createstub=tests.unit.test_pr_merge_classifier",
             "pyright -w tests/unit/test_pr_merge_classifier.py",
             "pyright --watch tests/unit/test_pr_merge_classifier.py",
+            # F-510-03: 旧 denylist が見逃していたインタプリタ起動・設定ファイル読込を伴うフラグ。
+            "pyright --pythonpath /usr/bin/python3 tests/unit/test_pr_merge_classifier.py",
+            "pyright --venvpath /tmp/venvs tests/unit/test_pr_merge_classifier.py",
+            "pyright -v /tmp/venvs tests/unit/test_pr_merge_classifier.py",
+            "pyright --project pyrightconfig.json",
+            "pyright -p pyrightconfig.json",
+            "pyright --typeshedpath /tmp/typeshed tests/unit/test_pr_merge_classifier.py",
         ]
         for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
             for command in denied:
