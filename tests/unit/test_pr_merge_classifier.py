@@ -86,9 +86,10 @@ class PreUseClassifierTests(unittest.TestCase):
             with self.subTest(command=command):
                 classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(classified.kind, "merge")
-                self.assertEqual(classified.operation.repository, "example/repo")
-                self.assertEqual(classified.operation.pr_number, 12)
-                self.assertEqual(classified.operation.transport, transport)
+                operation = _non_none(classified.operation)
+                self.assertEqual(operation.repository, "example/repo")
+                self.assertEqual(operation.pr_number, 12)
+                self.assertEqual(operation.transport, transport)
 
     def test_method_omission_auto_merge_and_shell_bypass_fail_close(self):
         cases = (
@@ -441,7 +442,8 @@ class PreUseClassifierTests(unittest.TestCase):
                 )
             )
         )
-        self.assertEqual((rest.kind, rest.operation.transport), ("merge", "rest"))
+        rest_operation = _non_none(rest.operation)
+        self.assertEqual((rest.kind, rest_operation.transport), ("merge", "rest"))
         for tool_name in (
             "mcp__codex_apps__github_merge_pull_request",
             "codex_apps.github.merge_pull_request",
@@ -462,7 +464,8 @@ class PreUseClassifierTests(unittest.TestCase):
                         }
                     )
                 )
-                self.assertEqual((connector.kind, connector.operation.transport), ("merge", "connector"))
+                connector_operation = _non_none(connector.operation)
+                self.assertEqual((connector.kind, connector_operation.transport), ("merge", "connector"))
 
     def test_connector_auto_merge_and_unknown_merge_tool_are_denied(self):
         auto = _non_none(
@@ -568,8 +571,9 @@ class PreUseClassifierTests(unittest.TestCase):
             with self.subTest(command=command):
                 classified = _non_none(classify_pre_use(bash(command)))
                 self.assertEqual(classified.kind, "merge")
-                self.assertEqual(classified.operation.repository, "example/repo")
-                self.assertEqual(classified.operation.pr_number, 12)
+                operation = _non_none(classified.operation)
+                self.assertEqual(operation.repository, "example/repo")
+                self.assertEqual(operation.pr_number, 12)
 
         auto = _non_none(
             classify_pre_use(
@@ -748,8 +752,9 @@ class PreUseClassifierTests(unittest.TestCase):
             )
         )
         self.assertEqual(classified.kind, "merge")
-        self.assertEqual(classified.operation.commit_message, "static text")
-        self.assertEqual(classified.operation.commit_title, "static title")
+        operation = _non_none(classified.operation)
+        self.assertEqual(operation.commit_message, "static text")
+        self.assertEqual(operation.commit_title, "static title")
 
     def test_unquoted_parameter_expansion_still_fail_closes_on_unsupported_content(self):
         """`${...}` の緩和は範囲を厳密に区切っており、深度が閉じない・許可対象外の

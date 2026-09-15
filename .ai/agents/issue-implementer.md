@@ -33,7 +33,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
-- corpus ノード（doc-system-v2/nodes/**）は指定された *-author→reconciliation-validator→reconciliation の委譲経路を使い、直接編集しない。
+- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない）。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
 - commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。

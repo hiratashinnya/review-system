@@ -45,12 +45,14 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
+#        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
 #        time_fixture_lint、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
 #        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
 #        coverage/karte と同型でサブコマンドを `check` に絞る（Issue #385・#129 の抜け穴を拡大しない）。
+#        `pyright` は node バイナリの型検査ツールで python モジュールではないため先頭語として追加した
+#        （Issue #510）。層3 でも書込系・対話系フラグだけを狙い撃ちで deny する（後述）。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
 #        gated ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
 #        - 先頭 env 代入（`NAME=value`）・`env` ラッパーは deny（`rtk`/`command`/`builtin`/`exec` の純
@@ -68,6 +70,13 @@
 #          view/diff/checks/comment/review/merge・issue view。**`pr checkout` は Issue #502 で除外**）に
 #          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
+#        - pyright: gh と同型の**フラグ許可リスト方式**（PYRIGHT_FLAG_ALLOWLIST）で絞る
+#          （Issue #510→F-510-03）。診断用の安全なフラグ（`--outputjson`/`--stats`/`--verbose`/
+#          `--pythonversion`/`--pythonplatform` 等）と位置引数（型検査対象ファイル）だけを許可し、
+#          それ以外は一律 deny する。元実装は「書込系 `--createstub`・対話系 `-w`/`--watch` だけを
+#          個別に拒否する」denylist だったが、`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/
+#          `--typeshedpath` のような**インタプリタ起動・設定ファイル読込を伴うフラグ**が
+#          素通りしていた（F-510-03・gh の denylist 放棄＝Issue #227 と同じ理由で allowlist へ転換）。
 #        これで再レビュー Critical（`git push --receive-pack=…`・`git log/diff --output=…`）や別名サブ
 #        コマンド・config/alias/env 注入による push/merge 迂回（`git send-pack`/`git subtree push`/
 #        `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set` 等）を列挙不要で fail-close 遮断する。
@@ -149,10 +158,20 @@ import shlex
 import sys
 from datetime import datetime, timezone
 
+# GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・2ファイル重複定義の解消）。
+# この hook は stdin スクリプト（`python3 - <tmpfile>`）として実行され、Python は path[0] を
+# 空文字列（cwd）にする。gated ロールに対し `cwd` の明示指定は既に deny されており（層3 相当の
+# 前提）フック実行時の cwd は常にプロジェクトルートに固定されるため、`sys.path` へ明示的に
+# cwd を足した上で通常 import する。import 失敗時は下の `sys.excepthook`
+# （`deny_on_internal_error`）がまだ設定されていないため Python の既定挙動で非0終了するが、
+# 外側の bash ラッパー（本ファイル末尾）が「stdout 空 かつ rc 非0」を内部エラーとして検知し
+# 一般化した deny メッセージを返す＝fail-close は維持される。
+sys.path.insert(0, os.getcwd())
+from issue_start.gated_roles import GATED_ROLES
+
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
-GATED_ROLES = {"issue-implementer", "issue-fixer", "pr-reviewer"}
 
 # Issue #303: context-mode の実行系 MCP ツール（`ctx_execute` / `ctx_execute_file` /
 # `ctx_batch_execute`）。これらは任意のコードをサブプロセスで実行でき、実測でホストの
@@ -303,7 +322,10 @@ DANGEROUS_UNQUOTED_CHARS = set("|&;(){}<>$`\n")
 DANGEROUS_DOUBLE_QUOTED_CHARS = set("$`")
 
 # 層2（Issue #227）: 先頭語ホワイトリスト。ここに無い先頭語は一律 deny（列挙不要）。
-ALLOWED_HEAD_COMMANDS = {"git", "gh"}
+# `pyright`（Issue #510）: node バイナリの型検査ツール。gated ロールが自分の受入基準
+# （reportOptionalMemberAccess 等）を自分で検証できるようにするための追加。書込系・対話系
+# フラグは層3 の pyright_violation() で個別に拒否する（下記）。
+ALLOWED_HEAD_COMMANDS = {"git", "gh", "pyright"}
 PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # python は「モジュール実行（-m）で、かつ以下のモジュール」に限る（オーナー確定）。
 # `python3 -c ...`・素の `python3 script.py`・その他のモジュールは deny。
@@ -784,7 +806,7 @@ def head_command_violation(tokens, role):
         )
     return (
         f"`{head}` is not in the allowed command whitelist "
-        f"(git, gh, python3 -m <{'|'.join(sorted(allowed_modules))}>)"
+        f"({', '.join(sorted(ALLOWED_HEAD_COMMANDS))}, python3 -m <{'|'.join(sorted(allowed_modules))}>)"
     )
 
 
@@ -809,6 +831,69 @@ def gitgate_violation(tokens, role):
             f"`gitgate {verb}`".rstrip()
             + f" is not in this role's gitgate verb allowlist ({allowed})"
         )
+    return None
+
+
+# 層3(pyright・Issue #510→F-510-03): denylist ではなく **allowlist 方式**（gh の
+# GH_FLAG_ALLOWLIST と同型）に統一する。旧実装は書込系フラグ（stub生成）と対話系フラグ
+# （監視モード）だけを denylist で狙い撃ちしていたが、`--pythonpath`/`--venvpath`/`-v`/
+# `--project`/`-p`/`--typeshedpath` のようなインタプリタ起動・設定ファイル読込を伴うフラグが
+# 素通りしていた（F-510-03）。ここに無いフラグは一律 deny し、位置引数（型検査対象ファイル）は
+# 自由（診断そのものを妨げない）。value フラグは値を取り（次トークンまたは `=`/連結）、
+# bool フラグは値を取らない——gh_flag_violation と同じ消費規則。
+PYRIGHT_FLAG_ALLOWLIST = {
+    "value": {"--pythonversion", "--pythonplatform"},
+    "bool": {
+        "--outputjson", "--stats", "--verbose", "--lib",
+        "--skipunannotated", "--ignoreexternal", "--dependencies",
+        "-h", "--help", "-V", "--version",
+    },
+}
+
+
+def pyright_violation(tokens):
+    """層3(pyright・F-510-03): PYRIGHT_FLAG_ALLOWLIST に無いフラグは一律 deny する。
+    `--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`（インタプリタ起動・
+    設定ファイル読込）・`--createstub`（書込）・`-w`/`--watch`（対話）はいずれも allowlist に
+    無いため、個別の denylist を持たずに一括で deny される。位置引数（型検査対象ファイル）は自由。"""
+    value_flags = PYRIGHT_FLAG_ALLOWLIST["value"]
+    bool_flags = PYRIGHT_FLAG_ALLOWLIST["bool"]
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            break  # 以降はすべて位置引数（型検査対象ファイル）
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            has_eq = "=" in token
+            if name in value_flags:
+                index += 1 if has_eq else 2
+                continue
+            if name in bool_flags:
+                index += 1
+                continue
+            return (
+                f"`pyright {name}` is not in this role's pyright flag allowlist "
+                "(type-checking itself is allowed; interpreter-launching/config-reading "
+                "flags such as --pythonpath/--venvpath/--project/--typeshedpath are denied)"
+            )
+        if token.startswith("-") and len(token) >= 2:
+            short = token[:2]
+            attached = token[2:]
+            if short in value_flags:
+                index += 1 if attached else 2
+                continue
+            if short in bool_flags:
+                if attached:
+                    return f"`pyright {token}` is not allowed (combined short flags are not permitted)"
+                index += 1
+                continue
+            return (
+                f"`pyright {short}` is not in this role's pyright flag allowlist "
+                "(type-checking itself is allowed; interpreter-launching/config-reading "
+                "flags such as --pythonpath/--venvpath/--project/--typeshedpath are denied)"
+            )
+        index += 1  # 位置引数（型検査対象ファイル）
     return None
 
 
@@ -896,14 +981,17 @@ def gh_violation(tokens, role):
 
 def role_command_violation(tokens, role):
     """層3: ロール別許可判定。層1・層2 を通過した時点で tokens は「記号を含まない単純な1コマンド」かつ
-    先頭語は git/gh/python -m <module> のいずれか。git は生実行を deny（gitgate ラッパー経由に誘導）、
-    gh はサブコマンド＋フラグ許可リスト、python -m gitgate は verb をロール別集合で判定する。
+    先頭語は git/gh/pyright/python -m <module> のいずれか。git は生実行を deny（gitgate ラッパー経由に
+    誘導）、gh はサブコマンド＋フラグ許可リスト、pyright は書込系・対話系フラグだけを denylist で拒否
+    （Issue #510）、python -m gitgate は verb をロール別集合で判定する。
     その他の python モジュール（unittest 等）は層2 で許可済みでここでは制限しない。"""
     head = tokens[0]
     if head == "git":
         return raw_git_denied_reason(role)
     if head == "gh":
         return gh_violation(tokens, role)
+    if head == "pyright":
+        return pyright_violation(tokens)
     if head in PYTHON_HEAD_COMMANDS and len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] == "gitgate":
         return gitgate_violation(tokens, role)
     return None
@@ -943,8 +1031,8 @@ def gate_reason(command_text, role):
         modules = "|".join(sorted(allowed_python_modules(role)))
         return (
             f"agent-command-gate ({role}): {head_violation}. "
-            f"Only git / gh / python3 -m <{modules}> are allowed for this role "
-            "(whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
+            f"Only {' / '.join(sorted(ALLOWED_HEAD_COMMANDS))} / python3 -m <{modules}> are allowed "
+            "for this role (whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
         )
     violation = role_command_violation(tokens, role)
     if violation:

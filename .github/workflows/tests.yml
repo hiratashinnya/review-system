@@ -35,6 +35,14 @@ name: tests
 # unmetered). This workflow therefore adds no cost regardless of how often PRs push.
 # Local measurement: `python3 -m unittest discover -s tests/unit` takes ~90-110s, well
 # within a normal Actions job budget.
+#
+# `typecheck` job (Issue #510): a second, independent job that runs `pyright` against only
+# the files declared in `.github/typechecked-files.txt` and fails the build if any of them
+# regresses. It is a separate job (not a step in `unittest`) so a pyright failure and a
+# unittest failure are reported as distinct, independently-rerunnable checks. Scope is
+# intentionally narrow — see `.github/typechecked-files.txt`'s header comment for why the
+# whole repository is not gated. Same cost story as above: public repo, GitHub Actions
+# unmetered, `npm install -g pyright` adds a fixed, small amount of job time.
 on:
   pull_request:
   workflow_dispatch:
@@ -63,3 +71,37 @@ jobs:
 
       - name: Time-dependent test data check (手当てB, issue #344)
         run: python3 -m time_fixture_lint check
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pyright
+        # F-510-10: バージョン固定（npm install -g pyright のみだと最新版が無言で入り、
+        # リポジトリ側の変更ゼロでも pyright の新版が診断を追加/変更した瞬間に merge を左右する
+        # fail-close ゲートの判定基準が実行日依存になる）。更新は意図的な変更としてこの行を
+        # 編集する PR に載せる。
+        run: npm install -g pyright@1.1.390
+
+      - name: Type-check declared files (Issue #510, fail-close on the declared list only)
+        run: |
+          set -e
+          mapfile -t files < <(grep -vE '^[[:space:]]*(#|$)' .github/typechecked-files.txt)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no files declared in .github/typechecked-files.txt" >&2
+            exit 1
+          fi
+          echo "Type-checking (fail-close): ${files[*]}"
+          pyright "${files[@]}"

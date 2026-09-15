@@ -1,0 +1,26 @@
+# Files declared "type-checked clean" (Issue #510).
+#
+# The `typecheck` job in `.github/workflows/tests.yml` runs `pyright` against exactly the
+# paths listed here (one per line, repo-root-relative) and fails the build (fail-close) if
+# any of them reports an *error*-severity diagnostic (pyright's own exit code is what the job
+# checks, and pyright only sets a non-zero exit code for errors — warnings do not fail the
+# process; see F-510-11, corrected 2026-09-15 by Claude Code (AI) because the header originally
+# said "any diagnostic", which overstated the gate's strength). Blank lines and lines starting
+# with `#` are ignored.
+#
+# Why a declared list instead of the whole repository: `pyright` on the full repo currently
+# reports 448 errors (see Issue #510 body, "CI 検査の範囲" — mostly `reportArgumentType` /
+# `reportOptionalMemberAccess` / `reportOptionalSubscript` spread across `tests/`,
+# `issue_start/`, `archive/` and others). Gating the whole repo today would either fail every
+# PR immediately or require silencing hundreds of pre-existing findings, neither of which is
+# this issue's scope (see "Out of scope"). Instead, a file only enters this list once it has
+# been brought to a clean state, and this CI job's only job is to make sure it *stays* clean
+# (this is exactly the gap PR #515 fell through: the fix was correct, but the verification
+# used to confirm it — main-context `pyright` run from an isolated worktree's absolute path —
+# was silently invalid, and nothing in CI re-checked it before merge).
+#
+# To extend this list: confirm `pyright <path>` is clean when run with the repository root as
+# cwd (running from any other directory can make imports fail to resolve, which produces a
+# false "clean" result — see Issue #510's reopen record), then add the path below.
+
+tests/unit/test_pr_merge_classifier.py

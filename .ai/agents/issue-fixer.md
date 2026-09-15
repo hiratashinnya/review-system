@@ -57,6 +57,8 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 診断登録後に限り、宣言した targets の範囲を直す。範囲が変わったと気づいた時点で診断からやり直す。
 
+targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かったら、直接編集せず STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない）。
+
 0. 編集前に `python3 -m gitgate log -n 1 --oneline` を実行し、出力先頭の短縮コミットハッシュ（1トークン目のみ・件名は含めない）を控える。これは後の close-attempt の `--base` に使う。
 1. Step 1 で宣言した範囲だけを編集する。
 2. プロジェクトで指定された単体テストを実行し、全パスを確認する。
