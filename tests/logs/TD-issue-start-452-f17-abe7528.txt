@@ -1,0 +1,31 @@
+F-452-17 verification log (implementation OID abe7528011c32b2421355b214e71ac01aa3d21dd)
+
+python3 -m unittest tests.unit.test_codex_karte_bridge
+Ran 16 tests in 9.425s
+OK
+
+python3 -m unittest tests.unit.test_codex_karte_bridge.KarteBridgeTests.test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes
+Ran 1 test in 0.142s
+OK
+
+python3 -m unittest discover -s tests/unit -p 'test_codex_supervisor*.py'
+Ran 96 tests in 9.293s
+OK
+
+python3 -m unittest discover -s tests/unit -p 'test_*.py'
+Ran 1805 tests in 162.630s
+OK (skipped=9)
+
+uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'
+Ran 1805 tests in 141.353s
+OK (skipped=9)
+
+uv run --with coverage coverage html
+Wrote HTML report to htmlcov/index.html
+
+uv run --with coverage coverage report
+TOTAL 9291 statements, 1424 missed, 85% coverage
+issue_start/codex_karte_bridge.py: 88% coverage
+
+python3 -m asset_parity check
+39 assets checked; 0 MISSING
