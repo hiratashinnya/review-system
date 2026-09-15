@@ -1,0 +1,12 @@
+Uninstrumented full discovery failure log
+実装 commit: 895740f
+実行日: 2026-09-15 Asia/Tokyo
+
+command: python3 -m unittest discover -s tests/unit
+result: FAIL (1807 tests, failures 2, skip 13)
+
+failures (今回の変更外):
+- test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached: expected OK REACHED=1 ... but stdout was FALLBACK
+- test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch: expected OK EPOCH=... but stdout was FALLBACK
+
+再計測: coverage付き同一full discoveryは1807 tests PASS、skip 9。F-452-24関連スイートは一貫してPASS。
