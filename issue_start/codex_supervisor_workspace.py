@@ -292,6 +292,9 @@ def reserve_launch_attempt(
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LEDGER_CORRUPT")
         latest = attempts[-1] if attempts else None
         basis = latest
+        if role == "issue-fixer" and resume_thread is None and entry.get("karte_bridge", {}).get("state") in {
+                "registering", "registered", "closing", "closed"}:
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
             if alive(latest.get("owner_pid"), latest.get("owner_start_token")) \
                     or alive(latest.get("pid"), latest.get("process_start_token")):
@@ -320,8 +323,11 @@ def reserve_launch_attempt(
             )
             if not isinstance(basis, dict) or basis.get("thread_id") != resume_thread:
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
-            if basis.get("state") != "paused_rate_limit":
+            if basis.get("state") not in {"paused_rate_limit", "paused_karte_registered"}:
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
+            if basis.get("state") == "paused_karte_registered":
+                from .codex_karte_bridge import verify_registered
+                verify_registered(entry)
         attempts.append({
             "at": at, "attempt_id": attempt_id, "state": "reserved",
             "lease_expires_at": lease, "resume_thread": resume_thread,
@@ -398,6 +404,20 @@ def reserve_canonical_launch_attempt(
         if not isinstance(attempts, list):
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LEDGER_CORRUPT")
         latest = attempts[-1] if attempts else None
+        bridge_record = entry.get("karte_bridge")
+        if (
+            role == "issue-fixer"
+            and mode == "run"
+            and isinstance(bridge_record, dict)
+            and bridge_record.get("state") in {"diagnosing", "registering"}
+            and isinstance(latest, dict)
+            and latest.get("state") == "diagnosis_ready"
+        ):
+            # ``register_diagnosis`` commits its WAL before replacing the
+            # central karte.  A run during that window must leave the
+            # recovery state untouched; the same thread's resume performs
+            # the idempotent registration first.
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if isinstance(latest, dict) and latest.get("state") in {"reserved", "spawned", "running"}:
             if alive(latest.get("owner_pid"), latest.get("owner_start_token")) \
                     or alive(latest.get("pid"), latest.get("process_start_token")):
@@ -420,7 +440,8 @@ def reserve_canonical_launch_attempt(
             event for event in reversed(attempts)
             if isinstance(event, dict) and event.get("attempt_id") not in expired_ids
         ), None)
-        paused = basis if isinstance(basis, dict) and basis.get("state") == "paused_rate_limit" else None
+        paused = basis if isinstance(basis, dict) and basis.get("state") in {
+            "paused_rate_limit", "paused_karte_registered"} else None
         if mode == "run" and paused is not None:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_REQUIRED")
         if mode == "resume":
@@ -428,6 +449,9 @@ def reserve_canonical_launch_attempt(
                     or paused.get("thread_id") != entry.get("agent_id"):
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
             resume_thread = entry["agent_id"]
+            if paused.get("state") == "paused_karte_registered":
+                from .codex_karte_bridge import verify_registered
+                verify_registered(entry)
         else:
             if isinstance(basis, dict) and basis.get("state") == "succeeded":
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RUN_STATE_INVALID")
@@ -467,6 +491,7 @@ def verify_canonical_launch_reservation(
         ledger_lease = worktree_ledger.acquire_ledger_lease(repo_root)
     except worktree_ledger.LedgerError as exc:
         raise SupervisorWorkspaceError(exc.reason, exc.detail) from exc
+    karte_lock = None
     try:
         document = ledger_lease.document
         matches = [item for item in document["entries"]
@@ -495,6 +520,12 @@ def verify_canonical_launch_reservation(
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED") from exc
         if actual_owner_token != owner_start_token:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED")
+        if entry.get("agent_type") == "issue-fixer" and entry.get("karte_bridge", {}).get("state") == "registered":
+            from karte import paths as karte_paths
+            from .codex_karte_bridge import verify_registered
+            karte_lock = karte_paths.writer_lock(repo_root)
+            karte_lock.__enter__()
+            verify_registered(entry)
         facts = inspect_git_facts(workspace)
         if (facts.repository, facts.branch_name, facts.head_oid) != (
             repository, branch_name, expected_oid,
@@ -503,8 +534,11 @@ def verify_canonical_launch_reservation(
         return CanonicalLaunchReservationLease(
             ledger_lease, ledger_entry_id=ledger_entry_id, attempt_id=attempt_id,
             owner_pid=owner_pid, owner_start_token=owner_start_token,
+            karte_lock=karte_lock,
         )
     except BaseException:
+        if karte_lock is not None:
+            karte_lock.__exit__(None, None, None)
         ledger_lease.release()
         raise
 
@@ -514,12 +548,13 @@ class CanonicalLaunchReservationLease:
 
     def __init__(self, ledger_lease: worktree_ledger.LedgerLease, *,
                  ledger_entry_id: str, attempt_id: str, owner_pid: int,
-                 owner_start_token: str) -> None:
+                 owner_start_token: str, karte_lock=None) -> None:
         self._ledger_lease = ledger_lease
         self._ledger_entry_id = ledger_entry_id
         self._attempt_id = attempt_id
         self._owner_pid = owner_pid
         self._owner_start_token = owner_start_token
+        self._karte_lock = karte_lock
 
     @property
     def closed(self) -> bool:
@@ -562,6 +597,9 @@ class CanonicalLaunchReservationLease:
             self.release()
 
     def release(self) -> None:
+        if self._karte_lock is not None:
+            self._karte_lock.__exit__(None, None, None)
+            self._karte_lock = None
         self._ledger_lease.release()
 
 

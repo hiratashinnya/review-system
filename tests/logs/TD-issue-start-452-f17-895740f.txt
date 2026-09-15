@@ -1,0 +1,20 @@
+F-452-24 verification log
+実装 commit: 895740f
+実行日: 2026-09-15 Asia/Tokyo
+
+command: python3 -m unittest tests.unit.test_codex_karte_bridge.KarteBridgeTests.test_canonical_run_during_diagnosis_is_non_destructive_and_resume_converges -v
+result: PASS (1 test, skip 0)
+
+command: python3 -m unittest tests.unit.test_codex_karte_bridge tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_worktree_ledger
+result: PASS (172 tests, skip 4)
+
+command: uv run --with coverage python -m coverage run -m unittest discover -s tests/unit
+result: PASS (1807 tests, skip 9)
+
+command: uv run --with coverage python -m coverage html
+result: PASS; htmlcov/index.html generated (uncommitted)
+
+command: uv run --with coverage python -m coverage report
+result: PASS; TOTAL 85%; issue_start/codex_karte_bridge.py 88%; issue_start/codex_supervisor_workspace.py 84%
+
+observed: diagnosis_ready + diagnosing の canonical run は runner 未起動・ledger byte 不変で RESUME_REQUIRED、同一 thread resume は succeeded、中央 Attempt は1件。

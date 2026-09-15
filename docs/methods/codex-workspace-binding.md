@@ -61,8 +61,8 @@ runtime親AIがsupervisorへ渡す値は従来どおりIssue、role、change-pla
 control-plane CLIのworkspace/source/approver/protected pathは発行時だけの入力であり、runtime launchへ転記しない。
 
 attemptはowner PID/start-token、intent digest、leaseを持つ。生存processは時刻だけで奪わない。
-rate limit pauseからのresume threadは親入力を禁止し、ledger lock内のlatest
-`paused_rate_limit` attemptとentry `agent_id`が一致するときだけ自動導出する。run時にpauseが残れば
+rate limitまたは登録済み診断pauseからのresume threadは親入力を禁止し、ledger lock内のlatest
+`paused_rate_limit` / `paused_karte_registered` attemptとentry `agent_id`が一致するときだけ自動導出する。run時にpauseが残れば
 `RESUME_REQUIRED`、resume時のmissing/old/later failure/active/mismatchは拒否する。
 
 Popen直前に同じ4入力からintentを再読し、全field/evidence digest、latest reservation、owner process identity、
@@ -117,7 +117,32 @@ active/negative probeでこの実効境界を検証し、検証不能はlaunch�
 - protected asset: owner launch planのexact path/base digestに一致するstructured patchだけhost適用
 - bootstrap PR: reviewerと処置contextを分離し、明示waiverを記録する
 
-F-452-17（fixer用host karte bridge）は後続依存であり、この縮小で実装済みとみなさない。
+## Fixer host karte bridge（F-452-17）
+
+最初のfixer turnは診断専用で、outer sandboxはworktreeをread-onlyにし、
+`tmp/_diagnosis/<task-key>/`だけを書込み可能にする。中央karteと共通Gitは引き続きread-onlyである。
+hostは開始前にclean Git snapshot、中央karte digest、launch identityとfinding IDをledgerへ固定し、
+innerはhost生成templateを使って同directoryの`proposal.json`へ構造化診断だけを書く。
+active model-free probeはこのphaseではworkspace write拒否とproposal directory write成功を同時に検査する。
+
+`turn.completed`とexit 0後に`diagnosis_ready`を記録する。hostは差分なし、proposal identity/digest、
+finding/round/targetsと既存karteの類似飽和規則を検査し、中央karteへAttemptを追記する。
+ledgerの`karte_bridge`へ先にappend内容・前後digest・Attempt番号・threadを記録し、同directoryの
+fsync済みtemporary fileからatomic replaceする。karte CLIのmutatorと同じwriter lockを使う。
+成功後は`paused_karte_registered`とし、同じ4入力の`resume`だけが同一threadを再開する。
+resume時の中央karte・proposal・Attempt不一致は拒否する。登録中に停止した場合は同じresumeが
+`diagnosis_ready`からhost登録を冪等復旧してから再開する。別threadやfresh runへ置換しない。
+
+修正後handoffは登録済み診断とfinding/round/宣言targetsに一致しなければpublish不可である。
+fixer publish順は`add → commit → push → karte.close-attempt → final`とする。close actionの追加引数は
+禁止し、中央Attempt、launch時の編集前OID、push済みHEADからhostがResultと実測touchedを生成する。
+pushだけではfinalにならない。closeにも前後digest付きjournalを使い、push後・Result前後・completed後・
+final前後の停止は重複push/Attempt/Resultなく収束する。異なるdigestやschema-validな置換も拒否する。
+
+判断: 既存karte CLIへ任意のhost権限を渡す方式ではなく、host専用のappend/close transactionを追加した。
+既存CLIの類似飽和・型検査とtouched抽出を再利用し、通常CLIの処置契約は維持する。
+writer lockは協調writer間の排他であり、same-UID非協調host processは既存threat boundary外である。
+このbootstrap実装・unitは正規transport/P4成功の証拠ではなく、merge後同一baselineでのP4を別途要求する。
 
 ## 残す記録と退役物
 
