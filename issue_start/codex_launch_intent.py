@@ -99,17 +99,12 @@ _PROMPT_RESERVED_FIELDS = frozenset({
     "karte_path", "karte_snapshot",
 })
 # The bare directory mention (including normal sentence punctuation) is useful
-# prose and harmless.  Candidate detection therefore starts at the directory
-# root and tokenizes only path-shaped components.  The tokenizer accepts the
-# separators and quoting forms a shell/Markdown reader may normalize before
-# treating the value as a path.  It deliberately does not consume arbitrary
-# prose after ``tmp/_handoff/``.
-# The path scanner below intentionally has no regular-expression seed for
-# ``tmp/``.  A seed cannot see a quote-delimited component (``"tmp"/``) or a
-# separator inside a quoted component (``tmp/"_handoff/"/``).  Regex is still
-# used for the *contents* of one lexical component after the deterministic
-# scanner has selected its boundary.
-_HANDOFF_BARE_COMPONENT = re.compile(r"[\w.-]+")
+# prose and harmless.  Candidate detection scans deterministic shell-like
+# words, reassembles adjacent quote/bare fragments, and only then interprets
+# path separators.  It deliberately does not execute a shell or consume
+# arbitrary prose after ``tmp/_handoff/``.  Regex is used only for the literal
+# alphabet of one fragment; no command, parameter, or glob expansion occurs.
+_HANDOFF_BARE_COMPONENT = re.compile(r"[\w./\\-]+")
 _HANDOFF_WORD = re.compile(r"\w")
 _HANDOFF_SEPARATORS = frozenset({"/", "\\"})
 _HANDOFF_QUOTE_PAIRS = {
@@ -532,23 +527,20 @@ def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def _handoff_component_start(text: str, index: int) -> bool:
-    """Return whether *index* starts a path component at a token boundary."""
-
-    if index == 0:
-        return True
-    return _HANDOFF_BARE_COMPONENT.fullmatch(text[index - 1]) is None
-
-
 def _handoff_lex_component(text: str, cursor: int) -> tuple[str, int] | None:
-    """Lex one bare or quoted component, without interpreting shell syntax."""
+    """Lex one literal bare/quoted fragment without shell interpretation.
+
+    This function deliberately operates on *fragments*, not path components.
+    In a shell-like word, adjacent fragments such as ``"tm"'p'`` and
+    ``"tmp""/"_handoff`` concatenate before path separators are interpreted.
+    The caller performs that reassembly; this helper only recognizes one
+    fragment and never performs an expansion or an escape interpretation.
+    """
 
     if cursor >= len(text):
         return None
     if text[cursor] in _HANDOFF_QUOTE_PAIRS:
         component, end = _consume_handoff_quoted_component(text, cursor)
-        if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
-            return None
         return component, end
     match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
     if match is None:
@@ -556,68 +548,83 @@ def _handoff_lex_component(text: str, cursor: int) -> tuple[str, int] | None:
     return match.group(0), match.end()
 
 
-def _handoff_lex_path(text: str, start: int) -> tuple[tuple[str, ...], bool] | None:
-    """Read one complete path-shaped token from *start* to its boundary.
+@dataclass(frozen=True)
+class _HandoffLexedWord:
+    """A deterministic, non-executing reconstruction of one lexical word."""
 
-    The result contains raw components (including dot and empty components)
-    and whether the *last semantic path character* was a separator.  The
-    latter is computed after the whole token is read: a separator inside
-    ``"_handoff/"`` must not turn ``..."_handoff/"/file.yaml`` into a
-    directory candidate.  A separator at the end of a quoted component also
-    permits an adjacent component, which covers quote-split path tokens
-    without invoking a shell.
+    fragments: tuple[str, ...]
+    end: int
+    valid: bool
+
+    @property
+    def literal(self) -> str:
+        return "".join(self.fragments)
+
+    @property
+    def terminal_separator(self) -> bool:
+        return self.literal.endswith(tuple(_HANDOFF_SEPARATORS))
+
+
+def _handoff_lex_word(text: str, start: int) -> _HandoffLexedWord | None:
+    """Read one shell-like word as adjacent literal fragments.
+
+    Word boundaries are determined only by the small lexical alphabet needed
+    for path candidates: bare path characters and balanced quote fragments.
+    This is intentionally *not* a shell parser.  Quotes are delimiters, while
+    command/parameter/glob expansion and backslash escaping are never applied.
+    A fragment containing characters outside the handoff path alphabet marks
+    the whole word invalid, so a later fragment cannot be re-scanned as a
+    misleading partial candidate.
     """
 
-    first = _handoff_lex_component(text, start)
-    if first is None:
+    if start >= len(text):
         return None
-    # When the scan starts inside a quote-wrapped complete path, the quote
-    # immediately before ``start`` is the wrapper opener.  A separator just
-    # before its matching closer is the terminal separator of this token, not
-    # an invitation to lex the closer as an empty quoted component.  The
-    # opener scan handles quote-split components such as ``"tmp"/...``.
-    wrapper_closer = None
-    if start > 0:
-        wrapper_closer = _HANDOFF_QUOTE_PAIRS.get(text[start - 1])
-    component, cursor = first
-    components = [component]
-    last_was_separator = component.endswith(tuple(_HANDOFF_SEPARATORS))
-
-    while True:
-        separator_seen = False
-        while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
-            separator_seen = True
-            cursor += 1
-        if separator_seen:
-            last_was_separator = True
-            if (cursor >= len(text)
-                    or (wrapper_closer is not None
-                        and text[cursor] == wrapper_closer)):
-                break
-        elif not last_was_separator:
+    cursor = start
+    fragments: list[str] = []
+    valid = True
+    while cursor < len(text):
+        fragment = _handoff_lex_component(text, cursor)
+        if fragment is None:
             break
+        value, cursor = fragment
+        fragments.append(value)
+        # An empty quoted fragment is valid shell syntax but contributes no
+        # path character.  Non-path quote contents make this word ordinary
+        # prose/code, not an inspectable handoff path.
+        if _HANDOFF_QUOTED_COMPONENT.fullmatch(value) is None:
+            valid = False
+    if not fragments:
+        return None
+    return _HandoffLexedWord(tuple(fragments), cursor, valid)
 
-        # A quoted component may carry its separator inside the quote, e.g.
-        # ``tmp/"_handoff/"/attacker.yaml``.  Once a real next component is
-        # read, the terminal state is replaced by that component's final
-        # character rather than retained from the middle fragment.
-        next_component = _handoff_lex_component(text, cursor)
-        if next_component is None:
-            break
-        component, cursor = next_component
-        components.append(component)
-        last_was_separator = component.endswith(tuple(_HANDOFF_SEPARATORS))
 
-    return tuple(components), last_was_separator
+def _handoff_lex_path(text: str, start: int) -> tuple[tuple[str, ...], bool] | None:
+    """Reconstruct one complete word before normalizing its path semantics.
+
+    The returned tuple contains adjacent bare/quoted fragments and whether the
+    *complete reconstructed word* ends in a separator.  In particular, a
+    separator inside ``"_handoff/"`` does not make a later filename a
+    directory candidate.  This endpoint-only decision closes the old
+    fragment-by-fragment terminal-state bug.
+    """
+
+    word = _handoff_lex_word(text, start)
+    if word is None or not word.valid:
+        return None
+    return word.fragments, word.terminal_separator
 
 
 def _handoff_flat_components(components: Sequence[str]) -> tuple[str, ...]:
-    """Flatten quoted components while retaining dot/dot-dot semantics."""
+    """Join lexical fragments, then split the restored word into components.
 
-    flat: list[str] = []
-    for component in components:
-        flat.extend(component.replace("\\", "/").split("/"))
-    return tuple(flat)
+    Joining before splitting is the essential distinction between a lexical
+    word and a path component.  ``"tm"'p'/_handoff/x.yaml`` must become
+    ``tmp/_handoff/x.yaml``; splitting each quoted fragment independently
+    would manufacture ``tm`` and ``p`` components and lose the canonical root.
+    """
+
+    literal = "".join(components).replace("\\", "/")
+    return tuple(literal.split("/"))
 
 
 def _handoff_candidate_from_lexed_path(
@@ -664,22 +671,24 @@ def _handoff_file_candidate_exists(rendered: str) -> bool:
     text = unescape(rendered)
     index = 0
     while index < len(text):
-        character = text[index]
-        if character in _HANDOFF_QUOTE_PAIRS:
-            candidate_start = index
-        elif (character == "t" and _handoff_component_start(text, index)
-              and text.startswith("tmp", index)):
-            candidate_start = index
-        else:
+        # Starting at every lexical word boundary lets the word reader retain
+        # a preceding bare fragment.  Thus ``foo"tmp/_handoff/x.yaml"`` is
+        # reconstructed as one word (and is not mistaken for a root at the
+        # quote fragment), while ``Path("tmp/_handoff/")`` still exposes the
+        # quoted path as its own path-shaped word after ``Path("``.
+        word = _handoff_lex_word(text, index)
+        if word is None:
             index += 1
             continue
-
-        lexed = _handoff_lex_path(text, candidate_start)
-        if lexed is not None:
-            components, terminal_separator = lexed
-            if _handoff_candidate_from_lexed_path(components, terminal_separator):
+        if word.valid:
+            if _handoff_candidate_from_lexed_path(
+                word.fragments, word.terminal_separator
+            ):
                 return True
-        index += 1
+        # Always skip the complete lexical word, including invalid quote
+        # contents.  Otherwise a path-looking suffix inside an ordinary
+        # quoted sentence could be re-scanned and spuriously rejected.
+        index = max(index + 1, word.end)
     return False
 
 

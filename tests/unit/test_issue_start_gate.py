@@ -411,12 +411,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
             raise AssertionError(shape)
 
         def assert_rejected(path):
-            # The complete matrix exercises the lexer itself.  Only a small
+            # The complete matrix exercises the lexer itself against a fixed
+            # expected result.  Only a small
             # representative slice needs the much heavier launch-intent
             # fixture setup; the existing variant test below still covers the
             # role/source preflight contract independently.
-            self.assertTrue(
-                codex_launch_intent._handoff_file_candidate_exists(path), path
+            self.assertEqual(
+                codex_launch_intent._handoff_file_candidate_exists(path), True, path
             )
             if path not in runtime_candidates:
                 return
@@ -484,6 +485,55 @@ class CodexLaunchIntentTests(unittest.TestCase):
                                             sep_root, sep_suffix,
                                         )
                                     )
+
+        # Generate adjacent fragments independently of the production lexer.
+        # Every internal split position of each component is covered, and the
+        # expected result is fixed by the canonical root/file shape rather
+        # than obtained from the helper under test.  Quote fragments may be
+        # mixed, repeated, and adjacent without invoking shell semantics.
+        def split_component(value, cut, left_style, right_style):
+            left, right = value[:cut], value[cut:]
+            return quoted(left, left_style) + quoted(right, right_style)
+
+        canonical_components = ("tmp", "_handoff", "attacker.yaml")
+        for component_index, component in enumerate(canonical_components):
+            for cut in range(1, len(component)):
+                for left_style in quote_styles:
+                    for right_style in quote_styles:
+                        parts = list(canonical_components)
+                        parts[component_index] = split_component(
+                            component, cut, left_style, right_style
+                        )
+                        path = "/".join(parts)
+                        with self.subTest(
+                            shape="adjacent-fragments", component=component,
+                            cut=cut, left_style=left_style,
+                            right_style=right_style,
+                        ):
+                            self.assertEqual(
+                                codex_launch_intent._handoff_file_candidate_exists(path),
+                                True,
+                                path,
+                            )
+
+        # Separators can be carried by either side of an adjacent quote
+        # fragment.  The endpoint slash is decided only after all fragments
+        # are joined; these are file candidates despite the middle slash.
+        for path in (
+            '"tm"\'p\'/_handoff/attacker.yaml',
+            '"tmp""/"_handoff/attacker.yaml',
+            'tmp"/"_handoff/attacker.yaml',
+            'tmp/"_handoff/"attacker.yaml',
+            '"tmp/_handoff/""attacker.yaml"',
+            "&#34;tm&#34;&#39;p&#39;/_handoff/attacker.yaml",
+            "&#34;tmp&#34;&#34;/&#34;_handoff/attacker.yaml",
+        ):
+            with self.subTest(shape="explicit-adjacent-fragments", path=path):
+                self.assertEqual(
+                    codex_launch_intent._handoff_file_candidate_exists(path),
+                    True,
+                    path,
+                )
 
         # HTML entity decoding is part of the same lexer boundary, including
         # an entity-delimited root and a separator carried by a quoted middle
