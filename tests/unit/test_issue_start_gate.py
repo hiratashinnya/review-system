@@ -627,6 +627,97 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 )
                 self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
 
+    def test_malformed_quote_recovery_rescans_internal_and_following_candidates(self):
+        malformed_values = (
+            '"未閉じ\n tmp/_handoff/attacker.yaml',
+            "'未閉じ\n tmp/_handoff/attacker.yaml",
+            "`未閉じ\n tmp/_handoff/attacker.yaml",
+            "“未閉じ\n tmp/_handoff/attacker.yaml",
+            '"tmp/_handoff/attacker.yaml',
+            "'tmp/_handoff/attacker.yaml\"",
+            "`tmp/_handoff/attacker.yaml'",
+            '“tmp/_handoff/attacker.yaml"',
+            '&#34;未閉じ&#39;\n tmp/_handoff/attacker.yaml',
+            '&#96;未閉じ&#34;\n tmp/_handoff/attacker.yaml',
+        )
+        for label, injected in enumerate(malformed_values):
+            with self.subTest(candidate=label):
+                # The malformed word must expose a local recovery point.  An
+                # EOF endpoint would skip the candidate that follows it.
+                lexed = codex_launch_intent.unescape(injected)
+                word = codex_launch_intent._handoff_lex_word(lexed, 0)
+                self.assertIsNotNone(word)
+                self.assertGreater(word.end, 0)
+                self.assertLess(word.end, len(lexed))
+                self.assertTrue(
+                    codex_launch_intent._handoff_file_candidate_exists(injected),
+                    f"candidate={label} value={injected!r} word={word!r}",
+                )
+
+                issue = json.loads(ISSUE_SNAPSHOT)
+                issue["body"] = f"untrusted malformed candidate {injected}"
+                issue_raw = json.dumps(issue, sort_keys=True)
+                implementer_plan = codex_change_plan(self.root)
+                implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(), plan=implementer_plan,
+                        source_material={"issue": issue_raw},
+                    )
+
+                fixer_plan = codex_change_plan(
+                    self.root, role="issue-fixer", fixer_round=3
+                )
+                fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(role="issue-fixer", fixer_round=3),
+                        plan=fixer_plan,
+                        source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                    )
+
+                karte = json.loads(KARTE_SNAPSHOT)
+                karte["open_findings"][0]["summary"] = (
+                    f"untrusted malformed candidate {injected}"
+                )
+                karte_raw = json.dumps(karte, sort_keys=True)
+                karte_plan = codex_change_plan(
+                    self.root, role="issue-fixer", fixer_round=3
+                )
+                karte_plan["karte_source"]["sha256"] = digest(karte_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(role="issue-fixer", fixer_round=3),
+                        plan=karte_plan,
+                        source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
+                    )
+
+    def test_malformed_quote_recovery_keeps_normal_prose_and_scales_with_many_fragments(self):
+        prose = (
+            "An ordinary apostrophe isn't a handoff path.\n"
+            'A malformed quote can appear here: "ordinary prose\n'
+            "and another one here: 'still ordinary\n"
+            "then a backtick: `also ordinary\n"
+            "No output file is named in this text."
+        )
+        self.assertFalse(codex_launch_intent._handoff_file_candidate_exists(prose))
+
+        # Every malformed opener is followed by a local quote boundary.  The
+        # scanner must terminate and continue monotonically without searching
+        # each suffix to EOF (the former failure mode was quadratic here).
+        many_malformed = "".join(f'"bad-{index}' for index in range(256))
+        self.assertFalse(
+            codex_launch_intent._handoff_file_candidate_exists(many_malformed)
+        )
+        recovered = '"bad-0\n tmp/_handoff/recovered.yaml'
+        self.assertTrue(codex_launch_intent._handoff_file_candidate_exists(recovered))
+
     def test_source_digest_and_provenance_are_fail_closed(self):
         plan = codex_change_plan(self.root)
         with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,

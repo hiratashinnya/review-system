@@ -491,24 +491,54 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
     return capture
 
 
-def _consume_handoff_quoted_component(text: str, start: int) -> tuple[str, int]:
+@dataclass(frozen=True)
+class _HandoffLexedFragment:
+    """One literal fragment and whether its quote delimiter was closed."""
+
+    value: str
+    end: int
+    closed: bool = True
+
+
+def _consume_handoff_quoted_component(
+    text: str, start: int,
+) -> _HandoffLexedFragment:
     """Consume one quoted lexical component without shell interpretation.
 
     Backslash is a path separator in the input language, not a shell escape.
     In particular, ``"tmp\\_handoff\\attacker.yaml"`` must normalize to the
     same candidate as its POSIX spelling.  The scanner never executes or
-    expands the value; it only recognizes the first matching quote boundary.
+    expands the value; it recognizes a matching quote boundary only inside
+    the small literal path alphabet.  An absent or mismatched closer is
+    returned as a local malformed fragment so the caller can resynchronize.
     """
 
     opener = text[start]
     closer = _HANDOFF_QUOTE_PAIRS[opener]
-    closer_index = text.find(closer, start + 1)
-    if closer_index < 0:
-        # A malformed/unclosed quote is still lexed to EOF.  If its contents
-        # are path-shaped, failing closed is safer than allowing the quote to
-        # hide a handoff candidate.
-        return text[start + 1:], len(text)
-    return text[start + 1:closer_index], closer_index + 1
+    cursor = start + 1
+    while cursor < len(text):
+        character = text[cursor]
+        if character == closer:
+            return _HandoffLexedFragment(
+                text[start + 1:cursor], cursor + 1,
+            )
+        # A quoted path fragment has the same deliberately small alphabet as
+        # a bare fragment.  Once a non-path character, another quote opener,
+        # or a line boundary is reached, an absent closer is malformed at this
+        # *local* boundary.  Do not search to EOF: doing so hides a later plain
+        # candidate and can make several malformed quotes quadratic.
+        if (character in _HANDOFF_QUOTE_PAIRS
+                or _HANDOFF_QUOTED_COMPONENT.fullmatch(character) is None):
+            return _HandoffLexedFragment(
+                text[start + 1:cursor], start + 1, closed=False,
+            )
+        cursor += 1
+    # Keep the entire fragment as diagnostic value, but resume scanning after
+    # the opener.  The caller will therefore re-scan a path-shaped candidate
+    # that itself is inside an unclosed quote instead of skipping to EOF.
+    return _HandoffLexedFragment(
+        text[start + 1:], start + 1, closed=False,
+    )
 
 
 def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
@@ -527,7 +557,9 @@ def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def _handoff_lex_component(text: str, cursor: int) -> tuple[str, int] | None:
+def _handoff_lex_component(
+    text: str, cursor: int,
+) -> _HandoffLexedFragment | None:
     """Lex one literal bare/quoted fragment without shell interpretation.
 
     This function deliberately operates on *fragments*, not path components.
@@ -540,12 +572,11 @@ def _handoff_lex_component(text: str, cursor: int) -> tuple[str, int] | None:
     if cursor >= len(text):
         return None
     if text[cursor] in _HANDOFF_QUOTE_PAIRS:
-        component, end = _consume_handoff_quoted_component(text, cursor)
-        return component, end
+        return _consume_handoff_quoted_component(text, cursor)
     match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
     if match is None:
         return None
-    return match.group(0), match.end()
+    return _HandoffLexedFragment(match.group(0), match.end())
 
 
 @dataclass(frozen=True)
@@ -555,6 +586,7 @@ class _HandoffLexedWord:
     fragments: tuple[str, ...]
     end: int
     valid: bool
+    malformed: bool = False
 
     @property
     def literal(self) -> str:
@@ -573,8 +605,10 @@ def _handoff_lex_word(text: str, start: int) -> _HandoffLexedWord | None:
     This is intentionally *not* a shell parser.  Quotes are delimiters, while
     command/parameter/glob expansion and backslash escaping are never applied.
     A fragment containing characters outside the handoff path alphabet marks
-    the whole word invalid, so a later fragment cannot be re-scanned as a
-    misleading partial candidate.
+    the whole word invalid, so a later balanced fragment cannot be re-scanned
+    as a misleading partial candidate.  An unclosed/mismatched quote is a
+    local recovery point: its endpoint advances at least one character and
+    the outer scanner revisits the fragment interior.
     """
 
     if start >= len(text):
@@ -586,12 +620,20 @@ def _handoff_lex_word(text: str, start: int) -> _HandoffLexedWord | None:
         fragment = _handoff_lex_component(text, cursor)
         if fragment is None:
             break
-        value, cursor = fragment
-        fragments.append(value)
+        fragments.append(fragment.value)
+        cursor = fragment.end
+        if not fragment.closed:
+            # A malformed quote is a recovery point, not a complete word.
+            # Returning immediately guarantees end > start and makes the
+            # outer scanner revisit both the malformed fragment's interior
+            # and any later word after whitespace/newline.
+            return _HandoffLexedWord(
+                tuple(fragments), max(start + 1, cursor), False, malformed=True,
+            )
         # An empty quoted fragment is valid shell syntax but contributes no
         # path character.  Non-path quote contents make this word ordinary
         # prose/code, not an inspectable handoff path.
-        if _HANDOFF_QUOTED_COMPONENT.fullmatch(value) is None:
+        if _HANDOFF_QUOTED_COMPONENT.fullmatch(fragment.value) is None:
             valid = False
     if not fragments:
         return None
@@ -680,14 +722,14 @@ def _handoff_file_candidate_exists(rendered: str) -> bool:
         if word is None:
             index += 1
             continue
-        if word.valid:
+        if word.valid or word.malformed:
             if _handoff_candidate_from_lexed_path(
                 word.fragments, word.terminal_separator
             ):
                 return True
-        # Always skip the complete lexical word, including invalid quote
-        # contents.  Otherwise a path-looking suffix inside an ordinary
-        # quoted sentence could be re-scanned and spuriously rejected.
+        # A malformed quote has only a local recovery endpoint; the scanner
+        # therefore resumes inside it instead of skipping the suffix to EOF.
+        # Balanced invalid prose still skips its complete lexical word.
         index = max(index + 1, word.end)
     return False
 
