@@ -224,13 +224,18 @@ directory mention、reservedでない一般placeholder、通常のコード断�
 正規のhost-derived handoff pathは引き続き生成後にexact 1回を検証し、F-452-25/26/27のpath・facts・
 collision fail-close契約は維持する。
 
-### F-452-29によるhandoff候補のtokenize/normalize（2026-09-16）
+### F-452-29によるhandoff候補lexerの再設計（2026-09-16）
 
 F-452-28で実ファイル候補へ検査対象を狭めた後も、`tmp/_handoff/./attacker.yaml`、重複separator、
-filenameだけをquote/backtickで囲む表記は単純な正規表現の構文境界をすり抜けた。snapshotはuntrustedな
-自然言語・shell・Markdownを含みうるため、本文全体をshell parserへ渡す案は採らず、handoff rootから
-path-shaped componentだけを限定的にtokenizeする。空componentと`.`/`..`はPOSIX的にnormalizeし、
-single/double quote・backtick（transport上のHTML entityを含む）は解除してから、意味のある最終component
-を持つ候補としてfail-closeする。rootだけのbare prose、`./`や`//`で終わるdirectory表現、一般
-placeholder、通常コード断片は候補にならず、F-452-28の可用性境界を維持する。判定はIssueとkarteの
-render前、両roleで共通に実行し、canonical host-derived pathのprompt内exact 1回検証は変更しない。
+filenameだけをquote/backtickで囲む表記は、`tmp`直後のseparatorを前提にしたregex seedと、途中の
+quoted componentが保持したterminal状態をすり抜けた。snapshotはuntrustedな自然言語・shell・Markdownを
+含みうるため、本文全体をshell parserへ渡す案は採らず、regex seedへの個別case追加も採らない。HTML entityを
+一度だけdecodeした本文を、pathの先頭から末尾まで一つのdeterministic lexerで読む。lexerはbare/quote/backtick
+component、POSIX/Windows separator、空component、`.`/`..`を記録し、quote内のbackslashもshell escapeへ
+展開せずWindows separatorとして扱う。正規化後に`tmp/_handoff` root配下の意味ある最終componentが残る
+候補だけをfail-closeし、terminal separatorは候補全体の最後のsemantic path文字からのみ決める。このため
+`"tmp"/_handoff/attacker.yaml`、`tmp/"_handoff/"/attacker.yaml`、各componentのquote組合せを検出しつつ、
+`tmp/_handoff/archive/`のdirectory prose、rootだけのbare prose、一般placeholder、通常コード断片は候補に
+ならずF-452-28の可用性境界を維持する。判定はIssueとkarteのrender前、両roleで共通に実行し、canonical
+host-derived pathのprompt内exact 1回検証は変更しない。quote位置×separator×file/directory境界は生成matrix
+で回帰する。

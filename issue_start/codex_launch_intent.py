@@ -104,13 +104,11 @@ _PROMPT_RESERVED_FIELDS = frozenset({
 # separators and quoting forms a shell/Markdown reader may normalize before
 # treating the value as a path.  It deliberately does not consume arbitrary
 # prose after ``tmp/_handoff/``.
-# Match a path component named ``tmp``.  The rest of the path is tokenized
-# below rather than matched as a single regular expression so that root-side
-# ``.`` components and repeated separators receive the same normalization as
-# the suffix.  A word boundary is deliberately used instead of anchoring to
-# the exact canonical root: ``tmp/./_handoff/file`` must be treated like the
-# canonical candidate too.
-_HANDOFF_PATH_START = re.compile(r"(?<![\w.-])tmp(?=[\\/])")
+# The path scanner below intentionally has no regular-expression seed for
+# ``tmp/``.  A seed cannot see a quote-delimited component (``"tmp"/``) or a
+# separator inside a quoted component (``tmp/"_handoff/"/``).  Regex is still
+# used for the *contents* of one lexical component after the deterministic
+# scanner has selected its boundary.
 _HANDOFF_BARE_COMPONENT = re.compile(r"[\w.-]+")
 _HANDOFF_WORD = re.compile(r"\w")
 _HANDOFF_SEPARATORS = frozenset({"/", "\\"})
@@ -499,34 +497,23 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
 
 
 def _consume_handoff_quoted_component(text: str, start: int) -> tuple[str, int]:
-    """Consume one quoted path component without interpreting arbitrary text.
+    """Consume one quoted lexical component without shell interpretation.
 
-    A missing closer is consumed to the end and subsequently rejected unless
-    the content is still path-shaped.  This keeps malformed quote syntax from
-    becoming a way to hide a candidate while avoiding a general-purpose shell
-    parser over the whole snapshot.
+    Backslash is a path separator in the input language, not a shell escape.
+    In particular, ``"tmp\\_handoff\\attacker.yaml"`` must normalize to the
+    same candidate as its POSIX spelling.  The scanner never executes or
+    expands the value; it only recognizes the first matching quote boundary.
     """
 
     opener = text[start]
     closer = _HANDOFF_QUOTE_PAIRS[opener]
-    cursor = start + 1
-    content: list[str] = []
-    escaped = False
-    while cursor < len(text):
-        character = text[cursor]
-        if escaped:
-            content.append(character)
-            escaped = False
-        elif character == "\\":
-            escaped = True
-        elif character == closer:
-            return "".join(content), cursor + 1
-        else:
-            content.append(character)
-        cursor += 1
-    if escaped:
-        content.append("\\")
-    return "".join(content), cursor
+    closer_index = text.find(closer, start + 1)
+    if closer_index < 0:
+        # A malformed/unclosed quote is still lexed to EOF.  If its contents
+        # are path-shaped, failing closed is safer than allowing the quote to
+        # hide a handoff candidate.
+        return text[start + 1:], len(text)
+    return text[start + 1:closer_index], closer_index + 1
 
 
 def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
@@ -545,94 +532,154 @@ def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _handoff_component_start(text: str, index: int) -> bool:
+    """Return whether *index* starts a path component at a token boundary."""
+
+    if index == 0:
+        return True
+    return _HANDOFF_BARE_COMPONENT.fullmatch(text[index - 1]) is None
+
+
+def _handoff_lex_component(text: str, cursor: int) -> tuple[str, int] | None:
+    """Lex one bare or quoted component, without interpreting shell syntax."""
+
+    if cursor >= len(text):
+        return None
+    if text[cursor] in _HANDOFF_QUOTE_PAIRS:
+        component, end = _consume_handoff_quoted_component(text, cursor)
+        if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
+            return None
+        return component, end
+    match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
+    if match is None:
+        return None
+    return match.group(0), match.end()
+
+
+def _handoff_lex_path(text: str, start: int) -> tuple[tuple[str, ...], bool] | None:
+    """Read one complete path-shaped token from *start* to its boundary.
+
+    The result contains raw components (including dot and empty components)
+    and whether the *last semantic path character* was a separator.  The
+    latter is computed after the whole token is read: a separator inside
+    ``"_handoff/"`` must not turn ``..."_handoff/"/file.yaml`` into a
+    directory candidate.  A separator at the end of a quoted component also
+    permits an adjacent component, which covers quote-split path tokens
+    without invoking a shell.
+    """
+
+    first = _handoff_lex_component(text, start)
+    if first is None:
+        return None
+    # When the scan starts inside a quote-wrapped complete path, the quote
+    # immediately before ``start`` is the wrapper opener.  A separator just
+    # before its matching closer is the terminal separator of this token, not
+    # an invitation to lex the closer as an empty quoted component.  The
+    # opener scan handles quote-split components such as ``"tmp"/...``.
+    wrapper_closer = None
+    if start > 0:
+        wrapper_closer = _HANDOFF_QUOTE_PAIRS.get(text[start - 1])
+    component, cursor = first
+    components = [component]
+    last_was_separator = component.endswith(tuple(_HANDOFF_SEPARATORS))
+
+    while True:
+        separator_seen = False
+        while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
+            separator_seen = True
+            cursor += 1
+        if separator_seen:
+            last_was_separator = True
+            if (cursor >= len(text)
+                    or (wrapper_closer is not None
+                        and text[cursor] == wrapper_closer)):
+                break
+        elif not last_was_separator:
+            break
+
+        # A quoted component may carry its separator inside the quote, e.g.
+        # ``tmp/"_handoff/"/attacker.yaml``.  Once a real next component is
+        # read, the terminal state is replaced by that component's final
+        # character rather than retained from the middle fragment.
+        next_component = _handoff_lex_component(text, cursor)
+        if next_component is None:
+            break
+        component, cursor = next_component
+        components.append(component)
+        last_was_separator = component.endswith(tuple(_HANDOFF_SEPARATORS))
+
+    return tuple(components), last_was_separator
+
+
+def _handoff_flat_components(components: Sequence[str]) -> tuple[str, ...]:
+    """Flatten quoted components while retaining dot/dot-dot semantics."""
+
+    flat: list[str] = []
+    for component in components:
+        flat.extend(component.replace("\\", "/").split("/"))
+    return tuple(flat)
+
+
+def _handoff_candidate_from_lexed_path(
+    components: Sequence[str], terminal_separator: bool,
+) -> bool:
+    """Classify one lexed token as a real handoff file candidate."""
+
+    flat_components = _handoff_flat_components(components)
+    root_index = None
+    for index, component in enumerate(flat_components):
+        if (component == "_handoff"
+                and _normalize_handoff_components(flat_components[:index]) == ("tmp",)):
+            root_index = index
+            break
+    if root_index is None:
+        return False
+
+    suffix = flat_components[root_index + 1:]
+    normalized = _normalize_handoff_components(suffix)
+    # Only the final character of the complete lexed token controls directory
+    # classification.  An earlier quoted separator followed by a filename is
+    # therefore a file candidate, while ``tmp/_handoff/archive/`` remains safe
+    # prose.
+    terminal_directory = (
+        terminal_separator
+        or bool(suffix and suffix[-1] in {".", ".."})
+    )
+    return bool(
+        normalized and not terminal_directory
+        and _HANDOFF_WORD.search(normalized[-1])
+    )
+
+
 def _handoff_file_candidate_exists(rendered: str) -> bool:
     """Return whether *rendered* contains a path-shaped handoff file.
 
-    Only a token beginning at the handoff root is inspected.  Components may
-    be separated by repeated slash/backslash separators and may be quoted
-    individually, but bare directory prose and punctuation do not produce a
-    file component.  HTML entities are decoded first because GitHub/Markdown
-    transport can encode a filename-only backtick or quote.
+    This is a deterministic lexical scan, not a shell parser.  It decodes
+    HTML entities once, recognizes quote/backtick-delimited components, and
+    normalizes POSIX and Windows separators before checking the canonical
+    ``tmp/_handoff`` root.  Bare directory prose and ordinary placeholders do
+    not produce a file component.
     """
 
     text = unescape(rendered)
-    for root_match in _HANDOFF_PATH_START.finditer(text):
-        # If ``tmp`` is inside a quoted string, the matching quote after a
-        # trailing separator is the token boundary (for example,
-        # ``Path("tmp/_handoff/archive/")``), not a filename quote.  A quote
-        # immediately after a separator in an unquoted token remains a
-        # filename-only quote and is parsed as a component below.
-        wrapper_closer = None
-        if root_match.start() > 0:
-            wrapper_closer = _HANDOFF_QUOTE_PAIRS.get(text[root_match.start() - 1])
-
-        cursor = root_match.end()
-        components: list[str] = ["tmp"]
-        trailing_separator = False
-        while cursor < len(text):
-            separator_seen = False
-            while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
-                separator_seen = True
-                cursor += 1
-            if not separator_seen:
-                break
-
-            # A closing wrapper quote after the separator denotes a
-            # directory-only path.  Do not consume it as an unterminated
-            # filename quote.
-            if (cursor >= len(text)
-                    or (wrapper_closer is not None and text[cursor] == wrapper_closer)):
-                trailing_separator = True
-                break
-
-            if text[cursor] in _HANDOFF_QUOTE_PAIRS:
-                component, cursor = _consume_handoff_quoted_component(text, cursor)
-                if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
-                    break
-                components.append(component)
-                # A quoted component can itself contain the final separator,
-                # e.g. ``"tmp/_handoff/archive/"`` after root matching.
-                if component.endswith(tuple(_HANDOFF_SEPARATORS)):
-                    trailing_separator = True
-            else:
-                component_match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
-                if component_match is None:
-                    trailing_separator = True
-                    break
-                components.append(component_match.group(0))
-                cursor = component_match.end()
-
-        # Flatten quoted components before locating the canonical root.  This
-        # keeps ``tmp/"./_handoff"/file`` on the same path-shaped boundary as
-        # its unquoted equivalent while retaining raw ``.``/``..`` suffix
-        # components for the directory/file decision below.
-        flat_components: list[str] = []
-        for component in components:
-            flat_components.extend(
-                part for part in component.replace("\\", "/").split("/") if part
-            )
-
-        root_index = None
-        for index, component in enumerate(flat_components):
-            if (component == "_handoff"
-                    and _normalize_handoff_components(flat_components[:index]) == ("tmp",)):
-                root_index = index
-                break
-        if root_index is None:
+    index = 0
+    while index < len(text):
+        character = text[index]
+        if character in _HANDOFF_QUOTE_PAIRS:
+            candidate_start = index
+        elif (character == "t" and _handoff_component_start(text, index)
+              and text.startswith("tmp", index)):
+            candidate_start = index
+        else:
+            index += 1
             continue
 
-        suffix = flat_components[root_index + 1:]
-        normalized = _normalize_handoff_components(suffix)
-        # A path with a terminal separator or terminal ``.``/``..`` denotes a
-        # directory.  Named directory prose such as ``tmp/_handoff/archive/``
-        # must remain usable, while ``tmp/_handoff/archive/file.yaml`` and
-        # normalized near-misses remain fail-closed.
-        terminal_directory = (
-            trailing_separator
-            or bool(suffix and suffix[-1] in {".", ".."})
-        )
-        if normalized and not terminal_directory and _HANDOFF_WORD.search(normalized[-1]):
-            return True
+        lexed = _handoff_lex_path(text, candidate_start)
+        if lexed is not None:
+            components, terminal_separator = lexed
+            if _handoff_candidate_from_lexed_path(components, terminal_separator):
+                return True
+        index += 1
     return False
 
 

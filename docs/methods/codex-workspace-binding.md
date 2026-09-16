@@ -45,9 +45,13 @@ fail-closeする。`branch_name`、`repository`、`expected_oid`もlive Git fact
 host promptへ配送し、親runtimeの4入力（Issue、role、change-plan ID、fixer round）は増やさない。
 Issue/karte snapshotをpromptへ埋め込む前に、`tmp/_handoff/`配下の実ファイル候補（canonical pathの再掲、
 別role path、attacker pathを含む）と、host authority/prompt reserved fieldに一致するformat placeholderを
-検出したらfail-closeする。bareな`tmp/_handoff/`ディレクトリ説明やreservedでない一般placeholder・コード断片は
-snapshotデータとして許可する。snapshotはtemplateへの単一format passのreplacementなので、replacement内のbraceを
-再解釈しない。innerはhostが提示した1 pathだけへschema v1 handoffを書き込む。
+検出したらfail-closeする。候補判定はshell実行・展開を行わず、HTML entityをdecodeした本文をpath全体の
+deterministic lexerで先頭から末尾まで読み、quote/backtickで分割されたcomponent、POSIX/Windows separator、
+root側のdot・重複separatorを正規化してから行う。候補全体の最終semantic path文字がseparatorの場合だけ
+directoryとし、途中のquoted separatorをterminal状態として残さない。bareな`tmp/_handoff/`ディレクトリ説明や
+reservedでない一般placeholder・コード断片はsnapshotデータとして許可する。snapshotはtemplateへの単一format
+passのreplacementなので、replacement内のbraceを再解釈しない。innerはhostが提示した1 pathだけへschema v1 handoffを
+書き込む。
 
 issuerはworktreeを作成せず、GitHubにも接続しない。worktree登録とsnapshot captureはcallerであるhost運用の
 責務である。capture側はIssueを`github-api`、karteを`karte-cli`で取得・exportした時点のactorとUTC秒を

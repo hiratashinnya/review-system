@@ -376,6 +376,166 @@ class CodexLaunchIntentTests(unittest.TestCase):
                     source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
                 )
 
+    def test_snapshot_handoff_path_lexer_matrix_covers_quotes_separators_and_boundaries(self):
+        """Every lexical quote/separator combination must fail before Popen.
+
+        The matrix deliberately exercises the complete token reader rather
+        than adding another seed-specific regression.  Issue and karte
+        snapshots are both checked for both managed roles; directory-shaped
+        tokens are checked as the paired negative boundary.
+        """
+
+        quote_styles = ("", '"', "'", "`")
+        separators = ("/", "\\", "//", "\\\\")
+
+        def quoted(value, style):
+            if not style:
+                return value
+            return f"{style}{value}{style}"
+
+        def candidate(shape, qroot, qhandoff, qfile, sep_root, sep_suffix):
+            root = quoted("tmp", qroot)
+            handoff = quoted("_handoff", qhandoff)
+            filename = quoted("attacker.yaml", qfile)
+            if shape == "standard":
+                return sep_root.join((root, handoff)) + sep_suffix + filename
+            if shape == "quoted-handoff-separator":
+                return (root + sep_root + quoted("_handoff" + sep_suffix, qhandoff)
+                        + sep_suffix + filename)
+            if shape == "quoted-root-separator":
+                return (quoted("tmp" + sep_root, qroot) + handoff
+                        + sep_suffix + filename)
+            if shape == "root-dot":
+                return (root + sep_root + quoted(".", qhandoff) + sep_root
+                        + handoff + sep_suffix + filename)
+            raise AssertionError(shape)
+
+        def assert_rejected(path):
+            # The complete matrix exercises the lexer itself.  Only a small
+            # representative slice needs the much heavier launch-intent
+            # fixture setup; the existing variant test below still covers the
+            # role/source preflight contract independently.
+            self.assertTrue(
+                codex_launch_intent._handoff_file_candidate_exists(path), path
+            )
+            if path not in runtime_candidates:
+                return
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"untrusted matrix candidate {path}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+
+            fixer_request = self.request(role="issue-fixer", fixer_round=3)
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    fixer_request, plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                )
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = (
+                f"untrusted matrix candidate {path}"
+            )
+            karte_raw = json.dumps(karte, sort_keys=True)
+            karte_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            karte_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    fixer_request, plan=karte_plan,
+                    source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
+                )
+
+        runtime_candidates = {
+            candidate("standard", "", "", "", "/", "/"),
+            candidate("quoted-handoff-separator", '"', "'", "`", "\\", "//"),
+            candidate("quoted-root-separator", "`", '"', "'", "//", "\\"),
+            candidate("root-dot", "'", "`", '"', "/", "\\\\"),
+        }
+        for shape in ("standard", "quoted-handoff-separator",
+                      "quoted-root-separator", "root-dot"):
+            for qroot in quote_styles:
+                for qhandoff in quote_styles:
+                    for qfile in quote_styles:
+                        for sep_root in separators:
+                            for sep_suffix in separators:
+                                with self.subTest(
+                                    shape=shape, qroot=qroot, qhandoff=qhandoff,
+                                    qfile=qfile, sep_root=sep_root,
+                                    sep_suffix=sep_suffix,
+                                ):
+                                    assert_rejected(
+                                        candidate(
+                                            shape, qroot, qhandoff, qfile,
+                                            sep_root, sep_suffix,
+                                        )
+                                    )
+
+        # HTML entity decoding is part of the same lexer boundary, including
+        # an entity-delimited root and a separator carried by a quoted middle
+        # component.  Keep these explicit to avoid making the full matrix
+        # needlessly expensive while retaining a readable proof case.
+        for path in (
+            "&#96;tmp&#96;/&#96;_handoff&#96;/&#96;attacker.yaml&#96;",
+            "&#96;tmp&#96;&#92;&#96;_handoff&#96;&#92;&#96;attacker.yaml&#96;",
+            "&#96;tmp&#96;/&#96;_handoff/&#96;/&#96;attacker.yaml&#96;",
+        ):
+            with self.subTest(shape="html-entity", path=path):
+                assert_rejected(path)
+
+        # A complete terminal separator, even when components are quoted, is
+        # a directory/prose boundary and must remain accepted for both roles.
+        for qroot in quote_styles:
+            for qhandoff in quote_styles:
+                for qarchive in quote_styles:
+                    for sep_root in separators:
+                        for sep_suffix in separators:
+                            path = (
+                                quoted("tmp", qroot) + sep_root
+                                + quoted("_handoff", qhandoff) + sep_suffix
+                                + quoted("archive", qarchive) + sep_suffix
+                            )
+                            with self.subTest(
+                                shape="directory", qroot=qroot,
+                                qhandoff=qhandoff, qarchive=qarchive,
+                                sep_root=sep_root, sep_suffix=sep_suffix,
+                            ):
+                                self.assertFalse(
+                                    codex_launch_intent._handoff_file_candidate_exists(path),
+                                    path,
+                                )
+
+                            # Keep launch-intent construction coverage to one
+                            # readable separator form per quote combination;
+                            # the full separator matrix above exercises the
+                            # lexer boundary itself and the existing near-miss
+                            # test exercises both roles/snapshot sources.
+                            if sep_root != "/" or sep_suffix != "/":
+                                continue
+                            issue = json.loads(ISSUE_SNAPSHOT)
+                            issue["body"] = f"safe directory prose {path}"
+                            issue_raw = json.dumps(issue, sort_keys=True)
+                            implementer_plan = codex_change_plan(self.root)
+                            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                            self.generate(
+                                self.request(), plan=implementer_plan,
+                                source_material={"issue": issue_raw},
+                            )
+
     def test_snapshot_handoff_path_near_misses_remain_allowed(self):
         safe_values = (
             "tmp/_handoff/",
