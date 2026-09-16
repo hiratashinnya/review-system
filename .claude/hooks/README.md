@@ -480,6 +480,61 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 ---
 
+# karte 判定の直接通知フック(PostToolUse・karte-notify.sh・Issue #512)
+
+`karte ingest-review` / `karte close-attempt` の実行直後に `karte status --json` の判定を
+**AI の要約を経ずに** `systemMessage` でオーナーのチャットへ直送する。背景・意味内容の
+正本は `.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」、Claude Code 固有の
+契約は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知（Claude Code 固有）」。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `karte-notify.sh` | `PostToolUse(Bash\|ctx_execute\|ctx_batch_execute)` フックハンドラ。stdin を一度だけ読み、トリガー語（`ingest-review`/`close-attempt`）を含まない入力は python を起動せず無出力 `exit 0` で返す（F-512-07・下記）。トリガー語を含む場合だけ `karte_notify.hook` を起動する。 |
+| `karte_notify/hook.py::run` | 実体。`tool_name`/`tool_input` からコマンド文字列を抽出し、`karte status --json` を起動して判定を `notify.decide` に通し、通知が必要なら `{"systemMessage": ...}` を stdout へ出す。 |
+| `karte_notify/notify.py` | 判定ロジック（何を・いつ通知するか）と本文組み立て（`_render_message`）・既読スナップショット I/O。`hook.py` から分離しているのは `issue_start.subagent_hooks` と同じ「薄い起動口＋判定 python モジュール」の構成。 |
+
+## 発火対象は `Bash` に限らない(F-512-02)
+
+`settings.json` の matcher は `Bash|mcp__plugin_context-mode_context-mode__ctx_execute|
+mcp__plugin_context-mode_context-mode__ctx_batch_execute`。主文脈・`issue-implementer`・
+`issue-fixer`・`pr-reviewer`・`dsv2-lookup` に付与済みの実行系 MCP ツール(`ctx_execute`/
+`ctx_batch_execute`)経由でも同じ `karte` verb が実行されうるため
+(`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)、`notify.extract_commands` が
+`tool_name` ごとに検査対象の文字列(`tool_input.command` / `tool_input.code` /
+`tool_input.commands[].command`)を取り出してから同じ `notify.detect_trigger` へ通す。
+`ctx_execute_file` は既存方針で全ロール未付与のため対象に含めない。
+
+## 通知本文の内容(F-512-03)
+
+finding ID 単位の既読管理(`resolved` 済みで通知済みの finding は再表示しない)を経た一覧に
+加え、`verdict` の3集合(`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`・
+PR #496 F-495-07)を常に含み、`escalate: yes` のときはその根拠(`stalled_findings`・
+`saturated_groups`)を含める。`escalate` の真偽だけでは PR #509／Issue #431 の実例(無進捗
+F-431-07・飽和 Attempt 3,5)を本文から再現できないため。
+
+## stdin 事前フィルタ(パフォーマンス最適化・F-512-07)
+
+`karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`/`close-attempt` の
+部分文字列を含まない場合は python を起動せず `exit 0` する。python 側の `notify.TRIGGER_RE`
+はこの2語のいずれかを部分文字列として要求するため、shell 側で不在と判定した入力は python 側
+でも必ず不一致になる(偽陰性を生まない安全な事前フィルタ)。対象外の Bash/ctx 呼び出し(大半)
+ごとに python インタプリタを起動するコストを削るだけの最適化であり、判定ロジック自体は
+python 側に一本化したまま複製しない。
+
+## fail-open 方針
+
+対象外コマンド・判定不能な経路(payload が読めない・`karte status` の起動/パース失敗・
+進行ポインタ未解決 等)はすべて無出力 `exit 0`。本フックは統制(deny)を一切行わない
+可視化専用の助言機構であり、`PostToolUse` はそもそもツール呼び出しをブロックできない。
+診断は stderr へ 1 行 1 JSON の evidence として残る(`claude --debug` で拾える)。
+
+`karte status` 自体の手動実行(`python3 -m karte status --issue <N>`)は本フックの検出対象外
+(手動実行は毎回全件を出す・Issue #512 Acceptance criteria)。
+
+---
+
 # subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309 / #354)
 
 `issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
