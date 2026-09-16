@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import grp
 import hashlib
+from html import unescape
 import json
 import os
 import pwd
@@ -82,6 +83,40 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _FINDING_ID = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
+# Snapshot text is inserted into the role prompt as a format replacement.  A
+# single ``format_map`` pass means braces in a replacement are not parsed
+# again.  We therefore only reject fields whose names overlap host-owned
+# prompt facts, while allowing ordinary examples such as ``{name}``.
+_PROMPT_FIELD = re.compile(
+    r"(?<!\{)\{(?P<name>[A-Za-z_][A-Za-z0-9_]*|[0-9]+)"
+    r"(?:![^{}]*)?(?::[^{}]*)?\}(?!\})"
+)
+_HANDOFF_PREFIX = "tmp/_handoff/"
+# These are the names that the host owns in the role prompt.  Unknown fields
+# are data in a snapshot, not a second source of execution facts.
+_PROMPT_RESERVED_FIELDS = frozenset({
+    "issue", "round", "change_plan_id", "finding_ids", "issue_snapshot",
+    "handoff_path", "branch_name", "repository", "expected_oid",
+    "karte_path", "karte_snapshot",
+})
+# The bare directory mention (including normal sentence punctuation) is useful
+# prose and harmless.  Candidate detection therefore starts at the directory
+# root and tokenizes only path-shaped components.  The tokenizer accepts the
+# separators and quoting forms a shell/Markdown reader may normalize before
+# treating the value as a path.  It deliberately does not consume arbitrary
+# prose after ``tmp/_handoff/``.
+_HANDOFF_ROOT = _HANDOFF_PREFIX.rstrip("/")
+_HANDOFF_FILE_CANDIDATE = re.compile(
+    re.escape(_HANDOFF_ROOT) + r"(?=[\\/])"
+)
+_HANDOFF_BARE_COMPONENT = re.compile(r"[\w.-]+")
+_HANDOFF_WORD = re.compile(r"\w")
+_HANDOFF_SEPARATORS = frozenset({"/", "\\"})
+_HANDOFF_QUOTE_PAIRS = {
+    "'": "'", '"': '"', "`": "`",
+    "‘": "’", "“": "”",
+}
+_HANDOFF_QUOTED_COMPONENT = re.compile(r"[\w./\\-]*")
 _MAX_JSON = 2 * 1024 * 1024
 _CONTROL_ROOT = PurePosixPath("tmp/_codex_control")
 _PLAN_ROOT = _CONTROL_ROOT / "change-plans"
@@ -92,6 +127,9 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.yaml",
         "prompt_template": (
             "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. "
+            "Host-derived execution facts (write only this exact handoff path): "
+            "handoff_path={handoff_path}; branch_name={branch_name}; "
+            "repository={repository}; expected_oid={expected_oid}\n\n"
             "Verified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}"
         ),
     },
@@ -101,7 +139,10 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.yaml",
         "prompt_template": (
             "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan "
-            "{change_plan_id}. Verified Issue and Acceptance Criteria snapshot follows:\n\n"
+            "{change_plan_id}. Host-derived execution facts (write only this exact handoff path): "
+            "handoff_path={handoff_path}; branch_name={branch_name}; "
+            "repository={repository}; expected_oid={expected_oid}\n\n"
+            "Verified Issue and Acceptance Criteria snapshot follows:\n\n"
             "{issue_snapshot}\n\nVerified finding karte ({karte_path}) follows:\n\n"
             "{karte_snapshot}"
         ),
@@ -455,6 +496,113 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
     return capture
 
 
+def _consume_handoff_quoted_component(text: str, start: int) -> tuple[str, int]:
+    """Consume one quoted path component without interpreting arbitrary text.
+
+    A missing closer is consumed to the end and subsequently rejected unless
+    the content is still path-shaped.  This keeps malformed quote syntax from
+    becoming a way to hide a candidate while avoiding a general-purpose shell
+    parser over the whole snapshot.
+    """
+
+    opener = text[start]
+    closer = _HANDOFF_QUOTE_PAIRS[opener]
+    cursor = start + 1
+    content: list[str] = []
+    escaped = False
+    while cursor < len(text):
+        character = text[cursor]
+        if escaped:
+            content.append(character)
+            escaped = False
+        elif character == "\\":
+            escaped = True
+        elif character == closer:
+            return "".join(content), cursor + 1
+        else:
+            content.append(character)
+        cursor += 1
+    if escaped:
+        content.append("\\")
+    return "".join(content), cursor
+
+
+def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
+    """Normalize empty and dot path components using POSIX-like semantics."""
+
+    normalized: list[str] = []
+    for component in components:
+        for part in component.replace("\\", "/").split("/"):
+            if not part or part == ".":
+                continue
+            if part == "..":
+                if normalized:
+                    normalized.pop()
+                continue
+            normalized.append(part)
+    return tuple(normalized)
+
+
+def _handoff_file_candidate_exists(rendered: str) -> bool:
+    """Return whether *rendered* contains a path-shaped handoff file.
+
+    Only a token beginning at the handoff root is inspected.  Components may
+    be separated by repeated slash/backslash separators and may be quoted
+    individually, but bare directory prose and punctuation do not produce a
+    file component.  HTML entities are decoded first because GitHub/Markdown
+    transport can encode a filename-only backtick or quote.
+    """
+
+    text = unescape(rendered)
+    for root_match in _HANDOFF_FILE_CANDIDATE.finditer(text):
+        cursor = root_match.end()
+        components: list[str] = []
+        while cursor < len(text):
+            while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
+                cursor += 1
+            if cursor >= len(text):
+                break
+
+            if text[cursor] in _HANDOFF_QUOTE_PAIRS:
+                component, cursor = _consume_handoff_quoted_component(text, cursor)
+                if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
+                    break
+                components.append(component)
+            else:
+                component_match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
+                if component_match is None:
+                    break
+                components.append(component_match.group(0))
+                cursor = component_match.end()
+
+            if cursor >= len(text) or text[cursor] not in _HANDOFF_SEPARATORS:
+                break
+
+        # Normalization makes ``./file`` and ``//file`` the same candidate as
+        # ``file``.  A file-shaped final component is required, so the bare
+        # root, ``.`` and ``..`` remain harmless prose/code examples.
+        normalized = _normalize_handoff_components(components)
+        if normalized and _HANDOFF_WORD.search(normalized[-1]):
+            return True
+    return False
+
+
+def _validate_snapshot_prompt_safety(rendered: str, *, reason: str) -> None:
+    """Reject snapshot content that can be confused with host prompt facts.
+
+    Snapshot values are substituted in one formatting pass, so an arbitrary
+    placeholder in the value cannot be reinterpreted by the surrounding role
+    template.  Only a real handoff-file candidate or a placeholder naming a
+    host-owned prompt field is ambiguous enough to fail closed.
+    """
+
+    if _handoff_file_candidate_exists(rendered):
+        _fail(reason, "snapshot contains a handoff path")
+    for match in _PROMPT_FIELD.finditer(rendered):
+        if match.group("name") in _PROMPT_RESERVED_FIELDS:
+            _fail(reason, "snapshot contains a reserved format placeholder")
+
+
 def _issue_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchRequest,
                     repository: str) -> tuple[str, Mapping[str, Any]]:
     if _sha(raw) != descriptor["sha256"]:
@@ -479,6 +627,7 @@ def _issue_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchR
     _capture_record(envelope["capture"], kind="ISSUE", reason="ISSUE_SOURCE_INVALID")
     rendered = (f"# {envelope['title']}\n\n{envelope['body']}\n\n"
                 "## Acceptance criteria\n\n" + "\n".join(f"- {item}" for item in criteria))
+    _validate_snapshot_prompt_safety(rendered, reason="ISSUE_SOURCE_INVALID")
     return rendered, envelope
 
 
@@ -512,8 +661,9 @@ def _karte_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchR
         rendered.append(f"- {finding['id']}: {finding['summary']}")
     if tuple(actual) != finding_ids or len(set(actual)) != len(actual):
         _fail("KARTE_SOURCE_INVALID", "open finding IDs do not exact-match plan")
-    return (f"# Karte: issue-{request.issue}; round {round_number}\n\n" + "\n".join(rendered),
-            envelope)
+    prompt_text = f"# Karte: issue-{request.issue}; round {round_number}\n\n" + "\n".join(rendered)
+    _validate_snapshot_prompt_safety(prompt_text, reason="KARTE_SOURCE_INVALID")
+    return prompt_text, envelope
 
 
 def _canonical_entry(value: Mapping[str, Any], *, request: LaunchRequest,
@@ -628,6 +778,8 @@ def generate_launch_intent(
     values = {"issue": request.issue, "round": round_number,
               "change_plan_id": request.change_plan_id,
               "finding_ids": ", ".join(finding_ids), "issue_snapshot": issue_text,
+              "branch_name": facts.branch_name, "repository": facts.repository,
+              "expected_oid": facts.head_oid,
               "karte_path": "" if karte_descriptor is None else karte_descriptor["path"],
               "karte_snapshot": karte_text}
     task_key = role_config["task_key_template"].format_map(values)
@@ -638,13 +790,19 @@ def generate_launch_intent(
         (runtime, "RUNTIME_ROOT_INVALID", PurePosixPath("tmp/_codex_sessions")),
     ):
         _safe_relative(candidate, root=root, reason=reason)
-    prompt = role_config["prompt_template"].format_map(values)
     protected_values = _protected_paths(plan["protected_plan"])
     canonical_protected = canonical_entry.get("protected_plan")
     if (canonical_entry.get("task_key") != task_key
             or canonical_entry.get("handoff_path") != handoff
             or canonical_protected != plan["protected_plan"]):
         _fail("CANONICAL_LEDGER_MISMATCH", "derived launch fields")
+    # The handoff is a host-derived output target. Do not expose it as a
+    # LaunchRequest/CLI input; inject it only after the manifest template and
+    # canonical ledger agree on the exact role-specific path.
+    values["handoff_path"] = handoff
+    prompt = role_config["prompt_template"].format_map(values)
+    if prompt.count(handoff) != 1:
+        _fail("PROMPT_HANDOFF_AMBIGUOUS", handoff)
     provenance: dict[str, Mapping[str, Any]] = {
         "issue": {"url": issue_envelope["url"], "sha256": issue_descriptor["sha256"],
                   **issue_descriptor["provenance"]},

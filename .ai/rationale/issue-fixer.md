@@ -198,3 +198,39 @@ brokerは任意argvを受けず、固定Git/unittest/auditだけをnetwork/auth/
 fixerもrepo supervisorのimmutable launch recordとdirect workspace commandを使う。host karte bridge
 （F-452-17）は後続のまま維持し、縮小PRだけで実装済みとはみなさない。fixerはhost publishでpush可・merge不可、
 reviewer自己修正不可、bootstrap waiverと別context再レビューを維持する。
+
+### F-452-25/26/27によるprompt境界の補強（2026-09-16）
+
+F-452-25の是正でmanifestとcanonical ledgerからhandoff_pathを導出できるようになったが、role
+promptの値組立へ渡していなかったため、innerが必須handoffを認識できなかった。さらにF-452-26で、
+fixer共通契約が要求するbranch_name・repository・expected_oidも同じhost由来入力として配送されていない
+ことが判明した。親runtimeの入力を増やす案は採らず、`GitFacts`とcanonical ledgerの既存事実から
+handoff_path・branch_name・repository・expected_oidをhostが一つのexecution-factsブロックへ組み立て、
+implementer/fixer双方へ同じ形で提示する契約にした。
+
+F-452-27では、snapshot本文へcanonicalまたは別の`tmp/_handoff/` path、format placeholderが混在すると、
+host命令とuntrusted本文の候補が区別できなくなることが分かった。snapshotをそのままpromptへ埋め込む案は
+採らず、`_issue_snapshot`／`_karte_snapshot`のrender前検証でこれらをfail-closeする。これにより
+Popen後のinner判定やHANDOFF_MISSINGへ遅れて退避する経路を作らず、role別templateのunknown fieldは
+従来どおりmanifest exact比較で拒否する。handoff_pathのprompt内出現数も生成直後にexact 1回へ再検証する。
+
+### F-452-28によるsnapshot安全境界の補正（2026-09-16）
+
+F-452-27の初回安全検査は`tmp/_handoff/`のbare directory proseと、host事実に無関係な`{name}`まで
+部分一致で拒否していた。snapshotはrole templateへ値として一度だけ渡されるため、replacement内のbraceが
+後段のformat fieldとして再解釈される経路はない。そこで、実ファイル候補（canonical・別role・attackerを
+含む）と、host authority/prompt reserved fieldに一致するplaceholderだけをfail-close対象に限定し、bare
+directory mention、reservedでない一般placeholder、通常のコード断片はsnapshotデータとして許可する。
+正規のhost-derived handoff pathは引き続き生成後にexact 1回を検証し、F-452-25/26/27のpath・facts・
+collision fail-close契約は維持する。
+
+### F-452-29によるhandoff候補のtokenize/normalize（2026-09-16）
+
+F-452-28で実ファイル候補へ検査対象を狭めた後も、`tmp/_handoff/./attacker.yaml`、重複separator、
+filenameだけをquote/backtickで囲む表記は単純な正規表現の構文境界をすり抜けた。snapshotはuntrustedな
+自然言語・shell・Markdownを含みうるため、本文全体をshell parserへ渡す案は採らず、handoff rootから
+path-shaped componentだけを限定的にtokenizeする。空componentと`.`/`..`はPOSIX的にnormalizeし、
+single/double quote・backtick（transport上のHTML entityを含む）は解除してから、意味のある最終component
+を持つ候補としてfail-closeする。rootだけのbare prose、`./`や`//`で終わるdirectory表現、一般
+placeholder、通常コード断片は候補にならず、F-452-28の可用性境界を維持する。判定はIssueとkarteの
+render前、両roleで共通に実行し、canonical host-derived pathのprompt内exact 1回検証は変更しない。

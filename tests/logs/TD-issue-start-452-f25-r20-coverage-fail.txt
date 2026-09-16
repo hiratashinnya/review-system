@@ -1,0 +1,6 @@
+Issue #452 F-452-28 coverage failure evidence (retained; not success evidence)
+command: uv --cache-dir .uv-cache run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+result: FAIL before test execution
+error: Request failed after 3 retries while fetching https://pypi.org/simple/coverage/
+root cause: sandbox DNS/network restriction prevented uv from resolving pypi.org.
+follow-up: reran the same command with approved network access and the worktree-local cache; Ran 1875 tests, OK (skipped=9). The follow-up PASS is recorded separately and this FAIL record is retained.

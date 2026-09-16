@@ -1,0 +1,37 @@
+Issue #452 F-452-28 post-commit verification evidence
+commit: 5077132bc664164ff6dca4c75c71ad0757bfb8dc
+
+focused:
+command: python3 -m unittest tests.unit.test_issue_start_gate.CodexLaunchIntentTests tests.unit.test_issue_start_cli_assets.AssetParityTests
+Ran 44 tests in 0.595s
+OK
+
+related:
+command: python3 -m unittest tests.unit.test_codex_launch_control tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_issue_start_gate tests.unit.test_issue_start_cli_assets
+Ran 245 tests in 11.005s
+OK (skipped=13)
+
+asset parity:
+command: python3 -m asset_parity check
+39 assets checked; 0 MISSING; 13 staleness flags (informational)
+
+regular full:
+command: python3 -m unittest discover -s tests -p "test_*.py"
+Ran 1875 tests in 335.325s
+OK (skipped=9)
+
+coverage full:
+command: uv --cache-dir <worktree>/.uv-cache run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+Ran 1875 tests in 338.863s
+OK (skipped=9)
+
+coverage summary:
+command: uv --cache-dir <worktree>/.uv-cache run --with coverage coverage report
+TOTAL 9358 statements, 1406 missed, 85%
+
+coverage html:
+command: uv --cache-dir <worktree>/.uv-cache run --with coverage coverage html
+Wrote HTML report to htmlcov/index.html (uncommitted)
+
+prompt contract:
+implementer/fixer both retain host-derived handoff_path, branch_name, repository, expected_oid exactly once; real handoff file candidates and host authority/prompt reserved placeholders fail before prompt assembly; bare tmp/_handoff/ prose, non-reserved placeholders, and code fragments pass; canonical handoff path remains exact 1 occurrence.
