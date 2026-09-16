@@ -1,0 +1,8 @@
+Issue #452 F-452-25/26/27 coverage failure evidence (retained; not overwritten)
+command: uv --cache-dir /tmp/issue452-uv-cache run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+Ran 1874 tests in 338.384s
+FAILED (failures=1, skipped=9)
+failure: unit.test_codex_karte_bridge.KarteBridgeTests.test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes
+root cause: uv's temporary interpreter was under /tmp, while the diagnosis bwrap intentionally mounts a tmpfs at /tmp; bwrap could not exec `/tmp/issue452-uv-cache/builds-v0/.tmpBH2HaJ/bin/python`.
+classification: environment-only failure; regular full with the host interpreter passed.
+follow-up: reran with a worktree-local uv cache visible outside the sandbox tmpfs; the same 1874-test coverage run passed. This FAIL record is retained and not treated as success evidence.
