@@ -1,4 +1,4 @@
-"""``PostToolUse``（matcher ``Bash``）フックの実体（Issue #512）。
+"""``PostToolUse``（matcher ``Bash|ctx_execute|ctx_batch_execute``）フックの実体（Issue #512）。
 
 ``karte ingest-review`` / ``karte close-attempt`` の実行を検出し、``karte status --json`` を
 起動して :mod:`karte_notify.notify` の判定に通したうえで、通知が必要なら ``systemMessage``
@@ -8,6 +8,12 @@
 additionalContext`` は AI のコンテキストへ入るだけで、その後の要約過程で歪みうる——
 実際に PR #509／Issue #431 で起きた）。
 
+検出対象は ``Bash`` に限らない（Issue #512 是正・F-512-02）。実行系 MCP ツール
+``ctx_execute``/``ctx_batch_execute`` 経由でも同じ ``karte`` verb が実行されうるため、
+:data:`karte_notify.notify.SUPPORTED_TOOL_NAMES` に列挙した ``tool_name`` はすべて対象にし、
+:func:`karte_notify.notify.extract_commands` で ``tool_name`` ごとの ``tool_input`` 形状差を
+吸収してから同じ :func:`karte_notify.notify.detect_trigger` へ通す。
+
 対象外・判定不能な経路はすべて**無出力 exit 0**（``issue_start.subagent_hooks`` と同じ
 「対象外ロールは常に許可」不変条件と同型）。本フックは統制（deny）を行わない可視化専用の
 助言機構であり、``PostToolUse`` はそもそもツール呼び出しをブロックできない
@@ -16,7 +22,7 @@ additionalContext`` は AI のコンテキストへ入るだけで、その後�
 
 依存仕様:
   * GitHub Issue #512
-  * :mod:`karte_notify.notify`（通知要否の判定・既読スナップショット I/O）
+  * :mod:`karte_notify.notify`（通知要否の判定・既読スナップショット I/O・検出対象コマンド抽出）
   * ``karte/cli.py::_status_payload``（``karte status --json`` の出力スキーマ）
 """
 
@@ -95,14 +101,21 @@ def run(
     payload = _load_payload(stdin)
     if payload is None:
         return 0
-    if payload.get("tool_name") != "Bash":
+    tool_name = payload.get("tool_name")
+    if tool_name not in notify.SUPPORTED_TOOL_NAMES:
         return 0
     tool_input = payload.get("tool_input")
-    command = tool_input.get("command") if isinstance(tool_input, Mapping) else None
-    if not isinstance(command, str):
+    if not isinstance(tool_input, Mapping):
         return 0
-    verb = notify.detect_trigger(command)
-    if verb is None:
+    candidates = notify.extract_commands(tool_name, tool_input)
+    verb = None
+    command: str | None = None
+    for candidate in candidates:
+        verb = notify.detect_trigger(candidate)
+        if verb is not None:
+            command = candidate
+            break
+    if verb is None or command is None:
         return 0
 
     root = PACKAGE_ROOT if project_root is None else Path(project_root)

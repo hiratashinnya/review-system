@@ -101,11 +101,18 @@
 
 ## karte 判定の報告分担（Issue #512）
 
-`karte ingest-review` / `karte close-attempt` の実行直後、PostToolUse フックが `karte status --json` の判定を **AI の要約を経ずに** `systemMessage` でオーナーへ直送する（Claude Code 固有の実装は `.claude/hooks/karte-notify.sh`）。上記のエスカレーション条件（`verdict`・`escalate`・無進捗・飽和したアプローチ）の生の判定は、この通知によってオーナーに既に届いている。
+`karte ingest-review` / `karte close-attempt` の実行直後、実行環境が用意する通知機構が
+`karte status --json` の判定を **AI の要約を経ずに** オーナーへ届ける契約とする。通知の
+実装（発火経路・出力チャネル・検出対象コマンドの範囲）は PF 固有であり、各 PF の wrapper 側で
+定める（Claude Code の実装は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知
+（Claude Code 固有）」）。
 
-- **主文脈はカルテの判定内容（verdict・未解消 finding・escalate 理由等）をチャットで再掲・要約しない。** hook が届けた生の判定を主文脈の言葉で言い換えると、その言い換えの過程で歪みうる（実例：PR #509／Issue #431——`escalate: yes` を主文脈が「原因が分かっているから問題ない」と独自解釈して丸め、オーナーへの報告が歪んだ）。
+- **主文脈はカルテの判定内容（verdict・未解消 finding・escalate 理由等）をチャットで再掲・要約しない。** 通知が届けた生の判定を主文脈の言葉で言い換えると、その言い換えの過程で歪みうる（実例：PR #509／Issue #431——`escalate: yes` を主文脈が「原因が分かっているから問題ない」と独自解釈して丸め、オーナーへの報告が歪んだ）。
 - **主文脈がチャットへ出すのは、判断に必要な選択肢と理由付き推奨に限る。** 例えば「無進捗のまま続行するか転換するか」「clean を妨げる finding の disposition をどう決めるか」といった、オーナーが選ぶべき論点・比較・推奨だけを述べる。
-- カルテの生の状態を確認する必要があるとき（hook 通知を見落とした・過去の経緯を確認する等）は `python3 -m karte status --issue <N>` を実行する。この手動実行は既読管理の対象外で、従来どおり毎回全件を出力する。
+- カルテの生の状態を確認する必要があるとき（通知を見落とした・過去の経緯を確認する等）は `python3 -m karte status --issue <N>` を実行する。この手動実行は既読管理の対象外で、従来どおり毎回全件を出力する。
+- **通知本文に何が含まれるかは PF の実装が決める**。「通知を受け取った」ことが、そのまま
+  「エスカレーション条件の生の判定がすべて届いた」ことを意味するとは限らない——本文の
+  具体的な内容（verdict の内訳・escalate の根拠等）は各 PF の実装記述を参照する。
 
 ## 共通指示の配り方
 

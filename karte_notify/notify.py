@@ -41,8 +41,28 @@
 ``_handoff``/``_karte``/``_worktree``）に既に入っている——``_karte`` を構成要素に含むパスは
 掃除対象から機械的に除外される。
 
+検出対象コマンドの拾い方（is 再発防止・Issue #512 是正・F-512-02）:
+  トリガー実行は ``Bash`` 経由とは限らない。主文脈・``issue-implementer``・``issue-fixer``・
+  ``pr-reviewer``・``dsv2-lookup`` にはいずれも実行系 MCP ツール（``ctx_execute``・
+  ``ctx_batch_execute``）が付与済みで（`.claude/rules/05-skills-agents.md`「ctx_* ツールの
+  付与方針」）、``python3 -m karte ingest-review``/``close-attempt`` はこれらの ``tool_input``
+  （``code`` / ``commands[].command``）経由でも実行されうる。したがって :func:`extract_commands`
+  は ``tool_name`` ごとに検査対象の文字列を取り出し、:func:`detect_trigger` はその文字列単位で
+  ``Bash`` と同じ正規表現を適用する（判定ロジック自体は分岐させない＝経路が増えても検出規則は
+  一本のまま）。
+
+通知本文の内容（Issue #512 是正・F-512-03）:
+  本文には finding ID 単位の既読管理を経た一覧に加え、``verdict`` の3集合
+  （``blocking_findings`` ⊇ ``blocking_harmful`` ⊇ ``undecided_disposition``・
+  PR #496 F-495-07）と、``escalate: yes`` のときはその根拠（``stalled_findings``・
+  ``saturated_groups``）を含める（:func:`_render_message`）。``escalate`` の真偽だけでは
+  PR #509／Issue #431 の実例（無進捗 F-431-07・飽和 Attempt 3,5）を本文から再現できず、
+  「エスカレーション条件の生の判定が届いている」という主張の裏付けにならないため。
+
 依存仕様: GitHub Issue #512／``karte/paths.py`` のパスガード様式／``karte/cli.py``
-``_status_payload`` の出力スキーマ（``issue``/``verdict``/``escalate``/``findings[].{id,status}``）。
+``_status_payload`` の出力スキーマ（``issue``/``verdict``/``escalate``/``blocking_findings``/
+``blocking_harmful``/``undecided_disposition``/``stalled_findings``/``saturated_groups``/
+``findings[].{id,status}``）。
 """
 
 from __future__ import annotations
@@ -63,11 +83,52 @@ ISSUE_ARG_RE = re.compile(r"--issue[=\s]+([0-9]+)")
 
 NOTIFIED_DIRNAME = "notified"
 
+# 本フックが検出対象とする tool_name（Issue #512 是正・F-512-02）。`Bash` に加え、
+# `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」で issue-implementer /
+# issue-fixer / pr-reviewer / 主文脈 / dsv2-lookup に付与済みの実行系 MCP ツール
+# （`ctx_execute`/`ctx_batch_execute`）経由の `karte ingest-review`/`close-attempt` 実行も
+# 同じ通知対象にする。`ctx_execute_file` は既存方針で全ロール未付与のため対象に含めない
+# （`.claude/rules/05-skills-agents.md` 同節）。
+SUPPORTED_TOOL_NAMES = (
+    "Bash",
+    "mcp__plugin_context-mode_context-mode__ctx_execute",
+    "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+)
+
 
 def detect_trigger(command: str) -> str | None:
     """``command`` が ``karte ingest-review``/``close-attempt`` の実行なら verb 名を返す。"""
     match = TRIGGER_RE.search(command)
     return match.group(1) if match else None
+
+
+def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]:
+    """``tool_name``/``tool_input`` から検査対象のコマンド文字列を取り出す（Issue #512 F-512-02）。
+
+    ``Bash`` は ``tool_input.command``。``ctx_execute`` は ``tool_input.code``
+    （``language: shell`` 前提の呼び出し規約だが、ここでは ``language`` の真偽は検査しない
+    ——実行される文字列そのものを見れば検出には十分で、詐称されていても検出漏れ側には
+    倒れない）。``ctx_batch_execute`` は ``tool_input.commands[].command`` の全件を対象にし、
+    どれか1件が一致すれば検出する。``tool_name`` が対象外、または形が不正なら空リスト
+    （呼び出し側はこれを「検出なし」として扱う＝fail-open）。
+    """
+    if tool_name == "Bash":
+        command = tool_input.get("command")
+        return [command] if isinstance(command, str) else []
+    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_execute":
+        code = tool_input.get("code")
+        return [code] if isinstance(code, str) else []
+    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_batch_execute":
+        commands = tool_input.get("commands")
+        result: list[str] = []
+        if isinstance(commands, list):
+            for item in commands:
+                if isinstance(item, Mapping):
+                    command = item.get("command")
+                    if isinstance(command, str):
+                        result.append(command)
+        return result
+    return []
 
 
 def issue_from_command(command: str) -> int | None:
@@ -211,6 +272,23 @@ def decide(payload: Mapping[str, Any], previous: Mapping[str, Any] | None) -> tu
     return message, snapshot
 
 
+def _ids_line(label: str, ids: Any) -> str:
+    values = [str(item) for item in ids] if isinstance(ids, list) else []
+    return f"{label}: {', '.join(values) if values else '(なし)'}"
+
+
+def _render_saturated(groups: Any) -> str:
+    if not isinstance(groups, list) or not groups:
+        return "(なし)"
+    rendered = []
+    for group in groups:
+        if isinstance(group, list):
+            rendered.append(", ".join(str(item) for item in group))
+        else:
+            rendered.append(str(group))
+    return "; ".join(rendered)
+
+
 def _render_message(
     payload: Mapping[str, Any],
     *,
@@ -226,7 +304,20 @@ def _render_message(
     if first_run:
         lines.append("（初回通知：既読スナップショット未作成のため全件を表示）")
     lines.append(f"verdict: {verdict}")
+    # PR #496 F-495-07 の3集合を包含関係の順に添える（`karte status` 本文と同じ様式・
+    # Issue #512 F-512-03：verdict の真偽だけでなく内訳を通知本文自体に持たせる）。
+    lines.append(_ids_line("  clean を妨げる未解消", payload.get("blocking_findings")))
+    lines.append(_ids_line("  clean を妨げる実害あり", payload.get("blocking_harmful")))
+    lines.append(_ids_line("  実害あり・disposition 未決定", payload.get("undecided_disposition")))
     lines.append(f"escalate: {'yes' if escalate else 'no'}")
+    if escalate:
+        # escalate: yes を成立させた当の根拠（無進捗・飽和したアプローチ）を本文へ含める
+        # （Issue #512 F-512-03：escalate の真偽だけでは PR #509／Issue #431 の実例
+        # ＝無進捗 F-431-07／飽和 Attempt 3,5 のような具体を再現できない）。
+        lines.append(_ids_line("  無進捗（stalled）", payload.get("stalled_findings")))
+        lines.append(
+            f"  飽和したアプローチ（saturated）: {_render_saturated(payload.get('saturated_groups'))}"
+        )
 
     findings_by_id = {
         item.get("id"): item

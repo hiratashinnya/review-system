@@ -46,6 +46,29 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
 - **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
+### karte 判定の直接通知（Claude Code 固有・Issue #512）
+
+`.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」が定める通知契約の Claude Code
+固有の実装。`karte ingest-review` / `karte close-attempt` の実行直後、PostToolUse フック
+（`.claude/hooks/karte-notify.sh`・実体は `karte_notify.hook`）が `karte status --json` の
+判定を AI の出力を経由せず `systemMessage` フィールドでオーナーのチャットへ直送する。
+
+- **発火対象は `Bash` に限らない**：主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・
+  `dsv2-lookup` に付与済みの実行系 MCP ツール（`ctx_execute`／`ctx_batch_execute`）経由の
+  `karte ingest-review`/`close-attempt` も同じ通知対象にする（`.claude/rules/05-skills-agents.md`
+  「ctx_* ツールの付与方針」で Bash 保有ロールに解禁済みの経路と同じ範囲）。`settings.json` の
+  matcher は `Bash|mcp__plugin_context-mode_context-mode__ctx_execute|
+  mcp__plugin_context-mode_context-mode__ctx_batch_execute`。
+- **通知本文に含まれる内容**：finding ID 単位の既読管理を経た未解消/直近解消の finding 一覧に加え、
+  verdict の3集合（`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`・
+  PR #496 F-495-07）を常に含み、`escalate: yes` のときはその根拠（`stalled_findings`・
+  `saturated_groups`）を含む（実装は `karte_notify/notify.py::_render_message`）。
+  `.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」で「AI の要約を経ない」とする
+  内容の実体はこれである。
+- **fail-open**：判定不能・`karte status` 実行失敗・トリガー語を含まない stdin はいずれも
+  無出力 exit 0（統制ではなく可視化専用の助言機構）。詳細は `.claude/hooks/README.md`
+  「karte-notify」節。
+
 ## 重い作業は agy を積極利用（fail-close）
 
 横断影響調査・参照/孤児調査・スクラッチ計算などの重い調査は `agy-delegate` へ回す。移譲前に必ず疎通チェックし、NG なら移譲せず主文脈が直接遂行する。正本への書き込み・確定著作・無検証コード採用は移譲しない。

@@ -88,6 +88,97 @@ class IssueFromCommandTests(unittest.TestCase):
         self.assertIsNone(notify.issue_from_command("python3 -m karte ingest-review --issue 0"))
 
 
+class ExtractCommandsTests(unittest.TestCase):
+    """Issue #512 是正（F-512-02）: tool_name ごとのコマンド抽出を固定する。"""
+
+    def test_bash_extracts_single_command(self):
+        self.assertEqual(
+            notify.extract_commands("Bash", {"command": "python3 -m karte close-attempt --issue 1"}),
+            ["python3 -m karte close-attempt --issue 1"],
+        )
+
+    def test_ctx_execute_extracts_code(self):
+        self.assertEqual(
+            notify.extract_commands(
+                "mcp__plugin_context-mode_context-mode__ctx_execute",
+                {
+                    "language": "shell",
+                    "code": "python3 -m karte ingest-review --issue 1 --round 1 --from -",
+                },
+            ),
+            ["python3 -m karte ingest-review --issue 1 --round 1 --from -"],
+        )
+
+    def test_ctx_batch_execute_extracts_all_commands(self):
+        commands = notify.extract_commands(
+            "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+            {
+                "commands": [
+                    {"label": "a", "command": "gh pr view 1"},
+                    {"label": "b", "command": "python3 -m karte close-attempt --issue 1"},
+                ]
+            },
+        )
+        self.assertEqual(commands, ["gh pr view 1", "python3 -m karte close-attempt --issue 1"])
+
+    def test_unsupported_tool_returns_empty(self):
+        self.assertEqual(notify.extract_commands("Write", {"file_path": "x"}), [])
+
+    def test_malformed_input_returns_empty(self):
+        self.assertEqual(notify.extract_commands("Bash", {"command": 123}), [])
+        self.assertEqual(
+            notify.extract_commands(
+                "mcp__plugin_context-mode_context-mode__ctx_batch_execute", {"commands": "nope"}
+            ),
+            [],
+        )
+        self.assertEqual(
+            notify.extract_commands("mcp__plugin_context-mode_context-mode__ctx_execute", {"code": 1}),
+            [],
+        )
+
+
+class NotificationContentTests(unittest.TestCase):
+    """Issue #512 是正（F-512-03）: escalate 根拠と verdict 内訳が本文に現れることを固定する。"""
+
+    def test_escalate_body_includes_stalled_and_saturated(self):
+        current = {
+            "issue": 512,
+            "verdict": "harmful-open",
+            "escalate": True,
+            "blocking_findings": ["F-512-01"],
+            "blocking_harmful": ["F-512-01"],
+            "undecided_disposition": ["F-512-01"],
+            "stalled_findings": ["F-431-07"],
+            "saturated_groups": [["3", "5"]],
+            "findings": [finding("F-512-01", "open")],
+        }
+        message, _ = notify.decide(current, previous=None)
+        assert message is not None
+        self.assertIn("F-431-07", message)
+        self.assertIn("飽和したアプローチ", message)
+        self.assertIn("3, 5", message)
+        self.assertIn("clean を妨げる実害あり", message)
+        self.assertIn("実害あり・disposition 未決定", message)
+
+    def test_non_escalate_body_omits_stalled_and_saturated_labels(self):
+        current = {
+            "issue": 512,
+            "verdict": "clean",
+            "escalate": False,
+            "blocking_findings": [],
+            "blocking_harmful": [],
+            "undecided_disposition": [],
+            "stalled_findings": [],
+            "saturated_groups": [],
+            "findings": [],
+        }
+        message, _ = notify.decide(current, previous=None)
+        assert message is not None
+        self.assertNotIn("無進捗（stalled）", message)
+        self.assertNotIn("飽和したアプローチ", message)
+
+
 class SnapshotPathTests(unittest.TestCase):
     def test_round_trip_read_write(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -184,6 +275,28 @@ class DecideTests(unittest.TestCase):
         previous = {"findings": {"F-512-01": "resolved"}, "verdict": "clean", "escalate": False}
         message, _ = notify.decide(current, previous)
         self.assertIsNone(message)
+
+    def test_mixed_open_and_already_read_resolved_shows_only_open(self):
+        # Issue #512 是正（F-512-05）: 他に open があって通知自体は出る場合でも、
+        # 既読の resolved 分（F-512-02）は載らないことを固定する。
+        current = payload(
+            512,
+            verdict="harmful-open",
+            findings=[
+                finding("F-512-01", "open"),
+                finding("F-512-02", "resolved"),
+            ],
+        )
+        previous = {
+            "findings": {"F-512-01": "open", "F-512-02": "resolved"},
+            "verdict": "harmful-open",
+            "escalate": False,
+        }
+        message, snapshot = notify.decide(current, previous)
+        assert message is not None
+        self.assertIn("F-512-01", message)
+        self.assertNotIn("F-512-02", message)
+        self.assertEqual(snapshot["findings"]["F-512-02"], "resolved")
 
 
 class FakeCompleted:
@@ -291,6 +404,62 @@ class HookRunTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertEqual(self.stdout.getvalue(), "")
+
+    def test_ctx_execute_triggers_notification(self):
+        # Issue #512 是正（F-512-02）: ctx_execute 経由の ingest-review も検出する。
+        status = payload(512, verdict="harmful-open", findings=[finding("F-512-01", "open")])
+        code = self.invoke(
+            {
+                "tool_name": "mcp__plugin_context-mode_context-mode__ctx_execute",
+                "tool_input": {
+                    "language": "shell",
+                    "code": "python3 -m karte ingest-review --issue 512 --round 1 --from -",
+                },
+            },
+            self.runner_returning(status),
+        )
+        self.assertEqual(code, 0)
+        decision = json.loads(self.stdout.getvalue())
+        self.assertIn("F-512-01", decision["systemMessage"])
+
+    def test_ctx_batch_execute_triggers_notification(self):
+        # Issue #512 是正（F-512-02）: ctx_batch_execute の commands[] を全件検査する。
+        status = payload(512, verdict="harmful-open", findings=[finding("F-512-01", "open")])
+        code = self.invoke(
+            {
+                "tool_name": "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+                "tool_input": {
+                    "commands": [
+                        {"label": "unrelated", "command": "gh pr view 526"},
+                        {
+                            "label": "close-attempt",
+                            "command": "python3 -m karte close-attempt --issue 512 --outcome fixed",
+                        },
+                    ]
+                },
+            },
+            self.runner_returning(status),
+        )
+        self.assertEqual(code, 0)
+        decision = json.loads(self.stdout.getvalue())
+        self.assertIn("F-512-01", decision["systemMessage"])
+
+    def test_ctx_execute_file_is_not_supported(self):
+        # ctx_execute_file は既存方針で全ロール未付与のため対象に含めない。
+        code = self.invoke(
+            {
+                "tool_name": "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+                "tool_input": {
+                    "path": "x.py",
+                    "language": "python",
+                    "code": "python3 -m karte close-attempt --issue 512",
+                },
+            },
+            self.runner_returning({}),
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(self.stdout.getvalue(), "")
+        self.assertEqual(self.runner_calls, [])
 
     def test_manual_status_invocation_is_untouched_by_hook(self):
         # `karte status` 自体の実行は本フックの検出対象外（手動実行は毎回全件を出す・AC）。
