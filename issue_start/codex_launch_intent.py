@@ -91,7 +91,6 @@ _PROMPT_FIELD = re.compile(
     r"(?<!\{)\{(?P<name>[A-Za-z_][A-Za-z0-9_]*|[0-9]+)"
     r"(?:![^{}]*)?(?::[^{}]*)?\}(?!\})"
 )
-_HANDOFF_PREFIX = "tmp/_handoff/"
 # These are the names that the host owns in the role prompt.  Unknown fields
 # are data in a snapshot, not a second source of execution facts.
 _PROMPT_RESERVED_FIELDS = frozenset({
@@ -105,10 +104,13 @@ _PROMPT_RESERVED_FIELDS = frozenset({
 # separators and quoting forms a shell/Markdown reader may normalize before
 # treating the value as a path.  It deliberately does not consume arbitrary
 # prose after ``tmp/_handoff/``.
-_HANDOFF_ROOT = _HANDOFF_PREFIX.rstrip("/")
-_HANDOFF_FILE_CANDIDATE = re.compile(
-    re.escape(_HANDOFF_ROOT) + r"(?=[\\/])"
-)
+# Match a path component named ``tmp``.  The rest of the path is tokenized
+# below rather than matched as a single regular expression so that root-side
+# ``.`` components and repeated separators receive the same normalization as
+# the suffix.  A word boundary is deliberately used instead of anchoring to
+# the exact canonical root: ``tmp/./_handoff/file`` must be treated like the
+# canonical candidate too.
+_HANDOFF_PATH_START = re.compile(r"(?<![\w.-])tmp(?=[\\/])")
 _HANDOFF_BARE_COMPONENT = re.compile(r"[\w.-]+")
 _HANDOFF_WORD = re.compile(r"\w")
 _HANDOFF_SEPARATORS = frozenset({"/", "\\"})
@@ -554,13 +556,33 @@ def _handoff_file_candidate_exists(rendered: str) -> bool:
     """
 
     text = unescape(rendered)
-    for root_match in _HANDOFF_FILE_CANDIDATE.finditer(text):
+    for root_match in _HANDOFF_PATH_START.finditer(text):
+        # If ``tmp`` is inside a quoted string, the matching quote after a
+        # trailing separator is the token boundary (for example,
+        # ``Path("tmp/_handoff/archive/")``), not a filename quote.  A quote
+        # immediately after a separator in an unquoted token remains a
+        # filename-only quote and is parsed as a component below.
+        wrapper_closer = None
+        if root_match.start() > 0:
+            wrapper_closer = _HANDOFF_QUOTE_PAIRS.get(text[root_match.start() - 1])
+
         cursor = root_match.end()
-        components: list[str] = []
+        components: list[str] = ["tmp"]
+        trailing_separator = False
         while cursor < len(text):
+            separator_seen = False
             while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
+                separator_seen = True
                 cursor += 1
-            if cursor >= len(text):
+            if not separator_seen:
+                break
+
+            # A closing wrapper quote after the separator denotes a
+            # directory-only path.  Do not consume it as an unterminated
+            # filename quote.
+            if (cursor >= len(text)
+                    or (wrapper_closer is not None and text[cursor] == wrapper_closer)):
+                trailing_separator = True
                 break
 
             if text[cursor] in _HANDOFF_QUOTE_PAIRS:
@@ -568,21 +590,48 @@ def _handoff_file_candidate_exists(rendered: str) -> bool:
                 if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
                     break
                 components.append(component)
+                # A quoted component can itself contain the final separator,
+                # e.g. ``"tmp/_handoff/archive/"`` after root matching.
+                if component.endswith(tuple(_HANDOFF_SEPARATORS)):
+                    trailing_separator = True
             else:
                 component_match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
                 if component_match is None:
+                    trailing_separator = True
                     break
                 components.append(component_match.group(0))
                 cursor = component_match.end()
 
-            if cursor >= len(text) or text[cursor] not in _HANDOFF_SEPARATORS:
-                break
+        # Flatten quoted components before locating the canonical root.  This
+        # keeps ``tmp/"./_handoff"/file`` on the same path-shaped boundary as
+        # its unquoted equivalent while retaining raw ``.``/``..`` suffix
+        # components for the directory/file decision below.
+        flat_components: list[str] = []
+        for component in components:
+            flat_components.extend(
+                part for part in component.replace("\\", "/").split("/") if part
+            )
 
-        # Normalization makes ``./file`` and ``//file`` the same candidate as
-        # ``file``.  A file-shaped final component is required, so the bare
-        # root, ``.`` and ``..`` remain harmless prose/code examples.
-        normalized = _normalize_handoff_components(components)
-        if normalized and _HANDOFF_WORD.search(normalized[-1]):
+        root_index = None
+        for index, component in enumerate(flat_components):
+            if (component == "_handoff"
+                    and _normalize_handoff_components(flat_components[:index]) == ("tmp",)):
+                root_index = index
+                break
+        if root_index is None:
+            continue
+
+        suffix = flat_components[root_index + 1:]
+        normalized = _normalize_handoff_components(suffix)
+        # A path with a terminal separator or terminal ``.``/``..`` denotes a
+        # directory.  Named directory prose such as ``tmp/_handoff/archive/``
+        # must remain usable, while ``tmp/_handoff/archive/file.yaml`` and
+        # normalized near-misses remain fail-closed.
+        terminal_directory = (
+            trailing_separator
+            or bool(suffix and suffix[-1] in {".", ".."})
+        )
+        if normalized and not terminal_directory and _HANDOFF_WORD.search(normalized[-1]):
             return True
     return False
 

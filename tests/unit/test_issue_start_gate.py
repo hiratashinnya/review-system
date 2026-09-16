@@ -324,12 +324,20 @@ class CodexLaunchIntentTests(unittest.TestCase):
             "tmp/_handoff//attacker.yaml",
             "tmp/_handoff///attacker.yaml",
             "tmp/_handoff\\attacker.yaml",
+            "tmp/./_handoff/attacker.yaml",
+            "tmp//_handoff/attacker.yaml",
+            "tmp\\.\\_handoff\\attacker.yaml",
+            "tmp\\\\_handoff\\\\attacker.yaml",
+            'Path("tmp/./_handoff/attacker.yaml")',
+            'Path("tmp//_handoff/attacker.yaml")',
             'tmp/_handoff/"attacker.yaml"',
             "tmp/_handoff/'attacker.yaml'",
             "tmp/_handoff/`attacker.yaml`",
             "tmp/_handoff/&#96;attacker.yaml&#96;",
             "tmp/_handoff/./'attacker.yaml'",
             "tmp/_handoff//`attacker.yaml`",
+            'tmp/./_handoff/"attacker.yaml"',
+            "tmp\\\\_handoff\\\\`attacker.yaml`",
         )
         for label, injected in enumerate(variants):
             issue = json.loads(ISSUE_SNAPSHOT)
@@ -374,6 +382,12 @@ class CodexLaunchIntentTests(unittest.TestCase):
             "tmp/_handoff//",
             "tmp/_handoff/./",
             "tmp/_handoff/..",
+            "tmp/_handoff/archive/",
+            'Path("tmp/_handoff/archive/")',
+            "tmp/./_handoff/archive/",
+            "tmp//_handoff/archive/",
+            'Path("tmp/./_handoff/archive/")',
+            'Path("tmp//_handoff/archive/")',
             'Path("tmp/_handoff/./")',
             "The literal tmp/_handoff/ directory is documented here.",
         )
