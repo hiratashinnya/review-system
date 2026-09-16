@@ -1,0 +1,14 @@
+Issue #452 F-452-29 full unittest failure evidence
+commit: c2ddf574e8dfd590ff47ab46a8737d5787345681
+
+command: python3 -m unittest discover -s tests -p "test_*.py"
+result: FAIL (unrelated existing rate-limit watcher tests)
+summary: Ran 1877 tests in 322.270s; FAILED (failures=2, skipped=13)
+
+failures:
+- tests/unit/test_codex_rate_limit_api.py::BashQueryParsingTests::test_watcher_parses_reached
+  expected OK REACHED=1 TYPE=rate_limit_reached EPOCH=1789527097 WIN=300 USED=100 PLAN=plus; received FALLBACK
+- tests/unit/test_codex_rate_limit_api.py::BashQueryParsingTests::test_watcher_parses_reached_past_epoch
+  expected OK EPOCH=1789516297; received FALLBACK
+
+scope note: the failures are outside F-452-29 changes and are retained as FAIL TR; they are not read as a PASS or attributed to the handoff candidate fix.

@@ -1,0 +1,11 @@
+Issue #452 F-452-29 coverage dependency failure evidence
+
+attempt 1:
+command: uv run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+result: FAIL before tests — uv could not create its default cache temporary file under /home/hiras/.cache/uv (read-only file system)
+
+attempt 2:
+command: uv --cache-dir .uv-cache run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+result: FAIL before tests — DNS resolution for pypi.org failed while fetching coverage
+
+These environment failures are retained as FAIL TR. An approved rerun with the same worktree-local cache completed 1877 tests PASS, recorded in the separate PASS evidence.
