@@ -40,11 +40,14 @@ live Git、manifest、source内容から導出する。承認者と時刻は監�
 
 role別の handoff_template はmanifestの正本であり、launch intentはcanonical ledgerの同一role・round・task
 entryと照合してからhandoffを導出する。導出済みのrole別相対pathだけをhost promptへexact 1回注入し、
-LaunchRequestやsupervisor CLIの自由入力、legacy/unknown template、prompt内の任意pathは受け付けず
+LaunchRequestやsupervisor CLIの自由入力、legacy/unknown template、prompt内の実handoff file candidateは受け付けず
 fail-closeする。`branch_name`、`repository`、`expected_oid`もlive Git factsとcanonical ledgerから同じ
 host promptへ配送し、親runtimeの4入力（Issue、role、change-plan ID、fixer round）は増やさない。
-Issue/karte snapshotをpromptへ埋め込む前に、`tmp/_handoff/`配下の任意path（canonical pathの再掲を含む）と
-format placeholderを検出したらfail-closeする。innerはhostが提示した1 pathだけへschema v1 handoffを書き込む。
+Issue/karte snapshotをpromptへ埋め込む前に、`tmp/_handoff/`配下の実ファイル候補（canonical pathの再掲、
+別role path、attacker pathを含む）と、host authority/prompt reserved fieldに一致するformat placeholderを
+検出したらfail-closeする。bareな`tmp/_handoff/`ディレクトリ説明やreservedでない一般placeholder・コード断片は
+snapshotデータとして許可する。snapshotはtemplateへの単一format passのreplacementなので、replacement内のbraceを
+再解釈しない。innerはhostが提示した1 pathだけへschema v1 handoffを書き込む。
 
 issuerはworktreeを作成せず、GitHubにも接続しない。worktree登録とsnapshot captureはcallerであるhost運用の
 責務である。capture側はIssueを`github-api`、karteを`karte-cli`で取得・exportした時点のactorとUTC秒を

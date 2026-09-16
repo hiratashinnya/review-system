@@ -213,3 +213,13 @@ host命令とuntrusted本文の候補が区別できなくなることが分か�
 採らず、`_issue_snapshot`／`_karte_snapshot`のrender前検証でこれらをfail-closeする。これにより
 Popen後のinner判定やHANDOFF_MISSINGへ遅れて退避する経路を作らず、role別templateのunknown fieldは
 従来どおりmanifest exact比較で拒否する。handoff_pathのprompt内出現数も生成直後にexact 1回へ再検証する。
+
+### F-452-28によるsnapshot安全境界の補正（2026-09-16）
+
+F-452-27の初回安全検査は`tmp/_handoff/`のbare directory proseと、host事実に無関係な`{name}`まで
+部分一致で拒否していた。snapshotはrole templateへ値として一度だけ渡されるため、replacement内のbraceが
+後段のformat fieldとして再解釈される経路はない。そこで、実ファイル候補（canonical・別role・attackerを
+含む）と、host authority/prompt reserved fieldに一致するplaceholderだけをfail-close対象に限定し、bare
+directory mention、reservedでない一般placeholder、通常のコード断片はsnapshotデータとして許可する。
+正規のhost-derived handoff pathは引き続き生成後にexact 1回を検証し、F-452-25/26/27のpath・facts・
+collision fail-close契約は維持する。

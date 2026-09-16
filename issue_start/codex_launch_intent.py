@@ -82,15 +82,32 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _FINDING_ID = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
-# Snapshot text is inserted into the role prompt after the template has been
-# formatted.  Treat format fields and handoff paths in that text as an
-# ambiguous instruction source: otherwise a later prompt formatter/reader can
-# mistake untrusted snapshot data for host-derived launch facts.
+# Snapshot text is inserted into the role prompt as a format replacement.  A
+# single ``format_map`` pass means braces in a replacement are not parsed
+# again.  We therefore only reject fields whose names overlap host-owned
+# prompt facts, while allowing ordinary examples such as ``{name}``.
 _PROMPT_FIELD = re.compile(
-    r"(?<!\{)\{(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)"
+    r"(?<!\{)\{(?P<name>[A-Za-z_][A-Za-z0-9_]*|[0-9]+)"
     r"(?:![^{}]*)?(?::[^{}]*)?\}(?!\})"
 )
 _HANDOFF_PREFIX = "tmp/_handoff/"
+# These are the names that the host owns in the role prompt.  Unknown fields
+# are data in a snapshot, not a second source of execution facts.
+_PROMPT_RESERVED_FIELDS = frozenset({
+    "issue", "round", "change_plan_id", "finding_ids", "issue_snapshot",
+    "handoff_path", "branch_name", "repository", "expected_oid",
+    "karte_path", "karte_snapshot",
+})
+# Require a plausible filename component after the directory prefix.  The
+# bare directory mention (including normal sentence punctuation) is useful
+# prose and harmless; a component containing a word character is a possible
+# handoff file, including a role-specific, alternate-role, or attacker-
+# controlled candidate.
+_HANDOFF_FILE_COMPONENT = r"(?=[\w.-]*\w)[\w.-]+"
+_HANDOFF_FILE_CANDIDATE = re.compile(
+    re.escape(_HANDOFF_PREFIX) + _HANDOFF_FILE_COMPONENT
+    + r"(?:/" + _HANDOFF_FILE_COMPONENT + r")*"
+)
 _MAX_JSON = 2 * 1024 * 1024
 _CONTROL_ROOT = PurePosixPath("tmp/_codex_control")
 _PLAN_ROOT = _CONTROL_ROOT / "change-plans"
@@ -471,12 +488,19 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
 
 
 def _validate_snapshot_prompt_safety(rendered: str, *, reason: str) -> None:
-    """Reject snapshot content that can be confused with host prompt facts."""
+    """Reject snapshot content that can be confused with host prompt facts.
 
-    if _HANDOFF_PREFIX in rendered:
+    Snapshot values are substituted in one formatting pass, so an arbitrary
+    placeholder in the value cannot be reinterpreted by the surrounding role
+    template.  Only a real handoff-file candidate or a placeholder naming a
+    host-owned prompt field is ambiguous enough to fail closed.
+    """
+
+    if _HANDOFF_FILE_CANDIDATE.search(rendered):
         _fail(reason, "snapshot contains a handoff path")
-    if _PROMPT_FIELD.search(rendered):
-        _fail(reason, "snapshot contains a format placeholder")
+    for match in _PROMPT_FIELD.finditer(rendered):
+        if match.group("name") in _PROMPT_RESERVED_FIELDS:
+            _fail(reason, "snapshot contains a reserved format placeholder")
 
 
 def _issue_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchRequest,

@@ -242,13 +242,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
                     self.assertEqual(intent.prompt.count(f"{label}={value}"), 1)
                 self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
 
-    def test_snapshot_handoff_paths_and_format_placeholders_fail_before_prompt(self):
+    def test_snapshot_handoff_paths_and_reserved_format_placeholders_fail_before_prompt(self):
         issue_cases = (
             ("canonical role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
             ("other role path", "tmp/_handoff/issue-fixer--issue-10-r3.yaml"),
             ("attacker path", "tmp/_handoff/attacker.yaml"),
             ("placeholder", "{handoff_path}"),
-            ("unknown placeholder", "{attacker_value}"),
+            ("reserved placeholder", "{branch_name}"),
         )
         for label, injected in issue_cases:
             snapshot = json.loads(ISSUE_SNAPSHOT)
@@ -267,7 +267,7 @@ class CodexLaunchIntentTests(unittest.TestCase):
             ("other role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
             ("attacker path", "tmp/_handoff/attacker.yaml"),
             ("placeholder", "{handoff_path}"),
-            ("unknown placeholder", "{attacker_value}"),
+            ("reserved placeholder", "{expected_oid}"),
         )
         request = self.request(role="issue-fixer", fixer_round=3)
         for label, injected in karte_cases:
@@ -281,6 +281,41 @@ class CodexLaunchIntentTests(unittest.TestCase):
             ):
                 self.generate(request, plan=plan,
                               source_material={"issue": ISSUE_SNAPSHOT, "karte": raw})
+
+    def test_snapshot_prose_non_reserved_placeholders_and_code_fragments_are_allowed(self):
+        issue = json.loads(ISSUE_SNAPSHOT)
+        issue["body"] = (
+            "Document the `tmp/_handoff/` directory. The directory is `tmp/_handoff/`。 "
+            "Example code: path = Path(\"tmp/_handoff/\"); value = {name}."
+        )
+        issue_raw = json.dumps(issue, sort_keys=True)
+        implementer_plan = codex_change_plan(self.root)
+        implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+        implementer = self.generate(
+            self.request(), plan=implementer_plan, source_material={"issue": issue_raw}
+        )
+        self.assertIn("tmp/_handoff/", implementer.prompt)
+        self.assertIn("{name}", implementer.prompt)
+        self.assertEqual(implementer.prompt.count(implementer.handoff_path), 1)
+
+        karte = json.loads(KARTE_SNAPSHOT)
+        karte["open_findings"][0]["summary"] = (
+            "Document the `tmp/_handoff/` directory; "
+            "the directory is tmp/_handoff/。 example code uses Path(\"tmp/_handoff/\")."
+            " The value is {name}."
+        )
+        karte_raw = json.dumps(karte, sort_keys=True)
+        request = self.request(role="issue-fixer", fixer_round=3)
+        fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+        fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+        fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+        fixer = self.generate(
+            request, plan=fixer_plan,
+            source_material={"issue": issue_raw, "karte": karte_raw},
+        )
+        self.assertIn("tmp/_handoff/", fixer.prompt)
+        self.assertIn("{name}", fixer.prompt)
+        self.assertEqual(fixer.prompt.count(fixer.handoff_path), 1)
 
     def test_source_digest_and_provenance_are_fail_closed(self):
         plan = codex_change_plan(self.root)
