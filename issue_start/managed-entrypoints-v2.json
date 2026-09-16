@@ -18,14 +18,14 @@
         "reasoning_effort": "xhigh",
         "task_key_template": "issue_{issue}",
         "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.yaml",
-        "prompt_template": "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. Host-derived handoff path (write only this exact path): {handoff_path}\n\nVerified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}"
+        "prompt_template": "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. Host-derived execution facts (write only this exact handoff path): handoff_path={handoff_path}; branch_name={branch_name}; repository={repository}; expected_oid={expected_oid}\n\nVerified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}"
       },
       "issue-fixer": {
         "model": "gpt-5.6-sol",
         "reasoning_effort": "xhigh",
         "task_key_template": "issue_{issue}_fix_r{round}",
         "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.yaml",
-        "prompt_template": "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan {change_plan_id}. Host-derived handoff path (write only this exact path): {handoff_path}\n\nVerified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}\n\nVerified finding karte ({karte_path}) follows:\n\n{karte_snapshot}"
+        "prompt_template": "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan {change_plan_id}. Host-derived execution facts (write only this exact handoff path): handoff_path={handoff_path}; branch_name={branch_name}; repository={repository}; expected_oid={expected_oid}\n\nVerified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}\n\nVerified finding karte ({karte_path}) follows:\n\n{karte_snapshot}"
       }
     },
     "executables": {

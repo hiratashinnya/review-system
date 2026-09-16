@@ -1,27 +1,29 @@
 ---
 id: TD-issue-start-452-f25
-version: 1
+version: 2
 condition: normal
 ---
 
 # 目的
 
-F-452-25のhost launch intentが、manifestのrole別handoff_templateとcanonical ledgerを照合した導出値を、inner role promptへ正しく配送することを検証する。implementer/fixerの実運用入力を親AIやCLIの任意pathへ拡張しない。
+F-452-25/26/27のhost launch intentが、manifestのrole別handoff_templateとcanonical ledger/live Git factsを照合した導出値を、inner role promptへ正しく配送することを検証する。implementer/fixerの実運用入力を親AIやCLIの任意pathへ拡張せず、snapshot由来のpath・placeholder衝突をPopen前に止める。
 
 # 前提
 
 - baselineはPR #518 merge commit 418425e以降のorigin/mainである。
 - implementerはissue_{issue}、fixerはissue_{issue}_fix_r{round}のrole別handoff pathを使う。
-- host promptへ注入されるpathはroleごとにexact 1回であり、innerはそのpathだけへschema v1 handoffを書く。
+- host promptへ注入されるhandoff_pathはroleごとにexact 1回であり、branch_name/repository/expected_oidもcanonical factsとして同じブロックへ配送し、innerはそのhandoff_pathだけへschema v1 handoffを書く。
+- Issue/karte snapshotにcanonicalまたは別の`tmp/_handoff/` path、format placeholderがあればprompt組立前にfail-closeし、Popenへ到達しない。
 - 正規Codex process/threadの起動・handoff・host publishを未修正成功証拠として扱わない。今回のunitはmodel-freeの事前検査である。
 
 # 手順・期待結果
 
-1. implementerとfixerのpure launch intentを生成する。各intentのhandoff_pathがcanonical ledgerと一致し、rendered prompt内の実pathがexact 1回であることを確認する。
+1. implementerとfixerのpure launch intentを生成する。各intentのhandoff_pathがcanonical ledgerと一致し、branch_name/repository/expected_oidを含むrendered prompt内の各実値が一意であることを確認する。
 2. handoff_pathをLaunchRequestへ追加しようとする入力が拒否されることを確認する。
 3. manifestのlegacy handoff_templateまたはunknown handoff placeholderを注入し、MANIFEST_INVALIDでfail-closeすることを確認する。
-4. focused unit、asset parity、full unittestを実行する。失敗時は原因を隠さずFAIL TRへ保存する。
-5. uv経由coverageを実行し、htmlcov/index.html生成とcoverage summaryを記録する。coverageは全unitのPASS証拠とし、事前の通常full失敗は別FAIL TRとして保持する。
+4. 両roleのIssue/karte snapshotへcanonical path再掲、別`tmp/_handoff/` path、format placeholder、role違いpathを注入し、prompt組立前のsource invalidで拒否されることを確認する。
+5. focused unit、asset parity、full unittestを実行する。失敗時は原因を隠さずFAIL TRへ保存する。
+6. uv経由coverageを実行し、htmlcov/index.html生成とcoverage summaryを記録する。coverageは全unitのPASS証拠とし、事前の通常full失敗は別FAIL TRとして保持する。
 
 # TC
 
@@ -32,7 +34,8 @@ tests/unit/test_issue_start_cli_assets.py
 
 # 期待結果
 
-- implementer/fixerともhost-derived role-specific handoff pathがpromptにexact 1回含まれる。
+- implementer/fixerともhost-derived role-specific handoff pathがpromptにexact 1回含まれ、branch_name/repository/expected_oidもcanonical factsとして配送される。
 - 任意handoff path、legacy template、unknown placeholderはfail-closeする。
+- snapshot由来のhandoff pathとformat placeholderはPopen前にfail-closeする。
 - focusedとasset parityはPASSする。
 - coverage runは全unit PASS、skipのみ環境依存として報告される。

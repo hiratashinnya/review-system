@@ -194,7 +194,9 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertIn("Acceptance criteria", intent.prompt)
         self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
         self.assertIn(
-            f"Host-derived handoff path (write only this exact path): {intent.handoff_path}",
+            "Host-derived execution facts (write only this exact handoff path): "
+            f"handoff_path={intent.handoff_path}; branch_name={intent.branch_name}; "
+            f"repository={intent.repository}; expected_oid={intent.expected_oid}",
             intent.prompt,
         )
         self.assertEqual(intent.source_provenance["issue"]["url"],
@@ -213,12 +215,72 @@ class CodexLaunchIntentTests(unittest.TestCase):
                          "tmp/_handoff/issue-fixer--issue-10-r3.yaml")
         self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
         self.assertIn(
-            f"Host-derived handoff path (write only this exact path): {intent.handoff_path}",
+            "Host-derived execution facts (write only this exact handoff path): "
+            f"handoff_path={intent.handoff_path}; branch_name={intent.branch_name}; "
+            f"repository={intent.repository}; expected_oid={intent.expected_oid}",
             intent.prompt,
         )
         self.assertIn("F-10-01", intent.prompt)
         self.assertIn("tmp/_codex_control/sources/karte-10-r3.json", intent.prompt)
         self.assertIn("fix this", intent.prompt)
+
+    def test_both_roles_receive_all_canonical_execution_facts(self):
+        cases = (
+            (self.request(), {"issue": ISSUE_SNAPSHOT}),
+            (self.request(role="issue-fixer", fixer_round=3),
+             {"issue": ISSUE_SNAPSHOT, "karte": KARTE_SNAPSHOT}),
+        )
+        for request, materials in cases:
+            with self.subTest(role=request.role):
+                intent = self.generate(request, source_material=materials)
+                for label, value in (
+                    ("handoff_path", intent.handoff_path),
+                    ("branch_name", intent.branch_name),
+                    ("repository", intent.repository),
+                    ("expected_oid", intent.expected_oid),
+                ):
+                    self.assertEqual(intent.prompt.count(f"{label}={value}"), 1)
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
+    def test_snapshot_handoff_paths_and_format_placeholders_fail_before_prompt(self):
+        issue_cases = (
+            ("canonical role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
+            ("other role path", "tmp/_handoff/issue-fixer--issue-10-r3.yaml"),
+            ("attacker path", "tmp/_handoff/attacker.yaml"),
+            ("placeholder", "{handoff_path}"),
+            ("unknown placeholder", "{attacker_value}"),
+        )
+        for label, injected in issue_cases:
+            snapshot = json.loads(ISSUE_SNAPSHOT)
+            snapshot["body"] = f"untrusted {injected}"
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root)
+            plan["issue_source"]["sha256"] = digest(raw)
+            with self.subTest(role="issue-implementer", label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(self.request(), plan=plan,
+                              source_material={"issue": raw})
+
+        karte_cases = (
+            ("canonical role path", "tmp/_handoff/issue-fixer--issue-10-r3.yaml"),
+            ("other role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
+            ("attacker path", "tmp/_handoff/attacker.yaml"),
+            ("placeholder", "{handoff_path}"),
+            ("unknown placeholder", "{attacker_value}"),
+        )
+        request = self.request(role="issue-fixer", fixer_round=3)
+        for label, injected in karte_cases:
+            snapshot = json.loads(KARTE_SNAPSHOT)
+            snapshot["open_findings"][0]["summary"] = f"untrusted {injected}"
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            plan["karte_source"]["sha256"] = digest(raw)
+            with self.subTest(role="issue-fixer", label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(request, plan=plan,
+                              source_material={"issue": ISSUE_SNAPSHOT, "karte": raw})
 
     def test_source_digest_and_provenance_are_fail_closed(self):
         plan = codex_change_plan(self.root)
