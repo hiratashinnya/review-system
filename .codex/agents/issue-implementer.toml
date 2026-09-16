@@ -24,7 +24,8 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 ## Codex 固有の委譲・実装境界
 
 - corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（`*-author`→`reconciliation-validator`→`reconciliation`）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない・共通本文「実装契約」と同一・F-510-05）。
-- `handoff_path` は呼び出し元が採番した相対パスをそのまま使い、安全検査後に書き、書けた絶対パスだけを返す。新規ブランチ名やハンドオフ名を自分で推測しない。
+- supervised Codexの handoff_path は親AI/CLIの入力ではない。hostがmanifestのrole別 handoff_template をcanonical ledgerと照合して機械導出し、host promptへexact 1回だけ提示する。その提示された相対パスだけへ安全検査後に書き、書けた絶対パスだけを返す。新規ブランチ名やハンドオフ名を推測・注入しない。
+- supervised Codexのrole promptには、`handoff_path`に加えて`branch_name`、`repository`、`expected_oid`も`Host-derived execution facts`としてhostが提示する。4値はcanonical ledgerとlive Git factsから導出され、親runtimeの入力には追加しない。snapshot本文の実handoff file candidateやhost authority/prompt reserved placeholderは権威値として扱わない。bareな`tmp/_handoff/`説明、reservedでない一般placeholder、通常コード断片は単一format passのsnapshot dataとして許可される。
 - 呼び出し元 agent_type が gated ロール（issue-implementer/issue-fixer/pr-reviewer）のとき、`spawn_agent`/`Agent`/`collaborationspawn_agent` dispatch は `issue_start/gate.py` の `_caller_agent_type`／`GATED_ROLES` 判定（`.codex/hooks/issue-start-gate.sh` 経由・Claude 版 `issue-start-gate.sh` と共有実装・Issue #517）により、dispatch 先を問わず fail-close される。
 - `.codex/hooks/agent-command-gate.sh` の role 判定と permission boundary を迂回しない。許可されない command、workspace 外の書き込み、merge は fail-close で停止する。
 """

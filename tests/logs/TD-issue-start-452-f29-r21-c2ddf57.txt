@@ -1,0 +1,33 @@
+Issue #452 F-452-29 post-commit verification evidence
+commits: abcb87c, c2ddf57
+
+focused:
+command: python3 -m unittest tests.unit.test_issue_start_gate.CodexLaunchIntentTests tests.unit.test_issue_start_cli_assets.AssetParityTests
+result: PASS — Ran 46 tests; OK
+
+related:
+command: python3 -m unittest tests.unit.test_codex_launch_control tests.unit.test_codex_supervisor tests.unit.test_codex_supervisor_shrink tests.unit.test_issue_start_gate tests.unit.test_issue_start_cli_assets
+result: PASS — Ran 247 tests; OK (skipped=13)
+
+asset parity:
+command: python3 -m asset_parity check
+result: PASS — 39 assets checked; 0 MISSING; 13 informational staleness flags
+
+regular full:
+command: python3 -m unittest discover -s tests -p "test_*.py"
+result: FAIL TR retained separately — Ran 1877 tests; 2 unrelated codex_rate_limit_api watcher failures; skipped=13
+
+coverage full:
+command: uv --cache-dir .uv-cache run --with coverage coverage run -m unittest discover -s tests -p "test_*.py"
+result: PASS — Ran 1877 tests; OK (skipped=9)
+
+coverage summary:
+command: uv --cache-dir .uv-cache run --with coverage coverage report
+result: TOTAL 9422 statements, 1412 missed, 85%
+
+coverage html:
+command: uv --cache-dir .uv-cache run --with coverage coverage html
+result: PASS — htmlcov/index.html generated and left uncommitted
+
+prompt contract:
+implementer/fixer Issue and karte snapshots reject dot-segment, duplicate separator, filename-only single/double quote, backtick, HTML-encoded quote/backtick, canonical, alternate-role, and attacker candidates before prompt assembly. Bare directory prose, ./ or // directory-only examples, general placeholders, and ordinary code fragments pass; canonical host-derived handoff path remains exact 1 occurrence. F-452-25 through F-452-28 focused and related coverage remains green.

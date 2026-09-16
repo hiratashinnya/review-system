@@ -192,6 +192,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertEqual(intent.runtime_root,
                          "tmp/_codex_sessions/issue_10/runtime-home")
         self.assertIn("Acceptance criteria", intent.prompt)
+        self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+        self.assertIn(
+            "Host-derived execution facts (write only this exact handoff path): "
+            f"handoff_path={intent.handoff_path}; branch_name={intent.branch_name}; "
+            f"repository={intent.repository}; expected_oid={intent.expected_oid}",
+            intent.prompt,
+        )
         self.assertEqual(intent.source_provenance["issue"]["url"],
                          "https://github.com/example/repo/issues/10")
         self.assertEqual(intent.source_provenance["issue"]["sha256"], digest(ISSUE_SNAPSHOT))
@@ -206,9 +213,510 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertEqual(intent.task_key, "issue_10_fix_r3")
         self.assertEqual(intent.handoff_path,
                          "tmp/_handoff/issue-fixer--issue-10-r3.yaml")
+        self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+        self.assertIn(
+            "Host-derived execution facts (write only this exact handoff path): "
+            f"handoff_path={intent.handoff_path}; branch_name={intent.branch_name}; "
+            f"repository={intent.repository}; expected_oid={intent.expected_oid}",
+            intent.prompt,
+        )
         self.assertIn("F-10-01", intent.prompt)
         self.assertIn("tmp/_codex_control/sources/karte-10-r3.json", intent.prompt)
         self.assertIn("fix this", intent.prompt)
+
+    def test_both_roles_receive_all_canonical_execution_facts(self):
+        cases = (
+            (self.request(), {"issue": ISSUE_SNAPSHOT}),
+            (self.request(role="issue-fixer", fixer_round=3),
+             {"issue": ISSUE_SNAPSHOT, "karte": KARTE_SNAPSHOT}),
+        )
+        for request, materials in cases:
+            with self.subTest(role=request.role):
+                intent = self.generate(request, source_material=materials)
+                for label, value in (
+                    ("handoff_path", intent.handoff_path),
+                    ("branch_name", intent.branch_name),
+                    ("repository", intent.repository),
+                    ("expected_oid", intent.expected_oid),
+                ):
+                    self.assertEqual(intent.prompt.count(f"{label}={value}"), 1)
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
+    def test_snapshot_handoff_paths_and_reserved_format_placeholders_fail_before_prompt(self):
+        issue_cases = (
+            ("canonical role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
+            ("other role path", "tmp/_handoff/issue-fixer--issue-10-r3.yaml"),
+            ("attacker path", "tmp/_handoff/attacker.yaml"),
+            ("placeholder", "{handoff_path}"),
+            ("reserved placeholder", "{branch_name}"),
+        )
+        for label, injected in issue_cases:
+            snapshot = json.loads(ISSUE_SNAPSHOT)
+            snapshot["body"] = f"untrusted {injected}"
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root)
+            plan["issue_source"]["sha256"] = digest(raw)
+            with self.subTest(role="issue-implementer", label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(self.request(), plan=plan,
+                              source_material={"issue": raw})
+
+        karte_cases = (
+            ("canonical role path", "tmp/_handoff/issue-fixer--issue-10-r3.yaml"),
+            ("other role path", "tmp/_handoff/issue-implementer--issue-10.yaml"),
+            ("attacker path", "tmp/_handoff/attacker.yaml"),
+            ("placeholder", "{handoff_path}"),
+            ("reserved placeholder", "{expected_oid}"),
+        )
+        request = self.request(role="issue-fixer", fixer_round=3)
+        for label, injected in karte_cases:
+            snapshot = json.loads(KARTE_SNAPSHOT)
+            snapshot["open_findings"][0]["summary"] = f"untrusted {injected}"
+            raw = json.dumps(snapshot, sort_keys=True)
+            plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            plan["karte_source"]["sha256"] = digest(raw)
+            with self.subTest(role="issue-fixer", label=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(request, plan=plan,
+                              source_material={"issue": ISSUE_SNAPSHOT, "karte": raw})
+
+    def test_snapshot_prose_non_reserved_placeholders_and_code_fragments_are_allowed(self):
+        issue = json.loads(ISSUE_SNAPSHOT)
+        issue["body"] = (
+            "Document the `tmp/_handoff/` directory. The directory is `tmp/_handoff/`。 "
+            "Example code: path = Path(\"tmp/_handoff/\"); value = {name}."
+        )
+        issue_raw = json.dumps(issue, sort_keys=True)
+        implementer_plan = codex_change_plan(self.root)
+        implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+        implementer = self.generate(
+            self.request(), plan=implementer_plan, source_material={"issue": issue_raw}
+        )
+        self.assertIn("tmp/_handoff/", implementer.prompt)
+        self.assertIn("{name}", implementer.prompt)
+        self.assertEqual(implementer.prompt.count(implementer.handoff_path), 1)
+
+        karte = json.loads(KARTE_SNAPSHOT)
+        karte["open_findings"][0]["summary"] = (
+            "Document the `tmp/_handoff/` directory; "
+            "the directory is tmp/_handoff/。 example code uses Path(\"tmp/_handoff/\")."
+            " The value is {name}."
+        )
+        karte_raw = json.dumps(karte, sort_keys=True)
+        request = self.request(role="issue-fixer", fixer_round=3)
+        fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+        fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+        fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+        fixer = self.generate(
+            request, plan=fixer_plan,
+            source_material={"issue": issue_raw, "karte": karte_raw},
+        )
+        self.assertIn("tmp/_handoff/", fixer.prompt)
+        self.assertIn("{name}", fixer.prompt)
+        self.assertEqual(fixer.prompt.count(fixer.handoff_path), 1)
+
+    def test_snapshot_handoff_path_normalization_variants_fail_for_both_roles(self):
+        variants = (
+            "tmp/_handoff/./attacker.yaml",
+            "tmp/_handoff/../attacker.yaml",
+            "tmp/_handoff//attacker.yaml",
+            "tmp/_handoff///attacker.yaml",
+            "tmp/_handoff\\attacker.yaml",
+            "tmp/./_handoff/attacker.yaml",
+            "tmp//_handoff/attacker.yaml",
+            "tmp\\.\\_handoff\\attacker.yaml",
+            "tmp\\\\_handoff\\\\attacker.yaml",
+            'Path("tmp/./_handoff/attacker.yaml")',
+            'Path("tmp//_handoff/attacker.yaml")',
+            'tmp/_handoff/"attacker.yaml"',
+            "tmp/_handoff/'attacker.yaml'",
+            "tmp/_handoff/`attacker.yaml`",
+            "tmp/_handoff/&#96;attacker.yaml&#96;",
+            "tmp/_handoff/./'attacker.yaml'",
+            "tmp/_handoff//`attacker.yaml`",
+            'tmp/./_handoff/"attacker.yaml"',
+            "tmp\\\\_handoff\\\\`attacker.yaml`",
+        )
+        for label, injected in enumerate(variants):
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"untrusted candidate {injected}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-implementer", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-fixer", source="issue", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                )
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = f"untrusted candidate {injected}"
+            karte_raw = json.dumps(karte, sort_keys=True)
+            karte_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            karte_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.subTest(role="issue-fixer", source="karte", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=karte_plan,
+                    source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
+                )
+
+    def test_snapshot_handoff_path_lexer_matrix_covers_quotes_separators_and_boundaries(self):
+        """Every lexical quote/separator combination must fail before Popen.
+
+        The matrix deliberately exercises the complete token reader rather
+        than adding another seed-specific regression.  Issue and karte
+        snapshots are both checked for both managed roles; directory-shaped
+        tokens are checked as the paired negative boundary.
+        """
+
+        quote_styles = ("", '"', "'", "`")
+        separators = ("/", "\\", "//", "\\\\")
+
+        def quoted(value, style):
+            if not style:
+                return value
+            return f"{style}{value}{style}"
+
+        def candidate(shape, qroot, qhandoff, qfile, sep_root, sep_suffix):
+            root = quoted("tmp", qroot)
+            handoff = quoted("_handoff", qhandoff)
+            filename = quoted("attacker.yaml", qfile)
+            if shape == "standard":
+                return sep_root.join((root, handoff)) + sep_suffix + filename
+            if shape == "quoted-handoff-separator":
+                return (root + sep_root + quoted("_handoff" + sep_suffix, qhandoff)
+                        + sep_suffix + filename)
+            if shape == "quoted-root-separator":
+                return (quoted("tmp" + sep_root, qroot) + handoff
+                        + sep_suffix + filename)
+            if shape == "root-dot":
+                return (root + sep_root + quoted(".", qhandoff) + sep_root
+                        + handoff + sep_suffix + filename)
+            raise AssertionError(shape)
+
+        def assert_rejected(path):
+            # The complete matrix exercises the lexer itself against a fixed
+            # expected result.  Only a small
+            # representative slice needs the much heavier launch-intent
+            # fixture setup; the existing variant test below still covers the
+            # role/source preflight contract independently.
+            self.assertEqual(
+                codex_launch_intent._handoff_file_candidate_exists(path), True, path
+            )
+            if path not in runtime_candidates:
+                return
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"untrusted matrix candidate {path}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+
+            fixer_request = self.request(role="issue-fixer", fixer_round=3)
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    fixer_request, plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                )
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = (
+                f"untrusted matrix candidate {path}"
+            )
+            karte_raw = json.dumps(karte, sort_keys=True)
+            karte_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            karte_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    fixer_request, plan=karte_plan,
+                    source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
+                )
+
+        runtime_candidates = {
+            candidate("standard", "", "", "", "/", "/"),
+            candidate("quoted-handoff-separator", '"', "'", "`", "\\", "//"),
+            candidate("quoted-root-separator", "`", '"', "'", "//", "\\"),
+            candidate("root-dot", "'", "`", '"', "/", "\\\\"),
+        }
+        for shape in ("standard", "quoted-handoff-separator",
+                      "quoted-root-separator", "root-dot"):
+            for qroot in quote_styles:
+                for qhandoff in quote_styles:
+                    for qfile in quote_styles:
+                        for sep_root in separators:
+                            for sep_suffix in separators:
+                                with self.subTest(
+                                    shape=shape, qroot=qroot, qhandoff=qhandoff,
+                                    qfile=qfile, sep_root=sep_root,
+                                    sep_suffix=sep_suffix,
+                                ):
+                                    assert_rejected(
+                                        candidate(
+                                            shape, qroot, qhandoff, qfile,
+                                            sep_root, sep_suffix,
+                                        )
+                                    )
+
+        # Generate adjacent fragments independently of the production lexer.
+        # Every internal split position of each component is covered, and the
+        # expected result is fixed by the canonical root/file shape rather
+        # than obtained from the helper under test.  Quote fragments may be
+        # mixed, repeated, and adjacent without invoking shell semantics.
+        def split_component(value, cut, left_style, right_style):
+            left, right = value[:cut], value[cut:]
+            return quoted(left, left_style) + quoted(right, right_style)
+
+        canonical_components = ("tmp", "_handoff", "attacker.yaml")
+        for component_index, component in enumerate(canonical_components):
+            for cut in range(1, len(component)):
+                for left_style in quote_styles:
+                    for right_style in quote_styles:
+                        parts = list(canonical_components)
+                        parts[component_index] = split_component(
+                            component, cut, left_style, right_style
+                        )
+                        path = "/".join(parts)
+                        with self.subTest(
+                            shape="adjacent-fragments", component=component,
+                            cut=cut, left_style=left_style,
+                            right_style=right_style,
+                        ):
+                            self.assertEqual(
+                                codex_launch_intent._handoff_file_candidate_exists(path),
+                                True,
+                                path,
+                            )
+
+        # Separators can be carried by either side of an adjacent quote
+        # fragment.  The endpoint slash is decided only after all fragments
+        # are joined; these are file candidates despite the middle slash.
+        for path in (
+            '"tm"\'p\'/_handoff/attacker.yaml',
+            '"tmp""/"_handoff/attacker.yaml',
+            'tmp"/"_handoff/attacker.yaml',
+            'tmp/"_handoff/"attacker.yaml',
+            '"tmp/_handoff/""attacker.yaml"',
+            "&#34;tm&#34;&#39;p&#39;/_handoff/attacker.yaml",
+            "&#34;tmp&#34;&#34;/&#34;_handoff/attacker.yaml",
+        ):
+            with self.subTest(shape="explicit-adjacent-fragments", path=path):
+                self.assertEqual(
+                    codex_launch_intent._handoff_file_candidate_exists(path),
+                    True,
+                    path,
+                )
+
+        # HTML entity decoding is part of the same lexer boundary, including
+        # an entity-delimited root and a separator carried by a quoted middle
+        # component.  Keep these explicit to avoid making the full matrix
+        # needlessly expensive while retaining a readable proof case.
+        for path in (
+            "&#96;tmp&#96;/&#96;_handoff&#96;/&#96;attacker.yaml&#96;",
+            "&#96;tmp&#96;&#92;&#96;_handoff&#96;&#92;&#96;attacker.yaml&#96;",
+            "&#96;tmp&#96;/&#96;_handoff/&#96;/&#96;attacker.yaml&#96;",
+        ):
+            with self.subTest(shape="html-entity", path=path):
+                assert_rejected(path)
+
+        # A complete terminal separator, even when components are quoted, is
+        # a directory/prose boundary and must remain accepted for both roles.
+        for qroot in quote_styles:
+            for qhandoff in quote_styles:
+                for qarchive in quote_styles:
+                    for sep_root in separators:
+                        for sep_suffix in separators:
+                            path = (
+                                quoted("tmp", qroot) + sep_root
+                                + quoted("_handoff", qhandoff) + sep_suffix
+                                + quoted("archive", qarchive) + sep_suffix
+                            )
+                            with self.subTest(
+                                shape="directory", qroot=qroot,
+                                qhandoff=qhandoff, qarchive=qarchive,
+                                sep_root=sep_root, sep_suffix=sep_suffix,
+                            ):
+                                self.assertFalse(
+                                    codex_launch_intent._handoff_file_candidate_exists(path),
+                                    path,
+                                )
+
+                            # Keep launch-intent construction coverage to one
+                            # readable separator form per quote combination;
+                            # the full separator matrix above exercises the
+                            # lexer boundary itself and the existing near-miss
+                            # test exercises both roles/snapshot sources.
+                            if sep_root != "/" or sep_suffix != "/":
+                                continue
+                            issue = json.loads(ISSUE_SNAPSHOT)
+                            issue["body"] = f"safe directory prose {path}"
+                            issue_raw = json.dumps(issue, sort_keys=True)
+                            implementer_plan = codex_change_plan(self.root)
+                            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                            self.generate(
+                                self.request(), plan=implementer_plan,
+                                source_material={"issue": issue_raw},
+                            )
+
+    def test_snapshot_handoff_path_near_misses_remain_allowed(self):
+        safe_values = (
+            "tmp/_handoff/",
+            "tmp/_handoff//",
+            "tmp/_handoff/./",
+            "tmp/_handoff/..",
+            "tmp/_handoff/archive/",
+            'Path("tmp/_handoff/archive/")',
+            "tmp/./_handoff/archive/",
+            "tmp//_handoff/archive/",
+            'Path("tmp/./_handoff/archive/")',
+            'Path("tmp//_handoff/archive/")',
+            'Path("tmp/_handoff/./")',
+            "The literal tmp/_handoff/ directory is documented here.",
+        )
+        for label, value in enumerate(safe_values):
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"safe prose {value}; example {{name}}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-implementer", candidate=label):
+                intent = self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = f"safe prose {value}; example {{name}}"
+            karte_raw = json.dumps(karte, sort_keys=True)
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.subTest(role="issue-fixer", candidate=label):
+                intent = self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": karte_raw},
+                )
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
+    def test_malformed_quote_recovery_rescans_internal_and_following_candidates(self):
+        malformed_values = (
+            '"未閉じ\n tmp/_handoff/attacker.yaml',
+            "'未閉じ\n tmp/_handoff/attacker.yaml",
+            "`未閉じ\n tmp/_handoff/attacker.yaml",
+            "“未閉じ\n tmp/_handoff/attacker.yaml",
+            '"tmp/_handoff/attacker.yaml',
+            "'tmp/_handoff/attacker.yaml\"",
+            "`tmp/_handoff/attacker.yaml'",
+            '“tmp/_handoff/attacker.yaml"',
+            '&#34;未閉じ&#39;\n tmp/_handoff/attacker.yaml',
+            '&#96;未閉じ&#34;\n tmp/_handoff/attacker.yaml',
+        )
+        for label, injected in enumerate(malformed_values):
+            with self.subTest(candidate=label):
+                # The malformed word must expose a local recovery point.  An
+                # EOF endpoint would skip the candidate that follows it.
+                lexed = codex_launch_intent.unescape(injected)
+                word = codex_launch_intent._handoff_lex_word(lexed, 0)
+                self.assertIsNotNone(word)
+                self.assertGreater(word.end, 0)
+                self.assertLess(word.end, len(lexed))
+                self.assertTrue(
+                    codex_launch_intent._handoff_file_candidate_exists(injected),
+                    f"candidate={label} value={injected!r} word={word!r}",
+                )
+
+                issue = json.loads(ISSUE_SNAPSHOT)
+                issue["body"] = f"untrusted malformed candidate {injected}"
+                issue_raw = json.dumps(issue, sort_keys=True)
+                implementer_plan = codex_change_plan(self.root)
+                implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(), plan=implementer_plan,
+                        source_material={"issue": issue_raw},
+                    )
+
+                fixer_plan = codex_change_plan(
+                    self.root, role="issue-fixer", fixer_round=3
+                )
+                fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(role="issue-fixer", fixer_round=3),
+                        plan=fixer_plan,
+                        source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                    )
+
+                karte = json.loads(KARTE_SNAPSHOT)
+                karte["open_findings"][0]["summary"] = (
+                    f"untrusted malformed candidate {injected}"
+                )
+                karte_raw = json.dumps(karte, sort_keys=True)
+                karte_plan = codex_change_plan(
+                    self.root, role="issue-fixer", fixer_round=3
+                )
+                karte_plan["karte_source"]["sha256"] = digest(karte_raw)
+                with self.assertRaisesRegex(
+                    codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+                ):
+                    self.generate(
+                        self.request(role="issue-fixer", fixer_round=3),
+                        plan=karte_plan,
+                        source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
+                    )
+
+    def test_malformed_quote_recovery_keeps_normal_prose_and_scales_with_many_fragments(self):
+        prose = (
+            "An ordinary apostrophe isn't a handoff path.\n"
+            'A malformed quote can appear here: "ordinary prose\n'
+            "and another one here: 'still ordinary\n"
+            "then a backtick: `also ordinary\n"
+            "No output file is named in this text."
+        )
+        self.assertFalse(codex_launch_intent._handoff_file_candidate_exists(prose))
+
+        # Every malformed opener is followed by a local quote boundary.  The
+        # scanner must terminate and continue monotonically without searching
+        # each suffix to EOF (the former failure mode was quadratic here).
+        many_malformed = "".join(f'"bad-{index}' for index in range(256))
+        self.assertFalse(
+            codex_launch_intent._handoff_file_candidate_exists(many_malformed)
+        )
+        recovered = '"bad-0\n tmp/_handoff/recovered.yaml'
+        self.assertTrue(codex_launch_intent._handoff_file_candidate_exists(recovered))
 
     def test_source_digest_and_provenance_are_fail_closed(self):
         plan = codex_change_plan(self.root)
@@ -294,6 +802,12 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 runtime_root_template="../../escape/{task_key}")),
             ("executables", lambda value: value["executables"]["codex"].update(
                 lookup_name="../codex")),
+            ("legacy handoff template", lambda value: value["roles"][
+                "issue-implementer"].update(
+                    handoff_template="tmp/_handoff/legacy-issue-{issue}.yaml")),
+            ("unknown handoff placeholder", lambda value: value["roles"][
+                "issue-fixer"].update(
+                    prompt_template="write {unknown_handoff_path}")),
         ]
         for label, mutate in mutations:
             manifest = json.loads(json.dumps(self.manifest))
@@ -302,6 +816,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 codex_launch_intent.LaunchIntentError, "MANIFEST_INVALID"
             ):
                 self.generate(self.request(), manifest=manifest)
+
+    def test_handoff_path_is_host_derived_and_not_a_request_input(self):
+        with self.assertRaises(TypeError):
+            codex_launch_intent.LaunchRequest(
+                issue=10, role="issue-implementer", change_plan_id="plan-10",
+                fixer_round=None, handoff_path="tmp/_handoff/attacker.yaml",
+            )
 
     def test_executable_evidence_rejects_foreign_owner_or_writable_by_others(self):
         executable = self.root / "test-codex"

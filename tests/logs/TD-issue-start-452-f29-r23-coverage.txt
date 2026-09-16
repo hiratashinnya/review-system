@@ -1,0 +1,13 @@
+Issue #452 F-452-29 round 23 coverage verification
+commit: adc5f6d
+Claude Code: not used
+
+$ uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'
+Ran 1878 tests in 353.507s
+OK (skipped=9)
+
+$ uv run --with coverage coverage html
+Wrote HTML report to htmlcov/index.html
+
+$ uv run --with coverage coverage report
+TOTAL 9460 1407 85%

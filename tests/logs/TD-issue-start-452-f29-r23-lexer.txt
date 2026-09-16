@@ -1,0 +1,24 @@
+Issue #452 F-452-29 round 23 verification
+commit: adc5f6d
+Claude Code: not used
+
+focused/related:
+$ python3 -m unittest tests.unit.test_issue_start_gate tests.unit.test_codex_launch_control tests.unit.test_codex_supervisor_shrink tests.unit.test_issue_start_cli_assets
+Ran 204 tests in 4.933s
+OK (skipped=11)
+
+additional focused lexer matrix:
+$ python3 -m unittest tests.unit.test_issue_start_gate.CodexLaunchIntentTests.test_snapshot_handoff_path_lexer_matrix_covers_quotes_separators_and_boundaries -v
+Ran 1 test in 0.151s
+OK
+
+matrix coverage:
+- file candidates: 4 shapes x 4^3 quote positions x 4^2 separators = 4096
+- directory boundaries: 4^3 quote positions x 4^2 separators = 1024
+- HTML entity paths: 3 explicit cases
+- launch-intent representative cases: implementer/fixer, Issue/karte source paths
+- py_compile and git diff --check: PASS
+
+The lexer decodes HTML entities once, lexes the whole candidate without shell
+execution/expansion, preserves Windows separators, and uses only the final
+semantic path character for the directory boundary.
