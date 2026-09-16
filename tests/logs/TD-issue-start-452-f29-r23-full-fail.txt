@@ -1,0 +1,14 @@
+Issue #452 F-452-29 round 23 full unittest FAIL TR
+commit: adc5f6d
+Claude Code: not used
+
+$ python3 -m unittest discover -s tests -p 'test_*.py'
+Ran 1878 tests in 454.750s
+FAILED (failures=2, skipped=13)
+
+Failures are unchanged, out-of-scope rate-limit watcher tests:
+- unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+
+Both expected an OK REACHED/EPOCH line but received FALLBACK. No F-452-29
+success claim relies on these failures or on pre-fix behavior.
