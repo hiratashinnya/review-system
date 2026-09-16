@@ -358,13 +358,14 @@ class CodexLaunchIntentTests(unittest.TestCase):
             karte = json.loads(KARTE_SNAPSHOT)
             karte["open_findings"][0]["summary"] = f"untrusted candidate {injected}"
             karte_raw = json.dumps(karte, sort_keys=True)
-            fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+            karte_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            karte_plan["karte_source"]["sha256"] = digest(karte_raw)
             with self.subTest(role="issue-fixer", source="karte", candidate=label), self.assertRaisesRegex(
                 codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
             ):
                 self.generate(
-                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
-                    source_material={"issue": issue_raw, "karte": karte_raw},
+                    self.request(role="issue-fixer", fixer_round=3), plan=karte_plan,
+                    source_material={"issue": ISSUE_SNAPSHOT, "karte": karte_raw},
                 )
 
     def test_snapshot_handoff_path_near_misses_remain_allowed(self):
