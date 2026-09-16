@@ -94,6 +94,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
+            "timeout": 35
+          }
+        ]
       }
     ],
     "StopFailure": [

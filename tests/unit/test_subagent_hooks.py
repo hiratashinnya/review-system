@@ -1522,11 +1522,14 @@ class SettingsRegistrationTests(unittest.TestCase):
             pre_tool_use[3],
             "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
         )
+        # Issue #512 で `karte-notify.sh`（matcher `Bash`）を追加した。既存2件（Issue #309 時点）
+        # は手を入れず末尾に追加のみであることをここで固定する。
         self.assertEqual(
             self.commands("PostToolUse"),
             [
                 "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
+                "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
             ],
         )
         self.assertEqual(

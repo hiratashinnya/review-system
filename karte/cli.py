@@ -39,9 +39,20 @@ verb:
                      無進捗判定も同じ除外を受ける（Issue #503 観測3。誰も直さないと決めた
                      finding に進捗が無いのは当然で、拾うと ``escalate`` が偽陽性になる）。
                      既定出力は**そのまま注入できる
-                     自己完結した本文**（K-15：PostToolUse フックが ``pr-reviewer`` 呼び出し
-                     完了直後に実行してコンテキストへ注入する。ただし PostToolUse は
-                     ツール呼び出しをブロックできず「判定を可視化する」までが役割）。
+                     自己完結した本文**（人手／フックのどちらから呼んでも常に全件出力する。
+                     K-15 が構想した「PostToolUse フックが ``pr-reviewer`` 呼び出し完了直後に
+                     コンテキストへ注入する」自動可視化は未配線のまま、Issue #512 が対応する
+                     AC を移譲し**別の設計**で実装した——届け先を AI のコンテキスト
+                     （``additionalContext``）ではなく**オーナーのチャット**（``systemMessage``）
+                     にし、トリガーも ``pr-reviewer`` 呼び出し後ではなく ``ingest-review``/
+                     ``close-attempt`` 実行直後にした（実体は :mod:`karte_notify`・
+                     ``.claude/hooks/karte-notify.sh``）。理由は、AI のコンテキストへ注入する
+                     だけでは「機械判定が AI の要約を経て歪む」経路（実例＝PR #509／Issue #431：
+                     ``escalate: yes`` を主文脈が独自解釈して丸めた）を防げないため。この
+                     verb 自身（``status``）は変更していない——``karte_notify`` は本 verb の
+                     ``--json`` 出力を読むだけの外部消費者であり、finding ID 単位の既読管理は
+                     ``karte_notify`` 側の責務。ただし PostToolUse はツール呼び出しをブロック
+                     できず「判定を可視化する」までが役割である点は変わらない）。
 
 終了コード（``dsv2`` に合わせる）:
   0 OK ／ 2 未検出 ／ 3 類似飽和（append 拒否）／ 4 前提違反・検証失敗（fail-close）。
@@ -1265,12 +1276,27 @@ def _status_payload(karte: model.Karte) -> dict:
 def cmd_status(args) -> int:
     """エスカレーション条件を機械判定し、**そのまま注入できる本文**として出力する（K-15）。
 
-    PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後にこれを実行し、
-    判定結果をコンテキストへ自動注入する。**PostToolUse はツール呼び出しをブロックできない**
-    （公式ドキュメント：the tool already ran／blocking does not undo the tool call）ため、
-    この verb の役割は「判定を必ず実行し可視化する」までであり、「判定に反した行動
-    （実害あり残存のまま merge する等）を止める」のは別途 PreToolUse で merge 操作を
-    捕まえるゲートが担う（Issue #293／#298・本 verb の対象外）。
+    **手動実行（``python3 -m karte status``）は常に全件を出力する**——フックの既読管理
+    （後述）が及ぶのは通知経路だけで、この verb 自体の出力は変えていない
+    （Issue #512 Acceptance criteria）。
+
+    K-15 は当初「PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後に
+    これを実行し、判定結果をコンテキストへ自動注入する」設計を構想したが未配線のまま、
+    Issue #512 が対応 AC を移譲して**別の設計**で実装した。実際に配線されたのは
+    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash``）で、
+    トリガーは ``pr-reviewer`` 呼び出し後ではなく ``karte ingest-review``/``close-attempt``
+    実行直後、届け先は AI のコンテキスト（``additionalContext``）ではなく**オーナーの
+    チャット**（``systemMessage``）にした。AI のコンテキストへ注入するだけでは
+    「機械判定が AI の要約を経て歪む」経路を防げないため（実例＝PR #509／Issue #431：
+    ``escalate: yes`` を主文脈が「原因が分かっているから問題ない」と独自解釈して丸めた）。
+    ``karte_notify`` はこの verb の ``--json`` 出力を読むだけの外部消費者であり、finding ID
+    単位の既読管理（``resolved`` 済みで通知済みの finding を再表示しない等）は
+    ``karte_notify.notify`` 側の責務としてここには持ち込まない。
+
+    **PostToolUse はツール呼び出しをブロックできない**（公式ドキュメント：the tool already
+    ran／blocking does not undo the tool call）ため、この verb の役割は「判定を必ず実行し
+    可視化する」までであり、「判定に反した行動（実害あり残存のまま merge する等）を止める」
+    のは別途 PreToolUse で merge 操作を捕まえるゲートが担う（Issue #293／#298・本 verb の対象外）。
 
     ``--issue`` は進行ポインタ（``tmp/_karte/active.json``）から補完できる（K-13/K-14 と
     同じ扱い）。既定出力（非 ``--json``）は残存 finding とその harm 判定・verdict・
