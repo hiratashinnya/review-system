@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import grp
 import hashlib
+from html import unescape
 import json
 import os
 import pwd
@@ -98,16 +99,24 @@ _PROMPT_RESERVED_FIELDS = frozenset({
     "handoff_path", "branch_name", "repository", "expected_oid",
     "karte_path", "karte_snapshot",
 })
-# Require a plausible filename component after the directory prefix.  The
-# bare directory mention (including normal sentence punctuation) is useful
-# prose and harmless; a component containing a word character is a possible
-# handoff file, including a role-specific, alternate-role, or attacker-
-# controlled candidate.
-_HANDOFF_FILE_COMPONENT = r"(?=[\w.-]*\w)[\w.-]+"
+# The bare directory mention (including normal sentence punctuation) is useful
+# prose and harmless.  Candidate detection therefore starts at the directory
+# root and tokenizes only path-shaped components.  The tokenizer accepts the
+# separators and quoting forms a shell/Markdown reader may normalize before
+# treating the value as a path.  It deliberately does not consume arbitrary
+# prose after ``tmp/_handoff/``.
+_HANDOFF_ROOT = _HANDOFF_PREFIX.rstrip("/")
 _HANDOFF_FILE_CANDIDATE = re.compile(
-    re.escape(_HANDOFF_PREFIX) + _HANDOFF_FILE_COMPONENT
-    + r"(?:/" + _HANDOFF_FILE_COMPONENT + r")*"
+    re.escape(_HANDOFF_ROOT) + r"(?=[\\/])"
 )
+_HANDOFF_BARE_COMPONENT = re.compile(r"[\w.-]+")
+_HANDOFF_WORD = re.compile(r"\w")
+_HANDOFF_SEPARATORS = frozenset({"/", "\\"})
+_HANDOFF_QUOTE_PAIRS = {
+    "'": "'", '"': '"', "`": "`",
+    "‘": "’", "“": "”",
+}
+_HANDOFF_QUOTED_COMPONENT = re.compile(r"[\w./\\-]*")
 _MAX_JSON = 2 * 1024 * 1024
 _CONTROL_ROOT = PurePosixPath("tmp/_codex_control")
 _PLAN_ROOT = _CONTROL_ROOT / "change-plans"
@@ -487,6 +496,97 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
     return capture
 
 
+def _consume_handoff_quoted_component(text: str, start: int) -> tuple[str, int]:
+    """Consume one quoted path component without interpreting arbitrary text.
+
+    A missing closer is consumed to the end and subsequently rejected unless
+    the content is still path-shaped.  This keeps malformed quote syntax from
+    becoming a way to hide a candidate while avoiding a general-purpose shell
+    parser over the whole snapshot.
+    """
+
+    opener = text[start]
+    closer = _HANDOFF_QUOTE_PAIRS[opener]
+    cursor = start + 1
+    content: list[str] = []
+    escaped = False
+    while cursor < len(text):
+        character = text[cursor]
+        if escaped:
+            content.append(character)
+            escaped = False
+        elif character == "\\":
+            escaped = True
+        elif character == closer:
+            return "".join(content), cursor + 1
+        else:
+            content.append(character)
+        cursor += 1
+    if escaped:
+        content.append("\\")
+    return "".join(content), cursor
+
+
+def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
+    """Normalize empty and dot path components using POSIX-like semantics."""
+
+    normalized: list[str] = []
+    for component in components:
+        for part in component.replace("\\", "/").split("/"):
+            if not part or part == ".":
+                continue
+            if part == "..":
+                if normalized:
+                    normalized.pop()
+                continue
+            normalized.append(part)
+    return tuple(normalized)
+
+
+def _handoff_file_candidate_exists(rendered: str) -> bool:
+    """Return whether *rendered* contains a path-shaped handoff file.
+
+    Only a token beginning at the handoff root is inspected.  Components may
+    be separated by repeated slash/backslash separators and may be quoted
+    individually, but bare directory prose and punctuation do not produce a
+    file component.  HTML entities are decoded first because GitHub/Markdown
+    transport can encode a filename-only backtick or quote.
+    """
+
+    text = unescape(rendered)
+    for root_match in _HANDOFF_FILE_CANDIDATE.finditer(text):
+        cursor = root_match.end()
+        components: list[str] = []
+        while cursor < len(text):
+            while cursor < len(text) and text[cursor] in _HANDOFF_SEPARATORS:
+                cursor += 1
+            if cursor >= len(text):
+                break
+
+            if text[cursor] in _HANDOFF_QUOTE_PAIRS:
+                component, cursor = _consume_handoff_quoted_component(text, cursor)
+                if _HANDOFF_QUOTED_COMPONENT.fullmatch(component) is None:
+                    break
+                components.append(component)
+            else:
+                component_match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
+                if component_match is None:
+                    break
+                components.append(component_match.group(0))
+                cursor = component_match.end()
+
+            if cursor >= len(text) or text[cursor] not in _HANDOFF_SEPARATORS:
+                break
+
+        # Normalization makes ``./file`` and ``//file`` the same candidate as
+        # ``file``.  A file-shaped final component is required, so the bare
+        # root, ``.`` and ``..`` remain harmless prose/code examples.
+        normalized = _normalize_handoff_components(components)
+        if normalized and _HANDOFF_WORD.search(normalized[-1]):
+            return True
+    return False
+
+
 def _validate_snapshot_prompt_safety(rendered: str, *, reason: str) -> None:
     """Reject snapshot content that can be confused with host prompt facts.
 
@@ -496,7 +596,7 @@ def _validate_snapshot_prompt_safety(rendered: str, *, reason: str) -> None:
     host-owned prompt field is ambiguous enough to fail closed.
     """
 
-    if _HANDOFF_FILE_CANDIDATE.search(rendered):
+    if _handoff_file_candidate_exists(rendered):
         _fail(reason, "snapshot contains a handoff path")
     for match in _PROMPT_FIELD.finditer(rendered):
         if match.group("name") in _PROMPT_RESERVED_FIELDS:

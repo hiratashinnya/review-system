@@ -317,6 +317,91 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertIn("{name}", fixer.prompt)
         self.assertEqual(fixer.prompt.count(fixer.handoff_path), 1)
 
+    def test_snapshot_handoff_path_normalization_variants_fail_for_both_roles(self):
+        variants = (
+            "tmp/_handoff/./attacker.yaml",
+            "tmp/_handoff/../attacker.yaml",
+            "tmp/_handoff//attacker.yaml",
+            "tmp/_handoff///attacker.yaml",
+            "tmp/_handoff\\attacker.yaml",
+            'tmp/_handoff/"attacker.yaml"',
+            "tmp/_handoff/'attacker.yaml'",
+            "tmp/_handoff/`attacker.yaml`",
+            "tmp/_handoff/&#96;attacker.yaml&#96;",
+            "tmp/_handoff/./'attacker.yaml'",
+            "tmp/_handoff//`attacker.yaml`",
+        )
+        for label, injected in enumerate(variants):
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"untrusted candidate {injected}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-implementer", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-fixer", source="issue", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "ISSUE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": KARTE_SNAPSHOT},
+                )
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = f"untrusted candidate {injected}"
+            karte_raw = json.dumps(karte, sort_keys=True)
+            fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.subTest(role="issue-fixer", source="karte", candidate=label), self.assertRaisesRegex(
+                codex_launch_intent.LaunchIntentError, "KARTE_SOURCE_INVALID"
+            ):
+                self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": karte_raw},
+                )
+
+    def test_snapshot_handoff_path_near_misses_remain_allowed(self):
+        safe_values = (
+            "tmp/_handoff/",
+            "tmp/_handoff//",
+            "tmp/_handoff/./",
+            "tmp/_handoff/..",
+            'Path("tmp/_handoff/./")',
+            "The literal tmp/_handoff/ directory is documented here.",
+        )
+        for label, value in enumerate(safe_values):
+            issue = json.loads(ISSUE_SNAPSHOT)
+            issue["body"] = f"safe prose {value}; example {{name}}"
+            issue_raw = json.dumps(issue, sort_keys=True)
+            implementer_plan = codex_change_plan(self.root)
+            implementer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            with self.subTest(role="issue-implementer", candidate=label):
+                intent = self.generate(
+                    self.request(), plan=implementer_plan,
+                    source_material={"issue": issue_raw},
+                )
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
+            karte = json.loads(KARTE_SNAPSHOT)
+            karte["open_findings"][0]["summary"] = f"safe prose {value}; example {{name}}"
+            karte_raw = json.dumps(karte, sort_keys=True)
+            fixer_plan = codex_change_plan(self.root, role="issue-fixer", fixer_round=3)
+            fixer_plan["issue_source"]["sha256"] = digest(issue_raw)
+            fixer_plan["karte_source"]["sha256"] = digest(karte_raw)
+            with self.subTest(role="issue-fixer", candidate=label):
+                intent = self.generate(
+                    self.request(role="issue-fixer", fixer_round=3), plan=fixer_plan,
+                    source_material={"issue": issue_raw, "karte": karte_raw},
+                )
+                self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
+
     def test_source_digest_and_provenance_are_fail_closed(self):
         plan = codex_change_plan(self.root)
         with self.assertRaisesRegex(codex_launch_intent.LaunchIntentError,
