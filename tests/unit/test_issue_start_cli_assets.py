@@ -174,7 +174,9 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(launch["executables"], {
             "bwrap": "/usr/bin/bwrap",
             "codex": {"lookup_name": "codex",
-                      "sandbox_alias": "/run/issue-supervised/codex"},
+                      "native_sibling": "codex-code-mode-host",
+                      "sandbox_alias": "/run/issue-supervised/codex",
+                      "native_sibling_alias": "/run/issue-supervised/codex-code-mode-host"},
         })
         self.assertEqual(launch["permission_profile"], "issue-supervised")
         for role, config in launch["roles"].items():
@@ -213,6 +215,26 @@ class AssetParityTests(unittest.TestCase):
         readme = (ROOT / ".codex" / "hooks" / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("pre_tool_use:3:0", readme)
         self.assertFalse((ROOT / ".codex" / "hooks" / "codex-workspace-binding-gate.sh").exists())
+
+    def test_supervised_role_assets_use_json_handoff_and_closed_read(self):
+        for role in ("issue-implementer", "issue-fixer"):
+            with self.subTest(role=role):
+                source = (ROOT / ".ai" / "agents" / f"{role}.md").read_text(encoding="utf-8")
+                wrapper = (ROOT / ".codex" / "agents" / f"{role}.toml").read_text(encoding="utf-8")
+                self.assertNotIn(".yaml", source)
+                self.assertNotIn(".yaml", wrapper)
+                self.assertIn('"phase": "pre_publish"', source)
+                self.assertIn("python3 -m gitgate read", source)
+                self.assertIn("read .codex/agents/" + role + ".toml", wrapper)
+                self.assertIn("read .ai/agents/" + role + ".md", wrapper)
+                examples = re.findall(r"```json\n(.*?)\n```", source, re.DOTALL)
+                self.assertTrue(examples)
+                pre_publish = [json.loads(example) for example in examples
+                               if '"phase": "pre_publish"' in example]
+                self.assertEqual(len(pre_publish), 1)
+                self.assertEqual(pre_publish[0]["phase"], "pre_publish")
+                self.assertEqual(pre_publish[0]["status"], "ready")
+                self.assertIn("result", pre_publish[0])
 
 
 if __name__ == "__main__":

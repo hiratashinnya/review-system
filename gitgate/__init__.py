@@ -21,7 +21,7 @@ Issue #227 追加修正3（オーナー確定 2026-07-13）。
 
 verb 一覧:
   固定 git argv を組むだけの verb（`build_git_argv` の純 argv 経路）:
-    status / add / commit / push / branch-current / fetch / diff / log
+    status / read / add / commit / push / branch-current / fetch / diff / log
   policy 実行を伴う verb（`main()` で分岐・純 argv 経路には載せない）:
     new-branch       … fresh fetch + GitHub API 検証済みの exact OID で新規ブランチを作る（#317）
     adopt-branch     … 既存ブランチを期待 OID（任意で PR head）再検証つきで checkout する（#354・PR-2）

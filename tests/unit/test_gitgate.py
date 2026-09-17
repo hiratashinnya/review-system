@@ -8,6 +8,7 @@
 """
 
 import io
+import os
 import subprocess
 import tempfile
 import unittest
@@ -21,6 +22,12 @@ from gitgate import cli as gitgate_cli
 class BuildGitArgvHappyPathTests(unittest.TestCase):
     def test_status(self):
         self.assertEqual(build_git_argv(["status"]), ["git", "status"])
+
+    def test_read_uses_fixed_head_path_spelling(self):
+        self.assertEqual(
+            build_git_argv(["read", ".codex/agents/issue-fixer.toml"]),
+            ["git", "show", "HEAD:.codex/agents/issue-fixer.toml"],
+        )
 
     def test_add_paths_go_after_double_dash(self):
         self.assertEqual(
@@ -135,6 +142,18 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
         with self.assertRaises(GitgateError):
             build_git_argv(["add", "a\0b"])
 
+    def test_read_rejects_escape_and_noncanonical_paths(self):
+        for value in (
+            "", "/etc/passwd", "../secret", "tmp/../secret", "a//b", "./a",
+            "a/./b", "a\\b", "a\nb", "a\0b",
+        ):
+            with self.subTest(value=value), self.assertRaises(GitgateError):
+                build_git_argv(["read", value])
+        with self.assertRaises(GitgateError):
+            build_git_argv(["read"])
+        with self.assertRaises(GitgateError):
+            build_git_argv(["read", "a", "b"])
+
     def test_commit_rejects_missing_file(self):
         with self.assertRaises(GitgateError):
             build_git_argv(["commit", "/nonexistent/definitely/missing.md"])
@@ -193,6 +212,38 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_main_read_requires_regular_non_symlink_file_and_caps_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "role.md"
+            target.write_text("role contract\n", encoding="utf-8")
+            previous = os.getcwd()
+            os.chdir(root)
+            try:
+                with patch("sys.stdout", new_callable=io.StringIO) as out:
+                    self.assertEqual(gitgate_cli.main(["read", "role.md"]), 0)
+                self.assertEqual(out.getvalue(), "role contract\n")
+                target.unlink()
+                target.symlink_to(root / "missing")
+                with patch("sys.stderr", new_callable=io.StringIO):
+                    self.assertEqual(gitgate_cli.main(["read", "role.md"]), 2)
+            finally:
+                os.chdir(previous)
+
+    def test_main_read_rejects_directory_and_large_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "directory").mkdir()
+            (root / "large").write_bytes(b"x" * (gitgate_cli.READ_MAX_BYTES + 1))
+            previous = os.getcwd()
+            os.chdir(root)
+            try:
+                for name in ("directory", "large"):
+                    with self.subTest(name=name), patch("sys.stderr", new_callable=io.StringIO):
+                        self.assertEqual(gitgate_cli.main(["read", name]), 2)
+            finally:
+                os.chdir(previous)
+
     def test_main_new_branch_runs_policy_instead_of_generic_git_builder(self):
         result = type("Result", (), {
             "source_kind": "default-branch", "repository": "example/repo",

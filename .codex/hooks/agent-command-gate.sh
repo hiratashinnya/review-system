@@ -77,7 +77,7 @@
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
 #          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
-#          reviewer: diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
+#          reviewer: read/diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
 #          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
@@ -205,7 +205,7 @@ GITGATE_VERBS_BY_ROLE = {
     # ブランチを切る契約であり、既存ブランチを掴む必要が無い。既存ブランチの取得は
     # 是正ラウンド固有の必要性なので、最小権限のまま是正ロール側にだけ置く。
     "issue-implementer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
     # issue-fixer（Issue #308）: 是正ラウンド専用。権限は issue-implementer と**同一**
@@ -219,12 +219,12 @@ GITGATE_VERBS_BY_ROLE = {
     # 既存ブランチへ移る」唯一の手段として意味を持つ（生 `git switch` は層3 で deny）ため、
     # 2ツリーで同一の verb 集合を保つ。worktree 解放系 verb は Codex 側では発生しない。
     "issue-fixer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
         "adopt-branch",
     },
-    # pr-reviewer: レビューの読取専用のみ（diff/log）。
-    "pr-reviewer": {"diff", "log"},
+    # pr-reviewer: レビューの読取専用のみ（read/diff/log）。
+    "pr-reviewer": {"read", "diff", "log"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。

@@ -130,6 +130,9 @@ _PERMISSION_PROFILE_FILE = f"{_PERMISSION_PROFILE_NAME}.config.toml"
 _PERMISSION_PROFILE_ACTIONS = frozenset({"deny", "read", "write"})
 _LEGACY_SANDBOX_KEYS = frozenset({"sandbox_mode", "sandbox_workspace_write"})
 _CODEX_CONTROL_ALIAS = Path("/run/issue-supervised/codex")
+_CODEX_CODE_MODE_HOST_ALIAS = Path(
+    codex_launch_intent._CODEX_CODE_MODE_HOST_ALIAS
+)
 
 
 def _minimal_process_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -988,6 +991,22 @@ def _resolved_codex_runtime_executable(codex: Path | str) -> Path:
     return executable
 
 
+def _resolved_codex_code_mode_host(codex: Path | str) -> Path:
+    """Derive only the verified native executable's exact sibling helper."""
+
+    native = _resolved_codex_runtime_executable(codex)
+    if native.name != "codex":
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_INVALID", str(native))
+    helper = native.parent / codex_launch_intent._CODEX_CODE_MODE_HOST_NAME
+    try:
+        resolved = helper.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODE_MODE_HOST_UNAVAILABLE", str(helper)) from exc
+    if resolved != helper or not helper.is_file() or helper.is_symlink():
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID", str(helper))
+    return helper
+
+
 def _ro_bind_source(command: Sequence[str], target: Path | str) -> Path:
     expected = str(target)
     matches = [
@@ -998,6 +1017,51 @@ def _ro_bind_source(command: Sequence[str], target: Path | str) -> Path:
     if len(matches) != 1:
         raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_ALIAS_INVALID", expected)
     return matches[0]
+
+
+def _validate_codex_asset_binds(
+    command: Sequence[str], *, expected_evidence: Mapping[str, Any],
+) -> Path:
+    """Verify the two individual native assets immediately before ``Popen``.
+
+    The launcher/native package is measured by the stable bundle check.  This
+    narrower check then reopens the helper named by the command and compares
+    its complete identity evidence, while rejecting any bind (read-only or
+    writable) that exposes an ancestor of the installed Codex tree.
+    """
+
+    try:
+        helper_source = _ro_bind_source(command, _CODEX_CODE_MODE_HOST_ALIAS)
+        helper_info = expected_evidence["code_mode_host"]
+        rechecked = codex_launch_intent._file_identity_evidence(
+            helper_source, reason="CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID"
+        )
+        if rechecked != helper_info:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_EVIDENCE_CHANGED")
+        install_roots = _resolved_codex_install_roots(Path(expected_evidence["path"]))
+        for index, item in enumerate(command[:-2]):
+            if item not in {"--bind", "--ro-bind"}:
+                continue
+            source = Path(command[index + 1]).resolve(strict=True)
+            destination = command[index + 2]
+            source_is_install = any(
+                root == source or root in source.parents for root in install_roots
+            )
+            exact_asset_bind = (
+                item == "--ro-bind"
+                and destination in {
+                    str(_CODEX_CONTROL_ALIAS), str(_CODEX_CODE_MODE_HOST_ALIAS)
+                }
+            )
+            if source_is_install and not exact_asset_bind:
+                raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_WHOLE_BIND")
+        return helper_source
+    except CodexSupervisorError:
+        raise
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    except (KeyError, OSError, RuntimeError, ValueError) as exc:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID") from exc
 
 
 def _toml_string(value: str) -> str:
@@ -1359,13 +1423,13 @@ def write(path):
     except OSError:
         return False
 
-def execute(path):
+def execute(path, *arguments):
     try:
         if P(path).is_dir():
             os.chdir(path)
         else:
             subprocess.run(
-                [path, "--version"], stdin=subprocess.DEVNULL,
+                [path, *arguments], stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 check=True, timeout=3,
             )
@@ -1393,9 +1457,15 @@ targets = {
     "host_auth": payload["host_auth"],
     "install": payload["install"],
 }
+out = {key: triple(path) for key, path in targets.items()}
+out["code_mode_host"] = {
+    "read": read(payload["code_mode_host"]),
+    "write": write(payload["code_mode_host"]),
+    "exec": execute(payload["code_mode_host"], "--help"),
+}
 if "proposal" in payload:
     targets["proposal"] = payload["proposal"]
-out = {key: triple(path) for key, path in targets.items()}
+out.update({key: triple(path) for key, path in targets.items() if key not in out})
 unix_address = payload["unix_path"]
 if unix_address.startswith("@"):
     unix_address = "\\0" + unix_address[1:]
@@ -1416,6 +1486,7 @@ def _build_active_boundary_probe_command(
     command: Sequence[str], *, python_executable: Path | str,
     workspace: Path, runtime_home: Path, host_auth: Path, codex: str,
     tcp_port: int, unix_path: Path, install_probe: Path | str | None = None,
+    code_mode_host: str | None = None,
 ) -> tuple[str, ...]:
     """Replace the active inner exec with a profile-bound, model-free probe.
 
@@ -1436,6 +1507,7 @@ def _build_active_boundary_probe_command(
         "workspace": str(workspace), "runtime": str(runtime_home),
         "runtime_auth": str(runtime_home / "auth.json"),
         "host_auth": str(host_auth), "install": str(install_probe or codex),
+        "code_mode_host": str(code_mode_host or codex),
         "tcp_port": tcp_port, "unix_path": str(unix_path),
     }
     if "CODEX_ISSUE_DIAGNOSIS_DIR" in command:
@@ -1470,6 +1542,7 @@ def _validate_active_boundary_probe(
         "runtime_auth": {"read": False, "write": False, "exec": False},
         "host_auth": {"read": False, "write": False, "exec": False},
         "install": {"read": False, "write": False, "exec": False},
+        "code_mode_host": {"read": True, "write": False, "exec": True},
         "network": {"tcp": False, "unix": False},
         "environment": {
             "HOME": None, "CODEX_HOME": None, "TMPDIR": None,
@@ -1493,6 +1566,7 @@ def _run_active_boundary_probe(
     command: Sequence[str], *, workspace: Path, runtime_home: Path,
     host_auth: Path, codex: str, install_probe: Path,
     runner: Callable[..., subprocess.CompletedProcess[str]],
+    code_mode_host: str | None = None,
 ) -> dict[str, Any]:
     """Run the boundary probe through the same outer bwrap and generated profile."""
 
@@ -1513,6 +1587,7 @@ def _run_active_boundary_probe(
         probe_command = _build_active_boundary_probe_command(
             command, python_executable="/usr/bin/python3", workspace=workspace,
             runtime_home=runtime_home, host_auth=host_auth, codex=codex,
+            code_mode_host=code_mode_host or codex,
             tcp_port=tcp_listener.getsockname()[1], unix_path=Path(unix_probe_value),
             install_probe=install_probe,
         )
@@ -1706,6 +1781,16 @@ def validate_cli_compatibility(
     )
     _validate_external_configs(workspace, Path(runtime_home).resolve(strict=True))
     codex_source = _ro_bind_source(command, codex)
+    try:
+        _stable_codex, evidence = codex_launch_intent._stable_codex_bundle_evidence(
+            str(codex_source), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+        )
+        expected_helper = Path(evidence["code_mode_host"]["path"])
+        helper_source = _validate_codex_asset_binds(command, expected_evidence=evidence)
+        if helper_source != expected_helper:
+            raise CodexSupervisorError("CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID")
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
     _validate_feature_catalog(
         codex_source, values, runtime_home, runner=runner,
     )
@@ -1721,18 +1806,23 @@ def validate_cli_compatibility(
         expected_runtime_root=Path(runtime_home),
     )
     install_roots = _resolved_codex_install_roots(codex_source)
-    install_probes = tuple(
-        path for path in checked_profile.deny_paths
-        if any(root == path or root in path.parents for root in install_roots)
-    )
-    if not install_probes:
-        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED", "install deny empty")
+    # Probe the original helper itself, not an arbitrary ancestor selected from
+    # the minimized deny set.  This directly proves that the install copy which
+    # is intentionally hidden from the inner process cannot be read, written,
+    # or executed, while the separately bound alias remains usable.
+    if not any(root == helper_source or root in helper_source.parents
+               for root in install_roots):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED", "helper outside install tree")
+    if not any(root == helper_source or root in helper_source.parents
+               for root in checked_profile.deny_paths):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_PROBE_NOT_TESTED", "helper deny missing")
     return _run_active_boundary_probe(
         command,
         workspace=workspace,
         runtime_home=Path(runtime_home).resolve(strict=True),
         host_auth=(host_codex_home / "auth.json").resolve(strict=True),
-        codex=codex, install_probe=install_probes[0],
+        codex=codex, install_probe=helper_source,
+        code_mode_host=str(_CODEX_CODE_MODE_HOST_ALIAS),
         runner=runner,
     )
 
@@ -1763,6 +1853,18 @@ def build_codex_command(
         _resolved_codex_runtime_executable(codex_executable),
         "CODEX_SUPERVISOR_CODEX_UNAVAILABLE",
     )
+    try:
+        bundled_codex, bundle_evidence = codex_launch_intent._stable_codex_bundle_evidence(
+            codex_source, reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+        )
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    if bundled_codex != codex_source:
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_TREE_INVALID", codex_source)
+    code_mode_host = _resolved_codex_code_mode_host(codex_source)
+    expected_helper = bundle_evidence.get("code_mode_host", {}).get("path")
+    if expected_helper != str(code_mode_host):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID", str(code_mode_host))
     launch_path = _codex_launch_path(codex_source)
     role_contract, role_digest = _trusted_role_instructions(spec)
     runtime = _prepare_runtime_home(spec)
@@ -1775,6 +1877,7 @@ def build_codex_command(
     codex_alias_bind = (
         "--tmpfs", "/run", "--dir", str(_CODEX_CONTROL_ALIAS.parent),
         "--ro-bind", codex_source, codex,
+        "--ro-bind", str(code_mode_host), str(_CODEX_CODE_MODE_HOST_ALIAS),
     ) if native_elf else ()
     protected: list[str] = []
     diagnosis_mount: list[str] = []
@@ -2083,8 +2186,10 @@ def _validate_handoff(
         supervisor_workspace.assert_no_symlink_components(spec.workspace, spec.handoff_path)
         if not handoff.is_file() or handoff.is_symlink():
             raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_MISSING")
-        document = json.loads(handoff.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        document = json.loads(
+            handoff.read_text(encoding="utf-8"), object_pairs_hook=_json_unique_pairs
+        )
+    except (json.JSONDecodeError, ValueError) as exc:
         raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_SCHEMA_INVALID") from exc
     except supervisor_workspace.SupervisorWorkspaceError as exc:
         raise CodexSupervisorError(exc.reason, exc.detail) from exc
@@ -2139,6 +2244,16 @@ def _validate_handoff(
         )
         if completed.returncode != 0:
             raise CodexSupervisorError("CODEX_SUPERVISOR_HANDOFF_HEAD_MISMATCH")
+    return document
+
+
+def _json_unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject duplicate object names instead of silently accepting last-wins JSON."""
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ValueError(f"duplicate JSON object member: {key}")
+        document[key] = value
     return document
 
 
@@ -2814,8 +2929,10 @@ def _existing_open_pr_facts(
 def _read_handoff_document(spec: SupervisorSpec) -> dict[str, Any] | None:
     target = spec.workspace / spec.handoff_path
     try:
-        document = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        document = json.loads(
+            target.read_text(encoding="utf-8"), object_pairs_hook=_json_unique_pairs
+        )
+    except (OSError, json.JSONDecodeError, ValueError):
         return None
     return document if isinstance(document, dict) else None
 
@@ -3513,6 +3630,19 @@ def validate_pre_spawn_authority(
             or str(_ro_bind_source(command, _CODEX_CONTROL_ALIAS))
             != intent.executable_evidence["codex"]["path"]):
         raise CodexSupervisorError("CODEX_SUPERVISOR_INTENT_COMMAND_MISMATCH")
+    try:
+        fresh_codex, fresh_evidence = codex_launch_intent._stable_codex_bundle_evidence(
+            intent.codex_executable, reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+        )
+    except codex_launch_intent.LaunchIntentError as exc:
+        raise CodexSupervisorError(exc.reason, exc.detail) from exc
+    expected_codex = intent.executable_evidence.get("codex", {})
+    if (fresh_codex != expected_codex.get("path")
+            or fresh_evidence != expected_codex
+            or str(_ro_bind_source(command, _CODEX_CODE_MODE_HOST_ALIAS))
+            != str(expected_codex.get("code_mode_host", {}).get("path"))):
+        raise CodexSupervisorError("CODEX_SUPERVISOR_CODEX_EVIDENCE_CHANGED")
+    _validate_codex_asset_binds(command, expected_evidence=fresh_evidence)
     profile = validate_permission_profile(
         expected_runtime / _PERMISSION_PROFILE_FILE,
         expected_runtime_root=expected_runtime,

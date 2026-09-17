@@ -139,6 +139,21 @@ class CodexLaunchIntentTests(unittest.TestCase):
             side_effect=self.manifest_evidence,
         )
 
+    @staticmethod
+    def manifest_codex_bundle(value, *, reason):
+        return "/opt/test/codex", {
+            "path": "/opt/test/codex", "sha256": "c" * 64,
+            "version": "test-codex 1", "uid": os.getuid(), "mode": "0755",
+            "dev": 1, "ino": 2, "size": 3, "nlink": 1,
+            "launcher": {"path": "/opt/test/codex.js", "sha256": "d" * 64},
+            "package": {"path": "/opt/test/package.json", "sha256": "e" * 64},
+            "package_version": "1.0.0", "codex_version": "1.0.0",
+            "code_mode_host": {"path": "/opt/test/codex-code-mode-host",
+                                "sha256": "f" * 64, "uid": os.getuid(),
+                                "mode": "0755", "dev": 1, "ino": 4,
+                                "size": 5, "nlink": 1},
+        }
+
     def ledger_entry(self, *, role="issue-implementer", round_number=None):
         facts = self.facts()
         return {
@@ -151,15 +166,17 @@ class CodexLaunchIntentTests(unittest.TestCase):
             "approved_by": "repo-owner", "approval_recorded_at": "2026-09-07T00:00:00Z",
             "task_key": ("issue_10" if role == "issue-implementer" else
                          f"issue_10_fix_r{round_number}"),
-            "handoff_path": ("tmp/_handoff/issue-implementer--issue-10.yaml"
+            "handoff_path": ("tmp/_handoff/issue-implementer--issue-10.json"
                              if role == "issue-implementer" else
-                             f"tmp/_handoff/issue-fixer--issue-10-r{round_number}.yaml"),
+                             f"tmp/_handoff/issue-fixer--issue-10-r{round_number}.json"),
             "protected_plan": [{"path": ".codex/hooks.json", "base_sha256": "b" * 64}],
         }
 
     def generate(self, request, *, plan=None, source_material=None, manifest=None,
                  entry=None, facts=None):
-        with self.manifest_evidence_patch():
+        with self.manifest_evidence_patch(), patch(
+                "issue_start.codex_launch_intent._stable_codex_bundle_evidence",
+                side_effect=self.manifest_codex_bundle):
             return codex_launch_intent.generate_launch_intent(
                 request, plan=plan or codex_change_plan(
                     self.root, role=request.role, fixer_round=request.fixer_round),
@@ -183,7 +200,7 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.assertEqual(intent.schema_version, "codex-launch-intent/1")
         self.assertEqual(intent.task_key, "issue_10")
         self.assertEqual(intent.handoff_path,
-                         "tmp/_handoff/issue-implementer--issue-10.yaml")
+                         "tmp/_handoff/issue-implementer--issue-10.json")
         self.assertEqual((intent.model, intent.reasoning_effort), ("gpt-5.6-sol", "xhigh"))
         self.assertEqual(intent.bwrap_executable, "/usr/bin/bwrap")
         self.assertTrue(Path(intent.codex_executable).is_absolute())
@@ -212,7 +229,7 @@ class CodexLaunchIntentTests(unittest.TestCase):
         )
         self.assertEqual(intent.task_key, "issue_10_fix_r3")
         self.assertEqual(intent.handoff_path,
-                         "tmp/_handoff/issue-fixer--issue-10-r3.yaml")
+                         "tmp/_handoff/issue-fixer--issue-10-r3.json")
         self.assertEqual(intent.prompt.count(intent.handoff_path), 1)
         self.assertIn(
             "Host-derived execution facts (write only this exact handoff path): "
@@ -1086,7 +1103,7 @@ class CodexLaunchIntentTests(unittest.TestCase):
                         "issue_start.codex_launch_intent.inspect_git_facts",
                         return_value=self.facts()):
             intent = codex_launch_intent.load_launch_intent(self.request(), cwd=child)
-        self.assertEqual(evidence.call_count, 2)
+        self.assertEqual(evidence.call_count, 1)
         self.assertEqual(intent.change_plan_id, "plan-10")
         self.assertNotIn("inner-self-claim", intent.prompt)
 
@@ -1098,7 +1115,7 @@ class CodexLaunchIntentTests(unittest.TestCase):
                     "issue_start.codex_launch_intent.inspect_git_facts",
                     return_value=self.facts()) as inspect:
             codex_launch_intent.load_launch_intent(self.request(), cwd=self.root)
-        self.assertEqual(evidence.call_count, 2)
+        self.assertEqual(evidence.call_count, 1)
         inspect.assert_called_once_with(self.facts().workspace)
 
     def test_fixer_loader_requires_karte(self):

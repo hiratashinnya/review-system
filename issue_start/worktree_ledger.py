@@ -103,7 +103,7 @@ import uuid
 from contextlib import AbstractContextManager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from . import durable_lock
 
@@ -116,6 +116,24 @@ TERMINAL_STATUSES = ("released", "abandoned")
 UNRELEASED_STATUSES = (
     "open", "running", "stopped", "collected", "release_pending", "stale",
 )
+
+
+def is_active_entry(entry: Mapping[str, Any]) -> bool:
+    """Return whether a ledger entry still occupies its identity.
+
+    Terminal records are deliberately retained as evidence, but they no longer
+    reserve a task, workspace, or change-plan identity.  Unknown status values
+    remain active here so a corrupt record cannot be silently ignored by a
+    collision check.
+    """
+
+    return isinstance(entry, Mapping) and entry.get("status") not in TERMINAL_STATUSES
+
+
+def active_entries(entries: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """Filter entries using the single active/terminal rule used by dispatch."""
+
+    return [entry for entry in entries if is_active_entry(entry)]
 TMP_DIRNAME = "tmp"
 LEDGER_DIRNAME = "_worktree"
 LEDGER_FILENAME = "ledger.json"

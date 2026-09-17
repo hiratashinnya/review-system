@@ -115,11 +115,14 @@ _HANDOFF_QUOTED_COMPONENT = re.compile(r"[\w./\\-]*")
 _MAX_JSON = 2 * 1024 * 1024
 _CONTROL_ROOT = PurePosixPath("tmp/_codex_control")
 _PLAN_ROOT = _CONTROL_ROOT / "change-plans"
+_CODEX_NATIVE_NAME = "codex"
+_CODEX_CODE_MODE_HOST_NAME = "codex-code-mode-host"
+_CODEX_CODE_MODE_HOST_ALIAS = "/run/issue-supervised/codex-code-mode-host"
 _EXPECTED_ROLE_CONFIG = {
     "issue-implementer": {
         "model": "gpt-5.6-sol", "reasoning_effort": "xhigh",
         "task_key_template": "issue_{issue}",
-        "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.yaml",
+        "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.json",
         "prompt_template": (
             "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. "
             "Host-derived execution facts (write only this exact handoff path): "
@@ -131,7 +134,7 @@ _EXPECTED_ROLE_CONFIG = {
     "issue-fixer": {
         "model": "gpt-5.6-sol", "reasoning_effort": "xhigh",
         "task_key_template": "issue_{issue}_fix_r{round}",
-        "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.yaml",
+        "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.json",
         "prompt_template": (
             "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan "
             "{change_plan_id}. Host-derived execution facts (write only this exact handoff path): "
@@ -398,6 +401,166 @@ def _executable_evidence(value: str, *, reason: str) -> tuple[str, Mapping[str, 
                        "uid": info.st_uid, "mode": f"{stat.S_IMODE(info.st_mode):04o}"}
 
 
+def _version_number(value: str, *, reason: str) -> str:
+    """Extract the single semantic version printed by the Codex launcher."""
+
+    match = re.search(r"(?<![0-9])([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)(?![0-9])", value)
+    if match is None:
+        _fail(reason, "Codex version is not observable")
+    return match.group(1)
+
+
+def _codex_package_root(path: Path, *, reason: str) -> Path:
+    """Find the OpenAI Codex package root without accepting a guessed sibling."""
+
+    for parent in (path, *path.parents):
+        if parent.name != "codex":
+            continue
+        package = parent / "package.json"
+        try:
+            info = package.lstat()
+            if (info.st_nlink != 1 or not stat.S_ISREG(info.st_mode)
+                    or info.st_uid not in _trusted_host_owner_uids()
+                    or info.st_mode & 0o002):
+                continue
+            document = json.loads(package.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(document, Mapping) and isinstance(document.get("version"), str):
+            return parent
+    _fail(reason, "Codex package root is not observable")
+    raise AssertionError("unreachable")
+
+
+def _file_identity_evidence(path: Path, *, reason: str,
+                            executable: bool = True) -> Mapping[str, Any]:
+    """Read one regular executable and retain enough identity for a second check."""
+
+    try:
+        # Keep the lexical candidate check separate from the resolved metadata
+        # check.  Resolving first would make a helper symlink indistinguishable
+        # from the exact sibling the manifest is meant to authorize.
+        if path.is_symlink():
+            _fail(reason, "symlink is not an exact asset")
+        path = path.resolve(strict=True)
+        _check_resolved_path_ancestors(path, reason=reason)
+        first = path.lstat()
+        if (path.is_symlink() or not stat.S_ISREG(first.st_mode)
+                or first.st_nlink != 1 or first.st_uid not in _trusted_host_owner_uids()
+                or first.st_mode & 0o002
+                or (first.st_mode & 0o020
+                    and (first.st_uid != os.getuid()
+                         or not _group_is_exclusive_to_current_uid(first.st_gid)))
+                or (executable and not os.access(path, os.X_OK))):
+            _fail(reason, "unsafe executable")
+        with path.open("rb") as handle:
+            if executable:
+                # Native Codex binaries are intentionally large (the installed
+                # musl binary is over 250 MiB).  Hash the complete file rather
+                # than imposing the JSON/config size cap on executable assets.
+                digest = hashlib.file_digest(handle, "sha256").hexdigest()
+            else:
+                payload = handle.read(_MAX_JSON + 1)
+                if len(payload) > _MAX_JSON:
+                    _fail(reason, "metadata file is too large")
+                digest = hashlib.sha256(payload).hexdigest()
+        second = path.lstat()
+        first_identity = (first.st_dev, first.st_ino, first.st_size, first.st_nlink,
+                          first.st_uid, stat.S_IMODE(first.st_mode))
+        second_identity = (second.st_dev, second.st_ino, second.st_size, second.st_nlink,
+                           second.st_uid, stat.S_IMODE(second.st_mode))
+        if first_identity != second_identity:
+            _fail(reason, "executable identity changed during validation")
+    except LaunchIntentError:
+        raise
+    except (OSError, RuntimeError) as exc:
+        _fail(reason, type(exc).__name__)
+    return {
+        "path": str(path), "sha256": digest,
+        "uid": first.st_uid, "mode": f"{stat.S_IMODE(first.st_mode):04o}",
+        "dev": first.st_dev, "ino": first.st_ino, "size": first.st_size,
+        "nlink": first.st_nlink,
+    }
+
+
+def _codex_bundle_evidence(value: str, *, reason: str) -> tuple[str, Mapping[str, Any]]:
+    """Resolve the launcher, native Codex and its exact code-mode sibling together."""
+
+    resolved_name = shutil.which(value) if not Path(value).is_absolute() else value
+    if not resolved_name:
+        _fail(reason, "Codex launcher not found")
+    try:
+        launcher = Path(resolved_name).resolve(strict=True)
+        if launcher.name != "codex.js":
+            # A direct native path is accepted only to support the supervisor's
+            # second, just-before-Popen verification.  It still must resolve to
+            # the exact native file in a real package below.
+            native_hint = launcher
+            package_root = _codex_package_root(launcher, reason=reason)
+            launcher = (package_root / "bin" / "codex.js").resolve(strict=True)
+        else:
+            package_root = _codex_package_root(launcher, reason=reason)
+            native_hint = None
+        native_candidates = tuple(
+            candidate.resolve(strict=True)
+            for candidate in package_root.glob(
+                "node_modules/@openai/codex-*/vendor/*/bin/codex"
+            )
+            if candidate.is_file() and not candidate.is_symlink()
+        )
+        if len(native_candidates) != 1:
+            _fail(reason, "native Codex is not unique")
+        native = native_candidates[0]
+        if native_hint is not None and native != native_hint:
+            _fail(reason, "native Codex does not belong to selected package")
+        helper = native.parent / _CODEX_CODE_MODE_HOST_NAME
+        launcher_info = _file_identity_evidence(launcher, reason=reason)
+        native_info = _file_identity_evidence(native, reason=reason)
+        helper_info = _file_identity_evidence(helper, reason=reason)
+        if helper.parent != native.parent or helper.name != _CODEX_CODE_MODE_HOST_NAME:
+            _fail(reason, "code-mode host is not the exact sibling")
+        package_document = json.loads((package_root / "package.json").read_text(encoding="utf-8"))
+        package_version = package_document.get("version") if isinstance(package_document, Mapping) else None
+        if not isinstance(package_version, str) or not package_version:
+            _fail(reason, "package version missing")
+        completed = subprocess.run(
+            [str(launcher), "--version"], text=True, capture_output=True,
+            check=False, timeout=10,
+        )
+        version_output = (completed.stdout or completed.stderr).strip()
+        if completed.returncode != 0 or not version_output or "\n" in version_output:
+            _fail(reason, "Codex version unavailable")
+        codex_version = _version_number(version_output, reason=reason)
+        if package_version != codex_version:
+            _fail(reason, f"package/Codex version mismatch: {package_version}/{codex_version}")
+        package_info = _file_identity_evidence(
+            package_root / "package.json", reason=reason, executable=False
+        )
+    except LaunchIntentError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+        _fail(reason, type(exc).__name__)
+    evidence = {
+        **native_info,
+        "launcher": launcher_info,
+        "package": package_info,
+        "package_version": package_version,
+        "codex_version": codex_version,
+        "code_mode_host": helper_info,
+    }
+    return str(native), evidence
+
+
+def _stable_codex_bundle_evidence(value: str, *, reason: str) -> tuple[str, Mapping[str, Any]]:
+    """Require identical package/native/helper facts across two observations."""
+
+    first_path, first = _codex_bundle_evidence(value, reason=reason)
+    second_path, second = _codex_bundle_evidence(value, reason=reason)
+    if first_path != second_path or first != second:
+        _fail(reason, "Codex bundle evidence changed during validation")
+    return first_path, first
+
+
 def _stable_executable_evidence(value: str, *, reason: str) -> tuple[str, Mapping[str, Any]]:
     """Resolve and measure an executable twice before accepting it as authority data.
 
@@ -433,16 +596,20 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> tuple[Mapping[str, Any], 
             or launch["roles"] != _EXPECTED_ROLE_CONFIG):
         _fail("MANIFEST_INVALID", "semantic value mismatch")
     executables = _exact_keys(launch["executables"], {"bwrap", "codex"}, "MANIFEST_INVALID")
-    codex = _exact_keys(executables["codex"], {"lookup_name", "sandbox_alias"},
+    codex = _exact_keys(executables["codex"], {
+        "lookup_name", "native_sibling", "sandbox_alias", "native_sibling_alias",
+    },
                         "MANIFEST_INVALID")
     if (executables["bwrap"] != "/usr/bin/bwrap" or codex != {
-        "lookup_name": "codex", "sandbox_alias": "/run/issue-supervised/codex"
+        "lookup_name": "codex", "native_sibling": _CODEX_CODE_MODE_HOST_NAME,
+        "sandbox_alias": "/run/issue-supervised/codex",
+        "native_sibling_alias": _CODEX_CODE_MODE_HOST_ALIAS,
     }):
         _fail("MANIFEST_INVALID", "executable policy mismatch")
     bwrap_path, bwrap_evidence = _stable_executable_evidence(
         executables["bwrap"], reason="BWRAP_EXECUTABLE_INVALID",
     )
-    codex_path, codex_evidence = _stable_executable_evidence(
+    codex_path, codex_evidence = _stable_codex_bundle_evidence(
         codex["lookup_name"], reason="CODEX_EXECUTABLE_INVALID",
     )
     return launch, bwrap_path, codex_path, {"bwrap": bwrap_evidence, "codex": codex_evidence}
@@ -1013,6 +1180,18 @@ def load_launch_intent(request: LaunchRequest, *, cwd: Path | None = None) -> La
     if len(entries) != 1:
         _fail("CANONICAL_LEDGER_MISSING" if not entries else "CANONICAL_LEDGER_DUPLICATE")
     entry = entries[0]
+    if not worktree_ledger.is_active_entry(entry):
+        _fail("CANONICAL_LEDGER_MISMATCH", "entry is terminal")
+    task_key = entry.get("task_key")
+    if not isinstance(task_key, str):
+        _fail("CANONICAL_LEDGER_MISMATCH", "task key")
+    active_task_entries = [item for item in ledger["entries"]
+                           if isinstance(item, Mapping)
+                           and item.get("platform") == "codex-supervisor"
+                           and item.get("task_key") == task_key
+                           and worktree_ledger.is_active_entry(item)]
+    if len(active_task_entries) != 1:
+        _fail("CANONICAL_LEDGER_DUPLICATE", task_key)
     workspace = entry.get("workspace")
     if not isinstance(workspace, str):
         _fail("CANONICAL_LEDGER_MISMATCH", "workspace")

@@ -75,8 +75,15 @@ class LaunchControlTests(unittest.TestCase):
         original = codex_launch_intent._validate_manifest
 
         def validate(value):
-            with mock.patch.object(codex_launch_intent, "_stable_executable_evidence",
-                                   side_effect=[("/usr/bin/bwrap", {}), ("/usr/bin/codex", {})]):
+            with mock.patch.object(
+                    codex_launch_intent, "_stable_executable_evidence",
+                    return_value=("/usr/bin/bwrap", {})), mock.patch.object(
+                        codex_launch_intent, "_stable_codex_bundle_evidence",
+                        return_value=(
+                            "/usr/bin/codex",
+                            {"path": "/usr/bin/codex", "code_mode_host": {
+                                "path": "/usr/bin/codex-code-mode-host"}},
+                        )):
                 return original(value)
         return mock.patch.object(control.codex_launch_intent, "_validate_manifest",
                                  side_effect=validate)
@@ -114,6 +121,23 @@ class LaunchControlTests(unittest.TestCase):
         self.assertEqual(second["owner_approval"]["recorded_at"],
                          "2026-09-09T01:02:03Z")
         self.assertEqual(len(worktree_ledger.read_ledger(self.main)["entries"]), 1)
+
+    def test_terminal_history_does_not_block_a_new_change_plan(self):
+        self.issue()
+        entry_id = worktree_ledger.read_ledger(self.main)["entries"][0]["entry_id"]
+        for status in ("running", "stopped", "collected", "released"):
+            worktree_ledger.mark(
+                self.main, entry_id, status, now=datetime(2026, 9, 10, tzinfo=timezone.utc)
+            )
+        rerun = self.issue(
+            self.request(change_plan_id="cp-10-rerun"),
+            now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+        )
+        entries = worktree_ledger.read_ledger(self.main)["entries"]
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]["status"], "released")
+        self.assertEqual(entries[1]["status"], "open")
+        self.assertEqual(rerun["ledger_entry_id"], entries[1]["entry_id"])
 
     def test_legacy_or_invalid_capture_provenance_is_rejected(self):
         original = json.loads(self.issue_file.read_text())
@@ -368,8 +392,15 @@ class LaunchControlTests(unittest.TestCase):
         original = codex_launch_intent._validate_manifest
 
         def validate(value):
-            with mock.patch.object(codex_launch_intent, "_stable_executable_evidence",
-                                   side_effect=[("/usr/bin/bwrap", {}), ("/usr/bin/codex", {})]):
+            with mock.patch.object(
+                    codex_launch_intent, "_stable_executable_evidence",
+                    return_value=("/usr/bin/bwrap", {})), mock.patch.object(
+                        codex_launch_intent, "_stable_codex_bundle_evidence",
+                        return_value=(
+                            "/usr/bin/codex",
+                            {"path": "/usr/bin/codex", "code_mode_host": {
+                                "path": "/usr/bin/codex-code-mode-host"}},
+                        )):
                 return original(value)
         with mock.patch.object(codex_launch_intent, "_validate_manifest", side_effect=validate):
             intent = codex_launch_intent.load_launch_intent(
@@ -578,8 +609,15 @@ class LaunchControlTests(unittest.TestCase):
         original = codex_launch_intent._validate_manifest
 
         def validate(value):
-            with mock.patch.object(codex_launch_intent, "_stable_executable_evidence",
-                                   side_effect=[("/usr/bin/bwrap", {}), ("/usr/bin/codex", {})]):
+            with mock.patch.object(
+                    codex_launch_intent, "_stable_executable_evidence",
+                    return_value=("/usr/bin/bwrap", {})), mock.patch.object(
+                        codex_launch_intent, "_stable_codex_bundle_evidence",
+                        return_value=(
+                            "/usr/bin/codex",
+                            {"path": "/usr/bin/codex", "code_mode_host": {
+                                "path": "/usr/bin/codex-code-mode-host"}},
+                        )):
                 return original(value)
 
         with mock.patch.object(control.codex_launch_intent, "_validate_manifest",

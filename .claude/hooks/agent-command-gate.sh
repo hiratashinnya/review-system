@@ -62,7 +62,7 @@
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
 #          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
-#          reviewer: diff/log）で allow/deny する（層2 で gitgate モジュールは許可済み・ここで
+#          reviewer: read/diff/log）で allow/deny する（層2 で gitgate モジュールは許可済み・ここで
 #          verb を追加チェック）。worktree 解放系 verb（worktree-release/collect-worktree/
 #          worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
@@ -216,7 +216,7 @@ GITGATE_VERBS_BY_ROLE = {
     # 「前ラウンドが push 済みの PR ブランチへ是正者が乗る」という**是正ラウンド固有**の
     # 必要性なので、最小権限のまま是正ロール側にだけ置く。
     "issue-implementer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
     # issue-fixer（Issue #308）: 是正ラウンド専用。権限は issue-implementer と**同一**
@@ -227,12 +227,12 @@ GITGATE_VERBS_BY_ROLE = {
     # `isolation: "worktree"` の下で起動するため、まっさらな worktree に PR ブランチが無い。
     # 既存ブランチを検証済み exact OID で掴む手段が無ければ着手できない。
     "issue-fixer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
         "adopt-branch",
     },
-    # pr-reviewer: レビューの読取専用のみ（diff/log）。
-    "pr-reviewer": {"diff", "log"},
+    # pr-reviewer: レビューの読取専用のみ（read/diff/log）。
+    "pr-reviewer": {"read", "diff", "log"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。

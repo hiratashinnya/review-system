@@ -22,7 +22,7 @@ class KarteBridgeTests(unittest.TestCase):
         fixtures.CodexSupervisorTests.setUp(self)
         self.spec = replace(self.spec, role="issue-fixer", round_number=2,
                             task_key="issue_10_fix_r2", finding_ids=("F-10-01",),
-                            handoff_path="tmp/_handoff/issue-fixer--issue-10-r2.yaml")
+                            handoff_path="tmp/_handoff/issue-fixer--issue-10-r2.json")
         self.central = paths.karte_path(10, self.main, create_dir=True)
         self.central.write_text(model.dumps(model.Karte(10, findings=[model.Finding(
             "F-10-01", summary="fixture", harm_detail="fixture harm", locus=["seed.txt"],
@@ -393,6 +393,7 @@ class KarteBridgeTests(unittest.TestCase):
         observed = {
             "workspace": {"read": True, "write": False, "exec": True},
             "proposal": {"read": True, "write": True, "exec": True},
+            "code_mode_host": {"read": True, "write": False, "exec": True},
             **{key: {"read": False, "write": False, "exec": False}
                for key in ("runtime", "runtime_auth", "host_auth", "install")},
             "network": {"tcp": False, "unix": False},

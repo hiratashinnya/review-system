@@ -202,15 +202,33 @@ class CodexSupervisorTests(unittest.TestCase):
         self.workspace.parent.mkdir()
         git(self.main, "worktree", "add", "-b", "codex/issue-10", str(self.workspace), "HEAD")
         self.oid = git(self.workspace, "rev-parse", "HEAD")
-        self.handoff = "tmp/_handoff/issue-implementer--issue-10.yaml"
+        self.handoff = "tmp/_handoff/issue-implementer--issue-10.json"
         self.task_key = "issue_10"
         self.bin_dir = Path(self.temp.name) / "bin"
         self.bin_dir.mkdir()
         self.bwrap = self.bin_dir / "bwrap"
-        self.codex = self.bin_dir / "codex"
-        for executable in (self.bwrap, self.codex):
-            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-            executable.chmod(0o755)
+        self.bwrap.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        self.bwrap.chmod(0o755)
+        install = Path(self.temp.name) / "codex"
+        platform = install / "node_modules" / "@openai" / "codex-linux-x64"
+        native_dir = platform / "vendor" / "x86_64-unknown-linux-musl" / "bin"
+        (install / "bin").mkdir(parents=True, mode=0o700)
+        native_dir.mkdir(parents=True, mode=0o700)
+        (install / "package.json").write_text(
+            '{"name":"@openai/codex","version":"1.0.0"}', encoding="utf-8"
+        )
+        (platform / "package.json").write_text(
+            '{"name":"@openai/codex-linux-x64","version":"1.0.0"}', encoding="utf-8"
+        )
+        launcher = install / "bin" / "codex.js"
+        launcher.write_text("#!/bin/sh\necho codex-cli 1.0.0\n", encoding="utf-8")
+        launcher.chmod(0o755)
+        self.codex = native_dir / "codex"
+        self.codex.write_bytes(b"\x7fELFfixture-native-codex")
+        self.codex.chmod(0o755)
+        helper = native_dir / "codex-code-mode-host"
+        helper.write_bytes(b"\x7fELFfixture-code-mode-host")
+        helper.chmod(0o755)
         protected_paths = (
             f".agents/seed={hashlib.sha256((self.workspace / '.agents/seed').read_bytes()).hexdigest()}",
             f".codex/seed={hashlib.sha256((self.workspace / '.codex/seed').read_bytes()).hexdigest()}",
@@ -312,7 +330,7 @@ class CodexSupervisorTests(unittest.TestCase):
         self.assertEqual(
             inner[:7],
             (
-                str(self.codex), "--profile", "issue-supervised", "--strict-config",
+                str(_CODEX_CONTROL_ALIAS), "--profile", "issue-supervised", "--strict-config",
                 "--ask-for-approval", "never", "exec",
             ),
         )
@@ -429,7 +447,7 @@ class CodexSupervisorTests(unittest.TestCase):
                 self.assertEqual(
                     inner[:7],
                     (
-                        str(self.codex), "--profile", "issue-supervised", "--strict-config",
+                        str(_CODEX_CONTROL_ALIAS), "--profile", "issue-supervised", "--strict-config",
                         "--ask-for-approval", "never", "exec",
                     ),
                 )
@@ -444,13 +462,9 @@ class CodexSupervisorTests(unittest.TestCase):
         command = build_codex_command(
             self.spec, bwrap_executable=self.bwrap, codex_executable=self.codex
         )
-        separator = command.index("--")
-        command = tuple((
-            *command[:separator], "--ro-bind", str(self.codex), str(self.codex),
-            *command[separator:],
-        ))
         boundary = {
             "workspace": {"read": True, "write": True, "exec": True},
+            "code_mode_host": {"read": True, "write": False, "exec": True},
             "runtime": {"read": False, "write": False, "exec": False},
             "runtime_auth": {"read": False, "write": False, "exec": False},
             "host_auth": {"read": False, "write": False, "exec": False},
@@ -936,6 +950,18 @@ class CodexSupervisorTests(unittest.TestCase):
         target.write_text(json.dumps(document), encoding="utf-8")
         self.assert_reason(
             "CODEX_SUPERVISOR_HANDOFF_BINDING_MISMATCH",
+            FakeRunner(self.success_lines()),
+        )
+
+    def test_handoff_rejects_duplicate_json_members(self):
+        self.handoff_file()
+        target = self.workspace / self.handoff
+        source = target.read_text(encoding="utf-8")
+        target.write_text(source.replace('"status": "ready"',
+                                         '"status": "ready", "status": "ready"', 1),
+                          encoding="utf-8")
+        self.assert_reason(
+            "CODEX_SUPERVISOR_HANDOFF_SCHEMA_INVALID",
             FakeRunner(self.success_lines()),
         )
 
@@ -1900,7 +1926,22 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 workspace, bwrap_executable=bwrap, python_executable=system_python
             )
 
-            fake_codex = Path(temporary) / "fake-codex"
+            fake_install = Path(temporary) / "codex"
+            fake_platform = fake_install / "node_modules" / "@openai" / "codex-linux-x64"
+            fake_native_dir = fake_platform / "vendor" / "x86_64-unknown-linux-musl" / "bin"
+            (fake_install / "bin").mkdir(parents=True, mode=0o700)
+            fake_native_dir.mkdir(parents=True, mode=0o700)
+            (fake_install / "package.json").write_text(
+                '{"name":"@openai/codex","version":"1.0.0"}', encoding="utf-8"
+            )
+            (fake_platform / "package.json").write_text(
+                '{"name":"@openai/codex-linux-x64","version":"1.0.0"}',
+                encoding="utf-8",
+            )
+            fake_launcher = fake_install / "bin" / "codex.js"
+            fake_launcher.write_text("#!/bin/sh\necho codex-cli 1.0.0\n", encoding="utf-8")
+            fake_launcher.chmod(0o755)
+            fake_codex = fake_native_dir / "codex"
             fake_codex.write_text(
                 "#!/bin/sh\n"
                 "case \" $* \" in\n"
@@ -1910,10 +1951,13 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                 encoding="utf-8",
             )
             fake_codex.chmod(0o755)
+            fake_helper = fake_native_dir / "codex-code-mode-host"
+            fake_helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake_helper.chmod(0o755)
             fake_spec = SupervisorSpec(
                 repo_root=main, workspace=workspace, role="issue-implementer",
                 task_key="issue_452",
-                handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.yaml",
+                handoff_path="tmp/_handoff/issue-implementer--issue-452-session-probe.json",
                 issue=452, round_number=1, repository="example/repo",
                 branch_name="probe", expected_oid=git(workspace, "rev-parse", "HEAD"),
             )
@@ -2001,7 +2045,7 @@ class BubblewrapSandboxProbeTests(unittest.TestCase):
                         workspace=workspace,
                         role="issue-implementer",
                         task_key="issue-452-runtime-probe",
-                        handoff_path="tmp/_handoff/issue-implementer--issue-452-runtime-probe.yaml",
+                        handoff_path="tmp/_handoff/issue-implementer--issue-452-runtime-probe.json",
                     ),
                     bwrap_executable=bwrap,
                     codex_executable=codex,

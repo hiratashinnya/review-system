@@ -101,7 +101,7 @@ class LaunchLedgerTests(unittest.TestCase):
             repo_root=self.root, workspace=self.child, issue=452, round_number=1,
             repository="owner/repo", branch_name="codex/issue-452",
             expected_oid="a" * 40, role="issue-implementer", task_key="issue_452",
-            handoff_path="tmp/_handoff/issue-implementer--issue-452.yaml",
+            handoff_path="tmp/_handoff/issue-implementer--issue-452.json",
             protected_paths=(), attempt_id="1" * 32, resume_thread=None,
             owner_pid=os.getpid(), owner_start_token=supervisor._process_start_token(os.getpid()),
             now=NOW, lease_seconds=60,
@@ -119,7 +119,7 @@ class LaunchLedgerTests(unittest.TestCase):
             "worktree_path": ".worktrees/issue-452",
             "branch_name": "codex/issue-452", "initial_oid": "a" * 40,
             "task_key": "issue_452",
-            "handoff_path": "tmp/_handoff/issue-implementer--issue-452.yaml",
+            "handoff_path": "tmp/_handoff/issue-implementer--issue-452.json",
             "protected_plan": [], "status": "open", "agent_id": agent_id,
             "supervisor_attempts": list(attempts or []), "publish_attempts": [],
             "notes": [],
@@ -144,7 +144,7 @@ class LaunchLedgerTests(unittest.TestCase):
                 repository="owner/repo", branch_name="codex/issue-452",
                 expected_oid="a" * 40, role="issue-implementer",
                 task_key="issue_452",
-                handoff_path="tmp/_handoff/issue-implementer--issue-452.yaml",
+                handoff_path="tmp/_handoff/issue-implementer--issue-452.json",
                 protected_paths=(), intent_digest=digest, attempt_id="1" * 32,
                 mode=mode, owner_pid=os.getpid(),
                 owner_start_token=supervisor._process_start_token(os.getpid()),
@@ -172,6 +172,43 @@ class LaunchLedgerTests(unittest.TestCase):
         self.assertEqual(entry["launch_intent_digest"], "b" * 64)
         self.assertEqual(entry["supervisor_attempts"][-1]["intent_digest"], "b" * 64)
         self.assertIsNone(thread)
+
+    def test_terminal_history_is_kept_but_does_not_block_one_new_active_entry(self):
+        self.seed_canonical()
+        worktree_ledger.update_ledger(
+            self.root,
+            lambda document: document["entries"].append({
+                **document["entries"][0], "entry_id": "wl-abcdef123456", "status": "released",
+                "supervisor_attempts": [],
+            }),
+        )
+        entry, _thread = self.reserve_canonical()
+        document = worktree_ledger.read_ledger(self.root)
+        self.assertEqual(entry["entry_id"], "wl-123456789abc")
+        self.assertEqual(len(document["entries"]), 2)
+        self.assertEqual(document["entries"][1]["status"], "released")
+
+    def test_multiple_active_entries_for_one_task_are_rejected(self):
+        self.seed_canonical()
+        worktree_ledger.update_ledger(
+            self.root,
+            lambda document: document["entries"].append({
+                **document["entries"][0], "entry_id": "wl-abcdef123456",
+                "supervisor_attempts": [],
+            }),
+        )
+        with self.assertRaisesRegex(
+                workspace_boundary.SupervisorWorkspaceError, "LAUNCH_DUPLICATE"):
+            self.reserve_canonical()
+
+    def test_terminal_selected_entry_cannot_be_resumed_or_pre_spawn_verified(self):
+        self.seed_canonical()
+        worktree_ledger.update_ledger(
+            self.root, lambda document: document["entries"][0].update(status="released")
+        )
+        with self.assertRaisesRegex(
+                workspace_boundary.SupervisorWorkspaceError, "LAUNCH_MISSING"):
+            self.reserve_canonical(mode="resume")
 
     def test_verified_lease_blocks_cooperative_writer_until_process_start_record(self):
         self.seed_canonical()
@@ -304,6 +341,75 @@ class LaunchLedgerTests(unittest.TestCase):
 
 
 class DirectCommandTests(unittest.TestCase):
+    def test_codex_bundle_requires_exact_sibling_and_stable_asset_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _home, _workspace, codex, _runtime, _spec = self._profile_fixture(root)
+            native, evidence = supervisor.codex_launch_intent._stable_codex_bundle_evidence(
+                str(codex), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+            )
+            self.assertEqual(Path(evidence["code_mode_host"]["path"]),
+                             Path(native).parent / "codex-code-mode-host")
+            helper = Path(evidence["code_mode_host"]["path"])
+            helper_link = helper.with_name("codex-code-mode-host-link")
+            helper_link.symlink_to(helper)
+            with self.assertRaisesRegex(
+                    supervisor.codex_launch_intent.LaunchIntentError,
+                    "CODEX_SUPERVISOR_CODEX_TREE_INVALID"):
+                supervisor.codex_launch_intent._stable_codex_bundle_evidence(
+                    str(helper_link), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+                )
+            helper_link.unlink()
+            os.link(helper, helper_link)
+            with self.assertRaisesRegex(
+                    supervisor.codex_launch_intent.LaunchIntentError,
+                    "CODEX_SUPERVISOR_CODEX_TREE_INVALID"):
+                supervisor.codex_launch_intent._stable_codex_bundle_evidence(
+                    str(codex), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+                )
+            helper_link.unlink()
+            (codex.parents[6] / "package.json").write_text(
+                '{"name":"@openai/codex","version":"2.0.0"}', encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                    supervisor.codex_launch_intent.LaunchIntentError,
+                    "CODEX_SUPERVISOR_CODEX_TREE_INVALID"):
+                supervisor.codex_launch_intent._stable_codex_bundle_evidence(
+                    str(codex), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+                )
+
+    def test_codex_asset_bind_gate_rejects_missing_helper_and_install_tree_bind(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _home, _workspace, codex, _runtime, _spec = self._profile_fixture(root)
+            native, evidence = supervisor.codex_launch_intent._stable_codex_bundle_evidence(
+                str(codex), reason="CODEX_SUPERVISOR_CODEX_TREE_INVALID"
+            )
+            helper = Path(evidence["code_mode_host"]["path"])
+            good = (
+                "bwrap", "--ro-bind", native, str(supervisor._CODEX_CONTROL_ALIAS),
+                "--ro-bind", str(helper), str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+            )
+            self.assertEqual(supervisor._validate_codex_asset_binds(
+                good, expected_evidence=evidence
+            ), helper)
+            missing = ("bwrap", "--ro-bind", native, str(supervisor._CODEX_CONTROL_ALIAS))
+            with self.assertRaisesRegex(
+                    supervisor.CodexSupervisorError, "CODEX_ALIAS|CODE_MODE_HOST"):
+                supervisor._validate_codex_asset_binds(
+                    missing, expected_evidence=evidence
+                )
+            whole_tree = (
+                "bwrap", "--bind", str(helper.parent.parent), "/run/codex-install",
+                "--ro-bind", native, str(supervisor._CODEX_CONTROL_ALIAS),
+                "--ro-bind", str(helper), str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+            )
+            with self.assertRaisesRegex(
+                    supervisor.CodexSupervisorError, "CODEX_TREE_WHOLE_BIND"):
+                supervisor._validate_codex_asset_binds(
+                    whole_tree, expected_evidence=evidence
+                )
+
     def test_public_launch_cli_accepts_only_four_canonical_inputs(self):
         parser = supervisor.build_parser()
         run = parser.parse_args([
@@ -379,12 +485,26 @@ class DirectCommandTests(unittest.TestCase):
         auth.chmod(0o600)
         workspace = root / "workspace"
         workspace.mkdir(mode=0o700)
-        install = root / "codex-install"
+        install = root / "codex"
+        platform = install / "node_modules" / "@openai" / "codex-linux-x64"
+        native_dir = platform / "vendor" / "x86_64-unknown-linux-musl" / "bin"
         (install / "bin").mkdir(parents=True, mode=0o700)
-        (install / "package.json").write_text("{}", encoding="utf-8")
-        codex = install / "bin" / "codex"
-        codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        native_dir.mkdir(parents=True, mode=0o700)
+        (install / "package.json").write_text(
+            '{"name":"@openai/codex","version":"1.0.0"}', encoding="utf-8"
+        )
+        (platform / "package.json").write_text(
+            '{"name":"@openai/codex-linux-x64","version":"1.0.0"}', encoding="utf-8"
+        )
+        launcher = install / "bin" / "codex.js"
+        launcher.write_text("#!/bin/sh\necho codex-cli 1.0.0\n", encoding="utf-8")
+        launcher.chmod(0o755)
+        codex = native_dir / "codex"
+        codex.write_bytes(b"\x7fELFfixture-native-codex")
         codex.chmod(0o755)
+        helper = native_dir / "codex-code-mode-host"
+        helper.write_bytes(b"\x7fELFfixture-code-mode-host")
+        helper.chmod(0o755)
         runtime = root / "runtime-home"
         (runtime / "sessions").mkdir(parents=True, mode=0o700)
         (runtime / "sqlite").mkdir(mode=0o700)
@@ -393,7 +513,7 @@ class DirectCommandTests(unittest.TestCase):
             runtime, runtime / "sqlite", runtime / "sessions", auth, runtime / "auth.json"
         )
         spec = supervisor.SupervisorSpec(
-            root, workspace, "issue-implementer", "issue_452", "tmp/_handoff/x.yaml"
+            root, workspace, "issue-implementer", "issue_452", "tmp/_handoff/x.json"
         )
         return home, workspace, codex, runtime_home, spec
 
@@ -423,7 +543,7 @@ class DirectCommandTests(unittest.TestCase):
                 self.assertFalse(selected["network"]["dangerously_allow_non_loopback_proxy"])
                 self.assertIn(str(runtime.root), selected["filesystem"])
                 self.assertIn(str(home / ".codex"), selected["filesystem"])
-                self.assertIn(str(codex.parent.parent), selected["filesystem"])
+                self.assertIn(str(codex.parents[3]), selected["filesystem"])
                 self.assertNotIn(str(codex.parent), selected["filesystem"])
                 self.assertNotIn(str(runtime.auth_target), selected["filesystem"])
                 self.assertNotIn(str(home / ".codex" / "auth.json"), selected["filesystem"])
@@ -782,6 +902,7 @@ class DirectCommandTests(unittest.TestCase):
             # but the command must still carry the one read-only private alias bind
             # that validate_cli_compatibility authorizes in production.
             codex.write_bytes(b"\x7fELFfixture-native-codex")
+            helper = supervisor._resolved_codex_code_mode_host(codex)
             alias = supervisor._CODEX_CONTROL_ALIAS
             with mock.patch.dict(os.environ, {"HOME": str(home)}):
                 supervisor.snapshot_credentials(runtime)
@@ -791,7 +912,9 @@ class DirectCommandTests(unittest.TestCase):
                 command = (
                     str(root / "bwrap"), "--die-with-parent", "--new-session",
                     "--unshare-pid", "--tmpfs", "/run", "--dir", str(alias.parent),
-                    "--ro-bind", str(codex), str(alias), "--tmpfs", "/tmp", "--clearenv",
+                    "--ro-bind", str(codex), str(alias),
+                    "--ro-bind", str(helper), str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+                    "--tmpfs", "/tmp", "--clearenv",
                     "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root),
                     "--setenv", "TMPDIR", "/tmp",
@@ -804,6 +927,7 @@ class DirectCommandTests(unittest.TestCase):
                     runtime_home=runtime.root, host_auth=home / ".codex/auth.json",
                     codex=str(alias), tcp_port=31000,
                     unix_path=workspace / ".probe.sock",
+                    code_mode_host=str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
                 )
                 separator = probe.index("--")
                 inner = probe[separator + 1:]
@@ -840,6 +964,7 @@ class DirectCommandTests(unittest.TestCase):
             "runtime_auth": {"read": False, "write": False, "exec": False},
             "host_auth": {"read": False, "write": False, "exec": False},
             "install": {"read": False, "write": False, "exec": False},
+            "code_mode_host": {"read": True, "write": False, "exec": True},
             "network": {"tcp": False, "unix": False},
             "environment": {"HOME": None, "CODEX_HOME": None, "TMPDIR": None,
                             "PATH": "/usr/bin:/bin"},
@@ -887,6 +1012,8 @@ class DirectCommandTests(unittest.TestCase):
                 command = (
                     str(root / "bwrap"), "--tmpfs", "/run", "--dir", str(alias.parent),
                     "--ro-bind", str(codex), str(alias),
+                    "--ro-bind", str(supervisor._resolved_codex_code_mode_host(codex)),
+                    str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
                     "--clearenv", "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root), "--setenv", "TMPDIR", "/tmp",
                     "--", str(alias), "--profile", profile.name, "--strict-config",
@@ -899,6 +1026,7 @@ class DirectCommandTests(unittest.TestCase):
                     "runtime_auth": {"read": False, "write": False, "exec": False},
                     "host_auth": {"read": False, "write": False, "exec": False},
                     "install": {"read": False, "write": False, "exec": False},
+                    "code_mode_host": {"read": True, "write": False, "exec": True},
                     "network": {"tcp": False, "unix": False},
                     "environment": {"HOME": None, "CODEX_HOME": None, "TMPDIR": None,
                                     "PATH": "/usr/bin:/bin"},
@@ -958,6 +1086,8 @@ class DirectCommandTests(unittest.TestCase):
                     "--bind", str(runtime.root), str(runtime.root), "--tmpfs", "/tmp",
                     "--tmpfs", "/run", "--dir", str(alias.parent),
                     "--ro-bind", str(installed_codex), str(alias),
+                    "--ro-bind", str(supervisor._resolved_codex_code_mode_host(installed_codex)),
+                    str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
                     "--clearenv", "--setenv", "HOME", str(runtime.root),
                     "--setenv", "CODEX_HOME", str(runtime.root), "--setenv", "TMPDIR", "/tmp",
                     "--setenv", "PATH", supervisor._codex_launch_path(installed_codex),
@@ -1000,7 +1130,9 @@ class DirectCommandTests(unittest.TestCase):
                                 supervisor._run_active_boundary_probe(
                                     command, workspace=workspace, runtime_home=runtime.root,
                                     host_auth=home / ".codex/auth.json", codex=str(alias),
-                                    install_probe=install_roots[0], runner=subprocess.run,
+                                    install_probe=supervisor._resolved_codex_code_mode_host(installed_codex),
+                                    code_mode_host=str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+                                    runner=subprocess.run,
                                 )
                             self.assertEqual(raised.exception.reason, expected_reason)
                             if observed_change is not None:
@@ -1027,7 +1159,9 @@ class DirectCommandTests(unittest.TestCase):
                     unknown_evidence = supervisor._run_active_boundary_probe(
                         command, workspace=workspace, runtime_home=runtime.root,
                         host_auth=home / ".codex/auth.json", codex=str(alias),
-                        install_probe=install_roots[0], runner=subprocess.run,
+                        install_probe=supervisor._resolved_codex_code_mode_host(installed_codex),
+                        code_mode_host=str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+                        runner=subprocess.run,
                     )
                     self.assertEqual(unknown_evidence["network"], {"tcp": False, "unix": False})
                     with self.assertRaisesRegex(
@@ -1039,7 +1173,9 @@ class DirectCommandTests(unittest.TestCase):
                     legacy_evidence = supervisor._run_active_boundary_probe(
                         command, workspace=workspace, runtime_home=runtime.root,
                         host_auth=home / ".codex/auth.json", codex=str(alias),
-                        install_probe=install_roots[0], runner=subprocess.run,
+                        install_probe=supervisor._resolved_codex_code_mode_host(installed_codex),
+                        code_mode_host=str(supervisor._CODEX_CODE_MODE_HOST_ALIAS),
+                        runner=subprocess.run,
                     )
                     self.assertEqual(legacy_evidence["network"], {"tcp": False, "unix": False})
                     with self.assertRaisesRegex(
@@ -1111,7 +1247,7 @@ class ProductionLaunchLeaseTests(unittest.TestCase):
             workspace="/repo/.worktrees/issue-452",
             branch_name="codex/issue-452", expected_oid="a" * 40,
             task_key="issue_452",
-            handoff_path="tmp/_handoff/issue-implementer--issue-452.yaml",
+            handoff_path="tmp/_handoff/issue-implementer--issue-452.json",
             model="gpt-5.6-sol", reasoning_effort="xhigh",
             bwrap_executable="/usr/bin/bwrap", codex_executable="/opt/codex",
             executable_evidence={"codex": {"sha256": "b" * 64}},
@@ -1208,12 +1344,23 @@ class ProductionLaunchLeaseTests(unittest.TestCase):
             for private in (root / "tmp", root / "tmp" / "_codex_sessions",
                             root / "tmp" / "_codex_sessions" / "issue_452", runtime):
                 private.chmod(0o700)
+            codex_path = root / "codex"
+            helper_path = root / "codex-code-mode-host"
+            codex_path.write_bytes(b"native")
+            helper_path.write_bytes(b"helper")
+            codex_path.chmod(0o755)
+            helper_path.chmod(0o755)
+            helper_evidence = supervisor.codex_launch_intent._file_identity_evidence(
+                helper_path, reason="CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID"
+            )
+            bundle_evidence = {
+                "path": str(codex_path), "sha256": "b" * 64,
+                "code_mode_host": helper_evidence,
+            }
             intent = replace(
                 self.intent, workspace=str(child),
                 runtime_root="tmp/_codex_sessions/issue_452/runtime-home",
-                executable_evidence={
-                    "codex": {"path": "/opt/codex", "sha256": "b" * 64},
-                },
+                executable_evidence={"codex": bundle_evidence},
             )
             spec = replace(self.spec, repo_root=root, workspace=child)
             facts = workspace_boundary.GitFacts(
@@ -1296,8 +1443,14 @@ class ProductionLaunchLeaseTests(unittest.TestCase):
             ), mock.patch.object(
                 supervisor, "_command_setenv", side_effect=command_setenv,
             ), mock.patch.object(
+                supervisor.codex_launch_intent, "_stable_codex_bundle_evidence",
+                return_value=(str(codex_path), bundle_evidence),
+            ), mock.patch.object(
                 supervisor, "_ro_bind_source",
-                return_value=Path(intent.executable_evidence["codex"]["path"]),
+                side_effect=lambda _command, target: (
+                    helper_path if target == supervisor._CODEX_CODE_MODE_HOST_ALIAS
+                    else codex_path
+                ),
             ), mock.patch.object(
                 supervisor, "validate_permission_profile", return_value=profile,
             ), mock.patch.object(
@@ -1365,11 +1518,22 @@ class ProductionLaunchLeaseTests(unittest.TestCase):
             child.mkdir(parents=True)
             runtime = root / "runtime-home"
             runtime.mkdir(mode=0o700)
+            codex_path = root / "codex"
+            helper_path = root / "codex-code-mode-host"
+            codex_path.write_bytes(b"native")
+            helper_path.write_bytes(b"helper")
+            codex_path.chmod(0o755)
+            helper_path.chmod(0o755)
+            helper_evidence = supervisor.codex_launch_intent._file_identity_evidence(
+                helper_path, reason="CODEX_SUPERVISOR_CODE_MODE_HOST_INVALID"
+            )
+            bundle_evidence = {
+                "path": str(codex_path), "sha256": "b" * 64,
+                "code_mode_host": helper_evidence,
+            }
             intent = replace(
                 self.intent, workspace=str(child), runtime_root="runtime-home",
-                executable_evidence={
-                    "codex": {"path": "/opt/codex", "sha256": "b" * 64},
-                },
+                executable_evidence={"codex": bundle_evidence},
             )
             spec = replace(self.spec, repo_root=root, workspace=child)
             digest = supervisor.codex_launch_intent.intent_digest(intent)
@@ -1434,7 +1598,14 @@ class ProductionLaunchLeaseTests(unittest.TestCase):
             ), mock.patch.object(
                 supervisor, "_command_setenv", side_effect=command_setenv,
             ), mock.patch.object(
-                supervisor, "_ro_bind_source", return_value=Path("/opt/codex"),
+                supervisor.codex_launch_intent, "_stable_codex_bundle_evidence",
+                return_value=(str(codex_path), bundle_evidence),
+            ), mock.patch.object(
+                supervisor, "_ro_bind_source",
+                side_effect=lambda _command, target: (
+                    helper_path if target == supervisor._CODEX_CODE_MODE_HOST_ALIAS
+                    else codex_path
+                ),
             ), mock.patch.object(
                 supervisor, "validate_permission_profile", return_value=profile,
             ), mock.patch.object(
@@ -1465,7 +1636,7 @@ class SupervisedFlowTests(unittest.TestCase):
     def spec(self):
         return supervisor.SupervisorSpec(
             Path("/repo"), Path("/repo/.worktrees/issue-452"), "issue-implementer",
-            "issue_452", "tmp/_handoff/issue-implementer--issue-452.yaml",
+            "issue_452", "tmp/_handoff/issue-implementer--issue-452.json",
             issue=452, repository="owner/repo", branch_name="codex/issue-452",
             expected_oid="a" * 40,
         )
@@ -1592,7 +1763,7 @@ class SupervisedFlowTests(unittest.TestCase):
             repository="owner/repo", workspace="/repo/.worktrees/issue-452",
             branch_name="codex/issue-452", expected_oid="a" * 40,
             task_key="issue_452",
-            handoff_path="tmp/_handoff/issue-implementer--issue-452.yaml",
+            handoff_path="tmp/_handoff/issue-implementer--issue-452.json",
             model="gpt-5.6-sol", reasoning_effort="xhigh",
             bwrap_executable="/usr/bin/bwrap", codex_executable="/opt/codex",
             executable_evidence={"codex": {"sha256": "b" * 64}},

@@ -182,7 +182,7 @@ KNOWN_BYPASS_CORPUS = [
 # global option/env 代入一律 deny）により列挙不要で fail-close deny されることを回帰テスト化する。
 # ---------------------------------------------------------------------------
 REREVIEW_BYPASS_CORPUS = [
-    # pr-reviewer が push を別名サブコマンドで実行しようとする（push は reviewer の {diff,log} に無い）。
+    # pr-reviewer が push を別名サブコマンドで実行しようとする（push は reviewer の {read,diff,log} に無い）。
     ("pr-reviewer", "git send-pack origin +HEAD:main"),
     ("pr-reviewer", "git subtree push --prefix=x origin main"),
     # issue-implementer が pull（= fetch + merge）で merge 相当を実行しようとする（pull は impl 集合に無い）。
@@ -594,6 +594,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "python3 -m dsv2 index --root doc-system-v2",
             "python3 -m dsv2 reverse FND-1 --root doc-system-v2 --apply",
             "python3 -m gitgate status",
+            "python3 -m gitgate read .codex/agents/issue-implementer.toml",
             # Issue #385: read-only 監査コマンド（check サブコマンドのみ）。
             "python3 -m asset_parity check",
             "python3 -m asset_parity check --root . --format json",
@@ -652,10 +653,11 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_legitimate_issue_implementer_workflow_is_allowed(self):
         # 層3（Issue #227 追加修正3・gitgate ラッパー方式）: 生 git は禁止。git 操作は
         # `python3 -m gitgate <verb>` 経由で行う。issue-implementer の gitgate verb は全 verb
-        # {status,add,commit,push,branch-current,new-branch,fetch,diff,log}、gh は {pr create, issue view}。
+        # {status,read,add,commit,push,branch-current,new-branch,fetch,diff,log}、gh は {pr create, issue view}。
         # `rtk` 純ラッパーは剥がして内側を検査するため許可される。
         commands = [
             "python3 -m gitgate status",
+            "python3 -m gitgate read .ai/agents/issue-implementer.md",
             "python3 -m gitgate diff",
             "python3 -m gitgate diff --stat HEAD",
             "python3 -m gitgate log -n5 --oneline",
@@ -703,7 +705,7 @@ class AgentCommandGateTests(unittest.TestCase):
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
         # 層3（Issue #227 追加修正3・gitgate 方式）: pr-reviewer の gitgate verb は読取専用の
-        # {diff, log} のみ、gh は {pr view/diff/checks/comment/review/merge, issue view}。
+        # {read, diff, log} のみ、gh は {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補
         # （要オーナー判断）。ここでは --body 形のみ allow で検証する。
         # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（下記
@@ -720,6 +722,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
+            "python3 -m gitgate read .ai/agents/pr-reviewer.md",
             "python3 -m unittest discover -s tests/unit",
         ]
         for command in commands:
@@ -727,7 +730,7 @@ class AgentCommandGateTests(unittest.TestCase):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
 
     def test_pr_reviewer_now_denied_out_of_allowlist_git_gh(self):
-        # pr-reviewer は gitgate 読取専用 verb {diff,log} のみ。生 git は全 deny、gitgate の書込・
+        # pr-reviewer は gitgate 読取専用 verb {read,diff,log} のみ。生 git は全 deny、gitgate の書込・
         # push 系 verb や gh pr create / issue comment はロール集合外＝deny。
         denied = [
             # 生 git は全て deny。
@@ -735,7 +738,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "git merge feature",
             "git fetch origin",
             "git status",
-            # gitgate は reviewer には読取専用 {diff, log} のみ許可・書込/push 系 verb は deny。
+            # gitgate は reviewer には読取専用 {read, diff, log} のみ許可・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
             "python3 -m gitgate commit /tmp/msg.md",
@@ -783,6 +786,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh pr view 123",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
+            "python3 -m gitgate read .ai/agents/pr-reviewer.md",
         ]:
             with self.subTest(allowed=command):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
@@ -807,8 +811,8 @@ class AgentCommandGateTests(unittest.TestCase):
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
-        # pr-reviewer は読取専用 verb {diff, log} のみ allow・それ以外の verb は deny。
-        for args in ["diff", "log -n1"]:
+        # pr-reviewer は読取専用 verb {read, diff, log} のみ allow・それ以外の verb は deny。
+        for args in ["read .ai/agents/pr-reviewer.md", "diff", "log -n1"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
@@ -912,6 +916,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "python3 -m karte check --issue 308 --round 2",
             "python3 -m karte status --issue 308",
             "python3 -m gitgate status",
+            "python3 -m gitgate read .ai/agents/issue-fixer.md",
             "python3 -m gitgate diff --stat HEAD",
             "python3 -m gitgate log -n5 --oneline",
             "python3 -m gitgate add tests/unit/test_agent_command_gate.py",
@@ -1074,7 +1079,7 @@ class AgentCommandGateTests(unittest.TestCase):
         # **stdout 空＝allow** になり、そのロールの gitgate/gh 判定がすべて素通ししていた。
         broken = self._hook_copy_with(
             '    "issue-fixer": {\n'
-            '        "status", "add", "commit", "push", "branch-current",\n'
+            '        "status", "read", "add", "commit", "push", "branch-current",\n'
             '        "new-branch", "fetch", "diff", "log",\n'
             '        "adopt-branch",\n'
             '    },\n',

@@ -89,6 +89,26 @@ class ReadLedgerTests(LedgerTestCase):
         self.assertEqual(ctx.exception.reason, "LEDGER_TMP_SYMLINK")
 
 
+class ActiveEntryRuleTests(unittest.TestCase):
+    def test_only_terminal_history_is_excluded_from_active_entries(self):
+        entries = [
+            {"entry_id": "released", "status": "released"},
+            {"entry_id": "abandoned", "status": "abandoned"},
+            {"entry_id": "running", "status": "running"},
+            {"entry_id": "unknown", "status": "unexpected"},
+        ]
+        self.assertEqual(
+            [entry["entry_id"] for entry in worktree_ledger.active_entries(entries)],
+            ["running", "unknown"],
+        )
+
+    def test_terminal_history_remains_observable(self):
+        entry_id = "wl-123456789abc"
+        entries = [{"entry_id": entry_id, "status": "released", "note": "old evidence"}]
+        self.assertFalse(worktree_ledger.is_active_entry(entries[0]))
+        self.assertEqual(entries[0]["note"], "old evidence")
+
+
 class OpenEntryTests(LedgerTestCase):
     def test_open_entry_records_the_full_schema(self):
         entry_id = self.open_entry(issue=354, branch_name="claude/issue-354-x")

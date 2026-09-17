@@ -10,7 +10,7 @@
 
 issue: Issue 番号
 round: 是正ラウンド番号（1 始まり・単調増加）
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].json（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
 branch_name: 是正対象 PR のブランチ名
 repository: OWNER/REPO（Step 0 でブランチを取得する際に使う）
 expected_oid: そのブランチの検証済み OID（Step 0 でブランチを取得する際に使う）
@@ -29,7 +29,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 1. 相対パスであり、絶対パス・~ 展開・ドライブレターではない。
 2. パス要素に .. がない。
 3. tmp/_handoff/ 直下の1ファイルである。
-4. ファイル名が issue-fixer--issue-<N> で始まり、issue-<N> の直後が - または . で、拡張子が .yaml である。
+4. ファイル名が issue-fixer--issue-<N> で始まり、issue-<N> の直後が - または . で、拡張子が .json である。
 5. issue-<N> 以降のサフィックスが [A-Za-z0-9._-] のみである。
 6. tmp/、tmp/_handoff/、書き先ファイル名の構成要素に symlink がない。
 
@@ -102,45 +102,72 @@ unresolved_findings、out_of_scope_findings、protected_patchを過不足なく�
 run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→push→karte.close-attemptを順番に実行し、中央Result一致後にfinal handoffを生成する。
 
+inner が作成する `pre_publish` handoff の完全な JSON 例は次のとおりである。
+
+```json
+{
+  "schema_version": 1,
+  "phase": "pre_publish",
+  "status": "ready",
+  "role": "issue-fixer",
+  "issue": 123,
+  "task_key": "issue_123_fix_r2",
+  "branch": "codex/issue-123-fix-r2",
+  "head_oid": "0123456789abcdef0123456789abcdef01234567",
+  "result": {
+    "round": 2,
+    "pr_url": "https://github.com/example/repository/pull/456",
+    "finding_ids": ["F-123-01"],
+    "diagnosis": {"root_cause": "example-cause", "change_kind": "logic", "targets": ["src/example.py::run"], "karte_attempt": 3},
+    "outcome": "fixed",
+    "changed_files": ["src/example.py"],
+    "tests": {"command": "python3 -m unittest discover -s tests", "result": "pass", "summary": "全件成功"},
+    "unresolved_findings": [],
+    "out_of_scope_findings": [],
+    "protected_patch": null
+  }
+}
+```
+
 同inner processはgenerated `issue-supervised` permission profileが`:workspace`を継承して与える
 workspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 karte bridgeはhost側の専用状態遷移に従う。
 
+実行前に、現在の作業場所と役割の正本を次の読み取り専用コマンドで確認する。各コマンドは単独で実行し、
+引数を追加したり、シェル記号・連結・リダイレクトを使ったりしない。`status` は現在のブランチと変更状態、
+`log` は現在のコミット識別子、`read` は現在の作業場所内の指定した正規ファイルだけを確認する。
+
+    python3 -m gitgate status
+    python3 -m gitgate branch-current
+    python3 -m gitgate log -n 1 --oneline
+    python3 -m gitgate read .codex/agents/issue-fixer.toml
+    python3 -m gitgate read .ai/agents/issue-fixer.md
+    python3 -m gitgate diff --stat HEAD
+
+`read` の引数は作業場所からの相対パス一つだけで、`..`、絶対パス、記号、シンボリックリンク、通常ファイル
+以外は拒否される。ブランチ、コミット識別子、役割本文、対象ファイルをこの4点の結果とhost提示値で照合し、
+一つでも一致しなければ編集しない。
+
 ハンドオフは次の構造を満たす。
 
-schema_version: 1
-phase: final
-agent: issue-fixer
-status: fixed
-issue: Issue番号
-round: 是正ラウンド番号
-branch: ブランチ名
-pr_url: PR の URL
-finding_ids: []
-diagnosis:
-  root_cause: slug
-  change_kind: logic|data-structure|interface|config|test|doc|revert
-  targets: []
-  karte_attempt: Attempt 番号
-outcome: fixed
-changed_files:
-  - path
-tests:
-  command: 実行したテストコマンド
-  result: pass|fail|not_run
-  summary: 失敗時は失敗内容・件数
-unresolved_findings: []
-out_of_scope_findings:
-  - harm: real|none
-    harm_detail: 放置時の実害を1行
-    severity: blocker|major|minor
-    scope: out
-    locus: file:line または file::symbol
-    summary: 問題の要約を1行
-    evidence: 読んだファイル/行または実行コマンドと結果を1行
-    expected: 期待する観測可能な状態を1行
-    recheck: 再検証できる手順を1行
-stop_reason: 空文字
+{
+  "schema_version": 1,
+  "phase": "final",
+  "agent": "issue-fixer",
+  "status": "fixed",
+  "issue": "Issue番号",
+  "round": "是正ラウンド番号",
+  "branch": "ブランチ名",
+  "pr_url": "PRのURL",
+  "finding_ids": [],
+  "diagnosis": {"root_cause": "slug", "change_kind": "logic", "targets": [], "karte_attempt": 1},
+  "outcome": "fixed",
+  "changed_files": ["変更ファイル"],
+  "tests": {"command": "実行したテストコマンド", "result": "pass", "summary": "結果"},
+  "unresolved_findings": [],
+  "out_of_scope_findings": [],
+  "stop_reason": ""
+}
 
 STOP 時は stop_reason に何が・どの対象で・なぜ止まったか、原案・比較・推奨を必ず書く。**Step 0 の早期 STOP を含め、STOP でもハンドオフは書く**。handoff_path 自体が渡されておらず着手前に STOP する場合だけは、その旨をチャットで報告する。
