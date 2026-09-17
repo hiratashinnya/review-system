@@ -212,6 +212,83 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_supervised_read_uses_host_workspace_and_central_ledger(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "worktree"
+            outside = Path(directory) / "outside"
+            root.mkdir()
+            outside.mkdir()
+            (root / "inside.md").write_text("inside\n", encoding="utf-8")
+            (outside / "outside.md").write_text("outside\n", encoding="utf-8")
+            (root / "link.md").symlink_to(outside / "outside.md")
+            ledger = {"entries": [{"status": "running", "workspace": str(root)}]}
+            previous = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ,
+                    {
+                        gitgate_cli.SUPERVISED_ENV: "1",
+                        gitgate_cli.SUPERVISED_WORKSPACE_ENV: str(root),
+                    },
+                ), patch("issue_start.worktree_ledger.main_worktree_root", return_value=root), \
+                     patch("issue_start.worktree_ledger.read_ledger", return_value=ledger):
+                    with patch("sys.stdout", new_callable=io.StringIO) as out:
+                        self.assertEqual(gitgate_cli.main(["read", "inside.md"]), 0)
+                    self.assertEqual(out.getvalue(), "inside\n")
+                    os.link(root / "inside.md", root / "hardlink.md")
+                    os.chdir(outside)
+                    with patch("sys.stderr", new_callable=io.StringIO):
+                        self.assertEqual(gitgate_cli.main(["read", "outside.md"]), 2)
+                    os.chdir(root)
+                    for name in ("link.md", "hardlink.md"):
+                        with self.subTest(name=name), patch(
+                            "sys.stderr", new_callable=io.StringIO
+                        ):
+                            self.assertEqual(gitgate_cli.main(["read", name]), 2)
+            finally:
+                os.chdir(previous)
+
+    def test_supervised_read_does_not_trust_environment_without_active_ledger_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "inside.md").write_text("inside\n", encoding="utf-8")
+            previous = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ,
+                    {
+                        gitgate_cli.SUPERVISED_ENV: "1",
+                        gitgate_cli.SUPERVISED_WORKSPACE_ENV: str(root),
+                    },
+                ), patch("issue_start.worktree_ledger.main_worktree_root", return_value=root), \
+                     patch("issue_start.worktree_ledger.read_ledger", return_value={"entries": []}), \
+                     patch("sys.stderr", new_callable=io.StringIO):
+                    self.assertEqual(gitgate_cli.main(["read", "inside.md"]), 2)
+            finally:
+                os.chdir(previous)
+
+    def test_supervised_read_rejects_noncanonical_workspace_spelling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "worktree"
+            root.mkdir()
+            alias = Path(directory) / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            previous = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ,
+                    {
+                        gitgate_cli.SUPERVISED_ENV: "1",
+                        gitgate_cli.SUPERVISED_WORKSPACE_ENV: str(alias),
+                    },
+                ), patch("sys.stderr", new_callable=io.StringIO):
+                    self.assertEqual(gitgate_cli.main(["read", "missing.md"]), 2)
+            finally:
+                os.chdir(previous)
+
     def test_main_read_requires_regular_non_symlink_file_and_caps_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

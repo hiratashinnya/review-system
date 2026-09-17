@@ -39,9 +39,13 @@ def run_gate(payload, *, env=None):
     return json.loads(result.stdout)
 
 
-def payload(agent_type, command, *, tool_name="Bash"):
+def payload(agent_type, command, *, tool_name="Bash", cwd=None, workdir=None):
     # Codex PreToolUse 入力スキーマ準拠：agent_type / tool_name / tool_input.command。
     body = {"tool_name": tool_name, "tool_input": {"command": command}}
+    if cwd is not None:
+        body["tool_input"]["cwd"] = cwd
+    if workdir is not None:
+        body["tool_input"]["workdir"] = workdir
     if agent_type is not None:
         body["agent_type"] = agent_type
     return body
@@ -326,6 +330,46 @@ class CodexAgentCommandGateTests(unittest.TestCase):
 
     def assert_allowed(self, hook_output):
         self.assertIsNone(hook_output)
+
+    def test_supervised_tool_workdir_must_equal_host_workspace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "worktree"
+            child = root / "subdir"
+            root.mkdir()
+            child.mkdir()
+            environment = {
+                "CODEX_ISSUE_SUPERVISED": "1",
+                "CODEX_ISSUE_WORKSPACE": str(root),
+            }
+            self.assert_allowed(
+                run_gate(
+                    payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md",
+                            cwd=str(root)),
+                    env=environment,
+                )
+            )
+            for kwargs in (
+                {"cwd": str(child)},
+                {"cwd": str(root / "missing")},
+                {"cwd": str(root), "workdir": str(child)},
+                {"workdir": "."},
+            ):
+                with self.subTest(kwargs=kwargs):
+                    self.assert_denied(
+                        run_gate(
+                            payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md",
+                                    **kwargs),
+                            env=environment,
+                        )
+                    )
+
+    def test_supervised_hook_fails_closed_without_host_workspace(self):
+        self.assert_denied(
+            run_gate(
+                payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md"),
+                env={"CODEX_ISSUE_SUPERVISED": "1"},
+            )
+        )
 
     # ------------------------------------------------------------------
     # 敵対コーパス（受け入れ基準1）

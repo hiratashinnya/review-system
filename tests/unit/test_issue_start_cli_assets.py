@@ -236,6 +236,37 @@ class AssetParityTests(unittest.TestCase):
                 self.assertEqual(pre_publish[0]["status"], "ready")
                 self.assertIn("result", pre_publish[0])
 
+    def test_all_gated_roles_declare_the_same_closed_read_contract(self):
+        """F33/F37: hook allowlist と三役の共通・各PF本文を同時に検査する。"""
+
+        gates = [
+            (ROOT / ".codex" / "hooks" / "agent-command-gate.sh").read_text(
+                encoding="utf-8"
+            ),
+            (ROOT / ".claude" / "hooks" / "agent-command-gate.sh").read_text(
+                encoding="utf-8"
+            ),
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            with self.subTest(role=role):
+                common = (ROOT / ".ai" / "agents" / f"{role}.md").read_text(
+                    encoding="utf-8"
+                )
+                codex = (ROOT / ".codex" / "agents" / f"{role}.toml").read_text(
+                    encoding="utf-8"
+                )
+                claude = (ROOT / ".claude" / "agents" / f"{role}.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("python3 -m gitgate read", common)
+                self.assertTrue("python3 -m gitgate read" in codex or "`read`" in codex)
+                self.assertTrue("python3 -m gitgate read" in claude or "`read`" in claude)
+                for gate in gates:
+                    self.assertIn('"' + role + '": {', gate)
+                    role_start = gate.index('"' + role + '": {')
+                    role_end = gate.index("\n    },", role_start)
+                    self.assertIn('"read"', gate[role_start:role_end])
+
 
 if __name__ == "__main__":
     unittest.main()

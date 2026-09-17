@@ -1976,7 +1976,12 @@ def build_codex_command(
         "--setenv", "PATH", launch_path,
         "--setenv", "CODEX_HOME", str(runtime.root),
         "--setenv", "CODEX_SQLITE_HOME", str(runtime.sqlite),
-        "--setenv", "CODEX_ISSUE_SUPERVISED", "1", "--chdir", str(workspace),
+        # gitgate read must use this host-derived canonical worktree rather than
+        # whatever cwd a tool call happens to provide.  The reader cross-checks
+        # this value against the central ledger before opening any file.
+        "--setenv", "CODEX_ISSUE_SUPERVISED", "1",
+        "--setenv", "CODEX_ISSUE_WORKSPACE", str(workspace),
+        "--chdir", str(workspace),
         "--setenv", "CODEX_ISSUE_ROLE", spec.role,
         "--setenv", "CODEX_ISSUE_ROLE_CONTRACT_SHA256", role_digest,
         "--", *inner,

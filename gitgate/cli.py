@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from pathlib import PurePosixPath
 
 from branch_source import BranchSourceError, create_branch, parse_new_branch_args
@@ -281,15 +282,89 @@ WORKTREE_VERBS = (
 )
 
 READ_MAX_BYTES = 2 * 1024 * 1024
+SUPERVISED_ENV = "CODEX_ISSUE_SUPERVISED"
+SUPERVISED_WORKSPACE_ENV = "CODEX_ISSUE_WORKSPACE"
+
+
+def _supervised_read_root():
+    """Return the host-bound root for a supervised closed read.
+
+    Ordinary ``gitgate`` use deliberately keeps its historical current-directory
+    behavior.  The supervised role is different: the current directory is a
+    tool/runtime value, not an authority.  The supervisor therefore supplies a
+    canonical absolute path and the central worktree ledger is used as an
+    independent check that this path is an active, uniquely owned worktree.
+    """
+
+    if os.environ.get(SUPERVISED_ENV) != "1":
+        return Path(".")
+    declared = os.environ.get(SUPERVISED_WORKSPACE_ENV)
+    if not isinstance(declared, str) or not declared or not os.path.isabs(declared):
+        raise GitgateError(
+            "supervised read requires the host-derived absolute workspace"
+        )
+    try:
+        from issue_start import worktree_ledger
+    except ImportError as exc:
+        raise GitgateError(
+            f"supervised workspace authority is unavailable: {exc}"
+        ) from exc
+    try:
+        root = Path(declared).resolve(strict=True)
+        if str(root) != declared or not root.is_dir():
+            raise GitgateError(
+                "supervised workspace must be an existing canonical directory"
+            )
+        current = Path.cwd().resolve(strict=True)
+        if current != root:
+            raise GitgateError(
+                "supervised read requires the process directory to be the host-derived workspace"
+            )
+        # Do not trust the environment variable by itself.  The host's durable
+        # ledger is the authority for which worktree is currently owned.
+        main_root = worktree_ledger.main_worktree_root(root)
+        ledger = worktree_ledger.read_ledger(main_root)
+        matches = [
+            entry for entry in ledger.get("entries", [])
+            if worktree_ledger.is_active_entry(entry)
+            and isinstance(entry.get("workspace"), str)
+            and Path(entry["workspace"]).resolve(strict=True) == root
+        ]
+        if len(matches) != 1:
+            raise GitgateError(
+                "supervised workspace must have exactly one active central ledger entry"
+            )
+        # Opening the root with no-follow verifies that the path used below is
+        # still a directory and is not a final symlink.  Relative file opens
+        # are anchored to this descriptor, never to a later process cwd.
+        root_fd = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        os.close(root_fd)
+        return root
+    except GitgateError:
+        raise
+    except (OSError, ValueError, worktree_ledger.LedgerError) as exc:
+        raise GitgateError(
+            f"supervised workspace authority is unavailable: {exc}"
+        ) from exc
 
 
 def _read_workspace_file(relative):
-    """Read one regular, non-symlink file below the invoking workspace."""
+    """Read one regular, non-symlink file below the invoking workspace.
+
+    In a supervised process ``root`` is host- and ledger-derived.  In ordinary
+    use it remains the invoking directory so the general-purpose gitgate
+    command is not needlessly changed.
+    """
 
     relative = validate_read_path(relative)
     handles = []
     try:
-        directory = os.open(".", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        root = _supervised_read_root()
+        directory = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
         handles.append(directory)
         parts = relative.split("/")
         for part in parts[:-1]:

@@ -537,6 +537,36 @@ tool_input = payload.get("tool_input")
 command = tool_input.get("command") if isinstance(tool_input, dict) else None
 
 
+def supervised_workdir_violation(payload, role):
+    """Reject a tool-selected directory that differs from the host boundary.
+
+    The normal command gate has no authority to choose a directory.  During a
+    supervised run the outer supervisor provides the canonical workspace and
+    the inner process starts there.  If a hook payload exposes ``cwd`` or
+    ``workdir``, it must repeat that exact host value; a subdirectory, a
+    relative path, and a symlink spelling are rejected instead of being
+    interpreted by the reader.
+    """
+
+    if role not in GATED_ROLES or os.environ.get("CODEX_ISSUE_SUPERVISED") != "1":
+        return None
+    root = os.environ.get("CODEX_ISSUE_WORKSPACE")
+    if not isinstance(root, str) or not root or not os.path.isabs(root):
+        return "the supervised host workspace is missing or not absolute"
+    if os.path.realpath(root) != root or not os.path.isdir(root):
+        return "the supervised host workspace is not an existing canonical directory"
+    if isinstance(payload.get("tool_input"), dict):
+        tool_input = payload["tool_input"]
+        values = [tool_input.get(name) for name in ("cwd", "workdir")
+                  if name in tool_input]
+        if len(values) > 1 and values[0] != values[1]:
+            return "tool_input cwd and workdir disagree"
+        for value in values:
+            if not isinstance(value, str) or value != root:
+                return "tool_input cwd/workdir must equal the host-derived workspace"
+    return None
+
+
 def dangerous_shell_symbol(command_text):
     """層1: コマンド文字列をクォート状態を追いながら1文字ずつ走査し、最初に見つかった危険記号の
     説明文字列を返す（危険記号が無ければ None）。
@@ -1040,7 +1070,13 @@ if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if dangerous_token:
+supervised_workdir_reason = supervised_workdir_violation(payload, agent_type)
+if supervised_workdir_reason:
+    reason = (
+        f"agent-command-gate ({agent_type}): {supervised_workdir_reason}; "
+        "refusing because the supervisor-bound worktree cannot be confirmed."
+    )
+elif dangerous_token:
     # agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」だった穴を、
     # 設定側の deny 記法では塞ぎ切れない env-prefix/abspath/compound 経路について補完する）。
     reason = (
