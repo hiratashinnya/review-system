@@ -39,9 +39,13 @@ def run_gate(payload, *, env=None):
     return json.loads(result.stdout)
 
 
-def payload(agent_type, command, *, tool_name="Bash"):
+def payload(agent_type, command, *, tool_name="Bash", cwd=None, workdir=None):
     # Codex PreToolUse 入力スキーマ準拠：agent_type / tool_name / tool_input.command。
     body = {"tool_name": tool_name, "tool_input": {"command": command}}
+    if cwd is not None:
+        body["tool_input"]["cwd"] = cwd
+    if workdir is not None:
+        body["tool_input"]["workdir"] = workdir
     if agent_type is not None:
         body["agent_type"] = agent_type
     return body
@@ -327,6 +331,46 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     def assert_allowed(self, hook_output):
         self.assertIsNone(hook_output)
 
+    def test_supervised_tool_workdir_must_equal_host_workspace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "worktree"
+            child = root / "subdir"
+            root.mkdir()
+            child.mkdir()
+            environment = {
+                "CODEX_ISSUE_SUPERVISED": "1",
+                "CODEX_ISSUE_WORKSPACE": str(root),
+            }
+            self.assert_allowed(
+                run_gate(
+                    payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md",
+                            cwd=str(root)),
+                    env=environment,
+                )
+            )
+            for kwargs in (
+                {"cwd": str(child)},
+                {"cwd": str(root / "missing")},
+                {"cwd": str(root), "workdir": str(child)},
+                {"workdir": "."},
+            ):
+                with self.subTest(kwargs=kwargs):
+                    self.assert_denied(
+                        run_gate(
+                            payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md",
+                                    **kwargs),
+                            env=environment,
+                        )
+                    )
+
+    def test_supervised_hook_fails_closed_without_host_workspace(self):
+        self.assert_denied(
+            run_gate(
+                payload("pr-reviewer", "python3 -m gitgate read .ai/agents/pr-reviewer.md"),
+                env={"CODEX_ISSUE_SUPERVISED": "1"},
+            )
+        )
+
     # ------------------------------------------------------------------
     # 敵対コーパス（受け入れ基準1）
     # ------------------------------------------------------------------
@@ -568,6 +612,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "python3 -m coverage json",
             "python3 -m dsv2 index --root doc-system-v2",
             "python3 -m gitgate status",
+            "python3 -m gitgate read .codex/agents/issue-implementer.toml",
             # Issue #385: read-only 監査コマンド（check サブコマンドのみ）。
             "python3 -m asset_parity check",
             "python3 -m asset_parity check --root . --format json",
@@ -586,6 +631,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         # `python3 -m gitgate <verb>` 経由。impl の gitgate verb は全 verb、gh は {pr create, issue view}。
         commands = [
             "python3 -m gitgate status",
+            "python3 -m gitgate read .ai/agents/issue-implementer.md",
             "python3 -m gitgate diff",
             "python3 -m gitgate diff --stat HEAD",
             "python3 -m gitgate log -n5 --oneline",
@@ -628,7 +674,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
-        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log}、gh は
+        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {read, diff, log}、gh は
         # {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補（要オーナー判断）。
         # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
@@ -644,6 +690,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
+            "python3 -m gitgate read .ai/agents/pr-reviewer.md",
             "python3 -m unittest discover -s tests/unit",
         ]
         for command in commands:
@@ -657,7 +704,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git merge feature",
             "git fetch origin",
             "git status",
-            # gitgate は reviewer には読取専用 {diff, log} のみ・書込/push 系 verb は deny。
+            # gitgate は reviewer には読取専用 {read, diff, log} のみ・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
             "python3 -m gitgate commit /tmp/msg.md",
@@ -710,13 +757,13 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", f"git {sub} x")))
                 self.assert_denied(run_gate(payload("pr-reviewer", f"git {sub} x")))
         impl_allowed = [
-            "status", "add p", "commit /tmp/m", "push", "branch-current",
+            "status", "read .ai/agents/issue-implementer.md", "add p", "commit /tmp/m", "push", "branch-current",
             "new-branch feature", "fetch", "diff", "log -n1",
         ]
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
-        for args in ["diff", "log -n1"]:
+        for args in ["read .ai/agents/pr-reviewer.md", "diff", "log -n1"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
@@ -831,6 +878,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "python3 -m karte check --issue 308 --round 2",
             "python3 -m karte status --issue 308",
             "python3 -m gitgate status",
+            "python3 -m gitgate read .ai/agents/issue-fixer.md",
             "python3 -m gitgate diff --stat HEAD",
             "python3 -m gitgate add tests/unit/test_codex_agent_command_gate.py",
             "python3 -m gitgate commit /tmp/commit-msg.md",
@@ -974,7 +1022,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         # **stdout 空＝allow** になり、そのロールの gitgate/gh 判定がすべて素通ししていた。
         broken = self._hook_copy_with(
             '    "issue-fixer": {\n'
-            '        "status", "add", "commit", "push", "branch-current",\n'
+            '        "status", "read", "add", "commit", "push", "branch-current",\n'
             '        "new-branch", "fetch", "diff", "log",\n'
             '        "adopt-branch",\n'
             '    },\n',
@@ -1094,7 +1142,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_allowed(run_gate(payload("issue-implementer", "python3 -m gitgate push")))
         # 生 git push は両ロールで deny（gitgate ラッパー経由に誘導）。
         self.assert_denied(run_gate(payload("issue-implementer", "git push -u origin HEAD")))
-        # reviewer の merge は gh pr merge 経由のみ・`git merge`/gitgate は {diff,log} 集合外＝deny。
+        # reviewer の merge は gh pr merge 経由のみ・`git merge`/gitgate は {read,diff,log} 集合外＝deny。
         self.assert_denied(run_gate(payload("pr-reviewer", "git merge feature")))
 
     def test_pr_reviewer_may_pass_subject_and_body_on_squash_merge(self):

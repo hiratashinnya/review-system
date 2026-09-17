@@ -11,9 +11,12 @@ git 実行は build_git_argv() が返す list を subprocess.run([...], shell=Fa
 
 import os
 import re
+import stat
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
+from pathlib import PurePosixPath
 
 from branch_source import BranchSourceError, create_branch, parse_new_branch_args
 
@@ -111,6 +114,28 @@ def _require_no_args(verb, args):
 def verb_status(args):
     _require_no_args("status", args)
     return ["git", "status"]
+
+
+def validate_read_path(value):
+    """Validate one workspace-relative file name for the closed read verb."""
+
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise GitgateError("read path must be a non-empty POSIX-relative path")
+    _reject_control_chars(value, "read path")
+    path = PurePosixPath(value)
+    if (path.is_absolute() or str(path) != value
+            or any(part in {"", ".", ".."} for part in path.parts)):
+        raise GitgateError(f"read path must stay within the current workspace: {value!r}")
+    return value
+
+
+def verb_read(args):
+    """Build the fixed read spelling; :func:`_run_read` adds filesystem checks."""
+
+    if len(args) != 1:
+        raise GitgateError("`read` requires exactly one workspace-relative path")
+    path = validate_read_path(args[0])
+    return ["git", "show", f"HEAD:{path}"]
 
 
 def verb_add(args):
@@ -219,6 +244,7 @@ def verb_log(args):
 
 VERB_HANDLERS = {
     "status": verb_status,
+    "read": verb_read,
     "add": verb_add,
     "commit": verb_commit,
     "push": verb_push,
@@ -254,6 +280,143 @@ WORKTREE_VERBS = (
     "worktree-forget",
     "worktree-sweep-abandoned",
 )
+
+READ_MAX_BYTES = 2 * 1024 * 1024
+SUPERVISED_ENV = "CODEX_ISSUE_SUPERVISED"
+SUPERVISED_WORKSPACE_ENV = "CODEX_ISSUE_WORKSPACE"
+
+
+def _supervised_read_root():
+    """Return the host-bound root for a supervised closed read.
+
+    Ordinary ``gitgate`` use deliberately keeps its historical current-directory
+    behavior.  The supervised role is different: the current directory is a
+    tool/runtime value, not an authority.  The supervisor therefore supplies a
+    canonical absolute path and the central worktree ledger is used as an
+    independent check that this path is an active, uniquely owned worktree.
+    """
+
+    if os.environ.get(SUPERVISED_ENV) != "1":
+        return Path(".")
+    declared = os.environ.get(SUPERVISED_WORKSPACE_ENV)
+    if not isinstance(declared, str) or not declared or not os.path.isabs(declared):
+        raise GitgateError(
+            "supervised read requires the host-derived absolute workspace"
+        )
+    try:
+        from issue_start import worktree_ledger
+    except ImportError as exc:
+        raise GitgateError(
+            f"supervised workspace authority is unavailable: {exc}"
+        ) from exc
+    try:
+        root = Path(declared).resolve(strict=True)
+        if str(root) != declared or not root.is_dir():
+            raise GitgateError(
+                "supervised workspace must be an existing canonical directory"
+            )
+        current = Path.cwd().resolve(strict=True)
+        if current != root:
+            raise GitgateError(
+                "supervised read requires the process directory to be the host-derived workspace"
+            )
+        # Do not trust the environment variable by itself.  The host's durable
+        # ledger is the authority for which worktree is currently owned.
+        main_root = worktree_ledger.main_worktree_root(root)
+        ledger = worktree_ledger.read_ledger(main_root)
+        matches = [
+            entry for entry in ledger.get("entries", [])
+            if worktree_ledger.is_active_entry(entry)
+            and isinstance(entry.get("workspace"), str)
+            and Path(entry["workspace"]).resolve(strict=True) == root
+        ]
+        if len(matches) != 1:
+            raise GitgateError(
+                "supervised workspace must have exactly one active central ledger entry"
+            )
+        # Opening the root with no-follow verifies that the path used below is
+        # still a directory and is not a final symlink.  Relative file opens
+        # are anchored to this descriptor, never to a later process cwd.
+        root_fd = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        os.close(root_fd)
+        return root
+    except GitgateError:
+        raise
+    except (OSError, ValueError, worktree_ledger.LedgerError) as exc:
+        raise GitgateError(
+            f"supervised workspace authority is unavailable: {exc}"
+        ) from exc
+
+
+def _read_workspace_file(relative):
+    """Read one regular, non-symlink file below the invoking workspace.
+
+    In a supervised process ``root`` is host- and ledger-derived.  In ordinary
+    use it remains the invoking directory so the general-purpose gitgate
+    command is not needlessly changed.
+    """
+
+    relative = validate_read_path(relative)
+    handles = []
+    try:
+        root = _supervised_read_root()
+        directory = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        handles.append(directory)
+        parts = relative.split("/")
+        for part in parts[:-1]:
+            directory = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=directory,
+            )
+            handles.append(directory)
+        leaf = os.open(
+            parts[-1], os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=directory,
+        )
+        handles.append(leaf)
+        before = os.fstat(leaf)
+        if not stat.S_ISREG(before.st_mode) \
+                or before.st_nlink != 1 or before.st_size > READ_MAX_BYTES:
+            raise GitgateError("read target must be one small regular file")
+        chunks = []
+        size = 0
+        while True:
+            chunk = os.read(leaf, min(65536, READ_MAX_BYTES + 1 - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+            if size > READ_MAX_BYTES:
+                raise GitgateError("read target is too large")
+        after = os.fstat(leaf)
+        if (before.st_dev, before.st_ino, before.st_size, before.st_nlink) != (
+                after.st_dev, after.st_ino, after.st_size, after.st_nlink):
+            raise GitgateError("read target changed during read")
+        try:
+            return b"".join(chunks).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise GitgateError("read target is not UTF-8") from exc
+    except GitgateError:
+        raise
+    except OSError as exc:
+        raise GitgateError(f"read target is unavailable: {exc}") from exc
+    finally:
+        for handle in reversed(handles):
+            try:
+                os.close(handle)
+            except OSError:
+                pass
+
+
+def _run_read(args):
+    if len(args) != 1:
+        raise GitgateError("`read` requires exactly one workspace-relative path")
+    sys.stdout.write(_read_workspace_file(args[0]))
+    return 0
 
 
 def _now():
@@ -337,6 +500,8 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
     try:
+        if argv and argv[0] == "read":
+            return _run_read(argv[1:])
         if argv and argv[0] == "adopt-branch":
             request = parse_adopt_branch_args(argv[1:])
             result = adopt_branch(request)

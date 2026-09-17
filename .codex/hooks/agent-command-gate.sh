@@ -77,7 +77,7 @@
 #          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
 #          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
-#          reviewer: diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
+#          reviewer: read/diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
 #          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
 #          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
@@ -205,7 +205,7 @@ GITGATE_VERBS_BY_ROLE = {
     # ブランチを切る契約であり、既存ブランチを掴む必要が無い。既存ブランチの取得は
     # 是正ラウンド固有の必要性なので、最小権限のまま是正ロール側にだけ置く。
     "issue-implementer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
     # issue-fixer（Issue #308）: 是正ラウンド専用。権限は issue-implementer と**同一**
@@ -219,12 +219,12 @@ GITGATE_VERBS_BY_ROLE = {
     # 既存ブランチへ移る」唯一の手段として意味を持つ（生 `git switch` は層3 で deny）ため、
     # 2ツリーで同一の verb 集合を保つ。worktree 解放系 verb は Codex 側では発生しない。
     "issue-fixer": {
-        "status", "add", "commit", "push", "branch-current",
+        "status", "read", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
         "adopt-branch",
     },
-    # pr-reviewer: レビューの読取専用のみ（diff/log）。
-    "pr-reviewer": {"diff", "log"},
+    # pr-reviewer: レビューの読取専用のみ（read/diff/log）。
+    "pr-reviewer": {"read", "diff", "log"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
@@ -535,6 +535,36 @@ agent_type = first_string(
 tool_name = first_string(payload.get("tool_name"))
 tool_input = payload.get("tool_input")
 command = tool_input.get("command") if isinstance(tool_input, dict) else None
+
+
+def supervised_workdir_violation(payload, role):
+    """Reject a tool-selected directory that differs from the host boundary.
+
+    The normal command gate has no authority to choose a directory.  During a
+    supervised run the outer supervisor provides the canonical workspace and
+    the inner process starts there.  If a hook payload exposes ``cwd`` or
+    ``workdir``, it must repeat that exact host value; a subdirectory, a
+    relative path, and a symlink spelling are rejected instead of being
+    interpreted by the reader.
+    """
+
+    if role not in GATED_ROLES or os.environ.get("CODEX_ISSUE_SUPERVISED") != "1":
+        return None
+    root = os.environ.get("CODEX_ISSUE_WORKSPACE")
+    if not isinstance(root, str) or not root or not os.path.isabs(root):
+        return "the supervised host workspace is missing or not absolute"
+    if os.path.realpath(root) != root or not os.path.isdir(root):
+        return "the supervised host workspace is not an existing canonical directory"
+    if isinstance(payload.get("tool_input"), dict):
+        tool_input = payload["tool_input"]
+        values = [tool_input.get(name) for name in ("cwd", "workdir")
+                  if name in tool_input]
+        if len(values) > 1 and values[0] != values[1]:
+            return "tool_input cwd and workdir disagree"
+        for value in values:
+            if not isinstance(value, str) or value != root:
+                return "tool_input cwd/workdir must equal the host-derived workspace"
+    return None
 
 
 def dangerous_shell_symbol(command_text):
@@ -1040,7 +1070,13 @@ if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if dangerous_token:
+supervised_workdir_reason = supervised_workdir_violation(payload, agent_type)
+if supervised_workdir_reason:
+    reason = (
+        f"agent-command-gate ({agent_type}): {supervised_workdir_reason}; "
+        "refusing because the supervisor-bound worktree cannot be confirmed."
+    )
+elif dangerous_token:
     # agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」だった穴を、
     # 設定側の deny 記法では塞ぎ切れない env-prefix/abspath/compound 経路について補完する）。
     reason = (

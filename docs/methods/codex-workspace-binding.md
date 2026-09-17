@@ -53,6 +53,15 @@ reservedでない一般placeholder・コード断片はsnapshotデータとし�
 passのreplacementなので、replacement内のbraceを再解釈しない。innerはhostが提示した1 pathだけへschema v1 handoffを
 書き込む。
 
+supervised handoffの形式は実装者・是正者ともJSON（拡張子`.json`、schema version 1）に統一する。
+hostとvalidatorは`json.loads`で読み、必要なキーと値を検査する。旧来の`.yaml`を新しいlaunch planへ
+指定した場合はfail-closeするが、既存ledgerや回収済みhandoffに残るYAMLの履歴は削除しない。
+
+activeな台帳entryは、同じIssue・役割・ラウンド・task key・作業場所・entry IDについて一意でなければならない。
+`released`または`abandoned`のentryは証跡として保存するが、重複判定からは除外する。active entryが複数あれば、
+発行・intent読込・試行予約・Popen直前のどの段階でも拒否する。再開は同じentry、作業場所、ブランチ、OID、
+intent digest、試行の境界を再検査して行う。
+
 issuerはworktreeを作成せず、GitHubにも接続しない。worktree登録とsnapshot captureはcallerであるhost運用の
 責務である。capture側はIssueを`github-api`、karteを`karte-cli`で取得・exportした時点のactorとUTC秒を
 snapshot schema v2の`capture`へ記録する。issuerはこの記録を形式・source種別・未来時刻でないことまで検証して
@@ -120,9 +129,20 @@ OpenAI公式設定ではlegacy `--sandbox workspace-write`はwrite/network境界
 別である。
 
 採用実装は`:workspace`をextendsするtask-private `issue-supervised` profileである。runtime/auth/Codex install
-rootをdenyし、networkをdisabled、child shell環境を`PATH=/usr/bin:/bin`だけにする。native Codex実行ファイル
-だけをprivate `/run/issue-supervised/codex`へread-only bindして自己re-execを成立させる。model/APIを使わない
-active/negative probeでこの実効境界を検証し、検証不能はlaunch前fail-closeする。
+rootをdenyし、networkをdisabled、child shell環境を`PATH=/usr/bin:/bin`だけにする。検証済みnative Codex実体から
+実行本体と、正確な同階層の通常ファイル`codex-code-mode-host`を機械的に導出する。実行本体はprivate
+`/run/issue-supervised/codex`へ、補助プログラムは`/run/issue-supervised/codex-code-mode-host`へ、それぞれread-only bindする。native CLIの自己再起動用bindも個別ファイルに
+限り、Codexのインストールディレクトリ全体はbindしない。native実体・同階層helper・launcher・package metadata
+について、通常ファイル、リンク数1、信頼できる所有者とモード、実行権、内容のハッシュ、device/inode/sizeを
+検査し、package versionとCodex versionの一致を確認する。この検査はintent生成時とPopen直前にそれぞれ二度行い、
+途中の差し替えを検出したら拒否する。model/APIを使わないactive/negative probeでは、helper aliasのread/execute
+成功・write失敗と、元のinstall tree側helperのread/write/execute失敗を確認する。検証不能はlaunch前fail-closeする。
+
+supervised roleが現在のブランチ・OID・役割契約・対象ファイルを確認するときは、既存の`gitgate`へ追加した
+閉じた読み取り入口を使う。許可されるのは、単独の`python3 -m gitgate read <workspace-relative-file>`であり、
+`..`、絶対パス、区切りの重複、シンボリックリンク、通常ファイルでない対象、上限を超える出力、shell記号や
+連結を拒否する。status、branch-current、log、diffとreadの文法と確認対象は、roleの正本本文とCodex wrapperで
+同じものを記載する。
 
 ## 維持する権限非対称
 

@@ -174,7 +174,9 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(launch["executables"], {
             "bwrap": "/usr/bin/bwrap",
             "codex": {"lookup_name": "codex",
-                      "sandbox_alias": "/run/issue-supervised/codex"},
+                      "native_sibling": "codex-code-mode-host",
+                      "sandbox_alias": "/run/issue-supervised/codex",
+                      "native_sibling_alias": "/run/issue-supervised/codex-code-mode-host"},
         })
         self.assertEqual(launch["permission_profile"], "issue-supervised")
         for role, config in launch["roles"].items():
@@ -213,6 +215,57 @@ class AssetParityTests(unittest.TestCase):
         readme = (ROOT / ".codex" / "hooks" / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("pre_tool_use:3:0", readme)
         self.assertFalse((ROOT / ".codex" / "hooks" / "codex-workspace-binding-gate.sh").exists())
+
+    def test_supervised_role_assets_use_json_handoff_and_closed_read(self):
+        for role in ("issue-implementer", "issue-fixer"):
+            with self.subTest(role=role):
+                source = (ROOT / ".ai" / "agents" / f"{role}.md").read_text(encoding="utf-8")
+                wrapper = (ROOT / ".codex" / "agents" / f"{role}.toml").read_text(encoding="utf-8")
+                self.assertNotIn(".yaml", source)
+                self.assertNotIn(".yaml", wrapper)
+                self.assertIn('"phase": "pre_publish"', source)
+                self.assertIn("python3 -m gitgate read", source)
+                self.assertIn("read .codex/agents/" + role + ".toml", wrapper)
+                self.assertIn("read .ai/agents/" + role + ".md", wrapper)
+                examples = re.findall(r"```json\n(.*?)\n```", source, re.DOTALL)
+                self.assertTrue(examples)
+                pre_publish = [json.loads(example) for example in examples
+                               if '"phase": "pre_publish"' in example]
+                self.assertEqual(len(pre_publish), 1)
+                self.assertEqual(pre_publish[0]["phase"], "pre_publish")
+                self.assertEqual(pre_publish[0]["status"], "ready")
+                self.assertIn("result", pre_publish[0])
+
+    def test_all_gated_roles_declare_the_same_closed_read_contract(self):
+        """F33/F37: hook allowlist と三役の共通・各PF本文を同時に検査する。"""
+
+        gates = [
+            (ROOT / ".codex" / "hooks" / "agent-command-gate.sh").read_text(
+                encoding="utf-8"
+            ),
+            (ROOT / ".claude" / "hooks" / "agent-command-gate.sh").read_text(
+                encoding="utf-8"
+            ),
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            with self.subTest(role=role):
+                common = (ROOT / ".ai" / "agents" / f"{role}.md").read_text(
+                    encoding="utf-8"
+                )
+                codex = (ROOT / ".codex" / "agents" / f"{role}.toml").read_text(
+                    encoding="utf-8"
+                )
+                claude = (ROOT / ".claude" / "agents" / f"{role}.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("python3 -m gitgate read", common)
+                self.assertTrue("python3 -m gitgate read" in codex or "`read`" in codex)
+                self.assertTrue("python3 -m gitgate read" in claude or "`read`" in claude)
+                for gate in gates:
+                    self.assertIn('"' + role + '": {', gate)
+                    role_start = gate.index('"' + role + '": {')
+                    role_end = gate.index("\n    },", role_start)
+                    self.assertIn('"read"', gate[role_start:role_end])
 
 
 if __name__ == "__main__":

@@ -130,7 +130,7 @@ def inspect_git_facts(
 def validate_handoff_path(role: str, issue: int, round_number: int, value: str) -> str:
     path = Path(value)
     if (not value or path.is_absolute() or ".." in path.parts or len(path.parts) != 3
-            or path.parts[:2] != ("tmp", "_handoff") or path.suffix != ".yaml"):
+            or path.parts[:2] != ("tmp", "_handoff") or path.suffix != ".json"):
         raise SupervisorWorkspaceError("CODEX_SUPERVISOR_HANDOFF_INVALID", value)
     prefix = (f"issue-implementer--issue-{issue}" if role == "issue-implementer"
               else f"issue-fixer--issue-{issue}-r{round_number}")
@@ -192,7 +192,8 @@ def one_by_task(repo_root: Path | str, task_key: str) -> tuple[Path, dict[str, A
     except worktree_ledger.LedgerError as exc:
         raise SupervisorWorkspaceError(exc.reason, exc.detail) from exc
     matches = [item for item in entries if item.get("platform") == "codex-supervisor"
-               and item.get("task_key") == task_key]
+               and item.get("task_key") == task_key
+               and worktree_ledger.is_active_entry(item)]
     if len(matches) != 1:
         raise SupervisorWorkspaceError(
             "CODEX_SUPERVISOR_LAUNCH_MISSING" if not matches else "CODEX_SUPERVISOR_LAUNCH_DUPLICATE",
@@ -262,7 +263,8 @@ def reserve_launch_attempt(
     def mutate(document: dict[str, Any]) -> None:
         matches = [item for item in document["entries"]
                    if item.get("platform") == "codex-supervisor"
-                   and item.get("task_key") == task_key]
+                   and item.get("task_key") == task_key
+                   and worktree_ledger.is_active_entry(item)]
         if len(matches) > 1:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LAUNCH_DUPLICATE", task_key)
         if not matches:
@@ -270,7 +272,7 @@ def reserve_launch_attempt(
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_RESUME_STATE_INVALID")
             if any(item.get("platform") == "codex-supervisor"
                    and item.get("workspace") == facts.workspace
-                   and item.get("status") not in worktree_ledger.TERMINAL_STATUSES
+                   and worktree_ledger.is_active_entry(item)
                    for item in document["entries"]):
                 raise SupervisorWorkspaceError("CODEX_SUPERVISOR_WORKSPACE_OWNED", facts.workspace)
             entry = {
@@ -387,6 +389,14 @@ def reserve_canonical_launch_attempt(
                 else "CODEX_SUPERVISOR_LAUNCH_DUPLICATE", ledger_entry_id,
             )
         entry = matches[0]
+        if not worktree_ledger.is_active_entry(entry):
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LAUNCH_MISSING", ledger_entry_id)
+        active_same_task = [item for item in document["entries"]
+                            if item.get("platform") == "codex-supervisor"
+                            and item.get("task_key") == task_key
+                            and worktree_ledger.is_active_entry(item)]
+        if len(active_same_task) != 1 or active_same_task[0].get("entry_id") != ledger_entry_id:
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_LAUNCH_DUPLICATE", task_key)
         expected = {
             "platform": "codex-supervisor", "issue": issue, "agent_type": role,
             "round": None if role == "issue-implementer" else round_number,
@@ -499,6 +509,14 @@ def verify_canonical_launch_reservation(
         if len(matches) != 1:
             raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED")
         entry = matches[0]
+        if not worktree_ledger.is_active_entry(entry):
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED")
+        active_same_task = [item for item in document["entries"]
+                            if item.get("platform") == "codex-supervisor"
+                            and item.get("task_key") == entry.get("task_key")
+                            and worktree_ledger.is_active_entry(item)]
+        if len(active_same_task) != 1 or active_same_task[0].get("entry_id") != ledger_entry_id:
+            raise SupervisorWorkspaceError("CODEX_SUPERVISOR_ATTEMPT_FENCED")
         attempts = entry.get("supervisor_attempts")
         latest = attempts[-1] if isinstance(attempts, list) and attempts else None
         if (entry.get("platform") != "codex-supervisor"

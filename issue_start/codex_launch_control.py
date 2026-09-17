@@ -595,9 +595,9 @@ def issue(request: IssueRequest, *, now: datetime) -> Mapping[str, Any]:
         def collides(item: Mapping[str, Any]) -> bool:
             if item.get("platform") != "codex-supervisor":
                 return False
-            if item.get("change_plan_id") == request.change_plan_id:
-                return True
-            if item.get("status") in worktree_ledger.TERMINAL_STATUSES:
+            # Terminal records are historical evidence only.  They must remain
+            # in the ledger, but cannot block a new active issuance.
+            if not worktree_ledger.is_active_entry(item):
                 return False
             same_issue_role_round = (
                 item.get("issue") == request.issue
