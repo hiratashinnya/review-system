@@ -33,6 +33,10 @@ from issue_start.gate import (
     record_open_entry,
 )
 from issue_start.hook import run as run_hook
+from tests.unit.codex_fixture import (
+    fake_codex_path_environment,
+    install_fake_codex_distribution,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,6 +103,13 @@ class CodexLaunchIntentTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.codex_fixture = install_fake_codex_distribution(self.root)
+        self.path_patch = patch.dict(
+            os.environ,
+            {"PATH": fake_codex_path_environment(self.codex_fixture["lookup_dir"])},
+        )
+        self.path_patch.start()
+        self.addCleanup(self.path_patch.stop)
         self.manifest = json.loads(
             (ROOT / "issue_start/managed-entrypoints-v2.json").read_text(encoding="utf-8")
         )
@@ -119,6 +130,16 @@ class CodexLaunchIntentTests(unittest.TestCase):
         workspace = self.root / ".worktrees/issue-10"
         return GitFacts(str(workspace), str(self.root), ".worktrees/issue-10",
                         "example/repo", "codex/issue-10", OID)
+
+    def test_codex_validation_uses_the_fixture_without_host_installation(self):
+        path, evidence = codex_launch_intent._stable_codex_bundle_evidence(
+            "codex", reason="CODEX_EXECUTABLE_INVALID"
+        )
+        self.assertEqual(Path(evidence["launcher"]["path"]), self.codex_fixture["launcher"])
+        self.assertEqual(Path(path), self.codex_fixture["native"])
+        self.assertEqual(
+            Path(evidence["code_mode_host"]["path"]), self.codex_fixture["code_mode_host"]
+        )
 
     @staticmethod
     def manifest_evidence(value, *, reason):
@@ -869,9 +890,10 @@ class CodexLaunchIntentTests(unittest.TestCase):
                 str(executable), reason="TEST_EXECUTABLE_INVALID",
             )
 
-    def test_installed_codex_is_accepted_with_stable_evidence(self):
-        if shutil.which("codex") is None:
-            self.skipTest("NOT_TESTED: installed Codex is unavailable")
+    def test_codex_fixture_is_accepted_with_stable_evidence(self):
+        self.assertEqual(
+            Path(shutil.which("codex")).resolve(), self.codex_fixture["launcher"]
+        )
         path, evidence = codex_launch_intent._stable_executable_evidence(
             "codex", reason="CODEX_EXECUTABLE_INVALID",
         )
