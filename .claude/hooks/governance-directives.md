@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@5feffb85b619 -->
+<!-- synced-from: CLAUDE.md@816b36e474e8 -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -31,6 +31,15 @@
   （形式＝チャットが正本、に加えてタイミング＝実行前を要求する）ため、中核規範 12 に
   タイミング要素を1文追記した上で marker を現在値へ更新した。①②④は中核規範（1〜12）の
   射程外と判断し本文へは反映していない（「見た上で不要と判断した」ことの記録）。
+
+  Issue #522（2026-09-19）: `.claude/rules/02-decision-process.md` の
+  「起票先はプロジェクト区分で決める」判定表へ、汎用開発ハーネス2件
+  （`feedback_ledger`＝オーナー判断フィードバック台帳の CLI と機械 lint、
+  `ai_layout`＝`.ai/` 直下の非活性ディレクトリ列挙の共通土台）を追記しただけ。
+  **判定表の列挙そのものの保守**であって、上記の中核規範（1〜12＝独断禁止・起票義務・
+  正本の所在・品質降格禁止・実行前報告等）には掛からない。本文は変更せず marker のみ
+  現在値へ更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`
+  「追従したあとにやること」）。
 
   PR #494（2026-09-07）: `.claude/rules/05-skills-agents.md` のスキル一覧へ
   `/branch-hygiene`（マージ済みローカルブランチ ref の棚卸し・削除スキル）の1行を

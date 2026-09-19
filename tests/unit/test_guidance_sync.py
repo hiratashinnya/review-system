@@ -258,10 +258,13 @@ class PreCommitHookIntegrationTests(unittest.TestCase):
         self.git("config", "user.email", "test@example.com")
         (self.root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
 
-        package = self.root / "guidance_sync"
-        package.mkdir()
-        for source in (REPO_ROOT / "guidance_sync").glob("*.py"):
-            (package / source.name).write_bytes(source.read_bytes())
+        # `guidance_sync` は `.ai/` 直下の非活性ディレクトリ列挙の共通土台（`ai_layout`）を
+        # import するため、hook を実体起動する一時 repository にも同梱する（Issue #522）。
+        for package_name in ("guidance_sync", "ai_layout"):
+            package = self.root / package_name
+            package.mkdir()
+            for source in (REPO_ROOT / package_name).glob("*.py"):
+                (package / source.name).write_bytes(source.read_bytes())
 
         self.hook = self.root / ".githooks" / "pre-commit"
         self.hook.parent.mkdir()

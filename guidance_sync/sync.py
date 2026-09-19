@@ -16,6 +16,8 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
+from ai_layout import NON_ACTIVE_SHARED_DIRS
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMON_SOURCE = ".ai/guidance/common.md"
 PRINCIPLES_SOURCE = ".ai/skills/spec-principles/SKILL.md"
@@ -24,11 +26,18 @@ TARGETS: Mapping[str, str] = {
     ".github/copilot-instructions.md": ".ai/guidance/platforms/copilot.md",
 }
 # Deliberately documented here so a new source cannot silently turn inactive
-# records into a PF-wide always-loaded guidance dependency.
-NON_GUIDANCE_SHARED_DIRS: tuple[str, ...] = (
-    ".ai/rationale/",
-    ".ai/troubleshooting/",
-    ".ai/schema/",
+# records into a PF-wide always-loaded guidance dependency.  Derived from the
+# shared base (`ai_layout.NON_ACTIVE_SHARED_DIRS`) with a trailing slash, because
+# this list is consumed with ``str.startswith`` against source paths.
+#
+# `.ai/guidance` is deliberately NOT part of this list: the predicate here is
+# "must never be a guidance source", and ``TARGETS`` above is built precisely from
+# `.ai/guidance/platforms/*.md`.  Adding it would forbid the only legitimate source
+# tree.  `asset_parity.inventory.NON_NORMATIVE_SHARED_DIRS` uses the opposite rule
+# (it *adds* `.ai/guidance`) because its predicate is "must never be a parity seed".
+# The two constants are not the same concept — see ``ai_layout``'s docstring.
+NON_GUIDANCE_SHARED_DIRS: tuple[str, ...] = tuple(
+    f"{directory}/" for directory in NON_ACTIVE_SHARED_DIRS
 )
 PRINCIPLES_MARKER_RE = re.compile(
     rb"<!--\s*principles-source:\s*\.ai/skills/spec-principles/SKILL\.md;\s*"

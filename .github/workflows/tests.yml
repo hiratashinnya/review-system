@@ -105,3 +105,33 @@ jobs:
           fi
           echo "Type-checking (fail-close): ${files[*]}"
           pyright "${files[@]}"
+
+  feedback-ledger:
+    # Issue #522: `.ai/feedback/` の機械 lint。`typecheck` と同じ理由で独立ジョブにする
+    # （lint 失敗と unittest 失敗を別々の再実行可能なチェックとして出す）。
+    #
+    # `fetch-depth: 0` が要る理由: L6（immutability＝merge base に在る台帳エントリの
+    # バイト変更・削除の拒否）と P1（改訂案の状態遷移）は **merge base との比較**で判定する。
+    # 既定の shallow clone（depth=1）では base を解決できず、両規則が WARN で skip されて
+    # 「検査したつもりで何も見ていない」状態になる。
+    #
+    # **CI が落とすのは ERROR 閾値だけ**（`check` の終了コードは errors>0 のときだけ 4）。
+    # 滞留の WARN はここでは落とさない——毎 PR で鳴るゲートは形骸化するため、滞留の督促は
+    # I3（週次棚卸しのフック）側に置く。
+    #
+    # コスト: このリポジトリは public のため GitHub Actions は完全に無課金（従量課金は
+    # private リポジトリの無料枠超過分だけ）。追加ジョブは標準ライブラリだけで数秒で終わる。
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Feedback ledger lint (Issue #522, fail-close on ERROR only)
+        run: python3 -m feedback_ledger check --canonical

@@ -1,0 +1,3 @@
+# 改訂案（FBP-<YYYYMMDD>-<slug>.toml）の置き場。
+# 書込みは `python3 -m feedback_ledger propose|amend-proposal|approve|reject|apply-done` だけ。
+# 空でも置き場を版管理下に残すためのファイル（削除しない）。

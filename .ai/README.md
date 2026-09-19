@@ -12,6 +12,7 @@ Issue #406 の移行方針では、`.ai/` を PF（プラットフォーム）�
 | rationale の索引・分離規則 | `.ai/rationale/README.md` |
 | 障害・復旧記録 | `.ai/troubleshooting/<asset>.md` |
 | 共通 schema | `.ai/schema/<name>-v<major>.json` |
+| オーナー判断の捕捉台帳 | `.ai/feedback/{ledger,queue,triage}/*.toml` |
 | リポジトリ共通の常駐 guidance | `.ai/guidance/common.md` |
 
 PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契約の一部なので wrapper/metadata 側に残すが、共通本文の正本にはしない。[Individually-managed-lists.md](Individually-managed-lists.md) は、実在ファイルと未配置を含む PF 個別差分専用の管理リストである。
@@ -37,10 +38,15 @@ PF wrapper は共通本文への相対リンクを持つ。PF 差分は実行契
 ## 非活性文書の境界（Issue #407）
 
 `.ai/rationale/`（ADR／設計経緯）、`.ai/troubleshooting/`（障害・復旧記録）、
-`.ai/schema/`（共有 schema）はいずれも loader-facing asset ではない。規範本文へ
+`.ai/schema/`（共有 schema）、`.ai/feedback/`（オーナー判断の捕捉台帳・Issue #522）は
+いずれも loader-facing asset ではない。規範本文へ
 混入させず、PF tree へ複製せず、必要なときだけリポジトリ相対リンクで参照する。
 配置の機械可読な契約は [`.ai/schema/asset-placement-v1.json`](schema/asset-placement-v1.json)
-にある。`asset_parity` の inventory は parity matrix の loader-facing **比較起点（parity seed）**として
+にある。この4ディレクトリの列挙の共通土台は `ai_layout.NON_ACTIVE_SHARED_DIRS` にあり、
+`asset_parity`（parity seed 除外）と `guidance_sync`（guidance source 禁止）が
+**それぞれ異なる差分を足して**参照する（`.ai/guidance` の扱いは両者で逆＝`ai_layout` の docstring）。
+`.ai/feedback/` だけは**書込み経路が CLI（`python3 -m feedback_ledger`）に限定**され、
+`permissions.deny` で Write/Edit を塞いである（[`.ai/feedback/README.md`](feedback/README.md)）。`asset_parity` の inventory は parity matrix の loader-facing **比較起点（parity seed）**として
 `.claude/skills/*/SKILL.md` と `.claude/agents/*.md` を列挙する。この seed は PF wrapper の発見起点であり、
 共通本文の編集正本ではない。共通本文の SoT は `.ai/skills/` と `.ai/agents/` にある。
 troubleshooting は asset ごとに 1 ファイルの index とし、個別 incident はその本文の
