@@ -1,7 +1,13 @@
 # `.ai/schema/` — 共通 schema の正本（非活性）
 
 ここには PF に依存しない AI 資産の機械可読な契約を置く。現在の配置契約は
-[`asset-placement-v1.json`](asset-placement-v1.json) である。
+[`asset-placement-v1.json`](asset-placement-v1.json) である。オーナー判断フィードバック台帳
+（`.ai/feedback/`）の3文書型の契約は
+[`feedback-ledger-v1.json`](feedback-ledger-v1.json)、
+[`feedback-proposal-v1.json`](feedback-proposal-v1.json)、
+[`feedback-triage-v1.json`](feedback-triage-v1.json) にある。**検証器は手書き**で
+（`feedback_ledger/`・標準ライブラリのみ）、`jsonschema` 依存は持たない
+——これらの JSON は「ドキュメント兼検証メタデータ」であって実行される schema ではない。
 
 ## 配置規律
 
@@ -11,6 +17,7 @@
 | ADR／rationale | `.ai/rationale/<name>.md` | 設計理由、却下案、変更経緯、既知の制約 |
 | troubleshooting | `.ai/troubleshooting/<asset>.md` | asset ごとの index。incident は本文見出しで分け、障害の症状、復旧手順、実測ログを記録する |
 | 共有 schema | `.ai/schema/<name>-v<major>.json` | 上記資産や検証器が共有する形式契約 |
+| オーナー判断の捕捉台帳 | `.ai/feedback/{ledger,queue,triage}/*.toml` | CLI（`feedback_ledger`）だけが書ける canonical TOML。手編集は L6/L7 で検出する |
 
 このディレクトリ自体は loader-facing asset ではない。schema を変更したときは、
 それを読む検証器と回帰テストを同じ変更で更新する。PF wrapper に schema の本文を

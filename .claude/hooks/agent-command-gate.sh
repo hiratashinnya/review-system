@@ -46,11 +46,13 @@
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
 #        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
-#        time_fixture_lint、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
+#        time_fixture_lint|feedback_ledger、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
 #        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
 #        coverage/karte と同型でサブコマンドを `check` に絞る（Issue #385・#129 の抜け穴を拡大しない）。
+#        feedback_ledger（Issue #522）は書込み verb を持つため、ロール別の read-only 集合
+#        （check/status/index）だけを通す（FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE）。
 #        `pyright` は node バイナリの型検査ツールで python モジュールではないため先頭語として追加した
 #        （Issue #510）。層3 でも書込系・対話系フラグだけを狙い撃ちで deny する（後述）。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
@@ -335,6 +337,7 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # 不整合を消し、エージェントの混乱・ハルシネーションリスクを下げる（防御力は #129 限界のため不変）。
 ALLOWED_PYTHON_MODULES = {
     "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
+    "feedback_ledger",
 }
 # `asset_parity`/`time_fixture_lint`（Issue #385）: CI が回している read-only 監査コマンド
 # （`python3 -m asset_parity check`・`python3 -m time_fixture_lint check`）。両ツールとも argparse
@@ -373,6 +376,23 @@ COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
 # （Issue #385 AC3・「サブコマンド制限の要否」への対応）。
 ASSET_PARITY_ALLOWED_SUBCOMMANDS = {"check"}
 TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS = {"check"}
+# `feedback_ledger`（Issue #522）: オーナー判断フィードバック台帳（`.ai/feedback/`）の
+# **CLI 専用書込み**ツール。`karte` と同じく「状態を書き換える verb を持つ」ので、モジュール
+# 単位ではなく **verb 単位・ロール別**に絞る（`GITGATE_VERBS_BY_ROLE` と同型の表なので、下の
+# missing_role_tables 自己検査へ登録してある＝ロールの登録漏れが KeyError で素通しに化けない）。
+#
+# 3ロールとも **read-only の verb だけ**（`check`/`status`/`index`）を与える。要点は2つ。
+#   * **是正当事者に `approve` を与えない**: 承認は週次棚卸しでのオーナー判断であり、
+#     指摘を受けて直している当事者が自分の案を承認できると「指摘した側」と「直す側」の
+#     分離が壊れる（`karte ingest-review` を issue-fixer に許さないのと同じ理由）。
+#   * **書込み verb を誰にも与えない**: 台帳への記録・改訂案の起票・棚卸しの確定はいずれも
+#     主文脈（非 gated）が行う。gated ロールが台帳を必要とするのは「今どうなっているかを
+#     読む」ときだけなので、最小権限のまま read-only に留める。
+FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE = {
+    "issue-implementer": {"check", "status", "index"},
+    "issue-fixer": {"check", "status", "index"},
+    "pr-reviewer": {"check", "status", "index"},
+}
 
 
 def allowed_python_modules(role):
@@ -500,6 +520,7 @@ for gated_role in sorted(GATED_ROLES):
         for table_name, table in (
             ("GITGATE_VERBS_BY_ROLE", GITGATE_VERBS_BY_ROLE),
             ("GH_SUBCOMMANDS_BY_ROLE", GH_SUBCOMMANDS_BY_ROLE),
+            ("FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE", FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE),
         )
         if gated_role not in table
     ]
@@ -790,6 +811,23 @@ def head_command_violation(tokens, role):
                     return (
                         f"`python3 -m asset_parity` only allows the read-only audit subcommand(s) "
                         f"<{subs}> (it is a presence/absence checker with no write subcommand)"
+                    )
+            # Issue #522: feedback_ledger は書込み verb を持つため、ロール別の read-only
+            # 集合（FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE）でしか通さない。
+            if tokens[2] == "feedback_ledger":
+                allowed_verbs = FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE.get(role)
+                if allowed_verbs is None:
+                    return (
+                        "`python3 -m feedback_ledger` is not available to this role "
+                        "(the feedback ledger is written by the main context only)"
+                    )
+                subcommand = tokens[3] if len(tokens) >= 4 else ""
+                if subcommand not in allowed_verbs:
+                    subs = "|".join(sorted(allowed_verbs))
+                    return (
+                        f"`python3 -m feedback_ledger` only allows the read-only verbs "
+                        f"<{subs}> for this role (recording owner decisions and approving "
+                        "proposals belong to the main context, not to a role under review)"
                     )
             if tokens[2] == "time_fixture_lint":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""

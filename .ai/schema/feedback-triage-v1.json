@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/schemas/feedback-triage-v1.json",
+  "title": "review-system feedback weekly triage record/v1",
+  "description": "Weekly triage record stored as canonical TOML under .ai/feedback/triage/. This JSON is documentation and validation metadata; the executable validator is hand-written in feedback_ledger/ and depends on the standard library only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "period_start", "period_end", "reviewed", "outcomes", "summary"],
+  "properties": {
+    "schema": {"const": "feedback-triage/v1"},
+    "id": {"type": "string", "pattern": "^TRG-[0-9]{4}-W[0-9]{2}$"},
+    "period_start": {"type": "string", "format": "date"},
+    "period_end": {"type": "string", "format": "date"},
+    "reviewed": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*$"},
+      "description": "Must equal the set of outcomes[].entry (rule T1)."
+    },
+    "outcomes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/outcome"}
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["notes"],
+      "properties": {"notes": {"type": "string"}}
+    }
+  },
+  "$defs": {
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry", "verdict", "proposal", "merged_into", "reason"],
+      "properties": {
+        "entry": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "verdict": {"enum": ["proposed", "no-change", "merged-into", "need-more-evidence"]},
+        "proposal": {"type": "string", "pattern": "^(?:|FBP-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*)$"},
+        "merged_into": {"type": "string", "pattern": "^(?:|FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*)$"},
+        "reason": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"verdict": {"const": "proposed"}}, "required": ["verdict"]},
+          "then": {"properties": {"proposal": {"minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"verdict": {"const": "merged-into"}}, "required": ["verdict"]},
+          "then": {"properties": {"merged_into": {"minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"verdict": {"const": "no-change"}}, "required": ["verdict"]},
+          "then": {"properties": {"reason": {"minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"verdict": {"const": "need-more-evidence"}}, "required": ["verdict"]},
+          "then": {"properties": {"reason": {"minLength": 1}}}
+        }
+      ]
+    }
+  }
+}

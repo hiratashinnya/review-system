@@ -1,0 +1,3 @@
+# 週次棚卸し記録（TRG-<YYYY>-W<NN>.toml）の置き場。
+# 書込みは `python3 -m feedback_ledger triage-close --from <draft>` だけ。
+# 空でも置き場を版管理下に残すためのファイル（削除しない）。
