@@ -1,10 +1,13 @@
 """dsv2.cleantmp — tmp 著作ミラーの安全削除（ガード付き・reconciliation Step 3-3）。
 
-境界値：``tmp/_handoff``・``tmp/_karte``・``tmp/_worktree`` は拒否／``tmp/`` の外は拒否／
-階層違いは拒否／正常系は削除される。``tmp/_karte``（是正ループの診断カルテ・Issue #307）は
-掃除で消えるとループ状態そのものが失われるため、``_handoff`` と同じ保護名として固定する。
-``tmp/_worktree``（worktree 所有台帳・Issue #309）も同じ——消えると「どの dispatch がどの
-worktree を持っているか」という観測がゼロに戻り、回収・解放（PR-3）の判断材料を失う。
+境界値：``tmp/_handoff``・``tmp/_karte``・``tmp/_worktree``・``tmp/_feedback`` は拒否／
+``tmp/`` の外は拒否／階層違いは拒否／正常系は削除される。``tmp/_karte``（是正ループの
+診断カルテ・Issue #307）は掃除で消えるとループ状態そのものが失われるため、``_handoff`` と
+同じ保護名として固定する。``tmp/_worktree``（worktree 所有台帳・Issue #309）も同じ——消えると
+「どの dispatch がどの worktree を持っているか」という観測がゼロに戻り、回収・解放（PR-3）の
+判断材料を失う。``tmp/_feedback``（オーナー判断フィードバック台帳の下書き・Issue #522）も同じ
+——``triage-open`` が生成する週次棚卸しの下書きは ``triage-close`` まで数日滞留しうるので、
+掃除で消えると確定前のオーナー逐語と判断という再構成不能な一次情報を失う。
 
 **保護名を増やしたら振る舞いテストも増やす**（F-309-07）：``PROTECTED_DIRNAMES`` への
 追加だけでは「共通経路に載っているから動くはず」という推定に留まり、経路を変えたときの
@@ -25,8 +28,8 @@ from dsv2.cli import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, main
 
 
 def _make_repo(case) -> Path:
-    """``tmp/sprint-1/parent-a`` ＋ 全保護名（``_handoff``/``_karte``/``_worktree``）を持つ
-    疑似リポジトリを作る。"""
+    """``tmp/sprint-1/parent-a`` ＋ 全保護名
+    （``_handoff``/``_karte``/``_worktree``/``_feedback``）を持つ疑似リポジトリを作る。"""
     root = Path(tempfile.mkdtemp(prefix="cleantmp-")).resolve()
     case.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
     target = root / "tmp" / "sprint-1" / "parent-a" / "nodes" / "02-spec" / "spec"
@@ -42,6 +45,11 @@ def _make_repo(case) -> Path:
     worktree = root / "tmp" / "_worktree"
     worktree.mkdir(parents=True)
     (worktree / "ledger.json").write_text('{"entries": []}\n', encoding="utf-8")
+    feedback = root / "tmp" / "_feedback"
+    feedback.mkdir(parents=True)
+    (feedback / "TRG-2026-W38.toml").write_text(
+        'schema = "feedback-triage/v1"\n', encoding="utf-8"
+    )
     (root / "doc-system-v2" / "nodes").mkdir(parents=True)
     return root
 
@@ -99,6 +107,23 @@ class TestPlanGuards(unittest.TestCase):
             cleantmp.plan_clean(self.root / "tmp/_worktree/sub", self.root)
         self.assertIn("_worktree", str(ctx.exception))
         self.assertTrue((self.root / "tmp/_worktree/sub").is_dir())
+
+    def test_rejects_feedback_dir(self):
+        """オーナー判断フィードバック台帳の下書き置き場は掃除対象外
+        （Issue #522・F-522-03。確定前のオーナー逐語と判断が失われる）。"""
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_feedback", self.root)
+        self.assertIn("_feedback", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_feedback/TRG-2026-W38.toml").is_file())
+
+    def test_rejects_path_under_feedback(self):
+        """``tmp/_feedback/<sub>`` はちょうど2階層なので階層ガードでは弾けない。
+        保護名ガードが効いていることを固定する（Issue #522・F-522-03）。"""
+        (self.root / "tmp/_feedback/sub").mkdir()
+        with self.assertRaises(cleantmp.CleanTmpError) as ctx:
+            cleantmp.plan_clean(self.root / "tmp/_feedback/sub", self.root)
+        self.assertIn("_feedback", str(ctx.exception))
+        self.assertTrue((self.root / "tmp/_feedback/sub").is_dir())
 
     def test_every_protected_name_is_covered_by_a_behaviour_test(self):
         """``PROTECTED_DIRNAMES`` に**新しい名前を足したら**、その名前の振る舞いテストも
@@ -195,6 +220,7 @@ class TestApply(unittest.TestCase):
         self.assertTrue((self.root / "tmp/_handoff/spec-author--parent-a.yaml").is_file())
         self.assertTrue((self.root / "tmp/_karte/issue-307.md").is_file())
         self.assertTrue((self.root / "tmp/_worktree/ledger.json").is_file())
+        self.assertTrue((self.root / "tmp/_feedback/TRG-2026-W38.toml").is_file())
         self.assertTrue((self.root / "tmp/sprint-1").is_dir())
 
     def test_apply_rejects_symlink_swapped_after_plan(self):
@@ -273,6 +299,16 @@ class TestCli(unittest.TestCase):
         """
         self.assertEqual(self._run(self.root / "tmp/_worktree", apply_=True), EXIT_ERROR)
         self.assertTrue((self.root / "tmp/_worktree/ledger.json").is_file())
+
+    def test_feedback_is_rejected_with_exit_error(self):
+        """``dsv2 clean-tmp --apply`` が ``tmp/_feedback/`` を削除しない
+        （Issue #522・F-522-03）。
+
+        ``_karte``/``_worktree`` と同じく CLI 経路でも固定する——実際に掃除を実行するのは
+        ``reconciliation`` エージェントであり、通るのは CLI 経路だから。
+        """
+        self.assertEqual(self._run(self.root / "tmp/_feedback", apply_=True), EXIT_ERROR)
+        self.assertTrue((self.root / "tmp/_feedback/TRG-2026-W38.toml").is_file())
 
     def test_outside_tmp_is_rejected_with_exit_error(self):
         self.assertEqual(self._run(self.root / "doc-system-v2/nodes", apply_=True), EXIT_ERROR)

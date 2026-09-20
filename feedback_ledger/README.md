@@ -24,6 +24,7 @@ python3 -m feedback_ledger triage-open  --week 2026-W38 --now 2026-09-19
 python3 -m feedback_ledger triage-close --from tmp/_feedback/TRG-2026-W38.toml
 
 python3 -m feedback_ledger check --canonical
+python3 -m feedback_ledger check --canonical --require-base   # CI（base 未解決を ERROR にする）
 python3 -m feedback_ledger status --now 2026-09-19 --json
 python3 -m feedback_ledger index
 ```
@@ -89,10 +90,53 @@ Issue #522 の verb 一覧は `approve --triage <TRG-id> --by <who>` だが、�
 | 台帳エントリの誤記訂正 | `new-entry --from`（新しい id ＋ `supersedes = <旧 id>`）。旧エントリは L6 により変更できない |
 | 改訂案本文の差し替え | `amend-proposal --from`（`pending` のときのみ） |
 | 承認の取り消し | `propose --from <新案> --supersede <承認済み id>`（旧案を `superseded` にする。`approved→pending` の逆行遷移は作らない） |
-| 棚卸し記録の追記 | `triage-close --from`（同じ週の記録を再確定する。棚卸し記録は L6 の対象外） |
+| 棚卸し記録の追記 | `triage-close --from`（同じ週の記録を再確定する。棚卸し記録は L6 の対象外＝次節） |
+
+### 棚卸し記録（`triage/`）を L6 の対象外にした理由
+
+`check_immutability` が見るのは `LEDGER_PREFIX`（`.ai/feedback/ledger/`）だけで、
+週次棚卸し記録は追記のみの制約を受けない。**台帳エントリと棚卸し記録では「何が一次情報か」が
+違う**ため、意図的にこの非対称を採っている（F-522-07）。
+
+* **棚卸しは週内に何度も追記されうる一つの作業単位**である。対象エントリを見落として
+  後から足す、`need-more-evidence` のまま置いた項目に verdict を入れる、といった更新が
+  同じ週の記録に対して普通に起きる。ここを追記のみにすると、更新のたびに `TRG-2026-W38b`
+  のような別 id を作るか、週の粒度を捨てるかの二択になり、**id が ISO 週と一対一である**
+  という T1 の前提（`period_start`/`period_end` の一致検査・週の重複と欠落の検出）が壊れる。
+* **失われる情報が無い**。台帳エントリの `owner_verbatim` は**その場でしか取れない一次情報**
+  （後から再構成できない）なので、バイト単位の不変性を機械で守る価値がある。対して棚卸し記録に
+  載るのは「どの改訂案を起票したか」「どの台帳エントリへ merge したか」という**他の版管理下の
+  文書への参照**であり、決定そのものは改訂案側の `status`／`decided_in`／`decided_by`／
+  `decided_at` に記録される。棚卸し記録を書き換えても、決定の実体は改訂案側に残る。
+* **書き換えは git 履歴と `decided_in` で追える**。`.ai/feedback/` は版管理下なので、
+  棚卸し記録の変更は PR の差分として必ずレビューに載る（L6 が無くても「黙って変わる」ことは
+  ない）。加えて改訂案の `decided_in` がどの週の記録で決着したかを指すため、
+  記録の書き換えと決定の対応は後から突き合わせられる。
+* **それでも L7（canonical）と T1 は掛かる**。手編集による整形崩れと、参照の実在・verdict ごとの
+  必須欄・id と ISO 週の一致は棚卸し記録にも適用される。対象外にしたのは L6 だけである。
 
 ## 既知の限界（多層防御の一枚であって sandbox ではない）
 
+* **`permissions.deny` の「実際に拒否される」ことは、まだメインチェックアウト上で観測できていない
+  （F-522-04・未決の残課題）。** ここまでに取れている観測は次の3件で、いずれも
+  **「許可された」＝パターンが一度も一致していない**という形をしており、`Edit(/.ai/feedback/**)` /
+  `Write(/.ai/feedback/**)` が意図どおり発火することの直接証拠にはなっていない。
+  1. 実装ラウンド（linked worktree）: worktree 相対パスへの Write → 許可された。
+  2. 実装ラウンド: FS 絶対パス `/tmp/_karte/x.md` への Write → 許可された。
+  3. 是正ラウンド1（2026-09-20・linked worktree `…/.claude/worktrees/agent-…`）:
+     `Edit` を `<worktree>/.ai/feedback/README.md` に対して1回実行 → **許可された**
+     （拒否メッセージは出力されていない）。
+
+  この結果は2つの解釈と両立し、**観測だけではどちらかに決まらない**——
+  ①先頭 `/` は設定ファイルのあるディレクトリ（メインチェックアウト）相対であり、
+  linked worktree の実パス `<main>/.claude/worktrees/…/.ai/feedback/…` はパターンに一致しないため
+  許可された（＝設計どおりで、メインチェックアウト上では発火する）。
+  ②パターンがどの実パスにも一致しておらず、deny が機能していない。
+  **決定的な観測は「メインチェックアウト上の `<main>/.ai/feedback/` 配下への Write / Edit が
+  拒否されること」**で、隔離 worktree で動く是正ロールは作業ツリー外へ書けないため実施できない。
+  実施主体は非隔離で動く主文脈であり、観測できた拒否メッセージをここへ追記する。
+  ②だった場合はパターン書式の是正が要る。**それまでは、CLI 専用書込みの多層防御は
+  `agent-command-gate` の1枚に依っているものとして扱う**（L6/L7 による後段検出は残る）。
 * **`permissions.deny` は Claude Code の Write/Edit ツール経由の書込みしか塞がない。**
   Bash 経由の `sed -i`・`tee`・シェルリダイレクトによる直接改変には掛からない
   （`karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・`.claude/hooks/agent-command-gate.sh`
@@ -107,6 +151,10 @@ Issue #522 の verb 一覧は `approve --triage <TRG-id> --by <who>` だが、�
   （その場合は `allowlist.py` へ理由付きで登録する）。網羅ではなく**明白な混同を止める**ための網。
 * **L6 / P1 は git が使えない環境・merge base を解決できない環境では skip する（WARN）。**
   shallow clone でビルドが必ず落ちる事態を避けるための意図的な非対称で、skip したことは WARN として
-  必ず出力される（黙って通ることはない）。CI では `fetch-depth: 0` を指定して実際に検査させている。
+  必ず出力される（黙って通ることはない）。**CI では `fetch-depth: 0` に加えて
+  `check --canonical --require-base` を実行し、base 未解決そのものを ERROR に昇格させている**
+  ——WARN のままだと ERROR 閾値でしか落ちない CI は緑を保つため、`fetch-depth: 0` が外れた
+  瞬間に改ざん検知と状態遷移検査が無言で無効化される（F-522-02）。`--require-base` を
+  付けない既定の挙動は WARN のままなので、ローカル実行や git の無い環境は影響を受けない。
 * **`.ai/feedback/` は worktree ごとに独立している。** `karte` と違い main worktree へ収束させない
   （版管理下の内容なので、linked worktree ではそのブランチのチェックアウトを読み書きするのが正しい）。

@@ -17,7 +17,9 @@ verb:
   ``apply-done``             ``approved`` → ``applied``
   ``triage-open``            棚卸しの下書き（``tmp/_feedback/``）を生成する
   ``triage-close --from``    棚卸し記録を検証・正規化して確定する
-  ``check [--canonical]``    機械 lint（L1〜L7／P1〜P4／T1）
+  ``check [--canonical] [--require-base]``
+                             機械 lint（L1〜L7／P1〜P4／T1）。``--require-base`` は
+                             merge base を解決できないことを ERROR にする（CI 用）
   ``status [--now]``         導出状態と滞留
   ``index``                  文書の一覧
 
@@ -313,7 +315,12 @@ def cmd_triage_close(args) -> int:
 
 
 def cmd_check(args) -> int:
-    findings = run_checks(args.root, canonical=args.canonical, base_ref=args.base_ref)
+    findings = run_checks(
+        args.root,
+        canonical=args.canonical,
+        base_ref=args.base_ref,
+        require_base=args.require_base,
+    )
     _print(findings)
     errors = _errors(findings)
     warnings = [finding for finding in findings if finding.level == WARN]
@@ -427,6 +434,14 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--canonical", action="store_true", help="L7（canonical バイト比較）も行う")
     check.add_argument("--base-ref", default=None, dest="base_ref",
                        help="immutability/状態遷移の比較対象（既定: origin/main → main）")
+    check.add_argument(
+        "--require-base", action="store_true", dest="require_base",
+        help=(
+            "比較対象（merge base）を解決できないことを ERROR にする。"
+            "base を解決できる前提の実行環境（fetch-depth: 0 の CI）で指定し、"
+            "L6/P1 が無言で skip されたまま緑になるのを防ぐ"
+        ),
+    )
     check.set_defaults(func=cmd_check)
 
     status = sub.add_parser("status", help="導出状態と滞留")

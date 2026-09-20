@@ -125,8 +125,13 @@ def canonical_text(spec: DocSpec, data: dict) -> str:
     return dumps(spec, data)
 
 
-def load_draft(root, spec: DocSpec, draft) -> tuple[dict, list[Finding]]:
-    """下書き TOML を読んで正規化する（書込み前の検証に使う）。"""
+def load_draft(root, spec: DocSpec, draft) -> tuple[dict | None, list[Finding]]:
+    """下書き TOML を読んで正規化する（書込み前の検証に使う）。
+
+    正規化に失敗した下書きでは ``data`` が ``None`` になる（``findings`` に理由が入る）。
+    呼び出し側（``cli._load_and_validate``）はこの ``None`` を分岐しており、戻り値の型宣言も
+    それに合わせる（F-522-08・型検査ゲートへ登録するための是正）。
+    """
     path = paths_module.draft_path(root, draft)
     relative = _relpath(Path(root), path)
     text = paths_module.read_text(path)

@@ -51,10 +51,15 @@
 改ざん防止の機械的裏付けと既知の限界（Issue #363 F-363-09）:
   * この追記規律は CLI（本モジュール・``karte/cli.py``）が既存 Attempt/Result への再実行を
     ``KarteUsageError`` で拒否することで守られる。それに加え ``.claude/settings.json`` の
-    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` を登録し、Edit/Write 系ツールによる
-    ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する（是正当事者自身を含む——
-    権限規則はロールを区別しないので例外を作らない）。``python3 -m karte`` 経由の追記は
-    この deny の対象外で従来どおり機能する。
+    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` と ``Write(/tmp/_karte/**)`` を登録し、
+    Edit/Write 系ツールによる ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する
+    （是正当事者自身を含む——権限規則はロールを区別しないので例外を作らない）。
+    ``python3 -m karte`` 経由の追記はこの deny の対象外で従来どおり機能する。
+    **``Write`` の登録は Issue #522 レビュー F-522-10 で追加した**：``Edit`` だけだと
+    既存カルテを ``Write`` で**丸ごと上書き**する経路が空いたままで（実地確認で成功した）、
+    追記のみを前提にした台帳が改ざん検知なしに書き換わる。``Edit`` は既存文字列の一致を
+    要求するぶん部分改変に留まるのに対し、``Write`` は台帳全体を置き換えられるため、
+    塞ぐ必要性はむしろこちらの方が高い。
   * **既知の限界**：この deny は Claude Code の Edit/Write ツール経由の書込みだけを塞ぐ。
     Bash 経由の ``sed -i``・``tee``・シェルリダイレクト等でのファイル改変には掛からない。
     多層防御の一枚であって sandbox ではない（``.claude/hooks/agent-command-gate.sh`` の

@@ -21,9 +21,15 @@
     verdict ごとの必須欄、id と期間（ISO 週）の一致、週の重複・欠落。
 
 **git が無い／base ref を解決できない環境では L6・P1 を WARN で skip する**（ERROR にしない）。
-ここを fail-close にすると、shallow clone や git 非依存の実行環境でビルドが必ず落ちる一方、
+ここを無条件 fail-close にすると、shallow clone や git 非依存の実行環境でビルドが必ず落ちる一方、
 **検査できていないことは WARN として必ず出力される**ので黙って通ることはない。この非対称は
 意図的な設計であり、既知の限界として ``feedback_ledger/README.md`` にも記載する。
+
+**ただし「WARN が出るだけ」では CI は止まらない**ので、base を解決できる前提の実行環境
+（``fetch-depth: 0`` を指定した CI）向けに ``check --require-base`` を用意する
+（``run_checks(..., require_base=True)``）。このフラグを付けたときだけ base 未解決が
+ERROR になり、終了コード4でビルドが落ちる。**ローカル実行の既定は WARN のまま**なので、
+「shallow clone で必ず落ちる」問題は起こらない（Issue #522 レビュー F-522-02）。
 
 依存仕様: Issue #522「lint 規則（check）」。
 """
@@ -47,6 +53,12 @@ QUEUE_PREFIX = ".ai/feedback/queue/"
 
 DEFAULT_BASE_REFS = ("origin/main", "main")
 
+# 遷移先が ``superseded`` の組は **状態を問わず許可する**（``*→superseded``）。ここを
+# `pending→superseded` だけに絞ると、README「訂正シナリオ」が正規手順と定める
+# 「承認の取り消し＝`propose --supersede <承認済み id>`」が、CLI では通るのに
+# merge base 比較のできる CI でだけ P1 ERROR で落ちる（Issue #522 レビュー F-522-01）。
+# 逆向き（`superseded→pending` 等の復活）と逆行遷移（`approved→pending` 等）は
+# 引き続き列挙外＝deny のままで、履歴を書き換えない不変条件は変わらない。
 ALLOWED_TRANSITIONS = {
     ("pending", "pending"),
     ("pending", "approved"),
@@ -56,6 +68,10 @@ ALLOWED_TRANSITIONS = {
     ("rejected", "rejected"),
     ("applied", "applied"),
     ("superseded", "superseded"),
+    ("pending", "superseded"),
+    ("approved", "superseded"),
+    ("rejected", "superseded"),
+    ("applied", "superseded"),
 }
 
 
@@ -166,11 +182,24 @@ def check_canonical(store: Store) -> list[Finding]:
     return findings
 
 
-def check_immutability(store: Store, base: str | None) -> list[Finding]:
+def _unresolved_base_level(require_base: bool) -> str:
+    """base 未解決を WARN で流すか ERROR で落とすか（``--require-base``）。
+
+    既定は WARN（git の無い環境・shallow clone でビルドを必ず落とさないための意図的な
+    非対称）。**base を解決できる前提の実行環境＝CI では ``require_base=True`` にして
+    ERROR へ昇格させる**——そうしないと `fetch-depth: 0` が外れた瞬間に L6・P1 が無言で
+    skip され、改ざん検知と状態遷移検査が効かないまま CI が緑になる（F-522-02）。
+    """
+    return ERROR if require_base else WARN
+
+
+def check_immutability(
+    store: Store, base: str | None, *, require_base: bool = False
+) -> list[Finding]:
     """L6: merge base に在る台帳エントリのバイト変更・削除を拒否する。"""
     if base is None:
         return [Finding(
-            "L6", WARN, LEDGER_PREFIX,
+            "L6", _unresolved_base_level(require_base), LEDGER_PREFIX,
             "比較対象（merge base）を解決できないため immutability を検査していない",
         )]
     findings: list[Finding] = []
@@ -195,14 +224,16 @@ def check_immutability(store: Store, base: str | None) -> list[Finding]:
     return findings
 
 
-def check_proposals(store: Store, base: str | None) -> list[Finding]:
+def check_proposals(
+    store: Store, base: str | None, *, require_base: bool = False
+) -> list[Finding]:
     """P1〜P4。"""
     findings: list[Finding] = []
     ledger_ids = store.ids(schema_module.LEDGER)
     base_status = _base_proposal_statuses(store, base)
     if base is None:
         findings.append(Finding(
-            "P1", WARN, QUEUE_PREFIX,
+            "P1", _unresolved_base_level(require_base), QUEUE_PREFIX,
             "比較対象（merge base）を解決できないため状態遷移を検査していない",
         ))
     for document in store.of(schema_module.PROPOSAL):
@@ -398,15 +429,25 @@ def _week_gaps(weeks) -> list[Finding]:
     return findings
 
 
-def run_checks(root, *, canonical: bool = False, base_ref: str | None = None) -> list[Finding]:
-    """全規則を実行して findings を返す（表示・終了コードは CLI 側）。"""
+def run_checks(
+    root,
+    *,
+    canonical: bool = False,
+    base_ref: str | None = None,
+    require_base: bool = False,
+) -> list[Finding]:
+    """全規則を実行して findings を返す（表示・終了コードは CLI 側）。
+
+    ``require_base=True`` のときだけ、base 未解決による L6・P1 の skip を WARN から
+    ERROR へ昇格させる（``check --require-base``）。
+    """
     store = load_store(root)
     base = resolve_base(root, base_ref)
     findings = list(store.findings)
     findings.extend(check_paths_exist(store))
     findings.extend(check_id_references(store))
-    findings.extend(check_immutability(store, base))
-    findings.extend(check_proposals(store, base))
+    findings.extend(check_immutability(store, base, require_base=require_base))
+    findings.extend(check_proposals(store, base, require_base=require_base))
     findings.extend(check_triage(store))
     if canonical:
         findings.extend(check_canonical(store))

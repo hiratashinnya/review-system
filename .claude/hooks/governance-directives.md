@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@816b36e474e8 -->
+<!-- synced-from: CLAUDE.md@8ee93228d6b7 -->
 <!--
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
@@ -40,6 +40,13 @@
   正本の所在・品質降格禁止・実行前報告等）には掛からない。本文は変更せず marker のみ
   現在値へ更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`
   「追従したあとにやること」）。
+
+  Issue #522 是正ラウンド1（2026-09-20・F-522-03）: `.claude/rules/05-skills-agents.md` の
+  「戻り値のハンドオフ規約」にある `dsv2 clean-tmp` 保護名の列挙へ `_feedback`
+  （オーナー判断フィードバック台帳の下書き置き場）を追記しただけ。`_karte`・`_worktree` を
+  足したとき（Issue #309）と**同型の保守**であり、上記の中核規範（1〜12＝独断禁止・起票義務・
+  正本の所在・品質降格禁止・実行前報告等）には掛からない。本文は変更せず marker のみ
+  現在値へ更新した（「見た上で不要と判断した」ことの記録）。
 
   PR #494（2026-09-07）: `.claude/rules/05-skills-agents.md` のスキル一覧へ
   `/branch-hygiene`（マージ済みローカルブランチ ref の棚卸し・削除スキル）の1行を

@@ -20,8 +20,12 @@
   ``cli``        verb・終了コード（0 / 2 / 4）
 
 設計判断・既知の限界は ``feedback_ledger/README.md``。
+
+**``__all__`` は置かない**（F-522-08）: 唯一の入口は ``python3 -m feedback_ledger``
+（``__main__`` → ``cli.main``）であって ``from feedback_ledger import *`` ではない。
+import していない submodule 名を ``__all__`` に並べると、型検査（pyright
+``reportUnsupportedDunderAll``）が「宣言された名前が実体として無い」と指摘する
+——公開面の宣言としても機能していない。
 """
 
 from __future__ import annotations
-
-__all__ = ["cli"]

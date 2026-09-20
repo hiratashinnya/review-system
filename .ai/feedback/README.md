@@ -19,7 +19,7 @@ loader-facing asset ではない（`.ai/rationale/`・`.ai/troubleshooting/`・`
 
 ```
 python3 -m feedback_ledger new-entry --from tmp/_feedback/FBK-20260919-example.toml
-python3 -m feedback_ledger check --canonical
+python3 -m feedback_ledger check --canonical --require-base
 python3 -m feedback_ledger status --now 2026-09-19
 ```
 

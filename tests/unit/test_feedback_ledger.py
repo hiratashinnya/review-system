@@ -417,6 +417,95 @@ class GitBackedImmutabilityTests(FeedbackLedgerTestCase):
         self.assertTrue(skipped)
         self.assertNotIn("L6", self.rules_with_errors(findings))
 
+    # --- F-522-01: `*→superseded` は base 比較でも通る ---------------------
+
+    DECIDED_FIELDS = {
+        "decided_in": TRIAGE_ID,
+        "decided_by": "owner",
+        "decided_at": datetime.date(2026, 9, 19),
+    }
+
+    def _decided_variants(self) -> dict:
+        """``superseded`` へ遷移しうる4つの出発状態と、その状態で P2 が要求する欄。"""
+        return {
+            "pending": {},
+            "approved": dict(self.DECIDED_FIELDS),
+            "rejected": {**self.DECIDED_FIELDS, "decision_reason": "既存の契約で足りるため"},
+            "applied": {**self.DECIDED_FIELDS, "issue_ref": "#530", "applied_pr": 531},
+        }
+
+    def test_every_status_can_transition_to_superseded(self):
+        """docstring と README が正規遷移と定める ``*→superseded`` が P1 を出さないこと。
+
+        F-522-01 の回帰テスト。``ALLOWED_TRANSITIONS`` に
+        ``(approved, superseded)`` 等が無いと、README「訂正シナリオ」の「承認の取り消し」が
+        CLI では通るのに **merge base を解決できる CI でだけ**落ちる（CLI 自身の検証は
+        base=None で遷移検査を飛ばすため、手元では再現しない）。
+        """
+        self.seed_triage()
+        variants = self._decided_variants()
+        for status, extra in variants.items():
+            self.place(PROPOSAL_SPEC, proposal_data(
+                id=f"FBP-20260920-from-{status}", status=status, **extra))
+        self._git("add", "-A")
+        self._git("commit", "-m", "decided proposals")
+        self.assertNotIn("P1", self.rules_with_errors())  # base と一致＝当然通る
+
+        for status, extra in variants.items():
+            self.place(PROPOSAL_SPEC, proposal_data(
+                id=f"FBP-20260920-from-{status}", status="superseded", **extra))
+        findings = self.findings()
+        self.assertNotIn("P1", self.rules_with_errors(findings))
+
+    def test_reverse_and_revival_transitions_are_still_rejected(self):
+        """逆行（``approved→pending``）と復活（``superseded→pending``）は依然 ERROR。
+
+        F-522-01 の是正で ``*→superseded`` を通したことが、``→pending`` 方向まで
+        緩めていないことを固定する（履歴を書き換えない不変条件）。
+        """
+        self.seed_triage()
+        for status in ("approved", "superseded"):
+            self.place(PROPOSAL_SPEC, proposal_data(
+                id=f"FBP-20260920-{status}-then-back", status=status, **self.DECIDED_FIELDS))
+        self._git("add", "-A")
+        self._git("commit", "-m", "decided proposals")
+
+        for status in ("approved", "superseded"):
+            self.place(PROPOSAL_SPEC, proposal_data(
+                id=f"FBP-20260920-{status}-then-back", status="pending", **self.DECIDED_FIELDS))
+        findings = self.findings()
+        self.assertIn("P1", self.rules_with_errors(findings))
+        reverted = [f for f in findings if f.rule == "P1" and f.level == ERROR]
+        self.assertEqual(len(reverted), 2)
+
+    # --- F-522-02: base 未解決を CI では ERROR にできる ---------------------
+
+    def test_require_base_promotes_the_skip_to_an_error(self):
+        """``require_base=True`` のとき、base 未解決の L6・P1 skip が ERROR になる。
+
+        F-522-02 の回帰テスト。`fetch-depth: 0` が失われた CI でも WARN のままだと、
+        改ざん検知（L6）と状態遷移（P1）が無言で無効化されたままビルドが緑になる。
+        """
+        findings = check_module.run_checks(
+            self.root, canonical=True, base_ref="no-such-ref", require_base=True)
+        rules = self.rules_with_errors(findings)
+        self.assertIn("L6", rules)
+        self.assertIn("P1", rules)
+
+    def test_require_base_is_silent_when_the_base_resolves(self):
+        findings = check_module.run_checks(self.root, canonical=True, require_base=True)
+        self.assertFalse(self.rules_with_errors(findings))
+        self.assertFalse([f for f in findings if f.rule in ("L6", "P1")])
+
+    def test_cli_require_base_exits_with_the_error_code(self):
+        """CI が使う形（終了コード4）と、既定（WARN のまま 0）の両方を固定する。"""
+        code, _ = self.run_cli("check", "--canonical", "--base-ref", "no-such-ref",
+                               "--require-base")
+        self.assertEqual(code, EXIT_ERROR)
+        code, output = self.run_cli("check", "--canonical", "--base-ref", "no-such-ref")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("errors=0", output)
+
 
 class ProposalRuleTests(FeedbackLedgerTestCase):
     def test_approved_requires_decider_and_date(self):

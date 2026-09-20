@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/hiratashinnya/review-system/schemas/feedback-proposal-v1.json",
   "title": "review-system feedback proposal/v1",
-  "description": "Asset-revision proposal derived from ledger entries, stored as canonical TOML under .ai/feedback/queue/. This JSON is documentation and validation metadata; the executable validator is hand-written in feedback_ledger/ and depends on the standard library only.",
+  "description": "Asset-revision proposal derived from ledger entries, stored as canonical TOML under .ai/feedback/queue/. This JSON is documentation and validation metadata; the executable validator is hand-written in feedback_ledger/ and depends on the standard library only. Date-typed fields are TOML local dates and appear here as strings; fields that may be empty until a decision is made (decided_at, alongside decided_in) spell the empty case out in their pattern rather than relying on `format: date`, which is an annotation only and would not tell a reader that the empty string is a legal value.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,11 @@
       "pattern": "^(?:|TRG-[0-9]{4}-W[0-9]{2})$"
     },
     "decided_by": {"type": "string"},
-    "decided_at": {"type": "string", "format": "date"},
+    "decided_at": {
+      "type": "string",
+      "pattern": "^(?:|[0-9]{4}-[0-9]{2}-[0-9]{2})$",
+      "description": "Empty until the proposal is decided; a plain ISO date afterwards. Required to be non-empty when status is approved (see allOf)."
+    },
     "decision_reason": {"type": "string"},
     "issue_ref": {"type": "string"},
     "applied_pr": {"type": "integer", "minimum": 0},

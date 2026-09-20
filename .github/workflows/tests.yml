@@ -115,6 +115,13 @@ jobs:
     # 既定の shallow clone（depth=1）では base を解決できず、両規則が WARN で skip されて
     # 「検査したつもりで何も見ていない」状態になる。
     #
+    # `--require-base` が要る理由（F-522-02）: 上の `fetch-depth: 0` は**設定でしかなく**、
+    # 外れても WARN が1行増えるだけで CI は緑のままだった（ERROR 閾値でしか落ちないため）。
+    # つまり「台帳の改ざん検知と状態遷移検査が無言で無効化される」経路が設定1行の欠落で
+    # 開く。`--require-base` を付けると base 未解決そのものが ERROR になり、終了コード4で
+    # ここが落ちる＝**検査できなかったことがビルドを止める**。ローカル実行の既定は WARN の
+    # ままなので、git の無い環境や shallow clone で必ず落ちる問題は起こらない。
+    #
     # **CI が落とすのは ERROR 閾値だけ**（`check` の終了コードは errors>0 のときだけ 4）。
     # 滞留の WARN はここでは落とさない——毎 PR で鳴るゲートは形骸化するため、滞留の督促は
     # I3（週次棚卸しのフック）側に置く。
@@ -134,4 +141,4 @@ jobs:
           python-version: "3.x"
 
       - name: Feedback ledger lint (Issue #522, fail-close on ERROR only)
-        run: python3 -m feedback_ledger check --canonical
+        run: python3 -m feedback_ledger check --canonical --require-base
