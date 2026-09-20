@@ -7,6 +7,7 @@ import re
 import unittest
 from pathlib import Path
 
+from ai_layout import NON_ACTIVE_SHARED_DIRS
 from asset_parity.inventory import (
     COMMON_SOT_AGENTS_DIR,
     COMMON_SOT_SKILLS_DIR,
@@ -35,7 +36,7 @@ class AiAssetPlacementContractTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["schema"]["const"], "ai-asset-placement/v1")
         self.assertEqual(
             set(schema["$defs"]["entry"]["properties"]["category"]["enum"]),
-            {"normative", "rationale", "troubleshooting", "shared-schema"},
+            {"normative", "rationale", "troubleshooting", "shared-schema", "feedback"},
         )
 
     def test_non_normative_directories_exist_and_are_documented(self):
@@ -44,6 +45,7 @@ class AiAssetPlacementContractTests(unittest.TestCase):
             (".ai/rationale", "ADR／設計経緯"),
             (".ai/troubleshooting", "障害・復旧記録"),
             (".ai/schema", "共通 schema"),
+            (".ai/feedback", "オーナー判断の捕捉台帳"),
         ):
             with self.subTest(relative=relative):
                 self.assertTrue((REPO_ROOT / relative).is_dir())
@@ -94,6 +96,31 @@ class AiAssetPlacementContractTests(unittest.TestCase):
             for source in TARGETS.values()
         ))
 
+    def test_shared_base_is_contained_in_both_derived_lists(self):
+        """Issue #522: 2つの列挙は共通土台から導出し、**差分だけ**を各自が足す。"""
+        self.assertIn(".ai/feedback", NON_ACTIVE_SHARED_DIRS)
+        for directory in NON_ACTIVE_SHARED_DIRS:
+            with self.subTest(directory=directory):
+                self.assertIn(directory, NON_NORMATIVE_SHARED_DIRS)
+                self.assertIn(f"{directory}/", NON_GUIDANCE_SHARED_DIRS)
+
+    def test_guidance_directory_is_excluded_from_one_list_and_included_in_the_other(self):
+        """`.ai/guidance` の扱いが2つの定数で**逆**であること（統合すると壊れる非対称）。
+
+        * `NON_NORMATIVE_SHARED_DIRS` の述語は「parity seed にならない置き場」なので含む。
+        * `NON_GUIDANCE_SHARED_DIRS` の述語は「guidance の source にしてはいけない置き場」で、
+          `guidance_sync.TARGETS` の値そのものが `.ai/guidance/platforms/*.md` なので含めない。
+
+        将来この非対称を潰す変更（2定数を1本にまとめる等）が入ったらここで落ちる。
+        """
+        self.assertIn(".ai/guidance", NON_NORMATIVE_SHARED_DIRS)
+        self.assertNotIn(".ai/guidance", NON_ACTIVE_SHARED_DIRS)
+        self.assertFalse(
+            any(directory.startswith(".ai/guidance") for directory in NON_GUIDANCE_SHARED_DIRS),
+            "`.ai/guidance` を guidance source の禁止リストへ入れると、"
+            " guidance_sync.TARGETS の唯一の正当な原稿ツリーを自分で禁止することになる。",
+        )
+
     def test_schema_path_patterns_are_specific_to_each_category(self):
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         conditions = schema["$defs"]["entry"]["allOf"]
@@ -102,6 +129,7 @@ class AiAssetPlacementContractTests(unittest.TestCase):
             "rationale": ".ai/rationale/example.md",
             "troubleshooting": ".ai/troubleshooting/issue-pipeline.md",
             "shared-schema": ".ai/schema/asset-placement-v1.json",
+            "feedback": ".ai/feedback/ledger/FBK-20260919-example.toml",
         }
         for condition in conditions:
             category = condition["if"]["properties"]["category"]["const"]

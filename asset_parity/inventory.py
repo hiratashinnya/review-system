@@ -17,6 +17,8 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
+from ai_layout import NON_ACTIVE_SHARED_DIRS
+
 from .frontmatter import read_frontmatter
 
 SKILL = "skill"
@@ -32,12 +34,13 @@ COMMON_SOT_AGENTS_DIR = ".ai/agents"
 # make it the common normative Source of Truth.
 PARITY_SEED_SKILLS_DIR = ".claude/skills"
 PARITY_SEED_AGENTS_DIR = ".claude/agents"
-NON_NORMATIVE_SHARED_DIRS: tuple[str, ...] = (
-    ".ai/rationale",
-    ".ai/troubleshooting",
-    ".ai/schema",
-    ".ai/guidance",
-)
+# `.ai/` 直下の非活性レコード置き場（`ai_layout.NON_ACTIVE_SHARED_DIRS`）＋ `.ai/guidance`。
+# ここでの述語は「**4ツリー parity の seed にならない置き場**」であり、常駐 guidance の原稿
+# （`.ai/guidance/common.md`・`.ai/guidance/platforms/*.md`）も PF wrapper ではないので
+# 同じく seed にならない。よって土台へ `.ai/guidance` を**足す**。
+# 注意: `guidance_sync.NON_GUIDANCE_SHARED_DIRS` は述語が別（guidance の source 禁止リスト）
+# で、`.ai/guidance` を**含めてはならない**——両者は同一概念ではない（`ai_layout` の docstring）。
+NON_NORMATIVE_SHARED_DIRS: tuple[str, ...] = NON_ACTIVE_SHARED_DIRS + (".ai/guidance",)
 
 # Invocation modes — meaningful for SKILL kind only (None for AGENT).
 MODE_SKILL = "skill"                # default: a model-invocable capability
