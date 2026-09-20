@@ -55,11 +55,20 @@
     Edit/Write 系ツールによる ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する
     （是正当事者自身を含む——権限規則はロールを区別しないので例外を作らない）。
     ``python3 -m karte`` 経由の追記はこの deny の対象外で従来どおり機能する。
-    **``Write`` の登録は Issue #522 レビュー F-522-10 で追加した**：``Edit`` だけだと
-    既存カルテを ``Write`` で**丸ごと上書き**する経路が空いたままで（実地確認で成功した）、
-    追記のみを前提にした台帳が改ざん検知なしに書き換わる。``Edit`` は既存文字列の一致を
-    要求するぶん部分改変に留まるのに対し、``Write`` は台帳全体を置き換えられるため、
-    塞ぐ必要性はむしろこちらの方が高い。
+    **``Write`` の登録は Issue #522 レビュー F-522-10 で追加した**：**台帳の保護は実際には
+    二層で成立している**（同レビュー F-522-04／F-522-11 で判明）。非隔離で動く主文脈には
+    ``permissions.deny`` が発火する（実測：メインチェックアウトの ``tmp/_karte/probe-pattern-522.md``
+    への ``Write`` が "File is in a directory that is denied by your permission settings."
+    で拒否された。当時 ``permissions.deny`` は ``Edit(/tmp/_karte/**)`` の1エントリのみで
+    ``Write`` エントリは無かったが、それでも ``Write`` は素通りしなかった）。隔離ロール
+    （是正・実装当事者）には worktree isolation が同じ書込みを構造的に拒否する（実測：隔離
+    worktree からメインチェックアウトの同パスへの ``Write`` が "This agent is isolated in
+    the worktree ... Edit the worktree copy of this file instead of the shared-checkout
+    path." で拒否された。自分の worktree 内への ``Write``/``Edit`` は成功するが、そこは CLI
+    が参照しない場所であり本物の台帳ではない）。``Write`` エントリを明示的に登録しているのは
+    この実測でエントリ追加前に上書きが成功していたからではなく、パターンの錨（先頭 ``/`` の
+    解決基準）とツール経路の挙動が版に依存しうることへの明示的な備えである——``Edit``/``Write``
+    のどちらか一方だけに依存せず、両方を宣言して同じ結論を二重に固定しておく。
   * **既知の限界**：この deny は Claude Code の Edit/Write ツール経由の書込みだけを塞ぐ。
     Bash 経由の ``sed -i``・``tee``・シェルリダイレクト等でのファイル改変には掛からない。
     多層防御の一枚であって sandbox ではない（``.claude/hooks/agent-command-gate.sh`` の

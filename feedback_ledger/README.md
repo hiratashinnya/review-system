@@ -117,26 +117,22 @@ Issue #522 の verb 一覧は `approve --triage <TRG-id> --by <who>` だが、�
 
 ## 既知の限界（多層防御の一枚であって sandbox ではない）
 
-* **`permissions.deny` の「実際に拒否される」ことは、まだメインチェックアウト上で観測できていない
-  （F-522-04・未決の残課題）。** ここまでに取れている観測は次の3件で、いずれも
-  **「許可された」＝パターンが一度も一致していない**という形をしており、`Edit(/.ai/feedback/**)` /
-  `Write(/.ai/feedback/**)` が意図どおり発火することの直接証拠にはなっていない。
-  1. 実装ラウンド（linked worktree）: worktree 相対パスへの Write → 許可された。
-  2. 実装ラウンド: FS 絶対パス `/tmp/_karte/x.md` への Write → 許可された。
-  3. 是正ラウンド1（2026-09-20・linked worktree `…/.claude/worktrees/agent-…`）:
-     `Edit` を `<worktree>/.ai/feedback/README.md` に対して1回実行 → **許可された**
-     （拒否メッセージは出力されていない）。
-
-  この結果は2つの解釈と両立し、**観測だけではどちらかに決まらない**——
-  ①先頭 `/` は設定ファイルのあるディレクトリ（メインチェックアウト）相対であり、
-  linked worktree の実パス `<main>/.claude/worktrees/…/.ai/feedback/…` はパターンに一致しないため
-  許可された（＝設計どおりで、メインチェックアウト上では発火する）。
-  ②パターンがどの実パスにも一致しておらず、deny が機能していない。
-  **決定的な観測は「メインチェックアウト上の `<main>/.ai/feedback/` 配下への Write / Edit が
-  拒否されること」**で、隔離 worktree で動く是正ロールは作業ツリー外へ書けないため実施できない。
-  実施主体は非隔離で動く主文脈であり、観測できた拒否メッセージをここへ追記する。
-  ②だった場合はパターン書式の是正が要る。**それまでは、CLI 専用書込みの多層防御は
-  `agent-command-gate` の1枚に依っているものとして扱う**（L6/L7 による後段検出は残る）。
+* **`permissions.deny` の実効性は決定的観測で決着済み（F-522-04・2026-09-20 主文脈が実施）。**
+  非隔離の主文脈がメインチェックアウトの `tmp/_karte/probe-pattern-522.md` へ `Write` を試みたところ
+  "File is in a directory that is denied by your permission settings." で拒否された
+  （当時の `permissions.deny` は `Edit(/tmp/_karte/**)` の1エントリのみで `settings.local.json` は
+  存在しなかった）。先頭 `/` は設定ファイルのあるディレクトリ（メインチェックアウト）相対として
+  解決され、意図どおり発火する。
+* **隔離ロールに対する保護は別機構＝worktree isolation が担う。** 隔離 worktree の probe エージェントが
+  メインチェックアウトの同パスへ `Write` を試みたところ "This agent is isolated in the worktree
+  <path>. Edit the worktree copy of this file instead of the shared-checkout path." で拒否された。
+  同じ probe が自分の worktree 内へ `Write`/`Edit` するのは成功し、メインチェックアウトからの `Read`
+  も成功した。すなわち台帳の保護は**二層**——非隔離の書き手には `permissions.deny`、隔離ロールには
+  worktree isolation——で成立しており、片方だけでは完結しない。
+* **worktree 内の `tmp/_karte/` や `.ai/feedback/` は CLI が読まない場所であり本物の台帳ではない。**
+  `karte/paths.py::main_worktree_root`（K-01）は linked worktree から必ずメインチェックアウトへ収束
+  するため、本物の台帳は常にメイン側にある。隔離ロールが自分の worktree 内へ書き込めても、それは
+  CLI が参照しない場所への書込みであって台帳の改ざんにはならない。
 * **`permissions.deny` は Claude Code の Write/Edit ツール経由の書込みしか塞がない。**
   Bash 経由の `sed -i`・`tee`・シェルリダイレクトによる直接改変には掛からない
   （`karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・`.claude/hooks/agent-command-gate.sh`

@@ -67,7 +67,15 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     理由＝パスを渡すと「別 worktree・別 Issue の台帳を掴む」脅威が生まれ、受け手側に完全一致検査を
     背負わせることになる。渡さなければその脅威は検査ではなく構造で消える（#323 が `handoff_path` で
     採った考え方の対称形）。#323 の「パスの決定権は呼び出し元に残す」原則は出力側の規律であり、
-    入力側の共有台帳には及ばない（Issue #354）。
+    入力側の共有台帳には及ばない（Issue #354）。**台帳への直接書込みそのものは二層の別機構で止まる**
+    （Issue #522 レビュー F-522-11）：非隔離で動く主文脈（`ingest-review` を実行する側）には
+    `.claude/settings.json` の `permissions.deny`（`Edit(/tmp/_karte/**)` / `Write(/tmp/_karte/**)`）
+    が発火し、隔離ロール（`issue-fixer`/`issue-implementer`）には worktree isolation がメイン
+    チェックアウトへの書込みを構造的に拒否する（隔離ロールが書けるのは自分の worktree 内だけで、
+    そこは `karte`/`feedback_ledger` CLI が参照しない場所であり本物の台帳ではない）。**どちらか
+    一方の機構を変更（隔離を外す・deny のパターンを書き換える等）しても、他方だけでは守りが
+    完結しない**——実測の詳細は `karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・
+    `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で

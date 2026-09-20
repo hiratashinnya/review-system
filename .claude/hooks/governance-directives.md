@@ -1,7 +1,17 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@8ee93228d6b7 -->
+<!-- synced-from: CLAUDE.md@6b3e60805536 -->
 <!--
+  Issue #522 是正ラウンド2（2026-09-20・F-522-04/F-522-10/F-522-11）:
+  `feedback_ledger/README.md`「既知の限界」・`karte/model.py`「改ざん防止の機械的裏付けと
+  既知の限界」・`.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」の3箇所を、
+  主文脈が実測した拒否メッセージ（メインチェックアウトでの `permissions.deny` 発火、隔離
+  worktree での worktree isolation 発火）に沿って書き換えた。台帳保護が二層
+  （非隔離には `permissions.deny`・隔離ロールには worktree isolation）で成立していることの
+  説明を追加しただけで、上記の中核規範（1〜12＝独断禁止・起票義務・正本の所在・品質降格禁止・
+  実行前報告等）には掛からない。本文は変更せず marker のみ現在値へ更新した
+  （「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
+
   Issue #309（2026-08-19）: `.claude/rules/05-skills-agents.md` の変更は
   `dsv2 clean-tmp` の保護名リストへ `_worktree`（worktree 所有台帳の置き場）を
   足しただけで、上記の中核規範（1〜11）には掛からない。本文は変更せず marker のみ
