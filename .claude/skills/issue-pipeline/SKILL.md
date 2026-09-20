@@ -1,6 +1,6 @@
 ---
 name: issue-pipeline
-description: Orchestrate a batch of open GitHub Issues through implement→PR→review→merge→close, one Issue at a time. The main thread stays thin — it triages processing order, dispatches issue-implementer / pr-reviewer sub-agents (model tier via bloom-model-tier, risk-based reviewer model), exchanges decisions with the owner via AskUserQuestion (showing premises/tradeoffs first), and tracks progress. Use when issue handling should proceed end-to-end with governance. NOT for authoring doc-system-v2 nodes (use spec-pipeline / impl-design-pipeline).
+description: Orchestrate a batch of open GitHub Issues through implement→PR→review→merge→close, one Issue at a time. The main thread stays thin — it drafts the processing order, dispatches issue-implementer / pr-reviewer sub-agents (model tier via bloom-model-tier, risk-based reviewer model), asks the owner to decide via AskUserQuestion (showing premises/tradeoffs first) and records those decisions, and tracks progress. The owner decides; the main thread relays and records. Use when issue handling should proceed end-to-end with governance. NOT for authoring doc-system-v2 nodes (use spec-pipeline / impl-design-pipeline).
 ---
 
 > **共通本文（必読）**: [`.ai/skills/issue-pipeline/SKILL.md`](../../../.ai/skills/issue-pipeline/SKILL.md)。実行前に必ず読み、Claude Code 固有の起動・権限・hook 制約を追加適用する。

@@ -1,7 +1,20 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@6b3e60805536 -->
+<!-- synced-from: CLAUDE.md@16fceef4e2fc -->
 <!--
+  Issue #531 是正ラウンド4（2026-09-20・F-531-08/F-531-09）:
+  `.claude/rules/05-skills-agents.md` の `/issue-pipeline` 説明から
+  「主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し」を外し、
+  「主文脈は処置順の原案作成とオーナー判断の取り次ぎ・記録、進捗管理を担い
+  （決めるのはオーナーであって主文脈ではない）」へ書き換えた（同一クラスの表現を
+  `.ai/skills/issue-pipeline/SKILL.md` の導入文・done、Claude/Copilot wrapper の
+  description でも同時に掃引）。**スキル一覧の1行の役割記述**であって、上記の中核規範
+  （1〜12＝独断禁止・起票義務・正本の所在・品質降格禁止・実行前報告等）には掛からない
+  ——中核規範 3（「対応不要」を AI が独断で書かない）と 12（オーナーへの報告）は
+  もともと決定主体をオーナーとして書いており、本是正で含意は変わらない。
+  本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録＝
+  `.claude/hooks/README.md`「追従したあとにやること」）。
+
   Issue #522 是正ラウンド2（2026-09-20・F-522-04/F-522-10/F-522-11）:
   `feedback_ledger/README.md`「既知の限界」・`karte/model.py`「改ざん防止の機械的裏付けと
   既知の限界」・`.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」の3箇所を、

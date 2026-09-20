@@ -1,6 +1,6 @@
 ---
 name: issue-pipeline
-description: Orchestrate open GitHub Issues end-to-end (implement→PR→review→merge→close) one by one, while keeping owner decisions and progress management in the main thread.
+description: Orchestrate open GitHub Issues end-to-end (implement→PR→review→merge→close) one by one. The main thread drafts proposals, asks the owner to decide, records the decisions, and tracks progress — the owner decides, not the main thread.
 ---
 
 ## 共通本文
