@@ -27,5 +27,10 @@ python3 -m defect_metrics report --repository hiratashinnya/review-system \
 ## 既知の不正確さ
 
 - `batch-301-400.md` の `author_kind` は合計が 53/60 にしかならない（7件不明）。
+- **`author_kind: unknown` が他帯にも計3件ある**：`batch-201-300.md` の #273、`batch-401-535.md` の
+  #405・#407。いずれも本文冒頭の attribution が判定に足りなかったもので、推測で埋めていない。
+  本体 §3 の起票者内訳に「約」が付いているのはこのため。
 - `recurrence_of` は本文が明示的に再発と述べたものだけを連結しており、**過小計上**である。
 - `author_kind` は**起票者**であって発見者ではない（本体 §7 参照）。
+- **本体 §5-③ の領域分類はこの分類表の `labels` 列を一次根拠にしている**（初稿はタイトルから推定して
+  誤っていた・本体 §8「訂正2」）。領域を数えるときは `labels` 列を使うこと。
