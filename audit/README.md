@@ -33,3 +33,8 @@ audit/<YYYY-MM-DD>-<slug>/
 | 実施日 | 対象 | 記録 |
 |---|---|---|
 | 2026-09-21 | GitHub Issue 全数（274件・open/closed 両方） | [2026-09-21-issue-census](2026-09-21-issue-census/README.md) |
+| 2026-09-21〜 | issue-pipeline 再設計の方針決定ログ（**進行中・追記型**） | [2026-09-21-pipeline-redesign](2026-09-21-pipeline-redesign/README.md) |
+
+> **`2026-09-21-pipeline-redesign` は例外的に「点検結果」ではなく「決定ログ」である。**
+> 置くのは決定とその根拠までで、処置計画・実施予定は従来どおり Issue 側に置く（上記の線引きは維持する）。
+> 確定した事項が増えるたびに追記するため、他の記録と違い**進行中は書き換わる**。
