@@ -113,3 +113,27 @@ Issue #517 では、`issue-implementer` が `Task` を使ってゲート対象�
 本ロールから `Task` 自体を外すかであった。初回実装は専用ロール自身で完結する契約であり、追加の委譲能力を必要と
 しないため、境界を構造的に閉じる後者を第一層として採用した。corpus ノードの著作が必要な場合は、子を起動して
 迂回せず STOP し、主文脈が正式な著作経路を起動する。
+
+## スコープ外 finding のキーをレビューと揃える理由（移設元：「スコープ外 finding の書き方」）
+
+呼び出し元は `out_of_scope_findings` をそのまま指摘台帳（karte）の finding 列へ取り込む。
+キーが揃っていないと取り込みが拒否され、指摘が記録されないまま消えるため、レビュー finding と
+同じキーを要求している。これは `issue-fixer` のハンドオフにも共通する根拠である。
+
+## handoff の回収・内容一致検証と worktree 解放（移設元：「出力とハンドオフ」）
+
+STOP・通常完了のどちらでも、handoff は SubagentStop フックが worktree 解放前に main 作業ツリーの
+`tmp/_handoff/collected/<entry-id>--<ファイル名>` へ回収し、内容一致を sha256 で検証する。
+worktree が既に解放された場合や、ファイル変更ゼロで STOP して worktree が消えた場合には、
+呼び出し元が返された絶対パスを Read できなくても、この回収済みコピーが正本の記録になる。
+これにより、「STOP でもハンドオフを書く」と「呼び出し元が必ず Read して判断する」は
+worktree 解放後も両立する。回収の構成は `issue-fixer` の Step 0 における早期 STOP にも共通する。
+
+## supervised process の起動境界と publish 内部検証（移設元：「出力とハンドオフ」）
+
+generated `issue-supervised` permission profile は `:workspace` を継承し、inner process に
+workspace-write 相当の境界を与える。この起動境界は `issue-fixer` にも共通する。
+
+implementer の host publish は、protected patch が宣言されている場合の適用から add、commit、push、
+PR create へ進む各段の間で、内容を含む Git facts の CAS によって検証する。本文には、inner が書く
+handoff の形、承認対象を追加しない制約、host が実行する順序を残し、段間の内部検証を分離した。

@@ -203,3 +203,37 @@ reviewer自己修正不可、bootstrap waiverと別context再レビューを維�
 
 Issue #517 の構造的 fail-close は `issue-fixer` にも同じく適用され、本ロールは `Task` を保有しない。
 共通する発端、選択肢、採用根拠は [issue-implementer の rationale](issue-implementer.md) に記録している。
+
+## 是正ブランチ取得が失敗する場合の補足（移設元：「Step 0: 是正対象の PR ブランチを自分の作業環境に用意する（診断より前）」）
+
+取得失敗として想定するのは、先行する別の作業環境が同じブランチを掴んでいる場合、remote 先端が
+期待値と食い違う場合、PR が既に閉じている場合などである。取得失敗時に STOP する本文の条件は
+これらを一括して扱う。着手時に対象ブランチが載っていない事情と `adopt-branch` の付与根拠は、
+本ファイル「`isolation: \"worktree\"` と `ISSUE_FIX_BINDING_V1` marker の enforcement」に記録している。
+
+## 診断登録による試行比較の意味（移設元：「Step 1: Diagnose（コード編集の前に必須）」）
+
+診断登録は前ラウンドの試行と今回の仮説を機械比較可能にするためのものであり、同じ `root_cause` slug の
+使い回しは同じ仮説の再挑戦を意味する。ラウンド数そのものに上限を設けず、同じ直し方の連打を止める構成である。
+
+## 共通の finding・handoff・起動境界の根拠（移設元：「スコープ外 finding の書き方」「出力とハンドオフ」）
+
+finding のキー不一致で取り込みが拒否される事情、SubagentStop による handoff 回収と sha256 検証、
+generated permission profile の継承構成は implementer と共通である。同じ内容を重複記録せず、
+[issue-implementer の rationale](issue-implementer.md) の「スコープ外 finding のキーをレビューと揃える理由」、
+「handoff の回収・内容一致検証と worktree 解放」、「supervised process の起動境界と publish 内部検証」を参照する。
+handoff の回収は、fixer の Step 0 で早期 STOP した場合も対象である。
+
+是正当事者が自分の指摘の処置要否を決めないことと `ingest-review` 禁止に共通する根拠は、
+本ファイル「ゲート allowlist の内部名と `ingest-review` を deny する理由」に記録している。
+
+## supervised process の状態名と完了検証（移設元：「出力とハンドオフ」）
+
+host が中央 karte へ Attempt を登録すると、内部状態は `paused_karte_registered` になる。
+karte bridge は host 側の専用状態遷移に従い、publish の最後に中央 Result との一致を検証してから
+final handoff を生成する。本文には、同じ thread の resume で渡される登録 receipt を採用してから
+編集へ進む順序と、host が担当する publish の実行順序を残している。
+
+## 長文をファイル渡しにする理由（移設元：「Claude Code 固有の設定・ゲート」）
+
+コミットメッセージ、PR 本文、karte への長文引数を Write でファイル化するのは、シェル展開を避けるためである。

@@ -314,3 +314,93 @@ PR #509／Issue #431 では、`karte` が返した `escalate: yes` を主文脈�
 加えるか、生の判定は通知機構に委ねて主文脈には判断材料となる選択肢と推奨だけを述べさせるかであった。前者は
 言い換えのたびに同じ歪みを再発させうるため採らず、後者を採用した。これにより、verdict・未解消 finding・
 escalate 理由は AI の再解釈を挟まず届け、主文脈はオーナーが選ぶ論点の整理に専念する。
+
+## 着手前の更新と Issue 構成変更の承認の根拠（移設元：「① 処置順の原案 → オーナー承認」）
+
+着手前にローカルの既定ブランチを `pull` で更新するのは、Issue 本文・依存・構成の確認と、後続で切る
+ブランチの base を古いローカル状態に対して決めないためである。
+
+Issue の分割・統合は本文・relation の破壊的変更であるため、`.ai/skills/gh-create-issue/SKILL.md` §1 の
+write 境界が及ぶ。Issue 作成の明示依頼を、既存 Issue の構成を破壊的に変更する包括許可とは扱わない。
+
+## `Status` 更新を主文脈に集約する理由（移設元：「②-a 実装」）
+
+実装担当は isolated な作業ツリーで動く狭い権限のロールであり、Projects への書き込みをその allowlist に
+足すと権限拡大になる。主文脈は既に GitHub 操作とオーケストレーションを担っているため、`Status` の
+書き込みも主文脈に集約した。
+
+同期ツール `project_status_sync` は `In progress` / `In review` を書き込み対象から外しているため、着手中の
+Issue が cron に巻き戻されることはない。一方、実装担当が STOP を返したときも同期ツールは `In progress`
+の滞留を解消できない。このため、STOP 時は主文脈が `Ready` へ戻してからオーナーへ打ち上げる順序である。
+
+## レビュー結果の当該 PR 投稿を事前確認の例外にした理由（移設元：「②-b 初回レビュー」）
+
+レビュー担当は非対話で外部投稿できないため、返ってきた構造化 finding を主文脈が当該 PR へ
+AI 帰属明記でコメントする。既に能動レビュー中の当該成果物へ記録を残すだけで、その PR を超える新たな
+外部露出を作らないことが、毎回のオーナー確認を不要とする根拠である。例外はこの投稿だけであり、
+他の共有状態変更や外部投稿まで許可する判断ではない。
+
+## finding 取り込みを主文脈が組み立てる理由（移設元：「②-c 是正 → 再レビュー」）
+
+レビュー担当の指摘だけを記録し、実装担当・是正担当の `out_of_scope_findings` を記録しなければ、
+スコープ外指摘が台帳を迂回する経路が実装側に残る。迂回の事象と同じ finding 列へ統合した判断は
+[pr-reviewer の rationale](pr-reviewer.md)「スコープ外指摘が finding 台帳を迂回した経緯」に記録している。
+
+レビュー担当は処置方針を決めず、実装担当・是正担当のハンドオフにも `disposition` 系のキーはない。
+したがって、オーナーの決定を台帳へ入れる担い手は主文脈だけであり、決定の取得、レポートへの追記、
+台帳への取り込みという順序を採っている。
+
+## `disposition` を毎ラウンド再掲する理由（移設元：「②-c 是正 → 再レビュー」）
+
+取り込みは前ラウンドで未解消だった finding の全件再掲を要求し、`scope` / `disposition` 系の値は
+毎ラウンドのレポートで上書きされる。前ラウンドで `deferred` と決めた finding を無記載で再掲すると、
+決定は未決定へ戻り、verdict が実害あり残存へ戻ってオーナー STOP が繰り返される。
+
+決定を黙って据え置く案ではなく、書き忘れが未決定として clean を妨げる fail-close 側へ倒れる案を採った。
+オーナーが方針を変えない限り前ラウンドの決定を書き写す契約は、この上書き方式に対応するものである。
+
+## `disposition` による clean 解除と無進捗計数の設計理由（移設元：「実害の定義とエスカレーション」）
+
+`deferred` に `deferred_to` を要求するのは、リンクのない申し送りでは行き先が不明になるためである。
+`waived` の許可者と理由の必須化は、AI が独断で「対応不要」と決めない規律に対する記録の強制である。
+許可者本人であることまでは機械検証しておらず、運用規律との併用が前提である。
+
+属性を追加するだけでは「判断が要ることに誰かが気づく」必要が残るため、未決定の実害あり finding が
+clean を妨げる判定は機械側の verdict に置いた。`deferred` / `waived` でも `status: open` を残すのは、
+`deferred` を `resolved` にすると「別 Issue へ移したと書くだけで指摘が消える」経路ができるためである。
+
+clean の解除力を `harm: real` に限定したのは、実害なしの指摘に `deferred` と行き先を2行書くだけで
+clean にできると、「clean を妨げる未解消がすべて実害なしになった」STOP を AI が単独で消せるためである。
+
+申し送り・処置不要と決めた finding を無進捗の計数から外すのは、誰も直さないと決めたものを数えると
+打ち上げが毎回鳴り、本物の無進捗が偽陽性に紛れるためである。スコープと実害の判定軸を分けた根拠は
+[pr-reviewer の rationale](pr-reviewer.md)「スコープ外指摘が finding 台帳を迂回した経緯」に記録している。
+
+## カルテ進行ポインタの更新主体（移設元：「issue-fixer dispatch（`ISSUE_FIX_BINDING_V1` marker）」）
+
+進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。主文脈から是正担当への受け渡しは
+`{issue, round}` であり、カルテのパスを渡さない構成の根拠は
+[issue-fixer の rationale](issue-fixer.md)「`karte_path` は Issue #354（PR-4・K2）で廃止した」に記録している。
+
+## karte 判定通知の配送と表示の実装（移設元：「karte 判定の報告分担（Issue #512）」「karte 判定の直接通知（Claude Code 固有・Issue #512）」）
+
+Claude Code では `karte ingest-review` / `karte close-attempt` の実行直後に PostToolUse フック
+`.claude/hooks/karte-notify.sh`（実体は `karte_notify.hook`）が `karte status --json` の判定を
+`systemMessage` フィールドでオーナーのチャットへ直送する。
+
+対象経路は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」で Bash 保有ロールに
+解禁された範囲と同じである。主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・`dsv2-lookup` に
+付与済みの `ctx_execute` / `ctx_batch_execute` も対象であり、`settings.json` の matcher は
+`Bash|mcp__plugin_context-mode_context-mode__ctx_execute|mcp__plugin_context-mode_context-mode__ctx_batch_execute`
+である。通知本文は `karte_notify/notify.py::_render_message` が組み立て、finding ID 単位の既読管理を経た
+未解消・直近解消の一覧と、生の verdict / escalate の根拠を届ける。verdict の3集合を常に含める追跡元は
+PR #496 F-495-07 である。
+
+判定不能、`karte status` 実行失敗、トリガー語を含まない stdin は、いずれも無出力 exit 0 となる。
+これは統制ではなく可視化専用の助言機構である。PF ごとに通知本文が異なるため、通知を受け取ったという
+事実だけでは、エスカレーション条件の生の判定がすべて届いたとはいえない。
+
+主文脈が示す判断材料の例は、「無進捗のまま続行するか転換するか」「clean を妨げる finding の
+disposition をどう決めるか」という論点・比較・推奨である。通知の見落としや過去の経緯確認では手動の
+`karte status` を使い、その実行は既読管理の対象外なので毎回全件が出る。判定の再要約を禁じた根拠は
+本ファイル「karte 判定の再要約を禁止した発端」に記録している。

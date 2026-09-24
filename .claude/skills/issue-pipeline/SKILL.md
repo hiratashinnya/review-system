@@ -5,16 +5,16 @@ description: Orchestrate a batch of open GitHub Issues through implement→PR→
 
 > **共通本文（必読）**: [`.ai/skills/issue-pipeline/SKILL.md`](../../../.ai/skills/issue-pipeline/SKILL.md)。実行前に必ず読み、Claude Code 固有の起動・権限・hook 制約を追加適用する。
 
-設計判断の根拠は [issue-pipeline の canonical rationale](../../../.ai/rationale/issue-pipeline.md) を参照してください。
-Claude 固有の rationale pointer は [`.claude/rationale/issue-pipeline.md`](../../rationale/issue-pipeline.md) です。
-worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../../../.ai/troubleshooting/issue-pipeline.md) を必要なときだけ参照してください。
+設計判断の根拠は [issue-pipeline の canonical rationale](../../../.ai/rationale/issue-pipeline.md) を必要なときだけ参照する。
+Claude 固有の rationale pointer は [`.claude/rationale/issue-pipeline.md`](../../rationale/issue-pipeline.md) である。
+worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../../../.ai/troubleshooting/issue-pipeline.md) を必要なときだけ参照する。
 
 ## Claude Code 固有の dispatch 契約
 
 - 主文脈だけが `AskUserQuestion` を使い、順序・オーナー判断・先送り・スコープ拡張を担う。`issue-implementer`、`issue-fixer`、`pr-reviewer` は非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
 - 実装は `issue-implementer`、レビュー／マージは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。実装者は merge 不可、レビュー者は push 不可の機械ゲートを前提にする。
-- `.claude/agents/*.md` の変更内容が同一セッションの dispatch に直ちに反映されるとは限らない。変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。
+- エージェント定義の変更後は、変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。既知の限界は [rationale](../../../.ai/rationale/issue-pipeline.md)「エージェント定義スナップショット制約の実測ログと帰結」を参照する。
 
 ### `issue-implementer` dispatch（`ISSUE_START_BINDING_V1` marker ＋ `isolation: "worktree"`）
 
@@ -43,30 +43,23 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
 
 - **メインワークツリーのブランチは切り替えない**。`issue-fixer` は自分の worktree で `python3 -m gitgate adopt-branch <branch> --repository <repository> --expected-oid <expected_oid>` を実行して PR ブランチを取得する。
 - **レビュー結果を先にカルテへ取り込む**（dispatch 前）：`python3 -m karte ingest-review --issue <N> --round <R> --from <repo-root 配下のパス>`。これは主文脈が実行する。
-- **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。進行ポインタ `tmp/_karte/active.json` は `ingest-review` が更新する。
+- **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。進行ポインタの更新は [rationale](../../../.ai/rationale/issue-pipeline.md)「カルテ進行ポインタの更新主体」を参照する。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
-### karte 判定の直接通知（Claude Code 固有・Issue #512）
+### karte 判定の直接通知（Claude Code 固有）
 
-`.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」が定める通知契約の Claude Code
-固有の実装。`karte ingest-review` / `karte close-attempt` の実行直後、PostToolUse フック
-（`.claude/hooks/karte-notify.sh`・実体は `karte_notify.hook`）が `karte status --json` の
-判定を AI の出力を経由せず `systemMessage` フィールドでオーナーのチャットへ直送する。
+`karte ingest-review` / `karte close-attempt` の実行直後、通知機構が `karte status --json` の
+判定を AI の出力を経由せずオーナーのチャットへ届ける。配送と表示の実装は
+[rationale](../../../.ai/rationale/issue-pipeline.md)「karte 判定通知の配送と表示の実装」を参照する。
 
-- **発火対象は `Bash` に限らない**：主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・
-  `dsv2-lookup` に付与済みの実行系 MCP ツール（`ctx_execute`／`ctx_batch_execute`）経由の
-  `karte ingest-review`/`close-attempt` も同じ通知対象にする（`.claude/rules/05-skills-agents.md`
-  「ctx_* ツールの付与方針」で Bash 保有ロールに解禁済みの経路と同じ範囲）。`settings.json` の
-  matcher は `Bash|mcp__plugin_context-mode_context-mode__ctx_execute|
-  mcp__plugin_context-mode_context-mode__ctx_batch_execute`。
-- **通知本文に含まれる内容**：finding ID 単位の既読管理を経た未解消/直近解消の finding 一覧に加え、
-  verdict の3集合（`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`・
-  PR #496 F-495-07）を常に含み、`escalate: yes` のときはその根拠（`stalled_findings`・
-  `saturated_groups`）を含む（実装は `karte_notify/notify.py::_render_message`）。
-  `.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」で「AI の要約を経ない」とする
-  内容の実体はこれである。
+- **発火対象**：`Bash` に加え、主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・
+  `dsv2-lookup` に付与済みの `ctx_execute`／`ctx_batch_execute` 経由の
+  `karte ingest-review` / `close-attempt` も同じ通知対象とする。
+- **通知本文に含まれる内容**：未解消/直近解消の finding 一覧、verdict の3集合
+  （`blocking_findings` ⊇ `blocking_harmful` ⊇ `undecided_disposition`）を常に含み、
+  `escalate: yes` のときはその根拠（`stalled_findings`・`saturated_groups`）を含む。
 - **fail-open**：判定不能・`karte status` 実行失敗・トリガー語を含まない stdin はいずれも
-  無出力 exit 0（統制ではなく可視化専用の助言機構）。詳細は `.claude/hooks/README.md`
+  無出力 exit 0 とする。詳細は `.claude/hooks/README.md`
   「karte-notify」節。
 
 ## 重い作業は agy を積極利用（fail-close）

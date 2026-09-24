@@ -6,7 +6,7 @@
 
 ## 初回実装と是正の分離
 
-レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer（診断してから直す契約を持つ是正専用ロール）へ回し、着手せず STOP して報告する。push 可・merge 不可という権限境界が同じでも、契約は分離されている。
+レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer へ回し、着手せず STOP して報告する。分離の根拠は [rationale](../rationale/issue-implementer.md)「なぜ是正を兼用させないのか」を参照する。
 
 ## 入力
 
@@ -33,7 +33,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
-- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない）。
+- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は主文脈が担い、本ロールは委譲しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
 - commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
@@ -41,7 +41,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 ## スコープ外 finding の書き方
 
-作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。呼び出し元がこれをそのまま指摘台帳（karte）の finding 列へ取り込むため、キーが揃っていないと取り込みが拒否され、指摘が記録されないまま消える。
+作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。根拠は [rationale](../rationale/issue-implementer.md)「スコープ外 finding のキーをレビューと揃える理由」を参照する。
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
@@ -53,7 +53,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
-STOP でも通常完了でも、ここに書いた handoff は SubagentStop フックが worktree の解放前に main 作業ツリーの `tmp/_handoff/collected/<entry-id>--<ファイル名>` へ回収し、内容一致を sha256 で検証する。呼び出し元が返した絶対パスを Read できないとき（worktree が既に解放済み・ファイル変更ゼロで STOP して worktree が消えた場合を含む）は、この回収済みコピーが正本の記録になる。したがって「STOP でもハンドオフは書く」ことと「呼び出し元は必ず Read して判断する」は、worktree が消えても両立する。
+handoff の回収・検証は [rationale](../rationale/issue-implementer.md)「handoff の回収・内容一致検証と worktree 解放」を参照する。
 
 `CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
 JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
@@ -62,12 +62,11 @@ hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish�
 `result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
 protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
 hostはsupervisor run時にownerがimmutable launch recordへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
-publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを内容を含む
-段間Git factsのCAS付きで
-順番に実行し、最終handoffを生成する。
+publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを
+順番に実行し、最終handoffを生成する。段間の内部検証は [rationale](../rationale/issue-implementer.md)
+「supervised process の起動境界と publish 内部検証」を参照する。
 
-同inner processはgenerated `issue-supervised` permission profileが`:workspace`を継承して与える
-workspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
+同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
 schema_version: 1

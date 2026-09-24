@@ -44,6 +44,7 @@
 これを箇所ごとに別 finding に
 すると、**同じ1件の欠陥が未解消件数を2倍3倍に水増しし**、`karte status` の「同一 finding が3ラウンド
 連続未解消」というエスカレーション判定まで歪む。
+再発番判定も locus の交差で行う構成である。
 
 ## finding ID を再利用する理由（移設元：「3. finding ID の再利用規定」）
 
@@ -141,3 +142,25 @@ PR #490 では、スコープ外事項を構造化 finding の外に散文で列
 選択肢は、スコープ外事項を参考情報として別枠に残すか、スコープ内外を `scope` 属性で表し同じ finding の列へ
 入れるかであった。別枠は実害判定と clean 判定を再び迂回するため採らず、後者を採用した。したがって
 `scope: out` は担当時期の申告にすぎず、`harm` の判定、台帳への記録、clean 判定の対象からは免除しない。
+
+## squash の commit タイトル・本文を明示する理由（移設元：「レビュー契約」「Claude Code 固有の設定・権限境界」）
+
+Issue #419 の対象は、GitHub 側の `squash_merge_commit_message` が `COMMIT_MESSAGES` の場合である。
+この設定では複数 commit の subject/body が自動連結される。`--body` を省略して自動整形に委ねると、
+`pr_merge_gate` は連結後の byte-level 形式を予測できず、`MERGE_MESSAGE_AMBIGUOUS` で拒否する。
+これは `blocker_gate/closing.py` の意図的な fail-close であり、`--body` を明示すれば
+`commit_message` が確定してこの分岐を回避できる。
+
+## 手元テストを PR head の検証として扱わない理由（移設元：「レビュー契約」「Claude Code 固有の設定・権限境界」）
+
+ブランチを切り替えない構成では、PR head の変更内容はレビューアの作業ツリーに存在せず、
+`unittest` / `coverage` が検証するのは作業ツリーの指す base ブランチである（Issue #502 F-502-05）。
+allowlist にテストランナーを残したのは、base 側の挙動確認や差分から立てた仮説の再現手順の確認に
+使えるためである。PR のテスト成否を `gh pr checks` で確認する規則と、ローカル実行を許可する用途は
+本文に残している。checkout 禁止の採用根拠は本ファイル「`gh pr checkout` を『戻す契約』ではなく
+『切り替えない』で塞いだ根拠」に記録している。
+
+## context-mode の index が持つ副作用（移設元：「Claude Code 固有の設定・権限境界」）
+
+`ctx_index` による index 作成は外部 KB への永続副作用を持つ。本文には `ctx_search` / `ctx_index` を
+調査に使うことと、同じ対象の index を重複実行しない規則を残した。
