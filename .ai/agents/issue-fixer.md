@@ -18,7 +18,7 @@ expected_oid: そのブランチの検証済み OID（Step 0 でブランチを�
 
 handoff_path・branch_name・repository・expected_oid のいずれかが渡されていなければ着手せず STOP して報告する。足りない値と、呼び出し元が渡すべき形を添える。渡された値から別の値を組み立てない。
 
-handoff_path は作業ツリールート相対の出力であり、呼び出し元が採番する。カルテのパスは受け取らず、`python3 -m karte render` / `append` / `close-attempt` の各操作でのみ触れる。パスを自分で組み立てない。所在解決の根拠は [rationale](../rationale/issue-fixer.md)「`karte_path` は Issue #354（PR-4・K2）で廃止した」を参照する。
+handoff_path は作業ツリールート相対の出力であり、呼び出し元が採番する。カルテのパスは受け取らず、`python3 -m karte render` / `append` / `close-attempt` の各操作でのみ触れる。パスを自分で組み立てない。
 
 ### パスの安全性
 
@@ -38,7 +38,6 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 取得に失敗したら STOP して報告する。取得できた作業環境の解放は呼び出し元の責務である。
 新しいブランチは切らず、既に開いている PR の続きを push する。
-取得失敗の補足は [rationale](../rationale/issue-fixer.md)「是正ブランチ取得が失敗する場合の補足」を参照する。
 
 ## Step 1: Diagnose（コード編集の前に必須）
 
@@ -50,7 +49,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 root_cause は英小文字始まりの slug とし、前ラウンドと違う原因に到達した場合だけ変える。targets はファイル単位ではなく関数/クラス単位で宣言する。
 
-append が拒否されたらラベルを付け替えて通そうとしない。返された転換指令を読み、別の角度から診断をやり直す。それでも進めないなら status: stop とし、原案・比較・推奨を添えて呼び出し元へ報告する。ラウンド数だけを理由に打ち切らない。比較の意味は [rationale](../rationale/issue-fixer.md)「診断登録による試行比較の意味」を参照する。
+append が拒否されたらラベルを付け替えて通そうとしない。返された転換指令を読み、別の角度から診断をやり直す。それでも進めないなら status: stop とし、原案・比較・推奨を添えて呼び出し元へ報告する。ラウンド数だけを理由に打ち切らない。
 
 ## Step 2: Fix
 
@@ -69,7 +68,7 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 
 ## スコープ外 finding の書き方
 
-是正対象は渡された finding だけである。作業中に見つけたそれ以外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。根拠は [rationale](../rationale/issue-fixer.md)「共通の finding・handoff・起動境界の根拠」を参照する。
+是正対象は渡された finding だけである。作業中に見つけたそれ以外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
@@ -80,8 +79,6 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 ## 出力とハンドオフ
 
 是正結果、対応した finding ID、変更ファイル、テスト結果、未解消 finding、スコープ外 finding を、呼び出し元から渡された handoff_path 一択へ書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
-
-handoff の回収・検証は [rationale](../rationale/issue-fixer.md)「共通の finding・handoff・起動境界の根拠」を参照する。
 
 `CODEX_ISSUE_SUPERVISED=1` のinner processではJSON-compatible schema v1 handoffを使う。
 この実行形態ではStep 0のbranch取得とStep 1/2の中央karte書込み・commit/pushはhostの責務である。
@@ -98,7 +95,6 @@ unresolved_findings、out_of_scope_findings、protected_patchを過不足なく�
 `protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。承認対象pathはsupervisor
 run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
 （宣言時のみ）→add→commit→push→karte.close-attemptを順番に実行し、final handoffを生成する。
-hostの内部状態と完了検証は [rationale](../rationale/issue-fixer.md)「supervised process の状態名と完了検証」を参照する。
 
 同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。

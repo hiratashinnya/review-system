@@ -14,7 +14,7 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 - 主文脈だけが `AskUserQuestion` を使い、順序・オーナー判断・先送り・スコープ拡張を担う。`issue-implementer`、`issue-fixer`、`pr-reviewer` は非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
 - 実装は `issue-implementer`、レビュー／マージは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。実装者は merge 不可、レビュー者は push 不可の機械ゲートを前提にする。
-- エージェント定義の変更後は、変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。既知の限界は [rationale](../../../.ai/rationale/issue-pipeline.md)「エージェント定義スナップショット制約の実測ログと帰結」を参照する。
+- エージェント定義の変更後は、変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。
 
 ### `issue-implementer` dispatch（`ISSUE_START_BINDING_V1` marker ＋ `isolation: "worktree"`）
 
@@ -43,14 +43,13 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
 
 - **メインワークツリーのブランチは切り替えない**。`issue-fixer` は自分の worktree で `python3 -m gitgate adopt-branch <branch> --repository <repository> --expected-oid <expected_oid>` を実行して PR ブランチを取得する。
 - **レビュー結果を先にカルテへ取り込む**（dispatch 前）：`python3 -m karte ingest-review --issue <N> --round <R> --from <repo-root 配下のパス>`。これは主文脈が実行する。
-- **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。進行ポインタの更新は [rationale](../../../.ai/rationale/issue-pipeline.md)「カルテ進行ポインタの更新主体」を参照する。
+- **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
 ### karte 判定の直接通知（Claude Code 固有）
 
 `karte ingest-review` / `karte close-attempt` の実行直後、通知機構が `karte status --json` の
-判定を AI の出力を経由せずオーナーのチャットへ届ける。配送と表示の実装は
-[rationale](../../../.ai/rationale/issue-pipeline.md)「karte 判定通知の配送と表示の実装」を参照する。
+判定を AI の出力を経由せずオーナーのチャットへ届ける。
 
 - **発火対象**：`Bash` に加え、主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・
   `dsv2-lookup` に付与済みの `ctx_execute`／`ctx_batch_execute` 経由の

@@ -20,16 +20,14 @@ effort: high
 2. `Task`/`Agent` 呼び出しの**パラメータ**として `isolation: "worktree"` が渡されていること。
 
 deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 不正・isolation 欠落を確認する。
-reason code 一覧・enforcement の実体・設計根拠は [rationale](../../.ai/rationale/issue-fixer.md)
-「`isolation: "worktree"` と `ISSUE_FIX_BINDING_V1` marker の enforcement」を参照する。
 
 ## Claude Code 固有の設定・ゲート
 
-- frontmatter の `tools`・`model`・`effort` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は修正とハンドオフに使う。**`Task` は保有しない**。根拠は [rationale](../../.ai/rationale/issue-fixer.md)「`Task` 権限を保有しない理由」を参照する。修正対象が corpus ノード（`doc-system-v2/nodes/**`）を要すると分かった時点で、直接編集も委譲もせず STOP して主文脈へ報告する。委譲経路 `*-author`→`reconciliation-validator`→`reconciliation` の実行は主文脈が担う。
-- `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。`ingest-review` は本ロールに許可せず、主文脈が実行する。非対称な権限の根拠は [rationale](../../.ai/rationale/issue-fixer.md)「`isolation: "worktree"` と `ISSUE_FIX_BINDING_V1` marker の enforcement」「ゲート allowlist の内部名と `ingest-review` を deny する理由」を参照する。
+- frontmatter の `tools`・`model`・`effort` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は修正とハンドオフに使う。**`Task` は保有しない**。修正対象が corpus ノード（`doc-system-v2/nodes/**`）を要すると分かった時点で、直接編集も委譲もせず STOP して主文脈へ報告する。委譲経路 `*-author`→`reconciliation-validator`→`reconciliation` の実行は主文脈が担う。
+- `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。`ingest-review` は本ロールに許可せず、主文脈が実行する。
 - Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `pyright` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint}`、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` だけ、`gh` は `pr create` / `issue view` だけとする。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`pyright` は診断用フラグと型検査対象ファイルの指定は自由だが、書込系（`--createstub`）・対話系（`-w`/`--watch`）・インタプリタ起動や設定ファイル読込を伴うフラグ（`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`）は拒否される。`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
-- コミットメッセージ、PR本文、karteへの長文引数はWriteでファイル化してファイル渡し形式を使う。許可された経路を自分でも遵守する。機械ゲートの限界は [rationale](../../.ai/rationale/issue-fixer.md)「既知の限界」を参照する。
-- カルテのパスは受け取らず、`python3 -m karte <verb> --issue <N> --round <R>` でのみ触り、パスを自分で組み立てない。`Read`/`Write` でカルテファイルを直接触らない。根拠と機械強制の限界は [rationale](../../.ai/rationale/issue-fixer.md)「`karte_path` は Issue #354（PR-4・K2）で廃止した」を参照する。
+- コミットメッセージ、PR本文、karteへの長文引数はWriteでファイル化してファイル渡し形式を使う。許可された経路を自分でも遵守する。
+- カルテのパスは受け取らず、`python3 -m karte <verb> --issue <N> --round <R>` でのみ触り、パスを自分で組み立てない。`Read`/`Write` でカルテファイルを直接触らない。
 
 オーナー判断が必要な STOP は `AskUserQuestion` で選択肢を提示し、回答が得られるまで編集しない。利用できない場合は共通契約どおり STOP する。
 

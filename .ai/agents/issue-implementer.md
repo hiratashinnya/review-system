@@ -6,7 +6,7 @@
 
 ## 初回実装と是正の分離
 
-レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer へ回し、着手せず STOP して報告する。分離の根拠は [rationale](../rationale/issue-implementer.md)「なぜ是正を兼用させないのか」を参照する。
+レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer へ回し、着手せず STOP して報告する。
 
 ## 入力
 
@@ -41,7 +41,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 ## スコープ外 finding の書き方
 
-作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。根拠は [rationale](../rationale/issue-implementer.md)「スコープ外 finding のキーをレビューと揃える理由」を参照する。
+作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
@@ -53,8 +53,6 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
-handoff の回収・検証は [rationale](../rationale/issue-implementer.md)「handoff の回収・内容一致検証と worktree 解放」を参照する。
-
 `CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
 JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
 hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果を含める。STOPは`status: stopped`とし、
@@ -63,8 +61,7 @@ hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish�
 protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
 hostはsupervisor run時にownerがimmutable launch recordへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
 publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを
-順番に実行し、最終handoffを生成する。段間の内部検証は [rationale](../rationale/issue-implementer.md)
-「supervised process の起動境界と publish 内部検証」を参照する。
+順番に実行し、最終handoffを生成する。
 
 同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。

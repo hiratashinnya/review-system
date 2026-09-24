@@ -30,7 +30,7 @@
 
 - 実装担当を dispatch する前に、PF の Issue-start 契約（存在する場合）で Issue、repository、branch、base を再束縛する。契約エラーは別経路へ迂回せず fail-close する。
 - Issue-start 契約が ALLOW を返した直後、実装担当を dispatch する前に、Project の `Status` を `In progress` にする。BLOCK なら着手せず `In progress` にもしない。`Blocked` を立てるのは同期ツール（`project_status_sync`）に委ねる。
-- **`Status` の書き込みは主文脈が行い、実装担当には行わせない**。詳細は [rationale](../../rationale/issue-pipeline.md) を参照する。
+- **`Status` の書き込みは主文脈が行い、実装担当には行わせない**。
 - dispatch には Issue 番号、関連ノード、作業スコープなどタスク固有情報だけを渡す。恒常的な共有契約は各 PF の常設設定またはこの共通本文を参照させる。
 - 戻り値は変更ファイル、テスト結果、PR（ある場合）、スコープ外指摘を含むハンドオフとする。STOP は主文脈が受けてオーナーへ打ち上げる。**戻り値の絶対パスが読めない場合は、main 作業ツリーの `tmp/_handoff/collected/` 配下の回収済みコピーを確認する**（詳細手順は各 PF の troubleshooting を参照）。
 - **実装担当が STOP を返したら、`Status` を `Ready` へ戻してからオーナーへ打ち上げる**。
@@ -40,7 +40,7 @@
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
 - レビュー担当は各 finding の実害、根拠、期待値、再確認方法、処置要否、処置担当を構造化して返す。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、主文脈・オーナーが覆せる。
-- **レビュー結果（初回・再レビューとも）を審査中の当該 PR へコメント投稿するのは、主文脈が毎回のオーナー確認なしに行う既定動作である。** 主文脈はレビュー担当から返った構造化 finding を当該 PR へ AI 帰属明記でコメントする。`.ai/guidance/common.md`「作業分離・判断境界」の実行前確認から除外するのはこの投稿だけとし、マージ、PR 本文の書き換え、別 PR・別 Issue・別リポジトリ・その他外部サービスへの投稿には実行前のチャット確認を要する。詳細は [rationale](../../rationale/issue-pipeline.md) を参照する。
+- **レビュー結果（初回・再レビューとも）を審査中の当該 PR へコメント投稿するのは、主文脈が毎回のオーナー確認なしに行う既定動作である。** 主文脈はレビュー担当から返った構造化 finding を当該 PR へ AI 帰属明記でコメントする。`.ai/guidance/common.md`「作業分離・判断境界」の実行前確認から除外するのはこの投稿だけとし、マージ、PR 本文の書き換え、別 PR・別 Issue・別リポジトリ・その他外部サービスへの投稿には実行前のチャット確認を要する。
 - 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
 
 ### ②-c 是正 → 再レビュー
@@ -52,7 +52,7 @@
   2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。
   3. 主文脈がその決定を、当該 finding のブロックへ `disposition:` とその付随キー（`deferred_to` / `waived_by` / `waived_reason`）として書き足す。`scope` を覆すと決めた場合は `scope` の値も同じ場所で書き換える。
   4. 書き足したレポートを記録台帳へ取り込む（当事者ロールには取り込みを行わせない）。
-- **決定は毎ラウンド再掲する。** 前ラウンドで未解消だった finding は全件再掲し、`scope` / `disposition` 系の値も毎回記載する。前ラウンドの決定を書き写し、オーナーが方針を変えた場合だけ新しい値にする。詳細は [rationale](../../rationale/issue-pipeline.md) を参照する。
+- **決定は毎ラウンド再掲する。** 前ラウンドで未解消だった finding は全件再掲し、`scope` / `disposition` 系の値も毎回記載する。前ラウンドの決定を書き写し、オーナーが方針を変えた場合だけ新しい値にする。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
@@ -89,7 +89,7 @@
 
 **実害ありで処置方針が未決定の finding が1件でも残る間は clean にしない。** 判定は記録台帳の verdict に従う。`deferred` と `waived` は clean を妨げなくなるが、**`status` は `open` のまま残す**。
 
-**この解除力は `harm: real` の finding にだけ与える。** `harm: none` の finding に `disposition` を書いても記録が残るだけで verdict は動かない。設計理由は [rationale](../../rationale/issue-pipeline.md) を参照する。
+**この解除力は `harm: real` の finding にだけ与える。** `harm: none` の finding に `disposition` を書いても記録が残るだけで verdict は動かない。
 
 次の場合は主文脈が STOP してオーナーへ打ち上げる。
 
@@ -107,7 +107,7 @@
 定める（Claude Code の実装は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知
 （Claude Code 固有）」）。
 
-- **主文脈はカルテの判定内容（verdict・未解消 finding・escalate 理由等）をチャットで再掲・要約しない。** 詳細は [rationale](../../rationale/issue-pipeline.md) を参照する。
+- **主文脈はカルテの判定内容（verdict・未解消 finding・escalate 理由等）をチャットで再掲・要約しない。**
 - **主文脈がチャットへ出すのは、判断に必要な選択肢と理由付き推奨に限る。**
 - カルテの生の状態を確認する必要があるときは `python3 -m karte status --issue <N>` を実行する。手動実行では毎回全件を確認できる。
 - 通知本文の内容（verdict の内訳・escalate の根拠等）は各 PF wrapper を参照する。
