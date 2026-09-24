@@ -504,7 +504,7 @@ AI の当初の解釈は実装時 TDD（Red/Green）への言及だった。オ�
 | **1b** | 要件定義+アーキ設計：本体 | `ChangePlan`（`selected_solution`＝スコープ＋責務分割を含む解決方針・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`。**`AC・test mapping` と `rationale` は 1a の `VerificationDesign`／ADR へ移したため除く**）＋ **ADR**（`phase=要件定義+アーキ設計`。`input_refs` で 1a の `VerificationDesign` を参照） | **`plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証する（無条件。risk gate 条件は撤廃）。1a のレビュー合格後に着手する** | `change-planner`（既存）→`plan-reviewer`（既存） |
 | **2a** | 実装：テスト設計を先に作る | **`UT-TD`**（単体テスト設計。review_system 既存 `test-strategy` の `tests/designs/` に相当）＋**`UT-TC`**（1a の `IT-TD` の対象範囲内で、単体レベルのテストケース。Red 状態の実コードとして存在） | **`pr-reviewer` が単独でレビューする（無条件）。2b の着手前に完了させる** | `test-writer`（新設・2a専任） |
 | **2b** | 実装：本体 | 実装コード（Green）＋必要なら軽量 **ADR**（`phase=実装`。シーケンス図等は作らない） | `pr-reviewer`（既存・無条件） | `issue-implementer`（既存） |
-| **3a** | V字右側：テストエビ | **`ST-TR`／`IT-TR`／`UT-TR`**（各レベルの TC 実行結果。review_system 側は既存 `test-strategy` の UT/e2e 運用を流用——**IT 水準は形式的な区分としては無いが、`test_apply.py` 等の一部テストが実質的に結合レベルを既に含む**。harness 側の**道具ごとの置き場**（ADR の `karte/adr/` 等に相当する `<tool>/test-strategy/`）**は未決＝U-14**） | 既存の成績書運用 | 既存資産の流用 |
+| **3a** | V字右側：テストエビ | **`ST-TR`／`IT-TR`／`UT-TR`**（各レベルの TC 実行結果。review_system 側は既存 `test-strategy` の UT/e2e 運用を流用——**IT 水準は形式的な区分としては無いが、`test_apply.py` 等の一部テストが実質的に結合レベルを既に含む**。harness 側の**道具ごとの置き場**は `<tool>/verify/` に確定済み＝[harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)） | 既存の成績書運用 | 既存資産の流用 |
 | **3b** | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
 
 「詳細設計」は独立行として立てない（2b に吸収、成果物は ADR のみ）。**1a/2a のレビューと 1b/2b の
@@ -769,67 +769,138 @@ AI は直前のターンで「tmp 経由は不要（shared worktree へ直接書
 
 ---
 
-<a id="fbk-20260924-枠組みフィールドは対象prefixなしで置く"></a>
+<a id="fbk-20260924-changeplanは木構造で入れ子可能とする"></a>
 
-### 枠組みフィールドは対象prefixなしで置く
+### ChangePlanは木構造で入れ子可能とする
 
 | | |
 |---|---|
-| **id** | `FBK-20260924-枠組みフィールドは対象prefixなしで置く` |
+| **id** | `FBK-20260924-changeplanは木構造で入れ子可能とする` |
 | **決定日時** | 2026-09-24 |
 | **状態** | **生存** |
-| **置換** | **[envelopeは対象ごとにwork_unit分置する](#fbk-20260923-envelopeは対象ごとにwork_unit分置する) を置換**（v1→v2） |
-| **関連** | [ADRはコード共有・データは道具ごとに分離する](#fbk-20260923-adrはコード共有・データは道具ごとに分離する) と同じ「コード共有・データは発生源ごとに分離」原則の`ChangePlan`/`VerificationDesign`への適用。[トレサビはref宣言駆動の共通アダプタで実現する](#fbk-20260923-トレサビはref宣言駆動の共通アダプタで実現する) の索引対象 |
-| **実行** | **#371**（本文へ反映済み）／**#540**（`ChangePlan`/`VerificationDesign`を索引対象に明示・2026-09-24 反映） |
+| **置換** | **[枠組みフィールドは対象prefixなしで置く](#fbk-20260924-枠組みフィールドは対象prefixなしで置く) を置換**（v2→v3。旧v2の完全な後方互換な一般化——入れ子が不要なIssueはv2とバイト単位で同じ） |
+| **関連** | [ADRはコード共有・データは道具ごとに分離する](#fbk-20260923-adrはコード共有・データは道具ごとに分離する) と同じ「コード共有・データは発生源ごとに分離」原則の`ChangePlan`/`VerificationDesign`への適用。[トレサビはref宣言駆動の共通アダプタで実現する](#fbk-20260923-トレサビはref宣言駆動の共通アダプタで実現する) の索引対象。[harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)（U-14・同時に確定） |
+| **実行** | **#371**（置き場の記述はv2の内容のまま矛盾しないため未反映で可。詳細スキーマはコード実装時に反映）／**#540**（同上） |
 
 **決定内容**
 
-> v1（`work_units DAG`の各ノードを対象ごとに分置する設計）はそのまま維持する。**加えて**、
-> `ChangePlan`/`VerificationDesign`にはwork_unitとは別に、Issue全体に1つだけ存在する
-> **枠組みフィールド**（`ChangePlan`の`selected_solution`/`OOS`/`interfaces`/`invariants`/
-> `failure_behavior`、`VerificationDesign`の`ST-TD`＝AC）がある。これらは対象ごとに分けられない
-> （分ければ同じ決定が複数ファイルに散るSSoT違反になる）ため、**対象prefixの無い同一パス**に置く。
+> ChangePlan/VerificationDesignを「Issue全体スコープ＋対象ごとのwork_unit」という**固定2階層**に
+> しない。同じ型のノードが**親子関係で入れ子になる木構造**として設計する：
 >
 > ```
-> change_plan/CP-<issue番号>.toml              ← 枠組み（selected_solution/OOS/interfaces/invariants/failure_behavior）
-> verification_design/VD-<issue番号>.toml      ← 枠組み（ST-TD＝AC）
->
-> gitgate/change_plan/CP-<issue番号>.toml       ← shard（gitgateに属するwork_unit・IT-TD/IT-TC等）
-> gitgate/verification_design/VD-<issue番号>.toml
-> issue_start/change_plan/CP-<issue番号>.toml   ← shard（issue_startに属するwork_unit）
+> ノード1つの中身（親・子・葉、すべて同じ型）：
+>   id, issue, scope（このノードが覆う対象のリスト）
+>   parent（親ノードへの参照。ルートは空）
+>   children（子ノードへの参照。任意個）
+>   depends_on（実行順DAGの辺。parent/childrenの包含関係とは別軸）
+>   selected_solution / OOS / interfaces / invariants / failure_behavior
+>   it_td / it_tc（このノードのscopeが指す境界の結合検査。空でもよい）
+>   st_td / st_tc（AC。parentが空＝ルートの時だけ必須）
 > ```
 >
-> 対象prefix無しの枠組みファイルと、対象prefix付きのshardファイルは**同じ相対パス構造**
-> （`change_plan/CP-<issue番号>.toml`）を持つ。区別はファイルが対象ディレクトリの中にあるか
-> どうかだけで判定する——`issue_envelope/`のglob（`**/change_plan/CP-*.toml`）は両方を等しく拾い、
-> 「対象ディレクトリ配下か repo 直下か」で枠組み/shardを判別する。
+> - **scopeが対象1件＝葉ノード**。物理配置は`<target>/change_plan/CP-<issue番号>.toml`（v2のまま）。
+> - **scopeが対象2件以上（ルート含む）**＝物理配置は`change_plan/CP-<issue番号>.toml`（ルート・
+>   スラグ無し）または`change_plan/CP-<issue番号>-<slug>.toml`（中間グループ・複数あり得る、
+>   `slugify.py`でslug生成）。
 >
-> **主対象（primary）を著者が宣言する案は不採用**——本当に対等な複数対象Issueでは「どちらが主か」が
-> 恣意的な判断になり、以前訂正した「複数対象にまたがる状態を無理に単一化しようとする」誤り
-> （Issue分割の誤り）の変奏になりかねない。枠組みの真のスコープ（Issue全体）をそのまま物理配置に
-> 反映するほうが一貫する。
+> **v2の完全な後方互換な一般化**：入れ子が不要（対象間の結合を考えなくていい）Issueは、ルート1つ＋
+> 葉N個の2階層＝v2で確定した形とバイト単位で同じ。木が要らないIssueには一切影響しない。
 >
-> **1b/2bが作るADRの置き場も同じ考え方で埋める**：ADRは「その対象自身の設計判断の履歴」という
-> 性質上、枠組みフィールドと違い対象ごとに分けるのが自然（[ADRはコード共有・データは道具ごとに
-> 分離する](#fbk-20260923-adrはコード共有・データは道具ごとに分離する) が元々想定した「各ツール自身の
-> 決定履歴が積み上がる」性質にそのまま合致する）。`<対象>/adr/<issue番号>-<slug>.toml` とし、
-> 新しい機構は追加しない（既存パターンの対象を issue_start 以外の全ツールへ広げるだけ）。
+> **v2で未決だった`IT-TD`/`IT-TC`の置き場（frame/shardのどちらにも決め打ちできない）が解消する**：
+> 対象2件の組・3件の組など「対象間の結合」は、その境界を正確に覆う`scope`を持つ中間ノードへ
+> エントリ単位で自然に収まる。「対象に帰属できないものはframe（ルート）へ」という既存の判断基準
+> （v2の主対象宣言不採用の理由と同じ）を、frame/shardの二値ではなく木の任意の階層に一貫して適用する。
+>
+> **クラスは分けない（単一クラス・自己再帰）**：RootPlan型／NodePlan型に分ける案も検討したが、
+> 木の深さが可変（1段の場合も3段の場合もある）ため、階層ごとに型を増やすと段数が増えるたびに
+> 型も増えかねない。doc-system-v2が型を増やさず辺（親子）で階層を表現するのと同じ思想を踏襲し、
+> 単一クラス＋`parent`参照＋条件付き必須フィールド（`st_td`/`st_tc`は`parent`が空の時だけ必須。
+> `tracking_status`次第で`tracking_issue`が必須になる既存パターンと同型）とする。
+>
+> **1b/2bが作るADRの置き場は v2 の考え方のまま変更なし**：`<対象>/adr/<issue番号>-<slug>.toml`。
 
 **経緯（周辺文脈）**
 
-v1は`work_units DAG`の分解構造をそのまま物理分置に使ったが、`ChangePlan`/`VerificationDesign`が
-`work_units`以外にIssue全体スコープのフィールドも持つことへの言及が無かった。この不完全さが、
-[1a1bと2a2bのレビューを分離し無条件化する](#fbk-20260924-1a1bと2a2bのレビューを分離し無条件化する)
-以降の一連の点検の中でオーナーから問われ、3つの選択肢（主対象宣言／全shardへの複製／対象prefix
-無しの枠組みファイル）を比較検討した。
+U-13の原案検討中、`VerificationDesign`の`IT-TD`/`IT-TC`（対象間の結合検査設計）がframe（Issue全体）
+にもshard（対象ごと）にも一律には収まらないことが判明した。AI原案はledgerのコード例コメント1行のみを
+根拠に`IT-TD`/`IT-TC`をshard固定と提案していたが、オーナーが「ケースバイケースでは？」と指摘し、
+frame/shard二分そのものの限界を突いた。オーナーが「1Issue1ChangePlanにしようとするから無理が出る。
+入れ子にすればいい」と、frame/shard二分をやめて木構造化する方向を提示した。
 
 **オーナー逐語**
 
-> 項目6は選択肢3がよい
+> ChangePlanは入れ子可能にすればいいのでは？
+> 1Issue1ChangePlanにしようとするから無理が出る。入れ子にすればいいのでは？
+> 親と子でクラスを分けてもいいが。。。
 
 **AI の原案と、オーナーが変えた点**
 
-3選択肢の提示・比較（メリデメ）・推奨（選択肢3）はAI。オーナーが推奨どおり選択肢3を承認した。
+frame/shardの二値割り付け（v2の枠組み内での延長線）を原案としていたAIに対し、オーナーが
+「入れ子可能な木構造」という上位の再設計を提示した。AIはこれを受けて単一クラス・自己再帰の
+具体設計（`parent`/`children`/`scope`/条件付き必須フィールド）とクラス分割案との比較・推奨
+（単一クラス）を作成し、オーナーが承認した。
+
+---
+
+<a id="fbk-20260924-harnessテストエビの道具ごとの置き場を確定する"></a>
+
+### harnessテストエビの道具ごとの置き場を確定する
+
+| | |
+|---|---|
+| **id** | `FBK-20260924-harnessテストエビの道具ごとの置き場を確定する` |
+| **決定日時** | 2026-09-24 |
+| **状態** | **生存** |
+| **置換** | なし（[harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする) を具体化する追加決定であり、置換ではない） |
+| **関連** | [harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする)（上位方針）。[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) 3a行の「U-14＝未決」注記を解消 |
+| **実行** | **#540**（Acceptance criteriaへ移設項目を反映済み・2026-09-24） |
+
+**決定内容**
+
+> review_systemの`test-strategy`（`tests/designs/`・`tests/unit/`・`tests/reports/`・`tests/logs/`）を
+> 型として移植し、harness側は`<tool>/verify/`配下に以下を置く：
+>
+> ```
+> <tool>/verify/designs/<id>.md          ← TD
+> <tool>/verify/reports/<id>-<commit>.md ← TR
+> <tool>/verify/logs/<id>-<commit>.txt   ← ログ
+> tests/unit/test_<tool>_*.py            ← TC（変更なし）
+> ```
+>
+> **TCだけ`tests/unit/`共有のまま変更しない**：`.claude/rules/07-project-structure.md`が既に
+> 「`tests/unit/`は両プロジェクトのテストが同一ディレクトリに同居（判別はimport先）」と定めており、
+> これは「コード共有」側（ADRの`adr/`と同じ扱い）。TD/TRは**narrative（経緯・判断を含む記録）**であり、
+> 無関係な道具の記録が混ざるとSSoT/PR1違反になる——ここが分離対象（ADRの`<tool>/adr/`と同じ扱い）。
+> ID prefixは既存の`TD-<area>-<nnn>`パターンをそのまま踏襲し、`area`＝道具名とする。
+>
+> **既存の混入（37件）を移設する**：`tests/reports/TD-issue-start-452*.md`（34件）・
+> `tests/designs/TD-issue-start-452*.md`（3件）が実在する——review_systemの`tests/`配下に
+> harness（#452）の検証記録が混入済み。`git mv`で`issue_start/verify/{reports,designs}/`へ移設する
+> （削除ではなく履歴保全＝PR8区分1）。
+>
+> **トリガーは#540の実装時点。#452自体の解決を待たない**：#452は2026-09-15時点で`F-452-25`
+> （severity: blocker, status: open）が未解決のまま進行中の是正ループにある。無関係な移設作業を
+> #452の担当へ割り込ませるのは`.claude/rules/03-operational.md`「スコープ拡大禁止」に抵触しうる。
+> 一方、機械的な参照（コード側でこのパスをハードコードして読む箇所）は無い（grep確認済み）ため、
+> いつ動かしても壊れるものは無い。移設対象は固定件数ではなく「#540実装時点で実在する全ファイル」
+> とする——#452が停滞中に増えても#540実装時点の実物をそのまま拾える。
+
+**経緯（周辺文脈）**
+
+[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) の3a行が
+「harness側の道具ごとの置き場（略）は未決＝U-14」と明記していた。#540の実装が本論点に依存するため
+先に確定する必要があった。既存混入の発見は、U-13/U-14の原案作成中に`tests/reports/`を実地確認した
+ことによる（想定外の実害の実例——決定が無いまま実装が先行すると、review_systemとharnessの成果物が
+混ざる）。
+
+**オーナー逐語**
+
+> 既存混入（37件）の移設は推奨案で良い
+
+**AI の原案と、オーナーが変えた点**
+
+ディレクトリテンプレート・移設方針（トリガー＝#540実装時点）の提示・調査（#452の実状態を`gh issue view`
+で深掘り）はAI。オーナーが推奨どおり承認した。
 
 ---
 
@@ -2559,6 +2630,57 @@ ST-TC/IT-TC/UT-TDを作る工程がどこにも無いまま、3aでST-TR/IT-TR/U
 
 ---
 
+<a id="fbk-20260924-枠組みフィールドは対象prefixなしで置く"></a>
+
+### 枠組みフィールドは対象prefixなしで置く（**無効**）
+
+| | |
+|---|---|
+| **id** | `FBK-20260924-枠組みフィールドは対象prefixなしで置く` |
+| **記録日時** | 2026-09-24 |
+| **状態** | **置換済み・無効** |
+| **置換先** | **[ChangePlanは木構造で入れ子可能とする](#fbk-20260924-changeplanは木構造で入れ子可能とする) へ置換** |
+| **由来** | オーナー指摘（U-13の検討・IT-TD/IT-TCの配置）。自身は[envelopeは対象ごとにwork_unit分置する](#fbk-20260923-envelopeは対象ごとにwork_unit分置する)（v1）を置換したもの |
+
+**無効になった内容**
+
+> v1（`work_units DAG`の各ノードを対象ごとに分置する設計）はそのまま維持する。**加えて**、
+> `ChangePlan`/`VerificationDesign`にはwork_unitとは別に、Issue全体に1つだけ存在する
+> **枠組みフィールド**（`ChangePlan`の`selected_solution`/`OOS`/`interfaces`/`invariants`/
+> `failure_behavior`、`VerificationDesign`の`ST-TD`＝AC）がある。これらは対象ごとに分けられない
+> （分ければ同じ決定が複数ファイルに散るSSoT違反になる）ため、**対象prefixの無い同一パス**に置く。
+>
+> ```
+> change_plan/CP-<issue番号>.toml              ← 枠組み（selected_solution/OOS/interfaces/invariants/failure_behavior）
+> verification_design/VD-<issue番号>.toml      ← 枠組み（ST-TD＝AC）
+>
+> gitgate/change_plan/CP-<issue番号>.toml       ← shard（gitgateに属するwork_unit・IT-TD/IT-TC等）
+> gitgate/verification_design/VD-<issue番号>.toml
+> issue_start/change_plan/CP-<issue番号>.toml   ← shard（issue_startに属するwork_unit）
+> ```
+>
+> 対象prefix無しの枠組みファイルと、対象prefix付きのshardファイルは同じ相対パス構造を持つ。
+> 区別はファイルが対象ディレクトリの中にあるかどうかだけで判定する。主対象宣言案は不採用
+> （恣意的な判断になるため）。1b/2bが作るADRの置き場は`<対象>/adr/<issue番号>-<slug>.toml`。
+
+**なぜ誤りだったか**
+
+`selected_solution`等のIssue全体フィールドと`work_units`のような対象ごとフィールドの**2種類**しか
+想定しておらず、「対象2件・3件など複数対象にまたがるが全対象ではない」中間スコープ
+（`VerificationDesign`の`IT-TD`/`IT-TC`＝対象間の結合検査設計）を frame/shard の二値のどちらに
+割り付けるべきか規定できていなかった。「対象に帰属できないものはframeへ」という判断基準自体は
+正しかったが、frame（Issue全体）とshard（単一対象）の2階層しか置き場が無いため、
+「2対象間」のような中間スコープを表現する場所が構造的に存在しなかった。
+
+**訂正の契機（オーナー逐語）**
+
+> ChangePlanは入れ子可能にすればいいのでは？
+> 1Issue1ChangePlanにしようとするから無理が出る。入れ子にすればいいのでは？
+
+**実施者** Claude Code (AI)
+
+---
+
 ## §C 根拠（実測データ）
 
 ### C-1 スケールの実測（2026-09-21・現物から取得）
@@ -2689,10 +2811,10 @@ census の `data/README.md` が「`recurrence_of` は**過小計上**」と明�
 | U-8 | 1 PR の上限行数を置くか | 未決 |
 | ~~U-9~~ | ~~決定台帳の Skill の書き込み先~~ | **解消 → [決定台帳の正本をfeedback-ledgerとする](#fbk-20260921-決定台帳の正本をfeedback-ledgerとする)** |
 | U-10 | #409（AgentRun ledger）の扱い。[Issue371と409と513を非推奨とする](#fbk-20260921-issue371と409と513を非推奨とする) の無効化は #371 / #513 に限り、#409 は未判断 | **優先度を下げて保留**（他の決定に従属するため・オーナー指示・2026-09-22） |
-| ~~U-11~~ | ~~`VerificationDesign`/`ChangePlan`/ADR の永続化パス設計~~ | **解消 → [枠組みフィールドは対象prefixなしで置く](#fbk-20260924-枠組みフィールドは対象prefixなしで置く)** |
+| ~~U-11~~ | ~~`VerificationDesign`/`ChangePlan`/ADR の永続化パス設計~~ | **解消 → [ChangePlanは木構造で入れ子可能とする](#fbk-20260924-changeplanは木構造で入れ子可能とする)**（v3・frame/shard二分から木構造へ一般化済み） |
 | ~~U-12~~ | ~~#540 本文が本セッション後半の訂正に追従できていない~~（`ref=`宣言駆動アダプタ・`VerificationDesign`/`ChangePlan`の索引化） | **解消 → `gh issue edit 540` で本文反映済み（2026-09-24・オーナー承認）。`adopt-branch`連鎖は#371側の責務のためRelated行の参照追加のみで対応** |
-| U-13 | [枠組みフィールドは対象prefixなしで置く](#fbk-20260924-枠組みフィールドは対象prefixなしで置く) のスキーマ定義（`Field`/`TableSpec`/`DocSpec`パターンでの`CHANGE_PLAN_SPEC`/`VERIFICATION_DESIGN_SPEC`宣言）・読み書きコードの置き場（本決定のスコープ外として据え置いた） | 未決 |
-| U-14 | [検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) 3a行の harness 側テストエビ**道具ごとの具体パス**（`<tool>/test-strategy/` 相当）が未決のまま表中に記載されている。Opus 5.5サブエージェントの点検で「§Dに行が無い」と指摘され新設 | 未決 |
+| ~~U-13~~ | ~~`ChangePlan`/`VerificationDesign`のスキーマ定義・読み書きコードの置き場~~ | **解消 → [ChangePlanは木構造で入れ子可能とする](#fbk-20260924-changeplanは木構造で入れ子可能とする)**（frame/shard二分をやめ木構造化・置き場は`issue_envelope/`に統合・オーナー承認・2026-09-24） |
+| ~~U-14~~ | ~~harness 側テストエビ**道具ごとの具体パス**（`<tool>/test-strategy/` 相当）~~ | **解消 → [harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)**（`<tool>/verify/`配下＋既存混入37件の移設方針・オーナー承認・2026-09-24） |
 | U-15 | risk gate 非該当時、`plan-reviewer`/`pr-reviewer` の無条件レビューを軽量な機械代替チェックで済ませる改良案（[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) で選択肢bとして提示され不採用。`1a/2aと1b/2bはロール分離を必須とする`エントリで一度却下した類似案との整合要確認） | 未決（**優先度低・オーナー「改良ネタとしていつかやれたら」**） |
 | ~~U-16~~ | ~~施策レジストリを`audit/`に手書きで置く現行方針と「`audit/`は派生ビューにすべき」の緊張関係~~ | **解消（対立案なし）→ [決定台帳の正本をfeedback-ledgerとする](#fbk-20260921-決定台帳の正本をfeedback-ledgerとする) が既に「`audit/`は台帳からの導出ビューにし、手書きをやめる」と明記済み。#537（P1/Now）が未実装なだけで、比較すべき選択肢は無かった（2026-09-24 検証・Claude Code (AI)）** |
 | ~~U-17~~ | ~~#533（classifier誤検知）がマージ権限剥離後も必要か~~ | **解消（対立案なし）→ [マージ権限をAIから剥がしsettings.jsonへ移す](#fbk-20260923-マージ権限をaiから剥がしsettings.jsonへ移す) 本文に「`pr_merge_gate/classifier.py`は不要になる」と明記済み。#542本文にも「Related: #533（本Issueで解消される見込み）」と紐付け済み。比較すべき選択肢は無かった（2026-09-24 検証・Claude Code (AI)・`gh issue view 542`で確認） |
