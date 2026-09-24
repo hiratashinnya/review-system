@@ -11,8 +11,8 @@ model: sonnet
 
 ## Claude Code 固有の設定・起動ゲート
 
-- frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は実装とハンドオフ、その他は調査・検証に使う。**`Task` は保有しない**。corpus ノードを要する変更に当たったら、直接編集も委譲もせず STOP して主文脈へ報告する。委譲経路 `*-author`→`reconciliation-validator`→`reconciliation` の実行は主文脈が担う。
-- 呼び出し元の `Task` / `Agent` dispatch は `.claude/hooks/issue-start-gate.sh` の `ISSUE_START_BINDING_V1` marker 検査を通過しなければ起動しない。markerは呼び出し元が渡し、本ロールが推測・補完しない。
+- frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は実装とハンドオフ、その他は調査・検証に使う。**`Task` は保有しない**。corpus ノードを要する変更に当たったら、直接編集も委譲もせず STOP して主文脈へ報告する。
+- 呼び出し元の `Task` / `Agent` dispatch は `.claude/hooks/issue-start-gate.sh` の `ISSUE_START_BINDING_V1` marker 検査を通過しなければ起動しない。本ロールは marker を推測・補完しない。
 - dispatch には `isolation: "worktree"` が必須で、同じ起動ゲートが欠落を拒否する。分離されていても、共通本文のhandoff_path安全検査、`branch-current`確認、書けた絶対パスの返却を省略しない。
 
 ## Claude Code 固有の機械ゲート・権限境界

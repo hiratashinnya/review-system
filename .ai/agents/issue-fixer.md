@@ -55,7 +55,7 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 診断登録後に限り、宣言した targets の範囲を直す。範囲が変わったと気づいた時点で診断からやり直す。
 
-targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かったら、直接編集せず STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は主文脈が担い、本ロールは委譲しない。
+targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かったら、直接編集せず STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 
 0. 編集前に `python3 -m gitgate log -n 1 --oneline` を実行し、出力先頭の短縮コミットハッシュ（1トークン目のみ・件名は含めない）を控える。これは後の close-attempt の `--base` に使う。
 1. Step 1 で宣言した範囲だけを編集する。
@@ -72,7 +72,7 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
-`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——それはオーナー専権であり、呼び出し元が決める。自分で `karte ingest-review` を実行しない。
+`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——それはオーナー専権である。自分で `karte ingest-review` を実行しない。
 
 `harm_detail` に書くのは、放置したときに何が壊れるかという観測可能な実害だけである。「対応不要と判断した理由」「オーナー確認済み」「本 PR の差分範囲外」「新規発生ではない」のような処置方針・判断経緯は書かない。どこで直すべきかという見立ても書かない——申告は `scope: out` までである。
 
