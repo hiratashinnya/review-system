@@ -104,3 +104,12 @@ hand-off は dispatch が終了したことを呼び出し元が観測する sig
 record、PID/start-token、JSONL、direct workspace command、host publish state machineへ束縛する。protected
 planはrun入力からのみ記録し、implementerはhost publishでpush/PR create可・merge不可を維持する。nested
 Codexのlocal threadは成功証拠に数えず、model/API到達遮断を実装後のfake endpointで検証する。
+
+## `Task` 権限を保有しない理由（移設元：「Claude Code 固有の設定・起動ゲート」）
+
+Issue #517 では、`issue-implementer` が `Task` を使ってゲート対象外のサブエージェント
+（`general-purpose` 等）を spawn すると、子側には `agent-command-gate.sh` の本ロール用 allowlist が適用されず、
+親ロールの権限境界を迂回できる経路が確認された。選択肢は、子ロールまで動的に追跡して同じゲートを適用するか、
+本ロールから `Task` 自体を外すかであった。初回実装は専用ロール自身で完結する契約であり、追加の委譲能力を必要と
+しないため、境界を構造的に閉じる後者を第一層として採用した。corpus ノードの著作が必要な場合は、子を起動して
+迂回せず STOP し、主文脈が正式な著作経路を起動する。

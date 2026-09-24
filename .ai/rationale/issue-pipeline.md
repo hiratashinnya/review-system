@@ -306,3 +306,11 @@ supervisorは作り直さず、owner launch specとattemptを単一transaction�
 EXECUTE allowlist、command毎bwrap、空procfs、feature catalog完全一致は不採用。direct Codex commandとdata-plane
 network denyを採り、local thread生成は成功証拠にせず残余リスクとして受容する。auth/installed tree read denyは
 legacy workspace-writeとpermission profileが非合成なので、profile契約へ更新しない限り未検証のまま成功扱いしない。
+
+## karte 判定の再要約を禁止した発端（移設元：「karte 判定の報告分担（Issue #512）」）
+
+PR #509／Issue #431 では、`karte` が返した `escalate: yes` を主文脈が「原因が分かっているから問題ない」と
+独自解釈して丸め、オーナーへ届く報告が生の判定から歪んだ。選択肢は、主文脈に判定の要約を許して注意事項だけを
+加えるか、生の判定は通知機構に委ねて主文脈には判断材料となる選択肢と推奨だけを述べさせるかであった。前者は
+言い換えのたびに同じ歪みを再発させうるため採らず、後者を採用した。これにより、verdict・未解消 finding・
+escalate 理由は AI の再解釈を挟まず届け、主文脈はオーナーが選ぶ論点の整理に専念する。

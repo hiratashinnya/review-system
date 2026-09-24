@@ -198,3 +198,8 @@ brokerは任意argvを受けず、固定Git/unittest/auditだけをnetwork/auth/
 fixerもrepo supervisorのimmutable launch recordとdirect workspace commandを使う。host karte bridge
 （F-452-17）は後続のまま維持し、縮小PRだけで実装済みとはみなさない。fixerはhost publishでpush可・merge不可、
 reviewer自己修正不可、bootstrap waiverと別context再レビューを維持する。
+
+## `Task` 権限を保有しない理由（移設元：「Claude Code 固有の設定・ゲート」）
+
+Issue #517 の構造的 fail-close は `issue-fixer` にも同じく適用され、本ロールは `Task` を保有しない。
+共通する発端、選択肢、採用根拠は [issue-implementer の rationale](issue-implementer.md) に記録している。
