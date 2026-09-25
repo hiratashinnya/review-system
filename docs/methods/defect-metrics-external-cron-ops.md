@@ -254,22 +254,28 @@ gh run list --workflow=defect-metrics.yml --limit 1
 課金が発生する構成に切り替える場合は、実装前にオーナーの明示的な認可が必要
 （同節「課金必須の場合は選択肢＋推奨を添えて認可を仰ぐ」）。本手順はその必要がない無課金構成である。
 
-## 7. 未確認事項（cron-job.org 設定後に実測すること＝Issue #489）
+## 7. 実測結果（Issue #489・2026-09-25 確認・Claude Code (AI)）
 
-次はオーナーが cron-job.org を実際に設定した後でなければ検証できない。実装エージェントは
-この検証を代行できない（Issue #488 の Out of scope・実装と live 実測を同じ Issue に載せない）。
+オーナーが cron-job.org のジョブを作成しテストランを実行した（2026-09-25）。以下は
+その実測結果であり、Issue #488 の Out of scope（実装と live 実測を同じ Issue に載せない）
+に従い Issue #489 側で確認したものである。
 
-- 外部 cron からの `workflow_dispatch` が実際に `2xx` を返し、ワークフローが起動すること。
-- 孤立ブランチ `defect-metrics` が実際に作成され、`report.json` が `git fetch` で読めること。
-- `generated_at` が期待実行時刻と整合し、週次で更新され続けること。
-- `verify-baseline` step が live データに対して緑であり続けること（2026-09-06 時点の実測では
-  22 PR / 41 Issue / 1.86 / 派生 15 / 0.68 を再現済み＝`defect_metrics/README.md` §6。
-  Issue #493 で参照の記法を `#N`・`OWNER/REPO#N`・完全 URL の3つへ広げた後も、2026-09-08 に
-  基線窓を**手動走査で**再計算して **同じ値**であることを確認済み＝同 §6.1。したがって本
-  ドキュメントに記載した基線値は据え置き。**同 §6.1 は `gh issue view --jq` で基線値そのものを
-  数え直した記録であって、§8 が定める merge 前検証の実施例ではない**——§8 が求めるのは
-  `python3 -m defect_metrics verify-baseline` の実行であり、その実施例は §8.1 末尾に示す）。
-- 報告経路（#461）へレポートを源として追加する際の読み取り可否。
+| 確認項目 | 結果 |
+|---|---|
+| 外部 cron からの `workflow_dispatch` が実際に `2xx` を返し、ワークフローが起動すること | ✅ run `36135296372`（2026-09-25T12:30:19Z）・`event: workflow_dispatch`・`conclusion: success`。`actor`/`triggering_actor` とも `hiratashinnya`（fine-grained PAT 経由の REST API 呼び出しは PAT 発行者のアカウントとして記録される） |
+| 孤立ブランチ `defect-metrics` が実際に作成され、`report.json` が `git fetch` で読めること | ✅ 認証・API rate limit なしに `git fetch origin defect-metrics` で取得できることを確認 |
+| `generated_at` が期待実行時刻と整合すること | ✅ 上記 run の `report.json` で `generated_at: 2026-09-25T12:30:26Z`（run 開始の7秒後） |
+| `verify-baseline` step が live データに対して緑であること | ✅ 同 run の `baseline_verification.reproduced: true`・`mismatches: []`（22 PR / 41 Issue / 1.86 / 派生 15 / 0.68 を完全再現。§4.2 で先行確認した 2026-09-21 の `schedule` 起動分と合わせて計2回連続で再現） |
+| 閾値未超過のときに「異常あり」と報告されないこと | ✅ 同 run の `threshold.anomaly: false`・`alerts: []` |
+| 課金が発生していないこと | ✅ GitHub Actions は public repository のため課金なし（§6）。cron-job.org は公式の無料枠内（同 §6）。テストラン実行時点でオーナーから課金発生の報告なし |
+| 報告経路（#461）へレポートを源として追加する際の読み取り可否 | **未接続**。#461 は2026-09-25時点で未実装（SessionStart 経由の読み取りフック自体が存在しない）。#461 側の実装が済んでから、本レポート（`origin/defect-metrics:report.json`）を読み取り対象に加える作業が残る（#461 側の残作業） |
+
+`generated_at` の「週次で更新され続けること」は、性質上この1回の実測だけでは確認できない
+（複数週にわたる継続観測が必要）。次回の週次起動（毎週月曜 03:30 UTC 前後）で `event`
+が `workflow_dispatch` のまま並ぶかを、§4.1 の `gh run list` で確認する。
+
+実測で判明した差異は無かった（基線・閾値判定とも記録済みの値と完全一致）ため、
+本ドキュメントの他の記載（§2〜§6）への反映事項もない。
 
 ## 8. 指標定義を変更する PR の merge 前検証（実施者＝主文脈）
 
