@@ -96,6 +96,29 @@ def _latest_completed_run(
     return runs[0] if runs else None
 
 
+def _collection_error(
+    workflow: dict[str, Any] | None,
+    stage: str,
+    error: Exception,
+) -> dict[str, Any]:
+    """API/response failureをreport内の非信頼診断データへ変換する。"""
+
+    source = workflow or {}
+    workflow_id = source.get("id", 0)
+    return {
+        "workflow": {
+            "id": workflow_id,
+            "name": str(source.get("name") or "CI anomaly collector"),
+            "path": str(source.get("path") or COLLECTOR_PATH),
+        },
+        "severity": "error",
+        "kind": "collection_error",
+        # Exception本文にはURL等の外部入力が入り得るため、型名だけを公開する。
+        "summary": f"collection failed during {stage} ({type(error).__name__})",
+        "details_url": "",
+    }
+
+
 def collect_report(
     get: Callable[[str, dict[str, object] | None], Any],
     repository: str,
@@ -108,72 +131,87 @@ def collect_report(
     timestamp = (generated_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
     anomalies: list[dict[str, Any]] = []
     workflows_checked = 0
+    collection_errors = 0
 
     workflow_path = f"/repos/{repository}/actions/workflows"
-    for workflow in _pages(get, workflow_path, "workflows"):
+    workflow_pages = iter(_pages(get, workflow_path, "workflows"))
+    while True:
+        try:
+            workflow = next(workflow_pages)
+        except StopIteration:
+            break
+        except Exception as error:
+            anomalies.append(_collection_error(None, "workflow enumeration", error))
+            collection_errors += 1
+            break
+
         path = str(workflow.get("path") or "")
         # Repository-owned workflow filesだけがオーナー確定スコープ。GitHub API は
         # Copilot/Claude の dynamic workflow も返すため、明示的に境界を固定する。
-        if not path.startswith(".github/workflows/") or path == COLLECTOR_PATH:
+        if not path.startswith(".github/workflows/"):
             continue
-        workflow_id = int(workflow["id"])
-        run = _latest_completed_run(get, repository, workflow_id, branch)
-        if run is None:
-            continue
-        workflows_checked += 1
-        workflow_info = {
-            "id": workflow_id,
-            "name": str(workflow.get("name") or run.get("name") or workflow_id),
-            "path": path,
-        }
-        run_info = {
-            "id": int(run["id"]),
-            "attempt": int(run.get("run_attempt") or 1),
-            "conclusion": str(run.get("conclusion") or "unknown"),
-            "event": str(run.get("event") or "unknown"),
-            "head_sha": str(run.get("head_sha") or ""),
-            "completed_at": run.get("updated_at") or run.get("created_at"),
-        }
-        details_url = str(run.get("html_url") or "")
+        try:
+            workflow_id = int(workflow["id"])
+            run = _latest_completed_run(get, repository, workflow_id, branch)
+            if run is None:
+                continue
+            workflows_checked += 1
+            workflow_info = {
+                "id": workflow_id,
+                "name": str(workflow.get("name") or run.get("name") or workflow_id),
+                "path": path,
+            }
+            run_info = {
+                "id": int(run["id"]),
+                "attempt": int(run.get("run_attempt") or 1),
+                "conclusion": str(run.get("conclusion") or "unknown"),
+                "event": str(run.get("event") or "unknown"),
+                "head_sha": str(run.get("head_sha") or ""),
+                "completed_at": run.get("updated_at") or run.get("created_at"),
+            }
+            details_url = str(run.get("html_url") or "")
 
-        if run_info["conclusion"] in FAILURE_CONCLUSIONS:
-            anomalies.append(
-                {
-                    "workflow": workflow_info,
-                    "severity": "error",
-                    "summary": (
-                        f"workflow run concluded {run_info['conclusion']} on {branch}"
-                    ),
-                    "details_url": details_url,
-                    "run": run_info,
-                }
-            )
-
-        jobs_path = f"/repos/{repository}/actions/runs/{run_info['id']}/jobs"
-        for job in _pages(get, jobs_path, "jobs"):
-            check_id = _check_run_id(job)
-            annotations_path = (
-                f"/repos/{repository}/check-runs/{check_id}/annotations"
-            )
-            for annotation in _pages(get, annotations_path, None):
-                if annotation.get("annotation_level") != "warning":
-                    continue
-                title = str(annotation.get("title") or "GitHub Actions warning")
-                message = " ".join(str(annotation.get("message") or "").split())
-                location = str(annotation.get("path") or "")
-                if annotation.get("start_line"):
-                    location += f":{annotation['start_line']}"
+            if run_info["conclusion"] in FAILURE_CONCLUSIONS:
                 anomalies.append(
                     {
                         "workflow": workflow_info,
-                        "severity": "warning",
-                        "summary": f"{title}: {message}".strip(),
-                        "details_url": str(job.get("html_url") or details_url),
+                        "severity": "error",
+                        "summary": (
+                            f"workflow run concluded {run_info['conclusion']} on {branch}"
+                        ),
+                        "details_url": details_url,
                         "run": run_info,
-                        "job": str(job.get("name") or job.get("id") or "unknown"),
-                        "location": location,
                     }
                 )
+
+            jobs_path = f"/repos/{repository}/actions/runs/{run_info['id']}/jobs"
+            for job in _pages(get, jobs_path, "jobs"):
+                check_id = _check_run_id(job)
+                annotations_path = (
+                    f"/repos/{repository}/check-runs/{check_id}/annotations"
+                )
+                for annotation in _pages(get, annotations_path, None):
+                    if annotation.get("annotation_level") != "warning":
+                        continue
+                    title = str(annotation.get("title") or "GitHub Actions warning")
+                    message = " ".join(str(annotation.get("message") or "").split())
+                    location = str(annotation.get("path") or "")
+                    if annotation.get("start_line"):
+                        location += f":{annotation['start_line']}"
+                    anomalies.append(
+                        {
+                            "workflow": workflow_info,
+                            "severity": "warning",
+                            "summary": f"{title}: {message}".strip(),
+                            "details_url": str(job.get("html_url") or details_url),
+                            "run": run_info,
+                            "job": str(job.get("name") or job.get("id") or "unknown"),
+                            "location": location,
+                        }
+                    )
+        except Exception as error:
+            anomalies.append(_collection_error(workflow, "workflow collection", error))
+            collection_errors += 1
 
     anomalies.sort(
         key=lambda item: (
@@ -188,5 +226,6 @@ def collect_report(
         "repository": repository,
         "branch": branch,
         "workflows_checked": workflows_checked,
+        "collection_errors": collection_errors,
         "anomalies": anomalies,
     }

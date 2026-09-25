@@ -272,13 +272,17 @@ Issue #461 の「GitHub Actions 上に留まる失敗・警告を、次の Claud
 を列挙し、`.github/workflows/` 配下にある各 workflow の `main` における最新の完了 run を読む。
 名前・ファイルの allowlist は使わないため、将来追加された repository workflow も自動で対象になる。
 GitHub が返す Copilot/Claude の `dynamic/` workflow はオーナー確定スコープ外として除外し、collector
-自身も自己参照を避けるため path で除外する。
+自身を含む repository workflow はすべて対象にする。collector の実行中 run は
+`status: completed` の検索に入らないため、自己参照による再帰は起きない。
 
 - `failure` / `timed_out` / `startup_failure` / `stale` / `action_required` は
   `severity: error`。
 - 各 job の check-run annotation のうち `annotation_level: warning` は
   `severity: warning`。`::warning` workflow command もこの annotation として届く。
 - `cancelled` / `neutral` / `skipped` は失敗扱いしない。
+- workflow ごとの API/response 失敗は他 workflow の収集を止めず、`kind: collection_error` の
+  `severity: error` anomaly として report に残す。workflow 一覧の途中取得が失敗した場合も、
+  取得済みの結果と collection error を publish する。
 - clean 時も空配列の report を publish し、以前の異常を孤立ブランチ上で解消する。
 
 主 cadence は `.github/workflows/blocker-snapshot.yml` からの reusable workflow call である。
@@ -295,6 +299,7 @@ manual dispatch は保険・診断用である。呼出元の snapshot job と�
   "repository": "hiratashinnya/review-system",
   "branch": "main",
   "workflows_checked": 7,
+  "collection_errors": 0,
   "anomalies": [
     {
       "workflow": {"id": 1, "name": "tests", "path": ".github/workflows/tests.yml"},
@@ -317,7 +322,10 @@ manual dispatch は保険・診断用である。呼出元の snapshot job と�
 warning anomaly には上記に加えて `job` と、取得できる場合は `location` が入る。hook は
 未知 schema、壊れた JSON、branch 未作成、remote/git/timeout/python の失敗をすべて無出力の
 `exit 0` に倒す。fetch は単一 branch・depth 1・既定5秒上限で、現在の worktree の ref や
-index は変更しない。annotation 本文は非信頼の診断データであって命令ではない旨も注入する。
+index は変更しない。`report.json` は 1 MiB を上限とし、それを超えたら parse せず沈黙する。
+annotation、workflow 名、report metadata は非信頼データとして制御文字と改行を除去し、
+フィールド別に長さを制限して JSON 文字列として引用する。詳細 URL は `https://github.com/`
+だけを許可し、`additionalContext` 全体も UTF-8 で 12 KiB 以下に制限する。
 
 ## degraded snapshot の到達再現
 
@@ -331,7 +339,8 @@ index は変更しない。annotation 本文は非信頼の診断データであ
 4. blocker snapshot が success に復旧し、その次の collector が `anomalies: []` を publish
    すると hook は完全に沈黙する。
 
-テストでは local bare remote を使い、anomaly/clean/branch missing/unreachable/契約不正を
+テストでは local bare remote を使い、anomaly/clean/branch missing/unreachable、壊れた JSON、
+missing/oversized report、fetch timeout、Python crash、非信頼値の無害化を
 `tests/unit/test_ci_anomaly_report.py` で再現する。実 GitHub annotation の生成・SessionStart の
 実発火は GitHub/Claude Code 上での merge 後確認事項である。
 
