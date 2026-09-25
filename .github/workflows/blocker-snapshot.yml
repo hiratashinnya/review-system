@@ -82,6 +82,8 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
+  checks: read
   contents: write
   issues: read
 
@@ -90,6 +92,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Issue #461: この workflow の既存 external-cron cadence（5分）を、全 workflow の
+  # main 異常レポート更新にも再利用する。snapshot publish とは独立に動かすため、
+  # snapshot job が赤くても次回 run でその失敗を収集できる。
+  ci-anomaly-report:
+    uses: ./.github/workflows/ci-anomaly-report.yml
+
   publish:
     runs-on: ubuntu-latest
     steps:
