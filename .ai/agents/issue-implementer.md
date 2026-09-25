@@ -6,7 +6,7 @@
 
 ## 初回実装と是正の分離
 
-レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer（診断してから直す契約を持つ是正専用ロール）へ回し、着手せず STOP して報告する。push 可・merge 不可という権限境界が同じでも、契約は分離されている。
+レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer へ回し、着手せず STOP して報告する。
 
 ## 入力
 
@@ -35,7 +35,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
-- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。委譲経路（*-author→reconciliation-validator→reconciliation）の実行は本ロールでは行えない（本ロールはサブエージェント委譲手段を保有しない）。
+- corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
 - commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
@@ -43,19 +43,17 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 ## スコープ外 finding の書き方
 
-作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。呼び出し元がこれをそのまま指摘台帳（karte）の finding 列へ取り込むため、キーが揃っていないと取り込みが拒否され、指摘が記録されないまま消える。
+作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
-`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——それを決めるのはオーナーであり、呼び出し元（主文脈）はオーナーの決定を仰いで台帳へ記録する担い手にすぎない。
+`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——決定主体はオーナーである。
 
 `harm_detail` に書くのは、放置したときに何が壊れるかという観測可能な実害だけである。「対応不要と判断した理由」「オーナー確認済み」「本 PR の差分範囲外」「新規発生ではない」のような処置方針・判断経緯は書かない。どこで直すべきかという見立ても書かない——申告は `scope: out` までである。
 
 ## 出力とハンドオフ
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
-
-STOP でも通常完了でも、ここに書いた handoff は SubagentStop フックが worktree の解放前に main 作業ツリーの `tmp/_handoff/collected/<entry-id>--<ファイル名>` へ回収し、内容一致を sha256 で検証する。呼び出し元が返した絶対パスを Read できないとき（worktree が既に解放済み・ファイル変更ゼロで STOP して worktree が消えた場合を含む）は、この回収済みコピーが正本の記録になる。したがって「STOP でもハンドオフは書く」ことと「呼び出し元は必ず Read して判断する」は、worktree が消えても両立する。
 
 `CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
 JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
@@ -64,12 +62,10 @@ hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish�
 `result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
 protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
 hostはsupervisor run時にownerがimmutable launch recordへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
-publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを内容を含む
-段間Git factsのCAS付きで
+publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを
 順番に実行し、最終handoffを生成する。
 
-同inner processはgenerated `issue-supervised` permission profileが`:workspace`を継承して与える
-workspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
+同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
 schema_version: 1
