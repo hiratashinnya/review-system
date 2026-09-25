@@ -145,12 +145,14 @@ def collect_report(
             collection_errors += 1
             break
 
-        path = str(workflow.get("path") or "")
-        # Repository-owned workflow filesだけがオーナー確定スコープ。GitHub API は
-        # Copilot/Claude の dynamic workflow も返すため、明示的に境界を固定する。
-        if not path.startswith(".github/workflows/"):
-            continue
         try:
+            if not isinstance(workflow, dict):
+                raise TypeError("GitHub API workflow item is not an object")
+            path = str(workflow.get("path") or "")
+            # Repository-owned workflow filesだけがオーナー確定スコープ。GitHub API は
+            # Copilot/Claude の dynamic workflow も返すため、明示的に境界を固定する。
+            if not path.startswith(".github/workflows/"):
+                continue
             workflow_id = int(workflow["id"])
             run = _latest_completed_run(get, repository, workflow_id, branch)
             if run is None:
@@ -210,7 +212,8 @@ def collect_report(
                         }
                     )
         except Exception as error:
-            anomalies.append(_collection_error(workflow, "workflow collection", error))
+            source = workflow if isinstance(workflow, dict) else None
+            anomalies.append(_collection_error(source, "workflow collection", error))
             collection_errors += 1
 
     anomalies.sort(

@@ -233,6 +233,26 @@ class CollectorTests(unittest.TestCase):
             ["later", "malformed"],
         )
 
+    def test_malformed_workflow_item_is_reported_and_later_items_continue(self):
+        api = FakeAPI(
+            workflows=["not-an-object", workflow(20, "later")],
+            runs={20: run(200, "failure")},
+            jobs={200: []},
+        )
+        report = collect_report(api.get, "o/r", generated_at=FIXED_NOW)
+
+        self.assertEqual(report["collection_errors"], 1)
+        self.assertEqual(report["workflows_checked"], 1)
+        errors = [
+            item for item in report["anomalies"]
+            if item.get("kind") == "collection_error"
+        ]
+        self.assertEqual(len(errors), 1)
+        self.assertIn("TypeError", errors[0]["summary"])
+        self.assertTrue(
+            any(item["workflow"]["name"] == "later" for item in report["anomalies"])
+        )
+
 
 @unittest.skipUnless(shutil.which("git") and shutil.which("bash"), "git/bash required")
 class SessionStartHookTests(unittest.TestCase):
@@ -428,6 +448,13 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(
             {
                 name: yaml_value(report_workflow, ("permissions", name))
+                for name in ("actions", "checks", "contents")
+            },
+            {"actions": "read", "checks": "read", "contents": "write"},
+        )
+        self.assertEqual(
+            {
+                name: yaml_value(blocker, ("permissions", name))
                 for name in ("actions", "checks", "contents")
             },
             {"actions": "read", "checks": "read", "contents": "write"},
