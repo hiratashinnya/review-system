@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hiratashinnya/review-system/schemas/feedback-ledger-v1.json",
+  "title": "review-system feedback ledger entry/v1",
+  "description": "Owner-decision capture entry stored as canonical TOML under .ai/feedback/ledger/. This JSON is documentation and validation metadata; the executable validator is hand-written in feedback_ledger/ and depends on the standard library only (no jsonschema dependency). Date-typed fields are TOML local dates and appear here as `format: date` strings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "id", "topic", "occurred_at", "decision_point", "overridden_role",
+    "divergence", "confidence_of_inference", "recorded_by", "affected_assets",
+    "supersedes", "source", "narrative"
+  ],
+  "properties": {
+    "schema": {"const": "feedback-ledger/v1"},
+    "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "topic": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date"},
+    "decision_point": {
+      "enum": [
+        "triage-order", "scope-split", "implementation", "review-finding",
+        "disposition", "merge", "schedule", "other"
+      ]
+    },
+    "overridden_role": {
+      "type": "string",
+      "pattern": "^(?:main-thread|issue-implementer|issue-fixer|pr-reviewer|skill:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+    },
+    "divergence": {
+      "enum": ["reversal", "narrowing", "widening", "deferral", "alternative-means"]
+    },
+    "confidence_of_inference": {"enum": ["low", "medium", "high"]},
+    "recorded_by": {"type": "string", "minLength": 1},
+    "affected_assets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^(?:|FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*)$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue", "pr", "round", "finding_ids"],
+      "properties": {
+        "issue": {"type": "integer", "minimum": 1},
+        "pr": {"type": "integer", "minimum": 0},
+        "round": {"type": "integer", "minimum": 0},
+        "finding_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^F-[0-9]+-[0-9]+$"}
+        }
+      }
+    },
+    "narrative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background", "recommendation", "recommendation_reason", "uncertainty",
+        "owner_verbatim", "inferred_reason"
+      ],
+      "properties": {
+        "background": {"type": "string", "minLength": 1},
+        "recommendation": {"type": "string", "minLength": 1},
+        "recommendation_reason": {"type": "string", "minLength": 1},
+        "uncertainty": {"type": "string"},
+        "owner_verbatim": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Verbatim owner wording only. Speculative vocabulary is rejected by rule L4; interpretation belongs in inferred_reason."
+        },
+        "inferred_reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^推測：",
+          "description": "Inference only. Must start with the 推測： marker and must not assert the owner said something (rule L5)."
+        }
+      }
+    }
+  }
+}

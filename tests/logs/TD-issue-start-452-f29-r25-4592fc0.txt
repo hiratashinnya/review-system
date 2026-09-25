@@ -1,0 +1,34 @@
+Issue #452 F-452-29 round 25 verification evidence
+
+Baseline: 89540cba510f8e123d1226ec7dd387ac50c20ad8
+Implementation commit: 4592fc0
+Claude Code: not used
+
+Focused:
+- tests.unit.test_issue_start_gate.CodexLaunchIntentTests: 40 PASS
+
+Related:
+- tests.unit.test_issue_start_gate
+- tests.unit.test_codex_launch_control
+- tests.unit.test_codex_supervisor_shrink
+- tests.unit.test_issue_start_cli_assets
+- 206 tests PASS, 11 skipped
+- explicit AssetParityTests: 9 PASS
+
+Full:
+- python3 -m unittest discover -s tests -p 'test_*.py'
+- 1880 tests PASS, 9 skipped
+
+F-452-29 acceptance:
+- malformed single/double/backtick/curly quote, mismatched closers, and HTML
+  entity quote variants no longer consume the remainder of the input to EOF;
+  each malformed word resumes at a local endpoint strictly after its start.
+- candidates after whitespace/newline and candidates inside an unclosed or
+  mismatched quote are detected for implementer and fixer Issue/karte inputs.
+- normal prose without a candidate and repeated malformed fragments terminate
+  without generic whole-input rejection; balanced F25-F28 matrix and directory
+  near-miss behavior remain passing.
+
+Coverage was attempted separately but could not start: the default uv cache is
+read-only, and an isolated /tmp uv cache could not reach pypi.org because DNS
+is unavailable. See the corresponding FAIL TR; no coverage PASS is claimed.

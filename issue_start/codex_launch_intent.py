@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import grp
 import hashlib
+from html import unescape
 import json
 import os
 import pwd
@@ -82,6 +83,35 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _FINDING_ID = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _OID = re.compile(r"^[0-9a-f]{40}$")
+# Snapshot text is inserted into the role prompt as a format replacement.  A
+# single ``format_map`` pass means braces in a replacement are not parsed
+# again.  We therefore only reject fields whose names overlap host-owned
+# prompt facts, while allowing ordinary examples such as ``{name}``.
+_PROMPT_FIELD = re.compile(
+    r"(?<!\{)\{(?P<name>[A-Za-z_][A-Za-z0-9_]*|[0-9]+)"
+    r"(?:![^{}]*)?(?::[^{}]*)?\}(?!\})"
+)
+# These are the names that the host owns in the role prompt.  Unknown fields
+# are data in a snapshot, not a second source of execution facts.
+_PROMPT_RESERVED_FIELDS = frozenset({
+    "issue", "round", "change_plan_id", "finding_ids", "issue_snapshot",
+    "handoff_path", "branch_name", "repository", "expected_oid",
+    "karte_path", "karte_snapshot",
+})
+# The bare directory mention (including normal sentence punctuation) is useful
+# prose and harmless.  Candidate detection scans deterministic shell-like
+# words, reassembles adjacent quote/bare fragments, and only then interprets
+# path separators.  It deliberately does not execute a shell or consume
+# arbitrary prose after ``tmp/_handoff/``.  Regex is used only for the literal
+# alphabet of one fragment; no command, parameter, or glob expansion occurs.
+_HANDOFF_BARE_COMPONENT = re.compile(r"[\w./\\-]+")
+_HANDOFF_WORD = re.compile(r"\w")
+_HANDOFF_SEPARATORS = frozenset({"/", "\\"})
+_HANDOFF_QUOTE_PAIRS = {
+    "'": "'", '"': '"', "`": "`",
+    "‘": "’", "“": "”",
+}
+_HANDOFF_QUOTED_COMPONENT = re.compile(r"[\w./\\-]*")
 _MAX_JSON = 2 * 1024 * 1024
 _CONTROL_ROOT = PurePosixPath("tmp/_codex_control")
 _PLAN_ROOT = _CONTROL_ROOT / "change-plans"
@@ -92,6 +122,9 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-implementer--issue-{issue}.yaml",
         "prompt_template": (
             "Implement Issue #{issue} under owner-approved change plan {change_plan_id}. "
+            "Host-derived execution facts (write only this exact handoff path): "
+            "handoff_path={handoff_path}; branch_name={branch_name}; "
+            "repository={repository}; expected_oid={expected_oid}\n\n"
             "Verified Issue and Acceptance Criteria snapshot follows:\n\n{issue_snapshot}"
         ),
     },
@@ -101,7 +134,10 @@ _EXPECTED_ROLE_CONFIG = {
         "handoff_template": "tmp/_handoff/issue-fixer--issue-{issue}-r{round}.yaml",
         "prompt_template": (
             "Fix findings {finding_ids} for Issue #{issue} under owner-approved change plan "
-            "{change_plan_id}. Verified Issue and Acceptance Criteria snapshot follows:\n\n"
+            "{change_plan_id}. Host-derived execution facts (write only this exact handoff path): "
+            "handoff_path={handoff_path}; branch_name={branch_name}; "
+            "repository={repository}; expected_oid={expected_oid}\n\n"
+            "Verified Issue and Acceptance Criteria snapshot follows:\n\n"
             "{issue_snapshot}\n\nVerified finding karte ({karte_path}) follows:\n\n"
             "{karte_snapshot}"
         ),
@@ -455,6 +491,265 @@ def _capture_record(value: object, *, kind: str, reason: str) -> Mapping[str, st
     return capture
 
 
+@dataclass(frozen=True)
+class _HandoffLexedFragment:
+    """One literal fragment and whether its quote delimiter was closed."""
+
+    value: str
+    end: int
+    closed: bool = True
+
+
+def _consume_handoff_quoted_component(
+    text: str, start: int,
+) -> _HandoffLexedFragment:
+    """Consume one quoted lexical component without shell interpretation.
+
+    Backslash is a path separator in the input language, not a shell escape.
+    In particular, ``"tmp\\_handoff\\attacker.yaml"`` must normalize to the
+    same candidate as its POSIX spelling.  The scanner never executes or
+    expands the value; it recognizes a matching quote boundary only inside
+    the small literal path alphabet.  An absent or mismatched closer is
+    returned as a local malformed fragment so the caller can resynchronize.
+    """
+
+    opener = text[start]
+    closer = _HANDOFF_QUOTE_PAIRS[opener]
+    cursor = start + 1
+    while cursor < len(text):
+        character = text[cursor]
+        if character == closer:
+            return _HandoffLexedFragment(
+                text[start + 1:cursor], cursor + 1,
+            )
+        # A quoted path fragment has the same deliberately small alphabet as
+        # a bare fragment.  Once a non-path character, another quote opener,
+        # or a line boundary is reached, an absent closer is malformed at this
+        # *local* boundary.  Do not search to EOF: doing so hides a later plain
+        # candidate and can make several malformed quotes quadratic.
+        if (character in _HANDOFF_QUOTE_PAIRS
+                or _HANDOFF_QUOTED_COMPONENT.fullmatch(character) is None):
+            return _HandoffLexedFragment(
+                text[start + 1:cursor], start + 1, closed=False,
+            )
+        cursor += 1
+    # Keep the entire fragment as diagnostic value, but resume scanning after
+    # the opener.  The caller will therefore re-scan a path-shaped candidate
+    # that itself is inside an unclosed quote instead of skipping to EOF.
+    return _HandoffLexedFragment(
+        text[start + 1:], start + 1, closed=False,
+    )
+
+
+def _normalize_handoff_components(components: Sequence[str]) -> tuple[str, ...]:
+    """Normalize empty and dot path components using POSIX-like semantics."""
+
+    normalized: list[str] = []
+    for component in components:
+        for part in component.replace("\\", "/").split("/"):
+            if not part or part == ".":
+                continue
+            if part == "..":
+                if normalized:
+                    normalized.pop()
+                continue
+            normalized.append(part)
+    return tuple(normalized)
+
+
+def _handoff_lex_component(
+    text: str, cursor: int,
+) -> _HandoffLexedFragment | None:
+    """Lex one literal bare/quoted fragment without shell interpretation.
+
+    This function deliberately operates on *fragments*, not path components.
+    In a shell-like word, adjacent fragments such as ``"tm"'p'`` and
+    ``"tmp""/"_handoff`` concatenate before path separators are interpreted.
+    The caller performs that reassembly; this helper only recognizes one
+    fragment and never performs an expansion or an escape interpretation.
+    """
+
+    if cursor >= len(text):
+        return None
+    if text[cursor] in _HANDOFF_QUOTE_PAIRS:
+        return _consume_handoff_quoted_component(text, cursor)
+    match = _HANDOFF_BARE_COMPONENT.match(text, cursor)
+    if match is None:
+        return None
+    return _HandoffLexedFragment(match.group(0), match.end())
+
+
+@dataclass(frozen=True)
+class _HandoffLexedWord:
+    """A deterministic, non-executing reconstruction of one lexical word."""
+
+    fragments: tuple[str, ...]
+    end: int
+    valid: bool
+    malformed: bool = False
+
+    @property
+    def literal(self) -> str:
+        return "".join(self.fragments)
+
+    @property
+    def terminal_separator(self) -> bool:
+        return self.literal.endswith(tuple(_HANDOFF_SEPARATORS))
+
+
+def _handoff_lex_word(text: str, start: int) -> _HandoffLexedWord | None:
+    """Read one shell-like word as adjacent literal fragments.
+
+    Word boundaries are determined only by the small lexical alphabet needed
+    for path candidates: bare path characters and balanced quote fragments.
+    This is intentionally *not* a shell parser.  Quotes are delimiters, while
+    command/parameter/glob expansion and backslash escaping are never applied.
+    A fragment containing characters outside the handoff path alphabet marks
+    the whole word invalid, so a later balanced fragment cannot be re-scanned
+    as a misleading partial candidate.  An unclosed/mismatched quote is a
+    local recovery point: its endpoint advances at least one character and
+    the outer scanner revisits the fragment interior.
+    """
+
+    if start >= len(text):
+        return None
+    cursor = start
+    fragments: list[str] = []
+    valid = True
+    while cursor < len(text):
+        fragment = _handoff_lex_component(text, cursor)
+        if fragment is None:
+            break
+        fragments.append(fragment.value)
+        cursor = fragment.end
+        if not fragment.closed:
+            # A malformed quote is a recovery point, not a complete word.
+            # Returning immediately guarantees end > start and makes the
+            # outer scanner revisit both the malformed fragment's interior
+            # and any later word after whitespace/newline.
+            return _HandoffLexedWord(
+                tuple(fragments), max(start + 1, cursor), False, malformed=True,
+            )
+        # An empty quoted fragment is valid shell syntax but contributes no
+        # path character.  Non-path quote contents make this word ordinary
+        # prose/code, not an inspectable handoff path.
+        if _HANDOFF_QUOTED_COMPONENT.fullmatch(fragment.value) is None:
+            valid = False
+    if not fragments:
+        return None
+    return _HandoffLexedWord(tuple(fragments), cursor, valid)
+
+
+def _handoff_lex_path(text: str, start: int) -> tuple[tuple[str, ...], bool] | None:
+    """Reconstruct one complete word before normalizing its path semantics.
+
+    The returned tuple contains adjacent bare/quoted fragments and whether the
+    *complete reconstructed word* ends in a separator.  In particular, a
+    separator inside ``"_handoff/"`` does not make a later filename a
+    directory candidate.  This endpoint-only decision closes the old
+    fragment-by-fragment terminal-state bug.
+    """
+
+    word = _handoff_lex_word(text, start)
+    if word is None or not word.valid:
+        return None
+    return word.fragments, word.terminal_separator
+
+
+def _handoff_flat_components(components: Sequence[str]) -> tuple[str, ...]:
+    """Join lexical fragments, then split the restored word into components.
+
+    Joining before splitting is the essential distinction between a lexical
+    word and a path component.  ``"tm"'p'/_handoff/x.yaml`` must become
+    ``tmp/_handoff/x.yaml``; splitting each quoted fragment independently
+    would manufacture ``tm`` and ``p`` components and lose the canonical root.
+    """
+
+    literal = "".join(components).replace("\\", "/")
+    return tuple(literal.split("/"))
+
+
+def _handoff_candidate_from_lexed_path(
+    components: Sequence[str], terminal_separator: bool,
+) -> bool:
+    """Classify one lexed token as a real handoff file candidate."""
+
+    flat_components = _handoff_flat_components(components)
+    root_index = None
+    for index, component in enumerate(flat_components):
+        if (component == "_handoff"
+                and _normalize_handoff_components(flat_components[:index]) == ("tmp",)):
+            root_index = index
+            break
+    if root_index is None:
+        return False
+
+    suffix = flat_components[root_index + 1:]
+    normalized = _normalize_handoff_components(suffix)
+    # Only the final character of the complete lexed token controls directory
+    # classification.  An earlier quoted separator followed by a filename is
+    # therefore a file candidate, while ``tmp/_handoff/archive/`` remains safe
+    # prose.
+    terminal_directory = (
+        terminal_separator
+        or bool(suffix and suffix[-1] in {".", ".."})
+    )
+    return bool(
+        normalized and not terminal_directory
+        and _HANDOFF_WORD.search(normalized[-1])
+    )
+
+
+def _handoff_file_candidate_exists(rendered: str) -> bool:
+    """Return whether *rendered* contains a path-shaped handoff file.
+
+    This is a deterministic lexical scan, not a shell parser.  It decodes
+    HTML entities once, recognizes quote/backtick-delimited components, and
+    normalizes POSIX and Windows separators before checking the canonical
+    ``tmp/_handoff`` root.  Bare directory prose and ordinary placeholders do
+    not produce a file component.
+    """
+
+    text = unescape(rendered)
+    index = 0
+    while index < len(text):
+        # Starting at every lexical word boundary lets the word reader retain
+        # a preceding bare fragment.  Thus ``foo"tmp/_handoff/x.yaml"`` is
+        # reconstructed as one word (and is not mistaken for a root at the
+        # quote fragment), while ``Path("tmp/_handoff/")`` still exposes the
+        # quoted path as its own path-shaped word after ``Path("``.
+        word = _handoff_lex_word(text, index)
+        if word is None:
+            index += 1
+            continue
+        if word.valid or word.malformed:
+            if _handoff_candidate_from_lexed_path(
+                word.fragments, word.terminal_separator
+            ):
+                return True
+        # A malformed quote has only a local recovery endpoint; the scanner
+        # therefore resumes inside it instead of skipping the suffix to EOF.
+        # Balanced invalid prose still skips its complete lexical word.
+        index = max(index + 1, word.end)
+    return False
+
+
+def _validate_snapshot_prompt_safety(rendered: str, *, reason: str) -> None:
+    """Reject snapshot content that can be confused with host prompt facts.
+
+    Snapshot values are substituted in one formatting pass, so an arbitrary
+    placeholder in the value cannot be reinterpreted by the surrounding role
+    template.  Only a real handoff-file candidate or a placeholder naming a
+    host-owned prompt field is ambiguous enough to fail closed.
+    """
+
+    if _handoff_file_candidate_exists(rendered):
+        _fail(reason, "snapshot contains a handoff path")
+    for match in _PROMPT_FIELD.finditer(rendered):
+        if match.group("name") in _PROMPT_RESERVED_FIELDS:
+            _fail(reason, "snapshot contains a reserved format placeholder")
+
+
 def _issue_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchRequest,
                     repository: str) -> tuple[str, Mapping[str, Any]]:
     if _sha(raw) != descriptor["sha256"]:
@@ -479,6 +774,7 @@ def _issue_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchR
     _capture_record(envelope["capture"], kind="ISSUE", reason="ISSUE_SOURCE_INVALID")
     rendered = (f"# {envelope['title']}\n\n{envelope['body']}\n\n"
                 "## Acceptance criteria\n\n" + "\n".join(f"- {item}" for item in criteria))
+    _validate_snapshot_prompt_safety(rendered, reason="ISSUE_SOURCE_INVALID")
     return rendered, envelope
 
 
@@ -512,8 +808,9 @@ def _karte_snapshot(raw: str, *, descriptor: Mapping[str, Any], request: LaunchR
         rendered.append(f"- {finding['id']}: {finding['summary']}")
     if tuple(actual) != finding_ids or len(set(actual)) != len(actual):
         _fail("KARTE_SOURCE_INVALID", "open finding IDs do not exact-match plan")
-    return (f"# Karte: issue-{request.issue}; round {round_number}\n\n" + "\n".join(rendered),
-            envelope)
+    prompt_text = f"# Karte: issue-{request.issue}; round {round_number}\n\n" + "\n".join(rendered)
+    _validate_snapshot_prompt_safety(prompt_text, reason="KARTE_SOURCE_INVALID")
+    return prompt_text, envelope
 
 
 def _canonical_entry(value: Mapping[str, Any], *, request: LaunchRequest,
@@ -628,6 +925,8 @@ def generate_launch_intent(
     values = {"issue": request.issue, "round": round_number,
               "change_plan_id": request.change_plan_id,
               "finding_ids": ", ".join(finding_ids), "issue_snapshot": issue_text,
+              "branch_name": facts.branch_name, "repository": facts.repository,
+              "expected_oid": facts.head_oid,
               "karte_path": "" if karte_descriptor is None else karte_descriptor["path"],
               "karte_snapshot": karte_text}
     task_key = role_config["task_key_template"].format_map(values)
@@ -638,13 +937,19 @@ def generate_launch_intent(
         (runtime, "RUNTIME_ROOT_INVALID", PurePosixPath("tmp/_codex_sessions")),
     ):
         _safe_relative(candidate, root=root, reason=reason)
-    prompt = role_config["prompt_template"].format_map(values)
     protected_values = _protected_paths(plan["protected_plan"])
     canonical_protected = canonical_entry.get("protected_plan")
     if (canonical_entry.get("task_key") != task_key
             or canonical_entry.get("handoff_path") != handoff
             or canonical_protected != plan["protected_plan"]):
         _fail("CANONICAL_LEDGER_MISMATCH", "derived launch fields")
+    # The handoff is a host-derived output target. Do not expose it as a
+    # LaunchRequest/CLI input; inject it only after the manifest template and
+    # canonical ledger agree on the exact role-specific path.
+    values["handoff_path"] = handoff
+    prompt = role_config["prompt_template"].format_map(values)
+    if prompt.count(handoff) != 1:
+        _fail("PROMPT_HANDOFF_AMBIGUOUS", handoff)
     provenance: dict[str, Mapping[str, Any]] = {
         "issue": {"url": issue_envelope["url"], "sha256": issue_descriptor["sha256"],
                   **issue_descriptor["provenance"]},

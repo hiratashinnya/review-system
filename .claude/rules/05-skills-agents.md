@@ -4,7 +4,7 @@
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
 - スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
 - スキル（外部委譲・第二意見レビュー）：`/codex-review`（Codex 公式 CLI `codex exec` への第二意見レビュー委譲の入口＝別モデルファミリ OpenAI。`agy-delegate`＝agy MCP/Gemini とは委譲先の機構が別・in-repo Claude レビュー→merge は `pr-reviewer`。cybersecurity フィルタで最終応答が `ERROR:flagged` に消える件の回避＝防御形式プロンプト＋`~/.codex/sessions/rollout-*.jsonl` フォールバックを規約化。Linux/WSL 専用・全外部ツリー非移植＝`asset_parity/exceptions.py` に登録済み。opus session 上限時の**追加の第二意見経路**として使える（`pr-reviewer` の同一構成での再投入を置き換えるものではなく、再投入した**上で**別ファミリの意見も取る用途））
-- スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し、実装は `issue-implementer`・**是正は `issue-fixer`**・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
+- スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の原案作成とオーナー判断の取り次ぎ・記録、進捗管理を担い（決めるのはオーナーであって主文脈ではない）、実装は `issue-implementer`・**是正は `issue-fixer`**・レビュー/マージは `pr-reviewer` へ委譲。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
 - スキル（repo 運用）：`/branch-hygiene`（マージ済み・用済みのローカルブランチ ref を実データを失わず整理。`git fetch --prune`→`--merged`/`--no-merged` の二分→not-merged 群を PR 状態で分類（OPEN 維持／MERGED-squash 削除可／CLOSED・PR無しはオーナー判断）→判断群は `origin/main` との `git log`/`git diff --stat` で superseded 判定→分類表をチャット全文提示して停止→承認後に `-d`／検証済み `-D`。**origin ref は触らない**。**agent worktree の削除はしない**＝`gitgate`（`collect-worktree`/`worktree-release`/`worktree-forget`）と `.ai/troubleshooting/issue-pipeline.md` へ委譲（`git worktree remove`/`prune` の直接実行禁止・Issue #354）。Issue の end-to-end 運用は `/issue-pipeline`。prompt_coverage_targets 対象外＝`issue-pipeline`/`agy-delegate` と同区分）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
 - スキル（ノード検索・コンテキスト効率）：`/docidx`（**v1-archive 専用**。現行コーパスは doc-system-v2 のため対象外。実体＝`archive/docidx-v1/`＝`python3 -m archive.docidx-v1`・対象は `doc-system-v1-archive/`。read-only・drift は情報提示のみで判定はしない。issue #172 で `docidx/` から `archive/docidx-v1/` へ退避、共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。v2 コーパスの検索・読込は `dsv2-lookup`（下記）が担う
@@ -40,10 +40,11 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
   `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
-  （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が保護名 `_handoff`・`_karte`・`_worktree` を
-  構成要素に含むパスを機械的に拒否する＝`dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`。`_karte`＝是正
-  ループの診断カルテ置き場（Issue #307）、`_worktree`＝worktree 所有台帳の置き場（Issue #309）も
-  同様に掃除対象外）。
+  （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が保護名 `_handoff`・`_karte`・`_worktree`・
+  `_feedback` を構成要素に含むパスを機械的に拒否する＝`dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`。
+  `_karte`＝是正ループの診断カルテ置き場（Issue #307）、`_worktree`＝worktree 所有台帳の置き場
+  （Issue #309）、`_feedback`＝オーナー判断フィードバック台帳の下書き置き場（Issue #522・確定前の
+  オーナー逐語は後から再構成できない）も同様に掃除対象外）。
   - **`<key>` は呼び出しごとに一意にする**：`authoring-fanout` は各 author へ `target_key`
     （**呼び出しごとの nonce**＋親＋型＋連番）を、`reconciliation` へ `batch_id`（sprint＋layer＋同じ nonce＋先頭親）を
     採番して渡す。親 ID だけをキーにすると、同一親の複数 target や `parent_id` 空の新規ルートが並列で走ったときに
@@ -66,7 +67,15 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     理由＝パスを渡すと「別 worktree・別 Issue の台帳を掴む」脅威が生まれ、受け手側に完全一致検査を
     背負わせることになる。渡さなければその脅威は検査ではなく構造で消える（#323 が `handoff_path` で
     採った考え方の対称形）。#323 の「パスの決定権は呼び出し元に残す」原則は出力側の規律であり、
-    入力側の共有台帳には及ばない（Issue #354）。
+    入力側の共有台帳には及ばない（Issue #354）。**台帳への直接書込みそのものは二層の別機構で止まる**
+    （Issue #522 レビュー F-522-11）：非隔離で動く主文脈（`ingest-review` を実行する側）には
+    `.claude/settings.json` の `permissions.deny`（`Edit(/tmp/_karte/**)` / `Write(/tmp/_karte/**)`）
+    が発火し、隔離ロール（`issue-fixer`/`issue-implementer`）には worktree isolation がメイン
+    チェックアウトへの書込みを構造的に拒否する（隔離ロールが書けるのは自分の worktree 内だけで、
+    そこは `karte`/`feedback_ledger` CLI が参照しない場所であり本物の台帳ではない）。**どちらか
+    一方の機構を変更（隔離を外す・deny のパターンを書き換える等）しても、他方だけでは守りが
+    完結しない**——実測の詳細は `karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・
+    `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で

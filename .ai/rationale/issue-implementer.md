@@ -98,6 +98,12 @@ hand-off は dispatch が終了したことを呼び出し元が観測する sig
   `shell=False` で組み立てるため、`--receive-pack`/`--upload-pack`/`--output` 等の exec/write フラグが
   ユーザ入力から git に一切届かない。
 
+## `feedback_ledger` を read-only に限定する理由（移設元：「Claude Code 固有の機械ゲート・権限境界」）
+
+`feedback_ledger` はオーナー判断を扱う台帳（Issue #522）であり、本ロールに許可するのは read-only の
+`check` / `status` / `index` だけである。台帳への記録、改訂案の起票、承認、棚卸しの確定に当たる
+書き込み verb は許可せず、非 gated の主文脈が扱う。
+
 ## Issue #452 F-452-20 による更新（2026-09-06）
 
 旧prepare bindingと単一MCP brokerは退役した。正規Codex implementerはrepo supervisorのimmutable launch

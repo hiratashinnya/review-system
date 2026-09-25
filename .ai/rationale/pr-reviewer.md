@@ -70,6 +70,12 @@
   このロールは `Write` を持たずどのみち `--body` を使うため実害はない。
 - **`gh pr checkout` を allowlist から外した理由**（Issue #502 観測2・2026-09-09）：下記の節を参照。
 
+## `feedback_ledger` を read-only に限定する理由（移設元：「Claude Code 固有の設定・権限境界」）
+
+`feedback_ledger` はオーナー判断を扱う台帳（Issue #522）であり、本ロールに許可するのは read-only の
+`check` / `status` / `index` だけである。台帳への記録、改訂案の起票、承認、棚卸しの確定に当たる
+書き込み verb は許可しない。`karte` を一切許可しないのと同じく、レビュー担当は記録装置を書き換えない。
+
 ## `gh pr checkout` を「戻す契約」ではなく「切り替えない」で塞いだ根拠（Issue #502 観測2）
 
 **事象**：`pr-reviewer` は `isolation` 指定なしで起動する（Claude 版）／`spawn_agent` に isolation 概念が

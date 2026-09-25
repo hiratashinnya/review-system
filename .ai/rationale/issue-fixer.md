@@ -162,6 +162,14 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 
   取り込みは「レビューアの指摘を台帳へ入れる」手続きで `status: resolved` を書けるため、是正当事者である本ロールが実行できると自分の指摘を消して 類似飽和ゲートを迂回できてしまう。
 
+## `feedback_ledger` を read-only に限定する理由（移設元：「Claude Code 固有の設定・ゲート」）
+
+`feedback_ledger` はオーナー判断を扱う台帳（Issue #522）であり、本ロールに許可するのは read-only の
+`check` / `status` / `index` だけである。`new-entry` / `propose` / `amend-proposal` / `approve` /
+`reject` / `apply-done` / `triage-open` / `triage-close` は許可しない。指摘を受けて直す当事者が
+自分の案を承認できると「指摘した側」と「直す側」の分離が壊れるためであり、`karte ingest-review` を
+是正当事者へ許可しない境界と同じである。
+
 ## 既知の限界（Issue #129で追跡・過信しない）（移設元：同名の節）
 
 `agent-command-gate.sh` の判定はシェル文字列の**静的検査**であり sandbox ではない。`agent_type` の詐称・
@@ -198,6 +206,47 @@ brokerは任意argvを受けず、固定Git/unittest/auditだけをnetwork/auth/
 fixerもrepo supervisorのimmutable launch recordとdirect workspace commandを使う。host karte bridge
 （F-452-17）は後続のまま維持し、縮小PRだけで実装済みとはみなさない。fixerはhost publishでpush可・merge不可、
 reviewer自己修正不可、bootstrap waiverと別context再レビューを維持する。
+
+### F-452-25/26/27によるprompt境界の補強（2026-09-16）
+
+F-452-25の是正でmanifestとcanonical ledgerからhandoff_pathを導出できるようになったが、role
+promptの値組立へ渡していなかったため、innerが必須handoffを認識できなかった。さらにF-452-26で、
+fixer共通契約が要求するbranch_name・repository・expected_oidも同じhost由来入力として配送されていない
+ことが判明した。親runtimeの入力を増やす案は採らず、`GitFacts`とcanonical ledgerの既存事実から
+handoff_path・branch_name・repository・expected_oidをhostが一つのexecution-factsブロックへ組み立て、
+implementer/fixer双方へ同じ形で提示する契約にした。
+
+F-452-27では、snapshot本文へcanonicalまたは別の`tmp/_handoff/` path、format placeholderが混在すると、
+host命令とuntrusted本文の候補が区別できなくなることが分かった。snapshotをそのままpromptへ埋め込む案は
+採らず、`_issue_snapshot`／`_karte_snapshot`のrender前検証でこれらをfail-closeする。これにより
+Popen後のinner判定やHANDOFF_MISSINGへ遅れて退避する経路を作らず、role別templateのunknown fieldは
+従来どおりmanifest exact比較で拒否する。handoff_pathのprompt内出現数も生成直後にexact 1回へ再検証する。
+
+### F-452-28によるsnapshot安全境界の補正（2026-09-16）
+
+F-452-27の初回安全検査は`tmp/_handoff/`のbare directory proseと、host事実に無関係な`{name}`まで
+部分一致で拒否していた。snapshotはrole templateへ値として一度だけ渡されるため、replacement内のbraceが
+後段のformat fieldとして再解釈される経路はない。そこで、実ファイル候補（canonical・別role・attackerを
+含む）と、host authority/prompt reserved fieldに一致するplaceholderだけをfail-close対象に限定し、bare
+directory mention、reservedでない一般placeholder、通常のコード断片はsnapshotデータとして許可する。
+正規のhost-derived handoff pathは引き続き生成後にexact 1回を検証し、F-452-25/26/27のpath・facts・
+collision fail-close契約は維持する。
+
+### F-452-29によるhandoff候補lexerの再設計（2026-09-16）
+
+F-452-28で実ファイル候補へ検査対象を狭めた後も、`tmp/_handoff/./attacker.yaml`、重複separator、
+filenameだけをquote/backtickで囲む表記は、`tmp`直後のseparatorを前提にしたregex seedと、途中の
+quoted componentが保持したterminal状態をすり抜けた。snapshotはuntrustedな自然言語・shell・Markdownを
+含みうるため、本文全体をshell parserへ渡す案は採らず、regex seedへの個別case追加も採らない。HTML entityを
+一度だけdecodeした本文を、pathの先頭から末尾まで一つのdeterministic lexerで読む。lexerはbare/quote/backtick
+component、POSIX/Windows separator、空component、`.`/`..`を記録し、quote内のbackslashもshell escapeへ
+展開せずWindows separatorとして扱う。正規化後に`tmp/_handoff` root配下の意味ある最終componentが残る
+候補だけをfail-closeし、terminal separatorは候補全体の最後のsemantic path文字からのみ決める。このため
+`"tmp"/_handoff/attacker.yaml`、`tmp/"_handoff/"/attacker.yaml`、各componentのquote組合せを検出しつつ、
+`tmp/_handoff/archive/`のdirectory prose、rootだけのbare prose、一般placeholder、通常コード断片は候補に
+ならずF-452-28の可用性境界を維持する。判定はIssueとkarteのrender前、両roleで共通に実行し、canonical
+host-derived pathのprompt内exact 1回検証は変更しない。quote位置×separator×file/directory境界は生成matrix
+で回帰する。
 
 ## `Task` 権限を保有しない理由（移設元：「Claude Code 固有の設定・ゲート」）
 

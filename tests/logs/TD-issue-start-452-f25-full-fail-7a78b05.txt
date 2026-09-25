@@ -1,0 +1,14 @@
+Issue #452 F-452-25 full verification evidence (initial regular run)
+commit: 7a78b05
+command: python3 -m unittest discover -s tests -p 'test_*.py'
+
+Ran 1872 tests in 329.278s
+FAILED (failures=2, skipped=13)
+
+Failures (変更対象外の既存rate-limit parser tests):
+- test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  expected OK REACHED=1 TYPE=rate_limit_reached ... but stdout was FALLBACK
+- test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  expected OK EPOCH=... but stdout was FALLBACK
+
+This FAIL run is retained and is not used as F-452-25 success evidence.

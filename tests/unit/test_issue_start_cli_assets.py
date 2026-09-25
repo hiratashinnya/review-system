@@ -186,6 +186,9 @@ class AssetParityTests(unittest.TestCase):
                 )
                 self.assertTrue(all(isinstance(value, str) and value for value in config.values()))
                 self.assertIn("{issue_snapshot}", config["prompt_template"])
+                for field in ("handoff_path", "branch_name", "repository", "expected_oid"):
+                    self.assertIn("{" + field + "}", config["prompt_template"])
+                self.assertEqual(config["prompt_template"].count("{handoff_path}"), 1)
         self.assertIn("{karte_snapshot}", launch["roles"]["issue-fixer"]["prompt_template"])
 
     def test_codex_launch_hook_asset_is_registered_and_executable(self):

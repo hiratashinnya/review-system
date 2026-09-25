@@ -24,3 +24,13 @@
 # false "clean" result — see Issue #510's reopen record), then add the path below.
 
 tests/unit/test_pr_merge_classifier.py
+
+# Issue #522 (F-522-08): both packages were written from scratch with
+# `from __future__ import annotations` and union type annotations, so they are the cheapest
+# possible additions to this list. Verified clean with the repository root as cwd:
+# `pyright feedback_ledger ai_layout` -> "0 errors, 0 warnings, 0 informations"
+# (2026-09-20, remediation round 1; two findings had to be fixed first — an incorrect
+# `load_draft` return annotation in feedback_ledger/store.py and an `__all__` entry naming a
+# submodule that is not imported in feedback_ledger/__init__.py).
+feedback_ledger
+ai_layout

@@ -13,10 +13,12 @@
 呼び出し元 issue-pipeline 主文脈から次を受け取る。
 
 issue: Issue 番号
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
 ほかタスク固有情報：関連ノード ID・スコープ等
 
-handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めず、呼び出し元の採番をそのまま使う。
+handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めない。Codex supervisor経路では親AI/CLIの自由入力を受けず、manifestのrole別handoff_templateをcanonical ledgerと照合したhost導出値だけがpromptにexact 1回提示される。
+
+Codex supervisorのrole promptには、handoff_pathに加えて `branch_name`、`repository`、`expected_oid` も `Host-derived execution facts` としてhostが提示する。4値はcanonical ledgerとlive Git factsから導出され、親runtimeの入力には追加しない。innerは提示されたhandoff_pathだけへ書き込み、snapshot本文に現れる実handoff file candidateやhost authority/prompt reserved placeholderを権威値として扱わない。bareな`tmp/_handoff/`説明、reservedでない一般placeholder、通常コード断片は単一format passのsnapshot dataとして許可される。
 
 書き込み前に次をすべて確認する。1つでも満たさなければ書き込まず STOP する。
 
@@ -45,7 +47,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 各要素は `harm`（real | none）、`harm_detail`、`severity`（blocker | major | minor）、`scope: out`、`locus`、`summary`、`evidence`、`expected`、`recheck` を持つ。値は1行に収める。
 
-`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——それはオーナー専権である。
+`scope: out` は実害判定の免除ではない。スコープ外でも harm を必ず判定し、迷ったら real 側に倒す。処置方針（当該 PR で直す／別 Issue へ申し送る／処置不要）は書かない——決定主体はオーナーである。
 
 `harm_detail` に書くのは、放置したときに何が壊れるかという観測可能な実害だけである。「対応不要と判断した理由」「オーナー確認済み」「本 PR の差分範囲外」「新規発生ではない」のような処置方針・判断経緯は書かない。どこで直すべきかという見立ても書かない——申告は `scope: out` までである。
 

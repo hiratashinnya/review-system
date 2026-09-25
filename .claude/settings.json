@@ -184,7 +184,10 @@
       "Bash(perl -e *)",
       "Bash(ruby -e *)",
       "Bash(node -e *)",
-      "Edit(/tmp/_karte/**)"
+      "Edit(/tmp/_karte/**)",
+      "Write(/tmp/_karte/**)",
+      "Edit(/.ai/feedback/**)",
+      "Write(/.ai/feedback/**)"
     ]
   },
   "env": {

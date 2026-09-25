@@ -1,0 +1,15 @@
+Issue #452 F-452-29 round 25 coverage environment FAIL TR
+
+Attempt 1:
+  uv run --with coverage python -m coverage run -m unittest discover -s tests -p test_*.py
+  result: FAIL before test execution
+  reason: Could not acquire lock; default uv cache /home/hiras/.cache/uv is read-only
+
+Attempt 2:
+  uv --cache-dir /tmp/issue-452-f29-coverage-uv-cache run --with coverage python -m coverage run -m unittest discover -s tests -p test_*.py
+  result: FAIL before test execution
+  reason: isolated cache could not fetch coverage from https://pypi.org/simple/coverage/;
+          DNS resolution is unavailable in this environment
+
+No pip installation or global environment mutation was attempted. Coverage and
+HTML report are therefore not claimed for this round.

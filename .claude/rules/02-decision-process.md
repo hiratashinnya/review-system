@@ -64,6 +64,12 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`（どちらも read-only 監査。
     `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）
   - 是正ループ用ツール：`karte`
+  - オーナー判断フィードバック台帳ツール：`feedback_ledger`（`.ai/feedback/` の TOML 台帳を
+    **CLI 専用書込み**で管理し、canonical／immutability を機械 lint する。`karte` と同じく
+    運用ループの記録装置であって、どちらのシステムの仕様グラフが記述する対象ではない）
+  - `.ai/` レイアウトの共通土台：`ai_layout`（`.ai/` 直下の非活性レコード置き場の列挙を
+    1箇所に収斂させる小モジュール。利用側は `asset_parity`／`guidance_sync` で、
+    どちらも同じ「汎用開発ハーネス」区分）
   - 点検・監査ツール（read-only）：`asset-auditor`（資産の重複/矛盾/競合監査。特定システムの仕様グラフが
     記述する対象ではなく資産全体を横断するため）
   - v1-legacy 退役ツール：`archive/docidx-v1`（v1 コーパス専用の検索ツール・実装対象は

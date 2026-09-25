@@ -879,6 +879,43 @@ class AgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", cmd)))
                 self.assert_denied(run_gate(payload("pr-reviewer", cmd)))
 
+    def test_feedback_ledger_is_read_only_for_every_gated_role(self):
+        """Issue #522: 台帳の書込み verb はどの gated ロールにも与えない。
+
+        `.ai/feedback/` への書込み経路を CLI 1本に絞った上で、その CLI の**書込み verb**を
+        主文脈（非 gated）だけに残す。特に `approve` を是正当事者（`issue-fixer`）が
+        実行できると「指摘した側」と「直す側」の分離が壊れる（`karte ingest-review` を
+        `issue-fixer` に許さないのと同じ理由）。
+        """
+        read_only = [
+            "python3 -m feedback_ledger check",
+            "python3 -m feedback_ledger check --canonical",
+            "python3 -m feedback_ledger status --now 2026-09-19",
+            "python3 -m feedback_ledger status --now 2026-09-19 --json",
+            "python3 -m feedback_ledger index",
+        ]
+        writing = [
+            "python3 -m feedback_ledger new-entry --from tmp/_feedback/FBK-20260919-x.toml",
+            "python3 -m feedback_ledger propose --from tmp/_feedback/FBP-20260919-x.toml",
+            "python3 -m feedback_ledger amend-proposal --from tmp/_feedback/FBP-20260919-x.toml",
+            "python3 -m feedback_ledger approve --proposal FBP-20260919-x "
+            "--triage TRG-2026-W38 --by owner",
+            "python3 -m feedback_ledger reject --proposal FBP-20260919-x --by owner --reason x",
+            "python3 -m feedback_ledger apply-done --proposal FBP-20260919-x "
+            "--issue-ref 530 --applied-pr 531",
+            "python3 -m feedback_ledger triage-open --week 2026-W38",
+            "python3 -m feedback_ledger triage-close --from tmp/_feedback/TRG-2026-W38.toml",
+            # サブコマンド欠如も deny（coverage/karte と同型の verb 単位 allowlist）。
+            "python3 -m feedback_ledger",
+        ]
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for command in read_only:
+                with self.subTest(role=role, allowed=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+            for command in writing:
+                with self.subTest(role=role, denied=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
     def test_reReview_alias_and_config_bypasses_are_denied(self):
         for role, command in REREVIEW_BYPASS_CORPUS:
             with self.subTest(role=role, command=command):
