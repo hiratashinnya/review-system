@@ -1,0 +1,17 @@
+test_committed_baseline_is_well_formed_and_repo_is_clean ... ok
+test_invalid_baseline_is_rejected_fail_close ... ok
+test_new_harness_is_classified_registered_and_wired_to_ci ... ok
+test_new_lint_modules_obey_their_own_100_line_rule ... ok
+test_three_issue_roles_receive_the_same_owner_principles ... ok
+test_comment_fingerprint_baseline_does_not_mask_edits ... ok
+test_dataclass_and_concrete_logic_class_must_be_separate ... ok
+test_docstring_is_not_a_code_comment ... ok
+test_exact_module_baseline_is_accepted_but_growth_is_rejected ... ok
+test_exception_and_abstract_contract_are_not_logic_classes ... ok
+test_four_line_comment_is_rejected_and_three_lines_are_allowed ... ok
+test_module_over_100_physical_lines_is_rejected ... ok
+test_resolved_debt_makes_baseline_stale ... ok
+
+Ran 13 tests in 0.589s
+
+OK
