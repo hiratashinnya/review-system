@@ -50,7 +50,7 @@
 > ※ `asset_parity`（Issue #155・実体 `asset_parity/`・スキル/エージェントではない裸ツール＝`dsv2`/`docidx` と同区分）は上記4資産ツリー（`.claude/` 正本／`.github/`／`.codex/agents/`／`.agents/skills/`）の presence/absence を read-only 検出する（`python3 -m asset_parity check`）。本台帳の非移植決定（`agy-delegate`・`issue-implementer`／`issue-fixer`／`pr-reviewer` の Copilot 非移植）を `asset_parity/exceptions.py` に転記して「意図的な非ミラー」として除外している——**本台帳が一次情報源**であり、`exceptions.py` はそれをコード化したもの（新しい非移植を決めたら本台帳を先に更新し、`exceptions.py` を追従させる）。使い方は `asset_parity/README.md`。**CI 組み込み済み**（Issue #155 フォローアップ・`.github/workflows/asset-parity.yml`）：4ツリーいずれかのパスを触る `push`/`pull_request` で自動起動し、`MISSING` があれば非0終了でビルド失敗（`--fail-on-stale` は未指定のため staleness flag はビルドを止めない・判断根拠は `asset_parity/README.md` の「CI wiring」節）。マトリクスは `$GITHUB_STEP_SUMMARY` にも出力。
 > ※ `maintainability_lint`（Issue #539・実体 `maintainability_lint/`・スキル/エージェントではない
 > read-only 裸ツール）は、review_system 本体と含有されない汎用ハーネスの Python 実装を横断し、
-> 100行超 module／4行以上の連続 comment／データ・ロジック class 同居を baseline-ratchet 検査する。
+> 100行超 module／4行以上（3行超）の連続 comment／データ・ロジック class 同居を baseline-ratchet 検査する。
 > 汎用開発ハーネスでありテーラリング対象外、外部資産ツリーへのミラーも不要。役割契約の流入対策は
 > `.ai/agents/{issue-implementer,issue-fixer,pr-reviewer}.md`、流出対策と既存負債境界は
 > `maintainability_lint/README.md`、ISO 25010 対応と優先順位は

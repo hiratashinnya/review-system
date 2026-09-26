@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from .import_bindings import record_module_imports
+
 
 def _ends_with_name(node: ast.expr, suffix: str) -> bool:
     if isinstance(node, ast.Name):
@@ -12,19 +14,6 @@ def _ends_with_name(node: ast.expr, suffix: str) -> bool:
     if isinstance(node, ast.Attribute):
         return node.attr.endswith(suffix)
     return False
-
-
-def _record_imports(node: ast.Import | ast.ImportFrom, bindings: dict[str, str]) -> None:
-    if isinstance(node, ast.Import):
-        for alias in node.names:
-            local = alias.asname or alias.name.split(".", 1)[0]
-            bindings[local] = alias.name
-        return
-    if node.level or node.module is None:
-        return
-    for alias in node.names:
-        if alias.name != "*":
-            bindings[alias.asname or alias.name] = f"{node.module}.{alias.name}"
 
 
 def _is_dataclass(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
@@ -75,9 +64,8 @@ def classify_top_level_classes(path: Path) -> tuple[list[ast.ClassDef], list[ast
     data_classes: list[ast.ClassDef] = []
     logic_classes: list[ast.ClassDef] = []
     for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            _record_imports(node, bindings)
-        elif isinstance(node, ast.ClassDef):
+        record_module_imports(node, bindings)
+        if isinstance(node, ast.ClassDef):
             if _is_dataclass(node, bindings):
                 data_classes.append(node)
             elif not _is_exception(node) and any(

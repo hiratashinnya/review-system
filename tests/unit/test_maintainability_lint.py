@@ -123,6 +123,87 @@ class MaintainabilityLintSyntheticTests(unittest.TestCase):
             ["data-and-logic-class-cohabitation"],
         )
 
+    def test_dataclass_imported_by_wildcard_is_detected(self):
+        _write(
+            self.root,
+            "review_system/mixed.py",
+            "from dataclasses import *\n"
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n",
+        )
+        self.assertEqual(
+            [item.rule for item in _violations(self.root)],
+            ["data-and-logic-class-cohabitation"],
+        )
+
+    def test_unrelated_wildcard_does_not_bind_dataclass(self):
+        _write(
+            self.root,
+            "review_system/not_data.py",
+            "from helpers import *\n"
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n",
+        )
+        self.assertFalse(_violations(self.root))
+
+    def test_dataclass_imports_in_module_control_flow_are_detected(self):
+        prefixes = {
+            "if": "if enabled:\n    from dataclasses import dataclass\n",
+            "try-body": (
+                "try:\n    from dataclasses import dataclass\n"
+                "except Exception:\n    pass\n"
+            ),
+            "try-handler": (
+                "try:\n    pass\n"
+                "except Exception:\n    from dataclasses import dataclass\n"
+            ),
+            "try-else": (
+                "try:\n    pass\nexcept Exception:\n    pass\n"
+                "else:\n    from dataclasses import dataclass\n"
+            ),
+            "try-finally": (
+                "try:\n    pass\n"
+                "finally:\n    from dataclasses import dataclass\n"
+            ),
+            "with": "with context():\n    from dataclasses import dataclass\n",
+            "for": "for item in items:\n    from dataclasses import dataclass\n",
+            "while": "while enabled:\n    from dataclasses import dataclass\n",
+            "nested": (
+                "if enabled:\n    try:\n"
+                "        from dataclasses import dataclass\n"
+                "    except Exception:\n        pass\n"
+            ),
+        }
+        classes = (
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n"
+        )
+        for name, prefix in prefixes.items():
+            with self.subTest(container=name):
+                _write(self.root, "review_system/mixed.py", prefix + classes)
+                self.assertEqual(
+                    [item.rule for item in _violations(self.root)],
+                    ["data-and-logic-class-cohabitation"],
+                )
+
+    def test_dataclass_imports_in_nested_scopes_are_ignored(self):
+        prefixes = {
+            "function": (
+                "def configure():\n    from dataclasses import dataclass\n"
+            ),
+            "class": (
+                "class Namespace:\n    from dataclasses import dataclass\n"
+            ),
+        }
+        classes = (
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n"
+        )
+        for name, prefix in prefixes.items():
+            with self.subTest(scope=name):
+                _write(self.root, "review_system/not_data.py", prefix + classes)
+                self.assertFalse(_violations(self.root))
+
     def test_dataclasses_module_decorator_is_detected(self):
         _write(
             self.root,
