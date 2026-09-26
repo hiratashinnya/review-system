@@ -58,7 +58,7 @@ Issue の表で一行だった「可観測性・トレーサビリティ」は�
 
 | 順位 | 機構 | 理由（実測は順序だけに使用） | 本 Issue |
 |---:|---|---|---|
-| 1 | role contract のコード構築 checklist（流入） | 流入側が未明文化で、定量負債が横断的に存在。オーナー決定でも流入を優先 | 実装 |
+| 1 | 共通 guidance のコード構築 checklist＋3 role contract の参照（流入） | 流入側が未明文化で、定量負債が横断的に存在。オーナー決定でも流入を優先 | 実装 |
 | 2 | `maintainability_lint` baseline-ratchet（流出） | 66/137 module、66 comment block、5 mixed file を無視せず、新規・増加だけを直ちに止められる | 実装 |
 | 3 | 信頼性 pattern template＋failure/idempotency contract tests | 強い個別機構はあるが横展開契約がない | 後続候補 |
 | 4 | セキュリティ checklist＋secret/supply-chain checks | 権限 gate はあるが秘密・依存・信頼境界の横断 gate がない | 後続候補 |
@@ -71,9 +71,10 @@ Issue の表で一行だった「可観測性・トレーサビリティ」は�
 
 ## 6. 今回実装する境界
 
-1位として `.ai/agents/issue-implementer.md`、`issue-fixer.md`、`pr-reviewer.md` に同じ
-原則 checklist を置く。権限や dispatch は変更しない。2位として `maintainability_lint/` を追加し、
-CI と `tests/unit/test_maintainability_lint.py` で検証する。
+1位として `.ai/guidance/common.md` に唯一の原則 checklist を置き、
+`.ai/agents/issue-implementer.md`、`issue-fixer.md`、`pr-reviewer.md` から参照する。
+権限や dispatch は変更しない。2位として `maintainability_lint/` を追加し、CI と
+`tests/unit/test_maintainability_lint.py` で検証する。
 
 既存負債137 finding は採用免除ではない。Issue #539 の変更範囲で全分割は行わず、内容・件数を
 `baseline.json` に固定して増加、編集、解消後の stale entry を fail-close にする。命名だけは

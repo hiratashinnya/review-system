@@ -18,12 +18,7 @@
 
 ### コード構築原則（Issue #539）
 
-- 名前だけで file / class / function の責務が一意に伝わるかを差分と実体で確認する。意味品質を lint に推測させない。
-- 連続するコードコメントは3行以内とする。長い経緯・理由が DD / ADR / 方法文書へ移されているかを確認する。
-- 新規 Python module は100物理行以内とする。超えるなら単一責務へ分割されているかを確認する。
-- `@dataclass` と具体ロジック class は同一 file に置かない。差分で同居が生じていないかを確認する。
-- SRP / DRY / YAGNI / KISS / SSoT、テスト容易性、fail-safe・回復・冪等、最小権限・秘密・信頼境界、境界での型変換、観測・trace をレビュー checklist とする。
-- `python3 -m maintainability_lint check` の CI 結果と baseline 差分を確認する。baseline 更新を機械検査の免除として扱わず、負債増加の根拠が差分にあるかを finding 判断へ含める。
+レビュー checklist として、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を差分と実体へ適用する。
 
 レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。呼び出し元はこれを `python3 -m karte ingest-review --issue <N> --round <R> --from <path>` に渡す（本ロール自身はこのコマンドを実行しない——取り込みは呼び出し元の責務）。
 

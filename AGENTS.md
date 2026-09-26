@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: ce8ddc2c5c76c14b8764f1e2bfe00dc3ff51f40daa74fd1de305b1e382bc0bbd -->
+<!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/codex.md; sha256: 8abc296ee3cbb906812790bae7c49289c55624998e9ff93892d65a0713df723a -->
 
@@ -27,6 +27,17 @@
 - rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。
 - 新しい AI 資産を作る前に既存資産の重複・競合を点検する。
 - 実装設計では、module、interface、protocol、persistence、orchestration、prompt、log/version、test strategy の凍結セットを総点検してから実装へ進む。
+
+## コード構築原則（Issue #539）
+
+実装・是正・レビューの各役割は、対象コードへの着手前から完了判定まで、次の共通 checklist を適用する。
+
+- 名前だけで file / class / function の責務が一意に伝わるようにする。曖昧な名前をコメントで補わず、意味品質を lint に推測させない。
+- 連続するコードコメントは3行以内とし、長い経緯・理由は DD / ADR / 方法文書へ置く。
+- 新規 Python module は100物理行以内を既定とし、超える前に責務で分割する。
+- `@dataclass` と具体ロジック class は同一 file に置かない。
+- SRP / DRY / YAGNI / KISS / SSoT、テスト容易性、fail-safe・回復・冪等、最小権限・秘密・信頼境界、境界での型変換、観測・trace を checklist とする。
+- 対象コードを変更したら `python3 -m maintainability_lint check` を実行し、レビューではその CI 結果と baseline 差分を確認する。既存 baseline の更新は免除ではなく、負債を増やす判断として差分に露出させ、レビュー時の finding 判断に含める。
 
 ## 仕様設計・点検の原則
 

@@ -43,12 +43,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 ### コード構築原則（Issue #539）
 
-- 名前だけで file / class / function の責務が一意に伝わるようにする。曖昧な名前をコメントで補わない。
-- 連続するコードコメントは3行以内とし、長い経緯・理由は DD / ADR / 方法文書へ置く。
-- 新規 Python module は100物理行以内を既定とし、超える前に責務で分割する。
-- `@dataclass` と具体ロジック class は同一 file に置かない。
-- SRP / DRY / YAGNI / KISS / SSoT、テスト容易性、fail-safe・回復・冪等、最小権限・秘密・信頼境界、境界での型変換、観測・trace を実装前 checklist とする。
-- 対象コードを変更したら `python3 -m maintainability_lint check` を実行する。既存 baseline の更新は免除ではなく、負債を増やす判断として差分に露出させる。
+実装の着手前から完了判定まで、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を適用する。
 
 ## スコープ外 finding の書き方
 

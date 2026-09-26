@@ -314,17 +314,33 @@ class MaintainabilityLintRepositoryTests(unittest.TestCase):
             )
 
     def test_three_issue_roles_receive_the_same_owner_principles(self):
+        canonical = (REPO_ROOT / ".ai" / "guidance" / "common.md").read_text(
+            encoding="utf-8"
+        )
         required = (
             "名前だけで file / class / function の責務が一意に伝わる",
-            "コードコメントは3行以内",
-            "Python module は100物理行以内",
+            "連続するコードコメントは3行以内",
+            "新規 Python module は100物理行以内",
             "`@dataclass` と具体ロジック class は同一 file に置かない",
+            "SRP / DRY / YAGNI / KISS / SSoT",
+            "テスト容易性",
+            "fail-safe・回復・冪等",
+            "最小権限・秘密・信頼境界",
+            "境界での型変換",
+            "観測・trace",
             "python3 -m maintainability_lint check",
+            "既存 baseline の更新は免除ではなく",
         )
+        self.assertEqual(canonical.count("## コード構築原則（Issue #539）"), 1)
+        for phrase in required:
+            self.assertEqual(canonical.count(phrase), 1, f"canonical: {phrase}")
+
+        pointer = "../guidance/common.md#コード構築原則issue-539"
         for name in ("issue-implementer", "issue-fixer", "pr-reviewer"):
             text = (REPO_ROOT / ".ai" / "agents" / f"{name}.md").read_text(encoding="utf-8")
+            self.assertEqual(text.count(pointer), 1, f"{name}: canonical pointer")
             for phrase in required:
-                self.assertIn(phrase, text, f"{name}: missing {phrase}")
+                self.assertNotIn(phrase, text, f"{name}: duplicated {phrase}")
 
     def test_invalid_baseline_is_rejected_fail_close(self):
         with tempfile.TemporaryDirectory() as temporary:
