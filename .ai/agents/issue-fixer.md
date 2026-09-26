@@ -57,6 +57,15 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 診断登録後に限り、宣言した targets の範囲を直す。範囲が変わったと気づいた時点で診断からやり直す。
 
+### コード構築原則（Issue #539）
+
+- 名前だけで file / class / function の責務が一意に伝わるようにする。曖昧な名前をコメントで補わない。
+- 連続するコードコメントは3行以内とし、長い経緯・理由は DD / ADR / 方法文書へ置く。
+- 新規 Python module は100物理行以内を既定とし、超える前に責務で分割する。
+- `@dataclass` と具体ロジック class は同一 file に置かない。
+- SRP / DRY / YAGNI / KISS / SSoT、テスト容易性、fail-safe・回復・冪等、最小権限・秘密・信頼境界、境界での型変換、観測・trace を是正前 checklist とする。
+- 対象コードを変更したら `python3 -m maintainability_lint check` を実行する。既存 baseline の更新は免除ではなく、負債を増やす判断として差分に露出させる。
+
 targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かったら、直接編集せず STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 
 0. 編集前に `python3 -m gitgate log -n 1 --oneline` を実行し、出力先頭の短縮コミットハッシュ（1トークン目のみ・件名は含めない）を控える。これは後の close-attempt の `--base` に使う。

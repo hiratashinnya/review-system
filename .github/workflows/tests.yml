@@ -72,6 +72,9 @@ jobs:
       - name: Time-dependent test data check (手当てB, issue #344)
         run: python3 -m time_fixture_lint check
 
+      - name: Maintainability principles check (Issue #539)
+        run: python3 -m maintainability_lint check
+
   typecheck:
     runs-on: ubuntu-latest
     steps:

@@ -61,7 +61,9 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
   - 共有 gate / start / branch / sync / metrics ツール：`blocker_gate`/`pr_merge_gate`/`issue_start`/
     `branch_source`/`project_status_sync`/`guidance_sync`/`defect_metrics`
-  - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`（どちらも read-only 監査。
+  - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`/`maintainability_lint`（いずれも
+    read-only 監査。`maintainability_lint` は Issue #539 の保守性原則を review_system 本体と
+    含有されない汎用ハーネスへ横断適用する baseline-ratchet であり、特定システムの生産機構ではない。
     `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）
   - 是正ループ用ツール：`karte`
   - オーナー判断フィードバック台帳ツール：`feedback_ledger`（`.ai/feedback/` の TOML 台帳を
