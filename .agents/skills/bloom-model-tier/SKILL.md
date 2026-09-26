@@ -13,9 +13,9 @@ PF 中立のモデル層と推論予算は、Codex CLI の session/config へ独
 
 | PF 中立のモデル層 | Codex CLI session/config の `model` |
 |---|---|
-| 低位モデル層 | `model: gpt-5.6-luna` |
-| 中位モデル層 | `model: gpt-5.6-luna` |
-| 最上位モデル層 | `model: gpt-5.6-sol` |
+| 低位モデル層 | `model: gpt-6-luna` |
+| 中位モデル層 | `model: gpt-6-luna` |
+| 最上位モデル層 | `model: gpt-6-sol` |
 
 | PF 中立の予算 | Codex CLI session/config の `model_reasoning_effort` |
 |---|---|
@@ -28,6 +28,6 @@ PF 中立のモデル層と推論予算は、Codex CLI の session/config へ独
 Codex CLI session/config 用の設定例：
 
 ```toml
-model = "gpt-5.6-sol"
+model = "gpt-6-sol"
 model_reasoning_effort = "high" # Bloom Lv5 評価・判断ボトルネック
 ```

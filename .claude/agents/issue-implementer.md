@@ -3,6 +3,7 @@ name: issue-implementer
 description: Implements a GitHub Issue end-to-end in an isolated worktree — branch, code/node changes, tests, commit, push, and PR open with explicit AI-attribution. Use for the FIRST implementation phase of the implement→review→merge issue pipeline. NOT for remediation rounds after a review (use issue-fixer, which must diagnose into the karte before editing), NOT for reviewing a PR (use pr-reviewer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push + open PR, then stop and report).
 tools: Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
+effort: xhigh
 ---
 
 ## 共通本文

@@ -3,6 +3,7 @@ name: spec-author
 description: Authors SPEC child nodes under a given parent SPEC or FR. Enforces one assertion per SPEC, slug identifiers, and child-to-parent dependency edges. Use when creating or splitting SPEC nodes. NOT for reading specs (use spec-inspector), NOT for writing to main files (use reconciliation).
 tools: Read, Grep, Glob, Write, Edit
 model: opus
+effort: xhigh
 skills:
   - spec-principles
 ---

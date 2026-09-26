@@ -3,6 +3,7 @@ name: requirements-author
 description: Authors VAL, SR, FR, and NFR nodes under a given parent. Use when creating requirements-layer nodes. NOT for SPEC nodes (use spec-author), NOT for writing to main files (use reconciliation).
 tools: Read, Grep, Glob, Write, Edit
 model: opus
+effort: xhigh
 skills:
   - spec-principles
 ---

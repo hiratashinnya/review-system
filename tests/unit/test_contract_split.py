@@ -100,9 +100,9 @@ class BloomModelTierContract(unittest.TestCase):
         ("最大", "max"),
     )
     CODEX_MODEL_MAPPING = (
-        ("低位モデル層", "model: gpt-5.6-luna"),
-        ("中位モデル層", "model: gpt-5.6-luna"),
-        ("最上位モデル層", "model: gpt-5.6-sol"),
+        ("低位モデル層", "model: gpt-6-luna"),
+        ("中位モデル層", "model: gpt-6-luna"),
+        ("最上位モデル層", "model: gpt-6-sol"),
     )
     CODEX_REASONING_EFFORTS = frozenset(
         {"low", "medium", "high", "xhigh", "max"}
@@ -142,28 +142,28 @@ class BloomModelTierContract(unittest.TestCase):
     }
     EXPECTED_CODEX_CELLS = {
         "1 記憶": (
-            ("gpt-5.6-luna", "low"),
-            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-6-luna", "low"),
+            ("gpt-6-luna", "xhigh"),
         ),
         "2 理解": (
-            ("gpt-5.6-luna", "medium"),
-            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-6-luna", "medium"),
+            ("gpt-6-luna", "xhigh"),
         ),
         "3 応用": (
-            ("gpt-5.6-luna", "high"),
-            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-6-luna", "high"),
+            ("gpt-6-luna", "xhigh"),
         ),
         "4 分析": (
-            ("gpt-5.6-luna", "xhigh"),
-            ("gpt-5.6-luna", "xhigh"),
+            ("gpt-6-luna", "xhigh"),
+            ("gpt-6-luna", "xhigh"),
         ),
         "5 評価": (
-            ("gpt-5.6-luna", "max"),
-            ("gpt-5.6-sol", "high"),
+            ("gpt-6-luna", "max"),
+            ("gpt-6-sol", "high"),
         ),
         "6 創造": (
-            ("gpt-5.6-luna", "max"),
-            ("gpt-5.6-sol", "xhigh"),
+            ("gpt-6-luna", "max"),
+            ("gpt-6-sol", "xhigh"),
         ),
     }
 
@@ -277,9 +277,9 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertNotIn("(該当なし)", body)
 
         forbidden_pf_tokens = (
-            "gpt-5.6",
-            "gpt-5.6-luna",
-            "gpt-5.6-sol",
+            "gpt-6",
+            "gpt-6-luna",
+            "gpt-6-sol",
             "model_reasoning_effort",
             "haiku",
             "sonnet",
