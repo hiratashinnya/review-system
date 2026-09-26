@@ -3,6 +3,7 @@ name: doc-system-config-operator
 description: Supports explanation, inspection, and changes to doc-system-v2/config.yml and its related CFG/SCM/SPEC/PROMPT design assets. Does not handle review_system-side config expansion.
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
+effort: high
 skills:
   - spec-principles
 ---

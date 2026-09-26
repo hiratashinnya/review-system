@@ -3,6 +3,7 @@ name: design-author
 description: "Authors design-layer nodes: ORC, DS, MOD, DM, PORT, PRS, SCM, CFG, PROMPT. For TERM (analysis-placed, created by analysis-author) this agent appends only the design facet (Python type / defining module) when DM is settled — it does not create TERM nodes. Use when creating implementation-design nodes. NOT for requirements or analysis layer (use requirements-author or analysis-author), NOT for writing to main files (use reconciliation)."
 tools: Read, Grep, Glob, Write, Edit
 model: opus
+effort: xhigh
 skills:
   - spec-principles
 ---

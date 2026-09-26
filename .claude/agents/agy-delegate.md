@@ -3,6 +3,7 @@ name: agy-delegate
 description: Delegate well-scoped tasks to the Antigravity (agy) CLI via the agy MCP server — read-only investigation/impact analysis with report output (e.g. ref_version propagation), node-draft proposals (after reading the discipline), research, scratch code, image generation, parallel sub-queries. ALWAYS runs a connectivity check first and refuses when agy is unavailable (cloud/headless). agy only returns drafts/reports as INPUTS; it never writes to docs/ or main doc-system files and never finalizes node authoring — those stay with the *-author agents (tmp) → reconciliation-validator (validate) → reconciliation (write).
 tools: Read, Bash, mcp__agy__antigravity_status, mcp__agy__antigravity_ask, mcp__agy__antigravity_continue, mcp__agy__antigravity_swarm, mcp__agy__antigravity_image, mcp__agy__antigravity_image_swarm
 model: sonnet
+effort: high
 ---
 
 あなたは **Antigravity（agy CLI）への作業移譲ディスパッチャ**。MCP サーバー `agy` 経由で、

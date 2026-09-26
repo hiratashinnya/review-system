@@ -3,6 +3,7 @@ name: pr-reviewer
 description: Reviews an open PR (risk/correctness/scope/CLAUDE.md-compliance), posts review comments, and — if it is clean — merges it. Use for the review→merge phase of the implement→review→merge issue pipeline, after issue-implementer has opened a PR. NOT for implementing (use issue-implementer) and NOT for pushing new code (this role is mechanically blocked from `git push` — review/comment/merge only).
 tools: Read, Grep, Glob, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
+effort: xhigh
 ---
 
 ## 共通本文
