@@ -238,6 +238,7 @@ class TestHarnessClassificationTable(unittest.TestCase):
             "branch_source",
             "guidance_sync",
             "defect_metrics",
+            "maintainability_lint",
         ):
             self.assertIn(
                 f"`{name}`",

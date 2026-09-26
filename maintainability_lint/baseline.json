@@ -1,0 +1,397 @@
+{
+  "comment_blocks": {
+    ".codex/hooks/codex-rate-limit-query.py|c5022a88ba7880c4": 1,
+    "asset_parity/inventory.py|998c6bde094f50a8": 1,
+    "blocker_gate/cli.py|69d5e23f20f7e2b0": 1,
+    "blocker_gate/cli.py|bd43183928df572d": 1,
+    "blocker_gate/github.py|15ce663b5f9cd5d9": 1,
+    "blocker_gate/github.py|83421653c35e6dc9": 1,
+    "blocker_gate/github.py|d50359adf25f549d": 1,
+    "blocker_gate/model.py|1ff88da186b12a25": 1,
+    "blocker_gate/model.py|6db9191650656b20": 1,
+    "blocker_gate/model.py|7fb2050a6ba22e05": 1,
+    "blocker_gate/model.py|ed84d2c92f3ea960": 1,
+    "branch_source/policy.py|237460617202c10c": 1,
+    "branch_source/policy.py|baa19a57d76aabbf": 1,
+    "defect_metrics/cli.py|a78ea980aff3ef2d": 1,
+    "defect_metrics/metrics.py|973ee835f63a74c2": 1,
+    "defect_metrics/metrics.py|be9f0d2a881051e6": 1,
+    "defect_metrics/metrics.py|f6368c93fe33d90c": 1,
+    "defect_metrics/model.py|df91ae074c143b31": 1,
+    "feedback_ledger/check.py|201f4f7131d063b3": 1,
+    "gitgate/adopt.py|b773d74d104a989a": 1,
+    "gitgate/cli.py|4c084b8d6f4b492f": 1,
+    "gitgate/cli.py|b3bd3dea450cdad5": 1,
+    "gitgate/worktree.py|1888da7cc8174c4f": 1,
+    "gitgate/worktree.py|326070b1ad4ba265": 1,
+    "gitgate/worktree.py|abc15b92f96f2e58": 1,
+    "gitgate/worktree.py|e239a628536ab723": 1,
+    "guidance_sync/sync.py|6ab5f6f353105223": 1,
+    "issue_start/codex_launch_intent.py|14c9bdc36af517d3": 1,
+    "issue_start/codex_launch_intent.py|32e6b82fc641cf35": 1,
+    "issue_start/codex_launch_intent.py|71de5e026e0b9e58": 1,
+    "issue_start/codex_launch_intent.py|bd06765ceb75e362": 1,
+    "issue_start/codex_launch_intent.py|d6d80cb274801535": 1,
+    "issue_start/codex_launch_intent.py|e5968f2e303406a5": 1,
+    "issue_start/codex_supervisor_workspace.py|832aef9d6abf8b1d": 1,
+    "issue_start/gate.py|12bc212ccc7e5c44": 1,
+    "issue_start/gate.py|9d410ee2541b9c16": 1,
+    "issue_start/gate.py|e6c48da09edc97ca": 1,
+    "issue_start/hook.py|dfde17372239572d": 1,
+    "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
+    "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
+    "issue_start/subagent_hooks.py|538e8580a6345563": 1,
+    "issue_start/subagent_hooks.py|8cc5d6fa2cc924b4": 1,
+    "issue_start/subagent_hooks.py|af8a35a9aabb2dd3": 1,
+    "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
+    "karte/cli.py|57b1a37f983c7336": 1,
+    "karte/cli.py|c24033c5e05b56bb": 1,
+    "karte/cli.py|cdbe1cef9b3d9028": 1,
+    "karte/cli.py|d87fcc8e5318e874": 1,
+    "karte/model.py|170b9a65e7d9ef73": 1,
+    "karte/model.py|1d9305ee49f03ed5": 1,
+    "karte/model.py|3219607d98ae1adf": 1,
+    "karte/model.py|39966b09aabb07a2": 1,
+    "karte/model.py|40c4b8476f255586": 1,
+    "karte/model.py|46dc59814d4f2ad2": 1,
+    "karte/model.py|6d574250da10ffea": 1,
+    "karte/model.py|b61b5edb5d280e53": 1,
+    "karte/model.py|e1cbd9df9da10e08": 1,
+    "karte/model.py|e22fd7599d44f325": 1,
+    "karte_notify/notify.py|ec3051555595dc5f": 1,
+    "pr_merge_gate/classifier.py|c0d7660540cb8b34": 1,
+    "pr_merge_gate/hook.py|094d33a45588d52a": 1,
+    "pr_merge_gate/hook.py|0cfd32b6ed3e968d": 1,
+    "pr_merge_gate/hook.py|200351da0ab920ae": 1,
+    "pr_merge_gate/hook.py|44ddc906a64e1096": 1,
+    "pr_merge_gate/hook.py|8976d1bc994e02ac": 1,
+    "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
+  },
+  "mixed_class_files": {
+    "branch_source/policy.py": {
+      "data": [
+        "BranchSourceResult",
+        "NewBranchRequest"
+      ],
+      "logic": [
+        "GitHubBranchClient"
+      ],
+      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+    },
+    "issue_start/codex_supervisor.py": {
+      "data": [
+        "ChangePlan",
+        "CredentialSnapshot",
+        "PermissionProfile",
+        "ProcessResult",
+        "RuntimeHome",
+        "SupervisedResult",
+        "SupervisorSpec"
+      ],
+      "logic": [
+        "CodexJsonlObserver",
+        "SubprocessJsonlRunner",
+        "_StoreOnce"
+      ],
+      "sha256": "7d5bd23c04c58bc916371ea1b2ab8e93147db97e261750f410738664803a2f95"
+    },
+    "issue_start/codex_supervisor_workspace.py": {
+      "data": [
+        "GitFacts"
+      ],
+      "logic": [
+        "CanonicalLaunchReservationLease"
+      ],
+      "sha256": "69751c2694149bba3feff02b2c176231cfdbd2f80b841a7ad35acafddcf8147d"
+    },
+    "issue_start/gate.py": {
+      "data": [
+        "IsolationOnlyAck",
+        "IssueStartRequest"
+      ],
+      "logic": [
+        "IssueStartGitHubCollector",
+        "SnapshotIssueMetadata"
+      ],
+      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+    },
+    "time_fixture_lint/scanner.py": {
+      "data": [
+        "Finding",
+        "Report"
+      ],
+      "logic": [
+        "_FileGraph"
+      ],
+      "sha256": "1d5591a735c32c4ca5e1a218d8ebaf04e6be78eb6419599ab23a515728d4d824"
+    }
+  },
+  "module_lines": {
+    ".codex/hooks/codex-rate-limit-query.py": {
+      "line_count": 266,
+      "sha256": "471ae4639febe526503d1c795c8f0dcce207cca951c4588b1fea5fef10ed8b36"
+    },
+    ".codex/mcp/claude_review/server.py": {
+      "line_count": 441,
+      "sha256": "8d03f2fc48283a1c0224c0dfe10b5171ce3b85618ce63836abf6653be239ebbd"
+    },
+    "asset_parity/inventory.py": {
+      "line_count": 158,
+      "sha256": "c31552ac4c1837e84d2facdae57d73eca107522df5868bbdab83072df3bdfe70"
+    },
+    "asset_parity/report.py": {
+      "line_count": 259,
+      "sha256": "0b13860d86c40781f60e5a7738960e6a914af3ecb12aa7b04ae22d57cfccae35"
+    },
+    "asset_parity/staleness.py": {
+      "line_count": 190,
+      "sha256": "f8686f451cb418896c50584941248758730e1eff85a26ac198b2482cbeba3150"
+    },
+    "blocker_gate/cli.py": {
+      "line_count": 177,
+      "sha256": "a706c220cf044f21915228c3ee8038ea04d3755fdde8c2e6439241dd8c2cd65f"
+    },
+    "blocker_gate/closing.py": {
+      "line_count": 211,
+      "sha256": "e3314eaaa233e68034350c941c6c3ff7e45cecfcf9d75b31901ca85f4eb59e1f"
+    },
+    "blocker_gate/contract.py": {
+      "line_count": 317,
+      "sha256": "ffbdb07448412487f7c1b791b2ffe8f3597f29e6ba9261fc1eca3b433f0bd8c3"
+    },
+    "blocker_gate/evaluator.py": {
+      "line_count": 161,
+      "sha256": "23f8042a5ba395d3da087a86491772f0d06bd817495aa2845fd1db25ba04fa0e"
+    },
+    "blocker_gate/github.py": {
+      "line_count": 1117,
+      "sha256": "44770bf971e18c7bfafdaa6b2cb4d8bbd145f52fff95848b9e90603f18988770"
+    },
+    "blocker_gate/model.py": {
+      "line_count": 297,
+      "sha256": "f6b07816eb8efc62302606a460066e8386890d7a190719d7857259399015f67f"
+    },
+    "blocker_gate/resolver.py": {
+      "line_count": 495,
+      "sha256": "f54a1c074e55470fb598aafa8ecf8a0bd8b46dd62a0994b129dfca685aa0f46f"
+    },
+    "blocker_gate/snapshot.py": {
+      "line_count": 219,
+      "sha256": "d10c1b0341ccbbc55ce77f76d656b5fef9b5b367de9d4a1243a3954f5239f9f9"
+    },
+    "blocker_gate/waiver.py": {
+      "line_count": 313,
+      "sha256": "7bf8b9bd7e45e28ad0ccc4493b7b67b357cc7e7129b89dd7d484c32754adae43"
+    },
+    "branch_source/policy.py": {
+      "line_count": 352,
+      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+    },
+    "ci_anomaly_report/collector.py": {
+      "line_count": 234,
+      "sha256": "73305ad7e807f327716552832aed584c05175ea5d546ae40c0c0d0a26b575980"
+    },
+    "defect_metrics/cli.py": {
+      "line_count": 326,
+      "sha256": "9363a1bc426bc03f9f9ec421107820a81d150eda3d9a4101c6dc7e323a50b0b2"
+    },
+    "defect_metrics/collect.py": {
+      "line_count": 187,
+      "sha256": "0c9af1be308ba17dcf8bd36997a78631f51bbf9e930c4c80ba8a871302e5a9a6"
+    },
+    "defect_metrics/metrics.py": {
+      "line_count": 288,
+      "sha256": "ea37ca2f502c65a51450eb13d4b9c04033d718bea8e3cb1f124dbb1455dc6faa"
+    },
+    "defect_metrics/model.py": {
+      "line_count": 181,
+      "sha256": "a0de443a0097e1b70de72c7adbdf19070f9fefb8d6189a027b9d2fcbbbefaee2"
+    },
+    "defect_metrics/threshold.py": {
+      "line_count": 191,
+      "sha256": "2c3b768823fe39015522f7a84787352d388f62d9ee9c7ab1f184b5587dfd4e3b"
+    },
+    "feedback_ledger/check.py": {
+      "line_count": 454,
+      "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
+    },
+    "feedback_ledger/cli.py": {
+      "line_count": 476,
+      "sha256": "8e822e51068e542bd098742abdddcd6f6669281a61cdad16566aae68565ff4ed"
+    },
+    "feedback_ledger/model.py": {
+      "line_count": 341,
+      "sha256": "a46e4d4927e7e9422193bd254ebdb00db61ab23e33b9279c9bf9328a8b2b949b"
+    },
+    "feedback_ledger/paths.py": {
+      "line_count": 200,
+      "sha256": "9114ae010d6fbe8fbaf0df21d7230c2c22187d4e5554d74872cf9cd498f20e60"
+    },
+    "feedback_ledger/schema.py": {
+      "line_count": 205,
+      "sha256": "129359ba40a14be56bc3abd8d7c685750f3da1713a74a6e5a73de0156cbbb939"
+    },
+    "feedback_ledger/status.py": {
+      "line_count": 168,
+      "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
+    },
+    "feedback_ledger/store.py": {
+      "line_count": 164,
+      "sha256": "f8e1d54fcf53a673866b38e1675a38847b2bd09dbf9466d3d92068e3ae0a6d79"
+    },
+    "feedback_ledger/tomlwrite.py": {
+      "line_count": 142,
+      "sha256": "36004a98d32db4f51fb989acd64395125ecc62984a6cd62532e52c4bc830c511"
+    },
+    "gitgate/adopt.py": {
+      "line_count": 532,
+      "sha256": "b935af65e7c4934396cef97de152775a53d0d5e16c888bdde8f7ac3215998507"
+    },
+    "gitgate/cli.py": {
+      "line_count": 379,
+      "sha256": "154d91bdf738797b9271103e6e5a5f14442922c4c5ae52ad38a35bd9cd030208"
+    },
+    "gitgate/worktree.py": {
+      "line_count": 1649,
+      "sha256": "51c8f86f9b3a55ba53383097c77f74e554621de7ae5a97986d981a945f16f3f5"
+    },
+    "guidance_sync/sync.py": {
+      "line_count": 288,
+      "sha256": "6a3959070322590775600d9dae18244293b12aefde3d21c0d70c4d5fbf9efd41"
+    },
+    "issue_start/codex_karte_bridge.py": {
+      "line_count": 310,
+      "sha256": "6c2c49cc17de2aa35c7e9b7c87231e32eca43e5fff234da9c16fa3c45d39c64e"
+    },
+    "issue_start/codex_launch_control.py": {
+      "line_count": 703,
+      "sha256": "f84c19408b3656d79d927582cf5f8a7cbfe3f69118e62f3d6e76e6fef9ddb1ad"
+    },
+    "issue_start/codex_launch_intent.py": {
+      "line_count": 1161,
+      "sha256": "11fea0d7d43656f296baa34f1e3256ef7733d6fa8c291b1c5d6efd70d20fde7d"
+    },
+    "issue_start/codex_supervisor.py": {
+      "line_count": 3684,
+      "sha256": "7d5bd23c04c58bc916371ea1b2ab8e93147db97e261750f410738664803a2f95"
+    },
+    "issue_start/codex_supervisor_workspace.py": {
+      "line_count": 631,
+      "sha256": "69751c2694149bba3feff02b2c176231cfdbd2f80b841a7ad35acafddcf8147d"
+    },
+    "issue_start/durable_lock.py": {
+      "line_count": 129,
+      "sha256": "c3ef570f41c46b4ffb3dfb38a1c3f866d03c28caa0948ea4e1f566b3ad667d2a"
+    },
+    "issue_start/gate.py": {
+      "line_count": 1285,
+      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+    },
+    "issue_start/hook.py": {
+      "line_count": 190,
+      "sha256": "52860efc8a9c3d872e1bcb6cfdf416a8bbf07ff5a93fc4b5ee5970c19db8c923"
+    },
+    "issue_start/session_start.py": {
+      "line_count": 118,
+      "sha256": "e761567f049a13e0de2b6f2744a0f1be89fde9e8d5c5cdc29f1344c81a7b385c"
+    },
+    "issue_start/subagent_hooks.py": {
+      "line_count": 1032,
+      "sha256": "dff0c9586f3d5ed25f9cba09e68a3187db864f6771d04bbcc2bd5b15f5906e4b"
+    },
+    "issue_start/worktree_ledger.py": {
+      "line_count": 900,
+      "sha256": "a0d54cea84136616cd07d2f1d3499767fb3a23a90a00b126a8ceb32b1a701dd1"
+    },
+    "karte/cli.py": {
+      "line_count": 1519,
+      "sha256": "bc44bd2ced7184fcb0db001f4b87a2536e4de78446af57320066dbb49d07c38b"
+    },
+    "karte/model.py": {
+      "line_count": 1306,
+      "sha256": "de8cac640fdbf3796d3496e9319c0a0e423e975e3fd53df735b669e934103eef"
+    },
+    "karte/paths.py": {
+      "line_count": 317,
+      "sha256": "a1ed1a009e97d3e5932957190e59b31a12d317d773bea12178e650c0c62000d6"
+    },
+    "karte/similarity.py": {
+      "line_count": 241,
+      "sha256": "3086bd6a93b6e8a7992c27ec0994b202c1454ddd07e94589c4eefda3cbc72ec5"
+    },
+    "karte/touched.py": {
+      "line_count": 105,
+      "sha256": "b92240e561e9edd13afebfbecb298e5ce6220aaf9c4bbf23a1f11821b53e90bd"
+    },
+    "karte_notify/hook.py": {
+      "line_count": 175,
+      "sha256": "a3cc64be038243c7556ce5c6da8064ffa16eb0f1a0f87649b9e89ef095b8e1c5"
+    },
+    "karte_notify/notify.py": {
+      "line_count": 346,
+      "sha256": "ffef11e065c16e3eb5fbbcecce7c87b73e5e9d4737449e712aa706d4c07c80e1"
+    },
+    "pr_merge_gate/audit.py": {
+      "line_count": 501,
+      "sha256": "e400f48fa86e7a35180fd6d828436636dcc60a083d4c7922751b9f4a575ecff9"
+    },
+    "pr_merge_gate/classifier.py": {
+      "line_count": 1254,
+      "sha256": "4bc0dab0ef39c7895454b9f190b22a4febf8331c0982cff05fefaf861292336b"
+    },
+    "pr_merge_gate/gate.py": {
+      "line_count": 187,
+      "sha256": "409af4c05b02f3bcfc123c3c47e2c682b7ba870a6a4f48a4848682755ea9d7c2"
+    },
+    "pr_merge_gate/hook.py": {
+      "line_count": 424,
+      "sha256": "3b875acd5d9c702b368536248adac0e02ba96e0263e0b46c20bd1627b5e7964a"
+    },
+    "project_status_sync/cli.py": {
+      "line_count": 206,
+      "sha256": "2e2b7f21f8d9e41f5e0635e7d4563b583bf31aac15001e314398eb91e2299cdb"
+    },
+    "project_status_sync/github.py": {
+      "line_count": 258,
+      "sha256": "05279f92cbde91739921a5437f8925d4a91260725cc4b69d2a0bb8031963f38b"
+    },
+    "project_status_sync/model.py": {
+      "line_count": 159,
+      "sha256": "e8d9e600eb525ed1bc12ab83224cb13283bbf29853b558c0ee2878ba568daeb2"
+    },
+    "project_status_sync/planner.py": {
+      "line_count": 247,
+      "sha256": "7b294287840159ceab38fff6a2360e36f8b7b70f2e95faa589723e1e71319e71"
+    },
+    "project_status_sync/report.py": {
+      "line_count": 127,
+      "sha256": "a1c896d9e661d18070d9277e8404fd925897364c1d042234597fd59bcf4816d8"
+    },
+    "review_system/io/cli.py": {
+      "line_count": 210,
+      "sha256": "a47d27fa229ee070f8560b7d66a7dd597e2804d780226ce5e24d1bc6e8da29b5"
+    },
+    "review_system/parsing/frontmatter.py": {
+      "line_count": 192,
+      "sha256": "2d3b1d7f2e85b46e348bb64629b6ea27095255c69ab602b43317622e8af8ef53"
+    },
+    "review_system/parsing/lint.py": {
+      "line_count": 101,
+      "sha256": "ead807adc9110ab7cd72630b47c422fa3bdef82a4683e8442bcf2420a0a034eb"
+    },
+    "review_system/persistence/criteria_repo.py": {
+      "line_count": 108,
+      "sha256": "7d4fa26b969bbcb6619ef85179a301a954377168319e66beed49cb664472e42f"
+    },
+    "time_fixture_lint/allowlist.py": {
+      "line_count": 120,
+      "sha256": "9e89cf3117e82d14f4e2b12f3980311ca5935f4a531fadf0900954b758ecf0e0"
+    },
+    "time_fixture_lint/scanner.py": {
+      "line_count": 409,
+      "sha256": "1d5591a735c32c4ca5e1a218d8ebaf04e6be78eb6419599ab23a515728d4d824"
+    }
+  },
+  "schema_version": 2,
+  "source": "Issue #539 measured repository state"
+}

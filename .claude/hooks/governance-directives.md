@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@16fceef4e2fc -->
+<!-- synced-from: CLAUDE.md@bbc5fc2a65cc -->
 <!--
   Issue #531 是正ラウンド4（2026-09-20・F-531-08/F-531-09）:
   `.claude/rules/05-skills-agents.md` の `/issue-pipeline` 説明から

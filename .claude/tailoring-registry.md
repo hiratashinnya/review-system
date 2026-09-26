@@ -48,6 +48,13 @@
 > ※ `issue-fixer`（エージェント・Issue #308 で新規追加・**未テーラリング active**・テーラリング対象外）は上記パイプラインの**是正ラウンド専任**ロール（初回実装＝`issue-implementer`／レビュー・マージ＝`pr-reviewer` と単一責務で分割）。権限境界は `issue-implementer` と同一（push 可・merge 不可）で、差は「診断カルテ（`karte`）へ根本原因・変更種別・対象シンボルを登録してからでないと編集しない」という契約の側にある。**`python3 -m karte` を許可されるのは本ロールだけ**——カルテの書き手を1ロールに絞ることで、`pr-reviewer` の read-only fail-close（`Write` 非付与）を書込経路からも守る（`agent-command-gate.sh` の `PYTHON_MODULES_BY_ROLE`）。**Codex CLI へは移植済み**（`.codex/agents/issue-fixer.toml`＋`.codex/hooks/agent-command-gate.sh` の `GATED_ROLES` 登録）。**Copilot（`.github/`）へは非移植**：親パイプラインと同じ理由（gh CLI／フック／Task 委譲／`bloom-model-tier` に Copilot 等価物なし）に加え、本ロールは `karte` CLI と PreToolUse フックの両方に依存するため Copilot 側で契約が成立しない。`asset_parity/exceptions.py` に `(issue-fixer, AGENT, GITHUB)` を転記済み。
 > ※ `docidx`（スキル）＋ `dsv2-lookup`（エージェント・旧名 `docidx-lookup`。実体は v2-native で v1-legacy 専用の `docidx` と紛らわしいため issue #173 で改名）はノード検索/読み込みツール（実体 `archive/docidx-v1/`・Python 標準ライブラリのみ・汎用・テーラリング対象外・issue #172 で `docidx/` から退避、共有 YAML リーダ `nodeyaml.py` は `dsv2/nodeyaml.py` へ分離）。doc-system フォーマット仕様（SPEC/notation）に依存＝依存マップは `archive/docidx-v1/README.md`・各関数 `依存仕様:` docstring（フォーマット改版時に見直す）。
 > ※ `asset_parity`（Issue #155・実体 `asset_parity/`・スキル/エージェントではない裸ツール＝`dsv2`/`docidx` と同区分）は上記4資産ツリー（`.claude/` 正本／`.github/`／`.codex/agents/`／`.agents/skills/`）の presence/absence を read-only 検出する（`python3 -m asset_parity check`）。本台帳の非移植決定（`agy-delegate`・`issue-implementer`／`issue-fixer`／`pr-reviewer` の Copilot 非移植）を `asset_parity/exceptions.py` に転記して「意図的な非ミラー」として除外している——**本台帳が一次情報源**であり、`exceptions.py` はそれをコード化したもの（新しい非移植を決めたら本台帳を先に更新し、`exceptions.py` を追従させる）。使い方は `asset_parity/README.md`。**CI 組み込み済み**（Issue #155 フォローアップ・`.github/workflows/asset-parity.yml`）：4ツリーいずれかのパスを触る `push`/`pull_request` で自動起動し、`MISSING` があれば非0終了でビルド失敗（`--fail-on-stale` は未指定のため staleness flag はビルドを止めない・判断根拠は `asset_parity/README.md` の「CI wiring」節）。マトリクスは `$GITHUB_STEP_SUMMARY` にも出力。
+> ※ `maintainability_lint`（Issue #539・実体 `maintainability_lint/`・スキル/エージェントではない
+> read-only 裸ツール）は、review_system 本体と含有されない汎用ハーネスの Python 実装を横断し、
+> 100行超 module／4行以上（3行超）の連続 comment／データ・ロジック class 同居を baseline-ratchet 検査する。
+> 汎用開発ハーネスでありテーラリング対象外、外部資産ツリーへのミラーも不要。役割契約の流入対策は
+> `.ai/agents/{issue-implementer,issue-fixer,pr-reviewer}.md`、流出対策と既存負債境界は
+> `maintainability_lint/README.md`、ISO 25010 対応と優先順位は
+> `docs/methods/iso-25010-code-principles.md`／DD24 が正本。`.github/workflows/tests.yml` で CI 組み込み済み。
 > ※ rationale の本文 SoT は Issue #406 で `.ai/rationale/` へ移管済み。旧 `.claude/rationale/` は
 > Claude 互換 pointer であり、本文の正本ではない。規範 wrapper と PF 固有の実行機構は各 PF 側に残し、
 > rationale 本文を複製しない。索引・分離規則の SoT は `.ai/rationale/README.md`、機械検査は

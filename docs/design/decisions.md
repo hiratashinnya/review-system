@@ -28,6 +28,7 @@
 | DD17 | PF 例外の fail-close 化＝**ガードプロキシ**（オーナー決定） | アダプタ（翻訳・PF差し替え性）は残し、その前に **`GuardingPlatform`（プロキシ）** を1枚。`review()` を `StageOutcome` 返しにし try/catch→`Failure(EVALUATE)`。core は `SafePlatformPort`（例外を投げない）に依存。「PF を信用しない」責務を境界1箇所へ集約（[10]/S3・M1） | [04](04-platform-protocol.md)/adapters/core |
 | DD22 | reconciliation のトークン過大消費（資産運用） | ①Step2 を docidx surgical read 化＋レイヤー限定 ②model opus→sonnet ③**検証/書込を2エージェントに分離**（`reconciliation-validator`=read-only 検証・Write/Edit なし／`reconciliation`=書込専任）。validator は構造的に本ファイルへ書けず fail-close。self_fix は validator が指示・writer が適用 | `.claude/agents/`・`tailoring-registry.md`・[CLAUDE.md](../../CLAUDE.md)・[asset-plan](../methods/asset-plan.md) |
 | DD23 | spec-pipeline の非対話並列著作 fan-out をどう実装するか（Issue #62/#110・doc-system-v2 DD-22 ①-C の実装） | 新 orchestrator agent `spec-authoring-fanout` を新設し、複数親の VAL/SR/FR/NFR・SPEC 著作を `*-author` へ並列ファンアウト→`reconciliation-validator`→`reconciliation` まで sub-tree 内で完結（VALIDATION_OK は writer へ委譲・ROLLBACK/矛盾は STOP 報告）。spec-pipeline に著作 fan-out 段を明示挿入し `/io-event-ledger`（廃止）参照を除去。impl-design/asset-pipeline は単一 agent 呼びのため対象外 | `.claude/agents/spec-authoring-fanout.md`（新設）・`.claude/skills/spec-pipeline/SKILL.md` |
+| DD24 | ISO 25010 コード構築原則の機構化順序（Issue #539） | 流入1位＝共通 guidance の原則 checklist と3 role contract の参照、流出2位＝既存負債を固定する `maintainability_lint` baseline-ratchet。採否は ISO/オーナー決定、repo 実測は順序だけに使用 | [ISO 25010 gap分析](../methods/iso-25010-code-principles.md)・`.ai/guidance/common.md`・`.ai/agents/`・`maintainability_lint/` |
 
 ---
 
@@ -212,6 +213,19 @@
   - **未確定リスク（要フォロー）**：本エージェントの並列 fan-out・深さ 2 ネストは**実 e2e 未実行**（本タスクはプロンプト/エージェント定義の著作）。実運用で depth/並列 Task の挙動を確認し、齟齬があれば FND 起票する。
 
 > **補遺（issue #121・2026-07-06・supersede）**：上記「impl-design-pipeline/asset-pipeline は不変（単一 agent 呼びで並列化余地なし＝監査で確認）」という結論は**誤りだった**。オーナー指摘（「要件定義層しか並列化せず、本来の趣旨を隠蔽しているように見えている」）により再監査した結果、impl-design-pipeline（`architecture-design`/`orchestration-design`/`prompt-design`）・test-strategy の SKILL.md には**そもそも `design-author`/`verification-author` への著作委譲が存在しなかった**（「並列化余地なし」ではなく著作ステップ自体の欠落）。是正として `spec-authoring-fanout` を `author` パラメータ（`requirements-author|spec-author|analysis-author|design-author|verification-author`）で汎化した **`.claude/agents/authoring-fanout.md`** を新設し、`spec-authoring-fanout.md` は `archive/spec-authoring-fanout-v1.md` へ retire（`git mv`・PR8 消さない）。`impl-design-pipeline/SKILL.md` に Wave1/Wave2 design-author fan-out 段（2.5）を、`test-strategy/SKILL.md` に TD-authoring fan-out 段を新設し、`.github/agents/authoring-fanout.agent.md`・`.github/skills/impl-design-pipeline/SKILL.md`・`.github/skills/test-strategy/SKILL.md` へも同内容をミラー。本 DD23 自体は履歴として保持し、削除・書き換えはしない（PR8）。詳細は issue #121。
+
+## DD24 — ISO 25010 コード構築原則の機構化順序（Issue #539）
+
+- **論点**：承認済みの7軸と各原則を、どの流入／流出機構から実装するか。repo 実測は採否ではなく順序にだけ使う。
+- **選択肢**：
+  - (A) **流入 role contract → 保守性 lint**。実装・是正・レビューの入口へ全原則を置き、機械判定できるオーナー3原則を baseline-ratchet で止める。
+  - (B) 信頼性 pattern/fault test を先行する。
+  - (C) security secret/supply-chain gate を先行する。
+  - (D) 型検査範囲を先に全 repo へ広げる。
+- **トレードオフ**：A＝オーナー決定の「流入優先」を直接満たし、137 Python files 中66 module の100行超、66 long-comment blocks、5 mixed-class files という最大の横断 gap を新規コードから止められる。既存負債は残るが exact baseline により無言の増加・編集・stale 化を拒否する。B/C＝重要だが、既存機構が個別にあり、共通 pattern の設計が先に要る。D＝既存448 errors の一括解消か大量抑制を要求し、本 Issue の最初の1〜2機構としては変更量が大きい。
+- **推奨 A（採用）／非推奨 B,C,D（先送りであり原則不採用ではない）**：採否は ISO 25010 と Issue #539 のオーナー決定で確定済み。実測は A を最初に置く順序の根拠にのみ使う。意味判断が必要な命名は lint に偽装せず reviewer contract に残す。
+- **暫定決定**：優先1位は `.ai/guidance/common.md` のコード構築 checklist を唯一の正本とし、`.ai/agents/issue-implementer.md`、`issue-fixer.md`、`pr-reviewer.md` の各 role contract から参照する。優先2位は `maintainability_lint`（100物理行、3行コメント、data/logic class 分離）と PR CI。走査対象は top-level Python source を自動検出し、tests、doc system、archive、仮想環境、生成物等だけを明示除外して、新規 harness の allowlist 追記漏れを許さない。互換性は既存 `asset_parity` の役割を文書化するだけで新規機構を重ねない。3位以降は gap 表の順に、信頼性、security、型、可観測性、trace を候補化する。
+- **影響範囲**：`docs/methods/iso-25010-code-principles.md`、`.ai/guidance/common.md`、`.ai/agents/{issue-implementer,issue-fixer,pr-reviewer}.md`、`maintainability_lint/`、`tests/unit/test_maintainability_lint.py`、`.github/workflows/tests.yml`、`.claude/rules/02-decision-process.md`、`.claude/tailoring-registry.md`。覆して B/C/D を先行する場合も原則セットは削らず、同方法文書の順位と role/lint の適用時期を更新する。
 
 ---
 

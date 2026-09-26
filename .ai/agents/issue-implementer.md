@@ -41,6 +41,10 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
 - .coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html は commit しない。
 
+### コード構築原則（Issue #539）
+
+実装の着手前から完了判定まで、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を適用する。
+
 ## スコープ外 finding の書き方
 
 作業中に見つけたスコープ外の問題は自分で直さず、`out_of_scope_findings` に**レビュー finding と同じキーを揃えて**書く。
