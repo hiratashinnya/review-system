@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-26T20:11:04.781450Z",
+  "repository": "hiratashinnya/review-system",
+  "branch": "main",
+  "workflows_checked": 7,
+  "collection_errors": 0,
+  "anomalies": [
+    {
+      "workflow": {
+        "id": 310727809,
+        "name": "asset-parity",
+        "path": ".github/workflows/asset-parity.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36233976304/job/108382281318",
+      "run": {
+        "id": 36233976304,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T09:50:27Z"
+      },
+      "job": "check",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 332473270,
+        "name": "blocker-snapshot",
+        "path": ".github/workflows/blocker-snapshot.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36268283114/job/108477195361",
+      "run": {
+        "id": 36268283114,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T20:05:36Z"
+      },
+      "job": "publish",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 332473270,
+        "name": "blocker-snapshot",
+        "path": ".github/workflows/blocker-snapshot.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36268283114/job/108477195550",
+      "run": {
+        "id": 36268283114,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T20:05:36Z"
+      },
+      "job": "ci-anomaly-report / publish",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 367341579,
+        "name": "ci-anomaly-report",
+        "path": ".github/workflows/ci-anomaly-report.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36267497692/job/108474856814",
+      "run": {
+        "id": 36267497692,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "schedule",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T19:51:54Z"
+      },
+      "job": "publish",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 351603195,
+        "name": "defect-metrics",
+        "path": ".github/workflows/defect-metrics.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36135296372/job/108071821924",
+      "run": {
+        "id": 36135296372,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "head_sha": "0b205422136929aacb93e2fa23b8abecf270aec5",
+        "completed_at": "2026-09-25T12:30:37Z"
+      },
+      "job": "publish",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 341629443,
+        "name": "guidance-sync",
+        "path": ".github/workflows/guidance-sync.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36233976286/job/108382281115",
+      "run": {
+        "id": 36233976286,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T09:50:30Z"
+      },
+      "job": "check",
+      "location": ".github:2"
+    },
+    {
+      "workflow": {
+        "id": 309133396,
+        "name": "pages",
+        "path": ".github/workflows/pages.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/configure-pages@v5, actions/setup-python@v5, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36233976251/job/108382281116",
+      "run": {
+        "id": 36233976251,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T09:56:46Z"
+      },
+      "job": "build",
+      "location": ".github:6"
+    },
+    {
+      "workflow": {
+        "id": 309133396,
+        "name": "pages",
+        "path": ".github/workflows/pages.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/deploy-pages@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36233976251/job/108383113132",
+      "run": {
+        "id": 36233976251,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T09:56:46Z"
+      },
+      "job": "deploy",
+      "location": ".github:4"
+    },
+    {
+      "workflow": {
+        "id": 348973192,
+        "name": "project-status-sync",
+        "path": ".github/workflows/project-status-sync.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36268002482/job/108476305732",
+      "run": {
+        "id": 36268002482,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "head_sha": "ce4b37ab67bfeccc73094f94c77fd2de0d5b7d10",
+        "completed_at": "2026-09-26T20:00:48Z"
+      },
+      "job": "sync",
+      "location": ".github:2"
+    }
+  ]
+}
