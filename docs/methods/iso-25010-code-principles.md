@@ -78,3 +78,7 @@ CI と `tests/unit/test_maintainability_lint.py` で検証する。
 既存負債137 finding は採用免除ではない。Issue #539 の変更範囲で全分割は行わず、内容・件数を
 `baseline.json` に固定して増加、編集、解消後の stale entry を fail-close にする。命名だけは
 意味を機械推測すると誤検出で形骸化するため、理由を明記して role review に残す。
+
+走査対象は repository root 直下の Python file と、Python file を含む top-level directory を
+自動検出する。`tests/`、doc system、archive、仮想環境、生成物等は明示的に除外し、新しい
+汎用ハーネスが静的 allowlist の更新漏れで検査対象外になる経路を作らない。

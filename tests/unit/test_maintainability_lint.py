@@ -43,6 +43,17 @@ class MaintainabilityLintSyntheticTests(unittest.TestCase):
         rules = {item.rule for item in _violations(self.root, baseline)}
         self.assertEqual(rules, {"module-over-100-lines"})
 
+    def test_same_length_module_edit_is_rejected(self):
+        relative = "review_system/legacy.py"
+        _write(self.root, relative, "value = 1\n" * 101)
+        baseline = build_baseline(self.root)
+        self.assertFalse(_violations(self.root, baseline))
+        _write(self.root, relative, "value = 2\n" + "value = 1\n" * 100)
+        self.assertEqual(
+            [item.rule for item in _violations(self.root, baseline)],
+            ["module-over-100-lines"],
+        )
+
     def test_resolved_debt_makes_baseline_stale(self):
         relative = "review_system/legacy.py"
         _write(self.root, relative, "value = 1\n" * 101)
@@ -71,6 +82,17 @@ class MaintainabilityLintSyntheticTests(unittest.TestCase):
         rules = {item.rule for item in _violations(self.root, baseline)}
         self.assertEqual(rules, {"comment-over-3-lines", "stale-baseline"})
 
+    def test_reduced_duplicate_comment_count_makes_baseline_stale(self):
+        relative = "review_system/legacy.py"
+        block = "# one\n# two\n# three\n# four\n"
+        _write(self.root, relative, block + "value = 1\n" + block)
+        baseline = build_baseline(self.root)
+        _write(self.root, relative, block + "value = 1\n")
+        self.assertEqual(
+            [item.rule for item in _violations(self.root, baseline)],
+            ["stale-baseline"],
+        )
+
     def test_docstring_is_not_a_code_comment(self):
         _write(self.root, "review_system/docs.py", '"""one\ntwo\nthree\nfour\n"""\n')
         self.assertFalse(_violations(self.root))
@@ -88,6 +110,58 @@ class MaintainabilityLintSyntheticTests(unittest.TestCase):
             ["data-and-logic-class-cohabitation"],
         )
 
+    def test_dataclass_imported_under_alias_is_detected(self):
+        _write(
+            self.root,
+            "review_system/mixed.py",
+            "from dataclasses import dataclass as dc\n"
+            "@dc\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n",
+        )
+        self.assertEqual(
+            [item.rule for item in _violations(self.root)],
+            ["data-and-logic-class-cohabitation"],
+        )
+
+    def test_dataclasses_module_decorator_is_detected(self):
+        _write(
+            self.root,
+            "review_system/mixed.py",
+            "import dataclasses\n"
+            "@dataclasses.dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n",
+        )
+        self.assertEqual(
+            [item.rule for item in _violations(self.root)],
+            ["data-and-logic-class-cohabitation"],
+        )
+
+    def test_unrelated_dataclass_suffix_decorator_is_not_data_class(self):
+        _write(
+            self.root,
+            "review_system/not_data.py",
+            "from helpers import not_a_dataclass\n"
+            "@not_a_dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return 1\n",
+        )
+        self.assertFalse(_violations(self.root))
+
+    def test_same_class_names_with_body_edit_are_rejected(self):
+        relative = "review_system/mixed.py"
+        source = (
+            "from dataclasses import dataclass\n"
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Processor:\n    def process(self):\n        return VALUE\n"
+        )
+        _write(self.root, relative, source.replace("VALUE", "1"))
+        baseline = build_baseline(self.root)
+        self.assertFalse(_violations(self.root, baseline))
+        _write(self.root, relative, source.replace("VALUE", "2"))
+        self.assertEqual(
+            [item.rule for item in _violations(self.root, baseline)],
+            ["data-and-logic-class-cohabitation"],
+        )
+
     def test_exception_and_abstract_contract_are_not_logic_classes(self):
         _write(
             self.root,
@@ -98,6 +172,47 @@ class MaintainabilityLintSyntheticTests(unittest.TestCase):
             "class Port:\n    def run(self):\n        raise NotImplementedError()\n",
         )
         self.assertFalse(_violations(self.root))
+
+    def test_bare_not_implemented_raise_is_not_logic(self):
+        _write(
+            self.root,
+            "review_system/contracts.py",
+            "from dataclasses import dataclass\n"
+            "@dataclass\nclass Payload:\n    value: str\n"
+            "class Port:\n    def run(self):\n        raise NotImplementedError\n",
+        )
+        self.assertFalse(_violations(self.root))
+
+    def test_new_top_level_python_package_is_scanned(self):
+        _write(self.root, "future_harness/__init__.py", "")
+        _write(self.root, "future_harness/too_large.py", "value = 1\n" * 101)
+        ignored = (
+            ".claude/worktrees/secondary/pkg/too_large.py",
+            ".cache/pkg/too_large.py",
+            ".pixi/envs/default/lib/too_large.py",
+            ".ruff_cache/too_large.py",
+            "__pypackages__/3.13/lib/too_large.py",
+            "env/lib/site-packages/too_large.py",
+            "env.bak/lib/site-packages/too_large.py",
+            "future_harness/.cache/generated.py",
+            "future_harness/build/generated.py",
+            "future_harness/tmp/generated.py",
+            "tmp/too_large.py",
+        )
+        for relative in ignored:
+            _write(self.root, relative, "value = 1\n" * 101)
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(external.cleanup)
+        outside = Path(external.name)
+        _write(outside, "too_large.py", "value = 1\n" * 101)
+        (self.root / "linked_harness").symlink_to(outside, target_is_directory=True)
+        (self.root / "future_harness" / "linked.py").symlink_to(
+            outside / "too_large.py"
+        )
+        self.assertEqual(
+            [(item.path, item.rule) for item in _violations(self.root)],
+            [("future_harness/too_large.py", "module-over-100-lines")],
+        )
 
 
 class MaintainabilityLintRepositoryTests(unittest.TestCase):

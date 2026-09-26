@@ -22,9 +22,10 @@ python3 -m maintainability_lint baseline
 
 ## Scope
 
-`source_files.py` が、`review_system/` と `.claude/rules/02-decision-process.md` の
-「どちらのシステムにも含有されない汎用開発ハーネス」に対応する Python package を明示列挙します。
-`dsv2/` と archive は対象システムに含有されるため、この Issue の lint 対象外です。
+`source_files.py` は repository root 直下の Python file と、Python file を含む top-level directory を
+自動検出します。`tests/`、`doc-system-v2/`、`dsv2/`、archive、仮想環境等は対象外として明示し、
+新しい汎用開発ハーネスを allowlist への追記漏れで無言に除外しません。別 worktree、build 出力、
+仮想環境、dependency cache は階層を問わず走査から除外します。
 
 行数は空行・コメントを含む物理行です。コメント検査は `tokenize` が返す連続した full-line
 comment を対象とし、inline comment と docstring は別の役割なので数えません。クラス分離検査は
@@ -33,14 +34,14 @@ comment を対象とし、inline comment と docstring は別の役割なので�
 
 ## Existing-debt ratchet
 
-Issue #539 着手時には対象137ファイル中、100行超が66ファイル、4行超コメントブロックが
+Issue #539 着手時には対象137ファイル中、100行超が66ファイル、4行以上のコメントブロックが
 66件（26ファイル）、データ／ロジック同居が5ファイルありました。この Issue で全件を分割すると
 スコープを超えるため、`baseline.json` に既存集合だけを固定しています。
 
 - 新しい違反は失敗します。
-- 既存の長いモジュールは物理行数が1行でも変わると失敗します。
+- 既存の長いモジュールは内容 fingerprint が変わると失敗します。
 - 既存の長いコメントは本文 fingerprint が変わると失敗します。
-- 既存の同居ファイルは class 集合が変わると失敗します。
+- 既存の同居ファイルは内容 fingerprint が変わると失敗します。
 - 負債を解消して baseline だけが残った場合も stale baseline として失敗します。
 
 したがって baseline 更新は自動免除ではなく、負債を増やしてよいかを差分レビューへ露出させる

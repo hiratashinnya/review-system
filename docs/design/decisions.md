@@ -224,7 +224,7 @@
   - (D) 型検査範囲を先に全 repo へ広げる。
 - **トレードオフ**：A＝オーナー決定の「流入優先」を直接満たし、137 Python files 中66 module の100行超、66 long-comment blocks、5 mixed-class files という最大の横断 gap を新規コードから止められる。既存負債は残るが exact baseline により無言の増加・編集・stale 化を拒否する。B/C＝重要だが、既存機構が個別にあり、共通 pattern の設計が先に要る。D＝既存448 errors の一括解消か大量抑制を要求し、本 Issue の最初の1〜2機構としては変更量が大きい。
 - **推奨 A（採用）／非推奨 B,C,D（先送りであり原則不採用ではない）**：採否は ISO 25010 と Issue #539 のオーナー決定で確定済み。実測は A を最初に置く順序の根拠にのみ使う。意味判断が必要な命名は lint に偽装せず reviewer contract に残す。
-- **暫定決定**：優先1位は `.ai/agents/issue-implementer.md`、`issue-fixer.md`、`pr-reviewer.md` のコード構築 checklist。優先2位は `maintainability_lint`（100物理行、3行コメント、data/logic class 分離）と PR CI。互換性は既存 `asset_parity` の役割を文書化するだけで新規機構を重ねない。3位以降は gap 表の順に、信頼性、security、型、可観測性、trace を候補化する。
+- **暫定決定**：優先1位は `.ai/agents/issue-implementer.md`、`issue-fixer.md`、`pr-reviewer.md` のコード構築 checklist。優先2位は `maintainability_lint`（100物理行、3行コメント、data/logic class 分離）と PR CI。走査対象は top-level Python source を自動検出し、tests、doc system、archive、仮想環境、生成物等だけを明示除外して、新規 harness の allowlist 追記漏れを許さない。互換性は既存 `asset_parity` の役割を文書化するだけで新規機構を重ねない。3位以降は gap 表の順に、信頼性、security、型、可観測性、trace を候補化する。
 - **影響範囲**：`docs/methods/iso-25010-code-principles.md`、`.ai/agents/{issue-implementer,issue-fixer,pr-reviewer}.md`、`maintainability_lint/`、`tests/unit/test_maintainability_lint.py`、`.github/workflows/tests.yml`、`.claude/rules/02-decision-process.md`、`.claude/tailoring-registry.md`。覆して B/C/D を先行する場合も原則セットは削らず、同方法文書の順位と role/lint の適用時期を更新する。
 
 ---

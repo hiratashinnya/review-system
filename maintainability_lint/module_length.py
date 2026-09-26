@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from .content_fingerprint import content_sha256
 from .model import Finding
 
 
@@ -12,17 +13,23 @@ MAX_LINES = 100
 def inspect_module_length(
     root: Path,
     path: Path,
-    baseline_lines: dict[str, int],
-) -> tuple[list[Finding], dict[str, int]]:
+    baseline_modules: dict[str, dict[str, object]],
+) -> tuple[list[Finding], dict[str, dict[str, object]]]:
     relative = path.relative_to(root).as_posix()
-    line_count = len(path.read_text(encoding="utf-8").splitlines())
+    text = path.read_text(encoding="utf-8")
+    line_count = len(text.splitlines())
     if line_count <= MAX_LINES:
         return [], {}
-    status = "accepted-debt" if baseline_lines.get(relative) == line_count else "violation"
+    fingerprint = {"line_count": line_count, "sha256": content_sha256(text)}
+    status = (
+        "accepted-debt"
+        if baseline_modules.get(relative) == fingerprint
+        else "violation"
+    )
     detail = (
         f"{line_count} physical lines; split responsibilities to <= {MAX_LINES} lines"
         if status == "violation"
-        else f"existing debt fixed at {line_count} lines; any size change requires re-baselining"
+        else f"existing debt fixed at {line_count} lines and exact content fingerprint"
     )
     finding = Finding(RULE, relative, 1, status, detail, relative)
-    return [finding], {relative: line_count}
+    return [finding], {relative: fingerprint}

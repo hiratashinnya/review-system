@@ -14,7 +14,7 @@ from .source_files import implementation_python_files
 
 def empty_baseline() -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "Issue #539 measured repository state",
         "module_lines": {},
         "comment_blocks": {},
@@ -31,7 +31,14 @@ def _stale_findings(
         expected_entries = baseline[section]
         actual_entries = actual[section]
         assert isinstance(expected_entries, dict) and isinstance(actual_entries, dict)
-        for key in sorted(set(expected_entries) - set(actual_entries)):
+        stale_keys = set(expected_entries) - set(actual_entries)
+        if section == "comment_blocks":
+            stale_keys |= {
+                key
+                for key, count in expected_entries.items()
+                if actual_entries.get(key, 0) < count
+            }
+        for key in sorted(stale_keys):
             path = key.split("|", 1)[0]
             detail = f"baseline entry {key!r} no longer matches debt; remove or refresh it"
             findings.append(Finding("stale-baseline", path, 1, "violation", detail, key))
@@ -66,15 +73,14 @@ def scan(root: Path, baseline: dict[str, object] | None = None) -> Report:
 
 
 def build_baseline(root: Path) -> dict[str, object]:
-    report = scan(root, empty_baseline())
     baseline = empty_baseline()
-    for finding in report.findings:
-        if finding.rule == "module-over-100-lines":
-            baseline["module_lines"][finding.path] = int(finding.detail.split()[0])
-        elif finding.rule == "comment-over-3-lines":
-            blocks = baseline["comment_blocks"]
-            blocks[finding.baseline_key] = blocks.get(finding.baseline_key, 0) + 1
     for path in implementation_python_files(root):
-        _, observed = inspect_class_separation(root, path, {})
-        baseline["mixed_class_files"].update(observed)
+        _, modules = inspect_module_length(root, path, {})
+        baseline["module_lines"].update(modules)
+        _, comments = inspect_comment_blocks(root, path, {})
+        for key, count in comments.items():
+            blocks = baseline["comment_blocks"]
+            blocks[key] = blocks.get(key, 0) + count
+        _, mixed = inspect_class_separation(root, path, {})
+        baseline["mixed_class_files"].update(mixed)
     return baseline

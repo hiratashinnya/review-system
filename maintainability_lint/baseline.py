@@ -27,7 +27,7 @@ def load_baseline(path: Path = BASELINE_PATH) -> dict[str, object]:
         raise BaselineError(f"cannot read baseline {path}: {exc}") from exc
     if not isinstance(data, dict) or set(data) != EXPECTED_KEYS:
         raise BaselineError(f"baseline keys must be exactly {sorted(EXPECTED_KEYS)}")
-    if data["schema_version"] != 1:
+    if data["schema_version"] != 2:
         raise BaselineError("unsupported baseline schema_version")
     for key in ("module_lines", "comment_blocks", "mixed_class_files"):
         if not isinstance(data[key], dict):
