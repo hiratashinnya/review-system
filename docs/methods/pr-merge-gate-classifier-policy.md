@@ -148,6 +148,10 @@ title/message の値取得時点で `_has_active_parameter_expansion()` を適�
 始まりのフラグが存在することだけを理由に、endpoint の検査前に
 `error/CLASSIFIER_UNKNOWN` へ落とさない。
 
+method / field は値を次wordに置く形だけでなく、`-XPUT`、`--field=query=...`、
+`--raw-field=query=...`、`-Fquery=...`、`-fquery=...` のattached形も同じ意味へ正規化する。
+未知フラグの緩和によって既知のquery fieldを読み飛ばし、mutation本文を見落とすことはない。
+
 未知フラグが値を取るかは証明できないため、その値らしき word と endpoint が2つの位置引数に
 見える場合は従来どおり `CLASSIFIER_UNKNOWN` とする。`--input` と `--hostname` は値を消費して
 endpoint を先に判定するが、GraphQL bodyを検査できない `--input` と、REST merge operationを

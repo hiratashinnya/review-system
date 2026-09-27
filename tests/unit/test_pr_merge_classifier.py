@@ -415,6 +415,11 @@ class PreUseClassifierTests(unittest.TestCase):
             )
             self.assertIsNone(
                 classify_pre_use(
+                    bash("gh api graphql --field=query=@read.graphql", root), cwd=root
+                )
+            )
+            self.assertIsNone(
+                classify_pre_use(
                     bash(f"gh api graphql -f 'query={read_query}'", root), cwd=root
                 )
             )
@@ -426,8 +431,11 @@ class PreUseClassifierTests(unittest.TestCase):
             cases = (
                 "gh api graphql -F query=@merge.graphql -F pullRequestId=PR_ID",
                 "gh api graphql -F 'query=@merge.graphql' -F mergeMethod=SQUASH",
+                "gh api graphql --field=query=@merge.graphql",
                 'gh api graphql -F query=@mer""ge.graphql',
                 "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+                "gh api graphql --raw-field='query=mutation { "
+                "mergePullRequest(input: {}) { clientMutationId } }'",
                 "gh api graphql -F query=@-",
                 "gh api graphql -F query=@missing.graphql",
                 "gh api graphql -F 'query=$QUERY'",
@@ -455,9 +463,9 @@ class PreUseClassifierTests(unittest.TestCase):
             classify_pre_use(
                 bash(
                     "gh api --silent --future-output-flag "
-                    "-H 'Accept: application/vnd.github+json' -X PUT "
+                    "-H 'Accept: application/vnd.github+json' -XPUT "
                     "repos/example/repo/pulls/12/merge --jq '.merged' "
-                    "-f merge_method=squash"
+                    "--raw-field=merge_method=squash"
                 )
             )
         )

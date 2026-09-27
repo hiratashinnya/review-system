@@ -993,6 +993,20 @@ def _cli_operation(
     return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
 
 
+def _record_gh_api_field(
+    raw: str, *, typed: bool, fields: dict[str, str], typed_fields: set[str],
+) -> bool:
+    if "=" not in raw:
+        return False
+    key, value = raw.split("=", 1)
+    if key in fields:
+        return False
+    fields[key] = value
+    if typed:
+        typed_fields.add(key)
+    return True
+
+
 def _rest_operation(
     payload: Mapping[str, Any], tokens: list[str], wrappers: list[str], *, cwd: Path | None,
 ) -> PreUseClassification | None:
@@ -1013,20 +1027,39 @@ def _rest_operation(
         if token in {"-X", "--method"} and index + 1 < len(remaining):
             method = remaining[index + 1].upper()
             index += 2
+        elif token.startswith("-X") and len(token) > 2:
+            method = token[2:].upper()
+            index += 1
         elif token.startswith("--method="):
             method = token.split("=", 1)[1].upper()
             index += 1
         elif token in {"-f", "--raw-field", "-F", "--field"} and index + 1 < len(remaining):
             raw = remaining[index + 1]
-            if "=" not in raw:
+            if not _record_gh_api_field(
+                raw,
+                typed=token in {"-F", "--field"},
+                fields=fields,
+                typed_fields=typed_fields,
+            ):
                 return _error("CLASSIFIER_UNKNOWN", remaining)
-            key, value = raw.split("=", 1)
-            if key in fields:
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            fields[key] = value
-            if token in {"-F", "--field"}:
-                typed_fields.add(key)
             index += 2
+        elif token.startswith(("--raw-field=", "--field=")) or (
+            token.startswith(("-f", "-F")) and "=" in token[2:]
+        ):
+            if token.startswith("--raw-field="):
+                raw = token.removeprefix("--raw-field=")
+                typed = False
+            elif token.startswith("--field="):
+                raw = token.removeprefix("--field=")
+                typed = True
+            else:
+                raw = token[2:]
+                typed = token.startswith("-F")
+            if not _record_gh_api_field(
+                raw, typed=typed, fields=fields, typed_fields=typed_fields
+            ):
+                return _error("CLASSIFIER_UNKNOWN", remaining)
+            index += 1
         elif token in _GH_API_NON_OPERATION_SWITCH_OPTIONS:
             index += 1
         elif token in _GH_API_NON_OPERATION_VALUE_OPTIONS:
