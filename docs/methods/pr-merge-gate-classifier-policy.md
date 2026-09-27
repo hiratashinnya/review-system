@@ -149,8 +149,11 @@ title/message の値取得時点で `_has_active_parameter_expansion()` を適�
 `error/CLASSIFIER_UNKNOWN` へ落とさない。
 
 method / field は値を次wordに置く形だけでなく、`-XPUT`、`--field=query=...`、
-`--raw-field=query=...`、`-Fquery=...`、`-fquery=...` のattached形も同じ意味へ正規化する。
-未知フラグの緩和によって既知のquery fieldを読み飛ばし、mutation本文を見落とすことはない。
+`--raw-field=query=...`、`-Fquery=...`、`-fquery=...`、`-F=query=...`、
+`-f=query=...` のattached形も同じ意味へ正規化する。短縮field flag直後の最初の `=` は
+flag/value separatorとして消費する。long flagの `--field==query=...` は最初の `=` だけが
+separatorで、field名が空になる値として解析する（`query` fieldにはならない）。未知フラグの緩和や
+attached形の解釈によって既知のquery fieldを読み飛ばし、mutation本文を見落とすことはない。
 
 未知フラグが値を取るかは証明できないため、その値らしき word と endpoint が2つの位置引数に
 見える場合は従来どおり `CLASSIFIER_UNKNOWN` とする。`--input` と `--hostname` は値を消費して
@@ -166,18 +169,24 @@ REST endpoint が `/repos/{owner}/{repo}/pulls/{number}/merge` に一致する�
 
 `-F query=@<file>` / `--field query=@<file>` は、payloadのcwdとhookのcwdが一致する配下の
 通常ファイルに限り、symlink拒否・1 MiB上限・read前後のinode/size/mtime一致を確認して読む。
-読み取った本文は `query` へ代入し、inlineの `-f query='...'` と同じ共通判定へ流す。
-したがってread-only queryは `None`、`enablePullRequestAutoMerge` は
-`block/AUTO_MERGE_DENIED`、`mergePullRequest` は `error/CLASSIFIER_UNKNOWN` となる。
-`@-`、欠落・不正・競合変更ファイル、`--input` は引き続き `CLASSIFIER_UNKNOWN` とする。
+ただし、これはclassifierによる読み取り内容の検査にすぎず、実際の `gh` が後から同じpathを
+再読する内容をpermitへ束縛しない。CodexのPreToolUseで `updatedInput` を使うには
+`permissionDecision: allow` が必須で、通常のpermission flowを迂回する。そのためClaude/Codex共通の
+gateではこの置換方式を採用しない。安全な内容のfile queryも
+`error/CLASSIFIER_UNKNOWN` としてfail-closeする。`enablePullRequestAutoMerge` は
+`block/AUTO_MERGE_DENIED`、`mergePullRequest` は `error/CLASSIFIER_UNKNOWN` とし、
+`@-`、欠落・不正・競合変更ファイル、`--input` も `CLASSIFIER_UNKNOWN` とする。
+file queryのread-only許可は、実行する `gh` が読む本文へ安全に束縛できる設計が導入されるまで行わない。
 
 ### 4.3 PreToolUse / PostToolUse の対応
 
 PreToolUseの `run()` は分類が `None` のときだけ無出力で通し、`block` / `error` は
-`fail_closed()` でdenyする。PostToolUseの `post_run()` も `None` なら早期returnするため、
-4.1/4.2のread-only形を正しく `None` に直すことで
-`RECLASSIFIED_NOT_MERGE` の誤報も同時に解消する。実際のblock/errorがPostToolUseへ到達した場合の
-整合性検知は、PreToolUse denyの不履行を検出する安全機能なので変更しない。
+`fail_closed()` でdenyする。PostToolUseの `post_run()` も `None` なら早期returnする。
+Issue #533に記載された `gh issue view ... | head`、`cat ... | head`、`tail ...` の3例は、
+このPRのbase commitと現行classifierの双方で `None` となることを確認した。これらの入力について
+`RECLASSIFIED_NOT_MERGE` は再現せず、当時の原因は特定できていない。したがって本PRは、
+観測3の歴史的失敗を解消したとは主張しない。実際にblock/errorとなる入力がPostToolUseへ到達した
+場合の整合性検知は、PreToolUse denyの不履行を検出する安全機能なので変更しない。
 
 ## 5. 版の扱い
 
@@ -186,7 +195,9 @@ PreToolUseの `run()` は分類が `None` のときだけ無出力で通し、`b
 `tests/fixtures/pr_merge_actual_fire_v1.json` の `classifier_version` フィールドと
 常に完全一致させる。`_split_shell_commands()` / `classify_pre_use()` の入出力（許可・拒否
 される構文の集合、束縛される operation の形）を変える改修は、このファイルの版と
-上記3箇所を同一 PR で bump する。文言修正のみで判定を変えない改訂は bump 不要
+上記3箇所を同一 PR で bump する。未mergeの同一PR内でその版遷移への是正を追加しても、
+版区分誤り・上げ忘れ・版リテラル不一致を補う場合を除き二重bumpしない（`.ai/guidance/common.md`
+「正本・実装規約」）。文言修正のみで判定を変えない改訂は bump 不要
 （`.ai/guidance/common.md`「正本・実装規約」の一般則）。
 
 **機械検査が及ぶ範囲は上記4箇所のうち3箇所（コード定数＋fixture2箇所）に限る**：

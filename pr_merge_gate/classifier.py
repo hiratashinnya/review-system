@@ -26,7 +26,7 @@ _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
 # Issue #431: 単純parameter expansionの許可で1.15→1.16。
-# Issue #533: `gh api` のendpoint優先判定とfile query共通化で1.16→1.17。
+# Issue #533: endpoint/inline field判定で1.16→1.17。file queryはfail-close。
 # 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md。
 _PARAM_EXPANSION_BODY_CHAR = re.compile(r"[A-Za-z0-9_:=+?#%/!.,^*@-]")
 CLASSIFIER_VERSION = "1.17"
@@ -1006,7 +1006,9 @@ def _rest_operation(
             file_query = _read_graphql_query_file(query, payload, cwd=cwd)
         except ValueError:
             return _error("CLASSIFIER_UNKNOWN", remaining)
-        query = file_query
+        if "enablePullRequestAutoMerge" in file_query:
+            return _block("AUTO_MERGE_DENIED", remaining)
+        return _error("CLASSIFIER_UNKNOWN", remaining)
     if endpoint == "graphql" and re.fullmatch(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", query):
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if "enablePullRequestAutoMerge" in query:

@@ -11,6 +11,7 @@ from pr_merge_gate.classifier import (
     classify_pre_use,
     repository_from_cwd,
 )
+from pr_merge_gate.gh_api_args import _parse_gh_api_arguments
 
 _T = TypeVar("_T")
 
@@ -402,22 +403,74 @@ class PreUseClassifierTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIsNone(classify_pre_use(bash(command)))
 
-    def test_graphql_file_queries_match_inline_and_keep_merge_mutations_closed(self):
+    def test_attached_equals_graphql_fields_are_parsed_without_a_blank_key(self):
+        mutation = "mutation { mergePullRequest(input: {}) { clientMutationId } }"
+        for flag in ("-F", "-f"):
+            with self.subTest(flag=flag, kind="mutation"):
+                classified = _non_none(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}='query={mutation}'")
+                    )
+                )
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+            with self.subTest(flag=flag, kind="read-only"):
+                self.assertIsNone(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}='query=query {{ viewer {{ login }} }}'")
+                    )
+                )
+
+        # The no-separator attached short forms keep their existing parsing behavior.
+        for flag in ("-F", "-f"):
+            with self.subTest(flag=flag, kind="no-separator-mutation"):
+                classified = _non_none(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}query='{mutation}'")
+                    )
+                )
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+    def test_long_field_double_separator_does_not_create_query_key(self):
+        parsed = _parse_gh_api_arguments(
+            ["graphql", "--field==query=mutation { mergePullRequest(input: {}) { id } }"]
+        )
+        self.assertNotIn("query", parsed.fields)
+        self.assertEqual(
+            parsed.fields[""], "query=mutation { mergePullRequest(input: {}) { id } }"
+        )
+        self.assertIsNone(
+            classify_pre_use(
+                bash(
+                    "gh api graphql "
+                    "'--field==query=mutation { mergePullRequest(input: {}) { id } }'"
+                )
+            )
+        )
+
+    def test_graphql_file_queries_fail_closed_and_inline_read_queries_are_permitted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             read_query = "query { viewer { login } }"
             (root / "read.graphql").write_text(read_query, encoding="utf-8")
-            self.assertIsNone(
-                classify_pre_use(
-                    bash("gh api graphql --paginate -F query=@read.graphql", root),
-                    cwd=root,
-                )
+            safe_file_cases = (
+                "gh api graphql --paginate -F query=@read.graphql",
+                "gh api graphql --field=query=@read.graphql",
             )
-            self.assertIsNone(
-                classify_pre_use(
-                    bash("gh api graphql --field=query=@read.graphql", root), cwd=root
-                )
-            )
+            for command in safe_file_cases:
+                with self.subTest(command=command):
+                    classified = _non_none(
+                        classify_pre_use(bash(command, root), cwd=root)
+                    )
+                    self.assertEqual(
+                        (classified.kind, classified.reason),
+                        ("error", "CLASSIFIER_UNKNOWN"),
+                    )
             self.assertIsNone(
                 classify_pre_use(
                     bash(f"gh api graphql -f 'query={read_query}'", root), cwd=root

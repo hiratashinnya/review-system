@@ -73,7 +73,7 @@ def _parse_gh_api_arguments(tokens: list[str]) -> _GhApiArguments:
             elif token.startswith("--field="):
                 raw, typed = token.removeprefix("--field="), True
             else:
-                raw, typed = token[2:], token.startswith("-F")
+                raw, typed = token[2:].removeprefix("="), token.startswith("-F")
             _record_field(raw, typed, fields, typed_fields)
             index += 1
         elif token in _SWITCH_OPTIONS or token.startswith(_ATTACHED_VALUE_PREFIXES):

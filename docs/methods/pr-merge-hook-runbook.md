@@ -21,7 +21,7 @@ probeの結果、hook failure、audit書込み失敗、Pre/Post相関欠落、�
 
 このactual-fire確認は静的fixture testやhook関数の直接呼出しでは代替できない。検証対象hashを読み込んだ製品新規sessionが、製品tool dispatchの直前にhookを実際に発火させたauditだけをAC13証跡として採用する。
 
-file-backed GraphQLの `-F query=@file` は、安全な通常ファイルから読んだ本文をinline queryと同じ規則で分類する。read-only queryはgate対象外、`mergePullRequest` / `enablePullRequestAutoMerge` はfail-closeとし、`@-` / `--input` は検査可能な本文へ束縛できないため引き続きfail-closeにする。未知実行名に続く `pr merge` / merge相当APIもfail-closeにし、known-safeな `gh alias list` / `gh extension list` と、`echo`等の明確な非merge形だけをgate対象外にする。
+file-backed GraphQLの `-F query=@file` は、classifierがread-only本文を読めても実際の `gh` による後続の再読内容へpermitを束縛できないため、safe queryを含めfail-closeにする。`enablePullRequestAutoMerge` は `BLOCK/AUTO_MERGE_DENIED`、それ以外のfile-backed queryは `ERROR/CLASSIFIER_UNKNOWN` となる。`@-` / `--input` も検査可能な本文へ束縛できないためfail-closeにする。CodexのPreToolUseで実行入力を置換するには `permissionDecision: allow` が必要で通常のpermission flowを迂回するため、Claude/Codex共通hookではこの方式を採用していない。未知実行名に続く `pr merge` / merge相当APIもfail-closeにし、known-safeな `gh alias list` / `gh extension list` と、`echo`等の明確な非merge形だけをgate対象外にする。
 
 GraphQL page 1後の後続cursor/API/pagination失敗では、audit v5にpage 1で取得済みのhead/base/default/state/draft/`expected_commit_count`が残り、`blocker_result=ERROR`、`permit_issued=false`であることを確認する。partial値は障害調査用証跡であり、ALLOW根拠として再利用しない。
 
