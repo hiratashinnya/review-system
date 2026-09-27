@@ -223,8 +223,8 @@ GITGATE_VERBS_BY_ROLE = {
         "new-branch", "fetch", "diff", "log",
         "adopt-branch",
     },
-    # pr-reviewer: レビューの読取専用のみ（diff/log）。
-    "pr-reviewer": {"diff", "log"},
+    # pr-reviewer: レビューの読取専用のみ（diff/log/show-pr-diff）。
+    "pr-reviewer": {"diff", "log", "show-pr-diff"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。

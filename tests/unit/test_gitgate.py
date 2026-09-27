@@ -18,6 +18,20 @@ from gitgate import GitgateError, build_git_argv
 from gitgate import cli as gitgate_cli
 
 
+class ShowPrDiffArgvTests(unittest.TestCase):
+    def test_builds_only_the_fixed_pr_diff_command(self):
+        self.assertEqual(
+            gitgate_cli.build_show_pr_diff_argv(["123"]),
+            ["gh", "pr", "diff", "123"],
+        )
+
+    def test_rejects_missing_extra_non_integer_and_zero_arguments(self):
+        for args in [[], ["123", "--output=/tmp/diff"], ["abc"], ["0"], ["000"]]:
+            with self.subTest(args=args):
+                with self.assertRaises(GitgateError):
+                    gitgate_cli.build_show_pr_diff_argv(args)
+
+
 class BuildGitArgvHappyPathTests(unittest.TestCase):
     def test_status(self):
         self.assertEqual(build_git_argv(["status"]), ["git", "status"])
@@ -193,6 +207,45 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_show_pr_diff_streams_all_3000_lines_to_inherited_stdout(self):
+        output = io.StringIO()
+        full_diff = "".join(f"diff-line-{number:04d}\n" for number in range(3000))
+        calls = {}
+
+        class FakeCompleted:
+            returncode = 0
+
+        def fake_run(argv, **kwargs):
+            calls["argv"] = argv
+            calls["kwargs"] = kwargs
+            gitgate_cli.sys.stdout.write(full_diff)
+            return FakeCompleted()
+
+        with patch.object(gitgate_cli.subprocess, "run", side_effect=fake_run), \
+             patch.object(gitgate_cli.sys, "stdout", output):
+            rc = gitgate_cli.main(["show-pr-diff", "123"])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls["argv"], ["gh", "pr", "diff", "123"])
+        self.assertEqual(calls["kwargs"], {"shell": False})
+        self.assertEqual(output.getvalue(), full_diff)
+        self.assertEqual(len(output.getvalue().splitlines()), 3000)
+        self.assertEqual(output.getvalue().splitlines()[-1], "diff-line-2999")
+
+    def test_show_pr_diff_rejects_extra_arguments_before_command_execution(self):
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append((argv, kwargs))
+            raise AssertionError("invalid show-pr-diff arguments must not execute")
+
+        with patch.object(gitgate_cli.subprocess, "run", side_effect=fake_run), \
+             patch.object(gitgate_cli.sys, "stderr", io.StringIO()):
+            rc = gitgate_cli.main(["show-pr-diff", "123", "--output=/tmp/diff"])
+
+        self.assertEqual(rc, 2)
+        self.assertEqual(calls, [])
+
     def test_main_new_branch_runs_policy_instead_of_generic_git_builder(self):
         result = type("Result", (), {
             "source_kind": "default-branch", "repository": "example/repo",

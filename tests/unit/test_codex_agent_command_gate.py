@@ -628,7 +628,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
-        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log}、gh は
+        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log, show-pr-diff}、gh は
         # {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補（要オーナー判断）。
         # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
@@ -644,6 +644,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
+            "python3 -m gitgate show-pr-diff 123",
             "python3 -m unittest discover -s tests/unit",
         ]
         for command in commands:
@@ -657,7 +658,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git merge feature",
             "git fetch origin",
             "git status",
-            # gitgate は reviewer には読取専用 {diff, log} のみ・書込/push 系 verb は deny。
+            # gitgate は reviewer には読取専用 {diff, log, show-pr-diff} のみ・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
             "python3 -m gitgate commit /tmp/msg.md",
@@ -716,13 +717,16 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
-        for args in ["diff", "log -n1"]:
+        for args in ["diff", "log -n1", "show-pr-diff 123"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
                      "new-branch feature", "fetch"]:
             with self.subTest(role="pr-reviewer", denied_verb=verb):
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
+        self.assert_denied(
+            run_gate(payload("issue-implementer", "python3 -m gitgate show-pr-diff 123"))
+        )
         for verb in ["merge", "clone", "remote", "reset", "push-force"]:
             with self.subTest(unknown_verb=verb):
                 self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m gitgate {verb}")))

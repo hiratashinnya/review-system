@@ -703,7 +703,7 @@ class AgentCommandGateTests(unittest.TestCase):
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
         # 層3（Issue #227 追加修正3・gitgate 方式）: pr-reviewer の gitgate verb は読取専用の
-        # {diff, log} のみ、gh は {pr view/diff/checks/comment/review/merge, issue view}。
+        # {diff, log, show-pr-diff} のみ、gh は {pr view/diff/checks/comment/review/merge, issue view}。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補
         # （要オーナー判断）。ここでは --body 形のみ allow で検証する。
         # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（下記
@@ -720,6 +720,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
+            "python3 -m gitgate show-pr-diff 123",
             "python3 -m unittest discover -s tests/unit",
         ]
         for command in commands:
@@ -727,7 +728,7 @@ class AgentCommandGateTests(unittest.TestCase):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
 
     def test_pr_reviewer_now_denied_out_of_allowlist_git_gh(self):
-        # pr-reviewer は gitgate 読取専用 verb {diff,log} のみ。生 git は全 deny、gitgate の書込・
+        # pr-reviewer は gitgate 読取専用 verb {diff,log,show-pr-diff} のみ。生 git は全 deny、gitgate の書込・
         # push 系 verb や gh pr create / issue comment はロール集合外＝deny。
         denied = [
             # 生 git は全て deny。
@@ -735,7 +736,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "git merge feature",
             "git fetch origin",
             "git status",
-            # gitgate は reviewer には読取専用 {diff, log} のみ許可・書込/push 系 verb は deny。
+            # gitgate は reviewer には読取専用 {diff, log, show-pr-diff} のみ許可・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
             "python3 -m gitgate commit /tmp/msg.md",
@@ -807,14 +808,17 @@ class AgentCommandGateTests(unittest.TestCase):
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
-        # pr-reviewer は読取専用 verb {diff, log} のみ allow・それ以外の verb は deny。
-        for args in ["diff", "log -n1"]:
+        # pr-reviewer は読取専用 verb {diff, log, show-pr-diff} のみ allow・それ以外の verb は deny。
+        for args in ["diff", "log -n1", "show-pr-diff 123"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
                      "new-branch feature", "fetch"]:
             with self.subTest(role="pr-reviewer", denied_verb=verb):
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
+        self.assert_denied(
+            run_gate(payload("issue-implementer", "python3 -m gitgate show-pr-diff 123"))
+        )
         # 未知 verb は両ロールで deny（gitgate verb 許可集合外）。
         for verb in ["merge", "clone", "remote", "reset", "push-force"]:
             with self.subTest(unknown_verb=verb):
