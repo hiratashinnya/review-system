@@ -171,10 +171,16 @@ allowlist にテストランナーを残したのは、base 側の挙動確認�
 `ctx_index` による index 作成は外部 KB への永続副作用を持つ。本文には `ctx_search` / `ctx_index` を
 調査に使うことと、`ctx_index` は非冪等なので同じ対象を重複 index しない規則を残した。
 
-## Grep/Glob を外し ctx_search/ctx_index を付与した根拠（Issue #535・2026-09-27）
+## Grep/Glob を外した根拠（Issue #535・2026-09-27）
 
 本ロールは GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）の1つであり、frontmatter に
 Grep/Glob を宣言しても実効的に配布されないことが実測で確認されている（本ロールは `isolation`
 指定なし＝非 isolated で呼び出し元と同じワークツリー上で動くが、それでも同じ実効配布漏れが起きる）。
 GATED_ROLES 共通の詳細根拠は複製を避けるため
 [issue-fixer の rationale](issue-fixer.md)「ctx_search/ctx_index の付与根拠」に一本化した。
+
+**本ロールへの ctx_search/ctx_index の付与自体は Issue #535 以前から既に行われている**（本ロールは
+ノード横断検索・多数ファイル読取が中核業務のため、`.claude/rules/05-skills-agents.md`「ctx_* ツールの
+付与方針」の検索系付与先に元々含まれていた）。Issue #535 で本ロールに対して変更したのは、実効配布が
+無いと確認された Grep/Glob を frontmatter から外したことだけであり、ctx_search/ctx_index の新規付与は
+本 Issue では issue-fixer/issue-implementer の2ロールに限られる。

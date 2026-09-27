@@ -30,7 +30,9 @@ GATED_ROLE_AGENT_FILES = {
 # ロールごとの非 Task 期待ツール集合（`pr-reviewer` は Write/Edit を持たず、implementer/fixer と
 # 厳密には異なる＝F-510-09 で3ロール化した際に単一集合の完全一致検査から per-role 集合へ変更した）。
 # Issue #535: GATED_ROLES には Grep/Glob が実効配布されないため、3ロールとも frontmatter から
-# 外し、代わりに ctx_search/ctx_index（全文検索の代替経路）を付与する。
+# 外す。ctx_search/ctx_index の扱いはロールで異なる——issue-fixer/issue-implementer は本 Issue で
+# 新規付与（Grep/Glob の代替経路）、pr-reviewer は本 Issue 以前から既に付与済みで、本 Issue では
+# Grep/Glob の削除のみを行う。
 EXPECTED_NON_TASK_TOOLS = {
     "issue-implementer": {
         "Read", "Write", "Edit", "Bash",

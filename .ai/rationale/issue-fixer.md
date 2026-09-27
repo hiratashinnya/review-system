@@ -303,3 +303,17 @@ ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-
 （Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも
 無制限に動く。frontmatter から実効性のない Grep/Glob を外し、ctx_search/ctx_index を付与することで、
 宣言と実効を一致させた。
+
+### 検索系ツールへの付与先追加がゲート側の手当てを要さない理由（F-535-15・2026-09-28）
+
+`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」は、実行系（`ctx_execute`/`ctx_batch_execute`）の
+付与先を増やすときは「先にゲート側の統制を手当てし、付与は別 PR にする」ことを求めている（#303→#304 の順序）。
+これは実行系がシェル相当の任意コード実行経路であり、`agent-command-gate.sh` の matcher
+（Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）を経由して初めてロール別 allowlist・危険コマンド層が
+適用されるため、ゲート側の対応が先に無いと「ゲート未対応の実行経路」を新設することになるからである。
+
+検索系（`ctx_search`/`ctx_index`）はこの前提を欠く。上記のとおり `agent-command-gate.sh` の matcher に
+そもそも含まれず、ゲートが統制する層を経由しない。ゲートを経由しない以上、検索系への付与先追加は
+「ゲート未対応の面を新設する」ことにならず、実行系と同じ「先にゲートを手当てしてから付与する」手順を
+要求する理由がない。これが本規定を検索系には適用しない根拠であり、`.claude/rules/05-skills-agents.md`
+本文には条件（対象外である事実）だけを残し、理由（ゲート非経由であること）はここに置く。
