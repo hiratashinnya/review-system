@@ -1,8 +1,8 @@
 ---
 policy_id: pr-merge-gate-classifier
-classifier_version: "1.16"
+classifier_version: "1.17"
 status: frozen
-authority: issue-431
+authority: issue-533
 ---
 
 # PR-merge gate classifier policy
@@ -137,7 +137,45 @@ title/message の値取得時点で `_has_active_parameter_expansion()` を適�
 `redirected-subshell-merge` / `double-quoted-command-substitution` /
 `backtick-command-substitution` 等の既存 frozen ケース）。
 
-## 4. 版の扱い
+## 4. `gh api` の endpoint 優先判定（Issue #533・classifier_version 1.17）
+
+### 4.1 非操作フラグ
+
+`_rest_operation()` は `-X` / `--method` と field 群に加え、GitHub CLI の表示・転送制御
+フラグを構文として消費してから endpoint を判定する。値付きは `--cache`、`-H` / `--header`、
+`-q` / `--jq`、`-p` / `--preview`、`-t` / `--template`、真偽値は `-i` / `--include`、
+`--paginate`、`--silent`、`--slurp`、`--verbose`、`--help` を扱う。これらや未知のハイフン
+始まりのフラグが存在することだけを理由に、endpoint の検査前に
+`error/CLASSIFIER_UNKNOWN` へ落とさない。
+
+未知フラグが値を取るかは証明できないため、その値らしき word と endpoint が2つの位置引数に
+見える場合は従来どおり `CLASSIFIER_UNKNOWN` とする。`--input` と `--hostname` は値を消費して
+endpoint を先に判定するが、GraphQL bodyを検査できない `--input` と、REST merge operationを
+既定hostへ誤束縛し得る両フラグは、mergeに関係する形ではfail-closeを維持する。
+
+REST endpoint が `/repos/{owner}/{repo}/pulls/{number}/merge` に一致する場合は、非操作フラグが
+前後どちらにあっても method と field 群を検査し、`PUT` と一意なmerge methodが揃えば従来どおり
+`merge` operationへ束縛する。`enablePullRequestAutoMerge` / `mergePullRequest` のGraphQL検査も
+フラグの有無より優先する。非merge endpointだけが `None` になる。
+
+### 4.2 file-backed GraphQL query
+
+`-F query=@<file>` / `--field query=@<file>` は、payloadのcwdとhookのcwdが一致する配下の
+通常ファイルに限り、symlink拒否・1 MiB上限・read前後のinode/size/mtime一致を確認して読む。
+読み取った本文は `query` へ代入し、inlineの `-f query='...'` と同じ共通判定へ流す。
+したがってread-only queryは `None`、`enablePullRequestAutoMerge` は
+`block/AUTO_MERGE_DENIED`、`mergePullRequest` は `error/CLASSIFIER_UNKNOWN` となる。
+`@-`、欠落・不正・競合変更ファイル、`--input` は引き続き `CLASSIFIER_UNKNOWN` とする。
+
+### 4.3 PreToolUse / PostToolUse の対応
+
+PreToolUseの `run()` は分類が `None` のときだけ無出力で通し、`block` / `error` は
+`fail_closed()` でdenyする。PostToolUseの `post_run()` も `None` なら早期returnするため、
+4.1/4.2のread-only形を正しく `None` に直すことで
+`RECLASSIFIED_NOT_MERGE` の誤報も同時に解消する。実際のblock/errorがPostToolUseへ到達した場合の
+整合性検知は、PreToolUse denyの不履行を検出する安全機能なので変更しない。
+
+## 5. 版の扱い
 
 `classifier_version`（本ファイル frontmatter）は `pr_merge_gate/classifier.py` の
 `CLASSIFIER_VERSION` 定数、`tests/fixtures/pr_merge_classifier_shell_v1.json` および

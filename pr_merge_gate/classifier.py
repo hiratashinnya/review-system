@@ -28,8 +28,10 @@ _REST_MERGE = re.compile(
 # ネスト深度カウンタで許可する緩和。`_split_shell_commands` が unquoted `(){}` を
 # 一律 `None`（CLASSIFIER_UNKNOWN）にしていた挙動を変更するため 1.15 → 1.16。
 # 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md classifier_version 1.16。
+# Issue #533: `gh api` の非操作フラグをendpoint判定前に拒否せず、file-backed GraphQLを
+# inline queryと同じ本文判定へ流す挙動変更のため 1.16 → 1.17。
 _PARAM_EXPANSION_BODY_CHAR = re.compile(r"[A-Za-z0-9_:=+?#%/!.,^*@-]")
-CLASSIFIER_VERSION = "1.16"
+CLASSIFIER_VERSION = "1.17"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -108,6 +110,18 @@ _GH_NON_MERGE_PR_COMMANDS = frozenset(
     }
 )
 _SAFE_ALIAS_FLAGS = frozenset({"--shell"})
+_GH_API_NON_OPERATION_VALUE_OPTIONS = frozenset(
+    {"--cache", "-H", "--header", "-q", "--jq", "-p", "--preview", "-t", "--template"}
+)
+_GH_API_NON_OPERATION_SWITCH_OPTIONS = frozenset(
+    {"-i", "--include", "--paginate", "--silent", "--slurp", "--verbose", "--help"}
+)
+_GH_API_NON_OPERATION_ATTACHED_PREFIXES = tuple(
+    option + "="
+    for option in _GH_API_NON_OPERATION_VALUE_OPTIONS
+    if option.startswith("--")
+)
+_GH_API_DEFERRED_VALUE_OPTIONS = frozenset({"--hostname", "--input"})
 _CONNECTOR_MERGE = frozenset(
     {
         "github_merge_pull_request",
@@ -995,6 +1009,7 @@ def _rest_operation(
     method = "GET"
     fields: dict[str, str] = {}
     typed_fields: set[str] = set()
+    deferred_options: set[str] = set()
     index = 0
     while index < len(remaining):
         token = remaining[index]
@@ -1015,8 +1030,29 @@ def _rest_operation(
             if token in {"-F", "--field"}:
                 typed_fields.add(key)
             index += 2
+        elif token in _GH_API_NON_OPERATION_SWITCH_OPTIONS:
+            index += 1
+        elif token in _GH_API_NON_OPERATION_VALUE_OPTIONS:
+            if index + 1 >= len(remaining):
+                return _error("CLASSIFIER_UNKNOWN", remaining)
+            index += 2
+        elif token.startswith(_GH_API_NON_OPERATION_ATTACHED_PREFIXES):
+            index += 1
+        elif token in _GH_API_DEFERRED_VALUE_OPTIONS:
+            if index + 1 >= len(remaining):
+                return _error("CLASSIFIER_UNKNOWN", remaining)
+            deferred_options.add(token)
+            index += 2
+        elif token.startswith("--hostname="):
+            deferred_options.add("--hostname")
+            index += 1
+        elif token.startswith("--input="):
+            deferred_options.add("--input")
+            index += 1
         elif token.startswith("-"):
-            return _error("CLASSIFIER_UNKNOWN", remaining)
+            # 未知フラグ単体ではendpoint/methodの評価を中断しない。値を取る未知フラグは
+            # 後続wordとの区別を証明できず、複数endpointとして従来どおりfail-closeする。
+            index += 1
         elif endpoint is None:
             endpoint = token
             index += 1
@@ -1028,14 +1064,14 @@ def _rest_operation(
             file_query = _read_graphql_query_file(query, payload, cwd=cwd)
         except ValueError:
             return _error("CLASSIFIER_UNKNOWN", remaining)
-        if "enablePullRequestAutoMerge" in file_query:
-            return _block("AUTO_MERGE_DENIED", remaining)
-        return _error("CLASSIFIER_UNKNOWN", remaining)
+        query = file_query
     if endpoint == "graphql" and re.fullmatch(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", query):
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if "enablePullRequestAutoMerge" in query:
         return _block("AUTO_MERGE_DENIED", remaining)
     if "mergePullRequest" in query:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if endpoint == "graphql" and "--input" in deferred_options:
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if endpoint is None:
         return None
@@ -1043,6 +1079,8 @@ def _rest_operation(
     if match is None:
         return _error("CLASSIFIER_UNKNOWN", remaining) if "merge" in endpoint.casefold() else None
     if method != "PUT":
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if deferred_options:
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if set(fields) - {"merge_method", "commit_title", "commit_message", "sha"}:
         return _error("CLASSIFIER_UNKNOWN", remaining)

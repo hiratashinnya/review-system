@@ -391,9 +391,34 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertEqual(_non_none(classify_pre_use(bash("gh alias exec land"))).kind, "error")
         self.assertEqual(_non_none(classify_pre_use(bash("gh extension exec land"))).kind, "error")
 
-    def test_graphql_inline_file_and_indirection_bypass_corpus_fails_closed(self):
+    def test_read_only_rest_endpoint_ignores_non_operation_api_flags(self):
+        for command in (
+            "gh api repos/example/repo/issues/375 --jq '.id'",
+            "gh api -H 'Accept: application/vnd.github+json' --paginate --silent "
+            "repos/example/repo/issues/375",
+            "gh api repos/example/repo/issues/375 --cache 1h -q '.id'",
+            "gh api --future-output-flag repos/example/repo/issues/375",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+    def test_graphql_file_queries_match_inline_and_keep_merge_mutations_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
+            read_query = "query { viewer { login } }"
+            (root / "read.graphql").write_text(read_query, encoding="utf-8")
+            self.assertIsNone(
+                classify_pre_use(
+                    bash("gh api graphql --paginate -F query=@read.graphql", root),
+                    cwd=root,
+                )
+            )
+            self.assertIsNone(
+                classify_pre_use(
+                    bash(f"gh api graphql -f 'query={read_query}'", root), cwd=root
+                )
+            )
+
             (root / "merge.graphql").write_text(
                 "mutation { mergePullRequest(input: {}) { clientMutationId } }",
                 encoding="utf-8",
@@ -424,6 +449,20 @@ class PreUseClassifierTests(unittest.TestCase):
                 )
             )
             self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
+
+    def test_non_operation_flags_do_not_hide_rest_merge_endpoint(self):
+        classified = _non_none(
+            classify_pre_use(
+                bash(
+                    "gh api --silent --future-output-flag "
+                    "-H 'Accept: application/vnd.github+json' -X PUT "
+                    "repos/example/repo/pulls/12/merge --jq '.merged' "
+                    "-f merge_method=squash"
+                )
+            )
+        )
+        operation = _non_none(classified.operation)
+        self.assertEqual((classified.kind, operation.transport), ("merge", "rest"))
 
     def test_quoted_shell_punctuation_does_not_create_a_false_bypass(self):
         classified = _non_none(
