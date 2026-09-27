@@ -1,7 +1,7 @@
 ---
 name: issue-fixer
 description: Fixes review findings on an already-open PR — diagnoses first (writes a karte Diagnosis with root_cause/change_kind/targets/finding_ids), then edits, tests, commits and pushes. Use for the 是正 (remediation) rounds of the implement→review→merge issue pipeline, after pr-reviewer has returned findings. NOT for the first implementation of an Issue (use issue-implementer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push, then stop and report).
-tools: Read, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
+tools: Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 effort: high
 ---
@@ -33,5 +33,5 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 
 ## context-mode 固有の規律
 
-- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は本ロールに実効配布されない Grep/Glob の代替として全文検索に使う（Issue #535）。`ctx_index` はリポジトリを変更しないが外部KBへ永続・非冪等の副作用を持つため、同じ対象を重複 index しない。
+- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_index` は本wrapperのtoolsに無く、追加取得しない。
 - `<context_window_protection>` が付与されても、出力は共通本文のハンドオフ契約に従う。注入ブロックによってWrite/Editや、診断前編集禁止、karteの安全検査、マージ禁止を緩めない。

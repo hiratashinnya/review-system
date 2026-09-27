@@ -31,27 +31,18 @@ GATED_ROLE_AGENT_FILES = {
 # 追加で持つなど、implementer/fixer と厳密には異なる＝F-510-09 で3ロール化した際に単一集合の
 # 完全一致検査から per-role 集合へ変更した）。
 EXPECTED_NON_TASK_TOOLS = {
-    # Issue #535: `Grep`/`Glob` を frontmatter から外した（この2ロールは `isolation: "worktree"` で
-    # dispatch される GATED_ROLES であり、実測で Grep/Glob が実効的に配布されないため）。
-    # 代替として `ctx_search`/`ctx_index` を追加付与した。
     "issue-implementer": {
-        "Read", "Write", "Edit", "Bash",
-        "mcp__plugin_context-mode_context-mode__ctx_search",
-        "mcp__plugin_context-mode_context-mode__ctx_index",
+        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
         "mcp__plugin_context-mode_context-mode__ctx_execute",
     },
     "issue-fixer": {
-        "Read", "Write", "Edit", "Bash",
-        "mcp__plugin_context-mode_context-mode__ctx_search",
-        "mcp__plugin_context-mode_context-mode__ctx_index",
+        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
         "mcp__plugin_context-mode_context-mode__ctx_execute",
     },
     "pr-reviewer": {
-        # Issue #535: `Grep`/`Glob` を frontmatter から外した（`ctx_search`/`ctx_index` は既に
-        # 付与済みのため、この2ロールと違い代替の新規付与は不要）。
-        "Read", "Bash",
+        "Read", "Grep", "Glob", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_search",
         "mcp__plugin_context-mode_context-mode__ctx_index",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
