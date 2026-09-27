@@ -36,3 +36,6 @@ Issue #530 のため追加する `show-pr-diff` が PR 番号だけを受け取�
 - 全体 suite の残存失敗: `test_installed_codex_profile_normal_and_negative_matrix_is_model_free` は feature catalog に3項目が無いエラー、`test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes` の sandbox code flag 不一致、rate-limit 2件は helper の `FALLBACK`、compile test は読み取り専用 `.codex/hooks/__pycache__`、bubblewrap 2件は一時 worktree chdir 失敗。Issue変更との因果を示す証拠はない。
 - `python3 -m maintainability_lint check` — PASS、violations=0、accepted_debt=136。`gitgate/cli.py` は基準 fingerprint の既存379行に戻り、新規 module はいずれも100行未満。
 - `python3 -m asset_parity check` — PASS、39 assets checked、0 missing、29 heuristic staleness flags。
+- 補足 coverage 実測（main context 実行）: `uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'` — FAIL、2055 tests、325.679秒、6 failures・1 error・9 skipped。同じ環境依存の7失敗で、Issue変更との因果を示す証拠はない。
+- coverage HTML — PASS、`htmlcov/index.html` を生成。
+- coverage report — PASS、9523 statements / 1452 missed / 85%。

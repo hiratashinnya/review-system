@@ -400,3 +400,10 @@ Staleness flags (heuristic, false positives OK — worth a human/LLM look):
   verification-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
   verification-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
 
+=== Coverage execution supplement (summary received from main context) ===
+Command: uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'
+Result: FAIL; 2055 tests in 325.679s; 6 failures, 1 error, 9 skipped.
+Failure assessment: same 7 environment-dependent failures described in the TD; no evidence links them causally to Issue #530 changes.
+Coverage HTML: PASS; generated htmlcov/index.html.
+Coverage report: PASS; TOTAL 9523 statements, 1452 missed, 85% coverage.
+The lines above record the observed command summary supplied by the main context; they are not a raw stdout capture.
