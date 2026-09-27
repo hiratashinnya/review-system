@@ -691,7 +691,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "GIT_PAGER=cat git log -n1",  # 先頭 env 代入は deny
             # gh は impl 集合（pr create / issue view）外は deny。
             "gh pr view 123",
-            "gh pr diff 123",
+            "gh pr diff 123 --no-compact",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh pr list --state open",
             "gh issue create --title \"chore: follow-up\" --body-file /tmp/issue.md",
@@ -710,7 +710,7 @@ class AgentCommandGateTests(unittest.TestCase):
         # `test_pr_reviewer_cannot_switch_the_primary_checkout` が deny を固定する）。
         commands = [
             "gh pr view 123",
-            "gh pr diff 123",
+            "gh pr diff 123 --no-compact",
             "gh pr checks 123",
             "gh pr comment 123 --body-file /tmp/review.md",
             "gh pr comment 123 --body '## Review\n- looks good'",
@@ -725,6 +725,27 @@ class AgentCommandGateTests(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
+
+    def test_issue_530_requires_no_compact_for_pr_reviewer_only(self):
+        bare = run_gate(payload("pr-reviewer", "gh pr diff 123"))
+        self.assert_denied(bare)
+        reason = bare["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("Issue #530", reason)
+        self.assertIn("ファイル・hunk", reason)
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr diff 123 --no-compact")))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "rtk gh pr diff 123 --no-compact")))
+        for command in [
+            "gh pr diff 123 --no-compact=false",
+            "gh pr diff 123 -- --no-compact",
+            "gh pr diff 123 --color --no-compact",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+        for role in ["issue-implementer", "issue-fixer"]:
+            for command in ["gh pr diff 123", "gh pr diff 123 --no-compact"]:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 123")))
 
     def test_pr_reviewer_now_denied_out_of_allowlist_git_gh(self):
         # pr-reviewer は gitgate 読取専用 verb {diff,log} のみ。生 git は全 deny、gitgate の書込・
@@ -779,7 +800,7 @@ class AgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
         # 差分を読む正規経路は塞がない（over-deny 回帰の防止）。
         for command in [
-            "gh pr diff 123",
+            "gh pr diff 123 --no-compact",
             "gh pr view 123",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
@@ -808,7 +829,7 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
         # pr-reviewer は読取専用 verb {diff, log} のみ allow・それ以外の verb は deny。
-        for args in ["diff", "log -n1"]:
+        for args in ["diff", "log -n1", "show-pr-diff 123"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
@@ -820,6 +841,8 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(unknown_verb=verb):
                 self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m gitgate {verb}")))
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
+        for role in ["issue-implementer", "issue-fixer"]:
+            self.assert_denied(run_gate(payload(role, "python3 -m gitgate show-pr-diff 123")))
 
     def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
         # Issue #354 PR-2: `gitgate` 側に adopt-branch / worktree-release / collect-worktree /
@@ -856,7 +879,7 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(role="issue-implementer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("issue-implementer", cmd)))
         reviewer_gh_allowed = [
-            "gh pr view 1", "gh pr diff 1", "gh pr checks 1",
+            "gh pr view 1", "gh pr diff 1 --no-compact", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
             "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
             "gh issue view 1",

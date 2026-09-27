@@ -22,6 +22,8 @@ Issue #227 追加修正3（オーナー確定 2026-07-13）。
 verb 一覧:
   固定 git argv を組むだけの verb（`build_git_argv` の純 argv 経路）:
     status / add / commit / push / branch-current / fetch / diff / log
+  PR差分を RTK 経由で取得するverb（`main()` で分岐・PR番号検証と大出力のファイル保存を行う）:
+    show-pr-diff     … `rtk gh pr diff <N> --no-compact` の完全な出力を取得する（#530）
   policy 実行を伴う verb（`main()` で分岐・純 argv 経路には載せない）:
     new-branch       … fresh fetch + GitHub API 検証済みの exact OID で新規ブランチを作る（#317）
     adopt-branch     … 既存ブランチを期待 OID（任意で PR head）再検証つきで checkout する（#354・PR-2）
@@ -48,7 +50,8 @@ verb 一覧:
     ロール制限はゲートで機械強制する二段構え）。
 """
 
-from .cli import GitgateError, build_git_argv, main
+from .cli import GitgateError, build_git_argv
+from .dispatch import main
 from .worktree import WorktreeError
 
 __all__ = ["GitgateError", "WorktreeError", "build_git_argv", "main"]
