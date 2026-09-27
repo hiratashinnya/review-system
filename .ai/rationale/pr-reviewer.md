@@ -169,4 +169,12 @@ allowlist にテストランナーを残したのは、base 側の挙動確認�
 ## context-mode の index が持つ副作用（移設元：「Claude Code 固有の設定・権限境界」）
 
 `ctx_index` による index 作成は外部 KB への永続副作用を持つ。本文には `ctx_search` / `ctx_index` を
-調査に使うことと、同じ対象の index を重複実行しない規則を残した。
+調査に使うことと、`ctx_index` は非冪等なので同じ対象を重複 index しない規則を残した。
+
+## Grep/Glob を外し ctx_search/ctx_index を付与した根拠（Issue #535・2026-09-27）
+
+本ロールは GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）の1つであり、frontmatter に
+Grep/Glob を宣言しても実効的に配布されないことが実測で確認されている（本ロールは `isolation`
+指定なし＝非 isolated で呼び出し元と同じワークツリー上で動くが、それでも同じ実効配布漏れが起きる）。
+GATED_ROLES 共通の詳細根拠は複製を避けるため
+[issue-fixer の rationale](issue-fixer.md)「ctx_search/ctx_index の付与根拠」に一本化した。

@@ -1043,7 +1043,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): the command contains {symbol}. "
             "This role may only run a single simple command with no shell metacharacters "
             "(no pipes, subshells, command substitution, redirection, heredocs, chaining or newlines). "
-            "Write bodies to a file with the Write tool and pass them via `python3 -m gitgate commit <file>` / "
+            "Write bodies to a file (with the Write tool where granted) and pass them via `python3 -m gitgate commit <file>` / "
             "`gh pr create --body-file <file>` / `gh pr comment --body-file <file>`; use native flags "
             "(`gh --jq`, `python3 -m gitgate log --grep <pat> -n <N>`) and this role's Read tool (plus Write/Edit where granted), plus `ctx_search`/`ctx_index` for full-text search, instead of pipes."
         )

@@ -289,12 +289,15 @@ final handoff を生成する。本文には、同じ thread の resume で渡�
 
 ## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27）
 
-isolation: "worktree" で dispatch される GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）は、
+`agent-command-gate.sh` が識別する GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）は、
 frontmatter に Grep/Glob を宣言しても実効的に配布されないことが実測で確認された（本ロール自身の
 ツール一覧に該当ツールが存在しない構造的事実、および Bash 経由 grep も agent-command-gate.sh の
-allowlist で deny される実測。同一セッション内で再現した）。一方、非 gated なロール（verification-author
-等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した——つまりこの不具合はハーネス
-全体の欠陥ではなく、GATED_ROLES 限定の実効配布漏れである。
+allowlist で deny される実測。同一セッション内で再現した）。**isolation の有無はこの実効配布漏れの
+原因ではない**——`isolation: "worktree"` で dispatch されるのは issue-fixer/issue-implementer の2つ
+だけで、pr-reviewer は非 isolated（呼び出し元と同じワークツリー上で動く。`agent-command-gate.sh` 内の
+コメントに明記）だが、それでも Grep/Glob は同様に実効配布されない。一方、非 gated なロール
+（verification-author 等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した——
+つまりこの不具合はハーネス全体の欠陥でも isolation の副作用でもなく、GATED_ROLES 限定の実効配布漏れである。
 
 ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-gate.sh の matcher
 （Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも

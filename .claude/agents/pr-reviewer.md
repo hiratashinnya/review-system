@@ -24,5 +24,5 @@ effort: xhigh
 
 ## context-mode 固有の規律
 
-- `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドに限り、`queries` / `intent` で出力を絞り、`cwd` は明示しない。同じ対象のindexを重複実行しない。
+- `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドに限り、`queries` / `intent` で出力を絞り、`cwd` は明示しない。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、Write/Edit不可、push不可、レビューとfixの分離、自己承認の不偽装、オーナー専権事項のSTOPを緩めない。レビュー報告は共通本文の4部構成を省略しない。
