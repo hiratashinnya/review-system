@@ -24,12 +24,9 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-# Issue #431（オーナー承認済み方針）: unquoted の単純パラメータ展開 `${...}` を
-# ネスト深度カウンタで許可する緩和。`_split_shell_commands` が unquoted `(){}` を
-# 一律 `None`（CLASSIFIER_UNKNOWN）にしていた挙動を変更するため 1.15 → 1.16。
-# 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md classifier_version 1.16。
-# Issue #533: `gh api` の非操作フラグをendpoint判定前に拒否せず、file-backed GraphQLを
-# inline queryと同じ本文判定へ流す挙動変更のため 1.16 → 1.17。
+# Issue #431: 単純parameter expansionの許可で1.15→1.16。
+# Issue #533: `gh api` のendpoint優先判定とfile query共通化で1.16→1.17。
+# 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md。
 _PARAM_EXPANSION_BODY_CHAR = re.compile(r"[A-Za-z0-9_:=+?#%/!.,^*@-]")
 CLASSIFIER_VERSION = "1.17"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576

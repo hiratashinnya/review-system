@@ -59,7 +59,6 @@
     "karte/model.py|e1cbd9df9da10e08": 1,
     "karte/model.py|e22fd7599d44f325": 1,
     "karte_notify/notify.py|ec3051555595dc5f": 1,
-    "pr_merge_gate/classifier.py|c0d7660540cb8b34": 1,
     "pr_merge_gate/hook.py|094d33a45588d52a": 1,
     "pr_merge_gate/hook.py|0cfd32b6ed3e968d": 1,
     "pr_merge_gate/hook.py|200351da0ab920ae": 1,
@@ -336,8 +335,8 @@
       "sha256": "e400f48fa86e7a35180fd6d828436636dcc60a083d4c7922751b9f4a575ecff9"
     },
     "pr_merge_gate/classifier.py": {
-      "line_count": 1254,
-      "sha256": "4bc0dab0ef39c7895454b9f190b22a4febf8331c0982cff05fefaf861292336b"
+      "line_count": 1289,
+      "sha256": "16440428dc6c34969f78c1d70bbe5c989bc1700c9ba6b0c3a25b332c1c82e539"
     },
     "pr_merge_gate/gate.py": {
       "line_count": 187,
