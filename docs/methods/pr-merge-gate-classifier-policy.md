@@ -1,8 +1,8 @@
 ---
 policy_id: pr-merge-gate-classifier
-classifier_version: "1.16"
+classifier_version: "1.17"
 status: frozen
-authority: issue-431
+authority: issue-533
 ---
 
 # PR-merge gate classifier policy
@@ -137,14 +137,67 @@ title/message の値取得時点で `_has_active_parameter_expansion()` を適�
 `redirected-subshell-merge` / `double-quoted-command-substitution` /
 `backtick-command-substitution` 等の既存 frozen ケース）。
 
-## 4. 版の扱い
+## 4. `gh api` の endpoint 優先判定（Issue #533・classifier_version 1.17）
+
+### 4.1 非操作フラグ
+
+`_rest_operation()` は `-X` / `--method` と field 群に加え、GitHub CLI の表示・転送制御
+フラグを構文として消費してから endpoint を判定する。値付きは `--cache`、`-H` / `--header`、
+`-q` / `--jq`、`-p` / `--preview`、`-t` / `--template`、真偽値は `-i` / `--include`、
+`--paginate`、`--silent`、`--slurp`、`--verbose`、`--help` を扱う。これらや未知のハイフン
+始まりのフラグが存在することだけを理由に、endpoint の検査前に
+`error/CLASSIFIER_UNKNOWN` へ落とさない。
+
+method / field は値を次wordに置く形だけでなく、`-XPUT`、`--field=query=...`、
+`--raw-field=query=...`、`-Fquery=...`、`-fquery=...`、`-F=query=...`、
+`-f=query=...` のattached形も同じ意味へ正規化する。短縮field flag直後の最初の `=` は
+flag/value separatorとして消費する。long flagの `--field==query=...` は最初の `=` だけが
+separatorで、field名が空になる値として解析する（`query` fieldにはならない）。未知フラグの緩和や
+attached形の解釈によって既知のquery fieldを読み飛ばし、mutation本文を見落とすことはない。
+
+未知フラグが値を取るかは証明できないため、その値らしき word と endpoint が2つの位置引数に
+見える場合は従来どおり `CLASSIFIER_UNKNOWN` とする。`--input` と `--hostname` は値を消費して
+endpoint を先に判定するが、GraphQL bodyを検査できない `--input` と、REST merge operationを
+既定hostへ誤束縛し得る両フラグは、mergeに関係する形ではfail-closeを維持する。
+
+REST endpoint が `/repos/{owner}/{repo}/pulls/{number}/merge` に一致する場合は、非操作フラグが
+前後どちらにあっても method と field 群を検査し、`PUT` と一意なmerge methodが揃えば従来どおり
+`merge` operationへ束縛する。`enablePullRequestAutoMerge` / `mergePullRequest` のGraphQL検査も
+フラグの有無より優先する。非merge endpointだけが `None` になる。
+
+### 4.2 file-backed GraphQL query
+
+`-F query=@<file>` / `--field query=@<file>` は、payloadのcwdとhookのcwdが一致する配下の
+通常ファイルに限り、symlink拒否・1 MiB上限・read前後のinode/size/mtime一致を確認して読む。
+ただし、これはclassifierによる読み取り内容の検査にすぎず、実際の `gh` が後から同じpathを
+再読する内容をpermitへ束縛しない。CodexのPreToolUseで `updatedInput` を使うには
+`permissionDecision: allow` が必須で、通常のpermission flowを迂回する。そのためClaude/Codex共通の
+gateではこの置換方式を採用しない。安全な内容のfile queryも
+`error/CLASSIFIER_UNKNOWN` としてfail-closeする。`enablePullRequestAutoMerge` は
+`block/AUTO_MERGE_DENIED`、`mergePullRequest` は `error/CLASSIFIER_UNKNOWN` とし、
+`@-`、欠落・不正・競合変更ファイル、`--input` も `CLASSIFIER_UNKNOWN` とする。
+file queryのread-only許可は、実行する `gh` が読む本文へ安全に束縛できる設計が導入されるまで行わない。
+
+### 4.3 PreToolUse / PostToolUse の対応
+
+PreToolUseの `run()` は分類が `None` のときだけ無出力で通し、`block` / `error` は
+`fail_closed()` でdenyする。PostToolUseの `post_run()` も `None` なら早期returnする。
+Issue #533に記載された `gh issue view ... | head`、`cat ... | head`、`tail ...` の3例は、
+このPRのbase commitと現行classifierの双方で `None` となることを確認した。これらの入力について
+`RECLASSIFIED_NOT_MERGE` は再現せず、当時の原因は特定できていない。したがって本PRは、
+観測3の歴史的失敗を解消したとは主張しない。実際にblock/errorとなる入力がPostToolUseへ到達した
+場合の整合性検知は、PreToolUse denyの不履行を検出する安全機能なので変更しない。
+
+## 5. 版の扱い
 
 `classifier_version`（本ファイル frontmatter）は `pr_merge_gate/classifier.py` の
 `CLASSIFIER_VERSION` 定数、`tests/fixtures/pr_merge_classifier_shell_v1.json` および
 `tests/fixtures/pr_merge_actual_fire_v1.json` の `classifier_version` フィールドと
 常に完全一致させる。`_split_shell_commands()` / `classify_pre_use()` の入出力（許可・拒否
 される構文の集合、束縛される operation の形）を変える改修は、このファイルの版と
-上記3箇所を同一 PR で bump する。文言修正のみで判定を変えない改訂は bump 不要
+上記3箇所を同一 PR で bump する。未mergeの同一PR内でその版遷移への是正を追加しても、
+版区分誤り・上げ忘れ・版リテラル不一致を補う場合を除き二重bumpしない（`.ai/guidance/common.md`
+「正本・実装規約」）。文言修正のみで判定を変えない改訂は bump 不要
 （`.ai/guidance/common.md`「正本・実装規約」の一般則）。
 
 **機械検査が及ぶ範囲は上記4箇所のうち3箇所（コード定数＋fixture2箇所）に限る**：

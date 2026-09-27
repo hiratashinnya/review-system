@@ -11,6 +11,7 @@ from pr_merge_gate.classifier import (
     classify_pre_use,
     repository_from_cwd,
 )
+from pr_merge_gate.gh_api_args import _parse_gh_api_arguments
 
 _T = TypeVar("_T")
 
@@ -391,9 +392,91 @@ class PreUseClassifierTests(unittest.TestCase):
         self.assertEqual(_non_none(classify_pre_use(bash("gh alias exec land"))).kind, "error")
         self.assertEqual(_non_none(classify_pre_use(bash("gh extension exec land"))).kind, "error")
 
-    def test_graphql_inline_file_and_indirection_bypass_corpus_fails_closed(self):
+    def test_read_only_rest_endpoint_ignores_non_operation_api_flags(self):
+        for command in (
+            "gh api repos/example/repo/issues/375 --jq '.id'",
+            "gh api -H 'Accept: application/vnd.github+json' --paginate --silent "
+            "repos/example/repo/issues/375",
+            "gh api repos/example/repo/issues/375 --cache 1h -q '.id'",
+            "gh api --future-output-flag repos/example/repo/issues/375",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(classify_pre_use(bash(command)))
+
+    def test_attached_equals_graphql_fields_are_parsed_without_a_blank_key(self):
+        mutation = "mutation { mergePullRequest(input: {}) { clientMutationId } }"
+        for flag in ("-F", "-f"):
+            with self.subTest(flag=flag, kind="mutation"):
+                classified = _non_none(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}='query={mutation}'")
+                    )
+                )
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+            with self.subTest(flag=flag, kind="read-only"):
+                self.assertIsNone(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}='query=query {{ viewer {{ login }} }}'")
+                    )
+                )
+
+        # The no-separator attached short forms keep their existing parsing behavior.
+        for flag in ("-F", "-f"):
+            with self.subTest(flag=flag, kind="no-separator-mutation"):
+                classified = _non_none(
+                    classify_pre_use(
+                        bash(f"gh api graphql {flag}query='{mutation}'")
+                    )
+                )
+                self.assertEqual(
+                    (classified.kind, classified.reason),
+                    ("error", "CLASSIFIER_UNKNOWN"),
+                )
+
+    def test_long_field_double_separator_does_not_create_query_key(self):
+        parsed = _parse_gh_api_arguments(
+            ["graphql", "--field==query=mutation { mergePullRequest(input: {}) { id } }"]
+        )
+        self.assertNotIn("query", parsed.fields)
+        self.assertEqual(
+            parsed.fields[""], "query=mutation { mergePullRequest(input: {}) { id } }"
+        )
+        self.assertIsNone(
+            classify_pre_use(
+                bash(
+                    "gh api graphql "
+                    "'--field==query=mutation { mergePullRequest(input: {}) { id } }'"
+                )
+            )
+        )
+
+    def test_graphql_file_queries_fail_closed_and_inline_read_queries_are_permitted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
+            read_query = "query { viewer { login } }"
+            (root / "read.graphql").write_text(read_query, encoding="utf-8")
+            safe_file_cases = (
+                "gh api graphql --paginate -F query=@read.graphql",
+                "gh api graphql --field=query=@read.graphql",
+            )
+            for command in safe_file_cases:
+                with self.subTest(command=command):
+                    classified = _non_none(
+                        classify_pre_use(bash(command, root), cwd=root)
+                    )
+                    self.assertEqual(
+                        (classified.kind, classified.reason),
+                        ("error", "CLASSIFIER_UNKNOWN"),
+                    )
+            self.assertIsNone(
+                classify_pre_use(
+                    bash(f"gh api graphql -f 'query={read_query}'", root), cwd=root
+                )
+            )
+
             (root / "merge.graphql").write_text(
                 "mutation { mergePullRequest(input: {}) { clientMutationId } }",
                 encoding="utf-8",
@@ -401,8 +484,11 @@ class PreUseClassifierTests(unittest.TestCase):
             cases = (
                 "gh api graphql -F query=@merge.graphql -F pullRequestId=PR_ID",
                 "gh api graphql -F 'query=@merge.graphql' -F mergeMethod=SQUASH",
+                "gh api graphql --field=query=@merge.graphql",
                 'gh api graphql -F query=@mer""ge.graphql',
                 "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+                "gh api graphql --raw-field='query=mutation { "
+                "mergePullRequest(input: {}) { clientMutationId } }'",
                 "gh api graphql -F query=@-",
                 "gh api graphql -F query=@missing.graphql",
                 "gh api graphql -F 'query=$QUERY'",
@@ -424,6 +510,20 @@ class PreUseClassifierTests(unittest.TestCase):
                 )
             )
             self.assertEqual((auto.kind, auto.reason), ("block", "AUTO_MERGE_DENIED"))
+
+    def test_non_operation_flags_do_not_hide_rest_merge_endpoint(self):
+        classified = _non_none(
+            classify_pre_use(
+                bash(
+                    "gh api --silent --future-output-flag "
+                    "-H 'Accept: application/vnd.github+json' -XPUT "
+                    "repos/example/repo/pulls/12/merge --jq '.merged' "
+                    "--raw-field=merge_method=squash"
+                )
+            )
+        )
+        operation = _non_none(classified.operation)
+        self.assertEqual((classified.kind, operation.transport), ("merge", "rest"))
 
     def test_quoted_shell_punctuation_does_not_create_a_false_bypass(self):
         classified = _non_none(

@@ -15,6 +15,7 @@ import subprocess
 from typing import Any, Callable, Literal, Mapping, Sequence, cast
 
 from blocker_gate.model import fingerprint
+from .gh_api_args import _parse_gh_api_arguments
 
 
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -24,12 +25,11 @@ _OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _REST_MERGE = re.compile(
     r"^/?repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pulls/([1-9][0-9]*)/merge$"
 )
-# Issue #431（オーナー承認済み方針）: unquoted の単純パラメータ展開 `${...}` を
-# ネスト深度カウンタで許可する緩和。`_split_shell_commands` が unquoted `(){}` を
-# 一律 `None`（CLASSIFIER_UNKNOWN）にしていた挙動を変更するため 1.15 → 1.16。
-# 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md classifier_version 1.16。
+# Issue #431: 単純parameter expansionの許可で1.15→1.16。
+# Issue #533: endpoint/inline field判定で1.16→1.17。file queryはfail-close。
+# 依存仕様: docs/methods/pr-merge-gate-classifier-policy.md。
 _PARAM_EXPANSION_BODY_CHAR = re.compile(r"[A-Za-z0-9_:=+?#%/!.,^*@-]")
-CLASSIFIER_VERSION = "1.16"
+CLASSIFIER_VERSION = "1.17"
 _MAX_GRAPHQL_QUERY_BYTES = 1_048_576
 _SAFE_DATA_EXECUTABLES = frozenset({"echo", "printf", "pwd", "true", "false"})
 _SHELL_CONTROL_RESERVED_WORDS = frozenset(
@@ -991,37 +991,15 @@ def _rest_operation(
         return _error("CLASSIFIER_UNKNOWN", tokens)
     if not remaining or remaining.pop(0) != "api":
         return None
-    endpoint: str | None = None
-    method = "GET"
-    fields: dict[str, str] = {}
-    typed_fields: set[str] = set()
-    index = 0
-    while index < len(remaining):
-        token = remaining[index]
-        if token in {"-X", "--method"} and index + 1 < len(remaining):
-            method = remaining[index + 1].upper()
-            index += 2
-        elif token.startswith("--method="):
-            method = token.split("=", 1)[1].upper()
-            index += 1
-        elif token in {"-f", "--raw-field", "-F", "--field"} and index + 1 < len(remaining):
-            raw = remaining[index + 1]
-            if "=" not in raw:
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            key, value = raw.split("=", 1)
-            if key in fields:
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            fields[key] = value
-            if token in {"-F", "--field"}:
-                typed_fields.add(key)
-            index += 2
-        elif token.startswith("-"):
-            return _error("CLASSIFIER_UNKNOWN", remaining)
-        elif endpoint is None:
-            endpoint = token
-            index += 1
-        else:
-            return _error("CLASSIFIER_UNKNOWN", remaining)
+    try:
+        arguments = _parse_gh_api_arguments(remaining)
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    endpoint = arguments.endpoint
+    method = arguments.method
+    fields = arguments.fields
+    typed_fields = arguments.typed_fields
+    deferred_options = arguments.deferred_options
     query = fields.get("query", "")
     if endpoint == "graphql" and "query" in typed_fields and query.startswith("@"):
         try:
@@ -1037,12 +1015,16 @@ def _rest_operation(
         return _block("AUTO_MERGE_DENIED", remaining)
     if "mergePullRequest" in query:
         return _error("CLASSIFIER_UNKNOWN", remaining)
+    if endpoint == "graphql" and "--input" in deferred_options:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
     if endpoint is None:
         return None
     match = _REST_MERGE.fullmatch(endpoint)
     if match is None:
         return _error("CLASSIFIER_UNKNOWN", remaining) if "merge" in endpoint.casefold() else None
     if method != "PUT":
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    if deferred_options:
         return _error("CLASSIFIER_UNKNOWN", remaining)
     if set(fields) - {"merge_method", "commit_title", "commit_message", "sha"}:
         return _error("CLASSIFIER_UNKNOWN", remaining)

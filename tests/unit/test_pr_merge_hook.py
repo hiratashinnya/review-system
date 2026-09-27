@@ -120,6 +120,80 @@ class HookTest(unittest.TestCase):
             self.assertEqual((code, stdout, stderr), (0, "", ""))
             self.assertFalse(target.exists())
 
+    def test_current_non_merge_post_use_commands_are_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            target = root / "audit.jsonl"
+            commands = (
+                "gh issue view 523 --json number,title,body | head -200",
+                "cat handoff.yaml | head -80",
+                "tail -n 14 report.txt",
+                "gh api repos/example/repo/issues/375 --jq '.id'",
+            )
+            for command in commands:
+                with self.subTest(command=command):
+                    payload = {
+                        "session_id": "session-read-only",
+                        "tool_use_id": "tool-read-only",
+                        "hook_event_name": "PostToolUse",
+                        "tool_name": "Bash",
+                        "tool_input": {"command": command},
+                        "tool_response": {"exit_code": 0},
+                        "cwd": str(root),
+                    }
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    code = post_run(
+                        stdin=io.StringIO(json.dumps(payload)),
+                        stdout=stdout,
+                        stderr=stderr,
+                        cwd=root,
+                        audit_file=target,
+                    )
+                    self.assertEqual(
+                        (code, stdout.getvalue(), stderr.getvalue()), (0, "", "")
+                    )
+            self.assertFalse(target.exists())
+
+    def test_file_backed_read_only_graphql_is_denied_before_dispatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            target = root / "audit.jsonl"
+            (root / "read.graphql").write_text(
+                "query { viewer { login } }", encoding="utf-8"
+            )
+            payload = {
+                "session_id": "session-file-query",
+                "tool_use_id": "tool-file-query",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "gh api graphql -F query=@read.graphql"
+                },
+                "cwd": str(root),
+            }
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run(
+                stdin=io.StringIO(json.dumps(payload)),
+                stdout=stdout,
+                stderr=stderr,
+                cwd=root,
+                audit_file=target,
+            )
+
+            decision = json.loads(stdout.getvalue())
+            audit = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(
+                audit["reason"], "CLASSIFIER_UNKNOWN"
+            )
+            self.assertEqual(audit["result"], "ERROR")
+            self.assertEqual(
+                decision["hookSpecificOutput"]["permissionDecision"], "deny"
+            )
+
     def test_auto_merge_is_denied_and_audited(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "audit.jsonl"
