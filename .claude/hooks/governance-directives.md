@@ -1,7 +1,15 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@bbc5fc2a65cc -->
+<!-- synced-from: CLAUDE.md@3332cf387f07 -->
 <!--
+  Issue #535（2026-09-27）: `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」の
+  検索系（`ctx_search`/`ctx_index`）付与先の列挙へ `issue-fixer`/`issue-implementer` を
+  追加しただけ（GATED_ROLES では `Grep`/`Glob` が実効配布されないため、両ロールの `tools:`
+  から外し ctx_search/ctx_index を付与する是正に伴う付与先表の保守）。上記の中核規範
+  （1〜12＝独断禁止・起票義務・正本の所在・品質降格禁止・実行前報告等）には掛からない。
+  本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録＝
+  `.claude/hooks/README.md`「追従したあとにやること」）。
+
   Issue #531 是正ラウンド4（2026-09-20・F-531-08/F-531-09）:
   `.claude/rules/05-skills-agents.md` の `/issue-pipeline` 説明から
   「主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し」を外し、

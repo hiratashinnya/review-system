@@ -109,7 +109,9 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
     プロキシなので解禁可否には影響しないが、ctx 経由ではその節約が効かないことを認識して使う。
 - **検索系＝`ctx_search` / `ctx_index` は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する。**
   実測でリポジトリ（作業ツリー）へは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
-  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
+  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`・
+  `issue-fixer`・`issue-implementer`（GATED_ROLES では `Grep`/`Glob` が実効配布されないため。経緯は
+  [`.ai/rationale/issue-fixer.md`](../../.ai/rationale/issue-fixer.md) を参照）。
   **付与の根拠は「リポジトリに書かない」ことであって「read-only だから」ではない**——`ctx_search` は読取専用だが、
   **`ctx_index` は read-only ではない**（`readOnlyHint: false` / `idempotentHint: false`。同じ内容でも呼ぶたびに
   永続 FTS5 ストアへ追記される＝非冪等）。`reconciliation-validator` の DD-22 fail-close が保たれるのも

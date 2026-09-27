@@ -27,22 +27,27 @@ GATED_ROLE_AGENT_FILES = {
     "pr-reviewer": ROOT / ".claude/agents/pr-reviewer.md",
 }
 
-# ロールごとの非 Task 期待ツール集合（`pr-reviewer` は Write/Edit を持たず ctx_search/ctx_index を
-# 追加で持つなど、implementer/fixer と厳密には異なる＝F-510-09 で3ロール化した際に単一集合の
-# 完全一致検査から per-role 集合へ変更した）。
+# ロールごとの非 Task 期待ツール集合（`pr-reviewer` は Write/Edit を持たず、implementer/fixer と
+# 厳密には異なる＝F-510-09 で3ロール化した際に単一集合の完全一致検査から per-role 集合へ変更した）。
+# Issue #535: GATED_ROLES には Grep/Glob が実効配布されないため、3ロールとも frontmatter から
+# 外し、代わりに ctx_search/ctx_index（全文検索の代替経路）を付与する。
 EXPECTED_NON_TASK_TOOLS = {
     "issue-implementer": {
-        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
+        "Read", "Write", "Edit", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
         "mcp__plugin_context-mode_context-mode__ctx_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_search",
+        "mcp__plugin_context-mode_context-mode__ctx_index",
     },
     "issue-fixer": {
-        "Read", "Grep", "Glob", "Write", "Edit", "Bash",
+        "Read", "Write", "Edit", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
         "mcp__plugin_context-mode_context-mode__ctx_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_search",
+        "mcp__plugin_context-mode_context-mode__ctx_index",
     },
     "pr-reviewer": {
-        "Read", "Grep", "Glob", "Bash",
+        "Read", "Bash",
         "mcp__plugin_context-mode_context-mode__ctx_search",
         "mcp__plugin_context-mode_context-mode__ctx_index",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",

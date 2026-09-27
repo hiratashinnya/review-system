@@ -286,3 +286,17 @@ final handoff を生成する。本文には、同じ thread の resume で渡�
 ## 長文をファイル渡しにする理由（移設元：「Claude Code 固有の設定・ゲート」）
 
 コミットメッセージ、PR 本文、karte への長文引数を Write でファイル化するのは、シェル展開を避けるためである。
+
+## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27）
+
+isolation: "worktree" で dispatch される GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）は、
+frontmatter に Grep/Glob を宣言しても実効的に配布されないことが実測で確認された（本ロール自身の
+ツール一覧に該当ツールが存在しない構造的事実、および Bash 経由 grep も agent-command-gate.sh の
+allowlist で deny される実測。同一セッション内で再現した）。一方、非 gated なロール（verification-author
+等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した——つまりこの不具合はハーネス
+全体の欠陥ではなく、GATED_ROLES 限定の実効配布漏れである。
+
+ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-gate.sh の matcher
+（Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも
+無制限に動く。frontmatter から実効性のない Grep/Glob を外し、ctx_search/ctx_index を付与することで、
+宣言と実効を一致させた。
