@@ -26,5 +26,5 @@ effort: xhigh
 
 ## context-mode 固有の規律
 
-- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。
+- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は本ロールに実効配布されない Grep/Glob の代替として全文検索に使う（Issue #535）。`ctx_index` はリポジトリを変更しないが外部KBへ永続・非冪等の副作用を持つため、同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、共通本文の初回実装専用・isolation・handoff契約を優先し、是正やレビューへの兼用、診断の省略、マージ権限の追加を行わない。
