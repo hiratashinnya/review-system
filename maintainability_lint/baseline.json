@@ -335,8 +335,8 @@
       "sha256": "e400f48fa86e7a35180fd6d828436636dcc60a083d4c7922751b9f4a575ecff9"
     },
     "pr_merge_gate/classifier.py": {
-      "line_count": 1322,
-      "sha256": "a43f34b41eb2d264bc0e3a3058ea1cdee9b748474f0819bafe29cc9ad915be1a"
+      "line_count": 1234,
+      "sha256": "369bed79dbc8be26ef0e2373d33c79f7ee6628226b387532544afe42569019b3"
     },
     "pr_merge_gate/gate.py": {
       "line_count": 187,

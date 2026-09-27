@@ -15,6 +15,7 @@ import subprocess
 from typing import Any, Callable, Literal, Mapping, Sequence, cast
 
 from blocker_gate.model import fingerprint
+from .gh_api_args import _parse_gh_api_arguments
 
 
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -107,18 +108,6 @@ _GH_NON_MERGE_PR_COMMANDS = frozenset(
     }
 )
 _SAFE_ALIAS_FLAGS = frozenset({"--shell"})
-_GH_API_NON_OPERATION_VALUE_OPTIONS = frozenset(
-    {"--cache", "-H", "--header", "-q", "--jq", "-p", "--preview", "-t", "--template"}
-)
-_GH_API_NON_OPERATION_SWITCH_OPTIONS = frozenset(
-    {"-i", "--include", "--paginate", "--silent", "--slurp", "--verbose", "--help"}
-)
-_GH_API_NON_OPERATION_ATTACHED_PREFIXES = tuple(
-    option + "="
-    for option in _GH_API_NON_OPERATION_VALUE_OPTIONS
-    if option.startswith("--")
-)
-_GH_API_DEFERRED_VALUE_OPTIONS = frozenset({"--hostname", "--input"})
 _CONNECTOR_MERGE = frozenset(
     {
         "github_merge_pull_request",
@@ -993,20 +982,6 @@ def _cli_operation(
     return PreUseClassification("merge", "CLASSIFIED", operation, operation_fp)
 
 
-def _record_gh_api_field(
-    raw: str, *, typed: bool, fields: dict[str, str], typed_fields: set[str],
-) -> bool:
-    if "=" not in raw:
-        return False
-    key, value = raw.split("=", 1)
-    if key in fields:
-        return False
-    fields[key] = value
-    if typed:
-        typed_fields.add(key)
-    return True
-
-
 def _rest_operation(
     payload: Mapping[str, Any], tokens: list[str], wrappers: list[str], *, cwd: Path | None,
 ) -> PreUseClassification | None:
@@ -1016,78 +991,15 @@ def _rest_operation(
         return _error("CLASSIFIER_UNKNOWN", tokens)
     if not remaining or remaining.pop(0) != "api":
         return None
-    endpoint: str | None = None
-    method = "GET"
-    fields: dict[str, str] = {}
-    typed_fields: set[str] = set()
-    deferred_options: set[str] = set()
-    index = 0
-    while index < len(remaining):
-        token = remaining[index]
-        if token in {"-X", "--method"} and index + 1 < len(remaining):
-            method = remaining[index + 1].upper()
-            index += 2
-        elif token.startswith("-X") and len(token) > 2:
-            method = token[2:].upper()
-            index += 1
-        elif token.startswith("--method="):
-            method = token.split("=", 1)[1].upper()
-            index += 1
-        elif token in {"-f", "--raw-field", "-F", "--field"} and index + 1 < len(remaining):
-            raw = remaining[index + 1]
-            if not _record_gh_api_field(
-                raw,
-                typed=token in {"-F", "--field"},
-                fields=fields,
-                typed_fields=typed_fields,
-            ):
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            index += 2
-        elif token.startswith(("--raw-field=", "--field=")) or (
-            token.startswith(("-f", "-F")) and "=" in token[2:]
-        ):
-            if token.startswith("--raw-field="):
-                raw = token.removeprefix("--raw-field=")
-                typed = False
-            elif token.startswith("--field="):
-                raw = token.removeprefix("--field=")
-                typed = True
-            else:
-                raw = token[2:]
-                typed = token.startswith("-F")
-            if not _record_gh_api_field(
-                raw, typed=typed, fields=fields, typed_fields=typed_fields
-            ):
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            index += 1
-        elif token in _GH_API_NON_OPERATION_SWITCH_OPTIONS:
-            index += 1
-        elif token in _GH_API_NON_OPERATION_VALUE_OPTIONS:
-            if index + 1 >= len(remaining):
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            index += 2
-        elif token.startswith(_GH_API_NON_OPERATION_ATTACHED_PREFIXES):
-            index += 1
-        elif token in _GH_API_DEFERRED_VALUE_OPTIONS:
-            if index + 1 >= len(remaining):
-                return _error("CLASSIFIER_UNKNOWN", remaining)
-            deferred_options.add(token)
-            index += 2
-        elif token.startswith("--hostname="):
-            deferred_options.add("--hostname")
-            index += 1
-        elif token.startswith("--input="):
-            deferred_options.add("--input")
-            index += 1
-        elif token.startswith("-"):
-            # 未知フラグ単体ではendpoint/methodの評価を中断しない。値を取る未知フラグは
-            # 後続wordとの区別を証明できず、複数endpointとして従来どおりfail-closeする。
-            index += 1
-        elif endpoint is None:
-            endpoint = token
-            index += 1
-        else:
-            return _error("CLASSIFIER_UNKNOWN", remaining)
+    try:
+        arguments = _parse_gh_api_arguments(remaining)
+    except ValueError:
+        return _error("CLASSIFIER_UNKNOWN", remaining)
+    endpoint = arguments.endpoint
+    method = arguments.method
+    fields = arguments.fields
+    typed_fields = arguments.typed_fields
+    deferred_options = arguments.deferred_options
     query = fields.get("query", "")
     if endpoint == "graphql" and "query" in typed_fields and query.startswith("@"):
         try:
