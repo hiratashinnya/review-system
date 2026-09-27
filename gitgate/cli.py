@@ -173,16 +173,6 @@ def verb_diff(args):
     return argv
 
 
-def build_show_pr_diff_argv(args):
-    """Build the fixed, read-only GitHub CLI command for one PR diff."""
-    if len(args) != 1:
-        raise GitgateError("`show-pr-diff` requires exactly one positive PR number")
-    pr_number = validate_integer(args[0])
-    if not any(digit != "0" for digit in pr_number):
-        raise GitgateError("`show-pr-diff` requires a positive PR number")
-    return ["gh", "pr", "diff", pr_number]
-
-
 def verb_log(args):
     # `log [-n <N>] [--grep <pat>] [--oneline]` → `git log …`。フラグは固定集合のみ、位置引数は不可。
     argv = ["git", "log"]
@@ -374,10 +364,6 @@ def main(argv=None):
                 f"gitgate: switched to new branch '{request.branch_name}' (checkout performed)\n"
             )
             return 0
-        if argv and argv[0] == "show-pr-diff":
-            gh_argv = build_show_pr_diff_argv(argv[1:])
-            # Inherit stdout directly so the complete diff is streamed without buffering.
-            return subprocess.run(gh_argv, shell=False).returncode
         git_argv = build_git_argv(argv)
     except BranchSourceError as exc:
         sys.stderr.write(f"gitgate: {exc}\n")
@@ -388,9 +374,6 @@ def main(argv=None):
     except GitgateError as exc:
         sys.stderr.write(f"gitgate: {exc}\n")
         return 2
-    except OSError as exc:
-        sys.stderr.write(f"gitgate: command execution failed: {exc}\n")
-        return 127
     # shell=False で list 渡し（ユーザ制御文字列はシェルに解釈されない）。
     completed = subprocess.run(git_argv, shell=False)
     return completed.returncode
