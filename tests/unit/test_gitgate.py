@@ -19,7 +19,7 @@ from pathlib import Path
 
 from gitgate import GitgateError, build_git_argv, main as gitgate_main
 from gitgate import cli as gitgate_cli
-from gitgate.pr_diff import MAX_INLINE_DIFF_BYTES, PrDiffError, run_pr_diff, validate_pr_number
+from gitgate.pr_diff import MAX_INLINE_DIFF_BYTES, PrDiffError, _save_diff, run_pr_diff, validate_pr_number
 
 
 class CapturedOutput:
@@ -77,6 +77,29 @@ class ShowPrDiffTests(unittest.TestCase):
                 self.assertEqual(record["sha256"], hashlib.sha256(content).hexdigest())
             finally:
                 os.chdir(cwd)
+
+    def test_save_diff_rejects_symlinked_storage_directories(self):
+        cwd = Path.cwd()
+        for symlink_path in ("tmp", "tmp/pr-diffs"):
+            with self.subTest(symlink_path=symlink_path), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                worktree = root / "worktree"
+                worktree.mkdir()
+                target = root / "target"
+                target.mkdir()
+                if symlink_path == "tmp":
+                    (worktree / "tmp").symlink_to(target, target_is_directory=True)
+                else:
+                    tmp_directory = worktree / "tmp"
+                    tmp_directory.mkdir()
+                    (tmp_directory / "pr-diffs").symlink_to(target, target_is_directory=True)
+                os.chdir(worktree)
+                try:
+                    with self.assertRaises(PrDiffError):
+                        _save_diff("42", b"diff content")
+                    self.assertEqual(list(target.iterdir()), [])
+                finally:
+                    os.chdir(cwd)
 
 
 class BuildGitArgvHappyPathTests(unittest.TestCase):

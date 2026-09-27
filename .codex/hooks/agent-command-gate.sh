@@ -1031,6 +1031,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): the command cannot be tokenized (unbalanced quotes); "
             "refusing because it cannot be inspected."
         )
+    raw_tokens = list(tokens)
     tokens, env_reason = strip_wrappers_or_env_reason(tokens)
     if env_reason:
         return (
@@ -1058,6 +1059,16 @@ def gate_reason(command_text, role):
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
             "env assignments and cross-role actions (issue-implementer/issue-fixer merging, pr-reviewer pushing) are denied."
         )
+    if role == "pr-reviewer" and tokens[0] == "gh":
+        key, _ = gh_key_and_rest(tokens)
+        if key == ("pr", "diff") and (
+            not command_text.startswith("rtk ")
+            or raw_tokens[:2] != ["rtk", "gh"]
+        ):
+            return (
+                "Issue #530: pr-reviewer の `gh pr diff` は、コマンド文字列の先頭に "
+                "リテラル `rtk gh` が必要です。"
+            )
     return None
 
 

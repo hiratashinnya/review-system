@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
+import uuid
 from pathlib import Path
 
 
@@ -27,15 +27,41 @@ def validate_pr_number(value):
 
 def _save_diff(pr_number, content):
     directory = Path("tmp") / "pr-diffs"
-    if Path("tmp").is_symlink() or directory.is_symlink():
-        raise PrDiffError("refusing to write PR diff through a symlink")
-    directory.mkdir(parents=True, exist_ok=True)
-    descriptor, filename = tempfile.mkstemp(
-        prefix=f"pr-{pr_number}-", suffix=".diff", dir=directory
-    )
-    with os.fdopen(descriptor, "wb") as output:
-        output.write(content)
-    return (directory / Path(filename).name).as_posix()
+    tmp_descriptor = directory_descriptor = file_descriptor = -1
+    try:
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        try:
+            tmp_descriptor = os.open("tmp", directory_flags)
+        except FileNotFoundError:
+            try:
+                os.mkdir("tmp")
+            except FileExistsError:
+                pass
+            tmp_descriptor = os.open("tmp", directory_flags)
+        try:
+            os.mkdir("pr-diffs", dir_fd=tmp_descriptor)
+        except FileExistsError:
+            pass
+        directory_descriptor = os.open(
+            "pr-diffs", directory_flags, dir_fd=tmp_descriptor
+        )
+        filename = f"pr-{pr_number}-{uuid.uuid4().hex}.diff"
+        file_descriptor = os.open(
+            filename,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=directory_descriptor,
+        )
+        with os.fdopen(file_descriptor, "wb") as output:
+            file_descriptor = -1
+            output.write(content)
+        return (directory / filename).as_posix()
+    except (OSError, AttributeError, TypeError) as error:
+        raise PrDiffError("refusing unsafe PR diff storage") from error
+    finally:
+        for descriptor in (file_descriptor, directory_descriptor, tmp_descriptor):
+            if descriptor >= 0:
+                os.close(descriptor)
 
 
 def run_pr_diff(args):
