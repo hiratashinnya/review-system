@@ -109,7 +109,19 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
     プロキシなので解禁可否には影響しないが、ctx 経由ではその節約が効かないことを認識して使う。
 - **検索系＝`ctx_search` / `ctx_index` は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する。**
   実測でリポジトリ（作業ツリー）へは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
-  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
+  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`・
+  `issue-fixer`・`issue-implementer`。
+  **`issue-fixer`/`issue-implementer` への付与根拠（Issue #535）**：この2ロールは `isolation: "worktree"` で
+  dispatch される `GATED_ROLES`（`agent-command-gate.sh`）であり、frontmatter に `Grep`/`Glob` を宣言しても
+  実測でハーネスから実効的に配布されない（Issue #535 の実測：issue-implementer 自身の関数一覧に該当ツールが
+  存在しない構造的事実、および Bash 経由 `grep` も同フックの層2 先頭語ホワイトリストで deny される）。
+  さらに層1〜3 が Bash 経由の `grep`/`find` もパイプ・記号ごと一律 deny するため、フル論理検索の手段が
+  構造的に無かった。`ctx_search`/`ctx_index` は matcher が Bash と異なる MCP 経路であり、`agent-command-gate.sh`
+  の実行系ゲート拡張（#303/#304）の対象内でロール別 allowlist を適用できるため、既存の統制（push/merge の
+  非対称、`cwd` 明示禁止等）を弱めずに全文検索手段を回復できる。**この根拠は `pr-reviewer`（既に付与済み）と
+  同じ枠組みの延長であり、GATED_ROLES 全員が同条件に置かれていたことを issue-fixer/issue-implementer 側でも
+  埋めるもの**（`asset-auditor` は GATED_ROLES 外・非isolatedで別途実測は済んでいないが、Grep/Glob 宣言削除
+  自体はどちらの場合でも安全——既に `ctx_search`/`ctx_index` を保有しているため代替手段を欠かない）。
   **付与の根拠は「リポジトリに書かない」ことであって「read-only だから」ではない**——`ctx_search` は読取専用だが、
   **`ctx_index` は read-only ではない**（`readOnlyHint: false` / `idempotentHint: false`。同じ内容でも呼ぶたびに
   永続 FTS5 ストアへ追記される＝非冪等）。`reconciliation-validator` の DD-22 fail-close が保たれるのも

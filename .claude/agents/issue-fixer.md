@@ -1,7 +1,7 @@
 ---
 name: issue-fixer
 description: Fixes review findings on an already-open PR — diagnoses first (writes a karte Diagnosis with root_cause/change_kind/targets/finding_ids), then edits, tests, commits and pushes. Use for the 是正 (remediation) rounds of the implement→review→merge issue pipeline, after pr-reviewer has returned findings. NOT for the first implementation of an Issue (use issue-implementer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push, then stop and report).
-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
+tools: Read, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 effort: high
 ---

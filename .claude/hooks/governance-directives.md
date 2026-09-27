@@ -1,7 +1,20 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@bbc5fc2a65cc -->
+<!-- synced-from: CLAUDE.md@bed1ea2fb185 -->
 <!--
+  Issue #535（2026-09-27）: `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」の
+  検索系（ctx_search/ctx_index）付与先リストへ `issue-fixer`/`issue-implementer` を追記した。
+  根拠＝この2ロールは `isolation: "worktree"` で dispatch される GATED_ROLES であり、frontmatter
+  で `Grep`/`Glob` を宣言しても実測でハーネスから実効的に配布されていなかった（issue-implementer
+  自身の関数一覧に該当ツールが無い構造的事実、および Bash 経由 `grep` も `agent-command-gate.sh`
+  の層2 先頭語ホワイトリストで deny される実測）。併せて frontmatter からも `Grep`/`Glob` を
+  外し（`.claude/agents/issue-fixer.md`/`issue-implementer.md`/`pr-reviewer.md`/`asset-auditor.md`）、
+  `agent-command-gate.sh` の deny メッセージが実効的に配布されない Grep/Glob を使えと案内していた
+  不整合も是正した。**特定ロールへの MCP ツール付与の細目**であって、上記の中核規範
+  （1〜12＝独断禁止・起票義務・正本の所在・品質降格禁止・実行前報告等）には掛からない。
+  本文（中核規範 1〜12）は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」
+  ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
+
   Issue #531 是正ラウンド4（2026-09-20・F-531-08/F-531-09）:
   `.claude/rules/05-skills-agents.md` の `/issue-pipeline` 説明から
   「主文脈は処置順の triage・進捗管理・オーナーとの意思決定に専念し」を外し、
