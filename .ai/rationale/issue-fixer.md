@@ -295,8 +295,10 @@ frontmatter に Grep/Glob を宣言しても実効的に配布されないこと
 allowlist で deny される実測。同一セッション内で再現した）。**isolation の有無はこの実効配布漏れの
 原因ではない**——`isolation: "worktree"` で dispatch されるのは issue-fixer/issue-implementer の2つ
 だけで、pr-reviewer は非 isolated（呼び出し元と同じワークツリー上で動く。`agent-command-gate.sh` 内の
-コメントに明記）だが、それでも Grep/Glob は同様に実効配布されない。一方、非 gated なロール
-（verification-author 等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した。
+コメントに明記）だが、それでも Grep/Glob は同様に実効配布されない。一方、Bash を持たない
+verification-author では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した
+（他の非 gated ロールへは一般化していない——後述のとおり Bash を保有する非 GATED ロール
+dsv2-lookup では機能しないことが別途実測されている）。
 
 **ただし GATED_ROLES 所属を原因と断定することはできない**（F-535-21）——上記の比較対照は
 GATED_ROLES 所属と Bash 保有の両方で交絡している。GATED_ROLES の3ロールはいずれも Bash を保有し、
@@ -306,7 +308,8 @@ GATED_ROLES 所属と Bash 保有の両方で交絡している。GATED_ROLES �
 Grep/Glob 呼び出しが harness レベルの "No such tool available" エラーで失敗することを確認した
 （F-535-25）。これは GATED_ROLES 所属だけでは説明がつかない観測であり、**実効配布漏れの原因
 （GATED_ROLES 所属か Bash 保有か、あるいは他の要因か）は特定できていない**。reconciliation は
-未実測のため、この事実が著作・検証系ロール全体に一般化できるかも未確認。
+未実測のため、この事実が Bash を保有する非 GATED ロール全般（reconciliation 等）に一般化できるか
+も未確認。
 
 ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-gate.sh の matcher
 （Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも
