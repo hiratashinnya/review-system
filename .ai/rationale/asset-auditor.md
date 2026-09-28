@@ -8,9 +8,14 @@ context-mode の索引は候補発見の補助に過ぎず、リポジトリへ�
 
 ## Grep/Glob 削除の検討と却下（Issue #535・2026-09-27）
 
-GATED_ROLES から実効配布されない Grep/Glob を外す是正の一環として、本ロールからも一旦削除する変更が
-提案された。しかし本ロールは GATED_ROLES に属さず isolation 指定も無いため、GATED_ROLES 限定の実効
-配布漏れという根本原因が本ロールに当てはまるかは実測されていなかった。ctx_search は BM25 の上位k件
-しか返さず、Grep の網羅的な正規表現検索・Glob のファイル列挙の代替にならないため、根拠なく削除すると
-資産監査の網羅性が退化する。オーナー判断により削除を却下し、Grep/Glob と ctx_search/ctx_index を
-両方保持することにした。
+GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）で Grep/Glob が実効配布されないことが実測で
+確認され、その是正の一環として本ロールからも一旦削除する変更が提案された。しかし本ロールは
+GATED_ROLES に属さず isolation 指定も無く、GATED_ROLES の実測結果が本ロールに当てはまるかは
+実測されていなかった。**この実効配布漏れの原因は GATED_ROLES 所属と Bash 保有の双方で交絡しており、
+特定できていない**（F-535-21・詳細は [`.ai/rationale/issue-fixer.md`](issue-fixer.md)「ctx_search/ctx_index
+の付与根拠」を参照）。本ロールは Bash を保有しないため、原因が Bash 保有側にあるとしても本ロールには
+当てはまらない可能性がある一方、GATED_ROLES 非所属である以上 GATED_ROLES 側の原因も当てはまらない
+可能性がある——いずれにせよ根拠なく削除を決めるには実測が不足していた。ctx_search は BM25 の
+上位k件しか返さず、Grep の網羅的な正規表現検索・Glob のファイル列挙の代替にならないため、
+実測不足のまま削除すると資産監査の網羅性が退化するおそれもあった。オーナー判断により削除を却下し、
+Grep/Glob と ctx_search/ctx_index を両方保持することにした。

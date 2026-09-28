@@ -287,7 +287,7 @@ final handoff を生成する。本文には、同じ thread の resume で渡�
 
 コミットメッセージ、PR 本文、karte への長文引数を Write でファイル化するのは、シェル展開を避けるためである。
 
-## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27）
+## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27、原因記述は F-535-21 で2026-09-28に訂正）
 
 `agent-command-gate.sh` が識別する GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）は、
 frontmatter に Grep/Glob を宣言しても実効的に配布されないことが実測で確認された（本ロール自身の
@@ -296,13 +296,23 @@ allowlist で deny される実測。同一セッション内で再現した）�
 原因ではない**——`isolation: "worktree"` で dispatch されるのは issue-fixer/issue-implementer の2つ
 だけで、pr-reviewer は非 isolated（呼び出し元と同じワークツリー上で動く。`agent-command-gate.sh` 内の
 コメントに明記）だが、それでも Grep/Glob は同様に実効配布されない。一方、非 gated なロール
-（verification-author 等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した——
-つまりこの不具合はハーネス全体の欠陥でも isolation の副作用でもなく、GATED_ROLES 限定の実効配布漏れである。
+（verification-author 等）では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した。
+
+**ただし GATED_ROLES 所属を原因と断定することはできない**（F-535-21）——上記の比較対照は
+GATED_ROLES 所属と Bash 保有の両方で交絡している。GATED_ROLES の3ロールはいずれも Bash を保有し、
+対照に使った verification-author は Bash を持たないため、「GATED_ROLES 所属」と「Bash 保有」の
+どちらが実効配布漏れと相関しているかをこの比較だけでは切り分けられない。2026-09-28 の追加実測では、
+非 GATED だが Bash を保有する dsv2-lookup を実際に dispatch したところ、同様に frontmatter で宣言した
+Grep/Glob 呼び出しが harness レベルの "No such tool available" エラーで失敗することを確認した
+（F-535-25）。これは GATED_ROLES 所属だけでは説明がつかない観測であり、**実効配布漏れの原因
+（GATED_ROLES 所属か Bash 保有か、あるいは他の要因か）は特定できていない**。reconciliation は
+未実測のため、この事実が著作・検証系ロール全体に一般化できるかも未確認。
 
 ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-gate.sh の matcher
 （Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも
 無制限に動く。frontmatter から実効性のない Grep/Glob を外し、ctx_search/ctx_index を付与することで、
-宣言と実効を一致させた。
+宣言と実効を一致させた（この対処の妥当性は上記の原因未特定と独立——GATED_ROLES の3ロールで
+Grep/Glob が機能しないという観測事実そのものは確定しており、対処はその事実に基づく）。
 
 ### 検索系ツールへの付与先追加がゲート側の手当てを要さない理由（F-535-15・2026-09-28）
 
