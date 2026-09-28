@@ -171,7 +171,7 @@ allowlist にテストランナーを残したのは、base 側の挙動確認�
 `ctx_index` による index 作成は外部 KB への永続副作用を持つ。本文には `ctx_search` / `ctx_index` を
 調査に使うことと、同じ対象の index を重複実行しない規則を残した。
 
-## `gh pr diff` に `--no-compact` を必須化し、先頭がリテラル `rtk gh` であることまで検証する理由（Issue #530）
+## `gh pr diff` に `--no-compact` を必須化し、`raw_tokens[:2] == ["rtk", "gh"]` を検証する理由（Issue #530）
 
 大規模 PR で `pr-reviewer` が差分全文を取得できず、rtk（Bash 出力圧縮フック）の既定圧縮表示がファイル・
 hunk を丸ごと省略しうることが実測で判明した（PR #554 自身の17ファイルの差分で、既定圧縮では
@@ -195,7 +195,8 @@ Critical 指摘（F-530-01）として発見された：ゲート自身は「`--
 「実際に `rtk` を経由するか」を検証していない。シェルの `command`/`exec`/`builtin` は本来エイリアス・関数
 解決を回避して直接実行するための組み込みコマンドであり、`command gh pr diff <N> --no-compact` のような
 形で rtk の書き換えフック自体を回避できる懸念があった。是正として、pr-reviewer の `gh pr diff` に限り、
-strip 前の生コマンド文字列が `rtk gh` で literally 始まることも追加検証するチェックを両ゲート
+トークン化後の `raw_tokens[:2] == ["rtk", "gh"]`（先頭トークンが `rtk`、次の引数（トークン）が
+`gh`。トークン化後の比較なので、間の空白数や引用符の有無は問わない）も追加検証するチェックを両ゲート
 （`.claude/hooks/agent-command-gate.sh`・`.codex/hooks/agent-command-gate.sh`）に入れた（PR #557
 是正ラウンド・commit `5c61d06`）。二重ラップ（`rtk command gh pr diff ...`）も `raw_tokens[:2] != ["rtk","gh"]`
 で確実に deny される。
@@ -208,7 +209,7 @@ strip 前の生コマンド文字列が `rtk gh` で literally 始まること�
 - **Claude Code**：Bash ツール自身が、出力が閾値（実測で約30,000文字/107.5KB 程度）を超えると
   自動的に全文をファイルへ保存し「Output too large... Full output saved to: `<path>`」とパスを返す
   既存のハーネス機能を持つ。これは Issue #530 のために新規実装したものではなく、pr-reviewer は
-  `gh pr diff <N> --no-compact` を直接呼び、切り詰められたらそのファイルを `Read` するだけでよい。
+  `rtk gh pr diff <N> --no-compact` を直接呼び、切り詰められたらそのファイルを `Read` するだけでよい。
 - **Codex CLI**：`exec` ツールには同等の自動保存機構が存在しないことを実装時に確認した。そのため
   `gitgate` に薄いラッパー verb `show-pr-diff <N>` を追加し、内部で固定 argv
   `["rtk","gh","pr","diff",N,"--no-compact"]` を実行し、4,096 バイト（Claude Code の既定閾値・

@@ -52,10 +52,18 @@ def _save_diff(pr_number, content):
             0o600,
             dir_fd=directory_descriptor,
         )
+        returned_path = (directory / filename).as_posix()
         with os.fdopen(file_descriptor, "wb") as output:
             file_descriptor = -1
             output.write(content)
-        return (directory / filename).as_posix()
+            opened_file = os.fstat(output.fileno())
+            returned_file = os.stat(returned_path)
+            if (opened_file.st_dev, opened_file.st_ino) != (
+                returned_file.st_dev,
+                returned_file.st_ino,
+            ):
+                raise PrDiffError("PR diff path no longer identifies the created file")
+        return returned_path
     except (OSError, AttributeError, TypeError) as error:
         raise PrDiffError("refusing unsafe PR diff storage") from error
     finally:

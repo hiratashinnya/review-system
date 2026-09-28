@@ -14,8 +14,9 @@ import os
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from gitgate import GitgateError, build_git_argv, main as gitgate_main
 from gitgate import cli as gitgate_cli
@@ -100,6 +101,36 @@ class ShowPrDiffTests(unittest.TestCase):
                     self.assertEqual(list(target.iterdir()), [])
                 finally:
                     os.chdir(cwd)
+
+    def test_save_diff_path_resolves_to_created_file_inode(self):
+        cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                original_stat = os.stat
+                with patch("gitgate.pr_diff.os.stat", wraps=original_stat) as stat:
+                    saved_path = _save_diff("42", b"diff content")
+                stat.assert_called_once_with(saved_path)
+                path_stat = original_stat(saved_path)
+                with open(saved_path, "rb") as saved_file:
+                    descriptor_stat = os.fstat(saved_file.fileno())
+                self.assertEqual(path_stat.st_dev, descriptor_stat.st_dev)
+                self.assertEqual(path_stat.st_ino, descriptor_stat.st_ino)
+                self.assertEqual(Path(saved_path).read_bytes(), b"diff content")
+            finally:
+                os.chdir(cwd)
+
+    def test_save_diff_rejects_return_path_inode_mismatch(self):
+        cwd = Path.cwd()
+        mismatched_stat = SimpleNamespace(st_dev=-1, st_ino=-1)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                with patch("gitgate.pr_diff.os.stat", return_value=mismatched_stat):
+                    with self.assertRaises(PrDiffError):
+                        _save_diff("42", b"diff content")
+            finally:
+                os.chdir(cwd)
 
 
 class BuildGitArgvHappyPathTests(unittest.TestCase):
