@@ -1,0 +1,30 @@
+TR-GITGATE-530-001 failure run
+Implementation commit: 1a6783b
+
+$ rtk python3 -m unittest tests.unit.test_gitgate tests.unit.test_pr_reviewer_contract
+Ran 33 tests in 0.101s
+OK
+
+$ rtk python3 -m unittest
+Ran 2062 tests in 325.101s
+FAILED (failures=7, errors=1, skipped=9)
+
+Failures and error reported by unittest:
+- ERROR tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+  CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty
+- FAIL tests.unit.test_codex_karte_bridge.KarteBridgeTests.test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes
+  Read-only mount observation returned code=true; expected false.
+- FAIL tests.unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  Watcher returned FALLBACK instead of OK REACHED.
+- FAIL tests.unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  Watcher returned FALLBACK instead of OK EPOCH.
+- FAIL tests.unit.test_codex_rate_limit_api.HelperCompileTests.test_query_helper_compiles
+  Read-only filesystem while writing .codex/hooks/__pycache__.
+- FAIL tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_model_free_probe_allows_only_worktree_and_private_tmp
+  bwrap could not chdir to the temporary probe worktree.
+- FAIL tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_nested_sandbox_private_proc_regression_does_not_require_socket
+  bwrap could not chdir to the temporary workspace.
+- FAIL tests.unit.test_maintainability_lint.MaintainabilityLintRepositoryTests.test_committed_baseline_is_well_formed_and_repo_is_clean
+  New inode checks made gitgate/pr_diff.py 106 lines, violating module-over-100-lines.
+
+The exec output was streamed and capped; this log preserves the final counts, every reported failure/error name, and the returned failure details. The maintainability violation is in scope. Follow-up commit bd3519f reduced the line count by replacing the original fd-based directory open with `os.makedirs`; independent review then flagged that the replacement could follow a `tmp` symlink before the `O_NOFOLLOW` check. That attempt is being superseded by a correction that retains fd-based directory creation before tests are rerun. The other 6 failures and 1 error arise in Codex feature catalog, restricted mount, watcher, pycache, and bwrap environment checks.
