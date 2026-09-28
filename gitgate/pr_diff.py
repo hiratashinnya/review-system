@@ -30,14 +30,8 @@ def _save_diff(pr_number, content):
     tmp_descriptor = directory_descriptor = file_descriptor = -1
     try:
         directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        try:
-            tmp_descriptor = os.open("tmp", directory_flags)
-        except FileNotFoundError:
-            try:
-                os.mkdir("tmp")
-            except FileExistsError:
-                pass
-            tmp_descriptor = os.open("tmp", directory_flags)
+        os.makedirs("tmp", exist_ok=True)
+        tmp_descriptor = os.open("tmp", directory_flags)
         try:
             os.mkdir("pr-diffs", dir_fd=tmp_descriptor)
         except FileExistsError:
