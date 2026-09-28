@@ -1,7 +1,7 @@
 ---
 name: issue-implementer
 description: Implements a GitHub Issue end-to-end in an isolated worktree — branch, code/node changes, tests, commit, push, and PR open with explicit AI-attribution. Use for the FIRST implementation phase of the implement→review→merge issue pipeline. NOT for remediation rounds after a review (use issue-fixer, which must diagnose into the karte before editing), NOT for reviewing a PR (use pr-reviewer) and NOT for merging (this role is mechanically blocked from `git merge`/`gh pr merge` — push + open PR, then stop and report).
-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
+tools: Read, Write, Edit, Bash, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index
 model: sonnet
 effort: xhigh
 ---
@@ -26,5 +26,5 @@ effort: xhigh
 
 ## context-mode 固有の規律
 
-- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。
+- 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は全文検索に使う。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、共通本文の初回実装専用・isolation・handoff契約を優先し、是正やレビューへの兼用、診断の省略、マージ権限の追加を行わない。

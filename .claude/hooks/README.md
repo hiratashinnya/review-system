@@ -422,7 +422,8 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 どちらのグループも `<session_continuity>` は共通で無効化する。
 
 `ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)。
-以下は現行方針(2026-08-09 時点)。**旧記述(当初 2026-07-29 時点の判断)は既に是正済みで、実行系は
+以下は現行方針で、判断時点は項目ごとに異なる(実行系＝2026-08-09時点、検索系の付与先追加＝2026-09-27〜28時点。
+以後の変更は都度この節へ反映する)。**旧記述(当初 2026-07-29 時点の判断)は既に是正済みで、実行系は
 全面禁止ではない**:
 
 - **実行系(`ctx_execute` / `ctx_batch_execute`)は「shell 限定」で Bash 保有ロールに付与済み**
@@ -444,7 +445,9 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
     上記の解禁可否そのものには影響しない。ctx 経由ではその節約(トークン圧縮)が効かないことだけ
     認識して使う(統制フックとトークン節約プロキシは別事実として書き分ける)。
 - **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する**
-  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
+  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer` /
+  `issue-fixer` / `issue-implementer`。付与先追加の経緯は `.ai/rationale/issue-fixer.md`「検索系ツールへの
+  付与先追加がゲート側の手当てを要さない理由」を参照)。
   リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
   **ただし `ctx_index` は read-only ではない**(`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
   呼ぶたびに永続 FTS5 ストアへ追記される非冪等な書込)。付与の根拠は「read-only だから」ではなく
