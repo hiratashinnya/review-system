@@ -1,0 +1,10 @@
+TR-GITGATE-530-001 final targeted regression run
+Implementation commit: fb57bf7
+
+$ rtk python3 -m unittest tests.unit.test_gitgate tests.unit.test_pr_reviewer_contract
+gitgate: `push` takes no arguments; unexpected: ['--receive-pack=sh -c evil']
+Ran 33 tests in 0.111s
+OK
+
+$ rtk python3 -m maintainability_lint check
+violations=0 accepted_debt=136

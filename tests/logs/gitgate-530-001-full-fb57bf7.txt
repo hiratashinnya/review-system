@@ -1,0 +1,29 @@
+TR-GITGATE-530-001 final full-suite run
+Implementation commit: fb57bf7
+
+$ rtk python3 -m unittest
+Ran 2062 tests in 349.589s
+FAILED (failures=6, errors=1, skipped=9)
+
+ERROR tests.unit.test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty
+
+FAIL tests.unit.test_codex_karte_bridge.KarteBridgeTests.test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes
+The observed code write was allowed by the read-only mount probe; expected denial.
+
+FAIL tests.unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+Expected rate_limit_reached response; watcher returned FALLBACK.
+
+FAIL tests.unit.test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+Expected past-epoch response; watcher returned FALLBACK.
+
+FAIL tests.unit.test_codex_rate_limit_api.HelperCompileTests.test_query_helper_compiles
+Read-only filesystem blocked writing .codex/hooks/__pycache__/codex-rate-limit-query.cpython-312.pyc.
+
+FAIL tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_model_free_probe_allows_only_worktree_and_private_tmp
+bwrap could not chdir to its temporary probe worktree: No such file or directory.
+
+FAIL tests.unit.test_codex_supervisor.BubblewrapSandboxProbeTests.test_nested_sandbox_private_proc_regression_does_not_require_socket
+bwrap could not chdir to its temporary workspace: No such file or directory.
+
+All tests specific to the PR diff contract and diff storage passed in the targeted run recorded separately. This run had no maintainability_lint violation for gitgate/pr_diff.py.
