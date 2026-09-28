@@ -444,7 +444,9 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
     上記の解禁可否そのものには影響しない。ctx 経由ではその節約(トークン圧縮)が効かないことだけ
     認識して使う(統制フックとトークン節約プロキシは別事実として書き分ける)。
 - **検索系(`ctx_search` / `ctx_index`)は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する**
-  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer`)。
+  (`dsv2-lookup` / `spec-inspector` / `asset-auditor` / `reconciliation-validator` / `pr-reviewer` /
+  `issue-fixer` / `issue-implementer`。付与先追加の経緯は `.ai/rationale/issue-fixer.md`「検索系ツールへの
+  付与先追加がゲート側の手当てを要さない理由」を参照)。
   リポジトリには書かず KB は `~/.claude/context-mode/` に隔離されるため、validator の fail-close も損なわない。
   **ただし `ctx_index` は read-only ではない**(`readOnlyHint: false` / `idempotentHint: false`＝同じ内容でも
   呼ぶたびに永続 FTS5 ストアへ追記される非冪等な書込)。付与の根拠は「read-only だから」ではなく

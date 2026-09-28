@@ -180,7 +180,10 @@ GATED_ROLES 共通の詳細根拠は複製を避けるため
 [issue-fixer の rationale](issue-fixer.md)「ctx_search/ctx_index の付与根拠」に一本化した。
 
 **本ロールへの ctx_search/ctx_index の付与自体は Issue #535 以前から既に行われている**（本ロールは
-ノード横断検索・多数ファイル読取が中核業務のため、`.claude/rules/05-skills-agents.md`「ctx_* ツールの
-付与方針」の検索系付与先に元々含まれていた）。Issue #535 で本ロールに対して変更したのは、実効配布が
-無いと確認された Grep/Glob を frontmatter から外したことだけであり、ctx_search/ctx_index の新規付与は
-本 Issue では issue-fixer/issue-implementer の2ロールに限られる。
+`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」が定める検索系付与先の一般的な理由
+（多数ファイルを読むロールに付与する）に元々含まれていた。「ノード横断検索が中核業務」は同節で
+`dsv2-lookup` に固有の括弧書きであり、本ロールの付与理由ではない）。Issue #535 で本ロールに対して
+変更したのは、実効配布が無いと確認された Grep/Glob を frontmatter から外したことと、
+`.claude/agents/pr-reviewer.md` の context-mode 規律節に `ctx_index` の非冪等性への注意を追記した
+こと（F-535-10 是正）の2点であり、ctx_search/ctx_index の新規付与は本 Issue では
+issue-fixer/issue-implementer の2ロールに限られる。
