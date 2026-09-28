@@ -30,15 +30,16 @@ def _save_diff(pr_number, content):
     tmp_descriptor = directory_descriptor = file_descriptor = -1
     try:
         directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        os.makedirs("tmp", exist_ok=True)
-        tmp_descriptor = os.open("tmp", directory_flags)
+        try:
+            tmp_descriptor = os.open("tmp", directory_flags)
+        except FileNotFoundError:
+            os.mkdir("tmp")
+            tmp_descriptor = os.open("tmp", directory_flags)
         try:
             os.mkdir("pr-diffs", dir_fd=tmp_descriptor)
         except FileExistsError:
             pass
-        directory_descriptor = os.open(
-            "pr-diffs", directory_flags, dir_fd=tmp_descriptor
-        )
+        directory_descriptor = os.open("pr-diffs", directory_flags, dir_fd=tmp_descriptor)
         filename = f"pr-{pr_number}-{uuid.uuid4().hex}.diff"
         file_descriptor = os.open(
             filename,
@@ -52,10 +53,7 @@ def _save_diff(pr_number, content):
             output.write(content)
             opened_file = os.fstat(output.fileno())
             returned_file = os.stat(returned_path)
-            if (opened_file.st_dev, opened_file.st_ino) != (
-                returned_file.st_dev,
-                returned_file.st_ino,
-            ):
+            if not os.path.samestat(opened_file, returned_file):
                 raise PrDiffError("PR diff path no longer identifies the created file")
         return returned_path
     except (OSError, AttributeError, TypeError) as error:
