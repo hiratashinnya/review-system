@@ -1073,9 +1073,9 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): the command contains {symbol}. "
             "This role may only run a single simple command with no shell metacharacters "
             "(no pipes, subshells, command substitution, redirection, heredocs, chaining or newlines). "
-            "Write bodies to a file with the Write tool and pass them via `python3 -m gitgate commit <file>` / "
+            "Write bodies to a file (with the Write tool where granted) and pass them via `python3 -m gitgate commit <file>` / "
             "`gh pr create --body-file <file>` / `gh pr comment --body-file <file>`; use native flags "
-            "(`gh --jq`, `python3 -m gitgate log --grep <pat> -n <N>`) and the Read/Grep/Glob tools instead of pipes."
+            "(`gh --jq`, `python3 -m gitgate log --grep <pat> -n <N>`) and this role's Read tool (plus Write/Edit where granted), plus `ctx_search`/`ctx_index` for full-text search, instead of pipes."
         )
     tokens = shell_words(command_text)
     if tokens is None:
@@ -1101,7 +1101,7 @@ def gate_reason(command_text, role):
         return (
             f"agent-command-gate ({role}): {head_violation}. "
             f"Only {' / '.join(sorted(ALLOWED_HEAD_COMMANDS))} / python3 -m <{modules}> are allowed "
-            "for this role (whitelist mode, Issue #227). Use the Read/Grep/Glob/Write tools for file work."
+            "for this role (whitelist mode, Issue #227). Use this role's Read tool (plus Write/Edit where granted) for file work, and `ctx_search`/`ctx_index` for full-text search."
         )
     violation = role_command_violation(tokens, role)
     if violation:

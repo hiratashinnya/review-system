@@ -109,7 +109,8 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
     プロキシなので解禁可否には影響しないが、ctx 経由ではその節約が効かないことを認識して使う。
 - **検索系＝`ctx_search` / `ctx_index` は「リポジトリを変更しない」ので、多数ファイルを読むロールに付与する。**
   実測でリポジトリ（作業ツリー）へは一切書かず、KB は `~/.claude/context-mode/` に隔離される。付与先は
-  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`。
+  `dsv2-lookup`（ノード横断検索が中核業務）・`spec-inspector`・`asset-auditor`・`reconciliation-validator`・`pr-reviewer`・
+  `issue-fixer`・`issue-implementer`（経緯は [`.ai/rationale/issue-fixer.md`](../../.ai/rationale/issue-fixer.md) を参照）。
   **付与の根拠は「リポジトリに書かない」ことであって「read-only だから」ではない**——`ctx_search` は読取専用だが、
   **`ctx_index` は read-only ではない**（`readOnlyHint: false` / `idempotentHint: false`。同じ内容でも呼ぶたびに
   永続 FTS5 ストアへ追記される＝非冪等）。`reconciliation-validator` の DD-22 fail-close が保たれるのも
@@ -122,6 +123,8 @@ context-mode の 11 ツールを**一律禁止にはしない**。実測した�
 この方針を変えるとき（例：付与先ロールを増やす・`ctx_execute_file` を解禁する・非 shell 言語を通す）は、
 **先に `.claude/hooks/agent-command-gate.sh` 側の統制を手当てし、付与は別 PR にする**——
 付与が先行すると、ゲート未対応の面が素通しになる状態が生まれる（#303→#304 はこの順序で実施した）。
-静的検査の限界は Issue #129 と同じ制約を受ける。**ゲートは sandbox ではない**——
+**ただし `ctx_search`/`ctx_index` のような `agent-command-gate.sh` のゲート対象外の検索系ツールへの
+付与先追加は、本規定の対象外とする**（経緯は [`.ai/rationale/issue-fixer.md`](../../.ai/rationale/issue-fixer.md)
+「検索系ツールへの付与先追加がゲート側の手当てを要さない理由」を参照）。静的検査の限界は Issue #129 と同じ制約を受ける。**ゲートは sandbox ではない**——
 `agent_type` の詐称・ハーネス外の実行経路・許可されたテストランナー経由の任意コード実行は閉じきれないので、
 プロンプト規律・レビュー分離・GitHub 側のブランチ保護との併用が引き続き前提。

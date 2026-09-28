@@ -1,7 +1,7 @@
 ---
 name: pr-reviewer
 description: Reviews an open PR (risk/correctness/scope/CLAUDE.md-compliance), posts review comments, and — if it is clean — merges it. Use for the review→merge phase of the implement→review→merge issue pipeline, after issue-implementer has opened a PR. NOT for implementing (use issue-implementer) and NOT for pushing new code (this role is mechanically blocked from `git push` — review/comment/merge only).
-tools: Read, Grep, Glob, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
+tools: Read, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 effort: xhigh
 ---
@@ -24,5 +24,5 @@ effort: xhigh
 
 ## context-mode 固有の規律
 
-- `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドに限り、`queries` / `intent` で出力を絞り、`cwd` は明示しない。同じ対象のindexを重複実行しない。
+- `ctx_search` / `ctx_index` / `ctx_batch_execute` / `ctx_execute` を使える。実行系は `language: "shell"` の単純コマンドに限り、`queries` / `intent` で出力を絞り、`cwd` は明示しない。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、Write/Edit不可、push不可、レビューとfixの分離、自己承認の不偽装、オーナー専権事項のSTOPを緩めない。レビュー報告は共通本文の4部構成を省略しない。

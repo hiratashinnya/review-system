@@ -143,3 +143,9 @@ workspace-write 相当の境界を与える。この起動境界は `issue-fixer
 implementer の host publish は、protected patch が宣言されている場合の適用から add、commit、push、
 PR create へ進む各段の間で、内容を含む Git facts の CAS によって検証する。本文には、inner が書く
 handoff の形、承認対象を追加しない制約、host が実行する順序を残し、段間の内部検証を分離した。
+
+## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27）
+
+GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）共通の根拠であり、複製を避けるため
+[issue-fixer の rationale](issue-fixer.md)「ctx_search/ctx_index の付与根拠」に一本化した。
+本ロール固有の追加事情はない。

@@ -286,3 +286,47 @@ final handoff を生成する。本文には、同じ thread の resume で渡�
 ## 長文をファイル渡しにする理由（移設元：「Claude Code 固有の設定・ゲート」）
 
 コミットメッセージ、PR 本文、karte への長文引数を Write でファイル化するのは、シェル展開を避けるためである。
+
+## ctx_search/ctx_index の付与根拠（Issue #535・2026-09-27、原因記述は F-535-21 で2026-09-28に訂正）
+
+`agent-command-gate.sh` が識別する GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）は、
+frontmatter に Grep/Glob を宣言しても実効的に配布されないことが実測で確認された（本ロール自身の
+ツール一覧に該当ツールが存在しない構造的事実、および Bash 経由 grep も agent-command-gate.sh の
+allowlist で deny される実測。同一セッション内で再現した）。**isolation の有無はこの実効配布漏れの
+原因ではない**——`isolation: "worktree"` で dispatch されるのは issue-fixer/issue-implementer の2つ
+だけで、pr-reviewer は非 isolated（呼び出し元と同じワークツリー上で動く。`agent-command-gate.sh` 内の
+コメントに明記）だが、それでも Grep/Glob は同様に実効配布されない。一方、Bash を持たない
+verification-author では同じ frontmatter 宣言で Grep/Glob が実際に機能することも確認した
+（他の非 gated ロールへは一般化していない——後述のとおり Bash を保有する非 GATED ロール
+dsv2-lookup では機能しないことが別途実測されている）。
+
+**ただし GATED_ROLES 所属を原因と断定することはできない**（F-535-21）——上記の比較対照は
+GATED_ROLES 所属と Bash 保有の両方で交絡している。GATED_ROLES の3ロールはいずれも Bash を保有し、
+対照に使った verification-author は Bash を持たないため、「GATED_ROLES 所属」と「Bash 保有」の
+どちらが実効配布漏れと相関しているかをこの比較だけでは切り分けられない。2026-09-28 の追加実測では、
+非 GATED だが Bash を保有する dsv2-lookup を実際に dispatch したところ、同様に frontmatter で宣言した
+Grep/Glob 呼び出しが harness レベルの "No such tool available" エラーで失敗することを確認した
+（F-535-25）。これは GATED_ROLES 所属だけでは説明がつかない観測であり、**実効配布漏れの原因
+（GATED_ROLES 所属か Bash 保有か、あるいは他の要因か）は特定できていない**。reconciliation は
+未実測のため、この事実が Bash を保有する非 GATED ロール全般（reconciliation 等）に一般化できるか
+も未確認。
+
+ctx_search/ctx_index は .claude/settings.json の PreToolUse で agent-command-gate.sh の matcher
+（Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）に含まれず、ゲート対象外のため GATED_ROLES でも
+無制限に動く。frontmatter から実効性のない Grep/Glob を外し、ctx_search/ctx_index を付与することで、
+宣言と実効を一致させた（この対処の妥当性は上記の原因未特定と独立——GATED_ROLES の3ロールで
+Grep/Glob が機能しないという観測事実そのものは確定しており、対処はその事実に基づく）。
+
+### 検索系ツールへの付与先追加がゲート側の手当てを要さない理由（F-535-15・2026-09-28）
+
+`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」は、実行系（`ctx_execute`/`ctx_batch_execute`）の
+付与先を増やすときは「先にゲート側の統制を手当てし、付与は別 PR にする」ことを求めている（#303→#304 の順序）。
+これは実行系がシェル相当の任意コード実行経路であり、`agent-command-gate.sh` の matcher
+（Bash/ctx_execute/ctx_execute_file/ctx_batch_execute）を経由して初めてロール別 allowlist・危険コマンド層が
+適用されるため、ゲート側の対応が先に無いと「ゲート未対応の実行経路」を新設することになるからである。
+
+検索系（`ctx_search`/`ctx_index`）はこの前提を欠く。上記のとおり `agent-command-gate.sh` の matcher に
+そもそも含まれず、ゲートが統制する層を経由しない。ゲートを経由しない以上、検索系への付与先追加は
+「ゲート未対応の面を新設する」ことにならず、実行系と同じ「先にゲートを手当てしてから付与する」手順を
+要求する理由がない。これが本規定を検索系には適用しない根拠であり、`.claude/rules/05-skills-agents.md`
+本文には条件（対象外である事実）だけを残し、理由（ゲート非経由であること）はここに置く。

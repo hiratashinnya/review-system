@@ -170,7 +170,7 @@ allowlist にテストランナーを残したのは、base 側の挙動確認�
 ## context-mode の index が持つ副作用（移設元：「Claude Code 固有の設定・権限境界」）
 
 `ctx_index` による index 作成は外部 KB への永続副作用を持つ。本文には `ctx_search` / `ctx_index` を
-調査に使うことと、同じ対象の index を重複実行しない規則を残した。
+調査に使うことと、`ctx_index` は非冪等なので同じ対象を重複 index しない規則を残した。
 
 ## `gh pr diff` に `--no-compact` を必須化し、`raw_tokens[:2] == ["rtk", "gh"]` を検証する理由（Issue #530）
 
@@ -238,3 +238,20 @@ Critical 指摘（F-530-01）として発見された：ゲート自身は「`--
 該当しない新規発見だったが、**オーナー判断により対応しない**：Codex は Claude からサブエージェントとして
 呼ぶ運用に統一しており、この MCP サーバーは再有効化しない。したがって同サーバーの是正計画
 （Step 2 以降）自体も実施しない（2026-09-28 オーナー確定）。
+
+## Grep/Glob を外した根拠（Issue #535・2026-09-27）
+
+本ロールは GATED_ROLES（issue-fixer/issue-implementer/pr-reviewer）の1つであり、frontmatter に
+Grep/Glob を宣言しても実効的に配布されないことが実測で確認されている（本ロールは `isolation`
+指定なし＝非 isolated で呼び出し元と同じワークツリー上で動くが、それでも同じ実効配布漏れが起きる）。
+GATED_ROLES 共通の詳細根拠は複製を避けるため
+[issue-fixer の rationale](issue-fixer.md)「ctx_search/ctx_index の付与根拠」に一本化した。
+
+**本ロールへの ctx_search/ctx_index の付与自体は Issue #535 以前から既に行われている**（本ロールは
+`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」が定める検索系付与先の一般的な理由
+（多数ファイルを読むロールに付与する）に元々含まれていた。「ノード横断検索が中核業務」は同節で
+`dsv2-lookup` に固有の括弧書きであり、本ロールの付与理由ではない）。Issue #535 で本ロールに対して
+変更したのは、実効配布が無いと確認された Grep/Glob を frontmatter から外したことと、
+`.claude/agents/pr-reviewer.md` の context-mode 規律節に `ctx_index` の非冪等性への注意を追記した
+こと（F-535-10 是正）の2点であり、ctx_search/ctx_index の新規付与は本 Issue では
+issue-fixer/issue-implementer の2ロールに限られる。
