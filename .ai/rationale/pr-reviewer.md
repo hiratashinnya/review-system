@@ -96,9 +96,10 @@
      ような迂回しかなく**、契約を守れる保証が構造として無い。
 2. **`gh pr checkout` を allowlist から外す**（機械強制）。★採用
    - 利点：fail-close。切替能力そのものが無くなるので、戻し忘れ・異常終了という失敗経路が消える。
-     レビューに checkout は不要で、差分は `gh pr diff` / `gh pr view` / `python3 -m gitgate diff|log`
-     で読める（本ロールの契約は「読んだ差分・ファイル本文で確認する」であって「チェックアウトして
-     動かす」ではない）。
+     レビューに checkout は不要で、差分は `rtk gh pr diff --no-compact` / `gh pr view` /
+     `python3 -m gitgate diff|log` で読める（本ロールの契約は「読んだ差分・ファイル本文で確認する」
+     であって「チェックアウトして動かす」ではない。`rtk gh pr diff --no-compact` の必須化の理由は
+     本ファイル「Issue #530」節を参照）。
    - 欠点：レビューア自身がローカルでテストを実行して確認する経路が狭まる。ただし本ロールは
      `Write`/`Edit` を持たず、CI 結果は `gh pr checks` で読めるため、実害は小さいと判断した。
 3. **切替を検知して自動で戻す仕組みを足す**。
@@ -195,11 +196,16 @@ Critical 指摘（F-530-01）として発見された：ゲート自身は「`--
 「実際に `rtk` を経由するか」を検証していない。シェルの `command`/`exec`/`builtin` は本来エイリアス・関数
 解決を回避して直接実行するための組み込みコマンドであり、`command gh pr diff <N> --no-compact` のような
 形で rtk の書き換えフック自体を回避できる懸念があった。是正として、pr-reviewer の `gh pr diff` に限り、
-トークン化後の `raw_tokens[:2] == ["rtk", "gh"]`（先頭トークンが `rtk`、次の引数（トークン）が
-`gh`。トークン化後の比較なので、間の空白数や引用符の有無は問わない）も追加検証するチェックを両ゲート
-（`.claude/hooks/agent-command-gate.sh`・`.codex/hooks/agent-command-gate.sh`）に入れた（PR #557
-是正ラウンド・commit `5c61d06`）。二重ラップ（`rtk command gh pr diff ...`）も `raw_tokens[:2] != ["rtk","gh"]`
-で確実に deny される。
+**2つの条件を両方**追加検証するチェックを両ゲート（`.claude/hooks/agent-command-gate.sh`・
+`.codex/hooks/agent-command-gate.sh`）に入れた（PR #557 是正ラウンド・commit `5c61d06`）：
+(1) `command_text.startswith("rtk ")`——生のコマンド文字列がリテラルの `rtk `（`rtk` に続く半角空白1つ）
+で文字通り始まること。`rtk` の直後の空白が複数連続してもこの判定は通るが（`startswith` は先頭一致だけを
+見るため）、`'rtk' gh ...` のように `rtk` を引用符で囲むと文字列としては `rtk ` で始まらなくなり、この
+条件で deny される。
+(2) トークン化後の `raw_tokens[:2] == ["rtk", "gh"]`——先頭トークンが `rtk`、次のトークンが `gh` である
+こと。
+二重ラップ（`rtk command gh pr diff ...`）は raw_tokens[:2] が `["rtk","command"]` になるため (2) で
+確実に deny される。
 
 ## Claude Code と Codex CLI で差分取得の実装が異なる理由（Issue #530）
 
