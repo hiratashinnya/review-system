@@ -14,7 +14,7 @@
 #                           メインワークツリー上で動くため、`gh pr checkout` は呼び出し元の
 #                           primary checkout を切り替えてしまい、戻し忘れると以後の
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
-#                           差分は `gh pr diff` / `gh pr view` / `gitgate diff|log` で読める。
+#                           差分は `gh pr diff --no-compact` / `gh pr view` / `gitgate show-pr-diff|diff|log` で読める。
 #   それ以外の agent_type（main／general-purpose／各 *-author 等・agent_type 欠如を含む）はこの
 #   ゲートのロール専用判定（層1〜3）の対象外＝ロール専用判定は適用しない（下記 2026-07-11 の
 #   オーナー判断）。ただし Issue #224 フォローアップ（案B・後述の「全 agent_type 共通の危険コマンド
@@ -233,8 +233,8 @@ GITGATE_VERBS_BY_ROLE = {
         "new-branch", "fetch", "diff", "log",
         "adopt-branch",
     },
-    # pr-reviewer: レビューの読取専用のみ（diff/log）。
-    "pr-reviewer": {"diff", "log"},
+    # pr-reviewer: レビュー用の読取専用のみ。PR diff は全量を保存する専用verbを使う。
+    "pr-reviewer": {"diff", "log", "show-pr-diff"},
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
@@ -249,8 +249,9 @@ GH_SUBCOMMANDS_BY_ROLE = {
     # `gitgate adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で必ず失敗して是正ループが
     # 止まった。**「切り替えたら戻す」を契約に書く案は採らない**——戻し忘れ・異常終了・
     # レートリミット停止のいずれでも破れる fail-open な規律であり、実際に破れた事象そのものを
-    # 再発させる。レビューに checkout は不要（差分は `gh pr diff` / `gh pr view` /
-    # `python3 -m gitgate diff|log` で読める）なので、**切替能力そのものを取り上げる**方が
+    # 再発させる。レビューに checkout は不要（差分は `gh pr diff --no-compact` /
+    # `gh pr view` / `python3 -m gitgate show-pr-diff|diff|log` で読める）なので、
+    # **切替能力そのものを取り上げる**方が
     # fail-close になる。選択の根拠は `.ai/rationale/pr-reviewer.md`。
     "pr-reviewer": {
         ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
@@ -278,7 +279,7 @@ GH_FLAG_ALLOWLIST = {
     },
     ("pr", "diff"): {
         "value": {"--color"},
-        "bool": set(),
+        "bool": {"--no-compact"},
     },
     ("pr", "checks"): {
         "value": set(),
@@ -1006,6 +1007,29 @@ def gh_flag_violation(key, rest):
     return None
 
 
+def gh_has_flag(key, rest, required_flag):
+    """rest の option/value 消費を考慮し、required_flag が実際の flag 位置にあるか返す。"""
+    value_flags = GH_FLAG_ALLOWLIST.get(key, {"value": set(), "bool": set()})["value"]
+    value_flags = value_flags | GH_COMMON_VALUE_FLAGS
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token == "--":
+            return False
+        if token == required_flag:
+            return True
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            index += 1 if "=" in token or name not in value_flags else 2
+            continue
+        if token.startswith("-") and len(token) >= 2:
+            short = token[:2]
+            index += 1 if token[2:] or short not in value_flags else 2
+            continue
+        index += 1
+    return False
+
+
 def gh_violation(tokens, role):
     """層3(gh): ロール別の許可サブコマンド＋フラグ判定。許可なら None、違反なら理由文字列を返す。"""
     key, rest = gh_key_and_rest(tokens)
@@ -1014,6 +1038,12 @@ def gh_violation(tokens, role):
     if key not in GH_SUBCOMMANDS_BY_ROLE[role]:
         allowed = ", ".join("gh " + " ".join(k) for k in sorted(GH_SUBCOMMANDS_BY_ROLE[role]))
         return f"`gh {' '.join(key).rstrip()}` is not in this role's gh allowlist ({allowed})"
+    if role == "pr-reviewer" and key == ("pr", "diff"):
+        if not gh_has_flag(key, rest, "--no-compact"):
+            return (
+                "Issue #530: pr-reviewer の `gh pr diff` には `--no-compact` が必須です。"
+                "rtk の既定圧縮表示は大規模PRでファイル・hunkを丸ごと省略し、レビュー網羅性を損なうためです。"
+            )
     return gh_flag_violation(key, rest)
 
 
@@ -1053,6 +1083,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): the command cannot be tokenized (unbalanced quotes); "
             "refusing because it cannot be inspected."
         )
+    raw_tokens = list(tokens)
     tokens, env_reason = strip_wrappers_or_env_reason(tokens)
     if env_reason:
         return (
@@ -1080,6 +1111,16 @@ def gate_reason(command_text, role):
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
             "env assignments and cross-role actions (issue-implementer/issue-fixer merging, pr-reviewer pushing) are denied."
         )
+    if role == "pr-reviewer" and tokens[0] == "gh":
+        key, _ = gh_key_and_rest(tokens)
+        if key == ("pr", "diff") and (
+            not command_text.startswith("rtk ")
+            or raw_tokens[:2] != ["rtk", "gh"]
+        ):
+            return (
+                "Issue #530: pr-reviewer の `gh pr diff` は、コマンド文字列の先頭に "
+                "リテラル `rtk gh` が必要です。"
+            )
     return None
 
 

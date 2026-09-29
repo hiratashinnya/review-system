@@ -7,15 +7,130 @@
   - main() が subprocess.run を shell=False の list 渡しで呼ぶ（monkeypatch で捕捉）。
 """
 
+import hashlib
 import io
+import json
+import os
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from gitgate import GitgateError, build_git_argv
+from gitgate import GitgateError, build_git_argv, main as gitgate_main
 from gitgate import cli as gitgate_cli
+from gitgate.pr_diff import MAX_INLINE_DIFF_BYTES, PrDiffError, _save_diff, run_pr_diff, validate_pr_number
+
+
+class CapturedOutput:
+    def __init__(self):
+        self.buffer = io.BytesIO()
+        self.text = []
+
+    def write(self, value):
+        self.text.append(value)
+        return len(value)
+
+    def getvalue(self):
+        return "".join(self.text)
+
+
+class ShowPrDiffTests(unittest.TestCase):
+    def test_pr_number_accepts_only_bounded_canonical_ascii_decimal(self):
+        for value in ["1", "9999999999"]:
+            self.assertEqual(validate_pr_number(value), value)
+        for value in ["", "0", "01", "-1", "+1", "١", "12345678901", "1/2"]:
+            with self.subTest(value=value):
+                with self.assertRaises(PrDiffError):
+                    validate_pr_number(value)
+
+    def test_small_diff_is_written_verbatim_and_argv_starts_with_rtk(self):
+        content = b"x" * MAX_INLINE_DIFF_BYTES
+        stdout = CapturedOutput()
+        completed = subprocess.CompletedProcess([], 0, stdout=content, stderr=b"")
+        with patch("gitgate.pr_diff.subprocess.run", return_value=completed) as run, \
+             patch("gitgate.pr_diff.sys.stdout", stdout):
+            self.assertEqual(run_pr_diff(["42"]), 0)
+        self.assertEqual(run.call_args.args[0], ["rtk", "gh", "pr", "diff", "42", "--no-compact"])
+        self.assertIs(run.call_args.kwargs["shell"], False)
+        self.assertEqual(stdout.buffer.getvalue(), content)
+        self.assertEqual(stdout.text, [])
+
+    def test_large_diff_is_saved_and_reports_integrity_metadata(self):
+        content = b"x" * MAX_INLINE_DIFF_BYTES + b"\n"
+        stdout = CapturedOutput()
+        completed = subprocess.CompletedProcess([], 0, stdout=content, stderr=b"")
+        cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                with patch("gitgate.pr_diff.subprocess.run", return_value=completed) as run, \
+                     patch("gitgate.pr_diff.sys.stdout", stdout):
+                    self.assertEqual(run_pr_diff(["42"]), 0)
+                record = json.loads(stdout.getvalue())
+                self.assertEqual(run.call_args.args[0], ["rtk", "gh", "pr", "diff", "42", "--no-compact"])
+                saved_path = Path(record["path"])
+                self.assertEqual(saved_path.parts[:2], ("tmp", "pr-diffs"))
+                self.assertEqual(saved_path.read_bytes(), content)
+                self.assertEqual(record["bytes"], len(content))
+                self.assertEqual(record["lines"], content.count(b"\n"))
+                self.assertEqual(record["sha256"], hashlib.sha256(content).hexdigest())
+            finally:
+                os.chdir(cwd)
+
+    def test_save_diff_rejects_symlinked_storage_directories(self):
+        cwd = Path.cwd()
+        for symlink_path in ("tmp", "tmp/pr-diffs"):
+            with self.subTest(symlink_path=symlink_path), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                worktree = root / "worktree"
+                worktree.mkdir()
+                target = root / "target"
+                target.mkdir()
+                if symlink_path == "tmp":
+                    (worktree / "tmp").symlink_to(target, target_is_directory=True)
+                else:
+                    tmp_directory = worktree / "tmp"
+                    tmp_directory.mkdir()
+                    (tmp_directory / "pr-diffs").symlink_to(target, target_is_directory=True)
+                os.chdir(worktree)
+                try:
+                    with self.assertRaises(PrDiffError):
+                        _save_diff("42", b"diff content")
+                    self.assertEqual(list(target.iterdir()), [])
+                finally:
+                    os.chdir(cwd)
+
+    def test_save_diff_path_resolves_to_created_file_inode(self):
+        cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                original_stat = os.stat
+                with patch("gitgate.pr_diff.os.stat", wraps=original_stat) as stat:
+                    saved_path = _save_diff("42", b"diff content")
+                stat.assert_called_once_with(saved_path)
+                path_stat = original_stat(saved_path)
+                with open(saved_path, "rb") as saved_file:
+                    descriptor_stat = os.fstat(saved_file.fileno())
+                self.assertEqual(path_stat.st_dev, descriptor_stat.st_dev)
+                self.assertEqual(path_stat.st_ino, descriptor_stat.st_ino)
+                self.assertEqual(Path(saved_path).read_bytes(), b"diff content")
+            finally:
+                os.chdir(cwd)
+
+    def test_save_diff_rejects_return_path_inode_mismatch(self):
+        cwd = Path.cwd()
+        mismatched_stat = SimpleNamespace(st_dev=-1, st_ino=-1)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+            try:
+                with patch("gitgate.pr_diff.os.stat", return_value=mismatched_stat):
+                    with self.assertRaises(PrDiffError):
+                        _save_diff("42", b"diff content")
+            finally:
+                os.chdir(cwd)
 
 
 class BuildGitArgvHappyPathTests(unittest.TestCase):
@@ -193,6 +308,17 @@ class BuildGitArgvRejectionTests(unittest.TestCase):
 
 
 class MainSubprocessTests(unittest.TestCase):
+    def test_public_dispatch_routes_show_pr_diff(self):
+        with patch("gitgate.dispatch.run_pr_diff", return_value=0) as run:
+            self.assertEqual(gitgate_main(["show-pr-diff", "42"]), 0)
+        run.assert_called_once_with(["42"])
+
+    def test_public_dispatch_reports_pr_diff_validation_errors(self):
+        with patch("gitgate.dispatch.run_pr_diff", side_effect=PrDiffError("invalid")), \
+             patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            self.assertEqual(gitgate_main(["show-pr-diff", "01"]), 2)
+        self.assertIn("gitgate: invalid", stderr.getvalue())
+
     def test_main_new_branch_runs_policy_instead_of_generic_git_builder(self):
         result = type("Result", (), {
             "source_kind": "default-branch", "repository": "example/repo",

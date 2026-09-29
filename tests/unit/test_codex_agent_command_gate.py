@@ -619,7 +619,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "GIT_PAGER=cat git log -n1",
             # gh は impl 集合（pr create / issue view）外は deny。
             "gh pr view 123",
-            "gh pr diff 123",
+            "gh pr diff 123 --no-compact",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh issue comment 227 --body-file /tmp/comment.md",
         ]
@@ -634,7 +634,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
         commands = [
             "gh pr view 123",
-            "gh pr diff 123",
+            "rtk gh pr diff 123 --no-compact",
             "gh pr checks 123",
             "gh pr comment 123 --body-file /tmp/review.md",
             "gh pr comment 123 --body '## Review\n- looks good'",
@@ -649,6 +649,42 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
+
+    def test_issue_530_requires_no_compact_for_pr_reviewer_only(self):
+        bare = run_gate(payload("pr-reviewer", "gh pr diff 123"))
+        self.assert_denied(bare)
+        reason = bare["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("Issue #530", reason)
+        self.assertIn("ファイル・hunk", reason)
+        for command in [
+            "gh pr diff 123 --no-compact",
+            "command gh pr diff 123 --no-compact",
+            "exec gh pr diff 123 --no-compact",
+            "builtin gh pr diff 123 --no-compact",
+            "rtk command gh pr diff 123 --no-compact",
+            "rtk exec gh pr diff 123 --no-compact",
+            "rtk builtin gh pr diff 123 --no-compact",
+            "rtk rtk gh pr diff 123 --no-compact",
+        ]:
+            with self.subTest(command=command):
+                denied = run_gate(payload("pr-reviewer", command))
+                self.assert_denied(denied)
+                reason = denied["hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertIn("rtk gh", reason)
+        self.assert_allowed(run_gate(payload("pr-reviewer", "rtk gh pr diff 123 --no-compact")))
+        for command in [
+            "gh pr diff 123 --no-compact=false",
+            "gh pr diff 123 -- --no-compact",
+            "gh pr diff 123 --color --no-compact",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("pr-reviewer", command)))
+        for role in ["issue-implementer", "issue-fixer"]:
+            for command in ["gh pr diff 123", "gh pr diff 123 --no-compact"]:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 123")))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "python3 -m gitgate show-pr-diff 123")))
 
     def test_pr_reviewer_now_denied_out_of_allowlist_git_gh(self):
         denied = [
@@ -693,7 +729,12 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         ]:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("pr-reviewer", command)))
-        for command in ["gh pr diff 123", "gh pr view 123", "python3 -m gitgate diff main...HEAD"]:
+        for command in [
+            "rtk gh pr diff 123 --no-compact",
+            "gh pr view 123",
+            "python3 -m gitgate diff main...HEAD",
+            "python3 -m gitgate show-pr-diff 123",
+        ]:
             with self.subTest(allowed=command):
                 self.assert_allowed(run_gate(payload("pr-reviewer", command)))
 
@@ -716,7 +757,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         for args in impl_allowed:
             with self.subTest(role="issue-implementer", verb=args):
                 self.assert_allowed(run_gate(payload("issue-implementer", f"python3 -m gitgate {args}")))
-        for args in ["diff", "log -n1"]:
+        for args in ["diff", "log -n1", "show-pr-diff 123"]:
             with self.subTest(role="pr-reviewer", verb=args):
                 self.assert_allowed(run_gate(payload("pr-reviewer", f"python3 -m gitgate {args}")))
         for verb in ["status", "add p", "commit /tmp/m", "push", "branch-current",
@@ -727,6 +768,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(unknown_verb=verb):
                 self.assert_denied(run_gate(payload("issue-implementer", f"python3 -m gitgate {verb}")))
                 self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m gitgate {verb}")))
+        for role in ["issue-implementer", "issue-fixer"]:
+            self.assert_denied(run_gate(payload(role, "python3 -m gitgate show-pr-diff 123")))
 
     def test_worktree_lifecycle_verbs_are_not_granted_to_any_gated_role(self):
         # Issue #354 PR-2（Claude 版と同一契約）: worktree ライフサイクル verb は gitgate に
@@ -780,7 +823,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(role="issue-implementer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("issue-implementer", cmd)))
         reviewer_gh_allowed = [
-            "gh pr view 1", "gh pr diff 1", "gh pr checks 1",
+            "gh pr view 1", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
             "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
             "gh issue view 1",
