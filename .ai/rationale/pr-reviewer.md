@@ -248,18 +248,17 @@ Issue #530 の受入基準6は、全文を読めなかったときに `pr-review
    欠点：禁止だけでは、読めなかった事実が記録に残らない。レビューアが黙って部分レビューを返すと、
    呼び出し元には「指摘なし」と区別がつかない。
 2. **未確認の差分を `harm: real` / `severity: blocker` / `scope: in` の finding として自己申告し、
-   判定を STOP にする** ★採用。finding は `karte ingest-review` で台帳へ取り込まれるため、実害ありの
-   未解消 finding が残る間は `karte status` の verdict が clean にならない（機械ゲートで clean 判定を
-   止められる）。未取得部分を推測で評価したり mergeable と判断したりしないことも併せて規定する。
+   判定を STOP にする** ★採用。finding は `karte ingest-review` で台帳へ取り込まれるため、実害あり finding のうち
+   処置方針（`disposition`）が未決定のもの、または当該 PR で直す方針（`fix-here`）で未修正のものが残る間は
+   `karte status` の verdict が clean にならない（機械ゲート）。未取得部分を推測で評価したり mergeable と判断したりしない。
 
 経緯：この規定は PR #554（撤回）の初版にあったが、`--no-compact` 必須化へ設計を作り直した際に
 PR #557 で落ちていた。Issue #530 の残件精査で AC6 が未達と判明し、オーナーが復活を決めた。
-機械検査は `tests/unit/test_pr_reviewer_contract.py` が3つの契約ファイルに規定が残っていることだけを見る。
+機械検査は `tests/unit/test_pr_reviewer_contract.py` が3つの契約ファイルで未確認条件・finding属性・STOPが同一規定に結び付くこと、locus表記、Readの最終行番号条件を確認し、STOPを否定する変異を拒否する。
 
 既知の限界：レビューアが**切り詰めに実際に気づいたか**は機械では検証できず、自己申告に依存する。
-検出そのものを機械化する手段（マニフェストの SHA-256／行数と、読んだ範囲の照合）は
-Codex 経路の `show-pr-diff` が返す値に限られ、Claude Code 経路には無い（多層防御の一枚であって、
-sandbox ではない。Issue #129 と同じ立場）。
+Codex 経路の `show-pr-diff` は行数マニフェストを返すため、Read の最終データ行番号を照合できるが、SHA-256 の計算は Read だけではできない。
+Claude Code の自動保存には同じ行数マニフェストがなく、どちらの経路も Read の各範囲を外部から監査する仕組みはないため、ロールが最後まで読んだ事実は自己申告に依存する（多層防御の一枚であって、sandbox ではない。Issue #129 と同じ立場）。
 
 ## Grep/Glob を外した根拠（Issue #535・2026-09-27）
 
