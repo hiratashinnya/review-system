@@ -18,7 +18,7 @@ T2 == T1 (sha256 一致): True
 === T3 対照: rtk gh pr diff <N>（既定の圧縮表示・--no-compact なし） ===
 $ rtk gh pr diff 529 --repo hiratashinnya/review-system   (exit=0)
 T3_rtk_default_compact: bytes=37756 lines=521 diff_git_headers=0 truncated_marker=True sha256=b3380dcf8aabe87051979be4ed0b8df80726d0b08489e667f70bb957ae37d61e
-T3 の diff_git_headers は使われない形式（ファイル見出しの体裁が異なる）ため、欠落の指標は truncated_marker と bytes/lines を見る
+T3 の diff_git_headers は T1 と異なる形式のため直接比較できない。bytes/lines は出力量・行数、truncated_marker は切り詰め表示の観測値として記録する（形式が異なるため差分内容の欠落割合は未測定）
 
 === T4 Codex 経路: python3 -m gitgate show-pr-diff <N> ===
 $ python3 -m gitgate show-pr-diff 529   (exit=0)
@@ -57,7 +57,7 @@ ALLOW | python3 -m gitgate show-pr-diff 529
   ハーネスが保存したファイル(tool-results/bd98s1emk.txt): bytes=249487 sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
   正解の生 diff(T1)                                  : bytes=249487 sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
   保存ファイル == 生 diff (バイト完全一致): True（保存ファイルの完全性を示す。ロールの Read 完遂を示すものではない）
-  外部書込みの有無: PR #529 の comments=3・reviews=0 は計測前後で変化なし（gh pr view 529 --json comments,reviews）
+  PR #529 のコメント・レビュー件数は計測前後で不変（comments=3・reviews=0。gh pr view 529 --json comments,reviews）
 
 === 補足（限界） ===
 - T6 のロール報告はモデル出力である。記録された見出し数・最初/最後の見出しは T1 と照合できたが、各 Read の範囲とロールが報告した末尾行の内容は記録されておらず、連続読了を独立には裏取りできない。

@@ -18,10 +18,10 @@ log_ref: tests/logs/gitgate-530-002-ac1-pr529.txt
 |---|---|
 | T1 正解（GitHub API 生 diff） | 4,750 行・249,487 バイト・`diff --git` 47 件・SHA-256 `925ebe4e…fab027` |
 | T2 `rtk gh pr diff 529 --no-compact` | T1 と SHA-256 **完全一致** |
-| T3 対照 `rtk gh pr diff 529`（既定の圧縮） | 521 行・37,756 バイトで「more changes truncated」表示あり＝**約 85% が欠落**（元の問題を実 PR で再現） |
+| T3 対照 `rtk gh pr diff 529`（既定の圧縮） | 521 行・37,756 バイト（生 diff は 4,750 行・249,487 バイト）。出力バイト数が生 diff より約 85% 少なく（37,756 / 249,487 バイト）、「more changes truncated」表示あり。ただし両者は形式が異なり、差分内容の欠落割合は測っていない |
 | T4 `python3 -m gitgate show-pr-diff 529` | マニフェストの bytes／lines／sha256 が保存ファイルの実測と一致。保存ファイルは T1 と SHA-256 **完全一致** |
 | T5 ゲート判定（pr-reviewer） | `rtk gh pr diff 529 --no-compact` と `gitgate show-pr-diff 529` は許可。`gh pr diff … --no-compact`（rtk 無し）・`rtk gh pr diff 529`（`--no-compact` 無し）・`command gh pr diff …` は拒否 |
-| T6 実ロール通し（pr-reviewer・Claude Code） | ゲート許可・1コマンドで取得したとロールが報告。ツールは「Output too large (243.6KB)」と保存先パスを表示。ロール報告は Read 8 回・見出し数 47・最初／最後の見出し・総行数 4751。見出し数と最初／最後の見出しは T1 と一致し、4751 行はロールが末尾の空行表示を含むと説明した値。各 Read の範囲と報告された末尾行の内容は記録されていないため、連続読了は自己申告である。**ハーネス保存ファイルは T1 とバイト完全一致し、保存内容の完全性を示す**。PR #529 の comments／reviews は計測前後で不変（外部書込みなし） |
+| T6 実ロール通し（pr-reviewer・Claude Code） | ゲート許可・1コマンドで取得したとロールが報告。ツールは「Output too large (243.6KB)」と保存先パスを表示。ロール報告は Read 8 回・見出し数 47・最初／最後の見出し・総行数 4751。見出し数と最初／最後の見出しは T1 と一致し、4751 行はロールが末尾の空行表示を含むと説明した値。各 Read の範囲と報告された末尾行の内容は記録されていないため、連続読了は自己申告である。**ハーネス保存ファイルは T1 とバイト完全一致し、保存内容の完全性を示す**。PR #529 のコメント・レビュー件数は計測前後で不変（comments=3・reviews=0） |
 
 ## 結論
 
