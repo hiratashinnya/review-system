@@ -24,5 +24,20 @@ class PrReviewerContractTests(unittest.TestCase):
                     self.assertNotRegex(line, re.compile(r"(?<!rtk )gh pr diff"))
 
 
+    def test_all_contracts_require_self_report_when_full_diff_is_unconfirmed(self):
+        repository_root = Path(__file__).resolve().parents[2]
+        contract_paths = (
+            ".ai/agents/pr-reviewer.md",
+            ".claude/agents/pr-reviewer.md",
+            ".codex/agents/pr-reviewer.toml",
+        )
+        for relative_path in contract_paths:
+            text = (repository_root / relative_path).read_text(encoding="utf-8")
+            with self.subTest(path=relative_path):
+                self.assertIn("未確認の差分", text)
+                self.assertIn("`harm: real` / `severity: blocker` / `scope: in`", text)
+                self.assertIn("STOP", text)
+
+
 if __name__ == "__main__":
     unittest.main()
