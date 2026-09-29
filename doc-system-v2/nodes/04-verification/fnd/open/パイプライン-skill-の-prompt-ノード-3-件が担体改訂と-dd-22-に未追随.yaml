@@ -1,0 +1,11 @@
+title: "パイプライン skill の PROMPT ノード 3 件が担体改訂と DD-22 に未追随"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "spec-pipeline-仕様設計パイプラインskillプロンプト-オーケストレータ"
+    ref_version: "0.1"
+  - to: "impl-design-pipeline-実装設計パイプラインskillプロンプト-凍結セット化"
+    ref_version: "0.1"
+  - to: "asset-pipeline-資産化パイプラインskillプロンプト-method→skill-agent"
+    ref_version: "0.1"

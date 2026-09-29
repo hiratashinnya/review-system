@@ -1,0 +1,9 @@
+title: "SPEC-46 の検査主体 asset-auditor が外部参照検査を持たず検査が不在"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "スキルファイルに外部参照パターンが存在しない"
+    ref_version: "0.2"
+  - to: "外部参照パターン検出時に-warning-を出力する"
+    ref_version: "0.2"

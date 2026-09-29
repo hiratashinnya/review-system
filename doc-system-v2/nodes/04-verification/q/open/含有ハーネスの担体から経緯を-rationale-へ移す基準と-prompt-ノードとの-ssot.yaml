@@ -1,0 +1,15 @@
+title: "含有ハーネスの担体から経緯を rationale へ移す基準と PROMPT ノードとの SSoT"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "対象-skill-の-llm-プロンプト資産を設計層-prompt-ノードで在グラフモデル化"
+    ref_version: "0.1"
+  - to: "著作エージェントが外部参照なしに著作規約を提供"
+    ref_version: "0.3"
+  - to: "スキルは-self-contained"
+    ref_version: "0.2"
+  - to: "スキルファイルに外部参照パターンが存在しない"
+    ref_version: "0.2"
+  - to: "doc-system-設計層モデリングの-skill-展開方針を確定-q-6-から昇格・①-c-ハイブリッド／②-a"
+    ref_version: "0.1"
