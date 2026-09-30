@@ -168,6 +168,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import sys
 from datetime import datetime, timezone
 
@@ -179,6 +180,8 @@ from issue_start.gated_roles import GATED_ROLES
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
 WRAPPER_COMMANDS = {"rtk", "command", "builtin", "exec"}
+PR_DIFF_READ_RANGE_RE = re.compile(r"([1-9][0-9]*),([1-9][0-9]*)p\Z")
+PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z")
 
 # 層3（Issue #227 追加修正3・オーナー確定 2026-07-13）: git ラッパー方式＋gh フラグ許可リスト。
 # gated ロールからは**生 git を一切禁止**し、固定テンプレートで git を呼ぶ薄いラッパー
@@ -645,6 +648,48 @@ def strip_wrappers_or_env_reason(tokens):
     return tokens, None
 
 
+def pr_diff_file_is_regular_without_symlink(filename):
+    """保存差分の各パス要素を no-follow で開き、通常ファイルだけを認める。"""
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        return False
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    opened_fds = []
+    try:
+        tmp_fd = os.open("tmp", flags)
+        opened_fds.append(tmp_fd)
+        diff_dir_fd = os.open("pr-diffs", flags, dir_fd=tmp_fd)
+        opened_fds.append(diff_dir_fd)
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0)
+        file_fd = os.open(filename, file_flags, dir_fd=diff_dir_fd)
+        opened_fds.append(file_fd)
+        return stat.S_ISREG(os.fstat(file_fd).st_mode)
+    except (OSError, TypeError, NotImplementedError):
+        return False
+    finally:
+        for fd in reversed(opened_fds):
+            os.close(fd)
+
+
+def pr_diff_read_violation(raw_tokens, tokens):
+    """Codex reviewer の保存差分読取を rtk sed の単一範囲に限る。"""
+    if len(raw_tokens) != 5 or raw_tokens[:2] != ["rtk", "sed"]:
+        return "saved PR diffs must be read through the single `rtk sed` command form"
+    if len(tokens) != 4 or tokens[:2] != ["sed", "-n"]:
+        return "saved PR diffs allow only `sed -n <start>,<end>p <path>`"
+    range_match = PR_DIFF_READ_RANGE_RE.fullmatch(tokens[2])
+    if not range_match:
+        return "the sed range must be two positive line numbers followed by `p`"
+    start, end = range_match.groups()
+    if len(start) > len(end) or (len(start) == len(end) and start > end):
+        return "the sed range start must not exceed its end"
+    if not PR_DIFF_READ_PATH_RE.fullmatch(tokens[3]):
+        return "the saved PR diff path must be a generated file under `tmp/pr-diffs/`"
+    filename = tokens[3][len("tmp/pr-diffs/"):]
+    if not pr_diff_file_is_regular_without_symlink(filename):
+        return "the saved PR diff path must resolve through real directories to a regular non-symlink file"
+    return None
+
+
 def shell_words(command_text):
     """コマンド文字列を単語列に分解する。分解できない（クォートの対応が取れない等）場合は None を
     返し、呼び出し側が「検査不能＝deny」に倒す（層1で既に弾かれるはずだが fail-close を二重化する）。"""
@@ -1043,6 +1088,9 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): no command word could be found; "
             "refusing because the command cannot be inspected."
         )
+    if role == "pr-reviewer" and tokens[0] == "sed":
+        violation = pr_diff_read_violation(raw_tokens, tokens)
+        return f"agent-command-gate ({role}): {violation}." if violation else None
     head_violation = head_command_violation(tokens, role)
     if head_violation:
         modules = "|".join(sorted(allowed_python_modules(role)))

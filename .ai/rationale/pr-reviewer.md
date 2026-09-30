@@ -276,3 +276,19 @@ GATED_ROLES 共通の詳細根拠は複製を避けるため
 `.claude/agents/pr-reviewer.md` の context-mode 規律節に `ctx_index` の非冪等性への注意を追記した
 こと（F-535-10 是正）の2点であり、ctx_search/ctx_index の新規付与は本 Issue では
 issue-fixer/issue-implementer の2ロールに限られる。
+
+## Codex で保存差分を読めるようにするゲート例外（F-530-13）
+
+Codex の `gitgate show-pr-diff` は大きな差分を `tmp/pr-diffs/` に保存するが、既存ゲートは `sed` を
+拒否し、Serena も gitignore 対象の `tmp/` を読めなかった。保存ファイル全文を確認する経路が無いことが判明した。
+
+1. **Serena の設定を変更する**（不採用）：`.serena/` は gitignore 対象でリポジトリに載らず、設定の
+   ずれや欠落が追跡されないまま機密の取りこぼしを静かに起こし得る。
+2. **Codex ゲートに限定許可を足す**（案B・採用）：`pr-reviewer` だけに `rtk sed -n <開始>,<終了>p <パス>`
+   を許可し、既存の wrapper strip 後に引数列・行範囲・実ファイルを検査する。
+
+許可先を生成済みの `tmp/pr-diffs/pr-<PR番号>-<32桁hex>.diff` に限定することで、他のファイル読取や
+`sed` の編集・実行機能を付与せず、今回必要な保存差分の範囲読取だけを可能にする。`rtk sed` が指定範囲を
+欠落なく返すことを実測したため、RTK 前置きを必須とし、全文は開始行から最終行まで連続して読み取る。
+
+フックが未信頼でゲートが動作していなかった経緯は F-530-21 で別扱いとし、本 finding の是正範囲には含めない。

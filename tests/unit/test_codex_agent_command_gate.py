@@ -12,11 +12,16 @@ HOOK = ROOT / ".codex" / "hooks" / "agent-command-gate.sh"
 _HAS_BASH = shutil.which("bash") is not None
 
 
-def run_gate(payload, *, env=None):
+def run_gate(payload, *, env=None, cwd=None):
     # AGENT_COMMAND_GATE_TRACE_LOG は既定で常時有効（Issue #192）。テストが明示的に上書きしない
     # 限り空文字にして無効化し、開発者の実ホームディレクトリ（~/.codex/agent-command-gate-trace.log）
     # を汚染しないようにする。
     merged_env = {**os.environ, "AGENT_COMMAND_GATE_TRACE_LOG": "", **(env or {})}
+    if cwd is not None:
+        python_path = merged_env.get("PYTHONPATH", "")
+        merged_env["PYTHONPATH"] = os.pathsep.join(
+            part for part in [str(ROOT), python_path] if part
+        )
     result = subprocess.run(
         [str(HOOK)],
         input=json.dumps(payload),
@@ -24,6 +29,7 @@ def run_gate(payload, *, env=None):
         capture_output=True,
         check=True,
         env=merged_env,
+        cwd=cwd,
     )
     # フック内部で例外が出ても `exit 0` で終わるため、stdout 無し＝allow と**区別が付かない**
     # （＝内部エラーが静かに fail-open する）。Issue #308 でロールを追加した際、3つのロール別 dict の
@@ -685,6 +691,105 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                     self.assert_denied(run_gate(payload(role, command)))
         self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 123")))
         self.assert_allowed(run_gate(payload("pr-reviewer", "python3 -m gitgate show-pr-diff 123")))
+
+    def test_pr_reviewer_can_read_only_generated_diff_ranges_with_rtk_sed(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            diff_path = Path(scratch) / "tmp" / "pr-diffs" / (
+                "pr-530-" + "a" * 32 + ".diff"
+            )
+            diff_path.parent.mkdir(parents=True)
+            diff_path.write_text("one\ntwo\nthree\n", encoding="utf-8")
+            relative_path = diff_path.relative_to(scratch).as_posix()
+            for range_spec in ["1,3p", "2,2p"]:
+                command = f"rtk sed -n {range_spec} {relative_path}"
+                with self.subTest(command=command):
+                    self.assert_allowed(
+                        run_gate(payload("pr-reviewer", command), cwd=scratch)
+                    )
+
+    def test_pr_reviewer_saved_diff_read_rejects_nonexact_sed_forms(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            diff_path = Path(scratch) / "tmp" / "pr-diffs" / (
+                "pr-530-" + "b" * 32 + ".diff"
+            )
+            diff_path.parent.mkdir(parents=True)
+            diff_path.write_text("one\ntwo\nthree\n", encoding="utf-8")
+            relative_path = diff_path.relative_to(scratch).as_posix()
+            other_path = "tmp/pr-diffs/pr-531-" + "c" * 32 + ".diff"
+            absolute_path = str(diff_path)
+            commands = [
+                f"sed -n 1,3p {relative_path}",
+                f"rtk sed -n 0,3p {relative_path}",
+                f"rtk sed -n 3,1p {relative_path}",
+                f"rtk sed -n 01,3p {relative_path}",
+                f"rtk sed -n 1,3P {relative_path}",
+                f"rtk sed -e 1,3p {relative_path}",
+                f"rtk sed -i -n 1,3p {relative_path}",
+                f"rtk sed -s -n 1,3p {relative_path}",
+                f"rtk sed -f /tmp/script {relative_path}",
+                f"rtk sed -n 1,3w /tmp/out {relative_path}",
+                f"rtk sed -n 1,3r /tmp/in {relative_path}",
+                f"rtk sed -n 1,3e /bin/sh {relative_path}",
+                f"rtk sed -n 1,3p {relative_path} {other_path}",
+                f"rtk sed -n 1,3p {relative_path} -e s/a/b/",
+                f"rtk sed -n 1,3p {absolute_path}",
+                f"rtk sed -n 1,3p tmp/pr-diffs/../pr-diffs/"
+                + diff_path.name,
+                f"rtk sed -n 1,3p tmp/other/{diff_path.name}",
+                f"rtk sed -n 1,3p tmp/pr-diffs/pr-530-{('d' * 31)}.diff",
+                f"command rtk sed -n 1,3p {relative_path}",
+                f"rtk command sed -n 1,3p {relative_path}",
+                f"rtk rtk sed -n 1,3p {relative_path}",
+            ]
+            for command in commands:
+                with self.subTest(command=command):
+                    self.assert_denied(
+                        run_gate(payload("pr-reviewer", command), cwd=scratch)
+                    )
+
+    def test_pr_reviewer_saved_diff_read_rejects_symlink_escapes(self):
+        filename = "pr-530-" + "e" * 32 + ".diff"
+        command = f"rtk sed -n 1,3p tmp/pr-diffs/{filename}"
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            diff_dir = root / "tmp" / "pr-diffs"
+            diff_dir.mkdir(parents=True)
+            outside = root / "outside.diff"
+            outside.write_text("secret\n", encoding="utf-8")
+            (diff_dir / filename).symlink_to(outside)
+            self.assert_denied(run_gate(payload("pr-reviewer", command), cwd=scratch))
+
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            outside_dir = root / "outside"
+            (outside_dir / "pr-diffs").mkdir(parents=True)
+            (outside_dir / "pr-diffs" / filename).write_text("secret\n", encoding="utf-8")
+            (root / "tmp").symlink_to(outside_dir, target_is_directory=True)
+            self.assert_denied(run_gate(payload("pr-reviewer", command), cwd=scratch))
+
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / "tmp").mkdir()
+            outside_dir = root / "outside"
+            outside_dir.mkdir()
+            (outside_dir / filename).write_text("secret\n", encoding="utf-8")
+            (root / "tmp" / "pr-diffs").symlink_to(outside_dir, target_is_directory=True)
+            self.assert_denied(run_gate(payload("pr-reviewer", command), cwd=scratch))
+
+    def test_saved_diff_sed_rule_does_not_expand_to_other_roles(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            diff_path = Path(scratch) / "tmp" / "pr-diffs" / (
+                "pr-530-" + "f" * 32 + ".diff"
+            )
+            diff_path.parent.mkdir(parents=True)
+            diff_path.write_text("one\ntwo\n", encoding="utf-8")
+            command = f"rtk sed -n 1,2p {diff_path.relative_to(scratch).as_posix()}"
+            for role in ["issue-implementer", "issue-fixer"]:
+                with self.subTest(role=role):
+                    self.assert_denied(
+                        run_gate(payload(role, command), cwd=scratch)
+                    )
+            self.assert_allowed(run_gate(payload("main", command), cwd=scratch))
 
     def test_pr_reviewer_now_denied_out_of_allowlist_git_gh(self):
         denied = [
