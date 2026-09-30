@@ -683,7 +683,7 @@ def pr_diff_read_violation(raw_tokens, tokens):
     if len(start) > len(end) or (len(start) == len(end) and start > end):
         return "the sed range start must not exceed its end"
     if not PR_DIFF_READ_PATH_RE.fullmatch(tokens[3]):
-        return "the saved PR diff path must be a generated file under `tmp/pr-diffs/`"
+        return "the saved PR diff path must match the `pr-<number>-<32-lowercase-hex>.diff` name format under `tmp/pr-diffs/`"
     filename = tokens[3][len("tmp/pr-diffs/"):]
     if not pr_diff_file_is_regular_without_symlink(filename):
         return "the saved PR diff path must resolve through real directories to a regular non-symlink file"

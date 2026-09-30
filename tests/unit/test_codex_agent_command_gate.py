@@ -692,7 +692,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 123")))
         self.assert_allowed(run_gate(payload("pr-reviewer", "python3 -m gitgate show-pr-diff 123")))
 
-    def test_pr_reviewer_can_read_only_generated_diff_ranges_with_rtk_sed(self):
+    def test_pr_reviewer_can_read_regular_files_matching_generated_diff_name_format(self):
         with tempfile.TemporaryDirectory() as scratch:
             diff_path = Path(scratch) / "tmp" / "pr-diffs" / (
                 "pr-530-" + "a" * 32 + ".diff"
