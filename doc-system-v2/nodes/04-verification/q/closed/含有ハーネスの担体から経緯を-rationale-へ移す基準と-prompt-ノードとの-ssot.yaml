@@ -1,0 +1,8 @@
+title: "含有ハーネスの担体から経緯を rationale へ移す基準と PROMPT ノードとの SSoT"
+version: "0.2.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "prompt-ノードは担体のパスとハッシュだけを持ち-ssot-は担体とする-q-より昇格"
+    ref_version: "0.1"
+    note: "昇格辺（本 Q の決着先＝DD・decided）。旧義務辺 5 本は同 DD へ引き継ぎ（DD-22・PROMPT 22 件）または改版不要（SPEC-61 傘・SPEC-27・NFR-3・SPEC-46-1）として除去"

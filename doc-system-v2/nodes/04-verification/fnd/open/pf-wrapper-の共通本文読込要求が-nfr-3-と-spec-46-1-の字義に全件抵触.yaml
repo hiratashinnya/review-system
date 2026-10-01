@@ -1,0 +1,9 @@
+title: "PF wrapper の共通本文読込要求が NFR-3 と SPEC-46-1 の字義に全件抵触"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "スキルは-self-contained"
+    ref_version: "0.2"
+  - to: "スキルファイルに外部参照パターンが存在しない"
+    ref_version: "0.2"

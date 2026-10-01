@@ -1,0 +1,11 @@
+title: "PROMPT ノード未保有の含有ハーネス 5 ロールをパスとハッシュのみで PROMPT ノード化"
+version: "0.1.0"
+labels: []
+scheduled: "sprint-1"
+edges:
+  - to: "prompt-ノードは担体のパスとハッシュだけを持ち-ssot-は担体とする-q-より昇格"
+    ref_version: "0.1"
+    note: "参照辺（本 DD は同 DD の方針＝パスとハッシュのみに依拠）。同 DD への反映義務を表すものではない"
+  - to: "dsv2-lookup.md-の手順に統制下で必ず-deny-される-python3-c-例が残っている"
+    ref_version: "0.1"
+    note: "義務辺。dsv2-lookup の PROMPT ノード作成後に同 FND の forward 辺の張り先が生まれる"
