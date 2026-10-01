@@ -11,6 +11,14 @@
 | `resume-watcher.sh` | リセット時刻まで待機し、tmux ペインへ継続メッセージ + Enter を送出して再開。**状態認識ガード**(前景が claude でなければ注入しない/稼働中は注入しない。アイドルなら注入。制限バナー有無は情報ログのみ)・多重起動防止つき。**継続メッセージには①の検知時刻・解除時刻・現在時刻・解除済みである旨を自動で埋め込む**(検知時刻を LLM の文脈にも届ける)。**注入直前に worktree 掃引を1度だけ行い、掃引後にペイン状態を取り直してから注入する**(Issue #502・後述)。 |
 | `lib-pane-guard.sh` | 上記2スクリプトが `source` する共有ライブラリ。状態ディレクトリ(`RL_STATE_DIR`)・ペイン前景判定(`rl_is_claude_pane`)・デフォルト正規表現(`RL_PANE_CMD_RE`)・tmux の timeout ラッパ(`rl_tmux`)・ペインID正規化(`rl_pane_slug`)・検知時刻ファイルのパス(`rl_hit_file`)を1箇所に集約(二重実装の drift 防止)。 |
 
+## Codex hook trust warning (Issue #530)
+
+`.claude/hooks/codex-hook-trust-check.sh` は SessionStart (`startup|resume`) に
+`python3 -m codex_hook_trust check` を実行する。Codex hook の trust state は
+`hooks.json` の絶対パスを含む key ごとに保存されるため、checkout の移動で未信頼に
+なるときだけ警告し、codex 未導入や判定不能時は無出力で終了する。確認と復旧方法は
+`.codex/hooks/README.md` を参照。
+
 ## 設計上の前提(公式仕様)
 
 - `StopFailure` は **出力・終了コードが無視される**ため、フック自身は再開/リトライを
