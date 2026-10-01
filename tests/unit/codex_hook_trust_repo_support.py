@@ -33,9 +33,15 @@ def init_repository(repo: Path, hook_count: int) -> None:
     run_git(repo, "commit", "-m", "Add hooks configuration")
 
 
-def make_repository_pair(directory: Path, hook_count: int) -> tuple[Path, Path]:
-    main = directory / "main"
-    worktree = directory / "linked-worktree"
+def make_repository_pair(
+    directory: Path,
+    hook_count: int,
+    *,
+    main_name: str = "main",
+    worktree_name: str = "linked-worktree",
+) -> tuple[Path, Path]:
+    main = directory / main_name
+    worktree = directory / worktree_name
     init_repository(main, hook_count)
     run_git(main, "worktree", "add", "-b", "linked", str(worktree), "HEAD")
     return main, worktree

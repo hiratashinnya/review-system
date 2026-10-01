@@ -6,7 +6,8 @@ import tempfile
 import unittest
 
 from tests.unit.codex_hook_trust_repo_support import make_repository_pair, read_trace, write_hooks
-from tests.unit.codex_hook_trust_support import make_fake_codex, run_hook
+from tests.unit.codex_hook_trust_fake_server import make_fake_codex
+from tests.unit.codex_hook_trust_support import run_hook
 
 
 class CodexHookTrustHookTests(unittest.TestCase):

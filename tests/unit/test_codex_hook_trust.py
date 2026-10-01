@@ -5,7 +5,8 @@ import tempfile
 import unittest
 
 from codex_hook_trust.repository import resolve_main_checkout
-from tests.unit.codex_hook_trust_support import ROOT, make_fake_codex, run_check
+from tests.unit.codex_hook_trust_fake_server import make_fake_codex
+from tests.unit.codex_hook_trust_support import ROOT, run_check
 
 
 class CodexHookTrustCliTests(unittest.TestCase):

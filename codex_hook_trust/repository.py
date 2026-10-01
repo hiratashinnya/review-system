@@ -2,29 +2,32 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
 
-def _first_worktree_path(output: str) -> Path | None:
-    """Read the main worktree path from git's first porcelain entry."""
-    first_entry = next((entry for entry in output.split("\n\n") if entry.strip()), "")
-    lines = first_entry.splitlines()
-    if not lines or "bare" in lines:
+def _first_worktree_path(output: bytes) -> Path | None:
+    """Read the main worktree path from git's first NUL-separated entry."""
+    first_entry = next((entry for entry in output.split(b"\0\0") if entry), b"")
+    fields = first_entry.split(b"\0")
+    if not fields or b"bare" in fields:
         return None
-    worktree_line = next((line for line in lines if line.startswith("worktree ")), "")
-    path = worktree_line.removeprefix("worktree ").strip()
-    return Path(path) if path else None
+    prefix = b"worktree "
+    path = next(
+        (field[len(prefix):] for field in fields if field.startswith(prefix)), b"",
+    )
+    return Path(os.fsdecode(path)) if path else None
 
 
 def resolve_main_checkout(repo: Path) -> Path:
     """Resolve the main worktree; keep the input path on Git failure."""
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo), "worktree", "list", "--porcelain"],
+            ["git", "-C", str(repo), "worktree", "list", "--porcelain", "-z"],
             check=False,
             capture_output=True,
-            text=True,
+            text=False,
             shell=False,
             stdin=subprocess.DEVNULL,
             timeout=2,
