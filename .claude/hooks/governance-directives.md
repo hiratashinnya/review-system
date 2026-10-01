@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@123b9ab9bee9 -->
+<!-- synced-from: CLAUDE.md@2c941eb8825b -->
 <!--
   Issue #535 是正ラウンド4（2026-09-28・F-535-15）: `.claude/rules/05-skills-agents.md`
   「ctx_* ツールの付与方針」の検索系ツール例外注記から、正当化理由（「ゲート側の手当てを
@@ -200,9 +200,10 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    ではない——`.claude/agents`/`.claude/skills` の多くは PROMPT ノードとして在グラフ）。
    **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
    review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
-   Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック・
-   `agy-delegate`等の外部委譲補助・`blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/
-   `project_status_sync`/`guidance_sync`/`defect_metrics`・`asset_parity`/`time_fixture_lint`・
+   Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック
+   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`等の外部委譲補助・
+   `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
+   `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
    `karte`・CI 定義）＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
    （`area:harness`）。`.claude/` 全体を対象外扱いしない。**新しい汎用ハーネスを追加したときは
    同一 PR でこの判定表も更新する**。**上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。

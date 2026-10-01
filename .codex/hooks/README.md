@@ -95,7 +95,9 @@ in `issue-implementer.toml` / `pr-reviewer.toml`.
 ### Checking whether the hook actually fired (Issue #192)
 
 Issue #192 (see the "Root cause confirmed" section below) found that trust is
-granted per hook key, not per file, and that there was previously **no way to
+granted per hook key, not per file. A key includes the absolute `hooks.json`
+path, event, matcher-group index, and handler index, so moving a checkout gives
+the hook a different key. There was previously **no way to
 confirm the `PreToolUse` gate had actually executed** short of setting the
 opt-in `AGENT_COMMAND_GATE_DEBUG_PAYLOAD` beforehand — which is easy to forget
 to set *before* the moment you actually want to check.
@@ -113,9 +115,10 @@ the payload itself wasn't valid JSON), `tool_name`, and `decision`
 ```
 
 If this file has fresh entries after you run a Bash/git/gh command, the
-`PreToolUse` hook fired for that call (trust is granted and Codex invoked it) —
+`PreToolUse` hook fired for that call (the current key is trusted and Codex invoked it) —
 this is the direct signal Issue #192 was missing. If the file is empty or
-stale, the hook did not run (most likely: not yet trusted via `/hooks`).
+stale, the hook did not run (most likely: its current key was not trusted via
+`/hooks`, or the checkout moved to a path with a different key).
 
 Design notes:
 
@@ -269,8 +272,8 @@ an untrusted handler is simply never added to the executable list, so `0` hits i
 the expected, correct behavior of the trust gate — not a bug in this repo's
 `.codex/hooks.json`, and not a fail-open.
 
-**Remediation is a one-time trust decision, not a code change** — `.codex/hooks.json`
-needs no edit. Two mechanically equivalent ways to grant it:
+**Remediation for this key is a trust decision, not a code change** —
+`.codex/hooks.json` needs no edit. Two mechanically equivalent ways to grant it:
 
 - (A) **Recommended.** Open an interactive Codex CLI session in this repo
   (`tmux new -s codex 'codex'`), run `/hooks`, review the `PreToolUse` entry
@@ -294,6 +297,43 @@ above for the *interactive* path specifically: the interactive path's `agent_typ
 resolution is still unverified, but it is now known to be moot until the
 `PreToolUse` hook is trusted — until then it cannot fire at all, regardless of what
 `agent_type` a spawned subagent would report.
+
+### A moved checkout silently invalidates hook trust (Issue #530, 2026-09-30)
+
+Issue #530 confirmed that the hook key includes the absolute `hooks.json` path.
+When this repository moved to a different path, all six registered hooks had
+new keys with no matching `[hooks.state."<key>"]` entry in
+`~/.codex/config.toml`. `hooks/list` reported them as `untrusted`, and Codex
+silently omitted them from execution. Codex does not warn when this happens.
+
+Run `python3 -m codex_hook_trust check` from the repository to list untrusted
+hooks. The command is read-only: it does not change `~/.codex/config.toml`.
+Tests may substitute the Codex executable with `--codex /path/to/fake-codex` or
+the `CODEX_HOOK_TRUST_CODEX` environment variable.
+
+Before trusting individual hooks, first verify that Codex trusts the project
+directory itself. In `~/.codex/config.toml`, the current repository's absolute
+path should have a project entry like this:
+
+```toml
+[projects."<absolute repository path>"]
+trust_level = "trusted"
+```
+
+If `hooks/list` reports zero hooks or fewer hooks than `.codex/hooks.json`
+defines, trust the project in Codex first, then rerun the check. Individual
+hook trust cannot restore registrations that Codex has not discovered.
+
+Recovery options are to review and trust each hook in an interactive `/hooks`
+session, or to register the `currentHash` from `hooks/list` under its exact key:
+
+```toml
+[hooks.state."<key>"]
+trusted_hash = "<currentHash>"
+```
+
+The key is path-specific, and `currentHash` represents the hook registration.
+Repeat the trust check after moving a checkout or changing a hook registration.
 
 ## Files
 

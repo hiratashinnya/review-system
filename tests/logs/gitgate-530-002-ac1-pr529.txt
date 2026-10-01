@@ -1,0 +1,66 @@
+
+=== 環境 ===
+measured_at_utc: 2026-09-29T07:20:06+00:00
+$ git rev-parse HEAD   (exit=0)
+repo_head: a3adb442a4209c2447d17a043e97aac2847cb6ae
+$ gh pr view 529 --repo hiratashinnya/review-system --json additions,deletions,changedFiles,state   (exit=0)
+pr_meta: {"additions":4103,"changedFiles":47,"deletions":56,"state":"MERGED"}
+
+=== T1 正解データ（rtk・gh の整形を介さない GitHub API の生 diff） ===
+$ gh api -H Accept: application/vnd.github.v3.diff repos/hiratashinnya/review-system/pulls/529   (exit=0)
+T1_raw_api_diff: bytes=249487 lines=4750 diff_git_headers=47 truncated_marker=False sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
+
+=== T2 rtk gh pr diff <N> --no-compact（pr-reviewer が使う正規コマンド） ===
+$ rtk gh pr diff 529 --repo hiratashinnya/review-system --no-compact   (exit=0)
+T2_rtk_no_compact: bytes=249487 lines=4750 diff_git_headers=47 truncated_marker=False sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
+T2 == T1 (sha256 一致): True
+
+=== T3 対照: rtk gh pr diff <N>（既定の圧縮表示・--no-compact なし） ===
+$ rtk gh pr diff 529 --repo hiratashinnya/review-system   (exit=0)
+T3_rtk_default_compact: bytes=37756 lines=521 diff_git_headers=0 truncated_marker=True sha256=b3380dcf8aabe87051979be4ed0b8df80726d0b08489e667f70bb957ae37d61e
+T3 の diff_git_headers は T1 と異なる形式のため直接比較できない。bytes/lines は出力量・行数、truncated_marker は切り詰め表示の観測値として記録する（形式が異なるため差分内容の欠落割合は未測定）
+
+=== T4 Codex 経路: python3 -m gitgate show-pr-diff <N> ===
+$ python3 -m gitgate show-pr-diff 529   (exit=0)
+manifest: {"path": "tmp/pr-diffs/pr-529-96a5c15a87dd40a59d9300bc928fe375.diff", "bytes": 249487, "lines": 4750, "sha256": "925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027"}
+T4_saved_file: bytes=249487 lines=4750 diff_git_headers=47 truncated_marker=False sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
+manifest.bytes == 保存ファイル実測: True
+manifest.lines == 保存ファイル実測: True
+manifest.sha256 == 保存ファイル実測: True
+T4 保存ファイル == T1 (sha256 一致): True
+
+=== T5 ゲート判定（pr-reviewer ロールの Bash 入力に対する agent-command-gate.sh の判定） ===
+ALLOW | rtk gh pr diff 529 --no-compact
+DENY  | gh pr diff 529 --no-compact
+DENY  | rtk gh pr diff 529
+DENY  | command gh pr diff 529 --no-compact
+ALLOW | python3 -m gitgate show-pr-diff 529
+
+=== T6 実ロール通しの実測: pr-reviewer ロール（Claude Code・ゲート経由）を読み取り専用で1回起動 ===
+[ロールへの指示] 実行してよい外部コマンドは `rtk gh pr diff 529 --no-compact` の1回のみ。コメント・review・merge・checkout・push・karte・書込みは全面禁止。
+[ロール報告（モデル出力・転記）]
+  実行コマンド: rtk gh pr diff 529 --no-compact（1回）／ゲート: 許可（拒否メッセージなし）
+  出力の受け取り形態: 切り詰め＋保存先パス表示。ツール側の文言（原文）:
+    Output too large (243.6KB). Full output saved to: <tool-results/bd98s1emk.txt>
+    Preview (first 2KB): ...（先頭 2KB のみ）
+  保存ファイルを Read 8 回で最後まで読了したとロールが報告（連続範囲・欠番/重複なしとの自己申告。各 Read の範囲はログに記録されていない）。総行数 4751（ロール報告の最終行番号。4751 行目は空行表示との申告）
+  diff --git 行の総数: 47（ロールの目視集計）
+  最初の diff --git: diff --git a/.ai/README.md b/.ai/README.md
+  最後の diff --git: diff --git a/tests/unit/test_karte_cli.py b/tests/unit/test_karte_cli.py
+  全文確認: 可（自己申告 finding は発生せず）／付記した限界: 47 件は目視集計・GitHub 側ファイル数との突合は未実施
+[主文脈による独立検証（機械計測）]
+  正解データ(T1)の総行数=4750  diff_git_headers=47
+  正解の最初の diff --git: diff --git a/.ai/README.md b/.ai/README.md
+  正解の最後の diff --git: diff --git a/tests/unit/test_karte_cli.py b/tests/unit/test_karte_cli.py
+  正解の末尾3行: ' class TestRender(KarteTestCase):' / '     def test_render_lists_prior_attempts_and_open_findings(self):' / '         self._ingest(1, ("new", HARMFUL))'
+  ロール報告との照合: 見出し数(47)・最初/最後の見出しは T1 の値と一致。「243.6KB」(=249487/1024=243.6KiB) はツール出力の報告値。総行数 4751 はロール報告値で、T1 の 4750 行との差を空行表示とする説明もロールの自己申告。T1 の末尾3行は主文脈が測定した値であり、ロール報告に末尾3行の内容はないため照合していない。
+  ハーネスが保存したファイル(tool-results/bd98s1emk.txt): bytes=249487 sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
+  正解の生 diff(T1)                                  : bytes=249487 sha256=925ebe4e43fc4b495d2c442ef8402b5858e3676a51062fe54af1ee0b01fab027
+  保存ファイル == 生 diff (バイト完全一致): True（保存ファイルの完全性を示す。ロールの Read 完遂を示すものではない）
+  PR #529 のコメント・レビュー件数は計測前後で不変（comments=3・reviews=0。gh pr view 529 --json comments,reviews）
+
+=== 補足（限界） ===
+- T6 のロール報告はモデル出力である。記録された見出し数・最初/最後の見出しは T1 と照合できたが、各 Read の範囲とロールが報告した末尾行の内容は記録されておらず、連続読了を独立には裏取りできない。
+- ハーネス保存ファイルの SHA-256 完全一致は、保存ファイルが T1 の生 diff と同一である証拠であり、ロールがその全範囲を読んだ証拠ではない。ロールの読了は自己申告である。
+- 実ロール起動時のエージェント定義はセッション開始時のスナップショットである可能性がある（.claude/agents の変更が同一セッションの dispatch に直ちに反映されるとは限らない）。ゲート判定は起動時点のディスク上の agent-command-gate.sh（#557 反映後）が行っている。
+- Codex CLI 側のロール（spawn_agent）での通しの実測は本ログの対象外（T4 は gitgate を主文脈から直接実行した実測）。

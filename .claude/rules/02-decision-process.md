@@ -55,13 +55,15 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   （`area:harness` ラベル）：
   - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`issue-fixer`/`pr-reviewer`/`gitgate`
   - 実行環境の面倒を見るフック：`on-rate-limit.sh`/`resume-watcher.sh`/`install_pkgs`/
-    `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`、
+    `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`/
+    `codex-hook-trust-check.sh`、
     `.claude/settings.json`
   - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`bloom-model-tier`/
     `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
   - 共有 gate / start / branch / sync / metrics ツール：`blocker_gate`/`pr_merge_gate`/`issue_start`/
     `branch_source`/`project_status_sync`/`guidance_sync`/`defect_metrics`
-  - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`/`maintainability_lint`（いずれも
+  - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`/`maintainability_lint`/
+    `codex_hook_trust`（いずれも
     read-only 監査。`maintainability_lint` は Issue #539 の保守性原則を review_system 本体と
     含有されない汎用ハーネスへ横断適用する baseline-ratchet であり、特定システムの生産機構ではない。
     `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）

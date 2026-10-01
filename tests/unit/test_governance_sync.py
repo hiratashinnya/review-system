@@ -239,6 +239,8 @@ class TestHarnessClassificationTable(unittest.TestCase):
             "guidance_sync",
             "defect_metrics",
             "maintainability_lint",
+            "codex_hook_trust",
+            "codex-hook-trust-check.sh",
         ):
             self.assertIn(
                 f"`{name}`",
