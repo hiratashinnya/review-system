@@ -34,6 +34,7 @@ class CodexHookTrustHookTests(unittest.TestCase):
         result = run_hook(self.codex, "mixed")
         self.assertEqual(result.returncode, 0)
         self.assertIn("stop:0:0", result.stdout)
+        self.assertIn("登録件数が定義件数より少ないか、未信頼の Codex フックがあります", result.stdout)
         self.assertIn("機械ゲートが動作していない可能性", result.stdout)
         self.assertIn(".codex/hooks/README.md", result.stdout)
         self.assertNotIn("payload-must-be-discarded", result.stdout)
@@ -44,6 +45,7 @@ class CodexHookTrustHookTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("定義 6 件に対し発見 0 件", context)
+        self.assertIn("登録件数が定義件数より少ないか、未信頼の Codex フックがあります", context)
         self.assertIn('trust_level = "trusted"', context)
         self.assertIn("機械ゲートが動作していない可能性", context)
         self.assertIn(".codex/hooks/README.md", context)
@@ -89,6 +91,7 @@ class CodexHookTrustHookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn(f"渡されたパス（{repo}）で検査しました", context)
+        self.assertIn("信頼記録の実キーはメインのパスのため、確認先が異なる場合があります。", context)
 
 
 if __name__ == "__main__":  # pragma: no cover

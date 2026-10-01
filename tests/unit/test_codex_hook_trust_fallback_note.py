@@ -36,6 +36,10 @@ class CodexHookTrustFallbackNoteTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("定義 2 件に対し発見 0 件", result.stdout)
         self.assertIn(f"渡されたパス（{repo}）で検査しました", result.stdout)
+        self.assertIn(
+            "信頼記録の実キーはメインのパスのため、確認先が異なる場合があります。",
+            result.stdout,
+        )
 
     def test_git_failure_notes_input_path_for_untrusted_hook_warning(self):
         repo = self.directory / "untrusted-git-failure"
@@ -48,6 +52,10 @@ class CodexHookTrustFallbackNoteTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("未信頼の Codex フック", result.stdout)
         self.assertIn(f"渡されたパス（{repo}）で検査しました", result.stdout)
+        self.assertIn(
+            "信頼記録の実キーはメインのパスのため、確認先が異なる場合があります。",
+            result.stdout,
+        )
 
     def test_separate_git_dir_linked_worktree_falls_back_with_note(self):
         main, worktree = make_separate_git_dir_pair(self.directory, 2)
@@ -57,6 +65,10 @@ class CodexHookTrustFallbackNoteTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("定義 5 件に対し発見 0 件", result.stdout)
         self.assertIn(f"渡されたパス（{worktree}）で検査しました", result.stdout)
+        self.assertIn(
+            "信頼記録の実キーはメインのパスのため、確認先が異なる場合があります。",
+            result.stdout,
+        )
         self.assertIn(f'[projects."{worktree}"]', result.stdout)
         self.assertNotIn(f'[projects."{main}"]', result.stdout)
 

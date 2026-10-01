@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# SessionStart(startup|resume) warns only when Codex reports untrusted hooks.
+# SessionStart(startup|resume) warns when registered hook count is below the
+# defined count or any registered hook is untrusted.
 set -u
 
 cat >/dev/null || true
@@ -25,7 +26,7 @@ import sys
 details = sys.argv[1].strip()
 context = "\n".join(
     [
-        "Codex フックに未信頼の登録があります。対象:",
+        "登録件数が定義件数より少ないか、未信頼の Codex フックがあります。対象:",
         details,
         "Codex 側の機械ゲートが動作していない可能性があります。",
         "復旧手順: .codex/hooks/README.md",

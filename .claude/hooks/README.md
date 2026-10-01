@@ -15,9 +15,9 @@
 
 `.claude/hooks/codex-hook-trust-check.sh` は SessionStart (`startup|resume`) に
 `python3 -m codex_hook_trust check` を実行する。Codex hook の trust state は
-`hooks.json` の絶対パスを含む key ごとに保存されるため、checkout の移動で未信頼に
-なるときだけ警告し、codex 未導入や判定不能時は無出力で終了する。確認と復旧方法は
-`.codex/hooks/README.md` を参照。
+`hooks.json` の絶対パスを含む key ごとに保存される。登録件数が定義件数より少ない場合、
+または未信頼のフックがある場合に警告し、codex 未導入や判定不能時は無出力で終了する。
+確認と復旧方法は `.codex/hooks/README.md` を参照。
 
 ## 設計上の前提(公式仕様)
 
