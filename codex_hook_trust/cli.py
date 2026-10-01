@@ -40,10 +40,12 @@ def main(argv=None):
         print(f"codex_hook_trust: 判定不能: {error}", file=sys.stderr)
         return 2
 
-    if len(hooks) < defined_count:
+    project_hook_path = str((repo / ".codex" / "hooks.json").resolve())
+    project_hooks = [hook for hook in hooks if hook.get("sourcePath") == project_hook_path]
+    if len(project_hooks) < defined_count:
         project_section = json.dumps(str(repo), ensure_ascii=False)
         print(
-            f"定義 {defined_count} 件に対し発見 {len(hooks)} 件。"
+            f"定義 {defined_count} 件に対し発見 {len(project_hooks)} 件。"
             "プロジェクト自体が Codex に信頼されていない可能性があります。"
         )
         print(
@@ -53,7 +55,7 @@ def main(argv=None):
         print("復旧手順: .codex/hooks/README.md")
         return 1
 
-    untrusted = [hook for hook in hooks if hook["trustStatus"] != "trusted"]
+    untrusted = [hook for hook in project_hooks if hook["trustStatus"] != "trusted"]
     if not untrusted:
         return 0
     print("未信頼の Codex フック:")

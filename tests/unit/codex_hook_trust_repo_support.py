@@ -41,6 +41,26 @@ def make_repository_pair(directory: Path, hook_count: int) -> tuple[Path, Path]:
     return main, worktree
 
 
+def make_separate_git_dir_pair(directory: Path, hook_count: int) -> tuple[Path, Path]:
+    main = directory / "separate-main"
+    git_dir = directory / "separate-git-dir"
+    worktree = directory / "separate-linked-worktree"
+    main.mkdir()
+    run_git(directory, "init", "--separate-git-dir", str(git_dir), str(main))
+    run_git(main, "config", "user.name", "Trust Test")
+    run_git(main, "config", "user.email", "trust-test@example.invalid")
+    write_hooks(main, hook_count)
+    run_git(main, "add", ".codex/hooks.json")
+    run_git(main, "commit", "-m", "Add hooks configuration")
+    run_git(main, "worktree", "add", "-b", "separate-linked", str(worktree), "HEAD")
+    return main, worktree
+
+
+def init_bare_repository(repo: Path, hook_count: int) -> None:
+    run_git(repo.parent, "init", "--bare", str(repo))
+    write_hooks(repo, hook_count)
+
+
 def read_trace(trace: Path) -> dict:
     records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
     if len(records) != 1:

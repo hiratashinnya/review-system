@@ -35,6 +35,24 @@ class CodexHookTrustCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("定義 6 件に対し発見 5 件", result.stdout)
 
+    def test_user_hook_does_not_hide_missing_project_hook(self):
+        result = run_check(self.codex, "project-five-user-one")
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("定義 6 件に対し発見 5 件", result.stdout)
+
+    def test_user_hooks_do_not_hide_missing_project_hooks(self):
+        result = run_check(self.codex, "user-only-six")
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("定義 6 件に対し発見 0 件", result.stdout)
+
+    def test_untrusted_user_hook_does_not_fail_trusted_project_hooks(self):
+        result = run_check(self.codex, "project-six-user-untrusted")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+
     def test_standard_json_rpc_response_is_accepted(self):
         result = run_check(self.codex, "standard")
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -29,8 +29,16 @@ def configured_hooks():
             for handler_index, _ in enumerate(group["hooks"]):
                 key = f"{path}:{event_key}:{group_index}:{handler_index}"
                 hooks.append({"key":key, "trustStatus":"trusted",
-                              "currentHash":"sha256:trusted"})
+                              "currentHash":"sha256:trusted", "sourcePath":path,
+                              "source":"project"})
     return hooks
+def user_hooks(count, trust_status="trusted"):
+    path = os.path.abspath(os.path.join(
+        os.environ.get("CODEX_HOME", "/tmp/codex-home"), "hooks.json",
+    ))
+    return [{"key":f"{path}:session_start:0:{index}",
+             "trustStatus":trust_status, "currentHash":"sha256:user",
+             "sourcePath":path, "source":"user"} for index in range(count)]
 initialized = False
 for line in sys.stdin:
     request = json.loads(line)
@@ -61,6 +69,12 @@ for line in sys.stdin:
                 hooks = []
             elif mode == "fewer-hooks":
                 hooks = hooks[:-1]
+            elif mode == "project-five-user-one":
+                hooks = hooks[:-1] + user_hooks(1)
+            elif mode == "user-only-six":
+                hooks = user_hooks(6)
+            elif mode == "project-six-user-untrusted":
+                hooks += user_hooks(1, "untrusted")
             elif mode == "mixed":
                 hooks[-1].update({"trustStatus":"untrusted", "currentHash":"sha256:current"})
             notify()
