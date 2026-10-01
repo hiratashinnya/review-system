@@ -5,7 +5,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tests.unit.codex_hook_trust_repo_support import make_repository_pair, read_trace, write_hooks
+from tests.unit.codex_hook_trust_repo_support import (
+    init_repository,
+    make_failing_git_path,
+    make_repository_pair,
+    read_trace,
+    write_hooks,
+)
 from tests.unit.codex_hook_trust_fake_server import make_fake_codex
 from tests.unit.codex_hook_trust_support import run_hook
 
@@ -69,6 +75,20 @@ class CodexHookTrustHookTests(unittest.TestCase):
             "cwds": [str(main)],
             "config_path": str(main / ".codex" / "hooks.json"),
         })
+
+    def test_git_fallback_note_is_in_session_start_warning(self):
+        repo = Path(self.temp.name) / "git-failure"
+        init_repository(repo, 2)
+        git_failure_path = make_failing_git_path(Path(self.temp.name))
+
+        result = run_hook(
+            self.codex, "zero-hooks", repo=repo,
+            extra_env={"PATH": git_failure_path},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(f"渡されたパス（{repo}）で検査しました", context)
 
 
 if __name__ == "__main__":  # pragma: no cover

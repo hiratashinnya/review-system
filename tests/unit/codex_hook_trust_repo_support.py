@@ -1,6 +1,7 @@
 """Temporary Git repository fixtures for Codex hook trust tests."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -72,3 +73,12 @@ def read_trace(trace: Path) -> dict:
     if len(records) != 1:
         raise AssertionError(f"expected one app-server trace entry, got {len(records)}")
     return records[0]
+
+
+def make_failing_git_path(directory: Path) -> str:
+    bin_dir = directory / "failing-git-bin"
+    bin_dir.mkdir(exist_ok=True)
+    git = bin_dir / "git"
+    git.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    git.chmod(0o755)
+    return str(bin_dir) + os.pathsep + os.environ.get("PATH", "")

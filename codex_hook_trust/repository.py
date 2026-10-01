@@ -5,6 +5,12 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import NamedTuple
+
+
+class MainCheckoutResolution(NamedTuple):
+    path: Path
+    identified: bool
 
 
 def _first_worktree_path(output: bytes) -> Path | None:
@@ -20,8 +26,8 @@ def _first_worktree_path(output: bytes) -> Path | None:
     return Path(os.fsdecode(path)) if path else None
 
 
-def resolve_main_checkout(repo: Path) -> Path:
-    """Resolve the main worktree; keep the input path on Git failure."""
+def resolve_main_checkout(repo: Path) -> MainCheckoutResolution:
+    """Identify the main worktree, or return the input path as a fallback."""
     try:
         result = subprocess.run(
             ["git", "-C", str(repo), "worktree", "list", "--porcelain", "-z"],
@@ -33,18 +39,18 @@ def resolve_main_checkout(repo: Path) -> Path:
             timeout=2,
         )
     except (OSError, subprocess.SubprocessError):
-        return repo
+        return MainCheckoutResolution(repo, False)
 
     if result.returncode != 0:
-        return repo
+        return MainCheckoutResolution(repo, False)
 
     worktree_path = _first_worktree_path(result.stdout)
     if worktree_path is None:
-        return repo
+        return MainCheckoutResolution(repo, False)
     try:
         checkout = worktree_path.resolve(strict=True)
     except (OSError, RuntimeError):
-        return repo
+        return MainCheckoutResolution(repo, False)
     if not checkout.is_dir() or not (checkout / ".git").exists():
-        return repo
-    return checkout
+        return MainCheckoutResolution(repo, False)
+    return MainCheckoutResolution(checkout, True)

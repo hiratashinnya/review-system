@@ -26,7 +26,7 @@ class CodexHookTrustCliTests(unittest.TestCase):
         result = run_check(self.codex, "zero-hooks")
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("定義 6 件に対し発見 0 件", result.stdout)
-        expected_repo = resolve_main_checkout(ROOT)
+        expected_repo = resolve_main_checkout(ROOT).path
         self.assertIn(f'[projects."{expected_repo}"]', result.stdout)
         self.assertIn('trust_level = "trusted"', result.stdout)
         self.assertIn(".codex/hooks/README.md", result.stdout)

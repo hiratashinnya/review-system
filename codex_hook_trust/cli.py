@@ -33,7 +33,8 @@ def main(argv=None):
         repo = args.repo.resolve(strict=True)
         if not repo.is_dir():
             raise ValueError("--repo must be a directory")
-        repo = resolve_main_checkout(repo)
+        resolution = resolve_main_checkout(repo)
+        repo = resolution.path
         defined_count = count_defined_handlers(repo)
         hooks = list_hooks(args.codex, repo, args.timeout)
     except Exception as error:  # noqa: BLE001 - undetermined state maps to exit 2
@@ -42,6 +43,12 @@ def main(argv=None):
 
     project_hook_path = str((repo / ".codex" / "hooks.json").resolve())
     project_hooks = [hook for hook in hooks if hook.get("sourcePath") == project_hook_path]
+    fallback_note = None
+    if not resolution.identified:
+        fallback_note = (
+            f"メインのチェックアウトを特定できなかったため、渡されたパス（{repo}）で検査しました。"
+            "信頼記録の実キーはメインのパスのため、確認先が異なる場合があります。"
+        )
     if len(project_hooks) < defined_count:
         project_section = json.dumps(str(repo), ensure_ascii=False)
         print(
@@ -53,6 +60,8 @@ def main(argv=None):
             'trust_level = "trusted"'
         )
         print("復旧手順: .codex/hooks/README.md")
+        if fallback_note:
+            print(fallback_note)
         return 1
 
     untrusted = [hook for hook in project_hooks if hook["trustStatus"] != "trusted"]
@@ -64,4 +73,6 @@ def main(argv=None):
         status = json.dumps(hook["trustStatus"], ensure_ascii=True)
         current_hash = json.dumps(hook["currentHash"], ensure_ascii=True)
         print(f"- {key} (trustStatus={status}, currentHash={current_hash})")
+    if fallback_note:
+        print(fallback_note)
     return 1

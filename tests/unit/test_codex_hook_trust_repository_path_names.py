@@ -42,7 +42,9 @@ class CodexHookTrustRepositoryPathNameTests(unittest.TestCase):
         init_repository(decoy, 3)
         write_hooks(worktree, 5)
 
-        self.assertEqual(resolve_main_checkout(worktree), main)
+        resolution = resolve_main_checkout(worktree)
+        self.assertEqual(resolution.path, main)
+        self.assertTrue(resolution.identified)
         trace = self.directory / f"{case_name}-app-server.jsonl"
         result = run_check(
             self.codex, "zero-hooks", repo=worktree,

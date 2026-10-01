@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from codex_hook_trust.repository import resolve_main_checkout
+from codex_hook_trust.repository import MainCheckoutResolution, resolve_main_checkout
 
 
 class CodexHookTrustRepositoryFailureTests(unittest.TestCase):
@@ -35,7 +35,7 @@ class CodexHookTrustRepositoryFailureTests(unittest.TestCase):
                 with patch(
                     "codex_hook_trust.repository.subprocess.run", return_value=response,
                 ):
-                    self.assertEqual(resolve_main_checkout(repo), repo)
+                    self.assertEqual(resolve_main_checkout(repo), MainCheckoutResolution(repo, False))
 
     def test_missing_git_falls_back_to_given_path(self):
         repo = self.directory / "without-git"
@@ -43,11 +43,12 @@ class CodexHookTrustRepositoryFailureTests(unittest.TestCase):
             "codex_hook_trust.repository.subprocess.run",
             side_effect=FileNotFoundError,
         ):
-            self.assertEqual(resolve_main_checkout(repo), repo)
+            self.assertEqual(resolve_main_checkout(repo), MainCheckoutResolution(repo, False))
 
     def test_git_worktree_query_uses_nul_porcelain_without_shell(self):
         repo = self.directory / "query-contract"
         repo.mkdir()
+        (repo / ".git").mkdir()
         response = subprocess.CompletedProcess(
             [], 0, f"worktree {repo}\0HEAD deadbeef\0\0".encode(), b"",
         )
@@ -55,7 +56,7 @@ class CodexHookTrustRepositoryFailureTests(unittest.TestCase):
         with patch(
             "codex_hook_trust.repository.subprocess.run", return_value=response,
         ) as run_git:
-            self.assertEqual(resolve_main_checkout(repo), repo)
+            self.assertEqual(resolve_main_checkout(repo), MainCheckoutResolution(repo, True))
 
         run_git.assert_called_once_with(
             ["git", "-C", str(repo), "worktree", "list", "--porcelain", "-z"],
