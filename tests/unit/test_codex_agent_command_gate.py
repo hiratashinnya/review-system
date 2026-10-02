@@ -304,6 +304,55 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload(None, command)))
 
+    def test_merge_commands_with_global_options_are_denied_for_every_role(self):
+        commands = (
+            "git -C /tmp/repo merge feature",
+            "env git -c core.pager=cat --git-dir /tmp/repo/.git merge feature",
+            "rtk proxy /usr/bin/git --work-tree=/tmp/repo merge feature",
+            "git -c alias.m=merge m feature",
+            "gh -R owner/repo pr merge 123",
+            "env /usr/bin/gh --repo owner/repo pr merge 123",
+            "rtk proxy gh --repo owner/repo pr merge 123",
+            "gh api --method PUT repos/o/r/pulls/123/merge",
+            "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+        )
+        roles = (None, "general-purpose", "analysis-author", "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_merge_mentions_and_read_only_calls_are_not_denied_for_main_context(self):
+        commands = (
+            'git commit -m "merge release notes"',
+            'gh pr create --title "merge readiness"',
+            "git -C /tmp/repo status --short",
+            "gh pr view 123",
+            "gh --repo owner/repo pr view 123",
+            "gh api --method GET repos/o/r/pulls/123/merge",
+            "gh api graphql -F 'query={ viewer { login } } # mergePullRequest is only a comment'",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_graphql_payload_files_are_inspected_and_read_queries_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mutation = os.path.join(directory, "mutation.graphql")
+            query = os.path.join(directory, "query.graphql")
+            with open(mutation, "w", encoding="utf-8") as stream:
+                stream.write("mutation { mergePullRequest(input: {}) { pullRequest { id } } }")
+            with open(query, "w", encoding="utf-8") as stream:
+                stream.write("query { viewer { login } }")
+            input_mutation = os.path.join(directory, "mutation.json")
+            with open(input_mutation, "w", encoding="utf-8") as stream:
+                json.dump({"query": "mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }"}, stream)
+            self.assert_denied(run_gate(payload(None, f"gh api graphql -F query=@{mutation}")))
+            self.assert_allowed(run_gate(payload(None, f"gh api graphql -F query=@{query}")))
+            self.assert_denied(run_gate(payload(None, f"gh api graphql --input {input_mutation}")))
+            self.assert_denied(run_gate(payload(None, f"gh api graphql -F query=@{directory}/missing.graphql")))
+
     def test_dangerous_command_layer_only_applies_to_shell_tools(self):
         # Codex 固有: tool_name がシェル系でない（apply_patch 等）場合、command はシェルコマンドとして
         # 実行されないため、この deny 層も対象外になる（既存の SHELL_TOOL_NAMES ガードを流用）。

@@ -39,18 +39,12 @@ class NativeMergePermissionTests(unittest.TestCase):
             "rtk proxy gh pr merge 123", "git merge feature",
             "rtk git merge feature", "rtk proxy git merge feature",
             "git -C /tmp/repo merge feature",
-            "rtk git -C /tmp/repo merge feature",
-            "rtk proxy git -C /tmp/repo merge feature",
             "gh -R owner/repo pr merge 123 --merge",
             "gh --repo owner/repo pr merge 123 --merge",
             "rtk gh -R owner/repo pr merge 123 --merge",
             "rtk gh --repo owner/repo pr merge 123 --merge",
             "rtk proxy gh -R owner/repo pr merge 123 --merge",
             "rtk proxy gh --repo owner/repo pr merge 123 --merge",
-            "gh api -X PUT repos/o/r/pulls/123/merge",
-            "rtk proxy gh api -X PUT repos/o/r/pulls/123/merge",
-            "gh api graphql -F query=@mutation.graphql",
-            "rtk proxy gh api graphql -F query=@mutation.graphql",
         )
         for role in ROLES:
             for command in commands:
@@ -73,27 +67,31 @@ class NativeMergePermissionTests(unittest.TestCase):
             "gh pr merge 123 --merge", "rtk gh pr merge 123",
             "rtk proxy gh pr merge 123", "git merge feature",
             "rtk git merge feature", "rtk proxy git merge feature",
-            "rtk proxy git -c alias.m=merge m feature",
-            "git -C /tmp/repo merge feature",
-            "rtk git -C /tmp/repo merge feature",
-            "rtk proxy git -C /tmp/repo merge feature",
-            "git -C /tmp/repo status --short",
-            "gh -R owner/repo pr merge 123",
-            "gh --repo owner/repo pr merge 123",
-            "rtk gh -R owner/repo pr merge 123",
-            "rtk gh --repo owner/repo pr merge 123",
-            "rtk proxy gh -R owner/repo pr merge 123",
-            "rtk proxy gh --repo owner/repo pr merge 123",
-            "gh -R owner/repo pr view 123",
-            "gh api -X PUT repos/o/r/pulls/123/merge",
-            "gh api graphql -F query=@mutation.graphql",
-            "rtk gh api graphql -F query=@mutation.graphql",
-            "rtk proxy gh api graphql -F query=@mutation.graphql",
         )
         for role in ROLES:
             for command in commands:
                 with self.subTest(role=role, command=command):
                     self.assertTrue(codex_denies(command, prefixes))
+
+    def test_native_rules_allow_read_only_repository_and_api_calls(self):
+        settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
+        denies = settings["permissions"]["deny"]
+        bash_patterns = [item[5:-1] for item in denies if item.startswith("Bash(")]
+        reads = (
+            "git -C /tmp/repo status --short",
+            "gh pr view 123",
+            "gh --repo owner/repo pr view 123",
+            "gh api --method GET repos/o/r/issues/123",
+            "gh api graphql -F 'query={ viewer { login } }'",
+        )
+        for command in reads:
+            with self.subTest(platform="claude", command=command):
+                self.assertFalse(any(fnmatch.fnmatchcase(command, pattern) for pattern in bash_patterns))
+
+        prefixes = codex_forbidden_prefixes()
+        for command in reads:
+            with self.subTest(platform="codex", command=command):
+                self.assertFalse(codex_denies(command, prefixes))
 
     def test_no_classifier_hook_registration_or_reviewer_merge_allowance_remains(self):
         claude = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))

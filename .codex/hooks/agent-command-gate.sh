@@ -174,6 +174,7 @@ from datetime import datetime, timezone
 # GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・Claude 版と共有する2ファイル
 # 重複定義の解消）。cwd をプロジェクトルートに固定した上で通常 import する（Claude 版と同一設計）。
 sys.path.insert(0, os.getcwd())
+from agent_command_gate.merge_command import merge_command_reason
 from issue_start.gated_roles import GATED_ROLES
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
@@ -1090,7 +1091,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): {violation}. "
             "Layer 3 (Issue #227) forbids raw git (use `python3 -m gitgate <verb>`) and allows only "
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
-            "env assignments and cross-role actions are denied; project execpolicy denies merge for every role."
+            "env assignments and cross-role actions are denied; the project command gate denies merge for every role."
         )
     if role == "pr-reviewer" and tokens[0] == "gh":
         key, _ = gh_key_and_rest(tokens)
@@ -1105,6 +1106,10 @@ def gate_reason(command_text, role):
     return None
 
 
+merge_reason = None
+if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
+    merge_reason = merge_command_reason(command)
+
 dangerous_token = None
 if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。tool_name がシェル系
@@ -1113,7 +1118,9 @@ if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if dangerous_token:
+if merge_reason:
+    reason = f"agent-command-gate: {merge_reason}; merge commands are denied for every role."
+elif dangerous_token:
     # agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」だった穴を、
     # 設定側の deny 記法では塞ぎ切れない env-prefix/abspath/compound 経路について補完する）。
     reason = (

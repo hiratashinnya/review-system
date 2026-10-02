@@ -3,7 +3,7 @@
 #
 # 役割:
 #   "issue-implementer" / "issue-fixer" / "pr-reviewer" サブエージェント種別に対して、push と
-#   レビュー操作の境界を機械的に強制する。merge は settings.json の native deny が全ロールへ適用する。
+#   レビュー操作の境界を機械的に強制する。merge はネイティブ deny と共有字句検査で全ロールから拒否する。
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
 #     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界・Issue #308）。
 #                           初回実装ではなく**レビュー指摘を受けた是正ラウンド専用**の別ロールで、
@@ -169,6 +169,7 @@ from datetime import datetime, timezone
 # 外側の bash ラッパー（本ファイル末尾）が「stdout 空 かつ rc 非0」を内部エラーとして検知し
 # 一般化した deny メッセージを返す＝fail-close は維持される。
 sys.path.insert(0, os.getcwd())
+from agent_command_gate.merge_command import merge_command_reason
 from issue_start.gated_roles import GATED_ROLES
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
@@ -1172,7 +1173,7 @@ def ctx_commands_or_reason(suffix, tool_input_obj):
 def ctx_gate_reason(suffix, tool_input_obj, role):
     """実行系 MCP ツールの判定入口。正規化した各コマンド文字列を、Bash とまったく同じ
     universal 層（全 agent_type）＋層1〜3（gated ロールのみ）へ通す。判定ロジックは
-    `all_role_dangerous_command_token()` / `gate_reason()` の再利用で、新規実装はしない。"""
+    merge 検査と `all_role_dangerous_command_token()` / `gate_reason()` を同じ順で適用する。"""
     if suffix not in CTX_EXEC_TOOL_SUFFIXES:
         # matcher の取りこぼし・プラグイン側の名称変更・将来の MCP ツール追加は allowlist 外＝deny。
         # 「matcher だけ広げてパース未対応」が素通しではなく deny に倒れる（Issue #269 の allowlist 原則）。
@@ -1200,6 +1201,9 @@ def ctx_gate_reason(suffix, tool_input_obj, role):
 
     # 1件でも違反があれば呼び出し全体を deny する（部分許可はハーネス側に表現手段がない）。
     for command_text in commands:
+        merge_reason = merge_command_reason(command_text)
+        if merge_reason:
+            return f"agent-command-gate: {merge_reason}; merge commands are denied for every role."
         token = all_role_dangerous_command_token(command_text)
         if token:
             return (
@@ -1215,6 +1219,10 @@ def ctx_gate_reason(suffix, tool_input_obj, role):
 
 is_mcp = bool(tool_name) and tool_name.startswith("mcp__")
 
+merge_reason = None
+if not is_mcp and isinstance(command, str) and command:
+    merge_reason = merge_command_reason(command)
+
 dangerous_token = None
 if not is_mcp and isinstance(command, str) and command:
     dangerous_token = all_role_dangerous_command_token(command)
@@ -1224,6 +1232,8 @@ if is_mcp:
     # Issue #303: 実行系 MCP 経路。tool_input の形が Bash と違う（`code`+`language` /
     # `commands[]`）ため専用入口で正規化してから、同じ判定関数へ通す。
     reason = ctx_gate_reason(ctx_tool_suffix(tool_name), tool_input, agent_type)
+elif merge_reason:
+    reason = f"agent-command-gate: {merge_reason}; merge commands are denied for every role."
 elif dangerous_token:
     # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。対象ロール専用の層1〜3
     # より前に判定し、agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」

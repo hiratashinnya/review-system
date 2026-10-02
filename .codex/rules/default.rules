@@ -17,44 +17,6 @@ prefix_rule(
     justification = "AI roles stop after the owner report; only the owner merges.",
     match = ["rtk proxy git merge topic"],
 )
-# Prefix rules cannot look past repository-selection arguments, so deny these
-# leading prefixes for all subcommands, including otherwise read-only Git calls.
-prefix_rule(
-    pattern = ["git", "-C"],
-    decision = "forbidden",
-    justification = "Repository selection before the subcommand can hide a merge from prefix matching.",
-    match = ["git -C /repo merge topic"],
-)
-prefix_rule(
-    pattern = ["rtk", "git", "-C"],
-    decision = "forbidden",
-    justification = "Repository selection before the subcommand can hide a merge from prefix matching.",
-    match = ["rtk git -C /repo merge topic"],
-)
-prefix_rule(
-    pattern = ["rtk", "proxy", "git", "-C"],
-    decision = "forbidden",
-    justification = "Repository selection before the subcommand can hide a merge from prefix matching.",
-    match = ["rtk proxy git -C /repo merge topic"],
-)
-prefix_rule(
-    pattern = ["git", "-c"],
-    decision = "forbidden",
-    justification = "Git config aliases can hide a merge command; use the owner report.",
-    match = ["git -c alias.m=merge m topic"],
-)
-prefix_rule(
-    pattern = ["rtk", "git", "-c"],
-    decision = "forbidden",
-    justification = "Git config aliases can hide a merge command; use the owner report.",
-    match = ["rtk git -c alias.m=merge m topic"],
-)
-prefix_rule(
-    pattern = ["rtk", "proxy", "git", "-c"],
-    decision = "forbidden",
-    justification = "Git config aliases can hide a merge command; use the owner report.",
-    match = ["rtk proxy git -c alias.m=merge m topic"],
-)
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
@@ -72,61 +34,4 @@ prefix_rule(
     decision = "forbidden",
     justification = "AI roles stop after the owner report; only the owner merges.",
     match = ["rtk proxy gh pr merge 123"],
-)
-# gh global repository flags can precede the subcommand. The prefix rule must
-# deny these flags broadly because it cannot inspect later arguments.
-prefix_rule(
-    pattern = ["gh", "-R"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["gh -R owner/repo pr merge 123"],
-)
-prefix_rule(
-    pattern = ["gh", "--repo"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["gh --repo owner/repo pr merge 123"],
-)
-prefix_rule(
-    pattern = ["rtk", "gh", "-R"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["rtk gh -R owner/repo pr merge 123"],
-)
-prefix_rule(
-    pattern = ["rtk", "gh", "--repo"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["rtk gh --repo owner/repo pr merge 123"],
-)
-prefix_rule(
-    pattern = ["rtk", "proxy", "gh", "-R"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["rtk proxy gh -R owner/repo pr merge 123"],
-)
-prefix_rule(
-    pattern = ["rtk", "proxy", "gh", "--repo"],
-    decision = "forbidden",
-    justification = "A leading repository flag hides later subcommands from prefix matching.",
-    match = ["rtk proxy gh --repo owner/repo pr merge 123"],
-)
-# gh api accepts REST routes and file-backed GraphQL payloads, so deny its whole prefix.
-prefix_rule(
-    pattern = ["gh", "api"],
-    decision = "forbidden",
-    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
-    match = ["gh api --method PUT repos/o/r/pulls/1/merge"],
-)
-prefix_rule(
-    pattern = ["rtk", "gh", "api"],
-    decision = "forbidden",
-    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
-    match = ["rtk gh api graphql -F query=@payload.txt"],
-)
-prefix_rule(
-    pattern = ["rtk", "proxy", "gh", "api"],
-    decision = "forbidden",
-    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
-    match = ["rtk proxy gh api graphql -F query=@payload.txt"],
 )
