@@ -52,7 +52,9 @@ class CodexExecpolicyRuleTests(unittest.TestCase):
             with self.subTest(command=command):
                 result = self.check_command(command)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotEqual(json.loads(result.stdout)["decision"], "forbidden")
+                result_payload = json.loads(result.stdout)
+                self.assertNotEqual(result_payload.get("decision"), "forbidden")
+                self.assertEqual(result_payload.get("matchedRules", []), [])
 
 
 if __name__ == "__main__":
