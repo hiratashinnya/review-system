@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@2c941eb8825b -->
+<!-- synced-from: CLAUDE.md@a9138e121ce2 -->
 <!--
   Issue #535 是正ラウンド4（2026-09-28・F-535-15）: `.claude/rules/05-skills-agents.md`
   「ctx_* ツールの付与方針」の検索系ツール例外注記から、正当化理由（「ゲート側の手当てを
