@@ -120,4 +120,3 @@ report.html
 === clean-tmp: tmp/sprint-1/parent-a ===
   対象: /tmp/cleantmp-ov9s375t/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
   削除済み
-

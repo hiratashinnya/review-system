@@ -55,6 +55,9 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 （＝新しい非対称は生じないので `asset_parity/exceptions.py` への追記も不要）。
 記録＝`.claude/tailoring-registry.md`。
 
+Issue #542 で merge 権限を AI から外した決定と、廃止済み classifier/hook の移設先は
+[`pr-merge-permission-settings.md`](pr-merge-permission-settings.md) に記録する。
+
 troubleshooting は ADR／rationale と別責務であり、障害・復旧記録の正本は
 `.ai/troubleshooting/` に置く。共有 schema の正本は `.ai/schema/` に置き、配置契約は
 [`../schema/asset-placement-v1.json`](../schema/asset-placement-v1.json) と
