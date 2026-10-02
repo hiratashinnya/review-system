@@ -4,14 +4,13 @@
 #
 # 役割:
 #   "issue-implementer" / "issue-fixer" / "pr-reviewer" subagent（Codex custom subagent の role 名）に
-#   対して、push と merge の非対称な権限境界を機械的に強制する。Claude Code 版と同じく、プロンプト指示
-#   ではなくハーネス（Codex CLI の PreToolUse フック）で拒否する。
+#   対して、push とレビュー操作の境界を機械的に強制する。merge は project execpolicy が全ロールへ適用する。
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
 #     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界・Issue #308）。
 #                           初回実装ではなく**レビュー指摘を受けた是正ラウンド専用**の別ロールで、
 #                           診断カルテ操作のため `python3 -m karte` だけが追加で許可される
 #                           （カルテの書き手を1ロールに絞るための非対称・PYTHON_MODULES_BY_ROLE）。
-#     - pr-reviewer:        merge は可、push は不可（レビュー中に無レビューの変更を紛れ込ませられない）。
+#     - pr-reviewer:        PR review は可、push は不可。
 #                           **ブランチ切替も不可**（Issue #502 観測2・両ツリー同時）: `gh pr checkout` は
 #                           レビューアが共有するワークツリーのブランチを切り替え、戻し忘れると以後の
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
@@ -232,8 +231,7 @@ GITGATE_VERBS_BY_ROLE = {
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
     "issue-implementer": {("pr", "create"), ("issue", "view")},
-    # issue-fixer は issue-implementer と同一集合（Issue #308）。`pr merge` は当然含めない
-    # ＝merge は pr-reviewer の専権という非対称は是正ロールでも維持される。
+    # issue-fixer は issue-implementer と同一集合（Issue #308）。
     "issue-fixer": {("pr", "create"), ("issue", "view")},
     # pr-reviewer から **`gh pr checkout` を外した**（Issue #502 観測2・両ツリー同時）。
     # Claude 版と同一の期待値にする。Codex の `spawn_agent` には isolation が無く
@@ -244,7 +242,7 @@ GH_SUBCOMMANDS_BY_ROLE = {
     # `python3 -m gitgate show-pr-diff|diff|log` で読める）。根拠は `.ai/rationale/pr-reviewer.md`。
     "pr-reviewer": {
         ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
-        ("pr", "review"), ("pr", "merge"), ("issue", "view"),
+        ("pr", "review"), ("issue", "view"),
     },
 }
 # gh の per-subcommand フラグ許可リスト（Issue #227 追加修正3）。各 (sub, subsub) に value フラグ
@@ -281,19 +279,6 @@ GH_FLAG_ALLOWLIST = {
     ("pr", "review"): {
         "value": {"--body", "-b"},
         "bool": {"--approve", "-a", "--request-changes", "-r", "--comment", "-c"},
-    },
-    ("pr", "merge"): {
-        # 第2次修正（オーナー確定 2026-07-15）: `--admin`（ブランチ保護バイパス）を除外。将来ブランチ
-        # 保護を有効化したとき pr-reviewer が「レビュー経由でのみ merge」不変条件を破る余地を最小権限で塞ぐ。
-        # 第3次修正（Issue #419・2026-08-23）: squash マージで `squash_merge_commit_message:
-        # COMMIT_MESSAGES` 設定のリポジトリは、`--subject`/`--body` を明示しないと
-        # `pr_merge_gate` の `MERGE_MESSAGE_AMBIGUOUS`（GitHub 側の複数commit連結を
-        # byte-level で予測できないための意図的 fail-close）で必ず拒否される
-        # （`blocker_gate/closing.py`）。`--subject`/`--body` を許可し、実際に明示できるようにする。
-        # `gh pr merge` に `--subject`/`--body` の短縮形は無い（`-s` は `--squash` の短縮形として
-        # 既にbool側で使用中であり衝突させない）。
-        "value": {"--subject", "--body"},
-        "bool": {"--squash", "-s", "--merge", "-m", "--rebase", "-r", "--delete-branch", "-d"},
     },
     # `("pr", "checkout")` のフラグ集合は **意図的に置かない**（Issue #502 観測2）。
     # `GH_SUBCOMMANDS_BY_ROLE` からも外したので到達しないが、ここに残しておくと
@@ -1105,7 +1090,7 @@ def gate_reason(command_text, role):
             f"agent-command-gate ({role}): {violation}. "
             "Layer 3 (Issue #227) forbids raw git (use `python3 -m gitgate <verb>`) and allows only "
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
-            "env assignments and cross-role actions (issue-implementer/issue-fixer merging, pr-reviewer pushing) are denied."
+            "env assignments and cross-role actions are denied; project execpolicy denies merge for every role."
         )
     if role == "pr-reviewer" and tokens[0] == "gh":
         key, _ = gh_key_and_rest(tokens)

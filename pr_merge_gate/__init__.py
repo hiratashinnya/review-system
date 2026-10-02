@@ -1,15 +1,5 @@
-"""Managed PR merge pre-use gate。"""
+"""Owner-facing PR blocker report; this package never performs a merge."""
 
-from .classifier import (
-    MergeOperation,
-    PreUseClassification,
-    classify_pre_use,
-)
-from .gate import evaluate_merge_operation
+from .gate import PrMergeGateError, evaluate_owner_report
 
-__all__ = [
-    "MergeOperation",
-    "PreUseClassification",
-    "classify_pre_use",
-    "evaluate_merge_operation",
-]
+__all__ = ["PrMergeGateError", "evaluate_owner_report"]

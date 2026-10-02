@@ -715,8 +715,6 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh pr comment 123 --body-file /tmp/review.md",
             "gh pr comment 123 --body '## Review\n- looks good'",
             "gh pr review 123 --approve --body 'mergeable'",
-            "gh pr merge 123",
-            "gh pr merge 123 --squash --delete-branch",
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
@@ -897,7 +895,6 @@ class AgentCommandGateTests(unittest.TestCase):
         reviewer_gh_allowed = [
             "gh pr view 1", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
-            "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
             "gh issue view 1",
         ]
         for cmd in reviewer_gh_allowed:
@@ -906,7 +903,7 @@ class AgentCommandGateTests(unittest.TestCase):
         # Issue #502 観測2: `gh pr checkout` は reviewer 集合から外した（primary checkout を
         # 切り替えたまま戻さない経路を塞ぐ）。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr checkout 1")))
-        # 第2次修正: `gh pr merge --admin`（ブランチ保護バイパス）は許可フラグから除外＝deny。
+        # merge は全ロールで禁止される。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --admin")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --squash --admin")))
         # クロスロール・集合外は deny。
@@ -1259,35 +1256,20 @@ class AgentCommandGateTests(unittest.TestCase):
         # rc と併せて見ていることを固定する（over-deny 回帰の防止）。
         self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
         self.assert_allowed(run_gate(payload("main", "ls -la")))
-        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 1")))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 1")))
 
-    def test_pr_reviewer_denies_push_but_allows_merge(self):
+    def test_pr_reviewer_denies_push_and_merge(self):
         self.assert_denied(run_gate(payload("pr-reviewer", "git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "python3 -m gitgate push")))
-        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 123")))
-        # 逆側: issue-implementer は merge 不可・push 可（gitgate push 経由）。
+        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 123")))
+        # issue-implementer も merge 不可・push 可（gitgate push 経由）。
         self.assert_denied(run_gate(payload("issue-implementer", "gh pr merge 123")))
         self.assert_allowed(run_gate(payload("issue-implementer", "python3 -m gitgate push")))
         # 生 git push は両ロールで deny（gitgate ラッパー経由に誘導）。
         self.assert_denied(run_gate(payload("issue-implementer", "git push -u origin HEAD")))
-        # pr-reviewer の merge は gh pr merge 経由のみ。`git merge`/gitgate は集合外で deny。
+        # native 設定に到達する前の hook も reviewer の merge を許可しない。
         self.assert_denied(run_gate(payload("pr-reviewer", "git merge feature")))
-
-    def test_pr_reviewer_may_pass_subject_and_body_on_squash_merge(self):
-        # Issue #419: squash_merge_commit_message: COMMIT_MESSAGES 設定のリポジトリでは
-        # --body を明示しないと pr_merge_gate の MERGE_MESSAGE_AMBIGUOUS で必ず拒否されるため、
-        # --subject/--body を allowlist に追加した（第3次修正）。
-        self.assert_allowed(
-            run_gate(
-                payload(
-                    "pr-reviewer",
-                    'gh pr merge 123 --squash --subject "fix: title" --body "body text"',
-                )
-            )
-        )
-        # --admin は引き続き除外（第2次修正・ブランチ保護バイパスを許可しない）。
-        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 123 --squash --admin")))
 
     # ------------------------------------------------------------------
     # F1（Issue #227 レビュー）: ブレース展開バイパスの遮断（層1に `{` `}` を追加）

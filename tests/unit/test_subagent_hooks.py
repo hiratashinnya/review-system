@@ -1510,24 +1510,19 @@ class SettingsRegistrationTests(unittest.TestCase):
                     script = HOOK_DIR / command.rsplit("/", 1)[-1]
                     self.assertTrue(script.is_file(), f"{script} が存在しない")
 
-    def test_pre_existing_registrations_are_untouched(self):
-        """AC「既存エントリに手を入れていない（追加のみ）」の回帰。"""
+    def test_retired_merge_gate_registration_preserves_other_hooks(self):
         pre_tool_use = self.commands("PreToolUse")
-        self.assertEqual(len(pre_tool_use), 4)
+        self.assertEqual(len(pre_tool_use), 3)
+        self.assertNotIn("pr-merge-gate.sh", pre_tool_use)
+        self.assertIn("agent-command-gate.sh", pre_tool_use[0])
         self.assertEqual(
-            pre_tool_use[0],
-            "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
-        )
-        self.assertEqual(
-            pre_tool_use[3],
-            "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
+            pre_tool_use[2], "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh"
         )
         # Issue #512 で `karte-notify.sh`（matcher `Bash`）を追加した。既存2件（Issue #309 時点）
-        # は手を入れず末尾に追加のみであることをここで固定する。
+        # は保持し、退役したゲートだけを除いていることをここで固定する。
         self.assertEqual(
             self.commands("PostToolUse"),
             [
-                "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pr-merge-gate.sh",
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
             ],

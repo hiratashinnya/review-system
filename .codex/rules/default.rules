@@ -1,0 +1,74 @@
+# Project-native Codex command policy. A forbidden decision overrides user allows.
+prefix_rule(
+    pattern = ["git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["git merge topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk git merge topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk proxy git merge topic"],
+)
+prefix_rule(
+    pattern = ["git", "-c"],
+    decision = "forbidden",
+    justification = "Git config aliases can hide a merge command; use the owner report.",
+    match = ["git -c alias.m=merge m topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "git", "-c"],
+    decision = "forbidden",
+    justification = "Git config aliases can hide a merge command; use the owner report.",
+    match = ["rtk git -c alias.m=merge m topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "git", "-c"],
+    decision = "forbidden",
+    justification = "Git config aliases can hide a merge command; use the owner report.",
+    match = ["rtk proxy git -c alias.m=merge m topic"],
+)
+prefix_rule(
+    pattern = ["gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["gh pr merge 123"],
+)
+prefix_rule(
+    pattern = ["rtk", "gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk gh pr merge 123"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk proxy gh pr merge 123"],
+)
+# gh api accepts REST routes and file-backed GraphQL payloads, so deny its whole prefix.
+prefix_rule(
+    pattern = ["gh", "api"],
+    decision = "forbidden",
+    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
+    match = ["gh api --method PUT repos/o/r/pulls/1/merge"],
+)
+prefix_rule(
+    pattern = ["rtk", "gh", "api"],
+    decision = "forbidden",
+    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
+    match = ["rtk gh api graphql -F query=@payload.txt"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "gh", "api"],
+    decision = "forbidden",
+    justification = "Use gh pr view/review; REST and GraphQL API calls are disabled for AI roles.",
+    match = ["rtk proxy gh api graphql -F query=@payload.txt"],
+)
