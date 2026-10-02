@@ -314,6 +314,7 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "env /usr/bin/gh --repo owner/repo pr merge 123",
             "rtk proxy gh --repo owner/repo pr merge 123",
             "gh api --method PUT repos/o/r/pulls/123/merge",
+            "gh api -XPUT repos/o/r/pulls/123/merge",
             "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
             "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
         )
@@ -331,6 +332,7 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "gh pr view 123",
             "gh --repo owner/repo pr view 123",
             "gh api --method GET repos/o/r/pulls/123/merge",
+            "gh api repos/o/r/issues/123",
             "gh api graphql -F 'query={ viewer { login } } # mergePullRequest is only a comment'",
         )
         for command in commands:

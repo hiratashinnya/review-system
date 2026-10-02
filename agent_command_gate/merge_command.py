@@ -2,19 +2,14 @@
 
 import os
 
-from .command_tokens import command_segments, unwrap_command
+from .command_segments import command_segments
+from .command_substitutions import shell_substitutions
+from .command_wrappers import unwrap_command
 from .github_api import merge_api_reason
 from .global_options import skip_global_options
 
 
 def _inspect_segment(tokens):
-    for token in tokens:
-        if "$(" in token or "`" in token:
-            nested = token.replace("$(", " ").replace("`", " ").replace(")", " ")
-            if nested.strip() and nested != token:
-                reason = _inspect(nested, 1)
-                if reason:
-                    return reason
     tokens, error = unwrap_command(tokens)
     if error:
         return error
@@ -60,7 +55,14 @@ def _inspect(command, depth=0):
     segments = command_segments(command)
     if segments is None:
         return "shell tokenization failed; refusing because the command cannot be inspected"
-    for segment in segments:
+    for segment, source in segments:
+        nested_commands = shell_substitutions(source)
+        if nested_commands is None:
+            return "shell command substitution cannot be inspected safely"
+        for nested in nested_commands:
+            reason = _inspect(nested, depth + 1)
+            if reason:
+                return reason
         reason = _inspect_segment(segment)
         if reason:
             return reason

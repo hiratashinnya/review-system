@@ -72,6 +72,8 @@ def merge_api_reason(arguments):
         index += 1
 
     actual_method = method or ("POST" if has_body else "GET")
+    if any("$" in endpoint or "`" in endpoint for endpoint in endpoints):
+        return "the GitHub API endpoint is dynamically supplied and cannot be inspected"
     if any(_route_is_pull_merge(route) for route in endpoints):
         if actual_method not in READ_METHODS:
             return "the GitHub REST request targets a pull request merge route with a write method"
