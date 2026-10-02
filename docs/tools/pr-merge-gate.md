@@ -6,6 +6,8 @@ AI roles and the main context do not merge pull requests. The owner performs a m
 
 Claude Code uses native `permissions.deny` rules in `.claude/settings.json` for shell commands and GitHub MCP merge tools. These rules apply to the main context and every agent. Its PreToolUse and PostToolUse hooks no longer invoke a PR merge classifier.
 
+These command rules deny the supported command spellings covered by their patterns; they are not OS-level enforcement. Claude Code matches Bash command text, and Codex matches argument prefixes, so a different executable path or an unlisted command spelling may fall outside the rule. Do not treat these project rules as protection from a deliberately constructed alternate invocation.
+
 Codex uses project execpolicy rules in `.codex/rules/default.rules`. Forbidden rules cover direct and RTK-wrapped GitHub CLI merge calls, local Git merge commands, and all `gh api` calls. The rule engine matches command prefixes and cannot inspect a GraphQL query loaded from a file, so denying the whole API command is required to cover REST and file-backed GraphQL requests. This also removes Codex CLI access to non-merge `gh api` operations. Project rules load only when the `.codex` project layer is trusted; restart Codex after changing them. The GitHub connector merge tools remain disabled in `.codex/config.toml`. See [Codex command rules](https://learn.chatgpt.com/docs/agent-configuration/rules) for the native rule behavior.
 
 The role-specific command hooks retain their existing push, write, and review command boundaries. They no longer give `pr-reviewer` a special merge allowance. Native platform rules provide the all-role merge denial.
