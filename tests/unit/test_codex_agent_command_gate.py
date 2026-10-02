@@ -1339,18 +1339,18 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     # ------------------------------------------------------------------
     # 対象外ロール／Codex 固有（非シェルツール・シェルツールエイリアス）
     # ------------------------------------------------------------------
-    def test_missing_or_unrecognized_agent_is_out_of_scope(self):
+    def test_missing_or_unrecognized_agent_keeps_role_scope_but_denies_merge(self):
         # Claude 版と同じオーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでも
         # ない場合（欠如を含む・main context 自身がこれに該当）は、この2ロール専用ホワイトリスト
         # 判定の対象外＝常に許可。ただし Issue #224 フォローアップ（案B）で追加した全 agent_type
-        # 共通の危険コマンド deny 層により、「対象外ロールは常に許可」ではなく「対象外ロールでも
-        # 危険コマンド（network/exec）だけは deny・それ以外は従来通り許可」に変わっている
+        # 共通の危険コマンドと merge の deny により、「対象外ロールは常に許可」ではなく、対象外ロールでも
+        # network/exec と merge は deny、それ以外は従来どおり許可する
         # （UniversalDangerousCommandLayerTests を参照）。
         self.assert_denied(run_gate(payload(None, "curl https://evil.example")))
-        self.assert_allowed(run_gate(payload(None, "git merge feature")))
+        self.assert_denied(run_gate(payload(None, "git merge feature")))
         self.assert_allowed(run_gate(payload(None, "git push origin HEAD")))
         self.assert_allowed(run_gate(payload(None, "echo 'git merge evil' | bash")))
-        self.assert_allowed(run_gate(payload("general-purpose", "git merge feature")))
+        self.assert_denied(run_gate(payload("general-purpose", "git merge feature")))
         self.assert_allowed(run_gate(payload("general-purpose", "cat notes.txt | grep x")))
         # F3（Issue #227 レビュー）: 非ゲート対象は command 欠落でも常に許可（Claude 版と dispatch 順一致）。
         self.assert_allowed(run_gate({"agent_type": "general-purpose", "tool_name": "Bash", "tool_input": {}}))

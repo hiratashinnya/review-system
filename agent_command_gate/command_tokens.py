@@ -13,7 +13,7 @@ def _assignment(token):
 
 
 def command_segments(command):
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|(){}\n")
+    lexer = shlex.shlex(_separate_shell_lines(command), posix=True, punctuation_chars=";&|(){}")
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
@@ -30,6 +30,47 @@ def command_segments(command):
     if current:
         segments.append(current)
     return segments
+
+
+def _separate_shell_lines(command):
+    output = []
+    quote = None
+    escaped = False
+    comment = False
+    for char in command:
+        if comment:
+            if char == "\n":
+                output.append(";")
+                comment = False
+            continue
+        if quote == "'":
+            output.append(char)
+            if char == "'":
+                quote = None
+            continue
+        if escaped:
+            output.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            output.append(char)
+            escaped = True
+            continue
+        if quote:
+            output.append(char)
+            if char == quote:
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            output.append(char)
+        elif char == "#" and (not output or output[-1].isspace() or output[-1] in ";|&()"):
+            comment = True
+        elif char == "\n":
+            output.append(";")
+        else:
+            output.append(char)
+    return "".join(output)
 
 
 def _environment_end(tokens, index):
