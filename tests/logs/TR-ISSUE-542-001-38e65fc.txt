@@ -1,0 +1,36 @@
+Verification commit: 38e65fc
+Worktree: /home/hiras/ws_claude/review_system-2nd-ws/review-system/.worktrees/issue-542
+
+Command: rtk python3 -m unittest tests.unit.test_codex_execpolicy_rules tests.unit.test_merge_permission_policy tests.unit.test_governance_sync
+.........
+----------------------------------------------------------------------
+Ran 16 tests in 1.032s
+
+OK
+
+Command: rtk python3 -m unittest discover -s tests/unit -p test_codex_rate_limit_api.py -k watcher_parses_reached
+FF
+Ran 2 tests
+FAILED (failures=2): both watcher tests returned FALLBACK instead of their expected OK record.
+
+Command: rtk python3 -m unittest discover -s tests/unit -p test_codex_supervisor_shrink.py -k installed_codex_profile_normal_and_negative_matrix_is_model_free
+E
+Ran 1 test
+FAILED (errors=1): CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty
+
+Command: rtk python3 -m unittest discover -s tests/unit -p test_codex_rate_limit_api.py -k test_query_helper_compiles
+FAILED (failures=1): [Errno 30] Read-only file system: '/home/hiras/ws_claude/review_system-2nd-ws/review-system/.worktrees/issue-542/.codex/hooks/__pycache__'
+
+Command: rtk python3 -m unittest discover -s tests/unit -p test_codex_rate_limit_api.py -k test_query_helper_compiles (clean /tmp worktree at the same commit)
+.
+Ran 1 test
+OK
+
+Command: rtk python3 -m maintainability_lint check
+violations=0 accepted_debt=127
+
+Command: rtk python3 -m asset_parity check
+39 assets checked; 0 MISSING; 29 staleness flags
+
+Command: rtk git diff --check 2fc4cfb
+exit 0; no whitespace errors
