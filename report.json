@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-03T17:31:10.503272Z",
+  "repository": "hiratashinnya/review-system",
+  "branch": "main",
+  "workflows_checked": 7,
+  "collection_errors": 0,
+  "anomalies": [
+    {
+      "workflow": {
+        "id": 351603195,
+        "name": "defect-metrics",
+        "path": ".github/workflows/defect-metrics.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/36406190615/job/108875388863",
+      "run": {
+        "id": 36406190615,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "schedule",
+        "head_sha": "531040faea5f48f84f49906f7584534fc817a618",
+        "completed_at": "2026-09-28T09:52:21Z"
+      },
+      "job": "publish",
+      "location": ".github:2"
+    }
+  ]
+}
