@@ -21,6 +21,25 @@ Claude の native glob は完全な parser ではないため、引数に merge 
 - 両方の既存 `agent-command-gate` hook が全ロールの shell command text を字句検査し、Git/gh global options、env、絶対パス、RTK wrapper、REST merge route、GraphQL merge mutations を補う。読み取り GET と無関係な query は許可する。
 - Codex prefix のみでは後続引数を判定できないため、`git -C` 等を native rule で拒否しない。詳しい保証範囲・失敗時の挙動・残る制約は [`docs/tools/pr-merge-gate.md`](../../docs/tools/pr-merge-gate.md) に記録する。これらは OS-level sandbox ではなく、意図的な alternate invocation を防止する保証はしない。
 
+## 現行説明から移した判断履歴
+
+2026-10-03 の是正で、以下の経緯・理由を現行手順、inventory、hook コメントから本 rationale に集約した。現行文書には現在の権限、動作、確認日時、制約を残す。
+
+### ネイティブ規則の表現範囲と受容した偽陽性
+
+Codex の prefix rule は直接の command prefix だけを比較し、後続の global option と引数は調べない。このため global option、wrapper、絶対パスを含む shell 呼び出しは command hook が判定する。Claude の glob は正規表現ではないため、global option を挟む GitHub CLI の狭いパターンでも引数中の同じ語列に一致することがある。Git の `git * merge` 系は `git show merge` も拾うため撤去し、global option 付き Git 呼び出しは hook 判定に寄せた。GitHub 側の一部 glob に残る偽陽性は、ネイティブの直接形カバーを維持する判断時に受容した。
+
+### ロール境界コメントに含まれていた根拠
+
+- Issue #308 と #341 の是正では、gated role を許可テーブルへ登録し忘れると hook の例外処理で fail-open し得ることが判明した。これを受け、必須 role table の自己検査と hook 実行失敗時の deny を設けた。`issue-fixer` だけに `karte` を追加し、`ingest-review` は指摘側の操作として主文脈に限定した。
+- Issue #354 PR-4 では、既存の検証済み PR branch を掴む `adopt-branch` を issue-fixer に追加した。初回実装の issue-implementer は新規 branch を作るため同じ権限を持たない。
+- Issue #495 の判断により、scope 外 finding も構造化 finding として記録し、status と verdict の評価対象に含める。
+- Issue #129 で、shell hook は sandbox ではなく、agent type の詐称や hook 外の実行経路を阻止できない制約を明記した。
+
+### 退役 notice と版履歴
+
+現行 classifier policy は retired notice として `policy_version: 1.18` を持つ。旧 classifier contract は `classifier_version: 1.17` として archive に保存し、当該 notice の確認日は 2026-10-02 とした。retired notice は Issue #542 による classifier と pre-use/post-use 配線の撤去後に追加した。Issue 番号、移行理由、版遷移の説明は履歴としてここに保管する。
+
 ## 版の扱い
 
 旧 classifier の最終 contract は `classifier_version: 1.17` である。Issue #542 で classifier 自体を撤去したため、その版は archive で履歴として固定し、現行の retired notice は `policy_version: 1.18` とした。`1.18` は notice の版であり、稼働 classifier の版ではない。

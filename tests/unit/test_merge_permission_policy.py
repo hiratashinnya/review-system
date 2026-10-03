@@ -38,7 +38,6 @@ class NativeMergePermissionTests(unittest.TestCase):
             "gh pr merge 123 --merge", "rtk gh pr merge 123",
             "rtk proxy gh pr merge 123", "git merge feature",
             "rtk git merge feature", "rtk proxy git merge feature",
-            "git -C /tmp/repo merge feature",
             "gh -R owner/repo pr merge 123 --merge",
             "gh --repo owner/repo pr merge 123 --merge",
             "rtk gh -R owner/repo pr merge 123 --merge",
@@ -92,6 +91,14 @@ class NativeMergePermissionTests(unittest.TestCase):
         for command in reads:
             with self.subTest(platform="codex", command=command):
                 self.assertFalse(codex_denies(command, prefixes))
+
+    def test_claude_globs_do_not_reject_merge_as_a_read_argument(self):
+        settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
+        patterns = [item[5:-1] for item in settings["permissions"]["deny"] if item.startswith("Bash(")]
+        for command in ("git show merge", "git log merge"):
+            with self.subTest(command=command):
+                self.assertFalse(any(fnmatch.fnmatchcase(command, pattern) for pattern in patterns))
+        self.assertTrue(any(fnmatch.fnmatchcase("git merge feature", pattern) for pattern in patterns))
 
     def test_no_classifier_hook_registration_or_reviewer_merge_allowance_remains(self):
         claude = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))

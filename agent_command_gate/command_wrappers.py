@@ -41,7 +41,7 @@ def unwrap_command(tokens):
             elif index < len(tokens) and tokens[index].startswith("-") and tokens[index] not in {"--help", "--version"}:
                 return None, "an rtk option is ambiguous and cannot be inspected"
         elif name in {"command", "builtin", "exec"}:
-            index += 1
+            index += 2 if name == "command" and index + 1 < len(tokens) and tokens[index + 1] == "-p" else 1
         else:
             break
     return tokens[index:], None

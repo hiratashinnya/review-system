@@ -309,6 +309,13 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "git -C /tmp/repo merge feature",
             "env git -c core.pager=cat --git-dir /tmp/repo/.git merge feature",
             "rtk proxy /usr/bin/git --work-tree=/tmp/repo merge feature",
+            "timeout 1 gh pr merge 123",
+            "timeout 1 git -C /tmp/repo merge feature",
+            "trap 'gh pr merge 123' EXIT",
+            "command -p git -C /tmp/repo merge feature",
+            "nohup /usr/bin/git -C /tmp/repo merge feature",
+            "xargs git -C /tmp/repo merge feature",
+            "timeout 1 gh api --method PUT repos/o/r/pulls/123/merge",
             "git -c alias.m=merge m feature",
             "gh -R owner/repo pr merge 123",
             "env /usr/bin/gh --repo owner/repo pr merge 123",
@@ -328,6 +335,11 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
         commands = (
             'git commit -m "merge release notes"',
             'gh pr create --title "merge readiness"',
+            "git show merge",
+            "git log --grep merge -n 1",
+            "echo merge",
+            "echo 'git merge feature'",
+            "timeout 1 git show merge",
             "git -C /tmp/repo status --short",
             "gh pr view 123",
             "gh --repo owner/repo pr view 123",
@@ -338,6 +350,34 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_repository_and_github_reads_are_allowed_for_every_role(self):
+        commands = (
+            "git -C /tmp/repo status --short",
+            "git -C /tmp/repo log --grep merge -n 1",
+            "git -C /tmp/repo diff --stat",
+            "git -C /tmp/repo show HEAD",
+            "git -C /tmp/repo rev-parse --show-toplevel",
+            "gh pr view 123",
+            "gh api --method GET repos/o/r/issues/123",
+            "gh api repos/o/r/issues/123",
+        )
+        roles = (None, "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+
+    def test_raw_git_read_commands_reject_write_and_external_program_options(self):
+        commands = (
+            "git -C /tmp/repo diff --output=/tmp/result",
+            "git -C /tmp/repo log --ext-diff",
+            "git -C /tmp/repo show --textconv HEAD",
+        )
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
 
     def test_graphql_payload_files_are_inspected_and_read_queries_pass(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -663,10 +703,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
     def test_issue_implementer_now_denied_out_of_allowlist_git_gh(self):
-        # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全 deny。gh は impl 集合外を deny。
+        # Git writes and unlisted operations stay denied; the bounded read set is checked separately.
         denied = [
-            # 生 git は全て deny（gitgate ラッパー経由に誘導）。
-            "git status",
             "git commit -F /tmp/msg.md",
             "git push -u origin HEAD",
             "git pull --ff-only",
@@ -674,8 +712,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git merge --abort",
             "git merge-base main HEAD",
             "GIT_PAGER=cat git log -n1",
-            # gh は impl 集合（pr create / issue view）外は deny。
-            "gh pr view 123",
+            # gh write and review operations remain outside this role's permission set.
             "gh pr diff 123 --no-compact",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh issue comment 227 --body-file /tmp/comment.md",
@@ -685,10 +722,9 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
-        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log}、gh は
-        # {pr view/diff/checks/comment/review/merge, issue view}。
+        # pr-reviewer の gitgate verb は読取専用で、gh は許可済みの PR/issue 読み取り・review 操作だけ。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補（要オーナー判断）。
-        # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
+        # `gh pr checkout` は primary checkout の branch 切替を避けるため deny する。
         commands = [
             "gh pr view 123",
             "rtk gh pr diff 123 --no-compact",
@@ -846,7 +882,6 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git push origin HEAD",
             "git merge feature",
             "git fetch origin",
-            "git status",
             # gitgate は reviewer には読取専用 {diff, log} のみ・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
@@ -896,9 +931,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     # 層3: ロール非対称（従来からの契約）
     # ------------------------------------------------------------------
     def test_role_gitgate_verb_allowlist_is_exhaustive(self):
-        # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全ロールで deny。git 操作は
-        # `python3 -m gitgate <verb>` のロール別 verb 許可集合で判定する。
-        for sub in ["status", "add", "commit", "push", "diff", "log", "merge", "pull",
+        # Only bounded Git read subcommands are allowed directly; other operations use gitgate.
+        for sub in ["add", "commit", "push", "merge", "pull",
                     "fetch", "rebase", "reset", "checkout", "switch", "branch",
                     "send-pack", "subtree", "config", "clone", "remote", "merge-base"]:
             with self.subTest(raw_git=sub):
@@ -973,11 +1007,11 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
     def test_role_gh_subcommand_allowlist_is_exhaustive(self):
-        for cmd in ["gh pr create --title \"x\" --body-file f", "gh issue view 227"]:
+        for cmd in ["gh pr create --title \"x\" --body-file f", "gh pr view 1", "gh issue view 227", "gh api x"]:
             with self.subTest(role="issue-implementer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("issue-implementer", cmd)))
         reviewer_gh_allowed = [
-            "gh pr view 1", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
+            "gh pr view 1", "gh api x", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
             "gh issue view 1",
         ]
@@ -990,9 +1024,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --admin")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --squash --admin")))
         self.assert_denied(run_gate(payload("issue-implementer", "gh pr merge 1")))
-        self.assert_denied(run_gate(payload("issue-implementer", "gh pr view 1")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr create --title \"x\" --body-file f")))
-        for cmd in ["gh api x", "gh alias set m \"pr merge\"", "gh repo view", "gh auth status", "gh secret list"]:
+        for cmd in ["gh api --method POST x", "gh alias set m \"pr merge\"", "gh repo view", "gh auth status", "gh secret list"]:
             with self.subTest(cmd=cmd):
                 self.assert_denied(run_gate(payload("issue-implementer", cmd)))
                 self.assert_denied(run_gate(payload("pr-reviewer", cmd)))
@@ -1044,13 +1077,11 @@ class CodexAgentCommandGateTests(unittest.TestCase):
 
     def test_issue_fixer_denied_out_of_allowlist_git_gh(self):
         denied = [
-            "git status",
             "git pull --ff-only",
             "GIT_PAGER=cat git log -n1",
-            "gh pr view 123",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh pr review 123 --approve --body ok",
-            "gh api repos/o/r/pulls/1/merge",
+            "gh api --method POST repos/o/r/pulls/1/merge",
             "python3 -c \"import os; os.system('git merge x')\"",
             "python3 -m karte render --issue 308 | head -n1",
             "bash -c 'python3 -m karte append'",
@@ -1134,7 +1165,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 run_gate(payload(role, "python3 -m gitgate push"))
                 run_gate(payload(role, "gh issue view 1"))
                 run_gate(payload(role, "gh pr merge 1"))
-                self.assert_denied(run_gate(payload(role, "git status")))
+                self.assert_denied(run_gate(payload(role, "git push origin HEAD")))
 
     # ------------------------------------------------------------------
     # Issue #340: 内部エラーは allow ではなく deny に落ちる（fail-close）
