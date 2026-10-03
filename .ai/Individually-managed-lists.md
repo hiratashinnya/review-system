@@ -74,7 +74,7 @@
 
 #### 1–2. agent-command-gate
 
-- **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限する。merge 拒否はこの hook の責務ではない。ctx_execute 系 MCP ツールにも拡張済み（Issue #303）。
+- **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限する。merge 拒否はこの hook の責務ではない。ctx_execute 系 MCP ツールにも適用する。
 - **スコープ**: Bash、context-mode 実行系ツール。
 - **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。
 - **実装構成**: [`.claude/hooks/agent-command-gate.sh`](../.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](../.codex/hooks/agent-command-gate.sh)（`.codex/hooks/README.md` の「PreToolUse command gate」節にも概要あり）。既知の限界は Issue #129。

@@ -35,6 +35,7 @@ Codex の prefix rule は直接の command prefix だけを比較し、後続の
 - Issue #354 PR-4 では、既存の検証済み PR branch を掴む `adopt-branch` を issue-fixer に追加した。初回実装の issue-implementer は新規 branch を作るため同じ権限を持たない。
 - Issue #495 の判断により、scope 外 finding も構造化 finding として記録し、status と verdict の評価対象に含める。
 - Issue #129 で、shell hook は sandbox ではなく、agent type の詐称や hook 外の実行経路を阻止できない制約を明記した。
+- Issue #303 で、agent-command-gate の matcher を context-mode MCP 実行ツールにも拡張した。現行 inventory は対応する実行面だけを記載する。
 
 ### 退役 notice と版履歴
 
