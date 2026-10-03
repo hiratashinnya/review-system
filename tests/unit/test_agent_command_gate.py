@@ -405,6 +405,28 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate({"tool_input": {"command": command}}))
 
+    def test_quoted_command_substitutions_are_inspected_for_merge(self):
+        denied_commands = (
+            'echo "$(gh pr merge 123)"',
+            'echo "`gh pr merge 123`"',
+            'RESULT="$(gh pr merge 123)"',
+            'echo "$(printf "%s" "$(gh pr merge 123)")"',
+        )
+        for command in denied_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload(None, command)))
+
+        allowed_commands = (
+            "git show merge",
+            "git log --grep merge",
+            "echo merge",
+            'echo "merge"',
+            "echo '$(gh pr merge 123)'",
+        )
+        for command in allowed_commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
     def test_repository_and_github_reads_are_allowed_for_every_role(self):
         commands = (
             "git -C /tmp/repo status --short",

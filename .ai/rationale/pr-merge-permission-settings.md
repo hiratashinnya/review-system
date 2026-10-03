@@ -21,6 +21,12 @@ Claude の native glob は完全な parser ではないため、引数に merge 
 - 両方の既存 `agent-command-gate` hook が全ロールの shell command text を字句検査し、Git/gh global options、env、絶対パス、RTK wrapper、REST merge route、GraphQL merge mutations を補う。読み取り GET と無関係な query は許可する。
 - Codex prefix のみでは後続引数を判定できないため、`git -C` 等を native rule で拒否しない。詳しい保証範囲・失敗時の挙動・残る制約は [`docs/tools/pr-merge-gate.md`](../../docs/tools/pr-merge-gate.md) に記録する。これらは OS-level sandbox ではなく、意図的な alternate invocation を防止する保証はしない。
 
+## 受容した静的検査の境界
+
+2026-10-03 の F-542-22 判断では、目的を AI のうっかり merge 防止に置き、意図的な迂回を保証対象外として受容した。Git alias、shell function、別 executable、script 内の実行は、実行環境や対象コードを解釈しなければ展開できず、command-text 検査だけでは静的に確定できない。これらを網羅的に解決する実行時機構は追加せず、最終の強制手段を GitHub 側の branch protection とする。
+
+F-542-03 では AC 2／AC 10 の根拠として、実際のローカル hook 入力テスト、Claude settings テスト、Codex native checker の結果をオーナーが受け入れた。Claude の live permission engine と製品セッションでの role dispatch は測定していない。この受容は利用可能なローカル証拠の範囲に対する判断であり、製品セッションの実測を意味しない。
+
 ## 現行説明から移した判断履歴
 
 2026-10-03 の是正で、以下の経緯・理由を現行手順、inventory、hook コメントから本 rationale に集約した。現行文書には現在の権限、動作、確認日時、制約を残す。

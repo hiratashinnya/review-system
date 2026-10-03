@@ -67,14 +67,16 @@
 
 ### 各 hook の概要
 
-#### Merge 権限（native permission rules、lifecycle hook なし）
+#### Merge 権限（native direct-prefix rules と共有 command hooks）
 
-- **概要**: AI ロールと主文脈は merge／auto-merge を実行しない。Claude は `.claude/settings.json` の `permissions.deny`、Codex は `.codex/rules/default.rules` の execpolicy で拒否する。実際の merge はオーナーが fresh blocker report を確認した後に手動で行う。
-- **範囲と限界**: Claude の command text pattern と Codex の argument prefix rule は OS sandbox ではない。Codex の前置 repository flag ルールには non-merge command も拒否する範囲がある。対応形と限界は [`docs/tools/pr-merge-gate.md`](../docs/tools/pr-merge-gate.md) を参照。
+- **概要**: AI ロールと主文脈は merge／auto-merge を実行しない。Claude の permission rules と Codex の execpolicy は直接形の command prefix を拒否し、両 `agent-command-gate` hook は全ロールに共有 merge 判定を適用する。実際の merge はオーナーが fresh blocker report を確認した後に手動で行う。
+- **責務分担**: Native rules は直接形の prefix を扱う。両 hook は global option、wrapper、API、検査可能な間接実行形式を含む shell command の merge 判定を担う。読み取り形式は許可する。Codex native rule の前置 repository flag による非 merge command の拒否や、merge hook の非担当という例外はない。
+- **範囲と限界**: Hook は OS sandbox ではなく静的 command-text 検査である。Git alias、shell function、別 executable、script 内の実行は保証しない。Claude の live permission engine と製品セッションの role dispatch は未測定。対応形と限界は [`docs/tools/pr-merge-gate.md`](../docs/tools/pr-merge-gate.md) を参照。
+- **実装構成**: `.claude/settings.json`／`.codex/rules/default.rules`、`.claude/hooks/agent-command-gate.sh`／`.codex/hooks/agent-command-gate.sh`。
 
 #### 1–2. agent-command-gate
 
-- **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限する。merge 拒否はこの hook の責務ではない。ctx_execute 系 MCP ツールにも適用する。
+- **概要**: ロール別（`issue-implementer`／`issue-fixer`／`pr-reviewer`）に push 等の操作を制限し、全ロールに共有 merge 判定を適用する。ctx_execute 系 MCP ツールにも適用する。
 - **スコープ**: Bash、context-mode 実行系ツール。
 - **PF 間差異**: Claude は Bash＋ctx_execute 系の2 matcher。Codex は Bash のみ（ctx_execute 系は Codex に未導入）。
 - **実装構成**: [`.claude/hooks/agent-command-gate.sh`](../.claude/hooks/agent-command-gate.sh)、[`.codex/hooks/agent-command-gate.sh`](../.codex/hooks/agent-command-gate.sh)（`.codex/hooks/README.md` の「PreToolUse command gate」節にも概要あり）。既知の限界は Issue #129。
