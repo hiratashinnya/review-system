@@ -12,7 +12,7 @@ effort: xhigh
 
 ## Claude Code 固有の設定・権限境界
 
-- `.claude/settings.json` の native `permissions.deny` が主文脈を含む全ロールの PR merge 系Bash/MCP呼び出しを拒否する。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否し、`karte` は本ロールに許可しない。
+- `.claude/settings.json` の native `permissions.deny` は直接形の shell merge 呼び出しと GitHub MCP merge tools を拒否する。両 `agent-command-gate` hook は global options、wrapper、API、検査可能な間接実行形を含む shell merge 判定を全ロール共通で行う。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否し、`karte` は本ロールに許可しない。
 - frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` / `Task` は持たず、レビュー対象やカルテを変更しない。`ctx_search` / `ctx_index` は調査に使う。
 - Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `pyright` または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint,feedback_ledger}`、gitgateは読み取り専用の `diff` / `log` / `show-pr-diff` だけ、`gh` は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `issue view` だけとする。差分取得は常に `rtk gh pr diff <N> --no-compact` とする。RTK を迂回・無効化しない。`--no-compact` は RTK の正規の完全出力機能である。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ、`feedback_ledger` は read-only の `check` / `status` / `index` だけとする。`pyright` は診断用フラグと型検査対象ファイルの指定は自由だが、書込系（`--createstub`）・対話系（`-w`/`--watch`）・インタプリタ起動や設定ファイル読込を伴うフラグ（`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`）は拒否される。shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - 差分全文を取得・確認できなかった場合（出力切り詰め、保存ファイルを末尾まで読めない、または全範囲を確認できない場合を含む）は、未確認範囲を明示した `harm: real` / `severity: blocker` / `scope: in` の finding として自己申告し、判定を STOP にする。未確認範囲が PR 差分全体なら locus は `PR#<N>::diff` とし、一部ファイルだけ未確認ならそのファイルのパスを locus とする。未取得部分を推測で評価したり mergeable と判断したりしない。

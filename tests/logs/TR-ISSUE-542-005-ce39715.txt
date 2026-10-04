@@ -1,8 +1,8 @@
 Verification summary from the final Issue #542 unit-suite run
-Run date: 2026-10-03
+Run date: 2026-10-05
 Command: rtk env TMPDIR=/tmp PYTHONPYCACHEPREFIX=/tmp/issue-542-pycache python3 -m unittest discover -s tests/unit
 
-Ran 2051 tests
+Ran 2053 tests in 327.186s
 FAILED (failures=2, errors=1, skipped=12)
 
 Failures:

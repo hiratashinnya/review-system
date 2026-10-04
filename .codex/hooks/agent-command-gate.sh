@@ -4,7 +4,9 @@
 #
 # 役割:
 #   "issue-implementer" / "issue-fixer" / "pr-reviewer" subagent（Codex custom subagent の role 名）に
-#   対して、push とレビュー操作の境界を機械的に強制する。merge は project execpolicy が全ロールへ適用する。
+#   対して、push とレビュー操作の境界を機械的に強制する。merge は両 PF の all-role hook 判定で拒否し、
+#   native execpolicy は直接形の command prefix を対象にする。global options、wrapper、API、検査可能な
+#   間接実行形は hook が判定する。
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
 #     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界）。
 #                           初回実装ではなく**レビュー指摘を受けた是正ラウンド専用**の別ロールで、

@@ -25,6 +25,8 @@ Claude の native glob は完全な parser ではないため、引数に merge 
 
 2026-10-03 の F-542-22 判断では、目的を AI のうっかり merge 防止に置き、意図的な迂回を保証対象外として受容した。Git alias、shell function、別 executable、script 内の実行は、実行環境や対象コードを解釈しなければ展開できず、command-text 検査だけでは静的に確定できない。これらを網羅的に解決する実行時機構は追加せず、最終の強制手段を GitHub 側の branch protection とする。
 
+2026-10-04 の F-542-24 判断では、エスケープされた入れ子の旧形式 backtick substitution も意図的な迂回形として保証対象外にした。Issue の目的は AI のうっかり merge を機械的に防ぐことであり、意図的な迂回策を網羅して潰すことではないため、この finding に対するコード変更は行わない。迂回を含めて拒否する最終手段は GitHub 側の branch protection とする。
+
 F-542-03 では AC 2／AC 10 の根拠として、実際のローカル hook 入力テスト、Claude settings テスト、Codex native checker の結果をオーナーが受け入れた。Claude の live permission engine と製品セッションでの role dispatch は測定していない。この受容は利用可能なローカル証拠の範囲に対する判断であり、製品セッションの実測を意味しない。
 
 ## 現行説明から移した判断履歴

@@ -15,7 +15,7 @@ developer_instructions = """すべての説明・報告・質問は日本語で�
 
 ## Codex 固有の機械ゲート・権限境界
 
-- `.codex/rules/default.rules` の native execpolicy が全ロールの PR merge 系シェルコマンドを拒否する。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否し、`python3 -m karte` は本ロールに許可しない。
+- `.codex/rules/default.rules` の native execpolicy は直接形の shell merge command prefix を拒否し、Codex GitHub connector の merge tools は設定で無効にする。両 `agent-command-gate` hook は global options、wrapper、API、検査可能な間接実行形を含む shell merge 判定を全ロール共通で行う。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否し、`python3 -m karte` は本ロールに許可しない。
 - `gh api` の GET/HEAD 読み取りは hook のロール別許可リストで許可し、REST/GraphQL の merge 操作は共有 command hook の決定論判定で拒否する。Codex native execpolicy は API 全体を拒否しない。
 - Bashの先頭コマンドは `gh`、読み取り専用の生 `git`（`status` / `log` / `diff` / `show` / `rev-parse`）、または `python3 -m {gitgate,unittest,coverage,dsv2,asset_parity,time_fixture_lint}` に限る。ただし、保存差分の読取に限り `rtk sed -n <開始>,<終了>p <パス>` を例外として許可する（対象は `tmp/pr-diffs/pr-<PR番号>-<32桁hex>.diff`）。gitgateは読み取り専用の `diff` / `log` / `show-pr-diff` だけ、`gh` は `pr view` / `pr diff` / `pr checks` / `pr comment` / `pr review` / `issue view` と GET/HEAD の `api` だけとする。PR差分取得では常に `rtk gh pr diff <N> --no-compact` を使う。RTKを迂回・無効化しない。`--no-compact` はRTKの正規の完全出力機能である。Codex CLIの差分取得には `python3 -m gitgate show-pr-diff <N>` を使う（内部実行 argv は `rtk gh pr diff <N> --no-compact`）。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ（read-only 監査）。`gh pr create`、書込み系 `gh api`、`karte`、Git 書込み、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - ツール出力上限で切り詰められ全文保存先が示された場合は、そのファイルを読んで全文を確認する。プレビューだけでレビュー完了・clean判定をしない。
