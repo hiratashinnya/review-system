@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "id": "sample-verified-delivery",
+  "skill_path": "examples/jev_hooks/SKILL.md",
+  "steps": [
+    {
+      "id": "test",
+      "kind": "required",
+      "evidence": {
+        "tool": "Bash",
+        "input": {
+          "command": "python -m jev_hooks.verification -- python -m unittest discover -s tests/jev_hooks"
+        }
+      },
+      "watch": [
+        "jev_hooks/*.py",
+        "tests/jev_hooks/*.py",
+        "tests/unit/test_jev*.py"
+      ]
+    },
+    {
+      "id": "extra-check",
+      "kind": "conditional",
+      "when": {
+        "path_exists": "EXTRA_CHECK_REQUIRED"
+      },
+      "evidence": {
+        "tool": "Bash",
+        "input": {
+          "command": "python -m jev_hooks.verification -- python extra_check.py"
+        }
+      },
+      "watch": [
+        "jev_hooks/*.py"
+      ]
+    },
+    {
+      "id": "format",
+      "kind": "optional",
+      "evidence": {
+        "tool": "Bash",
+        "input": {
+          "command": "python format_check.py"
+        }
+      },
+      "watch": []
+    }
+  ],
+  "operations": [
+    {
+      "tool": "Bash",
+      "input": {
+        "command": "git push"
+      },
+      "requires": [
+        "test",
+        "extra-check"
+      ]
+    }
+  ],
+  "stop_requires": [
+    "test",
+    "extra-check"
+  ]
+}

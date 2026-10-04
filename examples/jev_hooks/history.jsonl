@@ -1,0 +1,3 @@
+{"message":{"role":"user","content":[{"type":"text","text":"配色を決めてください"}]}}
+{"message":{"role":"assistant","content":[{"type":"thinking","thinking":"内部の検討は公開説明ではない"},{"type":"text","text":"青は落ち着いた印象、赤は強い強調になります。用途が未確定なので、お好みを確認します。"}]}}
+{"message":{"role":"assistant","content":[{"type":"tool_use","id":"ask-1","name":"AskUserQuestion","input":{"questions":[{"question":"どちらの色にしますか？","options":[{"label":"青","description":"落ち着いた印象"},{"label":"赤","description":"強い強調"}]}]}}]}}

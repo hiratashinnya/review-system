@@ -1,0 +1,2 @@
+# 実API利用時だけ必要。通常のfixture/mockテストは標準ライブラリのみ。
+typesafe-sdk==0.7.2

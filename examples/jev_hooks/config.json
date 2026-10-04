@@ -1,0 +1,14 @@
+{
+  "mode": "shadow",
+  "evaluator": "mock",
+  "model": "jev-1.13.0",
+  "confidence_threshold": 0.9,
+  "timeout_seconds": 8,
+  "retries": 1,
+  "max_blocks_per_rule": 2,
+  "question_tool_available": true,
+  "research_tools": ["Read", "Grep"],
+  "state_dir": "/tmp/jev-hooks-demo",
+  "skill_definitions": ["examples/jev_hooks/skill-check.json"],
+  "mock_answers": {}
+}
