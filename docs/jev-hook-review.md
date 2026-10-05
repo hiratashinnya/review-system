@@ -51,3 +51,7 @@
 - 回帰テスト: `test_contract_change_invalidates_success_and_new_validation_recovers`, `test_contract_change_rejects_old_pending_result_and_recovers` は evidence / watch の両変更を確認。`test_unrelated_step_change_preserves_success` は他手順への影響を確認。
 - 修正前: 追加3テストで4 subtest の失敗を再現。修正後: SDK 0.7.2 導入済み一時 venv の指定3 suite は **38 / 38 成功、skip なし**。HTTP mock を使用し実 API 通信なし。
 - `python3 -m maintainability_lint check`: **violations=0、accepted_debt=136**。baseline の変更なし。変更 Python module はすべて100物理行以内。
+
+## F-572-004: README の Issue 状態更新（2026-10-05）
+
+根因: 当初 GitHub API の403で作成できなかった説明が、Issue #572 作成後も README に残っていた。現在の対応 Issue のリンクと、ローカルの Issue 本文ファイルをコミットに含めない方針へ更新した。コード変更はなく、追加テストは不要と判断した。`git diff --check` と maintainability lint（violations=0、accepted_debt=136）を確認し、既存の38件成功のコード検証結果は保持する。

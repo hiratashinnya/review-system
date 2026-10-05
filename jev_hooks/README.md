@@ -1,6 +1,6 @@
 # Jev による Claude Code フック判定
 
-Python 3.11 以降、WSL/Linux 向けの独立した stdin/stdout 判定器です。**settings.json の作成・変更、プラグイン登録、自動インストール、実セッションでの有効化は行いません。** Issue 本文はチャットで提示し、リポジトリへのコミットには含めません。GitHub API が 403 を返したため、Issue は作成できていません。
+Python 3.11 以降、WSL/Linux 向けの独立した stdin/stdout 判定器です。**settings.json の作成・変更、プラグイン登録、自動インストール、実セッションでの有効化は行いません。** 対応 Issue は [#572](https://github.com/hiratashinnya/review-system/issues/572) です。ローカルの Issue 本文ファイルはリポジトリへのコミットに含めません。
 
 ## オフラインで試す
 
