@@ -54,7 +54,7 @@ R1 は作業上の回答待ちと、同じ質問を AskUserQuestion で既に実
 
 `recovery` に調査など回復操作の matcher を列挙できます。step の evidence に一致する検証操作も回復扱いで前提拒否を迂回します。汎用 Bash matcher で保護する場合も検証自身を妨げません。サンプルの `git push` matcher はその文字列だけを対象とし、シェルの意味解析・あらゆる送信操作の遮断機能ではありません。
 
-検証の PreToolUse で対象ファイル群を fingerprint 化し、対応する PostToolUse 成功時にも一致した場合だけ完了します。途中編集、検証後編集、失敗・中断、自己申告、結果のない呼び出しでは完了にしません。再検証開始時は以前の成功証拠も失効し、重なる検証では最新開始の成功だけを認証します。プロセス再開をまたぐ pending を保持します。
+検証の PreToolUse で対象ファイル群とその手順の検査契約を fingerprint 化し、対応する PostToolUse 成功時にも両方が一致した場合だけ完了します。途中編集、検証後編集、evidence / watch などの契約変更、失敗・中断、自己申告、結果のない呼び出しでは完了にしません。再検証開始時は以前の成功証拠も失効し、重なる検証では最新開始の成功だけを認証します。プロセス再開をまたぐ pending を保持します。
 
 Bash の公式応答例では終了コードが常在しません。そのためサンプルは `python -m jev_hooks.verification -- <検証コマンド>` を使い、stdout 最終行の `JEV_VERIFICATION_RECEIPT={"exit_code":0}` を検査します。ラッパー自身は実コマンドの終了コードを返します。中断なら receipt があっても無効です。単なる `PostToolUse`、空 stderr、"passed" 文字列は成功証拠にしません。正規化された fixture の数値 `exit_code` にも対応します。実行入口の tool_input は検査定義と一致させ、検証には Pre / Post / Failure イベントを順に stdin へ渡してください。
 
@@ -95,4 +95,4 @@ python -m venv /tmp/jev-env
 - https://docs.typesafe.ai/confidence
 - https://docs.typesafe.ai/model-jaggedness/jev-1.13
 
-最終オフライン検証（2026-10-05）: `python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v` は SDK 0.7.2 導入済み一時 venv で **35 件すべて成功、skip なし**。maintainability lint は violations=0（既存 accepted_debt=136）。前回の手動 stdin では shadow `{}`、Stop block、PreToolUse deny の JSON と終了コード 0 を確認しました。
+最終オフライン検証（2026-10-05）: `python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v` は SDK 0.7.2 導入済み一時 venv で **38 件すべて成功、skip なし**。maintainability lint は violations=0（既存 accepted_debt=136）。前回の手動 stdin では shadow `{}`、Stop block、PreToolUse deny の JSON と終了コード 0 を確認しました。

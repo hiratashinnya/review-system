@@ -1,4 +1,4 @@
-"""Hash declared project inputs; no source text is persisted."""
+"""Hash declared project inputs and step contracts; no source text is persisted."""
 import hashlib
 import json
 from .verification import PREFIX
@@ -13,6 +13,10 @@ def fingerprint(root, patterns):
                 digest.update(str(path.relative_to(root)).encode())
                 digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def contract_fingerprint(step):
+    return hashlib.sha256(json.dumps(step, sort_keys=True).encode()).hexdigest()
 
 
 def matches(operation, name, inputs):

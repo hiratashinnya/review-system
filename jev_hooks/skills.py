@@ -1,7 +1,7 @@
 """Independent Skill inspection schema; completion requires observed success."""
 import json
 from pathlib import Path
-from .fingerprints import fingerprint, matches, successful
+from .fingerprints import contract_fingerprint, fingerprint, matches, successful
 
 
 def inspect_skills(event, state, config):
@@ -53,8 +53,8 @@ def _update_progress(definition, event, state, progress, root):
     latest = state.setdefault("latest_attempts", {}).setdefault(definition["id"], {})
     for step in definition["steps"]:
         key, patterns = step["id"], step.get("watch", [])
-        current = fingerprint(root, patterns)
-        if key in progress and progress[key]["fingerprint"] != current:
+        current = {"fingerprint": fingerprint(root, patterns), "contract": contract_fingerprint(step)}
+        if key in progress and any(progress[key].get(field) != value for field, value in current.items()):
             del progress[key]
         identifier = event.get("tool_use_id")
         pending = state.setdefault("pending", {})
@@ -66,7 +66,7 @@ def _update_progress(definition, event, state, progress, root):
             pending.setdefault(attempt, current)
         if event["hook_event_name"] == "PostToolUseFailure" and identifier:
             pending.pop(attempt, None)
-        # Only the latest started attempt can certify this exact code snapshot.
+        # Only the latest started attempt can certify this exact snapshot and contract.
         if event["hook_event_name"] != "PostToolUse" or not identifier:
             continue
         before = pending.pop(attempt, None)
@@ -75,4 +75,4 @@ def _update_progress(definition, event, state, progress, root):
         call = state["calls"].get(identifier, {})
         if matches(step["evidence"], call.get("name"), call.get("input", {})) and successful(
                 state["results"].get(identifier, {})):
-            progress[key] = {"fingerprint": current, "tool_use_id": identifier}
+            progress[key] = dict(current, tool_use_id=identifier)

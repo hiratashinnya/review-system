@@ -41,3 +41,13 @@
 - `/tmp/jev-sdk-venv/bin/python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v`: **35 / 35 成功、skip なし**。SDK 0.7.2 と HTTP mock を使用し、実 API 通信なし。
 - `python3 -m maintainability_lint check`: **violations=0、accepted_debt=136**。baseline の変更なし。変更 Python module はすべて100物理行以内。
 - ローカル全 unit suite は未実行。是正前 head `3159df2235bf7375940b0d5766f2ae116bbab006` の GitHub Actions run `37201099510` は feedback-ledger / typecheck / unittest の3 checks が成功し、unittest job の unit / time / maintainability step も成功した。是正後 head の CI 結果は公開後に別途確認する。
+
+## F-572-003: 検査契約変更による証拠の失効（2026-10-05）
+
+根因: progress と pending は対象ファイルの fingerprint だけを保存し、検査コマンドや watch 定義を成功証拠に結び付けていなかった。同じ step ID の evidence を `test` から `test-v2` へ変えても古い成功を認め、存在しないファイルを watch に追加した場合も対象 fingerprint が変わらず、変更前の pending を認証できた。
+
+修正: step 定義全体を正規化 JSON からハッシュ化し、対象 fingerprint と組にして progress / pending に保持する。現在の契約と一致しない成功は失効し、変更前の pending は現在の契約の成功証拠にならない。契約ハッシュは手順ごとに独立し、無関係な手順の変更で他の成功を失効させない。契約ハッシュがない旧状態も再検証を要求する。新契約に一致する Pre / Post の成功で Stop と納品操作を回復する。
+
+- 回帰テスト: `test_contract_change_invalidates_success_and_new_validation_recovers`, `test_contract_change_rejects_old_pending_result_and_recovers` は evidence / watch の両変更を確認。`test_unrelated_step_change_preserves_success` は他手順への影響を確認。
+- 修正前: 追加3テストで4 subtest の失敗を再現。修正後: SDK 0.7.2 導入済み一時 venv の指定3 suite は **38 / 38 成功、skip なし**。HTTP mock を使用し実 API 通信なし。
+- `python3 -m maintainability_lint check`: **violations=0、accepted_debt=136**。baseline の変更なし。変更 Python module はすべて100物理行以内。
