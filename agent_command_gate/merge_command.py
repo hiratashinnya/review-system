@@ -45,7 +45,7 @@ def _inspect_segment(tokens, depth=0):
         action = index + 1
         while action < len(tokens) and tokens[action].partition("=")[0] in {"-R", "--repo", "--hostname"}:
             action += 1 if "=" in tokens[action] else 2
-        if action < len(tokens) and tokens[action] == "merge": return "the gh pr merge command is denied"
+        if action < len(tokens) and (tokens[action] == "merge" or any(mark in tokens[action] for mark in ("$", "`"))): return "the gh pr merge command is denied or its action is dynamically expanded"
     return None
 
 

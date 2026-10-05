@@ -28,6 +28,8 @@ Claude の native glob は完全な parser ではないため、引数に merge 
 
 2026-10-04 の F-542-29 判断では、GraphQL inline fragment 内に merge mutation field を置く形も意図的な迂回に近いものとして保証対象外にした。コード変更は行わない。Issue の目的は AI のうっかり merge を機械的に防ぐことであり、意図的な迂回策を網羅して潰すことではない。最終的な強制手段は GitHub 側の branch protection とする。
 
+2026-10-05 の Issue #542 / F-542-31 判断では、Bash ANSI-C quoting (`$'...'`) など shell の解釈と静的 tokenizer の解釈がずれる引用形を保証対象外とし、オーナーは意図的な工夫を要する形式として受け入れた。目的は AI のうっかり merge を機械的に防ぐことであり、意図的な迂回策を網羅的に潰すことではないため、コードは変更せず、現行 tool guide に制約を記載する。
+
 F-542-03 では AC 2／AC 10 の根拠として、実際のローカル hook 入力テスト、Claude settings テスト、Codex native checker の結果をオーナーが受け入れた。Claude の live permission engine と製品セッションでの role dispatch は測定していない。この受容は利用可能なローカル証拠の範囲に対する判断であり、製品セッションの実測を意味しない。
 
 ## 現行説明から移した判断履歴
