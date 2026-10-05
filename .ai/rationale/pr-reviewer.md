@@ -111,7 +111,7 @@
 その非対称の穴だった**（push は塞がれているのに、作業ツリーの HEAD は動かせた）。穴は規範ではなく
 ゲートで塞ぐ、という既存の方針（Issue #227 以降の allowlist 化）と揃う。
 
-**現在の権限境界（Issue #542、2026-10）**：上記は Issue #502 当時の設計記録である。現在は `pr-reviewer` を含む全 AI ロールの merge を Claude の native `permissions.deny` と Codex の execpolicy が拒否し、`agent-command-gate` はロール別の push 等の境界を担う。移行の経緯と限界は [merge permission rationale](pr-merge-permission-settings.md) を参照。
+**現在の権限境界（Issue #542、2026-10）**：上記は Issue #502 当時の設計記録である。現在は Claude の native `permissions.deny` と Codex の execpolicy が直接形の merge command prefix を拒否し、両 PF の共有 `agent-command-gate` hook が global option、wrapper、API、検査可能な間接実行を全 AI ロールについて判定する。hook はロール別の push 等の境界も担う。移行の経緯と限界は [merge permission rationale](pr-merge-permission-settings.md) を参照。
 
 **限界**：`.claude/hooks/agent-command-gate.sh` は静的なコマンド文字列検査であり sandbox ではない
 （Issue #129）。本変更は「善意のエージェントが自然に踏む逸脱」を塞ぐもので、意図的な迂回までは

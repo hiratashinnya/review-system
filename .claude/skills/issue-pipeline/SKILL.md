@@ -13,7 +13,7 @@ worktree／handoff の回復手順は [issue-pipeline の troubleshooting](../..
 
 - 主文脈だけが `AskUserQuestion` を持ち、これを使ってオーナーの判断を仰ぐ。処置順の確定・先送り可否・スコープ拡張の起票要否・`scope` の覆し・`disposition` の決定はいずれもオーナーが決めるのであって主文脈が決めるのではない（`.ai/skills/issue-pipeline/SKILL.md`「役割分担」）。主文脈が担うのは原案の作成、`AskUserQuestion` での伺い、得られた決定の記録と実行である。`issue-implementer`、`issue-fixer`、`pr-reviewer` は `AskUserQuestion` を持たず、非対話で STOP 報告する。
 - `.claude/hooks/issue-start-gate.sh`、`agent-command-gate.sh`、worktree／karte の hook が有効な managed path を使い、契約エラーは迂回せず fail-close する。
-- 実装は `issue-implementer`、レビューは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。review が clean の場合も AI は fresh blocker report を作ってオーナーへ渡し、merge はオーナーが手動で行う。実装者・reviewer を含む全 AI ロールの merge は native deny で拒否し、reviewer は push もできない。
+- 実装は `issue-implementer`、レビューは `pr-reviewer`、レビュー是正は `issue-fixer` に分ける。review が clean の場合も AI は fresh blocker report を作ってオーナーへ渡し、merge はオーナーが手動で行う。native deny は直接形の merge command prefix を拒否し、global option／wrapper／API／検査可能な間接実行は両 PF の共有 command hook が判定する。reviewer は push もできない。
 - エージェント定義の変更後は、変更後の契約を前提にせず、各 dispatch の実際の STOP 理由・受理形状を観測して適用契約を確認する。
 
 ### `issue-implementer` dispatch（`ISSUE_START_BINDING_V1` marker ＋ `isolation: "worktree"`）

@@ -44,8 +44,6 @@
 
 ## Hook 構成一覧
 
-**確認日時**: 2026-10-03
-
 ### ライフサイクル hook 一覧（PF 別適用有無）
 
 | # | ライフサイクル hook | 呼び出し実体 | Claude Code | Codex CLI | Copilot |

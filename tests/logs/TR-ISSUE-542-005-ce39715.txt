@@ -1,4 +1,4 @@
-Verification summary from the final Issue #542 unit-suite run
+Prior full-suite record (the same-condition remeasurement follows)
 Run date: 2026-10-05
 Command: rtk env TMPDIR=/tmp PYTHONPYCACHEPREFIX=/tmp/issue-542-pycache python3 -m unittest discover -s tests/unit
 
@@ -14,3 +14,53 @@ Error:
 - CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty
 
 The same two parser failures and supervisor error reproduce at base commit 2fc4cfb; see tests/reports/TR-ISSUE-542-004-2fc4cfb.md. The bytecode-cache write error from the earlier test attempt did not occur with PYTHONPYCACHEPREFIX under /tmp.
+
+## F-542-28 same-condition comparison
+
+Run date: 2026-10-05
+Environment: Python 3.12.3; Codex CLI 0.157.0; unchanged ~/.codex/config.toml; same workspace-write policy and worktree-relative TMPDIR/PYTHONPYCACHEPREFIX. Each command ran at its checkout root, with temporary and cache paths under that checkout.
+TMPDIR: <that-worktree>/tmp/_rr/f542-r8-suite-tmp
+PYTHONPYCACHEPREFIX: <that-worktree>/tmp/_rr/f542-r8-pycache
+
+Base command: rtk env TMPDIR=<worktree>/tmp/_rr/f542-r8-suite-tmp PYTHONPYCACHEPREFIX=<worktree>/tmp/_rr/f542-r8-pycache python3 -m unittest discover -s tests/unit
+Current command: rtk env TMPDIR=<worktree>/tmp/_rr/f542-r8-suite-tmp PYTHONPYCACHEPREFIX=<worktree>/tmp/_rr/f542-r8-pycache python3 -m unittest discover -s tests/unit
+
+| Checkout | Tests | Time | Failures | Errors | Skipped |
+|---|---:|---:|---:|---:|---:|
+| Base 2fc4cfb | 2102 | 302.650s | 6 | 2 | 12 |
+| Current worktree | 2053 | 338.364s | 6 | 2 | 12 |
+
+| Test name | Base | Current | Classification |
+|---|---|---|---|
+| test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly | FAIL | FAIL | Same failure at both checkouts; the test resolves project configuration outside its fixture. |
+| test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path | FAIL | FAIL | Both report 6 hook definitions and 0 discovered hooks; the fixture expects 4 definitions. Output names the outer primary checkout. |
+| test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group] | FAIL | FAIL | Both return MANIFEST_INVALID: unsafe group-writable directory before the expected ledger-specific error. |
+| test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger] | FAIL | FAIL | Same group-writable-parent result at base and current. |
+| test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached | FAIL | FAIL | Both return FALLBACK; source and test are unchanged from base. |
+| test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch | FAIL | FAIL | Both return FALLBACK; source and test are unchanged from base. |
+| test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free | ERROR | ERROR | Both report unknown installed CLI features daemon_auto_start, system_proxy_fallback, unified_exec_tty. |
+| test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands | ERROR | ERROR | Both runs reach the test-mocked current_block() with the per-checkout TMPDIR and raise ValueError: not enough values to unpack. Source and test are unchanged. |
+
+The six failure names and both error names are identical at base and current. The hook-trust tests read the outer primary checkout's configuration in both runs; the Codex CLI profile test reports the same three unknown features in both runs. .codex/hooks.json removed dedicated merge-gate pre/post entries and retained the shared command hook; the hook-trust failures reproduce with the same names and output at both checkouts.
+
+## F-542-21 coverage
+
+Coverage.py: 7.16.2
+Command: rtk env PYTHONPATH=tmp/_cov COVERAGE_FILE=tmp/_cov/.coverage-f542-r8 TMPDIR=<worktree>/tmp/_rr/f542-r8-suite-tmp PYTHONPYCACHEPREFIX=<worktree>/tmp/_rr/f542-r8-pycache python3 -m coverage run --source=agent_command_gate,pr_merge_gate -m unittest discover -s tests/unit
+Suite: Ran 2053 tests in 361.337s; FAILED (failures=6, errors=2, skipped=12)
+
+| Package | Statements covered | Line coverage | Uncovered-line highlights |
+|---|---:|---:|---|
+| agent_command_gate | 0 / 417 | 0% | command_segments.py 3-65; command_substitutions.py 4-73; command_wrappers.py 3-47; github_api.py 3-84; github_graphql.py 3-62; global_options.py 3-50; graphql_tokens.py 4-47; merge_command.py 3-70 |
+| pr_merge_gate | 90 / 103 | 87% | __main__.py 1-3; cli.py 31, 47-48, 61; gate.py 73, 77, 89, 97-100; audit.py and __init__.py 100% |
+
+The hooks import agent_command_gate in child Python processes. The full-suite report records 0 executed lines for those modules. A temporary subprocess-start probe also produced no executed lines, so the 0% value does not establish hook-runtime line coverage. No tracked coverage configuration was added.
+
+## Other checks
+
+Related hook and policy unit tests: 152 tests in 283.592s, OK.
+Governance sync unit tests: 12 tests in 0.045s, OK.
+maintainability_lint check: exit 0, 0 violations, 127 accepted-debt entries.
+asset_parity check: exit 0, 39 assets, 0 missing, 29 staleness flags, 3 informational mirror orphans.
+guidance_sync check: exit 0.
+agent_command_gate line count: 499 before this round and 499 after, 9 files in both measurements.
