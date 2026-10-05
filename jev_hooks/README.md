@@ -54,13 +54,13 @@ R1 は作業上の回答待ちと、同じ質問を AskUserQuestion で既に実
 
 `recovery` に調査など回復操作の matcher を列挙できます。step の evidence に一致する検証操作も回復扱いで前提拒否を迂回します。汎用 Bash matcher で保護する場合も検証自身を妨げません。サンプルの `git push` matcher はその文字列だけを対象とし、シェルの意味解析・あらゆる送信操作の遮断機能ではありません。
 
-検証の PreToolUse で対象ファイル群を fingerprint 化し、対応する PostToolUse 成功時にも一致した場合だけ完了します。途中編集、検証後編集、失敗・中断、自己申告、結果のない呼び出しでは完了にしません。再検証開始時は以前の成功証拠も失効します。プロセス再開をまたぐ pending を保持します。
+検証の PreToolUse で対象ファイル群を fingerprint 化し、対応する PostToolUse 成功時にも一致した場合だけ完了します。途中編集、検証後編集、失敗・中断、自己申告、結果のない呼び出しでは完了にしません。再検証開始時は以前の成功証拠も失効し、重なる検証では最新開始の成功だけを認証します。プロセス再開をまたぐ pending を保持します。
 
 Bash の公式応答例では終了コードが常在しません。そのためサンプルは `python -m jev_hooks.verification -- <検証コマンド>` を使い、stdout 最終行の `JEV_VERIFICATION_RECEIPT={"exit_code":0}` を検査します。ラッパー自身は実コマンドの終了コードを返します。中断なら receipt があっても無効です。単なる `PostToolUse`、空 stderr、"passed" 文字列は成功証拠にしません。正規化された fixture の数値 `exit_code` にも対応します。実行入口の tool_input は検査定義と一致させ、検証には Pre / Post / Failure イベントを順に stdin へ渡してください。
 
 ## 状態、監査と shadow 運用
 
-既定の保存先は `~/.local/state/jev-hooks/state.sqlite3`、サンプルは `/tmp/jev-hooks-demo` です。セッション ID と正規化 cwd をハッシュして分離し、SQLite の排他トランザクションで並行イベントを直列化します。再開・重複イベントに対応し、Stop の重複でも検証進捗と現在の対象 fingerprint を反映します。状態には本文・tool 入力・結果を保存せず、ハッシュ、手順 ID、適用状態、拒否回数などを保持します。API キーや例外本文も記録しません。設定には API キーを記載しないでください。
+既定の保存先は `~/.local/state/jev-hooks/state.sqlite3`、サンプルは `/tmp/jev-hooks-demo` です。セッション ID と正規化 cwd をハッシュして分離し、SQLite の排他トランザクションで並行イベントを直列化します。再開・重複イベントに対応し、Stop の重複でも検証進捗、現在の対象 fingerprint、条件パスの存在値を反映します。状態には本文・tool 入力・結果を保存せず、ハッシュ、手順 ID、適用状態、拒否回数などを保持します。API キーや例外本文も記録しません。設定には API キーを記載しないでください。
 
 SQLite の `audit` にルール ID、三値結果、confidence、固定障害コード、実応答 model、質問版、ルール版、遅延、履歴充足性を保存します。shadow でも同じ検査を行い stdout は `{}`。まず fixture を使って shadow の判定をレビューしてください。意味ルールの反復予算はユーザー turn ごとに制限し、`stop_hook_active` で同じ是正停止の再帰を通過させます。質問キャンセル後はその turn の R1/R3 を抑止します。調査可能な R2 は質問ツールが使えなくても検査します。R4 は予算・stop_hook_active による迂回を許さず、回復操作を通す方針です。
 
@@ -83,7 +83,7 @@ python -m venv /tmp/jev-env
 
 `jev-claude-code-architecture.html` は取得できず、設計書との照合は未実施です。ユーザー要件と公式仕様を基に、公式 SDK 0.7.2、モデル ID `jev-1.13.0`、SQLite 永続化、成功 receipt、明示した Skill 解決契約を採用しました。閾値は仮設定で校正していません。モデル API と標準ライブラリ部分を分離し、通常テストには外部通信を要求しません。
 
-コード制御テストは各ルールの違反・非違反・unknown、拒否後回復、キャンセル、API 障害、重複、保存、検証失敗・検証後/中の編集を確認します。公式 SDK 実体を用いた `tests.unit.test_jev_sdk_transport` も HTTP mock で検証します。実 API、WSL 実機、実 Claude Code セッション、実 Skill の自動解決は未検証です。既存全 unit suite は環境中断により完走結果を確認できていません。[レビュー是正記録](../docs/jev-hook-review.md) に境界条件と回帰テストを残します。
+コード制御テストは各ルールの違反・非違反・unknown、拒否後回復、キャンセル、API 障害、重複、保存、検証失敗・検証後/中の編集を確認します。公式 SDK 実体を用いた `tests.unit.test_jev_sdk_transport` も HTTP mock で検証します。実 API、WSL 実機、実 Claude Code セッション、実 Skill の自動解決は未検証です。ローカル全 unit suite は未実行ですが、是正前 head の CI 全3 checks は成功しています。是正後 head の CI は別途確認します。[レビュー是正記録](../docs/jev-hook-review.md) に境界条件と回帰テストを残します。
 
 ## 公式資料
 
@@ -95,4 +95,4 @@ python -m venv /tmp/jev-env
 - https://docs.typesafe.ai/confidence
 - https://docs.typesafe.ai/model-jaggedness/jev-1.13
 
-最終オフライン検証（2026-10-04）: `python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v` は通常環境で 30 件成功・SDK 依存 1 件 skip、SDK 0.7.2 導入済み一時 venv では **31 件すべて成功**しました。maintainability lint は violations=0（既存 accepted_debt=136）。手動 stdin でも shadow `{}`、Stop block、PreToolUse deny の JSON と終了コード 0 を確認しました。
+最終オフライン検証（2026-10-05）: `python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v` は SDK 0.7.2 導入済み一時 venv で **35 件すべて成功、skip なし**。maintainability lint は violations=0（既存 accepted_debt=136）。前回の手動 stdin では shadow `{}`、Stop block、PreToolUse deny の JSON と終了コード 0 を確認しました。

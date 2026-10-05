@@ -50,6 +50,7 @@ def inspect_skills(event, state, config):
 
 
 def _update_progress(definition, event, state, progress, root):
+    latest = state.setdefault("latest_attempts", {}).setdefault(definition["id"], {})
     for step in definition["steps"]:
         key, patterns = step["id"], step.get("watch", [])
         current = fingerprint(root, patterns)
@@ -57,18 +58,21 @@ def _update_progress(definition, event, state, progress, root):
             del progress[key]
         identifier = event.get("tool_use_id")
         pending = state.setdefault("pending", {})
+        attempt = definition["id"] + ":" + str(identifier) + ":" + key
         if event["hook_event_name"] == "PreToolUse" and identifier and matches(
                 step["evidence"], event.get("tool_name"), event.get("tool_input", {})):
             progress.pop(key, None)
-            pending.setdefault(definition["id"] + ":" + identifier + ":" + key, current)
+            latest[key] = identifier
+            pending.setdefault(attempt, current)
         if event["hook_event_name"] == "PostToolUseFailure" and identifier:
-            pending.pop(definition["id"] + ":" + identifier + ":" + key, None)
-        # Only newly observed post-success can certify this exact code snapshot.
+            pending.pop(attempt, None)
+        # Only the latest started attempt can certify this exact code snapshot.
         if event["hook_event_name"] != "PostToolUse" or not identifier:
+            continue
+        before = pending.pop(attempt, None)
+        if latest.get(key) != identifier or before != current:
             continue
         call = state["calls"].get(identifier, {})
         if matches(step["evidence"], call.get("name"), call.get("input", {})) and successful(
                 state["results"].get(identifier, {})):
-            if pending.pop(definition["id"] + ":" + identifier + ":" + key, None) != current:
-                continue
             progress[key] = {"fingerprint": current, "tool_use_id": identifier}

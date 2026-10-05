@@ -27,3 +27,17 @@
 - `python3 -m maintainability_lint check`: **violations=0、accepted_debt=136**。既存 baseline の変更なし。
 - 手動 stdin: shadow の Stop/Ask は `{}`、enforce R1 は Stop block、enforce R3 は PreToolUse deny。各 stdout は有効な JSON、終了コード 0。
 - 既存全 unit suite は環境中断で完走結果未確認。実 Jev 精度、WSL 実機、実 Claude Code セッションは未検証。settings.json の結線・登録・実セッション有効化は実施していない。
+
+## PR571 の追加是正（2026-10-05）
+
+| finding | 根因と修正 | 回帰テスト |
+|---|---|---|
+| F-572-001: 同一 Stop が条件パスの作成・削除を反映しない | replay key が watch の fingerprint だけを参照し、watch 外の `when.path_exists` を見なかった。条件パスの現在の存在値も key に含める | `test_same_stop_tracks_unwatched_condition_in_both_directions` |
+| F-572-002: 後から開始した検証が失敗しても古い成功が復活する | 開始時の失効だけでは重なる検証の完了順を制御できなかった。Skill・手順ごとに最新開始の tool ID を保持し、その試行の成功だけを認証する。失敗結果でも pending を消費する | `test_later_failure_wins_over_older_success_and_recovers`, `test_late_older_failure_preserves_newer_success`, `test_duplicate_older_events_do_not_replace_latest_attempt` |
+
+最新開始は SQLite トランザクション内で受信した PreToolUse の順とする。重複 Pre/Post は既存の replay 識別で除外し、古い成功で最新の失敗・実行中状態を上書きしない。遅れて届いた古い失敗でも最新成功を取り消さない。新たな成功検証では Stop と納品操作の両ゲートが回復する。
+
+- 修正前: 追加4テストを実行し、7 subtest の失敗を再現。修正後: 追加4テスト成功。
+- `/tmp/jev-sdk-venv/bin/python -m unittest tests.unit.test_jev_core tests.unit.test_jev_evaluator tests.unit.test_jev_sdk_transport -v`: **35 / 35 成功、skip なし**。SDK 0.7.2 と HTTP mock を使用し、実 API 通信なし。
+- `python3 -m maintainability_lint check`: **violations=0、accepted_debt=136**。baseline の変更なし。変更 Python module はすべて100物理行以内。
+- ローカル全 unit suite は未実行。是正前 head `3159df2235bf7375940b0d5766f2ae116bbab006` の GitHub Actions run `37201099510` は feedback-ledger / typecheck / unittest の3 checks が成功し、unittest job の unit / time / maintainability step も成功した。是正後 head の CI 結果は公開後に別途確認する。

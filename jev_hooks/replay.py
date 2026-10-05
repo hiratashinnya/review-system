@@ -1,4 +1,4 @@
-"""Content-free replay keys include policy and watched filesystem snapshots."""
+"""Content-free replay keys include policy, watched inputs and conditions."""
 import hashlib
 import json
 from pathlib import Path
@@ -19,9 +19,12 @@ def replay_key(event, config):
     if event.get("hook_event_name") != "Stop":
         return hashlib.sha256(json.dumps([event.get("hook_event_name"), identity]).encode()).hexdigest()
     snapshots = []
+    root = Path(event.get("cwd", "."))
     for filename in config["skill_definitions"]:
         definition = json.loads(Path(filename).read_text())
-        snapshots.append([definition, fingerprint(event.get("cwd", "."),
-            [pattern for step in definition["steps"] for pattern in step.get("watch", [])])])
+        conditions = [(root / step["when"]["path_exists"]).exists()
+                      for step in definition["steps"] if step.get("when")]
+        snapshots.append([definition, fingerprint(root,
+            [pattern for step in definition["steps"] for pattern in step.get("watch", [])]), conditions])
     raw = json.dumps([event.get("hook_event_name"), identity, config, snapshots], sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()
