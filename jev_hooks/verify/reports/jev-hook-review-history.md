@@ -57,3 +57,9 @@
 ## F-572-004: README の Issue 状態更新（2026-10-05）
 
 根因: 当初 GitHub API の403で作成できなかった説明が、Issue #572 作成後も README に残っていた。現在の対応 Issue のリンクと、ローカルの Issue 本文ファイルをコミットに含めない方針へ更新した。コード変更はなく、追加テストは不要と判断した。`git diff --check` と maintainability lint（violations=0、accepted_debt=136）を確認し、既存の38件成功のコード検証結果は保持する。
+
+## F-572-005: 任意dictキーからの既知秘密漏れ（2026-10-06）
+
+独立レビューの対象head `9e930e678d6f1725ddbdffd7f33529b0713215e5` で、APIキーと同じ値を任意dictのkeyへ置くとSDKのHTTP bodyに残ることを確認した。根因はredactionが値だけを処理しkey文字列を検査していなかったこと。任意key/動的tool IDに既知秘密またはcredential形式を含む場合は、対応value/resultごとentryを除外する。マスク文字列への改名collisionを起こさず、SDK所有の固定schema keyは保持する。実認証キーはSDK必須HTTP authheaderでのみ使用し、証拠payloadには持ち込まない。
+
+修正前の安全11件は2fail（任意dictとSDK実HTTP/semantic CLIの両経路）。修正後は安全12件すべてPASS、統合SDK62件PASS/skip0。実API通信はしていない。[追加TD](../designs/TD-jev-hooks-572-f005.md)、[追加TRと赤緑ログ](TR-jev-hooks-572-c5d58b4-f005-worktree.md)。既知秘密/credential形式の除去であり、未知秘密の完全検出保証はない。

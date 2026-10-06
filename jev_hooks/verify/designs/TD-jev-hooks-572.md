@@ -38,3 +38,7 @@ PR #571の外部レビュー指摘1〜7をXR-571-1〜7として追跡し、既�
 ## 検証の限界
 
 38件成功は2026-10-05の既存制御結果であり、追加TC成功や意味精度の代替ではない。実モデルの意味精度・誤拒否率、WSL実機、Claude Code実セッション、設計HTMLとの照合は未検証。既知秘密/credential形式と宣言された環境値の除去であり、未知秘密の完全検出は保証しない。除外された証拠はunknownを増やす。元SQLite・会話・入力・秘密をGitへ含めず、リポジトリから参照するのは匿名metadataだけとする。他ツールの既存TC移設/他workflow固定pathsは #578 の範囲。
+
+## 独立レビュー追跡
+
+- F-572-005: 既知秘密が任意dictのキーにある場合にSDK HTTP bodyへ漏れた。別文脈で実HTTP mockを確認済み。[追加TD](TD-jev-hooks-572-f005.md) で任意キー/動的tool IDとschema-owned keyの境界、entry/value除外、改名collisionなし、実authheaderだけへのキー受け渡しを検証する。旧60件のTR/log/source snapshotは変更せず、追加62件の結果を別TRへ記録する。

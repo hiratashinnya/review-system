@@ -28,29 +28,31 @@ def bounded(value, depth=0):
 
 
 def outbound_evidence(evidence, secrets):
-    selected = {key: value for key, value in evidence.items() if key in PUBLIC_FIELDS}
+    selected = {key: redact(value, secrets) for key, value in evidence.items() if key in PUBLIC_FIELDS}
     calls, results = {}, {}
     identifiers = evidence.get("current_turn_tool_ids")
     for identifier, call in evidence.get("tool_calls", {}).items():
+        if not isinstance(identifier, str) or redact_text(identifier, secrets) != identifier:
+            continue
         if identifiers is not None and identifier not in identifiers:
             continue
         name, inputs = call.get("name", ""), call.get("input", {})
         sensitive = bool(SENSITIVE_FILE.search(json.dumps(inputs, ensure_ascii=False)))
         shell = any(word in name.lower() for word in ("bash", "shell", "exec", "terminal"))
         inputs = inputs if isinstance(inputs, dict) else {}
-        calls[identifier] = {"name": name, "input": "[OMITTED]" if sensitive or shell else
-                             {key: value for key, value in inputs.items() if key in INPUT_FIELDS}}
+        calls[identifier] = {"name": redact_text(name, secrets), "input": "[OMITTED]" if sensitive or shell else
+                             {key: redact(value, secrets) for key, value in inputs.items() if key in INPUT_FIELDS}}
         result = evidence.get("tool_results", {}).get(identifier)
         if isinstance(result, dict):
             results[identifier] = {"is_error": bool(result.get("is_error"))}
             if sensitive or shell:
                 results[identifier]["content"] = "[OMITTED: sensitive file or shell output]"
             else:
-                results[identifier]["content"] = result.get("content")
+                results[identifier]["content"] = redact(result.get("content"), secrets)
     selected.update(tool_calls=calls, tool_results=results)
     if not evidence.get("tool_calls") and not evidence.get("tool_results"):
         selected = {key: value for key, value in selected.items() if key not in {"tool_calls", "tool_results"}}
-    return bounded(redact(selected, secrets))
+    return bounded(selected)
 
 
 def outbound_questions(questions, secrets):

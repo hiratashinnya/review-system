@@ -58,3 +58,25 @@ class SafetyRedactionTests(unittest.TestCase):
         result = outbound_evidence(evidence, ())
         self.assertEqual(json.dumps(evidence), snapshot)
         self.assertLess(len(result["public_messages"][1]), 8100)
+
+    def test_secret_keys_drop_the_entry_without_renaming_collisions(self):
+        evidence = {"current_tool_input": {"first-known": "first-value-canary",
+                    "prefix-second-known": {"nested": "second-value-canary"},
+                    "Authorization: Bearer credential-key-canary": "credential-value-canary",
+                    "[REDACTED]": "ordinary", "safe": [{"token=label-canary": "label-value-canary"}]}}
+        result = outbound_evidence(evidence, ("first-known", "second-known"))
+        self.assertNotIn("canary", json.dumps(result))
+        self.assertEqual(result["current_tool_input"], {"[REDACTED]": "ordinary", "safe": [{}]})
+
+    def test_owned_evidence_schema_stays_distinct_from_arbitrary_keys(self):
+        evidence = {"current_tool_input": {"name": "key-associated-canary"},
+                    "tool_calls": {"call": {"name": "WebSearch", "input": {"query": "query value"}},
+                                   "input": {"name": "Read", "input": {"path": "plain"}}},
+                    "tool_results": {"call": {"content": "content value"}, "input": {"content": "id-value-canary"}}}
+        result = outbound_evidence(evidence, ("current_tool_input", "name", "input", "query", "content"))
+        self.assertEqual(result["current_tool_input"], {})
+        self.assertEqual(set(result["tool_calls"]), {"call"})
+        self.assertEqual(set(result["tool_calls"]["call"]), {"name", "input"})
+        self.assertEqual(set(result["tool_calls"]["call"]["input"]), {"query"})
+        self.assertEqual(set(result["tool_results"]["call"]), {"content", "is_error"})
+        self.assertNotIn("canary", json.dumps(result))

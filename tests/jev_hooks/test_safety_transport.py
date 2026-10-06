@@ -21,12 +21,16 @@ class SafetyTransportTests(unittest.TestCase):
 
         requests = []
         headers = []
-        canaries = ["auth-canary", "declared-canary", "token-canary", "file-canary",
-                    "header-canary", "bearer-canary", "prompt-canary", "private-canary"]
+        canaries = ["canary-dictionary-name", "declared-canary", "token-canary", "file-canary",
+                    "header-canary", "bearer-canary", "prompt-canary", "private-canary",
+                    "key-value-canary", "bearer-key-canary", "key-form-value-canary"]
         evidence = {"user_request": ["declared-canary"],
                     "public_messages": ["token=token-canary", "Bearer bearer-canary"],
-                    "last_assistant_message": "auth-canary",
-                    "current_tool_input": {"nested": [{"headers": {"Authorization": "header-canary"}}]},
+                    "last_assistant_message": "canary-dictionary-name",
+                    "current_tool_input": {"canary-dictionary-name": "ordinary",
+                                           "nested": [{"headers": {"Authorization": "header-canary"},
+                                                       "prefix-canary-dictionary-name": "key-value-canary",
+                                                       "Bearer bearer-key-canary": "key-form-value-canary"}]},
                     "private_reasoning": "private-canary",
                     "skill_context": {"applicability": "prompt-canary",
                                       "selector": {"input": {"command": "git push --token=declared-canary"}}},
@@ -51,7 +55,7 @@ class SafetyTransportTests(unittest.TestCase):
 
         identifier = "r1_waiting_for_answer"
         with patch("typesafe_sdk.AsyncTypeSafeClient", factory):
-            with patch.dict(os.environ, {"TYPESAFE_API_KEY": "auth-canary", "APP_SECRET": "declared-canary",
+            with patch.dict(os.environ, {"TYPESAFE_API_KEY": "canary-dictionary-name", "APP_SECRET": "declared-canary",
                                          "PROMPT_SECRET": "prompt-canary"}, clear=True):
                 with patch.dict(QUESTIONS, {identifier: QUESTIONS[identifier] + " prompt-canary"}):
                     result = JevEvaluator(config).evaluate(evidence, [identifier])
@@ -71,5 +75,5 @@ class SafetyTransportTests(unittest.TestCase):
         for payload in requests:
             for canary in canaries:
                 self.assertNotIn(canary, json.dumps(payload))
-        self.assertEqual(headers, ["Bearer auth-canary"] * 2)
+        self.assertEqual(headers, ["Bearer canary-dictionary-name"] * 2)
         self.assertEqual(requests[0]["state"], requests[1]["state"])

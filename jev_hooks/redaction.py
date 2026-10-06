@@ -39,7 +39,8 @@ def redact(value, secrets):
     if isinstance(value, dict):
         return {key: REDACTED if SENSITIVE_KEY.search(str(key)) else redact(item, secrets)
                 for key, item in value.items() if isinstance(key, str)
-                and key not in {"thinking", "reasoning", "signature", "data"}}
+                and key not in {"thinking", "reasoning", "signature", "data"}
+                and redact_text(key, secrets) == key}
     if isinstance(value, (list, tuple)):
         return [redact(item, secrets) for item in value]
     if value is None or type(value) in (bool, int, float):
