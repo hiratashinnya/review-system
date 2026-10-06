@@ -1,18 +1,11 @@
 """Select bounded public evidence and omit sensitive file and shell output."""
-import json
-import re
 from .redaction import redact, redact_text
+from .outbound_inputs import project_input, sensitive_input, shell_tool
+from .outbound_context import project_context
 
 PUBLIC_FIELDS = {"user_request", "public_messages", "last_assistant_message",
                  "current_tool_input", "research_tools", "history_complete", "hook_event_name",
                  "current_turn_tool_ids", "executed_question_ids", "skill_context"}
-SENSITIVE_FILE = re.compile(
-    r"(?i)(?:^|[/\\\s'\"])(?:\.env(?:\.[\w-]+)?|\.envrc|\.ssh|\.aws|\.kube|\.npmrc|\.pypirc|\.netrc|\.git-credentials|"
-    r"id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|terraform\.tfstate|"
-    r"credentials(?:\.[\w-]+)?|[^/\\\s'\"]*(?:secret|private[_-]?key)[^/\\\s'\"]*|"
-    r"[^/\\\s'\"]+\.(?:pem|key|p12|pfx))(?:$|[/\\\s'\"])"
-)
-INPUT_FIELDS = {"questions", "query", "pattern", "url", "file_path", "path", "glob"}
 
 
 def bounded(value, depth=0):
@@ -29,6 +22,10 @@ def bounded(value, depth=0):
 
 def outbound_evidence(evidence, secrets):
     selected = {key: redact(value, secrets) for key, value in evidence.items() if key in PUBLIC_FIELDS}
+    if "current_tool_input" in evidence:
+        selected["current_tool_input"] = project_input(evidence["current_tool_input"], secrets)
+    if "skill_context" in evidence:
+        selected["skill_context"] = project_context(evidence["skill_context"], secrets)
     calls, results = {}, {}
     identifiers = evidence.get("current_turn_tool_ids")
     for identifier, call in evidence.get("tool_calls", {}).items():
@@ -37,11 +34,8 @@ def outbound_evidence(evidence, secrets):
         if identifiers is not None and identifier not in identifiers:
             continue
         name, inputs = call.get("name", ""), call.get("input", {})
-        sensitive = bool(SENSITIVE_FILE.search(json.dumps(inputs, ensure_ascii=False)))
-        shell = any(word in name.lower() for word in ("bash", "shell", "exec", "terminal"))
-        inputs = inputs if isinstance(inputs, dict) else {}
-        calls[identifier] = {"name": redact_text(name, secrets), "input": "[OMITTED]" if sensitive or shell else
-                             {key: redact(value, secrets) for key, value in inputs.items() if key in INPUT_FIELDS}}
+        sensitive, shell = sensitive_input(inputs), shell_tool(name)
+        calls[identifier] = {"name": redact_text(name, secrets), "input": project_input(inputs, secrets, name)}
         result = evidence.get("tool_results", {}).get(identifier)
         if isinstance(result, dict):
             results[identifier] = {"is_error": bool(result.get("is_error"))}

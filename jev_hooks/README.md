@@ -38,7 +38,7 @@ stdout は `{"decision":"block","reason":"…AskUserQuestion…"}` になりま�
 | `questions`, `evaluator`, `evaluator_transport` | 個別意味質問、公式 TypeSafe SDK、期限と再試行 |
 | `policy` | 真偽・確信度の合成、イベント別拒否と反復制限 |
 | `verification` | 検証コマンドの機械可読な終了コード receipt |
-| `redaction`, `outbound_evidence`, `configuration_failure` | 外送証拠の選択、既知秘密の除去、必須キー不備の分離 |
+| `redaction`, `outbound_evidence`, `outbound_inputs`, `outbound_context`, `configuration_failure` | 外送証拠の選択、既知秘密の除去、必須キー不備の分離 |
 | `audit_records`, `audit_export`, `audit_cli` | 版付き匿名監査、誤拒否レビュー、分母と拒否数の集計 |
 | `skill_semantics` | R4適用・操作・検証・回復の独立した関連性質問 |
 
@@ -82,7 +82,7 @@ python -m jev_hooks.audit_cli --state-dir /tmp/jev-hooks-demo review RECORD_ID R
 
 明示的に利用する場合のみ仮想環境へ [依存関係](requirements.txt) をインストールし、設定を `evaluator: "jev"` にします。キーは `TYPESAFE_API_KEY` 環境変数（`api_key_env` で変更可）から読みます。**Jevモードは送信直前に選択・秘密除去した公開会話と現在turnの関連tool結果をTypeSafe外部APIへ送ります。** mockは送信しません。課金とshadow試験導入は [PR #577](https://github.com/hiratashinnya/review-system/pull/577) のオーナー決定です。本PRは実装取込みであり、settings結線、試験導入開始、通知配送、enforce移行は行いません。
 
-SDK境界では実認証キー、`TYPESAFE_API_KEY` と `secret_env_vars` に明示した環境変数の値、credential名の構造化値、Bearer/Basic、PEM秘密鍵、既知token形式を再帰的に除去します。内部思考、秘密ファイル（`.env` / `.ssh` / `.aws` / credentials / private-key / pem等）の本文とshell出力は外送対象から外します。通常tool入力もquestions/query/pattern/url/file_path/path/globに限定し、サイズを制限します。独自の秘密値は `secret_env_vars` に環境変数名を指定してください。任意dictのキー文字列と動的tool IDも検査し、既知秘密またはcredential形式を含むentryを対応するvalueごと除外します。キーを同じマスク文字列へ改名しないためcollisionを作りません。SDKが所有する証拠・質問の固定schema keyは維持し、任意の入力キーとは別に扱います。実認証キーはSDK必須のHTTP認証ヘッダにだけ渡し、証拠payload・質問・状態・監査へは保存しません。**未知の秘密を完全に検出する保証はありません。** この制限で必要な証拠が除外された場合はunknownが増えます。
+SDK境界では実認証キー、`TYPESAFE_API_KEY` と `secret_env_vars` に明示した環境変数の値、credential名の構造化値、Bearer/Basic、PEM秘密鍵、既知token形式を再帰的に除去します。内部思考、秘密ファイル（`.env` / `.ssh` / `.aws` / credentials / private-key / pem等）の本文とshell出力は外送対象から外します。履歴tool入力、current_tool_input、R4のcurrent_tool・selector・protected_operationsすべてに共通の入力投影を適用します。機密pathのWrite/Edit入力は本文を含め入力全体を省略し、通常の入力もquestions/query/pattern/url/file_path/path/globだけに限定します。content/body/old_string/new_stringは通常ファイルでも外送しません。Bash系は実行名、複合演算子、既知git subcommand、option名を残し、引数値・環境代入・heredoc本文を省略します。AskUserQuestion本文で.envに言及するだけでは質問を除外せず、R3質問と公開chatを保持します。サイズも制限します。独自の秘密値は `secret_env_vars` に環境変数名を指定してください。任意dictのキー文字列と動的tool IDも検査し、既知秘密またはcredential形式を含むentryを対応するvalueごと除外します。キーを同じマスク文字列へ改名しないためcollisionを作りません。SDKが所有する証拠・質問の固定schema keyは維持し、任意の入力キーとは別に扱います。実認証キーはSDK必須のHTTP認証ヘッダにだけ渡し、証拠payload・質問・状態・監査へは保存しません。**未知の秘密を完全に検出する保証はありません。** この制限で必要な証拠が除外された場合はunknownが増えます。特に引数値・機密path・コード本文・未解析shellに依存するR4の意味判定は限定され、投影後の実モデル精度は未評価です。
 
 ```bash
 python -m venv /tmp/jev-env
@@ -99,9 +99,9 @@ python -m venv /tmp/jev-env
 
 コード制御テストは各ルールの違反・非違反・unknown、拒否後回復、キャンセル、API障害、重複、保存、検証失敗・検証後/中の編集を確認します。CIは `tests/unit/`、`tests/jev_hooks/`、新設 `tests/time_fixture_lint/` をそれぞれ直接discoverし、SDK/evaluatorを含めたhook TCは `tests/jev_hooks/` に集約しています。`time_fixture_lint` はfixtureの全参照先とPython literalの両検査をこの3rootに適用します。新rootの違反canaryは修正前3失敗、修正後3成功を確認しました。
 
-通常のmock制御テストはAPIキー、実API、Claude Code、Skillインストール不要です。`test_sdk_transport.py` とSDK外送境界の `test_safety_transport.py` は任意依存の公式SDK 0.7.2実体をHTTP mockで検査し、SDK未導入時のみskipします。CIでは固定requirementsを事前導入し、このSDK実体検査もskipせず実行します。依存取得の通信はsetup時だけです。実API、WSL実機、実Claude Codeセッション、実モデルの意味精度・誤拒否率は未検証です。既存の2026-10-05の38件成功は旧制御証跡として [レビュー履歴](verify/reports/jev-hook-review-history.md) に保全しています。
+通常のmock制御テストはAPIキー、実API、Claude Code、Skillインストール不要です。`test_sdk_transport.py` とSDK外送境界の `test_safety_transport.py`、`test_safety_sensitive_inputs.py` は任意依存の公式SDK 0.7.2実体をHTTP mockで検査し、SDK未導入時のみskipします。CIでは固定requirementsを事前導入し、このSDK実体検査もskipせず実行します。依存取得の通信はsetup時だけです。実API、WSL実機、実Claude Codeセッション、実モデルの意味精度・誤拒否率は未検証です。既存の2026-10-05の38件成功は旧制御証跡として [レビュー履歴](verify/reports/jev-hook-review-history.md) に保全しています。
 
-[テスト設計 TD-jev-hooks-572](verify/designs/TD-jev-hooks-572.md) と [結果・ログ](verify/reports/TR-jev-hooks-572-b7ff3e5-worktree.md) に今回の追加レビューXR-571-1〜7と失敗→修正の対応を記録します。旧F-572-001〜004と混同しません。独立レビューのF-572-005（任意dictキーからの既知秘密漏れ）は [追加TD](verify/designs/TD-jev-hooks-572-f005.md) と [追加TR](verify/reports/TR-jev-hooks-572-c5d58b4-f005-worktree.md) に修正前2失敗→安全12件成功、統合SDK62件成功の証跡を残します。旧60件ログは履歴として保持します。ローカル作業treeの検証と公開headのCIを区別し、ローカル全unitは2105件を完走し11fail/1errorでした。今回のgovernance marker不一致1件を修正して12件を再検証し、残る10fail/1errorは旧HEADでも同環境で再現しました。ローカル全unit成功とは扱いません。修正前公開head `9e930e6` のGitHub Actions run `37473109235` は全3 checksとunit/canary/SDK/time/lint stepsが成功しました。F-572-005修正後headのCIは公開後に確認します。他ツールのTC移設・他workflowの固定pathsは #578 の範囲です。
+[テスト設計 TD-jev-hooks-572](verify/designs/TD-jev-hooks-572.md) と [結果・ログ](verify/reports/TR-jev-hooks-572-b7ff3e5-worktree.md) に今回の追加レビューXR-571-1〜7と失敗→修正の対応を記録します。旧F-572-001〜004と混同しません。独立レビューのF-572-005（任意dictキーからの既知秘密漏れ）は [追加TD](verify/designs/TD-jev-hooks-572-f005.md) と [追加TR](verify/reports/TR-jev-hooks-572-c5d58b4-f005-worktree.md) に修正前2失敗→安全12件成功、統合SDK62件成功の証跡を残します。旧60件ログは履歴として保持します。ローカル作業treeの検証と公開headのCIを区別し、ローカル全unitは2105件を完走し11fail/1errorでした。今回のgovernance marker不一致1件を修正して12件を再検証し、残る10fail/1errorは旧HEADでも同環境で再現しました。ローカル全unit成功とは扱いません。修正前公開head `9e930e6` のGitHub Actions run `37473109235` は全3 checksとunit/canary/SDK/time/lint stepsが成功しました。F-572-005修正後head `d648a02` のGitHub Actions run `37474698960` も全3 checksと各検証stepが成功しました。F-572-006（現在入力とR4設定内の機密ファイル本文コピー）は [追加TD](verify/designs/TD-jev-hooks-572-f006.md) と [追加TR](verify/reports/TR-jev-hooks-572-c961e8e-f006-worktree.md) に恒久TCの旧版2件/4subcase失敗→SDK69件成功/skip0、SDKなし69件成功/skip4を記録します。F-572-006修正後headのCIと新しい独立レビューは公開後に確認します。他ツールのTC移設・他workflowの固定pathsは #578 の範囲です。
 
 ## 公式資料
 

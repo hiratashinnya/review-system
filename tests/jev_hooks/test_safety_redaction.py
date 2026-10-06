@@ -60,13 +60,13 @@ class SafetyRedactionTests(unittest.TestCase):
         self.assertLess(len(result["public_messages"][1]), 8100)
 
     def test_secret_keys_drop_the_entry_without_renaming_collisions(self):
-        evidence = {"current_tool_input": {"first-known": "first-value-canary",
+        evidence = {"current_tool_input": {"questions": [{"first-known": "first-value-canary",
                     "prefix-second-known": {"nested": "second-value-canary"},
                     "Authorization: Bearer credential-key-canary": "credential-value-canary",
-                    "[REDACTED]": "ordinary", "safe": [{"token=label-canary": "label-value-canary"}]}}
+                    "[REDACTED]": "ordinary", "safe": [{"token=label-canary": "label-value-canary"}]}]}}
         result = outbound_evidence(evidence, ("first-known", "second-known"))
         self.assertNotIn("canary", json.dumps(result))
-        self.assertEqual(result["current_tool_input"], {"[REDACTED]": "ordinary", "safe": [{}]})
+        self.assertEqual(result["current_tool_input"], {"questions": [{"[REDACTED]": "ordinary", "safe": [{}]}]})
 
     def test_owned_evidence_schema_stays_distinct_from_arbitrary_keys(self):
         evidence = {"current_tool_input": {"name": "key-associated-canary"},

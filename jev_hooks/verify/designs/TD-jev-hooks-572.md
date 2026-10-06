@@ -42,3 +42,4 @@ PR #571の外部レビュー指摘1〜7をXR-571-1〜7として追跡し、既�
 ## 独立レビュー追跡
 
 - F-572-005: 既知秘密が任意dictのキーにある場合にSDK HTTP bodyへ漏れた。別文脈で実HTTP mockを確認済み。[追加TD](TD-jev-hooks-572-f005.md) で任意キー/動的tool IDとschema-owned keyの境界、entry/value除外、改名collisionなし、実authheaderだけへのキー受け渡しを検証する。旧60件のTR/log/source snapshotは変更せず、追加62件の結果を別TRへ記録する。
+- F-572-006: 履歴toolだけの入力最小化ではcurrent_tool_input/R4 context内のWrite/Edit機密本文がSDK HTTPへ残った。[追加TD](TD-jev-hooks-572-f006.md) で全コピーの共通投影、shell引数値省略、R3質問保持、旧版恒久TC4subcase失敗と修正後SDK69件成功を追跡する。引数依存の意味精度は未評価。

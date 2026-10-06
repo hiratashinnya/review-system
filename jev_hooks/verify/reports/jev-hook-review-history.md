@@ -63,3 +63,9 @@
 独立レビューの対象head `9e930e678d6f1725ddbdffd7f33529b0713215e5` で、APIキーと同じ値を任意dictのkeyへ置くとSDKのHTTP bodyに残ることを確認した。根因はredactionが値だけを処理しkey文字列を検査していなかったこと。任意key/動的tool IDに既知秘密またはcredential形式を含む場合は、対応value/resultごとentryを除外する。マスク文字列への改名collisionを起こさず、SDK所有の固定schema keyは保持する。実認証キーはSDK必須HTTP authheaderでのみ使用し、証拠payloadには持ち込まない。
 
 修正前の安全11件は2fail（任意dictとSDK実HTTP/semantic CLIの両経路）。修正後は安全12件すべてPASS、統合SDK62件PASS/skip0。実API通信はしていない。[追加TD](../designs/TD-jev-hooks-572-f005.md)、[追加TRと赤緑ログ](TR-jev-hooks-572-c5d58b4-f005-worktree.md)。既知秘密/credential形式の除去であり、未知秘密の完全検出保証はない。
+
+## F-572-006: 現在入力/R4 contextからの機密ファイル本文漏れ（2026-10-06）
+
+[独立レビュー](https://github.com/hiratashinnya/review-system/pull/571#pullrequestreview-5429570390)の対象head `d648a02e8d2350a83d73218a7d6d7c91aafbb2c6`（同tree local `c961e8e`）で、Write/Edit .envの入力がcurrent_tool_inputとskill_context.current_tool.inputからSDK HTTP bodyへ送られた。履歴tool_callsだけに最小化を適用し、現在入力/R4 selector/protected_operationsを通常redactionでコピーしたことが根因だった。
+
+共通projectionを全入力コピーへ適用し、機密path入力・通常ファイル本文を省略した。shellは実行名/複合構造/既知git動詞/option名だけを残し、引数値/環境代入/heredoc本文を省略する。R3の質問本文で.envに言及するだけでは質問を除外しない。恒久TCを旧版の孤立archiveで実行して2件/4subcase失敗、修正後SDK69件PASS/skip0、SDKなし69件PASS/skip4を確認した。[追加TD](../designs/TD-jev-hooks-572-f006.md)、[追加TRと赤緑ログ](TR-jev-hooks-572-c961e8e-f006-worktree.md)。機密本文/引数依存の意味判定は限定され、実モデル精度は未評価。修正前d648a02のCI run37474698960全3 checks成功と、今回の修正後CI/独立レビューを区別する。
