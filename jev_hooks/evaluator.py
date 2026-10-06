@@ -4,6 +4,7 @@ import asyncio
 import math
 
 from .evaluator_transport import bounded_request
+from .configuration_failure import ConfigurationFault
 from .questions import question_specs
 
 
@@ -43,6 +44,8 @@ class JevEvaluator:
                 raise ValueError("invalid_threshold")
             return {key: normalize_answer(response.answers.get(key), threshold)
                     for key in question_ids}
+        except ConfigurationFault:
+            raise
         except Exception as error:
             fault = "timeout" if isinstance(error, TimeoutError) else "evaluation_error"
             return {key: unknown(fault) for key in question_ids}

@@ -1,6 +1,8 @@
 """Code composes independent semantic answers and bounds corrective loops."""
 from .evidence import question_cancelled
 
+RULE_VERSION = "1.1"
+
 REASONS = {
     "R1": "必要な調査と背景説明を公開チャットで済ませてから、標準の AskUserQuestion を呼んでください。",
     "R2": "許可済み・利用可能な関連調査手段で事実を調べ、結果を確認してください。結論が出なければその限界を説明してください。",
@@ -41,6 +43,7 @@ def violations(event, evidence, answers, missing, config):
 
 
 def decide(event, found, state, config):
+    state["denied_rules"] = []
     if event["hook_event_name"] not in {"Stop", "PreToolUse"}:
         return {}
     if event.get("stop_hook_active"):
@@ -50,6 +53,8 @@ def decide(event, found, state, config):
         count = state["blocks"].get(rule, 0)
         if rule == "R4" or count < config["max_blocks_per_rule"]:
             blocked.append(reason)
+            if config["mode"] == "enforce":
+                state["denied_rules"].append(rule)
             state["blocks"][rule] = count + 1
     if not blocked or config["mode"] == "shadow":
         return {}

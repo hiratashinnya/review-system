@@ -1,0 +1,192 @@
+.................................................................................................usage: asset_parity [-h] {check} ...
+asset_parity: error: argument command: invalid choice: 'not-a-command' (choose from check)
+............................................................................................................................................................................................................................error: --type が必要（MVP は AI 型推定なし）
+...error: feedback.json を読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+.error: feedback の内容が不正: feedback item に finding_id/decision が必要: {'finding_id': 'x'}
+..error: feedback.json の review_id がレポートと一致しない
+.O-14 [apply] revert に失敗（deadbeef）: fatal: bad revision 'deadbeef' -> 一部のみ revert された可能性。ワークスペースを手動確認のこと
+.O-14 [apply] commits 状態ファイルを読めない: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte -> .review-state の当該 .commits.json を確認のこと
+.O-14 [apply] commits 状態ファイルを読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2) -> .review-state の当該 .commits.json を確認のこと
+.O-14 [apply] commits 状態ファイルの形式が不正: {'ref': 'abc'} -> .review-state の当該 .commits.json を確認のこと
+O-14 [apply] commits 状態ファイルの形式が不正: [1, 2, 3] -> .review-state の当該 .commits.json を確認のこと
+.................................................................................................................F.......................................FF....FFFFFF...................sF...................................................s...E.........................................................................................................................................................未検出: NOPE-999
+..........................................................................................拒否（fail-close）: boom（TOCTOU 疑い）
+...拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-5r4n_qks/tmp/_feedback（'_feedback' を含むパスは削除しない）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-v098y3j1/tmp/_handoff（'_handoff' を含むパスは削除しない）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-uru5q4hy/tmp/_karte（'_karte' を含むパスは削除しない）
+..未検出: 対象が存在しない（掃除不要）: /tmp/cleantmp-ad1wkyai/tmp/sprint-1/nope
+.拒否（fail-close）: tmp/ の外を指している: /tmp/cleantmp-i6jnm2a7/doc-system-v2/nodes（許可範囲は /tmp/cleantmp-i6jnm2a7/tmp/<sprint>/<parent-id>）
+.usage: dsv2 [-h] [--root ROOT] [--meta META]
+            {index,deps,dependents,orphans,drift,prompt-coverage,dashboard,reverse,rename,check-slug,clean-tmp,build-view}
+            ...
+dsv2: error: unrecognized arguments: --repo-root /tmp/cleantmp-vlz5tgjq
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-kab5t2s4/tmp/_worktree（'_worktree' を含むパスは削除しない）
+.......................未検出: nope
+....エラー: child-spec: 改名先 slug が既に存在する（衝突）
+....エラー: nope: ノードが見つからない
+.........................................................................................................................................ERROR: [P1] approved の改訂案にだけ実行できる（現在: pending）
+..ERROR: [L6] 既存の台帳エントリは変更できない: FBK-20260901-cli-only-writes（訂正は新しい id のエントリ＋supersedes で行う）
+..ERROR: [P1] pending の改訂案だけを差し替えられる（現在: approved）。決着済みの案は propose --supersede で置き換える
+..ERROR: '..' を含むパスは受け付けない（traversal 拒否）: ../escape.toml
+....ERROR: 改訂案が見つからない: FBP-20200101-none
+...........ERROR: [L1] tmp/_feedback/FBK-20260901-cli-only-writes.toml::divergence: 語彙外の値: 'u-turn'（許可: reversal, narrowing, widening, deferral, alternative-means）
+..ERROR: [L1] tmp/_feedback/broken.toml::topic: 必須のキーが無い
+.ERROR: [L1] tmp/_feedback/FBK-20260901-cli-only-writes.toml::[narrative]::recommendation: 必須の欄が空になっている
+..ERROR: [L1] tmp/_feedback/bad-slug.toml::id: 書式に合わない値: 'FBK-20260901-Bad_Slug'（期待: ^FBK-(?P<date>\d{8})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$）
+.ERROR: [L1] tmp/_feedback/broken.toml::[narrative]::extra: 宣言されていないキー
+.ERROR: [L2] .ai/feedback/ledger/FBK-20260901-cli-only-writes.toml::affected_assets: 実在しない資産パス: docs/nope.md
+........ERROR: [L5] tmp/_feedback/FBK-20260901-cli-only-writes.toml::[narrative]::inferred_reason: 推論の欄に断定語彙 'と述べた' が使われている（発言として記録できるのは owner_verbatim だけ）
+.ERROR: [L5] tmp/_feedback/FBK-20260901-cli-only-writes.toml::[narrative]::inferred_reason: 推論の欄は '推測：' で始めなければならない（引用と推論を読み手が区別できるようにするため）
+.ERROR: [L4] tmp/_feedback/FBK-20260901-cli-only-writes.toml::[narrative]::owner_verbatim: 逐語引用の欄に推測語彙 'おそらく' が混ざっている（解釈は inferred_reason へ分ける。不可避なら feedback_ledger/allowlist.py へ理由付きで登録する）
+ERROR: [L4] tmp/_feedback/FBK-20260901-cli-only-writes.toml::[narrative]::owner_verbatim: 逐語引用の欄に推測語彙 'と思われる' が混ざっている（解釈は inferred_reason へ分ける。不可避なら feedback_ledger/allowlist.py へ理由付きで登録する）
+.....ERROR: [P3] .ai/feedback/queue/FBP-20260919-tighten-contract.toml::derived_from: 実在しない台帳エントリを指している: FBK-20260901-cli-only-writes
+................ERROR: 台帳エントリが見つからない: FBK-20200101-none
+....ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::outcomes[FBK-20260901-cli-only-writes]: verdict=no-change には reason が必要
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::period_start: id の ISO 週と期間が一致しない（期待: 2026-09-14 〜 2026-09-20）
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::outcomes[FBK-20260901-cli-only-writes]: 実在しない改訂案を指している: FBP-20260919-tighten-contract
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::reviewed: reviewed と outcomes[].entry の集合が一致しない（outcomes 欠落: ['FBK-20260902-other'] / reviewed 欠落: なし）
+ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::reviewed: 実在しない台帳エントリを指している: FBK-20260902-other
+.........................gitgate: `push` takes no arguments; unexpected: ['--receive-pack=sh -c evil']
+...............................................................................................................................................................F.............................................................................................s.sss..............s.ss.....s....................s.................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+======================================================================
+ERROR: test_installed_codex_profile_normal_and_negative_matrix_is_model_free (test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_supervisor_shrink.py", line 971, in test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+    evidence = supervisor.validate_cli_compatibility(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/review-system/issue_start/codex_supervisor.py", line 1709, in validate_cli_compatibility
+    _validate_feature_catalog(
+  File "/workspace/review-system/issue_start/codex_supervisor.py", line 1657, in _validate_feature_catalog
+    raise CodexSupervisorError(
+issue_start.codex_supervisor.CodexSupervisorError: CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty write_stdin_approval
+
+======================================================================
+FAIL: test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes (test_codex_karte_bridge.KarteBridgeTests.test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_karte_bridge.py", line 440, in test_real_outer_diagnosis_mount_denies_code_karte_and_git_writes
+    self.assertEqual(observed.returncode, 0, observed.stderr)
+AssertionError: 1 != 0 : bwrap: setting up uid map: Read-only file system
+
+
+======================================================================
+FAIL: test_watcher_parses_reached (test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 311, in test_watcher_parses_reached
+    self.assertIn(
+AssertionError: 'OK REACHED=1 TYPE=rate_limit_reached EPOCH=1791296761 WIN=300 USED=100 PLAN=plus' not found in 'FALLBACK\n'
+
+======================================================================
+FAIL: test_watcher_parses_reached_past_epoch (test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 359, in test_watcher_parses_reached_past_epoch
+    self.assertIn(f"OK EPOCH={past_epoch}", result.stdout)
+AssertionError: 'OK EPOCH=1791285961' not found in 'FALLBACK\n'
+
+======================================================================
+FAIL: test_failed_query_writes_cooldown_file (test_codex_rate_limit_api.StopHookApiFailureCooldownTests.test_failed_query_writes_cooldown_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 522, in test_failed_query_writes_cooldown_file
+    self.assertEqual(self._query_call_count(), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_second_stop_within_cooldown_does_not_requery (test_codex_rate_limit_api.StopHookApiFailureCooldownTests.test_second_stop_within_cooldown_does_not_requery)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 536, in test_second_stop_within_cooldown_does_not_requery
+    self.assertEqual(self._query_call_count(), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_long_window_still_skips_without_fallback (test_codex_rate_limit_api.StopHookReachedWithoutResetEpochFallsBackTests.test_long_window_still_skips_without_fallback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 708, in test_long_window_still_skips_without_fallback
+    self.assertIn("long/weekly window", log)
+AssertionError: 'long/weekly window' not found in ''
+
+======================================================================
+FAIL: test_not_reached_still_no_ops_without_fallback (test_codex_rate_limit_api.StopHookReachedWithoutResetEpochFallsBackTests.test_not_reached_still_no_ops_without_fallback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 696, in test_not_reached_still_no_ops_without_fallback
+    self.assertIn("not rate-limited; no-op", log)
+AssertionError: 'not rate-limited; no-op' not found in ''
+
+======================================================================
+FAIL: test_reached_with_epoch_still_spawns_watcher_without_fallback (test_codex_rate_limit_api.StopHookReachedWithoutResetEpochFallsBackTests.test_reached_with_epoch_still_spawns_watcher_without_fallback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 687, in test_reached_with_epoch_still_spawns_watcher_without_fallback
+    self.assertIn("spawning watcher for reset epoch", log)
+AssertionError: 'spawning watcher for reset epoch' not found in ''
+
+======================================================================
+FAIL: test_reached_without_epoch_falls_back_to_text_detector (test_codex_rate_limit_api.StopHookReachedWithoutResetEpochFallsBackTests.test_reached_without_epoch_falls_back_to_text_detector)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_rate_limit_api.py", line 653, in test_reached_without_epoch_falls_back_to_text_detector
+    self.assertIn("no usable resetsAt from primary/secondary window", log)
+AssertionError: 'no usable resetsAt from primary/secondary window' not found in ''
+
+======================================================================
+FAIL: test_nested_sandbox_private_proc_regression_does_not_require_socket (test_codex_supervisor.BubblewrapSandboxProbeTests.test_nested_sandbox_private_proc_regression_does_not_require_socket)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_codex_supervisor.py", line 1732, in test_nested_sandbox_private_proc_regression_does_not_require_socket
+    self.assertEqual(device.returncode, 0, device.stderr)
+AssertionError: 1 != 0 : bwrap: setting up uid map: Read-only file system
+
+
+======================================================================
+FAIL: test_marker_matches_the_current_canonical_hash (test_governance_sync.TestGovernanceDirectivesSyncMarker.test_marker_matches_the_current_canonical_hash)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_governance_sync.py", line 127, in test_marker_matches_the_current_canonical_hash
+    self.assertEqual(
+AssertionError: 'bf2b1efc5398' != '220f0ecb50d6'
+- bf2b1efc5398
++ 220f0ecb50d6
+ : governance-directives.md の synced-from marker が正本集合に追従していない。
+  正本集合: CLAUDE.md, .claude/rules/01-principles.md, .claude/rules/02-decision-process.md, .claude/rules/03-operational.md, .claude/rules/04-test-data.md, .claude/rules/05-skills-agents.md, .claude/rules/06-design-phases.md, .claude/rules/07-project-structure.md, .ai/guidance/common.md
+  期待値（連結ハッシュの先頭12桁）: 220f0ecb50d6
+  記録値: bf2b1efc5398
+CLAUDE.md、.claude/rules/*.md、.ai/guidance/common.md のいずれかを変更したら、同一 PR で写しの内容を 突き合わせた上で marker を上記の期待値へ更新する（CLAUDE.md 冒頭の規定）。
+
+----------------------------------------------------------------------
+Ran 2105 tests in 501.934s
+
+FAILED (failures=11, errors=1, skipped=11)
+report.html
+report.html
+report.html
+recorded 1 feedback item(s)
+report.html
+report.html
+report.html
+report.html
+report.html
+report.html
+reverted 1 commit(s) for 2026-10-06T13:22:57.632781+00:00-ae10441a767a
+report.html
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-cxsdzs19/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-fu_myoqy/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-6x1d11nw/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-ukn35s_1/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-ukn35s_1/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み

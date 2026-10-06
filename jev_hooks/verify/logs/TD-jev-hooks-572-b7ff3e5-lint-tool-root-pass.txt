@@ -1,0 +1,8 @@
+test_jev_fixed_python_epoch_is_checked_without_unit_directory (test_tool_roots.ToolTestRootsCanaryTests.test_jev_fixed_python_epoch_is_checked_without_unit_directory) ... ok
+test_jev_fixture_consumer_is_checked_with_existing_unit_consumer (test_tool_roots.ToolTestRootsCanaryTests.test_jev_fixture_consumer_is_checked_with_existing_unit_consumer) ... ok
+test_jev_protected_literal_is_checked_and_not_rejected (test_tool_roots.ToolTestRootsCanaryTests.test_jev_protected_literal_is_checked_and_not_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.008s
+
+OK

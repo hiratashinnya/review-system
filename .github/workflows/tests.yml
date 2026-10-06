@@ -69,6 +69,15 @@ jobs:
       - name: Run unit test suite
         run: python3 -m unittest discover -s tests/unit
 
+      - name: Run time fixture scanner canary tests (Issue #572)
+        run: python3 -m unittest discover -s tests/time_fixture_lint
+
+      - name: Install pinned optional Jev SDK for local HTTP mock tests
+        run: python3 -m pip install -r jev_hooks/requirements.txt
+
+      - name: Run Jev hook test suite (Issue #572, no live API)
+        run: python3 -m unittest discover -s tests/jev_hooks
+
       - name: Time-dependent test data check (手当てB, issue #344)
         run: python3 -m time_fixture_lint check
 

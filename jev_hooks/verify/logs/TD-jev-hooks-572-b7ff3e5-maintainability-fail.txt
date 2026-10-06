@@ -1,0 +1,141 @@
+## VIOLATION (2)
+  time_fixture_lint/scanner.py:1 [module-over-100-lines] 410 physical lines; split responsibilities to <= 100 lines
+  time_fixture_lint/scanner.py:125 [data-and-logic-class-cohabitation] data=['Finding', 'Report'] logic=['_FileGraph']; place data and behavior in separate files
+
+## ACCEPTED_DEBT (134)
+  .codex/hooks/codex-rate-limit-query.py:1 [module-over-100-lines] existing debt fixed at 266 lines and exact content fingerprint
+  .codex/hooks/codex-rate-limit-query.py:153 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  .codex/mcp/claude_review/server.py:1 [module-over-100-lines] existing debt fixed at 441 lines and exact content fingerprint
+  asset_parity/inventory.py:1 [module-over-100-lines] existing debt fixed at 158 lines and exact content fingerprint
+  asset_parity/inventory.py:37 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  asset_parity/report.py:1 [module-over-100-lines] existing debt fixed at 259 lines and exact content fingerprint
+  asset_parity/staleness.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  blocker_gate/cli.py:1 [module-over-100-lines] existing debt fixed at 177 lines and exact content fingerprint
+  blocker_gate/cli.py:103 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/cli.py:117 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/closing.py:1 [module-over-100-lines] existing debt fixed at 211 lines and exact content fingerprint
+  blocker_gate/contract.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  blocker_gate/evaluator.py:1 [module-over-100-lines] existing debt fixed at 161 lines and exact content fingerprint
+  blocker_gate/github.py:1 [module-over-100-lines] existing debt fixed at 1117 lines and exact content fingerprint
+  blocker_gate/github.py:107 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:113 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:246 [comment-over-3-lines] 18 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:1 [module-over-100-lines] existing debt fixed at 297 lines and exact content fingerprint
+  blocker_gate/model.py:11 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:31 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:39 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:45 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/resolver.py:1 [module-over-100-lines] existing debt fixed at 495 lines and exact content fingerprint
+  blocker_gate/snapshot.py:1 [module-over-100-lines] existing debt fixed at 219 lines and exact content fingerprint
+  blocker_gate/waiver.py:1 [module-over-100-lines] existing debt fixed at 313 lines and exact content fingerprint
+  branch_source/policy.py:1 [module-over-100-lines] existing debt fixed at 352 lines and exact content fingerprint
+  branch_source/policy.py:41 [data-and-logic-class-cohabitation] data=['BranchSourceResult', 'NewBranchRequest'] logic=['GitHubBranchClient']; place data and behavior in separate files
+  branch_source/policy.py:94 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  branch_source/policy.py:149 [comment-over-3-lines] 12 consecutive comment lines; move rationale to durable documentation
+  ci_anomaly_report/collector.py:1 [module-over-100-lines] existing debt fixed at 234 lines and exact content fingerprint
+  defect_metrics/cli.py:1 [module-over-100-lines] existing debt fixed at 326 lines and exact content fingerprint
+  defect_metrics/cli.py:312 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/collect.py:1 [module-over-100-lines] existing debt fixed at 187 lines and exact content fingerprint
+  defect_metrics/metrics.py:1 [module-over-100-lines] existing debt fixed at 288 lines and exact content fingerprint
+  defect_metrics/metrics.py:45 [comment-over-3-lines] 8 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/metrics.py:55 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/metrics.py:69 [comment-over-3-lines] 13 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/model.py:1 [module-over-100-lines] existing debt fixed at 181 lines and exact content fingerprint
+  defect_metrics/model.py:58 [comment-over-3-lines] 15 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/threshold.py:1 [module-over-100-lines] existing debt fixed at 191 lines and exact content fingerprint
+  feedback_ledger/check.py:1 [module-over-100-lines] existing debt fixed at 454 lines and exact content fingerprint
+  feedback_ledger/check.py:56 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  feedback_ledger/cli.py:1 [module-over-100-lines] existing debt fixed at 476 lines and exact content fingerprint
+  feedback_ledger/model.py:1 [module-over-100-lines] existing debt fixed at 341 lines and exact content fingerprint
+  feedback_ledger/paths.py:1 [module-over-100-lines] existing debt fixed at 200 lines and exact content fingerprint
+  feedback_ledger/schema.py:1 [module-over-100-lines] existing debt fixed at 205 lines and exact content fingerprint
+  feedback_ledger/status.py:1 [module-over-100-lines] existing debt fixed at 168 lines and exact content fingerprint
+  feedback_ledger/store.py:1 [module-over-100-lines] existing debt fixed at 164 lines and exact content fingerprint
+  feedback_ledger/tomlwrite.py:1 [module-over-100-lines] existing debt fixed at 142 lines and exact content fingerprint
+  gitgate/adopt.py:1 [module-over-100-lines] existing debt fixed at 532 lines and exact content fingerprint
+  gitgate/adopt.py:441 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:1 [module-over-100-lines] existing debt fixed at 379 lines and exact content fingerprint
+  gitgate/cli.py:39 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:246 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1 [module-over-100-lines] existing debt fixed at 1649 lines and exact content fingerprint
+  gitgate/worktree.py:153 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1199 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1223 [comment-over-3-lines] 9 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1596 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  guidance_sync/sync.py:1 [module-over-100-lines] existing debt fixed at 288 lines and exact content fingerprint
+  guidance_sync/sync.py:28 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_karte_bridge.py:1 [module-over-100-lines] existing debt fixed at 310 lines and exact content fingerprint
+  issue_start/codex_launch_control.py:1 [module-over-100-lines] existing debt fixed at 703 lines and exact content fingerprint
+  issue_start/codex_launch_intent.py:1 [module-over-100-lines] existing debt fixed at 1161 lines and exact content fingerprint
+  issue_start/codex_launch_intent.py:86 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_launch_intent.py:101 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_launch_intent.py:525 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_launch_intent.py:626 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_launch_intent.py:689 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_launch_intent.py:716 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  issue_start/codex_supervisor.py:1 [module-over-100-lines] existing debt fixed at 3684 lines and exact content fingerprint
+  issue_start/codex_supervisor.py:178 [data-and-logic-class-cohabitation] data=['ChangePlan', 'CredentialSnapshot', 'PermissionProfile', 'ProcessResult', 'RuntimeHome', 'SupervisedResult', 'SupervisorSpec'] logic=['CodexJsonlObserver', 'SubprocessJsonlRunner', '_StoreOnce']; place data and behavior in separate files
+  issue_start/codex_supervisor_workspace.py:1 [module-over-100-lines] existing debt fixed at 631 lines and exact content fingerprint
+  issue_start/codex_supervisor_workspace.py:42 [data-and-logic-class-cohabitation] data=['GitFacts'] logic=['CanonicalLaunchReservationLease']; place data and behavior in separate files
+  issue_start/codex_supervisor_workspace.py:416 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/durable_lock.py:1 [module-over-100-lines] existing debt fixed at 129 lines and exact content fingerprint
+  issue_start/gate.py:1 [module-over-100-lines] existing debt fixed at 1285 lines and exact content fingerprint
+  issue_start/gate.py:33 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:44 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:95 [data-and-logic-class-cohabitation] data=['IsolationOnlyAck', 'IssueStartRequest'] logic=['IssueStartGitHubCollector', 'SnapshotIssueMetadata']; place data and behavior in separate files
+  issue_start/gate.py:978 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/hook.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  issue_start/hook.py:107 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/session_start.py:1 [module-over-100-lines] existing debt fixed at 118 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:1 [module-over-100-lines] existing debt fixed at 1032 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:806 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:840 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:867 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:881 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:935 [comment-over-3-lines] 8 consecutive comment lines; move rationale to durable documentation
+  issue_start/worktree_ledger.py:1 [module-over-100-lines] existing debt fixed at 900 lines and exact content fingerprint
+  issue_start/worktree_ledger.py:786 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1 [module-over-100-lines] existing debt fixed at 1519 lines and exact content fingerprint
+  karte/cli.py:106 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:673 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1318 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1350 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:1 [module-over-100-lines] existing debt fixed at 1306 lines and exact content fingerprint
+  karte/model.py:122 [comment-over-3-lines] 22 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:151 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:161 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:169 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:180 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:528 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:538 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:774 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:876 [comment-over-3-lines] 25 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:902 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/paths.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  karte/similarity.py:1 [module-over-100-lines] existing debt fixed at 241 lines and exact content fingerprint
+  karte/touched.py:1 [module-over-100-lines] existing debt fixed at 105 lines and exact content fingerprint
+  karte_notify/hook.py:1 [module-over-100-lines] existing debt fixed at 175 lines and exact content fingerprint
+  karte_notify/notify.py:1 [module-over-100-lines] existing debt fixed at 346 lines and exact content fingerprint
+  karte_notify/notify.py:86 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  pr_merge_gate/audit.py:1 [module-over-100-lines] existing debt fixed at 501 lines and exact content fingerprint
+  pr_merge_gate/classifier.py:1 [module-over-100-lines] existing debt fixed at 1236 lines and exact content fingerprint
+  pr_merge_gate/gate.py:1 [module-over-100-lines] existing debt fixed at 187 lines and exact content fingerprint
+  pr_merge_gate/hook.py:1 [module-over-100-lines] existing debt fixed at 424 lines and exact content fingerprint
+  pr_merge_gate/hook.py:35 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  pr_merge_gate/hook.py:61 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  pr_merge_gate/hook.py:167 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  pr_merge_gate/hook.py:176 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  pr_merge_gate/hook.py:387 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/cli.py:1 [module-over-100-lines] existing debt fixed at 206 lines and exact content fingerprint
+  project_status_sync/github.py:1 [module-over-100-lines] existing debt fixed at 258 lines and exact content fingerprint
+  project_status_sync/model.py:1 [module-over-100-lines] existing debt fixed at 159 lines and exact content fingerprint
+  project_status_sync/model.py:44 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/planner.py:1 [module-over-100-lines] existing debt fixed at 247 lines and exact content fingerprint
+  project_status_sync/report.py:1 [module-over-100-lines] existing debt fixed at 127 lines and exact content fingerprint
+  review_system/io/cli.py:1 [module-over-100-lines] existing debt fixed at 210 lines and exact content fingerprint
+  review_system/parsing/frontmatter.py:1 [module-over-100-lines] existing debt fixed at 192 lines and exact content fingerprint
+  review_system/parsing/lint.py:1 [module-over-100-lines] existing debt fixed at 101 lines and exact content fingerprint
+  review_system/persistence/criteria_repo.py:1 [module-over-100-lines] existing debt fixed at 108 lines and exact content fingerprint
+  time_fixture_lint/allowlist.py:1 [module-over-100-lines] existing debt fixed at 120 lines and exact content fingerprint
+
+violations=2 accepted_debt=134

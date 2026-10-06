@@ -1,7 +1,11 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@bf2b1efc5398 -->
+<!-- synced-from: CLAUDE.md@220f0ecb50d6 -->
 <!--
+  Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
+  `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
+  写し本文を突き合わせた上でmarkerのみ現在の正本集合hashへ更新した。
+
   Issue #535 是正ラウンド4（2026-09-28・F-535-15）: `.claude/rules/05-skills-agents.md`
   「ctx_* ツールの付与方針」の検索系ツール例外注記から、正当化理由（「ゲート側の手当てを
   要さないため」「実行系＝ctx_execute/ctx_batch_executeの話であり検索系はゲートの統制層を

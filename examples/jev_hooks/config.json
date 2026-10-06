@@ -7,8 +7,17 @@
   "retries": 1,
   "max_blocks_per_rule": 2,
   "question_tool_available": true,
-  "research_tools": ["Read", "Grep"],
+  "research_tools": [
+    "Read",
+    "Grep"
+  ],
   "state_dir": "/tmp/jev-hooks-demo",
-  "skill_definitions": ["examples/jev_hooks/skill-check.json"],
-  "mock_answers": {}
+  "skill_definitions": [
+    "examples/jev_hooks/skill-check.json"
+  ],
+  "mock_answers": {},
+  "api_key_env": "TYPESAFE_API_KEY",
+  "secret_env_vars": [],
+  "audit_retention": 10000,
+  "rule_version": "1.1"
 }

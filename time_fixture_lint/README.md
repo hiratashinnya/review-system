@@ -56,13 +56,13 @@ remediation, F-344-01 — see "Protection scope" below):
 
 1. **Fixture detector** — scans `tests/fixtures/**/*.{yml,yaml,json}` for those field
    names with an absolute-date/epoch value (double-quoted, single-quoted, or bare YAML
-   values, and one-line inline JSON — F-344-03), finds the `tests/unit/*.py` files that
+   values, and one-line inline JSON — F-344-03), finds the `tests/{unit,jev_hooks,time_fixture_lint}/test_*.py` files that
    reference the fixture (by filename), and requires **each occurrence's protection
    scope** to contain a clock-control marker (`unittest.mock.patch(...)` on a
    clock-related target, `now=datetime(...)` injection, `freeze_time(...)`/`freezegun`).
    No referencing test at all → reported as `no_consumer` (can't verify protection,
    surfaced rather than silently passed).
-2. **Python-literal detector** — scans `tests/unit/*.py` for the same field names in
+2. **Python-literal detector** — scans `tests/{unit,jev_hooks,time_fixture_lint}/test_*.py` for the same field names in
    inline dict literals (single line, single or multiple fields), and for bare
    fixed-epoch constant assignments (`NAME = 1783760000`-shaped). A hit is safe if
    **its own protection scope** has a clock-control marker, or the literal sits inside a
@@ -175,13 +175,27 @@ tool's output — that's the point of the scoping above, not an oversight.
 
 | Module | Responsibility |
 |---|---|
-| `scanner.py` | Field vocabulary, fixture/python-literal detectors, `Finding`/`Report` |
+| `scanner.py` | Stable `scan` / `scan_fixtures` / `scan_python_literals` API and re-exported `Finding`/`Report` |
+| `model.py`, `patterns.py`, `field_values.py` | Data records, unchanged field vocabulary and extraction |
+| `test_files.py` | Existing fixtures and the three direct CI test roots (unit/Jev/time_fixture_lint) |
+| `file_graph.py`, `protection.py` | Existing local-call graph and protection scope |
+| `fixture_scanner.py`, `literal_scanner.py` | Fixture consumer and Python literal detectors |
 | `allowlist.py` | Documented intentional inert hits |
 | `cli.py` | `python3 -m time_fixture_lint check` |
 
 ## CI wiring
 
+Issue #572: fixture consumer lookup and Python-literal detection both scan the direct
+`tests/unit/`, `tests/jev_hooks/`, and `tests/time_fixture_lint/` discovery roots. Existing fixture paths and allowlist
+entries remain unchanged. `tests/time_fixture_lint/test_tool_roots.py` places deliberate
+violations in the Jev root and checks both detectors, including a mixed protected unit
+consumer and unprotected Jev consumer. A missing root does not hide the other root.
+
 `.github/workflows/tests.yml` runs `python3 -m time_fixture_lint check` as a step
 alongside the full unit test suite on every `pull_request` (see that workflow's own
 comments for the `pages.yml` role-separation rationale). A `violation`/`no_consumer` hit
 fails the build; a `protected`/`allowlisted` hit is informational only.
+
+Issue #572 required splitting the existing 409-line scanner because modifying it invalidates
+its exact-content debt baseline. All changed scanner modules now have at most 100 lines;
+only the two resolved scanner debt entries are removed from the baseline (136 → 134); no exemption is added. Original design rationale is preserved in [scanner-rationale.md](scanner-rationale.md).

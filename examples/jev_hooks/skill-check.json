@@ -14,8 +14,7 @@
       },
       "watch": [
         "jev_hooks/*.py",
-        "tests/jev_hooks/*.py",
-        "tests/unit/test_jev*.py"
+        "tests/jev_hooks/*.py"
       ]
     },
     {
