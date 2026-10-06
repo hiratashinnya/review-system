@@ -80,8 +80,8 @@
 #          reviewer: diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
 #          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
-#          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create/view, issue view, api／reviewer:
-#          pr view/diff/checks/comment/review, issue view, api。`pr checkout` は許可しない）に
+#          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create/list/view, issue view, api／reviewer:
+#          pr list/view/diff/checks/comment/review, issue view, api。`pr checkout` は許可しない）に
 #          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
 #        - pyright（Issue #510→F-510-06）: gh と同型の**フラグ許可リスト方式**（PYRIGHT_FLAG_ALLOWLIST）
@@ -213,12 +213,12 @@ GITGATE_VERBS_BY_ROLE = {
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
-    "issue-implementer": {("pr", "create"), ("pr", "view"), ("issue", "view"), ("api",)},
-    "issue-fixer": {("pr", "create"), ("pr", "view"), ("issue", "view"), ("api",)},
+    "issue-implementer": {("pr", "create"), ("pr", "list"), ("pr", "view"), ("issue", "view"), ("api",)},
+    "issue-fixer": {("pr", "create"), ("pr", "list"), ("pr", "view"), ("issue", "view"), ("api",)},
     # `gh pr checkout` is excluded because this role shares the primary worktree.
     # Review data is available through `gh pr view`/`diff` and gitgate read verbs.
     "pr-reviewer": {
-        ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
+        ("pr", "list"), ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
         ("pr", "review"), ("issue", "view"), ("api",),
     },
 }
@@ -241,6 +241,7 @@ GH_FLAG_ALLOWLIST = {
         "value": {"--json", "--jq", "-q"},
         "bool": {"--comments", "-c"},
     },
+    ("pr", "list"): {"value": set(), "bool": set()},
     ("api",): {"value": {"--method", "-X", "--jq", "-q", "-F"}, "bool": {"--paginate", "--slurp"}},
     ("pr", "diff"): {
         "value": {"--color"},

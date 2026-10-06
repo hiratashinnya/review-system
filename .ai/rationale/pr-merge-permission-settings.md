@@ -52,6 +52,16 @@ Codex の prefix rule は直接の command prefix だけを比較し、後続の
 
 現行 classifier policy は retired notice として `policy_version: 1.18` を持つ。旧 classifier contract は `classifier_version: 1.17` として archive に保存し、当該 notice の確認日は 2026-10-02 とした。retired notice は Issue #542 による classifier と pre-use/post-use 配線の撤去後に追加した。Issue 番号、移行理由、版遷移の説明は履歴としてここに保管する。
 
+## 2026-10-06 の再レビュー判断
+
+F-542-34 では、gated role の `gh api graphql -F query=@file` 入力で query 本文が検査されず、非 merge mutation の拒否が保証されない点を確認した。オーナーは保証外として受け入れた。目的は AI のうっかり merge を防ぐことであり、この形の非 merge mutation まで拒否する機構は追加しない。現行 tool guide の限界表にその動作を記録した。
+
+F-542-35 では、gated role の `gh pr list` と `gh pr list -R owner/repo` が role allowlist に無く拒否される点を修正する判断となった。gh 2.45.0 の list help に書き込み操作はなく、`--web` はブラウザー起動用である。各 gated role に `pr list` だけを許可し、`-R`/`--repo` 以外の list flags は allowlist に加えない。
+
+F-542-36 では、gated role が `-R`/`--repo` を `gh pr` の直後に置くと読み取りも拒否され、末尾または `gh` の直後なら許可されることを実測した。オーナーはこの誤拒否を保証外として受け入れ、コードは変更しない。現行 tool guide に利用可能な配置を記録した。
+
+F-542-37 では、主文脈からの非 merge GraphQL mutation は merge 拒否を目的とするこの gate の対象外で、現状のまま許可されることを確認した。レビュー依頼には Issue の目的を超える期待が含まれていたため、オーナーは scope out と判断した。コードは変更せず、現行 tool guide に適用範囲を記録した。
+
 ## 版の扱い
 
 旧 classifier の最終 contract は `classifier_version: 1.17` である。Issue #542 で classifier 自体を撤去したため、その版は archive で履歴として固定し、現行の retired notice は `policy_version: 1.18` とした。`1.18` は notice の版であり、稼働 classifier の版ではない。

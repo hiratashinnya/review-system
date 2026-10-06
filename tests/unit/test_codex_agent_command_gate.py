@@ -310,6 +310,7 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "env git -c core.pager=cat --git-dir /tmp/repo/.git merge feature",
             "rtk proxy /usr/bin/git --work-tree=/tmp/repo merge feature",
             "timeout 1 gh pr merge 123",
+            "gh pr merge 123",
             "timeout 1 git -C /tmp/repo merge feature",
             "trap 'gh pr merge 123' EXIT",
             "command -p git -C /tmp/repo merge feature",
@@ -429,6 +430,8 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "git -C /tmp/repo show HEAD",
             "git -C /tmp/repo rev-parse --show-toplevel",
             "gh pr view 123",
+            "gh pr list",
+            "gh pr list -R owner/repo",
             "gh api --method GET repos/o/r/issues/123",
             "gh api repos/o/r/issues/123",
         )
@@ -437,6 +440,13 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             for command in commands:
                 with self.subTest(role=role, command=command):
                     self.assert_allowed(run_gate(payload(role, command)))
+
+    def test_gated_pull_request_list_rejects_unapproved_flags(self):
+        commands = ("gh pr list --web", "gh pr list --json number")
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
 
     def test_raw_git_read_commands_reject_write_and_external_program_options(self):
         commands = (
