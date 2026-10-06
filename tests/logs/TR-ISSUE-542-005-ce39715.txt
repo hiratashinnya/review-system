@@ -113,3 +113,36 @@ Fresh base checkout was blocked by read-only .git/worktrees/issue-542/index.lock
 Coverage.py 7.16.2 subprocess-aware run combined 123 data files. Suite: 2,057 tests in 792.929s; failures=6, errors=2, skipped=12. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%).
 
 Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed.
+
+## Round 10: F-542-34 through F-542-37
+
+Implementation commit measured: 9acbf9d8c38d9406607a7973c6278833500aa24f. All command inputs below were hook test payloads; no GitHub CLI requests were made.
+
+F-542-35 hook result matrix (Claude / Codex):
+
+| Gated role | gh pr list | gh pr list -R owner/repo | gh pr merge 123 |
+|---|---|---|---|
+| pr-reviewer | allowed / allowed | allowed / allowed | denied / denied |
+| issue-implementer | allowed / allowed | allowed / allowed | denied / denied |
+| issue-fixer | allowed / allowed | allowed / allowed | denied / denied |
+
+Both hooks denied gh pr list --web and gh pr list --json number for all three roles. The gh 2.45.0 list help contains no write operation; only common -R/--repo flags are allowed by the new empty per-command flag set. Claude focused suite: 82 tests in 209.138s, OK. Codex focused suite: 69 tests in 141.873s, OK. An initial Codex focused attempt with relative TMPDIR had 27 fixture failures because tests change cwd and mktemp could not resolve the path; both suites were rerun with absolute worktree-local TMPDIR/PYTHONPYCACHEPREFIX and passed as recorded above.
+
+Changed declarations: GH_SUBCOMMANDS_BY_ROLE and GH_FLAG_ALLOWLIST in both hooks. Test functions: test_repository_and_github_reads_are_allowed_for_every_role, test_gated_pull_request_list_rejects_unapproved_flags, and test_merge_commands_with_global_options_are_denied_for_every_role in both hook unit files. agent_command_gate/ production source: 494 lines and 9 files before; 494 lines and 9 files after.
+
+F-542-34/36/37 current limits were added to docs/tools/pr-merge-gate.md. Their decision history is under 2026-10-06 の再レビュー判断 in .ai/rationale/pr-merge-permission-settings.md.
+
+Final implementation suite command: python3 -m unittest discover -s tests/unit. Result: 2,059 tests in 370.310s; failures=6, errors=2, skipped=13. Same-condition base record 2fc4cfb: 2,102 tests; failures=6, errors=2, skipped=12. The six failure names and two error names match:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Subprocess-aware coverage.py 7.16.2 command used tmp/_cov/f542-r9.rc (patch=subprocess, parallel=true). It ran 2,059 tests in 791.065s; failures=6, errors=2, skipped=13. coverage combine combined 123 data files. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%). HTML report: tmp/_cov/r10/html/index.html. uv run --with coverage could not fetch from PyPI because DNS resolution failed; the already extracted local coverage.py 7.16.2 was used without installing packages.
+
+Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. git diff --check 2fc4cfb..9acbf9d passed.
