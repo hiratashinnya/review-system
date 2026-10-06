@@ -530,7 +530,7 @@ AI の当初の解釈は実装時 TDD（Red/Green）への言及だった。オ�
 | **1b** | 要件定義+アーキ設計：本体 | `ChangePlan`（`selected_solution`＝スコープ＋責務分割を含む解決方針・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`。**`AC・test mapping` と `rationale` は 1a の `VerificationDesign`／ADR へ移したため除く**）＋ **ADR**（`phase=要件定義+アーキ設計`。`input_refs` で 1a の `VerificationDesign` を参照） | **`plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証する（無条件。risk gate 条件は撤廃）。1a のレビュー合格後に着手する** | `change-planner`（既存）→`plan-reviewer`（既存） |
 | **2a** | 実装：テスト設計を先に作る | **`UT-TD`**（単体テスト設計。review_system 既存 `test-strategy` の `tests/designs/` に相当）＋**`UT-TC`**（1a の `IT-TD` の対象範囲内で、単体レベルのテストケース。Red 状態の実コードとして存在） | **`pr-reviewer` が単独でレビューする（無条件）。2b の着手前に完了させる** | `test-writer`（新設・2a専任） |
 | **2b** | 実装：本体 | 実装コード（Green）＋必要なら軽量 **ADR**（`phase=実装`。シーケンス図等は作らない） | `pr-reviewer`（既存・無条件） | `issue-implementer`（既存） |
-| **3a** | V字右側：テストエビ | **`ST-TR`／`IT-TR`／`UT-TR`**（各レベルの TC 実行結果。review_system 側は既存 `test-strategy` の UT/e2e 運用を流用——**IT 水準は形式的な区分としては無いが、`test_apply.py` 等の一部テストが実質的に結合レベルを既に含む**。harness 側の**道具ごとの置き場**は `<tool>/verify/` に確定済み＝[harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)） | 既存の成績書運用 | 既存資産の流用 |
+| **3a** | V字右側：テストエビ | **`ST-TR`／`IT-TR`／`UT-TR`**（各レベルの TC 実行結果。review_system 側は既存 `test-strategy` の UT/e2e 運用を流用——**IT 水準は形式的な区分としては無いが、`test_apply.py` 等の一部テストが実質的に結合レベルを既に含む**。harness 側の**道具ごとの置き場**は TD/TR が `<tool>/verify/`、TC が `tests/<tool>/` に確定済み＝[harnessテストコードは`tests/<tool>/`に置く](#fbk-20261006-harnessテストコードはtests-tool-に置く)） | 既存の成績書運用 | 既存資産の流用 |
 | **3b** | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
 
 「詳細設計」は独立行として立てない（2b に吸収、成果物は ADR のみ）。**1a/2a のレビューと 1b/2b の
@@ -900,35 +900,38 @@ frame/shardの二値割り付け（v2の枠組み内での延長線）を原案�
 
 ---
 
-<a id="fbk-20260924-harnessテストエビの道具ごとの置き場を確定する"></a>
+<a id="fbk-20261006-harnessテストコードはtests-tool-に置く"></a>
 
-### harnessテストエビの道具ごとの置き場を確定する
+### harnessテストコードは`tests/<tool>/`に置く
 
 | | |
 |---|---|
-| **id** | `FBK-20260924-harnessテストエビの道具ごとの置き場を確定する` |
-| **決定日時** | 2026-09-24 |
+| **id** | `FBK-20261006-harnessテストコードはtests-tool-に置く` |
+| **決定日時** | 2026-10-06 |
 | **状態** | **生存** |
-| **置換** | なし（[harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする) を具体化する追加決定であり、置換ではない） |
-| **関連** | [harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする)（上位方針）。[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) 3a行の「U-14＝未決」注記を解消 |
-| **実行** | **#540**（Acceptance criteriaへ移設項目を反映済み・2026-09-24） |
+| **置換** | **[harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する) を置換**（TC の置き場だけを変更。TD/TR/ログの置き場・既存混入37件の移設方針は変更なしで引き継ぐ） |
+| **関連** | [harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする)（上位方針）。[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) 3a行の置き場。契機＝PR #571（`jev_hooks`・Issue #572） |
+| **実行** | **#540**（TD/TR の移設項目は反映済み・2026-09-24）／**PR #571**（`tests/jev_hooks/` を CI が直接探索する形へ改め、中継ファイル `tests/unit/test_jev_core.py` を廃止する。未反映）／`.claude/rules/07-project-structure.md` の `tests/unit/` 記述の追従（未反映） |
 
 **決定内容**
 
 > review_systemの`test-strategy`（`tests/designs/`・`tests/unit/`・`tests/reports/`・`tests/logs/`）を
-> 型として移植し、harness側は`<tool>/verify/`配下に以下を置く：
+> 型として移植し、harness側は以下に置く：
 >
 > ```
-> <tool>/verify/designs/<id>.md          ← TD
-> <tool>/verify/reports/<id>-<commit>.md ← TR
-> <tool>/verify/logs/<id>-<commit>.txt   ← ログ
-> tests/unit/test_<tool>_*.py            ← TC（変更なし）
+> <tool>/verify/designs/<id>.md          ← TD（変更なし）
+> <tool>/verify/reports/<id>-<commit>.md ← TR（変更なし）
+> <tool>/verify/logs/<id>-<commit>.txt   ← ログ（変更なし）
+> tests/<tool>/test_*.py                 ← TC（新規の道具から適用）
 > ```
 >
-> **TCだけ`tests/unit/`共有のまま変更しない**：`.claude/rules/07-project-structure.md`が既に
-> 「`tests/unit/`は両プロジェクトのテストが同一ディレクトリに同居（判別はimport先）」と定めており、
-> これは「コード共有」側（ADRの`adr/`と同じ扱い）。TD/TRは**narrative（経緯・判断を含む記録）**であり、
-> 無関係な道具の記録が混ざるとSSoT/PR1違反になる——ここが分離対象（ADRの`<tool>/adr/`と同じ扱い）。
+> **TC も道具ごとのディレクトリへ分ける。** CI は `tests/unit/` と同じく `tests/<tool>/` も直接探索し、
+> `tests/unit/` から読み込ませる中継ファイルは置かない（道具ごとの中継ファイルは入れ忘れると
+> テストが失敗ではなく未実行になり、黙って抜けるため）。
+>
+> **既存の道具（`tests/unit/test_<tool>_*.py`）の移設は本決定に含めない。** 移設するか、いつ行うかは
+> オーナーが別途判断する。それまでは新旧2方式が併存する。
+>
 > ID prefixは既存の`TD-<area>-<nnn>`パターンをそのまま踏襲し、`area`＝道具名とする。
 >
 > **既存の混入（37件）を移設する**：`tests/reports/TD-issue-start-452*.md`（34件）・
@@ -945,20 +948,36 @@ frame/shardの二値割り付け（v2の枠組み内での延長線）を原案�
 
 **経緯（周辺文脈）**
 
-[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) の3a行が
-「harness側の道具ごとの置き場（略）は未決＝U-14」と明記していた。#540の実装が本論点に依存するため
-先に確定する必要があった。既存混入の発見は、U-13/U-14の原案作成中に`tests/reports/`を実地確認した
-ことによる（想定外の実害の実例——決定が無いまま実装が先行すると、review_systemとharnessの成果物が
-混ざる）。
+PR #571（`jev_hooks`）のレビューで、Claude Code (AI) が「テストコードを新設の `tests/jev_hooks/` に置いており、
+前版の決定（TC は `tests/unit/test_<tool>_*.py`）と食い違う」と指摘した。これに対しオーナーが、
+PR の置き方の方が好みだと表明した。AI は判断材料として次の4案を提示した。
+
+| 案 | 内容 | 評価 |
+|---|---|---|
+| **a** | **決定を置換し `tests/<tool>/` に置く。CI が直接探索し、中継ファイルは廃止する** | **採用**。道具ごとにまとまり、テスト設計・テスト結果を道具ごとに分けた考え方とも揃う。入れ忘れによる未実行が構造的に起きない |
+| b | 決定を置換し `tests/<tool>/` に置く。CI は変えず中継ファイル方式を続ける | 変更は小さいが、道具ごとに中継ファイルが要り、入れ忘れるとテストが黙って実行されない |
+| c | `jev_hooks` だけを例外にする | 例外が1件でき、方式の混在が理由付きで固定される |
+| d | 前版の決定どおり `tests/unit/` へ戻す | 方式は統一されるが、オーナーの好みに反する |
+
+TD/TR/ログの置き場と、既存混入37件の移設方針（前版の決定内容）はこの議論の対象外であり、変更せずに引き継いだ。
+前版の経緯（U-14 の解消・既存混入の発見）は §B の前版エントリに残す。
 
 **オーナー逐語**
 
-> 既存混入（37件）の移設は推奨案で良い
+> テストコードの置き場はこのprの置き方のほうが好みなんだけど
+
+（4案の提示後の選択）
+
+> 道具ごとに変更・CIも直す（推奨）
 
 **AI の原案と、オーナーが変えた点**
 
-ディレクトリテンプレート・移設方針（トリガー＝#540実装時点）の提示・調査（#452の実状態を`gh issue view`
-で深掘り）はAI。オーナーが推奨どおり承認した。
+前版の決定（TC は `tests/unit/` 共有）は AI が `.claude/rules/07-project-structure.md` の現状記述を根拠に
+組み立てたもので、オーナーは当時その部分を個別には検討していなかった（前版の逐語は移設方針への承認のみ）。
+今回オーナーが TC の置き場そのものに好みを示し、AI が案a（CI の直接探索を含む）を推奨、オーナーが承認した。
+既存の道具の移設をどうするかは決めていない。
+
+**実施者** Claude Code (AI)
 
 ---
 
@@ -2117,6 +2136,45 @@ AI の原案。オーナーは追記運用の根拠を問い、上書き案を�
 > ここに載っているものは**すべて無効**である。参照して行動してはならない。
 > 残すのは、なぜその結論に至り、なぜ誤りだったかを後から再構成するためである。
 
+<a id="fbk-20260924-harnessテストエビの道具ごとの置き場を確定する"></a>
+
+### harnessテストエビの道具ごとの置き場を確定する（**無効**）
+
+| | |
+|---|---|
+| **id** | `FBK-20260924-harnessテストエビの道具ごとの置き場を確定する` |
+| **記録日時** | 2026-09-24 |
+| **状態** | **置換済み・無効** |
+| **置換先** | **[harnessテストコードは`tests/<tool>/`に置く](#fbk-20261006-harnessテストコードはtests-tool-に置く) へ置換**（TC の置き場だけを変更。TD/TR/ログ・移設方針は置換先へそのまま引き継いだ） |
+| **由来** | AI（Claude Code）の原案をオーナーが承認（承認の対象は移設方針） |
+
+**無効になった内容**
+
+> TD/TR/ログは `<tool>/verify/` 配下に置き、**TC だけは `tests/unit/test_<tool>_*.py` 共有のまま変更しない**。
+> 理由：`.claude/rules/07-project-structure.md` が「`tests/unit/` は両プロジェクトのテストが同一ディレクトリに
+> 同居（判別は import 先）」と定めており、これは「コード共有」側（ADR の `adr/` と同じ扱い）。
+
+**前版の経緯**
+
+[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) の3a行が
+「harness側の道具ごとの置き場は未決＝U-14」と明記しており、#540の実装が本論点に依存するため先に確定した。
+既存混入（`tests/reports/`・`tests/designs/` の `TD-issue-start-452*` 37件）の発見は、U-13/U-14の原案作成中に
+`tests/reports/` を実地確認したことによる。前版のオーナー逐語は「既存混入（37件）の移設は推奨案で良い」。
+
+**なぜ置換されたか**
+
+TC を共有に残す根拠は既存の現状記述（`.claude/rules/07-project-structure.md`）だけで、道具ごとに分ける
+TD/TR との一貫性や、道具単位での見つけやすさとは比較されていなかった。PR #571 で道具別ディレクトリの
+実例が出たことを契機に、オーナーがそちらを好むと表明した。
+
+**訂正の契機（オーナー逐語）**
+
+> テストコードの置き場はこのprの置き方のほうが好みなんだけど
+
+**実施者** Claude Code (AI)
+
+---
+
 <a id="fbk-20260923-tracking_issueとreasonの二択のみとする"></a>
 
 ### tracking_issueとreasonの二択のみとする（**無効**）
@@ -3029,7 +3087,7 @@ census の `data/README.md` が「`recurrence_of` は**過小計上**」と明�
 | ~~U-11~~ | ~~`VerificationDesign`/`ChangePlan`/ADR の永続化パス設計~~ | **解消 → [ChangePlanは木構造で入れ子可能とする](#fbk-20260924-changeplanは木構造で入れ子可能とする)**（v3・frame/shard二分から木構造へ一般化済み） |
 | ~~U-12~~ | ~~#540 本文が本セッション後半の訂正に追従できていない~~（`ref=`宣言駆動アダプタ・`VerificationDesign`/`ChangePlan`の索引化） | **解消 → `gh issue edit 540` で本文反映済み（2026-09-24・オーナー承認）。`adopt-branch`連鎖は#371側の責務のためRelated行の参照追加のみで対応** |
 | ~~U-13~~ | ~~`ChangePlan`/`VerificationDesign`のスキーマ定義・読み書きコードの置き場~~ | **解消 → [ChangePlanは木構造で入れ子可能とする](#fbk-20260924-changeplanは木構造で入れ子可能とする)**（frame/shard二分をやめ木構造化・置き場は`issue_envelope/`に統合・オーナー承認・2026-09-24） |
-| ~~U-14~~ | ~~harness 側テストエビ**道具ごとの具体パス**（`<tool>/test-strategy/` 相当）~~ | **解消 → [harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)**（`<tool>/verify/`配下＋既存混入37件の移設方針・オーナー承認・2026-09-24） |
+| ~~U-14~~ | ~~harness 側テストエビ**道具ごとの具体パス**（`<tool>/test-strategy/` 相当）~~ | **解消 → [harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)**（`<tool>/verify/`配下＋既存混入37件の移設方針・オーナー承認・2026-09-24。TC の置き場は 2026-10-06 に [harnessテストコードは`tests/<tool>/`に置く](#fbk-20261006-harnessテストコードはtests-tool-に置く) へ置換） |
 | U-15 | risk gate 非該当時、`plan-reviewer`/`pr-reviewer` の無条件レビューを軽量な機械代替チェックで済ませる改良案（[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) で選択肢bとして提示され不採用。`1a/2aと1b/2bはロール分離を必須とする`エントリで一度却下した類似案との整合要確認） | 未決（**優先度低・オーナー「改良ネタとしていつかやれたら」**） |
 | ~~U-16~~ | ~~施策レジストリを`audit/`に手書きで置く現行方針と「`audit/`は派生ビューにすべき」の緊張関係~~ | **解消（対立案なし）→ [決定台帳の正本をfeedback-ledgerとする](#fbk-20260921-決定台帳の正本をfeedback-ledgerとする) が既に「`audit/`は台帳からの導出ビューにし、手書きをやめる」と明記済み。#537（P1/Now）が未実装なだけで、比較すべき選択肢は無かった（2026-09-24 検証・Claude Code (AI)）** |
 | ~~U-17~~ | ~~#533（classifier誤検知）がマージ権限剥離後も必要か~~ | **解消（対立案なし）→ [マージ権限をAIから剥がしsettings.jsonへ移す](#fbk-20260923-マージ権限をaiから剥がしsettings.jsonへ移す) 本文に「`pr_merge_gate/classifier.py`は不要になる」と明記済み。#542本文にも「Related: #533（本Issueで解消される見込み）」と紐付け済み。比較すべき選択肢は無かった（2026-09-24 検証・Claude Code (AI)・`gh issue view 542`で確認） |
