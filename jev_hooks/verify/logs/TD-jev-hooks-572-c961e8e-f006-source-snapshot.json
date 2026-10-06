@@ -1,0 +1,39 @@
+{
+  "base_local_commit": "c961e8eb3bb000f218f20cdee281795e98d8cd6f",
+  "base_public_commit": "d648a02e8d2350a83d73218a7d6d7c91aafbb2c6",
+  "parent_manifest": "jev_hooks/verify/logs/TD-jev-hooks-572-c5d58b4-f005-source-snapshot.json",
+  "parent_source_snapshot_sha256": "69ec906267b97ef2ed930955c1cdd1b48f778a3e22632e57d4c91a3ccc06242e",
+  "initial_manifest": "jev_hooks/verify/logs/TD-jev-hooks-572-b7ff3e5-source-snapshot.json",
+  "source_snapshot_sha256": "e81cc6586e4efb50a5d729ba4bd78f0626207eb6855ec3b732f6a99da7301091",
+  "reconstruction": "reconstruct parent files, replace or add changed_files by path, sort paths, serialize sort_keys=True separators=(comma,colon), SHA256; verify artifacts excluded",
+  "changed_files": [
+    {
+      "path": "jev_hooks/outbound_evidence.py",
+      "sha256": "3e7b2b7b76c2b59679d1bf187cd10b9dec426e15555d8aed6f71ad7d481adfe1"
+    },
+    {
+      "path": "jev_hooks/outbound_inputs.py",
+      "sha256": "00d17bfa4c286b06fdec4b2f03a9596f443ba32008305792cbf4680106151426"
+    },
+    {
+      "path": "jev_hooks/outbound_context.py",
+      "sha256": "86cabb7b4ebffc78cce07011d087bea3a0887664c0f31b8498981716aedc09cc"
+    },
+    {
+      "path": "tests/jev_hooks/test_safety_redaction.py",
+      "sha256": "bc84507024b7fe81a0932a2a7a2c43dbbb850091c49c451963168b70d190f072"
+    },
+    {
+      "path": "tests/jev_hooks/test_safety_sensitive_inputs.py",
+      "sha256": "92bd13dbc382bea79993406b299d546788b7ec4bcbe0a7deaa7110c4b7636628"
+    },
+    {
+      "path": "tests/jev_hooks/test_safety_projection.py",
+      "sha256": "9c1444e238f63a40230239991dab924ff23e7beebcaa6186a94537872186716e"
+    },
+    {
+      "path": "jev_hooks/README.md",
+      "sha256": "8578330fbb07645d1c0d998e84a2a1111091b1b6820fbe1d39210ccdb96064c9"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","session_id":"offline-demo","cwd":".","transcript_path":"examples/jev_hooks/history.jsonl","tool_name":"AskUserQuestion","tool_use_id":"ask-1","tool_input":{"questions":[{"question":"どちらの色にしますか？"}]}}

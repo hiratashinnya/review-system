@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "schema_version": 1,
+      "record_id": "69412d35138b4da4bf6c6dac37fee3a4",
+      "request_id": "25e66ba497804b5899e5c018f3db8c6753182dfc143c9dd9efc97024bffc3b71",
+      "event": "Stop",
+      "question_version": "1.1",
+      "rule_version": "1.1",
+      "model": "mock",
+      "mode": "enforce",
+      "latency_ms": 2,
+      "fault": null,
+      "answers": [
+        {
+          "question": "r1_waiting_for_answer",
+          "rule": "R1",
+          "value": true,
+          "confidence": 1.0,
+          "fault": null,
+          "low_confidence": false
+        },
+        {
+          "question": "r1_question_already_asked",
+          "rule": "R1",
+          "value": false,
+          "confidence": 1.0,
+          "fault": null,
+          "low_confidence": false
+        },
+        {
+          "question": "r2_researchable",
+          "rule": "R2",
+          "value": false,
+          "confidence": 1.0,
+          "fault": null,
+          "low_confidence": false
+        },
+        {
+          "question": "r2_research_available",
+          "rule": "R2",
+          "value": false,
+          "confidence": 1.0,
+          "fault": null,
+          "low_confidence": false
+        },
+        {
+          "question": "r2_research_relevant",
+          "rule": "R2",
+          "value": true,
+          "confidence": 1.0,
+          "fault": null,
+          "low_confidence": false
+        }
+      ],
+      "outcomes": {
+        "R1": {
+          "candidate": true,
+          "denied": true,
+          "unknown": false,
+          "fault": false
+        },
+        "R2": {
+          "candidate": false,
+          "denied": false,
+          "unknown": false,
+          "fault": false
+        }
+      },
+      "rules": [
+        "R1"
+      ],
+      "denied": true,
+      "skills": {
+        "active": 0,
+        "unknown": 0
+      },
+      "history_complete": false,
+      "notices": [],
+      "notice_delivery": "not_connected",
+      "session_id": "f8cf3ff07b058c725706a48f6432f8a5ed98eee635afd5e042ef83ba56f09216",
+      "turn_id": "41936a67e4bf2e85df3e90c0735dd206e141b9432b916d1099733c56adf2a782"
+    },
+    {
+      "schema_version": 1,
+      "record_id": "98675352b9e14b2c9d039e53e6a2b13b",
+      "request_id": "7f748cb9ecffb618c5a36db25ed5390a57a785308a55779516467b2daf1f0a3a",
+      "event": "Stop",
+      "question_version": "1.1",
+      "rule_version": "1.1",
+      "model": "mock",
+      "mode": "enforce",
+      "latency_ms": 0,
+      "fault": null,
+      "answers": [
+        {
+          "question": "r1_waiting_for_answer",
+          "rule": "R1",
+          "value": null,
+          "confidence": 0.0,
+          "fault": "insufficient_evidence",
+          "low_confidence": true
+        },
+        {
+          "question": "r1_question_already_asked",
+          "rule": "R1",
+          "value": null,
+          "confidence": 0.0,
+          "fault": "insufficient_evidence",
+          "low_confidence": true
+        },
+        {
+          "question": "r2_researchable",
+          "rule": "R2",
+          "value": null,
+          "confidence": 0.0,
+          "fault": "insufficient_evidence",
+          "low_confidence": true
+        },
+        {
+          "question": "r2_research_available",
+          "rule": "R2",
+          "value": null,
+          "confidence": 0.0,
+          "fault": "insufficient_evidence",
+          "low_confidence": true
+        },
+        {
+          "question": "r2_research_relevant",
+          "rule": "R2",
+          "value": null,
+          "confidence": 0.0,
+          "fault": "insufficient_evidence",
+          "low_confidence": true
+        }
+      ],
+      "outcomes": {
+        "R1": {
+          "candidate": false,
+          "denied": false,
+          "unknown": true,
+          "fault": false
+        },
+        "R2": {
+          "candidate": false,
+          "denied": false,
+          "unknown": true,
+          "fault": false
+        }
+      },
+      "rules": [],
+      "denied": false,
+      "skills": {
+        "active": 0,
+        "unknown": 0
+      },
+      "history_complete": false,
+      "notices": [
+        {
+          "kind": "low_confidence",
+          "rule": "R1",
+          "question": "r1_waiting_for_answer",
+          "fault": "insufficient_evidence"
+        },
+        {
+          "kind": "low_confidence",
+          "rule": "R1",
+          "question": "r1_question_already_asked",
+          "fault": "insufficient_evidence"
+        },
+        {
+          "kind": "low_confidence",
+          "rule": "R2",
+          "question": "r2_researchable",
+          "fault": "insufficient_evidence"
+        },
+        {
+          "kind": "low_confidence",
+          "rule": "R2",
+          "question": "r2_research_available",
+          "fault": "insufficient_evidence"
+        },
+        {
+          "kind": "low_confidence",
+          "rule": "R2",
+          "question": "r2_research_relevant",
+          "fault": "insufficient_evidence"
+        }
+      ],
+      "notice_delivery": "not_connected",
+      "session_id": "f8cf3ff07b058c725706a48f6432f8a5ed98eee635afd5e042ef83ba56f09216",
+      "turn_id": "41936a67e4bf2e85df3e90c0735dd206e141b9432b916d1099733c56adf2a782"
+    }
+  ],
+  "reviews": [
+    {
+      "record_id": "69412d35138b4da4bf6c6dac37fee3a4",
+      "rule": "R1",
+      "verdict": "false_positive"
+    }
+  ],
+  "notice_delivery": "not_connected",
+  "coverage": {
+    "retained_records": 2,
+    "total_records": 2,
+    "dropped_records": 0,
+    "legacy_records_excluded": 0,
+    "retention_records": 10000,
+    "window": "retained_records_only",
+    "reviews_for_dropped_records": "removed"
+  }
+}

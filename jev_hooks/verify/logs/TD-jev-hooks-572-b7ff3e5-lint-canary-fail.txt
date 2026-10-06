@@ -1,0 +1,32 @@
+test_jev_fixed_python_epoch_is_checked_without_unit_directory (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_fixed_python_epoch_is_checked_without_unit_directory) ... FAIL
+test_jev_fixture_consumer_is_checked_with_existing_unit_consumer (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_fixture_consumer_is_checked_with_existing_unit_consumer) ... FAIL
+test_jev_protected_literal_is_checked_and_not_rejected (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_protected_literal_is_checked_and_not_rejected) ... FAIL
+
+======================================================================
+FAIL: test_jev_fixed_python_epoch_is_checked_without_unit_directory (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_fixed_python_epoch_is_checked_without_unit_directory)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_time_fixture_tool_roots.py", line 37, in test_jev_fixed_python_epoch_is_checked_without_unit_directory
+    self.assertEqual(len(report.violations), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_jev_fixture_consumer_is_checked_with_existing_unit_consumer (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_fixture_consumer_is_checked_with_existing_unit_consumer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_time_fixture_tool_roots.py", line 26, in test_jev_fixture_consumer_is_checked_with_existing_unit_consumer
+    self.assertEqual(len(report.violations), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_jev_protected_literal_is_checked_and_not_rejected (tests.unit.test_time_fixture_tool_roots.ToolTestRootsCanaryTests.test_jev_protected_literal_is_checked_and_not_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/review-system/tests/unit/test_time_fixture_tool_roots.py", line 51, in test_jev_protected_literal_is_checked_and_not_rejected
+    self.assertEqual(len(report.findings), 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.007s
+
+FAILED (failures=3)

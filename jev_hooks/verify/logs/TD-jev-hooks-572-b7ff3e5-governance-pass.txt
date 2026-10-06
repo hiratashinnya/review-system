@@ -1,0 +1,17 @@
+test_canonical_set_covers_the_rules_directory (tests.unit.test_governance_sync.TestGovernanceDirectivesSyncMarker.test_canonical_set_covers_the_rules_directory) ... ok
+test_canonical_set_includes_common_guidance (tests.unit.test_governance_sync.TestGovernanceDirectivesSyncMarker.test_canonical_set_includes_common_guidance) ... ok
+test_common_guidance_bytes_change_the_canonical_hash (tests.unit.test_governance_sync.TestGovernanceDirectivesSyncMarker.test_common_guidance_bytes_change_the_canonical_hash) ... ok
+test_delivery_copy_declares_a_sync_marker (tests.unit.test_governance_sync.TestGovernanceDirectivesSyncMarker.test_delivery_copy_declares_a_sync_marker) ... ok
+test_marker_matches_the_current_canonical_hash (tests.unit.test_governance_sync.TestGovernanceDirectivesSyncMarker.test_marker_matches_the_current_canonical_hash) ... ok
+test_common_guidance_edit_is_in_the_observed_set (tests.unit.test_governance_sync.TestGovernanceDriftHook.test_common_guidance_edit_is_in_the_observed_set) ... ok
+test_decision_table_declares_follow_up_when_new_generic_harnesses_are_added (tests.unit.test_governance_sync.TestHarnessClassificationTable.test_decision_table_declares_follow_up_when_new_generic_harnesses_are_added) ... ok
+test_root_level_generic_harnesses_are_listed_in_the_decision_table (tests.unit.test_governance_sync.TestHarnessClassificationTable.test_root_level_generic_harnesses_are_listed_in_the_decision_table) ... ok
+test_common_guidance_import_resolves (tests.unit.test_governance_sync.TestRulesImportsAreComplete.test_common_guidance_import_resolves) ... ok
+test_every_import_resolves_to_an_existing_rules_file (tests.unit.test_governance_sync.TestRulesImportsAreComplete.test_every_import_resolves_to_an_existing_rules_file) ... ok
+test_every_rules_file_is_imported_by_the_entrypoint (tests.unit.test_governance_sync.TestRulesImportsAreComplete.test_every_rules_file_is_imported_by_the_entrypoint) ... ok
+test_only_common_guidance_is_imported_outside_the_rules_directory (tests.unit.test_governance_sync.TestRulesImportsAreComplete.test_only_common_guidance_is_imported_outside_the_rules_directory) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.045s
+
+OK
