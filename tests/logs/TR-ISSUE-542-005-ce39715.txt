@@ -71,3 +71,45 @@ agent_command_gate line count: 499 before this round and 499 after, 9 files in b
 
 F-542-31: no code change. Current tool guide limit table includes Bash ANSI-C quoting and other forms where shell and static-tokenizer interpretations differ; the decision history is recorded in rationale.
 F-542-30: the existing action check rejects action tokens containing `$` or backticks. Production source remains 499 lines across 9 files.
+
+## Round 9: F-542-32 and F-542-33
+
+Implementation commit measured: 987ca7139899de8f394bfd87770159c962324e31. All command strings below were hook test payloads only; no GitHub CLI command was executed.
+
+F-542-33 hook input results (Claude / Codex):
+
+| Input | Claude | Codex |
+|---|---|---|
+| gh pr -Rowner/repo merge 123 | denied | denied |
+| gh pr -R owner/repo merge 123 | denied | denied |
+| gh pr --repo=owner/repo merge 123 | denied | denied |
+| gh pr --repo owner/repo merge 123 | denied | denied |
+| gh -Rowner/repo pr merge 123 | denied | denied |
+| gh -R owner/repo pr merge 123 | denied | denied |
+| gh --repo=owner/repo pr merge 123 | denied | denied |
+| gh --repo owner/repo pr merge 123 | denied | denied |
+| gh pr view 1 -Rowner/repo | allowed | allowed |
+| gh pr list -R owner/repo | allowed | allowed |
+| gh pr view 1 --repo=owner/repo | allowed | allowed |
+| gh --repo owner/repo pr view 123 | allowed | allowed |
+
+F-542-32 query input gh api graphql -F 'query={ viewer { login } }' was allowed by both hooks for all roles: main with agent_type omitted, general-purpose, analysis-author, pr-reviewer, issue-implementer, and issue-fixer. A comment containing the word mutation was also allowed in the query payload. Both hooks denied mergePullRequest and enablePullRequestAutoMerge mutation payloads for all six roles. Both hooks denied createIssue mutation payloads for pr-reviewer, issue-implementer, and issue-fixer. Gated roles continue to deny REST form writes, non-query GraphQL fields, and multiple -F fields. The existing main-context policy for non-merge writes was not changed.
+
+Focused tests: Claude hook 81 tests in 190.956s, OK; Codex hook 68 tests in 120.025s, OK. Changed implementation functions: skip_global_options, _inspect_segment, contains_mutation, graphql_merge_reason, and gh_violation in both hooks. Test functions cover repo-option reads/writes, GraphQL queries and mutations, and gated API writes in tests/unit/test_agent_command_gate.py and tests/unit/test_codex_agent_command_gate.py. agent_command_gate/ production line count was 499 before this round and 494 after; 9 files before and after.
+
+Final implementation full suite: 2,057 tests in 352.883s; failures=6, errors=2, skipped=12. Same-condition base record: commit 2fc4cfb, 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The six failure names and two error names match; no new failure/error names:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Fresh base checkout was blocked by read-only .git/worktrees/issue-542/index.lock. A disposable clone produced path-dependent results and is excluded. Options: use the recorded same-condition base result with matching names, or rerun after writable common Git metadata is available. Recommended evidence is the recorded same-condition run.
+
+Coverage.py 7.16.2 subprocess-aware run combined 123 data files. Suite: 2,057 tests in 792.929s; failures=6, errors=2, skipped=12. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%).
+
+Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed.
