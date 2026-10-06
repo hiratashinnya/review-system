@@ -42,9 +42,8 @@ def _inspect_segment(tokens, depth=0):
     if executable == "gh" and subcommand == "api":
         return merge_api_reason(tokens[index + 1 :])
     if executable == "gh" and subcommand == "pr":
-        action = index + 1
-        while action < len(tokens) and tokens[action].partition("=")[0] in {"-R", "--repo", "--hostname"}:
-            action += 1 if "=" in tokens[action] else 2
+        action, error = skip_global_options(tokens, executable, index + 1)
+        if error: return error
         if action < len(tokens) and (tokens[action] == "merge" or any(mark in tokens[action] for mark in ("$", "`"))): return "the gh pr merge command is denied or its action is dynamically expanded"
     return None
 

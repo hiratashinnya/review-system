@@ -167,6 +167,7 @@ from datetime import datetime, timezone
 # 一般化した deny メッセージを返す＝fail-close は維持される。
 sys.path.insert(0, os.getcwd())
 from agent_command_gate.merge_command import merge_command_reason
+from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
@@ -246,7 +247,7 @@ GH_FLAG_ALLOWLIST = {
         "value": {"--json", "--jq", "-q"},
         "bool": {"--comments", "-c"},
     },
-    ("api",): {"value": {"--method", "-X", "--jq", "-q"}, "bool": {"--paginate", "--slurp"}},
+    ("api",): {"value": {"--method", "-X", "--jq", "-q", "-F"}, "bool": {"--paginate", "--slurp"}},
     ("pr", "diff"): {
         "value": {"--color"},
         "bool": {"--no-compact"},
@@ -1010,6 +1011,17 @@ def gh_violation(tokens, role):
                 return "`gh api` allows only GET or HEAD requests for this role"
             if token.startswith("-X") and len(token) > 2 and token[2:].upper() not in {"GET", "HEAD"}:
                 return "`gh api` allows only GET or HEAD requests for this role"
+        field_values = [
+            (rest[index + 1] if index + 1 < len(rest) else "") if token == "-F"
+            else token[2:].lstrip("=")
+            for index, token in enumerate(rest) if token == "-F" or token.startswith("-F")
+        ]
+        if field_values and (
+            rest[0] != "graphql" or len(field_values) != 1 or not field_values[0].startswith("query=")
+        ):
+            return "`gh api -F` is limited to one GraphQL query field for this role"
+        if field_values and contains_mutation(field_values[0].partition("=")[2]):
+            return "`gh api` GraphQL mutations are not allowed for this role"
         return gh_flag_violation(key, rest)
     if role == "pr-reviewer" and key == ("pr", "diff"):
         if not gh_has_flag(key, rest, "--no-compact"):

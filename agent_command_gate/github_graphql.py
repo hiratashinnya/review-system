@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from .graphql_tokens import contains_merge_mutation
+from .graphql_tokens import contains_mutation
 
 MAX_BODY_BYTES = 1_000_000
 
@@ -57,6 +57,6 @@ def graphql_merge_reason(endpoints, fields, input_path):
         if error:
             return error
         queries.append(query)
-    if any(contains_merge_mutation(query) for query in queries):
+    if any(contains_mutation(query, merge_only=True) for query in queries):
         return "the GraphQL request contains a pull request merge mutation"
     return None

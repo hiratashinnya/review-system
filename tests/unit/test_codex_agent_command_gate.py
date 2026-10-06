@@ -318,6 +318,13 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "timeout 1 gh api --method PUT repos/o/r/pulls/123/merge",
             "git -c alias.m=merge m feature",
             "gh -R owner/repo pr merge 123",
+            "gh -Rowner/repo pr merge 123",
+            "gh --repo=owner/repo pr merge 123",
+            "gh --repo owner/repo pr merge 123",
+            "gh pr -Rowner/repo merge 123",
+            "gh pr -R owner/repo merge 123",
+            "gh pr --repo=owner/repo merge 123",
+            "gh pr --repo owner/repo merge 123",
             'gh pr "${ACTION:-merge}" 123',
             "gh pr $ACTION 123",
             'gh pr "$ACTION" 123',
@@ -347,6 +354,9 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "gh pr view 1",
             "gh pr view 123",
             "gh pr list",
+            "gh pr view 1 -Rowner/repo",
+            "gh pr list -R owner/repo",
+            "gh pr view 1 --repo=owner/repo",
             "gh --repo owner/repo pr view 123",
             "gh api --method GET repos/o/r/pulls/123/merge",
             "gh api repos/o/r/issues/123",
@@ -355,6 +365,39 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_graphql_queries_pass_and_mutations_remain_denied_for_every_role(self):
+        queries = (
+            "gh api graphql -F 'query={ viewer { login } }'",
+            "gh api graphql -F 'query={ viewer { login } } # mutation appears in a comment'",
+        )
+        merge_mutations = (
+            "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+        )
+        other_mutation = "gh api graphql -F 'query=mutation { createIssue(input: {}) { issue { id } } }'"
+        roles = (None, "general-purpose", "analysis-author", "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for query in queries:
+                with self.subTest(role=role, command=query):
+                    self.assert_allowed(run_gate(payload(role, query)))
+            for command in merge_mutations:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            with self.subTest(role=role, command=other_mutation):
+                self.assert_denied(run_gate(payload(role, other_mutation)))
+
+    def test_gated_roles_cannot_use_graphql_fields_for_other_api_writes(self):
+        commands = (
+            "gh api repos/o/r/issues -F title=unsafe",
+            "gh api graphql -F title=unsafe",
+            "gh api graphql -F 'query={ viewer { login } }' -F title=unsafe",
+        )
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
 
     def test_quoted_command_substitutions_are_inspected_for_merge(self):
         denied_commands = (

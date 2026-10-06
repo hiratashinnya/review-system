@@ -19,10 +19,10 @@ def _alias_merges(value):
         return True
 
 
-def skip_global_options(tokens, executable):
+def skip_global_options(tokens, executable, start_index=1):
     valued = GIT_VALUES if executable == "git" else GH_VALUES
     flags = GIT_FLAGS if executable == "git" else GH_FLAGS
-    index = 1
+    index = start_index
     while index < len(tokens) and tokens[index].startswith("-"):
         token = tokens[index]
         option, equals, _ = token.partition("=")
