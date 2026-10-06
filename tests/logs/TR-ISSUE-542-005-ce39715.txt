@@ -146,3 +146,23 @@ Final implementation suite command: python3 -m unittest discover -s tests/unit. 
 Subprocess-aware coverage.py 7.16.2 command used tmp/_cov/f542-r9.rc (patch=subprocess, parallel=true). It ran 2,059 tests in 791.065s; failures=6, errors=2, skipped=13. coverage combine combined 123 data files. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%). HTML report: tmp/_cov/r10/html/index.html. uv run --with coverage could not fetch from PyPI because DNS resolution failed; the already extracted local coverage.py 7.16.2 was used without installing packages.
 
 Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. git diff --check 2fc4cfb..9acbf9d passed.
+
+Round 11 correction verification for F-542-38:
+
+- Added only `pr list` to the closed `gh` subcommand lists in `.claude/agents/pr-reviewer.md:17`, `.codex/agents/pr-reviewer.toml:20`, `.claude/agents/issue-implementer.md:22`, `.codex/agents/issue-implementer.toml:21`, `.claude/agents/issue-fixer.md:28`, and `.codex/agents/issue-fixer.toml:20`. `.ai/agents/` has no closed subcommand lists for these roles; `.github/agents/` has no matching role files. Both hooks already list `(pr, list)` for all three gated roles; hook files were not changed.
+- `test_repository_and_github_reads_are_allowed_for_every_role`: Claude hook 1 test passed in 4.024s; Codex hook 1 test passed in 4.027s. These tests allow both `gh pr list` and `gh pr list -R owner/repo` for all gated roles.
+- `test_gated_pull_request_list_rejects_unapproved_flags`: Claude hook 1 test passed in 0.891s; Codex hook 1 test passed in 0.933s. Both retain denial of `--web` and `--json number`.
+- Final command: `python3 -m unittest discover -s tests/unit`, with absolute worktree-local `TMPDIR` and `PYTHONPYCACHEPREFIX`. Result: 2,059 tests in 385.915s; failures=6, errors=2, skipped=12. Same-condition base `2fc4cfb`: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The six failure names and two error names match exactly; no new failure or error name appeared.
+
+Final correction-run failure/error names:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Other correction checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. Coverage was not rerun because there were no code changes.
