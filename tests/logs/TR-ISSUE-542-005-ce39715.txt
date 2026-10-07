@@ -201,7 +201,7 @@ The original test module had 117 physical lines. It was split by responsibility 
 
 `maintainability_lint check` reported 0 violations before the split because `maintainability_lint/source_files.py` lists `tests` in `EXCLUDED_TOP_LEVEL_DIRS`; the checker scans implementation Python files, not test modules. The test module had no baseline entry. After the split, the result remains 0 violations and 127 accepted-debt entries. The baseline was not changed and has no diff.
 
-Final unit discovery: 2,059 tests in 354.166s; failures=6, errors=2, skipped=12. Recorded base `2fc4cfb`: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The eight current failure/error tests were run individually and have the same names and outcomes as the base record:
+Final committed-HEAD unit discovery: 2,059 tests in 355.302s; failures=6, errors=2, skipped=12. Recorded base `2fc4cfb`: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The eight current failure/error tests were run individually and have the same names and outcomes as the base record:
 
 | Failure / error name | Current worktree | Base `2fc4cfb` |
 |---|---|---|
