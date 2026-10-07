@@ -166,3 +166,23 @@ Final correction-run failure/error names:
 - ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
 
 Other correction checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. Coverage was not rerun because there were no code changes.
+
+Latest verification on implementation commit fdf2561:
+
+- Command: `python3 -m unittest discover -s tests/unit`, with absolute worktree-local `TMPDIR` and `PYTHONPYCACHEPREFIX`.
+- Result: 2,059 tests in 365.589s; failures=6, errors=2, skipped=12.
+- Same-condition base 2fc4cfb: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12.
+- All failure/error names match the base record:
+  - FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+  - FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+  - ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+  - ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+- The eight listed test methods were rerun individually: 6 failures and 2 errors with the same names.
+- Focused unit results: Claude hook 82 tests in 216.087s, OK; Codex hook 69 tests in 143.736s, OK.
+- Both hooks received five payload classes across three roles: PR view, REST GET, GraphQL query, REST PUT, GraphQL mutation. All 30 decisions matched expectation; command payloads were not executed.
+- Repository checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed; `git diff --check 2fc4cfb..HEAD` passed.
+- Coverage was not rerun because the changes are agent-definition text only and include no code change.
