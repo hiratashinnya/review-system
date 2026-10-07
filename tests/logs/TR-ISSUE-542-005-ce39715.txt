@@ -167,10 +167,10 @@ Final correction-run failure/error names:
 
 Other correction checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. Coverage was not rerun because there were no code changes.
 
-Latest verification on implementation commit fdf2561:
+Latest verification on HEAD e67f2e0:
 
 - Command: `python3 -m unittest discover -s tests/unit`, with absolute worktree-local `TMPDIR` and `PYTHONPYCACHEPREFIX`.
-- Result: 2,059 tests in 365.589s; failures=6, errors=2, skipped=12.
+- Result: 2,059 tests in 367.595s; failures=6, errors=2, skipped=12.
 - Same-condition base 2fc4cfb: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12.
 - All failure/error names match the base record:
   - FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
