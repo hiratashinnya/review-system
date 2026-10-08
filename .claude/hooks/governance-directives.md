@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@220f0ecb50d6 -->
+<!-- synced-from: CLAUDE.md@e2483173a0c7 -->
 <!--
   Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
   `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
@@ -238,3 +238,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     **報告のタイミングは「実行前」（Issue #484）**——merge・push・force 系操作・外部への投稿など、
     取り消しにくい／共有状態に影響する操作は、実行前にチャットで報告し確認を得る。事後のまとめ報告は
     事前報告の代替にならない。clean 判定や過去に一度得た承認を事前確認の代わりにしない。
+    **質問・承認依頼は `AskUserQuestion` ツールで行う**——チャット本文の末尾に問いを書いて終わらせない。
+    判断材料（前提・選択肢・メリット／デメリット・理由付き推奨）はチャットに全文提示した上で、
+    問いそのものをツールで出す（推奨案を先頭に「（推奨）」付きで置く）。非対話ロール
+    （`issue-implementer`/`issue-fixer`/`pr-reviewer` 等）は持たないので STOP 報告し、主文脈が問う。
