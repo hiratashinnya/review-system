@@ -1,0 +1,47 @@
+CI 相当独立 clone 検証
+検証 HEAD: db058a1035faba113849d437baa36e7f2871f23f
+clone: tmp/_rr/f542-r15-db058a1
+Python: 3.12.3
+Node.js: 20.20.1
+HOME/TMPDIR/PYTHONPYCACHEPREFIX: clone 内 tmp/_rr/
+
+対象テスト:
+- python3 -m unittest tests.unit.test_claude_native_merge_permissions tests.unit.test_agent_command_gate.UniversalDangerousCommandLayerTests tests.unit.test_codex_agent_command_gate.UniversalDangerousCommandLayerTests
+- Ran 27 tests in 97.167s; OK.
+
+CI unittest job:
+- python3 -m unittest discover -s tests/unit
+- Ran 2061 tests in 371.458s; failures=2, errors=2, skipped=12; exit=1.
+- ERROR test_claude_review_blocks_workspace_outside_default_before_commands
+  ValueError: not enough values to unpack (expected 2, got 0)
+  claude_review() calls current_block() before rejecting the outside workspace; the test's default MagicMock return is empty.
+- ERROR test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+  CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty
+  Installed CLI: /home/hiras/.nvm/versions/node/v20.20.1/bin/codex.
+- FAIL test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed (label=ledger-foreign-group)
+  Expected CANONICAL_LEDGER_INVALID; got MANIFEST_INVALID: unsafe group-writable directory.
+- FAIL test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure (leaf=ledger)
+  Expected CANONICAL_LEDGER_INVALID; got MANIFEST_INVALID: unsafe group-writable directory.
+- Cause of both issue-start failures: clone path ancestors under /home/hiras/ws_claude are mode 775; secure-path validation rejects the group-writable ancestor before ledger validation.
+
+CI unittest job remaining commands:
+- python3 -m unittest discover -s tests/time_fixture_lint: Ran 3 tests; OK.
+- Jev SDK 0.7.2 installed in clone-local venv; python3 -m unittest discover -s tests/jev_hooks: Ran 69 tests in 3.154s; OK.
+- python3 -m time_fixture_lint check: total hits=16; violations=0; exit=0.
+- python3 -m maintainability_lint check: violations=0; accepted_debt=125; exit=0.
+
+CI typecheck job:
+- npm install -g pyright@1.1.390 installed into clone-local npm prefix.
+- Pyright 1.1.390 feedback_ledger ai_layout: 0 errors, 0 warnings, 0 informations.
+
+CI feedback-ledger job:
+- python3 -m feedback_ledger check --canonical --require-base: errors=0 warnings=0; exit=0.
+
+CI asset-parity job body:
+- python3 -m asset_parity check: 39 assets, 0 MISSING, 29 staleness flags, 3 informational orphans; exit=0.
+- GITHUB_STEP_SUMMARY tee wrapper was not run because the command constraints prohibit pipelines.
+
+Additional checks:
+- python3 -m unittest tests.unit.test_governance_sync: Ran 12 tests; OK. Synced marker fa26f35b352a.
+- python3 -m guidance_sync check: guidance-sync: check OK.
+- git diff --check 2fc4cfb..HEAD: exit=0; no output.
