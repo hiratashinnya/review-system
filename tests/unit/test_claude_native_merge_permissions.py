@@ -15,8 +15,10 @@ class NativeMergePermissionTests(unittest.TestCase):
         bash_patterns = [item[5:-1] for item in denies if item.startswith("Bash(")]
         commands = (
             "gh pr merge 123 --merge", "rtk gh pr merge 123",
-            "rtk proxy gh pr merge 123", "git merge feature",
-            "rtk git merge feature", "rtk proxy git merge feature",
+            "rtk proxy gh pr merge 123", "git merge", "git merge topic",
+            "git merge --no-ff topic", "rtk git merge",
+            "rtk git merge --no-ff topic", "rtk proxy git merge",
+            "rtk proxy git merge --no-ff topic",
             "gh -R owner/repo pr merge 123 --merge",
             "gh --repo owner/repo pr merge 123 --merge",
             "rtk gh -R owner/repo pr merge 123 --merge",
@@ -42,10 +44,16 @@ class NativeMergePermissionTests(unittest.TestCase):
     def test_claude_globs_do_not_reject_merge_as_a_read_argument(self):
         settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
         patterns = [item[5:-1] for item in settings["permissions"]["deny"] if item.startswith("Bash(")]
-        for command in ("git show merge", "git log merge"):
+        for command in (
+            "git show merge", "git log merge", "git merge-base main topic",
+            "git merge-tree main topic", "git merge-file current base other",
+            "rtk git merge-base main topic", "rtk proxy git merge-base main topic",
+        ):
             with self.subTest(command=command):
                 self.assertFalse(any(fnmatch.fnmatchcase(command, pattern) for pattern in patterns))
-        self.assertTrue(any(fnmatch.fnmatchcase("git merge feature", pattern) for pattern in patterns))
+        for command in ("git merge", "git merge topic", "git merge --no-ff topic"):
+            with self.subTest(command=command):
+                self.assertTrue(any(fnmatch.fnmatchcase(command, pattern) for pattern in patterns))
 
 
 if __name__ == "__main__":

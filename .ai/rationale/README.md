@@ -58,6 +58,8 @@ dispatch のたびに常駐するのは前者だけにするための置き場�
 Issue #542 で merge 権限を AI から外した決定と、廃止済み classifier/hook の移設先は
 [`pr-merge-permission-settings.md`](pr-merge-permission-settings.md) に記録する。
 
+Jev hooks の検証記録の配置理由は [`jev-hooks.md`](jev-hooks.md) に記録する。
+
 troubleshooting は ADR／rationale と別責務であり、障害・復旧記録の正本は
 `.ai/troubleshooting/` に置く。共有 schema の正本は `.ai/schema/` に置き、配置契約は
 [`../schema/asset-placement-v1.json`](../schema/asset-placement-v1.json) と

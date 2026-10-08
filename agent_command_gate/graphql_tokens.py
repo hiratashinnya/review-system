@@ -1,6 +1,6 @@
 """Recognize GraphQL mutation operations while skipping comments and strings."""
 
-MERGE_MUTATIONS = {"mergePullRequest", "enablePullRequestAutoMerge"}
+MERGE_MUTATIONS = {"mergePullRequest", "enablePullRequestAutoMerge", "enqueuePullRequest"}
 
 
 def contains_mutation(source, *, merge_only=False):

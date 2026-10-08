@@ -347,6 +347,7 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             'git commit -m "merge release notes"',
             'gh pr create --title "merge readiness"',
             "git show merge",
+            "git merge-base main topic",
             "git log --grep merge -n 1",
             "echo merge",
             "echo 'git merge feature'",
@@ -375,6 +376,8 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
         merge_mutations = (
             "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
             "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enqueuePullRequest(input: {}) "
+            "{ mergeQueueEntry { id } } }'",
         )
         other_mutation = "gh api graphql -F 'query=mutation { createIssue(input: {}) { issue { id } } }'"
         roles = (None, "general-purpose", "analysis-author", "pr-reviewer", "issue-implementer", "issue-fixer")
@@ -388,6 +391,34 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
         for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
             with self.subTest(role=role, command=other_mutation):
                 self.assert_denied(run_gate(payload(role, other_mutation)))
+        for command in (
+            "gh api graphql -F 'query=mutation { dequeuePullRequest(input: {}) "
+            "{ mergeQueueEntry { id } } }'",
+            "gh api graphql -F 'query=mutation { disablePullRequestAutoMerge(input: {}) "
+            "{ pullRequest { id } } }'",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_async_merge_write_denied_and_polling_allowed_for_all_roles(self):
+        roles = (
+            None, "general-purpose", "analysis-author", "pr-reviewer",
+            "issue-implementer", "issue-fixer",
+        )
+        writes = (
+            "gh api --method PUT repos/o/r/pulls/123/merge-async",
+            "gh api --method POST repos/o/r/pulls/123/merge-async",
+        )
+        poll = (
+            "gh api --method GET repos/o/r/pulls/123/"
+            "merge-async/550e8400-e29b-41d4-a716-446655440000"
+        )
+        for role in roles:
+            for command in writes:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+            with self.subTest(role=role, command=poll):
+                self.assert_allowed(run_gate(payload(role, poll)))
 
     def test_gated_roles_cannot_use_graphql_fields_for_other_api_writes(self):
         commands = (

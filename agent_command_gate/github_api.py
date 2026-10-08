@@ -13,7 +13,7 @@ def _route_is_pull_merge(route):
     return any(
         parts[index] == "pulls"
         and parts[index + 1].isdigit()
-        and parts[index + 2] == "merge"
+        and parts[index + 2] in {"merge", "merge-async"}
         for index in range(max(0, len(parts) - 2))
     )
 
