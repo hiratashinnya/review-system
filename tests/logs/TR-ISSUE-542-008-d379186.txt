@@ -1,0 +1,30 @@
+F-542-21 subprocess-aware coverage remeasurement
+Run date: 2026-10-08
+Target commit: d37918699897e0d3606cc3d43c60b4971b2ab981
+Independent clone: tmp/_rr/f542-r37-coverage (detached)
+Python: 3.12.3
+Coverage.py: 7.16.2
+Temporary configuration: clone/tmp/_cov/f542-r9.rc; patch=subprocess, parallel=true, relative_files=true. No tracked coverage settings were changed.
+TMPDIR and PYTHONPYCACHEPREFIX: absolute paths under the outer worktree tmp/_rr; TMPDIR was outside the independent clone.
+
+Command: rtk env PYTHONPATH=<clone>/tmp/_cov:<clone> COVERAGE_RCFILE=<clone>/tmp/_cov/f542-r9.rc COVERAGE_FILE=<clone>/tmp/_cov/f542-r37-data/.coverage TMPDIR=<worktree>/tmp/_rr/f542-r37-coverage-tmp PYTHONPYCACHEPREFIX=<worktree>/tmp/_rr/f542-r37-coverage-pycache python3 -m coverage run --rcfile=<clone>/tmp/_cov/f542-r9.rc --source=agent_command_gate,pr_merge_gate --parallel-mode -m unittest discover -s tests/unit
+Suite: Ran 2061 tests in 784.082s; FAILED (failures=4, errors=1, skipped=12); exit 1.
+
+Local suite failures/errors:
+- FAIL test_watcher_parses_reached: expected OK record, received FALLBACK.
+- FAIL test_watcher_parses_reached_past_epoch: expected OK epoch record, received FALLBACK.
+- FAIL test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed (ledger-foreign-group): expected CANONICAL_LEDGER_INVALID; an ancestor under /home/hiras/ws_claude was rejected first as group-writable.
+- FAIL test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure (leaf=ledger): same group-writable ancestor rejection.
+- ERROR test_installed_codex_profile_normal_and_negative_matrix_is_model_free: installed Codex CLI reported unknown features daemon_auto_start, system_proxy_fallback, unified_exec_tty.
+
+Command: rtk env PYTHONPATH=<clone>/tmp/_cov:<clone> COVERAGE_RCFILE=<clone>/tmp/_cov/f542-r9.rc COVERAGE_FILE=<clone>/tmp/_cov/f542-r37-data/.coverage python3 -m coverage combine --rcfile=<clone>/tmp/_cov/f542-r9.rc <clone>/tmp/_cov/f542-r37-data
+Result: Combined 124 files, skipped 3350.
+
+Command: rtk env PYTHONPATH=<clone>/tmp/_cov:<clone> COVERAGE_RCFILE=<clone>/tmp/_cov/f542-r9.rc COVERAGE_FILE=<clone>/tmp/_cov/f542-r37-data/.coverage python3 -m coverage report --rcfile=<clone>/tmp/_cov/f542-r9.rc
+TOTAL: 431 / 517 statements covered (83%).
+agent_command_gate: 341 / 414 (82%).
+pr_merge_gate: 90 / 103 (87%).
+Uncovered highlights: github_api.py 32,37,43,45-51,54,63-67,76; github_graphql.py 14,20,23-24,30,33-34,37,53,58; graphql_tokens.py 11-13,16-20; pr_merge_gate/__main__.py 1-3, cli.py 31,47-48,61, gate.py 73,77,89,97-100.
+
+Comparison: Previous recorded values were agent_command_gate 341/414 (82%) and pr_merge_gate 90/103 (87%), total 431/517 (83%); current values are unchanged. `github_api.py` already existed at the previous measurement and appears in TR-005's coverage details. The production diff from c38951d to current HEAD replaces two lines in `github_api.py` and two lines in `graphql_tokens.py`. `github_api.py` line 16 (`merge-async`) and `graphql_tokens.py` lines 3, 38-39 (`enqueuePullRequest` merge-mutation recognition) are covered; statement count is unchanged. agent_command_gate contains 494 physical lines across 9 modules.
+Full raw suite output: tmp/_rr/f542-r37-coverage/tmp/_rr/f542-r37-coverage-suite.log

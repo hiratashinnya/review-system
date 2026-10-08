@@ -235,3 +235,7 @@ F-542-41 correction local CI reproduction, on HEAD 6b68d90001ab94655f3d95c68d0c5
 - Typecheck local alternative: pyright 1.1.411 checked `feedback_ledger ai_layout`, 0 errors / 0 warnings / 0 informations, exit 0. Both declared paths exist. Pyright 1.1.390 was not cached; offline npm lookup returned ENOTCACHED, and network retrieval was not attempted.
 - `python3 -m feedback_ledger check --canonical --require-base`: errors=0, warnings=0, exit 0.
 - `python3 -m asset_parity check`: 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans, exit 0. The local invocation omitted only the workflow summary `tee` output.
+
+## 補足（2026-10-08: base/current 比較と CI 実測の区別）
+
+このログの base/current 比較は当時のローカル環境での結果であり、CI での失敗を示さない。PR #584 の修正前 run `37726550642` は 2,059 tests、failures=5、errors=0、skipped=19 で、「基点由来」とされた8ケースは CI に出ていない。CI の5件は Codex hook trust tests で、F-542-42 の test fixture/config isolation で是正された。clone 内 `TMPDIR` でだけ発生した workspace error の説明は TR-ISSUE-542-007 の訂正を参照。

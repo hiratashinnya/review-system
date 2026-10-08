@@ -34,3 +34,5 @@ Command: rtk python3 -m asset_parity check
 
 Command: rtk git diff --check 2fc4cfb
 exit 0; no whitespace errors
+
+補足（2026-10-08）: 上記の rate-limit 2件と Codex supervisor 1件は、当時のローカル worktree 条件で基点にも再現した記録であり、CI 再現の意味ではない。PR #584 の修正前 run 37726550642 は 2,059 tests、failures=5、errors=0、skipped=19。基点由来とされた8ケースは CI に出ていない。実測の詳細は TR-ISSUE-542-006 と TR-ISSUE-542-007 を参照。

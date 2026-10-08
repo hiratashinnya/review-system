@@ -30,3 +30,7 @@ Check whether the four failures listed in the Issue #542 test run also occur at 
 - Run date: 2026-10-02.
 - Environment: Python 3.12; Codex CLI feature inventory from the installed local CLI.
 - Complete focused output: `tests/logs/TR-ISSUE-542-004-2fc4cfb.txt`.
+
+## 補足（2026-10-08）
+
+この記録の rate-limit 2件と Codex supervisor 1件の「基点で再現」は、ローカルの detached worktree と installed Codex CLI での結果であり、CI での再現を示さない。PR #584 の修正前 run `37726550642` では、基点由来とされた8ケースは現れず、2,059 tests、failures=5、errors=0、skipped=19 だった。CI の実測は TR-ISSUE-542-006 と TR-ISSUE-542-007 に記録した。

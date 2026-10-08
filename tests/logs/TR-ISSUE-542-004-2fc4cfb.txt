@@ -50,3 +50,5 @@ Command: rtk python3 -m unittest discover -s tests/unit -p test_codex_rate_limit
 Ran 1 test in 0.036s
 
 OK
+
+補足（2026-10-08）: 上記の base checkout は detached local worktree である。この環境での rate-limit / installed Codex CLI の再現は CI 再現を意味しない。PR #584 の修正前 run 37726550642 では、基点由来とされた8ケースは CI に出ず、2,059 tests、failures=5、errors=0、skipped=19 だった。CI の実測は TR-ISSUE-542-006 と TR-ISSUE-542-007 を参照。
