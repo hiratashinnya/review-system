@@ -1,0 +1,37 @@
+## ALLOWLISTED（inert と登録済み） (8)
+  tests/fixtures/blocker_gate/schema_only_waiver.yml:9  approved_at='2026-08-01T00:00:00Z'
+    WaiverParserTests（test_blocker_gate_waiver.py）が parse_waiver_yaml() のschema 解析のみを検証するために使う fixture（#349・F-344-01 是正でwaiver_valid.yml から分離）。parse_waiver_yaml は文字列をそのまま返すだけでverify_waiver（blocker_gate/waiver.py:301 の approved <= now < expires というwall clock 比較）を一切呼ばないため、値は不透明な文字列のまま扱われ real clockに触れる経路が無い。wall clock 比較を実際に行うテストは waiver_valid.yml を使う WaiverVerifierTests（setUp で now= 注入により保護済み）。
+  tests/fixtures/blocker_gate/schema_only_waiver.yml:10  expires_at='2026-08-08T00:00:00Z'
+    上記 approved_at と同じ fixture・同じ理由（parse_waiver_yaml の schema 解析のみで消費され、verify_waiver の wall clock 比較には一切乗らない）。
+  tests/fixtures/blocker_gate/waiver_unknown_key.yml:9  approved_at='2026-08-01T00:00:00Z'
+    test_blocker_gate_waiver.py::WaiverParserTests.test_unknown_key_and_duplicate_key_are_schema_error が parse_waiver_yaml() のスキーマ拒否（未知キー）だけを検証するために使う fixture。parse_waiver_yaml はwall clock を一切読まないため verify_waiver の比較経路に乗らない（schema_only_waiver.ymlの approved_at/expires_at と同じ理由）。
+  tests/fixtures/blocker_gate/waiver_unknown_key.yml:10  expires_at='2026-08-08T00:00:00Z'
+    上記 approved_at と同じ fixture・同じ理由（schema 拒否テストのみで消費され、verify_waiver の wall clock 比較には一切乗らない）。
+  tests/unit/test_blocker_snapshot_fallback.py:835  resetAt='"cost": 2, "remaining": 4998, "resetAt": "2026-08-12T01:00:00Z",'
+    GraphQL `rateLimit{cost remaining resetAt}` の実消費を測る telemetry テスト（#359・F-345-04）が使う固定レスポンス値。`resetAt` はblocker_gate/github.py::GitHubCollector._accumulate_rate_limit が文字列のまま`usage['reset_at']` へ写すだけで、判定にも snapshot 内容にも入らず、blocker_gate/cli.py の stderr 要約へ echo されて終わる（wall clock と比較するコードが経路上に存在しない）。期限として評価されないので、時間経過で比較結果が反転する方向が無い。
+  tests/unit/test_blocker_snapshot_fallback.py:856  reset_at='{"cost": 5, "pages": 2, "remaining": 4995, "reset_at": "2026-08-12T01:00:00Z"},'
+    上記 resetAt が `_accumulate_rate_limit` を通って `last_rate_limit` に載った後の同じ値（snake_case 側）。同じ理由で inert（stderr へ echo されるだけでwall clock と比較されない）。
+  tests/unit/test_codex_rate_limit_api.py:70  resetsAt='"resetsAt": 1783767886,'
+    codex app-server の account/rateLimits/read を実キャプチャした静的レスポンス辞書（REAL_IDLE_RESULT 等）のフィールド。消費先の QMOD.summarize_rate_limits(response, now) は呼び出し側から now を明示的に受け取る純粋関数で、内部で time.time()/datetime.now() を一切読まない（#302 で time.time() 相対化された QueryHelperProcessTests のfuture_epoch/past_epoch とは別クラスの test data）。
+  tests/unit/test_codex_rate_limit_api.py:84  NOW='NOW = 1783760000  # a fixed "now" a bit before the captured reset times'
+    上記 resetsAt と対になる固定 now 引数。summarize_rate_limits へのパラメータとして渡されるだけで、real wall clock を読む経路には一切乗らない自己完結ペア。
+
+## protected（clock 保護マーカーあり） (8)
+  tests/fixtures/blocker_gate/waiver_expired.yml:9  approved_at='2026-07-01T00:00:00Z'
+    参照テスト全て(tests/unit/test_blocker_gate_waiver.py)の参照箇所が clock 保護スコープ内。
+  tests/fixtures/blocker_gate/waiver_expired.yml:10  expires_at='2026-07-08T00:00:00Z'
+    参照テスト全て(tests/unit/test_blocker_gate_waiver.py)の参照箇所が clock 保護スコープ内。
+  tests/fixtures/blocker_gate/waiver_valid.yml:9  approved_at='2026-08-01T00:00:00Z'
+    参照テスト全て(tests/unit/test_blocker_gate_contract_cli.py, tests/unit/test_blocker_gate_waiver.py, tests/unit/test_time_fixture_lint.py)の参照箇所が clock 保護スコープ内。
+  tests/fixtures/blocker_gate/waiver_valid.yml:10  expires_at='2026-08-08T00:00:00Z'
+    参照テスト全て(tests/unit/test_blocker_gate_contract_cli.py, tests/unit/test_blocker_gate_waiver.py, tests/unit/test_time_fixture_lint.py)の参照箇所が clock 保護スコープ内。
+  tests/time_fixture_lint/test_tool_roots.py:18  expires_at='fixture.write_text(\'expires_at: "2026-01-08T00:00:00Z"\\n\')'
+    参照箇所（関数スコープで確認、2箇所で同名ヒット）に clock 保護マーカーあり。
+  tests/unit/test_blocker_gate_contract_cli.py:238  expires_at='"expires_at": "2026-08-01T00:00:00Z",'
+    参照箇所（関数スコープで確認、1箇所で同名ヒット）に clock 保護マーカーあり。
+  tests/unit/test_time_fixture_lint.py:39  approved_at='\'approved_at: "2026-01-01T00:00:00Z"\\nexpires_at: "2026-01-08T00:00:00Z"\\n\','
+    参照箇所（関数スコープで確認、3箇所で同名ヒット）に clock 保護マーカーあり。
+  tests/unit/test_time_fixture_lint.py:92  expires_at='\'expires_at: "2026-01-08T00:00:00Z"\\n\','
+    参照箇所（関数スコープで確認、9箇所で同名ヒット）に clock 保護マーカーあり。
+
+total hits=16 violations=0

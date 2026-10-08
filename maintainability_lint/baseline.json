@@ -108,16 +108,6 @@
         "SnapshotIssueMetadata"
       ],
       "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
-    },
-    "time_fixture_lint/scanner.py": {
-      "data": [
-        "Finding",
-        "Report"
-      ],
-      "logic": [
-        "_FileGraph"
-      ],
-      "sha256": "1d5591a735c32c4ca5e1a218d8ebaf04e6be78eb6419599ab23a515728d4d824"
     }
   },
   "module_lines": {
@@ -364,10 +354,6 @@
     "time_fixture_lint/allowlist.py": {
       "line_count": 120,
       "sha256": "9e89cf3117e82d14f4e2b12f3980311ca5935f4a531fadf0900954b758ecf0e0"
-    },
-    "time_fixture_lint/scanner.py": {
-      "line_count": 409,
-      "sha256": "1d5591a735c32c4ca5e1a218d8ebaf04e6be78eb6419599ab23a515728d4d824"
     }
   },
   "schema_version": 2,
