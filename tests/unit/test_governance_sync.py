@@ -139,9 +139,10 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
 class TestRulesImportsAreComplete(unittest.TestCase):
     """`.claude/rules/*.md` の集合と CLAUDE.md の `@` import 行が双方向一致すること（F-387-05）。
 
-    `@` import は Claude Code がルールファイルを読み込む唯一の配線なので、rules を足して
-    `@` 行を足し忘れると**その規範は誰にも届かないまま何も赤くならない**。逆に rules を消して
-    `@` 行を残すと解決不能な import になる。どちらの向きも落とす。
+    Claude Code は `.claude/rules/*.md` を `@` 行の有無にかかわらず自動で読み込む（公式仕様・
+    Issue #585 で確認。当初の「`@` import が唯一の配線」という前提は誤りだった）。それでも
+    `@` 行の一覧は「どのファイルが規約か」を読み手が一覧できる索引なので、rules との乖離を
+    残さない。rules を消して `@` 行を残すと解決不能な import になる。どちらの向きも落とす。
     """
 
     def _imported(self):
@@ -224,6 +225,72 @@ class TestGovernanceDriftHook(unittest.TestCase):
             output = json.loads(completed.stdout)
             context = output["hookSpecificOutput"]["additionalContext"]
             self.assertIn(f"`{COMMON_GUIDANCE}`（正本集合の一部）", context)
+
+
+MAIN_CONTEXT_DIR = REPO_ROOT / ".claude" / "main-context"
+INJECT_HOOK = REPO_ROOT / ".claude" / "hooks" / "inject-governance.sh"
+OWNER_COMMUNICATION_HEADING = "## オーナーへの報告はチャットが正本"
+
+
+def _strip_comments(text):
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+
+
+class TestMainContextOnlyRules(unittest.TestCase):
+    """主文脈専用の規定が rules ではなく main-context に置かれ、主文脈へ注入されること（Issue #585）。
+
+    `.claude/rules/` と CLAUDE.md 一式はサブエージェントにも配送されるため、主文脈にしか
+    当てはまらない規定は `.claude/main-context/` に置き、UserPromptSubmit フックで注入する。
+    """
+
+    def _injected(self, root=REPO_ROOT):
+        completed = subprocess.run(
+            ["bash", str(root / ".claude/hooks/inject-governance.sh")],
+            input="{}",
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return json.loads(completed.stdout)["hookSpecificOutput"]["additionalContext"]
+
+    def test_main_context_has_rule_files(self):
+        self.assertTrue(sorted(MAIN_CONTEXT_DIR.glob("*.md")), f"{MAIN_CONTEXT_DIR} に規定が無い")
+
+    def test_every_main_context_body_is_injected(self):
+        context = self._injected()
+        for path in sorted(MAIN_CONTEXT_DIR.glob("*.md")):
+            body = _strip_comments(path.read_text(encoding="utf-8"))
+            self.assertIn(body, context, f"{path.name} の本文が注入結果に含まれない")
+
+    def test_delivery_copy_is_still_injected_first(self):
+        copy_body = _strip_comments(DELIVERY_COPY.read_text(encoding="utf-8"))
+        self.assertTrue(self._injected().startswith(copy_body))
+
+    def test_owner_communication_section_is_not_in_subagent_delivered_files(self):
+        for rel in canonical_files():
+            text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+            self.assertNotIn(
+                OWNER_COMMUNICATION_HEADING,
+                text,
+                f"{rel} はサブエージェントにも配送される。主文脈専用の節は .claude/main-context/ に置く。",
+            )
+
+    def test_main_context_is_not_imported_by_the_entrypoint(self):
+        imported = IMPORT_RE.findall(ENTRYPOINT.read_text(encoding="utf-8"))
+        self.assertFalse(
+            [rel for rel in imported if rel.startswith(".claude/main-context/")],
+            "main-context を `@` import するとサブエージェントにも配送される。",
+        )
+
+    def test_missing_main_context_directory_still_injects_core_directives(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hooks = Path(tmp) / ".claude" / "hooks"
+            hooks.mkdir(parents=True)
+            for name in ("inject-governance.sh", "governance-directives.md"):
+                (hooks / name).write_bytes((DELIVERY_COPY.parent / name).read_bytes())
+            context = self._injected(Path(tmp))
+            self.assertEqual(context, _strip_comments(DELIVERY_COPY.read_text(encoding="utf-8")))
 
 
 class TestHarnessClassificationTable(unittest.TestCase):

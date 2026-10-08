@@ -5,6 +5,8 @@
 #   `governance-directives.md`（CLAUDE.md 中核規範の配送用の写し）を毎ターン
 #   additionalContext として注入し、規約が「セッション冒頭に一度読まれた過去の指示」ではなく
 #   「現在のターンの指示」として届くようにする。
+#   続けて `.claude/main-context/*.md`（主文脈専用の規定の正本・Issue #585）を名前順にそのまま連結する。
+#   UserPromptSubmit は主文脈のイベントでしか発火しないので、ここに置いた規定はサブエージェントへ届かない。
 #
 # なぜ必要か（Issue: context-mode 導入・2026-07-28）:
 #   context-mode プラグインが全ターン・全 subagent 呼び出しに `<session_continuity>`
@@ -36,10 +38,19 @@ if [ ! -r "$directives" ]; then
     exit 0
 fi
 
-if ! payload="$(python3 - "$directives" <<'PYEOF'
+main_context_dir="$(dirname "$0")/../main-context"
+
+if ! payload="$(python3 - "$directives" "$main_context_dir" <<'PYEOF'
 import json
 import re
 import sys
+from pathlib import Path
+
+
+def strip_comments(text):
+    # HTML コメント（各ファイル自身の運用メモ）は毎ターンのコストなので落とす。
+    return re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+
 
 try:
     with open(sys.argv[1], encoding="utf-8") as f:
@@ -48,8 +59,19 @@ except OSError as ex:
     print(f"[inject-governance] 規範ファイルの読込に失敗: {ex}", file=sys.stderr)
     sys.exit(1)
 
-# 注入対象は本文のみ。HTML コメント（このファイル自身の運用メモ）は毎ターンのコストなので落とす。
-body = re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+body = strip_comments(text)
+
+# 主文脈専用の正本（Issue #585）。写しではなく正本をそのまま後ろへ連結する。
+# 読めないファイルは警告して飛ばす（中核規範の注入まで道連れにしない）。
+for path in sorted(Path(sys.argv[2]).glob("*.md")):
+    try:
+        extra = strip_comments(path.read_text(encoding="utf-8"))
+    except OSError as ex:
+        print(f"[inject-governance] 主文脈専用規定の読込に失敗: {ex}", file=sys.stderr)
+        continue
+    if extra:
+        body = f"{body}\n\n# 主文脈専用の規定（正本＝`.claude/main-context/{path.name}`）\n\n{extra}"
+
 if not body:
     print("[inject-governance] 規範ファイルの本文が空（コメント除去後）", file=sys.stderr)
     sys.exit(2)

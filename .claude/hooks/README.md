@@ -408,6 +408,7 @@ missing/oversized report、fetch timeout、Python crash、非信頼値の無害�
 | ファイル | 役割 |
 |---|---|
 | `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
+| `../main-context/*.md` | **主文脈専用の規定の正本**(Issue #585)。`inject-governance.sh` が `governance-directives.md` の後ろへ名前順にそのまま連結して注入する(写しは作らない)。`.claude/rules/` に置くとサブエージェントにも配送される(CLAUDE.md 一式は `@` import の有無にかかわらずサブエージェントも起動時に読み込み、主文脈だけに絞る手段が無い)ため、オーナーへの報告・質問の仕方のように主文脈にしか当てはまらない規定はここへ置く。UserPromptSubmit は主文脈のイベントでしか発火しないので、サブエージェントには届かない。読めないファイルは stderr に警告して飛ばす(中核規範の注入は続ける)。 |
 | `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`**（Issue #387 / #406）で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か

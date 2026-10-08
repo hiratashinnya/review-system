@@ -11,7 +11,8 @@
 > 詳細は `.claude/rules/07-project-structure.md`「このリポジトリ＝2つのプロジェクトが同居（混同注意）」を参照。
 
 > **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
-> 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
+> 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`
+> ＋ 主文脈専用の正本 `.claude/main-context/*.md`（後述「主文脈専用の規定」・写しではなく正本をそのまま注入）。
 > **正本は本ファイル、`.claude/rules/` 配下のルールファイル群、公式 import する `.ai/guidance/common.md`**で、`governance-directives.md` はその配送用の写し。
 > **規約を変えたら写しも合わせる**（食い違ったら正本を正とする）。**追従漏れの検知は二段構え**——
 > `.claude/hooks/check-governance-drift.sh`（PostToolUse）が写しの `<!-- synced-from: CLAUDE.md@<sha> -->`
@@ -37,8 +38,10 @@
 > 行番号での引用（`CLAUDE.md L86` 等）は分割で無効になったので使わない（節名で参照する）。
 
 ## ルールファイル一覧
-規約の本体は `.claude/rules/` 配下のファイル群に分割されている。**ここに `@` 行が無いルールファイルは
-誰にも配送されない**ため、rules を追加・削除・改名したら同一 PR でこの一覧も更新する
+規約の本体は `.claude/rules/` 配下のファイル群に分割されている。Claude Code は `.claude/rules/*.md` を
+`@` 行の有無にかかわらず自動で読み込み、**主文脈にもサブエージェントにも配送する**（公式仕様・Issue #585 で確認）。
+下記の `@` 行は、どのファイルが規約に含まれるかを読み手が一覧できる索引として保守する。
+rules を追加・削除・改名したら同一 PR でこの一覧も更新する
 （`tests/unit/test_governance_sync.py` が双方向一致を fail-close に検査する）。
 
 @.claude/rules/01-principles.md
@@ -49,3 +52,11 @@
 @.claude/rules/06-design-phases.md
 @.claude/rules/07-project-structure.md
 @.ai/guidance/common.md
+
+## 主文脈専用の規定
+**主文脈（オーナーと直接やり取りする側）にしか当てはまらない規定は `.claude/rules/` に置かない**——
+rules に置くとサブエージェントにも配送され、主文脈とサブエージェントで読み込みを分ける手段が無いため
+（`paths:` は触るファイルでしか絞れず、サブエージェントの `omitClaudeMd` は CLAUDE.md 一式をまるごと外す）。
+置き場は `.claude/main-context/*.md`（自動読み込みされない）で、`.claude/hooks/inject-governance.sh`
+（UserPromptSubmit＝主文脈のイベント）が毎ターン本文をそのまま注入する。写しは作らないので追従の検査も要らない。
+現在の収録：`01-owner-communication.md`（オーナーへの報告はチャットが正本・報告タイミング・`AskUserQuestion` の使用）。
