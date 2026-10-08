@@ -215,3 +215,23 @@ Final committed-HEAD unit discovery: 2,059 tests in 355.302s; failures=6, errors
 | `test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands` | ERROR | ERROR |
 
 Other checks: `asset_parity check` reported 39 assets, 0 missing, 29 heuristic staleness flags, and 3 informational mirror orphans; governance sync ran 12 tests successfully; `guidance_sync check` passed. Only test modules and verification records changed; production code did not change, so coverage was not remeasured.
+
+F-542-41 correction local CI reproduction, on HEAD 6b68d90001ab94655f3d95c68d0c557d22d65556 with the typechecked-files.txt edit applied. Python commands used absolute worktree-local TMPDIR=tmp/_rr/f542-r14-tmp and PYTHONPYCACHEPREFIX=tmp/_rr/f542-r14-pycache.
+
+- `python3 -m unittest discover -s tests/unit`: 2,059 tests in 356.788s; failures=6, errors=2, skipped=12; exit 1. The six failures and two errors have the same names and outcomes as base 2fc4cfb (2,102 tests; failures=6, errors=2, skipped=12):
+  - FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+  - FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+  - ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+  - ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+- `python3 -m unittest discover -s tests/time_fixture_lint`: 3 tests in 0.008s, OK.
+- `python3 -m pip install -r jev_hooks/requirements.txt`: exit 1, `/usr/bin/python3: No module named pip`. Package retrieval was not attempted.
+- `python3 -m unittest discover -s tests/jev_hooks`: 69 tests in 2.131s, OK, 4 skipped.
+- `python3 -m time_fixture_lint check`: 16 hits, 0 violations, exit 0.
+- `python3 -m maintainability_lint check`: 0 violations, 125 accepted-debt entries, exit 0.
+- Typecheck local alternative: pyright 1.1.411 checked `feedback_ledger ai_layout`, 0 errors / 0 warnings / 0 informations, exit 0. Both declared paths exist. Pyright 1.1.390 was not cached; offline npm lookup returned ENOTCACHED, and network retrieval was not attempted.
+- `python3 -m feedback_ledger check --canonical --require-base`: errors=0, warnings=0, exit 0.
+- `python3 -m asset_parity check`: 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans, exit 0. The local invocation omitted only the workflow summary `tee` output.

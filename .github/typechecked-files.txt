@@ -23,8 +23,6 @@
 # cwd (running from any other directory can make imports fail to resolve, which produces a
 # false "clean" result — see Issue #510's reopen record), then add the path below.
 
-tests/unit/test_pr_merge_classifier.py
-
 # Issue #522 (F-522-08): both packages were written from scratch with
 # `from __future__ import annotations` and union type annotations, so they are the cheapest
 # possible additions to this list. Verified clean with the repository root as cwd:
