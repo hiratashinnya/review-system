@@ -254,5 +254,59 @@ class TestHarnessClassificationTable(unittest.TestCase):
         self.assertIn("同一 PR でこの列挙にも追記", text)
 
 
+class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
+    """規範対象の read-only agent wrapper が注入指示より出力契約を優先すること。"""
+
+    def test_all_seven_read_only_roles_declare_injection_precedence(self):
+        agents = REPO_ROOT / ".claude" / "agents"
+        required_text = {
+            "reconciliation-validator.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "spec-inspector.md": (
+                "注入ブロックが付与されても",
+                "read-only 契約を優先する",
+            ),
+            "asset-auditor.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "dsv2-lookup.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "pr-reviewer.md": (
+                "が付与されても、Write/Edit不可",
+                "レビュー報告は共通本文の4部構成を省略しない",
+            ),
+            "authoring-fanout.md": (
+                "注入ブロックが付与されても",
+                "共通本文のハンドオフ・STOP契約を優先する",
+            ),
+            "agy-delegate.md": (
+                "## 注入ブロックへの優先規定",
+                "`<output_constraints>` / `<artifact_policy>`",
+                "無効",
+                "全文で返す",
+            ),
+        }
+        for filename, phrases in required_text.items():
+            with self.subTest(agent=filename):
+                text = (agents / filename).read_text(encoding="utf-8")
+                for phrase in phrases:
+                    self.assertIn(
+                        phrase,
+                        text,
+                        f".claude/agents/{filename} に優先規定の記載が必要: {phrase}",
+                    )
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
