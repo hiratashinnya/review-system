@@ -5,13 +5,19 @@ import importlib.util
 import json
 import re
 import unittest
-from contextlib import redirect_stderr
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
+from threading import Barrier
+from unittest.mock import patch
 
 from feedback_ledger import slugify_ref
+from feedback_ledger import paths as paths_module
+from feedback_ledger.cli import main
 from feedback_ledger.model import check_document_identity
 from feedback_ledger.schema import LEDGER_ID_RE, LEDGER_SPEC
 from feedback_ledger.schema_values import has_unsafe_ledger_slug_character
+from feedback_ledger.store import load_store
 from test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
 
 
@@ -49,16 +55,33 @@ class LedgerIdentityReviewTests(FeedbackLedgerTestCase):
                 )
                 self.assertTrue(any(item.locus == "draft.toml::id" for item in findings))
 
-    def test_new_entry_rejects_nfkc_casefold_collision(self):
+    def test_concurrent_new_entry_serializes_collision_check(self):
         first_topic, second_topic = "AI", "ＡＩ"
         first_id = f"FBK-20260901-{slugify_ref.slugify_topic(first_topic)}"
         second_id = f"FBK-20260901-{slugify_ref.slugify_topic(second_topic)}"
-        self.seed_entry(topic=first_topic, id=first_id)
-        draft = self.write_draft(LEDGER_SPEC, ledger_data(topic=second_topic, id=second_id))
+        drafts = [
+            self.write_draft(LEDGER_SPEC, ledger_data(topic=topic, id=document_id))
+            for topic, document_id in ((first_topic, first_id), (second_topic, second_id))
+        ]
+        barrier = Barrier(2)
+        original_lock = paths_module.writer_lock
+
+        @contextmanager
+        def synchronized_lock(root):
+            barrier.wait(timeout=5)
+            with original_lock(root):
+                yield
+
+        def submit(draft):
+            return main(["--root", str(self.root), "new-entry", "--from", draft])
+
         stderr = io.StringIO()
-        with redirect_stderr(stderr):
-            code, _ = self.run_cli("new-entry", "--from", draft)
-        self.assertEqual(code, 4)
+        with patch.object(paths_module, "writer_lock", synchronized_lock):
+            with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    codes = list(executor.map(submit, drafts))
+        self.assertCountEqual(codes, [0, 4])
+        self.assertEqual(len(load_store(self.root).of(LEDGER_SPEC.kind)), 1)
         self.assertIn("NFKC+casefold", stderr.getvalue())
 
     def test_check_reports_nfkc_casefold_collision(self):

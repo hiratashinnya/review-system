@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from . import paths as paths_module
@@ -49,11 +50,17 @@ def _load_and_validate(root, spec, draft):
     return data, findings
 
 
-def _commit(root, spec, data) -> int:
+def _commit(
+    root, spec, data, *, precommit: Callable[[], int | None] | None = None
+) -> int:
     findings = _preflight(root, spec, data)
     if findings:
         return _fail(findings)
     with paths_module.writer_lock(root):
+        if precommit is not None:
+            result = precommit()
+            if result is not None:
+                return result
         target = write_document(root, spec, data)
     print(f"OK: {target.relative_to(Path(root).resolve()).as_posix()}")
     return EXIT_OK

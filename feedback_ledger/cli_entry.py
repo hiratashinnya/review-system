@@ -37,23 +37,30 @@ def cmd_new_entry(args) -> int:
     data, findings = _load_current_entry(root, spec, args.source)
     if data is None or _errors(findings):
         return _fail(findings)
-    store = load_store(root)
-    collisions = colliding_ledger_ids(
-        data["id"], (entry.document_id for entry in store.of(schema_module.LEDGER))
-    )
-    if collisions:
-        print(
-            f"ERROR: [L1] id が既存の別エントリと NFKC+casefold 後に衝突: "
-            f"{data['id']} / {', '.join(collisions)}",
-            file=sys.stderr,
+
+    def check_existing_entry() -> int | None:
+        store = load_store(root)
+        collisions = colliding_ledger_ids(
+            data["id"], (entry.document_id for entry in store.of(schema_module.LEDGER))
         )
-        return EXIT_ERROR
-    if store.by_id(schema_module.LEDGER, data["id"]) is not None:
-        print(
-            f"ERROR: [L6] 既存の台帳エントリは変更できない: {data['id']}"
-            "（訂正は新しい id のエントリ＋supersedes で行う）",
-            file=sys.stderr,
-        )
-        return EXIT_ERROR
+        if collisions:
+            print(
+                f"ERROR: [L1] id が既存の別エントリと NFKC+casefold 後に衝突: "
+                f"{data['id']} / {', '.join(collisions)}",
+                file=sys.stderr,
+            )
+            return EXIT_ERROR
+        if store.by_id(schema_module.LEDGER, data["id"]) is not None:
+            print(
+                f"ERROR: [L6] 既存の台帳エントリは変更できない: {data['id']}"
+                "（訂正は新しい id のエントリ＋supersedes で行う）",
+                file=sys.stderr,
+            )
+            return EXIT_ERROR
+        return None
+
+    result = check_existing_entry()
+    if result is not None:
+        return result
     _print(findings)
-    return _commit(root, spec, data)
+    return _commit(root, spec, data, precommit=check_existing_entry)

@@ -14,7 +14,7 @@
     "reviewed": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+(?:-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+)*$"},
+      "items": {"type": "string", "pattern": "^FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*$"},
       "description": "Must equal the set of outcomes[].entry (rule T1)."
     },
     "outcomes": {
@@ -34,10 +34,10 @@
       "additionalProperties": false,
       "required": ["entry", "verdict", "proposal", "merged_into", "reason"],
       "properties": {
-        "entry": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+(?:-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+)*$"},
+        "entry": {"type": "string", "pattern": "^FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*$"},
         "verdict": {"enum": ["proposed", "no-change", "merged-into", "need-more-evidence"]},
         "proposal": {"type": "string", "pattern": "^(?:|FBP-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*)$"},
-        "merged_into": {"type": "string", "pattern": "^(?:|FBK-[0-9]{8}-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+(?:-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+)*)$"},
+        "merged_into": {"type": "string", "pattern": "^(?:|FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*)$"},
         "reason": {"type": "string"}
       },
       "allOf": [
