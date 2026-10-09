@@ -38,7 +38,8 @@ PR8 の条文（`.claude/skills/spec-principles/SKILL.md`）が扱うのは**論
 
 ### 区分1：保全対象（削除しない・移設または archive 化する）
 決定履歴・却下案・設計判断の経緯・過去インシデントの記録・例外登録の理由。
-- 処置＝削除ではなく `.claude/rationale/` への移設、または `git mv` による archive 化
+- 処置＝削除ではなく `.ai/rationale/` への移設（`.claude/rationale/` には実体を置かない）、
+  または `git mv` による archive 化
   （前例＝Issue #372 の経緯移設、`archive/docidx-v1/`・`archive/backref-v1/` の退役）。
 - 「なぜそう決めたか」は後から再構成できない一次情報であり、失うと同じ議論を再演する。
 

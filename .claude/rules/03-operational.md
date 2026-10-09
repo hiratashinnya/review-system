@@ -95,6 +95,10 @@
   - `.ai/guidance/common.md` — PF 共通（Claude Code / Codex / Copilot）の意味内容。
   - `.ai/skills/<name>/SKILL.md` — 特定プロセス（`issue-pipeline`・`gh-create-issue` 等）の運用。
   - `.claude/rules/NN-*.md` — Claude Code 固有機構（フック・エージェント権限境界・記憶等）の運用規則。
+    サブエージェントにも配送される。
+  - `.claude/main-context/*.md` — 主文脈にだけ当てはまる Claude Code 固有の規則（オーナーへの報告・質問の仕方等）。
+    主文脈にだけ、SessionStart フックで全文、毎ターンは要約の写しが注入される
+    （配送経路・orchestrator-context との併存・既知の限界は `CLAUDE.md`「主文脈専用の規定」）。
   - `docs/methods/*.md` — review_system の方法論。
 - **オーナー個人に閉じた事実 → 記憶でよい**：役割・専門性・作業の好み・進行中の私的な関心など、
   リポジトリの成果物や他の実行環境の挙動を規定しないもの。
@@ -109,4 +113,4 @@
   へ移設した。本節はその後、記憶の全件を同様に棚卸しして
   移設した Issue #484 の成果である（移設先＝`.ai/guidance/common.md`「言語・対外記録」「作業分離・判断境界」
   「正本・実装規約」、`.ai/skills/issue-pipeline/SKILL.md` ②-d、`.claude/rules/02-decision-process.md`
-  「オーナーへの報告はチャットが正本」）。
+  「オーナーへの報告はチャットが正本」。同節は Issue #585 で `.claude/main-context/01-owner-communication.md` へ移設）。

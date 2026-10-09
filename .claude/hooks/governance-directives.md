@@ -1,7 +1,22 @@
-# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
+# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@335bb0385f47 -->
+<!-- synced-from: CLAUDE.md@01b2edba8cf8 -->
 <!--
+  Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
+  報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
+  `.claude/main-context/01-owner-communication.md` へ移した。全文は orchestrator-context.sh
+  （SessionStart）が注入し、項12は毎ターン用の要約の写しとした。main-context は正本集合へ加えた。
+  あわせて注入本文（項1〜12）から Issue 番号・日付の出典を外した。経緯と設計判断は
+  `.ai/rationale/main-context-injection.md`（是正ラウンド2 2026-10-09: 実体を
+  `.claude/rationale/` から `.ai/rationale/` へ移した）。是正ラウンド3（2026-10-09・F-585-17）:
+  `.claude/rules/01-principles.md` 区分1 と項11 の移設先を配置契約（実体＝`.ai/rationale/`、
+  `.claude/rationale/` は案内のみ）に揃えた。是正ラウンド4（2026-10-09・F-585-18）: main 取り込みで
+  入った正本の変更（02 の `jev_hooks` 行から Issue/PR 番号を除去、05 の merge をオーナー手動へ移し
+  `doc-system-config-operator` を write-role へ追加）を項1〜12 と突き合わせた。いずれも項9・項12 の
+  記述と整合し本文は変更せず、marker のみ取り込み後の正本集合の値へ更新した。是正ラウンド6
+  （2026-10-09・F-585-19）: 区分1 と項11 の移設先の括弧書きを「`.claude/rationale/` には実体を
+  置かない」へ絞り、案内ファイルの設置を必須と読めないようにして marker を再計算した。
+
   2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
   共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
 
@@ -147,7 +162,8 @@
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
 additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude/rules/*.md`、
-公式 import される `.ai/guidance/common.md`（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
+公式 import される `.ai/guidance/common.md`、主文脈専用の `.claude/main-context/*.md`
+（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
 「独断・逸脱が起きたら実害が大きい」中核だけを抜き出した配送用の写し。
 正本を変えたらこちらも合わせる（食い違ったら正本を正とする）。
 追従漏れは `check-governance-drift.sh`（PostToolUse）と
@@ -179,7 +195,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **ただし起票先は下記9の分類（doc_system / review_system に含有されるか）で変わる**。
 3. **「対応不要」を AI が独断で書かない** — 指摘の処置要否・据え置きは**オーナー判断**。
    AI 単独で「対応不要」「将来検討でよい」と結論・クローズしない。AI 同士のコメントを根拠にしない。
-   **「スコープ外」も処置不要の言い換えにしない（Issue #495）**——スコープ外の指摘も同じ
+   **「スコープ外」も処置不要の言い換えにしない**——スコープ外の指摘も同じ
    finding の列に `scope: out` として記録し、`harm` を必ず付ける。実害ありの指摘は処置方針
    （当該 PR で直す／別 Issue へ申し送る／オーナー明示の waive）が決まるまで clean にしない。
    **機械が強制するのは「許可者と理由の記録」までで、記録者がオーナー本人かは検証していない**
@@ -223,18 +239,18 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     主文脈が動けている＝その時点でレートリミットは解除されている。モデル選定はリスク信号表
     （変更の性質）に従うのであって、実行環境の都合（レートリミット）では変えない。
     「急ぎ/軽微」等の例外は作らない。
-11. **PR8「消さない」の適用範囲は区分で決める（Issue #357）** — PR8 条文が扱うのは論理設計の
+11. **PR8「消さない」の適用範囲は区分で決める** — PR8 条文が扱うのは論理設計の
     MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
-    してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.claude/rationale/` 移設
-    または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
+    してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.ai/rationale/` へ移設
+    （`.claude/rationale/` には実体を置かない）または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
     本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
     本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
-    「PR8「消さない」の適用範囲（2026-08-18・Issue #357）」。
-12. **オーナーへの報告はチャットが正本（Issue #379）** — オーナー判断を要する事項
-    （PR7 打ち上げ・据え置き可否・スコープ判断・矛盾）は、チャットに「何を・なぜ・どうするか」が
-    読み取れる粒度で全文出す（ID や 1 行要約だけで投げない）。PR コメント・カルテ・`tmp/_handoff/`・
-    ノードは永続化目的の副次的記録であり、書いたことをもって報告済みとしない。`<artifact_policy>` 等の
-    要約規律は subagent → 呼び出し元の規約であり、主文脈 → オーナーの報告には適用しない。
-    **報告のタイミングは「実行前」（Issue #484）**——merge・push・force 系操作・外部への投稿など、
-    取り消しにくい／共有状態に影響する操作は、実行前にチャットで報告し確認を得る。事後のまとめ報告は
-    事前報告の代替にならない。clean 判定や過去に一度得た承認を事前確認の代わりにしない。
+    「PR8「消さない」の適用範囲」節。
+12. **オーナーへの報告・質問の仕方（主文脈専用）** — 判断を仰ぐ事項は**チャットに全文**
+    （何を・なぜ・どうするか）で出し、PR コメント・カルテ・ハンドオフ・ノードへの記載を報告の代わりに
+    しない（`<artifact_policy>` 等の要約規律は subagent→主文脈間の規約で、主文脈→オーナーには適用しない）。
+    merge・push・force 系・外部投稿など取り消しにくい操作は**実行前に**報告して確認を得る
+    （事後のまとめ報告・過去の承認・clean 判定で代えない）。質問・承認依頼は判断材料をチャットに
+    提示した上で **`AskUserQuestion`** で問う（推奨案を先頭に「（推奨）」）。非対話ロールは持たないので
+    STOP して呼び出し元へ返す。正本＝`.claude/main-context/01-owner-communication.md`（全文はセッション
+    開始・clear・compact 時に注入済み）。

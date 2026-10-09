@@ -2,7 +2,7 @@
 
 CLAUDE.md 冒頭の規定：中核規範は毎ターン注入され、その配送用の写しが
 `.claude/hooks/governance-directives.md`。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md` ＋
-`.ai/guidance/common.md`** で、
+`.ai/guidance/common.md` ＋ `.claude/main-context/*.md`**（写しの項12が要約する主文脈専用の規範）で、
 規約を変えたら写しも合わせる。
 追従漏れは `.claude/hooks/check-governance-drift.sh`（PostToolUse）が検知する——が、同フックは
 **常に exit 0 の fail-open な nag** であり、かつ発火条件が編集対象ファイルのパス一致なので、
@@ -20,7 +20,7 @@ marker の形式は従来どおり `<!-- synced-from: CLAUDE.md@<12桁hex> -->` 
 
 依存仕様（フックと同一である必要がある）:
   - 正本集合＝`<repo_root>/CLAUDE.md` ＋ `<repo_root>/.claude/rules/*.md`（相対パス昇順）
-    ＋ `<repo_root>/.ai/guidance/common.md`
+    ＋ `<repo_root>/.ai/guidance/common.md` ＋ `<repo_root>/.claude/main-context/*.md`（相対パス昇順）
   - ハッシュ＝各ファイルについて「相対パス(utf-8) + NUL + 生バイト + NUL」を順に連結した
     バイト列の `hashlib.sha256(...).hexdigest()[:12]`
     （相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と区別するため）
@@ -29,8 +29,9 @@ marker の形式は従来どおり `<!-- synced-from: CLAUDE.md@<12桁hex> -->` 
   両方を同時に変える。）
 
 併せて、`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の集合が双方向で一致することも
-検査する（F-387-05）。rules を追加して `@` 行を足し忘れると、その規範は誰にも配送されないまま
-何も赤くならないため。
+検査する（F-387-05）。rules は `@` 行の有無にかかわらず自動で読み込まれるが、`@` 行の一覧は
+「どのファイルが規約か」を読み手が引く索引なので、rules を追加して `@` 行を足し忘れると索引から
+漏れたまま何も赤くならないため。
 """
 
 import hashlib
@@ -43,25 +44,39 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ENTRYPOINT = REPO_ROOT / "CLAUDE.md"
-RULES_DIR = REPO_ROOT / ".claude" / "rules"
-RULES_GLOB = "*.md"
+# 正本集合の構成要素（リポジトリルート相対）。check-governance-drift.sh の同名定数と対称に保つ。
+ENTRYPOINT = "CLAUDE.md"
+RULES_GLOB = ".claude/rules/*.md"
+COMMON_GUIDANCE = ".ai/guidance/common.md"
+MAIN_CONTEXT_GLOB = ".claude/main-context/*.md"
+# 正本集合の相対パスが main-context 由来かを判定する接頭辞（列挙には使わない）。
+MAIN_CONTEXT_PREFIX = ".claude/main-context/"
 DELIVERY_COPY = REPO_ROOT / ".claude" / "hooks" / "governance-directives.md"
 DECISION_PROCESS_RULE = REPO_ROOT / ".claude" / "rules" / "02-decision-process.md"
 
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 # CLAUDE.md の import 行（例: `@.claude/rules/01-principles.md`）。
 IMPORT_RE = re.compile(r"^@(\S+\.md)\s*$", re.MULTILINE)
-COMMON_GUIDANCE = ".ai/guidance/common.md"
+OWNER_COMMUNICATION_HEADING = "## オーナーへの報告はチャットが正本"
+
+
+def _sorted_markdown_relpaths(root, pattern):
+    return sorted(p.relative_to(root).as_posix() for p in root.glob(pattern))
 
 
 def canonical_files(root=REPO_ROOT):
     """正本集合を相対パス昇順で返す（フックの実装と同一の順序規則）。"""
-    rules = sorted(
-        p.relative_to(root).as_posix()
-        for p in (root / ".claude" / "rules").glob(RULES_GLOB)
+    return (
+        [ENTRYPOINT]
+        + _sorted_markdown_relpaths(root, RULES_GLOB)
+        + [COMMON_GUIDANCE]
+        + _sorted_markdown_relpaths(root, MAIN_CONTEXT_GLOB)
     )
-    return ["CLAUDE.md"] + rules + [COMMON_GUIDANCE]
+
+
+def subagent_delivered_files(root=REPO_ROOT):
+    """正本集合のうちサブエージェントにも配送されるもの（main-context 以外）。"""
+    return [rel for rel in canonical_files(root) if not rel.startswith(MAIN_CONTEXT_PREFIX)]
 
 
 def canonical_hash(root=REPO_ROOT):
@@ -108,17 +123,26 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
             "Claude が公式 import する common guidance も governance 正本集合へ含める。",
         )
 
-    def test_common_guidance_bytes_change_the_canonical_hash(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for rel in canonical_files():
-                path = root / rel
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes((REPO_ROOT / rel).read_bytes())
-            before = canonical_hash(root)
-            common = root / COMMON_GUIDANCE
-            common.write_bytes(common.read_bytes() + b"common-only-change\n")
-            self.assertNotEqual(before, canonical_hash(root))
+    def test_canonical_set_includes_main_context(self):
+        # 写しの項12は main-context の要約なので、正本の変更に追従漏れが出たら検知されなければならない。
+        main_context = [rel for rel in canonical_files() if rel.startswith(MAIN_CONTEXT_PREFIX)]
+        self.assertTrue(main_context, "`.claude/main-context/*.md` が正本集合に入っていない。")
+
+    def test_common_guidance_and_main_context_bytes_change_the_canonical_hash(self):
+        targets = [COMMON_GUIDANCE] + [
+            rel for rel in canonical_files() if rel.startswith(MAIN_CONTEXT_PREFIX)
+        ]
+        for rel_to_change in targets:
+            with self.subTest(rel=rel_to_change), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                for rel in canonical_files():
+                    path = root / rel
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes((REPO_ROOT / rel).read_bytes())
+                before = canonical_hash(root)
+                changed = root / rel_to_change
+                changed.write_bytes(changed.read_bytes() + b"single-file-change\n")
+                self.assertNotEqual(before, canonical_hash(root))
 
     def test_marker_matches_the_current_canonical_hash(self):
         expected = canonical_hash()
@@ -131,7 +155,8 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
             f"  正本集合: {', '.join(canonical_files())}\n"
             f"  期待値（連結ハッシュの先頭12桁）: {expected}\n"
             f"  記録値: {match.group(1)}\n"
-            "CLAUDE.md、.claude/rules/*.md、.ai/guidance/common.md のいずれかを変更したら、同一 PR で写しの内容を"
+            "CLAUDE.md、.claude/rules/*.md、.ai/guidance/common.md、.claude/main-context/*.md のいずれかを"
+            "変更したら、同一 PR で写しの内容を"
             " 突き合わせた上で marker を上記の期待値へ更新する（CLAUDE.md 冒頭の規定）。",
         )
 
@@ -139,19 +164,18 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
 class TestRulesImportsAreComplete(unittest.TestCase):
     """`.claude/rules/*.md` の集合と CLAUDE.md の `@` import 行が双方向一致すること（F-387-05）。
 
-    `@` import は Claude Code がルールファイルを読み込む唯一の配線なので、rules を足して
-    `@` 行を足し忘れると**その規範は誰にも届かないまま何も赤くならない**。逆に rules を消して
-    `@` 行を残すと解決不能な import になる。どちらの向きも落とす。
+    Claude Code は `.claude/rules/*.md` を `@` 行の有無にかかわらず自動で読み込む（公式仕様・
+    Issue #585 で確認。当初の「`@` import が唯一の配線」という前提は誤りだった）。それでも
+    `@` 行の一覧は「どのファイルが規約か」を読み手が一覧できる索引なので、rules との乖離を
+    残さない。rules を消して `@` 行を残すと解決不能な import になる。どちらの向きも落とす。
     """
 
     def _imported(self):
-        text = ENTRYPOINT.read_text(encoding="utf-8")
+        text = (REPO_ROOT / ENTRYPOINT).read_text(encoding="utf-8")
         return sorted(set(IMPORT_RE.findall(text)))
 
     def _present(self):
-        return sorted(
-            p.relative_to(REPO_ROOT).as_posix() for p in RULES_DIR.glob(RULES_GLOB)
-        )
+        return _sorted_markdown_relpaths(REPO_ROOT, RULES_GLOB)
 
     def _imported_rules(self):
         return sorted(rel for rel in self._imported() if rel.startswith(".claude/rules/"))
@@ -161,8 +185,8 @@ class TestRulesImportsAreComplete(unittest.TestCase):
         self.assertFalse(
             missing,
             f"`.claude/rules/` にあるが CLAUDE.md の `@` import に無いファイル: {missing}\n"
-            "import されないルールファイルは誰にも配送されない。CLAUDE.md の"
-            " 「ルールファイル一覧」に `@<相対パス>` 行を追加すること。",
+            "`@` 行は規約ファイルの索引である（配送は自動読込）。索引から漏れたファイルを残さないよう、"
+            "CLAUDE.md の「ルールファイル一覧」に `@<相対パス>` 行を追加すること。",
         )
 
     def test_every_import_resolves_to_an_existing_rules_file(self):
@@ -192,13 +216,20 @@ class TestRulesImportsAreComplete(unittest.TestCase):
 
 
 class TestGovernanceDriftHook(unittest.TestCase):
-    def test_common_guidance_edit_is_in_the_observed_set(self):
+    def test_common_guidance_and_main_context_edits_are_in_the_observed_set(self):
+        for edited in (COMMON_GUIDANCE, MAIN_CONTEXT_PREFIX + "01-example.md"):
+            with self.subTest(edited=edited):
+                context = self._drift_warning_for(edited)
+                self.assertIn(f"`{edited}`（正本集合の一部）", context)
+
+    def _drift_warning_for(self, edited):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             files = {
                 "CLAUDE.md": "entrypoint\n",
                 ".claude/rules/01-example.md": "rule\n",
-                COMMON_GUIDANCE: "changed common\n",
+                COMMON_GUIDANCE: "common\n",
+                MAIN_CONTEXT_PREFIX + "01-example.md": "main context\n",
                 ".claude/hooks/governance-directives.md": (
                     "<!-- synced-from: CLAUDE.md@000000000000 -->\n"
                 ),
@@ -207,9 +238,7 @@ class TestGovernanceDriftHook(unittest.TestCase):
                 path = root / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(body, encoding="utf-8")
-            payload = json.dumps(
-                {"tool_input": {"file_path": str(root / COMMON_GUIDANCE)}}
-            )
+            payload = json.dumps({"tool_input": {"file_path": str(root / edited)}})
             env = os.environ.copy()
             env["CLAUDE_PROJECT_DIR"] = str(root)
             completed = subprocess.run(
@@ -222,8 +251,32 @@ class TestGovernanceDriftHook(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             output = json.loads(completed.stdout)
-            context = output["hookSpecificOutput"]["additionalContext"]
-            self.assertIn(f"`{COMMON_GUIDANCE}`（正本集合の一部）", context)
+            return output["hookSpecificOutput"]["additionalContext"]
+
+
+class TestMainContextOnlyRules(unittest.TestCase):
+    """主文脈専用の規範が rules ではなく main-context に置かれること。
+
+    `.claude/rules/` と CLAUDE.md 一式はサブエージェントにも配送されるため、主文脈にしか
+    当てはまらない規範は `.claude/main-context/` に置く（配送経路の検査は
+    `tests/unit/test_main_context_injection.py`）。
+    """
+
+    def test_owner_communication_section_is_not_in_subagent_delivered_files(self):
+        for rel in subagent_delivered_files():
+            text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+            self.assertNotIn(
+                OWNER_COMMUNICATION_HEADING,
+                text,
+                f"{rel} はサブエージェントにも配送される。主文脈専用の節は .claude/main-context/ に置く。",
+            )
+
+    def test_main_context_is_not_imported_by_the_entrypoint(self):
+        imported = IMPORT_RE.findall((REPO_ROOT / ENTRYPOINT).read_text(encoding="utf-8"))
+        self.assertFalse(
+            [rel for rel in imported if rel.startswith(MAIN_CONTEXT_PREFIX)],
+            "main-context を `@` import するとサブエージェントにも配送される。",
+        )
 
 
 class TestHarnessClassificationTable(unittest.TestCase):
