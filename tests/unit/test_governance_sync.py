@@ -58,14 +58,14 @@ MAIN_CONTEXT_PREFIX = ".claude/main-context/"
 OWNER_COMMUNICATION_HEADING = "## オーナーへの報告はチャットが正本"
 
 
-def _listed(root, directory):
+def _sorted_markdown_relpaths(root, directory):
     return sorted(p.relative_to(root).as_posix() for p in (root / directory).glob(RULES_GLOB))
 
 
 def canonical_files(root=REPO_ROOT):
     """正本集合を相対パス昇順で返す（フックの実装と同一の順序規則）。"""
-    rules = _listed(root, ".claude/rules")
-    return ["CLAUDE.md"] + rules + [COMMON_GUIDANCE] + _listed(root, MAIN_CONTEXT_PREFIX)
+    rules = _sorted_markdown_relpaths(root, ".claude/rules")
+    return ["CLAUDE.md"] + rules + [COMMON_GUIDANCE] + _sorted_markdown_relpaths(root, MAIN_CONTEXT_PREFIX)
 
 
 def subagent_delivered_files(root=REPO_ROOT):

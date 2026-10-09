@@ -5,7 +5,7 @@
   配送：全文＝`.claude/hooks/orchestrator-context.sh`（SessionStart の startup/clear/compact）、
   毎ターン＝`.claude/hooks/governance-directives.md` 項12（要約の写し・本ファイルは正本集合に入り追従を検知される）。
   本文を変えたら項12の要約も合わせる。HTML コメントは注入時に除去される。
-  経緯・出典は `.claude/rationale/main-context-injection.md`（注入されるコンテキストには載せない）。
+  経緯・出典は `.ai/rationale/main-context-injection.md`（注入されるコンテキストには載せない）。
 -->
 ## オーナーへの報告はチャットが正本（副次記録との分離）
 **オーナーへの報告・意思決定の仰ぎはチャット（main thread の直接出力）が正本である。**

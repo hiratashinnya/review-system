@@ -60,13 +60,18 @@ def canonical_relpaths():
 
     依存仕様は `tests/unit/test_governance_sync.py` と同一である必要がある。
     """
-    def listed(pattern):
+    def sorted_markdown_relpaths(pattern):
         return sorted(
             os.path.relpath(p, repo_root).replace(os.sep, "/")
             for p in glob.glob(os.path.join(repo_root, pattern))
         )
 
-    return [ENTRYPOINT] + listed(RULES_GLOB) + [COMMON_GUIDANCE] + listed(MAIN_CONTEXT_GLOB)
+    return (
+        [ENTRYPOINT]
+        + sorted_markdown_relpaths(RULES_GLOB)
+        + [COMMON_GUIDANCE]
+        + sorted_markdown_relpaths(MAIN_CONTEXT_GLOB)
+    )
 
 
 def canonical_hash(relpaths):

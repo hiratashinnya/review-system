@@ -82,4 +82,4 @@ additionalContext に本文が載っていることを確かめること。読�
 飛ばし、残りの注入は続ける。`resume` では全文を再注入しない（会話に残る全文と毎ターンの要約に依る）。
 
 現在の収録：`01-owner-communication.md`（オーナーへの報告はチャットが正本・報告タイミング・`AskUserQuestion` の使用）。
-経緯は `.claude/rationale/main-context-injection.md`。
+経緯は `.ai/rationale/main-context-injection.md`。

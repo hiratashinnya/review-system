@@ -1,13 +1,14 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@978ddc8bbe76 -->
+<!-- synced-from: CLAUDE.md@85cbe23bb5a4 -->
 <!--
   Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
   報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
   `.claude/main-context/01-owner-communication.md` へ移した。全文は orchestrator-context.sh
   （SessionStart）が注入し、項12は毎ターン用の要約の写しとした。main-context は正本集合へ加えた。
   あわせて注入本文（項1〜12）から Issue 番号・日付の出典を外した。経緯と設計判断は
-  `.claude/rationale/main-context-injection.md`。
+  `.ai/rationale/main-context-injection.md`（是正ラウンド2 2026-10-09: 実体を
+  `.claude/rationale/` から `.ai/rationale/` へ移した）。
 
   Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
   `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、

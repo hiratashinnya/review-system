@@ -92,8 +92,9 @@ class TestPerTurnInjectionCarriesOnlyTheCopy(unittest.TestCase):
             self.assertNotIn(body, context, f"{name} の全文を毎ターン注入している")
 
     def test_injected_text_carries_no_history(self):
+        """検査するのは Issue/PR 番号と ISO 日付だけ。決定 ID・「〜で導入」等の経緯は検出しない。"""
         texts = {"governance-directives.md": strip_comments(DELIVERY_COPY.read_text(encoding="utf-8"))}
         texts.update(main_context_bodies())
         for name, text in texts.items():
             match = HISTORY_RE.search(text)
-            self.assertIsNone(match, f"{name} の注入本文に経緯・出典がある（rationale へ移す）: {match}")
+            self.assertIsNone(match, f"{name} に Issue/PR 番号か ISO 日付がある（rationale へ移す・検査はこの2種のみ）: {match}")
