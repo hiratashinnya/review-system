@@ -44,28 +44,34 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ENTRYPOINT = REPO_ROOT / "CLAUDE.md"
-RULES_DIR = REPO_ROOT / ".claude" / "rules"
-RULES_GLOB = "*.md"
+# 正本集合の構成要素（リポジトリルート相対）。check-governance-drift.sh の同名定数と対称に保つ。
+ENTRYPOINT = "CLAUDE.md"
+RULES_GLOB = ".claude/rules/*.md"
+COMMON_GUIDANCE = ".ai/guidance/common.md"
+MAIN_CONTEXT_GLOB = ".claude/main-context/*.md"
+# 正本集合の相対パスが main-context 由来かを判定する接頭辞（列挙には使わない）。
+MAIN_CONTEXT_PREFIX = ".claude/main-context/"
 DELIVERY_COPY = REPO_ROOT / ".claude" / "hooks" / "governance-directives.md"
 DECISION_PROCESS_RULE = REPO_ROOT / ".claude" / "rules" / "02-decision-process.md"
 
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 # CLAUDE.md の import 行（例: `@.claude/rules/01-principles.md`）。
 IMPORT_RE = re.compile(r"^@(\S+\.md)\s*$", re.MULTILINE)
-COMMON_GUIDANCE = ".ai/guidance/common.md"
-MAIN_CONTEXT_PREFIX = ".claude/main-context/"
 OWNER_COMMUNICATION_HEADING = "## オーナーへの報告はチャットが正本"
 
 
-def _sorted_markdown_relpaths(root, directory):
-    return sorted(p.relative_to(root).as_posix() for p in (root / directory).glob(RULES_GLOB))
+def _sorted_markdown_relpaths(root, pattern):
+    return sorted(p.relative_to(root).as_posix() for p in root.glob(pattern))
 
 
 def canonical_files(root=REPO_ROOT):
     """正本集合を相対パス昇順で返す（フックの実装と同一の順序規則）。"""
-    rules = _sorted_markdown_relpaths(root, ".claude/rules")
-    return ["CLAUDE.md"] + rules + [COMMON_GUIDANCE] + _sorted_markdown_relpaths(root, MAIN_CONTEXT_PREFIX)
+    return (
+        [ENTRYPOINT]
+        + _sorted_markdown_relpaths(root, RULES_GLOB)
+        + [COMMON_GUIDANCE]
+        + _sorted_markdown_relpaths(root, MAIN_CONTEXT_GLOB)
+    )
 
 
 def subagent_delivered_files(root=REPO_ROOT):
@@ -165,13 +171,11 @@ class TestRulesImportsAreComplete(unittest.TestCase):
     """
 
     def _imported(self):
-        text = ENTRYPOINT.read_text(encoding="utf-8")
+        text = (REPO_ROOT / ENTRYPOINT).read_text(encoding="utf-8")
         return sorted(set(IMPORT_RE.findall(text)))
 
     def _present(self):
-        return sorted(
-            p.relative_to(REPO_ROOT).as_posix() for p in RULES_DIR.glob(RULES_GLOB)
-        )
+        return _sorted_markdown_relpaths(REPO_ROOT, RULES_GLOB)
 
     def _imported_rules(self):
         return sorted(rel for rel in self._imported() if rel.startswith(".claude/rules/"))
@@ -268,7 +272,7 @@ class TestMainContextOnlyRules(unittest.TestCase):
             )
 
     def test_main_context_is_not_imported_by_the_entrypoint(self):
-        imported = IMPORT_RE.findall(ENTRYPOINT.read_text(encoding="utf-8"))
+        imported = IMPORT_RE.findall((REPO_ROOT / ENTRYPOINT).read_text(encoding="utf-8"))
         self.assertFalse(
             [rel for rel in imported if rel.startswith(MAIN_CONTEXT_PREFIX)],
             "main-context を `@` import するとサブエージェントにも配送される。",

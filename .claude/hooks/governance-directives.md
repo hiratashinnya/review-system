@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@85cbe23bb5a4 -->
+<!-- synced-from: CLAUDE.md@86758e482f22 -->
 <!--
   Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
   報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
@@ -8,7 +8,9 @@
   （SessionStart）が注入し、項12は毎ターン用の要約の写しとした。main-context は正本集合へ加えた。
   あわせて注入本文（項1〜12）から Issue 番号・日付の出典を外した。経緯と設計判断は
   `.ai/rationale/main-context-injection.md`（是正ラウンド2 2026-10-09: 実体を
-  `.claude/rationale/` から `.ai/rationale/` へ移した）。
+  `.claude/rationale/` から `.ai/rationale/` へ移した）。是正ラウンド3（2026-10-09・F-585-17）:
+  `.claude/rules/01-principles.md` 区分1 と項11 の移設先を配置契約（実体＝`.ai/rationale/`、
+  `.claude/rationale/` は案内のみ）に揃えた。
 
   Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
   `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
@@ -234,8 +236,8 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     「急ぎ/軽微」等の例外は作らない。
 11. **PR8「消さない」の適用範囲は区分で決める** — PR8 条文が扱うのは論理設計の
     MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
-    してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.claude/rationale/` 移設
-    または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
+    してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.ai/rationale/` へ移設
+    （`.claude/rationale/` は案内のみ）または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
     本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
     本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
     「PR8「消さない」の適用範囲」節。
