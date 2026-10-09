@@ -45,7 +45,7 @@ def is_legacy_ledger_without_theme(value: object) -> bool:
 def theme_is_available(value: object, theme: object) -> bool:
     """Whether a theme value was introduced by the entry's minor version."""
     version = parse_ledger_schema(value)
-    introduced = LEDGER_THEME_INTRODUCED_MINOR.get(theme)
+    introduced = LEDGER_THEME_INTRODUCED_MINOR.get(theme) if isinstance(theme, str) else None
     return (
         version is not None
         and version[0] == LEDGER_SCHEMA_MAJOR
