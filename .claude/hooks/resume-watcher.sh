@@ -180,8 +180,7 @@ resolve_hit_str() {
 # テスト用フック(Issue #240 D2): CLAUDE_RL_SOURCE_FOR_TEST=1 で source されたら、ここまでに
 # 定義した純ロジック関数(parse_reset_from_text / build_continue_msg / is_limit_screen /
 # text_has_banner など)だけを公開して return する。ロック取得・待機・注入といった副作用のある
-# 本体は実行しないため、tmux 非依存で Python unittest から直接検証できる(Codex 側
-# codex-rate-limit-watcher.sh の CODEX_RL_SOURCE_FOR_TEST と同方式)。
+# 本体は実行しないため、tmux 非依存で Python unittest から直接検証できる。
 if [ "${CLAUDE_RL_SOURCE_FOR_TEST:-0}" = "1" ]; then
   return 0 2>/dev/null || exit 0
 fi

@@ -26,7 +26,7 @@ class CodexHookTrustHookTests(CodexHookTrustTestMixin, unittest.TestCase):
     def test_untrusted_state_emits_only_a_warning(self):
         result = self._run_hook("mixed")
         self.assertEqual(result.returncode, 0)
-        self.assertIn("stop:0:0", result.stdout)
+        self.assertIn("pre_tool_use:2:0", result.stdout)
         self.assertIn("登録件数が定義件数より少ないか、未信頼の Codex フックがあります", result.stdout)
         self.assertIn("機械ゲートが動作していない可能性", result.stdout)
         self.assertIn(".codex/hooks/README.md", result.stdout)

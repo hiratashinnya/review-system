@@ -1,6 +1,5 @@
 {
   "comment_blocks": {
-    ".codex/hooks/codex-rate-limit-query.py|c5022a88ba7880c4": 1,
     "asset_parity/inventory.py|998c6bde094f50a8": 1,
     "blocker_gate/cli.py|69d5e23f20f7e2b0": 1,
     "blocker_gate/cli.py|bd43183928df572d": 1,
@@ -111,10 +110,6 @@
     }
   },
   "module_lines": {
-    ".codex/hooks/codex-rate-limit-query.py": {
-      "line_count": 266,
-      "sha256": "471ae4639febe526503d1c795c8f0dcce207cca951c4588b1fea5fef10ed8b36"
-    },
     ".codex/mcp/claude_review/server.py": {
       "line_count": 441,
       "sha256": "8d03f2fc48283a1c0224c0dfe10b5171ce3b85618ce63836abf6653be239ebbd"
@@ -350,10 +345,6 @@
     "review_system/persistence/criteria_repo.py": {
       "line_count": 108,
       "sha256": "7d4fa26b969bbcb6619ef85179a301a954377168319e66beed49cb664472e42f"
-    },
-    "time_fixture_lint/allowlist.py": {
-      "line_count": 120,
-      "sha256": "9e89cf3117e82d14f4e2b12f3980311ca5935f4a531fadf0900954b758ecf0e0"
     }
   },
   "schema_version": 2,
