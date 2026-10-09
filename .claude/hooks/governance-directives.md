@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@86758e482f22 -->
+<!-- synced-from: CLAUDE.md@0bc0125a5f72 -->
 <!--
   Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
   報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
@@ -10,11 +10,10 @@
   `.ai/rationale/main-context-injection.md`（是正ラウンド2 2026-10-09: 実体を
   `.claude/rationale/` から `.ai/rationale/` へ移した）。是正ラウンド3（2026-10-09・F-585-17）:
   `.claude/rules/01-principles.md` 区分1 と項11 の移設先を配置契約（実体＝`.ai/rationale/`、
-  `.claude/rationale/` は案内のみ）に揃えた。
-
-  Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
-  `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
-  写し本文を突き合わせた上でmarkerのみ現在の正本集合hashへ更新した。
+  `.claude/rationale/` は案内のみ）に揃えた。是正ラウンド4（2026-10-09・F-585-18）: main 取り込みで
+  入った正本の変更（02 の `jev_hooks` 行から Issue/PR 番号を除去、05 の merge をオーナー手動へ移し
+  `doc-system-config-operator` を write-role へ追加）を項1〜12 と突き合わせた。いずれも項9・項12 の
+  記述と整合し本文は変更せず、marker のみ取り込み後の正本集合の値へ更新した。
 
   2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
   共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
