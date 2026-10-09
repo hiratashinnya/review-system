@@ -1,0 +1,36 @@
+schema = "feedback-ledger/v1.1"
+id = "FBK-20261009-idの文字はslugifyの出力に合わせて広げる"
+topic = "idの文字はslugifyの出力に合わせて広げる"
+theme = "記録管理"
+occurred_at = 2026-10-09
+decision_point = "implementation"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/schema/feedback-ledger-v1.json", ".ai/schema/feedback-proposal-v1.json", ".ai/schema/feedback-triage-v1.json", "feedback_ledger/schema_values.py"]
+supersedes = ""
+
+[[source]]
+issue = 582
+pr = 587
+round = 1
+finding_ids = ["F-582-03"]
+
+[narrative]
+background = '''
+Issue #582 の第1段で、id を FBK-<日付>-slugify(topic) で作る方針のもと、slugify の出力と台帳 id の正規表現が食い違う件（指摘 F-582-03）の直し方が論点になった。
+'''
+recommendation = '''
+正規表現は今の狭い許可リストのまま維持し、slugify の出力が収まらない topic は原因の文字が分かるエラーで拒否する。
+'''
+recommendation_reason = '''
+id はファイル名や参照に使うため文字を狭く保つほうが安全で、後から広げるのは minor で足りるが、狭めるには v2 が要るため。
+'''
+uncertainty = ''
+owner_verbatim = '''
+idどうやって作る想定？slugify使うなら合わせとかんとあかんのでは？
+'''
+inferred_reason = '''
+推測：id の作り方が slugify の出力である以上、id の文字の決まりもその出力と一致させるべきだという考え。
+'''

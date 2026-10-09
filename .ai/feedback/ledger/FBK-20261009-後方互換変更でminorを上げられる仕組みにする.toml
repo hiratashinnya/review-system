@@ -1,0 +1,36 @@
+schema = "feedback-ledger/v1.1"
+id = "FBK-20261009-後方互換変更でminorを上げられる仕組みにする"
+topic = "後方互換変更でminorを上げられる仕組みにする"
+theme = "記録管理"
+occurred_at = 2026-10-09
+decision_point = "implementation"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/schema/feedback-ledger-v1.json", "feedback_ledger/README.md", "feedback_ledger/schema_version.py"]
+supersedes = ""
+
+[[source]]
+issue = 582
+pr = 587
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Issue #582 の第1段で、テーマ欄（theme）の許可値を後から追加したときのスキーマの版の扱いが論点になった。台帳エントリは書き換えられず、スキーマの版は major だけ（feedback-ledger/v1）で、minor の概念が無かった。
+'''
+recommendation = '''
+テーマ語彙の追加は後方互換なので、スキーマの版は上げず v1 のまま据え置く。
+'''
+recommendation_reason = '''
+Issue #582 の受け入れ条件が schema const を feedback-ledger/v1 のままと定めており、エントリが 0 件の間は版を上げずに済むため。
+'''
+uncertainty = ''
+owner_verbatim = '''
+うーん、後方互換変更はマイナー上げれるようにしてほしい
+'''
+inferred_reason = '''
+推測：後方互換の変更と非互換の変更を、版の上で区別して追えるようにしたかった。
+'''
