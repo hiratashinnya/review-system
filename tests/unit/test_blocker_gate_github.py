@@ -2,16 +2,12 @@
 
 import base64
 import json
-from pathlib import Path
-import tempfile
 from typing import Any
 import unittest
 
 from blocker_gate.github import GitHubCollector
 from blocker_gate.resolver import evaluate_snapshot
-from pr_merge_gate.audit import append_decision
-from pr_merge_gate.classifier import MergeOperation
-from pr_merge_gate.gate import evaluate_merge_operation
+from pr_merge_gate.gate import evaluate_owner_report
 
 
 def response(
@@ -810,7 +806,7 @@ class GitHubCollectorTests(unittest.TestCase):
         self.assertIn("API_PARTIAL_RESPONSE", unknown_count["errors"])
         self.assertFalse(evaluate_snapshot(unknown_count)["permit_issued"])
 
-    def test_partial_graphql_binding_flows_through_gate_and_audit_as_error_evidence(self):
+    def test_partial_graphql_binding_flows_through_owner_report(self):
         operation_fp = "sha256:" + "1" * 64
         first = pr_page(
             baseRefName="main",
@@ -833,46 +829,27 @@ class GitHubCollectorTests(unittest.TestCase):
 
         class SnapshotCollector:
             def collect_pull_request(self, *args, **kwargs):
+                snapshot["binding"]["attempt"] = kwargs["attempt"]
                 return snapshot
 
-        gate_evidence = evaluate_merge_operation(
-            MergeOperation(
-                "example/repo",
-                50,
-                "rebase",
-                "cli-direct",
-                None,
-                None,
-                None,
-                operation_fp,
-            ),
+        report = evaluate_owner_report(
+            "example/repo",
+            50,
+            "rebase",
             collector_factory=lambda token: SnapshotCollector(),
         )
-        self.assertEqual((gate_evidence["result"], gate_evidence["reason"]), (
-            "ERROR", "API_PARTIAL_RESPONSE"
-        ))
-        gate_evidence.update(
-            {
-                "classifier_version": "1.6",
-                "hook_asset_hash": "sha256:" + "9" * 64,
-                "hook_event_id": "tool-partial",
-                "invocation_id": "invocation-partial",
-            }
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "audit.jsonl"
-            append_decision(gate_evidence, path=target)
-            record = json.loads(target.read_text(encoding="utf-8"))
-        self.assertEqual(record["blocker_result"], "ERROR")
-        self.assertEqual(record["head_oid"], "a" * 40)
-        self.assertEqual(record["expected_commit_count"], 2)
-        self.assertEqual(record["base_ref_name"], "main")
-        self.assertEqual(record["default_branch"], "main")
-        self.assertEqual(record["pr_state"], "OPEN")
-        self.assertFalse(record["pr_is_draft"])
-        self.assertFalse(record["permit_issued"])
-        self.assertFalse(record["operation_dispatched"])
-        self.assertFalse(record["merge_api_called"])
+        evidence = report["blocker_evidence"]
+        self.assertEqual((report["verdict"], report["reason"]), ("ERROR", "API_PARTIAL_RESPONSE"))
+        self.assertEqual(evidence["binding"]["head_oid"], "a" * 40)
+        self.assertEqual(evidence["binding"]["expected_commit_count"], 2)
+        self.assertEqual(evidence["binding"]["base_ref_name"], "main")
+        self.assertEqual(evidence["binding"]["default_branch"], "main")
+        self.assertEqual(evidence["binding"]["pr_state"], "OPEN")
+        self.assertFalse(evidence["binding"]["pr_is_draft"])
+        self.assertFalse(evidence["permit_issued"])
+        self.assertTrue(report["owner_action_required"])
+        self.assertFalse(report["automatic_merge_authorized"])
+        self.assertFalse(report["merge_api_called"])
 
     def test_head_and_commit_tail_change_together_changes_fresh_binding(self):
         api = "https://api.github.com/repos/example/repo"

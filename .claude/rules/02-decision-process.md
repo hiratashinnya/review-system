@@ -61,8 +61,8 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     `time_fixture_lint` の区分根拠も本表から引けるよう、`.claude/rules/04-test-data.md` だけに分散させない）
   - 是正ループ用ツール：`karte`
   - 外部意味評価を使うフック判定器：`jev_hooks`（Claude Code向け汎用開発ハーネス。
-    どちらのシステムの仕様グラフが記述する対象でもない。Issue #572で管理し、
-    TCは`tests/jev_hooks/`、TD/TR/ログは`jev_hooks/verify/`へ置く。PR #577の配置決定に準拠）
+    どちらのシステムの仕様グラフが記述する対象でもない。TCは`tests/jev_hooks/`、
+    TD/TR/ログは`jev_hooks/verify/`へ置く）
   - オーナー判断フィードバック台帳ツール：`feedback_ledger`（`.ai/feedback/` の TOML 台帳を
     **CLI 専用書込み**で管理し、canonical／immutability を機械 lint する。`karte` と同じく
     運用ループの記録装置であって、どちらのシステムの仕様グラフが記述する対象ではない）

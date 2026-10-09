@@ -59,11 +59,6 @@
     "karte/model.py|e1cbd9df9da10e08": 1,
     "karte/model.py|e22fd7599d44f325": 1,
     "karte_notify/notify.py|ec3051555595dc5f": 1,
-    "pr_merge_gate/hook.py|094d33a45588d52a": 1,
-    "pr_merge_gate/hook.py|0cfd32b6ed3e968d": 1,
-    "pr_merge_gate/hook.py|200351da0ab920ae": 1,
-    "pr_merge_gate/hook.py|44ddc906a64e1096": 1,
-    "pr_merge_gate/hook.py|8976d1bc994e02ac": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
@@ -319,22 +314,6 @@
     "karte_notify/notify.py": {
       "line_count": 346,
       "sha256": "ffef11e065c16e3eb5fbbcecce7c87b73e5e9d4737449e712aa706d4c07c80e1"
-    },
-    "pr_merge_gate/audit.py": {
-      "line_count": 501,
-      "sha256": "e400f48fa86e7a35180fd6d828436636dcc60a083d4c7922751b9f4a575ecff9"
-    },
-    "pr_merge_gate/classifier.py": {
-      "line_count": 1236,
-      "sha256": "71c0f32cc4f5be8f5157da7391c83361315e14e3c9102c8a1633cd8614393b4f"
-    },
-    "pr_merge_gate/gate.py": {
-      "line_count": 187,
-      "sha256": "409af4c05b02f3bcfc123c3c47e2c682b7ba870a6a4f48a4848682755ea9d7c2"
-    },
-    "pr_merge_gate/hook.py": {
-      "line_count": 424,
-      "sha256": "3b875acd5d9c702b368536248adac0e02ba96e0263e0b46c20bd1627b5e7964a"
     },
     "project_status_sync/cli.py": {
       "line_count": 206,

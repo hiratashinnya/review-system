@@ -1,0 +1,21 @@
+F-542-41 fixed Pyright verification attempt
+Target HEAD: d37918699897e0d3606cc3d43c60b4971b2ab981
+Declared paths from .github/typechecked-files.txt: feedback_ledger, ai_layout
+
+Command: rtk npm cache ls pyright
+Observed entries:
+- make-fetch-happen:request-cache:https://registry.npmjs.org/pyright
+- make-fetch-happen:request-cache:https://registry.npmjs.org/pyright/-/pyright-1.1.411.tgz
+No 1.1.390 package archive was listed.
+
+Command: rtk npx --offline --yes pyright@1.1.390 --version
+Result: exit 1; npm error ENOTCACHED; offline cache has no registry metadata for this version.
+
+Command: rtk env npm_config_cache=/tmp/f542-r37-npm-cache npx --yes pyright@1.1.390 --version
+Result: exit 1; npm error EAI_AGAIN; DNS lookup for registry.npmjs.org failed.
+
+No substitute Pyright version was run. The two declared paths were not checked in this attempt.
+
+Historical record: TR-ISSUE-542-007 says a normal `npm install -g pyright@1.1.390` into a clone-local npm prefix reported 0 errors and describes installation after an initial DNS failure. The recorded method is network-enabled npm install, not offline npx; the old package/cache is no longer present to independently verify its source. This work could not reproduce that retrieval, so the current HEAD result remains unconfirmed.
+
+PR #584 pre-fix CI run 37726550642: typecheck exit 4. Commit 3e72dfb later removed deleted tests/unit/test_pr_merge_classifier.py from .github/typechecked-files.txt. No CI run for current HEAD was available.

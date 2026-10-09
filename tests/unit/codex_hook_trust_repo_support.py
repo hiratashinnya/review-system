@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -22,6 +23,18 @@ def run_git(repo: Path, *args: str) -> None:
     )
     if result.returncode:
         raise AssertionError(result.stderr)
+
+
+def make_project_repository(directory: Path, source_repo: Path) -> Path:
+    """Copy the current project's hook config into an isolated Git repo."""
+    repo = directory / "project"
+    repo.mkdir()
+    run_git(repo, "init")
+    source = source_repo / ".codex" / "hooks.json"
+    target = repo / ".codex" / "hooks.json"
+    target.parent.mkdir(parents=True)
+    shutil.copyfile(source, target)
+    return repo
 
 
 def init_repository(repo: Path, hook_count: int) -> None:

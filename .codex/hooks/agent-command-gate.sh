@@ -4,14 +4,15 @@
 #
 # 役割:
 #   "issue-implementer" / "issue-fixer" / "pr-reviewer" subagent（Codex custom subagent の role 名）に
-#   対して、push と merge の非対称な権限境界を機械的に強制する。Claude Code 版と同じく、プロンプト指示
-#   ではなくハーネス（Codex CLI の PreToolUse フック）で拒否する。
+#   対して、push とレビュー操作の境界を機械的に強制する。merge は両 PF の all-role hook 判定で拒否し、
+#   native execpolicy は直接形の command prefix を対象にする。global options、wrapper、API、検査可能な
+#   間接実行形は hook が判定する。
 #     - issue-implementer: push・PR作成は可、merge は不可（実装→PR作成までで STOP）。
-#     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界・Issue #308）。
+#     - issue-fixer:        push・PR作成は可、merge は不可（issue-implementer と同一境界）。
 #                           初回実装ではなく**レビュー指摘を受けた是正ラウンド専用**の別ロールで、
 #                           診断カルテ操作のため `python3 -m karte` だけが追加で許可される
 #                           （カルテの書き手を1ロールに絞るための非対称・PYTHON_MODULES_BY_ROLE）。
-#     - pr-reviewer:        merge は可、push は不可（レビュー中に無レビューの変更を紛れ込ませられない）。
+#     - pr-reviewer:        PR review は可、push は不可。
 #                           **ブランチ切替も不可**（Issue #502 観測2・両ツリー同時）: `gh pr checkout` は
 #                           レビューアが共有するワークツリーのブランチを切り替え、戻し忘れると以後の
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
@@ -69,19 +70,18 @@
 #        （reportOptionalMemberAccess 等）を自分で検証できるようにする（Claude 版 F-510-03 と同一設計を
 #        Codex 側にも導入）。
 #   層3: ロール別許可判定（role_command_violation・Issue #227 追加修正3で git ラッパー方式へ転換）
-#        gated ロールに対し、生 git を一切禁止し gitgate ラッパー verb と gh サブコマンド/フラグだけを許可する。
+#        gated ロールは Git の限定的な読み取りに加え、gitgate verb と許可済み GitHub CLI 操作を使える。
 #        - 先頭 env 代入（`NAME=value`）・`env` ラッパーは deny（`rtk`/`command`/`builtin`/`exec` の純
 #          ラッパーのみ剥がして内側を再検査）。
-#        - git: 生 `git …` は**全て deny**（raw_git_denied_reason）。git 操作は固定テンプレートの
-#          `python3 -m gitgate <verb>` に誘導する（ユーザ制御フラグが git に届かない＝`--receive-pack`/
-#          `--upload-pack`/`--output` 等の exec/write 面を構造的に閉じる）。
+#        - git: status/log/diff/show/rev-parse は読み取りとして許可し、それ以外は gitgate に限定する。
+#          `--output` と外部 diff/textconv は拒否し、ユーザ制御の書込み・外部実行フラグを通さない。
 #        - gitgate: `python3 -m gitgate <verb>` の verb をロール別集合（impl: status/add/commit/
 #          push/branch-current/new-branch/fetch/diff/log／fixer: それ＋adopt-branch／
 #          reviewer: diff/log）で allow/deny する。worktree 解放系 verb（worktree-release/
 #          collect-worktree/worktree-forget）はどのロールにも付与しない＝allowlist 未登録の既定 deny。
 #        - gh: `--repo`/`-R` の値スキップのみ先頭で許容・他の先頭 `-*` は deny。サブコマンド
-#          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create / issue view／reviewer: pr
-#          view/diff/checks/comment/review/merge・issue view。**`pr checkout` は Issue #502 で除外**）に
+#          （pr/issue は第2トークンも）がロール別集合（impl/fixer: pr create/list/view, issue view, api／reviewer:
+#          pr list/view/diff/checks/comment/review, issue view, api。`pr checkout` は許可しない）に
 #          無ければ deny。さらに
 #          **per-subcommand フラグ許可リスト**で未知フラグ・`--web`/`--editor` 等の外部起動フラグを deny する。
 #        - pyright（Issue #510→F-510-06）: gh と同型の**フラグ許可リスト方式**（PYRIGHT_FLAG_ALLOWLIST）
@@ -125,10 +125,8 @@
 #   - シェル文字列の静的検査であり sandbox ではない。agent_type の詐称・ハーネス外の実行経路は防げない。
 #   - `python3 -m unittest|coverage` はリポジトリ内の Python コードを実行する＝テストファイル経由で
 #     任意コードを走らせられる（テスト実行を許可する以上、原理的に閉じられない）。
-#   - `git -c <key>=<value>`（alias!/core.pager 等）・`git push --receive-pack=…`・`gh api` 経由の merge・
-#     別名サブコマンドでの push は Issue #227 追加修正3（生 git 全 deny＋gitgate ラッパー＋gh フラグ許可
-#     リスト）で遮断済み。ただし gitgate も Python 実行を許可する一枚に過ぎず、テストファイル経由の任意
-#     コード実行までは閉じられない（原理的限界）。
+#   - Gated roles deny Git writes and unlisted GitHub CLI commands; the shared hook checks merge operations for all roles.
+#     `gitgate` and the allowed test runners execute repository Python code, so test files can still run arbitrary code.
 #   - Codex 側特有: (a) フックは `/hooks` で trust されて初めて発火する、(b) requirements.toml/config.toml で
 #     フックが無効化され得る、(c) agent_type に実際どの文字列が入るかは dogfooding で最終確認すべき
 #     （AGENT_COMMAND_GATE_DEBUG_PAYLOAD で受信 payload を確認できる）。
@@ -175,6 +173,8 @@ from datetime import datetime, timezone
 # GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・Claude 版と共有する2ファイル
 # 重複定義の解消）。cwd をプロジェクトルートに固定した上で通常 import する（Claude 版と同一設計）。
 sys.path.insert(0, os.getcwd())
+from agent_command_gate.merge_command import merge_command_reason
+from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
@@ -184,9 +184,8 @@ PR_DIFF_READ_RANGE_RE = re.compile(r"([1-9][0-9]*),([1-9][0-9]*)p\Z")
 PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z")
 
 # 層3（Issue #227 追加修正3・オーナー確定 2026-07-13）: git ラッパー方式＋gh フラグ許可リスト。
-# gated ロールからは**生 git を一切禁止**し、固定テンプレートで git を呼ぶ薄いラッパー
-# `python3 -m gitgate <verb>` のみ許可する（ユーザ制御フラグが git に届かない＝exec/write 面を構造的に
-# 閉じる）。verb はロール別集合で allow/deny する（gitgate 自体は全 verb を実装し、ロール制限はここが担う）。
+# gated ロールは限定された Git 読み取りを直接実行できる。Git の書込み・その他の操作は固定テンプレートの
+# `python3 -m gitgate <verb>` に限定し、verb はロール別集合で判定する。
 # gh は per-subcommand の**フラグ許可リスト**で絞り、未知フラグ・`--web`/`--editor` 等の外部起動フラグを
 # deny する。config/alias/global-option/env 代入は git/gh とも従来どおり一律 deny。
 # これで再レビュー Critical（`git push --receive-pack=…` の外部プログラム実行・`git log/diff --output=…`
@@ -194,33 +193,16 @@ PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z"
 # `git pull`/`git -c alias.x=push`/`gh api …/merge`/`gh alias set`）を、静的なフラグ列挙に頼らず
 # 構造的に遮断する（サブコマンド以降の引数を自由にしない）。
 #
-# Issue #354 PR-4 の注意（ロール別テーブルを増やさない）:
-#   * 新しいロール別テーブルを **`GITGATE_VERBS_BY_ROLE` 以外に足さない**。どうしても要るなら
-#     「gated ロールは全ロール別 dict に登録必須」自己検査（missing_role_tables）へ必ず加える。
-#     #308 で `GATED_ROLES` にだけロールを足して1つの dict に登録し忘れ、KeyError が `exit 0` の
-#     素通しに化けた（#340 の発端）。検査に載せない表を増やすとその再発防止が効かなくなる。
-#   * `worktree-release` / `collect-worktree` / `worktree-forget` は**どのロールにも付与しない**
-#     （他 dispatch の成果物を消せる操作。実行主体は非 gated の主文脈と停止フックに限る）。
-#     **allowlist 未登録＝既定 deny** なので明示 deny のコードは要らない。
+# Role permissions stay in the tables checked by `missing_role_tables`.
+# Worktree release verbs remain limited to the main context and stop hook.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
-    # **`adopt-branch` は付与しない**（Issue #354 PR-4）: 初回実装は `new-branch` で新規
-    # ブランチを切る契約であり、既存ブランチを掴む必要が無い。既存ブランチの取得は
-    # 是正ラウンド固有の必要性なので、最小権限のまま是正ロール側にだけ置く。
+    # This role creates a new branch; it does not adopt an existing PR branch.
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
-    # issue-fixer（Issue #308）: 是正ラウンド専用。権限は issue-implementer と**同一**
-    # （push 可・merge 不可）。是正も「直して commit して push して PR を更新する」ので
-    # 必要な git 操作は初回実装と変わらない。差は診断（カルテ）必須という契約の側にあり、
-    # ここで verb 集合を絞っても是正の質は上がらず、ただ機能しなくなるだけ。
-    # **`adopt-branch` だけが追加**（Issue #354 PR-4）: 既に開いている PR のブランチへ移る手段。
-    # Claude 側は `isolation: "worktree"` の下で起動するため必須になるが、**Codex の
-    # `spawn_agent` には isolation パラメータが無く worktree 分離が起きない**ので、Codex 側の
-    # 是正者はメインワークツリーを共有したまま動く。それでも adopt-branch は「検証済み exact OID で
-    # 既存ブランチへ移る」唯一の手段として意味を持つ（生 `git switch` は層3 で deny）ため、
-    # 2ツリーで同一の verb 集合を保つ。worktree 解放系 verb は Codex 側では発生しない。
+    # The fixer shares the implementer's verbs and adds `adopt-branch` for an existing PR branch.
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
@@ -231,20 +213,13 @@ GITGATE_VERBS_BY_ROLE = {
 }
 GH_SUBCOMMANDS_BY_ROLE = {
     # (subcommand, subsubcommand) の完全一致。pr/issue は第2 bare トークンまで見る。
-    "issue-implementer": {("pr", "create"), ("issue", "view")},
-    # issue-fixer は issue-implementer と同一集合（Issue #308）。`pr merge` は当然含めない
-    # ＝merge は pr-reviewer の専権という非対称は是正ロールでも維持される。
-    "issue-fixer": {("pr", "create"), ("issue", "view")},
-    # pr-reviewer から **`gh pr checkout` を外した**（Issue #502 観測2・両ツリー同時）。
-    # Claude 版と同一の期待値にする。Codex の `spawn_agent` には isolation が無く
-    # レビューアはそもそもメインワークツリーを共有したまま動くので、`gh pr checkout` が
-    # 呼び出し元の primary checkout を切り替える害は Claude 版と同じかそれ以上に直接的。
-    # 「切り替えたら戻す」は戻し忘れ・異常終了で破れる fail-open な規律なので採らず、
-    # 切替能力そのものを取り上げる（差分は `gh pr diff --no-compact` / `gh pr view` /
-    # `python3 -m gitgate show-pr-diff|diff|log` で読める）。根拠は `.ai/rationale/pr-reviewer.md`。
+    "issue-implementer": {("pr", "create"), ("pr", "list"), ("pr", "view"), ("issue", "view"), ("api",)},
+    "issue-fixer": {("pr", "create"), ("pr", "list"), ("pr", "view"), ("issue", "view"), ("api",)},
+    # `gh pr checkout` is excluded because this role shares the primary worktree.
+    # Review data is available through `gh pr view`/`diff` and gitgate read verbs.
     "pr-reviewer": {
-        ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
-        ("pr", "review"), ("pr", "merge"), ("issue", "view"),
+        ("pr", "list"), ("pr", "view"), ("pr", "diff"), ("pr", "checks"), ("pr", "comment"),
+        ("pr", "review"), ("issue", "view"), ("api",),
     },
 }
 # gh の per-subcommand フラグ許可リスト（Issue #227 追加修正3）。各 (sub, subsub) に value フラグ
@@ -266,6 +241,8 @@ GH_FLAG_ALLOWLIST = {
         "value": {"--json", "--jq", "-q"},
         "bool": {"--comments", "-c"},
     },
+    ("pr", "list"): {"value": set(), "bool": set()},
+    ("api",): {"value": {"--method", "-X", "--jq", "-q", "-F"}, "bool": {"--paginate", "--slurp"}},
     ("pr", "diff"): {
         "value": {"--color"},
         "bool": {"--no-compact"},
@@ -281,19 +258,6 @@ GH_FLAG_ALLOWLIST = {
     ("pr", "review"): {
         "value": {"--body", "-b"},
         "bool": {"--approve", "-a", "--request-changes", "-r", "--comment", "-c"},
-    },
-    ("pr", "merge"): {
-        # 第2次修正（オーナー確定 2026-07-15）: `--admin`（ブランチ保護バイパス）を除外。将来ブランチ
-        # 保護を有効化したとき pr-reviewer が「レビュー経由でのみ merge」不変条件を破る余地を最小権限で塞ぐ。
-        # 第3次修正（Issue #419・2026-08-23）: squash マージで `squash_merge_commit_message:
-        # COMMIT_MESSAGES` 設定のリポジトリは、`--subject`/`--body` を明示しないと
-        # `pr_merge_gate` の `MERGE_MESSAGE_AMBIGUOUS`（GitHub 側の複数commit連結を
-        # byte-level で予測できないための意図的 fail-close）で必ず拒否される
-        # （`blocker_gate/closing.py`）。`--subject`/`--body` を許可し、実際に明示できるようにする。
-        # `gh pr merge` に `--subject`/`--body` の短縮形は無い（`-s` は `--squash` の短縮形として
-        # 既にbool側で使用中であり衝突させない）。
-        "value": {"--subject", "--body"},
-        "bool": {"--squash", "-s", "--merge", "-m", "--rebase", "-r", "--delete-branch", "-d"},
     },
     # `("pr", "checkout")` のフラグ集合は **意図的に置かない**（Issue #502 観測2）。
     # `GH_SUBCOMMANDS_BY_ROLE` からも外したので到達しないが、ここに残しておくと
@@ -847,14 +811,21 @@ def head_command_violation(tokens, role):
     )
 
 
-def raw_git_denied_reason(role):
-    """層3(git): gated ロールは生 git を一切使えない（Issue #227 追加修正3）。git 操作は固定
-    テンプレートの `python3 -m gitgate <verb>` ラッパー経由に限る（ユーザ制御フラグが git に届かない）。"""
+def raw_git_denied_reason(tokens):
+    """Allow bounded repository reads; keep other raw Git operations behind gitgate."""
+    index = 1
+    while index < len(tokens) and tokens[index] == "-C":
+        if index + 1 >= len(tokens):
+            return "raw `git -C` is missing its repository path"
+        index += 2
+    reads = {"status", "log", "diff", "show", "rev-parse"}
+    if index < len(tokens) and tokens[index] in reads:
+        if any(token in {"-o", "--output", "--ext-diff", "--textconv"} or token.startswith("--output=") for token in tokens[index + 1 :]):
+            return "raw Git read options that write files or run external programs are not allowed"
+        return None
     return (
-        "raw `git` is not allowed for this role; use `python3 -m gitgate <verb>` instead "
-        "(the gitgate wrapper builds a fixed git command, so user-controlled flags such as "
-        "`--receive-pack`/`--upload-pack`/`--output` never reach git). Verbs allowed for this role: "
-        + ", ".join(sorted(GITGATE_VERBS_BY_ROLE[role]))
+        "raw `git` writes and other operations are not allowed for this role; use "
+        "`python3 -m gitgate <verb>` instead. Allowed read commands: status, log, diff, show, rev-parse."
     )
 
 
@@ -1031,6 +1002,26 @@ def gh_violation(tokens, role):
     if key not in GH_SUBCOMMANDS_BY_ROLE[role]:
         allowed = ", ".join("gh " + " ".join(k) for k in sorted(GH_SUBCOMMANDS_BY_ROLE[role]))
         return f"`gh {' '.join(key).rstrip()}` is not in this role's gh allowlist ({allowed})"
+    if key == ("api",):
+        for index, token in enumerate(rest):
+            if token in {"--method", "-X"} and (index + 1 >= len(rest) or rest[index + 1].upper() not in {"GET", "HEAD"}):
+                return "`gh api` allows only GET or HEAD requests for this role"
+            if token.startswith("--method=") and token.partition("=")[2].upper() not in {"GET", "HEAD"}:
+                return "`gh api` allows only GET or HEAD requests for this role"
+            if token.startswith("-X") and len(token) > 2 and token[2:].upper() not in {"GET", "HEAD"}:
+                return "`gh api` allows only GET or HEAD requests for this role"
+        field_values = [
+            (rest[index + 1] if index + 1 < len(rest) else "") if token == "-F"
+            else token[2:].lstrip("=")
+            for index, token in enumerate(rest) if token == "-F" or token.startswith("-F")
+        ]
+        if field_values and (
+            rest[0] != "graphql" or len(field_values) != 1 or not field_values[0].startswith("query=")
+        ):
+            return "`gh api -F` is limited to one GraphQL query field for this role"
+        if field_values and contains_mutation(field_values[0].partition("=")[2]):
+            return "`gh api` GraphQL mutations are not allowed for this role"
+        return gh_flag_violation(key, rest)
     if role == "pr-reviewer" and key == ("pr", "diff"):
         if not gh_has_flag(key, rest, "--no-compact"):
             return (
@@ -1042,13 +1033,13 @@ def gh_violation(tokens, role):
 
 def role_command_violation(tokens, role):
     """層3: ロール別許可判定。層1・層2 を通過した時点で tokens は「記号を含まない単純な1コマンド」かつ
-    先頭語は git/gh/pyright/python -m <module> のいずれか。git は生実行を deny（gitgate ラッパー経由に
-    誘導）、gh はサブコマンド＋フラグ許可リスト、pyright は書込系・対話系・インタプリタ起動/設定
+    先頭語は git/gh/pyright/python -m <module> のいずれか。Git は限定読取と gitgate、gh はサブコマンド
+    ＋フラグ許可リスト、pyright は書込系・対話系・インタプリタ起動/設定
     ファイル読込フラグだけを allowlist 方式で拒否（Issue #510→F-510-06）、python -m gitgate は verb を
     ロール別集合で判定する。その他の python モジュール（unittest 等）は層2 で許可済みでここでは制限しない。"""
     head = tokens[0]
     if head == "git":
-        return raw_git_denied_reason(role)
+        return raw_git_denied_reason(tokens)
     if head == "gh":
         return gh_violation(tokens, role)
     if head == "pyright":
@@ -1103,9 +1094,9 @@ def gate_reason(command_text, role):
     if violation:
         return (
             f"agent-command-gate ({role}): {violation}. "
-            "Layer 3 (Issue #227) forbids raw git (use `python3 -m gitgate <verb>`) and allows only "
+            "Layer 3 limits raw git to bounded read commands and allows only "
             "this role's gitgate verbs and gh subcommands/flags; config/alias, git/gh global options, "
-            "env assignments and cross-role actions (issue-implementer/issue-fixer merging, pr-reviewer pushing) are denied."
+            "env assignments and cross-role actions are denied; the project command gate denies merge for every role."
         )
     if role == "pr-reviewer" and tokens[0] == "gh":
         key, _ = gh_key_and_rest(tokens)
@@ -1120,6 +1111,10 @@ def gate_reason(command_text, role):
     return None
 
 
+merge_reason = None
+if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
+    merge_reason = merge_command_reason(command)
+
 dangerous_token = None
 if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     # 全 agent_type 共通の危険コマンド層（Issue #224 フォローアップ・案B）。tool_name がシェル系
@@ -1128,7 +1123,9 @@ if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if dangerous_token:
+if merge_reason:
+    reason = f"agent-command-gate: {merge_reason}; merge commands are denied for every role."
+elif dangerous_token:
     # agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」だった穴を、
     # 設定側の deny 記法では塞ぎ切れない env-prefix/abspath/compound 経路について補完する）。
     reason = (

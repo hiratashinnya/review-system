@@ -1,0 +1,241 @@
+Issue #542 round 8 remediation measurements
+Run date: 2026-10-05
+
+## F-542-30 hook input results
+
+The test payloads were sent to each actual hook as PreToolUse input strings. None of the command strings was executed.
+
+| Hook input | Claude | Codex |
+|---|---|---|
+| `gh pr "${ACTION:-merge}" 123` | denied | denied |
+| `gh pr $ACTION 123` | denied | denied |
+| `gh pr "$ACTION" 123` | denied | denied |
+| `gh pr view 1` | allowed in main context | allowed in main context |
+| `gh pr list` | allowed in main context | allowed in main context |
+
+Claude hook unit suite: 79 tests in 202.078s, OK. Codex hook unit suite: 66 tests in 130.392s, OK.
+
+## F-542-28 same-condition comparison
+
+Python: 3.12.3. Codex CLI: 0.157.0. The config and workspace-write policy were unchanged between checkouts. Commands ran from each checkout root with corresponding `tmp/_rr/f542-r16-full-tmp` and `tmp/_rr/f542-r16-full-pycache` paths.
+
+Base command: `rtk env TMPDIR=<checkout>/tmp/_rr/f542-r16-full-tmp PYTHONPYCACHEPREFIX=<checkout>/tmp/_rr/f542-r16-full-pycache python3 -m unittest discover -s tests/unit`
+Current command: `rtk env TMPDIR=<checkout>/tmp/_rr/f542-r16-full-tmp PYTHONPYCACHEPREFIX=<checkout>/tmp/_rr/f542-r16-full-pycache python3 -m unittest discover -s tests/unit`
+
+| Checkout | Tests | Time | Failures | Errors | Skipped |
+|---|---:|---:|---:|---:|---:|
+| Base `2fc4cfb` | 2102 | 305.633s | 6 | 2 | 12 |
+| Final worktree | 2053 | 342.822s | 6 | 2 | 12 |
+
+The six failure names and two error names match at base and final worktree. The failures are the two Codex hook-trust tests, two rate-limit parser tests, and two issue-start permission tests. The errors are the Claude MCP `current_block()` unpack test and the Codex installed-profile feature-catalog test.
+
+Failure/error names at both checkouts:
+
+| Test name | Base | Final worktree | Classification |
+|---|---|---|---|
+| test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly | FAIL | FAIL | Same failure at both checkouts; the test resolves project configuration outside its fixture. |
+| test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path | FAIL | FAIL | Both report 6 hook definitions and 0 discovered hooks; the fixture expects 4 definitions. Output names the outer primary checkout. |
+| test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group] | FAIL | FAIL | Both return MANIFEST_INVALID: unsafe group-writable directory before the expected ledger-specific error. |
+| test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger] | FAIL | FAIL | Same group-writable-parent result at base and current. |
+| test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached | FAIL | FAIL | Both return FALLBACK; source and test are unchanged from base. |
+| test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch | FAIL | FAIL | Both return FALLBACK; source and test are unchanged from base. |
+| test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free | ERROR | ERROR | Both report unknown installed CLI features daemon_auto_start, system_proxy_fallback, unified_exec_tty. |
+| test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands | ERROR | ERROR | Both runs reach the test-mocked current_block() with the per-checkout TMPDIR and raise ValueError: not enough values to unpack. Source and test are unchanged. |
+
+The six failure names and both error names are identical at base and current. The hook-trust tests read the outer primary checkout's configuration in both runs; the Codex CLI profile test reports the same three unknown features in both runs. .codex/hooks.json removed dedicated merge-gate pre/post entries and retained the shared command hook; the hook-trust failures reproduce with the same names and output at both checkouts.
+
+## F-542-21 coverage
+
+Coverage.py: 7.16.2
+Command: rtk env PYTHONPATH=<worktree>/tmp/_cov:<worktree> COVERAGE_RCFILE=<worktree>/tmp/_cov/f542-r9.rc COVERAGE_FILE=<worktree>/tmp/_cov/f542-r16-suite-data/.coverage TMPDIR=<worktree>/tmp/_rr/f542-r16-coverage-tmp PYTHONPYCACHEPREFIX=<worktree>/tmp/_rr/f542-r16-coverage-pycache python3 -m coverage run --rcfile=<worktree>/tmp/_cov/f542-r9.rc --source=agent_command_gate,pr_merge_gate --parallel-mode -m unittest discover -s tests/unit
+Temporary config: [run] source=agent_command_gate,pr_merge_gate; patch=subprocess; parallel=true. Child interpreters load tmp/_cov/sitecustomize.py through PYTHONPATH and call coverage.process_startup(). Coverage.py 7.16.2 combined 117 data files. No tracked coverage configuration was added.
+Suite: Ran 2053 tests in 813.145s; FAILED (failures=6, errors=2, skipped=12)
+Combined package result: 427 / 520 statements covered (82%).
+
+| Package | Statements covered | Line coverage | Uncovered-line highlights |
+|---|---:|---:|---|
+| agent_command_gate | 337 / 417 | 81% | command_segments.py 18-23, 46, 61-62; command_substitutions.py 8, 12, 26-27, 31-33, 37-39, 41-43; command_wrappers.py 13, 17, 19, 21, 24, 36, 42; github_api.py 32, 37, 43, 45, 47-51, 54, 63-67, 76; github_graphql.py 14, 20, 23-24, 30, 33-34, 37, 47, 53, 58; global_options.py 18-19, 31, 38, 41, 43, 45-47; graphql_tokens.py 15-17, 19-28; merge_command.py 29, 40, 47 |
+| pr_merge_gate | 90 / 103 | 87% | __main__.py 1-3; cli.py 31, 47-48, 61; gate.py 73, 77, 89, 97-100; audit.py and __init__.py 100% |
+
+The earlier 0 / 417 report did not instrument the Python child processes launched by the shell hooks; that result was unmeasured, not 0% line coverage. The subprocess-aware run combined child data and records executed lines in agent_command_gate.
+
+## Other checks
+
+Claude hook unit tests: 79 tests in 202.078s, OK. Codex hook unit tests: 66 tests in 130.392s, OK.
+Governance sync unit tests: 12 tests in 0.052s, OK.
+maintainability_lint check: exit 0, 0 violations, 127 accepted-debt entries.
+asset_parity check: 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans.
+Issue-pipeline mirror inspection: .agents/skills/issue-pipeline/SKILL.md (21 lines) and .github/skills/issue-pipeline/SKILL.md (13 lines) both describe owner manual merge. The corresponding stale flags are size-ratio heuristics against the 66-line .claude canonical file; no mirror changed.
+guidance_sync check: exit 0.
+agent_command_gate line count: 499 before this round and 499 after, 9 files in both measurements.
+
+F-542-31: no code change. Current tool guide limit table includes Bash ANSI-C quoting and other forms where shell and static-tokenizer interpretations differ; the decision history is recorded in rationale.
+F-542-30: the existing action check rejects action tokens containing `$` or backticks. Production source remains 499 lines across 9 files.
+
+## Round 9: F-542-32 and F-542-33
+
+Implementation commit measured: 987ca7139899de8f394bfd87770159c962324e31. All command strings below were hook test payloads only; no GitHub CLI command was executed.
+
+F-542-33 hook input results (Claude / Codex):
+
+| Input | Claude | Codex |
+|---|---|---|
+| gh pr -Rowner/repo merge 123 | denied | denied |
+| gh pr -R owner/repo merge 123 | denied | denied |
+| gh pr --repo=owner/repo merge 123 | denied | denied |
+| gh pr --repo owner/repo merge 123 | denied | denied |
+| gh -Rowner/repo pr merge 123 | denied | denied |
+| gh -R owner/repo pr merge 123 | denied | denied |
+| gh --repo=owner/repo pr merge 123 | denied | denied |
+| gh --repo owner/repo pr merge 123 | denied | denied |
+| gh pr view 1 -Rowner/repo | allowed | allowed |
+| gh pr list -R owner/repo | allowed | allowed |
+| gh pr view 1 --repo=owner/repo | allowed | allowed |
+| gh --repo owner/repo pr view 123 | allowed | allowed |
+
+F-542-32 query input gh api graphql -F 'query={ viewer { login } }' was allowed by both hooks for all roles: main with agent_type omitted, general-purpose, analysis-author, pr-reviewer, issue-implementer, and issue-fixer. A comment containing the word mutation was also allowed in the query payload. Both hooks denied mergePullRequest and enablePullRequestAutoMerge mutation payloads for all six roles. Both hooks denied createIssue mutation payloads for pr-reviewer, issue-implementer, and issue-fixer. Gated roles continue to deny REST form writes, non-query GraphQL fields, and multiple -F fields. The existing main-context policy for non-merge writes was not changed.
+
+Focused tests: Claude hook 81 tests in 190.956s, OK; Codex hook 68 tests in 120.025s, OK. Changed implementation functions: skip_global_options, _inspect_segment, contains_mutation, graphql_merge_reason, and gh_violation in both hooks. Test functions cover repo-option reads/writes, GraphQL queries and mutations, and gated API writes in tests/unit/test_agent_command_gate.py and tests/unit/test_codex_agent_command_gate.py. agent_command_gate/ production line count was 499 before this round and 494 after; 9 files before and after.
+
+Final implementation full suite: 2,057 tests in 353.978s; failures=6, errors=2, skipped=12. Same-condition base record: commit 2fc4cfb, 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The six failure names and two error names match; no new failure/error names:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Fresh base checkout was blocked by read-only .git/worktrees/issue-542/index.lock. A disposable clone produced path-dependent results and is excluded. Options: use the recorded same-condition base result with matching names, or rerun after writable common Git metadata is available. Recommended evidence is the recorded same-condition run.
+
+Coverage.py 7.16.2 subprocess-aware run combined 123 data files. Suite: 2,057 tests in 792.929s; failures=6, errors=2, skipped=12. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%).
+
+Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed.
+
+## Round 10: F-542-34 through F-542-37
+
+Implementation commit measured: 9acbf9d8c38d9406607a7973c6278833500aa24f. All command inputs below were hook test payloads; no GitHub CLI requests were made.
+
+F-542-35 hook result matrix (Claude / Codex):
+
+| Gated role | gh pr list | gh pr list -R owner/repo | gh pr merge 123 |
+|---|---|---|---|
+| pr-reviewer | allowed / allowed | allowed / allowed | denied / denied |
+| issue-implementer | allowed / allowed | allowed / allowed | denied / denied |
+| issue-fixer | allowed / allowed | allowed / allowed | denied / denied |
+
+Both hooks denied gh pr list --web and gh pr list --json number for all three roles. The gh 2.45.0 list help contains no write operation; only common -R/--repo flags are allowed by the new empty per-command flag set. Claude focused suite: 82 tests in 209.138s, OK. Codex focused suite: 69 tests in 141.873s, OK. An initial Codex focused attempt with relative TMPDIR had 27 fixture failures because tests change cwd and mktemp could not resolve the path; both suites were rerun with absolute worktree-local TMPDIR/PYTHONPYCACHEPREFIX and passed as recorded above.
+
+Changed declarations: GH_SUBCOMMANDS_BY_ROLE and GH_FLAG_ALLOWLIST in both hooks. Test functions: test_repository_and_github_reads_are_allowed_for_every_role, test_gated_pull_request_list_rejects_unapproved_flags, and test_merge_commands_with_global_options_are_denied_for_every_role in both hook unit files. agent_command_gate/ production source: 494 lines and 9 files before; 494 lines and 9 files after.
+
+F-542-34/36/37 current limits were added to docs/tools/pr-merge-gate.md. Their decision history is under 2026-10-06 の再レビュー判断 in .ai/rationale/pr-merge-permission-settings.md.
+
+Final implementation suite command: python3 -m unittest discover -s tests/unit. Result: 2,059 tests in 370.310s; failures=6, errors=2, skipped=13. Same-condition base record 2fc4cfb: 2,102 tests; failures=6, errors=2, skipped=12. The six failure names and two error names match:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Subprocess-aware coverage.py 7.16.2 command used tmp/_cov/f542-r9.rc (patch=subprocess, parallel=true). It ran 2,059 tests in 791.065s; failures=6, errors=2, skipped=13. coverage combine combined 123 data files. Coverage: total 431/517 (83%); agent_command_gate 341/414 (82%); pr_merge_gate 90/103 (87%). HTML report: tmp/_cov/r10/html/index.html. uv run --with coverage could not fetch from PyPI because DNS resolution failed; the already extracted local coverage.py 7.16.2 was used without installing packages.
+
+Other checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. git diff --check 2fc4cfb..9acbf9d passed.
+
+Round 11 correction verification for F-542-38:
+
+- Added only `pr list` to the closed `gh` subcommand lists in `.claude/agents/pr-reviewer.md:17`, `.codex/agents/pr-reviewer.toml:20`, `.claude/agents/issue-implementer.md:22`, `.codex/agents/issue-implementer.toml:21`, `.claude/agents/issue-fixer.md:28`, and `.codex/agents/issue-fixer.toml:20`. `.ai/agents/` has no closed subcommand lists for these roles; `.github/agents/` has no matching role files. Both hooks already list `(pr, list)` for all three gated roles; hook files were not changed.
+- `test_repository_and_github_reads_are_allowed_for_every_role`: Claude hook 1 test passed in 4.024s; Codex hook 1 test passed in 4.027s. These tests allow both `gh pr list` and `gh pr list -R owner/repo` for all gated roles.
+- `test_gated_pull_request_list_rejects_unapproved_flags`: Claude hook 1 test passed in 0.891s; Codex hook 1 test passed in 0.933s. Both retain denial of `--web` and `--json number`.
+- Final command on committed implementation HEAD `aa68c75`: `python3 -m unittest discover -s tests/unit`, with absolute worktree-local `TMPDIR` and `PYTHONPYCACHEPREFIX`. Result: 2,059 tests in 353.241s; failures=6, errors=2, skipped=12. Same-condition base `2fc4cfb`: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The six failure names and two error names match exactly; no new failure or error name appeared.
+
+Final correction-run failure/error names:
+
+- FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+- FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+- FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+- FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+- ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+- ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+
+Other correction checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed. Coverage was not rerun because there were no code changes.
+
+Latest verification on HEAD e67f2e0:
+
+- Command: `python3 -m unittest discover -s tests/unit`, with absolute worktree-local `TMPDIR` and `PYTHONPYCACHEPREFIX`.
+- Result: 2,059 tests in 367.595s; failures=6, errors=2, skipped=12.
+- Same-condition base 2fc4cfb: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12.
+- All failure/error names match the base record:
+  - FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+  - FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+  - ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+  - ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+- The eight listed test methods were rerun individually: 6 failures and 2 errors with the same names.
+- Focused unit results: Claude hook 82 tests in 216.087s, OK; Codex hook 69 tests in 143.736s, OK.
+- Both hooks received five payload classes across three roles: PR view, REST GET, GraphQL query, REST PUT, GraphQL mutation. All 30 decisions matched expectation; command payloads were not executed.
+- Repository checks: maintainability_lint 0 violations and 127 accepted-debt entries; asset_parity 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans; governance sync 12 tests passed; guidance_sync passed; `git diff --check 2fc4cfb..HEAD` passed.
+- Coverage was not rerun because the changes are agent-definition text only and include no code change.
+
+## F-542-40 correction round 13
+
+The original test module had 117 physical lines. It was split by responsibility into three modules. The five test method names and assertions were retained. Before the split, targeted discovery ran 5 tests in 0.006s, OK; after the split, it ran 5 tests in 0.005s, OK.
+
+| Test method | Module after split | Physical lines |
+|---|---|---:|
+| `test_claude_native_rules_cover_shell_and_mcp_for_every_role` | `tests/unit/test_claude_native_merge_permissions.py` | 52 |
+| `test_claude_globs_do_not_reject_merge_as_a_read_argument` | `tests/unit/test_claude_native_merge_permissions.py` | 52 |
+| `test_codex_native_forbidden_rules_cover_shell_and_api_variants` | `tests/unit/test_codex_native_merge_permissions.py` | 66 |
+| `test_native_rules_allow_read_only_repository_and_api_calls` | `tests/unit/test_codex_native_merge_permissions.py` | 66 |
+| `test_no_classifier_hook_registration_or_reviewer_merge_allowance_remains` | `tests/unit/test_reviewer_merge_permissions.py` | 25 |
+
+`maintainability_lint check` reported 0 violations before the split because `maintainability_lint/source_files.py` lists `tests` in `EXCLUDED_TOP_LEVEL_DIRS`; the checker scans implementation Python files, not test modules. The test module had no baseline entry. After the split, the result remains 0 violations and 127 accepted-debt entries. The baseline was not changed and has no diff.
+
+Final committed-HEAD unit discovery: 2,059 tests in 355.302s; failures=6, errors=2, skipped=12. Recorded base `2fc4cfb`: 2,102 tests in 305.633s; failures=6, errors=2, skipped=12. The eight current failure/error tests were run individually and have the same names and outcomes as the base record:
+
+| Failure / error name | Current worktree | Base `2fc4cfb` |
+|---|---|---|
+| `test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly` | FAIL | FAIL |
+| `test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path` | FAIL | FAIL |
+| `test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]` | FAIL | FAIL |
+| `test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]` | FAIL | FAIL |
+| `test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached` | FAIL | FAIL |
+| `test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch` | FAIL | FAIL |
+| `test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free` | ERROR | ERROR |
+| `test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands` | ERROR | ERROR |
+
+Other checks: `asset_parity check` reported 39 assets, 0 missing, 29 heuristic staleness flags, and 3 informational mirror orphans; governance sync ran 12 tests successfully; `guidance_sync check` passed. Only test modules and verification records changed; production code did not change, so coverage was not remeasured.
+
+F-542-41 correction local CI reproduction, on HEAD 6b68d90001ab94655f3d95c68d0c557d22d65556 with the typechecked-files.txt edit applied. Python commands used absolute worktree-local TMPDIR=tmp/_rr/f542-r14-tmp and PYTHONPYCACHEPREFIX=tmp/_rr/f542-r14-pycache.
+
+- `python3 -m unittest discover -s tests/unit`: 2,059 tests in 356.788s; failures=6, errors=2, skipped=12; exit 1. The six failures and two errors have the same names and outcomes as base 2fc4cfb (2,102 tests; failures=6, errors=2, skipped=12):
+  - FAIL: test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly
+  - FAIL: test_codex_hook_trust_repository.CodexHookTrustRepositoryTests.test_git_managed_external_directory_falls_back_to_given_path
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached
+  - FAIL: test_codex_rate_limit_api.BashQueryParsingTests.test_watcher_parses_reached_past_epoch
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed[label=ledger-foreign-group]
+  - FAIL: test_issue_start_gate.CodexLaunchIntentTests.test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure[leaf=ledger]
+  - ERROR: test_claude_review_mcp.ClaudeReviewMcpTests.test_claude_review_blocks_workspace_outside_default_before_commands
+  - ERROR: test_codex_supervisor_shrink.DirectCommandTests.test_installed_codex_profile_normal_and_negative_matrix_is_model_free
+- `python3 -m unittest discover -s tests/time_fixture_lint`: 3 tests in 0.008s, OK.
+- `python3 -m pip install -r jev_hooks/requirements.txt`: exit 1, `/usr/bin/python3: No module named pip`. Package retrieval was not attempted.
+- `python3 -m unittest discover -s tests/jev_hooks`: 69 tests in 2.131s, OK, 4 skipped.
+- `python3 -m time_fixture_lint check`: 16 hits, 0 violations, exit 0.
+- `python3 -m maintainability_lint check`: 0 violations, 125 accepted-debt entries, exit 0.
+- Typecheck local alternative: pyright 1.1.411 checked `feedback_ledger ai_layout`, 0 errors / 0 warnings / 0 informations, exit 0. Both declared paths exist. Pyright 1.1.390 was not cached; offline npm lookup returned ENOTCACHED, and network retrieval was not attempted.
+- `python3 -m feedback_ledger check --canonical --require-base`: errors=0, warnings=0, exit 0.
+- `python3 -m asset_parity check`: 39 assets, 0 missing, 29 heuristic staleness flags, 3 informational mirror orphans, exit 0. The local invocation omitted only the workflow summary `tee` output.
+
+## 補足（2026-10-08: base/current 比較と CI 実測の区別）
+
+このログの base/current 比較は当時のローカル環境での結果であり、CI での失敗を示さない。PR #584 の修正前 run `37726550642` は 2,059 tests、failures=5、errors=0、skipped=19 で、「基点由来」とされた8ケースは CI に出ていない。CI の5件は Codex hook trust tests で、F-542-42 の test fixture/config isolation で是正された。clone 内 `TMPDIR` でだけ発生した workspace error の説明は TR-ISSUE-542-007 の訂正を参照。

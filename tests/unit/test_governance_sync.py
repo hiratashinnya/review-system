@@ -307,5 +307,79 @@ class TestHarnessClassificationTable(unittest.TestCase):
         self.assertIn("同一 PR でこの列挙にも追記", text)
 
 
+class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
+    """規範対象の read-only agent wrapper が注入指示より出力契約を優先すること。"""
+
+    def test_all_seven_read_only_roles_declare_injection_precedence(self):
+        agents = REPO_ROOT / ".claude" / "agents"
+        required_text = {
+            "reconciliation-validator.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "spec-inspector.md": (
+                "注入ブロックが付与されても",
+                "read-only 契約を優先する",
+            ),
+            "asset-auditor.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "dsv2-lookup.md": (
+                "注入ブロックへの優先規定",
+                "<artifact_policy>",
+                "適用しない",
+                "チャットへ全文返す",
+            ),
+            "pr-reviewer.md": (
+                "が付与されても、Write/Edit不可",
+                "レビュー報告は共通本文の4部構成を省略しない",
+            ),
+            "authoring-fanout.md": (
+                "注入ブロックが付与されても",
+                "共通本文のハンドオフ・STOP契約を優先する",
+            ),
+            "agy-delegate.md": (
+                "## 注入ブロックへの優先規定",
+                "`<output_constraints>` / `<artifact_policy>`",
+                "無効",
+                "全文で返す",
+            ),
+        }
+        for filename, phrases in required_text.items():
+            with self.subTest(agent=filename):
+                text = (agents / filename).read_text(encoding="utf-8")
+                for phrase in phrases:
+                    self.assertIn(
+                        phrase,
+                        text,
+                        f".claude/agents/{filename} に優先規定の記載が必要: {phrase}",
+                    )
+
+
+class TestWriteAgentHandoffClassification(unittest.TestCase):
+    def test_doc_system_config_operator_is_a_write_role_with_handoff(self):
+        rules = (REPO_ROOT / ".claude/rules/05-skills-agents.md").read_text(
+            encoding="utf-8"
+        )
+        shared_body = (
+            REPO_ROOT / ".ai/agents/doc-system-config-operator.md"
+        ).read_text(encoding="utf-8")
+        self.assertRegex(
+            rules,
+            r"write 権限があるエージェント（[^）]*`doc-system-config-operator`",
+        )
+        self.assertIn(
+            "tmp/_handoff/doc-system-config-operator--<unique-key>.yaml",
+            shared_body,
+        )
+        self.assertIn("`handoff_path` がない場合は作業を開始・変更せず", shared_body)
+        self.assertIn("チャットには `HANDOFF: <handoff_path>` と1行要約だけ", shared_body)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

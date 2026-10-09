@@ -16,6 +16,9 @@
   `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
   写し本文を突き合わせた上でmarkerのみ現在の正本集合hashへ更新した。
 
+  2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
+  共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
+
   Issue #535 是正ラウンド4（2026-09-28・F-535-15）: `.claude/rules/05-skills-agents.md`
   「ctx_* ツールの付与方針」の検索系ツール例外注記から、正当化理由（「ゲート側の手当てを
   要さないため」「実行系＝ctx_execute/ctx_batch_executeの話であり検索系はゲートの統制層を
@@ -224,7 +227,8 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`等の外部委譲補助・
    `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
    `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
-   `karte`・CI 定義）＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
+   `karte`・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）
+   ＝**ノード起票もダッシュボード更新もせず `/gh-create-issue` で Issue 化**
    （`area:harness`）。`.claude/` 全体を対象外扱いしない。**新しい汎用ハーネスを追加したときは
    同一 PR でこの判定表も更新する**。**上記1〜3（PR7・起票必須・独断禁止）は起票先が変わっても弱まらない**。
    両方に及ぶ変更・境界事例は成果物側の規律を満たした上で Issue 化する（厳しい側に倒す）。

@@ -1,0 +1,37 @@
+# Project-native Codex command policy. A forbidden decision overrides user allows.
+prefix_rule(
+    pattern = ["git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["git merge topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk git merge topic"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "git", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk proxy git merge topic"],
+)
+prefix_rule(
+    pattern = ["gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["gh pr merge 123"],
+)
+prefix_rule(
+    pattern = ["rtk", "gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk gh pr merge 123"],
+)
+prefix_rule(
+    pattern = ["rtk", "proxy", "gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "AI roles stop after the owner report; only the owner merges.",
+    match = ["rtk proxy gh pr merge 123"],
+)

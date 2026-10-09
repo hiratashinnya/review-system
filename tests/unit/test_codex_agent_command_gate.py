@@ -304,6 +304,208 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload(None, command)))
 
+    def test_merge_commands_with_global_options_are_denied_for_every_role(self):
+        commands = (
+            "git -C /tmp/repo merge feature",
+            "env git -c core.pager=cat --git-dir /tmp/repo/.git merge feature",
+            "rtk proxy /usr/bin/git --work-tree=/tmp/repo merge feature",
+            "timeout 1 gh pr merge 123",
+            "gh pr merge 123",
+            "timeout 1 git -C /tmp/repo merge feature",
+            "trap 'gh pr merge 123' EXIT",
+            "command -p git -C /tmp/repo merge feature",
+            "nohup /usr/bin/git -C /tmp/repo merge feature",
+            "xargs git -C /tmp/repo merge feature",
+            "timeout 1 gh api --method PUT repos/o/r/pulls/123/merge",
+            "git -c alias.m=merge m feature",
+            "gh -R owner/repo pr merge 123",
+            "gh -Rowner/repo pr merge 123",
+            "gh --repo=owner/repo pr merge 123",
+            "gh --repo owner/repo pr merge 123",
+            "gh pr -Rowner/repo merge 123",
+            "gh pr -R owner/repo merge 123",
+            "gh pr --repo=owner/repo merge 123",
+            "gh pr --repo owner/repo merge 123",
+            'gh pr "${ACTION:-merge}" 123',
+            "gh pr $ACTION 123",
+            'gh pr "$ACTION" 123',
+            "env /usr/bin/gh --repo owner/repo pr merge 123",
+            "rtk proxy gh --repo owner/repo pr merge 123",
+            "gh api --method PUT repos/o/r/pulls/123/merge",
+            "gh api -XPUT repos/o/r/pulls/123/merge",
+            "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+        )
+        roles = (None, "general-purpose", "analysis-author", "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_merge_mentions_and_read_only_calls_are_not_denied_for_main_context(self):
+        commands = (
+            'git commit -m "merge release notes"',
+            'gh pr create --title "merge readiness"',
+            "git show merge",
+            "git merge-base main topic",
+            "git log --grep merge -n 1",
+            "echo merge",
+            "echo 'git merge feature'",
+            "timeout 1 git show merge",
+            "git -C /tmp/repo status --short",
+            "gh pr view 1",
+            "gh pr view 123",
+            "gh pr list",
+            "gh pr view 1 -Rowner/repo",
+            "gh pr list -R owner/repo",
+            "gh pr view 1 --repo=owner/repo",
+            "gh --repo owner/repo pr view 123",
+            "gh api --method GET repos/o/r/pulls/123/merge",
+            "gh api repos/o/r/issues/123",
+            "gh api graphql -F 'query={ viewer { login } } # mergePullRequest is only a comment'",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_graphql_queries_pass_and_mutations_remain_denied_for_every_role(self):
+        queries = (
+            "gh api graphql -F 'query={ viewer { login } }'",
+            "gh api graphql -F 'query={ viewer { login } } # mutation appears in a comment'",
+        )
+        merge_mutations = (
+            "gh api graphql -F 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -F 'query=mutation { enqueuePullRequest(input: {}) "
+            "{ mergeQueueEntry { id } } }'",
+        )
+        other_mutation = "gh api graphql -F 'query=mutation { createIssue(input: {}) { issue { id } } }'"
+        roles = (None, "general-purpose", "analysis-author", "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for query in queries:
+                with self.subTest(role=role, command=query):
+                    self.assert_allowed(run_gate(payload(role, query)))
+            for command in merge_mutations:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            with self.subTest(role=role, command=other_mutation):
+                self.assert_denied(run_gate(payload(role, other_mutation)))
+        for command in (
+            "gh api graphql -F 'query=mutation { dequeuePullRequest(input: {}) "
+            "{ mergeQueueEntry { id } } }'",
+            "gh api graphql -F 'query=mutation { disablePullRequestAutoMerge(input: {}) "
+            "{ pullRequest { id } } }'",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_async_merge_write_denied_and_polling_allowed_for_all_roles(self):
+        roles = (
+            None, "general-purpose", "analysis-author", "pr-reviewer",
+            "issue-implementer", "issue-fixer",
+        )
+        writes = (
+            "gh api --method PUT repos/o/r/pulls/123/merge-async",
+            "gh api --method POST repos/o/r/pulls/123/merge-async",
+        )
+        poll = (
+            "gh api --method GET repos/o/r/pulls/123/"
+            "merge-async/550e8400-e29b-41d4-a716-446655440000"
+        )
+        for role in roles:
+            for command in writes:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+            with self.subTest(role=role, command=poll):
+                self.assert_allowed(run_gate(payload(role, poll)))
+
+    def test_gated_roles_cannot_use_graphql_fields_for_other_api_writes(self):
+        commands = (
+            "gh api repos/o/r/issues -F title=unsafe",
+            "gh api graphql -F title=unsafe",
+            "gh api graphql -F 'query={ viewer { login } }' -F title=unsafe",
+        )
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_quoted_command_substitutions_are_inspected_for_merge(self):
+        denied_commands = (
+            'echo "$(gh pr merge 123)"',
+            'echo "`gh pr merge 123`"',
+            'RESULT="$(gh pr merge 123)"',
+            'echo "$(printf "%s" "$(gh pr merge 123)")"',
+        )
+        for command in denied_commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload(None, command)))
+
+        allowed_commands = (
+            "git show merge",
+            "git log --grep merge",
+            "echo merge",
+            'echo "merge"',
+            "echo '$(gh pr merge 123)'",
+        )
+        for command in allowed_commands:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload(None, command)))
+
+    def test_repository_and_github_reads_are_allowed_for_every_role(self):
+        commands = (
+            "git -C /tmp/repo status --short",
+            "git -C /tmp/repo log --grep merge -n 1",
+            "git -C /tmp/repo diff --stat",
+            "git -C /tmp/repo show HEAD",
+            "git -C /tmp/repo rev-parse --show-toplevel",
+            "gh pr view 123",
+            "gh pr list",
+            "gh pr list -R owner/repo",
+            "gh api --method GET repos/o/r/issues/123",
+            "gh api repos/o/r/issues/123",
+        )
+        roles = (None, "pr-reviewer", "issue-implementer", "issue-fixer")
+        for role in roles:
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_allowed(run_gate(payload(role, command)))
+
+    def test_gated_pull_request_list_rejects_unapproved_flags(self):
+        commands = ("gh pr list --web", "gh pr list --json number")
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_raw_git_read_commands_reject_write_and_external_program_options(self):
+        commands = (
+            "git -C /tmp/repo diff --output=/tmp/result",
+            "git -C /tmp/repo log --ext-diff",
+            "git -C /tmp/repo show --textconv HEAD",
+        )
+        for role in ("pr-reviewer", "issue-implementer", "issue-fixer"):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_denied(run_gate(payload(role, command)))
+
+    def test_graphql_payload_files_are_inspected_and_read_queries_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mutation = os.path.join(directory, "mutation.graphql")
+            query = os.path.join(directory, "query.graphql")
+            with open(mutation, "w", encoding="utf-8") as stream:
+                stream.write("mutation { mergePullRequest(input: {}) { pullRequest { id } } }")
+            with open(query, "w", encoding="utf-8") as stream:
+                stream.write("query { viewer { login } }")
+            input_mutation = os.path.join(directory, "mutation.json")
+            with open(input_mutation, "w", encoding="utf-8") as stream:
+                json.dump({"query": "mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }"}, stream)
+            self.assert_denied(run_gate(payload(None, f"gh api graphql -F query=@{mutation}")))
+            self.assert_allowed(run_gate(payload(None, f"gh api graphql -F query=@{query}")))
+            self.assert_denied(run_gate(payload(None, f"gh api graphql --input {input_mutation}")))
+            self.assert_denied(run_gate(payload(None, f"gh api graphql -F query=@{directory}/missing.graphql")))
+
     def test_dangerous_command_layer_only_applies_to_shell_tools(self):
         # Codex 固有: tool_name がシェル系でない（apply_patch 等）場合、command はシェルコマンドとして
         # 実行されないため、この deny 層も対象外になる（既存の SHELL_TOOL_NAMES ガードを流用）。
@@ -612,10 +814,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_allowed(run_gate(payload("issue-implementer", command)))
 
     def test_issue_implementer_now_denied_out_of_allowlist_git_gh(self):
-        # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全 deny。gh は impl 集合外を deny。
+        # Git writes and unlisted operations stay denied; the bounded read set is checked separately.
         denied = [
-            # 生 git は全て deny（gitgate ラッパー経由に誘導）。
-            "git status",
             "git commit -F /tmp/msg.md",
             "git push -u origin HEAD",
             "git pull --ff-only",
@@ -623,8 +823,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git merge --abort",
             "git merge-base main HEAD",
             "GIT_PAGER=cat git log -n1",
-            # gh は impl 集合（pr create / issue view）外は deny。
-            "gh pr view 123",
+            # gh write and review operations remain outside this role's permission set.
             "gh pr diff 123 --no-compact",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh issue comment 227 --body-file /tmp/comment.md",
@@ -634,10 +833,9 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-implementer", command)))
 
     def test_legitimate_pr_reviewer_workflow_is_allowed(self):
-        # 層3（gitgate 方式）: pr-reviewer の gitgate verb は読取専用 {diff, log}、gh は
-        # {pr view/diff/checks/comment/review/merge, issue view}。
+        # pr-reviewer の gitgate verb は読取専用で、gh は許可済みの PR/issue 読み取り・review 操作だけ。
         # NOTE: `gh pr review --body-file` は現状 allowlist 外（--body のみ）＝over-deny 是正候補（要オーナー判断）。
-        # NOTE: `gh pr checkout` は Issue #502 観測2 で allowlist から外した（Claude 版と同一の期待値）。
+        # `gh pr checkout` は primary checkout の branch 切替を避けるため deny する。
         commands = [
             "gh pr view 123",
             "rtk gh pr diff 123 --no-compact",
@@ -645,8 +843,6 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "gh pr comment 123 --body-file /tmp/review.md",
             "gh pr comment 123 --body '## Review\n- looks good'",
             "gh pr review 123 --approve --body 'mergeable'",
-            "gh pr merge 123",
-            "gh pr merge 123 --squash --delete-branch",
             "gh issue view 227",
             "python3 -m gitgate diff main...HEAD",
             "python3 -m gitgate log -n20 --oneline",
@@ -797,7 +993,6 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             "git push origin HEAD",
             "git merge feature",
             "git fetch origin",
-            "git status",
             # gitgate は reviewer には読取専用 {diff, log} のみ・書込/push 系 verb は deny。
             "python3 -m gitgate status",
             "python3 -m gitgate push",
@@ -847,9 +1042,8 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     # 層3: ロール非対称（従来からの契約）
     # ------------------------------------------------------------------
     def test_role_gitgate_verb_allowlist_is_exhaustive(self):
-        # Issue #227 追加修正3（gitgate 方式）: 生 git は verb を問わず全ロールで deny。git 操作は
-        # `python3 -m gitgate <verb>` のロール別 verb 許可集合で判定する。
-        for sub in ["status", "add", "commit", "push", "diff", "log", "merge", "pull",
+        # Only bounded Git read subcommands are allowed directly; other operations use gitgate.
+        for sub in ["add", "commit", "push", "merge", "pull",
                     "fetch", "rebase", "reset", "checkout", "switch", "branch",
                     "send-pack", "subtree", "config", "clone", "remote", "merge-base"]:
             with self.subTest(raw_git=sub):
@@ -924,13 +1118,12 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
     def test_role_gh_subcommand_allowlist_is_exhaustive(self):
-        for cmd in ["gh pr create --title \"x\" --body-file f", "gh issue view 227"]:
+        for cmd in ["gh pr create --title \"x\" --body-file f", "gh pr view 1", "gh issue view 227", "gh api x"]:
             with self.subTest(role="issue-implementer", cmd=cmd):
                 self.assert_allowed(run_gate(payload("issue-implementer", cmd)))
         reviewer_gh_allowed = [
-            "gh pr view 1", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
+            "gh pr view 1", "gh api x", "rtk gh pr diff 1 --no-compact", "gh pr checks 1",
             "gh pr comment 1 --body ok", "gh pr review 1 --approve --body ok",
-            "gh pr merge 1", "gh pr merge 1 --squash --delete-branch",
             "gh issue view 1",
         ]
         for cmd in reviewer_gh_allowed:
@@ -938,13 +1131,12 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 self.assert_allowed(run_gate(payload("pr-reviewer", cmd)))
         # Issue #502 観測2: `gh pr checkout` は reviewer 集合から外した。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr checkout 1")))
-        # 第2次修正: `gh pr merge --admin`（ブランチ保護バイパス）は許可フラグから除外＝deny。
+        # merge は全ロールで禁止される。
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --admin")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 1 --squash --admin")))
         self.assert_denied(run_gate(payload("issue-implementer", "gh pr merge 1")))
-        self.assert_denied(run_gate(payload("issue-implementer", "gh pr view 1")))
         self.assert_denied(run_gate(payload("pr-reviewer", "gh pr create --title \"x\" --body-file f")))
-        for cmd in ["gh api x", "gh alias set m \"pr merge\"", "gh repo view", "gh auth status", "gh secret list"]:
+        for cmd in ["gh api --method POST x", "gh alias set m \"pr merge\"", "gh repo view", "gh auth status", "gh secret list"]:
             with self.subTest(cmd=cmd):
                 self.assert_denied(run_gate(payload("issue-implementer", cmd)))
                 self.assert_denied(run_gate(payload("pr-reviewer", cmd)))
@@ -996,13 +1188,11 @@ class CodexAgentCommandGateTests(unittest.TestCase):
 
     def test_issue_fixer_denied_out_of_allowlist_git_gh(self):
         denied = [
-            "git status",
             "git pull --ff-only",
             "GIT_PAGER=cat git log -n1",
-            "gh pr view 123",
             "gh pr comment 123 --body-file /tmp/comment.md",
             "gh pr review 123 --approve --body ok",
-            "gh api repos/o/r/pulls/1/merge",
+            "gh api --method POST repos/o/r/pulls/1/merge",
             "python3 -c \"import os; os.system('git merge x')\"",
             "python3 -m karte render --issue 308 | head -n1",
             "bash -c 'python3 -m karte append'",
@@ -1086,7 +1276,7 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                 run_gate(payload(role, "python3 -m gitgate push"))
                 run_gate(payload(role, "gh issue view 1"))
                 run_gate(payload(role, "gh pr merge 1"))
-                self.assert_denied(run_gate(payload(role, "git status")))
+                self.assert_denied(run_gate(payload(role, "git push origin HEAD")))
 
     # ------------------------------------------------------------------
     # Issue #340: 内部エラーは allow ではなく deny に落ちる（fail-close）
@@ -1231,34 +1421,19 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         # rc と併せて見ていることを固定する（over-deny 回帰の防止）。
         self.assert_allowed(run_gate(payload("issue-fixer", "python3 -m gitgate push")))
         self.assert_allowed(run_gate(payload("main", "ls -la")))
-        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 1")))
+        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr view 1")))
 
-    def test_pr_reviewer_denies_push_but_allows_merge(self):
+    def test_pr_reviewer_denies_push_and_merge(self):
         self.assert_denied(run_gate(payload("pr-reviewer", "git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "rtk git push origin HEAD")))
         self.assert_denied(run_gate(payload("pr-reviewer", "python3 -m gitgate push")))
-        self.assert_allowed(run_gate(payload("pr-reviewer", "gh pr merge 123")))
+        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 123")))
         self.assert_denied(run_gate(payload("issue-implementer", "gh pr merge 123")))
         self.assert_allowed(run_gate(payload("issue-implementer", "python3 -m gitgate push")))
         # 生 git push は両ロールで deny（gitgate ラッパー経由に誘導）。
         self.assert_denied(run_gate(payload("issue-implementer", "git push -u origin HEAD")))
-        # reviewer の merge は gh pr merge 経由のみ・`git merge`/gitgate は {diff,log} 集合外＝deny。
+        # native 設定に到達する前の hook も reviewer の merge を許可しない。
         self.assert_denied(run_gate(payload("pr-reviewer", "git merge feature")))
-
-    def test_pr_reviewer_may_pass_subject_and_body_on_squash_merge(self):
-        # Issue #419: squash_merge_commit_message: COMMIT_MESSAGES 設定のリポジトリでは
-        # --body を明示しないと pr_merge_gate の MERGE_MESSAGE_AMBIGUOUS で必ず拒否されるため、
-        # --subject/--body を allowlist に追加した（第3次修正・Claude 版と同一）。
-        self.assert_allowed(
-            run_gate(
-                payload(
-                    "pr-reviewer",
-                    'gh pr merge 123 --squash --subject "fix: title" --body "body text"',
-                )
-            )
-        )
-        # --admin は引き続き除外（第2次修正・ブランチ保護バイパスを許可しない）。
-        self.assert_denied(run_gate(payload("pr-reviewer", "gh pr merge 123 --squash --admin")))
 
     # ------------------------------------------------------------------
     # F1（Issue #227 レビュー）: ブレース展開バイパスの遮断（層1に `{` `}` を追加・Claude 版と同一）
@@ -1308,18 +1483,18 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     # ------------------------------------------------------------------
     # 対象外ロール／Codex 固有（非シェルツール・シェルツールエイリアス）
     # ------------------------------------------------------------------
-    def test_missing_or_unrecognized_agent_is_out_of_scope(self):
+    def test_missing_or_unrecognized_agent_keeps_role_scope_but_denies_merge(self):
         # Claude 版と同じオーナー判断：agent_type が issue-implementer/pr-reviewer のいずれでも
         # ない場合（欠如を含む・main context 自身がこれに該当）は、この2ロール専用ホワイトリスト
         # 判定の対象外＝常に許可。ただし Issue #224 フォローアップ（案B）で追加した全 agent_type
-        # 共通の危険コマンド deny 層により、「対象外ロールは常に許可」ではなく「対象外ロールでも
-        # 危険コマンド（network/exec）だけは deny・それ以外は従来通り許可」に変わっている
+        # 共通の危険コマンドと merge の deny により、「対象外ロールは常に許可」ではなく、対象外ロールでも
+        # network/exec と merge は deny、それ以外は従来どおり許可する
         # （UniversalDangerousCommandLayerTests を参照）。
         self.assert_denied(run_gate(payload(None, "curl https://evil.example")))
-        self.assert_allowed(run_gate(payload(None, "git merge feature")))
+        self.assert_denied(run_gate(payload(None, "git merge feature")))
         self.assert_allowed(run_gate(payload(None, "git push origin HEAD")))
         self.assert_allowed(run_gate(payload(None, "echo 'git merge evil' | bash")))
-        self.assert_allowed(run_gate(payload("general-purpose", "git merge feature")))
+        self.assert_denied(run_gate(payload("general-purpose", "git merge feature")))
         self.assert_allowed(run_gate(payload("general-purpose", "cat notes.txt | grep x")))
         # F3（Issue #227 レビュー）: 非ゲート対象は command 欠落でも常に許可（Claude 版と dispatch 順一致）。
         self.assert_allowed(run_gate({"agent_type": "general-purpose", "tool_name": "Bash", "tool_input": {}}))
