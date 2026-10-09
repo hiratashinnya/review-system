@@ -5,7 +5,7 @@
 凍結する）。コード変更なしに時間経過だけでテストが赤くなるのは、この規律違反の兆候であって仕様側の不具合ではない。
 
 - **同一クラスの再発が2回起きている**：1度目＝#302（`test_codex_rate_limit_api.py` の固定 epoch が
-  時間窓外になり失敗）。2度目＝#339（`tests/fixtures/blocker_gate/waiver_valid.yml` の
+  時間窓外になり失敗。当該テストは #569 で機構ごと撤去済み）。2度目＝#339（`tests/fixtures/blocker_gate/waiver_valid.yml` の
   `expires_at`。#302 の是正が当該ファイルの範囲に留まり、`blocker_gate/waiver.py` が
   `approved <= now < expires` で wall clock 比較する同種のフィクスチャは検査対象外のまま残った）。
   **「絶対日付・固定 epoch は書くな」ではない**——テストの再現性のためにこれらを使うこと自体は正当。
@@ -31,7 +31,7 @@
 - **本節の記載先について**：`.claude/skills/test-strategy/SKILL.md`（review_system 固有の TD/TC/TR
   テーラリング資産）ではなく規約の正本側（`CLAUDE.md` から `@` import される本ファイル
   `.claude/rules/04-test-data.md`）に置く。理由＝この規律は review_system の TD/TC/TR 体系に
-  留まらず、doc_system 側のハーネステスト（例：`test_codex_rate_limit_api.py`・`test_agent_command_gate.py`
+  留まらず、doc_system 側のハーネステスト（例：`test_codex_hook_trust.py`・`test_agent_command_gate.py`
   は dsv2/Issue 運用ハーネスのテストで review_system の TD/TC/TR 管理対象ではない）にも及ぶ、
   リポジトリ全体にまたがる横断規律のため。`time_fixture_lint` 自体は CI 定義と同じ「どちらの
   システムにも含有されない汎用開発ハーネス」区分（`.claude/rules/02-decision-process.md`

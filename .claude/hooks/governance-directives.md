@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@335bb0385f47 -->
+<!-- synced-from: CLAUDE.md@077716c2ed14 -->
 <!--
   2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
   共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
