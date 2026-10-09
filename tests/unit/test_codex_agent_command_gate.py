@@ -465,6 +465,7 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
             "gh pr list -R owner/repo",
             "gh api --method GET repos/o/r/issues/123",
             "gh api repos/o/r/issues/123",
+            "gh api repos/o/r/issues/123 --jq '.title'",
         )
         roles = (None, "pr-reviewer", "issue-implementer", "issue-fixer")
         for role in roles:
