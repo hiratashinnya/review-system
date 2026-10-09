@@ -11,19 +11,19 @@
 > 詳細は `.claude/rules/07-project-structure.md`「このリポジトリ＝2つのプロジェクトが同居（混同注意）」を参照。
 
 > **本ファイルの中核規範は毎ターン注入される**（2026-07-28・context-mode 導入に伴う対策）。
-> 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`
-> ＋ 主文脈専用の正本 `.claude/main-context/*.md`（後述「主文脈専用の規定」・写しではなく正本をそのまま注入）。
-> **正本は本ファイル、`.claude/rules/` 配下のルールファイル群、公式 import する `.ai/guidance/common.md`**で、`governance-directives.md` はその配送用の写し。
+> 実体＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）＋ `.claude/hooks/governance-directives.md`。
+> **正本は本ファイル、`.claude/rules/` 配下のルールファイル群、公式 import する `.ai/guidance/common.md`、
+> 主文脈専用の `.claude/main-context/*.md`（後述「主文脈専用の規定」）**で、`governance-directives.md` はその配送用の写し。
 > **規約を変えたら写しも合わせる**（食い違ったら正本を正とする）。**追従漏れの検知は二段構え**——
 > `.claude/hooks/check-governance-drift.sh`（PostToolUse）が写しの `<!-- synced-from: CLAUDE.md@<sha> -->`
-> と**正本集合（本ファイル＋`.claude/rules/*.md`＋`.ai/guidance/common.md`）の連結ハッシュ**を突き合わせ、食い違う間だけ
+> と**正本集合（本ファイル＋`.claude/rules/*.md`＋`.ai/guidance/common.md`＋`.claude/main-context/*.md`）の連結ハッシュ**を突き合わせ、食い違う間だけ
 > warning を出す（反映後に sha を更新して解除）。**ハッシュ対象を集合にしたのは Issue #387 の是正**
 > ——規範本文を `.claude/rules/` へ分割した後も本ファイル単体を見張っていると、規範の大半を占める
 > rules 側の変更に対してフックもテストも一切反応しない。
 > **ただしこのフックは常に `exit 0` の fail-open な nag であり、発火条件が
 > 「編集対象の realpath が正本集合のいずれかに一致すること」のため、linked worktree 側で正本を
 > 編集した場合は沈黙する**（Issue #323 で実測）。この抜け穴を塞ぐのが `tests/unit/test_governance_sync.py`
-> ——marker と現在ハッシュの不一致に加え、common guidance が正本集合に入ること、`.claude/rules/*.md` と下記 `@` import 行の集合が
+> ——marker と現在ハッシュの不一致に加え、common guidance と main-context が正本集合に入ること、`.claude/rules/*.md` と下記 `@` import 行の集合が
 > 双方向一致することも CI で **fail-close** に検知する。フックが黙っていても、
 > このテストが赤くなるので追従漏れは merge 前に必ず露見する。
 > subagent 側の対策は各 `.claude/agents/*.md` 末尾の
@@ -57,6 +57,29 @@ rules を追加・削除・改名したら同一 PR でこの一覧も更新す�
 **主文脈（オーナーと直接やり取りする側）にしか当てはまらない規定は `.claude/rules/` に置かない**——
 rules に置くとサブエージェントにも配送され、主文脈とサブエージェントで読み込みを分ける手段が無いため
 （`paths:` は触るファイルでしか絞れず、サブエージェントの `omitClaudeMd` は CLAUDE.md 一式をまるごと外す）。
-置き場は `.claude/main-context/*.md`（自動読み込みされない）で、`.claude/hooks/inject-governance.sh`
-（UserPromptSubmit＝主文脈のイベント）が毎ターン本文をそのまま注入する。写しは作らないので追従の検査も要らない。
+**主文脈専用の規範の置き場は `.claude/main-context/*.md` だけ**（自動読み込みされない）。配送は次の2経路で、
+どちらも主文脈のイベントでしか発火しないためサブエージェントへは届かない。
+- **全文**＝`.claude/hooks/orchestrator-context.sh`（SessionStart の startup/clear/compact）が、
+  委譲ルールに続けて名前順に注入する。
+- **要約**＝`.claude/hooks/inject-governance.sh`（UserPromptSubmit）が毎ターン注入する
+  `governance-directives.md` の項12。全文を毎ターン積むと文脈を圧迫するので要約だけを載せる。
+  要約は写しなので main-context は正本集合に入り、追従漏れは冒頭の二段構えで検知される。
+  main-context の本文を変えたら項12も合わせる。
+
+**orchestrator-context との併存**：`.claude/hooks/orchestrator-context/orchestrator-task-delegation-rules.md`
+も主文脈だけに届くが、これはリポジトリの規範ではなく、委譲プロンプトの書き方（Goal/Context/Constraints/
+Deliverable の様式・手順の細部を指示しない）を定める汎用のオーケストレータ役割定義である。
+写しも追従検査も持たない。リポジトリ固有の主文脈専用規範（オーナーへの報告・質問の仕方等）は
+main-context に置く。置き場は「汎用の役割定義か、リポジトリの規範か」で分け、配送は同じ SessionStart
+フックを共有する（委譲ルール→main-context の順）。
+
+**既知の限界（フック単一経路・fail-open）**：main-context は rules と違い Claude Code の自動読込に乗らず、
+フックだけが配送経路である。フックが動かない環境（フック無効化・ワークスペース信頼の未受諾・python3 不在・
+スクリプト異常）では全文も要約も主文脈に届かない。どの失敗経路も作業を止めない（exit 0）ので、
+画面上は何も起きない。検知手段は `claude --debug` で起動し、フックログの stderr に
+`[orchestrator-context]`・`[inject-governance]` の警告が無いこと、SessionStart と UserPromptSubmit の
+additionalContext に本文が載っていることを確かめること。読めない・UTF-8 として不正なファイルは警告して
+飛ばし、残りの注入は続ける。`resume` では全文を再注入しない（会話に残る全文と毎ターンの要約に依る）。
+
 現在の収録：`01-owner-communication.md`（オーナーへの報告はチャットが正本・報告タイミング・`AskUserQuestion` の使用）。
+経緯は `.claude/rationale/main-context-injection.md`。

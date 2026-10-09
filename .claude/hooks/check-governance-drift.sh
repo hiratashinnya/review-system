@@ -2,14 +2,15 @@
 # PostToolUse(Write|Edit) フックハンドラ。
 #
 # 役割:
-#   正本（`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`）を編集したのに配送用の写し
+#   正本（`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md`）を編集したのに配送用の写し
 #   `governance-directives.md` を追従させ忘れる drift を、機械的に検知してリマインドする。
 #
 # 正本が「集合」である理由（Issue #387 / PR #383）:
 #   規範本文は CLAUDE.md 単体から `.claude/rules/NN-*.md` へ分割された。CLAUDE.md 単体の
 #   ハッシュを見張り続けると、**規範の大半を占める rules 側の変更に一切反応しない**。
 #   そのため対象を正本集合の連結ハッシュへ拡張する。Issue #406 で Claude が公式 import する
-#   common guidance も同じ集合へ加えた。marker の形式（1行）は維持する。
+#   common guidance も同じ集合へ加えた。写しの項12が要約する主文脈専用の規範
+#   （`.claude/main-context/*.md`）も同じ集合に入る。marker の形式（1行）は維持する。
 #
 # なぜ必要か（実際に起きた・PR #276 / Codex レビュー指摘 #6）:
 #   `governance-directives.md` は CLAUDE.md 中核規範の写しで、UserPromptSubmit フックが毎ターン
@@ -49,6 +50,7 @@ payload_path, repo_root = sys.argv[1], sys.argv[2]
 ENTRYPOINT = "CLAUDE.md"
 RULES_GLOB = os.path.join(".claude", "rules", "*.md")
 COMMON_GUIDANCE = os.path.join(".ai", "guidance", "common.md")
+MAIN_CONTEXT_GLOB = os.path.join(".claude", "main-context", "*.md")
 COPY = os.path.join(".claude", "hooks", "governance-directives.md")
 MARKER_RE = re.compile(r"<!--\s*synced-from:\s*CLAUDE\.md@([0-9a-f]{12})\s*-->")
 
@@ -58,11 +60,13 @@ def canonical_relpaths():
 
     依存仕様は `tests/unit/test_governance_sync.py` と同一である必要がある。
     """
-    rules = sorted(
-        os.path.relpath(p, repo_root).replace(os.sep, "/")
-        for p in glob.glob(os.path.join(repo_root, RULES_GLOB))
-    )
-    return [ENTRYPOINT] + rules + [COMMON_GUIDANCE]
+    def listed(pattern):
+        return sorted(
+            os.path.relpath(p, repo_root).replace(os.sep, "/")
+            for p in glob.glob(os.path.join(repo_root, pattern))
+        )
+
+    return [ENTRYPOINT] + listed(RULES_GLOB) + [COMMON_GUIDANCE] + listed(MAIN_CONTEXT_GLOB)
 
 
 def canonical_hash(relpaths):

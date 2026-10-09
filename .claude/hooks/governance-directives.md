@@ -1,11 +1,13 @@
-# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
+# 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@a29241104138 -->
+<!-- synced-from: CLAUDE.md@978ddc8bbe76 -->
 <!--
-  Issue #585（2026-10-08）: 項12の本文（オーナーへの報告はチャットが正本・報告タイミング・
-  AskUserQuestion の使用）は主文脈専用の規定のため、`.claude/rules/02-decision-process.md` から
-  `.claude/main-context/01-owner-communication.md` へ移した。rules はサブエージェントにも配送される
-  ため。項12は案内だけ残し、本文は inject-governance.sh が正本をそのまま本ブロックの後に注入する。
+  Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
+  報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
+  `.claude/main-context/01-owner-communication.md` へ移した。全文は orchestrator-context.sh
+  （SessionStart）が注入し、項12は毎ターン用の要約の写しとした。main-context は正本集合へ加えた。
+  あわせて注入本文（項1〜12）から Issue 番号・日付の出典を外した。経緯と設計判断は
+  `.claude/rationale/main-context-injection.md`。
 
   Issue #572（2026-10-06）: `.claude/rules/02-decision-process.md` の汎用ハーネス判定表に
   `jev_hooks` と現行TC/TD/TR/log配置を追記した。以下の中核規範1〜12の契約を変更しないため、
@@ -153,7 +155,8 @@
 <!--
 このファイルは `inject-governance.sh`（UserPromptSubmit フック）が毎ターン
 additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude/rules/*.md`、
-公式 import される `.ai/guidance/common.md`（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
+公式 import される `.ai/guidance/common.md`、主文脈専用の `.claude/main-context/*.md`
+（規約本体は rules 側に分割されている・Issue #387）であり、ここはその
 「独断・逸脱が起きたら実害が大きい」中核だけを抜き出した配送用の写し。
 正本を変えたらこちらも合わせる（食い違ったら正本を正とする）。
 追従漏れは `check-governance-drift.sh`（PostToolUse）と
@@ -185,7 +188,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **ただし起票先は下記9の分類（doc_system / review_system に含有されるか）で変わる**。
 3. **「対応不要」を AI が独断で書かない** — 指摘の処置要否・据え置きは**オーナー判断**。
    AI 単独で「対応不要」「将来検討でよい」と結論・クローズしない。AI 同士のコメントを根拠にしない。
-   **「スコープ外」も処置不要の言い換えにしない（Issue #495）**——スコープ外の指摘も同じ
+   **「スコープ外」も処置不要の言い換えにしない**——スコープ外の指摘も同じ
    finding の列に `scope: out` として記録し、`harm` を必ず付ける。実害ありの指摘は処置方針
    （当該 PR で直す／別 Issue へ申し送る／オーナー明示の waive）が決まるまで clean にしない。
    **機械が強制するのは「許可者と理由の記録」までで、記録者がオーナー本人かは検証していない**
@@ -228,12 +231,18 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     主文脈が動けている＝その時点でレートリミットは解除されている。モデル選定はリスク信号表
     （変更の性質）に従うのであって、実行環境の都合（レートリミット）では変えない。
     「急ぎ/軽微」等の例外は作らない。
-11. **PR8「消さない」の適用範囲は区分で決める（Issue #357）** — PR8 条文が扱うのは論理設計の
+11. **PR8「消さない」の適用範囲は区分で決める** — PR8 条文が扱うのは論理設計の
     MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
     してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.claude/rationale/` 移設
     または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
     本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
     本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
-    「PR8「消さない」の適用範囲（2026-08-18・Issue #357）」。
-12. **オーナーへの報告・質問の仕方（主文脈専用）** — 正本 `.claude/main-context/*.md` を本ブロックの
-    直後にそのまま注入している（写しではない・Issue #585）。
+    「PR8「消さない」の適用範囲」節。
+12. **オーナーへの報告・質問の仕方（主文脈専用）** — 判断を仰ぐ事項は**チャットに全文**
+    （何を・なぜ・どうするか）で出し、PR コメント・カルテ・ハンドオフ・ノードへの記載を報告の代わりに
+    しない（`<artifact_policy>` 等の要約規律は subagent→主文脈間の規約で、主文脈→オーナーには適用しない）。
+    merge・push・force 系・外部投稿など取り消しにくい操作は**実行前に**報告して確認を得る
+    （事後のまとめ報告・過去の承認・clean 判定で代えない）。質問・承認依頼は判断材料をチャットに
+    提示した上で **`AskUserQuestion`** で問う（推奨案を先頭に「（推奨）」）。非対話ロールは持たないので
+    STOP して呼び出し元へ返す。正本＝`.claude/main-context/01-owner-communication.md`（全文はセッション
+    開始・clear・compact 時に注入済み）。

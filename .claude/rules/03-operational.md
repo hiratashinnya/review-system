@@ -97,7 +97,8 @@
   - `.claude/rules/NN-*.md` — Claude Code 固有機構（フック・エージェント権限境界・記憶等）の運用規則。
     サブエージェントにも配送される。
   - `.claude/main-context/*.md` — 主文脈にだけ当てはまる Claude Code 固有の規則（オーナーへの報告・質問の仕方等）。
-    UserPromptSubmit フックで主文脈にだけ毎ターン注入される（Issue #585）。
+    主文脈にだけ、SessionStart フックで全文、毎ターンは要約の写しが注入される
+    （配送経路・orchestrator-context との併存・既知の限界は `CLAUDE.md`「主文脈専用の規定」）。
   - `docs/methods/*.md` — review_system の方法論。
 - **オーナー個人に閉じた事実 → 記憶でよい**：役割・専門性・作業の好み・進行中の私的な関心など、
   リポジトリの成果物や他の実行環境の挙動を規定しないもの。
