@@ -308,5 +308,25 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
                     )
 
 
+class TestWriteAgentHandoffClassification(unittest.TestCase):
+    def test_doc_system_config_operator_is_a_write_role_with_handoff(self):
+        rules = (REPO_ROOT / ".claude/rules/05-skills-agents.md").read_text(
+            encoding="utf-8"
+        )
+        shared_body = (
+            REPO_ROOT / ".ai/agents/doc-system-config-operator.md"
+        ).read_text(encoding="utf-8")
+        self.assertRegex(
+            rules,
+            r"write 権限があるエージェント（[^）]*`doc-system-config-operator`",
+        )
+        self.assertIn(
+            "tmp/_handoff/doc-system-config-operator--<unique-key>.yaml",
+            shared_body,
+        )
+        self.assertIn("`handoff_path` がない場合は作業を開始・変更せず", shared_body)
+        self.assertIn("チャットには `HANDOFF: <handoff_path>` と1行要約だけ", shared_body)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

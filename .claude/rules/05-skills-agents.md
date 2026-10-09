@@ -41,7 +41,7 @@
 context-mode プラグイン（グローバル導入）が全 subagent 呼び出しに `<artifact_policy>`（成果物はファイルに書き、
 パスと1行要約だけ返す）を注入する。**これを潰さず、受け渡し方を合わせる**方針で統一する。
 
-- **write 権限があるエージェント（`*-author` / `structured-analysis` / `reconciliation` / `issue-implementer` / `issue-fixer`）**
+- **write 権限があるエージェント（`*-author` / `structured-analysis` / `reconciliation` / `doc-system-config-operator` / `issue-implementer` / `issue-fixer`）**
   → 呼び出し元へ返す項目を **`tmp/_handoff/<agent>--<key>.yaml`** に Write で書き、チャットには
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。

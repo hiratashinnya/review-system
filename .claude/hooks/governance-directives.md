@@ -1,7 +1,10 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@fa26f35b352a -->
+<!-- synced-from: CLAUDE.md@335bb0385f47 -->
 <!--
+  2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
+  共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
+
   Issue #535 是正ラウンド4（2026-09-28・F-535-15）: `.claude/rules/05-skills-agents.md`
   「ctx_* ツールの付与方針」の検索系ツール例外注記から、正当化理由（「ゲート側の手当てを
   要さないため」「実行系＝ctx_execute/ctx_batch_executeの話であり検索系はゲートの統制層を

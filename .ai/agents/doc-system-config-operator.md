@@ -27,6 +27,16 @@
 - 実行環境の wrapper が指定する関連手順資産（存在する場合）
 - 変更対象に関係する既存 CFG/SCM/SPEC/PROMPT ノード
 
+## 入力
+
+呼び出し元は、呼び出しごとに一意なキーを含む作業ツリールート相対の `handoff_path` を渡す。
+
+```text
+handoff_path: tmp/_handoff/doc-system-config-operator--<unique-key>.yaml
+```
+
+`handoff_path` がない場合は作業を開始・変更せず、呼び出し元へその不足を報告して停止する。
+
 ## 操作方針
 
 1. まず変更種別を分類する。
@@ -48,12 +58,19 @@
    - `python3 -m dsv2 drift --root doc-system-v2`
    - `python3 -m dsv2 prompt-coverage --root doc-system-v2`
 
-## 出力
+## ハンドオフ
 
-変更提案または実装結果には次を含める。
+変更提案・調査・説明の結果を呼び出し元指定の `handoff_path` に記録する。ファイルには次の項目を含める。
 
-- 変更対象ファイルと理由
-- config のどの top-level key / rule / target set に触れたか
-- 対応する SPEC/SCM/CFG/PROMPT ノード
-- 実行した検証と結果
-- 別スコープへ横展開すべき残作業がある場合は明示する
+- `agent`: `doc-system-config-operator`
+- `status`: `done` または `blocked`
+- `operation`: `explain` / `inspect` / `change`
+- `changed_files`: 変更対象ファイルと理由。未変更なら空リスト
+- `config_targets`: 触れた top-level key / rule / target set。該当しなければ空リスト
+- `related_nodes`: 対応する SPEC/SCM/CFG/PROMPT ノード。該当しなければ空リスト
+- `validation`: 実行した検証と結果。未実行なら理由
+- `summary`: 提案・調査・変更結果の要約
+- `out_of_scope`: 別スコープへ横展開すべき残作業
+- `blocked_reason`: `blocked` の場合の停止理由、原案・比較・推奨。完了時は空文字
+
+チャットには `HANDOFF: <handoff_path>` と1行要約だけを返す。呼び出し元は必ずファイルを読み、内容に基づいて判断する。
