@@ -11,8 +11,8 @@
     "supersedes", "source", "narrative"
   ],
   "properties": {
-    "schema": {"type": "string", "pattern": "^feedback-ledger/v1(?:\\.(?:0|[1-9][0-9]*))?$"},
-    "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+(?:-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+)*$"},
+    "schema": {"type": "string", "pattern": "^feedback-ledger/v1(?:\\.(?:0|1))?$"},
+    "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*$"},
     "topic": {"type": "string", "minLength": 1, "maxLength": 30},
     "theme": {"enum": ["目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理"]},
     "occurred_at": {"type": "string", "format": "date"},
@@ -39,7 +39,7 @@
     },
     "supersedes": {
       "type": "string",
-      "pattern": "^(?:|FBK-[0-9]{8}-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+(?:-[a-z0-9\\u3000-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff\\uff01-\\uff9f]+)*)$"
+      "pattern": "^(?:|FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*)$"
     },
     "source": {
       "type": "array",

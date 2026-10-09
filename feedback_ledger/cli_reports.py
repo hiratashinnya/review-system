@@ -9,6 +9,7 @@ import sys
 from . import status as status_module
 from .check import run_checks
 from .cli_support import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, _errors, _fail, _print
+from .identity_collisions import ledger_collision_findings
 from .model import WARN
 from .render import RenderError, render_ledger
 from .schema import SPECS
@@ -21,6 +22,10 @@ def cmd_check(args) -> int:
         base_ref=args.base_ref,
         require_base=args.require_base,
     )
+    store = load_store(args.root)
+    findings.extend(ledger_collision_findings(
+        document.document_id for document in store.of("ledger")
+    ))
     _print(findings)
     errors = _errors(findings)
     warnings = [finding for finding in findings if finding.level == WARN]

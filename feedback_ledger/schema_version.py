@@ -18,13 +18,16 @@ LEDGER_THEME_INTRODUCED_MINOR = {
     "記録管理": 1,
 }
 LEDGER_THEME_MINOR = min(LEDGER_THEME_INTRODUCED_MINOR.values())
+_SUPPORTED_MINOR_PATTERN = "|".join(
+    str(minor) for minor in range(LEDGER_CURRENT_MINOR + 1)
+)
 LEDGER_SCHEMA_PATTERN = re.compile(
-    rf"^{LEDGER_SCHEMA_PREFIX}(?:\.(?:0|[1-9][0-9]*))?$"
+    rf"^{LEDGER_SCHEMA_PREFIX}(?:\.(?:{_SUPPORTED_MINOR_PATTERN}))?$"
 )
 
 
 def parse_ledger_schema(value: object) -> tuple[int, int] | None:
-    """Return the explicit major/minor, treating a bare major as minor zero."""
+    """Return a supported major/minor; a bare major means minor zero."""
     if not isinstance(value, str) or not LEDGER_SCHEMA_PATTERN.fullmatch(value):
         return None
     version = value.rsplit("/v", 1)[1]

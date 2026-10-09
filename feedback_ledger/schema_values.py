@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # --- 語彙（enum） -----------------------------------------------------------
 
@@ -25,13 +26,18 @@ VERDICTS = ("proposed", "no-change", "merged-into", "need-more-evidence")
 
 # --- id / ファイル名 ---------------------------------------------------------
 
-SLUG_CHARS = r"a-z0-9\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff01-\uff9f"
-SLUG = rf"[{SLUG_CHARS}]+(?:-[{SLUG_CHARS}]+)*"
+SLUG_CHAR = r"""[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]"""
+SLUG = rf"{SLUG_CHAR}+(?:-{SLUG_CHAR}+)*"
 ASCII_SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
-LEDGER_ID_RE = re.compile(rf"^FBK-(?P<date>\d{{8}})-(?P<slug>{SLUG})$")
-PROPOSAL_ID_RE = re.compile(rf"^FBP-(?P<date>\d{{8}})-(?P<slug>{ASCII_SLUG})$")
+LEDGER_ID_RE = re.compile(rf"^FBK-(?P<date>[0-9]{{8}})-(?P<slug>{SLUG})$")
+PROPOSAL_ID_RE = re.compile(rf"^FBP-(?P<date>[0-9]{{8}})-(?P<slug>{ASCII_SLUG})$")
 TRIAGE_ID_RE = re.compile(r"^TRG-(?P<year>\d{4})-W(?P<week>\d{2})$")
 FINDING_ID_RE = re.compile(r"^F-\d+-\d+$")
+
+
+def has_unsafe_ledger_slug_character(value: str) -> bool:
+    """Reject Unicode control, format, surrogate, private-use, and unassigned chars."""
+    return any(unicodedata.category(char).startswith("C") for char in value)
 
 LEDGER = "ledger"
 PROPOSAL = "proposal"

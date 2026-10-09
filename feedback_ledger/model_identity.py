@@ -8,6 +8,7 @@ from . import schema as schema_module
 from .model_constants import ERROR
 from .model_types import Finding
 from .schema_types import DocSpec
+from .schema_values import has_unsafe_ledger_slug_character
 from .schema_version import (
     LEDGER_SCHEMA_MAJOR, LEDGER_THEME_INTRODUCED_MINOR,
     parse_ledger_schema, theme_is_available,
@@ -49,6 +50,14 @@ def _check_document_identity(spec: DocSpec, data: dict, locus: str, slugify_topi
     if spec.kind in (schema_module.LEDGER, schema_module.PROPOSAL):
         match = spec.id_re.match(data.get("id", ""))
         if match:
+            if (
+                spec.kind == schema_module.LEDGER
+                and has_unsafe_ledger_slug_character(match.group("slug"))
+            ):
+                findings.append(Finding(
+                    "L1", ERROR, f"{locus}::id",
+                    "id の slug に制御・書式・サロゲート・私用・未割当文字を含められない",
+                ))
             stamp = match.group("date")
             try:
                 datetime.date(int(stamp[0:4]), int(stamp[4:6]), int(stamp[6:8]))
@@ -74,10 +83,10 @@ def _check_document_identity(spec: DocSpec, data: dict, locus: str, slugify_topi
                     f"{occurred_at.day:02d}"
                 )
                 expected_id = f"FBK-{stamp}-{slugify_topic(topic)}"
-            except SlugifyReferenceError as exc:
+            except (SlugifyReferenceError, UnicodeEncodeError) as exc:
                 findings.append(Finding(
                     "L1", ERROR, f"{locus}::id",
-                    f"slugify の参照実装を読み込めず id を検証できない: {exc}",
+                    f"slugify を実行できず id を検証できない: {exc}",
                 ))
             else:
                 if data.get("id") != expected_id:

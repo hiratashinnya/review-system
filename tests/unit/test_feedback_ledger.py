@@ -281,21 +281,19 @@ class L1KeyAndVocabularyTests(FeedbackLedgerTestCase):
         stored.rename(stored.with_name("FBK-20260901-renamed.toml"))
         self.assertIn("L1", self.rules_with_errors())
 
-    def test_slug_must_be_lowercase_and_hyphenated(self):
-        data = ledger_data(id="FBK-20260901-Bad_Slug")
-        draft = self.write_draft(LEDGER_SPEC, data, name="bad-slug.toml")
+    def test_slugify_preserved_underscore_is_allowed(self):
+        topic = "保存する_id"
+        document_id = f"FBK-20260901-{slugify_ref_module.slugify_topic(topic)}"
+        data = ledger_data(topic=topic, id=document_id)
+        draft = self.write_draft(LEDGER_SPEC, data, name="punctuation.toml")
         code, _ = self.run_cli("new-entry", "--from", draft)
-        self.assertEqual(code, EXIT_ERROR)
+        self.assertEqual(code, EXIT_OK)
 
     def test_japanese_topic_slug_passes_and_can_be_recorded(self):
         topic = "日本語の判断"
         slug = slugify_ref_module.slugify_topic(topic)
         document_id = f"FBK-20260901-{slug}"
         self.assertIsNotNone(LEDGER_ID_RE.fullmatch(document_id))
-        self.assertEqual(
-            slugify_ref_module.SLUGIFY_PATH,
-            Path(__file__).resolve().parents[2] / "doc-system-v2" / "slugify.py",
-        )
         schema_path = (
             Path(__file__).resolve().parents[2] / ".ai/schema/feedback-ledger-v1.json"
         )
@@ -325,14 +323,16 @@ class L1KeyAndVocabularyTests(FeedbackLedgerTestCase):
         self.assertEqual(code, EXIT_OK)
 
     def test_id_must_equal_date_and_reference_slugify_topic(self):
-        data = ledger_data(topic="題名", id="FBK-20260901-reference")
-        with patch.object(model_module, "slugify_topic", return_value="reference"):
-            findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
+        reference_slugify = slugify_ref_module._load_slugify()
+        topic = "題名 & ADR"
+        reference_output = reference_slugify(topic)
+        self.assertEqual(slugify_ref_module.slugify_topic(topic), reference_output)
+        data = ledger_data(topic=topic, id=f"FBK-20260901-{reference_output}")
+        findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
         self.assertFalse([finding for finding in findings if finding.rule == "L1"])
 
         data["id"] = "FBK-20260901-wrong"
-        with patch.object(model_module, "slugify_topic", return_value="reference"):
-            findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
+        findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
         self.assertTrue([finding for finding in findings if finding.rule == "L1"])
 
     def test_unavailable_slugify_reference_rejects_identity_check(self):
@@ -789,7 +789,7 @@ class TriageRuleTests(FeedbackLedgerTestCase):
 
     def test_malformed_triage_ledger_references_are_rejected(self):
         self.seed_entry()
-        invalid_id = "FBK-20260901-Bad_Slug"
+        invalid_id = "FBK-20260901-bad/slug"
         data = triage_data(
             reviewed=[invalid_id],
             outcomes=[{
@@ -1160,7 +1160,7 @@ class SharedSchemaCorrespondenceTests(unittest.TestCase):
             TRIAGE_SPEC.field_map()["outcomes.merged_into"][1],
         )
         self.assertTrue(all(field.pattern is LEDGER_ID_RE for field in python_fields))
-        invalid_id = "FBK-20260901-Bad_Slug"
+        invalid_id = "FBK-20260901-bad/slug"
         for pattern in patterns:
             with self.subTest(pattern=pattern):
                 self.assertRegex(ENTRY_ID, pattern)

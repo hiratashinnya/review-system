@@ -6,7 +6,6 @@ import unittest
 from feedback_ledger.cli import EXIT_ERROR, EXIT_OK
 from feedback_ledger.model import ERROR, check_document_identity, normalize_document
 from feedback_ledger.schema import LEDGER_SPEC
-from feedback_ledger.schema_version import LEDGER_CURRENT_SCHEMA
 from feedback_ledger.tomlwrite import dumps
 from test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
 
@@ -35,10 +34,10 @@ class LedgerSchemaMinorTests(FeedbackLedgerTestCase):
         self.assertIsNotNone(normalized)
         self.assertFalse([item for item in findings if item.level == ERROR])
 
-    def test_future_minor_of_supported_major_is_accepted(self):
+    def test_future_minor_of_supported_major_is_rejected(self):
         normalized, findings = self.validate_entry(ledger_data(schema="feedback-ledger/v1.7"))
         self.assertIsNotNone(normalized)
-        self.assertFalse([item for item in findings if item.level == ERROR])
+        self.assertTrue([item for item in findings if item.level == ERROR])
 
     def test_v2_and_malformed_versions_are_rejected(self):
         versions = ("feedback-ledger/v2", "feedback-ledger/v1.x", "feedback-ledger/v1.01")
@@ -54,12 +53,11 @@ class LedgerSchemaMinorTests(FeedbackLedgerTestCase):
             with self.subTest(version=version):
                 self.assertTrue(any(item.locus == "entry.toml::theme" for item in findings))
 
-    def test_new_entry_rewrites_draft_version_to_current_minor(self):
+    def test_new_entry_rejects_noncurrent_minor_without_rewriting(self):
         draft = self.write_draft(LEDGER_SPEC, ledger_data(schema="feedback-ledger/v1.2"))
         code, _ = self.run_cli("new-entry", "--from", draft)
-        stored = tomllib.loads(self.stored("ledger", ENTRY_ID).read_text(encoding="utf-8"))
-        self.assertEqual(code, EXIT_OK)
-        self.assertEqual(stored["schema"], LEDGER_CURRENT_SCHEMA)
+        self.assertEqual(code, EXIT_ERROR)
+        self.assertFalse(self.stored("ledger", ENTRY_ID).exists())
 
     def test_new_entry_rejects_unsupported_major(self):
         draft = self.write_draft(LEDGER_SPEC, ledger_data(schema="feedback-ledger/v2"))

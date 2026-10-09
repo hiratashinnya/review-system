@@ -5,7 +5,9 @@
 
 v1.1 以降のエントリは主題を表す `theme` を必須で1つ選びます。既存形式の `v1` / `v1.0` は v1.0 相当として `theme` を持たず、v1.1 で導入した7語彙は使えません。
 
-台帳 minor を上げるときは `schema_version.py` の `LEDGER_CURRENT_MINOR` を更新し、変更内容に応じた Python の互換性判定と JSON Schema の条件を同期してテストを追加します。新しい `theme` 値を加える場合は `schema_values.py` と JSON Schema の enum、および `schema_version.py` の導入 minor 対応表を更新します。`new-entry` は有効な同 major の draft を現行版で保存します。
+台帳 minor を上げるときは `schema_version.py` の `LEDGER_CURRENT_MINOR` を更新し、変更内容に応じた Python の互換性判定と JSON Schema の条件を同期してテストを追加します。新しい `theme` 値を加える場合は `schema_values.py` と JSON Schema の enum、および `schema_version.py` の導入 minor 対応表を更新します。`new-entry` は `feedback-ledger/v1.1` のように現行版を明示した draft だけを受け付け、版は書き換えません。
+
+台帳 ID の slug は `doc-system-v2/slugify.py` が出力する Unicode 文字を広く受け付けます。構文 regex は slugify が除去する hostile 文字、空白、先頭末尾や連続ハイフンを拒否します。JSON Schema の ECMA pattern では Unicode カテゴリを移植可能に判定できないため、制御・書式・サロゲート・私用・未割当文字は Python 検査が拒否します。ID は保存文字列を変換せず、追加時と `check` 時に NFKC+casefold 後の別 ID 衝突も検査します。
 
 区分: どちらのシステム（doc_system / review_system）にも含有されない**汎用開発ハーネス**
 （`.claude/rules/02-decision-process.md`「起票先はプロジェクト区分で決める」）。指摘・改善は
