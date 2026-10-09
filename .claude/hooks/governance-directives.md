@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@0bc0125a5f72 -->
+<!-- synced-from: CLAUDE.md@01b2edba8cf8 -->
 <!--
   Issue #585（2026-10-08・是正ラウンド1 2026-10-09）: 項12の正本（オーナーへの報告はチャットが正本・
   報告タイミング・AskUserQuestion の使用）を `.claude/rules/02-decision-process.md` から主文脈専用の
@@ -13,7 +13,9 @@
   `.claude/rationale/` は案内のみ）に揃えた。是正ラウンド4（2026-10-09・F-585-18）: main 取り込みで
   入った正本の変更（02 の `jev_hooks` 行から Issue/PR 番号を除去、05 の merge をオーナー手動へ移し
   `doc-system-config-operator` を write-role へ追加）を項1〜12 と突き合わせた。いずれも項9・項12 の
-  記述と整合し本文は変更せず、marker のみ取り込み後の正本集合の値へ更新した。
+  記述と整合し本文は変更せず、marker のみ取り込み後の正本集合の値へ更新した。是正ラウンド6
+  （2026-10-09・F-585-19）: 区分1 と項11 の移設先の括弧書きを「`.claude/rationale/` には実体を
+  置かない」へ絞り、案内ファイルの設置を必須と読めないようにして marker を再計算した。
 
   2026-10-09: `.claude/rules/05-skills-agents.md` に `doc-system-config-operator` を write-role として追加し、
   共通本文にハンドオフ契約を定義した。中核規範の変更ではないため配送本文は変更せず、marker を同期した。
@@ -240,7 +242,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
 11. **PR8「消さない」の適用範囲は区分で決める** — PR8 条文が扱うのは論理設計の
     MVP スコーピングであって、記録・成果物の保全一般ではない。「（消さない＝PR8）」として援用
     してきた対象は**区分1（決定履歴・却下案・経緯・例外理由＝削除せず `.ai/rationale/` へ移設
-    （`.claude/rationale/` は案内のみ）または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
+    （`.claude/rationale/` には実体を置かない）または `git mv` archive 化）**と**区分2（今の正しい手順を記述する手順書・契約文＝古くなったら
     本文を書き換える。訂正の追記積み上げは禁止）**のどちらかに属する。Issue/PR コメントの訂正も
     本文修正で行い、実施者を明記する。詳細＝`.claude/rules/01-principles.md`
     「PR8「消さない」の適用範囲」節。
