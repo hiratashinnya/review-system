@@ -16,20 +16,34 @@ import tomllib
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from feedback_ledger import allowlist as allowlist_module
 from feedback_ledger import check as check_module
+from feedback_ledger import model as model_module
 from feedback_ledger import routing as routing_module
+from feedback_ledger import slugify_ref as slugify_ref_module
 from feedback_ledger import status as status_module
 from feedback_ledger.cli import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, main
-from feedback_ledger.model import ERROR, WARN
-from feedback_ledger.schema import LEDGER_SPEC, PROPOSAL_SPEC, TRIAGE_SPEC
+from feedback_ledger.model import ERROR, WARN, check_document_identity, normalize_document
+from feedback_ledger.schema import LEDGER_ID_RE, LEDGER_SPEC, PROPOSAL_SPEC, TRIAGE_SPEC
+from feedback_ledger.slugify_ref import SlugifyReferenceError
 from feedback_ledger.store import load_store
 from feedback_ledger.tomlwrite import TomlWriteError, dumps, render_value
+from feedback_ledger.schema_version import (
+    LEDGER_CURRENT_SCHEMA, LEDGER_SCHEMA_PATTERN,
+)
 
 NOW = datetime.date(2026, 9, 19)
 OCCURRED = datetime.date(2026, 9, 1)
-ENTRY_ID = "FBK-20260901-cli-only-writes"
+DEFAULT_TOPIC = "台帳への書込み経路を CLI に限定する判断"
+ENTRY_ID = f"FBK-{OCCURRED:%Y%m%d}-{slugify_ref_module.slugify_topic(DEFAULT_TOPIC)}"
+CORRECTION_TOPIC = "台帳訂正"
+CORRECTION_ID = f"FBK-{OCCURRED:%Y%m%d}-{slugify_ref_module.slugify_topic(CORRECTION_TOPIC)}"
+TOPIC_CORRECTION = "誤記を訂正した記録"
+TOPIC_CORRECTION_ID = (
+    f"FBK-20260902-{slugify_ref_module.slugify_topic(TOPIC_CORRECTION)}"
+)
 PROPOSAL_ID = "FBP-20260919-tighten-contract"
 TRIAGE_ID = "TRG-2026-W38"
 
@@ -39,9 +53,10 @@ ISSUE_ASSET = "feedback_ledger/README.md"
 
 def ledger_data(**overrides) -> dict:
     data = {
-        "schema": LEDGER_SPEC.schema_const,
+        "schema": LEDGER_CURRENT_SCHEMA,
         "id": ENTRY_ID,
-        "topic": "台帳への書込み経路を CLI に限定する判断",
+        "topic": DEFAULT_TOPIC,
+        "theme": "開発工程",
         "occurred_at": OCCURRED,
         "decision_point": "implementation",
         "overridden_role": "main-thread",
@@ -50,7 +65,7 @@ def ledger_data(**overrides) -> dict:
         "recorded_by": "Claude Code (AI)",
         "affected_assets": [NODE_ASSET],
         "supersedes": "",
-        "source": {"issue": 522, "pr": 0, "round": 0, "finding_ids": []},
+        "source": [{"issue": 522, "pr": 0, "round": 0, "finding_ids": []}],
         "narrative": {
             "background": "台帳の書込み経路をどう絞るかが論点になった。\n",
             "recommendation": "エージェントの直接編集を許し、lint で検出する。\n",
@@ -192,7 +207,7 @@ class CanonicalSerializerTests(FeedbackLedgerTestCase):
                 text = dumps(spec, data)
                 reloaded = tomllib.loads(text)
                 self.assertEqual(reloaded["id"], data["id"])
-                self.assertEqual(reloaded["schema"], spec.schema_const)
+                self.assertEqual(reloaded["schema"], data["schema"])
                 # 再シリアライズしてバイト一致（canonical が冪等であること）
                 self.assertEqual(dumps(spec, data), text)
 
@@ -232,6 +247,21 @@ class L1KeyAndVocabularyTests(FeedbackLedgerTestCase):
         code, _ = self.run_cli("new-entry", "--from", "tmp/_feedback/broken.toml")
         self.assertEqual(code, EXIT_ERROR)
 
+    def test_theme_is_required(self):
+        text = dumps(LEDGER_SPEC, ledger_data()).replace('theme = "開発工程"\n', "")
+        (self.root / "tmp/_feedback/missing-theme.toml").write_text(text, encoding="utf-8")
+        code, _ = self.run_cli("new-entry", "--from", "tmp/_feedback/missing-theme.toml")
+        self.assertEqual(code, EXIT_ERROR)
+
+    def test_theme_outside_allowed_values_is_rejected(self):
+        draft = self.write_draft(LEDGER_SPEC, ledger_data(theme="運用全般"))
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_ERROR)
+
+    def test_allowed_theme_is_accepted(self):
+        self.seed_entry(theme="目的・評価")
+        self.assertNotIn("L1", self.rules_with_errors())
+
     def test_enum_violation_is_rejected(self):
         draft = self.write_draft(LEDGER_SPEC, ledger_data(divergence="reversal"))
         text = (self.root / draft).read_text(encoding="utf-8").replace(
@@ -256,6 +286,97 @@ class L1KeyAndVocabularyTests(FeedbackLedgerTestCase):
         draft = self.write_draft(LEDGER_SPEC, data, name="bad-slug.toml")
         code, _ = self.run_cli("new-entry", "--from", draft)
         self.assertEqual(code, EXIT_ERROR)
+
+    def test_japanese_topic_slug_passes_and_can_be_recorded(self):
+        topic = "日本語の判断"
+        slug = slugify_ref_module.slugify_topic(topic)
+        document_id = f"FBK-20260901-{slug}"
+        self.assertIsNotNone(LEDGER_ID_RE.fullmatch(document_id))
+        self.assertEqual(
+            slugify_ref_module.SLUGIFY_PATH,
+            Path(__file__).resolve().parents[2] / "doc-system-v2" / "slugify.py",
+        )
+        schema_path = (
+            Path(__file__).resolve().parents[2] / ".ai/schema/feedback-ledger-v1.json"
+        )
+        ledger_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertRegex(document_id, ledger_schema["properties"]["id"]["pattern"])
+        self.assertRegex(document_id, ledger_schema["properties"]["supersedes"]["pattern"])
+        draft = self.write_draft(
+            LEDGER_SPEC, ledger_data(topic=topic, id=document_id),
+        )
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_OK)
+
+    def test_japanese_punctuation_slug_passes_regex_schema_and_cli(self):
+        topic = "日本語、トピック。"
+        document_id = f"FBK-20260901-{slugify_ref_module.slugify_topic(topic)}"
+        self.assertIsNotNone(LEDGER_ID_RE.fullmatch(document_id))
+        schema_path = (
+            Path(__file__).resolve().parents[2] / ".ai/schema/feedback-ledger-v1.json"
+        )
+        ledger_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertRegex(document_id, ledger_schema["properties"]["id"]["pattern"])
+        self.assertRegex(document_id, ledger_schema["properties"]["supersedes"]["pattern"])
+        draft = self.write_draft(
+            LEDGER_SPEC, ledger_data(topic=topic, id=document_id),
+        )
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_OK)
+
+    def test_id_must_equal_date_and_reference_slugify_topic(self):
+        data = ledger_data(topic="題名", id="FBK-20260901-reference")
+        with patch.object(model_module, "slugify_topic", return_value="reference"):
+            findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
+        self.assertFalse([finding for finding in findings if finding.rule == "L1"])
+
+        data["id"] = "FBK-20260901-wrong"
+        with patch.object(model_module, "slugify_topic", return_value="reference"):
+            findings = check_document_identity(LEDGER_SPEC, data, "draft.toml")
+        self.assertTrue([finding for finding in findings if finding.rule == "L1"])
+
+    def test_unavailable_slugify_reference_rejects_identity_check(self):
+        with patch.object(
+            model_module, "slugify_topic", side_effect=SlugifyReferenceError("missing"),
+        ):
+            findings = check_document_identity(LEDGER_SPEC, ledger_data(), "draft.toml")
+        self.assertTrue([finding for finding in findings if finding.rule == "L1"])
+
+    def test_topic_longer_than_30_characters_is_rejected(self):
+        topic = "あ" * 31
+        slug = slugify_ref_module.slugify_topic(topic)
+        draft = self.write_draft(
+            LEDGER_SPEC,
+            ledger_data(topic=topic, id=f"FBK-20260901-{slug}"),
+        )
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_ERROR)
+
+    def test_empty_repeated_source_is_rejected_by_min_items(self):
+        data = ledger_data(source=[])
+        normalized, findings = normalize_document(LEDGER_SPEC, data, "draft.toml")
+        self.assertIsNotNone(normalized)
+        self.assertTrue(any("最小: 1" in finding.message for finding in findings))
+        draft = self.write_draft(LEDGER_SPEC, data)
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_ERROR)
+
+    def test_repeated_sources_keep_each_issue_tuple_together(self):
+        sources = [
+            {"issue": 582, "pr": 0, "round": 2, "finding_ids": ["F-582-1"]},
+            {"issue": 537, "pr": 600, "round": 1, "finding_ids": ["F-537-3"]},
+        ]
+        draft = self.write_draft(LEDGER_SPEC, ledger_data(source=sources))
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_OK)
+        loaded = tomllib.loads(self.stored("ledger", ENTRY_ID).read_text(encoding="utf-8"))
+        tuples = {
+            (item["issue"], item["pr"], item["round"], tuple(item["finding_ids"]))
+            for item in loaded["source"]
+        }
+        self.assertEqual(
+            tuples, {(582, 0, 2, ("F-582-1",)), (537, 600, 1, ("F-537-3",))},
+        )
 
     def test_required_field_cannot_be_empty(self):
         data = ledger_data()
@@ -285,8 +406,75 @@ class L2AndL3ReferenceTests(FeedbackLedgerTestCase):
 
     def test_supersedes_chain_between_existing_entries_passes(self):
         self.seed_entry()
-        self.seed_entry(id="FBK-20260902-correction", supersedes=ENTRY_ID)
+        self.seed_entry(id=CORRECTION_ID, topic=CORRECTION_TOPIC, supersedes=ENTRY_ID)
         self.assertNotIn("L3", self.rules_with_errors())
+
+
+class RenderCommandTests(FeedbackLedgerTestCase):
+    def test_render_escapes_html_special_topic_and_recommendation(self):
+        topic = "<b>topic</b>"
+        recommendation = "<script>unsafe &amp; 1 > 0</script>\n"
+        data = ledger_data(
+            topic=topic,
+            id=f"FBK-20260901-{slugify_ref_module.slugify_topic(topic)}",
+        )
+        data["narrative"]["recommendation"] = recommendation
+        draft = self.write_draft(LEDGER_SPEC, data)
+        code, _ = self.run_cli("new-entry", "--from", draft)
+        self.assertEqual(code, EXIT_OK)
+
+        code, output = self.run_cli("render")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn(r"\<b\>topic\</b\>", output)
+        self.assertIn(r"\<script\>unsafe \&amp; 1 \> 0\</script\>", output)
+        self.assertNotIn("<b>", output)
+        self.assertNotIn("<script>", output)
+
+    def test_render_labels_all_narrative_and_decision_context(self):
+        self.seed_entry()
+        code, output = self.run_cli("render")
+        self.assertEqual(code, EXIT_OK)
+        for label in ("背景", "推奨", "推奨理由", "不確実性", "オーナー逐語", "推論"):
+            with self.subTest(label=label):
+                self.assertIn(f"- {label}:", output)
+        self.assertIn("- オーナー逐語: 台帳へ書けるのは CLI だけにする。", output)
+        self.assertIn("- 推奨: エージェントの直接編集を許し、lint で検出する。", output)
+        self.assertIn("- 上書き対象ロール: main-thread", output)
+        self.assertIn("- divergence: reversal", output)
+        self.assertIn("- 推論信頼度: medium", output)
+        self.assertIn(r"- 記録者: Claude Code \(AI\)", output)
+        self.assertIn(r"- 対象資産: docs/dashboard\.md", output)
+
+    def test_render_lists_live_decisions_first_and_links_corrections_both_ways(self):
+        self.seed_entry()
+        self.seed_entry(
+            id=TOPIC_CORRECTION_ID,
+            topic=TOPIC_CORRECTION,
+            occurred_at=datetime.date(2026, 9, 2),
+            supersedes=ENTRY_ID,
+        )
+        code, output = self.run_cli("render")
+        self.assertEqual(code, EXIT_OK)
+        self.assertLess(output.index("## 生存決定一覧"), output.index("## 生存する決定"))
+        self.assertLess(output.index("## 生存する決定"), output.index("## 訂正済みの決定"))
+        self.assertIn(f"訂正元: [{ENTRY_ID}](#{ENTRY_ID.lower()})", output)
+        self.assertIn(f"訂正先: [{TOPIC_CORRECTION_ID}](#{TOPIC_CORRECTION_ID.lower()})", output)
+        live_index = output.split("## 生存する決定", 1)[0]
+        self.assertIn(
+            f"- [{TOPIC_CORRECTION}](#{TOPIC_CORRECTION_ID.lower()}) "
+            f"({TOPIC_CORRECTION_ID}; テーマ: 開発工程)",
+            live_index,
+        )
+        self.assertIn(f"({TOPIC_CORRECTION_ID}; テーマ: 開発工程)", output)
+        self.assertLess(output.index("## 生存する決定"), output.index("## 訂正済みの決定"))
+
+    def test_render_fails_closed_on_a_supersedes_cycle(self):
+        self.place(LEDGER_SPEC, ledger_data(supersedes=CORRECTION_ID))
+        self.place(LEDGER_SPEC, ledger_data(
+            id=CORRECTION_ID, topic=CORRECTION_TOPIC, supersedes=ENTRY_ID,
+        ))
+        code, _ = self.run_cli("render")
+        self.assertEqual(code, EXIT_ERROR)
 
 
 class L4AndL5NarrativeLintTests(FeedbackLedgerTestCase):
@@ -398,7 +586,7 @@ class GitBackedImmutabilityTests(FeedbackLedgerTestCase):
         self.assertIn("L6", self.rules_with_errors())
 
     def test_appending_a_new_entry_is_allowed(self):
-        self.seed_entry(id="FBK-20260902-correction", supersedes=ENTRY_ID)
+        self.seed_entry(id=CORRECTION_ID, topic=CORRECTION_TOPIC, supersedes=ENTRY_ID)
         self.assertNotIn("L6", self.rules_with_errors())
 
     def test_illegal_status_transition_is_rejected(self):
@@ -508,6 +696,19 @@ class GitBackedImmutabilityTests(FeedbackLedgerTestCase):
 
 
 class ProposalRuleTests(FeedbackLedgerTestCase):
+    def test_japanese_ledger_id_is_accepted_as_derived_from_reference(self):
+        self.seed_entry()
+        data = proposal_data(derived_from=[ENTRY_ID])
+        self.seed_proposal(**data)
+        self.assertFalse(self.rules_with_errors())
+
+    def test_malformed_derived_from_id_is_rejected(self):
+        self.seed_entry()
+        data = proposal_data(derived_from=["FBK-20260901-Bad_Slug"])
+        draft = self.write_draft(PROPOSAL_SPEC, data)
+        code, _ = self.run_cli("propose", "--from", draft)
+        self.assertEqual(code, EXIT_ERROR)
+
     def test_approved_requires_decider_and_date(self):
         self.seed_entry()
         self.seed_proposal()
@@ -568,6 +769,44 @@ class ProposalRuleTests(FeedbackLedgerTestCase):
 
 
 class TriageRuleTests(FeedbackLedgerTestCase):
+    def test_japanese_ledger_ids_are_accepted_in_triage_references(self):
+        self.seed_entry()
+        self.seed_entry(
+            id=TOPIC_CORRECTION_ID,
+            occurred_at=datetime.date(2026, 9, 2),
+            supersedes=ENTRY_ID,
+            topic=TOPIC_CORRECTION,
+        )
+        data = triage_data(
+            reviewed=[ENTRY_ID],
+            outcomes=[{
+                "entry": ENTRY_ID, "verdict": "merged-into", "proposal": "",
+                "merged_into": TOPIC_CORRECTION_ID, "reason": "重複を統合する",
+            }],
+        )
+        self.seed_triage(**data)
+        self.assertFalse(self.rules_with_errors())
+
+    def test_malformed_triage_ledger_references_are_rejected(self):
+        self.seed_entry()
+        invalid_id = "FBK-20260901-Bad_Slug"
+        data = triage_data(
+            reviewed=[invalid_id],
+            outcomes=[{
+                "entry": invalid_id, "verdict": "merged-into", "proposal": "",
+                "merged_into": invalid_id, "reason": "不正な参照の検査",
+            }],
+        )
+        draft = self.write_draft(TRIAGE_SPEC, data)
+        code, _ = self.run_cli("triage-close", "--from", draft)
+        self.assertEqual(code, EXIT_ERROR)
+
+    def test_empty_outcomes_remain_valid_when_nothing_was_reviewed(self):
+        data = triage_data(reviewed=[], outcomes=[])
+        draft = self.write_draft(TRIAGE_SPEC, data)
+        code, _ = self.run_cli("triage-close", "--from", draft)
+        self.assertEqual(code, EXIT_OK)
+
     def test_reviewed_and_outcomes_must_agree(self):
         self.seed_entry()
         data = triage_data(reviewed=[ENTRY_ID, "FBK-20260902-other"])
@@ -707,8 +946,12 @@ class CliWorkflowTests(FeedbackLedgerTestCase):
         draft = self.write_draft(LEDGER_SPEC, ledger_data(), name="again.toml")
         code, _ = self.run_cli("new-entry", "--from", draft)
         self.assertEqual(code, EXIT_ERROR)  # 既存エントリは CLI からも書き換えられない
-        self.seed_entry(id="FBK-20260902-correction", supersedes=ENTRY_ID,
-                        topic="誤記を訂正した記録")
+        self.seed_entry(
+            id=TOPIC_CORRECTION_ID,
+            occurred_at=datetime.date(2026, 9, 2),
+            supersedes=ENTRY_ID,
+            topic=TOPIC_CORRECTION,
+        )
         self.assertFalse(self.rules_with_errors())
 
     def test_correction_scenario_2_amend_a_pending_proposal(self):
@@ -830,8 +1073,23 @@ class SharedSchemaCorrespondenceTests(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 schema = self._schema(name)
-                self.assertEqual(schema["properties"]["schema"]["const"], spec.schema_const)
+                declared = schema["properties"]["schema"]
+                if spec is LEDGER_SPEC:
+                    self.assertEqual(declared["pattern"], LEDGER_SCHEMA_PATTERN.pattern)
+                else:
+                    self.assertEqual(declared["const"], spec.schema_const)
                 self.assertFalse(schema["additionalProperties"])
+
+    def test_ledger_schema_declares_repeated_source_and_topic_limit(self):
+        properties = self._schema("feedback-ledger-v1.json")["properties"]
+        source = properties["source"]
+        self.assertEqual(source["type"], "array")
+        self.assertEqual(source["minItems"], 1)
+        self.assertEqual(
+            set(source["items"]["properties"]),
+            {"issue", "pr", "round", "finding_ids"},
+        )
+        self.assertEqual(properties["topic"]["maxLength"], 30)
 
     def test_required_keys_match_the_declared_field_sets(self):
         for name, spec in (
@@ -847,15 +1105,30 @@ class SharedSchemaCorrespondenceTests(unittest.TestCase):
                         declared.add(table.name)
                     else:
                         declared.update(field.name for field in table.fields)
-                self.assertEqual(set(schema["required"]), declared)
+                expected_required = declared - ({"theme"} if spec is LEDGER_SPEC else set())
+                self.assertEqual(set(schema["required"]), expected_required)
                 self.assertEqual(set(schema["properties"]), declared)
+                if spec is LEDGER_SPEC:
+                    condition = schema["allOf"][0]
+                    self.assertEqual(
+                        set(condition["if"]["properties"]["schema"]["enum"]),
+                        {"feedback-ledger/v1", "feedback-ledger/v1.0"},
+                    )
+                    self.assertEqual(condition["else"]["required"], ["theme"])
 
     def test_enumerations_match(self):
         ledger = self._schema("feedback-ledger-v1.json")["properties"]
         from feedback_ledger.schema import (
-            CONFIDENCES, DECISION_POINTS, DIVERGENCES, PROPOSAL_STATUSES,
+            CONFIDENCES, DECISION_POINTS, DIVERGENCES, LEDGER_THEMES, PROPOSAL_STATUSES,
             ROUTINGS, TARGET_KINDS, VERDICTS,
         )
+        self.assertEqual(LEDGER_THEMES, (
+            "目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理",
+        ))
+        self.assertEqual(set(ledger["theme"]["enum"]), set(LEDGER_THEMES))
+        from feedback_ledger.schema_version import LEDGER_THEME_INTRODUCED_MINOR
+        self.assertEqual(set(LEDGER_THEME_INTRODUCED_MINOR), set(LEDGER_THEMES))
+        self.assertEqual(set(LEDGER_THEME_INTRODUCED_MINOR.values()), {1})
         self.assertEqual(set(ledger["decision_point"]["enum"]), set(DECISION_POINTS))
         self.assertEqual(set(ledger["divergence"]["enum"]), set(DIVERGENCES))
         self.assertEqual(set(ledger["confidence_of_inference"]["enum"]), set(CONFIDENCES))
@@ -866,6 +1139,32 @@ class SharedSchemaCorrespondenceTests(unittest.TestCase):
         triage = self._schema("feedback-triage-v1.json")
         outcome = triage["$defs"]["outcome"]["properties"]
         self.assertEqual(set(outcome["verdict"]["enum"]), set(VERDICTS))
+
+    def test_ledger_reference_patterns_match_id_acceptance(self):
+        proposal = self._schema("feedback-proposal-v1.json")["properties"]
+        ledger = self._schema("feedback-ledger-v1.json")["properties"]
+        triage = self._schema("feedback-triage-v1.json")
+        outcome = triage["$defs"]["outcome"]["properties"]
+        patterns = (
+            ledger["supersedes"]["pattern"],
+            proposal["derived_from"]["items"]["pattern"],
+            triage["properties"]["reviewed"]["items"]["pattern"],
+            outcome["entry"]["pattern"],
+            outcome["merged_into"]["pattern"],
+        )
+        python_fields = (
+            LEDGER_SPEC.field_map()["supersedes"][1],
+            PROPOSAL_SPEC.field_map()["derived_from"][1],
+            TRIAGE_SPEC.field_map()["reviewed"][1],
+            TRIAGE_SPEC.field_map()["outcomes.entry"][1],
+            TRIAGE_SPEC.field_map()["outcomes.merged_into"][1],
+        )
+        self.assertTrue(all(field.pattern is LEDGER_ID_RE for field in python_fields))
+        invalid_id = "FBK-20260901-Bad_Slug"
+        for pattern in patterns:
+            with self.subTest(pattern=pattern):
+                self.assertRegex(ENTRY_ID, pattern)
+                self.assertNotRegex(invalid_id, pattern)
 
     def test_no_jsonschema_dependency_is_introduced(self):
         sources = [
