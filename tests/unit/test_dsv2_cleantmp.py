@@ -367,8 +367,8 @@ class TestGuardDocsMatchProtectedNames(unittest.TestCase):
     保護名を増やしたら記述も増やす、を機械的に固定する。
 
     検査対象は ``.claude/agents/reconciliation.md`` **だけではない**（PR #319 R-06）:
-    ``CLAUDE.md`` にも同型の追従漏れが残っていた。CLAUDE.md は
-    ``inject-governance.sh`` が**毎ターン全エージェントに注入する統治規範の正本**なので、
+    ``CLAUDE.md`` にも同型の追従漏れが残っていた。CLAUDE.md は**主文脈・サブエージェントの
+    全員が起動時に読み込む統治規範の正本**（主文脈には ``inject-governance.sh`` が毎ターン写しも注入する）なので、
     片方だけ直した状態は誤読源として最も影響が大きい。さらに ``dsv2/README.md``
     （フォーマット依存マップ）にも同じ抜けが3件目として残っていた（issue #315 OOS-1）。
 
