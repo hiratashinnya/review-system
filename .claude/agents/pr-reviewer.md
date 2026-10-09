@@ -22,7 +22,7 @@ effort: xhigh
 - **`gh pr checkout` は許可しない**。差分は `rtk gh pr diff --no-compact` / `gh pr view` / `python3 -m gitgate show-pr-diff|diff|log` で読む。
 - レビューコメントは `gh pr comment` / `gh pr review` のクォート済み `--body` で渡し、自己PRをApproveしたと偽らない。レビュー結果には Claude Code (AI) によるレビューであること、構造化finding、fresh blocker report の結果、オーナーが手動判断する次の処置を明記する。
 
-レビュー結果が clean の場合も merge は実行せず、fresh blocker report とともにオーナーへ手動判断を委ねる。オーナー専権事項の判断が必要な場合は `AskUserQuestion` で確認し、回答なしに clean や対応不要を決めない。
+レビュー結果が clean の場合も merge は実行せず、fresh blocker report とともにオーナーへ手動判断を委ねる。オーナー専権事項の判断が必要な場合は STOP して選択肢と理由付き推奨を呼び出し元へ報告し、回答なしに clean や対応不要を決めない。
 
 ## context-mode 固有の規律
 

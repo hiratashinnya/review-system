@@ -559,6 +559,24 @@ class RationalePointersAreThin(unittest.TestCase):
                 )
 
 
+class NonInteractiveRoleContracts(unittest.TestCase):
+    """非対話ロールはツールを要求せず、STOP を呼び出し元へ報告する。"""
+
+    ROLE_PATHS = (
+        ".claude/agents/pr-reviewer.md",
+        ".claude/agents/issue-implementer.md",
+        ".claude/agents/issue-fixer.md",
+    )
+
+    def test_owner_decisions_stop_and_report_without_interactive_tool(self):
+        for role_path in self.ROLE_PATHS:
+            with self.subTest(role=role_path):
+                body = _read(role_path)
+                self.assertNotIn("AskUserQuestion", body)
+                self.assertIn("STOP", body)
+                self.assertIn("呼び出し元へ報告", body)
+
+
 class RationaleDirIsNotAParityAsset(unittest.TestCase):
     """規律: `.ai/rationale/` は PF wrapper parity の対象外（MISSING を生まない）。
 
