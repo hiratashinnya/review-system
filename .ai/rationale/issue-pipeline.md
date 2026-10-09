@@ -220,6 +220,8 @@ prepare-only で dispatch 成功を表さない。owner-approved worker fallback
 
 ## 却下案：SubagentStart フックは採らない（設計判断）（移設元：共通指示の配り方）
 
+以下は2026-08時点の設計記録である。Issue #542（2026-10）でmerge拒否は各platformのnative permissionへ移し、`agent-command-gate` はロール別のpush等の制限を担う。現行契約では、native permission は直接形の command prefix を拒否し、両 PF の共有 `agent-command-gate` hook が global option、wrapper、API、検査可能な間接実行形式を全ロールについて判定する。
+
 - **SubagentStart フックは採らない（設計判断）**：`SubagentStart`（`hookSpecificOutput.additionalContext` で子コンテキストへ注入可）は実在するが、
   本パイプラインでは採用しない。理由＝(1) 対象2エージェントは本パイプライン専用で、恒常契約は各 `.md` に置く方が可視・版管理でき常に効く（フックだと settings.json ＋シェルに分散）。
   (2) 本 repo でフックは**機械的に拒否できる境界**（push/merge ゲート＝agent-command-gate）に限定する慣行（PR2・機械判定と運用ルールを混ぜない）。ただし Bash 文字列の静的検査であり、非バイパスの完全防御とは扱わない。

@@ -64,11 +64,11 @@ for line in sys.stdin:
                 hooks = []
             elif mode == "fewer-hooks":
                 hooks = hooks[:-1]
-            elif mode == "project-five-user-one":
+            elif mode == "project-one-short-user-one":
                 hooks = hooks[:-1] + user_hooks(1)
             elif mode == "user-only-six":
                 hooks = user_hooks(6)
-            elif mode == "project-six-user-untrusted":
+            elif mode == "project-user-untrusted":
                 hooks += user_hooks(1, "untrusted")
             elif mode == "mixed":
                 hooks[-1].update({"trustStatus":"untrusted", "currentHash":"sha256:current"})

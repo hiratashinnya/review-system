@@ -144,16 +144,16 @@ class AssetParityTests(unittest.TestCase):
         isolation_only = {item["agent_type"] for item in manifest["isolation_only"]}
         self.assertFalse(managed & isolation_only)
 
-    def test_existing_pre_tool_use_trust_indices_are_preserved(self):
+    def test_retired_merge_gate_registration_leaves_other_hooks_ordered(self):
         hooks = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         groups = hooks["hooks"]["PreToolUse"]
         commands = [group["hooks"][0]["command"] for group in groups]
-        self.assertIn("pr-merge-gate.sh", commands[0])
-        self.assertIn("agent-command-gate.sh", commands[1])
-        self.assertIn("issue-start-gate.sh", commands[2])
-        self.assertIn("codex-launch-intent-gate.sh", commands[3])
-        self.assertEqual(groups[3]["matcher"], "Bash")
-        self.assertEqual(len(groups), 4)
+        self.assertNotIn("pr-merge-gate.sh", commands)
+        self.assertIn("agent-command-gate.sh", commands[0])
+        self.assertIn("issue-start-gate.sh", commands[1])
+        self.assertIn("codex-launch-intent-gate.sh", commands[2])
+        self.assertEqual(groups[2]["matcher"], "Bash")
+        self.assertEqual(len(groups), 3)
 
     def test_codex_launch_manifest_derives_every_non_owner_input(self):
         manifest = json.loads(

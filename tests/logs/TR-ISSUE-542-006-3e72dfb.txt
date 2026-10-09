@@ -1,0 +1,30 @@
+F-542-42 CI 相当 clone 再検証ログ
+開始 HEAD: 3e72dfb05da88885c63330427b20f88ad5161501
+
+修正前 clone:
+- `git clone --no-hardlinks . tmp/_rr/ci-like` の clone HEAD は開始 HEAD と一致。
+- HOME=<clone>/tmp/_rr/home、TMPDIR=<clone>/tmp/_rr/tmp、PYTHONPYCACHEPREFIX=<clone>/tmp/_rr/pycache。
+- `python3 -m unittest tests.unit.test_codex_hook_trust tests.unit.test_codex_hook_trust_hook`: Ran 19 tests, failures=6。
+- うち F-542-42 の5件は期待「定義6件」に対し、実際「定義4件に対し発見3件／0件」で失敗。追加の1件 `test_missing_hooks_json_is_undetermined_not_anomaly` は TMPDIR 内の temp dir が親 repo の hooks.json を拾って returncode=0 となった。
+- `python3 -m unittest discover -s tests/unit`: Ran 2059 tests in 359.653s; failures=9, errors=2, skipped=12。
+
+ローカル worktree 修正前:
+- F-542-42 の5テストを個別選択し、Ran 5 tests in 0.387s; OK。
+- `git worktree list --porcelain -z` は外側 main checkout を先頭に返した。外側 main の `.codex/hooks.json` は handler 6件、issue-542 branch の同ファイルは4件。
+
+修正後 clone:
+- 変更した5ファイルを worktree から clone にコピー。各ファイルの `cmp` は全て exit 0。
+- F-542-42 の5テスト: Ran 5 tests in 0.351s; OK。
+- trust、hook、repository の3 module: Ran 24 tests in 1.844s; OK。
+- `python3 -m unittest discover -s tests/unit`: Ran 2059 tests in 367.691s; failures=2, errors=2, skipped=12。
+- 残る failures は issue-start の `test_nonprivate_manifest_and_ledger_leaf_modes_fail_closed`（ledger-foreign-group）と `test_nonprivate_manifest_and_ledger_leaf_reject_nss_lookup_failure`（leaf=ledger）。残る errors は `test_installed_codex_profile_normal_and_negative_matrix_is_model_free` と `test_claude_review_blocks_workspace_outside_default_before_commands`。
+- 以前の基点由来8ケースを個別実行（修正前）: Ran 8 tests in 0.193s; failures=4, errors=2。2つの rate-limit watcher は pass。
+- 残る4ケースを個別実行（修正後）: Ran 4 tests in 0.058s; failures=2, errors=2。issue-start の2件は `MANIFEST_INVALID: unsafe group-writable directory`、Codex profile は `CODEX_SUPERVISOR_FEATURE_CATALOG_UNKNOWN: daemon_auto_start system_proxy_fallback unified_exec_tty`、Claude MCP は `ValueError: not enough values to unpack (expected 2, got 0)`。
+
+提供された PR CI の比較値:
+- Run 37726550642: Ran 2059 tests in 405.897s; failures=5, skipped=19。5 failures はすべて F-542-42 の Codex hook trust assertions。
+
+lint / coverage:
+- `python3 -m maintainability_lint check`: exit 0, violations=0, accepted_debt=125。
+- `git diff --check`: exit 0。
+- Coverage skill command `uv run --with coverage coverage run -m unittest discover -s tests -p 'test_*.py'` は pypi.org DNS 解決失敗で3回 retry 後 exit 2。coverage package の install fallback は実行していない。

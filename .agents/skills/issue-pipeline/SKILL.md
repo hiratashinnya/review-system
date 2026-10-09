@@ -1,6 +1,6 @@
 ---
 name: issue-pipeline
-description: 複数のオープン GitHub Issue を実装→PR→レビュー→マージ→クローズで1件ずつ処理するオーケストレータ。処置順の原案作成とオーナー判断の取り次ぎ、issue-implementer/pr-reviewer サブエージェントへの委譲（model は bloom-model-tier、レビュー model はリスクベース）、進捗管理を扱う。Issue 処理を end-to-end で進めるときに使う。doc-system-v2 ノード著作には使わない（spec-pipeline / impl-design-pipeline を使う）。
+description: 複数のオープン GitHub Issue を実装→PR→レビュー→owner report→オーナー手動マージ→クローズで1件ずつ処理するオーケストレータ。処置順の原案作成とオーナー判断の取り次ぎ、専用担当への委譲、進捗管理を扱う。AI はマージせず、オーナーが手動で実行する。doc-system-v2 ノード著作には使わない（spec-pipeline / impl-design-pipeline を使う）。
 ---
 
 ## 共通本文
@@ -16,6 +16,6 @@ description: 複数のオープン GitHub Issue を実装→PR→レビュー→
 - supervisorはmain checkout/共通Gitをread-only、対象worktreeだけwriteable、private `/tmp`/`/dev`、Codex API control-plane通信を維持する。innerは`codex --profile issue-supervised --strict-config exec -C <worktree>`で起動し、profileがworkspace-write相当、approval never、data-plane network deny、multi-agent/apps disabledを設定する。literal `--sandbox`はprofileと併用せず、compatibility検査が`LEGACY_SANDBOX_PRESENT`で拒否する。full MCP broker、feature catalog束縛、Landlock EXECUTE allowlist、command毎fresh-bwrap、空procfs、CAS束縛MCPは使わない。role contract digest、durable session、protected patch、host publish CASは維持する。
 - inner Codexは編集・test・role別schema v1 `pre_publish` handoffまで。commit/push/PRはexit後のhost側`publish` executorへ戻し、protected patch（宣言時のみ）→add→commit→push→implementer PR createの順序と段間HEAD/commit tree/index tree/worktree content/upstream factsをledger CASで強制し、role別final handoffをhost生成する。publish reservationはowner process identityとleaseを持ち、owner crash後だけ回収する。PR create回収はrepository/head/base/head OID/owner/open/non-draftが一意一致する既存PRだけを採用する。`run`/`resume`はowner process identity付きactive attempt reservationを取り、生存ownerはlease期限後もfenceし、resumeは最新の未消費rate-limit pauseまたはhost登録済み診断pauseを受け付ける。fixerは最初のturnでtask-private proposalだけを書き、host Attempt登録後に同一threadをresumeする。fixer publishはpush後にhost karte.close-attemptを実行し、中央Result一致後だけfinalを生成する。JSONL/exit/handoffのいずれかが不正なら非終端entryとworktreeを保持する。
 - dispatch deny・process failure・local `thread.started`だけを成功証拠にしない。`turn.completed`、exit 0、実handoffの実装後観測を揃える。
-- 実装担当は `.codex/agents/issue-implementer.toml`、是正担当は `.codex/agents/issue-fixer.toml`、レビュー担当は `.codex/agents/pr-reviewer.toml` の developer_instructions にある恒常契約を適用する。implementer/fixer は push 可・merge 不可、reviewer は自己修正/push 不可という hook 機械ゲートを維持する。
+- 実装担当は `.codex/agents/issue-implementer.toml`、是正担当は `.codex/agents/issue-fixer.toml`、レビュー担当は `.codex/agents/pr-reviewer.toml` の developer_instructions にある恒常契約を適用する。implementer/fixer は push 可、native execpolicy は直接形の merge command prefix を拒否し、global option／wrapper／API／検査可能な間接実行は両 PF の共有 command hook が判定する。reviewer は自己修正/push も行わない。
 - この binding 機構を導入する bootstrap PR 自身に finding が出た場合、未導入の Codex fixerを worker・implementer・別roleへ偽装して迂回しない。bootstrap PR は独立 reviewer の finding を記録して STOP し、runtime 観測が揃うまで正規 Codex fixer を予定しない。オーナーが明示した bootstrap 処置だけを role 偽装と分離した記録で行う。
 - 実装の model／effort は Bloom ルーブリック、初回レビューの effort は共通本文のリスク信号で選ぶ。再レビューは既定 `high`、レート制限を理由に降格しない。
