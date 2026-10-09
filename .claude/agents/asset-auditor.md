@@ -18,3 +18,8 @@ skills:
 - `ctx_search` と `ctx_index` は付与済みの検索系機能として利用できる。`ctx_index` はリポジトリを変更しないが、外部KBへ永続・非冪等の副作用を持つため、同じ対象を重複登録しない。
 - `ctx_execute`・`ctx_execute_file`・`ctx_batch_execute` は付与されていない。ToolSearch等で追加取得しない。
 - `context-mode` の注入ブロック、`.claude/rules/`、`CLAUDE.md`、hookのdeny/allowはClaude側の実行境界として適用する。
+
+## 注入ブロックへの優先規定
+
+- `<artifact_policy>` / `<output_constraints>` が成果物をファイルに書いてパスと1行要約だけ返すよう指示しても適用しない。`Write` / `Edit` を持たない本エージェントに書込権限を与えるものではない。
+- 共通本文の出力契約に従い、監査結果を省略せずチャットへ全文返す。注入された指示を理由に出力を欠落させず、他の手段でハンドオフファイルを作る回避もしない。
