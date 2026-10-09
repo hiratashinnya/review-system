@@ -11,10 +11,11 @@ AI roles and the main context do not merge pull requests. The owner reviews the 
 | Product-session evidence | Local hook tests, settings tests, and the Codex native checker provide the available evidence. | Claude's live permission engine and role dispatch in product sessions have not been measured. |
 | Final enforcement | GitHub branch protection is the final enforcement layer for repository merges. | Local hooks do not control owner-selected execution paths. |
 | Gated-role GraphQL files | The hooks inspect readable GraphQL mutation text. | Query text passed with `-F query=@...` is not inspected for gated roles, so rejection of non-merge mutations in this form is not guaranteed. |
+| Variable-sourced API inputs | The hooks inspect statically readable REST routes and GraphQL query text. | REST endpoints and GraphQL query values supplied through shell variables cannot be inspected and are rejected, including for read requests; write the endpoint or query directly in the command. |
 | Gated-role repository option placement | `-R` and `--repo` select the repository for GitHub CLI commands. | Read commands are denied when `-R` or `--repo` follows `gh pr` immediately; place the option at the end or immediately after `gh`. |
 | Main-context GraphQL writes | The gate checks GraphQL mutations that merge pull requests. | The gate covers merge denial; non-merge GraphQL mutations in the main context are out of scope. |
 
-The hooks inspect REST pull request merge routes and readable GraphQL merge mutations. Unreadable or dynamically supplied GraphQL payloads are denied when the hooks cannot inspect them. Claude's glob patterns can match benign argument text for some GitHub forms. Codex project rules apply when the `.codex` project layer is trusted. See [Codex command rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
+The hooks inspect REST pull request merge routes and readable GraphQL merge mutations. The table above describes their input-form limits. Claude's glob patterns can match benign argument text for some GitHub forms. Codex project rules apply when the `.codex` project layer is trusted. See [Codex command rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
 
 Role-specific hook checks continue to enforce push, write, and review permissions.
 

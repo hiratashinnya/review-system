@@ -67,3 +67,7 @@ F-542-37 では、主文脈からの非 merge GraphQL mutation は merge 拒否�
 旧 classifier の最終 contract は `classifier_version: 1.17` である。Issue #542 で classifier 自体を撤去したため、その版は archive で履歴として固定し、現行の retired notice は `policy_version: 1.18` とした。`1.18` は notice の版であり、稼働 classifier の版ではない。
 
 本是正は同じ未 merge Issue #542 内の設計・実装補正であり、`policy_version: 1.18` は本来 classifier の retired notice の版である。新たな classifier 契約を作らず、その notice をもう一度 bump する変更でもないため、版を据え置いた。
+
+## 2026-10-09 の再レビュー判断
+
+F-542-48 では、`gh api "$ENDPOINT"` や `gh api graphql -F query="$QUERY"` のように shell 変数から REST endpoint または GraphQL query を渡す読み取りも拒否されることを確認した。値が command text から静的に分からない場合、hook は route、method、query の内容を検査できず、一律に拒否する。endpoint や query を直接書けば検査可能な形で実行できる。オーナーはこの制約を設計どおりとして受け入れ、コードを変更せず、現行 tool guide の限界表に記録することを決定した。
