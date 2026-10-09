@@ -1,9 +1,6 @@
-"""主文脈専用の規範（`.claude/main-context/*.md`）の配送経路の検査。
-
-全文は SessionStart の `orchestrator-context.sh` が委譲ルールに続けて注入し、毎ターンの
-`inject-governance.sh` は写し（`governance-directives.md`・項12が要約）だけを注入する。
-読込失敗は当該ファイルだけを飛ばし、他の注入は続ける（fail-open）。
-"""
+"""主文脈専用の規範（`.claude/main-context/*.md`）の配送経路の検査。全文は SessionStart の
+`orchestrator-context.sh` が委譲ルールに続けて注入し、毎ターンの `inject-governance.sh` は写し
+（`governance-directives.md`・項12が要約）だけを注入する。読込失敗は当該ファイルだけを飛ばす（fail-open）。"""
 
 import json
 import re
@@ -47,13 +44,16 @@ def main_context_bodies():
     return {p.name: strip_comments(p.read_text(encoding="utf-8")) for p in paths}
 
 
+def delegation_rules():
+    return (HOOKS / DELEGATION_RULES).read_text(encoding="utf-8").strip()
+
+
 class TestSessionStartDeliversFullText(unittest.TestCase):
     def test_delegation_rules_then_every_main_context_body(self):
         completed = run_hook(REPO_ROOT, "orchestrator-context.sh")
         self.assertEqual(completed.returncode, 0, completed.stderr)
         context = context_of(completed)
-        rules = (HOOKS / DELEGATION_RULES).read_text(encoding="utf-8").strip()
-        self.assertTrue(context.startswith(rules))
+        self.assertTrue(context.startswith(delegation_rules()))
         self.assertTrue(main_context_bodies(), f"{MAIN_CONTEXT_DIR} に規範が無い")
         for name, body in main_context_bodies().items():
             self.assertIn(body, context, f"{name} の全文が SessionStart の注入に含まれない")
@@ -79,8 +79,7 @@ class TestSessionStartDeliversFullText(unittest.TestCase):
             copy_hooks(Path(tmp))
             completed = run_hook(Path(tmp), "orchestrator-context.sh")
             self.assertEqual(completed.returncode, 0, completed.stderr)
-            rules = (HOOKS / DELEGATION_RULES).read_text(encoding="utf-8").strip()
-            self.assertEqual(context_of(completed), rules)
+            self.assertEqual(context_of(completed), delegation_rules())
 
 
 class TestPerTurnInjectionCarriesOnlyTheCopy(unittest.TestCase):
@@ -98,7 +97,3 @@ class TestPerTurnInjectionCarriesOnlyTheCopy(unittest.TestCase):
         for name, text in texts.items():
             match = HISTORY_RE.search(text)
             self.assertIsNone(match, f"{name} の注入本文に経緯・出典がある（rationale へ移す）: {match}")
-
-
-if __name__ == "__main__":  # pragma: no cover
-    unittest.main()
