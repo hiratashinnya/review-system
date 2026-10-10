@@ -217,7 +217,7 @@ GITGATE_VERBS_BY_ROLE = {
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
-        "adopt-branch",
+        "adopt-branch", "integrate-base", "integrate-base-continue", "integrate-base-abort",
     },
     # pr-reviewer: レビュー用の読取専用のみ。PR diff は全量を保存する専用verbを使う。
     "pr-reviewer": {"diff", "log", "show-pr-diff"},
@@ -840,6 +840,40 @@ def raw_git_denied_reason(tokens):
     )
 
 
+def base_integration_reason(command_text, role):
+    """Recognize Python module options only for the three fixer integration verbs."""
+    if role == "issue-fixer":
+        return None
+    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
+    for segment in SEGMENT_SPLIT_RE.split(command_text):
+        tokens = shell_words(segment) or []
+        for index, token in enumerate(tokens):
+            if not os.path.basename(token).startswith("python"):
+                continue
+            cursor = index + 1
+            while cursor < len(tokens):
+                option = tokens[cursor]
+                module_option = re.fullmatch(r"-[^cWXm-]*m(.*)", option)
+                if module_option:
+                    module = module_option.group(1)
+                    if not module:
+                        cursor += 1
+                        module = tokens[cursor] if cursor < len(tokens) else ""
+                    if module in {"gitgate", "gitgate.__main__"} and tokens[cursor + 1:cursor + 2] and tokens[cursor + 1] in verbs:
+                        return "PR base integration is restricted to issue-fixer"
+                    break
+                value_option = re.fullmatch(r"-[^cWXm-]*[WX](.*)", option)
+                if value_option:
+                    cursor += 1 if value_option.group(1) else 2
+                elif option == "--check-hash-based-pycs":
+                    cursor += 2
+                elif re.fullmatch(r"-[^cWXm-]+", option):
+                    cursor += 1
+                else:
+                    break
+    return None
+
+
 def gitgate_violation(tokens, role):
     """層3(gitgate): `python3 -m gitgate <verb> …` の verb をロール別集合で判定する。層2 で
     tokens[2]=='gitgate' の形が保証されている。許可なら None、違反なら理由文字列を返す。"""
@@ -1134,7 +1168,10 @@ if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     dangerous_token = all_role_dangerous_command_token(command)
 
 reason = None
-if merge_reason:
+base_reason = base_integration_reason(command, agent_type) if isinstance(command, str) and tool_name in SHELL_TOOL_NAMES else None
+if base_reason:
+    reason = f"agent-command-gate: {base_reason}."
+elif merge_reason:
     reason = f"agent-command-gate: {merge_reason}; merge commands are denied for every role."
 elif dangerous_token:
     # agent_type を問わず deny する（main context 自身・各 *-author 等の従来「常に許可」だった穴を、
