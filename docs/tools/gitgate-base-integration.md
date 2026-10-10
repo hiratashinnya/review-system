@@ -1,6 +1,6 @@
 # PR base 取り込み契約（gitgate-base-integration/1.0）
 
-Issue #594 のオーナー決定と設計変更の履歴は `.ai/rationale/gitgate-base-integration-594.md` に保持する。同一未公開PR内の是正なのでpolicy 1.0を維持する。
+設計判断・決定履歴は `.ai/rationale/gitgate-base-integration-594.md` に保持する。版注記: 初版導入と同一 PR 内のレビュー是正は一つの版遷移に属するため、当該是正では policy 1.0 を維持する。
 
 ## 凍結した設計
 
@@ -21,7 +21,7 @@ Issue #594 のオーナー決定と設計変更の履歴は `.ai/rationale/gitga
 
 abortはPR APIに依存せず、自分のoperationと現在のHEAD/MERGE_HEADを照合する。開始後の編集（無関係なtracked/untrackedも含む）をmainの `tmp/_base_integration_recovery/<operation>-<reservation>.tar` へ保存してから `merge --abort` を実行する。Gitの解消編集を失う操作なので保存先を返す。偽operation、foreign merge、保存不能なら実行しない。
 
-Codex supervisorの旧接続は提供しない。新方式の接続は#538の撤去・置換設計で扱い、innerの共通Git read-only境界を維持する。protected/契約資産のincoming changeは開始前にSTOPし、古い契約で編集を続行しない。別host入口やraw Gitで未対応経路を代替しない。
+Codex supervisorの取り込み接続は未対応であり、取り込みが必要ならSTOPして報告する。supervised innerの共通Git read-only境界を維持する。protected/契約資産のincoming changeは開始前にSTOPし、古い契約で編集を続行しない。別host入口やraw Gitで未対応経路を代替しない。
 
 ## 変更不能時の回復
 

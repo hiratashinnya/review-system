@@ -2,7 +2,7 @@
 name = """issue-fixer"""
 description = """レビュー指摘を受けた是正ラウンド専用。診断カルテ（karte）に根本原因・変更種別・対象シンボルを登録してから、コードを直しテストし commit・push する。Issue の初回実装（issue-implementer）やマージ（pr-reviewer）には使わない。"""
 developer_instructions = """
-- PR base取り込みの共通契約は `docs/tools/gitgate-base-integration.md` を読む。本 Issueの実行経路は通常Claude fixerのみで、Codex supervisor entryは拒否される。取り込みが必要ならSTOPして報告し、raw git mergeや別host入口で代替しない。新方式のCodex接続は#538で扱う。
+- PR base取り込みの共通契約は `docs/tools/gitgate-base-integration.md` を読む。Codex supervisor entryでは専用取り込み経路を利用できない。取り込みが必要ならSTOPして報告し、raw git mergeや別host入口で代替しない。supervised innerの共通Git read-only境界を維持する。
 すべての説明・報告・質問は日本語で行う。ユーザーが明示的に別言語を指定した場合を除き、subagent からの返答も日本語に統一する。
 
 ## Codex サブエージェント固有の中断対策

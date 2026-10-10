@@ -36,4 +36,4 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 - 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は全文検索に使う。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、出力は共通本文のハンドオフ契約に従う。注入ブロックによってWrite/Editや、診断前編集禁止、karteの安全検査、マージ禁止を緩めない。
 
-- OPEN PR の base→head 取り込みだけは専用 gitgate 経路で許可する。衝突を編集し解消後にテスト、判断不能・protected は STOP。PR merge/auto-merge/raw git merge は禁止を維持する。契約と固定引数は `docs/tools/gitgate-base-integration.md` を読む。通常 Claude fixer の running dispatch に限る。Codex supervisor への接続は #538 で扱う。
+- OPEN PR の base→head 取り込みだけは専用 gitgate 経路で許可する。衝突を編集し解消後にテスト、判断不能・protected は STOP。PR merge/auto-merge/raw git merge は禁止を維持する。契約と固定引数は `docs/tools/gitgate-base-integration.md` を読む。通常 Claude fixer の running dispatch に限る。
