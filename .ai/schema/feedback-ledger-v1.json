@@ -11,9 +11,10 @@
     "supersedes", "source", "narrative"
   ],
   "properties": {
-    "schema": {"const": "feedback-ledger/v1"},
-    "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*$"},
-    "topic": {"type": "string", "minLength": 1},
+    "schema": {"type": "string", "pattern": "^feedback-ledger/v1(?:\\.(?:0|1))?$"},
+    "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*$"},
+    "topic": {"type": "string", "minLength": 1, "maxLength": 30},
+    "theme": {"enum": ["目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理"]},
     "occurred_at": {"type": "string", "format": "date"},
     "decision_point": {
       "enum": [
@@ -38,20 +39,24 @@
     },
     "supersedes": {
       "type": "string",
-      "pattern": "^(?:|FBK-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*)$"
+      "pattern": "^(?:|FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*)$"
     },
     "source": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["issue", "pr", "round", "finding_ids"],
-      "properties": {
-        "issue": {"type": "integer", "minimum": 1},
-        "pr": {"type": "integer", "minimum": 0},
-        "round": {"type": "integer", "minimum": 0},
-        "finding_ids": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^F-[0-9]+-[0-9]+$"}
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue", "pr", "round", "finding_ids"],
+        "properties": {
+          "issue": {"type": "integer", "minimum": 1},
+          "pr": {"type": "integer", "minimum": 0},
+          "round": {"type": "integer", "minimum": 0},
+          "finding_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^F-[0-9]+-[0-9]+$"}
+          }
         }
       }
     },
@@ -80,5 +85,17 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema": {"enum": ["feedback-ledger/v1", "feedback-ledger/v1.0"]}
+        },
+        "required": ["schema"]
+      },
+      "then": {"not": {"required": ["theme"]}},
+      "else": {"required": ["theme"]}
+    }
+  ]
 }

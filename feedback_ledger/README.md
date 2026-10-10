@@ -3,6 +3,12 @@
 オーナーが AI の推奨を曲げた判断を、**改ざん検知可能な形**で版管理下に蓄積する（Issue #522）。
 捕捉（I2）・週次棚卸し（I3）・反映（I4）はいずれもこのスキーマと CLI の上に載る。
 
+v1.1 以降のエントリは主題を表す `theme` を必須で1つ選びます。既存形式の `v1` / `v1.0` は v1.0 相当として `theme` を持たず、v1.1 で導入した7語彙は使えません。
+
+台帳 minor を上げるときは `schema_version.py` の `LEDGER_CURRENT_MINOR` を更新し、変更内容に応じた Python の互換性判定と JSON Schema の条件を同期してテストを追加します。新しい `theme` 値を加える場合は `schema_values.py` と JSON Schema の enum、および `schema_version.py` の導入 minor 対応表を更新します。`new-entry` は `feedback-ledger/v1.1` のように現行版を明示した draft だけを受け付け、版は書き換えません。
+
+台帳 ID の slug は `doc-system-v2/slugify.py` が出力する Unicode 文字を広く受け付けます。構文 regex は slugify が除去する hostile 文字、空白、先頭末尾や連続ハイフンを拒否します。JSON Schema の ECMA pattern では Unicode カテゴリを移植可能に判定できないため、制御・書式・サロゲート・私用・未割当文字は Python 検査が拒否します。ID は保存文字列を変換せず、追加時と `check` 時に NFKC+casefold 後の別 ID 衝突も検査します。
+
 区分: どちらのシステム（doc_system / review_system）にも含有されない**汎用開発ハーネス**
 （`.claude/rules/02-decision-process.md`「起票先はプロジェクト区分で決める」）。指摘・改善は
 ノード起票ではなく Issue で起票する。
@@ -27,6 +33,7 @@ python3 -m feedback_ledger check --canonical
 python3 -m feedback_ledger check --canonical --require-base   # CI（base 未解決を ERROR にする）
 python3 -m feedback_ledger status --now 2026-09-19 --json
 python3 -m feedback_ledger index
+python3 -m feedback_ledger render
 ```
 
 終了コードは `dsv2` / `karte` と揃える: `0` 正常 ／ `2` 未検出 ／ `4` 前提違反・検証失敗。
@@ -53,6 +60,24 @@ python3 -m feedback_ledger index
 
 誤検出（L4/L5）は `feedback_ledger/allowlist.py` に **理由必須**で登録する（理由が空なら
 import 時 `ValueError`。`time_fixture_lint/allowlist.py`・`asset_parity/exceptions.py` と同じ運用）。
+
+## 台帳と ADR（#540）の境界
+
+オーナー確定（2026-10-07・Issue #582 本文に記録、2026-10-09 にオーナーが再確認）。本節が**現行の規則**で、
+古くなったら本文を書き換える（経緯は Issue #582 とその AI 対応コメントに残す）。
+
+1. 判定基準：**逐語を伴うオーナー決定は台帳**（出来事の正本）、**逐語を伴わない設計理由は ADR**
+   （why／代替案／帰結。`recorded_by` はロールでもよい）。
+2. plan を無修正で承認した場合は、台帳にも ADR にも新規記録しない。
+3. plan の修正・条件付き承認は、台帳と ADR の両方に記録する（ADR が台帳 id を参照する）。
+4. オーナーが finding を覆した判断は台帳に記録する（#523 の `override_ref` が参照する）。
+   ロール間の覆しはカルテ（`karte`）だけに残す。
+5. 全ツール共通の方針は台帳だけに記録する。方針を覆すときは、それぞれの `supersedes` の連鎖で表す。
+6. 参照は **ADR→台帳の片方向のみ**。ADR にオーナーの逐語は転載しない。
+7. review_system／doc_system 側の DD は、台帳の対象外。
+
+ADR の機構（#540）は未実装なので、本節は ADR 側の規則も含めて当面ここに置く。#540 が稼働したら、
+設計理由（why・代替案・帰結）に当たる部分を ADR へ移し、本節には台帳側の規則と参照だけを残す。
 
 ## 設計判断
 

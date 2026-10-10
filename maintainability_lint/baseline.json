@@ -194,21 +194,9 @@
       "line_count": 454,
       "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
     },
-    "feedback_ledger/cli.py": {
-      "line_count": 476,
-      "sha256": "8e822e51068e542bd098742abdddcd6f6669281a61cdad16566aae68565ff4ed"
-    },
-    "feedback_ledger/model.py": {
-      "line_count": 341,
-      "sha256": "a46e4d4927e7e9422193bd254ebdb00db61ab23e33b9279c9bf9328a8b2b949b"
-    },
     "feedback_ledger/paths.py": {
       "line_count": 200,
       "sha256": "9114ae010d6fbe8fbaf0df21d7230c2c22187d4e5554d74872cf9cd498f20e60"
-    },
-    "feedback_ledger/schema.py": {
-      "line_count": 205,
-      "sha256": "129359ba40a14be56bc3abd8d7c685750f3da1713a74a6e5a73de0156cbbb939"
     },
     "feedback_ledger/status.py": {
       "line_count": 168,
@@ -217,10 +205,6 @@
     "feedback_ledger/store.py": {
       "line_count": 164,
       "sha256": "f8e1d54fcf53a673866b38e1675a38847b2bd09dbf9466d3d92068e3ae0a6d79"
-    },
-    "feedback_ledger/tomlwrite.py": {
-      "line_count": 142,
-      "sha256": "36004a98d32db4f51fb989acd64395125ecc62984a6cd62532e52c4bc830c511"
     },
     "gitgate/adopt.py": {
       "line_count": 532,
