@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/codex.md; sha256: 8abc296ee3cbb906812790bae7c49289c55624998e9ff93892d65a0713df723a -->
+<!-- platform-source: .ai/guidance/platforms/codex.md; sha256: e293279beaf859699a8734addf7e2e84ede4cdad5a95f8fb2e3035fb36cad8ae -->
 
 # プロジェクト共通 guidance
 
@@ -72,10 +72,4 @@
 - 実装、commit、push、PR 作成、PR レビュー、修正は、Codex が利用可能な subagent に委譲する。
 - shell 経由で GitHub 本文を投稿する場合は body file を優先し、バッククォートや `$()` の shell 展開を防ぐ。
 - secondary worktree からの remote 操作後にローカル checkout／cleanup が競合した場合は、remote 状態を確認してから後処理する。
-
-## Codex rate-limit recovery
-
-- project-local Stop hook は rate-limit の兆候がある場合だけ `/status` を送り、cooldown で再帰を抑える。
-- cloud／hosted／no-tmux／tmux-unavailable の no-op 経路では、状態ディレクトリ、payload、ログなどの永続副作用を起こさない。
-- tmux pane 注入ガードの既定は `^codex$` とし、wrapper が必要な環境だけ明示的に上書きする。
 - Codex 資産を `.claude/` に混ぜない。Codex hooks/config/custom agents は `.codex/`、repo skills は `.agents/skills/` に置く。

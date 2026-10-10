@@ -53,7 +53,7 @@ class CodexHookTrustCliTests(CodexHookTrustTestMixin, unittest.TestCase):
     def test_mixed_trust_reports_untrusted_key_and_hash(self):
         result = self._run_check("mixed")
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("stop:0:0", result.stdout)
+        self.assertIn("pre_tool_use:2:0", result.stdout)
         self.assertIn("sha256:current", result.stdout)
         self.assertNotIn("pre_tool_use:0:0", result.stdout)
 

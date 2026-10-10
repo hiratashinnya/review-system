@@ -128,7 +128,7 @@ class ScannerSyntheticTests(unittest.TestCase):
         self.assertEqual(report.findings, [])
 
     def test_allowlisted_hit_is_suppressed_from_violations(self):
-        # allowlist.py の実エントリ（test_codex_rate_limit_api.py の resetsAt/NOW）を
+        # allowlist.py の実エントリ（先頭エントリ）を
         # 合成ツリーでも再現し、is_allowlisted() が (path, name) の組で一致することを確認する。
         entry = ALLOWLIST[0]
         found = is_allowlisted(entry.path, entry.name)

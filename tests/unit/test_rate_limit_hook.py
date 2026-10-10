@@ -2,15 +2,13 @@
 
 Covers the pure, side-effect-light logic in
 ``.claude/hooks/resume-watcher.sh`` (and the shared ``lib-pane-guard.sh``),
-which previously had NO automated coverage — only the Codex-side hooks did
-(``test_codex_rate_limit_*``). Issue #240 D2 flagged this coverage gap.
+which previously had NO automated coverage (Issue #240 D2 flagged this coverage gap).
 
 ``resume-watcher.sh`` can be sourced with ``CLAUDE_RL_SOURCE_FOR_TEST=1`` (and a
 dummy pane-id positional arg) to expose its pure functions
 (``parse_reset_from_text`` / ``build_continue_msg`` / ``text_has_banner`` / the
 lib's ``rl_pane_slug`` / ``rl_hit_file``) without touching tmux, acquiring the
-lock, or running the wait/inject loops — the same test hook the Codex watcher
-uses (``CODEX_RL_SOURCE_FOR_TEST``). ``CLAUDE_RL_STATE_DIR`` redirects state
+lock, or running the wait/inject loops. ``CLAUDE_RL_STATE_DIR`` redirects state
 (logs / lock) into a temp dir so tests never write to ``~/.claude``.
 
 The tests double as regression guards for the bug fixes made in this issue:

@@ -6,7 +6,7 @@ bites `main` for a third time (issue #344).
 
 ## Why this exists
 
-- **1st occurrence = #302** (2026-08-04): `tests/unit/test_codex_rate_limit_api.py` had a
+- **1st occurrence = #302** (2026-08-04): a Codex rate-limit API unit test (since removed in #569) had a
   fixed epoch (`RL_RESET_EPOCH = 1783767886`) compared against a live-clock-derived
   window; it went stale and broke `main` with no code change.
 - **2nd occurrence = #339**: the fix for #302 only covered that one file. Meanwhile
@@ -114,11 +114,10 @@ as Issue #129's static-gate limits):
 ## Handling false positives: explicit, justified allowlist
 
 Some hits are genuinely inert but don't fit either safety pattern above — e.g.
-`test_codex_rate_limit_api.py`'s `REAL_IDLE_RESULT["...']["resetsAt"]` is a **live-captured
-API response** fed straight into a pure function
-(`summarize_rate_limits(response, now)`) that takes `now` as an explicit parameter and
-never reads a real clock; likewise its paired `NOW = 1783760000` constant. Neither will
-ever touch `datetime.now()`/`time.time()`, so there's nothing to mock.
+`tests/fixtures/blocker_gate/schema_only_waiver.yml`'s `approved_at` is an opaque string
+consumed only by `parse_waiver_yaml()` schema-validation tests; that path never calls
+`verify_waiver()` (the function that does the wall-clock comparison), so there is no clock
+read to mock.
 
 These are recorded — not silently ignored — in `time_fixture_lint/allowlist.py` as
 `(path, name, reason)` entries, matching this repo's existing convention in
@@ -162,8 +161,6 @@ Running the tool against this repo today finds 0 violations:
   used to build a fake waiver payload) — **protected**: the enclosing test method
   (`test_waiver_evidence_correlation_is_closed`) calls `evaluate_during_waiver_validity()`
   directly, which patches `blocker_gate.resolver.datetime`.
-- `tests/unit/test_codex_rate_limit_api.py` (`resetsAt`, `NOW`) — **allowlisted** (see
-  above).
 
 The other fixtures/files the issue's naive-grep count included (the 14
 `fetched_at`-only JSON snapshots, `test_blocker_gate_github.py`'s API-version-header

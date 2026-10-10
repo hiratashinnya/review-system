@@ -39,7 +39,7 @@
 ## PF 固有の実行差分
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
-- Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh`、Stop hook／rate-limit recovery を持つ。Claude の worktree bind/stop hook は配置しない。
+- Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh` を持つ。Claude の worktree bind/stop hook は配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
 ## Hook 構成一覧
@@ -56,10 +56,9 @@
 | 6 | SubagentStart（implementer／fixer） | `subagent-worktree-bind.sh` | ✅ | — | — |
 | 7 | SubagentStop（implementer／fixer） | `subagent-stop-gate.sh` | ✅ | — | — |
 | 8 | StopFailure（rate_limit） | `on-rate-limit.sh` | ✅ | — | — |
-| 9 | Stop | `codex-rate-limit-stop-hook.sh` | — | ✅ | — |
-| 10 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
-| 11 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
-| 12 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
+| 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
+| 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
+| 11 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
 
 > Copilot はリポジトリ固有のライフサイクル hook に非対応（`.ai/guidance/platforms/copilot.md` で確認済み）。
 
@@ -110,25 +109,25 @@
 - **スコープ**: SubagentStop。Claude 専用。
 - **実装構成**: [`.claude/hooks/subagent-stop-gate.sh`](../.claude/hooks/subagent-stop-gate.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
-#### 8. on-rate-limit（Claude）／ 9. codex-rate-limit-stop-hook（Codex）
+#### 8. on-rate-limit（Claude）
 
-- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex は Stop hook で同等の検知を行う。
-- **PF 間差異**: ライフサイクルイベント名と復帰機構が異なる。Claude は `on-rate-limit.sh`→`resume-watcher.sh`（`lib-pane-guard.sh` を共有ライブラリとして source）。Codex は `codex-rate-limit-stop-hook.sh`（補助: `codex-rate-limit-watcher.sh`、`codex-with-rate-limit-recovery.sh`）。
-- **実装構成**: [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「レートリミット自動再開フック」節）、[`.codex/hooks/README.md`](../.codex/hooks/README.md)（「Files」節以降）
+- **概要**: レートリミット検知時の自動復帰。Claude は StopFailure(rate_limit) で発火し、WSL＋tmux 環境でのみ `resume-watcher.sh` を setsid で起動する（クラウドでは no-op）。Codex 側の自動復帰機構は撤去済み（Codex は `codex exec` のサブ実行者であり、レートリミット時は同じモデル・同じ構成で再投入する。Issue #569）。
+- **PF 間差異**: Claude のみ。`on-rate-limit.sh`→`resume-watcher.sh`（`lib-pane-guard.sh` を共有ライブラリとして source）。
+- **実装構成**: [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「レートリミット自動再開フック」節）
 
-#### 10. inject-governance
+#### 9. inject-governance
 
 - **概要**: 毎ターン、正本（`CLAUDE.md`＋`.claude/rules/*.md`）の中核規範を `governance-directives.md` 経由で注入する。
 - **スコープ**: UserPromptSubmit（全 matcher）。Claude 専用。
 - **実装構成**: [`.claude/hooks/inject-governance.sh`](../.claude/hooks/inject-governance.sh)（`.claude/hooks/README.md` の「規約注入フック」節）
 
-#### 11. install_pkgs
+#### 10. install_pkgs
 
 - **概要**: セッション開始・再開時に必要パッケージをインストールする。
 - **スコープ**: SessionStart（startup／resume）。Claude 専用。
 - **実装構成**: [`.claude/hooks/install_pkgs/install_pkgs.sh`](../.claude/hooks/install_pkgs/install_pkgs.sh)
 
-#### 12. orchestrator-context
+#### 11. orchestrator-context
 
 - **概要**: セッション開始時に主文脈（orchestrator）のコンテキストを設定する。
 - **スコープ**: SessionStart（startup／clear／compact）。Claude 専用。
@@ -142,9 +141,6 @@
 |---|---|---|
 | `.claude/hooks/lib-pane-guard.sh` | Claude | `on-rate-limit.sh`／`resume-watcher.sh` が source する共有ライブラリ（状態パス・ペイン判定・tmux ラッパ） |
 | `.claude/hooks/resume-watcher.sh` | Claude | `on-rate-limit.sh` から setsid で起動される復帰 watcher |
-| `.codex/hooks/codex-rate-limit-watcher.sh` | Codex | Codex 版の復帰 watcher（tmux pane 監視） |
-| `.codex/hooks/codex-rate-limit-query.py` | Codex | `codex-rate-limit-stop-hook.sh` の rate-limit API 問い合わせに使う補助スクリプト |
-| `.codex/hooks/codex-with-rate-limit-recovery.sh` | Codex | レートリミット復帰付きで Codex CLI を起動するラッパ |
 
 ## 常駐入口と rationale の SoT
 

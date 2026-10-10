@@ -21,6 +21,7 @@ disable-model-invocation: true
    - stdin に観点プロンプトを流す（`-` が stdin 指定）。`--sandbox read-only` で書き込みをさせない。
    - `model` は**オーナー指定**（例 `gpt-5.6`）。`codex exec review` サブコマンドもある。
 3. `review.txt`（最終応答）を読む。flag や環境エラーがあれば troubleshooting の回復手順へ進む。
+4. `codex exec` がレートリミットで失敗した場合は、同じモデル・同じ構成で再投入する。降格しない。
 
 cyber フィルタ、rollout 回収、CLI／認証の環境制約に遭遇した場合は [codex-review の troubleshooting](../../../.ai/troubleshooting/codex-review.md) の回復手順に従う。
 
