@@ -1352,7 +1352,7 @@ class AgentCommandGateTests(unittest.TestCase):
             '    "issue-fixer": {\n'
             '        "status", "add", "commit", "push", "branch-current",\n'
             '        "new-branch", "fetch", "diff", "log",\n'
-            '        "adopt-branch",\n'
+            '        "adopt-branch", "integrate-base", "integrate-base-continue", "integrate-base-abort",\n'
             '    },\n',
             "",
         )
