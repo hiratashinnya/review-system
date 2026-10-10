@@ -39,7 +39,7 @@
 ## PF 固有の実行差分
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
-- Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh` を持つ。Claude の worktree bind/stop hook は配置しない。
+- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`・`codex-launch-intent-gate.sh`。下記「ライフサイクル hook 一覧」の行 1・3・12）を使う。Claude の worktree bind/stop hook は配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
 ## Hook 構成一覧
@@ -59,6 +59,7 @@
 | 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
 | 11 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
+| 12 | PreToolUse（Bash） | `codex-launch-intent-gate.sh` | — | ✅ | — |
 
 > Copilot はリポジトリ固有のライフサイクル hook に非対応（`.ai/guidance/platforms/copilot.md` で確認済み）。
 
@@ -132,6 +133,12 @@
 - **概要**: セッション開始時に主文脈（orchestrator）のコンテキストを設定する。
 - **スコープ**: SessionStart（startup／clear／compact）。Claude 専用。
 - **実装構成**: [`.claude/hooks/orchestrator-context.sh`](../.claude/hooks/orchestrator-context.sh)（`.claude/hooks/README.md` の「オーケストレータ委譲ルール注入フック」節）
+
+#### 12. codex-launch-intent-gate
+
+- **概要**: 親 AI が手入力する Codex supervisor 起動コマンド（`python3 -m issue_start.codex_supervisor (run|resume) --issue N --role ROLE --change-plan-id ID [--fixer-round N]`）の形を、実行前に host 導出の launch intent と照合して fail-close で検査する。早期フィードバックであり権威（authority／receipt）ではない。supervisor 自身が process 起動直前に同じ request から intent を再生成して再照合する。
+- **スコープ**: PreToolUse（Bash）。無関係な Bash と direct `codex exec` は対象外。Codex 専用。
+- **実装構成**: [`.codex/hooks/codex-launch-intent-gate.sh`](../.codex/hooks/codex-launch-intent-gate.sh)（main worktree を `--git-common-dir` から解決して `python3 -m issue_start.codex_launch_intent hook` を起動する薄いラッパー。実体は `issue_start/codex_launch_intent.py`。`.codex/hooks/README.md` の「Codex supervisor launch-intent gate」節にも概要あり）
 
 ### 補助スクリプト（hook 呼び出し実体ではないもの）
 

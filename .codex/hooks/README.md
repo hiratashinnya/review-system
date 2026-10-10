@@ -3,14 +3,18 @@
 Codex CLI supports lifecycle hooks. This repo registers project-local hooks
 in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
 
-1. A `PreToolUse` hook (`agent-command-gate.sh`) that mechanically enforces the
-   `issue-implementer` / `pr-reviewer` push/merge boundary — the Codex counterpart
+1. A Bash `PreToolUse` hook (`agent-command-gate.sh`) that denies merge commands
+   and a fixed set of network/exec commands for every role, and additionally
+   enforces the per-role command allowlist (layers 1-3) for the gated roles
+   `issue-implementer` / `issue-fixer` / `pr-reviewer` — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-2. Dispatch/merge `PreToolUse` hooks for Issue-start and PR-merge policy.
+2. A dispatch `PreToolUse` hook (`issue-start-gate.sh`, matcher
+   `spawn_agent|Agent|collaborationspawn_agent`) for Issue-start policy. There is
+   no separate PR-merge hook registration; merge denial lives in item 1.
 3. A Bash `PreToolUse` hook (`codex-launch-intent-gate.sh`) that shape-checks the
    exact minimal-input supervisor command before the authoritative runtime checks.
 
-## PreToolUse command gate (issue-implementer / pr-reviewer boundary)
+## PreToolUse command gate (all-role deny layer + gated-role allowlist)
 
 Issue #452 で Codex workspace-binding transport と all-tool binding hook は退役した。
 `spawn_agent` の implementer/fixer は issue-start gate が常時
@@ -63,14 +67,37 @@ Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
 `permissionDecisionReason` — the same wire shape as Claude Code. Shell commands
 arrive with `tool_name = "Bash"` and `tool_input.command` as a string.
 
-The gate denies:
+The gate evaluates in this order (see the final decision block of
+`agent-command-gate.sh`):
 
-- `issue-implementer`: `git merge` / `gh pr merge` (push + open a PR, then stop).
-- `pr-reviewer`: `git push` (review/comment/merge only, never push code).
-
-Every other `agent_type` (including an absent one = the main context) is out of
-scope and always allowed, matching the owner decision recorded for the Claude
-gate (fail-closing on absent `agent_type` regressed the main context's own push).
+1. **All-role deny layer** (independent of `agent_type`, including the main
+   context and an absent `agent_type`):
+   - merge commands (`git merge` / `gh pr merge` and equivalents) are denied for
+     every role;
+   - a fixed set of network/exec commands (e.g. `curl`) is denied for every role
+     (Issue #224 env-prefix/abspath guard).
+2. **Gated-role layers 1-3** — only for `GATED_ROLES` (`issue-implementer`,
+   `issue-fixer`, `pr-reviewer`; source of truth `issue_start/gated_roles.py`):
+   - layer 1: quote-aware denial of dangerous shell symbols for every gated role
+     (pipes, chaining, redirection, heredocs, subshells/command substitution,
+     brace expansion and multi-line commands; unquoted `| & ; ( ) { } < > $`,
+     backtick and newline, plus `$`/backtick inside double quotes);
+   - layer 2: head-command whitelist (`gh` / `git` / `pyright` /
+     `python3 -m <allowed modules>`, with the module set depending on the role);
+   - layer 3: per-role allowlist of bounded raw `git` reads, `gitgate` verbs and
+     `gh` subcommands/flags. The per-role push/merge boundary lives here
+     (`pr-reviewer` never pushes code and never switches branches; the
+     implementer/fixer push but never merge).
+   - exception, `pr-reviewer` only (outside layers 2 and 3): reading a saved PR
+     diff with the single form `rtk sed -n <start>,<end>p tmp/pr-diffs/pr-<number>-<32 hex>.diff`.
+     After layer 1, a `sed` head command is checked by a separate
+     `pr_diff_read_violation` check and returns before the layer 2 head-command
+     whitelist and the layer 3 allowlist run, so `sed` appears in neither. The
+     authoritative description is `.codex/agents/pr-reviewer.toml`.
+3. Every other `agent_type` (including an absent one = the main context) skips the
+   gated-role layers 1-3 and is allowed unless the all-role deny layer above
+   already denied it, matching the owner decision recorded for the Claude gate
+   (fail-closing on absent `agent_type` regressed the main context's own push).
 
 ### Known limits (tracked in Issue #129 / #181)
 
@@ -84,7 +111,7 @@ gate (fail-closing on absent `agent_type` regressed the main context's own push)
   and decision (sensitive keys are redacted).
 
 Treat the gate as one layer of defense together with the prompt-level discipline
-in `issue-implementer.toml` / `pr-reviewer.toml`.
+in `issue-implementer.toml` / `issue-fixer.toml` / `pr-reviewer.toml`.
 
 ### Checking whether the hook actually fired (Issue #192)
 
@@ -334,7 +361,9 @@ Repeat the trust check after moving a checkout or changing a hook registration.
 | File | Role |
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` hooks. Trust them with `/hooks` before relying on them. |
-| `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
+| `agent-command-gate.sh` | PreToolUse handler: all-role merge/network-command deny layer plus the gated-role (issue-implementer/issue-fixer/pr-reviewer) allowlist layers. Denies via `permissionDecision:deny`; allows by emitting nothing. |
+| `issue-start-gate.sh` | PreToolUse handler registered in `.codex/hooks.json` for the `spawn_agent` / `Agent` / `collaborationspawn_agent` matcher. Thin wrapper over the shared `issue_start` core (see `.ai/Individually-managed-lists.md` hook table row 3). |
+| `codex-launch-intent-gate.sh` | Bash PreToolUse handler. Resolves the main worktree from `--git-common-dir`, then runs `python3 -m issue_start.codex_launch_intent hook` to shape-check the exact minimal-input supervisor command (see "Codex supervisor launch-intent gate"). Early feedback only, not the authority; unrelated Bash and direct `codex exec` are out of scope. |
 
 ## Removed: Codex rate-limit auto-recovery (Issue #569)
 
