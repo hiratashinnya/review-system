@@ -21,31 +21,112 @@
 代わりに GitHub 側を発生源として `gh issue list --label "audit:2026-09-pipeline-redesign" --state all`
 で問い合わせる。決定の根拠・経緯はこのファイル、実行状態は上記クエリが一次情報源。
 
-## 進捗スナップショット（2026-10-05 時点・古くなりうる。最新は上記クエリを再実行して確認）
+## 進捗スナップショット（2026-10-10 12:06 UTC 確認・古くなりうる。最新は GitHub の Issue・PR を再確認）
 
 **本節は現行の1枚だけを置く。更新するときは追記せず、表と本文を書き換える**（決定＝
 [進捗スナップショットは現行1枚を上書き更新する](#fbk-20260929-進捗スナップショットは現行1枚を上書き更新する)。
-経緯は git 履歴と各 Issue に残る）。
+経緯は git 履歴と各 Issue に残る）。**更新確認者：2026-10-10 12:06 UTC・Codex（AI）**。
+以下は GitHub の Issue 本文・コメント、PR 状態を確認したスナップショットであり、実施予定や担当割当の正本ではない。
 
-実施順は⑤→④(明文化)→②→①→③（[必須施策の実施順を依存関係で確定する](#fbk-20260924-必須施策の実施順を依存関係で確定する)）。
+### 確定済みの順序と実行状態
 
-| 順 | 項目 | 対応Issue | 状態 |
+必須施策の順序は **⑤→④（明文化）→②→①→③**（[必須施策の実施順を依存関係で確定する](#fbk-20260924-必須施策の実施順を依存関係で確定する)）。
+
+| 順 | 項目 | 対応 Issue | 状態・確認根拠 |
 |---|---|---|---|
-| ⑤ | 目的の永続化＋計測機構 | #488 #489 #461 #541 | ✅完了 |
-| ④ | 原則徹底の明文化ゲート | #539 | ✅完了（優先順位1〜2位。残る3〜7位は#551で継続） |
-| ② | ロール権限・実現機構 | #530 #533 #535 #542 #558 #538 | 🔶進行中（#129 #220 #530 #535 #558は完了済み。残りは#542→#533の直列で、#542は別セッションで進行中。#538は#542の後に同セッションで実施するため据え置き） |
-| ① | issue-pipeline作成工程分離 | #371 | ⬜未着手（②完了待ち） |
-| ③ | フィードバックループ | #521 #523 #524 #525 #376 | ⬜未着手（①完了待ち。基盤#522は完了済み） |
+| ⑤ | 目的の永続化＋計測機構 | #488 #489 #461 #541 | ✅完了（各 Issue は closed） |
+| ④ | 原則徹底の明文化ゲート | #539 | ✅完了（優先順位1〜2位。残る3〜7位は tracking #551、実施順・着手時期は未確定） |
+| ② | ロール権限・実現機構 | #530 #533 #535 #542 #558 #538 | 🔶残りは **#538（open）**。#530 #533 #535 #542 #558 は closed。#542 の権限移管・撤去は PR #584 で merge 済み |
+| ① | issue-pipeline 作成工程分離 | #371 | ⬜open、②完了待ち。ADR/envelope の前提部品 #540、review handoff #375 との契約整合が必要 |
+| ③ | フィードバックループ | #521 #523 #524 #525 #376 | ⬜open、正式導入は①後。基盤 #522 と権限是正 #531 は closed。#523 の残る本文上のブロッカーは #375 |
 
-**今やっていること＝②の残り（#542、別セッションで進行中）。次にやること＝#542 完了後に #533 を再確認し、その後①（#371）。連鎖は #542 → #533 → #371。**
-**#533 と #542 の関係**：#542 は `pr_merge_gate/classifier.py` と、それに依存する
-`hook.py`・`gate.py`・`__init__.py`、および `.claude/settings.json` の `pr-merge-gate.sh` 配線（Pre／Post）を
-撤去する計画のため、#533 の未達分（観測2＝`gh api graphql -F query=@<file>` の誤 deny、観測3＝
-PostToolUse の `RECLASSIFIED_NOT_MERGE`）の経路は #542 で無くなる見込み。観測1は PR #553 で対応済み。
-GitHub の relation は #533 が #542 にブロックされる形に設定済み。
-#533 は着手せず #542 の完了を待ち、完了後に観測2・3が再現しないことを確認してから close するかをオーナーが判断する。
-**#538（Codex supervisor 撤去）**：#542 の後に、#542 を進めている別セッションで実施する。それまでは据え置く。
-**#535 完了に伴う申し送り**：#535 是正の過程で、`dsv2-lookup`（含有されるハーネス）にも同種のGrep/Glob宣言と実効配布の不一致が実測で確認された（`reconciliation` は未実測）。オーナー判断によりwaived・別途まとめて対応予定（2026-09-28）。
+**次の主経路は #538。従来の「#542→#533 の完了待ち」は解消している。**
+#538 は supervisor 撤去に加え、薄い `codex exec` ラッパーのロール別権限・trust・hooks と実 CLI 検証、
+#452 からの残件および PR #448/#449/#451 の影響確認を扱う。
+[既知 CLI feature catalog 不整合](https://github.com/hiratashinnya/review-system/issues/538#issuecomment-6094200815)
+（F-542-10／F-594-06）は #538 に継承されており、旧テスト撤去の見込みを成功・解消済みとは扱わない。
+Codex 関連の PR #593/#596 は merge 済み、#569 は closed だが、#538 自体は完了していない。
+#594／PR #600（base 取り込み）、#598（hooks 再信頼確認）、#599／PR #601（hooks 文書・コメント整合）も完了した。
+これらを #538 の着手待ちにはしない。#538 の撤去・置換後の hooks 一覧と権限・trust 契約は、取り込み済みの変更を踏まえて検証する。
+
+**台帳拡張は2段に分離済み。**
+[オーナー決定](https://github.com/hiratashinnya/review-system/issues/537#issuecomment-6037753492)
+により、第1段 #582 は #371 と並行で先行する。実装 PR #587 は **open**。
+第2段 #537 は #582 完了、台帳と ADR の境界明文化、#371/#540/#523 の**担当文脈による LEDGER_SPEC の欠落なし確認**が前提で、
+enum 追加は #371 後。確認ゲートは3 Issue 全体の close 待ちを意味しない。
+台帳／ADR 境界の明文化と ADR→台帳参照欄の #540 への依頼は PR #587・Issue コメントにあり、main への取り込みは未完了。
+投入件数は着手時に再確認する。現行本ファイルの実測は **§A 生存44件・§B 置換23件**で、#537/#582 本文の40件・21件は2026-10-07時点の値。
+
+| 関連 PR・Issue | 2026-10-10 12:06 UTC 確認の状態と残件 |
+|---|---|
+| [PR #587](https://github.com/hiratashinnya/review-system/pull/587)／#582 | open、49ファイル（+2,348/-1,144）。現 head `7978af6` の tests・asset-parity CI は success。本文に最後の `.gitignore` 1行の独立レビュー未実施と記載。公開直前の PR 情報は `mergeable=true`。最終差分の独立レビューと最新 main での整合確認を残す。完了扱いにしない |
+| [PR #451](https://github.com/hiratashinnya/review-system/pull/451) | open／draft。コメント上は baseline 固定保持・Wave 5 待ち。#538 で影響確認する対象であり、今すぐ merge する対象とは扱わない |
+| #579→#580（Jev） | #572／PR #571 と決定 PR #577 は完了。現在は段階0「結線なし」。#579 で対象 WSL・settings 範囲・実行担当などを確定して shadow 結線・実測し、その後 #580 でルール別 enforce を判断する |
+
+| 最近完了した関連 Issue・PR | 完了根拠と申し送り |
+|---|---|
+| [#594](https://github.com/hiratashinnya/review-system/issues/594)／[PR #600](https://github.com/hiratashinnya/review-system/pull/600) | #594 は completed、PR は 11:26 UTC merge 済み。26ファイル（+1,278/-11）。[round 6 の公開後補足レビュー](https://github.com/hiratashinnya/review-system/pull/600#pullrequestreview-5478722201)は head `5422e2dd` の実体・最新 base 合成・5 checks success を確認し、F-594-07/08/09 は resolved。F-594-06（既知 CLI 不整合）は open のまま #538 に継承 |
+| [#598](https://github.com/hiratashinnya/review-system/issues/598) hooks 再信頼確認 | completed。[確認コメント](https://github.com/hiratashinnya/review-system/issues/598#issuecomment-6094495484)では、オーナーの選択に従ってユーザー設定の trusted hash 3件を直接登録し、`codex_hook_trust check` は無音・exit 0。対話 UI を経ていないため、次回 `/hooks` の目視確認を追加推奨している |
+| [#599](https://github.com/hiratashinnya/review-system/issues/599)／[PR #601](https://github.com/hiratashinnya/review-system/pull/601) | #599 は completed、PR は 10:43 UTC merge 済み。3ファイル（+75/-27）の hooks 文書・コメント整合。#538 の撤去後に一覧を最終構成へ追従させる |
+
+**#535 完了に伴う申し送り**：`dsv2-lookup` にも Grep/Glob 宣言と実効配布の不一致が実測された
+（`reconciliation` は未実測）。2026-09-28 のオーナー判断による waived・別途まとめて対応という記録を維持する。
+
+### 着手順の推奨（AI 分析・未確定）
+
+以下はユーザー依頼に基づく依存関係の分析であり、§A の決定を追加・変更しない。
+Issue の Priority/Horizon、着手日、担当、据え置き判断は変更していない。
+
+1. **#538 を主経路にし、#582／PR #587 の最終レビュー・統合確認を並行する。** #576 の remote 公開前検証5点の採否整理は blocked-by なしで先行できる。採用する実装を #538 の権限・公開経路設計へ渡す。PR #600 は merge 済みのため、#538 では新 Codex 接続と F-594-06 の引継ぎを確認する。
+2. **#540 の ADR/envelope 部品を #371 の利用前に固める。** #540 の設計と #371 のロール・フェーズ設計は準備を並行できる。#582 の shared schema／版／参照契約を確認して統合する順序は AI 推奨で、新しい GitHub blocked-by を設定したものではない。
+3. **②完了後に #371 と #375 の境界を凍結し、担当範囲を分ける。** common envelope、producer／Issue／digest／OID、レビュー原本と取り込みの責務を先に揃える。#375→#310→#409 の直列依存は各 Issue 本文に明示されている。#409 の既存「優先度を下げ保留」というオーナー判断（§D U-10）は維持する。
+4. **#513 の停止・解除設計を #371/#310/#523 と合わせる。** 全ツール拒否中にオーナー回答を記録して解除する経路、複数 Issue、PF／ctx 経路、誤停止を先に整理する。#513 と #523 は強い関連だが、一方の close を他方の前提に自動追加しない。
+5. **#537 第2段は #582 と確認ゲート、#371 後の条件を満たしてから。** 過去決定の逐語・記録対象・ADR との境界を確認し、CLI 投入と README の導出ビュー化を行う。
+6. **③では #523 と #524 を並行候補にし、#524→#525 へつなぐ。** #523 は #375 の trusted artifact が前提。#376 と #524 は週次の提示形式・処分単位・記録先を合同設計し、運用の器を二重化しない。#521 は子成果と1回以上のループ実測を追跡する。
+7. **#578 は #538 後。#543 は P2/Later の既存指定に従う。** #551 は tracking として3〜7位の個別起票・順序決定を扱い、親 Issue に実装を足さない。Jev #579 の準備は独立候補だが、実 WSL 作業の開始前提を確定してから結線し、#580 の本適用は shadow 実測後とする。
+
+### 並行できる作業と条件（AI 推奨）
+
+| 組合せ | 並行できる範囲・統合時の条件 |
+|---|---|
+| #538 と #582／PR #587 | 中心対象は `issue_start`／Codex と `feedback_ledger` で分けられる。共有の tests・rules・lint baseline は差分を調整する。#582 の並行先行はオーナー決定済み |
+| #576 と #538 | 要件調査・採否整理は並行可。gitgate 実装は権限・publish 境界の合意後に分担する |
+| #540 と #371 | ADR/envelope API を先に凍結する。ロール設計・確認ゲートは並行準備可、利用実装は前提部品が固まってから |
+| #371 と #375、#513 と #310/#523 | 境界の調査・設計は並行可。`issue-pipeline` SKILL、reviewer 契約、karte、settings/hooks の同じ箇所を別々に変更せず、契約凍結と統合順を合わせる |
+| #523 と #524、#376 と #524 | #523 は #375 後、#524 の本文上の技術前提 #522 は完了済み。③の正式導入は①後。バックログと feedback 台帳の対象は分け、週次判断の器を共有する |
+| #578 と #371/#540 | #538 完了後なら対象を分担できる。CI 探索・paths・allowlist・追加削除テストの一覧を揃える。#578 はテストコード、#540 は verify 文書の移設 |
+| #579 の準備と中核再設計 | runbook・匿名 export・評価設計は独立候補。実 settings/hooks 結線は #513 等と統合順を合わせる。#580 の enforce 適用は #579 の実運用・評価後 |
+
+### 難易度・変更規模の概算（AI 見積り）
+
+難易度は設計の未決点・権限／状態境界・実環境検証を **低／中／高**、変更規模はコード・設定・文書・テスト・既存データへの波及を **小／中／大**で評価する。
+所要時間や行数の保証ではなく、未完了の20項目それぞれの全体を評価する。実装済み PR の残作業と tracking 親は分けて示す。
+
+| Issue・作業 | 難易度 | 変更規模 | 評価の根拠 |
+|---|---|---|---|
+| [#538](https://github.com/hiratashinnya/review-system/issues/538) supervisor 撤去・薄いラッパー | 高 | 大 | 旧実装・テスト約11,482行の撤去、未設計 hooks/trust/permission、実 CLI 検証、残件・3 PR の影響点検 |
+| [#576](https://github.com/hiratashinnya/review-system/issues/576) 公開前検証の継承 | 中 | 中 | remote 検証5要件の採否、由来確認、採用分の gitgate／フックと fail-close テスト |
+| [#582](https://github.com/hiratashinnya/review-system/issues/582) 第1段／PR #587 | 中 | 大 | source/id/schema/version/render の横断変更。実装 PR あり、**残作業の規模は小〜中の暫定見積り**（最終差分の独立レビュー・最新 main での整合確認。追加修正が必要なら再評価） |
+| [#540](https://github.com/hiratashinnya/review-system/issues/540) ADR/envelope/索引 | 高 | 大 | 新スキーマ／CLI／ref 共通アダプタ、stale/todo/通知、verify 文書移設、ADR→台帳参照 |
+| [#371](https://github.com/hiratashinnya/review-system/issues/371) 作成工程分離 | 高 | 大 | 7ロール、1a/1b/2a/2b レビュー、artifact・push 権限、複数の実運用経路と PF 整合 |
+| [#375](https://github.com/hiratashinnya/review-system/issues/375) trusted review handoff | 高 | 中 | read-only reviewer と原本保存・改変防止、round 1 覆し検出、plan/test review との接続 |
+| [#310](https://github.com/hiratashinnya/review-system/issues/310) karte verdict 結線 | 中 | 中 | ingest 成功後の phase/Issue/round/digest 束縛、フック可視化とカルテ投稿 |
+| [#409](https://github.com/hiratashinnya/review-system/issues/409) AgentRun/close gate | 高 | 大 | 永続 run DAG、状態・回復、exactly-once close、成果物検証。既存保留判断に従う |
+| [#513](https://github.com/hiratashinnya/review-system/issues/513) 停止機械強制 | 高 | 大 | 全ツール拒否と解除のデッドロック回避、複数 Issue/PF/ctx、fail 方針、誤停止・実測検証 |
+| [#537](https://github.com/hiratashinnya/review-system/issues/537) 台帳第2段 | 高 | 大 | 過去決定・逐語・記録対象の確認と投入、capture skill/PF 接続、README 導出ビュー化 |
+| [#523](https://github.com/hiratashinnya/review-system/issues/523) オーナー判断捕捉 | 高 | 中 | round 1 原本比較、override_ref/clean 条件、非ブロック経路と解除設計の保護 |
+| [#524](https://github.com/hiratashinnya/review-system/issues/524) feedback-triage | 中 | 中 | TRG／改訂案、状態導出、SessionStart 催促、週次実測と #376 の運用整合 |
+| [#525](https://github.com/hiratashinnya/review-system/issues/525) feedback-apply | 中 | 中 | 承認後起票、issue_ref/applied_pr、再実行の重複防止、1回のループ実測 |
+| [#376](https://github.com/hiratashinnya/review-system/issues/376) バックログ棚卸し | 中 | 小 | 運用・提示・記録と1回実測が中心。Inbox 滞留と phase 別提示、オーナー判断の維持 |
+| [#521](https://github.com/hiratashinnya/review-system/issues/521) tracking 親 | 低 | 小 | 子 Issue の完了と運用実測の追跡。**子成果の全体は高／大**で、親自体は実装しない |
+| [#551](https://github.com/hiratashinnya/review-system/issues/551) tracking 親 | 低 | 小 | 3〜7位の個別起票・sub-issue 追跡。**後続実装全体は高／大の見込み**、子ごとの評価は起票時 |
+| [#578](https://github.com/hiratashinnya/review-system/issues/578) 既存テスト移設 | 中 | 大 | 多数のコード・補助、CI/paths/allowlist/lint、移設前後の実行件数保持。撤去済みを除く |
+| [#543](https://github.com/hiratashinnya/review-system/issues/543) UT/IT/ST 導入 | 中 | 中 | 既存 TD/TC/TR の分類、ID/level 方式、skill/設計文書の整合。P2/Later |
+| [#579](https://github.com/hiratashinnya/review-system/issues/579) shadow 運用準備・結線 | 高 | 中 | WSL/SDK/key 実確認、通知実配送、匿名 export、rollback、実モデルの精度・費用・遅延評価 |
+| [#580](https://github.com/hiratashinnya/review-system/issues/580) ルール別 enforce | 高 | 中 | 現行全体 mode からルール別合成へ変更、unknown/API 障害/確定 R4・回復経路の保護、ルール別移行判断 |
+
+#580 は各ルールの候補30件だけで全体精度を保証しない。版／model／保持窓・費用・遅延・coverage を分けて確認し、
+オーナーが移行を判断する。施策効果の観測窓は shadow 開始時ではなく enforce 実適用時に開始する。
 
 | 項目 | 規則 |
 |---|---|
@@ -63,7 +144,7 @@ GitHub の relation は #533 が #542 にブロックされる形に設定済み
 **今有効な決定はこの一覧がすべてである。** 本文は一覧の下に記録順で並ぶ。無効になった決定は §B にあり、
 経緯を知りたいときだけ参照する。決定を追加・置換したときは、同じ変更でこの一覧も更新する
 （[生存決定の一覧をテーマ別に台帳冒頭へ置く](#fbk-20261006-生存決定の一覧をテーマ別に台帳冒頭へ置く)。
-#537 の `render` が完成したら自動生成に置き換える）。「暫定」は決定自体が暫定と明記されているもの。
+#582 の第1段で `render` を実装し、#537 の第2段で既存決定を投入して自動生成に置き換える）。「暫定」は決定自体が暫定と明記されているもの。
 
 **目的・品質指標・施策の進め方**
 - [リポジトリの目的はAI駆動開発ノウハウ獲得とする](#fbk-20260921-リポジトリの目的はai駆動開発ノウハウ獲得とする)（09-21）
@@ -978,7 +1059,7 @@ frame/shardの二値割り付け（v2の枠組み内での延長線）を原案�
 | **状態** | **生存** |
 | **置換** | **[harnessテストコードは`tests/<tool>/`に置く](#fbk-20261006-harnessテストコードはtests-tool-に置く) を置換**（同日の初版。初版の「既存の移設は本決定に含めない」を「既存も移す」に変え、検査範囲の追従を加えた。初版が置換した [harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する) の TD/TR/ログの置き場・既存混入37件の移設方針は変更なしで引き継ぐ） |
 | **関連** | [harnessのテストエビはtest-strategyを手本にする](#fbk-20260923-harnessのテストエビはtest-strategyを手本にする)（上位方針）。[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) 3a行の置き場。[tracking_statusにpendingを正当な状態とする](#fbk-20260923-tracking_statusにpendingを正当な状態とする)（初版の欠陥と同じ型）。契機＝PR #571（`jev_hooks`・Issue #572） |
-| **実行** | **#540**（TD/TR の移設項目は反映済み・2026-09-24）／**PR #571**（`tests/jev_hooks/` を CI が直接探索する形へ改め、中継ファイル `tests/unit/test_jev_core.py` を廃止し、`time_fixture_lint` の検査対象を `tests/jev_hooks/` まで広げる。未反映）／**#578**（既存テストの移設と、`tests/unit` に固定された検査・CI・`.claude/rules/07-project-structure.md` の追従。#542・#538 の完了後に実施） |
+| **実行** | **#540**（TD/TR の移設項目は反映済み・2026-09-24）／**PR #571**（`tests/jev_hooks/` を CI が直接探索する形へ改め、中継ファイル `tests/unit/test_jev_core.py` を廃止し、`time_fixture_lint` の検査対象を `tests/jev_hooks/` まで広げる。2026-10-10確認：merge済み）／**#578**（既存テストの移設と、`tests/unit` に固定された検査・CI・`.claude/rules/07-project-structure.md` の追従。#542・#538 の完了後に実施） |
 
 **決定内容**
 
@@ -2218,7 +2299,7 @@ AI の原案。オーナーは追記運用の根拠を問い、上書き案を�
 | **状態** | **生存**（移行基準の数値は暫定） |
 | **置換** | なし（§E の「採用前に片付ける必要がある前提」4（撤退条件）を、R1〜R4 の用途について確定する初回決定） |
 | **関連** | [施策ごとに観測窓を切る](#fbk-20260921-施策ごとに観測窓を切る)（観測窓の単位）。[Jevの課金を認可し秘密除去を送信条件とする](#fbk-20261006-jevの課金を認可し秘密除去を送信条件とする)・[Jevの中間帯は通知しキー無しは止める](#fbk-20261006-jevの中間帯は通知しキー無しは止める)（同時に確定）。対象＝PR #571／Issue #572 |
-| **実行** | **PR #571**（実装の取り込み。結線なし）／結線・enforce 移行は未起票 |
+| **実行** | 当時の記録：**PR #571**（実装の取り込み。結線なし）／結線・enforce 移行は未起票。**2026-10-10・Codex（AI）確認**：PR #571 は merge 済み、結線・shadow 運用準備は [#579](https://github.com/hiratashinnya/review-system/issues/579)、ルール別 enforce 移行は [#580](https://github.com/hiratashinnya/review-system/issues/580) で起票済み。現在は段階0「結線なし」で、実 WSL／Claude 運用・実モデル精度は未検証 |
 
 **決定内容**
 
@@ -2276,7 +2357,7 @@ PR #571 のレビューで、Claude Code (AI) が「§E は Jev 採用を未決�
 | **状態** | **生存** |
 | **置換** | なし（§E の「採用前に片付ける必要がある前提」1（課金の認可）を確定する初回決定） |
 | **関連** | `.claude/rules/03-operational.md`「CI/外部サービス連携のコスト方針」の明示認可。[Jevフック判定器はshadowで試験導入する](#fbk-20261006-jevフック判定器はshadowで試験導入する) |
-| **実行** | **PR #571**（秘密情報の除去を同 PR の範囲に含める。未反映） |
+| **実行** | 当時の記録：**PR #571**（秘密情報の除去を同 PR の範囲に含める。未反映）。**2026-10-10・Codex（AI）確認**：PR #571 は merge 済み。XR-571-1/2 と F-572-005/006 の秘密除去是正は実装・SDK HTTP mock で検証済み。送信前の秘密境界の実環境確認は [#579](https://github.com/hiratashinnya/review-system/issues/579) で追跡する。未知秘密の完全検出は保証せず、実 API／実運用は未検証 |
 
 **決定内容**
 
@@ -2313,7 +2394,7 @@ Claude Code (AI) は「課金を認可し、秘密除去は結線前の必須条
 | **状態** | **生存** |
 | **置換** | なし（§E の「採用前に片付ける必要がある前提」2（キーが無い環境の挙動）・3（確率を判定に落とす方法）を確定する初回決定） |
 | **関連** | [Issue513のescalate機械強制は必須とする](#fbk-20260921-issue513のescalate機械強制は必須とする)（オーナーへ上げる出口と同じ考え方）。[Jevフック判定器はshadowで試験導入する](#fbk-20261006-jevフック判定器はshadowで試験導入する) |
-| **実行** | 未起票（実装先は未決） |
+| **実行** | 当時の記録：未起票（実装先は未決）。**2026-10-10・Codex（AI）確認**：PR #571 でキー欠損時の enforce 拒否・shadow 障害記録、unknown／低確信／API 障害の通過と通知 metadata を実装し merge 済み。通知の実配送は `not_connected` で、結線・配送の実装と実環境検証は [#579](https://github.com/hiratashinnya/review-system/issues/579)、ルール別 enforce 移行は [#580](https://github.com/hiratashinnya/review-system/issues/580) で追跡する。metadata 記録を配送成功とは扱わず、実運用は未検証 |
 
 **決定内容**
 
@@ -2362,10 +2443,10 @@ AI の説明：二択で一方の確率が低ければ他方は高い、とい�
 |---|---|
 | **id** | `FBK-20261006-生存決定の一覧をテーマ別に台帳冒頭へ置く` |
 | **決定日時** | 2026-10-06 |
-| **状態** | **生存**（#537 の `render` 完成までの暫定運用。決定自体は暫定ではない） |
+| **状態** | **生存**（手書き一覧は暫定運用、決定自体は暫定ではない。2026-10-10確認：`render` 実装は第1段 #582／PR #587 が open、第2段 #537 で既存決定投入・一覧差し替え） |
 | **置換** | なし（[決定台帳の書式を生存上段訂正下段とする](#fbk-20260921-決定台帳の書式を生存上段訂正下段とする) への追加。同エントリの書式は変えない） |
 | **関連** | [決定台帳の正本をfeedback-ledgerとする](#fbk-20260921-決定台帳の正本をfeedback-ledgerとする)（`render` による導出ビュー化）。[起票先はラベルで機械的に問い合わせる](#fbk-20260924-起票先はラベルで機械的に問い合わせる)（クエリで代替できる一覧は手書きしない） |
-| **実行** | **本エントリで即時実行**（§A 冒頭に一覧を新設）／**#537**（完了条件に「`render` が冒頭に生存決定の一覧を出力する」を追加） |
+| **実行** | **本エントリで即時実行**（§A 冒頭に一覧を新設）／**#537**（完了条件に「`render` が冒頭に生存決定の一覧を出力する」を追加。2026-10-10確認：第1段の `render` 実装は #582 へ分離、既存決定投入と一覧の導出ビューへの差し替えは第2段 #537 に残る） |
 
 **決定内容**
 
