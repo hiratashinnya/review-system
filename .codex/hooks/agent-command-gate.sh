@@ -194,7 +194,8 @@ PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z"
 # 構造的に遮断する（サブコマンド以降の引数を自由にしない）。
 #
 # Role permissions stay in the tables checked by `missing_role_tables`.
-# Worktree release verbs are granted to no gated role; only the main context may run them (Codex has no SubagentStop hook).
+# Worktree release verbs are granted to no gated role. Roles outside GATED_ROLES (e.g. the main
+# context) are not constrained by this role table. This repo registers no SubagentStop-equivalent hook for Codex.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
     # This role creates a new branch; it does not adopt an existing PR branch.

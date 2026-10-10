@@ -335,6 +335,7 @@ Repeat the trust check after moving a checkout or changing a hook registration.
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` hooks. Trust them with `/hooks` before relying on them. |
 | `agent-command-gate.sh` | PreToolUse handler enforcing the issue-implementer/pr-reviewer push/merge boundary. Denies via `permissionDecision:deny`; allows by emitting nothing. |
+| `issue-start-gate.sh` | PreToolUse handler registered in `.codex/hooks.json` for the `spawn_agent` / `Agent` / `collaborationspawn_agent` matcher. Thin wrapper over the shared `issue_start` core (see `.ai/Individually-managed-lists.md` hook table row 3). |
 | `codex-launch-intent-gate.sh` | Bash PreToolUse handler. Resolves the main worktree from `--git-common-dir`, then runs `python3 -m issue_start.codex_launch_intent hook` to shape-check the exact minimal-input supervisor command (see "Codex supervisor launch-intent gate"). Early feedback only, not the authority; unrelated Bash and direct `codex exec` are out of scope. |
 
 ## Removed: Codex rate-limit auto-recovery (Issue #569)

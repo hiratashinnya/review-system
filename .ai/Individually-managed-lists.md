@@ -39,7 +39,7 @@
 ## PF 固有の実行差分
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
-- Codex は `spawn_agent`、`.codex/hooks.json`、PreToolUse の `agent-command-gate.sh` を持つ。Claude の worktree bind/stop hook は配置しない。
+- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`・`codex-launch-intent-gate.sh`。下記「ライフサイクル hook 一覧」の行 1・3・12）を使う。Claude の worktree bind/stop hook は配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
 ## Hook 構成一覧
