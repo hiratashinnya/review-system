@@ -133,13 +133,17 @@
 #   pr-reviewer.toml / issue-implementer.toml / issue-fixer.toml 側のプロンプトレベルの規範と併用する前提。
 #
 # 入力: PreToolUse フックの stdin JSON（agent_type と tool_name と tool_input.command を想定）。
-#   agent_type が issue-implementer/pr-reviewer のいずれでもない場合（欠如を含む）はこのゲートの
-#   対象外＝常に許可する。tool_name がシェル系（Bash 等）でない場合も許可する（git/gh は Bash 経由の
-#   ため）。シェル系ロールでコマンド文字列が読めない場合は検査不能として deny する（fail-closed）。
+#   判定順は gate 末尾の決定ブロックと一致する。まず全 agent_type 共通の deny 層（merge コマンド・
+#   network/exec コマンド）を、欠如を含む全ロールへ適用する。agent_type が GATED_ROLES
+#   （issue-implementer / issue-fixer / pr-reviewer・正本 issue_start/gated_roles.py）に含まれない場合
+#   （欠如を含む）は、上記の共通 deny に掛からない限り許可し、ロール専用判定（層1〜3）は適用しない。
+#   tool_name がシェル系（Bash 等）でない場合も許可する（git/gh は Bash 経由のため）。
+#   GATED_ROLES でコマンド文字列が読めない場合は検査不能として deny する（fail-closed）。
 #
 #   Claude 版と同じオーナー判断を踏襲：agent_type 欠如時（main context 自身）に危険コマンドを
 #   fail-closed で deny すると main context の直接 push まで塞ぐ回帰が出るため、「対象外ロールは常に許可」
-#   とする（agent_type 詐称防御は失うが、二者択一の上でのオーナー明示判断・Claude issue #129）。
+#   とする（共通 deny 層に掛からないものに限る・agent_type 詐称防御は失うが、二者択一の上での
+#   オーナー明示判断・Claude issue #129）。
 #   Issue #227 でもこの fail-open 設計は**変更しない**（対象は GATED_ROLES のみ）。
 # デバッグ: AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log を設定すると、受信 payload の redacted JSON と
 #   判定を追記する（オプトイン・機微値はキー名ベースで伏せる）。

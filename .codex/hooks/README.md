@@ -78,12 +78,16 @@ The gate evaluates in this order (see the final decision block of
      (Issue #224 env-prefix/abspath guard).
 2. **Gated-role layers 1-3** — only for `GATED_ROLES` (`issue-implementer`,
    `issue-fixer`, `pr-reviewer`; source of truth `issue_start/gated_roles.py`):
-   - layer 1: per-role push/merge denial (`pr-reviewer` never pushes code; the
-     implementer/fixer push but never merge);
+   - layer 1: quote-aware denial of dangerous shell symbols for every gated role
+     (pipes, chaining, redirection, heredocs, subshells/command substitution,
+     brace expansion and multi-line commands; unquoted `| & ; ( ) { } < > $`,
+     backtick and newline, plus `$`/backtick inside double quotes);
    - layer 2: head-command whitelist (`gh` / `git` / `pyright` /
      `python3 -m <allowed modules>`, with the module set depending on the role);
    - layer 3: per-role allowlist of bounded raw `git` reads, `gitgate` verbs and
-     `gh` subcommands/flags.
+     `gh` subcommands/flags. The per-role push/merge boundary lives here
+     (`pr-reviewer` never pushes code and never switches branches; the
+     implementer/fixer push but never merge).
 3. Every other `agent_type` (including an absent one = the main context) skips the
    gated-role layers 1-3 and is allowed unless the all-role deny layer above
    already denied it, matching the owner decision recorded for the Claude gate
@@ -101,7 +105,7 @@ The gate evaluates in this order (see the final decision block of
   and decision (sensitive keys are redacted).
 
 Treat the gate as one layer of defense together with the prompt-level discipline
-in `issue-implementer.toml` / `pr-reviewer.toml`.
+in `issue-implementer.toml` / `issue-fixer.toml` / `pr-reviewer.toml`.
 
 ### Checking whether the hook actually fired (Issue #192)
 
