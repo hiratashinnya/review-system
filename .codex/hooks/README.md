@@ -88,6 +88,12 @@ The gate evaluates in this order (see the final decision block of
      `gh` subcommands/flags. The per-role push/merge boundary lives here
      (`pr-reviewer` never pushes code and never switches branches; the
      implementer/fixer push but never merge).
+   - exception, `pr-reviewer` only (outside layers 2 and 3): reading a saved PR
+     diff with the single form `rtk sed -n <start>,<end>p tmp/pr-diffs/pr-<number>-<32 hex>.diff`.
+     After layer 1, a `sed` head command is checked by a separate
+     `pr_diff_read_violation` check and returns before the layer 2 head-command
+     whitelist and the layer 3 allowlist run, so `sed` appears in neither. The
+     authoritative description is `.codex/agents/pr-reviewer.toml`.
 3. Every other `agent_type` (including an absent one = the main context) skips the
    gated-role layers 1-3 and is allowed unless the all-role deny layer above
    already denied it, matching the owner decision recorded for the Claude gate

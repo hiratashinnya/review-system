@@ -18,9 +18,10 @@
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
 #                           差分は `gh pr diff --no-compact` / `gh pr view` / `gitgate show-pr-diff|diff|log` で読める。
 #   それ以外の agent_type（main／各 *-author 等・agent_type 欠如を含む）はこのゲートのロール専用
-#   判定（層1〜3）の対象外＝ロール専用判定は適用しない。ただし Issue #224 フォローアップ（案B・
-#   後述の「全 agent_type 共通の危険コマンド deny 層」）を追加したため、対象外ロールも危険コマンド
-#   （network/exec）だけは deny され、それ以外は従来通り許可される。
+#   判定（層1〜3）の対象外＝ロール専用判定は適用しない。ただし全 agent_type 共通 deny 層
+#   （merge コマンド、および Issue #224 フォローアップ・案B の network/exec 危険コマンド。後述）は
+#   対象外ロールにも適用されるため、対象外ロールでも merge と network/exec は deny され、
+#   それ以外は従来通り許可される。
 #
 # Codex CLI 対応の一次資料（codex-cli 0.142.5 / openai/codex main で確認）:
 #   - 入力スキーマ codex-rs/hooks/schema/generated/pre-tool-use.command.input.schema.json:
@@ -64,6 +65,11 @@
 #        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|
 #        asset_parity|time_fixture_lint、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny。
+#        **例外（pr-reviewer のみ・層2・層3 の対象外）**: pr-reviewer だけは保存差分の読取として
+#        `rtk sed -n <start>,<end>p tmp/pr-diffs/pr-<番号>-<32桁hex>.diff` の単一形を許可する。層1 を
+#        通過後、gate_reason が先頭語 `sed` を pr_diff_read_violation で別検査し、
+#        head_command_violation（層2）・role_command_violation（層3）の前に抜けるため、層2 の先頭語
+#        一覧にも層3 の allowlist にも載らない。記述の正本は .codex/agents/pr-reviewer.toml。
 #        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
 #        coverage/karte と同型でサブコマンドを `check` に絞る（Issue #385・#129 の抜け穴を拡大しない）。
 #        `pyright`（Issue #510→F-510-06）: node バイナリの型検査ツール。gated ロールが自分の受入基準
