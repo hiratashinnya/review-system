@@ -358,16 +358,19 @@ missing/oversized report、fetch timeout、Python crash、非信頼値の無害�
 
 `SessionStart` イベントのうち **`resume` 以外**(`startup`/`clear`/`compact`)で発火し、主文脈の役割を
 「オーケストレーション＋ユーザーとのコミュニケーション」に限定するための委譲ルール
-(Orchestrator Task Delegation Rules)をコンテキストへ注入する。目的は、長いセッションでも
+(Orchestrator Task Delegation Rules)と、主文脈にしか当てはまらない規範(`.claude/main-context/*.md`・
+オーナーへの報告・質問の仕方等)の全文をコンテキストへ注入する。目的は、長いセッションでも
 品質を落とさず作業できるようにすること、主文脈とサブエージェント間の二重作業(ステップ細部
-までの指示→サブエージェント側での再展開)によるトークン浪費を防ぐこと。
+までの指示→サブエージェント側での再展開)によるトークン浪費を防ぐこと、そして主文脈専用の規範を
+サブエージェントへ配送せずに主文脈へだけ届けること(SessionStart は主文脈のイベント)。
 
 ## 構成
 
 | ファイル | 役割 |
 |---|---|
-| `orchestrator-context.sh` | `SessionStart(startup\|clear\|compact)` フックハンドラ。コンテキスト本文を読み込み、`hookSpecificOutput.additionalContext` として JSON で標準出力へ返す。 |
-| `orchestrator-context/orchestrator-task-delegation-rules.md` | 注入するコンテキスト本文(要件③によりスクリプトから分離)。内容を変えたい場合はこのファイルのみ編集すればよい。 |
+| `orchestrator-context.sh` | `SessionStart(startup\|clear\|compact)` フックハンドラ。委譲ルールに続けて `../main-context/*.md` の全文を名前順に連結し、`hookSpecificOutput.additionalContext` として JSON で標準出力へ返す。 |
+| `orchestrator-context/orchestrator-task-delegation-rules.md` | 注入するコンテキスト本文(要件③によりスクリプトから分離)。内容を変えたい場合はこのファイルのみ編集すればよい。リポジトリの規範ではなく、委譲プロンプトの書き方を定める汎用のオーケストレータ役割定義(写し・追従検査なし)。 |
+| `../main-context/*.md` | **主文脈専用の規範の正本**。全文はここで注入し、毎ターンは `governance-directives.md` 項12の要約(写し)だけが `inject-governance.sh` で届く。HTML コメントは注入時に除去する。置き場と併存理由・既知の限界は `CLAUDE.md`「主文脈専用の規定」。 |
 
 ## 発火条件
 
@@ -378,8 +381,8 @@ missing/oversized report、fetch timeout、Python crash、非信頼値の無害�
 - `compact` は `SessionStart` イベントの `source` フィールドが取り得る値の一つで、コンパクション
   (自動/手動の要約による文脈圧縮)後にセッションが再開する際に発火する。Claude Code には独立した
   `PostCompaction` イベントは存在しない(コンパクション後の再開は `SessionStart(source=compact)`
-  として表現される)。コンパクションで委譲ルールの指示文もコンテキストから失われ得るため、
-  `compact` を再注入対象に含めている。
+  として表現される)。コンパクションで委譲ルールの指示文も主文脈専用規範の全文もコンテキストから
+  失われ得るため、`compact` を再注入対象に含めている。
 
 ## 出力形式
 
@@ -387,14 +390,21 @@ missing/oversized report、fetch timeout、Python crash、非信頼値の無害�
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "<orchestrator-task-delegation-rules.md の内容>"
+    "additionalContext": "<委譲ルール>\n\n---\n\n# 主文脈専用の規定（正本＝`.claude/main-context/<name>.md`）\n\n<本文>..."
   }
 }
 ```
 
-`jq` が利用できる環境ではそれを使って安全にエスケープする。`jq` が無い環境向けに
-標準ツール(`sed`/`awk`)のみのフォールバックも用意している。コンテキストファイルが
-見つからない場合は何も注入せず `exit 0`(fail-open)。
+組み立ては python3(標準ライブラリ)で行う。**どの経路でも `exit 0`(fail-open)**:
+
+- 読めない・UTF-8 として不正なファイル(`OSError`/`UnicodeDecodeError`)は `[orchestrator-context] …` を
+  stderr に出して当該ファイルだけ飛ばし、残りの注入は続ける。
+- `main-context/` が無ければ委譲ルールだけを注入する。注入するものが何も無ければ無出力。
+- python3 の起動・組み立て自体に失敗したら、委譲ルールだけを従来の経路で注入する
+  (`jq` があればそれで、無ければ `sed`/`awk` の最小エスケープで)。このとき主文脈専用の規範は届かない旨を stderr に出す。
+
+stderr は通常の対話画面には出ないので、確認は `claude --debug` で行う。挙動は
+`tests/unit/test_main_context_injection.py` が固定する。
 
 ---
 
@@ -408,7 +418,8 @@ missing/oversized report、fetch timeout、Python crash、非信頼値の無害�
 | ファイル | 役割 |
 |---|---|
 | `inject-governance.sh` | `UserPromptSubmit` フックハンドラ。`governance-directives.md` を毎ターン `additionalContext` として注入する。stdin は読み捨てる。**失敗時は注入せず exit 0(fail-open)だが、必ず stderr へ `[inject-governance] …` の警告を出す**(可視化は `claude --debug`)。 |
-| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`**（Issue #387 / #406）で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
+| `../main-context/*.md` | **主文脈専用の規範の正本**。本フックは全文を連結しない——毎ターン載せるのは `governance-directives.md` 項12の要約(写し)だけで、全文は `orchestrator-context.sh`(SessionStart の startup/clear/compact)が注入する(全文を毎ターン積むと文脈を圧迫するため)。`.claude/rules/` に置くとサブエージェントにも配送される(CLAUDE.md 一式は `@` import の有無にかかわらずサブエージェントも起動時に読み込み、主文脈だけに絞る手段が無い)ため、オーナーへの報告・質問の仕方のように主文脈にしか当てはまらない規範はここへ置く。項12が写しなので正本集合に入り、追従漏れは下記のフックとテストが検知する。 |
+| `governance-directives.md` | 注入する本文(規約の中核規範の配送用の写し)。**正本は `CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md`**（Issue #387 / #406 / #585）で、食い違ったら正本を正とする。HTML コメントは注入時に除去される。 |
 
 ## なぜ必要か
 
@@ -480,8 +491,8 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
 規約(PR7・起票規律・独断禁止・委譲ルール・課金方針・正本の所在)を変更したら、
 `governance-directives.md` も合わせて更新する。**この追従漏れは下記のフックが機械的に検知する**。
 規約の正本は `CLAUDE.md` 単体ではなく **`CLAUDE.md` ＋ `.claude/rules/*.md` ＋
-`.ai/guidance/common.md`** である（Issue #387 で rules へ分割、Issue #406 で公式 import する
-common guidance を追加）。
+`.ai/guidance/common.md` ＋ `.claude/main-context/*.md`** である（Issue #387 で rules へ分割、Issue #406 で公式 import する
+common guidance を追加、Issue #585 で項12が要約する主文脈専用の規範を追加）。
 
 ---
 
@@ -491,7 +502,7 @@ common guidance を追加）。
 
 | ファイル | 役割 |
 |---|---|
-| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
+| `check-governance-drift.sh` | `PostToolUse(Write\|Edit)` フックハンドラ。編集対象が**正本集合**(`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md`)のいずれかのときだけ、写し `governance-directives.md` が追従しているかを検査する。 |
 
 ## なぜ必要か(実際に起きた事故)
 
@@ -515,7 +526,7 @@ PR #276 で **正本側に「このリポジトリ＝2つのプロジェクト�
 
 marker が持つのは**正本集合の連結ハッシュ**(先頭12桁)。算出は
 「相対パス(utf-8) + NUL + 生バイト + NUL」を `CLAUDE.md` → `.claude/rules/*.md`(相対パス昇順) →
-`.ai/guidance/common.md` の順に
+`.ai/guidance/common.md` → `.claude/main-context/*.md`(相対パス昇順) の順に
 連結し `sha256` を取る。**相対パスを混ぜるのは、ファイルの分割・改名・並び替えを内容の移動と
 区別するため**(内容の総和が同じでも配置が変われば sha が変わる)。marker 自体は従来どおり1行のまま
 ——rules ごとに marker を並べれば drift したファイルを特定できるが、写しの構造変更を要し、毎ターン
@@ -553,7 +564,8 @@ python3 -m unittest tests.unit.test_governance_sync   # 期待値と記録値の
 
 上記フックだけでは追従漏れを取りこぼす経路が残る。**このフックは常に `exit 0` の fail-open な
 nag であり、かつ発火条件が「編集対象の realpath が正本集合(`$CLAUDE_PROJECT_DIR/CLAUDE.md` ＋
-`$CLAUDE_PROJECT_DIR/.claude/rules/*.md` ＋ `$CLAUDE_PROJECT_DIR/.ai/guidance/common.md`)のいずれかに一致すること」のため、linked worktree 側の
+`$CLAUDE_PROJECT_DIR/.claude/rules/*.md` ＋ `$CLAUDE_PROJECT_DIR/.ai/guidance/common.md` ＋
+`$CLAUDE_PROJECT_DIR/.claude/main-context/*.md`)のいずれかに一致すること」のため、linked worktree 側の
 正本を編集した場合は沈黙する**(Issue #323 実装時に実測)。結果として
 「marker を更新しないまま merge される」経路が編集時フックだけでは塞ぎきれない。
 
@@ -563,10 +575,14 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 本フックの埋め込み python と同一である必要があり、どちらかを変えるときは両方を同時に変える
 (依存関係はテストファイル冒頭のコメントに明記済み)。
 
-同テストは併せて **common guidance が正本集合へ含まれること**と、**`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
-検査する(Issue #387 / F-387-05)。`@` 行の無いルールファイルは**誰にも配送されないまま
-何も赤くならない**ため、ハッシュ検査とは別に落とす必要がある(ハッシュは「写しが追従しているか」を
-見るだけで、「配送経路に繋がっているか」は見ない)。
+同テストは併せて **common guidance と main-context が正本集合へ含まれること**と、**`.claude/rules/*.md` の集合と `CLAUDE.md` の `@` import 行の双方向一致**も
+検査する(Issue #387 / F-387-05)。Claude Code は `.claude/rules/*.md` を `@` 行の有無にかかわらず
+自動で読み込む(主文脈にもサブエージェントにも配送される)ので、`@` 行は「どのファイルが規約か」を
+読み手が引く**索引**であり、この検査の目的は索引と実ファイルの乖離を残さないこと
+(rules を足して `@` 行を足し忘れる／rules を消して `@` 行を残す、のどちらも赤くする)。
+ハッシュ検査は「写しが追従しているか」を見るだけで、索引の整合は見ないため別に落とす。
+一方 `.claude/main-context/*.md` は rules と違って自動読込に乗らず、フック(SessionStart の全文注入と
+毎ターンの項12の要約)だけが配送経路である。項12が要約の写しなので、正本集合に入れて追従漏れを同じハッシュ検査で検知する。
 
 - **編集時フック(`check-governance-drift.sh`)**: 即時フィードバック用の**助言**。fail-open・
   linked worktree では沈黙する既知の穴がある(上記)。

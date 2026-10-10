@@ -5,6 +5,8 @@
 #   `governance-directives.md`（CLAUDE.md 中核規範の配送用の写し）を毎ターン
 #   additionalContext として注入し、規約が「セッション冒頭に一度読まれた過去の指示」ではなく
 #   「現在のターンの指示」として届くようにする。
+#   主文脈専用の規範（`.claude/main-context/*.md`）は全文を連結しない。毎ターン載せるのは写しの項12
+#   （要約）だけで、全文は SessionStart の `orchestrator-context.sh` が startup/clear/compact に注入する。
 #
 # なぜ必要か（Issue: context-mode 導入・2026-07-28）:
 #   context-mode プラグインが全ターン・全 subagent 呼び出しに `<session_continuity>`
@@ -44,12 +46,13 @@ import sys
 try:
     with open(sys.argv[1], encoding="utf-8") as f:
         text = f.read()
-except OSError as ex:
+except (OSError, UnicodeDecodeError) as ex:
     print(f"[inject-governance] 規範ファイルの読込に失敗: {ex}", file=sys.stderr)
     sys.exit(1)
 
-# 注入対象は本文のみ。HTML コメント（このファイル自身の運用メモ）は毎ターンのコストなので落とす。
+# HTML コメント（写し自身の運用メモ）は毎ターンのコストなので落とす。
 body = re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+
 if not body:
     print("[inject-governance] 規範ファイルの本文が空（コメント除去後）", file=sys.stderr)
     sys.exit(2)
