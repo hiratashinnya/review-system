@@ -1146,8 +1146,9 @@ elif dangerous_token:
         "of agent_type)."
     )
 elif agent_type not in GATED_ROLES:
-    # 対象外ロール（main context 自身・欠如を含む）はロール専用判定（層1〜3）の対象外＝常に許可。
-    # 上記オーナー判断の通り。危険コマンドは上の全 agent_type 共通層で既に deny 済み。
+    # 対象外ロール（main context 自身・欠如を含む）はロール専用判定（層1〜3）の対象外。
+    # 上の全 agent_type 共通 deny 層（merge と network/exec）に掛からないものに限り許可する
+    # （上記オーナー判断の通り。ロール専用判定は GATED_ROLES の gated ロールにだけ掛かる）。
     pass
 elif tool_name not in SHELL_TOOL_NAMES:
     # git/gh はシェル(Bash)ツール経由でのみ走る。非シェルツール（apply_patch 等）は対象外。
