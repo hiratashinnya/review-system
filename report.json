@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-10T17:16:36.681389Z",
+  "repository": "hiratashinnya/review-system",
+  "branch": "main",
+  "workflows_checked": 7,
+  "collection_errors": 0,
+  "anomalies": [
+    {
+      "workflow": {
+        "id": 309133396,
+        "name": "pages",
+        "path": ".github/workflows/pages.yml"
+      },
+      "severity": "error",
+      "summary": "workflow run concluded failure on main",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/38054647397",
+      "run": {
+        "id": 38054647397,
+        "attempt": 1,
+        "conclusion": "failure",
+        "event": "push",
+        "head_sha": "e388b5b0d3043e777143522b7b43e816c24c0714",
+        "completed_at": "2026-10-10T13:17:51Z"
+      }
+    }
+  ]
+}
