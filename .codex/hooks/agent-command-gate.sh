@@ -146,9 +146,9 @@
 #   tool_name がシェル系（Bash 等）でない場合も許可する（git/gh は Bash 経由のため）。
 #   GATED_ROLES でコマンド文字列が読めない場合は検査不能として deny する（fail-closed）。
 #
-#   Claude 版と同じオーナー判断を踏襲：agent_type 欠如時（main context 自身）に危険コマンドを
-#   fail-closed で deny すると main context の直接 push まで塞ぐ回帰が出るため、「対象外ロールは常に許可」
-#   とする（共通 deny 層に掛からないものに限る・agent_type 詐称防御は失うが、二者択一の上での
+#   Claude 版と同じオーナー判断を踏襲：agent_type 欠如時（main context 自身）にロール専用判定（層1〜3）の
+#   対象へ含め fail-closed で deny すると main context の直接 push まで塞ぐ回帰が出るため、「対象外ロールは
+#   常に許可」とする（共通 deny 層に掛からないものに限る・agent_type 詐称防御は失うが、二者択一の上での
 #   オーナー明示判断・Claude issue #129）。
 #   Issue #227 でもこの fail-open 設計は**変更しない**（対象は GATED_ROLES のみ）。
 # デバッグ: AGENT_COMMAND_GATE_DEBUG_PAYLOAD=/path/to/log を設定すると、受信 payload の redacted JSON と
