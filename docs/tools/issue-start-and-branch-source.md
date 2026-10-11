@@ -18,16 +18,7 @@ manifest は加えて `isolation_only` 区分を持つ（Issue #354 PR-4）。�
 
 Codex側は既存issue-start hookが`spawn_agent`と実測名`collaborationspawn_agent`の既知roleだけを捕捉し、manifestを介さず同じunavailable理由で拒否する。`Agent`はClaude transportのtool名であり、Codex transportとして扱わない。
 
-Codex 0.146.0 の`tool_input.message`が暗号化されることに加え、custom agent schemaにper-subagent workspace項目がなく親workspaceを継承するため、task name/cwd/prepare ledgerからchild workspaceを推測するparserは退役した。Codex正規経路はrepo supervisorの別processである。
-
-repo supervisorの公開`run|resume`は`--issue`、`--role`、`--change-plan-id`とfixer時だけ
-`--fixer-round`を受ける。host issuerが作るprivate change planは`ledger_entry_id`を持ち、そのentryは
-`platform=codex-supervisor`でなければならない。runtimeは同entryへimmutable intent digestとattemptを
-追記し、Popen直前にcanonical stateとlive Gitを再読する。change-plan/Issue/AC/karteを発行するhost
-control-planeは`python3 -m issue_start.codex_launch_control issue`で発行する。既存host provisioningが
-`.worktrees/*`へ登録済み専用worktreeを用意し、callerがGitHubから構造化Issue/AC snapshot（fixerはkarteも）を
-captureした後に呼ぶ。issuer自身はworktree作成、GitHub取得、model/API呼出しを行わない。発行済みstateがない、
-またはledgerが`issuance_status=complete`になる前の状態ではruntimeはfail-closeする。
+Codex 0.146.0 の`tool_input.message`が暗号化されることに加え、custom agent schemaにper-subagent workspace項目がなく親workspaceを継承するため、task name/cwd/prepare ledgerからchild workspaceを推測するparserは退役した。その後に正規経路としていたrepo supervisorもIssue #538で退役した。Codexは主文脈にしないため、Codexからimplementer/fixerをdispatchする経路は無い。現在の状態は[`docs/methods/codex-workspace-binding.md`](../methods/codex-workspace-binding.md)を正とする。
 
 Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json` の matcher `Task` が UI 表示 `issue-implementer(hook deny probe)` の実 Agent tool 呼出しを捕捉した一方、PreToolUse stdin の `tool_name` は `Agent` だった。`tool_input` は Claude 固有の `subagent_type` / `prompt` / `description` shape である。この実測差に対応して manifest の Claude transport だけが `Task` と `Agent` を exact 名として持つ。`Agent` は Codex transport の parser alias にはしない。parser は Claude transport で `subagent_type` と `prompt` を必須とし、Codex 固有の `agent_type` / `message` / `task_name` が混在すれば拒否するため、同名 alias を harness 間で無条件に受理しない。小文字化、prefix/suffix、類似名も拒否する。
 

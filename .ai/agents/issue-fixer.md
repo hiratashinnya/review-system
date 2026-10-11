@@ -10,15 +10,13 @@
 
 issue: Issue 番号
 round: 是正ラウンド番号（1 始まり・単調増加）
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-fixer--issue-<N>[-<suffix>].yaml
 branch_name: 是正対象 PR のブランチ名
 repository: OWNER/REPO（Step 0 でブランチを取得する際に使う）
 expected_oid: そのブランチの検証済み OID（Step 0 でブランチを取得する際に使う）
 ほか：対象 finding ID の一覧・PR 番号等
 
-handoff_path・branch_name・repository・expected_oid のいずれかが渡されていなければ着手せず STOP して報告する。足りない値と、呼び出し元が渡すべき形を添える。渡された値から別の値を組み立てない。Codex supervisor経路では親AI/CLIの自由入力を受けず、manifestのrole別handoff_templateをcanonical ledgerと照合したhost導出値だけがpromptにexact 1回提示される。
-
-Codex supervisorのrole promptには、上記4値を `Host-derived execution facts` としてhostが一括提示する。`handoff_path`、`branch_name`、`repository`、`expected_oid` はcanonical ledgerとlive Git factsから導出され、親runtimeの入力には追加しない。innerは提示されたhandoff_pathだけへ書き込み、他のsnapshot本文に現れる実handoff file candidateやhost authority/prompt reserved placeholderを権威値として扱わない。bareな`tmp/_handoff/`説明、reservedでない一般placeholder、通常コード断片は単一format passのsnapshot dataとして許可される。
+handoff_path・branch_name・repository・expected_oid のいずれかが渡されていなければ着手せず STOP して報告する。足りない値と、呼び出し元が渡すべき形を添える。渡された値から別の値を組み立てない。
 
 handoff_path は作業ツリールート相対の出力であり、呼び出し元が採番する。カルテのパスは受け取らず、`python3 -m karte render` / `append` / `close-attempt` の各操作でのみ触れる。パスを自分で組み立てない。
 
@@ -91,25 +89,6 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 ## 出力とハンドオフ
 
 是正結果、対応した finding ID、変更ファイル、テスト結果、未解消 finding、スコープ外 finding を、呼び出し元から渡された handoff_path 一択へ書く。チャットには書けた絶対パスと1行要約だけを返す。PR 自体のマージと Issue クローズは行わない。
-
-`CODEX_ISSUE_SUPERVISED=1` のinner processではJSON-compatible schema v1 handoffを使う。
-この実行形態ではStep 0のbranch取得とStep 1/2の中央karte書込み・commit/pushはhostの責務である。
-最初のturnは診断専用で、worktree全体はread-only、hostが示すtask-private診断directoryだけがwrite可能である。
-host生成promptにあるschema v1 `diagnosis_proposal`のidentity/finding_ids/karte_sha256をそのまま用い、
-root_cause/change_kind/targets/diagnosisを埋めて指定proposal.jsonへ書き、終了する。コード編集とpre_publish作成はまだ行わない。
-hostが中央karteへAttemptを登録した後、同じthreadのresumeで渡される
-登録receiptのAttempt番号、targets、root_cause、change_kindを採用してからStep 2の編集・testへ進む。
-scope変更は既存proposalの書換えで通さずSTOPしてhostへ返す。
-`phase`は`pre_publish`、成功時`status`は`ready`とし、hostから束縛されたrole、Issue、task key、branch、
-現在HEAD、結果を含める。STOPは`status: stopped`とし、host publish不可として扱う。下記形式はhost publish後のfinal phaseである。
-`result`にはfinal生成に必要なround、既存PR URL、finding_ids、diagnosis、outcome、changed_files、tests、
-unresolved_findings、out_of_scope_findings、protected_patchを過不足なく入れる。protected asset変更がなければ
-`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。承認対象pathはsupervisor
-run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、promptやpublish CLIから追加しない。hostはprotected patch
-（宣言時のみ）→add→commit→push→karte.close-attemptを順番に実行し、final handoffを生成する。
-
-同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
-raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
 ハンドオフは次の構造を満たす。
 

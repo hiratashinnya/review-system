@@ -1,8 +1,8 @@
 """Managed Issue dispatch 直前の blocker policy adapter。
 
-Claude transport は marker 契約を維持する。Codex の ``spawn_agent`` transport は
-per-subagent workspace を指定・観測できないため、既知 implementer/fixer dispatch を
-payload の詳細検証より先に常時 deny する。Codex supervisor はこの gate とは別経路である。
+Claude transport は marker 契約を維持する。Codex は主文脈にしない（Issue #538）ため
+``spawn_agent`` の binding transport を持たず、既知 implementer/fixer dispatch を
+payload の詳細検証より先に常時 deny する。
 """
 
 from __future__ import annotations
@@ -515,15 +515,15 @@ def parse_dispatch_payload(
             "(GATED_ROLES must not spawn subagents; this closes the "
             "agent-command-gate.sh allowlist-bypass route recorded in Issue #517)",
         )
-    # Codex transport は manifest binding を持たない。既知 tool/role の組合せは malformed
-    # payload であっても marker/ledger/cwd/API を一切読む前に同じ理由で拒否する。
+    # Codex は主文脈にしない（Issue #538）ので manifest binding を持たない。既知 tool/role の
+    # 組合せは malformed payload でも marker/ledger/cwd/API を一切読む前に同じ理由で拒否する。
     if tool_name in {"spawn_agent", "collaborationspawn_agent"} and (
         tool_input.get("agent_type") in {"issue-implementer", "issue-fixer"}
         or tool_input.get("subagent_type") in {"issue-implementer", "issue-fixer"}
     ):
         raise IssueStartError(
             "ISSUE_START_TRANSPORT_UNAVAILABLE",
-            "harness=codex; per-subagent workspace selection/observation unavailable",
+            "harness=codex; Codex is not a main context (Issue #538): dispatch from Claude Code",
         )
     targets = [tool_input.get(field) for field in ("agent_type", "subagent_type")]
     present_targets = [target for target in targets if target is not None]

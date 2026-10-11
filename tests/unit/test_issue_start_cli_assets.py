@@ -151,54 +151,37 @@ class AssetParityTests(unittest.TestCase):
         self.assertNotIn("pr-merge-gate.sh", commands)
         self.assertIn("agent-command-gate.sh", commands[0])
         self.assertIn("issue-start-gate.sh", commands[1])
-        self.assertIn("codex-launch-intent-gate.sh", commands[2])
-        self.assertEqual(groups[2]["matcher"], "Bash")
-        self.assertEqual(len(groups), 3)
+        self.assertEqual(len(groups), 2)
 
-    def test_codex_launch_manifest_derives_every_non_owner_input(self):
+    def test_manifest_keeps_only_the_claude_dispatch_sections(self):
+        """Issue #538: Codex 起動用の top-level block は manifest から退役した。"""
         manifest = json.loads(
             (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
         )
-        launch = manifest["codex_supervisor_launch"]
-        self.assertEqual(launch["schema_version"], "codex-launch-intent/1")
-        self.assertEqual(launch["change_plan_schema"], "codex-change-plan/2")
-        self.assertEqual(launch["change_plan_root"], "tmp/_codex_control/change-plans")
-        self.assertEqual(launch["canonical_ledger_platform"], "codex-supervisor")
-        self.assertEqual(launch["reservation_contract"], "same-entry/intent-digest-v1")
-        self.assertEqual(launch["issuer_contract"], {
-            "schema_version": "codex-change-plan-issuance/1",
-            "command": "python3 -m issue_start.codex_launch_control issue",
-            "sources_root": "tmp/_codex_control/sources",
-        })
-        self.assertEqual(set(launch["roles"]), {"issue-implementer", "issue-fixer"})
-        self.assertEqual(launch["executables"], {
-            "bwrap": "/usr/bin/bwrap",
-            "codex": {"lookup_name": "codex",
-                      "sandbox_alias": "/run/issue-supervised/codex"},
-        })
-        self.assertEqual(launch["permission_profile"], "issue-supervised")
-        for role, config in launch["roles"].items():
-            with self.subTest(role=role):
-                self.assertEqual(
-                    set(config),
-                    {"model", "reasoning_effort", "task_key_template", "handoff_template",
-                     "prompt_template"},
-                )
-                self.assertTrue(all(isinstance(value, str) and value for value in config.values()))
-                self.assertIn("{issue_snapshot}", config["prompt_template"])
-                for field in ("handoff_path", "branch_name", "repository", "expected_oid"):
-                    self.assertIn("{" + field + "}", config["prompt_template"])
-                self.assertEqual(config["prompt_template"].count("{handoff_path}"), 1)
-        self.assertIn("{karte_snapshot}", launch["roles"]["issue-fixer"]["prompt_template"])
+        self.assertEqual(
+            set(manifest),
+            {"schema_version", "policy_version", "managed", "isolation_only", "unmanaged"},
+        )
 
-    def test_codex_launch_hook_asset_is_registered_and_executable(self):
-        script = ROOT / ".codex/hooks/codex-launch-intent-gate.sh"
-        self.assertTrue(script.is_file())
-        self.assertTrue(script.stat().st_mode & 0o111)
-        self.assertIn("python3 -m issue_start.codex_launch_intent hook",
-                      script.read_text(encoding="utf-8"))
-        self.assertIn("--git-common-dir", script.read_text(encoding="utf-8"))
-        self.assertIn('cd "$PROJECT_ROOT"', script.read_text(encoding="utf-8"))
+    def test_codex_hooks_register_only_scripts_that_exist(self):
+        """Issue #538: 退役した launch gate を登録に残すと Codex の全 Bash 呼び出しが落ちる。"""
+        hooks = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+        commands = [
+            handler["command"]
+            for groups in hooks["hooks"].values()
+            for group in groups
+            for handler in group["hooks"]
+        ]
+        self.assertTrue(commands)
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertNotIn("launch-intent", command)
+                scripts = re.findall(
+                    r'^bash "\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[a-z-]+\.sh)"$',
+                    command,
+                )
+                self.assertEqual(len(scripts), 1)
+                self.assertTrue((ROOT / scripts[0]).is_file())
 
     def test_retired_binding_hook_and_manifest_transport_are_absent(self):
         manifest = json.loads(
