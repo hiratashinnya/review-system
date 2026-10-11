@@ -29,6 +29,8 @@
 
 ### Codex durable binding（Issue #452・2026-08-26、supervisor採用 2026-08-30）
 
+> **退役済み**：本節が採用した repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり現行の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
+
 Codex の message は暗号化されるため、Issue/round/repository/workspace/branch/OID/handoff/role/task key の
 正本には使わない。当初は主文脈が ownership ledger へ prepare し、spawn hook が
 task key で consume、全 tool hook が workspace/Git facts を再検証する方式を採用した。
@@ -105,6 +107,8 @@ hand-off は dispatch が終了したことを呼び出し元が観測する sig
 書き込み verb は許可せず、非 gated の主文脈が扱う。
 
 ## Issue #452 F-452-20 による更新（2026-09-06）
+
+> **退役済み**：本節が現行契約として記す repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり現行の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
 
 旧prepare bindingと単一MCP brokerは退役した。正規Codex implementerはrepo supervisorのimmutable launch
 record、PID/start-token、JSONL、direct workspace command、host publish state machineへ束縛する。protected

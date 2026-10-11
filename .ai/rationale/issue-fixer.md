@@ -178,6 +178,8 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 （`Edit` は `matcher: "Bash"` のゲートを通らない）。多層防御の一枚として守る。
 ## Codex fixer transport と bootstrap 境界（Issue #452・2026-08-26、supervisor採用 2026-08-30）
 
+> **退役済み**：本節（配下の F-452-20 による現行決定、F-452-25/26/27、F-452-28、F-452-29 を含む）が記す repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり、「現行決定」「現行契約」と書かれた箇所も現在の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
+
 当初は `issue_<N>_fix_r<R>` task key と durable ownership ledger により、事前検証済みの
 `.worktrees/<name>`、branch、expected OID、handoff へ束縛した Codex `isolation_only` transport を
 宣言した。しかし PR #453 round 1 で、`spawn_agent` は child workspace を受け取れず、
