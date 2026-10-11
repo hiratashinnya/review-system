@@ -73,7 +73,7 @@
         "IssueStartGitHubCollector",
         "SnapshotIssueMetadata"
       ],
-      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     }
   },
   "module_lines": {
@@ -195,7 +195,7 @@
     },
     "issue_start/gate.py": {
       "line_count": 1285,
-      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     },
     "issue_start/hook.py": {
       "line_count": 190,
@@ -211,7 +211,7 @@
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 900,
-      "sha256": "a0d54cea84136616cd07d2f1d3499767fb3a23a90a00b126a8ceb32b1a701dd1"
+      "sha256": "ba8e1182d26fade853574a37a8543e0be6623534a98b8b2b5615a6cbc3f14161"
     },
     "karte/cli.py": {
       "line_count": 1519,
