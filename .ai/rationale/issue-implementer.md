@@ -137,6 +137,10 @@ worktree 解放後も両立する。回収の構成は `issue-fixer` の Step 0 
 
 ## supervised process の起動境界と publish 内部検証（移設元：「出力とハンドオフ」）
 
+この節が説明する Codex supervised 手順は Issue #538 の PR-A で退役し、本文（`.ai/agents/issue-implementer.md`）からも
+除いた。以下は退役前の記録であり、文中の「本文には…を残した」は現在の本文に当てはまらない。退役の経緯と
+退役時点の本文は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) にある。
+
 generated `issue-supervised` permission profile は `:workspace` を継承し、inner process に
 workspace-write 相当の境界を与える。この起動境界は `issue-fixer` にも共通する。
 

@@ -2,6 +2,8 @@
 
 共通本文の一覧は載せず、PF（Claude Code／Codex CLI／GitHub Copilot／Repo-skill）の loader・wrapper・実行メタデータに生じる差分だけを記録する。共通本文の SoT は `.ai/README.md` の配置規則に従う。
 
+Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要は [退役記録](rationale/codex-supervisor-retirement-538.md) へ移設した。
+
 ## loader 差分
 
 | PF | loader 入口 | 個別形式 |
@@ -82,7 +84,7 @@
 
 - **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する（managed dispatch のみ）。加えて、これとは独立した安全機構として、残留 worktree があれば managed／unmanaged を問わず**全 dispatch を fail-close で deny する**（Issue #354）。自動解放が失敗した場合やフックが発火しなかった場合の最後の砦として機能する。
 - **スコープ**: Task／runtime Agent（Claude）／spawn_agent（Codex）。
-- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher・binding 材料がディスパッチ機構名（Claude の `Task`/`Agent` と marker `ISSUE_START_BINDING_V1` 、Codex の `spawn_agent` と `task_name`/`cwd` 平文情報）に合わせて異なる点。
+- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher と dispatch の扱い。Claude は `Task`/`Agent` を対象に、dispatch prompt の marker `ISSUE_START_BINDING_V1` を binding 材料として検査する。Codex は `spawn_agent` を対象にするが binding 材料を持たず、既知の `issue-implementer`／`issue-fixer` を指定した dispatch を、payload の詳細・marker・ledger・cwd・GitHub API を読む前に常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で deny する（Codex は主文脈にしない＝Issue #538）。
 - **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）。残留 worktree deny の詳細は [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「残留 worktree での次 dispatch を deny する」節）
 
 #### 4. check-governance-drift

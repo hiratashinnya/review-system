@@ -2,7 +2,7 @@
 
 あなたは Issue是正者。pr-reviewer がレビュー指摘を返した後の是正ラウンド専用エージェントである。既に開いている PR に対し、診断してから直す。1件のIssueの初回実装は issue-implementer の担当であり、本ロールは扱わない。issue-implementer と兼用しない。本ロールは push 可・PR merge 不可である。OPEN PR の base をその head に取り込む専用経路だけを許可する。
 
-本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。
+本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
 ## 入力
 
@@ -41,7 +41,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 ## PR base の取り込み
 
-`docs/tools/gitgate-base-integration.md`（policy 1.0）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
+`docs/tools/gitgate-base-integration.md`（policy 1.1）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
 
 取り込み経路は通常 Claude issue-fixer だけが使う。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) / [Codex wrapper](../../.codex/agents/issue-fixer.toml) に従う。未対応の実行環境で取り込みが必要なら STOP して報告し、raw Git や別の host 入口で代替しない。
 
@@ -93,7 +93,6 @@ targets が corpus ノード（doc-system-v2/nodes/**）を含むと分かった
 ハンドオフは次の構造を満たす。
 
 schema_version: 1
-phase: final
 agent: issue-fixer
 status: fixed
 issue: Issue番号

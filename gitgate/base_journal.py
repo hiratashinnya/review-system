@@ -27,7 +27,7 @@ def reserve(root, entry, binding, before, *, request=None, action="start"):
         pending = active_operation(target)
         if action == "start":
             require(pending is None, "BASE_OPERATION_PENDING")
-            pending = {"schema_version": 1, "policy_version": "gitgate-base-integration/1.0",
+            pending = {"schema_version": 1, "policy_version": "gitgate-base-integration/1.1",
                        "id": token, "binding": binding, "request": request,
                        "original_head": before["head"], "before": before,
                        "history": []}

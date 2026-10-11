@@ -4,7 +4,10 @@
 退役時点まで現行文書・契約・設定に書かれていた内容を移設して保全する
 （`.claude/rules/01-principles.md`「PR8「消さない」の適用範囲」区分1）。
 現行の状態は [`docs/methods/codex-workspace-binding.md`](../../docs/methods/codex-workspace-binding.md) を正とする。
-本書に書かれた手順・契約は**いずれも現在は有効でない**。
+本書が保全するのは退役した supervisor 方式の手順・契約であり、それらは**現在は有効でない**。
+ただし移設本文には、退役の前後で変わらず現在も有効な契約の記述も含まれる
+（Codex の `spawn_agent` による既知ロール起動を常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否すること、
+Claude transport の marker／isolation 契約）。何が現在有効かは本書から読み取らず、上記の現行文書を正とする。
 
 ## 退役の決定
 
@@ -25,9 +28,13 @@
 | 種別 | 退役物 |
 |---|---|
 | module | `issue_start/codex_supervisor.py`・`codex_launch_intent.py`・`codex_launch_control.py`・`codex_supervisor_workspace.py`・`codex_karte_bridge.py` |
-| test | `tests/unit/test_codex_supervisor.py`・`test_codex_supervisor_shrink.py`・`test_codex_launch_control.py`・`test_codex_karte_bridge.py`、`tests/unit/test_issue_start_gate.py` の `CodexLaunchIntentTests` |
+| test | `tests/unit/test_codex_supervisor.py`・`test_codex_supervisor_shrink.py`・`test_codex_launch_control.py`・`test_codex_karte_bridge.py`、`tests/unit/test_issue_start_gate.py` の `CodexLaunchIntentTests`、`tests/unit/test_issue_start_cli_assets.py` の `test_codex_launch_manifest_derives_every_non_owner_input`・`test_codex_launch_hook_asset_is_registered_and_executable` |
 | hook | `.codex/hooks/codex-launch-intent-gate.sh` と `.codex/hooks.json` の同 PreToolUse 登録 |
 | 設定 | `issue_start/managed-entrypoints-v2.json` の top-level block `codex_supervisor_launch` |
+
+`test_codex_karte_bridge.py` にあった `karte.paths.writer_lock` の unsafe lock（symlink・hardlink）拒否テストは、
+supervisor ではなく共有 karte の検証である。退役物に含めず、レビュー是正（F-538-01）で
+`tests/unit/test_karte_writer_lock.py` として残した。
 
 検証証跡（TD／TR）は `archive/issue-452-codex-supervisor/` へ移し、ログは `tests/logs/TD-issue-start-452-*` に残す。
 
@@ -306,6 +313,9 @@ publish CLIでpath/digestを追加しない。protected patch（宣言時のみ�
 同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
 
+ハンドオフ構造の2行目には `phase: final` があった。inner が書く `pre_publish` と host publish 後の `final` を
+区別する項目であり、区別対象が退役した後は読み手も検証者も無いため、レビュー是正（F-538-05）で構造から除いた。
+
 ## 移設元: `.ai/agents/issue-fixer.md`
 
 「入力」節の `handoff_path` の説明には、次の括弧書きが付いていた。
@@ -340,6 +350,9 @@ run時にownerがimmutable launch recordへpathとbase SHA-256を記録し、pro
 
 同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
 raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
+
+ハンドオフ構造の2行目には `phase: final` があった。inner が書く `pre_publish` と host publish 後の `final` を
+区別する項目であり、区別対象が退役した後は読み手も検証者も無いため、レビュー是正（F-538-05）で構造から除いた。
 
 ## 移設元: `.ai/Individually-managed-lists.md`
 
@@ -418,3 +431,13 @@ reason code と deny の発火条件は退役の前後で変わっていない�
 Codex supervisorは`.worktrees/`配下と独立launch recordを使う。ここへ混ぜると
 Claude ``SubagentStart`` がCodex supervisor entryを横取りするため、
 platform 欠如（既存 entry）または ``claude`` だけを対象にする。
+
+## 移設元: `.ai/troubleshooting/codex-review.md`
+
+レビュー是正（F-538-02）で移設した。「CLI または認証が利用できない」節の末尾に次の段落があった。
+
+repo supervisor経路ではcanonical `~/.codex/sessions`を直接共有せず、main worktreeの
+`tmp/_codex_sessions/<task-key>/sessions`を同じmount先へtask単位でbindする。initial/resumeでmarkerが
+継続しない場合は、このsourceの欠落・symlink・modeとouter commandの`--bind`を確認し、fresh threadへ置換しない。
+clean hostではsupervisorが非symlinkの`~/.codex/sessions` targetを作成するため、未存在を手作業で事前作成せず、
+作成失敗reasonとHOMEの所有権を確認する。workspace shellからtask markerを書換できた場合は隔離失敗として停止する。

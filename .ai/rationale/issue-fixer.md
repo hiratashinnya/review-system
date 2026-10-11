@@ -278,6 +278,10 @@ handoff の回収は、fixer の Step 0 で早期 STOP した場合も対象で�
 
 ## supervised process の状態名と完了検証（移設元：「出力とハンドオフ」）
 
+この節が説明する Codex supervised 手順は Issue #538 の PR-A で退役し、本文（`.ai/agents/issue-fixer.md`）からも
+除いた。以下は退役前の記録であり、文中の「本文には…を残している」は現在の本文に当てはまらない。退役の経緯と
+退役時点の本文は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) にある。
+
 host が中央 karte へ Attempt を登録すると、内部状態は `paused_karte_registered` になる。
 karte bridge は host 側の専用状態遷移に従い、publish の最後に中央 Result との一致を検証してから
 final handoff を生成する。本文には、同じ thread の resume で渡される登録 receipt を採用してから
