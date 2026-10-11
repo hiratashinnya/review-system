@@ -1225,6 +1225,26 @@ class CodexAgentCommandGateTests(unittest.TestCase):
     # Issue #385: asset_parity / time_fixture_lint（read-only 監査ツール）を base集合として
     # 3 gated ロール全員に `check` サブコマンドのみ許可する（Claude 版と同一契約）。
     # ------------------------------------------------------------------
+    def test_maintainability_lint_is_check_only_for_every_gated_role(self):
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for prefix in ("", "rtk "):
+                for suffix in ("check", "check --root ."):
+                    command = f"{prefix}python3 -m maintainability_lint {suffix}"
+                    with self.subTest(role=role, command=command):
+                        self.assert_allowed(run_gate(payload(role, command)))
+                for suffix in ("", " baseline", " unknown"):
+                    command = f"{prefix}python3 -m maintainability_lint{suffix}"
+                    with self.subTest(role=role, command=command):
+                        self.assert_denied(run_gate(payload(role, command)))
+
+    def test_file_deletion_and_move_remain_denied_for_every_gated_role(self):
+        for role in ("issue-implementer", "issue-fixer", "pr-reviewer"):
+            for prefix in ("", "rtk "):
+                for command in ("rm tracked.py", "mv old.py new.py",
+                                "git rm tracked.py", "git mv old.py new.py"):
+                    with self.subTest(role=role, command=prefix + command):
+                        self.assert_denied(run_gate(payload(role, prefix + command)))
+
     def test_asset_parity_and_time_fixture_lint_are_check_only_for_every_gated_role(self):
         for role in ["issue-implementer", "issue-fixer", "pr-reviewer"]:
             for command in [
