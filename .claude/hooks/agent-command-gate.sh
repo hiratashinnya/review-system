@@ -45,7 +45,7 @@
 #   層2: 先頭語ホワイトリスト（head_command_violation）
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
-#        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|
+#        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|maintainability_lint|
 #        time_fixture_lint|feedback_ledger、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
@@ -297,6 +297,7 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # 不整合を消し、エージェントの混乱・ハルシネーションリスクを下げる（防御力は #129 限界のため不変）。
 ALLOWED_PYTHON_MODULES = {
     "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
+    "maintainability_lint",
     "feedback_ledger",
 }
 # `asset_parity`/`time_fixture_lint`（Issue #385）: CI が回している read-only 監査コマンド
@@ -336,6 +337,8 @@ COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
 # （Issue #385 AC3・「サブコマンド制限の要否」への対応）。
 ASSET_PARITY_ALLOWED_SUBCOMMANDS = {"check"}
 TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS = {"check"}
+# Issue #608: baseline の生成は主文脈へ STOP して返し、3ロールには check だけを許可する。
+MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS = {"check"}
 # `feedback_ledger`（Issue #522）: オーナー判断フィードバック台帳（`.ai/feedback/`）の
 # **CLI 専用書込み**ツール。`karte` と同じく「状態を書き換える verb を持つ」ので、モジュール
 # 単位ではなく **verb 単位・ロール別**に絞る（`GITGATE_VERBS_BY_ROLE` と同型の表なので、下の
@@ -761,6 +764,14 @@ def head_command_violation(tokens, role):
                         f"`python3 -m karte` only allows <{subs}> for this role "
                         "(`ingest-review` writes finding status and belongs to the reviewing side, "
                         "not to the role being reviewed)"
+                    )
+            if tokens[2] == "maintainability_lint":
+                subcommand = tokens[3] if len(tokens) >= 4 else ""
+                if subcommand not in MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS:
+                    subs = "|".join(sorted(MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS))
+                    return (
+                        f"`python3 -m maintainability_lint` only allows <{subs}> "
+                        "(baseline generation/update requires STOP and owner confirmation)"
                     )
             # Issue #385: asset_parity / time_fixture_lint はどちらも `check` サブコマンドしか
             # 実装していない read-only 監査ツール。coverage/karte と同型でサブコマンドを固定する。

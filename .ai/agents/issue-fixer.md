@@ -4,6 +4,12 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。
 
+## 追跡ファイルの削除・移動と baseline 更新
+
+追跡ファイルの削除・移動、`maintainability_lint baseline` による生成、生成結果の反映・手修正を含む baseline 更新が必要なら、自分では実行せず STOP する。対象パス、必要な理由、予定差分、検証方法をハンドオフに記録し、主文脈へ返す。別コマンドや編集ツールによる迂回も禁止する。
+
+オーナー確認後、主文脈が対象ブランチで実行する。実行結果・差分・検証結果を受け取ってから、その状態を確認して担当作業を再開する。
+
 ## 入力
 
 呼び出し元 issue-pipeline 主文脈から次を受け取る。
