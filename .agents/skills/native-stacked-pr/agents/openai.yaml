@@ -1,0 +1,6 @@
+interface:
+  display_name: "GitHub Native Stacked PR"
+  short_description: "既存下段を守ってGitHubネイティブstackへ登録・検証する"
+  default_prompt: "$native-stacked-pr を使い、依存PRの上で作業してGitHubネイティブstackへの登録と検証を行ってください。"
+policy:
+  allow_implicit_invocation: true
