@@ -56,7 +56,7 @@ class KarteMissing(KartePathError):
 
 @contextmanager
 def writer_lock(repo_root):
-    """Serialize karte CLI mutations (append / close-attempt) on one stable lock inode."""
+    """Serialize every karte CLI mutation of the ledger on one stable lock inode."""
     directory = karte_dir(repo_root, create=True)
     fd = os.open(directory / ".writer.lock",
                  os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
