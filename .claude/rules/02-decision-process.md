@@ -50,8 +50,8 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`/
     `codex-hook-trust-check.sh`、
     `.claude/settings.json`
-  - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`bloom-model-tier`/
-    `asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
+  - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`silent-failure-diagnosis`/
+    `bloom-model-tier`/`asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
   - 共有 gate / start / branch / sync / metrics ツール：`blocker_gate`/`pr_merge_gate`/`issue_start`/
     `branch_source`/`project_status_sync`/`guidance_sync`/`defect_metrics`
   - 点検・監査ツール（read-only）：`asset_parity`/`time_fixture_lint`/`maintainability_lint`/
