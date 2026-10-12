@@ -6,7 +6,7 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
 ... before inventing a new mechanism"). The source of truth is
 `.claude/tailoring-registry.md`'s trailing bullet notes, as of this tool's writing:
 
-  * `agy-delegate`（スキル＋エージェント）: agy MCP はローカル CLI／Windows Credential
+  * `agy-delegate`（スキル＋エージェント）: agy 直接実行はローカル CLI／Windows Credential
     Manager 認証依存のため、クラウド/別プラットフォームへは非移植。
   * `issue-implementer`／`issue-fixer`／`pr-reviewer`（エージェント）:
     gh CLI／Claude Code フック（`agent-command-gate.sh`）／Task 委譲／
@@ -54,7 +54,7 @@ class Exemption:
 
 
 _ENV_DEPENDENT = (
-    "agy MCP はローカル CLI／Windows Credential Manager 認証依存のため非移植"
+    "agy 直接実行はローカル CLI／Windows Credential Manager 認証依存のため非移植"
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_PIPELINE_AGENT_COPILOT = (

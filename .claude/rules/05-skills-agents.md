@@ -3,9 +3,9 @@
 - スキル（仕様）：`/align` `/value-trace` `/mvp-scope` `/schema-design` `/domain-model` `/spec-pipeline` `/asset-pipeline`
 - スキル（実装設計）：`/architecture-design` `/orchestration-design` `/prompt-design` `/impl-design-pipeline`（凍結セット）・`/test-strategy`
 - スキル（横展）：`/asset-lateral-deploy`（資産の別プラットフォーム展開）
-- スキル（外部委譲）：`/agy-delegate`（Antigravity(agy)CLI への作業移譲の入口。疎通チェック必須・薄い起動口で実体は `agy-delegate` エージェント）
-- スキル（外部委譲・第二意見レビュー）：`/codex-review`（Codex 公式 CLI `codex exec` への第二意見レビュー委譲の入口＝別モデルファミリ OpenAI。`agy-delegate`＝agy MCP/Gemini とは委譲先の機構が別・in-repo Claude のレビューは `pr-reviewer`、merge は fresh blocker report を確認したオーナーが手動で行う。cybersecurity フィルタで最終応答が `ERROR:flagged` に消える件は、観点プロンプトを最初から防御形式で書いて予防し、flag 後は再提出せず（言い換え・新規セッションでの流し直しは迂回）、所見回収を自分の `thread_id` に対応する rollout 1ファイルに限る（`silent-failure-diagnosis` D0 の例外・オーナー承認 2026-07-28・手順の正本は `.ai/troubleshooting/codex-review.md`）。Linux/WSL 専用・全外部ツリー非移植＝`asset_parity/exceptions.py` に登録済み。opus session 上限時の**追加の第二意見経路**として使える（`pr-reviewer` の同一構成での再投入を置き換えるものではなく、再投入した**上で**別ファミリの意見も取る用途））
-- スキル（共有リファレンス・外部プロセス診断）：`silent-failure-diagnosis`（`user-invocable: false`＝単独起動しない。外部プロセス（委譲先 CLI・エージェント、フック、CI）が終了コード 0 などの成功シグナルを返しながら誤答・無作動・途中打ち切り・隠れた権限拒否になっている疑いを切り分ける一般則 D0〜D8。共通本文＝`.ai/skills/silent-failure-diagnosis/SKILL.md`。委譲系 agent が `skills:` でプリロードして使う共有リファレンス区分（`spec-principles` と同じ）だが、**現時点ではプリロードしている資産は無い**（最初の利用者 `agy-delegate` は Issue #606 で接続予定）。ツール固有の兆候・回復手順は `agy-delegate`・`codex-review` 側が正本で、本 skill は一般則だけを持つ。Copilot 非移植）
+- スキル（外部委譲）：`/agy-delegate`（agy 直接実行の入口。共通本文は `.ai/skills/agy-delegate/SKILL.md`、担当手順は `.ai/agents/agy-delegate.md`。環境・許可設定の必須検査付き `agy_delegate` ラッパーのみを使う。通常実行は実測出力契約・設定合成未確認で停止中）
+- スキル（外部委譲・第二意見レビュー）：`/codex-review`（Codex 公式 CLI `codex exec` への第二意見レビュー委譲の入口＝別モデルファミリ OpenAI。`agy-delegate`＝agy 直接実行/Gemini とは委譲先の機構が別・in-repo Claude のレビューは `pr-reviewer`、merge は fresh blocker report を確認したオーナーが手動で行う。cybersecurity フィルタで最終応答が `ERROR:flagged` に消える件は、観点プロンプトを最初から防御形式で書いて予防し、flag 後は再提出せず（言い換え・新規セッションでの流し直しは迂回）、所見回収を自分の `thread_id` に対応する rollout 1ファイルに限る（`silent-failure-diagnosis` D0 の例外・オーナー承認 2026-07-28・手順の正本は `.ai/troubleshooting/codex-review.md`）。Linux/WSL 専用・全外部ツリー非移植＝`asset_parity/exceptions.py` に登録済み。opus session 上限時の**追加の第二意見経路**として使える（`pr-reviewer` の同一構成での再投入を置き換えるものではなく、再投入した**上で**別ファミリの意見も取る用途））
+- スキル（共有リファレンス・外部プロセス診断）：`silent-failure-diagnosis`（`user-invocable: false`＝単独起動しない。外部プロセス（委譲先 CLI・エージェント、フック、CI）が終了コード 0 などの成功シグナルを返しながら誤答・無作動・途中打ち切り・隠れた権限拒否になっている疑いを切り分ける一般則 D0〜D8。共通本文＝`.ai/skills/silent-failure-diagnosis/SKILL.md`。委譲系 agent が `skills:` でプリロードして使う共有リファレンス区分（`spec-principles` と同じ）で、`agy-delegate` は Claude の skills と Codex の共通本文必読で接続済み（通常実行は未確認契約で停止中）。ツール固有の兆候・回復手順は `agy-delegate`・`codex-review` 側が正本で、本 skill は一般則だけを持つ。Copilot 非移植）
 - スキル（Issue 運用）：`/issue-pipeline`（複数オープン Issue を implement→PR→review→owner report→オーナーによる手動 merge→close で1件ずつ完結させる repo 運用オーケストレータ。主文脈は処置順の原案作成とオーナー判断の取り次ぎ・記録、進捗管理を担い（決めるのはオーナーであって主文脈ではない）、実装は `issue-implementer`・**是正は `issue-fixer`**・レビューは `pr-reviewer` へ委譲する。model は bloom-model-tier＋リスク信号でルーブリック選定・再レビューは常に Sonnet・重い調査は agy-delegate。dev-tooling メタパイプラインで doc-system-v2 の ORC ノード化・prompt_coverage_targets 対象外＝agy-delegate と同区分）
 - スキル（repo 運用）：`/branch-hygiene`（マージ済み・用済みのローカルブランチ ref を実データを失わず整理。`git fetch --prune`→`--merged`/`--no-merged` の二分→not-merged 群を PR 状態で分類（OPEN 維持／MERGED-squash 削除可／CLOSED・PR無しはオーナー判断）→判断群は `origin/main` との `git log`/`git diff --stat` で superseded 判定→分類表をチャット全文提示して停止→承認後に `-d`／検証済み `-D`。**origin ref は触らない**。**agent worktree の削除はしない**＝`gitgate`（`collect-worktree`/`worktree-release`/`worktree-forget`）と `.ai/troubleshooting/issue-pipeline.md` へ委譲（`git worktree remove`/`prune` の直接実行禁止・Issue #354）。Issue の end-to-end 運用は `/issue-pipeline`。prompt_coverage_targets 対象外＝`issue-pipeline`/`agy-delegate` と同区分）
 - スキル（メタ・資産運用）：`/bloom-model-tier`（Bloom 認知分類でカスタムエージェントの `model:` ティアを選定。Lv1→haiku／Lv2-3→sonnet／Lv4+→opus）
@@ -13,7 +13,7 @@
 - サブエージェント（点検・分析）：`spec-inspector`（仕様点検）・`structured-analysis`（DFD 分解）・`asset-auditor`（資産の重複/矛盾/競合監査・read-only）
 - サブエージェント（ノード検索）：`dsv2-lookup`（**dsv2-native**＝`python3 -m dsv2 index` の meta.json を grep/python でフィルタ→ `Read` で本文取得、辺は `dsv2 deps`/`dependents` で関連ノードのみ取得・ダイジェスト返却＝context 圧縮。ノード内容に対し read-only・`Bash` は `dsv2` CLI 実行のみ。旧名 `docidx-lookup`・v1 専用 `docidx` との混同を避けるため issue #173 で改名）
 - サブエージェント（著作・調停）：`requirements-author`・`spec-author`・`analysis-author`・`design-author`・`verification-author`・`reconciliation-validator`（read-only 構造検証）・`reconciliation`（検証合格後の書込専任）
-- サブエージェント（外部委譲）：`agy-delegate`（agy MCP 経由でタスクを Gemini に移譲。**移譲前に `mcp__agy__antigravity_status` で疎通必須・クラウドでは使用不可**。read-only 影響調査レポート・ノード素案作成は可だが、**正本（`docs/`／`CLAUDE.md` ＋ `.claude/rules/`）への書き込みと確定著作は移譲禁止**＝agy 産は素案/レポートにすぎず `*-author`(tmp)→`reconciliation-validator`(検証)→`reconciliation`(書込) を必ず通す）。
+- サブエージェント（外部委譲）：`agy-delegate`（agy 直接実行ラッパーで調査・素案・画像等を委譲。Claude は `skills:` で silent-failure-diagnosis を読み、Codex は共通本文を必読とする。環境・許可設定検査に合格しなければ起動しない。設定上はワークツリー全体の書込を認め、corpus はディレクトリの再帰 write_file deny で除外する。個々の依頼の変更範囲と正本規約に従い、corpus の確定著作は author→validator→reconciliation に戻す。起動ゲートは agy 内部の各操作を検査せず、Write/Edit 非保有は書込禁止の保証ではない）
 - サブエージェント（Issue 運用・`/issue-pipeline` のファンアウト先）：
   - `issue-implementer` は1 Issueをブランチ→実装→テスト→commit→push→PRまで完結する初回実装専任で、merge はしない。
   - `issue-fixer` はレビュー指摘を受けた是正ラウンド専任で、push はできるが merge はしない。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で、`python3 -m karte` を許可される唯一のロール。ただし `ingest-review` は是正当事者に許さず、主文脈が実行する。implementer との違いは `gitgate adopt-branch`（既存 PR ブランチの checkout。implementer は `new-branch` で新規作成）と、カルテのパスではなく `--issue`/`--round` で CLI 経由に触ること。
@@ -84,10 +84,12 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     完結しない**——実測の詳細は `karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・
     `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
-  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
+  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で
   `<artifact_policy>` を無効化し、**従来どおりチャットへ全文返す**。
   特に `reconciliation-validator` に書込経路を与えないこと自体が fail-close の保証（DD-22）。
+
+`agy-delegate` は Write/Edit を持たないが、Bash の agy 子プロセスには依頼範囲の書込能力があるため上記の「ファイルに書けない」群へ含めない。context-mode 注入を新たな編集依頼と解釈せず、返却契約をパス1行へ省略しない。#575 の判断に基づく一律書込禁止の緩和と #513 の停止境界のトレードオフは `.ai/rationale/agy-delegate.md` に記録する。
 
 ### ctx_* ツールの付与方針（エージェント単位で選定・2026-07-29）
 context-mode の 11 ツールを**一律禁止にはしない**。実測した性質で2群に分け、ロールごとに選ぶ。

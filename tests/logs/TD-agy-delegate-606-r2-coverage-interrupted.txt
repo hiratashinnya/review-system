@@ -1,0 +1,5 @@
+Codex AI: r2 初回全量coverage（未commit作業ツリー）
+command: rtk proxy uv --offline --cache-dir /tmp/agy-606-uv-cache run --python /usr/bin/python3 --with coverage coverage run -m unittest discover -s tests/unit
+result: 独立レビューR2-1（CLI error秘匿漏れ）是正のため主文脈が中断。exit 130。
+tests: 途中の進捗ドットのみ。全量PASS/FAILやcoverage値は未確定として扱う。
+是正後にコード・テストfreezeして同じ条件で再計測する。

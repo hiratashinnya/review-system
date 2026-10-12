@@ -1,0 +1,5 @@
+{
+  "stdout": "{\"conversation_id\":\"5ee43222-ddc1-40ae-8def-5bede76ca571\",\"status\":\"ERROR\",\"response\":\"\",\"error\":\"Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 108h15m43s.\",\"duration_seconds\":3.9789504,\"num_turns\":1,\"usage\":{\"input_tokens\":4041,\"output_tokens\":190,\"thinking_tokens\":0,\"cache_read_tokens\":9481,\"total_tokens\":4231}}",
+  "stderr": "error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 108h15m43s.\nAGY_ERROR: {\"short_error\":\"RESOURCE_EXHAUSTED (code 429): Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 108h15m43s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"error_code\":429,\"code_kind\":\"http\",\"retryable\":true,\"error_id\":\"a8550906-c994-4f3f-847a-9d3f713e8a0f-3\"}\n",
+  "exit_code": 3
+}

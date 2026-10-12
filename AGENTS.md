@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
+<!-- common-source: .ai/guidance/common.md; sha256: 8d6335674d4f360db799a94006958fd068fc2e76291865fa54756a5e7c335fbd -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/codex.md; sha256: e293279beaf859699a8734addf7e2e84ede4cdad5a95f8fb2e3035fb36cad8ae -->
 
@@ -60,6 +60,7 @@
 
 - 本リポジトリには doc_system と review_system が同居する。doc_system の正本は `doc-system-v2/` と関連する方法論・AI 資産、review_system の仕様・設計の正本は `docs/`（`docs/doc-system/` を除く）であり、混同しない。
 - corpus ノード（`doc-system-v2/nodes/**`）は対応する `*-author` が一時出力し、`reconciliation-validator` の read-only 検証後に `reconciliation` が反映する。主文脈や他ロールは直接編集しない。
+- agy 直接実行は `agy_delegate` ラッパーの環境・許可設定検査を必須とする。agy の設定上の書込許可は対象ワークツリー全体、corpus ノードは `doc-system-v2/nodes` ディレクトリの再帰 `write_file` deny で除外する。書ける範囲を依頼上の変更範囲と混同せず、調査を編集へ拡大しない。その他のファイルも正本・生成物・レビュー規約に従う。D0 と呼出元の停止条件（#513 を含む）を迂回せず、検査不能・未検証成果は停止する。起動ゲートと静的許可検査は agy 内部操作の sandbox・改ざん耐性を保証しない。詳細の正本は `.ai/agents/agy-delegate.md`。
 - review_system 本体の実装は Python を使用し、原則として標準ライブラリだけに依存する。
 - 共通 AI 資産の正本は `.ai/` 配下に置く。PF の実行入口は正本そのものではなく、公式 import または追跡対象の生成物として接続する。
 - 版付き文書（`policy_version` 等の `MAJOR.MINOR` を持つ文書）の記述が実態とずれていたら、版の bump が定数・設定・fixture へ波及することを理由に修正を見送らない。既定は直して版を上げることであり、据え置きが正当化されるのはオーナーが明示的にそう判断した場合だけである。版番号の仕組みは、内容を変えたときに追随すべき箇所を機械的に特定するために存在する。

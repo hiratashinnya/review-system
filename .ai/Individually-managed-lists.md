@@ -24,7 +24,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 ## 個別配置・非移植
 
 - `codex-review` は `.claude/skills/codex-review/SKILL.md` の Claude 専用。`codex exec`、ChatGPT login、Linux/WSL の session に依存するため、Codex／Copilot／Repo-skill へは配置しない。
-- `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、具体的な MCP tool metadata と Claude 固有の返却手段を持つ。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、利用可能な agy MCP 能力を session で解決する。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
+- `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、Read/Bash metadata と command hook を持ち、skills で silent-failure-diagnosis を読み込む。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、共通 agent・skill と silent-failure-diagnosis を必読接続し、Codex の exec_command/command hook/session 制御に従う。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
 - `gh-create-issue` は Claude と Repo-skill（`.agents/skills/gh-create-issue/SKILL.md`）に実在する。Copilot 版は作らない。GitHub 変更の明示依頼境界と loader/tool 差分を対象 PF 限定で管理する。
 - `silent-failure-diagnosis` は Claude（`.claude/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable: false`）と Repo-skill（`.agents/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable` なし）に実在する。Copilot へは配置せず（オーナー再確定 2026-10-12）、`copilot-instructions.md` へも本文を展開しない。非移植であることは `.ai/guidance/platforms/copilot.md`「Copilot 固有の非移植」にも名前で記録する（名前の記載は展開に当たらない）。`asset_parity` の構造的 `exempt` は Copilot から参照できることの根拠ではない。
 - `issue-fixer`／`issue-implementer`／`pr-reviewer` は Claude と Codex に実在する。Copilot Agent 版は非移植。Claude hook、Task、gh CLI、`karte`、ロール別 push／merge 境界を Copilot で同一契約にできないため。

@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@02c37d58b3a3 -->
+<!-- synced-from: CLAUDE.md@f3ed3df96798 -->
 <!--
   Issue #605（2026-10-11・是正ラウンド1 2026-10-12）: `.claude/rules/05-skills-agents.md` のスキル一覧へ共有リファレンス
   `silent-failure-diagnosis` の1行を、`.claude/rules/02-decision-process.md` の起票先判定表
@@ -235,7 +235,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
    review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
    Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック
-   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`等の外部委譲補助・
+   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`/`agy_delegate`等の外部委譲補助・
    `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
    `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
    `karte`・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）
