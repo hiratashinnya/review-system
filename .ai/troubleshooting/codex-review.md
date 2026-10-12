@@ -2,12 +2,22 @@
 
 ## cyber フィルタで最終応答が置き換わった
 
-症状は `review.txt` の末尾が `ERROR: This content was flagged for possible cybersecurity risk...` になること。`> review.txt 2>&1` の捕捉失敗や Claude の session limit と決めつけず、次を行う。
+症状は `review.txt` の末尾が `ERROR: This content was flagged for possible cybersecurity risk...` になること。`> review.txt 2>&1` の捕捉失敗や Claude の session limit と決めつけない。これはセキュリティ判定による正しい拒否であり、[silent-failure-diagnosis](../skills/silent-failure-diagnosis/SKILL.md) の D0 に該当する。
 
-1. 同じセッションで言い換え再提出せず、新規セッションを開始する。
-2. プロンプトを防御レビュー形式へ変更する。「攻撃コマンド文字列を再現しない」「`file:line`、欠陥クラス、修正方針で返す」と指定する。
-3. 最終応答が得られない場合、直近の日付ディレクトリの `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` を読み、中間発話から所見を回収する。
-4. 回収できた所見は Claude 側レビューと統合し、Codex 由来であることを明示して報告する。
+**再提出しない。** 同じセッションでの言い換えも、新規セッションでの流し直し（防御レビュー形式へ書き換えたプロンプトでの流し直しを含む）も、flag 後の再提出であり迂回に当たる。防御レビュー形式は flag 後の回復手段ではなく、最初の提出から使う観点プロンプトの書き方である（`.claude/skills/codex-review/SKILL.md` の標準手順1）。
+
+flag 後に行ってよいのは次の2つだけである。
+
+1. **自分の実行の rollout 1ファイルから所見を回収する。**
+   - `review.txt` の冒頭に出力された `session id:` の値を、今回の実行の `thread_id` とする。
+   - `~/.codex/sessions/YYYY/MM/DD/` 配下で、ファイル名がその `thread_id` で終わる `rollout-*-<thread_id>.jsonl` の1ファイルだけを読み、中間発話から所見を回収する。
+   - `review.txt` から `thread_id` を読めない場合、または該当ファイルがちょうど1つに定まらない場合は、回収を試さず2へ進む。「直近の日付ディレクトリ」「最新の rollout」のように実行に束縛されない指定で探さない。同日の別セッションの所見を、当該レビューの所見として取り込むおそれがあるため。
+   - この手順の前提（`session id:` の出力・rollout ファイル名の末尾が `thread_id`）は codex-cli 0.157.0 で実機確認済みである（2026-10-12・記録は [rationale](../rationale/codex-review.md)）。
+2. **停止して報告する。** flag の事実と、回収できなかった範囲（未レビューの範囲）を明示する。
+
+回収できた所見は Claude 側レビューと統合し、Codex 由来であることと rollout からの回収であることを明示して報告する。
+
+**D0 の例外としての承認記録**：上記1の rollout 回収は、`silent-failure-diagnosis` の D0 の例外である。承認者はオーナー、承認日は 2026-07-28、範囲は自分の `thread_id` に束縛された1ファイルに限る。flag 後の再提出はこの例外に含まれない。本手順書への記載は、PR #615 の F-605-06 に対するオーナー判断（2026-10-12）による。
 
 Trusted Access for Cyber の登録は無課金方針とオーナー認可が必要なため、認可がない限り選択しない。
 

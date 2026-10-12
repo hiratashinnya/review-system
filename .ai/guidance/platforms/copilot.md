@@ -45,5 +45,6 @@
 ## Copilot 固有の非移植
 
 - `/agy-delegate`、`/codex-review`、`/gh-create-issue` はローカル CLI、認証、対象 PF の明示スコープに依存するため移植しない。
+- 共有リファレンス `silent-failure-diagnosis` は、読み込む予定の委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
 - `issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使い、Claude／Codex 固有の hook や worktree 実行機構を持ち込まない。
