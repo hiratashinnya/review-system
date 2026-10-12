@@ -54,6 +54,9 @@ class TestRealTree(unittest.TestCase):
                 self.assertIn("inlined", cell.reason, row.asset.name)
             else:
                 self.assertNotIn("inlined per", cell.reason or "", row.asset.name)
+                self.assertIn(cell.status, {STATUS_EXEMPT, STATUS_MISSING}, row.asset.name)
+                if cell.status == STATUS_EXEMPT:
+                    self.assertTrue(cell.reason, row.asset.name)
 
     def test_spec_principles_is_inlined_into_copilot_instructions(self):
         from asset_parity.inlining import is_inlined_into_copilot_instructions

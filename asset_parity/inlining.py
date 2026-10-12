@@ -15,5 +15,6 @@ def is_inlined_into_copilot_instructions(asset: Asset, root: Path) -> bool:
     instructions = root / ".github" / "copilot-instructions.md"
     if asset.kind != SKILL or not instructions.is_file():
         return False
-    marker = f"principles-source: .ai/skills/{asset.name}/SKILL.md"
-    return marker in instructions.read_text(encoding="utf-8")
+    marker = f"<!-- principles-source: .ai/skills/{asset.name}/SKILL.md;"
+    lines = instructions.read_text(encoding="utf-8").splitlines()
+    return any(line.startswith(marker) for line in lines)

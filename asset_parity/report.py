@@ -17,13 +17,7 @@ from . import staleness as staleness_mod
 from .exceptions import is_exempt
 from .inventory import Asset, scan_parity_seeds
 from .inlining import is_inlined_into_copilot_instructions
-from .trees import (
-    ALL_TREES,
-    TREE_LABELS,
-    applicable_trees,
-    expected_paths,
-    mirror_root_dirs,
-)
+from .trees import ALL_TREES, TREE_LABELS, applicable_trees, expected_paths, mirror_root_dirs
 
 STATUS_PRESENT = "present"
 STATUS_MISSING = "missing"
