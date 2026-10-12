@@ -21,11 +21,11 @@
 代わりに GitHub 側を発生源として `gh issue list --label "audit:2026-09-pipeline-redesign" --state all`
 で問い合わせる。決定の根拠・経緯はこのファイル、実行状態は上記クエリが一次情報源。
 
-## 進捗スナップショット（2026-10-12 01:18 UTC 確認・古くなりうる。最新は GitHub の Issue・PR を再確認）
+## 進捗スナップショット（2026-10-12 02:28 UTC 確認・古くなりうる。最新は GitHub の Issue・PR を再確認）
 
 **本節は現行の1枚だけを置く。更新するときは追記せず、表と本文を書き換える**（決定＝
 [進捗スナップショットは現行1枚を上書き更新する](#fbk-20260929-進捗スナップショットは現行1枚を上書き更新する)。
-経緯は git 履歴と各 Issue に残る）。**更新確認者：2026-10-12 01:18 UTC・Codex（AI）**。
+経緯は git 履歴と各 Issue に残る）。**更新確認者：2026-10-12 02:28 UTC・Codex（AI）**。
 以下は GitHub の Issue 本文・コメント、PR 状態・レビューを確認したスナップショットであり、実施予定や担当割当の正本ではない。
 
 ### 確定済みの順序と実行状態
@@ -36,17 +36,17 @@
 |---|---|---|---|
 | ⑤ | 目的の永続化＋計測機構 | #488 #489 #461 #541 | ✅完了（各 Issue は closed） |
 | ④ | 原則徹底の明文化ゲート | #539 | ✅完了（優先順位1〜2位。残る3〜7位は tracking #551、実施順・着手時期は未確定） |
-| ② | ロール権限・実現機構 | #530 #533 #535 #542 #558 #538 | 🔶残りは **#538（open）**。PR-A #604 はレビュー要修正、PR-B の薄いラッパーは未実装。他の5 Issue は closed |
+| ② | ロール権限・実現機構 | #530 #533 #535 #542 #558 #538 | 🔶残りは **#538（open）**。PR-A #604 は merge 済み、PR-B の薄いラッパーは未実装。他の5 Issue は closed |
 | ① | issue-pipeline 作成工程分離 | #371 | ⬜open、正式導入は②後。#540 の ADR/envelope 部品、#375 の handoff、#538/#606 のラッパーとロール別制限を整合させる。本文は adviser を含む8ロールへ更新済み |
 | ③ | フィードバックループ | #521 #523 #524 #525 #376 | ⬜open、正式導入は①後。基盤 #522 と権限是正 #531 は closed。#523 の残る本文上のブロッカーは #375 |
 
 **主経路は引き続き #538。ただし、撤去と置換を分けて判定する。**
-PR-A #604 は supervisor・旧テスト等の撤去、PR-B は薄い `codex exec` ラッパーと permission profile を扱う。
-[最新 round 3](https://github.com/hiratashinnya/review-system/pull/604#issuecomment-6115044848)では F-538-22（rationale の退役注記漏れ）が open・要修正。
-F-538-09/16/18/19 は resolved、F-538-10 は #603、F-538-11 は #609 に申し送り済みの open finding である。
+PR-A #604 の supervisor・旧テスト等の撤去は merge 済みで、主経路は PR-B の薄い `codex exec` ラッパーと permission profile へ進んだ。
+[round 4](https://github.com/hiratashinnya/review-system/pull/604#issuecomment-6116131705)で F-538-22 は resolved。F-538-10 は #603 へ残り、F-538-11 の lease 整理は #609／PR #612 で完了した。
+同レビューの F-538-23（旧 all-tool binding 等の現行誤記）は open の記録で、処置方針の確認が残る。PR の merge を、申し送り全件の解消と読み替えない。
 [trusted clone の通常起動と hooks trust check](https://github.com/hiratashinnya/review-system/issues/538#issuecomment-6114757034)は bypass なし・exit 0 を確認済みだが、merge 後の main パス再実測は未了。
 PR-B は冒頭 spike で linked worktree の project trust、profile 選択と未定義 profile の拒否、#565 の前置きの効力を確認し、不成立なら本文どおりオーナー判断へ戻す。
-#452 の残件、PR #448/#449/#451 の影響、および既知 CLI feature catalog 不整合（F-542-10／F-594-06）も #538 の確認対象に残る。
+#452 の残件、PR #448/#449/#451 の影響と撤去後 baseline の確認も #538 に残る。既知 CLI feature catalog 不整合の対象モジュール・テストは PR #604 で撤去され、PR #615 の再レビューでも不在を確認済みだが、新ラッパーの実 CLI 検証を代替しない。
 #594／PR #600、#598、#599／PR #601 は完了済みで、着手待ちに戻さない。
 
 **台帳第1段の待ちは解消した。** #582 は completed、PR #587 は merge 済みで、schema／render と台帳／ADR 境界文書が main に到達している。
@@ -54,13 +54,13 @@ PR-B は冒頭 spike で linked worktree の project trust、profile 選択と�
 確認ゲートは3 Issue 全体の close 待ちを意味しない。台帳には既に2件の投入があり、「0件」前提で投入計画を立てない。
 過去決定の逐語・投入対象・ADR 境界と既存の不変性／L6 を確認する。本ファイルの実測は **§A 生存44件・§B 置換23件**で、#537/#582 本文の40件・21件は2026-10-07時点の値。
 
-| 関連 PR・Issue | 2026-10-12 01:18 UTC 確認の状態と残件 |
+| 関連 PR・Issue | 2026-10-12 02:28 UTC 確認の状態と残件 |
 |---|---|
-| [PR #604](https://github.com/hiratashinnya/review-system/pull/604)／#538 PR-A | open、73ファイル（+749/-13,169）、head `a3e77c3`。現 head の tests・asset-parity CI は success だが、F-538-22 是正、別文脈の再レビュー、最新 main 統合と merge 後実測が残る。PR-A の完了だけで #538 全体を完了にしない |
-| [PR #612](https://github.com/hiratashinnya/review-system/pull/612)／#609 | open／draft、3ファイル（+76/-61）。native stack #613 の上段として #604 の旧 head `99d8955` が base。現 head の tests CI は success（asset-parity は未確認）。最新下段 `a3e77c3` との同期・差分レビューが必要で、統合順は #604→#612。draft を ready と扱わない |
-| [PR #615](https://github.com/hiratashinnya/review-system/pull/615)／#605 | open、10ファイル（+358/-3）。[レビュー](https://github.com/hiratashinnya/review-system/pull/615#issuecomment-6108919697)は STOP（オーナー判断）＋要修正。F-605-1 の回復許可境界、F-605-2 の Copilot 非移植確認、F-605-3 のスコープ外処置判断、F-605-4/5 の文言・同期是正が残る。現 head `70c6559` の tests・asset-parity CI は success だが、判断・是正完了の代わりにはしない |
-| #575→#605→#606→#607 | #575 は tracking 親。#605 の診断正本→#606 の agy 直接ラッパー・許可検査→#607 の bridge 撤去。#607 は #606 の merge・動作確認後にオーナーが実行し、実行直前に再確認する。#284/#290/#271 の扱いもオーナー判断 |
-| #608／[PR #610](https://github.com/hiratashinnya/review-system/pull/610) | Issue は open、PR は merge 済み。lint `check` 許可と削除・移動・baseline 更新時の STOP 手順は実装済み。全 unit green に関わる既知 CLI 不整合は #538 へ申し送りされており、受入条件の照合・close 判断を残す |
+| #538 PR-B | PR-A #604 は完了。merge 後の main パス実測と linked worktree の trust/profile spike、新ラッパー実装が残る。#538 は open を維持 |
+| [PR #615](https://github.com/hiratashinnya/review-system/pull/615)／#605 | open、15ファイル（+414/-13）、head `455149a`。[round 2](https://github.com/hiratashinnya/review-system/pull/615#issuecomment-6116459995)は要修正（minor 4件、blocker／major なし）。旧 F-605-01/02/04〜09 は resolved。F-605-13〜16 の正本参照・PR 本文・参照とプリロードの区別・rollout 前提実機確認について、処置方針と是正・別文脈再レビューが残る。レビュー記録は6 checks pass を確認しているが、clean ではない |
+| #575→#605→#606→#607 | #575 は tracking 親。#605 の診断正本→#606 の agy 直接ラッパー・許可検査→#607 の bridge 撤去。#606 は仕様詳細を採用・Issue 本文へ記録済みで、一般則と agy 固有責務、必須 read-only 設定検査、初期自動リトライなし、実機 AC が具体化された。実装完了ではなく、#605 到達後の最終仕様整合が必要。#607 は #606 の merge・動作確認後にオーナーが実行し、実行直前に再確認する |
+| #608／[PR #610](https://github.com/hiratashinnya/review-system/pull/610) | Issue は open、PR は merge 済み。lint `check` 許可と削除・移動・baseline 更新時の STOP 手順は実装済み。PR #615 の実装・是正時に lint check 拒否が再発し、main の許可設定との食い違いは原因未特定。実 dispatch での再測定と受入条件・close 判断を残す |
+| [#617](https://github.com/hiratashinnya/review-system/issues/617) | open、F-605-03 の申し送り。Copilot 非移植 skill の「inlined」誤表示を実態に合わせる。既存 Next／P3、blocked-by なしを維持し、非移植方針自体は変えない |
 | #614 | open。`karte check` の診断対象（harm: none の deferred と、主文脈が処置する fix-here）を整理する。`status` の verdict に関する既存オーナー決定を変えず、採否・判定仕様の確認から始める |
 | [PR #451](https://github.com/hiratashinnya/review-system/pull/451) | open／draft。baseline 固定保持・Wave 5 待ちの記録を維持。#538 の影響確認対象であり、直ちに merge する対象にはしない |
 | #579→#580（Jev） | #572／PR #571 と決定 PR #577 は完了。段階0「結線なし」。#579 で WSL・settings 範囲・担当を確定して shadow 結線・実測し、その後 #580 でルール別 enforce を判断する |
@@ -68,8 +68,10 @@ PR-B は冒頭 spike で linked worktree の project trust、profile 選択と�
 | 最近完了した関連 Issue・PR | 完了根拠と申し送り |
 |---|---|
 | [#582](https://github.com/hiratashinnya/review-system/issues/582)／[PR #587](https://github.com/hiratashinnya/review-system/pull/587) | Issue completed、PR は2026-10-10 13:09 UTC merge 済み。第1段のレビュー・統合待ちを終了し、#537 の残る確認ゲートへ進む |
-| [PR #602](https://github.com/hiratashinnya/review-system/pull/602) | merge 済み。前回 README メンテナンスは完了し、今回の残作業に数えない |
-| [PR #611](https://github.com/hiratashinnya/review-system/pull/611) | merge 済み。native-stacked-pr の skill を事前整備。実 stack の成果は #609／PR #612 で別に確認する |
+| [PR #604](https://github.com/hiratashinnya/review-system/pull/604)／#538 PR-A | 2026-10-12 01:44 UTC merge、74ファイル（+759/-13,169）。supervisor 撤去が main に到達。#538 全体は PR-B・実測待ち |
+| [#609](https://github.com/hiratashinnya/review-system/issues/609)／[PR #612](https://github.com/hiratashinnya/review-system/pull/612) | Issue completed、2026-10-12 02:11 UTC merge。lease API 整理が main に到達し、draft stack の同期・レビュー待ちは終了 |
+| [PR #602](https://github.com/hiratashinnya/review-system/pull/602)・[PR #616](https://github.com/hiratashinnya/review-system/pull/616) | 両方 merge 済み。前回までの README メンテナンスは完了し、今回の残作業に数えない |
+| [PR #611](https://github.com/hiratashinnya/review-system/pull/611) | merge 済み。native-stacked-pr の skill を事前整備。実 stack の成果 #609／PR #612 も完了済み |
 
 **#535 完了に伴う申し送り**：`dsv2-lookup` にも Grep/Glob 宣言と実効配布の不一致が実測された
 （`reconciliation` は未実測）。2026-09-28 のオーナー判断による waived・別途まとめて対応という記録を維持する。
@@ -79,8 +81,8 @@ PR-B は冒頭 spike で linked worktree の project trust、profile 選択と�
 以下はユーザー依頼に基づく依存関係の分析であり、§A の決定を追加・変更しない。
 Issue の Priority/Horizon、着手日、担当、据え置き判断は変更していない。
 
-1. **#538／PR #604 の是正・再レビューを主経路にする。** F-538-22 を是正し、最新 main 統合と merge 後の main パス実測へつなぐ。その後 PR-B 冒頭 spike で trust/profile と #565 を確認する。#609／draft PR #612 は下段 #604 との同期・差分レビューを並行し、統合は #604→#612 の順とする。
-2. **#605／PR #615 のオーナー判断・是正を並行して進め、#606→#607 へつなぐ。** #606 の仕様・permission matrix は準備できるが、利用統合は #605 の正本到達後。#607 の撤去は #606 の merge・動作確認後、オーナーが実行直前に確認して行う。親 #575 は成果を実装せず追跡する。
+1. **#538 PR-B の spike・実装を主経路にする。** PR-A #604 と lease 整理 #609／PR #612 の統合待ちは解消済み。main パス実測を確認し、PR-B 冒頭 spike で trust/profile と #565 を検証する。F-538-23 の処置記録も確認する。
+2. **#605／PR #615 の残る minor 指摘の処置・再レビューを並行し、#606→#607 へつなぐ。** #606 の採用済み仕様詳細に沿って設計を準備できるが、利用統合は #605 の正本到達と最終仕様整合後。#607 の撤去は #606 の merge・動作確認後、オーナーが実行直前に確認して行う。親 #575 は成果を実装せず追跡する。
 3. **#540 の ADR/envelope 部品を #371 の利用前に固め、②完了後に #371/#375 の境界を凍結する。** 取り込み済み #582 の schema／版／参照契約を確認する。#371 の8ロール・adviser・実行委譲の設計は並行準備できるが、有効化は #538/#606 のラッパーとロール別制限、#517/#565 の整合実測後。 common envelope、producer／Issue／digest／OID、レビュー原本と取り込みの責務を先に揃える。#375→#310→#409 の直列依存は各 Issue 本文に明示されている。#409 の既存「優先度を下げ保留」というオーナー判断（§D U-10）は維持する。
 4. **#614 の check 対象と verdict の区別を早期に確認し、#513 の停止・解除設計を #371/#310/#523 と合わせる。** #614 はオーナーによる判定仕様の確認を先に行う。 全ツール拒否中にオーナー回答を記録して解除する経路、複数 Issue、PF／ctx 経路、誤停止を先に整理する。#513 と #523 は強い関連だが、一方の close を他方の前提に自動追加しない。
 5. **#537 第2段は残る確認ゲートと #371 後の条件を満たしてから。** #582 完了待ちは解消済み。 過去決定の逐語・記録対象・ADR との境界を確認し、CLI 投入と README の導出ビュー化を行う。
@@ -92,7 +94,7 @@ Issue の Priority/Horizon、着手日、担当、据え置き判断は変更し
 | 組合せ | 並行できる範囲・統合時の条件 |
 |---|---|
 | #538 と #605→#606 | Codex と agy の調査・spike・レビューは分担できる。共通 guidance／rules／issue-pipeline／baseline の編集は統合順を合わせる。#606 の利用統合は #605 完了後、#607 の撤去は並行しない |
-| #538／PR #604 と #609／PR #612 | native stack 上の lease 整理は並行レビュー可。最新下段へ同期し `worktree_ledger`／baseline の差分を確認する。統合順は #604→#612 |
+| #617 と中核再設計 | asset_parity の表示・回帰検証は分担可能。既存 Next／P3 を維持し、PF 展開方針は変えない。#605/#606 が触る例外・接続記録との整合を確認する |
 | #614 と #540 の設計、中核再設計 | 主経路と並行候補。#614 は #310/#523 の karte と #513 の停止契約を先に揃え、既存 verdict 決定を変えない |
 | #576 と #538／#371 | remote 検証要件の採否・起点事例確認は並行可。実装の引渡し先は gitgate 複数ロール push 設計で、権限・publish 境界の合意後に分担する |
 | #540 と #371 | ADR/envelope API を先に凍結する。ロール設計・確認ゲートは並行準備可、利用実装は前提部品が固まってから |
@@ -104,11 +106,11 @@ Issue の Priority/Horizon、着手日、担当、据え置き判断は変更し
 ### 難易度・変更規模の概算（AI 見積り）
 
 難易度は設計の未決点・権限／状態境界・実環境検証を **低／中／高**、変更規模はコード・設定・文書・テスト・既存データへの波及を **小／中／大**で評価する。
-所要時間や行数の保証ではなく、未完了の27項目それぞれの全体を評価する。実装済み PR の残作業と tracking 親は分けて示す。
+所要時間や行数の保証ではなく、未完了の27項目（前回から #609 完了で1件減り、関連新規 #617 が1件増えた）それぞれの全体を評価する。実装済み PR の残作業と tracking 親は分けて示す。
 
 | Issue・作業 | 難易度 | 変更規模 | 評価の根拠 |
 |---|---|---|---|
-| [#538](https://github.com/hiratashinnya/review-system/issues/538) 撤去 PR-A・ラッパー PR-B | 高 | 大 | PR-A 73ファイル（+749/-13,169）の是正・再レビュー、確定設計に沿う PR-B spike と実装、main パス／profile／hooks 実測、残件・3 PR の影響点検 |
+| [#538](https://github.com/hiratashinnya/review-system/issues/538) 撤去 PR-A・ラッパー PR-B | 高 | 大 | PR-A は merge 済み。確定設計に沿う PR-B spike と実装、main パス／profile／hooks 実測、残件・3 PR の影響点検 |
 | [#576](https://github.com/hiratashinnya/review-system/issues/576) 公開前検証の継承 | 中 | 中 | remote 検証5要件の採否・由来確認、gitgate 複数ロール push 設計への引渡しと採用分の fail-close テスト |
 | [#540](https://github.com/hiratashinnya/review-system/issues/540) ADR/envelope/索引 | 高 | 大 | 新スキーマ／CLI／ref 共通アダプタ、stale/todo/通知、verify 文書移設、ADR→台帳参照 |
 | [#371](https://github.com/hiratashinnya/review-system/issues/371) 作成工程分離 | 高 | 大 | adviser を含む8ロール、1a/1b/2a/2b レビュー、artifact・push 権限、#538/#606 への実行委譲・相談・STOP 契約と PF 実測 |
@@ -129,11 +131,11 @@ Issue の Priority/Horizon、着手日、担当、据え置き判断は変更し
 | [#580](https://github.com/hiratashinnya/review-system/issues/580) ルール別 enforce | 高 | 中 | 現行全体 mode からルール別合成へ変更、unknown/API 障害/確定 R4・回復経路の保護、ルール別移行判断 |
 | [#575](https://github.com/hiratashinnya/review-system/issues/575) agy 移行 tracking 親 | 低 | 小 | 子 #605/#606/#607 と #284/#290/#271 のオーナー判断・完了集約。**子成果の全体は高／大**で、親自体は実装しない |
 | [#603](https://github.com/hiratashinnya/review-system/issues/603) Codex 主文脈資産整理 | 中 | 中 | 複数 PF の定義／skill／hook／例外／registry と退役テスト、archive 理由・#468 の残件判断。#538 完了後 |
-| [#605](https://github.com/hiratashinnya/review-system/issues/605) 診断正本／PR #615 | 中 | 中 | 共通診断規範と PF 接続、安全境界のオーナー判断。実装10ファイルあり、判断・是正・独立レビュー・統合が残る |
-| [#606](https://github.com/hiratashinnya/review-system/issues/606) agy 直接ラッパー | 高 | 大 | exit 0 の拒否検知、JSON／stderr／timeout／会話・画像・並列、厳密な許可検査、規範・複数 PF と実環境検証 |
+| [#605](https://github.com/hiratashinnya/review-system/issues/605) 診断正本／PR #615 | 中 | 中 | 共通診断規範と PF 接続。実装15ファイル、旧 major は resolved。残る minor 4件の処置・実機確認・独立レビュー・統合が必要 |
+| [#606](https://github.com/hiratashinnya/review-system/issues/606) agy 直接ラッパー | 高 | 大 | 仕様詳細採用済み。exit 0 の拒否・会話／画像／並列、必須設定検査・自動リトライなし、規範・複数 PF と実機 AC の実装検証 |
 | [#607](https://github.com/hiratashinnya/review-system/issues/607) bridge 撤去 | 中 | 小 | オーナー環境の操作、必要な local patch 保全、ユーザー設定照合・撤去後実測。#606 完了と実行直前確認が必要 |
-| [#608](https://github.com/hiratashinnya/review-system/issues/608) lint 許可・STOP 手順の受入 | 低 | 小 | **残作業の評価**。本体は中／中（PR #610 merge 済み・8ファイル）。既知 CLI 不整合の #538 引継ぎ、受入条件照合と close 判断 |
-| [#609](https://github.com/hiratashinnya/review-system/issues/609) lease API／draft PR #612 | 中 | 小 | lock 取得／例外／中断／原子的更新の契約保持。実装3ファイルあり、最新下段への同期・独立レビューが残る |
+| [#608](https://github.com/hiratashinnya/review-system/issues/608) lint 許可・STOP 手順の受入 | 中 | 小 | **残作業の評価**。本体は中／中（PR #610 merge 済み・8ファイル）。許可済み main と実 dispatch 拒否の原因未特定により、前回の低から中へ再評価。再測定と close 判断 |
+| [#617](https://github.com/hiratashinnya/review-system/issues/617) Copilot 表示修正 | 中 | 小 | structural と例外評価の順序・実態照合、インライン済み skill の退行防止と回帰テスト。既存 Next／P3 |
 | [#614](https://github.com/hiratashinnya/review-system/issues/614) karte check 対象整理 | 高 | 中 | 診断と verdict を区別し、harm: none の deferred と主文脈 fix-here を扱う。処置主体表現の採否と安全判定の回帰 |
 
 #580 は各ルールの候補30件だけで全体精度を保証しない。版／model／保持窓・費用・遅延・coverage を分けて確認し、
