@@ -39,6 +39,8 @@
 
 ## 本 Issue の実行経路に関する運用例外
 
+> **退役済み**：本節が存在する前提で記す repo supervisor は Issue #538 の PR-A で退役した。以下は 2026-10-09 時点の運用例外の記録であり、現存する機構の説明ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
+
 2026-10-09、正規 supervisor の起動が必須認証ファイル不足による `CODEX_SUPERVISOR_AUTH_SOURCE_INVALID` で停止した。オーナーは同チャットで次を明示承認した。
 
 > はい、この Issue に限り、別コンテキストで実装し、独立レビューする運用例外を認めます
@@ -48,6 +50,8 @@
 実装は新規の権限境界設計を含むため Bloom Lv6 創造・判断ボトルネック、初回レビューは権限境界・共有資産の変更を評価するため高い推論予算を使用する。
 
 ## 初期凍結設計の routine 決定（履歴）
+
+> **退役済み**：本節が前提とする Codex repo supervisor は Issue #538 の PR-A で退役した。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
 
 以下は初回実装時の判断を保存した履歴であり、旧 supervisor 接続については後続の「再レビュー後の実装範囲・引継ぎ決定」を優先する。
 
@@ -64,6 +68,8 @@
 実装経路のオーナー例外は担当起動だけに適用し、製品のhost authority/owner plan検査には例外を実装しない。
 
 ## 再レビュー後の実装範囲・引継ぎ決定
+
+> **退役済み**：本節が撤去・置換の対象として扱う旧 Codex repo supervisor は Issue #538 の PR-A で退役した。本節の「撤去予定」は当時の見込みであり、退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
 
 2026-10-09、#538 の既存決定「旧方式の修正・P4完遂は再開しない」との整合を確認し、主文脈は次の2点を提示した。
 

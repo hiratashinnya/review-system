@@ -147,6 +147,8 @@ issue-start hook が dispatch を `ISSUE_START_TRANSPORT_UNAVAILABLE` で、新�
 開始を表さない。したがって owner-approved Codex worker fallback で `adopt-branch` 相当の作業を行っても、
 正規 fixer transport の起動実績や canonical remediation lifecycle の証拠には数えない。
 
+> **退役済み**：次の段落が採用した repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり現行の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
+
 F-452-19では、repo supervisor配下のinner Codexに汎用process toolを残したまま「nested Codexを呼ばない」と
 指示する案も不採用とした。PATH除外はabsolute path、symlink/copy、Node payload、native launcherを塞げず、shell
 文字列denylistも未知wrapperを安全と証明できない。そこでinstalled CLIがprocess featureを全無効化できることを
@@ -299,6 +301,8 @@ prepare-only で dispatch 成功を表さない。owner-approved worker fallback
   オーナー判断で別途（Issue #360 Out of scope）。
 
 ## Issue #452 方針転換（2026-09-06、F-452-20）
+
+> **退役済み**：本節が決定として記す repo supervisor の縮小維持は Issue #538 の PR-A で退役した。以下は退役前の履歴であり現行の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
 
 `spawn_agent`用prepare bindingは、公式custom agent schemaにper-subagent cwdがなく親workspaceを継承する
 事実から退役した。Codex本体の上流改修は利用者側の候補から恒久的に外す。manifest Codex entry、TTL/refresh、
