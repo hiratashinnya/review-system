@@ -86,8 +86,8 @@
       "sha256": "c31552ac4c1837e84d2facdae57d73eca107522df5868bbdab83072df3bdfe70"
     },
     "asset_parity/report.py": {
-      "line_count": 259,
-      "sha256": "0b13860d86c40781f60e5a7738960e6a914af3ecb12aa7b04ae22d57cfccae35"
+      "line_count": 272,
+      "sha256": "f7c1fa010d5b8cdf83eee2c2df5b5a11a4b90bde9355f03b23548a6efdadcdd5"
     },
     "asset_parity/staleness.py": {
       "line_count": 190,

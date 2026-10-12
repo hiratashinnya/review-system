@@ -40,6 +40,26 @@ class TestRealTree(unittest.TestCase):
         self.assertNotEqual(by_name[(SKILL, "issue-pipeline")].cells[GITHUB].status, STATUS_MISSING)
         self.assertNotEqual(by_name[(AGENT, "issue-implementer")].cells[GITHUB].status, STATUS_MISSING)
 
+    def test_every_principle_skill_github_cell_matches_actual_inlining(self):
+        from asset_parity.report import STATUS_EXEMPT
+        from asset_parity.inlining import is_inlined_into_copilot_instructions
+        from asset_parity.trees import GITHUB
+        report = build_report(REPO_ROOT)
+        principles = [r for r in report.rows if r.asset.mode == MODE_PRINCIPLE]
+        self.assertTrue(principles)
+        for row in principles:
+            cell = row.cells[GITHUB]
+            if is_inlined_into_copilot_instructions(row.asset, REPO_ROOT):
+                self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
+                self.assertIn("inlined", cell.reason, row.asset.name)
+            else:
+                self.assertNotIn("inlined per", cell.reason or "", row.asset.name)
+
+    def test_spec_principles_is_inlined_into_copilot_instructions(self):
+        from asset_parity.inlining import is_inlined_into_copilot_instructions
+        assets = {a.name: a for a in scan_parity_seeds(REPO_ROOT) if a.kind == SKILL}
+        self.assertTrue(is_inlined_into_copilot_instructions(assets["spec-principles"], REPO_ROOT))
+
 
 if __name__ == "__main__":
     unittest.main()

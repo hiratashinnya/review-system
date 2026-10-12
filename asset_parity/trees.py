@@ -18,7 +18,8 @@ file form is expected, not whether one is:
     represents it as a **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
   * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
     inlines it into `.github/copilot-instructions.md`; there is no discrete per-asset
-    file at all, so this is reported as a structural N/A, not a MISSING.
+    file at all, so this is reported as a structural N/A, not a MISSING — only when the
+    skill is really inlined (`inlining.py`); otherwise it needs an `exceptions.py` entry.
 
 Codex's `.agents/skills/` tree does not have this split (verified: orchestrator-mode
 skills like `asset-pipeline`/`spec-pipeline` and even the `user-invocable: false`

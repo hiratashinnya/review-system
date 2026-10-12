@@ -103,7 +103,11 @@ tree), not a one-off documented carve-out:
   inlines it into `.github/copilot-instructions.md`; no discrete per-asset file is
   expected there at all, so the cell is reported as `exempt` with a structural reason
   string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
-  kind at all", e.g. Codex agents vs. `.agents/skills`).
+  kind at all", e.g. Codex agents vs. `.agents/skills`). The structural reason is used
+  **only when the skill is actually inlined** (named by a `principles-source:` marker in
+  `copilot-instructions.md`). A documented exemption in `exceptions.py` is evaluated
+  first and its reason is reported; a `user-invocable: false` skill that is neither
+  inlined nor exempted is reported `MISSING`.
 
 ## Module map
 
