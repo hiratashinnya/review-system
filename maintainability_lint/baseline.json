@@ -210,8 +210,8 @@
       "sha256": "dff0c9586f3d5ed25f9cba09e68a3187db864f6771d04bbcc2bd5b15f5906e4b"
     },
     "issue_start/worktree_ledger.py": {
-      "line_count": 900,
-      "sha256": "ba8e1182d26fade853574a37a8543e0be6623534a98b8b2b5615a6cbc3f14161"
+      "line_count": 856,
+      "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
       "line_count": 1519,

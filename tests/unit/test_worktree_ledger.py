@@ -10,13 +10,16 @@
 """
 
 import ast
+import fcntl
 import inspect
 import json
 import os
+import stat
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from issue_start import durable_lock, worktree_ledger
 from issue_start.worktree_ledger import LedgerError
@@ -269,6 +272,14 @@ class TransitionTests(LedgerTestCase):
 
 
 class UpdateLedgerAtomicityTests(LedgerTestCase):
+    def assert_lock_reacquirable(self):
+        lock = worktree_ledger.ledger_dir(self.root) / worktree_ledger.LEDGER_LOCK_FILENAME
+        descriptor = os.open(lock, os.O_RDWR | os.O_CLOEXEC)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(descriptor)
+
     def test_lock_held_by_another_writer_times_out_fail_close(self):
         directory = worktree_ledger.ledger_dir(self.root, create=True)
         lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
@@ -293,6 +304,7 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
         lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
         self.assertTrue(lock.is_file())
         self.assertEqual(lock.read_bytes(), b"")
+        self.assert_lock_reacquirable()
         self.assertFalse((directory / worktree_ledger.LEDGER_TMP_FILENAME).exists())
 
     def test_mutate_failure_writes_nothing_and_releases_the_lock(self):
@@ -307,6 +319,7 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
         lock = directory / worktree_ledger.LEDGER_LOCK_FILENAME
         self.assertTrue(lock.is_file())
         self.assertEqual(lock.read_bytes(), b"")
+        self.assert_lock_reacquirable()
 
     def test_mutate_producing_a_broken_document_is_refused(self):
         self.open_entry()
@@ -316,6 +329,52 @@ class UpdateLedgerAtomicityTests(LedgerTestCase):
             )
         self.assertEqual(ctx.exception.reason, "LEDGER_CORRUPT")
         self.assertEqual(len(self.entries()), 1)
+        self.assert_lock_reacquirable()
+
+    def test_read_failure_releases_the_lock_and_preserves_the_ledger(self):
+        self.open_entry()
+        path = worktree_ledger.ledger_dir(self.root) / worktree_ledger.LEDGER_FILENAME
+        path.write_text("broken JSON", encoding="utf-8")
+        with self.assertRaises(LedgerError) as ctx:
+            worktree_ledger.update_ledger(self.root, lambda document: document.clear())
+        self.assertEqual(ctx.exception.reason, "LEDGER_INVALID_JSON")
+        self.assertEqual(path.read_text(encoding="utf-8"), "broken JSON")
+        self.assert_lock_reacquirable()
+
+    def test_interrupted_mutate_releases_the_lock_and_preserves_the_ledger(self):
+        self.open_entry()
+        def interrupt(document):
+            document["entries"].clear()
+            raise KeyboardInterrupt("interrupted")
+        with self.assertRaises(KeyboardInterrupt):
+            worktree_ledger.update_ledger(self.root, interrupt)
+        self.assertEqual(len(self.entries()), 1)
+        self.assert_lock_reacquirable()
+
+    def test_replace_failure_preserves_the_ledger_and_releases_the_lock(self):
+        self.open_entry()
+        with patch.object(worktree_ledger.os, "replace", side_effect=OSError("replace failed")):
+            with self.assertRaises(LedgerError) as ctx:
+                worktree_ledger.update_ledger(self.root, lambda document: document["entries"].clear())
+        self.assertEqual(ctx.exception.reason, "LEDGER_WRITE_ERROR")
+        self.assertEqual(len(self.entries()), 1)
+        self.assert_lock_reacquirable()
+        directory = worktree_ledger.ledger_dir(self.root)
+        self.assertFalse((directory / worktree_ledger.LEDGER_TMP_FILENAME).exists())
+
+    def test_directory_fsync_failure_can_leave_replaced_ledger_and_releases_the_lock(self):
+        self.open_entry()
+        real_fsync = os.fsync
+        def fail_directory_fsync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise OSError("directory fsync failed")
+            return real_fsync(descriptor)
+        with patch.object(worktree_ledger.os, "fsync", side_effect=fail_directory_fsync):
+            with self.assertRaises(LedgerError) as ctx:
+                worktree_ledger.update_ledger(self.root, lambda document: document["entries"].clear())
+        self.assertEqual(ctx.exception.reason, "LEDGER_WRITE_ERROR")
+        self.assertEqual(self.entries(), [])
+        self.assert_lock_reacquirable()
 
 
 class ClockDisciplineTests(unittest.TestCase):

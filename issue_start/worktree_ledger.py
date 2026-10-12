@@ -100,7 +100,6 @@ import os
 import re
 import time
 import uuid
-from contextlib import AbstractContextManager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -365,64 +364,21 @@ def update_ledger(
     ``LEDGER_LOCK_TIMEOUT``（fail-close）。**待ち時間の判定に wall clock を読まない**
     （``sleep`` を注入すればテストは実時間に依存しない）。
     """
-    with acquire_ledger_lease(
-        repo_root, lock_timeout_s=lock_timeout_s, sleep=sleep,
-    ) as lease:
-        mutate(lease.document)
-        lease.commit()
-        return lease.document
-
-
-class LedgerLease(AbstractContextManager["LedgerLease"]):
-    """短い複合操作の間だけ ledger flock を保持する明示的 lease。
-
-    descriptor は :mod:`durable_lock` が ``O_CLOEXEC`` で開く。呼び出し側は
-    ``finally`` または context manager で必ず解放し、外部 process の長時間実行中へ
-    lease を持ち越してはならない。
-    """
-
-    def __init__(self, repo_root, *, lock_timeout_s: float,
-                 sleep: Callable[[float], None]) -> None:
-        self.repo_root = Path(repo_root)
-        self.directory = ledger_dir(repo_root, create=True)
-        self.path = self.directory / LEDGER_FILENAME
-        if self.path.is_symlink():
-            raise LedgerError("LEDGER_FILE_SYMLINK", str(self.path))
-        self._fd: int | None = _acquire_lock(
-            self.directory, lock_timeout_s=lock_timeout_s, sleep=sleep,
-        )
-        try:
-            self.document = read_ledger(repo_root)
-        except BaseException:
-            self.release()
-            raise
-
-    @property
-    def closed(self) -> bool:
-        return self._fd is None
-
-    def commit(self) -> None:
-        if self.closed:
-            raise LedgerError("LEDGER_LEASE_CLOSED", str(self.path))
-        _validate_document(self.document, "in-memory")
-        _write_atomic(self.path, self.document)
-
-    def release(self) -> None:
-        descriptor, self._fd = self._fd, None
-        if descriptor is not None:
-            durable_lock.release(descriptor)
-
-    def __exit__(self, exc_type, exc, traceback) -> None:
-        self.release()
-
-
-def acquire_ledger_lease(
-    repo_root, *, lock_timeout_s: float = 5.0,
-    sleep: Callable[[float], None] = time.sleep,
-) -> LedgerLease:
-    """ledger を読み込んだ状態で exclusive lock を所有する lease を返す。"""
-
-    return LedgerLease(repo_root, lock_timeout_s=lock_timeout_s, sleep=sleep)
+    directory = ledger_dir(repo_root, create=True)
+    path = directory / LEDGER_FILENAME
+    if path.is_symlink():
+        raise LedgerError("LEDGER_FILE_SYMLINK", str(path))
+    descriptor = _acquire_lock(
+        directory, lock_timeout_s=lock_timeout_s, sleep=sleep,
+    )
+    try:
+        document = read_ledger(repo_root)
+        mutate(document)
+        _validate_document(document, "in-memory")
+        _write_atomic(path, document)
+        return document
+    finally:
+        durable_lock.release(descriptor)
 
 
 # --- エントリ操作 --------------------------------------------------------------
