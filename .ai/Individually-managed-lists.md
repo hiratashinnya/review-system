@@ -2,6 +2,8 @@
 
 共通本文の一覧は載せず、PF（Claude Code／Codex CLI／GitHub Copilot／Repo-skill）の loader・wrapper・実行メタデータに生じる差分だけを記録する。共通本文の SoT は `.ai/README.md` の配置規則に従う。
 
+Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要は [退役記録](rationale/codex-supervisor-retirement-538.md) へ移設した。
+
 ## loader 差分
 
 | PF | loader 入口 | 個別形式 |
@@ -39,7 +41,7 @@
 ## PF 固有の実行差分
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
-- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`・`codex-launch-intent-gate.sh`。下記「ライフサイクル hook 一覧」の行 1・3・12）を使う。Claude の worktree bind/stop hook は配置しない。
+- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`。下記「ライフサイクル hook 一覧」の行 1・3）を使う。Claude の worktree bind/stop hook は配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
 ## Hook 構成一覧
@@ -59,7 +61,6 @@
 | 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
 | 11 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
-| 12 | PreToolUse（Bash） | `codex-launch-intent-gate.sh` | — | ✅ | — |
 
 > Copilot はリポジトリ固有のライフサイクル hook に非対応（`.ai/guidance/platforms/copilot.md` で確認済み）。
 
@@ -83,7 +84,7 @@
 
 - **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する（managed dispatch のみ）。加えて、これとは独立した安全機構として、残留 worktree があれば managed／unmanaged を問わず**全 dispatch を fail-close で deny する**（Issue #354）。自動解放が失敗した場合やフックが発火しなかった場合の最後の砦として機能する。
 - **スコープ**: Task／runtime Agent（Claude）／spawn_agent（Codex）。
-- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher・binding 材料がディスパッチ機構名（Claude の `Task`/`Agent` と marker `ISSUE_START_BINDING_V1` 、Codex の `spawn_agent` と `task_name`/`cwd` 平文情報）に合わせて異なる点。
+- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher と dispatch の扱い。Claude は `Task`/`Agent` を対象に、dispatch prompt の marker `ISSUE_START_BINDING_V1` を binding 材料として検査する。Codex は `spawn_agent` を対象にするが binding 材料を持たず、既知の `issue-implementer`／`issue-fixer` を指定した dispatch を、payload の詳細・marker・ledger・cwd・GitHub API を読む前に常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で deny する（Codex は主文脈にしない＝Issue #538）。
 - **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）。残留 worktree deny の詳細は [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「残留 worktree での次 dispatch を deny する」節）
 
 #### 4. check-governance-drift
@@ -133,12 +134,6 @@
 - **概要**: セッション開始時に主文脈（orchestrator）のコンテキストを設定する。
 - **スコープ**: SessionStart（startup／clear／compact）。Claude 専用。
 - **実装構成**: [`.claude/hooks/orchestrator-context.sh`](../.claude/hooks/orchestrator-context.sh)（`.claude/hooks/README.md` の「オーケストレータ委譲ルール注入フック」節）
-
-#### 12. codex-launch-intent-gate
-
-- **概要**: 親 AI が手入力する Codex supervisor 起動コマンド（`python3 -m issue_start.codex_supervisor (run|resume) --issue N --role ROLE --change-plan-id ID [--fixer-round N]`）の形を、実行前に host 導出の launch intent と照合して fail-close で検査する。早期フィードバックであり権威（authority／receipt）ではない。supervisor 自身が process 起動直前に同じ request から intent を再生成して再照合する。
-- **スコープ**: PreToolUse（Bash）。無関係な Bash と direct `codex exec` は対象外。Codex 専用。
-- **実装構成**: [`.codex/hooks/codex-launch-intent-gate.sh`](../.codex/hooks/codex-launch-intent-gate.sh)（main worktree を `--git-common-dir` から解決して `python3 -m issue_start.codex_launch_intent hook` を起動する薄いラッパー。実体は `issue_start/codex_launch_intent.py`。`.codex/hooks/README.md` の「Codex supervisor launch-intent gate」節にも概要あり）
 
 ### 補助スクリプト（hook 呼び出し実体ではないもの）
 

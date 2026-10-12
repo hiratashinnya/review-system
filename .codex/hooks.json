@@ -22,17 +22,6 @@
             "statusMessage": "Checking blocker evidence before Issue dispatch"
           }
         ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/codex-launch-intent-gate.sh\"",
-            "timeout": 15,
-            "statusMessage": "Validating owner-approved Codex launch intent"
-          }
-        ]
       }
     ]
   }

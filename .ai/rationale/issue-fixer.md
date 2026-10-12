@@ -178,6 +178,8 @@ diff が空になる。空の実測 touched-set が append-only の台帳へ無�
 （`Edit` は `matcher: "Bash"` のゲートを通らない）。多層防御の一枚として守る。
 ## Codex fixer transport と bootstrap 境界（Issue #452・2026-08-26、supervisor採用 2026-08-30）
 
+> **退役済み**：本節（配下の F-452-20 による現行決定、F-452-25/26/27、F-452-28、F-452-29 を含む）が記す repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり、「現行決定」「現行契約」と書かれた箇所も現在の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
+
 当初は `issue_<N>_fix_r<R>` task key と durable ownership ledger により、事前検証済みの
 `.worktrees/<name>`、branch、expected OID、handoff へ束縛した Codex `isolation_only` transport を
 宣言した。しかし PR #453 round 1 で、`spawn_agent` は child workspace を受け取れず、
@@ -277,6 +279,10 @@ handoff の回収は、fixer の Step 0 で早期 STOP した場合も対象で�
 本ファイル「ゲート allowlist の内部名と `ingest-review` を deny する理由」に記録している。
 
 ## supervised process の状態名と完了検証（移設元：「出力とハンドオフ」）
+
+この節が説明する Codex supervised 手順は Issue #538 の PR-A で退役し、本文（`.ai/agents/issue-fixer.md`）からも
+除いた。以下は退役前の記録であり、文中の「本文には…を残している」は現在の本文に当てはまらない。退役の経緯と
+退役時点の本文は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) にある。
 
 host が中央 karte へ Attempt を登録すると、内部状態は `paused_karte_registered` になる。
 karte bridge は host 側の専用状態遷移に従い、publish の最後に中央 Result との一致を検証してから

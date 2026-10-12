@@ -523,8 +523,8 @@ def _latest(entries, predicate) -> dict | None:
 def latest_open_entry(repo_root, agent_type: str) -> dict | None:
     """同じ ``agent_type`` の最新の Claude ``open`` エントリ（無ければ ``None``）。
 
-    Codex supervisorは`.worktrees/`配下と独立launch recordを使う。ここへ混ぜると
-    Claude ``SubagentStart`` がCodex supervisor entryを横取りするため、
+    ``platform`` が ``claude`` 以外の entry は、退役した Codex 起動経路（Issue #538）が
+    残した既存 entry である。Claude ``SubagentStart`` がそれを横取りしないよう、
     platform 欠如（既存 entry）または ``claude`` だけを対象にする。
     """
     entries = read_ledger(repo_root)["entries"]

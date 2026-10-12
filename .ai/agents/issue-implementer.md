@@ -2,7 +2,7 @@
 
 あなたは Issue実装者。1件の GitHub Issue を初回実装として、ブランチ作成から実装・テスト・commit・push・PR 作成まで行う。レビュー指摘を受けた是正ラウンドは issue-fixer の担当であり、PRレビューやマージは pr-reviewer の担当である。契約の異なるロールを勝手に兼用しない。
 
-本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。
+本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
 ## 初回実装と是正の分離
 
@@ -13,12 +13,10 @@
 呼び出し元 issue-pipeline 主文脈から次を受け取る。
 
 issue: Issue 番号
-handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml（Codex supervisedではmanifestのhandoff_templateとcanonical ledgerからhostが導出し、promptへexact 1回だけ注入）
+handoff_path: 作業ツリールート相対の tmp/_handoff/issue-implementer--issue-<N>[-<suffix>].yaml
 ほかタスク固有情報：関連ノード ID・スコープ等
 
-handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めない。Codex supervisor経路では親AI/CLIの自由入力を受けず、manifestのrole別handoff_templateをcanonical ledgerと照合したhost導出値だけがpromptにexact 1回提示される。
-
-Codex supervisorのrole promptには、handoff_pathに加えて `branch_name`、`repository`、`expected_oid` も `Host-derived execution facts` としてhostが提示する。4値はcanonical ledgerとlive Git factsから導出され、親runtimeの入力には追加しない。innerは提示されたhandoff_pathだけへ書き込み、snapshot本文に現れる実handoff file candidateやhost authority/prompt reserved placeholderを権威値として扱わない。bareな`tmp/_handoff/`説明、reservedでない一般placeholder、通常コード断片は単一format passのsnapshot dataとして許可される。
+handoff_path がなければ実装に着手せず STOP する。ファイル名は自分で決めない。
 
 書き込み前に次をすべて確認する。1つでも満たさなければ書き込まず STOP する。
 
@@ -65,21 +63,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 
 PR URL、変更ファイル、テスト結果、スコープ外 finding を、渡された handoff_path に書く。チャットには書けた絶対パスと1行要約だけを返す。マージと Issue クローズは行わない。
 
-`CODEX_ISSUE_SUPERVISED=1` のinner processではcommit/push/PRを行わず、host publish前の
-JSON-compatible schema v1 handoffを書く。`phase`は`pre_publish`、成功時`status`は`ready`とし、
-hostから束縛されたrole、Issue、task key、branch、現在HEAD、結果を含める。STOPは`status: stopped`とし、
-hostはpublish不可として扱う。下記の`pr_opened`形式はhost publish完了後のfinal phaseであり、inner成功証跡に流用しない。
-`result`は`changed_files`、`tests`、`out_of_scope_findings`、`protected_patch`の4 fieldだけとする。
-protected asset変更がなければ`protected_patch`はnull、ある場合はstaging patchの相対`path`と`sha256`を入れる。
-hostはsupervisor run時にownerがimmutable launch recordへ記録したexact protected pathとbase SHA-256だけを承認し、promptや
-publish CLIでpath/digestを追加しない。protected patch（宣言時のみ）→add→commit→push→PR createを
-順番に実行し、最終handoffを生成する。
-
-同inner processはworkspace-write相当の境界でdirect `codex exec -C`を実行し、literal `--sandbox`は使用しない。data-plane networkと
-raw auth envを利用せず、nested Codexのmodel/API到達を試みない。local thread生成だけは成功証拠に数えない。
-
 schema_version: 1
-phase: final
 agent: issue-implementer
 status: pr_opened
 issue: Issue番号

@@ -26,13 +26,6 @@
     "gitgate/worktree.py|abc15b92f96f2e58": 1,
     "gitgate/worktree.py|e239a628536ab723": 1,
     "guidance_sync/sync.py|6ab5f6f353105223": 1,
-    "issue_start/codex_launch_intent.py|14c9bdc36af517d3": 1,
-    "issue_start/codex_launch_intent.py|32e6b82fc641cf35": 1,
-    "issue_start/codex_launch_intent.py|71de5e026e0b9e58": 1,
-    "issue_start/codex_launch_intent.py|bd06765ceb75e362": 1,
-    "issue_start/codex_launch_intent.py|d6d80cb274801535": 1,
-    "issue_start/codex_launch_intent.py|e5968f2e303406a5": 1,
-    "issue_start/codex_supervisor_workspace.py|832aef9d6abf8b1d": 1,
     "issue_start/gate.py|12bc212ccc7e5c44": 1,
     "issue_start/gate.py|9d410ee2541b9c16": 1,
     "issue_start/gate.py|e6c48da09edc97ca": 1,
@@ -71,32 +64,6 @@
       ],
       "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
     },
-    "issue_start/codex_supervisor.py": {
-      "data": [
-        "ChangePlan",
-        "CredentialSnapshot",
-        "PermissionProfile",
-        "ProcessResult",
-        "RuntimeHome",
-        "SupervisedResult",
-        "SupervisorSpec"
-      ],
-      "logic": [
-        "CodexJsonlObserver",
-        "SubprocessJsonlRunner",
-        "_StoreOnce"
-      ],
-      "sha256": "7d5bd23c04c58bc916371ea1b2ab8e93147db97e261750f410738664803a2f95"
-    },
-    "issue_start/codex_supervisor_workspace.py": {
-      "data": [
-        "GitFacts"
-      ],
-      "logic": [
-        "CanonicalLaunchReservationLease"
-      ],
-      "sha256": "69751c2694149bba3feff02b2c176231cfdbd2f80b841a7ad35acafddcf8147d"
-    },
     "issue_start/gate.py": {
       "data": [
         "IsolationOnlyAck",
@@ -106,7 +73,7 @@
         "IssueStartGitHubCollector",
         "SnapshotIssueMetadata"
       ],
-      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     }
   },
   "module_lines": {
@@ -222,33 +189,13 @@
       "line_count": 288,
       "sha256": "6a3959070322590775600d9dae18244293b12aefde3d21c0d70c4d5fbf9efd41"
     },
-    "issue_start/codex_karte_bridge.py": {
-      "line_count": 310,
-      "sha256": "6c2c49cc17de2aa35c7e9b7c87231e32eca43e5fff234da9c16fa3c45d39c64e"
-    },
-    "issue_start/codex_launch_control.py": {
-      "line_count": 703,
-      "sha256": "f84c19408b3656d79d927582cf5f8a7cbfe3f69118e62f3d6e76e6fef9ddb1ad"
-    },
-    "issue_start/codex_launch_intent.py": {
-      "line_count": 1161,
-      "sha256": "11fea0d7d43656f296baa34f1e3256ef7733d6fa8c291b1c5d6efd70d20fde7d"
-    },
-    "issue_start/codex_supervisor.py": {
-      "line_count": 3684,
-      "sha256": "7d5bd23c04c58bc916371ea1b2ab8e93147db97e261750f410738664803a2f95"
-    },
-    "issue_start/codex_supervisor_workspace.py": {
-      "line_count": 631,
-      "sha256": "69751c2694149bba3feff02b2c176231cfdbd2f80b841a7ad35acafddcf8147d"
-    },
     "issue_start/durable_lock.py": {
       "line_count": 129,
       "sha256": "c3ef570f41c46b4ffb3dfb38a1c3f866d03c28caa0948ea4e1f566b3ad667d2a"
     },
     "issue_start/gate.py": {
       "line_count": 1285,
-      "sha256": "73edb5126ec6decd02be25f42b30c84762bab231cab1f563e55d03dadd9d8c71"
+      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     },
     "issue_start/hook.py": {
       "line_count": 190,
@@ -264,7 +211,7 @@
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 900,
-      "sha256": "a0d54cea84136616cd07d2f1d3499767fb3a23a90a00b126a8ceb32b1a701dd1"
+      "sha256": "ba8e1182d26fade853574a37a8543e0be6623534a98b8b2b5615a6cbc3f14161"
     },
     "karte/cli.py": {
       "line_count": 1519,
@@ -276,7 +223,7 @@
     },
     "karte/paths.py": {
       "line_count": 317,
-      "sha256": "a1ed1a009e97d3e5932957190e59b31a12d317d773bea12178e650c0c62000d6"
+      "sha256": "d7858b3a6bff916f9134664a342f851ae4392bfd54f78735bdb9ad9465a4b49e"
     },
     "karte/similarity.py": {
       "line_count": 241,
