@@ -48,6 +48,7 @@ WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "asset-parity.yml"
 # of silently passing.
 TRIGGER_ONLY_PATHS = {
     ".ai/**",  # Issue #407/#467: trigger-only; asset_parity inventory scope is unchanged
+    ".github/copilot-instructions.md",  # inlining marker input, not a scanned asset tree
     "asset_parity/**",  # the tool's own implementation
     ".github/workflows/asset-parity.yml",  # the workflow file itself
 }
@@ -166,6 +167,15 @@ class TestAssetParityCiPathsMatchTrees(unittest.TestCase):
                 f"{trigger}.paths should include '.ai/**' as a trigger-only "
                 f"addition (Issue #467) even though asset_parity's own "
                 f"inventory boundary excludes .ai/ from inspection (#407).",
+            )
+
+    def test_copilot_instructions_trigger_as_documented_exception(self) -> None:
+        for trigger, configured in self.blocks.items():
+            self.assertIn(
+                ".github/copilot-instructions.md",
+                configured,
+                f"{trigger}.paths should include '.github/copilot-instructions.md' "
+                "because asset_parity reads it to verify principle inlining.",
             )
 
 
