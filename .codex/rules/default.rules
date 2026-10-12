@@ -35,3 +35,16 @@ prefix_rule(
     justification = "AI roles stop after the owner report; only the owner merges.",
     match = ["rtk proxy gh pr merge 123"],
 )
+# Issue #538 D6: codex_worktree_exec is launched by Claude roles only; Codex must not re-launch it.
+prefix_rule(
+    pattern = ["python3", "-m", "codex_worktree_exec"],
+    decision = "forbidden",
+    justification = "Codex runs as the executor of codex_worktree_exec and must not launch it recursively.",
+    match = ["python3 -m codex_worktree_exec --role issue-implementer"],
+)
+prefix_rule(
+    pattern = ["python", "-m", "codex_worktree_exec"],
+    decision = "forbidden",
+    justification = "Codex runs as the executor of codex_worktree_exec and must not launch it recursively.",
+    match = ["python -m codex_worktree_exec --role issue-implementer"],
+)

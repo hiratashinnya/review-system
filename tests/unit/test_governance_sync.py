@@ -294,6 +294,7 @@ class TestHarnessClassificationTable(unittest.TestCase):
             "maintainability_lint",
             "codex_hook_trust",
             "codex-hook-trust-check.sh",
+            "codex_worktree_exec",
         ):
             self.assertIn(
                 f"`{name}`",

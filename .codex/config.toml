@@ -3,3 +3,37 @@ enabled = false
 
 [apps.connector_76869538009648d5b282a4bb21c3d157.tools.enable_auto_merge]
 enabled = false
+
+# Issue #538 PR-B: Claude の issue-implementer / issue-fixer が codex_worktree_exec 経由で
+# `-c default_permissions="<role>"` として選ぶ permission profile。両 profile は同一内容
+# （編集とテスト実行のみ・network 無効・認証情報の読取拒否）。契約は docs/methods/codex-workspace-binding.md。
+# ラッパーはこのファイルが origin/main の版と同一でなければ起動しない（D1）。
+[permissions.issue-implementer]
+extends = ":workspace"
+
+[permissions.issue-implementer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.issue-implementer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.issue-fixer]
+extends = ":workspace"
+
+[permissions.issue-fixer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.issue-fixer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
