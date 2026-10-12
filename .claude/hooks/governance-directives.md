@@ -1,11 +1,13 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@008744568bfd -->
+<!-- synced-from: CLAUDE.md@02c37d58b3a3 -->
 <!--
   Issue #605（2026-10-11・是正ラウンド1 2026-10-12）: `.claude/rules/05-skills-agents.md` のスキル一覧へ共有リファレンス
   `silent-failure-diagnosis` の1行を、`.claude/rules/02-decision-process.md` の起票先判定表
   「外部委譲・モデル選定・横展・Issue 起票の補助」へ同名を追記しただけ。是正ラウンド1では
-  同じ一覧行の接続状態（現時点でプリロードする資産は無い）を直しただけ。下記9の
+  同じ一覧行の接続状態（現時点でプリロードする資産は無い）を直しただけ。是正ラウンド2では
+  同一覧の `/codex-review` 行の cyber フィルタ対処の要約を、flag 後の再提出禁止と自 thread_id の
+  rollout 1ファイルに限る回収へ直しただけ。下記9の
   「`agy-delegate`等の外部委譲補助」に含まれ、中核規範（1〜12）には掛からない。
   本文は変更せず marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録＝
   `.claude/hooks/README.md`「追従したあとにやること」）。
