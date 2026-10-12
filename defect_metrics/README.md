@@ -18,7 +18,19 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 定義が散文にある限り、窓の起点・境界の開閉・分子の数え方が読み手ごとにずれ、同じズレが
 再計測のたびに再発する。本ツールは定義を**コード上の定数と型**として固定する。
 
-## 2. 固定した指標定義（正本＝`defect_metrics/model.py`）
+## 2. 固定した指標定義（正本＝`defect_metrics/definitions.py`・`types.py`）
+
+実装の責務を分け、従来の `model.py`・`metrics.py`・`collect.py`・`threshold.py`・`cli.py` は互換 import 用の薄い入口として維持する。
+
+| 互換入口 | 実装モジュール |
+|---|---|
+| `model.py` | `definitions.py`・`types.py`・`timestamps.py` |
+| `metrics.py` | `references.py`・`metric_values.py`・`calculation.py` |
+| `collect.py` | `collect_load.py`・`collect_fetch.py` |
+| `threshold.py` | `threshold_types.py`・`threshold_evaluate.py` |
+| `cli.py` | `cli_window.py`・`cli_baseline.py`・`cli_report.py`・`cli_parser.py`・`cli_commands.py` |
+
+この整理で公開 import 経路とレポートJSON契約は変えない。`SCHEMA_VERSION` は初版の `1` のまま維持する。Issue #488 同一PR中のフィールド追加とIssue #493の定義文言変更は、読取側のスキーマ形状・型を変えず、版を再度上げない判断が既に定義本文に記録されている。
 
 | 要素 | 定義 | 実体 |
 |---|---|---|
