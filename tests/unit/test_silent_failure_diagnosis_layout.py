@@ -42,7 +42,17 @@ class WrapperConnectionTests(unittest.TestCase):
     def test_copilot_is_intentionally_not_deployed(self):
         for rel in (f".github/skills/{NAME}", f".github/prompts/{NAME}.prompt.md"):
             self.assertFalse((REPO_ROOT / rel).exists(), rel)
-        self.assertNotIn(NAME, _read(".github/copilot-instructions.md"))
+        instructions = _read(".github/copilot-instructions.md")
+        for heading in ("## D0.", "## D1.", "## 一般則とツール固有事象の分担"):
+            self.assertNotIn(heading, instructions)
+
+    def test_copilot_non_deployment_is_recorded_in_both_lists(self):
+        copilot = _read(".ai/guidance/platforms/copilot.md")
+        section = copilot[copilot.index("## Copilot 固有の非移植") :]
+        self.assertIn(f"`{NAME}`", section)
+        lists = _read(".ai/Individually-managed-lists.md")
+        section = lists[lists.index("## 個別配置・非移植") : lists.index("## 追加 wrapper")]
+        self.assertIn(f"`{NAME}`", section)
 
 
 class CommonBodyContractTests(unittest.TestCase):
