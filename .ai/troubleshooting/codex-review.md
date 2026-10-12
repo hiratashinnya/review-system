@@ -12,6 +12,7 @@ flag 後に行ってよいのは次の2つだけである。
    - `review.txt` の冒頭に出力された `session id:` の値を、今回の実行の `thread_id` とする。
    - `~/.codex/sessions/YYYY/MM/DD/` 配下で、ファイル名がその `thread_id` で終わる `rollout-*-<thread_id>.jsonl` の1ファイルだけを読み、中間発話から所見を回収する。
    - `review.txt` から `thread_id` を読めない場合、または該当ファイルがちょうど1つに定まらない場合は、回収を試さず2へ進む。「直近の日付ディレクトリ」「最新の rollout」のように実行に束縛されない指定で探さない。同日の別セッションの所見を、当該レビューの所見として取り込むおそれがあるため。
+   - この手順の前提（`session id:` の出力・rollout ファイル名の末尾が `thread_id`）は codex-cli 0.157.0 で実機確認済みである（2026-10-12・記録は [rationale](../rationale/codex-review.md)）。
 2. **停止して報告する。** flag の事実と、回収できなかった範囲（未レビューの範囲）を明示する。
 
 回収できた所見は Claude 側レビューと統合し、Codex 由来であることと rollout からの回収であることを明示して報告する。

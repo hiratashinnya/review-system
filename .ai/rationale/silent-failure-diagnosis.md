@@ -85,7 +85,7 @@ PR #260 の D2 は「総合判定をゲート条件にしない」とも書い�
 
 ## 含めなかったもの
 
-- `agy-delegate` 本体の書き換え・直接実行ラッパー・許可ルール（兄弟 Issue #606）。本スキルを `skills:` でプリロードするのも #606 で行う。したがって本 PR の時点では、本スキルを読み込む資産はまだ無い。
+- `agy-delegate` 本体の書き換え・直接実行ラッパー・許可ルール（兄弟 Issue #606）。本スキルを `skills:` でプリロードするのも #606 で行う。したがって本 PR の時点では、`skills:` で本スキルをプリロードしている資産はまだ無い。一方、`codex-review` の回復手順（`.ai/troubleshooting/codex-review.md`）は本 PR で改訂され、本スキルの D0 を名指しで参照している。未接続なのは `skills:` によるプリロードであり、troubleshooting からの参照は既に成立している。
 - agy-mcp-bridge の撤去（兄弟 Issue #607）。
 - `codex-review` の安全実行契約の再実装（#575 の再実装対象外。扱う場合は別 Issue）。
 - PR #260 が足していた `docs/methods/method-inventory.md` の A21 カードと `docs/methods/asset-plan.md` の行。Issue #605 の Scope に含まれていないため。
