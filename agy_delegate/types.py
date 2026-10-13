@@ -32,6 +32,8 @@ class Result:
     artifacts: list[str] = field(default_factory=list)
     agy_version: str | None = None
     stderr_length: int = 0
+    workspace_changes: list[dict[str, str]] = field(default_factory=list)
+    workspace_change_limitations: list[str] = field(default_factory=list)
 
     @property
     def exit_code(self) -> int:

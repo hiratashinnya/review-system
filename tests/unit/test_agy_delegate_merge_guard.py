@@ -27,13 +27,10 @@ class RuntimeMergeGuardTests(unittest.TestCase):
             )
             reasons = verify_runtime(request)
 
-        unverified_reasons = [
-            reason for reason in reasons if reason.partition(":")[0].endswith("_unverified")
-        ]
         self.assertEqual(
-            unverified_reasons,
+            reasons,
             [],
             "Issue #628 が未完了のため意図的に失敗しています。解除条件は #628 の AC。"
             "このテストを skip/削除/期待値反転して緑にしない。"
-            f"本番 runtime の未確認停止理由: {unverified_reasons}",
+            f"本番 runtime の未確認停止理由: {reasons}",
         )

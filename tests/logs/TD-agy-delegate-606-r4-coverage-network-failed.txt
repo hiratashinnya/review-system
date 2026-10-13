@@ -8,4 +8,4 @@ error: Request failed after 3 retries in 5.0s
   Caused by: dns error
   Caused by: failed to lookup address information: Temporary failure in name resolution
 EXIT: 2
-計測前の依存取得失敗。限定escalation自動承認後の再実行は別ログ TD-agy-delegate-606-r4-coverage.txt に保存。
+計測前の依存取得失敗。限定escalation自動承認後の再実行は別ログ TD-agy-delegate-606-r4-coverage-discovery-failed.txt（旧coverage.txtと同一内容のため統合、元の失敗成否は不変） に保存。

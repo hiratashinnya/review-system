@@ -31,7 +31,7 @@ python3 -m agy_delegate run --workspace PATH --settings PATH --executable PATH -
 
 必須項目は status / conversation_id / response（文字列）、duration_seconds（boolを除く有限非負数）、num_turns（boolを除く非負整数）、usage（input_tokens / output_tokens / thinking_tokens / cache_read_tokens / total_tokens の5キー、boolを除く非負整数）。token間の算術関係は推測しない。
 
-denied_actionsとerrorは実測で省略される任意項目。denied_actionsがある場合は配列、各要素はaction/display_nameの2キーと非空文字列。errorがある場合は文字列で、停止理由と診断記録に保持する。未知キー・型・非標準数値・重複キーは拒否する。statusがSUCCESSでもstderrの拒否/timeout/errorや非0exitを優先する。空IDは継続や画像回収に使えず失敗とする。
+denied_actionsとerrorは実測で省略される任意項目。denied_actionsがある場合は配列、各要素はaction/display_nameの2キーと非空文字列。errorがある場合は文字列で、停止理由と診断記録に保持する。未知キー・型・非標準数値・重複キーは拒否する。statusがSUCCESSでもstderrのtimeout/error/未知内容や非0exitを優先する。空IDは継続や画像回収に使えず失敗とする。
 
 実測fixtureは tests/fixtures/agy_delegate/1.3.3/ に保存。/usageは完全JSONが提供されていないためfixture化せず、空ID/追加commandの失敗を合成境界テストで確認する。実測で未提供の成功形式を推測して受理しない。
 
@@ -45,7 +45,7 @@ denied_actionsとerrorは実測で省略される任意項目。denied_actions�
 
 会話はworkspaceの `tmp/agy/conversation-ID.json` と束縛する。記録なし/別workspace/既失敗の継続は拒否。返却ID不一致、子プロセス例外、拒否、画像不足等の失敗で記録を失敗へ更新し、古いsuccessを再利用しない。
 
-CLIで --prompt TEXT を複数指定し、--max-concurrency 1..8 を必須指定する。複数promptと会話継続の併用は拒否する。各結果は入力順にJSON行で返す。API run_parallel も同じ有限上限を使う。同workspace全実行は最大10秒待機の直列化で、timeoutは workspace_lock_timeout。stale lock は自動削除しない。Issue #606 の並列契約 の書込限定直列化との差分は rationale に記録する。
+CLIで --prompt TEXT を複数指定し、--max-concurrency 1..8 を必須指定する。複数promptと会話継続の併用は拒否する。各結果は入力順にJSON行で返す。API run_parallel も同じ有限上限を使う。同workspace複数promptは入力順の順次バッチで、各件のロック待機上限は当該件のprint_timeout＋10秒と先行各件のprint_timeout＋10秒の総和。別workspaceは有限並列。競合時のtimeoutは workspace_lock_timeout。stale lock は自動削除しない。Issue #606 の並列契約 の書込限定直列化との差分は rationale に記録する。
 
 画像は返却IDのbrain directoryのみ、新規会話の既存directoryや継続の同一bytesを過去成果として除外し、symlinkも拒否する。実行別UUID directoryに回収する。画像bytesの意味的内容確認はcallerが行う。失敗の画像は診断限定。
 
@@ -60,3 +60,5 @@ CLI stdoutは応答/拒否詳細/画像pathを秘匿する。生データは実�
 会話記録には継続判定用の実行/会話ID・workspace・classification・reasons・exit/status・拒否・打切りだけを持ち、response/error/artifact全文は実行別result.jsonだけへ保存する。記録はos.open(mode=0600, O_NOFOLLOW)で作成し、既存ファイルも書込前に0600へ制限する。
 
 PFの制御範囲とlive未検証事項は [agent正本](../.ai/agents/agy-delegate.md#pf-の実行制御の適用範囲) を参照する。
+
+workspace_changes はgit不要の実行前後比較で、workspace相対pathとadded/modified/deletedをCLIと実行記録へ返す。workspace_change_limitationsも必ず併記する。agy以外の同時変更の帰属、途中で戻した変更、metadataのみ・空ディレクトリ、symlink参照先、特殊ファイルは観測できず、.gitとwrapper自身のtmp/agyを除外する。読取不能はworkspace_snapshot_incomplete、未起動はobservation_not_performedであり空一覧を「変更無し」と認定しない。担当がgate内で実行できないコード検証は「未確認」と返し、呼出元が検証して採用を判断する。

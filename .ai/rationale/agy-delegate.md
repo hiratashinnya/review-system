@@ -192,3 +192,9 @@ Issue #606 の会話継続・並列・再試行契約 は書込実行のみworks
 設定層根拠の提供記録は、公式CHANGELOGの1.0.12（global settingsとprojects directory、project優先）、1.0.5（project/shared user/CLI permissions合成参加）、1.0.4（workspace対応cache）とexe文字列（admin候補）に限る。global候補は <windows-home>/.gemini/antigravity-cli/settings.json、projectsは <home>/.gemini/config/projects/、対応cacheは <home>/.gemini/antigravity-cli/cache/projects.json。admin /etc/antigravity/admin_settings.json の過去不存在は今回起動時の不存在証明ではない。設定内容は提供調査でも読まれていない。project具体的filename/schema、shared user場所/schema、admin優先、配列merge、WSL→Windows cwd変換は根拠未取得。
 
 r3は全層監査の合成境界と理由別STOPを追加し、関連57件PASS、lint violations0/accepted_debt104、parity/sync/diffチェック合格。実効resolver/decoder/mergeとlive wrapper UCは未達のまま。r4最終状態は tests/reports/TR-agy-delegate-606-synthetic-final-r4.md だけを参照し、過去成績は履歴として扱う。#607 撤去可、#606全体完了、default branch到達は判定していない。
+
+## r6 オーナー決定による順次バッチと観測責務
+
+F-606-04 案A: Issue #606 §5 の書込限定直列化とは異なり、内部書込を識別できないため同workspace全件を入力順の順次バッチとする。待機は当該件と先行各件のprint_timeout＋10秒の総和で有限化する。10秒超の偽プロセス2件で完走を検査する。別workspaceはAPIで有限並列、stale lockを自動除去しない。前記r4の10秒固定待機は履歴である。
+
+F-606-17 案(a): inspect|run のgateを広げずgit依存なしのwrapper前後差分を返却する。変更のagyへの帰属は同時他者変更があるため識別不能。除外/未観測/検査不能を結果に明記する。担当のコード検証不能は「未確認」で呼出元へ返す。

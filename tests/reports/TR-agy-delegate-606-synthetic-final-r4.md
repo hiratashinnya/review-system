@@ -3,69 +3,25 @@ id: TR-agy-delegate-606-synthetic-final-r4
 version: 1
 condition: failure
 result: PASS
-log_ref: tests/logs/TD-agy-delegate-606-r4-unit.txt
+result_scope: synthetic_contract_only
+full_suite_result: EXPECTED_MERGE_GUARD_FAILURE
+execution_target: 1940b14 + uncommitted round-6 remediation
+log_ref: tests/logs/TD-agy-delegate-606-r6-final-full-unit.txt
 ---
 # TR agy-delegate #606 r4 合成契約・最終成績書
 
-実行対象: commit 41be85d ＋本是正の未commit作業ツリー差分。ユーザーのGit操作禁止を優先したcommit-before-test例外。Linux / Python3 / 2026-10-13、prompt版・基準content_hashは該当なし。同一PRのversion 1を維持する。最終状態の成績書は本書のみ。PASSは合成fixture・提供済み実測JSON正規化・静的hook契約に限定し、実機UC・agy専用live hook・実効設定・通常run解禁を認定しない。
+現行実行対象: commit 1940b14 ＋本是正の未commit作業ツリー差分。ユーザーのGit操作禁止を優先したcommit-before-test例外。Linux / Python3 / 2026-10-13、prompt版・基準content_hashは該当なし。同一PRのversion 1を維持する。最終状態の成績書は本書のみ。PASSは合成fixture・提供済み実測JSON正規化・静的hook契約に限定し、実機UC・agy専用live hook・実効設定・通常run解禁を認定しない。
 
-## TD 手順と期待結果
+## 現行試験契約
 
-# agy-delegate wrapper 受入テスト
+TD正本: [TD-agy-delegate-606](../designs/TD-agy-delegate-606.md)。責務別テストと同workspace順次バッチ、workspace前後差分、D0/未知stderrを合成環境で検証する。全量のmerge guardは本番runtimeのreasonsが1つでもあれば意図的にFAILする。合成契約PASSと全量FAILの範囲を区別する。
 
-## 目的
-
-Issue #606 の直接起動・許可・結果・会話・画像・外側gate・成果採用条件を、実機agyを使わず検査する。
-
-## 前提
-
-未commit作業ツリー。ユーザーのcommit禁止がtest-strategyのcommit-before-testより優先する。
-`tests/unit/agy_delegate_fixtures.py` は実測型に沿う合成データの偽プロセスであり、設定合成・wrapperの実機起動を実証しない。r2で tests/fixtures/agy_delegate/1.3.3/ の実測JSON（成功・拒否・print-timeout・クォータERROR）を追加し、正規化の実証に用いる。/usageは完全JSONが無いためfixture化しない。
-
-## 手順
-
-`python3 -m unittest tests.unit.test_agy_delegate_results tests.unit.test_agy_delegate_permissions tests.unit.test_agy_delegate_runner tests.unit.test_agy_delegate_artifacts tests.unit.test_agy_delegate_cli tests.unit.test_agy_delegate_gates tests.unit.test_agy_delegate_adoption`
-
-レビュー是正後の最終検証は `python3 -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'` で行う。上記初回7モジュールに加え、重複JSONキーと会話記録の厳密検証を含む。新規TDの同一PR内是正であるためversion 1を維持する。
-
-共有資産の接続説明への追随も `python3 -m unittest tests.unit.test_silent_failure_diagnosis_layout` で検査する。#605一般則を変更せず、agy固有検出手順の正本への参照、#606接続済み、設定適用層・合成規則と起動環境未確認による通常実行停止を維持する。
-
-## 期待結果
-
-r3の `test_agy_delegate_settings_layers.py` は偽pathとfixture専用schemaだけを使う。実機設定/認証ファイルを読まずagyを起動しない。同一未merge変更内の追記でversion 1を維持する。
-
-- 全4参加元が特定されread-only読取できた場合だけ保守的監査を行い、bytes不変を確認する。
-- project allowがglobal deny/共有user askを消さず、corpus deny欠落・広いcommand許可は停止する。実効mergeの実測ではない。
-- 未特定path/schema、層不足、JSON不正、一部未読とadmin明示不存在/読取拒否/再出現を区別し停止する。
-- fake全層監査合格でもruntimeの配列合成と起動環境STOPを維持する。通常CLIで層別未特定理由を返し子プロセスを起動しない。
-
-- 通常runはruntime未検証、欠落/過剰/競合設定、停止申告、環境不足で起動しない。
-- 実測4ケースの分類・全理由・応答・ID・error・打切りを保持し、実測成功のみ候補とする。出力ゲートだけ解除し、設定/起動2ゲートは子プロセス未起動で維持する。
-- 必須6キー、optional denied_actions/error、拒否要素2キー、usage5キー、有限非負duration、boolを除く非負整数turns/tokensを検査する。未知キー/型・数値overflow・空IDを拒否し、token算術は推測しない。
-- 合成SUCCESS＋拒否、ERROR＋応答、timeout＋部分応答、非0exit、壊れたJSON/型/未知フィールドは非0。
-- 拒否を優先し全理由保持。自動retryなし。shell連結せずJSONフラグは-pより前。
-- 外側process timeoutでもbytes/str/Noneのstdout/stderrを正規化し、stderrの認証・セキュリティ拒否、error/no-output、JSONのERROR/deny/契約違反を保持する。部分応答・IDは診断用に保持し、非0・未完了・打切りを維持する。
-- 継続の記録なし/別workspace/既失敗/ID不一致は拒否。child例外後lock解放と記録更新。
-- JSONの重複キー・非標準数値は拒否し、後続値で拒否を上書きさせない。
-- 会話記録の必須項目・型・run_id・取得ID対応を検査する。success_candidateでもERROR/exit異常/reasons/deny/truncated/response=nullを継続させず、起動前に定型理由で停止する。
-- 有限並列の各結果/ID分離、全workspace排他。画像は返却IDだけ、旧画像/symlink/他会話fallback拒否。
-- 厳密commandテンプレートは空白日本語pathを許し、連結/部分式/改行/過剰許可/deny globを拒否。
-- Claude/Codexの実際のgateへ外側起動を渡し、専用ロール境界を緩和しない。
-- アンカー不一致/前置き未検証/画像欠落を採用しない。wrapper成功は候補で意味的完了は呼出agentが別途確認する。
-- CLI公開stdoutではerror/response/拒否情報/画像pathを秘匿し、理由/status/exitは保持する。生診断は0600のlocal result.jsonだけに保存する（r2レビュー是正）。fixture環境説明の利用者homeは秘匿する。
-
-## r4 是正差分の試験契約
-
-実行対象は commit 41be85d ＋未commit是正差分。新規r4テストはcaller必須・本番注入拒否・公開無効果項目撤去・CLI複数prompt結果・workspace待機・未知stderr・版不一致未起動/版記録・path許可集合・作成時0600/最小会話記録を検証する。hookはhandler直接起動による合成入力でありliveセッション発火の証明ではない。adoption APIは未接続のため撤去し、成果採用はagent契約で確認する。全層監査はruntimeから呼ばれるが実効adapter未達のSTOPを維持する。
-
-最終成績書は tests/reports/TR-agy-delegate-606-synthetic-final-r4.md。過去試験の件数/合否を再認定しない。同一未merge PRの是正のため既存版遷移を維持し追加bumpしない。mutation recheckは --skip-inspection 仮追加で否定テストがFAILすることを確認し、finallyで本体を復元する。
-
-## 最終実測
+## r4 実測履歴（commit 41be85d＋当時差分、元の成否を保持）
 
 - wrapper関連: 63件 / 12.856秒 / PASS。
 - 独立関連: 40件 / 13.619秒 / PASS。
 - Claude/Codex gate・governance・配置全体: 183件 / 380.007秒 / PASS。
-- python3 -m unittest discover -s tests/unit: 2003件 / 492.492秒 / OK (skipped=9)、exit 0。上記log_ref参照。
+- python3 -m unittest discover -s tests/unit: 2003件 / 492.492秒 / OK (skipped=9)、exit 0。当時の証跡: tests/logs/TD-agy-delegate-606-r4-unit.txt。
 - maintainability_lint: violations=0、accepted_debt=104、exit 0、baseline不変。
 - asset_parity / guidance_sync / git diff --check: exit 0。既存stale警告保持。
 - CLAUDE.md SHA256開始/終了一致: 0311068ebdb81d098410f82db44886e0b2c108b51d87efc4f7439da093909e9b。
@@ -82,6 +38,40 @@ coverage は `Module docidx was never imported` 警告を残した。上記88%�
 
 ## 未達・STOP
 
-通常runの未確認停止を維持。実効resolver/decoder/merge、admin当該起動確認、Windows変換、実機version形式/model差、実機UC/画像/並列/alias/symlink/認証、agy専用roleのlive metadata/trust/dispatch、#607撤去可、default branch到達は未達。(1)(14)(15)は対象外。
+運用状態は .ai/agents/agy-delegate.md の「現在の利用制約」を参照。本試験で認定していない範囲: 実効resolver/decoder/merge、admin当該起動確認、Windows変換、実機version形式/model差、実機UC/画像/並列/alias/symlink/認証、agy専用roleのlive metadata/trust/dispatch、#607撤去可、default branch到達は未達。(1)(14)(15)は対象外。
 
-PR #627 の merge guard 受入テスト `tests/unit/test_agy_delegate_merge_guard.py` を追加。本番 resolver が返す設定層・権限merge・起動環境の未確認停止理由により、Issue #628 の AC 未達の間は意図的に赤となる。上記 r4 の PASS は追加前の記録であり、merge guard の合格や PR の AC 達成を示さない。解除条件は #628 の AC、skip/削除/期待値反転で緑にしない。追加後の実測は `tmp/codex-report-606-r5.md` を参照。同一未merge PR 内の追記のため version 1 を維持する。
+PR #627 の merge guard 受入テスト `tests/unit/test_agy_delegate_merge_guard.py` を追加。本番 resolver が返す設定層・権限merge・起動環境の未確認停止理由により、Issue #628 の AC 未達の間は意図的に赤となる。上記 r4 の PASS は追加前の記録であり、merge guard の合格や PR の AC 達成を示さない。解除条件は #628 の AC、skip/削除/期待値反転で緑にしない。追加後とr6の実測は本書末尾に収録する。同一未merge PR 内の追記のため version 1 を維持する。
+
+## r5 merge guard 追加後の実測履歴（元の成否を保持）
+
+r5は合成設定とRequestを一時領域に作り、本番runtime.verify_runtimeを差替えなしで検査した。当時のguardはcolon前の理由名が_unverifiedで終わるものだけを対象とし、停止理由6件を検出した。接尾辞依存は本r6で全reasons対象へ是正したため、以下は当時の計測結果である。
+
+ガード単体: python3 -m unittest tests.unit.test_agy_delegate_merge_guard、1件 / 0.001秒 / FAILED (failures=1)、exit1。失敗理由6件はsettings_global_binding_unverified、settings_project_binding_and_schema_unverified、settings_shared_user_location_and_schema_unverified、settings_admin_presence_or_precedence_unverified、settings_permission_merge_unverified、launch_environment_unverified。指定のIssue #628未完了による意図的なFAILメッセージを確認した。
+
+全量unittestはuv run --offline --with coverage coverage run -m unittest discover -s tests/unitによるcoverage同時計測で、2004件 / 422.831秒 / FAILED (failures=1, skipped=9)、errors=0、exit1。成功1994件・既存skip9件・失敗はmerge guard1件のみ。環境はLinux / uvキャッシュのPython3.13 / 2026-10-13（単体は既定python3）。証跡: [r5全量ログ](../logs/TD-agy-delegate-606-r5-full-unit.txt)。
+
+coverage html/reportは両方exit0、TOTAL 4542 statements / 566 miss / 88%、HTMLはhtmlcov/index.html（未追跡）。.coveragercの範囲の数字でありagy_delegate自身のcoverageではない。Module docidx was never imported警告を保持。証跡: [r5 coverage summary](../logs/TD-agy-delegate-606-r5-coverage-summary.txt)。
+
+新規ガード追加後の静的検証はmaintainability_lint exit0 / violations=0 / accepted_debt=104 / baseline不変、asset_parity exit0 / 41 assets / 0 MISSING / 既存staleness29件、guidance_sync exit0 / check OK、diff --check exit0。証跡: [r5 lint](../logs/TD-agy-delegate-606-r5-maintainability_lint.txt)、[r5 parity](../logs/TD-agy-delegate-606-r5-asset_parity.txt)、[r5 sync](../logs/TD-agy-delegate-606-r5-guidance_sync.txt)。
+
+当時の独立read-onlyレビューはfindingなし。本番resolver・テスト1件・指定メッセージ・実機設定/agy非使用・TD/TR追記を確認した。commit/push/branch操作なし、CLAUDE.md変更なし、既存作業ツリー変更を保持。commit-before-testと全件PASS条件に対し、オーナーのcommit禁止と意図的guard FAIL指示を優先した。追跡外の当時レポートにあった測定情報を本節と上記追跡ログへ収録した。
+
+## r6 現行実測（commit 1940b14＋本是正差分）
+
+wrapper関連は71件 / 35.907秒 / FAILED (failures=1)、exit1。唯一の失敗は本番runtimeの全停止理由を拒否するmerge guardであり、残る70件の合成契約はPASS。証跡は [r6関連ログ](../logs/TD-agy-delegate-606-r6-related-unit.txt)。接尾辞なし停止理由と固定理由除去後のinventory不足に対するguard否定検査はPASS。gate/配置/guard契約の追加確認は12件 / 2.017秒 / PASS。最終plain全量の確定結果は以下に収録する。
+
+maintainability_lint: violations=0、accepted_debt=104、baseline不変。asset_parity/guidance_sync/diff --check: exit0。実機設定読取・生agy起動・通常run解禁は行っていない。同一未merge PRでversion 1を維持。
+
+### r6 初回全量・coverage（開始後追加した2件は別測定）
+
+初回plain全量は2009件 / 652.802秒 / FAILED (failures=1, skipped=10)、exit1。唯一の失敗はmerge guard。証跡は [初回全量ログ](../logs/TD-agy-delegate-606-r6-full-initial.txt)。追加guard契約2件を含む最終plain全量とは別の測定として保持する。
+
+coverage初回は2009件 / 637.928秒 / FAILED (failures=1, skipped=10)、exit1。開始後に追加したguard契約2件をcoverage --appendで実行し2件 / 0.004秒 / PASS、exit0。HTML/report生成はexit0、TOTAL 4542 / Miss 566 / 88%。証跡は [coverage初回](../logs/TD-agy-delegate-606-r6-coverage-initial.txt)、[append・HTML・report](../logs/TD-agy-delegate-606-r6-coverage-summary.txt)。初回2009件＋append2件の計測であり、全量一括PASSとは認定しない。旧測定skipped9に対し今回はskipped10を観測した。
+
+計測範囲は既存 .coveragerc に従い、agy_delegateのcoverageやdocidxの計測完了を示さない。Module docidx was never imported警告は残る。HTMLはhtmlcov/index.html（未追跡）。ログに含まれるreverted 1 commit(s)は既存テストの一時fixture内操作の出力であり、本作業対象でのcommit/push/branch操作を示さない。
+
+### r6 最終plain全量（追加guard契約2件を含む最終コード）
+
+python3 -m unittest discover -s tests/unit は2011件 / 655.868秒 / FAILED (failures=1, skipped=10)、errors=0、exit1。成功2000件、skip10件、FAIL1件。唯一の失敗は本番runtime merge guardであり、合成契約PASSとfull_suite_result EXPECTED_MERGE_GUARD_FAILUREを区別する。証跡は [最終全量ログ](../logs/TD-agy-delegate-606-r6-final-full-unit.txt)。本番runtimeの停止理由7件にはsettings_layer_inventory_incompleteを含み、接尾辞に依らず1件以上を拒否した。
+
+実行対象はfrontmatterのcommit 1940b14＋本是正差分。初回plain2009件とcoverage2009件＋append2件は別測定として前節に保持した。旧r4のPASS・coverage初回errors3等の履歴成否は改変していない。

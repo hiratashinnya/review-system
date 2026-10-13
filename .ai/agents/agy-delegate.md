@@ -24,7 +24,7 @@ G-min＝`.ai/guidance/common.md` と `docs/doc-system/02-meta-schema.md`、G-ful
 | UC-2 参照・孤児調査 | 新規 run | G-min | アンカーと参照箇所 |
 | UC-3 ノード素案 | 規律を読む run → 実際の ID で継続 | G-full＋A-type | 規律アンカーと素案、author/validator に戻す |
 | UC-4 外部調査 | 新規 run、独立観点なら有限並列 | 対象資料 | 出典と依頼への対応 |
-| UC-5 スクラッチコード | 新規 run、書く場合は変更範囲明示 | 対象コード＋common | 実コード/計算結果と検証、無検証採用不可 |
+| UC-5 スクラッチコード | 新規 run、書く場合は変更範囲明示 | 対象コード＋common | 実コード/計算結果、実行できない検証は「未確認」と返し呼出元が検証、無検証採用不可 |
 | UC-6 画像生成 | run の画像回収 | 依頼条件 | 実ファイル存在と内容 |
 | UC-7 並列 | タスクごとに独立 run | 元 UC に準じる | 各結果を独立検証し失敗を隠さない |
 
@@ -43,7 +43,7 @@ agy 1.3.3 の成功・拒否・print-timeout・クォータERRORの出力型は�
 
 ## 結果判定
 
-ラッパー exit 0 はプロセス/出力契約の成功候補で、タスク完了ではない。`denied_actions` 非空、認証/セキュリティ拒否は D0。stderr の `print timeout` は部分応答があっても打切り、`no output produced` は出力なし、`error:`・非0 exit・SUCCESS 以外の status は実行失敗。JSON 不正・必須項目欠落・型不正・未知形式は出力契約違反とする。必須項目の欠落は成功へ補完しない。denied_actions/error は実測で省略される任意項目であり、denied_actions の省略自体は失敗にしない。error が存在すれば失敗理由として保持する。
+ラッパー exit 0 はプロセス/出力契約の成功候補で、タスク完了ではない。ラッパーの D0 機械根拠は実測 JSON の `denied_actions` 非空だけ。未実測の認証/セキュリティ語で D0 と推定しない。未知 stderr は `stderr_unrecognized` で失敗し、内容を保存せず `stderr_length` のみ記録する。未知 stderr から拒否の有無を確定できない場合は「未確認」として停止し、成功や retry 許可へ補完しない。stderr の `print timeout` は部分応答があっても打切り、`no output produced` は出力なし、`error:`・非0 exit・SUCCESS 以外の status は実行失敗。JSON 不正・必須項目欠落・型不正・未知形式は出力契約違反とする。必須項目の欠落は成功へ補完しない。denied_actions/error は実測で省略される任意項目であり、denied_actions の省略自体は失敗にしない。error が存在すれば失敗理由として保持する。
 
 全理由、agy exit/status、取得できた会話 ID、応答・拒否・打切り、実行 ID と成果物情報を保持する。部分応答と失敗時画像は診断用で完成成果にしない。拒否と ERROR が併存しても拒否を優先し再試行しない。初期仕様は自動リトライなし。原因未特定 ERROR は停止報告し、再試行するなら D0 非該当、副作用/クォータ、認可、有限の試行上限を先に確認する。
 
@@ -51,11 +51,11 @@ agy 1.3.3 の成功・拒否・print-timeout・クォータERRORの出力型は�
 
 継続は実際の JSON の会話 ID と同 workspace の実行記録を対応付ける。最新会話推測、ID 欠落時の新規会話への置換、拒否された会話の継続は禁止。同会話への同時継続を行わない。
 
-独立タスクごとに ID・出力・回収先を分け、CLI の複数 `--prompt` と `--max-concurrency 1..8` で並列要求を渡す。実装は書込自己申告に依存せず同 workspace の全実行を最大10秒の待機ロックで直列化し、timeoutなら未起動で停止する。別 workspace の独立タスクは API で並列化する。4件中1件 ERROR の実測を安全上限の根拠にしない。一部失敗を全体成功として報告しない。
+独立タスクごとに ID・出力・回収先を分け、CLI の複数 `--prompt` と `--max-concurrency 1..8` で並列要求を渡す。同 workspace の複数 prompt は入力順に完走する順次バッチであり、内部書込の自己申告に依存しない。各件のロック待機上限は当該件の print_timeout＋10秒と先行各件の print_timeout＋10秒の総和。別呼出元とのロック競合はこの有限上限で workspace_lock_timeout とし、stale lock を自動除去しない。別 workspace の独立タスクは API で並列化する。4件中1件 ERROR の実測を安全上限の根拠にしない。一部失敗を全体成功として報告しない。
 
 画像 prompt に保存先を指定しない。実際の会話 ID の `brain/<conversation_id>/` だけから回収し、ID のパス妥当性と保存領域内解決を検査する。継続画像は実行前後の差分で今回分を選別し、実行ごとの `tmp/` に回収する。画像不明時に他会話・最新ファイル探索で補わない。
 
-失敗でも書込が残り得る。既存差分から影響を確認・報告し、既存ユーザー変更を巻き込む自動 rollback は行わない。ログは当該実行に束縛する。CLI stdout は応答・拒否詳細・画像 path を秘匿し、詳細は当該 tmp 実行の result.json（0600）から必要な範囲だけ読む。秘密値・利用者名を含むパスを報告前に秘匿し、argv/設定全文/環境変数/エラー全文を無条件に報告しない。
+失敗でも書込が残り得る。ラッパー返却の `workspace_changes`（workspace 相対 path と added/modified/deleted）から実行前後に残った変更を取得し、`workspace_change_limitations` と合わせて報告する。git status/diff や検証コマンドは担当 gate の許可外であり実行しない。変更一覧は git を用いず内容 hash と symlink 自体を比較する。`.git` とラッパーの `tmp/agy` は除外し、symlink の参照先・特殊ファイル・metadata のみの変更・空ディレクトリ・途中で戻された変更は観測しない。同時に他者が書いた変更との帰属は識別できず、agy 専属の変更一覧とは表示しない。検査不能は `workspace_snapshot_incomplete` と観測未完了、未起動時は `observation_not_performed` を返す。担当が実行できないコード検証は「未確認」として呼出元へ返し、呼出元が権限内で検証して採用を判断する。既存ユーザー変更を巻き込む自動 rollback は行わない。ログは当該実行に束縛する。CLI stdout は応答・拒否詳細・画像 path を秘匿し、詳細は当該 tmp 実行の result.json（0600）から必要な範囲だけ読む。秘密値・利用者名を含むパスを報告前に秘匿し、argv/設定全文/環境変数/エラー全文を無条件に報告しない。
 
 ## 返却
 

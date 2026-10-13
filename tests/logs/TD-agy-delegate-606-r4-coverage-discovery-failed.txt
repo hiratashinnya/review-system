@@ -64,12 +64,12 @@ ERROR: unit.test_feedback_ledger_identity_review (unittest.loader._FailedTest.un
 ----------------------------------------------------------------------
 ImportError: Failed to import test module: unit.test_feedback_ledger_identity_review
 Traceback (most recent call last):
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
     module = self._get_module_from_name(name)
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
     __import__(name)
     ~~~~~~~~~~^^^^^^
-  File "/home/hiras/ws_claude/review-system-wt-606/tests/unit/test_feedback_ledger_identity_review.py", line 21, in <module>
+  File "<worktree>/tests/unit/test_feedback_ledger_identity_review.py", line 21, in <module>
     from test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
 ModuleNotFoundError: No module named 'test_feedback_ledger'
 
@@ -79,12 +79,12 @@ ERROR: unit.test_feedback_ledger_minor (unittest.loader._FailedTest.unit.test_fe
 ----------------------------------------------------------------------
 ImportError: Failed to import test module: unit.test_feedback_ledger_minor
 Traceback (most recent call last):
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
     module = self._get_module_from_name(name)
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
     __import__(name)
     ~~~~~~~~~~^^^^^^
-  File "/home/hiras/ws_claude/review-system-wt-606/tests/unit/test_feedback_ledger_minor.py", line 10, in <module>
+  File "<worktree>/tests/unit/test_feedback_ledger_minor.py", line 10, in <module>
     from test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
 ModuleNotFoundError: No module named 'test_feedback_ledger'
 
@@ -94,12 +94,12 @@ ERROR: unit.test_feedback_ledger_version_review (unittest.loader._FailedTest.uni
 ----------------------------------------------------------------------
 ImportError: Failed to import test module: unit.test_feedback_ledger_version_review
 Traceback (most recent call last):
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
     module = self._get_module_from_name(name)
-  File "/home/hiras/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
+  File "<home>/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
     __import__(name)
     ~~~~~~~~~~^^^^^^
-  File "/home/hiras/ws_claude/review-system-wt-606/tests/unit/test_feedback_ledger_version_review.py", line 13, in <module>
+  File "<worktree>/tests/unit/test_feedback_ledger_version_review.py", line 13, in <module>
     from test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
 ModuleNotFoundError: No module named 'test_feedback_ledger'
 

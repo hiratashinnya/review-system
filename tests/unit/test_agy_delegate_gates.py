@@ -25,7 +25,7 @@ class GateTests(unittest.TestCase):
         for gate, payload in ((claude_gate, claude_payload), (codex_gate, codex_payload)):
             self.assertIsNotNone(gate(payload("issue-implementer", COMMAND)))
             self.assertIsNotNone(gate(payload("agy-delegate", COMMAND + "; git merge main")))
-            for command in ("agy -p text", "python3 -c pass", "python3 -m agy_delegate other", "git status"):
+            for command in ("agy -p text", "python3 -c pass", "python3 -m agy_delegate other", "git status", "git diff"):
                 self.assertIsNotNone(gate(payload("agy-delegate", command)))
 
 

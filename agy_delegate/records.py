@@ -38,10 +38,10 @@ def check_conversation(root: Path, request: Request) -> None:
 
 
 @contextmanager
-def execution_lock(root: Path):
+def execution_lock(root: Path, *, wait_seconds: int = 130):
     """内部書込の読取申告に依存しないよう、全実行を workspace 単位で直列化。"""
     lock = root / "workspace.lock"
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + wait_seconds
     while True:
         try:
             lock.mkdir(exist_ok=False)
