@@ -3,10 +3,15 @@
 import subprocess
 
 from .results import normalize
-from .types import Request
+from .types import Request, Result
+from .version import verified_version
 
 
 def execute(request: Request, run_id: str):
+    try:
+        version = verified_version(request)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return Result(run_id, reasons=["agy_version_unverified_or_mismatch"])
     argv = [str(request.executable.resolve()), "--output-format", "json",
             "--print-timeout", str(request.print_timeout)]
     if request.conversation is not None:
@@ -16,11 +21,14 @@ def execute(request: Request, run_id: str):
         child = subprocess.run(argv, cwd=request.workspace.resolve(), capture_output=True,
                                encoding="utf-8", errors="replace", check=False,
                                timeout=request.print_timeout + 10)
-        return normalize(run_id, child.stdout, child.stderr, child.returncode)
+        result = normalize(run_id, child.stdout, child.stderr, child.returncode)
+        result.agy_version = version
+        return result
     except subprocess.TimeoutExpired as exc:
         stdout = _captured_text(exc.stdout)
         stderr = _captured_text(exc.stderr)
         result = normalize(run_id, stdout, stderr + "\nprint timeout", -1)
+        result.agy_version = version
         result.reasons.append("process_timeout")
         return result
 

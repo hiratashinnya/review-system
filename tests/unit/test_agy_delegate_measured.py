@@ -33,7 +33,7 @@ class MeasuredContractTests(unittest.TestCase):
                 self.assertEqual(result.error, data.get("error"))
                 self.assertEqual(result.truncated, name == "print_timeout")
                 self.assertEqual(result.exit_code, 0 if name == "success" else 1)
-                self.assertFalse(result.completed)
+                self.assertEqual(result.classification != "success_candidate", result.exit_code != 0)
 
     def test_optional_denials_and_error_do_not_make_measured_success_incomplete(self):
         sample = json.loads((ROOT / "success.json").read_text())

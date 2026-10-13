@@ -43,5 +43,13 @@ r3の `test_agy_delegate_settings_layers.py` は偽pathとfixture専用schemaだ
 - 有限並列の各結果/ID分離、全workspace排他。画像は返却IDだけ、旧画像/symlink/他会話fallback拒否。
 - 厳密commandテンプレートは空白日本語pathを許し、連結/部分式/改行/過剰許可/deny globを拒否。
 - Claude/Codexの実際のgateへ外側起動を渡し、専用ロール境界を緩和しない。
-- アンカー不一致/前置き未検証/画像欠落を採用しない。wrapper成功は候補でcompleted=false。
+- アンカー不一致/前置き未検証/画像欠落を採用しない。wrapper成功は候補で意味的完了は呼出agentが別途確認する。
 - CLI公開stdoutではerror/response/拒否情報/画像pathを秘匿し、理由/status/exitは保持する。生診断は0600のlocal result.jsonだけに保存する（r2レビュー是正）。fixture環境説明の利用者homeは秘匿する。
+
+## r4 是正差分の試験契約
+
+実行対象は commit 41be85d ＋未commit是正差分。新規r4テストはcaller必須・本番注入拒否・公開無効果項目撤去・CLI複数prompt結果・workspace待機・未知stderr・版不一致未起動/版記録・path許可集合・作成時0600/最小会話記録を検証する。hookはhandler直接起動による合成入力でありliveセッション発火の証明ではない。adoption APIは未接続のため撤去し、成果採用はagent契約で確認する。全層監査はruntimeから呼ばれるが実効adapter未達のSTOPを維持する。
+
+最終成績書は tests/reports/TR-agy-delegate-606-synthetic-final-r4.md。過去試験の件数/合否を再認定しない。同一未merge PRの是正のため既存版遷移を維持し追加bumpしない。mutation recheckは --skip-inspection 仮追加で否定テストがFAILすることを確認し、finallyで本体を復元する。
+
+TC: `tests/unit/test_agy_delegate_merge_guard.py` は合成 Request を本番 resolver の `verify_runtime` に渡し、未確認停止理由がないことを検査する受入テスト1件。Issue #628 の AC 未達の間は意図的に赤、adapter により未確認理由が解消すれば緑となる。実機設定・agyを使わず、skip/削除/期待値反転で解除しない。

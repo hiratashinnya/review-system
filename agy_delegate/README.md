@@ -4,14 +4,14 @@
 
 ```text
 python3 -m agy_delegate inspect --workspace PATH --settings PATH
-python3 -m agy_delegate run --workspace PATH --settings PATH --executable PATH --prompt TEXT --print-timeout SECONDS
+python3 -m agy_delegate run --workspace PATH --settings PATH --executable PATH --prompt TEXT --print-timeout SECONDS --caller-state ready
 ```
 
-run の追加指定は `--conversation ID`、`--writes`、`--images --brain PATH`、`--caller-stopped`。任意agyフラグ透過、検査省略、自動retryはない。promptはcallerも安全な引数配列/引用で渡す。wrapperはshellを使わずcwdをworkspaceに固定する。runの終了コードは成功候補だけ0、詳細はJSON。意味的完了は自動認定せずcompleted=false。
+`--caller-state ready|stopped` は必須で、未指定は拒否。run の追加指定は `--conversation ID`、`--images --brain PATH`。任意agyフラグ透過、検査省略、自動retryはない。promptはcallerも安全な引数配列/引用で渡す。wrapperはshellを使わずcwdをworkspaceに固定する。runの終了コードは成功候補だけ0、詳細はJSON。意味的完了は呼出agentが確認し、固定completed項目は公開しない。
 
 ## 現在の停止境界
 
-agy 1.3.3 の成功・拒否・print-timeout・クォータERRORの実測JSONを型契約とfixtureに反映した。設定の参加元・project優先には公式根拠があるが、全層の場所/形式/許可配列合成、WSL→Windows起動の証拠が揃わないため、**通常runは必ずagy未起動で停止する**。`runtime.verify_runtime` の停止は利用者フラグで解除できない。実測fixtureは正規化の証拠、合成fixture/検証関数注入はfake起動のテストであり、wrapperの実機動作の証明ではない。実測資料とレビュー済みadapterなしでテストの注入を流用しない。
+運用状態の正本は [agent の現在の利用制約](../.ai/agents/agy-delegate.md#現在の利用制約運用状態の正本)。本書は CLI と停止契約を記述する。
 
 `inspect` は#575の `settings.json` のpermissions.allow/ask/denyをread-only検査する。静的合格でも実効設定・ログイン・隔離を保証しない。適用はオーナーが手で行う。
 
@@ -39,18 +39,24 @@ denied_actionsとerrorは実測で省略される任意項目。denied_actions�
 
 `permissions.expected_rules(Path(workspace))` が単一のレビュー対象テンプレートを返す。read_file/write_fileはresolved workspace全体、denyは `workspace/doc-system-v2/nodes` のディレクトリ指定（globなし）。commandは `Get-ChildItem -Name '<workspace>'` の厳密全文一致だけ。設定の追加キー/追加rule/ask/広いallow/必要rule欠落は拒否する。
 
-コマンド文字列の単なる部分一致は許さず、連結/改行/置換等を除外する。パス中のapostrophe・shellメタ文字は未対応として停止する。空白/日本語pathは合成テストで確認済み。テンプレート正規表現の実機エンジン互換性、設定層、path別名/symlinkのagy内部保護は未検証。
+コマンド文字列の単なる部分一致は許さず、連結/改行/置換等を除外する。パスは ASCII 英数字・空白・/_.:-・ひらがな/カタカナ/漢字の許可集合のみ。引用符（Unicode引用符も含む）・タブ・括弧・%等は停止する。空白/日本語pathは合成テストで確認済み。テンプレート正規表現の実機エンジン互換性、設定層、path別名/symlinkのagy内部保護は未検証。
 
 ## 会話・並列・成果
 
 会話はworkspaceの `tmp/agy/conversation-ID.json` と束縛する。記録なし/別workspace/既失敗の継続は拒否。返却ID不一致、子プロセス例外、拒否、画像不足等の失敗で記録を失敗へ更新し、古いsuccessを再利用しない。
 
-`runner.run_parallel(requests, max_concurrency=N)` は明示1〜8、各Resultを入力順で返す。全実行をworkspace単位で排他するため、同workspace競合はworkspace_busyとして返す。異なるworkspaceだけ並列可能。--writesはscope申告で内部操作を強制するものではない。stale lockは自動削除しない。
+CLIで --prompt TEXT を複数指定し、--max-concurrency 1..8 を必須指定する。複数promptと会話継続の併用は拒否する。各結果は入力順にJSON行で返す。API run_parallel も同じ有限上限を使う。同workspace全実行は最大10秒待機の直列化で、timeoutは workspace_lock_timeout。stale lock は自動削除しない。Issue #606 の並列契約 の書込限定直列化との差分は rationale に記録する。
 
 画像は返却IDのbrain directoryのみ、新規会話の既存directoryや継続の同一bytesを過去成果として除外し、symlinkも拒否する。実行別UUID directoryに回収する。画像bytesの意味的内容確認はcallerが行う。失敗の画像は診断限定。
 
 CLI stdoutは応答/拒否詳細/画像pathを秘匿する。生データは実行別 `tmp/agy/RUN_ID/result.json`（0600）に保持する。ログを報告するときはcallerが秘密値を確認する。argv/環境/設定/stderr全文は保存/出力しない。run directoryは0700。実行失敗後の書込を自動rollbackしない。
 
-`adoption.adoption_reasons` はcallerが保持した期待アンカー、観測アンカー、意味的検証実施有無、必要成果物の実在を検査する。期待値をpromptへ渡さない。前置きのみを長さで完了扱いせず、source/内容確認はagentが行う。
+成果の採用判断は呼出agentの契約として実施する。未接続の公開 adoption API は撤去し、期待アンカー・内容・成果物の検証は agent 正本に従う。全層監査は runtime.verify_runtime から呼ばれ、production resolver が未特定を返す間は未確認理由を保持する。
 
-Claude/Codex双方の既存hookに外側wrapper起動を投入したunit testがある。agy-delegateは限定3ロール用allowlistの対象外であり、共通merge等denyは通る。内部agy操作へhookは及ばず許可設定が担う。#513停止条件の自動統合保証はなく規範とcaller_stopped申告を区別する。現在は通常run全停止が代替経路を遮断する。
+版確認は実行対象へ --version を引数配列で渡し、exit0・stderr空・stdout完全一致 1.3.3 のみを受理する。未知形式/版違いならprompt実行を停止し、成功した使用版は結果/実行記録の agy_version に保存する。このstrict形式は合成契約で実機未検証。版probeは runtime 検査より後であり通常停止時は呼ばれない。実測は --model gemini-3.8-flash-low 指定付き、wrapperはmodel指定を公開せずデフォルトを使う差が残る。デフォルトモデルの実機成功は未証明である。
+
+未実測の authentication / unauthorized / security denied を D0 語として固定しない。D0の機械根拠は実測 denied_actions。未知stderrのみでも失敗、全stderrは内容を保存せず stderr_length を実行記録へ残す。既知異常と未知内容が混在しても長さは残る。
+
+会話記録には継続判定用の実行/会話ID・workspace・classification・reasons・exit/status・拒否・打切りだけを持ち、response/error/artifact全文は実行別result.jsonだけへ保存する。記録はos.open(mode=0600, O_NOFOLLOW)で作成し、既存ファイルも書込前に0600へ制限する。
+
+PFの制御範囲とlive未検証事項は [agent正本](../.ai/agents/agy-delegate.md#pf-の実行制御の適用範囲) を参照する。

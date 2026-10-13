@@ -10,6 +10,9 @@ from agy_delegate.types import Request
 FAKE = '''#!/usr/bin/env python3
 import json, pathlib, sys
 args = sys.argv[1:]
+if args == ['--version']:
+    print('1.3.3')
+    sys.exit(0)
 data = json.loads(args[args.index('-p') + 1])
 pathlib.Path('launched.json').write_text(json.dumps(args))
 with pathlib.Path('launch-count.txt').open('a') as log:
@@ -45,6 +48,7 @@ class FakeWorkspace:
 
     def request(self, output=None, **kwargs):
         payload = {"output": output or synthetic_success()}
+        kwargs.setdefault("caller_state", "ready")
         return Request(self.workspace, self.settings, self.executable,
                        json.dumps(payload), print_timeout=1, **kwargs)
 
@@ -54,3 +58,10 @@ class FakeWorkspace:
 
 def synthetic_runtime(request):
     return []
+
+
+def run_synthetic(request):
+    from unittest.mock import patch
+    from agy_delegate.runner import run
+    with patch("agy_delegate.runner.verify_runtime", synthetic_runtime):
+        return run(request)

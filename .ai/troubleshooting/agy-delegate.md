@@ -8,4 +8,6 @@ D0 に該当する拒否は既存の当該実行記録の確認と停止報告�
 
 診断記録は自分の実行 ID・会話 ID に束縛されたものだけ読む。画像が無ければ他会話や最新画像から補わない。応答・画像・変更が残っても失敗を完了と報告しない。既存差分から影響を調べ、自動 rollback しない。報告前に秘密値と利用者名を含むパスを秘匿し、argv・環境・設定・エラー全文を無条件に露出させない。
 
-#607 の引渡しは `tmp/codex-report-606-r2.md` の結果・未検証事項を参照する。agy 1.3.3 の4ケースのJSON型・判別は実測fixtureで固定済み。全設定層と合成規則、WSL/Windows cwd、symlink/alias、画像、各 UC の実機記録は未取得であり、bridge 撤去前の確認項目として残る。
+#607 の引渡しは [r4 合成最終成績書](../../tests/reports/TR-agy-delegate-606-synthetic-final-r4.md) の結果・未検証事項を参照する。agy 1.3.3 の4ケースのJSON型・判別は実測fixtureで固定済み。全設定層と合成規則、WSL/Windows cwd、symlink/alias、画像、各 UC の実機記録は未取得であり、bridge 撤去前の確認項目として残る。
+
+実測条件・設定層の根拠・r3引渡し結果は [rationale](../rationale/agy-delegate.md#r4-の直列化判断実測条件引渡し根拠) に追跡保存する。現行運用状態は agent 正本のみを参照する。

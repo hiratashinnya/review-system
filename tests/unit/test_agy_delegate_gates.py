@@ -8,7 +8,7 @@ from tests.unit.test_agent_command_gate import payload as claude_payload, run_ga
 from tests.unit.test_codex_agent_command_gate import payload as codex_payload, run_gate as codex_gate
 
 ROOT = Path(__file__).resolve().parents[2]
-COMMAND = "python3 -m agy_delegate run --workspace /tmp/work --settings /tmp/settings --executable /tmp/agy --prompt text --print-timeout 120"
+COMMAND = "python3 -m agy_delegate run --workspace /tmp/work --settings /tmp/settings --executable /tmp/agy --prompt text --print-timeout 120 --caller-state ready"
 
 
 class GateTests(unittest.TestCase):
@@ -25,6 +25,8 @@ class GateTests(unittest.TestCase):
         for gate, payload in ((claude_gate, claude_payload), (codex_gate, codex_payload)):
             self.assertIsNotNone(gate(payload("issue-implementer", COMMAND)))
             self.assertIsNotNone(gate(payload("agy-delegate", COMMAND + "; git merge main")))
+            for command in ("agy -p text", "python3 -c pass", "python3 -m agy_delegate other", "git status"):
+                self.assertIsNotNone(gate(payload("agy-delegate", command)))
 
 
 if __name__ == "__main__":

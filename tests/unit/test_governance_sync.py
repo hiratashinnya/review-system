@@ -360,7 +360,7 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
         self.assertIn("注入ブロックへの優先規定", wrapper)
         self.assertIn("agy に一律の書込禁止は課さない", shared)
         self.assertIn("corpus への直接編集", shared)
-        self.assertIn("通常 run は子プロセス未起動で停止", shared)
+        self.assertIn("現在の利用制約（運用状態の正本）", shared)
 
 
 class TestWriteAgentHandoffClassification(unittest.TestCase):

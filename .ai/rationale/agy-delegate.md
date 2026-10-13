@@ -2,9 +2,9 @@
 
 ## r3: 根拠付き層識別と残る停止（2026-10-13）
 
-公式CHANGELOG（1.0.12/1.0.5/1.0.4）と提供済み tmp/agy-settings-layers.md を受け、一律 settings_layers_unverified を層別STOPへ置換した。global/projectsの場所、project優先と共有userのpermissions merge参加を既知とし、対応cacheは設定層に加えない。admin候補はexe文字列のみで公開優先/schema根拠と扱わない。
+公式CHANGELOG（1.0.12/1.0.5/1.0.4）と提供済み 本書末尾の設定層根拠記録 を受け、一律 settings_layers_unverified を層別STOPへ置換した。global/projectsの場所、project優先と共有userのpermissions merge参加を既知とし、対応cacheは設定層に加えない。admin候補はexe文字列のみで公開優先/schema根拠と扱わない。
 
-保守的な全層許可監査を既存permissions検査へ接続できる内部境界として用意した。和集合は失われるdeny/askを防ぐ監査用集約で、公式mergeから配列unionを推定していない。任意manifestや解除フラグを追加せず、production resolverは未特定理由を返す。projectファイル名/schema、共有user場所/schema、admin存在/優先、配列合成とWSL cwdが揃うまで通常runを解除しない。具体的な根拠・停止理由と起動可能条件は agy_delegate/README.md に保持する。追加の実機設定読取/agy起動/認証探索は本作業で実施していない。
+保守的な全層許可監査を既存permissions検査へ接続できる内部境界として用意した。和集合は失われるdeny/askを防ぐ監査用集約で、公式mergeから配列unionを推定していない。任意manifestや解除フラグを追加せず、production resolverは未特定理由を返す。projectファイル名/schema、共有user場所/schema、admin存在/優先、配列合成とWSL cwdが揃うまで通常runを解除しない。具体的な根拠と起動契約は agy_delegate/README.md、運用状態は .ai/agents/agy-delegate.md に保持する。追加の実機設定読取/agy起動/認証探索は本作業で実施していない。
 
 ## #606 の判断と履歴
 
@@ -24,7 +24,7 @@
 
 ## 実測不足の暫定決定（STOP）
 
-初回は実測JSON不足で output_contract_unverified を含めて停止した。r2では tmp/agy-measured-samples.md（agy 1.3.3、2026-10-13、WSL）に基づいて成功・拒否・print-timeout・クォータERRORの型契約を固定し、この出力ゲートだけ解除した。denied_actions/errorは省略される任意項目、duration_secondsは有限の非負数、num_turns/usageはboolを除く非負整数、usageは実測5キー、拒否要素はaction/display_nameの2キーとした。token間の算術関係は推測しない。未知キー/型は停止する。/usageの完全JSONは無いためfixture化せず、空IDと未実測commandを合成境界テストで拒否する。設定層の適用・合成規則とWSL→Windows変換は未実測なので settings_layers_unverified / launch_environment_unverified を維持し、通常runは子プロセス未起動。通常実行に迂回flagは設けない。
+初回は実測JSON不足で output_contract_unverified を含めて停止した。r2では tests/fixtures/agy_delegate/1.3.3/README.md（agy 1.3.3、2026-10-13、WSL）に基づいて成功・拒否・print-timeout・クォータERRORの型契約を固定し、この出力ゲートだけ解除した。denied_actions/errorは省略される任意項目、duration_secondsは有限の非負数、num_turns/usageはboolを除く非負整数、usageは実測5キー、拒否要素はaction/display_nameの2キーとした。token間の算術関係は推測しない。未知キー/型は停止する。/usageの完全JSONは無いためfixture化せず、空IDと未実測commandを合成境界テストで拒否する。設定層の適用・合成規則とWSL→Windows変換は未実測なので settings_layers_unverified / launch_environment_unverified を維持し、通常runは子プロセス未起動。通常実行に迂回flagは設けない。
 
 選択肢 A は不足証拠を採取して runtime profile をレビュー・固定する、B は仮定して起動を許可する。A は実機確認が必要だが出力形式と実効権限の誤判定を避け、B は先行利用できるが検査不能時に停止する #606 の契約に反する。推奨/暫定決定は A。wrapperの通常 UC 動作・WSL→Windows cwd とパス変換・symlink/alias の到達性・画像保存領域・認証は未検証として #607 へ引き渡す。ログイン観測は #271、#284/#290 の close はオーナー判断で本変更に含めない。
 
@@ -182,3 +182,13 @@ agy はサンドボックスなしで起動する（プロンプトインジェ�
   「過去の指示だから拘束しない」とは解釈しない。
 
 ```
+
+## r4 の直列化判断・実測条件・引渡し根拠
+
+Issue #606 の会話継続・並列・再試行契約 は書込実行のみworkspace直列化だが、内部書込を自己申告で区別できないため全実行直列化を維持する。即時busy失敗を最大10秒の待機へ変更し、有限timeoutでstale lockを無断除去しない。CLI複数promptは有限並列要求を受け、同workspaceは待機直列化する。書込自己申告の無効果なwritesと固定completedを撤去した。採用判定の未接続APIも撤去し、agent契約として保持する。
+
+提供済み実測（2026-10-13、agy 1.3.3、WSL直接実行、Linux scratch cwd、成功/拒否/timeoutは --model gemini-3.8-flash-low 指定）をfixtureに収録。成功exit0、拒否exit0+SUCCESS+denied_actions、timeout exit0+SUCCESS+print timeout、quota ERROR exit3+error:/AGY_ERRORを観測した。timeout応答は空、usage全0。quotaはmodel指定前のデフォルトモデル枯渇。/usageは完全JSON未提供でfixture化しない。wrapperのmodel指定なしとの差を実機成功の証明へ転用しない。
+
+設定層根拠の提供記録は、公式CHANGELOGの1.0.12（global settingsとprojects directory、project優先）、1.0.5（project/shared user/CLI permissions合成参加）、1.0.4（workspace対応cache）とexe文字列（admin候補）に限る。global候補は <windows-home>/.gemini/antigravity-cli/settings.json、projectsは <home>/.gemini/config/projects/、対応cacheは <home>/.gemini/antigravity-cli/cache/projects.json。admin /etc/antigravity/admin_settings.json の過去不存在は今回起動時の不存在証明ではない。設定内容は提供調査でも読まれていない。project具体的filename/schema、shared user場所/schema、admin優先、配列merge、WSL→Windows cwd変換は根拠未取得。
+
+r3は全層監査の合成境界と理由別STOPを追加し、関連57件PASS、lint violations0/accepted_debt104、parity/sync/diffチェック合格。実効resolver/decoder/mergeとlive wrapper UCは未達のまま。r4最終状態は tests/reports/TR-agy-delegate-606-synthetic-final-r4.md だけを参照し、過去成績は履歴として扱う。#607 撤去可、#606全体完了、default branch到達は判定していない。

@@ -12,10 +12,9 @@ class Request:
     prompt: str
     print_timeout: int = 120
     conversation: str | None = None
-    writes: bool = False
     images: bool = False
     brain: Path | None = None
-    caller_stopped: bool = False
+    caller_state: str | None = None
 
 
 @dataclass
@@ -31,7 +30,8 @@ class Result:
     denied_actions: list = field(default_factory=list)
     truncated: bool = False
     artifacts: list[str] = field(default_factory=list)
-    completed: bool = False
+    agy_version: str | None = None
+    stderr_length: int = 0
 
     @property
     def exit_code(self) -> int:

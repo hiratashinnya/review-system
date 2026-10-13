@@ -1,11 +1,13 @@
 """実行記録と会話/ワークスペース排他。stale lock は勝手に除去しない。"""
 
 import json
+import os
+import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
-from .conversation_records import validate_record
+from .conversation_records import RECORD_TYPES, validate_record
 from .results import valid_id
 from .strict_json import load_json
 from .types import Request, Result
@@ -39,10 +41,15 @@ def check_conversation(root: Path, request: Request) -> None:
 def execution_lock(root: Path):
     """内部書込の読取申告に依存しないよう、全実行を workspace 単位で直列化。"""
     lock = root / "workspace.lock"
-    try:
-        lock.mkdir(exist_ok=False)
-    except FileExistsError:
-        raise ValueError("workspace_busy") from None
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            lock.mkdir(exist_ok=False)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise ValueError("workspace_lock_timeout") from None
+            time.sleep(0.02)
     try:
         yield
     finally:
@@ -54,13 +61,20 @@ def save_record(root: Path, request: Request, result: Result) -> None:
     encoded = json.dumps(data, ensure_ascii=False)
     run_dir = root / result.run_id
     result_path = run_dir / "result.json"
-    result_path.write_text(encoded, encoding="utf-8")
-    result_path.chmod(0o600)
+    _private_write(result_path, encoded)
     identities = {result.conversation_id, request.conversation} - {None}
     for identity in identities:
         if valid_id(identity):
             path = root / f"conversation-{identity}.json"
             if path.is_symlink():
                 raise ValueError("conversation_record_symlink")
-            path.write_text(encoded, encoding="utf-8")
-            path.chmod(0o600)
+            summary = {name: data[name] for name in RECORD_TYPES}
+            _private_write(path, json.dumps(summary, ensure_ascii=False))
+
+
+def _private_write(path: Path, encoded: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        stream.write(encoded)

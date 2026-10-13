@@ -50,6 +50,8 @@ Issue #606 の直接起動・許可・結果・会話・画像・外側gate・�
 - coverage html/reportもexit 0、htmlcov/index.html生成、TOTAL 4542 statements / 566 miss / 88%。既存docidx未import警告あり。
 - .coveragerc計測範囲はagy_delegateを含まない。新wrapperは実測4fixtureと関連52テストPASSで検証する。
 - 初回全量は独立レビュー指摘是正のため中断(exit130)。tests/logs/TD-agy-delegate-606-r2-coverage-interrupted.txtに保持し、PASS扱いしない。
-- 独立再レビューclean。tmp/agy-606-r2-rereview.md。lint0/debt104、asset_parity0MISSING、guidance_sync/diff check合格。
+- 独立再レビューclean。同ラウンド独立再レビューの提供済み記録（過去記録）。lint0/debt104、asset_parity0MISSING、guidance_sync/diff check合格。
 - 設定適用層/合成・WSL変換が検査不能のため通常run未起動。実機UC/default branch到達は未達。
 
+
+履歴成績書。実行対象と件数・合否は当時の記録に限る（対象commitが記録されていない試験は未特定）。本作業の基点は41be85d、r4是正差分の最終結果は [r4 合成最終成績書](TR-agy-delegate-606-synthetic-final-r4.md)。過去のPASS/FAIL/件数を修正・再認定しない。実機UCのPASSを意味しない。

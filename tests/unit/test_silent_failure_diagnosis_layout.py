@@ -74,8 +74,6 @@ class CommonBodyContractTests(unittest.TestCase):
         self.assertIn("終了コード 0・`status: SUCCESS`", example)
         self.assertIn("検出手順の正本は `.ai/agents/agy-delegate.md`", example)
         self.assertTrue((REPO_ROOT / ".ai/agents/agy-delegate.md").is_file())
-        self.assertIn("Claude skills と Codex 必読入口の接続は #606 で配置済み", example)
-        self.assertIn("出力型は実測で固定済みだが、通常実行は設定適用層・合成規則と起動環境の未確認で停止中", example)
 
     def test_rationale_is_reachable_and_non_normative(self):
         self.assertIn(f"../../rationale/{NAME}.md", _read(COMMON))

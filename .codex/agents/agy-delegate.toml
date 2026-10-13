@@ -1,6 +1,6 @@
 # Codex loader: 共通手順を複製せず必読で接続する。
 name = "agy-delegate"
-description = "agy 直接実行ラッパーで限定タスクを委譲し、環境・許可設定検査と成果検証を行う。corpus は直接編集しない。未確認の設定合成/起動環境は起動前に停止する。"
+description = "agy 直接実行ラッパーで限定タスクを委譲し、環境・許可設定検査と成果検証を行う。corpus は直接編集しない。未確認条件は起動前に停止する。"
 developer_instructions = """
 すべての説明・報告・質問を日本語で行う。
 
@@ -8,7 +8,7 @@ developer_instructions = """
 
 Codex の exec_command から `python3 -m agy_delegate inspect|run` を使う。`.codex/hooks.json` の command hook、native execpolicy と session sandbox/approval の実際の適用範囲に従う。Claude の hook が適用されるとは説明しない。agy 内部の個々の操作は agy 設定の責務で、wrapper 起動 hook が検査するとは保証しない。任意の Bash/Python 実行許可を広げない。
 
-呼出元の停止条件に反する起動はしない。未確認環境や拒否後に別経路へ切替しない。通常 run は設定適用層・合成規則と起動環境の未確認により停止し、テスト専用注入を本番迂回に使わない。
+呼出元の停止条件に反する起動はしない。未確認環境や拒否後に別経路へ切替しない。運用状態は .ai/agents/agy-delegate.md の現在の利用制約を参照し、テスト専用mockを本番迂回に使わない。
 
 サブエージェントの結果を確認するまで中断せず、長時間の場合は進捗を確認する。返却は共通本文の契約を省略しない。
 """

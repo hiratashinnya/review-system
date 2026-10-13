@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from agy_delegate.records import state_root
 from agy_delegate.runner import run, run_parallel
-from tests.unit.agy_delegate_fixtures import FakeWorkspace, synthetic_runtime, synthetic_success
+from tests.unit.agy_delegate_fixtures import FakeWorkspace, run_synthetic, synthetic_runtime, synthetic_success
 
 
 class RunnerTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class RunnerTests(unittest.TestCase):
         self.addCleanup(self.fake.close)
 
     def execute(self, request):
-        return run(request, runtime_verifier=synthetic_runtime)
+        return run_synthetic(request)
 
     def test_production_unverified_never_launches(self):
         result = run(self.fake.request())
@@ -26,7 +26,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_bad_permissions_stopped_caller_and_bad_environment_never_launch(self):
         request = self.fake.request()
-        cases = [replace(request, caller_stopped=True), replace(request, print_timeout=0),
+        cases = [replace(request, caller_state="stopped"), replace(request, print_timeout=0),
                  replace(request, executable=self.fake.workspace / "missing")]
         for candidate in cases:
             self.assertNotEqual(self.execute(candidate).exit_code, 0)
@@ -42,14 +42,14 @@ class RunnerTests(unittest.TestCase):
         for data in variants:
             result = self.execute(replace(self.fake.request(), prompt=json.dumps(data)))
             self.assertNotEqual(result.exit_code, 0)
-            self.assertFalse(result.completed)
+            self.assertEqual(result.classification != "success_candidate", result.exit_code != 0)
         launches = (self.fake.workspace / "launch-count.txt").read_text().splitlines()
         self.assertEqual(len(launches), len(variants))
 
     def test_outer_timeout_preserves_partial_output(self):
         timeout = subprocess.TimeoutExpired(["fake"], 1,
                                              output=json.dumps(synthetic_success()).encode())
-        with patch("agy_delegate.process.subprocess.run", side_effect=timeout):
+        with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch("agy_delegate.process.subprocess.run", side_effect=timeout):
             result = self.execute(self.fake.request())
         self.assertTrue(result.truncated)
         self.assertIn("process_timeout", result.reasons)
@@ -84,7 +84,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("conversation_workspace_mismatch", self.execute(
             self.fake.request(conversation="conversation-1")).reasons)
         (root / "workspace.lock").mkdir()
-        self.assertIn("workspace_busy", self.execute(self.fake.request()).reasons)
+        self.assertIn("workspace_lock_timeout", self.execute(self.fake.request()).reasons)
 
     def test_child_io_failure_releases_lock(self):
         with patch("agy_delegate.runner.execute", side_effect=OSError("private path")):
@@ -107,7 +107,8 @@ class RunnerTests(unittest.TestCase):
         other = FakeWorkspace()
         self.addCleanup(other.close)
         requests = [self.fake.request(), other.request(synthetic_success("other") | {"status": "ERROR"})]
-        results = run_parallel(requests, max_concurrency=2, runtime_verifier=synthetic_runtime)
+        with patch("agy_delegate.runner.verify_runtime", synthetic_runtime):
+            results = run_parallel(requests, max_concurrency=2)
         self.assertEqual([r.exit_code for r in results], [0, 1])
         self.assertNotEqual(results[0].run_id, results[1].run_id)
         with self.assertRaises(ValueError):
@@ -130,7 +131,7 @@ class RunnerTests(unittest.TestCase):
         result = self.execute(replace(self.fake.request(images=True, brain=self.fake.brain),
                                       prompt=json.dumps(payload)))
         self.assertEqual(len(result.artifacts), 1)
-        self.assertFalse(result.completed)
+        self.assertEqual(result.classification != "success_candidate", result.exit_code != 0)
         self.assertNotEqual(result.exit_code, 0)
 
 

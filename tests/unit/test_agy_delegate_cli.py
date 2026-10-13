@@ -26,15 +26,21 @@ class CliTests(unittest.TestCase):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             code = main(["run"] + args + ["--executable", str(self.fake.executable),
-                                         "--prompt", "text; $(not-executed)", "--print-timeout", "1"])
+                                         "--prompt", "text; $(not-executed)", "--print-timeout", "1", "--caller-state", "ready"])
         self.assertNotEqual(code, 0)
         self.assertIn("settings_permission_merge_unverified", json.loads(stdout.getvalue())["reasons"])
         self.assertFalse((self.fake.workspace / "launched.json").exists())
 
     def test_no_opaque_or_bypass_flags(self):
         for flag in ("--skip-inspection", "--dangerously-skip-permissions", "--sandbox", "--agy-flag"):
-            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-                main(["run", flag])
+            stderr = io.StringIO()
+            args = ["run", "--workspace", str(self.fake.workspace), "--settings", str(self.fake.settings),
+                    "--executable", str(self.fake.executable), "--prompt", "text",
+                    "--print-timeout", "1", "--caller-state", "ready", flag]
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as error:
+                main(args)
+            self.assertEqual(error.exception.code, 2)
+            self.assertIn("unrecognized arguments: " + flag, stderr.getvalue())
 
     def test_public_diagnostics_redact_secrets_and_local_record_retains_them(self):
         result = Result("run-secret", classification="denied", agy_exit_code=3,
@@ -48,7 +54,7 @@ class CliTests(unittest.TestCase):
         save_record(root, request, result)
         stdout = io.StringIO()
         args = ["run", "--workspace", str(self.fake.workspace), "--settings", str(self.fake.settings),
-                "--executable", str(self.fake.executable), "--prompt", "text", "--print-timeout", "1"]
+                "--executable", str(self.fake.executable), "--prompt", "text", "--print-timeout", "1", "--caller-state", "ready"]
         with patch("agy_delegate.cli.run", return_value=result) as child, redirect_stdout(stdout):
             code = main(args)
         child.assert_called_once()

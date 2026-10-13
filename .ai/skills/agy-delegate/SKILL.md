@@ -12,7 +12,7 @@ agy の設定上の書込許可は workspace 全体、`doc-system-v2/nodes` の�
 
 ## 現在の利用制約
 
-直接実行への接続は配置済み。agy 1.3.3 の成功・拒否・print-timeout・クォータERRORの実測JSONを型契約とfixtureへ反映し、`output_contract_unverified` を解除した。global/projectの場所とproject優先、共有userのpermissions merge参加には公式根拠がある。projectファイル名/スキーマ、共有userの場所/スキーマ、adminの適用有無/優先、permissions配列合成とWSL→Windows変換は未特定のため、通常 `run` は層別の未特定理由・`settings_permission_merge_unverified` / `launch_environment_unverified` で停止し、agy を起動しない。全層のread-only監査を用意したが、保守的集約は実効mergeの証明ではない。解除条件と根拠は [CLI文書](../../../agy_delegate/README.md) に従う。偽プロセスの CI 合格は実機 UC 動作の証拠ではない。解消案と #607 への引渡し条件は [rationale](../../rationale/agy-delegate.md) を参照する。
+運用状態は [agent 正本の現在の利用制約](../../agents/agy-delegate.md#現在の利用制約運用状態の正本) のみを参照する。根拠と引渡し条件は [rationale](../../rationale/agy-delegate.md) に保持する。
 
 ## done
 

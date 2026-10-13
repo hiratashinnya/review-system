@@ -11,7 +11,7 @@ class ResultTests(unittest.TestCase):
     def test_success_is_candidate_only(self):
         result = normalize("run", json.dumps(synthetic_success(response="これから調べます")), "", 0)
         self.assertEqual(result.exit_code, 0)
-        self.assertFalse(result.completed)
+        self.assertEqual(result.classification != "success_candidate", result.exit_code != 0)
 
     def test_denial_wins_and_retains_all_reasons(self):
         output = synthetic_success(response="partial")
@@ -33,7 +33,8 @@ class ResultTests(unittest.TestCase):
         for identity in ("../outside", "/absolute", "", "a/b", "a\\b", "a\n"):
             self.assertNotEqual(normalize("run", json.dumps(synthetic_success(identity)), "", 0).exit_code, 0)
         result = normalize("run", json.dumps(synthetic_success()), "error: authentication denied", 0)
-        self.assertEqual(result.classification, "denied")
+        self.assertEqual(result.classification, "failed")
+        self.assertEqual(result.stderr_length, len("error: authentication denied"))
 
     def test_error_with_response_and_timeout_with_partial_fail(self):
         error = normalize("r", json.dumps(synthetic_success() | {"status": "ERROR"}), "", 0)

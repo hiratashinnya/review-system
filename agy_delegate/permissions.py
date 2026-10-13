@@ -5,13 +5,13 @@ from pathlib import Path
 
 from .strict_json import load_json
 
-UNSAFE = re.compile(r"[;'|&><$`\r\n\x00]")
+SAFE_PATH = re.compile(r"[A-Za-z0-9 /_.:\-\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+\Z")
 
 
 def expected_rules(workspace: Path) -> dict[str, list[str]]:
     """レビュー対象の限定テンプレート。path 以外の可変正規表現は認めない。"""
     path = str(workspace.resolve())
-    if UNSAFE.search(path):
+    if not SAFE_PATH.fullmatch(path):
         raise ValueError("unsafe_workspace_path")
     command = "Get-ChildItem -Name '" + path + "'"
     pattern = "^" + re.escape(command) + "$(?![\\s\\S])"

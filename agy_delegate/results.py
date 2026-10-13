@@ -17,13 +17,14 @@ def normalize(run_id: str, stdout: str, stderr: str, code: int) -> Result:
     """構造契約成功は意味的完了を保証しない。欠落値を成功へ補完しない。"""
     result = Result(run_id, agy_exit_code=code)
     text = stderr.casefold()
+    result.stderr_length = len(stderr)
     for marker, reason in (("print timeout", "print_timeout"),
                            ("no output produced", "no_output"), ("error:", "stderr_error")):
         if marker in text:
             result.reasons.append(reason)
     result.truncated = "print_timeout" in result.reasons
-    if any(word in text for word in ("authentication", "unauthorized", "security denied")):
-        result.reasons.append("d0_authentication_or_security")
+    if text.strip() and not result.reasons:
+        result.reasons.append("stderr_unrecognized")
     if code != 0:
         result.reasons.append("nonzero_exit")
     try:

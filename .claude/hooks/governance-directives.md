@@ -1,7 +1,8 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@f3ed3df96798 -->
+<!-- synced-from: CLAUDE.md@2b60e1a82f83 -->
 <!--
+  Issue #606 r4: 05-skills-agents の agy 運用状態を agent 正本参照へ統一した。項1〜12と照合し中核契約の変更なし。本文を維持しmarkerだけ同期。
   Issue #605（2026-10-11・是正ラウンド1 2026-10-12）: `.claude/rules/05-skills-agents.md` のスキル一覧へ共有リファレンス
   `silent-failure-diagnosis` の1行を、`.claude/rules/02-decision-process.md` の起票先判定表
   「外部委譲・モデル選定・横展・Issue 起票の補助」へ同名を追記しただけ。是正ラウンド1では

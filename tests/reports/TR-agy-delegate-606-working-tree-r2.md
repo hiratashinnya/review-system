@@ -45,7 +45,9 @@ Issue #606 の直接起動・許可・結果・会話・画像・外側gate・�
 - TD版: 1（未merge同一変更内での実測追随のため再bumpなし）。実装commit: 未commit作業ツリー。ユーザーのcommit禁止を優先。
 - 実行日時: 2026-10-13T08:28:06.874518+09:00; Python標準unittest、実機agyの実行なし。
 - wrapper関連51件PASS、共有配置・同期関連48件PASS。maintainability_lint: violations=0 / accepted_debt=104。asset_parity: 0 MISSING（既存stale警告あり）。guidance_sync: check OK。
-- prompt雛形版・S6基準content_hash: wrapperでは対象外。実測元: tmp/agy-measured-samples.md、agy 1.3.3 / WSL / 2026-10-13。
+- prompt雛形版・S6基準content_hash: wrapperでは対象外。実測元: tests/fixtures/agy_delegate/1.3.3/README.md、agy 1.3.3 / WSL / 2026-10-13。
 - 4件のstdout/stderr/exitをfixtureで再生し、成功候補・D0拒否・打切り・ERRORの全理由と応答/ID/errorを確認。/usageは完全JSON不足なので合成境界テストのみ。
 - 出力型不足ゲートだけ撤去。設定適用層・合成規則とWSL→Windows変換の検査不能停止は維持し、通常runは未起動。許可未特定時未起動のmock検証を保持。
 - wrapperの実機UC、実効許可、画像/並列/会話継続の実機確認、default branch到達は未達。全量coverageと独立レビューは主文脈で別記録。
+
+履歴成績書。実行対象と件数・合否は当時の記録に限る（対象commitが記録されていない試験は未特定）。本作業の基点は41be85d、r4是正差分の最終結果は [r4 合成最終成績書](TR-agy-delegate-606-synthetic-final-r4.md)。過去のPASS/FAIL/件数を修正・再認定しない。実機UCのPASSを意味しない。

@@ -5,9 +5,8 @@ from .results import valid_id
 RECORD_TYPES = {
     "run_id": str, "classification": str, "reasons": list,
     "agy_exit_code": (int, type(None)), "status": (str, type(None)),
-    "conversation_id": (str, type(None)), "response": (str, type(None)),
-    "error": (str, type(None)), "denied_actions": list, "truncated": bool, "artifacts": list,
-    "completed": bool, "workspace": str,
+    "conversation_id": (str, type(None)),
+    "denied_actions": list, "truncated": bool, "workspace": str,
 }
 
 
@@ -22,7 +21,7 @@ def validate_record(data: object, workspace: str, conversation: str) -> None:
         raise ValueError("conversation_workspace_mismatch")
     if (data["classification"] != "success_candidate" or data["status"] != "SUCCESS"
             or data["agy_exit_code"] != 0 or data["denied_actions"] or data["reasons"]
-            or data["truncated"] or data["error"] is not None or not isinstance(data["response"], str)):
+            or data["truncated"]):
         raise ValueError("conversation_previous_failure")
     if data["conversation_id"] != conversation:
         raise ValueError("conversation_record_identity_mismatch")
@@ -31,4 +30,4 @@ def validate_record(data: object, workspace: str, conversation: str) -> None:
 def _valid_record_values(data: dict) -> bool:
     return (valid_id(data["run_id"]) and not isinstance(data["agy_exit_code"], bool)
             and data["classification"] in {"success_candidate", "failed", "denied", "preflight_failed"}
-            and all(isinstance(value, str) for value in data["reasons"] + data["artifacts"]))
+            and all(isinstance(value, str) for value in data["reasons"]))

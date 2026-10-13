@@ -1,0 +1,11 @@
+対象: 41be85d + r4 未commit是正差分。
+COMMAND: uv run --with coverage coverage run -m unittest discover -s tests -p test_*.py
+初回: workspace sandbox、UV_CACHE_DIR=/tmp/agy606-uv-cache
+error: Request failed after 3 retries in 5.0s
+  Caused by: Failed to fetch: https://pypi.org/simple/coverage/
+  Caused by: error sending request for url
+  Caused by: client error (Connect)
+  Caused by: dns error
+  Caused by: failed to lookup address information: Temporary failure in name resolution
+EXIT: 2
+計測前の依存取得失敗。限定escalation自動承認後の再実行は別ログ TD-agy-delegate-606-r4-coverage.txt に保存。

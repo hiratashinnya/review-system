@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from agy_delegate.results import normalize
 from agy_delegate.runner import run
-from tests.unit.agy_delegate_fixtures import FakeWorkspace, synthetic_runtime, synthetic_success
+from tests.unit.agy_delegate_fixtures import FakeWorkspace, run_synthetic, synthetic_runtime, synthetic_success
 
 
 class JsonContractTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class JsonContractTests(unittest.TestCase):
         for malformed in (settings[:-1] + ', "permissions": ' + settings[16:-1] + '}',
                           settings.replace('"ask": []', '"ask": ["unsafe"], "ask": []')):
             fake.settings.write_text(malformed)
-            result = run(fake.request(), runtime_verifier=synthetic_runtime)
+            result = run_synthetic(fake.request())
             self.assertIn("settings_unreadable_or_invalid", result.reasons)
             self.assertFalse((fake.workspace / "launched.json").exists())
 
@@ -43,7 +43,7 @@ class JsonContractTests(unittest.TestCase):
         output = json.dumps(synthetic_success()).replace('"status": "SUCCESS"',
                                                        '"status": "ERROR", "status": "SUCCESS"')
         request = replace(fake.request(), prompt=json.dumps({"stdout": output}))
-        result = run(request, runtime_verifier=synthetic_runtime)
+        result = run_synthetic(request)
         self.assertIn("json_invalid", result.reasons)
         self.assertNotEqual(result.exit_code, 0)
 

@@ -13,10 +13,10 @@ from .runtime import verify_runtime
 from .types import Request, Result
 
 
-def run(request: Request, *, runtime_verifier=verify_runtime) -> Result:
-    """runtime_verifier 注入はテスト seam。通常 CLI は注入せず未確認を停止する。"""
+def run(request: Request) -> Result:
+    """本番 API は検査注入を受けず、未確認 runtime を停止する。"""
     result = Result(uuid.uuid4().hex)
-    result.reasons = _preflight(request) + runtime_verifier(request)
+    result.reasons = _preflight(request) + verify_runtime(request)
     if result.reasons:
         return result
     root = None
@@ -48,19 +48,19 @@ def run(request: Request, *, runtime_verifier=verify_runtime) -> Result:
 
 
 def run_parallel(requests: list[Request], *, max_concurrency: int,
-                 runtime_verifier=verify_runtime) -> list[Result]:
+                 ) -> list[Result]:
     """結果順は入力順。1件失敗を全体成功へ集約しない。"""
     if not 1 <= max_concurrency <= 8:
         raise ValueError("parallel_limit_invalid")
     with ThreadPoolExecutor(max_workers=max_concurrency) as pool:
-        futures = [pool.submit(run, request, runtime_verifier=runtime_verifier) for request in requests]
+        futures = [pool.submit(run, request) for request in requests]
         return [future.result() for future in futures]
 
 
 def _preflight(request: Request) -> list[str]:
     reasons = []
-    if request.caller_stopped:
-        reasons.append("caller_stopped")
+    if request.caller_state != "ready":
+        reasons.append("caller_stopped" if request.caller_state == "stopped" else "caller_state_unverified")
     if not request.workspace.is_dir():
         reasons.append("workspace_missing")
     if not request.executable.is_file() or not os.access(request.executable, os.X_OK):

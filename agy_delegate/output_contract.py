@@ -41,3 +41,5 @@ def _valid_denials(value: object) -> bool:
         isinstance(item, dict) and set(item) == {"action", "display_name"}
         and all(isinstance(text, str) and bool(text) for text in item.values())
         for item in value))
+
+CONTRACT_VERSION = "1.3.3"

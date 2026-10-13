@@ -1,0 +1,90 @@
+41be85d + r4差分。対象外の既存bare importにPYTHONPATH=tests/unitを補い、失敗3モジュールだけ既存coverageへappend。
+
+COMMAND: uv run --offline --with coverage coverage run --append -m unittest tests.unit.test_feedback_ledger_identity_review tests.unit.test_feedback_ledger_minor tests.unit.test_feedback_ledger_version_review
+......ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::schema: new-entry は現行版のみ受け付けます。schema を feedback-ledger/v1.1 に直してください
+.ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::schema: new-entry は現行版のみ受け付けます。schema を feedback-ledger/v1.1 に直してください
+.........
+----------------------------------------------------------------------
+Ran 16 tests in 0.108s
+
+OK
+/tmp/agy606-uv-cache/archive-v0/suf8bfF0fmdBBlUv/lib/python3.13/site-packages/coverage/inorout.py:558: CoverageWarning: Module docidx was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.16.2/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+EXIT: 0
+
+COMMAND: uv run --offline --with coverage coverage html
+Wrote HTML report to htmlcov/index.html
+EXIT: 0
+
+COMMAND: uv run --offline --with coverage coverage report
+Name                                          Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------
+blocker_gate/__init__.py                          5      0   100%
+blocker_gate/__main__.py                          2      2     0%   1-3
+blocker_gate/auth.py                             34      0   100%
+blocker_gate/cli.py                              79      4    95%   153-155, 177
+blocker_gate/closing.py                         119     15    87%   70, 77, 81, 120, 122, 151, 153, 158, 161, 165, 167, 182, 186, 188, 192
+blocker_gate/contract.py                        219     62    72%   35, 38-39, 44, 46, 59, 61, 63, 66, 68-69, 71, 73, 75, 79, 81, 87, 91, 98, 108, 113, 120, 123, 125, 127, 129, 138, 146, 150, 155, 157, 159, 163, 165, 170, 181, 183, 185, 188, 190, 195, 209, 211, 213, 222, 226, 232, 245, 250, 252, 256, 258, 261, 263, 265, 268, 270, 272, 279, 281, 294, 297
+blocker_gate/evaluator.py                       123     16    87%   23, 28, 30, 34, 36, 39, 61, 91, 105, 122, 124, 133, 145-146, 153, 157
+blocker_gate/github.py                          600    109    82%   78, 81-82, 86-94, 136, 138, 160, 171, 176, 187, 192, 194, 201-204, 217, 219, 281, 285, 287, 303, 313, 336, 352, 365, 374, 383, 390, 393, 398, 402, 415, 431, 438, 475, 477, 480, 488, 494, 524, 559, 562, 573, 575-584, 587, 590, 594, 605, 607-608, 616, 639, 657, 672-675, 678-688, 710, 714-715, 720, 737, 740, 742, 745, 755, 773-775, 808, 824, 835, 858, 862, 884, 897, 908, 918, 922, 933, 936, 954, 958, 1004, 1009, 1013, 1015, 1020
+blocker_gate/model.py                           118      4    97%   203, 266, 278, 280
+blocker_gate/resolver.py                        207     29    86%   82, 84, 90, 93, 96, 99, 109, 111, 113, 115, 117, 137, 139, 146, 195, 259-261, 270, 273, 298-299, 338, 344, 346, 348, 350, 479, 492
+blocker_gate/schemas/__init__.py                  0      0   100%
+blocker_gate/snapshot.py                         98      7    93%   61-62, 70, 72, 99, 117, 159
+blocker_gate/waiver.py                          218     33    85%   75, 79, 96, 104, 115, 117, 121, 131, 134, 143, 151, 161, 172, 175-176, 187, 190, 192, 197, 212, 214, 216, 219, 222, 226, 229, 232, 235, 242, 244, 283, 288-289
+branch_source/__init__.py                         2      0   100%
+branch_source/policy.py                         181     22    88%   90-102, 105-106, 108, 145, 193-196, 228, 236, 239, 267, 277, 279, 304
+issue_start/__init__.py                           2      0   100%
+issue_start/__main__.py                           2      2     0%   1-4
+issue_start/cli.py                               30      3    90%   33-34, 45
+issue_start/durable_lock.py                      80     23    71%   28-29, 36, 46-63, 81-82, 91, 103-109, 119-120
+issue_start/gate.py                             521     98    81%   99-102, 141-142, 155, 159, 175, 182, 187, 191, 193, 209, 211, 213, 217, 227-242, 247, 273, 276, 279, 282, 288, 298-308, 327, 329, 357, 375, 378, 509, 558, 561, 563, 567, 593, 596, 598, 637-638, 670, 673-674, 752, 794, 799, 802, 805, 808, 810, 814-817, 821, 921-926, 956-957, 996, 1062, 1089-1098, 1118-1119, 1183-1184, 1244-1247, 1282-1285
+issue_start/gated_roles.py                        3      0   100%
+issue_start/hook.py                              56      4    93%   98, 158, 186, 190
+issue_start/session_start.py                     43      6    86%   77-79, 90, 114, 118
+issue_start/subagent_hooks.py                   334     42    87%   159, 170-174, 257-262, 421-422, 437, 443, 488, 659, 671-672, 686, 725-726, 786-791, 798-803, 812-817, 851-856, 860-865, 904-909, 1020-1028, 1032
+issue_start/worktree_ledger.py                  338     25    93%   194-195, 201, 213, 219, 238, 242, 248, 257, 295, 298-299, 327-330, 370, 399, 583, 591, 619, 624, 841, 844-845
+pr_merge_gate/__init__.py                         2      0   100%
+pr_merge_gate/__main__.py                         2      2     0%   1-3
+pr_merge_gate/audit.py                           10      0   100%
+pr_merge_gate/cli.py                             30      4    87%   31, 47-48, 61
+pr_merge_gate/gate.py                            59      7    88%   73, 77, 89, 97-100
+review_system/__init__.py                         0      0   100%
+review_system/__main__.py                         3      3     0%   2-5
+review_system/adapters/__init__.py                0      0   100%
+review_system/adapters/fake.py                   10      0   100%
+review_system/adapters/file_platform.py          27      1    96%   47
+review_system/adapters/guard.py                  13      0   100%
+review_system/core/__init__.py                    0      0   100%
+review_system/core/apply.py                      24      3    88%   33, 42-43
+review_system/core/compose.py                    20      0   100%
+review_system/core/evaluate.py                    7      0   100%
+review_system/core/intake.py                      8      0   100%
+review_system/core/pipeline.py                   45      0   100%
+review_system/core/triage.py                     36      0   100%
+review_system/domain/__init__.py                  0      0   100%
+review_system/domain/criteria.py                 38      0   100%
+review_system/domain/enums.py                    39      0   100%
+review_system/domain/ids.py                      54      0   100%
+review_system/domain/intake.py                    9      0   100%
+review_system/domain/policy.py                   15      0   100%
+review_system/domain/report.py                   35      0   100%
+review_system/domain/result.py                   30      0   100%
+review_system/domain/review.py                   54      0   100%
+review_system/io/__init__.py                      0      0   100%
+review_system/io/cli.py                         150     13    91%   108-110, 120-121, 132-133, 145-146, 166-167, 170-171, 210
+review_system/io/report_html.py                  29      0   100%
+review_system/parsing/__init__.py                 0      0   100%
+review_system/parsing/frontmatter.py            144     16    89%   37, 49, 51, 99, 102, 106, 116, 130, 132, 139-140, 153, 167, 181, 185, 191
+review_system/parsing/lint.py                    64      6    91%   47, 76-77, 82-83, 86
+review_system/persistence/__init__.py             0      0   100%
+review_system/persistence/criteria_repo.py       64      2    97%   78, 108
+review_system/persistence/feedback_store.py      18      3    83%   23-25
+review_system/persistence/workspace_git.py       59      0   100%
+review_system/ports/__init__.py                   0      0   100%
+review_system/ports/platform.py                  27      0   100%
+review_system/prompts/__init__.py                 0      0   100%
+review_system/prompts/registry.py                 3      0   100%
+---------------------------------------------------------------------------
+TOTAL                                          4542    566    88%
+EXIT: 0

@@ -4,7 +4,7 @@ import json
 import unittest
 
 from agy_delegate.runner import run
-from tests.unit.agy_delegate_fixtures import FakeWorkspace, synthetic_runtime
+from tests.unit.agy_delegate_fixtures import FakeWorkspace, run_synthetic, synthetic_runtime
 
 
 class ConversationRecordTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.launches = (self.fake.workspace / "launch-count.txt").read_text()
 
     def execute(self, request):
-        return run(request, runtime_verifier=synthetic_runtime)
+        return run_synthetic(request)
 
     def assert_blocked(self, payload, reason):
         self.record.write_text(payload)
@@ -30,7 +30,7 @@ class ConversationRecordTests(unittest.TestCase):
         values = [[], None, {"workspace": str(self.fake.workspace),
                             "classification": "success_candidate"}]
         values.extend(self.data | change for change in ({"reasons": None}, {"denied_actions": {}},
-                      {"agy_exit_code": False}, {"completed": 0}, {"artifacts": [False]},
+                      {"agy_exit_code": False}, {"truncated": 0}, {"agy_exit_code": "0"},
                       {"run_id": "../private"}, {"reasons": [None]}))
         for value in values:
             with self.subTest(value=value):
@@ -46,9 +46,9 @@ class ConversationRecordTests(unittest.TestCase):
         self.assert_blocked(json.dumps(self.data | {"conversation_id": "other"}),
                             "conversation_record_identity_mismatch")
 
-    def test_success_candidate_requires_string_response(self):
-        self.assert_blocked(json.dumps(self.data | {"response": None}),
-                            "conversation_previous_failure")
+    def test_conversation_summary_has_no_response_or_error(self):
+        self.assertNotIn("response", self.data)
+        self.assertNotIn("error", self.data)
 
     def test_duplicate_record_key_cannot_hide_denial(self):
         payload = json.dumps(self.data).replace('"denied_actions": []',

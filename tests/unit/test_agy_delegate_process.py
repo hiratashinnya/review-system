@@ -16,12 +16,12 @@ class ProcessTimeoutTests(unittest.TestCase):
 
     def timeout(self, stdout, stderr):
         timeout = subprocess.TimeoutExpired(["fake"], 1, output=stdout, stderr=stderr)
-        with patch("agy_delegate.process.subprocess.run", side_effect=timeout) as child:
+        with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch("agy_delegate.process.subprocess.run", side_effect=timeout) as child:
             result = execute(self.fake.request(), "run")
         child.assert_called_once()
         self.assertNotEqual(result.exit_code, 0)
         self.assertTrue(result.truncated)
-        self.assertFalse(result.completed)
+        self.assertEqual(result.classification != "success_candidate", result.exit_code != 0)
         self.assertEqual(result.agy_exit_code, -1)
         self.assertIn("process_timeout", result.reasons)
         return result
@@ -29,8 +29,7 @@ class ProcessTimeoutTests(unittest.TestCase):
     def test_timeout_keeps_all_json_and_stderr_failures_bytes_and_strings(self):
         stdout = json.dumps(synthetic_success(response="partial") |
                             {"status": "ERROR", "denied_actions": [{"action": "command", "display_name": "RunCommand"}]})
-        reasons = {"d0_denied_actions", "status_not_success", "d0_authentication_or_security",
-                   "stderr_error", "no_output", "print_timeout", "nonzero_exit", "process_timeout"}
+        reasons = {"d0_denied_actions", "status_not_success", "stderr_error", "no_output", "print_timeout", "nonzero_exit", "process_timeout"}
         for marker in ("authentication", "unauthorized", "security denied"):
             stderr = "error: no output produced " + marker
             for raw in (False, True):
