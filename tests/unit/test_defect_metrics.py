@@ -489,7 +489,7 @@ class ThresholdTests(unittest.TestCase):
         週次比の平均は ``0.25`` になる。レポート窓 ``1/10 = 0.10`` に対し、前者では
         1.5 倍を超えて ``TRAILING_REGRESSION`` が立ち、後者では立たない——集計方法の
         選択がそのまま判定を反転させるため、どちらを採ったかを固定する
-        （選択と根拠＝``defect_metrics/threshold.py`` の docstring・README §3）。
+        （選択と根拠＝``defect_metrics/README.md`` §3）。
         """
         pooled_trailing = wm(merged=12 + 10 + 9 + 1, derived=1)  # 1/32
         result = threshold.evaluate(wm(merged=10, derived=1), pooled_trailing)

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from .types import Window
 
 
+#: レポート JSON の読取側パース互換の版。据置理由は defect_metrics/README.md §2.2。
 SCHEMA_VERSION = 1
 
 

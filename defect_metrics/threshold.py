@@ -1,4 +1,4 @@
-"""Compatibility exports for threshold evaluation."""
+"""閾値判定の互換 export。選択と根拠は ``defect_metrics/README.md`` §3 を参照。"""
 
 from .metrics import WindowMetrics
 from .model import BASELINE_DERIVED_PER_PR, RATIO_DIGITS, REGRESSION_FACTOR

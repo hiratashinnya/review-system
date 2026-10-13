@@ -25,7 +25,7 @@ def build_report(
 
     trailing_block = dict(trailing.as_dict())
     # フィールド名 `trailing_4_weeks` だけでは「プールド比」か「週次比の平均」か読めないため、
-    # 集計方法を値として同梱する（Issue #488 F-488-03・根拠は threshold.py の docstring）。
+    # 集計方法を値として同梱する（Issue #488 F-488-03・根拠は defect_metrics/README.md §3）。
     trailing_block["aggregation"] = {
         "method": TRAILING_AGGREGATION,
         "detail": TRAILING_AGGREGATION_DETAIL,
