@@ -41,7 +41,7 @@ class TestRealTree(unittest.TestCase):
         self.assertNotEqual(by_name[(AGENT, "issue-implementer")].cells[GITHUB].status, STATUS_MISSING)
 
     def test_every_principle_skill_github_cell_matches_actual_inlining(self):
-        from asset_parity.report import STATUS_EXEMPT
+        from asset_parity.report import STATUS_EXEMPT, STATUS_MISSING
         from asset_parity.inlining import is_inlined_into_copilot_instructions
         from asset_parity.trees import GITHUB
         report = build_report(REPO_ROOT)
