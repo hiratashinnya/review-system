@@ -32,9 +32,11 @@ def _terminate(process: subprocess.Popen) -> None:
         process.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         pass
-    while time.monotonic() < deadline and _group_exists(process):
+    while time.monotonic() < deadline:
+        if not _group_exists(process):
+            break
         time.sleep(min(0.05, max(0, deadline - time.monotonic())))
-    if _group_exists(process):
+    else:
         _signal_group(process, signal.SIGKILL)
     process.wait()
 

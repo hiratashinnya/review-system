@@ -142,12 +142,23 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 
 - `agent-command-gate` は静的なコマンド文字列検査であって sandbox ではない（Issue #129）。agent_type の詐称や
   ハーネス外の実行経路は防げない。
+- F-538-25 の残る限界として、依頼文・最終応答のパス検査（`prompt_files.py`）は、検査後に `tmp/` 内の
+  親ディレクトリや対象を差し替える競合（TOCTOU）を防がない。これは意図的な回避であり、善意のエージェントの
+  自然な逸脱を封鎖するゲートの脅威モデルの範囲外で、Issue #129 の限界として受容する。出力先は Codex 本体が
+  後で書くため、ラッパー側では完全には閉じられない。2026-10-13 のオーナーの明示判断で受容した限界である
+  （`waived_by: オーナー`）。
 - D1 の比較先はローカルの `origin/main` ref であり、fetch が古ければ古い版と比べる。検査から Codex の起動までの間に
   profile を書き換える競合は防いでいない（呼び出し側は自分の worktree だけを持つ前提）。
 - `/tmp` への書込みは許可される（実測⑥・許容）。
-- トップレベルの `default_permissions = ":workspace"` は未指定起動の config 読込みを成立させるための
-  既定であり、ロール別の network 無効・認証情報 deny が適用されるのはラッパーが該当 profile を選択した
-  起動である。既定を削除すると未指定起動と `--sandbox read-only` 起動が失敗する（実測⑨）。
+- F-538-30：ラッパーを通さない起動（`codex exec` の直接起動・`codex-review`・対話利用・agy の `codex_*`）には、
+  `.codex/config.toml` の既定 `default_permissions = ":workspace"` が適用され、認証情報パスが読める（実測）。
+  この状態は本 PR の前から存在し、本 PR が持ち込んだ退行ではない。ロール別の network 無効・認証情報 deny が
+  適用されるのはラッパーが該当 profile を選択した起動である。既定は未指定起動の config 読込みを成立させるために
+  必要であり、削除すると未指定起動と `--sandbox read-only` 起動が失敗する（実測⑨）。既定を認証情報 deny 付きの
+  強化 profile にする対応は、2026-10-13 のオーナー判断で Issue #630 へ繰り延べた。D12 は「ラッパーが Codex に
+  リポジトリを書かせる唯一の**許可された**経路」という規律であり、ラッパーを通さない起動を機械的に拒否するものではない。
+- F-538-31 の残る限界として、猶予後の `killpg(SIGKILL)` は、グループの全メンバーが消えて PGID が再利用される
+  極小の窓を完全には閉じない。SIGKILL の直前に存在確認を別の呼び出しで行うことはやめたが、PGID 再利用自体は防げない。
 - 環境変数の秘匿値の扱いは Codex の既定の `shell_environment_policy` に依存し、spike では測っていない（TD の項目）。
 - spike の linked worktree は main checkout の外に置いた。Claude の isolation worktree は main checkout 配下の
   `.claude/worktrees/agent-*` にあるため、この配置で worktree 側の profile が読まれることは実起動で確かめる（TD の項目）。

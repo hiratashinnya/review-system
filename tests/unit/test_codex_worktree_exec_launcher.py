@@ -3,13 +3,14 @@
 from pathlib import Path
 import os
 import signal
+import subprocess
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 from codex_worktree_exec.errors import CodexExecError
-from codex_worktree_exec.launcher import run_codex
+from codex_worktree_exec.launcher import _terminate, run_codex
 from codex_worktree_exec.nesting_guard import NESTING_MARKER
 from tests.unit.codex_worktree_exec_support import clean_environ, make_fake_codex
 
@@ -55,6 +56,23 @@ class LauncherTests(unittest.TestCase):
                 cwd=self.directory, timeout_seconds=5, environ=clean_environ(),
             )
         self.assertEqual(caught.exception.error_id, "CODEX_EXEC_LAUNCH_FAILED")
+
+    def test_terminate_skips_sigkill_when_group_disappears_during_grace(self):
+        process = Mock(pid=12345)
+        with patch("codex_worktree_exec.launcher.time.monotonic", side_effect=[0, 1]):
+            with patch("codex_worktree_exec.launcher.os.killpg", side_effect=[None, ProcessLookupError()]) as killpg:
+                _terminate(process)
+        self.assertEqual(killpg.call_args_list, [call(process.pid, signal.SIGTERM), call(process.pid, 0)])
+        self.assertEqual(process.wait.call_args_list, [call(timeout=10), call()])
+
+    def test_terminate_ignores_missing_group_on_sigkill_without_rechecking_after_grace(self):
+        process = Mock(pid=12345)
+        process.wait.side_effect = [subprocess.TimeoutExpired("codex", 10), None]
+        with patch("codex_worktree_exec.launcher.time.monotonic", side_effect=[0, 10]):
+            with patch("codex_worktree_exec.launcher.os.killpg", side_effect=[None, ProcessLookupError()]) as killpg:
+                _terminate(process)
+        self.assertEqual(killpg.call_args_list, [call(process.pid, signal.SIGTERM), call(process.pid, signal.SIGKILL)])
+        self.assertEqual(process.wait.call_args_list, [call(timeout=10), call()])
 
     def test_timeout_kills_term_ignoring_child_after_leader_exits_normally(self):
         leader_pid = self.directory / "leader.pid"
