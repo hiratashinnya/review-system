@@ -50,18 +50,16 @@ class TestBuildReport(unittest.TestCase):
     def test_principle_skill_github_is_structural_exempt(self):
         row = self.by_name[(SKILL, "principle-skill")]
         self.assertEqual(row.cells[GITHUB].status, STATUS_EXEMPT)
-        self.assertIn("inlined", row.cells[GITHUB].reason)
+        self.assertIn("inlined", row.cells[GITHUB].reason or "")
         # agents_dir 側は普通に present（構造的例外は github だけに効く）
         self.assertEqual(row.cells[AGENTS_DIR].status, STATUS_PRESENT)
 
     def test_uninlined_principle_skill_reports_documented_reason_not_inlined(self):
         row = self.by_name[(SKILL, "uninlined-principle-skill")]
         self.assertEqual(row.cells[GITHUB].status, STATUS_EXEMPT)
-        self.assertEqual(
-            row.cells[GITHUB].reason,
-            "test-fixture documented non-mirror for a non-inlined principle",
-        )
-        self.assertNotIn("inlined per", row.cells[GITHUB].reason)
+        reason = row.cells[GITHUB].reason
+        self.assertEqual(reason, "test-fixture documented non-mirror for a non-inlined principle")
+        self.assertNotIn("inlined per", reason or "")
 
     def test_unregistered_uninlined_principle_skill_is_missing(self):
         row = self.by_name[(SKILL, "unregistered-principle-skill")]

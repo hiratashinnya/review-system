@@ -119,8 +119,9 @@ frontmatter alone; the second also depends on the content of
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
-| `trees.py` | Per-tree naming conventions + applicability rules (delegates the `user-invocable: false` Copilot case to `inlining.py`) |
-| `inlining.py` | Copilot placement of a skill: whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker), which decides whether a discrete Copilot file is expected; also the one definition of the plain `.github/skills/<name>/SKILL.md` path |
+| `trees.py` | Per-tree naming conventions + applicability rules (takes the plain Copilot skill path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
+| `copilot_paths.py` | The one definition of the plain Copilot skill path `.github/skills/<name>/SKILL.md` (path definitions only, no judgement) |
+| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker; reads the file), which decides whether a discrete Copilot file is expected |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |
@@ -154,7 +155,8 @@ Issue #407's decision and is unchanged), it only makes sure a PR that edits
 it. `.github/copilot-instructions.md` is a second trigger-only path: `inlining.py`
 reads its `principles-source` markers to decide whether a `user-invocable: false`
 skill is really inlined, so a change there can flip a cell between `exempt` and
-`MISSING` even though it is not an asset tree. `tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
+`MISSING` even though it is not an asset tree.
+`tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
 list against `asset_parity/trees.py`/`inventory.py` so the two can't drift
 apart silently again (Issue #467 — a prior drift where `trees.py` already
 scanned `.github/prompts/` but `paths:` omitted it went undetected until a

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .copilot_paths import copilot_skill_path
 from .inventory import SKILL, Asset
 
 
@@ -25,11 +26,6 @@ def is_inlined_into_copilot_instructions(asset: Asset, root: Path) -> bool:
     marker = principles_marker_prefix(asset.name)
     lines = instructions.read_text(encoding="utf-8").splitlines()
     return any(line.startswith(marker) for line in lines)
-
-
-def copilot_skill_path(name: str, root: Path) -> Path:
-    """Single definition of the plain Copilot skill path `.github/skills/<name>/SKILL.md`."""
-    return root / ".github" / "skills" / name / "SKILL.md"
 
 
 def principle_github_paths(asset: Asset, root: Path) -> list[Path]:

@@ -8,8 +8,9 @@
 import unittest
 from pathlib import Path
 
+from asset_parity.inlining import is_inlined_into_copilot_instructions
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, scan_parity_seeds
-from asset_parity.report import build_report
+from asset_parity.report import STATUS_EXEMPT, STATUS_PRESENT, build_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,8 +42,6 @@ class TestRealTree(unittest.TestCase):
         self.assertNotEqual(by_name[(AGENT, "issue-implementer")].cells[GITHUB].status, STATUS_MISSING)
 
     def test_every_principle_skill_github_cell_matches_actual_inlining(self):
-        from asset_parity.report import STATUS_EXEMPT, STATUS_PRESENT
-        from asset_parity.inlining import is_inlined_into_copilot_instructions
         from asset_parity.trees import GITHUB
         report = build_report(REPO_ROOT)
         principles = [r for r in report.rows if r.asset.mode == MODE_PRINCIPLE]
@@ -62,7 +61,6 @@ class TestRealTree(unittest.TestCase):
                     self.assertTrue(reason, row.asset.name)
 
     def test_spec_principles_is_inlined_into_copilot_instructions(self):
-        from asset_parity.inlining import is_inlined_into_copilot_instructions
         assets = {a.name: a for a in scan_parity_seeds(REPO_ROOT) if a.kind == SKILL}
         self.assertTrue(is_inlined_into_copilot_instructions(assets["spec-principles"], REPO_ROOT))
 
