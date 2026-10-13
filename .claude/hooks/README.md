@@ -790,7 +790,7 @@ python 側に一本化したまま複製しない。
 
 ---
 
-# gh-create-issue 成果物の直送フック(SubagentStop / PostToolUse・Issue #632)
+# gh-create-issue 成果物の直送フック(SubagentStop・Issue #632)
 
 `gh-create-issue` を Claude Code ではサブエージェント専用にした(`.claude/agents/gh-create-issue.md`・
 `/gh-create-issue` skill は委譲の入口だけ)。draft 本文・予定値 preview・完了報告を主文脈経由で
@@ -802,27 +802,31 @@ python 側に一本化したまま複製しない。
 
 | ファイル | 役割 |
 |---|---|
-| `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。最終応答の `HANDOFF:` 行が指す handoff を `systemMessage` で**オーナーのチャットへ直送**する(モデルを経由しない)。表示したら同名 `.displayed` のレシートを書く。停止はブロックしない。 |
-| `subagent-draft-notice.sh` | `PostToolUse(Task\|Agent)`。レシートがあれば「表示済み・本文を再掲しない・Read しない」を `additionalContext` として主文脈へ注入する。**レシートが無ければ逆に「handoff を Read して提示せよ」**と伝える(フックが黙って失敗しても本文が失われない)。`gh-create-issue` を含まない stdin では python を起動しない。 |
-| `draft_display/` | 上記2つの実体(`python3 -m draft_display {stop\|notice}`)。`handoff.py` がパス検証・レシート、`stop.py`／`notice.py` が各イベントの処理。 |
+| `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。最終応答の `HANDOFF:` 行が指す handoff を `systemMessage` で**オーナーのチャットへ直送**する(モデルを経由しない)。停止はブロックしない。 |
+| `draft_display/` | 上記の実体(`python3 -m draft_display stop`)。`handoff.py` がパス検証・読み出し、`stop.py` がフック本体、`payload.py` が stdin の読み取り。 |
 
-## なぜ2つのフックか
+## payload の読み方
 
-`SubagentStop` の出力で表示(`systemMessage`)はできるが、**主文脈への `additionalContext` 注入は
-`SubagentStop` の出力契約としては確認できていない**(本 repo では未実測)。実在が確認できる
-`PostToolUse`(ツール＝`Task`/`Agent` の結果が主文脈へ返る時点)の `additionalContext` を注入経路にし、
-表示の成否は両者を結ぶレシートで担保した。`SubagentStop` で `additionalContext` を返せる版が
-確認できれば、notice 側を stop へ統合できる。
+他の SubagentStop フック(`issue_start/subagent_hooks.py`)と同じキーだけを読む:
+`agent_type`(対象判定)と `last_assistant_message`(最終応答から `HANDOFF:` 行を探す)。
+`agent_transcript_path` など本 repo で使われていない・未実測のキーには依存しない。
+
+## 「再掲不要」を主文脈へ伝える方法(PostToolUse を使わない理由)
+
+主文脈への注入に `PostToolUse(Task|Agent)` は使えない。非同期移譲(バックグラウンド実行)では
+PostToolUse は**移譲の完了(SubagentStart より前)**に発火し、サブエージェントの成果物はまだ無いため。
+このためフック側に「表示済み」を伝える経路や表示レシートは持たず、**委譲の入口である
+`/gh-create-issue` skill の規定**(`.claude/skills/gh-create-issue/SKILL.md`)で主文脈に
+「本文は SubagentStop フックが表示する。再掲・要約・Read しない」と指示する。
 
 ## 信頼の入口とパス検証
 
 `HANDOFF:` 行のパスだけを入口とし、`tmp/_handoff/gh-create-issue--<英数字と ._->.md` に**完全一致**、
 `<root>/tmp/_handoff` 直下の**通常ファイル**(symlink 不可)の場合だけ読む。それ以外は無出力 exit 0。
-表示は 64 KiB で切り詰める。`last_assistant_message` が payload に無い版では `agent_transcript_path`
-の末尾から同じ行を探す。
+表示は 64 KiB で切り詰める。
 
 ## fail-open
 
 どの失敗経路も無出力 exit 0(可視化専用で作業を止めない)。診断は stderr の evidence(1行1 JSON・
-`claude --debug`)。「本文が出ない」ときは `[draft-display]`／`draft-display-stop` の
+`claude --debug`)。「本文が出ない」ときは `draft-display-stop` の
 `reason`(`NO_HANDOFF_LINE`／`HANDOFF_UNREADABLE`)を確認する。復旧は `.ai/troubleshooting/gh-create-issue.md`。

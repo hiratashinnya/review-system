@@ -1525,11 +1525,9 @@ class SettingsRegistrationTests(unittest.TestCase):
         )
         # Issue #512 で `karte-notify.sh`（matcher `Bash`）を追加した。既存2件（Issue #309 時点）
         # は保持し、退役したゲートだけを除いていることをここで固定する。
-        # Issue #632 で `subagent-draft-notice.sh`（matcher `Task|Agent`）を先頭に追加した。
         self.assertEqual(
             self.commands("PostToolUse"),
             [
-                "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-draft-notice.sh",
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
             ],

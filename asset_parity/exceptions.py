@@ -72,8 +72,8 @@ _GH_CREATE_ISSUE_COPILOT = (
     "（.claude/tailoring-registry.md）"
 )
 _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY = (
-    "Claude Code 専用のサブエージェント（Issue #632）。SubagentStop／PostToolUse フックによる"
-    "チャット表示・再掲抑止が Claude Code の hook 機構に依存するため他 PF へは作らない。"
+    "Claude Code 専用のサブエージェント（Issue #632）。SubagentStop フックによる"
+    "チャット直送が Claude Code の hook 機構に依存するため他 PF へは作らない。"
     "Codex は .agents/skills の wrapper が共通本文を直接実行する（.claude/tailoring-registry.md）"
 )
 

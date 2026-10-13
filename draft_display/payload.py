@@ -1,12 +1,13 @@
-"""フック stdin payload の読み取り（SubagentStop／PostToolUse 共通）。"""
+"""SubagentStop フック stdin payload の読み取り。
+
+本 repo の他の SubagentStop フック（``issue_start/subagent_hooks.py``）が実際に使うキーだけを
+読む: ``agent_type``・``last_assistant_message``（最終応答）。未実測のキーには依存しない。
+"""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Mapping, TextIO
-
-TRANSCRIPT_TAIL_BYTES = 256 * 1024
 
 
 def load_payload(stdin: TextIO) -> dict | None:
@@ -23,18 +24,3 @@ def string_field(payload: Mapping[str, Any], *keys: str) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
-
-
-def transcript_tail(payload: Mapping[str, Any]) -> str:
-    """``agent_transcript_path`` の末尾（読めなければ空文字）。最終応答が payload に無い版の保険。"""
-    raw = string_field(payload, "agent_transcript_path")
-    if raw is None:
-        return ""
-    try:
-        with Path(raw).open("rb") as stream:
-            stream.seek(0, 2)
-            size = stream.tell()
-            stream.seek(max(0, size - TRANSCRIPT_TAIL_BYTES))
-            return stream.read().decode("utf-8", errors="replace")
-    except OSError:
-        return ""

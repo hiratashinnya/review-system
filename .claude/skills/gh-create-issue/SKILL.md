@@ -23,13 +23,13 @@ repository の `CLAUDE.md` と、そこから参照される規約を先に読�
 
 ### 2. 戻りを取り次ぐ
 
-成果物（draft 本文・予定値 preview・完了報告）は、サブエージェント停止時に **SubagentStop フックがオーナーのチャットへ表示する**。PostToolUse フックが「表示済み」を主文脈へ注入するので、**本文・preview・完了報告を再掲・要約・言い換えない／handoff ファイルを Read しない**（トークンの二重消費になる）。最終応答の `STATUS` で分岐する。
+成果物（draft 本文・予定値 preview・完了報告）は、サブエージェント停止時に **SubagentStop フックがオーナーのチャットへ表示する**。**本文・preview・完了報告を再掲・要約・言い換えない／handoff ファイルを Read しない**（トークンの二重消費になる）。PostToolUse フックでの注入はしない（非同期移譲では SubagentStart より前＝移譲完了時に発火し用途に合わないため）。最終応答の `STATUS` で分岐する。
 
 - `NEEDS_OWNER_INPUT`: 最終応答の `QUESTIONS:` だけを `AskUserQuestion` に変換して尋ねる（詳細は表示済みの「オーナー確認事項」にある）。回答を `decisions` に原文のまま入れ、`prior_handoff` を付けて**新しい key で再 dispatch** する。
 - `DRAFT_READY`: draft を表示済みであることだけを伝える。作成はユーザーが明示依頼したとき `mode: create` で再 dispatch する。
 - `CREATED`: `ISSUE:` の URL を呼び出し元の次工程へ渡す。部分成功なら `SUMMARY` のとおり扱う。
 - `STOPPED`: 実行環境の問題。共通本文 §1 の fail-close どおり write せず、`SUMMARY` をオーナーへ報告して判断を仰ぐ。
-- 「表示を確認できなかった」旨の注入があった場合だけ、handoff を Read して本文をオーナーへ提示する。
+- オーナーが「本文が表示されていない」と述べた場合だけ、handoff を Read して本文をそのまま提示する（要約で代替しない）。
 
 `HANDOFF:` 行が無い、または形式が契約と異なる応答は、サブエージェントの不具合として `SUMMARY` 相当をオーナーへ報告し、推測で GitHub を変更しない。
 

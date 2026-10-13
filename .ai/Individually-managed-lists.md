@@ -63,7 +63,6 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
 | 11 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
 | 12 | SubagentStop（gh-create-issue） | `subagent-draft-display.sh` | ✅ | — | — |
-| 13 | PostToolUse（Task／Agent） | `subagent-draft-notice.sh` | ✅ | — | — |
 
 > Copilot はリポジトリ固有のライフサイクル hook に非対応（`.ai/guidance/platforms/copilot.md` で確認済み）。
 
@@ -144,11 +143,6 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 - **スコープ**: SubagentStop（gh-create-issue）。Claude 専用。
 - **実装構成**: [`.claude/hooks/subagent-draft-display.sh`](../.claude/hooks/subagent-draft-display.sh)、実体は `draft_display/stop.py`（`.claude/hooks/README.md` の「gh-create-issue 成果物の直送フック」節）
 
-#### 13. subagent-draft-notice
-
-- **概要**: 12 が表示済みであること（表示済みレシート）を確認したうえで、「成果物は表示済み・本文を再掲しない」を `additionalContext` として主文脈へ注入する。レシートが無ければ逆に、handoff を Read して提示するよう伝える。
-- **スコープ**: PostToolUse（Task／Agent）。Claude 専用。`gh-create-issue` を含まない dispatch では python を起動しない。
-- **実装構成**: [`.claude/hooks/subagent-draft-notice.sh`](../.claude/hooks/subagent-draft-notice.sh)、実体は `draft_display/notice.py`
 
 ### 補助スクリプト（hook 呼び出し実体ではないもの）
 

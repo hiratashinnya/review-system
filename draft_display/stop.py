@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from . import handoff
-from .payload import load_payload, string_field, transcript_tail
+from .payload import load_payload, string_field
 
 
 def _evidence(stderr: TextIO, **fields: Any) -> None:
@@ -28,8 +28,6 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, project_root: Path) ->
         return 0
     rel = handoff.find_handoff_rel(string_field(payload, "last_assistant_message") or "")
     if rel is None:
-        rel = handoff.find_handoff_rel(transcript_tail(payload))
-    if rel is None:
         _evidence(stderr, result="skip", reason="NO_HANDOFF_LINE")
         return 0
     path = handoff.resolve_handoff(project_root, rel)
@@ -41,7 +39,6 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, project_root: Path) ->
     message = f"[gh-create-issue サブエージェントの成果物: {rel}]\n\n{body}"
     if truncated:
         message += f"\n\n…（{handoff.MAX_DISPLAY_BYTES} バイトで切詰め。全文は {rel}）"
-    handoff.write_receipt(path)
     json.dump({"systemMessage": message}, stdout, ensure_ascii=False)
     stdout.write("\n")
     _evidence(stderr, result="displayed", handoff=rel, truncated=truncated)

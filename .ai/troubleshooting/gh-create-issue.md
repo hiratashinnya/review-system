@@ -33,8 +33,7 @@ Issue URL、成功した項目、Project 未追加、未設定 fields、relation
 
 1. 最終応答の `HANDOFF:` 行が指すファイルが存在するか確認する（`tmp/_handoff/` 直下・`gh-create-issue--<key>.md`）。無ければエージェントが書けていないので、同じ入力・新しい key で再 dispatch する。
 2. 存在するのに表示されない場合、`claude --debug` の stderr で `draft-display-stop` の `reason` を見る。`NO_HANDOFF_LINE`＝最終応答に `HANDOFF:` 行が無い／`HANDOFF_UNREADABLE`＝パスが規定形（`tmp/_handoff/gh-create-issue--<英数字と ._->.md`・通常ファイル・symlink 不可）ではない。
-3. フックが動いていないときは主文脈に「Read して提示せよ」という注入が出る（表示済みレシート `<handoff>.displayed` が無い場合）。その指示に従い、`.md` を Read して**そのまま**提示する。主文脈が要約して代替してはならない。
-4. 注入も出ない（`draft-display-notice` が無出力）場合は、ワークスペース信頼の未受諾・フック無効化・python3 不在を疑う。復旧するまで handoff を直接 Read して提示し、起票は draft をオーナーが確認してから行う。
+3. フックが動いていない（stderr に `draft-display-stop` の evidence が無い）場合は、ワークスペース信頼の未受諾・フック無効化・python3 不在を疑う。復旧するまで handoff を直接 Read して提示する。主文脈は要約で代替してはならず、本文をそのまま提示する（オーナーが「表示されていない」と述べたときだけ。通常は再掲しない）。起票は draft をオーナーが確認してから行う。
 
 表示が確認できない状態で `mode: create` の起票へ進まない（draft 提示とオーナー確認が起票の前提）。
 

@@ -1,6 +1,6 @@
-"""gh-create-issue サブエージェントの成果物（handoff）をオーナーへ直送するフック群。
+"""gh-create-issue サブエージェントの成果物（handoff）をオーナーへ直送する SubagentStop フック。
 
-SubagentStop で本文を ``systemMessage`` としてチャットへ表示し、PostToolUse で主文脈へ
-「表示済み・再掲不要」を ``additionalContext`` として注入する（本文を主文脈経由で
-二重に消費しないため）。
+本文を ``systemMessage`` としてチャットへ表示する（主文脈経由で二重に消費しないため）。
+「再掲不要」は skill wrapper の規定で主文脈へ伝える（PostToolUse は非同期移譲で
+SubagentStart より前に発火するため使わない）。
 """

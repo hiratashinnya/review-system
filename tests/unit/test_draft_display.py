@@ -1,8 +1,8 @@
 """draft_display（gh-create-issue サブエージェント成果物の直送フック）の単体テスト。
 
-SubagentStop で handoff 本文を ``systemMessage`` として表示し、PostToolUse で
-「表示済み・再掲不要」を ``additionalContext`` として主文脈へ注入する。どちらも
-可視化専用で、判定不能な経路はすべて無出力・exit 0（fail-open）。
+SubagentStop で handoff 本文を ``systemMessage`` として表示する。可視化専用で、
+判定不能な経路はすべて無出力・exit 0（fail-open）。PostToolUse は使わない
+（非同期移譲では SubagentStart より前に発火し用途に合わないため）。
 """
 
 import io
@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from draft_display import handoff, notice, stop
+from draft_display import handoff, stop
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = ROOT / ".claude" / "hooks"
@@ -86,15 +86,14 @@ class StopHookTests(_Workspace):
         base.update(overrides)
         return base
 
-    def test_displays_handoff_body_via_system_message_and_writes_receipt(self):
-        path = self.write_handoff("# draft\n本文テキスト")
+    def test_displays_handoff_body_via_system_message(self):
+        self.write_handoff("# draft\n本文テキスト")
         code, out, _ = self.run_hook(stop, self.payload())
         self.assertEqual(code, 0)
         message = json.loads(out)["systemMessage"]
         self.assertIn("本文テキスト", message)
         self.assertIn(REL, message)
         self.assertNotIn("decision", json.loads(out))
-        self.assertTrue(handoff.has_receipt(path))
 
     def test_other_agent_type_is_silent(self):
         self.write_handoff()
@@ -113,14 +112,6 @@ class StopHookTests(_Workspace):
         self.assertEqual((code, out), (0, ""))
         self.assertIn("NO_HANDOFF_LINE", err)
 
-    def test_falls_back_to_transcript_when_final_message_lacks_handoff(self):
-        self.write_handoff("transcript body")
-        transcript = self.root / "agent.jsonl"
-        transcript.write_text(json.dumps({"text": f"HANDOFF: {REL}"}) + "\n", encoding="utf-8")
-        payload = self.payload(last_assistant_message="", agent_transcript_path=str(transcript))
-        code, out, _ = self.run_hook(stop, payload)
-        self.assertIn("transcript body", json.loads(out)["systemMessage"])
-
     def test_large_handoff_is_truncated(self):
         self.write_handoff("a" * (handoff.MAX_DISPLAY_BYTES + 10))
         _, out, _ = self.run_hook(stop, self.payload())
@@ -135,53 +126,6 @@ class StopHookTests(_Workspace):
         self.assertEqual((code, stdout.getvalue()), (0, ""))
 
 
-class NoticeHookTests(_Workspace):
-    def payload(self, **overrides):
-        base = {
-            "hook_event_name": "PostToolUse",
-            "tool_name": "Agent",
-            "tool_input": {"subagent_type": "gh-create-issue", "prompt": "..."},
-            "tool_response": {"content": [{"type": "text", "text": f"HANDOFF: {REL}\nSTATUS: CREATED"}]},
-        }
-        base.update(overrides)
-        return base
-
-    def context(self, out):
-        return json.loads(out)["hookSpecificOutput"]["additionalContext"]
-
-    def test_displayed_receipt_injects_no_reprint_notice(self):
-        path = self.write_handoff()
-        handoff.write_receipt(path)
-        _, out, _ = self.run_hook(notice, self.payload())
-        parsed = json.loads(out)["hookSpecificOutput"]
-        self.assertEqual(parsed["hookEventName"], "PostToolUse")
-        self.assertIn("再掲", parsed["additionalContext"])
-        self.assertNotIn("Read し、本文を", parsed["additionalContext"])
-
-    def test_missing_receipt_tells_main_context_to_read_and_present(self):
-        self.write_handoff()
-        _, out, _ = self.run_hook(notice, self.payload())
-        self.assertIn("自動表示を確認できなかった", self.context(out))
-
-    def test_task_tool_name_is_also_handled(self):
-        self.write_handoff()
-        _, out, _ = self.run_hook(notice, self.payload(tool_name="Task"))
-        self.assertTrue(out)
-
-    def test_other_subagent_or_tool_is_silent(self):
-        self.write_handoff()
-        cases = [
-            self.payload(tool_input={"subagent_type": "pr-reviewer"}),
-            self.payload(tool_name="Bash"),
-            self.payload(tool_input="oops"),
-            self.payload(tool_response="no handoff"),
-        ]
-        for payload in cases:
-            with self.subTest(payload=payload):
-                code, out, _ = self.run_hook(notice, payload)
-                self.assertEqual((code, out), (0, ""))
-
-
 @unittest.skipUnless(shutil.which("bash"), "bash required")
 class LauncherTests(unittest.TestCase):
     def run_launcher(self, name, payload):
@@ -194,22 +138,6 @@ class LauncherTests(unittest.TestCase):
     def test_stop_launcher_is_silent_for_out_of_scope_agent(self):
         result = self.run_launcher("subagent-draft-display.sh", {"agent_type": "pr-reviewer"})
         self.assertEqual((result.returncode, result.stdout), (0, ""))
-
-    def test_notice_launcher_skips_python_without_the_agent_name(self):
-        result = self.run_launcher(
-            "subagent-draft-notice.sh",
-            {"tool_name": "Agent", "tool_input": {"subagent_type": "pr-reviewer"}},
-        )
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
-
-    def test_notice_launcher_reaches_python_for_the_agent(self):
-        result = self.run_launcher(
-            "subagent-draft-notice.sh",
-            {"tool_name": "Agent", "tool_input": {"subagent_type": "gh-create-issue"},
-             "tool_response": "no handoff line"},
-        )
-        self.assertEqual((result.returncode, result.stdout), (0, ""))
-        self.assertIn("NO_VALID_HANDOFF", result.stderr)
 
 
 class RegistrationTests(unittest.TestCase):
@@ -228,10 +156,10 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIn("subagent-draft-display.sh", commands[0])
 
-    def test_post_tool_use_notices_for_task_and_agent(self):
-        commands = self.commands("PostToolUse", "Task|Agent")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("subagent-draft-notice.sh", commands[0])
+    def test_no_post_tool_use_hook_is_registered_for_the_draft_display(self):
+        for entry in self.hooks["PostToolUse"]:
+            for hook in entry["hooks"]:
+                self.assertNotIn("subagent-draft", hook["command"])
 
 
 class AgentAssetTests(unittest.TestCase):

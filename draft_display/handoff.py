@@ -1,4 +1,4 @@
-"""handoff ファイルの特定・検証・表示済みレシート（SubagentStop と PostToolUse が共有）。
+"""handoff ファイルの特定・検証・読み出し（SubagentStop フックが使う）。
 
 サブエージェントの最終応答にある ``HANDOFF: tmp/_handoff/gh-create-issue--<key>.md`` 行だけを
 信頼の入口とし、名前形状・親ディレクトリ・symlink でないことを検証してから読む。
@@ -11,7 +11,6 @@ from pathlib import Path
 
 AGENT_TYPE = "gh-create-issue"
 HANDOFF_DIR_REL = "tmp/_handoff"
-RECEIPT_SUFFIX = ".displayed"
 MAX_DISPLAY_BYTES = 64 * 1024
 
 _HANDOFF_LINE = re.compile(
@@ -37,22 +36,6 @@ def resolve_handoff(project_root: Path, rel: str) -> Path | None:
     except OSError:
         return None
     return candidate
-
-
-def receipt_path(handoff: Path) -> Path:
-    return handoff.with_name(handoff.name + RECEIPT_SUFFIX)
-
-
-def write_receipt(handoff: Path) -> bool:
-    try:
-        receipt_path(handoff).write_text("", encoding="utf-8")
-    except OSError:
-        return False
-    return True
-
-
-def has_receipt(handoff: Path) -> bool:
-    return receipt_path(handoff).is_file()
 
 
 def read_for_display(handoff: Path) -> tuple[str, bool] | None:

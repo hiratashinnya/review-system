@@ -76,16 +76,6 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Task|Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-draft-notice.sh",
-            "timeout": 15
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {
