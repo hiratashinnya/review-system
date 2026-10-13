@@ -16,7 +16,6 @@ from pathlib import Path
 from . import staleness as staleness_mod
 from .exceptions import is_exempt
 from .inventory import Asset, scan_parity_seeds
-from .inlining import is_inlined_into_copilot_instructions
 from .trees import ALL_TREES, TREE_LABELS, applicable_trees, expected_paths, mirror_root_dirs
 
 STATUS_PRESENT = "present"
@@ -75,17 +74,11 @@ def build_report(
 
             candidates = expected_paths(asset, tree, root)
             if not candidates:
-                documented = is_exempt_fn(asset.name, asset.kind, tree)
-                if documented is not None:
-                    cells[tree] = Cell(status=STATUS_EXEMPT, reason=documented)
-                elif is_inlined_into_copilot_instructions(asset, root):
-                    cells[tree] = Cell(
-                        status=STATUS_EXEMPT,
-                        reason="structural: inlined per asset-lateral-deploy routing "
-                               "(user-invocable: false has no discrete Copilot file)",
-                    )
-                else:
-                    cells[tree] = Cell(status=STATUS_MISSING)
+                cells[tree] = Cell(
+                    status=STATUS_EXEMPT,
+                    reason="structural: inlined per asset-lateral-deploy routing "
+                           "(user-invocable: false has no discrete Copilot file)",
+                )
                 continue
 
             found = next((p for p in candidates if p.is_file()), None)

@@ -108,9 +108,10 @@ frontmatter alone; the second also depends on the content of
   string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
   kind at all", e.g. Codex agents vs. `.agents/skills`). The structural reason is used
   **only when the skill is actually inlined** (named by a `principles-source:` marker in
-  `copilot-instructions.md`). A documented exemption in `exceptions.py` is evaluated
-  first and its reason is reported; a `user-invocable: false` skill that is neither
-  inlined nor exempted is reported `MISSING`.
+  `copilot-instructions.md`). A `user-invocable: false` skill that is not inlined is
+  expected at `.github/skills/<name>/SKILL.md` like a plain skill (`trees.expected_paths`
+  via `inlining.principle_github_paths`): a documented exemption in `exceptions.py` then
+  reports its reason, and without one the cell is `MISSING`.
 
 ## Module map
 
@@ -118,8 +119,8 @@ frontmatter alone; the second also depends on the content of
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
-| `trees.py` | Per-tree naming conventions + applicability rules |
-| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker), the evidence for the structural `exempt` |
+| `trees.py` | Per-tree naming conventions + applicability rules (delegates the `user-invocable: false` Copilot case to `inlining.py`) |
+| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker); decides whether a discrete Copilot file is expected |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |

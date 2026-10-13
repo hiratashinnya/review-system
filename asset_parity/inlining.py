@@ -25,3 +25,14 @@ def is_inlined_into_copilot_instructions(asset: Asset, root: Path) -> bool:
     marker = principles_marker_prefix(asset.name)
     lines = instructions.read_text(encoding="utf-8").splitlines()
     return any(line.startswith(marker) for line in lines)
+
+
+def principle_github_paths(asset: Asset, root: Path) -> list[Path]:
+    """Copilot file(s) expected for a `user-invocable: false` skill.
+
+    None when it is really inlined (no discrete file); otherwise the plain skill path, so
+    a missing mirror needs an `exceptions.py` entry and is reported MISSING without one.
+    """
+    if is_inlined_into_copilot_instructions(asset, root):
+        return []
+    return [root / ".github" / "skills" / asset.name / "SKILL.md"]

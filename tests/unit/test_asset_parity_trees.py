@@ -1,5 +1,6 @@
 """asset_parity.trees — ツリー別命名規則・skill/prompt 振り分けの契約。"""
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -43,9 +44,21 @@ class TestExpectedPaths(unittest.TestCase):
         paths = expected_paths(_skill("spec-pipeline", MODE_ORCHESTRATOR), AGENTS_DIR, ROOT)
         self.assertEqual(paths, [ROOT / ".agents/skills/spec-pipeline/SKILL.md"])
 
-    def test_principle_skill_github_is_structurally_na(self):
+    def test_inlined_principle_skill_github_expects_no_discrete_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            instructions = root / ".github" / "copilot-instructions.md"
+            instructions.parent.mkdir(parents=True)
+            instructions.write_text(
+                "<!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 0 -->\n",
+                encoding="utf-8",
+            )
+            asset = Asset("spec-principles", SKILL, MODE_PRINCIPLE, root / "seed.md")
+            self.assertEqual(expected_paths(asset, GITHUB, root), [])
+
+    def test_uninlined_principle_skill_github_expects_plain_skill_path(self):
         paths = expected_paths(_skill("spec-principles", MODE_PRINCIPLE), GITHUB, ROOT)
-        self.assertEqual(paths, [])
+        self.assertEqual(paths, [ROOT / ".github/skills/spec-principles/SKILL.md"])
 
     def test_principle_skill_agents_dir_uses_plain_skill_path(self):
         paths = expected_paths(_skill("spec-principles", MODE_PRINCIPLE), AGENTS_DIR, ROOT)

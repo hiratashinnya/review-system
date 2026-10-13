@@ -17,9 +17,8 @@ file form is expected, not whether one is:
   * `disable-model-invocation: true` (orchestrator, e.g. `/spec-pipeline`) → Copilot
     represents it as a **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
   * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
-    inlines it into `.github/copilot-instructions.md`; there is no discrete per-asset
-    file at all, so this is reported as a structural N/A, not a MISSING — only when the
-    skill is really inlined (`inlining.py`); otherwise it needs an `exceptions.py` entry.
+    inlines it into `.github/copilot-instructions.md`; no discrete file (structural N/A)
+    — only if really inlined (`inlining.py`); otherwise the plain skill path is expected.
 
 Codex's `.agents/skills/` tree does not have this split (verified: orchestrator-mode
 skills like `asset-pipeline`/`spec-pipeline` and even the `user-invocable: false`
@@ -31,6 +30,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .inlining import principle_github_paths
 from .inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, Asset
 
 GITHUB = "github"
@@ -78,7 +78,7 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
         return [root / ".agents" / "skills" / asset.name / "SKILL.md"]
     if tree == GITHUB:
         if asset.mode == MODE_PRINCIPLE:
-            return []  # inlined into copilot-instructions.md — no discrete file expected
+            return principle_github_paths(asset, root)  # [] when inlined (no discrete file)
         if asset.mode == MODE_ORCHESTRATOR:
             return [root / ".github" / "prompts" / f"{asset.name}.prompt.md"]
         return [root / ".github" / "skills" / asset.name / "SKILL.md"]
