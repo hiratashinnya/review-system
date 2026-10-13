@@ -37,7 +37,7 @@ Copilot へは展開せず、`.github/copilot-instructions.md` へも本文を�
 - **元の判断**：2026-07-28、close 済み PR #260 の時点でオーナーが同じ非移植を確定していた。ただしその記録は PR #260 の branch の `.claude/tailoring-registry.md` にしか無く、main には入っていない。上の再確定は、この記録を main 上で辿れない状態を解消するためのものである。
 - **理由**：本スキルを読み込む予定の委譲系の資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植であり、Copilot 側に利用者がいない。
 
-`asset_parity` は `user-invocable: false` の skill を Copilot 列で構造的 `exempt` として扱うため、`MISSING` は出ない。ただしその判定は「Copilot から参照できる」ことの根拠ではない（`asset_parity` はインライン内容を検査しない）。非移植決定の一次情報源は `.claude/tailoring-registry.md` の該当行である。
+`asset_parity` の Copilot 列は、`user-invocable: false` の skill が `.github/copilot-instructions.md` へ実際に展開済み（`principles-source` マーカーで判定）の場合だけ構造的 `exempt` にする。本 skill は展開しないので通常の skill と同じ `.github/skills/<name>/SKILL.md` を期待され、`asset_parity/exceptions.py` の `EXEMPTIONS` に登録して `exempt` にしている。登録が無ければ `MISSING` になり、asset-parity が赤くなる。登録は「Copilot から参照できる」ことの根拠ではない。非移植決定の一次情報源は `.claude/tailoring-registry.md` の該当行である。
 
 非移植の記録は、PF 個別管理リスト（`.ai/Individually-managed-lists.md`「個別配置・非移植」）と Copilot 向け常駐 guidance の原稿（`.ai/guidance/platforms/copilot.md`「Copilot 固有の非移植」。生成物は `.github/copilot-instructions.md`）の両方に載せ、一致させる。「`copilot-instructions.md` へ展開しない」は本文（D0〜D8 の規律）をインラインしないという意味であり、非移植一覧に名前を載せることは含まない。配置テスト（`tests/unit/test_silent_failure_diagnosis_layout.py`）もこの定義に合わせ、名前の記載は許し、本文の展開だけを禁じる。
 
@@ -89,7 +89,7 @@ PR #260 の D2 は「総合判定をゲート条件にしない」とも書い�
 - agy-mcp-bridge の撤去（兄弟 Issue #607）。
 - `codex-review` の安全実行契約の再実装（#575 の再実装対象外。扱う場合は別 Issue）。
 - PR #260 が足していた `docs/methods/method-inventory.md` の A21 カードと `docs/methods/asset-plan.md` の行。Issue #605 の Scope に含まれていないため。
-- `asset_parity` の構造的 `exempt` の理由文言（`user-invocable: false` を「copilot-instructions.md へインライン展開済み」と表示する）の修正。PR #260 は文言を中立化していたが、Issue #605 の Scope に含まれていないため、本スキルでは registry の記述で補っている。
+- `asset_parity` の構造的 `exempt` の理由文言（`user-invocable: false` を「copilot-instructions.md へインライン展開済み」と表示する）の修正。PR #260 は文言を中立化していたが、Issue #605 の Scope に含まれていないため、本スキルでは registry の記述で補っている。（その後 Issue #617 で、未展開の `user-invocable: false` skill は構造的 `exempt` ではなく `exceptions.py` の登録で `exempt` にする判定へ変わった。この項は #605 時点の判断の記録として残す。）
 
 ## 既知の制約
 

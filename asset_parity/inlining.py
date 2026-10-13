@@ -1,4 +1,4 @@
-"""Whether a `user-invocable: false` skill is really inlined into Copilot instructions."""
+"""Copilot placement of a skill: really inlined into instructions, or its plain skill path."""
 
 from __future__ import annotations
 
@@ -27,12 +27,17 @@ def is_inlined_into_copilot_instructions(asset: Asset, root: Path) -> bool:
     return any(line.startswith(marker) for line in lines)
 
 
+def copilot_skill_path(name: str, root: Path) -> Path:
+    """Single definition of the plain Copilot skill path `.github/skills/<name>/SKILL.md`."""
+    return root / ".github" / "skills" / name / "SKILL.md"
+
+
 def principle_github_paths(asset: Asset, root: Path) -> list[Path]:
     """Copilot file(s) expected for a `user-invocable: false` skill.
 
-    None when it is really inlined (no discrete file); otherwise the plain skill path, so
-    a missing mirror needs an `exceptions.py` entry and is reported MISSING without one.
+    An empty list when it is really inlined (no discrete file); otherwise the plain skill
+    path, so a missing mirror needs an `exceptions.py` entry and is reported MISSING without one.
     """
     if is_inlined_into_copilot_instructions(asset, root):
         return []
-    return [root / ".github" / "skills" / asset.name / "SKILL.md"]
+    return [copilot_skill_path(asset.name, root)]

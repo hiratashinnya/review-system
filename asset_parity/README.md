@@ -120,7 +120,7 @@ frontmatter alone; the second also depends on the content of
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
 | `trees.py` | Per-tree naming conventions + applicability rules (delegates the `user-invocable: false` Copilot case to `inlining.py`) |
-| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker); decides whether a discrete Copilot file is expected |
+| `inlining.py` | Copilot placement of a skill: whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker), which decides whether a discrete Copilot file is expected; also the one definition of the plain `.github/skills/<name>/SKILL.md` path |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |

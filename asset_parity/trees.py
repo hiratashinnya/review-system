@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .inlining import principle_github_paths
+from .inlining import copilot_skill_path, principle_github_paths
 from .inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, Asset
 
 GITHUB = "github"
@@ -81,7 +81,7 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
             return principle_github_paths(asset, root)  # [] when inlined (no discrete file)
         if asset.mode == MODE_ORCHESTRATOR:
             return [root / ".github" / "prompts" / f"{asset.name}.prompt.md"]
-        return [root / ".github" / "skills" / asset.name / "SKILL.md"]
+        return [copilot_skill_path(asset.name, root)]
     return []
 
 

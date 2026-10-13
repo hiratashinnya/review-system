@@ -94,6 +94,7 @@ class TestBuildReport(unittest.TestCase):
 
     def test_missing_count_matches_expected(self):
         # missing-everywhere-skill: github + agents_dir = 2 / missing-agent: github + codex = 2
+        # / unregistered-principle-skill: github (not inlined, no exemption) = 1
         self.assertEqual(self.report.missing_count, 5)
 
     def test_render_text_contains_expected_rows_and_summary(self):

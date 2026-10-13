@@ -41,7 +41,7 @@ class TestRealTree(unittest.TestCase):
         self.assertNotEqual(by_name[(AGENT, "issue-implementer")].cells[GITHUB].status, STATUS_MISSING)
 
     def test_every_principle_skill_github_cell_matches_actual_inlining(self):
-        from asset_parity.report import STATUS_EXEMPT, STATUS_MISSING
+        from asset_parity.report import STATUS_EXEMPT, STATUS_PRESENT
         from asset_parity.inlining import is_inlined_into_copilot_instructions
         from asset_parity.trees import GITHUB
         report = build_report(REPO_ROOT)
@@ -49,14 +49,17 @@ class TestRealTree(unittest.TestCase):
         self.assertTrue(principles)
         for row in principles:
             cell = row.cells[GITHUB]
+            reason = cell.reason or ""
             if is_inlined_into_copilot_instructions(row.asset, REPO_ROOT):
                 self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
-                self.assertIn("inlined", cell.reason, row.asset.name)
+                self.assertIn("inlined", reason, row.asset.name)
             else:
-                self.assertNotIn("inlined per", cell.reason or "", row.asset.name)
-                self.assertIn(cell.status, {STATUS_EXEMPT, STATUS_MISSING}, row.asset.name)
+                # Not inlined: a discrete Copilot file (present) or a documented exemption.
+                # An unregistered gap is MISSING, which must fail here.
+                self.assertNotIn("inlined per", reason, row.asset.name)
+                self.assertIn(cell.status, {STATUS_PRESENT, STATUS_EXEMPT}, row.asset.name)
                 if cell.status == STATUS_EXEMPT:
-                    self.assertTrue(cell.reason, row.asset.name)
+                    self.assertTrue(reason, row.asset.name)
 
     def test_spec_principles_is_inlined_into_copilot_instructions(self):
         from asset_parity.inlining import is_inlined_into_copilot_instructions
