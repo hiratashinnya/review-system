@@ -25,6 +25,8 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
   * `gh-create-issue`（スキル）: ユーザー指定が Codex と Claude Code の2環境に限定された
     明示スコープのため、その2環境だけに用意する。Copilot 版は作らず、将来 Copilot を
     対象化する時に形式・tool・対話境界を再評価する。
+  * `gh-create-issue`（エージェント）: Claude Code 専用（Issue #632）。SubagentStop フックに
+    依存するため Copilot・Codex CLI の agent は作らない（Codex は skill が共通本文を直接実行）。
 
 The first two assets' notes are scoped to the GitHub Copilot (`.github/`) tree
 specifically — Codex CLI (`.codex/agents/`, `.agents/skills/`) carries real equivalents
@@ -39,18 +41,9 @@ the matching entry here.
 
 from __future__ import annotations
 
-import dataclasses
-
+from .exemption import Exemption
 from .inventory import AGENT, SKILL
-from .trees import AGENTS_DIR, GITHUB
-
-
-@dataclasses.dataclass(frozen=True)
-class Exemption:
-    name: str
-    kind: str
-    tree: str
-    reason: str
+from .trees import AGENTS_DIR, CODEX, GITHUB
 
 
 _ENV_DEPENDENT = (
@@ -78,6 +71,11 @@ _GH_CREATE_ISSUE_COPILOT = (
     "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
     "（.claude/tailoring-registry.md）"
 )
+_GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY = (
+    "Claude Code 専用のサブエージェント（Issue #632）。SubagentStop／PostToolUse フックによる"
+    "チャット表示・再掲抑止が Claude Code の hook 機構に依存するため他 PF へは作らない。"
+    "Codex は .agents/skills の wrapper が共通本文を直接実行する（.claude/tailoring-registry.md）"
+)
 
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
@@ -88,6 +86,8 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),
+    Exemption("gh-create-issue", AGENT, GITHUB, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
+    Exemption("gh-create-issue", AGENT, CODEX, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
 )
 
 

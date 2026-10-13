@@ -1,7 +1,12 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@02c37d58b3a3 -->
+<!-- synced-from: CLAUDE.md@0a1d9a396921 -->
 <!--
+  Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント
+  `gh-create-issue`（Issue 起票の委譲先・成果物は SubagentStop フックがチャット直送）の記載と、
+  handoff の Read 規定の例外1文を追記しただけ。中核規範（1〜12）には掛からず、本文は変更せず
+  marker のみ現在値へ更新した。
+
   Issue #605（2026-10-11・是正ラウンド1 2026-10-12）: `.claude/rules/05-skills-agents.md` のスキル一覧へ共有リファレンス
   `silent-failure-diagnosis` の1行を、`.claude/rules/02-decision-process.md` の起票先判定表
   「外部委譲・モデル選定・横展・Issue 起票の補助」へ同名を追記しただけ。是正ラウンド1では

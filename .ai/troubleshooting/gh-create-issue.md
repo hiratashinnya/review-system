@@ -27,3 +27,14 @@ live metadata を取得できていない事実を明記し、記憶から optio
 
 Issue URL、成功した項目、Project 未追加、未設定 fields、relations の状態を記録して fail-close で停止する。別 Project を推測して追加しない。安全に修正できる範囲だけを修正し、read-back で確認する。修正手段が無ければ未設定項目とオーナーが行う操作を報告する。
 
+## Claude Code でサブエージェントの draft が表示されない／表示を確認できない（Issue #632）
+
+`gh-create-issue` サブエージェントの本文は `tmp/_handoff/gh-create-issue--<key>.md` に書かれ、SubagentStop フック（`.claude/hooks/subagent-draft-display.sh`）がチャットへ直送する。表示されないときは次の順で切り分ける。
+
+1. 最終応答の `HANDOFF:` 行が指すファイルが存在するか確認する（`tmp/_handoff/` 直下・`gh-create-issue--<key>.md`）。無ければエージェントが書けていないので、同じ入力・新しい key で再 dispatch する。
+2. 存在するのに表示されない場合、`claude --debug` の stderr で `draft-display-stop` の `reason` を見る。`NO_HANDOFF_LINE`＝最終応答に `HANDOFF:` 行が無い／`HANDOFF_UNREADABLE`＝パスが規定形（`tmp/_handoff/gh-create-issue--<英数字と ._->.md`・通常ファイル・symlink 不可）ではない。
+3. フックが動いていないときは主文脈に「Read して提示せよ」という注入が出る（表示済みレシート `<handoff>.displayed` が無い場合）。その指示に従い、`.md` を Read して**そのまま**提示する。主文脈が要約して代替してはならない。
+4. 注入も出ない（`draft-display-notice` が無出力）場合は、ワークスペース信頼の未受諾・フック無効化・python3 不在を疑う。復旧するまで handoff を直接 Read して提示し、起票は draft をオーナーが確認してから行う。
+
+表示が確認できない状態で `mode: create` の起票へ進まない（draft 提示とオーナー確認が起票の前提）。
+

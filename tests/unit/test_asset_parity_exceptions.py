@@ -38,6 +38,10 @@ class TestIsExempt(unittest.TestCase):
         self.assertIn("明示スコープ", reason)
         self.assertIsNone(is_exempt("gh-create-issue", SKILL, "agents_dir"))
 
+    def test_gh_create_issue_agent_is_claude_only(self):
+        self.assertIsNotNone(is_exempt("gh-create-issue", AGENT, "github"))
+        self.assertIsNotNone(is_exempt("gh-create-issue", AGENT, "codex"))
+
 
 if __name__ == "__main__":
     unittest.main()

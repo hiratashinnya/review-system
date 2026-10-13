@@ -1497,8 +1497,13 @@ class SettingsRegistrationTests(unittest.TestCase):
             start["issue-implementer|issue-fixer"]["hooks"][0]["command"],
         )
         stop = self.settings["SubagentStop"]
-        self.assertEqual([entry["matcher"] for entry in stop], ["issue-implementer|issue-fixer"])
+        self.assertEqual(
+            [entry["matcher"] for entry in stop],
+            ["issue-implementer|issue-fixer", "gh-create-issue"],
+        )
         self.assertIn("subagent-stop-gate.sh", stop[0]["hooks"][0]["command"])
+        # Issue #632: gh-create-issue の成果物をチャットへ直送する別系統のフック（gate ではない）。
+        self.assertIn("subagent-draft-display.sh", stop[1]["hooks"][0]["command"])
 
     def test_new_commands_quote_the_project_dir_and_reference_existing_scripts(self):
         for event in ("SubagentStart", "SubagentStop"):
@@ -1520,9 +1525,11 @@ class SettingsRegistrationTests(unittest.TestCase):
         )
         # Issue #512 で `karte-notify.sh`（matcher `Bash`）を追加した。既存2件（Issue #309 時点）
         # は保持し、退役したゲートだけを除いていることをここで固定する。
+        # Issue #632 で `subagent-draft-notice.sh`（matcher `Task|Agent`）を先頭に追加した。
         self.assertEqual(
             self.commands("PostToolUse"),
             [
+                "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-draft-notice.sh",
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
             ],

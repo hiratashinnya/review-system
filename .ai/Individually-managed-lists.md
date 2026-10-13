@@ -25,7 +25,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 - `codex-review` は `.claude/skills/codex-review/SKILL.md` の Claude 専用。`codex exec`、ChatGPT login、Linux/WSL の session に依存するため、Codex／Copilot／Repo-skill へは配置しない。
 - `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、具体的な MCP tool metadata と Claude 固有の返却手段を持つ。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、利用可能な agy MCP 能力を session で解決する。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
-- `gh-create-issue` は Claude と Repo-skill（`.agents/skills/gh-create-issue/SKILL.md`）に実在する。Copilot 版は作らない。GitHub 変更の明示依頼境界と loader/tool 差分を対象 PF 限定で管理する。
+- `gh-create-issue` は Claude と Repo-skill（`.agents/skills/gh-create-issue/SKILL.md`）に実在する。Copilot 版は作らない。GitHub 変更の明示依頼境界と loader/tool 差分を対象 PF 限定で管理する。Claude では skill は委譲の入口だけで、実行主体は Claude 専用の `.claude/agents/gh-create-issue.md`（サブエージェント・Issue #632）。Codex の `.agents/skills/` は従来どおり共通本文を直接実行し、Codex／Copilot にエージェント版は作らない。
 - `silent-failure-diagnosis` は Claude（`.claude/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable: false`）と Repo-skill（`.agents/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable` なし）に実在する。Copilot へは配置せず（オーナー再確定 2026-10-12）、`copilot-instructions.md` へも本文を展開しない。非移植であることは `.ai/guidance/platforms/copilot.md`「Copilot 固有の非移植」にも名前で記録する（名前の記載は展開に当たらない）。`asset_parity` の構造的 `exempt` は Copilot から参照できることの根拠ではない。
 - `issue-fixer`／`issue-implementer`／`pr-reviewer` は Claude と Codex に実在する。Copilot Agent 版は非移植。Claude hook、Task、gh CLI、`karte`、ロール別 push／merge 境界を Copilot で同一契約にできないため。
 
@@ -62,6 +62,8 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 | 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
 | 11 | SessionStart（startup／clear／compact） | `orchestrator-context.sh` | ✅ | — | — |
+| 12 | SubagentStop（gh-create-issue） | `subagent-draft-display.sh` | ✅ | — | — |
+| 13 | PostToolUse（Task／Agent） | `subagent-draft-notice.sh` | ✅ | — | — |
 
 > Copilot はリポジトリ固有のライフサイクル hook に非対応（`.ai/guidance/platforms/copilot.md` で確認済み）。
 
@@ -135,6 +137,18 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 - **概要**: セッション開始時に主文脈（orchestrator）のコンテキストを設定する。
 - **スコープ**: SessionStart（startup／clear／compact）。Claude 専用。
 - **実装構成**: [`.claude/hooks/orchestrator-context.sh`](../.claude/hooks/orchestrator-context.sh)（`.claude/hooks/README.md` の「オーケストレータ委譲ルール注入フック」節）
+
+#### 12. subagent-draft-display
+
+- **概要**: `gh-create-issue` サブエージェントが `tmp/_handoff/gh-create-issue--<key>.md` に書いた draft 本文・予定値 preview・完了報告を、AI の要約を経ずに `systemMessage` でオーナーのチャットへ直送する。主文脈経由の表示で起きるトークンの二重消費を避ける。停止はブロックしない（fail-open）。
+- **スコープ**: SubagentStop（gh-create-issue）。Claude 専用。
+- **実装構成**: [`.claude/hooks/subagent-draft-display.sh`](../.claude/hooks/subagent-draft-display.sh)、実体は `draft_display/stop.py`（`.claude/hooks/README.md` の「gh-create-issue 成果物の直送フック」節）
+
+#### 13. subagent-draft-notice
+
+- **概要**: 12 が表示済みであること（表示済みレシート）を確認したうえで、「成果物は表示済み・本文を再掲しない」を `additionalContext` として主文脈へ注入する。レシートが無ければ逆に、handoff を Read して提示するよう伝える。
+- **スコープ**: PostToolUse（Task／Agent）。Claude 専用。`gh-create-issue` を含まない dispatch では python を起動しない。
+- **実装構成**: [`.claude/hooks/subagent-draft-notice.sh`](../.claude/hooks/subagent-draft-notice.sh)、実体は `draft_display/notice.py`
 
 ### 補助スクリプト（hook 呼び出し実体ではないもの）
 

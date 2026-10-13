@@ -20,6 +20,7 @@
   - `pr-reviewer` は PR をレビューし、`### F-<issue>-<seq>` と `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` を持つ構造化 finding を返す。push と merge はしない。指摘は自分で直さず `issue-fixer` へ差し戻す。スコープ外の指摘も同じ finding 列に記録し、`scope: out` は実害判定・カルテ記録・`karte status` の verdict の免除にならない。
   - `issue-implementer` と `issue-fixer` は push 可能だが merge は不可。`pr-reviewer` は push と merge の両方が不可。Claude の `.claude/settings.json` と Codex の `.codex/rules/default.rules` は直接形の merge を拒否し、両 PF の `.claude/hooks/agent-command-gate.sh` / `.codex/hooks/agent-command-gate.sh` は全ロールの shell merge 操作を判定する。hook は sandbox ではないため、プロンプト規律・レビュー分離・GitHub 側の保護と併用する。
   - 3ロールとも非対話（AskUserQuestion なし）。曖昧さは STOP で報告し、対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
+- サブエージェント（Issue 起票・Claude Code 専用・Issue #632）：`gh-create-issue`（`/gh-create-issue` スキルは委譲の入口だけで、重複調査・本文整形・label/Project 判断・作成・read-back はこのエージェントが共通本文 `.ai/skills/gh-create-issue/SKILL.md` に従って実行する。主文脈のコンテキスト圧迫を避けるためで、主文脈は共通本文を実行しない）。非対話で、オーナー判断は最終応答の `QUESTIONS` で返し、主文脈が `AskUserQuestion` で尋ねて新しい key で再 dispatch する。draft 本文・preview・完了報告は `tmp/_handoff/gh-create-issue--<key>.md` に書き、**SubagentStop フック（`.claude/hooks/subagent-draft-display.sh`）がオーナーのチャットへ直送**、PostToolUse フック（`subagent-draft-notice.sh`）が「表示済み・再掲不要」を主文脈へ注入する（本文の二重トークン消費を避ける）。tools は `Read, Write, Grep, Glob, Bash` で `Task`/`Edit` を持たず、merge・close・`Status=Done` はしない。Codex／Copilot へは作らない（`asset_parity/exceptions.py` に登録）。
 - **新しいスキル/エージェント/コードを作る前に `asset-auditor` で重複/競合を点検**し、新規 vs 既存変更を判断（A14）。
 - 初回は `.claude/` のワークスペース信頼を受諾する必要がある。
 
@@ -46,6 +47,9 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   → 呼び出し元へ返す項目を **`tmp/_handoff/<agent>--<key>.yaml`** に Write で書き、チャットには
   **`HANDOFF: <path>` ＋1行要約だけ**を返す。項目は従来の戻り値と同一（スキーマは各 agent.md の「ハンドオフ」節）。
   **呼び出し元は必ずこのファイルを Read して判断する**（1行要約だけで判断しない）。
+  **例外＝`gh-create-issue`（Issue #632）**：成果物がオーナー向けの本文（`.md`）で、SubagentStop フックが
+  チャットへ直送するため、呼び出し元は Read せず再掲もしない。判断に要る最小情報は最終応答の
+  `QUESTIONS`／`STATUS` だけで受け取る（詳細は上記のエージェント記載と `.claude/hooks/README.md`）。
   `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
   （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が保護名 `_handoff`・`_karte`・`_worktree`・
   `_feedback` を構成要素に含むパスを機械的に拒否する＝`dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`。
