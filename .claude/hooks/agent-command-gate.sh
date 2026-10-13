@@ -323,9 +323,8 @@ PYTHON_MODULES_BY_ROLE = {
     "issue-fixer": {"karte"},
 }
 # Issue #538 PR-B: Codex に自分の linked worktree で編集とテストだけを行わせるラッパー。
-# 付与先は `codex_worktree_exec.roles.CODEX_EXEC_ROLES`（GATED_ROLES − pr-reviewer）から導出し、
-# ロール名をここで再定義しない。基底集合に入れないのは pr-reviewer に書込経路を与えないため。
-# 起動形は `--role <呼び出し元 agent_type>` を1つだけ持つものに限る（codex_exec_role_violation）。
+# 付与先と自ロールの起動形は CODEX_EXEC_ROLES と codex_exec_role_violation で検査する。
+# 導出・権限境界の理由は docs/methods/codex-workspace-binding.md の D4 を参照。
 CODEX_EXEC_MODULE = "codex_worktree_exec"
 for _codex_exec_role in sorted(CODEX_EXEC_ROLES):
     PYTHON_MODULES_BY_ROLE.setdefault(_codex_exec_role, set()).add(CODEX_EXEC_MODULE)

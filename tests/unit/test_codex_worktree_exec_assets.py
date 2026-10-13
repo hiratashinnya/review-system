@@ -17,6 +17,12 @@ def permission_profiles():
 
 
 class PermissionProfileTests(unittest.TestCase):
+    def test_default_permissions_is_the_first_setting_and_selects_workspace(self):
+        text = (ROOT / ".codex" / "config.toml").read_text(encoding="utf-8")
+        first_setting = next(line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#"))
+        self.assertEqual(tomllib.loads(text)["default_permissions"], ":workspace")
+        self.assertEqual(tomllib.loads(first_setting), {"default_permissions": ":workspace"})
+
     def test_every_codex_exec_role_has_a_profile_and_the_reviewer_has_none(self):
         profiles = permission_profiles()
         for role in sorted(CODEX_EXEC_ROLES):
@@ -30,7 +36,9 @@ class PermissionProfileTests(unittest.TestCase):
         self.assertTrue(all(body == bodies[0] for body in bodies))
 
     def test_profiles_keep_workspace_limits_disable_network_and_deny_credentials(self):
-        for role, profile in sorted(permission_profiles().items()):
+        profiles = permission_profiles()
+        for role in sorted(CODEX_EXEC_ROLES):
+            profile = profiles[role]
             with self.subTest(role=role):
                 self.assertEqual(profile["extends"], ":workspace")
                 self.assertEqual(profile["network"], {

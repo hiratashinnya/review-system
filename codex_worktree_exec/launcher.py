@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import time
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -26,11 +27,24 @@ def _signal_group(process: subprocess.Popen, signum: int) -> None:
 
 def _terminate(process: subprocess.Popen) -> None:
     _signal_group(process, signal.SIGTERM)
+    deadline = time.monotonic() + TERMINATE_GRACE_SECONDS
     try:
         process.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
+        pass
+    while time.monotonic() < deadline and _group_exists(process):
+        time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+    if _group_exists(process):
         _signal_group(process, signal.SIGKILL)
-        process.wait()
+    process.wait()
+
+
+def _group_exists(process: subprocess.Popen) -> bool:
+    try:
+        os.killpg(process.pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def run_codex(

@@ -33,8 +33,8 @@ def _launch(
     worktree = bind_worktree(request.worktree, cwd)
     verify_profile_pinned(worktree, request.role)
     verify_project_trusted(worktree, codex_home(environ))
-    body = read_prompt(request.prompt_file, cwd)
-    output_file = resolve_output_target(request.output_file, cwd)
+    body = read_prompt(request.prompt_file, cwd, worktree)
+    output_file = resolve_output_target(request.output_file, cwd, worktree)
     return run_codex(
         build_codex_argv(request, worktree, output_file, codex),
         compose_prompt(request.role, worktree, body),

@@ -30,6 +30,9 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 - `--role` は呼び出し元自身の agent_type と一致しなければならない。`.claude/hooks/agent-command-gate.sh` が
   `issue-implementer`／`issue-fixer` にだけ、`--role` がちょうど1つでその値が自ロールである形を許可する。
 - 依頼文と最終応答のファイルは worktree の `tmp/` 配下（gitignore 済み）に置く。依頼文は Write で書く。
+  相対パスは呼び出し元 cwd を起点とし、親 symlink を解決した実パスが検査済み worktree の `tmp/` 内に
+  あることを起動前に確認する。境界外の絶対パス・`../`・symlink は拒否する。`tmp/` 自体が境界外へ
+  symlink で移されている場合も拒否する。
 - 終了コードは、検査不合格が `2`（stderr に `codex_worktree_exec: <識別子>: <詳細>` を1行出す）、timeout が `124`、
   それ以外は `codex exec` の終了コードをそのまま返す。
 - 起動後、呼び出し側は Codex の変更を `python3 -m gitgate diff` と単体テストで自分で確かめてから commit する。
@@ -63,6 +66,9 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 
 `.codex/config.toml` に `[permissions.issue-implementer]` と `[permissions.issue-fixer]` を同一内容で版管理する。
 `pr-reviewer` の profile は置かない。
+config の最初の有効設定はトップレベルの `default_permissions = ":workspace"` とする。profile 選択を省略した
+起動と `--sandbox read-only` 起動でも config を読み込めるようにするためで、ラッパーのロール別選択は
+`-c default_permissions="<role>"` で上書きする。
 
 - `extends = ":workspace"`（workspace root＝`-C` の worktree へ書け、配下の `.codex/` と `.git/` は読取専用）。
 - `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
@@ -70,7 +76,8 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 - `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
 
 profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unittest` の `tests/unit/test_codex_worktree_exec_assets.py` が、
-両 profile の存在・同一性・network 無効・認証情報パスの deny を静的に検査する（実起動の代替ではない）。
+先頭の既定設定と両 profile の存在・同一性・network 無効・認証情報パスの deny を静的に検査する
+（未指定・`--sandbox read-only` の実起動成功の代替ではない）。
 
 ## 「要設計」4項目の決定
 
@@ -106,6 +113,9 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
    （network 無効でも内容がモデル文脈へ流れる）。`"~/.codex/auth.json" = "deny"`・`"~/.config/gh" = "deny"`・
    `"~/.claude/.credentials.json" = "deny"` で塞がることを確認した。`~/.ssh` も deny に含めた（実測は TD で行う）。
 8. `-c` の dotted key では、パスにドットを含む filesystem 規則を表現できない（このため profile は project config に置く）。
+9. profile を定義してトップレベルの `default_permissions` を省略すると、Codex 0.157.0 の未指定起動は
+   `config defines [permissions] profiles but does not set default_permissions` で失敗する。
+   `--sandbox read-only` 併用時は `failed to load workspace requirements` と報告される（F-538-24 の実測）。
 
 #565（素の `codex exec` が `AGENTS.md` の委譲指示に従って再委譲し停止する）は、spike の編集タスク1件では発生しなかった。
 ラッパーの前置きで足りるかは、実起動検証の項目として TD に置く。
@@ -118,12 +128,12 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 | ID | 暫定決定 | 覆る場合の影響範囲 |
 |---|---|---|
 | D1 | ラッパーは worktree の `.codex/config.toml` の blob OID を `origin/main:.codex/config.toml` と比べ、異なれば起動しない。比較先はローカルの `origin/main` ref で、ラッパーは fetch しない。 | 検査をやめると、呼び出し側が worktree 内で profile を緩めて起動できる。比較先を変えるなら `codex_worktree_exec/profile_pin.py`・同テスト・TD を改める。 |
-| D4 | `--role` の値と呼び出し元 agent_type の一致を Claude 側 gate で検査する。ロールの allowlist は `GATED_ROLES` から `pr-reviewer` を除いて導出する（`codex_worktree_exec/roles.py` の `CODEX_EXEC_ROLES`。gate もここを読む）。 | 書込ロールを増減するときは `GATED_ROLES` と `.codex/config.toml` の profile を同時に変える。導出をやめると gate とラッパーの許可集合が別々に保守される。 |
+| D4 | `--role` の値と呼び出し元 agent_type の一致を Claude 側 gate で検査する。ロールの allowlist は `GATED_ROLES` から `pr-reviewer` を除いて導出する（`codex_worktree_exec/roles.py` の `CODEX_EXEC_ROLES`。gate もここを読む）。gate の基底集合には加えず、書込ロール専用集合へ加える。 | 書込ロールを増減するときは `GATED_ROLES` と `.codex/config.toml` の profile を同時に変える。導出をやめると gate とラッパーの許可集合が別々に保守され、基底集合への追加は `pr-reviewer` にも書込経路を与える。 |
 | D5 | `-C` は登録済みの linked worktree で、かつ呼び出し元の cwd の toplevel と一致するものに限る。登録の確認は `gitgate.worktree.linked_worktree_paths` を再利用する。main checkout は指定できない。 | 条件を緩めると、別の dispatch の worktree や main checkout を Codex に書かせられる。 |
 | D6 | Codex 版 gate の allowlist にラッパーを入れない。Codex の中からの再帰起動は `.codex/rules/default.rules`（`python3`／`python -m codex_worktree_exec` を forbidden）と、ラッパー自身の検知（自分が子へ渡す `CODEX_WORKTREE_EXEC_ACTIVE`、および Codex が sandbox 内コマンドへ付ける `CODEX_SANDBOX`・`CODEX_SANDBOX_NETWORK_DISABLED`）で止める。 | Codex から Claude ロールを経ずに Codex を起動できる経路を作るなら、Codex 版 gate と execpolicy の両方を設計し直す。 |
 | D7 | 主文脈による直接起動は機械では止められない（gate のロール専用層は主文脈に掛からない）。「主文脈は実装を代行しない」を契約文に明記し、規律で守る。ラッパーは main checkout を `-C` に取らないため、主文脈が自分の checkout で起動しても止まる。 | 機械で止めるには、主文脈を識別するハーネス機能が要る（2026-07-11 のオーナー判断で gate 単独では不可と確定済み）。 |
-| D8 | 依頼文はファイル引数、最終応答は `--output-last-message` の出力ファイルで受け渡す（層1が `<` `>` `|` を禁じるため）。 | stdin やパイプで渡す形に変えるなら gate の層1の例外設計が要る。 |
-| D9 | ラッパーが timeout を持つ。既定 540 秒（Claude の Bash tool の上限 600 秒に収まる値）、上限 3600 秒。timeout ではプロセスグループへ SIGTERM、10 秒後に SIGKILL を送り、`CODEX_EXEC_TIMEOUT`（終了コード 124）で止める。540 秒を超える実行は Bash の `run_in_background` で起動する（実起動で確認する項目）。 | 既定値を変えると、Bash tool の timeout と食い違って結果を回収できなくなりうる。 |
+| D8 | 依頼文はファイル引数、最終応答は `--output-last-message` の出力ファイルで受け渡す（層1が `<` `>` `|` を禁じるため）。両ファイルの実パスは検査済み worktree の `tmp/` 内に限り、境界外は `CODEX_EXEC_PROMPT_UNREADABLE`／`CODEX_EXEC_OUTPUT_INVALID` で起動前に拒否する。 | stdin やパイプで渡す形に変えるなら gate の層1の例外設計が要る。 |
+| D9 | ラッパーが timeout を持つ。既定 540 秒（Claude の Bash tool の上限 600 秒に収まる値）、上限 3600 秒。timeout ではプロセスグループへ SIGTERM、10 秒の猶予後に残存グループへ SIGKILL を送り、`CODEX_EXEC_TIMEOUT`（終了コード 124）で止める。leader が先に正常終了しても、残る子は同じ対象とする。540 秒を超える実行は Bash の `run_in_background` で起動する（実起動で確認する項目）。 | 既定値を変えると、Bash tool の timeout と食い違って結果を回収できなくなりうる。 |
 | D10 | モデルと推論予算は呼び出し側が引数で指定し、ラッパーは既定値を持たない。レートリミットで止まったら同じ構成で再投入する（降格しない）。 | 既定値を持たせると、選定根拠（リスク信号表）を経ないモデルで走りうる。 |
 | D11 | `issue-fixer` は Step 1 の診断（`karte render`→`karte append`）を済ませてからラッパーを起動する。Codex への依頼は Edit/Write と同じく診断後の編集に当たる。 | 前置しないと、診断を経ない是正が Codex 経由で入る。 |
 | D12 | Codex にリポジトリを書かせる経路はこのラッパーだけとする。agy の `codex_*`（workspace-write）は使わない。 | 別経路を認めると、profile・`-C` 束縛・base 一致の検査を経ない書込みが生じる。 |
@@ -135,6 +145,9 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 - D1 の比較先はローカルの `origin/main` ref であり、fetch が古ければ古い版と比べる。検査から Codex の起動までの間に
   profile を書き換える競合は防いでいない（呼び出し側は自分の worktree だけを持つ前提）。
 - `/tmp` への書込みは許可される（実測⑥・許容）。
+- トップレベルの `default_permissions = ":workspace"` は未指定起動の config 読込みを成立させるための
+  既定であり、ロール別の network 無効・認証情報 deny が適用されるのはラッパーが該当 profile を選択した
+  起動である。既定を削除すると未指定起動と `--sandbox read-only` 起動が失敗する（実測⑨）。
 - 環境変数の秘匿値の扱いは Codex の既定の `shell_environment_policy` に依存し、spike では測っていない（TD の項目）。
 - spike の linked worktree は main checkout の外に置いた。Claude の isolation worktree は main checkout 配下の
   `.claude/worktrees/agent-*` にあるため、この配置で worktree 側の profile が読まれることは実起動で確かめる（TD の項目）。
