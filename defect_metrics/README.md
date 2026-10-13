@@ -18,7 +18,20 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
 定義が散文にある限り、窓の起点・境界の開閉・分子の数え方が読み手ごとにずれ、同じズレが
 再計測のたびに再発する。本ツールは定義を**コード上の定数と型**として固定する。
 
-## 2. 固定した指標定義（正本＝`defect_metrics/model.py`）
+## 2. 固定した指標定義（正本＝`defect_metrics/definitions.py`・`types.py`）
+
+実装の責務を分け、従来の `model.py`・`metrics.py`・`collect.py`・`threshold.py`・`cli.py` は互換 import 用の薄い入口として維持する。
+
+| 互換入口 | 実装モジュール |
+|---|---|
+| `model.py` | `definitions.py`・`types.py`・`timestamps.py` |
+| `metrics.py` | `references.py`・`metric_values.py`・`calculation.py` |
+| `collect.py` | `collect_load.py`・`collect_fetch.py` |
+| `threshold.py` | `threshold_types.py`・`threshold_evaluate.py` |
+| `cli.py` | `cli_window.py`・`cli_baseline.py`・`cli_report.py`・`cli_parser.py`・`cli_commands.py` |
+
+この整理で公開 import 経路とレポートJSON契約は変えない。`SCHEMA_VERSION` は初版の `1` のまま維持する。
+Issue #488・#493 で版を据え置いた理由は本 README §2.2 に記録する。
 
 | 要素 | 定義 | 実体 |
 |---|---|---|
@@ -76,6 +89,22 @@ Issue #368 は基線を「2026-08-01〜08-16 の実測・15日・PR 1本あた�
   起票を落とさないため。分子を絞るのは「Issue の作成時刻」だけである。
 - 起票より**後**に merge された PR への言及は原因になりえないので数えない。
 - 分母が 0 のときは比率を 0 に潰さず「算出不能（`null`）」として持ち上げる。
+
+### 2.2 レポートのスキーマ版を据え置いた理由
+
+`SCHEMA_VERSION`（実体＝`definitions.py`、互換 import＝`model.py`）が表すのは、
+publish する JSON レポートの**読取側のパース互換**である。次の2つの判断で `1` を維持した。
+
+- **Issue #488 の同一 PR 内のレビュー是正**：`baseline_verification` と
+  `trailing_4_weeks.aggregation` を追加した際も、未 merge の初版がまだ確定していない途中なので
+  `1` のまま据え置いた。フィールド追加が無かったからではなく、同一 PR 内の是正だけを理由に
+  版をもう一度動かさないためである（`.ai/guidance/common.md`「正本・実装規約」の再 bump 規律）。
+- **Issue #493 の参照記法の同一視**：`#N`・`OWNER/REPO#N`・完全 URL を同じ参照として数えても、
+  フィールドの追加・削除・型変更は無く、変わったのは `report_window.primary.definition` の文言だけ
+  なので、読取側のパース互換を保ち `1` を据え置いた。定義の変化は値としてレポート自体から
+  観測できる。基線値も再計算で変化しなかった（§6.1）ため、`baseline_verification.reproduced` が
+  転ぶこともない。同 PR のレビュー是正で `OWNER/REPO#N` を足した際も、未 merge の版遷移の
+  途中である以上、是正だけを理由に再 bump しない（同「正本・実装規約」）。
 
 ## 3. 閾値判定（`defect_metrics/threshold.py`）
 

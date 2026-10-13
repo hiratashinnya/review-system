@@ -12,11 +12,6 @@
     "blocker_gate/model.py|ed84d2c92f3ea960": 1,
     "branch_source/policy.py|237460617202c10c": 1,
     "branch_source/policy.py|baa19a57d76aabbf": 1,
-    "defect_metrics/cli.py|a78ea980aff3ef2d": 1,
-    "defect_metrics/metrics.py|973ee835f63a74c2": 1,
-    "defect_metrics/metrics.py|be9f0d2a881051e6": 1,
-    "defect_metrics/metrics.py|f6368c93fe33d90c": 1,
-    "defect_metrics/model.py|df91ae074c143b31": 1,
     "feedback_ledger/check.py|201f4f7131d063b3": 1,
     "gitgate/adopt.py|b773d74d104a989a": 1,
     "gitgate/cli.py|4c084b8d6f4b492f": 1,
@@ -136,26 +131,6 @@
     "ci_anomaly_report/collector.py": {
       "line_count": 234,
       "sha256": "73305ad7e807f327716552832aed584c05175ea5d546ae40c0c0d0a26b575980"
-    },
-    "defect_metrics/cli.py": {
-      "line_count": 326,
-      "sha256": "9363a1bc426bc03f9f9ec421107820a81d150eda3d9a4101c6dc7e323a50b0b2"
-    },
-    "defect_metrics/collect.py": {
-      "line_count": 187,
-      "sha256": "0c9af1be308ba17dcf8bd36997a78631f51bbf9e930c4c80ba8a871302e5a9a6"
-    },
-    "defect_metrics/metrics.py": {
-      "line_count": 288,
-      "sha256": "ea37ca2f502c65a51450eb13d4b9c04033d718bea8e3cb1f124dbb1455dc6faa"
-    },
-    "defect_metrics/model.py": {
-      "line_count": 181,
-      "sha256": "a0de443a0097e1b70de72c7adbdf19070f9fefb8d6189a027b9d2fcbbbefaee2"
-    },
-    "defect_metrics/threshold.py": {
-      "line_count": 191,
-      "sha256": "2c3b768823fe39015522f7a84787352d388f62d9ee9c7ab1f184b5587dfd4e3b"
     },
     "feedback_ledger/check.py": {
       "line_count": 454,
