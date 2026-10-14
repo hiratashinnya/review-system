@@ -3,6 +3,7 @@
 from pathlib import Path
 import os
 import signal
+import shlex
 import subprocess
 import tempfile
 import time
@@ -25,17 +26,18 @@ class LauncherTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_fake(self, timeout_seconds=30, **extra):
-        environ = clean_environ(FAKE_CODEX_LOG=str(self.log), **extra)
+    def run_fake(self, timeout_seconds=30, *, exit_code=0, sleep_seconds=0):
+        self.codex = make_fake_codex(self.directory, exit_code=exit_code, sleep_seconds=sleep_seconds)
+        environ = clean_environ()
         return run_codex(
             [str(self.codex), "exec", "-"], "依頼本文",
             cwd=self.directory, timeout_seconds=timeout_seconds, environ=environ,
         )
 
     def test_exit_code_is_passed_through(self):
-        for code in ("0", "1", "7"):
+        for code in (0, 1, 7):
             with self.subTest(code=code):
-                self.assertEqual(self.run_fake(FAKE_CODEX_EXIT=code), int(code))
+                self.assertEqual(self.run_fake(exit_code=code), code)
 
     def test_prompt_goes_to_stdin_and_the_nesting_marker_to_the_child(self):
         self.run_fake()
@@ -45,7 +47,7 @@ class LauncherTests(unittest.TestCase):
     def test_timeout_stops_the_process_and_is_reported(self):
         started = time.monotonic()
         with self.assertRaises(CodexExecError) as caught:
-            self.run_fake(timeout_seconds=1, FAKE_CODEX_SLEEP="30")
+            self.run_fake(timeout_seconds=1, sleep_seconds=30)
         self.assertEqual(caught.exception.error_id, "CODEX_EXEC_TIMEOUT")
         self.assertLess(time.monotonic() - started, 15)
 
@@ -80,13 +82,14 @@ class LauncherTests(unittest.TestCase):
         leader_exit = self.directory / "leader.exit"
         script = self.directory / "term-leader"
         script.write_text(
-            "#!/bin/sh\necho $$ > \"$LEADER_PID\"\n"
-            "trap 'echo normal > \"$LEADER_EXIT\"; exit 0' TERM\n"
+            f"#!/bin/sh\nLEADER_PID={shlex.quote(str(leader_pid))}\n"
+            f"CHILD_PID={shlex.quote(str(child_pid))}\nLEADER_EXIT={shlex.quote(str(leader_exit))}\n"
+            "echo $$ > \"$LEADER_PID\"\ntrap 'echo normal > \"$LEADER_EXIT\"; exit 0' TERM\n"
             "sh -c 'trap \"\" TERM; echo $$ > \"$1\"; exec sleep 30' sh \"$CHILD_PID\" &\nwait\n",
             encoding="utf-8",
         )
         script.chmod(0o755)
-        environ = clean_environ(LEADER_PID=str(leader_pid), CHILD_PID=str(child_pid), LEADER_EXIT=str(leader_exit))
+        environ = clean_environ()
         try:
             with patch("codex_worktree_exec.launcher.TERMINATE_GRACE_SECONDS", 0.1):
                 with self.assertRaises(CodexExecError) as caught:

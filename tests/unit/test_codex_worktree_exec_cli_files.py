@@ -32,7 +32,7 @@ class CliFileBoundaryTests(unittest.TestCase):
                 "--model", "gpt-6-sol", "--reasoning-effort", "high"]
         for name, value in files.items():
             argv.extend((name, value))
-        environ = clean_environ(CODEX_HOME=str(self.home), FAKE_CODEX_LOG=str(self.log))
+        environ = clean_environ(CODEX_HOME=str(self.home))
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             code = main(argv, environ=environ, cwd=self.worktree, codex=str(self.codex))

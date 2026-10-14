@@ -30,13 +30,14 @@ class CliTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_main(self, role="issue-implementer", worktree=None, cwd=None, **extra):
+    def run_main(self, role="issue-implementer", worktree=None, cwd=None, *, exit_code=0, sleep_seconds=0, **extra):
         argv = [
             "--role", role, "-C", str(worktree or self.worktree),
             "--prompt-file", "tmp/p.md", "--output-file", "tmp/o.md",
             "--model", "gpt-6-sol", "--reasoning-effort", "high", "--timeout-seconds", "5",
         ]
-        environ = clean_environ(CODEX_HOME=str(self.home), FAKE_CODEX_LOG=str(self.log), **extra)
+        self.codex = make_fake_codex(self.directory, exit_code=exit_code, sleep_seconds=sleep_seconds)
+        environ = clean_environ(CODEX_HOME=str(self.home), **extra)
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             code = main(argv, environ=environ, cwd=cwd or self.worktree, codex=str(self.codex))
@@ -49,11 +50,12 @@ class CliTests(unittest.TestCase):
         self.assertFalse(Path(f"{self.log}.argv").exists(), "検査に通らないのに codex が起動された")
 
     def test_codex_runs_in_the_worktree_and_its_exit_code_is_returned(self):
-        code, stderr = self.run_main(FAKE_CODEX_EXIT="3")
+        code, stderr = self.run_main(exit_code=3)
         self.assertEqual(code, 3, stderr)
         argv = Path(f"{self.log}.argv").read_text(encoding="utf-8").splitlines()
         self.assertEqual(argv[:3], ["exec", "-C", str(self.worktree)])
         self.assertIn('default_permissions="issue-implementer"', argv)
+        self.assertIn('shell_environment_policy.inherit="core"', argv)
         self.assertIn(str(self.worktree / "tmp" / "o.md"), argv)
         stdin = Path(f"{self.log}.stdin").read_text(encoding="utf-8")
         self.assertTrue(stdin.endswith("README を直す\n"))
@@ -72,7 +74,7 @@ class CliTests(unittest.TestCase):
         self.assert_refused_without_launch("CODEX_EXEC_PROFILE_DRIFT")
 
     def test_timeout_exits_124(self):
-        code, stderr = self.run_main(FAKE_CODEX_SLEEP="30")
+        code, stderr = self.run_main(sleep_seconds=30)
         self.assertEqual(code, EXIT_TIMEOUT)
         self.assertIn("codex_worktree_exec: CODEX_EXEC_TIMEOUT", stderr)
 

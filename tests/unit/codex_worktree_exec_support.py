@@ -7,6 +7,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,13 +21,6 @@ GIT_ENV = {
     "GIT_COMMITTER_NAME": "Codex Exec Test",
     "GIT_COMMITTER_EMAIL": "codex-exec-test@example.invalid",
 }
-FAKE_CODEX = """#!/bin/sh
-printf '%s\\n' "$@" > "$FAKE_CODEX_LOG.argv"
-cat > "$FAKE_CODEX_LOG.stdin"
-env > "$FAKE_CODEX_LOG.env"
-if [ -n "$FAKE_CODEX_SLEEP" ]; then exec sleep "$FAKE_CODEX_SLEEP"; fi
-exit "${FAKE_CODEX_EXIT:-0}"
-"""
 
 
 def git(repo: Path, *args: str) -> str:
@@ -70,9 +64,17 @@ def write_trust(home: Path, project: Path, level: str = "trusted") -> None:
     )
 
 
-def make_fake_codex(directory: Path) -> Path:
+def make_fake_codex(directory: Path, *, exit_code: int = 0, sleep_seconds: int = 0) -> Path:
+    """偽 Codex の制御値は環境へ渡さず、実行ファイルに固定する。"""
     script = directory / "fake-codex"
-    script.write_text(FAKE_CODEX, encoding="utf-8")
+    log = shlex.quote(str(directory / "call"))
+    script.write_text(
+        f"#!/bin/sh\nlog={log}\n"
+        "printf '%s\\n' \"$@\" > \"$log.argv\"\n"
+        "cat > \"$log.stdin\"\nenv > \"$log.env\"\n"
+        + (f"exec sleep {sleep_seconds}\n" if sleep_seconds else f"exit {exit_code}\n"),
+        encoding="utf-8",
+    )
     script.chmod(0o755)
     return script
 

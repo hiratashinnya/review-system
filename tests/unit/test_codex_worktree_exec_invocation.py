@@ -23,6 +23,7 @@ class InvocationTests(unittest.TestCase):
         self.assertEqual(argv, [
             "codex", "exec", "-C", "/w/t",
             "-c", 'default_permissions="issue-fixer"',
+            "-c", 'shell_environment_policy.inherit="core"',
             "-m", "gpt-6-sol",
             "-c", 'model_reasoning_effort="xhigh"',
             "--output-last-message", "/w/t/tmp/o.md",

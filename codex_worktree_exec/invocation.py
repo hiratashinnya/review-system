@@ -36,6 +36,7 @@ def build_codex_argv(
         codex, "exec",
         "-C", str(worktree),
         "-c", f'default_permissions="{request.role}"',
+        "-c", 'shell_environment_policy.inherit="core"',
         "-m", request.model,
         "-c", f'model_reasoning_effort="{request.reasoning_effort}"',
         "--output-last-message", str(output_file),

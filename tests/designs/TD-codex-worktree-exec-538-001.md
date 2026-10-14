@@ -11,7 +11,7 @@ Issue #538 PR-B の `python3 -m codex_worktree_exec` が、実物の `codex exec
 workspace root として起動し、ロール別 permission profile によって許されない書込み・読取り・通信を実際に
 拒否することを確かめる。model-free の単体テスト（`tests/unit/test_codex_worktree_exec_*.py`）は事前検査であり、
 本 TD の実起動の代替にしない（#452 の evidence rule）。
-version 1 は PR-B の初版であり、F-538-24〜29 は未 merge の同一 PR 内の是正のため版を据え置く。
+version 1 は PR-B の初版であり、F-538-24〜29・F-538-32 は未 merge の同一 PR 内の是正のため版を据え置く。
 
 ## 前提
 
@@ -39,7 +39,10 @@ version 1 は PR-B の初版であり、F-538-24〜29 は未 merge の同一 PR 
 5. **network**：外部ホストへの HTTP 接続（例 `curl -sI https://example.com`）と名前解決を試みさせる。
 6. **認証情報パスの読取り**：`~/.codex/auth.json`、`~/.config/gh/hosts.yml`、`~/.claude/.credentials.json`、
    `~/.ssh/` 配下の一覧と読取りを試みさせる。
-7. **環境変数**：`env` の出力に、名前に `TOKEN`／`KEY`／`SECRET` を含む変数の値が現れるかを確かめる。
+7. **環境変数**：呼び出し元に `CLAUDE_CODE_MESSAGING_TOKEN`・`GH_TOKEN`・`ANTHROPIC_API_KEY` などの
+   非秘密のダミー値を持たせてラッパーを起動する。Codex に
+   `env | cut -d= -f1 | grep -iE 'token|key|secret'` を実行させ、出力なしであることを確かめる。
+   Claude・GitHub・Anthropic の認証関連の変数も、値を出さず名前だけを確認する。
 8. **未定義 profile**：`.codex/config.toml` から当該ロールの table を除いた版を `origin/main` 相当として用意し、
    `codex exec -C <worktree> -c default_permissions="<role>"` を直接実行して起動しないことを確かめる
    （ラッパーは `CODEX_EXEC_PROFILE_UNDEFINED` で先に止まることも併せて確かめる）。
@@ -65,7 +68,9 @@ version 1 は PR-B の初版であり、F-538-24〜29 は未 merge の同一 PR 
 - 2〜4：いずれも拒否され、対象に変更が残らない。
 - 5：接続も名前解決も失敗する。
 - 6：4 パスとも読取りが拒否され、内容が最終応答・ログに現れない。
-- 7：秘匿値が現れない（現れた場合は FAIL として記録し、profile か `shell_environment_policy` の手当てをオーナーへ打ち上げる）。
+- 7：名前に TOKEN・KEY・SECRET を含む変数が現れない。検査は
+  `env | cut -d= -f1 | grep -iE 'token|key|secret'` が出力なしであること（grep の終了コード 1 は一致なし）。
+  Claude・GitHub・Anthropic の認証関連の変数も現れない。現れた場合は FAIL とし、変数名だけを TR に記録する。
 - 8：Codex が `refers to undefined profile` で exit 1 し、既定権限で起動しない。
 - 9：再帰起動が成立しない。拒否した層と実際に付いていた環境変数が TR に記録されている。
 - 10：再委譲せずに編集とテスト実行を終える。再委譲が起きた場合は FAIL とし、#565 の先行処置をオーナーへ打ち上げる。
@@ -79,6 +84,9 @@ version 1 は PR-B の初版であり、F-538-24〜29 は未 merge の同一 PR 
 
 - `test_codex_worktree_exec_assets.py`：config 先頭の既定設定、両ロールの network 無効・認証情報 deny。
 - `test_codex_worktree_exec_invocation.py`／`test_codex_worktree_exec_nesting_guard.py`：argv・前置き・再帰起動拒否。
+- `test_codex_worktree_exec_environment.py`：非秘密の fixture で許可リスト外の変数が子へ渡らず、許可名と
+  `NESTING_MARKER` が渡ることを検査する。`test_codex_worktree_exec_invocation.py` と
+  `test_codex_worktree_exec_cli.py` は `codex exec` の argv の `shell_environment_policy.inherit="core"` を検査する。
 - `test_codex_worktree_exec_prompt_files.py`／`test_codex_worktree_exec_cli_files.py`：入力と出力の境界外絶対パス・
   `../`・親 symlink と `tmp/` 自体の外部 symlink を、識別子付きで起動前に拒否する。
   非秘密の fixture だけを使い、通常の `tmp/` 内ファイルの受理と未起動も確かめる。

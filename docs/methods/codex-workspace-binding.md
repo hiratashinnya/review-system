@@ -56,11 +56,34 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 
 ```
 codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
+  -c shell_environment_policy.inherit="core" \
   -c model_reasoning_effort="<effort>" --output-last-message <最終応答> -
 ```
 
 依頼文は、固定の前置き（委譲しない・commit/push しない・範囲外を変更しない・最後に要約を返す）に本文を
 続けて stdin で渡す。sandbox や承認を迂回する flag は渡さない。ラッパーはモデルと推論予算の既定値を持たない（D10）。
+
+### Codex に渡す環境
+
+呼び出し元の環境は、ラッパーの許可リストと Codex のシェルの `core` 集合の2段で絞る（F-538-32）。
+ラッパーは `codex_worktree_exec/child_environment.py` の `CODEX_CHILD_ENVIRONMENT_ALLOWLIST` に定義した
+次の名前だけを `codex exec` のプロセスへ継承する。
+
+- 起動・ユーザー情報：`PATH`・`HOME`・`USER`・`LOGNAME`・`SHELL`。
+- ロケール・端末・時刻：`LANG`・`LC_ALL`・`LC_CTYPE`・`TERM`・`TZ`。
+- 一時ファイル：`TMPDIR`・`TEMP`・`TMP`。
+- Codex の設定・認証と標準の設定・キャッシュ・データ配置：`CODEX_HOME`・`XDG_CONFIG_HOME`・
+  `XDG_CACHE_HOME`・`XDG_DATA_HOME`。Codex 本体の認証は `CODEX_HOME` 配下の `auth.json` を使う
+  （未指定時は `~/.codex`）。
+
+許可リスト外の変数は名前や値によらず渡さない。`TOKEN`・`KEY`・`SECRET`・`PASSWORD`・`CREDENTIAL` を
+名前に含む変数や、`CLAUDE_*`・`ANTHROPIC_*`・`GH_*`・`GITHUB_*`・`OPENAI_*` も継承しない。
+ラッパー自身の再帰検知の標識 `CODEX_WORKTREE_EXEC_ACTIVE=1` は追加して子の Codex へ渡す。
+許可リスト外の変数を渡すには本契約と許可リスト・対応テストの変更が必要であり、呼び出しごとの追加指定は設けない。
+
+さらに `codex exec` の引数として `-c shell_environment_policy.inherit="core"` を必ず渡し、Codex のシェルへ
+継承する環境を `core` 集合に絞る。既定の除外は有効のままとし、ラッパーは除外の解除や追加変数の設定を行わない。
+モデルを呼ばない対応テストは許可・除外・標識と argv を検査し、実際のシェル環境は TD の手順 7 で再検証する。
 
 ## permission profile
 
@@ -159,7 +182,8 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
   リポジトリを書かせる唯一の**許可された**経路」という規律であり、ラッパーを通さない起動を機械的に拒否するものではない。
 - F-538-31 の残る限界として、猶予後の `killpg(SIGKILL)` は、グループの全メンバーが消えて PGID が再利用される
   極小の窓を完全には閉じない。SIGKILL の直前に存在確認を別の呼び出しで行うことはやめたが、PGID 再利用自体は防げない。
-- 環境変数の秘匿値の扱いは Codex の既定の `shell_environment_policy` に依存し、spike では測っていない（TD の項目）。
+- 環境の2段の制限はラッパー経由の起動に適用される。実際の Codex シェルに認証関連の変数が現れないことは
+  TD の手順 7 で検証する。ラッパーを通さない起動の環境は本契約の制御対象に含めない。
 - spike の linked worktree は main checkout の外に置いた。Claude の isolation worktree は main checkout 配下の
   `.claude/worktrees/agent-*` にあるため、この配置で worktree 側の profile が読まれることは実起動で確かめる（TD の項目）。
 

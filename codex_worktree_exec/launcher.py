@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from .child_environment import build_codex_child_environment
 from .errors import CodexExecError
-from .nesting_guard import NESTING_MARKER
 
 TERMINATE_GRACE_SECONDS = 10
 
@@ -58,7 +58,7 @@ def run_codex(
     environ: Mapping[str, str],
 ) -> int:
     """stdout/stderr は呼び出し元へ透過し、依頼文だけを stdin へ流す。"""
-    env = {**environ, NESTING_MARKER: "1"}
+    env = build_codex_child_environment(environ)
     try:
         process = subprocess.Popen(
             list(argv), cwd=str(cwd), env=env, stdin=subprocess.PIPE, start_new_session=True,
