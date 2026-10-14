@@ -27,9 +27,10 @@ PACKAGE_DIR = Path(asset_parity.__file__).resolve().parent
 DEFINITION_MODULE = "copilot_paths.py"
 
 
-# `.github` as a whole path component: the bare name, or followed by `/<path char>`. Prose that
-# merely mentions the directory (e.g. `（.github/）` in an exemption reason) does not match.
-_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:/[\w.*-]|$)")
+# `.github` as a path component: bare, trailing `/` (a joined or f-string head), or `/<path char>`
+# (incl. `{`/`%` placeholders). Prose like `（.github/）` in an exemption reason does not match,
+# since `/` is then followed by a non-path char that is not the end of the string.
+_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:/[\w.*{%-]|/?$)")
 _DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 
@@ -101,7 +102,8 @@ class TestSingleDefinition(unittest.TestCase):
 
 
 class TestGithubPathScanner(unittest.TestCase):
-    """The scan must catch compound path literals, and only path spellings."""
+    """The scan must catch bare, compound, trailing-slash and template-fragment path
+    spellings, and nothing but path spellings."""
 
     def test_bare_and_compound_path_literals_are_found(self):
         source = (
@@ -113,9 +115,20 @@ class TestGithubPathScanner(unittest.TestCase):
         )
         self.assertEqual(_github_path_literal_lines(source), [1, 2, 3, 4, 5])
 
+    def test_trailing_slash_and_placeholder_fragments_are_found(self):
+        source = (
+            'a = Path(".github/")\n'
+            'b = f".github/{name}/SKILL.md"\n'
+            'c = ".github/{}/SKILL.md".format(name)\n'
+            'd = ".github/%s/SKILL.md" % name\n'
+            'e = f"{root}/.github/{kind}"\n'
+        )
+        self.assertEqual(_github_path_literal_lines(source), [1, 2, 3, 4, 5])
+
     def test_prose_mention_and_lookalike_names_are_not_found(self):
         source = (
             'reason = "Copilot（.github/）には等価物なし"\n'
+            'tail = "Copilot（.github/）"\n'
             'other = ".githubusercontent/x"\n'
             'dotted = "x.github/y"\n'
         )
