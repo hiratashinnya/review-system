@@ -66,6 +66,15 @@ class TestBuildReport(unittest.TestCase):
         self.assertEqual(row.cells[GITHUB].status, STATUS_MISSING)
         self.assertEqual(row.cells[AGENTS_DIR].status, STATUS_PRESENT)
 
+    def test_misplaced_uninlined_principle_skill_is_missing_not_present(self):
+        # `.github/skills/<name>/SKILL.md` exists, but asset-lateral-deploy routes a
+        # `user-invocable: false` skill to Instructions, so the file must not count as a mirror.
+        row = self.by_name[(SKILL, "misplaced-principle-skill")]
+        self.assertTrue((self.root / ".github/skills/misplaced-principle-skill/SKILL.md").is_file())
+        self.assertEqual(row.cells[GITHUB].status, STATUS_MISSING)
+        self.assertIsNone(row.cells[GITHUB].path)
+        self.assertEqual(row.cells[AGENTS_DIR].status, STATUS_PRESENT)
+
     def test_missing_everywhere_flagged_missing_not_exempt(self):
         row = self.by_name[(SKILL, "missing-everywhere-skill")]
         self.assertEqual(row.cells[GITHUB].status, STATUS_MISSING)
@@ -93,7 +102,8 @@ class TestBuildReport(unittest.TestCase):
     def test_missing_count_matches_expected(self):
         # missing-everywhere-skill: github + agents_dir = 2 / missing-agent: github + codex = 2
         # / unregistered-principle-skill: github (not inlined, no exemption) = 1
-        self.assertEqual(self.report.missing_count, 5)
+        # / misplaced-principle-skill: github (a plain skill file is not a mirror) = 1
+        self.assertEqual(self.report.missing_count, 6)
 
     def test_render_text_contains_expected_rows_and_summary(self):
         text = render_text(self.report)
@@ -110,11 +120,11 @@ class TestBuildReport(unittest.TestCase):
     def test_render_json_round_trips(self):
         payload = to_jsonable(self.report)
         self.assertEqual(payload["schema"], "asset-parity-report/v2")
-        self.assertEqual(payload["summary"]["missing_count"], 5)
+        self.assertEqual(payload["summary"]["missing_count"], 6)
         names = {a["name"] for a in payload["assets"]}
         self.assertIn("plain-skill", names)
         json_text = render_json(self.report)
-        self.assertIn('"missing_count": 5', json_text)
+        self.assertIn('"missing_count": 6', json_text)
 
     def test_json_retains_deprecated_canonical_keys(self):
         payload = to_jsonable(self.report)

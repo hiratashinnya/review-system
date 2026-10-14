@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from asset_parity.copilot_paths import copilot_skill_path, inline_slot_path
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, Asset
 from asset_parity.trees import AGENTS_DIR, CODEX, GITHUB, applicable_trees, expected_paths
 
@@ -20,7 +21,8 @@ def _agent(name):
 
 
 def _marker_line(skill_name):
-    return f"<!-- principles-source: .ai/skills/{skill_name}/SKILL.md; sha256: 0 -->\n"
+    # same shape guidance_sync renders (64-hex sha256); pinned in test_asset_parity_inlining_marker
+    return f"<!-- principles-source: .ai/skills/{skill_name}/SKILL.md; sha256: {'0' * 64} -->\n"
 
 
 def _write_instructions(root, text):
@@ -61,23 +63,60 @@ class TestExpectedPaths(unittest.TestCase):
             asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
             self.assertEqual(expected_paths(asset, GITHUB, root), [])
 
-    def test_uninlined_principle_skill_github_expects_plain_skill_path(self):
+    def _assert_uninlined_expects_only_inline_slot(self, root, asset):
+        paths = expected_paths(asset, GITHUB, root)
+        self.assertEqual(paths, [inline_slot_path(asset.name, root)])
+        # The slot is never a file, and a plain skill file is not among the candidates.
+        self.assertFalse(any(p.is_file() for p in paths))
+        self.assertNotIn(copilot_skill_path(asset.name, root), paths)
+
+    def test_uninlined_principle_skill_github_expects_only_inline_slot(self):
         # instructions exist but name only another skill: this one is not inlined
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _write_instructions(root, _marker_line("some-other-principle"))
             asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
-            self.assertEqual(
-                expected_paths(asset, GITHUB, root), [root / ".github/skills/some-principle/SKILL.md"]
-            )
+            self._assert_uninlined_expects_only_inline_slot(root, asset)
 
-    def test_principle_skill_without_instructions_file_expects_plain_skill_path(self):
+    def test_principle_skill_without_instructions_file_expects_only_inline_slot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
-            self.assertEqual(
-                expected_paths(asset, GITHUB, root), [root / ".github/skills/some-principle/SKILL.md"]
-            )
+            self._assert_uninlined_expects_only_inline_slot(root, asset)
+
+    def test_uninlined_principle_skill_with_plain_skill_file_is_still_not_satisfied(self):
+        # asset-lateral-deploy routes `user-invocable: false` to Instructions, never to a skill:
+        # a plain Copilot skill file for it is a misplacement, not a mirror.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_instructions(root, _marker_line("some-other-principle"))
+            stray = copilot_skill_path("some-principle", root)
+            stray.parent.mkdir(parents=True)
+            stray.write_text("---\nname: some-principle\n---\n", encoding="utf-8")
+            asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
+            self.assertTrue(stray.is_file())
+            self._assert_uninlined_expects_only_inline_slot(root, asset)
+
+    def test_incomplete_or_malformed_marker_does_not_count_as_inlined(self):
+        good_sha = "ab" * 32
+        base = "<!-- principles-source: .ai/skills/some-principle/SKILL.md;"
+        malformed = {
+            "prefix only": base,
+            "no sha256 field": f"{base} -->",
+            "sha256 not hex digits": f"{base} sha256: 0 -->",
+            "sha256 too short": f"{base} sha256: {good_sha[:-1]} -->",
+            "sha256 too long": f"{base} sha256: {good_sha}0 -->",
+            "comment not closed": f"{base} sha256: {good_sha}",
+            "trailing text": f"{base} sha256: {good_sha} --> trailing",
+            "other skill name": f"<!-- principles-source: .ai/skills/some-principle-x/SKILL.md; "
+                                f"sha256: {good_sha} -->",
+        }
+        for label, line in malformed.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                _write_instructions(root, line + "\n")
+                asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
+                self._assert_uninlined_expects_only_inline_slot(root, asset)
 
     def test_principle_skill_agents_dir_uses_plain_skill_path(self):
         paths = expected_paths(_skill("spec-principles", MODE_PRINCIPLE), AGENTS_DIR, ROOT)

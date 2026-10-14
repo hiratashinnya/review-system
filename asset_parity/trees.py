@@ -17,7 +17,7 @@ asset-lateral-deploy/SKILL.md`'s routing decision tree: a parity-seed skill's
     represents it as a **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
   * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
     inlines it into `.github/copilot-instructions.md` (no discrete file) only if it really
-    is, as read from that file's content (`inlining.py`); else the plain skill path is expected.
+    is, as read from that file's content (`inlining.py`); else a plain skill file is not accepted.
 
 Codex's `.agents/skills/` tree does not have this split (verified: orchestrator-mode
 skills like `asset-pipeline`/`spec-pipeline` and even the `user-invocable: false`

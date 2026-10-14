@@ -37,7 +37,7 @@ Copilot へは展開せず、`.github/copilot-instructions.md` へも本文を�
 - **元の判断**：2026-07-28、close 済み PR #260 の時点でオーナーが同じ非移植を確定していた。ただしその記録は PR #260 の branch の `.claude/tailoring-registry.md` にしか無く、main には入っていない。上の再確定は、この記録を main 上で辿れない状態を解消するためのものである。
 - **理由**：本スキルを読み込む予定の委譲系の資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植であり、Copilot 側に利用者がいない。
 
-`asset_parity` の Copilot 列は、`user-invocable: false` の skill が `.github/copilot-instructions.md` へ実際に展開済み（`principles-source` マーカーで判定）の場合だけ構造的 `exempt` にする。本 skill は展開しないので通常の skill と同じ `.github/skills/<name>/SKILL.md` を期待され、`asset_parity/exceptions.py` の `EXEMPTIONS` に登録して `exempt` にしている。登録が無ければ `MISSING` になり、asset-parity が赤くなる。登録は「Copilot から参照できる」ことの根拠ではない。非移植決定の一次情報源は `.claude/tailoring-registry.md` の該当行である。
+`asset_parity` の Copilot 列は、`user-invocable: false` の skill が `.github/copilot-instructions.md` へ実際に展開済み（完全な `principles-source` マーカー行で判定）の場合だけ構造的 `exempt` にする。本 skill は展開しないので、`asset-lateral-deploy` の振り分け決定木（`user-invocable: false` は Instructions へ展開し skill/prompt にしない）に従い通常の skill ファイル（`.github/skills/<name>/SKILL.md`）を置いても `present` とは扱われず、`asset_parity/exceptions.py` の `EXEMPTIONS` に登録して `exempt` にしている。登録が無ければ `MISSING` になり、asset-parity が赤くなる。登録は「Copilot から参照できる」ことの根拠ではない。非移植決定の一次情報源は `.claude/tailoring-registry.md` の該当行である。
 
 非移植の記録は、PF 個別管理リスト（`.ai/Individually-managed-lists.md`「個別配置・非移植」）と Copilot 向け常駐 guidance の原稿（`.ai/guidance/platforms/copilot.md`「Copilot 固有の非移植」。生成物は `.github/copilot-instructions.md`）の両方に載せ、一致させる。「`copilot-instructions.md` へ展開しない」は本文（D0〜D8 の規律）をインラインしないという意味であり、非移植一覧に名前を載せることは含まない。配置テスト（`tests/unit/test_silent_failure_diagnosis_layout.py`）もこの定義に合わせ、名前の記載は許し、本文の展開だけを禁じる。
 

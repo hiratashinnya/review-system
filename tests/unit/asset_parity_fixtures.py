@@ -28,6 +28,8 @@ def make_tree(test: unittest.TestCase) -> Path:
         agents_dir には plain な SKILL.md として present
       * ``uninlined-principle-skill``（``user-invocable: false``・inline されない・exempt 登録あり）
         / ``unregistered-principle-skill``（同・exempt 登録なし → github で MISSING）
+        / ``misplaced-principle-skill``（同・exempt 登録なし・``.github/skills/`` に通常 skill として
+        存在するが配置規範違反なので PRESENT ではなく github で MISSING）
       * ``missing-everywhere-skill``: 正本のみ。exempt 登録なし → 両ツリーで MISSING
       * ``exempt-skill``: 正本のみだが github は exempt 登録あり（agents_dir は present）
       * ``plain-agent`` / ``exempt-agent`` / ``missing-agent``: 同様の agent 版
@@ -46,7 +48,9 @@ def make_tree(test: unittest.TestCase) -> Path:
     _w(root / ".claude/skills/principle-skill/SKILL.md",
        "---\nname: principle-skill\ndescription: Always-loaded principle.\n"
        "user-invocable: false\n---\n\nbody\n")
-    for name in ("uninlined-principle-skill", "unregistered-principle-skill"):
+    for name in (
+        "uninlined-principle-skill", "unregistered-principle-skill", "misplaced-principle-skill",
+    ):
         _w(root / f".claude/skills/{name}/SKILL.md",
            f"---\nname: {name}\ndescription: Principle not inlined.\n"
            "user-invocable: false\n---\n\nbody\n")
@@ -73,7 +77,11 @@ def make_tree(test: unittest.TestCase) -> Path:
        "---\nname: orchestrator-skill\ndescription: An orchestrator.\n---\n\nbody\n")
     # principle-skill: 個別ファイルは無く copilot-instructions.md へ inline 済み
     _w(root / ".github/copilot-instructions.md",
-       "<!-- principles-source: .ai/skills/principle-skill/SKILL.md; sha256: 0 -->\n")
+       "<!-- principles-source: .ai/skills/principle-skill/SKILL.md; "
+       f"sha256: {'0' * 64} -->\n")
+    # misplaced-principle-skill: inline されず、規範が禁じる通常 skill として置かれている
+    _w(root / ".github/skills/misplaced-principle-skill/SKILL.md",
+       "---\nname: misplaced-principle-skill\ndescription: Principle placed as a skill.\n---\n\nbody\n")
     # missing-everywhere-skill / exempt-skill: 意図的に置かない
     _w(root / ".github/agents/plain-agent.agent.md",
        "---\nname: plain-agent\ndescription: A plain agent.\n---\n\nbody\n")

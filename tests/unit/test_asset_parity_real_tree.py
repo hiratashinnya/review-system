@@ -10,7 +10,7 @@ from pathlib import Path
 
 from asset_parity.inlining import is_inlined_into_copilot_instructions
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, scan_parity_seeds
-from asset_parity.report import STATUS_EXEMPT, STATUS_PRESENT, build_report
+from asset_parity.report import STATUS_EXEMPT, build_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,12 +53,11 @@ class TestRealTree(unittest.TestCase):
                 self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
                 self.assertIn("inlined", reason, row.asset.name)
             else:
-                # Not inlined: a discrete Copilot file (present) or a documented exemption.
-                # An unregistered gap is MISSING, which must fail here.
+                # Not inlined: only a documented exemption is acceptable. A plain Copilot skill
+                # file is a misplacement (never PRESENT) and an unregistered gap is MISSING.
                 self.assertNotIn("inlined per", reason, row.asset.name)
-                self.assertIn(cell.status, {STATUS_PRESENT, STATUS_EXEMPT}, row.asset.name)
-                if cell.status == STATUS_EXEMPT:
-                    self.assertTrue(reason, row.asset.name)
+                self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
+                self.assertTrue(reason, row.asset.name)
 
     def test_spec_principles_is_inlined_into_copilot_instructions(self):
         assets = {a.name: a for a in scan_parity_seeds(REPO_ROOT) if a.kind == SKILL}

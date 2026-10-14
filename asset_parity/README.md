@@ -107,11 +107,17 @@ frontmatter alone; the second also depends on the content of
   expected there at all, so the cell is reported as `exempt` with a structural reason
   string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
   kind at all", e.g. Codex agents vs. `.agents/skills`). The structural reason is used
-  **only when the skill is actually inlined** (named by a `principles-source:` marker in
-  `copilot-instructions.md`). A `user-invocable: false` skill that is not inlined is
-  expected at `.github/skills/<name>/SKILL.md` like a plain skill (`trees.expected_paths`
-  via `inlining.principle_github_paths`): a documented exemption in `exceptions.py` then
-  reports its reason, and without one the cell is `MISSING`.
+  **only when the skill is actually inlined** (a complete `principles-source:` marker line
+  in `copilot-instructions.md`: comment end and 64-hex `sha256` field included; a
+  truncated or malformed line does not count). `asset-lateral-deploy` routes a
+  `user-invocable: false` skill to Instructions and never to a skill/prompt, so one that is
+  not inlined has **no accepted Copilot file at all** (`trees.expected_paths` via
+  `inlining.principle_github_paths` expects only its inline slot, which is never a file):
+  a plain `.github/skills/<name>/SKILL.md` or prompt does **not** make the cell `OK` (it is
+  a misplacement), a documented exemption in `exceptions.py` reports its reason as
+  `exempt`, and without one the cell is `MISSING`. The report does not name a stray file;
+  remedy a `MISSING` there by inlining the skill (`guidance_sync`), removing the
+  misplaced file, or recording a documented non-mirror.
 
 ## Module map
 
@@ -120,8 +126,8 @@ frontmatter alone; the second also depends on the content of
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
 | `trees.py` | Per-tree naming conventions + applicability rules (takes the plain Copilot skill path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
-| `copilot_paths.py` | The one definition of the plain Copilot skill path `.github/skills/<name>/SKILL.md` (path definitions only, no judgement) |
-| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its `principles-source` marker; reads the file), which decides whether a discrete Copilot file is expected |
+| `copilot_paths.py` | The one definition of the Copilot paths: plain skill `.github/skills/<name>/SKILL.md`, `.github/copilot-instructions.md`, and the never-a-file inline slot of a principle skill (path definitions only, no judgement) |
+| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its complete `principles-source` marker line; reads the file); if not, only the inline slot is expected — a plain skill file is never accepted |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |
