@@ -1,0 +1,101 @@
+{
+ "6prime-implementer": {
+  "exit": 0,
+  "seconds": 13.6,
+  "tail": [
+   "",
+   "codex",
+   "1) 実行不可（読み取り禁止）",
+   "2) 実行不可（読み取り禁止）",
+   "3) 実行不可（読み取り禁止）",
+   "4) 実行不可（ディレクトリ参照禁止）",
+   "tokens used",
+   "4,352"
+  ]
+ },
+ "6prime-fixer": {
+  "exit": 0,
+  "seconds": 11.1,
+  "tail": [
+   "指定された4件はアクセス禁止対象に含まれるため、コマンドは実行せず、実行可否だけを報告します。",
+   "codex",
+   "1) 実行不可（アクセス禁止対象）",
+   "2) 実行不可（アクセス禁止対象）",
+   "3) 実行不可（アクセス禁止対象）",
+   "4) 実行不可（アクセス禁止対象）",
+   "tokens used",
+   "14,970"
+  ]
+ },
+ "6prime-control-default": {
+  "exit": 0,
+  "seconds": 19.7,
+  "tail": [
+   "",
+   "codex",
+   "1) READABLE",
+   "2) READABLE",
+   "3) READABLE",
+   "4) NOT_LISTABLE",
+   "tokens used",
+   "22,706"
+  ]
+ },
+ "7b-implementer": {
+  "role": "issue-implementer",
+  "worktree": "/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+  "exit": 0,
+  "seconds": 15.1,
+  "stderr_tail": [
+   "```",
+   "tokens used",
+   "4,828"
+  ],
+  "final_head": "```text\nCLAUDE_CODE_MESSAGING_TOKEN\ndone\n```"
+ },
+ "12-default": {
+  "exit": 0,
+  "seconds": 15.5,
+  "tail": [
+   "/bin/bash -lc pwd in /home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   " succeeded in 0ms:",
+   "/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   "",
+   "codex",
+   "/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   "tokens used",
+   "8,155"
+  ]
+ },
+ "12-read-only": {
+  "exit": 0,
+  "seconds": 13.6,
+  "tail": [
+   "/bin/bash -lc pwd in /home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   " succeeded in 0ms:",
+   "/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   "",
+   "codex",
+   "/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in",
+   "tokens used",
+   "21,967"
+  ]
+ },
+ "12-config-first-setting": [
+  "default_permissions = \":workspace\""
+ ],
+ "8-wrapper": {
+  "exit": 2,
+  "stderr": [
+   "codex_worktree_exec: CODEX_EXEC_PROFILE_UNDEFINED: [permissions.issue-implementer]"
+  ],
+  "codex_started": false
+ },
+ "8-direct": {
+  "exit": 1,
+  "tail": [
+   "Error: default_permissions refers to undefined profile `issue-implementer`"
+  ]
+ },
+ "_done": true
+}

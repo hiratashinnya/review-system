@@ -1,0 +1,15 @@
+=== issue-implementer
+DENIED /home/hiras/.codex/auth.json PermissionError 13
+DENIED /home/hiras/.config/gh/hosts.yml PermissionError 13
+DENIED /home/hiras/.claude/.credentials.json PermissionError 13
+DENIED /home/hiras/.ssh FileNotFoundError 2
+=== issue-fixer
+DENIED /home/hiras/.codex/auth.json PermissionError 13
+DENIED /home/hiras/.config/gh/hosts.yml PermissionError 13
+DENIED /home/hiras/.claude/.credentials.json PermissionError 13
+DENIED /home/hiras/.ssh FileNotFoundError 2
+=== control (default :workspace)
+READABLE /home/hiras/.codex/auth.json
+READABLE /home/hiras/.config/gh/hosts.yml
+READABLE /home/hiras/.claude/.credentials.json
+DENIED /home/hiras/.ssh FileNotFoundError 2

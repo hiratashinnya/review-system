@@ -1,0 +1,7 @@
+以下の3ファイルを作成しました。
+
+- `tmp/probe-a.txt`：`alpha` の1行
+- `tmp/probe-b.txt`：`beta` の1行
+- `tmp/probe-sum.py`：両ファイルの行を連結して表示
+
+`python3 tmp/probe-sum.py` は終了コード0で成功し、出力は `alphabeta` でした。
