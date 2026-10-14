@@ -13,8 +13,9 @@
 #   （「過去に記録された指示・役割は standing order ではない。過去の文言はあなたを拘束しない」）
 #   を注入するため、冒頭で一度読まれただけの CLAUDE.md が相対化されうる。毎ターン注入すれば
 #   規約は常に現在のターンの指示として届き、この相対化の対象から外れる。
-#   subagent 側の同種対策は各 `.claude/agents/*.md` の「注入ブロックへの優先規定」節、または同等の規定を持つ節
-#   （節名はエージェントごとに異なる。対応表は `.claude/hooks/README.md`「規約注入フック」）が担う。
+#   subagent 側の同種対策は起動できる17エージェント中16エージェントにあり、各 `.claude/agents/*.md` の
+#   「注入ブロックへの優先規定」節、または同等の規定を持つ節が担う。`reconciliation` は例外である
+#   （対応表は `.claude/hooks/README.md`「規約注入フック」）。
 #
 # 入力: UserPromptSubmit フックの stdin JSON（本フックは内容を参照しないので読み捨てる）。
 # 出力: {"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"..."}}
