@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from asset_parity.copilot_paths import copilot_instructions_path
 from asset_parity.inlining import is_inlined_into_copilot_instructions, principles_marker_pattern
 from asset_parity.inventory import MODE_PRINCIPLE, SKILL, Asset
 from guidance_sync.sync import (
@@ -20,8 +21,8 @@ from guidance_sync.sync import (
 )
 
 SKILL_NAME = "spec-principles"
-# asset_parity/copilot_paths.py rebuilds this path from parts; pinned to guidance_sync's target.
-INSTRUCTIONS_RELATIVE_PATH = ".github/copilot-instructions.md"
+# The file asset_parity reads (from its single path definition); pinned to guidance_sync's target.
+INSTRUCTIONS_RELATIVE_PATH = copilot_instructions_path(Path(".")).as_posix()
 
 
 def _rendered() -> str:

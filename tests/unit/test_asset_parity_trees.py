@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from asset_parity.copilot_paths import copilot_skill_path, inline_slot_path
+from asset_parity.copilot_paths import copilot_instructions_path, copilot_skill_path, inline_slot_path
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, Asset
 from asset_parity.trees import AGENTS_DIR, CODEX, GITHUB, applicable_trees, expected_paths
 
@@ -26,7 +26,7 @@ def _marker_line(skill_name):
 
 
 def _write_instructions(root, text):
-    instructions = root / ".github" / "copilot-instructions.md"
+    instructions = copilot_instructions_path(root)
     instructions.parent.mkdir(parents=True)
     instructions.write_text(text, encoding="utf-8")
 

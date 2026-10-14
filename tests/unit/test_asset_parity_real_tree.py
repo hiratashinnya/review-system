@@ -34,7 +34,8 @@ class TestRealTree(unittest.TestCase):
     def test_build_report_runs_end_to_end(self):
         report = build_report(REPO_ROOT)
         self.assertGreater(len(report.rows), 20)
-        # documented exemptions from tailoring-registry.md must not show up as MISSING
+        # a mirrored skill (issue-pipeline) and a documented non-mirror recorded in
+        # exceptions.py::EXEMPTIONS (issue-implementer) must not show up as MISSING
         by_name = {(row.asset.kind, row.asset.name): row for row in report.rows}
         from asset_parity.report import STATUS_MISSING
         from asset_parity.trees import GITHUB

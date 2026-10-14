@@ -116,8 +116,11 @@ frontmatter alone; the second also depends on the content of
   a plain `.github/skills/<name>/SKILL.md` or prompt does **not** make the cell `OK` (it is
   a misplacement), a documented exemption in `exceptions.py` reports its reason as
   `exempt`, and without one the cell is `MISSING`. The report does not name a stray file;
-  remedy a `MISSING` there by inlining the skill (`guidance_sync`), removing the
-  misplaced file, or recording a documented non-mirror.
+  remedy a `MISSING` there by removing the misplaced file or by recording a documented
+  non-mirror in `exceptions.py`. Inlining is not a remedy for another skill:
+  `guidance_sync` writes the `principles-source` marker for `spec-principles` alone
+  (`guidance_sync/sync.py::PRINCIPLES_SOURCE`), so a new principle skill needs that tool
+  extended first.
 
 ## Module map
 
@@ -125,8 +128,8 @@ frontmatter alone; the second also depends on the content of
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
-| `trees.py` | Per-tree naming conventions + applicability rules (takes the plain Copilot skill path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
-| `copilot_paths.py` | The one definition of the Copilot paths: plain skill `.github/skills/<name>/SKILL.md`, `.github/copilot-instructions.md`, and the never-a-file inline slot of a principle skill (path definitions only, no judgement) |
+| `trees.py` | Per-tree applicability rules + the Codex trees' naming conventions (takes every Copilot path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
+| `copilot_paths.py` | The one definition of every Copilot (`.github/`) path: plain skill `.github/skills/<name>/SKILL.md`, orchestrator prompt `.github/prompts/<name>.prompt.md`, agent `.github/agents/<name>.agent.md`, `.github/copilot-instructions.md`, the never-a-file inline slot of a principle skill, and the Copilot mirror roots scanned for orphans (path definitions only, no judgement; `tests/unit/test_asset_parity_copilot_paths.py` fails if another module spells `.github` itself) |
 | `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its complete `principles-source` marker line; reads the file); if not, only the inline slot is expected — a plain skill file is never accepted |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |

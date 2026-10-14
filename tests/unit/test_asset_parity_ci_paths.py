@@ -14,12 +14,18 @@ Source of Truth (#448), but neither path was added to the workflow's
 build again if the two drift apart in the future (e.g. `trees.py` grows a
 new mirror root without the workflow being updated to match).
 
-`.ai/**` is treated as a documented *trigger-only* exception (see
+Two kinds of *trigger-only* path are documented exceptions (see
 `TRIGGER_ONLY_PATHS` below and the comment block in `asset-parity.yml`
-itself): it must trigger the workflow, but it does not correspond to a
-scanned tree root, because `asset_parity`'s inventory boundary intentionally
-excludes `.ai/` from `check`'s own inspection (Issue #407, unchanged by
-#467 — trigger condition and inspection scope are separate axes).
+itself): they must trigger the workflow but are not scanned tree roots.
+
+  * Input the tool reads: `.github/copilot-instructions.md`. `inlining.py` reads
+    its `principles-source` markers, so a change there can flip a cell. Its path
+    is taken from `copilot_paths.copilot_instructions_path`, not retyped here, so
+    a change of that definition fails this test instead of silently drifting.
+  * Input the tool does not read: `.ai/**` (Issue #407/#467). Its inventory
+    boundary intentionally excludes `.ai/` from `check`'s own inspection; it only
+    makes sure a PR editing the shared source still triggers the check — trigger
+    condition and inspection scope are separate axes.
 """
 
 from __future__ import annotations
@@ -28,6 +34,8 @@ import re
 import unittest
 from pathlib import Path
 
+import asset_parity
+from asset_parity.copilot_paths import copilot_instructions_path
 from asset_parity.inventory import (
     AGENT,
     PARITY_SEED_AGENTS_DIR,
@@ -38,6 +46,8 @@ from asset_parity.trees import ALL_TREES, mirror_root_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "asset-parity.yml"
+# Input `asset_parity` reads (inlining marker), derived from its single path definition.
+INSTRUCTIONS_TRIGGER = copilot_instructions_path(Path(".")).as_posix()
 
 # Paths intentionally present in the workflow's `paths:` filter that do NOT
 # correspond to a tree/mirror root scanned by asset_parity/{trees,inventory}.py.
@@ -48,9 +58,9 @@ WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "asset-parity.yml"
 # of silently passing.
 TRIGGER_ONLY_PATHS = {
     ".ai/**",  # Issue #407/#467: trigger-only; asset_parity inventory scope is unchanged
-    ".github/copilot-instructions.md",  # inlining marker input, not a scanned asset tree
-    "asset_parity/**",  # the tool's own implementation
-    ".github/workflows/asset-parity.yml",  # the workflow file itself
+    INSTRUCTIONS_TRIGGER,  # inlining marker input the tool reads, not a scanned asset tree
+    f"{asset_parity.__name__}/**",  # the tool's own implementation
+    WORKFLOW_PATH.relative_to(REPO_ROOT).as_posix(),  # the workflow file itself
 }
 
 
@@ -172,9 +182,9 @@ class TestAssetParityCiPathsMatchTrees(unittest.TestCase):
     def test_copilot_instructions_trigger_as_documented_exception(self) -> None:
         for trigger, configured in self.blocks.items():
             self.assertIn(
-                ".github/copilot-instructions.md",
+                INSTRUCTIONS_TRIGGER,
                 configured,
-                f"{trigger}.paths should include '.github/copilot-instructions.md' "
+                f"{trigger}.paths should include '{INSTRUCTIONS_TRIGGER}' "
                 "because asset_parity reads it to verify principle inlining.",
             )
 

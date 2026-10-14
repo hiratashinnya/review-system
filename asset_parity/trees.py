@@ -3,7 +3,7 @@
 Verified against the actual repo layout (not assumed) as part of the issue #155 audit:
 
   * GitHub Copilot  — skill: `.github/skills/<name>/SKILL.md`
-                      agent: `.github/agents/<name>.agent.md`
+                      agent: `.github/agents/<name>.agent.md` (defined in `copilot_paths.py`)
   * Codex CLI agent — agent: `.codex/agents/<name>.toml`  (no skill-shaped tree)
   * Codex CLI skill — skill: `.agents/skills/<name>/SKILL.md`  (top-level `.agents/`,
                       NOT nested under `.codex/` — this is Codex's documented
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .copilot_paths import copilot_skill_path
+from . import copilot_paths
 from .inlining import principle_github_paths
 from .inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, Asset
 
@@ -68,7 +68,7 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
 
     if asset.kind == AGENT:
         if tree == GITHUB:
-            return [root / ".github" / "agents" / f"{asset.name}.agent.md"]
+            return [copilot_paths.copilot_agent_path(asset.name, root)]
         if tree == CODEX:
             return [root / ".codex" / "agents" / f"{asset.name}.toml"]
         return []
@@ -80,8 +80,8 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
         if asset.mode == MODE_PRINCIPLE:
             return principle_github_paths(asset, root)  # [] when inlined (no discrete file)
         if asset.mode == MODE_ORCHESTRATOR:
-            return [root / ".github" / "prompts" / f"{asset.name}.prompt.md"]
-        return [copilot_skill_path(asset.name, root)]
+            return [copilot_paths.copilot_prompt_path(asset.name, root)]
+        return [copilot_paths.copilot_skill_path(asset.name, root)]
     return []
 
 
@@ -93,8 +93,8 @@ def mirror_root_dirs(tree: str, kind: str, root: Path) -> list[Path]:
     """
     if tree not in applicable_trees(kind):
         return []
-    if kind == AGENT:
-        return [root / ".github" / "agents"] if tree == GITHUB else [root / ".codex" / "agents"]
     if tree == GITHUB:
-        return [root / ".github" / "skills", root / ".github" / "prompts"]
+        return copilot_paths.copilot_mirror_roots(kind, root)
+    if kind == AGENT:
+        return [root / ".codex" / "agents"]
     return [root / ".agents" / "skills"]
