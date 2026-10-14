@@ -47,7 +47,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 ## PR base の取り込み
 
-`docs/tools/gitgate-base-integration.md`（policy 1.1）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
+`docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
 
 取り込み経路は通常 Claude issue-fixer だけが使う。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) / [Codex wrapper](../../.codex/agents/issue-fixer.toml) に従う。未対応の実行環境で取り込みが必要なら STOP して報告し、raw Git や別の host 入口で代替しない。
 

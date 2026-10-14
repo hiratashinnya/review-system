@@ -6,6 +6,7 @@ from pathlib import Path
 from issue_start import worktree_ledger
 from branch_source.policy import BranchSourceError
 from .base_abort import abort
+from .base_copilot import REGISTER, register
 from .base_authority import identity
 from .base_continue import continue_integration
 from .base_error import BaseIntegrationError, require
@@ -17,7 +18,11 @@ from .base_start import start
 
 def execute(verb, args, *, workspace=None, api=None):
     request = parse_request(verb, list(args))
+    if verb == REGISTER:
+        return register(workspace or Path.cwd(), request, api or default_api())
     root, entry, binding = identity(workspace or Path.cwd())
+    if verb == "integrate-base" and entry.get("platform") == "copilot-local":
+        require(request == entry["base_authorization"]["request"], "BASE_COPILOT_REQUEST_MISMATCH")
     if verb == "integrate-base":
         return start(root, entry, binding, request, api or default_api())
     operation = active_operation(entry)
