@@ -3,6 +3,8 @@
 copilot_paths.py が「Copilot パスの単一定義」を名乗れるのは、他モジュールが `.github` を
 直書きしていない間だけである。名乗りと実態の食い違い（パス変更で直す箇所が散らばる）を
 ここで機械的に固定する。
+限界：検査は個々の文字列定数だけを照合し、定数式（".github" + "/skills" 等の組み立て）は
+評価しない（#637 で扱う）。単一定義の完全な保証ではなく、直書き防止の補助である。
 """
 
 import ast
@@ -27,10 +29,10 @@ PACKAGE_DIR = Path(asset_parity.__file__).resolve().parent
 DEFINITION_MODULE = "copilot_paths.py"
 
 
-# `.github` as a path component: bare, trailing `/` (a joined or f-string head), or `/<path char>`
-# (incl. `{`/`%` placeholders). Prose like `（.github/）` in an exemption reason does not match,
-# since `/` is then followed by a non-path char that is not the end of the string.
-_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:/[\w.*{%-]|/?$)")
+# `.github` as a path component: bare, or followed by one or more `/` or `\` (repeated separators
+# still name the directory) and a path char (incl. `{`/`%` placeholders) or the string end.
+# Prose like `（.github/）` does not match: its separator is followed by a non-path char.
+_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:[/\\]+[\w.*{%-]|[/\\]*$)")
 _DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 
@@ -86,10 +88,11 @@ class TestCopilotPaths(unittest.TestCase):
 
 class TestSingleDefinition(unittest.TestCase):
     def test_only_copilot_paths_module_spells_the_github_directory(self):
+        modules = {m.relative_to(PACKAGE_DIR).as_posix(): m for m in PACKAGE_DIR.rglob("*.py")}
         stray = {
-            module.name: lines
-            for module in sorted(PACKAGE_DIR.glob("*.py"))
-            if module.name != DEFINITION_MODULE and (lines := _github_dir_literals(module))
+            name: lines
+            for name, module in sorted(modules.items())
+            if name != DEFINITION_MODULE and (lines := _github_dir_literals(module))
         }
         self.assertEqual(
             stray, {},
@@ -125,10 +128,21 @@ class TestGithubPathScanner(unittest.TestCase):
         )
         self.assertEqual(_github_path_literal_lines(source), [1, 2, 3, 4, 5])
 
+    def test_repeated_and_backslash_separators_are_found(self):
+        source = (
+            'a = ".github//skills"\n'
+            'b = ".github\\\\skills"\n'
+            'c = ".github/\\\\agents"\n'
+            'd = ".github//"\n'
+            'e = f".github\\\\\\\\{name}"\n'
+        )
+        self.assertEqual(_github_path_literal_lines(source), [1, 2, 3, 4, 5])
+
     def test_prose_mention_and_lookalike_names_are_not_found(self):
         source = (
             'reason = "Copilot（.github/）には等価物なし"\n'
             'tail = "Copilot（.github/）"\n'
+            'repeated = "Copilot（.github//）"\n'
             'other = ".githubusercontent/x"\n'
             'dotted = "x.github/y"\n'
         )
