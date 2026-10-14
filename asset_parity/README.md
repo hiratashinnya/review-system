@@ -108,11 +108,16 @@ frontmatter alone; the second also depends on the content of
   string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
   kind at all", e.g. Codex agents vs. `.agents/skills`). The structural reason is used
   **only when the skill is actually inlined** (a complete `principles-source:` marker line
-  in `copilot-instructions.md`: comment end and 64-hex `sha256` field included; a
-  truncated or malformed line does not count). `asset-lateral-deploy` routes a
+  in the *body* of `copilot-instructions.md`: comment end and 64-hex `sha256` field
+  included; a truncated or malformed line does not count). The generated header (the lines
+  before the first blank line) always carries the same marker for `spec-principles`
+  whether or not the body inlines it, so the header is skipped and is no evidence.
+  `asset-lateral-deploy` routes a
   `user-invocable: false` skill to Instructions and never to a skill/prompt, so one that is
   not inlined has **no accepted Copilot file at all** (`trees.expected_paths` via
-  `inlining.principle_github_paths` expects only its inline slot, which is never a file):
+  `inlining.principle_github_paths` expects only its inline slot, a
+  `copilot_paths.InlineSlotPath` whose `is_file()` is always false, so nothing on disk can
+  satisfy it):
   a plain `.github/skills/<name>/SKILL.md` or prompt does **not** make the cell `OK` (it is
   a misplacement), a documented exemption in `exceptions.py` reports its reason as
   `exempt`, and without one the cell is `MISSING`. The report does not name a stray file;
@@ -129,8 +134,8 @@ frontmatter alone; the second also depends on the content of
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
 | `trees.py` | Per-tree applicability rules + the Codex trees' naming conventions (takes every Copilot path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
-| `copilot_paths.py` | The one definition of every Copilot (`.github/`) path: plain skill `.github/skills/<name>/SKILL.md`, orchestrator prompt `.github/prompts/<name>.prompt.md`, agent `.github/agents/<name>.agent.md`, `.github/copilot-instructions.md`, the never-a-file inline slot of a principle skill, and the Copilot mirror roots scanned for orphans (path definitions only, no judgement; `tests/unit/test_asset_parity_copilot_paths.py` fails if another module spells `.github` itself) |
-| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its complete `principles-source` marker line; reads the file); if not, only the inline slot is expected — a plain skill file is never accepted |
+| `copilot_paths.py` | The one definition of every Copilot (`.github/`) path: plain skill `.github/skills/<name>/SKILL.md`, orchestrator prompt `.github/prompts/<name>.prompt.md`, agent `.github/agents/<name>.agent.md`, `.github/copilot-instructions.md`, the inline slot of a principle skill (`InlineSlotPath`, whose `is_file()` is always false), and the Copilot mirror roots scanned for orphans (path definitions only, no judgement; `tests/unit/test_asset_parity_copilot_paths.py` fails if another module spells a `.github` path itself, whole or as part of a longer string) |
+| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its complete `principles-source` marker line in the body, not the generated header; reads the file); if not, only the inline slot is expected — a plain skill file is never accepted |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |

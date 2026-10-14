@@ -8,6 +8,7 @@ from asset_parity.copilot_paths import copilot_instructions_path, copilot_skill_
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, MODE_SKILL, SKILL, Asset
 from asset_parity.trees import AGENTS_DIR, CODEX, GITHUB, applicable_trees, expected_paths
 
+from tests.unit.asset_parity_fixtures import generated_instructions_text, principles_marker_line
 
 ROOT = Path("/repo")
 
@@ -20,15 +21,17 @@ def _agent(name):
     return Asset(name=name, kind=AGENT, mode=None, parity_seed_path=ROOT / ".claude/agents" / f"{name}.md")
 
 
-def _marker_line(skill_name):
-    # same shape guidance_sync renders (64-hex sha256); pinned in test_asset_parity_inlining_marker
-    return f"<!-- principles-source: .ai/skills/{skill_name}/SKILL.md; sha256: {'0' * 64} -->\n"
-
-
 def _write_instructions(root, text):
     instructions = copilot_instructions_path(root)
     instructions.parent.mkdir(parents=True)
     instructions.write_text(text, encoding="utf-8")
+
+
+def _write_generated(root, *, header_skill, body_lines=()):
+    # header/marker shapes are pinned to guidance_sync in test_asset_parity_inlining_marker
+    _write_instructions(root, generated_instructions_text(
+        header_skill=header_skill, body_lines=body_lines,
+    ))
 
 
 class TestApplicableTrees(unittest.TestCase):
@@ -59,7 +62,10 @@ class TestExpectedPaths(unittest.TestCase):
     def test_inlined_principle_skill_github_expects_no_discrete_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write_instructions(root, _marker_line("some-principle"))
+            _write_generated(
+                root, header_skill="spec-principles",
+                body_lines=(principles_marker_line("some-principle"),),
+            )
             asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
             self.assertEqual(expected_paths(asset, GITHUB, root), [])
 
@@ -74,8 +80,30 @@ class TestExpectedPaths(unittest.TestCase):
         # instructions exist but name only another skill: this one is not inlined
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write_instructions(root, _marker_line("some-other-principle"))
+            _write_generated(
+                root, header_skill="spec-principles",
+                body_lines=(principles_marker_line("some-other-principle"),),
+            )
             asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
+            self._assert_uninlined_expects_only_inline_slot(root, asset)
+
+    def test_marker_only_in_generated_header_does_not_count_as_inlined(self):
+        # guidance_sync writes the principles-source marker into the header whether or not the
+        # body carries the principle, so the header marker alone is no evidence of inlining.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_generated(root, header_skill="some-principle")
+            asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
+            self._assert_uninlined_expects_only_inline_slot(root, asset)
+
+    def test_directory_at_instructions_path_never_makes_inline_slot_a_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
+            slot = inline_slot_path(asset.name, root)
+            copilot_instructions_path(root).mkdir(parents=True)
+            Path(str(slot)).write_text("not the inlined text", encoding="utf-8")
+            self.assertTrue(Path(str(slot)).is_file())  # a real file does sit at the slot's path
             self._assert_uninlined_expects_only_inline_slot(root, asset)
 
     def test_principle_skill_without_instructions_file_expects_only_inline_slot(self):
@@ -89,7 +117,10 @@ class TestExpectedPaths(unittest.TestCase):
         # a plain Copilot skill file for it is a misplacement, not a mirror.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write_instructions(root, _marker_line("some-other-principle"))
+            _write_generated(
+                root, header_skill="spec-principles",
+                body_lines=(principles_marker_line("some-other-principle"),),
+            )
             stray = copilot_skill_path("some-principle", root)
             stray.parent.mkdir(parents=True)
             stray.write_text("---\nname: some-principle\n---\n", encoding="utf-8")
@@ -114,7 +145,8 @@ class TestExpectedPaths(unittest.TestCase):
         for label, line in malformed.items():
             with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
-                _write_instructions(root, line + "\n")
+                # the header carries a valid marker for the same skill; only the body line varies
+                _write_generated(root, header_skill="some-principle", body_lines=(line,))
                 asset = Asset("some-principle", SKILL, MODE_PRINCIPLE, root / "seed.md")
                 self._assert_uninlined_expects_only_inline_slot(root, asset)
 

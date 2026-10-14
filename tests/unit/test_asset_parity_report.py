@@ -1,7 +1,9 @@
 """asset_parity.report — presence/absence マトリクス構築・orphan 検出・exit 判定の契約。"""
 
 import unittest
+from pathlib import Path
 
+from asset_parity.copilot_paths import inline_slot_path
 from asset_parity.inventory import AGENT, SKILL
 from asset_parity.report import (
     STATUS_EXEMPT,
@@ -74,6 +76,24 @@ class TestBuildReport(unittest.TestCase):
         self.assertEqual(row.cells[GITHUB].status, STATUS_MISSING)
         self.assertIsNone(row.cells[GITHUB].path)
         self.assertEqual(row.cells[AGENTS_DIR].status, STATUS_PRESENT)
+
+    def test_directory_at_instructions_path_never_makes_a_principle_skill_present(self):
+        # With a directory where copilot-instructions.md should be, nothing is inlined, and a
+        # file sitting at an inline slot's path must not turn an un-inlined skill into PRESENT.
+        root = make_tree(self)
+        instructions = root / ".github/copilot-instructions.md"
+        instructions.unlink()
+        instructions.mkdir()
+        principle_names = ("principle-skill", "unregistered-principle-skill")
+        for name in principle_names:
+            Path(str(inline_slot_path(name, root))).write_text("stray", encoding="utf-8")
+        report = build_report(
+            root, commit_epoch_fn=lambda p, r: None, is_exempt_fn=_fake_exempt,
+        )
+        cells = {row.asset.name: row.cells[GITHUB] for row in report.rows}
+        for name in principle_names:
+            self.assertEqual(cells[name].status, STATUS_MISSING, name)
+            self.assertIsNone(cells[name].path, name)
 
     def test_missing_everywhere_flagged_missing_not_exempt(self):
         row = self.by_name[(SKILL, "missing-everywhere-skill")]

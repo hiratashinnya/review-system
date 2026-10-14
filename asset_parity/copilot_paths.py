@@ -51,12 +51,23 @@ def copilot_mirror_roots(kind: str, root: Path) -> list[Path]:
     return [_skills_dir(root), _prompts_dir(root)]
 
 
+class InlineSlotPath(type(Path())):
+    """A place that exists only as text inside another file, so it is never a file itself.
+
+    A plain `Path` would answer from the file system, and a file (or a directory with a child)
+    that happens to sit at that path would then count as the mirror. This one answers no.
+    """
+
+    def is_file(self) -> bool:
+        return False
+
+
 def inline_slot_path(name: str, root: Path) -> Path:
     """Virtual place of a principle skill's inlined text: a marker inside the instructions file.
 
-    That text is not a file of its own, so this path lies *under* the instructions file and
-    `is_file()` is never true for it. A cell that expects it is therefore MISSING until the
-    marker exists (or an exemption is registered); a plain `.github/skills/<name>/SKILL.md`
-    cannot stand in for it.
+    That text is not a file of its own, so the path is an `InlineSlotPath` (named under the
+    instructions file for display only). A cell that expects it is therefore MISSING until the
+    marker exists (or an exemption is registered); neither a plain
+    `.github/skills/<name>/SKILL.md` nor anything on disk at the slot can stand in for it.
     """
-    return copilot_instructions_path(root) / f"principles-source:{name}"
+    return InlineSlotPath(copilot_instructions_path(root), f"principles-source:{name}")

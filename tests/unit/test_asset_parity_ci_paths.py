@@ -81,7 +81,7 @@ def _extract_paths_blocks(text: str) -> dict[str, list[str]]:
     for line in text.splitlines():
         trigger_match = re.match(r"^  (push|pull_request):\s*$", line)
         if trigger_match:
-            current_trigger = trigger_match.group(1)
+            current_trigger = str(trigger_match.group(1))
             blocks[current_trigger] = []
             in_paths = False
             continue

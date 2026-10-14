@@ -6,6 +6,8 @@ copilot_paths.py が「Copilot パスの単一定義」を名乗れるのは、�
 """
 
 import ast
+import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -25,12 +27,31 @@ PACKAGE_DIR = Path(asset_parity.__file__).resolve().parent
 DEFINITION_MODULE = "copilot_paths.py"
 
 
-def _github_dir_literals(path: Path) -> list[int]:
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return [
+# `.github` as a whole path component: the bare name, or followed by `/<path char>`. Prose that
+# merely mentions the directory (e.g. `（.github/）` in an exemption reason) does not match.
+_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:/[\w.*-]|$)")
+_DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _docstring_constants(tree: ast.AST) -> set[int]:
+    owners = (n for n in ast.walk(tree) if isinstance(n, _DOCSTRING_OWNERS) and n.body)
+    firsts = (n.body[0] for n in owners)
+    return {id(s.value) for s in firsts if isinstance(s, ast.Expr)}
+
+
+def _github_path_literal_lines(source: str) -> list[int]:
+    """Lines of string literals (docstrings excluded) that spell a `.github` path, whole or part."""
+    tree = ast.parse(source)
+    docstrings = _docstring_constants(tree)
+    return sorted(
         node.lineno for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and node.value == ".github"
-    ]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        and id(node) not in docstrings and _GITHUB_PATH_COMPONENT.search(node.value)
+    )
+
+
+def _github_dir_literals(path: Path) -> list[int]:
+    return _github_path_literal_lines(path.read_text(encoding="utf-8"))
 
 
 class TestCopilotPaths(unittest.TestCase):
@@ -43,6 +64,16 @@ class TestCopilotPaths(unittest.TestCase):
     def test_inline_slot_lies_under_the_instructions_file(self):
         slot = inline_slot_path("x", ROOT)
         self.assertEqual(slot.parent, copilot_instructions_path(ROOT))
+
+    def test_inline_slot_is_never_a_file_wherever_something_sits_at_its_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slot = inline_slot_path("x", root)
+            copilot_instructions_path(root).mkdir(parents=True)  # a directory, not the file
+            plain = Path(str(slot))
+            plain.write_text("a real file at the slot's path", encoding="utf-8")
+            self.assertTrue(plain.is_file())
+            self.assertFalse(slot.is_file())
 
     def test_mirror_roots_contain_the_expected_files(self):
         agent_roots = copilot_mirror_roots(AGENT, ROOT)
@@ -67,6 +98,37 @@ class TestSingleDefinition(unittest.TestCase):
 
     def test_definition_module_does_spell_it(self):
         self.assertTrue(_github_dir_literals(PACKAGE_DIR / DEFINITION_MODULE))
+
+
+class TestGithubPathScanner(unittest.TestCase):
+    """The scan must catch compound path literals, and only path spellings."""
+
+    def test_bare_and_compound_path_literals_are_found(self):
+        source = (
+            'a = ".github"\n'
+            'b = ".github/skills"\n'
+            'c = ".github/prompts/x.prompt.md"\n'
+            'd = f"{root}/.github/agents"\n'
+            'e = "some/.github/skills/*"\n'
+        )
+        self.assertEqual(_github_path_literal_lines(source), [1, 2, 3, 4, 5])
+
+    def test_prose_mention_and_lookalike_names_are_not_found(self):
+        source = (
+            'reason = "Copilot（.github/）には等価物なし"\n'
+            'other = ".githubusercontent/x"\n'
+            'dotted = "x.github/y"\n'
+        )
+        self.assertEqual(_github_path_literal_lines(source), [])
+
+    def test_docstrings_are_not_found_but_other_strings_in_the_same_scope_are(self):
+        source = (
+            '"""Module doc naming .github/skills."""\n'
+            'def f():\n'
+            '    """Doc naming .github/agents."""\n'
+            '    return ".github/prompts"\n'
+        )
+        self.assertEqual(_github_path_literal_lines(source), [4])
 
 
 if __name__ == "__main__":
