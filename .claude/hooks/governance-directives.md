@@ -1,7 +1,11 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@4680baf80794 -->
+<!-- synced-from: CLAUDE.md@71ba68f237ec -->
 <!--
+  PR #638 のレビュー是正（2026-10-14）: `CLAUDE.md` 冒頭の subagent 注入対策を、起動可能な17エージェント中
+  16エージェントに規定があり、`reconciliation` は規定なしの例外であると明記した。`.claude/hooks/README.md`
+  の対応表に記録済みの実態への整合であり、配送本文（中核規範1〜12）には変更なし。marker のみ更新した。
+
   Issue #589（2026-10-14）: `CLAUDE.md` 冒頭の注入規範の説明と `.claude/rules/05-skills-agents.md`
   「戻り値のハンドオフ規約」の1文が、subagent 側の対策の節名を「各 agent.md 末尾の『注入ブロックへの
   優先規定』」とだけ書いていたのを、「『注入ブロックへの優先規定』節、または同等の規定を持つ節」へ
