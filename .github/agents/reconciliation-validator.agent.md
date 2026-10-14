@@ -1,7 +1,8 @@
 ---
 name: reconciliation-validator
 description: 'Read-only structural validator for doc-system v2 nodes in tmp. Returns VALIDATION_OK with explicit self-fix instructions or ROLLBACK. Never writes files.'
-model: claude-sonnet-5
+disable-model-invocation: true
+user-invocable: false
 tools:
   - read_file
   - grep_search
@@ -16,3 +17,7 @@ tools:
 - `run_in_terminal` は決定論的な検証・照会だけに使う。`create_file`、`replace_string_in_file`、リダイレクト等による書き込みは行わない。
 - `VALIDATION_OK` / `ROLLBACK` の全項目をチャットの hand-off として返し、自己修正は確定値付きの指示に限定する。
 - Copilot の agent loader は反映担当を自動起動しない。`VALIDATION_OK` は呼び出し元が reconciliation へ渡す。
+
+<!-- model-policy: .ai/model-policy.json; agent: reconciliation-validator -->
+
+このファイルは停止状態の template です。[モデル準備手順](../../model_policy/README.md) に従い、同一 surface の一覧から runtime-reconciliation-validator を生成し、解決済みモデルを確認してから起動してください。default model の継承による起動は禁止します。

@@ -18,8 +18,8 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 | PF | mapping |
 |---|---|
 | Claude Code | `model:` は `haiku`／`sonnet`／`opus`。PF上限の差分として、共通の最大の推論予算だけ `effort: xhigh` へ畳む。 |
-| GitHub Copilot | 中位モデル層→`claude-sonnet-5`、最上位モデル層→`claude-opus-4-8`。共通の予算は frontmatter で表現できず、モデルIDだけを写像する。低位モデル層は live の利用可能 ID を確認できた場合だけ指定し、確認できなければ架空 ID を追加せず STOP してオーナー確認を求める。Claude の `effort` や Codex の推論予算キーは持ち込まない。 |
-| Codex CLI／Repo-skill | 低位／中位モデル層→`gpt-6-luna`、最上位モデル層→`gpt-6-sol`。共通の最小／小／中／大／最大を session/config の `model_reasoning_effort: low`／`medium`／`high`／`xhigh`／`max` へ一対一に写像する。`.codex/agents/*.toml` は session 設定を継承して `model` や予算キーを複製しない。 |
+| GitHub Copilot | [.ai/model-policy.json](model-policy.json) の `platforms.copilot` と `copilot_agents` を参照する。[準備手順](../model_policy/README.md) に従い同一 surface の一覧から runtime agent を生成する。追跡対象 template は起動禁止。予算は frontmatter で表現できず、低位の写像は未定義のため STOP する。 |
+| Codex CLI／Repo-skill | [.ai/model-policy.json](model-policy.json) の `platforms.codex` を参照する。[解決手順](../model_policy/README.md) で一覧から対象層の具体 ID を解決し、session/config へ指定する。`.codex/agents/*.toml` は session 設定を継承して `model` や予算キーを複製しない。 |
 
 ## 個別配置・非移植
 

@@ -1,7 +1,8 @@
 ---
 name: reconciliation
 description: 'Writes only VALIDATION_OK doc-system v2 nodes from tmp to the corpus, applies explicit self-fix instructions, preserves status history, and cleans tmp safely. Not an author or validator.'
-model: claude-sonnet-5
+disable-model-invocation: true
+user-invocable: false
 tools:
   - read_file
   - grep_search
@@ -18,3 +19,7 @@ tools:
 - `VALIDATION_OK` がなく、親集合が一致せず、対象対が不足する場合は一切書かない。self_fix は確定値どおりだけを tmp に適用する。
 - 本文の書き込みは `create_file` / `replace_string_in_file`、決定論的な status 遷移・FND reverse・tmp 掃除は承認済み workflow に限定する。`rm` 等の代替削除は行わない。
 - 新規著作、構造検証、無関係な改善、部分的な親だけの反映は行わない。Copilot の loader が不明な入力を補完してはならない。
+
+<!-- model-policy: .ai/model-policy.json; agent: reconciliation -->
+
+このファイルは停止状態の template です。[モデル準備手順](../../model_policy/README.md) に従い、同一 surface の一覧から runtime-reconciliation を生成し、解決済みモデルを確認してから起動してください。default model の継承による起動は禁止します。

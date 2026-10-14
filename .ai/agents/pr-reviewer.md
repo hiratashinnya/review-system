@@ -4,6 +4,8 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/pr-reviewer.md)（正本: `.ai/rationale/pr-reviewer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/pr-reviewer.md) を必要なときだけ参照する。
 
+系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
+
 ## レビュー契約
 
 - レビュー対象のリスク、正しさ、退行、スコープ、プロジェクト規律を実体（読んだ差分・ファイル本文）で確認する。
