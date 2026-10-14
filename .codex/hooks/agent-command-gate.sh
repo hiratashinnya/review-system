@@ -853,9 +853,8 @@ def raw_git_denied_reason(tokens):
 
 def base_integration_reason(command_text, role):
     """Recognize Python module options only for the three fixer integration verbs."""
-    if role == "issue-fixer":
-        return None
-    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
+    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort",
+             "integrate-base-copilot-register"}
     for segment in SEGMENT_SPLIT_RE.split(command_text):
         tokens = shell_words(segment) or []
         for index, token in enumerate(tokens):
@@ -871,7 +870,10 @@ def base_integration_reason(command_text, role):
                         cursor += 1
                         module = tokens[cursor] if cursor < len(tokens) else ""
                     if module in {"gitgate", "gitgate.__main__"} and tokens[cursor + 1:cursor + 2] and tokens[cursor + 1] in verbs:
-                        return "PR base integration is restricted to issue-fixer"
+                        if tokens[cursor + 1] == "integrate-base-copilot-register":
+                            return "Copilot local registration is unavailable on this host"
+                        if role != "issue-fixer":
+                            return "PR base integration is restricted to issue-fixer"
                     break
                 value_option = re.fullmatch(r"-[^cWXm-]*[WX](.*)", option)
                 if value_option:

@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 80c4529a99376566c51e35c7213bd5b624cda4e279cd675034bc3dced2720934 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: b0a5933ae86454289a0a3fd5c08597fdf5706848c16e357b2ed20b6628469abb -->
 
 # プロジェクト共通 guidance
 
@@ -117,3 +117,10 @@
 - 共有リファレンス `silent-failure-diagnosis` は、読み込む予定の委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
 - `issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使い、Claude／Codex 固有の hook や worktree 実行機構を持ち込まない。
+
+
+## PR base 取り込み
+
+- `docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路を使う。Copilot はcleanなPR head branchで `python3 -m gitgate integrate-base-copilot-register --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` により対象を明示認可し、同じ引数の `integrate-base` → 衝突編集 → `integrate-base-continue`、中止は `integrate-base-abort` を使う。
+- この登録は認証済みCopilot roleの保証ではない。固定merge戦略・任意option禁止・固定unittest成功と非ゼロ件・内容CASと2親検証を再利用する。通常cloneも非default PR head branchなら利用できる。
+- commit/pushはgitgateを使い、pending中は行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・protected契約変更・OID driftはSTOPして報告する。Claude/Codex固有hookの等価物を仮定せず、raw Gitや台帳直接編集を阻止するsandboxを謳わない。

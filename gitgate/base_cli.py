@@ -6,10 +6,12 @@ from pathlib import Path
 from issue_start import worktree_ledger
 from branch_source.policy import BranchSourceError
 from .base_abort import abort
+from .base_copilot import REGISTER, register
 from .base_authority import identity
 from .base_continue import continue_integration
 from .base_error import BaseIntegrationError, require
 from .base_journal import active_operation
+from .base_records import operation_records
 from .base_live import default_api
 from .base_request import VERBS, parse_request
 from .base_start import start
@@ -17,7 +19,11 @@ from .base_start import start
 
 def execute(verb, args, *, workspace=None, api=None):
     request = parse_request(verb, list(args))
+    if verb == REGISTER:
+        return register(workspace or Path.cwd(), request, api or default_api())
     root, entry, binding = identity(workspace or Path.cwd())
+    if verb == "integrate-base" and entry.get("platform") == "copilot-local":
+        require(request == entry["base_authorization"]["request"], "BASE_COPILOT_REQUEST_MISMATCH")
     if verb == "integrate-base":
         return start(root, entry, binding, request, api or default_api())
     operation = active_operation(entry)
@@ -30,7 +36,7 @@ def execute(verb, args, *, workspace=None, api=None):
 def refuse_pending_publish(workspace):
     root = worktree_ledger.main_worktree_root(workspace)
     relative = Path(workspace).resolve().relative_to(root.resolve()).as_posix()
-    entries = worktree_ledger.read_ledger(root)["entries"]
+    entries = operation_records(worktree_ledger.read_ledger(root))
     require(not any(entry.get("worktree_path") == relative and active_operation(entry)
                     for entry in entries), "BASE_PENDING_COMMIT_PUSH_DENIED")
 

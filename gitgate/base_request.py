@@ -4,7 +4,7 @@ import re
 from branch_source.policy import validate_repository
 from .base_error import require
 
-VERBS = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
+VERBS = {"integrate-base", "integrate-base-continue", "integrate-base-abort", "integrate-base-copilot-register"}
 
 
 def parse_request(verb, args):
