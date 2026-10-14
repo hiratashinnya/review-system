@@ -42,3 +42,7 @@ F-629-01 resolved、新findingなし。r2記録は `tests/reports/REVIEW-gitgate
 
 全unitは `python3 -m unittest discover -s tests/unit -q` を実行。local HTTP mock用
 network許可を使い、外部live APIに依存しない。9 skipは既存suiteの環境依存条件である。
+
+最終証跡の独立追加確認はclean、新findingなしで完了した。保存ログ/TR/PR本文の
+整合とcode/docs/生成assetの凍結維持を確認した。追跡記録は
+`tests/reports/REVIEW-gitgate-copilot-629-final-evidence.md` を参照。
