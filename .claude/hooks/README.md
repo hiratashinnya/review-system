@@ -811,18 +811,30 @@ python 側に一本化したまま複製しない。
 `agent_type`(対象判定)と `last_assistant_message`(最終応答から `HANDOFF:` 行を探す)。
 `agent_transcript_path` など本 repo で使われていない・未実測のキーには依存しない。
 
-## 「再掲不要」を主文脈へ伝える方法(PostToolUse を使わない理由)
+## 主文脈への伝達(`systemMessage` と `additionalContext` の同時出力)
 
-主文脈への注入に `PostToolUse(Task|Agent)` は使えない。非同期移譲(バックグラウンド実行)では
-PostToolUse は**移譲の完了(SubagentStart より前)**に発火し、サブエージェントの成果物はまだ無いため。
-このためフック側に「表示済み」を伝える経路や表示レシートは持たず、**委譲の入口である
-`/gh-create-issue` skill の規定**(`.claude/skills/gh-create-issue/SKILL.md`)で主文脈に
-「本文は SubagentStop フックが表示する。再掲・要約・Read しない」と指示する。
+フックは1回の出力に `systemMessage`(オーナーのチャットへ直送)と
+`hookSpecificOutput.additionalContext`(`hookEventName: "SubagentStop"`・主文脈へ注入)を**同時に**載せる。
+状況別の `additionalContext`:
+
+| 状況 | `systemMessage` | `additionalContext` |
+|---|---|---|
+| 表示成功 | 本文 | 表示済み・再掲／要約／Read しない(切詰め時は残りが要るときだけ Read) |
+| `HANDOFF:` 行が無い(`NO_HANDOFF_LINE`) | なし | 自動表示できなかった・サブエージェント不具合として報告・推測で GitHub を変更しない |
+| 指すファイルを読めない(`HANDOFF_UNREADABLE`) | なし | 自動表示できなかった・存在すれば Read して本文をそのまま提示 |
+
+失敗を黙らせず主文脈へ伝えるので、レシート等の別経路は持たない。`PostToolUse(Task|Agent)` は使わない:
+非同期移譲(バックグラウンド実行)では**移譲の完了(SubagentStart より前)**に発火し、成果物がまだ無いため。
+skill wrapper(`.claude/skills/gh-create-issue/SKILL.md`)にも同じ規定を置く(フックが動かない環境の保険)。
+
+**未実測**: `SubagentStop` の出力で `additionalContext` が主文脈へ実際に届くかは本 repo では未確認。
+届かない版でも `systemMessage` の直送は影響を受けず、skill wrapper の規定が代替する。
+実機で確認したら本節を更新する。
 
 ## 信頼の入口とパス検証
 
 `HANDOFF:` 行のパスだけを入口とし、`tmp/_handoff/gh-create-issue--<英数字と ._->.md` に**完全一致**、
-`<root>/tmp/_handoff` 直下の**通常ファイル**(symlink 不可)の場合だけ読む。それ以外は無出力 exit 0。
+`<root>/tmp/_handoff` 直下の**通常ファイル**(symlink 不可)の場合だけ読む。それ以外は `systemMessage` なしで `additionalContext` だけを返す（無出力にしない）。
 表示は 64 KiB で切り詰める。
 
 ## fail-open

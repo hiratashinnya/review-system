@@ -1,7 +1,7 @@
 """draft_display（gh-create-issue サブエージェント成果物の直送フック）の単体テスト。
 
 SubagentStop で handoff 本文を ``systemMessage`` として表示する。可視化専用で、
-判定不能な経路はすべて無出力・exit 0（fail-open）。PostToolUse は使わない
+対象外 agent・payload 不読は無出力 exit 0（fail-open）、表示失敗は additionalContext で主文脈へ伝える。PostToolUse は使わない
 （非同期移譲では SubagentStart より前に発火し用途に合わないため）。
 """
 
@@ -86,14 +86,18 @@ class StopHookTests(_Workspace):
         base.update(overrides)
         return base
 
-    def test_displays_handoff_body_via_system_message(self):
+    def test_displays_body_to_owner_and_tells_main_context_not_to_reprint(self):
         self.write_handoff("# draft\n本文テキスト")
         code, out, _ = self.run_hook(stop, self.payload())
         self.assertEqual(code, 0)
-        message = json.loads(out)["systemMessage"]
-        self.assertIn("本文テキスト", message)
-        self.assertIn(REL, message)
-        self.assertNotIn("decision", json.loads(out))
+        parsed = json.loads(out)
+        self.assertIn("本文テキスト", parsed["systemMessage"])
+        self.assertIn(REL, parsed["systemMessage"])
+        self.assertNotIn("decision", parsed)
+        special = parsed["hookSpecificOutput"]
+        self.assertEqual(special["hookEventName"], "SubagentStop")
+        self.assertIn("再掲・要約・言い換えしない", special["additionalContext"])
+        self.assertNotIn("本文テキスト", special["additionalContext"])
 
     def test_other_agent_type_is_silent(self):
         self.write_handoff()
@@ -104,18 +108,29 @@ class StopHookTests(_Workspace):
                 code, out, _ = self.run_hook(stop, payload)
                 self.assertEqual((code, out), (0, ""))
 
-    def test_missing_or_unreadable_handoff_is_silent_with_evidence(self):
+    def test_unreadable_handoff_tells_main_context_without_system_message(self):
         code, out, err = self.run_hook(stop, self.payload())
-        self.assertEqual((code, out), (0, ""))
+        parsed = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertNotIn("systemMessage", parsed)
+        self.assertIn("表示できなかった", parsed["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("Read して本文をそのまま", parsed["hookSpecificOutput"]["additionalContext"])
         self.assertIn("HANDOFF_UNREADABLE", err)
+
+    def test_missing_handoff_line_tells_main_context_to_report(self):
         code, out, err = self.run_hook(stop, self.payload(last_assistant_message="done"))
-        self.assertEqual((code, out), (0, ""))
+        parsed = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertNotIn("systemMessage", parsed)
+        self.assertIn("HANDOFF: 行が無い", parsed["hookSpecificOutput"]["additionalContext"])
         self.assertIn("NO_HANDOFF_LINE", err)
 
     def test_large_handoff_is_truncated(self):
         self.write_handoff("a" * (handoff.MAX_DISPLAY_BYTES + 10))
         _, out, _ = self.run_hook(stop, self.payload())
-        self.assertIn("切詰め", json.loads(out)["systemMessage"])
+        parsed = json.loads(out)
+        self.assertIn("切詰め", parsed["systemMessage"])
+        self.assertIn("切り詰めた", parsed["hookSpecificOutput"]["additionalContext"])
 
     def test_unparsable_stdin_is_silent(self):
         stdout = io.StringIO()

@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@196525cada76 -->
+<!-- synced-from: CLAUDE.md@bb440647b976 -->
 <!--
   Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント
   `gh-create-issue`（Issue 起票の委譲先・成果物は SubagentStop フックがチャット直送）の記載と、
