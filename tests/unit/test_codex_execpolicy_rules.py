@@ -17,6 +17,11 @@ COMMANDS = (
     ("rtk", "git", "merge", "topic"),
     ("rtk", "proxy", "git", "merge", "topic"),
 )
+# Issue #538 D6: Codex の中から codex_worktree_exec を再帰起動させない。
+RECURSIVE_LAUNCH_COMMANDS = (
+    ("python3", "-m", "codex_worktree_exec", "--role", "issue-implementer"),
+    ("python", "-m", "codex_worktree_exec", "--role", "issue-fixer"),
+)
 READ_COMMANDS = (
     ("git", "-C", "/tmp/repo", "status", "--short"),
     ("gh", "pr", "view", "123"),
@@ -42,6 +47,13 @@ class CodexExecpolicyRuleTests(unittest.TestCase):
 
     def test_native_checker_forbids_direct_and_wrapped_mutations(self):
         for command in COMMANDS:
+            with self.subTest(command=command):
+                result = self.check_command(command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)["decision"], "forbidden")
+
+    def test_native_checker_forbids_recursive_wrapper_launch(self):
+        for command in RECURSIVE_LAUNCH_COMMANDS:
             with self.subTest(command=command):
                 result = self.check_command(command)
                 self.assertEqual(result.returncode, 0, result.stderr)
