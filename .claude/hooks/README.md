@@ -803,7 +803,8 @@ python 側に一本化したまま複製しない。
 | ファイル | 役割 |
 |---|---|
 | `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。出力が上限内なら handoff を `systemMessage` でチャットへ直送し、`<handoff>.receipt.json` に結果を記録する。停止はブロックしない。 |
-| `draft_display/` | 上記の実体(`python3 -m draft_display stop`)。`handoff.py` がパス検証・読み出し、`stop.py` がフック本体、`payload.py` が stdin の読み取り。 |
+| `gh-create-issue-receipt-gate.sh` | `PreToolUse(Write|Edit)`。対象agentによるreceipt作成・編集を拒否し、SubagentStop hookだけをreceipt writerにする。 |
+| `draft_display/` | 上記の実体(`python3 -m draft_display stop`)。`handoff.py` がパス検証・読み出し、`stop.py` が表示フック、`receipt_gate.py` がWrite/Edit gate。 |
 
 ## payload の読み方
 
@@ -813,7 +814,7 @@ python 側に一本化したまま複製しない。
 
 ## 主文脈への伝達（receipt）
 
-フックは `additionalContext` による主文脈通知に依存しない。出力上限内の本文だけを `systemMessage` で表示し、結果を handoff と同じ場所の `<handoff-path>.receipt.json` に記録する。Task 完了後の主文脈は必ずこれを Read し、`status: displayed` の場合だけ重複表示を省く。receipt が欠落・破損・`fallback_required` の場合は handoff 全文を Read してそのまま提示する。
+フックは `additionalContext` による主文脈通知に依存しない。出力上限内の本文だけを `systemMessage` で表示し、結果を handoff と同じ場所の `<handoff-path>.receipt.json` に記録する。Task 完了後の主文脈は必ずこれを Read し、`status: displayed` の場合だけ重複表示を省く。receipt が欠落・破損・`fallback_required` の場合は handoff 全文を Read してそのまま提示する。 `Write|Edit` のPreToolUse gateがagentによる対応receiptの作成・編集を拒否し、receiptはSubagentStop hookだけが書く。
 
 ## Claude Code の出力上限
 

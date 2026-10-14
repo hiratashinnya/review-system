@@ -1,9 +1,4 @@
-"""draft_display（gh-create-issue サブエージェント成果物の直送フック）の単体テスト。
-
-SubagentStop で handoff 本文を ``systemMessage`` として表示する。可視化専用で、
-対象外 agent・payload 不読は無出力 exit 0（fail-open）、表示失敗は additionalContext で主文脈へ伝える。PostToolUse は使わない
-（非同期移譲では SubagentStart より前に発火し用途に合わないため）。
-"""
+"""Tests for gh-create-issue handoff display and receipt protection."""
 
 import io
 import json
@@ -14,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from draft_display import handoff, stop
+from draft_display import handoff, receipt_gate, stop
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = ROOT / ".claude" / "hooks"
@@ -149,6 +144,63 @@ class StopHookTests(_Workspace):
 
 
 @unittest.skipUnless(shutil.which("bash"), "bash required")
+class ReceiptWriteGateTests(_Workspace):
+    def run_write_gate(self, tool_name, file_path, *, agent="gh-create-issue"):
+        payload = {
+            "agent_type": agent,
+            "tool_name": tool_name,
+            "tool_input": {"file_path": file_path},
+        }
+        stdout = io.StringIO()
+        code = receipt_gate.run(
+            stdin=io.StringIO(json.dumps(payload)),
+            stdout=stdout,
+            project_root=self.root,
+        )
+        return code, json.loads(stdout.getvalue()) if stdout.getvalue() else None
+
+    def test_write_cannot_precreate_displayed_receipt(self):
+        code, result = self.run_write_gate("Write", REL + handoff.RECEIPT_SUFFIX)
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+    def test_edit_cannot_forge_absolute_receipt_path(self):
+        path = self.root / (REL + handoff.RECEIPT_SUFFIX)
+        _, result = self.run_write_gate("Edit", str(path))
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+    def test_symlink_alias_to_receipt_is_denied(self):
+        receipt = self.root / (REL + handoff.RECEIPT_SUFFIX)
+        receipt.write_text('{"status":"displayed"}', encoding="utf-8")
+        alias = self.root / "tmp" / "receipt-alias.json"
+        try:
+            alias.symlink_to(receipt)
+        except OSError:
+            self.skipTest("symlink unsupported")
+        _, result = self.run_write_gate("Write", str(alias))
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+    def test_handoff_file_and_other_agents_receipts_remain_writable(self):
+        _, handoff_result = self.run_write_gate("Write", REL)
+        self.assertIsNone(handoff_result)
+        _, other_result = self.run_write_gate(
+            "Write", REL + handoff.RECEIPT_SUFFIX, agent="another-agent"
+        )
+        self.assertIsNone(other_result)
+
+    def test_missing_path_fails_closed_for_target_agent(self):
+        _, result = self.run_write_gate("Write", None)
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+
 class LauncherTests(unittest.TestCase):
     def run_launcher(self, name, payload):
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT)}
@@ -177,6 +229,11 @@ class RegistrationTests(unittest.TestCase):
         commands = self.commands("SubagentStop", "gh-create-issue")
         self.assertEqual(len(commands), 1)
         self.assertIn("subagent-draft-display.sh", commands[0])
+
+    def test_receipt_write_gate_is_registered_for_write_and_edit(self):
+        commands = self.commands("PreToolUse", "Write|Edit")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("gh-create-issue-receipt-gate.sh", commands[0])
 
     def test_no_post_tool_use_hook_is_registered_for_the_draft_display(self):
         for entry in self.hooks["PostToolUse"]:

@@ -26,7 +26,7 @@ effort: xhigh
 
 - `request`: 依頼内容（目的・既知の事実・関連 Issue）。
 - `mode`: `draft`（提示のみ・GitHub を変更しない）または `create`（オーナーが作成を明示依頼済み）。`create` でも §1 の write 境界と各確認の充足が前提で、不足なら `NEEDS_OWNER_INPUT` を返す。
-- `handoff_path`: 成果物を書く先。**`tmp/_handoff/gh-create-issue--<key>.md` の形に完全一致しなければ何も書かず STOP して呼び出し元へ報告する**（`<key>` は英数字と `._-` のみ）。
+- `handoff_path`: 成果物を書く先。**`tmp/_handoff/gh-create-issue--<key>.md` の形に完全一致しなければ何も書かず STOP して呼び出し元へ報告する**（`<key>` は英数字と `._-` のみ）。対応する `<handoff_path>.receipt.json` はSubagentStop hook専用で、作成・編集してはならない（PreToolUse gateが拒否する）。
 - `decisions`（任意）: 前回の `QUESTIONS` へのオーナー回答の原文。回答どおりに反映し、言い換えて解釈を広げない。
 - `prior_handoff`（任意）: 前回の handoff。`draft` の本文・予定値はここから Read して再利用し、オーナーが見た内容と作成内容を一致させる（再生成しない）。
 
