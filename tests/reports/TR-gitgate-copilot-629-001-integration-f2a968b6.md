@@ -57,3 +57,8 @@ Copilot原稿SHA256は `b0a5933ae86454289a0a3fd5c08597fdf5706848c16e357b2ed20b66
 このレビューはcode/docsと統合を対象とし、今回完成した全unit/TR/証跡commitの追確認は待ちである。
 本記録作成時は追加push・外部PR本文更新とも未実施。後続証跡commitはcode/docsを変えず、
 保存ログ/TR/レビュー記録のみを追加する。
+
+完成証跡commit `bc0a9eba86d1a19428763eacd7fa5bea749cd404` に対する独立追加確認も完了し、
+clean、新findingなし、F-629-01 resolved維持。全unit/5checks/対象50件/skip内訳/
+TR/PR草稿を照合した報告は `REVIEW-gitgate-copilot-629-integration-evidence-f2a968b6.md`。
+code/docsはf2の凍結を維持する。本追記時も追加pushと外部本文更新は未実施。
