@@ -15,11 +15,10 @@
 #                           primary checkout を切り替えてしまい、戻し忘れると以後の
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
 #                           差分は `gh pr diff --no-compact` / `gh pr view` / `gitgate show-pr-diff|diff|log` で読める。
-#   それ以外の agent_type（main／general-purpose／各 *-author 等・agent_type 欠如を含む）はこの
-#   ゲートのロール専用判定（層1〜3）の対象外＝ロール専用判定は適用しない（下記 2026-07-11 の
-#   オーナー判断）。ただし Issue #224 フォローアップ（案B・後述の「全 agent_type 共通の危険コマンド
-#   deny 層」）を追加したため、対象外ロールも危険コマンド（network/exec）だけは deny され、それ以外は
-#   従来通り許可される。
+#   gh-create-issue は GATED_ROLES の push/merge/worktree 契約には参加せず、専用の狭い gh/git 読取 allowlist
+#   と `gh issue create`／限定 Project item 操作だけを許可する（Issue #632）。それ以外の agent_type
+#  （main／general-purpose／各 *-author 等・agent_type 欠如を含む）はロール専用判定対象外＝許可
+#   （下記 2026-07-11 のオーナー判断）。ただし全 agent_type 共通の危険コマンド（network/exec）は deny する。
 #
 # 設計転換の経緯（Issue #227・2026-07-13 オーナー判断）:
 #   #189→#213→#215→#218→#222 と6ラウンド以上、「危険/安全パターンを個別に列挙して検知する」方式で
@@ -154,6 +153,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -169,6 +169,9 @@ sys.path.insert(0, os.getcwd())
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
+
+# gh-create-issue gets a narrow Bash command gate without joining GATED_ROLES.
+GH_CREATE_ISSUE_ROLE = "gh-create-issue"
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
@@ -1078,6 +1081,231 @@ def gh_violation(tokens, role):
     return gh_flag_violation(key, rest)
 
 
+
+GH_CREATE_ISSUE_STATUS_QUERY = (
+    "query($item:ID!){node(id:$item){__typename "
+    "... on ProjectV2Item{project{field(name:\"Status\"){__typename "
+    "... on ProjectV2SingleSelectField{id name options{id name}}}}}}}"
+)
+
+
+def _option_values(tokens, flag):
+    """Return one flag's values, supporting only separate and --flag=value forms."""
+    values = []
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token == flag:
+            if i + 1 >= len(tokens) or tokens[i + 1].startswith("-"):
+                return None
+            values.append(tokens[i + 1])
+            i += 2
+        elif token.startswith(flag + "="):
+            values.append(token.partition("=")[2])
+            i += 1
+        else:
+            i += 1
+    return values
+
+
+def _status_option_is_done(item_id, field_id, option_id):
+    """Resolve Status live via the selected Project item; fail closed on unreadable metadata."""
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api", "graphql", "-f",
+                "query=" + GH_CREATE_ISSUE_STATUS_QUERY,
+                "-F", "item=" + item_id,
+            ],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        if result.returncode != 0:
+            return None
+        response = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return None
+    if not isinstance(response, dict) or response.get("errors"):
+        return None
+    data = response.get("data")
+    node = data.get("node") if isinstance(data, dict) else None
+    project = node.get("project") if isinstance(node, dict) and node.get("__typename") == "ProjectV2Item" else None
+    status = project.get("field") if isinstance(project, dict) else None
+    if (
+        not isinstance(status, dict)
+        or status.get("__typename") != "ProjectV2SingleSelectField"
+        or status.get("name") != "Status"
+        or not isinstance(status.get("id"), str)
+        or not isinstance(status.get("options"), list)
+    ):
+        return None
+    if status["id"] != field_id:
+        return False
+    matches = [
+        option.get("name") for option in status["options"]
+        if isinstance(option, dict) and option.get("id") == option_id
+    ]
+    if len(matches) != 1:
+        return None
+    return matches[0] == "Done"
+
+
+def gh_create_issue_item_edit_violation(rest):
+    """Reject Status=Done using live Project metadata; unreadable metadata blocks item-edit."""
+    item_ids = _option_values(rest, "--id")
+    field_ids = _option_values(rest, "--field-id")
+    option_ids = _option_values(rest, "--single-select-option-id")
+    if item_ids is None or field_ids is None or option_ids is None:
+        return "gh project item-edit has a malformed option value"
+    if len(item_ids) != 1 or len(field_ids) != 1:
+        return "gh project item-edit requires exactly one --id and --field-id"
+    if not item_ids[0] or not field_ids[0]:
+        return "gh project item-edit requires non-empty --id and --field-id"
+    if len(option_ids) > 1:
+        return "gh project item-edit accepts only one single-select option"
+    if not option_ids:
+        return None
+    result = _status_option_is_done(item_ids[0], field_ids[0], option_ids[0])
+    if result is None:
+        return "live Status metadata is unavailable or inconsistent; item-edit is denied"
+    if result:
+        return "setting Project Status to Done is denied"
+    return None
+
+
+def gh_create_issue_violation(tokens):
+    """Restrict gh-create-issue to Issue creation and bounded Project item operations."""
+    if not tokens:
+        return "empty command"
+    if tokens[0] == "git":
+        if tokens in (["git", "branch", "--show-current"], ["git", "remote", "-v"],
+                      ["git", "status", "--short"], ["git", "status", "--short", "--branch"]):
+            return None
+        if len(tokens) == 4 and tokens[:3] == ["git", "remote", "get-url"] and tokens[3] == "origin":
+            return None
+        return "only bounded read-only git identity commands are permitted"
+    if tokens[0] != "gh":
+        return "only bounded gh and git read commands are permitted"
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {"--repo", "-R"} and index + 1 < len(tokens):
+            index += 2
+            continue
+        if token.startswith("--repo=") or (token.startswith("-R") and len(token) > 2):
+            index += 1
+            continue
+        if token.startswith("-"):
+            return "gh global options other than --repo/-R are denied"
+        break
+    if index >= len(tokens):
+        return "missing gh subcommand"
+    command = tokens[index]
+    index += 1
+    key = (command,)
+    if command in {"issue", "label", "project", "repo"} and index < len(tokens):
+        key = (command, tokens[index])
+        index += 1
+    allowed = {
+        ("issue", "list"), ("issue", "view"), ("issue", "create"), ("repo", "view"),
+        ("label", "list"), ("project", "list"), ("project", "view"),
+        ("project", "field-list"), ("project", "item-list"),
+        ("project", "item-add"), ("project", "item-edit"), ("api",),
+    }
+    if key not in allowed:
+        return f"gh {' '.join(key)} is outside the gh-create-issue allowlist"
+    rest = tokens[index:]
+    if key == ("project", "item-edit"):
+        violation = gh_create_issue_item_edit_violation(rest)
+        if violation:
+            return violation
+    if key == ("api",):
+        endpoint = next((token for token in rest if token.startswith("repos/")), "")
+        method = "GET"
+        for i, token in enumerate(rest):
+            if token in {"--method", "-X"} and i + 1 < len(rest):
+                method = rest[i + 1].upper()
+            elif token.startswith("--method="):
+                method = token.partition("=")[2].upper()
+            elif token.startswith("-X") and len(token) > 2:
+                method = token[2:].upper()
+        if method in {"GET", "HEAD"}:
+            return gh_flag_violation(key, rest)
+        match = re.fullmatch(
+            r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*/"
+            r"(dependencies/blocked_by|sub_issues)",
+            endpoint,
+        )
+        if method != "POST" or not match:
+            return "gh api writes are limited to adding issue dependency/sub-issue relations"
+        expected_field = "issue_id" if match.group(1) == "dependencies/blocked_by" else "sub_issue_id"
+        fields = []
+        skip = False
+        for i, token in enumerate(rest):
+            if skip:
+                skip = False
+                continue
+            if token in {"--method", "-X"}:
+                if i + 1 >= len(rest):
+                    return "gh api relation write is missing its HTTP method"
+                skip = True
+            elif token.startswith("--method=") or (token.startswith("-X") and len(token) > 2):
+                continue
+            elif token == "-F" and i + 1 < len(rest):
+                fields.append(rest[i + 1])
+                skip = True
+            elif token.startswith("-F") and len(token) > 2:
+                fields.append(token[2:].lstrip("="))
+            elif token.startswith("-"):
+                return "gh api relation writes accept only -X/--method and -F fields"
+        if len(fields) != 1 or not re.fullmatch(expected_field + r"=[1-9][0-9]*", fields[0]):
+            return f"gh api relation write requires exactly one numeric {expected_field} field"
+        return None
+    flags = {
+        ("issue", "list"): {"--state", "--search", "--limit", "--json", "--jq", "--assignee", "--label", "--milestone"},
+        ("issue", "view"): {"--json", "--jq", "--comments"},
+        ("repo", "view"): {"--json", "--jq"},
+        ("label", "list"): {"--limit", "--search"},
+        ("project", "list"): {"--owner", "--format"},
+        ("project", "view"): {"--owner", "--format", "--json", "--jq"},
+        ("project", "field-list"): {"--owner", "--format"},
+        ("project", "item-list"): {"--owner", "--format", "--query"},
+        ("issue", "create"): {"--title", "-t", "--body-file", "-F", "--label", "-l", "--assignee", "-a", "--milestone", "-m"},
+        ("project", "item-add"): {"--owner", "--project-number", "--project-id", "--url"},
+        ("project", "item-edit"): {"--id", "--project-id", "--field-id", "--text", "--number", "--single-select-option-id", "--date", "--iteration-id"},
+    }.get(key, set())
+    value_flags = flags | (GH_COMMON_VALUE_FLAGS if key == ("issue", "create") else set())
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            if name not in value_flags:
+                return f"flag {name} is not allowed for gh {' '.join(key)}"
+            index += 1 if "=" in token else 2
+        elif token.startswith("-"):
+            flag = token[:2]
+            if flag not in value_flags:
+                return f"flag {flag} is not allowed for gh {' '.join(key)}"
+            index += 1 if len(token) > 2 else 2
+        else:
+            index += 1
+    return None
+
+
+def gh_create_issue_gate_reason(command_text):
+    symbol = dangerous_shell_symbol(command_text)
+    if symbol:
+        return f"command contains forbidden shell syntax {symbol}"
+    tokens = shell_words(command_text)
+    if tokens is None:
+        return "command cannot be tokenized"
+    tokens, env_reason = strip_wrappers_or_env_reason(tokens)
+    if env_reason:
+        return f"command wrapper or environment assignment is denied ({env_reason})"
+    if not tokens:
+        return "command is empty"
+    return gh_create_issue_violation(tokens)
+
 def role_command_violation(tokens, role):
     """層3: ロール別許可判定。層1・層2 を通過した時点で tokens は「記号を含まない単純な1コマンド」かつ
     先頭語は git/gh/pyright/python -m <module> のいずれか。Git は限定読取と gitgate、gh はサブコマンド
@@ -1234,7 +1462,7 @@ def ctx_gate_reason(suffix, tool_input_obj, role):
     # `cwd` は context-mode 自身が「未指定のときだけプロジェクトルートを補う」動作なので、
     # 明示されている＝モデルが別ディレクトリを狙った場合だけを見ればよい（フックの実行順に依存しない）。
     # gated ロールがリポジトリ外で実行すると、push/merge の非対称が掛かる対象そのものを差し替えられる。
-    if role in GATED_ROLES:
+    if role in GATED_ROLES or role == GH_CREATE_ISSUE_ROLE:
         cwd = tool_input_obj.get("cwd")
         if cwd is not None:
             return (
@@ -1257,7 +1485,11 @@ def ctx_gate_reason(suffix, tool_input_obj, role):
                 f"agent-command-gate: '{token}' is a denied network/exec command for all roles "
                 f"(reached via {suffix}; Issue #224/#303)."
             )
-        if role in GATED_ROLES:
+        if role == GH_CREATE_ISSUE_ROLE:
+            violation = gh_create_issue_gate_reason(command_text)
+            if violation:
+                return f"agent-command-gate ({role}): {violation}."
+        elif role in GATED_ROLES:
             violation = gate_reason(command_text, role)
             if violation:
                 return violation
@@ -1295,7 +1527,7 @@ elif dangerous_token:
         "that env-var prefixes / absolute paths / compound commands can bypass, so this hook denies it "
         "independent of agent_type)."
     )
-elif agent_type not in GATED_ROLES:
+elif agent_type not in GATED_ROLES and agent_type != GH_CREATE_ISSUE_ROLE:
     # agent_type が対象ロール以外（欠如を含む・main context 自身がこれに該当）はロール専用判定
     # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する
     # （Codex 版と dispatch 順を統一・Issue #227 レビュー F3。対象ロールについては下で command 欠落→deny
@@ -1303,6 +1535,8 @@ elif agent_type not in GATED_ROLES:
     pass
 elif not isinstance(command, str) or not command:
     reason = "agent-command-gate: PreToolUse payload does not contain tool_input.command; refusing because the Bash command cannot be inspected."
+elif agent_type == GH_CREATE_ISSUE_ROLE:
+    reason = gh_create_issue_gate_reason(command)
 else:
     reason = gate_reason(command, agent_type)
 

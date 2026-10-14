@@ -86,18 +86,16 @@ class StopHookTests(_Workspace):
         base.update(overrides)
         return base
 
-    def test_displays_body_to_owner_and_tells_main_context_not_to_reprint(self):
+    def test_displays_body_and_records_success_receipt(self):
         self.write_handoff("# draft\n本文テキスト")
         code, out, _ = self.run_hook(stop, self.payload())
         self.assertEqual(code, 0)
         parsed = json.loads(out)
         self.assertIn("本文テキスト", parsed["systemMessage"])
         self.assertIn(REL, parsed["systemMessage"])
-        self.assertNotIn("decision", parsed)
-        special = parsed["hookSpecificOutput"]
-        self.assertEqual(special["hookEventName"], "SubagentStop")
-        self.assertIn("再掲・要約・言い換えしない", special["additionalContext"])
-        self.assertNotIn("本文テキスト", special["additionalContext"])
+        self.assertNotIn("hookSpecificOutput", parsed)
+        receipt = json.loads((self.root / (REL + handoff.RECEIPT_SUFFIX)).read_text("utf-8"))
+        self.assertEqual(receipt["status"], "displayed")
 
     def test_other_agent_type_is_silent(self):
         self.write_handoff()
@@ -108,29 +106,38 @@ class StopHookTests(_Workspace):
                 code, out, _ = self.run_hook(stop, payload)
                 self.assertEqual((code, out), (0, ""))
 
-    def test_unreadable_handoff_tells_main_context_without_system_message(self):
+    def test_unreadable_handoff_records_fallback_without_output(self):
         code, out, err = self.run_hook(stop, self.payload())
-        parsed = json.loads(out)
-        self.assertEqual(code, 0)
-        self.assertNotIn("systemMessage", parsed)
-        self.assertIn("表示できなかった", parsed["hookSpecificOutput"]["additionalContext"])
-        self.assertIn("Read して本文をそのまま", parsed["hookSpecificOutput"]["additionalContext"])
+        self.assertEqual((code, out), (0, ""))
+        receipt = json.loads((self.root / (REL + handoff.RECEIPT_SUFFIX)).read_text("utf-8"))
+        self.assertEqual(receipt["status"], "fallback_required")
         self.assertIn("HANDOFF_UNREADABLE", err)
 
-    def test_missing_handoff_line_tells_main_context_to_report(self):
+    def test_missing_handoff_line_is_reported_in_evidence(self):
         code, out, err = self.run_hook(stop, self.payload(last_assistant_message="done"))
-        parsed = json.loads(out)
-        self.assertEqual(code, 0)
-        self.assertNotIn("systemMessage", parsed)
-        self.assertIn("HANDOFF: 行が無い", parsed["hookSpecificOutput"]["additionalContext"])
+        self.assertEqual((code, out), (0, ""))
         self.assertIn("NO_HANDOFF_LINE", err)
 
-    def test_large_handoff_is_truncated(self):
+    def test_large_handoff_is_never_partially_displayed(self):
         self.write_handoff("a" * (handoff.MAX_DISPLAY_BYTES + 10))
+        _, out, err = self.run_hook(stop, self.payload())
+        self.assertEqual(out, "")
+        self.assertIn("HOOK_OUTPUT_LIMIT", err)
+        receipt = json.loads((self.root / (REL + handoff.RECEIPT_SUFFIX)).read_text("utf-8"))
+        self.assertEqual(receipt["status"], "fallback_required")
+
+    def test_serialized_hook_output_stays_below_claude_limit(self):
+        self.write_handoff("\n" * 5_000)
+        _, out, err = self.run_hook(stop, self.payload())
+        self.assertEqual(out, "")
+        self.assertIn("HOOK_OUTPUT_LIMIT", err)
+
+    def test_success_receipt_allows_caller_to_skip_readback(self):
+        self.write_handoff("# draft\n本文テキスト")
         _, out, _ = self.run_hook(stop, self.payload())
-        parsed = json.loads(out)
-        self.assertIn("切詰め", parsed["systemMessage"])
-        self.assertIn("切り詰めた", parsed["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("systemMessage", json.loads(out))
+        receipt = json.loads((self.root / (REL + handoff.RECEIPT_SUFFIX)).read_text("utf-8"))
+        self.assertEqual(receipt["status"], "displayed")
 
     def test_unparsable_stdin_is_silent(self):
         stdout = io.StringIO()

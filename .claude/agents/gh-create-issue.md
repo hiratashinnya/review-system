@@ -1,6 +1,6 @@
 ---
 name: gh-create-issue
-description: Drafts or creates one GitHub Issue (duplicate check across open/closed, body, labels, Project fields, relations, post-create read-back) in its own context, following the shared gh-create-issue procedure. Non-interactive — owner decisions are returned as QUESTIONS, never asked. Writes the full draft/preview/completion report to a tmp/_handoff file that the SubagentStop hook displays in the owner's chat, and returns only a short final response. Use ONLY via the /gh-create-issue skill launcher (Claude Code); NOT for implementing the Issue (issue-implementer), NOT for reviewing (pr-reviewer), and it never merges, closes, or sets Status=Done.
+description: Drafts or creates one GitHub Issue (duplicate check across open/closed, body, labels, Project fields, relations, post-create read-back) in its own context, following the shared gh-create-issue procedure. Non-interactive — owner decisions are returned as QUESTIONS, never asked. Writes the full draft/preview/completion report to a tmp/_handoff file. The SubagentStop hook displays it only when its serialized output fits Claude Code's limit and writes a receipt for the caller's fallback check. Use ONLY via the /gh-create-issue skill launcher (Claude Code); NOT for implementing the Issue (issue-implementer), NOT for reviewing (pr-reviewer), and it never merges, closes, or sets Status=Done.
 tools: Read, Write, Grep, Glob, Bash
 model: sonnet
 effort: xhigh

@@ -171,7 +171,7 @@ KNOWN_BYPASS_CORPUS = [
     # クォート走査だと `'` をクォート開始と誤認し、以降の `;` を「シングルクォート内のリテラル」と
     # 取り違えて見逃す（層1のスキャナはエスケープを追うことでこれを防いでいる）。
     ("issue-implementer", "git \\' ; git merge evil ; \\'"),
-    ("issue-implementer", "git status \\\n && git merge evil"),
+    ("issue-implementer", "git status \\n && git merge evil"),
 ]
 
 
@@ -1319,6 +1319,137 @@ class AgentCommandGateTests(unittest.TestCase):
         for command in corpus:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+
+    def test_gh_create_issue_has_its_own_narrow_bash_allowlist(self):
+        for command in [
+            "gh issue list --state all --json number,title",
+            "gh repo view --json nameWithOwner",
+            "git branch --show-current",
+            "git remote get-url origin",
+            "gh issue view 12 --json title,labels",
+            "gh issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md --label bug",
+            "gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12",
+            "gh api repos/hiratashinnya/review-system/issues?state=open",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12/dependencies/blocked_by -F issue_id=13",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13",
+        ]:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
+        for command in [
+            "git status",
+            "gh issue close 12",
+            "gh issue create --title x --body-file file --web",
+            "gh api --method PATCH repos/hiratashinnya/review-system/issues/12 -F state=closed",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12 -F state=closed",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=bad",
+            "curl https://example.invalid",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("gh-create-issue", command)))
+
+    def _run_gate_with_project_metadata(self, command, *, response=None, fail=False):
+        with tempfile.TemporaryDirectory() as directory:
+            bin_dir = Path(directory)
+            metadata_path = bin_dir / "metadata.json"
+            if response is not None:
+                metadata_path.write_text(json.dumps(response), encoding="utf-8")
+            gh = bin_dir / "gh"
+            gh.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "if os.environ.get('GH_METADATA_FAIL') == '1': sys.exit(1)\n"
+                "print(json.dumps(json.load(open(os.environ['GH_METADATA_PATH']))))\n",
+                encoding="utf-8",
+            )
+            gh.chmod(0o755)
+            env = {
+                "PATH": directory + os.pathsep + os.environ.get("PATH", ""),
+                "GH_METADATA_PATH": str(metadata_path),
+                "GH_METADATA_FAIL": "1" if fail else "0",
+            }
+            return run_gate(payload("gh-create-issue", command), env=env)
+
+    @staticmethod
+    def _status_metadata(option_name):
+        return {
+            "data": {
+                "node": {
+                    "__typename": "ProjectV2Item",
+                    "project": {
+                        "field": {
+                            "__typename": "ProjectV2SingleSelectField",
+                            "id": "PVTSSF_status",
+                            "name": "Status",
+                            "options": [
+                                {"id": "option_inbox", "name": "Inbox"},
+                                {"id": "option_done", "name": option_name},
+                            ],
+                        }
+                    },
+                }
+            }
+        }
+
+    def test_item_edit_denies_live_status_done(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--single-select-option-id option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_allows_live_status_inbox(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--single-select-option-id option_inbox"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Inbox")
+        )
+        self.assert_allowed(decision)
+
+    def test_item_edit_supports_equals_flags_and_checks_live_done_option(self):
+        command = (
+            "gh project item-edit --id=PVTI_x --field-id=PVTSSF_status "
+            "--single-select-option-id=option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_denies_ambiguous_duplicate_options(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--single-select-option-id option_inbox "
+            "--single-select-option-id option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_fails_closed_when_live_metadata_is_unavailable(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--single-select-option-id option_inbox"
+        )
+        decision = self._run_gate_with_project_metadata(command, fail=True)
+        self.assert_denied(decision)
+
+    def test_item_edit_fails_closed_for_unknown_status_option(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--single-select-option-id option_missing"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
 
     def test_every_gated_role_is_registered_in_all_role_tables(self):
         # 3つのロール別 dict（GATED_ROLES / GITGATE_VERBS_BY_ROLE / GH_SUBCOMMANDS_BY_ROLE）の

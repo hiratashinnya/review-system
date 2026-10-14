@@ -802,7 +802,7 @@ python 側に一本化したまま複製しない。
 
 | ファイル | 役割 |
 |---|---|
-| `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。最終応答の `HANDOFF:` 行が指す handoff を `systemMessage` で**オーナーのチャットへ直送**する(モデルを経由しない)。停止はブロックしない。 |
+| `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。出力が上限内なら handoff を `systemMessage` でチャットへ直送し、`<handoff>.receipt.json` に結果を記録する。停止はブロックしない。 |
 | `draft_display/` | 上記の実体(`python3 -m draft_display stop`)。`handoff.py` がパス検証・読み出し、`stop.py` がフック本体、`payload.py` が stdin の読み取り。 |
 
 ## payload の読み方
@@ -811,34 +811,20 @@ python 側に一本化したまま複製しない。
 `agent_type`(対象判定)と `last_assistant_message`(最終応答から `HANDOFF:` 行を探す)。
 `agent_transcript_path` など本 repo で使われていない・未実測のキーには依存しない。
 
-## 主文脈への伝達(`systemMessage` と `additionalContext` の同時出力)
+## 主文脈への伝達（receipt）
 
-フックは1回の出力に `systemMessage`(オーナーのチャットへ直送)と
-`hookSpecificOutput.additionalContext`(`hookEventName: "SubagentStop"`・主文脈へ注入)を**同時に**載せる。
-状況別の `additionalContext`:
+フックは `additionalContext` による主文脈通知に依存しない。出力上限内の本文だけを `systemMessage` で表示し、結果を handoff と同じ場所の `<handoff-path>.receipt.json` に記録する。Task 完了後の主文脈は必ずこれを Read し、`status: displayed` の場合だけ重複表示を省く。receipt が欠落・破損・`fallback_required` の場合は handoff 全文を Read してそのまま提示する。
 
-| 状況 | `systemMessage` | `additionalContext` |
-|---|---|---|
-| 表示成功 | 本文 | 表示済み・再掲／要約／Read しない(切詰め時は残りが要るときだけ Read) |
-| `HANDOFF:` 行が無い(`NO_HANDOFF_LINE`) | なし | 自動表示できなかった・サブエージェント不具合として報告・推測で GitHub を変更しない |
-| 指すファイルを読めない(`HANDOFF_UNREADABLE`) | なし | 自動表示できなかった・存在すれば Read して本文をそのまま提示 |
+## Claude Code の出力上限
 
-失敗を黙らせず主文脈へ伝えるので、レシート等の別経路は持たない。`PostToolUse(Task|Agent)` は使わない:
-非同期移譲(バックグラウンド実行)では**移譲の完了(SubagentStart より前)**に発火し、成果物がまだ無いため。
-skill wrapper(`.claude/skills/gh-create-issue/SKILL.md`)にも同じ規定を置く(フックが動かない環境の保険)。
-
-**未実測**: `SubagentStop` の出力で `additionalContext` が主文脈へ実際に届くかは本 repo では未確認。
-届かない版でも `systemMessage` の直送は影響を受けず、skill wrapper の規定が代替する。
-実機で確認したら本節を更新する。
+Bash は `.claude/hooks/agent-command-gate.sh` が `gh-create-issue` 専用 allowlist を適用し、他の shell command・git write・GitHub close／汎用 API write（許可した関係追加 API を除く）を拒否する。 `gh project item-edit` は対象 item の Project から `Status` field/options を live 取得し、`Done` を拒否する。認証・API障害やmetadata不整合時も当該single-select編集を拒否する。SubagentStop の出力は JSON 化後 9,000 文字を上限とする。本文が超える場合は `systemMessage` を出さず、`fallback_required` の receipt を書いて主文脈が全文提示する。バイト切詰めで不完全な Issue draft を完成版のように見せない。
 
 ## 信頼の入口とパス検証
 
-`HANDOFF:` 行のパスだけを入口とし、`tmp/_handoff/gh-create-issue--<英数字と ._->.md` に**完全一致**、
-`<root>/tmp/_handoff` 直下の**通常ファイル**(symlink 不可)の場合だけ読む。それ以外は `systemMessage` なしで `additionalContext` だけを返す（無出力にしない）。
-表示は 64 KiB で切り詰める。
+`HANDOFF:` 行のパスだけを入口とし、`tmp/_handoff/gh-create-issue--<英数字と ._->.md` に完全一致し、`<root>/tmp/_handoff` 直下の通常ファイル（symlink 不可）の場合だけ読む。receipt のパスも同じ handoff 名から決定する。本文の読取上限は 64 KiB。超過・読取不能時は partial display せず fallback を要求する。
 
 ## fail-open
 
-どの失敗経路も無出力 exit 0(可視化専用で作業を止めない)。診断は stderr の evidence(1行1 JSON・
+どの失敗経路も本文を出さず、該当handoffがあればfallback receiptを書いて exit 0（可視化専用で停止をブロックしない）。診断は stderr の evidence(1行1 JSON・
 `claude --debug`)。「本文が出ない」ときは `draft-display-stop` の
-`reason`(`NO_HANDOFF_LINE`／`HANDOFF_UNREADABLE`)を確認する。復旧は `.ai/troubleshooting/gh-create-issue.md`。
+`reason`(`NO_HANDOFF_LINE`／`HANDOFF_UNREADABLE`／`HOOK_OUTPUT_LIMIT`)とreceiptを確認する。復旧は `.ai/troubleshooting/gh-create-issue.md`。

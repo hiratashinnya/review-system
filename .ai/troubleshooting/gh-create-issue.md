@@ -29,12 +29,10 @@ Issue URL、成功した項目、Project 未追加、未設定 fields、relation
 
 ## Claude Code でサブエージェントの draft が表示されない／表示を確認できない（Issue #632）
 
-`gh-create-issue` サブエージェントの本文は `tmp/_handoff/gh-create-issue--<key>.md` に書かれ、SubagentStop フック（`.claude/hooks/subagent-draft-display.sh`）がチャットへ直送する。表示されないときは次の順で切り分ける。
+本文は `tmp/_handoff/gh-create-issue--<key>.md` に書かれる。SubagentStop hook は、JSON化後9,000文字以内なら `systemMessage` で全文を表示し、成功／fallbackを `<handoff-path>.receipt.json` に記録する。`additionalContext` による主文脈通知は前提にしない。
 
-1. 最終応答の `HANDOFF:` 行が指すファイルが存在するか確認する（`tmp/_handoff/` 直下・`gh-create-issue--<key>.md`）。無ければエージェントが書けていないので、同じ入力・新しい key で再 dispatch する。
-2. 存在するのに表示されない場合、`claude --debug` の stderr で `draft-display-stop` の `reason` を見る。`NO_HANDOFF_LINE`＝最終応答に `HANDOFF:` 行が無い／`HANDOFF_UNREADABLE`＝パスが規定形（`tmp/_handoff/gh-create-issue--<英数字と ._->.md`・通常ファイル・symlink 不可）ではない。
-3. フックが動いていない（stderr に `draft-display-stop` の evidence が無く、主文脈にも「表示済み」「表示できなかった」の注入が無い）場合は、ワークスペース信頼の未受諾・フック無効化・python3 不在を疑う。復旧するまで handoff を直接 Read して提示する。主文脈は要約で代替してはならず、本文をそのまま提示する（オーナーが「表示されていない」と述べたときだけ。通常は再掲しない）。起票は draft をオーナーが確認してから行う。
-   なお `NO_HANDOFF_LINE`／`HANDOFF_UNREADABLE` のときフックは「自動表示できなかった」旨を `additionalContext` で主文脈へ伝える。主文脈はその指示（報告／Read して提示）に従う。
+1. Task完了後、主文脈は必ずreceiptをReadする。`status: displayed` なら再掲しない。receiptが無い、読めない、または `fallback_required` なら handoff をReadして全文をそのまま提示する。
+2. receiptが `displayed` でもチャット表示を確認できない場合は、同じくhandoffを全文提示する。
+3. stderr の `draft-display-stop` evidence に `NO_HANDOFF_LINE` があれば最終応答にパスが無い。サブエージェントの `SUMMARY` 相当を報告し、推測でGitHubを変更しない。`HANDOFF_UNREADABLE` はファイルが安全に読めない状態、`HOOK_OUTPUT_LIMIT` はhook出力上限超過である。hook起動失敗・receipt欠落も主文脈のfallback条件として扱う。
 
-表示が確認できない状態で `mode: create` の起票へ進まない（draft 提示とオーナー確認が起票の前提）。
-
+draftをオーナーが確認するまで `mode: create` の起票へ進まない。

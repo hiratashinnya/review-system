@@ -6,12 +6,16 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import stat
 from pathlib import Path
 
 AGENT_TYPE = "gh-create-issue"
 HANDOFF_DIR_REL = "tmp/_handoff"
 MAX_DISPLAY_BYTES = 64 * 1024
+RECEIPT_SUFFIX = ".receipt.json"
 
 _HANDOFF_LINE = re.compile(
     r"HANDOFF:\s*(" + re.escape(HANDOFF_DIR_REL) + r"/gh-create-issue--[A-Za-z0-9][A-Za-z0-9._-]*\.md)"
@@ -47,3 +51,27 @@ def read_for_display(handoff: Path) -> tuple[str, bool] | None:
         return None
     truncated = len(raw) > MAX_DISPLAY_BYTES
     return raw[:MAX_DISPLAY_BYTES].decode("utf-8", errors="replace"), truncated
+
+
+def write_receipt(project_root: Path, rel: str, *, status: str, reason: str | None = None) -> bool:
+    """Display hook result for the caller to verify after SubagentStop completes."""
+    if not _HANDOFF_LINE.fullmatch(f"HANDOFF: {rel}"):
+        return False
+    target = project_root / (rel + RECEIPT_SUFFIX)
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        return False
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | nofollow, 0o600)
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            return False
+        payload = {"status": status}
+        if reason:
+            payload["reason"] = reason
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        return False
+    return True
