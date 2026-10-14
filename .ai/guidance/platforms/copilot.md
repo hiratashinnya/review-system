@@ -34,6 +34,8 @@
 
 ## Agents
 
+追跡対象 agent は model-free の停止状態 template である。`.ai/model-policy.json` と `model_policy/README.md` を読み、同一 surface の一覧からローカル `runtime-<agent>` を準備して明示選択する。default model の継承起動や未準備の著作・検証・反映は禁止する。以下の役割名は準備後の runtime agent に読み替える。
+
 - ノード著作: `requirements-author`、`spec-author`、`analysis-author`、`design-author`、`verification-author`
 - 一括著作: `authoring-fanout`
 - 検証・反映: `reconciliation-validator` → `reconciliation`

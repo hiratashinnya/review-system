@@ -63,3 +63,42 @@ Claudeの単一候補fallbackは影響を受けない。公開前是正のため
 移行経路は設けず、旧形式では認可拒否として安全側へ倒す。
 policy 1.2は同一PR内のMINOR遷移途中の是正であり、共通guidanceの一PR一遷移に
 従って据え置く。operation schema v1とshared ledger schemaも変更しない。
+
+## PR #640 のmain取り込み限定例外（2026-10-14）
+
+公開head `dd78c17a2430304f6738826dc80353e8a24ed61a` に対し、オーナーはチャットの
+「はい」で固定戦略main取り込み、protected incoming受入れ、原稿再生成、再検証と
+独立レビュー、検証後の追加pushを今回一度限り承認した。raw merge禁止の明示例外
+であり、製品authority/protectionやrole/platform認可を変更・偽装していない。
+PR自身のmerge、force push、rebase、別OIDの連続取り込みは認可対象外である。
+
+承認案main `5ad91f83991887b076b36929be43f6b33e551cbc` は再fetchで
+`d5ede8370a8cc39745c172c0e7dbfbedabee132b` へ進んだ。差分は#619/#617の
+asset_parity inline検査関連16files。実行直前のremote mainもd5に一致した。
+最新のprotected incomingは次の6path（最後のtailoring registryが旧案から追加）:
+
+- `.agents/skills/bloom-model-tier/SKILL.md`
+- `.ai/agents/issue-fixer.md`
+- `.ai/guidance/platforms/copilot.md`
+- `.claude/skills/codex-review/SKILL.md`
+- `.github/copilot-instructions.md`
+- `.claude/tailoring-registry.md`
+
+PR640 OPEN/head一致、actual branch一致、clean tree、MERGE_HEAD無し、foreign operation
+無しを再確認した。兄弟worktreeでは通常pending CLIがrelative_toで拒否するため、
+それを変更せずcanonical shared ledgerの全dispatch/authorization collectionをread-only
+検査しactive operation0を確認した。登録偽装や環境変数によるgate回避は行っていない。
+固定 `git merge --no-ff --no-commit d5ede8370a8cc39745c172c0e7dbfbedabee132b`
+を一度実行し、実競合は `.github/copilot-instructions.md` のplatform-source hash1行だけ。
+Copilot/fixerの対象SoTは5adとd5で同一と確認し、古いtmp候補をコピーせず統合済み
+SoTを `python3 -m guidance_sync render` で再生成した。
+mainの停止template/同一surface/runtime準備追記とPRのbase取り込み節、fixerのモデル
+証跡追記とpolicy1.2を両方保持する。source SHA256は
+`b0a5933ae86454289a0a3fd5c08597fdf5706848c16e357b2ed20b6628469abb`。
+model_policy、asset_parity、`.ai/model-policy.json` は最新mainと全file bytes一致を確認した。
+
+今回の担当モデルは既存sessionの継承で、系統/層による新選択や別モデル起動を
+行っていない。resolved IDは生成しない。model-free回帰は推論モデルを呼び出さない。
+正式model_policy CLIはcheck/resolve/prepare-copilotで、checkが停止agentと
+tracked-runtime検査を含む。架空のcheck-agents/check-tracked-runtime verbは使わない。
+取り込み後の親列・tree・検証commit・再レビュー・追加push結果は対応TRへ記録する。

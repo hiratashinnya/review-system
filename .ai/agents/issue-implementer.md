@@ -4,6 +4,8 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
+系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
+
 ## 初回実装と是正の分離
 
 レビュー指摘を受けた是正ラウンドは本ロールの仕事ではない。pr-reviewer が finding を返した後は issue-fixer へ回し、着手せず STOP して報告する。

@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 99dbe7e142b8a4330c58e7b7d0de4337d131b2d1d4639e596cc05f6df6f433f5 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: b0a5933ae86454289a0a3fd5c08597fdf5706848c16e357b2ed20b6628469abb -->
 
 # プロジェクト共通 guidance
 
@@ -100,6 +100,8 @@
 - `/spec-pipeline`: 要件から MVP scope までの仕様設計
 
 ## Agents
+
+追跡対象 agent は model-free の停止状態 template である。`.ai/model-policy.json` と `model_policy/README.md` を読み、同一 surface の一覧からローカル `runtime-<agent>` を準備して明示選択する。default model の継承起動や未準備の著作・検証・反映は禁止する。以下の役割名は準備後の runtime agent に読み替える。
 
 - ノード著作: `requirements-author`、`spec-author`、`analysis-author`、`design-author`、`verification-author`
 - 一括著作: `authoring-fanout`

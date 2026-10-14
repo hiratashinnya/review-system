@@ -20,3 +20,9 @@ title: Copilot明示認可による固定PR base取り込み
 
 TC: `tests/unit/test_base_copilot.py` と既存 `test_base_integration.py`。
 結果はTRと保存ログに記録する。公開前ローカル検証でありPR CI結果ではない。
+
+PR #640 main取り込み後は最新main d5ede837を固定対象とし、generated hash競合を
+統合SoTから再生成したcommitへ同じ50件を再実行する。guidance_sync/contract_split/
+model_policy/asset_parityの対象unit、新model_policy check（agent停止/tracked-runtime包含）、
+全unit、4checkを再実行し、2親列とtree/sourcehashと独立レビューを別TRへ保存する。
+上流model_policy/asset_parityは書き換えず、baselineも更新しない。

@@ -4,33 +4,14 @@ in a given tree, so a missing mirror there should be reported as EXEMPT, not MIS
 This list must mirror decisions **already recorded elsewhere**, not invent new ones
 (per the issue #155 task brief: "check how the repo already documents such decisions
 ... before inventing a new mechanism"). The source of truth is
-`.claude/tailoring-registry.md`'s trailing bullet notes, as of this tool's writing:
+`.claude/tailoring-registry.md`'s trailing bullet notes; each entry's reason string
+below cites the decision it transcribes (the registry holds the full rationale).
 
-  * `agy-delegate`（スキル＋エージェント）: agy MCP はローカル CLI／Windows Credential
-    Manager 認証依存のため、クラウド/別プラットフォームへは非移植。
-  * `issue-implementer`／`issue-fixer`／`pr-reviewer`（エージェント）:
-    gh CLI／Claude Code フック（`agent-command-gate.sh`）／Task 委譲／
-    `bloom-model-tier` に依存する Issue 運用 dev-tooling メタパイプラインの
-    サブエージェント群。**Codex CLI へは移植済み**（`.agents/skills/issue-pipeline/SKILL.md`・
-    `.codex/agents/issue-implementer.toml`／`issue-fixer.toml`／`pr-reviewer.toml`）だが、
-    **Copilot（`.github/`）へはエージェント非移植のまま**（gh CLI／Task 委譲／
-    `bloom-model-tier` に Copilot 等価物なし）。`issue-fixer`（Issue #308 の是正専任ロール）はさらに
-    `karte` CLI と PreToolUse フックの両方に依存するため、Copilot 側では契約が成立しない。
-  * `codex-review`（スキル）: `codex` CLI／ChatGPT ログイン／`~/.codex/sessions` に
-    依存する Linux/WSL 専用の「Codex 公式 CLI への第二意見レビュー委譲」入口。
-    **全外部ツリー非移植**（オーナー確定 2026-07-20・.claude/tailoring-registry.md）。
-    Codex CLI を Codex 自身の skill ツリー（`.agents/`）から呼ぶのは再帰的で不自然、
-    Copilot（`.github/`）にも等価物なし。SKILL の applicable tree は GITHUB と
-    AGENTS_DIR のみ（CODEX は agent 専用＝自動 N/A）なので、その2ツリーを exempt する。
-  * `gh-create-issue`（スキル）: ユーザー指定が Codex と Claude Code の2環境に限定された
-    明示スコープのため、その2環境だけに用意する。Copilot 版は作らず、将来 Copilot を
-    対象化する時に形式・tool・対話境界を再評価する。
-
-The first two assets' notes are scoped to the GitHub Copilot (`.github/`) tree
-specifically — Codex CLI (`.codex/agents/`, `.agents/skills/`) carries real equivalents
-for them (verified against the actual files). `codex-review` is exempt on *all* its
-applicable trees. Either way exemptions are recorded per ``(name, kind, tree)``, never
-as a blanket per-asset exemption.
+Exemptions are recorded per ``(name, kind, tree)``, never as a blanket per-asset
+exemption: most entries are scoped to the GitHub Copilot (`.github/`) tree because
+Codex CLI carries real equivalents, while `codex-review` is exempt on *all* its
+applicable trees. A `user-invocable: false` skill that is neither really inlined into
+`copilot-instructions.md` (`inlining.py`) nor listed here is reported MISSING.
 
 If you add a new documented non-mirror decision, first record the decision in
 `.claude/tailoring-registry.md` (or the asset's own `SKILL.md`/agent `.md`), then add
@@ -78,6 +59,11 @@ _GH_CREATE_ISSUE_COPILOT = (
     "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
     "（.claude/tailoring-registry.md）"
 )
+_SILENT_FAILURE_DIAGNOSIS_COPILOT = (
+    "user-invocable: false の共有リファレンスだが Copilot へは非移植（オーナー再確定 2026-10-12）。"
+    "copilot-instructions.md へも本文を展開しないため inlined には当たらない"
+    "（.claude/tailoring-registry.md）"
+)
 
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
@@ -88,6 +74,7 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),
+    Exemption("silent-failure-diagnosis", SKILL, GITHUB, _SILENT_FAILURE_DIAGNOSIS_COPILOT),
 )
 
 

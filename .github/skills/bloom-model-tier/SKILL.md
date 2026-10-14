@@ -9,11 +9,8 @@ description: Choose a GitHub Copilot model ID for a custom agent by classifying 
 
 ## GitHub Copilot 固有の写像
 
-Copilot の agent frontmatter は `model:` に Copilot が利用可能なモデル ID を指定する。PF 中立の「中位モデル層」「最上位モデル層」は、このリポジトリで使用している Copilot のモデル ID ではそれぞれ `claude-sonnet-5`、`claude-opus-4-8` に対応する。共通の推論予算は Copilot の agent frontmatter では表現できず、モデルIDだけを写像する。低位モデル層は live の利用可能 ID を確認できた場合だけ指定する。確認できない場合は架空の model ID を追加せず STOP し、利用可能 ID と採用可否をオーナーへ確認する。Claude Code の `haiku`/`sonnet`/`opus` や `effort:`、Codex の `model_reasoning_effort` を Copilot frontmatter にそのまま持ち込まない。
+系統・層と各 agent の分類の正本は [.ai/model-policy.json](../../../.ai/model-policy.json) の `platforms.copilot`／`copilot_agents` である。中位／最上位は `mid`／`top` を参照する。低位は未定義のため STOP し、架空 ID や別層を追加しない。
 
-```yaml
-model: claude-sonnet-5 # PF 中立の中位モデル層
-```
-```yaml
-model: claude-opus-4-8 # PF 中立の最上位モデル層
-```
+共通の推論予算は Copilot の agent frontmatter では表現できず、モデルIDだけを写像する。Claude の `effort:` や Codex の `model_reasoning_effort` を持ち込まない。
+
+追跡対象 agent は停止状態の template である。[準備手順](../../../model_policy/README.md) に従い SDK／IDE API／CLI の `/model` から同一 surface の一覧を取得し、`python3 -m model_policy prepare-copilot --surface <cli|ide> --catalog <一覧.json>` でローカル runtime agent を生成する。model 未指定の default 継承では起動しない。解決済み ID を実行前に確認し、合致なし・取得失敗・曖昧な最新は STOP する。

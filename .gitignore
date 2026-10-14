@@ -217,6 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .review-workspace/
+.github/agents/runtime-*.agent.md
 .review-state/
 .serena/
 report.html

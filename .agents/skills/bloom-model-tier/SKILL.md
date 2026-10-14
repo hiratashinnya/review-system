@@ -9,25 +9,8 @@ description: カスタム agent の主な認知負荷を Bloom 改訂版で分�
 
 ## Codex CLI 固有の写像
 
-PF 中立のモデル層と推論予算は、Codex CLI の session/config へ独立に写像する。この写像の適用先は Codex CLI の session/config である。`.codex/agents/*.toml` は session の任意設定を継承するため、各 custom-agent TOML へ `model` や `model_reasoning_effort` を複製しない。12セルのモデル層差分と中立予算を欠落させない。
+系統・層・予算の正本は [.ai/model-policy.json](../../../.ai/model-policy.json) の `platforms.codex` である。Bloom の低位／中位／最上位はそれぞれ `low`／`mid`／`top` を参照する。具体 ID の一覧を wrapper に複製しない。
 
-| PF 中立のモデル層 | Codex CLI session/config の `model` |
-|---|---|
-| 低位モデル層 | `model: gpt-6-luna` |
-| 中位モデル層 | `model: gpt-6-luna` |
-| 最上位モデル層 | `model: gpt-6-sol` |
+[解決手順](../../../model_policy/README.md) に従って `python3 -m model_policy resolve` を実行し、`resolved` の対象層を Codex CLI session/config の `model` へ指定する。`model_reasoning_effort` は同じ正本の `budgets` から独立に選ぶ。12セルのモデル層差分と中立予算を欠落させない。
 
-| PF 中立の予算 | Codex CLI session/config の `model_reasoning_effort` |
-|---|---|
-| 最小 | `low` |
-| 小 | `medium` |
-| 中 | `high` |
-| 大 | `xhigh` |
-| 最大 | `max` |
-
-Codex CLI session/config 用の設定例：
-
-```toml
-model = "gpt-6-sol"
-model_reasoning_effort = "high" # Bloom Lv5 評価・判断ボトルネック
-```
+`.codex/agents/*.toml` は session 設定を継承するため `model` や `model_reasoning_effort` を複製しない。取得失敗・合致なし・曖昧な最新は STOP し、別 major や低い層へ代替しない。解決結果と実際の session model が一致してから実行する。

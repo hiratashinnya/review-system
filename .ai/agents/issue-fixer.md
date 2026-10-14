@@ -4,6 +4,8 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
+系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
+
 ## 追跡ファイルの削除・移動と baseline 更新
 
 追跡ファイルの削除・移動、`maintainability_lint baseline` による生成、生成結果の反映・手修正を含む baseline 更新が必要なら、自分では実行せず STOP する。対象パス、必要な理由、予定差分、検証方法をハンドオフに記録し、主文脈へ返す。別コマンドや編集ツールによる迂回も禁止する。
