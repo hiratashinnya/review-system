@@ -15,6 +15,7 @@ title: Copilot明示認可による固定PR base取り込み
 | drift | request/workspace branch/session/認可変更 | 拒否、確定しない |
 | テスト | 実unittest失敗/成功0件/内容書換 | 拒否、元HEADとpending保持 |
 | 既存境界 | Claude/Codex gate・既存base回帰 | 登録全role拒否、fixer-only/raw merge/PR merge維持 |
+| F-629-01 | 登録中/pending中/committed後/aborted後にClaude単一候補を確認、実Claude runningを追加 | 差分fallback成功、実running存在時拒否、dispatch writer後も認可保持 |
 | 品質 | 全unit、asset_parity/maintainability/guidance_sync | 全pass、baseline変更なし |
 
 TC: `tests/unit/test_base_copilot.py` と既存 `test_base_integration.py`。

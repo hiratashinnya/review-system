@@ -7,7 +7,7 @@
 - module: `gitgate/base_*` は限定 Git 操作・live PR 検証・snapshot・台帳状態・解消検証を分離する。origin正規化は既存の共通 `branch_source.policy` を使う。
 - interface: Claude issue-fixer と登録済み Copilot 操作者の `integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID`、`integrate-base-continue [--test-module dotted.name ...]`、`integrate-base-abort`。固定schemaで、任意ref/option/strategy/commandは受けない。
 - protocol: 同一repositoryのOPEN PRのbase exact OIDをheadへ `--no-ff --no-commit` で取り込む。成功でも確定前はpending。衝突はexit 3とファイル一覧、判断不能・protectedはSTOP。既に祖先ならno-change。
-- persistence: canonical main worktree ledgerの当該dispatchにoperation ID、entry/role/task/agent/attempt/workspace、元HEAD/base/MERGE_HEAD、stage indexと内容snapshot、PID/start token、状態・テスト結果・親列を保存する。予約前と確定時にCAS。worktree内の偽stateは権威にしない。
+- persistence: canonical main worktree ledgerの当該dispatch（`entries`）または明示認可（`base_authorizations`）にoperation ID、entry/role/task/agent/attempt/workspace、元HEAD/base/MERGE_HEAD、stage indexと内容snapshot、PID/start token、状態・テスト結果・親列を保存する。予約前と確定時にCAS。worktree内の偽stateは権威にしない。
 - orchestration: trusted hookのfixer identityとlive ledgerを併用し、通常Claudeのrunning dispatchまたは明示登録済みCopilot専用認可だけを許可する。platform欠落の既存Claude entryは互換扱い、専用認可を持たず `platform` が `claude` 以外のentry（台帳に残る `codex-supervisor` の既存entryとunknown platform）とopenだけのentryは拒否する。
 - prompt: fixerは衝突内容を編集し判断できないものをSTOP。専用continueが衝突ファイルだけstageし、固定unittestと内容CAS後に確定する。Copilot は後述の明示登録経路を使う。その他の未対応実行環境ではSTOPして報告する。
 - log/version: policy 1.2、operation schema v1。開始・テスト・確定・abortは履歴を残す。testing/abortingも実行中のPID/start token予約を保持し、side effect完了または停止して戻るときに解除する。
@@ -41,6 +41,6 @@ python3 -m gitgate integrate-base-continue
 python3 -m gitgate integrate-base-abort
 ```
 
-登録はclean tree・live OPEN same-repository PR・fresh fetch exact OID照合を行い、canonical ledgerに認可内容と一意sessionを保存する。開始の入力は登録内容と完全一致が必要。workspace・branch・repositoryの変更、pending中のsession切替・認可変更は拒否する。未完了operation中の再登録は拒否し、終端後の再登録は旧認可をreleasedにして履歴を保持する。abortはAPI無しで使える。
+登録はclean tree・live OPEN same-repository PR・fresh fetch exact OID照合を行い、canonical ledgerの専用 `base_authorizations` collectionに認可内容と一意sessionを保存する。dispatch用 `entries` とは分離し、認可状態は `authorized` / `revoked` とする。開始の入力は登録内容と完全一致が必要。workspace・branch・repositoryの変更、pending中のsession切替・認可変更は拒否する。未完了operation中の再登録は拒否し、終端後の再登録は旧認可をrevokedにして履歴を保持する。abortはAPI無しで使える。
 
 Claude/Codexのcommand hookは登録CLIを全roleで拒否する。Claude fixer専用境界、Codex既存台帳の拒否、raw mergeとPR merge/auto-merge禁止は維持する。Copilotはcommit/pushを必ずgitgate経由にし、pending中はwrapperが拒否する。Copilotには同等のproject hookがないため、raw Git・直接Python呼出し・台帳編集まで機械的に阻止するsandboxや認証済みroleは保証しない。既存Claude側も固定test runnerや台帳への直接書込を隔離するsandboxではない。固定engine内の戦略・オプション・テスト・CAS・親列・publish fenceは両経路で同じである。

@@ -6,6 +6,7 @@ from branch_source.policy import _remote_repository
 from .base_error import require
 from .base_git import output
 from .base_copilot import workspace_binding, identity as copilot_identity
+from .base_records import authorization_records
 
 
 def identity(workspace):
@@ -14,9 +15,12 @@ def identity(workspace):
     require(Path(output(path, "rev-parse", "--show-toplevel")).resolve() == path,
             "BASE_WORKSPACE_INVALID")
     relative = path.relative_to(root).as_posix()
-    entries = worktree_ledger.read_ledger(root)["entries"]
+    document = worktree_ledger.read_ledger(root)
+    entries = document["entries"]
     matches = [entry for entry in entries if entry.get("worktree_path") == relative
                and entry.get("status") in {"open", "running"}]
+    matches += [entry for entry in authorization_records(document)
+                if entry.get("worktree_path") == relative and entry.get("status") == "authorized"]
     require(len(matches) == 1, "BASE_MAIN_WORKTREE_DENIED" if path == root else "BASE_DISPATCH_MISSING")
     entry = matches[0]
     if entry.get("platform") == "copilot-local":

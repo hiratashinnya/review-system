@@ -9,6 +9,7 @@ from .base_git import output, foreign_operation
 from .base_journal import active_operation
 from .base_live import verify_live
 from .base_snapshot import snapshot
+from .base_records import authorization_records, operation_records
 
 REGISTER = "integrate-base-copilot-register"
 
@@ -34,20 +35,21 @@ def register(workspace, request, api):
     require(snapshot(workspace) == before, "BASE_CONTENT_CAS_MISMATCH")
     session = secrets.token_hex(16)
     entry = {"entry_id": "cb-" + session, "platform": "copilot-local",
-             "agent_type": "base-operator", "agent_id": session, "status": "running",
+             "agent_type": "base-operator", "agent_id": session, "status": "authorized",
              "task_key": f"base:{request['repository']}:{request['pr']}",
              "worktree_path": relative, "branch_name": binding["branch"],
              "base_authorization": {"request": request, **binding}}
     def mutate(document):
-        for current in document["entries"]:
+        for current in operation_records(document):
             if current.get("worktree_path") != relative:
                 continue
             require(not active_operation(current), "BASE_OPERATION_PENDING")
-            if current.get("status") in {"open", "running"}:
-                require(current.get("platform") == "copilot-local", "BASE_DISPATCH_EXISTS")
-                current["status"] = "released"
+            require(current.get("status") not in {"open", "running"}, "BASE_DISPATCH_EXISTS")
+        for current in authorization_records(document):
+            if current.get("worktree_path") == relative and current.get("status") == "authorized":
+                current["status"] = "revoked"
         require(snapshot(workspace) == before, "BASE_CONTENT_CAS_MISMATCH")
-        document["entries"].append(entry)
+        document.setdefault("base_authorizations", []).append(entry)
     worktree_ledger.update_ledger(root, mutate)
     return {"status": "registered", "session": entry["entry_id"], "authorization": request}
 
@@ -56,7 +58,7 @@ def identity(root, entry, binding):
     authorization = entry.get("base_authorization")
     require(entry.get("platform") == "copilot-local"
             and entry.get("agent_type") == "base-operator" and entry.get("agent_id")
-            and entry.get("status") == "running" and isinstance(authorization, dict),
+            and entry.get("status") == "authorized" and isinstance(authorization, dict),
             "BASE_COPILOT_AUTHORIZATION_INVALID")
     require(all(authorization.get(key) == binding[key]
                 for key in ("workspace", "repository", "branch")), "BASE_COPILOT_BINDING_MISMATCH")

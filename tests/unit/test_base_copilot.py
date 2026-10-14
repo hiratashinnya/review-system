@@ -6,6 +6,7 @@ from unittest import mock
 from gitgate import base_cli
 from gitgate.base_copilot import REGISTER
 from gitgate.base_error import BaseIntegrationError
+from issue_start import worktree_ledger
 from tests.unit import test_base_integration as fixtures
 
 git = fixtures.git
@@ -14,8 +15,18 @@ from tests.unit.test_codex_agent_command_gate import run_gate as codex_gate
 
 
 class CopilotIntegrationTests(unittest.TestCase):
-    entry = fixtures.IntegrationTests.entry
-    mutate = fixtures.IntegrationTests.mutate
+    def entry(self):
+        if "base_authorizations" not in worktree_ledger.read_ledger(self.main):
+            return fixtures.IntegrationTests.entry(self)
+        return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                    if item["entry_id"] == self.entry_id)
+
+    def mutate(self, callback):
+        def apply(document):
+            callback(next(item for item in document["base_authorizations"]
+                          if item["entry_id"] == self.entry_id))
+        worktree_ledger.update_ledger(self.main, apply)
+
     execute = fixtures.IntegrationTests.execute
     start = fixtures.IntegrationTests.start
     resolve = fixtures.IntegrationTests.resolve
@@ -31,6 +42,77 @@ class CopilotIntegrationTests(unittest.TestCase):
         git(clone, "config", "user.email", "copilot@example.invalid")
         self.work = self.main = clone
         self.entry_id = self.execute(REGISTER, self.start_args)["session"]
+
+    def assert_claude_fallback(self):
+        candidate = ".claude/worktrees/agent-visible"
+        (self.main / candidate).mkdir(parents=True, exist_ok=True)
+        self.assertEqual(worktree_ledger.resolve_worktree_for_agent(
+            self.main, agent_id="different"), (candidate, "diff"))
+        before = self.entry()
+        def add_dispatch(document):
+            document["entries"].append({"entry_id": "claude-test", "agent_id": "real-claude",
+                                        "status": "running", "worktree_path": candidate})
+        worktree_ledger.update_ledger(self.main, add_dispatch)
+        self.assertEqual(self.entry(), before)  # Dispatch writes preserve the authorization.
+        self.assertEqual(worktree_ledger.resolve_worktree_for_agent(
+            self.main, agent_id="different"), (None, "ambiguous-running"))
+        def stop_dispatch(document):
+            document["entries"][-1]["status"] = "stopped"
+        worktree_ledger.update_ledger(self.main, stop_dispatch)
+        self.assertEqual(self.entry(), before)
+
+    def test_claude_fallback_registered_pending_and_committed(self):
+        self.assert_claude_fallback()
+        self.start()
+        self.assert_claude_fallback()
+        self.resolve()
+        self.continue_()
+        self.assert_claude_fallback()
+        self.assertEqual(self.entry()["base_integrations"][-1]["state"], "committed")
+
+    def test_claude_fallback_after_abort(self):
+        self.start()
+        self.execute("integrate-base-abort")
+        self.assert_claude_fallback()
+        self.assertEqual(self.entry()["base_integrations"][-1]["state"], "aborted")
+
+    def test_reregistration_revokes_authorization_without_dispatch(self):
+        old = self.entry_id
+        self.entry_id = self.execute(REGISTER, self.start_args)["session"]
+        document = worktree_ledger.read_ledger(self.main)
+        self.assertEqual(document["entries"], [])
+        self.assertEqual(next(item for item in document["base_authorizations"]
+                              if item["entry_id"] == old)["status"], "revoked")
+        self.assert_claude_fallback()
+
+    def test_unregistered_workspace_denied(self):
+        worktree_ledger.update_ledger(self.main, lambda document:
+                                     document.update(base_authorizations=[]))
+        with self.assertRaisesRegex(BaseIntegrationError, "MAIN_WORKTREE_DENIED"):
+            self.start()
+
+    def test_revoked_authorizations_denied(self):
+        self.mutate(lambda entry: entry.update(status="revoked"))
+        with self.assertRaisesRegex(BaseIntegrationError, "MAIN_WORKTREE_DENIED"):
+            self.start()
+
+    def test_live_dispatch_blocks_registration_and_authority(self):
+        def add_dispatch(document):
+            document["entries"].append({"entry_id": "real", "status": "running",
+                                        "worktree_path": ".", "agent_type": "issue-fixer"})
+        worktree_ledger.update_ledger(self.main, add_dispatch)
+        with self.assertRaisesRegex(BaseIntegrationError, "DISPATCH_EXISTS"):
+            self.execute(REGISTER, self.start_args)
+        with self.assertRaisesRegex(BaseIntegrationError, "MAIN_WORKTREE_DENIED"):
+            self.start()
+
+    def test_corrupt_authorization_collection_is_fail_closed(self):
+        worktree_ledger.update_ledger(self.main, lambda document:
+                                     document.update(base_authorizations={}))
+        for action in (lambda: self.start(), lambda: self.execute(REGISTER, self.start_args),
+                       lambda: base_cli.refuse_pending_publish(self.work)):
+            with self.assertRaisesRegex(BaseIntegrationError, "LEDGER_INVALID"):
+                action()
 
     def test_conflict_continue_two_parents(self):
         fixtures.IntegrationTests.test_conflict_edit_tests_commit_two_parents(self)
@@ -64,7 +146,7 @@ class CopilotIntegrationTests(unittest.TestCase):
                 base_cli.refuse_pending_publish(self.work)
         with self.assertRaises(BaseIntegrationError):
             self.execute(REGISTER, self.start_args)
-        self.assertEqual(self.entry()["status"], "running")
+        self.assertEqual(self.entry()["status"], "authorized")
 
     def test_request_and_branch_drift_denied(self):
         for index, value in ((1, "different/repo"), (3, "10"), (5, "a" * 40), (7, "b" * 40)):

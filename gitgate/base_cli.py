@@ -11,6 +11,7 @@ from .base_authority import identity
 from .base_continue import continue_integration
 from .base_error import BaseIntegrationError, require
 from .base_journal import active_operation
+from .base_records import operation_records
 from .base_live import default_api
 from .base_request import VERBS, parse_request
 from .base_start import start
@@ -35,7 +36,7 @@ def execute(verb, args, *, workspace=None, api=None):
 def refuse_pending_publish(workspace):
     root = worktree_ledger.main_worktree_root(workspace)
     relative = Path(workspace).resolve().relative_to(root.resolve()).as_posix()
-    entries = worktree_ledger.read_ledger(root)["entries"]
+    entries = operation_records(worktree_ledger.read_ledger(root))
     require(not any(entry.get("worktree_path") == relative and active_operation(entry)
                     for entry in entries), "BASE_PENDING_COMMIT_PUSH_DENIED")
 
