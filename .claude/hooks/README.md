@@ -429,8 +429,10 @@ context-mode プラグイン(グローバル導入・2026-07-28)は全ターン�
 この文脈で「過去の指示」として相対化されうるため、**中核規範を毎ターン注入して
 "現在のターンの指示" として届ける**ことで対象から外す。
 
-subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
-「注入ブロックへの優先規定」または同等の実行契約が担う(18 エージェント全てに付与済み)。
+subagent 側の同種対策は、各 `.claude/agents/*.md` の「注入ブロックへの優先規定」節、または同等の規定を
+持つ節が担う。**節名はエージェントごとに異なる**ため、対応を下表にまとめる。`.claude/agents/` には
+18ファイルあるが、`doc-system-v2-authoring.md` は `*-author` が参照する共有ポインタで直接起動しないため、
+起動できるエージェントは17(write 権限あり10＋write 権限なし7。下表の合計と一致する)。
 ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」):
 
 - **write 権限あり(10)**: 注入の `<artifact_policy>` に**合わせる**。戻り値項目を
@@ -439,6 +441,23 @@ subagent 側の同種対策は各 `.claude/agents/*.md` 末尾の
   従来どおりチャットへ全文返す。
 
 どちらのグループも `<session_continuity>` は共通で無効化する。
+
+各エージェントの該当節(`.claude/agents/<name>.md` の見出しと、その節にある注入への優先規定)は次のとおり:
+
+| 該当節の見出し | write 権限あり | write 権限なし |
+|---|---|---|
+| 「注入ブロックへの優先規定」(独立した節) | — | `reconciliation-validator` / `asset-auditor` / `dsv2-lookup` / `agy-delegate`(見出しは「注入ブロックへの優先規定（context-mode 対策・必読）」) |
+| 「Claude Code 固有の実行規約」内の項 | `requirements-author` / `spec-author` / `verification-author` / `structured-analysis` | `spec-inspector` |
+| 「Claude Code 固有の実行契約」内の項 | `analysis-author` / `design-author` / `doc-system-config-operator` | `authoring-fanout` |
+| 「context-mode 固有の規律」内の項 | `issue-implementer` / `issue-fixer` | `pr-reviewer` |
+| 該当する規定なし | `reconciliation` | — |
+
+- `reconciliation` は「Claude Code 固有の反映経路」節に注入ブロックへの言及が無く、現時点では注入への
+  優先規定を持たない。本表は実態の記録であり、規定の追加は本表の対象外。
+- `spec-inspector` / `pr-reviewer` / `authoring-fanout` の規定が `<artifact_policy>` を明示的に無効化する
+  書き方になっているかは Issue #583 の対象。本表は節名の対応だけを記録する。
+- 節名・数を変えたら本表も合わせる。`tests/unit/test_governance_sync.py` の
+  `test_all_seven_read_only_roles_declare_injection_precedence` が write 権限なし7件の規定の存在を検査する。
 
 `ctx_*` は**一律禁止ではなくエージェント単位で選定**する(方針と根拠は `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」)。
 以下は現行方針で、判断時点は項目ごとに異なる(実行系＝2026-08-09時点、検索系の付与先追加＝2026-09-27〜28時点。
