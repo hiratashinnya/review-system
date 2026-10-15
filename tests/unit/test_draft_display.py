@@ -172,6 +172,26 @@ class StopHookTests(_Workspace):
         self.assertEqual((code, stdout.getvalue()), (0, ""))
 
 
+class ReceiptNoClobberTests(_Workspace):
+    def test_existing_receipt_is_not_overwritten(self):
+        receipt = self.root / (REL + handoff.RECEIPT_SUFFIX)
+        receipt.write_text("keep existing receipt", encoding="utf-8")
+        self.assertFalse(handoff.write_receipt(self.root, REL, status="displayed"))
+        self.assertEqual(receipt.read_text("utf-8"), "keep existing receipt")
+
+    def test_hardlinked_external_target_is_not_truncated_or_written(self):
+        external = self.root.parent / (self.root.name + "-outside")
+        external.write_text("external file contents must survive", encoding="utf-8")
+        self.addCleanup(external.unlink, missing_ok=True)
+        receipt = self.root / (REL + handoff.RECEIPT_SUFFIX)
+        try:
+            os.link(external, receipt)
+        except OSError:
+            self.skipTest("hard links unsupported")
+        self.assertFalse(handoff.write_receipt(self.root, REL, status="displayed"))
+        self.assertEqual(external.read_text("utf-8"), "external file contents must survive")
+
+
 @unittest.skipUnless(shutil.which("bash"), "bash required")
 class ReceiptWriteGateTests(_Workspace):
     def run_write_gate(self, tool_name, file_path, *, agent="gh-create-issue"):

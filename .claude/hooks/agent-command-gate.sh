@@ -1338,15 +1338,55 @@ def gh_create_issue_violation(tokens, target_repository):
         if endpoint_violation:
             return endpoint_violation
         endpoint = next((token for token in rest if token.startswith("repos/")), "")
-        method = "GET"
-        for i, token in enumerate(rest):
-            if token in {"--method", "-X"} and i + 1 < len(rest):
-                method = rest[i + 1].upper()
-            elif token.startswith("--method="):
-                method = token.partition("=")[2].upper()
+        field_flags = {"-F", "-f", "--field", "--raw-field"}
+        fields = []
+        methods = []
+        index = 0
+        while index < len(rest):
+            token = rest[index]
+            if token in {"--method", "-X"}:
+                if index + 1 >= len(rest):
+                    return "gh api method flag is missing its value"
+                methods.append(rest[index + 1].upper())
+                index += 2
+                continue
+            if token.startswith("--method="):
+                methods.append(token.partition("=")[2].upper())
             elif token.startswith("-X") and len(token) > 2:
-                method = token[2:].upper()
+                methods.append(token[2:].upper())
+            if token in field_flags:
+                if index + 1 >= len(rest):
+                    return "gh api field flag is missing its value"
+                fields.append(rest[index + 1])
+                index += 2
+                continue
+            if token.startswith(("-F", "-f")) and len(token) > 2:
+                fields.append(token[2:].lstrip("="))
+            elif token.startswith("--field=") or token.startswith("--raw-field="):
+                fields.append(token.partition("=")[2])
+            index += 1
+        if len(set(methods)) > 1:
+            return "gh api accepts only one consistent HTTP method for this role"
+        method = methods[-1] if methods else ("POST" if fields else "GET")
+        if method not in {"GET", "HEAD", "POST"}:
+            return "gh api writes are limited to adding issue dependency/sub-issue relations"
+        if rest and rest[0] == "graphql":
+            query_fields = [value.partition("=")[2] for value in fields if value.startswith("query=")]
+            if len(fields) != 1 or len(query_fields) != 1:
+                return "gh api GraphQL is limited to one read-only query field for this role"
+            if query_fields[0].startswith("@"):
+                return "gh api GraphQL query files are not allowed for this role"
+            if query_fields and contains_mutation(query_fields[0]):
+                return "gh api GraphQL mutations are not allowed for this role"
+            allowed_graphql_flags = {"--method", "-X", "--jq", "-q", *field_flags}
+            for token in rest[1:]:
+                if token.startswith("-") and token not in allowed_graphql_flags \
+                        and not token.startswith(("--method=", "-X", "-F", "-f", "--field=", "--raw-field=", "--jq=", "-q")):
+                    return "gh api GraphQL accepts only a read-only query and bounded field/output flags"
+            return None
         if method in {"GET", "HEAD"}:
+            if fields:
+                return "gh api fields imply POST and are limited to approved relation writes for this role"
             return gh_flag_violation(key, rest)
         match = re.fullmatch(
             r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*/"
@@ -1356,25 +1396,10 @@ def gh_create_issue_violation(tokens, target_repository):
         if method != "POST" or not match:
             return "gh api writes are limited to adding issue dependency/sub-issue relations"
         expected_field = "issue_id" if match.group(1) == "dependencies/blocked_by" else "sub_issue_id"
-        fields = []
-        skip = False
-        for i, token in enumerate(rest):
-            if skip:
-                skip = False
-                continue
-            if token in {"--method", "-X"}:
-                if i + 1 >= len(rest):
-                    return "gh api relation write is missing its HTTP method"
-                skip = True
-            elif token.startswith("--method=") or (token.startswith("-X") and len(token) > 2):
-                continue
-            elif token == "-F" and i + 1 < len(rest):
-                fields.append(rest[i + 1])
-                skip = True
-            elif token.startswith("-F") and len(token) > 2:
-                fields.append(token[2:].lstrip("="))
-            elif token.startswith("-"):
-                return "gh api relation writes accept only -X/--method and -F fields"
+        for token in rest:
+            if token.startswith("-") and token not in {"--method", "-X", *field_flags} \
+                    and not token.startswith(("--method=", "-X", "-F", "-f", "--field=", "--raw-field=")):
+                return "gh api relation writes accept only method and field options"
         if len(fields) != 1 or not re.fullmatch(expected_field + r"=[1-9][0-9]*", fields[0]):
             return f"gh api relation write requires exactly one numeric {expected_field} field"
         return None

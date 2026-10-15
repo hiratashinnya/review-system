@@ -1341,6 +1341,39 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("gh-create-issue", command)))
 
+    def test_gh_create_issue_api_implicit_post_is_limited_to_relation_allowlist(self):
+        target = "hiratashinnya/review-system"
+        for command in (
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -F issue_id=13",
+            f"gh api repos/{target}/issues/12/sub_issues --field sub_issue_id=13",
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -f issue_id=13",
+            f"gh api repos/{target}/issues/12/sub_issues --raw-field sub_issue_id=13",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
+        for command in (
+            f"gh api repos/{target}/issues/1/comments -F body=unsafe",
+            f"gh api repos/{target}/issues/1/labels -f labels[]=bug",
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -F issue_id=13 -F extra=x",
+            f"gh api repos/{target}/issues/12/sub_issues -F sub_issue_id=13 --method GET",
+            f"gh api graphql -F 'query=mutation {{ createIssue(input: {{}}) {{ issue {{ id }} }} }}'",
+            "gh api graphql --input mutation.json",
+            "gh api graphql -F query=@mutation.graphql",
+            "gh api graphql -F 'query={ viewer { login } }' --cache 1h",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_graphql_read_queries_are_preserved(self):
+        for command in (
+            "gh api graphql -F 'query={ viewer { login } }'",
+            "gh api graphql -f 'query={ viewer { login } }'",
+            "gh api graphql --field='query={ viewer { login } }'",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
     def test_gh_create_issue_rejects_repo_override_mismatches_for_every_write(self):
         commands = [
             "gh --repo other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",

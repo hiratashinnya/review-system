@@ -79,7 +79,7 @@ def write_receipt(project_root: Path, rel: str, *, status: str, reason: str | No
         return False
     try:
         fd = os.open(rel.rsplit("/", 1)[1] + RECEIPT_SUFFIX,
-                     os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                     os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                      0o600, dir_fd=dir_fd)
     except OSError:
         os.close(dir_fd)
