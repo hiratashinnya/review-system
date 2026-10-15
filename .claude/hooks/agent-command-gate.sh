@@ -1245,7 +1245,7 @@ def gh_create_issue_project_item_add_violation(rest, target_repository):
     if len(urls) != 1:
         return "project item-add requires exactly one --url"
     match = re.fullmatch(
-        r"https://github\\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38})/"
+        r"https://github\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38})/"
         r"([A-Za-z0-9_.-]{1,100})/issues/[1-9][0-9]*",
         urls[0],
         re.IGNORECASE,
