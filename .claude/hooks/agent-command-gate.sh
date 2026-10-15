@@ -16,7 +16,9 @@
 #                           `gitgate adopt-branch` が BRANCH_ADOPT_LOCAL_EXISTS で必ず失敗する。
 #                           差分は `gh pr diff --no-compact` / `gh pr view` / `gitgate show-pr-diff|diff|log` で読める。
 #   gh-create-issue は GATED_ROLES の push/merge/worktree 契約には参加せず、専用の狭い gh/git 読取 allowlist
-#   と `gh issue create`／限定 Project item 操作だけを許可する（Issue #632）。それ以外の agent_type
+#   と `gh issue create`／限定 Project item 操作だけを許可する（Issue #632）。dispatch target は cwd の
+#   GitHub origin から fail-close で確定し、全 `gh --repo/-R`・REST endpoint・item-add Issue URL を照合する。
+#   origin 不明または不一致なら deny する。それ以外の agent_type
 #  （main／general-purpose／各 *-author 等・agent_type 欠如を含む）はロール専用判定対象外＝許可
 #   （下記 2026-07-11 のオーナー判断）。ただし全 agent_type 共通の危険コマンド（network/exec）は deny する。
 #
