@@ -43,7 +43,7 @@ def run(*, stdin: TextIO, stdout: TextIO, stderr: TextIO, project_root: Path) ->
         _evidence(stderr, result="skip", reason="NO_HANDOFF_LINE")
         return 0
     path = handoff.resolve_handoff(project_root, rel)
-    loaded = handoff.read_for_display(path) if path is not None else None
+    loaded = handoff.read_for_display(project_root, rel) if path is not None else None
     if path is None or loaded is None:
         return _fail(stderr, "HANDOFF_UNREADABLE", project_root, rel)
     body, truncated = loaded

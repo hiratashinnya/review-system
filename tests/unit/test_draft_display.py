@@ -70,6 +70,21 @@ class FindAndResolveTests(_Workspace):
             self.skipTest("symlink unsupported")
         self.assertIsNone(handoff.resolve_handoff(self.root, REL))
 
+    def test_resolve_rejects_symlink_parent(self):
+        external = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, external, ignore_errors=True)
+        (external / Path(REL).name).write_text("outside", encoding="utf-8")
+        handoff_dir = self.root / "tmp" / "_handoff"
+        handoff_dir.rmdir()
+        try:
+            handoff_dir.symlink_to(external, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlink unsupported")
+        self.assertIsNone(handoff.resolve_handoff(self.root, REL))
+        self.assertIsNone(handoff.read_for_display(self.root, REL))
+        self.assertFalse(handoff.write_receipt(self.root, REL, status="displayed"))
+        self.assertFalse((external / (Path(REL).name + handoff.RECEIPT_SUFFIX)).exists())
+
 
 class StopHookTests(_Workspace):
     def payload(self, **overrides):
@@ -107,6 +122,20 @@ class StopHookTests(_Workspace):
         receipt = json.loads((self.root / (REL + handoff.RECEIPT_SUFFIX)).read_text("utf-8"))
         self.assertEqual(receipt["status"], "fallback_required")
         self.assertIn("HANDOFF_UNREADABLE", err)
+
+    def test_symlink_parent_neither_displays_external_file_nor_writes_receipt(self):
+        external = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, external, ignore_errors=True)
+        (external / Path(REL).name).write_text("# outside secret", encoding="utf-8")
+        handoff_dir = self.root / "tmp" / "_handoff"
+        handoff_dir.rmdir()
+        try:
+            handoff_dir.symlink_to(external, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlink unsupported")
+        code, out, _ = self.run_hook(stop, self.payload())
+        self.assertEqual((code, out), (0, ""))
+        self.assertFalse((external / (Path(REL).name + handoff.RECEIPT_SUFFIX)).exists())
 
     def test_missing_handoff_line_is_reported_in_evidence(self):
         code, out, err = self.run_hook(stop, self.payload(last_assistant_message="done"))

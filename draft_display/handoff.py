@@ -1,9 +1,4 @@
-"""handoff ファイルの特定・検証・読み出し（SubagentStop フックが使う）。
-
-サブエージェントの最終応答にある ``HANDOFF: tmp/_handoff/gh-create-issue--<key>.md`` 行だけを
-信頼の入口とし、名前形状・親ディレクトリ・symlink でないことを検証してから読む。
-"""
-
+"""Locate and safely read handoffs; write receipts within the pinned handoff directory."""
 from __future__ import annotations
 
 import json
@@ -16,61 +11,88 @@ AGENT_TYPE = "gh-create-issue"
 HANDOFF_DIR_REL = "tmp/_handoff"
 MAX_DISPLAY_BYTES = 64 * 1024
 RECEIPT_SUFFIX = ".receipt.json"
-
-_HANDOFF_LINE = re.compile(
-    r"HANDOFF:\s*(" + re.escape(HANDOFF_DIR_REL) + r"/gh-create-issue--[A-Za-z0-9][A-Za-z0-9._-]*\.md)"
-)
+_NAME = r"gh-create-issue--[A-Za-z0-9][A-Za-z0-9._-]*\.md"
+_HANDOFF_PATH = re.compile(re.escape(HANDOFF_DIR_REL) + r"/" + _NAME)
+_HANDOFF_LINE = re.compile(r"HANDOFF:\s*(" + re.escape(HANDOFF_DIR_REL) + r"/" + _NAME + r")")
 
 
 def find_handoff_rel(text: str) -> str | None:
-    """テキスト中の最後の ``HANDOFF:`` 行のパス（リポジトリ相対）を返す。無ければ ``None``。"""
     matches = _HANDOFF_LINE.findall(text or "")
     return matches[-1] if matches else None
 
 
+def _open_handoff_dir(project_root: Path) -> int:
+    nofollow, directory = getattr(os, "O_NOFOLLOW", None), getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise OSError("no-follow directory opens are unavailable")
+    root_fd = os.open(project_root, os.O_RDONLY | directory)
+    try:
+        tmp_fd = os.open("tmp", os.O_RDONLY | directory | nofollow, dir_fd=root_fd)
+    finally:
+        os.close(root_fd)
+    try:
+        return os.open("_handoff", os.O_RDONLY | directory | nofollow, dir_fd=tmp_fd)
+    finally:
+        os.close(tmp_fd)
+
+
+def _open_regular_handoff(project_root: Path, rel: str) -> int:
+    if not _HANDOFF_PATH.fullmatch(rel):
+        raise OSError("handoff path is outside the contract")
+    dir_fd = _open_handoff_dir(project_root)
+    try:
+        fd = os.open(rel.rsplit("/", 1)[1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    finally:
+        os.close(dir_fd)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise OSError("handoff is not a regular file")
+    return fd
+
+
 def resolve_handoff(project_root: Path, rel: str) -> Path | None:
-    """``rel`` が ``<root>/tmp/_handoff`` 直下の通常ファイルなら絶対パスを返す。それ以外は ``None``。"""
-    handoff_dir = project_root / HANDOFF_DIR_REL
-    candidate = project_root / rel
     try:
-        if candidate.is_symlink() or not candidate.is_file():
-            return None
-        if candidate.parent.resolve() != handoff_dir.resolve():
-            return None
-    except OSError:
+        fd = _open_regular_handoff(project_root, rel)
+        os.close(fd)
+    except (OSError, TypeError, ValueError):
         return None
-    return candidate
+    return project_root / rel
 
 
-def read_for_display(handoff: Path) -> tuple[str, bool] | None:
-    """表示用本文と「切り詰めたか」を返す。読めなければ ``None``。"""
+def read_for_display(project_root: Path, rel: str) -> tuple[str, bool] | None:
     try:
-        with handoff.open("rb") as stream:
+        fd = _open_regular_handoff(project_root, rel)
+        with os.fdopen(fd, "rb") as stream:
             raw = stream.read(MAX_DISPLAY_BYTES + 1)
-    except OSError:
+    except (OSError, TypeError, ValueError):
         return None
     truncated = len(raw) > MAX_DISPLAY_BYTES
     return raw[:MAX_DISPLAY_BYTES].decode("utf-8", errors="replace"), truncated
 
 
 def write_receipt(project_root: Path, rel: str, *, status: str, reason: str | None = None) -> bool:
-    """Display hook result for the caller to verify after SubagentStop completes."""
-    if not _HANDOFF_LINE.fullmatch(f"HANDOFF: {rel}"):
-        return False
-    target = project_root / (rel + RECEIPT_SUFFIX)
-    nofollow = getattr(os, "O_NOFOLLOW", None)
-    if nofollow is None:
+    if not _HANDOFF_PATH.fullmatch(rel) or not hasattr(os, "O_NOFOLLOW"):
         return False
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | nofollow, 0o600)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            os.close(descriptor)
-            return False
-        payload = {"status": status}
-        if reason:
-            payload["reason"] = reason
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        dir_fd = _open_handoff_dir(project_root)
+    except OSError:
+        return False
+    try:
+        fd = os.open(rel.rsplit("/", 1)[1] + RECEIPT_SUFFIX,
+                     os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                     0o600, dir_fd=dir_fd)
+    except OSError:
+        os.close(dir_fd)
+        return False
+    os.close(dir_fd)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        return False
+    payload = {"status": status}
+    if reason:
+        payload["reason"] = reason
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
             stream.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except OSError:
         return False
