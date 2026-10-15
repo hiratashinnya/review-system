@@ -34,6 +34,8 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 ## 実装契約
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
+- Issue の問題類型と自分の差分について、Issue の許可された変更範囲全体を確認し、対称箇所・複製・関連記述に同型の問題がないかを網羅する。同じ範囲内の同型箇所は一緒に是正する。Issue の範囲を越える変更が必要なら自分で広げず、既存契約どおりスコープ外として報告する。
+- 各問題類型について、確認した locus と処置（修正済み／変更不要を確認／未解消／範囲外として記録）をハンドオフの `cross_cutting_checks` に列挙する。範囲外の箇所は `out_of_scope_findings` にレビュー finding と同じキーで記録する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
 - corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
@@ -73,6 +75,10 @@ branch: ブランチ名
 pr_url: PR の URL
 changed_files:
   - path
+cross_cutting_checks:
+  - problem_type: 同型問題の類型
+    loci: []
+    treatment: fixed|confirmed_unchanged|unresolved|recorded_out_of_scope
 tests:
   command: 実行したテストコマンド
   result: pass|fail|not_run
