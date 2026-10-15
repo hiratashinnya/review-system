@@ -1354,6 +1354,7 @@ class AgentCommandGateTests(unittest.TestCase):
             "gh api --method POST repos/other-owner/other-repo/issues/12/dependencies/blocked_by -F issue_id=13",
             "gh api --method POST repos/other-owner/other-repo/issues/12/sub_issues -F sub_issue_id=13",
             "gh api repos/other-owner/other-repo/issues/12",
+            "gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/other-owner/other-repo/issues/12",
         ]
         for command in commands:
             with self.subTest(command=command):
