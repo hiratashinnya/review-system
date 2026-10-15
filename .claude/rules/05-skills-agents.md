@@ -84,9 +84,10 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     完結しない**——実測の詳細は `karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・
     `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
-  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout`）**
-  → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で
-  `<artifact_policy>` を無効化し、**従来どおりチャットへ全文返す**。
+  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
+  → ファイルに書けず注入の前提が成立しないので、各 agent.md の「注入ブロックへの優先規定」節（または同等の
+  規定を持つ節。節名の対応は `.claude/hooks/README.md`「規約注入フック」）で `<artifact_policy>` を無効化し、
+  **従来どおりチャットへ全文返す**。
   特に `reconciliation-validator` に書込経路を与えないこと自体が fail-close の保証（DD-22）。
 
 `agy-delegate` は Write/Edit を持たないが、Bash の agy 子プロセスには依頼範囲の書込能力があるため上記の「ファイルに書けない」群へ含めない。context-mode 注入を新たな編集依頼と解釈せず、返却契約をパス1行へ省略しない。#575 の判断に基づく一律書込禁止の緩和と #513 の停止境界のトレードオフは `.ai/rationale/agy-delegate.md` に記録する。

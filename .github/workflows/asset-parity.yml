@@ -22,6 +22,10 @@ name: asset-parity
 # `.ai/**` here only ensures a PR that edits the shared source doesn't
 # silently skip the check that verifies its `.claude/` wrapper still mirrors
 # correctly elsewhere.
+#
+# `.github/copilot-instructions.md` is also a trigger-only input: `asset_parity`
+# reads its `principles-source` markers to determine whether a principle skill is
+# inlined, but it is not itself a scanned asset tree.
 on:
   push:
     paths:
@@ -33,6 +37,7 @@ on:
       - ".codex/agents/**"
       - ".agents/skills/**"
       - ".ai/**"
+      - ".github/copilot-instructions.md"
       - "asset_parity/**"
       - ".github/workflows/asset-parity.yml"
   pull_request:
@@ -45,6 +50,7 @@ on:
       - ".codex/agents/**"
       - ".agents/skills/**"
       - ".ai/**"
+      - ".github/copilot-instructions.md"
       - "asset_parity/**"
       - ".github/workflows/asset-parity.yml"
   workflow_dispatch:
@@ -78,3 +84,6 @@ jobs:
         run: |
           set -o pipefail
           python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Check model family policy references
+        run: python3 -m model_policy check

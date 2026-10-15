@@ -4,6 +4,8 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
+系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
+
 ## 追跡ファイルの削除・移動と baseline 更新
 
 追跡ファイルの削除・移動、`maintainability_lint baseline` による生成、生成結果の反映・手修正を含む baseline 更新が必要なら、自分では実行せず STOP する。対象パス、必要な理由、予定差分、検証方法をハンドオフに記録し、主文脈へ返す。別コマンドや編集ツールによる迂回も禁止する。
@@ -47,7 +49,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 ## PR base の取り込み
 
-`docs/tools/gitgate-base-integration.md`（policy 1.1）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
+`docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
 
 取り込み経路は通常 Claude issue-fixer だけが使う。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) / [Codex wrapper](../../.codex/agents/issue-fixer.toml) に従う。未対応の実行環境で取り込みが必要なら STOP して報告し、raw Git や別の host 入口で代替しない。
 

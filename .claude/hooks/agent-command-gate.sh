@@ -46,7 +46,8 @@
 #        strip_wrappers_or_env_reason（rtk/command/builtin/exec の純ラッパーのみ剥がす。先頭 env 代入・
 #        `env` ラッパーは層3 前処理で deny）後の先頭語が
 #        `git` / `gh` / `pyright` / `python`・`python3`（**`-m` ＋ unittest|coverage|dsv2|gitgate|asset_parity|maintainability_lint|
-#        time_fixture_lint|feedback_ledger、加えてロール別追加分＝issue-fixer のみ karte の形のみ**）で
+#        time_fixture_lint|feedback_ledger、加えてロール別追加分＝issue-fixer のみ karte の形のみ、
+#        issue-implementer/issue-fixer のみ codex_worktree_exec を `--role <自ロール>` の形のみ**）で
 #        なければ deny。bash/sh/eval/source/xargs/curl/cat/echo/sed/awk/cut/rev/tee… は列挙不要で全 deny
 #        （ホワイトリストに無い＝禁止）。パス付き（`./git` 等）も完全一致しないため deny。
 #        asset_parity/time_fixture_lint は read-only 監査コマンド（`check` サブコマンドのみ実装）で、
@@ -169,6 +170,7 @@ sys.path.insert(0, os.getcwd())
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
+from codex_worktree_exec.roles import CODEX_EXEC_ROLES
 
 SENSITIVE_KEY_RE = re.compile(r"(token|secret|password|passwd|authorization|credential|key)", re.I)
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*", re.S)
@@ -320,6 +322,12 @@ ALLOWED_PYTHON_MODULES = {
 PYTHON_MODULES_BY_ROLE = {
     "issue-fixer": {"karte"},
 }
+# Issue #538 PR-B: Codex に自分の linked worktree で編集とテストだけを行わせるラッパー。
+# 付与先と自ロールの起動形は CODEX_EXEC_ROLES と codex_exec_role_violation で検査する。
+# 導出・権限境界の理由は docs/methods/codex-workspace-binding.md の D4 を参照。
+CODEX_EXEC_MODULE = "codex_worktree_exec"
+for _codex_exec_role in sorted(CODEX_EXEC_ROLES):
+    PYTHON_MODULES_BY_ROLE.setdefault(_codex_exec_role, set()).add(CODEX_EXEC_MODULE)
 # `karte` は**状態を書き換える verb を持つ**ため、モジュール単位ではなく verb 単位で絞る
 # （Issue #341 レビュー F-341-04）。`coverage` の `run` を禁じているのと同じ方式。
 #
@@ -734,6 +742,30 @@ def all_role_dangerous_command_token(command_text):
     return None
 
 
+def codex_exec_role_violation(tokens, role):
+    """Issue #538 D4: `python3 -m codex_worktree_exec` は `--role` がちょうど1つで、その値が
+    呼び出し元 agent_type と一致する形だけを通す（implementer が fixer を名乗る等のロール詐称を
+    層2 で止める）。ラッパー側は allow_abbrev=False・重複拒否なので `--role`/`--role=` 以外の
+    綴りで別の値が効く経路は無い。許可なら None、違反なら理由を返す。"""
+    values = []
+    index = 3
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--role":
+            values.append(tokens[index + 1] if index + 1 < len(tokens) else "")
+            index += 2
+            continue
+        if token.startswith("--role="):
+            values.append(token.split("=", 1)[1])
+        index += 1
+    if values != [role]:
+        return (
+            f"`python3 -m {CODEX_EXEC_MODULE}` requires exactly one `--role {role}` "
+            f"(the caller's own agent_type); got {values!r}"
+        )
+    return None
+
+
 def head_command_violation(tokens, role):
     """層2: 先頭語ホワイトリスト。許可なら None、違反ならその説明を返す。
     パス付き（`/usr/bin/git`・`./git`）は完全一致しないため deny（カレントディレクトリに `git` という
@@ -765,6 +797,8 @@ def head_command_violation(tokens, role):
                         "(`ingest-review` writes finding status and belongs to the reviewing side, "
                         "not to the role being reviewed)"
                     )
+            if tokens[2] == CODEX_EXEC_MODULE:
+                return codex_exec_role_violation(tokens, role)
             if tokens[2] == "maintainability_lint":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
                 if subcommand not in MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS:
@@ -839,9 +873,8 @@ def raw_git_denied_reason(tokens):
 
 def base_integration_reason(command_text, role):
     """Recognize Python module options only for the three fixer integration verbs."""
-    if role == "issue-fixer":
-        return None
-    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
+    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort",
+             "integrate-base-copilot-register"}
     for segment in SEGMENT_SPLIT_RE.split(command_text):
         tokens = shell_words(segment) or []
         for index, token in enumerate(tokens):
@@ -857,7 +890,10 @@ def base_integration_reason(command_text, role):
                         cursor += 1
                         module = tokens[cursor] if cursor < len(tokens) else ""
                     if module in {"gitgate", "gitgate.__main__"} and tokens[cursor + 1:cursor + 2] and tokens[cursor + 1] in verbs:
-                        return "PR base integration is restricted to issue-fixer"
+                        if tokens[cursor + 1] == "integrate-base-copilot-register":
+                            return "Copilot local registration is unavailable on this host"
+                        if role != "issue-fixer":
+                            return "PR base integration is restricted to issue-fixer"
                     break
                 value_option = re.fullmatch(r"-[^cWXm-]*[WX](.*)", option)
                 if value_option:

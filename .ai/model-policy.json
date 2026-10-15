@@ -1,0 +1,35 @@
+{
+  "platforms": {
+    "codex": {
+      "tiers": {"low": "luna", "mid": "luna", "top": "sol"},
+      "families": {
+        "luna": {"prefix": "gpt", "major": 6, "suffix": "luna", "separator": "."},
+        "sol": {"prefix": "gpt", "major": 6, "suffix": "sol", "separator": "."}
+      },
+      "budgets": {"最小": "low", "小": "medium", "中": "high", "大": "xhigh", "最大": "max"}
+    },
+    "copilot": {
+      "tiers": {"mid": "sonnet", "top": "opus"},
+      "families": {
+        "sonnet": {"prefix": "claude-sonnet", "major": 5, "suffix": "", "separator": "-"},
+        "opus": {"prefix": "claude-opus", "major": 4, "suffix": "", "separator": "-"}
+      }
+    }
+  },
+  "copilot_agents": {
+    "analysis-author": "mid",
+    "asset-auditor": "top",
+    "authoring-fanout": "mid",
+    "design-author": "top",
+    "doc-system-config-operator": "mid",
+    "doc-system-v2-authoring": "mid",
+    "dsv2-lookup": "mid",
+    "reconciliation-validator": "mid",
+    "reconciliation": "mid",
+    "requirements-author": "top",
+    "spec-author": "top",
+    "spec-inspector": "mid",
+    "structured-analysis": "top",
+    "verification-author": "top"
+  }
+}

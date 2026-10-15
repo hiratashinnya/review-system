@@ -19,7 +19,7 @@ disable-model-invocation: true
    codex exec -m <model> --sandbox read-only - < prompt.txt > review.txt 2>&1
    ```
    - stdin に観点プロンプトを流す（`-` が stdin 指定）。`--sandbox read-only` で書き込みをさせない。
-   - `model` は**オーナー指定**（例 `gpt-5.6`）。`codex exec review` サブコマンドもある。
+   - `model` は**オーナー指定**（`<owner-selected-model-id>`）。`codex exec review` サブコマンドもある。
 3. `review.txt`（最終応答）を読む。flag や環境エラーがあれば troubleshooting の回復手順へ進む。flag 後は言い換え・新規セッションを問わず再提出しない（迂回に当たる）。
 4. `codex exec` がレートリミットで失敗した場合は、同じモデル・同じ構成で再投入する。降格しない。
 

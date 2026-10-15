@@ -9,7 +9,7 @@ def commit_resolution(workspace, operation, tested):
     require(snapshot(workspace) == tested, "BASE_COMMIT_CONTENT_CAS_MISMATCH")
     tree = output(workspace, "write-tree")
     git(workspace, "commit", "--no-gpg-sign", "-m",
-        f"Integrate PR #{operation['request']['pr']} base into its head [AI issue-fixer]")
+        f"Integrate PR #{operation['request']['pr']} base into its head [AI {operation['binding']['role']}]")
     oid = output(workspace, "rev-parse", "HEAD")
     parents = output(workspace, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
     require(parents == [operation["original_head"], operation["request"]["base"]],

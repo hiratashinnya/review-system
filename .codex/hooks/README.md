@@ -20,6 +20,22 @@ implementer/fixer は issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILA
 現在の状態は `docs/methods/codex-workspace-binding.md`、退役した gate の記録は
 `.ai/rationale/codex-supervisor-retirement-538.md` を参照する。
 
+### Codex 実行者経路（`codex_worktree_exec`）とフック（Issue #538 PR-B）
+
+Codex を実行者として呼ぶのは Claude の `issue-implementer`／`issue-fixer` だけで、経路は
+`python3 -m codex_worktree_exec`（`codex exec -C <worktree> -c default_permissions="<role>"`）である。
+契約は `docs/methods/codex-workspace-binding.md` を正とする。
+
+- **Codex 用フックは追加していない。** 権限境界は `.codex/config.toml` の permission profile
+  （`[permissions.issue-implementer]`／`[permissions.issue-fixer]`：network 無効・`.git`／`.codex` 読取専用・
+  worktree 外書込不可・認証情報パスの読取拒否）、Claude 側 gate の起動形検査、ラッパーの起動前検査が担う。
+- `codex exec` でも、trust 済みなら本ファイルの PreToolUse hook は加算で走りうる。Codex が実行するコマンドは
+  `agent_type` を持たないため、この gate ではロール専用層の対象外になり、全ロール共通の deny 層だけが掛かる。
+- **この gate の allowlist にラッパーは入れない（D6）。** Codex の中からの再帰起動は `.codex/rules/default.rules`
+  （`python3`／`python -m codex_worktree_exec` を forbidden）とラッパー自身の検知で止める。
+- この gate と `.claude/hooks/agent-command-gate.sh` は共通化しておらず、内容が乖離している（PR-B 着手時点で
+  `.claude/` 約78.7K／`.codex/` 約70K。PR-B は Claude 側だけにラッパーの許可を足した）。共通化は Issue #538 の範囲外である。
+
 `agent-command-gate.sh` is the Codex port of the Claude `agent-command-gate.sh`.
 Codex CLI (verified against `codex-cli` 0.142.5 / `openai/codex` main) exposes a
 `PreToolUse` hook whose input JSON carries `agent_type`, `tool_name`, and
@@ -324,6 +340,7 @@ Repeat the trust check after moving a checkout or changing a hook registration.
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` hooks. Trust them with `/hooks` before relying on them. |
 | `agent-command-gate.sh` | PreToolUse handler: all-role merge/network-command deny layer plus the gated-role (issue-implementer/issue-fixer/pr-reviewer) allowlist layers. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `issue-start-gate.sh` | PreToolUse handler registered in `.codex/hooks.json` for the `spawn_agent` / `Agent` / `collaborationspawn_agent` matcher. Thin wrapper over the shared `issue_start` core (see `.ai/Individually-managed-lists.md` hook table row 3). |
+| `../config.toml` | Not a hook. Holds the `[permissions.issue-implementer]` / `[permissions.issue-fixer]` profiles that `codex_worktree_exec` selects for `codex exec` (Issue #538 PR-B). |
 
 ## Removed: Codex rate-limit auto-recovery (Issue #569)
 

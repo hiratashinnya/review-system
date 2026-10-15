@@ -1,0 +1,6 @@
+1. `/home/hiras/.codex/auth.json`：確認不可
+2. `/home/hiras/.config/gh/hosts.yml`：確認不可
+3. `/home/hiras/.claude/.credentials.json`：確認不可
+4. `/home/hiras/.ssh`：確認不可
+
+すべて読み取り禁止対象のため、コマンドは未実行です。ファイル変更・テスト実行もありません。

@@ -85,17 +85,20 @@ when the values match; conflicting values raise `TypeError` rather than choosing
 
 ## Documented exceptions
 
-`asset_parity/exceptions.py` holds a short, explicit list of **already-documented**
-intentional non-mirrors (currently: `agy-delegate`,
-`issue-implementer`/`issue-fixer`/`pr-reviewer`, all Copilot-only exclusions — see
-`.claude/tailoring-registry.md`). It intentionally does not invent new exceptions; if
-you make a new deliberate non-mirror decision, record it in `tailoring-registry.md` (or
-the asset's own `SKILL.md`/agent `.md`) first, then add the matching entry there.
+`asset_parity/exceptions.py` holds a short, explicit list (`EXEMPTIONS`) of
+**already-documented** intentional non-mirrors, each keyed by `(name, kind, tree)` with
+a reason that cites `.claude/tailoring-registry.md`. This README deliberately does not
+repeat the entries — `EXEMPTIONS` is the single source for the current set. It
+intentionally does not invent new exceptions; if you make a new deliberate non-mirror
+decision, record it in `tailoring-registry.md` (or the asset's own `SKILL.md`/agent
+`.md`) first, then add the matching entry there.
 
-Two *structural* (not per-asset) rules are handled by `asset_parity/trees.py` instead
-of the exception list, because they're a deterministic consequence of a skill's own
-frontmatter (per `.claude/skills/asset-lateral-deploy/SKILL.md`'s routing decision
-tree), not a one-off documented carve-out:
+Two *structural* (not per-asset) rules are handled by `asset_parity/trees.py` and
+`asset_parity/inlining.py` instead of the exception list, because they follow from a
+skill's own frontmatter (per `.claude/skills/asset-lateral-deploy/SKILL.md`'s routing
+decision tree) rather than from a one-off documented carve-out. The first is decided by
+frontmatter alone; the second also depends on the content of
+`.github/copilot-instructions.md`:
 
 - `disable-model-invocation: true` (orchestrator skill) → Copilot mirror is a
   **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
@@ -103,7 +106,26 @@ tree), not a one-off documented carve-out:
   inlines it into `.github/copilot-instructions.md`; no discrete per-asset file is
   expected there at all, so the cell is reported as `exempt` with a structural reason
   string (kept distinct from `n/a`, which means "this tree doesn't apply to this asset
-  kind at all", e.g. Codex agents vs. `.agents/skills`).
+  kind at all", e.g. Codex agents vs. `.agents/skills`). The structural reason is used
+  **only when the skill is actually inlined** (a complete `principles-source:` marker line
+  in the *body* of `copilot-instructions.md`: comment end and 64-hex `sha256` field
+  included; a truncated or malformed line does not count). The generated header (the lines
+  before the first blank line) always carries the same marker for `spec-principles`
+  whether or not the body inlines it, so the header is skipped and is no evidence.
+  `asset-lateral-deploy` routes a
+  `user-invocable: false` skill to Instructions and never to a skill/prompt, so one that is
+  not inlined has **no accepted Copilot file at all** (`trees.expected_paths` via
+  `inlining.principle_github_paths` expects only its inline slot, a
+  `copilot_paths.InlineSlotPath` whose `is_file()` is always false, so nothing on disk can
+  satisfy it):
+  a plain `.github/skills/<name>/SKILL.md` or prompt does **not** make the cell `OK` (it is
+  a misplacement), a documented exemption in `exceptions.py` reports its reason as
+  `exempt`, and without one the cell is `MISSING`. The report does not name a stray file;
+  remedy a `MISSING` there by removing the misplaced file or by recording a documented
+  non-mirror in `exceptions.py`. Inlining is not a remedy for another skill:
+  `guidance_sync` writes the `principles-source` marker for `spec-principles` alone
+  (`guidance_sync/sync.py::PRINCIPLES_SOURCE`), so a new principle skill needs that tool
+  extended first.
 
 ## Module map
 
@@ -111,7 +133,9 @@ tree), not a one-off documented carve-out:
 |---|---|
 | `frontmatter.py` | Minimal scalar-only frontmatter reader (handles hyphenated keys like `disable-model-invocation` that this repo's existing mini-YAML parser, `review_system.parsing.frontmatter`, can't — see module docstring for why a second parser was written instead of extending the shared one) |
 | `inventory.py` | Claude parity-seed enumeration + invocation-mode classification + loader-root boundary |
-| `trees.py` | Per-tree naming conventions + applicability rules |
+| `trees.py` | Per-tree applicability rules + the Codex trees' naming conventions (takes every Copilot path from `copilot_paths.py` and delegates the `user-invocable: false` Copilot case to `inlining.py`) |
+| `copilot_paths.py` | The one definition of every Copilot (`.github/`) path: plain skill `.github/skills/<name>/SKILL.md`, orchestrator prompt `.github/prompts/<name>.prompt.md`, agent `.github/agents/<name>.agent.md`, `.github/copilot-instructions.md`, the inline slot of a principle skill (`InlineSlotPath`, whose `is_file()` is always false), and the Copilot mirror roots scanned for orphans (path definitions only, no judgement; `tests/unit/test_asset_parity_copilot_paths.py` fails if another module spells a `.github` path itself in a single string constant: bare, with a trailing `/`, with repeated or backslash separators, as part of a longer string, or as a fragment of an f-string or format template; prose mentions such as `（.github/）` are not counted. The check inspects individual string constants only and does not evaluate constant expressions such as `".github" + "/skills"`; it also does not detect a path element that starts with a character outside the pattern's allowed set right after the separator, nor a different letter case such as `.GitHub` (only lowercase `.github` is matched), so it is an aid against hand-spelled paths, not a complete guarantee of a single definition (tracked in #637)) |
+| `inlining.py` | Whether a `user-invocable: false` skill is really inlined into `.github/copilot-instructions.md` (its complete `principles-source` marker line in the body, not the generated header; reads the file); if not, only the inline slot is expected — a plain skill file is never accepted |
 | `exceptions.py` | Documented intentional non-mirrors |
 | `staleness.py` | Lightweight last-commit-gap / size-ratio heuristic (git boundary injectable for tests) |
 | `report.py` | Builds the matrix + orphan list; renders text/JSON |
@@ -142,7 +166,11 @@ under "Non-active shared material" above) as a *trigger-only* addition —
 this does not add `.ai/` to the inventory `check` reads (that boundary is
 Issue #407's decision and is unchanged), it only makes sure a PR that edits
 `.ai/` doesn't skip the check that verifies the `.claude/` wrapper linking to
-it. `tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
+it. `.github/copilot-instructions.md` is a second trigger-only path: `inlining.py`
+reads its `principles-source` markers to decide whether a `user-invocable: false`
+skill is really inlined, so a change there can flip a cell between `exempt` and
+`MISSING` even though it is not an asset tree.
+`tests/unit/test_asset_parity_ci_paths.py` cross-checks this `paths:`
 list against `asset_parity/trees.py`/`inventory.py` so the two can't drift
 apart silently again (Issue #467 — a prior drift where `trees.py` already
 scanned `.github/prompts/` but `paths:` omitted it went undetected until a

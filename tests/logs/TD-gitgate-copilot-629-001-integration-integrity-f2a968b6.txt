@@ -1,0 +1,8 @@
+Tested HEAD: f2a968b6cf78d0ca54ac1e45c167bb706a91615c
+Parents: dd78c17a2430304f6738826dc80353e8a24ed61a d5ede8370a8cc39745c172c0e7dbfbedabee132b
+Tree: 8962e8bbdcd43a0188543dec127dd81336ce4199
+Upstream byte identity: 24 files match d5ede8370a8cc39745c172c0e7dbfbedabee132b
+Unchanged from pre-integration head: issue_start/worktree_ledger.py
+Unchanged from pre-integration head: maintainability_lint/baseline.json
+Copilot platform source SHA256: b0a5933ae86454289a0a3fd5c08597fdf5706848c16e357b2ed20b6628469abb; generated marker matches
+Exit code: 0
