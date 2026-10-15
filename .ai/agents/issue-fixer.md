@@ -120,11 +120,6 @@ diagnosis:
   targets: []
   karte_attempt: Attempt 番号
 outcome: fixed
-cross_cutting_checks:
-  - finding_ids: []
-    problem_type: 同型問題の類型
-    loci: []
-    treatment: fixed|confirmed_unchanged|unresolved|recorded_out_of_scope
 changed_files:
   - path
 cross_cutting_checks:
