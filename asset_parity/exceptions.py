@@ -7,6 +7,9 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
 `.claude/tailoring-registry.md`'s trailing bullet notes; each entry's reason string
 below cites the decision it transcribes (the registry holds the full rationale).
 
+  個々のエントリの経緯と詳細な根拠は `.ai/rationale/asset-parity-exceptions.md` に移設済み
+  （判定の正本は `.claude/tailoring-registry.md`、各理由文字列は下の `_*` 定数）。
+
 Exemptions are recorded per ``(name, kind, tree)``, never as a blanket per-asset
 exemption: most entries are scoped to the GitHub Copilot (`.github/`) tree because
 Codex CLI carries real equivalents, while `codex-review` is exempt on *all* its
@@ -35,7 +38,7 @@ class Exemption:
 
 
 _ENV_DEPENDENT = (
-    "agy MCP はローカル CLI／Windows Credential Manager 認証依存のため非移植"
+    "agy 直接実行はローカル CLI／Windows Credential Manager 認証依存のため非移植"
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_PIPELINE_AGENT_COPILOT = (

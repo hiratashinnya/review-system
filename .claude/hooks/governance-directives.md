@@ -1,7 +1,9 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@71ba68f237ec -->
+<!-- synced-from: CLAUDE.md@d77d4b82f9d1 -->
 <!--
+  Issue #606 r4: 05-skills-agents の agy 運用状態を agent 正本参照へ統一した。項1〜12と照合し中核契約の変更なし。本文を維持しmarkerだけ同期。
+
   PR #638 のレビュー是正（2026-10-14）: `CLAUDE.md` 冒頭の subagent 注入対策を、起動可能な17エージェント中
   16エージェントに規定があり、`reconciliation` は規定なしの例外であると明記した。`.claude/hooks/README.md`
   の対応表に記録済みの実態への整合であり、配送本文（中核規範1〜12）には変更なし。marker のみ更新した。
@@ -253,7 +255,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
    review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
    Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック
-   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`等の外部委譲補助・
+   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`/`agy_delegate`等の外部委譲補助・
    `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
    `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
    `karte`・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）

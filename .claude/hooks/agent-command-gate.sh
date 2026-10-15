@@ -1331,6 +1331,13 @@ elif dangerous_token:
         "that env-var prefixes / absolute paths / compound commands can bypass, so this hook denies it "
         "independent of agent_type)."
     )
+elif agent_type == "agy-delegate" and not is_mcp:
+    symbol = dangerous_shell_symbol(command) if isinstance(command, str) else "missing command"
+    tokens = shell_words(command) if isinstance(command, str) and not symbol else None
+    tokens, env_reason = strip_wrappers_or_env_reason(tokens) if tokens else ([], None)
+    if (symbol or env_reason or len(tokens) < 4 or tokens[0] not in PYTHON_HEAD_COMMANDS
+            or tokens[1:3] != ["-m", "agy_delegate"] or tokens[3] not in {"inspect", "run"}):
+        reason = "agent-command-gate (agy-delegate): only python3 -m agy_delegate inspect|run is allowed; use Read for file inspection."
 elif agent_type not in GATED_ROLES:
     # agent_type が対象ロール以外（欠如を含む・main context 自身がこれに該当）はロール専用判定
     # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する

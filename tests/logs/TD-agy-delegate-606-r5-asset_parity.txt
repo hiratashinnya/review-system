@@ -1,0 +1,93 @@
+asset_parity — cross-platform asset presence matrix
+
+asset                        kind   mode         .github (Copilot)            .codex/agents (Codex CLI agent) .agents/skills (Codex CLI skill)
+----------------------------------------------------------------------------------------------------------------------------------------------
+agy-delegate                 skill  orchestrator exempt                       n/a                          OK                          
+align                        skill  skill        OK                           n/a                          OK                          
+architecture-design          skill  skill        OK                           n/a                          OK                          
+asset-lateral-deploy         skill  orchestrator OK                           n/a                          OK                          
+asset-pipeline               skill  orchestrator OK                           n/a                          OK                          
+bloom-model-tier             skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
+branch-hygiene               skill  skill        OK                           n/a                          OK                          
+codex-review                 skill  orchestrator exempt                       n/a                          exempt                      
+coverage-html                skill  skill        OK                           n/a                          OK                          
+docidx                       skill  skill        OK                           n/a                          OK                          
+domain-model                 skill  skill        OK                           n/a                          OK                          
+gh-create-issue              skill  skill        exempt                       n/a                          OK                          
+impl-design-pipeline         skill  orchestrator OK                           n/a                          OK                          
+issue-pipeline               skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
+mvp-scope                    skill  skill        OK                           n/a                          OK                          
+native-stacked-pr            skill  skill        OK                           n/a                          OK                          
+orchestration-design         skill  skill        OK                           n/a                          OK                          
+prompt-design                skill  skill        OK                           n/a                          OK                          
+schema-design                skill  skill        OK                           n/a                          OK                          
+silent-failure-diagnosis     skill  principle    exempt                       n/a                          OK                          
+spec-pipeline                skill  orchestrator OK                           n/a                          OK                          
+spec-principles              skill  principle    exempt                       n/a                          OK                          
+test-strategy                skill  skill        OK                           n/a                          OK                          
+value-trace                  skill  skill        OK                           n/a                          OK                          
+agy-delegate                 agent  -            exempt                       OK                           n/a                         
+analysis-author              agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+asset-auditor                agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+authoring-fanout             agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+design-author                agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+doc-system-config-operator   agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+dsv2-lookup                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+issue-fixer                  agent  -            exempt                       OK                           n/a                         
+issue-implementer            agent  -            exempt                       OK                           n/a                         
+pr-reviewer                  agent  -            exempt                       OK                           n/a                         
+reconciliation-validator     agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+reconciliation               agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+requirements-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+spec-author                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+spec-inspector               agent  -            OK                           OK [STALE?]                  n/a                         
+structured-analysis          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+verification-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+
+41 assets checked; 0 MISSING; 29 staleness flag(s)
+
+Orphans in mirror trees (present in a mirror, no .claude/ parity-seed counterpart — informational only, not counted above):
+  .github (Copilot): doc-system-v2-authoring (agent)
+  .codex/agents (Codex CLI agent): doc-system-v2-authoring (agent)
+  .agents/skills (Codex CLI skill): doc-system-config (skill)
+
+Staleness flags (heuristic, false positives OK — worth a human/LLM look):
+  bloom-model-tier @ .github (Copilot): size ratio 2.1x > 2.0x threshold (39 vs 19 lines)
+  bloom-model-tier @ .agents/skills (Codex CLI skill): last-commit gap 35d > 30d threshold
+  issue-pipeline @ .github (Copilot): size ratio 5.1x > 2.0x threshold (66 vs 13 lines)
+  issue-pipeline @ .agents/skills (Codex CLI skill): size ratio 3.1x > 2.0x threshold (66 vs 21 lines)
+  analysis-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  analysis-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  analysis-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  asset-auditor @ .github (Copilot): last-commit gap 49d > 30d threshold
+  asset-auditor @ .github (Copilot): size ratio 2.1x > 2.0x threshold (25 vs 12 lines)
+  asset-auditor @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  asset-auditor @ .codex/agents (Codex CLI agent): size ratio 3.1x > 2.0x threshold (25 vs 8 lines)
+  authoring-fanout @ .github (Copilot): last-commit gap 35d > 30d threshold
+  authoring-fanout @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  doc-system-config-operator @ .github (Copilot): last-commit gap 48d > 30d threshold
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): size ratio 2.9x > 2.0x threshold (20 vs 7 lines)
+  dsv2-lookup @ .github (Copilot): last-commit gap 49d > 30d threshold
+  dsv2-lookup @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  dsv2-lookup @ .codex/agents (Codex CLI agent): size ratio 3.3x > 2.0x threshold (23 vs 7 lines)
+  reconciliation-validator @ .github (Copilot): last-commit gap 48d > 30d threshold
+  reconciliation-validator @ .codex/agents (Codex CLI agent): last-commit gap 48d > 30d threshold
+  reconciliation @ .github (Copilot): last-commit gap 35d > 30d threshold
+  reconciliation @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  spec-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  spec-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-inspector @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  structured-analysis @ .github (Copilot): last-commit gap 35d > 30d threshold
+  structured-analysis @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  structured-analysis @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  verification-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  verification-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  verification-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
