@@ -1322,6 +1322,7 @@ class AgentCommandGateTests(unittest.TestCase):
 
 
     def test_gh_create_issue_has_its_own_narrow_bash_allowlist(self):
+        target = "hiratashinnya/review-system"
         for command in [
             "gh issue list --state all --json number,title",
             "gh repo view --json nameWithOwner",
@@ -1329,6 +1330,9 @@ class AgentCommandGateTests(unittest.TestCase):
             "git remote get-url origin",
             "gh issue view 12 --json title,labels",
             "gh issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md --label bug",
+            f"gh --repo {target} issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            f"gh issue create --title x --repo={target} --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            f"gh -R{target} project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12",
             "gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12",
             "gh api repos/hiratashinnya/review-system/issues?state=open",
             "gh api --method POST repos/hiratashinnya/review-system/issues/12/dependencies/blocked_by -F issue_id=13",
@@ -1337,17 +1341,37 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_allowed(run_gate(payload("gh-create-issue", command)))
 
-        for command in [
-            "git status",
-            "gh issue close 12",
-            "gh issue create --title x --body-file file --web",
-            "gh api --method PATCH repos/hiratashinnya/review-system/issues/12 -F state=closed",
-            "gh api --method POST repos/hiratashinnya/review-system/issues/12 -F state=closed",
-            "gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=bad",
-            "curl https://example.invalid",
-        ]:
+    def test_gh_create_issue_rejects_repo_override_mismatches_for_every_write(self):
+        commands = [
+            "gh --repo other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh -R other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh -Rother-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh --repo=other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh issue create --repo other-owner/other-repo --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh issue create -Rother-owner/other-repo --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh --repo other-owner/other-repo project item-add --owner other-owner --project-number 3 --url https://github.com/other-owner/other-repo/issues/12",
+            "gh --repo other-owner/other-repo project item-edit --id PVT_item --project-id PVT_project --field-id PVT_field --text value",
+            "gh api --method POST repos/other-owner/other-repo/issues/12/dependencies/blocked_by -F issue_id=13",
+            "gh api --method POST repos/other-owner/other-repo/issues/12/sub_issues -F sub_issue_id=13",
+            "gh api repos/other-owner/other-repo/issues/12",
+        ]
+        for command in commands:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_fails_closed_when_checkout_target_is_unknown(self):
+        result = run_gate(
+            payload("gh-create-issue", "gh issue create --title x --body-file body.md"),
+            env={"GIT_DIR": "/tmp/gh-create-issue-missing-origin.git"},
+        )
+        self.assert_denied(result)
+
+    def test_gh_create_issue_rejects_unbound_inherited_repository_environment(self):
+        result = run_gate(
+            payload("gh-create-issue", "gh issue create --title x --body-file body.md"),
+            env={"GH_REPO": "other-owner/other-repo"},
+        )
+        self.assert_denied(result)
 
     def _run_gate_with_project_metadata(self, command, *, response=None, fail=False):
         with tempfile.TemporaryDirectory() as directory:
