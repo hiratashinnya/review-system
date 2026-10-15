@@ -1172,10 +1172,90 @@ def gh_create_issue_item_edit_violation(rest):
     return None
 
 
-def gh_create_issue_violation(tokens):
-    """Restrict gh-create-issue to Issue creation and bounded Project item operations."""
+def gh_create_issue_origin_repository():
+    """Resolve the only repository this dispatch may affect from the locked checkout origin."""
+    try:
+        completed = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=os.getcwd(),
+            text=True,
+            capture_output=True,
+            shell=False,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0 or not isinstance(completed.stdout, str):
+        return None
+    remote = completed.stdout.rstrip("\n")
+    if not remote or "\n" in remote or "\r" in remote:
+        return None
+    match = re.fullmatch(
+        r"(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)"
+        r"([A-Za-z0-9][A-Za-z0-9-]{0,38})/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?",
+        remote,
+    )
+    if match is None:
+        return None
+    return f"{match.group(1)}/{match.group(2)}".casefold()
+
+
+def gh_create_issue_repo_override_violation(tokens, target_repository):
+    """Every gh repo override must match the dispatch's origin-bound target."""
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
+        value = None
+        if token in {"--repo", "-R"}:
+            if index + 1 >= len(tokens):
+                return "gh --repo/-R is missing its repository value"
+            value = tokens[index + 1]
+            index += 2
+        elif token.startswith("--repo="):
+            value = token.partition("=")[2]
+            index += 1
+        elif token.startswith("-R") and len(token) > 2:
+            value = token[2:]
+            index += 1
+        else:
+            index += 1
+            continue
+        if not value or value.casefold() != target_repository:
+            return "gh --repo/-R does not match the repository bound at dispatch"
+    return None
+
+
+def gh_create_issue_api_target_violation(rest, target_repository):
+    """Require REST paths to name the same repo as the dispatch target."""
+    endpoint = next((token for token in rest if token.startswith("repos/")), "")
+    if endpoint:
+        path = endpoint.partition("?")[0].partition("#")[0]
+        match = re.match(r"repos/([^/]+)/([^/]+)(?:/|$)", path)
+        if match is None:
+            return "gh api REST endpoint has no verifiable owner/repository"
+        repository = f"{match.group(1)}/{match.group(2)}".casefold()
+        if repository != target_repository:
+            return "gh api REST endpoint does not match the repository bound at dispatch"
+        return None
+    if rest and rest[0] == "graphql":
+        return None
+    return "gh api requires a verifiable repository REST endpoint or read-only GraphQL query"
+
+
+def gh_create_issue_violation(tokens, target_repository):
+    """Restrict gh-create-issue commands and bind every GitHub target to the dispatch origin."""
     if not tokens:
         return "empty command"
+    override_violation = gh_create_issue_repo_override_violation(tokens, target_repository)
+    if override_violation:
+        return override_violation
+    inherited_repo = os.environ.get("GH_REPO")
+    if inherited_repo and inherited_repo.casefold() != target_repository:
+        return "GH_REPO does not match the repository bound at dispatch"
+    inherited_host = os.environ.get("GH_HOST")
+    if inherited_host and inherited_host.casefold() != "github.com":
+        return "GH_HOST does not match the GitHub origin bound at dispatch"
     if tokens[0] == "git":
         if tokens in (["git", "branch", "--show-current"], ["git", "remote", "-v"],
                       ["git", "status", "--short"], ["git", "status", "--short", "--branch"]):
@@ -1219,6 +1299,9 @@ def gh_create_issue_violation(tokens):
         if violation:
             return violation
     if key == ("api",):
+        endpoint_violation = gh_create_issue_api_target_violation(rest, target_repository)
+        if endpoint_violation:
+            return endpoint_violation
         endpoint = next((token for token in rest if token.startswith("repos/")), "")
         method = "GET"
         for i, token in enumerate(rest):
@@ -1233,7 +1316,7 @@ def gh_create_issue_violation(tokens):
         match = re.fullmatch(
             r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*/"
             r"(dependencies/blocked_by|sub_issues)",
-            endpoint,
+            endpoint.partition("?")[0].partition("#")[0],
         )
         if method != "POST" or not match:
             return "gh api writes are limited to adding issue dependency/sub-issue relations"
@@ -1291,7 +1374,6 @@ def gh_create_issue_violation(tokens):
             index += 1
     return None
 
-
 def gh_create_issue_gate_reason(command_text):
     symbol = dangerous_shell_symbol(command_text)
     if symbol:
@@ -1304,7 +1386,10 @@ def gh_create_issue_gate_reason(command_text):
         return f"command wrapper or environment assignment is denied ({env_reason})"
     if not tokens:
         return "command is empty"
-    return gh_create_issue_violation(tokens)
+    target_repository = gh_create_issue_origin_repository()
+    if target_repository is None:
+        return "dispatch target repository cannot be resolved from the checkout origin"
+    return gh_create_issue_violation(tokens, target_repository)
 
 def role_command_violation(tokens, role):
     """層3: ロール別許可判定。層1・層2 を通過した時点で tokens は「記号を含まない単純な1コマンド」かつ
