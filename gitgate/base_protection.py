@@ -6,8 +6,9 @@ from .base_git import git
 
 
 def protected(path):
-    return path.startswith((".git/", ".codex/", ".agents/", ".claude/")) or path in {
-        "AGENTS.md", "CLAUDE.md", ".ai/agents/issue-fixer.md"}
+    return path.startswith((".git/", ".codex/", ".agents/", ".claude/", ".ai/guidance/")) or path in {
+        "AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md",
+        ".ai/agents/issue-fixer.md"}
 
 
 def reject_protected_incoming(workspace, head, base):

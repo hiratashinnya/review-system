@@ -8,8 +8,9 @@
 import unittest
 from pathlib import Path
 
+from asset_parity.inlining import is_inlined_into_copilot_instructions
 from asset_parity.inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, scan_parity_seeds
-from asset_parity.report import build_report
+from asset_parity.report import STATUS_EXEMPT, build_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,12 +34,35 @@ class TestRealTree(unittest.TestCase):
     def test_build_report_runs_end_to_end(self):
         report = build_report(REPO_ROOT)
         self.assertGreater(len(report.rows), 20)
-        # documented exemptions from tailoring-registry.md must not show up as MISSING
+        # a mirrored skill (issue-pipeline) and a documented non-mirror recorded in
+        # exceptions.py::EXEMPTIONS (issue-implementer) must not show up as MISSING
         by_name = {(row.asset.kind, row.asset.name): row for row in report.rows}
         from asset_parity.report import STATUS_MISSING
         from asset_parity.trees import GITHUB
         self.assertNotEqual(by_name[(SKILL, "issue-pipeline")].cells[GITHUB].status, STATUS_MISSING)
         self.assertNotEqual(by_name[(AGENT, "issue-implementer")].cells[GITHUB].status, STATUS_MISSING)
+
+    def test_every_principle_skill_github_cell_matches_actual_inlining(self):
+        from asset_parity.trees import GITHUB
+        report = build_report(REPO_ROOT)
+        principles = [r for r in report.rows if r.asset.mode == MODE_PRINCIPLE]
+        self.assertTrue(principles)
+        for row in principles:
+            cell = row.cells[GITHUB]
+            reason = cell.reason or ""
+            if is_inlined_into_copilot_instructions(row.asset, REPO_ROOT):
+                self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
+                self.assertIn("inlined", reason, row.asset.name)
+            else:
+                # Not inlined: only a documented exemption is acceptable. A plain Copilot skill
+                # file is a misplacement (never PRESENT) and an unregistered gap is MISSING.
+                self.assertNotIn("inlined per", reason, row.asset.name)
+                self.assertEqual(cell.status, STATUS_EXEMPT, row.asset.name)
+                self.assertTrue(reason, row.asset.name)
+
+    def test_spec_principles_is_inlined_into_copilot_instructions(self):
+        assets = {a.name: a for a in scan_parity_seeds(REPO_ROOT) if a.kind == SKILL}
+        self.assertTrue(is_inlined_into_copilot_instructions(assets["spec-principles"], REPO_ROOT))
 
 
 if __name__ == "__main__":

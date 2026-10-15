@@ -1,5 +1,41 @@
+# profile を定義した config は既定の指定が無いと全起動が失敗するため、未指定の起動の既定を置く（F-538-24）。
+default_permissions = ":workspace"
+
 [apps.connector_76869538009648d5b282a4bb21c3d157.tools.merge_pull_request]
 enabled = false
 
 [apps.connector_76869538009648d5b282a4bb21c3d157.tools.enable_auto_merge]
 enabled = false
+
+# Issue #538 PR-B: codex_worktree_exec が `-c default_permissions="<role>"` で選ぶ role 別 profile。
+# 両 profile は同一内容（編集とテスト実行のみ・network 無効・認証情報の読取拒否）。
+# 契約と D1（origin/main との一致検査）は docs/methods/codex-workspace-binding.md。
+[permissions.issue-implementer]
+extends = ":workspace"
+
+[permissions.issue-implementer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.issue-implementer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.issue-fixer]
+extends = ":workspace"
+
+[permissions.issue-fixer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.issue-fixer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"

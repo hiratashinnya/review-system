@@ -1,0 +1,16 @@
+1) `pwd`
+```text
+/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in
+```
+
+2) `git rev-parse --show-toplevel`
+```text
+/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in
+```
+
+3) `echo probe > tmp/probe-write.txt` のあと `cat tmp/probe-write.txt`
+```text
+probe
+```
+
+すべて終了コード 0。`tmp/probe-write.txt` に書き込みました。テストは実行していません。

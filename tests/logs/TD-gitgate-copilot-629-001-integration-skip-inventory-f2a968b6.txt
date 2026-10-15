@@ -1,0 +1,21 @@
+HEAD: f2a968b6cf78d0ca54ac1e45c167bb706a91615c
+Method: discover suite and inspect unittest skip decorators; tests are not re-executed.
+test_issue_start_gate.DispatchPayloadTests.test_codex_accepts_strict_github_https_and_ssh_origins: Codex prepare/binding transport retired by Issue #452
+test_issue_start_gate.DispatchPayloadTests.test_codex_bad_cwd_worktree_and_origin_are_fail_close: Codex payload details are intentionally not parsed
+test_issue_start_gate.DispatchPayloadTests.test_codex_bad_or_missing_task_name_is_fail_close: Codex payload details are intentionally not parsed
+test_issue_start_gate.DispatchPayloadTests.test_codex_encrypted_message_uses_task_name_and_worktree_origin: Codex prepare/binding transport retired by Issue #452
+test_issue_start_gate.HookTests.test_block_deny_reason_preserves_actionable_blocker_report: Codex transport no longer reaches blocker evaluation
+test_issue_start_gate.HookTests.test_codex_encrypted_message_allow_reaches_evaluation: Codex transport no longer reaches blocker evaluation
+test_issue_start_gate.HookTests.test_issue_317_equivalent_allows_with_mocked_gh_credential: Codex transport no longer reaches blocker evaluation
+test_issue_start_gate.IsolationContractTests.test_codex_local_parser_carries_no_isolation_requirement_after_availability_gate: Codex prepare/binding parser retired by Issue #452
+test_issue_start_gate.WorktreeLedgerSideEffectTests.test_codex_dispatch_does_not_open_a_second_legacy_entry: Codex prepare/binding ledger side effect retired by Issue #452
+Decorated skipped tests: 9
+
+Dynamic skip confirmation command: python3 -m unittest tests.unit.test_rate_limit_hook.RateLimitHookTests.test_future_reset_today_is_used_as_is -v
+test_future_reset_today_is_used_as_is (tests.unit.test_rate_limit_hook.RateLimitHookTests.test_future_reset_today_is_used_as_is) ... skipped 'near end of day; +2h may cross midnight'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK (skipped=1)
+Exit code: 0

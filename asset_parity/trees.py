@@ -3,22 +3,21 @@
 Verified against the actual repo layout (not assumed) as part of the issue #155 audit:
 
   * GitHub Copilot  — skill: `.github/skills/<name>/SKILL.md`
-                      agent: `.github/agents/<name>.agent.md`
+                      agent: `.github/agents/<name>.agent.md` (defined in `copilot_paths.py`)
   * Codex CLI agent — agent: `.codex/agents/<name>.toml`  (no skill-shaped tree)
   * Codex CLI skill — skill: `.agents/skills/<name>/SKILL.md`  (top-level `.agents/`,
                       NOT nested under `.codex/` — this is Codex's documented
                       repo-scoped skill discovery path)  (no agent-shaped tree)
 
-One additional, *structural* (not per-asset-exception) rule comes straight out of
-`.claude/skills/asset-lateral-deploy/SKILL.md`'s routing decision tree: a parity-seed
-skill's `disable-model-invocation`/`user-invocable` frontmatter changes *which* Copilot
-file form is expected, not whether one is:
+Two *structural* (not per-asset-exception) rules come out of `.claude/skills/
+asset-lateral-deploy/SKILL.md`'s routing decision tree: a parity-seed skill's
+`disable-model-invocation`/`user-invocable` frontmatter changes which Copilot file is expected:
 
   * `disable-model-invocation: true` (orchestrator, e.g. `/spec-pipeline`) → Copilot
     represents it as a **Prompt** (`.github/prompts/<name>.prompt.md`), not a Skill.
   * `user-invocable: false` (always-loaded principle, e.g. `spec-principles`) → Copilot
-    inlines it into `.github/copilot-instructions.md`; there is no discrete per-asset
-    file at all, so this is reported as a structural N/A, not a MISSING.
+    inlines it into `.github/copilot-instructions.md` (no discrete file) only if it really
+    is, as read from that file's content (`inlining.py`); else a plain skill file is not accepted.
 
 Codex's `.agents/skills/` tree does not have this split (verified: orchestrator-mode
 skills like `asset-pipeline`/`spec-pipeline` and even the `user-invocable: false`
@@ -30,6 +29,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import copilot_paths
+from .inlining import principle_github_paths
 from .inventory import AGENT, MODE_ORCHESTRATOR, MODE_PRINCIPLE, SKILL, Asset
 
 GITHUB = "github"
@@ -57,17 +58,17 @@ def applicable_trees(kind: str) -> tuple[str, ...]:
 def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
     """Candidate path(s) where `asset` would be expected to live in `tree`.
 
-    Returns an empty list when the (kind, tree, mode) combination is structurally not
-    expected to produce a discrete file at all — callers should treat that as N/A, not
-    as a missing mirror. When more than one path is returned, presence of *any* one of
-    them counts as present (OR — currently only the Copilot skill-vs-prompt case).
+    Empty means no discrete file is expected (exempt/N/A, not a missing mirror). That follows
+    from (kind, tree, mode) alone, except for a `user-invocable: false` skill on GITHUB, which
+    reads `.github/copilot-instructions.md` (file I/O) to see if it is really inlined. When
+    several paths are returned, presence of any one counts as present.
     """
     if tree not in applicable_trees(asset.kind):
         return []
 
     if asset.kind == AGENT:
         if tree == GITHUB:
-            return [root / ".github" / "agents" / f"{asset.name}.agent.md"]
+            return [copilot_paths.copilot_agent_path(asset.name, root)]
         if tree == CODEX:
             return [root / ".codex" / "agents" / f"{asset.name}.toml"]
         return []
@@ -77,10 +78,10 @@ def expected_paths(asset: Asset, tree: str, root: Path) -> list[Path]:
         return [root / ".agents" / "skills" / asset.name / "SKILL.md"]
     if tree == GITHUB:
         if asset.mode == MODE_PRINCIPLE:
-            return []  # inlined into copilot-instructions.md — no discrete file expected
+            return principle_github_paths(asset, root)  # [] when inlined (no discrete file)
         if asset.mode == MODE_ORCHESTRATOR:
-            return [root / ".github" / "prompts" / f"{asset.name}.prompt.md"]
-        return [root / ".github" / "skills" / asset.name / "SKILL.md"]
+            return [copilot_paths.copilot_prompt_path(asset.name, root)]
+        return [copilot_paths.copilot_skill_path(asset.name, root)]
     return []
 
 
@@ -92,8 +93,8 @@ def mirror_root_dirs(tree: str, kind: str, root: Path) -> list[Path]:
     """
     if tree not in applicable_trees(kind):
         return []
-    if kind == AGENT:
-        return [root / ".github" / "agents"] if tree == GITHUB else [root / ".codex" / "agents"]
     if tree == GITHUB:
-        return [root / ".github" / "skills", root / ".github" / "prompts"]
+        return copilot_paths.copilot_mirror_roots(kind, root)
+    if kind == AGENT:
+        return [root / ".codex" / "agents"]
     return [root / ".agents" / "skills"]

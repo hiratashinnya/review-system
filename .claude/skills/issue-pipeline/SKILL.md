@@ -46,6 +46,16 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
 - **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
+### Codex 実行者経路（Claude Code 固有・Issue #538）
+
+`issue-implementer`／`issue-fixer` は、自分の linked worktree で Codex に編集とテスト実行だけを行わせることができる。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。
+
+- **使うかどうかとモデル・推論予算は主文脈が dispatch prompt に書く。** 例：`Codex 実行者: --model <モデル> --reasoning-effort <low|medium|high|xhigh|max>`。選定はリスク信号表に従い、Codex 側のモデル名と推論予算は `.ai/Individually-managed-lists.md`「Bloom の model mapping」の Codex 行で写像する。書かなければロールは従来どおり自分で実装・是正する。
+- dispatch の marker・`isolation: "worktree"`・`handoff_path` の契約は変わらない。commit・push・PR 作成は従来どおりロールが行い、Codex は行わない。`issue-fixer` は karte の診断を済ませてから起動する。
+- **主文脈は自分でラッパーや `codex exec` を起動して実装・是正を代行しない。** 主文脈の起動は gate のロール専用層の対象外で機械では止められないため（設計の暫定決定 D7）、規律として守る。
+- ロールがレートリミットやセッション上限で止まったら、Codex のモデル・推論予算も含めて同じ構成で再投入する。
+- 実起動の検証設計は `tests/designs/TD-codex-worktree-exec-538-001.md`。TR とログは主文脈が検証専用環境で残す。
+
 ### karte 判定の直接通知（Claude Code 固有）
 
 `karte ingest-review` / `karte close-attempt` の実行直後、通知機構が `karte status --json` の

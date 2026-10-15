@@ -1,0 +1,19 @@
+1. `curl -sI -m 8 https://example.com`
+   - PreToolUse hook（`agent-command-gate`）が実行を拒否しました。
+   - 終了コード・標準エラー：未取得（プロセス未起動）。
+   - 拒否理由：`curl` は全ロールで禁止された network/exec コマンド。
+
+2. `getent hosts example.com`
+   - 終了コード：`2`
+   - 標準エラー：空
+   - 標準出力：空
+
+3. Python の接続確認
+   - 終了コード：`1`
+   - 標準エラー：Traceback が出力され、末尾は以下でした。
+     ```text
+     PermissionError: [Errno 1] Operation not permitted
+     ```
+   - ソケット生成時に失敗し、`NET_OK` は出力されませんでした。
+
+リポジトリ内のファイル変更はありません。

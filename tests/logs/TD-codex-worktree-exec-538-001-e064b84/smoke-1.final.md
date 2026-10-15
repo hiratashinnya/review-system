@@ -1,0 +1,13 @@
+1) `pwd`
+
+```text
+/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in
+```
+
+2) `git rev-parse --show-toplevel`
+
+```text
+/home/hiras/ws_claude/codex-verify/review-system/.claude/worktrees/agent-verify-in
+```
+
+両方とも終了コード0。ファイル変更・テスト実行なし。

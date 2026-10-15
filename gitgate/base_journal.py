@@ -1,4 +1,4 @@
-"""Atomic integration reservation and completion in the canonical dispatch ledger."""
+"""Atomic integration reservation and completion in canonical dispatch or scoped authorization records."""
 
 import copy
 import os
@@ -6,6 +6,7 @@ import secrets
 from issue_start import worktree_ledger
 from .base_error import require
 from .base_git import process_alive, process_token
+from .base_records import operation_records
 
 TERMINAL = {"committed", "aborted", "no_change", "rejected"}
 
@@ -20,14 +21,14 @@ def reserve(root, entry, binding, before, *, request=None, action="start"):
     token = secrets.token_hex(16)
     result = {}
     def mutate(document):
-        matches = [item for item in document["entries"]
+        matches = [item for item in operation_records(document)
                    if item.get("entry_id") == entry["entry_id"]]
         require(len(matches) == 1 and matches[0] == entry, "BASE_LEDGER_CAS_MISMATCH")
         target = matches[0]
         pending = active_operation(target)
         if action == "start":
             require(pending is None, "BASE_OPERATION_PENDING")
-            pending = {"schema_version": 1, "policy_version": "gitgate-base-integration/1.1",
+            pending = {"schema_version": 1, "policy_version": "gitgate-base-integration/1.2",
                        "id": token, "binding": binding, "request": request,
                        "original_head": before["head"], "before": before,
                        "history": []}
@@ -47,7 +48,7 @@ def reserve(root, entry, binding, before, *, request=None, action="start"):
 
 def finish(root, entry_id, operation, state, *, release=True, **evidence):
     def mutate(document):
-        target = next(item for item in document["entries"] if item["entry_id"] == entry_id)
+        target = next(item for item in operation_records(document) if item["entry_id"] == entry_id)
         pending = active_operation(target)
         require(pending is not None and pending["id"] == operation["id"]
                 and pending.get("reservation") == operation["reservation"],

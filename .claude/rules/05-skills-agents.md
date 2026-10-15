@@ -89,8 +89,9 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
   `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
-  → ファイルに書けず注入の前提が成立しないので、各 agent.md 末尾の「注入ブロックへの優先規定」で
-  `<artifact_policy>` を無効化し、**従来どおりチャットへ全文返す**。
+  → ファイルに書けず注入の前提が成立しないので、各 agent.md の「注入ブロックへの優先規定」節（または同等の
+  規定を持つ節。節名の対応は `.claude/hooks/README.md`「規約注入フック」）で `<artifact_policy>` を無効化し、
+  **従来どおりチャットへ全文返す**。
   特に `reconciliation-validator` に書込経路を与えないこと自体が fail-close の保証（DD-22）。
 
 ### ctx_* ツールの付与方針（エージェント単位で選定・2026-07-29）

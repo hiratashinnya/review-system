@@ -34,6 +34,8 @@
 
 ## Agents
 
+追跡対象 agent は model-free の停止状態 template である。`.ai/model-policy.json` と `model_policy/README.md` を読み、同一 surface の一覧からローカル `runtime-<agent>` を準備して明示選択する。default model の継承起動や未準備の著作・検証・反映は禁止する。以下の役割名は準備後の runtime agent に読み替える。
+
 - ノード著作: `requirements-author`、`spec-author`、`analysis-author`、`design-author`、`verification-author`
 - 一括著作: `authoring-fanout`
 - 検証・反映: `reconciliation-validator` → `reconciliation`
@@ -48,3 +50,10 @@
 - 共有リファレンス `silent-failure-diagnosis` は、読み込む予定の委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
 - `issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使い、Claude／Codex 固有の hook や worktree 実行機構を持ち込まない。
+
+
+## PR base 取り込み
+
+- `docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路を使う。Copilot はcleanなPR head branchで `python3 -m gitgate integrate-base-copilot-register --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` により対象を明示認可し、同じ引数の `integrate-base` → 衝突編集 → `integrate-base-continue`、中止は `integrate-base-abort` を使う。
+- この登録は認証済みCopilot roleの保証ではない。固定merge戦略・任意option禁止・固定unittest成功と非ゼロ件・内容CASと2親検証を再利用する。通常cloneも非default PR head branchなら利用できる。
+- commit/pushはgitgateを使い、pending中は行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・protected契約変更・OID driftはSTOPして報告する。Claude/Codex固有hookの等価物を仮定せず、raw Gitや台帳直接編集を阻止するsandboxを謳わない。

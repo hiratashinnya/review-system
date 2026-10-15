@@ -26,8 +26,10 @@
 > ——marker と現在ハッシュの不一致に加え、common guidance と main-context が正本集合に入ること、`.claude/rules/*.md` と下記 `@` import 行の集合が
 > 双方向一致することも CI で **fail-close** に検知する。フックが黙っていても、
 > このテストが赤くなるので追従漏れは merge 前に必ず露見する。
-> subagent 側の対策は各 `.claude/agents/*.md` 末尾の
-> 「注入ブロックへの優先規定」。背景と設計は `.claude/hooks/README.md`。
+> subagent 側では、起動可能な17エージェントのうち16エージェントが、各 `.claude/agents/*.md` の
+> 「注入ブロックへの優先規定」節または同等の規定を持つ節（「Claude Code 固有の実行規約」・
+> 「Claude Code 固有の実行契約」・「context-mode 固有の規律」）で対策する。`reconciliation` は
+> 現時点で該当する規定を持たない例外である（節名の対応と内訳は `.claude/hooks/README.md`）。
 
 > **「CLAUDE.md」は総称として読む**（Issue #387）。本ファイル・他の資産・コード docstring・ノード本文で
 > 「CLAUDE.md」「CLAUDE.md の規約」「CLAUDE.md「〇〇」」と書かれている場合、特記なき限り

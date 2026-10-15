@@ -2081,5 +2081,67 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
         self.assert_denied(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
 
 
+def codex_exec_command(role_args):
+    return (
+        "python3 -m codex_worktree_exec "
+        + role_args
+        + " -C /repo/.claude/worktrees/agent-x --prompt-file tmp/p.md"
+        " --output-file tmp/o.md --model gpt-6-sol --reasoning-effort high"
+    )
+
+
+@unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
+class CodexWorktreeExecGrantTests(unittest.TestCase):
+    """Issue #538 PR-B: `codex_worktree_exec` を implementer/fixer にだけ、自ロールを名乗る形で許可する。"""
+
+    WRITING_ROLES = ("issue-implementer", "issue-fixer")
+
+    def assert_denied(self, hook_output):
+        self.assertIsNotNone(hook_output, "deny されるべきコマンドが許可された")
+        self.assertEqual(hook_output["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_writing_roles_may_launch_codex_as_themselves(self):
+        for role in self.WRITING_ROLES:
+            for role_args in (f"--role {role}", f"--role={role}"):
+                with self.subTest(role=role, form=role_args):
+                    self.assertIsNone(run_gate(payload(role, codex_exec_command(role_args))))
+
+    def test_role_impersonation_is_denied(self):
+        # D4: --role の値は呼び出し元 agent_type と一致しなければならない。
+        self.assert_denied(run_gate(payload("issue-implementer", codex_exec_command("--role issue-fixer"))))
+        self.assert_denied(run_gate(payload("issue-fixer", codex_exec_command("--role=issue-implementer"))))
+
+    def test_missing_or_repeated_role_is_denied(self):
+        for role in self.WRITING_ROLES:
+            for role_args in ("", f"--role {role} --role {role}", f"--role {role} --role=issue-x", "--role"):
+                with self.subTest(role=role, form=role_args):
+                    self.assert_denied(run_gate(payload(role, codex_exec_command(role_args))))
+
+    def test_pr_reviewer_has_no_codex_write_path(self):
+        for role_args in ("--role pr-reviewer", "--role issue-implementer"):
+            with self.subTest(form=role_args):
+                self.assert_denied(run_gate(payload("pr-reviewer", codex_exec_command(role_args))))
+
+    def test_shell_symbols_stay_denied_for_the_wrapper(self):
+        command = codex_exec_command("--role issue-implementer")
+        for suffix in (" > out.txt", " | cat", " && git status", " < prompt.md"):
+            with self.subTest(suffix=suffix):
+                self.assert_denied(run_gate(payload("issue-implementer", command + suffix)))
+
+    def test_the_grant_reaches_the_ctx_execution_path_too(self):
+        command = codex_exec_command("--role issue-fixer")
+        self.assertIsNone(run_gate(ctx_execute_payload("issue-fixer", command)))
+        self.assert_denied(run_gate(ctx_execute_payload("pr-reviewer", command)))
+
+    def test_existing_role_specific_grants_are_unchanged(self):
+        # karte は従来どおり issue-fixer 専用（ロール別追加分の上乗せが他の付与を広げない）。
+        self.assert_denied(run_gate(payload("issue-implementer", "python3 -m karte status --issue 538")))
+        self.assertIsNone(run_gate(payload("issue-fixer", "python3 -m karte status --issue 538")))
+
+    def test_main_context_is_not_mechanically_blocked_known_limit_d7(self):
+        # D7: 主文脈（agent_type なし）はロール専用層の対象外。止めるのは規律（契約文）であって機械ではない。
+        self.assertIsNone(run_gate({"tool_input": {"command": codex_exec_command("--role issue-implementer")}}))
+
+
 if __name__ == "__main__":
     unittest.main()

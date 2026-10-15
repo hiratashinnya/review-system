@@ -1,0 +1,10 @@
+HEAD: f2a968b6cf78d0ca54ac1e45c167bb706a91615c
+Command: python3 -m unittest tests.unit.test_base_copilot tests.unit.test_base_integration -q
+Started UTC: 2026-10-14T22:53:20.758351+00:00
+----------------------------------------------------------------------
+Ran 50 tests in 57.347s
+
+OK
+
+Exit code: 0
+Elapsed seconds: 57.549

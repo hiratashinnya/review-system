@@ -1,0 +1,312 @@
+======================================================================
+ERROR: test_abort_preserves_edits_without_api (tests.unit.test_base_copilot.CopilotIntegrationTests.test_abort_preserves_edits_without_api)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_authorization_cannot_switch_pending_session (tests.unit.test_base_copilot.CopilotIntegrationTests.test_authorization_cannot_switch_pending_session)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_authorization_request_cannot_change_pending_operation (tests.unit.test_base_copilot.CopilotIntegrationTests.test_authorization_request_cannot_change_pending_operation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_claude_fallback_after_abort (tests.unit.test_base_copilot.CopilotIntegrationTests.test_claude_fallback_after_abort)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_claude_fallback_registered_pending_and_committed (tests.unit.test_base_copilot.CopilotIntegrationTests.test_claude_fallback_registered_pending_and_committed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_conflict_continue_two_parents (tests.unit.test_base_copilot.CopilotIntegrationTests.test_conflict_continue_two_parents)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_corrupt_authorization_collection_is_fail_closed (tests.unit.test_base_copilot.CopilotIntegrationTests.test_corrupt_authorization_collection_is_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_failed_tests_preserve_pending (tests.unit.test_base_copilot.CopilotIntegrationTests.test_failed_tests_preserve_pending)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_index_and_test_content_cas_preserved (tests.unit.test_base_copilot.CopilotIntegrationTests.test_index_and_test_content_cas_preserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_live_dispatch_blocks_registration_and_authority (tests.unit.test_base_copilot.CopilotIntegrationTests.test_live_dispatch_blocks_registration_and_authority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_nonconflicting_merge (tests.unit.test_base_copilot.CopilotIntegrationTests.test_nonconflicting_merge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_pending_publish_and_reregistration_denied (tests.unit.test_base_copilot.CopilotIntegrationTests.test_pending_publish_and_reregistration_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_protected_incoming_guidance_rejected (tests.unit.test_base_copilot.CopilotIntegrationTests.test_protected_incoming_guidance_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_real_failing_test_run_does_not_commit (tests.unit.test_base_copilot.CopilotIntegrationTests.test_real_failing_test_run_does_not_commit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_real_zero_test_run_does_not_commit (tests.unit.test_base_copilot.CopilotIntegrationTests.test_real_zero_test_run_does_not_commit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_registration_requires_live_pr_and_clean_exact_head (tests.unit.test_base_copilot.CopilotIntegrationTests.test_registration_requires_live_pr_and_clean_exact_head)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_request_and_branch_drift_denied (tests.unit.test_base_copilot.CopilotIntegrationTests.test_request_and_branch_drift_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_reregistration_revokes_authorization_without_dispatch (tests.unit.test_base_copilot.CopilotIntegrationTests.test_reregistration_revokes_authorization_without_dispatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_revoked_authorizations_denied (tests.unit.test_base_copilot.CopilotIntegrationTests.test_revoked_authorizations_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_unregistered_workspace_denied (tests.unit.test_base_copilot.CopilotIntegrationTests.test_unregistered_workspace_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_unrelated_edits_and_markers_preserved (tests.unit.test_base_copilot.CopilotIntegrationTests.test_unrelated_edits_and_markers_preserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+======================================================================
+ERROR: test_worktree_fake_state_and_self_platform_are_denied (tests.unit.test_base_copilot.CopilotIntegrationTests.test_worktree_fake_state_and_self_platform_are_denied)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 34, in setUp
+    fixtures.IntegrationTests.setUp(self)
+  File "/workspace/issue-629/tests/unit/test_base_integration.py", line 102, in setUp
+    self.assertEqual(self.entry()["status"], "running")
+                     ^^^^^^^^^^^^
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 19, in entry
+    return next(item for item in worktree_ledger.read_ledger(self.main)["base_authorizations"]
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'base_authorizations'
+
+----------------------------------------------------------------------
+Ran 50 tests in 65.906s
+
+FAILED (errors=22)

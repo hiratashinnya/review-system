@@ -1,0 +1,16 @@
+1) `pwd`
+```text
+/home/hiras/ws_claude/codex-verify/wt-verify-out
+```
+
+2) `git rev-parse --show-toplevel`
+```text
+/home/hiras/ws_claude/codex-verify/wt-verify-out
+```
+
+3) `echo probe > tmp/probe-write.txt` のあと `cat tmp/probe-write.txt`
+```text
+probe
+```
+
+すべて終了コード0。変更ファイルは `tmp/probe-write.txt`。テストは実行していません。

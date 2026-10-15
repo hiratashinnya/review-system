@@ -1,0 +1,12 @@
+======================================================================
+FAIL: test_real_zero_test_run_does_not_commit (tests.unit.test_base_copilot.CopilotIntegrationTests.test_real_zero_test_run_does_not_commit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/issue-629/tests/unit/test_base_copilot.py", line 132, in test_real_zero_test_run_does_not_commit
+    self.assertEqual(self.entry()["base_integrations"][-1]["tests"]["exit_code"], 0)
+AssertionError: 5 != 0
+
+----------------------------------------------------------------------
+Ran 43 tests in 58.534s
+
+FAILED (failures=1)

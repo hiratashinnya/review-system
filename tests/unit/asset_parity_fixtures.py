@@ -16,6 +16,26 @@ def _w(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def principles_marker_line(skill_name: str) -> str:
+    """A complete `principles-source` marker line (shape pinned in test_asset_parity_inlining_marker)."""
+    return f"<!-- principles-source: .ai/skills/{skill_name}/SKILL.md; sha256: {'0' * 64} -->"
+
+
+def generated_instructions_text(*, header_skill: str, body_lines: tuple[str, ...] = ()) -> str:
+    """Text shaped like a `guidance_sync` copilot-instructions.md: header, blank line, body.
+
+    The generated header always carries a `principles-source` marker (here for `header_skill`)
+    whether or not the body inlines anything, so a body marker is what shows real inlining.
+    """
+    header = [
+        "<!-- generated-by: python3 -m guidance_sync render; edit-source-only -->",
+        f"<!-- common-source: .ai/guidance/common.md; sha256: {'0' * 64} -->",
+        principles_marker_line(header_skill),
+        f"<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: {'0' * 64} -->",
+    ]
+    return "\n".join([*header, "", "# guidance body", "", *body_lines]) + "\n"
+
+
 def make_tree(test: unittest.TestCase) -> Path:
     """最小限の合成 4 ツリーを tmp ディレクトリに構築し root Path を返す（cleanup 登録済み）。
 
@@ -23,8 +43,13 @@ def make_tree(test: unittest.TestCase) -> Path:
       * ``plain-skill``（既定 skill モード）: github/agents_dir 双方に present（サイズ揃え済み）
       * ``orchestrator-skill``（``disable-model-invocation: true``）: github は
         skill 形でなく ``prompts/*.prompt.md`` にのみ present
-      * ``principle-skill``（``user-invocable: false``）: github は構造的 N/A（inline 想定）・
+      * ``principle-skill``（``user-invocable: false``）: github は copilot-instructions.md の
+        本文にある ``principles-source`` マーカーで実際に inline 済み（生成ヘッダーの同マーカーは数えない） → 構造的 exempt・
         agents_dir には plain な SKILL.md として present
+      * ``uninlined-principle-skill``（``user-invocable: false``・inline されない・exempt 登録あり）
+        / ``unregistered-principle-skill``（同・exempt 登録なし → github で MISSING）
+        / ``misplaced-principle-skill``（同・exempt 登録なし・``.github/skills/`` に通常 skill として
+        存在するが配置規範違反なので PRESENT ではなく github で MISSING）
       * ``missing-everywhere-skill``: 正本のみ。exempt 登録なし → 両ツリーで MISSING
       * ``exempt-skill``: 正本のみだが github は exempt 登録あり（agents_dir は present）
       * ``plain-agent`` / ``exempt-agent`` / ``missing-agent``: 同様の agent 版
@@ -43,6 +68,14 @@ def make_tree(test: unittest.TestCase) -> Path:
     _w(root / ".claude/skills/principle-skill/SKILL.md",
        "---\nname: principle-skill\ndescription: Always-loaded principle.\n"
        "user-invocable: false\n---\n\nbody\n")
+    for name in (
+        "uninlined-principle-skill", "unregistered-principle-skill", "misplaced-principle-skill",
+    ):
+        _w(root / f".claude/skills/{name}/SKILL.md",
+           f"---\nname: {name}\ndescription: Principle not inlined.\n"
+           "user-invocable: false\n---\n\nbody\n")
+        _w(root / f".agents/skills/{name}/SKILL.md",
+           f"---\nname: {name}\ndescription: Principle not inlined.\n---\n\nbody\n")
     _w(root / ".claude/skills/missing-everywhere-skill/SKILL.md",
        "---\nname: missing-everywhere-skill\ndescription: Nowhere else.\n---\n\nbody\n")
     _w(root / ".claude/skills/exempt-skill/SKILL.md",
@@ -62,7 +95,14 @@ def make_tree(test: unittest.TestCase) -> Path:
        "---\nname: plain-skill\ndescription: A plain skill.\n---\n\nbody\n")
     _w(root / ".github/prompts/orchestrator-skill.prompt.md",
        "---\nname: orchestrator-skill\ndescription: An orchestrator.\n---\n\nbody\n")
-    # principle-skill: 意図的に .github 側に何も置かない（inline 想定・構造的 N/A）
+    # principle-skill: 個別ファイルは無く copilot-instructions.md へ inline 済み
+    _w(root / ".github/copilot-instructions.md", generated_instructions_text(
+        header_skill="principle-skill",
+        body_lines=(principles_marker_line("principle-skill"),),
+    ))
+    # misplaced-principle-skill: inline されず、規範が禁じる通常 skill として置かれている
+    _w(root / ".github/skills/misplaced-principle-skill/SKILL.md",
+       "---\nname: misplaced-principle-skill\ndescription: Principle placed as a skill.\n---\n\nbody\n")
     # missing-everywhere-skill / exempt-skill: 意図的に置かない
     _w(root / ".github/agents/plain-agent.agent.md",
        "---\nname: plain-agent\ndescription: A plain agent.\n---\n\nbody\n")

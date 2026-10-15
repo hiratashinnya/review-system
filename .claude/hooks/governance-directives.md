@@ -1,11 +1,26 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@bb440647b976 -->
+<!-- synced-from: CLAUDE.md@96b399286af1 -->
 <!--
-  Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント
-  `gh-create-issue`（Issue 起票の委譲先・成果物は SubagentStop フックがチャット直送）の記載と、
-  handoff の Read 規定の例外1文を追記しただけ。中核規範（1〜12）には掛からず、本文は変更せず
-  marker のみ現在値へ更新した。
+  Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント `gh-create-issue` と handoff Read 規定の例外を追記しただけ。中核規範（1〜12）には掛からず、本文は変更せず marker のみ同期した。
+
+  PR #638 のレビュー是正（2026-10-14）: `CLAUDE.md` 冒頭の subagent 注入対策を、起動可能な17エージェント中
+  16エージェントに規定があり、`reconciliation` は規定なしの例外であると明記した。`.claude/hooks/README.md`
+  の対応表に記録済みの実態への整合であり、配送本文（中核規範1〜12）には変更なし。marker のみ更新した。
+
+  Issue #589（2026-10-14）: `CLAUDE.md` 冒頭の注入規範の説明と `.claude/rules/05-skills-agents.md`
+  「戻り値のハンドオフ規約」の1文が、subagent 側の対策の節名を「各 agent.md 末尾の『注入ブロックへの
+  優先規定』」とだけ書いていたのを、「『注入ブロックへの優先規定』節、または同等の規定を持つ節」へ
+  直した（エージェント定義側ではなく記述側を実態に合わせる方向。エージェントごとの節名の対応と
+  起動できるエージェント数は `.claude/hooks/README.md`「規約注入フック」の表）。**記述の訂正であって
+  中核規範（1〜12）には掛からない**。本文は変更せず marker のみ現在値へ更新した
+  （「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
+
+  Issue #538 PR-B（2026-10-13）: `.claude/rules/02-decision-process.md` の起票先判定表へ汎用開発
+  ハーネス `codex_worktree_exec`（Claude の implementer/fixer が自分の linked worktree で Codex に
+  編集とテスト実行だけを行わせる `codex exec -C` の薄いラッパー）の1項を追記しただけ。判定表の
+  列挙そのものの保守であって、中核規範（1〜12）には掛からない。本文は変更せず marker のみ現在値へ
+  更新した（「見た上で不要と判断した」ことの記録＝`.claude/hooks/README.md`「追従したあとにやること」）。
 
   Issue #605（2026-10-11・是正ラウンド1 2026-10-12）: `.claude/rules/05-skills-agents.md` のスキル一覧へ共有リファレンス
   `silent-failure-diagnosis` の1行を、`.claude/rules/02-decision-process.md` の起票先判定表

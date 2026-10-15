@@ -27,6 +27,10 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+
+from model_policy.policy import load_policy
+
+CODEX_POLICY = load_policy()["platforms"]["codex"]
 import unittest
 from typing import NamedTuple
 
@@ -99,11 +103,10 @@ class BloomModelTierContract(unittest.TestCase):
         ("大", "xhigh"),
         ("最大", "max"),
     )
-    CODEX_MODEL_MAPPING = (
-        ("低位モデル層", "model: gpt-6-luna"),
-        ("中位モデル層", "model: gpt-6-luna"),
-        ("最上位モデル層", "model: gpt-6-sol"),
-    )
+    CODEX_MODEL_MAPPING = {
+        neutral: CODEX_POLICY["tiers"][tier]
+        for neutral, tier in (("低位モデル層", "low"), ("中位モデル層", "mid"), ("最上位モデル層", "top"))
+    }
     CODEX_REASONING_EFFORTS = frozenset(
         {"low", "medium", "high", "xhigh", "max"}
     )
@@ -142,28 +145,28 @@ class BloomModelTierContract(unittest.TestCase):
     }
     EXPECTED_CODEX_CELLS = {
         "1 記憶": (
-            ("gpt-6-luna", "low"),
-            ("gpt-6-luna", "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "low"),
+            (CODEX_POLICY["tiers"]["mid"], "xhigh"),
         ),
         "2 理解": (
-            ("gpt-6-luna", "medium"),
-            ("gpt-6-luna", "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "medium"),
+            (CODEX_POLICY["tiers"]["mid"], "xhigh"),
         ),
         "3 応用": (
-            ("gpt-6-luna", "high"),
-            ("gpt-6-luna", "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "high"),
+            (CODEX_POLICY["tiers"]["mid"], "xhigh"),
         ),
         "4 分析": (
-            ("gpt-6-luna", "xhigh"),
-            ("gpt-6-luna", "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "xhigh"),
         ),
         "5 評価": (
-            ("gpt-6-luna", "max"),
-            ("gpt-6-sol", "high"),
+            (CODEX_POLICY["tiers"]["mid"], "max"),
+            (CODEX_POLICY["tiers"]["top"], "high"),
         ),
         "6 創造": (
-            ("gpt-6-luna", "max"),
-            ("gpt-6-sol", "xhigh"),
+            (CODEX_POLICY["tiers"]["mid"], "max"),
+            (CODEX_POLICY["tiers"]["top"], "xhigh"),
         ),
     }
 
@@ -276,17 +279,9 @@ class BloomModelTierContract(unittest.TestCase):
             self.assertNotIn(forbidden_marker, body)
         self.assertNotIn("(該当なし)", body)
 
+        self.assertIsNone(re.search(r"(?:gpt|claude)-(?:[a-z]+-)?\d", body))
         forbidden_pf_tokens = (
-            "gpt-6",
-            "gpt-6-luna",
-            "gpt-6-sol",
-            "model_reasoning_effort",
-            "haiku",
-            "sonnet",
-            "opus",
-            "effort:",
-            "claude-sonnet-5",
-            "claude-opus-4-8",
+            "model_reasoning_effort", "haiku", "sonnet", "opus", "effort:",
         )
         for token in forbidden_pf_tokens:
             self.assertNotIn(
@@ -305,22 +300,9 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertIn("`model_reasoning_effort`", codex)
         self.assertIn("session/config", codex)
         self.assertIn("`.codex/agents/*.toml`", codex)
-        self.assertEqual(
-            self._two_column_mapping(
-                codex,
-                "PF 中立のモデル層",
-                "Codex CLI session/config の `model`",
-            ),
-            dict(self.CODEX_MODEL_MAPPING),
-        )
-        self.assertEqual(
-            self._two_column_mapping(
-                codex,
-                "PF 中立の予算",
-                "Codex CLI session/config の `model_reasoning_effort`",
-            ),
-            dict(self.CODEX_BUDGET_MAPPING),
-        )
+        self.assertIn(".ai/model-policy.json", codex)
+        self.assertEqual(CODEX_POLICY["budgets"], dict(self.CODEX_BUDGET_MAPPING))
+        self.assertEqual(set(CODEX_POLICY["tiers"]), {"low", "mid", "top"})
 
         claude = _read(".claude/skills/bloom-model-tier/SKILL.md")
         for token in ("haiku", "sonnet", "opus", "effort:"):
@@ -334,8 +316,7 @@ class BloomModelTierContract(unittest.TestCase):
         self.assertNotIn("effort: max", claude)
 
         copilot = _read(".github/skills/bloom-model-tier/SKILL.md")
-        for model_id in ("claude-sonnet-5", "claude-opus-4-8"):
-            self.assertIn(model_id, copilot)
+        self.assertIn(".ai/model-policy.json", copilot)
         self.assertIn(
             "共通の推論予算は Copilot の agent frontmatter では表現できず、"
             "モデルIDだけを写像する",
@@ -343,20 +324,13 @@ class BloomModelTierContract(unittest.TestCase):
         )
 
     def test_codex_wrapper_preserves_the_legacy_oracle_mapping(self):
-        """旧 Codex 正本の6x2セルを現行モデル名で意味保存する。"""
+        """旧 Codex 正本の6x2セルを正本の系統・層を参照して意味保存する。"""
 
         common = _read(self.COMMON_PATH)
         codex = _read(".agents/skills/bloom-model-tier/SKILL.md")
-        model_mapping = self._two_column_mapping(
-            codex,
-            "PF 中立のモデル層",
-            "Codex CLI session/config の `model`",
-        )
-        budget_mapping = self._two_column_mapping(
-            codex,
-            "PF 中立の予算",
-            "Codex CLI session/config の `model_reasoning_effort`",
-        )
+        self.assertIn(".ai/model-policy.json", codex)
+        model_mapping = self.CODEX_MODEL_MAPPING
+        budget_mapping = CODEX_POLICY["budgets"]
 
         threshold_table = common[common.index("### 閾値表") : common.index("## 手順")]
         neutral_rows = {}
@@ -375,7 +349,7 @@ class BloomModelTierContract(unittest.TestCase):
                 self.assertEqual(separator, " + ", f"{level}: {cell}")
                 self.assertTrue(neutral_budget.endswith("の推論予算"))
                 neutral_budget = neutral_budget.removesuffix("の推論予算")
-                model = model_mapping[model_tier].removeprefix("model: ")
+                model = model_mapping[model_tier]
                 effort = budget_mapping[neutral_budget]
                 self.assertIn(effort, self.CODEX_REASONING_EFFORTS)
                 used_efforts.add(effort)

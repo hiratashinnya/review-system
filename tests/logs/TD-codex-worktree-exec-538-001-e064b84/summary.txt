@@ -1,0 +1,19 @@
+TD-codex-worktree-exec-538-001 実起動検証 ログ要約（主文脈が実施・実行主体は Codex）
+
+環境
+- 検証専用 clone: ~/ws_claude/codex-verify/review-system（main checkout・trust 済み）
+- linked worktree（main checkout 配下・Claude の isolation と同じ配置）: .claude/worktrees/agent-verify-in
+- linked worktree（main checkout の外）: ../wt-verify-out
+- 検証対象 head: a398b50（手順 1〜12）、e064b84（手順 7・6' の再検証）
+- Codex: 0.162.1（codex --version・2026-10-14）。spike（PR-B 着手時）は 0.157.0。検証中に CLI が更新されている
+- モデル: gpt-6.1-sol、推論予算 low（探査は決定的なコマンド実行）。ラッパー経由の起動は前置きで委譲を禁止する
+
+ファイル
+- <step>.final.md      : 各手順の Codex 最終応答（<step> は <role>-<in|out>-<手順番号>）
+- <step>.out.txt / .err.txt : ラッパーの標準出力・標準エラー
+- results2.json        : 追補（6'・7'・8・12）の結果
+- results3.json        : 是正後（e064b84）の手順 7・6' の再検証結果
+- results-11b.json     : 手順 11 後半（540 秒超の実行の回収）
+- sandbox-probe.txt    : codex sandbox による sandbox 層の認証情報 open() の直接観測（モデルを介さない）
+- 注意: 手順 1〜7・9〜11a の結果集約 results.json は、追補スクリプトの実行で上書きされ失われた。各手順の個別ログ
+  （<step>.final.md ほか）は残っている。

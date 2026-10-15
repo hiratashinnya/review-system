@@ -1,0 +1,8 @@
+終了コード: `1`
+
+標準エラー:
+```text
+/bin/bash: line 1: .codex/config.toml: Read-only file system
+```
+
+追記は失敗し、変更されたファイルはありません。テストは実行していません。
