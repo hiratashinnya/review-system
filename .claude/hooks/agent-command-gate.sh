@@ -17,7 +17,7 @@
 #                           差分は `gh pr diff --no-compact` / `gh pr view` / `gitgate show-pr-diff|diff|log` で読める。
 #   gh-create-issue は GATED_ROLES の push/merge/worktree 契約には参加せず、専用の狭い gh/git 読取 allowlist
 #   と `gh issue create`／限定 Project item 操作だけを許可する（Issue #632）。dispatch target は cwd の
-#   GitHub origin から fail-close で確定し、全 `gh --repo/-R`・REST endpoint・item-add Issue URL を照合する。
+#   GitHub origin から fail-close で確定し、全 `gh --repo/-R`・REST endpoint・Project item の Issue repository を照合する。
 #   origin 不明または不一致なら deny する。それ以外の agent_type
 #  （main／general-purpose／各 *-author 等・agent_type 欠如を含む）はロール専用判定対象外＝許可
 #   （下記 2026-07-11 のオーナー判断）。ただし全 agent_type 共通の危険コマンド（network/exec）は deny する。
@@ -1120,9 +1120,10 @@ def gh_violation(tokens, role):
 
 
 
-GH_CREATE_ISSUE_STATUS_QUERY = (
+GH_CREATE_ISSUE_ITEM_QUERY = (
     "query($item:ID!){node(id:$item){__typename "
-    "... on ProjectV2Item{project{field(name:\"Status\"){__typename "
+    "... on ProjectV2Item{content{__typename ... on Issue{repository{nameWithOwner}}} "
+    "project{id field(name:\"Status\"){__typename "
     "... on ProjectV2SingleSelectField{id name options{id name}}}}}}}"
 )
 
@@ -1146,13 +1147,13 @@ def _option_values(tokens, flag):
     return values
 
 
-def _status_option_is_done(item_id, field_id, option_id):
-    """Resolve Status live via the selected Project item; fail closed on unreadable metadata."""
+def _live_project_item(item_id):
+    """Read the item content, parent Project and Status in one live snapshot."""
     try:
         result = subprocess.run(
             [
                 "gh", "api", "graphql", "-f",
-                "query=" + GH_CREATE_ISSUE_STATUS_QUERY,
+                "query=" + GH_CREATE_ISSUE_ITEM_QUERY,
                 "-F", "item=" + item_id,
             ],
             capture_output=True, text=True, timeout=10, check=False,
@@ -1166,8 +1167,12 @@ def _status_option_is_done(item_id, field_id, option_id):
         return None
     data = response.get("data")
     node = data.get("node") if isinstance(data, dict) else None
-    project = node.get("project") if isinstance(node, dict) and node.get("__typename") == "ProjectV2Item" else None
-    status = project.get("field") if isinstance(project, dict) else None
+    return node if isinstance(node, dict) and node.get("__typename") == "ProjectV2Item" else None
+
+
+def _status_option_is_done(project, field_id, option_id):
+    """Inspect the same live Project snapshot used for the item scope check."""
+    status = project.get("field")
     if (
         not isinstance(status, dict)
         or status.get("__typename") != "ProjectV2SingleSelectField"
@@ -1187,22 +1192,33 @@ def _status_option_is_done(item_id, field_id, option_id):
     return matches[0] == "Done"
 
 
-def gh_create_issue_item_edit_violation(rest):
-    """Reject Status=Done using live Project metadata; unreadable metadata blocks item-edit."""
+def gh_create_issue_item_edit_violation(rest, target_repository):
+    """Bind every field edit to an origin Issue and its live parent Project."""
     item_ids = _option_values(rest, "--id")
     field_ids = _option_values(rest, "--field-id")
+    project_ids = _option_values(rest, "--project-id")
     option_ids = _option_values(rest, "--single-select-option-id")
-    if item_ids is None or field_ids is None or option_ids is None:
+    if any(values is None for values in (item_ids, field_ids, project_ids, option_ids)):
         return "gh project item-edit has a malformed option value"
-    if len(item_ids) != 1 or len(field_ids) != 1:
-        return "gh project item-edit requires exactly one --id and --field-id"
-    if not item_ids[0] or not field_ids[0]:
-        return "gh project item-edit requires non-empty --id and --field-id"
+    if any(len(values) != 1 or not values[0] for values in (item_ids, field_ids, project_ids)):
+        return "gh project item-edit requires exactly one non-empty --id, --field-id and --project-id"
     if len(option_ids) > 1:
         return "gh project item-edit accepts only one single-select option"
+    node = _live_project_item(item_ids[0])
+    content = node.get("content") if node else None
+    repository = content.get("repository") if isinstance(content, dict) else None
+    project = node.get("project") if node else None
+    if (
+        not isinstance(content, dict) or content.get("__typename") != "Issue"
+        or not isinstance(repository, dict)
+        or not isinstance(repository.get("nameWithOwner"), str)
+        or repository["nameWithOwner"].casefold() != target_repository
+        or not isinstance(project, dict) or project.get("id") != project_ids[0]
+    ):
+        return "live Project item does not confirm an origin repository Issue in the specified Project"
     if not option_ids:
         return None
-    result = _status_option_is_done(item_ids[0], field_ids[0], option_ids[0])
+    result = _status_option_is_done(project, field_ids[0], option_ids[0])
     if result is None:
         return "live Status metadata is unavailable or inconsistent; item-edit is denied"
     if result:
@@ -1366,7 +1382,7 @@ def gh_create_issue_violation(tokens, target_repository):
         if violation:
             return violation
     if key == ("project", "item-edit"):
-        violation = gh_create_issue_item_edit_violation(rest)
+        violation = gh_create_issue_item_edit_violation(rest, target_repository)
         if violation:
             return violation
     if key == ("api",):

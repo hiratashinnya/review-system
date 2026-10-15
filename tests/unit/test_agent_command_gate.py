@@ -1417,6 +1417,10 @@ class AgentCommandGateTests(unittest.TestCase):
             gh.write_text(
                 "#!/usr/bin/env python3\n"
                 "import json, os, sys\n"
+                "assert sys.argv[1:4] == ['api', 'graphql', '-f']\n"
+                "assert sys.argv[5:] == ['-F', 'item=PVTI_x']\n"
+                "assert 'content{__typename ... on Issue{repository{nameWithOwner}}}' in sys.argv[4]\n"
+                "assert 'project{id field(name:\"Status\")' in sys.argv[4]\n"
                 "if os.environ.get('GH_METADATA_FAIL') == '1': sys.exit(1)\n"
                 "print(json.dumps(json.load(open(os.environ['GH_METADATA_PATH']))))\n",
                 encoding="utf-8",
@@ -1435,7 +1439,12 @@ class AgentCommandGateTests(unittest.TestCase):
             "data": {
                 "node": {
                     "__typename": "ProjectV2Item",
+                    "content": {
+                        "__typename": "Issue",
+                        "repository": {"nameWithOwner": "hiratashinnya/review-system"},
+                    },
                     "project": {
+                        "id": "PVT_project",
                         "field": {
                             "__typename": "ProjectV2SingleSelectField",
                             "id": "PVTSSF_status",
@@ -1453,7 +1462,7 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_denies_live_status_done(self):
         command = (
             "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
-            "--single-select-option-id option_done"
+            "--project-id PVT_project --single-select-option-id option_done"
         )
         decision = self._run_gate_with_project_metadata(
             command, response=self._status_metadata("Done")
@@ -1463,7 +1472,7 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_allows_live_status_inbox(self):
         command = (
             "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
-            "--single-select-option-id option_inbox"
+            "--project-id PVT_project --single-select-option-id option_inbox"
         )
         decision = self._run_gate_with_project_metadata(
             command, response=self._status_metadata("Inbox")
@@ -1473,7 +1482,7 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_supports_equals_flags_and_checks_live_done_option(self):
         command = (
             "gh project item-edit --id=PVTI_x --field-id=PVTSSF_status "
-            "--single-select-option-id=option_done"
+            "--project-id=PVT_project --single-select-option-id=option_done"
         )
         decision = self._run_gate_with_project_metadata(
             command, response=self._status_metadata("Done")
@@ -1483,7 +1492,7 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_denies_ambiguous_duplicate_options(self):
         command = (
             "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
-            "--single-select-option-id option_inbox "
+            "--project-id PVT_project --single-select-option-id option_inbox "
             "--single-select-option-id option_done"
         )
         decision = self._run_gate_with_project_metadata(
@@ -1494,7 +1503,7 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_fails_closed_when_live_metadata_is_unavailable(self):
         command = (
             "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
-            "--single-select-option-id option_inbox"
+            "--project-id PVT_project --single-select-option-id option_inbox"
         )
         decision = self._run_gate_with_project_metadata(command, fail=True)
         self.assert_denied(decision)
@@ -1502,12 +1511,57 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_item_edit_fails_closed_for_unknown_status_option(self):
         command = (
             "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
-            "--single-select-option-id option_missing"
+            "--project-id PVT_project --single-select-option-id option_missing"
         )
         decision = self._run_gate_with_project_metadata(
             command, response=self._status_metadata("Done")
         )
         self.assert_denied(decision)
+
+    def test_item_edit_checks_origin_issue_and_project_for_every_field_type(self):
+        fields = (
+            "--field-id PVTF_text --text changed",
+            "--field-id PVTF_number --number 2",
+            "--field-id PVTF_date --date 2026-10-15",
+            "--field-id PVTIF_iteration --iteration-id iteration_x",
+            "--field-id PVTSSF_status --single-select-option-id option_inbox",
+        )
+        for field in fields:
+            command = "gh project item-edit --id PVTI_x --project-id PVT_project " + field
+            with self.subTest(field=field, scope="origin"):
+                self.assert_allowed(self._run_gate_with_project_metadata(
+                    command, response=self._status_metadata("Inbox")
+                ))
+            for boundary in ("repository", "project", "PullRequest", "DraftIssue", "missing_content"):
+                response = self._status_metadata("Inbox")
+                node = response["data"]["node"]
+                if boundary == "repository":
+                    node["content"]["repository"]["nameWithOwner"] = "other-owner/other-repo"
+                elif boundary == "project":
+                    node["project"]["id"] = "PVT_other_project"
+                elif boundary == "missing_content":
+                    node["content"] = None
+                else:
+                    node["content"]["__typename"] = boundary
+                with self.subTest(field=field, scope=boundary):
+                    self.assert_denied(self._run_gate_with_project_metadata(command, response=response))
+
+    def test_item_edit_requires_one_project_id_and_live_item_even_for_text(self):
+        command = "gh project item-edit --id PVTI_x --field-id PVTF_text --text changed"
+        for project_flags in ("", " --project-id=", " --project-id PVT_project --project-id PVT_other"):
+            with self.subTest(project_flags=project_flags):
+                self.assert_denied(self._run_gate_with_project_metadata(
+                    command + project_flags, response=self._status_metadata("Inbox")
+                ))
+        command += " --project-id=PVT_project"
+        for response in (None, {"errors": [{"message": "unavailable"}]}, {"data": {"node": None}}):
+            with self.subTest(response=response):
+                self.assert_denied(self._run_gate_with_project_metadata(
+                    command, response=response, fail=response is None
+                ))
+        self.assert_allowed(self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Inbox")
+        ))
 
     def test_every_gated_role_is_registered_in_all_role_tables(self):
         # 3つのロール別 dict（GATED_ROLES / GITGATE_VERBS_BY_ROLE / GH_SUBCOMMANDS_BY_ROLE）の
