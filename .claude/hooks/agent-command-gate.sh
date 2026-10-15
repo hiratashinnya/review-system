@@ -1226,6 +1226,35 @@ def gh_create_issue_repo_override_violation(tokens, target_repository):
     return None
 
 
+def gh_create_issue_project_item_add_violation(rest, target_repository):
+    """Keep Project item-add scoped to an Issue in the dispatch target repository."""
+    urls = []
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token == "--url":
+            if index + 1 >= len(rest):
+                return "project item-add is missing its --url value"
+            urls.append(rest[index + 1])
+            index += 2
+        elif token.startswith("--url="):
+            urls.append(token.partition("=")[2])
+            index += 1
+        else:
+            index += 1
+    if len(urls) != 1:
+        return "project item-add requires exactly one --url"
+    match = re.fullmatch(
+        r"https://github\\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38})/"
+        r"([A-Za-z0-9_.-]{1,100})/issues/[1-9][0-9]*",
+        urls[0],
+        re.IGNORECASE,
+    )
+    if match is None or f"{match.group(1)}/{match.group(2)}".casefold() != target_repository:
+        return "project item-add URL does not identify an Issue in the repository bound at dispatch"
+    return None
+
+
 def gh_create_issue_api_target_violation(rest, target_repository):
     """Require REST paths to name the same repo as the dispatch target."""
     endpoint = next((token for token in rest if token.startswith("repos/")), "")
@@ -1294,6 +1323,10 @@ def gh_create_issue_violation(tokens, target_repository):
     if key not in allowed:
         return f"gh {' '.join(key)} is outside the gh-create-issue allowlist"
     rest = tokens[index:]
+    if key == ("project", "item-add"):
+        violation = gh_create_issue_project_item_add_violation(rest, target_repository)
+        if violation:
+            return violation
     if key == ("project", "item-edit"):
         violation = gh_create_issue_item_edit_violation(rest)
         if violation:
