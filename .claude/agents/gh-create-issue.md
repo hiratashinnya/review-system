@@ -25,6 +25,7 @@ effort: xhigh
 呼び出し元は次を渡す。欠けているものを推測で補わない。
 
 - `request`: 依頼内容（目的・既知の事実・関連 Issue）。
+- `target_repository`: launcher が dispatch 前に active checkout の origin から確定した `OWNER/REPO`。gate は checkout origin を独立に解決し、gh の `--repo/-R` と REST endpoint が一致する場合だけ通す。origin 不明・target_repository 不一致なら `STOPPED` で終了し、GitHub を変更しない。
 - `mode`: `draft`（提示のみ・GitHub を変更しない）または `create`（オーナーが作成を明示依頼済み）。`create` でも §1 の write 境界と各確認の充足が前提で、不足なら `NEEDS_OWNER_INPUT` を返す。
 - `handoff_path`: 成果物を書く先。**`tmp/_handoff/gh-create-issue--<key>.md` の形に完全一致しなければ何も書かず STOP して呼び出し元へ報告する**（`<key>` は英数字と `._-` のみ）。対応する `<handoff_path>.receipt.json` はSubagentStop hook専用で、作成・編集してはならない（PreToolUse gateが拒否する）。
 - `decisions`（任意）: 前回の `QUESTIONS` へのオーナー回答の原文。回答どおりに反映し、言い換えて解釈を広げない。
@@ -63,6 +64,6 @@ QUESTIONS:            # NEEDS_OWNER_INPUT のときだけ
 
 ## 権限境界
 
-- Bash は `gh`（`issue`／`label`／`project`／`api`／`repo view`）と `git remote`／`git branch --show-current` などの読み取りに使う。`gh pr merge`・`git merge`・push・close・`Status=Done`・archive は行わない。
+- Bash は `gh`（`issue`／`label`／`project`／`api`／`repo view`）と `git remote`／`git branch --show-current` などの読み取りに使う。全 `gh --repo/-R` と REST API endpoint は dispatch 時に確定した target（checkout origin）へ一致させる。別 repository の依頼、origin の不明・不正、target 不一致は STOPPED で報告し、ゲートを迂回しない。`gh pr merge`・`git merge`・push・close・`Status=Done`・archive は行わない。
 - Issue/Project の write は `mode: create` かつ確認事項が揃ったときだけ。共通本文 §1 の「作成の明示依頼は包括許可ではない」を守る。
 - 作業中に見つけた Issue 起票と無関係な指摘は直さず、handoff へ1行で記録するに留める。
