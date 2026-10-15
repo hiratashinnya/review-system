@@ -73,10 +73,6 @@ status: pr_opened
 issue: Issue番号
 branch: ブランチ名
 pr_url: PR の URL
-cross_cutting_checks:
-  - problem_type: 同型問題の類型
-    loci: []
-    treatment: fixed|confirmed_unchanged|unresolved|recorded_out_of_scope
 changed_files:
   - path
 cross_cutting_checks:
