@@ -13,9 +13,12 @@ repository の `CLAUDE.md` と、そこから参照される規約を先に読�
 
 ### 1. dispatch する
 
+dispatch 前に `git remote get-url origin` を読み取り、remote が GitHub の `OWNER/REPO` として一意に検証できる場合だけそれを `target_repository` として確定する。依頼対象が origin と異なる、または origin が確認できない場合は dispatch しない。
+
 `Agent`（`Task`）で `subagent_type: gh-create-issue` を起動する。dispatch prompt には次だけを渡す（手順の細部は書かない）。
 
 - `request`: ユーザーの依頼原文と、会話で確定済みの目的・事実・関連 Issue。
+- `target_repository`: dispatch 前に active checkout の `git remote get-url origin` から確定した `OWNER/REPO`。この role の書込み先は origin と同一の repository に限る。依頼対象がこれと異なる場合は dispatch せず、対象 checkout を切り替えてから再依頼してもらう。
 - `mode`: ユーザーが「起票して」など GitHub への書き込みを明示していれば `create`、そうでなければ `draft`。
 - `handoff_path`: `tmp/_handoff/gh-create-issue--<key>.md`。`<key>` は `date -u +%Y%m%dT%H%M%S%NZ` の値。**dispatch のたびに新しく採番し、同じパスを再利用しない**。
 - `decisions`（再 dispatch のみ）: 直前の `QUESTIONS` へのオーナー回答の原文。
