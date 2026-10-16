@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Mapping
+from typing import Any, Mapping
 
 from .gate_support import BINDING_MARKER
 

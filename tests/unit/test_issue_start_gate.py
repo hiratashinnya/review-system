@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import get_type_hints
 import unittest
 from unittest.mock import patch
 
@@ -120,9 +121,11 @@ def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
 
 class DispatchPayloadMixin:
     def setUp(self):
-        availability = patch("issue_start.gate_transport._require_transport_available")
-        availability.start()
-        self.addCleanup(availability.stop)
+        self.transport_availability = patch(
+            "issue_start.gate_dispatch._require_transport_available"
+        )
+        self.transport_availability_mock = self.transport_availability.start()
+        self.addCleanup(self.transport_availability.stop)
 
     """Codex/Claude の正規 dispatch payload を組み立てる共通ヘルパ（テストは持たない）。"""
 
@@ -152,7 +155,38 @@ class DispatchPayloadMixin:
         return {"tool_name": tool, "tool_input": tool_input}
 
 
+class ReviewTypeHintResolutionTests(unittest.TestCase):
+    def test_split_gate_function_annotations_resolve(self):
+        from issue_start import (
+            gate_isolation_dispatch,
+            gate_ledger_metadata,
+            gate_residue_helpers,
+            gate_transport,
+            gate_validation,
+        )
+
+        functions = (
+            gate_transport._managed_transport,
+            gate_transport._require_transport_available,
+            gate_validation._validate_tool_input_shape,
+            gate_validation._validate_isolation,
+            gate_isolation_dispatch._parse_isolation_only,
+            gate_ledger_metadata._ledger_metadata,
+            gate_residue_helpers._residue_root,
+            gate_residue_helpers._residue_items,
+        )
+        for function in functions:
+            with self.subTest(function=function.__qualname__):
+                self.assertTrue(get_type_hints(function))
+
+
 class DispatchPayloadTests(DispatchPayloadMixin, unittest.TestCase):
+    def test_transport_availability_mock_targets_dispatch_reference(self):
+        self.assertEqual(
+            parse_dispatch_payload(self.claude_payload(tool="Task")), request()
+        )
+        self.transport_availability_mock.assert_called_once()
+
     @unittest.skip("Codex prepare/binding transport retired by Issue #452")
     def test_codex_encrypted_message_uses_task_name_and_worktree_origin(self):
         for tool_name in ("spawn_agent", "collaborationspawn_agent"):
@@ -770,7 +804,7 @@ class HookLedgerMixin:
         self._ledger_tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
-        availability = patch("issue_start.gate_transport._require_transport_available")
+        availability = patch("issue_start.gate_dispatch._require_transport_available")
         availability.start()
         self.addCleanup(availability.stop)
 

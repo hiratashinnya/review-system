@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 from .gate_manifest import _managed_entries
 from .gate_support import IssueStartError
