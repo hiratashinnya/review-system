@@ -25,7 +25,7 @@ F-540-07は`.write.lock`のflock内でload・NFKC/casefold衝突検査・公開�
 固定lock inodeは削除しない。schemaは変更せず、同じ未merge PRの是正なのでharness-adr/v1.0は据え置く。
 
 F-540-06の最新CIではfresh checkoutのtmp不存在とsynthetic trust fixtureの前提相違が判明した。
-入口TCはrepo/tmpの存在を仮定せず標準の独立TemporaryDirectoryを使う。trust fakeのmixedは実repoのpre-tool gateを
+入口TCはrepo/tmpの存在を仮定せず親を明示準備し、git管理下のおとりcwdを使う。trust fakeのmixedは実repoのpre-tool gateを
 優先し、そのkeyが存在しない単一SessionStart fixtureでは先頭hookを未信頼化する。検知内容を弱めずStopIterationを防ぐ。
 この追加是正も同一PR内でありschemaを再bumpしない。
 
