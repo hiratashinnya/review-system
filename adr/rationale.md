@@ -11,6 +11,7 @@ gitが無いときは明示`--repo`（省略時cwd）を共有scopeとする。h
 CLI stdoutにも`ADR-WRITE-ROOT:` receiptを出すが、3toolのPostToolUseは登録済みrootだけを読み、TOMLからpending IDを再計算する。
 未信頼のtool_responseは読み順のhintに限り、任意パス・任意systemMessageを採用しない。部分receiptが他の書込を
 隠さないよう登録全rootを必ず検査する。stdoutの全切詰め・redirect・MCPの要約でも通知対象が消えない。
+索引に残った別rootの破損や読取不能はrootごとにstderr診断して隔離し、今回書込rootの通知を巻き添えにしない。
 
 操作紐付けはreceipt消費型でなくlevel-triggerとする。CLI登録後の同一操作PostToolUseでpendingを通知し、以後も
 残っていれば再通知する。複数shell/並行hookのreceipt奪取や、CLIへsession/tool tokenを注入するPreToolUse追加を避ける。
