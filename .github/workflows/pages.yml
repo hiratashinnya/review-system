@@ -40,6 +40,9 @@ jobs:
       - name: Run time fixture scanner tests with coverage
         run: uv run --with coverage coverage run --append -m unittest discover -s tests/time_fixture_lint
 
+      - name: Install pinned optional Jev SDK for local HTTP mock tests
+        run: uv run --with coverage --with-requirements jev_hooks/requirements.txt python -c "print('Jev SDK dependencies installed')"
+
       - name: Run Jev hook test suite with coverage
         run: uv run --with coverage --with-requirements jev_hooks/requirements.txt coverage run --append -m unittest discover -s tests/jev_hooks
 
