@@ -22,8 +22,8 @@ def _caller_agent_type(payload: Mapping[str, Any]) -> str | None:
     ``subagent_type`` を含めているのは、そちらの tool_input（Bash の場合は ``command`` のみ）に
     同名フィールドが存在せず衝突しないためで、Task/Agent 経路にそのまま流用できる規約ではない。
     top-level の ``agent_type``/``agent.type`` は tool_input 側にこの名前の callee フィールドが
-    存在しない（callee は常に ``subagent_type``（Claude）/``agent_type``（Codex tool_input内）
-    経由で、top-level の ``agent_type``/``agent.type`` と衝突しない）ため曖昧さが無く、
+    存在しない（callee は ``subagent_type``（Claude Code tool_input）で指定され、top-level の
+    ``agent_type``/``agent.type`` と衝突しない）ため曖昧さが無く、
     引き続き呼び出し元識別に使う。
     フィールドが存在しない環境（未確認）では常に ``None`` を返し、呼び出し側の判定は
     無害な no-op になる（frontmatter からの `Task` 除去＝第一層が主たる防御であることに変わりはない）。

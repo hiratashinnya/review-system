@@ -30,7 +30,7 @@ def parse_dispatch_payload(
     now: datetime | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> IssueStartRequest | IsolationOnlyAck | None:
-    """Parse Claude/Codex dispatch payloads and return the matching binding."""
+    """Parse Claude dispatch payloads and return the matching binding."""
     tool_name = payload.get("tool_name")
     tool_input = payload.get("tool_input")
     if not isinstance(tool_name, str) or not isinstance(tool_input, dict):
@@ -42,16 +42,6 @@ def parse_dispatch_payload(
             f"caller agent_type={caller_agent_type} may not dispatch Task/Agent "
             "(GATED_ROLES must not spawn subagents; this closes the "
             "agent-command-gate.sh allowlist-bypass route recorded in Issue #517)",
-        )
-    # Codex は主文脈にしない（Issue #538）ので manifest binding を持たない。既知 tool/role の
-    # 組合せは malformed payload でも marker/ledger/cwd/API を一切読む前に同じ理由で拒否する。
-    if tool_name in {"spawn_agent", "collaborationspawn_agent"} and (
-        tool_input.get("agent_type") in {"issue-implementer", "issue-fixer"}
-        or tool_input.get("subagent_type") in {"issue-implementer", "issue-fixer"}
-    ):
-        raise IssueStartError(
-            "ISSUE_START_TRANSPORT_UNAVAILABLE",
-            "harness=codex; Codex is not a main context (Issue #538): dispatch from Claude Code",
         )
     targets = [tool_input.get(field) for field in ("agent_type", "subagent_type")]
     present_targets = [target for target in targets if target is not None]

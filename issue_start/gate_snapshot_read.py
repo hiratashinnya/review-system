@@ -29,8 +29,7 @@ def read_repository_snapshot(
     自己申告 ``repository`` field だけになり、origin を自分の管理下へ向けられる
     者が対象 repository を名乗る snapshot を配って ALLOW を作れてしまう
     ——policy §3.3.1 の「偽造には対象 repository への push 権限が要る」という
-    論拠がその経路で成立しなくなる。正規化は Codex 経路
-    （``_canonical_github_repository``）と同一とする。
+    論拠がその経路で成立しなくなる。repository identity は ``_canonical_github_repository`` で正規化する。
     """
     top_level = _git_output(
         ["git", "rev-parse", "--show-toplevel"],

@@ -45,8 +45,6 @@ def _validate_isolation(
 
     指定を欠いた dispatch は main worktree を共有したまま branch switch する＝
     呼び出し元の作業ツリーを巻き込むので、dispatch 自体を fail-close で拒否する。
-    Codex transportはmanifestに存在せず、既知roleのCodex dispatchは
-    :func:`parse_dispatch_payload` 冒頭でこの検査より前に常時拒否される。
     """
     if "required_isolation" not in transport:
         return
