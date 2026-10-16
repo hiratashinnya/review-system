@@ -72,7 +72,7 @@ for line in sys.stdin:
                 hooks += user_hooks(1, "untrusted")
             elif mode == "mixed":
                 target = next((hook for hook in hooks if
-                               hook["key"].endswith(":pre_tool_use:1:0")), hooks[0] if hooks else None)
+                               ":pre_tool_use:" in hook["key"]), hooks[0] if hooks else None)
                 if target:
                     target.update({"trustStatus":"untrusted", "currentHash":"sha256:current"})
             elif mode == "post-tool-untrusted":
