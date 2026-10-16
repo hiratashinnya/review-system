@@ -21,10 +21,6 @@
     "gitgate/worktree.py|abc15b92f96f2e58": 1,
     "gitgate/worktree.py|e239a628536ab723": 1,
     "guidance_sync/sync.py|6ab5f6f353105223": 1,
-    "issue_start/gate.py|12bc212ccc7e5c44": 1,
-    "issue_start/gate.py|9d410ee2541b9c16": 1,
-    "issue_start/gate.py|e6c48da09edc97ca": 1,
-    "issue_start/hook.py|dfde17372239572d": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -58,17 +54,6 @@
         "GitHubBranchClient"
       ],
       "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
-    },
-    "issue_start/gate.py": {
-      "data": [
-        "IsolationOnlyAck",
-        "IssueStartRequest"
-      ],
-      "logic": [
-        "IssueStartGitHubCollector",
-        "SnapshotIssueMetadata"
-      ],
-      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     }
   },
   "module_lines": {
@@ -167,14 +152,6 @@
     "issue_start/durable_lock.py": {
       "line_count": 129,
       "sha256": "c3ef570f41c46b4ffb3dfb38a1c3f866d03c28caa0948ea4e1f566b3ad667d2a"
-    },
-    "issue_start/gate.py": {
-      "line_count": 1285,
-      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
-    },
-    "issue_start/hook.py": {
-      "line_count": 190,
-      "sha256": "52860efc8a9c3d872e1bcb6cfdf416a8bbf07ff5a93fc4b5ee5970c19db8c923"
     },
     "issue_start/session_start.py": {
       "line_count": 118,

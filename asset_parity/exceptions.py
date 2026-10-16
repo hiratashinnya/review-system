@@ -46,9 +46,11 @@ _ISSUE_PIPELINE_AGENT_COPILOT = (
 _ISSUE_FIXER_COPILOT = (
     "Issue 運用パイプラインの是正専任ロール（Issue #308）。親パイプラインと同じ理由で Copilot"
     "（.github/）には等価物が無く、さらに karte CLI と PreToolUse フック（agent-command-gate.sh の"
-    "GATED_ROLES / PYTHON_MODULES_BY_ROLE）の両方に依存するため Copilot 側では契約が成立しない。"
-    "Codex CLI へは移植済み（.claude/tailoring-registry.md）"
+    "GATED_ROLES / PYTHON_MODULES_BY_ROLE）の両方に依存するため Copilot 側では契約が成立しない"
+    "（.claude/tailoring-registry.md）"
 )
+_ISSUE_PIPELINE_CODEX_RETIRED = "Issue #603 / #538: Codex は execution actor。agent は archive し、Claude Code role を正本とする（.claude/tailoring-registry.md / .ai/rationale/issue-pipeline.md）"
+_ISSUE_PIPELINE_SKILL_RETIRED = "Issue #603 / #538: Codex は main context ではない。skill を archive し、Copilot 差分は Issue #468 で追跡（.claude/tailoring-registry.md / .ai/rationale/issue-pipeline.md）"
 _CODEX_REVIEW_ENV = (
     "codex CLI／ChatGPT ログイン／~/.codex/sessions に依存する Linux/WSL 専用の第二意見"
     "レビュー委譲。全外部ツリー非移植（Codex CLI を Codex 自身の skill から呼ぶ再帰性が不自然・"
@@ -73,9 +75,10 @@ _SILENT_FAILURE_DIAGNOSIS_COPILOT = (
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
     Exemption("agy-delegate", AGENT, GITHUB, _ENV_DEPENDENT),
-    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
-    Exemption("issue-fixer", AGENT, GITHUB, _ISSUE_FIXER_COPILOT),
-    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
+    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), Exemption("issue-implementer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("issue-fixer", AGENT, GITHUB, _ISSUE_FIXER_COPILOT), Exemption("issue-fixer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), Exemption("pr-reviewer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("issue-pipeline", SKILL, AGENTS_DIR, _ISSUE_PIPELINE_SKILL_RETIRED),
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),

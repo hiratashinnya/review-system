@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-import tomllib
 import unittest
 
 
@@ -17,8 +16,8 @@ class NativeMergePermissionTests(unittest.TestCase):
         self.assertFalse((ROOT / "pr_merge_gate/hook.py").exists())
         for path in (".claude/hooks/agent-command-gate.sh", ".codex/hooks/agent-command-gate.sh"):
             self.assertNotIn('("pr", "merge")', (ROOT / path).read_text(encoding="utf-8"))
-        reviewer = tomllib.loads((ROOT / ".codex/agents/pr-reviewer.toml").read_text(encoding="utf-8"))
-        self.assertIn("merge は実行しない", reviewer["description"])
+        reviewer = (ROOT / ".ai/agents/pr-reviewer.md").read_text(encoding="utf-8")
+        self.assertIn("merge は実行せず", reviewer)
 
 
 if __name__ == "__main__":

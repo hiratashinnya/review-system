@@ -22,12 +22,11 @@ class TestIsExempt(unittest.TestCase):
         self.assertIsNotNone(is_exempt("issue-implementer", AGENT, "github"))
         self.assertIsNotNone(is_exempt("pr-reviewer", AGENT, "github"))
 
-    def test_not_exempt_from_codex_or_agents_dir(self):
-        # 2026-07 時点で Codex には移植済み（issue #155 是正コミット）— exempt 登録は github のみ。
+    def test_non_mirror_exemptions_match_retired_assets(self):
         self.assertIsNone(is_exempt("agy-delegate", SKILL, "agents_dir"))
         self.assertIsNone(is_exempt("agy-delegate", AGENT, "codex"))
-        self.assertIsNone(is_exempt("issue-pipeline", SKILL, "agents_dir"))
-        self.assertIsNone(is_exempt("issue-implementer", AGENT, "codex"))
+        self.assertIn("Issue #603", is_exempt("issue-pipeline", SKILL, "agents_dir"))
+        self.assertIn("Issue #603", is_exempt("issue-implementer", AGENT, "codex"))
 
     def test_unknown_asset_not_exempt(self):
         self.assertIsNone(is_exempt("not-a-real-asset", SKILL, "github"))

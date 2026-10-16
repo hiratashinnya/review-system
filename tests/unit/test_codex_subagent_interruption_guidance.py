@@ -12,8 +12,11 @@ REQUIRED_LINES = (
 )
 CODEX_AGENT_FILES = (
     ROOT / ".codex/agents/authoring-fanout.toml",
-    ROOT / ".codex/agents/issue-implementer.toml",
-    ROOT / ".codex/agents/pr-reviewer.toml",
+)
+RETIRED_CODEX_AGENT_FILES = (
+    ROOT / "archive/issue-603-codex-main-context-assets/.codex/agents/issue-implementer.toml",
+    ROOT / "archive/issue-603-codex-main-context-assets/.codex/agents/issue-fixer.toml",
+    ROOT / "archive/issue-603-codex-main-context-assets/.codex/agents/pr-reviewer.toml",
 )
 
 
@@ -26,10 +29,17 @@ class TestCodexSubagentInterruptionGuidance(unittest.TestCase):
                 with self.subTest(path=str(path), line=line):
                     self.assertIn(line, text)
 
-    def test_tailoring_registry_records_codex_only_non_mirror(self):
+    def test_retired_agents_remain_archived_and_registry_records_retirement(self):
+        for path in RETIRED_CODEX_AGENT_FILES:
+            with self.subTest(path=str(path)):
+                self.assertTrue(path.exists(), msg=f"{path} が archive にありません")
         registry = (ROOT / ".claude/tailoring-registry.md").read_text(encoding="utf-8")
-        self.assertIn("Codex 側のサブエージェント中断対策指示", registry)
-        self.assertIn("他 PF へはミラーしない", registry)
+        self.assertIn(
+            "Issue #603 で `.agents/skills/issue-pipeline/SKILL.md` と "
+            "`.codex/agents/{issue-implementer,issue-fixer,pr-reviewer}.toml`",
+            registry,
+        )
+        self.assertIn("退役する", registry)
 
 
 if __name__ == "__main__":

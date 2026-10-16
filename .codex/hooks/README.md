@@ -8,16 +8,19 @@ in `.codex/hooks.json` (trust them with `/hooks` before relying on them):
    enforces the per-role command allowlist (layers 1-3) for the gated roles
    `issue-implementer` / `issue-fixer` / `pr-reviewer` — the Codex counterpart
    of `.claude/hooks/agent-command-gate.sh`.
-2. A dispatch `PreToolUse` hook (`issue-start-gate.sh`, matcher
-   `spawn_agent|Agent|collaborationspawn_agent`) for Issue-start policy. There is
-   no separate PR-merge hook registration; merge denial lives in item 1.
+2. A Bash `PostToolUse` hook (`adr-notify.sh`) that checks pending ADR issue
+   tracking. Codex issue-start dispatch is not registered here; the wrapper was
+   retired in Issue #603 (see the archive reference below).
 
 ## PreToolUse command gate (all-role deny layer + gated-role allowlist)
 
 Issue #452 で Codex workspace-binding transport と all-tool binding hook は退役し、Issue #538 で
-repo supervisor とその launch-intent gate も退役した。Codex は主文脈にしないため、`spawn_agent` の
-implementer/fixer は issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する。
-現在の状態は `docs/methods/codex-workspace-binding.md`、退役した gate の記録は
+repo supervisor とその launch-intent gate も退役した。Issue #603 では Codex の issue-start dispatch
+hook も退役した。現在の `.codex/hooks.json` に登録されているのは Bash 用の
+`agent-command-gate.sh` と `adr-notify.sh` である。旧 Codex issue-start wrapper は
+[`archive/issue-603-codex-main-context-assets/.codex/hooks/issue-start-gate.sh`](../../archive/issue-603-codex-main-context-assets/.codex/hooks/issue-start-gate.sh)
+に保存している。Claude Code の managed-dispatch hook は引き続き `.claude/settings.json` に登録されている。
+関連する経緯は `docs/methods/codex-workspace-binding.md` と
 `.ai/rationale/codex-supervisor-retirement-538.md` を参照する。
 
 ### Codex 実行者経路（`codex_worktree_exec`）とフック（Issue #538 PR-B）
@@ -143,10 +146,11 @@ The official Codex manual and `rust-v0.146.0` source define `spawn_agent` as
 the canonical hook tool name and `Agent` as its matcher-only compatibility
 alias. A trusted, interactive Codex CLI 0.146.0 run in a disposable clone
 observed `tool_name: "collaborationspawn_agent"` on PreToolUse stdin for the UI
-`collaboration.spawn_agent` call. The Issue-start matcher therefore catches the
-known `spawn_agent`, `Agent`, and `collaborationspawn_agent` spellings. After
-Issue #452, known Codex implementer/fixer calls are denied before manifest or
-payload parsing; this record does not define an available Codex binding transport.
+`collaboration.spawn_agent` call. The retired Issue-start matcher accepted the
+known `spawn_agent`, `Agent`, and `collaborationspawn_agent` spellings. At the
+time, after Issue #452 and before the Issue #603 retirement, known Codex
+implementer/fixer calls were denied before manifest or payload parsing; this
+historical record does not define an available Codex binding transport.
 
 Claude Code 2.1.221 Pro produced a separate compatibility case: its configured
 `Task` matcher caught a real Agent tool call whose PreToolUse `tool_name` was
@@ -339,7 +343,8 @@ Repeat the trust check after moving a checkout or changing a hook registration.
 |---|---|
 | `.codex/hooks.json` | Registers the project-local `PreToolUse` hooks. Trust them with `/hooks` before relying on them. |
 | `agent-command-gate.sh` | PreToolUse handler: all-role merge/network-command deny layer plus the gated-role (issue-implementer/issue-fixer/pr-reviewer) allowlist layers. Denies via `permissionDecision:deny`; allows by emitting nothing. |
-| `issue-start-gate.sh` | PreToolUse handler registered in `.codex/hooks.json` for the `spawn_agent` / `Agent` / `collaborationspawn_agent` matcher. Thin wrapper over the shared `issue_start` core (see `.ai/Individually-managed-lists.md` hook table row 3). |
+| `adr-notify.sh` | PostToolUse handler registered in `.codex/hooks.json` for Bash; checks pending ADR issue tracking. |
+| `archive/issue-603-codex-main-context-assets/.codex/hooks/issue-start-gate.sh` | Archived Codex issue-start wrapper (Issue #603); it is not registered in the current `.codex/hooks.json`. |
 | `../config.toml` | Not a hook. Holds the `[permissions.issue-implementer]` / `[permissions.issue-fixer]` profiles that `codex_worktree_exec` selects for `codex exec` (Issue #538 PR-B). |
 
 ## Removed: Codex rate-limit auto-recovery (Issue #569)
