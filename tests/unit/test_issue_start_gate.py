@@ -120,7 +120,7 @@ def fake_codex_binding(payload, tool_input, *, agent_type, cwd, now, runner):
 
 class DispatchPayloadMixin:
     def setUp(self):
-        availability = patch("issue_start.gate._require_transport_available")
+        availability = patch("issue_start.gate_transport._require_transport_available")
         availability.start()
         self.addCleanup(availability.stop)
 
@@ -542,7 +542,7 @@ class IsolationOnlyContractTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            with patch("issue_start.gate.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
+            with patch("issue_start.gate_manifest.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
                 IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
             ):
                 parse_dispatch_payload(fixer_payload())
@@ -574,7 +574,7 @@ class IsolationOnlyContractTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            with patch("issue_start.gate.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
+            with patch("issue_start.gate_manifest.ENTRYPOINT_MANIFEST", path), self.assertRaisesRegex(
                 IssueStartError, "ISSUE_START_MANIFEST_CONTRACT_ERROR"
             ):
                 parse_dispatch_payload(fixer_payload())
@@ -770,7 +770,7 @@ class HookLedgerMixin:
         self._ledger_tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._ledger_tmp.cleanup)
         self.ledger_root = Path(self._ledger_tmp.name).resolve()
-        availability = patch("issue_start.gate._require_transport_available")
+        availability = patch("issue_start.gate_transport._require_transport_available")
         availability.start()
         self.addCleanup(availability.stop)
 
@@ -1007,7 +1007,7 @@ class CodexUnavailableTransportHookTests(unittest.TestCase):
         ]
         for tool_input in cases:
             with self.subTest(tool_input=tool_input), \
-                 patch("issue_start.gate._manifest") as manifest, \
+                 patch("issue_start.gate_manifest._manifest") as manifest, \
                  patch("issue_start.gate.worktree_ledger.read_ledger") as ledger:
                 with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
                     parse_dispatch_payload({
