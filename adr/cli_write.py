@@ -4,8 +4,8 @@ import tomllib
 from pathlib import Path
 from .github import create_issue, issue_body
 from .model import new_id, normalize
-from .references import validate_references
-from .store import load, write
+from .references import validate_assets, validate_references
+from .store import issue_lock, load, write
 
 
 def notify_pending(root):
@@ -20,6 +20,7 @@ def new_entry(args):
     data = tomllib.loads(Path(args.draft).read_text(encoding="utf-8"))
     data.setdefault("id", new_id(data))
     data = normalize(data)
+    validate_assets(data, args.repo)
     validate_references(data, args.root, args.repo)
     path = write(args.root, data)
     print(path)
@@ -27,6 +28,11 @@ def new_entry(args):
 
 
 def file_issue(args):
+    with issue_lock(args.root):
+        _file_issue_locked(args)
+
+
+def _file_issue_locked(args):
     matches = [(data, path) for data, path in load(args.root) if data["id"] == args.id]
     if not matches:
         raise ValueError("ADR が存在しない")

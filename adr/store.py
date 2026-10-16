@@ -3,10 +3,26 @@ import os
 import tempfile
 import tomllib
 import unicodedata
+import fcntl
+from contextlib import contextmanager
 from pathlib import Path
 from feedback_ledger.tomlwrite import dumps
 from .model import normalize
 from .schema import ADR_SPEC
+
+
+@contextmanager
+def issue_lock(root):
+    directory = Path(root)
+    if directory.is_symlink():
+        raise ValueError("ADR root が symlink")
+    directory.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(directory / ".file-issue.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
 
 
 def load(root):

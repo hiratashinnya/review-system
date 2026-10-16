@@ -11,27 +11,42 @@ def notification(payload):
     roots = set()
     for command in extract_commands(payload.get("tool_name", ""), payload.get("tool_input", {})):
         try:
-            tokens = shlex.split(command)
+            roots.update(command_roots(command, Path(payload.get("cwd") or ".")))
         except ValueError:
             continue
-        for position in range(len(tokens) - 2):
-            if tokens[position:position + 2] != ["-m", "adr"]:
-                continue
-            tail = tokens[position + 2:]
-            if not tail or tail[0] not in ("new-entry", "file-issue"):
-                continue
-            if "--root" in tail:
-                index = tail.index("--root") + 1
-                if index < len(tail):
-                    roots.add(tail[index])
-            roots.update(token.split("=", 1)[1] for token in tail if token.startswith("--root="))
     pending = []
-    cwd = Path(payload.get("cwd") or ".")
     for root in roots:
-        for data, _ in load(cwd / root):
+        for data, _ in load(root):
             if data["decision"]["tracking_status"] == "pending":
                 pending.append(data["id"])
     return {"systemMessage": "ADR: Issue未起票: " + ", ".join(sorted(set(pending)))} if pending else {}
+
+
+def command_roots(command, cwd):
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+    lexer.whitespace = " \t\r"
+    tokens, segment, roots = list(lexer), [], set()
+    for token in [*tokens, ";"]:
+        if token and all(char in ";&|()\n" for char in token):
+            if segment[:1] == ["cd"]:
+                arguments = [part for part in segment[1:] if part != "--"]
+                if len(arguments) == 1:
+                    cwd = (cwd / arguments[0]).resolve()
+            for position in range(len(segment) - 2):
+                if segment[position:position + 2] != ["-m", "adr"]:
+                    continue
+                tail = segment[position + 2:]
+                if tail[0] not in ("new-entry", "file-issue"):
+                    continue
+                for index, argument in enumerate(tail):
+                    if argument == "--root" and index + 1 < len(tail):
+                        roots.add(cwd / tail[index + 1])
+                    elif argument.startswith("--root="):
+                        roots.add(cwd / argument.split("=", 1)[1])
+            segment = []
+        else:
+            segment.append(token)
+    return roots
 
 
 def main():

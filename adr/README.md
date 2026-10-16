@@ -23,4 +23,11 @@ python3 -m adr deps --root issue_start/adr --id ADR-20261016-判断を残す
 
 PostToolUse の `adr.hook` は Bash / context-mode 実行のnew-entry/file-issue直後にpendingを `systemMessage` で通知する。CLI自体も同一書込操作内で通知JSONを出す。hookは助言専用で、読取不能等はstderr診断後に継続する。
 
+## 記録境界
+
+逐語を伴わない設計理由（why・代替案・帰結）は道具別 ADR が正本で、`recorded_by` はロールでもよい。
+逐語を伴うオーナー決定の正本は [台帳の境界規則](../feedback_ledger/README.md#台帳と-adr540の境界) に従う。
+ADR に逐語を転載せず `owner_decision_refs` で台帳 ID を参照する。plan の修正・条件付き承認は両方に記録し、
+無修正承認は新規記録しない。全ツール共通の方針は台帳だけに記録する。既存判断の一括移行は行わない。
+
 設計理由・凍結セットは [rationale](rationale.md)、テスト設計は [TD](../issue_start/verify/designs/TD-adr-540.md) を参照。

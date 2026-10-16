@@ -2,6 +2,16 @@
 
 Codex (AI)、2026-10-16。
 
+## 是正判断（round 1）
+
+全索引ノードの参照実在はDocSpecから導出した同じ辺を検査する。資産のrepo内実在検査は書込前とread-only checkで共用する。
+file-issueはroot内の固定lockファイルへのflockを保持したまま最新状態を読み、起票・番号書戻しを行う。
+lockは削除せずinodeを固定して別processの待機者とも排他する。root単位の直列化は同一ADRだけのlockより単純でIDのパス化も不要。
+shell通知はコマンド区切りごとにcdの作業ディレクトリを解決し、各実行ツール経路に共通適用する。
+schema変更はなく、同一未merge PRの是正であるためharness-adr/v1.0を再bumpしない。
+
+## 初回判断
+
 - module/interface: feedback_ledger の既存 DocSpec/Field/TableSpec・正規化・canonical serializer・slugify wrapperをimport再利用する。共有索引adapterはharness_traceへ分離し、adrの欄名を持たせない。新Python moduleを100行以内に分割するため、既存負債のfingerprint変更もbaseline更新も不要。
 - protocol/persistence: 道具別rootのcanonical TOMLをCLIからatomicに保存する。schemaはharness-adr/v1.0。ADRから台帳への片方向参照は独立したowner_decision_refs（ref=ledger）。sourceへ混在させる案より参照対象を明確にできる。オーナー逐語は転載しない。
 - orchestration/prompt: #371本体のロール・著作pipelineは導入しない。既存PostToolUseと同型の助言hook＋同一CLI操作の通知を併用する。

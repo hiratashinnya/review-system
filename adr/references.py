@@ -1,8 +1,17 @@
 """書込前の ADR 参照整合性。"""
 from dsv2.query import deps
 from harness_trace import adapt_document
+from pathlib import Path
 from .index import index
 from .schema import ADR_SPEC
+
+
+def validate_assets(data, repo):
+    directory = Path(repo).resolve()
+    for asset in data["affected_assets"]:
+        target = (directory / asset).resolve()
+        if not target.is_relative_to(directory) or not target.exists():
+            raise ValueError(f"資産がrepo内に存在しない: {asset}")
 
 
 def validate_references(data, root, repo):

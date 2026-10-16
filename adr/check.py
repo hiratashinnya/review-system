@@ -7,22 +7,24 @@ from feedback_ledger.tomlwrite import dumps
 from .index import index
 from .schema import ADR_SPEC
 from .store import load
+from .references import validate_assets
 
 
 def check(root, repo, *, base="origin/main", require_base=False, envelopes=()):
     records = load(root)
     meta = index(root, repo, envelopes)
     errors = []
+    for node in meta["nodes"]:
+        for edge in deps(meta, node["id"]):
+            if not edge["exists"]:
+                errors.append(f"L3: {node['yaml_path']}::{node['id']}: 参照が存在しない: {edge['to']}")
     for data, path in records:
         if path.read_text(encoding="utf-8") != dumps(ADR_SPEC, data):
             errors.append(f"L7: canonical 不一致: {path}")
-        for edge in deps(meta, data["id"]):
-            if not edge["exists"]:
-                errors.append(f"L3: 参照が存在しない: {edge['to']}")
-        for asset in data["affected_assets"]:
-            target = (Path(repo) / asset).resolve()
-            if not target.is_relative_to(Path(repo).resolve()) or not target.exists():
-                errors.append(f"L2: 資産が存在しない: {asset}")
+        try:
+            validate_assets(data, repo)
+        except ValueError as exc:
+            errors.append(f"L2: {path}: {exc}")
     by_id = {data["id"]: data for data, _ in records}
     for identifier in by_id:
         seen, current = set(), identifier
