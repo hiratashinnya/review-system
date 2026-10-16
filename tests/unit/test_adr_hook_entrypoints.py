@@ -24,7 +24,7 @@ class AdrHookEntrypointTest(CodexHookTrustTestMixin, unittest.TestCase):
         self.assertIn("post_tool_use:0:0", warning.stdout)
 
     def test_codex_entry_uses_repo_module_and_fails_open(self):
-        with tempfile.TemporaryDirectory(dir=ROOT / "tmp") as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             cwd = Path(temporary)
             (cwd / "adr").mkdir()
             (cwd / "adr/__init__.py").write_text("")

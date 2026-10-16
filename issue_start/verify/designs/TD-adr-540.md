@@ -27,6 +27,7 @@ condition: normal
 12. Codexの新PostToolUseは実在.sh入口を使い、おとりcwdに依存せず助言失敗時は継続する。trust検査はpre/post両hookの未信頼を検出し、Claude登録一覧は既存hookと新ADRを保持する。TCは test_adr_hook_entrypoints.py および既存hook検査。
 13. 実bashのbrace/if/for/while/case/pushd/subshell/pipeline/background/quote/cd -を含むCLI書込後、3tool経路のPostToolUse実入口が書込rootのpendingをsystemMessageで返す。stdoutの全欠落・切詰め・部分receiptでも通知し、未登録rootを指す偽receiptは採用しない。TCは test_adr_notice_results.py。
 14. thread/processのA/a・NFKC等価IDの同時書込は成功1件・拒否1件・保存1件でload可能。file-issueからwrite lockへの入れ子も既存並行起票TCで完了する。
+15. fresh checkoutのtmp不存在に依存せずhook入口TCを実行できる。trust fakeは実repoのpre-tool gateを優先し、単一SessionStartだけのsynthetic repoでも未信頼hook検出とgit失敗の入力path警告を維持する。TCは test_codex_hook_trust_fallback_note.py。
 
 # #452証跡
 
