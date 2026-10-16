@@ -64,6 +64,10 @@ class AdrNoticeResultTest(unittest.TestCase):
                 write(repo / name, draft(name))
                 if name != "unregistered":
                     register_root(repo / name, repo)
+            broken = repo / "broken"
+            broken.mkdir()
+            (broken / "invalid.toml").write_text("invalid TOML")
+            register_root(broken, repo)
             for response in (PREFIX + json.dumps(str(repo / "unregistered")),
                              PREFIX + json.dumps(str(repo / "first")), PREFIX + "invalid"):
                 message = notification(dict(tool_name="Bash", cwd=str(repo),

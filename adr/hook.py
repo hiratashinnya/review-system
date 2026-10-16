@@ -15,7 +15,12 @@ def notification(payload):
     roots = [*sorted(registered & observed), *sorted(registered - observed)]
     pending = []
     for root in roots:
-        for data, _ in load(root):
+        try:
+            records = load(root)
+        except (ValueError, OSError) as exc:
+            print(f"adr-notify: {root}: {exc}", file=sys.stderr)
+            continue
+        for data, _ in records:
             if data["decision"]["tracking_status"] == "pending":
                 pending.append(data["id"])
     return {"systemMessage": "ADR: Issue未起票: " + ", ".join(sorted(set(pending)))} if pending else {}
