@@ -1,4 +1,6 @@
 """Subagent lifecycle hooks が束縛・回収するロール。"""
 
-TARGET_ROLES = ("issue-implementer", "issue-fixer")
+from .gated_roles import WRITE_ROLES
+
+TARGET_ROLES = tuple(sorted(WRITE_ROLES))
 KARTE_ROLE = "issue-fixer"

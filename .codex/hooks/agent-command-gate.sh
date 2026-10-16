@@ -349,6 +349,10 @@ TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS = {"check"}
 MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS = {"check"}
 
 
+from issue_start.phase_role_permissions import extend_phase_permissions
+extend_phase_permissions(GITGATE_VERBS_BY_ROLE, GH_SUBCOMMANDS_BY_ROLE)
+
+
 def allowed_python_modules(role):
     """層2 の python モジュール許可集合（基底＋ロール別の追加分）。"""
     return ALLOWED_PYTHON_MODULES | PYTHON_MODULES_BY_ROLE.get(role, set())

@@ -1,0 +1,59 @@
+schema = "harness-adr/v1.0"
+id = "ADR-20261016-工程の入力境界を分離する"
+topic = "工程の入力境界を分離する"
+decided_at = 2026-10-16
+phase = "solution_planning"
+recorded_by = "Codex (AI)"
+affected_assets = [".ai/agents/creation-stage-contract.md", ".ai/skills/issue-pipeline/SKILL.md", "codex_worktree_exec/profile_pin.py", "issue_envelope/schema.py"]
+supersedes = ""
+owner_decision_refs = []
+
+[[source]]
+issue = 371
+pr = 0
+
+[context]
+problem = '''
+既存の実装者へ調査・検証設計・解決設計が集中し、検証設計の自己承認と権限の混線が生じる。
+'''
+constraints = '''
+既存#540のADR/refと#603のClaude主文脈境界を維持し、新run ledgerと#375 capture本体を作らない。
+'''
+
+[decision]
+chosen = '''
+CP/VDの同型木と独立work unit DAGをissue_envelopeに置き、工程artifactの検証と実行者の起動束縛を分離する。新工程はClaude専用roleとしCodexは元roleの実行profileで使う。
+'''
+rationale = '''
+既存DocSpec/ref adapterを直接再利用し、欄名依存と二重ledgerを増やさずproducer/run/Issue/digest/OIDの境界を検査できる。
+'''
+tracking_status = "pending"
+tracking_issue = 0
+no_tracking_reason = ''
+
+[[alternatives]]
+option = '''
+固定frame/shard二分と新台帳を作る
+'''
+rejection_reason = '''
+既決の同型木と導出可能な状態を保持しない原則に反する。
+'''
+
+[[alternatives]]
+option = '''
+未merge profileのpin基準を変更して実測する
+'''
+rejection_reason = '''
+main版との完全一致という既存信頼境界を弱めるため採用しない。
+'''
+
+[consequences]
+positive = '''
+1a/1b/2a/2bを独立審査し、入力不一致と権限越境をfail-closeできる。
+'''
+negative = '''
+dispatchと独立コンテキストの追加コストがある。未merge profileの実dispatch成功は確認できない。
+'''
+followups = '''
+merge後一回実測のverification起票案はissue_envelope/verify/designs/post-merge-verification-371.md。同一worktree/adoptの矛盾はownerへ比較案を提示中で、有効化を保留。#537へLEDGER_SPEC確認を引き渡す。
+'''

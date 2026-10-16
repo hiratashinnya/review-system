@@ -20,6 +20,8 @@ from .gate_support import (
 )
 from .gate_transport import _managed_transport, _require_transport_available
 from .gate_validation import _validate_tool_input_shape
+from .phase_dispatch import validate_phase_dispatch
+from .readonly_phase_dispatch import parse_readonly_phase
 
 
 
@@ -48,6 +50,9 @@ def parse_dispatch_payload(
     if len(present_targets) != 1 or not isinstance(present_targets[0], str) or not present_targets[0]:
         raise IssueStartError("ISSUE_START_TARGET_UNKNOWN")
     agent_type = present_targets[0]
+    readonly = parse_readonly_phase(tool_name, tool_input, agent_type, cwd)
+    if readonly is not None:
+        return readonly
     managed_types = _agent_types(_managed_entries())
     isolation_only_entries = _isolation_only_entries()
     isolation_only_types = _agent_types(isolation_only_entries)
@@ -70,6 +75,8 @@ def parse_dispatch_payload(
         return None
     entry, harness, transport = _managed_transport(tool_name, agent_type)
     _require_transport_available(harness, transport)
+    if transport.get("phase_binding_marker"):
+        validate_phase_dispatch(_marker_payload(tool_input, transport, transport["phase_binding_marker"]), agent_type, cwd)
     _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:

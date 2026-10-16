@@ -171,7 +171,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
-from issue_start.gated_roles import GATED_ROLES
+from issue_start.gated_roles import GATED_ROLES, READ_ONLY_ROLES, WRITE_ROLES
 from codex_worktree_exec.roles import CODEX_EXEC_ROLES
 
 # gh-create-issue gets a narrow Bash command gate without joining GATED_ROLES.
@@ -369,6 +369,11 @@ FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE = {
     "issue-fixer": {"check", "status", "index"},
     "pr-reviewer": {"check", "status", "index"},
 }
+
+
+from issue_start.phase_role_permissions import extend_phase_permissions
+extend_phase_permissions(GITGATE_VERBS_BY_ROLE, GH_SUBCOMMANDS_BY_ROLE,
+                         FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE)
 
 
 def allowed_python_modules(role):

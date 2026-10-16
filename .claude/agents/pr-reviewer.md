@@ -1,6 +1,6 @@
 ---
 name: pr-reviewer
-description: Reviews an open PR and posts review comments. It never merges; a clean result and fresh blocker report go to the owner for manual action.
+description: Reviews TestDesign alone before implementation, then reviews the PR in a separate context. It never edits, pushes, or merges.
 tools: Read, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
 effort: xhigh
@@ -11,6 +11,8 @@ effort: xhigh
 この資産の共通本文は [pr-reviewer の共通契約](../../.ai/agents/pr-reviewer.md) である。必ず読み、その指示に従う。
 
 ## Claude Code 固有の設定・権限境界
+
+- 2aは合格済みVD/CPとTestDesignを単独審査し、PRの存在を要求しない。2bは別dispatchでPR全文を審査する。2aのcapture pathと1行要約を返し、karte取込は主文脈に委ねる。
 
 - `.claude/settings.json` の native `permissions.deny` は直接形の shell merge 呼び出しと GitHub MCP merge tools を拒否する。両 `agent-command-gate` hook は global options、wrapper、API、検査可能な間接実行形を含む shell merge 判定を全ロール共通で行う。本ロールの hook allowlist に merge 専用例外は置かない。`git push` とコード変更も拒否し、`karte` は本ロールに許可しない。
 - frontmatter の `tools` と `model` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` / `Task` は持たず、レビュー対象やカルテを変更しない。`ctx_search` / `ctx_index` は調査に使う。

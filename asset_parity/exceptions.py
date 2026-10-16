@@ -39,7 +39,7 @@ _ENV_DEPENDENT = (
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_PIPELINE_AGENT_COPILOT = (
-    "issue-implementer/pr-reviewer は gh CLI／Claude Code フック（agent-command-gate.sh）／"
+    "Issue工程ロールは gh CLI／Claude Code フック（agent-command-gate.sh）／"
     "Task 委譲／bloom-model-tier に依存するため Copilot（.github/）には等価物なし"
     "（.claude/tailoring-registry.md）"
 )
@@ -86,6 +86,10 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("gh-create-issue", AGENT, CODEX, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
     Exemption("silent-failure-diagnosis", SKILL, GITHUB, _SILENT_FAILURE_DIAGNOSIS_COPILOT),
 )
+
+EXEMPTIONS += tuple(Exemption(role, AGENT, tree, reason)
+    for role in ("issue-investigator", "ac-designer", "change-planner", "plan-reviewer", "test-writer", "adviser")
+    for tree, reason in ((GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), (CODEX, _ISSUE_PIPELINE_CODEX_RETIRED)))
 
 
 def is_exempt(name: str, kind: str, tree: str) -> str | None:

@@ -39,3 +39,108 @@ dangerously_allow_non_loopback_proxy = false
 "~/.config/gh" = "deny"
 "~/.claude/.credentials.json" = "deny"
 "~/.ssh" = "deny"
+
+[permissions.ac-designer]
+extends = ":workspace"
+
+[permissions.ac-designer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.ac-designer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.change-planner]
+extends = ":workspace"
+
+[permissions.change-planner.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.change-planner.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.test-writer]
+extends = ":workspace"
+
+[permissions.test-writer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.test-writer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.issue-investigator]
+extends = ":read-only"
+
+[permissions.issue-investigator.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.issue-investigator.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.plan-reviewer]
+extends = ":read-only"
+
+[permissions.plan-reviewer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.plan-reviewer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.pr-reviewer]
+extends = ":read-only"
+
+[permissions.pr-reviewer.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.pr-reviewer.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"
+
+[permissions.adviser]
+extends = ":read-only"
+
+[permissions.adviser.network]
+enabled = false
+allow_local_binding = false
+dangerously_allow_all_unix_sockets = false
+dangerously_allow_non_loopback_proxy = false
+
+[permissions.adviser.filesystem]
+"~/.codex/auth.json" = "deny"
+"~/.config/gh" = "deny"
+"~/.claude/.credentials.json" = "deny"
+"~/.ssh" = "deny"

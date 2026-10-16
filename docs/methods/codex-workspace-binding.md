@@ -2,20 +2,39 @@
 
 Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役した。退役した実行契約・設計判断・却下案は
 [`.ai/rationale/codex-supervisor-retirement-538.md`](../../.ai/rationale/codex-supervisor-retirement-538.md) へ移設した。
-本書は Issue #538 の PR-B で導入した実行経路の現在の契約を記す。
+本書は Issue #538 の PR-B で導入し、#371で工程ロールへ拡張した実行経路の現在の契約を記す。
 
 ## 結論
 
 - **Codex は主文脈にしない。** 主文脈は Claude Code であり、Codex はサブ実行者として使う
   （オーナー決定・2026-09-22・Issue #538）。
-- **Claude の `issue-implementer`／`issue-fixer` は、自分の linked worktree で Codex に編集とテスト実行だけを行わせることができる。**
+- **Claude の工程ロールと `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexを起動できる。**
   経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけである（D12）。
 - **Codex は commit・push・PR 作成をしない。** network は無効で、`.git` へは書けない。commit・push・PR 作成は
   呼び出し側の Claude ロールが既存の `agent-command-gate` の下で行う。
-- **Codex 用フックは新設しない。** 権限境界は、版管理した permission profile（`.codex/config.toml`）、
-  Claude 側 gate の起動形検査、ラッパーの起動前検査で担う。
+- 権限境界は版管理した permission profile（`.codex/config.toml`）、両PFの既存command hook、
+  Claude側gateの起動形検査、ラッパーの起動前検査で担う。#371は既存hookへ工程ロールを追加する。
 - **Codex の `spawn_agent` で `issue-implementer`／`issue-fixer` を起動する経路は無い。**
   issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する（後述）。
+
+## #371の工程入力・有効化境界
+
+`issue-fixer`以外は `--binding-file <信頼callerのJSON>` が必須。初回調査・1aはraw Issue入力、
+起動/省略理由、Issue/run/target、bytes digest、HEADのsnapshot OIDを束縛する。
+後続工程はcommit済みartifactのpath/digestと、producer/phase/Issue/run/target/input digest/
+source snapshot OID/参照のexpectedを信頼callerから受け取る。artifactは正規配置とsource snapshotの
+到達可能性も確認し、実装者は承認済み単一work unitを要求する。期待値を入力から補完しない。
+相談は元role/run/入力参照、model、回数/token/費用予算へ束縛し、完全回答とtrusted使用量だけをcaptureする。
+回答は採否未決で元担当へ返し、レビュー・owner承認・STOPを解除しない。
+
+Claude native dispatchは全工程でphase binding/承認receiptを要求する。read-onlyのClaude側dispatchは
+worktree所有台帳を作らない。Codex executorへの委譲では引き続き呼出元のlinked worktree確認が必要。
+新工程のmanifestはavailability unavailableを維持し、同一worktree継承とadoptの衝突に対するowner判断、
+ロール別native実行証跡が揃うまで有効化しない。旧implementer初回入口を使った迂回も拒否する。
+origin/mainとのprofile pinは緩めない。未merge profileの実起動拒否は想定された保護であり、
+モデル非呼出しテストの成功で実dispatch成功を代用しない。低・中・高リスク経路と相談の実測は
+[`issue_envelope/verify/designs/post-merge-verification-371.md`](../../issue_envelope/verify/designs/post-merge-verification-371.md)
+の手順で追跡する。
 
 ## 起動形
 
@@ -28,7 +47,7 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 （gated ロールは改行を使えないので、実際には1行で書く。）
 
 - `--role` は呼び出し元自身の agent_type と一致しなければならない。`.claude/hooks/agent-command-gate.sh` が
-  `issue-implementer`／`issue-fixer` にだけ、`--role` がちょうど1つでその値が自ロールである形を許可する。
+  工程ロールと `issue-fixer` に、`--role` がちょうど1つでその値が自ロールである形だけを許可する。
 - 依頼文と最終応答のファイルは worktree の `tmp/` 配下（gitignore 済み）に置く。依頼文は Write で書く。
   相対パスは呼び出し元 cwd を起点とし、親 symlink を解決した実パスが検査済み worktree の `tmp/` 内に
   あることを起動前に確認する。境界外の絶対パス・`../`・symlink は拒否する。`tmp/` 自体が境界外へ
@@ -87,19 +106,20 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 
 ## permission profile
 
-`.codex/config.toml` に `[permissions.issue-implementer]` と `[permissions.issue-fixer]` を同一内容で版管理する。
-`pr-reviewer` の profile は置かない。
+`.codex/config.toml` に著作ロール（ac-designer/change-planner/test-writer/issue-implementer）とissue-fixerの編集profile、
+調査・plan-reviewer・pr-reviewer・adviserのread-only profileを版管理する。
 config の最初の有効設定はトップレベルの `default_permissions = ":workspace"` とする。profile 選択を省略した
 起動と `--sandbox read-only` 起動でも config を読み込めるようにするためで、ラッパーのロール別選択は
 `-c default_permissions="<role>"` で上書きする。
 
-- `extends = ":workspace"`（workspace root＝`-C` の worktree へ書け、配下の `.codex/` と `.git/` は読取専用）。
+- 著作/fixerは `extends = ":workspace"`（`-C` の worktreeへ書け、配下の `.codex/` と `.git/` は読取専用）。
+- 調査・レビュー・adviserは `extends = ":read-only"` とし、編集権限を与えない。
 - `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
   `dangerously_allow_non_loopback_proxy` をすべて `false`。
 - `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
 
 profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unittest` の `tests/unit/test_codex_worktree_exec_assets.py` が、
-先頭の既定設定と両 profile の存在・同一性・network 無効・認証情報パスの deny を静的に検査する
+先頭の既定設定とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
 （未指定・`--sandbox read-only` の実起動成功の代替ではない）。
 
 ## 「要設計」4項目の決定
@@ -211,19 +231,18 @@ gate の判定順と Claude transport の marker／isolation 契約は
 [`docs/tools/issue-start-and-branch-source.md`](../tools/issue-start-and-branch-source.md) を正とする。
 Claude 経路の契約は supervisor の退役でも PR-B でも変更していない。
 
-## 変更していないもの
+## 維持する境界
 
 - `codex-review`（別モデルファミリによる第二意見レビュー）と `.codex/mcp/claude_review/`。
-- `.codex/hooks.json` に残る2つの PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`）と、
-  `.codex/hooks/agent-command-gate.sh` の判定内容。
+- `.codex/hooks.json` の既存PreToolUse hook構成。command gateには#371の工程ロール制限を追加する。
 - worktree 所有台帳（`issue_start/worktree_ledger.py`）と `durable_lock.py`。
-- Claude の `issue-implementer`／`issue-fixer` の dispatch 契約（`ISSUE_START_BINDING_V1`／`ISSUE_FIX_BINDING_V1` marker と
-  `isolation: "worktree"`）。
+- Claudeのfixer markerとworktree isolation。初回Issue-startはac-designerへ移し、implementerは
+  phase bindingと承認済み上流成果物を必須にする（旧初回入口へは戻さない）。
 
-## 今後の予定
+## 旧資産の扱い
 
-Codex を主文脈とする前提で書かれた資産（`.codex/agents/issue-implementer.toml`・`issue-fixer.toml`、
-`.agents/skills/issue-pipeline` 等）の整理は Issue #603 で扱う。
+#603でCodex主文脈用の旧custom agentとissue-pipeline skillは退役済み。
+工程profileの追加を理由にこれらを復活させない。
 
 ## 記録の所在
 

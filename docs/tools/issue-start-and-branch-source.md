@@ -12,7 +12,7 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 ## Managed Issue-start
 
-`issue_start/managed-entrypoints-v2.json` が稼働中transportのinventory正本である。Claude `Task` / runtime `Agent`だけをbinding transportとして宣言し、Codex entryは退役済みで置かない。Codex `spawn_agent` / `collaborationspawn_agent`で既知implementer/fixerを指定した場合、payload詳細・cwd・ledger・GitHub APIを読む前に常時`ISSUE_START_TRANSPORT_UNAVAILABLE`で拒否する。
+`issue_start/managed-entrypoints-v2.json` が有効/利用不能transportのinventory正本である。Claude `Task` / runtime `Agent`だけをbinding transportとして宣言し、Codex entryは退役済みで置かない。Codex `spawn_agent` / `collaborationspawn_agent`で既知implementer/fixerを指定した場合、payload詳細・cwd・ledger・GitHub APIを読む前に常時`ISSUE_START_TRANSPORT_UNAVAILABLE`で拒否する。
 
 manifest は加えて `isolation_only` 区分を持つ（Issue #354 PR-4）。稼働中の経路は `issue-pipeline` から `issue-fixer` への Claude `Task` / runtime `Agent` であり、**shape 検証・`required_isolation` の強制・軽量 marker `ISSUE_FIX_BINDING_V1=<JSON>`（exact 6 field＝`issue`/`round`/`branch_name`/`repository`/`expected_oid`/`handoff_path`）の検証だけを行い、blocker gate（GitHub API）は呼ばない**。是正ラウンドは既に開いた PR への処置で Issue の着手可否は初回実装の dispatch で判定済みであり、ラウンドごとに API を叩くと到達不能時にレビュー是正まで fail-close で止まるためである。marker を無検証にせず要求するのは、worktree 所有台帳へ `{issue, round, branch_name, handoff_path}` を正確に載せるため（FR-W4）と、`gitgate adopt-branch --repository OWNER/REPO --expected-oid` に渡す値の出所を dispatch 契約側へ固定するためである。同じ `agent_type` が `managed` と `isolation_only` の両方に載っていれば、どちらの契約で判定すべきか一意に決まらないので manifest の誤りとして fail-close する。
 
@@ -22,9 +22,9 @@ Codex 0.146.0 の`tool_input.message`が暗号化されることに加え、cust
 
 Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json` の matcher `Task` が UI 表示 `issue-implementer(hook deny probe)` の実 Agent tool 呼出しを捕捉した一方、PreToolUse stdin の `tool_name` は `Agent` だった。`tool_input` は Claude 固有の `subagent_type` / `prompt` / `description` shape である。この実測差に対応して manifest の Claude transport だけが `Task` と `Agent` を exact 名として持つ。`Agent` は Codex transport の parser alias にはしない。parser は Claude transport で `subagent_type` と `prompt` を必須とし、Codex 固有の `agent_type` / `message` / `task_name` が混在すれば拒否するため、同名 alias を harness 間で無条件に受理しない。小文字化、prefix/suffix、類似名も拒否する。
 
-Claude transport は従来どおり dispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
+初回ac-designerのClaude transportはdispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 
-Claude transport は加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。`issue-implementer` は「独立 worktree で実装する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex dispatchはmanifestやisolation parserへ進む前に常時拒否する。deny reason には reason codeに加えてdetailを載せる。
+著作ロールとfixerのClaude transportは加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。著作ロールは「独立worktreeで著作する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex dispatchはmanifestやisolation parserへ進む前に常時拒否する。deny reason には reason codeに加えてdetailを載せる。
 
 PreToolUse hook は次を順に行う。
 
@@ -33,6 +33,20 @@ PreToolUse hook は次を順に行う。
 3. blocker が ALLOW の場合だけ同じ dispatch を続行する。BLOCK/ERROR、unknown、API/permission/pagination/cycle/contract error は deny する。
 
 evidence は blocker の `fetched_at`・reason・policy version と対象 binding を含む。branch-source evidence は含めない。ALLOW evidence は hook stderr（harness log）へ出し、deny は reason/policy version を PreToolUse response に含める。
+
+## #371の工程別入口
+
+初回managed roleはac-designer、後続isolation_onlyはchange-planner/test-writer/issue-implementerと
+既存fixer、readonlyはissue-investigator/plan-reviewer/pr-reviewer/adviserとする。3区分のrole重複は拒否する。
+新8工程のavailabilityは実測待ちのためunavailableであり、入口でfail-closeする。
+fixerは既存の軽量bindingを維持する。旧implementerの初回markerで工程を迂回してはならない。
+
+有効化後も新工程は `ISSUE_PHASE_INPUT_V1={"binding_file":"...","approval_file":"..."}` を必須とし、
+trusted callerの入力束縛と独立review receiptを照合する。後続著作者はさらに
+`ISSUE_PHASE_BINDING_V1` のexact 6 fieldsとworktree isolationを要求する。
+readonlyのdispatchはworktree所有台帳を起票せず、直接編集とpushも許可しない。
+入力/approvalのschema、1a→1b→2a→2bの順、owner承認、同一worktree継承の停止条件は
+[Claude issue-pipeline](../../.claude/skills/issue-pipeline/SKILL.md)を正とする。
 
 ## Hook parity と限界
 

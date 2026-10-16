@@ -4,7 +4,7 @@
   "managed": [
     {
       "entrypoint": "issue-pipeline",
-      "agent_type": "issue-implementer",
+      "agent_type": "ac-designer",
       "binding_transports": {
         "claude": {
           "tool_names": [
@@ -23,7 +23,13 @@
           ],
           "prompt_field": "prompt",
           "binding_marker": "ISSUE_START_BINDING_V1=",
-          "required_isolation": "worktree"
+          "required_isolation": "worktree",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "worktree-handover-owner-decision",
+            "role-native-execution-evidence"
+          ]
         }
       }
     }
@@ -53,10 +59,217 @@
           "required_isolation": "worktree"
         }
       }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "change-planner",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_PHASE_BINDING_V1=",
+          "required_isolation": "worktree",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "worktree-handover-owner-decision",
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "test-writer",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_PHASE_BINDING_V1=",
+          "required_isolation": "worktree",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "worktree-handover-owner-decision",
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-implementer",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "binding_marker": "ISSUE_PHASE_BINDING_V1=",
+          "required_isolation": "worktree",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "worktree-handover-owner-decision",
+            "role-native-execution-evidence"
+          ]
+        }
+      }
     }
   ],
   "unmanaged": [
     "direct shell/API invocation outside issue-pipeline",
     "harnesses that do not enable/trust project PreToolUse hooks"
+  ],
+  "readonly": [
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "issue-investigator",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "plan-reviewer",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "pr-reviewer",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    },
+    {
+      "entrypoint": "issue-pipeline",
+      "agent_type": "adviser",
+      "binding_transports": {
+        "claude": {
+          "tool_names": [
+            "Task",
+            "Agent"
+          ],
+          "agent_type_field": "subagent_type",
+          "required_tool_input_fields": [
+            "subagent_type",
+            "prompt"
+          ],
+          "forbidden_tool_input_fields": [
+            "agent_type",
+            "message",
+            "task_name"
+          ],
+          "prompt_field": "prompt",
+          "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
+          "availability": "unavailable",
+          "missing_observations": [
+            "role-native-execution-evidence"
+          ]
+        }
+      }
+    }
   ]
 }

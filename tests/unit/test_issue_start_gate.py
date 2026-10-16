@@ -70,8 +70,41 @@ def claude_binding():
         "base_pr": None,
     }
 
-class DispatchPayloadMixin:
+def legacy_gate_manifest():
+    """工程導入前の generic gate 契約を、本番 manifest から独立して固定する。"""
+    def entry(role, marker):
+        return {
+            "entrypoint": "issue-pipeline", "agent_type": role,
+            "binding_transports": {"claude": {
+                "tool_names": ["Task", "Agent"], "agent_type_field": "subagent_type",
+                "required_tool_input_fields": ["subagent_type", "prompt"],
+                "forbidden_tool_input_fields": ["agent_type", "message", "task_name"],
+                "prompt_field": "prompt", "binding_marker": marker,
+                "required_isolation": "worktree",
+            }},
+        }
+    return {
+        "schema_version": "managed-issue-entrypoints/2",
+        "policy_version": "issue-start/1.0",
+        "managed": [entry("issue-implementer", BINDING_MARKER)],
+        "isolation_only": [entry("issue-fixer", FIX_BINDING_MARKER)],
+    }
+
+
+class LegacyGateManifestMixin:
     def setUp(self):
+        manifest_tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(manifest_tmp.cleanup)
+        path = Path(manifest_tmp.name) / "legacy-managed-entrypoints.json"
+        path.write_text(json.dumps(legacy_gate_manifest()), encoding="utf-8")
+        manifest = patch("issue_start.gate_manifest.ENTRYPOINT_MANIFEST", path)
+        manifest.start()
+        self.addCleanup(manifest.stop)
+
+
+class DispatchPayloadMixin(LegacyGateManifestMixin):
+    def setUp(self):
+        super().setUp()
         self.transport_availability = patch(
             "issue_start.gate_dispatch._require_transport_available"
         )
@@ -91,6 +124,62 @@ class DispatchPayloadMixin:
         if isolation is not None:
             tool_input["isolation"] = isolation
         return {"tool_name": tool, "tool_input": tool_input}
+
+class ProductionPhaseDispatchTests(unittest.TestCase):
+    """本番の工程入口は availability と工程入力を満たすまで起動しない。"""
+
+    def manifest(self):
+        return json.loads((ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text())
+
+    def payload(self, role, prompt):
+        return {"tool_name": "Agent", "tool_input": {
+            "subagent_type": role, "prompt": prompt, "isolation": "worktree",
+        }}
+
+    def test_production_phase_routes_fail_closed_before_evaluation_or_ledger_write(self):
+        manifest = self.manifest()
+        roles = [entry["agent_type"] for entry in manifest["managed"] + manifest["isolation_only"] + manifest["readonly"]
+                 if entry["agent_type"] != "issue-fixer"]
+        for role in roles:
+            with self.subTest(role=role), patch("issue_start.hook.evaluate_issue_start") as evaluate, patch(
+                "issue_start.hook.record_open_entry"
+            ) as record:
+                stdout = io.StringIO()
+                run_hook(stdin=io.StringIO(json.dumps(self.payload(role, "start"))),
+                         stdout=stdout, stderr=io.StringIO(), cwd=ROOT)
+                decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
+                self.assertEqual(decision["permissionDecision"], "deny")
+                self.assertIn("ISSUE_START_TRANSPORT_UNAVAILABLE", decision["permissionDecisionReason"])
+                self.assertIn("role-native-execution-evidence", decision["permissionDecisionReason"])
+                evaluate.assert_not_called()
+                record.assert_not_called()
+
+    def test_old_implementer_start_binding_cannot_bypass_phase_entry(self):
+        payload = self.payload("issue-implementer", BINDING_MARKER + json.dumps(claude_binding()))
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+            parse_dispatch_payload(payload)
+
+    def test_phase_input_marker_is_mandatory_for_managed_and_followup_roles(self):
+        manifest = self.manifest()
+        for entry in manifest["managed"] + manifest["isolation_only"] + manifest["readonly"]:
+            if entry["agent_type"] != "issue-fixer":
+                entry["binding_transports"]["claude"]["availability"] = "available"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "available-phase-test-manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch("issue_start.gate_manifest.ENTRYPOINT_MANIFEST", path):
+                for role in ("ac-designer", "change-planner", "test-writer", "issue-implementer",
+                             "issue-investigator", "plan-reviewer", "pr-reviewer", "adviser"):
+                    for prompt, reason in (
+                        ("start", "ISSUE_START_BINDING_MISSING_OR_DUPLICATE"),
+                        ("ISSUE_PHASE_INPUT_V1={}\nISSUE_PHASE_INPUT_V1={}", "ISSUE_START_BINDING_MISSING_OR_DUPLICATE"),
+                        ("ISSUE_PHASE_INPUT_V1={}", "ISSUE_START_PHASE_BINDING_INVALID"),
+                        ('ISSUE_PHASE_INPUT_V1={"binding_file":"missing.json","approval_file":"missing.json"}',
+                         "ISSUE_START_PHASE_BINDING_INVALID"),
+                    ):
+                        with self.subTest(role=role, prompt=prompt), self.assertRaisesRegex(IssueStartError, reason):
+                            parse_dispatch_payload(self.payload(role, prompt), cwd=Path(tmp))
+
 
 class ReviewTypeHintResolutionTests(unittest.TestCase):
     def test_split_gate_function_annotations_resolve(self):
@@ -256,7 +345,7 @@ def fixer_payload(binding=None, *, tool="Task", isolation="worktree", agent="iss
         tool_input["isolation"] = isolation
     return {"tool_name": tool, "tool_input": tool_input}
 
-class IsolationOnlyContractTests(unittest.TestCase):
+class IsolationOnlyContractTests(LegacyGateManifestMixin, unittest.TestCase):
     """Issue #354 PR-4: `issue-fixer` は「分離だけを課す」区分として dispatch を検証される。
 
     managed（`issue-implementer`）との差は **GitHub API を叩かないこと**であって、
@@ -616,10 +705,11 @@ class EvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BLOCKER_BINDING_MISMATCH"):
             evaluate_issue_start(request(), collector_factory=lambda token: Collector(bad))
 
-class HookLedgerMixin:
+class HookLedgerMixin(LegacyGateManifestMixin):
     """hook 経路の共通 fixture（テストは持たない）。"""
 
     def setUp(self):
+        super().setUp()
         # Issue #309: ALLOW 経路は worktree 所有台帳へ `open` 起票する。実リポジトリの
         # `tmp/_worktree/` を汚さないよう、台帳の置き場をテストごとに隔離する。
         self._ledger_tmp = tempfile.TemporaryDirectory()

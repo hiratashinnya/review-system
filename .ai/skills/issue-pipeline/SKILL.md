@@ -1,4 +1,4 @@
-# Issue 処理パイプライン（implement → PR → review → merge → close）
+# Issue 処理パイプライン（検証設計 → 解決設計 → テスト設計 → 実装 → 独立レビュー）
 
 設計経緯や判断理由は [rationale](../../rationale/issue-pipeline.md)、障害・復旧手順は [troubleshooting](../../troubleshooting/issue-pipeline.md) を必要なときだけ参照する。
 
@@ -25,6 +25,73 @@
 ## ② 1 Issue を完結
 
 前の Issue をオーナーが merge し、close を確認してから次へ進む。各 Issue は次の順序を崩さない。
+
+### 作成工程（1a/1b/2a）
+
+全Issueで以下の工程を別コンテキストへdispatchする。軽量経路は分析範囲の縮小に限り、
+1a/1b/2aや独立レビューを省略する分岐を作らない。U-1/U-15は省略許可ではない。
+
+| phase（機械値） | 担当 | 入力 | 成果物・次の独立レビュー |
+|---|---|---|---|
+| investigation | issue-investigator | Issue/snapshot/制約 | InvestigationReport。原因・挙動・影響・既存決定が一意でなければ必須 |
+| verification_design | ac-designer | 調査報告または省略根拠 | VD（ST-TD/IT-TD/ST-TC/IT-TC）→ plan-reviewerによる単独レビュー |
+| solution_planning | change-planner | 合格済みVD | CPとADR → 別dispatchのplan-reviewerによるVD↔CP整合レビュー |
+| test_design | test-writer | owner承認済みCP/VDと単一work unit | UT-TD/UT-TC（Red実コード）→ pr-reviewerによる単独レビュー |
+| implementation | issue-implementer | 合格済みTestDesign、plan ID/digest、単一work unit | Green化とdraft PR → 別dispatchのpr-reviewer |
+
+主文脈はinvestigationの起動値と根拠を永続artifactへ記録する。著作者は自分のartifactを直接
+commit/pushし、CP/VDをtmp handoffへ転載しない。作業完了receiptはartifact path/digestの短い参照に限る。
+`python3 -m issue_envelope check --repo <root>` で木・DAG・schema・traceを確認し、
+`issue_envelope.handoff.validate_handoff(data, expected)` で信頼callerのproducer/Issue/run/phase/
+入力digest/OID/target/期待出力を照合する。期待値を入力artifactからコピーして通してはならない。
+欠落・不一致・stale・STOP・未解消finding・未決owner decision・AC未対応は次phaseへ進めない。
+各段の入力snapshotはその段のdispatch時点で固定し、前段成果物を後段で無断更新しない。
+
+1a/1bのPlanReviewではACの機械判定可能性・曖昧さ・測定可能閾値・既存決定との矛盾を
+項目ごとに検査する。1a単独→1b整合→ownerによるplan/split/decision承認の順を維持する。
+2a合格後に2bが着手する。実装者は新規テストを著作せず、計画外判断なら上流へSTOPする。
+
+1a/1b/2a/2bのreviewは同一Issueのkarteへ連番roundで取り込む。reviewerは書込/pushせず、
+PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの機械配線は #310、
+将来run ledgerは #409 に委ねる。run/phase/dependency/expected outputの接続契約だけ保持し、
+別ledgerを作らない。レビュー後の是正は既存②-c、ownerによるmergeは②-dを適用する。
+
+### 実行先、モデル、相談
+
+Claude Codeが主文脈と工程roleを保持し、Codexは `codex_worktree_exec` の実行者として使う。
+退役したCodex issue-pipeline/custom agentを復活させず、read-only roleへ書込profileを流用しない。
+agyは #606/#628 とrole別実測が成立するまで無効とし、利用不能経路を成功扱いしない。
+起動gate/profile/入力束縛はPF wrapperと `docs/methods/codex-workspace-binding.md` を適用する。
+profileのorigin/main pinは変更せず、未merge profileの拒否を成功dispatchと報告しない。
+
+| ロール | 主要認知行為・Bloom | 層 / 予算 |
+|---|---|---|
+| issue-investigator | 分析 Lv4 | 中位 / 大 |
+| ac-designer | 評価 Lv5 | 最上位 / 中 |
+| change-planner | 創造 Lv6 | 最上位 / 大 |
+| plan-reviewer | 評価 Lv5 | 最上位 / 中 |
+| test-writer | 境界・反例の分析 Lv4 | 中位 / 中 |
+| issue-implementer | 承認済み計画の適用 Lv3 | 中位 / 中 |
+| pr-reviewer | 評価 Lv5 | 最上位 / 中、既存のrisk signalで引上げ |
+| adviser | 相談内容の主要認知行為 | 上位 / 個別判定 |
+
+具体ID/予算は `.ai/model-policy.json` と `model_policy/README.md` の既存resolverで解決し、
+policy/catalog hash、取得surface/方法/日時、resolved ID、実使用ID、確認結果を追跡する。
+共有資産・複数PF・権限/セキュリティ・fail-close・破壊的移行・永続状態・外部サービス・
+複数work unit・曖昧AC・既存決定との矛盾・下流手順無効化の信号で層を引き上げる。
+最上位を超える要求や必要層欠落はSTOPする。adviser利用を理由に元ロールを降格しない。
+
+相談は構造化要求を主文脈が専用入口へ取り次ぎ、同じ担当roleへ返す。元role/run/phase/work unit、
+artifact digest/OID、質問・試行、回数/時間/コスト予算へ束縛し、model/回答/採否/理由/検証を記録する。
+新証拠なし、失敗、部分出力、予算到達は成功扱いせず主文脈へ返す。助言では必須レビュー、
+STOP、karte escalate、権限拒否、owner承認を迂回できない。
+
+### 3a/3bと運用検証
+
+owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存karte診断→fixer→再レビューを使う。
+継続観測可能な異常は常設監視と #461 の報告経路、一度限りのlive確認は別verification Issueへ分離する。
+実装Issueを実測待ちで滞留させず、実装のclose条件は必要な検証Issueとrelationの記録までとする。
+別verification Issueを実装Issueのblocked-byにしない。判定値と根拠はCPへ記録する。
 
 ### ②-a 実装
 

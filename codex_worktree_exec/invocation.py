@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .request import ExecRequest
+from .roles import READ_ONLY_ROLES
 
 PREAMBLE = """\
 [codex_worktree_exec の前置き]
@@ -25,7 +26,8 @@ PREAMBLE = """\
 
 def compose_prompt(role: str, worktree: Path, body: str) -> str:
     """固定の前置きに依頼本文を続ける（#565 の再委譲停止への手当て）。"""
-    return PREAMBLE.format(role=role, worktree=worktree) + body
+    scope = "読み取り専用。ファイル編集・push・台帳操作は禁止。\n" if role in READ_ONLY_ROLES else ""
+    return PREAMBLE.format(role=role, worktree=worktree) + scope + body
 
 
 def build_codex_argv(

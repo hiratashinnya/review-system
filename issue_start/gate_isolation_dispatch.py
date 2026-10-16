@@ -9,6 +9,7 @@ from .gate_markers import _fix_binding, _marker_payload
 from .gate_support import IssueStartError, IsolationOnlyAck
 from .gate_transport import _managed_transport, _require_transport_available
 from .gate_validation import _validate_tool_input_shape
+from .phase_dispatch import validate_phase_dispatch
 
 
 
@@ -31,6 +32,8 @@ def _parse_isolation_only(
     """
     entry, harness, transport = _managed_transport(tool_name, agent_type, entries)
     _require_transport_available(harness, transport)
+    if transport.get("phase_binding_marker"):
+        validate_phase_dispatch(_marker_payload(tool_input, transport, transport["phase_binding_marker"]), agent_type, cwd)
     _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:

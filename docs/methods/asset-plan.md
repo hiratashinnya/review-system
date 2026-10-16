@@ -42,7 +42,7 @@
 | Issue #3 資産の横展 | 横展オーケストレータ | スキル＋Python ヘルパー | `/asset-lateral-deploy` | 8 |
 | 外部 CLI 委譲（agy/Antigravity） | 外部委譲ツール | スキル（薄い起動口・disable-model-invocation）＋エージェント | `/agy-delegate`・`agy-delegate` | — |
 | 外部 CLI 委譲・第二意見レビュー（Codex/OpenAI） | 外部委譲ツール（別ファミリレビュー・薄い起動口） | スキル（disable-model-invocation・全外部ツリー非移植） | `/codex-review` | — |
-| Issue 運用（implement→PR→review→merge→close） | Issue 処理オーケストレータ＋ファンアウト2種＋権限フック | スキル（disable-model-invocation）＋エージェント2＋PreToolUse フック | `/issue-pipeline`・`issue-implementer`・`pr-reviewer`（＋`.claude/hooks/agent-command-gate.sh`） | — |
+| Issue運用（1a/1b/2a/2b→review→owner手動merge） | 検証設計と本体の独立工程・権限フック | skill＋8責務ロール（＋既存fixer） | `/issue-pipeline`、工程一覧は共通skillとtailoring-registry参照 | — |
 | ノード検索/読み込み（md2idx 思想） | 検索・コンテキスト効率 | スキル（CLI 利用手順）＋エージェント（検索ループ隔離） | `/docidx`・`docidx-lookup`（実体＝`docidx/`） | — |
 
 > `docidx` を**スキル＋エージェント両方**にする理由：スキルは `python -m docidx` の利用手順（メインスレッドがその場で叩く）。エージェント `docidx-lookup` は「検索→選別→show→要約」の反復を別コンテキストに隔離し、ダイジェストだけ返してメインの文脈を節約する自走仕事。責務は**取得（retrieval）**で、点検（`spec-inspector`）・価値経路（`/value-trace`）・著作（`*-author`）とは別軸（asset-auditor 監査済・新規）。
@@ -86,7 +86,7 @@
     reconciliation.md          # 検証合格後の self_fix 適用＋本ファイル確定書込＋tmp 掃除（書込専任・DD-22）
     agy-delegate.md            # 外部 CLI(agy) 委譲
     issue-implementer.md       # Issue #120 1 Issue を実装→PR（merge 不可・agent-command-gate 機械強制）
-    pr-reviewer.md             # Issue #120 PR レビュー→merge（push 不可・agent-command-gate 機械強制）
+    pr-reviewer.md             # 2a単独/2b PRレビュー（push/merge不可、owner手動merge）
   hooks/
     agent-command-gate.sh      # Issue #120 PreToolUse・issue-implementer/pr-reviewer の push/merge 非対称権限を機械強制
   tailoring-registry.md        # A16 標準⇄テーラリングの対応・実体パス・差分（agents の正本）

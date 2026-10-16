@@ -1,7 +1,7 @@
 # `codex_worktree_exec` — Codex を自分の worktree で実行者として起動する
 
-Claude Code の `issue-implementer`／`issue-fixer` が、自分の linked worktree で Codex に編集とテスト実行だけを
-行わせるための `codex exec -C <worktree>` の薄いラッパー（Issue #538 PR-B）。
+Claude Code の工程ロールと `issue-fixer` が、自分の linked worktree で元ロールの権限を維持して
+Codex を起動する `codex exec -C <worktree>` の薄いラッパー（#538、#371）。
 
 ```
 python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ルート> --prompt-file <依頼文> --output-file <最終応答> --model <モデル> --reasoning-effort <low|medium|high|xhigh|max> [--timeout-seconds <1〜3600>]
@@ -14,7 +14,7 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 
 | モジュール | 責務 |
 |---|---|
-| `roles.py` | 起動を許すロール（`GATED_ROLES` − `pr-reviewer`）。`.claude/hooks/agent-command-gate.sh` も読む |
+| `roles.py` | 著作・read-only・fixer の起動対象ロール。両PFのcommand hookも読む |
 | `arguments.py` | 引数の検査と `ExecRequest` の組立て |
 | `request.py` | 検査済みの起動要求（データだけ） |
 | `nesting_guard.py` | Codex の内側からの再帰起動の拒否 |
@@ -25,6 +25,17 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 | `invocation.py` | `codex exec` の argv と前置き付き依頼文の組立て |
 | `launcher.py` | `codex exec` の起動、終了コードの透過、timeout |
 | `cli.py` | 検査を順に通して起動する入口 |
+| `artifact_binding.py` / `initial_binding.py` | 信頼callerの期待値、committed artifact、初回Issue snapshotの束縛 |
+| `committed_artifact.py` / `source_snapshot.py` | commit済み入力とsource snapshotの確認 |
+| `adviser_request.py` / `adviser_capture.py` | 相談入力・予算と完全回答・trusted使用量の確認 |
 
 profile の生成・digest 検査・bwrap・台帳連携は持たない。区分は
 `.claude/rules/02-decision-process.md`「起票先はプロジェクト区分で決める」の汎用開発ハーネスである。
+
+`issue-fixer` 以外は `--binding-file <信頼callerのJSON>` が必須。入力artifactのbytes digestと
+envelopeのinput digestを分け、expected値をartifactからコピーして補完しない。
+著作ロールはworkspace編集、調査・レビュー・adviserはread-only profileを使う。
+全ロールでnetworkと認証情報を拒否し、commit/pushは呼び出し側Claudeの許可ロールだけが行う。
+origin/mainとのprofile pinは維持するため、未merge profileの実起動は拒否される。
+新工程のnative dispatchはmanifestでunavailableのまま保持し、同一worktree継承のowner判断と
+ロール別実測が揃うまで有効にしない。拒否を成功したdispatchとして報告しない。

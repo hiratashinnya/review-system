@@ -4,7 +4,7 @@ from pathlib import Path
 import tomllib
 import unittest
 
-from codex_worktree_exec.roles import CODEX_EXEC_ROLES
+from codex_worktree_exec.roles import CODEX_EXEC_ROLES, WRITE_ROLES
 from tests.unit.test_codex_native_merge_permissions import codex_denies, codex_forbidden_prefixes
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,16 +23,16 @@ class PermissionProfileTests(unittest.TestCase):
         self.assertEqual(tomllib.loads(text)["default_permissions"], ":workspace")
         self.assertEqual(tomllib.loads(first_setting), {"default_permissions": ":workspace"})
 
-    def test_every_codex_exec_role_has_a_profile_and_the_reviewer_has_none(self):
+    def test_every_codex_exec_role_has_a_profile(self):
         profiles = permission_profiles()
         for role in sorted(CODEX_EXEC_ROLES):
             with self.subTest(role=role):
                 self.assertIn(role, profiles)
-        self.assertNotIn("pr-reviewer", profiles)
+        self.assertIn("pr-reviewer", profiles)
 
     def test_role_profiles_are_identical(self):
         profiles = permission_profiles()
-        bodies = [profiles[role] for role in sorted(CODEX_EXEC_ROLES)]
+        bodies = [profiles[role] for role in sorted(WRITE_ROLES)]
         self.assertTrue(all(body == bodies[0] for body in bodies))
 
     def test_profiles_keep_workspace_limits_disable_network_and_deny_credentials(self):
@@ -40,7 +40,7 @@ class PermissionProfileTests(unittest.TestCase):
         for role in sorted(CODEX_EXEC_ROLES):
             profile = profiles[role]
             with self.subTest(role=role):
-                self.assertEqual(profile["extends"], ":workspace")
+                self.assertEqual(profile["extends"], ":workspace" if role in WRITE_ROLES else ":read-only")
                 self.assertEqual(profile["network"], {
                     "enabled": False,
                     "allow_local_binding": False,
