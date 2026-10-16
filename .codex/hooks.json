@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -m adr.hook",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/adr-notify.sh\"",
             "timeout": 15,
             "statusMessage": "Checking pending ADR issue tracking"
           }

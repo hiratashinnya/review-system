@@ -1,10 +1,10 @@
 """PostToolUse の ADR pending 通知。助言専用、失敗時は診断して継続。"""
 import json
-import shlex
 import sys
 from pathlib import Path
 from karte_notify.notify import extract_commands
 from .store import load
+from .shell_commands import command_roots
 
 
 def notification(payload):
@@ -20,33 +20,6 @@ def notification(payload):
             if data["decision"]["tracking_status"] == "pending":
                 pending.append(data["id"])
     return {"systemMessage": "ADR: Issue未起票: " + ", ".join(sorted(set(pending)))} if pending else {}
-
-
-def command_roots(command, cwd):
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
-    lexer.whitespace = " \t\r"
-    tokens, segment, roots = list(lexer), [], set()
-    for token in [*tokens, ";"]:
-        if token and all(char in ";&|()\n" for char in token):
-            if segment[:1] == ["cd"]:
-                arguments = [part for part in segment[1:] if part != "--"]
-                if len(arguments) == 1:
-                    cwd = (cwd / arguments[0]).resolve()
-            for position in range(len(segment) - 2):
-                if segment[position:position + 2] != ["-m", "adr"]:
-                    continue
-                tail = segment[position + 2:]
-                if tail[0] not in ("new-entry", "file-issue"):
-                    continue
-                for index, argument in enumerate(tail):
-                    if argument == "--root" and index + 1 < len(tail):
-                        roots.add(cwd / tail[index + 1])
-                    elif argument.startswith("--root="):
-                        roots.add(cwd / argument.split("=", 1)[1])
-            segment = []
-        else:
-            segment.append(token)
-    return roots
 
 
 def main():
