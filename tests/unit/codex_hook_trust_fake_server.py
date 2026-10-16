@@ -71,7 +71,13 @@ for line in sys.stdin:
             elif mode == "project-user-untrusted":
                 hooks += user_hooks(1, "untrusted")
             elif mode == "mixed":
-                hooks[-1].update({"trustStatus":"untrusted", "currentHash":"sha256:current"})
+                target = next((hook for hook in hooks if
+                               hook["key"].endswith(":pre_tool_use:1:0")), hooks[0] if hooks else None)
+                if target:
+                    target.update({"trustStatus":"untrusted", "currentHash":"sha256:current"})
+            elif mode == "post-tool-untrusted":
+                target = next(hook for hook in hooks if ":post_tool_use:" in hook["key"])
+                target.update({"trustStatus":"untrusted", "currentHash":"sha256:post-tool"})
             notify()
             send({"id":2, "result":{"data":[{"cwd":os.getcwd(), "hooks":hooks,
                                                "warnings":[], "errors":[]}]}})

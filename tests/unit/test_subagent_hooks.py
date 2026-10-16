@@ -1535,6 +1535,7 @@ class SettingsRegistrationTests(unittest.TestCase):
             [
                 "${CLAUDE_PROJECT_DIR}/.claude/hooks/check-governance-drift.sh",
                 "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/karte-notify.sh",
+                "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/adr-notify.sh",
             ],
         )
         self.assertEqual(

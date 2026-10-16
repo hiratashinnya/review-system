@@ -1,0 +1,354 @@
+test_adapter_uses_arbitrary_ref_declarations (tests.unit.test_adr.AdrTest.test_adapter_uses_arbitrary_ref_declarations) ... ok
+test_github_boundaries_and_stale (tests.unit.test_adr.AdrTest.test_github_boundaries_and_stale) ... ok
+test_multiple_roots_and_overwrite_collision (tests.unit.test_adr.AdrTest.test_multiple_roots_and_overwrite_collision) ... ok
+test_new_entry_todo_hook_and_file_issue (tests.unit.test_adr.AdrTest.test_new_entry_todo_hook_and_file_issue) ... ok
+test_persistent_envelope_input (tests.unit.test_adr.AdrTest.test_persistent_envelope_input) ... ok
+test_references_canonical_render_and_immutability (tests.unit.test_adr.AdrTest.test_references_canonical_render_and_immutability) ... ok
+test_required_fields_and_tracking_states (tests.unit.test_adr.AdrTest.test_required_fields_and_tracking_states) ... ok
+test_symlinks_and_missing_base (tests.unit.test_adr.AdrTest.test_symlinks_and_missing_base) ... ok
+test_check_all_index_sources_and_arbitrary_ref_fields (tests.unit.test_adr_regressions.AdrRegressionTest.test_check_all_index_sources_and_arbitrary_ref_fields) ... ok
+test_hook_resolves_cd_separators_and_all_tool_routes (tests.unit.test_adr_regressions.AdrRegressionTest.test_hook_resolves_cd_separators_and_all_tool_routes) ... ok
+test_new_entry_preflight_rejects_missing_and_external_assets (tests.unit.test_adr_regressions.AdrRegressionTest.test_new_entry_preflight_rejects_missing_and_external_assets) ... ok
+test_parallel_file_issue_creates_once_and_observes_filed (tests.unit.test_adr_concurrency.AdrConcurrencyTest.test_parallel_file_issue_creates_once_and_observes_filed) ... https://github.com/a/b/issues/700
+ok
+test_parent_and_nested_subshell_pipeline_cwds (tests.unit.test_adr_shell_scopes.AdrShellScopeTest.test_parent_and_nested_subshell_pipeline_cwds) ... ok
+test_subshell_write_notifies_its_own_root (tests.unit.test_adr_shell_scopes.AdrShellScopeTest.test_subshell_write_notifies_its_own_root) ... ok
+test_codex_entry_uses_repo_module_and_fails_open (tests.unit.test_adr_hook_entrypoints.AdrHookEntrypointTest.test_codex_entry_uses_repo_module_and_fails_open) ... ok
+test_post_tool_hook_untrusted_status_is_reported (tests.unit.test_adr_hook_entrypoints.AdrHookEntrypointTest.test_post_tool_hook_untrusted_status_is_reported) ... ok
+test_all_trusted_exits_zero_without_output (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_all_trusted_exits_zero_without_output) ... ok
+test_app_server_request_exits_two (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_app_server_request_exits_two) ... ok
+test_fewer_discovered_hooks_than_defined_exits_one (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_fewer_discovered_hooks_than_defined_exits_one) ... ok
+test_malformed_json_rpc_exits_two (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_malformed_json_rpc_exits_two) ... ok
+test_missing_codex_exits_two (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_missing_codex_exits_two) ... ok
+test_missing_hooks_json_is_undetermined_not_anomaly (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_missing_hooks_json_is_undetermined_not_anomaly) ... ok
+test_mixed_trust_reports_untrusted_key_and_hash (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_mixed_trust_reports_untrusted_key_and_hash) ... ok
+test_standard_json_rpc_response_is_accepted (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_standard_json_rpc_response_is_accepted) ... ok
+test_timeout_exits_two (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_timeout_exits_two) ... ok
+test_untrusted_user_hook_does_not_fail_trusted_project_hooks (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_untrusted_user_hook_does_not_fail_trusted_project_hooks) ... ok
+test_user_hook_does_not_hide_missing_project_hook (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_user_hook_does_not_hide_missing_project_hook) ... ok
+test_user_hooks_do_not_hide_missing_project_hooks (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_user_hooks_do_not_hide_missing_project_hooks) ... ok
+test_zero_discovered_hooks_reports_project_trust_problem (tests.unit.test_codex_hook_trust.CodexHookTrustCliTests.test_zero_discovered_hooks_reports_project_trust_problem) ... ok
+test_git_fallback_note_is_in_session_start_warning (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_git_fallback_note_is_in_session_start_warning) ... ok
+test_missing_project_trust_emits_warning (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_missing_project_trust_emits_warning) ... ok
+test_trusted_state_is_silent (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_trusted_state_is_silent) ... ok
+test_undetermined_state_is_silent (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_undetermined_state_is_silent) ... ok
+test_untrusted_state_emits_only_a_warning (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_untrusted_state_emits_only_a_warning) ... ok
+test_worktree_session_start_uses_main_checkout_path (tests.unit.test_codex_hook_trust_hook.CodexHookTrustHookTests.test_worktree_session_start_uses_main_checkout_path) ... ok
+test_both_harnesses_register_common_hook_core (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_both_harnesses_register_common_hook_core) ... ok
+test_codex_hooks_register_only_scripts_that_exist (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_codex_hooks_register_only_scripts_that_exist)
+Issue #538: 退役した launch gate を登録に残すと Codex の全 Bash 呼び出しが落ちる。 ... ok
+test_gate_reads_only_the_v2_manifest (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_gate_reads_only_the_v2_manifest)
+Issue #354 PR-4: 正本は v2 で、v1 は退役して**読まれない**。 ... ok
+test_isolation_only_section_declares_the_fixer_contract (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_isolation_only_section_declares_the_fixer_contract)
+Issue #354 PR-4: `issue-fixer` は「分離だけを課す」区分として宣言される。 ... ok
+test_managed_and_isolation_only_agent_types_are_disjoint (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_managed_and_isolation_only_agent_types_are_disjoint) ... ok
+test_manifest_keeps_only_the_claude_dispatch_sections (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_manifest_keeps_only_the_claude_dispatch_sections)
+Issue #538: Codex 起動用の top-level block は manifest から退役した。 ... ok
+test_manifest_names_managed_and_unmanaged_paths (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_manifest_names_managed_and_unmanaged_paths) ... ok
+test_retired_binding_hook_and_manifest_transport_are_absent (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_retired_binding_hook_and_manifest_transport_are_absent) ... ok
+test_retired_merge_gate_registration_leaves_other_hooks_ordered (tests.unit.test_issue_start_cli_assets.AssetParityTests.test_retired_merge_gate_registration_leaves_other_hooks_ordered) ... ok
+test_allow_block_error_exit_codes_and_json_stdout (tests.unit.test_issue_start_cli_assets.CliContractTests.test_allow_block_error_exit_codes_and_json_stdout) ... ok
+test_absent_worktree_only_adds_a_note_and_binds_nothing (tests.unit.test_subagent_hooks.BindTests.test_absent_worktree_only_adds_a_note_and_binds_nothing) ... ok
+test_ambiguous_running_dispatch_is_not_bound (tests.unit.test_subagent_hooks.BindTests.test_ambiguous_running_dispatch_is_not_bound) ... ok
+test_broken_ledger_does_not_block_the_dispatch (tests.unit.test_subagent_hooks.BindTests.test_broken_ledger_does_not_block_the_dispatch) ... ok
+test_diff_detection_binds_when_agent_id_does_not_match_the_directory (tests.unit.test_subagent_hooks.BindTests.test_diff_detection_binds_when_agent_id_does_not_match_the_directory)
+選択肢 BIND-1 案A: payload の `agent_id` と worktree 名が一致しなくても束縛する。 ... ok
+test_direct_agent_id_match_binds_the_open_entry (tests.unit.test_subagent_hooks.BindTests.test_direct_agent_id_match_binds_the_open_entry) ... ok
+test_missing_agent_id_falls_back_to_the_directory_name (tests.unit.test_subagent_hooks.BindTests.test_missing_agent_id_falls_back_to_the_directory_name) ... ok
+test_no_open_entry_is_reported_without_creating_one (tests.unit.test_subagent_hooks.BindTests.test_no_open_entry_is_reported_without_creating_one) ... ok
+test_fixer_receives_the_protocol_and_the_rendered_karte (tests.unit.test_subagent_hooks.KarteInjectTests.test_fixer_receives_the_protocol_and_the_rendered_karte) ... ok
+test_missing_active_pointer_skips_render_without_running_it (tests.unit.test_subagent_hooks.KarteInjectTests.test_missing_active_pointer_skips_render_without_running_it) ... ok
+test_missing_or_empty_protocol_and_no_karte_injects_nothing_fail_open (tests.unit.test_subagent_hooks.KarteInjectTests.test_missing_or_empty_protocol_and_no_karte_injects_nothing_fail_open) ... ok
+test_render_failure_degrades_to_the_protocol_only_fail_open (tests.unit.test_subagent_hooks.KarteInjectTests.test_render_failure_degrades_to_the_protocol_only_fail_open)
+注入は助言なので、render が落ちても手順書だけで注入を続ける（fail-open）。 ... ok
+test_render_is_invoked_with_an_explicit_issue_from_the_active_pointer (tests.unit.test_subagent_hooks.KarteInjectTests.test_render_is_invoked_with_an_explicit_issue_from_the_active_pointer)
+``--issue`` は必ず明示する（並行運用時に別 Issue のカルテを読ませない）。 ... ok
+test_rendered_karte_is_injected_even_without_the_protocol_file (tests.unit.test_subagent_hooks.KarteInjectTests.test_rendered_karte_is_injected_even_without_the_protocol_file)
+2節は独立している——片方が落ちてももう片方は届く。 ... ok
+test_unrunnable_render_degrades_to_the_protocol_only (tests.unit.test_subagent_hooks.KarteInjectTests.test_unrunnable_render_degrades_to_the_protocol_only) ... ok
+test_every_launcher_reaches_the_module_from_a_foreign_cwd (tests.unit.test_subagent_hooks.LauncherWiringTests.test_every_launcher_reaches_the_module_from_a_foreign_cwd)
+外部 cwd から起動しても正本側の判定が動く（＝素通りしていない）。 ... ok
+test_karte_inject_launcher_emits_the_protocol_from_a_foreign_cwd (tests.unit.test_subagent_hooks.LauncherWiringTests.test_karte_inject_launcher_emits_the_protocol_from_a_foreign_cwd) ... ok
+test_launchers_do_not_depend_on_an_inherited_pythonpath (tests.unit.test_subagent_hooks.LauncherWiringTests.test_launchers_do_not_depend_on_an_inherited_pythonpath)
+呼び出し元の PYTHONPATH が汚れていても正本側が勝つ。 ... ok
+test_unknown_verb_is_a_no_op (tests.unit.test_subagent_hooks.LauncherWiringTests.test_unknown_verb_is_a_no_op)
+モジュール直起動の usage 経路（起動口ではなくエントリポイントの契約）。 ... ok
+test_collect_argv_can_never_ask_for_a_missing_handoff_release (tests.unit.test_subagent_hooks.NoDeletionPathTests.test_collect_argv_can_never_ask_for_a_missing_handoff_release)
+フックは ``--allow-missing-handoff`` を**組み立てられない**（Issue #423）。 ... ok
+test_hook_scripts_contain_no_worktree_command_outside_comments (tests.unit.test_subagent_hooks.NoDeletionPathTests.test_hook_scripts_contain_no_worktree_command_outside_comments) ... ok
+test_hooks_never_spawn_a_bare_worktree_remove (tests.unit.test_subagent_hooks.NoDeletionPathTests.test_hooks_never_spawn_a_bare_worktree_remove) ... ok
+test_karte_argv_builders_are_the_only_subprocess_contract (tests.unit.test_subagent_hooks.NoDeletionPathTests.test_karte_argv_builders_are_the_only_subprocess_contract)
+本 PR がサブプロセスを起動するのは `karte check` と `karte render` の2つだけ。 ... ok
+test_shipped_modules_contain_no_worktree_subcommand_literal (tests.unit.test_subagent_hooks.NoDeletionPathTests.test_shipped_modules_contain_no_worktree_subcommand_literal) ... ok
+test_bind_is_silent_and_writes_no_ledger_for_out_of_scope_roles (tests.unit.test_subagent_hooks.OutOfScopeTests.test_bind_is_silent_and_writes_no_ledger_for_out_of_scope_roles) ... ok
+test_every_verb_writes_one_evidence_line_for_out_of_scope_payloads (tests.unit.test_subagent_hooks.OutOfScopeTests.test_every_verb_writes_one_evidence_line_for_out_of_scope_payloads)
+対象外・payload 不読でも stderr に evidence を1行残す（F-309-05）。 ... ok
+test_karte_inject_is_silent_for_every_non_fixer_role (tests.unit.test_subagent_hooks.OutOfScopeTests.test_karte_inject_is_silent_for_every_non_fixer_role) ... ok
+test_stop_is_silent_and_runs_nothing_for_out_of_scope_roles (tests.unit.test_subagent_hooks.OutOfScopeTests.test_stop_is_silent_and_runs_nothing_for_out_of_scope_roles) ... ok
+test_unreadable_payload_is_treated_as_out_of_scope (tests.unit.test_subagent_hooks.OutOfScopeTests.test_unreadable_payload_is_treated_as_out_of_scope) ... ok
+test_concurrent_ledger_updates_all_succeed_under_the_default_timeout (tests.unit.test_subagent_hooks.ParallelStopLockContentionTests.test_concurrent_ledger_updates_all_succeed_under_the_default_timeout) ... ok
+test_the_deferred_path_takes_the_ledger_lock_at_most_once (tests.unit.test_subagent_hooks.ParallelStopLockContentionTests.test_the_deferred_path_takes_the_ledger_lock_at_most_once)
+保留経路のロック取得回数を固定する（水増しの再発検出器）。 ... ok
+test_a_running_entry_is_never_released_by_gitgate (tests.unit.test_subagent_hooks.ReleaseStageIntegrationTests.test_a_running_entry_is_never_released_by_gitgate)
+FR-W3 の直接検証: `running` のまま呼ぶと `gitgate` が `WORKTREE_LIVE` で拒む。 ... ok
+test_locked_worktree_defers_release_then_the_gate_finishes_it (tests.unit.test_subagent_hooks.ReleaseStageIntegrationTests.test_locked_worktree_defers_release_then_the_gate_finishes_it)
+Issue #464 の通し回帰（実 git・実 worktree ロック）。 ... ok
+test_release_is_idempotent_for_a_repeated_stop (tests.unit.test_subagent_hooks.ReleaseStageIntegrationTests.test_release_is_idempotent_for_a_repeated_stop)
+FR-W5: 解放後にもう一度停止が届いても壊れない（終端状態は素通し）。 ... ok
+test_stop_collects_the_handoff_and_releases_the_worktree (tests.unit.test_subagent_hooks.ReleaseStageIntegrationTests.test_stop_collects_the_handoff_and_releases_the_worktree) ... ok
+test_stop_does_not_release_when_the_handoff_cannot_be_read (tests.unit.test_subagent_hooks.ReleaseStageIntegrationTests.test_stop_does_not_release_when_the_handoff_cannot_be_read)
+回収に失敗したら**解放しない**（FR-W2）。worktree は残り、台帳は `stale`。 ... ok
+test_absent_own_handoff_defers_instead_of_collecting (tests.unit.test_subagent_hooks.ReleaseStageTests.test_absent_own_handoff_defers_instead_of_collecting)
+自分の handoff が無い停止は**保留**する（Issue #423）。 ... ok
+test_already_collected_entry_is_released_without_rediscovering_handoff (tests.unit.test_subagent_hooks.ReleaseStageTests.test_already_collected_entry_is_released_without_rediscovering_handoff)
+回収済みなら handoff を探し直さない（重複再検出で詰まらせない・#423 案3）。 ... ok
+test_collect_failure_marks_stale_and_never_removes_the_worktree (tests.unit.test_subagent_hooks.ReleaseStageTests.test_collect_failure_marks_stale_and_never_removes_the_worktree)
+回収に失敗したらブロックせず `stale` に落として制御を主文脈へ返す。 ... ok
+test_deferring_keeps_the_worktree_out_of_the_residue_report (tests.unit.test_subagent_hooks.ReleaseStageTests.test_deferring_keeps_the_worktree_out_of_the_residue_report)
+保留は gate の残留判定に出ない＝**自分の次の入れ子委譲を塞がない**（#423 の核心）。 ... ok
+test_early_stop_is_collected_once_it_writes_its_stop_reason_handoff (tests.unit.test_subagent_hooks.ReleaseStageTests.test_early_stop_is_collected_once_it_writes_its_stop_reason_handoff)
+Step 0 で早期 STOP した ``issue-fixer`` も自動で回収・解放される。 ... ok
+test_entry_not_found_marks_only_the_open_entry_stale (tests.unit.test_subagent_hooks.ReleaseStageTests.test_entry_not_found_marks_only_the_open_entry_stale)
+自分のエントリを引けないとき、他人の `running` を `stale` へ落とさない。 ... ok
+test_fixer_blocked_by_the_karte_gate_never_reaches_the_release_stage (tests.unit.test_subagent_hooks.ReleaseStageTests.test_fixer_blocked_by_the_karte_gate_never_reaches_the_release_stage)
+**最重要の競合ケース**: block＝エージェントは継続する＝worktree を消してはならない。 ... ok
+test_fixer_passing_the_karte_gate_reaches_the_release_stage (tests.unit.test_subagent_hooks.ReleaseStageTests.test_fixer_passing_the_karte_gate_reaches_the_release_stage) ... ok
+test_handoffs_of_delegated_agents_are_not_mistaken_for_mine (tests.unit.test_subagent_hooks.ReleaseStageTests.test_handoffs_of_delegated_agents_are_not_mistaken_for_mine)
+入れ子委譲先の handoff は**自分の成果物ではない**（Issue #423）。 ... ok
+test_multiple_handoff_candidates_are_not_released (tests.unit.test_subagent_hooks.ReleaseStageTests.test_multiple_handoff_candidates_are_not_released)
+どれが今回の成果物か決められないなら**解放しない**（成果物喪失を避ける）。 ... ok
+test_nested_delegation_chain_completes_without_manual_intervention (tests.unit.test_subagent_hooks.ReleaseStageTests.test_nested_delegation_chain_completes_without_manual_intervention)
+**Issue #338 と同型の多段入れ子 dispatch の通し回帰**（#423 の受け入れ条件）。 ... ok
+test_no_ledger_entry_at_all_deletes_nothing (tests.unit.test_subagent_hooks.ReleaseStageTests.test_no_ledger_entry_at_all_deletes_nothing) ... ok
+test_non_directory_handoff_path_is_not_treated_as_missing (tests.unit.test_subagent_hooks.ReleaseStageTests.test_non_directory_handoff_path_is_not_treated_as_missing)
+`tmp/_handoff` が regular file（非ディレクトリ）でも同様に解放しない。 ... ok
+test_release_deferred_evidence_when_gitgate_reports_released_no (tests.unit.test_subagent_hooks.ReleaseStageTests.test_release_deferred_evidence_when_gitgate_reports_released_no)
+Issue #464・F-464-05: 回収は成功したが worktree ロックで削除だけ遅延した ... ok
+test_release_ok_evidence_when_gitgate_reports_released_yes (tests.unit.test_subagent_hooks.ReleaseStageTests.test_release_ok_evidence_when_gitgate_reports_released_yes)
+Issue #464・F-464-05: ``gitgate`` の stderr が ``released=yes`` なら ... ok
+test_release_pending_entry_is_skipped_at_subagent_stop (tests.unit.test_subagent_hooks.ReleaseStageTests.test_release_pending_entry_is_skipped_at_subagent_stop)
+Issue #464: 回収済み・削除だけ git ロックで遅延したエントリの再停止では何もしない。 ... ok
+test_release_stage_is_idempotent_for_a_repeated_stop (tests.unit.test_subagent_hooks.ReleaseStageTests.test_release_stage_is_idempotent_for_a_repeated_stop)
+FR-W5: 同じ停止が2回届いても状態機械は壊れない（`stopped` は冪等）。 ... ok
+test_repeated_deferrals_record_only_one_note (tests.unit.test_subagent_hooks.ReleaseStageTests.test_repeated_deferrals_record_only_one_note)
+入れ子委譲のたびに停止イベントが届いても台帳へ積み増さない。 ... ok
+test_running_is_moved_to_stopped_before_collect_is_invoked (tests.unit.test_subagent_hooks.ReleaseStageTests.test_running_is_moved_to_stopped_before_collect_is_invoked) ... ok
+test_stopped_note_records_the_owner_stop (tests.unit.test_subagent_hooks.ReleaseStageTests.test_stopped_note_records_the_owner_stop) ... ok
+test_symlinked_handoff_directory_is_not_treated_as_missing (tests.unit.test_subagent_hooks.ReleaseStageTests.test_symlinked_handoff_directory_is_not_treated_as_missing)
+F-354-07: `tmp/_handoff` が symlink なら「列挙して0件」に丸めず解放しない。 ... ok
+test_terminal_entry_is_left_alone (tests.unit.test_subagent_hooks.ReleaseStageTests.test_terminal_entry_is_left_alone) ... ok
+test_unresolvable_repo_root_deletes_nothing (tests.unit.test_subagent_hooks.ReleaseStageTests.test_unresolvable_repo_root_deletes_nothing) ... ok
+test_unrunnable_or_timed_out_collect_marks_stale_without_deleting (tests.unit.test_subagent_hooks.ReleaseStageTests.test_unrunnable_or_timed_out_collect_marks_stale_without_deleting) ... ok
+test_gate_registrations_quote_project_dir (tests.unit.test_subagent_hooks.SettingsRegistrationTests.test_gate_registrations_quote_project_dir) ... ok
+test_new_commands_quote_the_project_dir_and_reference_existing_scripts (tests.unit.test_subagent_hooks.SettingsRegistrationTests.test_new_commands_quote_the_project_dir_and_reference_existing_scripts) ... ok
+test_retired_merge_gate_registration_preserves_other_hooks (tests.unit.test_subagent_hooks.SettingsRegistrationTests.test_retired_merge_gate_registration_preserves_other_hooks) ... ok
+test_subagent_events_are_registered_with_role_matchers (tests.unit.test_subagent_hooks.SettingsRegistrationTests.test_subagent_events_are_registered_with_role_matchers) ... ok
+test_block_reason_only_lists_steps_the_fixer_can_perform (tests.unit.test_subagent_hooks.StopKarteGateTests.test_block_reason_only_lists_steps_the_fixer_can_perform)
+脱出手順は**当人が実行できるもの**だけ（F-309-02）。 ... ok
+test_first_stop_still_blocks_before_the_reentry_escape (tests.unit.test_subagent_hooks.StopKarteGateTests.test_first_stop_still_blocks_before_the_reentry_escape)
+再入で通すのは**2回目以降**——1回目は必ず止めて理由を届ける（ゲートを弱めない）。 ... ok
+test_implementer_is_not_subject_to_the_karte_gate (tests.unit.test_subagent_hooks.StopKarteGateTests.test_implementer_is_not_subject_to_the_karte_gate)
+カルテ規律は是正ラウンド（`issue-fixer`）の契約。実装者は対象外。 ... ok
+test_implementer_survives_an_unresolvable_repo_root (tests.unit.test_subagent_hooks.StopKarteGateTests.test_implementer_survives_an_unresolvable_repo_root)
+`issue-implementer` の SubagentStop は台帳パスを導出しない（F-309-06）。 ... ok
+test_karte_check_failure_blocks_with_exit_code_zero (tests.unit.test_subagent_hooks.StopKarteGateTests.test_karte_check_failure_blocks_with_exit_code_zero) ... ok
+test_karte_check_success_lets_the_subagent_stop (tests.unit.test_subagent_hooks.StopKarteGateTests.test_karte_check_success_lets_the_subagent_stop) ... ok
+test_missing_or_broken_active_pointer_blocks_fail_close (tests.unit.test_subagent_hooks.StopKarteGateTests.test_missing_or_broken_active_pointer_blocks_fail_close) ... ok
+test_reentrant_stop_is_not_blocked_again (tests.unit.test_subagent_hooks.StopKarteGateTests.test_reentrant_stop_is_not_blocked_again)
+一度 block した後の再入（``stop_hook_active``）は判定せず通す（F-309-02）。 ... ok
+test_repo_root_failure_blocks_the_fixer_fail_close (tests.unit.test_subagent_hooks.StopKarteGateTests.test_repo_root_failure_blocks_the_fixer_fail_close)
+カルテの置き場を導出できない＝判定不能なので `issue-fixer` は block（fail-close）。 ... ok
+test_symlinked_karte_place_blocks_fail_close (tests.unit.test_subagent_hooks.StopKarteGateTests.test_symlinked_karte_place_blocks_fail_close) ... ok
+test_unrunnable_karte_check_blocks_fail_close (tests.unit.test_subagent_hooks.StopKarteGateTests.test_unrunnable_karte_check_blocks_fail_close) ... ok
+
+----------------------------------------------------------------------
+Ran 119 tests in 3.357s
+
+OK
+
+maintainability_lint check
+## ACCEPTED_DEBT (94)
+  .codex/mcp/claude_review/server.py:1 [module-over-100-lines] existing debt fixed at 441 lines and exact content fingerprint
+  asset_parity/inventory.py:1 [module-over-100-lines] existing debt fixed at 158 lines and exact content fingerprint
+  asset_parity/inventory.py:37 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  asset_parity/report.py:1 [module-over-100-lines] existing debt fixed at 259 lines and exact content fingerprint
+  asset_parity/staleness.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  blocker_gate/cli.py:1 [module-over-100-lines] existing debt fixed at 177 lines and exact content fingerprint
+  blocker_gate/cli.py:103 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/cli.py:117 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/closing.py:1 [module-over-100-lines] existing debt fixed at 211 lines and exact content fingerprint
+  blocker_gate/contract.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  blocker_gate/evaluator.py:1 [module-over-100-lines] existing debt fixed at 161 lines and exact content fingerprint
+  blocker_gate/github.py:1 [module-over-100-lines] existing debt fixed at 1117 lines and exact content fingerprint
+  blocker_gate/github.py:107 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:113 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:246 [comment-over-3-lines] 18 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:1 [module-over-100-lines] existing debt fixed at 297 lines and exact content fingerprint
+  blocker_gate/model.py:11 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:31 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:39 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:45 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/resolver.py:1 [module-over-100-lines] existing debt fixed at 495 lines and exact content fingerprint
+  blocker_gate/snapshot.py:1 [module-over-100-lines] existing debt fixed at 219 lines and exact content fingerprint
+  blocker_gate/waiver.py:1 [module-over-100-lines] existing debt fixed at 313 lines and exact content fingerprint
+  branch_source/policy.py:1 [module-over-100-lines] existing debt fixed at 352 lines and exact content fingerprint
+  branch_source/policy.py:41 [data-and-logic-class-cohabitation] data=['BranchSourceResult', 'NewBranchRequest'] logic=['GitHubBranchClient']; place data and behavior in separate files
+  branch_source/policy.py:94 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  branch_source/policy.py:149 [comment-over-3-lines] 12 consecutive comment lines; move rationale to durable documentation
+  ci_anomaly_report/collector.py:1 [module-over-100-lines] existing debt fixed at 234 lines and exact content fingerprint
+  feedback_ledger/check.py:1 [module-over-100-lines] existing debt fixed at 454 lines and exact content fingerprint
+  feedback_ledger/check.py:56 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  feedback_ledger/paths.py:1 [module-over-100-lines] existing debt fixed at 200 lines and exact content fingerprint
+  feedback_ledger/status.py:1 [module-over-100-lines] existing debt fixed at 168 lines and exact content fingerprint
+  feedback_ledger/store.py:1 [module-over-100-lines] existing debt fixed at 164 lines and exact content fingerprint
+  gitgate/adopt.py:1 [module-over-100-lines] existing debt fixed at 532 lines and exact content fingerprint
+  gitgate/adopt.py:441 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:1 [module-over-100-lines] existing debt fixed at 379 lines and exact content fingerprint
+  gitgate/cli.py:39 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:246 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1 [module-over-100-lines] existing debt fixed at 1649 lines and exact content fingerprint
+  gitgate/worktree.py:153 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1199 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1223 [comment-over-3-lines] 9 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1596 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  guidance_sync/sync.py:1 [module-over-100-lines] existing debt fixed at 288 lines and exact content fingerprint
+  guidance_sync/sync.py:28 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/durable_lock.py:1 [module-over-100-lines] existing debt fixed at 129 lines and exact content fingerprint
+  issue_start/gate.py:1 [module-over-100-lines] existing debt fixed at 1285 lines and exact content fingerprint
+  issue_start/gate.py:33 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:44 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:95 [data-and-logic-class-cohabitation] data=['IsolationOnlyAck', 'IssueStartRequest'] logic=['IssueStartGitHubCollector', 'SnapshotIssueMetadata']; place data and behavior in separate files
+  issue_start/gate.py:978 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/hook.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  issue_start/hook.py:107 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/session_start.py:1 [module-over-100-lines] existing debt fixed at 118 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:1 [module-over-100-lines] existing debt fixed at 1032 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:806 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:840 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:867 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:881 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:935 [comment-over-3-lines] 8 consecutive comment lines; move rationale to durable documentation
+  issue_start/worktree_ledger.py:1 [module-over-100-lines] existing debt fixed at 856 lines and exact content fingerprint
+  issue_start/worktree_ledger.py:742 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1 [module-over-100-lines] existing debt fixed at 1519 lines and exact content fingerprint
+  karte/cli.py:106 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:673 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1318 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1350 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:1 [module-over-100-lines] existing debt fixed at 1306 lines and exact content fingerprint
+  karte/model.py:122 [comment-over-3-lines] 22 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:151 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:161 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:169 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:180 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:528 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:538 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:774 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:876 [comment-over-3-lines] 25 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:902 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/paths.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  karte/similarity.py:1 [module-over-100-lines] existing debt fixed at 241 lines and exact content fingerprint
+  karte/touched.py:1 [module-over-100-lines] existing debt fixed at 105 lines and exact content fingerprint
+  karte_notify/hook.py:1 [module-over-100-lines] existing debt fixed at 175 lines and exact content fingerprint
+  karte_notify/notify.py:1 [module-over-100-lines] existing debt fixed at 346 lines and exact content fingerprint
+  karte_notify/notify.py:86 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/cli.py:1 [module-over-100-lines] existing debt fixed at 206 lines and exact content fingerprint
+  project_status_sync/github.py:1 [module-over-100-lines] existing debt fixed at 258 lines and exact content fingerprint
+  project_status_sync/model.py:1 [module-over-100-lines] existing debt fixed at 159 lines and exact content fingerprint
+  project_status_sync/model.py:44 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/planner.py:1 [module-over-100-lines] existing debt fixed at 247 lines and exact content fingerprint
+  project_status_sync/report.py:1 [module-over-100-lines] existing debt fixed at 127 lines and exact content fingerprint
+  review_system/io/cli.py:1 [module-over-100-lines] existing debt fixed at 210 lines and exact content fingerprint
+  review_system/parsing/frontmatter.py:1 [module-over-100-lines] existing debt fixed at 192 lines and exact content fingerprint
+  review_system/parsing/lint.py:1 [module-over-100-lines] existing debt fixed at 101 lines and exact content fingerprint
+  review_system/persistence/criteria_repo.py:1 [module-over-100-lines] existing debt fixed at 108 lines and exact content fingerprint
+
+violations=0 accepted_debt=94
+
+asset_parity check
+asset_parity — cross-platform asset presence matrix
+
+asset                        kind   mode         .github (Copilot)            .codex/agents (Codex CLI agent) .agents/skills (Codex CLI skill)
+----------------------------------------------------------------------------------------------------------------------------------------------
+agy-delegate                 skill  orchestrator exempt                       n/a                          OK                          
+align                        skill  skill        OK                           n/a                          OK                          
+architecture-design          skill  skill        OK                           n/a                          OK                          
+asset-lateral-deploy         skill  orchestrator OK                           n/a                          OK                          
+asset-pipeline               skill  orchestrator OK                           n/a                          OK                          
+bloom-model-tier             skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
+branch-hygiene               skill  skill        OK                           n/a                          OK                          
+codex-review                 skill  orchestrator exempt                       n/a                          exempt                      
+coverage-html                skill  skill        OK                           n/a                          OK                          
+docidx                       skill  skill        OK                           n/a                          OK                          
+domain-model                 skill  skill        OK                           n/a                          OK                          
+gh-create-issue              skill  skill        exempt                       n/a                          OK [STALE?]                 
+impl-design-pipeline         skill  orchestrator OK                           n/a                          OK                          
+issue-pipeline               skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
+mvp-scope                    skill  skill        OK                           n/a                          OK                          
+native-stacked-pr            skill  skill        OK                           n/a                          OK                          
+orchestration-design         skill  skill        OK                           n/a                          OK                          
+prompt-design                skill  skill        OK                           n/a                          OK                          
+schema-design                skill  skill        OK                           n/a                          OK                          
+silent-failure-diagnosis     skill  principle    exempt                       n/a                          OK                          
+spec-pipeline                skill  orchestrator OK                           n/a                          OK                          
+spec-principles              skill  principle    exempt                       n/a                          OK                          
+test-strategy                skill  skill        OK                           n/a                          OK                          
+value-trace                  skill  skill        OK                           n/a                          OK                          
+agy-delegate                 agent  -            exempt                       OK                           n/a                         
+analysis-author              agent  -            OK                           OK [STALE?]                  n/a                         
+asset-auditor                agent  -            OK                           OK [STALE?]                  n/a                         
+authoring-fanout             agent  -            OK                           OK [STALE?]                  n/a                         
+design-author                agent  -            OK                           OK [STALE?]                  n/a                         
+doc-system-config-operator   agent  -            OK                           OK [STALE?]                  n/a                         
+dsv2-lookup                  agent  -            OK                           OK [STALE?]                  n/a                         
+gh-create-issue              agent  -            exempt                       exempt                       n/a                         
+issue-fixer                  agent  -            exempt                       OK                           n/a                         
+issue-implementer            agent  -            exempt                       OK                           n/a                         
+pr-reviewer                  agent  -            exempt                       OK                           n/a                         
+reconciliation-validator     agent  -            OK                           OK [STALE?]                  n/a                         
+reconciliation               agent  -            OK                           OK [STALE?]                  n/a                         
+requirements-author          agent  -            OK                           OK [STALE?]                  n/a                         
+spec-author                  agent  -            OK                           OK [STALE?]                  n/a                         
+spec-inspector               agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+structured-analysis          agent  -            OK                           OK [STALE?]                  n/a                         
+verification-author          agent  -            OK                           OK [STALE?]                  n/a                         
+
+42 assets checked; 0 MISSING; 19 staleness flag(s)
+
+Orphans in mirror trees (present in a mirror, no .claude/ parity-seed counterpart — informational only, not counted above):
+  .github (Copilot): doc-system-v2-authoring (agent)
+  .codex/agents (Codex CLI agent): doc-system-v2-authoring (agent)
+  .agents/skills (Codex CLI skill): doc-system-config (skill)
+
+Staleness flags (heuristic, false positives OK — worth a human/LLM look):
+  bloom-model-tier @ .github (Copilot): last-commit gap 53d > 30d threshold
+  bloom-model-tier @ .github (Copilot): size ratio 2.4x > 2.0x threshold (39 vs 16 lines)
+  bloom-model-tier @ .agents/skills (Codex CLI skill): last-commit gap 53d > 30d threshold
+  bloom-model-tier @ .agents/skills (Codex CLI skill): size ratio 2.4x > 2.0x threshold (39 vs 16 lines)
+  gh-create-issue @ .agents/skills (Codex CLI skill): last-commit gap 54d > 30d threshold
+  gh-create-issue @ .agents/skills (Codex CLI skill): size ratio 3.2x > 2.0x threshold (42 vs 13 lines)
+  issue-pipeline @ .github (Copilot): size ratio 5.8x > 2.0x threshold (76 vs 13 lines)
+  issue-pipeline @ .agents/skills (Codex CLI skill): size ratio 3.6x > 2.0x threshold (76 vs 21 lines)
+  analysis-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  analysis-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  asset-auditor @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  asset-auditor @ .codex/agents (Codex CLI agent): size ratio 3.1x > 2.0x threshold (25 vs 8 lines)
+  authoring-fanout @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): size ratio 2.9x > 2.0x threshold (20 vs 7 lines)
+  dsv2-lookup @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  dsv2-lookup @ .codex/agents (Codex CLI agent): size ratio 3.3x > 2.0x threshold (23 vs 7 lines)
+  reconciliation-validator @ .codex/agents (Codex CLI agent): last-commit gap 48d > 30d threshold
+  reconciliation @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  spec-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-inspector @ .github (Copilot): last-commit gap 53d > 30d threshold
+  spec-inspector @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  structured-analysis @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  structured-analysis @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  verification-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  verification-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
