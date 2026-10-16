@@ -1,4 +1,4 @@
-"""Codex/Claude 共通 PreToolUse hook entry。"""
+"""Claude Code の managed-dispatch 用 PreToolUse hook entry。"""
 
 from __future__ import annotations
 
