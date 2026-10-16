@@ -131,7 +131,7 @@
 |---|---|---|---|
 | handoff 回収後の worktree 解放 | 決まる。台帳 status と回収成否で判定できる | `collect-worktree` → `worktree-release` | verb 化済み。主文脈の通常手順から削除 |
 | 未回収／孤児 worktree の後始末 | 通常経路は決まる。回収不能を諦める判断だけは理由を要する | residue deny が `collect-worktree`／`worktree-release` を案内。`worktree-forget` は理由必須 | 機械判定とオーナー判断を分離したまま維持 |
-| PR branch への切替 | branch・repository・expected OID から決まる | 稼働中の Claude isolated `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない。Codex fixer transport は現行 unavailable |
+| PR branch への切替 | branch・repository・expected OID から決まる | 稼働中の Claude isolated `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない。Codex fixer transport は Issue #603 で退役し、現行 transport はない |
 | メイン worktree を `main` へ戻す | 現行構成では発生しない | FR-W7（主文脈の checkout を不変にする） | 手順を廃止。復帰 verb は作らない |
 | 「②-c を経由したか」の分岐 | 経路の記憶は不要 | 所有台帳の status、handoff の存在、SubagentStop、次 dispatch の residue deny | 状態から導出。②-c／②-d の二重記述を削除済み |
 
@@ -204,11 +204,11 @@ F-374-01 は open の残条件として維持する。
 - **`isolation_only` 区分の manifest 宣言は Claude transport のみだった**。isolation が無い harness へ
   isolation 要求を持ち込まない、という #350 の方針に基づく当時の契約だった。
 
-Issue #452 後は上記3点を現行 Codex lifecycle へ適用しない。manifest には将来 transport の shape を
-固定する Codex entry があるが `availability: unavailable` であり、`prepare` が作る entry も
-prepare-only で dispatch 成功を表さない。owner-approved worker fallback が共有 worktree で
-`adopt-branch` 相当の作業をしても、正規 Codex fixer transport や canonical remediation lifecycle の
-実績には数えない。現在到達可能な canonical isolation lifecycle は Claude transport だけである。
+Issue #452 後から Issue #603 で退役するまで、上記3点は当時の Codex lifecycle に適用されていた。
+Codex manifest entry と `prepare` による entry 作成も当時の構成であり、Issue #603 で削除された。
+owner-approved worker fallback が共有 worktree で `adopt-branch` 相当の作業をしても、正規 Codex fixer
+transport や canonical remediation lifecycle の実績には数えない。現在到達可能な canonical isolation
+lifecycle は Claude transport だけである。
 
 ## 「実害の定義」節の残スコープ（移設元：実害の定義とエスカレーション条件・末尾）
 
