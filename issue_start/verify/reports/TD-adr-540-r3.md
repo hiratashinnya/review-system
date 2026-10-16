@@ -29,6 +29,7 @@ log_ref: issue_start/verify/logs/TD-adr-540-r3.txt
 12. Codexの新PostToolUseは実在.sh入口を使い、おとりcwdに依存せず助言失敗時は継続する。trust検査はpre/post両hookの未信頼を検出し、Claude登録一覧は既存hookと新ADRを保持する。TCは test_adr_hook_entrypoints.py および既存hook検査。
 13. 実bashのbrace/if/for/while/case/pushd/subshell/pipeline/background/quote/cd -を含むCLI書込後、3tool経路のPostToolUse実入口が書込rootのpendingをsystemMessageで返す。stdoutの全欠落・切詰め・部分receiptでも通知し、未登録rootを指す偽receiptは採用しない。TCは test_adr_notice_results.py。
 14. thread/processのA/a・NFKC等価IDの同時書込は成功1件・拒否1件・保存1件でload可能。file-issueからwrite lockへの入れ子も既存並行起票TCで完了する。
+15. fresh checkoutのtmp不存在に依存せずhook入口TCを実行できる。trust fakeは実repoのpre-tool gateを優先し、単一SessionStartだけのsynthetic repoでも未信頼hook検出とgit失敗の入力path警告を維持する。TCは test_codex_hook_trust_fallback_note.py。
 
 # #452証跡
 
@@ -44,3 +45,11 @@ log_ref: issue_start/verify/logs/TD-adr-540-r3.txt
 - maintainability_lint: violations=0 accepted_debt=94。baseline差分なし。新規Python moduleはnotice_roots.py 70行、test_adr_notice_results.py 78行で100行以内。asset_parity: 42 assets / 0 MISSING / 既存staleness19。
 - F06の追加コード是正は行わず、既存4fail対象を含む回帰PASSのみ確認。最新PR対象SHAの全unit/build/lint CI完了は独立round4レビュー待ちであり、このTRで確認済みとはしない。
 - 旧shell parserと専用TCは主文脈が削除し現行TDを実行結果E2Eへ統合。R2 TR/logは当時の実測履歴として保持。
+
+## 最新CI失敗の追加是正（F-540-06、Attempt 6）
+
+- f52f8579のCI実測は全2142件中failures=1/errors=1。fresh checkoutのrepo/tmp不存在と、synthetic single SessionStart fixtureにpre_tool_use:1:0を必須としたfakeのStopIterationが原因だった。
+- 355d795fでfakeに実pre gate優先・synthetic先頭hookへのfallbackを追加。入口TCをrepo外へ移す案はgit rev-parse失敗により空stdoutとなることを対象回帰で検出し、56f046dfでROOT/tmpを明示作成してgit管理下cwdを維持する形へ修正した。
+- 実装commit 56f046df / 実行日時 2026-10-16T05:02:53.918512+00:00。`python3 -m unittest tests.unit.test_adr_hook_entrypoints tests.unit.test_codex_hook_trust tests.unit.test_codex_hook_trust_hook tests.unit.test_codex_hook_trust_fallback_note -v` は25件PASS（2.400s）。CI失敗2件、実repoのpre/post未信頼検出、synthetic git失敗の入力path警告を含む。
+- maintainability_lint violations=0 accepted_debt=94、asset_parity 42 assets/0 MISSING/既存staleness19、baseline無変更。fake moduleは92行。追加実測stdoutも同一logへ追記した。
+- ここで確認したのは対象回帰であり、最新push SHAの全unit/build/lint CI合格は独立レビューで確認する。
