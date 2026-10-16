@@ -23,6 +23,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m adr.hook",
+            "timeout": 15,
+            "statusMessage": "Checking pending ADR issue tracking"
+          }
+        ]
+      }
     ]
   }
 }

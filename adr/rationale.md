@@ -1,0 +1,11 @@
+# Issue #540 実装判断
+
+Codex (AI)、2026-10-16。
+
+- module/interface: feedback_ledger の既存 DocSpec/Field/TableSpec・正規化・canonical serializer・slugify wrapperをimport再利用する。共有索引adapterはharness_traceへ分離し、adrの欄名を持たせない。新Python moduleを100行以内に分割するため、既存負債のfingerprint変更もbaseline更新も不要。
+- protocol/persistence: 道具別rootのcanonical TOMLをCLIからatomicに保存する。schemaはharness-adr/v1.0。ADRから台帳への片方向参照は独立したowner_decision_refs（ref=ledger）。sourceへ混在させる案より参照対象を明確にできる。オーナー逐語は転載しない。
+- orchestration/prompt: #371本体のロール・著作pipelineは導入しない。既存PostToolUseと同型の助言hook＋同一CLI操作の通知を併用する。
+- log/version/test strategy: TD/TC/TR、実装commit後にテスト。staleの時刻とGitHub subprocessは注入可能にし、外部ネットワークなしで検証する。
+- immutabilityとfile-issue書戻しの両立: 設計判断は不変だが、pending→filedと番号のみを許可する。全面上書きを許す案は判断履歴を壊す。起票後書込失敗時は番号を表示し、--issueで復旧する。
+- ChangePlan/VerificationDesign: 現mainには#371の永続envelope/DocSpecが存在しない。形式本体を先取りせず、発生源が宣言するDocSpec＋documentの永続JSONを入力できる境界とし、任意欄名の両種別をテストする。実装済の発生源からはDocSpecを直接注入できる。
+- #452証跡: 実装着手時main=9ffe086d。tests/designs/TD-issue-start-452*.md と tests/reports/TD-issue-start-452*.md は0件。99d89553（#538）で archive/issue-452-codex-supervisor/{designs,reports}/ へ履歴を保持して退役済み。ACが指定した実在元ファイルはなく、退役証跡を現行道具へ復活させない。issue_start/verify/には本IssueのTD/TC参照/TRを初弾として配置する。

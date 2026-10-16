@@ -104,6 +104,16 @@
             "timeout": 35
           }
         ]
+      },
+      {
+        "matcher": "Bash|mcp__plugin_context-mode_context-mode__ctx_execute|mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/adr-notify.sh",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "StopFailure": [
