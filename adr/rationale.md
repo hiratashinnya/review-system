@@ -17,7 +17,7 @@ CLI stdoutにも`ADR-WRITE-ROOT:` receiptを出すが、3toolのPostToolUseは�
 この選択では別rootの既存pendingも再通知し得るが、未解決を継続可視化する目的に合う。systemMessageはhookが出す。
 索引は履歴・既読状態ではなく再構築可能なroot集合であり、tmp cleanupで消去可能。消去後は次のCLI書込で再登録する。
 CLIを介さない直接TOML編集は操作イベントにしない。正本TOMLを変更せず、登録の無い既存rootは次のCLI操作で登録する。
-shell_commandsの既存parserは互換用に残すが通知の正しさの根拠から外した。
+通知以外の利用者が無いshell_commandsのparserとその専用TCは削除する。実行結果を扱うE2Eへ統合し、死んだ実装を互換目的で残さない。
 
 F-540-07は`.write.lock`のflock内でload・NFKC/casefold衝突検査・公開を連続実行する。new-entryとreplaceで共用し、
 既存`.file-issue.lock`とは分ける。取得順はfile-issue→writeのみで、writeからfile-issueへ戻らないため入れ子deadlockを作らない。
