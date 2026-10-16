@@ -6,9 +6,11 @@ from .github import create_issue, issue_body
 from .model import new_id, normalize
 from .references import validate_assets, validate_references
 from .store import issue_lock, load, write
+from .notice_roots import register_root
 
 
-def notify_pending(root):
+def notify_pending(root, repo=None):
+    register_root(root, repo or Path.cwd())
     pending = [data["id"] for data, _ in load(root)
                if data["decision"]["tracking_status"] == "pending"]
     if pending:
@@ -24,7 +26,7 @@ def new_entry(args):
     validate_references(data, args.root, args.repo)
     path = write(args.root, data)
     print(path)
-    notify_pending(args.root)
+    notify_pending(args.root, args.repo)
 
 
 def file_issue(args):
@@ -56,4 +58,4 @@ def _file_issue_locked(args):
         write(args.root, data, replace=True)
     except Exception as exc:
         raise ValueError(f"Issue #{number} は存在。--issue {number} で復旧: {exc}") from exc
-    notify_pending(args.root)
+    notify_pending(args.root, args.repo)

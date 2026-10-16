@@ -2,6 +2,27 @@
 
 Codex (AI)、2026-10-16。
 
+## 是正判断（round 3、方式転換）
+
+F-540-02はshell構文を増やしても実行対象を推定する境界が誤っていた。新規書込とfile-issue更新のCLIが
+実際のabsolute rootをgit top-levelの`tmp/_adr-notify/<root SHA256>.root`へatomic replaceで登録する。
+gitが無いときは明示`--repo`（省略時cwd）を共有scopeとする。hook側cwdも同じrepo scopeを用いる。
+索引はrepo内の既存write権限だけを使い、各要素のsymlinkを拒否する。rootごとの固定keyなので並行登録で失わない。
+CLI stdoutにも`ADR-WRITE-ROOT:` receiptを出すが、3toolのPostToolUseは登録済みrootだけを読み、TOMLからpending IDを再計算する。
+未信頼のtool_responseは読み順のhintに限り、任意パス・任意systemMessageを採用しない。部分receiptが他の書込を
+隠さないよう登録全rootを必ず検査する。stdoutの全切詰め・redirect・MCPの要約でも通知対象が消えない。
+
+操作紐付けはreceipt消費型でなくlevel-triggerとする。CLI登録後の同一操作PostToolUseでpendingを通知し、以後も
+残っていれば再通知する。複数shell/並行hookのreceipt奪取や、CLIへsession/tool tokenを注入するPreToolUse追加を避ける。
+この選択では別rootの既存pendingも再通知し得るが、未解決を継続可視化する目的に合う。systemMessageはhookが出す。
+索引は履歴・既読状態ではなく再構築可能なroot集合であり、tmp cleanupで消去可能。消去後は次のCLI書込で再登録する。
+CLIを介さない直接TOML編集は操作イベントにしない。正本TOMLを変更せず、登録の無い既存rootは次のCLI操作で登録する。
+shell_commandsの既存parserは互換用に残すが通知の正しさの根拠から外した。
+
+F-540-07は`.write.lock`のflock内でload・NFKC/casefold衝突検査・公開を連続実行する。new-entryとreplaceで共用し、
+既存`.file-issue.lock`とは分ける。取得順はfile-issue→writeのみで、writeからfile-issueへ戻らないため入れ子deadlockを作らない。
+固定lock inodeは削除しない。schemaは変更せず、同じ未merge PRの是正なのでharness-adr/v1.0は据え置く。
+
 ## 是正判断（round 1）
 
 全索引ノードの参照実在はDocSpecから導出した同じ辺を検査する。資産のrepo内実在検査は書込前とread-only checkで共用する。

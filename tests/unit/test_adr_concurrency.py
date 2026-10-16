@@ -1,6 +1,9 @@
 """同時起票の排他と最新状態再読を検証する。"""
 import tempfile
 import threading
+import subprocess
+import sys
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,9 +12,41 @@ from unittest.mock import patch
 from adr.cli_write import file_issue
 from adr.store import load, write
 from tests.unit.test_adr import draft
+from feedback_ledger.tomlwrite import dumps
+from adr.schema import ADR_SPEC
 
 
 class AdrConcurrencyTest(unittest.TestCase):
+    def test_parallel_compatible_ids_publish_only_once_in_threads_and_processes(self):
+        for topics in (("A", "a"), ("Ａ", "A")):
+            for process in (False, True):
+                with self.subTest(topics=topics, process=process), tempfile.TemporaryDirectory() as tmp:
+                    root, start = Path(tmp) / "adr", threading.Barrier(2)
+                    original = __import__("os").link
+                    def slow_link(*args):
+                        time.sleep(0.1)
+                        return original(*args)
+                    def compete(topic):
+                        start.wait(timeout=5)
+                        if process:
+                            source = Path(tmp) / (topic + ".draft")
+                            source.write_text(dumps(ADR_SPEC, draft(topic)))
+                            code = ("import sys,tomllib,time,os; from adr.store import write; "
+                                    "link=os.link; os.link=lambda *a:(time.sleep(.1),link(*a))[1]; "
+                                    "write(sys.argv[1],tomllib.load(open(sys.argv[2],'rb')))")
+                            return subprocess.run([sys.executable, "-c", code, str(root), str(source)],
+                                                  capture_output=True, timeout=10).returncode == 0
+                        try:
+                            write(root, draft(topic))
+                            return True
+                        except ValueError:
+                            return False
+                    with patch("adr.store.os.link", side_effect=slow_link), ThreadPoolExecutor(2) as pool:
+                        results = list(pool.map(compete, topics))
+                    self.assertEqual(sorted(results), [False, True])
+                    self.assertEqual(len(load(root)), 1)
+                    self.assertEqual(len(list(root.glob("*.toml"))), 1)
+
     def test_parallel_file_issue_creates_once_and_observes_filed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "adr"

@@ -25,6 +25,8 @@ condition: normal
 10. 同一ADRへの並行file-issueはIssueを1件だけ作成し、後続は最新のfiled状態を観測する。TCは test_adr_regressions.py / test_adr_concurrency.py。
 11. subshell・nested subshell・pipeline・backgroundのcdは親cwdへ漏れず、subshell内書込もそのrootを通知する。TCは test_adr_shell_scopes.py。
 12. Codexの新PostToolUseは実在.sh入口を使い、おとりcwdに依存せず助言失敗時は継続する。trust検査はpre/post両hookの未信頼を検出し、Claude登録一覧は既存hookと新ADRを保持する。TCは test_adr_hook_entrypoints.py および既存hook検査。
+13. 実bashのbrace/if/for/while/case/pushd/subshell/pipeline/background/quote/cd -を含むCLI書込後、3tool経路のPostToolUse実入口が書込rootのpendingをsystemMessageで返す。stdoutの全欠落・切詰め・部分receiptでも通知し、未登録rootを指す偽receiptは採用しない。TCは test_adr_notice_results.py。
+14. thread/processのA/a・NFKC等価IDの同時書込は成功1件・拒否1件・保存1件でload可能。file-issueからwrite lockへの入れ子も既存並行起票TCで完了する。
 
 # #452証跡
 

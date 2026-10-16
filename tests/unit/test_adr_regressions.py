@@ -9,6 +9,7 @@ from pathlib import Path
 from adr.check import check
 from adr.cli import main
 from adr.hook import notification
+from adr.notice_roots import register_root
 from adr.schema import ADR_SPEC
 from adr.store import write
 from feedback_ledger.schema import LEDGER_SPEC
@@ -64,6 +65,8 @@ class AdrRegressionTest(unittest.TestCase):
 
     def test_hook_resolves_cd_separators_and_all_tool_routes(self):
         write(self.root, draft())
+        with redirect_stdout(io.StringIO()):
+            register_root(self.root, self.repo)
         for command in ("cd tool && python3 -m adr new-entry --root adr --draft x",
                         "cd tool;python3 -m adr file-issue --root=adr --id x;echo done",
                         "cd tool\npython3 -m adr new-entry --root=adr --draft x"):

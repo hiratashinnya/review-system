@@ -2,18 +2,17 @@
 import json
 import sys
 from pathlib import Path
-from karte_notify.notify import extract_commands
+from karte_notify.notify import SUPPORTED_TOOL_NAMES
 from .store import load
-from .shell_commands import command_roots
+from .notice_roots import registered_roots, response_roots
 
 
 def notification(payload):
-    roots = set()
-    for command in extract_commands(payload.get("tool_name", ""), payload.get("tool_input", {})):
-        try:
-            roots.update(command_roots(command, Path(payload.get("cwd") or ".")))
-        except ValueError:
-            continue
+    if payload.get("tool_name") not in SUPPORTED_TOOL_NAMES:
+        return {}
+    registered = registered_roots(Path(payload.get("cwd") or "."))
+    observed = response_roots(payload.get("tool_response"))
+    roots = [*sorted(registered & observed), *sorted(registered - observed)]
     pending = []
     for root in roots:
         for data, _ in load(root):

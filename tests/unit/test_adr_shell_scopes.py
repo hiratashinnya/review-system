@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from adr.hook import notification
+from adr.notice_roots import register_root
 from adr.shell_commands import command_roots
 from adr.store import write
 from tests.unit.test_adr import draft
@@ -14,6 +15,7 @@ class AdrShellScopeTest(unittest.TestCase):
             repo = Path(temporary)
             (repo / "tool" / "nested").mkdir(parents=True)
             write(repo / "adr", draft())
+            register_root(repo / "adr", repo)
             writer = "python3 -m adr new-entry --root adr --draft x"
             commands = (f"(cd tool); {writer}", f"cd tool | cat; {writer}",
                         f"cat | cd tool; {writer}", f"(cd tool | cat); {writer}",
@@ -44,6 +46,7 @@ class AdrShellScopeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary)
             write(repo / "tool/adr", draft())
+            register_root(repo / "tool/adr", repo)
             command = "(cd tool && python3 -m adr file-issue --root=adr --id x); echo done"
             result = notification(dict(tool_name="Bash", cwd=str(repo), tool_input={"command": command}))
             self.assertIn(draft()["id"], result["systemMessage"])

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from adr.store import write
+from adr.notice_roots import register_root
 from tests.unit.test_adr import draft
 from tests.unit.codex_hook_trust_support import CodexHookTrustTestMixin
 
@@ -29,6 +30,7 @@ class AdrHookEntrypointTest(CodexHookTrustTestMixin, unittest.TestCase):
             (cwd / "adr/__init__.py").write_text("")
             (cwd / "adr/hook.py").write_text("raise RuntimeError('decoy import')")
             write(cwd / "records", draft())
+            register_root(cwd / "records", cwd)
             payload = dict(tool_name="Bash", cwd=str(cwd), tool_input={
                 "command": "python3 -m adr new-entry --root records --draft x"})
             script = ROOT / ".codex/hooks/adr-notify.sh"
