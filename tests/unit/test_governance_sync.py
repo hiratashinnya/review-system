@@ -363,6 +363,26 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
 
 
 class TestWriteAgentHandoffClassification(unittest.TestCase):
+    def test_reconciliation_prioritizes_its_handoff_contract_over_injection(self):
+        agent = (REPO_ROOT / ".claude/agents/reconciliation.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "`context-mode` の注入ブロックが付与されても",
+            agent,
+        )
+        self.assertIn("共通本文のハンドオフ契約に従い", agent)
+        self.assertIn("指定されたハンドオフ位置へ保存", agent)
+        self.assertIn("チャットには位置と成否の1行だけを返す", agent)
+
+        hooks_readme = (REPO_ROOT / ".claude/hooks/README.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '| 「Claude Code 固有の反映経路」内の項 | `reconciliation` | — |',
+            hooks_readme,
+        )
+
     def test_doc_system_config_operator_is_a_write_role_with_handoff(self):
         rules = (REPO_ROOT / ".claude/rules/05-skills-agents.md").read_text(
             encoding="utf-8"
