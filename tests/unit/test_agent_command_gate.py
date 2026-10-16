@@ -171,7 +171,7 @@ KNOWN_BYPASS_CORPUS = [
     # クォート走査だと `'` をクォート開始と誤認し、以降の `;` を「シングルクォート内のリテラル」と
     # 取り違えて見逃す（層1のスキャナはエスケープを追うことでこれを防いでいる）。
     ("issue-implementer", "git \\' ; git merge evil ; \\'"),
-    ("issue-implementer", "git status \\\n && git merge evil"),
+    ("issue-implementer", "git status \\n && git merge evil"),
 ]
 
 
@@ -1319,6 +1319,249 @@ class AgentCommandGateTests(unittest.TestCase):
         for command in corpus:
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
+
+
+    def test_gh_create_issue_has_its_own_narrow_bash_allowlist(self):
+        target = "hiratashinnya/review-system"
+        for command in [
+            "gh issue list --state all --json number,title",
+            "gh repo view --json nameWithOwner",
+            "git branch --show-current",
+            "git remote get-url origin",
+            "gh issue view 12 --json title,labels",
+            "gh issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md --label bug",
+            f"gh --repo {target} issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            f"gh issue create --title x --repo={target} --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            f"gh -R{target} project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12",
+            "gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/hiratashinnya/review-system/issues/12",
+            "gh api repos/hiratashinnya/review-system/issues?state=open",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12/dependencies/blocked_by -F issue_id=13",
+            "gh api --method POST repos/hiratashinnya/review-system/issues/12/sub_issues -F sub_issue_id=13",
+        ]:
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_api_implicit_post_is_limited_to_relation_allowlist(self):
+        target = "hiratashinnya/review-system"
+        for command in (
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -F issue_id=13",
+            f"gh api repos/{target}/issues/12/sub_issues --field sub_issue_id=13",
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -f issue_id=13",
+            f"gh api repos/{target}/issues/12/sub_issues --raw-field sub_issue_id=13",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
+        for command in (
+            f"gh api repos/{target}/issues/1/comments -F body=unsafe",
+            f"gh api repos/{target}/issues/1/labels -f labels[]=bug",
+            f"gh api repos/{target}/issues/12/dependencies/blocked_by -F issue_id=13 -F extra=x",
+            f"gh api repos/{target}/issues/12/sub_issues -F sub_issue_id=13 --method GET",
+            f"gh api graphql -F 'query=mutation {{ createIssue(input: {{}}) {{ issue {{ id }} }} }}'",
+            "gh api graphql --input mutation.json",
+            "gh api graphql -F query=@mutation.graphql",
+            "gh api graphql -F 'query={ viewer { login } }' --cache 1h",
+        ):
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_graphql_read_queries_are_preserved(self):
+        for command in (
+            "gh api graphql -F 'query={ viewer { login } }'",
+            "gh api graphql -f 'query={ viewer { login } }'",
+            "gh api graphql --field='query={ viewer { login } }'",
+        ):
+            with self.subTest(command=command):
+                self.assert_allowed(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_rejects_repo_override_mismatches_for_every_write(self):
+        commands = [
+            "gh --repo other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh -R other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh -Rother-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh --repo=other-owner/other-repo issue create --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh issue create --repo other-owner/other-repo --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh issue create -Rother-owner/other-repo --title x --body-file tmp/_handoff/gh-create-issue--a.body.md",
+            "gh --repo other-owner/other-repo project item-add --owner other-owner --project-number 3 --url https://github.com/other-owner/other-repo/issues/12",
+            "gh --repo other-owner/other-repo project item-edit --id PVT_item --project-id PVT_project --field-id PVT_field --text value",
+            "gh api --method POST repos/other-owner/other-repo/issues/12/dependencies/blocked_by -F issue_id=13",
+            "gh api --method POST repos/other-owner/other-repo/issues/12/sub_issues -F sub_issue_id=13",
+            "gh api repos/other-owner/other-repo/issues/12",
+            "gh project item-add --owner hiratashinnya --project-number 3 --url https://github.com/other-owner/other-repo/issues/12",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assert_denied(run_gate(payload("gh-create-issue", command)))
+
+    def test_gh_create_issue_fails_closed_when_checkout_target_is_unknown(self):
+        result = run_gate(
+            payload("gh-create-issue", "gh issue create --title x --body-file body.md"),
+            env={"GIT_DIR": "/tmp/gh-create-issue-missing-origin.git"},
+        )
+        self.assert_denied(result)
+
+    def test_gh_create_issue_rejects_unbound_inherited_repository_environment(self):
+        result = run_gate(
+            payload("gh-create-issue", "gh issue create --title x --body-file body.md"),
+            env={"GH_REPO": "other-owner/other-repo"},
+        )
+        self.assert_denied(result)
+
+    def _run_gate_with_project_metadata(self, command, *, response=None, fail=False):
+        with tempfile.TemporaryDirectory() as directory:
+            bin_dir = Path(directory)
+            metadata_path = bin_dir / "metadata.json"
+            if response is not None:
+                metadata_path.write_text(json.dumps(response), encoding="utf-8")
+            gh = bin_dir / "gh"
+            gh.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "assert sys.argv[1:4] == ['api', 'graphql', '-f']\n"
+                "assert sys.argv[5:] == ['-F', 'item=PVTI_x']\n"
+                "assert 'content{__typename ... on Issue{repository{nameWithOwner}}}' in sys.argv[4]\n"
+                "assert 'project{id field(name:\"Status\")' in sys.argv[4]\n"
+                "if os.environ.get('GH_METADATA_FAIL') == '1': sys.exit(1)\n"
+                "print(json.dumps(json.load(open(os.environ['GH_METADATA_PATH']))))\n",
+                encoding="utf-8",
+            )
+            gh.chmod(0o755)
+            env = {
+                "PATH": directory + os.pathsep + os.environ.get("PATH", ""),
+                "GH_METADATA_PATH": str(metadata_path),
+                "GH_METADATA_FAIL": "1" if fail else "0",
+            }
+            return run_gate(payload("gh-create-issue", command), env=env)
+
+    @staticmethod
+    def _status_metadata(option_name):
+        return {
+            "data": {
+                "node": {
+                    "__typename": "ProjectV2Item",
+                    "content": {
+                        "__typename": "Issue",
+                        "repository": {"nameWithOwner": "hiratashinnya/review-system"},
+                    },
+                    "project": {
+                        "id": "PVT_project",
+                        "field": {
+                            "__typename": "ProjectV2SingleSelectField",
+                            "id": "PVTSSF_status",
+                            "name": "Status",
+                            "options": [
+                                {"id": "option_inbox", "name": "Inbox"},
+                                {"id": "option_done", "name": option_name},
+                            ],
+                        }
+                    },
+                }
+            }
+        }
+
+    def test_item_edit_denies_live_status_done(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--project-id PVT_project --single-select-option-id option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_allows_live_status_inbox(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--project-id PVT_project --single-select-option-id option_inbox"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Inbox")
+        )
+        self.assert_allowed(decision)
+
+    def test_item_edit_supports_equals_flags_and_checks_live_done_option(self):
+        command = (
+            "gh project item-edit --id=PVTI_x --field-id=PVTSSF_status "
+            "--project-id=PVT_project --single-select-option-id=option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_denies_ambiguous_duplicate_options(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--project-id PVT_project --single-select-option-id option_inbox "
+            "--single-select-option-id option_done"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_fails_closed_when_live_metadata_is_unavailable(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--project-id PVT_project --single-select-option-id option_inbox"
+        )
+        decision = self._run_gate_with_project_metadata(command, fail=True)
+        self.assert_denied(decision)
+
+    def test_item_edit_fails_closed_for_unknown_status_option(self):
+        command = (
+            "gh project item-edit --id PVTI_x --field-id PVTSSF_status "
+            "--project-id PVT_project --single-select-option-id option_missing"
+        )
+        decision = self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Done")
+        )
+        self.assert_denied(decision)
+
+    def test_item_edit_checks_origin_issue_and_project_for_every_field_type(self):
+        fields = (
+            "--field-id PVTF_text --text changed",
+            "--field-id PVTF_number --number 2",
+            "--field-id PVTF_date --date 2026-10-15",
+            "--field-id PVTIF_iteration --iteration-id iteration_x",
+            "--field-id PVTSSF_status --single-select-option-id option_inbox",
+        )
+        for field in fields:
+            command = "gh project item-edit --id PVTI_x --project-id PVT_project " + field
+            with self.subTest(field=field, scope="origin"):
+                self.assert_allowed(self._run_gate_with_project_metadata(
+                    command, response=self._status_metadata("Inbox")
+                ))
+            for boundary in ("repository", "project", "PullRequest", "DraftIssue", "missing_content"):
+                response = self._status_metadata("Inbox")
+                node = response["data"]["node"]
+                if boundary == "repository":
+                    node["content"]["repository"]["nameWithOwner"] = "other-owner/other-repo"
+                elif boundary == "project":
+                    node["project"]["id"] = "PVT_other_project"
+                elif boundary == "missing_content":
+                    node["content"] = None
+                else:
+                    node["content"]["__typename"] = boundary
+                with self.subTest(field=field, scope=boundary):
+                    self.assert_denied(self._run_gate_with_project_metadata(command, response=response))
+
+    def test_item_edit_requires_one_project_id_and_live_item_even_for_text(self):
+        command = "gh project item-edit --id PVTI_x --field-id PVTF_text --text changed"
+        for project_flags in ("", " --project-id=", " --project-id PVT_project --project-id PVT_other"):
+            with self.subTest(project_flags=project_flags):
+                self.assert_denied(self._run_gate_with_project_metadata(
+                    command + project_flags, response=self._status_metadata("Inbox")
+                ))
+        command += " --project-id=PVT_project"
+        for response in (None, {"errors": [{"message": "unavailable"}]}, {"data": {"node": None}}):
+            with self.subTest(response=response):
+                self.assert_denied(self._run_gate_with_project_metadata(
+                    command, response=response, fail=response is None
+                ))
+        self.assert_allowed(self._run_gate_with_project_metadata(
+            command, response=self._status_metadata("Inbox")
+        ))
 
     def test_every_gated_role_is_registered_in_all_role_tables(self):
         # 3つのロール別 dict（GATED_ROLES / GITGATE_VERBS_BY_ROLE / GH_SUBCOMMANDS_BY_ROLE）の

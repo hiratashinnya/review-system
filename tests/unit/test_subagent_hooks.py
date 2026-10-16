@@ -1497,8 +1497,13 @@ class SettingsRegistrationTests(unittest.TestCase):
             start["issue-implementer|issue-fixer"]["hooks"][0]["command"],
         )
         stop = self.settings["SubagentStop"]
-        self.assertEqual([entry["matcher"] for entry in stop], ["issue-implementer|issue-fixer"])
+        self.assertEqual(
+            [entry["matcher"] for entry in stop],
+            ["issue-implementer|issue-fixer", "gh-create-issue"],
+        )
         self.assertIn("subagent-stop-gate.sh", stop[0]["hooks"][0]["command"])
+        # Issue #632: gh-create-issue の成果物をチャットへ直送する別系統のフック（gate ではない）。
+        self.assertIn("subagent-draft-display.sh", stop[1]["hooks"][0]["command"])
 
     def test_new_commands_quote_the_project_dir_and_reference_existing_scripts(self):
         for event in ("SubagentStart", "SubagentStop"):
@@ -1512,11 +1517,16 @@ class SettingsRegistrationTests(unittest.TestCase):
 
     def test_retired_merge_gate_registration_preserves_other_hooks(self):
         pre_tool_use = self.commands("PreToolUse")
-        self.assertEqual(len(pre_tool_use), 3)
+        self.assertEqual(len(pre_tool_use), 4)
         self.assertNotIn("pr-merge-gate.sh", pre_tool_use)
         self.assertIn("agent-command-gate.sh", pre_tool_use[0])
-        self.assertEqual(
-            pre_tool_use[2], "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh"
+        self.assertIn(
+            "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
+            pre_tool_use,
+        )
+        self.assertIn(
+            'bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/gh-create-issue-receipt-gate.sh',
+            pre_tool_use,
         )
         # Issue #512 で `karte-notify.sh`（matcher `Bash`）を追加した。既存2件（Issue #309 時点）
         # は保持し、退役したゲートだけを除いていることをここで固定する。

@@ -28,6 +28,16 @@
             "timeout": 45
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gh-create-issue-receipt-gate.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SubagentStart": [
@@ -60,6 +70,16 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-stop-gate.sh",
             "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "gh-create-issue",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/subagent-draft-display.sh",
+            "timeout": 15
           }
         ]
       }

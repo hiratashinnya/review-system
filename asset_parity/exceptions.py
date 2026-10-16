@@ -23,7 +23,7 @@ from __future__ import annotations
 import dataclasses
 
 from .inventory import AGENT, SKILL
-from .trees import AGENTS_DIR, GITHUB
+from .trees import AGENTS_DIR, CODEX, GITHUB
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,6 +59,11 @@ _GH_CREATE_ISSUE_COPILOT = (
     "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
     "（.claude/tailoring-registry.md）"
 )
+_GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY = (
+    "Claude Code 専用のサブエージェント（Issue #632）。SubagentStop フックによる"
+    "チャット直送が Claude Code の hook 機構に依存するため他 PF へは作らない。"
+    "Codex は .agents/skills の wrapper が共通本文を直接実行する（.claude/tailoring-registry.md）"
+)
 _SILENT_FAILURE_DIAGNOSIS_COPILOT = (
     "user-invocable: false の共有リファレンスだが Copilot へは非移植（オーナー再確定 2026-10-12）。"
     "copilot-instructions.md へも本文を展開しないため inlined には当たらない"
@@ -74,6 +79,8 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),
+    Exemption("gh-create-issue", AGENT, GITHUB, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
+    Exemption("gh-create-issue", AGENT, CODEX, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
     Exemption("silent-failure-diagnosis", SKILL, GITHUB, _SILENT_FAILURE_DIAGNOSIS_COPILOT),
 )
 
