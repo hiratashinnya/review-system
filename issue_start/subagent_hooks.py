@@ -83,7 +83,6 @@ in-script 判定があるので、要実測事項 V-2（``matcher`` が ``agent_
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -91,9 +90,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from . import worktree_ledger
+from .handoff_completion import (
+    HANDOFF_DIR_REL, discover_handoff as _discover_handoff, own_handoff_pattern,
+)
+from .subagent_role_policy import KARTE_ROLE, TARGET_ROLES
 
-TARGET_ROLES = ("issue-implementer", "issue-fixer")
-KARTE_ROLE = "issue-fixer"
 KARTE_PROTOCOL_REL = ".claude/hooks/karte-protocol.md"
 KARTE_CHECK_TIMEOUT_S = 30.0
 KARTE_RENDER_TIMEOUT_S = 30.0
@@ -101,8 +102,6 @@ KARTE_RENDER_TIMEOUT_S = 30.0
 # `SubagentStop` timeout（60s）に収まる値にする——フック全体が打ち切られると
 # 「回収したのに台帳へ書けていない」中途半端な状態になりうる。
 COLLECT_TIMEOUT_S = 45.0
-# 回収対象の handoff を探すディレクトリ（作業ツリールート相対）。
-HANDOFF_DIR_REL = "tmp/_handoff"
 # 「自分の handoff が無い」ことを台帳へ1度だけ書き残すときの marker（重複追記の抑止に使う）。
 # 入れ子委譲を何段も行う dispatch では停止イベントが何度も届くため、毎回 notes を積むと
 # 台帳が観測ログで埋まり、ロック取得回数も無駄に増える（Issue #423 の並列度の論点）。
@@ -608,75 +607,6 @@ def collect_worktree_argv(entry_id: str, *, handoff: str | None) -> list:
     if handoff is not None:
         argv += ["--handoff", handoff]
     return argv
-
-
-def own_handoff_pattern(agent_type: str, issue: int) -> re.Pattern:
-    """**この dispatch 自身が書く** handoff のファイル名にだけ一致する正規表現。
-
-    ``<agent_type>--issue-<N>[<境界><suffix>].yaml`` で、``issue-<N>`` の直後は ``-`` か
-    ``.`` に限る（``issue-3541`` を ``issue-354`` と取り違えないための境界検査）。規則は
-    ``gitgate/worktree.py`` の ``HANDOFF_FILENAME_RE`` および各 agent 契約の
-    「``handoff_path`` の検査」条件4・5 と同一だが、**フックは ``gitgate`` を import しない**
-    （起動するだけ）という境界を保つためここで独立に組み立てる。
-
-    ``agent_type`` を名前に含めるのが要点である。入れ子委譲を行う dispatch では、委譲先
-    （``verification-author`` / ``reconciliation`` 等）の handoff が**同じ**
-    ``tmp/_handoff/`` に溜まる。所有者を見ずに数だけ数えると、他人の成果物1件を自分のものと
-    誤認したり、2件以上で ``ambiguous`` に落ちて回収不能になったりする（Issue #423 の実測）。
-    """
-    return re.compile(
-        rf"^{re.escape(agent_type)}--issue-{int(issue)}(-[A-Za-z0-9._-]*)?\.yaml$"
-    )
-
-
-def _discover_handoff(repo_root: Path, worktree_path: str, *, agent_type: str, issue) -> tuple:
-    """dispatch の worktree から**自分の**回収対象 handoff を1つに決める。
-
-    返り値は ``(relative_path | None, how)``。``how`` は evidence 用の識別子。
-
-    現行の ``ISSUE_START_BINDING_V1`` marker には ``handoff_path`` が無く、台帳の
-    ``handoff_path`` は ``None`` のまま起票される。そのため ``collect-worktree --entry <id>``
-    だけでは回収元が決まらず ``COLLECT_HANDOFF_UNKNOWN`` で必ず落ちる。ここで**実在する
-    ファイルを列挙して**決めることで、marker を触らずに回収を成立させる。
-
-    判定は次のいずれかになる（推測しない）:
-
-    * :func:`own_handoff_pattern` に一致するファイルが**ちょうど1件** → そのパス
-      （``how="unique"``）。これが唯一の「終了した」signal である。
-    * 一致が**0件** → ``(None, "empty")``。``tmp/_handoff`` 自体が無い場合も、他人
-      （委譲先エージェント）の handoff だけがある場合も同じ扱いで、**「終了」とは言えない**。
-      呼び出し側は解放も ``stale`` 化もせず ``running`` のまま保留する（Issue #423）。
-    * 一致が**2件以上** → ``(None, "ambiguous")``。どれが今回の成果物か決められないので
-      **解放しない**（呼び出し側が ``stale`` へ落として主文脈の判断へ回す）。
-    * ``tmp/_handoff`` が symlink、または存在するがディレクトリではない（regular file 等）
-      → ``(None, "unreadable")``。**これは「無い」ではなく「列挙できない」**——symlink は
-      構成要素を辿らないと本当に空か分からず、regular file は中身を列挙できない（F-354-07）。
-      保留（``empty``）と違い「観測できていない」異常なので ``stale`` へ落とす。
-    * 台帳の ``issue`` が整数として読めない → ``(None, "unidentifiable")``。自分の handoff を
-      名指しできない＝同じく異常なので ``stale`` へ落とす。
-    """
-    if not isinstance(issue, int) or isinstance(issue, bool) or issue < 1:
-        return None, "unidentifiable"
-    directory = Path(repo_root) / worktree_path / HANDOFF_DIR_REL
-    if directory.is_symlink():
-        return None, "unreadable"
-    if not directory.exists():
-        return None, "empty"
-    if not directory.is_dir():
-        return None, "unreadable"
-    try:
-        children = sorted(
-            child for child in directory.iterdir() if not child.is_dir()
-        )
-    except OSError:
-        return None, "unreadable"
-    pattern = own_handoff_pattern(agent_type, issue)
-    mine = [child for child in children if pattern.fullmatch(child.name)]
-    if not mine:
-        return None, "empty"
-    if len(mine) > 1:
-        return None, "ambiguous"
-    return f"{HANDOFF_DIR_REL}/{mine[0].name}", "unique"
 
 
 def _already_deferred(entry: Mapping[str, Any]) -> bool:
