@@ -132,47 +132,47 @@ asset_parity — cross-platform asset presence matrix
 
 asset                        kind   mode         .github (Copilot)            .codex/agents (Codex CLI agent) .agents/skills (Codex CLI skill)
 ----------------------------------------------------------------------------------------------------------------------------------------------
-agy-delegate                 skill  orchestrator exempt                       n/a                          OK                          
-align                        skill  skill        OK                           n/a                          OK                          
-architecture-design          skill  skill        OK                           n/a                          OK                          
-asset-lateral-deploy         skill  orchestrator OK                           n/a                          OK                          
-asset-pipeline               skill  orchestrator OK                           n/a                          OK                          
-bloom-model-tier             skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
-branch-hygiene               skill  skill        OK                           n/a                          OK                          
-codex-review                 skill  orchestrator exempt                       n/a                          exempt                      
-coverage-html                skill  skill        OK                           n/a                          OK                          
-docidx                       skill  skill        OK                           n/a                          OK                          
-domain-model                 skill  skill        OK                           n/a                          OK                          
-gh-create-issue              skill  skill        exempt                       n/a                          OK                          
-impl-design-pipeline         skill  orchestrator OK                           n/a                          OK                          
-issue-pipeline               skill  skill        OK [STALE?]                  n/a                          OK [STALE?]                 
-mvp-scope                    skill  skill        OK                           n/a                          OK                          
-native-stacked-pr            skill  skill        OK                           n/a                          OK                          
-orchestration-design         skill  skill        OK                           n/a                          OK                          
-prompt-design                skill  skill        OK                           n/a                          OK                          
-schema-design                skill  skill        OK                           n/a                          OK                          
-silent-failure-diagnosis     skill  principle    exempt                       n/a                          OK                          
-spec-pipeline                skill  orchestrator OK                           n/a                          OK                          
-spec-principles              skill  principle    exempt                       n/a                          OK                          
-test-strategy                skill  skill        OK                           n/a                          OK                          
-value-trace                  skill  skill        OK                           n/a                          OK                          
-agy-delegate                 agent  -            exempt                       OK                           n/a                         
-analysis-author              agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-asset-auditor                agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-authoring-fanout             agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-design-author                agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-doc-system-config-operator   agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-dsv2-lookup                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-issue-fixer                  agent  -            exempt                       OK                           n/a                         
-issue-implementer            agent  -            exempt                       OK                           n/a                         
-pr-reviewer                  agent  -            exempt                       OK                           n/a                         
-reconciliation-validator     agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-reconciliation               agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-requirements-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-spec-author                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-spec-inspector               agent  -            OK                           OK [STALE?]                  n/a                         
-structured-analysis          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
-verification-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a                         
+agy-delegate                 skill  orchestrator exempt                       n/a                          OK
+align                       skill  skill        OK                           n/a                          OK
+architecture-design          skill  skill        OK                           n/a                          OK
+asset-lateral-deploy         skill  orchestrator OK                           n/a                          OK
+asset-pipeline               skill  orchestrator OK                           n/a                          OK
+bloom-model-tier             skill  skill        OK [STALE?]                  n/a                          OK [STALE?]
+branch-hygiene               skill  skill        OK                           n/a                          OK
+codex-review                 skill  orchestrator exempt                       n/a                          exempt
+coverage-html                skill  skill        OK                           n/a                          OK
+docidx                       skill  skill        OK                           n/a                          OK
+domain-model                 skill  skill        OK                           n/a                          OK
+gh-create-issue              skill  skill        exempt                       n/a                          OK
+impl-design-pipeline         skill  orchestrator OK                           n/a                          OK
+issue-pipeline               skill  skill        OK [STALE?]                  n/a                          OK [STALE?]
+mvp-scope                    skill  skill        OK                           n/a                          OK
+native-stacked-pr            skill  skill        OK                           n/a                          OK
+orchestration-design         skill  skill        OK                           n/a                          OK
+prompt-design                skill  skill        OK                           n/a                          OK
+schema-design                skill  skill        OK                           n/a                          OK
+silent-failure-diagnosis     skill  principle    exempt                       n/a                          OK
+spec-pipeline                skill  orchestrator OK                           n/a                          OK
+spec-principles              skill  principle    exempt                       n/a                          OK
+test-strategy                skill  skill        OK                           n/a                          OK
+value-trace                  skill  skill        OK                           n/a                          OK
+agy-delegate                 agent  -            exempt                       OK                           n/a
+analysis-author              agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+asset-auditor                agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+authoring-fanout             agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+design-author                agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+doc-system-config-operator   agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+dsv2-lookup                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+issue-fixer                  agent  -            exempt                       OK                           n/a
+issue-implementer            agent  -            exempt                       OK                           n/a
+pr-reviewer                  agent  -            exempt                       OK                           n/a
+reconciliation-validator     agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+reconciliation              agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+requirements-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+spec-author                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+spec-inspector               agent  -            OK                           OK [STALE?]                  n/a
+structured-analysis          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+verification-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
 
 41 assets checked; 0 MISSING; 29 staleness flag(s)
 
