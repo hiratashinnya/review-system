@@ -10,7 +10,7 @@ from issue_envelope.placement import validate_placement
 from .errors import CodexExecError
 from .adviser_request import validate_adviser_request
 from .initial_binding import validate_initial_binding
-from .source_snapshot import verify_source_snapshot
+from .source_snapshot import verify_source_snapshot, verify_untracked_sources
 from .committed_artifact import read_committed_artifact
 from .repository_artifacts import verify_repository_artifacts
 
@@ -40,6 +40,7 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
         )
         oid = result.stdout.strip()
         verified = verify_repository_artifacts(worktree)
+        verify_untracked_sources(worktree)
         if request.role == "adviser":
             if set(binding) != {"recipient", "consultation"}:
                 raise ValueError("adviser binding fields mismatch")

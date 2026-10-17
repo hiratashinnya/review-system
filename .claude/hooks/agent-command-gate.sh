@@ -210,12 +210,12 @@ CTX_ALLOWED_LANGUAGES = {"shell"}
 # Worktree release verbs remain limited to the main context and `SubagentStop` hook.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
-    # This role creates a new branch; it does not adopt an existing PR branch.
+    # Phase permission extension adds adopt-branch for the 2b author handover.
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
-    # The fixer shares the implementer's verbs and adds `adopt-branch` for an existing PR branch.
+    # The fixer retains its existing PR adoption and base-integration verbs.
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",

@@ -102,6 +102,34 @@ exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（
 - **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
 
+### 旧policy PRのfixer後再レビュー（native専用）
+
+新2.0工程のPRは通常の `ISSUE_PHASE_INPUT_V1` とVD/CP/TD独立レビュー・owner承認を使う。
+旧1.0運用で作成済みのOPEN PRだけ、trusted mainが次の専用入力でnative `pr-reviewer` を呼べる。
+これはmarker欠落時の許可やlegacy自己申告ではなく、客観証拠を検査するread-only互換契約である。
+
+```text
+ISSUE_PR_REREVIEW_V1={"repository":"OWNER/REPO","issue":N,"pr":P,"branch_name":"BRANCH","expected_oid":"40-HEX","fixer_entry_id":"wl-...","receipt_sha256":"64-HEX"}
+```
+
+1. 主文脈は同repoのOPEN PRのbranch/head OIDを取得する。fixer本人のcommit/pushと完了receiptを確認し、
+   fixer終了後に既存collect/releaseを完了する。最新branch ownerがreleasedのfixerでなければ起動しない。
+2. 主文脈は台帳 `collected_to` の実ファイルbytesからsha256を計算し、Issue/PR/branch/OIDとentry IDを渡す。
+   reviewerは共有base作業面で起動し、`isolation`、checkout、cd、別作業面準備は追加しない。
+3. hookはfresh GitHub repo default、remote exact OID、fetchしたdefaultのfirst-parent履歴から
+   policy major 1→2の実導入commitと時刻を導出する。未導入・取得不能・履歴不明なら拒否する。
+   PR作成が導入より前、PR head treeがpolicy1.0、新工程artifactなし、導入commit非祖先を要求する。
+   ac-designer/change-planner/test-writerの同branch台帳履歴があれば通常phase契約を要求する。
+4. hookはsame-repo OPEN、branch/head SHA、remoteとfetchしたPR commit tree、最新fixerのIssue/解放/実receiptを照合する。
+   base共有面にtracked変更や承認外未追跡sourceがあれば拒否する。PR exact OIDとbase作業面HEADを混同しない。
+5. reviewerは従来の `gh pr view` / `rtk gh pr diff --no-compact` / `gh pr checks` でPRを審査する。
+   取得前後にhead OIDを期待値へ照合し、更新されたらSTOPして主文脈へ返す。
+   `gh pr checkout` は禁止のまま。手元テストはbase側の仮説確認でありPRテスト成功へ計上しない。
+
+専用markerとphase markerの混在、他roleへの専用marker、欠落markerは拒否する。
+この入口はnative read-only再レビューだけに限定し、Codex executorのbinding/profile例外へ拡張しない。
+Codex新profileと製品live dispatchの実測は #652 で追跡し、unitのhook受理を実dispatch成功と報告しない。
+
 ### Codex 実行者経路（Claude Code 固有・Issue #538）
 
 各工程ロールと既存 `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexへ実行を委譲できる。read-only roleは編集profileを使わない。経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけで、契約は `docs/methods/codex-workspace-binding.md` を正とする。

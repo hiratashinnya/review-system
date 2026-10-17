@@ -27,13 +27,24 @@ class ArtifactBindingTests(unittest.TestCase):
                             artifact_digest=hashlib.sha256(self.path.read_bytes()).hexdigest(),
                             expected={key: self.raw[key] for key in BINDINGS})
         self.binding["expected"].update(ac_refs=["AC-1"], work_unit="WU-1")
-        self.request = SimpleNamespace(role="issue-implementer", binding_file=Path("binding.json"))
+        self.request = SimpleNamespace(role="issue-implementer", binding_file=Path("tmp/binding.json"))
 
     def verify(self):
-        (self.root / "binding.json").write_text(json.dumps(self.binding))
+        (self.root / "tmp").mkdir(exist_ok=True)
+        (self.root / "tmp/binding.json").write_text(json.dumps(self.binding))
         verify_artifact_binding(self.request, self.root, self.root)
 
     def test_artifact_commit_does_not_make_its_source_snapshot_stale(self):
+        self.verify()
+
+    def test_untracked_source_and_extra_tc_cannot_enter_codex_binding(self):
+        for name in ("tool/unapproved.py", "tests/tool/test_extra.py"):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"unapproved = True\n")
+            with self.subTest(name=name), self.assertRaisesRegex(CodexExecError, "untracked source"):
+                self.verify()
+            path.unlink()
         self.verify()
 
     def test_committed_invalid_graph_cannot_reach_executor(self):
@@ -43,7 +54,7 @@ class ArtifactBindingTests(unittest.TestCase):
         for fields in invalid:
             data = {**copy.deepcopy(self.raw), **fields}
             self.path.write_text(dumps(SPECS["ChangePlan"], data))
-            git(self.root, "add", ".")
+            git(self.root, "add", str(self.path.relative_to(self.root)))
             git(self.root, "commit", "-qm", "invalid committed plan")
             self.binding["artifact_digest"] = hashlib.sha256(self.path.read_bytes()).hexdigest()
             self.binding["expected"].update({key: data[key] for key in BINDINGS})

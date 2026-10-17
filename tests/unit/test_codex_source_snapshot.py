@@ -8,6 +8,27 @@ from tests.unit.codex_worktree_exec_support import git, make_repository
 
 
 class SourceSnapshotTests(unittest.TestCase):
+    def test_untracked_source_and_tc_are_rejected_but_tmp_data_is_allowed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, root = make_repository(Path(temporary))
+            oid = git(root, "rev-parse", "HEAD")
+            (root / "tmp").mkdir()
+            (root / "tmp/input.json").write_text("{}")
+            (root / "tmp/result.md").write_text("result")
+            (root / "tmp/_worktree").mkdir()
+            (root / "tmp/_worktree/ledger.json.lock").write_text("")
+            git(root, "config", "core.excludesFile", str(root / "tmp/ignore.txt"))
+            (root / "tmp/ignore.txt").write_text("ignored_source.py\n")
+            verify_source_snapshot(root, oid, 371)
+            for name in ("source.py", "test_extra.py", "tmp/injected.py", "ignored_source.py"):
+                path = root / name
+                path.write_bytes(b"unapproved = True\n")
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "untracked source"):
+                    verify_source_snapshot(root, oid, 371)
+                with self.assertRaises(ValueError):
+                    verify_source_snapshot(root, oid, 371, {name: hashlib.sha256(path.read_bytes()).hexdigest()})
+                path.unlink()
+
     def test_each_phase_output_needs_exact_committed_approval(self):
         with tempfile.TemporaryDirectory() as temporary:
             _, root = make_repository(Path(temporary))

@@ -275,6 +275,7 @@ python3 -m issue_start.readonly_workspace --source /repo/primary --approval-file
 
 入口はread-only 4ロールだけを受け付け、native readonly dispatchのavailabilityと入力承認を
 sourceで検査する。同じgit-common-dir、同じHEAD、両面のtracked cleanを要求する。
+両面の未追跡集合も検査する。Git ignore設定は通常sourceやTCを許可する根拠にしない。
 binding/approval/promptと初期入力・相談参照のtmpファイルを同じ相対pathへ転送する。
 tmp外の参照は転送せずcommit bytes一致を検査し、symlink・escape・既存tmp入力との不一致を拒否する。
 転送先で承認を再検証し、executorをlinked cwdから呼ぶのでD5のcwd/-C一致は変更しない。
@@ -291,5 +292,23 @@ snapshot一致を要求するため、receipt側で後段source差分を再承�
 値nullはHEADで削除済みのpathだけを表す。全pathのHEAD bytesと作業面bytesを照合し、
 承認外source変更は拒否する。同一Issueのcanonical envelopeもcommit済みであることを要求する。
 これは承認済み差分の受け渡しであり、新しい承認権限や自動承認は作らない。
+
+未追跡通常source・追加TCはnative/Codexの全工程入力検査とread-only準備の両作業面で拒否する。
+未追跡の例外は `tmp/` 配下の通常ファイル（`.json` / `.md` / `.yaml` / `.yml` / `.txt` / `.log`）による
+工程入力・prompt・handoff・結果、Pythonが生成する `__pycache__/` の `.pyc` / `.pyo`、
+既存feedback writer lockと `tmp/_worktree/ledger.json.lock`、Gitが登録した別linked worktree自身だけである。
+symlinkは例外にしない。
+binding・approval・raw Issue・promptも未commitなら `tmp/` に置く。`tmp/` 内の追加Python sourceも拒否する。
+`source_changes` にpath/digestを追加しても未追跡通常sourceは許可せず、従来どおりHEAD bytesの一致を要求する。
+
+native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/snapshot/context/reviewsに加え
+`dispatch_target = {repository, branch_name, expected_oid}` を必須にする（JSON object）。
+これは過去review receiptを書き換える情報ではなく、trusted主文脈が今回起動する取得対象の承認である。
+phase承認とnative markerのIssue/repository/branch/OIDを相互照合し、検査cwdのoriginとHEADが同じrepository/OIDで
+あることを起動前に要求する。初回1aでは承認branchは新規作成予定名、expected_oidはbase_oidであり、
+base_refとsnapshotも実HEADへ一致させる。後続著作では承認branchを実検査作業面のcurrent branchへ一致させる。
+過去snapshot OIDと後続HEADは異なり得るため、既存のancestor検査・canonical artifact・正確なsource_changesによって
+承認snapshotから現在の検査面までを検証する。Codexも同じartifact検証を使い、D5のcwd/-C一致を維持する。
+native read-only工程の既存phase承認形式は維持し、既存PRの再レビューはその専用契約を使う。
 dispatchはrepo全体checkの参照/木/DAG/AC・TD/TC/Red証拠検査と索引内参照実体のcommit一致を要求し、
 入力artifactのID/pathが検査集合にない場合も拒否する。

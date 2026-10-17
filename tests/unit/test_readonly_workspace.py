@@ -59,7 +59,8 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                     source_values, receipts = binding, []
                 if role == "adviser":
                     consultation = dict(run_id="run-1", issue=371, target_key="issue-371",
-                        caller_role="test-writer", snapshot_oid=oid, model="test-model", question="相談",
+                        caller_role="test-writer", phase="test_design", work_unit="WU-1",
+                        max_seconds=60, seconds_used=0, reserve_seconds=10, snapshot_oid=oid, model="test-model", question="相談",
                         max_calls=1, calls_used=0, max_tokens=1000, tokens_used=0, reserve_tokens=100,
                         max_cost_microusd=1000, cost_used_microusd=0, reserve_cost_microusd=10)
                     consultation["input_refs"] = [dict(path="tmp/issue.txt", digest=hashlib.sha256(issue).hexdigest())]
@@ -75,6 +76,14 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                         "--prompt-file", "tmp/prompt.md", "--output-file", f"tmp/{role}-out.md",
                         "--model", binding.get("consultation", {}).get("model", "test-model"),
                         "--reasoning-effort", "high"]
+                for root in (source, target):
+                    for relative in ("tool/unapproved.py", "tests/tool/test_extra.py"):
+                        extra = root / relative
+                        extra.write_text("unapproved = True\n")
+                        with self.subTest(role=role, root=root, relative=relative), self.assertRaisesRegex(
+                                ValueError, "untracked source"):
+                            main(args)
+                        extra.unlink()
                 with self.subTest(role=role), patch("issue_start.readonly_workspace.execute",
                         side_effect=lambda a, cwd: execute(a, cwd=cwd,
                             environ=clean_environ(CODEX_HOME=str(home)), codex=str(fake))):

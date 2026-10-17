@@ -7,6 +7,7 @@ from codex_worktree_exec.arguments import parse_request
 from codex_worktree_exec.cli import main as execute
 from codex_worktree_exec.committed_artifact import read_committed_artifact
 from codex_worktree_exec.worktree_binding import bind_worktree
+from codex_worktree_exec.source_snapshot import verify_untracked_sources
 from .gated_roles import READ_ONLY_ROLES
 from .phase_dispatch import validate_phase_dispatch
 from .readonly_phase_dispatch import parse_readonly_phase
@@ -39,6 +40,7 @@ def prepare_readonly_workspace(source, target, role, marker, prompt_file):
         raise ValueError("readonly workspace repository/HEAD mismatch")
     for root in (source, target):
         _git(root, "diff", "--exit-code", "HEAD", "--")
+        verify_untracked_sources(root)
     parse_readonly_phase("Agent", dict(subagent_type=role, prompt=
                         "ISSUE_PHASE_INPUT_V1=" + json.dumps(marker)), role, source)
     binding = json.loads(_input_path(source, marker["binding_file"]).read_text())

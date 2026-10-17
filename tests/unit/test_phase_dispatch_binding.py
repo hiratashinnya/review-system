@@ -41,15 +41,25 @@ class PhaseDispatchBindingTests(unittest.TestCase):
                              context_id="green-context", owner_approved=True, reviews=self.reviews)
 
     def validate(self):
-        (self.root / "binding.json").write_text(json.dumps(self.binding))
-        (self.root / "approval.json").write_text(json.dumps(self.approval))
-        validate_phase_dispatch(dict(binding_file="binding.json", approval_file="approval.json"),
+        (self.root / "tmp").mkdir(exist_ok=True)
+        (self.root / "tmp/binding.json").write_text(json.dumps(self.binding))
+        (self.root / "tmp/approval.json").write_text(json.dumps(self.approval))
+        validate_phase_dispatch(dict(binding_file="tmp/binding.json", approval_file="tmp/approval.json"),
                                 "issue-implementer", self.root)
 
     def test_complete_separate_reviews_allow_approved_single_workunit(self):
         frozen_reviews = copy.deepcopy(self.reviews)
         self.validate()
         self.assertEqual(self.reviews, frozen_reviews)
+
+    def test_untracked_source_and_extra_tc_cannot_enter_native_phase(self):
+        for name in ("tool/unapproved.py", "tests/tool/test_extra.py"):
+            path = self.root / name
+            path.write_bytes(b"unapproved = True\n")
+            with self.subTest(name=name), self.assertRaisesRegex(IssueStartError, "untracked source"):
+                self.validate()
+            path.unlink()
+        self.validate()
 
     def test_later_approved_implementation_keeps_historical_reviews_unchanged(self):
         frozen_reviews = copy.deepcopy(self.reviews)
@@ -84,7 +94,7 @@ class PhaseDispatchBindingTests(unittest.TestCase):
             data = {**copy.deepcopy(original), **fields}
             path = self.root / relative
             path.write_text(dumps(SPECS["ChangePlan"], data))
-            git(self.root, "add", ".")
+            git(self.root, "add", relative)
             git(self.root, "commit", "-qm", "invalid committed plan")
             self.binding["artifact_digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
             self.binding["expected"].update({key: data[key] for key in BINDINGS})
@@ -157,10 +167,11 @@ class PhaseDispatchBindingTests(unittest.TestCase):
         for role in ("plan-reviewer", "pr-reviewer"):
             self.binding["recipient"] = self.approval["recipient"] = role
             self.approval["reviews"] = []
-            (self.root / "binding.json").write_text(json.dumps(self.binding))
-            (self.root / "approval.json").write_text(json.dumps(self.approval))
+            (self.root / "tmp").mkdir(exist_ok=True)
+            (self.root / "tmp/binding.json").write_text(json.dumps(self.binding))
+            (self.root / "tmp/approval.json").write_text(json.dumps(self.approval))
             with self.subTest(role=role), self.assertRaisesRegex(IssueStartError, "missing mandatory review"):
-                validate_phase_dispatch(dict(binding_file="binding.json", approval_file="approval.json"),
+                validate_phase_dispatch(dict(binding_file="tmp/binding.json", approval_file="tmp/approval.json"),
                                         role, self.root)
 
     def test_empty_collector_cannot_hide_native_expected_input(self):

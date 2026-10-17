@@ -80,7 +80,7 @@ class AuthorContinuationTests(unittest.TestCase):
         prompt = 'ISSUE_PHASE_BINDING_V1='+json.dumps(binding)+'\nISSUE_PHASE_INPUT_V1={}\n'+MARKER+json.dumps(self.raw)
         payload = dict(tool_name='Agent', tool_input=dict(subagent_type='change-planner',
                                                         isolation='worktree', prompt=prompt))
-        with patch('issue_start.gate_isolation_dispatch.validate_phase_dispatch'):
+        with patch('issue_start.gate_isolation_dispatch.validate_phase_dispatch', return_value=None):
             with patch('issue_start.author_continuation.worktree_ledger.main_worktree_root', return_value=self.root), patch(
                 'issue_start.author_continuation.worktree_ledger.read_ledger', return_value={'entries':[self.entry]}):
                 ack = parse_dispatch_payload(payload, cwd=self.root, runner=self.runner)

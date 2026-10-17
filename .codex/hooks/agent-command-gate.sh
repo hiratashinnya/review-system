@@ -208,12 +208,12 @@ PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z"
 # context) are not constrained by this role table. This repo registers no SubagentStop-equivalent hook for Codex.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
-    # This role creates a new branch; it does not adopt an existing PR branch.
+    # Phase permission extension adds adopt-branch for the 2b author handover.
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
-    # The fixer shares the implementer's verbs and adds `adopt-branch` for an existing PR branch.
+    # The fixer retains its existing PR adoption and base-integration verbs.
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",

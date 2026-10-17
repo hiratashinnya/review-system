@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from codex_worktree_exec.initial_binding import validate_initial_binding
 from codex_worktree_exec.adviser_request import validate_adviser_request, request_digest
-from codex_worktree_exec.adviser_capture import capture_advice
+from codex_worktree_exec.adviser_capture import capture_advice, ORIGIN_FIELDS
 
 
 class InitialBindingTests(unittest.TestCase):
@@ -31,6 +31,7 @@ class InitialBindingTests(unittest.TestCase):
 
     def request(self):
         return dict(run_id="r1", issue=371, target_key="u1", caller_role="test-writer",
+                    phase="test_design", work_unit="WU-1", max_seconds=60, seconds_used=0, reserve_seconds=10,
                     snapshot_oid=self.oid, model="gpt-6-sol", question="境界条件は？",
                     input_refs=[dict(path="issue.txt", digest=self.digest)],
                     max_calls=1, calls_used=0, max_tokens=1000, tokens_used=0, reserve_tokens=100,
@@ -43,8 +44,8 @@ class InitialBindingTests(unittest.TestCase):
         for changes in ({"calls_used": 1}, {"tokens_used": 1000}, {"snapshot_oid": "b" * 40}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 validate_adviser_request({**raw, **changes}, self.root, self.oid)
-        answer = dict(request_digest=digest, run_id="r1", model="gpt-6-sol", status="complete", answer="境界を検証")
-        metrics = dict(status="success", tokens=20, cost_microusd=2)
+        answer = dict({key: raw[key] for key in ORIGIN_FIELDS}, request_digest=digest, status="complete", answer="境界を検証")
+        metrics = dict(status="success", tokens=20, cost_microusd=2, elapsed_seconds=1)
         result = capture_advice(raw, answer, metrics)
         self.assertEqual(result["adoption"], "pending")
         for response, meter in (({**answer, "status": "partial"}, metrics),

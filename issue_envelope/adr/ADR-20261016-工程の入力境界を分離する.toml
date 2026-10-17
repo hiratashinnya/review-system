@@ -6,7 +6,7 @@ phase = "solution_planning"
 recorded_by = "Codex (AI)"
 affected_assets = [".ai/agents/creation-stage-contract.md", ".ai/skills/issue-pipeline/SKILL.md", "codex_worktree_exec/profile_pin.py", "issue_envelope/schema.py"]
 supersedes = ""
-owner_decision_refs = []
+owner_decision_refs = ["FBK-20261017-工程別worktreeへ同一branchを継承する"]
 
 [[source]]
 issue = 371
@@ -23,12 +23,19 @@ constraints = '''
 [decision]
 chosen = '''
 CP/VDの同型木と独立work unit DAGをissue_envelopeに置き、工程artifactの検証と実行者の起動束縛を分離する。新工程はClaude専用roleとしCodexは元roleの実行profileで使う。
+旧1.0 OPEN PRのfixer後native再レビューだけは専用read-only入力を設け、通常2.0 phase承認と適用を区別する。
+fresh defaultを取得しfirst-parent履歴のpolicy major1→2実導入点を導出、PR作成時刻/旧policy tree/導入点非祖先と
+新工程artifact・author履歴なしを照合する。same-repo OPEN PR/head branch/remote exactOID/取得commit treeと、
+最新fixerの終了・回収・解放済みreceipt bytesを照合する。欠落markerやlegacy自己申告では許可しない。
+共有base面の既存レビュー契約を維持し、PR対象OIDとbase HEADを区別する。Codex例外や別オーケストレータは作らない。
 '''
 rationale = '''
 既存DocSpec/ref adapterを直接再利用し、欄名依存と二重ledgerを増やさずproducer/run/Issue/digest/OIDの境界を検査できる。
+旧PRへ存在しない新工程artifactを要求すると既存review/fixループが断絶するため、客観条件付きread-only互換に限定する。
+開発commitのSHA/任意日時を移行規範にはしない。実default導入前に1.0運用で作られたPRも実導入点で識別できる。
 '''
-tracking_status = "pending"
-tracking_issue = 0
+tracking_status = "filed"
+tracking_issue = 652
 no_tracking_reason = ''
 
 [[alternatives]]
@@ -55,5 +62,9 @@ negative = '''
 dispatchと独立コンテキストの追加コストがある。未merge profileの実dispatch成功は確認できない。
 '''
 followups = '''
-merge後一回実測のverification起票案はissue_envelope/verify/designs/post-merge-verification-371.md。同一worktree/adoptの矛盾はownerへ比較案を提示中で、有効化を保留。#537へLEDGER_SPEC確認を引き渡す。
+merge後一回実測は #652（parent #368）、設計はissue_envelope/verify/designs/post-merge-verification-371.mdで追跡する。
+worktree継承は FBK-20261017-工程別worktreeへ同一branchを継承する に従い、各作者専用isolated worktreeへ同branchのremote exact OIDを継承する。
+前作者自身のcommit/push、完了receipt回収、終了、collect/release完了を照合する。native入口はavailable。
+旧版では同一worktree/adopt矛盾をownerへ提示して有効化を保留していた。これは決定前の履歴である。
+未merge Codex profileのD1拒否を保持し、#652のlive実測成功は未確認。旧PR互換の実Git/実parser/PreToolUse受理はunit証拠であり製品live dispatch成功ではない。#537へLEDGER_SPEC確認を引き渡す。
 '''

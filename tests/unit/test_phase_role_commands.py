@@ -45,3 +45,29 @@ class PhaseRoleCommandTests(unittest.TestCase):
                     with self.subTest(role=role, verb=verb, gate=gate.__module__):
                         self.assertIsNotNone(gate(payload(role, f"python3 -m issue_envelope {verb}")))
                 self.assertIsNotNone(gate(payload(role, "python3 -m issue_start.readonly_workspace --source .")))
+
+    def test_every_author_required_branch_handover_and_commit_verbs(self):
+        required = {"ac-designer": "new-branch", "change-planner": "adopt-branch",
+                    "test-writer": "adopt-branch", "issue-implementer": "adopt-branch",
+                    "issue-fixer": "adopt-branch"}
+        for role, branch_verb in required.items():
+            for gate in (run_gate, run_codex_gate):
+                branch = f"python3 -m gitgate {branch_verb} feature/371"
+                if branch_verb == "adopt-branch":
+                    branch += " --repository owner/repo --expected-oid " + "a" * 40
+                commands = [branch,
+                            "python3 -m gitgate status", "python3 -m gitgate add tool/file.py",
+                            "python3 -m gitgate commit tmp/message", "python3 -m gitgate push"]
+                for command in commands:
+                    with self.subTest(role=role, gate=gate.__module__, command=command):
+                        self.assertIsNone(gate(payload(role, command)))
+
+    def test_handover_does_not_grant_worktree_management_or_readonly_writes(self):
+        for gate in (run_gate, run_codex_gate):
+            for role in GATED_ROLES:
+                verbs = ["worktree-release", "collect-worktree", "worktree-forget"]
+                if role in READ_ONLY_ROLES:
+                    verbs += ["new-branch", "adopt-branch", "add", "commit", "push"]
+                for verb in verbs:
+                    with self.subTest(role=role, gate=gate.__module__, verb=verb):
+                        self.assertIsNotNone(gate(payload(role, f"python3 -m gitgate {verb} feature/371")))

@@ -37,4 +37,4 @@ effort: xhigh
 - 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は全文検索に使う。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、共通本文の初回実装専用・isolation・handoff契約を優先し、是正やレビューへの兼用、診断の省略、マージ権限の追加を行わない。
 
-後続2bの入口はphase dispatchのみ。新branchを作る旧managed実装入口は使わない。worktree継承のowner判断とnative実行証跡が揃うまでavailability拒否を維持する。
+後続2bの入口はphase dispatchのみ。新branchを作る旧managed実装入口は使わない。worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、前作者がpushした同branchのremote exact OIDを専用isolated worktreeへadoptする。native入口はavailableであり、前roleの完了receipt回収・終了・collect/releaseを確認する。live実測は #652 で追跡し、未merge Codex profileのD1拒否は維持する。

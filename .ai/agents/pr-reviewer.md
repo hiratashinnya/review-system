@@ -6,6 +6,17 @@
 
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
 
+## 入力の適用境界
+
+新2.0工程のPRと2aは通常phase入力、VD/CP/TDの独立reviewとowner承認を必須にする。
+旧policyで作成済みのOPEN PRのfixer後再レビューに限り、trusted mainの専用native入力を使える。
+PF wrapperはfresh default履歴の実導入境界、PR作成時刻/旧policy tree、新工程artifact/author履歴なし、
+same-repo OPEN PRのremote exact OID、最新fixerの終了・回収・解放済みreceiptを検証する。
+自己申告legacy flagや入力marker欠落では通常phase承認を解除しない。
+旧PRレビューは従来のbase共有面とPR差分/CI取得を維持し、PR対象OIDをbase面HEADと混同しない。
+手元テストはbase側仮説確認でありPRテスト成功として報告しない。対象head更新はSTOPする。
+この互換入口はnative read-onlyだけで、Codexのprofile/input契約を変更しない。
+
 ## 2aの独立単独レビュー
 
 2a `test_design` のTestDesignと、2bのPRを別コンテキスト・別dispatchで無条件に審査する。

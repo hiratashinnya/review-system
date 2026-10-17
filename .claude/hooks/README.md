@@ -695,12 +695,16 @@ python 側に一本化したまま複製しない。
 ## #371の工程ロール境界
 
 `issue_start/gated_roles.py` を正本に著作工程とread-only工程を分ける。新工程は
-`ISSUE_PHASE_INPUT_V1`の入力/承認束縛を要求し、未観測のnative経路はmanifestでunavailableとする。
+`ISSUE_PHASE_INPUT_V1`の入力/承認束縛を要求する。native経路はmanifestでavailableとし、
+初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
 初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
 read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
 `python3 -m issue_start.phase_tool_gate`で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
 任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
-同一worktree継承のowner判断とロール別実測が揃う前にavailabilityを変更してはならない。
+worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
+前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。
+工程live実測は #652 で追跡する。D1 origin/main profile pin、D5 cwd一致、agy無効を維持する。
+旧版の「owner未決・native unavailable」は決定前の履歴であり、現在の停止条件ではない。
 markerとreceiptの詳細は[Claude issue-pipeline](../skills/issue-pipeline/SKILL.md)を参照する。
 
 ## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354 / #423)

@@ -22,23 +22,24 @@ class ReadonlyPhaseDispatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root, _ = make_repository(Path(temporary))
             oid = git(root, "rev-parse", "HEAD")
-            (root / "issue.txt").write_bytes(b"issue")
-            binding = dict(recipient="issue-investigator", input_file="issue.txt",
+            (root / "tmp").mkdir()
+            (root / "tmp/issue.txt").write_bytes(b"issue")
+            binding = dict(recipient="issue-investigator", input_file="tmp/issue.txt",
                            input_digest=hashlib.sha256(b"issue").hexdigest(), snapshot_oid=oid,
                            issue=371, run_id="r1", target_key="issue-371",
                            investigation_reason="原因未確定のため調査")
             approval = dict(recipient="issue-investigator", run_id="r1", issue=371,
                             target_key="issue-371", snapshot_oid=oid, context_id="investigator-1",
                             owner_approved=True, reviews=[])
-            (root / "binding.json").write_text(json.dumps(binding))
-            (root / "approval.json").write_text(json.dumps(approval))
+            (root / "tmp/binding.json").write_text(json.dumps(binding))
+            (root / "tmp/approval.json").write_text(json.dumps(approval))
             manifest = json.loads(ENTRYPOINT_MANIFEST.read_text())
             for entry in manifest["readonly"]:
                 entry["binding_transports"]["claude"]["availability"] = "available"
-            manifest_path = root / "manifest.json"
+            manifest_path = root / "tmp/manifest.json"
             manifest_path.write_text(json.dumps(manifest))
             marker = "ISSUE_PHASE_INPUT_V1=" + json.dumps(dict(
-                binding_file="binding.json", approval_file="approval.json"))
+                binding_file="tmp/binding.json", approval_file="tmp/approval.json"))
             before = sorted(str(path) for path in root.rglob("*"))
             with patch("issue_start.gate_manifest.ENTRYPOINT_MANIFEST", manifest_path):
                 ack = parse_dispatch_payload(dict(tool_name="Agent", tool_input=dict(

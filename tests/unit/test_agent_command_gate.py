@@ -2072,11 +2072,7 @@ class CtxExecutionToolGateTests(unittest.TestCase):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class AdoptBranchVerbGrantTests(unittest.TestCase):
-    """Issue #354 PR-4: `adopt-branch` を **issue-fixer にだけ**付与した（本 PR 唯一の権限付与）。
-
-    統制（PR-1 台帳／PR-2 削除経路／PR-3 自動解放と deny）は先行 PR で merge 済みで、
-    ここが初めて gated ロールへ verb を足す。付与の**範囲**が広がっていないことを固定する。
-    """
+    """作者とfixerのadoptを許可し、reviewerとworktree管理操作を拒否する。"""
 
     ADOPT = (
         "python3 -m gitgate adopt-branch claude/issue-354 "
@@ -2095,10 +2091,9 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
             "`--pr` 付きも同じ verb",
         )
 
-    def test_other_gated_roles_may_not_adopt(self):
-        # issue-implementer は `new-branch` で新規に切る契約（既存ブランチを掴む必要が無い）。
-        # pr-reviewer は読取専用。どちらも最小権限のまま据え置く。
-        for role in ("issue-implementer", "pr-reviewer"):
+    def test_phase_implementer_may_adopt_but_reviewer_may_not(self):
+        self.assertIsNone(run_gate(payload("issue-implementer", self.ADOPT)))
+        for role in ("pr-reviewer",):
             with self.subTest(role=role):
                 self.assert_denied(run_gate(payload(role, self.ADOPT)))
 
@@ -2132,7 +2127,8 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
 
     def test_the_grant_reaches_the_ctx_execution_path_too(self):
         self.assertIsNone(run_gate(ctx_execute_payload("issue-fixer", self.ADOPT)))
-        self.assert_denied(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
+        self.assertIsNone(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
+        self.assert_denied(run_gate(ctx_execute_payload("pr-reviewer", self.ADOPT)))
 
 
 def codex_exec_command(role_args):
