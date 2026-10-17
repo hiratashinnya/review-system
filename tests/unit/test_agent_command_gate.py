@@ -2072,11 +2072,7 @@ class CtxExecutionToolGateTests(unittest.TestCase):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class AdoptBranchVerbGrantTests(unittest.TestCase):
-    """Issue #354 PR-4: `adopt-branch` を **issue-fixer にだけ**付与した（本 PR 唯一の権限付与）。
-
-    統制（PR-1 台帳／PR-2 削除経路／PR-3 自動解放と deny）は先行 PR で merge 済みで、
-    ここが初めて gated ロールへ verb を足す。付与の**範囲**が広がっていないことを固定する。
-    """
+    """作者とfixerのadoptを許可し、reviewerとworktree管理操作を拒否する。"""
 
     ADOPT = (
         "python3 -m gitgate adopt-branch claude/issue-354 "
@@ -2095,10 +2091,9 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
             "`--pr` 付きも同じ verb",
         )
 
-    def test_other_gated_roles_may_not_adopt(self):
-        # issue-implementer は `new-branch` で新規に切る契約（既存ブランチを掴む必要が無い）。
-        # pr-reviewer は読取専用。どちらも最小権限のまま据え置く。
-        for role in ("issue-implementer", "pr-reviewer"):
+    def test_phase_implementer_may_adopt_but_reviewer_may_not(self):
+        self.assertIsNone(run_gate(payload("issue-implementer", self.ADOPT)))
+        for role in ("pr-reviewer",):
             with self.subTest(role=role):
                 self.assert_denied(run_gate(payload(role, self.ADOPT)))
 
@@ -2132,7 +2127,8 @@ class AdoptBranchVerbGrantTests(unittest.TestCase):
 
     def test_the_grant_reaches_the_ctx_execution_path_too(self):
         self.assertIsNone(run_gate(ctx_execute_payload("issue-fixer", self.ADOPT)))
-        self.assert_denied(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
+        self.assertIsNone(run_gate(ctx_execute_payload("issue-implementer", self.ADOPT)))
+        self.assert_denied(run_gate(ctx_execute_payload("pr-reviewer", self.ADOPT)))
 
 
 def codex_exec_command(role_args):
@@ -2146,7 +2142,7 @@ def codex_exec_command(role_args):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class CodexWorktreeExecGrantTests(unittest.TestCase):
-    """Issue #538 PR-B: `codex_worktree_exec` を implementer/fixer にだけ、自ロールを名乗る形で許可する。"""
+    """`codex_worktree_exec` の自ロール許可と、他ロール偽装拒否を検査する。"""
 
     WRITING_ROLES = ("issue-implementer", "issue-fixer")
 
@@ -2171,10 +2167,17 @@ class CodexWorktreeExecGrantTests(unittest.TestCase):
                 with self.subTest(role=role, form=role_args):
                     self.assert_denied(run_gate(payload(role, codex_exec_command(role_args))))
 
-    def test_pr_reviewer_has_no_codex_write_path(self):
-        for role_args in ("--role pr-reviewer", "--role issue-implementer"):
-            with self.subTest(form=role_args):
-                self.assert_denied(run_gate(payload("pr-reviewer", codex_exec_command(role_args))))
+    def test_pr_reviewer_may_launch_its_readonly_profile_only(self):
+        from tests.unit.test_codex_worktree_exec_assets import permission_profiles
+
+        self.assertEqual(permission_profiles()["pr-reviewer"]["extends"], ":read-only")
+        for form in ("--role pr-reviewer", "--role=pr-reviewer"):
+            with self.subTest(allowed=form):
+                self.assertIsNone(run_gate(payload("pr-reviewer", codex_exec_command(form))))
+        for role in ("ac-designer", "change-planner", "test-writer", *self.WRITING_ROLES):
+            for form in (f"--role {role}", f"--role={role}"):
+                with self.subTest(impersonated=form):
+                    self.assert_denied(run_gate(payload("pr-reviewer", codex_exec_command(form))))
 
     def test_shell_symbols_stay_denied_for_the_wrapper(self):
         command = codex_exec_command("--role issue-implementer")

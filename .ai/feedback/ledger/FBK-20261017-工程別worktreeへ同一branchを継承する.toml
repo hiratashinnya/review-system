@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.1"
+id = "FBK-20261017-工程別worktreeへ同一branchを継承する"
+topic = "工程別worktreeへ同一branchを継承する"
+theme = "実行体制"
+occurred_at = 2026-10-17
+decision_point = "implementation"
+overridden_role = "main-thread"
+divergence = "alternative-means"
+confidence_of_inference = "high"
+recorded_by = "Codex (AI)"
+affected_assets = [".ai/agents/creation-stage-contract.md", ".claude/skills/issue-pipeline/SKILL.md", "audit/2026-09-21-pipeline-redesign/README.md", "issue_start/managed-entrypoints-v2.json"]
+supersedes = ""
+
+[[source]]
+issue = 371
+pr = 650
+round = 2
+finding_ids = ["F-371-01"]
+
+[narrative]
+background = '''
+Issue #371とaudit/2026-09-21-pipeline-redesign/README.mdの生存決定FBK-20260923-成果物ロールは各自pushし直接コミットするは、後続作者が同一worktreeへ合流すると記していた。現行gitgateは使用中branchの再adoptを拒否する。既存契約の物理worktree表現を訂正するか、安全な所有権移管を新設するかをオーナーへ提示した。旧決定はaudit文書内の記録であり、このledgerに同IDは存在しないためsupersedesには設定しない。
+'''
+recommendation = '''
+同一branchのremote exact OIDを各ロール専用isolated worktreeへ引き継ぐ。初回1aはnew-branch、後続作者は前作者の終了・push・回収とrelease確認後に既存adopt-branchで継承する。
+'''
+recommendation_reason = '''
+既存fixerの分離と回復手順に揃え、使用中worktreeの奪取を防ぐ保護を維持できる。各作者自身のcommit/push、独立レビュー、owner承認、profile pinとcwd束縛は変更しない。
+'''
+uncertainty = '''
+新ロールの製品経路での初回実dispatchはmerge後の検証Issueで確認する。この決定だけで実測済みとは扱わない。
+'''
+owner_verbatim = '''
+各ロール専用 worktree へ同一ブランチを継承する（推奨）
+'''
+inferred_reason = '''
+推測：物理的に同じworktreeを使うことより、同一branchの成果物とexact OIDを保ち、既存の衝突防止とロール分離を維持することを優先した判断。
+'''

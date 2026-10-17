@@ -144,6 +144,18 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
                 changed.write_bytes(changed.read_bytes() + b"single-file-change\n")
                 self.assertNotEqual(before, canonical_hash(root))
 
+    def test_delivery_preserves_issue_phase_author_review_and_approval_boundaries(self):
+        text = DELIVERY_COPY.read_text(encoding="utf-8")
+        for clause in (
+            "`ac-designer` は1a VD", "`change-planner` は", "1a合格後の1b CP/ADR",
+            "`test-writer` は2a UT-TD/UT-TCのRed著作", "それぞれ別dispatchで審査する",
+            "新規テストを著作しない", "`ingest-review` は主文脈だけ",
+            "`pr-reviewer` はpush/merge不可", "承認・STOP解除をしない",
+            "全Issue工程roleは非対話",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, text)
+
     def test_marker_matches_the_current_canonical_hash(self):
         expected = canonical_hash()
         match = MARKER_RE.search(DELIVERY_COPY.read_text(encoding="utf-8"))

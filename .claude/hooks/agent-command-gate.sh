@@ -171,7 +171,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
-from issue_start.gated_roles import GATED_ROLES
+from issue_start.gated_roles import GATED_ROLES, READ_ONLY_ROLES, WRITE_ROLES
 from codex_worktree_exec.roles import CODEX_EXEC_ROLES
 
 # gh-create-issue gets a narrow Bash command gate without joining GATED_ROLES.
@@ -210,12 +210,12 @@ CTX_ALLOWED_LANGUAGES = {"shell"}
 # Worktree release verbs remain limited to the main context and `SubagentStop` hook.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
-    # This role creates a new branch; it does not adopt an existing PR branch.
+    # Phase permission extension adds adopt-branch for the 2b author handover.
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
-    # The fixer shares the implementer's verbs and adds `adopt-branch` for an existing PR branch.
+    # The fixer retains its existing PR adoption and base-integration verbs.
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
@@ -305,7 +305,7 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 ALLOWED_PYTHON_MODULES = {
     "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
     "maintainability_lint",
-    "feedback_ledger",
+    "feedback_ledger", "issue_envelope",
 }
 # `asset_parity`/`time_fixture_lint`（Issue #385）: CI が回している read-only 監査コマンド
 # （`python3 -m asset_parity check`・`python3 -m time_fixture_lint check`）。両ツールとも argparse
@@ -369,6 +369,11 @@ FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE = {
     "issue-fixer": {"check", "status", "index"},
     "pr-reviewer": {"check", "status", "index"},
 }
+
+
+from issue_start.phase_role_permissions import extend_phase_permissions
+extend_phase_permissions(GITGATE_VERBS_BY_ROLE, GH_SUBCOMMANDS_BY_ROLE,
+                         FEEDBACK_LEDGER_SUBCOMMANDS_BY_ROLE)
 
 
 def allowed_python_modules(role):
@@ -804,6 +809,9 @@ def head_command_violation(tokens, role):
                     )
             if tokens[2] == CODEX_EXEC_MODULE:
                 return codex_exec_role_violation(tokens, role)
+            if tokens[2] == "issue_envelope":
+                if len(tokens) < 4 or tokens[3] not in {"check", "index", "show", "deps", "dependents", "orphans"}:
+                    return "`python3 -m issue_envelope` only allows read-only query subcommands"
             if tokens[2] == "maintainability_lint":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
                 if subcommand not in MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS:

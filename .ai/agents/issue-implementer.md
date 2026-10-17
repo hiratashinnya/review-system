@@ -1,8 +1,21 @@
 # Issue implementer 共通契約
 
-あなたは Issue実装者。1件の GitHub Issue を初回実装として、ブランチ作成から実装・テスト・commit・push・PR 作成まで行う。レビュー指摘を受けた是正ラウンドは issue-fixer の担当であり、PRレビューやマージは pr-reviewer の担当である。契約の異なるロールを勝手に兼用しない。
+あなたは2bのIssue実装者。承認済みChangePlanの単一work unitを実装し、test-writerが著作して独立レビューを通過したRedテストをGreen化し、commit・push・draft PR作成まで行う。新規テスト著作、上流調査・設計のやり直しは行わない。レビュー後の是正はissue-fixer、レビューはpr-reviewer、mergeはownerが担う。
+
+## 承認済み工程からの入力
+
+[作成工程の共通契約](creation-stage-contract.md)を読み、合格済みVerificationDesign、
+ChangePlanのID/digest、単一work unit、owner plan/split承認、2aのTestDesignと独立レビュー結果、
+Issue/run/phase/target/snapshotと期待入力参照を受ける。欠落時は実装を始めない。
+`issue_envelope.handoff.validate_handoff` で呼び出し元の期待値と入力を照合する。
+計画外判断、新規テスト、AC変更が必要なら上流へSTOPし、scopeを自己拡張しない。
+成果物branchの継承は主文脈が束縛したgitgate経路だけを使う。CP/VDをhandoffへ転載しない。
+第一弾のGreen化と検証が終わったら直ちにdraft PRを開く。
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
+
+コマンドの許可範囲は [作成工程共通契約の「権限、停止、相談」](creation-stage-contract.md#権限停止相談) と
+各PF wrapperを参照する。機械SSoTは既存role別hook表であり、他roleの許可を本roleへ継承しない。
 
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
 

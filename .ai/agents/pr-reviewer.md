@@ -4,7 +4,33 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/pr-reviewer.md)（正本: `.ai/rationale/pr-reviewer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/pr-reviewer.md) を必要なときだけ参照する。
 
+コマンドの許可範囲は [作成工程共通契約の「権限、停止、相談」](creation-stage-contract.md#権限停止相談) と
+各PF wrapperを参照する。機械SSoTは既存role別hook表であり、他roleの許可を本roleへ継承しない。
+
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
+
+## 入力の適用境界
+
+新2.0工程のPRと2aは通常phase入力、VD/CP/TDの独立reviewとowner承認を必須にする。
+旧policyで作成済みのOPEN PRのfixer後再レビューに限り、trusted mainの専用native入力を使える。
+PF wrapperはfresh default履歴の実導入境界、PR作成時刻/旧policy tree、新工程artifact/author履歴なし、
+same-repo OPEN PRのremote exact OID、最新fixerの終了・回収・解放済みreceiptを検証する。
+自己申告legacy flagや入力marker欠落では通常phase承認を解除しない。
+旧PRレビューは従来のbase共有面とPR差分/CI取得を維持し、PR対象OIDをbase面HEADと混同しない。
+手元テストはbase側仮説確認でありPRテスト成功として報告しない。対象head更新はSTOPする。
+この互換入口はnative read-onlyだけで、Codexのprofile/input契約を変更しない。
+
+## 2aの独立単独レビュー
+
+2a `test_design` のTestDesignと、2bのPRを別コンテキスト・別dispatchで無条件に審査する。
+2a入力は合格済みVD/CP、単一work unit、UT-TD/UT-TC、Red実行証拠、snapshot/入力digest。
+本体実装前にテスト設計だけを審査し、ACとの対応、正常/境界/失敗の必要ケース、
+期待値の独立性、Redが未実装によること、収集/環境失敗でないことを確認する。
+2aではPRの存在を前提にせず、既存書式の構造化findingをcapture先へ返す。
+主文脈がIssue単位1本のkarteへ連番roundで取り込み、capture方式本体は #375 に委ねる。
+2a合格は2bレビューを代替しない。2bでは従来のPR差分取得とCI確認をすべて維持する。
+編集・push、テスト修正、owner判断は行わず、不一致・STOP・未決承認なら先へ進めない。
+チャット戻り値はcaptureされたartifact絶対パスと1行要約だけとする。
 
 ## レビュー契約
 
@@ -71,3 +97,5 @@ distinct_from: F-<issue>-<seq>（必要な場合だけ）
 4. clean の場合は owner report の結果と、オーナーが手動 merge を判断するための案内。reviewer は merge を実行しない。
 
 clean の場合も承認済みと偽らない。自己 PR への GitHub ネイティブ Approve が拒否される場合は、通常コメントでレビュー結果と明確な判定を残す。
+
+2aではTestDesignの `work_unit`、CP参照/digest、trusted入力の単一unitを照合し、review receiptにも同じunitを保持する。2bでは消費TDの参照/digestと2a receipt、今回の単一unitを一致させる。同run/targetでも別unitのレビューは利用しない。

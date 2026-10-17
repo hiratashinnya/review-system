@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -279,10 +280,17 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIn("subagent-draft-display.sh", commands[0])
 
-    def test_receipt_write_gate_is_registered_for_write_and_edit(self):
-        commands = self.commands("PreToolUse", "Write|Edit")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("gh-create-issue-receipt-gate.sh", commands[0])
+    def test_receipt_write_gate_reaches_every_mutating_tool(self):
+        for tool in ("Write", "Edit", "NotebookEdit"):
+            with self.subTest(tool=tool):
+                commands = [
+                    hook["command"] for entry in self.hooks["PreToolUse"]
+                    if re.fullmatch(entry["matcher"], tool)
+                    for hook in entry["hooks"]
+                ]
+                receipts = [c for c in commands if "gh-create-issue-receipt-gate.sh" in c]
+                self.assertEqual(len(receipts), 1)
+                self.assertIn("python3 -m issue_start.phase_tool_gate", commands)
 
     def test_no_post_tool_use_hook_is_registered_for_the_draft_display(self):
         for entry in self.hooks["PostToolUse"]:

@@ -49,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
         ("--model", "model", True),
         ("--reasoning-effort", "reasoning_effort", True),
         ("--timeout-seconds", "timeout_seconds", False),
+        ("--binding-file", "binding_file", False),
     ):
         parser.add_argument(flag, dest=dest, required=required, action=_StoreOnce)
     return parser
@@ -79,4 +80,5 @@ def parse_request(argv: Sequence[str]) -> ExecRequest:
         model=args.model,
         reasoning_effort=args.reasoning_effort,
         timeout_seconds=_timeout_seconds(args.timeout_seconds),
+        binding_file=Path(args.binding_file) if args.binding_file else None,
     )

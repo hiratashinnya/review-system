@@ -30,7 +30,7 @@ class CliTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_main(self, role="issue-implementer", worktree=None, cwd=None, *, exit_code=0, sleep_seconds=0, **extra):
+    def run_main(self, role="issue-fixer", worktree=None, cwd=None, *, exit_code=0, sleep_seconds=0, **extra):
         argv = [
             "--role", role, "-C", str(worktree or self.worktree),
             "--prompt-file", "tmp/p.md", "--output-file", "tmp/o.md",
@@ -54,14 +54,14 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 3, stderr)
         argv = Path(f"{self.log}.argv").read_text(encoding="utf-8").splitlines()
         self.assertEqual(argv[:3], ["exec", "-C", str(self.worktree)])
-        self.assertIn('default_permissions="issue-implementer"', argv)
+        self.assertIn('default_permissions="issue-fixer"', argv)
         self.assertIn('shell_environment_policy.inherit="core"', argv)
         self.assertIn(str(self.worktree / "tmp" / "o.md"), argv)
         stdin = Path(f"{self.log}.stdin").read_text(encoding="utf-8")
         self.assertTrue(stdin.endswith("README を直す\n"))
 
     def test_each_failed_check_refuses_with_its_own_identifier(self):
-        self.assert_refused_without_launch("CODEX_EXEC_ROLE_NOT_ALLOWED", role="pr-reviewer")
+        self.assert_refused_without_launch("CODEX_EXEC_ROLE_NOT_ALLOWED", role="unknown")
         self.assert_refused_without_launch("CODEX_EXEC_NESTED", CODEX_SANDBOX_NETWORK_DISABLED="1")
         self.assert_refused_without_launch("CODEX_EXEC_WORKTREE_UNREGISTERED", worktree=self.main, cwd=self.main)
         self.assert_refused_without_launch("CODEX_EXEC_WORKTREE_CWD_MISMATCH", worktree=self.main)

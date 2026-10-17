@@ -12,6 +12,7 @@ import ast
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -1486,24 +1487,32 @@ class SettingsRegistrationTests(unittest.TestCase):
             for hook in entry["hooks"]
         ]
 
+    def matching_commands(self, event, role):
+        return [
+            hook["command"] for entry in self.settings[event]
+            if re.fullmatch(entry["matcher"], role)
+            for hook in entry["hooks"]
+        ]
+
     def test_subagent_events_are_registered_with_role_matchers(self):
-        start = {entry["matcher"]: entry for entry in self.settings["SubagentStart"]}
-        self.assertEqual(set(start), {"issue-fixer", "issue-implementer|issue-fixer"})
-        self.assertIn(
-            "subagent-karte-inject.sh", start["issue-fixer"]["hooks"][0]["command"]
-        )
-        self.assertIn(
-            "subagent-worktree-bind.sh",
-            start["issue-implementer|issue-fixer"]["hooks"][0]["command"],
-        )
-        stop = self.settings["SubagentStop"]
-        self.assertEqual(
-            [entry["matcher"] for entry in stop],
-            ["issue-implementer|issue-fixer", "gh-create-issue"],
-        )
-        self.assertIn("subagent-stop-gate.sh", stop[0]["hooks"][0]["command"])
-        # Issue #632: gh-create-issue の成果物をチャットへ直送する別系統のフック（gate ではない）。
-        self.assertIn("subagent-draft-display.sh", stop[1]["hooks"][0]["command"])
+        authors = {"ac-designer", "change-planner", "test-writer", "issue-implementer", "issue-fixer"}
+        for event, script in (("SubagentStart", "subagent-worktree-bind.sh"),
+                              ("SubagentStop", "subagent-stop-gate.sh")):
+            registered = {
+                role for entry in self.settings[event]
+                if any(script in hook["command"] for hook in entry["hooks"])
+                for role in entry["matcher"].split("|")
+            }
+            self.assertEqual(registered, authors)
+            for role in authors:
+                with self.subTest(event=event, role=role):
+                    self.assertEqual(sum(script in c for c in self.matching_commands(event, role)), 1)
+        for role in authors | {"pr-reviewer", "plan-reviewer", "adviser", "gh-create-issue"}:
+            with self.subTest(karte_role=role):
+                commands = self.matching_commands("SubagentStart", role)
+                self.assertEqual(sum("subagent-karte-inject.sh" in c for c in commands), int(role == "issue-fixer"))
+        self.assertTrue(any("subagent-draft-display.sh" in c
+                            for c in self.matching_commands("SubagentStop", "gh-create-issue")))
 
     def test_new_commands_quote_the_project_dir_and_reference_existing_scripts(self):
         for event in ("SubagentStart", "SubagentStop"):
@@ -1517,9 +1526,19 @@ class SettingsRegistrationTests(unittest.TestCase):
 
     def test_retired_merge_gate_registration_preserves_other_hooks(self):
         pre_tool_use = self.commands("PreToolUse")
-        self.assertEqual(len(pre_tool_use), 4)
-        self.assertNotIn("pr-merge-gate.sh", pre_tool_use)
-        self.assertIn("agent-command-gate.sh", pre_tool_use[0])
+        self.assertFalse(any("pr-merge-gate.sh" in command for command in pre_tool_use))
+        for tool in ("Bash", "mcp__plugin_context-mode_context-mode__ctx_execute",
+                     "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+                     "mcp__plugin_context-mode_context-mode__ctx_batch_execute"):
+            with self.subTest(command_tool=tool):
+                self.assertTrue(any("agent-command-gate.sh" in c
+                                    for c in self.matching_commands("PreToolUse", tool)))
+        for tool in ("Task", "Agent"):
+            self.assertTrue(any("issue-start-gate.sh" in c
+                                for c in self.matching_commands("PreToolUse", tool)))
+        for tool in ("Write", "Edit", "NotebookEdit"):
+            self.assertIn("python3 -m issue_start.phase_tool_gate",
+                          self.matching_commands("PreToolUse", tool))
         self.assertIn(
             "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
             pre_tool_use,

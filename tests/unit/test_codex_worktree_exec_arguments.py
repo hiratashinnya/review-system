@@ -29,10 +29,10 @@ class RefusalAssertions(unittest.TestCase):
 
 
 class RoleAllowlistTests(RefusalAssertions):
-    def test_roles_are_gated_roles_without_the_reviewer(self):
+    def test_roles_are_all_gated_roles(self):
         # D4: 書込ロールをリテラルで再定義せず GATED_ROLES から導出する。
-        self.assertEqual(CODEX_EXEC_ROLES, GATED_ROLES - {"pr-reviewer"})
-        self.assertNotIn("pr-reviewer", CODEX_EXEC_ROLES)
+        self.assertEqual(CODEX_EXEC_ROLES, GATED_ROLES)
+        self.assertIn("pr-reviewer", CODEX_EXEC_ROLES)
 
     def test_writing_roles_are_accepted(self):
         for role in sorted(CODEX_EXEC_ROLES):
@@ -42,7 +42,7 @@ class RoleAllowlistTests(RefusalAssertions):
                 self.assertEqual(request.timeout_seconds, DEFAULT_TIMEOUT_SECONDS)
 
     def test_reviewer_and_unknown_roles_are_refused(self):
-        for role in ("pr-reviewer", "main", "general-purpose", ""):
+        for role in ("main", "general-purpose", ""):
             with self.subTest(role=role):
                 self.assert_refused(request_args(role), "CODEX_EXEC_ROLE_NOT_ALLOWED")
 

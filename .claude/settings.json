@@ -20,7 +20,7 @@
         ]
       },
       {
-        "matcher": "Task",
+        "matcher": "Task|Agent",
         "hooks": [
           {
             "type": "command",
@@ -30,11 +30,16 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gh-create-issue-receipt-gate.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 -m issue_start.phase_tool_gate",
             "timeout": 10
           }
         ]
@@ -52,7 +57,7 @@
         ]
       },
       {
-        "matcher": "issue-implementer|issue-fixer",
+        "matcher": "ac-designer|change-planner|test-writer|issue-implementer|issue-fixer",
         "hooks": [
           {
             "type": "command",
@@ -64,7 +69,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "issue-implementer|issue-fixer",
+        "matcher": "ac-designer|change-planner|test-writer|issue-implementer|issue-fixer",
         "hooks": [
           {
             "type": "command",

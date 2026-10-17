@@ -9,6 +9,9 @@ from .gate_markers import _fix_binding, _marker_payload
 from .gate_support import IssueStartError, IsolationOnlyAck
 from .gate_transport import _managed_transport, _require_transport_available
 from .gate_validation import _validate_tool_input_shape
+from .phase_dispatch import validate_phase_dispatch
+from .phase_target_binding import validate_phase_target
+from .author_continuation import validate_author_continuation
 
 
 
@@ -31,6 +34,9 @@ def _parse_isolation_only(
     """
     entry, harness, transport = _managed_transport(tool_name, agent_type, entries)
     _require_transport_available(harness, transport)
+    approval = None
+    if transport.get("phase_binding_marker"):
+        approval = validate_phase_dispatch(_marker_payload(tool_input, transport, transport["phase_binding_marker"]), agent_type, cwd)
     _validate_tool_input_shape(tool_input, transport)
     expected_field = transport.get("agent_type_field")
     if expected_field not in {"agent_type", "subagent_type"} or tool_input.get(expected_field) != agent_type:
@@ -41,4 +47,8 @@ def _parse_isolation_only(
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
-    return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
+    ack = _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
+    if approval is not None:
+        validate_phase_target(approval, raw, cwd)
+    validate_author_continuation(tool_input, transport, ack, cwd, runner)
+    return ack

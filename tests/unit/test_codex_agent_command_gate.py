@@ -1096,20 +1096,16 @@ class CodexAgentCommandGateTests(unittest.TestCase):
                         run_gate(payload(role, f"python3 -m gitgate {args}"))
                     )
 
-    def test_adopt_branch_is_granted_to_issue_fixer_only(self):
-        """Issue #354 PR-4: 付与範囲は Claude 版と**同一の期待値**（両ツリー同時）。
-
-        Codex の `spawn_agent` には isolation パラメータが無く worktree 分離は起きないが、
-        `adopt-branch` は「検証済み exact OID で既存ブランチへ移る」唯一の手段（生
-        `git switch`/`checkout` は層3 で全 deny）なので、Codex 側でも同じく付与する。
-        """
+    def test_adopt_branch_is_granted_to_fixer_and_phase_implementer(self):
+        """2bとfixerのexact OID取得を許可し、reviewerと生git書込を拒否する。"""
         adopt = (
             "python3 -m gitgate adopt-branch claude/issue-354 "
             "--repository hiratashinnya/review-system --expected-oid " + "b" * 40
         )
         self.assert_allowed(run_gate(payload("issue-fixer", adopt)))
         self.assert_allowed(run_gate(payload("issue-fixer", adopt + " --pr 402")))
-        for role in ["issue-implementer", "pr-reviewer"]:
+        self.assert_allowed(run_gate(payload("issue-implementer", adopt)))
+        for role in ["pr-reviewer"]:
             with self.subTest(role=role):
                 self.assert_denied(run_gate(payload(role, adopt)))
         # FR-W11 回帰: verb を1つ足しても push 可・merge 不可の非対称は動かない。

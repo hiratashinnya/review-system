@@ -671,7 +671,7 @@ python 側に一本化したまま複製しない。
 
 # subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309 / #354)
 
-`issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
+著作工程ロール / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
 (b) worktree ↔ dispatch の所有関係を**機械可読な台帳**へ記録し、(c) カルテ未更新のまま
 `issue-fixer` が停止することを拒否し、(d) 停止した dispatch の worktree を**回収してから解放**する。
 
@@ -685,12 +685,27 @@ python 側に一本化したまま複製しない。
 | ファイル | 役割 |
 |---|---|
 | `subagent-karte-inject.sh` | `SubagentStart(issue-fixer)`。`karte-protocol.md` を `additionalContext` として注入する。**失敗時は無出力 exit 0(fail-open)**。 |
-| `subagent-worktree-bind.sh` | `SubagentStart(issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
-| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
+| `subagent-worktree-bind.sh` | `SubagentStart(ac-designer\|change-planner\|test-writer\|issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
+| `subagent-stop-gate.sh` | `SubagentStop(ac-designer\|change-planner\|test-writer\|issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
 | `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
 | `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
 | `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
 | `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget` / `worktree-sweep-abandoned`)。**フックからはサブプロセスとして起動する**。最後の1つは異常終了で `running` のまま残った entry の掃引で、`resume-watcher.sh` が復帰イベントで起動する(Issue #502・上記「復帰イベントに相乗りする worktree 掃引」)。 |
+
+## #371の工程ロール境界
+
+`issue_start/gated_roles.py` を正本に著作工程とread-only工程を分ける。新工程は
+`ISSUE_PHASE_INPUT_V1`の入力/承認束縛を要求する。native経路はmanifestでavailableとし、
+初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
+初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
+read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
+`python3 -m issue_start.phase_tool_gate`で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
+任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
+worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
+前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。
+工程live実測は #652 で追跡する。D1 origin/main profile pin、D5 cwd一致、agy無効を維持する。
+旧版の「owner未決・native unavailable」は決定前の履歴であり、現在の停止条件ではない。
+markerとreceiptの詳細は[Claude issue-pipeline](../skills/issue-pipeline/SKILL.md)を参照する。
 
 ## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354 / #423)
 

@@ -721,7 +721,14 @@ table構造・成果物名・検査レベルプレフィックス・レビュー
 欠落の発見はAI（Opus 5.5サブエージェント経由）。「意図的な省略か欠落か」の判断をオーナーへ仰いだところ
 「欠落」と裁定されたため、AIが埋め方（1aへST-TC/IT-TCを追加・2aへUT-TDを追加）を設計した。
 
-**追記（2026-09-23）：各行の受け渡し方式**——1a〜2bは`tmp/_handoff/`を経由しない。1a
+
+**現行受渡し（2026-10-17）**: [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml)
+により、各role専用isolated worktreeへ同branchのremote exact OIDを継承する。
+初回1aのみnew-branch、後続roleは前作者自身のcommit/pushと完了receipt、終了、collect/release完了を
+主文脈が確認してからadoptする。各作者自身のcommit/push、必須独立review、owner承認を維持する。
+以下の2026-09-23追記・権限表の同一worktree表現は当時の履歴であり、現行worktree受渡しは新決定を優先する。
+
+**追記（2026-09-23、履歴）：各行の受け渡し方式**——1a〜2bは`tmp/_handoff/`を経由しない。1a
 （`ac-designer`）が`gitgate new-branch`でworktreeを新規に作り、1b/2a/2b（`change-planner`/
 `test-writer`/`issue-implementer`）は順に`gitgate adopt-branch`で同一worktreeへ合流する。
 各ロールは自分の成果物をworktree内の永続パスへ直接Writeし、自分でcommit+pushする（詳細・
@@ -913,7 +920,9 @@ envelope除外そのものを問い直した。この指摘は
 > **成果物を作るロールは全員 push を持ち、自分の成果物を自分で commit+push する。
 > レビュー専任ロール（`plan-reviewer`／`pr-reviewer`）だけが push を持たない。**
 
-各ロールへの適用結果（2026-09-23 時点の再点検）：
+各ロールへの適用結果（2026-09-23 時点の再点検、履歴）：
+
+現行worktree受渡しは [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml) を優先する。
 
 | 役割 | push | merge | 必須か | 戻すのは容易か | 結論 |
 |---|---|---|---|---|---|

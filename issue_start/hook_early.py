@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
 
 from .hook_protocol import write_evidence
+from .readonly_phase_ack import ReadOnlyPhaseAck
 
 
 def handle_early_request(
@@ -23,6 +24,13 @@ def handle_early_request(
     stderr: TextIO,
 ) -> int | None:
     """Unmanaged と isolation-only を処理し、managed request は呼び出し元へ戻す。"""
+    if isinstance(request, ReadOnlyPhaseAck):
+        write_evidence(stderr, {
+            "schema_version": "issue-start-evidence/1", "policy_version": policy_version,
+            "result": "READ_ONLY_PHASE", "binding": asdict(request),
+            "worktree_residue": residue,
+        })
+        return 0
     if request is None:
         # unmanaged も residue 判定を通過した証跡を stderr に残し、stdout は空に保つ。
         write_evidence(
