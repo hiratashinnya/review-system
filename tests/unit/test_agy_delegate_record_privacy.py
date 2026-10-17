@@ -51,4 +51,3 @@ class RecordPrivacyTests(unittest.TestCase):
         self.assertNotIn("error", summary)
         self.assertEqual(json.loads((root / "private/result.json").read_text())["response"],
                          "private response")
-
