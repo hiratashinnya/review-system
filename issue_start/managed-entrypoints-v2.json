@@ -1,6 +1,6 @@
 {
   "schema_version": "managed-issue-entrypoints/2",
-  "policy_version": "issue-start/1.0",
+  "policy_version": "issue-start/2.0",
   "managed": [
     {
       "entrypoint": "issue-pipeline",
@@ -25,11 +25,7 @@
           "binding_marker": "ISSUE_START_BINDING_V1=",
           "required_isolation": "worktree",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "worktree-handover-owner-decision",
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     }
@@ -83,11 +79,7 @@
           "binding_marker": "ISSUE_PHASE_BINDING_V1=",
           "required_isolation": "worktree",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "worktree-handover-owner-decision",
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     },
@@ -114,11 +106,7 @@
           "binding_marker": "ISSUE_PHASE_BINDING_V1=",
           "required_isolation": "worktree",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "worktree-handover-owner-decision",
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     },
@@ -145,11 +133,7 @@
           "binding_marker": "ISSUE_PHASE_BINDING_V1=",
           "required_isolation": "worktree",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "worktree-handover-owner-decision",
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     }
@@ -180,10 +164,7 @@
           ],
           "prompt_field": "prompt",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     },
@@ -208,10 +189,7 @@
           ],
           "prompt_field": "prompt",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     },
@@ -236,10 +214,7 @@
           ],
           "prompt_field": "prompt",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     },
@@ -264,10 +239,7 @@
           ],
           "prompt_field": "prompt",
           "phase_binding_marker": "ISSUE_PHASE_INPUT_V1=",
-          "availability": "unavailable",
-          "missing_observations": [
-            "role-native-execution-evidence"
-          ]
+          "availability": "available"
         }
       }
     }

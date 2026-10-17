@@ -34,3 +34,14 @@ class PhaseRoleCommandTests(unittest.TestCase):
             self.assertIsNone(run_gate(payload(role, command)))
             other = "issue-fixer" if role != "issue-fixer" else "adviser"
             self.assertIsNotNone(run_gate(payload(role, command.replace(role, other))))
+
+    def test_envelope_cli_is_readonly_for_every_phase_on_both_platforms(self):
+        for role in GATED_ROLES:
+            for gate in (run_gate, run_codex_gate):
+                for verb in ("check", "index", "show", "deps", "dependents", "orphans"):
+                    with self.subTest(role=role, verb=verb, gate=gate.__module__):
+                        self.assertIsNone(gate(payload(role, f"python3 -m issue_envelope {verb} --repo .")))
+                for verb in ("", "write", "apply", "future-command"):
+                    with self.subTest(role=role, verb=verb, gate=gate.__module__):
+                        self.assertIsNotNone(gate(payload(role, f"python3 -m issue_envelope {verb}")))
+                self.assertIsNotNone(gate(payload(role, "python3 -m issue_start.readonly_workspace --source .")))

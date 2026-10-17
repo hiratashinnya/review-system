@@ -56,6 +56,15 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 将来run ledgerは #409 に委ねる。run/phase/dependency/expected outputの接続契約だけ保持し、
 別ledgerを作らない。レビュー後の是正は既存②-c、ownerによるmergeは②-dを適用する。
 
+### 作者間のbranch継承
+
+`FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者は専用isolated worktreeを使う。
+初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
+主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
+回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
+使用中worktree奪取や別branchでの迂回はしない。工程の独立レビュー・owner承認は引き続き必須。
+PF固有markerと起動手順はClaude wrapperに従う。native有効化と新profileのlive実測は分けて記録する。
+
 ### 実行先、モデル、相談
 
 Claude Codeが主文脈と工程roleを保持し、Codexは `codex_worktree_exec` の実行者として使う。
@@ -63,6 +72,20 @@ Claude Codeが主文脈と工程roleを保持し、Codexは `codex_worktree_exec
 agyは #606/#628 とrole別実測が成立するまで無効とし、利用不能経路を成功扱いしない。
 起動gate/profile/入力束縛はPF wrapperと `docs/methods/codex-workspace-binding.md` を適用する。
 profileのorigin/main pinは変更せず、未merge profileの拒否を成功dispatchと報告しない。
+
+read-onlyのCodex実行先は主文脈が事前に選ぶ。primaryからは
+`python3 -m issue_start.readonly_workspace --source <primary絶対path> --approval-file tmp/<approval>.json`
+へ通常のexecutor引数（`--role`、`-C <登録済みlinked絶対path>`、binding/prompt/output/model/effort）を渡す。
+主文脈が既存の信頼済みlinked作業面を準備し、同一repo/HEADと入力bytesを検証したうえで、
+専用入口が同じcwdからCodexを起動する。readonly自身にはprepare、cd、所有台帳、書込、pushを与えない。
+新規worktree作成・trust設定・profile更新を自動化せず、D1の未merge profile拒否を維持する。
+
+snapshot後のTD/TC/ADR/2b実装は、主文脈が承認済み差分を正確なrepo相対path→sha256で
+binding.expected.source_changesへ渡す（commit済み削除だけnull）。過去の独立review receiptは
+artifact digest/contextを凍結保持し、後段のsource変更はtrusted callerの進行承認として別に照合する。
+globやdirectory一括許可を使わず、
+承認外path・bytes差分・未commitの変更は拒否する。期待値を成果物から無条件生成して承認しない。
+
 
 | ロール | 主要認知行為・Bloom | 層 / 予算 |
 |---|---|---|

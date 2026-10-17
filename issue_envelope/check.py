@@ -7,6 +7,8 @@ from .handoff import validate_handoff
 from .query import index
 from .schema import SPECS
 from .store import load
+from .path_binding import path_errors
+from .red_evidence import red_errors
 
 
 def check(repo, expectations=None):
@@ -18,6 +20,8 @@ def check(repo, expectations=None):
     errors = tree_errors(records) + coverage_errors(records)
     for data, path in records:
         identifier = data["id"]
+        errors.extend(path_errors(repo, data))
+        errors.extend(red_errors(repo, data))
         if (data["status"] != "ready" or data["unresolved_findings"]
                 or data["unresolved_owner_decisions"]):
             errors.append(f"STOP/未解消finding/未決owner decision: {identifier}")

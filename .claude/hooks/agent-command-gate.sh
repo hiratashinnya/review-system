@@ -305,7 +305,7 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 ALLOWED_PYTHON_MODULES = {
     "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
     "maintainability_lint",
-    "feedback_ledger",
+    "feedback_ledger", "issue_envelope",
 }
 # `asset_parity`/`time_fixture_lint`（Issue #385）: CI が回している read-only 監査コマンド
 # （`python3 -m asset_parity check`・`python3 -m time_fixture_lint check`）。両ツールとも argparse
@@ -809,6 +809,9 @@ def head_command_violation(tokens, role):
                     )
             if tokens[2] == CODEX_EXEC_MODULE:
                 return codex_exec_role_violation(tokens, role)
+            if tokens[2] == "issue_envelope":
+                if len(tokens) < 4 or tokens[3] not in {"check", "index", "show", "deps", "dependents", "orphans"}:
+                    return "`python3 -m issue_envelope` only allows read-only query subcommands"
             if tokens[2] == "maintainability_lint":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
                 if subcommand not in MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS:

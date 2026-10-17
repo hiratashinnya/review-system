@@ -47,7 +47,7 @@ class ReadonlyPhaseDispatchTests(unittest.TestCase):
             recorder = Mock(side_effect=AssertionError("read-only must not write ownership ledger"))
             output = io.StringIO()
             result = handle_early_request(
-                ack, isolation_ack_type=IsolationOnlyAck, policy_version="issue-start/1.0",
+                ack, isolation_ack_type=IsolationOnlyAck, policy_version="issue-start/2.0",
                 residue={}, stamp=datetime.now(timezone.utc), cwd=root, ledger_root=root,
                 record_isolation_entry=recorder, stderr=output)
             self.assertEqual(result, 0)

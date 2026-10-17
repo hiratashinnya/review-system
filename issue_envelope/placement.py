@@ -24,5 +24,10 @@ def validate_placement(path, data, repo=None):
         if not data["parent"] or data["children"]:
             if len(relative.parts) != 2:
                 raise ValueError("ルート/中間グループはrepo直下に置く")
-        elif len(relative.parts) < 3:
-            raise ValueError("葉は対象scope配下へ置く")
+        else:
+            scope = [Path(item) for item in data["scope"]]
+            if any(item.is_absolute() or ".." in item.parts or item == Path(".")
+                   for item in scope):
+                raise ValueError("scopeはrepo相対targetが必要")
+            if relative.parent.parent not in scope:
+                raise ValueError("葉は対象scope配下へ置く")

@@ -2146,7 +2146,7 @@ def codex_exec_command(role_args):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class CodexWorktreeExecGrantTests(unittest.TestCase):
-    """Issue #538 PR-B: `codex_worktree_exec` を implementer/fixer にだけ、自ロールを名乗る形で許可する。"""
+    """`codex_worktree_exec` の自ロール許可と、他ロール偽装拒否を検査する。"""
 
     WRITING_ROLES = ("issue-implementer", "issue-fixer")
 
@@ -2171,10 +2171,17 @@ class CodexWorktreeExecGrantTests(unittest.TestCase):
                 with self.subTest(role=role, form=role_args):
                     self.assert_denied(run_gate(payload(role, codex_exec_command(role_args))))
 
-    def test_pr_reviewer_has_no_codex_write_path(self):
-        for role_args in ("--role pr-reviewer", "--role issue-implementer"):
-            with self.subTest(form=role_args):
-                self.assert_denied(run_gate(payload("pr-reviewer", codex_exec_command(role_args))))
+    def test_pr_reviewer_may_launch_its_readonly_profile_only(self):
+        from tests.unit.test_codex_worktree_exec_assets import permission_profiles
+
+        self.assertEqual(permission_profiles()["pr-reviewer"]["extends"], ":read-only")
+        for form in ("--role pr-reviewer", "--role=pr-reviewer"):
+            with self.subTest(allowed=form):
+                self.assertIsNone(run_gate(payload("pr-reviewer", codex_exec_command(form))))
+        for role in ("ac-designer", "change-planner", "test-writer", *self.WRITING_ROLES):
+            for form in (f"--role {role}", f"--role={role}"):
+                with self.subTest(impersonated=form):
+                    self.assert_denied(run_gate(payload("pr-reviewer", codex_exec_command(form))))
 
     def test_shell_symbols_stay_denied_for_the_wrapper(self):
         command = codex_exec_command("--role issue-implementer")

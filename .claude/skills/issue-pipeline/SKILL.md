@@ -43,6 +43,8 @@ bindingは信頼された主文脈が用意し、producer/Issue/run/target/入�
 approvalはrecipient/run_id/issue/target_key/snapshot_oid/context_id/owner_approved/reviewsを持ち、1bには1a、
 2aには1a/1b、2bには1a/1b/2aの独立clean receiptを要求する。
 各receiptはphase、reviewer、producer_context、review_context、artifact、artifact_digest、statusを持つ。
+承認済みTD/TC/ADR/実装の差分がある場合はsource_changes（正確なpath→sha256、commit済み削除はnull）
+をbinding.expectedへ付ける。過去receiptを書き換えず、進行承認と独立レビュー済みartifact bytesを別に照合する。
 同じコンテキストの著作とレビュー、別run/Issue/target/snapshot、古い入力、digest不一致は拒否される。
 review capture本体は #375 の責務であり、主文脈の期待値をreviewerの自己承認に置き換えない。
 
@@ -56,8 +58,31 @@ exact 6 fieldsと `isolation: "worktree"` を維持する。handoffは本体arti
 read-onlyの `issue-investigator` / `plan-reviewer` / `pr-reviewer` / `adviser` は共有作業面を読み、
 branch/handoff markerと所有台帳起票は持たないが、ISSUE_PHASE_INPUT_V1の入力・承認束縛は必須。
 直接Write/Edit/NotebookEditも拒否し、出力の保存は信頼された呼び出し元のcapture経路を使う。
+Claudeを選ぶ場合はその共有作業面でnative dispatchする。Codexを選ぶ場合は主文脈がrole起動前に
+`python3 -m issue_start.readonly_workspace` を使い、同一repo/HEADの登録済みlinked作業面へ
+binding/approval/promptとtmp入力だけを転送する。binding/approval/prompt/outputには
+repo相対のtmp配下pathを使い、`-C`と`--source`には絶対pathを渡す。
+この入口はISSUE_PHASE_INPUT_V1のnative availability・入力承認を検査し、D1/profile pin、
+project trust、D5/cwd一致を保ったexecutorをlinked cwdで起動する。
+専用入口は主文脈専用であり、read-only担当の再委譲や任意cdの許可にはしない。
+
 初回ac-designerだけがnew-branchを使い、著作者は自分の永続成果物をcommit/pushする。
-同一worktree/adopt衝突のowner判断とロール別実行証跡が揃うまではmanifestのavailabilityをunavailableに保つ。
+worktree受渡しは `FBK-20261017-工程別worktreeへ同一branchを継承する` に従う。
+主文脈は前作者の完了receiptを確認し、本人のcommit/pushとremote exact OIDを照合する。
+前作者終了後に既存 `collect-worktree --entry <ID>` でreceiptを回収し、`released` まで確認する。
+`release_pending` / running / stopped のまま次作者を起動しない。使用中worktreeを奪取しない。
+主文脈が回収実bytesのsha256と台帳entry IDを次作者promptへ追加する。
+
+```text
+ISSUE_PHASE_PREDECESSOR_V1={"entry_id":"wl-...","receipt_sha256":"64-HEX"}
+```
+
+hookは同Issue/branchの最新owner、直前role、回収receipt bytes、解放済み台帳、remote exact OIDを照合する。
+次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
+`gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
+失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。
+native入口は有効。Codex新profileの実dispatch成功はmerge後のverification Issueで検証し、
+D1のorigin/main pin、D5のcwd一致、agy無効を維持する。
 旧implementerへのmanaged新branch dispatchを使って工程を飛び越えてはならない。
 STOP/availability拒否を生gitや別entrypointで迂回しない。
 

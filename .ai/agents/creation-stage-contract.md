@@ -27,6 +27,11 @@ test_design → 独立単独レビュー → implementation → PRレビュー�
 検証設計と本体、著作者とレビューア、相談役と独立レビューアは別コンテキストにする。
 任意のTask/Agent、spawn、CLIへの再委譲は行わない。
 
+作者は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従って各自専用worktreeを使う。
+初回1aだけnew-branchし、後続作者は主文脈から渡された同branch/remote exact OIDを
+既存 `gitgate adopt-branch` で取得する。前作者自身のcommit/push、完了receipt回収、
+終了とcollect/release完了を主文脈が確認するまで次作者へ進めない。使用中worktreeを奪取しない。
+
 ## 成果物と保存
 
 CP/VDは `issue_envelope` の同型ノード木を用い、包含parent/childrenと実行depends_onを分ける。

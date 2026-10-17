@@ -1,6 +1,8 @@
-# 起票案: #371 導入後の工程分離・新ロール権限・adviserを初回実dispatchで検証する
+# #652: #371 導入後の工程分離・新ロール権限・adviserを初回実dispatchで検証する
 
-Codex（AI）が、Issue #371 の実装と一回限りの運用検証を分離するために作成した本文案です。GitHub へは未作成です。
+Codex（AI）が、Issue #371 の実装と一回限りの運用検証を分離するために作成した検証計画です。
+追跡先は [Issue #652](https://github.com/hiratashinnya/review-system/issues/652)、native parentは #368 です。
+2026-10-17にowner認可後の起票とparent relationを取得して確認しました。製品経路の実dispatchは未実測です。
 
 ## 目的・背景
 
@@ -81,6 +83,9 @@ Issue #371 本文「運用検証の置き場」は、一度確認すれば済む
 - #375/#310/#409: findingと将来runの接続境界。既存契約を利用し、未実装機構を利用可能と扱わない。
 - #513/#517/#565/#608: STOP、再委譲、role境界と禁止操作の関連契約。
 
-## 起票前の確認事項（本文案のメタデータ）
+## 起票前の確認事項（履歴）
 
 外部投稿・Project変更・relation変更は未実施。既存open/closed Issueとの重複、live labels、Project候補・fields/options・更新権限、現行relationsは起票前に取得する。分類はverification相当の成果だが、`type:verification` が存在するとは仮定せず、live taxonomyでownerに予定値を提示する。Horizon・Priority・実行時期、品質効果の目標/cohort/窓は本案では確定しない。
+
+上記は起票前の状態を保存した履歴である。owner認可後に重複・taxonomyを取得し、承認本文で #652 を作成してparent #368を確認した。
+ProjectへのAI書込は行わず、実測対象版・実行開始条件・完了証拠は #652 で追跡する。

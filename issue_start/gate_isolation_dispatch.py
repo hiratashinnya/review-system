@@ -10,6 +10,7 @@ from .gate_support import IssueStartError, IsolationOnlyAck
 from .gate_transport import _managed_transport, _require_transport_available
 from .gate_validation import _validate_tool_input_shape
 from .phase_dispatch import validate_phase_dispatch
+from .author_continuation import validate_author_continuation
 
 
 
@@ -44,4 +45,6 @@ def _parse_isolation_only(
     if harness != "claude":
         raise IssueStartError("ISSUE_START_MANIFEST_CONTRACT_ERROR")
     raw = _marker_payload(tool_input, transport, transport.get("binding_marker"))
-    return _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
+    ack = _fix_binding(raw, entrypoint=entrypoint, agent_type=agent_type)
+    validate_author_continuation(tool_input, transport, ack, cwd, runner)
+    return ack

@@ -15,3 +15,14 @@
 ADRのschema/check/CLI、既存Field/TableSpec/DocSpec、TOML正規化/直列化、共通refアダプタ、dsv2 queryは再実装しない。queryの索引は毎回生成する導出物であり、新しいrun/決定台帳を作らない。run/phase/dependency/next_expected_artifactは将来#409へ渡せるがAgentRun自体を実装しない。review結果の取込は#375/#310の既存karte境界に委ねる。
 
 `snapshot_oid` はartifact作成前の入力ソースsnapshotを指す。artifact自身を含むcommit OIDを埋め込む自己参照はしない。callerは祖先性とその後の差分が同Issueの正当な工程artifactのみであることを検証し、通常source変更があればstaleとして拒否する。artifact自身のbytes digestと入力集合の `input_digest` は別に照合する。
+
+
+# TestDesign の実体とRed証拠
+
+`ut_td` / `ut_tc` はID文字列ではなくrepo相対ファイルpathで、`Field.path_ref` 宣言をSSoTとして検査する。各pathはrepo内の通常ファイルでsymlinkを経由せず、HEADにcommitされ、作業面のbytesがHEAD blobと一致しなければならない。存在しない、未commit、改変済みのTD/TCでは `check` が失敗する。2b入口も同じrepo検査を行う。
+
+TestDesignにはUT-TCごとに一つの `[[red_evidence]]` を記録する。`tc` / `tc_sha256` はレビュー対象のテストコード、`log` / `log_sha256` は非空の実行ログを指す。`command` は実行コマンド、`exit_code` は正の非zero終了コード、`failure_reason` は `implementation_missing` とする。logも `path_ref` 宣言に従う同じ実在・commit・bytes検査を受ける。TD/TC/ログを先にcommitし、そのbytes/hashをTestDesignへ記録する。独立2a reviewerはTCとログを読み、失敗が本体未実装による期待したassertionであることを確認する。syntax/importエラー・環境不備・テスト収集失敗をRed完成と認めない。機械検査は実行結果の意味を自己認定せず、独立レビューreceiptがTestDesign bytes digestを束縛する既存契約で、この確認対象を固定する。
+
+CP/VDの葉の配置は `scope` に列挙したtargetのいずれかと完全一致する `<target>/<kind>/<prefix>-<issue>.toml` に限る。複数scopeの葉でも無関係なtargetや暗黙の親子directoryは許可しない。多階層targetはその全pathをscopeへ書く。ルート/中間グループは複数targetを包含しrepo直下に置く。
+
+schema `issue-envelope/v1.0` は本PRで初導入された未merge契約である。本是正はその同一PR内の未完成な実体/証拠契約を補完するため、共通guidanceの「1回のPRで版を複数回上げない」に従い追加bumpしない。

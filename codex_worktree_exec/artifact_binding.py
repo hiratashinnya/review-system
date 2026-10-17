@@ -12,6 +12,7 @@ from .adviser_request import validate_adviser_request
 from .initial_binding import validate_initial_binding
 from .source_snapshot import verify_source_snapshot
 from .committed_artifact import read_committed_artifact
+from .repository_artifacts import verify_repository_artifacts
 
 INPUT_KINDS = {
     "ac-designer": {"InvestigationReport"},
@@ -38,6 +39,7 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
             capture_output=True, text=True, check=True,
         )
         oid = result.stdout.strip()
+        verified = verify_repository_artifacts(worktree)
         if request.role == "adviser":
             if set(binding) != {"recipient", "consultation"}:
                 raise ValueError("adviser binding fields mismatch")
@@ -58,8 +60,11 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
             raise ValueError("artifact digest mismatch")
         raw = tomllib.loads(content.decode("utf-8"))
         expected = binding["expected"]
-        verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"])
+        verify_source_snapshot(worktree, expected["snapshot_oid"], expected["issue"],
+                               expected.get("source_changes"))
         data = validate_handoff(raw, expected)
+        if verified.get(path.resolve()) != data["id"]:
+            raise ValueError("input artifact is outside verified repository collection")
         validate_placement(path, data, worktree)
         if data["artifact_type"] not in INPUT_KINDS.get(request.role, set()):
             raise ValueError("input kind incompatible with recipient")

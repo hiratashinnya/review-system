@@ -85,7 +85,7 @@ def legacy_gate_manifest():
         }
     return {
         "schema_version": "managed-issue-entrypoints/2",
-        "policy_version": "issue-start/1.0",
+        "policy_version": "issue-start/2.0",
         "managed": [entry("issue-implementer", BINDING_MARKER)],
         "isolation_only": [entry("issue-fixer", FIX_BINDING_MARKER)],
     }
@@ -149,14 +149,13 @@ class ProductionPhaseDispatchTests(unittest.TestCase):
                          stdout=stdout, stderr=io.StringIO(), cwd=ROOT)
                 decision = json.loads(stdout.getvalue())["hookSpecificOutput"]
                 self.assertEqual(decision["permissionDecision"], "deny")
-                self.assertIn("ISSUE_START_TRANSPORT_UNAVAILABLE", decision["permissionDecisionReason"])
-                self.assertIn("role-native-execution-evidence", decision["permissionDecisionReason"])
+                self.assertIn("ISSUE_START_BINDING_MISSING", decision["permissionDecisionReason"])
                 evaluate.assert_not_called()
                 record.assert_not_called()
 
     def test_old_implementer_start_binding_cannot_bypass_phase_entry(self):
         payload = self.payload("issue-implementer", BINDING_MARKER + json.dumps(claude_binding()))
-        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_TRANSPORT_UNAVAILABLE"):
+        with self.assertRaisesRegex(IssueStartError, "ISSUE_START_BINDING_MISSING"):
             parse_dispatch_payload(payload)
 
     def test_phase_input_marker_is_mandatory_for_managed_and_followup_roles(self):
@@ -505,7 +504,7 @@ class IsolationOnlyContractTests(LegacyGateManifestMixin, unittest.TestCase):
             path.write_text(
                 json.dumps({
                     "schema_version": "managed-issue-entrypoints/1",
-                    "policy_version": "issue-start/1.0",
+                    "policy_version": "issue-start/2.0",
                     "managed": [],
                 }),
                 encoding="utf-8",
@@ -536,7 +535,7 @@ class IsolationOnlyContractTests(LegacyGateManifestMixin, unittest.TestCase):
             path.write_text(
                 json.dumps({
                     "schema_version": "managed-issue-entrypoints/2",
-                    "policy_version": "issue-start/1.0",
+                    "policy_version": "issue-start/2.0",
                     "managed": [entry],
                     "isolation_only": [entry],
                 }),
@@ -751,7 +750,7 @@ class HookTests(HookLedgerMixin, unittest.TestCase):
     def test_claude_runtime_agent_alias_allow_reaches_evaluation(self):
         evidence = {
             "schema_version": "issue-start-evidence/1",
-            "policy_version": "issue-start/1.0",
+            "policy_version": "issue-start/2.0",
             "result": "ALLOW",
             "exit_code": 0,
             "reason": "ISSUE_START_ALLOWED",
@@ -821,7 +820,7 @@ class WorktreeLedgerSideEffectTests(HookLedgerMixin, unittest.TestCase):
 
     ALLOW_EVIDENCE = {
         "schema_version": "issue-start-evidence/1",
-        "policy_version": "issue-start/1.0",
+        "policy_version": "issue-start/2.0",
         "result": "ALLOW",
         "exit_code": 0,
         "reason": "ISSUE_START_ALLOWED",
@@ -1063,7 +1062,7 @@ class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         allow = {
             "schema_version": "issue-start-evidence/1",
-            "policy_version": "issue-start/1.0",
+            "policy_version": "issue-start/2.0",
             "result": "ALLOW",
             "exit_code": 0,
             "reason": "ISSUE_START_ALLOWED",
@@ -1209,7 +1208,7 @@ class WorktreeResidueDenyTests(HookLedgerMixin, unittest.TestCase):
         }
         evidence = {
             "schema_version": "issue-start-evidence/1",
-            "policy_version": "issue-start/1.0",
+            "policy_version": "issue-start/2.0",
             "result": "BLOCK",
             "exit_code": 10,
             "reason": "OPEN_BLOCKER",

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
-ISSUE_START_POLICY_VERSION = "issue-start/1.0"
+ISSUE_START_POLICY_VERSION = "issue-start/2.0"
 BINDING_MARKER = "ISSUE_START_BINDING_V1="
 FIX_BINDING_MARKER = "ISSUE_FIX_BINDING_V1="
 MANIFEST_SCHEMA_VERSION = "managed-issue-entrypoints/2"

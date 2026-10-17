@@ -27,7 +27,7 @@ class CliContractTests(unittest.TestCase):
         ]:
             evidence = {
                 "schema_version": "issue-start-evidence/1",
-                "policy_version": "issue-start/1.0",
+                "policy_version": "issue-start/2.0",
                 "result": verdict,
                 "exit_code": code,
                 "reason": reason,
@@ -137,7 +137,7 @@ class AssetParityTests(unittest.TestCase):
                 with self.subTest(role=role):
                     transport = entry["binding_transports"]["claude"]
                     self.assertEqual(transport["phase_binding_marker"], "ISSUE_PHASE_INPUT_V1=")
-                    self.assertEqual(transport["availability"], "unavailable")
+                    self.assertEqual(transport["availability"], "available")
                     missing = {"role-native-execution-evidence"}
                     if section == "readonly":
                         self.assertNotIn("required_isolation", transport)
@@ -147,7 +147,7 @@ class AssetParityTests(unittest.TestCase):
                         self.assertEqual(transport["binding_marker"], expected)
                         self.assertEqual(transport["required_isolation"], "worktree")
                         missing.add("worktree-handover-owner-decision")
-                    self.assertEqual(set(transport["missing_observations"]), missing)
+                    self.assertNotIn("missing_observations", transport)
 
     def test_managed_isolation_only_and_readonly_agent_types_are_disjoint(self):
         manifest = json.loads(

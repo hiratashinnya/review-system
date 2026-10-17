@@ -1,16 +1,19 @@
 """committed artifactの内容・入力snapshot・単一workunitを検証する。"""
 import hashlib
+import copy
 import json
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 from codex_worktree_exec.artifact_binding import verify_artifact_binding
 from codex_worktree_exec.errors import CodexExecError
 from issue_envelope.handoff import BINDINGS
-from issue_envelope.store import write
-from tests.issue_envelope.fixtures import artifact
+from issue_envelope.schema import SPECS
+from feedback_ledger.tomlwrite import dumps
 from tests.unit.codex_worktree_exec_support import git, make_repository
+from tests.unit.phase_artifact_support import write_valid_plan_set
 
 
 class ArtifactBindingTests(unittest.TestCase):
@@ -18,12 +21,8 @@ class ArtifactBindingTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         _, self.root = make_repository(Path(self.temp.name))
-        self.raw = artifact("ChangePlan")
-        self.raw["snapshot_oid"] = git(self.root, "rev-parse", "HEAD")
-        self.path = self.root / "change_plan/CP-371.toml"
-        write(self.path, self.raw)
-        git(self.root, "add", ".")
-        git(self.root, "commit", "-qm", "plan artifact")
+        documents, _ = write_valid_plan_set(self.root, git(self.root, "rev-parse", "HEAD"))
+        self.raw, self.path = documents["ChangePlan"]
         self.binding = dict(recipient="issue-implementer", artifact="change_plan/CP-371.toml",
                             artifact_digest=hashlib.sha256(self.path.read_bytes()).hexdigest(),
                             expected={key: self.raw[key] for key in BINDINGS})
@@ -36,6 +35,26 @@ class ArtifactBindingTests(unittest.TestCase):
 
     def test_artifact_commit_does_not_make_its_source_snapshot_stale(self):
         self.verify()
+
+    def test_committed_invalid_graph_cannot_reach_executor(self):
+        invalid = [dict(input_refs=["VD-999"]), dict(owner_decisions=["FBK-missing"]),
+                   dict(children=[]), dict(work_units=[dict(id="WU-1", depends_on=["WU-1"],
+                                                          scope=["tool"], ac_refs=["AC-1"])])]
+        for fields in invalid:
+            data = {**copy.deepcopy(self.raw), **fields}
+            self.path.write_text(dumps(SPECS["ChangePlan"], data))
+            git(self.root, "add", ".")
+            git(self.root, "commit", "-qm", "invalid committed plan")
+            self.binding["artifact_digest"] = hashlib.sha256(self.path.read_bytes()).hexdigest()
+            self.binding["expected"].update({key: data[key] for key in BINDINGS})
+            with self.subTest(fields=fields), self.assertRaisesRegex(CodexExecError, "repository artifact"):
+                self.verify()
+
+    def test_uncommitted_referenced_artifact_is_rejected(self):
+        path = self.root / "verification_design/VD-371.toml"
+        path.write_text(path.read_text().replace('st_tc = ["ST-TC-1"]', 'st_tc = ["changed"]'))
+        with self.assertRaisesRegex(CodexExecError, "uncommitted"):
+            self.verify()
 
     def test_source_change_after_snapshot_fails_even_when_snapshot_is_ancestor(self):
         (self.root / "source.py").write_text("x = 1\n")
@@ -59,3 +78,8 @@ class ArtifactBindingTests(unittest.TestCase):
             with self.subTest(role=role), self.assertRaisesRegex(CodexExecError, "BINDING_MISSING"):
                 verify_artifact_binding(SimpleNamespace(role=role, binding_file=None), self.root, self.root)
         verify_artifact_binding(SimpleNamespace(role="issue-fixer", binding_file=None), self.root, self.root)
+
+    def test_empty_collector_cannot_hide_expected_input(self):
+        with patch("codex_worktree_exec.repository_artifacts.index", return_value={"nodes": []}):
+            with self.assertRaisesRegex(CodexExecError, "outside verified repository collection"):
+                self.verify()

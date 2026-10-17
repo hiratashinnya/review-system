@@ -7,15 +7,15 @@ from dsv2.query import deps, dependents, orphans
 from harness_trace import adapt_document
 from .schema import SPECS
 from .store import load
+from .discovery import artifact_directories
 
 
 def index(repo):
     root = Path(repo)
     meta = adr_index(root / "adr-records", root)
-    for directory in sorted(root.rglob("adr")):
-        if directory.is_dir() and ".git" not in directory.parts:
-            meta["nodes"].extend(adapt_document(ADR_SPEC, data, path)
-                                 for data, path in load_adr(directory))
+    for directory in artifact_directories(root, ("adr",)):
+        meta["nodes"].extend(adapt_document(ADR_SPEC, data, path)
+                             for data, path in load_adr(directory))
     meta["nodes"].extend(adapt_document(SPECS[data["artifact_type"]], data, path)
                          for data, path in load(root))
     ids = [node["id"] for node in meta["nodes"]]

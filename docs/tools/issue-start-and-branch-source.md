@@ -36,17 +36,30 @@ evidence は blocker の `fetched_at`・reason・policy version と対象 bindin
 
 ## #371の工程別入口
 
+policyは `issue-start/1.0` から `issue-start/2.0` へ、このPRで一度だけmajor更新する。
+旧implementer初回callerはac-designer入口と必須phase binding・承認入力へ移行する必要があり、
+旧呼出しと非互換である。role専用worktreeへのremote exact OID継承もこの版の必須契約とする。
+是正中に検討したminor 1.1は未公開で、非互換変更を許す既存規定がないため区分を訂正した。
+manifestのJSON形状は互換のため `managed-issue-entrypoints/2` を維持する。
+
+
 初回managed roleはac-designer、後続isolation_onlyはchange-planner/test-writer/issue-implementerと
 既存fixer、readonlyはissue-investigator/plan-reviewer/pr-reviewer/adviserとする。3区分のrole重複は拒否する。
-新8工程のavailabilityは実測待ちのためunavailableであり、入口でfail-closeする。
+native新8工程のavailabilityはavailableとし、必須入力・承認・受渡し照合でfail-closeする。
+Codex新profileのlive実測は #652 で追跡し、origin/main pinによる未merge拒否は維持する。
 fixerは既存の軽量bindingを維持する。旧implementerの初回markerで工程を迂回してはならない。
 
-有効化後も新工程は `ISSUE_PHASE_INPUT_V1={"binding_file":"...","approval_file":"..."}` を必須とし、
+新工程は `ISSUE_PHASE_INPUT_V1={"binding_file":"...","approval_file":"..."}` を必須とし、
 trusted callerの入力束縛と独立review receiptを照合する。後続著作者はさらに
 `ISSUE_PHASE_BINDING_V1` のexact 6 fieldsとworktree isolationを要求する。
 readonlyのdispatchはworktree所有台帳を起票せず、直接編集とpushも許可しない。
-入力/approvalのschema、1a→1b→2a→2bの順、owner承認、同一worktree継承の停止条件は
+入力/approvalのschema、1a→1b→2a→2bの順、owner承認、専用worktreeへの同branch継承の停止条件は
 [Claude issue-pipeline](../../.claude/skills/issue-pipeline/SKILL.md)を正とする。
+
+worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml) を参照する。
+後続作者は6field bindingに加え `ISSUE_PHASE_PREDECESSOR_V1` のentry IDと回収receipt sha256を渡す。
+前roleの最新台帳owner・Issue/branch・released/closed_at・collected_to実bytesとremote exact OIDを照合する。
+既存collect/releaseを省略しない。native availabilityは有効であり、Codex profile pinと実測責任は別に維持する。
 
 ## Hook parity と限界
 

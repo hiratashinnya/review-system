@@ -35,11 +35,19 @@ DETAILS = {
     "ChangePlan": tuple(Field(k, TEXT) for k in (
         "selected_solution", "interfaces", "invariants", "failure_behavior", "oos",
         "operational_verification")) + (Field("adr_refs", STRLIST, False, ref="adr"),),
-    "TestDesign": (Field("ut_td", STRLIST), Field("ut_tc", STRLIST)),
+    "TestDesign": (Field("ut_td", STRLIST, path_ref=True),
+                   Field("ut_tc", STRLIST, path_ref=True)),
 }
 WORK_UNITS = TableSpec("work_units", (
     Field("id", LINE), Field("depends_on", STRLIST, False),
     Field("scope", STRLIST), Field("ac_refs", STRLIST),
+), True, 1)
+
+RED_EVIDENCE = TableSpec("red_evidence", (
+    Field("tc", LINE, path_ref=True), Field("tc_sha256", LINE),
+    Field("log", LINE, path_ref=True), Field("log_sha256", LINE),
+    Field("command", LINE), Field("exit_code", INT),
+    Field("failure_reason", LINE, enum=("implementation_missing",)),
 ), True, 1)
 
 
@@ -48,6 +56,8 @@ def make_spec(kind):
     tables = (TableSpec("", COMMON + tree + DETAILS[kind]),)
     if kind == "ChangePlan":
         tables += (WORK_UNITS,)
+    if kind == "TestDesign":
+        tables += (RED_EVIDENCE,)
     prefix = CONTRACTS[kind][2]
     return DocSpec(kind, "issue-envelope/v1.0", "",
                    re.compile(rf"^{prefix}-[0-9]+(?:-[^/\\]+)?$"), tables)

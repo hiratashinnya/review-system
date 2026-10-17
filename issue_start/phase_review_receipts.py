@@ -5,7 +5,7 @@ from pathlib import Path
 from issue_envelope.model import normalize
 from issue_envelope.placement import validate_placement
 from codex_worktree_exec.committed_artifact import read_committed_artifact
-from codex_worktree_exec.source_snapshot import verify_source_snapshot
+from codex_worktree_exec.repository_artifacts import verify_repository_artifacts
 
 RECEIPT_FIELDS = {"phase", "reviewer", "producer_context", "review_context", "artifact",
                   "artifact_digest", "status"}
@@ -14,6 +14,7 @@ RECEIPT_FIELDS = {"phase", "reviewer", "producer_context", "review_context", "ar
 def validate_review_receipts(reviews, approval, root: Path):
     if not isinstance(reviews, list):
         raise ValueError("review receipts must be an array")
+    verified = verify_repository_artifacts(root)
     seen, contexts, producers = {}, set(), set()
     for review in reviews:
         if not isinstance(review, dict) or set(review) != RECEIPT_FIELDS:
@@ -34,13 +35,14 @@ def validate_review_receipts(reviews, approval, root: Path):
         if hashlib.sha256(content).hexdigest() != review["artifact_digest"]:
             raise ValueError("reviewed artifact digest mismatch")
         data = normalize(tomllib.loads(content.decode("utf-8")))
+        if verified.get(path.resolve()) != data["id"]:
+            raise ValueError("review artifact is outside verified repository collection")
         validate_placement(path, data, root)
         if (data["phase"] != review["phase"] or data["issue"] != approval["issue"]
                 or any(data[key] != approval[key] for key in ("run_id", "target_key", "snapshot_oid"))
                 or data["status"] != "ready"
                 or data["unresolved_findings"] or data["unresolved_owner_decisions"]):
             raise ValueError("reviewed artifact mismatch/STOP")
-        verify_source_snapshot(root, data["snapshot_oid"], data["issue"])
         seen[review["phase"]] = review
         contexts.add(context)
         producers.add(producer)

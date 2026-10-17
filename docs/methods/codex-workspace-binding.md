@@ -29,12 +29,18 @@ source snapshot OID/参照のexpectedを信頼callerから受け取る。artifac
 
 Claude native dispatchは全工程でphase binding/承認receiptを要求する。read-onlyのClaude側dispatchは
 worktree所有台帳を作らない。Codex executorへの委譲では引き続き呼出元のlinked worktree確認が必要。
-新工程のmanifestはavailability unavailableを維持し、同一worktree継承とadoptの衝突に対するowner判断、
-ロール別native実行証跡が揃うまで有効化しない。旧implementer初回入口を使った迂回も拒否する。
+新工程のmanifestはavailableとし、必須binding/承認検査を通る正規入口だけを使用する。
+owner決定 `.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml` に従い、
+著作ロールは同一branchのremote exact OIDを各role専用worktreeへ継承する。
+使用中branch拒否を維持し、同一worktree所有権移管や旧implementer初回入口による迂回は行わない。
 origin/mainとのprofile pinは緩めない。未merge profileの実起動拒否は想定された保護であり、
 モデル非呼出しテストの成功で実dispatch成功を代用しない。低・中・高リスク経路と相談の実測は
 [`issue_envelope/verify/designs/post-merge-verification-371.md`](../../issue_envelope/verify/designs/post-merge-verification-371.md)
-の手順で追跡する。
+の手順および [Issue #652](https://github.com/hiratashinnya/review-system/issues/652) で追跡する。
+
+2026-10-16時点のunavailableは同一worktree/adopt衝突の判断未決による停止だった。
+2026-10-17にownerがrole専用worktree方式を選択したため、この停止は現行のavailability条件から除いた。
+ロール別製品実dispatchの証拠は引き続き未実測であり、#652で検証する。
 
 ## 起動形
 
@@ -254,3 +260,36 @@ Claude 経路の契約は supervisor の退役でも PR-B でも変更してい�
 | 実起動検証の設計 | `tests/designs/TD-codex-worktree-exec-538-001.md` |
 | Issue #452 のテスト設計・テスト結果 | `archive/issue-452-codex-supervisor/` |
 | Issue #452 のテストログ | `tests/logs/TD-issue-start-452-*` |
+
+
+## read-only工程のprimary → linked準備
+
+`issue_start.readonly_workspace` はtrusted主文脈専用の実行入口である。
+主文脈はruntimeを選択し、既存の登録済み・信頼済みlinked作業面を指定する。
+linked作業面を新設する必要があれば主文脈の既存worktree準備契約で先に準備し、
+この入口自身にはworktree作成、branch採用、trust設定、profile pin更新をさせない。
+
+```text
+python3 -m issue_start.readonly_workspace --source /repo/primary --approval-file tmp/review-approval.json --role pr-reviewer -C /repo/linked --binding-file tmp/review-binding.json --prompt-file tmp/review-prompt.md --output-file tmp/review-result.md --model MODEL --reasoning-effort high
+```
+
+入口はread-only 4ロールだけを受け付け、native readonly dispatchのavailabilityと入力承認を
+sourceで検査する。同じgit-common-dir、同じHEAD、両面のtracked cleanを要求する。
+binding/approval/promptと初期入力・相談参照のtmpファイルを同じ相対pathへ転送する。
+tmp外の参照は転送せずcommit bytes一致を検査し、symlink・escape・既存tmp入力との不一致を拒否する。
+転送先で承認を再検証し、executorをlinked cwdから呼ぶのでD5のcwd/-C一致は変更しない。
+D1/profile origin/main pin、project trust、nesting guard、read-only profileとロール別hookも全て適用する。
+read-onlyロールのcommand gateにはこのprepare入口、任意cd、台帳操作、commit/pushを追加しない。
+本番manifestのavailableは必須入力検査の免除ではない。未merge profile拒否は継続し、
+fixtureでの到達をlive成功と呼ばない。
+
+snapshot後の正規TD/TC/ADR/実装はtrusted callerが承認した正確なpathとsha256を
+`binding.expected.source_changes` に保持する。過去review receiptのartifact digest/contextは凍結保持し、
+source差分はtrusted binding検証で1回だけ照合する。nativeはbinding↔approval↔全receiptの
+snapshot一致を要求するため、receipt側で後段source差分を再承認しない。
+後段の実装差分を過去reviewが確認済みと見せず、進行承認とartifactレビューを別に検査する。
+値nullはHEADで削除済みのpathだけを表す。全pathのHEAD bytesと作業面bytesを照合し、
+承認外source変更は拒否する。同一Issueのcanonical envelopeもcommit済みであることを要求する。
+これは承認済み差分の受け渡しであり、新しい承認権限や自動承認は作らない。
+dispatchはrepo全体checkの参照/木/DAG/AC・TD/TC/Red証拠検査と索引内参照実体のcommit一致を要求し、
+入力artifactのID/pathが検査集合にない場合も拒否する。
