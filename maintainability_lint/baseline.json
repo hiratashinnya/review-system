@@ -158,8 +158,8 @@
       "sha256": "e761567f049a13e0de2b6f2744a0f1be89fde9e8d5c5cdc29f1344c81a7b385c"
     },
     "issue_start/subagent_hooks.py": {
-      "line_count": 1032,
-      "sha256": "dff0c9586f3d5ed25f9cba09e68a3187db864f6771d04bbcc2bd5b15f5906e4b"
+      "line_count": 962,
+      "sha256": "2af1b62060dcd5a1f4b593b118adef1db40d0bdb3d37fd91b61b89f5bf3878a2"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,
