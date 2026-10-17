@@ -44,13 +44,18 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                             review_context="review-" + kind,
                             reviewer="pr-reviewer" if kind == "TestDesign" else "plan-reviewer")
                        for kind, (d, p) in documents.items()]
+            reviews[2]["work_unit"] = "WU-1"
             for role in ("issue-investigator", "plan-reviewer", "pr-reviewer", "adviser"):
                 oid = git(source, "rev-parse", "HEAD")
                 binding = dict(recipient=role, artifact=str(artifact.relative_to(source)),
                                artifact_digest=hashlib.sha256(artifact.read_bytes()).hexdigest(),
                                expected={**{k: data[k] for k in BINDINGS},
                                          "ac_refs": ["AC-1"], "source_changes": changes})
-                source_values, receipts = data, reviews
+                source_values, receipts = data, reviews[:1]
+                if role == "pr-reviewer":
+                    binding["expected"].update(work_unit="WU-1", test_design={
+                        key: reviews[2][key] for key in ("artifact", "artifact_digest")})
+                    receipts = reviews
                 if role == "issue-investigator":
                     binding = dict(recipient=role, input_file="tmp/issue.txt",
                                    input_digest=hashlib.sha256(issue).hexdigest(), snapshot_oid=oid,
@@ -69,6 +74,8 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
                 approval = {key: source_values[key] for key in ("run_id", "issue", "target_key", "snapshot_oid")}
                 approval.update(recipient=role, context_id="readonly-" + role,
                                 owner_approved=True, reviews=receipts)
+                if role == "pr-reviewer":
+                    approval["work_unit"] = "WU-1"
                 for name, payload in ((f"{role}-binding", binding), (f"{role}-approval", approval)):
                     (source / f"tmp/{name}.json").write_text(json.dumps(payload))
                 args = ["--source", str(source), "--approval-file", f"tmp/{role}-approval.json",

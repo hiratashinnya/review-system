@@ -27,7 +27,7 @@ def artifact(kind="VerificationDesign", identifier=None, parent="", children=())
         raw.update(adr_refs=[], work_units=[dict(id="WU-1", depends_on=[],
                                                scope=["tool"], ac_refs=["AC-1"])])
     if kind == "TestDesign":
-        raw.update(ut_td=["tool/verify/designs/UT-TD-1.md"],
+        raw.update(work_unit="WU-1", ut_td=["tool/verify/designs/UT-TD-1.md"],
                    ut_tc=["tests/tool/test_unit.py"], red_evidence=[dict(
                        tc="tests/tool/test_unit.py", tc_sha256="a" * 64,
                        log="tool/verify/logs/red.log", log_sha256="b" * 64,

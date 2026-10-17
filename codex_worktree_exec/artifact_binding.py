@@ -13,6 +13,7 @@ from .initial_binding import validate_initial_binding
 from .source_snapshot import verify_source_snapshot, verify_untracked_sources
 from .committed_artifact import read_committed_artifact
 from .repository_artifacts import verify_repository_artifacts
+from .work_unit_binding import validate_work_unit_binding
 
 INPUT_KINDS = {
     "ac-designer": {"InvestigationReport"},
@@ -69,9 +70,6 @@ def verify_artifact_binding(request, cwd: Path, worktree: Path) -> None:
         validate_placement(path, data, worktree)
         if data["artifact_type"] not in INPUT_KINDS.get(request.role, set()):
             raise ValueError("input kind incompatible with recipient")
-        if request.role == "issue-implementer":
-            units = [unit for unit in data["work_units"] if unit["id"] == expected.get("work_unit")]
-            if len(units) != 1:
-                raise ValueError("single approved work unit required")
+        validate_work_unit_binding(binding, data, request.role, worktree, verified)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         raise CodexExecError("CODEX_EXEC_BINDING_INVALID", str(error)) from None

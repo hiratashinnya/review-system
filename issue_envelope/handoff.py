@@ -7,10 +7,11 @@ BINDINGS = ("producer", "phase", "issue", "run_id", "target_key", "input_digest"
 
 def validate_handoff(raw, expected):
     data = normalize(raw)
-    missing = set(BINDINGS) - set(expected)
+    bindings = BINDINGS + (("work_unit",) if data["artifact_type"] == "TestDesign" else ())
+    missing = set(bindings) - set(expected)
     if missing:
         raise ValueError(f"照合期待値が欠落: {sorted(missing)}")
-    for key in BINDINGS:
+    for key in bindings:
         if data[key] != expected[key]:
             raise ValueError(f"artifact束縛不一致/stale: {key}")
     if (data["status"] != "ready" or data["unresolved_findings"]

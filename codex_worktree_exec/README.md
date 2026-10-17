@@ -73,3 +73,7 @@ trusted meterはstatus/tokens/cost_microusd/elapsed_secondsを返す。elapsed_s
 主文脈が既存runの担当成果物から追跡する。実測が欠落した失敗も欠落のまま残す。
 採否/理由/検証はpendingから元担当が記録する。助言は必須レビュー、STOP、karte escalate、
 権限拒否、owner承認を代替しない。live実行の確認はmerge後の#652で行い、ここでは未実測である。
+
+### 2a/2bの単一work unit入力
+
+`test-writer` のCP bindingは `expected.work_unit` がCP内に一つ存在することを要求する。2aの `pr-reviewer` はTestDesignの必須work_unitと同じcaller期待値を渡す。TestDesignは `input_refs=[承認CPのID]` と `input_digest=そのCPのSHA-256` を保持する。2bの `issue-implementer` とPR対象の `pr-reviewer` は既存CP bindingに加え `expected.test_design={artifact, artifact_digest}` で消費TDを指定する。共通 `work_unit_binding` がcommit済みTDのCP/digest/unit/run/Issue/target/snapshotを照合する。この参照は独立review/owner承認の代替ではなく、nativeの2a review receiptが指す参照と完全一致しなければならない。

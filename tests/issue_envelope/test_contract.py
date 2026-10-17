@@ -57,3 +57,22 @@ class EnvelopeContractTests(unittest.TestCase):
             raw[key] = []
             with self.subTest(key=key), self.assertRaises(ValueError):
                 normalize(raw)
+
+    def test_test_design_requires_and_binds_single_work_unit(self):
+        raw = artifact("TestDesign")
+        expected = {key: raw[key] for key in BINDINGS}
+        for unit in (None, "", "WU-2"):
+            candidate = dict(expected)
+            if unit is not None:
+                candidate["work_unit"] = unit
+            with self.subTest(unit=unit), self.assertRaises(ValueError):
+                validate_handoff(raw, candidate)
+        validate_handoff(raw, dict(expected, work_unit="WU-1"))
+        for unit in (None, "", " "):
+            candidate = dict(raw)
+            if unit is None:
+                candidate.pop("work_unit")
+            else:
+                candidate["work_unit"] = unit
+            with self.subTest(schema_unit=unit), self.assertRaises(ValueError):
+                normalize(candidate)

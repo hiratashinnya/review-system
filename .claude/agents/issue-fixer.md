@@ -24,8 +24,8 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 ## Claude Code 固有の設定・ゲート
 
 - frontmatter の `tools`・`model`・`effort` は Claude Code の実行 metadata であり、変更しない。`Write` / `Edit` は修正とハンドオフに使う。**`Task` は保有しない**。修正対象が corpus ノード（`doc-system-v2/nodes/**`）を要すると分かった時点で、直接編集も委譲もせず STOP して主文脈へ報告する。
-- `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。**本ロールにだけ `gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` を許可する**。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。`ingest-review` は本ロールに許可しない。
-- Bash は単純な1コマンドに限る。先頭コマンドは `gh` または `pyright` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint,feedback_ledger,codex_worktree_exec}`（`codex_worktree_exec` は `--role issue-fixer` を1つだけ付けた形のみ）、git操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` / `integrate-base` / `integrate-base-continue` / `integrate-base-abort` だけ、`gh` は `pr create` / `pr list` / `pr view` / `issue view` / `api` に限る。なお `gh api` は REST の GET/HEAD 読み取りと、mutation を含まない単一 GraphQL query（`-F query=...`）だけに使う。許可 flag は `--method`/`-X`（値は GET/HEAD のみ）、`--jq`/`-q`、`--paginate`、`--slurp`、`--repo`/`-R`、および単一の `-F query=...` に限り、その他の flag と REST 書き込み要求は使わない。`asset_parity`/`time_fixture_lint` は `check` サブコマンドのみ、`feedback_ledger` は read-only の `check` / `status` / `index` だけとする。`pyright` は診断用フラグと型検査対象ファイルの指定は自由だが、書込系（`--createstub`）・対話系（`-w`/`--watch`）・インタプリタ起動や設定ファイル読込を伴うフラグ（`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`）は拒否される。`pytest`、生の `git`、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
+- `.claude/hooks/agent-command-gate.sh` が本ロールを機械的に識別する。`push` と `gh pr create` は許可し、`git merge` / `gh pr merge` は拒否する。本ロールは `gitgate adopt-branch <branch> --repository OWNER/REPO --expected-oid <40-HEX> [--pr <N>]` で既存PR branchを取得する。後続著作roleも同verbを使い、fixer専用の許可ではない。`python3 -m karte` は本ロールだけに許可し、`render` / `append` / `close-attempt` / `check` / `status` に限定する。`ingest-review` は本ロールに許可しない。
+- Bash は単純な1コマンドに限る。先頭コマンドは許可された固定読取の `git`、`gh`、`pyright` または `python3 -m {gitgate,unittest,coverage,dsv2,karte,asset_parity,time_fixture_lint,maintainability_lint,feedback_ledger,issue_envelope,codex_worktree_exec}`（`codex_worktree_exec` は `--role issue-fixer` を1つだけ付けた形のみ）、Gitの書込とその他の操作は `python3 -m gitgate` の `status` / `add` / `commit` / `push` / `branch-current` / `new-branch` / `fetch` / `diff` / `log` / `adopt-branch` / `integrate-base` / `integrate-base-continue` / `integrate-base-abort` だけ、`gh` は `pr create` / `pr list` / `pr view` / `issue view` / `api` に限る。なお `gh api` は REST の GET/HEAD 読み取りと、mutation を含まない単一 GraphQL query（`-F query=...`）だけに使う。許可 flag は `--method`/`-X`（値は GET/HEAD のみ）、`--jq`/`-q`、`--paginate`、`--slurp`、`--repo`/`-R`、および単一の `-F query=...` に限り、その他の flag と REST 書き込み要求は使わない。`asset_parity`/`time_fixture_lint`/`maintainability_lint` は `check` サブコマンドのみ、`issue_envelope` は `check` / `index` / `show` / `deps` / `dependents` / `orphans` のread-only verbだけ、`feedback_ledger` は read-only の `check` / `status` / `index` だけとする。`pyright` は診断用フラグと型検査対象ファイルの指定は自由だが、書込系（`--createstub`）・対話系（`-w`/`--watch`）・インタプリタ起動や設定ファイル読込を伴うフラグ（`--pythonpath`/`--venvpath`/`-v`/`--project`/`-p`/`--typeshedpath`）は拒否される。`pytest`、未許可の生Git操作、shell記号、チェイン、リダイレクト、コマンド置換、複数行コマンドは使わない。
 - コミットメッセージ、PR本文、karteへの長文引数はWriteでファイル化してファイル渡し形式を使う。許可された経路を自分でも遵守する。
 - カルテのパスは受け取らず、`python3 -m karte <verb> --issue <N> --round <R>` でのみ触り、パスを自分で組み立てない。`Read`/`Write` でカルテファイルを直接触らない。
 
@@ -39,6 +39,11 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 - Codex は commit・push・PR 作成をしない。Codex の変更は `python3 -m gitgate diff` と単体テストで自分で確かめ、診断の範囲外の変更が混じっていたら commit せず STOP して報告する。commit・push は自分が行う。
 - 終了コード `2` は検査不合格（stderr の `CODEX_EXEC_*` 識別子で原因を確かめ、直せなければ STOP）、`124` は timeout。レートリミットで止まったら同じモデル・推論予算で再投入し、降格しない。
 - 契約の正本は `docs/methods/codex-workspace-binding.md`。
+
+許可module/verbの機械SSoTは本PF hookの基底・role別表と `phase_role_permissions` 拡張であり、
+共通契約の権限節と合わせて適用する。生Gitは両PF hookの `raw_git_denied_reason` が許可する
+`status` / `log` / `diff` / `show` / `rev-parse` の読取だけとし、書込・外部実行・出力ファイル指定は使わない。
+`coverage` は `report` / `html` / `xml` / `json` のみで、`run` は使わない。
 
 ## context-mode 固有の規律
 

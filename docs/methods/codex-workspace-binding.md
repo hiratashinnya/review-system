@@ -295,9 +295,20 @@ snapshot一致を要求するため、receipt側で後段source差分を再承�
 
 未追跡通常source・追加TCはnative/Codexの全工程入力検査とread-only準備の両作業面で拒否する。
 未追跡の例外は `tmp/` 配下の通常ファイル（`.json` / `.md` / `.yaml` / `.yml` / `.txt` / `.log`）による
-工程入力・prompt・handoff・結果、Pythonが生成する `__pycache__/` の `.pyc` / `.pyo`、
+工程入力・prompt・handoff・結果、下記の生成元検証を通る `__pycache__/` の `.pyc`、
 既存feedback writer lockと `tmp/_worktree/ledger.json.lock`、Gitが登録した別linked worktree自身だけである。
 symlinkは例外にしない。
+compiled cacheは現在HEADの通常 `.py` sourceと作業面bytesの一致を先に要求し、同sourceを
+現在Pythonの標準compilerでcompileしたcode bytesとcache内容を読取比較する。cacheをdecode・実行しない。
+現在runtimeのcache tagとoptimize 0/1/2だけを対象とし、code filenameはworktree内sourceの絶対path、
+root相対path、`./` を付けたroot相対pathに限定する。文字列intern有無による標準marshal表現差だけを許す。
+timestamp/checked-hash/unchecked-hashの標準headerを受けても、headerだけでsource由来とは見なさない。
+通常Pythonの標準cache生成は許可するが、別source・未commit/変更済source・現在の期待code bytesと異なる旧cache・別runtime・
+未対応compiler形式のcacheは拒否する。必要な場合はtrusted callerが現在の承認sourceから標準再生成してから起動する。
+検査はread-onlyであり、cacheの自動削除・書換えやreadonly roleへの再生成権限追加はしない。
+HEAD sourceの読取は1回の未追跡検査内でsource毎にまとめ、次の検査では再読する。永続cacheや新しい台帳は作らない。
+この検査が保証するのはtrusted入口で開始した検査以後に渡す作業面の入力である。検査Python自身や
+hookが起動前に読み込むcode/cacheの完全性は既存trusted入口の前提であり、後から遡って保証したとは扱わない。
 binding・approval・raw Issue・promptも未commitなら `tmp/` に置く。`tmp/` 内の追加Python sourceも拒否する。
 `source_changes` にpath/digestを追加しても未追跡通常sourceは許可せず、従来どおりHEAD bytesの一致を要求する。
 
@@ -312,3 +323,11 @@ base_refとsnapshotも実HEADへ一致させる。後続著作では承認branch
 native read-only工程の既存phase承認形式は維持し、既存PRの再レビューはその専用契約を使う。
 dispatchはrepo全体checkの参照/木/DAG/AC・TD/TC/Red証拠検査と索引内参照実体のcommit一致を要求し、
 入力artifactのID/pathが検査集合にない場合も拒否する。
+
+## 2aから2bへのwork unit束縛
+
+trusted callerは2a著作者、2a独立pr-reviewer、2b実装者とPR reviewerに単一の `expected.work_unit` を渡し、各phase承認JSONにも同じ `work_unit` を明示する。CP入力ではIDが `work_units` に一つだけ存在することを検査する。TestDesignの非空 `work_unit` はhandoff期待値と完全一致し、`input_refs` は承認CPのID一つ、`input_digest` はそのcommit済みCP bytesのSHA-256とする。VDはCPを介して参照する。
+
+2a独立review receiptには既存のartifact/path/digest/context等に加え `work_unit` を必須とし、TestDesign・今回のphase承認へ一致させる。1a/1b等のreceiptにはこの欄を加えない。2bの既存CP bindingには `expected.test_design={artifact, artifact_digest}` の短い消費参照だけを追加する。Codex単独入力とnative入力は同じ `work_unit_binding` でCP/TDのbytes・単位・run/Issue/target/snapshotを照合し、nativeは消費参照と2a receiptのartifact/digestも完全一致させる。別の承認台帳は作らず、owner承認や独立レビューをこの参照から生成しない。同run/target内の別unit、unit欠落、CP外unit、別TDのレビューは拒否する。
+
+本是正は同一PR内の2.0遷移の補完であり、共通guidanceに従い再bumpしない。新profileのlive未実測とD1/D5等の境界は既存契約どおりである。

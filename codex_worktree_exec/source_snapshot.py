@@ -7,6 +7,7 @@ from pathlib import Path
 from issue_envelope.model import normalize
 from issue_envelope.placement import validate_placement
 from .committed_artifact import read_committed_artifact
+from .compiled_cache import verify_compiled_cache
 
 
 def verify_untracked_sources(worktree: Path) -> None:
@@ -18,11 +19,13 @@ def verify_untracked_sources(worktree: Path) -> None:
                             check=True, capture_output=True).stdout.split(b"\0")
     roots = {Path(item[9:].decode()).resolve() for item in linked
              if item.startswith(b"worktree ")} - {worktree.resolve()}
+    cache_sources = {}
     for raw in filter(None, result.stdout.split(b"\0")):
         name = raw.decode("utf-8")
         path = worktree / name
         if (path.is_file() and "__pycache__" in Path(name).parts and path.suffix in {".pyc", ".pyo"}
                 and not any(part.is_symlink() for part in (path, *path.parents))):
+            verify_compiled_cache(path, worktree, source_bytes=cache_sources)
             continue
         if (path.is_file() and name in {".ai/feedback/.writer.lock", "tmp/_worktree/ledger.json.lock"}
                 and not any(part.is_symlink() for part in (path, *path.parents))):

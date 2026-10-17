@@ -4,6 +4,9 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/pr-reviewer.md)（正本: `.ai/rationale/pr-reviewer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/pr-reviewer.md) を必要なときだけ参照する。
 
+コマンドの許可範囲は [作成工程共通契約の「権限、停止、相談」](creation-stage-contract.md#権限停止相談) と
+各PF wrapperを参照する。機械SSoTは既存role別hook表であり、他roleの許可を本roleへ継承しない。
+
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
 
 ## 入力の適用境界
@@ -94,3 +97,5 @@ distinct_from: F-<issue>-<seq>（必要な場合だけ）
 4. clean の場合は owner report の結果と、オーナーが手動 merge を判断するための案内。reviewer は merge を実行しない。
 
 clean の場合も承認済みと偽らない。自己 PR への GitHub ネイティブ Approve が拒否される場合は、通常コメントでレビュー結果と明確な判定を残す。
+
+2aではTestDesignの `work_unit`、CP参照/digest、trusted入力の単一unitを照合し、review receiptにも同じunitを保持する。2bでは消費TDの参照/digestと2a receipt、今回の単一unitを一致させる。同run/targetでも別unitのレビューは利用しない。

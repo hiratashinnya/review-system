@@ -26,3 +26,5 @@ TestDesignにはUT-TCごとに一つの `[[red_evidence]]` を記録する。`tc
 CP/VDの葉の配置は `scope` に列挙したtargetのいずれかと完全一致する `<target>/<kind>/<prefix>-<issue>.toml` に限る。複数scopeの葉でも無関係なtargetや暗黙の親子directoryは許可しない。多階層targetはその全pathをscopeへ書く。ルート/中間グループは複数targetを包含しrepo直下に置く。
 
 schema `issue-envelope/v1.0` は本PRで初導入された未merge契約である。本是正はその同一PR内の未完成な実体/証拠契約を補完するため、共通guidanceの「1回のPRで版を複数回上げない」に従い追加bumpしない。
+
+2aのTestDesignには非空の単一 `work_unit` を必須とし、handoffもtrusted callerの同名期待値と完全一致させる。TestDesignの `input_refs` は承認済みCPのID一つ、`input_digest` はそのCPのcommit済みbytesのSHA-256とする。VDはCPを介して参照する。2a著作者と独立reviewerはCP内の同じunitを検査し、別unitや欠落を受理しない。target_keyはunit IDの代用ではない。2bの消費TDも同じCP/digest/unit/run/Issue/target/snapshotへ束縛する。これは同一PRの未merge契約の補完であり、既存の版遷移を再bumpしない。

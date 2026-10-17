@@ -35,11 +35,15 @@ def validate_phase_dispatch(raw, role, cwd):
         approval = json.loads((root / raw["approval_file"]).read_text(encoding="utf-8"))
         expected = {"recipient", "run_id", "issue", "target_key", "snapshot_oid",
                     "context_id", "owner_approved", "reviews"}
+        if role in {"test-writer", "issue-implementer", "pr-reviewer"}:
+            expected.add("work_unit")
         if set(approval) - {"dispatch_target"} != expected or approval["recipient"] != role:
             raise ValueError("approval fields/recipient mismatch")
         source = binding.get("expected", binding.get("consultation", binding))
         if any(approval[key] != source[key] for key in ("run_id", "issue", "target_key", "snapshot_oid")):
             raise ValueError("approval run/issue/target/snapshot mismatch")
+        if "work_unit" in expected and approval["work_unit"] != source.get("work_unit"):
+            raise ValueError("approval work_unit mismatch")
         if (approval["owner_approved"] is not True
                 or not isinstance(approval["context_id"], str) or not approval["context_id"].strip()):
             raise ValueError("owner approval/context required")
@@ -54,6 +58,10 @@ def validate_phase_dispatch(raw, role, cwd):
         for phase in required:
             if phase not in seen:
                 raise ValueError(f"missing mandatory review {phase}")
+        if "test_design" in seen and "test_design" in source:
+            if any(seen["test_design"][key] != source["test_design"][key]
+                   for key in ("artifact", "artifact_digest")):
+                raise ValueError("reviewed and consumed TestDesign mismatch")
         phase = source.get("phase")
         if phase in seen and seen[phase]["artifact_digest"] != binding["artifact_digest"]:
             raise ValueError("review artifact digest mismatch")

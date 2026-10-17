@@ -12,6 +12,8 @@ def write_valid_plan_set(root, snapshot_oid, include_tests=False):
                             ("ChangePlan", "change_plan")):
         data = artifact(kind)
         data.update(snapshot_oid=snapshot_oid, children=[data["id"] + "-tool"])
+        if kind == "ChangePlan":
+            data["work_units"].append(dict(id="WU-2", depends_on=[], scope=["tool"], ac_refs=["AC-1"]))
         if kind == "VerificationDesign":
             data["st_td"] = ["AC-1"]
         path = root / directory / f"{data['id']}.toml"
@@ -23,6 +25,9 @@ def write_valid_plan_set(root, snapshot_oid, include_tests=False):
     if include_tests:
         data = artifact("TestDesign")
         data["snapshot_oid"] = snapshot_oid
+        plan, plan_path = documents["ChangePlan"]
+        data.update(input_refs=[plan["id"]],
+                    input_digest=hashlib.sha256(plan_path.read_bytes()).hexdigest())
         contents = {data["ut_td"][0]: b"# unit test design\n",
                     data["ut_tc"][0]: b"assert False, 'implementation missing'\n",
                     data["red_evidence"][0]["log"]: b"FAIL: implementation missing\n"}

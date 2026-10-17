@@ -46,6 +46,19 @@ ST/IT/UTの各レベルでTD→TC→TRをつなぐ。
 
 ## 権限、停止、相談
 
+この権限節は工程6roleに加え `issue-implementer` / `issue-fixer` / `pr-reviewer` に適用する。
+機械上の許可範囲のSSoTは [Claude hook](../../.claude/hooks/agent-command-gate.sh) / [Codex hook](../../.codex/hooks/agent-command-gate.sh)
+の基底module・role別許可表と [phase拡張](../../issue_start/phase_role_permissions.py) である。PF wrapperはその範囲を説明し、
+他roleのverb・書込権限を一律に継承する根拠にはしない。
+生Gitは両PF hookの `raw_git_denied_reason` が認める固定読取だけを使い、書込とその他の操作はgitgate経由に限る。
+`issue_envelope` は全9roleで `check` / `index` / `show` / `deps` / `dependents` / `orphans`
+だけを利用でき、未知verbや書込操作は許可しない。`maintainability_lint` も `check` だけとする。
+`gitgate adopt-branch` はfixer専用ではなく後続作者のbranch継承にも使う。ロール別許可と
+初回1aのnew-branch/後続1b・2a・2bのadoptという工程上の選択を区別し、工程を迂回しない。
+Claude wrapperの自己role専用 `codex_worktree_exec` 許可は汎用再委譲ではない。
+read-only実行を選んだ主文脈が専用準備入口で作業面/入力を束縛し、role自身へprepare/cd/台帳操作を渡さない。
+Codex内の再帰起動拒否、D1 profile pin、D5 cwd一致と #652 のlive未実測境界を維持する。
+
 全AIはmerge/auto-mergeを行わない。調査・レビュー・adviserは編集、commit/push、
 Issue/PR作成、karte変更、owner判断を行わない。著作者もowner判断を代行しない。
 削除・移動・baseline生成/反映は対象・理由・予定差分・検証を返してSTOPする。

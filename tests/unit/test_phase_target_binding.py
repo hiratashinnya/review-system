@@ -78,6 +78,7 @@ class PhaseTargetBindingTests(unittest.TestCase):
             input_digest=hashlib.sha256(issue.read_bytes()).hexdigest(), snapshot_oid=oid, issue=371,
             run_id="run-1", target_key="issue-371", investigation_reason="investigation complete")
         self.fixture.approval.update(recipient="ac-designer", snapshot_oid=oid, reviews=[])
+        self.fixture.approval.pop("work_unit")
         self.native = dict(entrypoint="issue-pipeline", repository="owner/repo", issue=371,
                            branch_name="feature/371", base_ref="HEAD", base_oid=oid, base_pr=None)
         self.fixture.approval["dispatch_target"].update(branch_name="feature/371", expected_oid=oid)

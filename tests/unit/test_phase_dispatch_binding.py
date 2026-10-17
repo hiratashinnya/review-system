@@ -31,14 +31,18 @@ class PhaseDispatchBindingTests(unittest.TestCase):
                                      status="clean", producer_context=f"author-{kind}",
                                      review_context=f"review-{kind}",
                                      reviewer="pr-reviewer" if kind == "TestDesign" else "plan-reviewer"))
+        self.reviews[2]["work_unit"] = "WU-1"
         data, path, digest = self.documents["ChangePlan"]
         self.binding = dict(recipient="issue-implementer", artifact=path, artifact_digest=digest,
                             expected={key: data[key] for key in BINDINGS})
         self.binding["expected"].update(ac_refs=["AC-1"], work_unit="WU-1",
-                                        source_changes=self.source_changes)
+                                        source_changes=self.source_changes,
+                                        test_design={key: self.reviews[2][key] for key in
+                                                     ("artifact", "artifact_digest")})
         self.approval = dict(recipient="issue-implementer", run_id=data["run_id"], issue=371,
                              target_key=data["target_key"], snapshot_oid=self.oid,
-                             context_id="green-context", owner_approved=True, reviews=self.reviews)
+                             context_id="green-context", owner_approved=True, reviews=self.reviews,
+                             work_unit="WU-1")
 
     def validate(self):
         (self.root / "tmp").mkdir(exist_ok=True)
@@ -81,7 +85,8 @@ class PhaseDispatchBindingTests(unittest.TestCase):
         git(self.root, "add", relative)
         git(self.root, "commit", "-qm", "mismatched reviewed snapshot")
         self.reviews[2]["artifact_digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
-        with self.assertRaisesRegex(IssueStartError, "reviewed artifact mismatch"):
+        self.binding["expected"]["test_design"]["artifact_digest"] = self.reviews[2]["artifact_digest"]
+        with self.assertRaisesRegex(IssueStartError, "TestDesign plan/work_unit mismatch"):
             self.validate()
 
     def test_native_dispatch_rejects_committed_graph_errors_with_correct_digest(self):
@@ -167,6 +172,10 @@ class PhaseDispatchBindingTests(unittest.TestCase):
         for role in ("plan-reviewer", "pr-reviewer"):
             self.binding["recipient"] = self.approval["recipient"] = role
             self.approval["reviews"] = []
+            if role == "plan-reviewer":
+                self.approval.pop("work_unit", None)
+            else:
+                self.approval["work_unit"] = "WU-1"
             (self.root / "tmp").mkdir(exist_ok=True)
             (self.root / "tmp/binding.json").write_text(json.dumps(self.binding))
             (self.root / "tmp/approval.json").write_text(json.dumps(self.approval))
@@ -178,3 +187,39 @@ class PhaseDispatchBindingTests(unittest.TestCase):
         with patch("codex_worktree_exec.repository_artifacts.index", return_value={"nodes": []}):
             with self.assertRaisesRegex(IssueStartError, "outside verified repository collection"):
                 self.validate()
+
+    def test_phase_approval_and_test_design_receipt_require_same_unit(self):
+        for record in (self.approval, self.reviews[2]):
+            for unit in (None, "", "WU-2"):
+                saved = record.pop("work_unit")
+                if unit is not None:
+                    record["work_unit"] = unit
+                with self.subTest(record=record, unit=unit), self.assertRaises(IssueStartError):
+                    self.validate()
+                record["work_unit"] = saved
+        self.validate()
+
+    def test_native_consumed_unit_cannot_switch_within_same_run_and_target(self):
+        self.binding["expected"]["work_unit"] = self.approval["work_unit"] = "WU-2"
+        with self.assertRaisesRegex(IssueStartError, "TestDesign plan/work_unit mismatch"):
+            self.validate()
+
+    def test_consumed_test_design_must_be_the_independently_reviewed_artifact(self):
+        self.reviews[2]["artifact"] = "./" + self.reviews[2]["artifact"]
+        with self.assertRaisesRegex(IssueStartError, "reviewed and consumed TestDesign mismatch"):
+            self.validate()
+
+    def test_test_writer_native_approval_binds_selected_plan_unit(self):
+        self.binding["recipient"] = self.approval["recipient"] = "test-writer"
+        self.approval["reviews"] = self.reviews[:2]
+        self.validate_as_writer()
+        self.approval["work_unit"] = "WU-2"
+        with self.assertRaisesRegex(IssueStartError, "approval work_unit mismatch"):
+            self.validate_as_writer()
+
+    def validate_as_writer(self):
+        (self.root / "tmp").mkdir(exist_ok=True)
+        (self.root / "tmp/binding.json").write_text(json.dumps(self.binding))
+        (self.root / "tmp/approval.json").write_text(json.dumps(self.approval))
+        validate_phase_dispatch(dict(binding_file="tmp/binding.json", approval_file="tmp/approval.json"),
+                                "test-writer", self.root)

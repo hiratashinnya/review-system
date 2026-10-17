@@ -17,7 +17,8 @@ def validate_review_receipts(reviews, approval, root: Path):
     verified = verify_repository_artifacts(root)
     seen, contexts, producers = {}, set(), set()
     for review in reviews:
-        if not isinstance(review, dict) or set(review) != RECEIPT_FIELDS:
+        fields = RECEIPT_FIELDS | ({"work_unit"} if isinstance(review, dict) and review.get("phase") == "test_design" else set())
+        if not isinstance(review, dict) or set(review) != fields:
             raise ValueError("review receipt fields mismatch")
         reviewer = "pr-reviewer" if review["phase"] == "test_design" else "plan-reviewer"
         producer, context = review["producer_context"], review["review_context"]
@@ -43,6 +44,10 @@ def validate_review_receipts(reviews, approval, root: Path):
                 or data["status"] != "ready"
                 or data["unresolved_findings"] or data["unresolved_owner_decisions"]):
             raise ValueError("reviewed artifact mismatch/STOP")
+        if data["artifact_type"] == "TestDesign" and (
+                not review["work_unit"] or review["work_unit"] != data["work_unit"]
+                or review["work_unit"] != approval.get("work_unit")):
+            raise ValueError("reviewed TestDesign work_unit mismatch")
         seen[review["phase"]] = review
         contexts.add(context)
         producers.add(producer)

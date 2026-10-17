@@ -14,3 +14,5 @@ ST/ITケースとの対応、正常/境界/失敗/回復・冪等の必要範囲
 
 STOPは入力不一致、未決owner decision、計画外判断、矛盾、権限不足、検証不能の場合。
 チャット返却は保存されたartifact絶対パスと1行要約だけとし、STOPも同じ形式で返す。
+
+入力の `expected.work_unit` は承認CP内の単一IDへ束縛し、TestDesignの `work_unit` に保持する。TestDesignは `input_refs=[承認CPのID]` と `input_digest=そのCPのSHA-256` を記録し、別unitへ取り替えない。

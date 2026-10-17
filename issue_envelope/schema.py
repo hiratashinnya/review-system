@@ -35,7 +35,7 @@ DETAILS = {
     "ChangePlan": tuple(Field(k, TEXT) for k in (
         "selected_solution", "interfaces", "invariants", "failure_behavior", "oos",
         "operational_verification")) + (Field("adr_refs", STRLIST, False, ref="adr"),),
-    "TestDesign": (Field("ut_td", STRLIST, path_ref=True),
+    "TestDesign": (Field("work_unit", LINE), Field("ut_td", STRLIST, path_ref=True),
                    Field("ut_tc", STRLIST, path_ref=True)),
 }
 WORK_UNITS = TableSpec("work_units", (

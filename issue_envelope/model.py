@@ -39,6 +39,8 @@ def normalize(raw):
         errors.append("IT-TD/IT-TCは対で必要")
     if kind == "InvestigationReport" and data["investigation_required"] not in (0, 1):
         errors.append("investigation_required は0または1")
+    if kind == "TestDesign" and not data["work_unit"].strip():
+        errors.append("TestDesignには単一work_unitが必要")
     if errors:
         raise ValueError("; ".join(errors))
     return data
