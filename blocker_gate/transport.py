@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Mapping, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from .graphql_request import validate_read_request
+from .read_redirect import urlopen
+from .read_request_policy import GRAPHQL_URL, read_headers, validate_rest_get
 
 
 class GitHubReadError(RuntimeError):
@@ -14,18 +18,24 @@ class GitHubReadError(RuntimeError):
 
 
 class ReadTransport(Protocol):
+    """REST GETと単一GraphQL queryのPOSTのみを許可する読み取り契約。"""
+
     def get(self, url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]: ...
     def post(self, url: str, headers: Mapping[str, str], body: bytes) -> tuple[int, Mapping[str, str], bytes]: ...
 
 
 class UrlLibReadTransport:
-    """HTTP GET/POST only。GitHub resource を変更するメソッドを公開しない。"""
+    """REST GETとGraphQL query専用。入力契約違反は送信前にValueErrorにする。"""
 
     def get(self, url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]:
-        return self._open(Request(url, headers=dict(headers), method="GET"))
+        validate_rest_get(url)
+        return self._open(Request(url, headers=read_headers(headers, graphql=False), method="GET"))
 
     def post(self, url: str, headers: Mapping[str, str], body: bytes) -> tuple[int, Mapping[str, str], bytes]:
-        request = Request(url, data=body, headers=dict(headers), method="POST")
+        if url != GRAPHQL_URL:
+            raise ValueError("POST is permitted only at the GitHub GraphQL endpoint")
+        validate_read_request(body)
+        request = Request(url, data=body, headers=read_headers(headers, graphql=True), method="POST")
         return self._open(request)
 
     @staticmethod
