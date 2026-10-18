@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-18T01:05:21.122264Z",
+  "repository": "hiratashinnya/review-system",
+  "branch": "main",
+  "workflows_checked": 7,
+  "collection_errors": 0,
+  "anomalies": [
+    {
+      "workflow": {
+        "id": 351603195,
+        "name": "defect-metrics",
+        "path": ".github/workflows/defect-metrics.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: defect-metrics report is anomalous (baseline 0.68 exceeded and/or 50%+ regression vs the trailing 4 weeks). The report was published to the 'defect-metrics' orphan branch; see report.json threshold.alerts for the reason.",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/38201195289/job/114654775485",
+      "run": {
+        "id": 38201195289,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "schedule",
+        "head_sha": "f69e0873a8216a343bf702b857c97244faf76ecc",
+        "completed_at": "2026-10-12T03:48:33Z"
+      },
+      "job": "publish",
+      "location": ".github:12"
+    },
+    {
+      "workflow": {
+        "id": 309133396,
+        "name": "pages",
+        "path": ".github/workflows/pages.yml"
+      },
+      "severity": "warning",
+      "summary": "GitHub Actions warning: Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: astral-sh/setup-uv@v6. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/39083018816/job/117543724701",
+      "run": {
+        "id": 39083018816,
+        "attempt": 1,
+        "conclusion": "success",
+        "event": "push",
+        "head_sha": "3eb3bb76df0d50a4b318866f60b3f5852ade1fba",
+        "completed_at": "2026-10-18T00:43:58Z"
+      },
+      "job": "build",
+      "location": ".github:2"
+    }
+  ]
+}
