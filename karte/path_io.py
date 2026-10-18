@@ -1,9 +1,11 @@
-"""Internal path handling for the karte package."""
+"""Read and write karte files without following a final-component symlink."""
 
+import errno
 import os
 from pathlib import Path
 
 from .path_errors import KartePathError
+
 
 def read_text(path: Path) -> str:
     if path.is_symlink():
@@ -12,48 +14,76 @@ def read_text(path: Path) -> str:
         raise KartePathError(f"通常ファイルではない: {path}")
     return path.read_text(encoding="utf-8")
 
+
+def _open_writeonly(path: Path, flags: int, mode: int | None = None) -> int:
+    try:
+        if mode is None:
+            return os.open(path, flags)
+        return os.open(path, flags, mode)
+    except OSError as exc:
+        if exc.errno in (errno.EEXIST, errno.ELOOP):
+            raise KartePathError(f"symlink または既存パスを拒否: {path}: {exc}") from exc
+        raise
+
+
 def write_text_atomic(path: Path, text: str) -> None:
-    """同一ディレクトリ内の一時ファイル経由で置き換える（``os.replace`` は原子的）。
+    """一時ファイルを安全に作成して書き、同じディレクトリで原子的に置き換える。
 
-    書込直前に symlink 化していないかを再検査する。**この再検査は best-effort であって
-    原子的ではない**（K-04・保証範囲の正直な記述）:
-
-    * :meth:`Path.write_text` は symlink を**追跡する**。``is_symlink()`` による検査と
-      実際の ``open`` の間に対象を symlink へ差し替えられれば、書込はその先を追う
-      ——**window が存在する**。ここは「TOCTOU 対策」と呼べる強さを持たない。
-    * 現行の脅威モデル（書込先は ``tmp/_karte`` 直下に限定・repo-root から対象までの
-      各構成要素は :func:`resolve_within_repo` で非 symlink を確認済み・同一 uid の
-      プロセスしか居ない）では、この window を悪用できる経路は無い。それでも
-      「無い」のは環境の性質であって、この関数の保証ではない。
-    * 比較対象として、``dsv2/cleantmp.py`` の ``_reverify_before_delete`` の方が厳密である
-      ——削除の直前に**同じガードを再実行**して window を詰めている。こちらは検査後に
-      別の API（``open``）で対象を開き直すため、同じ強さには達していない。
-
-    **Issue #318 で ``os.open(..., O_NOFOLLOW)`` を使う実装へ厳密化する予定**
-    （open 自体に symlink 非追跡を強制し、検査と使用の間の window を無くす）。
+    再検査は維持し、一時ファイルの検査と open は ``O_EXCL|O_NOFOLLOW`` を付けた
+    ``os.open`` で行う。``O_NOFOLLOW`` は最終要素だけに効くため、親要素の symlink 拒否は
+    :func:`resolve_within_repo` と呼び出し元のパスガードに依存する。
     """
     if path.is_symlink():
-        raise KartePathError(f"書込直前の再検査で symlink を検知（TOCTOU 疑い）: {path}")
+        raise KartePathError(f"書込直前の再検査で symlink を検知: {path}")
     if path.exists() and not path.is_file():
         raise KartePathError(f"書込先が通常ファイルではない: {path}")
     tmp_path = path.with_name(path.name + ".tmp")
     if tmp_path.is_symlink():
         raise KartePathError(f"一時ファイル名が symlink として存在する: {tmp_path}")
-    tmp_path.write_text(text, encoding="utf-8")
-    os.replace(tmp_path, path)
+
+    fd = None
+    created = False
+    try:
+        fd = _open_writeonly(
+            tmp_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o666,
+        )
+        created = True
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+        fd = None
+        with handle:
+            handle.write(text)
+        os.replace(tmp_path, path)
+        created = False
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if created:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
 
 def append_text(path: Path, text: str) -> None:
     """既存ブロックを書き換えずに末尾へ追記する（Attempt/Result は追記のみ）。
 
-    追記直前の symlink 再検査は :func:`write_text_atomic` と同じ**best-effort**である
-    （K-04）。``open(path, "a")`` は symlink を追跡するため、``is_symlink()`` 検査と
-    ``open`` の間に差し替えられれば追従する window が残る。現行の脅威モデルで悪用可能な
-    経路が無い点、``dsv2/cleantmp.py`` の ``_reverify_before_delete`` の方が厳密である点、
-    **Issue #318 で ``O_NOFOLLOW`` により厳密化する予定**である点も同じ。
+    再検査は維持し、対象の検査と open は ``O_NOFOLLOW`` を付けた ``os.open`` で行う。
+    ``O_NOFOLLOW`` は最終要素だけに効くため、親要素の symlink 拒否は
+    :func:`resolve_within_repo` と呼び出し元のパスガードに依存する。
     """
     if path.is_symlink():
-        raise KartePathError(f"追記直前の再検査で symlink を検知（TOCTOU 疑い）: {path}")
+        raise KartePathError(f"追記直前の再検査で symlink を検知: {path}")
     if not path.is_file():
         raise KartePathError(f"追記先が通常ファイルではない: {path}")
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(text)
+
+    fd = _open_writeonly(path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+    try:
+        handle = os.fdopen(fd, "a", encoding="utf-8")
+        fd = None
+        with handle:
+            handle.write(text)
+    finally:
+        if fd is not None:
+            os.close(fd)
