@@ -44,7 +44,7 @@ python3 -m feedback_ledger render
 
 | 規則 | 内容 | 実装 |
 |---|---|---|
-| L1 | キー集合の完全一致（欠落・未知とも拒否）、型、enum、`id` 書式、`id` とファイル名の一致 | `model.py` / `store.py` |
+| L1 | キー集合の完全一致（欠落・未知とも拒否）、型、enum、`id` 書式、`id` とファイル名の一致 | `model.py` / `store_load.py` |
 | L2 | `affected_assets` / `target_assets` の全パスが実在する | `check.py` |
 | L3 | 文書 id 参照（`supersedes` / `decided_in`）の実在 | `check.py` |
 | L4 | `owner_verbatim` への推測語彙の混入を拒否 | `model.py` |

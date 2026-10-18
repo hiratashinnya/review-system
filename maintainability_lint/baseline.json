@@ -120,17 +120,9 @@
       "line_count": 454,
       "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
     },
-    "feedback_ledger/paths.py": {
-      "line_count": 200,
-      "sha256": "9114ae010d6fbe8fbaf0df21d7230c2c22187d4e5554d74872cf9cd498f20e60"
-    },
     "feedback_ledger/status.py": {
       "line_count": 168,
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
-    },
-    "feedback_ledger/store.py": {
-      "line_count": 164,
-      "sha256": "f8e1d54fcf53a673866b38e1675a38847b2bd09dbf9466d3d92068e3ae0a6d79"
     },
     "gitgate/adopt.py": {
       "line_count": 532,
