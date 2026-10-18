@@ -95,7 +95,7 @@ class GitHubBranchClient:
             # timeout）。GitHub が下した判断ではないので「到達不能」に分類する。
             # `github_api_failure_reason` 経由の provenance 欠落 401/403 が
             # API_UNREACHABLE を返すのと同じ意味づけに揃える（blocker_gate の
-            # `UrlLibGitHubApiTransport._open` と同一写像）。`URLError` は `OSError`
+            # `UrlLibReadTransport._open` と同一写像）。`URLError` は `OSError`
             # の subclass なので、この except を残りの `OSError` より前に置く。
             raise BranchSourceError("API_UNREACHABLE") from None
         except OSError:
