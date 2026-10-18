@@ -5,7 +5,7 @@ theme = "目的・評価"
 occurred_at = 2026-09-24
 decision_point = "policy"
 overridden_role = "main-thread"
-divergence = "approval"
+divergence = "narrowing"
 confidence_of_inference = "low"
 recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
 affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
@@ -36,6 +36,9 @@ background = '''
 > **実際の撤退は連続2観測窓の該当で発動**。1窓のみの該当は「注意」記録に留め、撤退ではなく縮退の
 > 検討に留める（`karte`の「3ラウンド無進捗エスカレーション」の考え方を流用。観測窓はPRレビュー
 > ラウンドよりずっと重い＝数週間単位のため、3ではなく2とした）。
+
+史料編者の状況補足（本人の逐語ではない）:
+（比1.0・連続2窓は）
 '''
 recommendation = '''
 比の定義・閾値（1.0・連続2窓）の提示はAI。オーナーが「暫定」という留保を明示した上でそのまま
@@ -50,7 +53,7 @@ uncertainty = '''
 暫定。移行時に新しい推測を加えない。旧ID: FBK-20260924-撤退条件bの閾値は比1と連続2窓とする
 '''
 owner_verbatim = '''
-（比1.0・連続2窓は）暫定かなぁ。とりあえず決定でいいけど。。。
+暫定かなぁ。とりあえず決定でいいけど。。。
 '''
 inferred_reason = '''
 推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。

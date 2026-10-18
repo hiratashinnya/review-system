@@ -5,7 +5,7 @@ theme = "目的・評価"
 occurred_at = 2026-09-24
 decision_point = "policy"
 overridden_role = "main-thread"
-divergence = "reversal"
+divergence = "approval"
 confidence_of_inference = "low"
 recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
 affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
@@ -41,6 +41,10 @@ background = '''
 > - **①が③より先**：③（フィードバックループ＝karte/feedback_ledgerの成熟）は改善対象となる
 >   プロセス（①）が実際に動いていて初めて意味を持つ。③の基盤（feedback_ledger・#522）は
 >   既にある程度動いているため緊急度も相対的に低い。
+
+史料編者の状況補足（本人の逐語ではない）:
+（説明後）
+（根拠提示後）
 '''
 recommendation = '''
 順序の推奨自体は[必須施策を5項目に定める](#fbk-20260921-必須施策を5項目に定める) の時点でAIが既に
@@ -58,9 +62,9 @@ uncertainty = '''
 owner_verbatim = '''
 u-4は何の話だっけ？
 
-（説明後）根拠をだして
+根拠をだして
 
-（根拠提示後）ok
+ok
 '''
 inferred_reason = '''
 推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。

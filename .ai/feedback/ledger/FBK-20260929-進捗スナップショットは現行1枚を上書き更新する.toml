@@ -5,7 +5,7 @@ theme = "記録管理"
 occurred_at = 2026-09-29
 decision_point = "policy"
 overridden_role = "main-thread"
-divergence = "reversal"
+divergence = "approval"
 confidence_of_inference = "low"
 recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
 affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
@@ -37,6 +37,10 @@ PR #560 で進捗スナップショット節を新設した際、AI は「日付
 > （`.claude/rules/01-principles.md`「PR8「消さない」の適用範囲」区分2）。過去の状態は git 履歴と
 > 各 Issue に残るため、本文へ残す必要が無い。**決定エントリ（§A/§B）は「なぜそう決めたか」＝区分1
 > なので、本決定の対象外であり従来どおり消さない**。
+
+史料編者の状況補足（本人の逐語ではない）:
+（AI が「追記の根拠は無く、上書きに改める」と回答し、PR 化を提案した後）
+（本エントリの要否を問うて）
 '''
 recommendation = '''
 「上書き更新にする」案と、その適用範囲を現行状態の記述に限る（決定エントリは対象外）という線引きは
@@ -54,9 +58,9 @@ uncertainty = '''
 owner_verbatim = '''
 auditの進捗スナップショットを上書きしないのはなぜ?
 
-（AI が「追記の根拠は無く、上書きに改める」と回答し、PR 化を提案した後）ok
+ok
 
-（本エントリの要否を問うて）進捗スナップショットを上書き形式で置くという決定事項の記録は要らんの?
+進捗スナップショットを上書き形式で置くという決定事項の記録は要らんの?
 '''
 inferred_reason = '''
 推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
