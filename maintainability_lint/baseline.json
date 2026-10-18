@@ -11,7 +11,7 @@
     "blocker_gate/model.py|7fb2050a6ba22e05": 1,
     "blocker_gate/model.py|ed84d2c92f3ea960": 1,
     "branch_source/policy.py|237460617202c10c": 1,
-    "branch_source/policy.py|baa19a57d76aabbf": 1,
+    "branch_source/policy.py|91d13537fc0298bc": 1,
     "feedback_ledger/check.py|201f4f7131d063b3": 1,
     "gitgate/adopt.py|b773d74d104a989a": 1,
     "gitgate/cli.py|4c084b8d6f4b492f": 1,
@@ -52,7 +52,7 @@
       "logic": [
         "GitHubBranchClient"
       ],
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "sha256": "395d8474c32687fdbb5835112220a22207970dcfb527f88bea78fffd7dc01b58"
     }
   },
   "module_lines": {
@@ -90,7 +90,7 @@
     },
     "blocker_gate/github.py": {
       "line_count": 1082,
-      "sha256": "71a009e5a3f3c14d829f4d47d1391d67542af13d6b0a01b1751f03c97d7bfca3"
+      "sha256": "26b6baf61f6413a40a862358043d0c2a6578943bd0fc051096787a8c218dae45"
     },
     "blocker_gate/model.py": {
       "line_count": 297,
@@ -110,7 +110,7 @@
     },
     "branch_source/policy.py": {
       "line_count": 352,
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "sha256": "395d8474c32687fdbb5835112220a22207970dcfb527f88bea78fffd7dc01b58"
     },
     "feedback_ledger/check.py": {
       "line_count": 454,

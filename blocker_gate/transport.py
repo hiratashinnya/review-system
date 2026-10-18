@@ -13,13 +13,13 @@ class GitHubReadError(RuntimeError):
         self.reason = reason
 
 
-class ReadTransport(Protocol):
+class GitHubApiTransport(Protocol):
     def get(self, url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]: ...
     def post(self, url: str, headers: Mapping[str, str], body: bytes) -> tuple[int, Mapping[str, str], bytes]: ...
 
 
-class UrlLibReadTransport:
-    """HTTP GET/POST only。GitHub resource を変更するメソッドを公開しない。"""
+class UrlLibGitHubApiTransport:
+    """urllib-backed GET/POST transport; POST requests can change GitHub state."""
 
     def get(self, url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]:
         return self._open(Request(url, headers=dict(headers), method="GET"))

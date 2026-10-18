@@ -21,7 +21,7 @@ from .closing import (
 )
 from .model import POLICY_VERSION, SNAPSHOT_SCHEMA, classify_issue_state, fingerprint
 from .snapshot import REPOSITORY_SNAPSHOT_SCHEMA
-from .transport import GitHubReadError, ReadTransport, UrlLibReadTransport
+from .transport import GitHubApiTransport, GitHubReadError, UrlLibGitHubApiTransport
 from .waiver import WaiverCollection, WaiverEvidence, WaiverMaterial
 
 API_VERSION = "2026-03-10"
@@ -60,8 +60,8 @@ _BRANCH_RULE_TYPES = frozenset(
 
 
 class GitHubCollector:
-    def __init__(self, token: str | None, transport: ReadTransport | None = None) -> None:
-        self._transport = transport or UrlLibReadTransport()
+    def __init__(self, token: str | None, transport: GitHubApiTransport | None = None) -> None:
+        self._transport = transport or UrlLibGitHubApiTransport()
         self._headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": API_VERSION,
