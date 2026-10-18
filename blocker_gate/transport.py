@@ -1,4 +1,4 @@
-"""HTTP transport and errors used by the blocker gate's GitHub reader."""
+"""blocker gateのGitHub読み取り処理が使用するHTTP transportとエラー。"""
 
 from __future__ import annotations
 
