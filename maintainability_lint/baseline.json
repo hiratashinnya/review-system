@@ -156,10 +156,6 @@
       "line_count": 1306,
       "sha256": "de8cac640fdbf3796d3496e9319c0a0e423e975e3fd53df735b669e934103eef"
     },
-    "karte/paths.py": {
-      "line_count": 317,
-      "sha256": "d7858b3a6bff916f9134664a342f851ae4392bfd54f78735bdb9ad9465a4b49e"
-    },
     "karte/similarity.py": {
       "line_count": 241,
       "sha256": "3086bd6a93b6e8a7992c27ec0994b202c1454ddd07e94589c4eefda3cbc72ec5"
