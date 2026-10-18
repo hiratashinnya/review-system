@@ -41,7 +41,7 @@ def _check_document_identity(spec: DocSpec, data: dict, locus: str, slugify_topi
         ))
     if spec.kind == schema_module.LEDGER:
         role = data.get("overridden_role", "")
-        if role and not schema_module.valid_overridden_role(role):
+        if role and not schema_module.valid_overridden_role(role, data.get("schema")):
             findings.append(Finding(
                 "L1", ERROR, f"{locus}::overridden_role",
                 f"語彙外の値: {role!r}"

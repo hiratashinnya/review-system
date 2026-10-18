@@ -15,7 +15,12 @@ LEDGER_THEMES = (
     "目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理",
 )
 # `skill:<name>` だけは前方一致の拡張形（どの skill の推奨を曲げたかを残すため）。
-OVERRIDDEN_ROLES = ("main-thread", "issue-implementer", "issue-fixer", "pr-reviewer")
+LEGACY_OVERRIDDEN_ROLES = ("main-thread", "issue-implementer", "issue-fixer", "pr-reviewer")
+PIPELINE_OVERRIDDEN_ROLES = (
+    "issue-investigator", "ac-designer", "change-planner", "plan-reviewer",
+    "test-writer", "adviser",
+)
+OVERRIDDEN_ROLES = LEGACY_OVERRIDDEN_ROLES + PIPELINE_OVERRIDDEN_ROLES
 OVERRIDDEN_ROLE_SKILL_RE = re.compile(r"^skill:[a-z0-9]+(?:-[a-z0-9]+)*$")
 DIVERGENCES = ("reversal", "narrowing", "widening", "deferral", "alternative-means")
 CONFIDENCES = ("low", "medium", "high")

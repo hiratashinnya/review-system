@@ -54,7 +54,7 @@ class LedgerSchemaMinorTests(FeedbackLedgerTestCase):
                 self.assertTrue(any(item.locus == "entry.toml::theme" for item in findings))
 
     def test_new_entry_rejects_noncurrent_minor_without_rewriting(self):
-        draft = self.write_draft(LEDGER_SPEC, ledger_data(schema="feedback-ledger/v1.2"))
+        draft = self.write_draft(LEDGER_SPEC, ledger_data(schema="feedback-ledger/v1.1"))
         code, _ = self.run_cli("new-entry", "--from", draft)
         self.assertEqual(code, EXIT_ERROR)
         self.assertFalse(self.stored("ledger", ENTRY_ID).exists())
