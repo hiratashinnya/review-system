@@ -1,4 +1,4 @@
-"""GitHub API transport names describe their exposed HTTP capabilities."""
+"""GitHub API transportの名前と説明が公開するHTTP機能に一致することを検証する。"""
 
 from unittest.mock import patch
 import unittest
@@ -26,7 +26,7 @@ class GitHubApiTransportTests(unittest.TestCase):
         self.assertIs(github.GitHubApiTransport, GitHubApiTransport)
         self.assertIs(github.UrlLibGitHubApiTransport, UrlLibGitHubApiTransport)
         self.assertIn("POST", UrlLibGitHubApiTransport.__doc__)
-        self.assertIn("change GitHub state", UrlLibGitHubApiTransport.__doc__)
+        self.assertIn("GitHubの状態を変更できる", UrlLibGitHubApiTransport.__doc__)
 
     def test_urllib_transport_sends_get_and_post_requests(self):
         requests = []

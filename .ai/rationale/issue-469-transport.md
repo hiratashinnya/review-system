@@ -1,11 +1,11 @@
-# Issue #469: GitHub transport contract
+# Issue #469: GitHub transportの契約
 
-## Decision
+## 判断
 
-Rename `ReadTransport` to `GitHubApiTransport` and `UrlLibReadTransport` to `UrlLibGitHubApiTransport`. The class documentation states that it sends GET and POST requests and that POST can change GitHub state. `GitHubCollector` remains a read-oriented collector; its transport dependency now describes only the HTTP capabilities it actually exposes.
+`ReadTransport`を`GitHubApiTransport`へ、`UrlLibReadTransport`を`UrlLibGitHubApiTransport`へ改名する。クラスの説明にはGETとPOSTを送信でき、POSTによってGitHubの状態を変更できることを明記する。`GitHubCollector`は読み取りを目的とするcollectorであり、その依存先のtransportは実際に公開するHTTP機能を表す名前とする。
 
-The alternatives were a docstring-only correction, query-only mutation rejection, or renaming the read-specific contract. A docstring-only correction would leave `ReadTransport` inaccurate. Mutation rejection would require parsing every GraphQL request body and would change request behavior; the blocker gate currently uses POST only for GraphQL reads. Renaming is the smallest complete correction to the name and documented capability. Callers must not infer a read-only guarantee from this generic transport.
+選択肢として、docstringだけの修正、queryだけを許可してmutationを拒否する方法、読み取り専用を示す契約の改名を比較した。docstringだけを修正すると`ReadTransport`という不正確な名前が残る。mutationを拒否するにはすべてのGraphQLリクエストbodyの解析が必要になり、リクエストの挙動も変わる。現在のblocker gateはGraphQLの読み取りにだけPOSTを使う。名前と説明する機能の両方を修正する最小の方法として改名を採用する。呼び出し側は、この汎用transportが読み取り専用を保証すると解釈してはならない。
 
-## `project_status_sync` relationship
+## `project_status_sync`との関係
 
-Keep `project_status_sync/github.py`'s `Transport` and `UrlLibTransport` independent. It owns the Projects V2 authentication requirement, project-specific response validation, and an intentional `updateProjectV2ItemFieldValue` mutation. Sharing a lower-level urllib wrapper would not establish a read/write boundary and would couple separate API error and credential contracts. Both adapters may keep their small standard-library HTTP handling in their owning domain modules.
+`project_status_sync/github.py`の`Transport`と`UrlLibTransport`は独立したまま維持する。同moduleはProjects V2の認証要件、project固有の応答検証、意図的な`updateProjectV2ItemFieldValue` mutationを担う。下位のurllib wrapperを共有しても読み取りと書き込みの境界は保証できず、別々のAPIエラーと資格情報の契約を結び付けてしまう。両adapterの小さな標準ライブラリによるHTTP処理は、それぞれのdomain moduleに置く。

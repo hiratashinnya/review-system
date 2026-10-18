@@ -19,7 +19,7 @@ class GitHubApiTransport(Protocol):
 
 
 class UrlLibGitHubApiTransport:
-    """urllib-backed GET/POST transport; POST requests can change GitHub state."""
+    """urllibでGET/POSTを送信するtransport。POSTはGitHubの状態を変更できる。"""
 
     def get(self, url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]:
         return self._open(Request(url, headers=dict(headers), method="GET"))
