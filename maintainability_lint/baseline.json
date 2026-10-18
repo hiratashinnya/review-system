@@ -89,8 +89,8 @@
       "sha256": "23f8042a5ba395d3da087a86491772f0d06bd817495aa2845fd1db25ba04fa0e"
     },
     "blocker_gate/github.py": {
-      "line_count": 1117,
-      "sha256": "44770bf971e18c7bfafdaa6b2cb4d8bbd145f52fff95848b9e90603f18988770"
+      "line_count": 1082,
+      "sha256": "71a009e5a3f3c14d829f4d47d1391d67542af13d6b0a01b1751f03c97d7bfca3"
     },
     "blocker_gate/model.py": {
       "line_count": 297,
