@@ -20,7 +20,6 @@
     "gitgate/worktree.py|326070b1ad4ba265": 1,
     "gitgate/worktree.py|abc15b92f96f2e58": 1,
     "gitgate/worktree.py|e239a628536ab723": 1,
-    "guidance_sync/sync.py|6ab5f6f353105223": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -144,10 +143,6 @@
     "gitgate/worktree.py": {
       "line_count": 1649,
       "sha256": "51c8f86f9b3a55ba53383097c77f74e554621de7ae5a97986d981a945f16f3f5"
-    },
-    "guidance_sync/sync.py": {
-      "line_count": 288,
-      "sha256": "6a3959070322590775600d9dae18244293b12aefde3d21c0d70c4d5fbf9efd41"
     },
     "issue_start/durable_lock.py": {
       "line_count": 129,
