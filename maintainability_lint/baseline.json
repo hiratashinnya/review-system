@@ -112,10 +112,6 @@
       "line_count": 352,
       "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
     },
-    "ci_anomaly_report/collector.py": {
-      "line_count": 234,
-      "sha256": "73305ad7e807f327716552832aed584c05175ea5d546ae40c0c0d0a26b575980"
-    },
     "feedback_ledger/check.py": {
       "line_count": 454,
       "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
