@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Mapping, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .graphql_request import validate_read_request
+from .read_redirect import urlopen
 from .read_request_policy import GRAPHQL_URL, read_headers, validate_rest_get
 
 

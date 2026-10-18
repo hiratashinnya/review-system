@@ -10,6 +10,8 @@ GraphQL全文法を実装せず、既存collectorの3系統のqueryとinline fra
 
 ## 比較と分割
 
+redirectにはtransport専用の局所openerを使い、標準urllibによるmethod変換の後、各hopのURL・method・転送ヘッダを送信前に再検査する。同originの`/repos/`配下へのGET redirectは維持し、外部origin・HTTPS downgrade・許可外pathは次のI/O前に拒否する。GraphQL POSTの301/302/303は標準同様にGETへ変換され、その結果がREST許可境界内の場合だけ追従する。307/308のPOSTは標準動作どおり追従しない。応答由来の不許可redirectは元の3xx HTTP応答として既存collectorへ返し、入力契約違反の`ValueError`や新しいpolicy reasonへ変換しない。プロセス全体のopenerは変更せず、Projects V2 adapterへ影響させない。
+
 docstringだけの訂正では読み取り専用という名前の誤契約が残る。汎用transportへの改名案は既存の長いcaller moduleのexact fingerprintを変え、Issue対応PRでbaseline更新を必要としたため却下した。PR #657でtransport抽出とそのbaseline変更を先に分離している。この抽出を活かし、Issue対応PR #659ではcallerとbaselineをマージ済みmainと同一に保ち、100行以内の小moduleへ検査責務を分ける。追加の負債登録やlintの緩和は行わない。
 
 ## `project_status_sync`との関係
