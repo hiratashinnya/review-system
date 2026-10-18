@@ -1,0 +1,69 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-トレサビはref宣言駆動の共通アダプタで実現する"
+topic = "トレサビはref宣言駆動の共通アダプタで実現する"
+theme = "検証・追跡"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI は「issue-pipeline は doc_system/review_system に含有されない」という起票先判定表の境界を、
+doc-system-v2 流用を排除する不変の壁として扱い、「重い機構だから使わない」で止めていた。オーナーが
+この扱い自体を誤りとして訂正し、「軽くして使うでもいいし、思想だけ使い回すでもいい」
+「今のdoc_systemと同レベルのチェック機構は必須」と、境界の意味を再定義した。AI はこれを受けて
+「著作の重さ」と「索引/整合検査の重さ」を分離し、前者は持ち込まず後者は同水準で必須とする設計に
+修正した。
+
+判断内容（移行元）:
+> トレーサビリティは4案（A：doc-system-v2 流用／B：envelope の `input_refs` 等の参照のみ／
+> C：GitHub ネイティブ／D：feedback_ledger 型軽量インデックス）を比較した結果、**B を出発点とする**。
+> **ただし B の選択そのものはオーナーの確信度が低い（「B でもいいけど」程度の温度感）**——
+> **固定された前提は「索引/整合検査を doc_system 同水準で必須にする」ことであって、B という
+> 具体案そのものではない。** B は現時点の妥当な出発点にすぎず、後段の実現可能性検証の結果によっては
+> 変更の余地がある。
+>
+> **「著作の重さ」（`*-author`→`reconciliation-validator`→`reconciliation` の2段階）は持ち込まない**
+> 一方、**「索引/整合検査の重さ」（`dsv2 index`/`deps`/`dependents` 相当の機構）は doc_system 同水準で
+> 必須**とする。含有されない汎用ハーネスだからといって検査水準を落とさない。
+> 逆引きクエリが実際に必要になったら D（feedback_ledger 型軽量インデックス）を追加する。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-トレサビは参照方式+doc_system水準の査定を必須とする
+アダプタ実装方式は「データ源ごとに個別実装（案ii）」を推奨し、#371 の共通 envelope
+（ChangePlan/VerificationDesign）は「`tmp/_handoff/` の一時ファイルで work unit 完了後に消える」
+という前提で索引対象外としていた。
+**2点、根拠不足のまま結論を出していた。** (1) `feedback_ledger/schema.py` を実際に読まずに
+「データ源ごとの個別実装」を推奨していた——実際には `Field.ref` という宣言がスキーマに既にあり、
+フィールド名を決め打ちしない安全な汎用アダプタ（案iii）が可能だった。(2) envelope を tmp 経由の
+一時ファイルとみなしたが、[成果物ロールは各自pushし直接コミットする](#fbk-20260923-成果物ロールは各自pushし直接コミットする)
+の訂正により ChangePlan/VerificationDesign は最初から worktree へ直接 commit される永続artifact
+であることが分かり、索引対象から外す根拠が失われた。
+'''
+recommendation = '''
+AI の原案は「B（envelope 参照のみ・新規ツール0）で始め、痛くなったら D を足す」という、クエリ層の
+必須性に触れない YAGNI 一辺倒の推奨だった。オーナーが「今の doc_system と同レベルのチェック機構は
+必須」と、YAGNI で先送りしてよい範囲を「著作」に限定し、「索引/整合検査」は先送り不可と訂正した。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-トレサビはref宣言駆動の共通アダプタで実現する
+'''
+owner_verbatim = '''
+トレサビは『.claude/rules/02-decision-process.md の起票先判定表は「issue-pipeline は doc_system/review_system のどちらにも含有されない」』は、未完成だから今まではそうしてただけで、そうしなくてはならないでも、ずっとそうするつもりでもない。もっと柔軟に考えてください。シンプルに機構として重いというのは分からんでもないが、軽くして使うでもいいし、思想だけ使い回すでもいい。結局bにするでもいいけどクエリ層というか、今のdoc_systemと同レベルのチェック機構は必須では？doc_systemも作りかけでまだまだ機能不足の認識だから、aにしろbにしろ、機能不足です。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

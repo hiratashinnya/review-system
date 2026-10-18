@@ -1,0 +1,50 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-施策ごとに観測窓を切る"
+topic = "施策ごとに観測窓を切る"
+theme = "目的・評価"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+点検時点では「いつ何を入れたか」の一覧がどこにも存在せず、`git log` からの事後再構成しかできなかった。
+これが #370 が因果を特定できなかった直接の原因である。
+
+判断内容（移行元）:
+- 施策ごとに観測窓を切る。
+- 観測窓が開いている間は、**同じ指標に効く別の施策を入れない**。
+- 入れざるを得ない場合は観測窓を閉じ、「交絡あり・判定不能」と記録する（＝撤退条件C）。
+- **施策レジストリ**（施策ID / 投入日 / 観測窓 / 仮説 / 結果 / 判定）を本ディレクトリに置く。
+
+**この方針は #445 の Wave 設計と正面から衝突する**（Wave 0 が #374/#386/#407/#452 を並行投入する形）。
+#445 の Wave 構成は「観測窓の列」へ書き直す必要がある。
+'''
+recommendation = '''
+AI が提示した案をオーナーがそのまま承認した（変更なし）。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-施策ごとに観測窓を切る
+'''
+owner_verbatim = '''
+施策毎に観測窓はいれるのでいいと思う。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

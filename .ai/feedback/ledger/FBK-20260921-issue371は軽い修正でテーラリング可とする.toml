@@ -1,0 +1,53 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-issue371は軽い修正でテーラリング可とする"
+topic = "Issue371は軽い修正でテーラリング可とする"
+theme = "開発工程"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+#371 本文には内部矛盾がある——目的節が「**小 Issue に不要な dispatch を強制せず**、品質条件を満たす
+範囲でコストを抑える」と書く一方、ロール構成表は「`change-planner` は**全 Issue で必須**」としている。
+さらに `plan-reviewer` の起動条件は11条件の OR で、open harness Issue 50件の大半が
+「共有資産」「権限・セキュリティ」「fail-close」のいずれかに該当するため、**実質常時起動**になる。
+
+結果、`pr_merge_gate` の classifier に1行足すだけの #533 でも
+`investigation → planning → plan_review → implementation → review → remediation → re-review → merge`
+の最低8 dispatch が掛かる。
+
+判断内容（移行元）:
+> 重いロールを**軽い修正では免除する**という方向での調整（テーラリング）には余地がある。
+'''
+recommendation = '''
+AI は #371 本文の内部矛盾を指摘し「B-2：`change-planner` を必須から条件付きへ落とす／`plan-reviewer` は
+当面入れない」を推奨していた。オーナーは #371 の実施自体は必須としたうえで、テーラリングの余地を
+認めた。**判定軸は未決**（AI の推奨＝行数やファイル数ではなく「アーキテクチャに影響するか＝SWE.2 の
+成果物を更新するか」で切る。1行でもアーキテクチャを変える変更を取り逃さないため）。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-issue371は軽い修正でテーラリング可とする
+'''
+owner_verbatim = '''
+重いロールを軽い修正では免除するという方向での調整(テーラリング)は余地ありだが、プロセス補強のために371は必須。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

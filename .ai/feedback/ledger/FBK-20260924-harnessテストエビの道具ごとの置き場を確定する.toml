@@ -1,0 +1,72 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-harnessテストエビの道具ごとの置き場を確定する"
+topic = "harnessテストエビの道具ごとの置き場を確定する"
+theme = "検証・追跡"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) の3a行が
+「harness側の道具ごとの置き場（略）は未決＝U-14」と明記していた。#540の実装が本論点に依存するため
+先に確定する必要があった。既存混入の発見は、U-13/U-14の原案作成中に`tests/reports/`を実地確認した
+ことによる（想定外の実害の実例——決定が無いまま実装が先行すると、review_systemとharnessの成果物が
+混ざる）。
+
+判断内容（移行元）:
+> review_systemの`test-strategy`（`tests/designs/`・`tests/unit/`・`tests/reports/`・`tests/logs/`）を
+> 型として移植し、harness側は`<tool>/verify/`配下に以下を置く：
+>
+> ```
+> <tool>/verify/designs/<id>.md          ← TD
+> <tool>/verify/reports/<id>-<commit>.md ← TR
+> <tool>/verify/logs/<id>-<commit>.txt   ← ログ
+> tests/unit/test_<tool>_*.py            ← TC（変更なし）
+> ```
+>
+> **TCだけ`tests/unit/`共有のまま変更しない**：`.claude/rules/07-project-structure.md`が既に
+> 「`tests/unit/`は両プロジェクトのテストが同一ディレクトリに同居（判別はimport先）」と定めており、
+> これは「コード共有」側（ADRの`adr/`と同じ扱い）。TD/TRは**narrative（経緯・判断を含む記録）**であり、
+> 無関係な道具の記録が混ざるとSSoT/PR1違反になる——ここが分離対象（ADRの`<tool>/adr/`と同じ扱い）。
+> ID prefixは既存の`TD-<area>-<nnn>`パターンをそのまま踏襲し、`area`＝道具名とする。
+>
+> **既存の混入（37件）を移設する**：`tests/reports/TD-issue-start-452*.md`（34件）・
+> `tests/designs/TD-issue-start-452*.md`（3件）が実在する——review_systemの`tests/`配下に
+> harness（#452）の検証記録が混入済み。`git mv`で`issue_start/verify/{reports,designs}/`へ移設する
+> （削除ではなく履歴保全＝PR8区分1）。
+>
+> **トリガーは#540の実装時点。#452自体の解決を待たない**：#452は2026-09-15時点で`F-452-25`
+> （severity: blocker, status: open）が未解決のまま進行中の是正ループにある。無関係な移設作業を
+> #452の担当へ割り込ませるのは`.claude/rules/03-operational.md`「スコープ拡大禁止」に抵触しうる。
+> 一方、機械的な参照（コード側でこのパスをハードコードして読む箇所）は無い（grep確認済み）ため、
+> いつ動かしても壊れるものは無い。移設対象は固定件数ではなく「#540実装時点で実在する全ファイル」
+> とする——#452が停滞中に増えても#540実装時点の実物をそのまま拾える。
+'''
+recommendation = '''
+ディレクトリテンプレート・移設方針（トリガー＝#540実装時点）の提示・調査（#452の実状態を`gh issue view`
+で深掘り）はAI。オーナーが推奨どおり承認した。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-harnessテストエビの道具ごとの置き場を確定する
+'''
+owner_verbatim = '''
+既存混入（37件）の移設は推奨案で良い
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

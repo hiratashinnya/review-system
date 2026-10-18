@@ -1,0 +1,131 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-1a1bと2a2bのレビューを分離し無条件化する"
+topic = "1a1bと2a2bのレビューを分離し無条件化する"
+theme = "開発工程"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+原資料の決定内容と元承認の経緯を以下に保存する。
+
+判断内容（移行元）:
+| # | 工程 | 成果物 | レビュー方法 | 担当ロール |
+|---|---|---|---|---|
+| 1a | 要件定義+アーキ設計：検証設計を先に作る | 新設 `VerificationDesign`：AC（受け入れ基準。`ST-TD` 相当）＋ `IT-TD`（結合検査設計） | `plan-reviewer` が単独でレビューする（無条件）。1b の着手前に完了させる | `ac-designer`（新設・1a専任） |
+| 1b | 要件定義+アーキ設計：本体 | `ChangePlan`（`selected_solution`・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`）＋ ADR（`phase=要件定義+アーキ設計`。`input_refs` で 1a の `VerificationDesign` を参照） | `plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証する（無条件） | `change-planner`（既存）→`plan-reviewer`（既存） |
+| 2a | 実装：テスト設計を先に作る | **`UT-TC`のみ**（1a の `IT-TD` の対象範囲内で、単体レベルのテストケース。Red 状態の実コードとして存在） | `pr-reviewer` が単独でレビューする（無条件） | `test-writer`（新設・2a専任） |
+| 2b | 実装：本体 | 実装コード（Green）＋必要なら軽量 ADR（`phase=実装`） | `pr-reviewer`（既存・無条件） | `issue-implementer`（既存） |
+| 3a | V字右側：テストエビ | `ST-TR`／`IT-TR`／`UT-TR`（各レベルの TC 実行結果） | 既存の成績書運用 | 既存資産の流用 |
+| 3b | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-検証設計と本体を同一ロールが書く
+| # | 工程 | 成果物 | レビュー方法 | 担当ロール |
+|---|---|---|---|---|
+| 1a | 要件定義+アーキ設計：検証設計を先に作る | AC（受け入れ基準）＋結合検査設計 | 1b とまとめて `plan-reviewer` が検証 | `change-planner`（既存） |
+| 1b | 要件定義+アーキ設計：本体 | スコープ/OOS・責務分割・IF・invariants・failure_behavior・ADR | `plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証 | `change-planner`（既存）→`plan-reviewer`（既存） |
+| 2a | 実装：テスト設計を先に作る | 1a の AC を具体化したテストケース（Red） | 2b とまとめて `pr-reviewer` が検証 | `issue-implementer`（役割を拡張） |
+| 2b | 実装：本体 | 実装コード（Green）＋必要なら軽量 ADR | `pr-reviewer`（既存） | `issue-implementer`（既存） |
+| 3a | V字右側：テストエビ | TD/TC/TR（review_system 側は既存 `test-strategy` を流用。harness 側は要検討） | 既存の成績書運用 | 既存資産の流用 |
+| 3b | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
+**1a/1b をともに `change-planner`、2a/2b をともに `issue-implementer` としており、
+「検証設計を書く者と本体を書く者は別コンテキストが必須」という決定
+（[1a/2aと1b/2bはロール分離を必須とする](#fbk-20260922-1a-2aと1b-2bはロール分離を必須とする)）
+と自己矛盾していた。** 加えて成果物名（結合検査設計／テストケース／TD/TC/TR）の対応関係が未整理で、
+1b の成果物名（スコープ/OOS・責務分割・IF・invariants・failure_behavior）にも根拠を示していなかった
+——ただしこの2点は次の
+[ロールは分離済みだが成果物名は未根拠](#fbk-20260923-ロールは分離済みだが成果物名は未根拠)
+でも未解決のまま残った。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260923-ロールは分離済みだが成果物名は未根拠
+1a 担当ロールを `ac-designer`（新設）、2a 担当ロールを `test-writer`（新設）へ訂正し、
+[権限設計は工程表の各ロールへ役割必須性で接続する](#fbk-20260922-権限設計は工程表の各ロールへ役割必須性で接続する)
+の適用表と整合させた。他の列（成果物・レビュー方法）は前バージョンのまま——結合検査設計／テストケース
+（Red）／TD/TC/TR という3つの別名、スコープ/OOS・責務分割・IF・invariants・failure_behavior という
+根拠不明の成果物名列挙は残っていた。
+**役割の自己矛盾だけを直し、成果物名の問題には手を付けていなかった。** オーナーが「工程別成果物って
+名前が独り歩きしてるものばかりでは？」と再指摘し、これらが #371 の既存 `ChangePlan` スキーマや
+フラクタル構造（検証設計→本体の順）への根拠づけを欠いた単語の羅列だったことが判明した——結合検査設計
+（1a）／テストケース（2a）／TD/TC/TR（3a）は同じ検証エビデンス系列を3箇所で別名を使って書いていただけ、
+スコープ/OOS・責務分割・IF・invariants・failure_behavior は #371 の `ChangePlan` 実フィールドを
+無根拠に言い換えたものだった。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260923-検証エビはtd-tc-trの単一鎖とする
+| # | 工程 | 成果物 | レビュー方法 | 担当ロール |
+|---|---|---|---|---|
+| 1a | 要件定義+アーキ設計：検証設計を先に作る | AC（受け入れ基準）＋TD（結合検査の設計） | 1b とまとめて `plan-reviewer` が検証 | `ac-designer`（新設・1a専任） |
+| 1b | 要件定義+アーキ設計：本体 | `ChangePlan` の残りフィールド（`selected_solution`＝スコープ＋責務分割を含む解決方針・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`）＋ ADR（`phase=要件定義+アーキ設計`） | `plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証 | `change-planner`（既存）→`plan-reviewer`（既存） |
+| 2a | 実装：テスト設計を先に作る | TC（1a の TD を具体化したテストケース。Red 状態の実コードとして存在） | 2b とまとめて `pr-reviewer` が検証 | `test-writer`（新設・2a専任） |
+| 2b | 実装：本体 | 実装コード（Green）＋必要なら軽量 ADR（`phase=実装`） | `pr-reviewer`（既存） | `issue-implementer`（既存） |
+| 3a | V字右側：テストエビ | TR（2a の TC を実行した結果） | 既存の成績書運用 | 既存資産の流用 |
+| 3b | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
+**2つの誤りが残っていた。** (a) 1a（アーキ設計＝結合検査レベル）と 2a（実装＝単体検査レベル）という
+**異なる検査レベル**を「TD→TC→TR」という1本の鎖に畳んでいた——review_system 既存 `test-strategy` の
+実際の ID 規則（`TD-<area>-<nnn>`）には検査レベルの区別が元から無く、それをそのまま踏襲してしまった。
+(b) 別コンテキストの別 dispatch であるはずの 1a と 1b が、`ChangePlan` という**同じオブジェクトを
+co-edit** する設計になっていた——`.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」
+（呼び出し先が新規に書き、呼び出し元が回収する）と整合しない。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260923-工程ごとの成果物とロールを表で確定する
+| # | 工程 | 成果物 | レビュー方法 | 担当ロール |
+|---|---|---|---|---|
+| 1a | 要件定義+アーキ設計：検証設計を先に作る | 新設 `VerificationDesign`：AC（受け入れ基準。`ST-TD` 相当）＋ `IT-TD`（結合検査設計） | 1b とまとめて `plan-reviewer` が検証（trace の起点として使う） | `ac-designer`（新設・1a専任） |
+| 1b | 要件定義+アーキ設計：本体 | `ChangePlan`（`selected_solution`・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`）＋ ADR（`phase=要件定義+アーキ設計`。`input_refs` で 1a の `VerificationDesign` を参照） | `plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証（**risk gate 該当時**） | `change-planner`（既存）→`plan-reviewer`（既存） |
+| 2a | 実装：テスト設計を先に作る | `UT-TC`（1a の `IT-TD` の対象範囲内で、単体レベルのテストケース。Red 状態の実コードとして存在） | **2b とまとめて** `pr-reviewer` が検証 | `test-writer`（新設・2a専任） |
+| 2b | 実装：本体 | 実装コード（Green）＋必要なら軽量 ADR（`phase=実装`） | `pr-reviewer`（既存） | `issue-implementer`（既存） |
+| 3a | V字右側：テストエビ | `ST-TR`／`IT-TR`／`UT-TR`（各レベルの TC 実行結果） | 既存の成績書運用 | 既存資産の流用 |
+| 3b | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
+
+上記のうち IT 水準の review_system 側実装状況（形式的には無いが `test_apply.py` 等一部が実質的に
+結合レベルを含む・#543 起票済み）と、各行の受け渡し方式（`gitgate new-branch`→`adopt-branch` 連鎖）は
+本訂正の対象外で、そのまま v5（現行§A）へ引き継がれている。
+
+**本エントリ（v4）自身の成立過程**（役割矛盾の是正→TD-TC-TR重複の解消→検査レベルの分離・
+`VerificationDesign`の分離、の3段階の訂正を経て確定）は §B の3エントリ
+（[検証設計と本体を同一ロールが書く](#fbk-20260922-検証設計と本体を同一ロールが書く)→
+[ロールは分離済みだが成果物名は未根拠](#fbk-20260923-ロールは分離済みだが成果物名は未根拠)→
+本エントリ）に記録済み。
+**2つの矛盾を、決定台帳全体をOpus 5.5サブエージェントに点検させたところ発見した。**
+
+(a) [フェーズ内はテスト設計先行のフラクタル構造とする](#fbk-20260922-フェーズ内はテスト設計先行のフラクタル構造とする)
+は「先に検証設計を作りレビューしてから本体成果物を作る」と定めていたが、本表の1a/2a行は
+「1b/2bとまとめてレビュー」——検証設計は本体ができた後にしかレビューされておらず、
+フラクタル原則自身が防ごうとした「AC後付け確証バイアス」（#371自身が問題視した構造）が
+形を変えて残っていた。
+
+(b) 1b行の `plan-reviewer` が「risk gate 該当時」の条件付きだった一方、
+[AC妥当性確認はplan-reviewerを強化して担う](#fbk-20260922-ac妥当性確認はplan-reviewerを強化して担う)
+は `plan-reviewer` をAC妥当性の唯一のチェック点としていた——risk gateに該当しないIssueは
+`VerificationDesign`もACも一切レビューされずに通ってしまう設計になっていた。
+
+元承認逐語は原史料の前版「工程ごとの成果物とロールを表で確定する」の訂正契機から採る。同日2026-09-24のレビュー分離・無条件化判断であり、次の版の欠落指摘を承認逐語として流用しない。
+'''
+recommendation = '''
+元資料に原案の独立記載なし。判断内容と経緯はbackgroundに保持する。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-1a1bと2a2bのレビューを分離し無条件化する
+'''
+owner_verbatim = '''
+フラクタル原則 vs 表の1a/2aレビュー方法はa
+plan-reviewerの実施条件（risk gate該当時のみ）vs AC妥当性確認の強化はaかな。
+bは改良ネタとしていつかやれたらいいなぁ。。。くらいの感覚。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

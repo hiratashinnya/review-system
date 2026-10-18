@@ -1,0 +1,88 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-決定台帳の正本をfeedback-ledgerとする"
+topic = "決定台帳の正本をfeedback-ledgerとする"
+theme = "記録管理"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI が Skill の設計に入る前に既存資産を点検したところ（`.claude/rules/05-skills-agents.md` A14＝
+新規資産の前に重複点検）、`feedback_ledger`（#522・merge 済み・2,364行）が [決定台帳の書式を生存上段訂正下段とする](#fbk-20260921-決定台帳の書式を生存上段訂正下段とする) の要求項目を
+ほぼ実装済みであることが判明した。
+
+| [決定台帳の書式を生存上段訂正下段とする](#fbk-20260921-決定台帳の書式を生存上段訂正下段とする) の要求 | `feedback_ledger` の既存フィールド |
+|---|---|
+| トピック | `topic` |
+| 日時 | `occurred_at` |
+| 経緯（周辺文脈） | `narrative.background` / `recommendation` / `recommendation_reason` / `uncertainty` |
+| オーナー逐語 | `narrative.owner_verbatim`（**L4 が推測語彙の混入を機械拒否**） |
+| 置換ポインタ | `supersedes`（**L3 が参照先の実在を検査**） |
+| 生存／訂正の区別 | `supersedes` チェーンから**導出**（README「台帳側に `status` を保存しない（PR5）」） |
+
+加えて、markdown では AI の規律頼みだった規則が既に機械 lint になっている——
+**L4**（逐語への推測語彙の混入拒否）／**L5**（`inferred_reason` は `推測：` マーカー必須）／
+**L6**（merge base に在るエントリのバイト変更・削除を拒否＝過去の決定を書き換えられない）／
+**L7**（canonical シリアライズのバイト一致）。
+
+決定的な観測：
+
+```
+$ ls -R .ai/feedback
+ledger/  queue/  triage/     ← すべて .gitkeep のみ。エントリ 0 件
+```
+
+判断内容（移行元）:
+> 決定台帳の正本は既存の **`feedback_ledger`**（`.ai/feedback/`）とし、**2つ目の台帳を作らない**。
+> Skill はその上に薄く載せる。`audit/` の markdown は**台帳からの導出ビュー**にし、手書きをやめる。
+>
+> 埋めるギャップは4点：
+> 1. **`source` を repeated table（`[[source]]`）化し、`min_items=1` で1件以上を強制する。**
+>    **null を許容せず、複数を許容する。**（[決定台帳のsource.issueをoptional化する](#fbk-20260921-決定台帳のsource.issueをoptional化する) からの変更点）
+> 2. `DECISION_POINTS` に方針決定系の語彙を追加する（現在は issue-pipeline 内の決定点のみ）
+> 3. `DIVERGENCES` に「AI 案をそのまま承認した」を表す語彙を追加する（現在は「推奨を曲げた」前提）
+> 4. 生存（§A）／訂正（§B）に分けて出力する `render` verb を追加する
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260921-決定台帳のsource.issueをoptional化する
+> 決定台帳の正本は既存の `feedback_ledger` とし、2つ目の台帳を作らない。埋めるギャップは4点：
+> 1. **`source.issue` を optional 化する**（複数 Issue 横断の方針決定を入れられるようにする）
+> 2. `DECISION_POINTS` に方針決定系の語彙を追加する
+> 3. `DIVERGENCES` に「AI 案をそのまま承認した」を表す語彙を追加する
+> 4. 生存／訂正に分けて出力する `render` verb を追加する
+'''
+recommendation = '''
+AI が3案（A＝既存拡張／B＝新規台帳／C＝書式手順書のみ）を提示し、A を推奨。オーナーが A を選択した。
+その後の起票案でギャップ1を「`source.issue` を optional 化」としたところ、**オーナーが null 許容ではなく
+複数許容へ訂正**した。実装方式（案 i / ii）は AI が比較し ii を推奨している。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-決定台帳の正本をfeedback-ledgerとする
+'''
+owner_verbatim = '''
+・上記をSkillで永続化する
+A: feedback_ledger を拡張（推奨）
+feedback_ledger/schema.py：source.issue を optional 化
+については、どっちかって言うと複数を設定可にすべきでは？
+Nullを許容するよりは複数を許容する方が適切だと思う。
+他はいいと思う
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

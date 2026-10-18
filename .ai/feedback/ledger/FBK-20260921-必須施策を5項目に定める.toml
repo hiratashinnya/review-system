@@ -1,0 +1,52 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-必須施策を5項目に定める"
+topic = "必須施策を5項目に定める"
+theme = "目的・評価"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI が A-SPICE でハーネス開発をマッピングし、**左側（SYS.1〜3・SWE.1〜2）が丸ごと無く、
+SUP.1（独立した品質保証）・SUP.10（変更要求管理）・双方向トレーサビリティも無い**ことを示した
+（詳細は §C-3）。オーナーが必須項目を5つ挙げた。
+
+判断内容（移行元）:
+| # | 項目 | 主な既存 Issue | A-SPICE 対応 |
+|---|---|---|---|
+| ① | プロセスの見直し（SYS / SWE 工程の実施） | #371 | SYS.2 / SYS.3 / SWE.1 / SWE.2 |
+| ② | ロールの権限とその実現機構の見直し | #530 / #535 / #533 / #542 / #129 / #220 | 基盤 |
+| ③ | フィードバックループによる改善の仕組み化 | #521 / #523 / #524 / #525 / #376 | SUP.9 → プロセス改善 |
+| ④ | SSoT / DRY / YAGNI / 単一責務原則を徹底する仕組みの構築 | #539（PR #550・2026-09-26 merge・**優先順位1〜2位のみ完了**。`maintainability_lint` baseline-ratchet実装＋オーナー指摘のSSoT違反是正済み）／**残る優先順位3〜7位（信頼性・セキュリティ・型・可観測性・trace）は#551で追跡**（オーナー指摘・2026-09-27＝「お試しで数個だけでは」「残りはどこで管理するのか」を受け起票） | SUP.1 / 構成管理の質 |
+| ⑤ | リポジトリの目的の永続化＋計測指標の定義＋計測機構の確立 | #488 / #489 / #461 / #541 ＋ 本台帳 | MAN.3 / PIM.3 |
+'''
+recommendation = '''
+オーナーが5項目を提示した。AI は各項目に既存 Issue を対応づけ、**④ だけ該当 Issue が存在しない**ことと、
+実施順の推奨（⑤ → ④明文化 → ② → ① → ③）を提示した。実施順は未決（U-4）。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-必須施策を5項目に定める
+'''
+owner_verbatim = '''
+だから、今必須だと思ってるのは、プロセスの見直し(SYS,SWE工程の実施)、ロールの権限とその実現機構の見直し、フィードバックループによる改善の仕組み化、SSoTやDRYやYANGI,単一責務原則などの基本原則を徹底する仕組みの構築、リポジトリの目的の永続化と計測指標の定義と計測機構の確立だ
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

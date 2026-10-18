@@ -1,0 +1,91 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-成果物ロールは各自pushし直接コミットする"
+topic = "成果物ロールは各自pushし直接コミットする"
+theme = "実行体制"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+前バージョンは、1a/1b/2a を「push 不要・handoff artifact で足りる」と判定していた——これは
+`tmp/_handoff/` 経由で成果物を渡し、最終的に `issue-implementer` が代表してまとめて commit する
+という**誤った workflow 前提**（[検証エビはTD-TC-TRの単一鎖とする](#fbk-20260923-検証エビはtd-tc-trの単一鎖とする)
+系の訂正過程で見つかった、tmp を経由させる必要が無いという指摘）の上に組み立てられていた。
+
+オーナーが「成果物作ってコミットしないのは意味不明」と、**tmp 経由という前提そのものではなく、
+push を持たない役割設計そのものを**指摘した。既存の `issue-fixer` が既に持つ
+「`gitgate adopt-branch` で既存 worktree へ合流し、自分の変更を自分で commit+push する」という
+パターンを 1a/1b/2a にもそのまま適用すれば、tmp 経由も「誰かが代表して commit する」設計も不要になる
+——**1a が `gitgate new-branch` で worktree を新規に作り、1b/2a/2b が順に `adopt-branch` で合流する**。
+各ロールは worktree 内の永続パスへ直接 Write し、自分で commit+push する。
+
+判断内容（移行元）:
+> ②（権限設計）は、工程一覧（1a/1b/2a/2b/3a/3b）の各ロールへ紐づけて設計する。**既存の権限配分
+> （現状の形）は前提にせず、「役割として必須か」「戻すのは容易か」の2基準で一から設計し直す。**
+>
+> **成果物を作るロールは全員 push を持ち、自分の成果物を自分で commit+push する。
+> レビュー専任ロール（`plan-reviewer`／`pr-reviewer`）だけが push を持たない。**
+
+各ロールへの適用結果（2026-09-23 時点の再点検、履歴）：
+
+現行worktree受渡しは [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml) を優先する。
+
+| 役割 | push | merge | 必須か | 戻すのは容易か | 結論 |
+|---|---|---|---|---|---|
+| `issue-investigator` | 無 | 無 | 調査は書込不要 | — | 変更なし（既に最小） |
+| `ac-designer`（1a） | **有** | 無 | worktree へ直接 `VerificationDesign` を書き、自分で commit+push する。1a は `gitgate new-branch` で worktree を新規に作る | — | **付与** |
+| `change-planner`（1b） | **有** | 無 | 同一 worktree へ `gitgate adopt-branch` で合流し、`ChangePlan` を書いて自分で commit+push する | — | **付与** |
+| `plan-reviewer` | 無 | 無 | レビューは書込不要——push された branch を直接読む（PR 未オープンでも `git log`/`git diff` で読める） | — | 変更なし（既に最小） |
+| `test-writer`（2a） | **有** | 無 | 同一 worktree へ合流し、Red テストを書いて自分で commit+push する | — | **付与** |
+| `issue-implementer`（2b） | 有 | 無 | 同一 worktree へ合流し、実装を commit+push。ここで初めて PR を開く（既存の役割のまま） | — | 変更なし |
+| `issue-fixer`（3b） | 有 | 無 | 同上（既存の adopt-branch 運用のまま） | — | 変更なし |
+| `pr-reviewer` | 無 | 有 | **必須ではない**——判定を出すことと merge を実行することは別行為 | **容易**——hook 側の設定変更のみで戻せる | **剥がす**（既存決定・変更なし） |
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-権限設計は工程表の各ロールへ役割必須性で接続する
+| 役割 | push | merge | 必須か | 戻すのは容易か | 結論 |
+|---|---|---|---|---|---|
+| `issue-investigator` | 無 | 無 | 調査は書込不要 | — | 変更なし（既に最小） |
+| `change-planner`/`ac-designer`（1a/1b） | 無 | 無 | 計画は handoff artifact で足りる。git 書込は不要 | — | 変更なし（既に最小） |
+| `plan-reviewer` | 無 | 無 | レビューは書込不要 | — | 変更なし（既に最小） |
+| `issue-implementer`/`test-writer`（2a/2b） | 有 | 無 | push は必須——worktree の成果をレビュー可能な形にする唯一の経路 | — | push は維持。`test-writer` 自体には持たせず、実際のコミットは `issue-implementer` が担う |
+| `issue-fixer`（3b） | 有 | 無 | 同上 | — | 変更なし |
+| `pr-reviewer` | 無 | 有 | 必須ではない——判定を出すことと merge を実行することは別行為 | 容易——hook 側の設定変更のみで戻せる | 剥がす |
+**`ac-designer`／`change-planner`／`test-writer` を「push 不要・handoff artifact で足りる」と判定したが、
+その前提（`tmp/_handoff/` 経由で成果物を渡し、`issue-implementer` が代表してまとめて commit する）
+自体が誤りだった。** 成果物を作った本人が commit しないのは、既存の `issue-fixer`（`adopt-branch` で
+合流し自分の変更を自分で commit+push する）の運用とも整合しない。merge 側（`pr-reviewer` の剥がし）の
+判定は誤りではなく、そのまま [成果物ロールは各自pushし直接コミットする](#fbk-20260923-成果物ロールは各自pushし直接コミットする) へ引き継がれている。
+'''
+recommendation = '''
+AI は直前のターンで「tmp 経由は不要（shared worktree へ直接書く）」までは訂正していたが、
+**「誰が commit するか」を `issue-implementer` に一元化したままにしていた**——「1a/1b/2a は worktree
+へ直接書くが、commit は最後にまとめて `issue-implementer` が行う」という案。オーナーがこれ自体を
+「成果物を作った本人が commit しないのはおかしい」と訂正し、AI は `issue-fixer` の
+`adopt-branch` パターンを他の全成果物ロールへ一般化し、push を必須へ変更した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-成果物ロールは各自pushし直接コミットする
+'''
+owner_verbatim = '''
+各ロールにもコミット・push権限が必要では？レビュー役は兎も角、成果物作ってコミットしないのは意味不明。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

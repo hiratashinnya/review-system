@@ -1,0 +1,60 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-起票先はラベルで機械的に問い合わせる"
+topic = "起票先はラベルで機械的に問い合わせる"
+theme = "記録管理"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+U-12（#540本文の反映漏れ）の点検で「決めたが反映を忘れる」実例が見つかったのと同じ構造の問題——
+**決定の置き場（台帳）と実行の置き場（GitHub Issue群）が分かれているため、後から追跡する手段が
+無いと反映漏れ・見落としが起きる。** U-6と同様、これも「矛盾」ではなく「機構が無い」ことによる
+未起票状態だった。
+
+判断内容（移行元）:
+> U-7「本分析結果の起票方針（#445 本文へ集約するか、個別起票するか）」は、運用上はすでに**個別起票**
+> （#537/#538/#539/#540/#541/#542/#543 等）で確定していたが、**別セッションが本監査の関連Issueを
+> 一括で見つける入り口が無い**という残課題があった。
+>
+> 入り口は**共有ラベル `audit:2026-09-pipeline-redesign` による GitHub 側のクエリ**とする
+> （`gh issue list --label "audit:2026-09-pipeline-redesign" --state all`）。台帳への手書き一覧
+> （メタ追跡Issueへの手書き含む）は不採用——すでに「`audit/` は手書きをやめ台帳からの導出ビューにする」
+> と決めた方針と同じ理由で、クエリで代替できる一覧を手書きすると二重管理・ドリフト源になる。
+>
+> 初回付与対象（13件）：#371・#375・#409・#445・#513・#533・#537・#538・#539・#540・#541・#542・#543。
+> 今後この監査に関連するIssueを起票・発見したときは、同じラベルを付与する。
+'''
+recommendation = '''
+3選択肢（A：GitHub共有ラベル／B：メタ追跡Issue手書き／C：台帳冒頭ナビゲーションのみ）の提示・
+比較・推奨（A＋Cの併用）はAI。オーナーが推奨どおり承認した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-起票先はラベルで機械的に問い合わせる
+'''
+owner_verbatim = '''
+u-7は結局何処見ればいいかの入り口がいるのでは？何を入り口にするのが適切か？
+別セッションに引き継ぎできるように入り口は作らないといけない。
+
+（3選択肢提示後）u-7は推奨案でよい。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

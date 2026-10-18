@@ -1,0 +1,53 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-トピックの述語は機械強制しない"
+topic = "トピックの述語は機械強制しない"
+theme = "記録管理"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+「述語つきで何を決めたか分かるように」は意味の要求であり、機械化すると語尾語彙リストの照合＝
+**列挙型のゲート**になる。本点検の実測（§C-2）では、**記録済み再発欠陥21件のうち14件（67%）が
+ゲート・隔離・権限といった列挙型の機構を発生源としていた**のに対し、不変条件型の検査
+（存在一致・ハッシュ一致・マーカー有無）は再発ゼロだった。保守が要る列挙型ゲートをもう1つ
+増やすことになるため、AI は長さと id 一致という不変条件だけを機械化するよう推奨した。
+
+判断内容（移行元）:
+> **機械強制するのは「30字以内」と「`id == FBK-<date>-slugify(topic)` の一致」だけ。**
+> 「述語まで書いて何を決めたか分かるようにする」は**今は強制しない**。
+>
+> **将来 `jev` で強制する。** 対象項目は §E に列挙して持ち越す。
+'''
+recommendation = '''
+AI の原案は「規約＋レビューに委ねる」で止まっていた。**オーナーが `jev` による将来の強制という
+到達点を示し、持ち越し項目をリスト化して台帳に残すよう指示した**——据え置きを「対応不要」に
+するのではなく、強制先が決まるまでの保留として明示的に管理する形に変わった。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-トピックの述語は機械強制しない
+'''
+owner_verbatim = '''
+cは今は強制しない。
+そのうちjevで強制したいから、jevでやることリスト作って載せといて。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

@@ -1,0 +1,50 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-harness検証はtest-strategyを手本にする"
+topic = "harness検証はtest-strategyを手本にする"
+theme = "検証・追跡"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI が確認した `doc-system-v2/nodes/04-verification/verify/` は、実施記録が1レコードに混在していた。AI はこれを doc_system の設計意図と誤認したが、実際は**移行途中の暫定状態**だった。TD（設計）/TC（ケース）/TR（結果）は作成タイミングが本質的に異なるため、1レコードに混ぜることはできない。
+
+判断内容（移行元）:
+> harness のテストエビ（検証記録）は、doc-system-v2 の現状（`04-verification/verify/`）ではなく、**review_system の `test-strategy`（TD/TC/TR 3点セット・完成済み）を手本にする**。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-harness側テストエビはdoc_systemの点検実施記録型を写す
+> harness のテストエビは、doc-system-v2 の `04-verification/verify/`（検証手法・実施日・対象範囲・結果・
+> 発生した指摘の記録型）を手本にする。
+**移行途中の暫定状態を設計意図と誤認した。** doc-system-v2 の検証系ノードは TD/TC/TR に分離する設計の
+はずで、`verify/` にまとまっているのは移行未完了のため。TD/TC/TR は作成タイミングが本質的に異なり、
+1レコードに混ぜることはできない。
+'''
+recommendation = '''
+AI は `verify/` の現状を設計意図と誤認し、そこから「点検実施記録」型を提案した。オーナーが移行途中であることを指摘し、参照先を review_system の完成済み実装（`test-strategy`）へ差し替えた。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-harnessのテストエビはtest-strategyを手本にする
+'''
+owner_verbatim = '''
+あれ？doc_systemって検証系ノードをそんな雑に作ってたっけ？td/tc/trにするって設計してたはず。今たまたまverifyノードにまとめられてるだけで、直してる途中の認識。作るタイミングが違うから一つに混ぜることは不可。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

@@ -1,0 +1,91 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261006-harnessの全テストをtests-tool-へ移す"
+topic = "harnessの全テストをtests/<tool>/へ移す"
+theme = "検証・追跡"
+occurred_at = 2026-10-06
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = "FBK-20261006-harnessテストコードはtests-tool-に置く"
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+同日の初版（[harnessテストコードは`tests/<tool>/`に置く](#fbk-20261006-harnessテストコードはtests-tool-に置く)・§B）は、
+既存テストの移設を「本決定に含めない。オーナーが別途判断する」と書いただけで、追跡先の Issue を作っていなかった。
+[tracking_statusにpendingを正当な状態とする](#fbk-20260923-tracking_statusにpendingを正当な状態とする) が防ごうとした
+「決めたが実行を忘れる」形を、Claude Code (AI) 自身が作っていた。オーナーの指摘を受け、AI は次の判断材料を提示した。
+
+- 対象の規模（`tests/unit/` 95ファイル中、review_system 12件・`dsv2` 10件・含まれない汎用ハーネス約63件）。
+- 時期：#542（`pr_merge_gate` 撤去）と #538（Codex supervisor 撤去）が対象のテストを消す予定で、先に移すと無駄が出て別セッションと衝突する。
+- 初版で見落としていた穴：`time_fixture_lint` が検査対象を `tests/unit` に固定している（`time_fixture_lint/scanner.py` の
+  `PY_TEST_ROOT`）。CI の探索を広げるだけでは、移したテストが検査から黙って外れる。PR #571 の `tests/jev_hooks/` は既にこの状態にある。
+
+時期は4案（今 Issue 化して②完了後／すぐ実施／道具を触るたびに移す／移設しない）、対象は2案（`dsv2` を含める／含めない）、
+検査の穴は2案（PR #571 で広げる／移設 Issue でまとめて直す）で提示した。承認を得て #578 を起票した。
+
+判断内容（移行元）:
+> review_systemの`test-strategy`（`tests/designs/`・`tests/unit/`・`tests/reports/`・`tests/logs/`）を
+> 型として移植し、harness側は以下に置く：
+>
+> ```
+> <tool>/verify/designs/<id>.md          ← TD（変更なし）
+> <tool>/verify/reports/<id>-<commit>.md ← TR（変更なし）
+> <tool>/verify/logs/<id>-<commit>.txt   ← ログ（変更なし）
+> tests/<tool>/test_*.py                 ← TC（既存は #578 で移す）
+> ```
+>
+> **TC も道具ごとのディレクトリへ分ける。** CI は `tests/unit/` と同じく `tests/<tool>/` も直接探索し、
+> `tests/unit/` から読み込ませる中継ファイルは置かない（道具ごとの中継ファイルは入れ忘れると
+> テストが失敗ではなく未実行になり、黙って抜けるため）。初版から変更なし。
+> **CI の探索だけでなく、`tests/unit` に固定された検査（`time_fixture_lint` の検査対象など）も
+> `tests/<tool>/` へ広げる。** 広げないと、移したテストが検査から黙って外れる。
+>
+> **既存の道具のテストも移す。** 対象は review_system（製品）以外の全て（含まれない汎用ハーネスと
+> doc_system の `dsv2`）。実施は #542（`pr_merge_gate` 撤去）と #538（Codex supervisor 撤去）の完了後とする
+> （消える予定のテストを先に動かさず、進行中の別セッションとも衝突させないため）。追跡先は #578。
+> それまでは新旧2方式が併存する。
+>
+> ID prefixは既存の`TD-<area>-<nnn>`パターンをそのまま踏襲し、`area`＝道具名とする。
+>
+> **既存の混入（37件）を移設する**：`tests/reports/TD-issue-start-452*.md`（34件）・
+> `tests/designs/TD-issue-start-452*.md`（3件）が実在する——review_systemの`tests/`配下に
+> harness（#452）の検証記録が混入済み。`git mv`で`issue_start/verify/{reports,designs}/`へ移設する
+> （削除ではなく履歴保全＝PR8区分1）。
+>
+> **トリガーは#540の実装時点。#452自体の解決を待たない**：#452は2026-09-15時点で`F-452-25`
+> （severity: blocker, status: open）が未解決のまま進行中の是正ループにある。無関係な移設作業を
+> #452の担当へ割り込ませるのは`.claude/rules/03-operational.md`「スコープ拡大禁止」に抵触しうる。
+> 一方、機械的な参照（コード側でこのパスをハードコードして読む箇所）は無い（grep確認済み）ため、
+> いつ動かしても壊れるものは無い。移設対象は固定件数ではなく「#540実装時点で実在する全ファイル」
+> とする——#452が停滞中に増えても#540実装時点の実物をそのまま拾える。
+'''
+recommendation = '''
+初版の「既存は別途判断」は AI の書き方で、追跡先を作らなかったのも AI の欠陥である。オーナーの指摘で欠陥が判明し、
+3点とも AI の推奨をオーナーが承認した。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20261006-既存含めharnessテストをtests-tool-へ移す
+'''
+owner_verbatim = '''
+「harnessテストコードはtests/<tool>/に置く」②、準拠していない既存テストコードの変更はいつやるの？Issueは？
+今 Issue 化・②完了後に実施（推奨）
+
+含める（推奨）
+
+PR #571 で検査範囲を広げる（推奨）
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

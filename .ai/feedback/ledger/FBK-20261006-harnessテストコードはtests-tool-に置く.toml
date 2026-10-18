@@ -1,0 +1,86 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261006-harnessテストコードはtests-tool-に置く"
+topic = "harnessテストコードはtests/<tool>/に置く"
+theme = "検証・追跡"
+occurred_at = 2026-10-06
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = "FBK-20260924-harnessテストエビの道具ごとの置き場を確定する"
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #571（`jev_hooks`）のレビューで、Claude Code (AI) が「テストコードを新設の `tests/jev_hooks/` に置いており、
+前版の決定（TC は `tests/unit/test_<tool>_*.py`）と食い違う」と指摘した。これに対しオーナーが、
+PR の置き方の方が好みだと表明した。AI は判断材料として次の4案を提示した。
+
+| 案 | 内容 | 評価 |
+|---|---|---|
+| **a** | **決定を置換し `tests/<tool>/` に置く。CI が直接探索し、中継ファイルは廃止する** | **採用**。道具ごとにまとまり、テスト設計・テスト結果を道具ごとに分けた考え方とも揃う。入れ忘れによる未実行が構造的に起きない |
+| b | 決定を置換し `tests/<tool>/` に置く。CI は変えず中継ファイル方式を続ける | 変更は小さいが、道具ごとに中継ファイルが要り、入れ忘れるとテストが黙って実行されない |
+| c | `jev_hooks` だけを例外にする | 例外が1件でき、方式の混在が理由付きで固定される |
+| d | 前版の決定どおり `tests/unit/` へ戻す | 方式は統一されるが、オーナーの好みに反する |
+
+TD/TR/ログの置き場と、既存混入37件の移設方針（前版の決定内容）はこの議論の対象外であり、変更せずに引き継いだ。
+前版の経緯（U-14 の解消・既存混入の発見）は §B の前版エントリに残す。
+
+判断内容（移行元）:
+> review_systemの`test-strategy`（`tests/designs/`・`tests/unit/`・`tests/reports/`・`tests/logs/`）を
+> 型として移植し、harness側は以下に置く：
+>
+> ```
+> <tool>/verify/designs/<id>.md          ← TD（変更なし）
+> <tool>/verify/reports/<id>-<commit>.md ← TR（変更なし）
+> <tool>/verify/logs/<id>-<commit>.txt   ← ログ（変更なし）
+> tests/<tool>/test_*.py                 ← TC（新規の道具から適用）
+> ```
+>
+> **TC も道具ごとのディレクトリへ分ける。** CI は `tests/unit/` と同じく `tests/<tool>/` も直接探索し、
+> `tests/unit/` から読み込ませる中継ファイルは置かない（道具ごとの中継ファイルは入れ忘れると
+> テストが失敗ではなく未実行になり、黙って抜けるため）。
+>
+> **既存の道具（`tests/unit/test_<tool>_*.py`）の移設は本決定に含めない。** 移設するか、いつ行うかは
+> オーナーが別途判断する。それまでは新旧2方式が併存する。
+>
+> ID prefixは既存の`TD-<area>-<nnn>`パターンをそのまま踏襲し、`area`＝道具名とする。
+>
+> **既存の混入（37件）を移設する**：`tests/reports/TD-issue-start-452*.md`（34件）・
+> `tests/designs/TD-issue-start-452*.md`（3件）が実在する——review_systemの`tests/`配下に
+> harness（#452）の検証記録が混入済み。`git mv`で`issue_start/verify/{reports,designs}/`へ移設する
+> （削除ではなく履歴保全＝PR8区分1）。
+>
+> **トリガーは#540の実装時点。#452自体の解決を待たない**：#452は2026-09-15時点で`F-452-25`
+> （severity: blocker, status: open）が未解決のまま進行中の是正ループにある。無関係な移設作業を
+> #452の担当へ割り込ませるのは`.claude/rules/03-operational.md`「スコープ拡大禁止」に抵触しうる。
+> 一方、機械的な参照（コード側でこのパスをハードコードして読む箇所）は無い（grep確認済み）ため、
+> いつ動かしても壊れるものは無い。移設対象は固定件数ではなく「#540実装時点で実在する全ファイル」
+> とする——#452が停滞中に増えても#540実装時点の実物をそのまま拾える。
+'''
+recommendation = '''
+前版の決定（TC は `tests/unit/` 共有）は AI が `.claude/rules/07-project-structure.md` の現状記述を根拠に
+組み立てたもので、オーナーは当時その部分を個別には検討していなかった（前版の逐語は移設方針への承認のみ）。
+今回オーナーが TC の置き場そのものに好みを示し、AI が案a（CI の直接探索を含む）を推奨、オーナーが承認した。
+既存の道具の移設をどうするかは決めていない。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20261006-harnessテストコードはtests-tool-に置く
+'''
+owner_verbatim = '''
+テストコードの置き場はこのprの置き方のほうが好みなんだけど
+道具ごとに変更・CIも直す（推奨）
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

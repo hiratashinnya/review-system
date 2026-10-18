@@ -1,0 +1,47 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-器はgithub-issue継続で確定する"
+topic = "器はGitHub Issue継続で確定する"
+theme = "開発工程"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+U-6「器の最終判断（GitHub Issue 継続＋役割分離でよいか）」は、監査初期（2026-09-21）に §D へ起票されたまま、
+本セッション全体を通じて一度も §A へ正式決定として昇格していなかった。実質的には全ての後続決定
+（V字プロセス設計・push権限・トレーサビリティ機構等）が「器＝GitHub Issue」を暗黙の前提として進んでおり、
+形式的な確定だけが欠けていた状態（Opus 5.5 サブエージェントの内部矛盾点検では検出されなかった種類の
+「決め忘れ」——矛盾ではなく単純な未起票）。
+
+判断内容（移行元）:
+> 器（Issue運用の実行基盤）は**現行どおり GitHub Issue を継続する**。新しい追跡システムへの置き換えは行わない。
+> 役割分離（issue-investigator/ac-designer/change-planner/plan-reviewer/test-writer/issue-implementer/pr-reviewer
+> の7ロール）は GitHub Issue 上でのサブエージェント dispatch として実現する（既存の issue-pipeline 運用の延長）。
+'''
+recommendation = '''
+元資料に原案の独立記載なし。判断内容と経緯はbackgroundに保持する。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-器はgithub-issue継続で確定する
+'''
+owner_verbatim = '''
+u-6はGitHub Issue継続でよい。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''
