@@ -1,0 +1,117 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-changeplanは木構造で入れ子可能とする"
+topic = "ChangePlanは木構造で入れ子可能とする"
+theme = "開発工程"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = "FBK-20260924-枠組みフィールドは対象prefixなしで置く"
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+U-13の原案検討中、`VerificationDesign`の`IT-TD`/`IT-TC`（対象間の結合検査設計）がframe（Issue全体）
+にもshard（対象ごと）にも一律には収まらないことが判明した。AI原案はledgerのコード例コメント1行のみを
+根拠に`IT-TD`/`IT-TC`をshard固定と提案していたが、オーナーが「ケースバイケースでは？」と指摘し、
+frame/shard二分そのものの限界を突いた。オーナーが「1Issue1ChangePlanにしようとするから無理が出る。
+入れ子にすればいい」と、frame/shard二分をやめて木構造化する方向を提示した。
+
+判断内容（移行元）:
+> ChangePlan/VerificationDesignを「Issue全体スコープ＋対象ごとのwork_unit」という**固定2階層**に
+> しない。同じ型のノードが**親子関係で入れ子になる木構造**として設計する：
+>
+> ```
+> ノード1つの中身（親・子・葉、すべて同じ型）：
+>   id, issue, scope（このノードが覆う対象のリスト）
+>   parent（親ノードへの参照。ルートは空）
+>   children（子ノードへの参照。任意個）
+>   depends_on（実行順DAGの辺。parent/childrenの包含関係とは別軸）
+>   selected_solution / OOS / interfaces / invariants / failure_behavior
+>   it_td / it_tc（このノードのscopeが指す境界の結合検査。空でもよい）
+>   st_td / st_tc（AC。parentが空＝ルートの時だけ必須）
+> ```
+>
+> **物理配置は`scope`のサイズではなく、木の中での役割（`parent`の有無×`children`の有無）で決める**
+> ——単一対象Issueではルート（`parent`が空）と葉（`children`が空）の両方が`scope`1件を持ち、
+> `scope`のサイズだけでは判別できないため：
+>
+> - **葉ノード**（`children`が空）：物理配置は`<target>/change_plan/CP-<issue番号>.toml`／
+>   `<target>/verification_design/VD-<issue番号>.toml`（`ChangePlan`は`CP-`、`VerificationDesign`は
+>   `VD-`prefix。v2のまま）。
+> - **ルート**（`parent`が空）：物理配置は`change_plan/CP-<issue番号>.toml`／
+>   `verification_design/VD-<issue番号>.toml`（repo root・スラグ無し）。単一対象Issueでは
+>   ルート自身も`scope`1件だが、`children`を1件持つ（その対象の葉ノード）ためルート扱いになる。
+> - **中間グループ**（`parent`も`children`も非空）：物理配置は
+>   `change_plan/CP-<issue番号>-<slug>.toml`／`verification_design/VD-<issue番号>-<slug>.toml`
+>   （repo root・複数あり得る、`slugify.py`でslug生成）。
+>
+> **読み書きコードの置き場は`issue_envelope/`とする（パッケージ名は本項で新たに確定）**：`change_plan/`・
+> `verification_design/`という名前は上記のとおりフレームデータの実パス（repo root）に専有されており、
+> ADRの`adr/`（コード）＋`<tool>/adr/`（データ）と同じ命名はここで使うと衝突する。既決の
+> [トレサビはref宣言駆動の共通アダプタで実現する](#fbk-20260923-トレサビはref宣言駆動の共通アダプタで実現する)
+> は「envelope」を対象（ChangePlan/VerificationDesign）を指す一般名詞として使っており、
+> パッケージ名としての`issue_envelope/`は未確定だった——本項でその置き場を`issue_envelope/`と命名し、
+> 同エントリが既決した`query.py`（ref=宣言駆動アダプタ）もこのパッケージに含める形で確定する。
+> schema/check/cliを同じパッケージへ足すのは、dsv2が同一パッケージにnode schemaとquery.pyを同居
+> させているのと同型であり、新規パッケージを増やさずに済む。
+>
+> ```
+> issue_envelope/
+>   schema.py   ← CHANGE_PLAN_SPEC / VERIFICATION_DESIGN_SPEC（Field/TableSpec/DocSpec、木構造の
+>                  ノード1種類を宣言。frame/shard/中間グループで同一スキーマを共有する）
+>   check.py    ← L1（キー集合完全一致）・L3（ref実在検査）
+>   cli.py      ← --issue <N> [--target <target>] new-entry（--target省略時はframe/root、
+>                  指定時はその対象の葉ノードへ書く）
+>   query.py    ← 既決（ref=宣言駆動アダプタ・dsv2.query再利用）
+> ```
+>
+> **v2の物理配置構造との互換性**：入れ子が不要（対象間の結合を考えなくていい）Issueは、ルート1つ＋
+> 葉N個の2階層＝v2と**同じファイル数・同じパス構造**になる。ただしv3のノードは`scope`/`parent`/
+> `children`/`depends_on`等の新規フィールドを持つため、シリアライズされたバイト列そのものは
+> v2と同一にならない（過大な表現だった「バイト単位で同じ」は撤回し、「物理配置構造が同じ」と訂正する）。
+> 木が要らないIssueへの実務上の影響（ファイルの置き場・個数）は無い。
+>
+> **v2で未決だった`IT-TD`/`IT-TC`の置き場（frame/shardのどちらにも決め打ちできない）が解消する**：
+> 対象2件の組・3件の組など「対象間の結合」は、その境界を正確に覆う`scope`を持つ中間ノードへ
+> エントリ単位で自然に収まる。「対象に帰属できないものはframe（ルート）へ」という既存の判断基準
+> （v2の主対象宣言不採用の理由と同じ）を、frame/shardの二値ではなく木の任意の階層に一貫して適用する。
+>
+> **クラスは分けない（単一クラス・自己再帰）**：RootPlan型／NodePlan型に分ける案も検討したが、
+> 木の深さが可変（1段の場合も3段の場合もある）ため、階層ごとに型を増やすと段数が増えるたびに
+> 型も増えかねない。doc-system-v2が型を増やさず辺（親子）で階層を表現するのと同じ思想を踏襲し、
+> 単一クラス＋`parent`参照＋条件付き必須フィールド（`st_td`/`st_tc`は`parent`が空の時だけ必須。
+> `tracking_status`次第で`tracking_issue`が必須になる既存パターンと同型）とする。
+>
+> **1b/2bが作るADRの置き場は v2 の考え方のまま変更なし**：`<対象>/adr/<issue番号>-<slug>.toml`。
+'''
+recommendation = '''
+frame/shardの二値割り付け（v2の枠組み内での延長線）を原案としていたAIに対し、オーナーが
+「入れ子可能な木構造」という上位の再設計を提示した。AIはこれを受けて単一クラス・自己再帰の
+具体設計（`parent`/`children`/`scope`/条件付き必須フィールド）とクラス分割案との比較・推奨
+（単一クラス）を作成し、オーナーが承認した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-changeplanは木構造で入れ子可能とする
+'''
+owner_verbatim = '''
+ChangePlanは入れ子可能にすればいいのでは？
+1Issue1ChangePlanにしようとするから無理が出る。入れ子にすればいいのでは？
+親と子でクラスを分けてもいいが。。。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

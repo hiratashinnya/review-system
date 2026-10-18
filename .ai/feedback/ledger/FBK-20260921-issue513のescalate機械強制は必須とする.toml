@@ -1,0 +1,52 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-issue513のescalate機械強制は必須とする"
+topic = "Issue513のescalate機械強制は必須とする"
+theme = "実行体制"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI は #513 を「方向A 寄りだが `ask` は判定器を置かずオーナーへ渡す形なので誤検出の害が小さい。
+相対的にマシ」と評価していた。これは弱すぎる評価だった（訂正の実施者＝Claude Code (AI)）。
+
+正しくは——**#513 は新しい判定面を作らない。** `karte` が既に出している `escalate: yes` を無視できなく
+するだけで、`escalate: no` のときは何も起きない。**誤検出が構造的に発生しない。**列挙型ゲートとは別クラスである。
+
+引き金となった実測は PR #509（Issue #431）で、`karte status` が `escalate: yes`（無進捗 F-431-07・
+飽和 Attempt 3,5）を出していたにもかかわらず、主文脈（AI）が「原因が分かっているから実質的な停滞ではない」
+と独自解釈し、オーナーへ承認取り付け型の質問として提示した事象である。
+
+判断内容（移行元）:
+> **#513 は必須。** 機構が弱くて無視されたことへの補強である。
+'''
+recommendation = '''
+AI は #513 を「相対的にマシ」という消極的評価に留めた。オーナーは「機構が弱くて無視された」という
+**原因の性質**から、補強を必須と位置づけた。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-issue513のescalate機械強制は必須とする
+'''
+owner_verbatim = '''
+513は機構が弱くて無視されたから補強するって話だから必須。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

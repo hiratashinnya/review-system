@@ -7,33 +7,16 @@ import datetime
 from . import schema as schema_module
 from .model_constants import ERROR
 from .model_types import Finding
+from .model_version import check_ledger_version
 from .schema_types import DocSpec
 from .schema_values import has_unsafe_ledger_slug_character
-from .schema_version import (
-    LEDGER_SCHEMA_MAJOR, LEDGER_THEME_INTRODUCED_MINOR,
-    parse_ledger_schema, theme_is_available,
-)
 from .slugify_ref import SlugifyReferenceError
 
 def _check_document_identity(spec: DocSpec, data: dict, locus: str, slugify_topic):
     """``schema`` 定数・``id`` 書式・``overridden_role`` 拡張形（L1 の残り）。"""
     findings: list[Finding] = []
     if spec.kind == schema_module.LEDGER:
-        version = parse_ledger_schema(data.get("schema"))
-        if version is None or version[0] != LEDGER_SCHEMA_MAJOR:
-            findings.append(Finding(
-                "L1", ERROR, f"{locus}::schema",
-                f"schema は {spec.schema_const} または同 major の minor でなければならない: "
-                f"{data.get('schema')!r}",
-            ))
-        elif (
-            data.get("theme") in LEDGER_THEME_INTRODUCED_MINOR
-            and not theme_is_available(data.get("schema"), data["theme"])
-        ):
-            findings.append(Finding(
-                "L1", ERROR, f"{locus}::theme",
-                f"theme は schema {data.get('schema')!r} では使用できない",
-            ))
+        findings.extend(check_ledger_version(data, locus, spec.schema_const))
     elif data.get("schema") != spec.schema_const:
         findings.append(Finding(
             "L1", ERROR, f"{locus}::schema",

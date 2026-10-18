@@ -1,0 +1,57 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-adrはコード共有・データは道具ごとに分離する"
+topic = "ADRはコード共有・データは道具ごとに分離する"
+theme = "記録管理"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI が最初に提案した `.ai/adr/`（データ）＋`adr/`（コード）は、無関係な発生源（karte/gitgate/feedback_ledger 等）の設計判断を1箇所に混ぜる形になっていた。これは #537 で直したばかりの SSoT/PR1 の教訓（1台帳1目的）を、AI 自身が早速別の形で繰り返していたことになる。AI は「per-project（review_system/doc_system/harness）」という前段の教訓を適用していたが、「harness」が単一のプロジェクトではなく多数の独立した道具の集合であることを見落としていた。
+
+判断内容（移行元）:
+> ADR は**コード（共有ライブラリ）とデータ（道具ごとに分離）**を分ける。`.ai/adr/` という共有データ壺は作らない。
+>
+> ```
+> adr/                    ← 共有ライブラリ（schema.py/check.py/cli.py）。--root 引数で対象ディレクトリを取る
+> karte/adr/               ← karte 自身の設計判断
+> gitgate/adr/              ← gitgate 自身の設計判断
+> feedback_ledger/adr/       ← feedback_ledger 自身の設計判断
+> issue_start/adr/           ← #371 の新ロール群の設計判断
+> ```
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-.ai-adr-データ-＋adr-コード-を新設する
+> harness 用 ADR を `adr/`（コード）＋`.ai/adr/`（データ）として新設し、harness 全体の設計判断を1つの
+> データ置き場にまとめる。
+**無関係な発生源（karte/gitgate/feedback_ledger 等）の設計判断を1箇所に混ぜた。** #537 で直したばかりの
+SSoT/PR1（1台帳1目的）を、AI 自身が「harness は1プロジェクト」という誤った粒度で早速繰り返していた。
+'''
+recommendation = '''
+AI の原案は harness 全体で1つの ADR データ置き場（`.ai/adr/`）。オーナーが道具単位（karte/gitgate/feedback_ledger/issue_start...）での分離に訂正した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-adrはコード共有・データは道具ごとに分離する
+'''
+owner_verbatim = '''
+.ai/adr/（データ）＋adr/（コード）を新設するの意味がわからん。どういうこと？なぜデータとコードで分ける必要がある？karteはカルテ用、gitgateはgitgate用のADRフォルダを付ければいいでしょ？なぜ違うもののADRを混ぜる？
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

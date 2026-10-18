@@ -9,7 +9,7 @@ import unicodedata
 
 DECISION_POINTS = (
     "triage-order", "scope-split", "implementation", "review-finding",
-    "disposition", "merge", "schedule", "other",
+    "disposition", "merge", "schedule", "other", "policy",
 )
 LEDGER_THEMES = (
     "目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理",
@@ -22,7 +22,7 @@ PIPELINE_OVERRIDDEN_ROLES = (
 )
 OVERRIDDEN_ROLES = LEGACY_OVERRIDDEN_ROLES + PIPELINE_OVERRIDDEN_ROLES
 OVERRIDDEN_ROLE_SKILL_RE = re.compile(r"^skill:[a-z0-9]+(?:-[a-z0-9]+)*$")
-DIVERGENCES = ("reversal", "narrowing", "widening", "deferral", "alternative-means")
+DIVERGENCES = ("reversal", "narrowing", "widening", "deferral", "alternative-means", "approval")
 CONFIDENCES = ("low", "medium", "high")
 TARGET_KINDS = ("contract", "criteria", "governance", "tooling")
 ROUTINGS = ("issue", "node")

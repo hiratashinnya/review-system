@@ -1,0 +1,51 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-工程粒度は要件定義+アーキ設計統合・詳細設計廃止とする"
+topic = "工程粒度は要件定義+アーキ設計統合・詳細設計廃止とする"
+theme = "開発工程"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+オーナーが #371 の位置づけを A-SPICE 準拠のプロセス補強として確定した後、AI が「①A-SPICE を参考に
+プロセスを作る」という大枠の下で、上位工程（要件定義・アーキ設計）と下位工程（詳細設計・実装）を
+どこまで個別のフェーズに分けるかを問うた。既存 #371 は investigation/planning/plan_review/implementation
+の4フェーズ構成だったが、要件定義とアーキ設計を分けるかどうかは規定していなかった。
+
+判断内容（移行元）:
+> #371 のフェーズ構成は、**要件定義とアーキテクチャ設計を1フェーズに統合**する（`change-planner` のまま）。
+> **詳細設計は独立フェーズとして立てない。** 必要な設計判断は実装フェーズに吸収し、**成果物は ADR のみ**と
+> する（シーケンス図等の詳細設計ドキュメントは作らない）。
+'''
+recommendation = '''
+AI は各工程の成果物・レビュー方法を問う形で選択肢を残していた。オーナーが要件定義+アーキ設計の統合と
+詳細設計の廃止（ADR のみへの置換）を直接指定し、AI はこれをそのまま採用して後続の一覧
+（[検証エビは全レベルでTD-TC-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える)）へ反映した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-工程粒度は要件定義+アーキ設計統合・詳細設計廃止とする
+'''
+owner_verbatim = '''
+イメージとしては、要件定義でスコープとアウトオブスコープを決めて、アーキ設計で責務分割やIFとADRと結合検査設計をして、詳細設計(or実装)で素直なTDDとADR作って、V字の右側ではテストエビ作るのとバグ修正ループ回すのを主とする。
+あとは、上位工程を何処まで個別にするかだな。個人的にはchange-plannerみたいに要件定義とアーキ設計は一緒にしてもいいんじゃないかと思ってる。で、詳細設計はそもそも要らない派。作るにしてもシーケンス図じゃなくてADRでええやん(笑)
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

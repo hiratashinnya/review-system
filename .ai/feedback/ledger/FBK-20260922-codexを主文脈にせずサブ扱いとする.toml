@@ -1,0 +1,95 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-codexを主文脈にせずサブ扱いとする"
+topic = "Codexを主文脈にせずサブ扱いとする"
+theme = "実行体制"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+#452 は「Codex の `issue-implementer`/`issue-fixer` を対象 Issue 専用 worktree へ機械束縛する」ため、
+`codex exec` を別 process として起動する repo supervisor を自弁した。退役理由として本文が挙げたのは
+「custom-agent schema に子ごとの作業ディレクトリ指定がなく、親の sandbox と live runtime overrides を
+継承する」こと。**この記述は 2026-09-22 時点の公式ドキュメントでも有効である**
+（`Subagents inherit your current sandbox policy` / `Codex also reapplies the parent turn's live
+runtime overrides when it spawns a child`）。
+
+しかし**この制約は「Codex が主文脈である」ときにだけ効く**。主文脈を Claude Code にすれば、
+implementer/fixer の隔離は Claude Code 側の `isolation: "worktree"` が与えるか、
+`codex exec -C <worktree>` の1引数で足りる。**6,489行は前提ごと不要になる。**
+
+撤去の切り口も実測できれいだった——Codex 用の設定は `managed-entrypoints-v2.json` の
+
+判断内容（移行元）:
+> **Claude Code を主文脈とし、Codex はサブエージェント的な実行者として使う（三択の②）。**
+>
+> - **撤去する**：`issue_start` の Codex supervisor スタック（**6,489行**）とそのテスト（**4,993行**）、
+>   `.codex/hooks/codex-launch-intent-gate.sh`、`managed-entrypoints-v2.json` の
+>   `codex_supervisor_launch` ブロック。
+> - **残す**：`codex-review`（別モデルファミリによる第二意見）と、`codex exec` による作業委譲。
+> - **隔離の実現方式**：Codex 用フックを自弁せず、**`codex exec -C <worktree>` の薄いラッパー**を作り、
+>   起動前にロール別の permission profile へ差し替える（オーナー案・2026-09-22）。
+> - **要設計として持ち越す**：サブエージェント向けロール（`issue-implementer` 等）のフックをどうするか。
+'''
+recommendation = '''
+AI は当初 U-2 を「やめる／続ける」の二択で提示していた。**オーナーが「Claude Code をメインにして
+Codex をサブエージェントチックに使う」という第3の選択肢を提示し、これが採用された。**
+実現方式についても、AI は撤去範囲の実測までしか出しておらず、
+**起動方式（`codex exec -C` の薄いラッパー＋ロール別 permission profile の差し替え）は
+オーナーの案である。**
+
+AI が確認した点として、オーナーの案は Codex の文書化された機構でそのまま実現できる——
+`[permissions.<name>]` の名前付きプロファイル、`extends = ":workspace"`（workspace root 配下の
+`.codex/` と `.git/` を read-only に保つ）、`[permissions.<name>.workspace_roots]`、
+`default_permissions` による選択。**`permissions` 系キーは project-local `.codex/config.toml` で
+無視されるキーの一覧に含まれていない**ため、プロファイル定義自体はリポジトリに版管理できる。
+
+**残る設計事項**（#538 で扱う）
+
+1. **ロール別プロファイルの選択経路**。`--profile` が選ぶのは *config* profile（`$CODEX_HOME/<name>.config.toml`）
+   であり、*permission* profile（`[permissions.<name>]`＋`default_permissions`）とは別概念。
+   しかも `profile` / `profiles` キーは project-local config では**無視される**。
+   ラッパーがどう選択を伝えるか（task-private `CODEX_HOME` / `--config` override / 別経路）は未決。
+2. **project trust が前提になる**。project-local の `.codex/config.toml` と `.codex/hooks.json` は
+   **プロジェクトを trust するまで読み込まれない**。trust していない状態では user/system 層の
+   フックだけが動く。
+3. **フックは置換ではなく加算**。`~/.codex/hooks.json` と `<repo>/.codex/hooks.json` の両方に
+   一致するフックがあれば**両方とも走る**（"Higher-precedence config layers don't replace
+   lower-precedence hooks"）。
+4. **サブエージェント向けロールのフック設計**（オーナー明示の持ち越し事項）。Codex には
+   `SubagentStart` / `SubagentStop` フック（`matcher` は `agent_type` に適用）が在るが、
+   `codex exec` を別 process として呼ぶ経路ではそもそも subagent イベントが発生しない。
+   どの層で権限の非対称（implementer は merge 不可・reviewer は push 不可）を担保するかは未決。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-codexを主文脈にせずサブ扱いとする
+'''
+owner_verbatim = '''
+とりあえず別セッションで調べた範囲では、Codexのネイティブ機能で隔離ワークツリーは実現できるみたいで、452の自弁はサブエージェント扱いする場合は不要になる認識。
+フック周りがCodexのフックが動くようになるから注意が必要。
+後めんどくさいのが452が中途半端にmainに入ってるから、除去すべきかどうか調べないといけない。
+u-2は②で行こう。
+Issueも新規起票してよい。
+②でいくにしても、サブエージェント向け(Issue-imprimenterなど)のフックなどはどうするか設計がいることは注記しといて。
+Codex用フックを自弁するよりはcodex exec -C <worktree>の薄いラッパーを作って、Codex/setting.jsonのpermissions denyとかをロール別で差し替えてからCodexを起動する方が簡便かもね。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

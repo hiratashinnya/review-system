@@ -4,51 +4,12 @@ from __future__ import annotations
 
 from . import schema as schema_module
 from .store import Store
+from .render_entry import _entry_block, _escape_markdown, _fragment
+from .render_history import history_lines
 
 
 class RenderError(ValueError):
     """台帳の置換関係を一意に描画できない。"""
-
-
-def _escape_markdown(value: str) -> str:
-    reserved = set("\\*_{}[]()#+-.!|><&") | {chr(96)}
-    return "".join(f"\\{char}" if char in reserved else char for char in value)
-
-
-def _entry_block(entry, successors: dict[str, list[str]]) -> list[str]:
-    data = entry.data
-    entry_id = entry.document_id
-    lines = [f'<a id="{entry_id.lower()}"></a>', f"### {_escape_markdown(data['topic'])}"]
-    lines.extend((f"- ID: {entry_id}", f"- 発生日: {data['occurred_at'].isoformat()}"))
-    lines.append(f"- テーマ: {data.get('theme', 'なし')}; 判断軸: {data['decision_point']}")
-    lines.extend((
-        f"- 上書き対象ロール: {data['overridden_role']}",
-        f"- divergence: {data['divergence']}",
-        f"- 推論信頼度: {data['confidence_of_inference']}",
-        f"- 記録者: {_escape_markdown(data['recorded_by'])}",
-        f"- 対象資産: {', '.join(_escape_markdown(path) for path in data['affected_assets'])}",
-    ))
-    source_items = []
-    for item in data["source"]:
-        findings = ", ".join(item["finding_ids"]) or "なし"
-        source_items.append(
-            f"#{item['issue']} (PR {item['pr']}; round {item['round']}; findings: {findings})"
-        )
-    lines.append(f"- 出典: {'; '.join(source_items)}")
-    previous = data.get("supersedes", "")
-    if previous:
-        lines.append(f"- 訂正元: [{previous}](#{previous.lower()})")
-    for replacement in successors[entry_id]:
-        lines.append(f"- 訂正先: [{replacement}](#{replacement.lower()})")
-    lines.append("")
-    for key, label in (
-        ("background", "背景"), ("recommendation", "推奨"),
-        ("recommendation_reason", "推奨理由"), ("uncertainty", "不確実性"),
-        ("owner_verbatim", "オーナー逐語"), ("inferred_reason", "推論"),
-    ):
-        narrative = _escape_markdown(data["narrative"][key]).replace("\n", " ")
-        lines.append(f"- {label}: {narrative}")
-    return lines
 
 
 def _successors(entries: list) -> dict[str, list[str]]:
@@ -83,12 +44,22 @@ def render_ledger(store: Store) -> str:
     )
     living = [entry for entry in ordered if not successors[entry.document_id]]
     corrected = [entry for entry in ordered if successors[entry.document_id]]
-    lines = ["# オーナー決定台帳", "", "## 生存決定一覧"]
-    lines.extend(
-        f"- [{_escape_markdown(entry.data['topic'])}](#{entry.document_id.lower()}) "
-        f"({entry.document_id}; テーマ: {entry.data.get('theme', 'なし')})"
-        for entry in reversed(living)
-    )
+    lines = ["# オーナー決定台帳", "", "## 生存決定一覧", ""]
+    try:
+        history = history_lines(store)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise RenderError(str(exc)) from exc
+    themes = sorted({entry.data.get("theme", "なし") for entry in living})
+    for theme in themes:
+        lines.extend((f"### {theme}", ""))
+        lines.extend(
+            f"- [{_escape_markdown(entry.data['topic'])}](#{_fragment(entry.document_id.lower())}) "
+            f"({entry.document_id}; テーマ: {entry.data.get('theme', 'なし')}) "
+            f"— {entry.data['occurred_at'].isoformat()}"
+            + ("・暫定" if entry.data["narrative"]["uncertainty"].startswith("暫定。") else "")
+            for entry in reversed(living) if entry.data.get("theme", "なし") == theme
+        )
+        lines.append("")
     if not living:
         lines.append("- 該当なし")
     lines.extend(("", "## 生存する決定", ""))
@@ -97,4 +68,5 @@ def render_ledger(store: Store) -> str:
     lines.extend(("## 訂正済みの決定", ""))
     for entry in corrected:
         lines.extend(_entry_block(entry, successors))
+    lines.extend(history)
     return "\n".join(lines).rstrip() + "\n"

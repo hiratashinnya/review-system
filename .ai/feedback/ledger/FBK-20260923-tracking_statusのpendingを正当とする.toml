@@ -1,0 +1,72 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-tracking_statusのpendingを正当とする"
+topic = "tracking_statusのpendingを正当とする"
+theme = "開発工程"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+「決めたが実行を忘れる」対策（#540）の当初案は `tracking_issue`（番号）／`no_tracking_reason`（理由）の
+**二択**で、両方空なら書き込みを拒否する設計だった。この二択には「Issueは要ると決めたが番号はまだ無い」
+という状態を保存する場所が無く、**まさにこの穴へ本セッション中に実際に2件落ちた**——
+[リポジトリの目的はAI駆動開発ノウハウ獲得とする](#fbk-20260921-リポジトリの目的はai駆動開発ノウハウ獲得とする)
+と[マージ権限をAIから剥がしsettings.jsonへ移す](#fbk-20260923-マージ権限をaiから剥がしsettings.jsonへ移す)
+が、決定から Issue 化（#541／#542）まで数ターンの空白を作った。
+
+オーナーの最初の質問（「Issue切る予定(まだ切ってない)はどう表現されて、どう刈り取るのか」）に対し、
+AI は「対策はまだ実装されていない」という実装状況の話として答えてしまい、**質問の核心（設計そのものに
+この状態の表現が無い）を1往復取り違えた。**
+
+判断内容（移行元）:
+> ADR の `[decision]` に `tracking_status`（enum：`filed`／`pending`／`not_needed`）を必須フィールドとして
+> 追加する。**`pending`（Issueが要ると決めたが、まだ起票していない）を正当な保存可能状態とする。**
+>
+> - `filed` → `tracking_issue`（番号）が必須
+> - `pending` → 追加フィールド不要。この状態自体が正当
+> - `not_needed` → `no_tracking_reason`（理由）が必須
+>
+> あわせて、`pending` の書込直後に `systemMessage` で通知する PostToolUse hook（`karte-notify.sh` と同型）
+> を Scope に含める。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260923-tracking_issueとreasonの二択のみとする
+> ADR の `decision` テーブルに `tracking_issue`（Issue番号）または `no_tracking_reason`（追跡不要の理由）の
+> いずれかを必須とし、両方空なら書き込みを拒否する。
+**二値の設計に、第三の正当な状態（「Issueは要ると決めたが、まだ起票していない」）を保存する場所が
+無かった。** オーナーの最初の質問はまさにこの状態の表現方法を聞いていたが、AI は「対策の実装状況」の
+質問として誤読し、1往復のやり取りを無駄にした。この穴自体、本セッション中に実際に2件（D-001・
+マージ権限決定）の Issue 化漏れとして顕在化した。
+'''
+recommendation = '''
+AI の原案（`tracking_issue`／`no_tracking_reason` の二択）には「決めたが未着手」の状態を保存する
+スロットが無かった。オーナーの再質問を受け、AI が `tracking_status` の3値 enum へ設計を訂正し、
+併せて Out of scope としていた PostToolUse 通知を Scope へ格上げした。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-tracking_statusにpendingを正当な状態とする
+'''
+owner_verbatim = '''
+話が通じねぇなぁ。
+対策はこうしますって決めたんだろ？
+で、Issue切る予定(まだ切ってない)はどう表現されて、どう刈り取るのか質問してんだけど伝わってる？
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

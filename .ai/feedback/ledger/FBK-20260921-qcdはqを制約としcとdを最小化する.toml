@@ -1,0 +1,53 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-qcdはqを制約としcとdを最小化する"
+topic = "QCDはQを制約としCとDを最小化する"
+theme = "目的・評価"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+オーナーが「ハーネスによって QCD を最大化できているか」を測定軸として提示した。
+QCD は同時最大化できない（トレードオフ関係にある）ため、AI が「転用先が車載 ECU である以上、
+Q は最大化の対象ではなく制約である」として制約付き最適化の形に直した。
+
+この形により2つが同時に排除される——**(a) Q を上限なく追求して C/D を犠牲にする**（点検時点の状態。
+制約であるべきものを目的関数にしている）／**(b) Q を落として C を下げる**（そのノウハウは転用先で
+使えないため学習成果にならない）。
+
+判断内容（移行元）:
+```
+minimize   C（コスト）, D（リードタイム）
+subject to Q >= 閾値      ← 下げられない下限。ここを削って C/D を稼ぐことは禁止
+```
+'''
+recommendation = '''
+オーナー原案「QCD を最大化」に対し、AI が「Q は制約、C/D が目的関数」へ定式化し直し、オーナーが承認した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-qcdはqを制約としcとdを最小化する
+'''
+owner_verbatim = '''
+が、学習の成果をどう測る？個人的にはハーネスによってQCDを最大化出来ているか？を測るのがよいと思う。
+定式化はそれでよい。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

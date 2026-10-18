@@ -1,0 +1,75 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-検証エビは全レベルでtd-tc-trを揃える"
+topic = "検証エビは全レベルでTD-TC-TRを揃える"
+theme = "検証・追跡"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = "FBK-20260924-1a1bと2a2bのレビューを分離し無条件化する"
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+前々バージョン（v4・§B参照）は、1a/2a行を「1b/2bとまとめてレビュー」、1b行の`plan-reviewer`を
+「risk gate該当時」の条件付きとしていた（Opus 5.5サブエージェントの点検で発見・v5で訂正済み）。
+前バージョン（v5・§B参照）はレビュー方法の訂正のみで、`ST-TC`/`IT-TC`/`UT-TD`を欠いたまま
+`ST-TR`/`IT-TR`/`UT-TR`だけが3aに現れる非対称な鎖になっていた——同じOpus 5.5サブエージェントの点検が
+指摘し、オーナーが「モデルの欠落だと思う」と裁定した。本エントリでTD→TC→TRの鎖を全レベルで揃えた。
+
+table構造・成果物名・検査レベルプレフィックス・レビュー方法（v1〜v5で確定した部分）は変更なし。
+変更は成果物列への`ST-TC`/`IT-TC`（1a）・`UT-TD`（2a）の追加のみ。
+
+判断内容（移行元）:
+| # | 工程 | 成果物 | レビュー方法 | 担当ロール |
+|---|---|---|---|---|
+| **1a** | 要件定義+アーキ設計：検証設計を先に作る | 新設 `VerificationDesign`：**`ST-TD`**（AC・受け入れ基準）＋**`IT-TD`**（結合検査設計）＋**`ST-TC`・`IT-TC`**（システム/結合レベルのテストケース。実装前に確定できるため設計時にあわせて作成する。`UT-TC` と異なり Red/Green 運用ではなく「実装完了後に実行する検証手順」として書く） | **`plan-reviewer` が単独でレビューする（無条件）。1b の着手前に完了させる** | `ac-designer`（新設・1a専任） |
+| **1b** | 要件定義+アーキ設計：本体 | `ChangePlan`（`selected_solution`＝スコープ＋責務分割を含む解決方針・`OOS`・`interfaces`・`invariants`・`failure_behavior`・`work_units DAG`。**`AC・test mapping` と `rationale` は 1a の `VerificationDesign`／ADR へ移したため除く**）＋ **ADR**（`phase=要件定義+アーキ設計`。`input_refs` で 1a の `VerificationDesign` を参照） | **`plan-reviewer` が 1a↔1b の整合＋既存決定との矛盾を検証する（無条件。risk gate 条件は撤廃）。1a のレビュー合格後に着手する** | `change-planner`（既存）→`plan-reviewer`（既存） |
+| **2a** | 実装：テスト設計を先に作る | **`UT-TD`**（単体テスト設計。review_system 既存 `test-strategy` の `tests/designs/` に相当）＋**`UT-TC`**（1a の `IT-TD` の対象範囲内で、単体レベルのテストケース。Red 状態の実コードとして存在） | **`pr-reviewer` が単独でレビューする（無条件）。2b の着手前に完了させる** | `test-writer`（新設・2a専任） |
+| **2b** | 実装：本体 | 実装コード（Green）＋必要なら軽量 **ADR**（`phase=実装`。シーケンス図等は作らない） | `pr-reviewer`（既存・無条件） | `issue-implementer`（既存） |
+| **3a** | V字右側：テストエビ | **`ST-TR`／`IT-TR`／`UT-TR`**（各レベルの TC 実行結果。review_system 側は既存 `test-strategy` の UT/e2e 運用を流用——**IT 水準は形式的な区分としては無いが、`test_apply.py` 等の一部テストが実質的に結合レベルを既に含む**。harness 側の**道具ごとの置き場**は `<tool>/verify/` に確定済み＝[harnessテストエビの道具ごとの置き場を確定する](#fbk-20260924-harnessテストエビの道具ごとの置き場を確定する)） | 既存の成績書運用 | 既存資産の流用 |
+| **3b** | V字右側：バグ修正ループ | `karte` の診断→是正 | `issue-fixer`→`pr-reviewer` 再レビュー（既存） | 既存資産の流用 |
+
+「詳細設計」は独立行として立てない（2b に吸収、成果物は ADR のみ）。**1a/2a のレビューと 1b/2b の
+レビューは別 dispatch とする**（コスト：レビュー dispatch が 1a/1b/2a/2b の計4回に増える。#371 の
+非目標「軽量 Issue への強制回避」とのトレードオフをオーナーが受け入れた）。
+'''
+recommendation = '''
+欠落の発見はAI（Opus 5.5サブエージェント経由）。「意図的な省略か欠落か」の判断をオーナーへ仰いだところ
+「欠落」と裁定されたため、AIが埋め方（1aへST-TC/IT-TCを追加・2aへUT-TDを追加）を設計した。
+
+
+**現行受渡し（2026-10-17）**: [FBK-20261017-工程別worktreeへ同一branchを継承する](../../.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml)
+により、各role専用isolated worktreeへ同branchのremote exact OIDを継承する。
+初回1aのみnew-branch、後続roleは前作者自身のcommit/pushと完了receipt、終了、collect/release完了を
+主文脈が確認してからadoptする。各作者自身のcommit/push、必須独立review、owner承認を維持する。
+以下の2026-09-23追記・権限表の同一worktree表現は当時の履歴であり、現行worktree受渡しは新決定を優先する。
+
+**追記（2026-09-23、履歴）：各行の受け渡し方式**——1a〜2bは`tmp/_handoff/`を経由しない。1a
+（`ac-designer`）が`gitgate new-branch`でworktreeを新規に作り、1b/2a/2b（`change-planner`/
+`test-writer`/`issue-implementer`）は順に`gitgate adopt-branch`で同一worktreeへ合流する。
+各ロールは自分の成果物をworktree内の永続パスへ直接Writeし、自分でcommit+pushする（詳細・
+権限表は[成果物ロールは各自pushし直接コミットする](#fbk-20260923-成果物ロールは各自pushし直接コミットする)）。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-検証エビは全レベルでtd-tc-trを揃える
+'''
+owner_verbatim = '''
+ドリフト⑦はモデルの欠落だとおもう。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

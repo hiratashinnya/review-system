@@ -11,7 +11,7 @@
     "supersedes", "source", "narrative"
   ],
   "properties": {
-    "schema": {"type": "string", "pattern": "^feedback-ledger/v1(?:\\.(?:0|1|2))?$"},
+    "schema": {"type": "string", "pattern": "^feedback-ledger/v1(?:\\.(?:0|1|2|3))?$"},
     "id": {"type": "string", "pattern": "^FBK-[0-9]{8}-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+(?:-[^-\\s/\\\\:*?\"<>|`'()\\[\\]{}（）「」【】〔〕]+)*$"},
     "topic": {"type": "string", "minLength": 1, "maxLength": 30},
     "theme": {"enum": ["目的・評価", "開発工程", "実行体制", "品質原則", "検証・追跡", "AI判定", "記録管理"]},
@@ -19,7 +19,7 @@
     "decision_point": {
       "enum": [
         "triage-order", "scope-split", "implementation", "review-finding",
-        "disposition", "merge", "schedule", "other"
+        "disposition", "merge", "schedule", "other", "policy"
       ]
     },
     "overridden_role": {
@@ -27,7 +27,7 @@
       "pattern": "^(?:main-thread|issue-implementer|issue-fixer|pr-reviewer|issue-investigator|ac-designer|change-planner|plan-reviewer|test-writer|adviser|skill:[a-z0-9]+(?:-[a-z0-9]+)*)$"
     },
     "divergence": {
-      "enum": ["reversal", "narrowing", "widening", "deferral", "alternative-means"]
+      "enum": ["reversal", "narrowing", "widening", "deferral", "alternative-means", "approval"]
     },
     "confidence_of_inference": {"enum": ["low", "medium", "high"]},
     "recorded_by": {"type": "string", "minLength": 1},
@@ -109,6 +109,20 @@
           "overridden_role": {
             "pattern": "^(?:main-thread|issue-implementer|issue-fixer|pr-reviewer|skill:[a-z0-9]+(?:-[a-z0-9]+)*)$"
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema": {"enum": ["feedback-ledger/v1", "feedback-ledger/v1.0", "feedback-ledger/v1.1", "feedback-ledger/v1.2"]}
+        },
+        "required": ["schema"]
+      },
+      "then": {
+        "properties": {
+          "decision_point": {"not": {"const": "policy"}},
+          "divergence": {"not": {"const": "approval"}}
         }
       }
     }

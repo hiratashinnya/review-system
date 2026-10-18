@@ -1,0 +1,71 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-決定台帳のidはfbk日付スラグとする"
+topic = "決定台帳のidはFBK日付スラグとする"
+theme = "記録管理"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+初版は `D-0xx`（生存）／`D-1xx`（訂正済み）の通番を使っていた。**状態を id に埋めたため、決定が
+訂正された瞬間に id が変わった**——`Q の下限` は §A の `D-003` から §B の `D-101` へ振り直され、
+過去のチャット・Issue・PR から `D-003` を指していた参照はサイレントに別物を指すようになった。
+`D-013` は欠番で、3桁ゼロ埋めなのに実体は17件だった。
+
+`feedback_ledger` は最初から `FBK-YYYYMMDD-<slug>` 形式を持っており（`feedback_ledger/schema.py:44`
+`LEDGER_ID_RE`）、生存／置換を台帳に保存せず `supersedes` チェーンから毎回導出する設計だった
+（`feedback_ledger/README.md`「台帳側に `status` を保存しない（PR5）」）。**つまり「非活性化で id を
+変えない」は既存設計で構造的に保証されており、新体系を作る必要はなかった。**
+
+```
+$ grep -n "SLUG\|LEDGER_ID_RE" feedback_ledger/schema.py
+43:SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+44:LEDGER_ID_RE = re.compile(rf"^FBK-(?P<date>\d{8})-(?P<slug>{SLUG})$")
+```
+
+判断内容（移行元）:
+> **id は `FBK-<YYYYMMDD>-<slug>`。`slug` は `トピック` を `doc-system-v2/slugify.py`（唯一実装）で
+> 正規化したもの。**
+>
+> - **id は不変。訂正・置換されても変えない。** §A→§B の移動は `置換` ポインタからの導出であって、
+>   id の意味ではない。
+> - **トピックは30字以内で「何を決めたか」を述語まで書く。** 論点名（「Q の下限」）ではなく
+>   決定文（「Qの下限は流出欠陥率1%とする」）にする。
+> - 既存17件（`D-001`〜`D-014` / `D-101`〜`D-104`）はこの規則へ振り直す。
+'''
+recommendation = '''
+AI の原案が `D-0xx` / `D-1xx` の通番だった。**状態を id に埋めるという設計誤りをオーナーが指摘した。**
+④の指示により、`doc-system-v2/slugify.py` が「唯一実装・独自再実装を禁じる」と明記していること、
+`dsv2/cli.py:45-56` が動的 import で再利用する前例があることを確認し、同じ手を採る方針とした。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-決定台帳のidはfbk日付スラグとする
+'''
+owner_verbatim = '''
+あと、id体系がクソだから見直せ。
+決定事項が実質2桁なうえに非活性化するときにid変わるとか使い方なんにも想像してないだろ？
+①日付とトピックからidは作れ
+②非活性化時にidを変えるな
+③トピックは30文字以下で何を決めたか分かるようにかけ。例えばd-001は『リポジトリの目的は〇〇とする』と言うようにかけ。
+④特殊文字の扱いはdoc_systemのノードのパス作るときの正規化？を参考にしろ。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

@@ -1,0 +1,48 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-議論の永続化先をauditディレクトリとする"
+topic = "議論の永続化先をauditディレクトリとする"
+theme = "記録管理"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+原資料の決定内容と元承認の経緯を以下に保存する。
+
+判断内容（移行元）:
+> 議論の結果をファイルに永続化しながら進める。置き場は `audit/2026-09-21-pipeline-redesign/`。
+
+`audit/README.md` の「置く / 置かない」は「処置計画・実施予定は Issue で管理する」としている。
+本台帳が置くのは**決定とその根拠**であり、処置計画・実施予定は従来どおり Issue 側に置く。
+点検（定点観測）ではなく議論の決定ログであるため既存の点検記録とは性格が異なるが、
+「リポジトリ運営そのものを対象にした記録」という `audit/` の主旨には合致するため同ディレクトリに置く。
+'''
+recommendation = '''
+置き場の選定は AI が判断した（`audit/` 配下・命名規約に従う）。オーナーは置き場を指定していない。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-議論の永続化先をauditディレクトリとする
+'''
+owner_verbatim = '''
+まず、議論の結果をファイルに永続化しながらやってくれ。決まったことを後で分かるように。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''
