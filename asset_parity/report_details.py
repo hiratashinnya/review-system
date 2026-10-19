@@ -19,12 +19,12 @@ def render_details(report: Report) -> list[str]:
             lines.append(f"  {name}: missing from {TREE_LABELS[tree]}")
 
     stale_details = [
-        (row.asset.name, tree, row.cells[tree].stale)
+        (row.asset.name, tree, stale)
         for row in report.rows
         for tree in ALL_TREES
         if row.cells[tree].status == STATUS_PRESENT
-        and row.cells[tree].stale is not None
-        and row.cells[tree].stale.flagged
+        and (stale := row.cells[tree].stale) is not None
+        and stale.flagged
     ]
     if stale_details:
         lines.append("")
@@ -33,4 +33,13 @@ def render_details(report: Report) -> list[str]:
             for reason in stale.flag_reasons:
                 lines.append(f"  {name} @ {TREE_LABELS[tree]}: {reason}")
 
+    misplaced = [
+        (row.asset.name, tree, cell.reason)
+        for row in report.rows for tree, cell in row.cells.items()
+        if cell.reason and "misplaced files:" in cell.reason
+    ]
+    if misplaced:
+        lines.extend(["", "Misplaced files (not accepted as mirrors):"])
+        lines.extend(f"  {name} @ {TREE_LABELS[tree]}: {reason}"
+                     for name, tree, reason in misplaced)
     return lines

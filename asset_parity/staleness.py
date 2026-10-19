@@ -38,6 +38,11 @@ def compare(
         raise TypeError("missing required argument: mirror_path")
     if root is _UNSET:
         raise TypeError("missing required argument: root")
+    if not all(isinstance(value, Path) for value in (parity_seed_path, mirror_path, root)):
+        raise TypeError("parity_seed_path, mirror_path and root must be Path values")
+    assert isinstance(parity_seed_path, Path)
+    assert isinstance(mirror_path, Path)
+    assert isinstance(root, Path)
     c_epoch = commit_epoch_fn(parity_seed_path, root)
     m_epoch = commit_epoch_fn(mirror_path, root)
     reasons: list[str] = []

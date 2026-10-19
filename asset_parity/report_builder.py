@@ -4,6 +4,7 @@ from pathlib import Path
 
 from . import staleness as staleness_mod
 from .exceptions import is_exempt
+from .misplacement import misplaced_reason
 from .inventory import scan_parity_seeds
 from .report_model import (Cell, AssetRow, Report, STATUS_NA, STATUS_EXEMPT,
                            STATUS_PRESENT, STATUS_MISSING)
@@ -33,8 +34,9 @@ def build_report(
             if not candidates:
                 cells[tree] = Cell(
                     status=STATUS_EXEMPT,
-                    reason="structural: inlined per asset-lateral-deploy routing "
-                           "(user-invocable: false has no discrete Copilot file)",
+                    reason=misplaced_reason(asset, tree, root,
+                        "structural: inlined per asset-lateral-deploy routing "
+                        "(user-invocable: false has no discrete Copilot file)"),
                 )
                 continue
 
@@ -51,9 +53,11 @@ def build_report(
 
             reason = is_exempt_fn(asset.name, asset.kind, tree)
             if reason is not None:
-                cells[tree] = Cell(status=STATUS_EXEMPT, reason=reason)
+                cells[tree] = Cell(status=STATUS_EXEMPT,
+                                   reason=misplaced_reason(asset, tree, root, reason))
             else:
-                cells[tree] = Cell(status=STATUS_MISSING)
+                cells[tree] = Cell(status=STATUS_MISSING,
+                                   reason=misplaced_reason(asset, tree, root, None))
 
         rows.append(AssetRow(asset=asset, cells=cells))
 

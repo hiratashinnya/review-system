@@ -3,8 +3,8 @@
 copilot_paths.py が「Copilot パスの単一定義」を名乗れるのは、他モジュールが `.github` を
 直書きしていない間だけである。名乗りと実態の食い違い（パス変更で直す箇所が散らばる）を
 ここで機械的に固定する。
-限界：個々の文字列定数だけを照合し、定数式（".github" + "/skills" 等）は評価しない。区切り直後が
-限定した文字範囲の外で始まる要素や、大文字小文字違い（.GitHub 等）も検出しない（#637 で扱う）。
+定数文字列の加算も評価し、大小文字と区切り直後の文字範囲を広く検出する。
+動的変数・関数呼び出しは評価せず、散文の閉じ括弧・空白はパス開始文字としない。
 単一定義の完全な保証ではなく、直書き防止の補助である。
 """
 
@@ -30,10 +30,10 @@ PACKAGE_DIR = Path(asset_parity.__file__).resolve().parent
 DEFINITION_MODULE = "copilot_paths.py"
 
 
-# `.github` as a path component: bare, or followed by one or more `/` or `\` (repeated separators
-# still name the directory) and a path char (incl. `{`/`%` placeholders) or the string end.
-# Prose like `（.github/）` does not match: its separator is followed by a non-path char.
-_GITHUB_PATH_COMPONENT = re.compile(r"(?<![\w.])\.github(?:[/\\]+[\w.*{%-]|[/\\]*$)")
+# A closing prose delimiter or whitespace immediately after a slash is not a path.
+_GITHUB_PATH_COMPONENT = re.compile(
+    r'(?<![\w.])\.github(?:[/\\]+[^\s)\]}>）】」』、。]|[/\\]*$)', re.IGNORECASE
+)
 _DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 
@@ -47,11 +47,22 @@ def _github_path_literal_lines(source: str) -> list[int]:
     """Lines of string literals (docstrings excluded) that spell a `.github` path, whole or part."""
     tree = ast.parse(source)
     docstrings = _docstring_constants(tree)
-    return sorted(
+    def constant_string(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = constant_string(node.left), constant_string(node.right)
+            if left is not None and right is not None:
+                return left + right
+        return None
+
+    return sorted({
         node.lineno for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        and id(node) not in docstrings and _GITHUB_PATH_COMPONENT.search(node.value)
-    )
+        if isinstance(node, (ast.Constant, ast.BinOp))
+        and id(node) not in docstrings
+        and (value := constant_string(node)) is not None
+        and _GITHUB_PATH_COMPONENT.search(value)
+    })
 
 
 def _github_dir_literals(path: Path) -> list[int]:

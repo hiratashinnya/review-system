@@ -23,10 +23,10 @@ def scan_parity_seeds(root: Path) -> list[Asset]:
         if fm is None:
             continue
         mode = MODE_SKILL
-        if str(fm.get("disable-model-invocation", "")).strip().lower() == "true":
-            mode = MODE_ORCHESTRATOR
-        elif str(fm.get("user-invocable", "")).strip().lower() == "false":
+        if str(fm.get("user-invocable", "")).strip().lower() == "false":
             mode = MODE_PRINCIPLE
+        elif str(fm.get("disable-model-invocation", "")).strip().lower() == "true":
+            mode = MODE_ORCHESTRATOR
         assets.append(Asset(name=skill_md.parent.name, kind=SKILL, mode=mode,
                             parity_seed_path=skill_md))
 
