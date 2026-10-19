@@ -13,7 +13,7 @@ from feedback_ledger.schema_values import (
 )
 from feedback_ledger.schema_version import LEDGER_CURRENT_SCHEMA
 from feedback_ledger.store import load_store
-from test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
+from tests.unit.test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
 
 
 class LedgerRoleContractTests(FeedbackLedgerTestCase):
