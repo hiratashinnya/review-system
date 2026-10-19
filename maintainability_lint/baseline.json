@@ -1,6 +1,5 @@
 {
   "comment_blocks": {
-    "asset_parity/inventory.py|998c6bde094f50a8": 1,
     "blocker_gate/cli.py|69d5e23f20f7e2b0": 1,
     "blocker_gate/cli.py|bd43183928df572d": 1,
     "blocker_gate/github.py|15ce663b5f9cd5d9": 1,
@@ -59,18 +58,6 @@
     ".codex/mcp/claude_review/server.py": {
       "line_count": 441,
       "sha256": "8d03f2fc48283a1c0224c0dfe10b5171ce3b85618ce63836abf6653be239ebbd"
-    },
-    "asset_parity/inventory.py": {
-      "line_count": 158,
-      "sha256": "c31552ac4c1837e84d2facdae57d73eca107522df5868bbdab83072df3bdfe70"
-    },
-    "asset_parity/report.py": {
-      "line_count": 259,
-      "sha256": "0b13860d86c40781f60e5a7738960e6a914af3ecb12aa7b04ae22d57cfccae35"
-    },
-    "asset_parity/staleness.py": {
-      "line_count": 190,
-      "sha256": "f8686f451cb418896c50584941248758730e1eff85a26ac198b2482cbeba3150"
     },
     "blocker_gate/cli.py": {
       "line_count": 177,

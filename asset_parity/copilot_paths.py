@@ -58,7 +58,7 @@ class InlineSlotPath(type(Path())):
     that happens to sit at that path would then count as the mirror. This one answers no.
     """
 
-    def is_file(self) -> bool:
+    def is_file(self, *, follow_symlinks: bool = True) -> bool:
         return False
 
 
@@ -70,4 +70,4 @@ def inline_slot_path(name: str, root: Path) -> Path:
     marker exists (or an exemption is registered); neither a plain
     `.github/skills/<name>/SKILL.md` nor anything on disk at the slot can stand in for it.
     """
-    return InlineSlotPath(copilot_instructions_path(root), f"principles-source:{name}")
+    return InlineSlotPath(copilot_instructions_path(root), f"principles-source-{name}")

@@ -45,6 +45,7 @@ class TestCompare(unittest.TestCase):
                                    commit_epoch_fn=lambda p, r: None)
         self.assertTrue(result.flagged)
         self.assertTrue(any("size ratio" in r for r in result.flag_reasons))
+        assert result.size_ratio is not None
         self.assertAlmostEqual(result.size_ratio, 10.0, places=1)
 
     def test_no_git_history_is_fail_soft_not_error(self):
