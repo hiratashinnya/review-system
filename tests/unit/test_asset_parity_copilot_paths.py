@@ -32,7 +32,7 @@ DEFINITION_MODULE = "copilot_paths.py"
 
 # A closing prose delimiter or whitespace immediately after a slash is not a path.
 _GITHUB_PATH_COMPONENT = re.compile(
-    r'(?<![\w.])\.github(?:[/\\]+[^\s)\]}>）】」』、。]|[/\\]*$)', re.IGNORECASE
+    r'(?<![\w.])\.github(?:[/\\]+[^/\\\s)\]}>）】」』、。]|[/\\]*$)', re.IGNORECASE
 )
 _DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
