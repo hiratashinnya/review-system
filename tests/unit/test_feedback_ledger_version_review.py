@@ -10,7 +10,7 @@ from feedback_ledger.schema import LEDGER_SPEC
 from feedback_ledger.schema_version import (
     LEDGER_CURRENT_SCHEMA, LEDGER_SCHEMA_PATTERN, parse_ledger_schema,
 )
-from test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
+from tests.unit.test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
 
 
 class LedgerVersionReviewTests(FeedbackLedgerTestCase):

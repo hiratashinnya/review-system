@@ -7,7 +7,7 @@ from feedback_ledger.cli import EXIT_OK
 from feedback_ledger.model import ERROR, check_document_identity, normalize_document
 from feedback_ledger.schema import DECISION_POINTS, DIVERGENCES, LEDGER_SPEC
 from feedback_ledger.schema_version import LEDGER_CURRENT_SCHEMA
-from test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
+from tests.unit.test_feedback_ledger import ENTRY_ID, FeedbackLedgerTestCase, ledger_data
 
 
 class PolicyCaptureTests(FeedbackLedgerTestCase):

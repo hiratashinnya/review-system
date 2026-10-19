@@ -86,7 +86,9 @@ phase_role_permissions.pyがWRITE_ROLESへgitgate commit/pushを限定。readonl
 
 > 検証エビデンスの`ST`/`IT`/`UT`各レベルでTD→TC→TRの鎖が揃っている（`ST-TC`/`IT-TC`/`UT-TD`の欠落がない）。
 
-issue_envelope/verify/designs/{ST,IT,UT}-TD-371-envelope.mdがTCパスと各TRを参照。ST/IT-TCはtests/issue_envelope/test_acceptance.py、test_graph.py/test_trace.pyに実体。TRはlocal契約検証と明示。
+issue_envelope/verify/designs/{ST,IT,UT}-TD-371-envelope.mdがTCパスと各TRを参照。ST/IT-TCはtests/issue_envelope_tests/test_acceptance.py、test_graph.py/test_trace.pyに実体。TRはlocal契約検証と明示。
+
+テストは `tests/issue_envelope_tests/` へ移した。`tests/issue_envelope/` は `python3 -m unittest discover tests` でソースpackage `issue_envelope` をshadowするためである。既存TRに記録された移転前のコマンドは実行時の履歴として保持する。
 
 ### AC13 — explicitly-delegated
 

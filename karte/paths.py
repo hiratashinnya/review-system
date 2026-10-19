@@ -1,6 +1,9 @@
-"""カルテ置き場（``tmp/_karte/``）のパス解決とガード。
+"""カルテ置き場（``tmp/_karte/``）のパス解決・ガード・書込 API。
 
-公開 API を保つ互換 facade。実装は責務ごとの内部 module に分割している。
+書込は再検査を維持し、最終要素の検査と open を ``O_NOFOLLOW`` 付き ``os.open`` で行う。
+これは最終要素だけを保護するため、親要素の symlink 拒否は ``resolve_within_repo`` など既存
+パスガードに依存する。
+この module は公開 API を保つ facade で、実装は責務ごとの内部 module に分割している。
 """
 
 from .path_errors import (

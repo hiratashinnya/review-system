@@ -2,7 +2,7 @@
 import hashlib
 from issue_envelope.store import write
 from issue_envelope.model import normalize
-from tests.issue_envelope.fixtures import artifact
+from tests.issue_envelope_tests.fixtures import artifact
 from tests.unit.codex_worktree_exec_support import git
 
 

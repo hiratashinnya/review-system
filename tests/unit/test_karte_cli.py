@@ -15,8 +15,10 @@
 import argparse
 import ast
 import contextlib
+import errno
 import io
 import json
+import os
 import re
 import inspect
 import shutil
@@ -1879,38 +1881,124 @@ class TestNormalizeTextCoversAllScripts(unittest.TestCase):
 
 
 class TestAtomicWriteDocstringStatesItsLimits(unittest.TestCase):
-    """K-04: docstring が実装の保証を上回っていないこと（過大な保証表現を持たない）。
+    """K-04: 最終要素の open を symlink 非追跡にする保証を固定する。"""
 
-    ``Path.write_text`` / ``open("a")`` は symlink を追跡するため、``is_symlink()`` 検査と
-    open の間に差し替えられれば追従する window が残る。「TOCTOU 対策」と書くと、原子的な
-    保証があるかのように読める——実情（best-effort・厳密化は Issue #318）を書く。
-    """
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="karte-nofollow-"))
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
 
-    def test_write_text_atomic_docstring_is_honest(self):
+    def test_write_docstring_states_final_component_boundary(self):
         doc = paths.write_text_atomic.__doc__
-        # 「TOCTOU 対策」を**保証として**掲げない（是正前は「（TOCTOU 対策・…）」だった）。
-        self.assertNotIn("（TOCTOU 対策", doc)
-        self.assertIn("「TOCTOU 対策」と呼べる強さを持たない", doc)
-        self.assertIn("best-effort", doc)
-        self.assertIn("window", doc)
-        self.assertIn("Issue #318", doc)
         self.assertIn("O_NOFOLLOW", doc)
-        self.assertIn("_reverify_before_delete", doc)  # より厳密な比較対象を残す
+        self.assertIn("親要素", doc)
+        self.assertNotIn("Issue #318", doc)
+        self.assertIn("O_NOFOLLOW", paths.__doc__)
+        self.assertIn("親要素", paths.__doc__)
 
-    def test_append_text_docstring_is_honest(self):
+    def test_append_docstring_states_final_component_boundary(self):
         doc = paths.append_text.__doc__
-        self.assertNotIn("（TOCTOU 対策", doc)
-        self.assertIn("best-effort", doc)
-        self.assertIn("window", doc)
-        self.assertIn("Issue #318", doc)
+        self.assertIn("O_NOFOLLOW", doc)
+        self.assertIn("親要素", doc)
+        self.assertNotIn("Issue #318", doc)
 
-    def test_reverification_still_rejects_symlinks(self):
-        """保証範囲を狭めるのではなく、正直に書くだけ（検査自体は残す）。"""
-        root = Path(tempfile.mkdtemp(prefix="karte-symlink-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
-        target = root / "real.md"
+    def test_write_race_to_symlink_cannot_modify_target(self):
+        path = self.root / "karte.md"
+        path.write_text("old\n", encoding="utf-8")
+        target = self.root / "external.md"
         target.write_text("x\n", encoding="utf-8")
-        link = root / "link.md"
+        tmp_path = path.with_name(path.name + ".tmp")
+        real_open = os.open
+
+        def swap_before_open(filename, flags, mode=0o777):
+            if Path(filename) == tmp_path:
+                self.assertTrue(flags & os.O_WRONLY)
+                self.assertTrue(flags & os.O_CREAT)
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                self.assertTrue(flags & os.O_EXCL)
+                tmp_path.symlink_to(target)
+            return real_open(filename, flags, mode)
+
+        with mock.patch("karte.path_io.os.open", side_effect=swap_before_open):
+            with self.assertRaises(paths.KartePathError):
+                paths.write_text_atomic(path, "new\n")
+        self.assertEqual(target.read_text(encoding="utf-8"), "x\n")
+        self.assertTrue(tmp_path.is_symlink())
+
+    def test_append_race_to_symlink_cannot_modify_target(self):
+        path = self.root / "karte.md"
+        path.write_text("old\n", encoding="utf-8")
+        target = self.root / "external.md"
+        target.write_text("x\n", encoding="utf-8")
+        real_open = os.open
+
+        def swap_before_open(filename, flags, mode=0o777):
+            if Path(filename) == path:
+                self.assertTrue(flags & os.O_WRONLY)
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                self.assertTrue(flags & os.O_APPEND)
+                path.unlink()
+                path.symlink_to(target)
+            return real_open(filename, flags, mode)
+
+        with mock.patch("karte.path_io.os.open", side_effect=swap_before_open):
+            with self.assertRaises(paths.KartePathError):
+                paths.append_text(path, "new\n")
+        self.assertEqual(target.read_text(encoding="utf-8"), "x\n")
+
+    def test_open_errno_is_mapped_and_cli_returns_documented_error(self):
+        path = self.root / "karte.md"
+        path.write_text("old\n", encoding="utf-8")
+        for error_number in (errno.ELOOP, errno.EEXIST):
+            with self.subTest(errno=error_number):
+                with mock.patch(
+                    "karte.path_io.os.open",
+                    side_effect=OSError(error_number, "injected"),
+                ):
+                    with self.assertRaises(paths.KartePathError):
+                        paths.write_text_atomic(path, "new\n")
+        command = cli._fail_close(lambda _args: paths.write_text_atomic(path, "new\n"))
+        with mock.patch(
+            "karte.path_io.os.open", side_effect=OSError(errno.ELOOP, "injected")
+        ):
+            with contextlib.redirect_stderr(io.StringIO()):
+                code = command(None)
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertIn(code, {0, 2, 3, 4})
+
+    def test_failed_write_closes_descriptor_and_removes_temp_file(self):
+        path = self.root / "karte.md"
+        path.write_text("old\n", encoding="utf-8")
+        tmp_path = path.with_name(path.name + ".tmp")
+        real_fdopen = os.fdopen
+
+        class FailingWriter:
+            def __init__(self, handle):
+                self.handle = handle
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.handle.close()
+
+            def write(self, _text):
+                raise OSError("injected write failure")
+
+        with mock.patch(
+            "karte.path_io.os.fdopen",
+            side_effect=lambda fd, *args, **kwargs: FailingWriter(
+                real_fdopen(fd, *args, **kwargs)
+            ),
+        ):
+            with self.assertRaisesRegex(OSError, "injected write failure"):
+                paths.write_text_atomic(path, "new\n")
+        self.assertFalse(tmp_path.exists())
+        self.assertEqual(path.read_text(encoding="utf-8"), "old\n")
+
+    def test_reverification_still_rejects_existing_symlinks(self):
+        target = self.root / "real.md"
+        target.write_text("x\n", encoding="utf-8")
+        link = self.root / "link.md"
         try:
             link.symlink_to(target)
         except (OSError, NotImplementedError):  # pragma: no cover - symlink 不可環境
