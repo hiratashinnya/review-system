@@ -60,7 +60,7 @@ def _github_path_literal_lines(source: str) -> list[int]:
         if id(node) in docstrings:
             return
         value = constant_string(node)
-        if value is not None:
+        if isinstance(node, ast.expr) and value is not None:
             if _GITHUB_PATH_COMPONENT.search(value):
                 yield node.lineno
         else:
