@@ -339,8 +339,7 @@ Codex 固有の外部連携・レビュー機能はこの決定の対象では�
 
 `asset_parity` は `.agents/skills/issue-pipeline` と3つの Codex agents を intentional non-mirror として記録する。
 `.claude/tailoring-registry.md` が判断の一次情報源で、`asset_parity/exceptions.py` は機械検査用の転記である。
-Codex 側の issue-pipeline divergence は retired copy により解消する一方、`.github/skills/issue-pipeline`
-にある Copilot 側の divergence は Issue #468 で引き続き追跡する。
+Issue #468 では `.github/skills/issue-pipeline` を薄い Copilot wrapper に整理した。専用 pipeline Agents が未移植である事実、Copilot 固有の権限境界、platform の読み込み場所は wrapper に残し、役割・順序・owner decision・STOP 契約などの重複記述は共通本文へ集約する。`asset_parity` が示す heuristic staleness は、wrapper が共通本文への pointer と Copilot 固有制約を保つ限り受容する。
 
 ## 着手前の更新と Issue 構成変更の承認の根拠（移設元：「① 処置順の原案 → オーナー承認」）
 
