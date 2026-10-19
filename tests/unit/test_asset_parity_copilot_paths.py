@@ -56,13 +56,18 @@ def _github_path_literal_lines(source: str) -> list[int]:
                 return left + right
         return None
 
-    return sorted({
-        node.lineno for node in ast.walk(tree)
-        if isinstance(node, (ast.Constant, ast.BinOp))
-        and id(node) not in docstrings
-        and (value := constant_string(node)) is not None
-        and _GITHUB_PATH_COMPONENT.search(value)
-    })
+    def matching_lines(node: ast.AST):
+        if id(node) in docstrings:
+            return
+        value = constant_string(node)
+        if value is not None:
+            if _GITHUB_PATH_COMPONENT.search(value):
+                yield node.lineno
+        else:
+            for child in ast.iter_child_nodes(node):
+                yield from matching_lines(child)
+
+    return sorted(set(matching_lines(tree)))
 
 
 def _github_dir_literals(path: Path) -> list[int]:
@@ -168,6 +173,34 @@ class TestGithubPathScanner(unittest.TestCase):
             '    return ".github/prompts"\n'
         )
         self.assertEqual(_github_path_literal_lines(source), [4])
+
+    def test_constant_additions_are_matched_only_after_completion(self):
+        expressions = [
+            '".git" + "hub" + "usercontent/x"',
+            '".git" + "hub/" + "）"',
+            '".git" + "hub/）"',
+            '".github" + "usercontent/x"',
+            '".github/" + "）"',
+            '".git" + ("hub/" + "）")',
+            '"x" + ".github/skills"',
+        ]
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                self.assertEqual(_github_path_literal_lines("a = " + expression), [])
+
+    def test_constant_additions_and_dynamic_fragments_keep_path_detection(self):
+        expressions = [
+            '".git" + "hub/" + "skills"',
+            '".git" + ("hub/" + "skills")',
+            '".git" + "hub" + "/"',
+            '".git" + "hub/" + name',
+            'name + (".git" + "hub/skills")',
+            'f"{root}/.github/{kind}"',
+            'f"{root}/.github/" + name',
+        ]
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                self.assertEqual(_github_path_literal_lines("a = " + expression), [1])
 
 
 if __name__ == "__main__":
