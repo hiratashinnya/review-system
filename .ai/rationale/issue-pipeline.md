@@ -131,7 +131,7 @@
 |---|---|---|---|
 | handoff 回収後の worktree 解放 | 決まる。台帳 status と回収成否で判定できる | `collect-worktree` → `worktree-release` | verb 化済み。主文脈の通常手順から削除 |
 | 未回収／孤児 worktree の後始末 | 通常経路は決まる。回収不能を諦める判断だけは理由を要する | residue deny が `collect-worktree`／`worktree-release` を案内。`worktree-forget` は理由必須 | 機械判定とオーナー判断を分離したまま維持 |
-| PR branch への切替 | branch・repository・expected OID から決まる | 稼働中の Claude isolated `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない。Codex fixer transport は現行 unavailable |
+| PR branch への切替 | branch・repository・expected OID から決まる | 稼働中の Claude isolated `issue-fixer` 内の `adopt-branch` | verb 化済み。メイン worktree は切り替えない。Codex fixer transport は Issue #603 で退役し、現行 transport はない |
 | メイン worktree を `main` へ戻す | 現行構成では発生しない | FR-W7（主文脈の checkout を不変にする） | 手順を廃止。復帰 verb は作らない |
 | 「②-c を経由したか」の分岐 | 経路の記憶は不要 | 所有台帳の status、handoff の存在、SubagentStop、次 dispatch の residue deny | 状態から導出。②-c／②-d の二重記述を削除済み |
 
@@ -140,12 +140,10 @@
 gated role の allowlist へは付与せず、実行主体を非 gated の主文脈と停止フックに限定する。この非対称は
 「allowlist への登録漏れ」ではなく、操作主体を狭める意図した deny である。
 
-Issue #452 後の Codex implementer/fixer transport は `availability: unavailable` である。既存 trusted
-issue-start hook が dispatch を `ISSUE_START_TRANSPORT_UNAVAILABLE` で、新しい all-tool binding hook が
-対象 role の tool 実行を `CODEX_BINDING_TRANSPORT_UNAVAILABLE` でそれぞれ fail-close する。Codex の
-`prepare` は将来 transport 用の prepare-only ledger 記録であり、dispatch 成功や canonical lifecycle の
-開始を表さない。したがって owner-approved Codex worker fallback で `adopt-branch` 相当の作業を行っても、
-正規 fixer transport の起動実績や canonical remediation lifecycle の証拠には数えない。
+Issue #452 後に記録した Codex implementer/fixer の `availability: unavailable`、Codex 用 issue-start
+hook、および all-tool binding hook は Issue #603 で退役した。以下は退役前の構成を記す履歴である。
+Codex は issue-pipeline の main context ではなく execution actor である（Issue #538）。Codex の
+`prepare` / binding contract を復活させず、Claude Code の managed dispatch を正規経路として維持する。
 
 > **退役済み**：次の段落が採用した repo supervisor 方式は Issue #538 の PR-A で退役した。以下は退役前の履歴であり現行の決定ではない。退役の経緯は [`codex-supervisor-retirement-538.md`](codex-supervisor-retirement-538.md) を参照する。
 
@@ -181,12 +179,10 @@ F-374-01 は open の残条件として維持する。
 
 ## Codex 版に worktree 解放手順が不要な理由（移設元：②-d）
 
-> **失効済みの履歴（2026-08-27・Issue #452 / PR #453）**：以下は Issue #360 時点の
-> Codex transport が稼働していた期間に限る説明である。Issue #452 で Codex implementer/fixer は
-> `availability: unavailable` へ縮退し、現在は既存 trusted issue-start hook が
-> `ISSUE_START_TRANSPORT_UNAVAILABLE`、all-tool binding hook が
-> `CODEX_BINDING_TRANSPORT_UNAVAILABLE` で二段 fail-close する。したがって現在の Codex には、
-> 「共有 worktree で agent が稼働するので解放手順が不要」という適用可能な経路自体がない。
+> **失効済みの履歴（Issue #452 / PR #453、Issue #603）**：以下は Issue #360 時点の Codex
+> transport が稼働していた期間に限る説明である。Issue #452 後に追加した Codex issue-start hook と
+> all-tool binding hook も Issue #603 で退役した。現在の Codex 資産に issue-pipeline の role contract はなく、
+> 「共有 worktree で agent が稼働するので解放手順が不要」という説明は適用されない。
 
   > **Issue #360 当時、Codex 版（`.agents/skills/issue-pipeline/SKILL.md`）には本項が不要だった理由**：
   > 当時の `spawn_agent` には isolation パラメータが無く worktree 分離が行われなかったため、
@@ -208,11 +204,11 @@ F-374-01 は open の残条件として維持する。
 - **`isolation_only` 区分の manifest 宣言は Claude transport のみだった**。isolation が無い harness へ
   isolation 要求を持ち込まない、という #350 の方針に基づく当時の契約だった。
 
-Issue #452 後は上記3点を現行 Codex lifecycle へ適用しない。manifest には将来 transport の shape を
-固定する Codex entry があるが `availability: unavailable` であり、`prepare` が作る entry も
-prepare-only で dispatch 成功を表さない。owner-approved worker fallback が共有 worktree で
-`adopt-branch` 相当の作業をしても、正規 Codex fixer transport や canonical remediation lifecycle の
-実績には数えない。現在到達可能な canonical isolation lifecycle は Claude transport だけである。
+Issue #452 後から Issue #603 で退役するまで、上記3点は当時の Codex lifecycle に適用されていた。
+Codex manifest entry と `prepare` による entry 作成も当時の構成であり、Issue #603 で削除された。
+owner-approved worker fallback が共有 worktree で `adopt-branch` 相当の作業をしても、正規 Codex fixer
+transport や canonical remediation lifecycle の実績には数えない。現在到達可能な canonical isolation
+lifecycle は Claude transport だけである。
 
 ## 「実害の定義」節の残スコープ（移設元：実害の定義とエスカレーション条件・末尾）
 
@@ -306,7 +302,8 @@ prepare-only で dispatch 成功を表さない。owner-approved worker fallback
 
 `spawn_agent`用prepare bindingは、公式custom agent schemaにper-subagent cwdがなく親workspaceを継承する
 事実から退役した。Codex本体の上流改修は利用者側の候補から恒久的に外す。manifest Codex entry、TTL/refresh、
-collect/release、all-tool binding hookを削除し、既知roleはissue-start gate最早期で常時denyする。
+collect/release、all-tool binding hookを削除し、既知roleをissue-start gateでdenyする設計は Issue #603 で退役した。
+現在の設計では Codex 向け issue-pipeline agent / skill を archive し、Claude Code を唯一の main context とする。
 
 supervisorは作り直さず、owner launch specとattemptを単一transactionで記録する形へ縮小する。full MCP broker、
 EXECUTE allowlist、command毎bwrap、空procfs、feature catalog完全一致は不採用。direct Codex commandとdata-plane
@@ -320,6 +317,29 @@ PR #509／Issue #431 では、`karte` が返した `escalate: yes` を主文脈�
 加えるか、生の判定は通知機構に委ねて主文脈には判断材料となる選択肢と推奨だけを述べさせるかであった。前者は
 言い換えのたびに同じ歪みを再発させうるため採らず、後者を採用した。これにより、verdict・未解消 finding・
 escalate 理由は AI の再解釈を挟まず届け、主文脈はオーナーが選ぶ論点の整理に専念する。
+
+## Issue #603: Codex main-context 資産の退役
+
+Issue #538 の確定は Claude Code を issue-pipeline の main context、Codex を execution actor とする。
+main context の仕事は Issue 順序の判断を取り次ぎ、実装／レビュー結果を統括することなので、その役割の
+Codex 用 skill・custom agents を並行維持すると異なる orchestration contract が現行のように見える。
+Codex 固有の外部連携・レビュー機能はこの決定の対象ではなく、`codex-review`、`.codex/mcp/claude_review`
+および agent-command-gate の共通化も変更しない。
+
+| Asset | Disposition | Rationale |
+|---|---|---|
+| `.codex/agents/issue-implementer.toml` | `archive/issue-603-codex-main-context-assets/.codex/agents/issue-implementer.toml` へ移動 | Codex が main context ではなく、Claude Code の implementer role が正規契約。 |
+| `.codex/agents/issue-fixer.toml` | 同 archive の `.codex/agents/issue-fixer.toml` へ移動 | fixer は Claude Code の review/remediation lifecycle に属する。Codex prepare/binding transport は再導入しない。 |
+| `.codex/agents/pr-reviewer.toml` | 同 archive の `.codex/agents/pr-reviewer.toml` へ移動 | issue-pipeline の reviewer role は Claude Code の専用 reviewer へ一本化する。`codex-review` は別機能なので維持する。 |
+| `.agents/skills/issue-pipeline/SKILL.md` | 同 archive の `.agents/skills/issue-pipeline/SKILL.md` へ移動 | Codex main-context orchestration を説明する skill は不要。Copilot skill は別の platform として維持する。 |
+| `.codex/hooks/issue-start-gate.sh` | 同 archive の `.codex/hooks/issue-start-gate.sh` へ移動 | `spawn_agent` の issue-start 登録をやめる。Claude Code の managed dispatch gate は維持する。 |
+| `.codex/hooks.json` spawn matcher | registration のみ削除 | issue-start hook が登録されなくなっても Bash command gate と ADR notification hook は引き続き必要。 |
+| `issue_start/gate_dispatch.py` Codex role-deny branch | 削除 | issue-start parser は Claude managed dispatch を担当し、Codex custom agent lifecycle を実装しない。 |
+| `tests/unit/test_issue_start_gate.py` Codex-only tests / skips | 削除 | retired hook/parser/ledger route をテスト契約として残さない。Claude managed dispatch と Claude field-mixing validation は維持する。 |
+
+`asset_parity` は `.agents/skills/issue-pipeline` と3つの Codex agents を intentional non-mirror として記録する。
+`.claude/tailoring-registry.md` が判断の一次情報源で、`asset_parity/exceptions.py` は機械検査用の転記である。
+Issue #468 では `.github/skills/issue-pipeline` を薄い Copilot wrapper に整理した。専用 pipeline Agents が未移植である事実、Copilot 固有の権限境界、platform の読み込み場所は wrapper に残し、役割・順序・owner decision・STOP 契約などの重複記述は共通本文へ集約する。`asset_parity` が示す heuristic staleness は、wrapper が共通本文への pointer と Copilot 固有制約を保つ限り受容する。
 
 ## 着手前の更新と Issue 構成変更の承認の根拠（移設元：「① 処置順の原案 → オーナー承認」）
 

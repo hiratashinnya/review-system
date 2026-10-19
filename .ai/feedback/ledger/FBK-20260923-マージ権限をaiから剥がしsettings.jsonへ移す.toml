@@ -1,0 +1,53 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260923-マージ権限をaiから剥がしsettings.jsonへ移す"
+topic = "マージ権限をAIから剥がしsettings.jsonへ移す"
+theme = "実行体制"
+occurred_at = 2026-09-23
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+`pr_merge_gate` の分類器が、read-only の複合コマンドに対し `CLASSIFIER_UNKNOWN`／`RECLASSIFIED_NOT_MERGE` を本セッション中に複数回誤爆した。§C-2 の実測（再発欠陥21件中14件＝67%が列挙型の機構に由来）とも整合する。`.codex/config.toml` には `merge_pull_request`／`enable_auto_merge` をコネクタレベルで既に無効化している先例があった。
+
+判断内容（移行元）:
+> merge 権限を**どの AI ロール・主文脈からも剥がし**、`.claude/settings.json` の `permissions.deny`（既存の curl/wget 等と同じネイティブ機構）へ拒否パターンを追加する。実際の merge は**オーナーが手動で行う**。
+>
+> - `pr_merge_gate/classifier.py`（51.1K・本セッションで複数回誤爆）は不要になる。
+> - ブロッカー再検証部分（`gate.py`/`audit.py`）は、オーナーが手動 merge する前に読む**検証済みレポート**へ役割を変える。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-pr-reviewerのmerge権限を剥がし主文脈が機構的ゲート付きで実行する
+> `pr-reviewer` の merge 権限を剥がし、主文脈が `pr_merge_gate` の機構的なクリーン状態検証を条件に
+> merge を実行する。
+**主文脈という別の AI ロールへ merge 権限を横移動しただけで、「AI が merge 権限を持つ」という構造自体は
+残った。** また既存の `pr_merge_gate/classifier.py` を存続させる前提だったが、この分類器自体が
+本セッション中に複数回誤爆しており、温存に値しなかった。
+'''
+recommendation = '''
+AI は前段で「`pr-reviewer` から merge 権限を剥がし主文脈が実行する」という中間案を出した。オーナーがさらに踏み込み、「AI には誰にも渡さず、ネイティブな許可機構で止める」という、より根本的な解に訂正した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260923-マージ権限をaiから剥がしsettings.jsonへ移す
+'''
+owner_verbatim = '''
+マージ権限はそもそもAIに渡さないほうがいいのでは？そしたらsetting.jsonで設定できるようになるから自弁してバグ祭りになってる現状から脱却できるのでは？なんかセキュリティ周りは自弁するのは地雷だと思ってる。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

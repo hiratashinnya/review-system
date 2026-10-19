@@ -5,10 +5,7 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
 (per the issue #155 task brief: "check how the repo already documents such decisions
 ... before inventing a new mechanism"). The source of truth is
 `.claude/tailoring-registry.md`'s trailing bullet notes; each entry's reason string
-below cites the decision it transcribes (the registry holds the full rationale).
-
-  個々のエントリの経緯と詳細な根拠は `.ai/rationale/asset-parity-exceptions.md` に移設済み
-  （判定の正本は `.claude/tailoring-registry.md`、各理由文字列は下の `_*` 定数）。
+below cites the decision it transcribes (the registry holds the full rationale; per-entry history: `.ai/rationale/asset-parity-exceptions.md`).
 
 Exemptions are recorded per ``(name, kind, tree)``, never as a blanket per-asset
 exemption: most entries are scoped to the GitHub Copilot (`.github/`) tree because
@@ -26,7 +23,7 @@ from __future__ import annotations
 import dataclasses
 
 from .inventory import AGENT, SKILL
-from .trees import AGENTS_DIR, GITHUB
+from .trees import AGENTS_DIR, CODEX, GITHUB
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,16 +39,18 @@ _ENV_DEPENDENT = (
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_PIPELINE_AGENT_COPILOT = (
-    "issue-implementer/pr-reviewer は gh CLI／Claude Code フック（agent-command-gate.sh）／"
+    "Issue工程ロールは gh CLI／Claude Code フック（agent-command-gate.sh）／"
     "Task 委譲／bloom-model-tier に依存するため Copilot（.github/）には等価物なし"
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_FIXER_COPILOT = (
     "Issue 運用パイプラインの是正専任ロール（Issue #308）。親パイプラインと同じ理由で Copilot"
     "（.github/）には等価物が無く、さらに karte CLI と PreToolUse フック（agent-command-gate.sh の"
-    "GATED_ROLES / PYTHON_MODULES_BY_ROLE）の両方に依存するため Copilot 側では契約が成立しない。"
-    "Codex CLI へは移植済み（.claude/tailoring-registry.md）"
+    "GATED_ROLES / PYTHON_MODULES_BY_ROLE）の両方に依存するため Copilot 側では契約が成立しない"
+    "（.claude/tailoring-registry.md）"
 )
+_ISSUE_PIPELINE_CODEX_RETIRED = "Issue #603 / #538: Codex は execution actor。agent は archive し、Claude Code role を正本とする（.claude/tailoring-registry.md / .ai/rationale/issue-pipeline.md）"
+_ISSUE_PIPELINE_SKILL_RETIRED = "Issue #603 / #538: Codex は main context ではない。skill を archive し、Copilot 差分は Issue #468 で追跡（.claude/tailoring-registry.md / .ai/rationale/issue-pipeline.md）"
 _CODEX_REVIEW_ENV = (
     "codex CLI／ChatGPT ログイン／~/.codex/sessions に依存する Linux/WSL 専用の第二意見"
     "レビュー委譲。全外部ツリー非移植（Codex CLI を Codex 自身の skill から呼ぶ再帰性が不自然・"
@@ -62,6 +61,11 @@ _GH_CREATE_ISSUE_COPILOT = (
     "作らない。将来 Copilot を対象化する時に形式・tool・対話境界を再評価する"
     "（.claude/tailoring-registry.md）"
 )
+_GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY = (
+    "Claude Code 専用のサブエージェント（Issue #632）。SubagentStop フックによる"
+    "チャット直送が Claude Code の hook 機構に依存するため他 PF へは作らない。"
+    "Codex は .agents/skills の wrapper が共通本文を直接実行する（.claude/tailoring-registry.md）"
+)
 _SILENT_FAILURE_DIAGNOSIS_COPILOT = (
     "user-invocable: false の共有リファレンスだが Copilot へは非移植（オーナー再確定 2026-10-12）。"
     "copilot-instructions.md へも本文を展開しないため inlined には当たらない"
@@ -71,14 +75,21 @@ _SILENT_FAILURE_DIAGNOSIS_COPILOT = (
 EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("agy-delegate", SKILL, GITHUB, _ENV_DEPENDENT),
     Exemption("agy-delegate", AGENT, GITHUB, _ENV_DEPENDENT),
-    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
-    Exemption("issue-fixer", AGENT, GITHUB, _ISSUE_FIXER_COPILOT),
-    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT),
+    Exemption("issue-implementer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), Exemption("issue-implementer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("issue-fixer", AGENT, GITHUB, _ISSUE_FIXER_COPILOT), Exemption("issue-fixer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("pr-reviewer", AGENT, GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), Exemption("pr-reviewer", AGENT, CODEX, _ISSUE_PIPELINE_CODEX_RETIRED),
+    Exemption("issue-pipeline", SKILL, AGENTS_DIR, _ISSUE_PIPELINE_SKILL_RETIRED),
     Exemption("codex-review", SKILL, GITHUB, _CODEX_REVIEW_ENV),
     Exemption("codex-review", SKILL, AGENTS_DIR, _CODEX_REVIEW_ENV),
     Exemption("gh-create-issue", SKILL, GITHUB, _GH_CREATE_ISSUE_COPILOT),
+    Exemption("gh-create-issue", AGENT, GITHUB, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
+    Exemption("gh-create-issue", AGENT, CODEX, _GH_CREATE_ISSUE_AGENT_CLAUDE_ONLY),
     Exemption("silent-failure-diagnosis", SKILL, GITHUB, _SILENT_FAILURE_DIAGNOSIS_COPILOT),
 )
+
+EXEMPTIONS += tuple(Exemption(role, AGENT, tree, reason)
+    for role in ("issue-investigator", "ac-designer", "change-planner", "plan-reviewer", "test-writer", "adviser")
+    for tree, reason in ((GITHUB, _ISSUE_PIPELINE_AGENT_COPILOT), (CODEX, _ISSUE_PIPELINE_CODEX_RETIRED)))
 
 
 def is_exempt(name: str, kind: str, tree: str) -> str | None:

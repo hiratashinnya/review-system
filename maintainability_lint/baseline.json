@@ -1,6 +1,5 @@
 {
   "comment_blocks": {
-    "asset_parity/inventory.py|998c6bde094f50a8": 1,
     "blocker_gate/cli.py|69d5e23f20f7e2b0": 1,
     "blocker_gate/cli.py|bd43183928df572d": 1,
     "blocker_gate/github.py|15ce663b5f9cd5d9": 1,
@@ -20,11 +19,6 @@
     "gitgate/worktree.py|326070b1ad4ba265": 1,
     "gitgate/worktree.py|abc15b92f96f2e58": 1,
     "gitgate/worktree.py|e239a628536ab723": 1,
-    "guidance_sync/sync.py|6ab5f6f353105223": 1,
-    "issue_start/gate.py|12bc212ccc7e5c44": 1,
-    "issue_start/gate.py|9d410ee2541b9c16": 1,
-    "issue_start/gate.py|e6c48da09edc97ca": 1,
-    "issue_start/hook.py|dfde17372239572d": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -58,35 +52,12 @@
         "GitHubBranchClient"
       ],
       "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
-    },
-    "issue_start/gate.py": {
-      "data": [
-        "IsolationOnlyAck",
-        "IssueStartRequest"
-      ],
-      "logic": [
-        "IssueStartGitHubCollector",
-        "SnapshotIssueMetadata"
-      ],
-      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
     }
   },
   "module_lines": {
     ".codex/mcp/claude_review/server.py": {
       "line_count": 441,
       "sha256": "8d03f2fc48283a1c0224c0dfe10b5171ce3b85618ce63836abf6653be239ebbd"
-    },
-    "asset_parity/inventory.py": {
-      "line_count": 158,
-      "sha256": "c31552ac4c1837e84d2facdae57d73eca107522df5868bbdab83072df3bdfe70"
-    },
-    "asset_parity/report.py": {
-      "line_count": 259,
-      "sha256": "0b13860d86c40781f60e5a7738960e6a914af3ecb12aa7b04ae22d57cfccae35"
-    },
-    "asset_parity/staleness.py": {
-      "line_count": 190,
-      "sha256": "f8686f451cb418896c50584941248758730e1eff85a26ac198b2482cbeba3150"
     },
     "blocker_gate/cli.py": {
       "line_count": 177,
@@ -105,8 +76,8 @@
       "sha256": "23f8042a5ba395d3da087a86491772f0d06bd817495aa2845fd1db25ba04fa0e"
     },
     "blocker_gate/github.py": {
-      "line_count": 1117,
-      "sha256": "44770bf971e18c7bfafdaa6b2cb4d8bbd145f52fff95848b9e90603f18988770"
+      "line_count": 1082,
+      "sha256": "71a009e5a3f3c14d829f4d47d1391d67542af13d6b0a01b1751f03c97d7bfca3"
     },
     "blocker_gate/model.py": {
       "line_count": 297,
@@ -128,25 +99,13 @@
       "line_count": 352,
       "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
     },
-    "ci_anomaly_report/collector.py": {
-      "line_count": 234,
-      "sha256": "73305ad7e807f327716552832aed584c05175ea5d546ae40c0c0d0a26b575980"
-    },
     "feedback_ledger/check.py": {
       "line_count": 454,
       "sha256": "714bc4a2e38fea2cab0c738bf41be7286e1197d77f6db259c9baa040473ece34"
     },
-    "feedback_ledger/paths.py": {
-      "line_count": 200,
-      "sha256": "9114ae010d6fbe8fbaf0df21d7230c2c22187d4e5554d74872cf9cd498f20e60"
-    },
     "feedback_ledger/status.py": {
       "line_count": 168,
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
-    },
-    "feedback_ledger/store.py": {
-      "line_count": 164,
-      "sha256": "f8e1d54fcf53a673866b38e1675a38847b2bd09dbf9466d3d92068e3ae0a6d79"
     },
     "gitgate/adopt.py": {
       "line_count": 532,
@@ -160,29 +119,17 @@
       "line_count": 1649,
       "sha256": "51c8f86f9b3a55ba53383097c77f74e554621de7ae5a97986d981a945f16f3f5"
     },
-    "guidance_sync/sync.py": {
-      "line_count": 288,
-      "sha256": "6a3959070322590775600d9dae18244293b12aefde3d21c0d70c4d5fbf9efd41"
-    },
     "issue_start/durable_lock.py": {
       "line_count": 129,
       "sha256": "c3ef570f41c46b4ffb3dfb38a1c3f866d03c28caa0948ea4e1f566b3ad667d2a"
-    },
-    "issue_start/gate.py": {
-      "line_count": 1285,
-      "sha256": "e7e8eb637ca2f3dfa3b50add20ce5a16838b04063773279af21ae30660915bdd"
-    },
-    "issue_start/hook.py": {
-      "line_count": 190,
-      "sha256": "52860efc8a9c3d872e1bcb6cfdf416a8bbf07ff5a93fc4b5ee5970c19db8c923"
     },
     "issue_start/session_start.py": {
       "line_count": 118,
       "sha256": "e761567f049a13e0de2b6f2744a0f1be89fde9e8d5c5cdc29f1344c81a7b385c"
     },
     "issue_start/subagent_hooks.py": {
-      "line_count": 1032,
-      "sha256": "dff0c9586f3d5ed25f9cba09e68a3187db864f6771d04bbcc2bd5b15f5906e4b"
+      "line_count": 962,
+      "sha256": "2af1b62060dcd5a1f4b593b118adef1db40d0bdb3d37fd91b61b89f5bf3878a2"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,
@@ -195,10 +142,6 @@
     "karte/model.py": {
       "line_count": 1306,
       "sha256": "de8cac640fdbf3796d3496e9319c0a0e423e975e3fd53df735b669e934103eef"
-    },
-    "karte/paths.py": {
-      "line_count": 317,
-      "sha256": "d7858b3a6bff916f9134664a342f851ae4392bfd54f78735bdb9ad9465a4b49e"
     },
     "karte/similarity.py": {
       "line_count": 241,

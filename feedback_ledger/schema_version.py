@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import re
 
+from .schema_values import PIPELINE_OVERRIDDEN_ROLES
+
 LEDGER_SCHEMA_MAJOR = 1
-LEDGER_CURRENT_MINOR = 1
+LEDGER_CURRENT_MINOR = 3
+LEDGER_PIPELINE_ROLE_MINOR = 2
+LEDGER_POLICY_MINOR = 3
 LEDGER_SCHEMA_PREFIX = f"feedback-ledger/v{LEDGER_SCHEMA_MAJOR}"
 LEDGER_CURRENT_SCHEMA = f"{LEDGER_SCHEMA_PREFIX}.{LEDGER_CURRENT_MINOR}"
 LEDGER_THEME_INTRODUCED_MINOR = {
@@ -54,4 +58,12 @@ def theme_is_available(value: object, theme: object) -> bool:
         and version[0] == LEDGER_SCHEMA_MAJOR
         and introduced is not None
         and version[1] >= introduced
+    )
+
+
+def role_is_available(schema: object, role: str) -> bool:
+    """Keep newly introduced pipeline roles out of older ledger versions."""
+    version = parse_ledger_schema(schema)
+    return version is not None and (
+        role not in PIPELINE_OVERRIDDEN_ROLES or version[1] >= LEDGER_PIPELINE_ROLE_MINOR
     )

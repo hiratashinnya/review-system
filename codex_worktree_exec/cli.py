@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from .arguments import parse_request
+from .artifact_binding import verify_artifact_binding
 from .errors import CodexExecError
 from .invocation import build_codex_argv, compose_prompt
 from .launcher import run_codex
@@ -33,6 +34,7 @@ def _launch(
     worktree = bind_worktree(request.worktree, cwd)
     verify_profile_pinned(worktree, request.role)
     verify_project_trusted(worktree, codex_home(environ))
+    verify_artifact_binding(request, cwd, worktree)
     body = read_prompt(request.prompt_file, cwd, worktree)
     output_file = resolve_output_target(request.output_file, cwd, worktree)
     return run_codex(

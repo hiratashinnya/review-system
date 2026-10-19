@@ -1,0 +1,49 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-フェーズ内はテスト設計先行のフラクタル構造とする"
+topic = "フェーズ内はテスト設計先行のフラクタル構造とする"
+theme = "検証・追跡"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+オーナーの元発言「TDD の要素を取り入れる」は実装フェーズの Red/Green サイクルとも読めたが、AI が確認
+したところオーナーの意図は各工程内の順序（検証観点を先に固定する）だった。この順序は、#371 自身で
+見つけた AC 妥当性問題（解決策を先に作ると、それに合わせて AC を後付けで歪める確証バイアスが起きる）
+への直接の対策になる。
+
+判断内容（移行元）:
+> 各フェーズ内で、**先に検証設計（AC・テストケース）を作りレビューしてから、本体の成果物を作りレビューする**。
+> TDD の要素は「実装時に赤緑を回す」ことではなく、**各工程で右側（検証観点）を先に固定してから左側
+> （解決策）を作る**という順序として工程設計に取り込む。
+'''
+recommendation = '''
+AI の当初の解釈は実装時 TDD（Red/Green）への言及だった。オーナーが「工程内の順序」という正しい解釈を
+明示し、AI はこれを確認・採用した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-フェーズ内はテスト設計先行のフラクタル構造とする
+'''
+owner_verbatim = '''
+tddは実装時にやるというより、各工程の右側の設計やってから左側をやるイメージのつもり。で、工程内でテスト設計のレビューしてから実際の工程成果物作ってレビューするイメージ。そしたらV&Vで検証できると思う。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

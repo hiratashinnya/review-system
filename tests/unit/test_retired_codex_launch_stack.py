@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from feedback_ledger.schema_values import LEDGER_ID_RE
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SELF = Path(__file__).resolve().relative_to(ROOT).as_posix()
@@ -53,7 +55,10 @@ def _tracked_files() -> list[str]:
 
 
 def _is_active(relative: str) -> bool:
-    return relative != SELF and not relative.startswith(HISTORY_ROOTS)
+    path = Path(relative)
+    ledger_record = (path.parent.as_posix() == ".ai/feedback/ledger"
+                     and path.suffix == ".toml" and LEDGER_ID_RE.fullmatch(path.stem))
+    return relative != SELF and not relative.startswith(HISTORY_ROOTS) and not ledger_record
 
 
 def _retired_module_and_hook_names_in(relative: str) -> list[str]:

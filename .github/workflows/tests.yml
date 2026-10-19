@@ -6,35 +6,27 @@ name: tests
 # could merge into `main` undetected (see #339: PR #335 merged commit 575680f, which
 # broke `main`, without ever running a test on the PR itself).
 #
-# Relationship to pages.yml (deliberately kept as two separate workflows, not one
-# reusable/shared job — recorded per this issue's AC "重複実行・役割分担について判断根拠"):
-#   - pages.yml's job is Pages *deployment* (push:main only). It happens to run tests
-#     first (coverage-wrapped, because it needs the coverage data to build the HTML it
-#     deploys), but that is a means to its own end, not a PR gate. This change leaves
-#     pages.yml completely untouched: main pushes keep exactly the detection capability
-#     they had before (AC: "current detection capability is not reduced").
-#   - This workflow's only job is to be an always-on PR status check, as cheap and
-#     isolated as possible. It runs the same suite bare (no coverage wrapping, since
-#     nothing here consumes a coverage report) via `python3 -m unittest discover -s
-#     tests/unit`, and requests no Pages-related permissions (`contents: read` only, vs.
-#     pages.yml's `pages: write`/`id-token: write`).
-#   - A `workflow_call`-based common test job was considered and rejected: the two
-#     workflows have different triggers (`pull_request` vs `push: branches: [main]`),
-#     different permission needs, and different downstream steps (deploy vs none) — DRYing
-#     out ~15 lines of `run:` would mean touching the already-working deploy pipeline to
-#     save avoiding a rare double-run (a PR's `pull_request` event and a same-commit
-#     `push:main` event essentially never fire for the same SHA on this repo's flow,
-#     since `main` only advances via PR merge). Isolation of the working deploy pipeline
-#     was weighted higher than that marginal DRY gain.
-#   - Net effect: a `push` to `main` runs the full suite once (pages.yml, unchanged); a
-#     `pull_request` runs it once here. No event runs the suite twice.
+# Relationship to pages.yml (separate workflows; rationale recorded per this issue's AC
+# "重複実行・役割分担について判断根拠"):
+#   - pages.yml builds the coverage report, HTML, and Pages artifact on pull requests and
+#     deploys only after a main push or a manual dispatch targeting main. Its build runs
+#     the three suites with coverage because the report consumes their combined data.
+#   - This workflow remains the PR status gate. It runs the same suites without coverage,
+#     plus repository-specific checks, and requests only contents: read. The Pages build
+#     also runs on PRs so its distinct coverage/report/artifact path is verified before
+#     merge; the unit suites therefore intentionally run in both workflows on PRs.
+#   - Keeping the jobs separate preserves distinct status checks and keeps Pages write
+#     and OIDC permissions confined to the conditional deployment job. A reusable test
+#     job would not remove the coverage-specific report build and would couple the
+#     independently rerunnable PR gate to deployment workflow changes.
+#   - A main push runs the Pages build and deployment. A pull_request runs both the
+#     ordinary PR gate here and the Pages artifact build, without deploying. A manual
+#     dispatch can build any selected ref, but deploys only when the selected ref is main.
 #
 # Cost (AC: "課金を発生させない構成であることが根拠付きで記録されている"): this repository is
-# public, so GitHub Actions has no free-tier cap at all for it — billing only applies to
-# private repositories that exceed the free minutes/storage quota (public repos are
-# unmetered). This workflow therefore adds no cost regardless of how often PRs push.
-# Local measurement: `python3 -m unittest discover -s tests/unit` takes ~90-110s, well
-# within a normal Actions job budget.
+# public, so GitHub Actions usage is unmetered. PRs run the three test suites twice
+# (once bare here and once under coverage for the Pages artifact), in addition to the
+# separate Pages report and artifact steps.
 #
 # `typecheck` job (Issue #510): a second, independent job that runs `pyright` against only
 # the files declared in `.github/typechecked-files.txt` and fails the build if any of them
@@ -66,8 +58,8 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Run unit test suite
-        run: python3 -m unittest discover -s tests/unit
+      - name: Run Python test suite
+        run: python3 -m unittest discover tests
 
       - name: Model family policy references and stopped templates
         run: python3 -m model_policy check

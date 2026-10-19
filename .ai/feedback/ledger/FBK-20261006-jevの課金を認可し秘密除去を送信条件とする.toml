@@ -1,0 +1,45 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261006-jevの課金を認可し秘密除去を送信条件とする"
+topic = "Jevの課金を認可し秘密除去を送信条件とする"
+theme = "AI判定"
+occurred_at = 2026-10-06
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Claude Code (AI) は「課金を認可し、秘密除去は結線前の必須条件として別 Issue にする」を推奨した。
+オーナーは課金を認可した上で、秘密除去を別 Issue ではなく本 PR の範囲に含めるよう変えた。
+
+判断内容（移行元）:
+> - **Jev（TypeSafe の外部 API）の課金を認可する。** §E の試算では月額1ドル未満の見込み。
+> - **送信前に秘密情報を落とす処理は PR #571 の範囲に含める。** PR #571 の jev モードは、会話とツール結果
+>   （コマンド出力や読んだファイルの中身を含みうる）を外部へ送る。#572 の受入条件は「ログ・Git に保存しない」
+>   までで、外部への送信を扱っていなかった。
+'''
+recommendation = '''
+課金の認可は原案どおり。秘密除去の実施先を、AI 案の別 Issue から PR #571 へ変えた。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20261006-jevの課金を認可し秘密除去を送信条件とする
+'''
+owner_verbatim = '''
+課金は認可する。秘密除去は本prのスコープに含めるべき。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

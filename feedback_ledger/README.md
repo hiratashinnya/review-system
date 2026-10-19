@@ -1,11 +1,13 @@
 # `feedback_ledger` — オーナー判断フィードバック台帳の CLI と機械 lint
 
-オーナーが AI の推奨を曲げた判断を、**改ざん検知可能な形**で版管理下に蓄積する（Issue #522）。
+オーナーの方針決定・AI案の承認・訂正・却下判断を、**改ざん検知可能な形**で版管理下に蓄積する（Issue #522 / #537）。
 捕捉（I2）・週次棚卸し（I3）・反映（I4）はいずれもこのスキーマと CLI の上に載る。
 
 v1.1 以降のエントリは主題を表す `theme` を必須で1つ選びます。既存形式の `v1` / `v1.0` は v1.0 相当として `theme` を持たず、v1.1 で導入した7語彙は使えません。
 
-台帳 minor を上げるときは `schema_version.py` の `LEDGER_CURRENT_MINOR` を更新し、変更内容に応じた Python の互換性判定と JSON Schema の条件を同期してテストを追加します。新しい `theme` 値を加える場合は `schema_values.py` と JSON Schema の enum、および `schema_version.py` の導入 minor 対応表を更新します。`new-entry` は `feedback-ledger/v1.1` のように現行版を明示した draft だけを受け付け、版は書き換えません。
+台帳 minor を上げるときは `schema_version.py` の `LEDGER_CURRENT_MINOR` を更新し、変更内容に応じた Python の互換性判定と JSON Schema の条件を同期してテストを追加します。新しい `theme` 値を加える場合は `schema_values.py` と JSON Schema の enum、および `schema_version.py` の導入 minor 対応表を更新します。`new-entry` は `feedback-ledger/v1.2` のように現行版を明示した draft だけを受け付け、版は書き換えません。
+
+v1.2 は #371 の新6ロール（`issue-investigator`、`ac-designer`、`change-planner`、`plan-reviewer`、`test-writer`、`adviser`）を `overridden_role` に追加します。旧4ロールと `skill:<name>` は全対応版で維持し、新6ロールは v1.2 以降だけで使えます。Python 検査と JSON Schema の版条件を同期します。既存エントリの版・バイト列は変更しません。#537 が担当する `decision_point` / `divergence` の語彙追加とは別の変更です。
 
 台帳 ID の slug は `doc-system-v2/slugify.py` が出力する Unicode 文字を広く受け付けます。構文 regex は slugify が除去する hostile 文字、空白、先頭末尾や連続ハイフンを拒否します。JSON Schema の ECMA pattern では Unicode カテゴリを移植可能に判定できないため、制御・書式・サロゲート・私用・未割当文字は Python 検査が拒否します。ID は保存文字列を変換せず、追加時と `check` 時に NFKC+casefold 後の別 ID 衝突も検査します。
 
@@ -14,6 +16,12 @@ v1.1 以降のエントリは主題を表す `theme` を必須で1つ選びま�
 ノード起票ではなく Issue で起票する。
 
 ## 使い方
+
+設計議論の捕捉は [`/decision-capture`](../.ai/skills/decision-capture/SKILL.md) に従う。
+v1.3 は方針決定の `decision_point = "policy"` と、AI案を曲げず承認した
+`divergence = "approval"` を追加する。旧版では新語彙を拒否し、既存版の読取とバイトを維持する。
+`approval` 追加で記録境界は変わらず、plan無修正承認は引き続き対象外。
+オーナーが実際に却下した判断も台帳対象であり、未承認AI案を承認済み旧決定としては扱わない。
 
 ```
 # 下書きを tmp/_feedback/ に書いてから CLI に食わせる（直接 .ai/feedback/ へは書けない）
@@ -38,11 +46,23 @@ python3 -m feedback_ledger render
 
 終了コードは `dsv2` / `karte` と揃える: `0` 正常 ／ `2` 未検出 ／ `4` 前提違反・検証失敗。
 
+### 導出ビューと移行済み参照
+
+`render` は生存決定をテーマ別に一覧し、決定日と暫定印を表示する。
+`narrative.uncertainty` の先頭に `暫定。` がある場合だけ決定の暫定印を付ける。
+手書き運用が暫定であることや、既に確定した過去の暫定状態とは区別する。
+
+任意の `.ai/feedback/render.json` は `output`（導出ビューの配置先）、`history`（原史料）、
+`migration`（旧参照の対応表）をrepo相対パスで指定する。参照ファイルはrepo内に限定する。
+対応表の `items` は `old_id` / `old_anchor` / `entry_id` を持ち、台帳にある実際の判断へ
+旧アンカーを案内する。設定は出力・出典の宣言で、生存／置換状態は引き続きsupersedesから導出する。
+設定・参照先・台帳IDが不正ならrenderは失敗する。設定のない利用先の既存renderも維持する。
+
 ## 規則一覧
 
 | 規則 | 内容 | 実装 |
 |---|---|---|
-| L1 | キー集合の完全一致（欠落・未知とも拒否）、型、enum、`id` 書式、`id` とファイル名の一致 | `model.py` / `store.py` |
+| L1 | キー集合の完全一致（欠落・未知とも拒否）、型、enum、`id` 書式、`id` とファイル名の一致 | `model.py` / `store_load.py` |
 | L2 | `affected_assets` / `target_assets` の全パスが実在する | `check.py` |
 | L3 | 文書 id 参照（`supersedes` / `decided_in`）の実在 | `check.py` |
 | L4 | `owner_verbatim` への推測語彙の混入を拒否 | `model.py` |
@@ -66,8 +86,8 @@ import 時 `ValueError`。`time_fixture_lint/allowlist.py`・`asset_parity/excep
 オーナー確定（2026-10-07・Issue #582 本文に記録、2026-10-09 にオーナーが再確認）。本節が**現行の規則**で、
 古くなったら本文を書き換える（経緯は Issue #582 とその AI 対応コメントに残す）。
 
-1. 判定基準：**逐語を伴うオーナー決定は台帳**（出来事の正本）、**逐語を伴わない設計理由は ADR**
-   （why／代替案／帰結。`recorded_by` はロールでもよい）。
+1. **逐語を伴うオーナー決定は台帳**（出来事の正本）。逐語を伴わない設計理由の記録先と規則は
+   [ADR の記録境界](../adr/README.md#記録境界) を正本とする。
 2. plan を無修正で承認した場合は、台帳にも ADR にも新規記録しない。
 3. plan の修正・条件付き承認は、台帳と ADR の両方に記録する（ADR が台帳 id を参照する）。
 4. オーナーが finding を覆した判断は台帳に記録する（#523 の `override_ref` が参照する）。
@@ -76,8 +96,8 @@ import 時 `ValueError`。`time_fixture_lint/allowlist.py`・`asset_parity/excep
 6. 参照は **ADR→台帳の片方向のみ**。ADR にオーナーの逐語は転載しない。
 7. review_system／doc_system 側の DD は、台帳の対象外。
 
-ADR の機構（#540）は未実装なので、本節は ADR 側の規則も含めて当面ここに置く。#540 が稼働したら、
-設計理由（why・代替案・帰結）に当たる部分を ADR へ移し、本節には台帳側の規則と参照だけを残す。
+本節は台帳側の現行規則と ADR への参照を保持する。設計理由（why・代替案・帰結）の規則は
+[ADR](../adr/README.md#記録境界) に置き、オーナーの逐語は引き続き台帳だけに保存する。
 
 ## 設計判断
 

@@ -208,12 +208,12 @@ PR_DIFF_READ_PATH_RE = re.compile(r"tmp/pr-diffs/pr-[0-9]+-[0-9a-f]{32}\.diff\Z"
 # context) are not constrained by this role table. This repo registers no SubagentStop-equivalent hook for Codex.
 GITGATE_VERBS_BY_ROLE = {
     # issue-implementer: 実装→push→PR まで。
-    # This role creates a new branch; it does not adopt an existing PR branch.
+    # Phase permission extension adds adopt-branch for the 2b author handover.
     "issue-implementer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
     },
-    # The fixer shares the implementer's verbs and adds `adopt-branch` for an existing PR branch.
+    # The fixer retains its existing PR adoption and base-integration verbs.
     "issue-fixer": {
         "status", "add", "commit", "push", "branch-current",
         "new-branch", "fetch", "diff", "log",
@@ -305,6 +305,7 @@ PYTHON_HEAD_COMMANDS = {"python", "python3"}
 # （`coverage run <なんでも>` は任意 Python 実行経路のため）。「-c 禁止したのに coverage run 素通し」の
 # 不整合を消し、エージェントの混乱・ハルシネーションリスクを下げる（防御力は #129 限界のため不変）。
 ALLOWED_PYTHON_MODULES = {
+    "issue_envelope",
     "unittest", "coverage", "dsv2", "gitgate", "asset_parity", "time_fixture_lint",
     "maintainability_lint",
 }
@@ -347,6 +348,10 @@ ASSET_PARITY_ALLOWED_SUBCOMMANDS = {"check"}
 TIME_FIXTURE_LINT_ALLOWED_SUBCOMMANDS = {"check"}
 # Issue #608: baseline の生成は主文脈へ STOP して返し、3ロールには check だけを許可する。
 MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS = {"check"}
+
+
+from issue_start.phase_role_permissions import extend_phase_permissions
+extend_phase_permissions(GITGATE_VERBS_BY_ROLE, GH_SUBCOMMANDS_BY_ROLE)
 
 
 def allowed_python_modules(role):
@@ -796,6 +801,9 @@ def head_command_violation(tokens, role):
                         "(`ingest-review` writes finding status and belongs to the reviewing side, "
                         "not to the role being reviewed)"
                     )
+            if tokens[2] == "issue_envelope":
+                if len(tokens) < 4 or tokens[3] not in {"check", "index", "show", "deps", "dependents", "orphans"}:
+                    return "`python3 -m issue_envelope` only allows read-only query subcommands"
             if tokens[2] == "maintainability_lint":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
                 if subcommand not in MAINTAINABILITY_LINT_ALLOWED_SUBCOMMANDS:

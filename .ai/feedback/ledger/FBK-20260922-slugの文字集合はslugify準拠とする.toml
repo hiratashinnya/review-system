@@ -1,0 +1,57 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-slugの文字集合はslugify準拠とする"
+topic = "slugの文字集合はslugify準拠とする"
+theme = "記録管理"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+`SLUG` が ASCII 限定のため、日本語トピックをそのまま id にできなかった。一方 `slugify.py` は
+「ASCII は小文字化（日本語はそのまま）」と定めており、doc-system-v2 のノード群は既に日本語
+ファイル名で運用実績を持つ（`doc-system-v2/nodes/04-verification/dd/decided/` 配下）。
+
+`%` については、URL のパーセントエンコード導入子であるため markdown アンカーで誤読される理屈上の
+リスクを AI が申告した（`Qの下限は流出欠陥率1%とする`）。**`feedback_ledger` 側に専用の敵性文字を
+足すことは、正規化規則の分岐実装を作ることであり、`slugify.py` の「独自再実装を禁じる」に反する。**
+実害が出たら `slugify.py` 側を直して両方に効かせる。
+
+なお markdown リンクの fragment 内では `%` を `%25` としてエスケープする（アンカー本体は `%` のまま）。
+これは URL の書き方の問題であって、slug の文字集合の話ではない。
+
+判断内容（移行元）:
+> **`slugify.py` の出力をそのまま id にする。`feedback_ledger` 専用の文字規則を足さない。**
+>
+> - **日本語を許す。** 現行の `SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"` を拡張する。
+> - **`%` と `.` を slug に残す。** `slugify.py` はこの2文字を敵性文字としていないので、そのまま通す。
+'''
+recommendation = '''
+AI が (a) 日本語許容・(b) `%` と `.` の温存のいずれも推奨し、オーナーが両方を承認した。原案からの変更なし。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-slugの文字集合はslugify準拠とする
+'''
+owner_verbatim = '''
+aは日本語を許す。
+bは% と . を slug に残す
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

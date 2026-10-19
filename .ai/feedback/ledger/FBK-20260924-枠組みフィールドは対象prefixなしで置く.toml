@@ -1,0 +1,84 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260924-枠組みフィールドは対象prefixなしで置く"
+topic = "枠組みフィールドは対象prefixなしで置く"
+theme = "開発工程"
+occurred_at = 2026-09-24
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+v1は`work_units DAG`の分解構造をそのまま物理分置に使ったが、`ChangePlan`/`VerificationDesign`が
+`work_units`以外にIssue全体スコープのフィールドも持つことへの言及が無かった。この不完全さが、
+[1a1bと2a2bのレビューを分離し無条件化する](#fbk-20260924-1a1bと2a2bのレビューを分離し無条件化する)
+以降の一連の点検の中でオーナーから問われ、3つの選択肢（主対象宣言／全shardへの複製／対象prefix
+無しの枠組みファイル）を比較検討した。
+
+判断内容（移行元）:
+> v1（`work_units DAG`の各ノードを対象ごとに分置する設計）はそのまま維持する。**加えて**、
+> `ChangePlan`/`VerificationDesign`にはwork_unitとは別に、Issue全体に1つだけ存在する
+> **枠組みフィールド**（`ChangePlan`の`selected_solution`/`OOS`/`interfaces`/`invariants`/
+> `failure_behavior`、`VerificationDesign`の`ST-TD`＝AC）がある。これらは対象ごとに分けられない
+> （分ければ同じ決定が複数ファイルに散るSSoT違反になる）ため、**対象prefixの無い同一パス**に置く。
+>
+> ```
+> change_plan/CP-<issue番号>.toml              ← 枠組み（selected_solution/OOS/interfaces/invariants/failure_behavior）
+> verification_design/VD-<issue番号>.toml      ← 枠組み（ST-TD＝AC）
+>
+> gitgate/change_plan/CP-<issue番号>.toml       ← shard（gitgateに属するwork_unit・IT-TD/IT-TC等）
+> gitgate/verification_design/VD-<issue番号>.toml
+> issue_start/change_plan/CP-<issue番号>.toml   ← shard（issue_startに属するwork_unit）
+> ```
+>
+> 対象prefix無しの枠組みファイルと、対象prefix付きのshardファイルは**同じ相対パス構造**
+> （`change_plan/CP-<issue番号>.toml`）を持つ。区別はファイルが対象ディレクトリの中にあるか
+> どうかだけで判定する——`issue_envelope/`のglob（`**/change_plan/CP-*.toml`）は両方を等しく拾い、
+> 「対象ディレクトリ配下か repo 直下か」で枠組み/shardを判別する。
+>
+> **主対象（primary）を著者が宣言する案は不採用**——本当に対等な複数対象Issueでは「どちらが主か」が
+> 恣意的な判断になり、以前訂正した「複数対象にまたがる状態を無理に単一化しようとする」誤り
+> （Issue分割の誤り）の変奏になりかねない。枠組みの真のスコープ（Issue全体）をそのまま物理配置に
+> 反映するほうが一貫する。
+>
+> **1b/2bが作るADRの置き場も同じ考え方で埋める**：ADRは「その対象自身の設計判断の履歴」という
+> 性質上、枠組みフィールドと違い対象ごとに分けるのが自然（[ADRはコード共有・データは道具ごとに
+> 分離する](#fbk-20260923-adrはコード共有・データは道具ごとに分離する) が元々想定した「各ツール自身の
+> 決定履歴が積み上がる」性質にそのまま合致する）。`<対象>/adr/<issue番号>-<slug>.toml` とし、
+> 新しい機構は追加しない（既存パターンの対象を issue_start 以外の全ツールへ広げるだけ）。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260923-envelopeは対象ごとにwork_unit分置する
+（構造そのものは v2 でも維持されている——「無効」なのは**不完全だった**点のみ。全文は
+[枠組みフィールドは対象prefixなしで置く](#fbk-20260924-枠組みフィールドは対象prefixなしで置く) の
+「決定内容」冒頭で v1 として再掲済み）
+`work_units DAG`の分解構造はカバーしたが、`ChangePlan`/`VerificationDesign`が持つ**Issue全体スコープの
+枠組みフィールド**（`selected_solution`/`OOS`/`interfaces`/`invariants`/`failure_behavior`・`ST-TD`）
+への言及が無かった。対象ごとの物理分置しか無い状態でこれらをどこに書くかが未規定のまま残っていた。
+'''
+recommendation = '''
+3選択肢の提示・比較（メリデメ）・推奨（選択肢3）はAI。オーナーが推奨どおり選択肢3を承認した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260924-枠組みフィールドは対象prefixなしで置く
+'''
+owner_verbatim = '''
+項目6は選択肢3がよい
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

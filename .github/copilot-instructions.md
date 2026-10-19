@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: 8d6335674d4f360db799a94006958fd068fc2e76291865fa54756a5e7c335fbd -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: bc2697a6c674ec108d780c4df09eb24bd2cc1390b620f8ce0de6510f683ceb89 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 8b5cdd4ad60e7a4f83c92753612aa523aa7de352dfaed0eadfc5915f69f86f76 -->
 
 # プロジェクト共通 guidance
 
@@ -116,7 +116,7 @@
 
 - `/agy-delegate`、`/codex-review`、`/gh-create-issue` はローカル CLI、認証、対象 PF の明示スコープに依存するため移植しない。
 - 共有リファレンス `silent-failure-diagnosis` は、関連する委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
-- `issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
+- `issue-investigator`、`ac-designer`、`change-planner`、`plan-reviewer`、`test-writer`、`adviser`、`issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使い、Claude／Codex 固有の hook や worktree 実行機構を持ち込まない。
 
 

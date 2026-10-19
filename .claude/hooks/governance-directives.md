@@ -1,7 +1,14 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@d77d4b82f9d1 -->
+<!-- synced-from: CLAUDE.md@5f2dc0a40949 -->
 <!--
+  Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
+  Issue工程分離・role権限・非対話契約。既存の中核規範1〜12は意味を保持し、工程の著作・審査・
+  承認境界を新しい項13へ同期した。fixer専用karteとadviserの非承認性も配送する。
+  正本集合はpath/NUL/bytes/NUL規約で再計算しmarkerへ反映した。
+
+  Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント `gh-create-issue` と handoff Read 規定の例外を追記しただけ。中核規範（1〜12）には掛からず、本文は変更せず marker のみ同期した。
+
   Issue #606 r4: 05-skills-agents の agy 運用状態を agent 正本参照へ統一した。項1〜12と照合し中核契約の変更なし。本文を維持しmarkerだけ同期。
 
   PR #638 のレビュー是正（2026-10-14）: `CLAUDE.md` 冒頭の subagent 注入対策を、起動可能な17エージェント中
@@ -284,3 +291,12 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     提示した上で **`AskUserQuestion`** で問う（推奨案を先頭に「（推奨）」）。非対話ロールは持たないので
     STOP して呼び出し元へ返す。正本＝`.claude/main-context/01-owner-communication.md`（全文はセッション
     開始・clear・compact 時に注入済み）。
+
+13. **Issue工程の著作・審査・承認を分離する** — `ac-designer` は1a VD、`change-planner` は
+    1a合格後の1b CP/ADR、`test-writer` は2a UT-TD/UT-TCのRed著作を担う。
+    `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
+    `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
+    `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず、
+    `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
+    `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
+    全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。

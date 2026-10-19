@@ -1,0 +1,62 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-ac妥当性確認はplan-reviewerを強化して担う"
+topic = "AC妥当性確認はplan-reviewerを強化して担う"
+theme = "開発工程"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI が「機能適合性」を④の新規項目として提案した際、それは「実装が AC を満たすか」（検証）だけを
+指しており、「AC 自体が正しいか」（妥当性確認）を欠いていた。実例として、**#371 自身の AC に
+数値目標が1つも無い**（「計測」節の7項目いずれにも閾値なし）ことを確認した——#371 は
+`/gh-create-issue` の構造化テンプレートとオーナー承認を経てなお、この欠陥がすり抜けている。
+
+判断内容（移行元）:
+> **「AC 自体が正しいか」（妥当性確認・Validation）は「実装が AC を満たすか」（検証・Verification）とは
+> 別の問題であり、④（コード構築の原則）の管轄ではなく①（#371 のプロセス設計）が担う。**
+>
+> #371 は既に `plan-reviewer` の `PlanReview`（evidence→design→AC→verification のtrace）と、
+> 「曖昧AC」を risk gate トリガーとする設計を持つが、2点の穴がある。
+> 1. AC 検査が「trace の有無」であって「AC 自体の品質」の構造化チェックリストではない。
+> 2. 「曖昧AC」トリガーが AC を書いた `change-planner` 自身の自己申告に依存する（自己認定問題）。
+>
+> 新規ロールは追加せず、`plan-reviewer`/`PlanReview` を強化する形で対策する。
+
+以前の案・判断の経緯（承認決定とみなさない）: FBK-20260922-機能適合性はac充足の正確性で足りる
+> ④に「機能適合性」（AC充足の正確性・完全性）を独立した原則として追加する。
+**検証（実装がACを満たすか）と妥当性確認（ACそのものが正しいか）を混同した。** AC自体が誤って
+いれば、それを完璧に満たしても無意味——このIssue #371自身の AC に数値目標が1つも無いことが
+実例になった。この問題は④（コード構築の原則）ではなく①（#371のプロセス設計）の管轄である。
+'''
+recommendation = '''
+AI の原案（「機能適合性」＝AC充足の正確性・完全性）は検証（Verification）のみを指しており、
+妥当性確認（Validation）が欠けていた。**オーナーの質問により、AC 設計そのものの品質確認が
+別問題として必要だと判明した。** 処置先の選択肢（(a) #371 へ即時コメント／(b) 他の未決事項と
+合わせて後で改訂）はオーナーが (a) を選択した。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-ac妥当性確認はplan-reviewerを強化して担う
+'''
+owner_verbatim = '''
+いいけどAC充足以前にAC設計が糞なら意味無いけどどう対策するの？
+aでいいよ
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

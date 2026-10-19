@@ -80,7 +80,7 @@
     （提案挙動・受入基準。取り込み時の内容 lint＝:func:`karte.model.check_harm_detail`、
     その誤検出の抑制＝:mod:`karte.allowlist`）。
   * ``dsv2/cleantmp.py`` docstring（パスガードの様式・削除直前の再検査の考え方）。
-    ※ ``karte.paths`` 側の再検査は best-effort であり原子的ではない（K-04・Issue #318 で厳密化）。
+    ``karte.paths`` の書込は ``O_NOFOLLOW`` で最終要素を保護し、親要素は既存パスガードに依存する。
   * CLAUDE.md「戻り値のハンドオフ規約」（``tmp/_handoff/`` はハンドオフ＝1回の戻り値。
     カルテはループ状態なので **別ディレクトリ** ``tmp/_karte/`` に置く）。
     ※ CLAUDE.md は out-of-graph（版なし）のため補助ナビ。

@@ -1,0 +1,18 @@
+test_adapter_uses_arbitrary_ref_declarations (tests.unit.test_adr.AdrTest.test_adapter_uses_arbitrary_ref_declarations) ... ok
+test_github_boundaries_and_stale (tests.unit.test_adr.AdrTest.test_github_boundaries_and_stale) ... ok
+test_multiple_roots_and_overwrite_collision (tests.unit.test_adr.AdrTest.test_multiple_roots_and_overwrite_collision) ... ok
+test_new_entry_todo_hook_and_file_issue (tests.unit.test_adr.AdrTest.test_new_entry_todo_hook_and_file_issue) ... ok
+test_persistent_envelope_input (tests.unit.test_adr.AdrTest.test_persistent_envelope_input) ... ok
+test_references_canonical_render_and_immutability (tests.unit.test_adr.AdrTest.test_references_canonical_render_and_immutability) ... ok
+test_required_fields_and_tracking_states (tests.unit.test_adr.AdrTest.test_required_fields_and_tracking_states) ... ok
+test_symlinks_and_missing_base (tests.unit.test_adr.AdrTest.test_symlinks_and_missing_base) ... ok
+test_check_all_index_sources_and_arbitrary_ref_fields (tests.unit.test_adr_regressions.AdrRegressionTest.test_check_all_index_sources_and_arbitrary_ref_fields) ... ok
+test_hook_resolves_cd_separators_and_all_tool_routes (tests.unit.test_adr_regressions.AdrRegressionTest.test_hook_resolves_cd_separators_and_all_tool_routes) ... ok
+test_new_entry_preflight_rejects_missing_and_external_assets (tests.unit.test_adr_regressions.AdrRegressionTest.test_new_entry_preflight_rejects_missing_and_external_assets) ... ok
+test_parallel_file_issue_creates_once_and_observes_filed (tests.unit.test_adr_concurrency.AdrConcurrencyTest.test_parallel_file_issue_creates_once_and_observes_filed) ... https://github.com/a/b/issues/700
+ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.292s
+
+OK

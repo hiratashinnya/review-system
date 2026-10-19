@@ -25,6 +25,10 @@ push/merge の非対称権限を課す3ロール（`issue-implementer`/`issue-fi
 
 from __future__ import annotations
 
-GATED_ROLES = frozenset({"issue-implementer", "issue-fixer", "pr-reviewer"})
+WRITE_ROLES = frozenset({
+    "ac-designer", "change-planner", "test-writer", "issue-implementer", "issue-fixer",
+})
+READ_ONLY_ROLES = frozenset({"issue-investigator", "plan-reviewer", "pr-reviewer", "adviser"})
+GATED_ROLES = WRITE_ROLES | READ_ONLY_ROLES
 
 __all__ = ["GATED_ROLES"]

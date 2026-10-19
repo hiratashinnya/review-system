@@ -18,7 +18,7 @@ from feedback_ledger.model import check_document_identity
 from feedback_ledger.schema import LEDGER_ID_RE, LEDGER_SPEC
 from feedback_ledger.schema_values import has_unsafe_ledger_slug_character
 from feedback_ledger.store import load_store
-from test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
+from tests.unit.test_feedback_ledger import FeedbackLedgerTestCase, ledger_data
 
 
 class LedgerIdentityReviewTests(FeedbackLedgerTestCase):

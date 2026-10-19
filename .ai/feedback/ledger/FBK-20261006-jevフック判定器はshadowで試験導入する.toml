@@ -1,0 +1,63 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261006-jevフック判定器はshadowで試験導入する"
+topic = "Jevフック判定器はshadowで試験導入する"
+theme = "AI判定"
+occurred_at = 2026-10-06
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+PR #571 のレビューで、Claude Code (AI) が「§E は Jev 採用を未決としているのに、採用判断・施策登録・観測窓の
+記録が無いまま実装が進んでいる」と指摘した。AI は当初「試験採用し、観測窓は結線時に開く」を推奨したが、
+オーナーから「shadow から結線に移る契機は？」と問われた。AI は自分の書き方の誤りを訂正した——
+**shadow で動かすには結線（settings.json への登録）がそれ自体必要**であり、正しくは「結線なし→結線＋shadow→
+結線＋enforce」の3段階で、観測窓を開くべきは enforce 開始時である。その上で移行契機を3案
+（定量基準／期間／オーナー都度判断）で提示した。
+
+判断内容（移行元）:
+> PR #571 の Jev フック判定器（R1〜R4）を**試験導入する**。次の3段階で進める。
+>
+> | 段階 | 状態 | 作業への影響 |
+> |---|---|---|
+> | 0 | 結線なし（PR #571 の時点） | なし |
+> | 1 | 結線＋shadow。判定を記録するだけ | なし（拒否しない） |
+> | 2 | 結線＋enforce。実際に止める | あり |
+>
+> - **観測窓は段階2（enforce）の開始時に開く。** 段階1は作業の挙動を変えないため、施策の効果ではなく
+>   判定器の正しさを確かめる期間とする。
+> - **段階1→2の移行は定量基準で、ルール（R1〜R4）ごとに行う**：「止めたはず」の記録をオーナーが
+>   **30件**確認し、誤った拒否が **5%以下**に収まったルールから順に enforce にする（数値は暫定）。
+> - 移行判断の前提として、shadow の判定記録をリポジトリから参照できる形にする必要がある
+>   （PR #571 は `~/.local/state` の SQLite に置いており、§C-2「曝露量で割れない」と同じ欠陥を持つ。処置先は未決）。
+> - §E-2（J-8〜J-11）は引き続き AI の提案・未決であり、本決定の対象外。
+'''
+recommendation = '''
+試験採用と、観測窓を後で開く方針は AI の原案どおり。オーナーの問いにより、AI の原案にあった
+「shadow＝結線前」という誤り（shadow には結線が要る）が判明し、段階を3つに分け直した。
+移行基準（ルールごと・30件・5%）は AI の推奨をオーナーが承認した。数値の根拠は無く、暫定である。
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+暫定。移行時に新しい推測を加えない。旧ID: FBK-20261006-jevフック判定器はshadowで試験導入する
+'''
+owner_verbatim = '''
+shadowで導入する。窓は結線時。だとshadowから結線に移る契機は？
+定量基準で移る（推奨）
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

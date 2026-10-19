@@ -1,0 +1,59 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-feedback-ledgerのschemaはv1を保つ"
+topic = "feedback-ledgerのschemaはv1を保つ"
+theme = "記録管理"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+```
+$ find .ai/feedback -type f
+.ai/feedback/README.md
+.ai/feedback/ledger/.gitkeep
+.ai/feedback/queue/.gitkeep
+.ai/feedback/triage/.gitkeep
+```
+
+`feedback_ledger` は 2,364 行が実装済みでエントリ 0 件。L6（merge base に在るエントリの
+バイト変更・削除を拒否）が保護すべき対象が存在しない。
+
+判断内容（移行元）:
+> **`schema = "feedback-ledger/v1"` と `.ai/schema/feedback-ledger-v1.json` は v1 のまま据え置く。**
+> `source` の repeated 化（`[source]` → `[[source]]`）は後方非互換だが、**壊す既存データが
+> 存在しないため版を上げない。**
+>
+> **この判断が成立するのは `.ai/feedback/ledger/` のエントリが 0 件の間だけ。**
+> エントリが入った後の非互換変更は v2 を要する。
+'''
+recommendation = '''
+AI は起票案（#537）で `.ai/schema/feedback-ledger-v1.json` の「追従」とだけ書き、**版を上げるのか
+据え置くのかを明示していなかった**。オーナーが「まだものを作っていない」＝永続化済みインスタンスが
+無いことを根拠に据え置きを指示した。AI はこれに同意し、成立条件（0 件の間だけ）を明記した。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-feedback-ledgerのschemaはv1を保つ
+'''
+owner_verbatim = '''
+feedback-ledger-v1.jsonってバージョンアップするの？まだもの作ってないならv1のままでいいと思う
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

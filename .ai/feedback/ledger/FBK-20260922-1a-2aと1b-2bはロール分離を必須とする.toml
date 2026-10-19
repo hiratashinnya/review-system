@@ -1,0 +1,51 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260922-1a-2aと1b-2bはロール分離を必須とする"
+topic = "1a/2aと1b/2bはロール分離を必須とする"
+theme = "開発工程"
+occurred_at = 2026-09-22
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+AI は「1a/2a と 1b/2b を同一ロールにするか分けるか」を深掘りが必要な未決事項として提示した
+（分けると dispatch が #371 の見積りに対しさらに増え、非目標＝軽量 Issue への強制回避と衝突するため）。
+オーナーが即座に「必須」と裁定した。
+
+判断内容（移行元）:
+> **検証設計を書く工程（1a/2a）と、本体成果物を書く工程（1b/2b）は、別ロール（別コンテキスト）で
+> 実施することを必須とする。**
+>
+> 同一ロールが両方を書く場合、「順序を守った」という規律だけに頼ることになり、#371 自身の
+> AC 自己認定問題と同じ構造が形を変えて残るため。
+'''
+recommendation = '''
+AI は「機械的な代替チェックで自己認定問題を埋める案」を対案として持っていたが、オーナーはロール分離
+そのものを必須とし、コスト増を受け入れる形で裁定した。コスト増（dispatch 増）は #371 のテーラリング
+判定軸（U-1）の設計へそのまま重みとして持ち越される。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260922-1a-2aと1b-2bはロール分離を必須とする
+'''
+owner_verbatim = '''
+tddの順序の話は1a/2aと1b/2bはロールというかコンテキストを分けるのは必須。
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

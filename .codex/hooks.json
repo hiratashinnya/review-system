@@ -11,15 +11,17 @@
             "statusMessage": "Enforcing issue-implementer/pr-reviewer push boundary"
           }
         ]
-      },
+      }
+    ],
+    "PostToolUse": [
       {
-        "matcher": "^(?:spawn_agent|Agent|collaborationspawn_agent)$",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/issue-start-gate.sh\"",
-            "timeout": 45,
-            "statusMessage": "Checking blocker evidence before Issue dispatch"
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/adr-notify.sh\"",
+            "timeout": 15,
+            "statusMessage": "Checking pending ADR issue tracking"
           }
         ]
       }

@@ -429,9 +429,9 @@ context-mode プラグイン(グローバル導入・2026-07-28)は全ターン�
 この文脈で「過去の指示」として相対化されうるため、**中核規範を毎ターン注入して
 "現在のターンの指示" として届ける**ことで対象から外す。
 
-subagent 側の同種対策は、起動できる17エージェント中16エージェントにあり、各 `.claude/agents/*.md` の
-「注入ブロックへの優先規定」節、または同等の規定を持つ節が担う。`reconciliation` は該当する規定を
-持たない例外である（内訳は下表）。**節名はエージェントごとに異なる**ため、対応を下表にまとめる。
+subagent 側の同種対策は、起動できる17エージェントすべてにあり、各 `.claude/agents/*.md` の
+「注入ブロックへの優先規定」節、または同等の規定を持つ節が担う。**節名はエージェントごとに異なる**
+ため、対応を下表にまとめる。
 `.claude/agents/` には18ファイルあるが、`doc-system-v2-authoring.md` は `*-author` が参照する共有ポインタで
 直接起動しないため、起動できるエージェントは17(write 権限あり10＋write 権限なし7。下表の合計と一致する)。
 ただし**注入への向き合い方は write 権限の有無で分かれる**(詳細は `.claude/rules/05-skills-agents.md`「戻り値のハンドオフ規約」):
@@ -450,11 +450,10 @@ subagent 側の同種対策は、起動できる17エージェント中16エー�
 | 「注入ブロックへの優先規定」(独立した節) | — | `reconciliation-validator` / `asset-auditor` / `dsv2-lookup` / `agy-delegate`(見出しは「注入ブロックへの優先規定（context-mode 対策・必読）」) |
 | 「Claude Code 固有の実行規約」内の項 | `requirements-author` / `spec-author` / `verification-author` / `structured-analysis` | `spec-inspector` |
 | 「Claude Code 固有の実行契約」内の項 | `analysis-author` / `design-author` / `doc-system-config-operator` | `authoring-fanout` |
+| 「Claude Code 固有の反映経路」内の項 | `reconciliation` | — |
 | 「context-mode 固有の規律」内の項 | `issue-implementer` / `issue-fixer` | `pr-reviewer` |
-| 該当する規定なし | `reconciliation` | — |
 
-- `reconciliation` は「Claude Code 固有の反映経路」節に注入ブロックへの言及が無く、現時点では注入への
-  優先規定を持たない。本表は実態の記録であり、規定の追加は本表の対象外。
+- `reconciliation` は「Claude Code 固有の反映経路」節で、共通本文のハンドオフ契約を優先する。
 - `spec-inspector` / `pr-reviewer` / `authoring-fanout` の規定が `<artifact_policy>` を明示的に無効化する
   書き方になっているかは Issue #583 の対象。本表は節名の対応だけを記録する。
 - 節名・数を変えたら本表も合わせる。`tests/unit/test_governance_sync.py` の
@@ -672,7 +671,7 @@ python 側に一本化したまま複製しない。
 
 # subagent ライフサイクルフック(SubagentStart / SubagentStop・Issue #309 / #354)
 
-`issue-implementer` / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
+著作工程ロール / `issue-fixer` の dispatch に対して、(a) 是正ループの診断カルテ手順を注入し、
 (b) worktree ↔ dispatch の所有関係を**機械可読な台帳**へ記録し、(c) カルテ未更新のまま
 `issue-fixer` が停止することを拒否し、(d) 停止した dispatch の worktree を**回収してから解放**する。
 
@@ -686,12 +685,27 @@ python 側に一本化したまま複製しない。
 | ファイル | 役割 |
 |---|---|
 | `subagent-karte-inject.sh` | `SubagentStart(issue-fixer)`。`karte-protocol.md` を `additionalContext` として注入する。**失敗時は無出力 exit 0(fail-open)**。 |
-| `subagent-worktree-bind.sh` | `SubagentStart(issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
-| `subagent-stop-gate.sh` | `SubagentStop(issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
+| `subagent-worktree-bind.sh` | `SubagentStart(ac-designer\|change-planner\|test-writer\|issue-implementer\|issue-fixer)`。起動した dispatch の `.claude/worktrees/agent-<id>` を所有台帳の `open` エントリへ束縛し `running` にする。**常に無出力 exit 0**。 |
+| `subagent-stop-gate.sh` | `SubagentStop(ac-designer\|change-planner\|test-writer\|issue-implementer\|issue-fixer)`。①`issue-fixer` が `karte check` を通していない停止を `{"decision":"block"}` で拒否(**判定不能も拒否＝fail-close**)し、②通ったら台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。**①で block したら②へ進まない**。 |
 | `karte-protocol.md` | 注入本文(シェルから分離＝`inject-governance.sh` と同作法)。内容を変えたいときはこのファイルだけを編集する。 |
 | `issue_start/subagent_hooks.py` | 上記3つの実体(verb 引数で分岐)。`.sh` は `issue-start-gate.sh` と同じ**薄い起動口**。 |
 | `issue_start/worktree_ledger.py` | 所有台帳(`tmp/_worktree/ledger.json`)の読み書き・状態遷移・掃引(`sweep_orphans`)・残留 evidence(`residue_report`)。 |
 | `gitgate/worktree.py` | 実体の削除経路(`worktree-release` / `collect-worktree` / `worktree-forget` / `worktree-sweep-abandoned`)。**フックからはサブプロセスとして起動する**。最後の1つは異常終了で `running` のまま残った entry の掃引で、`resume-watcher.sh` が復帰イベントで起動する(Issue #502・上記「復帰イベントに相乗りする worktree 掃引」)。 |
+
+## #371の工程ロール境界
+
+`issue_start/gated_roles.py` を正本に著作工程とread-only工程を分ける。新工程は
+`ISSUE_PHASE_INPUT_V1`の入力/承認束縛を要求する。native経路はmanifestでavailableとし、
+初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
+初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
+read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
+`python3 -m issue_start.phase_tool_gate`で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
+任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
+worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
+前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。
+工程live実測は #652 で追跡する。D1 origin/main profile pin、D5 cwd一致、agy無効を維持する。
+旧版の「owner未決・native unavailable」は決定前の履歴であり、現在の停止条件ではない。
+markerとreceiptの詳細は[Claude issue-pipeline](../skills/issue-pipeline/SKILL.md)を参照する。
 
 ## 回収・解放段の fail 方針(`subagent-stop-gate.sh` の②・Issue #354 / #423)
 
@@ -807,3 +821,45 @@ python 側に一本化したまま複製しない。
   赤くなるクラスの問題が構造的に発生しない(`.claude/rules/04-test-data.md`)。
 - **エントリは削除しない**(履歴として残す＝`.claude/rules/01-principles.md`「PR8「消さない」の
   適用範囲」区分1)。終端は `released` / `abandoned`。
+
+---
+
+# gh-create-issue 成果物の直送フック(SubagentStop・Issue #632)
+
+`gh-create-issue` を Claude Code ではサブエージェント専用にした(`.claude/agents/gh-create-issue.md`・
+`/gh-create-issue` skill は委譲の入口だけ)。draft 本文・予定値 preview・完了報告を主文脈経由で
+チャットへ出すと、サブエージェントの出力と主文脈の再出力でトークンを**二重に消費**する。
+そこでサブエージェントは全文を `tmp/_handoff/gh-create-issue--<key>.md` に書き、**最終応答は
+`HANDOFF:`／`STATUS:`／`SUMMARY:`（＋`ISSUE:`／`QUESTIONS:`）の数行だけ**にして、本文の表示をフックに任せる。
+
+## 構成
+
+| ファイル | 役割 |
+|---|---|
+| `subagent-draft-display.sh` | `SubagentStop(gh-create-issue)`。出力が上限内なら handoff を `systemMessage` でチャットへ直送し、`<handoff>.receipt.json` に結果を記録する。停止はブロックしない。 |
+| `gh-create-issue-receipt-gate.sh` | `PreToolUse(Write|Edit)`。対象agentによるreceipt作成・編集を拒否し、SubagentStop hookだけをreceipt writerにする。 |
+| `draft_display/` | 上記の実体(`python3 -m draft_display stop`)。`handoff.py` がパス検証・読み出し、`stop.py` が表示フック、`receipt_gate.py` がWrite/Edit gate。 |
+
+## payload の読み方
+
+他の SubagentStop フック(`issue_start/subagent_hooks.py`)と同じキーだけを読む:
+`agent_type`(対象判定)と `last_assistant_message`(最終応答から `HANDOFF:` 行を探す)。
+`agent_transcript_path` など本 repo で使われていない・未実測のキーには依存しない。
+
+## 主文脈への伝達（receipt）
+
+フックは `additionalContext` による主文脈通知に依存しない。出力上限内の本文だけを `systemMessage` で表示し、結果を handoff と同じ場所の `<handoff-path>.receipt.json` に記録する。Task 完了後の主文脈は必ずこれを Read し、`status: displayed` の場合だけ重複表示を省く。receipt が欠落・破損・`fallback_required` の場合は handoff 全文を Read してそのまま提示する。 `Write|Edit` のPreToolUse gateがagentによる対応receiptの作成・編集を拒否し、receiptはSubagentStop hookだけが書く。
+
+## Claude Code の出力上限
+
+Bash は `.claude/hooks/agent-command-gate.sh` が `gh-create-issue` 専用 allowlist を適用し、他の shell command・git write・GitHub close／汎用 API write（許可した関係追加 API を除く）を拒否する。 `gh project item-edit` は対象 item の Project から `Status` field/options を live 取得し、`Done` を拒否する。認証・API障害やmetadata不整合時も当該single-select編集を拒否する。SubagentStop の出力は JSON 化後 9,000 文字を上限とする。本文が超える場合は `systemMessage` を出さず、`fallback_required` の receipt を書いて主文脈が全文提示する。バイト切詰めで不完全な Issue draft を完成版のように見せない。
+
+## 信頼の入口とパス検証
+
+`HANDOFF:` 行のパスだけを入口とし、`tmp/_handoff/gh-create-issue--<英数字と ._->.md` に完全一致し、`<root>/tmp/_handoff` 直下の通常ファイル（symlink 不可）の場合だけ読む。receipt のパスも同じ handoff 名から決定する。本文の読取上限は 64 KiB。超過・読取不能時は partial display せず fallback を要求する。
+
+## fail-open
+
+どの失敗経路も本文を出さず、該当handoffがあればfallback receiptを書いて exit 0（可視化専用で停止をブロックしない）。診断は stderr の evidence(1行1 JSON・
+`claude --debug`)。「本文が出ない」ときは `draft-display-stop` の
+`reason`(`NO_HANDOFF_LINE`／`HANDOFF_UNREADABLE`／`HOOK_OUTPUT_LIMIT`)とreceiptを確認する。復旧は `.ai/troubleshooting/gh-create-issue.md`。

@@ -2,20 +2,45 @@
 
 Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役した。退役した実行契約・設計判断・却下案は
 [`.ai/rationale/codex-supervisor-retirement-538.md`](../../.ai/rationale/codex-supervisor-retirement-538.md) へ移設した。
-本書は Issue #538 の PR-B で導入した実行経路の現在の契約を記す。
+本書は Issue #538 の PR-B で導入し、#371で工程ロールへ拡張した実行経路の現在の契約を記す。
 
 ## 結論
 
 - **Codex は主文脈にしない。** 主文脈は Claude Code であり、Codex はサブ実行者として使う
   （オーナー決定・2026-09-22・Issue #538）。
-- **Claude の `issue-implementer`／`issue-fixer` は、自分の linked worktree で Codex に編集とテスト実行だけを行わせることができる。**
+- **Claude の工程ロールと `issue-fixer` は、自分の linked worktree で元ロールの権限を維持してCodexを起動できる。**
   経路は `python3 -m codex_worktree_exec`（`codex exec -C <worktree>` の薄いラッパー）だけである（D12）。
 - **Codex は commit・push・PR 作成をしない。** network は無効で、`.git` へは書けない。commit・push・PR 作成は
   呼び出し側の Claude ロールが既存の `agent-command-gate` の下で行う。
-- **Codex 用フックは新設しない。** 権限境界は、版管理した permission profile（`.codex/config.toml`）、
-  Claude 側 gate の起動形検査、ラッパーの起動前検査で担う。
+- 権限境界は版管理した permission profile（`.codex/config.toml`）、両PFの既存command hook、
+  Claude側gateの起動形検査、ラッパーの起動前検査で担う。#371は既存hookへ工程ロールを追加する。
 - **Codex の `spawn_agent` で `issue-implementer`／`issue-fixer` を起動する経路は無い。**
   issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する（後述）。
+
+## #371の工程入力・有効化境界
+
+`issue-fixer`以外は `--binding-file <信頼callerのJSON>` が必須。初回調査・1aはraw Issue入力、
+起動/省略理由、Issue/run/target、bytes digest、HEADのsnapshot OIDを束縛する。
+後続工程はcommit済みartifactのpath/digestと、producer/phase/Issue/run/target/input digest/
+source snapshot OID/参照のexpectedを信頼callerから受け取る。artifactは正規配置とsource snapshotの
+到達可能性も確認し、実装者は承認済み単一work unitを要求する。期待値を入力から補完しない。
+相談は元role/run/入力参照、model、回数/token/費用予算へ束縛し、完全回答とtrusted使用量だけをcaptureする。
+回答は採否未決で元担当へ返し、レビュー・owner承認・STOPを解除しない。
+
+Claude native dispatchは全工程でphase binding/承認receiptを要求する。read-onlyのClaude側dispatchは
+worktree所有台帳を作らない。Codex executorへの委譲では引き続き呼出元のlinked worktree確認が必要。
+新工程のmanifestはavailableとし、必須binding/承認検査を通る正規入口だけを使用する。
+owner決定 `.ai/feedback/ledger/FBK-20261017-工程別worktreeへ同一branchを継承する.toml` に従い、
+著作ロールは同一branchのremote exact OIDを各role専用worktreeへ継承する。
+使用中branch拒否を維持し、同一worktree所有権移管や旧implementer初回入口による迂回は行わない。
+origin/mainとのprofile pinは緩めない。未merge profileの実起動拒否は想定された保護であり、
+モデル非呼出しテストの成功で実dispatch成功を代用しない。低・中・高リスク経路と相談の実測は
+[`issue_envelope/verify/designs/post-merge-verification-371.md`](../../issue_envelope/verify/designs/post-merge-verification-371.md)
+の手順および [Issue #652](https://github.com/hiratashinnya/review-system/issues/652) で追跡する。
+
+2026-10-16時点のunavailableは同一worktree/adopt衝突の判断未決による停止だった。
+2026-10-17にownerがrole専用worktree方式を選択したため、この停止は現行のavailability条件から除いた。
+ロール別製品実dispatchの証拠は引き続き未実測であり、#652で検証する。
 
 ## 起動形
 
@@ -28,7 +53,7 @@ python3 -m codex_worktree_exec --role <自ロール> -C <自分の worktree ル�
 （gated ロールは改行を使えないので、実際には1行で書く。）
 
 - `--role` は呼び出し元自身の agent_type と一致しなければならない。`.claude/hooks/agent-command-gate.sh` が
-  `issue-implementer`／`issue-fixer` にだけ、`--role` がちょうど1つでその値が自ロールである形を許可する。
+  工程ロールと `issue-fixer` に、`--role` がちょうど1つでその値が自ロールである形だけを許可する。
 - 依頼文と最終応答のファイルは worktree の `tmp/` 配下（gitignore 済み）に置く。依頼文は Write で書く。
   相対パスは呼び出し元 cwd を起点とし、親 symlink を解決した実パスが検査済み worktree の `tmp/` 内に
   あることを起動前に確認する。境界外の絶対パス・`../`・symlink は拒否する。`tmp/` 自体が境界外へ
@@ -87,19 +112,20 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 
 ## permission profile
 
-`.codex/config.toml` に `[permissions.issue-implementer]` と `[permissions.issue-fixer]` を同一内容で版管理する。
-`pr-reviewer` の profile は置かない。
+`.codex/config.toml` に著作ロール（ac-designer/change-planner/test-writer/issue-implementer）とissue-fixerの編集profile、
+調査・plan-reviewer・pr-reviewer・adviserのread-only profileを版管理する。
 config の最初の有効設定はトップレベルの `default_permissions = ":workspace"` とする。profile 選択を省略した
 起動と `--sandbox read-only` 起動でも config を読み込めるようにするためで、ラッパーのロール別選択は
 `-c default_permissions="<role>"` で上書きする。
 
-- `extends = ":workspace"`（workspace root＝`-C` の worktree へ書け、配下の `.codex/` と `.git/` は読取専用）。
+- 著作/fixerは `extends = ":workspace"`（`-C` の worktreeへ書け、配下の `.codex/` と `.git/` は読取専用）。
+- 調査・レビュー・adviserは `extends = ":read-only"` とし、編集権限を与えない。
 - `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
   `dangerously_allow_non_loopback_proxy` をすべて `false`。
 - `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
 
 profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unittest` の `tests/unit/test_codex_worktree_exec_assets.py` が、
-先頭の既定設定と両 profile の存在・同一性・network 無効・認証情報パスの deny を静的に検査する
+先頭の既定設定とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
 （未指定・`--sandbox read-only` の実起動成功の代替ではない）。
 
 ## 「要設計」4項目の決定
@@ -211,19 +237,18 @@ gate の判定順と Claude transport の marker／isolation 契約は
 [`docs/tools/issue-start-and-branch-source.md`](../tools/issue-start-and-branch-source.md) を正とする。
 Claude 経路の契約は supervisor の退役でも PR-B でも変更していない。
 
-## 変更していないもの
+## 維持する境界
 
 - `codex-review`（別モデルファミリによる第二意見レビュー）と `.codex/mcp/claude_review/`。
-- `.codex/hooks.json` に残る2つの PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`）と、
-  `.codex/hooks/agent-command-gate.sh` の判定内容。
+- `.codex/hooks.json` の既存PreToolUse hook構成。command gateには#371の工程ロール制限を追加する。
 - worktree 所有台帳（`issue_start/worktree_ledger.py`）と `durable_lock.py`。
-- Claude の `issue-implementer`／`issue-fixer` の dispatch 契約（`ISSUE_START_BINDING_V1`／`ISSUE_FIX_BINDING_V1` marker と
-  `isolation: "worktree"`）。
+- Claudeのfixer markerとworktree isolation。初回Issue-startはac-designerへ移し、implementerは
+  phase bindingと承認済み上流成果物を必須にする（旧初回入口へは戻さない）。
 
-## 今後の予定
+## 旧資産の扱い
 
-Codex を主文脈とする前提で書かれた資産（`.codex/agents/issue-implementer.toml`・`issue-fixer.toml`、
-`.agents/skills/issue-pipeline` 等）の整理は Issue #603 で扱う。
+#603でCodex主文脈用の旧custom agentとissue-pipeline skillは退役済み。
+工程profileの追加を理由にこれらを復活させない。
 
 ## 記録の所在
 
@@ -235,3 +260,74 @@ Codex を主文脈とする前提で書かれた資産（`.codex/agents/issue-im
 | 実起動検証の設計 | `tests/designs/TD-codex-worktree-exec-538-001.md` |
 | Issue #452 のテスト設計・テスト結果 | `archive/issue-452-codex-supervisor/` |
 | Issue #452 のテストログ | `tests/logs/TD-issue-start-452-*` |
+
+
+## read-only工程のprimary → linked準備
+
+`issue_start.readonly_workspace` はtrusted主文脈専用の実行入口である。
+主文脈はruntimeを選択し、既存の登録済み・信頼済みlinked作業面を指定する。
+linked作業面を新設する必要があれば主文脈の既存worktree準備契約で先に準備し、
+この入口自身にはworktree作成、branch採用、trust設定、profile pin更新をさせない。
+
+```text
+python3 -m issue_start.readonly_workspace --source /repo/primary --approval-file tmp/review-approval.json --role pr-reviewer -C /repo/linked --binding-file tmp/review-binding.json --prompt-file tmp/review-prompt.md --output-file tmp/review-result.md --model MODEL --reasoning-effort high
+```
+
+入口はread-only 4ロールだけを受け付け、native readonly dispatchのavailabilityと入力承認を
+sourceで検査する。同じgit-common-dir、同じHEAD、両面のtracked cleanを要求する。
+両面の未追跡集合も検査する。Git ignore設定は通常sourceやTCを許可する根拠にしない。
+binding/approval/promptと初期入力・相談参照のtmpファイルを同じ相対pathへ転送する。
+tmp外の参照は転送せずcommit bytes一致を検査し、symlink・escape・既存tmp入力との不一致を拒否する。
+転送先で承認を再検証し、executorをlinked cwdから呼ぶのでD5のcwd/-C一致は変更しない。
+D1/profile origin/main pin、project trust、nesting guard、read-only profileとロール別hookも全て適用する。
+read-onlyロールのcommand gateにはこのprepare入口、任意cd、台帳操作、commit/pushを追加しない。
+本番manifestのavailableは必須入力検査の免除ではない。未merge profile拒否は継続し、
+fixtureでの到達をlive成功と呼ばない。
+
+snapshot後の正規TD/TC/ADR/実装はtrusted callerが承認した正確なpathとsha256を
+`binding.expected.source_changes` に保持する。過去review receiptのartifact digest/contextは凍結保持し、
+source差分はtrusted binding検証で1回だけ照合する。nativeはbinding↔approval↔全receiptの
+snapshot一致を要求するため、receipt側で後段source差分を再承認しない。
+後段の実装差分を過去reviewが確認済みと見せず、進行承認とartifactレビューを別に検査する。
+値nullはHEADで削除済みのpathだけを表す。全pathのHEAD bytesと作業面bytesを照合し、
+承認外source変更は拒否する。同一Issueのcanonical envelopeもcommit済みであることを要求する。
+これは承認済み差分の受け渡しであり、新しい承認権限や自動承認は作らない。
+
+未追跡通常source・追加TCはnative/Codexの全工程入力検査とread-only準備の両作業面で拒否する。
+未追跡の例外は `tmp/` 配下の通常ファイル（`.json` / `.md` / `.yaml` / `.yml` / `.txt` / `.log`）による
+工程入力・prompt・handoff・結果、下記の生成元検証を通る `__pycache__/` の `.pyc`、
+既存feedback writer lockと `tmp/_worktree/ledger.json.lock`、Gitが登録した別linked worktree自身だけである。
+symlinkは例外にしない。
+compiled cacheは現在HEADの通常 `.py` sourceと作業面bytesの一致を先に要求し、同sourceを
+現在Pythonの標準compilerでcompileしたcode bytesとcache内容を読取比較する。cacheをdecode・実行しない。
+現在runtimeのcache tagとoptimize 0/1/2だけを対象とし、code filenameはworktree内sourceの絶対path、
+root相対path、`./` を付けたroot相対pathに限定する。文字列intern有無による標準marshal表現差だけを許す。
+timestamp/checked-hash/unchecked-hashの標準headerを受けても、headerだけでsource由来とは見なさない。
+通常Pythonの標準cache生成は許可するが、別source・未commit/変更済source・現在の期待code bytesと異なる旧cache・別runtime・
+未対応compiler形式のcacheは拒否する。必要な場合はtrusted callerが現在の承認sourceから標準再生成してから起動する。
+検査はread-onlyであり、cacheの自動削除・書換えやreadonly roleへの再生成権限追加はしない。
+HEAD sourceの読取は1回の未追跡検査内でsource毎にまとめ、次の検査では再読する。永続cacheや新しい台帳は作らない。
+この検査が保証するのはtrusted入口で開始した検査以後に渡す作業面の入力である。検査Python自身や
+hookが起動前に読み込むcode/cacheの完全性は既存trusted入口の前提であり、後から遡って保証したとは扱わない。
+binding・approval・raw Issue・promptも未commitなら `tmp/` に置く。`tmp/` 内の追加Python sourceも拒否する。
+`source_changes` にpath/digestを追加しても未追跡通常sourceは許可せず、従来どおりHEAD bytesの一致を要求する。
+
+native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/snapshot/context/reviewsに加え
+`dispatch_target = {repository, branch_name, expected_oid}` を必須にする（JSON object）。
+これは過去review receiptを書き換える情報ではなく、trusted主文脈が今回起動する取得対象の承認である。
+phase承認とnative markerのIssue/repository/branch/OIDを相互照合し、検査cwdのoriginとHEADが同じrepository/OIDで
+あることを起動前に要求する。初回1aでは承認branchは新規作成予定名、expected_oidはbase_oidであり、
+base_refとsnapshotも実HEADへ一致させる。後続著作では承認branchを実検査作業面のcurrent branchへ一致させる。
+過去snapshot OIDと後続HEADは異なり得るため、既存のancestor検査・canonical artifact・正確なsource_changesによって
+承認snapshotから現在の検査面までを検証する。Codexも同じartifact検証を使い、D5のcwd/-C一致を維持する。
+native read-only工程の既存phase承認形式は維持し、既存PRの再レビューはその専用契約を使う。
+dispatchはrepo全体checkの参照/木/DAG/AC・TD/TC/Red証拠検査と索引内参照実体のcommit一致を要求し、
+入力artifactのID/pathが検査集合にない場合も拒否する。
+
+## 2aから2bへのwork unit束縛
+
+trusted callerは2a著作者、2a独立pr-reviewer、2b実装者とPR reviewerに単一の `expected.work_unit` を渡し、各phase承認JSONにも同じ `work_unit` を明示する。CP入力ではIDが `work_units` に一つだけ存在することを検査する。TestDesignの非空 `work_unit` はhandoff期待値と完全一致し、`input_refs` は承認CPのID一つ、`input_digest` はそのcommit済みCP bytesのSHA-256とする。VDはCPを介して参照する。
+
+2a独立review receiptには既存のartifact/path/digest/context等に加え `work_unit` を必須とし、TestDesign・今回のphase承認へ一致させる。1a/1b等のreceiptにはこの欄を加えない。2bの既存CP bindingには `expected.test_design={artifact, artifact_digest}` の短い消費参照だけを追加する。Codex単独入力とnative入力は同じ `work_unit_binding` でCP/TDのbytes・単位・run/Issue/target/snapshotを照合し、nativeは消費参照と2a receiptのartifact/digestも完全一致させる。別の承認台帳は作らず、owner承認や独立レビューをこの参照から生成しない。同run/target内の別unit、unit欠落、CP外unit、別TDのレビューは拒否する。
+
+本是正は同一PR内の2.0遷移の補完であり、共通guidanceに従い再bumpしない。新profileのlive未実測とD1/D5等の境界は既存契約どおりである。

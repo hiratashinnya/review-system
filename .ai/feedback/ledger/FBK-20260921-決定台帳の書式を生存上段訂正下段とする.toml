@@ -1,0 +1,52 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20260921-決定台帳の書式を生存上段訂正下段とする"
+topic = "決定台帳の書式を生存上段訂正下段とする"
+theme = "記録管理"
+occurred_at = 2026-09-21
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "reversal"
+confidence_of_inference = "low"
+recorded_by = "Codex AI agent（原資料: Claude Code (AI)）"
+affected_assets = ["audit/2026-09-21-pipeline-redesign/history.md", "feedback_ledger/README.md"]
+supersedes = ""
+
+[[source]]
+issue = 537
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+初版の台帳は節ごとに「確定 / 未決 / 訂正」を混在させ、訂正を本文中の注記として埋め込んでいた。
+生きている決定と無効な決定が同じ高さに並び、**どれが現行の正かが一読で判別できなかった**。
+
+判断内容（移行元）:
+- **生きている決定事項を上段**（§A）に置く。
+- **訂正された決定事項は下段**（§B）に移し、**相互ポインタ**を貼る。
+- 各決定事項に **トピック / 日時 / 経緯（周辺文脈）/ オーナー逐語 / 置換先（元）のポインタ** を記載する。
+- **上記を Skill で永続化する。**
+'''
+recommendation = '''
+書式はオーナーが指定した。AI は Skill の書き込み先について、既存の `feedback_ledger`（#522・merge 済み）
+との重複を申告した（U-9）。
+
+---
+'''
+recommendation_reason = '''
+原資料には推奨理由の独立欄がない。記録済みの理由・比較はbackgroundとrecommendationに保持し、未記録の動機は補わない。
+'''
+uncertainty = '''
+移行時に新しい推測を加えない。旧ID: FBK-20260921-決定台帳の書式を生存上段訂正下段とする
+'''
+owner_verbatim = '''
+帳票のデザインを見直してほしい。
+・生きている決定事項を上段におく
+・訂正された決定事項は下段に移し、相互ポインタを貼る。
+・決定事項にはトピック、日時、経緯(周辺文脈)、オーナー逐語、置換先(元)のポインタ(トピックなど)を記載する
+・上記をSkillで永続化する
+'''
+inferred_reason = '''
+推測：追加の推論は記録しない。原資料で確定している判断と経緯だけを移行した。
+'''

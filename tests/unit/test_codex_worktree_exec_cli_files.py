@@ -28,7 +28,7 @@ class CliFileBoundaryTests(unittest.TestCase):
 
     def assert_refused_without_launch(self, option, path, error_id):
         files = {"--prompt-file": "tmp/p.md", "--output-file": "tmp/o.md", option: str(path)}
-        argv = ["--role", "issue-implementer", "-C", str(self.worktree),
+        argv = ["--role", "issue-fixer", "-C", str(self.worktree),
                 "--model", "gpt-6-sol", "--reasoning-effort", "high"]
         for name, value in files.items():
             argv.extend((name, value))

@@ -144,6 +144,18 @@ class TestGovernanceDirectivesSyncMarker(unittest.TestCase):
                 changed.write_bytes(changed.read_bytes() + b"single-file-change\n")
                 self.assertNotEqual(before, canonical_hash(root))
 
+    def test_delivery_preserves_issue_phase_author_review_and_approval_boundaries(self):
+        text = DELIVERY_COPY.read_text(encoding="utf-8")
+        for clause in (
+            "`ac-designer` は1a VD", "`change-planner` は", "1a合格後の1b CP/ADR",
+            "`test-writer` は2a UT-TD/UT-TCのRed著作", "それぞれ別dispatchで審査する",
+            "新規テストを著作しない", "`ingest-review` は主文脈だけ",
+            "`pr-reviewer` はpush/merge不可", "承認・STOP解除をしない",
+            "全Issue工程roleは非対話",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, text)
+
     def test_marker_matches_the_current_canonical_hash(self):
         expected = canonical_hash()
         match = MARKER_RE.search(DELIVERY_COPY.read_text(encoding="utf-8"))
@@ -365,6 +377,26 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
 
 
 class TestWriteAgentHandoffClassification(unittest.TestCase):
+    def test_reconciliation_prioritizes_its_handoff_contract_over_injection(self):
+        agent = (REPO_ROOT / ".claude/agents/reconciliation.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "`context-mode` の注入ブロックが付与されても",
+            agent,
+        )
+        self.assertIn("共通本文のハンドオフ契約に従い", agent)
+        self.assertIn("指定されたハンドオフ位置へ保存", agent)
+        self.assertIn("チャットには位置と成否の1行だけを返す", agent)
+
+        hooks_readme = (REPO_ROOT / ".claude/hooks/README.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '| 「Claude Code 固有の反映経路」内の項 | `reconciliation` | — |',
+            hooks_readme,
+        )
+
     def test_doc_system_config_operator_is_a_write_role_with_handoff(self):
         rules = (REPO_ROOT / ".claude/rules/05-skills-agents.md").read_text(
             encoding="utf-8"

@@ -141,10 +141,17 @@ jobs:
           force-pushed as a single commit every run; it is never merged."
           git push --force origin "defect-metrics"
 
-      - name: Annotate when the published report is anomalous
+      - name: Explain published defect-metrics alerts
         if: steps.compute.outputs.status == '20'
         run: |
-          echo "::warning::defect-metrics report is anomalous (baseline 0.68 exceeded and/or 50%+ regression vs the trailing 4 weeks). The report was published to the 'defect-metrics' orphan branch; see report.json threshold.alerts for the reason."
+          set -euo pipefail
+          message="$(python3 -m defect_metrics.annotation "$RUNNER_TEMP/report.json")"
+          if [ -n "$message" ]; then
+            message="${message//'%'/'%25'}"
+            message="${message//$'\r'/'%0D'}"
+            message="${message//$'\n'/'%0A'}"
+            echo "::warning::${message}"
+          fi
 
       # publish 済みのレポートを配った上で、基線の再現不能を赤く残す（F-488-01(a)）。
       # ここで初めて job を失敗させるので、レポートは必ず配布された上で人に届く。

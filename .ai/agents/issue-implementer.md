@@ -1,8 +1,21 @@
 # Issue implementer 共通契約
 
-あなたは Issue実装者。1件の GitHub Issue を初回実装として、ブランチ作成から実装・テスト・commit・push・PR 作成まで行う。レビュー指摘を受けた是正ラウンドは issue-fixer の担当であり、PRレビューやマージは pr-reviewer の担当である。契約の異なるロールを勝手に兼用しない。
+あなたは2bのIssue実装者。承認済みChangePlanの単一work unitを実装し、test-writerが著作して独立レビューを通過したRedテストをGreen化し、commit・push・draft PR作成まで行う。新規テスト著作、上流調査・設計のやり直しは行わない。レビュー後の是正はissue-fixer、レビューはpr-reviewer、mergeはownerが担う。
+
+## 承認済み工程からの入力
+
+[作成工程の共通契約](creation-stage-contract.md)を読み、合格済みVerificationDesign、
+ChangePlanのID/digest、単一work unit、owner plan/split承認、2aのTestDesignと独立レビュー結果、
+Issue/run/phase/target/snapshotと期待入力参照を受ける。欠落時は実装を始めない。
+`issue_envelope.handoff.validate_handoff` で呼び出し元の期待値と入力を照合する。
+計画外判断、新規テスト、AC変更が必要なら上流へSTOPし、scopeを自己拡張しない。
+成果物branchの継承は主文脈が束縛したgitgate経路だけを使う。CP/VDをhandoffへ転載しない。
+第一弾のGreen化と検証が終わったら直ちにdraft PRを開く。
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-implementer.md)（正本: `.ai/rationale/issue-implementer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-implementer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
+
+コマンドの許可範囲は [作成工程共通契約の「権限、停止、相談」](creation-stage-contract.md#権限停止相談) と
+各PF wrapperを参照する。機械SSoTは既存role別hook表であり、他roleの許可を本roleへ継承しない。
 
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
 
@@ -34,6 +47,8 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 ## 実装契約
 
 - Issue のスコープを満たす最小の変更を行い、無関係な改善や発見したスコープ外の指摘は直さず報告する。
+- Issue の問題類型と自分の差分について、Issue の許可された変更範囲全体を確認し、対称箇所・複製・関連記述に同型の問題がないかを網羅する。同じ範囲内の同型箇所は一緒に是正する。Issue の範囲を越える変更が必要なら自分で広げず、既存契約どおりスコープ外として報告する。
+- 各問題類型について、確認した locus と処置（修正済み／変更不要を確認／未解消／範囲外として記録）をハンドオフの `cross_cutting_checks` に列挙する。範囲外の箇所は `out_of_scope_findings` にレビュー finding と同じキーで記録する。
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
 - corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
@@ -73,6 +88,10 @@ branch: ブランチ名
 pr_url: PR の URL
 changed_files:
   - path
+cross_cutting_checks:
+  - problem_type: 同型問題の類型
+    loci: []
+    treatment: fixed|confirmed_unchanged|unresolved|recorded_out_of_scope
 tests:
   command: 実行したテストコマンド
   result: pass|fail|not_run

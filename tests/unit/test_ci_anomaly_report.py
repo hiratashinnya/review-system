@@ -134,6 +134,49 @@ class CollectorTests(unittest.TestCase):
             report["anomalies"][1]["location"], "project_status_sync/model.py:42"
         )
         self.assertIn("FUTURE", report["anomalies"][1]["summary"])
+        self.assertEqual(
+            report,
+            {
+                "schema_version": 1,
+                "generated_at": "2026-09-25T03:04:05Z",
+                "repository": "o/r",
+                "branch": "main",
+                "workflows_checked": 1,
+                "collection_errors": 0,
+                "anomalies": [
+                    {
+                        "workflow": {
+                            "id": 10, "name": "tests",
+                            "path": ".github/workflows/tests.yml",
+                        },
+                        "severity": "error",
+                        "summary": "workflow run concluded failure on main",
+                        "details_url": "https://github.example/actions/runs/100",
+                        "run": {
+                            "id": 100, "attempt": 1, "conclusion": "failure",
+                            "event": "push", "head_sha": "a" * 40,
+                            "completed_at": "2026-09-25T03:00:00Z",
+                        },
+                    },
+                    {
+                        "workflow": {
+                            "id": 10, "name": "tests",
+                            "path": ".github/workflows/tests.yml",
+                        },
+                        "severity": "warning",
+                        "summary": "Unknown stateReason: value FUTURE is not recognized",
+                        "details_url": "https://github.example/jobs/1000",
+                        "run": {
+                            "id": 100, "attempt": 1, "conclusion": "failure",
+                            "event": "push", "head_sha": "a" * 40,
+                            "completed_at": "2026-09-25T03:00:00Z",
+                        },
+                        "job": "unittest",
+                        "location": "project_status_sync/model.py:42",
+                    },
+                ],
+            },
+        )
 
     def test_clean_latest_run_produces_an_empty_report(self):
         api = FakeAPI(workflows=[workflow(10)], runs={10: run(100)}, jobs={100: []})

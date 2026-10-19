@@ -1,126 +1,13 @@
-"""Parity seed inventory: enumerates active Claude asset wrappers.
+"""Public asset inventory API and parity seed path boundaries."""
 
-The parity matrix starts from the two loader-facing Claude roots:
-``.claude/skills/*/SKILL.md`` and ``.claude/agents/*.md``.  Shared, inactive
-material under ``.ai/`` is deliberately outside this inventory.  The common
-normative Source of Truth remains under ``.ai/skills`` and ``.ai/agents``;
-Claude wrappers are only the comparison seeds used to enumerate parity rows.
-
-依存仕様（out-of-graph・版なし・補助ナビ）:
-  * `.claude/skills/asset-lateral-deploy/SKILL.md`（振り分け決定木＝`disable-model-invocation`/
-    `user-invocable` フロントマターで skill/prompt/agent/instructions を分類する根拠）
-  * `.claude/tailoring-registry.md`（意図的な非移植の記録）
-"""
-
-from __future__ import annotations
-
-import dataclasses
 from pathlib import Path
 
-from ai_layout import NON_ACTIVE_SHARED_DIRS
-
-from .frontmatter import read_frontmatter
-
-SKILL = "skill"
-AGENT = "agent"
-
-# Common normative content is edited here.  These directories are not scanned
-# as parity seeds because they are platform-neutral source text, not PF wrappers.
-COMMON_SOT_SKILLS_DIR = ".ai/skills"
-COMMON_SOT_AGENTS_DIR = ".ai/agents"
-
-# The parity matrix is about loader-facing wrappers, not every Markdown file in
-# ``.claude/``.  Claude is the matrix's discovery seed; being a seed does not
-# make it the common normative Source of Truth.
-PARITY_SEED_SKILLS_DIR = ".claude/skills"
-PARITY_SEED_AGENTS_DIR = ".claude/agents"
-# `.ai/` 直下の非活性レコード置き場（`ai_layout.NON_ACTIVE_SHARED_DIRS`）＋ `.ai/guidance`。
-# ここでの述語は「**4ツリー parity の seed にならない置き場**」であり、常駐 guidance の原稿
-# （`.ai/guidance/common.md`・`.ai/guidance/platforms/*.md`）も PF wrapper ではないので
-# 同じく seed にならない。よって土台へ `.ai/guidance` を**足す**。
-# 注意: `guidance_sync.NON_GUIDANCE_SHARED_DIRS` は述語が別（guidance の source 禁止リスト）
-# で、`.ai/guidance` を**含めてはならない**——両者は同一概念ではない（`ai_layout` の docstring）。
-NON_NORMATIVE_SHARED_DIRS: tuple[str, ...] = NON_ACTIVE_SHARED_DIRS + (".ai/guidance",)
-
-# Invocation modes — meaningful for SKILL kind only (None for AGENT).
-MODE_SKILL = "skill"                # default: a model-invocable capability
-MODE_ORCHESTRATOR = "orchestrator"  # `disable-model-invocation: true` — user-invoked pipeline
-MODE_PRINCIPLE = "principle"        # `user-invocable: false` — always-loaded doctrine
-
-_UNSET = object()
-
-
-@dataclasses.dataclass(frozen=True, init=False)
-class Asset:
-    name: str
-    kind: str  # SKILL | AGENT
-    mode: str | None
-    parity_seed_path: Path
-
-    def __init__(
-        self,
-        name: str,
-        kind: str,
-        mode: str | None,
-        parity_seed_path: Path | object = _UNSET,
-        *,
-        canonical_path: Path | object = _UNSET,
-    ) -> None:
-        """Accept the v2 name and the deprecated constructor keyword.
-
-        Supplying both names is allowed only when their values agree.
-        """
-        if parity_seed_path is _UNSET and canonical_path is _UNSET:
-            raise TypeError("missing required argument: parity_seed_path")
-        if (
-            parity_seed_path is not _UNSET
-            and canonical_path is not _UNSET
-            and parity_seed_path != canonical_path
-        ):
-            raise TypeError("parity_seed_path and canonical_path disagree")
-        resolved_path = canonical_path if parity_seed_path is _UNSET else parity_seed_path
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "kind", kind)
-        object.__setattr__(self, "mode", mode)
-        object.__setattr__(self, "parity_seed_path", resolved_path)
-
-    @property
-    def canonical_path(self) -> Path:
-        """Deprecated alias for ``parity_seed_path``; retained for compatibility."""
-        return self.parity_seed_path
-
-
-def scan_parity_seeds(root: Path) -> list[Asset]:
-    """Enumerate parity seeds under `.claude/skills/` and `.claude/agents/`.
-
-    Files with no parseable frontmatter (no leading/closing ``---`` block) are skipped
-    silently — those are shared reference docs (e.g. `doc-system-v2-authoring.md`), not
-    independently-identified subagent/skill definitions with a name of their own.
-    """
-    assets: list[Asset] = []
-
-    skills_dir = root / PARITY_SEED_SKILLS_DIR
-    for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
-        fm = read_frontmatter(skill_md.read_text(encoding="utf-8"))
-        if fm is None:
-            continue
-        mode = MODE_SKILL
-        if str(fm.get("disable-model-invocation", "")).strip().lower() == "true":
-            mode = MODE_ORCHESTRATOR
-        elif str(fm.get("user-invocable", "")).strip().lower() == "false":
-            mode = MODE_PRINCIPLE
-        assets.append(Asset(name=skill_md.parent.name, kind=SKILL, mode=mode,
-                            parity_seed_path=skill_md))
-
-    agents_dir = root / PARITY_SEED_AGENTS_DIR
-    for agent_md in sorted(agents_dir.glob("*.md")):
-        fm = read_frontmatter(agent_md.read_text(encoding="utf-8"))
-        if fm is None:
-            continue
-        assets.append(Asset(name=agent_md.stem, kind=AGENT, mode=None,
-                            parity_seed_path=agent_md))
-
-    return assets
+from .asset import Asset
+from .seed_scan import scan_parity_seeds
+from .seed_paths import (AGENT, SKILL, MODE_SKILL, MODE_ORCHESTRATOR, MODE_PRINCIPLE,
+                         COMMON_SOT_SKILLS_DIR, COMMON_SOT_AGENTS_DIR,
+                         NON_NORMATIVE_SHARED_DIRS, PARITY_SEED_SKILLS_DIR,
+                         PARITY_SEED_AGENTS_DIR)
 
 
 def is_parity_seed_path(path: Path | str, root: Path) -> bool:

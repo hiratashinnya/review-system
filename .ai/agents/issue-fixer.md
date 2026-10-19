@@ -4,6 +4,9 @@
 
 本ファイルは各実行環境の wrapper が共有する規範本文である。設計判断の理由・却下案・既知の限界・過去インシデントの経緯・実測ログは [rationale](../rationale/issue-fixer.md)（正本: `.ai/rationale/issue-fixer.md`）、障害・復旧手順は [troubleshooting](../troubleshooting/issue-fixer.md) を必要なときだけ参照する。Issue #538 で退役した Codex supervised 手順の本文と退役の経緯は [退役記録](../rationale/codex-supervisor-retirement-538.md) にある。
 
+コマンドの許可範囲は [作成工程共通契約の「権限、停止、相談」](creation-stage-contract.md#権限停止相談) と
+各PF wrapperを参照する。機械SSoTは既存role別hook表であり、他roleの許可を本roleへ継承しない。
+
 系統＋層でモデルを選定した実行では、[モデル解決の証跡規定](../../model_policy/README.md#証跡検証) を適用し、resolved ID と実使用 ID・実行確認結果を記録する。
 
 ## 追跡ファイルの削除・移動と baseline 更新
@@ -69,6 +72,12 @@ append が拒否されたらラベルを付け替えて通そうとしない。�
 
 診断登録後に限り、宣言した targets の範囲を直す。範囲が変わったと気づいた時点で診断からやり直す。
 
+### 同型問題の横展開確認
+
+対象 finding の問題類型と自分の差分について、宣言済み targets とその変更範囲全体を確認し、対称箇所・複製・関連記述に同型の問題がないかを網羅する。対象 finding の範囲内にある同型箇所は、必要に応じて診断・記録を更新して同じラウンドで扱う。新しい target が必要な場合は編集前に Step 1 の診断・記録へ戻る。finding の是正対象や既存の権限境界を越えて自分で範囲を広げない。
+
+同型確認の結果は finding ID ごとに `cross_cutting_checks` へ記録する。各項目に問題類型、確認した locus、処置（修正済み／変更不要を確認／未解消／範囲外として記録）を列挙する。範囲外の箇所は修正せず、既存契約どおり `out_of_scope_findings` にレビュー finding と同じキーで記録する。
+
 ### コード構築原則（Issue #539）
 
 是正の着手前から完了判定まで、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を適用する。
@@ -116,6 +125,11 @@ diagnosis:
 outcome: fixed
 changed_files:
   - path
+cross_cutting_checks:
+  - finding_ids: []
+    problem_type: 同型問題の類型
+    loci: []
+    treatment: fixed|confirmed_unchanged|unresolved|recorded_out_of_scope
 tests:
   command: 実行したテストコマンド
   result: pass|fail|not_run

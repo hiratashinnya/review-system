@@ -92,7 +92,7 @@ def _extract_paths_blocks(text: str) -> dict[str, list[str]]:
             in_paths = True
             paths_indent = len(paths_match.group(1))
             continue
-        if in_paths:
+        if in_paths and current_trigger is not None:
             item_match = re.match(r'^(\s+)-\s+"(.+)"\s*$', line)
             if item_match and len(item_match.group(1)) > paths_indent:
                 blocks[current_trigger].append(item_match.group(2))

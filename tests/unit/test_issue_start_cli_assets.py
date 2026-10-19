@@ -1,4 +1,4 @@
-"""Issue-start CLI I/O/exit codes と Codex/Claude asset parity。"""
+"""Issue-start CLI I/O/exit codes and Claude dispatch registration."""
 
 import io
 import json
@@ -27,7 +27,7 @@ class CliContractTests(unittest.TestCase):
         ]:
             evidence = {
                 "schema_version": "issue-start-evidence/1",
-                "policy_version": "issue-start/1.0",
+                "policy_version": "issue-start/2.0",
                 "result": verdict,
                 "exit_code": code,
                 "reason": reason,
@@ -44,33 +44,16 @@ class CliContractTests(unittest.TestCase):
 
 
 class AssetParityTests(unittest.TestCase):
-    def test_both_harnesses_register_common_hook_core(self):
+    def test_only_claude_registers_issue_start_hook(self):
         codex = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         claude = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
         codex_matchers = {item.get("matcher") for item in codex["hooks"]["PreToolUse"]}
         claude_matchers = {item.get("matcher") for item in claude["hooks"]["PreToolUse"]}
-        codex_dispatch_matcher = next(
-            matcher for matcher in codex_matchers
-            if isinstance(matcher, str) and "spawn_agent" in matcher
-        )
-        for tool_name in ("spawn_agent", "Agent", "collaborationspawn_agent"):
-            with self.subTest(tool_name=tool_name):
-                self.assertIsNotNone(re.fullmatch(codex_dispatch_matcher, tool_name))
-        for similar_name in (
-            "collaboration.spawn_agent",
-            "evilspawn_agent",
-            "collaborationspawn_agent_extra",
-            "collaborationspawn_agents",
-        ):
-            with self.subTest(similar_name=similar_name):
-                self.assertIsNone(re.fullmatch(codex_dispatch_matcher, similar_name))
-        # Claude Code 2.1.221 は matcher `Task` で runtime tool_name `Agent` も捕捉する。
-        self.assertIn("Task", claude_matchers)
-        for script in [
-            ROOT / ".codex" / "hooks" / "issue-start-gate.sh",
-            ROOT / ".claude" / "hooks" / "issue-start-gate.sh",
-        ]:
-            self.assertIn("python3 -m issue_start.hook", script.read_text(encoding="utf-8"))
+        self.assertFalse(any("spawn_agent" in str(matcher) for matcher in codex_matchers))
+        self.assertIn("Task|Agent", claude_matchers)
+        # Task / Agent の両方を正規 matcher で捕捉する。
+        claude_hook = ROOT / ".claude" / "hooks" / "issue-start-gate.sh"
+        self.assertIn("python3 -m issue_start.hook", claude_hook.read_text(encoding="utf-8"))
 
     def test_gate_reads_only_the_v2_manifest(self):
         """Issue #354 PR-4: 正本は v2 で、v1 は退役して**読まれない**。
@@ -97,7 +80,7 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(manifest["schema_version"], "managed-issue-entrypoints/2")
         self.assertEqual(manifest["managed"][0]["entrypoint"], "issue-pipeline")
         transports = manifest["managed"][0]["binding_transports"]
-        self.assertEqual(manifest["managed"][0]["agent_type"], "issue-implementer")
+        self.assertEqual(manifest["managed"][0]["agent_type"], "ac-designer")
         self.assertNotIn("codex", transports)
         self.assertEqual(set(transports["claude"]["tool_names"]), {"Task", "Agent"})
         self.assertEqual(
@@ -110,7 +93,7 @@ class AssetParityTests(unittest.TestCase):
         )
         self.assertEqual(transports["claude"]["binding_marker"], "ISSUE_START_BINDING_V1=")
         # Issue #350: worktree 分離は Claude harness の Agent tool `isolation` で与えられる。
-        # Codex の spawn_agent には isolation 概念が無いので要求を持ち込まない（transport 別）。
+        # Claude の managed dispatch は Agent tool の isolation で worktree に分離する。
         self.assertEqual(transports["claude"]["required_isolation"], "worktree")
         self.assertTrue(manifest["unmanaged"])
 
@@ -120,8 +103,7 @@ class AssetParityTests(unittest.TestCase):
             (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
         )
         entries = manifest["isolation_only"]
-        self.assertEqual(len(entries), 1)
-        entry = entries[0]
+        entry = next(item for item in entries if item["agent_type"] == "issue-fixer")
         self.assertEqual(entry["entrypoint"], "issue-pipeline")
         self.assertEqual(entry["agent_type"], "issue-fixer")
         transports = entry["binding_transports"]
@@ -136,22 +118,59 @@ class AssetParityTests(unittest.TestCase):
         self.assertEqual(claude["binding_marker"], "ISSUE_FIX_BINDING_V1=")
         self.assertEqual(claude["required_isolation"], "worktree")
 
-    def test_managed_and_isolation_only_agent_types_are_disjoint(self):
+    def test_phase_roles_require_binding_and_observable_handover_before_launch(self):
+        manifest = json.loads(
+            (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
+        )
+        writers = {"change-planner", "test-writer", "issue-implementer"}
+        readers = {"issue-investigator", "plan-reviewer", "pr-reviewer", "adviser"}
+        self.assertEqual(
+            {entry["agent_type"] for entry in manifest["isolation_only"]},
+            writers | {"issue-fixer"},
+        )
+        self.assertEqual({entry["agent_type"] for entry in manifest["readonly"]}, readers)
+        for section in ("managed", "isolation_only", "readonly"):
+            for entry in manifest[section]:
+                role = entry["agent_type"]
+                if role == "issue-fixer":
+                    continue
+                with self.subTest(role=role):
+                    transport = entry["binding_transports"]["claude"]
+                    self.assertEqual(transport["phase_binding_marker"], "ISSUE_PHASE_INPUT_V1=")
+                    self.assertEqual(transport["availability"], "available")
+                    missing = {"role-native-execution-evidence"}
+                    if section == "readonly":
+                        self.assertNotIn("required_isolation", transport)
+                        self.assertNotIn("binding_marker", transport)
+                    else:
+                        expected = "ISSUE_START_BINDING_V1=" if role == "ac-designer" else "ISSUE_PHASE_BINDING_V1="
+                        self.assertEqual(transport["binding_marker"], expected)
+                        self.assertEqual(transport["required_isolation"], "worktree")
+                        missing.add("worktree-handover-owner-decision")
+                    self.assertNotIn("missing_observations", transport)
+
+    def test_managed_isolation_only_and_readonly_agent_types_are_disjoint(self):
         manifest = json.loads(
             (ROOT / "issue_start" / "managed-entrypoints-v2.json").read_text(encoding="utf-8")
         )
         managed = {item["agent_type"] for item in manifest["managed"]}
         isolation_only = {item["agent_type"] for item in manifest["isolation_only"]}
+        readonly = {item["agent_type"] for item in manifest["readonly"]}
         self.assertFalse(managed & isolation_only)
+        self.assertFalse(managed & readonly)
+        self.assertFalse(isolation_only & readonly)
 
-    def test_retired_merge_gate_registration_leaves_other_hooks_ordered(self):
+    def test_retired_issue_start_registration_preserves_remaining_hooks(self):
         hooks = json.loads((ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         groups = hooks["hooks"]["PreToolUse"]
         commands = [group["hooks"][0]["command"] for group in groups]
-        self.assertNotIn("pr-merge-gate.sh", commands)
+        self.assertEqual(len(groups), 1)
         self.assertIn("agent-command-gate.sh", commands[0])
-        self.assertIn("issue-start-gate.sh", commands[1])
-        self.assertEqual(len(groups), 2)
+        post_tool_commands = [
+            group["hooks"][0]["command"] for group in hooks["hooks"]["PostToolUse"]
+        ]
+        self.assertEqual(len(post_tool_commands), 1)
+        self.assertIn("adr-notify.sh", post_tool_commands[0])
 
     def test_manifest_keeps_only_the_claude_dispatch_sections(self):
         """Issue #538: Codex 起動用の top-level block は manifest から退役した。"""
@@ -160,7 +179,7 @@ class AssetParityTests(unittest.TestCase):
         )
         self.assertEqual(
             set(manifest),
-            {"schema_version", "policy_version", "managed", "isolation_only", "unmanaged"},
+            {"schema_version", "policy_version", "managed", "isolation_only", "readonly", "unmanaged"},
         )
 
     def test_codex_hooks_register_only_scripts_that_exist(self):
@@ -189,7 +208,7 @@ class AssetParityTests(unittest.TestCase):
         )
         codex_transports = [
             entry["binding_transports"].get("codex")
-            for section in ("managed", "isolation_only")
+            for section in ("managed", "isolation_only", "readonly")
             for entry in manifest[section]
         ]
         self.assertTrue(all(item is None for item in codex_transports))

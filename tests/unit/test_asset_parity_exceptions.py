@@ -10,6 +10,7 @@ class TestIsExempt(unittest.TestCase):
     def test_agy_delegate_skill_exempt_from_github(self):
         reason = is_exempt("agy-delegate", SKILL, "github")
         self.assertIsNotNone(reason)
+        assert reason is not None
         self.assertIn("非移植", reason)
 
     def test_agy_delegate_agent_exempt_from_github(self):
@@ -22,12 +23,14 @@ class TestIsExempt(unittest.TestCase):
         self.assertIsNotNone(is_exempt("issue-implementer", AGENT, "github"))
         self.assertIsNotNone(is_exempt("pr-reviewer", AGENT, "github"))
 
-    def test_not_exempt_from_codex_or_agents_dir(self):
-        # 2026-07 時点で Codex には移植済み（issue #155 是正コミット）— exempt 登録は github のみ。
+    def test_non_mirror_exemptions_match_retired_assets(self):
         self.assertIsNone(is_exempt("agy-delegate", SKILL, "agents_dir"))
         self.assertIsNone(is_exempt("agy-delegate", AGENT, "codex"))
-        self.assertIsNone(is_exempt("issue-pipeline", SKILL, "agents_dir"))
-        self.assertIsNone(is_exempt("issue-implementer", AGENT, "codex"))
+        for name, kind, tree in (("issue-pipeline", SKILL, "agents_dir"),
+                                 ("issue-implementer", AGENT, "codex")):
+            reason = is_exempt(name, kind, tree)
+            assert reason is not None
+            self.assertIn("Issue #603", reason)
 
     def test_unknown_asset_not_exempt(self):
         self.assertIsNone(is_exempt("not-a-real-asset", SKILL, "github"))
@@ -35,8 +38,13 @@ class TestIsExempt(unittest.TestCase):
     def test_gh_create_issue_is_github_only_exemption(self):
         reason = is_exempt("gh-create-issue", SKILL, "github")
         self.assertIsNotNone(reason)
+        assert reason is not None
         self.assertIn("明示スコープ", reason)
         self.assertIsNone(is_exempt("gh-create-issue", SKILL, "agents_dir"))
+
+    def test_gh_create_issue_agent_is_claude_only(self):
+        self.assertIsNotNone(is_exempt("gh-create-issue", AGENT, "github"))
+        self.assertIsNotNone(is_exempt("gh-create-issue", AGENT, "codex"))
 
 
 if __name__ == "__main__":

@@ -15,3 +15,4 @@ class ExecRequest:
     model: str
     reasoning_effort: str
     timeout_seconds: int
+    binding_file: Path | None = None
