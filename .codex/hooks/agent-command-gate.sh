@@ -163,6 +163,8 @@
 # 落としてから python にファイル引数として渡す。
 set -u
 
+project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+
 tmpfile="$(mktemp)"
 trap 'rm -f "$tmpfile"' EXIT
 cat > "$tmpfile"
@@ -171,7 +173,7 @@ gate_out="$(mktemp)"
 trap 'rm -f "$tmpfile" "$gate_out"' EXIT
 
 set +e
-python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
+AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
 import json
 import os
 import re
@@ -181,9 +183,9 @@ import sys
 from datetime import datetime, timezone
 
 # GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・Claude 版と共有する2ファイル
-# 重複定義の解消）。cwd をプロジェクトルートに固定した上で通常 import する（Claude 版と同一設計）。
-sys.path.insert(0, os.getcwd())
-TRUSTED_LAUNCH_ROOT = os.getcwd()  # agy-delegate の信頼する起動元（上と同じ repo ルート）
+# 重複定義の解消）。フック呼び出し元の cwd ではなく、フック配置位置から得たプロジェクトルートを使う。
+sys.path.insert(0, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
+TRUSTED_LAUNCH_ROOT = os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"]  # agy-delegate の信頼する起動元（上と同じ repo ルート・cwd 非依存）
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
@@ -1180,7 +1182,7 @@ def gate_reason(command_text, role):
 
 def agy_launch_origin_reason(payload, tool_input):
     """agy-delegate の起動元束縛: `python3 -m agy_delegate` は cwd 側の package を import するため、
-    信頼する実装はこの hook が動いている repo ルート（冒頭で cwd をルートに固定済み）だけとする。
+    信頼する実装はこの hook の配置位置から得た repo ルート（AGENT_COMMAND_GATE_PROJECT_ROOT）だけとする。
     payload.cwd と tool_input.workdir/cwd が与えられたら、実体パスがそのルートと一致しない限り deny する
     （省略時は呼出元セッションの cwd＝repo ルートで起動される前提。型不正は検査不能として deny）。
     """
