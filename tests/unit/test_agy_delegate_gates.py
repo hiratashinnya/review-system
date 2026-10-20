@@ -1,6 +1,7 @@
 """実際の PF hook に wrapper 起動を渡し、外側ゲートの範囲を検査する。"""
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +28,54 @@ class GateTests(unittest.TestCase):
             self.assertIsNotNone(gate(payload("agy-delegate", COMMAND + "; git merge main")))
             for command in ("agy -p text", "python3 -c pass", "python3 -m agy_delegate other", "git status", "git diff"):
                 self.assertIsNotNone(gate(payload("agy-delegate", command)))
+
+
+class CodexLaunchOriginTests(unittest.TestCase):
+    """`python3 -m agy_delegate` は cwd の package を実行するため、起動元を hook の repo ルートに束縛する。"""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.other = Path(self.temp.name) / "other-tree"
+        (self.other / "agy_delegate").mkdir(parents=True)
+        (self.other / "agy_delegate" / "__main__.py").write_text("raise SystemExit(0)\n")
+
+    def gate(self, *, cwd=None, tool_input=None):
+        body = codex_payload("agy-delegate", COMMAND, tool_name="exec_command")
+        if cwd is not None:
+            body["cwd"] = cwd
+        body["tool_input"].update(tool_input or {})
+        return codex_gate(body, cwd=ROOT)
+
+    def test_launch_from_hook_repository_root_is_allowed(self):
+        link = Path(self.temp.name) / "root-link"
+        link.symlink_to(ROOT, target_is_directory=True)
+        self.assertIsNone(self.gate())
+        self.assertIsNone(self.gate(cwd=str(ROOT)))
+        self.assertIsNone(self.gate(cwd=str(link)))
+        self.assertIsNone(self.gate(tool_input={"workdir": str(ROOT)}))
+        self.assertIsNone(self.gate(cwd=str(ROOT), tool_input={"workdir": "."}))
+
+    def test_different_launch_origin_is_denied_even_with_valid_command(self):
+        other = str(self.other)
+        for case in (dict(cwd=other), dict(tool_input={"workdir": other}),
+                     dict(tool_input={"cwd": other}), dict(cwd=str(ROOT), tool_input={"workdir": other}),
+                     dict(cwd=other, tool_input={"workdir": str(ROOT)}),
+                     dict(cwd=str(ROOT / "tests")), dict(tool_input={"workdir": "tests"}),
+                     dict(tool_input={"workdir": ""}), dict(tool_input={"workdir": 123}),
+                     dict(cwd=str(self.other / ".." / "other-tree"))):
+            with self.subTest(case=case):
+                denial = self.gate(**case)
+                self.assertIsNotNone(denial)
+                self.assertIn("agy_delegate launch root", json.dumps(denial))
+
+    def test_missing_trusted_package_at_hook_root_is_denied(self):
+        empty = Path(self.temp.name) / "no-wrapper"
+        empty.mkdir()
+        body = codex_payload("agy-delegate", COMMAND, tool_name="exec_command")
+        denial = codex_gate(body, cwd=empty)
+        self.assertIsNotNone(denial)
+        self.assertIn("trusted agy_delegate package", json.dumps(denial))
 
 
 if __name__ == "__main__":

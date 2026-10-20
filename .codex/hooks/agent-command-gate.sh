@@ -183,6 +183,7 @@ from datetime import datetime, timezone
 # GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・Claude 版と共有する2ファイル
 # 重複定義の解消）。cwd をプロジェクトルートに固定した上で通常 import する（Claude 版と同一設計）。
 sys.path.insert(0, os.getcwd())
+TRUSTED_LAUNCH_ROOT = os.getcwd()  # agy-delegate の信頼する起動元（上と同じ repo ルート）
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES
@@ -1177,6 +1178,26 @@ def gate_reason(command_text, role):
     return None
 
 
+def agy_launch_origin_reason(payload, tool_input):
+    """agy-delegate の起動元束縛: `python3 -m agy_delegate` は cwd 側の package を import するため、
+    信頼する実装はこの hook が動いている repo ルート（冒頭で cwd をルートに固定済み）だけとする。
+    payload.cwd と tool_input.workdir/cwd が与えられたら、実体パスがそのルートと一致しない限り deny する
+    （省略時は呼出元セッションの cwd＝repo ルートで起動される前提。型不正は検査不能として deny）。
+    """
+    trusted = os.path.realpath(TRUSTED_LAUNCH_ROOT)
+    if not os.path.isfile(os.path.join(trusted, "agy_delegate", "__main__.py")):
+        return "the trusted agy_delegate package was not found at the hook repository root"
+    declared = [("cwd", payload.get("cwd"))]
+    if isinstance(tool_input, dict):
+        declared += [("tool_input.workdir", tool_input.get("workdir")), ("tool_input.cwd", tool_input.get("cwd"))]
+    for source, value in declared:
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value or os.path.realpath(value) != trusted:
+            return f"{source} differs from the trusted agy_delegate launch root (the wrapper must run from the hook repository root)"
+    return None
+
+
 merge_reason = None
 if isinstance(command, str) and command and tool_name in SHELL_TOOL_NAMES:
     merge_reason = merge_command_reason(command)
@@ -1210,6 +1231,10 @@ elif agent_type == "agy-delegate" and tool_name in SHELL_TOOL_NAMES:
     if (symbol or env_reason or len(tokens) < 4 or tokens[0] not in PYTHON_HEAD_COMMANDS
             or tokens[1:3] != ["-m", "agy_delegate"] or tokens[3] not in {"inspect", "run"}):
         reason = "agent-command-gate (agy-delegate): only python3 -m agy_delegate inspect|run is allowed; use Read for file inspection."
+    else:
+        origin_reason = agy_launch_origin_reason(payload, tool_input)
+        if origin_reason:
+            reason = f"agent-command-gate (agy-delegate): {origin_reason}."
 elif agent_type not in GATED_ROLES:
     # 対象外ロール（main context 自身・欠如を含む）はロール専用判定（層1〜3）の対象外。
     # 上の全 agent_type 共通 deny 層（merge と network/exec）に掛からないものに限り許可する

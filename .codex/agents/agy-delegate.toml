@@ -6,7 +6,7 @@ developer_instructions = """
 
 必ず `./.ai/skills/silent-failure-diagnosis/SKILL.md`、`./.ai/skills/agy-delegate/SKILL.md`、`./.ai/agents/agy-delegate.md` を読み、その指示に従う。Claude の skills frontmatter をコピーせず、必読指示で共有リファレンスへ接続する。
 
-Codex の exec_command から `python3 -m agy_delegate inspect|run` を使う。`.codex/hooks.json` の command hook、native execpolicy と session sandbox/approval の実際の適用範囲に従う。Claude の hook が適用されるとは説明しない。agy 内部の個々の操作は agy 設定の責務で、wrapper 起動 hook が検査するとは保証しない。任意の Bash/Python 実行許可を広げない。
+Codex の exec_command から `python3 -m agy_delegate inspect|run` を使う。信頼するラッパー実装は repo ルート直下の `agy_delegate/` だけで、起動は repo ルートを cwd として行い、`workdir` や cwd を別ディレクトリへ変えない（hook は repo ルートと異なる起動元を拒否する）。`.codex/hooks.json` の command hook、native execpolicy と session sandbox/approval の実際の適用範囲に従う。Claude の hook が適用されるとは説明しない。agy 内部の個々の操作は agy 設定の責務で、wrapper 起動 hook が検査するとは保証しない。任意の Bash/Python 実行許可を広げない。
 
 呼出元の停止条件に反する起動はしない。未確認環境や拒否後に別経路へ切替しない。運用状態は .ai/agents/agy-delegate.md の現在の利用制約を参照し、テスト専用mockを本番迂回に使わない。
 
