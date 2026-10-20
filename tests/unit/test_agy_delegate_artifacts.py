@@ -1,7 +1,11 @@
 """画像回収が他会話/旧成果/symlinkへ逃げないことを検査する。"""
 
+import os
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+from agy_delegate import image_source
 from agy_delegate.artifacts import collect_images, image_snapshot
 from tests.unit.agy_delegate_fixtures import FakeWorkspace
 
@@ -89,6 +93,56 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "image_source_replaced"):
             collect_images(self.fake.brain, "conv", fresh, self.fake.workspace / "out")
         self.assertFalse((self.fake.workspace / "out").exists())
+
+    def _foreign_tree(self):
+        foreign = self.fake.workspace / "foreign"
+        (foreign / "conv").mkdir(parents=True)
+        (foreign / "conv" / "new.jpg").write_bytes(b"foreign")
+        return foreign
+
+    def test_copy_uses_inspected_directory_even_if_path_is_swapped_after_checks(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        (directory / "new.jpg").write_bytes(b"genuine")
+        foreign = self._foreign_tree()
+        original = image_source.read_images
+
+        def swap_then_read(directory_fd):
+            self.fake.brain.rename(self.fake.workspace / "brain-moved")
+            self.fake.brain.symlink_to(foreign, target_is_directory=True)
+            return original(directory_fd)
+
+        with patch("agy_delegate.artifacts.read_images", swap_then_read):
+            copied = collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertEqual(Path(copied[0]).read_bytes(), b"genuine")
+
+    def test_file_swapped_to_link_after_listing_is_refused_without_following(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        (directory / "new.jpg").write_bytes(b"genuine")
+        foreign = self._foreign_tree() / "conv" / "new.jpg"
+        listing = os.listdir
+
+        def list_then_swap(fd):
+            names = listing(fd)
+            (directory / "new.jpg").unlink()
+            (directory / "new.jpg").symlink_to(foreign)
+            return names
+
+        with patch("agy_delegate.image_source.os.listdir", list_then_swap):
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertFalse((self.fake.workspace / "out").exists())
+
+    def test_fifo_named_like_image_is_refused_without_blocking(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        os.mkfifo(directory / "new.jpg")
+        with self.assertRaisesRegex(ValueError, "nonfile"):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
 
 
 if __name__ == "__main__":
