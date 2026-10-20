@@ -91,6 +91,44 @@ class ConversationRecordTests(unittest.TestCase):
                 mark_continuation_started(self.record.parent, self.fake.request(conversation="conversation-1"))
         self.assertEqual(sorted(path.name for path in self.record.parent.glob("*.tmp")), [])
 
+    def test_save_failure_at_real_file_write_boundary_keeps_old_success_unacceptable(self):
+        """記録保存関数は差し替えず、会話記録への実書込だけを OSError にして実ディスクの状態を確かめる。"""
+        from agy_delegate import records
+        real_write = records._private_write
+
+        def fail_for_conversation_summary(path, encoded):
+            if path.name.startswith("conversation-"):
+                raise OSError("synthetic disk failure")
+            return real_write(path, encoded)
+
+        with patch("agy_delegate.records._private_write", fail_for_conversation_summary):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(failed.exit_code, 0)
+        run_results = list((self.record.parent).glob("*/result.json"))
+        self.assertEqual(len(run_results), 2)
+        on_disk = json.loads(self.record.read_text())
+        self.assertEqual(on_disk["classification"], "failed")
+        self.assertIn("conversation_continuation_in_progress", on_disk["reasons"])
+        self.assertEqual(sorted(path.name for path in self.record.parent.glob("*.tmp")), [])
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertIn("conversation_previous_failure", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
+
+    def test_marking_forces_private_mode_and_keeps_record_when_write_fails(self):
+        self.record.chmod(0o644)
+        request = self.fake.request(conversation="conversation-1")
+        before = self.record.read_text()
+        with patch("agy_delegate.conversation_continuation.os.fsync", side_effect=OSError("synthetic")):
+            with self.assertRaises(OSError):
+                mark_continuation_started(self.record.parent, request)
+        self.assertEqual(self.record.read_text(), before)
+        self.assertEqual(self.record.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(sorted(path.name for path in self.record.parent.glob("*.tmp")), [])
+        mark_continuation_started(self.record.parent, request)
+        self.assertEqual(self.record.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "failed")
+
     def test_successful_continuation_after_marking_is_recorded_as_success_again(self):
         self.assertEqual(self.execute(self.fake.request(conversation="conversation-1")).exit_code, 0)
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
