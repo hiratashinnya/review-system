@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .permissions import inspect_settings
+from .results import public_identifier, public_status
 from .runner import run, run_parallel
 from .types import Request
 
@@ -48,6 +49,8 @@ def main(argv=None) -> int:
 
 def _print_result(result):
     public = asdict(result)
+    public["status"] = public_status(result.status)
+    public["conversation_id"] = public_identifier(result.conversation_id)
     public["response"] = "[redacted: local result.json]" if result.response is not None else None
     public["error"] = "[redacted: local result.json]" if result.error is not None else None
     public["denied_actions"] = ["[redacted]" for action in result.denied_actions]

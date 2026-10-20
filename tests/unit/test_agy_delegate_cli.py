@@ -76,6 +76,26 @@ class CliTests(unittest.TestCase):
         self.assertEqual(local["artifacts"], result.artifacts)
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_public_status_and_identifier_expose_only_known_or_valid_values(self):
+        args = ["run", "--workspace", str(self.fake.workspace), "--settings", str(self.fake.settings),
+                "--executable", str(self.fake.executable), "--prompt", "text", "--print-timeout", "1", "--caller-state", "ready"]
+        cases = (("SUCCESS", "conversation-1", "SUCCESS", "conversation-1"),
+                 ("ERROR", None, "ERROR", None),
+                 ("private-status-token", "private/id token", "[redacted: unrecognized status]",
+                  "[redacted: invalid id]"))
+        for status, identity, expected_status, expected_identity in cases:
+            with self.subTest(status=status):
+                result = Result("run-public", classification="failed", status=status,
+                                conversation_id=identity, reasons=["status_not_success"])
+                stdout = io.StringIO()
+                with patch("agy_delegate.cli.run", return_value=result), redirect_stdout(stdout):
+                    main(args)
+                public = json.loads(stdout.getvalue())
+                self.assertEqual(public["status"], expected_status)
+                self.assertEqual(public["conversation_id"], expected_identity)
+                for raw in ("private-status-token", "private/id token"):
+                    self.assertNotIn(raw, stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

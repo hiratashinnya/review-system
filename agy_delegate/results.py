@@ -9,8 +9,21 @@ from .types import Result
 ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 
 
+KNOWN_STATUSES = {"SUCCESS", "ERROR"}  # agy 1.3.3 実測で観測した status のみ公開する。
+
+
 def valid_id(value: object) -> bool:
     return isinstance(value, str) and bool(ID_PATTERN.fullmatch(value))
+
+
+def public_status(value: str | None) -> str | None:
+    """既知値だけを CLI stdout へ出す。生値は当該実行の result.json にだけ残る。"""
+    return value if value is None or value in KNOWN_STATUSES else "[redacted: unrecognized status]"
+
+
+def public_identifier(value: str | None) -> str | None:
+    """形式が妥当な会話 ID だけを CLI stdout へ出す。不正な生値は公開しない。"""
+    return value if value is None or valid_id(value) else "[redacted: invalid id]"
 
 
 def normalize(run_id: str, stdout: str, stderr: str, code: int) -> Result:
