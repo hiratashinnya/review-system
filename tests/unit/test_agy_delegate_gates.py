@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.unit.test_agent_command_gate import payload as claude_payload, run_gate as claude_gate
 from tests.unit.test_codex_agent_command_gate import payload as codex_payload, run_gate as codex_gate
@@ -19,10 +20,11 @@ class GateTests(unittest.TestCase):
         self.assertTrue(any("Bash" in entry.get("matcher", "") and
                             any("agent-command-gate.sh" in hook.get("command", "")
                                 for hook in entry.get("hooks", [])) for entry in entries))
-        self.assertIsNone(claude_gate(claude_payload("agy-delegate", COMMAND)))
+        self.assertIsNone(claude_gate(claude_payload("agy-delegate", COMMAND), cwd=ROOT,
+                                      env={"CLAUDE_PROJECT_DIR": str(ROOT)}))
 
     def test_codex_uses_its_own_hook_outer_command_only(self):
-        self.assertIsNone(codex_gate(codex_payload("agy-delegate", COMMAND, tool_name="exec_command")))
+        self.assertIsNone(codex_gate(codex_payload("agy-delegate", COMMAND, tool_name="exec_command"), cwd=ROOT))
         for gate, payload in ((claude_gate, claude_payload), (codex_gate, codex_payload)):
             self.assertIsNotNone(gate(payload("issue-implementer", COMMAND)))
             self.assertIsNotNone(gate(payload("agy-delegate", COMMAND + "; git merge main")))
@@ -70,10 +72,18 @@ class CodexLaunchOriginTests(unittest.TestCase):
                 self.assertIn("agy_delegate launch root", json.dumps(denial))
 
     def test_missing_trusted_package_at_hook_root_is_denied(self):
+        # hook は自身の配置位置から信頼ルートを得るため、wrapper を欠く別ルートへ hook 本体だけを置いて実行する。
         empty = Path(self.temp.name) / "no-wrapper"
-        empty.mkdir()
+        (empty / ".codex" / "hooks").mkdir(parents=True)
+        hook = empty / ".codex" / "hooks" / "agent-command-gate.sh"
+        hook.write_text((ROOT / ".codex" / "hooks" / "agent-command-gate.sh").read_text())
+        hook.chmod(0o755)
+        for package in ROOT.iterdir():
+            if package.is_dir() and not package.name.startswith(".") and package.name not in {"agy_delegate", "tmp"}:
+                (empty / package.name).symlink_to(package, target_is_directory=True)
         body = codex_payload("agy-delegate", COMMAND, tool_name="exec_command")
-        denial = codex_gate(body, cwd=empty)
+        with patch("tests.unit.test_codex_agent_command_gate.HOOK", hook):
+            denial = codex_gate(body, cwd=empty)
         self.assertIsNotNone(denial)
         self.assertIn("trusted agy_delegate package", json.dumps(denial))
 

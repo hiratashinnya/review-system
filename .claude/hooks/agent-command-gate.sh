@@ -171,6 +171,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
+from agent_command_gate.launch_origin import launch_origin_reason
 from issue_start.gated_roles import GATED_ROLES, READ_ONLY_ROLES, WRITE_ROLES
 from codex_worktree_exec.roles import CODEX_EXEC_ROLES
 
@@ -1739,6 +1740,12 @@ elif agent_type == "agy-delegate" and not is_mcp:
     if (symbol or env_reason or len(tokens) < 4 or tokens[0] not in PYTHON_HEAD_COMMANDS
             or tokens[1:3] != ["-m", "agy_delegate"] or tokens[3] not in {"inspect", "run"}):
         reason = "agent-command-gate (agy-delegate): only python3 -m agy_delegate inspect|run is allowed; use Read for file inspection."
+    else:
+        # 起動元束縛（Codex 版と同一モジュール）: 信頼ルートは hook 位置/CLAUDE_PROJECT_DIR 由来の
+        # AGENT_COMMAND_GATE_PROJECT_ROOT。cwd 系が省略されても実プロセス cwd を検査する。
+        origin_reason = launch_origin_reason(payload, tool_input, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
+        if origin_reason:
+            reason = f"agent-command-gate (agy-delegate): {origin_reason}."
 elif agent_type not in GATED_ROLES and agent_type != GH_CREATE_ISSUE_ROLE:
     # agent_type が対象ロール以外（欠如を含む・main context 自身がこれに該当）はロール専用判定
     # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する
