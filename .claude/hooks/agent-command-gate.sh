@@ -143,6 +143,8 @@
 # 落としてから python にファイル引数として渡す。
 set -u
 
+project_root="${CLAUDE_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)}"
+
 tmpfile="$(mktemp)"
 trap 'rm -f "$tmpfile"' EXIT
 cat > "$tmpfile"
@@ -151,7 +153,7 @@ gate_out="$(mktemp)"
 trap 'rm -f "$tmpfile" "$gate_out"' EXIT
 
 set +e
-python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
+AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
 import json
 import os
 import re
@@ -161,14 +163,12 @@ import sys
 from datetime import datetime, timezone
 
 # GATED_ROLES の正本は issue_start/gated_roles.py（F-510-08・2ファイル重複定義の解消）。
-# この hook は stdin スクリプト（`python3 - <tmpfile>`）として実行され、Python は path[0] を
-# 空文字列（cwd）にする。gated ロールに対し `cwd` の明示指定は既に deny されており（層3 相当の
-# 前提）フック実行時の cwd は常にプロジェクトルートに固定されるため、`sys.path` へ明示的に
-# cwd を足した上で通常 import する。import 失敗時は下の `sys.excepthook`
+# フックの呼び出し元 cwd は自由に変わるため、シェル側でフック配置位置から得たプロジェクトルートを使う。
+# import 失敗時は下の `sys.excepthook`
 # （`deny_on_internal_error`）がまだ設定されていないため Python の既定挙動で非0終了するが、
 # 外側の bash ラッパー（本ファイル末尾）が「stdout 空 かつ rc 非0」を内部エラーとして検知し
 # 一般化した deny メッセージを返す＝fail-close は維持される。
-sys.path.insert(0, os.getcwd())
+sys.path.insert(0, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
 from issue_start.gated_roles import GATED_ROLES, READ_ONLY_ROLES, WRITE_ROLES

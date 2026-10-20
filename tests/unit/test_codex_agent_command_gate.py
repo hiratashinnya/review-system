@@ -17,11 +17,6 @@ def run_gate(payload, *, env=None, cwd=None):
     # 限り空文字にして無効化し、開発者の実ホームディレクトリ（~/.codex/agent-command-gate-trace.log）
     # を汚染しないようにする。
     merged_env = {**os.environ, "AGENT_COMMAND_GATE_TRACE_LOG": "", **(env or {})}
-    if cwd is not None:
-        python_path = merged_env.get("PYTHONPATH", "")
-        merged_env["PYTHONPATH"] = os.pathsep.join(
-            part for part in [str(ROOT), python_path] if part
-        )
     result = subprocess.run(
         [str(HOOK)],
         input=json.dumps(payload),
@@ -517,6 +512,14 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class CodexAgentCommandGateTests(unittest.TestCase):
+    def test_import_is_independent_of_repository_subdirectory_cwd(self):
+        for role in ["issue-implementer", "main"]:
+            with self.subTest(role=role):
+                decision = run_gate(
+                    payload(role, "git status"), cwd=ROOT / "tests" / "unit"
+                )
+                self.assertIsNone(decision)
+
     def assert_denied(self, hook_output):
         self.assertIsNotNone(hook_output)
         self.assertEqual(
@@ -1302,9 +1305,12 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         """フック本体を1箇所だけ書き換えた一時コピーを作り、そのパスを返す。"""
         original = HOOK.read_text(encoding="utf-8")
         self.assertIn(old, original, "書き換え対象がフック本体に見つからない（本体側の改名？）")
-        tmpdir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmpdir, True)
-        broken = Path(tmpdir) / "agent-command-gate.sh"
+        descriptor, path = tempfile.mkstemp(
+            prefix="agent-command-gate-", suffix=".sh", dir=HOOK.parent
+        )
+        os.close(descriptor)
+        broken = Path(path)
+        self.addCleanup(broken.unlink, missing_ok=True)
         broken.write_text(original.replace(old, new, 1), encoding="utf-8")
         broken.chmod(0o755)
         return broken
@@ -1356,6 +1362,15 @@ class CodexAgentCommandGateTests(unittest.TestCase):
         decision = self._decision(self._run_hook_file(broken, "main", "ls -la"))
         self.assertEqual(decision["permissionDecision"], "deny")
         self.assertIn("gate itself failed", decision["permissionDecisionReason"])
+
+    def test_import_error_denies_instead_of_failing_open(self):
+        broken = self._hook_copy_with(
+            "from agent_command_gate.merge_command import merge_command_reason",
+            "from missing_agent_command_gate_module import merge_command_reason",
+        )
+        decision = self._decision(self._run_hook_file(broken, "main", "ls -la"))
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("gate could not run", decision["permissionDecisionReason"])
 
     def test_role_tables_are_consistent_in_the_shipped_hook(self):
         # 出荷されているフック本体では整合検査が通り、通常の判定が行われる（起動時 deny しない）。

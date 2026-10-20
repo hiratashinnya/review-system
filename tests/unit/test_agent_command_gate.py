@@ -12,7 +12,7 @@ HOOK = ROOT / ".claude" / "hooks" / "agent-command-gate.sh"
 _HAS_BASH = shutil.which("bash") is not None
 
 
-def run_gate(payload, *, env=None):
+def run_gate(payload, *, env=None, cwd=None):
     # AGENT_COMMAND_GATE_TRACE_LOG は既定で常時有効（Issue #192）。テストが明示的に上書きしない
     # 限り空文字にして無効化し、開発者の実ホームディレクトリ（~/.claude/agent-command-gate-trace.log）
     # を汚染しないようにする。
@@ -24,6 +24,7 @@ def run_gate(payload, *, env=None):
         capture_output=True,
         check=True,
         env=merged_env,
+        cwd=cwd,
     )
     # フック内部で例外が出ても `exit 0` で終わるため、stdout 無し＝allow と**区別が付かない**
     # （＝内部エラーが静かに fail-open する）。Issue #308 でロールを追加した際、3つのロール別 dict の
@@ -573,6 +574,16 @@ class UniversalDangerousCommandLayerTests(unittest.TestCase):
 
 @unittest.skipUnless(_HAS_BASH, "bash バイナリが必要")
 class AgentCommandGateTests(unittest.TestCase):
+    def test_import_is_independent_of_repository_subdirectory_cwd(self):
+        for role in ["issue-implementer", "main"]:
+            with self.subTest(role=role):
+                decision = run_gate(
+                    payload(role, "git status"),
+                    env={"CLAUDE_PROJECT_DIR": str(ROOT)},
+                    cwd=ROOT / "tests" / "unit",
+                )
+                self.assertIsNone(decision)
+
     def assert_denied(self, hook_output):
         self.assertIsNotNone(hook_output)
         self.assertEqual(
@@ -1586,9 +1597,12 @@ class AgentCommandGateTests(unittest.TestCase):
         """フック本体を1箇所だけ書き換えた一時コピーを作り、そのパスを返す。"""
         original = HOOK.read_text(encoding="utf-8")
         self.assertIn(old, original, "書き換え対象がフック本体に見つからない（本体側の改名？）")
-        tmpdir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmpdir, True)
-        broken = Path(tmpdir) / "agent-command-gate.sh"
+        descriptor, path = tempfile.mkstemp(
+            prefix="agent-command-gate-", suffix=".sh", dir=HOOK.parent
+        )
+        os.close(descriptor)
+        broken = Path(path)
+        self.addCleanup(broken.unlink, missing_ok=True)
         broken.write_text(original.replace(old, new, 1), encoding="utf-8")
         broken.chmod(0o755)
         return broken
@@ -1640,6 +1654,15 @@ class AgentCommandGateTests(unittest.TestCase):
         decision = self._decision(self._run_hook_file(broken, "main", "ls -la"))
         self.assertEqual(decision["permissionDecision"], "deny")
         self.assertIn("gate itself failed", decision["permissionDecisionReason"])
+
+    def test_import_error_denies_instead_of_failing_open(self):
+        broken = self._hook_copy_with(
+            "from agent_command_gate.merge_command import merge_command_reason",
+            "from missing_agent_command_gate_module import merge_command_reason",
+        )
+        decision = self._decision(self._run_hook_file(broken, "main", "ls -la"))
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertIn("gate could not run", decision["permissionDecisionReason"])
 
     def test_role_tables_are_consistent_in_the_shipped_hook(self):
         # 出荷されているフック本体では整合検査が通り、通常の判定が行われる（起動時 deny しない）。
