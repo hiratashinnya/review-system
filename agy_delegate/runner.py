@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from .artifacts import collect_images, image_snapshot
+from .conversation_continuation import mark_continuation_started
 from .permissions import inspect_settings
 from .process import execute
 from .records import check_conversation, execution_lock, save_record, state_root
@@ -28,6 +29,7 @@ def _run(request: Request, wait_seconds: int) -> Result:
         root = state_root(request.workspace.resolve())
         with execution_lock(root, wait_seconds=wait_seconds):
             check_conversation(root, request)
+            mark_continuation_started(root, request)
             run_dir = root / result.run_id
             run_dir.mkdir(mode=0o700, exist_ok=False)
             try:

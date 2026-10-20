@@ -2,7 +2,9 @@
 
 import json
 import unittest
+from unittest.mock import patch
 
+from agy_delegate.conversation_continuation import mark_continuation_started
 from agy_delegate.runner import run
 from tests.unit.agy_delegate_fixtures import FakeWorkspace, run_synthetic, synthetic_runtime
 
@@ -54,6 +56,44 @@ class ConversationRecordTests(unittest.TestCase):
         payload = json.dumps(self.data).replace('"denied_actions": []',
                                                 '"denied_actions": ["deny"], "denied_actions": []')
         self.assert_blocked(payload, "conversation_record_missing_or_invalid")
+
+    def test_old_success_is_not_reaccepted_after_result_save_failure(self):
+        launches = lambda: (self.fake.workspace / "launch-count.txt").read_text()
+        with patch("agy_delegate.runner.save_record", side_effect=OSError("synthetic save failure")):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertNotEqual(launches(), self.launches)
+        marked = json.loads(self.record.read_text())
+        self.assertEqual(marked["classification"], "failed")
+        self.assertIn("conversation_continuation_in_progress", marked["reasons"])
+        after_failure = launches()
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertIn("conversation_previous_failure", blocked.reasons)
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertEqual(launches(), after_failure)
+
+    def test_continuation_is_not_launched_when_marking_old_record_fails(self):
+        before = self.record.read_text()
+        with patch("agy_delegate.runner.mark_continuation_started",
+                   side_effect=OSError("synthetic mark failure")):
+            result = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("execution_io_error", result.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), self.launches)
+        self.assertEqual(self.record.read_text(), before)
+
+    def test_marking_replaces_record_atomically_without_leftovers(self):
+        mark_continuation_started(self.record.parent, self.fake.request(conversation="conversation-1"))
+        self.assertEqual(sorted(path.name for path in self.record.parent.glob("*.tmp")), [])
+        self.assertEqual(self.record.stat().st_mode & 0o777, 0o600)
+        with patch("agy_delegate.conversation_continuation.os.replace", side_effect=OSError("synthetic")):
+            with self.assertRaises(OSError):
+                mark_continuation_started(self.record.parent, self.fake.request(conversation="conversation-1"))
+        self.assertEqual(sorted(path.name for path in self.record.parent.glob("*.tmp")), [])
+
+    def test_successful_continuation_after_marking_is_recorded_as_success_again(self):
+        self.assertEqual(self.execute(self.fake.request(conversation="conversation-1")).exit_code, 0)
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
 
 
 if __name__ == "__main__":
