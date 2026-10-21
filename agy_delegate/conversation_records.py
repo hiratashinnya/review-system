@@ -29,5 +29,5 @@ def validate_record(data: object, workspace: str, conversation: str) -> None:
 
 def _valid_record_values(data: dict) -> bool:
     return (valid_id(data["run_id"]) and not isinstance(data["agy_exit_code"], bool)
-            and data["classification"] in {"success_candidate", "failed", "denied", "preflight_failed"}
+            and data["classification"] in {"success_candidate", "success_pending_sync", "failed", "denied", "preflight_failed"}
             and all(isinstance(value, str) for value in data["reasons"]))

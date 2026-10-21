@@ -45,6 +45,10 @@ class ConversationRecordTests(unittest.TestCase):
             with self.subTest(change=change):
                 self.assert_blocked(json.dumps(self.data | change), "conversation_previous_failure")
 
+    def test_pending_success_blocks_continuation(self):
+        self.assert_blocked(json.dumps(self.data | {"classification": "success_pending_sync"}),
+                            "conversation_previous_failure")
+
     def test_record_identity_must_match_requested_conversation(self):
         self.assert_blocked(json.dumps(self.data | {"conversation_id": "other"}),
                             "conversation_record_identity_mismatch")
@@ -97,6 +101,53 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(marked["classification"], "failed")
         self.assertIn("conversation_continuation_in_progress", marked["reasons"])
         self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
+
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_save_parent_sync_failure_does_not_leave_continuable_success(self):
+        from agy_delegate.records import save_record
+        self.addCleanup(self.record.parent.chmod, 0o700)
+
+        def save_without_parent_read_permission(root, request, result):
+            self.record.parent.chmod(0o300)
+            return save_record(root, request, result)
+
+        with patch("agy_delegate.runner.save_record", save_without_parent_read_permission):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        self.record.parent.chmod(0o700)
+        self.assertNotEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+        self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        self.assertNotEqual(launches, self.launches)
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertIn("conversation_previous_failure", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
+
+    def test_success_commit_sync_failure_demotes_record_and_blocks_continuation(self):
+        from agy_delegate.atomic_record_write import _sync_parent_directory
+
+        def fail_success_commit_sync(directory):
+            _sync_parent_directory(directory)
+            if (directory == self.record.parent
+                    and json.loads(self.record.read_text())["classification"] == "success_candidate"):
+                raise OSError("synthetic success commit sync failure")
+
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_success_commit_sync):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "success_pending_sync")
+        self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        self.assertNotEqual(launches, self.launches)
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertIn("conversation_previous_failure", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
 
     def test_marking_replaces_record_atomically_without_leftovers(self):
         mark_continuation_started(self.record.parent, self.fake.request(conversation="conversation-1"))

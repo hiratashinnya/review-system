@@ -70,7 +70,25 @@ def save_record(root: Path, request: Request, result: Result) -> None:
             if path.is_symlink():
                 raise ValueError("conversation_record_symlink")
             summary = {name: data[name] for name in RECORD_TYPES}
-            _private_write(path, json.dumps(summary, ensure_ascii=False))
+            _save_conversation_summary(path, summary)
+
+
+def _save_conversation_summary(path: Path, summary: dict) -> None:
+    encoded = json.dumps(summary, ensure_ascii=False)
+    if summary["classification"] != "success_candidate":
+        _private_write(path, encoded)
+        return
+    pending = json.dumps(summary | {"classification": "success_pending_sync"}, ensure_ascii=False)
+    _private_write(path, pending)
+    try:
+        _private_write(path, encoded)
+    except OSError:
+        try:
+            _private_write(path, pending)
+        except OSError:
+            # 降格書込みも失敗し得るため、元の確定エラーを伝播する。
+            pass
+        raise
 
 
 def _private_write(path: Path, encoded: str) -> None:
