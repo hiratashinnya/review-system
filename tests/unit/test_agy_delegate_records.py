@@ -497,6 +497,168 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertFalse(os.path.lexists(self.record.with_suffix(".pending")))
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
 
+    def assert_unconfirmed_result_blocks_continuation(self, failed):
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        new_results = [path for path in self.record.parent.glob("*/result.json")
+                       if path.parent.name != self.data["run_id"]]
+        self.assertEqual(len(new_results), 1)
+        self.assertEqual(new_results[0].parent.name, failed.run_id)
+        data = json.loads(new_results[0].read_text())
+        self.assertEqual(data["classification"], "failed")
+        self.assertIn("result_unconfirmed", data["reasons"])
+        self.assertNotIn("result_unconfirmed", failed.reasons)
+        self.assertTrue(self.record.with_suffix(".pending").is_file())
+        self.assert_pending_blocks_continuation()
+
+    def assert_pending_blocks_continuation(self):
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        self.assertNotEqual(launches, self.launches)
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertIn("conversation_record_unconfirmed", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
+
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_result_stays_unconfirmed_when_conversation_parent_sync_fails(self):
+        from agy_delegate.records import save_record
+        self.addCleanup(self.record.parent.chmod, 0o700)
+
+        def save_without_parent_read_permission(root, request, result):
+            self.record.parent.chmod(0o300)
+            return save_record(root, request, result)
+
+        with patch("agy_delegate.runner.save_record", save_without_parent_read_permission):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.record.parent.chmod(0o700)
+        self.assert_unconfirmed_result_blocks_continuation(failed)
+
+    def test_result_stays_unconfirmed_when_conversation_write_fails(self):
+        from agy_delegate import records
+        real_write = records._private_write
+        hits = 0
+
+        def fail_conversation_write(path, encoded):
+            nonlocal hits
+            if path == self.record:
+                hits += 1
+                raise OSError("synthetic conversation write failure")
+            return real_write(path, encoded)
+
+        with patch("agy_delegate.records._private_write", fail_conversation_write):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(hits, 1)
+        self.assert_unconfirmed_result_blocks_continuation(failed)
+
+    def test_result_stays_unconfirmed_when_final_result_write_fails(self):
+        from agy_delegate import records
+        real_write = records._private_write
+        hits = 0
+
+        def fail_final_result_write(path, encoded):
+            nonlocal hits
+            if path.name == "result.json" and json.loads(encoded)["classification"] == "success_candidate":
+                hits += 1
+                raise OSError("synthetic final result write failure")
+            return real_write(path, encoded)
+
+        with patch("agy_delegate.records._private_write", fail_final_result_write):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(hits, 1)
+        self.assert_unconfirmed_result_blocks_continuation(failed)
+
+    def test_success_confirms_result_before_removing_marker(self):
+        from agy_delegate import records
+        real_write = records._private_write
+        writes = []
+
+        def track_write(path, encoded):
+            writes.append((path, encoded))
+            if path.name == "result.json" and json.loads(encoded)["classification"] == "success_candidate":
+                self.assertTrue(self.record.with_suffix(".pending").is_file())
+                self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+            return real_write(path, encoded)
+
+        with patch("agy_delegate.records._private_write", track_write):
+            succeeded = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(succeeded.exit_code, 0)
+        result_path = self.record.parent / succeeded.run_id / "result.json"
+        self.assertEqual([path for path, _ in writes],
+                         [result_path, self.record.with_suffix(".pending"), self.record, result_path])
+        final = json.loads(result_path.read_text())
+        self.assertEqual(final["classification"], "success_candidate")
+        self.assertNotIn("result_unconfirmed", final["reasons"])
+        self.assertEqual(json.loads(writes[0][1]),
+                         final | {"classification": "failed", "reasons": final["reasons"] + ["result_unconfirmed"]})
+        self.assertFalse(os.path.lexists(self.record.with_suffix(".pending")))
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+
+    def test_final_result_sync_failure_keeps_marker_and_blocks_continuation(self):
+        from agy_delegate.atomic_record_write import _sync_parent_directory
+        hits = 0
+
+        def fail_final_result_sync(directory):
+            nonlocal hits
+            _sync_parent_directory(directory)
+            if directory.parent == self.record.parent:
+                data = json.loads((directory / "result.json").read_text())
+                if data["classification"] == "success_candidate":
+                    hits += 1
+                    raise OSError("synthetic final result sync failure")
+
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_final_result_sync):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(hits, 1)
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        data = json.loads((self.record.parent / failed.run_id / "result.json").read_text())
+        self.assertEqual(data["classification"], "success_candidate")
+        self.assertTrue(self.record.with_suffix(".pending").is_file())
+        self.assert_pending_blocks_continuation()
+
+    def test_all_conversations_are_written_before_any_marker_is_removed(self):
+        from agy_delegate import records
+        from agy_delegate.types import Result
+        result = Result("multiple-records", classification="success_candidate", conversation_id="other")
+        result_path = self.record.parent / result.run_id / "result.json"
+        result_path.parent.mkdir(mode=0o700)
+        summaries = [self.record, self.record.parent / "conversation-other.json"]
+        real_remove = records.remove_marker
+        removals = []
+
+        def check_before_removal(marker):
+            self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
+            for path in summaries:
+                self.assertEqual(json.loads(path.read_text())["classification"], "success_candidate")
+                if not removals:
+                    self.assertTrue(path.with_suffix(".pending").is_file())
+            removals.append(marker)
+            return real_remove(marker)
+
+        with patch("agy_delegate.records.remove_marker", check_before_removal):
+            records.save_record(self.record.parent, self.fake.request(conversation="conversation-1"), result)
+        self.assertCountEqual(removals, [path.with_suffix(".pending") for path in summaries])
+        self.assertTrue(all(not os.path.lexists(path) for path in removals))
+
+    def test_non_success_result_is_written_once_without_markers(self):
+        from agy_delegate import records
+        from agy_delegate.types import Result
+        for classification in ("failed", "denied", "preflight_failed"):
+            with self.subTest(classification=classification):
+                result = Result(classification, classification=classification, conversation_id="conversation-1")
+                result_path = self.record.parent / result.run_id / "result.json"
+                result_path.parent.mkdir(mode=0o700)
+                with patch("agy_delegate.records._private_write", wraps=records._private_write) as write, \
+                        patch("agy_delegate.records.remove_marker") as remove:
+                    records.save_record(self.record.parent, self.fake.request(), result)
+                self.assertEqual([call.args[0] for call in write.call_args_list], [result_path, self.record])
+                remove.assert_not_called()
+                self.assertFalse(os.path.lexists(self.record.with_suffix(".pending")))
+                self.assertEqual(json.loads(result_path.read_text())["classification"], classification)
+                self.assertNotIn("result_unconfirmed", json.loads(result_path.read_text())["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

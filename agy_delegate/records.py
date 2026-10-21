@@ -61,11 +61,16 @@ def execution_lock(root: Path, *, wait_seconds: int = 130):
 
 
 def save_record(root: Path, request: Request, result: Result) -> None:
+    """結果の確定置換後に同期が失敗すると成功表示は残り得るが、印で継続を拒否する。"""
     data = asdict(result) | {"workspace": str(request.workspace.resolve())}
     encoded = json.dumps(data, ensure_ascii=False)
-    run_dir = root / result.run_id
-    result_path = run_dir / "result.json"
-    _private_write(result_path, encoded)
+    result_path = root / result.run_id / "result.json"
+    success = result.classification == "success_candidate"
+    initial = data
+    if success:
+        initial = data | {"classification": "failed", "reasons": result.reasons + ["result_unconfirmed"]}
+    _private_write(result_path, json.dumps(initial, ensure_ascii=False))
+    markers = []
     identities = {result.conversation_id, request.conversation} - {None}
     for identity in identities:
         if valid_id(identity):
@@ -73,18 +78,22 @@ def save_record(root: Path, request: Request, result: Result) -> None:
             if path.is_symlink():
                 raise ValueError("conversation_record_symlink")
             summary = {name: data[name] for name in RECORD_TYPES}
-            _save_conversation_summary(path, summary)
+            marker = _save_conversation_summary(path, summary)
+            if marker is not None:
+                markers.append(marker)
+    if success:
+        _private_write(result_path, encoded)
+    for marker in markers:
+        remove_marker(marker)
 
 
-def _save_conversation_summary(path: Path, summary: dict) -> None:
+def _save_conversation_summary(path: Path, summary: dict) -> Path | None:
     encoded = json.dumps(summary, ensure_ascii=False)
-    if summary["classification"] != "success_candidate":
-        _private_write(path, encoded)
-        return
-    marker = path.with_suffix(".pending")
-    _private_write(marker, "")
+    marker = path.with_suffix(".pending") if summary["classification"] == "success_candidate" else None
+    if marker is not None:
+        _private_write(marker, "")
     _private_write(path, encoded)
-    remove_marker(marker)
+    return marker
 
 
 def _private_write(path: Path, encoded: str) -> None:

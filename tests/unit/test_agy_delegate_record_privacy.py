@@ -45,7 +45,7 @@ class RecordPrivacyTests(unittest.TestCase):
                 save_record(root, self.fake.request(), result)
         finally:
             os.umask(previous_umask)
-        self.assertEqual(observations, [(0o600, 0o600)] * 3)
+        self.assertEqual(observations, [(0o600, 0o600)] * 4)
         summary = json.loads((root / "conversation-conversation-private.json").read_text())
         self.assertNotIn("response", summary)
         self.assertNotIn("error", summary)
