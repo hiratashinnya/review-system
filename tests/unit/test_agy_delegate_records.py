@@ -164,6 +164,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
         self.assertTrue(self.record.with_suffix(".pending").is_file())
         self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
@@ -216,6 +217,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
         launches = (self.fake.workspace / "launch-count.txt").read_text()
         self.assertNotEqual(launches, self.launches)
@@ -263,6 +265,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
         self.assertTrue(marker.is_file())
         self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
@@ -444,6 +447,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
         self.assertTrue(marker.is_file())
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
         result_path = self.record.parent / failed.run_id / "result.json"
         self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
@@ -531,6 +535,9 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertIn("conversation_record_unconfirmed", blocked.reasons)
         self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
 
+    # 既知の残存: 返却 failed と結果ファイル success_candidate の食い違いを、
+    # 現状の仕組み（印で未確定を示す）の残存として固定している。
+    # 要件（保存結果と返却結果の一致）は緩めない。期待値の変更は Issue #679 で行う。
     def assert_saved_success_is_unconfirmed(self, failed):
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
@@ -566,6 +573,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(confirm.call_count, 0)
         self.assertTrue(lock.is_dir())
         lock.rmdir()
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assert_saved_success_is_unconfirmed(failed)
 
     def test_lock_release_injected_failure_keeps_records_unconfirmed(self):
@@ -589,6 +597,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(confirm.call_count, 0)
         self.assertTrue(lock.is_dir())
         lock.rmdir()
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assert_saved_success_is_unconfirmed(failed)
 
     def test_record_confirmation_follows_successful_lock_release(self):
@@ -759,6 +768,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
         data = json.loads((self.record.parent / failed.run_id / "result.json").read_text())
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(data["classification"], "success_candidate")
         self.assertTrue((self.record.parent / failed.run_id / "result.pending").is_file())
         self.assertTrue(self.record.with_suffix(".pending").is_file())
@@ -821,6 +831,7 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
         result_path = self.record.parent / failed.run_id / "result.json"
+        # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
         self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
         self.assertTrue(result_path.with_suffix(".pending").is_file())
         self.assertTrue(self.record.with_suffix(".pending").is_file())
@@ -879,6 +890,7 @@ class ConversationRecordTests(unittest.TestCase):
                 self.assertEqual(failed.classification, "failed")
                 self.assertIn("execution_io_error", failed.reasons)
                 data = json.loads((run_dir / "result.json").read_text())
+                # 既知の残存（#679 で期待値を変更する）: 返却 failed と success_candidate の食い違いを固定している。
                 self.assertEqual(data["classification"], "failed" if stage == "result_marker"
                                  else "success_candidate")
                 self.assertEqual("result_unconfirmed" in data["reasons"], stage == "result_marker")
