@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
+from .atomic_record_write import atomic_private_write
 from .conversation_records import RECORD_TYPES, validate_record
 from .results import valid_id
 from .strict_json import load_json
@@ -73,8 +74,4 @@ def save_record(root: Path, request: Request, result: Result) -> None:
 
 
 def _private_write(path: Path, encoded: str) -> None:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
-    descriptor = os.open(path, flags, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-        os.fchmod(stream.fileno(), 0o600)
-        stream.write(encoded)
+    atomic_private_write(path, encoded)

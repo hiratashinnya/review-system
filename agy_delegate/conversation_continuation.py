@@ -2,9 +2,9 @@
 
 import json
 import os
-import uuid
 from pathlib import Path
 
+from .atomic_record_write import atomic_private_write as _atomic_private_write
 from .strict_json import load_json
 from .types import Request
 
@@ -24,16 +24,3 @@ def mark_continuation_started(root: Path, request: Request) -> None:
     _atomic_private_write(record, json.dumps(data, ensure_ascii=False))
 
 
-def _atomic_private_write(path: Path, encoded: str) -> None:
-    temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-    descriptor = os.open(temporary, flags, 0o600)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise

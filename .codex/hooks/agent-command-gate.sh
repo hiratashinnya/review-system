@@ -173,7 +173,7 @@ gate_out="$(mktemp)"
 trap 'rm -f "$tmpfile" "$gate_out"' EXIT
 
 set +e
-AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
+AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 -I - "$tmpfile" > "$gate_out" <<'PYEOF'
 import json
 import os
 import re

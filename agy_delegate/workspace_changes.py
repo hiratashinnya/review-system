@@ -2,7 +2,10 @@
 
 import hashlib
 import os
+import stat
 from pathlib import Path
+
+from .image_source import FILE_FLAGS, held_directory
 
 LIMITATIONS = (
     "before_after_only_transient_changes_not_observable",
@@ -16,28 +19,38 @@ LIMITATIONS = (
 def snapshot(workspace: Path) -> dict[str, str]:
     workspace = workspace.resolve()
     result = {}
-    def on_error(error):
+    try:
+        with held_directory(workspace, "workspace_snapshot_incomplete") as directory_fd:
+            _snapshot_directory(directory_fd, Path(), result)
+    except OSError as error:
         raise ValueError("workspace_snapshot_incomplete") from error
-    for directory, names, files in os.walk(workspace, followlinks=False, onerror=on_error):
-        parent = Path(directory)
-        names[:] = [name for name in names if name != ".git" and
-                    parent / name != workspace / "tmp" / "agy"]
-        for name in [name for name in files if name != ".git"] + [
-                name for name in names if (parent / name).is_symlink()]:
-            path = parent / name
-            key = path.relative_to(workspace).as_posix()
-            try:
-                if path.is_symlink():
-                    result[key] = "symlink:" + os.readlink(path)
-                elif path.is_file():
-                    digest = hashlib.sha256()
-                    with path.open("rb") as stream:
-                        for block in iter(lambda: stream.read(1024 * 1024), b""):
-                            digest.update(block)
-                    result[key] = digest.hexdigest()
-            except OSError as error:
-                raise ValueError("workspace_snapshot_incomplete") from error
     return result
+
+
+def _snapshot_directory(directory_fd: int, relative: Path, result: dict[str, str]) -> None:
+    for name in os.listdir(directory_fd):
+        path = relative / name
+        if name == ".git" or path == Path("tmp/agy"):
+            continue
+        mode = os.stat(name, dir_fd=directory_fd, follow_symlinks=False).st_mode
+        if stat.S_ISLNK(mode):
+            result[path.as_posix()] = "symlink:" + os.readlink(name, dir_fd=directory_fd)
+        elif stat.S_ISDIR(mode):
+            with held_directory(name, "workspace_snapshot_incomplete", dir_fd=directory_fd) as child_fd:
+                _snapshot_directory(child_fd, path, result)
+        elif stat.S_ISREG(mode):
+            result[path.as_posix()] = _regular_digest(directory_fd, name)
+
+
+def _regular_digest(directory_fd: int, name: str) -> str:
+    descriptor = os.open(name, FILE_FLAGS, dir_fd=directory_fd)
+    with os.fdopen(descriptor, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError("workspace_snapshot_incomplete")
+        digest = hashlib.sha256()
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+        return digest.hexdigest()
 
 
 def changes(before: dict[str, str], after: dict[str, str]) -> list[dict[str, str]]:
