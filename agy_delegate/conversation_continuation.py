@@ -22,5 +22,3 @@ def mark_continuation_started(root: Path, request: Request) -> None:
     data["classification"] = "failed"
     data["reasons"] = list(data["reasons"]) + [IN_PROGRESS_REASON]
     _atomic_private_write(record, json.dumps(data, ensure_ascii=False))
-
-
