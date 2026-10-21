@@ -25,6 +25,15 @@ def atomic_private_write(path: Path, encoded: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def remove_marker(path: Path) -> None:
+    """unlink が確定点。以後の同期失敗で印が復活しても継続拒否の保守側にしか倒れない。"""
+    path.unlink()
+    try:
+        _sync_parent_directory(path.parent)
+    except OSError:
+        pass
+
+
 def _reject_symlink(path: Path) -> None:
     if path.is_symlink():
         raise OSError(errno.ELOOP, "record_path_symlink")

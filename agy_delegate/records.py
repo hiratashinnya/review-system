@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
-from .atomic_record_write import atomic_private_write
+from .atomic_record_write import atomic_private_write, remove_marker
 from .conversation_records import RECORD_TYPES, validate_record
 from .results import valid_id
 from .strict_json import load_json
@@ -28,6 +28,9 @@ def check_conversation(root: Path, request: Request) -> None:
         return
     if not valid_id(request.conversation):
         raise ValueError("conversation_id_invalid")
+    marker = root / f"conversation-{request.conversation}.pending"
+    if os.path.lexists(marker):
+        raise ValueError("conversation_record_unconfirmed")
     record = root / f"conversation-{request.conversation}.json"
     if record.is_symlink():
         raise ValueError("conversation_record_symlink")
@@ -78,17 +81,10 @@ def _save_conversation_summary(path: Path, summary: dict) -> None:
     if summary["classification"] != "success_candidate":
         _private_write(path, encoded)
         return
-    pending = json.dumps(summary | {"classification": "success_pending_sync"}, ensure_ascii=False)
-    _private_write(path, pending)
-    try:
-        _private_write(path, encoded)
-    except OSError:
-        try:
-            _private_write(path, pending)
-        except OSError:
-            # 降格書込みも失敗し得るため、元の確定エラーを伝播する。
-            pass
-        raise
+    marker = path.with_suffix(".pending")
+    _private_write(marker, "")
+    _private_write(path, encoded)
+    remove_marker(marker)
 
 
 def _private_write(path: Path, encoded: str) -> None:
