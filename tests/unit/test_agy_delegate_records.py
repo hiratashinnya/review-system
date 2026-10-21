@@ -148,15 +148,19 @@ class ConversationRecordTests(unittest.TestCase):
 
     def test_success_commit_sync_failure_keeps_marker_and_blocks_continuation(self):
         from agy_delegate.atomic_record_write import _sync_parent_directory
+        sync_fault_hits = 0
 
         def fail_success_commit_sync(directory):
+            nonlocal sync_fault_hits
             _sync_parent_directory(directory)
             if (directory == self.record.parent
                     and json.loads(self.record.read_text())["classification"] == "success_candidate"):
+                sync_fault_hits += 1
                 raise OSError("synthetic success commit sync failure")
 
         with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_success_commit_sync):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(sync_fault_hits, 1)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
@@ -170,28 +174,45 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertIn("conversation_record_unconfirmed", blocked.reasons)
         self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
 
-    def test_success_sync_and_later_temporary_creation_fail_closed(self):
+    def test_success_commit_sync_failure_does_not_attempt_compensating_writes_and_stays_fail_closed(self):
+        """第2故障点は本番経路に存在せず、到達しないことを検証する。"""
+        from pathlib import Path
         from agy_delegate.atomic_record_write import _sync_parent_directory
         real_open = os.open
-        sync_failed = False
+        real_unlink = Path.unlink
+        marker = self.record.with_suffix(".pending")
+        sync_fault_hits = 0
+        second_creation_fault_hits = 0
+        marker_unlink_hits = 0
 
         def fail_success_sync(directory):
-            nonlocal sync_failed
+            nonlocal sync_fault_hits
             _sync_parent_directory(directory)
             if (directory == self.record.parent
                     and json.loads(self.record.read_text())["classification"] == "success_candidate"):
-                sync_failed = True
+                sync_fault_hits += 1
                 raise OSError("synthetic success commit sync failure")
 
         def fail_later_creation(path, flags, *args, **kwargs):
-            if sync_failed and flags & os.O_EXCL:
+            nonlocal second_creation_fault_hits
+            if sync_fault_hits and flags & os.O_EXCL:
+                second_creation_fault_hits += 1
                 raise OSError("synthetic temporary creation failure")
             return real_open(path, flags, *args, **kwargs)
 
+        def track_marker_unlink(path, *args, **kwargs):
+            nonlocal marker_unlink_hits
+            if path == marker:
+                marker_unlink_hits += 1
+            return real_unlink(path, *args, **kwargs)
+
         with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_success_sync), \
-                patch("agy_delegate.atomic_record_write.os.open", fail_later_creation):
+                patch("agy_delegate.atomic_record_write.os.open", fail_later_creation), \
+                patch("agy_delegate.atomic_record_write.Path.unlink", track_marker_unlink):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
-        self.assertTrue(sync_failed)
+        self.assertEqual(sync_fault_hits, 1)
+        self.assertEqual(second_creation_fault_hits, 0)
+        self.assertEqual(marker_unlink_hits, 0)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
@@ -205,16 +226,130 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertTrue(self.record.with_suffix(".pending").is_file())
         self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
 
-    def test_pending_marker_creation_failure_keeps_failed_record(self):
-        from agy_delegate.records import save_record
+    def test_production_success_commit_sync_and_temporary_cleanup_failures_stay_fail_closed(self):
+        """本番の確定同期失敗から finally の一時ファイル削除失敗へ連続して到達する。"""
+        from pathlib import Path
+        from agy_delegate.atomic_record_write import _sync_parent_directory
+        real_unlink = Path.unlink
         marker = self.record.with_suffix(".pending")
+        sync_fault_hits = 0
+        cleanup_fault_hits = 0
+        marker_unlink_hits = 0
+
+        def fail_success_sync(directory):
+            nonlocal sync_fault_hits
+            _sync_parent_directory(directory)
+            if (directory == self.record.parent
+                    and json.loads(self.record.read_text())["classification"] == "success_candidate"):
+                sync_fault_hits += 1
+                raise OSError("synthetic success commit sync failure")
+
+        def fail_temporary_cleanup(path, *args, **kwargs):
+            nonlocal cleanup_fault_hits, marker_unlink_hits
+            if path == marker:
+                marker_unlink_hits += 1
+            if (sync_fault_hits and path.parent == self.record.parent
+                    and path.name.startswith(self.record.name + ".") and path.suffix == ".tmp"):
+                cleanup_fault_hits += 1
+                raise OSError("synthetic temporary cleanup failure")
+            return real_unlink(path, *args, **kwargs)
+
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_success_sync), \
+                patch("agy_delegate.atomic_record_write.Path.unlink", fail_temporary_cleanup):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(sync_fault_hits, 1)
+        self.assertEqual(cleanup_fault_hits, 1)
+        self.assertEqual(marker_unlink_hits, 0)
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+        self.assertTrue(marker.is_file())
+        self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        self.assertNotEqual(launches, self.launches)
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertIn("conversation_record_unconfirmed", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
+
+    def test_production_marker_commit_sync_failure_does_not_attempt_summary_write(self):
+        """印の置換後に同期が失敗すると成功記録の書込みと印削除には到達しない。"""
+        from agy_delegate import records
+        from agy_delegate.atomic_record_write import _sync_parent_directory
+        marker = self.record.with_suffix(".pending")
+        real_write = records._private_write
+        real_remove_marker = records.remove_marker
+        marker_sync_fault_hits = 0
+        summary_write_fault_hits = 0
+        marker_unlink_hits = 0
+
+        def fail_marker_commit_sync(directory):
+            nonlocal marker_sync_fault_hits
+            _sync_parent_directory(directory)
+            if directory == self.record.parent and marker.is_file():
+                marker_sync_fault_hits += 1
+                raise OSError("synthetic marker commit sync failure")
+
+        def fail_summary_write(path, encoded):
+            nonlocal summary_write_fault_hits
+            if path == self.record:
+                summary_write_fault_hits += 1
+                raise OSError("synthetic summary write failure")
+            return real_write(path, encoded)
+
+        def track_marker_removal(path):
+            nonlocal marker_unlink_hits
+            marker_unlink_hits += 1
+            return real_remove_marker(path)
+
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_marker_commit_sync), \
+                patch("agy_delegate.records._private_write", fail_summary_write), \
+                patch("agy_delegate.records.remove_marker", track_marker_removal):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(marker_sync_fault_hits, 1)
+        self.assertEqual(summary_write_fault_hits, 0)
+        self.assertEqual(marker_unlink_hits, 0)
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        marked = json.loads(self.record.read_text())
+        self.assertEqual(marked["classification"], "failed")
+        self.assertIn("conversation_continuation_in_progress", marked["reasons"])
+        self.assertTrue(marker.is_file())
+        self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
+        launches = (self.fake.workspace / "launch-count.txt").read_text()
+        self.assertNotEqual(launches, self.launches)
+        blocked = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertNotEqual(blocked.exit_code, 0)
+        self.assertIn("conversation_record_unconfirmed", blocked.reasons)
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
+
+    def test_harness_pending_marker_creation_failure_keeps_failed_record(self):
+        """保存直前に印のパスをディレクトリにする補助ハーネスで作成失敗を再現する。"""
+        from agy_delegate import records
+        marker = self.record.with_suffix(".pending")
+        real_write = records._private_write
+        marker_write_hits = 0
+        summary_write_hits = 0
+
+        def track_writes(path, encoded):
+            nonlocal marker_write_hits, summary_write_hits
+            if path == marker:
+                marker_write_hits += 1
+            elif path == self.record:
+                summary_write_hits += 1
+            return real_write(path, encoded)
 
         def save_with_marker_directory(root, request, result):
             marker.mkdir()
-            return save_record(root, request, result)
+            return records.save_record(root, request, result)
 
-        with patch("agy_delegate.runner.save_record", save_with_marker_directory):
+        with patch("agy_delegate.runner.save_record", save_with_marker_directory), \
+                patch("agy_delegate.records._private_write", track_writes):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(marker_write_hits, 1)
+        self.assertEqual(summary_write_hits, 0)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
@@ -231,19 +366,34 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
 
     def test_marker_removal_sync_failure_keeps_success_continuable(self):
+        from pathlib import Path
         from agy_delegate.atomic_record_write import _sync_parent_directory
         marker = self.record.with_suffix(".pending")
+        real_unlink = Path.unlink
         removal_sync_failures = []
+        removal_sync_fault_hits = 0
+        marker_unlink_hits = 0
+
+        def track_marker_unlink(path, *args, **kwargs):
+            nonlocal marker_unlink_hits
+            if path == marker:
+                marker_unlink_hits += 1
+            return real_unlink(path, *args, **kwargs)
 
         def fail_sync_after_marker_removal(directory):
+            nonlocal removal_sync_fault_hits
             if (directory == self.record.parent and not os.path.lexists(marker)
                     and json.loads(self.record.read_text())["classification"] == "success_candidate"):
+                removal_sync_fault_hits += 1
                 removal_sync_failures.append(directory)
                 raise OSError("synthetic marker removal sync failure")
             return _sync_parent_directory(directory)
 
-        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_sync_after_marker_removal):
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_sync_after_marker_removal), \
+                patch("agy_delegate.atomic_record_write.Path.unlink", track_marker_unlink):
             succeeded = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(marker_unlink_hits, 1)
+        self.assertEqual(removal_sync_fault_hits, 1)
         self.assertEqual(removal_sync_failures, [self.record.parent])
         self.assertEqual(succeeded.exit_code, 0)
         self.assertEqual(succeeded.classification, "success_candidate")
@@ -257,16 +407,31 @@ class ConversationRecordTests(unittest.TestCase):
 
     def test_marker_unlink_failure_keeps_success_unconfirmed(self):
         from pathlib import Path
+        from agy_delegate.atomic_record_write import _sync_parent_directory
         marker = self.record.with_suffix(".pending")
         real_unlink = Path.unlink
+        unlink_fault_hits = 0
+        removal_sync_fault_hits = 0
 
         def fail_marker_unlink(path, *args, **kwargs):
+            nonlocal unlink_fault_hits
             if path == marker:
+                unlink_fault_hits += 1
                 raise OSError("synthetic marker unlink failure")
             return real_unlink(path, *args, **kwargs)
 
-        with patch("agy_delegate.atomic_record_write.Path.unlink", fail_marker_unlink):
+        def fail_sync_after_unlink(directory):
+            nonlocal removal_sync_fault_hits
+            if directory == self.record.parent and unlink_fault_hits:
+                removal_sync_fault_hits += 1
+                raise OSError("synthetic marker removal sync failure")
+            return _sync_parent_directory(directory)
+
+        with patch("agy_delegate.atomic_record_write.Path.unlink", fail_marker_unlink), \
+                patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_sync_after_unlink):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(unlink_fault_hits, 1)
+        self.assertEqual(removal_sync_fault_hits, 0)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
