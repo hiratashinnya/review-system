@@ -52,6 +52,16 @@ class AtomicRecordWriteTests(unittest.TestCase):
                 _private_write(self.record, '{"new": true}')
         self.assert_old_record_preserved()
 
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_parent_sync_failure_raises_and_keeps_replaced_record_without_temporary(self):
+        self.addCleanup(self.root.chmod, 0o700)
+        self.root.chmod(0o300)
+        with self.assertRaises(OSError):
+            _private_write(self.record, '{"new": true}')
+        self.root.chmod(0o700)
+        self.assertEqual(self.record.read_text(), '{"new": true}')
+        self.assertEqual(list(self.root.glob("*.tmp")), [])
+
     def test_success_syncs_complete_private_file_before_replacement(self):
         real_replace = os.replace
         real_fsync = os.fsync

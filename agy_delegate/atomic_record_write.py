@@ -31,14 +31,9 @@ def _reject_symlink(path: Path) -> None:
 
 
 def _sync_parent_directory(directory: Path) -> None:
-    """置換確定後の directory fsync は対応する環境で best effort とする。"""
-    try:
-        descriptor = open_directory(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except OSError:
-        return
+    """置換確定後の親ディレクトリ同期は必須とし、失敗は呼出元へ伝播する。"""
+    descriptor = open_directory(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         os.fsync(descriptor)
-    except OSError:
-        pass
     finally:
         os.close(descriptor)

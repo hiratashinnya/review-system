@@ -1,6 +1,7 @@
 """不正な会話記録は traceback を出さず、子プロセス起動前に停止する。"""
 
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +82,21 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertIn("execution_io_error", result.reasons)
         self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), self.launches)
         self.assertEqual(self.record.read_text(), before)
+
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_parent_sync_failure_blocks_continuation_and_keeps_failed_marker(self):
+        self.addCleanup(self.record.parent.chmod, 0o700)
+        self.record.parent.chmod(0o300)
+        result = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), self.launches)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.classification, "failed")
+        self.assertIn("execution_io_error", result.reasons)
+        self.record.parent.chmod(0o700)
+        marked = json.loads(self.record.read_text())
+        self.assertEqual(marked["classification"], "failed")
+        self.assertIn("conversation_continuation_in_progress", marked["reasons"])
+        self.assertEqual(list(self.record.parent.glob("*.tmp")), [])
 
     def test_marking_replaces_record_atomically_without_leftovers(self):
         mark_continuation_started(self.record.parent, self.fake.request(conversation="conversation-1"))
