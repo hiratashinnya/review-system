@@ -411,11 +411,18 @@ class ConversationRecordTests(unittest.TestCase):
         marker = self.record.with_suffix(".pending")
         real_unlink = Path.unlink
         unlink_fault_hits = 0
+        result_unlink_hits = 0
+        result_markers = []
         removal_sync_fault_hits = 0
 
         def fail_marker_unlink(path, *args, **kwargs):
-            nonlocal unlink_fault_hits
+            nonlocal unlink_fault_hits, result_unlink_hits
+            if path.name == "result.pending":
+                result_unlink_hits += 1
+                result_markers.append(path)
             if path == marker:
+                self.assertEqual(result_unlink_hits, 1)
+                self.assertFalse(os.path.lexists(result_markers[0]))
                 unlink_fault_hits += 1
                 raise OSError("synthetic marker unlink failure")
             return real_unlink(path, *args, **kwargs)
@@ -431,12 +438,16 @@ class ConversationRecordTests(unittest.TestCase):
                 patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_sync_after_unlink):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
         self.assertEqual(unlink_fault_hits, 1)
+        self.assertEqual(result_unlink_hits, 1)
         self.assertEqual(removal_sync_fault_hits, 0)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
         self.assertTrue(marker.is_file())
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+        result_path = self.record.parent / failed.run_id / "result.json"
+        self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
+        self.assertFalse(os.path.lexists(result_path.with_suffix(".pending")))
         launches = (self.fake.workspace / "launch-count.txt").read_text()
         self.assertNotEqual(launches, self.launches)
         blocked = self.execute(self.fake.request(conversation="conversation-1"))
@@ -520,6 +531,126 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertIn("conversation_record_unconfirmed", blocked.reasons)
         self.assertEqual((self.fake.workspace / "launch-count.txt").read_text(), launches)
 
+    def assert_saved_success_is_unconfirmed(self, failed):
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        result_path = self.record.parent / failed.run_id / "result.json"
+        self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
+        self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
+        self.assertTrue(result_path.with_suffix(".pending").is_file())
+        self.assertTrue(self.record.with_suffix(".pending").is_file())
+        self.assert_pending_blocks_continuation()
+
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_lock_release_permission_failure_keeps_records_unconfirmed(self):
+        """全書込み後に親を 0o500 にし、保存を妨げず実 rmdir を失敗させる。"""
+        from agy_delegate.records import save_record
+        lock = self.record.parent / "workspace.lock"
+        self.addCleanup(lambda: lock.rmdir() if lock.exists() else None)
+        self.addCleanup(self.record.parent.chmod, 0o700)
+        hits = 0
+
+        def restrict_parent_after_save(root, request, result):
+            nonlocal hits
+            markers = save_record(root, request, result)
+            hits += 1
+            self.record.parent.chmod(0o500)
+            return markers
+
+        with patch("agy_delegate.runner.save_record", restrict_parent_after_save), \
+                patch("agy_delegate.runner.confirm_record") as confirm:
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.record.parent.chmod(0o700)
+        self.assertEqual(hits, 1)
+        self.assertEqual(confirm.call_count, 0)
+        self.assertTrue(lock.is_dir())
+        lock.rmdir()
+        self.assert_saved_success_is_unconfirmed(failed)
+
+    def test_lock_release_injected_failure_keeps_records_unconfirmed(self):
+        from pathlib import Path
+        real_rmdir = Path.rmdir
+        lock = self.record.parent / "workspace.lock"
+        self.addCleanup(lambda: lock.rmdir() if lock.exists() else None)
+        hits = 0
+
+        def fail_lock_rmdir(path):
+            nonlocal hits
+            if path == lock:
+                hits += 1
+                raise OSError("synthetic lock release failure")
+            return real_rmdir(path)
+
+        with patch("agy_delegate.records.Path.rmdir", fail_lock_rmdir), \
+                patch("agy_delegate.runner.confirm_record") as confirm:
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(hits, 1)
+        self.assertEqual(confirm.call_count, 0)
+        self.assertTrue(lock.is_dir())
+        lock.rmdir()
+        self.assert_saved_success_is_unconfirmed(failed)
+
+    def test_record_confirmation_follows_successful_lock_release(self):
+        from pathlib import Path
+        from agy_delegate import records
+        real_rmdir, real_remove = Path.rmdir, records.remove_marker
+        real_confirm = records.confirm_record
+        lock = self.record.parent / "workspace.lock"
+        events = []
+
+        def track_lock_release(path):
+            real_rmdir(path)
+            if path == lock:
+                events.append("rmdir")
+
+        def track_confirmation(markers):
+            events.append("confirm_record")
+            self.assertFalse(lock.exists())
+            return real_confirm(markers)
+
+        def track_removal(marker):
+            events.append(marker)
+            return real_remove(marker)
+
+        with patch("agy_delegate.records.Path.rmdir", track_lock_release), \
+                patch("agy_delegate.runner.confirm_record", track_confirmation), \
+                patch("agy_delegate.records.remove_marker", track_removal):
+            result = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(result.exit_code, 0)
+        result_marker = self.record.parent / result.run_id / "result.pending"
+        conversation_marker = self.record.with_suffix(".pending")
+        self.assertEqual(events, ["rmdir", "confirm_record", result_marker, conversation_marker])
+        self.assertFalse(os.path.lexists(result_marker))
+        self.assertFalse(os.path.lexists(conversation_marker))
+
+    def test_confirmation_failure_keeps_remaining_markers(self):
+        from agy_delegate import records
+        markers = [self.record.parent / name for name in
+                   ("result.pending", "conversation-first.pending", "conversation-second.pending")]
+        for marker in markers:
+            marker.touch(mode=0o600)
+        real_remove = records.remove_marker
+        removals = []
+        fault_hits = 0
+
+        def fail_second_removal(marker):
+            nonlocal fault_hits
+            removals.append(marker)
+            if marker == markers[1]:
+                fault_hits += 1
+                raise OSError("synthetic confirmation failure")
+            return real_remove(marker)
+
+        with patch("agy_delegate.records.remove_marker", fail_second_removal):
+            with self.assertRaisesRegex(OSError, "synthetic confirmation failure"):
+                records.confirm_record(markers)
+        self.assertEqual(fault_hits, 1)
+        self.assertEqual(removals, markers[:2])
+        self.assertFalse(os.path.lexists(markers[0]))
+        self.assertTrue(markers[1].is_file())
+        self.assertTrue(markers[2].is_file())
+
     @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
     def test_result_stays_unconfirmed_when_conversation_parent_sync_fails(self):
         from agy_delegate.records import save_record
@@ -576,6 +707,7 @@ class ConversationRecordTests(unittest.TestCase):
         def track_write(path, encoded):
             writes.append((path, encoded))
             if path.name == "result.json" and json.loads(encoded)["classification"] == "success_candidate":
+                self.assertTrue(path.with_suffix(".pending").is_file())
                 self.assertTrue(self.record.with_suffix(".pending").is_file())
                 self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
             return real_write(path, encoded)
@@ -585,18 +717,29 @@ class ConversationRecordTests(unittest.TestCase):
         self.assertEqual(succeeded.exit_code, 0)
         result_path = self.record.parent / succeeded.run_id / "result.json"
         self.assertEqual([path for path, _ in writes],
-                         [result_path, self.record.with_suffix(".pending"), self.record, result_path])
+                         [result_path, self.record.with_suffix(".pending"), self.record,
+                          result_path.with_suffix(".pending"), result_path])
         final = json.loads(result_path.read_text())
         self.assertEqual(final["classification"], "success_candidate")
         self.assertNotIn("result_unconfirmed", final["reasons"])
         self.assertEqual(json.loads(writes[0][1]),
                          final | {"classification": "failed", "reasons": final["reasons"] + ["result_unconfirmed"]})
         self.assertFalse(os.path.lexists(self.record.with_suffix(".pending")))
+        self.assertFalse(os.path.lexists(result_path.with_suffix(".pending")))
         self.assertEqual(json.loads(self.record.read_text())["classification"], "success_candidate")
 
     def test_final_result_sync_failure_keeps_marker_and_blocks_continuation(self):
+        from pathlib import Path
         from agy_delegate.atomic_record_write import _sync_parent_directory
+        real_unlink = Path.unlink
         hits = 0
+        unlink_hits = 0
+
+        def track_marker_unlink(path, *args, **kwargs):
+            nonlocal unlink_hits
+            if path.suffix == ".pending":
+                unlink_hits += 1
+            return real_unlink(path, *args, **kwargs)
 
         def fail_final_result_sync(directory):
             nonlocal hits
@@ -607,14 +750,17 @@ class ConversationRecordTests(unittest.TestCase):
                     hits += 1
                     raise OSError("synthetic final result sync failure")
 
-        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_final_result_sync):
+        with patch("agy_delegate.atomic_record_write._sync_parent_directory", fail_final_result_sync), \
+                patch("agy_delegate.atomic_record_write.Path.unlink", track_marker_unlink):
             failed = self.execute(self.fake.request(conversation="conversation-1"))
         self.assertEqual(hits, 1)
+        self.assertEqual(unlink_hits, 0)
         self.assertNotEqual(failed.exit_code, 0)
         self.assertEqual(failed.classification, "failed")
         self.assertIn("execution_io_error", failed.reasons)
         data = json.loads((self.record.parent / failed.run_id / "result.json").read_text())
         self.assertEqual(data["classification"], "success_candidate")
+        self.assertTrue((self.record.parent / failed.run_id / "result.pending").is_file())
         self.assertTrue(self.record.with_suffix(".pending").is_file())
         self.assert_pending_blocks_continuation()
 
@@ -638,9 +784,109 @@ class ConversationRecordTests(unittest.TestCase):
             return real_remove(marker)
 
         with patch("agy_delegate.records.remove_marker", check_before_removal):
-            records.save_record(self.record.parent, self.fake.request(conversation="conversation-1"), result)
-        self.assertCountEqual(removals, [path.with_suffix(".pending") for path in summaries])
+            markers = records.save_record(self.record.parent, self.fake.request(conversation="conversation-1"), result)
+            self.assertEqual(removals, [])
+            self.assertIsInstance(markers, list)
+            self.assertEqual(markers[0], result_path.with_suffix(".pending"))
+            self.assertCountEqual(markers, [result_path.with_suffix(".pending")]
+                                  + [path.with_suffix(".pending") for path in summaries])
+            self.assertTrue(all(path.is_file() for path in markers))
+            records.confirm_record(markers)
+        self.assertEqual(removals[0], result_path.with_suffix(".pending"))
+        self.assertCountEqual(removals, [result_path.with_suffix(".pending")]
+                              + [path.with_suffix(".pending") for path in summaries])
         self.assertTrue(all(not os.path.lexists(path) for path in removals))
+
+    def test_result_marker_unlink_failure_keeps_both_markers_and_blocks_continuation(self):
+        from pathlib import Path
+        real_unlink = Path.unlink
+        result_unlink_hits = 0
+        conversation_unlink_hits = 0
+
+        def fail_result_marker_unlink(path, *args, **kwargs):
+            nonlocal result_unlink_hits, conversation_unlink_hits
+            if path.name == "result.pending":
+                result_unlink_hits += 1
+                self.assertTrue(self.record.with_suffix(".pending").is_file())
+                raise OSError("synthetic result marker unlink failure")
+            if path == self.record.with_suffix(".pending"):
+                conversation_unlink_hits += 1
+            return real_unlink(path, *args, **kwargs)
+
+        with patch("agy_delegate.atomic_record_write.Path.unlink", fail_result_marker_unlink):
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(result_unlink_hits, 1)
+        self.assertEqual(conversation_unlink_hits, 0)
+        self.assertNotEqual(failed.exit_code, 0)
+        self.assertEqual(failed.classification, "failed")
+        self.assertIn("execution_io_error", failed.reasons)
+        result_path = self.record.parent / failed.run_id / "result.json"
+        self.assertEqual(json.loads(result_path.read_text())["classification"], "success_candidate")
+        self.assertTrue(result_path.with_suffix(".pending").is_file())
+        self.assertTrue(self.record.with_suffix(".pending").is_file())
+        self.assert_pending_blocks_continuation()
+
+    def test_result_marker_creation_failure_keeps_result_unconfirmed(self):
+        from agy_delegate import records
+        real_write = records._private_write
+        hits = 0
+        final_write_hits = 0
+
+        def obstruct_result_marker(path, encoded):
+            nonlocal hits, final_write_hits
+            if path.name == "result.pending":
+                hits += 1
+                path.mkdir()
+            if path.name == "result.json" and json.loads(encoded)["classification"] == "success_candidate":
+                final_write_hits += 1
+            return real_write(path, encoded)
+
+        with patch("agy_delegate.records._private_write", obstruct_result_marker), \
+                patch("agy_delegate.records.remove_marker", wraps=records.remove_marker) as remove:
+            failed = self.execute(self.fake.request(conversation="conversation-1"))
+        self.assertEqual(hits, 1)
+        self.assertEqual(final_write_hits, 0)
+        remove.assert_not_called()
+        self.assertTrue((self.record.parent / failed.run_id / "result.pending").is_dir())
+        self.assert_unconfirmed_result_blocks_continuation(failed)
+
+    @unittest.skipIf(os.geteuid() == 0, "root は権限検査を回避するため")
+    def test_result_parent_permission_failure_keeps_markers_and_blocks_continuation(self):
+        from agy_delegate import records
+        real_write = records._private_write
+        for stage in ("result_marker", "final_result"):
+            with self.subTest(stage=stage):
+                hits = 0
+
+                def restrict_result_parent(path, encoded):
+                    nonlocal hits
+                    if ((stage == "result_marker" and path.name == "result.pending")
+                            or (stage == "final_result" and path.name == "result.json"
+                                and json.loads(encoded)["classification"] == "success_candidate")):
+                        hits += 1
+                        self.addCleanup(path.parent.chmod, 0o700)
+                        path.parent.chmod(0o300)
+                    return real_write(path, encoded)
+
+                with patch("agy_delegate.records._private_write", restrict_result_parent), \
+                        patch("agy_delegate.records.remove_marker", wraps=records.remove_marker) as remove:
+                    failed = self.execute(self.fake.request(conversation="conversation-1"))
+                run_dir = self.record.parent / failed.run_id
+                run_dir.chmod(0o700)
+                self.assertEqual(hits, 1)
+                remove.assert_not_called()
+                self.assertNotEqual(failed.exit_code, 0)
+                self.assertEqual(failed.classification, "failed")
+                self.assertIn("execution_io_error", failed.reasons)
+                data = json.loads((run_dir / "result.json").read_text())
+                self.assertEqual(data["classification"], "failed" if stage == "result_marker"
+                                 else "success_candidate")
+                self.assertEqual("result_unconfirmed" in data["reasons"], stage == "result_marker")
+                self.assertTrue((run_dir / "result.pending").is_file())
+                self.assertTrue(self.record.with_suffix(".pending").is_file())
+                self.assertEqual(list(run_dir.glob("*.tmp")), [])
+                self.assert_pending_blocks_continuation()
+                self.record.with_suffix(".pending").unlink()
 
     def test_non_success_result_is_written_once_without_markers(self):
         from agy_delegate import records
@@ -652,10 +898,13 @@ class ConversationRecordTests(unittest.TestCase):
                 result_path.parent.mkdir(mode=0o700)
                 with patch("agy_delegate.records._private_write", wraps=records._private_write) as write, \
                         patch("agy_delegate.records.remove_marker") as remove:
-                    records.save_record(self.record.parent, self.fake.request(), result)
+                    markers = records.save_record(self.record.parent, self.fake.request(), result)
+                    self.assertEqual(markers, [])
+                    records.confirm_record(markers)
                 self.assertEqual([call.args[0] for call in write.call_args_list], [result_path, self.record])
                 remove.assert_not_called()
                 self.assertFalse(os.path.lexists(self.record.with_suffix(".pending")))
+                self.assertFalse(os.path.lexists(result_path.with_suffix(".pending")))
                 self.assertEqual(json.loads(result_path.read_text())["classification"], classification)
                 self.assertNotIn("result_unconfirmed", json.loads(result_path.read_text())["reasons"])
 

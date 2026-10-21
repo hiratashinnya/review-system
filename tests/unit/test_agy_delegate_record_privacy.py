@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from agy_delegate.cli import main
 from agy_delegate.process import execute
-from agy_delegate.records import execution_lock, save_record, state_root
+from agy_delegate.records import confirm_record, execution_lock, save_record, state_root
 from agy_delegate.results import normalize
 from agy_delegate.runner import run, run_parallel
 from agy_delegate.types import Request, Result
@@ -42,10 +42,10 @@ class RecordPrivacyTests(unittest.TestCase):
         previous_umask = os.umask(0)
         try:
             with patch("agy_delegate.records.os.open", side_effect=observe):
-                save_record(root, self.fake.request(), result)
+                confirm_record(save_record(root, self.fake.request(), result))
         finally:
             os.umask(previous_umask)
-        self.assertEqual(observations, [(0o600, 0o600)] * 4)
+        self.assertEqual(observations, [(0o600, 0o600)] * 5)
         summary = json.loads((root / "conversation-conversation-private.json").read_text())
         self.assertNotIn("response", summary)
         self.assertNotIn("error", summary)

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
-from .atomic_record_write import atomic_private_write, remove_marker
+from .atomic_record_write import atomic_private_write as _private_write, remove_marker
 from .conversation_records import RECORD_TYPES, validate_record
 from .results import valid_id
 from .strict_json import load_json
@@ -60,41 +60,41 @@ def execution_lock(root: Path, *, wait_seconds: int = 130):
         lock.rmdir()
 
 
-def save_record(root: Path, request: Request, result: Result) -> None:
-    """結果の確定置換後に同期が失敗すると成功表示は残り得るが、印で継続を拒否する。"""
+def save_record(root: Path, request: Request, result: Result) -> list[Path]:
+    """印の削除は confirm_record に委ね、結果→会話の削除順で印を返す。
+    独立 unlink の残存: 結果側失敗は両印を残す。会話側失敗は result.json が確定して見えるが継続を拒否する。"""
     data = asdict(result) | {"workspace": str(request.workspace.resolve())}
-    encoded = json.dumps(data, ensure_ascii=False)
     result_path = root / result.run_id / "result.json"
     success = result.classification == "success_candidate"
-    initial = data
-    if success:
-        initial = data | {"classification": "failed", "reasons": result.reasons + ["result_unconfirmed"]}
+    initial = (data | {"classification": "failed", "reasons": result.reasons + ["result_unconfirmed"]}
+               if success else data)
     _private_write(result_path, json.dumps(initial, ensure_ascii=False))
     markers = []
-    identities = {result.conversation_id, request.conversation} - {None}
-    for identity in identities:
+    for identity in {result.conversation_id, request.conversation} - {None}:
         if valid_id(identity):
             path = root / f"conversation-{identity}.json"
             if path.is_symlink():
                 raise ValueError("conversation_record_symlink")
-            summary = {name: data[name] for name in RECORD_TYPES}
-            marker = _save_conversation_summary(path, summary)
+            marker = _save_conversation_summary(path, {name: data[name] for name in RECORD_TYPES})
             if marker is not None:
                 markers.append(marker)
     if success:
-        _private_write(result_path, encoded)
+        result_marker = result_path.with_suffix(".pending")
+        _private_write(result_marker, "")
+        _private_write(result_path, json.dumps(data, ensure_ascii=False))
+        markers.insert(0, result_marker)
+    return markers
+
+
+def confirm_record(markers: list[Path]) -> None:
+    """指定順に印を削除し、失敗は伝播して残りの印を残す。"""
     for marker in markers:
         remove_marker(marker)
 
 
 def _save_conversation_summary(path: Path, summary: dict) -> Path | None:
-    encoded = json.dumps(summary, ensure_ascii=False)
     marker = path.with_suffix(".pending") if summary["classification"] == "success_candidate" else None
     if marker is not None:
         _private_write(marker, "")
-    _private_write(path, encoded)
+    _private_write(path, json.dumps(summary, ensure_ascii=False))
     return marker
-
-
-def _private_write(path: Path, encoded: str) -> None:
-    atomic_private_write(path, encoded)

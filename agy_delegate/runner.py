@@ -8,7 +8,7 @@ from .artifacts import collect_images, image_snapshot
 from .conversation_continuation import mark_continuation_started
 from .permissions import inspect_settings
 from .process import execute
-from .records import check_conversation, execution_lock, save_record, state_root
+from .records import check_conversation, confirm_record, execution_lock, save_record, state_root
 from .runtime import verify_runtime
 from .types import Request, Result
 from .workspace_batch import run_parallel, wait_budget as _wait_budget
@@ -54,7 +54,9 @@ def _run(request: Request, wait_seconds: int) -> Result:
                 result.reasons.append(str(exc) if isinstance(exc, ValueError) else "execution_io_error")
             if result.reasons and result.classification == "success_candidate":
                 result.classification = "failed"
-            save_record(root, request, result)
+            markers = save_record(root, request, result) or []
+        # 解放後の確定前に別実行が印を見て conversation_record_unconfirmed で拒否され得る（fail-close）。
+        confirm_record(markers)
     except (OSError, ValueError) as exc:
         result.reasons.append(str(exc) if isinstance(exc, ValueError) else "execution_io_error")
         result.classification = "failed"
