@@ -14,6 +14,20 @@ class ProcessTimeoutTests(unittest.TestCase):
         self.fake = FakeWorkspace()
         self.addCleanup(self.fake.close)
 
+    def test_child_duration_has_seconds_unit_and_outer_deadline_stays_numeric(self):
+        request = self.fake.request()
+        completed = subprocess.CompletedProcess([], 0, json.dumps(synthetic_success()), "")
+        with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch(
+            "agy_delegate.process.subprocess.run", return_value=completed
+        ) as child:
+            result = execute(request, "run")
+        arguments, options = child.call_args
+        argv = arguments[0]
+        self.assertEqual(argv[argv.index("--print-timeout") + 1], f"{request.print_timeout}s")
+        self.assertEqual(options["timeout"], request.print_timeout + 10)
+        self.assertEqual(options["cwd"], request.workspace.resolve())
+        self.assertEqual(result.classification, "success_candidate")
+
     def timeout(self, stdout, stderr):
         timeout = subprocess.TimeoutExpired(["fake"], 1, output=stdout, stderr=stderr)
         with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch("agy_delegate.process.subprocess.run", side_effect=timeout) as child:
