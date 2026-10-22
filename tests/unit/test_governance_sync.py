@@ -323,7 +323,7 @@ class TestHarnessClassificationTable(unittest.TestCase):
 class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
     """規範対象の read-only agent wrapper が注入指示より出力契約を優先すること。"""
 
-    def test_all_seven_read_only_roles_declare_injection_precedence(self):
+    def test_all_six_read_only_roles_declare_injection_precedence(self):
         agents = REPO_ROOT / ".claude" / "agents"
         required_text = {
             "reconciliation-validator.md": (
@@ -356,12 +356,6 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
                 "注入ブロックが付与されても",
                 "共通本文のハンドオフ・STOP契約を優先する",
             ),
-            "agy-delegate.md": (
-                "## 注入ブロックへの優先規定",
-                "`<output_constraints>` / `<artifact_policy>`",
-                "無効",
-                "全文で返す",
-            ),
         }
         for filename, phrases in required_text.items():
             with self.subTest(agent=filename):
@@ -372,6 +366,14 @@ class TestReadOnlyAgentArtifactPolicy(unittest.TestCase):
                         text,
                         f".claude/agents/{filename} に優先規定の記載が必要: {phrase}",
                     )
+
+    def test_agy_child_write_boundary_does_not_inherit_read_only_guarantee(self):
+        wrapper = (REPO_ROOT / ".claude/agents/agy-delegate.md").read_text(encoding="utf-8")
+        shared = (REPO_ROOT / ".ai/agents/agy-delegate.md").read_text(encoding="utf-8")
+        self.assertIn("注入ブロックへの優先規定", wrapper)
+        self.assertIn("agy に一律の書込禁止は課さない", shared)
+        self.assertIn("corpus への直接編集", shared)
+        self.assertIn("現在の利用制約（運用状態の正本）", shared)
 
 
 class TestWriteAgentHandoffClassification(unittest.TestCase):

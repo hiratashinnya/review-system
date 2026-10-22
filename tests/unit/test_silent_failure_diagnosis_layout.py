@@ -72,7 +72,8 @@ class CommonBodyContractTests(unittest.TestCase):
         body = _read(COMMON)
         example = body[body.index("> **事例（agy") :]
         self.assertIn("終了コード 0・`status: SUCCESS`", example)
-        self.assertIn("正本は `agy-delegate`", example)
+        self.assertIn("検出手順の正本は `.ai/agents/agy-delegate.md`", example)
+        self.assertTrue((REPO_ROOT / ".ai/agents/agy-delegate.md").is_file())
 
     def test_rationale_is_reachable_and_non_normative(self):
         self.assertIn(f"../../rationale/{NAME}.md", _read(COMMON))

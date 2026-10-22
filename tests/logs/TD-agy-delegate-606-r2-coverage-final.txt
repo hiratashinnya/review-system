@@ -1,0 +1,98 @@
+Codex AI: r2 是正後全量coverage（未commit作業ツリー）
+command: rtk proxy uv --offline --cache-dir /tmp/agy-606-uv-cache run --python /usr/bin/python3 --with coverage coverage run -m unittest discover -s tests/unit
+exit: 0
+
+..................................................................................................................................................................usage: asset_parity [-h] {check} ...
+asset_parity: error: argument command: invalid choice: 'not-a-command' (choose from 'check')
+.........................................................................................................................................................................................................................................................error: --type が必要（MVP は AI 型推定なし）
+...error: feedback.json を読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+.error: feedback の内容が不正: feedback item に finding_id/decision が必要: {'finding_id': 'x'}
+..error: feedback.json の review_id がレポートと一致しない
+.O-14 [apply] revert に失敗（deadbeef）: fatal: bad revision 'deadbeef' -> 一部のみ revert された可能性。ワークスペースを手動確認のこと
+.O-14 [apply] commits 状態ファイルを読めない: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte -> .review-state の当該 .commits.json を確認のこと
+.O-14 [apply] commits 状態ファイルを読めない: Expecting property name enclosed in double quotes: line 1 column 3 (char 2) -> .review-state の当該 .commits.json を確認のこと
+.O-14 [apply] commits 状態ファイルの形式が不正: {'ref': 'abc'} -> .review-state の当該 .commits.json を確認のこと
+O-14 [apply] commits 状態ファイルの形式が不正: [1, 2, 3] -> .review-state の当該 .commits.json を確認のこと
+.......................................................................................................................................................................................................................................未検出: NOPE-999
+..........................................................................................拒否（fail-close）: boom（TOCTOU 疑い）
+...拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-fbh21i74/tmp/_feedback（'_feedback' を含むパスは削除しない）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-q5xq4z6y/tmp/_handoff（'_handoff' を含むパスは削除しない）
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-n0ka9im8/tmp/_karte（'_karte' を含むパスは削除しない）
+..未検出: 対象が存在しない（掃除不要）: /tmp/cleantmp-68ifo3rv/tmp/sprint-1/nope
+.拒否（fail-close）: tmp/ の外を指している: /tmp/cleantmp-qvoipx_y/doc-system-v2/nodes（許可範囲は /tmp/cleantmp-qvoipx_y/tmp/<sprint>/<parent-id>）
+.usage: dsv2 [-h] [--root ROOT] [--meta META]
+            {index,deps,dependents,orphans,drift,prompt-coverage,dashboard,reverse,rename,check-slug,clean-tmp,build-view}
+            ...
+dsv2: error: unrecognized arguments: --repo-root /tmp/cleantmp-svx5svu0
+.拒否（fail-close）: 保護された置き場は掃除対象外: /tmp/cleantmp-nt4z33ms/tmp/_worktree（'_worktree' を含むパスは削除しない）
+.......................未検出: nope
+....エラー: child-spec: 改名先 slug が既に存在する（衝突）
+....エラー: nope: ノードが見つからない
+.........................................................................................................................................ERROR: [P1] approved の改訂案にだけ実行できる（現在: pending）
+..ERROR: [L6] 既存の台帳エントリは変更できない: FBK-20260901-台帳への書込み経路を-cli-に限定する判断（訂正は新しい id のエントリ＋supersedes で行う）
+..ERROR: [P1] pending の改訂案だけを差し替えられる（現在: approved）。決着済みの案は propose --supersede で置き換える
+..ERROR: '..' を含むパスは受け付けない（traversal 拒否）: ../escape.toml
+....ERROR: 改訂案が見つからない: FBP-20200101-none
+............ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[[source]]: 要素数が下限未満: 0（最小: 1）
+.ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::divergence: 語彙外の値: 'u-turn'（許可: reversal, narrowing, widening, deferral, alternative-means）
+.....ERROR: [L1] tmp/_feedback/broken.toml::topic: 必須のキーが無い
+..ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[narrative]::recommendation: 必須の欄が空になっている
+...ERROR: [L1] tmp/_feedback/missing-theme.toml::theme: 必須のキーが無い
+.ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::theme: 語彙外の値: '運用全般'（許可: 目的・評価, 開発工程, 実行体制, 品質原則, 検証・追跡, AI判定, 記録管理）
+.ERROR: [L1] tmp/_feedback/FBK-20260901-あああああああああああああああああああああああああああああああ.toml::topic: topic は30字以内でなければならない: 31字
+..ERROR: [L1] tmp/_feedback/broken.toml::[narrative]::extra: 宣言されていないキー
+.ERROR: [L2] .ai/feedback/ledger/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::affected_assets: 実在しない資産パス: docs/nope.md
+........ERROR: [L5] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[narrative]::inferred_reason: 推論の欄に断定語彙 'と述べた' が使われている（発言として記録できるのは owner_verbatim だけ）
+.ERROR: [L5] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[narrative]::inferred_reason: 推論の欄は '推測：' で始めなければならない（引用と推論を読み手が区別できるようにするため）
+.ERROR: [L4] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[narrative]::owner_verbatim: 逐語引用の欄に推測語彙 'おそらく' が混ざっている（解釈は inferred_reason へ分ける。不可避なら feedback_ledger/allowlist.py へ理由付きで登録する）
+ERROR: [L4] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::[narrative]::owner_verbatim: 逐語引用の欄に推測語彙 'と思われる' が混ざっている（解釈は inferred_reason へ分ける。不可避なら feedback_ledger/allowlist.py へ理由付きで登録する）
+.....ERROR: [P3] .ai/feedback/queue/FBP-20260919-tighten-contract.toml::derived_from: 実在しない台帳エントリを指している: FBK-20260901-台帳への書込み経路を-cli-に限定する判断
+...ERROR: [P3] .ai/feedback/queue/FBP-20260919-tighten-contract.toml::derived_from: 実在しない台帳エントリを指している: FBK-20260901-Bad_Slug
+.......ERROR: supersedes に循環がある: FBK-20260901-台帳への書込み経路を-cli-に限定する判断
+..............ERROR: 台帳エントリが見つからない: FBK-20200101-none
+......ERROR: [L1] tmp/_feedback/TRG-2026-W38.toml::reviewed: 書式に合わない値: 'FBK-20260901-bad/slug'（期待: ^FBK-(?P<date>[0-9]{8})-(?P<slug>[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+(?:-[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+)*)$）
+ERROR: [L1] tmp/_feedback/TRG-2026-W38.toml::[[outcomes]][0]::entry: 書式に合わない値: 'FBK-20260901-bad/slug'（期待: ^FBK-(?P<date>[0-9]{8})-(?P<slug>[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+(?:-[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+)*)$）
+ERROR: [L1] tmp/_feedback/TRG-2026-W38.toml::[[outcomes]][0]::merged_into: 書式に合わない値: 'FBK-20260901-bad/slug'（期待: ^FBK-(?P<date>[0-9]{8})-(?P<slug>[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+(?:-[^-\s/\\:*?"<>|`'()\[\]{}（）「」【】〔〕]+)*)$）
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::outcomes[FBK-20260901-台帳への書込み経路を-cli-に限定する判断]: verdict=no-change には reason が必要
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::period_start: id の ISO 週と期間が一致しない（期待: 2026-09-14 〜 2026-09-20）
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::outcomes[FBK-20260901-台帳への書込み経路を-cli-に限定する判断]: 実在しない改訂案を指している: FBP-20260919-tighten-contract
+.ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::reviewed: reviewed と outcomes[].entry の集合が一致しない（outcomes 欠落: ['FBK-20260902-other'] / reviewed 欠落: なし）
+ERROR: [T1] .ai/feedback/triage/TRG-2026-W38.toml::reviewed: 実在しない台帳エントリを指している: FBK-20260902-other
+.......ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::schema: new-entry は現行版のみ受け付けます。schema を feedback-ledger/v1.1 に直してください
+.ERROR: [L1] tmp/_feedback/FBK-20260901-台帳への書込み経路を-cli-に限定する判断.toml::schema: new-entry は現行版のみ受け付けます。schema を feedback-ledger/v1.1 に直してください
+..................................gitgate: `push` takes no arguments; unexpected: ['--receive-pack=sh -c evil']
+...........................................................................................................................................................................................................................s.sss..............s.ss.....s....................s..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 1992 tests in 427.161s
+
+OK (skipped=9)
+/tmp/agy-606-uv-cache/archive-v0/ZHCiP-RsaSNZilW9/lib/python3.12/site-packages/coverage/inorout.py:558: CoverageWarning: Module docidx was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.16.2/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+report.html
+report.html
+report.html
+recorded 1 feedback item(s)
+report.html
+report.html
+report.html
+report.html
+report.html
+report.html
+reverted 1 commit(s) for 2026-10-12T23:35:51.999245+00:00-ae10441a767a
+report.html
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-66fmar_l/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-isv7rnjj/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-u7oz9je0/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-yqhc1n5a/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+
+（dry-run。削除するには --apply を付けてください）
+=== clean-tmp: tmp/sprint-1/parent-a ===
+  対象: /tmp/cleantmp-yqhc1n5a/tmp/sprint-1/parent-a（ファイル 2 / ディレクトリ 3）
+  削除済み

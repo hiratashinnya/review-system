@@ -1,0 +1,149 @@
+"""画像回収が他会話/旧成果/symlinkへ逃げないことを検査する。"""
+
+import os
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from agy_delegate import image_source
+from agy_delegate.artifacts import collect_images, image_snapshot
+from tests.unit.agy_delegate_fixtures import FakeWorkspace
+
+
+class ArtifactTests(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeWorkspace()
+        self.addCleanup(self.fake.close)
+
+    def test_existing_conversation_not_new_run_artifact(self):
+        directory = self.fake.brain / "old"
+        directory.mkdir()
+        (directory / "old.jpg").write_bytes(b"old")
+        before = image_snapshot(self.fake.brain, None)
+        with self.assertRaisesRegex(ValueError, "baseline"):
+            collect_images(self.fake.brain, "old", before, self.fake.workspace / "out")
+
+    def test_changed_bytes_only_and_collision_avoided(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        (directory / "old.jpg").write_bytes(b"old")
+        before = image_snapshot(self.fake.brain, "conv")
+        (directory / "new.jpg").write_bytes(b"new")
+        copied = collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertEqual(len(copied), 1)
+        self.assertTrue(copied[0].endswith("new.jpg"))
+        with self.assertRaises(FileExistsError):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+
+    def test_directory_and_file_symlinks_rejected(self):
+        outside = self.fake.workspace / "outside"
+        outside.mkdir()
+        (outside / "secret.jpg").write_bytes(b"private")
+        before = image_snapshot(self.fake.brain, None)
+        (self.fake.brain / "conv").symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "escape"):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        target = self.fake.brain / "safe"
+        target.mkdir()
+        (target / "secret.jpg").symlink_to(outside / "secret.jpg")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            collect_images(self.fake.brain, "safe", before, self.fake.workspace / "out")
+
+    def test_other_conversation_is_not_fallback(self):
+        before = image_snapshot(self.fake.brain, None)
+        (self.fake.brain / "other").mkdir()
+        (self.fake.brain / "other" / "new.jpg").write_bytes(b"new")
+        with self.assertRaisesRegex(ValueError, "missing"):
+            collect_images(self.fake.brain, "missing", before, self.fake.workspace / "out")
+
+    def test_collection_without_recorded_origin_is_refused(self):
+        (self.fake.brain / "conv").mkdir()
+        (self.fake.brain / "conv" / "new.jpg").write_bytes(b"new")
+        with self.assertRaisesRegex(ValueError, "baseline"):
+            collect_images(self.fake.brain, "conv", {}, self.fake.workspace / "out")
+        self.assertFalse((self.fake.workspace / "out").exists())
+
+    def test_brain_replaced_by_link_after_snapshot_is_refused(self):
+        (self.fake.brain / "conv").mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        elsewhere = self.fake.workspace / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "conv").mkdir()
+        (elsewhere / "conv" / "new.jpg").write_bytes(b"foreign")
+        original = self.fake.workspace / "brain-original"
+        self.fake.brain.rename(original)
+        self.fake.brain.symlink_to(elsewhere, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "brain_invalid"):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertFalse((self.fake.workspace / "out").exists())
+
+    def test_brain_or_source_replaced_by_other_directory_is_refused(self):
+        (self.fake.brain / "conv").mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        (self.fake.brain / "conv").rename(self.fake.brain / "conv-original")
+        (self.fake.brain / "conv").mkdir()
+        (self.fake.brain / "conv" / "new.jpg").write_bytes(b"swapped")
+        with self.assertRaisesRegex(ValueError, "image_source_replaced"):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        fresh = image_snapshot(self.fake.brain, "conv")
+        self.fake.brain.rename(self.fake.workspace / "brain-original")
+        self.fake.brain.mkdir()
+        (self.fake.brain / "conv").mkdir()
+        (self.fake.brain / "conv" / "new.jpg").write_bytes(b"swapped")
+        with self.assertRaisesRegex(ValueError, "image_source_replaced"):
+            collect_images(self.fake.brain, "conv", fresh, self.fake.workspace / "out")
+        self.assertFalse((self.fake.workspace / "out").exists())
+
+    def _foreign_tree(self):
+        foreign = self.fake.workspace / "foreign"
+        (foreign / "conv").mkdir(parents=True)
+        (foreign / "conv" / "new.jpg").write_bytes(b"foreign")
+        return foreign
+
+    def test_copy_uses_inspected_directory_even_if_path_is_swapped_after_checks(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        (directory / "new.jpg").write_bytes(b"genuine")
+        foreign = self._foreign_tree()
+        original = image_source.read_images
+
+        def swap_then_read(directory_fd):
+            self.fake.brain.rename(self.fake.workspace / "brain-moved")
+            self.fake.brain.symlink_to(foreign, target_is_directory=True)
+            return original(directory_fd)
+
+        with patch("agy_delegate.artifacts.read_images", swap_then_read):
+            copied = collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertEqual(Path(copied[0]).read_bytes(), b"genuine")
+
+    def test_file_swapped_to_link_after_listing_is_refused_without_following(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        (directory / "new.jpg").write_bytes(b"genuine")
+        foreign = self._foreign_tree() / "conv" / "new.jpg"
+        listing = os.listdir
+
+        def list_then_swap(fd):
+            names = listing(fd)
+            (directory / "new.jpg").unlink()
+            (directory / "new.jpg").symlink_to(foreign)
+            return names
+
+        with patch("agy_delegate.image_source.os.listdir", list_then_swap):
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+        self.assertFalse((self.fake.workspace / "out").exists())
+
+    def test_fifo_named_like_image_is_refused_without_blocking(self):
+        directory = self.fake.brain / "conv"
+        directory.mkdir()
+        before = image_snapshot(self.fake.brain, "conv")
+        os.mkfifo(directory / "new.jpg")
+        with self.assertRaisesRegex(ValueError, "nonfile"):
+            collect_images(self.fake.brain, "conv", before, self.fake.workspace / "out")
+
+
+if __name__ == "__main__":
+    unittest.main()
