@@ -1,0 +1,116 @@
+# command: COVERAGE_FILE=<tmp>/cov.dat coverage run --rcfile=.coveragerc -m unittest discover -s tests/unit -p 'test_*.py'
+# coverage: Coverage.py, version 7.16.2 with C extension
+# measured commit: a686436f5557b7d25e1b908c93af61f6d79dffbc (tree c96fa86cfc16e9a96324b09b8173330e5bff3697)
+# report command: COVERAGE_FILE=<tmp>/cov.dat coverage report --rcfile=.coveragerc
+Name                                          Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------
+blocker_gate/__init__.py                          5      0   100%
+blocker_gate/__main__.py                          2      2     0%   1-3
+blocker_gate/auth.py                             34      0   100%
+blocker_gate/cli.py                              79      4    95%   153-155, 177
+blocker_gate/closing.py                         119     15    87%   70, 77, 81, 120, 122, 151, 153, 158, 161, 165, 167, 182, 186, 188, 192
+blocker_gate/contract.py                        219     62    72%   35, 38-39, 44, 46, 59, 61, 63, 66, 68-69, 71, 73, 75, 79, 81, 87, 91, 98, 108, 113, 120, 123, 125, 127, 129, 138, 146, 150, 155, 157, 159, 163, 165, 170, 181, 183, 185, 188, 190, 195, 209, 211, 213, 222, 226, 232, 245, 250, 252, 256, 258, 261, 263, 265, 268, 270, 272, 279, 281, 294, 297
+blocker_gate/evaluator.py                       123     16    87%   23, 28, 30, 34, 36, 39, 61, 91, 105, 122, 124, 133, 145-146, 153, 157
+blocker_gate/github.py                          579     99    83%   101, 103, 125, 136, 141, 152, 157, 159, 166-169, 182, 184, 246, 250, 252, 268, 278, 301, 317, 330, 339, 348, 355, 358, 363, 367, 380, 396, 403, 440, 442, 445, 453, 459, 489, 524, 527, 538, 540-549, 552, 555, 559, 570, 572-573, 581, 604, 622, 637-640, 643-653, 675, 679-680, 685, 702, 705, 707, 710, 720, 738-740, 773, 789, 800, 823, 827, 849, 862, 873, 883, 887, 898, 901, 919, 923, 969, 974, 978, 980, 985
+blocker_gate/graphql_query.py                    51      1    98%   29
+blocker_gate/graphql_request.py                  29      1    97%   26
+blocker_gate/model.py                           118      4    97%   203, 266, 278, 280
+blocker_gate/read_redirect.py                    22      1    95%   16
+blocker_gate/read_request_policy.py              31      1    97%   42
+blocker_gate/resolver.py                        207     29    86%   82, 84, 90, 93, 96, 99, 109, 111, 113, 115, 117, 137, 139, 146, 195, 259-261, 270, 273, 298-299, 338, 344, 346, 348, 350, 479, 492
+blocker_gate/schemas/__init__.py                  0      0   100%
+blocker_gate/snapshot.py                         98      7    93%   61-62, 70, 72, 99, 117, 159
+blocker_gate/transport.py                        31      0   100%
+blocker_gate/waiver.py                          218     33    85%   75, 79, 96, 104, 115, 117, 121, 131, 134, 143, 151, 161, 172, 175-176, 187, 190, 192, 197, 212, 214, 216, 219, 222, 226, 229, 232, 235, 242, 244, 283, 288-289
+branch_source/__init__.py                         2      0   100%
+branch_source/policy.py                         181     22    88%   90-102, 105-106, 108, 145, 193-196, 228, 236, 239, 267, 277, 279, 304
+issue_start/__init__.py                           2      0   100%
+issue_start/__main__.py                           2      2     0%   1-4
+issue_start/author_continuation.py               38      2    95%   23, 39
+issue_start/cli.py                               30      3    90%   33-34, 45
+issue_start/durable_lock.py                      80     23    71%   28-29, 36, 46-63, 81-82, 91, 103-109, 119-120
+issue_start/gate.py                              33      0   100%
+issue_start/gate_blocker_report.py               35     11    69%   11, 16, 19, 22, 25, 27, 31-34, 38
+issue_start/gate_caller.py                       12      0   100%
+issue_start/gate_collectors.py                   18      5    72%   14-17, 29
+issue_start/gate_dispatch.py                     62      5    92%   40, 85, 88, 90, 94
+issue_start/gate_evaluate.py                     46      6    87%   75-80
+issue_start/gate_evidence.py                     14      0   100%
+issue_start/gate_git.py                          38     17    55%   17-32, 37, 64-65
+issue_start/gate_isolation_dispatch.py           33      3    91%   43, 46, 48
+issue_start/gate_ledger_metadata.py              26      2    92%   33-34
+issue_start/gate_ledger_records.py               28      8    71%   47-50, 85-88
+issue_start/gate_manifest.py                     61     12    80%   17-18, 35, 51, 58, 63, 67, 69, 85, 87, 89, 93
+issue_start/gate_markers.py                      49      2    96%   18, 21
+issue_start/gate_release.py                      45      6    87%   19, 42-43, 59-60, 76
+issue_start/gate_residue.py                      24      2    92%   71-72
+issue_start/gate_residue_helpers.py               8      0   100%
+issue_start/gate_snapshot_policy.py              15      0   100%
+issue_start/gate_snapshot_read.py                29      3    90%   41, 44-45
+issue_start/gate_support.py                      42      0   100%
+issue_start/gate_transport.py                    35     10    71%   29, 32, 35, 41, 51-61
+issue_start/gate_validation.py                   26      2    92%   22, 24
+issue_start/gated_roles.py                        5      0   100%
+issue_start/handoff_completion.py                26      3    88%   19, 29-30
+issue_start/hook.py                              17      2    88%   63, 67
+issue_start/hook_early.py                        19      0   100%
+issue_start/hook_execution.py                    32      2    94%   39, 61
+issue_start/hook_protocol.py                     20      0   100%
+issue_start/legacy_pr_evidence.py                38      4    89%   19, 34, 37, 43
+issue_start/phase_dispatch.py                    56      2    96%   67, 69
+issue_start/phase_review_receipts.py             41      4    90%   16, 34, 40, 46
+issue_start/phase_role_permissions.py            10     10     0%   2-16
+issue_start/phase_target_binding.py              28      2    93%   13, 32
+issue_start/phase_tool_gate.py                   20     11    45%   17-29, 33
+issue_start/policy_rollout.py                    38      6    84%   19, 23, 27, 33-34, 37
+issue_start/pr_rereview.py                       43      6    86%   23, 26, 29, 37, 44, 47
+issue_start/readonly_phase_ack.py                 5      0   100%
+issue_start/readonly_phase_dispatch.py           33      3    91%   18, 25, 28
+issue_start/readonly_workspace.py                63      7    89%   27, 56-58, 61, 74, 82
+issue_start/session_start.py                     43      6    86%   77-79, 90, 114, 118
+issue_start/subagent_hooks.py                   309     39    87%   158, 169-173, 256-261, 420-421, 436, 442, 487, 616, 655-656, 716-721, 728-733, 742-747, 781-786, 790-795, 834-839, 950-958, 962
+issue_start/subagent_role_policy.py               3      0   100%
+issue_start/worktree_ledger.py                  338     25    93%   194-195, 201, 213, 219, 238, 242, 248, 257, 295, 298-299, 327-330, 370, 399, 583, 591, 619, 624, 841, 844-845
+pr_merge_gate/__init__.py                         2      0   100%
+pr_merge_gate/__main__.py                         2      2     0%   1-3
+pr_merge_gate/audit.py                           10      0   100%
+pr_merge_gate/cli.py                             30      4    87%   31, 47-48, 61
+pr_merge_gate/gate.py                            59      7    88%   73, 77, 89, 97-100
+review_system/__init__.py                         0      0   100%
+review_system/__main__.py                         3      3     0%   2-5
+review_system/adapters/__init__.py                0      0   100%
+review_system/adapters/fake.py                   10      0   100%
+review_system/adapters/file_platform.py          27      1    96%   47
+review_system/adapters/guard.py                  13      0   100%
+review_system/core/__init__.py                    0      0   100%
+review_system/core/apply.py                      24      3    88%   33, 42-43
+review_system/core/compose.py                    20      0   100%
+review_system/core/evaluate.py                    7      0   100%
+review_system/core/intake.py                      8      0   100%
+review_system/core/pipeline.py                   45      0   100%
+review_system/core/triage.py                     36      0   100%
+review_system/domain/__init__.py                  0      0   100%
+review_system/domain/criteria.py                 38      0   100%
+review_system/domain/enums.py                    39      0   100%
+review_system/domain/ids.py                      54      0   100%
+review_system/domain/intake.py                    9      0   100%
+review_system/domain/policy.py                   15      0   100%
+review_system/domain/report.py                   35      0   100%
+review_system/domain/result.py                   30      0   100%
+review_system/domain/review.py                   54      0   100%
+review_system/io/__init__.py                      0      0   100%
+review_system/io/cli.py                         150     13    91%   108-110, 120-121, 132-133, 145-146, 166-167, 170-171, 210
+review_system/io/report_html.py                  29      0   100%
+review_system/parsing/__init__.py                 0      0   100%
+review_system/parsing/frontmatter.py            144     16    89%   37, 49, 51, 99, 102, 106, 116, 130, 132, 139-140, 153, 167, 181, 185, 191
+review_system/parsing/lint.py                    64      6    91%   47, 76-77, 82-83, 86
+review_system/persistence/__init__.py             0      0   100%
+review_system/persistence/criteria_repo.py       64      2    97%   78, 108
+review_system/persistence/feedback_store.py      18      3    83%   23-25
+review_system/persistence/workspace_git.py       59      0   100%
+review_system/ports/__init__.py                   0      0   100%
+review_system/ports/platform.py                  27      0   100%
+review_system/prompts/__init__.py                 0      0   100%
+review_system/prompts/registry.py                 3      0   100%
+---------------------------------------------------------------------------
+TOTAL                                          5294    613    88%
