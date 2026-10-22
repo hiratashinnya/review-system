@@ -13,7 +13,41 @@ log_ref: tests/logs/TD-agy-delegate-606-r21-full-unit.txt
 F-606-06・F-606-13の是正として、commit済みの対象を再測定したログに基づき本成績書を再生成した。同一未merge PR内の書き換えのためversionは1を維持する。
 
 wrapper関連・独立関連・gate/配置・追加契約確認・Codex環境の全量・静的検査・merge guard単体の測定対象は`038445d`（frontmatterの`execution_target`）であり、commit・treeは[full-unit](../logs/TD-agy-delegate-606-r21-full-unit.txt) 2–3行。測定前後の状態は同ログ15–19行・237–242行、測定系列の有効性は250行で確認できる。
-coverageと主文脈の全量の測定対象は`a686436`（coverageのcommit・treeは[coverage-measured](../logs/TD-agy-delegate-606-r21-coverage-measured.txt) 3行、主文脈の全量の対象commitは呼出元の記録による）。`git diff --stat 038445d a686436`および変更パスを再確認し、差分は`tests/logs/`・`tests/reports/`の9ファイルのみで、`agy_delegate/`の実装および関連試験に差はない。
+coverageの測定対象は`a686436`であり、commit・treeは[coverage-measured](../logs/TD-agy-delegate-606-r21-coverage-measured.txt) 3行に記録されている。主文脈の全量の測定対象commit `a686436`は、主文脈の測定時の作業記録による（[r21-fullsuite-main-env](../logs/TD-agy-delegate-606-r21-fullsuite-main-env.txt)ログには記録なし）。
+
+以下の差分の根拠は、ログの証跡ではなくgitコマンドの出力に基づく。`038445d`→`a686436`の差分は9ファイル（`tests/logs/`の8ファイルと`tests/reports/`の1ファイル）のみで、`agy_delegate/`の実装および`tests/unit/`の関連試験に差はない。実行コマンドと出力は以下のとおり。
+
+```text
+TMPDIR=/dev/shm git diff --name-only 038445d a686436
+tests/logs/TD-agy-delegate-606-r21-coverage.txt
+tests/logs/TD-agy-delegate-606-r21-full-unit.txt
+tests/logs/TD-agy-delegate-606-r21-merge-guard.txt
+tests/logs/TD-agy-delegate-606-r21-related-contract-addon.txt
+tests/logs/TD-agy-delegate-606-r21-related-gate-placement.txt
+tests/logs/TD-agy-delegate-606-r21-related-independent.txt
+tests/logs/TD-agy-delegate-606-r21-related-wrapper.txt
+tests/logs/TD-agy-delegate-606-r21-static-checks.txt
+tests/reports/TR-agy-delegate-606-synthetic-final-r4.md
+```
+
+`a686436`→`06bfc2e`についても、差分は`tests/logs/`の3ファイルと`tests/reports/`の1ファイルのみで、`agy_delegate/`・`tests/unit/`を含まない。以下は成績書を含むcommit（`06bfc2e`）時点の出力であり、今回の文書修正後のcommitに対する差分ではない。
+
+```text
+TMPDIR=/dev/shm git diff --name-only a686436 06bfc2e
+tests/logs/TD-agy-delegate-606-r21-coverage-measured.txt
+tests/logs/TD-agy-delegate-606-r21-coverage-testrun.txt
+tests/logs/TD-agy-delegate-606-r21-fullsuite-main-env.txt
+tests/reports/TR-agy-delegate-606-synthetic-final-r4.md
+```
+
+対象tree IDは、次のgit rev-parseの出力による。ログ上の記録は、`038445d`が[full-unit](../logs/TD-agy-delegate-606-r21-full-unit.txt) 3行、`a686436`が[coverage-measured](../logs/TD-agy-delegate-606-r21-coverage-measured.txt) 3行である。
+
+```text
+TMPDIR=/dev/shm git rev-parse 038445d^{tree}
+0d76bde006040960b3c79db1e8436ef8e3034cc0
+TMPDIR=/dev/shm git rev-parse a686436^{tree}
+c96fa86cfc16e9a96324b09b8173330e5bff3697
+```
 
 Codex環境の測定開始（started_at）はwrapper関連が`2026-10-21T23:23:29.801077+00:00`（[related-wrapper](../logs/TD-agy-delegate-606-r21-related-wrapper.txt) 4行）、全量が`2026-10-21T23:31:26.841579+00:00`（[full-unit](../logs/TD-agy-delegate-606-r21-full-unit.txt) 4行）。Pythonは`3.12.3`、platformは`Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39`（同ログ6–7行）。coverage利用確認のUTC_STARTは`2026-10-21T23:46:34.727334+00:00`（[coverage](../logs/TD-agy-delegate-606-r21-coverage.txt) 2行）。
 
@@ -36,7 +70,7 @@ TD正本: [TD-agy-delegate-606](../designs/TD-agy-delegate-606.md)。責務別�
 | gate/配置 | 245件 | 410.109 | FAILED (errors=5) | 1 | `TMPDIR=/dev/shm python3 -m unittest tests.unit.test_agent_command_gate tests.unit.test_codex_agent_command_gate tests.unit.test_governance_sync tests.unit.test_guidance_sync tests.unit.test_ai_asset_layout tests.unit.test_silent_failure_diagnosis_layout` | [related-gate-placement](../logs/TD-agy-delegate-606-r21-related-gate-placement.txt) 1行（コマンド）、113–115行（件数・秒・結果）、125行（exit） |
 | 追加契約確認 | 15件 | 3.670 | OK | 0 | `TMPDIR=/dev/shm python3 -m unittest tests.unit.test_agy_delegate_gates tests.unit.test_silent_failure_diagnosis_layout tests.unit.test_agy_delegate_merge_guard_contract` | [related-contract-addon](../logs/TD-agy-delegate-606-r21-related-contract-addon.txt) 1行（コマンド）、23–25行（件数・秒・結果）、35行（exit） |
 | 全量（Codex環境） | 2397件 | 680.292 | FAILED (failures=1, errors=5) | 1 | `TMPDIR=/dev/shm python3 -m unittest discover -s tests/unit` | [full-unit](../logs/TD-agy-delegate-606-r21-full-unit.txt) 1行（コマンド）、203–205行（件数・秒・結果）、243行（exit） |
-| 全量（主文脈の環境） | 2397件 | 659.482 | FAILED (failures=1) | 記録なし | ログにコマンド記録なし | [fullsuite-main-env](../logs/TD-agy-delegate-606-r21-fullsuite-main-env.txt) 93行（件数・秒）、95行（結果） |
+| 全量（主文脈の環境） | 2397件 | 659.482 | FAILED (failures=1) | 記録なし | ログにコマンド記録なし | [fullsuite-main-env](../logs/TD-agy-delegate-606-r21-fullsuite-main-env.txt) 93行（件数・秒）、95行（結果）。測定対象commit `a686436`は主文脈の測定時の作業記録による（r21-fullsuite-main-envログには記録なし） |
 | merge guard単体 | 1件 | 0.001 | FAILED (failures=1) | 1 | `TMPDIR=/dev/shm python3 -m unittest tests.unit.test_agy_delegate_merge_guard` | [merge-guard](../logs/TD-agy-delegate-606-r21-merge-guard.txt) 1行（コマンド）、44–46行（件数・秒・結果）、56行（exit） |
 | maintainability_lint | 試験件数は対象外 | 0.508531 | violations=0 / accepted_debt=77 | 0 | `TMPDIR=/dev/shm python3 -m maintainability_lint check` | [static-checks](../logs/TD-agy-delegate-606-r21-static-checks.txt) 14行（コマンド）、95行（結果）、98–99行（秒・exit） |
 | asset_parity | 試験件数は対象外 | 0.952990 | 49 assets checked / 0 MISSING / 18 staleness flags | 0 | `TMPDIR=/dev/shm python3 -m asset_parity check` | [static-checks](../logs/TD-agy-delegate-606-r21-static-checks.txt) 102行（コマンド）、158行（結果）、198–199行（秒・exit） |
@@ -64,7 +98,7 @@ COVERAGE_FILE=<tmp>/cov.dat coverage report --rcfile=.coveragerc
 | --- | --- | --- | --- | --- |
 | TOTAL | 5294 | 613 | 88% | [coverage-measured](../logs/TD-agy-delegate-606-r21-coverage-measured.txt) 116行（全行出力は5–116行） |
 
-coverage付き全量は2397件・700.519秒で`FAILED (failures=1)`（[coverage-testrun](../logs/TD-agy-delegate-606-r21-coverage-testrun.txt) 93・95行）。この失敗も意図的なmerge guard（#628）によるもの（同ログ72–90行）。`CoverageWarning: Module docidx was never imported. (module-not-imported)`が記録されている（同ログ96–97行）。日時や、ログに記録されていない実行条件は補完しない。
+coverage付き全量は2397件・700.519秒で`FAILED (failures=1)`（[coverage-testrun](../logs/TD-agy-delegate-606-r21-coverage-testrun.txt) 93・95行）。この失敗も意図的なmerge guard（#628）によるもの（同ログ72–90行）。`CoverageWarning: Module docidx was never imported. (module-not-imported)`が記録されている（同ログ96–97行）。coverage-measuredの3行はcoverageの測定commit・treeの記録であり、coverage-testrunログ自体には測定commit・treeの記録がない。coverage付き全量の測定対象commitはcoverage-testrunログ単独からは確認できない。主文脈のcoverageなし全量の測定対象commit `a686436`は、主文脈の測定時の作業記録による（r21-fullsuite-main-envログには記録なし）。日時や、ログに記録されていない実行条件は補完しない。
 
 再現できなかった旧値（TOTAL 4542 / 566 / 88%）は、今回の測定と文数が異なる。
 
