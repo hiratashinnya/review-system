@@ -12,13 +12,17 @@ Codex (AI) による 2026-10-22 の部分的な実測記録。受入完了・通
 - sandbox 内の Windows 実行は `UtilBindVsockAnyPort: socket failed 1`。sandbox 外の読み取り実行では版表示成功。
 - 実行 workspace: `\\wsl.localhost\Ubuntu\home\<linux-user>\ws_claude\review-system\tmp\worktrees\issue-628`。
 
-## 第一弾で修正する実起動障害
+## duration 観測と受理版の未確認契約
 
 `agy --output-format json --print-timeout 15 -p /usage` は exit 2、
 `time: missing unit in duration "15"` を返した。
 同じ local command の `--print-timeout 15s` は exit 0、`status: SUCCESS`、
 空の conversation ID、`num_turns: 0`、token 使用量 0 を返した。
-wrapper の入力は整数秒のまま、agy 子プロセスへ渡す引数に `s` を付ける。
+この観測は 1.3.5 に限定され、wrapper の受理版 1.3.3 の互換性証拠にはならない。
+第一弾ではこの結果を転用して `s` を付けたが、R1 で無根拠な変更を取り下げた。
+内部 process の数値文字列は従来の合成試験用の挙動であり、1.3.3 での受理を保証しない。
+本番 runtime は `print_timeout_format_unverified` で未起動を維持する。
+解除には受理版の正確な実引数と実行結果、またはその版に束縛された公式根拠が必要である。
 外側 `subprocess.run(timeout=...)` は数値秒のままとする。
 
 ## 読み取りで確認した層
