@@ -1,10 +1,10 @@
 # agy 実効設定・WSL 起動の観測記録（Issue #628）
 
-Codex (AI) による 2026-10-22〜23 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
+Codex (AI) による 2026-10-22〜24 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
 以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
-2026-10-22 の観測履歴であり、その後の変更と最新状態は「既存ユーザーでの段階A・A2」に記録する。
+2026-10-22 の観測履歴であり、その後の変更は「既存ユーザーでの段階A・A2」、最新状態は「段階B1」に記録する。
 
 ## 使用版と実行環境
 
@@ -114,13 +114,46 @@ R29時点でF-628-02〜18は解消、F-628-01はopenである。
 maintainability lintは違反0だったが、gitignoredのscratchが対象だった証拠にはならない。
 PR内の本番ソース・既存試験の測定結果とは区別する。
 
+## 段階B1: 限定ruleの表示と復元（2026-10-24）
+
+ownerはA2と別のB1具体案に「ok」と回答した。B1はglobal候補の限定表示と元bytes復元だけを対象とし、
+通常run・モデル依頼・tool操作・他layer書込み・fixture/corpus作成・5UCは行っていない。
+候補と実装・readerは別contextの独立レビューを通し、最終R33レビューの新規指摘は0、F-628-01はopenだった。
+
+全CLI起動前に元permissionsと比較metadataの本人限定同期保存・読戻しを確認した。
+最初に固定 `--disable-slash-commands=false --version` を1回だけ起動し、
+自然完了・exit0・stderr空・1.4.6完全一致で構文受理を確認した。同じfalse flagを表示2種にも付けた。
+[公式settingsのCLI override契約](https://www.antigravity.google/docs/settings?tab=cli#command-line-overrides)と
+[対応flagの公式reference](https://www.antigravity.google/docs/cli/reference/)に基づき、session overrideを採用した。
+これは一般契約を固定false flag経路にも適用する設計判断・推論であり、全層scalarの実効優先を実測した証明とは分ける。
+元globalの当scalarは欠落または厳密なfalseだけを受理した。
+
+| 確認対象 | 実行・独立読取で確認できたこと | 証明していないこと |
+| --- | --- | --- |
+| 一時候補 | globalにallow3・ask0・deny1を適用し、readbackを確認 | ruleのparse受理、UNC/regexの効力 |
+| `/config`・`/permissions` | 各1回、allow3/deny1が順序込み完全一致。ask表示は省略。両方exit0・status成功・stderr空・token全項目0・turn0 | deny効力、deny優先、複数層の配列合成 |
+| config scalar | useG1Credits=false、slash無効化はfalseまたは既定値として表示 | 全設定層のscalar優先順位 |
+| author復元 | 実fileが候補完全一致・ask空/欠落のみで、元その他値・ACL・binding・終了・不在・bytes安定・late照合を満たして元memory bytesへ復元 | 未知・競合・終了不明時にも復元できる保証 |
+| 独立OS読取 | 今回元全file・permissions・ACL一致、その他値same、本人binding・backup一致、bytes/ACL二読安定、全worker自然完了、worker・agy/GUI・候補残留0 | 過去runの元状態不明の遡及解消 |
+
+実行は1回で、表示完了と復元完了はともにtrueだった。独立readerは書込みを行わず、
+authorによる復元後の元状態一致を確認した。bindingは1snapshot、bytes/ACL/process/candidateは2snapshotで照合した。
+元allow13を含む元bytesへ戻したため、狭い候補は残っていない。本人限定backupは保持する。
+公開用最小集計は `tests/reports/OBS-agy-runtime-628-stage-b1.json` に保存する。
+原rule値・設定指紋・SID・ACL原文・個人path・private backup名・実行file指紋は公開しない。
+
+本番受理版1.3.3・adapter・停止条件は変更していない。将来版は自動受理しない。
+表示の一致をparse成功・権限効力・全層合成・5UCへ拡張せず、F-628-01はopenを維持する。
+今回のテスト追加・実行はなく、scratchのlint違反0を対象包含の証明として扱わない。
+
 ## 後続の実測と #607 への引継ぎ
 
 公式 `agy --help` に config/home を切り替えるオプションはない。
 `--project` は既存 user/global を隔離する証明にはならない。
 専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
-承認済みA2の限定観測と復元は完了した。その先の設定層変更・モデル利用を伴う実測は
-まだ認可・実施していない。無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
+承認済みA2と、別途承認されたB1のglobal限定表示・復元は完了した。
+それを超える複数層の変更・モデル利用を伴う実測はまだ認可・実施していない。
+無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
 
 1. project/shared/global/admin の各入力に識別子を置き、`/permissions` と `/config` を照合。
 2. 同じ rule の重複、異なる rule、allow/ask/deny 競合を各組合せで確認。
