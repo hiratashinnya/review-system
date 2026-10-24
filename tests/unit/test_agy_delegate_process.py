@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from agy_delegate.process import execute
+from agy_delegate.runner import run
 from tests.unit.agy_delegate_fixtures import FakeWorkspace, synthetic_success
 
 
@@ -13,6 +14,26 @@ class ProcessTimeoutTests(unittest.TestCase):
     def setUp(self):
         self.fake = FakeWorkspace()
         self.addCleanup(self.fake.close)
+
+    def test_production_without_duration_evidence_never_launches(self):
+        with patch("agy_delegate.runner.execute") as child:
+            result = run(self.fake.request())
+        child.assert_not_called()
+        self.assertIn("print_timeout_format_unverified", result.reasons)
+
+    def test_synthetic_legacy_arguments_do_not_certify_real_version_compatibility(self):
+        request = self.fake.request()
+        completed = subprocess.CompletedProcess([], 0, json.dumps(synthetic_success()), "")
+        with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch(
+            "agy_delegate.process.subprocess.run", return_value=completed
+        ) as child:
+            result = execute(request, "run")
+        arguments, options = child.call_args
+        argv = arguments[0]
+        self.assertEqual(argv[argv.index("--print-timeout") + 1], str(request.print_timeout))
+        self.assertEqual(options["timeout"], request.print_timeout + 10)
+        self.assertEqual(options["cwd"], request.workspace.resolve())
+        self.assertEqual(result.classification, "success_candidate")
 
     def timeout(self, stdout, stderr):
         timeout = subprocess.TimeoutExpired(["fake"], 1, output=stdout, stderr=stderr)

@@ -1,0 +1,142 @@
+{
+  "recorded_by": "Codex (AI)",
+  "date": "2026-10-24",
+  "kind": "source_inventory_read_only_observations",
+  "old_cache_inventory": {
+    "process_exit": 2,
+    "reader_phase_count_required": 3,
+    "reader_phase_count_attempted": 2,
+    "reader_phase_count_completed": 2,
+    "attempted_reader_phases_naturally_completed": true,
+    "reader_completion_state": "all_attempted_phases_natural",
+    "known_writer_counts": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "version_bound_to_b1_146": true,
+    "binding_matches_b1": true,
+    "settings_write_count": 0,
+    "backup_create_count": 0,
+    "cli_launch_count": 0,
+    "model_launch_count": 0,
+    "inventory_completed": false,
+    "selected_file_read": false,
+    "stop_kind": "logical_validation_stop",
+    "stop_reason": "mapping_exact_selection_unknown",
+    "cache": {
+      "exists": true,
+      "stability": "unknown",
+      "root_type": "object",
+      "exact_workspace_matches": 0,
+      "uuid_selected": false
+    },
+    "known_writer_count_scope": "known_agy_gui_processes"
+  },
+  "default_literal_inventory": {
+    "process_exit": 0,
+    "reader_phase_count_required": 3,
+    "reader_phase_count_attempted": 3,
+    "reader_phase_count_completed": 3,
+    "attempted_reader_phases_naturally_completed": true,
+    "reader_completion_state": "all_attempted_phases_natural",
+    "known_writer_counts": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "version_bound_to_b1_146": true,
+    "binding_matches_b1": true,
+    "settings_write_count": 0,
+    "backup_create_count": 0,
+    "cli_launch_count": 0,
+    "model_launch_count": 0,
+    "limited_inventory_completed": true,
+    "documented_selector": "default_without_project_flags_nonresume",
+    "default_identity_and_cwd_separate": true,
+    "cwd_binding_matches_b1": true,
+    "candidate_filename_contract": "unknown",
+    "candidate_schema_contract": "unknown",
+    "candidate_engine_application_proven": false,
+    "cache_read_count": 0,
+    "engine_application_status": "unproven",
+    "candidate_file": {
+      "exists": true,
+      "existence_stable": true,
+      "bytes_stable": true,
+      "acl_stable": true,
+      "owner_stable": true,
+      "regular_nonreparse_bounded": true
+    },
+    "candidate_identity": {
+      "root_type": "object",
+      "id_present": true,
+      "id_type": "string",
+      "exact_default_identity": true
+    },
+    "candidate_root_presence": {
+      "permissions": false,
+      "settings": false,
+      "userSettings": false
+    },
+    "candidate_unknown_member_count": 2,
+    "known_writer_count_scope": "known_agy_gui_processes"
+  },
+  "current_global_b1_comparison": {
+    "fullhash_matches_b1": true,
+    "acl_matches_b1": true,
+    "permissions_match_b1": true,
+    "nonpermissions_comparison": "same"
+  },
+  "global_permissions": {
+    "allow_count": 13,
+    "ask_present": false,
+    "deny_present": false,
+    "disable_slash_commands_present": false
+  },
+  "shared": {
+    "root_type": "object",
+    "user_settings_type": "object",
+    "root_permissions_present": false,
+    "root_disable_slash_commands_present": false,
+    "user_settings_permissions_present": false,
+    "user_settings_disable_slash_commands_present": false
+  },
+  "reviews": {
+    "F-628-19": {
+      "status": "resolved",
+      "round": 36
+    },
+    "F-628-20": {
+      "status": "resolved",
+      "round": 38
+    }
+  },
+  "limits": {
+    "windows_admin_source": "unknown",
+    "permissions_schema_contract": "unknown",
+    "permissions_array_composition_proven": false,
+    "permission_effect_proven": false,
+    "live_uc_count": 0,
+    "production_runtime_unblocked": false,
+    "past_original_nonpermissions_equality": "unknown",
+    "open_finding": "F-628-01",
+    "project_candidate_engine_application_status": "unproven"
+  },
+  "global_file_double_read_stable": true,
+  "shared_file_double_read_stable": true
+}
