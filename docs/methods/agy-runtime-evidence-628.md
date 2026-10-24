@@ -1,8 +1,10 @@
 # agy 実効設定・WSL 起動の観測記録（Issue #628）
 
-Codex (AI) による 2026-10-22 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
+Codex (AI) による 2026-10-22〜23 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
+以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
+2026-10-22 の観測履歴であり、その後の変更と最新状態は「既存ユーザーでの段階A・A2」に記録する。
 
 ## 使用版と実行環境
 
@@ -51,18 +53,74 @@ global には `command(git status)` と `command(codex --help)`、別 workspace 
 `read_file`・`write_file` と限定した単一 command のみを許可し、
 `write_file(<workspace>/doc-system-v2/nodes)` を deny に加えること。
 実際の Windows パス表現・規則の効力を先に測定する必要がある。
-既存 user 設定は自動変更していない。
+この日の観測では既存 user 設定を変更していない。その後の限定変更は、後述の owner 承認範囲で実施した。
 
 `/config` の `useG1Credits` は false、`/usage` は Gemini と Claude/GPT の週次枠100%を返した。
 これだけで画像生成の無課金を保証しないため、実機 UC 5種は未実施。
 この段階ではモデル推論を依頼していない。
 
-## 後続の実測案と #607 への引継ぎ
+## 既存ユーザーでの段階A・A2（2026-10-23）
+
+受領した追加パスは WSL 作業ディレクトリであり、専用 Windows user/home ではなかった。
+owner は既存 Windows ユーザー向けの設定変更案を選択し、段階Aと、その後のA2具体案を個別に承認した。
+認証ファイルは読み取り・コピーしていない。通常 run・モデル依頼・他設定層への書込み・
+実機 UC・段階Bは、この承認範囲に含めていない。
+
+段階Aは global permissions の退避、一時的な allow/ask/deny の空配列化、
+完全一致 local command `/config`・`/permissions` の観測、復元を対象とした。
+段階Aの `/config` 起動区間では permissions が空objectとして表示され、実ファイルから同キーが欠落した。
+原因は断定できない。全ファイルの指紋変化を検出して停止し、owner が承認した限定復旧で
+元 permissions・復旧直前のその他値・元ACLを確認した。
+この過去runでは元全ファイルbytesは不一致で、元のその他値を独立比較する記録もなく、
+その同一性は未証明のままである。
+
+A2は、元のその他値の方式付き指紋を元全ファイル指紋に結び付けて保存し、
+permissions が承認済みの空形式だけに変わった場合に、本人・ACL・終了・競合条件を確認して
+メモリにある元bytesへ戻す案である。未知形式・値の変化・指紋不明・終了不明・競合では停止する。
+表示の空objectや省略は表示の観測に限り、deny-all・権限効力・全層合成の証明には使わない。
+
+| 実行・是正 | 確認できた事実 | 限界・結果 |
+| --- | --- | --- |
+| A2初回 | 最初の baseline `/config` が外側40秒で timeout。prepare・設定置換には未到達 | 元指紋の保存前であり、開始時との設定同一性は不明。後の独立読取で現設定・ACL安定、残留0を確認 |
+| F-628-16 是正 | 版照会を含む最初のCLI起動前に、元permissions・比較metadataの同期保存確認を必須化 | 保存未確認ならCLIを起動しない。過去runの不明を遡及解消しない |
+| R25 | permissions backup の確認で停止。CLI起動0・設定置換0 | 失敗箇所は当時の分類だけでは未確定。独立読取では本人限定ACLだがfile ownerが現SIDと不一致 |
+| F-628-17・18 是正 | 固定phase/codeの診断と、新しい空backup fileのowner設定・本人限定ACL確認を内容write前へ追加 | 別contextのR27再レビューで両指摘解消、新規0。元の失敗throw地点を断定しない |
+| R28 | backupの同期保存確認は成功。版照会の自然終了後、版検証で停止。baseline観測0・設定置換0 | A2未完了。後続の限定probeで実版1.4.6と期待1.4.5の相違を確認 |
+| R28独立OS読取 | 今回元全ファイル・permissions・ACL一致、その他値same、本人binding一致。bytes/ACL二読安定、worker・agy/GUI・候補残留0 | 今回元状態の現在一致を確認。過去runの不明、A2未完了、実効合成・5UC未達は維持 |
+| R29 | 同じA2承認scopeのscratch期待版を実測1.4.6へ限定追随 | 別contextの独立レビューで新規0。本番受理版1.3.3・停止条件・将来版の拒否は不変 |
+| R30 | CLI前の同期保存、1.4.6一致、baseline2種、一時空permissions適用、変更後表示2種、元bytes復元がすべて完了 | 表示と復元の限定A2のみ成功。権限効力・配列合成・5UCは未証明 |
+| R30独立OS読取 | 今回元全ファイル・permissions・ACL一致、その他値same、本人binding一致。bytes/ACL二読安定、全worker自然完了、worker・agy/GUI・候補残留0 | 今回元状態の現在一致を独立確認。過去runの不明は維持 |
+
+R28では設定置換・復元writeは実施していない。最新R30では実行authorが元bytesへ復元し、
+別contextのreaderが書込みをせずに元全ファイルとの一致を確認した。本人限定backupは保持している。
+通常runの停止を維持し、実機writerがいる場合は追加作用を行わない。
+R28後の限定probeでは `--version` を1回だけ実行し、strict semver `1.4.6`、exit0、
+timeoutなし、stderr空、自然完了を確認した。scratchの期待版 `1.4.5` とは一致しない。
+probe前後でR28元backupとのbinding・全ファイル指紋・ACL・その他値sameと残留0を確認した。
+このprobeでbaseline表示や空設定適用は行っていない。
+主文脈は、既存のA2承認scope内のscratch実装選択として、実測1.4.6への限定追随を判断した。
+R29の独立レビュー後、R30で限定実機確認を完了した。本番受理版1.3.3・本番adapterは変更せず、将来版も自動受理しない。
+
+R30の変更後 `/config` はpermissionsを空objectとして表示し、`/permissions` は
+project/shared/global各scopeだけを表示した。変更前後の4表示はいずれもexit0・status成功・
+stderr空・token全項目0・turn0で、2回の `/config` はuseG1Credits=falseだった。
+表示から実ファイルの具体的な空形や拒否効力を推定しない。
+今回の公開用最小集計は `tests/reports/OBS-agy-runtime-628-stage-a2.json` に保存する。
+この集計には設定原文・規則値・個人path・SID・ACL原文・設定指紋・private backup名を含めない。
+
+実装・是正と独立レビューは別contextで実施し、カルテで指摘と結果を追跡した。
+R29時点でF-628-02〜18は解消、F-628-01はopenである。
+今回のscratch是正に対するテスト追加・実行は行っていない。
+maintainability lintは違反0だったが、gitignoredのscratchが対象だった証拠にはならない。
+PR内の本番ソース・既存試験の測定結果とは区別する。
+
+## 後続の実測と #607 への引継ぎ
 
 公式 `agy --help` に config/home を切り替えるオプションはない。
 `--project` は既存 user/global を隔離する証明にはならない。
-専用 Windows user/home または公式に確認できた隔離機構で、認証ファイルをコピーせず
-専用ログインし、無課金枠と自動課金無効を確認した上で次を測定する。
+専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
+承認済みA2の限定観測と復元は完了した。その先の設定層変更・モデル利用を伴う実測は
+まだ認可・実施していない。無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
 
 1. project/shared/global/admin の各入力に識別子を置き、`/permissions` と `/config` を照合。
 2. 同じ rule の重複、異なる rule、allow/ask/deny 競合を各組合せで確認。
