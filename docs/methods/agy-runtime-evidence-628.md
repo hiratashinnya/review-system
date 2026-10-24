@@ -4,7 +4,7 @@ Codex (AI) による 2026-10-22〜24 の部分的な実測記録。受入完了�
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
 以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
-2026-10-22 の観測履歴であり、その後の変更は「既存ユーザーでの段階A・A2」、最新状態は「段階B1」に記録する。
+2026-10-22 の観測履歴であり、その後の限定変更は段階A・A2・B1、最新の設定元調査は「設定元のread-only inventory」に記録する。
 
 ## 使用版と実行環境
 
@@ -32,8 +32,8 @@ Codex (AI) による 2026-10-22〜24 の部分的な実測記録。受入完了�
 | 層 | Windows 実行側で確認した場所 | 観測した形式・内容 | 未証明 |
 | --- | --- | --- | --- |
 | global | `%USERPROFILE%/.gemini/antigravity-cli/settings.json` | `permissions.allow` 13件、ask/deny キーなし | 他層との配列合成・拒否優先 |
-| project mapping | `%USERPROFILE%/.gemini/antigravity-cli/cache/projects.json` | workspace の Windows path → UUID | 未登録 workspace の選定規則 |
-| project | `%USERPROFILE%/.gemini/config/projects/<UUID>.json` | `id`, `name`, `projectResources.resources[].folderUri` | permissions の格納箇所・schema |
+| cache内の対応表（履歴） | `%USERPROFILE%/.gemini/antigravity-cli/cache/projects.json` | 当時のworkspace の Windows path → UUID | 対応表の観測。active projectの証明にはならない |
+| 対応先のproject候補（履歴） | `%USERPROFILE%/.gemini/config/projects/<UUID>.json` | `id`, `name`, `projectResources.resources[].folderUri` | engine適用・permissionsの格納箇所・schema |
 | shared user | `%USERPROFILE%/.gemini/config/config.json` | この環境では `userSettings.remoteControlHostname` のみ | permissions の schema・適用優先順 |
 | admin | Linux `/etc/antigravity/admin_settings.json` は不存在 | Linux 側の不存在だけを確認 | Windows 側の実パス・全適用源・優先順 |
 
@@ -146,16 +146,61 @@ authorによる復元後の元状態一致を確認した。bindingは1snapshot�
 表示の一致をparse成功・権限効力・全層合成・5UCへ拡張せず、F-628-01はopenを維持する。
 今回のテスト追加・実行はなく、scratchのlint違反0を対象包含の証明として扱わない。
 
+## 設定元のread-only inventory（2026-10-24）
+
+B1の元状態記録を参照し、現binding・cwd・実行file指紋が一致する範囲で設定元を読取調査した。
+今回agyを起動しておらず、1.4.6はB1の実測fileへの束縛である。新たな版照会の結果ではない。
+両inventoryとも設定write・backup作成・CLI・モデル起動は0で、復元やGUI停止要求も行っていない。
+
+### 旧cache selector調査とF-628-19
+
+現workspaceを記号 `W` として扱い、cacheの完全一致keyだけからUUIDを選ぶ旧inventoryは、
+required3phaseに対しattempted/completedが2/2で論理STOPした。開始した2phaseはnonce付き自然完了を確認したが、
+全inventory完了はfalseであり、selected project fileは読んでいない。F-628-19は、試行分の自然完了と
+全調査成功・未試行phaseを混同する状態報告を分け、R36の別context再レビューで解消した。
+
+globalはB1元全file・permissions・ACL一致、その他値sameで、allow13のみ、ask/deny・disableSlashCommandsキーはなかった。
+shared rootとuserSettingsはobjectで、両直下のpermissions・disableSlashCommandsキーはなかった。
+B1参照file・global/sharedの存在・bytes・owner・ACLは二読安定、各phase前後の既知agy/GUIは0だった。
+cacheは存在しroot objectだが、exact `W` keyは0件だった。cacheは1読で安定性unknown、UUID選択は行っていない。
+この0件をproject層の不存在・未登録・別名候補へのfallback根拠にしない。
+
+### 公式selectorの訂正とF-628-20
+
+[公式ProjectsのDefault project execution](https://www.antigravity.google/docs/projects?tab=cli#default-project-execution)は、
+project flags無しのsessionが `default-cli-project` を使い、会話resumeは既存会話のprojectを使うと説明する。
+B1固定argvにはproject指定・新project作成・resumeがないため、この一般契約を選定根拠として採用した。
+cwdは実行場所のbindingとして別に保持し、cacheのcwd対応をactive projectの証明に使う想定を訂正した。
+F-628-20はR38の別context再レビューで解消した。公式契約は物理file名・格納schema・実engine適用の実測証拠ではない。
+
+新inventoryはcacheを読まず、予約literal `default-cli-project.json` の1候補だけを仮説検証として読んだ。
+3phaseすべてのnonce自然完了を確認し、限定inventoryは完了した。候補は存在し、root objectのidは予約identityとexact一致、
+存在・bytes・owner・ACLは二読安定だった。id確認後のrootではpermissions/settings/userSettingsがすべて欠落し、
+未知memberは2件だった。未知member名・値は公開せず、別UUID・別名・content探索はしていない。
+
+候補filename契約とschema契約はunknown、engine適用は未証明である。
+`candidate_engine_application_proven=false` は適用の証明が得られていない意味であり、非適用を実証した意味ではない。
+キー欠落から別格納位置の不存在や適用層の不在も推定しない。Windows admin sourceもunknownを維持する。
+新調査でもglobalはB1元全file・permissions・ACL一致、その他値same、binding一致とglobal/sharedの二読安定を確認した。
+
+公開用最小集計は `tests/reports/OBS-agy-runtime-628-source-inventory.json` に保存する。
+原settings・rule値・実W・UUID・SID・ACL原文・設定/file指紋・private pathは含めない。
+F-628-19・20の解消は状態報告と選定根拠の是正であり、全層合成・効力・5UCの完了ではない。
+F-628-01はopen、本番1.3.3契約と起動停止、A2/B1成功と過去runの元状態unknownは維持する。
+今回のテスト追加・実行、本番code変更はない。
+
 ## 後続の実測と #607 への引継ぎ
 
 公式 `agy --help` に config/home を切り替えるオプションはない。
 `--project` は既存 user/global を隔離する証明にはならない。
 専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
 承認済みA2と、別途承認されたB1のglobal限定表示・復元は完了した。
-それを超える複数層の変更・モデル利用を伴う実測はまだ認可・実施していない。
+read-only inventoryで観測した候補のidentity・shapeだけでは参加sourceやpermissions schemaは確定しない。
+次のnative permissions UIによるschema取得案は準備段階で、未承認・未実装・未実行である。
+複数層の変更・モデル利用を伴う実測もまだ認可・実施していない。
 無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
 
-1. project/shared/global/admin の各入力に識別子を置き、`/permissions` と `/config` を照合。
+1. project/shared/adminの参加元・permissions格納schema・CLI選定条件を確定する。cacheや候補file名から適用を推定しない。
 2. 同じ rule の重複、異なる rule、allow/ask/deny 競合を各組合せで確認。
 3. cwd sentinel を別 workspace に置き、Windows 起動の cwd と URI/path を照合。
 4. 影響調査・素案・外部調査・画像生成・並列の5 UC を、版・設定・使用量とともに記録。
