@@ -1,10 +1,10 @@
 # agy 実効設定・WSL 起動の観測記録（Issue #628）
 
-Codex (AI) による 2026-10-22〜24 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
+Codex (AI) による 2026-10-22〜26 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
 以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
-2026-10-22 の観測履歴であり、その後の限定変更は段階A・A2・B1、最新の設定元調査は「設定元のread-only inventory」に記録する。
+2026-10-22 の観測履歴である。その後の限定変更・設定元調査の履歴を保持し、最新の未確認状態は「段階B2a」に記録する。
 
 ## 使用版と実行環境
 
@@ -189,6 +189,53 @@ F-628-19・20の解消は状態報告と選定根拠の是正であり、全層�
 F-628-01はopen、本番1.3.3契約と起動停止、A2/B1成功と過去runの元状態unknownは維持する。
 今回のテスト追加・実行、本番code変更はない。
 
+## 段階B2a: native UI追加後のSTOPと限定復旧の未完了（2026-10-25〜26）
+
+**R52再レビュー後のWindows inventoryを含めてもcleanupは未確認である。** 削除後の現在のmarker数・承認empty形・R外canonical値・4fileの元比較は未確認、
+旧readerの終了状態もunknownである。原keeperはR48前後でSTOP同一・原memory gate成功を確認しており、終了・破棄していない。
+後続UIは許可されていない。これをA2/B1の過去の復元成功やsource SHA一致で補完しない。
+
+B2aでは、ownerが承認したnative permissions UIのread marker1件を、以下では記号Mと呼ぶ。
+Mの原文・実path・project UUID・未知member名・原設定指紋は公開しない。
+operatorの「初期ruleなし・追加1件・退出」と、後の「削除1件・全tab空・退出」は人の申告として受領した。
+UI token0や自然終了receiptの機械証明は得ていない。keeperからモデル/tool promptや設定JSONの直接書戻しは行っていない。
+
+| 時点 | 確認できた事実 | 停止・未確認事項 |
+| --- | --- | --- |
+| 追加申告後 | 読取frameは自然完了。global/shared/cacheは元存在・全file・ACL・owner一致、project id/binding/存在/ACL/owner一致。M exact1を過去観測 | projectの全file/canonicalは不一致。allow leafの空化/削除だけで元canonicalへ一致せず、元guardのlogic_success=falseでSTOP |
+| 別contextのSTOP診断 | 診断コピー上で、Mを含むroot直下objectの削除だけが元whole canonicalへ一致。leaf/内側objectの空化・削除とroot直下objectの空化は不一致 | 元before型/値はunknown。pure permission wrapperの証明、実設定への削除・正規化の認可にはしない。旧worker receipts未取得で不在unknown |
+| owner限定復旧承認後の準備 | 同じMだけをnative UIで1回削除する別guardを準備。独立before frame/proofを確認しdelete_ready。固定R/I/allowのM1・余分sibling0・R外canonical一致を確認 | 準備時点では削除UI未起動。旧keeper STOP・原memory保持を維持し、cleanup成功とはしない |
+| 削除申告の保存 | launch-used/one-use gate消費を確認し、operator-doneで削除1件・全tab空・退出の申告を保存 | 人の申告をUI自然終了・token0・M0の機械証明にはしない |
+| 新guardのverify | 1回実行しexit2、固定reason `recovery_guard_unverified` でSTOP | 自分after比較・独立reader結果/frame/proof・completeは未作成。比較不一致・reader終了・保存例外のどこで失敗したかは未確定 |
+| 別after observer | 1回実行しexit2、observer_completed=false、observer_state=unknown | own OS frameの自然完了を未確認。reader未起動と終了済みを区別できず、現在M数・after条件・終了状態はunknown/null |
+| R48 local/keeper probe | localはexit0/local boundary到達、keeperはexit0/Windows reader境界未進入。正当nonce/peer/PID/birthticks、前後STOP同一・原memory gate、固定metadataの読取を確認 | capture_four・新Windows reader・CLI/version/UIは呼ばず、proof作成・phase進行なし。前observerの原因や旧reader終了、after設定成功を証明しない |
+| R52再レビュー後のWindows inventory | 新worker1回がstartup receipt・nonce一致・natural completion・child exit0・stderr空で完了。B1 bindingはexe hashだけ不一致 | 設定は未読。変更時刻・現在版は未確認で、元guard/observerの失敗と同じ原因だった証明はない |
+
+限定復旧でprivateに固定したroot keyをR、唯一の内側keyをIと呼ぶ。ownerが追加承認した削除後の形は、
+R不存在、`R={}`、`R={I:{}}`、`R={I:{allow:[]}}` の4形だけである。
+全てM0・全tab空・他rule0・R外canonical一致と、他3fileの元比較などを必要とする。
+空wrapperが残る場合の元project rawbytes一致は保証しない。現在これらのafter条件は機械未確認であり、cleanupを認定していない。
+
+R48はlocal/status/snapshot範囲で停止を再現しなかった限定事実である。
+過去observerの失敗箇所をcapture_four内部と断定せず、source一致だけで現設定や旧reader不在を証明した扱いにしない。
+keeperのSTOP応答や原memory保持をcleanup成功へ読み替えず、旧verify・observerの再実行、JSON直接復元、kill/forceは行っていない。
+R49でF-628-23（major）を起票し、新inventory経路に固定stage・安全な失敗分類・private child identity/receiptの同期保存を追加した。
+timeout時も生存親が同じchild/pipeを保持し、payload再送・再起動・killなしで待機する経路を静的に独立確認し、R52の別context再レビューで解消した。
+これは将来の証拠保持の是正であり、過去observerがtimeoutした、Windowsを起動した、残留した、という証明にはしない。
+
+新inventoryは自然完了したが、元B1とのexe hash差異を検出した。profile/SID/OS/exe path/固定workspace/target labelは一致した。
+actual process/provider cwdはworkspaceと異なり、そのboolは固定workspaceの存在・binding比較と分けて記録した。
+cwd差をbinary差異の根拠には使っていない。現在版と変更時刻は未確認で、版照会も行っていない。
+2回の現在process snapshotはともに既知agy/GUI0、exact既知readback script0、exact既知runtime script0、CommandLine非取得shell0、その他shell3だった。
+その他shell3を安全なprocessと認定せず、known count0を旧readerのPID同定・自然終了へ読み替えない。
+現在設定は読んでおらず、M数・4empty形・after条件・旧reader終了は引き続きunknownである。
+新workerの成功と、過去の取得されなかった証跡、元generic STOPの原因を別の事実として保持する。
+この報告編集では新しいWindows読取・agy/UI起動・設定書込み・テスト追加実行を行っていない。
+
+公開用最小集計は `tests/reports/OBS-agy-runtime-628-stage-b2a-recovery.json` に保存する。
+原値・実path・UUID・SID・ACL/設定/file指紋・private参照は含めない。
+F-628-23はresolved、現在openはF-628-01。本番1.3.3契約と起動停止、schema/効力/合成/5UC未達、過去runの元状態unknownを維持する。
+
 ## 後続の実測と #607 への引継ぎ
 
 公式 `agy --help` に config/home を切り替えるオプションはない。
@@ -196,7 +243,10 @@ F-628-01はopen、本番1.3.3契約と起動停止、A2/B1成功と過去runの�
 専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
 承認済みA2と、別途承認されたB1のglobal限定表示・復元は完了した。
 read-only inventoryで観測した候補のidentity・shapeだけでは参加sourceやpermissions schemaは確定しない。
-次のnative permissions UIによるschema取得案は準備段階で、未承認・未実装・未実行である。
+B2aのnative UI追加と別途承認された限定復旧を進めたが、削除申告後のafter確認で停止し、cleanup未完了である。
+原memoryを持つkeeperのSTOPを保持し、旧reader終了と現在のafter条件を別々に確認する診断が必要である。
+新inventoryで確認したbinarybinding差異と、旧reader終了・after条件のunknownを分離し、追加の限定読取案を準備している。
+新しい診断・独立レビュー・実行許可が整うまで、追加UIや設定作用へ進まない。
 複数層の変更・モデル利用を伴う実測もまだ認可・実施していない。
 無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
 
