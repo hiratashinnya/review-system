@@ -1,7 +1,7 @@
 {
   "recorded_by": "Codex (AI)",
   "period": "2026-10-25 to 2026-10-26",
-  "record_scope": "through_R52_review_and_limited_windows_inventory",
+  "record_scope": "through_independently_reviewed_limited_current_four_file_observation",
   "addition_stop": {
     "operator_attestation": {
       "initial_rule_empty": true,
@@ -148,22 +148,6 @@
     "phase_advance_performed": false,
     "independent_proof_saved": false
   },
-  "current_unverified_state": {
-    "marker_count": null,
-    "approved_empty_shape": null,
-    "outside_canonical_match": null,
-    "four_file_comparison": null,
-    "previous_reader_termination_state": "unknown",
-    "cleanup_confirmed": false,
-    "new_guard_completion_certified": false,
-    "subsequent_ui_allowed": false,
-    "old_keeper_stop_preserved_observed_at_R48": true,
-    "old_keeper_raw_memory_gate_confirmed_at_R48": true,
-    "keeper_termination_performed": false,
-    "binary_binding_matches_old_reference": false,
-    "changed_binary_version": "unknown_not_queried",
-    "binary_change_time": "unknown"
-  },
   "findings": {
     "F-628-01": {
       "status": "open",
@@ -243,5 +227,121 @@
     "binary_change_time": "unknown",
     "other_shells_classified_safe": false,
     "known_zero_counts_prove_past_reader_exit": false
+  },
+  "prior_unverified_status_after_windows_inventory": {
+    "marker_count": null,
+    "approved_empty_shape": null,
+    "outside_canonical_match": null,
+    "four_file_comparison": null,
+    "previous_reader_termination_state": "unknown",
+    "cleanup_confirmed": false,
+    "new_guard_completion_certified": false,
+    "subsequent_ui_allowed": false,
+    "old_keeper_stop_preserved_observed_at_R48": true,
+    "old_keeper_raw_memory_gate_confirmed_at_R48": true,
+    "keeper_termination_performed": false,
+    "binary_binding_matches_old_reference": false,
+    "changed_binary_version": "unknown_not_queried",
+    "binary_change_time": "unknown"
+  },
+  "current_four_file_observation": {
+    "process_exit": 0,
+    "observation_completed": true,
+    "stage": "observation_complete",
+    "startup_receipt_verified": true,
+    "natural_completion_verified": true,
+    "child_exit_code": 0,
+    "stderr_empty": true,
+    "marker_exact_count": 0,
+    "files": {
+      "global": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "shared": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "project": {
+        "existence_same": true,
+        "fullhash_same": false,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "cache": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      }
+    },
+    "project_present": true,
+    "project_identity_same": true,
+    "project_fullhash_same": false,
+    "project_whole_canonical_same": true,
+    "approved_empty_shape": "root_absent",
+    "root_outside_canonical_same": true,
+    "after_data_conditions_match": true,
+    "original_binding_all_same": false,
+    "binding_matches": {
+      "cwd": true,
+      "sid": true,
+      "profile": true,
+      "os": true,
+      "exe": true,
+      "exe_hash": false,
+      "target": true
+    },
+    "current_exe_hash_stable": true,
+    "current_binary_version": "unknown_not_queried",
+    "process_counts_before": {
+      "agy_gui": 0,
+      "other_shell": 3,
+      "unreadable_shell_commandline": 0,
+      "known_script": 0
+    },
+    "process_counts_after": {
+      "agy_gui": 0,
+      "other_shell": 3,
+      "unreadable_shell_commandline": 0,
+      "known_script": 0
+    },
+    "other_shell_identities_stable": true,
+    "other_shell_purpose": "unknown",
+    "execution_process_cwd_is_workspace": false,
+    "execution_provider_cwd_is_workspace": false,
+    "actual_cwd_difference_is_binary_change": false,
+    "previous_reader_termination_state": "unknown",
+    "cleanup_confirmed": false,
+    "proof_saved": false,
+    "source_engine_application_proven": false,
+    "agy_launched": false,
+    "version_queried": false,
+    "repeat_pass_performed": false,
+    "four_file_double_read_stable": true,
+    "other_shells_classified_safe": false,
+    "historical_reader_natural_completion_proven": false
+  },
+  "current_status": {
+    "observed_marker_count": 0,
+    "observed_approved_empty_shape": "root_absent",
+    "observed_outside_canonical_match": true,
+    "observed_whole_canonical_match": true,
+    "observed_project_rawbytes_match": false,
+    "after_data_conditions_observed": true,
+    "cleanup_confirmed": false,
+    "old_guard_completion_certified": false,
+    "proof_saved": false,
+    "source_engine_application_status": "unproven",
+    "previous_reader_termination_state": "unknown",
+    "current_binary_version": "unknown_not_queried",
+    "original_binding_all_same": false,
+    "original_keeper_stop_automatically_released": false,
+    "original_keeper_phase_or_proof_changed": false,
+    "subsequent_ui_allowed": false
   }
 }
