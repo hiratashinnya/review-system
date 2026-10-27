@@ -1,0 +1,63 @@
+{
+  "version": "1.4.8",
+  "output_format": "json",
+  "model_override": false,
+  "credits_false": true,
+  "binary_unchanged": true,
+  "settings_restored": true,
+  "schema": {
+    "unknown_key_count": 0,
+    "fields": {
+      "usage": {
+        "unknown_key_count": 0,
+        "fields": {
+          "total_tokens": {
+            "kind": "Int32"
+          },
+          "output_tokens": {
+            "kind": "Int32"
+          },
+          "input_tokens": {
+            "kind": "Int32"
+          },
+          "thinking_tokens": {
+            "kind": "Int32"
+          },
+          "cache_read_tokens": {
+            "kind": "Int32"
+          }
+        },
+        "kind": "object"
+      },
+      "num_turns": {
+        "kind": "Int32"
+      },
+      "response": {
+        "kind": "string",
+        "known_enum": null
+      },
+      "duration_seconds": {
+        "kind": "Decimal"
+      },
+      "conversation_id": {
+        "kind": "string",
+        "known_enum": null
+      },
+      "status": {
+        "kind": "string",
+        "known_enum": "SUCCESS"
+      }
+    },
+    "kind": "object"
+  },
+  "usage": {
+    "total_tokens": 5376,
+    "output_tokens": 288,
+    "input_tokens": 5088,
+    "thinking_tokens": 0,
+    "cache_read_tokens": 11316
+  },
+  "num_turns": 1,
+  "corpus_unchanged": true,
+  "write_denial_verified": false
+}

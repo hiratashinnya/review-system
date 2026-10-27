@@ -1,4 +1,4 @@
-"""agy 1.3.3 の成功・拒否・timeout・ERROR 実測に基づく出力契約。"""
+"""1.4.8成功schema。拒否・timeout・ERRORの同版実効確認はruntime gateに残す。"""
 
 import math
 
@@ -42,4 +42,4 @@ def _valid_denials(value: object) -> bool:
         and all(isinstance(text, str) and bool(text) for text in item.values())
         for item in value))
 
-CONTRACT_VERSION = "1.3.3"
+CONTRACT_VERSION = "1.4.8"

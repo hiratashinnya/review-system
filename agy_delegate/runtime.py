@@ -2,17 +2,13 @@
 
 from .settings_layer_types import SettingsResolution
 from .settings_layers import inspect_layer_resolution
+from .settings_sources import resolve_candidate_sources
 from .types import Request
 
 
 def resolve_settings_layers(request: Request) -> SettingsResolution:
     """既知の層参加元だけ扱い、未特定の場所/形式/合成を推測しない。"""
-    return SettingsResolution(reasons=(
-        "settings_global_binding_unverified",
-        "settings_project_binding_and_schema_unverified",
-        "settings_shared_user_location_and_schema_unverified",
-        "settings_admin_presence_or_precedence_unverified",
-    ))
+    return resolve_candidate_sources(request.executable)
 
 
 def verify_runtime(request: Request) -> list[str]:

@@ -13,7 +13,7 @@ def execute(request: Request, run_id: str):
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return Result(run_id, reasons=["agy_version_unverified_or_mismatch"])
     argv = [str(request.executable.resolve()), "--output-format", "json",
-            "--print-timeout", str(request.print_timeout)]
+            "--print-timeout", f"{request.print_timeout}s"]
     if request.conversation is not None:
         argv.extend(["--conversation", request.conversation])
     argv.extend(["-p", request.prompt])

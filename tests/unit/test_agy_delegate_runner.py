@@ -49,7 +49,7 @@ class RunnerTests(unittest.TestCase):
     def test_outer_timeout_preserves_partial_output(self):
         timeout = subprocess.TimeoutExpired(["fake"], 1,
                                              output=json.dumps(synthetic_success()).encode())
-        with patch("agy_delegate.process.verified_version", return_value="1.3.3"), patch("agy_delegate.process.subprocess.run", side_effect=timeout):
+        with patch("agy_delegate.process.verified_version", return_value="1.4.8"), patch("agy_delegate.process.subprocess.run", side_effect=timeout):
             result = self.execute(self.fake.request())
         self.assertTrue(result.truncated)
         self.assertIn("process_timeout", result.reasons)
