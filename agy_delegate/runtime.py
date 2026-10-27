@@ -15,4 +15,4 @@ def verify_runtime(request: Request) -> list[str]:
     """全層監査と起動環境の根拠が揃わなければ子プロセス未起動で止める。"""
     return inspect_layer_resolution(resolve_settings_layers(request), request.workspace) + [
         "settings_permission_merge_unverified", "launch_environment_unverified",
-        "print_timeout_format_unverified"]
+        "print_timeout_outcome_unverified"]

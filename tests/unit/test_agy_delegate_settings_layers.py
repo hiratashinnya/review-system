@@ -46,7 +46,7 @@ class SettingsLayersTests(unittest.TestCase):
                    return_value=SettingsResolution(tuple(self.layers))):
             self.assertEqual(verify_runtime(self.fake.request()),
                              ["settings_permission_merge_unverified", "launch_environment_unverified",
-                              "print_timeout_format_unverified"])
+                              "print_timeout_outcome_unverified"])
 
     def test_project_allow_does_not_erase_global_deny_or_shared_ask(self):
         self.write(1, self.rules)

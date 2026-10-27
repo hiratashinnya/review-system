@@ -15,11 +15,11 @@ class ProcessTimeoutTests(unittest.TestCase):
         self.fake = FakeWorkspace()
         self.addCleanup(self.fake.close)
 
-    def test_production_without_duration_evidence_never_launches(self):
+    def test_production_without_timeout_outcome_evidence_never_launches(self):
         with patch("agy_delegate.runner.execute") as child:
             result = run(self.fake.request())
         child.assert_not_called()
-        self.assertIn("print_timeout_format_unverified", result.reasons)
+        self.assertIn("print_timeout_outcome_unverified", result.reasons)
 
     def test_duration_arguments_follow_measured_help_without_certifying_timeout_result(self):
         request = self.fake.request()
