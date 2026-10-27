@@ -25,7 +25,7 @@ def resolve_candidate_sources(executable: Path) -> SettingsResolution:
             before = executable.lstat()
             try:
                 canonical = executable.resolve(strict=True)
-            except RuntimeError:
+            except (OSError, RuntimeError):
                 raise ValueError("settings_executable_alias_unresolvable") from None
             after = executable.lstat()
             attributes = ("st_dev", "st_ino", "st_mode", "st_mtime_ns", "st_ctime_ns")
