@@ -79,3 +79,15 @@ class RuntimeCandidateTests(unittest.TestCase):
         unknown.symlink_to(self.exe)
         self.assertIn("settings_executable_symlink_unsupported", resolve_candidate_sources(unknown).reasons)
 
+    def test_cyclic_home_shim_returns_fixed_reason_without_launch_or_path(self):
+        home = self.fake.workspace / "synthetic-home"
+        shim = home / ".local/bin/agy"
+        shim.parent.mkdir(parents=True)
+        shim.symlink_to(shim)
+        self.global_file.write_text('{}')
+        self.request = replace(self.request, executable=shim)
+        with patch("pathlib.Path.home", return_value=home):
+            reasons = self.assert_no_launch()
+        self.assertIn("settings_executable_alias_unresolvable", reasons)
+        self.assertNotIn(str(shim), repr(reasons))
+

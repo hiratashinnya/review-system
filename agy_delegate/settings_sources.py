@@ -23,7 +23,10 @@ def resolve_candidate_sources(executable: Path) -> SettingsResolution:
             if executable != Path.home() / ".local/bin/agy":
                 raise ValueError("settings_executable_symlink_unsupported")
             before = executable.lstat()
-            canonical = executable.resolve(strict=True)
+            try:
+                canonical = executable.resolve(strict=True)
+            except RuntimeError:
+                raise ValueError("settings_executable_alias_unresolvable") from None
             after = executable.lstat()
             attributes = ("st_dev", "st_ino", "st_mode", "st_mtime_ns", "st_ctime_ns")
             if any(getattr(before, key) != getattr(after, key) for key in attributes):
