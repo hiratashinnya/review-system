@@ -14,22 +14,8 @@ def validate_proof(proof: object, *, now: datetime) -> dict:
     checked_protocol(data["protocol"])
     checked_lifetime(data["created_utc"], data["expires_utc"], now)
     checked_hash(data["generator_source_sha256"])
-    binding = exact_object(data["binding"], BINDING_HASHES | set(BINDING_ENUMS))
-    for key in BINDING_HASHES:
-        checked_hash(binding[key])
-    for key, expected in BINDING_ENUMS.items():
-        if type(binding[key]) is not str or binding[key] != expected:
-            raise ValueError("cohort_binding_profile_invalid")
-    files = exact_object(data["files"], {"global", "project", "shared"})
-    for key, value in files.items():
-        entry = exact_object(value, FILE_FIELDS)
-        if type(entry["exists"]) is not bool or (key == "global" and not entry["exists"]):
-            raise ValueError("cohort_file_presence_invalid")
-        for field in FILE_FIELDS - {"exists"}:
-            if entry["exists"]:
-                checked_hash(entry[field])
-            elif entry[field] is not None:
-                raise ValueError("cohort_absent_file_metadata_invalid")
+    validated_binding(data["binding"])
+    validated_files(data["files"])
     observations = exact_object(data["observations"], OBSERVATIONS)
     if any(value is not True for value in observations.values()):
         raise ValueError("cohort_observation_unverified")
@@ -40,6 +26,32 @@ def validate_proof(proof: object, *, now: datetime) -> dict:
         raise ValueError("cohort_account_unverified")
     checked_hash(account["owner_record_sha256"])
     return data
+
+
+def validated_binding(value: object) -> dict:
+    """校正時と現在値に共通の、固定 binding 形式だけを受理する。"""
+    binding = exact_object(value, BINDING_HASHES | set(BINDING_ENUMS))
+    for key in BINDING_HASHES:
+        checked_hash(binding[key])
+    for key, expected in BINDING_ENUMS.items():
+        if type(binding[key]) is not str or binding[key] != expected:
+            raise ValueError("cohort_binding_profile_invalid")
+    return binding
+
+
+def validated_files(value: object) -> dict:
+    """存在と不存在を区別した3つの snapshot 形式だけを受理する。"""
+    files = exact_object(value, {"global", "project", "shared"})
+    for key, value in files.items():
+        entry = exact_object(value, FILE_FIELDS)
+        if type(entry["exists"]) is not bool or (key == "global" and not entry["exists"]):
+            raise ValueError("cohort_file_presence_invalid")
+        for field in FILE_FIELDS - {"exists"}:
+            if entry["exists"]:
+                checked_hash(entry[field])
+            elif entry[field] is not None:
+                raise ValueError("cohort_absent_file_metadata_invalid")
+    return files
 
 
 def canonical_proof_bytes(proof: object, *, now: datetime) -> bytes:
