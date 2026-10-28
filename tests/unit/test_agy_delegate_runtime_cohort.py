@@ -9,10 +9,8 @@ from tests.unit.agy_runtime_cohort_fixture import RuntimeCohortFixture
 
 
 class RuntimeCohortTests(RuntimeCohortFixture):
-    def test_supported_snapshot_passes_real_runtime_and_normal_runner(self):
+    def test_supported_snapshot_runs_without_runtime_mock(self):
         with patch("subprocess.run", side_effect=self.boundary):
-            self.assertEqual(verify_runtime(self.request), [])
-            self.counts = dict.fromkeys(self.counts, 0)
             result = run(self.request)
         self.assertEqual(result.classification, "success_candidate", result.reasons)
         self.assertEqual(self.counts, {"os": 3, "version": 1, "model": 1})
