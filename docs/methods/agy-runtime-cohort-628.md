@@ -56,6 +56,6 @@ account適用範囲が未回答の現在はproof発行未完了とし、これ�
 
 ## 検証と制約
 
-- proofの改変/欠落/期限/型/owner/mode/alias、WSL binding差異は全subprocess0。Windows OS/SID/ACL/native cwd/fingerprint差異はread-only helperを区別して計数し、execute/agy version/model0と無変更・非漏洩を確認する。project/shared未知snapshotもagy0。
+- proofの改変/欠落/期限/型/owner/mode/alias、およびWSL内で独立に照合可能なworkspace/native入力projection/exe path/hash/source差異は全subprocess0。OS/userの複合hashはWindows component取得後に比較するため、read-only helper子が発生し得る。Windows OS/SID/ACL/fingerprint差異と共にhelperを区別して計数し、agy version/model0と無変更・非漏洩を確認する。project/shared未知snapshotもagy0。
 - 5UCは支持cohortの本番wrapperで実行する。先行校正の成功だけで5UCを成功扱いしない。
 - 許可先writeは実生成・payload一致を確認済み。保護先は不変だがengine write試行/拒否は直接未観測。この限界を記録し、AC外のdebuglog追跡を新しいblockerにしない。

@@ -4,6 +4,9 @@ function Snapshot-Hash($Bytes) {
     finally { $sha.Dispose() }
 }
 function Snapshot-TextHash($Value) { return Snapshot-Hash ([Text.Encoding]::UTF8.GetBytes([string]$Value)) }
+function Test-GatewayVariableNames($Names) {
+    return @($Names | Where-Object { $_ -like 'AGY_LLM_GATEWAY_*' }).Count -gt 0
+}
 function Require-PlainAncestors($Path) {
     $current = $Path
     while ($current -and !(Test-Path -LiteralPath $current)) { $current = Split-Path -Parent $current }

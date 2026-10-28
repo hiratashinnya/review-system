@@ -30,6 +30,7 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | launch_profile.native_arguments/child_environment | version/modelともdefault-cli-projectを明示、promptを独立argvとして保持。親environmentを変えずWindows子だけauto-update抑止を継承 |
 | native_policy/permission_rules/native_paths | 論理templateと実file-onlyのstrict subsetを区別。未知native rule/一覧command追加/unsafe pathを拒否。native欄は入力projectionであってOS cwd観測ではない |
 | cohort_runtime/windows_probe | fake private homeの本物proof reader・real resolver・read-only OS adapterのrecord/replayで正常fixtureを通す。verify_runtime自体のmockやRequest.settingsからのproof注入は使わない |
+| Windows gateway環境名 | 実helper関数に合成名8件を渡し、大文字・小文字・混在prefixを検出する。環境値・設定・CLIに接触せず、非prefix/空入力を区別する |
 | launch_identity/verified_process | known leaf shimだけを一度canonical化し、同exeを検査・起動。排他待機後/版照会後のsnapshot/source変更でmodel0、offline不正はOS helperも0 |
 | settings_file_read/cohort_executable | nofollow descriptor・bounded regular・前後identity変化を検査し、原fileを変更しない |
 

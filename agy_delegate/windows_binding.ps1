@@ -28,7 +28,7 @@ try {
     if ($exeBefore -cne (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()) { throw 'executable_changed' }
     $admin = Join-Path $env:ProgramData 'Antigravity/admin_settings.json'
     Require-PlainAncestors $admin
-    $gatewayEnvironment = @([Environment]::GetEnvironmentVariables().Keys | Where-Object { $_ -clike 'AGY_LLM_GATEWAY_*' }).Count -ne 0
+    $gatewayEnvironment = Test-GatewayVariableNames ([Environment]::GetEnvironmentVariables().Keys)
     @{ok=$true;nonce=$nonce;windows_os_sha256=(Snapshot-TextHash ([Environment]::OSVersion.VersionString));windows_principal_sha256=(Snapshot-TextHash $principal);executable_sha256=$exeBefore;files=$first;admin_gateway_candidate_absent=(!(Test-Path -LiteralPath $admin));gateway_environment_present=$gatewayEnvironment;update_disabled_for_child=$true;os_cwd_observed=$false;settings_writes=0;agy_launches=0} | ConvertTo-Json -Depth 8 -Compress
 } catch {
     @{ok=$false;nonce=$nonce;reason='cohort_windows_binding_unverified';phase=$phase;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
