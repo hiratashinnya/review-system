@@ -83,6 +83,6 @@ class MeasuredContractTests(unittest.TestCase):
         with patch("agy_delegate.runner.execute") as child:
             result = run(fake.request())
         self.assertIn("runtime_cohort_unverified", result.reasons)
-        self.assertIn("launch_environment_unverified", result.reasons)
+        self.assertIn("settings_executable_layout_unsupported", result.reasons)
         self.assertNotIn("output_contract_unverified", result.reasons)
         child.assert_not_called()
