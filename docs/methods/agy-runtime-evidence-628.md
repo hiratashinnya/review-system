@@ -1,10 +1,10 @@
 # agy 実効設定・WSL 起動の観測記録（Issue #628）
 
-Codex (AI) による 2026-10-22〜26 の部分的な実測記録。受入完了・通常 run の解除を意味しない。
+Codex (AI) による 2026-10-22〜28 の部分的な実測・実装記録。受入完了・通常 run の解除を意味しない。
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
 以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
-2026-10-22 の観測履歴である。その後の限定変更・設定元調査の履歴を保持し、最新の未確認状態は「段階B2a」に記録する。
+2026-10-22 の観測履歴である。各旧章の「現在」は記載日当時を指し、最新の部分実装・検証は「1.4.8の部分実装と検証」に記録する。
 
 ## 使用版と実行環境
 
@@ -254,6 +254,54 @@ JSON復元、phase進行、kill/retryは行っていない。cleanup_confirmed/p
 原値・実path・UUID・SID・ACL/設定/file指紋・private参照は含めない。
 F-628-23はresolved、現在openはF-628-01。本番1.3.3契約と起動停止、schema/効力/合成/5UC未達、過去runの元状態unknownを維持する。
 
+## 1.4.8の部分実装と検証（2026-10-28）
+
+新しいsnapshotに基づく実機観測で版1.4.8を確認した。親process限定の
+`AGY_CLI_DISABLE_AUTO_UPDATE=true` を用い、前後の実行file指紋一致・元4file復元・自然終了を確認した。
+これは当該cohortの根拠であり、旧1.3.3/1.3.5/1.4.6観測や過去の終了unknownを遡及更新しない。
+現行出力・版契約は1.4.8に限定して接続したが、本番起動gateは未確認理由で停止を維持する。
+
+### 確認した契約と観測限界
+
+- 通常JSONの必須6keyはconversation_id/status/response/duration_seconds/num_turns/usage。
+  usageは5項目の整数、num_turnsも整数として確認した。fixtureのsyntheticなid/responseを実応答とは扱わない。
+- `--print-timeout` は30s/120sのduration構文を受理した。構文受理をtimeoutの実効顛末・子終了の証明にはしない。
+- 既存選択モデルとuseG1Credits=falseの下で、promptへ渡していない秘密anchorの応答一致というread witnessを取得した。
+  モデルprobeはtoken0のlocal表示とは別に扱う。
+- 許可先write成功と保護対象（偽corpus）不変は確認したが、engine拒否は直接未観測である。
+  応答文やfile不変から直接拒否が起きたとは認定せず、直接拒否ログの追加取得を完了条件にはしない。
+  実corpus・認証を拒否試験には使っていない。
+
+### 接続した部分実装
+
+| 対象 | 接続した責務 | 残る境界 |
+| --- | --- | --- |
+| settings_sources | canonical Windows配置の固定3候補とadmin未知を返す。観測済みhome leaf shimだけを限定解決 | 候補発見を層参加・schema・admin不存在の証明にしない |
+| settings_reads / settings_decoders | bounded regular/no-follow読取とstrict JSON、global optionalキーの由来・型/rule監査 | Request.settingsを実globalとみなさず、未知schema/alias/layoutへfallbackしない |
+| settings_layers | 既知extra rule・重複・型の診断を未知adminと両立させる | 不完全inventoryではmissing-rule全体判定を保留し、実効mergeを推定しない |
+| process / version / output_contract | exact1.4.8、duration秒suffix、通常JSON型契約 | 同版の未実測拒否/ERROR/timeout顛末や5UCへ成功を転用しない |
+
+本番sourceと異常TCを追加し、循環home shimの固定理由化を是正した。
+最初の4f69fe3局所PASS後、uv Python3.13の全量で固定理由の差を再検出し、F-628-29を再openした。
+是正source `f9dba3761cf46882125166e2b2e662e45f6a0f15` のuv Python3.13.14再検証とR80の別context再レビューで解消した。
+F-628-01はopenで、guardのskip・削除・期待値反転はしていない。
+
+### 検証をsourceごとに分けた結果
+
+| 対象source・範囲 | 結果 | 証跡・限界 |
+| --- | --- | --- |
+| 9978820・関連TC | 145件中144成功、既merge guard1失敗。lint違反0/debt77、asset MISSING0/stale18 | `TR-agy-runtime-628-9978820.md`。後続sourceの測定値ではない |
+| 4f69fe3・F29局所 | 9TC成功、lint違反0/debt77 | `TR-agy-runtime-628-4f69fe3.md`。別Python環境の当時の結果として保持 |
+| 4f69fe3・uv Python3.13全量coverage | 2430件・684.659秒・FAIL2（既guard＋循環shim固定理由差） | `TR-agy-runtime-628-4f69fe3-full-coverage.md`。TOTAL6074 statements/647 miss/89%、agy_delegate780/34 miss/95.6% |
+| f9dba37・uv Python3.13.14関連coverage | 146件中145成功、既guard1失敗。循環alias TC成功 | `TR-agy-runtime-628-f9dba37-python313.md`。agy_delegate780/33 miss/95.77%（表示96%）。全量の再測定ではない |
+
+f9dba37でもlintはexit0・violations0・accepted_debt77・baseline変更0、assetはexit0・49assets・MISSING0・stale18を再測定した。
+証跡は `TR-agy-runtime-628-f9dba37-lint.txt` と同 `-asset.txt` であり、旧sourceの値の転用ではない。
+TR/logは `tests/reports/`・`tests/logs/` にsource別で保存する。4f69fe3全量ではdocidx未importのwarningがあり、
+TOTALを全repository包含とは主張しない。HTML/report生成は成功したが、unittestのexit1/FAIL2を上書きしない。
+f9dba37は別coverage dataを用い、旧全量log・data・HTMLを上書きしていない。生成物はcommit対象外である。
+この文書・coverage専用TRの作成者は既記録を照合しただけで、テストや実機操作を追加実行していない。
+
 ## 後続の実測と #607 への引継ぎ
 
 公式 `agy --help` に config/home を切り替えるオプションはない。
@@ -261,17 +309,17 @@ F-628-23はresolved、現在openはF-628-01。本番1.3.3契約と起動停止�
 専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
 承認済みA2と、別途承認されたB1のglobal限定表示・復元は完了した。
 read-only inventoryで観測した候補のidentity・shapeだけでは参加sourceやpermissions schemaは確定しない。
-B2aのnative UI追加と限定復旧の旧guardはSTOPのままだが、別途承認された読取でM0・root_absent・canonical元一致を確認した。
-project rawbytes不一致、旧cleanup/proof未認定、元binarybinding差異、旧reader終了unknownを別々に保持する。
-現在データの一致から旧STOPを自動解除せず、keeperの原memoryと証拠を保持して次の判断を行う必要がある。
-新しい診断・独立レビュー・実行許可が整うまで、追加UIや設定作用へ進まない。
-複数層の変更・モデル利用を伴う実測もまだ認可・実施していない。
-無課金枠と自動課金無効を確認し、具体的な次段階を承認した上で次を測定する。
+B2a当時のrawbytes不一致・旧cleanup/proof未認定・旧reader終了unknownは上記の履歴として保持する。
+今回の新1.4.8 snapshotでの元4file復元・自然終了を、過去の未確認証跡の補完には使わない。
+限定モデルprobeとread witnessは実施済みだが、4層の根拠・実効merge・起動adapter/cwd・5UC・本番guard解除は未完了である。
+engine直接拒否は観測限界として保持し、追加の完了条件にはしない。
+project/sharedの全一般形schema対応も新ACにせず、未対応schema/環境ではfail-closeを維持する限定adapter方針とする。
+環境・scope・費用条件・比較/復元・終了確認を揃え、未知なら停止して次の根拠を取得する。
 
 1. project/shared/adminの参加元・permissions格納schema・CLI選定条件を確定する。cacheや候補file名から適用を推定しない。
-2. 同じ rule の重複、異なる rule、allow/ask/deny 競合を各組合せで確認。
-3. cwd sentinel を別 workspace に置き、Windows 起動の cwd と URI/path を照合。
-4. 影響調査・素案・外部調査・画像生成・並列の5 UC を、版・設定・使用量とともに記録。
+2. 対象cohortのrule重複、異なるrule、allow/ask/deny競合と実効mergeを確認する。
+3. cwd/selector/URIと起動条件を、構文受理やfile候補発見とは分けて照合する。実timeout顛末の観測限界も記録する。
+4. 影響調査・素案・外部調査・画像生成・並列の5UCを本番wrapperで行い、成果・版・設定・使用量を記録する。
 
 これは実験入力の書込みを伴い、read-only 観測だけでは合成規則を証明できない。
 #607 への現時点の引継ぎは「撤去不可、実機証明未完」。

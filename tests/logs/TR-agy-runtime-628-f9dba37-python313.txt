@@ -1,0 +1,43 @@
+source_commit=f9dba3761cf46882125166e2b2e662e45f6a0f15
+python=3.13.14
+command=UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline --with coverage coverage run --data-file=/tmp/agy-f29-f9dba37.coverage --source=agy_delegate -m unittest discover -s tests/unit -p test_agy_delegate*.py
+exit_code=1
+.............................................F....................................................................................................
+======================================================================
+FAIL: test_production_runtime_has_no_unverified_stop_reasons (test_agy_delegate_merge_guard.RuntimeMergeGuardTests.test_production_runtime_has_no_unverified_stop_reasons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard.py", line 30, in test_production_runtime_has_no_unverified_stop_reasons
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        reasons,
+        ^^^^^^^^
+    ...<3 lines>...
+        f"本番 runtime の未確認停止理由: {reasons}",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: ['settings_global_binding_unverified', 'se[330 chars]ied'] != []
+
+First list contains 9 additional elements.
+First extra element 0:
+'settings_global_binding_unverified'
+
++ []
+- ['settings_global_binding_unverified',
+-  'settings_project_binding_and_schema_unverified',
+-  'settings_shared_user_location_and_schema_unverified',
+-  'settings_admin_presence_or_precedence_unverified',
+-  'settings_executable_unreadable',
+-  'settings_layer_inventory_incomplete',
+-  'settings_permission_merge_unverified',
+-  'launch_environment_unverified',
+-  'print_timeout_outcome_unverified'] : Issue #628 が未完了のため意図的に失敗しています。解除条件は #628 の AC。このテストを skip/削除/期待値反転して緑にしない。本番 runtime の未確認停止理由: ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_unreadable', 'settings_layer_inventory_incomplete', 'settings_permission_merge_unverified', 'launch_environment_unverified', 'print_timeout_outcome_unverified']
+
+----------------------------------------------------------------------
+Ran 146 tests in 49.697s
+
+FAILED (failures=1)
+
+COVERAGE_REPORT: agy_delegate TOTAL stmts=780 miss=33 cover=96% (95.7692307692%)
+coverage_data=/tmp/agy-f29-f9dba37.coverage
