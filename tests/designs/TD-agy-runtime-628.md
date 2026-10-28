@@ -27,6 +27,7 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | settings_layers.inspect_layer_resolution | 未知adminがあっても既知extra allow/ask/deny・duplicate/typeを診断。不完全inventoryではmissing-rule全体判定を保留 |
 | runner→realresolver→decoder | 人工Windows配置の異常fixtureからrunし、execute/version/subprocess起動0、fixture bytes不変、private path/rule漏洩0 |
 | process.execute/version/output_contract | exact1.4.8のみ、duration秒suffix、shell非経由prompt保持、厳密JSON型検査。正常schema観測を未実測の同版拒否/ERROR/timeout効力へ転用しない |
+| launch_profile.native_arguments/child_environment | version/modelともdefault-cli-projectを明示、promptを独立argvとして保持。親environmentを変えずWindows子だけauto-update抑止を継承 |
 
 TCはtests/unit/test_agy_delegate_settings_decoders.py、test_agy_delegate_runtime_candidates.pyと既存test_agy_delegate_settings_layers.py、process/version/measured各TC。既存TD-agy-delegate-606の分類・会話・画像・排他試験を重複定義しない。
 

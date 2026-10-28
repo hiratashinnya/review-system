@@ -30,6 +30,8 @@ class ProcessTimeoutTests(unittest.TestCase):
             result = execute(request, "run")
         arguments, options = child.call_args
         argv = arguments[0]
+        self.assertEqual(argv[:3], [str(request.executable.resolve()), "--project", "default-cli-project"])
+        self.assertEqual(options["env"]["AGY_CLI_DISABLE_AUTO_UPDATE"], "true")
         self.assertEqual(argv[argv.index("--print-timeout") + 1], f"{request.print_timeout}s")
         self.assertEqual(options["timeout"], request.print_timeout + 10)
         self.assertEqual(options["cwd"], request.workspace.resolve())

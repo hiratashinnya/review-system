@@ -10,7 +10,7 @@ from agy_delegate.types import Request
 FAKE = '''#!/usr/bin/env python3
 import json, pathlib, sys
 args = sys.argv[1:]
-if args == ['--version']:
+if args == ['--project', 'default-cli-project', '--version']:
     print('1.4.8')
     sys.exit(0)
 data = json.loads(args[args.index('-p') + 1])
