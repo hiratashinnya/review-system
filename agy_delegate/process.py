@@ -13,6 +13,11 @@ def execute(request: Request, run_id: str):
         version = verified_version(request)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return Result(run_id, reasons=["agy_version_unverified_or_mismatch"])
+    return _execute_prompt(request, run_id, version)
+
+
+def _execute_prompt(request: Request, run_id: str, version: str) -> Result:
+    """校正用低層入口と、通常runの再照合済入口から共用する。"""
     argv = native_arguments(request.executable, "--output-format", "json",
                             "--print-timeout", f"{request.print_timeout}s")
     if request.conversation is not None:

@@ -9,7 +9,8 @@ from .settings_reads import read_layer_permissions
 LAYER_NAMES = {"global", "project", "shared_user", "admin"}
 
 
-def inspect_layer_resolution(resolution: SettingsResolution, workspace: Path) -> list[str]:
+def inspect_layer_resolution(resolution: SettingsResolution, workspace: Path, *,
+                             expected: dict[str, list[str]] | None = None) -> list[str]:
     """保守的な危険rule監査であり、各engineのmerge規則は推定しない。"""
     reasons = list(resolution.reasons)
     names = [layer.name for layer in resolution.layers]
@@ -30,7 +31,7 @@ def inspect_layer_resolution(resolution: SettingsResolution, workspace: Path) ->
     if not complete:
         reasons.append("settings_layer_inventory_incomplete")
     try:
-        audit = inspect_permissions(permissions, expected_rules(workspace))
+        audit = inspect_permissions(permissions, expected_rules(workspace) if expected is None else expected)
         reasons.extend(reason for reason in audit if complete or not reason.startswith("missing_rules:"))
     except ValueError:
         reasons.append("unsafe_workspace_path")

@@ -6,6 +6,8 @@
 
 現1.4.8のglobal schemaと、実際にproject/shared scopeが空と表示された不変snapshotだけを支持する。未知memberを空へdecodeする方式は採らない。設定全般の意味を推定せず、校正時と異なるproject/shared bytesは拒否する。
 
+実globalの支持policyはnative file-onlyである。Request.settingsの論理template（read/writeと限定Get-ChildItem allow）は許可の上限を表し、実globalはfile read/writeだけを残して全command denyを追加した厳しいsubsetとして別にexact監査する。論理templateと実globalを同一file扱いせず、一覧command許可を実証済みと宣言しない。native path対応はWSL canonical入力の射影とactualprocessの相対witnessを根拠とし、未知ruleや単なるpath置換を互換性証明にしない。
+
 ## 証拠の生成・保存・寿命
 
 - 生成者はfreezeした内部校正workerだけ。通常runにproofを登録するAPI、Request.settingsやCLI/環境変数でproof pathを注入する入口は設けない。

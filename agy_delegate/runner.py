@@ -7,9 +7,10 @@ from pathlib import Path
 from .artifacts import collect_images, image_snapshot
 from .conversation_continuation import mark_continuation_started
 from .permissions import inspect_settings
-from .process import execute
+from .verified_process import execute_verified as execute
 from .records import check_conversation, confirm_record, execution_lock, save_record, state_root
 from .runtime import verify_runtime
+from .launch_identity import canonical_launch_request
 from .types import Request, Result
 from .workspace_batch import run_parallel, wait_budget as _wait_budget
 from .workspace_changes import snapshot, changes, LIMITATIONS
@@ -22,7 +23,15 @@ def run(request: Request) -> Result:
 
 def _run(request: Request, wait_seconds: int) -> Result:
     result = Result(uuid.uuid4().hex, workspace_change_limitations=["observation_not_performed"])
-    result.reasons = _preflight(request) + verify_runtime(request)
+    result.reasons = _preflight(request)
+    if result.reasons:
+        return result
+    try:
+        request = canonical_launch_request(request)
+    except (OSError, RuntimeError, ValueError):
+        result.reasons = ["executable_identity_unverified"]
+        return result
+    result.reasons = verify_runtime(request)
     if result.reasons:
         return result
     try:

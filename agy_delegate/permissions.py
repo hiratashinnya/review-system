@@ -1,25 +1,14 @@
 """#575 の設定形式を read-only 検査する。設定層合成の保証とは区別する。"""
 
-import re
 from pathlib import Path
 
+from .permission_rules import expected_path_rules
 from .strict_json import load_json
-
-SAFE_PATH = re.compile(r"[A-Za-z0-9 /_.:\-\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+\Z")
 
 
 def expected_rules(workspace: Path) -> dict[str, list[str]]:
     """レビュー対象の限定テンプレート。path 以外の可変正規表現は認めない。"""
-    path = str(workspace.resolve())
-    if not SAFE_PATH.fullmatch(path):
-        raise ValueError("unsafe_workspace_path")
-    command = "Get-ChildItem -Name '" + path + "'"
-    pattern = "^" + re.escape(command) + "$(?![\\s\\S])"
-    return {
-        "allow": [f"read_file({path})", f"write_file({path})", f"command(regex:{pattern})"],
-        "ask": [],
-        "deny": [f"write_file({path}/doc-system-v2/nodes)"],
-    }
+    return expected_path_rules(str(workspace.resolve()))
 
 
 def inspect_settings(settings: Path, workspace: Path) -> list[str]:

@@ -28,6 +28,10 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | runner→realresolver→decoder | 人工Windows配置の異常fixtureからrunし、execute/version/subprocess起動0、fixture bytes不変、private path/rule漏洩0 |
 | process.execute/version/output_contract | exact1.4.8のみ、duration秒suffix、shell非経由prompt保持、厳密JSON型検査。正常schema観測を未実測の同版拒否/ERROR/timeout効力へ転用しない |
 | launch_profile.native_arguments/child_environment | version/modelともdefault-cli-projectを明示、promptを独立argvとして保持。親environmentを変えずWindows子だけauto-update抑止を継承 |
+| native_policy/permission_rules/native_paths | 論理templateと実file-onlyのstrict subsetを区別。未知native rule/一覧command追加/unsafe pathを拒否。native欄は入力projectionであってOS cwd観測ではない |
+| cohort_runtime/windows_probe | fake private homeの本物proof reader・real resolver・read-only OS adapterのrecord/replayで正常fixtureを通す。verify_runtime自体のmockやRequest.settingsからのproof注入は使わない |
+| launch_identity/verified_process | known leaf shimだけを一度canonical化し、同exeを検査・起動。排他待機後/版照会後のsnapshot/source変更でmodel0、offline不正はOS helperも0 |
+| settings_file_read/cohort_executable | nofollow descriptor・bounded regular・前後identity変化を検査し、原fileを変更しない |
 
 TCはtests/unit/test_agy_delegate_settings_decoders.py、test_agy_delegate_runtime_candidates.pyと既存test_agy_delegate_settings_layers.py、process/version/measured各TC。既存TD-agy-delegate-606の分類・会話・画像・排他試験を重複定義しない。
 
@@ -40,8 +44,11 @@ cohort_*のschema/read/publication TCは、実profileを使わず偽UID homeの�
 | cohort_schema/validation | protocol1の全階層unknown/missing/typeを拒否。hash/enum/true観測/account/存在を区別、UTC24h/future/期限・datetime上限overflowは固定理由 |
 | cohort_paths/private_io/storage | pwd home固定、HOME/XDG不採用、全ancestor nofollow、共有755とprivate0700/ownerUIDを区別。0600regular/owner/hardlink/FIFO/64KiB、marker/欠落/改変/同bytesinode差替え/別workspace/非canonicalを拒否。全subprocess0 |
 | cohort_publication | schema検証を作用前、CreateNew/fsync/readback/index atomic順とunlink commitpointを確認。not_started/pending/committedを区別し、precommit marker削除0、postcommit dirsync失敗はdurabilityfalse/warningとし虚偽rollbackしない |
+| cohort_generator | 固定package top-level py/ps1全件のsorted filename→sha、下位/非source除外、引数/env manifest非採用。1MiB/regular/nofollow、各identity/集合前後不変、追加/途中変更/OS failureを固定理由で拒否・子0 |
 
 APIはcohort_schema.validate_proof/canonical_proof_bytes、cohort_storage.read_cohort、内部専用cohort_publication.publish_calibrated_cohort。PublicationOutcomeはdata専用moduleへ分離する。temporary-session内のproof発行はaccount適用範囲確定後だけ、復元後の自然hash失効を正常な安全契約として扱う。
+
+cohort_generator.current_generator_sha256は校正開始/発行直前で同一を確認し、通常runはOS helper前とprompt直前で一致を確認する。package編集を他authorと停止合意した試験windowで、開始HEAD/dirty scope/source closureと終端不変を記録する。
 
 # 手順
 
