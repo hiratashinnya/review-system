@@ -28,7 +28,7 @@ class CliTests(unittest.TestCase):
             code = main(["run"] + args + ["--executable", str(self.fake.executable),
                                          "--prompt", "text; $(not-executed)", "--print-timeout", "1", "--caller-state", "ready"])
         self.assertNotEqual(code, 0)
-        self.assertIn("settings_permission_merge_unverified", json.loads(stdout.getvalue())["reasons"])
+        self.assertIn("runtime_cohort_unverified", json.loads(stdout.getvalue())["reasons"])
         self.assertFalse((self.fake.workspace / "launched.json").exists())
 
     def test_no_opaque_or_bypass_flags(self):

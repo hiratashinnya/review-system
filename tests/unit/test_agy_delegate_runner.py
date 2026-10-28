@@ -21,7 +21,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_production_unverified_never_launches(self):
         result = run(self.fake.request())
-        self.assertIn("settings_permission_merge_unverified", result.reasons)
+        self.assertIn("runtime_cohort_unverified", result.reasons)
         self.assertFalse((self.fake.workspace / "launched.json").exists())
 
     def test_bad_permissions_stopped_caller_and_bad_environment_never_launch(self):

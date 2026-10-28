@@ -88,6 +88,8 @@ class RuntimeCandidateTests(unittest.TestCase):
         self.request = replace(self.request, executable=shim)
         with patch("pathlib.Path.home", return_value=home):
             reasons = self.assert_no_launch()
-        self.assertIn("settings_executable_alias_unresolvable", reasons)
+            resolution = resolve_candidate_sources(shim)
+        self.assertIn("executable_unavailable", reasons)
+        self.assertIn("settings_executable_alias_unresolvable", resolution.reasons)
         self.assertNotIn(str(shim), repr(reasons))
 

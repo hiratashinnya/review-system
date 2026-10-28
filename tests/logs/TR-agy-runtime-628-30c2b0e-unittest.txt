@@ -1,0 +1,75 @@
+source_commit=30c2b0e9400c47d91433625e61df5dd49118721f
+package_closure_before=8fb4aaededfaac0ce0d5b8b9c3daee5e40d383dcc7a7fc2f79f8135984474034
+package_closure_after=8fb4aaededfaac0ce0d5b8b9c3daee5e40d383dcc7a7fc2f79f8135984474034
+start_dirty_paths=[]
+exit_code=1
+.............F........................................................................................F.F............................................................................F.F..................................
+======================================================================
+FAIL: test_inspect_static_only_and_run_blocked (test_agy_delegate_cli.CliTests.test_inspect_static_only_and_run_blocked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_cli.py", line 31, in test_inspect_static_only_and_run_blocked
+    self.assertIn("settings_permission_merge_unverified", json.loads(stdout.getvalue())["reasons"])
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'settings_permission_merge_unverified' not found in ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_layout_unsupported', 'settings_layer_inventory_incomplete', 'runtime_cohort_unverified']
+
+======================================================================
+FAIL: test_output_gate_removed_but_unmeasured_runtime_always_prevents_launch (test_agy_delegate_measured.MeasuredContractTests.test_output_gate_removed_but_unmeasured_runtime_always_prevents_launch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_measured.py", line 85, in test_output_gate_removed_but_unmeasured_runtime_always_prevents_launch
+    self.assertIn("settings_permission_merge_unverified", result.reasons)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'settings_permission_merge_unverified' not found in ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_layout_unsupported', 'settings_layer_inventory_incomplete', 'runtime_cohort_unverified']
+
+======================================================================
+FAIL: test_production_runtime_has_no_unverified_stop_reasons (test_agy_delegate_merge_guard.RuntimeMergeGuardTests.test_production_runtime_has_no_unverified_stop_reasons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard.py", line 30, in test_production_runtime_has_no_unverified_stop_reasons
+    self.assertEqual(
+    ~~~~~~~~~~~~~~~~^
+        reasons,
+        ^^^^^^^^
+    ...<3 lines>...
+        f"本番 runtime の未確認停止理由: {reasons}",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: Lists differ: ['settings_global_binding_unverified', 'se[250 chars]ied'] != []
+
+First list contains 7 additional elements.
+First extra element 0:
+'settings_global_binding_unverified'
+
++ []
+- ['settings_global_binding_unverified',
+-  'settings_project_binding_and_schema_unverified',
+-  'settings_shared_user_location_and_schema_unverified',
+-  'settings_admin_presence_or_precedence_unverified',
+-  'settings_executable_unreadable',
+-  'settings_layer_inventory_incomplete',
+-  'runtime_cohort_unverified'] : Issue #628 が未完了のため意図的に失敗しています。解除条件は #628 の AC。このテストを skip/削除/期待値反転して緑にしない。本番 runtime の未確認停止理由: ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_unreadable', 'settings_layer_inventory_incomplete', 'runtime_cohort_unverified']
+
+======================================================================
+FAIL: test_production_unverified_never_launches (test_agy_delegate_runner.RunnerTests.test_production_unverified_never_launches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_runner.py", line 24, in test_production_unverified_never_launches
+    self.assertIn("settings_permission_merge_unverified", result.reasons)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'settings_permission_merge_unverified' not found in ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_layout_unsupported', 'settings_layer_inventory_incomplete', 'runtime_cohort_unverified']
+
+======================================================================
+FAIL: test_cyclic_home_shim_returns_fixed_reason_without_launch_or_path (test_agy_delegate_runtime_candidates.RuntimeCandidateTests.test_cyclic_home_shim_returns_fixed_reason_without_launch_or_path)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_runtime_candidates.py", line 91, in test_cyclic_home_shim_returns_fixed_reason_without_launch_or_path
+    self.assertIn("settings_executable_alias_unresolvable", reasons)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'settings_executable_alias_unresolvable' not found in ['executable_unavailable']
+
+----------------------------------------------------------------------
+Ran 218 tests in 50.062s
+
+FAILED (failures=5)
