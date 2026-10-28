@@ -31,6 +31,18 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 
 TCはtests/unit/test_agy_delegate_settings_decoders.py、test_agy_delegate_runtime_candidates.pyと既存test_agy_delegate_settings_layers.py、process/version/measured各TC。既存TD-agy-delegate-606の分類・会話・画像・排他試験を重複定義しない。
 
+## cohort内部保存・読取・出版のTC
+
+cohort_*のschema/read/publication TCは、実profileを使わず偽UID homeの実fileを用いる。通常APIへproof path注入を追加しない。
+
+| 対象 | 期待する検証 |
+|---|---|
+| cohort_schema/validation | protocol1の全階層unknown/missing/typeを拒否。hash/enum/true観測/account/存在を区別、UTC24h/future/期限・datetime上限overflowは固定理由 |
+| cohort_paths/private_io/storage | pwd home固定、HOME/XDG不採用、全ancestor nofollow、共有755とprivate0700/ownerUIDを区別。0600regular/owner/hardlink/FIFO/64KiB、marker/欠落/改変/同bytesinode差替え/別workspace/非canonicalを拒否。全subprocess0 |
+| cohort_publication | schema検証を作用前、CreateNew/fsync/readback/index atomic順とunlink commitpointを確認。not_started/pending/committedを区別し、precommit marker削除0、postcommit dirsync失敗はdurabilityfalse/warningとし虚偽rollbackしない |
+
+APIはcohort_schema.validate_proof/canonical_proof_bytes、cohort_storage.read_cohort、内部専用cohort_publication.publish_calibrated_cohort。PublicationOutcomeはdata専用moduleへ分離する。temporary-session内のproof発行はaccount適用範囲確定後だけ、復元後の自然hash失効を正常な安全契約として扱う。
+
 # 手順
 
 1. source/TC/TDをローカルcommitしexact SHAを固定する。
