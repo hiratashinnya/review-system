@@ -7,7 +7,7 @@ from .cohort_fields import MAX_FILE_BYTES
 from .image_source import FILE_FLAGS
 
 
-def private_file_bytes(directory_fd: int, name: str) -> tuple[bytes, tuple]:
+def private_file_bytes(directory_fd: int, name: str, *, sync: bool = False) -> tuple[bytes, tuple]:
     """同じ記述子の前後 fingerprint と regular0600/同UIDを検査する。"""
     try:
         descriptor = os.open(name, FILE_FLAGS, dir_fd=directory_fd)
@@ -15,6 +15,8 @@ def private_file_bytes(directory_fd: int, name: str) -> tuple[bytes, tuple]:
             before = os.fstat(stream.fileno())
             _check_file(before)
             content = stream.read(MAX_FILE_BYTES + 1)
+            if sync:
+                os.fsync(stream.fileno())
             after = os.fstat(stream.fileno())
             if len(content) > MAX_FILE_BYTES:
                 raise ValueError("cohort_file_too_large")
