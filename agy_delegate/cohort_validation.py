@@ -25,7 +25,7 @@ def checked_lifetime(created: object, expires: object, now: datetime) -> None:
     if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("cohort_clock_invalid")
     start, end = _utc_time(created), _utc_time(expires)
-    if not start < end <= start + timedelta(hours=24):
+    if not start < end or end - start > timedelta(hours=24):
         raise ValueError("cohort_lifetime_invalid")
     if not start <= now.astimezone(timezone.utc) < end:
         raise ValueError("cohort_expired_or_future")

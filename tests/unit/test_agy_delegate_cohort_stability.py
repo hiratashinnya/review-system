@@ -45,3 +45,16 @@ class CohortStabilityTests(CohortStoreFixture):
             with self.assertRaises(ValueError) as error:
                 read_cohort(self.workspace, now=NOW)
         self.assertNotIn("secret", str(error.exception))
+
+    def test_maximum_year_proof_stops_with_fixed_reason_and_zero_children(self):
+        self.proof["created_utc"] = "9999-12-31T00:00:00Z"
+        self.proof["expires_utc"] = "9999-12-31T23:00:00Z"
+        encoded = json.dumps(self.proof, sort_keys=True, separators=(",", ":")).encode()
+        digest = hashlib.sha256(encoded).hexdigest()
+        self.private_write(self.store / f"{digest}.json", encoded)
+        self.private_write(self.store / f"{self.wid}.index.json", json.dumps(
+            {"protocol": 1, "proof_sha256": digest}).encode())
+        with patch("subprocess.run") as child:
+            with self.assertRaisesRegex(ValueError, "cohort_expired_or_future"):
+                read_cohort(self.workspace, now=NOW)
+        child.assert_not_called()

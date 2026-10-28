@@ -76,3 +76,13 @@ class CohortSchemaTests(unittest.TestCase):
         self.assertEqual(canonical_proof_bytes(self.proof, now=NOW), canonical_proof_bytes(
             dict(reversed(list(self.proof.items()))), now=NOW))
         self.assertEqual(validate_proof(self.proof, now=NOW), self.proof)
+
+    def test_maximum_year_is_rejected_with_fixed_value_error_without_overflow(self):
+        data = copy.deepcopy(self.proof)
+        data["created_utc"] = "9999-12-31T00:00:00Z"
+        data["expires_utc"] = "9999-12-31T23:00:00Z"
+        with self.assertRaisesRegex(ValueError, "cohort_expired_or_future"):
+            validate_proof(data, now=NOW)
+        data["created_utc"] = "0001-01-01T00:00:00Z"
+        with self.assertRaisesRegex(ValueError, "cohort_lifetime_invalid"):
+            validate_proof(data, now=NOW)
