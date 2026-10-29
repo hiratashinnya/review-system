@@ -10,13 +10,14 @@ from .settings_layer_types import SettingsResolution
 from .settings_reads import read_layer_permissions
 
 
-def offline_snapshot_reasons(resolution: SettingsResolution, proof: dict, workspace: Path) -> list[str]:
+def offline_snapshot_reasons(resolution: SettingsResolution, proof: dict, workspace: Path, *,
+                             corpus_roots: tuple[Path, ...] = ()) -> list[str]:
     """project/shared一般schemaを推測せず、校正した全bytesの不変だけを認定する。"""
     layers = {layer.name: layer for layer in resolution.layers}
     if set(layers) != {"global", "project", "shared_user", "admin"} or len(resolution.layers) != 4:
         return ["cohort_source_inventory_unverified"]
     try:
-        expected = expected_file_only_rules(workspace)
+        expected = expected_file_only_rules(workspace, corpus_roots=corpus_roots)
     except (OSError, RuntimeError, ValueError):
         return ["cohort_native_projection_unsupported"]
     rules, known, reasons = read_layer_permissions(layers["global"])

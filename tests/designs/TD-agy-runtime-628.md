@@ -38,6 +38,10 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | 既知defaultの限定省略 | 公式schemaのuseG1Credits.default=falseと実測false→欠落だけを正規化同値として認め、他の全非permissionsは厳密同値を維持。準備/正式/configの実効falseを確認し、true/文字列false/他key変更/他default省略/逆方向追加を拒否する |
 | launch_identity/verified_process | known leaf shimだけを一度canonical化し、同exeを検査・起動。排他待機後/版照会後のsnapshot/source変更でmodel0、offline不正はOS helperも0 |
 | settings_file_read/cohort_executable | nofollow descriptor・bounded regular・前後identity変化を検査し、原fileを変更しない |
+| permission_paths/request_policy/logical_settings | root省略と明示workspaceが同値。root/子はcanonical存在directory/全祖先非symlink、子はroot以内、rootと自身のcorpus deny必須。既知literalの子corpus denyだけ追加でき、allow/ask/commandの和集合・未知構文・root外を拒否。論理templateをbounded nofollowの同じraw bytesで検査/hashし、意味同値の空白変更も別bindingとする |
+| permission-root cohort | workspaceとpermission rootの各WSL/native hashにlogical_settings_sha256を加えたclosed schemaをproducer/current/runtimeで共有する。子proof入替え/root差替え/旧schema/論理bytes変更はOS helperとagyの双方0。native policyは同一生成元でroot read/write2allow・ask0・rootと2子corpus+固定全commandの4denyを生成する |
+| records/conversation_records/workspace_batch | workspaceはcwd/lock/差分/保存先の単位を維持し、result/会話summaryへrootも保存。旧summaryやroot不一致の継続を拒否。同workspace逐次は維持、異なる祖先重複はpool起動前全件拒否。非重複2子はbarrier偽executeで生存区間重なり/順序/ID/記録分離を確認し、実機並列と区別する |
+| usage | terminalで検証した5項目の厳密非負整数をTokenUsageとしてコピーしResult/result.jsonへ保持。未知/不足/bool/負数/非整数はNoneであり未観測をゼロ扱いしない。ERROR terminalの有効usage保持も成功認定とは分離する |
 
 TCはtests/unit/test_agy_delegate_settings_decoders.py、test_agy_delegate_runtime_candidates.pyと既存test_agy_delegate_settings_layers.py、process/version/measured各TC。既存TD-agy-delegate-606の分類・会話・画像・排他試験を重複定義しない。
 
@@ -68,3 +72,5 @@ cohort_generator.current_generator_sha256は校正開始/発行直前で同一�
 一般project/shared schema・全層mergeは支持対象外とし、個人アカウントの本人申告と既知admin候補/環境の不存在確認を分離する。3scopeの表示だけでremote管理policy不存在を機械断言しない。先行のcwd/selector校正と新本番W policyでの校正・実timeout顛末・5UCは別途判定し、環境/cohort変更時は再検証する。実設定の元rawは保持process memoryだけとし、固定4fileの二読・late比較・原復元・自然終了を確認する。未知時は元memoryを保持し、推測復元/強制killをしない。
 
 5UCは影響調査・素案・外部調査・画像生成・並列。成果検証・会話/成果物対応・workspace分離・拒否/失敗も各々記録する。単体/正常fixtureのguard合格と、F01全体・実機5UC完了を区分する。全ACが揃って初めて最終完了を判断する。
+
+並列UCは既承認Wをpermission_rootに保ち、非重複A/Bを個別workspaceとして校正する。本人による個人アカウント申告済みであり、認証fileから機械判別しない。source変更後は旧proofを再利用せず、active設定/論理template/各子cwd witnessへ新しく束縛する。実childの外部start/endとW全体before/afterを記録し、保存per-job結果を後付け再分類しない。root内の越境や一時変更の完全隔離保証は追加しない。

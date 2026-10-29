@@ -3,7 +3,8 @@
 PROOF_FIELDS = {"protocol", "created_utc", "expires_utc", "generator_source_sha256",
                 "binding", "files", "observations", "account_scope"}
 BINDING_HASHES = {"os_sha256", "user_home_sha256", "workspace_wsl_sha256",
-                  "workspace_native_sha256", "executable_path_sha256", "executable_sha256"}
+                  "workspace_native_sha256", "executable_path_sha256", "executable_sha256",
+                  "permission_root_wsl_sha256", "permission_root_native_sha256", "logical_settings_sha256"}
 BINDING_ENUMS = {"cli_version": "1.4.8", "project_selector": "default-cli-project",
                  "argv_profile": "explicit-project-json-duration-v1"}
 OBSERVATIONS = {"global_template_match", "explicit_selector_verified", "project_scope_empty",

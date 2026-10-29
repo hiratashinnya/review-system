@@ -19,6 +19,12 @@ python3 -m agy_delegate run --workspace PATH --settings PATH --executable PATH -
 
 通常runは、内部校正workerが発行したprivate cohort proofと同じsnapshotだけを受理する。globalは公式optional schemaを厳密にdecodeし、project/sharedは一般schemaを推測せず、明示default-cli-projectの3scope表示で空を確認した全file fingerprintへ限定する。変更・未知snapshot・不正JSON・symlink・追加allow/askは停止する。Request.settingsは人工の論理templateであり、実globalへの束縛やproofの代わりにならない。
 
+`Request.permission_root`は省略時workspace。明示する場合もcanonicalな非symlink directory配下のworkspaceだけを受け、内部校正proofがworkspaceとrootを別々に束縛する。論理templateは同じraw bytesのSHA-256で独立束縛し、native globalのhashで代用しない。論理allow/ask/commandはrootのexact集合を維持し、追加denyはroot内の既知literal子corpusだけを認める。実nativeはfile-onlyの2allow・ask空・各corpusと固定全command denyを同一生成元で検査する。
+
+workspaceは引き続きcwd・lock・差分・会話保存の単位である。同workspaceのbatchは逐次、異なるworkspaceが祖先関係なら全件未起動で拒否し、非重複子だけ既存poolで並列実行する。会話summaryのroot欠落・不一致は推定移行せず拒否する。共有root内の完全隔離や全変更の実行者帰属は保証しない。
+
+検証済みterminalの5整数token使用量は`Result.usage`とresult.jsonへ保持する。不正/未観測は`None`であり、ゼロ使用とは区別する。
+
 支持する実globalはfile-onlyである。native表記のread_file/write_fileだけをallowし、corpus writeと全commandをdenyする。論理templateの限定Get-ChildItem allowより厳しいsubsetであり、一覧commandが実機で許可済みとは宣言しない。未知native ruleを既知として受理せず、file-onlyの制約を越えるUCは成功扱いしない。
 
 proofは固定UID homeの0700/0600内部stateに保存し、期限・source集合・OS/user/home・canonical exe/hash・workspace入力projection・明示selector・global/project/shared bytes/ACL/ownerを照合する。通常runにproof path/manifest/verified flagを注入する入口は無い。Windowsのread-only helper子とagy子を区別し、proof欠落やoffline不正は全子0、Windows事実の差異はagy version/model0で停止する。排他待機後と版照会後にも再照合する。

@@ -7,7 +7,8 @@ from .cohort_executable import executable_sha256
 from .cohort_generator import current_generator_sha256
 from .cohort_offline import offline_snapshot_reasons
 from .cohort_storage import read_cohort
-from .native_paths import native_workspace_path, text_sha256
+from .native_paths import text_sha256
+from .request_policy import policy_snapshot, request_path_binding
 from .settings_layer_types import SettingsResolution
 from .types import Request
 from .windows_binding_values import current_binding_values
@@ -23,19 +24,22 @@ def calibrated_runtime_reasons(request: Request, resolution: SettingsResolution)
             return ["cohort_generator_mismatch"]
         canonical = request.executable.resolve(strict=True)
         expected = proof["binding"]
-        actual = {"workspace_wsl_sha256": text_sha256(str(request.workspace.resolve(strict=True))),
-                  "workspace_native_sha256": text_sha256(native_workspace_path(request.workspace)),
+        root, _, roots = policy_snapshot(request)
+        actual = {**request_path_binding(request),
                   "executable_path_sha256": text_sha256(str(canonical)),
                   "executable_sha256": executable_sha256(canonical)}
         if any(actual[key] != expected[key] for key in actual):
             return ["cohort_binding_mismatch"]
-        reasons = offline_snapshot_reasons(resolution, proof, request.workspace)
+        reasons = offline_snapshot_reasons(resolution, proof, root, corpus_roots=roots)
         if reasons:
             return reasons
         observed = read_windows_binding(request)
         reasons = compare_current_proof(proof, current_binding=current_binding_values(request, observed),
                                         current_files=observed["files"], generator_sha256=source)
-        reasons.extend(offline_snapshot_reasons(resolution, proof, request.workspace))
+        reasons.extend(offline_snapshot_reasons(resolution, proof, root, corpus_roots=roots))
+        late_binding = request_path_binding(request)
+        if late_binding != {key: actual[key] for key in late_binding}:
+            reasons.append("cohort_binding_mismatch")
         if executable_sha256(canonical) != actual["executable_sha256"]:
             reasons.append("cohort_binding_mismatch")
         if current_generator_sha256() != source:

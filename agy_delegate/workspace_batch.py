@@ -16,6 +16,11 @@ def run_parallel(requests: list[Request], *, max_concurrency: int,
     groups = {}
     for index, request in enumerate(requests):
         groups.setdefault(request.workspace.resolve(), []).append((index, request))
+    workspaces = list(groups)
+    for index, workspace in enumerate(workspaces):
+        if any(workspace.is_relative_to(other) or other.is_relative_to(workspace)
+               for other in workspaces[index + 1:]):
+            raise ValueError("parallel_workspace_overlap")
     results = [None] * len(requests)
     with ThreadPoolExecutor(max_workers=max_concurrency) as pool:
         futures = [pool.submit(_run_workspace_batch, group) for group in groups.values()]

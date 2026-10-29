@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .artifacts import collect_images, image_snapshot
 from .conversation_continuation import mark_continuation_started
-from .permissions import inspect_settings
+from .request_policy import policy_snapshot
 from .verified_process import execute_verified as execute
 from .records import check_conversation, confirm_record, execution_lock, save_record, state_root
 from .runtime import verify_runtime
@@ -86,5 +86,8 @@ def _preflight(request: Request) -> list[str]:
         reasons.append("prompt_empty")
     if request.images and (not isinstance(request.brain, Path) or not request.brain.is_dir()):
         reasons.append("brain_unavailable")
-    reasons.extend(inspect_settings(request.settings, request.workspace))
+    try:
+        policy_snapshot(request)
+    except (OSError, RuntimeError, ValueError) as error:
+        reasons.append(str(error) if isinstance(error, ValueError) else "permission_path_invalid")
     return reasons

@@ -11,6 +11,7 @@ from .cohort_publication_types import PublicationOutcome
 from .cohort_schema import validate_proof, validated_binding, validated_files
 from .cohort_validation import checked_hash, exact_object
 from .settings_sources import resolve_candidate_sources
+from .request_policy import policy_snapshot
 from .types import Request
 from .windows_binding_values import current_binding_values
 from .windows_probe import read_windows_binding
@@ -45,7 +46,8 @@ def publish_session_calibration(request: Request, *, begin_source_sha256: str,
              "account_scope": {"declaration": "personal", "owner_record_sha256": owner_record_sha256}}
     validate_proof(proof, now=now)
     resolution = resolve_candidate_sources(canonical)
-    reasons = offline_snapshot_reasons(resolution, proof, request.workspace)
+    root, _, roots = policy_snapshot(request)
+    reasons = offline_snapshot_reasons(resolution, proof, root, corpus_roots=roots)
     if reasons:
         raise ValueError("cohort_calibration_snapshot_unverified")
     second = read_windows_binding(request)
@@ -55,6 +57,8 @@ def publish_session_calibration(request: Request, *, begin_source_sha256: str,
         raise ValueError("cohort_binding_mismatch")
     if current_generator_sha256() != begin_source_sha256:
         raise ValueError("cohort_generator_mismatch")
-    if offline_snapshot_reasons(resolution, proof, request.workspace):
+    if current_binding_values(request, second) != binding:
+        raise ValueError("cohort_binding_mismatch")
+    if offline_snapshot_reasons(resolution, proof, root, corpus_roots=roots):
         raise ValueError("cohort_calibration_snapshot_unverified")
     return publish_calibrated_cohort(request.workspace, proof)
