@@ -1,0 +1,9 @@
+test_checkout=26b14749c3eddfdabcb34d09d5d47f158d115bd2
+product_source_commit=30c2b0e9400c47d91433625e61df5dd49118721f
+package_closure_before_after=8fb4aaededfaac0ce0d5b8b9c3daee5e40d383dcc7a7fc2f79f8135984474034
+exit_code=0
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.299s
+
+OK
