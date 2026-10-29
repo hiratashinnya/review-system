@@ -5,7 +5,7 @@ condition: failure
 ---
 # 目的
 
-Issue #628の実runtime adapterを、現版の実測・異常fixture・5UCに基づいて完成させる。現在は確定した縦sliceを実装した段階であり、admin/全層合成/起動環境/timeout実効性/5UCが未完了のため本番guardは残す。既存の意図的失敗テストをskip/削除/期待値反転しない。
+Issue #628の実runtime adapterを、現版の実測・異常fixture・5UCに基づいて完成させる。限定snapshotの通常runtime検査を実装し、本物proof reader/resolverとOS境界replayによる正常fixtureでguardのassert reasons==[]を確認する。未校正の実環境は引き続き停止し、実機5UC完了とfixtureの成功を区別する。guardをskip/削除/期待値反転しない。
 
 # 前提と根拠
 
@@ -32,6 +32,7 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | cohort_runtime/windows_probe | fake private homeの本物proof reader・real resolver・read-only OS adapterのrecord/replayで正常fixtureを通す。verify_runtime自体のmockやRequest.settingsからのproof注入は使わない |
 | Windows gateway環境名 | 実helper関数に合成名8件を渡し、大文字・小文字・混在prefixを検出する。環境値・設定・CLIに接触せず、非prefix/空入力を区別する |
 | Windows JSON stdin | 合成nonceだけのJSON行をBOM付き/なしUTF-8 bytesで渡し、Console.In.ReadLine→ConvertFrom-Jsonの受理差を確認する。実設定/agy0。adapterのstdin bytesとstdout decodeを分離する |
+| 一時session校正producer | 実publisher/reader/normalwrapperへ接続し、未検証観測/source差異は全子0、未知global/OS再読差/直前source差は発行0。visible commitのdurability warningを呼出側へ保持する。認証fileを読まない |
 | launch_identity/verified_process | known leaf shimだけを一度canonical化し、同exeを検査・起動。排他待機後/版照会後のsnapshot/source変更でmodel0、offline不正はOS helperも0 |
 | settings_file_read/cohort_executable | nofollow descriptor・bounded regular・前後identity変化を検査し、原fileを変更しない |
 

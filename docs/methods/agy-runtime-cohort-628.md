@@ -50,7 +50,7 @@ proofのexact schema（protocol 1）は次の固定keyと型を持つ。hashは�
 
 OS helperは固定schemaのnonce-bound request/response、固定候補だけの二読、作用0、本文非公開、全失敗の固定phase/型射影を契約とし、auth file/過去logを読まない。read-only helper子のfailure/timeout/不明応答もagy0。版照会は校正済みcohortの最後のcheckであり、proof欠落の探索には使わない。
 
-account適用範囲が未回答の現在はproof発行未完了とし、これ以外のselector/cwd/5UC準備を進める。将来の設定変更や別workspace/selector/版は再校正対象で、一般合成対応済みとは宣言しない。
+2026-10-29の本人チャット「個人アカウントです。」をpersonalのoperator attestationとして受領した（2026-10-28 23:11 UTC前後）。これはaccountの機械検証ではなく、認証fileは読まない。校正proofはこの申告記録のhashを束縛する。将来の設定変更や別workspace/selector/版は再校正対象で、一般合成対応済みとは宣言しない。
 
 既定運用は承認済みtemporary保全sessionとする。Windows親が原4fileをmemory保持→safe policyを一時適用して保持→account適用範囲確定後にactive snapshotを直前再照合してproof発行→通常wrapperで5UC→finally元復元の順。一時設定を元へ戻した時点でglobal snapshot hashが変わるため、その証拠で通常runを受理しない。この自然失効は想定したsafe契約であり、常用safe configへの恒久変更や本人限定新backupをIssue完了の追加条件にしない。恒久config変更/元rawの新永続backupは0を維持し、cohort artifactにも原rawを格納しない。
 
