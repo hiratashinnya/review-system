@@ -14,7 +14,9 @@ try {
         @{left='1';right='1.0';expected=$false}
     )
     foreach ($case in $cases) {
-        $actual = Same-JsonValue ($case.left | ConvertFrom-Json) ($case.right | ConvertFrom-Json)
+        $left = ('{"value":' + $case.left + '}') | ConvertFrom-Json
+        $right = ('{"value":' + $case.right + '}') | ConvertFrom-Json
+        $actual = Same-JsonValue $left.value $right.value
         if ($actual -isnot [bool] -or $actual -ne $case.expected) { throw 'policy_compare_regression_failed' }
     }
     $before = [Text.Encoding]::UTF8.GetBytes('{"permissions":{"ask":[]},"other":{"a":1,"b":[]}}')
