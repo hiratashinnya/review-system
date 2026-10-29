@@ -8,7 +8,7 @@ from .cohort_generator import current_generator_sha256
 from .cohort_offline import offline_snapshot_reasons
 from .cohort_publication import publish_calibrated_cohort
 from .cohort_publication_types import PublicationOutcome
-from .cohort_schema import validate_proof
+from .cohort_schema import validate_proof, validated_binding, validated_files
 from .cohort_validation import checked_hash, exact_object
 from .settings_sources import resolve_candidate_sources
 from .types import Request
@@ -17,10 +17,13 @@ from .windows_probe import read_windows_binding
 
 
 def publish_session_calibration(request: Request, *, begin_source_sha256: str,
+                                baseline_binding: dict, baseline_files: dict,
                                 observations: dict, owner_record_sha256: str) -> PublicationOutcome:
     """通常run入口からは呼ばず、原memoryを保持中の校正controllerだけが利用する。"""
     checked_hash(begin_source_sha256)
     checked_hash(owner_record_sha256)
+    expected_binding = dict(validated_binding(baseline_binding))
+    expected_files = {label: dict(value) for label, value in validated_files(baseline_files).items()}
     observed = exact_object(observations, OBSERVATIONS)
     if any(value is not True for value in observed.values()):
         raise ValueError("cohort_observation_unverified")
@@ -30,6 +33,8 @@ def publish_session_calibration(request: Request, *, begin_source_sha256: str,
     executable = executable_sha256(canonical)
     first = read_windows_binding(request)
     binding = current_binding_values(request, first)
+    if binding != expected_binding or first["files"] != expected_files:
+        raise ValueError("cohort_calibration_baseline_mismatch")
     if binding["executable_sha256"] != executable:
         raise ValueError("cohort_binding_mismatch")
     now = datetime.now(timezone.utc)

@@ -8,12 +8,16 @@ from agy_delegate.cohort_generator import current_generator_sha256
 from agy_delegate.cohort_publication_types import PublicationOutcome
 from agy_delegate.cohort_storage import read_cohort
 from agy_delegate.runner import run
+from agy_delegate.windows_binding_values import current_binding_values
 from tests.unit.agy_runtime_cohort_fixture import RuntimeCohortFixture
 
 
 class CalibrationTests(RuntimeCohortFixture):
     def publish(self, **changes):
+        baseline = self.windows_reply("baseline")
         arguments = {"begin_source_sha256": current_generator_sha256(),
+                     "baseline_binding": current_binding_values(self.request, baseline),
+                     "baseline_files": baseline["files"],
                      "observations": dict.fromkeys(OBSERVATIONS, True), "owner_record_sha256": "a" * 64}
         return publish_session_calibration(self.request, **(arguments | changes))
 
@@ -69,3 +73,16 @@ class CalibrationTests(RuntimeCohortFixture):
         with patch("subprocess.run", side_effect=self.boundary), \
                 patch("agy_delegate.cohort_calibration.publish_calibrated_cohort", return_value=outcome):
             self.assertIs(self.publish(), outcome)
+
+    def test_witness_baseline_cannot_be_reattributed_to_new_current_snapshot(self):
+        baseline = self.windows_reply("baseline")
+        binding = current_binding_values(self.request, baseline)
+        binding["executable_sha256"] = "f" * 64
+        variants = ({"baseline_binding": binding}, {"baseline_files": baseline["files"] | {
+            "global": baseline["files"]["global"] | {"sha256": "f" * 64}}})
+        for change in variants:
+            with self.subTest(change=change), patch("subprocess.run", side_effect=self.boundary), \
+                    patch("agy_delegate.cohort_calibration.publish_calibrated_cohort") as publisher, \
+                    self.assertRaisesRegex(ValueError, "^cohort_calibration_baseline_mismatch$"):
+                self.publish(**change)
+            publisher.assert_not_called()

@@ -33,6 +33,7 @@ PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge 
 | Windows gateway環境名 | 実helper関数に合成名8件を渡し、大文字・小文字・混在prefixを検出する。環境値・設定・CLIに接触せず、非prefix/空入力を区別する |
 | Windows JSON stdin | 合成nonceだけのJSON行をBOM付き/なしUTF-8 bytesで渡し、Console.In.ReadLine→ConvertFrom-Jsonの受理差を確認する。実設定/agy0。adapterのstdin bytesとstdout decodeを分離する |
 | 一時session校正producer | 実publisher/reader/normalwrapperへ接続し、未検証観測/source差異は全子0、未知global/OS再読差/直前source差は発行0。visible commitのdurability warningを呼出側へ保持する。認証fileを読まない |
+| 一時session controller | 合成worker結果のみでcohort readyが関数代入pipeline外のConsoleへ到達し、nonce付き応答後だけboolを返すことを確認する。実設定/CLI0。実機ではfinally元4file復元後に本番runtimeが同proofをsnapshot差異で拒否する |
 | launch_identity/verified_process | known leaf shimだけを一度canonical化し、同exeを検査・起動。排他待機後/版照会後のsnapshot/source変更でmodel0、offline不正はOS helperも0 |
 | settings_file_read/cohort_executable | nofollow descriptor・bounded regular・前後identity変化を検査し、原fileを変更しない |
 
