@@ -24,7 +24,10 @@ try {
     $changed = [Text.Encoding]::UTF8.GetBytes('{"permissions":{},"other":{"a":2,"b":[]}}')
     $unknownCase = [Text.Encoding]::UTF8.GetBytes('{"Permissions":{},"other":{"a":1,"b":[]}}')
     if (!(Same-NonPermissions $before $same) -or (Same-NonPermissions $before $changed) -or (Same-NonPermissions $before $unknownCase)) { throw 'policy_compare_regression_failed' }
-    @{passed=$true;cases=12;settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
+    $shape = NonPermissions-ChangeShape ([Text.Encoding]::UTF8.GetBytes('{"permissions":{},"useG1Credits":false,"private-key":"/private/before"}')) ([Text.Encoding]::UTF8.GetBytes('{"permissions":{},"private-key":"/private/after"}'))
+    $encoded = $shape | ConvertTo-Json -Depth 8 -Compress
+    if ($shape.unknown_changed_key_count -ne 1 -or @($shape.known_changes).Count -ne 1 -or !$shape.known_changes[0].before_is_false -or $shape.known_changes[0].after_present -or $encoded.Contains('private-key') -or $encoded.Contains('/private/')) { throw 'policy_compare_regression_failed' }
+    @{passed=$true;cases=13;settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
 } catch {
     @{passed=$false;reason='policy_compare_regression_failed';settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
     exit 2
