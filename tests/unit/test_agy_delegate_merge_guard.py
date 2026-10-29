@@ -14,7 +14,7 @@ class RuntimeMergeGuardTests(RuntimeCohortFixture):
         self.assertEqual(
             reasons,
             [],
-            "支持cohortの本番reader/resolver/probe正常契約が停止しました。"
+            "Issue #628: 支持cohortの本番reader/resolver/probe正常契約が停止しました。"
             "検査mock/skip/期待値反転で回避しない。実機5UCは別TRで判定する。"
             f"本番 runtime の未確認停止理由: {reasons}",
         )
