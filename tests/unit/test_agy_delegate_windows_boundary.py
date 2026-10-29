@@ -15,8 +15,12 @@ class WindowsBoundaryTests(RuntimeCohortFixture):
         calls = []
         def reply(argv, **options):
             calls.append((argv, options))
-            frame = json.loads(options["input"])
-            return subprocess.CompletedProcess(argv, 0, json.dumps(self.windows_reply(frame["nonce"])), "")
+            wire = options["input"]
+            self.assertIs(type(wire), bytes)
+            self.assertFalse(wire.startswith(b"\xef\xbb\xbf"))
+            frame = json.loads(wire.decode("utf-8"))
+            output = json.dumps(self.windows_reply(frame["nonce"])).encode("utf-8-sig")
+            return subprocess.CompletedProcess(argv, 0, output, b"")
         with patch("subprocess.run", side_effect=reply):
             observed = read_windows_binding(self.request)
         argv, options = calls[0]
@@ -41,7 +45,7 @@ class WindowsBoundaryTests(RuntimeCohortFixture):
         for output, errors, status in (("{", "", 0), ("{}", "private-marker /private/path", 0),
                                        ("{}", "", 2)):
             with self.subTest(output=output, status=status):
-                completed = subprocess.CompletedProcess([], status, output, errors)
+                completed = subprocess.CompletedProcess([], status, output.encode("utf-8"), errors.encode("utf-8"))
                 with patch("subprocess.run", return_value=completed), self.assertRaises(ValueError) as error:
                     read_windows_binding(self.request)
                 self.assertEqual(str(error.exception), "cohort_windows_binding_unverified")

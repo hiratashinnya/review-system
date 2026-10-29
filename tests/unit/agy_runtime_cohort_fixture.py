@@ -78,7 +78,7 @@ class RuntimeCohortFixture(CohortStoreFixture):
             output = json.dumps(self.windows_reply(request["nonce"]))
             if self.after_os:
                 self.after_os()
-            return subprocess.CompletedProcess(argv, 0, output, "")
+            return subprocess.CompletedProcess(argv, 0, output.encode("utf-8"), b"")
         kind = "version" if "--version" in argv else "model"
         self.counts[kind] += 1
         result = self.original_run(argv, **options)

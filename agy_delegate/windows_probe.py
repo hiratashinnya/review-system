@@ -24,11 +24,11 @@ def read_windows_binding(request: Request) -> dict:
                    "native_workspace": native_workspace_path(request.workspace)}
         child = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                 "-File", native_workspace_path(worker)],
-                               input=json.dumps(payload) + "\n", cwd=request.workspace.resolve(strict=True),
-                               capture_output=True, encoding="utf-8-sig", errors="strict", timeout=20,
+                               input=(json.dumps(payload) + "\n").encode("utf-8"), cwd=request.workspace.resolve(strict=True),
+                               capture_output=True, timeout=20,
                                check=False, env=child_environment())
         if child.returncode or child.stderr.strip() or len(child.stdout) > 65536:
             raise ValueError("cohort_windows_binding_unverified")
-        return validated_windows_reply(load_json(child.stdout), nonce)
+        return validated_windows_reply(load_json(child.stdout.decode("utf-8-sig")), nonce)
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
         raise ValueError("cohort_windows_binding_unverified") from None
