@@ -11,7 +11,7 @@ Issue #628の実runtime adapterを、現版の実測・異常fixture・5UCに基
 
 PR #627 head f09f3d099952e9da8293ae88da3749b2c276973eが下段。同一未merge PR内の是正としてTD版1を維持し、以前のTR/logを遡及変更しない。旧観測と現在を混同しないため、経緯は対応する既存TRとdocs/methods/agy-runtime-evidence-628.mdを参照する。
 
-現在の新snapshotに基づくWindows実機観測では1.4.8、親process限定AGY_CLI_DISABLE_AUTO_UPDATE=true、前後exe hash一致、元4file復元・自然終了を確認した。--print-timeoutはduration構文で30s/120sを受理し、通常JSONの必須6key・usage5key整数・turn整数を確認した。既存モデルClaude Sonnet 4.6 (Thinking)、useG1Credits=falseで秘密anchorの実読取witnessを取得した。偽corpusは不変だがwrite試行/engine拒否の証拠は未確定であり、応答文だけから拒否成功としない。
+先行のWindows実機校正では1.4.8、親process限定AGY_CLI_DISABLE_AUTO_UPDATE=true、前後exe hash一致、元4file復元・自然終了を確認した。--print-timeoutはduration構文で30s/120sを受理し、通常JSONの必須6key・usage5key整数・turn整数を確認した。既存モデルClaude Sonnet 4.6 (Thinking)、useG1Credits=falseで秘密anchorの実読取witnessを取得した。偽corpusは不変だがwrite試行/engine拒否の証拠は未確定であり、応答文だけから拒否成功としない。
 
 公式global schema https://antigravity.google/schemas/v1/settings.json はroot additionalProperties=true、permissionsとallow/ask/deny optional、permissionsのunknown member禁止、7種類のrule構文を定める。省略群はそのglobalの明示rule無しとして記録する。これはengine全体の実効空・既定動作・全層mergeの証明ではない。schema自体にCLI1.4.8 exact対応markerは無い。
 
@@ -61,10 +61,10 @@ cohort_generator.current_generator_sha256は校正開始/発行直前で同一�
 1. source/TC/TDをローカルcommitしexact SHAを固定する。
 2. 関連agy_delegate unittest、maintainability_lint、asset_parityを実施し、失敗も含めstdoutとTRを保存する。
 3. 独立contextでdiffとfreezeをレビューする。主文脈が既存対象とagy_delegateのcoverageを実行する。
-4. mode/許可先write対照を確認して対象write試行と拒否を確定し、5UCを本番wrapperで実施する。実corpus/認証を拒否試験に使わず、skip-permissions/追加購入/自動retryを行わない。
+4. 許可先write対照・保護先不変・直接拒否未観測の限界を区分して記録し、5UCを本番wrapperで実施する。engine直接拒否logを追加の完了条件にせず、実corpus/認証を拒否試験に使わない。skip-permissions/追加購入/自動retryを行わない。
 
 # 残余と期待結果
 
-admin/remote管理policy適用範囲、project/sharedの全schema、実効merge、native cwd/pathとselectorの最終束縛、実timeout顛末は未完了。既知3scopeの表示exact一致だけでadmin不存在を推論しない。環境/cohort変更時は再検証する。実設定の元rawは保持process memoryだけとし、固定4fileの二読・late比較・原復元・自然終了を確認する。未知時は元memoryを保持し、推測復元/強制killをしない。
+一般project/shared schema・全層mergeは支持対象外とし、個人アカウントの本人申告と既知admin候補/環境の不存在確認を分離する。3scopeの表示だけでremote管理policy不存在を機械断言しない。先行のcwd/selector校正と新本番W policyでの校正・実timeout顛末・5UCは別途判定し、環境/cohort変更時は再検証する。実設定の元rawは保持process memoryだけとし、固定4fileの二読・late比較・原復元・自然終了を確認する。未知時は元memoryを保持し、推測復元/強制killをしない。
 
-5UCは影響調査・素案・外部調査・画像生成・並列。成果検証・会話/成果物対応・workspace分離・拒否/失敗も各々記録する。現在はpartial実装の関連試験を判定し、F01全体完了やmerge guard緑とは別に扱う。全ACが揃って初めて最終完了を判断する。
+5UCは影響調査・素案・外部調査・画像生成・並列。成果検証・会話/成果物対応・workspace分離・拒否/失敗も各々記録する。単体/正常fixtureのguard合格と、F01全体・実機5UC完了を区分する。全ACが揃って初めて最終完了を判断する。
