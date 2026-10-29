@@ -1,13 +1,16 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-$phase = 'read_request'
+$phase = 'load_helpers'
 $nonce = $null
 try {
     . (Join-Path $PSScriptRoot 'windows_snapshot.ps1')
+    $phase = 'read_request'
     $line = [Console]::In.ReadLine()
     if (!$line -or $line.Length -gt 8192) { throw 'request_invalid' }
+    $phase = 'parse_request'
     $request = $line | ConvertFrom-Json
+    $phase = 'validate_request'
     if (@($request.PSObject.Properties).Count -ne 3 -or @($request.PSObject.Properties | Where-Object { $_.Name -cnotin @('nonce','native_executable','native_workspace') }).Count -or $request.nonce -cnotmatch '^[0-9a-f]{32}$' -or $request.native_executable -isnot [string] -or $request.native_workspace -isnot [string] -or $request.native_workspace -cnotmatch '^//wsl\.localhost/[A-Za-z0-9_.-]+/') { throw 'request_invalid' }
     $nonce = $request.nonce
     $phase = 'bind_windows_identity'
@@ -31,6 +34,8 @@ try {
     $gatewayEnvironment = Test-GatewayVariableNames ([Environment]::GetEnvironmentVariables().Keys)
     @{ok=$true;nonce=$nonce;windows_os_sha256=(Snapshot-TextHash ([Environment]::OSVersion.VersionString));windows_principal_sha256=(Snapshot-TextHash $principal);executable_sha256=$exeBefore;files=$first;admin_gateway_candidate_absent=(!(Test-Path -LiteralPath $admin));gateway_environment_present=$gatewayEnvironment;update_disabled_for_child=$true;os_cwd_observed=$false;settings_writes=0;agy_launches=0} | ConvertTo-Json -Depth 8 -Compress
 } catch {
-    @{ok=$false;nonce=$nonce;reason='cohort_windows_binding_unverified';phase=$phase;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
+    $failureType = if ($_.Exception.GetType().Name -cin @('RuntimeException','ParseException','ArgumentException','IOException','UnauthorizedAccessException','CommandNotFoundException','ParameterBindingException')) { $_.Exception.GetType().Name } else { 'unknown' }
+    $failureCode = if ($_.Exception.Message -ceq 'request_invalid') { 'request_invalid' } else { 'unclassified_no_raw_message' }
+    @{ok=$false;nonce=$nonce;reason='cohort_windows_binding_unverified';phase=$phase;failure_type=$failureType;failure_code=$failureCode;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
     exit 2
 }
