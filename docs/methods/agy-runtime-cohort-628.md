@@ -54,6 +54,8 @@ OS helperは固定schemaのnonce-bound request/response、固定候補だけの�
 
 既定運用は承認済みtemporary保全sessionとする。Windows親が原4fileをmemory保持→safe policyを一時適用して保持→account適用範囲確定後にactive snapshotを直前再照合してproof発行→通常wrapperで5UC→finally元復元の順。一時設定を元へ戻した時点でglobal snapshot hashが変わるため、その証拠で通常runを受理しない。この自然失効は想定したsafe契約であり、常用safe configへの恒久変更や本人限定新backupをIssue完了の追加条件にしない。恒久config変更/元rawの新永続backupは0を維持し、cohort artifactにも原rawを格納しない。
 
+準備用zero-turn表示でCLIがglobalを正規化するため、正式2表示の前にnormalized snapshotを固定する。2026-10-29実測の非permissions差分はuseG1Creditsの厳密boolean false→欠落だけ（unknown変更0）であった。[公式schema](https://antigravity.google/schemas/v1/settings.json)のdefault=falseと[CLI保存契約](https://www.antigravity.google/docs/settings?tab=cli)のdefault key省略に限り同値と認める。他key/defaultの省略、true/文字列false、値の追加は推測受容しない。準備・正式/configとも実効G1falseを要求し、検証済normalizedそのものをbaselineへ採る。
+
 ## 検証と制約
 
 - proofの改変/欠落/期限/型/owner/mode/alias、およびWSL内で独立に照合可能なworkspace/native入力projection/exe path/hash/source差異は全subprocess0。OS/userの複合hashはWindows component取得後に比較するため、read-only helper子が発生し得る。Windows OS/SID/ACL/fingerprint差異と共にhelperを区別して計数し、agy version/model0と無変更・非漏洩を確認する。project/shared未知snapshotもagy0。

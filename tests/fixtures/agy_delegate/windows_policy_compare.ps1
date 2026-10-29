@@ -27,7 +27,19 @@ try {
     $shape = NonPermissions-ChangeShape ([Text.Encoding]::UTF8.GetBytes('{"permissions":{},"useG1Credits":false,"private-key":"/private/before"}')) ([Text.Encoding]::UTF8.GetBytes('{"permissions":{},"private-key":"/private/after"}'))
     $encoded = $shape | ConvertTo-Json -Depth 8 -Compress
     if ($shape.unknown_changed_key_count -ne 1 -or @($shape.known_changes).Count -ne 1 -or !$shape.known_changes[0].before_is_false -or $shape.known_changes[0].after_present -or $encoded.Contains('private-key') -or $encoded.Contains('/private/')) { throw 'policy_compare_regression_failed' }
-    @{passed=$true;cases=13;settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
+    $defaultCases = @(
+        @{before='{"permissions":{},"useG1Credits":false}';after='{"permissions":{}}';expected=$true},
+        @{before='{"permissions":{},"useG1Credits":true}';after='{"permissions":{}}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":false}';after='{"permissions":{},"useG1Credits":"false"}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":false,"other":1}';after='{"permissions":{},"other":2}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":false,"model":""}';after='{"permissions":{}}';expected=$false},
+        @{before='{"permissions":{}}';after='{"permissions":{},"useG1Credits":false}';expected=$false}
+    )
+    foreach ($case in $defaultCases) {
+        $actual = Same-NonPermissions ([Text.Encoding]::UTF8.GetBytes($case.before)) ([Text.Encoding]::UTF8.GetBytes($case.after)) $true
+        if ($actual -isnot [bool] -or $actual -ne $case.expected) { throw 'policy_compare_regression_failed' }
+    }
+    @{passed=$true;cases=19;settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
 } catch {
     @{passed=$false;reason='policy_compare_regression_failed';settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
     exit 2
