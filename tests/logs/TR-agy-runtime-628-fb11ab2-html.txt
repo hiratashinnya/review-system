@@ -1,0 +1,3 @@
+environment: UV_CACHE_DIR=/tmp/issue-628-uv-cache
+command: ['uv', 'run', '--offline', '--with', 'coverage', 'coverage', 'html', '--data-file=/tmp/agy-parallel-fb11ab2.coverage', '--directory=htmlcov/agy-parallel-fb11ab2']
+Wrote HTML report to htmlcov/agy-parallel-fb11ab2/index.html

@@ -1,6 +1,6 @@
 # DD-AGY-628: 実測snapshotだけを受理する限定cohort
 
-状態: 実装前freeze案。一般的なproject/shared/admin schemaへ拡張しない。
+状態: 限定cohortの実装契約。実機UCの完了は証拠記録で別途判定し、一般的なproject/shared/admin schemaへ拡張しない。
 
 ## 判断
 
@@ -29,7 +29,7 @@ proofのexact schema（protocol 1）は次の固定keyと型を持つ。hashは�
 |---|---|
 | protocol / created_utc / expires_utc | intの1（bool不可） / UTC日時 / createdから24時間以下かつ現在より未来 |
 | generator_source_sha256 | 全依存freeze canonical JSONのhash |
-| binding | exact object: os_sha256,user_home_sha256,workspace_wsl_sha256,workspace_native_sha256,executable_path_sha256,executable_sha256（各hash）、cli_version（stringの1.4.8）、project_selector（stringのdefault-cli-project）、argv_profile（stringのexplicit-project-json-duration-v1） |
+| binding | exact object: os_sha256,user_home_sha256,workspace_wsl_sha256,workspace_native_sha256,executable_path_sha256,executable_sha256,permission_root_wsl_sha256,permission_root_native_sha256,logical_settings_sha256（各hash）、cli_version（stringの1.4.8）、project_selector（stringのdefault-cli-project）、argv_profile（stringのexplicit-project-json-duration-v1） |
 | files | exact object: global/project/shared各exact object。exists(bool)、sha256(hash又はexists=false時null)、acl_sha256(hash又はnull)、owner_sha256(hash又はnull)。globalはexists=true必須 |
 | observations | exact object: global_template_match,explicit_selector_verified,project_scope_empty,shared_scope_empty,relative_cwd_witness,update_disabled_for_child（各bool true）、admin_gateway_candidate_absent(bool true) |
 | account_scope | exact object: declaration（personal又はmanaged-supported）、owner_record_sha256(hash)。owner証言の適用範囲を記録し機械検証と呼ばない。未回答/managed根拠未確定では発行しない |
@@ -45,6 +45,10 @@ proofのexact schema（protocol 1）は次の固定keyと型を持つ。hashは�
 | source | 固定global/project/shared pathと不存在区別、ACL/owner/bytes安定。project root.idの私的exact比較、明示selectorでの3scope構造とglobal候補/他scope空の整合 |
 | 許可 | globalは厳格decoderと限定templateに一致。project/sharedは校正済み空snapshot全file hashへ一致。非空/変更/未認識snapshotは未対応理由で停止 |
 | admin | 固定ProgramData gateway candidateの不存在と、個人/組織account適用範囲を別々に記録。不存在をremote管理不存在へ流用しない。未確定時は証拠を発行しない |
+
+workspaceはcwd・排他・実行記録・差分の単位、permission_rootは許可templateとcohort許可境界の単位である。Request.permission_root省略時はworkspace。root/子はcanonical存在directoryかつ全祖先非symlinkを要し、workspaceはroot自身又は子孫に限る。root指定だけで起動権限を広げず、内部発行proofがworkspace/rootのWSL/native各hashを別々に束縛する。追加corpus denyはroot内の既知literalだけを受け、allow/ask/commandの和集合や未知構文は拒否する。非重複2子のnative集合はroot read/writeの2allow、ask空、root/2子corpusと固定全commandの4denyである。
+
+論理Request.settingsはbounded nofollowで読んだ同じraw bytesから検査/hashを行い、logical_settings_sha256へ独立に束縛する。native globalのhashやJSON再serializeで代用しない。校正開始・発行・通常runtime・起動直前の値が一致しなければ停止し、空白だけの変更も別snapshotとして扱う。新closed schemaの不足fieldにfallbackしない。
 
 通常runは入力/template検査→安全なproof読取→WSL内で検査可能なbinding→read-only Windows OS helperでOS/SID/home/ACL/native cwd対応と設定fingerprintを照合→版照会→直前fingerprint再確認→prompt起動の順。proof欠落/改変/期限/WSLで判定できる不正は全子0。Windows事実を照合する段階ではread-only OS helper子を使えるが、差異時はagyのversion/model子0を保証する。helperとagyの起動数を混同しない。
 
