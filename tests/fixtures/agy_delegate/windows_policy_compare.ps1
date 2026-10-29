@@ -2,6 +2,7 @@ param([Parameter(Mandatory=$true)][string]$PolicyWorker)
 $ErrorActionPreference = 'Stop'
 try {
     . $PolicyWorker
+    . (Join-Path (Split-Path -Parent $PolicyWorker) 'agy_live_probe_local.ps1')
     $cases = @(
         @{left='{"a":1,"b":[]}';right='{"b":[],"a":1}';expected=$true},
         @{left='{}';right='{}';expected=$true},
@@ -33,13 +34,18 @@ try {
         @{before='{"permissions":{},"useG1Credits":false}';after='{"permissions":{},"useG1Credits":"false"}';expected=$false},
         @{before='{"permissions":{},"useG1Credits":false,"other":1}';after='{"permissions":{},"other":2}';expected=$false},
         @{before='{"permissions":{},"useG1Credits":false,"model":""}';after='{"permissions":{}}';expected=$false},
-        @{before='{"permissions":{}}';after='{"permissions":{},"useG1Credits":false}';expected=$false}
+        @{before='{"permissions":{}}';after='{"permissions":{},"useG1Credits":false}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":null}';after='{"permissions":{}}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":false}';after='{"permissions":{},"useG1Credits":null}';expected=$false},
+        @{before='{"permissions":{},"useG1Credits":0}';after='{"permissions":{}}';expected=$false}
     )
     foreach ($case in $defaultCases) {
         $actual = Same-NonPermissions ([Text.Encoding]::UTF8.GetBytes($case.before)) ([Text.Encoding]::UTF8.GetBytes($case.after)) $true
         if ($actual -isnot [bool] -or $actual -ne $case.expected) { throw 'policy_compare_regression_failed' }
     }
-    @{passed=$true;cases=19;settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
+    $creditCases = @(@{value=$false;expected=$true},@{value=$true;expected=$false},@{value='False';expected=$false},@{value='false';expected=$false},@{value=0;expected=$false},@{value=$null;expected=$false},@{value=@{};expected=$false},@{value=@();expected=$false})
+    foreach ($case in $creditCases) { if ((G1-CreditsFalse $case.value) -ne $case.expected) { throw 'policy_compare_regression_failed' } }
+    @{passed=$true;cases=(13 + $defaultCases.Count + $creditCases.Count);settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
 } catch {
     @{passed=$false;reason='policy_compare_regression_failed';settings_reads=0;settings_writes=0;agy_launches=0} | ConvertTo-Json -Compress
     exit 2
