@@ -2,11 +2,14 @@
 import copy
 import hashlib
 import json
+from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from issue_start.gate_dispatch import parse_dispatch_payload
 from issue_start.gate_support import IssueStartError
+from issue_start.phase_target_binding import _require_target_branch_or_detached
 from tests.unit import test_phase_dispatch_binding as phase_fixture
 from tests.unit.codex_worktree_exec_support import git
 
@@ -64,6 +67,36 @@ class PhaseTargetBindingTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(IssueStartError, "PHASE_TARGET_INVALID"):
                 self.parse()
             self.native[key] = self.fixture.approval["dispatch_target"][key] = saved
+
+    def test_detached_exact_head_is_accepted_without_changing_head_refs_or_index(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        before = self.surface()
+        self.assertEqual(self.parse().issue, 371)
+        self.assertEqual(self.surface(), before)
+
+    def test_detached_head_or_repository_substitution_is_still_rejected(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        for key, value in (("repository", "other/repo"), ("expected_oid", "a" * 40)):
+            saved = self.native[key]
+            self.native[key] = self.fixture.approval["dispatch_target"][key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(IssueStartError, "PHASE_TARGET_INVALID"):
+                self.parse()
+            self.native[key] = self.fixture.approval["dispatch_target"][key] = saved
+
+    def test_detached_branch_rename_is_left_to_the_remote_continuation_check(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        self.native["branch_name"] = self.fixture.approval["dispatch_target"]["branch_name"] = "other"
+        with self.assertRaisesRegex(IssueStartError, "CONTINUATION_INVALID"):
+            self.parse()
+
+    def test_git_failure_other_than_detached_is_not_treated_as_detached(self):
+        with tempfile.TemporaryDirectory() as outside, self.assertRaises(subprocess.CalledProcessError):
+            _require_target_branch_or_detached(Path(outside), "agent/test")
+
+    def surface(self):
+        return (git(self.root, "rev-parse", "HEAD"), git(self.root, "for-each-ref"),
+                git(self.root, "status", "--porcelain=v2", "--branch", "--untracked-files=no"),
+                hashlib.sha256((self.root / git(self.root, "rev-parse", "--git-path", "index")).read_bytes()).hexdigest())
 
     def test_native_writer_requires_explicit_dispatch_target_approval(self):
         self.fixture.approval.pop("dispatch_target")

@@ -6,7 +6,9 @@ from .gate_support import IssueStartError
 
 
 def validate_phase_target(approval, native, cwd, *, initial=False):
-    """未来branchの初回著作と、既存branchの後続著作を区別して照合する。"""
+    """未来branchの初回著作と、既存branchの後続著作を区別して照合する。
+
+    後続の検査面は対象branch上かdetachedに限り、detachedのbranch名はremote側照合へ委ねる（#685）。"""
     try:
         target = approval["dispatch_target"]
         if not isinstance(target, dict) or set(target) != {"repository", "branch_name", "expected_oid"}:
@@ -30,7 +32,19 @@ def validate_phase_target(approval, native, cwd, *, initial=False):
             if (approval["snapshot_oid"] != target["expected_oid"]
                     or git("rev-parse", native["base_ref"]) != target["expected_oid"]):
                 raise ValueError("phase inspected initial base mismatch")
-        elif git("symbolic-ref", "--quiet", "--short", "HEAD") != target["branch_name"]:
-            raise ValueError("phase inspected branch mismatch")
+        else:
+            _require_target_branch_or_detached(root, target["branch_name"])
     except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
         raise IssueStartError("ISSUE_START_PHASE_TARGET_INVALID", str(error)) from None
+
+
+def _require_target_branch_or_detached(root, branch_name):
+    """後続作者のadopt-branchと両立させるため、detachedだけを別名branchと区別して許す。"""
+    result = subprocess.run(["git", "-C", str(root), "symbolic-ref", "--quiet", "--short", "HEAD"],
+                            capture_output=True, text=True)
+    if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
+        return
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+    if result.stdout.strip() != branch_name:
+        raise ValueError("phase inspected branch mismatch")

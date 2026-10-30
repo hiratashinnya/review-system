@@ -78,6 +78,8 @@ ISSUE_PHASE_PREDECESSOR_V1={"entry_id":"wl-...","receipt_sha256":"64-HEX"}
 ```
 
 hookは同Issue/branchの最新owner、直前role、回収receipt bytes、解放済み台帳、remote exact OIDを照合する。
+dispatch元cwdはHEADを `expected_oid` に置いたdetachedとする。hookは別名branch上を拒否し、
+対象branch上は通すが、その状態では次作者のadopt-branchが使用中branchとして拒否する。
 次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
 `gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
 失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。

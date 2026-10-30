@@ -62,6 +62,7 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
 主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
 回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
+dispatch元cwdはHEADをそのremote exact OIDに置いたdetachedとする。対象branchを掴んだままでは次作者のadoptが拒否される。
 使用中worktree奪取や別branchでの迂回はしない。工程の独立レビュー・owner承認は引き続き必須。
 PF固有markerと起動手順はClaude wrapperに従う。native有効化と新profileのlive実測は分けて記録する。
 
