@@ -454,7 +454,16 @@ class LocalRefConflictDiagnosticsTests(unittest.TestCase):
             entry=None,
         )
         self.assertIn("台帳に対応するエントリが無い", detail)
-        self.assertIn("worktree-release", detail)
+        # agent-<id> 形でない worktree に worktree-release は使えない（WORKTREE_PATH_SHAPE_INVALID）。
+        self.assertIn("git switch --detach", detail)
+        self.assertNotIn("--force-uncollected", detail)
+
+    def test_missing_ledger_entry_on_agent_worktree_keeps_worktree_release(self):
+        detail = describe_local_ref_conflict(
+            BRANCH, holder_kind=HOLDER_AGENT,
+            holder_path="/repo/.claude/worktrees/agent-af16bc30fd78815b4", entry=None,
+        )
+        self.assertIn("worktree-release <path> --force-uncollected", detail)
 
     def test_every_holder_kind_produces_a_non_empty_actionable_detail(self):
         for kind in (HOLDER_PRIMARY, HOLDER_AGENT, HOLDER_LINKED, HOLDER_UNKNOWN, None):
@@ -464,6 +473,9 @@ class LocalRefConflictDiagnosticsTests(unittest.TestCase):
                 )
                 self.assertIn(BRANCH, detail)
                 self.assertTrue(detail.strip())
+                # 後続作者の失敗は同じブランチで継続できないことと troubleshooting を必ず示す。
+                self.assertIn("同じブランチでは継続できない", detail)
+                self.assertIn(".ai/troubleshooting/issue-pipeline.md", detail)
 
 
 class AdoptBranchPullRequestVerificationTests(unittest.TestCase):

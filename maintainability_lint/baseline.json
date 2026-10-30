@@ -108,8 +108,8 @@
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
     },
     "gitgate/adopt.py": {
-      "line_count": 532,
-      "sha256": "b935af65e7c4934396cef97de152775a53d0d5e16c888bdde8f7ac3215998507"
+      "line_count": 551,
+      "sha256": "813d31e094417a6b19a7261e9fb8dbfcf889bd230d19c0bbdaf43c9470d18db9"
     },
     "gitgate/cli.py": {
       "line_count": 379,

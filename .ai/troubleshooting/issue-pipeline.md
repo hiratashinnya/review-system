@@ -57,7 +57,7 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 `issue-fixer` には継続検査が無いので、主体別の処置の後に dispatch し直せる。
 
 - **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態か、主文脈が primary checkout でブランチを切り替えた状態。gitgate の worktree verb では解消しない。当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。primary checkout は工程 dispatch の作業面にしない。
-- **台帳 entry の無い linked worktree（主文脈の作業面など）** — 後続工程の dispatch は対象ブランチを掴んだ worktree があれば入口で拒否するので、掴まれたまま後続作者が起動される経路は通常無い。dispatch の検査後、作者の adopt までの間にブランチが掴まれた場合などに起きる。当該作業面で `git switch --detach <expected_oid>` を実行して外す。失敗文言が案内する `worktree-release` は `.claude/worktrees/agent-<id>` 形のパスしか受理せず、その形でない作業面は `WORKTREE_PATH_SHAPE_INVALID` で拒否されるので、この主体の解消には使えない。
+- **台帳 entry の無い linked worktree（主文脈の作業面など）** — 後続工程の dispatch は対象ブランチを掴んだ worktree があれば入口で拒否するので、掴まれたまま後続作者が起動される経路は通常無い。dispatch の検査後、作者の adopt までの間にブランチが掴まれた場合などに起きる。当該作業面で `git switch --detach <expected_oid>` を実行して外す（失敗文言も同じ処置を案内する）。`worktree-release` は `.claude/worktrees/agent-<id>` 形のパスしか受理せず、その形でない作業面は `WORKTREE_PATH_SHAPE_INVALID` で拒否されるので、この主体の解消には使えない。
 - **agent worktree** — 台帳 entry が併記されていれば `python3 -m gitgate collect-worktree --entry <entry-id>`。回収不能なら `worktree-forget --entry <entry-id> --reason <text>` → `worktree-release <path> --force-uncollected --reason <text>`。
 - **ローカル ref の tip が origin と違う** — 正体不明のローカル作業がある。内容を確認せずに消さない。
 

@@ -47,3 +47,17 @@ class PhaseTargetAdoptCoexistenceTests(unittest.TestCase):
         with self.assertRaises(BranchSourceError) as adopt:
             self.adopt()
         self.assertEqual(adopt.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+
+    def test_non_agent_linked_holder_gets_detach_remedy_not_worktree_release(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        main = Path(git(self.root, "rev-parse", "--path-format=absolute", "--git-common-dir")).parent
+        surface = main / ".claude" / "worktrees" / "review-685"
+        git(main, "worktree", "add", "-q", str(surface), "agent/test")
+        with self.assertRaises(BranchSourceError) as adopt:
+            self.adopt()
+        detail = str(adopt.exception)
+        self.assertEqual(adopt.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        self.assertIn(f"linked worktree {surface}", detail)
+        self.assertIn("git switch --detach", detail)
+        self.assertNotIn("--force-uncollected", detail)
+        self.assertIn("同じブランチでは継続できない", detail)
