@@ -18,10 +18,10 @@ Project の読み書き手段が無い場合は、Issue／Project への write �
 | Priority | <値> | <根拠> |
 | Horizon | **要オーナー確認（AI は既定値を持たない）** | 未確認値を設定しない |
 | Review date | <値 or 不要> | `Deferred` のときは必須 |
-| Harness | <値> | `area:harness` のとき1個以上 |
+| Harness | <Issue 本文に明記された値 or 未指定・変更対象外> | 本文に対象 harness の記載がなければ設定しない・確認しない |
 ```
 
-live metadata を取得できていない事実を明記し、記憶から option 名を埋めない。`Horizon`、`Deferred`、`Review date` はオーナー確認なしに設定しない。`Priority` は根拠がある場合だけ推奨値を記載する。完了報告では Project item 未追加を部分成功として明示する。
+live metadata を取得できていない事実を明記し、記憶から option 名を埋めない。`Horizon`、`Deferred`、`Review date` はオーナー確認なしに設定しない。`Priority` は根拠がある場合だけ推奨値を記載する。Harness は本文に対象 harness が明記されている場合だけ推奨値を記載し、未記載なら「未指定・変更対象外」として質問しない。完了報告では Project item 未追加を部分成功として明示する。
 
 ## Issue は作成できたが Project 反映に失敗した
 

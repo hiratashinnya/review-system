@@ -14,7 +14,7 @@ effort: xhigh
 
 ## 非対話：確認はすべて QUESTIONS として返す
 
-このロールは `AskUserQuestion` を持たず、オーナーと直接やり取りできない。共通本文が「対話的な確認手段でユーザーへ求める」とする場面（Project 候補の選択、Horizon／Deferred／Review date の確認、label/option 不一致、軸1/軸2 の食い違い、重複時の追記/reopen/新規の選択、課金・別 repository・先送りなど）は、**推測で進まず**次のとおり扱う。
+このロールは `AskUserQuestion` を持たず、オーナーと直接やり取りできない。共通本文が「対話的な確認手段でユーザーへ求める」とする場面（Project 候補の選択、Horizon／Deferred／Review date の確認、label/option 不一致、軸1/軸2 の食い違い、重複時の追記/reopen/新規の選択、課金・別 repository・先送りなど）は、**推測で進まず**次のとおり扱う。Harness は Issue 本文に対象 harness が明記されていない限り設定せず、その未記載を確認事項にしない。
 
 1. write を止め、`STATUS: NEEDS_OWNER_INPUT` で返す。
 2. 各論点を原案・比較・理由付き推奨を添えて handoff ファイルの「オーナー確認事項」に書く（PR7 の様式。意見なき停止をしない）。
@@ -38,7 +38,7 @@ effort: xhigh
 1. `# gh-create-issue（<STATUS>）` と1行要約
 2. `## 重複調査`: open/closed で比べた対象と結論（共通本文 §3）
 3. `## Issue draft`: title・labels・本文（共通本文 §4 の必須項目）。本文は本文内のフェンスより長いコードフェンスで囲む
-4. `## 予定値 preview`: Project、Workstream、Priority、Horizon、Review date、Harness、relations と根拠（共通本文 §5・§6）
+4. `## 予定値 preview`: Project、Workstream、Priority、Horizon、Review date、Harness（Issue 本文に明記された場合のみ）、relations と根拠（共通本文 §5・§6）
 5. `## オーナー確認事項`: `NEEDS_OWNER_INPUT` のときだけ。論点ごとに選択肢・メリット/デメリット・推奨と理由
 6. `## 完了報告`: `CREATED` のときだけ（共通本文 §8 の項目と read-back 結果、部分成功の失敗項目・回復案）
 

@@ -15,15 +15,15 @@ Issue 作成の明示依頼は、別 repository、追加 Issue、先送り、課
 
 作成前に毎回、対象 repository の全 label と、対象 repository に紐づく GitHub Project 候補を実環境から取得する。ユーザーが Project を明示していなければ、候補が1件の時だけ選択する。0件または複数件なら候補と推奨を提示して、Issue または Project への write 前に停止する。ユーザーが Project を明示した場合も、その Project が対象 repository を扱うことを確認する。draft-only では候補を提示するだけで選択・変更しない。
 
-選択した Project の fields/options、`viewerCanUpdate` 相当の update 権限、Issue を同 Project へ手動追加する権限と手段を live で確認する。いずれかを確認できなければ write 前に停止する。Auto-add は公開APIから取得できる workflow の名前と enabled 状態だけを参考情報として確認する。repository/filter の適用条件詳細は公開APIから検証できないため、確認不能を停止条件にしない。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
+選択した Project の fields/options、`viewerCanUpdate` 相当の update 権限、Issue を同 Project へ手動追加する権限と手段を live で確認する。いずれかを確認できなければ write 前に停止する。Harness の field/options は Issue 本文に対象 harness が明記されている場合だけ確認する。Auto-add は公開APIから取得できる workflow の名前と enabled 状態だけを参考情報として確認する。repository/filter の適用条件詳細は公開APIから検証できないため、確認不能を停止条件にしない。label 名、Project number、field ID、option ID、repository ID、Issue ID を記憶や本文例からハードコードしない。
 
 最低限、次を取得して名前とIDを対応付ける。
 
 - labels: `area:*`、`type:*`、`concern:*`
-- Project fields: `Status`、`Workstream`、`Priority`、`Horizon`、`Review date`、`Harness`
+- Project fields: `Status`、`Workstream`、`Priority`、`Horizon`、`Review date`。`Harness` は Issue 本文に対象 harness が明記されている場合のみ
 - relation 候補: parent、sub-issues、blocked-by/blocking
 
-期待する名前が live metadata にない、表記が異なる、同義候補が複数ある場合は勝手に label/option を作らず停止する。差分と推奨案を示し、対話的な確認手段でユーザー判断を得る。
+期待する名前が live metadata にない、表記が異なる、同義候補が複数ある場合は勝手に label/option を作らず停止する。差分と推奨案を示し、対話的な確認手段でユーザー判断を得る。Harness は Issue 本文に対象 harness が明記されている場合だけこの確認対象とし、未記載を理由に停止・質問しない。
 
 ## 3. open/closed の重複を調べる
 
@@ -120,9 +120,9 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 - `Horizon`: `Now` は着手対象、`Next` は次候補、`Later` は時期未確定、`Deferred` は明示的な先送り。AI の既定値を持たない。ユーザー文面で値が明示されているか、作成前 preview で推奨値と根拠を示して対話的な確認を得た場合だけ設定する。未指定・未確認なら Issue/Project への write 前に停止する。
 - `Deferred`: owner が理由と先送りを明示承認した場合だけ設定し、`Review date` も作成前に確認して必ず設定する。どちらかが未確認なら write 前に停止する。
 
-作成前 preview には、選択 Project、labels、Workstream、Priority、Horizon、Review date、Harness、relations の最終予定値と判断根拠を出す。特に Horizon は preview の提示だけを承認とみなさず、対話的な確認でユーザーの承認を得る。
+作成前 preview には、選択 Project、labels、Workstream、Priority、Horizon、Review date、Harness、relations の最終予定値と判断根拠を出す。Harness は Issue 本文に対象 harness が明記されていればその値、なければ「未指定・設定しない」と記す。特に Horizon は preview の提示だけを承認とみなさず、対話的な確認でユーザーの承認を得る。
 
-`area:harness` を付けた場合は、multi-select の `Harness` を1個以上設定する。
+`Harness` は Issue 本文に対象 harness が明記されている場合に限り、該当する multi-select option を設定する。`area:harness`、対象 path、作業内容から推定せず、本文に記載がなければ設定せず、確認質問もしない。
 
 - `Claude Code`: Claude Code 固有の hooks、agents、settings、workflow
 - `Codex`: Codex 固有の hooks、agents、skills、config
@@ -131,7 +131,7 @@ live metadata に存在する namespaced label だけを使う。legacy の `bug
 - `Shared`: 複数 harness が共有する契約・同期基盤。単なる「全 harness」の省略には使わない
 - `Other`: live options に専用項目がない具体的 harness に限る。本文へ harness 名と `Other` を使う理由を書く
 
-共通契約と個別実装の両方に影響する場合は `Shared` と該当 harness を複数選択する。`area:harness` 以外では、Harness は影響が明白な場合だけ設定する。
+Issue 本文が共通契約と個別実装の両方を明記する場合に限り、`Shared` と該当 harness を複数選択する。`area:harness` 以外でも、本文に対象 harness が明記されていなければ設定しない。
 
 ### Project へ書き込めない実行環境での代替
 
@@ -155,7 +155,7 @@ parent と blocker を同義に扱わない。既存 relation を読み、self r
 1. title/body/labels を指定して Issue を1件作成する。
 2. 短時間 poll/read-back し、選択した Project の confirmed Project item として auto-add されたか確認する。
 3. 未追加なら選択した同じ Project へ明示追加する。別 Project を推測しない。追加に失敗したら fail-close で停止し、Issue URL、Project 未追加、fields 未設定という部分成功状態と回復案を報告する。Project を扱う手段自体が無い場合は §5 と [troubleshooting](../../troubleshooting/gh-create-issue.md) に従う。
-4. Project item を確認できた後、live に解決した field/option ID で `Status=Inbox`、Workstream、確認済みの Priority/Horizon、必要な Review date/Harness を設定する。
+4. Project item を確認できた後、live に解決した field/option ID で `Status=Inbox`、Workstream、確認済みの Priority/Horizon、必要な Review date を設定する。Harness は Issue 本文に対象 harness が明記されている場合だけ設定する。
 5. parent/sub-issue と blocked-by/blocking を設定する。
 6. Issue と Project item を再取得し、本文、labels、全 fields、relations が意図どおりか照合する。
 
