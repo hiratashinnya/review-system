@@ -78,12 +78,25 @@ ISSUE_PHASE_PREDECESSOR_V1={"entry_id":"wl-...","receipt_sha256":"64-HEX"}
 ```
 
 hookは同Issue/branchの最新owner、直前role、回収receipt bytes、解放済み台帳、remote exact OIDを照合する。
-dispatch元cwdはhookが検査する作業面で、主文脈が使う登録済みlinked作業面とする。primary checkoutは使わない。
-主文脈はその作業面がcleanであることを確かめ、`git fetch origin BRANCH` の後に `git switch --detach OID`
-（OIDは `expected_oid`）を実行し、その作業面から次作者を起動する。hookは別名branch上を拒否し、
-対象branch上は通すが、その状態では次作者のadopt-branchが使用中branchとして拒否する。
-この作業面は台帳entryを持たないので、adoptの失敗文言が案内するrelease系verbで消さない。
-この手順による実dispatchの成立は未実測で、#652等の実dispatchで確かめる。
+hookが検査する作業面はhookプロセスのcwd、つまり主文脈のセッションcwdである。
+主文脈は登録済みlinked作業面をこの用途に使い、primary checkoutは使わない。
+1. EnterWorktree等でセッションcwdをそのlinked作業面へ移す。Bashの `cd` では移さない。
+2. 作業面がcleanであることを確かめ、`git fetch origin BRANCH` の後に `git switch --detach OID`
+   （OIDは `expected_oid`）を実行する。
+3. `ISSUE_PHASE_INPUT_V1` のbinding/approvalはcwd基準の相対pathで読まれるので、その作業面の `tmp/` 配下に置く。
+   primaryの `tmp/` に置いたファイルは読まれない。
+4. その作業面から次作者を起動する。
+
+2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
+`git switch --detach` で外した状態のcwdがhookに検査された。
+hookはdetachedだけを受理し、対象branch上と別名branch上は入口で `ISSUE_START_PHASE_TARGET_INVALID` として拒否する。
+対象branch上を通すと次作者のadopt-branchが使用中branchとして必ず失敗し、hookが起票した失敗作者のentryが
+最新ownerとして残るため、そのbranchでは継続できなくなる。入口での拒否は台帳起票の前なので、detachして出し直せる。
+read-onlyのCodex経路（`issue_start.readonly_workspace`）はprimaryから起動する。主文脈はExitWorktree等で
+作業面を残したままprimaryへ戻ってから実行し、後続作者を起動するときに作業面へ入り直してdetachを確かめる。
+この作業面には `agent-<id>` 以外の名前を付ける。台帳entryを持たないのでgitgateのrelease系verbで消さない
+（`worktree-release` は `.claude/worktrees/agent-<id>` 形しか受理せず、他の形は `WORKTREE_PATH_SHAPE_INVALID` で拒否する）。
+この手順による実dispatchの完走は未実測で、#652等の実dispatchで確かめる。
 次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
 `gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
 失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。

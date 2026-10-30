@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 from issue_start.gate_dispatch import parse_dispatch_payload
 from issue_start.gate_support import IssueStartError
-from issue_start.phase_target_binding import _require_target_branch_or_detached
+from issue_start.phase_target_binding import _require_detached
 from tests.unit import test_phase_dispatch_binding as phase_fixture
 from tests.unit.codex_worktree_exec_support import git
 
@@ -48,7 +48,8 @@ class PhaseTargetBindingTests(unittest.TestCase):
                 "issue_start.author_continuation.worktree_ledger.read_ledger", return_value={"entries": [self.entry]}):
             return parse_dispatch_payload(payload, cwd=self.root, runner=runner)
 
-    def test_followup_exact_worktree_accepts_and_each_native_identity_substitution_fails(self):
+    def test_followup_detached_exact_worktree_accepts_and_each_native_identity_substitution_fails(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
         self.assertEqual(self.parse().issue, 371)
         for key, value in (("issue", 999), ("repository", "other/repo"),
                            ("branch_name", "feature/999"), ("expected_oid", "a" * 40)):
@@ -61,12 +62,24 @@ class PhaseTargetBindingTests(unittest.TestCase):
             self.native = saved
 
     def test_matching_native_and_approval_cannot_replace_the_inspected_worktree(self):
-        for key, value in (("repository", "other/repo"), ("branch_name", "other"), ("expected_oid", "a" * 40)):
+        for key, value, detail in (("repository", "other/repo", "repository/HEAD mismatch"),
+                                   ("branch_name", "other", "phase inspected branch mismatch"),
+                                   ("expected_oid", "a" * 40, "inspected OID/native OID mismatch")):
             saved = self.native[key]
             self.native[key] = self.fixture.approval["dispatch_target"][key] = value
-            with self.subTest(key=key), self.assertRaisesRegex(IssueStartError, "PHASE_TARGET_INVALID"):
+            with self.subTest(key=key), self.assertRaisesRegex(IssueStartError, "PHASE_TARGET_INVALID: .*" + detail):
                 self.parse()
             self.native[key] = self.fixture.approval["dispatch_target"][key] = saved
+
+    def test_followup_on_target_branch_is_rejected_with_detach_recovery(self):
+        oid = self.native["expected_oid"]
+        before = self.surface()
+        with self.assertRaises(IssueStartError) as caught:
+            self.parse()
+        self.assertEqual(caught.exception.reason, "ISSUE_START_PHASE_TARGET_INVALID")
+        self.assertIn("holds target branch agent/test", str(caught.exception))
+        self.assertIn(f"git switch --detach {oid}", str(caught.exception))
+        self.assertEqual(self.surface(), before)
 
     def test_detached_exact_head_is_accepted_without_changing_head_refs_or_index(self):
         git(self.root, "switch", "-q", "--detach", "HEAD")
@@ -91,7 +104,7 @@ class PhaseTargetBindingTests(unittest.TestCase):
 
     def test_git_failure_other_than_detached_is_not_treated_as_detached(self):
         with tempfile.TemporaryDirectory() as outside, self.assertRaises(subprocess.CalledProcessError):
-            _require_target_branch_or_detached(Path(outside), "agent/test")
+            _require_detached(Path(outside), "agent/test", "a" * 40)
 
     def surface(self):
         return (git(self.root, "rev-parse", "HEAD"), git(self.root, "for-each-ref"),

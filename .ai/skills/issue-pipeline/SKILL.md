@@ -62,8 +62,11 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
 主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
 回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
-dispatch元cwd（検査作業面）は主文脈のlinked作業面とし、primary checkoutのbranchは切り替えない。
-その作業面をfetch後にHEADをそのremote exact OIDへ置いたdetachedにする。対象branchを掴んだままでは次作者のadoptが拒否される。
+dispatch元cwd（検査作業面）は主文脈のセッションcwdで、主文脈のlinked作業面とし、primary checkoutのbranchは切り替えない。
+その作業面をfetch後にHEADをそのremote exact OIDへ置いたdetachedにし、binding/approvalはその作業面のtmp配下に置く。
+検査はdetachedだけを受理し、対象branch上・別名branch上は入口で拒否する。対象branchを掴む作業面があると次作者のadoptは必ず失敗し、
+起票済みの失敗作者entryが最新ownerとして残って同branchで継続できなくなるためである。
+セッションcwdの移し方と、primaryから起動するread-only Codex経路との行き来はClaude wrapperに従う。
 使用中worktree奪取や別branchでの迂回はしない。工程の独立レビュー・owner承認は引き続き必須。
 PF固有markerと起動手順はClaude wrapperに従う。native有効化と新profileのlive実測は分けて記録する。
 

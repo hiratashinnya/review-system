@@ -317,7 +317,9 @@ native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/s
 これは過去review receiptを書き換える情報ではなく、trusted主文脈が今回起動する取得対象の承認である。
 phase承認とnative markerのIssue/repository/branch/OIDを相互照合し、検査cwdのoriginとHEADが同じrepository/OIDで
 あることを起動前に要求する。初回1aでは承認branchは新規作成予定名、expected_oidはbase_oidであり、
-base_refとsnapshotも実HEADへ一致させる。後続著作では検査作業面を承認branch上かdetachedに限り、別名branch上は拒否する。
+base_refとsnapshotも実HEADへ一致させる。後続著作では検査作業面をdetachedに限り、承認branch上と別名branch上は拒否する。承認branch上を拒否するのは、
+その作業面が承認branchを掴んだままだと次作者のadopt-branch stage 4が必ず拒否し、起票済みの失敗作者entryが
+最新ownerとして残って同branchで継続できなくなるためである。
 detachedではbranch名を作業面から確かめられないため、その照合は台帳の最新owner、`git ls-remote` のremote exact OID照合、
 adopt-branch stage 2のremote exact OID照合へ委ねる。作業面の準備手順はClaude issue-pipeline wrapperを正とする。
 過去snapshot OIDと後続HEADは異なり得るため、既存のancestor検査・canonical artifact・正確なsource_changesによって

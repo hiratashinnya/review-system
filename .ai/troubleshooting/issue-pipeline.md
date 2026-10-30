@@ -38,12 +38,24 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 **主文脈がこの verb を手で叩かない。** 「当該ペインからは live な dispatch が無い」という観測が成立するのは復帰イベントの地点だけで、それ以外から呼ぶと入れ子委譲中の正当な `running` を巻き込みうる（上記のとおり、その場合に残る歯止めは `locked` 判定だけである）。手作業で片付けるときは従来どおり `collect-worktree` / `worktree-forget` → `worktree-release` を使う。
 
+## 後続工程の dispatch が `ISSUE_START_PHASE_TARGET_INVALID` で拒否されたとき
+
+後続作者（`change-planner`／`test-writer`／`issue-implementer`）の dispatch では、hook は dispatch 元 cwd（主文脈のセッション cwd）の作業面が `expected_oid` の detached であることを要求する。
+
+- **詳細が `holds target branch <branch>`** — 作業面が対象ブランチを掴んでいる。dispatch の前に拒否されるので、台帳に作者の entry はまだ無く、同じブランチで継続できる。当該作業面で `git switch --detach <expected_oid>` を実行し、同じ dispatch を出し直す。
+- **詳細が `phase inspected branch mismatch`** — 作業面が別名ブランチ上にある。作業面の取り違えを疑い、`.claude/skills/issue-pipeline/SKILL.md`「工程の入力と独立レビュー束縛（全工程必須）」の手順で作業面を準備し直す。
+- **詳細が `repository/HEAD mismatch` などの照合不一致** — 作業面の origin・HEAD、または承認と native の値が一致していない。値を合わせるために承認を書き換えず、取り違えの原因を確かめる。
+
 ## `adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で失敗したとき
 
-失敗文言に**誰がそのブランチを掴んでいるか**が出る。主体で処置が変わる。
+失敗文言に**誰がそのブランチを掴んでいるか**が出る。まず失敗した作者のロールを確かめる。
 
-- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態か、主文脈が primary checkout を工程 dispatch の作業面に使った状態。gitgate の worktree verb では解消しない。primary checkout は工程 dispatch の作業面にしないので、当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。工程 dispatch は linked 作業面から出し直す。
-- **台帳 entry の無い linked worktree が主文脈の工程 dispatch 作業面だった** — 対象ブランチを掴んだまま次作者を dispatch した状態。当該作業面で `git switch --detach <expected_oid>` を実行してから次作者を dispatch し直す（`.claude/skills/issue-pipeline/SKILL.md`「工程の入力と独立レビュー束縛（全工程必須）」と同じ手段）。失敗文言が案内する `worktree-release --force-uncollected` は主文脈の作業面を消すので実行しない。主文脈の作業面でない linked worktree は次項と同じく台帳と回収可否を確かめてから処置する。
+**後続作者（`change-planner`／`test-writer`／`issue-implementer`）が失敗した場合は、原因を取り除いても同じブランチで継続できない。** hook は dispatch を通した時点で失敗作者の entry を同じ Issue／ブランチの台帳に起票しており、次の dispatch の継続検査（`issue_start/author_continuation.py`）は最新 owner が直前ロールの解放済み entry であることを要求する。失敗作者の entry が最新 owner として残るので、再 dispatch は `ISSUE_START_CONTINUATION_INVALID` で拒否される。`worktree-forget` は entry を `abandoned` にするだけで削除せず、最新 owner の判定からも外さない。台帳の手編集は禁止である。回収手段は新しいブランチでの作り直しになり、どの成果物を引き継ぐか、失敗した entry をどう扱うかはオーナー判断が要る（同一ブランチでの継続契約 #662 に関係する）。下の主体別の処置で掴んでいる側を片付けたうえで STOP し、失敗した entry の ID・ロール・ブランチ・掴んでいた主体をオーナーへ報告する。
+
+`issue-fixer` には継続検査が無いので、主体別の処置の後に dispatch し直せる。
+
+- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態か、主文脈が primary checkout でブランチを切り替えた状態。gitgate の worktree verb では解消しない。当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。primary checkout は工程 dispatch の作業面にしない。
+- **台帳 entry の無い linked worktree（主文脈の作業面など）** — 後続工程の dispatch は対象ブランチを掴んだ作業面を入口で拒否するので、主文脈の作業面が掴んだまま作者が起動される経路は通常無い。起動後に作業面がブランチを掴んだ場合などに起きる。当該作業面で `git switch --detach <expected_oid>` を実行して外す。失敗文言が案内する `worktree-release` は `.claude/worktrees/agent-<id>` 形のパスしか受理せず、その形でない作業面は `WORKTREE_PATH_SHAPE_INVALID` で拒否されるので、この主体の解消には使えない。
 - **agent worktree** — 台帳 entry が併記されていれば `python3 -m gitgate collect-worktree --entry <entry-id>`。回収不能なら `worktree-forget --entry <entry-id> --reason <text>` → `worktree-release <path> --force-uncollected --reason <text>`。
 - **ローカル ref の tip が origin と違う** — 正体不明のローカル作業がある。内容を確認せずに消さない。
 

@@ -1,10 +1,13 @@
-"""後続作者dispatchの検査面と別worktreeのadopt-branchが実gitで両立することを固定する（#685）。"""
+"""後続作者dispatchの検査面と別worktreeのadopt-branchの関係を実gitで固定する（#685）。
+
+detachedなら検査を通りadoptも成功し、対象branchを掴んだままなら検査が入口で拒否する。"""
 import os
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 from branch_source import BranchSourceError
 from gitgate.adopt import AdoptBranchRequest, adopt_branch
+from issue_start.gate_support import IssueStartError
 from tests.unit.codex_worktree_exec_support import git
 from tests.unit import test_phase_target_binding as binding_fixture
 
@@ -36,8 +39,11 @@ class PhaseTargetAdoptCoexistenceTests(unittest.TestCase):
         self.assertEqual(git(self.author, "symbolic-ref", "--short", "HEAD"), "agent/test")
         self.assertEqual(git(self.author, "rev-parse", "HEAD"), self.request.expected_oid)
 
-    def test_dispatch_source_holding_the_branch_still_blocks_adopt(self):
-        self.assertEqual(self.case.parse().issue, 371)
-        with self.assertRaises(BranchSourceError) as caught:
+    def test_dispatch_source_holding_the_branch_is_rejected_by_the_gate_before_adopt(self):
+        with self.assertRaises(IssueStartError) as gate:
+            self.case.parse()
+        self.assertEqual(gate.exception.reason, "ISSUE_START_PHASE_TARGET_INVALID")
+        self.assertIn(f"git switch --detach {self.request.expected_oid}", str(gate.exception))
+        with self.assertRaises(BranchSourceError) as adopt:
             self.adopt()
-        self.assertEqual(caught.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
+        self.assertEqual(adopt.exception.reason, "BRANCH_ADOPT_LOCAL_EXISTS")
