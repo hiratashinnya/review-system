@@ -2,6 +2,8 @@
 
 <!-- synced-from: CLAUDE.md@11f296076a42 -->
 <!--
+  PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
+
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
   Issue工程分離・role権限・非対話契約。既存の中核規範1〜12は意味を保持し、工程の著作・審査・
   承認境界を新しい項13へ同期した。fixer専用karteとadviserの非承認性も配送する。
