@@ -17,3 +17,11 @@ class SettingsLayer:
 class SettingsResolution:
     layers: tuple[SettingsLayer, ...] = ()
     reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PermissionGroups:
+    rules: dict[str, list[str]]
+    missing: tuple[str, ...] = ()
+    invalid: tuple[str, ...] = ()
+    omitted: tuple[str, ...] = ()

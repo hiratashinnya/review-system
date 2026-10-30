@@ -1,37 +1,23 @@
 """#575 の設定形式を read-only 検査する。設定層合成の保証とは区別する。"""
 
-import re
 from pathlib import Path
 
-from .strict_json import load_json
-
-SAFE_PATH = re.compile(r"[A-Za-z0-9 /_.:\-\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+\Z")
+from .permission_rules import expected_path_rules
 
 
 def expected_rules(workspace: Path) -> dict[str, list[str]]:
     """レビュー対象の限定テンプレート。path 以外の可変正規表現は認めない。"""
-    path = str(workspace.resolve())
-    if not SAFE_PATH.fullmatch(path):
-        raise ValueError("unsafe_workspace_path")
-    command = "Get-ChildItem -Name '" + path + "'"
-    pattern = "^" + re.escape(command) + "$(?![\\s\\S])"
-    return {
-        "allow": [f"read_file({path})", f"write_file({path})", f"command(regex:{pattern})"],
-        "ask": [],
-        "deny": [f"write_file({path}/doc-system-v2/nodes)"],
-    }
+    return expected_path_rules(str(workspace.resolve()))
 
 
 def inspect_settings(settings: Path, workspace: Path) -> list[str]:
     """未検査キー/競合/過剰許可も停止する。ファイルを変更しない。"""
+    from .logical_settings import read_logical_settings
     try:
-        data = load_json(settings.read_text(encoding="utf-8"))
-        expected = expected_rules(workspace)
-    except (OSError, ValueError, UnicodeError):
-        return ["settings_unreadable_or_invalid"]
-    if not isinstance(data, dict) or set(data) != {"permissions"}:
-        return ["settings_extra_or_missing_keys"]
-    return inspect_permissions(data["permissions"], expected)
+        read_logical_settings(settings, workspace)
+    except ValueError as error:
+        return [str(error)]
+    return []
 
 
 def inspect_permissions(permissions: object, expected: dict[str, list[str]]) -> list[str]:

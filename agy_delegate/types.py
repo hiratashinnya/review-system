@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from .usage_types import TokenUsage
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class Request:
     images: bool = False
     brain: Path | None = None
     caller_state: str | None = None
+    permission_root: Path | None = None
 
 
 @dataclass
@@ -34,6 +36,7 @@ class Result:
     stderr_length: int = 0
     workspace_changes: list[dict[str, str]] = field(default_factory=list)
     workspace_change_limitations: list[str] = field(default_factory=list)
+    usage: TokenUsage | None = None
 
     @property
     def exit_code(self) -> int:

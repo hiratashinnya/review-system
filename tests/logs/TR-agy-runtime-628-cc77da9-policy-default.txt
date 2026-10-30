@@ -1,0 +1,4 @@
+commit: cc77da9
+Synthetic PowerShell strict G1/default normalization regression:
+{"settings_reads":0,"agy_launches":0,"settings_writes":0,"cases":30,"passed":true}
+

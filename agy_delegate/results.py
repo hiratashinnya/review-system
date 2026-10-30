@@ -2,7 +2,7 @@
 
 import re
 
-from .output_contract import contract_reasons
+from .output_contract import contract_reasons, validated_usage
 from .strict_json import load_json
 from .types import Result
 
@@ -56,6 +56,7 @@ def normalize(run_id: str, stdout: str, stderr: str, code: int) -> Result:
 
 def _inspect_fields(data: dict, result: Result) -> None:
     result.reasons.extend(contract_reasons(data))
+    result.usage = validated_usage(data.get("usage"))
     for name in ("status", "conversation_id", "response", "error"):
         if isinstance(data.get(name), str):
             setattr(result, name, data[name])

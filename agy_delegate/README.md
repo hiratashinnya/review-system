@@ -15,25 +15,33 @@ python3 -m agy_delegate run --workspace PATH --settings PATH --executable PATH -
 
 `inspect` は#575の `settings.json` のpermissions.allow/ask/denyをread-only検査する。静的合格でも実効設定・ログイン・隔離を保証しない。適用はオーナーが手で行う。
 
-## 設定層の根拠と解除条件（§6）
+## 設定層の根拠と限定cohort（§6）
 
-公式 [CHANGELOG](https://github.com/google-antigravity/antigravity-cli/blob/main/CHANGELOG.md) の1.0.12は global `~/.gemini/antigravity-cli/settings.json` と projects `~/.gemini/config/projects/`、project設定優先を示す。1.0.5は project・Antigravity共有user・CLI settings.jsonのpermissions merge参加を示す。1.0.4の `cache/projects.json` はworkspace対応情報であり許可設定層として加えない。project優先は、permissions配列を置換する/和集合にする証拠ではない。adminの `/etc/antigravity/admin_settings.json` は提供済みexe文字列の候補だけで、公開schema・優先順の証明ではない。
+通常runは、内部校正workerが発行したprivate cohort proofと同じsnapshotだけを受理する。globalは公式optional schemaを厳密にdecodeし、project/sharedは一般schemaを推測せず、明示default-cli-projectの3scope表示で空を確認した全file fingerprintへ限定する。変更・未知snapshot・不正JSON・symlink・追加allow/askは停止する。Request.settingsは人工の論理templateであり、実globalへの束縛やproofの代わりにならない。
 
-`runtime.resolve_settings_layers` はこれらの境界を理由別STOPで保持する。`--settings`の任意pathだけではglobalへの束縛を証明できない。projectファイル名/スキーマとworkspace対応、共有userの場所/スキーマ、adminの適用有無/存在時優先、permissionsの配列合成は未特定。productionは実機探索も未確認層の読取もせず停止する。認証ファイルは検査対象に含めない。場所の推測や利用者manifest/verifiedフラグの入口は追加しない。
+`Request.permission_root`は省略時workspace。明示する場合もcanonicalな非symlink directory配下のworkspaceだけを受け、内部校正proofがworkspaceとrootを別々に束縛する。論理templateは同じraw bytesのSHA-256で独立束縛し、native globalのhashで代用しない。論理allow/ask/commandはrootのexact集合を維持し、追加denyはroot内の既知literal子corpusだけを認める。実nativeはfile-onlyの2allow・ask空・各corpusと固定全command denyを同一生成元で検査する。
 
-内部 `settings_layer_types` と `settings_layers.inspect_layer_resolution` は、根拠取得後のレビュー済みadapterが渡す全参加元のread-only監査用境界。全4参加元の識別/明示的不存在確認、schema decoder、全層読取を必要とする。不明/一部未読/形式不正は停止し、読取エラーを不存在に変えない。既知pathのlstatでFileNotFoundErrorになった明示的不存在だけを区別する。adminが存在する場合は優先根拠も必要である。層構成には認証情報や対応cacheを混ぜない。
+workspaceは引き続きcwd・lock・差分・会話保存の単位である。同workspaceのbatchは逐次、異なるworkspaceが祖先関係なら全件未起動で拒否し、非重複子だけ既存poolで並列実行する。会話summaryのroot欠落・不一致は推定移行せず拒否する。共有root内の完全隔離や全変更の実行者帰属は保証しない。
 
-許可監査は各層のallow/ask/denyを保守的に集め、deny/askを他層allowで消さず、未承認追加ruleとcorpus deny欠落を検出する。この集約は実際のmerge規則の実装ではなく、監査合格でも実効設定の合格を示さない。schema decoderはfixture固有の偽物だけをテストし、実際のproject/shared/admin schemaを固定していない。runtimeは監査合格でも `settings_permission_merge_unverified` と起動環境STOPを維持する。
+検証済みterminalの5整数token使用量は`Result.usage`とresult.jsonへ保持する。不正/未観測は`None`であり、ゼロ使用とは区別する。
 
-実機の通常runを起動可能にするには、使用版/OS/実行ファイルに束縛された全層の場所・workspace対応・スキーマ・読取結果、admin不存在または存在時優先、permissions配列合成とdeny > ask > allowの根拠、WSL→Windows cwd/path引継ぎの証拠を揃える。その根拠に限定したresolver/decoder/実効合成/起動adapterを独立レビューし、全層検査不能・競合時未起動をfixtureで確認してから接続する。一部の層だけ読めても解除しない。D0/caller停止/成果検証と#513境界は維持する。
+支持する実globalはfile-onlyである。native表記のread_file/write_fileだけをallowし、corpus writeと全commandをdenyする。論理templateの限定Get-ChildItem allowより厳しいsubsetであり、一覧commandが実機で許可済みとは宣言しない。未知native ruleを既知として受理せず、file-onlyの制約を越えるUCは成功扱いしない。
 
-## 実測出力契約（agy 1.3.3）
+proofは固定UID homeの0700/0600内部stateに保存し、期限・source集合・OS/user/home・canonical exe/hash・workspace入力projection・明示selector・global/project/shared bytes/ACL/ownerを照合する。通常runにproof path/manifest/verified flagを注入する入口は無い。Windowsのread-only helper子とagy子を区別し、proof欠落やoffline不正は全子0、Windows事実の差異はagy version/model0で停止する。排他待機後と版照会後にも再照合する。
+
+native cwdの根拠は、本番WSL Pythonから同exeを起動して相対secret anchorを取得したwitnessである。PS Get-Location等の値で代用しない。native path欄は実入力の射影であり、新たなOS cwd観測を装わない。子だけのauto-update無効化、JSON/duration引数とdefault-cli-projectを固定する。
+
+ProgramDataのadmin gateway candidate不存在と、ownerが証言する個人/組織accountの適用範囲を分ける。認証fileからaccount変更を検出しない。account変更時の再校正はownerの運用契約であり、未回答や未支持の管理policyを空と推測して発行しない。
+
+既定の校正/5UCは承認済みtemporary保全sessionでsafe設定を保持し、その間だけproofを発行・使用してfinally元へ復元する。元snapshotへ戻ればproofはhash不一致で自然失効する。恒久設定変更や原rawの新永続backupを前提にしない。出版のcommitpointとdurability warning、残余制約は[cohort判断](../docs/methods/agy-runtime-cohort-628.md)を参照する。
+
+## 実測出力契約（1.4.8正常JSON・1.3.3異常履歴）
 
 必須項目は status / conversation_id / response（文字列）、duration_seconds（boolを除く有限非負数）、num_turns（boolを除く非負整数）、usage（input_tokens / output_tokens / thinking_tokens / cache_read_tokens / total_tokens の5キー、boolを除く非負整数）。token間の算術関係は推測しない。
 
 denied_actionsとerrorは実測で省略される任意項目。denied_actionsがある場合は配列、各要素はaction/display_nameの2キーと非空文字列。errorがある場合は文字列で、停止理由と診断記録に保持する。未知キー・型・非標準数値・重複キーは拒否する。statusがSUCCESSでもstderrのtimeout/error/未知内容や非0exitを優先する。空IDは継続や画像回収に使えず失敗とする。
 
-実測fixtureは tests/fixtures/agy_delegate/1.3.3/ に保存。/usageは完全JSONが提供されていないためfixture化せず、空ID/追加commandの失敗を合成境界テストで確認する。実測で未提供の成功形式を推測して受理しない。
+1.4.8の秘匿済み正常schemaは tests/fixtures/agy_delegate/1.4.8/success-shape.json、旧異常履歴は tests/fixtures/agy_delegate/1.3.3/ に保存。/usageは完全JSONが提供されていないためfixture化せず、空ID/追加commandの失敗を合成境界テストで確認する。実測で未提供の成功形式を推測して受理しない。
 
 ## 許可テンプレート
 
@@ -45,15 +53,15 @@ denied_actionsとerrorは実測で省略される任意項目。denied_actions�
 
 会話はworkspaceの `tmp/agy/conversation-ID.json` と束縛する。記録なし/別workspace/既失敗の継続は拒否。返却ID不一致、子プロセス例外、拒否、画像不足等の失敗で記録を失敗へ更新し、古いsuccessを再利用しない。
 
-CLIで --prompt TEXT を複数指定し、--max-concurrency 1..8 を必須指定する。複数promptと会話継続の併用は拒否する。各結果は入力順にJSON行で返す。API run_parallel も同じ有限上限を使う。同workspace複数promptは入力順の順次バッチで、各件のロック待機上限は当該件のprint_timeout＋10秒と先行各件のprint_timeout＋10秒の総和。別workspaceは有限並列。競合時のtimeoutは workspace_lock_timeout。stale lock は自動削除しない。Issue #606 の並列契約 の書込限定直列化との差分は rationale に記録する。
+CLIで --prompt TEXT を複数指定し、--max-concurrency 1..8 を必須指定する。複数promptと会話継続の併用は拒否する。各結果は入力順にJSON行で返す。API run_parallel も同じ有限上限を使う。同workspace複数promptは入力順の順次バッチで、各件のロック待機上限は当該件のprint_timeout＋10秒と先行各件のprint_timeout＋10秒の総和。別workspaceの制御APIは有限並列だが、現在の支持cohortは単一Wであり、別W同時実行はまだ実機認定していない。競合時のtimeoutは workspace_lock_timeout。stale lock は自動削除しない。Issue #606 の並列契約 の書込限定直列化との差分は rationale に記録する。
 
 画像は返却IDのbrain directoryのみ、新規会話の既存directoryや継続の同一bytesを過去成果として除外し、symlinkも拒否する。実行別UUID directoryに回収する。画像bytesの意味的内容確認はcallerが行う。失敗の画像は診断限定。
 
 CLI stdoutは応答/拒否詳細/画像pathを秘匿する。生データは実行別 `tmp/agy/RUN_ID/result.json`（0600）に保持する。ログを報告するときはcallerが秘密値を確認する。argv/環境/設定/stderr全文は保存/出力しない。run directoryは0700。実行失敗後の書込を自動rollbackしない。
 
-成果の採用判断は呼出agentの契約として実施する。未接続の公開 adoption API は撤去し、期待アンカー・内容・成果物の検証は agent 正本に従う。全層監査は runtime.verify_runtime から呼ばれ、production resolver が未特定を返す間は未確認理由を保持する。
+成果の採用判断は呼出agentの契約として実施する。未接続の公開 adoption API は撤去し、期待アンカー・内容・成果物の検証は agent 正本に従う。全層監査は runtime.verify_runtime から呼ばれ、支持cohortが発行されていない場合は未確認理由を保持する。
 
-版確認は実行対象へ --version を引数配列で渡し、exit0・stderr空・stdout完全一致 1.3.3 のみを受理する。未知形式/版違いならprompt実行を停止し、成功した使用版は結果/実行記録の agy_version に保存する。このstrict形式は合成契約で実機未検証。版probeは runtime 検査より後であり通常停止時は呼ばれない。実測は --model gemini-3.8-flash-low 指定付き、wrapperはmodel指定を公開せずデフォルトを使う差が残る。デフォルトモデルの実機成功は未証明である。
+版確認は固定project付き--versionを引数配列で渡し、exit0・stderr空・stdout完全一致1.4.8のみ受理する。未知形式/版違いはprompt0。使用版は結果と実行記録へ保存する。デフォルトClaude Sonnet 4.6 (Thinking)で実file読取/許可先writeとactualWSL相対解決を観測した。保護file不変は確認したがengine write試行/拒否は直接未観測であり、拒否成功と偽認定しない。現版5UC完了は別途実機検証する。
 
 未実測の authentication / unauthorized / security denied を D0 語として固定しない。D0の機械根拠は実測 denied_actions。未知stderrのみでも失敗、全stderrは内容を保存せず stderr_length を実行記録へ残す。既知異常と未知内容が混在しても長さは残る。
 

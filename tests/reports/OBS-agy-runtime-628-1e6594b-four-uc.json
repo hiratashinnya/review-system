@@ -1,0 +1,397 @@
+{
+  "local_command_stderr_empty": true,
+  "local_policy_observations": [
+    {
+      "stderr_empty": true,
+      "modes": {
+        "defaultMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "executionMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "defaultAgentMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "mode": {
+          "present": false,
+          "known_enum": null
+        },
+        "agentMode": {
+          "present": true,
+          "known_enum": "accept-edits"
+        }
+      },
+      "use_g1_credits_false": true,
+      "turns_zero": true,
+      "usage_zero": true,
+      "exit": 0,
+      "model_provider": null,
+      "custom_models_present": false,
+      "permissions": {
+        "allow": {
+          "array": true,
+          "count": 2,
+          "present": true
+        },
+        "ask": {
+          "present": false
+        },
+        "deny": {
+          "array": true,
+          "count": 2,
+          "present": true
+        }
+      },
+      "permissions_match_candidate": true,
+      "command_name_matches": true,
+      "command": "/config",
+      "envelope_keys": [
+        "conversation_id",
+        "status",
+        "response",
+        "duration_seconds",
+        "num_turns",
+        "usage",
+        "command"
+      ],
+      "model": null,
+      "verified_zero_turn_command": true,
+      "status_success": true
+    },
+    {
+      "stderr_empty": true,
+      "turns_zero": true,
+      "usage_zero": true,
+      "exit": 0,
+      "permissions_match_candidate": true,
+      "command_name_matches": true,
+      "command": "/permissions",
+      "envelope_keys": [
+        "conversation_id",
+        "status",
+        "response",
+        "duration_seconds",
+        "num_turns",
+        "usage",
+        "command"
+      ],
+      "scopes": [
+        {
+          "permissions": {
+            "allow": {
+              "present": false
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "present": false
+            }
+          },
+          "scope": "project"
+        },
+        {
+          "permissions": {
+            "allow": {
+              "present": false
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "present": false
+            }
+          },
+          "scope": "shared"
+        },
+        {
+          "permissions": {
+            "allow": {
+              "array": true,
+              "count": 2,
+              "present": true
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "array": true,
+              "count": 2,
+              "present": true
+            }
+          },
+          "scope": "global"
+        }
+      ],
+      "verified_zero_turn_command": true,
+      "status_success": true
+    }
+  ],
+  "private_output_cleanup_confirmed": true,
+  "cohort_calibration": {
+    "adapter_phase": "completed",
+    "actual_process_adapter": "wsl_python_native_subprocess",
+    "anchor_observed": true,
+    "model_selection": "existing_user_model_no_override",
+    "project_id_matches_explicit_selector": true,
+    "update_environment_verified": true,
+    "restricted_file_applied": true,
+    "local_policy_observations": [
+      {
+        "stderr_empty": true,
+        "modes": {
+          "defaultMode": {
+            "present": false,
+            "known_enum": null
+          },
+          "executionMode": {
+            "present": false,
+            "known_enum": null
+          },
+          "defaultAgentMode": {
+            "present": false,
+            "known_enum": null
+          },
+          "mode": {
+            "present": false,
+            "known_enum": null
+          },
+          "agentMode": {
+            "present": true,
+            "known_enum": "accept-edits"
+          }
+        },
+        "use_g1_credits_false": true,
+        "turns_zero": true,
+        "usage_zero": true,
+        "exit": 0,
+        "model_provider": null,
+        "custom_models_present": false,
+        "permissions": {
+          "allow": {
+            "array": true,
+            "count": 2,
+            "present": true
+          },
+          "ask": {
+            "present": false
+          },
+          "deny": {
+            "array": true,
+            "count": 2,
+            "present": true
+          }
+        },
+        "permissions_match_candidate": true,
+        "command_name_matches": true,
+        "command": "/config",
+        "envelope_keys": [
+          "conversation_id",
+          "status",
+          "response",
+          "duration_seconds",
+          "num_turns",
+          "usage",
+          "command"
+        ],
+        "model": null,
+        "verified_zero_turn_command": true,
+        "status_success": true
+      },
+      {
+        "stderr_empty": true,
+        "turns_zero": true,
+        "usage_zero": true,
+        "exit": 0,
+        "permissions_match_candidate": true,
+        "command_name_matches": true,
+        "command": "/permissions",
+        "envelope_keys": [
+          "conversation_id",
+          "status",
+          "response",
+          "duration_seconds",
+          "num_turns",
+          "usage",
+          "command"
+        ],
+        "scopes": [
+          {
+            "permissions": {
+              "allow": {
+                "present": false
+              },
+              "ask": {
+                "present": false
+              },
+              "deny": {
+                "present": false
+              }
+            },
+            "scope": "project"
+          },
+          {
+            "permissions": {
+              "allow": {
+                "present": false
+              },
+              "ask": {
+                "present": false
+              },
+              "deny": {
+                "present": false
+              }
+            },
+            "scope": "shared"
+          },
+          {
+            "permissions": {
+              "allow": {
+                "array": true,
+                "count": 2,
+                "present": true
+              },
+              "ask": {
+                "present": false
+              },
+              "deny": {
+                "array": true,
+                "count": 2,
+                "present": true
+              }
+            },
+            "scope": "global"
+          }
+        ],
+        "verified_zero_turn_command": true,
+        "status_success": true
+      }
+    ],
+    "relative_path_in_prompt": true,
+    "normalized_success": true,
+    "executable_binding_verified": true,
+    "selected_model": "Claude Sonnet 4.6 (Thinking)",
+    "selected_provider": null,
+    "fixture_leaf": "live-628-ef309273ddf8447e880951379c8d461f",
+    "corpus_unchanged": true,
+    "anchor_value_passed_in_prompt": false
+  },
+  "version": "1.4.8",
+  "auto_update_disabled_for_child": true,
+  "original_four_files_held_in_memory": true,
+  "help_attempted": false,
+  "native_prompt_launch_count": 5,
+  "anchor_phase": "wait_normal_wrapper",
+  "local_command_exit": 0,
+  "raw_settings_persisted": false,
+  "operation_stage": "replace_or_move_target",
+  "probe_observations_complete": true,
+  "local_command_phase": "permissions_complete",
+  "current_exe_hash_unchanged": true,
+  "cohort_single_trial": {
+    "proof_committed": true,
+    "normal_success": true,
+    "impact_witness": true,
+    "source_unchanged": true,
+    "durability_warning": false,
+    "publication_phase": "complete",
+    "durability_confirmed": true,
+    "version_supported": true,
+    "normal_reason_count": 0,
+    "impact_usage": {
+      "input_tokens": 4935,
+      "output_tokens": 276,
+      "thinking_tokens": 0,
+      "cache_read_tokens": 11315,
+      "total_tokens": 5211
+    },
+    "use_cases": {
+      "draft": {
+        "success": true,
+        "witness": true,
+        "version_supported": true,
+        "reason_count": 0,
+        "artifact_count": 0,
+        "usage": {
+          "input_tokens": 4921,
+          "output_tokens": 617,
+          "thinking_tokens": 0,
+          "cache_read_tokens": 11319,
+          "total_tokens": 5538
+        }
+      },
+      "external": {
+        "success": true,
+        "witness": true,
+        "version_supported": true,
+        "reason_count": 0,
+        "artifact_count": 0,
+        "usage": {
+          "input_tokens": 9285,
+          "output_tokens": 533,
+          "thinking_tokens": 0,
+          "cache_read_tokens": 19452,
+          "total_tokens": 9818
+        },
+        "direct_web_tool_observed": false
+      },
+      "image": {
+        "success": true,
+        "witness": true,
+        "version_supported": true,
+        "reason_count": 0,
+        "artifact_count": 1,
+        "usage": {
+          "input_tokens": 9430,
+          "output_tokens": 951,
+          "thinking_tokens": 0,
+          "cache_read_tokens": 37027,
+          "total_tokens": 10381
+        },
+        "artifacts": [
+          {
+            "recognized_raster": true,
+            "byte_count": 270217,
+            "sha256": "49dd7f541188de858c85f7f2242b8985515dd6d6fa6d5ece94c642e9fe3d5a12"
+          }
+        ]
+      }
+    }
+  },
+  "model_launch_count": "unverified_internal_subagent_count",
+  "version_attempted": true,
+  "cohort_normalization": {
+    "change_shape": {
+      "known_changes": [
+        {
+          "before_present": true,
+          "key": "useG1Credits",
+          "before_is_false": true,
+          "after_kind": "null",
+          "before_kind": "boolean",
+          "after_is_false": false,
+          "after_present": false
+        }
+      ],
+      "unknown_changed_key_count": 0
+    },
+    "nonpermissions_equivalent_under_known_default": true,
+    "zero_turn_commands_verified": true,
+    "permissions_match_candidate": true,
+    "global_bytes_changed": true,
+    "nonpermissions_semantic_same": false,
+    "acl_owner_same": true,
+    "g1_false_observed": true
+  },
+  "cohort_single_complete": true,
+  "settings_restored": true,
+  "worker_naturally_completed": true,
+  "worker_exit": 0,
+  "worker_stderr_empty": true,
+  "source_unchanged_through_completion": true,
+  "post_restore_proof_invalidated": true
+}

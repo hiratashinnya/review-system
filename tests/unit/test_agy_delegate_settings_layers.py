@@ -43,9 +43,10 @@ class SettingsLayersTests(unittest.TestCase):
         self.assertEqual(self.inspect(), [])
         self.assertEqual([layer.path.read_bytes() for layer in self.layers], before)
         with patch("agy_delegate.runtime.resolve_settings_layers",
-                   return_value=SettingsResolution(tuple(self.layers))):
-            self.assertEqual(verify_runtime(self.fake.request()),
-                             ["settings_permission_merge_unverified", "launch_environment_unverified"])
+                   return_value=SettingsResolution(tuple(self.layers))), patch("subprocess.run") as child:
+            reasons = verify_runtime(self.fake.request())
+        child.assert_not_called()
+        self.assertTrue(any(reason.startswith("cohort_") for reason in reasons))
 
     def test_project_allow_does_not_erase_global_deny_or_shared_ask(self):
         self.write(1, self.rules)

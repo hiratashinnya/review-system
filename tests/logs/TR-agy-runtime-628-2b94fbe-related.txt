@@ -1,0 +1,10 @@
+source_commit=2b94fbe3d3640b833b42d2b484911a908f891aab
+package_source_sha256_before_and_after=1493aa8414594aaa7ed434eb9f0a2284a3ca8bdbf4155262158ef920282ac250
+command=UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline --with coverage coverage run --data-file=/tmp/agy-singlew-guardfix.coverage --source=agy_delegate -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'
+exit_code=0
+.....................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 229 tests in 52.129s
+
+OK
+

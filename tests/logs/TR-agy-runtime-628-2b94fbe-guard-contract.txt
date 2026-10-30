@@ -1,0 +1,11 @@
+commit=2b94fbe
+command=UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline python -m unittest tests.unit.test_agy_delegate_merge_guard tests.unit.test_agy_delegate_merge_guard_contract -v
+test_production_runtime_has_no_unverified_stop_reasons (tests.unit.test_agy_delegate_merge_guard.RuntimeMergeGuardTests.test_production_runtime_has_no_unverified_stop_reasons) ... ok
+test_runtime_without_fixed_reasons_still_fails_inventory (tests.unit.test_agy_delegate_merge_guard_contract.MergeGuardContractTests.test_runtime_without_fixed_reasons_still_fails_inventory) ... ok
+test_stop_reason_without_unverified_suffix_remains_red (tests.unit.test_agy_delegate_merge_guard_contract.MergeGuardContractTests.test_stop_reason_without_unverified_suffix_remains_red) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.026s
+
+OK
+

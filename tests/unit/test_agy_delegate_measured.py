@@ -77,12 +77,12 @@ class MeasuredContractTests(unittest.TestCase):
         self.assertIn("conversation_id_invalid", result.reasons)
         self.assertIn("unknown_output_fields", result.reasons)
 
-    def test_output_gate_removed_but_unmeasured_runtime_always_prevents_launch(self):
+    def test_output_gate_removed_but_uncalibrated_runtime_prevents_launch(self):
         fake = FakeWorkspace()
         self.addCleanup(fake.close)
         with patch("agy_delegate.runner.execute") as child:
             result = run(fake.request())
-        self.assertIn("settings_permission_merge_unverified", result.reasons)
-        self.assertIn("launch_environment_unverified", result.reasons)
+        self.assertIn("runtime_cohort_unverified", result.reasons)
+        self.assertIn("settings_executable_layout_unsupported", result.reasons)
         self.assertNotIn("output_contract_unverified", result.reasons)
         child.assert_not_called()

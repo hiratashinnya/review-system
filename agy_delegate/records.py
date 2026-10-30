@@ -4,7 +4,7 @@ import json
 import os
 import time
 from contextlib import contextmanager
-from dataclasses import asdict
+from .record_data import execution_record
 from pathlib import Path
 
 from .atomic_record_write import atomic_private_write as _private_write, remove_marker
@@ -38,7 +38,7 @@ def check_conversation(root: Path, request: Request) -> None:
         data = load_json(record.read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeError):
         raise ValueError("conversation_record_missing_or_invalid") from None
-    validate_record(data, str(request.workspace.resolve()), request.conversation)
+    validate_record(data, str(request.workspace.resolve()), request.conversation, request.permission_root)
 
 
 @contextmanager
@@ -63,7 +63,7 @@ def execution_lock(root: Path, *, wait_seconds: int = 130):
 def save_record(root: Path, request: Request, result: Result) -> list[Path]:
     """印の削除は confirm_record に委ね、結果→会話の削除順で印を返す。
     独立 unlink の残存: 結果側失敗は両印を残す。会話側失敗は result.json が確定して見えるが継続を拒否する。"""
-    data = asdict(result) | {"workspace": str(request.workspace.resolve())}
+    data = execution_record(request, result)
     result_path = root / result.run_id / "result.json"
     success = result.classification == "success_candidate"
     initial = (data | {"classification": "failed", "reasons": result.reasons + ["result_unconfirmed"]}

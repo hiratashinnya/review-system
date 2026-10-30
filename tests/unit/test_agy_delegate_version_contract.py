@@ -30,12 +30,12 @@ class VersionContractTests(unittest.TestCase):
 
     def test_version_mismatch_prevents_prompt_and_verified_version_is_recorded(self):
         executable = self.fake.executable
-        executable.write_text(executable.read_text().replace("print('1.3.3')", "print('9.9.9')"))
+        executable.write_text(executable.read_text().replace("print('1.4.8')", "print('9.9.9')"))
         result = execute(self.fake.request(), "run")
         self.assertIn("agy_version_unverified_or_mismatch", result.reasons)
         self.assertFalse((self.fake.workspace / "launched.json").exists())
-        executable.write_text(executable.read_text().replace("print('9.9.9')", "print('1.3.3')"))
+        executable.write_text(executable.read_text().replace("print('9.9.9')", "print('1.4.8')"))
         result = run_synthetic(self.fake.request())
-        self.assertEqual(result.agy_version, "1.3.3")
+        self.assertEqual(result.agy_version, "1.4.8")
         record = self.fake.workspace / "tmp/agy" / result.run_id / "result.json"
-        self.assertEqual(json.loads(record.read_text())["agy_version"], "1.3.3")
+        self.assertEqual(json.loads(record.read_text())["agy_version"], "1.4.8")
