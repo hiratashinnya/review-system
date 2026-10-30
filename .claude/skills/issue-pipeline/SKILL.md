@@ -90,7 +90,9 @@ hookが検査する作業面はhookプロセスのcwd、つまり主文脈のセ
 2026-10-30の実測では、作業面を作り `python3 -m gitgate adopt-branch` でbranchを取ってから
 `git switch --detach` で外した状態のcwdがhookに検査された。
 hookはdetachedだけを受理し、対象branch上と別名branch上は入口で `ISSUE_START_PHASE_TARGET_INVALID` として拒否する。
-対象branch上を通すと次作者のadopt-branchが使用中branchとして必ず失敗し、hookが起票した失敗作者のentryが
+作業面がdetachedでも、primary checkoutを含む他のworktreeが対象branchを掴んでいれば、掴んでいるpathを示して同じreasonで拒否する
+（`git worktree list` が失敗して判定できないときも拒否する）。
+対象branchを掴んだまま通すと次作者のadopt-branchが使用中branchとして必ず失敗し、hookが起票した失敗作者のentryが
 最新ownerとして残るため、そのbranchでは継続できなくなる。入口での拒否は台帳起票の前なので、detachして出し直せる。
 read-onlyのCodex経路（`issue_start.readonly_workspace`）はprimaryから起動する。主文脈はExitWorktree等で
 作業面を残したままprimaryへ戻ってから実行し、後続作者を起動するときに作業面へ入り直してdetachを確かめる。

@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 from issue_start.gate_dispatch import parse_dispatch_payload
 from issue_start.gate_support import IssueStartError
-from issue_start.phase_target_binding import _require_detached
+from issue_start.phase_target_binding import _require_branch_unheld, _require_detached
 from tests.unit import test_phase_dispatch_binding as phase_fixture
 from tests.unit.codex_worktree_exec_support import git
 
@@ -101,6 +101,34 @@ class PhaseTargetBindingTests(unittest.TestCase):
         self.native["branch_name"] = self.fixture.approval["dispatch_target"]["branch_name"] = "other"
         with self.assertRaisesRegex(IssueStartError, "CONTINUATION_INVALID: predecessor must be latest branch owner"):
             self.parse()
+
+    def test_detached_surface_is_rejected_while_another_worktree_holds_the_target_branch(self):
+        oid = self.native["expected_oid"]
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        main = Path(git(self.root, "rev-parse", "--path-format=absolute", "--git-common-dir")).parent
+        other = main.parent / "other-holder"
+        for holder, place in (("linked", lambda: git(main, "worktree", "add", "-q", str(other), "agent/test")),
+                              ("primary", lambda: git(main, "switch", "-q", "agent/test"))):
+            place()
+            before = self.surface()
+            with self.subTest(holder=holder), self.assertRaises(IssueStartError) as caught:
+                self.parse()
+            self.assertEqual(caught.exception.reason, "ISSUE_START_PHASE_TARGET_INVALID")
+            self.assertIn(str(other if holder == "linked" else main), str(caught.exception))
+            self.assertIn(f"git switch --detach {oid}", str(caught.exception))
+            self.assertEqual(self.surface(), before)
+            if holder == "linked":
+                git(main, "worktree", "remove", "--force", str(other))
+
+    def test_worktree_listing_failure_is_rejected_not_treated_as_unheld(self):
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        failure = subprocess.CalledProcessError(128, ["git", "worktree", "list"])
+        with patch("issue_start.phase_target_binding._require_branch_unheld", side_effect=failure), \
+                self.assertRaisesRegex(IssueStartError, "PHASE_TARGET_INVALID"):
+            self.parse()
+        failing = lambda *args: (_ for _ in ()).throw(failure)
+        with self.assertRaises(subprocess.CalledProcessError):
+            _require_branch_unheld(failing, "agent/test", "a" * 40)
 
     def test_git_failure_other_than_detached_is_not_treated_as_detached(self):
         with tempfile.TemporaryDirectory() as outside, self.assertRaises(subprocess.CalledProcessError):
