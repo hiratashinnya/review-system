@@ -18,14 +18,13 @@ Project の読み書き手段が無い場合は、Issue／Project への write �
 | Priority | <値> | <根拠> |
 | Horizon | **要オーナー確認（AI は既定値を持たない）** | 未確認値を設定しない |
 | Review date | <値 or 不要> | `Deferred` のときは必須 |
-| Harness | <Issue 本文に明記された値 or 未指定・変更対象外> | 本文に対象 harness の記載がなければ設定しない・確認しない |
 ```
 
-live metadata を取得できていない事実を明記し、記憶から option 名を埋めない。`Horizon`、`Deferred`、`Review date` はオーナー確認なしに設定しない。`Priority` は根拠がある場合だけ推奨値を記載する。Harness は本文に対象 harness が明記されている場合だけ推奨値を記載し、未記載なら「未指定・変更対象外」として質問しない。完了報告では Project item 未追加を部分成功として明示する。
+live metadata を取得できていない事実を明記し、記憶から option 名を埋めない。`Horizon`、`Deferred`、`Review date` はオーナー確認なしに設定しない。`Priority` は根拠がある場合だけ推奨値を記載する。`area:harness` の Issue は `## 対象 harness` を本文へ記載する。Project の `Harness` field は設定・照合せず、その field を設定できないことを理由に停止または未完了扱いにしない。完了報告では Project item 未追加を部分成功として明示する。
 
 ## Issue は作成できたが Project 反映に失敗した
 
-Issue URL、成功した項目、Project 未追加、未設定 fields、relations の状態を記録して fail-close で停止する。別 Project を推測して追加しない。安全に修正できる範囲だけを修正し、read-back で確認する。修正手段が無ければ未設定項目とオーナーが行う操作を報告する。
+Issue URL、成功した項目、Project 未追加、未設定 fields、relations の状態を記録して fail-close で停止する。別 Project を推測して追加しない。安全に修正できる範囲だけを修正し、read-back で確認する。修正手段が無ければ未設定項目とオーナーが行う操作を報告する。Project の `Harness` field は更新対象外なので、更新できない場合も停止理由・未完了項目にしない。Harness 情報は Issue 本文の `## 対象 harness` を正とする。
 
 ## Claude Code でサブエージェントの draft が表示されない／表示を確認できない（Issue #632）
 
