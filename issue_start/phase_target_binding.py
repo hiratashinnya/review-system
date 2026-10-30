@@ -8,7 +8,8 @@ from .gate_support import IssueStartError
 def validate_phase_target(approval, native, cwd, *, initial=False):
     """未来branchの初回著作と、既存branchの後続著作を区別して照合する。
 
-    後続の検査面は対象branch上かdetachedに限り、detachedのbranch名はremote側照合へ委ねる（#685）。"""
+    後続の検査面は対象branch上かdetachedに限る。detachedのbranch名は台帳の最新owner照合と
+    remote exact OID照合（ls-remote・adopt-branch stage 2）へ委ねる（#685）。"""
     try:
         target = approval["dispatch_target"]
         if not isinstance(target, dict) or set(target) != {"repository", "branch_name", "expected_oid"}:

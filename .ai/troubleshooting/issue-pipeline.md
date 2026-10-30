@@ -42,7 +42,8 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 失敗文言に**誰がそのブランチを掴んでいるか**が出る。主体で処置が変わる。
 
-- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態。gitgate の worktree verb では解消しない。当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。
+- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態か、主文脈が primary checkout を工程 dispatch の作業面に使った状態。gitgate の worktree verb では解消しない。primary checkout は工程 dispatch の作業面にしないので、当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。工程 dispatch は linked 作業面から出し直す。
+- **台帳 entry の無い linked worktree が主文脈の工程 dispatch 作業面だった** — 対象ブランチを掴んだまま次作者を dispatch した状態。当該作業面で `git switch --detach <expected_oid>` を実行してから次作者を dispatch し直す（`.claude/skills/issue-pipeline/SKILL.md`「工程の入力と独立レビュー束縛（全工程必須）」と同じ手段）。失敗文言が案内する `worktree-release --force-uncollected` は主文脈の作業面を消すので実行しない。主文脈の作業面でない linked worktree は次項と同じく台帳と回収可否を確かめてから処置する。
 - **agent worktree** — 台帳 entry が併記されていれば `python3 -m gitgate collect-worktree --entry <entry-id>`。回収不能なら `worktree-forget --entry <entry-id> --reason <text>` → `worktree-release <path> --force-uncollected --reason <text>`。
 - **ローカル ref の tip が origin と違う** — 正体不明のローカル作業がある。内容を確認せずに消さない。
 

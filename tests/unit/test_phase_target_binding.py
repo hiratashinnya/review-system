@@ -83,10 +83,10 @@ class PhaseTargetBindingTests(unittest.TestCase):
                 self.parse()
             self.native[key] = self.fixture.approval["dispatch_target"][key] = saved
 
-    def test_detached_branch_rename_is_left_to_the_remote_continuation_check(self):
+    def test_detached_branch_rename_is_rejected_by_the_latest_ledger_owner_check(self):
         git(self.root, "switch", "-q", "--detach", "HEAD")
         self.native["branch_name"] = self.fixture.approval["dispatch_target"]["branch_name"] = "other"
-        with self.assertRaisesRegex(IssueStartError, "CONTINUATION_INVALID"):
+        with self.assertRaisesRegex(IssueStartError, "CONTINUATION_INVALID: predecessor must be latest branch owner"):
             self.parse()
 
     def test_git_failure_other_than_detached_is_not_treated_as_detached(self):

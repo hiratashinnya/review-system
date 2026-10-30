@@ -78,8 +78,12 @@ ISSUE_PHASE_PREDECESSOR_V1={"entry_id":"wl-...","receipt_sha256":"64-HEX"}
 ```
 
 hookは同Issue/branchの最新owner、直前role、回収receipt bytes、解放済み台帳、remote exact OIDを照合する。
-dispatch元cwdはHEADを `expected_oid` に置いたdetachedとする。hookは別名branch上を拒否し、
+dispatch元cwdはhookが検査する作業面で、主文脈が使う登録済みlinked作業面とする。primary checkoutは使わない。
+主文脈はその作業面がcleanであることを確かめ、`git fetch origin BRANCH` の後に `git switch --detach OID`
+（OIDは `expected_oid`）を実行し、その作業面から次作者を起動する。hookは別名branch上を拒否し、
 対象branch上は通すが、その状態では次作者のadopt-branchが使用中branchとして拒否する。
+この作業面は台帳entryを持たないので、adoptの失敗文言が案内するrelease系verbで消さない。
+この手順による実dispatchの成立は未実測で、#652等の実dispatchで確かめる。
 次作者を別の `isolation: "worktree"` で起動し、本人が6field bindingの値を使って
 `gitgate adopt-branch BRANCH --repository OWNER/REPO --expected-oid OID` を実行する。
 失敗時はSTOPし、使用中branch拒否を迂回しない。独立reviewとowner承認を毎工程で維持する。
@@ -99,7 +103,7 @@ ISSUE_FIX_BINDING_V1={"issue":N,"round":R,"branch_name":"BRANCH","repository":"O
 exact 6 field：`issue`／`round`（1始まり単調増加）／`branch_name`（既に PR が開いているブランチ名）／`repository`（`gitgate adopt-branch --repository` に渡す値）／`expected_oid`（remote 先端 exact 40 桁 hex）／`handoff_path`。
 `isolation_only` 区分では shape・isolation・marker だけを検証する。
 
-- **メインワークツリーのブランチは切り替えない**。`issue-fixer` は自分の worktree で `python3 -m gitgate adopt-branch <branch> --repository <repository> --expected-oid <expected_oid>` を実行して PR ブランチを取得する。
+- **メインワークツリー（primary checkout）のブランチは切り替えない**。fixer dispatchは作業面のHEAD検査を持たないのでdetachも要らない。工程作者dispatchのdetachは上記のlinked作業面で行い、primary checkoutには及ばない。`issue-fixer` は自分の worktree で `python3 -m gitgate adopt-branch <branch> --repository <repository> --expected-oid <expected_oid>` を実行して PR ブランチを取得する。
 - **レビュー結果を先にカルテへ取り込む**（dispatch 前）：`python3 -m karte ingest-review --issue <N> --round <R> --from <repo-root 配下のパス>`。これは主文脈が実行する。
 - **カルテのパスは渡さない**。渡すのは `{issue, round}` だけで、`issue-fixer` は `python3 -m karte <verb> --issue <N> --round <R>` で触る。
 - `adopt-branch` が `BRANCH_ADOPT_ALREADY_CHECKED_OUT` で失敗した場合や worktree が残留した場合は、troubleshooting の回収手順を主文脈で行う。
