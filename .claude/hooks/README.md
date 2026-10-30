@@ -774,6 +774,14 @@ markerとreceiptの詳細は[Claude issue-pipeline](../skills/issue-pipeline/SKI
 から**サブプロセスを介さず**注入点(`repo_root` / `now` / `runner`)込みで検証できるようにするため。
 フック本体をシェルの heredoc に埋めると、実リポジトリの台帳・カルテを汚さずに検証できない。
 
+`issue-start-gate.sh` は他の起動口と違って `cd` しない。hook プロセスの cwd（主文脈のセッション cwd）が
+検査作業面そのものだからである。その代わり `python3 -P -m issue_start.hook` で cwd を `sys.path` に入れず、
+gate のコードを `$CLAUDE_PROJECT_DIR`（未設定なら起動口自身の root）からだけ読む。検査対象 branch の作業面に
+置かれた `issue_start` や標準ライブラリ同名ファイルで gate の判定を差し替えられないようにするため（#685 F-685-22）。
+`-P` は Python 3.11 以上が要る。`PYTHONSAFEPATH=1` を使わないのは、古い python3 がこの環境変数を黙って無視して
+cwd 優先の import に戻るため。`-P` なら古い python3 は不明オプションとして exit 2 で止まり、PreToolUse の exit 2 は
+block として扱われる（古い python3 での実測はしていない）。
+
 ## fail 方針の非対称(設計判断・意図的に方向が逆)
 
 | 対象 | 方針 | 判定不能・失敗時の挙動 |

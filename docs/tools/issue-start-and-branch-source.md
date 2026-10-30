@@ -65,6 +65,6 @@ worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承�
 
 - Codex dispatch: `.codex/hooks.json` → `.codex/hooks/issue-start-gate.sh`（`ISSUE_START_TRANSPORT_UNAVAILABLE`）
 - Claude: `.claude/settings.json` → `.claude/hooks/issue-start-gate.sh`
-- 共通 core: `python3 -m issue_start.hook`
+- 共通 core: `python3 -P -m issue_start.hook`（cwd＝検査作業面を `sys.path` に入れない）
 
 project hook が trusted/enabled で実際に fired した managed operation だけが保護対象である。direct shell/API invocation、未知 harness、hook を無効化した環境は manifest の unmanaged 分類であり、保護済みとは主張しない。`/hooks` と harness log で registration・trust・fire を確認する。
