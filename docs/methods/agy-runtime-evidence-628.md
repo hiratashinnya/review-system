@@ -1,10 +1,10 @@
 # agy 実効設定・WSL 起動の観測記録（Issue #628）
 
-Codex (AI) による 2026-10-22〜28 の部分的な実測・実装記録。受入完了・通常 run の解除を意味しない。
+Codex (AI) による実測・実装記録。agy1.4.8の限定cohortで通常wrapperの5UCを確認した。最終レビュー・#607引渡し・owner手動mergeは個別に確認する。
 下段は PR #627 head `f09f3d099952e9da8293ae88da3749b2c276973e`。
 個人パスは `<windows-user>`、`<linux-user>` に置換して記録する。
 以下の「使用版と実行環境」から「現環境で解除できない理由と必要条件」までは
-2026-10-22 の観測履歴である。各旧章の「現在」は記載日当時を指し、最新の部分実装・検証は「1.4.8の部分実装と検証」に記録する。
+2026-10-22 の観測履歴である。各旧章の「現在」は記載日当時を指し、後続の実装・実測は日付とsourceを分けて記録し、末尾の5UC・設定層対応表を現在の支持範囲とする。
 
 ## 使用版と実行環境
 
@@ -256,6 +256,8 @@ F-628-23はresolved、現在openはF-628-01。本番1.3.3契約と起動停止�
 
 ## 1.4.8の部分実装と検証（2026-10-28）
 
+この章は当日時点の履歴であり、後続の校正・5UC・回帰試験結果は次章以降に記録する。
+
 新しいsnapshotに基づく実機観測で版1.4.8を確認した。親process限定の
 `AGY_CLI_DISABLE_AUTO_UPDATE=true` を用い、前後の実行file指紋一致・元4file復元・自然終了を確認した。
 これは当該cohortの根拠であり、旧1.3.3/1.3.5/1.4.6観測や過去の終了unknownを遡及更新しない。
@@ -302,26 +304,79 @@ TOTALを全repository包含とは主張しない。HTML/report生成は成功し
 f9dba37は別coverage dataを用い、旧全量log・data・HTMLを上書きしていない。生成物はcommit対象外である。
 この文書・coverage専用TRの作成者は既記録を照合しただけで、テストや実機操作を追加実行していない。
 
-## 後続の実測と #607 への引継ぎ
+## 同snapshot校正と通常影響分析の実機成功（source edda082）
 
-公式 `agy --help` に config/home を切り替えるオプションはない。
-`--project` は既存 user/global を隔離する証明にはならない。
-専用 Windows user/home を使う案に対し、owner は既存ユーザーの設定変更案を選択した。
-承認済みA2と、別途承認されたB1のglobal限定表示・復元は完了した。
-read-only inventoryで観測した候補のidentity・shapeだけでは参加sourceやpermissions schemaは確定しない。
-B2a当時のrawbytes不一致・旧cleanup/proof未認定・旧reader終了unknownは上記の履歴として保持する。
-今回の新1.4.8 snapshotでの元4file復元・自然終了を、過去の未確認証跡の補完には使わない。
-限定モデルprobeとread witnessは実施済みだが、4層の根拠・実効merge・起動adapter/cwd・5UC・本番guard解除は未完了である。
-engine直接拒否は観測限界として保持し、追加の完了条件にはしない。
-project/sharedの全一般形schema対応も新ACにせず、未対応schema/環境ではfail-closeを維持する限定adapter方針とする。
-環境・scope・費用条件・比較/復元・終了確認を揃え、未知なら停止して次の根拠を取得する。
+実行sourceは `edda08220ef5060e38685f39af8fcfdbb37a5640`、CLIは1.4.8、WSLはUbuntu、実行側は既存Windows user/homeである。個人accountはownerの本人申告に基づく運用条件であり、機械認証の証明ではない。校正worker・通常wrapperは同じnative executable・明示default-cli-project・固定workspaceに束縛し、子だけの自動更新抑止を確認した。設定原文・認証file・応答原文は公開記録に含めない。
 
-1. project/shared/adminの参加元・permissions格納schema・CLI選定条件を確定する。cacheや候補file名から適用を推定しない。
-2. 対象cohortのrule重複、異なるrule、allow/ask/deny競合と実効mergeを確認する。
-3. cwd/selector/URIと起動条件を、構文受理やfile候補発見とは分けて照合する。実timeout顛末の観測限界も記録する。
-4. 影響調査・素案・外部調査・画像生成・並列の5UCを本番wrapperで行い、成果・版・設定・使用量を記録する。
+元4fileをWindows親memoryに保持してsafe policyを一時適用した。準備表示による非permissions差分はuseG1Creditsの厳密falseから欠落への既知省略1点だけ、未知変更は0だった。正式configはstrict false、global/project/shared表示とcandidateが一致した。正式なnormalized snapshotをbaselineとして相対path anchorを本番WSL subprocessで読み、値をpromptへ渡さず応答一致を確認した。
 
-これは実験入力の書込みを伴い、read-only 観測だけでは合成規則を証明できない。
-#607 への現時点の引継ぎは「撤去不可、実機証明未完」。
-#513 の corpus 保護・D0・未検証成果不採用を緩めず、設定検査は sandbox ではないという
-PR #627 の制約を維持する。merge guard は意図的に赤のままである。
+校正proofのpublicationはcommitted／complete、durability confirmed true、warning falseだった。続く通常 `runner.run` の影響分析は `success_candidate`／`SUCCESS`／exit0、reason0で、非prompt nonceとaffected_callerの応答一致を確認した。モデル起動は校正1件と通常影響分析1件の計2件であり、校正を別UCへ数えない。保護sentinelは不変だったが、engineのwrite試行と直接拒否は未観測である。
+
+finallyで原4fileのbytes・ACL・ownerを全件再照合して復元した。workerは自然終了exit0、stderr空、source/executable不変、private output cleanupを確認した。原設定rawの新規永続化、恒久設定変更、追加購入は行っていない。復元後のproofはsnapshot不一致で拒否され、safe一時設定の証拠が元設定へ流用されないことも確認した。この成功は過去B2aのrawbytes不一致・旧reader終了unknownを遡及解消しない。
+
+安全結果SHA256は `a43472309572befe632b6e3d9ce2221576a5f51e71ec11de2cca2c223ecac9fe`、実行freezeは `4fa914431ad1371e5a7cb2392aeb873ea4fdd176cb02c7f8b4e609beec8cee2e`（67 entry）。別contextのR111で結果・provenance・source/freezeを照合し、新規指摘0だった。R111時点では残4UCと最終ACが未完了だった。後続の4UC/並列実測と最終回帰は次章以降へ分ける。
+
+## source別の追加検証
+
+`2b94fbe`の全agy関連229件は52.129秒で成功した。専用coverageは1439 statements／69 miss／95%、lint違反0・既存負債77、asset parity exit0だった。`5eddf97`はTD訂正、`edda082`は27件のログ/TR追加だけで、当該測定からpackage・TCは不変である。218件中5失敗、229件中2ERROR、旧全量FAIL2は履歴として保持し、今回の関連試験成功を全repository試験成功へ拡張しない。source別TRとlogは `tests/reports/` と `tests/logs/` を参照する。
+
+## 通常wrapperの4UC実測（source 1e6594b）
+
+source `1e6594bbadb8455d241491fd01a5b7310daf650e`で通常wrapperの影響分析・素案・外部調査・画像生成を実行した。packageは実装source `fb11ab2658ac11d1c41adeeb109712528ff4a8a7`と同じである。CLI1.4.8、Ubuntuから既存Windows user/homeのnative exe、明示default-cli-project、個人accountのowner申告、既存選択モデルClaude Sonnet 4.6 (Thinking)、agentMode accept-edits、実効useG1Credits=falseの条件に限定する。
+
+同snapshotの校正proofはcommitted／complete、durability true、warning falseで、WSL actual subprocessの相対anchor witnessを確認した。通常4UCはsuccessと各witnessがtrue、reason0、受理版一致だった。外部調査の応答witnessは確認したが、直接のweb tool呼出は観測しておらず、tool実行の機械証明とは扱わない。
+
+| 通常UC | input tokens | output tokens | thinking tokens | cache read tokens | total tokens | 成果確認 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 影響分析 | 4935 | 276 | 0 | 11315 | 5211 | 非prompt nonceとaffected_caller一致 |
+| 素案 | 4921 | 617 | 0 | 11319 | 5538 | 読取markerと3見出し一致 |
+| 外部調査 | 9285 | 533 | 0 | 19452 | 9818 | 公式URLとassertLogsのformatter引数・3.15追加の応答一致、直接web tool未観測 |
+| 画像生成 | 9430 | 951 | 0 | 37027 | 10381 | wrapper回収artifact1件、raster認識 |
+
+usageはnative JSONの5整数をそのまま保存した値であり、cacheとの算術関係や金額へ換算しない。画像artifactは270217 bytes、SHA256 `49dd7f541188de858c85f7f2242b8985515dd6d6fa6d5ece94c642e9fe3d5a12`。校正を含むnative prompt起動は5件だった。内部subagentを含むモデル起動総数は未確認であり、5件とは断定しない。
+
+元4fileは親memoryに保持し、finallyでbytes・ACL・ownerの全件完全復元、Windows worker自然終了exit0・stderr空、source/executable不変、private output cleanupを確認した。原設定rawの新規永続化・恒久設定変更・追加購入は行っていない。復元後のproofはsnapshot不一致で拒否された。保護sentinel不変を直接のengine拒否証明へ拡張しない。
+
+安全結果SHA256は `8ccbdb6f933a8b082727b6f3a4e947c162140238ef47f4d4a66de3592e5975b8`、provenance SHA256は `61a5712843c844947872fa1ef7cae3b4e38e4b9fc36ae04c75f2154636775bc3`、実行freeze SHA256は `2c8b28c813227f1ded80c37a877e90c1fdd9b173994bf5e956fb5fb8735a72d5`（73 entry）。4UCはR116の独立レビューで新規指摘0を確認した。後続の並列UCと全体回帰は次章へ分ける。
+
+## 実同時並列と最終回帰（source 01cc080）
+
+実行sourceは `01cc08066dda3f1e62d932e9134d34436ad7125f`。製品package/TCは `fb11ab2`と同一で、`1e6594b`以降は全量試験記録だけを追加した。承認済みpermission_root Wを拡張せず、非重複の子workspace A/Bを各々校正し、通常 `run_parallel` で2件を実行した。native policyはallow2・ask空・deny4（W/A/B corpusと全command）に限定した。
+
+2proofがcommitted、各校正anchorと通常payload witnessが一致、両通常結果が成功した。外部observerがexeとargv markerを照合した異なるnative process2件の生存期間重複を観測した。clock frequencyは10000000で、観測区間の共通部分は約9.858秒だった。同workspaceの順次batchを並列成功と数えていない。
+
+| 通常並列job | input tokens | output tokens | thinking tokens | cache read tokens | total tokens |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| A | 4921 | 151 | 0 | 11363 | 5072 |
+| B | 4933 | 153 | 0 | 11365 | 5086 |
+
+校正Aのusageは4850/198/0/11363/5048、校正Bは4859/206/0/11363/5065（input/output/thinking/cache_read/total）。通常jobと校正を別に記録し、内部モデル起動総数はunknownを維持する。W全体のbefore/afterでは変更4件、子外変更0、全corpus不変だった。これは今回観測範囲の事実であり、root内の完全隔離や途中で戻された変更の検出保証ではない。
+
+finallyで原4fileのbytes/ACL/owner完全復元、自然終了exit0・stderr空、source/exe不変、private output cleanup、復元後2proof失効を確認した。原rawの新規永続化・恒久設定変更・追加購入は0。safe結果SHA256は `eecc621e3bc82b51c5379230bef221a731fde152fa200a60639b1b6955730819`、observerは `b00facaa7477d1a95da704ec37bd418666e948db4ae4f401b573a20072147f55`。追跡OBSは元immutable結果とbyte一致を確認した。実測のsource/usage/制約は [5UC成績書](../../tests/reports/TR-agy-runtime-628-live-five-uc.md)、各OBSと公開用provenanceは同directoryに保存した。
+
+全量回帰はsource `1e6594b`で2529件PASS（782.105秒・exit0）。7packages指定coverageは6857 statements／691 miss／90%で、docidx未import warningを保持する。専用agy関連は245件PASS（52.938秒）、1563 statements／78 miss／95%。lint違反0・既存負債77・baseline変更0、asset parity exit0・MISSING0。対象とsourceを分け、全量coverage値を全module実行済みとは宣言しない。旧全量FAIL2・関連失敗/ERRORは過去記録として維持する。
+
+実機記録は[4UC安全結果](../../tests/reports/OBS-agy-runtime-628-1e6594b-four-uc.json)、[並列安全結果](../../tests/reports/OBS-agy-runtime-628-01cc080-parallel.json)、[外部observer](../../tests/reports/OBS-agy-runtime-628-01cc080-parallel-observer.json)、[公開provenance](../../tests/reports/OBS-agy-runtime-628-live-provenance.json)で追跡できる。全量は[1e6594b成績書](../../tests/reports/TR-agy-runtime-628-1e6594b-full-coverage.md)、関連245件は[fb11ab2成績書](../../tests/reports/TR-agy-runtime-628-fb11ab2-parallel.md)を参照する。
+
+R119の別contextレビューで並列実測は新規指摘0を確認した。本waveで通常5UC（影響分析・素案・外部調査・画像生成・実同時並列）の条件付き実機証拠が揃った。最終文書と独立レビュー、#607への実引渡し、default branch到達は別に確認する。PR #627/#680のmergeはownerの手動操作であり、AIはmerge/auto-merge/ready化/下段変更を行わない。
+
+## 支持cohortでの設定層・合成・起動の対応表
+
+| 対象 | 根拠と支持条件 | 実装・停止条件 |
+| --- | --- | --- |
+| global | `%USERPROFILE%/.gemini/antigravity-cli/settings.json`。公式settings schemaのoptional permissions/allow/ask/denyと、実機/config・/permissionsの一致を確認 | native file-only allowとcorpus/global command denyへexact限定。未知rule・広いallow・ask・必要deny欠落を拒否 |
+| project | `%USERPROFILE%/.gemini/config/projects/default-cli-project.json`。明示selectorとroot identityを束縛し、同snapshotのproject scope空を観測 | 一般schemaを推定せず全file bytes/ACL/ownerを束縛。変化・非空scope・不正JSON・読取失敗は拒否 |
+| shared user | `%USERPROFILE%/.gemini/config/config.json`。同snapshotのshared scope空を観測 | projectと同じ全file不変条件。未知snapshotを空へdecodeしない |
+| admin | 固定`%ProgramData%/Antigravity/admin_settings.json` gateway candidateと大文字小文字を問わないgateway環境名を検査。個人accountはowner申告 | candidate/環境の不存在をremote policy全体の機械証明にしない。未支持の管理条件・未申告・変化時は発行/通常起動を拒否 |
+| 優先・配列合成 | 公式changelogはglobal/project配置とproject優先を示し、公式permissions契約はdeny優先を示す。実測cohortではproject/sharedは空、globalだけが非空 | 複数非空layerの一般合成を実装済みとは扱わない。3scopeと実効表示の一致・全file不変の支持profileに限定し、競合は拒否 |
+| WSL/native cwd | fixed Ubuntu WSL canonical workspaceから本番Python native subprocessの相対secret anchorを読み、promptへ値を渡さず応答一致 | PS Get-Locationをcwd証明へ流用しない。exe/hash/OS/user/home/workspace/native射影/selector/sourceが異なれば停止 |
+
+一次根拠は[公式settings schema](https://antigravity.google/schemas/v1/settings.json)、[公式settings](https://www.antigravity.google/docs/settings?tab=cli)、[公式projects](https://www.antigravity.google/docs/projects?tab=cli)、[公式changelog](https://www.antigravity.google/docs/changelog)、[gateway管理設定](https://docs.cloud.google.com/gemini/enterprise/docs/ai-developer-tools/deploy-enterprise-gateway)と、source別の校正/通常wrapper安全結果である。gateway候補の契約を一般admin tool-permission schemaへ流用しない。
+
+変更したfail-closeは、既知cohortを無条件停止から校正証拠と現在状態の一致時だけ起動へ限定解除する点である。未知schema・source/binding差・期限・未読・競合・保護deny不足・caller stopped・拒否/異常応答の停止は維持する。設定検査はsandboxではなく、内部tool操作の完全仲介・root内越境の完全隔離・途中変更の完全観測を保証しない。D0・corpus author分離・未検証成果不採用は呼出側の規範と機械的検出範囲を区別する。engine直接拒否は未観測、account変更時の再校正はowner運用である。PR627の#679残存は本Issueで解消したとは扱わない。
+
+## #607への引渡しと最終ACの境界
+
+通常5UCの条件付き実機証拠と全量回帰は揃った。#607への実引渡しとdefault branch到達は別の受入条件であり、草案作成だけで引渡し済みとは認定しない。最終独立レビュー後、具体的本文をownerへチャット提示し承認後に#607へ投稿する。実装・全検証・追跡文書・上段出版・#607実引渡しが揃った時点でF-628-01の実害解消を独立レビューが判定する。default branch到達はowner手動mergeによる別のIssue ACであり、未mergeだけを実装findingとして残さない。PR #627/#680のmergeはowner手動操作である。
+
+#607のMCP解除・実体削除・Codex設定変更は別deploy単位であり、本Issueでは実行していない。撤去前の#606/PR #627 merge、wrapper動作、削除対象のowner確認、必要なpatch保全、撤去後確認と記録を#607で行う。旧B2aの不明を新成功で補完せず、過去失敗と観測限界を維持する。
