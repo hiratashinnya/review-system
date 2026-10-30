@@ -83,7 +83,7 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     採った考え方の対称形）。#323 の「パスの決定権は呼び出し元に残す」原則は出力側の規律であり、
     入力側の共有台帳には及ばない（Issue #354）。**台帳への直接書込みそのものは二層の別機構で止まる**
     （Issue #522 レビュー F-522-11）：非隔離で動く主文脈（`ingest-review` を実行する側）には
-    `.claude/settings.json` の `permissions.deny`（`Edit(/tmp/_karte/**)` / `Write(/tmp/_karte/**)`）
+    `.claude/settings.json` の `permissions.deny`（`Edit(/tmp/_karte/**)`。Edit 規則は Write も覆う）
     が発火し、隔離ロール（`issue-fixer`/`issue-implementer`）には worktree isolation がメイン
     チェックアウトへの書込みを構造的に拒否する（隔離ロールが書けるのは自分の worktree 内だけで、
     そこは `karte`/`feedback_ledger` CLI が参照しない場所であり本物の台帳ではない）。**どちらか

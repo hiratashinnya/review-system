@@ -51,7 +51,7 @@
 改ざん防止の機械的裏付けと既知の限界（Issue #363 F-363-09）:
   * この追記規律は CLI（本モジュール・``karte/cli.py``）が既存 Attempt/Result への再実行を
     ``KarteUsageError`` で拒否することで守られる。それに加え ``.claude/settings.json`` の
-    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` と ``Write(/tmp/_karte/**)`` を登録し、
+    ``permissions.deny`` に ``Edit(/tmp/_karte/**)`` を登録し、
     Edit/Write 系ツールによる ``tmp/_karte/**`` への直接書込みを全ロール共通で拒否する
     （是正当事者自身を含む——権限規則はロールを区別しないので例外を作らない）。
     ``python3 -m karte`` 経由の追記はこの deny の対象外で従来どおり機能する。

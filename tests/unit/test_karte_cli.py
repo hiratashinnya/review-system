@@ -930,17 +930,16 @@ class TestKarteWritePathsAreDenied(unittest.TestCase):
         )
         return settings["permissions"]["deny"]
 
-    def test_both_edit_and_write_are_denied_for_the_karte_tree(self):
+    def test_edit_deny_covers_the_karte_tree(self):
+        """Edit 規則が Write も覆う。Write 専用エントリは "never matches" 警告になるため置かない。"""
         deny = self._deny()
-        for entry in ("Edit(/tmp/_karte/**)", "Write(/tmp/_karte/**)"):
-            with self.subTest(entry=entry):
-                self.assertIn(entry, deny)
+        self.assertIn("Edit(/tmp/_karte/**)", deny)
+        self.assertNotIn("Write(/tmp/_karte/**)", deny)
 
-    def test_the_model_docstring_documents_both_verbs(self):
+    def test_the_model_docstring_documents_the_edit_deny(self):
         """実体（settings.json）と説明（docstring）が片方だけ古くならないようにする。"""
         source = inspect.getdoc(model) or ""
         self.assertIn("Edit(/tmp/_karte/**)", source)
-        self.assertIn("Write(/tmp/_karte/**)", source)
 
 
 class TestRender(KarteTestCase):
