@@ -1,0 +1,26 @@
+{
+  "pid_count": 2,
+  "clock_frequency": 10000000,
+  "intervals": [
+    {
+      "slot": 0,
+      "pid": 56140,
+      "argv_marker_verified": true,
+      "native_start_utc_ticks": 639289276239654601,
+      "first_alive_monotonic": 14153605632310,
+      "exe_verified": true,
+      "last_alive_monotonic": 14153713540404
+    },
+    {
+      "slot": 1,
+      "pid": 38104,
+      "argv_marker_verified": true,
+      "native_start_utc_ticks": 639289276239655869,
+      "first_alive_monotonic": 14153607329979,
+      "exe_verified": true,
+      "last_alive_monotonic": 14153705908601
+    }
+  ],
+  "overlap_observed": true,
+  "identity_verified": true
+}

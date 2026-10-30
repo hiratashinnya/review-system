@@ -1,0 +1,33 @@
+source_commit=cc77da9
+command=UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline --with coverage coverage run --data-file=/tmp/agy-singlew-cc77da9.coverage --source=agy_delegate -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'
+exit_code=1
+...............................................................................................................EE....................................................................................................................
+======================================================================
+ERROR: test_runtime_without_fixed_reasons_still_fails_inventory (test_agy_delegate_merge_guard_contract.MergeGuardContractTests.test_runtime_without_fixed_reasons_still_fails_inventory)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard_contract.py", line 26, in test_runtime_without_fixed_reasons_still_fails_inventory
+    guard.test_production_runtime_has_no_unverified_stop_reasons()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard.py", line 12, in test_production_runtime_has_no_unverified_stop_reasons
+    reasons = verify_runtime(self.request)
+                             ^^^^^^^^^^^^
+AttributeError: 'RuntimeMergeGuardTests' object has no attribute 'request'
+
+======================================================================
+ERROR: test_stop_reason_without_unverified_suffix_remains_red (test_agy_delegate_merge_guard_contract.MergeGuardContractTests.test_stop_reason_without_unverified_suffix_remains_red)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard_contract.py", line 16, in test_stop_reason_without_unverified_suffix_remains_red
+    guard.test_production_runtime_has_no_unverified_stop_reasons()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_merge_guard.py", line 12, in test_production_runtime_has_no_unverified_stop_reasons
+    reasons = verify_runtime(self.request)
+                             ^^^^^^^^^^^^
+AttributeError: 'RuntimeMergeGuardTests' object has no attribute 'request'
+
+----------------------------------------------------------------------
+Ran 229 tests in 52.108s
+
+FAILED (errors=2)
+

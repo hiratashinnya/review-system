@@ -50,7 +50,7 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`/
     `codex-hook-trust-check.sh`、
     `.claude/settings.json`
-  - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`codex-review`/`silent-failure-diagnosis`/
+  - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`agy_delegate`（直接実行・許可検査 CLI）/`codex-review`/`silent-failure-diagnosis`/
     `bloom-model-tier`/`asset-lateral-deploy`/`coverage-html`/`gh-create-issue`
   - Codex 実行補助：`codex_worktree_exec`（Claude の `issue-implementer`/`issue-fixer` が自分の linked
     worktree で Codex に編集とテスト実行だけを行わせる `codex exec -C` の薄いラッパー。Issue 運用

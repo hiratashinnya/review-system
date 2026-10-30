@@ -1,0 +1,181 @@
+command: WSL_DISTRO_NAME=Ubuntu python3 tmp/agy_live_probe.py --normalization-diagnostic
+operator_exit: 2
+{
+  "local_command_stderr_empty": true,
+  "failure_inner_type": "unknown",
+  "failure_code": "unclassified_no_raw_message",
+  "local_policy_observations": [
+    {
+      "stderr_empty": true,
+      "modes": {
+        "defaultMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "executionMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "defaultAgentMode": {
+          "present": false,
+          "known_enum": null
+        },
+        "mode": {
+          "present": false,
+          "known_enum": null
+        },
+        "agentMode": {
+          "present": true,
+          "known_enum": "accept-edits"
+        }
+      },
+      "use_g1_credits_false": true,
+      "turns_zero": true,
+      "usage_zero": true,
+      "exit": 0,
+      "model_provider": null,
+      "custom_models_present": false,
+      "permissions": {
+        "allow": {
+          "array": true,
+          "count": 2,
+          "present": true
+        },
+        "ask": {
+          "present": false
+        },
+        "deny": {
+          "array": true,
+          "count": 2,
+          "present": true
+        }
+      },
+      "permissions_match_candidate": true,
+      "command_name_matches": true,
+      "command": "/config",
+      "envelope_keys": [
+        "conversation_id",
+        "status",
+        "response",
+        "duration_seconds",
+        "num_turns",
+        "usage",
+        "command"
+      ],
+      "model": null,
+      "verified_zero_turn_command": true,
+      "status_success": true
+    },
+    {
+      "stderr_empty": true,
+      "turns_zero": true,
+      "usage_zero": true,
+      "exit": 0,
+      "permissions_match_candidate": true,
+      "command_name_matches": true,
+      "command": "/permissions",
+      "envelope_keys": [
+        "conversation_id",
+        "status",
+        "response",
+        "duration_seconds",
+        "num_turns",
+        "usage",
+        "command"
+      ],
+      "scopes": [
+        {
+          "permissions": {
+            "allow": {
+              "present": false
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "present": false
+            }
+          },
+          "scope": "project"
+        },
+        {
+          "permissions": {
+            "allow": {
+              "present": false
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "present": false
+            }
+          },
+          "scope": "shared"
+        },
+        {
+          "permissions": {
+            "allow": {
+              "array": true,
+              "count": 2,
+              "present": true
+            },
+            "ask": {
+              "present": false
+            },
+            "deny": {
+              "array": true,
+              "count": 2,
+              "present": true
+            }
+          },
+          "scope": "global"
+        }
+      ],
+      "verified_zero_turn_command": true,
+      "status_success": true
+    }
+  ],
+  "private_output_cleanup_confirmed": true,
+  "failure_type": "RuntimeException",
+  "failure_operation_stage": "replace_or_move_target",
+  "auto_update_disabled_for_child": true,
+  "original_four_files_held_in_memory": true,
+  "help_attempted": false,
+  "reason": "probe_observation_unverified_no_raw_output",
+  "anchor_phase": "prepare_engine_normalization",
+  "local_command_exit": 0,
+  "raw_settings_persisted": false,
+  "operation_stage": "replace_or_move_target",
+  "local_command_phase": "permissions_complete",
+  "current_exe_hash_unchanged": true,
+  "model_launch_count": 0,
+  "version_attempted": false,
+  "cohort_normalization": {
+    "change_shape": {
+      "known_changes": [
+        {
+          "before_present": true,
+          "key": "useG1Credits",
+          "before_is_false": true,
+          "after_kind": "null",
+          "before_kind": "boolean",
+          "after_is_false": false,
+          "after_present": false
+        }
+      ],
+      "unknown_changed_key_count": 0
+    },
+    "zero_turn_commands_verified": true,
+    "permissions_match_candidate": true,
+    "global_bytes_changed": true,
+    "nonpermissions_semantic_same": false,
+    "acl_owner_same": true
+  },
+  "settings_restored": true,
+  "worker_naturally_completed": true,
+  "worker_exit": 0,
+  "worker_stderr_empty": true,
+  "source_unchanged_through_completion": true,
+  "post_restore_proof_invalidated": false
+}
+

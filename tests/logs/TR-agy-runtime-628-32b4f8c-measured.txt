@@ -1,0 +1,9 @@
+commit=32b4f8c9e09021f48e70f55fd4414d72b7a8cb91
+product_source_commit=30c2b0e9400c47d91433625e61df5dd49118721f
+source_closure_before_after=8fb4aaededfaac0ce0d5b8b9c3daee5e40d383dcc7a7fc2f79f8135984474034
+exit_code=0
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.004s
+
+OK

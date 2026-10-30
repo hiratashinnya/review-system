@@ -1,0 +1,4 @@
+commit=233d908
+Synthetic PowerShell default omission regression
+{"settings_reads":0,"agy_launches":0,"settings_writes":0,"cases":19,"passed":true}
+

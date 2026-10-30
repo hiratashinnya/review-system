@@ -1,0 +1,4 @@
+commit: f25d54c
+Synthetic Windows PowerShell normalization shape regression:
+{"settings_reads":0,"agy_launches":0,"settings_writes":0,"cases":13,"passed":true}
+
