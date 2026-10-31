@@ -1537,7 +1537,7 @@ class SettingsRegistrationTests(unittest.TestCase):
             self.assertTrue(any("issue-start-gate.sh" in c
                                 for c in self.matching_commands("PreToolUse", tool)))
         for tool in ("Write", "Edit", "NotebookEdit"):
-            self.assertIn("python3 -m issue_start.phase_tool_gate",
+            self.assertIn('bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/phase-tool-gate.sh',
                           self.matching_commands("PreToolUse", tool))
         self.assertIn(
             "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",

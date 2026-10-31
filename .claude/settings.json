@@ -39,7 +39,7 @@
           },
           {
             "type": "command",
-            "command": "python3 -m issue_start.phase_tool_gate",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/phase-tool-gate.sh",
             "timeout": 10
           }
         ]

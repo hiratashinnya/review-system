@@ -699,7 +699,7 @@ python 側に一本化したまま複製しない。
 初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
 初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
 read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
-`python3 -m issue_start.phase_tool_gate`で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
+`phase-tool-gate.sh`（`python3 -P -m issue_start.phase_tool_gate`）で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
 任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
 前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。
@@ -774,10 +774,13 @@ markerとreceiptの詳細は[Claude issue-pipeline](../skills/issue-pipeline/SKI
 から**サブプロセスを介さず**注入点(`repo_root` / `now` / `runner`)込みで検証できるようにするため。
 フック本体をシェルの heredoc に埋めると、実リポジトリの台帳・カルテを汚さずに検証できない。
 
-`issue-start-gate.sh` は他の起動口と違って `cd` しない。hook プロセスの cwd（主文脈のセッション cwd）が
-検査作業面そのものだからである。その代わり `python3 -P -m issue_start.hook` で cwd を `sys.path` に入れず、
-gate のコードを `$CLAUDE_PROJECT_DIR`（未設定なら起動口自身の root）からだけ読む。検査対象 branch の作業面に
-置かれた `issue_start` や標準ライブラリ同名ファイルで gate の判定を差し替えられないようにするため（#685 F-685-22）。
+`issue-start-gate.sh` と `phase-tool-gate.sh` は他の起動口と違って `cd` しない。前者では hook プロセスの
+cwd（主文脈のセッション cwd）が検査作業面そのものだからで、後者は全 Write/Edit/NotebookEdit に掛かる gate の
+起動口を同じ形に揃えている。どちらも `python3 -P -m issue_start.<module>` で cwd を `sys.path` に入れず、
+gate のコードを `$CLAUDE_PROJECT_DIR`（未設定なら起動口自身の root）からだけ読む。検査対象 branch の作業面や
+作者の worktree（PR branch のコード）に置かれた `issue_start` や標準ライブラリ同名ファイルで gate の判定を
+差し替えられないようにし、cwd に `issue_start` が無いときの import 失敗（exit 1＝非ブロック）で gate が素通しに
+なることも防ぐため（#685 F-685-22・F-685-33）。
 `-P` は Python 3.11 以上が要る。`PYTHONSAFEPATH=1` を使わないのは、古い python3 がこの環境変数を黙って無視して
 cwd 優先の import に戻るため。`-P` なら古い python3 は不明オプションとして exit 2 で止まり、PreToolUse の exit 2 は
 block として扱われる（古い python3 での実測はしていない）。
