@@ -6,10 +6,10 @@
 from . import ingest_checks, model
 
 
-def apply_accepted(karte, accepted, round_no) -> tuple:
-    """``(created, resolved, excluded)`` を返す。"""
+def apply_accepted(karte, accepted, round_no, policy=None) -> tuple:
+    """``(created, resolved, excluded)`` を返す。``policy`` があれば scope/disposition の扱いを委ねる。"""
     created, resolved, excluded = [], [], []  # excluded＝distinct_from の除外ペア（監査用）
-    for finding_id, item, _is_new in accepted:
+    for finding_id, item, is_new in accepted:
         finding = karte.finding(finding_id)
         if finding is None:
             finding = model.Finding(id=finding_id)
@@ -23,7 +23,10 @@ def apply_accepted(karte, accepted, round_no) -> tuple:
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
         finding.severity = item.severity
-        _apply_owner_fields(finding, item)
+        if policy:
+            policy.apply(finding, item, is_new)
+        else:
+            _apply_owner_fields(finding, item)
         finding.locus = list(item.locus)
         finding.summary = item.summary
         finding.evidence = item.evidence
