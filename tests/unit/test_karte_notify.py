@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from karte_notify import hook, notify
+from karte_notify import hook, notify, trigger
 
 
 def finding(fid, status, *, harm="real", disposition="fix-here", summary="dummy"):
@@ -39,53 +39,53 @@ def payload(issue, *, verdict="clean", escalate=False, findings=None):
 class DetectTriggerTests(unittest.TestCase):
     def test_matches_ingest_review(self):
         self.assertEqual(
-            notify.detect_trigger("python3 -m karte ingest-review --issue 512 --round 1 --from -"),
+            trigger.detect_trigger("python3 -m karte ingest-review --issue 512 --round 1 --from -"),
             "ingest-review",
         )
 
     def test_matches_close_attempt(self):
         self.assertEqual(
-            notify.detect_trigger("python3 -m karte close-attempt --issue 512 --outcome fixed"),
+            trigger.detect_trigger("python3 -m karte close-attempt --issue 512 --outcome fixed"),
             "close-attempt",
         )
 
     def test_matches_python_without_trailing_digit(self):
         self.assertEqual(
-            notify.detect_trigger("python -m karte ingest-review --issue 1 --round 1 --from -"),
+            trigger.detect_trigger("python -m karte ingest-review --issue 1 --round 1 --from -"),
             "ingest-review",
         )
 
     def test_no_match_for_other_verbs(self):
-        self.assertIsNone(notify.detect_trigger("python3 -m karte status --issue 512 --json"))
-        self.assertIsNone(notify.detect_trigger("python3 -m karte render --issue 512"))
-        self.assertIsNone(notify.detect_trigger("python3 -m karte append --issue 512"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte status --issue 512 --json"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte render --issue 512"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte append --issue 512"))
 
     def test_no_match_for_unrelated_command(self):
-        self.assertIsNone(notify.detect_trigger("gh pr create --title x --body y"))
+        self.assertIsNone(trigger.detect_trigger("gh pr create --title x --body y"))
 
     def test_word_boundary_rejects_suffixed_verb(self):
         # `close-attempt2` のような偽の一致を作らない（\b の境界検査）。
-        self.assertIsNone(notify.detect_trigger("python3 -m karte close-attempt2 --issue 1"))
+        self.assertIsNone(trigger.detect_trigger("python3 -m karte close-attempt2 --issue 1"))
 
 
 class IssueFromCommandTests(unittest.TestCase):
     def test_extracts_issue_number(self):
         self.assertEqual(
-            notify.issue_from_command("python3 -m karte ingest-review --issue 512 --round 1"),
+            trigger.issue_from_command("python3 -m karte ingest-review --issue 512 --round 1"),
             512,
         )
 
     def test_extracts_with_equals_form(self):
         self.assertEqual(
-            notify.issue_from_command("python3 -m karte close-attempt --issue=512 --outcome fixed"),
+            trigger.issue_from_command("python3 -m karte close-attempt --issue=512 --outcome fixed"),
             512,
         )
 
     def test_returns_none_when_absent(self):
-        self.assertIsNone(notify.issue_from_command("python3 -m karte close-attempt --outcome fixed"))
+        self.assertIsNone(trigger.issue_from_command("python3 -m karte close-attempt --outcome fixed"))
 
     def test_returns_none_for_invalid_issue(self):
-        self.assertIsNone(notify.issue_from_command("python3 -m karte ingest-review --issue 0"))
+        self.assertIsNone(trigger.issue_from_command("python3 -m karte ingest-review --issue 0"))
 
 
 class ExtractCommandsTests(unittest.TestCase):
@@ -93,13 +93,13 @@ class ExtractCommandsTests(unittest.TestCase):
 
     def test_bash_extracts_single_command(self):
         self.assertEqual(
-            notify.extract_commands("Bash", {"command": "python3 -m karte close-attempt --issue 1"}),
+            trigger.extract_commands("Bash", {"command": "python3 -m karte close-attempt --issue 1"}),
             ["python3 -m karte close-attempt --issue 1"],
         )
 
     def test_ctx_execute_extracts_code(self):
         self.assertEqual(
-            notify.extract_commands(
+            trigger.extract_commands(
                 "mcp__plugin_context-mode_context-mode__ctx_execute",
                 {
                     "language": "shell",
@@ -110,7 +110,7 @@ class ExtractCommandsTests(unittest.TestCase):
         )
 
     def test_ctx_batch_execute_extracts_all_commands(self):
-        commands = notify.extract_commands(
+        commands = trigger.extract_commands(
             "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
             {
                 "commands": [
@@ -122,18 +122,18 @@ class ExtractCommandsTests(unittest.TestCase):
         self.assertEqual(commands, ["gh pr view 1", "python3 -m karte close-attempt --issue 1"])
 
     def test_unsupported_tool_returns_empty(self):
-        self.assertEqual(notify.extract_commands("Write", {"file_path": "x"}), [])
+        self.assertEqual(trigger.extract_commands("Write", {"file_path": "x"}), [])
 
     def test_malformed_input_returns_empty(self):
-        self.assertEqual(notify.extract_commands("Bash", {"command": 123}), [])
+        self.assertEqual(trigger.extract_commands("Bash", {"command": 123}), [])
         self.assertEqual(
-            notify.extract_commands(
+            trigger.extract_commands(
                 "mcp__plugin_context-mode_context-mode__ctx_batch_execute", {"commands": "nope"}
             ),
             [],
         )
         self.assertEqual(
-            notify.extract_commands("mcp__plugin_context-mode_context-mode__ctx_execute", {"code": 1}),
+            trigger.extract_commands("mcp__plugin_context-mode_context-mode__ctx_execute", {"code": 1}),
             [],
         )
 
