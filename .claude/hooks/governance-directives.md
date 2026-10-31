@@ -1,7 +1,9 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@11f296076a42 -->
+<!-- synced-from: CLAUDE.md@fcf96b4df4ff -->
 <!--
+  `.ai/guidance/common.md` への項追加（2026-10-25・オーナー）: 「作業分離・判断境界」に、ドキュメントと既存コードが食い違うときはコードに従い食い違いを最後の返答で挙げる旨を追加。これを項14として配送する。
+
   PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
 
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
@@ -302,3 +304,4 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
     `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
+14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。
