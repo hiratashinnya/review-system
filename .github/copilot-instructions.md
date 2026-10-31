@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: 95f6953e8964e9eab0ae02917f047bb086fda879deb0075521dff46bfbad41d0 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 8b5cdd4ad60e7a4f83c92753612aa523aa7de352dfaed0eadfc5915f69f86f76 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 071fe87a9b00d067b22d48d707f96bf67000412ec77cf4567746d23746a015a7 -->
 
 # プロジェクト共通 guidance
 
@@ -123,6 +123,6 @@
 
 ## PR base 取り込み
 
-- `docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路を使う。Copilot はcleanなPR head branchで `python3 -m gitgate integrate-base-copilot-register --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` により対象を明示認可し、同じ引数の `integrate-base` → 衝突編集 → `integrate-base-continue`、中止は `integrate-base-abort` を使う。
-- この登録は認証済みCopilot roleの保証ではない。固定merge戦略・任意option禁止・固定unittest成功と非ゼロ件・内容CASと2親検証を再利用する。通常cloneも非default PR head branchなら利用できる。
-- commit/pushはgitgateを使い、pending中は行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・protected契約変更・OID driftはSTOPして報告する。Claude/Codex固有hookの等価物を仮定せず、raw Gitや台帳直接編集を阻止するsandboxを謳わない。
+- `docs/tools/gitgate-base-integration.md`（policy 2.0）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
+- GitGate はテストを実行しない。解消結果の検証は自分で行い、CI でも確認する。
+- commitはgitgateを使い、pending中は通常 commit を行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・OID driftはSTOPして報告する。

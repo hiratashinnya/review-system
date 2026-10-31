@@ -1,5 +1,7 @@
 # Copilot PR base 取り込み（Issue #629）
 
+> **履歴文書**：本書は当時の設計判断の記録として保持する。現行契約は Issue #706 の決定（`docs/tools/gitgate-base-integration.md` policy 2.0・経緯は `.ai/rationale/gitgate-base-integration-706.md`）が優先する。
+
 ## 判断と比較
 
 CopilotにClaudeのtrusted hook・role gate・dispatch worktreeを模倣させない。
