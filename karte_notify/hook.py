@@ -10,9 +10,9 @@ additionalContext`` は AI のコンテキストへ入るだけで、その後�
 
 検出対象は ``Bash`` に限らない（Issue #512 是正・F-512-02）。実行系 MCP ツール
 ``ctx_execute``/``ctx_batch_execute`` 経由でも同じ ``karte`` verb が実行されうるため、
-:data:`karte_notify.notify.SUPPORTED_TOOL_NAMES` に列挙した ``tool_name`` はすべて対象にし、
-:func:`karte_notify.notify.extract_commands` で ``tool_name`` ごとの ``tool_input`` 形状差を
-吸収してから同じ :func:`karte_notify.notify.detect_trigger` へ通す。
+:data:`karte_notify.trigger.SUPPORTED_TOOL_NAMES` に列挙した ``tool_name`` はすべて対象にし、
+:func:`karte_notify.trigger.extract_commands` で ``tool_name`` ごとの ``tool_input`` 形状差を
+吸収してから同じ :func:`karte_notify.trigger.detect_trigger` へ通す。
 
 対象外・判定不能な経路はすべて**無出力 exit 0**（``issue_start.subagent_hooks`` と同じ
 「対象外ロールは常に許可」不変条件と同型）。本フックは統制（deny）を行わない可視化専用の
@@ -36,7 +36,7 @@ from typing import Any, Callable, Mapping, TextIO
 
 from karte import paths as karte_paths
 
-from . import notify
+from . import notify, trigger
 
 # ``karte_notify/`` の親＝リポジトリルート（起動口シェルスクリプトが `$CLAUDE_PROJECT_DIR` へ
 # cd してから `python3 -m karte_notify.hook` を呼ぶ前提。`issue_start/subagent_hooks.py` の
@@ -102,16 +102,16 @@ def run(
     if payload is None:
         return 0
     tool_name = payload.get("tool_name")
-    if tool_name not in notify.SUPPORTED_TOOL_NAMES:
+    if tool_name not in trigger.SUPPORTED_TOOL_NAMES:
         return 0
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, Mapping):
         return 0
-    candidates = notify.extract_commands(tool_name, tool_input)
+    candidates = trigger.extract_commands(tool_name, tool_input)
     verb = None
     command: str | None = None
     for candidate in candidates:
-        verb = notify.detect_trigger(candidate)
+        verb = trigger.detect_trigger(candidate)
         if verb is not None:
             command = candidate
             break
@@ -125,7 +125,7 @@ def run(
         _evidence(stderr, result="skip", reason="REPO_ROOT_UNRESOLVED", error=type(exc).__name__)
         return 0
 
-    issue = notify.issue_from_command(command)
+    issue = trigger.issue_from_command(command)
     status_payload = _status_payload(repo_root, issue, runner)
     if status_payload is None:
         _evidence(stderr, result="skip", reason="STATUS_UNAVAILABLE", verb=verb, issue=issue)

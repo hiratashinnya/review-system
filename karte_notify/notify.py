@@ -46,8 +46,8 @@
   ``pr-reviewer``・``dsv2-lookup`` にはいずれも実行系 MCP ツール（``ctx_execute``・
   ``ctx_batch_execute``）が付与済みで（`.claude/rules/05-skills-agents.md`「ctx_* ツールの
   付与方針」）、``python3 -m karte ingest-review``/``close-attempt`` はこれらの ``tool_input``
-  （``code`` / ``commands[].command``）経由でも実行されうる。したがって :func:`extract_commands`
-  は ``tool_name`` ごとに検査対象の文字列を取り出し、:func:`detect_trigger` はその文字列単位で
+  （``code`` / ``commands[].command``）経由でも実行されうる。したがって :func:`karte_notify.trigger.extract_commands`
+  は ``tool_name`` ごとに検査対象の文字列を取り出し、:func:`karte_notify.trigger.detect_trigger` はその文字列単位で
   ``Bash`` と同じ正規表現を適用する（判定ロジック自体は分岐させない＝経路が増えても検出規則は
   一本のまま）。
 
@@ -73,15 +73,6 @@ from typing import Any, Mapping
 
 from karte import model as karte_model
 from karte import paths as karte_paths
-
-from .trigger import (  # noqa: F401  — 公開名は notify から引き続き参照される
-    ISSUE_ARG_RE,
-    SUPPORTED_TOOL_NAMES,
-    TRIGGER_RE,
-    detect_trigger,
-    extract_commands,
-    issue_from_command,
-)
 
 NOTIFIED_DIRNAME = "notified"
 

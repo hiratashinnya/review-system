@@ -17,11 +17,10 @@ ISSUE_ARG_RE = re.compile(r"--issue[=\s]+([0-9]+)")
 
 # 検出対象の tool_name（F-512-02）。実行系 MCP ツールは
 # `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」の付与先と揃える。
-SUPPORTED_TOOL_NAMES = (
-    "Bash",
-    "mcp__plugin_context-mode_context-mode__ctx_execute",
-    "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
-)
+BASH_TOOL = "Bash"
+CTX_EXECUTE_TOOL = "mcp__plugin_context-mode_context-mode__ctx_execute"
+CTX_BATCH_EXECUTE_TOOL = "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
+SUPPORTED_TOOL_NAMES = (BASH_TOOL, CTX_EXECUTE_TOOL, CTX_BATCH_EXECUTE_TOOL)
 
 
 def detect_trigger(command: str) -> str | None:
@@ -36,13 +35,13 @@ def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]
     ``Bash``＝``command``、``ctx_execute``＝``code``、``ctx_batch_execute``＝``commands[].command``
     の全件。対象外の ``tool_name`` や不正な形は空リスト（呼び出し側は「検出なし」＝fail-open）。
     """
-    if tool_name == "Bash":
+    if tool_name == BASH_TOOL:
         command = tool_input.get("command")
         return [command] if isinstance(command, str) else []
-    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_execute":
+    if tool_name == CTX_EXECUTE_TOOL:
         code = tool_input.get("code")
         return [code] if isinstance(code, str) else []
-    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_batch_execute":
+    if tool_name == CTX_BATCH_EXECUTE_TOOL:
         commands = tool_input.get("commands")
         items = commands if isinstance(commands, list) else []
         return [

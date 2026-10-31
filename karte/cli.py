@@ -69,7 +69,7 @@ verb:
   別 Issue の台帳へ黙って書きかねない。
   **``append`` の ``--round`` 補完だけは例外**：ポインタが無い、または ``issue`` が
   対象と食い違う場合は fail-close せず、**カルテ内の最大ラウンドへ黙って縮退する**
-  （ポインタが JSON として壊れている場合のみ :func:`_read_active` が拒否する）。
+  （ポインタが JSON として壊れている場合のみ :func:`karte.active_pointer.read_active` が拒否する）。
   ``append`` は停止ゲートではないため縮退しても安全——ラウンドのズレが起きても、
   **全 Attempt のクローズを要求する ``check`` が fail-close で必ず捕捉する**（K-02）ので、
   ここで厳格化しても二重の安全網にしかならない。
@@ -91,12 +91,10 @@ import json
 import sys
 from pathlib import Path
 
-from . import ingest_checks, ingest_review, model, paths, similarity, touched as touched_mod
-from .active_pointer import read_active as _read_active
+from . import active_pointer, ingest_checks, ingest_review, model, paths, similarity, verb_support
+from . import touched as touched_mod
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, EXIT_SATURATED
-from .model import KarteFormatError
-from .paths import KartePathError
 from .touched import TouchedError
 
 
@@ -124,21 +122,15 @@ def _fail_close(func):
     exit code が返らない」＝判定不能になる。ガードの効力を呼び出し経路に依存させない。
     """
 
-    @functools.wraps(func)
-    def wrapper(args) -> int:
-        try:
-            if func.__name__ in {"cmd_append", "cmd_close_attempt"}:
-                with paths.writer_lock(_repo_root(args)):
-                    return func(args)
-            return func(args)
-        except KarteNotFound as exc:
-            print(f"未検出: {exc}", file=sys.stderr)
-            return EXIT_NOT_FOUND
-        except (KarteUsageError, KartePathError, KarteFormatError, TouchedError, OSError) as exc:
-            print(f"拒否（fail-close）: {exc}", file=sys.stderr)
-            return EXIT_ERROR
+    body = func
+    if func.__name__ in {"cmd_append", "cmd_close_attempt"}:
 
-    return wrapper
+        @functools.wraps(func)
+        def body(args) -> int:
+            with paths.writer_lock(_repo_root(args)):
+                return func(args)
+
+    return verb_support.fail_close(body, extra_errors=(TouchedError,))
 
 
 # --- 共通ヘルパ --------------------------------------------------------------
@@ -163,12 +155,7 @@ def _repo_root(args) -> Path:
     結果をキャッシュしない（呼び出しごとに数回の ``.git`` 参照で済み、キャッシュすると
     プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため）。
     """
-    override = getattr(args, "repo_root", None)
-    if override:
-        return Path(override).resolve()
-    if _REPO_ROOT is not None:
-        return Path(_REPO_ROOT)
-    return paths.main_worktree_root(_PACKAGE_ROOT)
+    return verb_support.repo_root_of(args, default=_REPO_ROOT, package_root=_PACKAGE_ROOT)
 
 
 def _diff_cwd(args) -> Path:
@@ -200,15 +187,9 @@ def _resolve_issue(args) -> int:
     このポインタになる（K-13/K-14/K-15）。
     ポインタが無い・壊れている・``issue`` を欠くときは推測せず fail-close する。
     """
-    if getattr(args, "issue", None) is not None:
-        return paths.validate_issue(args.issue)
-    active = _read_active(_repo_root(args), required=True)
-    if "issue" not in active:
-        raise KarteUsageError(
-            "--issue が未指定で、進行ポインタ tmp/_karte/active.json に 'issue' が無い"
-            "（先に `ingest-review --issue N --round R` を実行する）"
-        )
-    return paths.validate_issue(active["issue"])
+    return verb_support.resolve_issue(
+        args, _repo_root(args), hint="（先に `ingest-review --issue N --round R` を実行する）"
+    )
 
 
 def _validate_round(value) -> int:
@@ -234,7 +215,7 @@ def _resolve_ingest_round(args, issue: int) -> int:
     """
     if getattr(args, "round", None) is not None:
         return _validate_round(args.round)
-    active = _read_active(_repo_root(args), required=True)
+    active = active_pointer.read_active(_repo_root(args), required=True)
     if "round" not in active:
         raise KarteUsageError(
             "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
@@ -262,7 +243,7 @@ def _resolve_check_round(args, issue: int) -> int:
     """
     if getattr(args, "round", None) is not None:
         return _validate_round(args.round)
-    active = _read_active(_repo_root(args), required=True)
+    active = active_pointer.read_active(_repo_root(args), required=True)
     if "round" not in active:
         raise KarteUsageError(
             "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
@@ -368,17 +349,9 @@ def _load(args, issue: int):
     ガード違反ではない。両者を同じ EXIT_ERROR に潰すと、``render`` を先に叩く運用側が
     「カルテが未作成」と「触ってはならないパス」を区別できない。
     """
-    try:
-        path = paths.karte_path(issue, _repo_root(args))
-    except paths.KarteMissing as exc:
-        raise KarteNotFound(
-            f"{exc}（先に `ingest-review --issue {issue} --round 1` を実行する）"
-        ) from None
-    if not path.is_file():
-        raise KarteNotFound(
-            f"カルテが無い: {path}（先に `ingest-review --issue {issue} --round 1` を実行する）"
-        )
-    return path, model.parse(paths.read_text(path))
+    return verb_support.load_karte(
+        _repo_root(args), issue, hint=f"（先に `ingest-review --issue {issue} --round 1` を実行する）"
+    )
 
 
 def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptView:
@@ -391,12 +364,11 @@ def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptVi
     )
 
 
-_open_ids = ingest_checks.open_ids
 
 
 def _priors_for(karte: model.Karte, finding_ids) -> list:
     """``finding_ids`` のうち **未解消** のものを共有する過去 Attempt の投影を返す。"""
-    relevant = {fid for fid in finding_ids if fid in _open_ids(karte)}
+    relevant = {fid for fid in finding_ids if fid in ingest_checks.open_ids(karte)}
     views = []
     for attempt in karte.attempts:
         if relevant & set(attempt.finding_ids):
@@ -457,7 +429,7 @@ def _saturated_groups(karte: model.Karte) -> list:
     ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
     ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
     """
-    open_ids = _open_ids(karte)
+    open_ids = ingest_checks.open_ids(karte)
     relevant = [
         attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
     ]
@@ -487,7 +459,7 @@ def _saturated_groups(karte: model.Karte) -> list:
 def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate) -> str:
     """飽和したアプローチの転換指令（``render`` / ``close-attempt`` の表示用）。"""
     attempt = karte.attempt(candidate_number)
-    open_ids = _open_ids(karte) & set(attempt.finding_ids if attempt else [])
+    open_ids = ingest_checks.open_ids(karte) & set(attempt.finding_ids if attempt else [])
     return similarity.build_directive(
         candidate, hits, open_ids, subject_label="飽和したアプローチ"
     ).text()
@@ -540,7 +512,7 @@ def cmd_render(args) -> int:
     """
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
-    active = _read_active(_repo_root(args))
+    active = active_pointer.read_active(_repo_root(args))
     round_no = active.get("round") if active.get("issue") == issue else None
 
     lines = [f"=== Karte: issue-{issue}" + (f" / round {round_no}" if round_no else "") + " ==="]
@@ -658,7 +630,7 @@ def cmd_render(args) -> int:
 def cmd_append(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
-    active = _read_active(_repo_root(args))
+    active = active_pointer.read_active(_repo_root(args))
     if args.round is not None:
         round_no = _validate_round(args.round)
     elif active.get("issue") == issue and active.get("round"):
@@ -693,7 +665,7 @@ def cmd_append(args) -> int:
     priors = _priors_for(karte, finding_ids)
     hits = similarity.find_hits(new_view, priors)
     if similarity.is_saturated(hits):
-        open_targets = {fid for fid in finding_ids if fid in _open_ids(karte)}
+        open_targets = {fid for fid in finding_ids if fid in ingest_checks.open_ids(karte)}
         print(similarity.build_directive(new_view, hits, open_targets).text())
         print(
             "（Attempt は書き込んでいない。転換したアプローチで `append` をやり直すこと）"

@@ -40,17 +40,17 @@ def find_duplicate(karte: model.Karte, accepted, item):
             item.summary, item.locus, finding.summary, finding.locus
         ):
             return finding.id
-    for finding_id, other, _is_new in accepted:
-        if finding_id not in exempt and model.is_same_finding(
-            item.summary, item.locus, other.summary, other.locus
+    for entry in accepted:
+        if entry.finding_id not in exempt and model.is_same_finding(
+            item.summary, item.locus, entry.item.summary, entry.item.locus
         ):
-            return finding_id
+            return entry.finding_id
     return None
 
 
 def absent_open_ids(previously_open: set, accepted) -> list:
     """前ラウンド未解消なのに今回のレポートに再掲されていない finding ID（K-06）。"""
     return sorted(
-        previously_open - {fid for fid, _item, _is_new in accepted},
+        previously_open - {entry.finding_id for entry in accepted},
         key=lambda fid: model.parse_finding_id(fid)[1],
     )

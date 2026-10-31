@@ -5,10 +5,11 @@
 
 import sys
 
-from . import ingest_accept, ingest_apply, ingest_checks, model, paths
+from . import ingest_accept, ingest_apply, ingest_checks, ingest_report, model, paths
 from .active_pointer import write_active
 from .errors import KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_OK
+from .ingest_types import IngestResult
 
 
 def ingest_locked(repo_root, issue, round_no, report_text) -> int:
@@ -25,12 +26,12 @@ def ingest_locked(repo_root, issue, round_no, report_text) -> int:
 
     review = model.parse_review(report_text, issue)
     previously_open = ingest_checks.open_ids(karte)
-    errors: list = []
-    accepted = ingest_accept.collect_accepted(karte, review, issue, errors)
+    collected = ingest_accept.collect_accepted(karte, review, issue)
+    errors = list(collected.errors)
 
     # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
     # 欠けていれば取り込みごと拒否する。欠けている ID は全て列挙する（1 件ずつ往復させない）。
-    absent = ingest_checks.absent_open_ids(previously_open, accepted)
+    absent = ingest_checks.absent_open_ids(previously_open, collected.accepted)
     if absent:
         errors.append(
             "前ラウンドで未解消の finding が今回のレポートに再掲されていない: "
@@ -43,9 +44,11 @@ def ingest_locked(repo_root, issue, round_no, report_text) -> int:
             print(f"拒否（fail-close）: {line}", file=sys.stderr)
         return EXIT_ERROR
 
-    outcome = ingest_apply.apply_accepted(karte, accepted, round_no)
+    outcome = ingest_apply.apply_accepted(karte, collected.accepted, round_no)
     karte.findings.sort(key=lambda item: item.seq)
     paths.write_text_atomic(path, model.dumps(karte))
     write_active(repo_root, issue, round_no)
-    ingest_apply.print_summary(karte, path, issue, round_no, accepted, outcome)
+    ingest_report.print_report(
+        IngestResult(karte, path, issue, round_no, collected.accepted, outcome)
+    )
     return EXIT_OK
