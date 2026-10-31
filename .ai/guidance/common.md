@@ -22,6 +22,7 @@
 - rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。
 - 新しい AI 資産を作る前に既存資産の重複・競合を点検する。
 - 実装設計では、module、interface、protocol、persistence、orchestration、prompt、log/version、test strategy の凍結セットを総点検してから実装へ進む。
+- ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げること
 
 ## コード構築原則（Issue #539）
 
