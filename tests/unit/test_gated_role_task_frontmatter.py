@@ -49,7 +49,7 @@ EXPECTED_NON_TASK_TOOLS = {
         "mcp__plugin_context-mode_context-mode__ctx_index",
     },
     "pr-reviewer": {
-        "Read", "Bash",
+        "Read", "Write", "Bash",  # Write は handoff 限定（フックで制限・Issue #375）
         "mcp__plugin_context-mode_context-mode__ctx_search",
         "mcp__plugin_context-mode_context-mode__ctx_index",
         "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
