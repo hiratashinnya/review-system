@@ -12,11 +12,11 @@ push gate は本 PR の対象外である。primary gate 後に local history �
 
 ## Managed Issue-start
 
-`issue_start/managed-entrypoints-v2.json` が有効/利用不能transportのinventory正本である。Claude `Task` / runtime `Agent`だけをbinding transportとして宣言し、Codex entryは退役済みで置かない。Codex `spawn_agent` / `collaborationspawn_agent`で既知implementer/fixerを指定した場合、payload詳細・cwd・ledger・GitHub APIを読む前に常時`ISSUE_START_TRANSPORT_UNAVAILABLE`で拒否する。
+`issue_start/managed-entrypoints-v2.json` が有効/利用不能transportのinventory正本である。Claude `Task` / runtime `Agent`だけをbinding transportとして宣言し、Codex entryは退役済みで置かない。Codex側にissue-start hookは登録されていない（`.codex/hooks.json` はBashの`agent-command-gate.sh`と`adr-notify.sh`だけ）。
 
 manifest は加えて `isolation_only` 区分を持つ（Issue #354 PR-4）。稼働中の経路は `issue-pipeline` から `issue-fixer` への Claude `Task` / runtime `Agent` であり、**shape 検証・`required_isolation` の強制・軽量 marker `ISSUE_FIX_BINDING_V1=<JSON>`（exact 6 field＝`issue`/`round`/`branch_name`/`repository`/`expected_oid`/`handoff_path`）の検証だけを行い、blocker gate（GitHub API）は呼ばない**。是正ラウンドは既に開いた PR への処置で Issue の着手可否は初回実装の dispatch で判定済みであり、ラウンドごとに API を叩くと到達不能時にレビュー是正まで fail-close で止まるためである。marker を無検証にせず要求するのは、worktree 所有台帳へ `{issue, round, branch_name, handoff_path}` を正確に載せるため（FR-W4）と、`gitgate adopt-branch --repository OWNER/REPO --expected-oid` に渡す値の出所を dispatch 契約側へ固定するためである。同じ `agent_type` が `managed` と `isolation_only` の両方に載っていれば、どちらの契約で判定すべきか一意に決まらないので manifest の誤りとして fail-close する。
 
-Codex側は既存issue-start hookが`spawn_agent`と実測名`collaborationspawn_agent`の既知roleだけを捕捉し、manifestを介さず同じunavailable理由で拒否する。`Agent`はClaude transportのtool名であり、Codex transportとして扱わない。
+`Agent`はClaude transportのtool名であり、Codex transportとして扱わない。Codex issue-start hookの退役経緯と旧wrapperの保存先は[`.ai/rationale/issue-pipeline.md`](../../.ai/rationale/issue-pipeline.md)「Issue #603: Codex main-context 資産の退役」を参照する。
 
 Codex 0.146.0 の`tool_input.message`が暗号化されることに加え、custom agent schemaにper-subagent workspace項目がなく親workspaceを継承するため、task name/cwd/prepare ledgerからchild workspaceを推測するparserは退役した。その後に正規経路としていたrepo supervisorもIssue #538で退役した。Codexは主文脈にしないため、Codexからimplementer/fixerをdispatchする経路は無い。現在の状態は[`docs/methods/codex-workspace-binding.md`](../methods/codex-workspace-binding.md)を正とする。
 
@@ -24,7 +24,7 @@ Claude Code 2.1.221 Pro の通常 trust 実 TUI では、`.claude/settings.json`
 
 初回ac-designerのClaude transportはdispatch prompt に厳格な `ISSUE_START_BINDING_V1=<JSON>` 行を1つだけ含める。V1 の7 field、marker の欠如/重複なし、unknown field なしという契約を維持する。branch/base field は Claude compatibility のため marker 内で検証するが、branch-source ALLOW の根拠にはせず、後続 `gitgate new-branch` が fresh に再検証する。
 
-著作ロールとfixerのClaude transportは加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。著作ロールは「独立worktreeで著作する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。Codex dispatchはmanifestやisolation parserへ進む前に常時拒否する。deny reason には reason codeに加えてdetailを載せる。
+著作ロールとfixerのClaude transportは加えて `tool_input.isolation` が exact `"worktree"` であることを要求する（manifest の `required_isolation`・Issue #350）。著作ロールは「独立worktreeで著作する」契約だが、その分離は role 側では作れない——`gitgate` に worktree を作成・移動する verb は無く、`agent-command-gate` の層2 が `cd` を deny するため、worktree を作れても移動できない。分離を与えられるのは dispatch 側だけなので、欠落は `ISSUE_START_ISOLATION_NOT_WORKTREE` で dispatch 自体を deny する。この検査は blocker read（GitHub API）より前の shape 検証段で閉じるため、API を消費しない。deny reason には reason codeに加えてdetailを載せる。
 
 PreToolUse hook は次を順に行う。
 
@@ -41,6 +41,12 @@ policyは `issue-start/1.0` から `issue-start/2.0` へ、このPRで一度だ�
 旧呼出しと非互換である。role専用worktreeへのremote exact OID継承もこの版の必須契約とする。
 是正中に検討したminor 1.1は未公開で、非互換変更を許す既存規定がないため区分を訂正した。
 manifestのJSON形状は互換のため `managed-issue-entrypoints/2` を維持する。
+
+後続作者の非初回dispatchでは、検査作業面がHEAD＝承認exact OIDのdetachedであることを受理条件とし、
+対象branch上・別名branch上、および他のworktree（primary checkoutを含む）が対象branchを掴んでいる状態を拒否する（Issue #685）。
+この受理条件は2.0の必須契約である上記のremote exact OID継承を成立させるためのもので（作業面が対象branch上だと
+作者の `gitgate adopt-branch` が必ず失敗し、継承が成立しなかった）、manifest・marker・bindingの形状も変わらないため、
+版は `issue-start/2.0` に据え置く（オーナー判断・2026-10-31）。
 
 
 初回managed roleはac-designer、後続isolation_onlyはchange-planner/test-writer/issue-implementerと
@@ -63,8 +69,8 @@ worktree継承決定は [FBK-20261017-工程別worktreeへ同一branchを継承�
 
 ## Hook parity と限界
 
-- Codex dispatch: `.codex/hooks.json` → `.codex/hooks/issue-start-gate.sh`（`ISSUE_START_TRANSPORT_UNAVAILABLE`）
-- Claude: `.claude/settings.json` → `.claude/hooks/issue-start-gate.sh`
-- 共通 core: `python3 -m issue_start.hook`
+- Claude dispatch: `.claude/settings.json` の PreToolUse(`Task|Agent`) → `.claude/hooks/issue-start-gate.sh` → `python3 -P -m issue_start.hook`（cwd＝検査作業面を `sys.path` に入れない）
+- Claude の read-only 工程の直接編集: `.claude/settings.json` の PreToolUse(`Write|Edit|NotebookEdit`) → `.claude/hooks/phase-tool-gate.sh` → `python3 -P -m issue_start.phase_tool_gate`（同じく cwd のコードを import しない）
+- Codex: issue-start hook は登録しない（Issue #603 で退役。上記「Managed Issue-start」参照）
 
 project hook が trusted/enabled で実際に fired した managed operation だけが保護対象である。direct shell/API invocation、未知 harness、hook を無効化した環境は manifest の unmanaged 分類であり、保護済みとは主張しない。`/hooks` と harness log で registration・trust・fire を確認する。
