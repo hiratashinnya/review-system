@@ -11,8 +11,9 @@
 # 失敗しても作業を止めない（fail-open。診断は stderr へ・`claude --debug` で拾える）。
 #
 # stdin の事前フィルタ（Issue #512 是正・F-512-07）: トリガー語（ingest-review／
-# close-attempt）を含まない stdin では python を起動しない。python 側の
-# `trigger.TRIGGER_RE` はこの2語のいずれかを部分文字列として要求するため、shell 側の
+# close-attempt／karte decide。`ingest-reviewer` は `ingest-review` に含まれる）を含まない
+# stdin では python を起動しない。python 側の
+# `trigger.TRIGGER_RE` はこの語のいずれかを部分文字列として要求するため、shell 側の
 # 部分文字列検査で「無ければ python 側も必ず不一致」と言え、誤って早期 exit する
 # （偽陰性）ことはない——unrelated な Bash/ctx 呼び出しごとに python インタプリタを
 # 起動するコストだけを削る最適化であり、判定ロジック自体はここに複製しない。
@@ -28,7 +29,7 @@ cd "$PROJECT_ROOT" || exit 0
 
 payload="$(cat)"
 case "$payload" in
-  *ingest-review*|*close-attempt*)
+  *ingest-review*|*close-attempt*|*karte\ decide*)
     ;;
   *)
     exit 0

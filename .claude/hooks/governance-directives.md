@@ -1,7 +1,11 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@11f296076a42 -->
+<!-- synced-from: CLAUDE.md@ccb64719d447 -->
 <!--
+  Issue #375（2026-10-31）: `.claude/rules/05-skills-agents.md` の戻り値のハンドオフ規約で `pr-reviewer`
+  （Claude Code）を write 権限なし側から外し、項13へ `karte ingest-reviewer` と主文脈専用 verb を追記した。
+  既存の中核規範（1〜12）は意味を保持。marker を再計算した。
+
   PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
 
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
@@ -299,6 +303,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
     `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
     `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず、
-    `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
-    `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
+    `ingest-review` は主文脈だけが行う（`decide`・`activate` も主文脈専用）。著作3role・implementer・fixerはpush可能だがmerge不可、
+    `pr-reviewer` はpush/merge不可（Claude Code では `tmp/_handoff/pr-reviewer--*.md` への Write と
+    `karte ingest-reviewer` だけを持ち、自分の finding を本人が取り込む）。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。

@@ -616,7 +616,7 @@ nag であり、かつ発火条件が「編集対象の realpath が正本集合
 
 # karte 判定の直接通知フック(PostToolUse・karte-notify.sh・Issue #512)
 
-`karte ingest-review` / `karte close-attempt` の実行直後に `karte status --json` の判定を
+`karte ingest-review` / `ingest-reviewer` / `decide` / `close-attempt` の実行直後に `karte status --json` の判定を
 **AI の要約を経ずに** `systemMessage` でオーナーのチャットへ直送する。背景・意味内容の
 正本は `.ai/skills/issue-pipeline/SKILL.md`「karte 判定の報告分担」、Claude Code 固有の
 契約は `.claude/skills/issue-pipeline/SKILL.md`「karte 判定の直接通知（Claude Code 固有）」。
@@ -651,8 +651,9 @@ F-431-07・飽和 Attempt 3,5)を本文から再現できないため。
 
 ## stdin 事前フィルタ(パフォーマンス最適化・F-512-07)
 
-`karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`/`close-attempt` の
-部分文字列を含まない場合は python を起動せず `exit 0` する。python 側の `trigger.TRIGGER_RE`
+`karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`（`ingest-reviewer` を含む）/
+`close-attempt`/`karte decide` の部分文字列を含まない場合は python を起動せず `exit 0` する。
+python 側の `trigger.TRIGGER_RE`
 はこの2語のいずれかを部分文字列として要求するため、shell 側で不在と判定した入力は python 側
 でも必ず不一致になる(偽陰性を生まない安全な事前フィルタ)。対象外の Bash/ctx 呼び出し(大半)
 ごとに python インタプリタを起動するコストを削るだけの最適化であり、判定ロジック自体は
@@ -700,7 +701,9 @@ python 側に一本化したまま複製しない。
 初回1aのnew-branchと後続1b/2a/2bのadopt-branchを両PFのcommand hookへ接続する。
 初回ac-designerはIssue-start、新工程の後続著作はphase bindingとworktree isolationを使う。
 read-onlyの調査・plan-reviewer・pr-reviewer・adviserは所有台帳を作らず、直接Write/Edit/NotebookEditも
-`python3 -m issue_start.phase_tool_gate`で拒否する。shell/MCP経由でも既存command gateのロール別権限を維持する。
+`python3 -m issue_start.phase_tool_gate`で拒否する。例外は`pr-reviewer`のWriteだけで、
+`tmp/_handoff/pr-reviewer--<key>.md`（`karte/handoff_path.py`の規則。realpath・symlink・`..`・
+ファイル名を検査し、検査不能は拒否）に限り通す（Issue #375）。shell/MCP経由でも既存command gateのロール別権限を維持する。
 任意再委譲、review台帳書込、merge、read-onlyのpushは許可しない。
 worktree継承は `FBK-20261017-工程別worktreeへ同一branchを継承する` に従い、各作者専用worktreeへ同branch/remote exact OIDを継承する。
 前roleの完了receipt、終了・push、collect/release完了を照合し、使用中worktreeは奪取しない。

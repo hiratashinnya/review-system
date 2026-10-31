@@ -1407,6 +1407,15 @@ class CodexAgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
+    def test_codex_roles_cannot_run_reviewer_or_main_context_karte_verbs(self):
+        # Issue #375: ingest-reviewer は Claude 側 pr-reviewer 専用。Codex の pr-reviewer は
+        # Write を持たないため許さず、decide/activate はどのロールにも許さない。
+        for role in ["pr-reviewer", "issue-fixer", "issue-implementer"]:
+            for verb in ["ingest-reviewer --from tmp/_handoff/pr-reviewer--k1.md",
+                         "decide --finding F-1-01 --scope out", "activate --issue 1"]:
+                with self.subTest(role=role, verb=verb):
+                    self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb}")))
+
     def test_bare_karte_and_unknown_karte_verbs_are_denied(self):
         for command in [
             "python3 -m karte",

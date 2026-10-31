@@ -1699,6 +1699,23 @@ class AgentCommandGateTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_denied(run_gate(payload("issue-fixer", command)))
 
+    def test_pr_reviewer_may_only_run_karte_ingest_reviewer(self):
+        # Issue #375: 取り込みは「指摘した側」のレビューア本人が専用 verb で行う。
+        # 主文脈専用の ingest-review / decide / activate と、是正当事者の verb は許さない。
+        self.assert_allowed(run_gate(payload(
+            "pr-reviewer", "python3 -m karte ingest-reviewer --from tmp/_handoff/pr-reviewer--k1.md")))
+        for verb in ["ingest-review --issue 1 --round 1 --from r.md", "decide --finding F-1-01 --scope out",
+                     "activate --issue 1", "append --issue 1", "render --issue 1", "check", "status"]:
+            with self.subTest(verb=verb):
+                self.assert_denied(run_gate(payload("pr-reviewer", f"python3 -m karte {verb}")))
+
+    def test_ingest_reviewer_and_main_context_verbs_are_denied_for_other_gated_roles(self):
+        for role in ["issue-fixer", "issue-implementer"]:
+            for verb in ["ingest-reviewer --from tmp/_handoff/pr-reviewer--k1.md",
+                         "decide --finding F-1-01 --scope out", "activate --issue 1"]:
+                with self.subTest(role=role, verb=verb):
+                    self.assert_denied(run_gate(payload(role, f"python3 -m karte {verb}")))
+
     def test_bare_karte_and_unknown_karte_verbs_are_denied(self):
         for command in [
             "python3 -m karte",
