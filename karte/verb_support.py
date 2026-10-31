@@ -60,6 +60,19 @@ def resolve_issue(args, repo_root, hint="") -> int:
     return paths.validate_issue(active["issue"])
 
 
+def next_round(repo_root, issue: int) -> int:
+    """取り込み済みの最新ラウンド（進行ポインタの ``round``）＋1。欠落・非数値・Issue 不一致は拒否する。"""
+    active = read_active(repo_root, required=True)
+    if "round" not in active:
+        raise KarteUsageError("進行ポインタに 'round' が無い（`activate --issue N` で作り直す）")
+    text = str(active["round"])
+    if not text.isdigit():
+        raise KarteUsageError(f"進行ポインタの 'round' が 0 以上の整数でない: {active['round']!r}")
+    if "issue" not in active or paths.validate_issue(active["issue"]) != issue:
+        raise KarteUsageError(f"進行ポインタが指す issue-{active.get('issue')} と対象 issue-{issue} が食い違う")
+    return int(text) + 1
+
+
 def load_karte(repo_root, issue: int, hint=""):
     """``(path, Karte)``。置き場・台帳が無ければ :class:`KarteNotFound`（未検出＝ガード違反ではない）。"""
     try:

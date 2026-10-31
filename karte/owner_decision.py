@@ -4,7 +4,7 @@
 """
 
 from . import model, paths
-from .cli import KarteUsageError
+from .errors import KarteUsageError
 
 DISPOSITION_OPTIONS = ("disposition", "deferred_to", "waived_by", "waived_reason")
 

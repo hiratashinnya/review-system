@@ -10,10 +10,12 @@ OWNER_ONLY_KEYS = ("disposition", "deferred_to", "waived_by", "waived_reason")
 
 
 class ReviewerIngestPolicy:
-    def __init__(self, repo_root, issue):
+    def __init__(self, repo_root, issue, round_no):
         self.repo_root = repo_root
         self.issue = issue
-        self.declared_before = scope_ledger.latest_declared(issue, repo_root)
+        self.round_no = round_no
+        # 判定の基準は「このラウンドより前」の申告だけ（同一ラウンドの再試行を冪等にする）。
+        self.declared_before = scope_ledger.latest_declared(issue, repo_root, before_round=round_no)
         self.declared_now = {}
 
     def check(self, review) -> list:

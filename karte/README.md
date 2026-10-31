@@ -132,6 +132,13 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   台帳が無ければ 0）。初回の `ingest-reviewer` の前に実行する。
 - **`decide --finding <ID> [--disposition … --deferred-to … --waived-by … --waived-reason …] [--scope in|out]`**
   （主文脈専用）：オーナー決定を台帳へ直接記録する。`disposition` の付随キー規則は `ingest-review` と同じ。
+- **二経路は併存させない**：`ingest-reviewer` で取り込んだ Issue（申告 scope の原本ファイルがある）に
+  主文脈が `ingest-review` で取り込もうとすると、`decide` で記録したオーナー決定を上書きしてしまうため
+  fail-close で拒否する。申告 scope の原本が壊れている・欠損している場合も、台帳との差分を判定できない
+  ので `ingest-reviewer` は拒否する（終了コードは 4）。
+- round は進行ポインタの `round`（欠落・非数値・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
+  申告 scope の覆し判定は「これから取り込むラウンドより前」の申告だけを基準にするため、台帳書込みの
+  失敗後に同じラウンドを再試行しても、レビューアの新しい scope をオーナーの覆しと誤判定しない。
 - `decide` / `activate` / `ingest-review` はどのロールの許可集合にも入れない
   （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
   `render`/`append`/`close-attempt`/`check`/`status`。

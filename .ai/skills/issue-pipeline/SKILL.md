@@ -148,6 +148,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
   2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、**覆すかどうかは同じ場でオーナーに仰ぐ**（主文脈が独断で決めない）。
   3. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
   4. 記録した決定は台帳に残り、次ラウンドの `ingest-reviewer` は `disposition` 系を上書きしない。オーナーが覆した `scope` も保持される（台帳の `scope` がレビュー担当の直近申告と食い違う finding は取り込み出力に列挙される）。申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。
+  - `ingest-reviewer` で取り込んだ Issue に主文脈が `ingest-review` で取り込むことはできない（`decide` で記録した決定の上書きを防ぐため拒否される）。
   - `ingest-reviewer` は `--issue` / `--round` を受けない。`decide` / `activate` / `ingest-review` は主文脈専用で、どの当事者ロールにも許可しない。
   - Claude Code 以外の実行環境（レビュー担当に書込経路がない）では従来どおり、主文脈がレポートへ `disposition:` とその付随キーを書き足して `ingest-review` で取り込む。前ラウンドの決定とオーナーが覆した `scope` は毎ラウンド全件再掲する（`disposition` の書き忘れは fail-close、`scope` の書き忘れは申告値へ戻る fail-open）。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
