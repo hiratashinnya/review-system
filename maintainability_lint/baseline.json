@@ -26,7 +26,6 @@
     "issue_start/subagent_hooks.py|af8a35a9aabb2dd3": 1,
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
     "karte/cli.py|57b1a37f983c7336": 1,
-    "karte/cli.py|c24033c5e05b56bb": 1,
     "karte/cli.py|cdbe1cef9b3d9028": 1,
     "karte/cli.py|d87fcc8e5318e874": 1,
     "karte/model.py|170b9a65e7d9ef73": 1,
@@ -39,7 +38,6 @@
     "karte/model.py|b61b5edb5d280e53": 1,
     "karte/model.py|e1cbd9df9da10e08": 1,
     "karte/model.py|e22fd7599d44f325": 1,
-    "karte_notify/notify.py|ec3051555595dc5f": 1,
     "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
@@ -136,8 +134,8 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1519,
-      "sha256": "bc44bd2ced7184fcb0db001f4b87a2536e4de78446af57320066dbb49d07c38b"
+      "line_count": 1276,
+      "sha256": "b8e718b1940bec34837f5e95daa8afc3e475877edda1b801ac5b0818dbf2a3e7"
     },
     "karte/model.py": {
       "line_count": 1303,
@@ -156,8 +154,8 @@
       "sha256": "a3cc64be038243c7556ce5c6da8064ffa16eb0f1a0f87649b9e89ef095b8e1c5"
     },
     "karte_notify/notify.py": {
-      "line_count": 346,
-      "sha256": "ffef11e065c16e3eb5fbbcecce7c87b73e5e9d4737449e712aa706d4c07c80e1"
+      "line_count": 285,
+      "sha256": "2ddf6babf24d33a99d6ad44dcc40822ceecddec573a301939115d5a19348468b"
     },
     "project_status_sync/cli.py": {
       "line_count": 206,

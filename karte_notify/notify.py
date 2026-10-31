@@ -68,83 +68,22 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Mapping
 
 from karte import model as karte_model
 from karte import paths as karte_paths
 
-# `karte ingest-review` / `karte close-attempt` の実行を検出する（Issue #512 Scope 1）。
-# `-m karte` 経由の module 起動だけを見る（`karte` package の CLI 契約そのものなので、
-# エイリアス・別実行形は対象外＝取りこぼしても fail-open で実害が小さい方に倒す）。
-TRIGGER_RE = re.compile(r"\bpython3?\s+-m\s+karte\s+(ingest-review|close-attempt)\b")
-ISSUE_ARG_RE = re.compile(r"--issue[=\s]+([0-9]+)")
-
-NOTIFIED_DIRNAME = "notified"
-
-# 本フックが検出対象とする tool_name（Issue #512 是正・F-512-02）。`Bash` に加え、
-# `.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」で issue-implementer /
-# issue-fixer / pr-reviewer / 主文脈 / dsv2-lookup に付与済みの実行系 MCP ツール
-# （`ctx_execute`/`ctx_batch_execute`）経由の `karte ingest-review`/`close-attempt` 実行も
-# 同じ通知対象にする。`ctx_execute_file` は既存方針で全ロール未付与のため対象に含めない
-# （`.claude/rules/05-skills-agents.md` 同節）。
-SUPPORTED_TOOL_NAMES = (
-    "Bash",
-    "mcp__plugin_context-mode_context-mode__ctx_execute",
-    "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+from .trigger import (  # noqa: F401  — 公開名は notify から引き続き参照される
+    ISSUE_ARG_RE,
+    SUPPORTED_TOOL_NAMES,
+    TRIGGER_RE,
+    detect_trigger,
+    extract_commands,
+    issue_from_command,
 )
 
-
-def detect_trigger(command: str) -> str | None:
-    """``command`` が ``karte ingest-review``/``close-attempt`` の実行なら verb 名を返す。"""
-    match = TRIGGER_RE.search(command)
-    return match.group(1) if match else None
-
-
-def extract_commands(tool_name: str, tool_input: Mapping[str, Any]) -> list[str]:
-    """``tool_name``/``tool_input`` から検査対象のコマンド文字列を取り出す（Issue #512 F-512-02）。
-
-    ``Bash`` は ``tool_input.command``。``ctx_execute`` は ``tool_input.code``
-    （``language: shell`` 前提の呼び出し規約だが、ここでは ``language`` の真偽は検査しない
-    ——実行される文字列そのものを見れば検出には十分で、詐称されていても検出漏れ側には
-    倒れない）。``ctx_batch_execute`` は ``tool_input.commands[].command`` の全件を対象にし、
-    どれか1件が一致すれば検出する。``tool_name`` が対象外、または形が不正なら空リスト
-    （呼び出し側はこれを「検出なし」として扱う＝fail-open）。
-    """
-    if tool_name == "Bash":
-        command = tool_input.get("command")
-        return [command] if isinstance(command, str) else []
-    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_execute":
-        code = tool_input.get("code")
-        return [code] if isinstance(code, str) else []
-    if tool_name == "mcp__plugin_context-mode_context-mode__ctx_batch_execute":
-        commands = tool_input.get("commands")
-        result: list[str] = []
-        if isinstance(commands, list):
-            for item in commands:
-                if isinstance(item, Mapping):
-                    command = item.get("command")
-                    if isinstance(command, str):
-                        result.append(command)
-        return result
-    return []
-
-
-def issue_from_command(command: str) -> int | None:
-    """``--issue N`` を ``command`` からベストエフォートで取り出す（無ければ ``None``）。
-
-    見つからない／不正な形式なら ``None``——呼び出し側は進行ポインタ
-    （``tmp/_karte/active.json``）へのフォールバックを別途持つ（``karte status`` 自身の
-    ``--issue`` 省略時の補完と同じ扱い）。
-    """
-    match = ISSUE_ARG_RE.search(command)
-    if not match:
-        return None
-    try:
-        return karte_paths.validate_issue(match.group(1))
-    except karte_paths.KartePathError:
-        return None
+NOTIFIED_DIRNAME = "notified"
 
 
 def _notified_dir(repo_root: Path, *, create: bool) -> Path:

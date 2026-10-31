@@ -91,15 +91,14 @@ import json
 import sys
 from pathlib import Path
 
-from . import model, paths, similarity, touched as touched_mod
+from . import ingest_checks, ingest_review, model, paths, similarity, touched as touched_mod
+from .active_pointer import read_active as _read_active
+from .errors import KarteNotFound, KarteUsageError
+from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, EXIT_SATURATED
 from .model import KarteFormatError
 from .paths import KartePathError
 from .touched import TouchedError
 
-EXIT_OK = 0
-EXIT_NOT_FOUND = 2
-EXIT_SATURATED = 3
-EXIT_ERROR = 4
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 
@@ -114,14 +113,6 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 # repo-root のオーバーライド点。**既定は None（＝未解決）**で、実際の導出は
 # `_repo_root` が呼ばれたときに行う（K-12 の遅延評価）。
 _REPO_ROOT = None
-
-
-class KarteUsageError(Exception):
-    """前提違反（存在しない Attempt・未知 finding ID 等）。fail-close で何も書かない。"""
-
-
-class KarteNotFound(KarteUsageError):
-    """対象のカルテがまだ存在しない（未検出＝EXIT_NOT_FOUND）。"""
 
 
 def _fail_close(func):
@@ -199,52 +190,6 @@ def _diff_cwd(args) -> Path:
     ここでは参照しない——実運用でこの値を上書きする公開経路は存在しない。
     """
     return paths.invoking_worktree_root(_PACKAGE_ROOT)
-
-
-def _read_active(repo_root, *, required: bool = False) -> dict:
-    """進行ポインタ ``tmp/_karte/active.json`` を読む。
-
-    ``required``
-        ``--issue`` / ``--round`` の補完に使う（＝これが唯一の情報源）とき True。
-        ポインタが**まだ無い**場合に ``{}`` を返さず :class:`KarteUsageError` を送出する。
-
-    **壊れている場合は ``required`` によらず常に拒否する**（K-13/K-14/K-15）。JSON として
-    読めない・dict でないポインタを黙って「無い」と同じ ``{}`` に潰すと、補完が沈黙の
-    うちに別の値（別 Issue・別ラウンド）へ倒れ、誤った台帳を書き換えても観測できない。
-    「まだ無い」（正常な初期状態）と「壊れている」（異常）は別物として扱う。
-    """
-    try:
-        path = paths.active_path(repo_root)
-    except paths.KarteMissing as exc:
-        if required:
-            raise KarteUsageError(f"進行ポインタが無い: {exc}") from None
-        return {}
-    if not path.is_file():
-        if required:
-            raise KarteUsageError(
-                f"進行ポインタ {path} が無い"
-                "（先に `ingest-review --issue N --round R` を明示指定で実行する）"
-            )
-        return {}
-    try:
-        data = json.loads(paths.read_text(path))
-    except ValueError as exc:
-        raise KarteUsageError(
-            f"進行ポインタ {path} が JSON として壊れている: {exc}"
-            "（補完に使えないため取り込まない。ポインタを作り直すこと）"
-        ) from None
-    if not isinstance(data, dict):
-        raise KarteUsageError(
-            f"進行ポインタ {path} の中身が JSON オブジェクトでない: {type(data).__name__}"
-        )
-    return data
-
-
-def _write_active(repo_root, issue: int, round_no: int) -> None:
-    path = paths.active_path(repo_root, create_dir=True)
-    paths.write_text_atomic(
-        path, json.dumps({"issue": int(issue), "round": int(round_no)}, ensure_ascii=False) + "\n"
-    )
 
 
 def _resolve_issue(args) -> int:
@@ -446,8 +391,7 @@ def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptVi
     )
 
 
-def _open_ids(karte: model.Karte) -> set:
-    return {item.id for item in karte.open_findings()}
+_open_ids = ingest_checks.open_ids
 
 
 def _priors_for(karte: model.Karte, finding_ids) -> list:
@@ -569,197 +513,7 @@ def cmd_ingest_review(args) -> int:
     report_text = _read_report(args, repo_root)
 
     with paths.writer_lock(repo_root):
-        return _ingest_review_locked(args, repo_root, issue, round_no, report_text)
-
-
-def _ingest_review_locked(args, repo_root, issue, round_no, report_text) -> int:
-    """Hold the shared writer lock from the first karte read through replacement."""
-
-    path = paths.karte_path(issue, repo_root, create_dir=True)
-    karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
-
-    last_round = max((r for item in karte.findings for r in item.rounds), default=0)
-    if round_no <= last_round:
-        raise KarteUsageError(
-            f"round は単調増加させる（取り込み済みの最新ラウンドは {last_round}・"
-            f"指定は {round_no}）。同じラウンドの再取り込みは台帳の状態遷移を壊す"
-        )
-
-    review = model.parse_review(report_text, issue)
-    previously_open = _open_ids(karte)
-
-    errors: list = []
-    accepted: list = []  # (finding_id, ReviewFinding, is_new)
-    seen: set = set()
-    next_seq = karte.next_seq()
-    for item in review:
-        if item.finding_id is None:
-            finding_id = model.format_finding_id(issue, next_seq)
-            next_seq += 1
-            is_new = True
-        else:
-            finding_id = item.finding_id
-            _issue_of_id, seq = model.parse_finding_id(finding_id)
-            if karte.finding(finding_id) is not None:
-                is_new = False
-            elif seq == next_seq:
-                next_seq += 1
-                is_new = True
-            else:
-                errors.append(
-                    f"{item.lineno} 行目: 未知の finding ID: {finding_id}"
-                    f"（台帳に無く、次に採番できるのは {model.format_finding_id(issue, next_seq)}）"
-                )
-                continue
-        if finding_id in seen:
-            errors.append(f"{item.lineno} 行目: finding ID がレポート内で重複している: {finding_id}")
-            continue
-        seen.add(finding_id)
-
-        bad_refs = _invalid_distinct_refs(karte, seen, finding_id, item)
-        if bad_refs:
-            errors.extend(bad_refs)
-            continue
-
-        if is_new:
-            duplicate = _find_duplicate(karte, accepted, item)
-            if duplicate is not None:
-                errors.append(
-                    f"{item.lineno} 行目: ID 再発番を検出: {finding_id} は既存の未解消 "
-                    f"{duplicate} と同一の指摘（locus が交差し summary が一致）。"
-                    "未解消の指摘を再度挙げるときは同じ ID を再利用すること"
-                    f"（別物なら当該ブロックに `distinct_from: {duplicate}` を書いて名指しする）"
-                )
-                continue
-        accepted.append((finding_id, item, is_new))
-
-    # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
-    # 欠けていれば取り込みごと拒否する（部分的なレポート 1 通で `harm: real` の指摘が
-    # 消える fail-open だった）。欠けている ID は全て列挙する（1 件ずつ往復させない）。
-    absent = sorted(
-        previously_open - {fid for fid, _item, _is_new in accepted},
-        key=lambda fid: model.parse_finding_id(fid)[1],
-    )
-    if absent:
-        errors.append(
-            "前ラウンドで未解消の finding が今回のレポートに再掲されていない: "
-            f"{', '.join(absent)}"
-            "（不在は解消ではない。解消したなら当該 ID のブロックを `status: resolved` で"
-            "再掲し、未解消なら `status: open` のまま再掲する）"
-        )
-
-    if errors:
-        for line in errors:
-            print(f"拒否（fail-close）: {line}", file=sys.stderr)
-        return EXIT_ERROR
-
-    created = []
-    resolved = []
-    excluded = []  # distinct_from で重複判定を外したペア（監査用に出力へ残す）
-    for finding_id, item, _is_new in accepted:
-        finding = karte.finding(finding_id)
-        if finding is None:
-            finding = model.Finding(id=finding_id)
-            karte.findings.append(finding)
-            created.append(finding_id)
-        # K-06: 解消は**明示宣言**でのみ成立する（`harm` の値によらず一律）。
-        finding.status = item.status
-        finding.resolved_round = round_no if item.status == "resolved" else None
-        if item.status == "resolved":
-            resolved.append(finding_id)
-        finding.harm = item.harm
-        finding.harm_detail = item.harm_detail
-        finding.severity = item.severity
-        # Issue #495: `scope` と `disposition` 系もレポートの値で毎ラウンド上書きする
-        # （他の欄と同じ扱い）。据え置きにすると「1 度書いた disposition が、以後
-        # 書かれなくても残り続ける」ことになり、レポート側の記述と台帳が静かにずれる。
-        # 書き忘れは未決定へ倒れて verdict のゲートに掛かる＝fail-close 側へ倒れる。
-        finding.scope = item.scope
-        finding.disposition = item.disposition
-        finding.deferred_to = item.deferred_to
-        finding.waived_by = item.waived_by
-        finding.waived_reason = item.waived_reason
-        finding.locus = list(item.locus)
-        finding.summary = item.summary
-        finding.evidence = item.evidence
-        finding.expected = item.expected
-        finding.recheck = item.recheck
-        if round_no not in finding.rounds:
-            finding.rounds.append(round_no)
-        finding.rounds.sort()
-        for other in item.distinct_from:
-            excluded.append(f"{finding_id} ↔ {other}")
-
-    karte.findings.sort(key=lambda item: item.seq)
-    paths.write_text_atomic(path, model.dumps(karte))
-    _write_active(repo_root, issue, round_no)
-
-    print(f"=== ingest-review: issue-{issue} round {round_no} ===")
-    print(f"  取り込み: {len(accepted)} 件（新規 {len(created)} / 再掲 {len(accepted) - len(created)}）")
-    if created:
-        print(f"  新規採番: {', '.join(created)}")
-    if resolved:
-        print(f"  解消（レポートで `status: resolved` と明示された）: {', '.join(sorted(resolved))}")
-    if excluded:
-        print(f"  重複判定の明示的除外（distinct_from）: {'; '.join(excluded)}")
-    print(f"  未解消: {', '.join(sorted(_open_ids(karte))) or '(なし)'}")
-    out_of_scope = sorted(item.id for item in karte.open_findings() if item.scope == "out")
-    if out_of_scope:
-        # Issue #495: スコープ外の申告も同じ列に入ったことを取り込み時点で見せる
-        # （別経路へ逃がしていないことの可視化）。
-        print(f"  うち scope: out（実害判定・verdict の免除にはならない）: {', '.join(out_of_scope)}")
-    undecided = sorted(item.id for item in karte.undecided_findings())
-    if undecided:
-        print(
-            "  実害あり・disposition 未決定（clean を妨げる。fix-here / deferred / waived を決める）: "
-            + ", ".join(undecided)
-        )
-    print(f"  カルテ: {path}")
-    return EXIT_OK
-
-
-def _invalid_distinct_refs(karte: model.Karte, seen: set, finding_id: str, item) -> list:
-    """``distinct_from`` の参照先が実在するか（K-05 のエスケープハッチを監査可能に保つ）。
-
-    名指しできるのは **台帳にある finding** か、**同じレポート内で先に現れた finding** だけ。
-    実在しない ID を書けてしまうと「何と別物か」の名指しが検証されず、重複判定を
-    無効化するだけの呪文になる（＝握りつぶしの経路になる）ので fail-close で拒否する。
-    自分自身の名指しも、判定を外す相手が存在しない無意味な宣言なので拒否する。
-    """
-    errors = []
-    for other in item.distinct_from:
-        if other == finding_id:
-            errors.append(
-                f"{item.lineno} 行目: distinct_from に自分自身は書けない: {other}"
-            )
-        elif karte.finding(other) is None and other not in seen:
-            errors.append(
-                f"{item.lineno} 行目: distinct_from が指す finding ID が実在しない: {other}"
-                "（台帳にあるか、同じレポートで先に現れた ID だけを名指しできる）"
-            )
-    return errors
-
-
-def _find_duplicate(karte: model.Karte, accepted, item):
-    """新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。
-
-    ``item.distinct_from`` で名指しされた相手は比較から外す（K-05）。外れるのは
-    **名指しされたペアだけ**で、判定そのもの・閾値
-    （:data:`model.DUPLICATE_SIMILARITY_THRESHOLD`）は据え置く——偽陽性の逃げ道として
-    閾値を下げると、本来検出したい再発番まで一律に見逃す。
-    """
-    exempt = set(item.distinct_from)
-    for finding in karte.open_findings():
-        if finding.id in exempt:
-            continue
-        if model.is_same_finding(item.summary, item.locus, finding.summary, finding.locus):
-            return finding.id
-    for finding_id, other, _is_new in accepted:
-        if finding_id in exempt:
-            continue
-        if model.is_same_finding(item.summary, item.locus, other.summary, other.locus):
-            return finding_id
-    return None
+        return ingest_review.ingest_locked(repo_root, issue, round_no, report_text)
 
 
 # --- verb: render -------------------------------------------------------------
@@ -1427,7 +1181,8 @@ def cmd_status(args) -> int:
 # --- パーサ ------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
+    """``extra_registrars``＝``(subparsers, add_issue)`` を受けて verb を足す関数の列（別モジュールの verb 用）。"""
     parser = argparse.ArgumentParser(
         prog="karte",
         description="是正ループの診断カルテ（tmp/_karte/issue-<N>.md）を操作する",
@@ -1509,11 +1264,13 @@ def build_parser() -> argparse.ArgumentParser:
     add_issue(status)
     status.add_argument("--json", action="store_true", help="機械可読な JSON で出力")
     status.set_defaults(func=cmd_status)
+    for register in extra_registrars:
+        register(subparsers, add_issue)
     return parser
 
 
-def main(argv=None) -> int:
+def main(argv=None, extra_registrars=()) -> int:
     """薄いディスパッチャ。終了コードへの変換は各 ``cmd_*``（:func:`_fail_close`）が担う。"""
-    parser = build_parser()
+    parser = build_parser(extra_registrars)
     args = parser.parse_args(argv)
     return args.func(args)
