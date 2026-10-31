@@ -1540,7 +1540,7 @@ class SettingsRegistrationTests(unittest.TestCase):
             self.assertIn('bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/phase-tool-gate.sh',
                           self.matching_commands("PreToolUse", tool))
         self.assertIn(
-            "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-start-gate.sh",
+            'bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/issue-start-gate.sh',
             pre_tool_use,
         )
         self.assertIn(
