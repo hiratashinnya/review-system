@@ -42,6 +42,12 @@ policyは `issue-start/1.0` から `issue-start/2.0` へ、このPRで一度だ�
 是正中に検討したminor 1.1は未公開で、非互換変更を許す既存規定がないため区分を訂正した。
 manifestのJSON形状は互換のため `managed-issue-entrypoints/2` を維持する。
 
+後続作者の非初回dispatchでは、検査作業面がHEAD＝承認exact OIDのdetachedであることを受理条件とし、
+対象branch上・別名branch上、および他のworktree（primary checkoutを含む）が対象branchを掴んでいる状態を拒否する（Issue #685）。
+この受理条件は2.0の必須契約である上記のremote exact OID継承を成立させるためのもので（作業面が対象branch上だと
+作者の `gitgate adopt-branch` が必ず失敗し、継承が成立しなかった）、manifest・marker・bindingの形状も変わらないため、
+版は `issue-start/2.0` に据え置く（オーナー判断・2026-10-31）。
+
 
 初回managed roleはac-designer、後続isolation_onlyはchange-planner/test-writer/issue-implementerと
 既存fixer、readonlyはissue-investigator/plan-reviewer/pr-reviewer/adviserとする。3区分のrole重複は拒否する。
