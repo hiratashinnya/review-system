@@ -134,8 +134,8 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1276,
-      "sha256": "b8e718b1940bec34837f5e95daa8afc3e475877edda1b801ac5b0818dbf2a3e7"
+      "line_count": 1248,
+      "sha256": "fc3799715bf8fb7ed305292c69d2e82234c75ebc7cb9596ddbe067a2f367c466"
     },
     "karte/model.py": {
       "line_count": 1303,
@@ -151,11 +151,11 @@
     },
     "karte_notify/hook.py": {
       "line_count": 175,
-      "sha256": "a3cc64be038243c7556ce5c6da8064ffa16eb0f1a0f87649b9e89ef095b8e1c5"
+      "sha256": "be55d1a0b653dd1ef0cd37b2d842612027cfae366ccbb077f87dadc908465f51"
     },
     "karte_notify/notify.py": {
-      "line_count": 285,
-      "sha256": "2ddf6babf24d33a99d6ad44dcc40822ceecddec573a301939115d5a19348468b"
+      "line_count": 276,
+      "sha256": "bf531e40446db0f9f33ea5ecab7e635cc4d1771b56e655b3976572a1a3cd2cd9"
     },
     "project_status_sync/cli.py": {
       "line_count": 206,
