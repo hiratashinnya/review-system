@@ -25,15 +25,23 @@ from blocker_gate.snapshot import REPOSITORY_SNAPSHOT_SCHEMA  # noqa: E402
 from project_status_sync import github as gh  # noqa: E402
 from project_status_sync.cli import run  # noqa: E402
 from project_status_sync.model import (  # noqa: E402
+    Abort,
     MAX_SNAPSHOT_AGE_SECONDS,
     OWNER_ONLY_FIELDS,
     Plan,
+    PlannedChange,
     ProjectItem,
     ProjectView,
+    SkippedItem,
+    SyncWarning,
     WRITABLE_TARGETS,
 )
 from project_status_sync.planner import build_plan, check_snapshot  # noqa: E402
-from project_status_sync.report import is_red, render_summary  # noqa: E402
+from project_status_sync.report import (  # noqa: E402
+    build_report,
+    is_red,
+    render_summary,
+)
 
 REPO = "owner/repo"
 NOW = datetime(2026, 9, 3, 12, 0, 0, tzinfo=timezone.utc)
@@ -469,6 +477,206 @@ class SkippedTest(unittest.TestCase):
             "skipped": [{"code": "NOT_IN_SNAPSHOT", "issue_ref": ref(9), "detail": ""}],
         }
         self.assertFalse(is_red(report))
+
+
+class RefactorCompatibilityTest(unittest.TestCase):
+    def test_fixed_plan_report_and_summary_keep_their_order_and_values(self):
+        raw = snapshot_raw(
+            {
+                1: issue(1, blocked_by=(6,)),
+                2: issue(2, blocked_by=(7,)),
+                3: issue(3, blocked_by=(6,)),
+                4: issue(4, state="CLOSED_COMPLETED", children=(5,)),
+                5: issue(5, parent=4),
+                6: issue(6),
+                7: issue(7, state="CLOSED_COMPLETED"),
+                8: issue(8),
+            }
+        )
+        items = (
+            item(None, "Ready", item_id="PVTI_pr"),
+            item(1, "Ready"),
+            item(2, "Blocked"),
+            item(3, "In progress"),
+            item(4, "Ready"),
+            item(5, "Ready"),
+            item(8, "Icebox"),
+            item(9, "Ready"),
+        )
+        plan = plan_for(raw, items)
+        expected_changes = (
+            PlannedChange("PVTI_1", ref(1), "Ready", "Blocked", "OPEN_BLOCKER"),
+            PlannedChange("PVTI_2", ref(2), "Blocked", "Ready", "BLOCKER_CLEARED"),
+        )
+        expected_plan = Plan(
+            changes=expected_changes,
+            skipped=(
+                SkippedItem(
+                    "PVTI_8", ref(8), "STATUS_UNKNOWN", "遷移表に無い Status: 'Icebox'"
+                ),
+                SkippedItem(
+                    "PVTI_9",
+                    ref(9),
+                    "NOT_IN_SNAPSHOT",
+                    "snapshot に当該 Issue が収載されていない",
+                ),
+            ),
+            warnings=(
+                SyncWarning(
+                    "ACTIVE_ITEM_BLOCKED",
+                    ref(3),
+                    "Status=In progress のままブロッカーが付いた（Status は変更しない）",
+                ),
+                SyncWarning(
+                    "CLOSURE_OPEN_DESCENDANT",
+                    ref(5),
+                    f"closed の親 {ref(4)} に open の子孫がある"
+                    f"（path: {ref(4)} -> {ref(5)}）",
+                ),
+            ),
+            considered=4,
+            out_of_scope=2,
+        )
+        self.assertEqual(plan, expected_plan)
+
+        project = ProjectView(
+            project_id=PROJECT_ID,
+            number=1,
+            title="review-system Development",
+            status_field_id=STATUS_FIELD_ID,
+            status_option_ids=dict(OPTION_IDS),
+            items=items,
+        )
+        snapshot = {
+            "generated_at": raw["generated_at"],
+            "pages_complete": raw["pages_complete"],
+            "errors": raw["errors"],
+        }
+        report = build_report(
+            repository=REPO,
+            project_id=PROJECT_ID,
+            project=project,
+            snapshot=snapshot,
+            plan=plan,
+            applied=(),
+            apply_mode=False,
+            now=NOW,
+        )
+        self.assertEqual(
+            list(report),
+            [
+                "schema",
+                "generated_at",
+                "repository",
+                "mode",
+                "project",
+                "snapshot",
+                "abort",
+                "counts",
+                "planned",
+                "applied",
+                "skipped",
+                "warnings",
+            ],
+        )
+        self.assertEqual(
+            report,
+            {
+                "schema": "project-status-sync-report/v1",
+                "generated_at": "2026-09-03T12:00:00Z",
+                "repository": REPO,
+                "mode": "dry-run",
+                "project": {
+                    "id": PROJECT_ID,
+                    "number": 1,
+                    "title": "review-system Development",
+                },
+                "snapshot": {
+                    "generated_at": "2026-09-03T11:55:00Z",
+                    "pages_complete": True,
+                    "errors": [],
+                },
+                "abort": None,
+                "counts": {
+                    "considered": 4,
+                    "out_of_scope": 2,
+                    "planned": 2,
+                    "applied": 0,
+                    "skipped": 2,
+                    "warnings": 2,
+                },
+                "planned": [change.to_dict() for change in expected_changes],
+                "applied": [],
+                "skipped": [item.to_dict() for item in expected_plan.skipped],
+                "warnings": [warning.to_dict() for warning in expected_plan.warnings],
+            },
+        )
+        self.assertTrue(is_red(report))
+        self.assertEqual(
+            render_summary(report),
+            "\n".join(
+                [
+                    "## Project Status sync",
+                    "",
+                    "- mode: `dry-run`",
+                    "- snapshot generated_at: `2026-09-03T11:55:00Z`",
+                    "- counts: considered=4 planned=2 applied=0 skipped=2 warnings=2",
+                    "",
+                    "### 変更計画（dry-run・未適用）（2件）",
+                    "",
+                    "| Issue | from | to | reason |",
+                    "|---|---|---|---|",
+                    "| owner/repo#1 | Ready | Blocked | OPEN_BLOCKER |",
+                    "| owner/repo#2 | Blocked | Ready | BLOCKER_CLEARED |",
+                    "",
+                    "### 警告（2件・CI を赤くする）",
+                    "",
+                    "| code | Issue | detail |",
+                    "|---|---|---|",
+                    "| ACTIVE_ITEM_BLOCKED | owner/repo#3 | Status=In progress のままブロッカーが付いた（Status は変更しない） |",
+                    f"| CLOSURE_OPEN_DESCENDANT | {ref(5)} | closed の親 {ref(4)} に open の子孫がある（path: {ref(4)} -> {ref(5)}） |",
+                    "",
+                    "### skipped（2件・CI は赤くしない）",
+                    "",
+                    "| code | Issue | detail |",
+                    "|---|---|---|",
+                    f"| STATUS_UNKNOWN | {ref(8)} | 遷移表に無い Status: 'Icebox' |",
+                    f"| NOT_IN_SNAPSHOT | {ref(9)} | snapshot に当該 Issue が収載されていない |",
+                    "",
+                ]
+            ),
+        )
+
+        applied_report = build_report(
+            repository=REPO,
+            project_id=PROJECT_ID,
+            project=project,
+            snapshot=snapshot,
+            plan=plan,
+            applied=expected_changes[:1],
+            apply_mode=True,
+            now=NOW,
+        )
+        self.assertEqual(applied_report["counts"]["applied"], 1)
+        self.assertTrue(is_red(applied_report))
+        self.assertIn("### 適用した変更（1件）", render_summary(applied_report))
+        self.assertIn("| owner/repo#1 | Ready | Blocked | OPEN_BLOCKER |", render_summary(applied_report))
+        self.assertNotIn("| owner/repo#2 | Blocked | Ready | BLOCKER_CLEARED |", render_summary(applied_report))
+
+    def test_abort_remains_red_and_serializes_in_the_report(self):
+        report = build_report(
+            repository=REPO,
+            project_id=PROJECT_ID,
+            project=None,
+            snapshot=None,
+            plan=Plan(abort=Abort("SNAPSHOT_STALE", "age=3601s limit=3600s")),
+            applied=(),
+            apply_mode=True,
+            now=NOW,
+        )
+        self.assertEqual(report["abort"], {"code": "SNAPSHOT_STALE", "detail": "age=3601s limit=3600s"})
+        self.assertTrue(is_red(report))
+        self.assertIn("### 中断（1件も書いていない）: `SNAPSHOT_STALE`", render_summary(report))
 
 
 class CliTest(unittest.TestCase):

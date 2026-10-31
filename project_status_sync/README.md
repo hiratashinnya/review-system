@@ -81,7 +81,8 @@ trigger は **`schedule`（`*/20 * * * *`）と `workflow_dispatch` の2つ**だ
 
 ## 判定仕様
 
-ブロッカー判定は再実装せず `blocker_gate` をそのまま呼ぶ（`planner._findings`）。
+ブロッカー判定は再実装せず `blocker_gate` をそのまま呼ぶ
+（`planner_dependencies._findings`）。
 gate と board が別の答えを出すこと自体が本 Issue の解こうとしている問題なので、
 同じ意味の実装を2つ持たない。
 

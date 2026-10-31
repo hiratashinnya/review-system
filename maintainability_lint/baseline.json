@@ -171,14 +171,6 @@
       "line_count": 159,
       "sha256": "e8d9e600eb525ed1bc12ab83224cb13283bbf29853b558c0ee2878ba568daeb2"
     },
-    "project_status_sync/planner.py": {
-      "line_count": 247,
-      "sha256": "7b294287840159ceab38fff6a2360e36f8b7b70f2e95faa589723e1e71319e71"
-    },
-    "project_status_sync/report.py": {
-      "line_count": 127,
-      "sha256": "a1c896d9e661d18070d9277e8404fd925897364c1d042234597fd59bcf4816d8"
-    },
     "review_system/io/cli.py": {
       "line_count": 210,
       "sha256": "a47d27fa229ee070f8560b7d66a7dd597e2804d780226ce5e24d1bc6e8da29b5"
