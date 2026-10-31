@@ -1,0 +1,10 @@
+HEAD: 5c8882b4faf4007149befb6c20845a8d7954e0cb
+Command: python3 -m unittest tests.unit.test_governance_sync -q
+Started UTC: 2026-10-31T19:08:22.406708+00:00
+----------------------------------------------------------------------
+Ran 20 tests in 0.133s
+
+OK
+
+Exit code: 0
+Elapsed seconds: 0.221
