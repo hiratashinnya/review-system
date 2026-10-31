@@ -154,8 +154,8 @@
       "sha256": "a3cc64be038243c7556ce5c6da8064ffa16eb0f1a0f87649b9e89ef095b8e1c5"
     },
     "karte_notify/notify.py": {
-      "line_count": 286,
-      "sha256": "eba6e7dd38c75fbb7eb588c92b3702e554e204fa8ff5e4ede61d10e6d1239abe"
+      "line_count": 285,
+      "sha256": "2ddf6babf24d33a99d6ad44dcc40822ceecddec573a301939115d5a19348468b"
     },
     "project_status_sync/cli.py": {
       "line_count": 206,
