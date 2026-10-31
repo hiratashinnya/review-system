@@ -49,7 +49,7 @@ class DetectTriggerTests(unittest.TestCase):
             ("ingest-reviewer", "python3 -m karte ingest-reviewer --from tmp/_handoff/pr-reviewer--k.md"),
             ("decide", "python3 -m karte decide --finding F-1-01 --scope out"),
         ]:
-            self.assertEqual(notify.detect_trigger(command), verb)
+            self.assertEqual(trigger.detect_trigger(command), verb)
 
     def test_matches_close_attempt(self):
         self.assertEqual(
