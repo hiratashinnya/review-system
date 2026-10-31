@@ -55,12 +55,14 @@ python3 -m gitgate integrate-base-abort
 ## 中止と回復
 
 - `integrate-base-abort` は PR API に依存しない。HEAD から変わった tracked ファイル・ignore 外の新規ファイルと `MERGE_HEAD` / `MERGE_MSG` を、共通 Git ディレクトリの `gitgate-base-recovery/<時刻>-<pid>.tar` に保存してから `git merge --abort` を実行し、保存先を返す。ignore 外の新規ファイルは中止後も作業ツリーに残る。再開始する前に片付ける。
+- 退避 tar の構成：`worktree/<パス>`（作業ツリー上の当該ファイル。記号リンクはリンクのまま）と、存在した場合だけ `git/MERGE_HEAD`・`git/MERGE_MSG`。`worktree/` 配下は「HEAD から変わったファイル」の丸ごとの写しなので、利用者の衝突解消の編集だけでなく、**取り込み中だった base 側の変更もそのまま含む**。HEAD に存在し作業ツリーから消えていたファイルは tar に入らない。
+- 退避からの復元：tar 全体を作業ツリーへ展開しない（base 側の変更が取り込みの記録なしに作業ツリーへ混ざる）。`integrate-base` で取り込みをやり直し、`tar -tf <tar>` で中身を確認したうえで、衝突解消に必要なファイルだけを `tar -xOf <tar> worktree/<パス>` で標準出力へ取り出す。現在のファイルと比較して必要な編集だけを適用し、`integrate-base-continue` で確定する。
 - 保存できない場合は `merge --abort` を実行しない。`merge --abort` が失敗した場合は保存先を含むエラーで停止し、記録は残す。
 - merge が gitgate の外で終わった（手動の `git merge --abort`・手動 commit 等）後に記録だけが残った場合、`integrate-base-abort` は記録を消して `{"status": "cleared"}` を返す。何も中止しない。
-- 記録と異なる merge が進行中の場合、continue・abort はいずれも拒否する。その merge は自分で `git merge --abort` 等で片付けてから `integrate-base-abort` で記録を消す。
+- 記録と異なる merge が進行中の場合、continue・abort はいずれも拒否する。生の `git merge`（`--abort` を含む）は `.claude/settings.json` の deny・`.codex/rules/default.rules`・両 PF の `agent-command-gate.sh` が全 AI ロールに対して拒否するので、AI はこの merge を自分では片付けられない。AI は作業を止め、branch・`git status` の要約・拒否メッセージをオーナーへ報告する。オーナーが手動でその merge を中止した後、`integrate-base-abort` で記録を消す。
 - continue が検査で止まった場合、Git 状態と記録はそのまま残る。指摘を直して continue を再実行するか、abort する。
-- 記録ファイルが読めない・壊れている場合は `BASE_STATE_INVALID: <パス>` で停止する。Git の merge 状態を確認して片付けてから、そのファイルを削除する。
-- policy 1.x で開始して未完了のまま残った取り込みは 2.0 では認識しない。必要なら `git merge --abort` で片付ける。
+- 記録ファイルが読めない・壊れている場合は `BASE_STATE_INVALID: <パス>` で停止する。Git の merge 状態を確認して片付けてから、そのファイルを削除する。merge が進行中なら、上と同じく AI は停止してオーナーへ報告し、オーナーが中止する。
+- policy 1.x で開始して未完了のまま残った取り込みは 2.0 では認識せず、`integrate-base-abort` も中止しない。上と同じく AI は停止してオーナーへ報告し、オーナーが手動で merge を中止して片付ける。
 
 ## ロール境界（呼び出し元の責務）
 
