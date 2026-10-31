@@ -1,12 +1,14 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@a6cef80522dd -->
+<!-- synced-from: CLAUDE.md@f7fc3530b0cf -->
 <!--
   Issue #685（2026-10-31・F-685-51）: `.claude/rules/02-decision-process.md` の起票先判定表
   「実行環境の面倒を見るフック」へ `issue-start-gate.sh`/`phase-tool-gate.sh`（列挙済みの
   `issue_start` の gate を起動する薄い起動口）を追記しただけ。下記9は「実行環境フック」を
   総称で配送しており区分は変わらないため、中核規範（1〜13）には掛からない。本文は変更せず
   marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録）。
+
+  PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
 
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
   Issue工程分離・role権限・非対話契約。既存の中核規範1〜12は意味を保持し、工程の著作・審査・

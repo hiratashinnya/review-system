@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261018-別runtimeのcacheは3bと発生源の隔離で扱う"
+topic = "別runtimeのcacheは3Bと発生源の隔離で扱う"
+theme = "品質原則"
+occurred_at = 2026-10-18
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/skills/coverage-html/SKILL.md", "codex_worktree_exec/source_snapshot.py"]
+supersedes = ""
+
+[[source]]
+issue = 655
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Issue #655 の調査工程の結果、別 runtime（cpython-313 など）の .pyc を未追跡 source として拒否する検査について、3A（無視）と 3B（拒否維持＋診断＋明示 prune）が比較された。オーナー決定の日付は Issue #655 本文の更新履歴（2026-10-18）に拠る。
+'''
+recommendation = '''
+3B（拒否維持＋診断＋明示 prune）を採り、coverage 等の出力先を作業面外にする発生源の隔離を併用する。3A（無視）は採らない。
+'''
+recommendation_reason = '''
+Issue #655 本文 Scope 1 に決定として記録されている。検査の趣旨（未承認 source の混入防止）を保つ側に倒す案である。選択肢提示時の理由文はこの記録に残っていない。
+'''
+uncertainty = '''
+オーナーが回答した時点の AskUserQuestion の原文は会話記録から再取得できなかった。逐語は Issue #655 本文 Scope 1 の「オーナー決定済み」の記述による。原案を示した role は主文脈と推定した。
+'''
+owner_verbatim = '''
+別 runtime の cache は 3A（無視）を採らず、3B（拒否維持＋診断＋明示 prune）と、coverage 等の出力先を作業面外にする発生源の隔離を併用する。
+'''
+inferred_reason = '''
+推測：未承認 source の混入を防ぐ検査の趣旨を弱めず、再発の原因である発生源側（出力先）を直すことを優先した判断。
+'''

@@ -239,9 +239,7 @@
       "Bash(ruby -e *)",
       "Bash(node -e *)",
       "Edit(/tmp/_karte/**)",
-      "Write(/tmp/_karte/**)",
-      "Edit(/.ai/feedback/**)",
-      "Write(/.ai/feedback/**)"
+      "Edit(/.ai/feedback/**)"
     ]
   },
   "env": {
