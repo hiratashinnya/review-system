@@ -111,14 +111,39 @@ class PhaseTargetBindingTests(unittest.TestCase):
                               ("primary", lambda: git(main, "switch", "-q", "agent/test"))):
             place()
             before = self.surface()
-            with self.subTest(holder=holder), self.assertRaises(IssueStartError) as caught:
-                self.parse()
-            self.assertEqual(caught.exception.reason, "ISSUE_START_PHASE_TARGET_INVALID")
-            self.assertIn(str(other if holder == "linked" else main), str(caught.exception))
-            self.assertIn(f"git switch --detach {oid}", str(caught.exception))
-            self.assertEqual(self.surface(), before)
+            with self.subTest(holder=holder):
+                with self.assertRaises(IssueStartError) as caught:
+                    self.parse()
+                self.assertEqual(caught.exception.reason, "ISSUE_START_PHASE_TARGET_INVALID")
+                self.assertIn(str(other if holder == "linked" else main), str(caught.exception))
+                self.assertIn(f"git switch --detach {oid}", str(caught.exception))
+                self.assertEqual(self.surface(), before)
             if holder == "linked":
                 git(main, "worktree", "remove", "--force", str(other))
+
+    def test_branch_sharing_only_a_name_prefix_is_not_treated_as_the_held_target(self):
+        main = Path(git(self.root, "rev-parse", "--path-format=absolute", "--git-common-dir")).parent
+        git(self.root, "switch", "-q", "--detach", "HEAD")
+        git(main, "branch", "agent/test-2", "HEAD")
+        query = lambda *args: git(main, *args)
+        for held, inspected, refused in (("agent/test-2", "agent/test", False),
+                                         ("agent/test", "agent/test-2", False),
+                                         ("agent/test", "agent/test", True)):
+            other = main.parent / ("holder-" + held.replace("/", "-"))
+            git(main, "worktree", "add", "-q", str(other), held)
+            try:
+                with self.subTest(held=held, inspected=inspected):
+                    if refused:
+                        with self.assertRaisesRegex(ValueError, f"holds target branch {inspected};"):
+                            _require_branch_unheld(query, inspected, "a" * 40)
+                    else:
+                        _require_branch_unheld(query, inspected, "a" * 40)
+            finally:
+                git(main, "worktree", "remove", "--force", str(other))
+        other = main.parent / "holder-prefix"
+        git(main, "worktree", "add", "-q", str(other), "agent/test-2")
+        self.addCleanup(git, main, "worktree", "remove", "--force", str(other))
+        self.assertEqual(self.parse().issue, 371)
 
     def test_worktree_listing_failure_is_rejected_not_treated_as_unheld(self):
         git(self.root, "switch", "-q", "--detach", "HEAD")
