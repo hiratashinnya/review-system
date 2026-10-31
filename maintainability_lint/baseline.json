@@ -140,8 +140,8 @@
       "sha256": "bc44bd2ced7184fcb0db001f4b87a2536e4de78446af57320066dbb49d07c38b"
     },
     "karte/model.py": {
-      "line_count": 1306,
-      "sha256": "de8cac640fdbf3796d3496e9319c0a0e423e975e3fd53df735b669e934103eef"
+      "line_count": 1303,
+      "sha256": "6f47ee76cfd33f4f585e49f2816b9f425f1a3bffbd5cf78c0526ebb1f6bbd4fe"
     },
     "karte/similarity.py": {
       "line_count": 241,
