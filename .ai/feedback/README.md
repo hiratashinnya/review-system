@@ -13,7 +13,7 @@ loader-facing asset ではない（`.ai/rationale/`・`.ai/troubleshooting/`・`
 ## 書込み経路は CLI だけ
 
 人・エージェントによる直接の Write/Edit は `.claude/settings.json` の `permissions.deny`
-（`Edit(/.ai/feedback/**)` / `Write(/.ai/feedback/**)`）で塞いである。下書きは版管理外の
+（`Edit(/.ai/feedback/**)`。Edit 規則は Write も覆う）で塞いである。下書きは版管理外の
 `tmp/_feedback/` に自由に書き、`python3 -m feedback_ledger <verb> --from <draft>` が
 検証・正規化して確定する。
 
