@@ -74,7 +74,33 @@
 
 `feedback_ledger` はオーナー判断を扱う台帳（Issue #522）であり、本ロールに許可するのは read-only の
 `check` / `status` / `index` だけである。台帳への記録、改訂案の起票、承認、棚卸しの確定に当たる
-書き込み verb は許可しない。`karte` を一切許可しないのと同じく、レビュー担当は記録装置を書き換えない。
+書き込み verb は許可しない。レビュー担当が書ける台帳は自分の finding を取り込む `karte ingest-reviewer`
+だけで（下記「finding を handoff ファイル経由で本人が取り込む理由」）、オーナー判断を扱う記録装置は書き換えない。
+
+## finding を handoff ファイル経由で本人が取り込む理由（Issue #375・2026-10-31 オーナー確定）
+
+**問題**：構造化 finding の全文（9 項目 × 件数）が主文脈を 1 往復通過していた。さらに主文脈が取り込みレポートを
+経由するため、`scope` 申告の原本が初出ラウンドから主文脈の手に触れ、改変の検出もできなかった（#523 のブロッカー）。
+また Write も改行付き `--body` も使えず PR コメントを残せない事象があった（PR #479）。
+
+**採用**：`pr-reviewer`（Claude Code）に `tmp/_handoff/pr-reviewer--*.md` への Write だけを PreToolUse フックで許し、
+`karte ingest-reviewer` で本人が取り込む。ファイルなしで取り込む案は、ゲートが標準入力経由（パイプ・heredoc・改行）を
+拒否するため成立しない。
+
+**既存 `ingest-review` をそのまま解禁しなかった理由（却下案）**：`ingest-review` は `scope` と `disposition` 系を毎ラウンド
+レポートの値で上書きする。そのまま渡すと (1) レビューアが自分で `waived` を書ける（オーナー専権の破れ）、(2) オーナーの決定が
+毎ラウンド未決定へ戻る、(3) `--issue`/`--round` の取り違えで別 Issue の台帳へ書ける。このためレビューア専用 verb で
+オーナー専権キーを拒否・保持し、issue/round はポインタ補完のみ、`--from` は handoff 名のみとした。オーナー決定の記録は
+主文脈専用の `decide`、ポインタ初期化は `activate`。いずれもどのロールにも許可しない。
+
+**#341 F-341-04 は維持**：`issue-fixer` の許可 verb は変えていない。取り込みの実行主体が「指摘した側」に移っただけで、
+「指摘した側と直す側の分離」はむしろ強まる。
+
+**Write 許可を `permissions.deny` でなくフックで行う理由**：Write 専用の deny エントリは効かない（Edit 規則が Write も
+覆う・PR #688）。フックは realpath・symlink・`..`・ファイル名を検査し、検査不能は拒否する。
+
+**残る限界**：`agent_type` の詐称と静的検査の限界は #129 と同じ。Codex の `pr-reviewer` は Write を持たないため
+従来経路（主文脈が `ingest-review`）のまま。`gh pr comment --body-file` の許可は見送った（別途検討）。
 
 ## `gh pr checkout` を「戻す契約」ではなく「切り替えない」で塞いだ根拠（Issue #502 観測2）
 

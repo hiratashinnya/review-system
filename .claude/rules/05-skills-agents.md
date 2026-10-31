@@ -20,7 +20,7 @@
   - `adviser` はread-only相談役で、編集・push・台帳変更・承認・STOP解除を行わない。新rolesのctx tool付与は行わず、許可されたBash入口だけを使う。
   - `issue-implementer` は承認済み単一work unitをGreen化しcommit/push/draft PRまでを担い、新規テスト著作・mergeを行わない。
   - `issue-fixer` はレビュー指摘を受けた是正ラウンド専任で、push はできるが merge はしない。**Step 1 の診断（`karte render`→`karte append`）を経ずに Edit/Write しない**契約で、`python3 -m karte` を許可される唯一のロール。ただし `ingest-review` は是正当事者に許さず、主文脈が実行する。fixerは `gitgate adopt-branch` で既存PRブランチへ束縛し、implementerは承認済みphase入口から成果物branchを引き継ぐ。fixerにはカルテのパスを渡さず、`--issue`/`--round` でCLI経由に触れさせる。
-  - `pr-reviewer` は PR をレビューし、`### F-<issue>-<seq>` と `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` を持つ構造化 finding を返す。push と merge はしない。指摘は自分で直さず `issue-fixer` へ差し戻す。スコープ外の指摘も同じ finding 列に記録し、`scope: out` は実害判定・カルテ記録・`karte status` の verdict の免除にならない。
+  - `pr-reviewer` は PR をレビューし、`### F-<issue>-<seq>` と `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` を持つ構造化 finding を返す（Claude Code では `tmp/_handoff/pr-reviewer--<key>.md` へ書いて自分で `karte ingest-reviewer` により取り込み、全文はチャットに返さない。Issue #375）。push と merge はしない。指摘は自分で直さず `issue-fixer` へ差し戻す。スコープ外の指摘も同じ finding 列に記録し、`scope: out` は実害判定・カルテ記録・`karte status` の verdict の免除にならない。
   - `ac-designer`・`change-planner`・`test-writer`・`issue-implementer` と `issue-fixer` はpush可能だがmergeは不可。`pr-reviewer` は push と merge の両方が不可。Claude の `.claude/settings.json` と Codex の `.codex/rules/default.rules` は直接形の merge を拒否し、両 PF の `.claude/hooks/agent-command-gate.sh` / `.codex/hooks/agent-command-gate.sh` は全ロールの shell merge 操作を判定する。hook は sandbox ではないため、プロンプト規律・レビュー分離・GitHub 側の保護と併用する。
   - 全Issue工程ロールは非対話（AskUserQuestion なし）。曖昧さは STOP で報告し、対話判断は `/issue-pipeline` 主文脈が担う（DD-22）。
 - サブエージェント（Issue 起票・Claude Code 専用・Issue #632）：`gh-create-issue`（`/gh-create-issue` スキルは委譲の入口だけで、重複調査・本文整形・label/Project 判断・作成・read-back はこのエージェントが共通本文 `.ai/skills/gh-create-issue/SKILL.md` に従って実行する。主文脈のコンテキスト圧迫を避けるためで、主文脈は共通本文を実行しない）。非対話で、オーナー判断は最終応答の `QUESTIONS` で返し、主文脈が `AskUserQuestion` で尋ねて新しい key で再 dispatch する。draft 本文・preview・完了報告は `tmp/_handoff/gh-create-issue--<key>.md` に書き、SubagentStopフックは出力上限内ならチャットへ直送する。Task完了後、主文脈は `<handoff>.receipt.json` を必ずReadし、`displayed` 以外はhandoff全文をそのまま提示する（additionalContextの到達には依存しない）。hook JSON出力が9,000文字を超える場合は部分表示せずfallbackにする。Bashは専用command gateで `gh issue create`、限定的な読取／Project item操作、sub-issue／blocked-by relation追加だけを許可する。`gh project item-edit` のsingle-select変更は対象Projectのlive `Status` metadataで照合し、`Done` とmetadata取得失敗を拒否する。read-onlyの `git branch --show-current`／`git remote get-url origin` と他の限定コマンド以外のgit／shell commandは拒否する。tools は `Read, Write, Grep, Glob, Bash` で `Task`/`Edit` を持たず、merge・close・`Status=Done` はしない。Codex／Copilot へは作らない（`asset_parity/exceptions.py` に登録）。
@@ -53,6 +53,9 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
   **例外＝`gh-create-issue`（Issue #632）**：成果物がオーナー向けの本文（`.md`）で、SubagentStop フックが
   チャットへ直送するため、呼び出し元は Read せず再掲もしない。判断に要る最小情報は最終応答の
   `QUESTIONS`／`STATUS` だけで受け取る（詳細は上記のエージェント記載と `.claude/hooks/README.md`）。
+  **例外＝`pr-reviewer`（Claude Code・Issue #375）**：書込みは `tmp/_handoff/pr-reviewer--<key>.md` だけが
+  PreToolUse フック（`issue_start.phase_tool_gate`）で通る。レポート全文は本人が `karte ingest-reviewer` で
+  台帳へ取り込むため、呼び出し元は Read せず、チャットの `HANDOFF: <path>`・判定・1行要約だけで進める。
   `tmp/` は gitignore 済み。`tmp/_handoff/` は `reconciliation` の tmp 掃除（`tmp/<sprint>/<parent-id>/`）の対象外
   （掃除は `python3 -m dsv2 clean-tmp <path> --apply` が保護名 `_handoff`・`_karte`・`_worktree`・
   `_feedback` を構成要素に含むパスを機械的に拒否する＝`dsv2/cleantmp.py` の `PROTECTED_DIRNAMES`。
@@ -91,7 +94,7 @@ context-mode プラグイン（グローバル導入）が全 subagent 呼び出
     完結しない**——実測の詳細は `karte/model.py`「改ざん防止の機械的裏付けと既知の限界」・
     `feedback_ledger/README.md`「既知の限界」を参照。
 - **write 権限がないエージェント（`reconciliation-validator` / `spec-inspector` / `asset-auditor` /
-  `dsv2-lookup` / `pr-reviewer` / `authoring-fanout` / `agy-delegate`）**
+  `dsv2-lookup` / `authoring-fanout` / `agy-delegate`）**
   → ファイルに書けず注入の前提が成立しないので、各 agent.md の「注入ブロックへの優先規定」節（または同等の
   規定を持つ節。節名の対応は `.claude/hooks/README.md`「規約注入フック」）で `<artifact_policy>` を無効化し、
   **従来どおりチャットへ全文返す**。

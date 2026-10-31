@@ -340,8 +340,11 @@ PYTHON_MODULES_BY_ROLE = {
 # 手続きで、`status: resolved` を書ける。是正当事者がこれを実行できると、自作のレポートを `--from` で
 # 食わせて未解消 finding を一括 resolved にし round を進められ、`append` の類似飽和拒否
 # （#307 が入れたループ遮断）を迂回できてしまう＝「指摘した側」と「直す側」の分離が壊れる。
-# 取り込みは主文脈（gated ロールではない）が行う。
-KARTE_ALLOWED_SUBCOMMANDS = {"render", "append", "close-attempt", "check", "status"}
+# 取り込みは主文脈（gated ロールではない）が行う。Claude 側の pr-reviewer 専用 verb
+# `ingest-reviewer`（Issue #375）はこちらでは誰にも許さない（Codex の pr-reviewer は Write を持たない）。
+KARTE_SUBCOMMANDS_BY_ROLE = {
+    "issue-fixer": {"render", "append", "close-attempt", "check", "status"},
+}
 # coverage は実行系サブコマンド（run）を禁止し、レポート出力系のみ許可する。
 COVERAGE_ALLOWED_SUBCOMMANDS = {"report", "html", "xml", "json"}
 # asset_parity / time_fixture_lint（Issue #385）: 両ツールとも argparse 実装のサブコマンドは `check`
@@ -798,12 +801,13 @@ def head_command_violation(tokens, role):
             # Issue #341 F-341-04: karte は verb 単位で絞る（ingest-review は是正ロールに許さない）。
             if tokens[2] == "karte":
                 subcommand = tokens[3] if len(tokens) >= 4 else ""
-                if subcommand not in KARTE_ALLOWED_SUBCOMMANDS:
-                    subs = "|".join(sorted(KARTE_ALLOWED_SUBCOMMANDS))
+                karte_verbs = KARTE_SUBCOMMANDS_BY_ROLE.get(role, set())
+                if subcommand not in karte_verbs:
+                    subs = "|".join(sorted(karte_verbs)) or "(none)"
                     return (
                         f"`python3 -m karte` only allows <{subs}> for this role "
                         "(`ingest-review` writes finding status and belongs to the reviewing side, "
-                        "not to the role being reviewed)"
+                        "not to the role being reviewed; `decide`/`activate` are main-context only)"
                     )
             if tokens[2] == "issue_envelope":
                 if len(tokens) < 4 or tokens[3] not in {"check", "index", "show", "deps", "dependents", "orphans"}:
