@@ -1,5 +1,5 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: d109ff084468087692a6cdcde21f3fedda8c06a0f2157d6b9ef2b0d5b5b7c8f3 -->
+<!-- common-source: .ai/guidance/common.md; sha256: ebc852e127d72106761f931344cdc7b3412e18d9c6f4fdfa8a799b1f5777884c -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
 <!-- platform-source: .ai/guidance/platforms/codex.md; sha256: e293279beaf859699a8734addf7e2e84ede4cdad5a95f8fb2e3035fb36cad8ae -->
 
@@ -27,6 +27,7 @@
 - rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。
 - 新しい AI 資産を作る前に既存資産の重複・競合を点検する。
 - 実装設計では、module、interface、protocol、persistence、orchestration、prompt、log/version、test strategy の凍結セットを総点検してから実装へ進む。
+- ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げること
 
 ## コード構築原則（Issue #539）
 

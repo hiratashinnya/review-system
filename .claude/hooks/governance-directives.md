@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@9efb834bca50 -->
+<!-- synced-from: CLAUDE.md@6026a29537bc -->
 <!--
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
   Issue工程分離・role権限・非対話契約。既存の中核規範1〜12は意味を保持し、工程の著作・審査・
@@ -298,3 +298,4 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
     `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
+14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。
