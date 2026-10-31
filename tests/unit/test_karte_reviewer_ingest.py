@@ -1,14 +1,17 @@
 """karte ingest-reviewer / activate / decide（Issue #375）。実 tmp ディレクトリで検証する。"""
 
 import argparse
+import ast
 import contextlib
 import io
 import tempfile
 import shutil
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from karte import cli, handoff_path, paths, reviewer_cli, scope_ledger
+from karte import cli, handoff_path, owner_decision, paths, reviewer_cli, scope_ledger, verb_support
+from karte.errors import KarteUsageError
 from karte.path_errors import KartePathError
 
 FINDING = {
@@ -145,6 +148,80 @@ class TestHandoffPath(ReviewerIngestCase):
         link.symlink_to(target)
         with self.assertRaises(KartePathError):
             handoff_path.resolve_reviewer_handoff(link, self.root)
+
+
+class TestIngestReviewerHardening(ReviewerIngestCase):
+    """PR #697 レビュー指摘（U1〜U6）の回帰テスト。"""
+
+    def _main_context_ingest(self, text):
+        path = self.root / "tmp" / "review-main.md"
+        path.write_text(text, encoding="utf-8")
+        return self._run(cli.cmd_ingest_review, issue=str(self.issue), round="9", source=str(path))
+
+    def _declared_path(self):
+        return paths.karte_dir(self.root) / f"issue-{self.issue}.declared-scope.jsonl"
+
+    def _pointer(self, text):
+        paths.active_path(self.root, create_dir=True).write_text(text, encoding="utf-8")
+
+    def test_u1_main_context_ingest_review_is_refused_once_reviewer_ingest_exists(self):
+        self._activate()
+        self._ingest(_report())
+        self._decide(disposition="deferred", deferred_to="#900")
+        before = paths.karte_path(self.issue, self.root).read_text(encoding="utf-8")
+        code, _, err = self._main_context_ingest(_report(f"F-{self.issue}-01"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("ingest-reviewer", err)
+        self.assertEqual(before, paths.karte_path(self.issue, self.root).read_text(encoding="utf-8"))
+
+    def test_u1_main_context_ingest_review_still_works_without_reviewer_ingest(self):
+        self.assertEqual(cli.EXIT_OK, self._main_context_ingest(_report())[0])
+
+    def test_u2_corrupt_declared_scope_file_fails_closed_without_traceback(self):
+        self._activate()
+        self._ingest(_report())
+        for corrupt in ("{not json\n", '{"round": 1, "id": "F-375-01"}\n', "[1, 2]\n"):
+            with self.subTest(corrupt=corrupt):
+                self._declared_path().write_text(corrupt, encoding="utf-8")
+                code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn("壊れている", err)
+
+    def test_u2_and_u4_broken_pointer_round_fails_closed(self):
+        self._activate()
+        for text in ('{"issue": 375, "round": "x"}\n', '{"issue": 375}\n', '{"issue": 375, "round": -1}\n'):
+            with self.subTest(pointer=text):
+                self._pointer(text)
+                code, _, err = self._ingest(_report())
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn("round", err)
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+
+    def test_u4_pointer_issue_mismatch_is_refused(self):
+        self._pointer('{"issue": 1, "round": 0}\n')
+        with self.assertRaises(KarteUsageError):
+            verb_support.next_round(self.root, self.issue)
+
+    def test_u3_retry_after_failed_ledger_write_does_not_mistake_new_scope_for_owner_override(self):
+        self._activate()
+        self._ingest(_report(scope="in"))
+        report = _report(f"F-{self.issue}-01", scope="out")
+        with mock.patch.object(paths, "write_text_atomic", side_effect=OSError("disk full")):
+            self.assertEqual(cli.EXIT_ERROR, self._ingest(report, "pr-reviewer--r2.md")[0])
+        self.assertEqual("in", self._karte().finding(f"F-{self.issue}-01").scope)
+        self.assertEqual(cli.EXIT_OK, self._ingest(report, "pr-reviewer--r2.md")[0])
+        self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+
+    def test_u5_reviewer_verbs_do_not_import_from_cli(self):
+        for module in (reviewer_cli, owner_decision, verb_support):
+            tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+            imported = [n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)]
+            self.assertNotIn("cli", imported, module.__name__)
+
+    def test_u6_agent_docs_tell_the_reviewer_to_write_an_absolute_main_checkout_path(self):
+        root = Path(__file__).resolve().parents[2]
+        for rel in (".claude/agents/pr-reviewer.md", ".ai/agents/pr-reviewer.md"):
+            self.assertIn("主チェックアウトの絶対パス", (root / rel).read_text(encoding="utf-8"), rel)
 
 
 if __name__ == "__main__":

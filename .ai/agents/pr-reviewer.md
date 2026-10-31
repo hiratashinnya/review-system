@@ -52,7 +52,7 @@ Issue単位1本のkarteへ連番roundで取り込む方法は、下記の取り�
 
 レビュー checklist として、[プロジェクト共通 guidance の「コード構築原則（Issue #539）」](../guidance/common.md#コード構築原則issue-539) を差分と実体へ適用する。
 
-レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。取り込み方は実行環境で分かれる。書込経路を持つ Claude Code では、本ロール自身がレポート全文を `tmp/_handoff/pr-reviewer--<key>.md` へ書き、`python3 -m karte ingest-reviewer --from <path>` で取り込む（`--issue`/`--round` は進行ポインタから決まり指定できない。`disposition` 系のキーをレポートに書くと拒否される。全文はチャットに返さず `HANDOFF: <path>` と判定・1行要約だけを返す）。書込経路を持たない実行環境では、呼び出し元がレポートを `python3 -m karte ingest-review --issue <N> --round <R> --from <path>` に渡す（本ロール自身は `ingest-review` を実行しない）。
+レビュー指摘は、自由記述ではなく次の形式で1指摘1ブロックにする。取り込み方は実行環境で分かれる。書込経路を持つ Claude Code では、本ロール自身がレポート全文を `tmp/_handoff/pr-reviewer--<key>.md`（書込先は主チェックアウトの絶対パス）へ書き、`python3 -m karte ingest-reviewer --from <path>` で取り込む（`--issue`/`--round` は進行ポインタから決まり指定できない。`disposition` 系のキーをレポートに書くと拒否される。全文はチャットに返さず `HANDOFF: <path>` と判定・1行要約だけを返す）。書込経路を持たない実行環境では、呼び出し元がレポートを `python3 -m karte ingest-review --issue <N> --round <R> --from <path>` に渡す（本ロール自身は `ingest-review` を実行しない）。
 
 ### F-<issue>-<seq> または new
 harm: real | none
