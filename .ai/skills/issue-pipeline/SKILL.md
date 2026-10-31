@@ -134,7 +134,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 ### ②-b 初回レビュー
 
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
-- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
+- レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code では handoff ファイルへ書いて自分で台帳へ取り込み、全文はチャットに返さない。②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
 - **レビュー結果（初回・再レビューとも）を審査中の当該 PR へコメント投稿するのは、主文脈が毎回のオーナー確認なしに行う既定動作である。** 主文脈はレビュー担当から返った構造化 finding を当該 PR へ AI 帰属明記でコメントする。`.ai/guidance/common.md`「作業分離・判断境界」の実行前確認から除外するのはこの投稿だけとし、PR 本文の書き換え、別 PR・別 Issue・別リポジトリ・その他外部サービスへの投稿には実行前のチャット確認を要する。
 - 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
@@ -143,14 +143,13 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 - 是正は初回実装担当ではなく、レビュー指摘を受ける是正担当へ差し戻す。レビュー結果を先に記録し、是正担当は診断してから変更する。
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
-- **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が取り込みレポートへ書き足してから記録する。主文脈はこれらを決めない。** 手順は次のとおり。
-  1. レビュー担当が返した finding レポートを受け取る（`disposition` は未記載）。
+- **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** Claude Code での手順は次のとおり。
+  1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。レビュー担当（`pr-reviewer`）は finding レポートを handoff ファイル（`tmp/_handoff/pr-reviewer--<key>.md`）へ書き、自分で `python3 -m karte ingest-reviewer --from <path>` を実行して台帳へ取り込む。レポートの全文は主文脈を通らず、主文脈はレビュー担当の `HANDOFF: <path>` と判定・1行要約だけを受け取る。レポートに処置方針（`disposition` 系）が書かれていれば取り込みは拒否される。
   2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、**覆すかどうかは同じ場でオーナーに仰ぐ**（主文脈が独断で決めない）。
-  3. 主文脈がその決定を、当該 finding のブロックへ `disposition:` とその付随キー（`deferred_to` / `waived_by` / `waived_reason`）として書き足す。**オーナーが `scope` を覆すと決めた場合**は `scope` の値も同じ場所で書き換える（書き換える手を動かすのは主文脈だが、覆すと決めるのはオーナーである）。
-  4. 書き足したレポートを記録台帳へ取り込む（当事者ロールには取り込みを行わせない）。
-- **決定は毎ラウンド再掲する。** 前ラウンドで未解消だった finding は全件再掲し、前ラウンドの `disposition` と、オーナーが覆した `scope` も書き写す。オーナーが方針を変えた場合だけ新しい値にする。
-  - `disposition` の書き忘れは **fail-close 側**へ倒れ、未決定として clean を妨げる。
-  - `scope` の書き忘れは **fail-open 側**へ倒れ、機械判定を止めずレビュー担当の申告値へ戻る。
+  3. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
+  4. 記録した決定は台帳に残り、次ラウンドの `ingest-reviewer` は `disposition` 系を上書きしない。オーナーが覆した `scope` も保持される（台帳の `scope` がレビュー担当の直近申告と食い違う finding は取り込み出力に列挙される）。申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。
+  - `ingest-reviewer` は `--issue` / `--round` を受けない。`decide` / `activate` / `ingest-review` は主文脈専用で、どの当事者ロールにも許可しない。
+  - Claude Code 以外の実行環境（レビュー担当に書込経路がない）では従来どおり、主文脈がレポートへ `disposition:` とその付随キーを書き足して `ingest-review` で取り込む。前ラウンドの決定とオーナーが覆した `scope` は毎ラウンド全件再掲する（`disposition` の書き忘れは fail-close、`scope` の書き忘れは申告値へ戻る fail-open）。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 

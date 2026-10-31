@@ -74,4 +74,5 @@ python3 -m karte check --issue <N> --round <R>
 ## 是正当事者がやらないこと
 
 `ingest-review` は**是正当事者には許さない**（自分への指摘を自分で台帳へ書き換えられる）。
-レビュー結果の取り込みは主文脈が実行する（Issue #308 / #341）。
+`ingest-reviewer`・`decide`・`activate` も許されない。レビュー結果の取り込みは、`pr-reviewer`
+本人（`ingest-reviewer`）か主文脈（`ingest-review`）が行う（Issue #308 / #341 / #375）。
