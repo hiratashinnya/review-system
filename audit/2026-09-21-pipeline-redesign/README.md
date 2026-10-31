@@ -27,6 +27,7 @@
 
 ### 検証・追跡
 
+- [P11は専用stepのみで実行するBとする](#fbk-20261030-p11は専用stepのみで実行するbとする) (FBK-20261030-p11は専用stepのみで実行するbとする; テーマ: 検証・追跡) — 2026-10-30
 - [AC16の比較基準は失敗テストID集合の一致](#fbk-20261018-ac16の比較基準は失敗テストid集合の一致) (FBK-20261018-ac16の比較基準は失敗テストid集合の一致; テーマ: 検証・追跡) — 2026-10-18
 - [harnessの全テストをtests/\<tool\>/へ移す](#fbk-20261006-harnessの全テストをtests-tool-へ移す) (FBK-20261006-harnessの全テストをtests-tool-へ移す; テーマ: 検証・追跡) — 2026-10-06
 - [検証エビは全レベルでTD\-TC\-TRを揃える](#fbk-20260924-検証エビは全レベルでtd-tc-trを揃える) (FBK-20260924-検証エビは全レベルでtd-tc-trを揃える; テーマ: 検証・追跡) — 2026-09-24
@@ -76,6 +77,24 @@
 
 ## 生存する決定
 
+<a id="fbk-20261030-p11は専用stepのみで実行するbとする"></a>
+### P11は専用stepのみで実行するBとする
+- ID: FBK-20261030-p11は専用stepのみで実行するbとする
+- 発生日: 2026-10-30
+- テーマ: 検証・追跡; 判断軸: policy
+- 上書き対象ロール: main-thread
+- divergence: approval
+- 推論信頼度: medium
+- 記録者: Claude Code \(AI\)
+- 対象資産: \.github/workflows/tests\.yml
+- 出典: #655 (PR 0; round 0; findings: なし)
+
+- 背景: Issue \#655 の工程 1a で、追加する 2 つの suite（tests/codex\_worktree\_exec/ と tests/issue\_start/）を CI で実行する形が、1b の変更計画に委ねるパラメータ P11 として残っていた。案は、A（2 つのディレクトリを package にし、全体 step を discover \-s tests \-t \. に変える）と、B（package にせず専用 step だけで実行し、全体 step は変えない）の 2 つ。\#318（PR \#666）で全体 step が discover tests になり、tests/ 直下に source package と同名の package を置くと source package を shadow することが分かっている。\#578 は既存 harness テストを tests/\<道具名\>/ へ移す計画で、CI がそこを直接探索する形にする。
+- 推奨: B を採る。2 つのディレクトリに \_\_init\_\_\.py を置かず、専用 step だけで実行する。unittest job の全体 step は変えない。
+- 推奨理由: tests/time\_fixture\_lint/ と tests/jev\_hooks/ の先例と同じ形である。\#318 の決定を覆さずに済み、覆す根拠の記録が要らない。\#578 の方向と矛盾せず手戻りが少ない。B の弱点（専用 step が消えるとその suite が CI から外れる）は、ST\-TD\-655\-16 の 5 の機械判定で押さえる。
+- 不確実性: オーナーの回答の逐語は、選択肢の文言のみで、理由はオーナーの言葉としては残っていない。この決定は工程 1a の VD ではなく 1b の変更計画への入力であり、実際の CI での実行は 1b 以降で確かめる。
+- オーナー逐語: B で決定（推奨）
+- 推論: 推測：\#318 の既存決定を覆す根拠の記録を避け、先例のある形で変更範囲を最小にすることを優先した判断。
 <a id="fbk-20261018-別runtimeのcacheは3bと発生源の隔離で扱う"></a>
 ### 別runtimeのcacheは3Bと発生源の隔離で扱う
 - ID: FBK-20261018-別runtimeのcacheは3bと発生源の隔離で扱う
