@@ -1,0 +1,48 @@
+"""``ingest-review`` の取り込み本体（共有 writer lock を取った呼び出し元から呼ぶ）。"""
+
+import sys
+
+from . import ingest_accept, ingest_apply, ingest_checks, model, paths
+from .active_pointer import write_active
+from .errors import KarteUsageError
+from .exit_codes import EXIT_ERROR, EXIT_OK
+
+
+def ingest_locked(repo_root, issue, round_no, report_text) -> int:
+    """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。"""
+    path = paths.karte_path(issue, repo_root, create_dir=True)
+    karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
+
+    last_round = max((r for item in karte.findings for r in item.rounds), default=0)
+    if round_no <= last_round:
+        raise KarteUsageError(
+            f"round は単調増加させる（取り込み済みの最新ラウンドは {last_round}・"
+            f"指定は {round_no}）。同じラウンドの再取り込みは台帳の状態遷移を壊す"
+        )
+
+    review = model.parse_review(report_text, issue)
+    previously_open = ingest_checks.open_ids(karte)
+    errors: list = []
+    accepted = ingest_accept.collect_accepted(karte, review, issue, errors)
+
+    # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
+    # 欠けていれば取り込みごと拒否する。欠けている ID は全て列挙する（1 件ずつ往復させない）。
+    absent = ingest_checks.absent_open_ids(previously_open, accepted)
+    if absent:
+        errors.append(
+            "前ラウンドで未解消の finding が今回のレポートに再掲されていない: "
+            f"{', '.join(absent)}"
+            "（不在は解消ではない。解消したなら当該 ID のブロックを `status: resolved` で"
+            "再掲し、未解消なら `status: open` のまま再掲する）"
+        )
+    if errors:
+        for line in errors:
+            print(f"拒否（fail-close）: {line}", file=sys.stderr)
+        return EXIT_ERROR
+
+    outcome = ingest_apply.apply_accepted(karte, accepted, round_no)
+    karte.findings.sort(key=lambda item: item.seq)
+    paths.write_text_atomic(path, model.dumps(karte))
+    write_active(repo_root, issue, round_no)
+    ingest_apply.print_summary(karte, path, issue, round_no, accepted, outcome)
+    return EXIT_OK
