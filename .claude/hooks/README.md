@@ -783,7 +783,10 @@ gate のコードを `$CLAUDE_PROJECT_DIR`（未設定なら起動口自身の r
 なることも防ぐため（#685 F-685-22・F-685-33）。
 `-P` は Python 3.11 以上が要る。`PYTHONSAFEPATH=1` を使わないのは、古い python3 がこの環境変数を黙って無視して
 cwd 優先の import に戻るため。`-P` なら古い python3 は不明オプションとして exit 2 で止まり、PreToolUse の exit 2 は
-block として扱われる（古い python3 での実測はしていない）。
+block として扱われる。その結果、Python 3.11 未満の環境では `issue-start-gate.sh` が全 `Task`/`Agent` dispatch を、
+`phase-tool-gate.sh` が主文脈を含む全 Write/Edit/NotebookEdit を止める（全面ブロック）。現環境（3.12）と
+CI（`python-version: "3.x"`）は 3.11 以上なので発生しない。exit 2 は `-P` を拒否する偽の python3 で確かめただけで、
+本物の古い python3 では実測していない。起動失敗の種類ごとの挙動は次節の表にまとめる。
 
 ## fail 方針の非対称(設計判断・意図的に方向が逆)
 
@@ -791,6 +794,7 @@ block として扱われる（古い python3 での実測はしていない）�
 |---|---|---|
 | **停止のブロック**(`subagent-stop-gate.sh` の①) | **fail-close** | `active.json` 欠如・破損、`karte check` を起動できない、いずれも **block** する |
 | **残留 worktree の deny**(`issue-start-gate.sh`・#354) | **fail-close** | 台帳が読めなければ dispatch を deny する(`ISSUE_START_WORKTREE_LEDGER_ERROR`) |
+| **起動口の起動失敗**(`issue-start-gate.sh`・`phase-tool-gate.sh`) | **原因で分かれる** | 起動口スクリプトの不在・python3 の不在(exit 127)と、gate の Python の構文エラー・import 失敗(exit 1)は非ブロック＝**素通し**。payload が JSON として不正なら gate が **deny** を返す。python3 が 3.11 未満なら `-P` が不明オプションで exit 2＝**全面ブロック**(前者は全 dispatch、後者は主文脈を含む全編集)。3.11 未満は偽の python3 でだけ確認し、本物では未実測 |
 | **台帳への起票・束縛**(`issue-start-gate.sh` の起票／`subagent-worktree-bind.sh`) | **fail-open** | 台帳へ書けなくても dispatch は ALLOW のまま。束縛できなければ**推測せず**`notes` を1行足すだけ |
 | **worktree の削除**(`subagent-stop-gate.sh` の②) | **fail-safe＝「消さない」側** | 回収を試みて失敗した(handoff が一意に決まらない・`collect-worktree` が失敗した等)なら削除せず `stale` にする |
 | **「終了したか判らない」停止**(自分の handoff が0件・#423) | **fail-safe＝「触らない」側** | `stale` にすら落とさず `running` のまま保留する(まだ回収を試みていないので `stale` とは別の状態) |
