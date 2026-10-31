@@ -7,7 +7,8 @@ from . import model
 from .ingest_types import IngestOutcome
 
 
-def apply_accepted(karte, accepted, round_no) -> IngestOutcome:
+def apply_accepted(karte, accepted, round_no, policy=None) -> IngestOutcome:
+    """``policy`` があれば scope/disposition の扱いを委ねる（レビューア本人の取り込み）。"""
     created, resolved, excluded = [], [], []
     for entry in accepted:
         finding_id, item = entry.finding_id, entry.item
@@ -24,7 +25,10 @@ def apply_accepted(karte, accepted, round_no) -> IngestOutcome:
         finding.harm = item.harm
         finding.harm_detail = item.harm_detail
         finding.severity = item.severity
-        _apply_owner_fields(finding, item)
+        if policy:
+            policy.apply(finding, item, entry.is_new)
+        else:
+            _apply_owner_fields(finding, item)
         finding.locus = list(item.locus)
         finding.summary = item.summary
         finding.evidence = item.evidence

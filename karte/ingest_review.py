@@ -12,8 +12,11 @@ from .exit_codes import EXIT_ERROR, EXIT_OK
 from .ingest_types import IngestResult
 
 
-def ingest_locked(repo_root, issue, round_no, report_text) -> int:
-    """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。"""
+def ingest_locked(repo_root, issue, round_no, report_text, policy=None) -> int:
+    """検証に 1 件でも掛かれば**一切書かず** ``EXIT_ERROR``。通れば台帳を置き換えて ``EXIT_OK``。
+
+    ``policy``＝レビューア本人の取り込み（:mod:`karte.reviewer_policy`）の追加規則。
+    """
     path = paths.karte_path(issue, repo_root, create_dir=True)
     karte = model.parse(paths.read_text(path)) if path.is_file() else model.new_karte(issue)
 
@@ -27,7 +30,7 @@ def ingest_locked(repo_root, issue, round_no, report_text) -> int:
     review = model.parse_review(report_text, issue)
     previously_open = ingest_checks.open_ids(karte)
     collected = ingest_accept.collect_accepted(karte, review, issue)
-    errors = list(collected.errors)
+    errors = (policy.check(review) if policy else []) + list(collected.errors)
 
     # K-06: 「不在＝解消」を廃止する。前ラウンド時点で未解消だった finding が 1 件でも
     # 欠けていれば取り込みごと拒否する。欠けている ID は全て列挙する（1 件ずつ往復させない）。
@@ -44,8 +47,10 @@ def ingest_locked(repo_root, issue, round_no, report_text) -> int:
             print(f"拒否（fail-close）: {line}", file=sys.stderr)
         return EXIT_ERROR
 
-    outcome = ingest_apply.apply_accepted(karte, collected.accepted, round_no)
+    outcome = ingest_apply.apply_accepted(karte, collected.accepted, round_no, policy)
     karte.findings.sort(key=lambda item: item.seq)
+    if policy:
+        policy.persist(round_no)  # 台帳より先に原本を残す（台帳が未更新なら同じ round で再試行できる）
     paths.write_text_atomic(path, model.dumps(karte))
     write_active(repo_root, issue, round_no)
     ingest_report.print_report(
