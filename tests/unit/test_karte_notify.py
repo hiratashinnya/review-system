@@ -43,6 +43,14 @@ class DetectTriggerTests(unittest.TestCase):
             "ingest-review",
         )
 
+    def test_matches_reviewer_ingest_and_owner_decision(self):
+        # Issue #375: レビューア本人の取り込みとオーナー決定の記録も verdict 通知の契機にする。
+        for verb, command in [
+            ("ingest-reviewer", "python3 -m karte ingest-reviewer --from tmp/_handoff/pr-reviewer--k.md"),
+            ("decide", "python3 -m karte decide --finding F-1-01 --scope out"),
+        ]:
+            self.assertEqual(notify.detect_trigger(command), verb)
+
     def test_matches_close_attempt(self):
         self.assertEqual(
             notify.detect_trigger("python3 -m karte close-attempt --issue 512 --outcome fixed"),

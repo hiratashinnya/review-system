@@ -58,7 +58,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   （fail-close 側）。だれがそれを書くか（＝毎ラウンドの再掲を誰が担うか）は
   `.ai/skills/issue-pipeline/SKILL.md` ②-c を正本とする（**主文脈**が、オーナーの決定を
   次ラウンドの取り込みレポートへ書き足してから `ingest-review` する。レビュー担当は
-  `disposition` を書かない契約）。
+  `disposition` を書かない契約）。Claude Code でレビュー担当が `ingest-reviewer` で取り込む経路では
+  上書きされず、主文脈が `decide` で記録する（下記「`ingest-reviewer` / `decide` / `activate`」）。
 
 ### `clean` の解除力は `harm: real` にだけ与える（オーナー確定・2026-09-07）
 
@@ -82,7 +83,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 - `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
-  `.claude/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは
+  `.claude/hooks/agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE` が締め出しているのは
   是正当事者ロール（`issue-fixer` 等）だけである。
 - `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
   検証しない**。
@@ -104,14 +105,43 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   `pr-reviewer` は各ラウンドで新しい finding を起票できる（ブロック見出しが
   `### F-<issue>-<seq> または new`＝`.ai/agents/pr-reviewer.md`）ため、**round 3 で初出した
   finding にも round 1 とまったく同じ窓が開く**。
-  - **台帳に前ラウンドの記録がある finding**は、その記録済み `scope` との差分として覆しを
-    検出しうる（Issue #523 のスコープ。覆しに `override_ref`＝`feedback_ledger` の台帳エントリ
-    参照を要求する変更）。
-  - **初出ラウンド**を塞ぐには、レビューアの申告が**主文脈の手を経ずに改変不能な一次記録として
-    残る**必要があり、それは Issue #375（`pr-reviewer` の finding のファイルハンドオフ化）が
-    扱う構造である。
-  - したがって現時点で `scope` の覆しをオーナーへ一本化しているのは**運用規律（契約）**であり、
-    機械強制は #375 → #523 の順で段階的に追加される。
+  - **Claude Code ではこの窓を Issue #375 が塞いだ**。`pr-reviewer` 本人が handoff ファイルから
+    `ingest-reviewer` で取り込み、申告 scope の原本が初出ラウンドから
+    `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。台帳の `scope` がこの原本の
+    直近の値と食い違う finding はオーナーが覆したものとして機械的に検出でき（取り込み出力に列挙）、
+    次ラウンドの `ingest-reviewer` は覆した値を上書きしない。覆しの記録は `decide --scope`。
+  - 覆しに `override_ref`＝`feedback_ledger` の台帳エントリ参照を要求する変更は Issue #523 のスコープ。
+  - 書込経路を持たない実行環境（主文脈が `ingest-review` で取り込む経路）では、従来どおり
+    `scope` の覆しをオーナーへ一本化しているのは**運用規律（契約）**である。
+
+### `ingest-reviewer` / `decide` / `activate`（Issue #375）
+
+- **`ingest-reviewer --from tmp/_handoff/pr-reviewer--<key>.md`**：`pr-reviewer`（Claude Code）が自分の
+  finding を取り込む専用 verb。検証は `ingest-review` と共通（ID 重複・未知 ID・K-06・harm/scope 必須・
+  distinct_from）で、加えて次を課す。
+  - `--issue` / `--round` は**受けない**。Issue は進行ポインタ、round は「ポインタの round ＋ 1」で決まる
+    （別 Issue の台帳へ書く経路を作らない）。
+  - `--from` は `<repo-root>/tmp/_handoff/pr-reviewer--<英数._->.md` の通常ファイルだけ
+    （`..`・symlink 構成要素・別ディレクトリ・別名を拒否。規則は `karte/handoff_path.py` に 1 箇所で、
+    Write フックと共有）。
+  - レポートに `disposition` / `deferred_to` / `waived_by` / `waived_reason` があれば取り込みごと拒否する
+    （処置方針はオーナー専権）。台帳にある `disposition` 系は上書きしない。
+  - scope は直近の申告との一致を見て、一致していれば新しい申告で更新、食い違い（＝オーナーの覆し）なら保持する。
+    申告の原本は台帳より先に追記する。
+- **`activate --issue <N>`**（主文脈専用）：進行ポインタを対象 Issue へ向ける（round は取り込み済みの最新、
+  台帳が無ければ 0）。初回の `ingest-reviewer` の前に実行する。
+- **`decide --finding <ID> [--disposition … --deferred-to … --waived-by … --waived-reason …] [--scope in|out]`**
+  （主文脈専用）：オーナー決定を台帳へ直接記録する。`disposition` の付随キー規則は `ingest-review` と同じ。
+- **二経路は併存させない**：`ingest-reviewer` で取り込んだ Issue（申告 scope の原本ファイルがある）に
+  主文脈が `ingest-review` で取り込もうとすると、`decide` で記録したオーナー決定を上書きしてしまうため
+  fail-close で拒否する。申告 scope の原本が壊れている・欠損している場合も、台帳との差分を判定できない
+  ので `ingest-reviewer` は拒否する（終了コードは 4）。
+- round は進行ポインタの `round`（欠落・非数値・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
+  申告 scope の覆し判定は「これから取り込むラウンドより前」の申告だけを基準にするため、台帳書込みの
+  失敗後に同じラウンドを再試行しても、レビューアの新しい scope をオーナーの覆しと誤判定しない。
+- `decide` / `activate` / `ingest-review` はどのロールの許可集合にも入れない
+  （`agent-command-gate.sh` の `KARTE_SUBCOMMANDS_BY_ROLE`）。`issue-fixer` の許可 verb は従来どおり
+  `render`/`append`/`close-attempt`/`check`/`status`。
 
 カルテの改ざん防止（`karte/model.py` の「改ざん防止の機械的裏付けと既知の限界」）と同じく、
 静的検査で閉じきれない面はプロンプト規律・レビュー分離・GitHub 側の保護と併用して塞ぐ
@@ -265,7 +295,7 @@ python3 -m karte check [--issue <N>] [--round <R>]
 `expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
 （`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
 `ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` の
-`KARTE_ALLOWED_SUBCOMMANDS`）。
+`KARTE_SUBCOMMANDS_BY_ROLE`）。
 
 ## `harm_detail` の内容 lint（Issue #511）
 
