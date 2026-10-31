@@ -1,4 +1,7 @@
-"""検証を通ったレビュー指摘を台帳の finding へ反映し、取り込み結果を出力する。"""
+"""検証を通ったレビュー指摘を台帳の finding へ反映し、取り込み結果を出力する。
+
+設計理由は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
 
 from . import ingest_checks, model
 

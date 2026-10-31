@@ -1,4 +1,7 @@
-"""進行ポインタ ``tmp/_karte/active.json`` の読み書き。"""
+"""進行ポインタ ``tmp/_karte/active.json`` の読み書き。
+
+設計理由は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
 
 import json
 

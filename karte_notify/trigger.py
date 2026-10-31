@@ -1,4 +1,7 @@
-"""通知の契機になる karte verb の実行を、tool 呼び出しから検出する（Issue #512）。"""
+"""通知の契機になる karte verb の実行を、tool 呼び出しから検出する（Issue #512）。
+
+設計理由は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
 
 from __future__ import annotations
 

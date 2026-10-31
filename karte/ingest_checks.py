@@ -1,4 +1,7 @@
-"""``ingest-review`` のレポート検証（ID 重複・未知 ID・再発番・distinct_from・不在禁止）。"""
+"""``ingest-review`` のレポート検証（ID 重複・未知 ID・再発番・distinct_from・不在禁止）。
+
+設計理由は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
 
 from . import model
 

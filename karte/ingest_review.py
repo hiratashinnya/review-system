@@ -1,4 +1,7 @@
-"""``ingest-review`` の取り込み本体（共有 writer lock を取った呼び出し元から呼ぶ）。"""
+"""``ingest-review`` の取り込み本体（共有 writer lock を取った呼び出し元から呼ぶ）。
+
+設計理由（K-06 ほか）は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
 
 import sys
 
