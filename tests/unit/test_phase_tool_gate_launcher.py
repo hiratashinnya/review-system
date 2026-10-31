@@ -2,21 +2,14 @@
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[2]
-SETTINGS = ROOT / ".claude" / "settings.json"
+from tests.unit.hook_launcher_support import ROOT, copy_project_with_spaces, registered_commands
+
 READ_ONLY_DENY = "read-only工程では直接編集できません。"
-
-
-def registered_gate_commands(tool):
-    hooks = json.loads(SETTINGS.read_text("utf-8"))["hooks"]["PreToolUse"]
-    return [hook["command"] for entry in hooks if re.fullmatch(entry["matcher"], tool)
-            for hook in entry["hooks"] if "phase" in hook["command"]]
 
 
 @unittest.skipUnless(shutil.which("bash") and shutil.which("sh"), "bash と sh が要る")
@@ -36,7 +29,7 @@ class PhaseToolGateLauncherTests(unittest.TestCase):
             (self.cwd / f"{module}.py").write_text(source)
 
     def launch(self, tool, payload, **overrides):
-        [command] = registered_gate_commands(tool)
+        [command] = registered_commands(tool, "phase-tool-gate.sh")
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT), **overrides}
         env = {key: value for key, value in env.items() if value is not None}
         env.pop("PYTHONSAFEPATH", None)
@@ -64,6 +57,10 @@ class PhaseToolGateLauncherTests(unittest.TestCase):
     def test_shadow_gate_and_stdlib_in_the_cwd_are_not_imported(self):
         self.plant_shadow_modules()
         self.assert_trusted_gate_decides()
+
+    def test_registered_command_reaches_the_gate_under_a_project_root_with_spaces(self):
+        # 登録行の "$CLAUDE_PROJECT_DIR" のクォートを外すと path が空白で割れ、exit 127（非ブロック）で素通しになる。
+        self.assert_trusted_gate_decides(CLAUDE_PROJECT_DIR=str(copy_project_with_spaces(self.cwd.parent)))
 
     def test_missing_project_dir_falls_back_to_the_launcher_root_not_the_cwd(self):
         self.plant_shadow_modules()

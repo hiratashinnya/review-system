@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.unit.hook_launcher_support import ROOT, copy_project_with_spaces, registered_commands
+
 LAUNCHER = ROOT / ".claude" / "hooks" / "issue-start-gate.sh"
 UNMANAGED = {"tool_name": "Agent", "tool_input": {"subagent_type": "Explore", "prompt": "x"}}
 MANAGED = {"tool_name": "Agent", "tool_input": {"subagent_type": "ac-designer", "isolation": "worktree",
@@ -31,11 +32,11 @@ class IssueStartGateLauncherTests(unittest.TestCase):
         for module in stdlib:
             (directory / f"{module}.py").write_text(source)
 
-    def launch(self, payload, **overrides):
+    def launch(self, payload, argv=("bash", str(LAUNCHER)), **overrides):
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT), **overrides}
         env = {key: value for key, value in env.items() if value is not None}
         env.pop("PYTHONSAFEPATH", None)
-        result = subprocess.run(["bash", str(LAUNCHER)], input=json.dumps(payload), text=True,
+        result = subprocess.run(list(argv), input=json.dumps(payload), text=True,
                                 capture_output=True, cwd=self.surface, env=env, timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("SHADOW", result.stdout + result.stderr)
@@ -52,6 +53,14 @@ class IssueStartGateLauncherTests(unittest.TestCase):
 
     def test_normal_dispatch_path_reaches_the_trusted_gate(self):
         self.assert_trusted_gate_decides()
+
+    def test_registered_command_reaches_the_gate_under_a_project_root_with_spaces(self):
+        # 登録行の "$CLAUDE_PROJECT_DIR" のクォートを外すと path が空白で割れ、exit 127（非ブロック）で素通しになる。
+        root = copy_project_with_spaces(self.surface.parent)
+        for tool in ("Task", "Agent"):
+            with self.subTest(tool=tool):
+                [command] = registered_commands(tool, "issue-start-gate.sh")
+                self.assert_trusted_gate_decides(argv=("sh", "-c", command), CLAUDE_PROJECT_DIR=str(root))
 
     def test_shadow_issue_start_and_stdlib_on_the_inspected_surface_are_not_imported(self):
         self.plant_shadow_modules()
