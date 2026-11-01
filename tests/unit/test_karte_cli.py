@@ -16,6 +16,7 @@ import argparse
 import ast
 import contextlib
 import errno
+import fcntl
 import io
 import json
 import os
@@ -1611,9 +1612,15 @@ class TestIngestFromStdin(KarteTestCase):
         )
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("空", err)
-        # 拒否された取り込みは台帳もポインタも書かない（ロック用ディレクトリは作りうる）。
-        self.assertEqual("", self._karte_text())
-        self.assertFalse(self._active_path().exists())
+        # 本文の読取はロック前なので、拒否された取り込みは tmp/_karte/ すら作らない。
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
+
+    def test_missing_report_file_is_rejected_before_the_lock_creates_anything(self):
+        code, _out, _err = self._run(
+            cli.cmd_ingest_review, round="1", source="no-such-report.md"
+        )
+        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_unreadable_stdin_is_fail_closed(self):
         """標準入力が無い（``sys.stdin is None``）状態でも未捕捉例外にしない。"""
@@ -3789,6 +3796,90 @@ class TestIngestReviewReadsThePointerInsideTheLock(KarteTestCase):
         self.assertEqual(
             3, json.loads(self._active_path().read_text(encoding="utf-8"))["round"]
         )
+
+
+class TestBuiltinWritersWriteInsideTheLock(KarteTestCase):
+    """F-696-06: 組み込みの書込み verb は、台帳を書く瞬間に共有 writer lock を握っている。
+
+    ``.locked`` 属性（宣言）が True でも、実際にラッパーが lock を取っていなければ意味がない。
+    書込み関数の呼び出し時点で別の file description から flock を試し、取れないことを確かめる。
+    """
+
+    def _held_at_write(self, call):
+        observed = []
+
+        def probe(real):
+            def wrapper(*args, **kwargs):
+                lock_path = paths.karte_dir(self.root, create=True) / ".writer.lock"
+                with open(lock_path, "a+") as handle:
+                    try:
+                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        observed.append(False)
+                        fcntl.flock(handle, fcntl.LOCK_UN)
+                    except BlockingIOError:
+                        observed.append(True)
+                return real(*args, **kwargs)
+
+            return wrapper
+
+        with mock.patch.object(paths, "append_text", probe(paths.append_text)), mock.patch.object(
+            paths, "write_text_atomic", probe(paths.write_text_atomic)
+        ):
+            self.assertEqual(cli.EXIT_OK, call()[0])
+        return observed
+
+    def test_ingest_review_writes_inside_the_lock(self):
+        observed = self._held_at_write(lambda: self._ingest(1, ("new", HARMFUL)))
+        self.assertTrue(observed)
+        self.assertTrue(all(observed))
+
+    def test_append_writes_inside_the_lock(self):
+        self._ingest(1, ("new", HARMFUL))
+        observed = self._held_at_write(self._append)
+        self.assertEqual([True], observed)
+
+    def test_close_attempt_writes_inside_the_lock(self):
+        self._ingest(1, ("new", HARMFUL))
+        self._append()
+        diff = "diff --git a/p.py b/p.py\n--- a/p.py\n+++ b/p.py\n@@ -1,1 +1,2 @@ def f():\n+    x\n"
+        observed = self._held_at_write(lambda: self._close(1, diff, outcome="fixed"))
+        self.assertEqual([True], observed)
+
+
+class TestIngestReviewStdinReadDoesNotHoldTheLock(KarteTestCase):
+    """F-696-01: 閉じない標準入力を待つ ``ingest-review --from -`` が他の書込みを止めない。
+
+    本文の読取がロックの内側にあると、標準入力が閉じない間ずっと排他ロックを握り、
+    ``append`` / ``close-attempt`` / 別の ``ingest-review`` が全てブロックされる。
+    """
+
+    def test_append_completes_while_ingest_waits_on_an_unclosed_stdin(self):
+        self.assertEqual(cli.EXIT_OK, self._ingest(1, ("new", HARMFUL))[0])
+        read_fd, write_fd = os.pipe()
+        pipe_in = os.fdopen(read_fd, "r", encoding="utf-8")
+        ingest_results, append_results = [], []
+        ingest = threading.Thread(
+            target=lambda: ingest_results.append(
+                cli.cmd_ingest_review(self._ns(issue=None, round="2", source="-"))
+            )
+        )
+        append = threading.Thread(target=lambda: append_results.append(self._append()))
+        with mock.patch.object(sys, "stdin", pipe_in):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                ingest.start()
+                time.sleep(0.3)  # ingest が閉じない stdin の read で待っていること
+                self.assertTrue(ingest.is_alive())
+                append.start()
+                append.join(5)
+                blocked = append.is_alive()
+                os.write(write_fd, _report(("F-307-01", HARMFUL)).encode("utf-8"))
+                os.close(write_fd)
+                ingest.join(10)
+                append.join(10)
+        pipe_in.close()
+        self.assertFalse(blocked, "stdin 待ちの ingest-review が排他ロックを握って append を止めた")
+        self.assertEqual([cli.EXIT_OK], [code for code, _o, _e in append_results])
+        self.assertEqual([cli.EXIT_OK], ingest_results)
 
 
 if __name__ == "__main__":

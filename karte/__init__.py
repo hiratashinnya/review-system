@@ -39,7 +39,7 @@
     ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
   * :mod:`karte.verb_support`  — verb 共有の部品（repo-root の遅延解決と ``git diff`` の cwd・
     ``--issue`` 解決・台帳の読み込み・整数検証）。テスト用の上書き点 ``_REPO_ROOT`` もここ。
-  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=...)``）。
+  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``。``prepare`` はロック前に入力を読む段）。
     ``extra_registrars`` で足す verb も ``locked`` を宣言しなければ ``build_parser`` が拒否する。
   * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
     ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。

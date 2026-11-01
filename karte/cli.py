@@ -88,12 +88,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+
 from . import active_pointer, ingest_review, model, paths, similarity, verb_support
 from . import touched as touched_mod
 from .errors import KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_OK, EXIT_SATURATED
 from .verb_boundary import fail_close, require_declared
-
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
@@ -322,21 +322,21 @@ def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate)
 # --- verb: ingest-review ------------------------------------------------------
 
 
-@fail_close(locked=True)
-def cmd_ingest_review(args, repo_root) -> int:
-    """レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば**一切書かない**）。
+@fail_close(locked=True, prepare=_read_report)
+def cmd_ingest_review(args, repo_root, report_text) -> int:
+    """レビューレポートを台帳へ取り込む（検証に 1 件でも掛かれば台帳・ポインタを**一切書かない**）。
 
-    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。
-    ``--issue`` / ``--round`` は進行ポインタから補完できる。**補完の読み取りもロックの内側**
-    で行う（外で読むと並行 ingest が同じ次ラウンドを選び、単調増加の検査に落ちる）。
-    検証は経路によらず共通で、ID 重複・未知 ID・harm 欄欠落・**``scope`` 欄欠落**
-    （Issue #495）・**``disposition`` の不整合**（``deferred`` に ``deferred_to`` が無い等）・
-    ID 再発番（K-05 の ``distinct_from`` で名指ししたペアだけ除外）・**前ラウンド未解消
-    finding の不在**（K-06）を見る。
+    入力は ``--from <path>``（repo-root 配下）か ``--from -``（標準入力・K-13）。本文は**ロックの
+    前**に読む（``prepare``）——閉じない標準入力でロックを握り続けないため。本文が空・``--from``
+    不正の拒否はロック前なので ``tmp/_karte/`` も作らない。ポインタ由来の拒否はロック内のため
+    ロック用ファイルは作りうる（台帳・ポインタは書かない）。``--issue`` / ``--round`` は進行
+    ポインタから補完でき、**補完の読み取りはロックの内側**（外だと並行 ingest が同じ次ラウンドを選ぶ）。
+    検証は経路によらず共通で、ID 重複・未知 ID・harm 欄欠落・**``scope`` 欄欠落**（Issue #495）・
+    **``disposition`` の不整合**（``deferred`` に ``deferred_to`` が無い等）・ID 再発番（K-05 の
+    ``distinct_from`` で名指ししたペアだけ除外）・**前ラウンド未解消 finding の不在**（K-06）を見る。
     """
     issue = verb_support.resolve_issue(args, repo_root)
     round_no = _resolve_ingest_round(args, repo_root, issue)
-    report_text = _read_report(args, repo_root)
     return ingest_review.ingest_locked(repo_root, issue, round_no, report_text)
 
 

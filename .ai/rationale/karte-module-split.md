@@ -10,6 +10,9 @@
 ### 検出対象の tool_name と `ctx_execute_file` の除外（`SUPPORTED_TOOL_NAMES`）
 本フックが検出対象とする tool_name（Issue #512 是正・F-512-02）。`Bash` に加え、`.claude/rules/05-skills-agents.md`「ctx_* ツールの付与方針」で issue-implementer / issue-fixer / pr-reviewer / 主文脈 / dsv2-lookup に付与済みの実行系 MCP ツール（`ctx_execute`/`ctx_batch_execute`）経由の `karte ingest-review`/`close-attempt` 実行も同じ通知対象にする。`ctx_execute_file` は既存方針で全ロール未付与のため対象に含めない（`.claude/rules/05-skills-agents.md` 同節）。
 
+### 検出規則は経路によらず一本（旧 `karte_notify/notify.py` docstring「検出対象コマンドの拾い方」の要点）
+トリガー実行は `Bash` 経由とは限らない。主文脈・`issue-implementer`・`issue-fixer`・`pr-reviewer`・`dsv2-lookup` にはいずれも実行系 MCP ツール（`ctx_execute`・`ctx_batch_execute`）が付与済みで、`python3 -m karte ingest-review`/`close-attempt` はこれらの `tool_input`（`code` / `commands[].command`）経由でも実行されうる。そこで `extract_commands` が `tool_name` ごとに検査対象の文字列を取り出し、`detect_trigger` がその文字列単位で `Bash` と同じ正規表現を適用する。判定ロジック自体は分岐させない＝経路が増えても検出規則は一本のまま。
+
 ### `language` を検査しない理由（`extract_commands`）
 `Bash` は `tool_input.command`。`ctx_execute` は `tool_input.code`（`language: shell` 前提の呼び出し規約だが、ここでは `language` の真偽は検査しない——実行される文字列そのものを見れば検出には十分で、詐称されていても検出漏れ側には倒れない）。`ctx_batch_execute` は `tool_input.commands[].command` の全件を対象にし、どれか1件が一致すれば検出する。`tool_name` が対象外、または形が不正なら空リスト（呼び出し側はこれを「検出なし」として扱う＝fail-open）。
 
@@ -51,10 +54,27 @@ linked worktree（`issue-implementer` 等の isolated worktree）でも main wor
 ### `--issue` の補完（K-13/K-14/K-15）
 フック（SubagentStart の `render`／SubagentStop の `ingest-review`・`check`／PostToolUse の `status`）は dispatch prompt を読めないため、Issue 番号の唯一の情報源は進行ポインタになる。ポインタが無い・壊れている・`issue` を欠くときは推測せず fail-close する。
 
-## `karte/verb_boundary.py`：ロック要否の宣言（PR #696 レビュー L-2・L-6）
+### 整数引数は ASCII 数字だけを受ける（K-03・移設元：旧 `_validate_attempt_number`・`_validate_round`）
+旧 `_validate_attempt_number` の docstring（原文）：「`--attempt` を検証する（`_validate_round` と同型・K-03）。`int(args.attempt)` を無検証で呼ぶと非数値入力で `ValueError` が送出され、`_fail_close` の捕捉対象外（文書化された終了コード `{0,2,3,4}` の外）に漏れる。」旧実装は `str.isdigit()` で判定していたが、`"²"` のような非 ASCII 数字も `isdigit()` は真を返し、続く `int()` が `ValueError` で同じ漏れを起こした。`parse_int` は ASCII 数字に限り、桁数が多すぎる入力（`int` の変換上限）も `KarteUsageError` に統一する。
 
-- `fail_close(*, locked)` の `locked` は**必須で既定値なし**。以前は `locked=True` フラグ（append／close-attempt）と、`cmd_ingest_review` の手書き `with paths.writer_lock(...)` の二流儀があり、`main()` が全 verb を常に「ロックなし」で外側から再ラップしていたため、拡張点 `extra_registrars` の登録 verb が `locked=True` を付け忘れても静かにロックなしで動いた。
-- 宣言は返す関数の `locked` 属性に残し、`build_parser` が `require_declared` で全 verb を検査して、宣言の無い verb は組み立てを拒否する。`main()` は再ラップしない。
-- repo-root はラッパーが 1 回だけ解決して verb 実装 `func(args, repo_root)` へ渡す（以前は 1 回の実行で複数回解決していた）。
-- `ingest-review` は進行ポインタの読み取り（`--issue`・次ラウンドの導出）をロックの内側で行う。外で読むと並行 ingest が同じ次ラウンドを選び、後続が「単調増加」の検査で落ちる。代償として `--from -` の標準入力読み取りもロック内になる（フックは本文を即座に流し込むので実害は小さい）。
-- `--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `_pointer_round` を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。
+## `karte/verb_boundary.py`：verb 単位の終了コード境界とロック要否の宣言（移設元：`karte/cli.py` の `_fail_close`・PR #696 レビュー L-2・L-6・F-696-01）
+
+### なぜ verb 単位が終了コードの境界か（旧 `_fail_close` docstring の原文）
+`cmd_*` を「例外を投げず終了コードを返す」境界にする。verb 単位が終了コードの境界（＝呼び出し側は `main` 経由でも直呼びでも同じ fail-close 挙動を得る）。`main` にだけ `try/except` を置くと、フックやテストのように `cmd_*` を直接呼ぶ経路では例外が素通りし、「拒否されたのに exit code が返らない」＝判定不能になる。ガードの効力を呼び出し経路に依存させない。
+
+### 出荷されていた状態（origin/main）から現状への変更
+- 出荷されていた `_fail_close` は、`func.__name__ in {"cmd_append", "cmd_close_attempt"}` という**関数名の判定**でロックを取っていた。一方 `cmd_ingest_review` は自分で `with paths.writer_lock(...)` を書く別流儀で、ロック要否の決まり方が二通りあった。名前判定は verb を改名・追加するとロックが静かに外れる。
+- 現状の `fail_close(*, locked, prepare=None)` は `locked` を**必須で既定値なし**にし、宣言を返す関数の `locked` 属性に残す。`build_parser` が `require_declared` で全 verb を検査し、宣言の無い verb は組み立てを拒否する。これにより、拡張点 `extra_registrars`（#696 で足した、別モジュールの verb を登録する口）の登録 verb がロックを付け忘れても静かに動くことはない。
+- repo-root はラッパーが 1 回だけ解決して verb 実装 `func(args, repo_root)` へ渡す（出荷時は 1 回の実行で複数回解決していた）。
+
+### `ingest-review` のロック範囲（出荷時→L-6→F-696-01）
+1. 出荷時：`--issue`・次ラウンドの導出（進行ポインタの読み取り）と本文の読み取りを**ロックの外**で行ってから `writer_lock` を取っていた。並行 ingest が同じ次ラウンドを選び、後続が「単調増加」の検査で落ちうる穴があった。
+2. L-6 の是正：ポインタの読み取りをロックの内側へ移した。このとき本文の読み取りまで一緒にロック内へ入れ、「代償として `--from -` の標準入力読み取りもロック内になる（フックは本文を即座に流し込むので実害は小さい）」と記録した。
+3. F-696-01（real・minor）でこの判断が誤りと判明した：標準入力が閉じないと無期限に排他ロックを握り、他の `append`／`close-attempt`／`ingest-review` が全てブロックされる。フックが即座に流し込む前提は、手動実行・パイプの上流が詰まった場合に成り立たない。現状は `prepare` 段（`prepare=_read_report`）で**本文の読み取りだけをロックの前**に行い、ポインタの読み取りから台帳置換まではロック内に保つ。
+4. 副次効果：本文が空・`--from` 不正の拒否はロック前に起きるので、出荷時と同様に `tmp/_karte/` を作らない。進行ポインタ由来の拒否（無い・破損・食い違い）はロック内で起きるため、ロック用ファイルとそのディレクトリは作りうる（台帳・ポインタは書かない）。
+
+### `prepare` 段の契約
+`prepare(args, repo_root)` はロックの外で 1 回だけ呼ばれ、戻り値が `func(args, repo_root, prepared)` の第 3 引数になる。`prepare` を渡さない verb の署名は `func(args, repo_root)` のまま。
+
+### `--round` の補完
+`--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `_pointer_round` を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。

@@ -33,6 +33,18 @@ def _registrar_for(name, func):
 _register_probe = _registrar_for("probe", fail_close(locked=False)(lambda args, root: 42))
 
 
+def _writer_lock_is_held(repo_root) -> bool:
+    """別の file description から非ブロッキングで取りに行き、取れなければ誰かが握っている。"""
+    lock_path = paths.karte_dir(repo_root, create=True) / ".writer.lock"
+    with open(lock_path, "a+") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        return False
+
+
 class _RootedCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="karte-reg-")).resolve()
@@ -112,14 +124,7 @@ class TestDeclaredLockIsApplied(_RootedCase):
         observed = []
 
         def verb(args, repo_root):
-            fd = paths.karte_dir(repo_root, create=True) / ".writer.lock"
-            with open(fd, "a+") as handle:
-                try:
-                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    observed.append(False)
-                    fcntl.flock(handle, fcntl.LOCK_UN)
-                except BlockingIOError:
-                    observed.append(True)
+            observed.append(_writer_lock_is_held(repo_root))
             return 0
 
         register = _registrar_for("probe", fail_close(locked=locked)(verb))
@@ -131,6 +136,34 @@ class TestDeclaredLockIsApplied(_RootedCase):
 
     def test_locked_false_runs_without_the_writer_lock(self):
         self.assertFalse(self._lock_is_held_during(False))
+
+    def test_prepare_runs_before_the_lock_and_hands_its_result_to_the_verb(self):
+        observed = []
+
+        def prepare(args, repo_root):
+            observed.append(("prepare", _writer_lock_is_held(repo_root)))
+            return "prepared-value"
+
+        def verb(args, repo_root, prepared):
+            observed.append(("verb", _writer_lock_is_held(repo_root), prepared))
+            return 0
+
+        register = _registrar_for("probe", fail_close(locked=True, prepare=prepare)(verb))
+        self.assertEqual(0, cli.main(["probe"], extra_registrars=(register,)))
+        self.assertEqual(
+            [("prepare", False), ("verb", True, "prepared-value")], observed
+        )
+
+    def test_prepare_refusal_happens_before_the_lock_creates_anything(self):
+        def prepare(args, repo_root):
+            raise KarteUsageError("early")
+
+        register = _registrar_for(
+            "probe", fail_close(locked=True, prepare=prepare)(lambda a, r, p: 0)
+        )
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(EXIT_ERROR, cli.main(["probe"], extra_registrars=(register,)))
+        self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_repo_root_is_resolved_once_per_run(self):
         register = _registrar_for("probe", fail_close(locked=True)(lambda args, root: 0))

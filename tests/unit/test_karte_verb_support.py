@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, paths, verb_support
+from karte import cli, model, paths, verb_support
 from karte.errors import KarteUsageError
 
 NON_ASCII_DIGITS = ("²", "٣", "①")  # str.isdigit() は True だが int() できない
@@ -57,12 +57,22 @@ class TestRoundAndRootResolution(unittest.TestCase):
     def _args(self, **kwargs):
         return argparse.Namespace(repo_root=str(self.root), **kwargs)
 
-    def test_check_and_ingest_review_with_non_ascii_round_are_exit_error_without_traceback(self):
+    def test_ingest_review_with_non_ascii_round_is_exit_error_without_traceback(self):
         report = self.root / "tmp" / "r.md"
         report.write_text("### new\n", encoding="utf-8")
         with contextlib.redirect_stderr(io.StringIO()):
             code = cli.cmd_ingest_review(self._args(issue="1", round="²", source=str(report)))
         self.assertEqual(cli.EXIT_ERROR, code)
+
+    def test_check_with_non_ascii_round_is_exit_error_without_traceback(self):
+        paths.karte_path(1, self.root, create_dir=True).write_text(
+            model.dumps(model.new_karte(1)), encoding="utf-8"
+        )
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = cli.cmd_check(self._args(issue="1", round="²"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+
+    def test_pointer_round_raises_usage_error_for_non_ascii_round(self):
         with self.assertRaises(KarteUsageError):
             cli._pointer_round(self._args(issue="1", round="²"), self.root, 1, "")
 
