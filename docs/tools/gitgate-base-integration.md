@@ -54,10 +54,12 @@ python3 -m gitgate integrate-base-abort
 
 ## 中止と回復
 
-- `integrate-base-abort` は PR API に依存しない。HEAD から変わった tracked ファイル・ignore 外の新規ファイルと `MERGE_HEAD` / `MERGE_MSG` を、共通 Git ディレクトリの `gitgate-base-recovery/<時刻>-<pid>.tar` に保存してから `git merge --abort` を実行し、保存先を返す。ignore 外の新規ファイルは中止後も作業ツリーに残り、残っている間は `integrate-base` が開始を拒否する（開始条件は未追跡ファイルを含めて作業ツリーが clean であること）。`issue-fixer` にはファイルの削除手段が無いので、片付けはオーナーまたは Issue-pipeline 外の gate の無い呼び出し元（主文脈・`general-purpose` 等）が行う。同じファイルは退避 tar にも入っている。
+- `integrate-base-abort` は PR API に依存しない。HEAD から変わった tracked ファイル・ignore 外の新規ファイルと `MERGE_HEAD` / `MERGE_MSG` を、共通 Git ディレクトリの `gitgate-base-recovery/<時刻>-<pid>.tar` に保存してから `git merge --abort` を実行し、保存先を返す。ignore 外の新規ファイルは中止後も作業ツリーに残り、残っている間は `integrate-base` が開始を拒否する（開始条件は未追跡ファイルを含めて作業ツリーが clean であること）。`issue-fixer` にはファイルの削除手段が無いので、片付けはオーナーまたは gate の無い呼び出し元（主文脈・`general-purpose` 等の `GATED_ROLES` に入らないロール）が行う。Issue-pipeline の運用中は主文脈が片付ける（次項「復元の実行者」）。同じファイルは退避 tar にも入っている。
 - 退避 tar の構成：`worktree/<パス>`（作業ツリー上の当該ファイル。記号リンクはリンクのまま）と、存在した場合だけ `git/MERGE_HEAD`・`git/MERGE_MSG`。`worktree/` 配下は「HEAD から変わったファイル」の丸ごとの写しなので、利用者の衝突解消の編集だけでなく、**取り込み中だった base 側の変更もそのまま含む**。HEAD に存在し作業ツリーから消えていたファイルは tar に入らない。
 - 退避からの復元：tar 全体を作業ツリーへ展開しない（base 側の変更が取り込みの記録なしに作業ツリーへ混ざる）。`integrate-base` で取り込みをやり直し、`tar -tf <tar>` で中身を確認したうえで、衝突解消に必要なファイルだけを `tar -xOf <tar> worktree/<パス>` で標準出力へ取り出す。現在のファイルと比較して必要な編集だけを適用し、`integrate-base-continue` で確定する。`worktree/` には HEAD から変わった tracked ファイルに加え、ignore 外の新規ファイル（`git ls-files --others --exclude-standard`）も入る。記号リンクのエントリは `tar -xOf` では何も出力されないので、リンク先は `tar -tvf <tar>` で確認する。
-  - 復元の実行者：`tar` は `issue-fixer` には使えない（両 PF の `agent-command-gate.sh` は gated ロールのコマンドを `git`・`gh`・`pyright`・許可された `python3 -m` モジュールに限り、`ctx_execute` 経由でも同じ判定を掛ける。Read ツールでは tar を開けない）。`issue-fixer` は中止後に作業を止め、`integrate-base-abort` が返した退避 tar のパスを含めてオーナーへ報告する。tar の一覧・取り出しは、オーナーまたは Issue-pipeline 外の gate の無い呼び出し元（主文脈・`general-purpose` 等）が行う。Issue-pipeline 内では、主文脈が取り出した内容を `issue-fixer` の再 dispatch 時に渡し、`issue-fixer` が `integrate-base` による再開始・必要な編集の適用・`integrate-base-continue` を行う。Issue-pipeline 外の gate の無い呼び出し元は、取り出しから確定までを自分で行ってよい。
+  - 復元の実行者：`tar` は `issue-fixer` には使えない（両 PF の `agent-command-gate.sh` は gated ロールのコマンドを `git`・`gh`・`pyright`・許可された `python3 -m` モジュールに限り、`ctx_execute` 経由でも同じ判定を掛ける。Read ツールでは tar を開けない）。`issue-fixer` は中止後に作業を止め、`integrate-base-abort` が返した退避 tar のパスを含めてオーナーへ報告する。tar の一覧・取り出しと残った新規ファイルの片付けは、オーナーまたは gate の無い呼び出し元（主文脈・`general-purpose` 等の `GATED_ROLES` に入らないロール）が行う。その先の衝突解消の適用・確定を誰が行うかは、gate の有無ではなく Issue-pipeline を運用中かどうかで決まる。
+    - Issue-pipeline の運用中：主文脈が行うのは取り出しと片付けまでで、衝突解消の適用・確定は行わない（実装・是正は別文脈へ分離する＝`.ai/guidance/common.md`「作業分離・判断境界」）。主文脈は退避元の作業ツリーに残った ignore 外の新規ファイルを片付けて**から** `issue-fixer` を再 dispatch し、取り出した内容を渡す。片付けより先に再 dispatch すると、`integrate-base` が `BASE_WORKTREE_NOT_CLEAN` で開始を拒否する。`issue-fixer` が `integrate-base` による再開始・必要な編集の適用・`integrate-base-continue` を行う。
+    - Issue-pipeline を運用していないとき（オーナーの直接指示で動く主文脈・`general-purpose` 等）：取り出しから確定までを自分で行ってよい。
 - 保存できない場合は `merge --abort` を実行しない。`merge --abort` が失敗した場合は保存先を含むエラーで停止し、記録は残す。
 - merge が gitgate の外で終わった（手動の `git merge --abort`・手動 commit 等）後に記録だけが残った場合、`integrate-base-abort` は記録を消して `{"status": "cleared"}` を返す。何も中止しない。
 - 記録と異なる merge が進行中の場合、continue・abort はいずれも拒否する。生の `git merge`（`--abort` を含む）は `.claude/settings.json` の deny・`.codex/rules/default.rules`・両 PF の `agent-command-gate.sh` が全 AI ロールに対して拒否するので、AI はこの merge を自分では片付けられない。AI は作業を止め、branch・`git status` の要約・拒否メッセージをオーナーへ報告する。オーナーが手動でその merge を中止した後、`integrate-base-abort` で記録を消す。
@@ -70,5 +72,5 @@ python3 -m gitgate integrate-base-abort
 GitGate 本体はロールやハーネスを同定しない。ロール別の許可・禁止は呼び出し元の command gate とワークフローポリシーで扱う。
 
 - Issue-pipeline の工程ロール（`issue_start/gated_roles.py` の `GATED_ROLES`）のうち、取り込みを使えるのは `issue-fixer` だけ。`issue-implementer`・`pr-reviewer` 等は `.claude/hooks/agent-command-gate.sh`・`.codex/hooks/agent-command-gate.sh` が拒否する。
-- Issue-pipeline 外（主文脈・`general-purpose` 等）には pipeline 専用のロール制約を波及させない。
+- `GATED_ROLES` に入らない呼び出し元（主文脈・`general-purpose` 等）には pipeline 専用のロール制約（command gate）を波及させない。ただし Issue-pipeline の運用中は、主文脈もワークフローポリシー（作業分離）に従い、取り込みの解消・確定を `issue-fixer` に委ねる（「中止と回復」の「復元の実行者」）。
 - Copilot など project hook の無い実行環境も、同じ CLI をそのまま使う。専用の登録・認可手順は無い。
