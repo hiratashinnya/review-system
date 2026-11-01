@@ -58,6 +58,15 @@ python3 -m karte check --issue <N> --round <R>
 「2回止めれば通る」という運用ではない。1回目の block reason を読み、
 できる記録（`append` / `close-attempt`）は必ず済ませてから停止すること。
 
+**例外：PR base の取り込みを中止して停止する場合。** 取り込み（`gitgate integrate-base`）は
+Step 0 の後・診断より前に行い、その衝突解消の編集は是正の編集ではない（診断登録の対象にしない）。
+`integrate-base-abort` で中止して STOP するときは、この拒否に応じて `append` も `close-attempt` も
+**実行しない**——試していないアプローチが Attempt として残り、再 dispatch 後の是正が類似判定の
+飽和で拒否されうるうえ、クローズ済みの Attempt が後の診断前編集を `karte check` に通してしまう。
+中止したことと退避 tar のパスをハンドオフの `stop_reason` に書き、もう一度停止する。
+診断登録より後に中止した場合に残る Attempt を手当てする仕組みは無い（既知の限界）。
+詳細は `.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」。
+
 ## `{issue, round}` の出所
 
 **dispatch prompt はフックに届かない**（`SubagentStart` payload に含まれない）。

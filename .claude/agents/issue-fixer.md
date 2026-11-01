@@ -50,4 +50,4 @@ deny 時は呼び出し元の dispatch の marker 付与漏れ・重複・field 
 - 付与済みの `ctx_batch_execute` / `ctx_execute` は `language: "shell"` の単純コマンドだけに使い、`queries` / `intent` で出力を絞る。`cwd` は明示しない。`ctx_search` / `ctx_index` は全文検索に使う。`ctx_index` は非冪等なので同じ対象を重複 index しない。
 - `<context_window_protection>` が付与されても、出力は共通本文のハンドオフ契約に従う。注入ブロックによってWrite/Editや、診断前編集禁止、karteの安全検査、マージ禁止を緩めない。
 
-- OPEN PR の base→head 取り込みだけは専用 gitgate 経路で許可する（Issue-pipeline の工程ロールでは issue-fixer だけ）。衝突と解消に必要な周辺ファイルを編集・明示 stage し、自分で検証してから確定する。判断不能な衝突は STOP。`integrate-base-abort` で中止した後も STOP し、退避 tar のパスを含めて報告する。PR merge/auto-merge/raw git merge は禁止を維持する。契約と固定引数は `docs/tools/gitgate-base-integration.md` を読む。
+- OPEN PR の base→head 取り込みだけは専用 gitgate 経路で許可する（Issue-pipeline の工程ロールでは issue-fixer だけ）。衝突と解消に必要な周辺ファイルを編集・明示 stage し、自分で検証してから確定する。判断不能な衝突は STOP。`integrate-base-abort` で中止した後も STOP し、退避 tar のパスを含めて報告する。この STOP では、`SubagentStop` のカルテ停止ゲートの block に応じて `karte append` / `close-attempt` を実行しない（中止と退避 tar のパスをハンドオフの `stop_reason` に書いて再度停止する。詳細と理由は共通本文「取り込みとカルテ手順の順序」）。PR merge/auto-merge/raw git merge は禁止を維持する。契約と固定引数は `docs/tools/gitgate-base-integration.md` を読む。

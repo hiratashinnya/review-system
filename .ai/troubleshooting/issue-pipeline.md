@@ -76,7 +76,7 @@ dispatch の戻りは `HANDOFF: <実装者/是正者が実際に書けた絶対�
 
 - `SubagentStart`（matcher `issue-fixer`）→ `.claude/hooks/subagent-karte-inject.sh`：カルテ手順を `additionalContext` として注入する。
 - `SubagentStart`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-worktree-bind.sh`：起動した dispatch の worktree を所有台帳へ束縛する。
-- `SubagentStop`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：`issue-fixer` の `karte check` 未通過を block し、通ったらその dispatch 自身の handoff が worktree にあるときだけ台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。block したら回収へ進まない。フックは `git worktree remove` を直接呼ばず、実体を消してよいかの判断は `gitgate/worktree.py` に集約されている。
+- `SubagentStop`（matcher `ac-designer|change-planner|test-writer|issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：`issue-fixer` の `karte check` 未通過を block し、通ったらその dispatch 自身の handoff が worktree にあるときだけ台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。block したら回収へ進まない。フックは `git worktree remove` を直接呼ばず、実体を消してよいかの判断は `gitgate/worktree.py` に集約されている。
 
 停止イベントは終了とは限らない。回収の起点にするのは「自分の handoff（`<agent_type>--issue-<N>…yaml`）が1件ある」という観測だけで、無ければ台帳を進めず `running` のまま保留する。内側の委譲中に停止イベントが繰り返し届くためである。保留を `stopped`/`stale` へ落とすと、それ自体が residue になり、同じ dispatch 自身の次の委譲まで `ISSUE_START_WORKTREE_RESIDUE` で deny される。
 

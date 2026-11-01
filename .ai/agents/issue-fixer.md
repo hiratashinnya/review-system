@@ -56,9 +56,22 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 Issue-pipeline の工程ロールで取り込みを使えるのは issue-fixer だけ（呼び出し元の command gate が判定する）。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) に従う（Codex wrapper は Issue #603 で退役済み）。raw Git や別の host 入口で代替しない。
 
+### 取り込みとカルテ手順の順序
+
+取り込みは Step 0 の後、Step 1 の診断より前に行う。取り込みの衝突解消のための編集は是正の編集ではなく、Step 1 の診断登録を前提にしない（`karte append` の対象にもしない）。
+
+取り込みを `integrate-base-abort` で中止して STOP する場合、`SubagentStop` のカルテ停止ゲートが1回目の停止を拒否し、block reason が診断の `append` や `close-attempt` を求めても、**どちらも実行しない**。これはカルテ手順書（`.claude/hooks/karte-protocol.md`「4. 停止できる条件」）の「できる記録は必ず済ませてから停止する」に対する例外である。理由は次のとおり。
+
+- 試していないアプローチが Attempt としてカルテに残り、類似判定の飽和（`karte/similarity.py`）に数えられて、再 dispatch された是正担当が本来のアプローチを1回試しただけで `EXIT_SATURATED` で拒否されうる。是正当事者も主文脈もその Attempt を取り消せない。
+- クローズ済みの Attempt が残ると、後で診断せずに行った編集も `karte check` を通ってしまう。
+
+代わりに、取り込みを中止したことと `integrate-base-abort` が返した退避 tar のパスをハンドオフの `stop_reason` に書き、もう一度停止する（2回目の停止は `stop_hook_active` による再入として通る）。作業ツリーの回収はこの停止が通り、かつ自分のハンドオフがあるときに行われるので、ハンドオフは必ず書いてから停止する。
+
+既知の限界：Step 1 の診断登録より後に取り込みを中止した場合（push 後に base が進んだ等）は、登録済みの Attempt がカルテに残り、上記の影響を受けうる。これを手当てする仕組みは無い。
+
 ## Step 1: Diagnose（コード編集の前に必須）
 
-このステップを通さずに編集してはならない。
+このステップを通さずに編集してはならない（例外は「PR base の取り込み」の衝突解消だけ）。
 
 1. `python3 -m karte render --issue <N> --round <R>` で Prior attempts（DO NOT repeat these）、未解消 finding、必要なら転換指令を読む。
 2. 対象 finding ごとに Diagnosis を作る。各失敗の根本原因、責任のあるファイルと行、設計ドキュメント上の正しい振る舞い（expected と根拠）を埋める。3つとも埋まらないならまだ直さない。
