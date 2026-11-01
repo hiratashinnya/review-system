@@ -1,6 +1,6 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@b47a5e78e51f -->
+<!-- synced-from: CLAUDE.md@1e8bac0a20b2 -->
 <!--
   PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。main の取り込み時の衝突（冒頭コメント欄）は両側の記録を残して解消し、marker を統合後の値へ更新した。
 
@@ -298,8 +298,11 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
 12. **オーナーへの報告・質問の仕方（主文脈専用）** — 判断を仰ぐ事項は**チャットに全文**
     （何を・なぜ・どうするか）で出し、PR コメント・カルテ・ハンドオフ・ノードへの記載を報告の代わりに
     しない（`<artifact_policy>` 等の要約規律は subagent→主文脈間の規約で、主文脈→オーナーには適用しない）。
-    merge・push・force 系・外部投稿など取り消しにくい操作は**実行前に**報告して確認を得る
-    （事後のまとめ報告・過去の承認・clean 判定で代えない）。質問・承認依頼は判断材料をチャットに
+    依頼内の対象に一致する非破壊の通常 push・PR・Issue・CI 操作は事前確認なく実行し事後報告する。
+    依頼範囲外は停止し、force push・remote branch 削除・履歴改変・大量削除は個別の明示指示を要する。
+    対外発信・公開設定変更・本番操作は
+    原則事前確認し、対象と内容が一致する明示承認は再質問しない。AI の merge は禁止。
+    禁止 branch・role 権限・秘密・課金・機械ゲートを維持する。質問・承認依頼は判断材料をチャットに
     提示した上で **`AskUserQuestion`** で問う（推奨案を先頭に「（推奨）」）。非対話ロールは持たないので
     STOP して呼び出し元へ返す。正本＝`.claude/main-context/01-owner-communication.md`（全文はセッション
     開始・clear・compact 時に注入済み）。
