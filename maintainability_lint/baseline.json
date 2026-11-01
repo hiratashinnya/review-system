@@ -129,7 +129,7 @@
     },
     "issue_start/subagent_hooks.py": {
       "line_count": 962,
-      "sha256": "2af1b62060dcd5a1f4b593b118adef1db40d0bdb3d37fd91b61b89f5bf3878a2"
+      "sha256": "71c73e0b99e524657206113d18fdc4075b55a327982b36810c296ffe2860fe83"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,
