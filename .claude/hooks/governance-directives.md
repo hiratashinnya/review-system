@@ -1,10 +1,16 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@72e20498d047 -->
+<!-- synced-from: CLAUDE.md@b47a5e78e51f -->
 <!--
-  PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。
+  PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。main の取り込み時の衝突（冒頭コメント欄）は両側の記録を残して解消し、marker を統合後の値へ更新した。
 
   `.ai/guidance/common.md` への項追加（2026-10-25・オーナー）: 「作業分離・判断境界」に、ドキュメントと既存コードが食い違うときはコードに従い食い違いを最後の返答で挙げる旨を追加。これを項14として配送する。
+
+  Issue #685（2026-10-31・F-685-51）: `.claude/rules/02-decision-process.md` の起票先判定表
+  「実行環境の面倒を見るフック」へ `issue-start-gate.sh`/`phase-tool-gate.sh`（列挙済みの
+  `issue_start` の gate を起動する薄い起動口）を追記しただけ。下記9は「実行環境フック」を
+  総称で配送しており区分は変わらないため、中核規範（1〜13）には掛からない。本文は変更せず
+  marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録）。
 
   PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
 

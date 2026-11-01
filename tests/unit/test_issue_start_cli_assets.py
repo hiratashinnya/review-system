@@ -53,7 +53,7 @@ class AssetParityTests(unittest.TestCase):
         self.assertIn("Task|Agent", claude_matchers)
         # Task / Agent の両方を正規 matcher で捕捉する。
         claude_hook = ROOT / ".claude" / "hooks" / "issue-start-gate.sh"
-        self.assertIn("python3 -m issue_start.hook", claude_hook.read_text(encoding="utf-8"))
+        self.assertIn("python3 -P -m issue_start.hook", claude_hook.read_text(encoding="utf-8"))
 
     def test_gate_reads_only_the_v2_manifest(self):
         """Issue #354 PR-4: 正本は v2 で、v1 は退役して**読まれない**。
