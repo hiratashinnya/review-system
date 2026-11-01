@@ -32,6 +32,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from karte import allowlist as karte_allowlist  # noqa: E402
 from karte import cli  # noqa: E402
+from karte import exit_codes  # noqa: E402
 from karte import model  # noqa: E402
 
 ISSUE = 511
@@ -263,14 +264,14 @@ class IngestReviewCliTests(unittest.TestCase):
 
     def test_violating_report_fails_the_cli_and_leaves_the_karte_untouched(self):
         code, _, errors = self._ingest(1, review_report(VALID_HARM_DETAIL))
-        self.assertEqual(code, cli.EXIT_OK, errors)
+        self.assertEqual(code, exit_codes.EXIT_OK, errors)
         before = self._karte_text()
         self.assertIn(f"F-{ISSUE}-01", before)
 
         code, _, errors = self._ingest(
             2, review_report(REAL_DISPOSITION_LEAK, title=f"F-{ISSUE}-01")
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("harm_detail", errors)
         self.assertEqual(self._karte_text(), before)
 

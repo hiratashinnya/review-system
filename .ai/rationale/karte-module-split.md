@@ -43,7 +43,21 @@
 ### 再発番検出で外すのは名指しされたペアだけ（K-05）
 新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。`item.distinct_from` で名指しされた相手は比較から外す（K-05）。外れるのは**名指しされたペアだけ**で、判定そのもの・閾値（`model.DUPLICATE_SIMILARITY_THRESHOLD`）は据え置く——偽陽性の逃げ道として閾値を下げると、本来検出したい再発番まで一律に見逃す。
 
-## `karte/verb_support.py`：repo-root と diff の cwd（移設元：`karte/cli.py` の `_repo_root`・`_diff_cwd`・`_resolve_issue`）
+## `verb_support.py` の分割（F-696-14）
+
+当初の `karte/verb_support.py`（repo-root 解決・diff 用 cwd・issue 解決・台帳ロード・整数検証の5責務）は、名前が責務を表さず、ポインタ由来の補完も issue（`verb_support.resolve_issue`）と round（`cli._pointer_round`）の2箇所に分かれていた。責務ごとに次へ分け、`verb_support` は廃止した（以下の節の「移設元」は元の `karte/cli.py`、現在の実体は括弧内）。
+
+| 責務 | 現在の module |
+| --- | --- |
+| repo-root の遅延解決・diff 用 cwd | `karte/repo_roots.py`（`repo_root_of`・`invoking_worktree`・テスト用上書き点 `_REPO_ROOT`／`_PACKAGE_ROOT`） |
+| `--issue` / `--round` のポインタ補完（公開関数） | `karte/pointer_completion.py`（`resolve_issue`・`pointer_round`・`ingest_target`） |
+| 整数引数の検証 | `karte/int_args.py`（`parse_int`） |
+| 台帳の読み込み | `karte/karte_loader.py`（`load_karte`） |
+| UTF-8 として正しい入出力だけを通す | `karte/utf8_text.py`（`read_stream_text`・`require_utf8_encodable`） |
+
+上段（`owner_cli`／`reviewer_cli`／`pointer_round`）が private（`cli._pointer_round` 等）を import せずに済むよう、補完は公開関数として `pointer_completion` に置いた。
+
+## repo-root と diff の cwd（現在の実体：`karte/repo_roots.py`・移設元：`karte/cli.py` の `_repo_root`・`_diff_cwd`・`_resolve_issue`）
 
 ### repo-root は呼び出しごとに遅延解決する（K-12・K-03）
 linked worktree（`issue-implementer` 等の isolated worktree）でも main worktree の `tmp/_karte/` へ収束させる（K-01）。`.git` がファイルなら `gitdir:` を辿る `paths.main_worktree_root` を使う。**import 時に評価しない**。`main_worktree_root` は `.git` ファイルが不正形式なら `KartePathError` を送出するが、モジュールレベルで評価するとその例外はどの verb の fail-close 境界の内側でもない import 時に飛ぶ。`.git` が壊れた worktree では `python3 -m karte <任意の verb>` が未捕捉例外で終了し、文書化された終了コード `{0,2,3,4}` の外に漏れる（K-03 と同種＝観測不能）。呼び出しごとの解決なら `main()` 経由でも `cmd_*` 直呼びでも必ず境界の内側に入る。結果をキャッシュしないのは、プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため。
@@ -71,10 +85,14 @@ linked worktree（`issue-implementer` 等の isolated worktree）でも main wor
 1. 出荷時：`--issue`・次ラウンドの導出（進行ポインタの読み取り）と本文の読み取りを**ロックの外**で行ってから `writer_lock` を取っていた。並行 ingest が同じ次ラウンドを選び、後続が「単調増加」の検査で落ちうる穴があった。
 2. L-6 の是正：ポインタの読み取りをロックの内側へ移した。このとき本文の読み取りまで一緒にロック内へ入れ、「代償として `--from -` の標準入力読み取りもロック内になる（フックは本文を即座に流し込むので実害は小さい）」と記録した。
 3. F-696-01（real・minor）でこの判断が誤りと判明した：標準入力が閉じないと無期限に排他ロックを握り、他の `append`／`close-attempt`／`ingest-review` が全てブロックされる。フックが即座に流し込む前提は、手動実行・パイプの上流が詰まった場合に成り立たない。現状は `prepare` 段（`prepare=_read_report`）で**本文の読み取りだけをロックの前**に行い、ポインタの読み取りから台帳置換まではロック内に保つ。
-4. 副次効果：本文が空・`--from` 不正の拒否はロック前に起きるので、出荷時と同様に `tmp/_karte/` を作らない。進行ポインタ由来の拒否（無い・破損・食い違い）はロック内で起きるため、ロック用ファイルとそのディレクトリは作りうる（台帳・ポインタは書かない）。
+4. 副次効果（F-696-11 で是正済み）：本文が空・`--from` 不正の拒否はロック前に起きるので `tmp/_karte/` を作らないが、進行ポインタ由来の拒否（無い・破損・食い違い）と `--issue abc`・`--round ²` のような引数由来の拒否は、補完と検証が `func`（ロック内）にあったためロック用ファイルとディレクトリを作っていた。拒否の優先順位も出荷時の issue→round→本文から repo-root→本文→issue→round に変わり、ポインタが壊れていても標準入力を先に読み切っていた。
+5. F-696-11 の是正：`prepare`（ロック前）で `ingest_target`（issue→round）→本文の順に検証する（`cli._prepare_ingest`）。引数・ポインタ・本文由来の拒否はロックを取る前に起きるので何も作らず、優先順位も出荷時に戻る。ポインタ由来の値は並行 ingest が先に進めうるので**ロック内で読み直した値だけを使う**（ロック前の値は検証用に捨てる）。このためポインタを2回読む（読取のみ・副作用なし）。**回復できない残余**は、ロック前の検証を通ったあとロック取得までにポインタが変わり、ロック内の読み直しで拒否された競合時にロック用ファイルが残ること（台帳・ポインタは書かない）だけで、通常の拒否では起きない。
+
+### 入力のエンコーディング（F-696-13）
+`UnicodeDecodeError`／`UnicodeEncodeError` は `ValueError` 系で、`verb_boundary._REFUSALS` の5種に含まれず終了コード契約 {0,2,3,4} の外へ漏れる（出荷時の origin/main でも同じ漏れ）。読み側は `path_io.read_text`（レポート本文・台帳・進行ポインタ・`--diff-file`）と `utf8_text.read_stream_text`（標準入力）で、書き側は `path_io` の書込み前に `utf8_text.require_utf8_encodable` で、いずれも拒否例外に畳む。C ロケールでは標準入力が `surrogateescape` で読まれて不正バイトが lone surrogate として検証を通り、台帳への書込みで初めて失敗するため、読んだ直後に UTF-8 へ戻せることも確かめる。`git diff` の出力復号は `errors="replace"` で、`.git` の読取も `replace` のため漏れない。
 
 ### `prepare` 段の契約
 `prepare(args, repo_root)` はロックの外で 1 回だけ呼ばれ、戻り値が `func(args, repo_root, prepared)` の第 3 引数になる。`prepare` を渡さない verb の署名は `func(args, repo_root)` のまま。
 
 ### `--round` の補完
-`--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `_pointer_round` を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。
+`--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `pointer_completion.pointer_round`（当時は `cli._pointer_round`）を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。

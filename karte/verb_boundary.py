@@ -10,7 +10,7 @@ from . import model, paths
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 from .touched import TouchedError
-from .verb_support import repo_root_of
+from .repo_roots import repo_root_of
 
 _REFUSALS = (KarteUsageError, paths.KartePathError, model.KarteFormatError, OSError, TouchedError)
 

@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, paths, verb_support
+from karte import cli, paths, repo_roots
 from karte.errors import KarteNotFound, KarteUsageError
 from karte.exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 from karte.model import KarteFormatError
@@ -50,7 +50,7 @@ class _RootedCase(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="karte-reg-")).resolve()
         self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
         (self.root / "tmp").mkdir()
-        patcher = mock.patch.object(verb_support, "_REPO_ROOT", self.root)
+        patcher = mock.patch.object(repo_roots, "_REPO_ROOT", self.root)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -70,16 +70,24 @@ class TestExtraRegistrars(_RootedCase):
             cli.build_parser().parse_args(["probe"])
 
     def test_existing_verbs_are_unchanged_by_registrars(self):
-        verbs = {"ingest-review", "render", "append", "close-attempt", "check", "status"}
-        parser = cli.build_parser((_register_probe,))
-        for verb in verbs:
+        """登録 verb を足しても、組み込み 6 verb の実装・ロック宣言・オプションは同一のまま。"""
+        verbs = {
+            "ingest-review": cli.cmd_ingest_review, "render": cli.cmd_render,
+            "append": cli.cmd_append, "close-attempt": cli.cmd_close_attempt,
+            "check": cli.cmd_check, "status": cli.cmd_status,
+        }
+
+        def describe(parser, verb):
+            sub = next(a for a in parser._actions if a.dest == "verb").choices[verb]
+            options = sorted(o for action in sub._actions for o in action.option_strings)
+            return sub.get_default("func"), options
+
+        plain, extended = cli.build_parser(), cli.build_parser((_register_probe,))
+        for verb, func in verbs.items():
             with self.subTest(verb=verb):
-                self.assertTrue(parser.parse_args([verb, "--issue", "1"] + (
-                    ["--from", "x"] if verb == "ingest-review" else []
-                ) + (
-                    ["--finding-ids", "F-1-01", "--root-cause", "x", "--change-kind", "logic",
-                     "--targets", "a.py::f"] if verb == "append" else []
-                ) + (["--outcome", "fixed"] if verb == "close-attempt" else [])).func)
+                self.assertIs(func, describe(extended, verb)[0])
+                self.assertEqual(describe(plain, verb), describe(extended, verb))
+                self.assertIn("--issue", describe(extended, verb)[1])
 
     def test_every_builtin_verb_declares_its_lock_requirement(self):
         locked = {"ingest-review": True, "append": True, "close-attempt": True,

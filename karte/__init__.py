@@ -37,14 +37,14 @@
   * :mod:`karte.touched`    — 実測 touched-set の算出。``close-attempt`` が取り込み類似判定の実測信号になる。
   * :mod:`karte.active_pointer` / :mod:`karte.errors` / :mod:`karte.exit_codes` — 進行ポインタ
     ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
-  * :mod:`karte.verb_support`  — verb 共有の部品（repo-root の遅延解決と ``git diff`` の cwd・
-    ``--issue`` 解決・台帳の読み込み・整数検証）。テスト用の上書き点 ``_REPO_ROOT`` もここ。
-  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``。``prepare`` はロック前に入力を読む段）。
-    ``extra_registrars`` で足す verb も ``locked`` を宣言しなければ ``build_parser`` が拒否する。
+  * :mod:`karte.repo_roots` / :mod:`karte.pointer_completion` — 台帳の repo-root（遅延解決）と ``git diff`` の cwd／
+    ``--issue`` ``--round`` のポインタ補完。補助は ``int_args``（整数検証）・``karte_loader``・``utf8_text``。
+  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``）。
+    ``prepare`` を使う verb は ``func(args, repo_root, prepared)`` の **3 引数**。登録 verb も ``locked`` 宣言必須。
   * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
     ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。
-  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` /
-    ``close-attempt`` / ``check`` / ``status``）の ``func(args, repo_root)``、``build_parser``、``main``。
+  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` / ``close-attempt`` /
+    ``check`` / ``status``）・``build_parser``・``main``。verb は ``func(args, repo_root)``（``ingest-review`` だけ第 3 引数 ``report_text``）。
 
 標準ライブラリのみ（外部依存なし）。
 
