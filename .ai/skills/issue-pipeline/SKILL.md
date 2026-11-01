@@ -166,7 +166,8 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - review が clean になったら、主文脈は `rtk python3 -m pr_merge_gate report <PR番号> --repository <OWNER/REPO> --merge-method <merge|rebase|squash>` を実行し、fresh blocker report を確認する。report は同一snapshotを再読して安定性を確認するが、merge permit を発行せず、merge API を呼ばない。
 - 主文脈は review 判定と report をオーナーへ提示して STOP する。merge はオーナーが GitHub UI 等から手動で行う。AI ロール・主文脈は merge／auto-merge を実行しない。
 - report は取得時点の blocker evidence であり、オーナーの手動操作との間の状態変化を防がない。オーナーは結果を確認してから手動 merge を判断する。
-- `Closes #N` で Issue が自動クローズされたことをオーナーの merge 後に確認する。閉じていない場合は次の Issue に進まず、主文脈がオーナーへ確認する。
+- PR の merge は PR をクローズするため、オーナーの merge 判断に先立ち対象 PR と結果を示して確認する。対象と内容が一致する明示指示・承認が既にあれば再質問しない。
+- Issue をクローズする前に対象と内容をオーナーへ確認する。`Closes #N` 等による merge 時の自動クローズも同様に事前確認を要し、承認がなければ自動クローズしない参照を使う。対象と内容が一致する明示指示・承認が既にあれば再質問しない。merge 後に Issue が閉じていなければ次へ進まず、オーナーへ確認する。
 
 ## スコープ・先送り・矛盾
 
