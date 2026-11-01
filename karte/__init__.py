@@ -25,8 +25,8 @@
   ブロックできないため、役割は「判定を必ず実行し可視化する」まで）。
 
 構成:
-  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・
-    symlink 拒否・``..`` traversal 拒否・fail-close）。様式は ``dsv2/cleantmp.py`` に倣う。
+  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・symlink/``..``
+    拒否・fail-close）の facade。実装は内部の ``path_*``（様式は ``dsv2/cleantmp.py``）。
   * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）の
     データモデル・パーサ・シリアライザ・バリデータ（``harm_detail`` の内容 lint を含む）。
   * :mod:`karte.allowlist`  — その内容 lint の既知 false positive を理由付きで抑制する
@@ -34,10 +34,17 @@
   * :mod:`karte.similarity` — 類似判定（宣言信号＋実測 touched-set 信号の OR）と転換指令の生成。
     ``append`` のゲートと ``render``/``status`` の表示は**同じ判定関数を同じ入力集合**
     （候補の finding_ids でスコープした priors）に適用する（K-09）。
-  * :mod:`karte.touched`    — 実測 touched-set（変更ファイル＋変更シンボル）の算出。
-    ``close-attempt`` が取り込み、次ラウンド以降の類似判定の実測信号になる。
+  * :mod:`karte.touched`    — 実測 touched-set の算出。``close-attempt`` が取り込み類似判定の実測信号になる。
+  * :mod:`karte.active_pointer` / :mod:`karte.errors` / :mod:`karte.exit_codes` — 進行ポインタ
+    ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
+  * :mod:`karte.verb_support`  — verb 共有の部品（repo-root の遅延解決と ``git diff`` の cwd・
+    ``--issue`` 解決・台帳の読み込み・整数検証）。テスト用の上書き点 ``_REPO_ROOT`` もここ。
+  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=...)``）。
+    ``extra_registrars`` で足す verb も ``locked`` を宣言しなければ ``build_parser`` が拒否する。
+  * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
+    ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。
   * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` /
-    ``close-attempt`` / ``check`` / ``status``）。
+    ``close-attempt`` / ``check`` / ``status``）の ``func(args, repo_root)``、``build_parser``、``main``。
 
 標準ライブラリのみ（外部依存なし）。
 

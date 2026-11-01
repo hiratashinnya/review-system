@@ -86,7 +86,7 @@ def git_diff(cwd, base: str = "HEAD") -> str:
 
     ``cwd`` は「どの worktree の変更を測るか」を決める値であり、台帳（``tmp/_karte/``）の
     所在解決に使う ``karte.paths.main_worktree_root()`` 由来の値と混同してはならない
-    （呼び出し元 :func:`karte.cli._diff_cwd` の docstring・Issue #437）。ここで main worktree
+    （:func:`karte.verb_support.invoking_worktree`・Issue #437）。ここで main worktree
     の値を渡すと、isolated worktree で行った commit がその cwd の作業ツリーには存在せず
     diff が常に空になり、fail-close（Issue #355）が spurious に発火する。
     """

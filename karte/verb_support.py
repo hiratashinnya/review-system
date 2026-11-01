@@ -1,13 +1,14 @@
-"""verb 実装が共有する部品（fail-close 境界・repo-root・Issue 解決・台帳の読み込み）。"""
+"""verb 実装が共有する部品（repo-root・Issue 解決・台帳の読み込み・整数引数の検証）。
 
-import functools
-import sys
+設計理由（repo-root の遅延解決・diff の cwd を main へ収束させない理由）は
+[.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
+"""
+
 from pathlib import Path
 
 from . import model, paths
 from .active_pointer import read_active
 from .errors import KarteNotFound, KarteUsageError
-from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 
 # `karte` パッケージが置かれているディレクトリ（＝呼び出し元 worktree root の候補）。
 # 台帳解決（`repo_root_of`）は main worktree へ変換するが、diff 計算（`invoking_worktree`）は
@@ -19,33 +20,8 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 _REPO_ROOT = None
 
 
-def fail_close(func, extra_errors=(), locked=False):
-    """``cmd_*`` を「例外を投げず終了コードを返す」境界にする。
-
-    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ fail-close
-    挙動を得る）。``locked=True`` は台帳の書き換え全体を共有 writer lock の中で行う。
-    """
-    refusals = (KarteUsageError, paths.KartePathError, model.KarteFormatError, OSError, *extra_errors)
-
-    @functools.wraps(func)
-    def wrapper(args) -> int:
-        try:
-            if locked:
-                with paths.writer_lock(repo_root_of(args)):
-                    return func(args)
-            return func(args)
-        except KarteNotFound as exc:
-            print(f"未検出: {exc}", file=sys.stderr)
-            return EXIT_NOT_FOUND
-        except refusals as exc:
-            print(f"拒否（fail-close）: {exc}", file=sys.stderr)
-            return EXIT_ERROR
-
-    return wrapper
-
-
 def repo_root_of(args) -> Path:
-    """台帳の repo-root。``args.repo_root``（テスト専用の上書き）、``_REPO_ROOT``、main worktree の順。"""
+    """台帳の repo-root を呼び出しごとに遅延解決する。順は ``args.repo_root``（テスト専用）、``_REPO_ROOT``、main worktree。"""
     override = getattr(args, "repo_root", None)
     if override:
         return Path(override).resolve()
@@ -75,20 +51,25 @@ def parse_int(value, label: str, minimum: int = 1) -> int:
     return number
 
 
-def resolve_issue(args, repo_root, hint="") -> int:
+def resolve_issue(args, repo_root) -> int:
     """``--issue`` が無ければ進行ポインタの ``issue``。ポインタが無い・壊れている・欠けるなら拒否する。"""
     if getattr(args, "issue", None) is not None:
         return paths.validate_issue(args.issue)
     active = read_active(repo_root, required=True)
     if "issue" not in active:
         raise KarteUsageError(
-            f"--issue が未指定で、進行ポインタ tmp/_karte/active.json に 'issue' が無い{hint}"
+            "--issue が未指定で、進行ポインタ tmp/_karte/active.json に 'issue' が無い"
+            "（先に `ingest-review --issue N --round R` を実行する）"
         )
     return paths.validate_issue(active["issue"])
 
 
-def load_karte(repo_root, issue: int, hint=""):
-    """``(path, Karte)``。置き場・台帳が無ければ :class:`KarteNotFound`（未検出＝ガード違反ではない）。"""
+def load_karte(repo_root, issue: int):
+    """``(path, Karte)``。置き場・台帳が無ければ :class:`KarteNotFound`（未検出＝ガード違反ではない）。
+
+    「未作成」と「触ってはならないパス」は別の終了コードに分ける（運用側が両者を区別できるよう）。
+    """
+    hint = f"（先に `ingest-review --issue {issue} --round 1` を実行する）"
     try:
         path = paths.karte_path(issue, repo_root)
     except paths.KarteMissing as exc:

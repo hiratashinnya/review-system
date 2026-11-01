@@ -26,11 +26,14 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, model, paths, similarity, touched, verb_support
+from karte import cli, exit_codes, ingest_review, model, paths, similarity, touched, verb_support
+from karte.verb_boundary import fail_close
 
 _HAS_GIT = shutil.which("git") is not None
 
@@ -201,10 +204,10 @@ class TestExplicitIssueWinsOverActivePointer(KarteTestCase):
     def test_resolve_issue_prefers_the_explicit_flag(self):
         self._point_active_at(999)
         args = argparse.Namespace(issue=str(self.issue), repo_root=str(self.root))
-        self.assertEqual(cli._resolve_issue(args), self.issue)
+        self.assertEqual(verb_support.resolve_issue(args, self.root), self.issue)
         # 省略した場合だけポインタへ落ちる（規律が「明示せよ」である理由そのもの）。
         fallback = argparse.Namespace(issue=None, repo_root=str(self.root))
-        self.assertEqual(cli._resolve_issue(fallback), 999)
+        self.assertEqual(verb_support.resolve_issue(fallback, self.root), 999)
 
     def test_ingest_and_append_write_the_explicit_issues_karte(self):
         self._point_active_at(999, round_no=7)
@@ -434,9 +437,9 @@ class TestCloseAttempt(KarteTestCase):
         self.assertIn("Attempt 9", err)
 
     def test_non_numeric_attempt_is_fail_closed_not_uncaught(self):
-        """K-03: ``--attempt`` が非数値でも ``_fail_close`` の外（EXIT_ERROR 以外）に漏れない。
+        """K-03: ``--attempt`` が非数値でも ``fail_close`` の外（EXIT_ERROR 以外）に漏れない。
 
-        是正前は ``int(args.attempt)`` が無検証で ``ValueError`` を送出し、``_fail_close``
+        是正前は ``int(args.attempt)`` が無検証で ``ValueError`` を送出し、``fail_close``
         （5 種の例外しか捕まえない）を素通りして終了コードが文書化された
         ``{0,2,3,4}`` の外（未捕捉の例外＝1 相当）になっていた。
         """
@@ -962,7 +965,7 @@ class TestRender(KarteTestCase):
         """カルテ未作成は「未検出」であってガード違反ではない（EXIT_ERROR と区別する）。"""
         with contextlib.redirect_stderr(io.StringIO()) as errors:
             code = cli.main(["render", "--issue", "999"])
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", errors.getvalue())
 
 
@@ -1456,7 +1459,7 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
 
     ``main_worktree_root`` は ``.git`` ファイルが ``gitdir:`` で始まらなければ
     :class:`paths.KartePathError` を送出する。是正前はこれを**モジュールレベル**で
-    評価していたため、例外はどの ``cmd_*``（``_fail_close`` でラップ済み）の内側でもない
+    評価していたため、例外はどの ``cmd_*``（``fail_close`` でラップ済み）の内側でもない
     **import 時**に飛び、``python3 -m karte <任意の verb>`` が未捕捉例外で終了した。
     """
 
@@ -1511,7 +1514,7 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
                     with contextlib.redirect_stdout(io.StringIO()):
                         with contextlib.redirect_stderr(io.StringIO()):
                             code = cli.main(argv)
-                self.assertIn(code, (cli.EXIT_OK, cli.EXIT_NOT_FOUND,
+                self.assertIn(code, (cli.EXIT_OK, exit_codes.EXIT_NOT_FOUND,
                                      cli.EXIT_SATURATED, cli.EXIT_ERROR))
 
 
@@ -1561,7 +1564,9 @@ class TestIngestFromStdin(KarteTestCase):
         )
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("進行ポインタ", err)
-        self.assertFalse((self.root / "tmp" / "_karte").exists())
+        # 拒否された取り込みは台帳もポインタも書かない（ロック用ディレクトリは作りうる）。
+        self.assertEqual("", self._karte_text())
+        self.assertFalse(self._active_path().exists())
 
     def test_broken_active_pointer_is_fail_closed(self):
         self._ingest(1, ("new", HARMFUL))
@@ -1606,7 +1611,9 @@ class TestIngestFromStdin(KarteTestCase):
         )
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn("空", err)
-        self.assertFalse((self.root / "tmp" / "_karte").exists())
+        # 拒否された取り込みは台帳もポインタも書かない（ロック用ディレクトリは作りうる）。
+        self.assertEqual("", self._karte_text())
+        self.assertFalse(self._active_path().exists())
 
     def test_unreadable_stdin_is_fail_closed(self):
         """標準入力が無い（``sys.stdin is None``）状態でも未捕捉例外にしない。"""
@@ -1733,7 +1740,7 @@ class TestRenderForInjection(KarteTestCase):
 
     def test_missing_karte_is_still_not_found(self):
         code, _out, err = self._run(cli.cmd_render, issue="999")
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", err)
 
 
@@ -1804,7 +1811,7 @@ class TestStatusForInjection(KarteTestCase):
 
     def test_missing_karte_is_still_not_found(self):
         code, _out, err = self._run(cli.cmd_status, issue="999", json=False)
-        self.assertEqual(code, cli.EXIT_NOT_FOUND)
+        self.assertEqual(code, exit_codes.EXIT_NOT_FOUND)
         self.assertIn("未検出", err)
 
 
@@ -1953,12 +1960,14 @@ class TestAtomicWriteDocstringStatesItsLimits(unittest.TestCase):
                 ):
                     with self.assertRaises(paths.KartePathError):
                         paths.write_text_atomic(path, "new\n")
-        command = cli._fail_close(lambda _args: paths.write_text_atomic(path, "new\n"))
+        command = fail_close(locked=False)(
+            lambda _args, _root: paths.write_text_atomic(path, "new\n")
+        )
         with mock.patch(
             "karte.path_io.os.open", side_effect=OSError(errno.ELOOP, "injected")
         ):
             with contextlib.redirect_stderr(io.StringIO()):
-                code = command(None)
+                code = command(argparse.Namespace(repo_root=str(self.root)))
         self.assertEqual(code, cli.EXIT_ERROR)
         self.assertIn(code, {0, 2, 3, 4})
 
@@ -2474,7 +2483,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
     ことを固定する。``mock.patch.object(verb_support, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
     今どの worktree で動いているか」の代替にすぎない（production では isolated worktree
     自体に ``karte/`` の実体チェックアウトがあるため ``Path(__file__)`` が自然にそこを指す）。
-    ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`cli._diff_cwd`）は
+    ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`verb_support.invoking_worktree`）は
     モックしていない。
 
     **変更を commit ではなく staged のまま残す理由**：``git diff HEAD`` は「working tree
@@ -3747,6 +3756,39 @@ class TestReadmeDocumentsTheJudgmentRules(unittest.TestCase):
         for kind in model.CHANGE_KINDS:
             with self.subTest(change_kind=kind):
                 self.assertIn(f"| `{kind}` |", self.README)
+
+
+class TestIngestReviewReadsThePointerInsideTheLock(KarteTestCase):
+    """L-6: 次ラウンドの導出（進行ポインタの読み取り）はロックの内側で行う。
+
+    外で読むと、並行 ingest が先に台帳を進めたあとで古いポインタ値から同じラウンドを選び、
+    「単調増加」の検査で落ちる。ロックを握っている間に別の ingest を完了させ、待っていた側が
+    **ロック取得後の**ポインタから次ラウンドを選ぶことを固定する。
+    """
+
+    def test_waiting_ingest_derives_its_round_after_acquiring_the_lock(self):
+        self.assertEqual(cli.EXIT_OK, self._ingest(1, ("new", HARMFUL))[0])
+        source = self._write_report("review-late.md", _report(("F-307-01", HARMFUL)))
+        results = []
+        worker = threading.Thread(
+            target=lambda: results.append(
+                cli.cmd_ingest_review(self._ns(issue=None, round=None, source=source))
+            )
+        )
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with paths.writer_lock(self.root):
+                worker.start()
+                time.sleep(0.3)  # 待ち側がロックで止まっていること（旧実装はここまでに round を決め終える）
+                self.assertTrue(worker.is_alive())
+                racing = ingest_review.ingest_locked(
+                    self.root, self.issue, 2, _report(("F-307-01", HARMFUL))
+                )
+            worker.join(10)
+        self.assertEqual(cli.EXIT_OK, racing)
+        self.assertEqual([cli.EXIT_OK], results)
+        self.assertEqual(
+            3, json.loads(self._active_path().read_text(encoding="utf-8"))["round"]
+        )
 
 
 if __name__ == "__main__":

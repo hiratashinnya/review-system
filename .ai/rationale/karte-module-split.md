@@ -39,3 +39,22 @@
 
 ### 再発番検出で外すのは名指しされたペアだけ（K-05）
 新規採番しようとしている指摘が、既存の未解消 finding の焼き直しでないかを見る。`item.distinct_from` で名指しされた相手は比較から外す（K-05）。外れるのは**名指しされたペアだけ**で、判定そのもの・閾値（`model.DUPLICATE_SIMILARITY_THRESHOLD`）は据え置く——偽陽性の逃げ道として閾値を下げると、本来検出したい再発番まで一律に見逃す。
+
+## `karte/verb_support.py`：repo-root と diff の cwd（移設元：`karte/cli.py` の `_repo_root`・`_diff_cwd`・`_resolve_issue`）
+
+### repo-root は呼び出しごとに遅延解決する（K-12・K-03）
+linked worktree（`issue-implementer` 等の isolated worktree）でも main worktree の `tmp/_karte/` へ収束させる（K-01）。`.git` がファイルなら `gitdir:` を辿る `paths.main_worktree_root` を使う。**import 時に評価しない**。`main_worktree_root` は `.git` ファイルが不正形式なら `KartePathError` を送出するが、モジュールレベルで評価するとその例外はどの verb の fail-close 境界の内側でもない import 時に飛ぶ。`.git` が壊れた worktree では `python3 -m karte <任意の verb>` が未捕捉例外で終了し、文書化された終了コード `{0,2,3,4}` の外に漏れる（K-03 と同種＝観測不能）。呼び出しごとの解決なら `main()` 経由でも `cmd_*` 直呼びでも必ず境界の内側に入る。結果をキャッシュしないのは、プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため。
+
+### `git diff` の cwd は main worktree へ収束させない（Issue #437）
+台帳（`tmp/_karte/`）は worktree 間で共有すべき単一の正本なので main worktree へ収束させる。一方 `git diff` が測るべきなのは呼び出し元 worktree そのものの変更で、同じ収束をかけると isolated worktree（`.claude/worktrees/agent-*`）で行った commit が main の作業ツリーに存在せず diff が常に空になり、Issue #355 の空 diff fail-close が spurious に発火していた。そのため `repo_root_of`（台帳用）と `invoking_worktree`（diff 用）は別関数にしてある。`args.repo_root` の上書き（テスト専用）は台帳解決専用で、diff の cwd には効かない。
+
+### `--issue` の補完（K-13/K-14/K-15）
+フック（SubagentStart の `render`／SubagentStop の `ingest-review`・`check`／PostToolUse の `status`）は dispatch prompt を読めないため、Issue 番号の唯一の情報源は進行ポインタになる。ポインタが無い・壊れている・`issue` を欠くときは推測せず fail-close する。
+
+## `karte/verb_boundary.py`：ロック要否の宣言（PR #696 レビュー L-2・L-6）
+
+- `fail_close(*, locked)` の `locked` は**必須で既定値なし**。以前は `locked=True` フラグ（append／close-attempt）と、`cmd_ingest_review` の手書き `with paths.writer_lock(...)` の二流儀があり、`main()` が全 verb を常に「ロックなし」で外側から再ラップしていたため、拡張点 `extra_registrars` の登録 verb が `locked=True` を付け忘れても静かにロックなしで動いた。
+- 宣言は返す関数の `locked` 属性に残し、`build_parser` が `require_declared` で全 verb を検査して、宣言の無い verb は組み立てを拒否する。`main()` は再ラップしない。
+- repo-root はラッパーが 1 回だけ解決して verb 実装 `func(args, repo_root)` へ渡す（以前は 1 回の実行で複数回解決していた）。
+- `ingest-review` は進行ポインタの読み取り（`--issue`・次ラウンドの導出）をロックの内側で行う。外で読むと並行 ingest が同じ次ラウンドを選び、後続が「単調増加」の検査で落ちる。代償として `--from -` の標準入力読み取りもロック内になる（フックは本文を即座に流し込むので実害は小さい）。
+- `--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `_pointer_round` を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。

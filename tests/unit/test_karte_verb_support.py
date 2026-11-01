@@ -31,10 +31,6 @@ class TestParseInt(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(KarteUsageError):
                     verb_support.parse_int(value, "round", minimum=0)
-                with self.assertRaises(KarteUsageError):
-                    cli._validate_round(value)
-                with self.assertRaises(KarteUsageError):
-                    cli._validate_attempt_number(value)
 
 
 class TestHugeDigitStrings(unittest.TestCase):
@@ -45,12 +41,6 @@ class TestHugeDigitStrings(unittest.TestCase):
     def test_parse_int_raises_usage_error_for_huge_digit_strings(self):
         with self.assertRaises(KarteUsageError):
             verb_support.parse_int(self.HUGE, "round")
-
-    def test_validate_round_and_attempt_raise_usage_error_for_huge_digit_strings(self):
-        with self.assertRaises(KarteUsageError):
-            cli._validate_round(self.HUGE)
-        with self.assertRaises(KarteUsageError):
-            cli._validate_attempt_number(self.HUGE)
 
     def test_error_message_is_truncated(self):
         with self.assertRaises(KarteUsageError) as caught:
@@ -74,18 +64,17 @@ class TestRoundAndRootResolution(unittest.TestCase):
             code = cli.cmd_ingest_review(self._args(issue="1", round="²", source=str(report)))
         self.assertEqual(cli.EXIT_ERROR, code)
         with self.assertRaises(KarteUsageError):
-            cli._resolve_check_round(self._args(issue="1", round="²"), 1)
+            cli._pointer_round(self._args(issue="1", round="²"), self.root, 1, "")
 
     def test_pointer_round_zero_is_rejected_by_ingest_review_as_before(self):
         paths.active_path(self.root, create_dir=True).write_text('{"issue": 7, "round": 0}\n', encoding="utf-8")
         with self.assertRaises(KarteUsageError):
-            cli._resolve_ingest_round(self._args(issue="7", round=None), 7)
+            cli._resolve_ingest_round(self._args(issue="7", round=None), self.root, 7)
 
-    def test_repo_root_override_applies_to_every_verb_through_one_place(self):
+    def test_repo_root_override_is_a_single_place(self):
         args = argparse.Namespace()
         with mock.patch.object(verb_support, "_REPO_ROOT", self.root):
             self.assertEqual(self.root, verb_support.repo_root_of(args))
-            self.assertEqual(self.root, cli._repo_root(args))
 
 
 if __name__ == "__main__":
