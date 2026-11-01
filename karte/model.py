@@ -113,6 +113,7 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from .allowlist import is_allowlisted
+from .int_args import matched_int, require_ascii_int
 
 FORMAT_VERSION = 1
 
@@ -292,7 +293,7 @@ def parse_finding_id(value: str):
         raise KarteFormatError(
             f"finding ID の形式違反（期待 `F-<issue>-<seq>`・例 F-312-03）: {value!r}"
         )
-    return int(matched.group(1)), int(matched.group(2))
+    return tuple(matched_int(g, KarteFormatError, "finding ID の番号") for g in matched.groups())
 
 
 # --- ブロックパーサ ----------------------------------------------------------
@@ -384,12 +385,8 @@ def _require_int_list(block: Block, key: str) -> list:
         value = [value] if value.strip() else []
     numbers = []
     for item in value:
-        text = str(item).strip()
-        if not text.isdigit():
-            raise KarteFormatError(
-                f"{block.lineno} 行目 '{block.title}': '{key}' は整数のリスト: {item!r}"
-            )
-        numbers.append(int(text))
+        message = f"{block.lineno} 行目 '{block.title}': '{key}' は整数のリスト: {item!r}"
+        numbers.append(require_ascii_int(str(item).strip(), KarteFormatError(message)))
     return numbers
 
 
@@ -710,7 +707,7 @@ def parse(text: str) -> Karte:
             continue
         matched = DOC_HEADER_RE.match(line)
         if matched:
-            issue = int(matched.group(1))
+            issue = matched_int(matched.group(1), KarteFormatError, "カルテ見出しの issue")
         break
     if issue is None:
         raise KarteFormatError("先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）")
@@ -763,11 +760,8 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
     resolved_round = block.fields.get("resolved_round", "")
     resolved = None
     if isinstance(resolved_round, str) and resolved_round.strip():
-        if not resolved_round.strip().isdigit():
-            raise KarteFormatError(
-                f"{block.lineno} 行目: resolved_round は整数: {resolved_round!r}"
-            )
-        resolved = int(resolved_round.strip())
+        message = f"{block.lineno} 行目: resolved_round は整数: {resolved_round!r}"
+        resolved = require_ascii_int(resolved_round.strip(), KarteFormatError(message))
     # 移行措置（Issue #495）: ``scope`` は**台帳側では任意**で、欠落は :data:`DEFAULT_SCOPE`
     # として読む。`tmp/_karte/` に実在する既存カルテ（本 Issue 起票時点で 19 件）を
     # 読めなくすると進行中の是正ループが止まるため。新規取り込み（:func:`parse_review`）
@@ -795,7 +789,7 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
 
 
 def _attempt_from_block(block: Block) -> Attempt:
-    number = int(ATTEMPT_TITLE_RE.match(block.title).group(1))
+    number = matched_int(ATTEMPT_TITLE_RE.match(block.title).group(1), KarteFormatError, "Attempt 見出しの番号")
     rounds = _require_int_list(block, "round")
     if len(rounds) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'round' は単一の整数: {block.title}")
@@ -814,7 +808,7 @@ def _result_from_block(block: Block) -> Result:
     attempt_numbers = _require_int_list(block, "attempt")
     if len(attempt_numbers) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'attempt' は単一の整数: {block.title}")
-    declared = int(RESULT_TITLE_RE.match(block.title).group(1))
+    declared = matched_int(RESULT_TITLE_RE.match(block.title).group(1), KarteFormatError, "Result 見出しの番号")
     if attempt_numbers[0] != declared:
         raise KarteFormatError(
             f"{block.lineno} 行目: 見出し 'Result {declared}' と 'attempt: "

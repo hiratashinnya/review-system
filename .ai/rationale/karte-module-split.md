@@ -50,8 +50,8 @@
 | 責務 | 現在の module |
 | --- | --- |
 | repo-root の遅延解決・diff 用 cwd | `karte/repo_roots.py`（`repo_root_of`・`invoking_worktree`・テスト用上書き点 `_REPO_ROOT`／`_PACKAGE_ROOT`） |
-| `--issue` / `--round` のポインタ補完（公開関数） | `karte/pointer_completion.py`（`resolve_issue`・`pointer_round`・`ingest_target`） |
-| 整数引数の検証 | `karte/int_args.py`（`parse_int`） |
+| `--issue` / `--round` のポインタ補完（公開関数） | `karte/pointer_completion.py`（`resolve_issue`・`resolve_round`・`ingest_target`。`resolve_round` の旧名は `pointer_round`＝F-696-26） |
+| 整数引数の検証 | `karte/int_args.py`（`ascii_int_or_none`・`require_ascii_int`・`parse_int`＝F-696-21） |
 | 台帳の読み込み | `karte/karte_loader.py`（`load_karte`） |
 | UTF-8 として正しい入出力だけを通す | `karte/utf8_text.py`（`read_stream_text`・`require_utf8_encodable`） |
 
@@ -95,4 +95,10 @@ linked worktree（`issue-implementer` 等の isolated worktree）でも main wor
 `prepare(args, repo_root)` はロックの外で 1 回だけ呼ばれ、戻り値が `func(args, repo_root, prepared)` の第 3 引数になる。`prepare` を渡さない verb の署名は `func(args, repo_root)` のまま。
 
 ### `--round` の補完
-`--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `pointer_completion.pointer_round`（当時は `cli._pointer_round`）を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。
+`--round` 省略時の補完は `ingest-review`（ポインタ＋1）と `check`（そのまま）で1つの `pointer_completion.resolve_round`（当時は `cli._pointer_round`、F-696-26 までは `pointer_completion.pointer_round`）を共有する。ポインタが `round` を欠く・別 Issue を指す場合は推測せず fail-close（旧 `_resolve_ingest_round`／`_resolve_check_round` は同一ブロックの複製だった）。
+
+### 整数変換の入口一本化（F-696-21・scope out の既存漏れを本 PR で閉じた）
+`parse_int` が閉じた `ValueError` 漏れ（非 ASCII 数字・変換上限 4300 桁超）と同型の経路が、`validate_issue`・`_require_int_list`・`resolved_round`・`parse_finding_id`・カルテ見出し（`# Karte: issue-N`／`Attempt N`／`Result N`）に残っていた（origin/main にもある。終了コード契約 {0,2,3,4} の外＝traceback の 1）。変換は `int_args.ascii_int_or_none`（`None` を返す）と `require_ascii_int`（呼び出し側が渡した拒否例外を投げる）に集約し、各所は自分の拒否例外（`KartePathError`／`KarteFormatError`／`KarteUsageError`）を渡して終了コード 4 に収める。オーナー決定で scope out を本 PR で直した（値引き・先送りしない）。
+
+### `--round` 補完の戻り値（F-696-26）
+`pointer_round(args, repo_root, issue, no_round_hint: str) -> int` は、エラー文言の断片を呼び出し側から文字列で受け取り、さらに `ingest_target` が「`--round` が明示されたか」の判定を関数の内と外で二重に持っていた。`resolve_round(args, repo_root, issue, missing_hint: MissingRoundHint) -> ResolvedRound`（`karte/round_resolution.py`：案内の列挙と結果の dataclass＝データのみ）に改め、明示/補完の別（`explicit`）を戻り値で一度だけ返す。`ingest_target` は `explicit` だけを見て +1 を決める。上段が再利用するときも、案内は列挙値で選び、文言を組み立てない。

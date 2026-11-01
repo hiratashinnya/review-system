@@ -38,7 +38,7 @@
   * :mod:`karte.active_pointer` / :mod:`karte.errors` / :mod:`karte.exit_codes` — 進行ポインタ
     ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
   * :mod:`karte.repo_roots` / :mod:`karte.pointer_completion` — 台帳の repo-root（遅延解決）と ``git diff`` の cwd／
-    ``--issue`` ``--round`` のポインタ補完。補助は ``int_args``（整数検証）・``karte_loader``・``utf8_text``。
+    ``--issue`` ``--round`` のポインタ補完。補助は ``round_resolution``（補完結果の型）・``int_args``（整数変換の唯一の入口）・``karte_loader``・``utf8_text``。
   * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``）。
     ``prepare`` を使う verb は ``func(args, repo_root, prepared)`` の **3 引数**。登録 verb も ``locked`` 宣言必須。
   * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``

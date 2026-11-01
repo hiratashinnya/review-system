@@ -15,6 +15,9 @@ from unittest import mock
 
 from karte import cli, exit_codes, paths, pointer_completion
 from karte.errors import KarteUsageError
+from karte.round_resolution import MissingRoundHint, ResolvedRound
+
+_HINT = MissingRoundHint.FIRST_INGEST
 
 
 class _RootedCase(unittest.TestCase):
@@ -33,19 +36,26 @@ class _RootedCase(unittest.TestCase):
 class TestRoundCompletion(_RootedCase):
     def test_non_ascii_round_is_a_usage_error(self):
         with self.assertRaises(KarteUsageError):
-            pointer_completion.pointer_round(self._args(issue="1", round="²"), self.root, 1, "")
+            pointer_completion.resolve_round(self._args(issue="1", round="²"), self.root, 1, _HINT)
 
     def test_explicit_round_does_not_read_the_pointer(self):
-        self.assertEqual(
-            5, pointer_completion.pointer_round(self._args(issue="1", round="5"), self.root, 1, "")
+        resolved = pointer_completion.resolve_round(
+            self._args(issue="1", round="5"), self.root, 1, _HINT
         )
+        self.assertEqual(ResolvedRound(5, explicit=True), resolved)
         self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_pointer_round_is_used_as_is(self):
         self._write_pointer('{"issue": 7, "round": 3}\n')
-        self.assertEqual(
-            3, pointer_completion.pointer_round(self._args(round=None), self.root, 7, "")
-        )
+        resolved = pointer_completion.resolve_round(self._args(round=None), self.root, 7, _HINT)
+        self.assertEqual(ResolvedRound(3, explicit=False), resolved)
+
+    def test_missing_pointer_round_is_refused_with_the_callers_hint(self):
+        self._write_pointer('{"issue": 7}\n')
+        for hint in MissingRoundHint:
+            with self.subTest(hint=hint.name), self.assertRaises(KarteUsageError) as caught:
+                pointer_completion.resolve_round(self._args(round=None), self.root, 7, hint)
+            self.assertIn(hint.value, str(caught.exception))
 
     def test_ingest_target_adds_one_to_the_pointer_round_only_when_it_completes_it(self):
         self._write_pointer('{"issue": 7, "round": 3}\n')

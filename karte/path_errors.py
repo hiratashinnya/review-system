@@ -2,6 +2,8 @@
 
 import re
 
+from .int_args import require_ascii_int
+
 TMP_DIRNAME = "tmp"
 
 KARTE_DIRNAME = "_karte"
@@ -31,4 +33,4 @@ def validate_issue(value) -> int:
         raise KartePathError(
             f"issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: {value!r}"
         )
-    return int(text)
+    return require_ascii_int(text, KartePathError(f"issue 番号の桁数が多すぎる: {text[:40]!r}"))

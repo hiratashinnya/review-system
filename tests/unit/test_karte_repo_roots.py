@@ -2,6 +2,8 @@
 
 import argparse
 import ast
+import contextlib
+import io
 import shutil
 import tempfile
 import unittest
@@ -64,19 +66,39 @@ class TestRepoRootIsDerivedInOnePlace(unittest.TestCase):
                     offenders.append(path.name)
         self.assertEqual([], offenders)
 
+    # 各 verb を最後まで走らせる最小の引数（台帳が無いので未検出/拒否で終わるが、本体には入る）。
+    MINIMAL_ARGV = {
+        "ingest-review": ["--issue", "7", "--round", "1", "--from", "missing-report.md"],
+        "render": ["--issue", "7"],
+        "append": [
+            "--issue", "7", "--round", "1", "--finding-ids", "F-7-01", "--root-cause", "rc",
+            "--change-kind", "logic", "--targets", "a.py::f",
+        ],
+        "close-attempt": ["--issue", "7", "--attempt", "1", "--outcome", "fixed"],
+        "check": ["--issue", "7", "--round", "1"],
+        "status": ["--issue", "7"],
+    }
+
     def test_every_builtin_verb_resolves_the_root_exactly_once(self):
-        subparsers = next(a for a in cli.build_parser()._actions if a.dest == "verb")
-        self.assertEqual(
-            {"ingest-review", "render", "append", "close-attempt", "check", "status"},
-            set(subparsers.choices),
-        )
-        for verb, parser in subparsers.choices.items():
+        root = Path(tempfile.mkdtemp(prefix="karte-rr3-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        parser = cli.build_parser()
+        subparsers = next(a for a in parser._actions if a.dest == "verb")
+        self.assertEqual(set(self.MINIMAL_ARGV), set(subparsers.choices))
+        for verb, argv in self.MINIMAL_ARGV.items():
             with self.subTest(verb=verb):
-                func = parser.get_default("func")
+                args = parser.parse_args([verb, *argv])
+                # 本体側（cli）の ``repo_roots.repo_root_of`` も同じモックに差し替えるので、
+                # verb 本体が解決を重ねれば 2 回目として数えられる。
                 with mock.patch(
-                    "karte.verb_boundary.repo_root_of", side_effect=OSError("stop here")
-                ) as resolver, mock.patch("sys.stderr"):
-                    self.assertEqual(4, func(argparse.Namespace()))
+                    "karte.verb_boundary.repo_root_of", return_value=root
+                ) as resolver, mock.patch(
+                    "karte.repo_roots.repo_root_of", resolver
+                ), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(
+                    io.StringIO()
+                ):
+                    code = args.func(args)
+                self.assertIn(code, (2, 4))  # OSError(モック) で止まらず、本体まで到達している
                 self.assertEqual(1, resolver.call_count)
 
 

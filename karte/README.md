@@ -383,3 +383,12 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 
 `dsv2` に合わせる：`0` OK ／ `2` 未検出 ／ `3` 類似飽和（`append` 拒否）／
 `4` 前提違反・検証失敗（fail-close）。
+
+次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
+
+- **不正な UTF-8 の入力**（レポート本文のファイル・標準入力、台帳、進行ポインタ、`--diff-file`）。
+- **整数は ASCII 数字だけ**：整数引数（`--issue` / `--round` / `--attempt`）、台帳・ポインタ内の整数
+  （`rounds`・`resolved_round`・`round`・`issue`）、finding ID・見出し（`F-<issue>-<seq>`・`# Karte: issue-N`・
+  `Attempt N`・`Result N`）の番号。`²` のような非 ASCII 数字や、Python の変換上限（4300 桁）を超える
+  巨大桁は `4`。変換の入口は `karte/int_args.py` の `ascii_int_or_none` / `require_ascii_int` /
+  `parse_int` に一本化してある。

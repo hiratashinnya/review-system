@@ -8,6 +8,7 @@ from . import paths
 from .active_pointer import read_active
 from .errors import KarteUsageError
 from .int_args import parse_int
+from .round_resolution import MissingRoundHint, ResolvedRound
 
 
 def resolve_issue(args, repo_root) -> int:
@@ -23,26 +24,27 @@ def resolve_issue(args, repo_root) -> int:
     return paths.validate_issue(active["issue"])
 
 
-def pointer_round(args, repo_root, issue: int, no_round_hint: str) -> int:
+def resolve_round(args, repo_root, issue: int, missing_hint: MissingRoundHint) -> ResolvedRound:
     """``--round`` を検証して返す。省略時は進行ポインタの ``round``（最後に取り込んだラウンド）。
 
-    ポインタが無い・壊れている・``round`` を欠く・``issue`` が対象と食い違う場合は推測せず
-    fail-close する。``no_round_hint`` は ``round`` を欠くときの案内。
+    戻り値の ``explicit`` で明示か補完かを区別する。ポインタが無い・壊れている・``round`` を欠く・
+    ``issue`` が対象と食い違う場合は推測せず fail-close する。``missing_hint`` は ``round`` を
+    欠くときに添える案内。
     """
     if getattr(args, "round", None) is not None:
-        return parse_int(args.round, "round")
+        return ResolvedRound(parse_int(args.round, "round"), explicit=True)
     active = read_active(repo_root, required=True)
     if "round" not in active:
         raise KarteUsageError(
             "--round が未指定で、進行ポインタ tmp/_karte/active.json に 'round' も無い"
-            + no_round_hint
+            + missing_hint.value
         )
     if "issue" in active and paths.validate_issue(active["issue"]) != issue:
         raise KarteUsageError(
             f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
             "（--round を明示するか、対象 Issue の取り込みからやり直す）"
         )
-    return parse_int(active["round"], "round")
+    return ResolvedRound(parse_int(active["round"], "round"), explicit=False)
 
 
 def ingest_target(args, repo_root) -> tuple:
@@ -52,5 +54,5 @@ def ingest_target(args, repo_root) -> tuple:
     （同じ番号の再取り込みは単調増加の検査に掛かる）。
     """
     issue = resolve_issue(args, repo_root)
-    base = pointer_round(args, repo_root, issue, "（初回の取り込みは `--round 1` を明示する）")
-    return issue, (base if getattr(args, "round", None) is not None else base + 1)
+    resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST)
+    return issue, (resolved.number if resolved.explicit else resolved.number + 1)

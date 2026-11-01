@@ -134,11 +134,11 @@
     },
     "karte/cli.py": {
       "line_count": 1102,
-      "sha256": "217ebf8f81e6984660ce2aeb29dce8b7d56081d03157ef94ec66b0764c30e16f"
+      "sha256": "3850a09ea699b779cf701f65f0095430e67944a3f89daaab9c337ebcd58c71bb"
     },
     "karte/model.py": {
-      "line_count": 1303,
-      "sha256": "4b38210bb50862666903017b88a50eb3702d30fc706c3018fb1590e7d3002c5e"
+      "line_count": 1297,
+      "sha256": "e1d82ef26df01a17984b0ffb39c49a909b5c4dc45ab175b3976f4f914730bcb1"
     },
     "karte/similarity.py": {
       "line_count": 241,

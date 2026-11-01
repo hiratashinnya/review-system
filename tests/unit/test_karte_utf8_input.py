@@ -135,7 +135,18 @@ class TestInvalidLedgerAndPointerAndDiff(_RootedCase):
 
 
 class TestRealProcessExitCode(unittest.TestCase):
-    """実プロセスで、不正な標準入力が traceback（1）ではなく 4 になる（引数が明示なので何も作らない）。"""
+    """実プロセスで、不正な標準入力が traceback（1）ではなく 4 になる。
+
+    パッケージを一時ディレクトリへ複製して走らせる（台帳の置き場はパッケージの親になるので、
+    退行して拒否がロック内に戻っても実リポジトリ側 ``tmp/_karte/`` には何も作られない）。
+    """
+
+    def setUp(self):
+        self.sandbox = Path(tempfile.mkdtemp(prefix="karte-proc-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.sandbox, ignore_errors=True))
+        shutil.copytree(
+            REPO / "karte", self.sandbox / "karte", ignore=shutil.ignore_patterns("__pycache__")
+        )
 
     def _run(self, **env_overrides):
         env = {k: v for k, v in os.environ.items() if k not in ("PYTHONIOENCODING", "PYTHONUTF8")}
@@ -143,7 +154,7 @@ class TestRealProcessExitCode(unittest.TestCase):
         return subprocess.run(
             [sys.executable, "-m", "karte", "ingest-review", "--issue", "7", "--round", "1",
              "--from", "-"],
-            input=BAD, cwd=str(REPO), env=env, capture_output=True,
+            input=BAD, cwd=str(self.sandbox), env=env, capture_output=True,
         )
 
     def test_invalid_stdin_exits_with_the_fail_close_code(self):
@@ -152,6 +163,7 @@ class TestRealProcessExitCode(unittest.TestCase):
                 done = self._run(LC_ALL=locale)
                 self.assertEqual(exit_codes.EXIT_ERROR, done.returncode, done.stderr)
                 self.assertNotIn(b"Traceback", done.stderr)
+                self.assertFalse((self.sandbox / "tmp").exists())  # 引数が明示なので何も作らない
 
 
 if __name__ == "__main__":

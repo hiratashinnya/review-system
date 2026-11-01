@@ -664,9 +664,9 @@ def cmd_check(args, repo_root) -> int:
     """
     issue = pointer_completion.resolve_issue(args, repo_root)
     _path, karte = karte_loader.load_karte(repo_root, issue)
-    round_no = pointer_completion.pointer_round(
-        args, repo_root, issue, "（`--round` を明示するか、先に `ingest-review` を実行する）"
-    )
+    round_no = pointer_completion.resolve_round(
+        args, repo_root, issue, pointer_completion.MissingRoundHint.RUN_INGEST_FIRST
+    ).number
 
     attempts = [item for item in karte.attempts if item.round == round_no]
     expected = sorted(
