@@ -1,0 +1,70 @@
+"""``verb_support`` の共通部品（整数の検証・ポインタの round 0・repo-root の 1 箇所化）。"""
+
+import argparse
+import contextlib
+import io
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from karte import cli, paths, verb_support
+from karte.errors import KarteUsageError
+
+NON_ASCII_DIGITS = ("²", "٣", "①")  # str.isdigit() は True だが int() できない
+
+
+class TestParseInt(unittest.TestCase):
+    def test_accepts_ascii_digits_at_or_above_the_minimum(self):
+        self.assertEqual(3, verb_support.parse_int("3", "round"))
+        self.assertEqual(0, verb_support.parse_int(0, "round", minimum=0))
+
+    def test_rejects_below_minimum_and_non_numbers(self):
+        for value in ("0", "-1", "abc", "", "1.5", None):
+            with self.subTest(value=value):
+                with self.assertRaises(KarteUsageError):
+                    verb_support.parse_int(value, "round")
+
+    def test_non_ascii_digits_raise_usage_error_not_value_error(self):
+        for value in NON_ASCII_DIGITS:
+            with self.subTest(value=value):
+                with self.assertRaises(KarteUsageError):
+                    verb_support.parse_int(value, "round", minimum=0)
+                with self.assertRaises(KarteUsageError):
+                    cli._validate_round(value)
+                with self.assertRaises(KarteUsageError):
+                    cli._validate_attempt_number(value)
+
+
+class TestRoundAndRootResolution(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="karte-vs-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
+        (self.root / "tmp").mkdir()
+
+    def _args(self, **kwargs):
+        return argparse.Namespace(repo_root=str(self.root), **kwargs)
+
+    def test_check_and_ingest_review_with_non_ascii_round_are_exit_error_without_traceback(self):
+        report = self.root / "tmp" / "r.md"
+        report.write_text("### new\n", encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = cli.cmd_ingest_review(self._args(issue="1", round="²", source=str(report)))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        with self.assertRaises(KarteUsageError):
+            cli._resolve_check_round(self._args(issue="1", round="²"), 1)
+
+    def test_pointer_round_zero_means_not_yet_ingested(self):
+        paths.active_path(self.root, create_dir=True).write_text('{"issue": 7, "round": 0}\n', encoding="utf-8")
+        self.assertEqual(1, cli._resolve_ingest_round(self._args(issue="7", round=None), 7))
+
+    def test_repo_root_override_applies_to_every_verb_through_one_place(self):
+        args = argparse.Namespace()
+        with mock.patch.object(verb_support, "_REPO_ROOT", self.root):
+            self.assertEqual(self.root, verb_support.repo_root_of(args))
+            self.assertEqual(self.root, cli._repo_root(args))
+
+
+if __name__ == "__main__":
+    unittest.main()

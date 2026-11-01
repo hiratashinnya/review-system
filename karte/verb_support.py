@@ -59,6 +59,18 @@ def invoking_worktree() -> Path:
     return paths.invoking_worktree_root(_PACKAGE_ROOT)
 
 
+def parse_int(value, label: str, minimum: int = 1) -> int:
+    """``minimum`` 以上の整数に直す。ASCII 数字だけを受け、それ以外は :class:`KarteUsageError`。
+
+    ``str.isdigit()`` だけでは ``"²"`` のような非 ASCII 数字を通し、``int()`` が ``ValueError`` で
+    終了コード契約の外へ漏れる。
+    """
+    text = str(value)
+    if not (text.isascii() and text.isdigit()) or int(text) < minimum:
+        raise KarteUsageError(f"{label} は {minimum} 以上の整数: {value!r}")
+    return int(text)
+
+
 def resolve_issue(args, repo_root, hint="") -> int:
     """``--issue`` が無ければ進行ポインタの ``issue``。ポインタが無い・壊れている・欠けるなら拒否する。"""
     if getattr(args, "issue", None) is not None:

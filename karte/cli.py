@@ -173,10 +173,7 @@ def _resolve_issue(args) -> int:
 
 
 def _validate_round(value) -> int:
-    text = str(value)
-    if not text.isdigit() or int(text) < 1:
-        raise KarteUsageError(f"round は 1 以上の整数: {value!r}")
-    return int(text)
+    return verb_support.parse_int(value, "round")
 
 
 STDIN_SOURCE = "-"  # `--from -`＝標準入力（K-13・慣行に合わせる）
@@ -206,7 +203,8 @@ def _resolve_ingest_round(args, issue: int) -> int:
             f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
             "（--round を明示するか、対象 Issue の取り込みからやり直す）"
         )
-    return _validate_round(active["round"]) + 1
+    # ポインタの round は「最後に取り込んだラウンド」で、0 は未取込（`activate` が書く）。
+    return verb_support.parse_int(active["round"], "round", minimum=0) + 1
 
 
 def _resolve_check_round(args, issue: int) -> int:
@@ -271,10 +269,7 @@ def _validate_attempt_number(value) -> int:
     ``int(args.attempt)`` を無検証で呼ぶと非数値入力で ``ValueError`` が送出され、
     ``_fail_close`` の捕捉対象外（文書化された終了コード ``{0,2,3,4}`` の外）に漏れる。
     """
-    text = str(value)
-    if not text.isdigit() or int(text) < 1:
-        raise KarteUsageError(f"attempt は 1 以上の整数: {value!r}")
-    return int(text)
+    return verb_support.parse_int(value, "attempt")
 
 
 def _resolve_close_attempt_number(args, karte) -> int:
