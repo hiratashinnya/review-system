@@ -1,0 +1,105 @@
+{
+  "recorded_by": "Codex (AI)",
+  "date": "2026-10-24",
+  "stage": "B1",
+  "kind": "limited_rule_display_and_restoration_observation",
+  "agy_version_exact": "1.4.6",
+  "execution": {
+    "private_backup_confirmation": "confirmed",
+    "cli_version_verified": true,
+    "candidate_confirmation": "confirmed",
+    "candidate_rule_counts": {
+      "allow": 3,
+      "ask": 0,
+      "deny": 1
+    },
+    "local_observation_limit": 2,
+    "version_call_limit": 1,
+    "fixed_session_slash_override": false,
+    "global_slash_false_or_default": true,
+    "fixed_override_version_syntax_verified": true,
+    "model_none_basis": "documented_cli_override_plus_version_syntax_gate_not_scalar_merge_proof",
+    "local_observations_complete": true,
+    "restoration_gate": "b1_exact_candidate_all_conditions_verified",
+    "restoration_performed": true,
+    "restored": true,
+    "current_state": "original_restored",
+    "nonpermissions_comparison": "same",
+    "runtime_still_blocked": true
+  },
+  "observations": [
+    {
+      "command": "/config",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true,
+      "rules_exact": true,
+      "permission_counts": {
+        "allow": 3,
+        "ask": null,
+        "deny": 1
+      },
+      "ask_display_present": false,
+      "use_g1_credits_false": true,
+      "slash_disabled_false_or_default": true
+    },
+    {
+      "command": "/permissions",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true,
+      "rules_exact": true,
+      "permission_counts": {
+        "allow": 3,
+        "ask": null,
+        "deny": 1
+      },
+      "ask_display_present": false,
+      "scopes_exact": true
+    }
+  ],
+  "independent_readback": {
+    "reader_exit": 0,
+    "current_fullhash_original": true,
+    "current_permissions_equal_original": true,
+    "current_acl_original": true,
+    "original_nonpermissions_comparison": "same",
+    "backup_user_only": true,
+    "backup_metadata_binding_match": true,
+    "current_stable": true,
+    "current_acl_stable": true,
+    "matching_run_workers": 0,
+    "known_agy_gui_count": 0,
+    "target_candidate_temp_count": 0,
+    "process_snapshots": 2,
+    "journal_workers_naturally_completed": true,
+    "original_state_currently_confirmed": true,
+    "safe_original_confirmed": true
+  },
+  "readback_wrote_settings": false,
+  "binding_snapshots": 1,
+  "limits": {
+    "rule_parse_proven": false,
+    "unc_regex_effect_proven": false,
+    "permission_effect_proven": false,
+    "deny_priority_proven": false,
+    "permissions_array_composition_proven": false,
+    "scalar_effective_priority_measured": false,
+    "live_uc_count": 0,
+    "production_runtime_unblocked": false,
+    "production_accepted_version": "1.3.3",
+    "narrow_candidate_retained": false,
+    "past_original_nonpermissions_equality": "unknown",
+    "open_finding": "F-628-01"
+  }
+}

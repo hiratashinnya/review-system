@@ -1,0 +1,11 @@
+{
+  "agent": "Codex (AI)",
+  "date": "2026-10-22",
+  "source_snapshot": "3e7d61b8b07304a6ec67d99e6fc1bb5c96d157fa",
+  "capture_result": "failed",
+  "command": ["agy.exe", "--output-format", "json", "--print-timeout", "15s", "-p", "/usage"],
+  "outer_timeout_seconds": 30,
+  "observed_exception": "subprocess.TimeoutExpired",
+  "successful_json_record_retained": false,
+  "note": "A later archival capture timed out. Initial successful local command observations remain in the session tool transcript; this file does not reproduce or certify their output. No model inference was requested. Personal executable paths are omitted."
+}

@@ -2,7 +2,7 @@
 
 > **これは規範ではない。** 正本は `.claude/skills/codex-review/SKILL.md` であり、本文はこの Claude 専用 skill の設計背景を保管する。
 
-この skill は in-repo の Claude review を置き換えるものではなく、別モデルファミリの第二意見を追加で得るための入口として設計した。`pr-reviewer` は in-repo の review／コメント／merge を担い、`agy-delegate` は agy MCP 経由の Gemini 委譲を担うため、`codex-review` は `codex exec` を使う OpenAI CLI 経路に限定している。
+この skill は in-repo の Claude review を置き換えるものではなく、別モデルファミリの第二意見を追加で得るための入口として設計した。`pr-reviewer` は in-repo の review／コメント／merge を担い、`agy-delegate` は agy 直接実行ラッパー経由の委譲を担うため、`codex-review` は `codex exec` を使う OpenAI CLI 経路に限定している。
 
 別プロセスで実行するため、Claude の token/session limit に影響しない追加のレビュー経路になる。ただし `codex` CLI、ChatGPT login、ローカル rollout 保存先に依存するため、クラウドやヘッドレス実行へ移植しない。この配置・非移植判断は `.ai/Individually-managed-lists.md` にも記録されている。
 
@@ -26,3 +26,5 @@ PR #615（Issue #605）で `silent-failure-diagnosis` の D0 が「ツール資�
 
 確認できたのは上記の版・1回の実行における前提 (a)(b) と「当該実行に対応する rollout がちょうど1つ作られること」までである。cyber フィルタが実際に flag したときの `review.txt` の形、およびその rollout に中間発話が含まれて所見を回収できることは、この確認の対象に含まれない。`codex-cli` の版が変わった場合は、`session id:` の出力位置とファイル名の規則を再確認する。手順書側は前提が崩れたとき（`thread_id` を読めない、または該当ファイルがちょうど1つに定まらない）に回収を試さず停止する形になっている。
 
+
+履歴: #606 より前の agy-delegate は agy MCP 経由で Gemini へ委譲していた。現行経路は直接実行ラッパーである。

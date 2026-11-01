@@ -1,0 +1,6 @@
+commit: c236e48
+Synthetic PowerShell policy comparison (settings reads/writes/agy0)
+{"settings_reads":0,"agy_launches":0,"settings_writes":0,"reason":"policy_compare_regression_failed","passed":false}
+
+Root array fixture was unrolled by ConvertFrom-Json pipeline into null. Fixed test input boundary by preserving values under an object property; production comparator unchanged.
+

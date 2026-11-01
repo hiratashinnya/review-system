@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: ebc852e127d72106761f931344cdc7b3412e18d9c6f4fdfa8a799b1f5777884c -->
+<!-- common-source: .ai/guidance/common.md; sha256: 95f6953e8964e9eab0ae02917f047bb086fda879deb0075521dff46bfbad41d0 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 4c2329e030a16a97452c860423ac18078e60c5eb5e29c93b42cae32db8335a20 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: caf0edb10a886553e39f1c3cbd4e850c44ace71170fa4f0e3f79eaabb6beac1b -->
 
 # プロジェクト共通 guidance
 
@@ -61,6 +61,7 @@
 
 - 本リポジトリには doc_system と review_system が同居する。doc_system の正本は `doc-system-v2/` と関連する方法論・AI 資産、review_system の仕様・設計の正本は `docs/`（`docs/doc-system/` を除く）であり、混同しない。
 - corpus ノード（`doc-system-v2/nodes/**`）は対応する `*-author` が一時出力し、`reconciliation-validator` の read-only 検証後に `reconciliation` が反映する。主文脈や他ロールは直接編集しない。
+- agy 直接実行は `agy_delegate` ラッパーの環境・許可設定検査を必須とする。agy の設定上の書込許可は対象ワークツリー全体、corpus ノードは `doc-system-v2/nodes` ディレクトリの再帰 `write_file` deny で除外する。書ける範囲を依頼上の変更範囲と混同せず、調査を編集へ拡大しない。その他のファイルも正本・生成物・レビュー規約に従う。D0 と呼出元の停止条件（#513 を含む）を迂回せず、検査不能・未検証成果は停止する。起動ゲートと静的許可検査は agy 内部操作の sandbox・改ざん耐性を保証しない。詳細の正本は `.ai/agents/agy-delegate.md`。
 - review_system 本体の実装は Python を使用し、原則として標準ライブラリだけに依存する。
 - 共通 AI 資産の正本は `.ai/` 配下に置く。PF の実行入口は正本そのものではなく、公式 import または追跡対象の生成物として接続する。
 - 版付き文書（`policy_version` 等の `MAJOR.MINOR` を持つ文書）の記述が実態とずれていたら、版の bump が定数・設定・fixture へ波及することを理由に修正を見送らない。既定は直して版を上げることであり、据え置きが正当化されるのはオーナーが明示的にそう判断した場合だけである。版番号の仕組みは、内容を変えたときに追随すべき箇所を機械的に特定するために存在する。
@@ -115,13 +116,13 @@
 ## Copilot 固有の非移植
 
 - `/agy-delegate`、`/codex-review`、`/gh-create-issue` はローカル CLI、認証、対象 PF の明示スコープに依存するため移植しない。
-- 共有リファレンス `silent-failure-diagnosis` は、読み込む予定の委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
+- 共有リファレンス `silent-failure-diagnosis` は、関連する委譲系資産（`agy-delegate`・`codex-review`）がいずれも Copilot 非移植で利用者がいないため配置せず、この instructions へも本文を展開しない。
 - `issue-investigator`、`ac-designer`、`change-planner`、`plan-reviewer`、`test-writer`、`adviser`、`issue-implementer`、`issue-fixer`、`pr-reviewer` の Copilot Agent 版は、project hook、worktree bind、ロール別 command gate の等価物がないため配置しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使い、Claude／Codex 固有の hook や worktree 実行機構を持ち込まない。
 
 
 ## PR base 取り込み
 
-- `docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路を使う。Copilot はcleanなPR head branchで `python3 -m gitgate integrate-base-copilot-register --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` により対象を明示認可し、同じ引数の `integrate-base` → 衝突編集 → `integrate-base-continue`、中止は `integrate-base-abort` を使う。
-- この登録は認証済みCopilot roleの保証ではない。固定merge戦略・任意option禁止・固定unittest成功と非ゼロ件・内容CASと2親検証を再利用する。通常cloneも非default PR head branchなら利用できる。
-- commit/pushはgitgateを使い、pending中は行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・protected契約変更・OID driftはSTOPして報告する。Claude/Codex固有hookの等価物を仮定せず、raw Gitや台帳直接編集を阻止するsandboxを謳わない。
+- `docs/tools/gitgate-base-integration.md`（policy 2.1）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
+- GitGate はテストを実行しない。解消結果の検証は自分で行い、CI でも確認する。
+- commitはgitgateを使い、pending中は通常 commit を行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・OID driftはSTOPして報告する。

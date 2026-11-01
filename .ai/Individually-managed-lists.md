@@ -24,7 +24,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 ## 個別配置・非移植
 
 - `codex-review` は `.claude/skills/codex-review/SKILL.md` の Claude 専用。`codex exec`、ChatGPT login、Linux/WSL の session に依存するため、Codex／Copilot／Repo-skill へは配置しない。
-- `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、具体的な MCP tool metadata と Claude 固有の返却手段を持つ。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、利用可能な agy MCP 能力を session で解決する。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
+- `agy-delegate` は Claude では `.claude/skills/agy-delegate/SKILL.md` から `.claude/agents/agy-delegate.md` へ委譲し、Read/Bash metadata と command hook を持ち、skills で silent-failure-diagnosis を読み込む。Codex では `.agents/skills/agy-delegate/SKILL.md` から `.codex/agents/agy-delegate.toml` へ委譲し、共通 agent・skill と silent-failure-diagnosis を必読接続し、Codex の exec_command/command hook/session 制御に従う。ローカル CLI／Windows Credential Manager に依存するため Copilot へは移植しない。
 - `gh-create-issue` は Claude と Repo-skill（`.agents/skills/gh-create-issue/SKILL.md`）に実在する。Copilot 版は作らない。GitHub 変更の明示依頼境界と loader/tool 差分を対象 PF 限定で管理する。Claude では skill は委譲の入口だけで、実行主体は Claude 専用の `.claude/agents/gh-create-issue.md`（サブエージェント・Issue #632）。Codex の `.agents/skills/` は従来どおり共通本文を直接実行し、Codex／Copilot にエージェント版は作らない。
 - `silent-failure-diagnosis` は Claude（`.claude/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable: false`）と Repo-skill（`.agents/skills/silent-failure-diagnosis/SKILL.md`・`user-invocable` なし）に実在する。Copilot へは配置せず（オーナー再確定 2026-10-12）、`copilot-instructions.md` へも本文を展開しない。非移植であることは `.ai/guidance/platforms/copilot.md`「Copilot 固有の非移植」にも名前で記録する（名前の記載は展開に当たらない）。`asset_parity` では、未展開の `user-invocable: false` skill は Instructions へ展開すべきもので skill/prompt にしないため、`.github/skills/<name>/SKILL.md` を置いても `present` と扱われず、`asset_parity/exceptions.py` の登録で `exempt` にしている（登録が無ければ `MISSING`）。この登録は Copilot から参照できることの根拠ではない。
 - Issue工程ロール（`issue-investigator` / `ac-designer` / `change-planner` / `plan-reviewer` / `test-writer` / `adviser` / `issue-implementer` / `pr-reviewer` / `issue-fixer`）の専用agentはClaudeに配置する。Codexの主文脈入口は #603 で退役し、専用profileを持つexecution actor経路だけを使う。Copilotはhook、Task、worktree、karteの等価物がないため専用agent非移植。
@@ -42,7 +42,7 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 ## PF 固有の実行差分
 
 - Claude は Task/Agent dispatch、`isolation: "worktree"`、`issue-start-gate.sh` 等の hook、ロール別 command gate を持つ。
-- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`・`issue-start-gate.sh`。下記「ライフサイクル hook 一覧」の行 1・3）を使う。Claude の worktree bind/stop hook は配置しない。
+- Codex は `spawn_agent` と `.codex/hooks.json` を持ち、そこに登録した PreToolUse hook（`agent-command-gate.sh`。下記「ライフサイクル hook 一覧」の行 1）を使う。issue-start hook は Codex 側に登録しない（行 3）。Claude の worktree bind/stop hook は配置しない。
 - Claude のIssue工程ロールは、`python3 -m codex_worktree_exec` で自分の linked worktree に Codex を実行者として起動できる（Issue #538 PR-B・契約は `docs/methods/codex-workspace-binding.md`）。Codex／Copilot にこの起動経路は無い。Codex は起動される側で、権限境界は `.codex/config.toml` の permission profile が担い、Codex 用 hook は追加しない。
 - Copilot は Prompt の明示起動と Agent の選択・委譲を使う。Claude/Codex 相当の project hook、PreToolUse、worktree bind は配置しない。
 
@@ -54,11 +54,11 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 |---|---|---|:---:|:---:|:---:|
 | 1 | PreToolUse（Bash） | `agent-command-gate.sh` | ✅ | ✅ | — |
 | 2 | PreToolUse（ctx_execute 系） | `agent-command-gate.sh` | ✅ | — | — |
-| 3 | PreToolUse（Task／spawn_agent） | `issue-start-gate.sh` | ✅ | ✅ | — |
+| 3 | PreToolUse（Task／Agent） | `issue-start-gate.sh` | ✅ | — | — |
 | 4 | PostToolUse（Write／Edit） | `check-governance-drift.sh` | ✅ | — | — |
 | 5 | SubagentStart（issue-fixer） | `subagent-karte-inject.sh` | ✅ | — | — |
-| 6 | SubagentStart（implementer／fixer） | `subagent-worktree-bind.sh` | ✅ | — | — |
-| 7 | SubagentStop（implementer／fixer） | `subagent-stop-gate.sh` | ✅ | — | — |
+| 6 | SubagentStart（書込5ロール） | `subagent-worktree-bind.sh` | ✅ | — | — |
+| 7 | SubagentStop（書込5ロール） | `subagent-stop-gate.sh` | ✅ | — | — |
 | 8 | StopFailure（rate_limit） | `on-rate-limit.sh` | ✅ | — | — |
 | 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
@@ -88,9 +88,9 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 #### 3. issue-start-gate
 
 - **概要**: Issue dispatch 前に blocker evidence（waiver 含む）を検査し、未解消なら起動を拒否する（managed dispatch のみ）。加えて、これとは独立した安全機構として、残留 worktree があれば managed／unmanaged を問わず**全 dispatch を fail-close で deny する**（Issue #354）。自動解放が失敗した場合やフックが発火しなかった場合の最後の砦として機能する。
-- **スコープ**: Task／runtime Agent（Claude）／spawn_agent（Codex）。
-- **PF 間差異**: 判定ロジックは PF 非依存の共有 Python パッケージ `issue_start`（`python3 -m issue_start.hook`）に一本化されている。`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` は起動するだけの薄いラッパースクリプト。差異は matcher と dispatch の扱い。Claude は `Task`/`Agent` を対象に、dispatch prompt の marker `ISSUE_START_BINDING_V1` を binding 材料として検査する。Codex は `spawn_agent` を対象にするが binding 材料を持たず、既知の `issue-implementer`／`issue-fixer` を指定した dispatch を、payload の詳細・marker・ledger・cwd・GitHub API を読む前に常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で deny する（Codex は主文脈にしない＝Issue #538）。
-- **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh`／`.codex/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md`／`.codex/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）。残留 worktree deny の詳細は [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「残留 worktree での次 dispatch を deny する」節）
+- **スコープ**: Task／runtime Agent（Claude のみ）。
+- **PF 間差異**: Claude 専用。判定ロジックは共有 Python パッケージ `issue_start`（`python3 -P -m issue_start.hook`）にあり、`.claude/hooks/issue-start-gate.sh` はそれを起動するだけの薄いラッパースクリプト。Claude は `Task`/`Agent` を対象に、dispatch prompt の marker（`ISSUE_START_BINDING_V1` 等）を binding 材料として検査する。Codex 側には issue-start hook を登録せず、Codex から `issue-implementer`／`issue-fixer` を dispatch する経路も無い（Codex は主文脈にしない＝Issue #538。退役の経緯は [`.ai/rationale/issue-pipeline.md`](rationale/issue-pipeline.md)「Issue #603: Codex main-context 資産の退役」）。
+- **実装構成**: [`docs/tools/issue-start-and-branch-source.md`](../docs/tools/issue-start-and-branch-source.md)（`.claude/hooks/issue-start-gate.sh` はこの共有 core への薄いラッパー。`.claude/hooks/README.md` はこの hook の blocker 判定部分を扱っていない）。残留 worktree deny の詳細は [`.claude/hooks/README.md`](../.claude/hooks/README.md)（「残留 worktree での次 dispatch を deny する」節）
 
 #### 4. check-governance-drift
 
@@ -106,13 +106,13 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 #### 6. subagent-worktree-bind
 
-- **概要**: `issue-implementer`／`issue-fixer` 起動時に linked worktree を割り当てる。
+- **概要**: 書込5ロール（`ac-designer`／`change-planner`／`test-writer`／`issue-implementer`／`issue-fixer`）起動時に linked worktree を割り当てる。
 - **スコープ**: SubagentStart。Claude 専用（Codex は worktree bind 非採用）。
 - **実装構成**: [`.claude/hooks/subagent-worktree-bind.sh`](../.claude/hooks/subagent-worktree-bind.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
 #### 7. subagent-stop-gate
 
-- **概要**: `issue-implementer`／`issue-fixer` 停止時に worktree の後処理を行う。
+- **概要**: 書込5ロール（`ac-designer`／`change-planner`／`test-writer`／`issue-implementer`／`issue-fixer`）停止時に worktree の後処理を行う。
 - **スコープ**: SubagentStop。Claude 専用。
 - **実装構成**: [`.claude/hooks/subagent-stop-gate.sh`](../.claude/hooks/subagent-stop-gate.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 

@@ -1,0 +1,72 @@
+{
+  "producer": "Codex runtime_628",
+  "artifact_copies": {
+    "tests/reports/OBS-agy-runtime-628-edda082-single.json": {
+      "sha256": "a43472309572befe632b6e3d9ce2221576a5f51e71ec11de2cca2c223ecac9fe",
+      "original_tmp_artifact": "agy-cohort-single-success-628-sanitized.json",
+      "copy_kind": "byte_exact"
+    },
+    "tests/reports/OBS-agy-runtime-628-1e6594b-four-uc.json": {
+      "sha256": "8ccbdb6f933a8b082727b6f3a4e947c162140238ef47f4d4a66de3592e5975b8",
+      "original_tmp_artifact": "agy-four-uc-success-628-sanitized.json",
+      "copy_kind": "byte_exact"
+    },
+    "tests/reports/OBS-agy-runtime-628-01cc080-parallel.json": {
+      "sha256": "eecc621e3bc82b51c5379230bef221a731fde152fa200a60639b1b6955730819",
+      "original_tmp_artifact": "agy-parallel-success-628-sanitized.json",
+      "copy_kind": "byte_exact"
+    },
+    "tests/reports/OBS-agy-runtime-628-01cc080-parallel-observer.json": {
+      "sha256": "b00facaa7477d1a95da704ec37bd418666e948db4ae4f401b573a20072147f55",
+      "original_tmp_artifact": "agy-parallel-success-observer-628-sanitized.json",
+      "copy_kind": "byte_exact"
+    }
+  },
+  "executions": [
+    {
+      "kind": "single_historical_no_usage",
+      "source_head": "edda08220ef5060e38685f39af8fcfdbb37a5640",
+      "live_freeze_sha256": "4fa914431ad1371e5a7cb2392aeb873ea4fdd176cb02c7f8b4e609beec8cee2e",
+      "exit_code": 0,
+      "entry": "tmp/agy_live_probe.py",
+      "environment_keys": [
+        "PYTHONPATH",
+        "WSL_DISTRO_NAME"
+      ],
+      "original_private_command_record_sha256": "6924803ea2229df3ead8a46987c59ef4b22092b343f17673e63a3ef9ce436791",
+      "command_record_presentation": "entry_and_environment_keys_only_personal_absolute_paths_omitted",
+      "package_source_sha256": null,
+      "source_binding": "execution_head_and_live_manifest"
+    },
+    {
+      "kind": "four_uc",
+      "source_head": "1e6594bbadb8455d241491fd01a5b7310daf650e",
+      "live_freeze_sha256": "2c8b28c813227f1ded80c37a877e90c1fdd9b173994bf5e956fb5fb8735a72d5",
+      "exit_code": 0,
+      "entry": "tmp/agy_live_probe.py",
+      "environment_keys": [
+        "PYTHONPATH",
+        "WSL_DISTRO_NAME"
+      ],
+      "original_private_command_record_sha256": "61a5712843c844947872fa1ef7cae3b4e38e4b9fc36ae04c75f2154636775bc3",
+      "command_record_presentation": "entry_and_environment_keys_only_personal_absolute_paths_omitted",
+      "package_source_sha256": "05ccaf419f31373e268369a230787e0ada71b1fbf73c87fcd95ca488a56f328f",
+      "source_binding": "package_sha256_execution_head_and_live_manifest"
+    },
+    {
+      "kind": "parallel",
+      "source_head": "01cc08066dda3f1e62d932e9134d34436ad7125f",
+      "live_freeze_sha256": "57e33c0b72e6ba4a38f4bdab8637460a71ab8d17b644e0e670085c260eee6067",
+      "exit_code": 0,
+      "entry": "tmp/agy_parallel_probe.py",
+      "environment_keys": [
+        "PYTHONPATH",
+        "WSL_DISTRO_NAME"
+      ],
+      "original_private_command_record_sha256": "93eecc88591eaf020d9f04901b6ef2f99c4c80a6e8d9ba3c835383a6d5cdf49f",
+      "command_record_presentation": "entry_and_environment_keys_only_personal_absolute_paths_omitted",
+      "package_source_sha256": "05ccaf419f31373e268369a230787e0ada71b1fbf73c87fcd95ca488a56f328f",
+      "source_binding": "package_sha256_execution_head_and_live_manifest"
+    }
+  ]
+}

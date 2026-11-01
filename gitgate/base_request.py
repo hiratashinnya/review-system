@@ -1,27 +1,17 @@
-"""Strict arguments; callers cannot supply Git options or a merge strategy."""
+"""固定引数スキーマ。呼び出し元は Git option・merge 戦略・任意 ref を渡せない。"""
 
 import re
 from branch_source.policy import validate_repository
 from .base_error import require
 
-VERBS = {"integrate-base", "integrate-base-continue", "integrate-base-abort", "integrate-base-copilot-register"}
+VERBS = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
 
 
 def parse_request(verb, args):
     require(verb in VERBS, "BASE_VERB_INVALID")
-    if verb == "integrate-base-abort":
+    if verb != "integrate-base":
         require(not args, "BASE_ARGUMENT_INVALID")
         return {}
-    if verb == "integrate-base-continue":
-        modules = []
-        while args:
-            require(len(args) >= 2 and args[0] == "--test-module",
-                    "BASE_ARGUMENT_INVALID")
-            require(re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", args[1]),
-                    "BASE_TEST_MODULE_INVALID")
-            modules.append(args[1])
-            args = args[2:]
-        return {"test_modules": modules}
     values = {}
     flags = {"--repository", "--pr", "--expected-head", "--expected-base"}
     while args:

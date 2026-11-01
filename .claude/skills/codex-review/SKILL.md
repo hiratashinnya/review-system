@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: ユーザーが明示起動する「Codex 公式 CLI (`codex exec`) への第二意見レビュー委譲」の入口。別モデルファミリ（OpenAI）へ read-only の PR・実装・設計レビューを依頼するときに使う。agy MCP bridge や in-repo の Claude レビュー→merge には使わない。
+description: ユーザーが明示起動する「Codex 公式 CLI (`codex exec`) への第二意見レビュー委譲」の入口。別モデルファミリ（OpenAI）へ read-only の PR・実装・設計レビューを依頼するときに使う。agy への委譲や in-repo Claude レビューには使わない。
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 **別モデルファミリ（OpenAI）の視点**で、PR・実装・設計に敵対的/セキュリティレビューを回すための**Claude Code 専用・ユーザー起動の入口**。設計背景と非移植理由は [codex-review の rationale](../../../.ai/rationale/codex-review.md) に置く。
 
-> 使い分け：**agy MCP bridge (`mcp__agy__codex_*`) は使わない**（agy 経由の委譲は `agy-delegate`）。
+> 使い分け：**agy 直接実行への委譲は `agy-delegate`**。本スキルは Codex 公式 CLI を使う（旧 bridge 名の履歴は `.ai/rationale/agy-delegate.md`）。
 > **in-repo の Claude 自身によるレビュー→コメント→merge は `pr-reviewer`**。本スキルは「別ファミリの第二意見を取りに行く」専用。
 
 ## 呼び方（標準手順）

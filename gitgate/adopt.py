@@ -318,6 +318,19 @@ def describe_local_ref_conflict(
 
     「何が起きたか」だけでなく「**誰が掴んでいるか**」と「次に何を実行するか」を必ず含める。
     """
+    detail = _holder_detail(branch_name, holder_kind, holder_path, entry, local_tip, remote_tip)
+    return detail + _FOLLOWUP_AUTHOR_NOTE
+
+
+# 後続作者の失敗は掴んでいる側を片付けても同branchで継続できない（#685 F-685-23）。
+_FOLLOWUP_AUTHOR_NOTE = (
+    "。後続作者（change-planner／test-writer／issue-implementer）の失敗なら、上の処置をしても失敗作者の"
+    "台帳 entry が最新 owner として残るので同じブランチでは継続できない。STOP してオーナーへ報告する"
+    "（.ai/troubleshooting/issue-pipeline.md「`adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で失敗したとき」）"
+)
+
+
+def _holder_detail(branch_name, holder_kind, holder_path, entry, local_tip, remote_tip) -> str:
     if holder_kind == HOLDER_PRIMARY:
         return (
             f"{branch_name}（**メインワークツリー（primary checkout）** "
@@ -338,11 +351,17 @@ def describe_local_ref_conflict(
                 f"{entry.get('entry_id')} --reason <text> のあと "
                 "python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>）"
             )
-        else:
+        elif holder_kind == HOLDER_AGENT:
             attribution = "台帳に対応するエントリが無い"
             remedy = (
                 "解消: python3 -m gitgate worktree-release <path> --force-uncollected "
                 "--reason <text>（主文脈が実行する）"
+            )
+        else:
+            attribution = "台帳に対応するエントリが無い"
+            remedy = (
+                "解消: そのワークツリーで `git switch --detach` を実行して外す（主文脈が行う。"
+                "worktree-release は .claude/worktrees/agent-<id> 形しか受理しないので使えない）"
             )
         label = "agent worktree" if holder_kind == HOLDER_AGENT else "linked worktree"
         return (

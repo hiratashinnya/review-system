@@ -1,5 +1,6 @@
 """Historical owner words and approval/correction classification (#537 R3)."""
 
+import datetime
 import re
 import unittest
 from pathlib import Path
@@ -7,6 +8,8 @@ from pathlib import Path
 from feedback_ledger.store import load_store
 
 ROOT = Path(__file__).resolve().parents[2]
+# history.md から移行した48件の最後の決定日。これより後の台帳エントリは移行分ではない。
+MIGRATION_LAST_DECISION_DATE = datetime.date(2026, 10, 6)
 ANNOTATIONS = (
     "（3選択肢提示後）", "（説明後）", "（根拠提示後）", "（本エントリの要否を問うて）",
     "（AI が「追記の根拠は無く、上書きに改める」と回答し、PR 化を提案した後）",
@@ -34,7 +37,8 @@ class MigratedDecisionSemanticsTests(unittest.TestCase):
         for annotation in ANNOTATIONS:
             original_lines = [line.replace(annotation, "") for line in original_lines]
         migrated = [doc for doc in self.store.of("ledger")
-                    if doc.data["schema"] == "feedback-ledger/v1.3"]
+                    if doc.data["schema"] == "feedback-ledger/v1.3"
+                    and doc.data["occurred_at"] <= MIGRATION_LAST_DECISION_DATE]
         self.assertEqual(len(migrated), 48)
         for doc in migrated:
             with self.subTest(entry=doc.data["id"]):

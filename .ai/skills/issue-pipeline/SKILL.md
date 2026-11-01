@@ -62,6 +62,12 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
 主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
 回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
+dispatch元cwd（検査作業面）は主文脈のセッションcwdで、主文脈のlinked作業面とし、primary checkoutのbranchは切り替えない。
+その作業面をfetch後にHEADをそのremote exact OIDへ置いたdetachedにし、binding/approvalはその作業面のtmp配下に置く。
+検査はdetachedだけを受理し、対象branch上・別名branch上は入口で拒否する。検査面がdetachedでも、primary checkoutを含む他のworktreeが
+対象branchを掴んでいれば拒否する（worktree一覧を取れないときも拒否する）。対象branchを掴むworktreeがあると次作者のadoptは必ず失敗し、
+起票済みの失敗作者entryが最新ownerとして残って同branchで継続できなくなるためである。
+セッションcwdの移し方と、primaryから起動するread-only Codex経路との行き来はClaude wrapperに従う。
 使用中worktree奪取や別branchでの迂回はしない。工程の独立レビュー・owner承認は引き続き必須。
 PF固有markerと起動手順はClaude wrapperに従う。native有効化と新profileのlive実測は分けて記録する。
 
@@ -151,6 +157,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - **決定は毎ラウンド再掲する。** 前ラウンドで未解消だった finding は全件再掲し、前ラウンドの `disposition` と、オーナーが覆した `scope` も書き写す。オーナーが方針を変えた場合だけ新しい値にする。
   - `disposition` の書き忘れは **fail-close 側**へ倒れ、未決定として clean を妨げる。
   - `scope` の書き忘れは **fail-open 側**へ倒れ、機械判定を止めずレビュー担当の申告値へ戻る。
+- **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 

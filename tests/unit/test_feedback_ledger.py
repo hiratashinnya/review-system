@@ -1052,7 +1052,8 @@ class RepositorySmokeTests(unittest.TestCase):
         )
         deny = settings["permissions"]["deny"]
         self.assertIn("Edit(/.ai/feedback/**)", deny)
-        self.assertIn("Write(/.ai/feedback/**)", deny)
+        # Edit 規則が Write も覆う。Write 専用エントリは "never matches" 警告になるため置かない。
+        self.assertNotIn("Write(/.ai/feedback/**)", deny)
 
 
 class SharedSchemaCorrespondenceTests(unittest.TestCase):

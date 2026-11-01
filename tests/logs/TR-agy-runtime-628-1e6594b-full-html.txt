@@ -1,0 +1,4 @@
+source_commit: 1e6594bbadb8455d241491fd01a5b7310daf650e
+environment: UV_CACHE_DIR=/tmp/issue-628-uv-cache
+command: ['uv', 'run', '--offline', '--with', 'coverage', 'coverage', 'html', '--data-file=/tmp/agy-full-1e6594b.coverage', '--directory=htmlcov/agy-full-1e6594b']
+Wrote HTML report to htmlcov/agy-full-1e6594b/index.html

@@ -1,0 +1,133 @@
+command: TMPDIR=/dev/shm python3 -m unittest tests.unit.test_agent_command_gate tests.unit.test_codex_agent_command_gate tests.unit.test_governance_sync tests.unit.test_guidance_sync tests.unit.test_ai_asset_layout tests.unit.test_silent_failure_diagnosis_layout
+HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+tree: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+started_at: 2026-10-21T23:24:32.829451+00:00
+cwd: /home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a
+python: 3.12.3
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+provenance: Old 183-test / 380.007s command and exact scope not identified. Explicit replacement: complete Claude/Codex command-gate, governance/guidance sync, AI-asset and silent-failure placement modules; not certified as identical historical scope.
+output: stdout and stderr merged without filtering
+[measurement-series-start]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[measurement-before]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[command output]
+..........................................................................................................................EE.E..............E......................E.................................................................................
+======================================================================
+ERROR: test_half_registered_role_denies_instead_of_failing_open (tests.unit.test_codex_agent_command_gate.CodexAgentCommandGateTests.test_half_registered_role_denies_instead_of_failing_open)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1336, in test_half_registered_role_denies_instead_of_failing_open
+    broken = self._hook_copy_with(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1308, in _hook_copy_with
+    descriptor, path = tempfile.mkstemp(
+                       ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 496, in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 395, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 30] Read-only file system: '/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/.codex/hooks/agent-command-gate-uu57yz68.sh'
+
+======================================================================
+ERROR: test_import_error_denies_instead_of_failing_open (tests.unit.test_codex_agent_command_gate.CodexAgentCommandGateTests.test_import_error_denies_instead_of_failing_open)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1367, in test_import_error_denies_instead_of_failing_open
+    broken = self._hook_copy_with(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1308, in _hook_copy_with
+    descriptor, path = tempfile.mkstemp(
+                       ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 496, in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 395, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 30] Read-only file system: '/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/.codex/hooks/agent-command-gate-ivscjn45.sh'
+
+======================================================================
+ERROR: test_internal_error_denies_for_non_gated_roles_too (tests.unit.test_codex_agent_command_gate.CodexAgentCommandGateTests.test_internal_error_denies_for_non_gated_roles_too)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1358, in test_internal_error_denies_for_non_gated_roles_too
+    broken = self._hook_copy_with(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1308, in _hook_copy_with
+    descriptor, path = tempfile.mkstemp(
+                       ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 496, in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 395, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 30] Read-only file system: '/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/.codex/hooks/agent-command-gate-owg_kwoc.sh'
+
+======================================================================
+ERROR: test_missing_interpreter_denies (tests.unit.test_codex_agent_command_gate.CodexAgentCommandGateTests.test_missing_interpreter_denies)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1442, in test_missing_interpreter_denies
+    broken = self._hook_copy_with(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1308, in _hook_copy_with
+    descriptor, path = tempfile.mkstemp(
+                       ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 496, in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 395, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 30] Read-only file system: '/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/.codex/hooks/agent-command-gate-sezrzgin.sh'
+
+======================================================================
+ERROR: test_syntax_error_in_the_embedded_python_denies (tests.unit.test_codex_agent_command_gate.CodexAgentCommandGateTests.test_syntax_error_in_the_embedded_python_denies)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1425, in test_syntax_error_in_the_embedded_python_denies
+    broken = self._hook_copy_with(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_codex_agent_command_gate.py", line 1308, in _hook_copy_with
+    descriptor, path = tempfile.mkstemp(
+                       ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 496, in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/tempfile.py", line 395, in _mkstemp_inner
+    fd = _os.open(file, flags, 0o600)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 30] Read-only file system: '/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/.codex/hooks/agent-command-gate-j5jm7g38.sh'
+
+----------------------------------------------------------------------
+Ran 245 tests in 410.109s
+
+FAILED (errors=5)
+
+finished_at: 2026-10-21T23:31:23.039942+00:00
+elapsed_seconds: 410.198769
+[measurement-after]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+state_unchanged: True
+exit=1
+
+[measurement-series-end-before-log-copy]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+measurement_series_valid: True
+exit=1

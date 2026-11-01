@@ -1,0 +1,8 @@
+native_source_commit=d4a027865a004722e673956c271a3f675d8fb5fe
+command=rtk proxy env UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline --with coverage python -m unittest tests.unit.test_agy_delegate_launch_profile tests.unit.test_agy_delegate_process tests.unit.test_agy_delegate_version_contract tests.unit.test_agy_delegate_runner
+exit_code=0
+.....................
+----------------------------------------------------------------------
+Ran 21 tests in 12.182s
+
+OK

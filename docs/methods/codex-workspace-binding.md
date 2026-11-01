@@ -15,7 +15,7 @@ Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役し�
 - 権限境界は版管理した permission profile（`.codex/config.toml`）、両PFの既存command hook、
   Claude側gateの起動形検査、ラッパーの起動前検査で担う。#371は既存hookへ工程ロールを追加する。
 - **Codex の `spawn_agent` で `issue-implementer`／`issue-fixer` を起動する経路は無い。**
-  issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する（後述）。
+  Codex は主文脈にせず、それらの Codex agent も置かない。Codex 側に issue-start hook は登録されていない（後述）。
 
 ## #371の工程入力・有効化境界
 
@@ -140,7 +140,7 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
    main checkout の特定は `codex_hook_trust.repository.resolve_main_checkout` を再利用し、特定できなければ
    （渡されたパスへのフォールバック時を含む）判定不能として止める。
 3. **フックの加算**：Codex 用フックは新設しない。`codex exec` では、trust 済みなら project の `.codex/hooks.json`
-   （`agent-command-gate.sh`・`issue-start-gate.sh`）と user 層のフックが加算で走りうるが、権限境界をフックに
+   （Bash の `agent-command-gate.sh` と `adr-notify.sh`）と user 層のフックが加算で走りうるが、権限境界をフックに
    依存させない。Codex が実行するコマンドは `agent_type` を持たないため、Codex 版 gate ではロール専用層の対象外となり、
    全ロール共通の merge／network・exec の deny だけが掛かる。
 4. **権限の非対称**：Codex には profile の filesystem／network 規則で「編集とテスト実行だけ」をさせる
@@ -225,13 +225,13 @@ PR-B 着手時点（main `edbe35a`）で `.claude/hooks/agent-command-gate.sh` �
 TR とログは主文脈が検証専用環境で実起動して残す。`tests/unit/test_codex_worktree_exec_*.py` は model-free の事前検査であり、
 実起動の代替にしない（#452 の evidence rule を踏襲する）。
 
-## Codex `spawn_agent` の常時拒否
+## Codex に issue-start dispatch 経路が無いこと
 
-Codex の `spawn_agent` / `collaborationspawn_agent` で既知の `issue-implementer` / `issue-fixer` を
-指定した dispatch は、issue-start gate が payload の詳細・cwd・ledger・GitHub API を読む前に
-`ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する。malformed な payload でも理由は変わらない。
-`issue_start/managed-entrypoints-v2.json` の `binding_transports` は `claude` だけを宣言し、
-Codex の binding transport は置かない。
+Codex 側に issue-start hook は登録されていない（`.codex/hooks.json` は Bash の `agent-command-gate.sh` と
+`adr-notify.sh` だけ）。Codex の `issue-implementer`／`issue-fixer` agent も置かないため、Codex から
+それらを dispatch する経路そのものが無い。`issue_start/managed-entrypoints-v2.json` の `binding_transports` は
+`claude` だけを宣言し、Codex の binding transport は置かない。退役の経緯と旧 wrapper の保存先は
+[`.ai/rationale/issue-pipeline.md`](../../.ai/rationale/issue-pipeline.md)「Issue #603: Codex main-context 資産の退役」を参照する。
 
 gate の判定順と Claude transport の marker／isolation 契約は
 [`docs/tools/issue-start-and-branch-source.md`](../tools/issue-start-and-branch-source.md) を正とする。
@@ -317,7 +317,12 @@ native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/s
 これは過去review receiptを書き換える情報ではなく、trusted主文脈が今回起動する取得対象の承認である。
 phase承認とnative markerのIssue/repository/branch/OIDを相互照合し、検査cwdのoriginとHEADが同じrepository/OIDで
 あることを起動前に要求する。初回1aでは承認branchは新規作成予定名、expected_oidはbase_oidであり、
-base_refとsnapshotも実HEADへ一致させる。後続著作では承認branchを実検査作業面のcurrent branchへ一致させる。
+base_refとsnapshotも実HEADへ一致させる。後続著作では検査作業面をdetachedに限り、承認branch上と別名branch上は拒否する。検査作業面がdetachedでも、
+primary checkoutを含む他のworktreeが承認branchを掴んでいれば拒否し、worktree一覧を取れないときも拒否する。承認branchを掴むworktreeを拒否するのは、
+そのworktreeが承認branchを掴んだままだと次作者のadopt-branch stage 4が必ず拒否し、起票済みの失敗作者entryが
+最新ownerとして残って同branchで継続できなくなるためである。
+detachedではbranch名を作業面から確かめられないため、その照合は台帳の最新owner、`git ls-remote` のremote exact OID照合、
+adopt-branch stage 2のremote exact OID照合へ委ねる。作業面の準備手順はClaude issue-pipeline wrapperを正とする。
 過去snapshot OIDと後続HEADは異なり得るため、既存のancestor検査・canonical artifact・正確なsource_changesによって
 承認snapshotから現在の検査面までを検証する。Codexも同じartifact検証を使い、D5のcwd/-C一致を維持する。
 native read-only工程の既存phase承認形式は維持し、既存PRの再レビューはその専用契約を使う。

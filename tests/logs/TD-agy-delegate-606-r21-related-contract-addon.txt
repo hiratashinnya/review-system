@@ -1,0 +1,43 @@
+command: TMPDIR=/dev/shm python3 -m unittest tests.unit.test_agy_delegate_gates tests.unit.test_silent_failure_diagnosis_layout tests.unit.test_agy_delegate_merge_guard_contract
+HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+tree: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+started_at: 2026-10-21T23:31:23.051388+00:00
+cwd: /home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a
+python: 3.12.3
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+provenance: Old 12-test / 2.017s command and exact scope not identified. Explicit replacement: complete wrapper gate, silent-failure placement and merge-guard contract modules; not certified as identical historical scope.
+output: stdout and stderr merged without filtering
+[measurement-series-start]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[measurement-before]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[command output]
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 3.670s
+
+OK
+
+finished_at: 2026-10-21T23:31:26.829977+00:00
+elapsed_seconds: 3.766252
+[measurement-after]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+state_unchanged: True
+exit=0
+
+[measurement-series-end-before-log-copy]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+measurement_series_valid: True
+exit=0

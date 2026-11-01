@@ -1,0 +1,101 @@
+{
+  "recorded_by": "Codex (AI)",
+  "date": "2026-10-23",
+  "round": 30,
+  "kind": "local_display_and_restoration_observation",
+  "agy_version_exact": "1.4.6",
+  "execution": {
+    "private_backup_confirmation": "confirmed",
+    "cli_version_verified": true,
+    "candidate_confirmation": "confirmed",
+    "local_observations_complete": true,
+    "restoration_gate": "a2_all_conditions_verified",
+    "restoration_performed": true,
+    "restored": true,
+    "current_state": "original_restored",
+    "nonpermissions_comparison": "same",
+    "runtime_still_blocked": true
+  },
+  "observations": [
+    {
+      "phase": "baseline",
+      "command": "/config",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true,
+      "use_g1_credits_false": true
+    },
+    {
+      "phase": "baseline",
+      "command": "/permissions",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true
+    },
+    {
+      "phase": "after_temporary_empty",
+      "command": "/config",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true,
+      "use_g1_credits_false": true,
+      "permissions_display": "empty_object"
+    },
+    {
+      "phase": "after_temporary_empty",
+      "command": "/permissions",
+      "ok": true,
+      "timeout": false,
+      "exit": 0,
+      "observation_only": true,
+      "usage_zero": true,
+      "turns_zero": true,
+      "status_success": true,
+      "stderr_empty": true,
+      "permissions_display": "scope_only_each_project_shared_global"
+    }
+  ],
+  "independent_readback": {
+    "reader_exit": 0,
+    "current_fullhash_original": true,
+    "current_permissions_equal_original": true,
+    "current_acl_original": true,
+    "original_nonpermissions_comparison": "same",
+    "backup_user_only": true,
+    "backup_metadata_binding_match": true,
+    "current_stable": true,
+    "current_acl_stable": true,
+    "matching_run_workers": 0,
+    "known_agy_gui_count": 0,
+    "target_candidate_temp_count": 0,
+    "process_snapshots": 2,
+    "journal_workers_naturally_completed": true,
+    "original_state_currently_confirmed": true,
+    "safe_original_confirmed": true
+  },
+  "readback_wrote_settings": false,
+  "binding_snapshots": 1,
+  "limits": {
+    "permission_effect_proven": false,
+    "permissions_array_composition_proven": false,
+    "live_uc_count": 0,
+    "production_runtime_unblocked": false,
+    "past_original_nonpermissions_equality": "unknown",
+    "open_finding": "F-628-01"
+  }
+}

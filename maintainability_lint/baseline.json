@@ -108,8 +108,8 @@
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
     },
     "gitgate/adopt.py": {
-      "line_count": 532,
-      "sha256": "b935af65e7c4934396cef97de152775a53d0d5e16c888bdde8f7ac3215998507"
+      "line_count": 551,
+      "sha256": "813d31e094417a6b19a7261e9fb8dbfcf889bd230d19c0bbdaf43c9470d18db9"
     },
     "gitgate/cli.py": {
       "line_count": 379,
@@ -129,7 +129,7 @@
     },
     "issue_start/subagent_hooks.py": {
       "line_count": 962,
-      "sha256": "2af1b62060dcd5a1f4b593b118adef1db40d0bdb3d37fd91b61b89f5bf3878a2"
+      "sha256": "71c73e0b99e524657206113d18fdc4075b55a327982b36810c296ffe2860fe83"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,
@@ -140,8 +140,8 @@
       "sha256": "bc44bd2ced7184fcb0db001f4b87a2536e4de78446af57320066dbb49d07c38b"
     },
     "karte/model.py": {
-      "line_count": 1306,
-      "sha256": "de8cac640fdbf3796d3496e9319c0a0e423e975e3fd53df735b669e934103eef"
+      "line_count": 1303,
+      "sha256": "6f47ee76cfd33f4f585e49f2816b9f425f1a3bffbd5cf78c0526ebb1f6bbd4fe"
     },
     "karte/similarity.py": {
       "line_count": 241,

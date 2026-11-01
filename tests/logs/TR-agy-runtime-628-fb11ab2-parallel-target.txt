@@ -1,0 +1,6 @@
+command: ['/usr/bin/python3', '-m', 'unittest', 'tests.unit.test_agy_delegate_permission_root', 'tests.unit.test_agy_delegate_parallel_cohort', 'tests.unit.test_agy_delegate_parallel_execution', 'tests.unit.test_agy_delegate_usage', 'tests.unit.test_agy_delegate_cohort_calibration', 'tests.unit.test_agy_delegate_runtime_cohort', 'tests.unit.test_agy_delegate_merge_guard_contract']
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 0.986s
+
+OK

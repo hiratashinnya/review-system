@@ -1,0 +1,8 @@
+Codex (AI) review_fixes による R4 是正後の関連テスト。
+2026-10-13、未commit作業ツリー、Linux/Python3/fake agy。
+python3 -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'
+.............................................
+----------------------------------------------------------------------
+Ran 45 tests in 1.370s
+
+OK

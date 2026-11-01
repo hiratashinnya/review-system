@@ -1,0 +1,27 @@
+............................................F............................................................................................
+======================================================================
+FAIL: test_production_runtime_has_no_unverified_stop_reasons (test_agy_delegate_merge_guard.RuntimeMergeGuardTests.test_production_runtime_has_no_unverified_stop_reasons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<workspace>/tests/unit/test_agy_delegate_merge_guard.py", line 30, in test_production_runtime_has_no_unverified_stop_reasons
+    self.assertEqual(
+AssertionError: Lists differ: ['settings_global_binding_unverified', 'se[295 chars]ied'] != []
+
+First list contains 8 additional elements.
+First extra element 0:
+'settings_global_binding_unverified'
+
++ []
+- ['settings_global_binding_unverified',
+-  'settings_project_binding_and_schema_unverified',
+-  'settings_shared_user_location_and_schema_unverified',
+-  'settings_admin_presence_or_precedence_unverified',
+-  'settings_layer_inventory_incomplete',
+-  'settings_permission_merge_unverified',
+-  'launch_environment_unverified',
+-  'print_timeout_format_unverified'] : Issue #628 が未完了のため意図的に失敗しています。解除条件は #628 の AC。このテストを skip/削除/期待値反転して緑にしない。本番 runtime の未確認停止理由: ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_layer_inventory_incomplete', 'settings_permission_merge_unverified', 'launch_environment_unverified', 'print_timeout_format_unverified']
+
+----------------------------------------------------------------------
+Ran 137 tests in 50.184s
+
+FAILED (failures=1)

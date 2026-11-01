@@ -1,0 +1,13 @@
+commit: 93257bc
+command: UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline python -m unittest tests.unit.test_agy_delegate_cohort_calibration -v
+test_changed_second_binding_and_late_source_do_not_reach_commit (tests.unit.test_agy_delegate_cohort_calibration.CalibrationTests.test_changed_second_binding_and_late_source_do_not_reach_commit) ... ok
+test_missing_observation_and_source_mismatch_are_before_any_child (tests.unit.test_agy_delegate_cohort_calibration.CalibrationTests.test_missing_observation_and_source_mismatch_are_before_any_child) ... ok
+test_real_publication_normal_reader_and_normal_wrapper_connect (tests.unit.test_agy_delegate_cohort_calibration.CalibrationTests.test_real_publication_normal_reader_and_normal_wrapper_connect) ... ok
+test_unknown_global_allow_and_changed_os_snapshot_cannot_publish (tests.unit.test_agy_delegate_cohort_calibration.CalibrationTests.test_unknown_global_allow_and_changed_os_snapshot_cannot_publish) ... ok
+test_visible_commit_durability_warning_is_returned_without_reclassification (tests.unit.test_agy_delegate_cohort_calibration.CalibrationTests.test_visible_commit_durability_warning_is_returned_without_reclassification) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.180s
+
+OK
+

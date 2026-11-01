@@ -1,0 +1,5 @@
+command=UV_CACHE_DIR=/tmp/issue-628-uv-cache UV_PYTHON_DOWNLOADS=never uv run --offline python -m coverage run --data-file=/tmp/agy-singlew-cc77da9.coverage --source=agy_delegate -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'
+exit_code=1
+tests_executed=0
+/home/hiras/.local/share/uv/python/cpython-3.13-linux-x86_64-gnu/bin/python3.13: No module named coverage
+

@@ -1,0 +1,64 @@
+command: TMPDIR=/dev/shm python3 -m unittest discover -s tests/unit -p 'test_agy_delegate*.py'
+HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+tree: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+started_at: 2026-10-21T23:23:29.801077+00:00
+cwd: /home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a
+python: 3.12.3
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+provenance: r6 related log has no command header. Command recovered from TD final-verification procedure; exact r6 invocation is not independently recorded.
+output: stdout and stderr merged without filtering
+[measurement-series-start]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[measurement-before]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+[command output]
+............................................F..........................................................................................
+======================================================================
+FAIL: test_production_runtime_has_no_unverified_stop_reasons (test_agy_delegate_merge_guard.RuntimeMergeGuardTests.test_production_runtime_has_no_unverified_stop_reasons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/.claude/worktrees/agent-a7a35387597db8f8a/tests/unit/test_agy_delegate_merge_guard.py", line 30, in test_production_runtime_has_no_unverified_stop_reasons
+    self.assertEqual(
+AssertionError: Lists differ: ['settings_global_binding_unverified', 'se[260 chars]ied'] != []
+
+First list contains 7 additional elements.
+First extra element 0:
+'settings_global_binding_unverified'
+
++ []
+- ['settings_global_binding_unverified',
+-  'settings_project_binding_and_schema_unverified',
+-  'settings_shared_user_location_and_schema_unverified',
+-  'settings_admin_presence_or_precedence_unverified',
+-  'settings_layer_inventory_incomplete',
+-  'settings_permission_merge_unverified',
+-  'launch_environment_unverified'] : Issue #628 が未完了のため意図的に失敗しています。解除条件は #628 の AC。このテストを skip/削除/期待値反転して緑にしない。本番 runtime の未確認停止理由: ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_layer_inventory_incomplete', 'settings_permission_merge_unverified', 'launch_environment_unverified']
+
+----------------------------------------------------------------------
+Ran 135 tests in 47.467s
+
+FAILED (failures=1)
+
+finished_at: 2026-10-21T23:24:17.435345+00:00
+elapsed_seconds: 47.621735
+[measurement-after]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+state_unchanged: True
+exit=1
+
+[measurement-series-end-before-log-copy]
+git rev-parse HEAD: 038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+git rev-parse HEAD^{tree}: 0d76bde006040960b3c79db1e8436ef8e3034cc0
+git status --porcelain BEGIN
+git status --porcelain END
+measurement_series_valid: True
+exit=1

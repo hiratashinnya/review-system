@@ -1,0 +1,54 @@
+Name                                        Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------
+agy_delegate/__init__.py                        0      0   100%
+agy_delegate/__main__.py                        2      2     0%   3-5
+agy_delegate/artifacts.py                      45      2    96%   19, 54
+agy_delegate/atomic_record_write.py            34      0   100%
+agy_delegate/cli.py                            50      2    96%   40, 42
+agy_delegate/cohort_calibration.py             48      3    94%   39, 55, 59
+agy_delegate/cohort_current_binding.py         22      0   100%
+agy_delegate/cohort_executable.py              22      2    91%   21, 26
+agy_delegate/cohort_fields.py                   6      0   100%
+agy_delegate/cohort_generator.py               48      2    96%   30, 57
+agy_delegate/cohort_offline.py                 35     10    71%   17, 20-21, 28-29, 33-37
+agy_delegate/cohort_paths.py                   44      4    91%   19, 21, 30, 42
+agy_delegate/cohort_private_io.py              38      3    92%   22, 41-42
+agy_delegate/cohort_publication.py             46      0   100%
+agy_delegate/cohort_publication_io.py          22      1    95%   20
+agy_delegate/cohort_publication_types.py        9      0   100%
+agy_delegate/cohort_runtime.py                 36      1    97%   42
+agy_delegate/cohort_schema.py                  46      1    98%   62
+agy_delegate/cohort_storage.py                 43      1    98%   29
+agy_delegate/cohort_validation.py              28      0   100%
+agy_delegate/conversation_continuation.py      17      1    94%   20
+agy_delegate/conversation_records.py           17      0   100%
+agy_delegate/image_source.py                   35      1    97%   25
+agy_delegate/launch_identity.py                13      2    85%   17-18
+agy_delegate/launch_profile.py                 12      0   100%
+agy_delegate/native_paths.py                   31      1    97%   31
+agy_delegate/native_policy.py                   6      0   100%
+agy_delegate/output_contract.py                29      0   100%
+agy_delegate/permission_rules.py                8      0   100%
+agy_delegate/permissions.py                    30      1    97%   37
+agy_delegate/process.py                        32      0   100%
+agy_delegate/records.py                        79      4    95%   21, 30, 36, 77
+agy_delegate/results.py                        50      0   100%
+agy_delegate/runner.py                         77      6    92%   31-33, 80, 86, 88
+agy_delegate/runtime.py                        21      0   100%
+agy_delegate/settings_decoders.py              21      0   100%
+agy_delegate/settings_file_read.py             23      2    91%   21, 31
+agy_delegate/settings_layer_types.py           19      0   100%
+agy_delegate/settings_layers.py                30      5    83%   21-23, 36-37
+agy_delegate/settings_reads.py                 47      5    89%   25, 38-39, 51-52
+agy_delegate/settings_sources.py               37      5    86%   21, 33, 37, 39, 44
+agy_delegate/strict_json.py                    15      1    93%   11
+agy_delegate/types.py                          33      0   100%
+agy_delegate/verified_process.py               16      0   100%
+agy_delegate/version.py                         8      0   100%
+agy_delegate/windows_binding_values.py         24      0   100%
+agy_delegate/windows_probe.py                  21      0   100%
+agy_delegate/workspace_batch.py                25      0   100%
+agy_delegate/workspace_changes.py              39      1    97%   49
+-------------------------------------------------------------------------
+TOTAL                                        1439     69    95%
+

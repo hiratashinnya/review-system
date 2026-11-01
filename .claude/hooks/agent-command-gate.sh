@@ -153,7 +153,7 @@ gate_out="$(mktemp)"
 trap 'rm -f "$tmpfile" "$gate_out"' EXIT
 
 set +e
-AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 - "$tmpfile" > "$gate_out" <<'PYEOF'
+AGENT_COMMAND_GATE_PROJECT_ROOT="$project_root" python3 -I - "$tmpfile" > "$gate_out" <<'PYEOF'
 import json
 import os
 import re
@@ -171,6 +171,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
 from agent_command_gate.merge_command import merge_command_reason
 from agent_command_gate.graphql_tokens import contains_mutation
+from agent_command_gate.launch_origin import launch_origin_reason
 from issue_start.gated_roles import GATED_ROLES, READ_ONLY_ROLES, WRITE_ROLES
 from codex_worktree_exec.roles import CODEX_EXEC_ROLES
 
@@ -885,9 +886,15 @@ def raw_git_denied_reason(tokens):
 
 
 def base_integration_reason(command_text, role):
-    """Recognize Python module options only for the three fixer integration verbs."""
-    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort",
-             "integrate-base-copilot-register"}
+    """PR base 取り込み3verbのロール境界（Issue #706）。
+
+    Issue-pipeline の工程ロール（GATED_ROLES）の中では issue-fixer だけに許可する。
+    pipeline 外（主文脈・general-purpose 等）にはこの制約を波及させない。
+    GitGate 本体はロールを同定しないため、境界はこの呼び出し元 gate が持つ。
+    """
+    if role not in GATED_ROLES or role == "issue-fixer":
+        return None
+    verbs = {"integrate-base", "integrate-base-continue", "integrate-base-abort"}
     for segment in SEGMENT_SPLIT_RE.split(command_text):
         tokens = shell_words(segment) or []
         for index, token in enumerate(tokens):
@@ -903,10 +910,7 @@ def base_integration_reason(command_text, role):
                         cursor += 1
                         module = tokens[cursor] if cursor < len(tokens) else ""
                     if module in {"gitgate", "gitgate.__main__"} and tokens[cursor + 1:cursor + 2] and tokens[cursor + 1] in verbs:
-                        if tokens[cursor + 1] == "integrate-base-copilot-register":
-                            return "Copilot local registration is unavailable on this host"
-                        if role != "issue-fixer":
-                            return "PR base integration is restricted to issue-fixer"
+                        return "PR base integration inside the Issue pipeline is restricted to issue-fixer"
                     break
                 value_option = re.fullmatch(r"-[^cWXm-]*[WX](.*)", option)
                 if value_option:
@@ -1732,6 +1736,19 @@ elif dangerous_token:
         "that env-var prefixes / absolute paths / compound commands can bypass, so this hook denies it "
         "independent of agent_type)."
     )
+elif agent_type == "agy-delegate" and not is_mcp:
+    symbol = dangerous_shell_symbol(command) if isinstance(command, str) else "missing command"
+    tokens = shell_words(command) if isinstance(command, str) and not symbol else None
+    tokens, env_reason = strip_wrappers_or_env_reason(tokens) if tokens else ([], None)
+    if (symbol or env_reason or len(tokens) < 4 or tokens[0] not in PYTHON_HEAD_COMMANDS
+            or tokens[1:3] != ["-m", "agy_delegate"] or tokens[3] not in {"inspect", "run"}):
+        reason = "agent-command-gate (agy-delegate): only python3 -m agy_delegate inspect|run is allowed; use Read for file inspection."
+    else:
+        # 起動元束縛（Codex 版と同一モジュール）: 信頼ルートは hook 位置/CLAUDE_PROJECT_DIR 由来の
+        # AGENT_COMMAND_GATE_PROJECT_ROOT。cwd 系が省略されても実プロセス cwd を検査する。
+        origin_reason = launch_origin_reason(payload, tool_input, os.environ["AGENT_COMMAND_GATE_PROJECT_ROOT"])
+        if origin_reason:
+            reason = f"agent-command-gate (agy-delegate): {origin_reason}."
 elif agent_type not in GATED_ROLES and agent_type != GH_CREATE_ISSUE_ROLE:
     # agent_type が対象ロール以外（欠如を含む・main context 自身がこれに該当）はロール専用判定
     # （層1〜3）の対象外＝常に許可（ヘッダのオーナー判断・不変条件#1）。command 欠落でも許可する

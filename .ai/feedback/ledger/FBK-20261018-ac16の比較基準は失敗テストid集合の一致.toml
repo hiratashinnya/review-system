@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261018-ac16の比較基準は失敗テストid集合の一致"
+topic = "AC16の比較基準は失敗テストID集合の一致"
+theme = "検証・追跡"
+occurred_at = 2026-10-18
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/skills/coverage-html/SKILL.md", ".claude/skills/coverage-html/SKILL.md"]
+supersedes = ""
+
+[[source]]
+issue = 655
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Issue #655 の 1a の独立レビュー（round 7）で、coverage-html 手順が bytecode 指定だけを理由に検査系テストを失敗させないことを、何と比較して判定するかが論点になった。案 (i) が決定として Issue 本文 Scope 5 に記録された。
+'''
+recommendation = '''
+手順の coverage run の失敗 test id 集合を、環境変数なしの unittest discover（同じ commit、-s tests -t .、同じ interpreter）の集合と比較して判定する（案 (i)）。
+'''
+recommendation_reason = '''
+Issue #655 本文 Scope 5 に決定として記録されている。選択肢提示時の理由文はこの記録に残っていない。
+'''
+uncertainty = '''
+逐語はオーナー本人の発言ではなく、Issue #655 本文 Scope 5 の「オーナー決定済み（2026-10-18）」の記述である。オーナーが 2026-10-29 に、今回に限りこの記述を逐語として使ってよいと明示した。オーナーが回答した時点の原文は会話記録から再取得できなかった。
+'''
+owner_verbatim = '''
+手順で全テストを走らせたとき、bytecode 指定だけを理由に検査系テストが失敗しないことを、手順の `coverage run` の失敗 test id 集合が、環境変数なしの `unittest discover`（同じ commit、`-s tests -t .`、同じ interpreter）の集合と一致することで判定する。このため手順の discover に `-t .` を加え、実行 interpreter を `--python` で固定し、`-p` は比較基準と同じ test module の集合になる指定に揃える。bytecode 指定（`PYTHONPYCACHEPREFIX` か `PYTHONDONTWRITEBYTECODE`）の選択とテスト側の干渉への対処は 1b の CP が決める。
+'''
+inferred_reason = '''
+推測：bytecode 指定の副作用だけを検出対象にするため、別の不具合による失敗と区別できる同条件の基準側集合との一致を採ったと考えられる。
+'''

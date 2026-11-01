@@ -1,0 +1,347 @@
+{
+  "recorded_by": "Codex (AI)",
+  "period": "2026-10-25 to 2026-10-26",
+  "record_scope": "through_independently_reviewed_limited_current_four_file_observation",
+  "addition_stop": {
+    "operator_attestation": {
+      "initial_rule_empty": true,
+      "marker_added_once": true,
+      "native_session_exited": true
+    },
+    "operator_evidence_scope": "human_attestation_not_structured_token_or_natural_ui_receipt",
+    "action_exit": 2,
+    "stop_reason": "b2a_current_comparison_not_approved",
+    "cleanup_confirmed": false,
+    "historical_marker_count": 1,
+    "historical_reader_natural": true,
+    "project_fullhash_same_at_addition": false,
+    "project_canonical_same_at_addition": false,
+    "old_guard_other_values_match": false,
+    "other_three_file_comparisons_at_addition": {
+      "global": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "shared": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "cache": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      }
+    },
+    "ui_natural_completion_machine_verified": false,
+    "ui_structured_token_receipt": false
+  },
+  "stop_diagnostic": {
+    "process_exit": 0,
+    "diagnostic_completed": true,
+    "marker_count_at_diagnostic": 1,
+    "reader_natural": true,
+    "counterfactuals": [
+      {
+        "ancestor_depth": 3,
+        "removal_matches_baseline": false,
+        "empty_current_type_matches_baseline": false
+      },
+      {
+        "ancestor_depth": 2,
+        "removal_matches_baseline": false,
+        "empty_current_type_matches_baseline": false
+      },
+      {
+        "ancestor_depth": 1,
+        "removal_matches_baseline": true,
+        "empty_current_type_matches_baseline": false
+      }
+    ],
+    "baseline_before_type": "unknown",
+    "pure_permission_wrapper_proven": false,
+    "prior_worker_receipts_checked": false,
+    "prior_worker_absence": "unknown",
+    "settings_direct_write": false,
+    "cli_launched": false
+  },
+  "limited_recovery_policy": {
+    "owner_explicitly_authorized": true,
+    "native_delete_only_existing_marker_once": true,
+    "symbolic_empty_shapes_authorized": [
+      "R_absent",
+      "R_empty_object",
+      "R_I_empty_object",
+      "R_I_allow_empty_array"
+    ],
+    "requires_marker_zero_all_tabs_empty_outside_canonical_match": true,
+    "original_project_rawbytes_match_guaranteed": false,
+    "settings_direct_write_authorized": false,
+    "old_keeper_termination_authorized": false
+  },
+  "delete_preparation": {
+    "phase": "delete_ready",
+    "independent_before_verified": true,
+    "ui_started_at_preparation": false,
+    "old_keeper_stop_preserved": true,
+    "cleanup_confirmed": false,
+    "historical_marker_count": 1,
+    "outside_canonical_match": true,
+    "prior_worker_absence": "unknown"
+  },
+  "deletion_attestation_and_verify": {
+    "operator_report_scope": "deletion_once_all_tabs_empty_exit_human_report",
+    "attestation_saved": true,
+    "operator_done_exit": 0,
+    "ui_natural_receipt_machine_verified": false,
+    "ui_structured_token_receipt": false,
+    "verify_execution_count": 1,
+    "verify_exit": 2,
+    "verify_reason": "recovery_guard_unverified",
+    "saved_after_stage": {
+      "operator_attestation": true,
+      "stop_record": true,
+      "self_after_comparison": false,
+      "independent_reader_result": false,
+      "independent_frame_metadata": false,
+      "independent_proof": false,
+      "complete": false
+    },
+    "current_machine_observation": {
+      "marker_count": null,
+      "approved_shape": null,
+      "reader_completion_natural": null,
+      "logic_success": null
+    }
+  },
+  "after_observer": {
+    "process_exit": 2,
+    "observer_completed": false,
+    "observer_state": "unknown",
+    "reader_completion_natural": null,
+    "own_os_reader_termination_state": "unknown",
+    "after_data_conditions_match": null,
+    "current_marker_count": null,
+    "current_empty_shape": "unknown",
+    "cleanup_confirmed": false,
+    "independent_proof_saved": false,
+    "new_guard_completion_certified": false,
+    "subsequent_ui_allowed": false
+  },
+  "R48_boundary_probe": {
+    "local_process_exit": 0,
+    "local_stage": "local_boundary_reached",
+    "keeper_process_exit": 0,
+    "keeper_stage": "windows_reader_boundary_not_entered",
+    "capture_four_called": false,
+    "new_windows_process_started": false,
+    "keeper_status_same_before_after": true,
+    "keeper_raw_memory_gate_confirmed_before_after": true,
+    "previous_reader_termination_state": "unknown",
+    "reader_completion_natural": null,
+    "current_marker_count": null,
+    "after_data_conditions_match": null,
+    "phase_advance_performed": false,
+    "independent_proof_saved": false
+  },
+  "findings": {
+    "F-628-01": {
+      "status": "open",
+      "severity": "blocker"
+    },
+    "F-628-23": {
+      "status": "resolved",
+      "severity": "major",
+      "scope": "new_path_preserves_fixed_stage_safe_error_class_private_child_identity_and_receipts",
+      "opened_round": 49,
+      "resolved_round": 52,
+      "past_observer_timeout_or_windows_launch_or_residue_proven": false,
+      "historical_evidence_loss_repaired_retroactively": false,
+      "new_path_same_child_wait_after_timeout_verified_by_independent_source_review": true
+    }
+  },
+  "limits": {
+    "production_runtime_unblocked": false,
+    "production_accepted_version": "1.3.3",
+    "permissions_schema_contract": "unknown",
+    "permission_effect_proven": false,
+    "permissions_array_composition_proven": false,
+    "live_uc_count": 0,
+    "past_original_nonpermissions_equality": "unknown",
+    "tests_added_or_run_by_record_author": false
+  },
+  "windows_process_binding_inventory": {
+    "process_exit": 0,
+    "inventory_completed": true,
+    "stage": "inventory_complete",
+    "startup_receipt_verified": true,
+    "natural_completion_verified": true,
+    "child_exit_code": 0,
+    "stderr_empty": true,
+    "binding_matches": {
+      "cwd": true,
+      "sid": true,
+      "profile": true,
+      "os": true,
+      "exe": true,
+      "exe_hash": false,
+      "target": true
+    },
+    "binding_difference_codes": [
+      "binding_exe_hash_different"
+    ],
+    "fixed_workspace_exists": true,
+    "execution_provider_cwd_is_workspace": false,
+    "execution_process_cwd_is_workspace": false,
+    "actual_cwd_difference_is_binary_change": false,
+    "process_counts_first": {
+      "other_shell": 3,
+      "known_runtime_script": 0,
+      "unreadable_shell_commandline": 0,
+      "agy_gui": 0,
+      "known_readback_script": 0
+    },
+    "process_counts_second": {
+      "other_shell": 3,
+      "known_runtime_script": 0,
+      "unreadable_shell_commandline": 0,
+      "agy_gui": 0,
+      "known_readback_script": 0
+    },
+    "previous_reader_termination_state": "unknown",
+    "reader_settings_observed": false,
+    "current_settings_observed": false,
+    "current_marker_count": null,
+    "current_empty_shape": "unknown",
+    "changed_binary_version": "unknown_not_queried",
+    "prior_failure_same_cause_proven": false,
+    "agy_launched": false,
+    "version_queried": false,
+    "independent_proof_saved": false,
+    "cleanup_confirmed": false,
+    "repeat_pass_performed": false,
+    "binary_change_time": "unknown",
+    "other_shells_classified_safe": false,
+    "known_zero_counts_prove_past_reader_exit": false
+  },
+  "prior_unverified_status_after_windows_inventory": {
+    "marker_count": null,
+    "approved_empty_shape": null,
+    "outside_canonical_match": null,
+    "four_file_comparison": null,
+    "previous_reader_termination_state": "unknown",
+    "cleanup_confirmed": false,
+    "new_guard_completion_certified": false,
+    "subsequent_ui_allowed": false,
+    "old_keeper_stop_preserved_observed_at_R48": true,
+    "old_keeper_raw_memory_gate_confirmed_at_R48": true,
+    "keeper_termination_performed": false,
+    "binary_binding_matches_old_reference": false,
+    "changed_binary_version": "unknown_not_queried",
+    "binary_change_time": "unknown"
+  },
+  "current_four_file_observation": {
+    "process_exit": 0,
+    "observation_completed": true,
+    "stage": "observation_complete",
+    "startup_receipt_verified": true,
+    "natural_completion_verified": true,
+    "child_exit_code": 0,
+    "stderr_empty": true,
+    "marker_exact_count": 0,
+    "files": {
+      "global": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "shared": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "project": {
+        "existence_same": true,
+        "fullhash_same": false,
+        "acl_same": true,
+        "owner_same": true
+      },
+      "cache": {
+        "existence_same": true,
+        "fullhash_same": true,
+        "acl_same": true,
+        "owner_same": true
+      }
+    },
+    "project_present": true,
+    "project_identity_same": true,
+    "project_fullhash_same": false,
+    "project_whole_canonical_same": true,
+    "approved_empty_shape": "root_absent",
+    "root_outside_canonical_same": true,
+    "after_data_conditions_match": true,
+    "original_binding_all_same": false,
+    "binding_matches": {
+      "cwd": true,
+      "sid": true,
+      "profile": true,
+      "os": true,
+      "exe": true,
+      "exe_hash": false,
+      "target": true
+    },
+    "current_exe_hash_stable": true,
+    "current_binary_version": "unknown_not_queried",
+    "process_counts_before": {
+      "agy_gui": 0,
+      "other_shell": 3,
+      "unreadable_shell_commandline": 0,
+      "known_script": 0
+    },
+    "process_counts_after": {
+      "agy_gui": 0,
+      "other_shell": 3,
+      "unreadable_shell_commandline": 0,
+      "known_script": 0
+    },
+    "other_shell_identities_stable": true,
+    "other_shell_purpose": "unknown",
+    "execution_process_cwd_is_workspace": false,
+    "execution_provider_cwd_is_workspace": false,
+    "actual_cwd_difference_is_binary_change": false,
+    "previous_reader_termination_state": "unknown",
+    "cleanup_confirmed": false,
+    "proof_saved": false,
+    "source_engine_application_proven": false,
+    "agy_launched": false,
+    "version_queried": false,
+    "repeat_pass_performed": false,
+    "four_file_double_read_stable": true,
+    "other_shells_classified_safe": false,
+    "historical_reader_natural_completion_proven": false
+  },
+  "current_status": {
+    "observed_marker_count": 0,
+    "observed_approved_empty_shape": "root_absent",
+    "observed_outside_canonical_match": true,
+    "observed_whole_canonical_match": true,
+    "observed_project_rawbytes_match": false,
+    "after_data_conditions_observed": true,
+    "cleanup_confirmed": false,
+    "old_guard_completion_certified": false,
+    "proof_saved": false,
+    "source_engine_application_status": "unproven",
+    "previous_reader_termination_state": "unknown",
+    "current_binary_version": "unknown_not_queried",
+    "original_binding_all_same": false,
+    "original_keeper_stop_automatically_released": false,
+    "original_keeper_phase_or_proof_changed": false,
+    "subsequent_ui_allowed": false
+  }
+}

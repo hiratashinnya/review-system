@@ -5,7 +5,7 @@ This list must mirror decisions **already recorded elsewhere**, not invent new o
 (per the issue #155 task brief: "check how the repo already documents such decisions
 ... before inventing a new mechanism"). The source of truth is
 `.claude/tailoring-registry.md`'s trailing bullet notes; each entry's reason string
-below cites the decision it transcribes (the registry holds the full rationale).
+below cites the decision it transcribes (the registry holds the full rationale; per-entry history: `.ai/rationale/asset-parity-exceptions.md`).
 
 Exemptions are recorded per ``(name, kind, tree)``, never as a blanket per-asset
 exemption: most entries are scoped to the GitHub Copilot (`.github/`) tree because
@@ -35,7 +35,7 @@ class Exemption:
 
 
 _ENV_DEPENDENT = (
-    "agy MCP はローカル CLI／Windows Credential Manager 認証依存のため非移植"
+    "agy 直接実行はローカル CLI／Windows Credential Manager 認証依存のため非移植"
     "（.claude/tailoring-registry.md）"
 )
 _ISSUE_PIPELINE_AGENT_COPILOT = (

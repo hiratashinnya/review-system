@@ -1,13 +1,27 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@6026a29537bc -->
+<!-- synced-from: CLAUDE.md@b47a5e78e51f -->
 <!--
+  PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。main の取り込み時の衝突（冒頭コメント欄）は両側の記録を残して解消し、marker を統合後の値へ更新した。
+
+  `.ai/guidance/common.md` への項追加（2026-10-25・オーナー）: 「作業分離・判断境界」に、ドキュメントと既存コードが食い違うときはコードに従い食い違いを最後の返答で挙げる旨を追加。これを項14として配送する。
+
+  Issue #685（2026-10-31・F-685-51）: `.claude/rules/02-decision-process.md` の起票先判定表
+  「実行環境の面倒を見るフック」へ `issue-start-gate.sh`/`phase-tool-gate.sh`（列挙済みの
+  `issue_start` の gate を起動する薄い起動口）を追記しただけ。下記9は「実行環境フック」を
+  総称で配送しており区分は変わらないため、中核規範（1〜13）には掛からない。本文は変更せず
+  marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録）。
+
+  PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
+
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
   Issue工程分離・role権限・非対話契約。既存の中核規範1〜12は意味を保持し、工程の著作・審査・
   承認境界を新しい項13へ同期した。fixer専用karteとadviserの非承認性も配送する。
   正本集合はpath/NUL/bytes/NUL規約で再計算しmarkerへ反映した。
 
   Issue #632（2026-10-13）: `.claude/rules/05-skills-agents.md` へ Claude Code 専用サブエージェント `gh-create-issue` と handoff Read 規定の例外を追記しただけ。中核規範（1〜12）には掛からず、本文は変更せず marker のみ同期した。
+
+  Issue #606 r4: 05-skills-agents の agy 運用状態を agent 正本参照へ統一した。項1〜12と照合し中核契約の変更なし。本文を維持しmarkerだけ同期。
 
   PR #638 のレビュー是正（2026-10-14）: `CLAUDE.md` 冒頭の subagent 注入対策を、起動可能な17エージェント中
   16エージェントに規定があり、`reconciliation` は規定なしの例外であると明記した。`.claude/hooks/README.md`
@@ -260,7 +274,7 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
    **含有される**（著作・検証エージェント、`prompt_coverage_targets` の14スキル、`dsv2`、
    review_system 本体）＝従来どおり FND/Q/DD ノード＋`doc-system-v2/00-dashboard.md`／
    Q#/DD#＋`docs/dashboard.md`。**含有されない**汎用ハーネス（`issue-pipeline`系・実行環境フック
-   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`等の外部委譲補助・
+   （`.claude/hooks/codex-hook-trust-check.sh` を含む）・`agy-delegate`/`agy_delegate`等の外部委譲補助・
    `blocker_gate`/`pr_merge_gate`/`issue_start`/`branch_source`/`project_status_sync`/`guidance_sync`/
    `defect_metrics`・`asset_parity`/`time_fixture_lint`/`codex_hook_trust`・
    `karte`・`jev_hooks`（TC=`tests/jev_hooks/`、TD/TR/ログ=`jev_hooks/verify/`）・CI 定義）
@@ -294,8 +308,8 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     1a合格後の1b CP/ADR、`test-writer` は2a UT-TD/UT-TCのRed著作を担う。
     `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
     `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
-    `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず、
-    `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
+    `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず
+    （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
     `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
 14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。

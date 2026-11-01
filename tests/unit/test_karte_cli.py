@@ -909,14 +909,12 @@ class TestFindingSchemaIsDeclaredConsistently(unittest.TestCase):
 
 
 class TestKarteWritePathsAreDenied(unittest.TestCase):
-    """Issue #522 レビュー F-522-10: カルテ台帳の deny が ``Edit`` と ``Write`` の**両方**あること。
+    """カルテ台帳の deny は ``Edit(/tmp/_karte/**)`` の1エントリで足りること。
 
-    是正前は ``Edit(/tmp/_karte/**)`` の1件だけで、``Write`` ツールによる**丸ごと上書き**の
-    経路が空いていた（実地確認で ``tmp/_karte/`` 配下へ新規ファイルを作成でき、既存カルテも
-    同じ経路で置き換えられる）。``Edit`` は既存文字列の一致を要求するぶん部分改変に留まるのに対し、
-    ``Write`` は append-only を前提にした台帳そのものを差し替えられるため、塞ぐ必要性は
-    むしろ ``Write`` の方が高い。``.ai/feedback/**`` 側が Edit/Write の両方を登録している
-    （``tests/unit/test_feedback_ledger.py``）のに karte 側だけ片方、という非対称も消す。
+    ``Edit`` 規則は ``Write`` ツールによる丸ごと上書きも覆う（``karte/model.py`` に実測記録）。
+    ``Write(...)`` 専用エントリは Claude Code が "never matches" 警告を出すため置かない
+    （``.ai/feedback/**`` 側も同じ＝``tests/unit/test_feedback_ledger.py``）。
+    経緯は ``.ai/rationale/karte-deny-write-entry.md``。
 
     既知の限界（``karte/model.py`` の docstring と同じ）: この deny は Edit/Write ツール経由の
     書込みだけを塞ぎ、Bash 経由の改変には掛からない。多層防御の一枚であって sandbox ではない。
@@ -930,17 +928,16 @@ class TestKarteWritePathsAreDenied(unittest.TestCase):
         )
         return settings["permissions"]["deny"]
 
-    def test_both_edit_and_write_are_denied_for_the_karte_tree(self):
+    def test_edit_deny_covers_the_karte_tree(self):
+        """Edit 規則が Write も覆う。Write 専用エントリは "never matches" 警告になるため置かない。"""
         deny = self._deny()
-        for entry in ("Edit(/tmp/_karte/**)", "Write(/tmp/_karte/**)"):
-            with self.subTest(entry=entry):
-                self.assertIn(entry, deny)
+        self.assertIn("Edit(/tmp/_karte/**)", deny)
+        self.assertNotIn("Write(/tmp/_karte/**)", deny)
 
-    def test_the_model_docstring_documents_both_verbs(self):
+    def test_the_model_docstring_documents_the_edit_deny(self):
         """実体（settings.json）と説明（docstring）が片方だけ古くならないようにする。"""
         source = inspect.getdoc(model) or ""
         self.assertIn("Edit(/tmp/_karte/**)", source)
-        self.assertIn("Write(/tmp/_karte/**)", source)
 
 
 class TestRender(KarteTestCase):

@@ -1,0 +1,87 @@
+Issue #606 r21 coverage remeasurement only
+UTC_START: 2026-10-21T23:46:34.727334+00:00
+INITIAL STATE (before coverage availability checks)
+
+COMMAND: git rev-parse HEAD
+038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+
+EXIT: 0
+ELAPSED_SECONDS: 0.001732
+
+COMMAND: git rev-parse 'HEAD^{tree}'
+0d76bde006040960b3c79db1e8436ef8e3034cc0
+
+EXIT: 0
+ELAPSED_SECONDS: 0.002081
+
+COMMAND: git status --porcelain
+?? tests/logs/TD-agy-delegate-606-r21-full-unit.txt
+?? tests/logs/TD-agy-delegate-606-r21-merge-guard.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-contract-addon.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-gate-placement.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-independent.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-wrapper.txt
+?? tests/logs/TD-agy-delegate-606-r21-static-checks.txt
+EXIT: 0
+ELAPSED_SECONDS: 0.008281
+INITIAL_STATE_VALIDATION: PASS (exact HEAD/tree; only seven prior untracked logs)
+PRIOR_LOG_SHA256: 3f44083c1925ec1a0cf6a62fa9b9b3e7309f948619fb4b46c4927fcf5149c047  tests/logs/TD-agy-delegate-606-r21-full-unit.txt
+PRIOR_LOG_SHA256: f84c41d0c8d4b6328f9991be2779168a3aacc1227ff0791638b70e902b6c435b  tests/logs/TD-agy-delegate-606-r21-merge-guard.txt
+PRIOR_LOG_SHA256: ca3eec6a77766c3d4346d3b15119bda2f9f2ab34967a26d60555cf5dccb5c97e  tests/logs/TD-agy-delegate-606-r21-related-contract-addon.txt
+PRIOR_LOG_SHA256: a8e7664bdbf16fef21c5dd25b0a07f4268a8b0d8833fd781fcfb20d0bcb7a828  tests/logs/TD-agy-delegate-606-r21-related-gate-placement.txt
+PRIOR_LOG_SHA256: 84ab4baa403508aef5993cd035dc214b62d2d8761e8f0ad8b20e056d191bd61c  tests/logs/TD-agy-delegate-606-r21-related-independent.txt
+PRIOR_LOG_SHA256: 428c8adac4428213eda1c623a8584b5be496990457daf577e9250000d404e892  tests/logs/TD-agy-delegate-606-r21-related-wrapper.txt
+PRIOR_LOG_SHA256: 20d7949ecba1d8f4e8836540a570c124c379fbcba4d95f0a44a5efc26e03405c  tests/logs/TD-agy-delegate-606-r21-static-checks.txt
+CONFIGURATION: existing .coveragerc; no source/config/test edits; no append or import-path changes
+
+COMMAND: TMPDIR=/dev/shm python3 -m coverage --version
+/usr/bin/python3: No module named coverage
+
+EXIT: 1
+ELAPSED_SECONDS: 0.015520
+
+COMMAND: TMPDIR=/dev/shm uv run --offline --with coverage coverage --version
+error: Could not acquire lock
+  Caused by: Could not create temporary file
+  Caused by: Read-only file system (os error 30) at path "/home/hiras/.cache/uv/.tmpTNrq12"
+
+EXIT: 2
+ELAPSED_SECONDS: 0.026716
+
+RESULT: COVERAGE_REMEASUREMENT_UNAVAILABLE
+Neither required availability check succeeded. No coverage run/report/html command executed.
+TEST_COUNT: NOT_MEASURED
+FAILURES: NOT_MEASURED
+ERRORS: NOT_MEASURED
+SKIPPED: NOT_MEASURED
+TOTAL_STATEMENTS: NOT_MEASURED
+TOTAL_MISS: NOT_MEASURED
+TOTAL_COVERAGE_PERCENT: NOT_MEASURED
+COVERAGE_WARNINGS: No coverage warnings observed in availability checks; measurement did not start.
+GENERATED_ARTIFACTS: .coverage absent; htmlcov absent
+
+POST-CHECK STATE (before copying new log)
+COMMAND: git rev-parse HEAD
+038445d0fe9d6c5f73c4fd673a94ca9ce5bde089
+COMMAND: git rev-parse HEAD^{tree}
+0d76bde006040960b3c79db1e8436ef8e3034cc0
+COMMAND: git status --porcelain
+?? tests/logs/TD-agy-delegate-606-r21-full-unit.txt
+?? tests/logs/TD-agy-delegate-606-r21-merge-guard.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-contract-addon.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-gate-placement.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-independent.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-wrapper.txt
+?? tests/logs/TD-agy-delegate-606-r21-static-checks.txt
+
+POST_CHECK_VALIDATION: PASS (exact HEAD/tree; only seven prior untracked logs; all seven prior log SHA256 values unchanged)
+FINAL STATE (after adding new coverage log)
+COMMAND: git status --porcelain
+?? tests/logs/TD-agy-delegate-606-r21-coverage.txt
+?? tests/logs/TD-agy-delegate-606-r21-full-unit.txt
+?? tests/logs/TD-agy-delegate-606-r21-merge-guard.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-contract-addon.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-gate-placement.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-independent.txt
+?? tests/logs/TD-agy-delegate-606-r21-related-wrapper.txt
+?? tests/logs/TD-agy-delegate-606-r21-static-checks.txt

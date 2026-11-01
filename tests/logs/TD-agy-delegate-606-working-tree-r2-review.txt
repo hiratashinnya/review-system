@@ -1,0 +1,230 @@
+COMMAND: python3 -m unittest discover -s tests/unit -p test_agy_delegate*.py
+....................................................
+----------------------------------------------------------------------
+Ran 52 tests in 1.245s
+
+OK
+
+EXIT: 0
+
+COMMAND: python3 -m unittest tests.unit.test_silent_failure_diagnosis_layout tests.unit.test_guidance_sync tests.unit.test_governance_sync
+................................................
+----------------------------------------------------------------------
+Ran 48 tests in 0.566s
+
+OK
+
+EXIT: 0
+
+COMMAND: python3 -m maintainability_lint check
+## ACCEPTED_DEBT (104)
+  .codex/mcp/claude_review/server.py:1 [module-over-100-lines] existing debt fixed at 441 lines and exact content fingerprint
+  asset_parity/inventory.py:1 [module-over-100-lines] existing debt fixed at 158 lines and exact content fingerprint
+  asset_parity/inventory.py:37 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  asset_parity/report.py:1 [module-over-100-lines] existing debt fixed at 259 lines and exact content fingerprint
+  asset_parity/staleness.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  blocker_gate/cli.py:1 [module-over-100-lines] existing debt fixed at 177 lines and exact content fingerprint
+  blocker_gate/cli.py:103 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/cli.py:117 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/closing.py:1 [module-over-100-lines] existing debt fixed at 211 lines and exact content fingerprint
+  blocker_gate/contract.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  blocker_gate/evaluator.py:1 [module-over-100-lines] existing debt fixed at 161 lines and exact content fingerprint
+  blocker_gate/github.py:1 [module-over-100-lines] existing debt fixed at 1117 lines and exact content fingerprint
+  blocker_gate/github.py:107 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:113 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/github.py:246 [comment-over-3-lines] 18 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:1 [module-over-100-lines] existing debt fixed at 297 lines and exact content fingerprint
+  blocker_gate/model.py:11 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:31 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:39 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/model.py:45 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  blocker_gate/resolver.py:1 [module-over-100-lines] existing debt fixed at 495 lines and exact content fingerprint
+  blocker_gate/snapshot.py:1 [module-over-100-lines] existing debt fixed at 219 lines and exact content fingerprint
+  blocker_gate/waiver.py:1 [module-over-100-lines] existing debt fixed at 313 lines and exact content fingerprint
+  branch_source/policy.py:1 [module-over-100-lines] existing debt fixed at 352 lines and exact content fingerprint
+  branch_source/policy.py:41 [data-and-logic-class-cohabitation] data=['BranchSourceResult', 'NewBranchRequest'] logic=['GitHubBranchClient']; place data and behavior in separate files
+  branch_source/policy.py:94 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  branch_source/policy.py:149 [comment-over-3-lines] 12 consecutive comment lines; move rationale to durable documentation
+  ci_anomaly_report/collector.py:1 [module-over-100-lines] existing debt fixed at 234 lines and exact content fingerprint
+  defect_metrics/cli.py:1 [module-over-100-lines] existing debt fixed at 326 lines and exact content fingerprint
+  defect_metrics/cli.py:312 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/collect.py:1 [module-over-100-lines] existing debt fixed at 187 lines and exact content fingerprint
+  defect_metrics/metrics.py:1 [module-over-100-lines] existing debt fixed at 288 lines and exact content fingerprint
+  defect_metrics/metrics.py:45 [comment-over-3-lines] 8 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/metrics.py:55 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/metrics.py:69 [comment-over-3-lines] 13 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/model.py:1 [module-over-100-lines] existing debt fixed at 181 lines and exact content fingerprint
+  defect_metrics/model.py:58 [comment-over-3-lines] 15 consecutive comment lines; move rationale to durable documentation
+  defect_metrics/threshold.py:1 [module-over-100-lines] existing debt fixed at 191 lines and exact content fingerprint
+  feedback_ledger/check.py:1 [module-over-100-lines] existing debt fixed at 454 lines and exact content fingerprint
+  feedback_ledger/check.py:56 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  feedback_ledger/paths.py:1 [module-over-100-lines] existing debt fixed at 200 lines and exact content fingerprint
+  feedback_ledger/status.py:1 [module-over-100-lines] existing debt fixed at 168 lines and exact content fingerprint
+  feedback_ledger/store.py:1 [module-over-100-lines] existing debt fixed at 164 lines and exact content fingerprint
+  gitgate/adopt.py:1 [module-over-100-lines] existing debt fixed at 532 lines and exact content fingerprint
+  gitgate/adopt.py:441 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:1 [module-over-100-lines] existing debt fixed at 379 lines and exact content fingerprint
+  gitgate/cli.py:39 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/cli.py:246 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1 [module-over-100-lines] existing debt fixed at 1649 lines and exact content fingerprint
+  gitgate/worktree.py:153 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1199 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1223 [comment-over-3-lines] 9 consecutive comment lines; move rationale to durable documentation
+  gitgate/worktree.py:1596 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  guidance_sync/sync.py:1 [module-over-100-lines] existing debt fixed at 288 lines and exact content fingerprint
+  guidance_sync/sync.py:28 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/durable_lock.py:1 [module-over-100-lines] existing debt fixed at 129 lines and exact content fingerprint
+  issue_start/gate.py:1 [module-over-100-lines] existing debt fixed at 1285 lines and exact content fingerprint
+  issue_start/gate.py:33 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:44 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  issue_start/gate.py:95 [data-and-logic-class-cohabitation] data=['IsolationOnlyAck', 'IssueStartRequest'] logic=['IssueStartGitHubCollector', 'SnapshotIssueMetadata']; place data and behavior in separate files
+  issue_start/gate.py:978 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/hook.py:1 [module-over-100-lines] existing debt fixed at 190 lines and exact content fingerprint
+  issue_start/hook.py:107 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/session_start.py:1 [module-over-100-lines] existing debt fixed at 118 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:1 [module-over-100-lines] existing debt fixed at 1032 lines and exact content fingerprint
+  issue_start/subagent_hooks.py:806 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:840 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:867 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:881 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  issue_start/subagent_hooks.py:935 [comment-over-3-lines] 8 consecutive comment lines; move rationale to durable documentation
+  issue_start/worktree_ledger.py:1 [module-over-100-lines] existing debt fixed at 856 lines and exact content fingerprint
+  issue_start/worktree_ledger.py:742 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1 [module-over-100-lines] existing debt fixed at 1519 lines and exact content fingerprint
+  karte/cli.py:106 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:673 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1318 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  karte/cli.py:1350 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:1 [module-over-100-lines] existing debt fixed at 1306 lines and exact content fingerprint
+  karte/model.py:122 [comment-over-3-lines] 22 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:151 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:161 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:169 [comment-over-3-lines] 10 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:180 [comment-over-3-lines] 11 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:528 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:538 [comment-over-3-lines] 5 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:774 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:876 [comment-over-3-lines] 25 consecutive comment lines; move rationale to durable documentation
+  karte/model.py:902 [comment-over-3-lines] 4 consecutive comment lines; move rationale to durable documentation
+  karte/paths.py:1 [module-over-100-lines] existing debt fixed at 317 lines and exact content fingerprint
+  karte/similarity.py:1 [module-over-100-lines] existing debt fixed at 241 lines and exact content fingerprint
+  karte/touched.py:1 [module-over-100-lines] existing debt fixed at 105 lines and exact content fingerprint
+  karte_notify/hook.py:1 [module-over-100-lines] existing debt fixed at 175 lines and exact content fingerprint
+  karte_notify/notify.py:1 [module-over-100-lines] existing debt fixed at 346 lines and exact content fingerprint
+  karte_notify/notify.py:86 [comment-over-3-lines] 6 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/cli.py:1 [module-over-100-lines] existing debt fixed at 206 lines and exact content fingerprint
+  project_status_sync/github.py:1 [module-over-100-lines] existing debt fixed at 258 lines and exact content fingerprint
+  project_status_sync/model.py:1 [module-over-100-lines] existing debt fixed at 159 lines and exact content fingerprint
+  project_status_sync/model.py:44 [comment-over-3-lines] 7 consecutive comment lines; move rationale to durable documentation
+  project_status_sync/planner.py:1 [module-over-100-lines] existing debt fixed at 247 lines and exact content fingerprint
+  project_status_sync/report.py:1 [module-over-100-lines] existing debt fixed at 127 lines and exact content fingerprint
+  review_system/io/cli.py:1 [module-over-100-lines] existing debt fixed at 210 lines and exact content fingerprint
+  review_system/parsing/frontmatter.py:1 [module-over-100-lines] existing debt fixed at 192 lines and exact content fingerprint
+  review_system/parsing/lint.py:1 [module-over-100-lines] existing debt fixed at 101 lines and exact content fingerprint
+  review_system/persistence/criteria_repo.py:1 [module-over-100-lines] existing debt fixed at 108 lines and exact content fingerprint
+
+violations=0 accepted_debt=104
+
+EXIT: 0
+
+COMMAND: python3 -m asset_parity check
+asset_parity — cross-platform asset presence matrix
+
+asset                        kind   mode         .github (Copilot)            .codex/agents (Codex CLI agent) .agents/skills (Codex CLI skill)
+----------------------------------------------------------------------------------------------------------------------------------------------
+agy-delegate                 skill  orchestrator exempt                       n/a                          OK
+align                       skill  skill        OK                           n/a                          OK
+architecture-design          skill  skill        OK                           n/a                          OK
+asset-lateral-deploy         skill  orchestrator OK                           n/a                          OK
+asset-pipeline               skill  orchestrator OK                           n/a                          OK
+bloom-model-tier             skill  skill        OK [STALE?]                  n/a                          OK [STALE?]
+branch-hygiene               skill  skill        OK                           n/a                          OK
+codex-review                 skill  orchestrator exempt                       n/a                          exempt
+coverage-html                skill  skill        OK                           n/a                          OK
+docidx                       skill  skill        OK                           n/a                          OK
+domain-model                 skill  skill        OK                           n/a                          OK
+gh-create-issue              skill  skill        exempt                       n/a                          OK
+impl-design-pipeline         skill  orchestrator OK                           n/a                          OK
+issue-pipeline               skill  skill        OK [STALE?]                  n/a                          OK [STALE?]
+mvp-scope                    skill  skill        OK                           n/a                          OK
+native-stacked-pr            skill  skill        OK                           n/a                          OK
+orchestration-design         skill  skill        OK                           n/a                          OK
+prompt-design                skill  skill        OK                           n/a                          OK
+schema-design                skill  skill        OK                           n/a                          OK
+silent-failure-diagnosis     skill  principle    exempt                       n/a                          OK
+spec-pipeline                skill  orchestrator OK                           n/a                          OK
+spec-principles              skill  principle    exempt                       n/a                          OK
+test-strategy                skill  skill        OK                           n/a                          OK
+value-trace                  skill  skill        OK                           n/a                          OK
+agy-delegate                 agent  -            exempt                       OK                           n/a
+analysis-author              agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+asset-auditor                agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+authoring-fanout             agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+design-author                agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+doc-system-config-operator   agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+dsv2-lookup                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+issue-fixer                  agent  -            exempt                       OK                           n/a
+issue-implementer            agent  -            exempt                       OK                           n/a
+pr-reviewer                  agent  -            exempt                       OK                           n/a
+reconciliation-validator     agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+reconciliation              agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+requirements-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+spec-author                  agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+spec-inspector               agent  -            OK                           OK [STALE?]                  n/a
+structured-analysis          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+verification-author          agent  -            OK [STALE?]                  OK [STALE?]                  n/a
+
+41 assets checked; 0 MISSING; 29 staleness flag(s)
+
+Orphans in mirror trees (present in a mirror, no .claude/ parity-seed counterpart — informational only, not counted above):
+  .github (Copilot): doc-system-v2-authoring (agent)
+  .codex/agents (Codex CLI agent): doc-system-v2-authoring (agent)
+  .agents/skills (Codex CLI skill): doc-system-config (skill)
+
+Staleness flags (heuristic, false positives OK — worth a human/LLM look):
+  bloom-model-tier @ .github (Copilot): size ratio 2.1x > 2.0x threshold (39 vs 19 lines)
+  bloom-model-tier @ .agents/skills (Codex CLI skill): last-commit gap 35d > 30d threshold
+  issue-pipeline @ .github (Copilot): size ratio 5.1x > 2.0x threshold (66 vs 13 lines)
+  issue-pipeline @ .agents/skills (Codex CLI skill): size ratio 3.1x > 2.0x threshold (66 vs 21 lines)
+  analysis-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  analysis-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  analysis-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  asset-auditor @ .github (Copilot): last-commit gap 49d > 30d threshold
+  asset-auditor @ .github (Copilot): size ratio 2.1x > 2.0x threshold (25 vs 12 lines)
+  asset-auditor @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  asset-auditor @ .codex/agents (Codex CLI agent): size ratio 3.1x > 2.0x threshold (25 vs 8 lines)
+  authoring-fanout @ .github (Copilot): last-commit gap 35d > 30d threshold
+  authoring-fanout @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  design-author @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  doc-system-config-operator @ .github (Copilot): last-commit gap 48d > 30d threshold
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  doc-system-config-operator @ .codex/agents (Codex CLI agent): size ratio 2.9x > 2.0x threshold (20 vs 7 lines)
+  dsv2-lookup @ .github (Copilot): last-commit gap 49d > 30d threshold
+  dsv2-lookup @ .codex/agents (Codex CLI agent): last-commit gap 49d > 30d threshold
+  dsv2-lookup @ .codex/agents (Codex CLI agent): size ratio 3.3x > 2.0x threshold (23 vs 7 lines)
+  reconciliation-validator @ .github (Copilot): last-commit gap 48d > 30d threshold
+  reconciliation-validator @ .codex/agents (Codex CLI agent): last-commit gap 48d > 30d threshold
+  reconciliation @ .github (Copilot): last-commit gap 35d > 30d threshold
+  reconciliation @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  requirements-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  spec-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  spec-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  spec-inspector @ .codex/agents (Codex CLI agent): size ratio 2.5x > 2.0x threshold (20 vs 8 lines)
+  structured-analysis @ .github (Copilot): last-commit gap 35d > 30d threshold
+  structured-analysis @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  structured-analysis @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+  verification-author @ .github (Copilot): last-commit gap 35d > 30d threshold
+  verification-author @ .codex/agents (Codex CLI agent): last-commit gap 35d > 30d threshold
+  verification-author @ .codex/agents (Codex CLI agent): size ratio 2.4x > 2.0x threshold (19 vs 8 lines)
+
+EXIT: 0
+
+COMMAND: python3 -m guidance_sync check
+guidance-sync: check OK
+
+EXIT: 0

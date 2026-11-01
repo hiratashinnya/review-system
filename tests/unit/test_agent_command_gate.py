@@ -1732,8 +1732,8 @@ class AgentCommandGateTests(unittest.TestCase):
     def test_missing_interpreter_denies(self):
         # `python3` 自体が見つからない/実行できない場合も「stdout 空 ＋ 非0終了」になる。
         broken = self._hook_copy_with(
-            'python3 - "$tmpfile" > "$gate_out"',
-            'python3-does-not-exist - "$tmpfile" > "$gate_out"',
+            'python3 -I - "$tmpfile" > "$gate_out"',
+            'python3-does-not-exist -I - "$tmpfile" > "$gate_out"',
         )
         decision = json.loads(
             self._run_hook_file(broken, "pr-reviewer", "git push origin HEAD").stdout

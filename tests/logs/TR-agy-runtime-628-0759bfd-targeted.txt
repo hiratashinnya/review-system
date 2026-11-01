@@ -1,0 +1,18 @@
+source_commit=0759bfd7436a35704dd3fc2cc73db647fcdd0985
+product_source_commit=30c2b0e9400c47d91433625e61df5dd49118721f
+command=uv run --offline --with coverage python -m unittest tests.unit.test_agy_delegate_cli tests.unit.test_agy_delegate_measured tests.unit.test_agy_delegate_runner tests.unit.test_agy_delegate_runtime_candidates
+exit_code=1
+........F..................
+======================================================================
+FAIL: test_output_gate_removed_but_uncalibrated_runtime_prevents_launch (tests.unit.test_agy_delegate_measured.MeasuredContractTests.test_output_gate_removed_but_uncalibrated_runtime_prevents_launch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/hiras/ws_claude/review-system/tmp/worktrees/issue-628/tests/unit/test_agy_delegate_measured.py", line 86, in test_output_gate_removed_but_uncalibrated_runtime_prevents_launch
+    self.assertIn("launch_environment_unverified", result.reasons)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'launch_environment_unverified' not found in ['settings_global_binding_unverified', 'settings_project_binding_and_schema_unverified', 'settings_shared_user_location_and_schema_unverified', 'settings_admin_presence_or_precedence_unverified', 'settings_executable_layout_unsupported', 'settings_layer_inventory_incomplete', 'runtime_cohort_unverified']
+
+----------------------------------------------------------------------
+Ran 27 tests in 12.226s
+
+FAILED (failures=1)

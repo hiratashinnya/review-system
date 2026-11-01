@@ -1,0 +1,4 @@
+commit: 05b9297
+Synthetic PowerShell policy comparison (settings reads/writes/agy0)
+{"settings_reads":0,"agy_launches":0,"settings_writes":0,"cases":12,"passed":true}
+

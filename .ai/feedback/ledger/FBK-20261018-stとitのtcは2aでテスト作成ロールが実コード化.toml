@@ -1,0 +1,38 @@
+schema = "feedback-ledger/v1.3"
+id = "FBK-20261018-stとitのtcは2aでテスト作成ロールが実コード化"
+topic = "STとITのTCは2aでテスト作成ロールが実コード化"
+theme = "実行体制"
+occurred_at = 2026-10-18
+decision_point = "policy"
+overridden_role = "main-thread"
+divergence = "approval"
+confidence_of_inference = "medium"
+recorded_by = "Claude Code (AI)"
+affected_assets = [".ai/agents/test-writer.md", ".claude/agents/test-writer.md"]
+supersedes = ""
+
+[[source]]
+issue = 655
+pr = 0
+round = 0
+finding_ids = []
+
+[narrative]
+background = '''
+Issue #655 の 1a の独立レビュー（round 2）で、ST/IT の TC を誰が実コード化するかが論点になった。test-writer の契約文言は UT のみを対象としている。オーナー決定の日付は Issue #655 本文 Scope 1 の記述（2026-10-18）に拠る。
+'''
+recommendation = '''
+2a で test-writer が tests/<tool>/ に実コード化する。test-writer の契約文言は UT のみのため承認済みの例外とし、契約文言の隙間は別 Issue（#663）で扱う。ac-designer の是正を同一 branch で継続する契約の欠落は #662 で扱う。
+'''
+recommendation_reason = '''
+Issue #655 本文 Scope 1 に決定として記録されている。選択肢提示時の理由文はこの記録に残っていない。
+'''
+uncertainty = '''
+オーナーが回答した時点の AskUserQuestion の原文は会話記録から再取得できなかった。逐語は Issue #655 本文 Scope 1 の記述による。原案を示した role は主文脈と推定した。
+'''
+owner_verbatim = '''
+ST/IT の TC の実コード化は、2a で `test-writer` が `tests/<tool>/` に行う。`test-writer` の契約文言は UT のみのため、承認済みの例外とする。契約文言の隙間は別 Issue（#663）で扱う。あわせて、ac-designer の是正を同一 branch で継続する契約の欠落は #662 で扱う。
+'''
+inferred_reason = '''
+推測：契約を直す作業を本 Issue に取り込まず、例外承認で 2a の進行を止めずに、契約の隙間は別 Issue に分けることを優先した判断。
+'''
