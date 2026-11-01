@@ -26,7 +26,6 @@
     "issue_start/subagent_hooks.py|af8a35a9aabb2dd3": 1,
     "issue_start/worktree_ledger.py|09c0c483bbb9b752": 1,
     "karte/cli.py|57b1a37f983c7336": 1,
-    "karte/cli.py|cdbe1cef9b3d9028": 1,
     "karte/cli.py|d87fcc8e5318e874": 1,
     "karte/model.py|170b9a65e7d9ef73": 1,
     "karte/model.py|1d9305ee49f03ed5": 1,
@@ -134,12 +133,12 @@
       "sha256": "5c5b459cdfaf32aa4c1b8f6a2dc5d2ca60bb3ddaa760bf1c7da5f77af1ec252b"
     },
     "karte/cli.py": {
-      "line_count": 1248,
-      "sha256": "fc3799715bf8fb7ed305292c69d2e82234c75ebc7cb9596ddbe067a2f367c466"
+      "line_count": 1237,
+      "sha256": "55c96a8f6cc7dd0e71fc583688bf1d0f69715428befa5304dccb415c2c059ad1"
     },
     "karte/model.py": {
       "line_count": 1303,
-      "sha256": "6f47ee76cfd33f4f585e49f2816b9f425f1a3bffbd5cf78c0526ebb1f6bbd4fe"
+      "sha256": "4b38210bb50862666903017b88a50eb3702d30fc706c3018fb1590e7d3002c5e"
     },
     "karte/similarity.py": {
       "line_count": 241,
@@ -151,7 +150,7 @@
     },
     "karte_notify/hook.py": {
       "line_count": 175,
-      "sha256": "be55d1a0b653dd1ef0cd37b2d842612027cfae366ccbb077f87dadc908465f51"
+      "sha256": "19b59b17b844d07aff6812b480260ebc20513ac2f1dccb0d9634fc55196d7a28"
     },
     "karte_notify/notify.py": {
       "line_count": 276,
