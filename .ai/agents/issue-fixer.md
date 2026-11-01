@@ -67,7 +67,7 @@ Issue-pipeline の工程ロールで取り込みを使えるのは issue-fixer �
 
 代わりに、STOP の原因（取り込みを中止した場合はそのことと `integrate-base-abort` が返した退避 tar のパス）をハンドオフの `stop_reason` に書き、もう一度停止する（2回目の停止は `stop_hook_active` による再入として通る）。作業ツリーの回収はこの停止が通り、かつ自分のハンドオフがあるときに行われるので、ハンドオフは必ず書いてから停止する。
 
-Step 1 の診断登録より後に取り込みが原因で STOP する場合（push 後に base が進んだ等）は、この例外に当たらない。登録済みの Attempt は実際に試したアプローチなので、通常どおり実際の結果で `close-attempt` によりクローズしてから停止する。是正の差分が無ければ `--outcome no-change`、あれば実測差分に応じた outcome を使い、実測差分が是正の変更だけを指すよう必要なら `--base` か `--diff-file` で範囲を明示する。
+Step 1 の診断登録より後に取り込みが原因で STOP する場合（push 後に base が進んだ等）は、この例外に当たらない。登録済みの Attempt は実際に試したアプローチなので、未クローズの Attempt があれば通常どおり実際の結果で `close-attempt` によりクローズしてから停止する。Step 2 の push 直後に既にクローズ済みなら（push 後に base が進んだ例はこれに当たる）、`close-attempt` はクローズ済みの Attempt を拒否し、`karte check` も通るので、そのまま停止できる。未クローズの Attempt をクローズするとき、是正の差分が無ければ `--outcome no-change`、あれば実測差分に応じた outcome を使い、実測差分が是正の変更だけを指すよう必要なら `--base` か `--diff-file` で範囲を明示する。
 
 ## Step 1: Diagnose（コード編集の前に必須）
 

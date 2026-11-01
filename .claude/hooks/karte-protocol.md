@@ -69,8 +69,8 @@ Step 0 の後・診断より前に行い、その衝突解消の編集は是正�
 残り、再 dispatch 後の是正が類似判定の飽和で拒否されうるうえ、クローズ済みの Attempt が後の
 診断前編集を `karte check` に通してしまう。STOP の原因（中止した場合は退避 tar のパスも）を
 ハンドオフの `stop_reason` に書き、もう一度停止する。
-`append` より後の STOP はこの例外に当たらず、登録済みの Attempt を通常どおり実際の結果で
-`close-attempt` してから停止する。
+`append` より後の STOP はこの例外に当たらず、未クローズの Attempt があれば通常どおり実際の結果で
+`close-attempt` してから停止する（push 直後に既にクローズ済みなら、そのまま停止できる）。
 詳細は `.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」。
 
 ## `{issue, round}` の出所
