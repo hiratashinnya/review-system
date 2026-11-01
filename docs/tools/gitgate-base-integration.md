@@ -2,9 +2,7 @@
 
 `gitgate integrate-base` / `integrate-base-continue` / `integrate-base-abort` は、**OPEN PR の base を、その PR の head ブランチの checkout へ取り込み、必要な衝突を解消して確定する**ための操作である。設計目標は善意の利用者・AI による誤操作の防止であり、悪意ある実行者の迂回を阻止すること（sandbox・耐タンパ性）ではない。
 
-本書が現行契約である。policy 2.0 は Issue #706 のオーナー決定による MAJOR 改訂で、#594（PR #600）・#629（PR #640）の設計判断（`.ai/rationale/gitgate-base-integration-594.md`・`.ai/rationale/gitgate-copilot-base-integration-629.md`）に優先する。両文書は履歴として保持する。#706 の判断経緯は `.ai/rationale/gitgate-base-integration-706.md`。
-
-policy 2.1 は Issue #716 により、PR の `base.sha` と現在の base branch 先端が異なる場合を許容し、先端を branch API と fresh fetch で照合する MINOR 改訂である。
+本書が現行契約である。判断経緯は `.ai/rationale/gitgate-base-integration-706.md` と `.ai/rationale/gitgate-base-integration-716.md` を参照する。
 
 ## 使い方
 

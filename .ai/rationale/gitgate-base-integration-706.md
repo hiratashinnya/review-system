@@ -4,6 +4,7 @@
 
 現行契約は `docs/tools/gitgate-base-integration.md`（policy 2.1）。本書は #594 / #629 の設計判断
 （`gitgate-base-integration-594.md`・`gitgate-copilot-base-integration-629.md`）を置き換えた理由を残す。
+policy 2.0 は Issue #706 のオーナー決定による MAJOR 改訂であり、#594（PR #600）・#629（PR #640）の設計判断に優先した。両文書は履歴として保持する。後続の policy 2.1 の経緯は `gitgate-base-integration-716.md` に記す。
 
 ## オーナー決定（要約）
 
