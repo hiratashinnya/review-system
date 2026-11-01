@@ -52,7 +52,7 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 ## PR base の取り込み
 
-`docs/tools/gitgate-base-integration.md`（policy 2.0）の固定経路だけを使う。`integrate-base` →衝突編集（解消に必要な周辺 tracked ファイル・新規ファイル・生成物は `gitgate add` で明示 stage）→`integrate-base-continue`、中止は `integrate-base-abort`。中止した後は作業を止め、`integrate-base-abort` が返した退避 tar のパスを含めて STOP して報告する（tar の取り出し・中止後に残る新規ファイルの片付けは fixer には行えない。分担は同文書「中止と回復」）。GitGate はテストを実行しないので、解消結果の検証は fixer の通常の検証手順で行う。仕様判断ができない衝突は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit を使わない。
+`docs/tools/gitgate-base-integration.md`（policy 2.0）の固定経路だけを使う。`integrate-base` →衝突編集（解消に必要な周辺 tracked ファイル・新規ファイル・生成物は `gitgate add` で明示 stage）→`integrate-base-continue`、中止は `integrate-base-abort`。中止した後は作業を止め、`integrate-base-abort` が返した退避 tar のパスを含めて STOP して報告する（tar の取り出しは fixer には行えない。中止した作業ツリーで取り込みをやり直さない。再開は新しい作業ツリーへの再 dispatch で行い、分担は同文書「中止と回復」）。GitGate はテストを実行しないので、解消結果の検証は fixer の通常の検証手順で行う。仕様判断ができない衝突は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit を使わない。
 
 Issue-pipeline の工程ロールで取り込みを使えるのは issue-fixer だけ（呼び出し元の command gate が判定する）。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) に従う（Codex wrapper は Issue #603 で退役済み）。raw Git や別の host 入口で代替しない。
 
