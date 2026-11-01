@@ -1,3 +1,5 @@
+> 注記（Issue #706）: 本記録が参照する `tests/unit/test_base_copilot.py`（および関連する `gitgate/base_copilot.py` 等）は Issue #706 で削除された。本記録は履歴として当時のまま保持する。
+
 # PR #640 main統合後の独立ローカルレビュー（Codex）
 
 対象: f2a968b6cf78d0ca54ac1e45c167bb706a91615c。初回実装・是正・再検証担当と別コンテキストで実施。既存sessionのモデル設定を継承し、系統/層の新選択やresolved ID生成は行っていない。
