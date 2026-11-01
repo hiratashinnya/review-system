@@ -22,7 +22,7 @@ additionalContext`` は AI のコンテキストへ入るだけで、その後�
 
 依存仕様:
   * GitHub Issue #512
-  * :mod:`karte_notify.notify`（通知要否の判定・既読スナップショット I/O・検出対象コマンド抽出）
+  * :mod:`karte_notify.notify`（通知要否の判定・既読スナップショット I/O）／:mod:`karte_notify.trigger`（トリガー検出）
   * ``karte/cli.py::_status_payload``（``karte status --json`` の出力スキーマ）
 """
 

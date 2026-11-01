@@ -30,7 +30,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, model, paths, similarity, touched
+from karte import cli, model, paths, similarity, touched, verb_support
 
 _HAS_GIT = shutil.which("git") is not None
 
@@ -1467,11 +1467,11 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
         (self.broken / ".git").write_text("this-is-not-a-gitdir-line\n", encoding="utf-8")
 
     def test_module_level_repo_root_is_not_evaluated_at_import(self):
-        self.assertIsNone(cli._REPO_ROOT)
+        self.assertIsNone(verb_support._REPO_ROOT)
 
     def test_main_returns_exit_error_without_traceback(self):
         errors = io.StringIO()
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+        with mock.patch.object(verb_support, "_PACKAGE_ROOT", self.broken):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
                 code = cli.main(["status", "--issue", "1"])
         self.assertEqual(code, cli.EXIT_ERROR)
@@ -1488,7 +1488,7 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
             with self.subTest(func=func.__name__):
                 errors = io.StringIO()
                 args = argparse.Namespace(issue="1", **kwargs)
-                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                with mock.patch.object(verb_support, "_PACKAGE_ROOT", self.broken):
                     with contextlib.redirect_stdout(io.StringIO()):
                         with contextlib.redirect_stderr(errors):
                             code = func(args)
@@ -1507,7 +1507,7 @@ class TestRepoRootIsResolvedLazily(unittest.TestCase):
         )
         for argv in argv_cases:
             with self.subTest(verb=argv[0]):
-                with mock.patch.object(cli, "_PACKAGE_ROOT", self.broken):
+                with mock.patch.object(verb_support, "_PACKAGE_ROOT", self.broken):
                     with contextlib.redirect_stdout(io.StringIO()):
                         with contextlib.redirect_stderr(io.StringIO()):
                             code = cli.main(argv)
@@ -1666,7 +1666,7 @@ class TestIngestFromStdin(KarteTestCase):
         """公開 CLI 面（``--from -``）でも通ること。"""
         buffer = io.StringIO()
         errors = io.StringIO()
-        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+        with mock.patch.object(verb_support, "_REPO_ROOT", self.root):
             with mock.patch.object(sys, "stdin", io.StringIO(_report(("new", HARMFUL)))):
                 with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                     code = cli.main(["ingest-review", "--issue", "307", "--round", "1",
@@ -2098,7 +2098,7 @@ class TestCliOverArgv(KarteTestCase):
     def _main(self, *argv):
         buffer = io.StringIO()
         errors = io.StringIO()
-        with mock.patch.object(cli, "_REPO_ROOT", self.root):
+        with mock.patch.object(verb_support, "_REPO_ROOT", self.root):
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                 code = cli.main(list(argv))
         return code, buffer.getvalue(), errors.getvalue()
@@ -2430,7 +2430,7 @@ class TestLinkedWorktreeConvergence(unittest.TestCase):
         buffer = io.StringIO()
         errors = io.StringIO()
         ns = argparse.Namespace(issue="307", **kwargs)
-        with mock.patch.object(cli, "_REPO_ROOT", resolved):
+        with mock.patch.object(verb_support, "_REPO_ROOT", resolved):
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors):
                 code = func(ns)
         return code, buffer.getvalue(), errors.getvalue()
@@ -2471,7 +2471,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
 
     ここでは実 git の main リポジトリ＋実 linked worktree（``git worktree add``）を用意し、
     linked worktree 側の変更が ``close-attempt``（既定 ``--base HEAD``）で正しく実測される
-    ことを固定する。``mock.patch.object(cli, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
+    ことを固定する。``mock.patch.object(verb_support, "_PACKAGE_ROOT", ...)`` は「``karte`` パッケージが
     今どの worktree で動いているか」の代替にすぎない（production では isolated worktree
     自体に ``karte/`` の実体チェックアウトがあるため ``Path(__file__)`` が自然にそこを指す）。
     ``git diff`` 自体は実プロセスへ投げるので、cwd 解決ロジック（:func:`cli._diff_cwd`）は
@@ -2575,7 +2575,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
     def test_close_attempt_measures_the_invoking_worktrees_own_change(self):
         self._seed_open_finding()
 
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.linked):
+        with mock.patch.object(verb_support, "_PACKAGE_ROOT", self.linked):
             code, out, err = self._run(
                 cli.cmd_close_attempt,
                 attempt=None,
@@ -2605,7 +2605,7 @@ class TestDiffCwdResolvesToInvokingWorktree(unittest.TestCase):
         """
         self._seed_open_finding()
 
-        with mock.patch.object(cli, "_PACKAGE_ROOT", self.main_repo):
+        with mock.patch.object(verb_support, "_PACKAGE_ROOT", self.main_repo):
             code, _out, err = self._run(
                 cli.cmd_close_attempt,
                 attempt=None,

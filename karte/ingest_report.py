@@ -1,6 +1,5 @@
 """取り込み結果を標準出力へ整形する。"""
 
-from . import ingest_checks
 from .ingest_types import IngestResult
 
 
@@ -18,7 +17,7 @@ def print_report(result: IngestResult) -> None:
         print(f"  解消（レポートで `status: resolved` と明示された）: {', '.join(sorted(outcome.resolved))}")
     if outcome.excluded:
         print(f"  重複判定の明示的除外（distinct_from）: {'; '.join(outcome.excluded)}")
-    print(f"  未解消: {', '.join(sorted(ingest_checks.open_ids(karte))) or '(なし)'}")
+    print(f"  未解消: {', '.join(sorted(karte.open_ids())) or '(なし)'}")
     out_of_scope = sorted(item.id for item in karte.open_findings() if item.scope == "out")
     if out_of_scope:
         # Issue #495: スコープ外の申告も同じ列に入ったことを取り込み時点で見せる。

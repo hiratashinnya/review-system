@@ -86,12 +86,11 @@ verb:
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import sys
 from pathlib import Path
 
-from . import active_pointer, ingest_checks, ingest_review, model, paths, similarity, verb_support
+from . import active_pointer, ingest_review, model, paths, similarity, verb_support
 from . import touched as touched_mod
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND, EXIT_OK, EXIT_SATURATED
@@ -100,37 +99,19 @@ from .touched import TouchedError
 
 STALL_ROUNDS = 3  # 同一 finding_id がこのラウンド数連続で未解消なら「無進捗」
 
-# `karte` パッケージが置かれているディレクトリ（＝呼び出し元 worktree root の候補）。
-# `karte` パッケージ自体は呼び出し元 worktree にチェックアウトされて実行される
-# （`issue-implementer`/`issue-fixer` は isolated worktree で走る前提）ため、この値は
-# 「今この process がどの worktree で動いているか」を指す。台帳解決（`_repo_root`）は
-# これを `main_worktree_root()` で main worktree へ変換するが、diff 計算（`_diff_cwd`）は
-# 変換前のこの値をそのまま使う——両者を同じ変換に流用しない（Issue #437）。
-_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-
-# repo-root のオーバーライド点。**既定は None（＝未解決）**で、実際の導出は
-# `_repo_root` が呼ばれたときに行う（K-12 の遅延評価）。
-_REPO_ROOT = None
-
 
 def _fail_close(func):
-    """``cmd_*`` を「例外を投げず終了コードを返す」境界にする。
+    """``cmd_*`` を終了コードを返す境界にする。境界の実体は :func:`verb_support.fail_close`。
 
-    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ
-    fail-close 挙動を得る）。``main`` にだけ ``try/except`` を置くと、フックや
-    テストのように ``cmd_*`` を直接呼ぶ経路では例外が素通りし、「拒否されたのに
-    exit code が返らない」＝判定不能になる。ガードの効力を呼び出し経路に依存させない。
+    ここは cli 固有の ``TouchedError`` を足すだけの薄い包み。別モジュールの verb
+    （``extra_registrars``）は ``verb_support.fail_close`` を自前で適用する。
     """
+    return verb_support.fail_close(func, extra_errors=(TouchedError,))
 
-    body = func
-    if func.__name__ in {"cmd_append", "cmd_close_attempt"}:
 
-        @functools.wraps(func)
-        def body(args) -> int:
-            with paths.writer_lock(_repo_root(args)):
-                return func(args)
-
-    return verb_support.fail_close(body, extra_errors=(TouchedError,))
+def _locked_fail_close(func):
+    """:func:`_fail_close` に加え、verb 全体を共有 writer lock の中で実行する（台帳へ追記する verb 用）。"""
+    return verb_support.fail_close(func, extra_errors=(TouchedError,), locked=True)
 
 
 # --- 共通ヘルパ --------------------------------------------------------------
@@ -155,7 +136,7 @@ def _repo_root(args) -> Path:
     結果をキャッシュしない（呼び出しごとに数回の ``.git`` 参照で済み、キャッシュすると
     プロセス内で worktree を跨ぐテスト・フックの挙動が呼び出し順に依存するため）。
     """
-    return verb_support.repo_root_of(args, default=_REPO_ROOT, package_root=_PACKAGE_ROOT)
+    return verb_support.repo_root_of(args)
 
 
 def _diff_cwd(args) -> Path:
@@ -169,14 +150,13 @@ def _diff_cwd(args) -> Path:
     diff が常に空になる。結果、Issue #355 の空 diff fail-close（本来は正しい安全装置）が、
     isolated worktree から実行するたび spurious に発火していた（Issue #437）。
 
-    ``_repo_root`` が ``main_worktree_root(_PACKAGE_ROOT)`` で変換するのに対し、ここでは
-    :func:`paths.invoking_worktree_root` で実在確認だけを通した ``_PACKAGE_ROOT`` を
-    そのまま使う——``_PACKAGE_ROOT`` は「``karte`` パッケージが今どの worktree で
-    動いているか」を指す値であり、変換前の時点で既に呼び出し元 worktree のルートである。
+    ``_repo_root`` が main worktree へ変換するのに対し、ここでは
+    :func:`verb_support.invoking_worktree`（``karte`` パッケージが今動いている worktree を
+    実在確認だけ通して変換せず返す）を使う。
     ``args.repo_root`` override（テスト専用・K-12）は台帳解決専用のパラメータなので
     ここでは参照しない——実運用でこの値を上書きする公開経路は存在しない。
     """
-    return paths.invoking_worktree_root(_PACKAGE_ROOT)
+    return verb_support.invoking_worktree()
 
 
 def _resolve_issue(args) -> int:
@@ -364,11 +344,10 @@ def _view_of(karte: model.Karte, attempt: model.Attempt) -> similarity.AttemptVi
     )
 
 
-
-
 def _priors_for(karte: model.Karte, finding_ids) -> list:
     """``finding_ids`` のうち **未解消** のものを共有する過去 Attempt の投影を返す。"""
-    relevant = {fid for fid in finding_ids if fid in ingest_checks.open_ids(karte)}
+    open_ids = karte.open_ids()
+    relevant = {fid for fid in finding_ids if fid in open_ids}
     views = []
     for attempt in karte.attempts:
         if relevant & set(attempt.finding_ids):
@@ -429,7 +408,7 @@ def _saturated_groups(karte: model.Karte) -> list:
     ``members`` は「その再試行が衝突する Attempt 番号」（自分自身を含む）で、同じ
     ``members`` を持つ候補は先に現れた 1 件に畳む（同一グループを重複表示しない）。
     """
-    open_ids = ingest_checks.open_ids(karte)
+    open_ids = karte.open_ids()
     relevant = [
         attempt for attempt in karte.attempts if open_ids & set(attempt.finding_ids)
     ]
@@ -459,7 +438,7 @@ def _saturated_groups(karte: model.Karte) -> list:
 def _group_directive(karte: model.Karte, candidate_number: int, hits, candidate) -> str:
     """飽和したアプローチの転換指令（``render`` / ``close-attempt`` の表示用）。"""
     attempt = karte.attempt(candidate_number)
-    open_ids = ingest_checks.open_ids(karte) & set(attempt.finding_ids if attempt else [])
+    open_ids = karte.open_ids() & set(attempt.finding_ids if attempt else [])
     return similarity.build_directive(
         candidate, hits, open_ids, subject_label="飽和したアプローチ"
     ).text()
@@ -626,7 +605,7 @@ def cmd_render(args) -> int:
 # --- verb: append -------------------------------------------------------------
 
 
-@_fail_close
+@_locked_fail_close
 def cmd_append(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -665,7 +644,8 @@ def cmd_append(args) -> int:
     priors = _priors_for(karte, finding_ids)
     hits = similarity.find_hits(new_view, priors)
     if similarity.is_saturated(hits):
-        open_targets = {fid for fid in finding_ids if fid in ingest_checks.open_ids(karte)}
+        open_ids = karte.open_ids()
+        open_targets = {fid for fid in finding_ids if fid in open_ids}
         print(similarity.build_directive(new_view, hits, open_targets).text())
         print(
             "（Attempt は書き込んでいない。転換したアプローチで `append` をやり直すこと）"
@@ -692,7 +672,7 @@ def cmd_append(args) -> int:
 # --- verb: close-attempt ------------------------------------------------------
 
 
-@_fail_close
+@_locked_fail_close
 def cmd_close_attempt(args) -> int:
     issue = _resolve_issue(args)
     path, karte = _load(args, issue)
@@ -1154,7 +1134,10 @@ def cmd_status(args) -> int:
 
 
 def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
-    """``extra_registrars``＝``(subparsers, add_issue)`` を受けて verb を足す関数の列（別モジュールの verb 用）。"""
+    """``extra_registrars``＝``(subparsers, add_issue)`` を受けて verb を足す関数の列（別モジュールの verb 用）。
+
+    登録した verb は ``verb_support.fail_close`` を自前で適用する（``main`` も最後の境界を張る）。
+    """
     parser = argparse.ArgumentParser(
         prog="karte",
         description="是正ループの診断カルテ（tmp/_karte/issue-<N>.md）を操作する",
@@ -1242,7 +1225,13 @@ def build_parser(extra_registrars=()) -> argparse.ArgumentParser:
 
 
 def main(argv=None, extra_registrars=()) -> int:
-    """薄いディスパッチャ。終了コードへの変換は各 ``cmd_*``（:func:`_fail_close`）が担う。"""
+    """薄いディスパッチャ。終了コードへの変換は各 ``cmd_*``（:func:`_fail_close`）が担う。
+
+    ``extra_registrars`` で登録された verb は ``verb_support.fail_close`` を自前で適用するのが
+    原則だが、適用漏れや例外が終了コード契約の外へ漏れないよう、ここでも最後の境界を張る。
+    """
     parser = build_parser(extra_registrars)
     args = parser.parse_args(argv)
-    return args.func(args)
+    return verb_support.fail_close(args.func, extra_errors=(TouchedError,))(args)
+
+

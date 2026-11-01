@@ -6,10 +6,6 @@
 from . import model
 
 
-def open_ids(karte: model.Karte) -> set:
-    return {item.id for item in karte.open_findings()}
-
-
 def invalid_distinct_refs(karte: model.Karte, seen: set, finding_id: str, item) -> list:
     """``distinct_from`` の参照先が実在するか（K-05 のエスケープハッチを監査可能に保つ）。
 

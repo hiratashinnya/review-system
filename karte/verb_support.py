@@ -9,21 +9,30 @@ from .active_pointer import read_active
 from .errors import KarteNotFound, KarteUsageError
 from .exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 
+# `karte` パッケージが置かれているディレクトリ（＝呼び出し元 worktree root の候補）。
+# 台帳解決（`repo_root_of`）は main worktree へ変換するが、diff 計算（`invoking_worktree`）は
+# 変換前のこの値をそのまま使う——両者を同じ変換に流用しない（Issue #437）。
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
+# repo-root のオーバーライド点（テスト専用）。**既定は None（＝未解決）**で、導出は
+# `repo_root_of` が呼ばれたときに行う（K-12 の遅延評価）。全 verb がこの 1 箇所を通る。
+_REPO_ROOT = None
 
-def fail_close(func, extra_errors=()):
+
+def fail_close(func, extra_errors=(), locked=False):
     """``cmd_*`` を「例外を投げず終了コードを返す」境界にする。
 
-    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ
-    fail-close 挙動を得る）。``main`` にだけ ``try/except`` を置くと、フックやテストのように
-    ``cmd_*`` を直接呼ぶ経路では例外が素通りし、拒否されたのに終了コードが返らない。
+    verb 単位が終了コードの境界（＝呼び出し側は ``main`` 経由でも直呼びでも同じ fail-close
+    挙動を得る）。``locked=True`` は台帳の書き換え全体を共有 writer lock の中で行う。
     """
     refusals = (KarteUsageError, paths.KartePathError, model.KarteFormatError, OSError, *extra_errors)
 
     @functools.wraps(func)
     def wrapper(args) -> int:
         try:
+            if locked:
+                with paths.writer_lock(repo_root_of(args)):
+                    return func(args)
             return func(args)
         except KarteNotFound as exc:
             print(f"未検出: {exc}", file=sys.stderr)
@@ -35,17 +44,19 @@ def fail_close(func, extra_errors=()):
     return wrapper
 
 
-def repo_root_of(args, default=None, package_root=None) -> Path:
-    """台帳の repo-root。``args.repo_root``（テスト専用の上書き）、``default``、main worktree の順。
-
-    ``package_root``＝``karte`` パッケージが動いている worktree（既定はこのファイルの親）。
-    """
+def repo_root_of(args) -> Path:
+    """台帳の repo-root。``args.repo_root``（テスト専用の上書き）、``_REPO_ROOT``、main worktree の順。"""
     override = getattr(args, "repo_root", None)
     if override:
         return Path(override).resolve()
-    if default is not None:
-        return Path(default)
-    return paths.main_worktree_root(package_root or _PACKAGE_ROOT)
+    if _REPO_ROOT is not None:
+        return Path(_REPO_ROOT)
+    return paths.main_worktree_root(_PACKAGE_ROOT)
+
+
+def invoking_worktree() -> Path:
+    """``karte`` が今動いている worktree のルート（``git diff`` の cwd 用。main へは収束させない）。"""
+    return paths.invoking_worktree_root(_PACKAGE_ROOT)
 
 
 def resolve_issue(args, repo_root, hint="") -> int:

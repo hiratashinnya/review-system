@@ -25,7 +25,7 @@ def ingest_locked(repo_root, issue, round_no, report_text) -> int:
         )
 
     review = model.parse_review(report_text, issue)
-    previously_open = ingest_checks.open_ids(karte)
+    previously_open = karte.open_ids()
     collected = ingest_accept.collect_accepted(karte, review, issue)
     errors = list(collected.errors)
 

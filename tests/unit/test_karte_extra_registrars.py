@@ -1,8 +1,13 @@
 """``build_parser`` / ``main`` の ``extra_registrars``：別モジュールの verb を足せること。"""
 
+import contextlib
+import io
 import unittest
 
 from karte import cli
+from karte.errors import KarteNotFound, KarteUsageError
+from karte.model import KarteFormatError
+from karte.path_errors import KartePathError
 
 
 def _register_probe(subparsers, add_issue):
@@ -36,6 +41,34 @@ class TestExtraRegistrars(unittest.TestCase):
                     ["--finding-ids", "F-1-01", "--root-cause", "x", "--change-kind", "logic",
                      "--targets", "a.py::f"] if verb == "append" else []
                 ) + (["--outcome", "fixed"] if verb == "close-attempt" else [])).func)
+
+
+def _registrar_raising(exc):
+    def register(subparsers, add_issue):
+        verb = subparsers.add_parser("boom", help="例外を投げる verb")
+
+        def _raise(args):
+            raise exc
+
+        verb.set_defaults(func=_raise)
+
+    return register
+
+
+class TestExtraVerbFailClose(unittest.TestCase):
+    """登録 verb が何を投げても ``main`` は終了コード契約の中に収める。"""
+
+    def _main(self, exc):
+        with contextlib.redirect_stderr(io.StringIO()):
+            return cli.main(["boom"], extra_registrars=(_registrar_raising(exc),))
+
+    def test_refusal_errors_become_exit_error(self):
+        for exc in (KarteUsageError("u"), KartePathError("p"), KarteFormatError("f"), OSError("o")):
+            with self.subTest(exc=type(exc).__name__):
+                self.assertEqual(cli.EXIT_ERROR, self._main(exc))
+
+    def test_not_found_becomes_exit_not_found(self):
+        self.assertEqual(cli.EXIT_NOT_FOUND, self._main(KarteNotFound("n")))
 
 
 if __name__ == "__main__":

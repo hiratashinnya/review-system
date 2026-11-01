@@ -1,16 +1,16 @@
 """``ingest-review`` の各段が受け渡す結果の型（データのみ。ロジックは持たない）。"""
 
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
-from .model import Karte
+from .model import Karte, ReviewFinding
 
 
 class AcceptedFinding(NamedTuple):
-    """取り込める指摘 1 件。``item`` は :class:`karte.model.ReviewFinding`。"""
+    """取り込める指摘 1 件。"""
 
     finding_id: str
-    item: Any
+    item: ReviewFinding
     is_new: bool
 
 
@@ -30,16 +30,16 @@ class Rejected(NamedTuple):
 
 
 class CollectResult(NamedTuple):
-    accepted: list
-    errors: list
+    accepted: list[AcceptedFinding]
+    errors: list[str]
 
 
 class IngestOutcome(NamedTuple):
     """反映結果。``excluded`` は ``distinct_from`` の除外ペア（監査用）。"""
 
-    created: list
-    resolved: list
-    excluded: list
+    created: list[str]
+    resolved: list[str]
+    excluded: list[str]
 
 
 class IngestResult(NamedTuple):
@@ -49,5 +49,5 @@ class IngestResult(NamedTuple):
     path: Path
     issue: int
     round_no: int
-    accepted: list
+    accepted: list[AcceptedFinding]
     outcome: IngestOutcome

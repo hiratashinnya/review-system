@@ -649,13 +649,13 @@ class Karte:
 
     # --- 参照 ---
     def finding(self, finding_id: str):
-        for item in self.findings:
-            if item.id == finding_id:
-                return item
-        return None
+        return next((item for item in self.findings if item.id == finding_id), None)
 
     def open_findings(self) -> list:
         return [item for item in self.findings if item.is_open]
+
+    def open_ids(self) -> set:
+        return {item.id for item in self.open_findings()}
 
     def remediation_findings(self) -> list:
         """**この PR で是正が求められている未解消 finding**（Issue #503・単一の集合）。
