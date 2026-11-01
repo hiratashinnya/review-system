@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, handoff_path, owner_decision, paths, reviewer_cli, scope_ledger, verb_support
+from karte import cli, handoff_path, owner_decision, paths, pointer_round, reviewer_cli, scope_ledger, verb_support
 from karte.errors import KarteUsageError
 from karte.path_errors import KartePathError
 
@@ -189,7 +189,10 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
 
     def test_u2_and_u4_broken_pointer_round_fails_closed(self):
         self._activate()
-        for text in ('{"issue": 375, "round": "x"}\n', '{"issue": 375}\n', '{"issue": 375, "round": -1}\n'):
+        for text in (
+            '{"issue": 375, "round": "x"}\n', '{"issue": 375}\n', '{"issue": 375, "round": -1}\n',
+            '{"issue": 375, "round": "²"}\n', '{"issue": 375, "round": "٣"}\n',  # 非 ASCII 数字
+        ):
             with self.subTest(pointer=text):
                 self._pointer(text)
                 code, _, err = self._ingest(_report())
@@ -200,7 +203,7 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
     def test_u4_pointer_issue_mismatch_is_refused(self):
         self._pointer('{"issue": 1, "round": 0}\n')
         with self.assertRaises(KarteUsageError):
-            verb_support.next_round(self.root, self.issue)
+            pointer_round.next_round(self.root, self.issue)
 
     def test_u3_retry_after_failed_ledger_write_does_not_mistake_new_scope_for_owner_override(self):
         self._activate()
@@ -211,6 +214,71 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertEqual("in", self._karte().finding(f"F-{self.issue}-01").scope)
         self.assertEqual(cli.EXIT_OK, self._ingest(report, "pr-reviewer--r2.md")[0])
         self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+
+    def test_r1_owner_scope_decided_on_a_finding_without_declared_record_is_kept(self):
+        self.assertEqual(cli.EXIT_OK, self._main_context_ingest_round(1, _report(scope="in"))[0])
+        self.assertEqual(cli.EXIT_OK, self._decide(scope="out")[0])
+        code, out, _ = self._ingest(_report(f"F-{self.issue}-01", scope="in"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_OK, code)
+        self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+        self.assertIn(f"F-{self.issue}-01", out)  # 保持したことが取り込み出力に出る
+
+    def test_r2_non_ascii_digit_pointer_round_is_a_refusal_not_a_traceback(self):
+        self._pointer('{"issue": 375, "round": "²"}\n')
+        with self.assertRaises(KarteUsageError):
+            pointer_round.next_round(self.root, self.issue)
+
+    def test_r3_append_keeps_the_file_valid_and_newline_terminated(self):
+        self._activate()
+        self._ingest(_report())
+        path = self._declared_path()
+        path.write_text(path.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8")  # 末尾改行なし
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
+        text = path.read_text(encoding="utf-8")
+        self.assertTrue(text.endswith("\n"))
+        self.assertEqual(2, len(text.splitlines()))
+        self.assertEqual({f"F-{self.issue}-01"}, set(scope_ledger.latest_declared(self.issue, self.root)))
+
+    def test_r3_corrupt_declared_scope_names_the_repair_and_the_repair_restores_service(self):
+        self._activate()
+        self._ingest(_report())
+        path = self._declared_path()
+        good = path.read_text(encoding="utf-8")
+        path.write_text(good + '{"round": 2, "id": "F-375-01", "sco', encoding="utf-8")  # 途中切れの末尾行
+        code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("--repair-declared-scope", err)
+        out_code, out, _ = self._run(reviewer_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_OK, out_code)
+        self.assertIn("1 件", out)
+        self.assertTrue(path.with_name(path.name + ".bak").is_file())
+        self.assertEqual(good, path.read_text(encoding="utf-8"))
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
+
+    def test_r5_activate_pointer_round_zero_works_for_main_context_ingest_review(self):
+        self._activate()
+        path = self.root / "tmp" / "review-main.md"
+        path.write_text(_report(), encoding="utf-8")
+        code, _, _ = self._run(cli.cmd_ingest_review, issue=str(self.issue), round=None, source=str(path))
+        self.assertEqual(cli.EXIT_OK, code)
+        self.assertEqual([1], self._karte().finding(f"F-{self.issue}-01").rounds)
+
+    def test_r6_docstrings_no_longer_point_at_removed_names(self):
+        root = Path(__file__).resolve().parents[2]
+        self.assertNotIn("KARTE_ALLOWED_SUBCOMMANDS", (root / "karte/model.py").read_text(encoding="utf-8"))
+        self.assertNotIn("6 verb", (root / "karte/__init__.py").read_text(encoding="utf-8"))
+
+    def test_r7_reviewer_ingest_parses_the_ledger_only_once(self):
+        self._activate()
+        self._ingest(_report())
+        with mock.patch.object(cli.model, "parse", wraps=cli.model.parse) as parse:
+            self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
+        self.assertEqual(1, parse.call_count)
+
+    def _main_context_ingest_round(self, round_no, text):
+        path = self.root / "tmp" / f"review-main-{round_no}.md"
+        path.write_text(text, encoding="utf-8")
+        return self._run(cli.cmd_ingest_review, issue=str(self.issue), round=str(round_no), source=str(path))
 
     def test_u5_reviewer_verbs_do_not_import_from_cli(self):
         for module in (reviewer_cli, owner_decision, verb_support):

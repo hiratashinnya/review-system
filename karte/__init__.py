@@ -36,8 +36,10 @@
     （候補の finding_ids でスコープした priors）に適用する（K-09）。
   * :mod:`karte.touched`    — 実測 touched-set（変更ファイル＋変更シンボル）の算出。
     ``close-attempt`` が取り込み、次ラウンド以降の類似判定の実測信号になる。
-  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` /
-    ``close-attempt`` / ``check`` / ``status``）。
+  * :mod:`karte.cli`        — 組み込みの verb（``ingest-review`` / ``render`` / ``append`` /
+    ``close-attempt`` / ``check`` / ``status``）。``extra_registrars`` で別モジュールの verb を足せる。
+  * :mod:`karte.reviewer_cli` — ``ingest-reviewer``（レビューア本人の取り込み）と主文脈専用の
+    ``activate`` / ``decide``（Issue #375）。共通部品は :mod:`karte.verb_support`。
 
 標準ライブラリのみ（外部依存なし）。
 

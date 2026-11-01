@@ -652,9 +652,10 @@ F-431-07・飽和 Attempt 3,5)を本文から再現できないため。
 ## stdin 事前フィルタ(パフォーマンス最適化・F-512-07)
 
 `karte-notify.sh` は shell 側で stdin を一度だけ読み、`ingest-review`（`ingest-reviewer` を含む）/
-`close-attempt`/`karte decide` の部分文字列を含まない場合は python を起動せず `exit 0` する。
+`close-attempt`/`decide` の部分文字列を含まない場合は python を起動せず `exit 0` する（`TRIGGER_RE` は
+`karte` と verb の間の複数空白・タブを許すので、連結語ではなく語単体で見る）。
 python 側の `trigger.TRIGGER_RE`
-はこの2語のいずれかを部分文字列として要求するため、shell 側で不在と判定した入力は python 側
+はこの3語（ingest-review・close-attempt・decide）のいずれかを部分文字列として要求するため、shell 側で不在と判定した入力は python 側
 でも必ず不一致になる(偽陰性を生まない安全な事前フィルタ)。対象外の Bash/ctx 呼び出し(大半)
 ごとに python インタプリタを起動するコストを削るだけの最適化であり、判定ロジック自体は
 python 側に一本化したまま複製しない。

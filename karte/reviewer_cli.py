@@ -4,12 +4,13 @@
 ``tmp/_handoff/pr-reviewer--*.md`` に限る（Issue #375）。
 """
 
-from . import handoff_path, ingest_review, model, owner_decision, paths, scope_ledger
+from . import handoff_path, ingest_review, model, owner_decision, paths, scope_ledger_repair
 from .active_pointer import write_active
 from .errors import KarteNotFound
 from .exit_codes import EXIT_OK
 from .reviewer_policy import ReviewerIngestPolicy
-from .verb_support import fail_close, load_karte, next_round, repo_root_of, resolve_issue
+from .pointer_round import next_round
+from .verb_support import fail_close, load_karte, repo_root_of, resolve_issue
 
 
 @fail_close
@@ -21,19 +22,27 @@ def cmd_ingest_reviewer(args) -> int:
         round_no = next_round(repo_root, issue)
         policy = ReviewerIngestPolicy(repo_root, issue, round_no)
         code = ingest_review.ingest_locked(repo_root, issue, round_no, report, policy)
-        if code == EXIT_OK:
-            _, karte = load_karte(repo_root, issue)
-            overridden = scope_ledger.overridden(karte, scope_ledger.latest_declared(issue, repo_root))
-            if overridden:
-                print(f"  オーナーが覆した scope（レビューア申告と台帳が不一致）: {', '.join(overridden)}")
+    if code == EXIT_OK and policy.kept_owner_scope:
+        kept = ", ".join(policy.kept_owner_scope)
+        print(f"  オーナーが覆した scope を保持（レビューア申告と台帳が不一致）: {kept}")
     return code
 
 
 @fail_close
 def cmd_activate(args) -> int:
-    """進行ポインタを対象 Issue へ向ける（round は台帳の取り込み済み最新。台帳が無ければ 0）。"""
+    """進行ポインタを対象 Issue へ向ける（round は台帳の取り込み済み最新。台帳が無ければ 0）。
+
+    ``--repair-declared-scope`` は壊れた申告 scope の原本を復旧する（主文脈専用・ポインタは触らない）。
+    """
     repo_root = repo_root_of(args)
     issue = paths.validate_issue(args.issue)
+    if getattr(args, "repair_declared_scope", False):
+        with paths.writer_lock(repo_root):
+            dropped = scope_ledger_repair.repair(issue, repo_root)
+        print(f"=== activate --repair-declared-scope: issue-{issue} 除いた壊れた行 {len(dropped)} 件 ===")
+        for line in dropped:
+            print(f"  {line}")
+        return EXIT_OK
     with paths.writer_lock(repo_root):
         try:
             _, karte = load_karte(repo_root, issue)
@@ -72,6 +81,10 @@ def register(subparsers, add_issue) -> None:
 
     activate = subparsers.add_parser("activate", help="進行ポインタを Issue に向ける（主文脈専用）")
     activate.add_argument("--issue", required=True, help="Issue 番号")
+    activate.add_argument(
+        "--repair-declared-scope", action="store_true",
+        help="壊れた申告 scope の原本の行を除いて復旧する（元は .bak に残す）",
+    )
     activate.set_defaults(func=cmd_activate)
 
     decide = subparsers.add_parser("decide", help="オーナー決定を台帳へ記録する（主文脈専用）")

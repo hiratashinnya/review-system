@@ -17,6 +17,7 @@ class ReviewerIngestPolicy:
         # 判定の基準は「このラウンドより前」の申告だけ（同一ラウンドの再試行を冪等にする）。
         self.declared_before = scope_ledger.latest_declared(issue, repo_root, before_round=round_no)
         self.declared_now = {}
+        self.kept_owner_scope = []  # 台帳の scope を保持した finding ID（＝オーナーの覆しとみなしたもの）
 
     def check(self, review) -> list:
         """オーナー専権キーを含むブロックを全件列挙する（1 件ずつ往復させない）。"""
@@ -29,12 +30,22 @@ class ReviewerIngestPolicy:
         ]
 
     def apply(self, finding, item, is_new) -> None:
-        """scope だけをレポート値で更新する。disposition 系は触らず、オーナーの覆しは保持する。"""
+        """scope だけをレポート値で更新する。disposition 系は触らず、オーナーの覆しは保持する。
+
+        台帳の scope が「直近のレビューア申告」と食い違えば、オーナーが覆したものとして保持する。
+        申告の記録が無い既存 finding（``ingest-review`` で取り込まれたもの）は、台帳の scope を
+        オーナー確定値とみなして保持する——決定を失わない側（fail-close）に倒す。
+        """
         self.declared_now[finding.id] = item.scope
-        previous = self.declared_before.get(finding.id)
-        overridden_by_owner = not is_new and previous is not None and finding.scope != previous
-        if not overridden_by_owner:
+        if is_new:
             finding.scope = item.scope
+            return
+        previous = self.declared_before.get(finding.id)
+        if previous is None or finding.scope != previous:
+            if finding.scope != item.scope:
+                self.kept_owner_scope.append(finding.id)
+            return
+        finding.scope = item.scope
 
     def persist(self, round_no) -> None:
         scope_ledger.record_declared(self.issue, self.repo_root, round_no, self.declared_now)
