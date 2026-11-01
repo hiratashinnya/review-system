@@ -203,8 +203,7 @@ def _resolve_ingest_round(args, issue: int) -> int:
             f"進行ポインタが指す issue-{active['issue']} と対象 issue-{issue} が食い違う"
             "（--round を明示するか、対象 Issue の取り込みからやり直す）"
         )
-    # ポインタの round は「最後に取り込んだラウンド」で、0 は未取込（`activate` が書く）。
-    return verb_support.parse_int(active["round"], "round", minimum=0) + 1
+    return _validate_round(active["round"]) + 1
 
 
 def _resolve_check_round(args, issue: int) -> int:

@@ -37,6 +37,27 @@ class TestParseInt(unittest.TestCase):
                     cli._validate_attempt_number(value)
 
 
+class TestHugeDigitStrings(unittest.TestCase):
+    """桁数が多すぎる数字列は int() の変換上限で ValueError になる。fail-close に収める（L3）。"""
+
+    HUGE = "9" * 6000
+
+    def test_parse_int_raises_usage_error_for_huge_digit_strings(self):
+        with self.assertRaises(KarteUsageError):
+            verb_support.parse_int(self.HUGE, "round")
+
+    def test_validate_round_and_attempt_raise_usage_error_for_huge_digit_strings(self):
+        with self.assertRaises(KarteUsageError):
+            cli._validate_round(self.HUGE)
+        with self.assertRaises(KarteUsageError):
+            cli._validate_attempt_number(self.HUGE)
+
+    def test_error_message_is_truncated(self):
+        with self.assertRaises(KarteUsageError) as caught:
+            verb_support.parse_int(self.HUGE, "round")
+        self.assertLess(len(str(caught.exception)), 200)
+
+
 class TestRoundAndRootResolution(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="karte-vs-")).resolve()
@@ -55,9 +76,10 @@ class TestRoundAndRootResolution(unittest.TestCase):
         with self.assertRaises(KarteUsageError):
             cli._resolve_check_round(self._args(issue="1", round="²"), 1)
 
-    def test_pointer_round_zero_means_not_yet_ingested(self):
+    def test_pointer_round_zero_is_rejected_by_ingest_review_as_before(self):
         paths.active_path(self.root, create_dir=True).write_text('{"issue": 7, "round": 0}\n', encoding="utf-8")
-        self.assertEqual(1, cli._resolve_ingest_round(self._args(issue="7", round=None), 7))
+        with self.assertRaises(KarteUsageError):
+            cli._resolve_ingest_round(self._args(issue="7", round=None), 7)
 
     def test_repo_root_override_applies_to_every_verb_through_one_place(self):
         args = argparse.Namespace()

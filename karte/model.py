@@ -461,7 +461,7 @@ def parse_disposition(block: Block) -> Disposition:
     **既知の限界（オーナー判断そのものは機械強制していない・PR #496 F-495-04）**:
     ``waived_by``/``waived_reason`` は自由記述のスカラであり、**書いた主体がオーナー本人か
     どうかを機械側は区別しない**。``ingest-review`` を実行するのは主文脈（AI）であり、
-    `.claude/hooks/agent-command-gate.sh` の ``KARTE_SUBCOMMANDS_BY_ROLE`` が締め出して
+    `.claude/hooks/agent-command-gate.sh` の karte 許可 verb の表が締め出して
     いるのは是正当事者ロールだけである。``deferred_to`` も :data:`DEFERRED_TO_RE` の
     **形式**だけを検査し、指す Issue が実在するかは検証しない。したがってここで強制して
     いるのは**記録**であって**オーナー判断**ではない——多層防御の一枚であって sandbox では

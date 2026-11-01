@@ -66,9 +66,13 @@ def parse_int(value, label: str, minimum: int = 1) -> int:
     終了コード契約の外へ漏れる。
     """
     text = str(value)
-    if not (text.isascii() and text.isdigit()) or int(text) < minimum:
-        raise KarteUsageError(f"{label} は {minimum} 以上の整数: {value!r}")
-    return int(text)
+    try:
+        number = int(text) if text.isascii() and text.isdigit() else -1
+    except ValueError:  # 桁数が多すぎる（int の変換上限）
+        number = -1
+    if number < minimum:
+        raise KarteUsageError(f"{label} は {minimum} 以上の整数: {text[:40]!r}")
+    return number
 
 
 def resolve_issue(args, repo_root, hint="") -> int:

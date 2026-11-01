@@ -82,7 +82,7 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 - `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
-  `.claude/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは
+  `.claude/hooks/agent-command-gate.sh` の karte 許可 verb の表が締め出しているのは
   是正当事者ロール（`issue-fixer` 等）だけである。
 - `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
   検証しない**。
@@ -265,7 +265,7 @@ python3 -m karte check [--issue <N>] [--round <R>]
 `expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
 （`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
 `ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` の
-`KARTE_ALLOWED_SUBCOMMANDS`）。
+karte 許可 verb の表）。
 
 ## `harm_detail` の内容 lint（Issue #511）
 
