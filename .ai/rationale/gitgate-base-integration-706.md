@@ -2,7 +2,7 @@
 
 対象: https://github.com/hiratashinnya/review-system/issues/706
 
-現行契約は `docs/tools/gitgate-base-integration.md`（policy 2.0）。本書は #594 / #629 の設計判断
+現行契約は `docs/tools/gitgate-base-integration.md`（policy 2.1）。本書は #594 / #629 の設計判断
 （`gitgate-base-integration-594.md`・`gitgate-copilot-base-integration-629.md`）を置き換えた理由を残す。
 
 ## オーナー決定（要約）

@@ -35,8 +35,7 @@ class TargetRejectionTests(Fixture):
         cases = [(("number",), 99, "PR_NOT_OPEN"), (("state",), "closed", "PR_NOT_OPEN"),
                  (("head", "ref"), "other", "HEAD_BRANCH_MISMATCH"),
                  (("base", "ref"), "fix", "HEAD_BRANCH_MISMATCH"),
-                 (("head", "sha"), "a" * 40, "LIVE_OID_MISMATCH"),
-                 (("base", "sha"), "b" * 40, "LIVE_OID_MISMATCH")]
+                 (("head", "sha"), "a" * 40, "LIVE_OID_MISMATCH")]
         for keys, value, pattern in cases:
             with self.subTest(keys=keys):
                 self.api = type(self.api)(self.head, self.base)
@@ -56,7 +55,7 @@ class TargetRejectionTests(Fixture):
         self.start_args[-3] = self.base
         self.assert_rejected("HEAD_OID_MISMATCH")
         self.start_args[-3] = self.head
-        self.api.pull["base"]["sha"] = self.start_args[-1] = self.head
+        self.api.base_tip = self.start_args[-1] = self.head
         self.assert_rejected("FETCH_OID_MISMATCH")
 
     def test_dirty_detached_and_competing_operations_are_rejected(self):
@@ -80,6 +79,26 @@ class TargetRejectionTests(Fixture):
         self.assertEqual(git(self.work, "status", "--porcelain"), "")
         self.assertIsNone(load(self.work))
 
+    def test_base_tip_or_pr_retarget_changes_during_fetch_are_rejected(self):
+        for change in ("tip", "retarget"):
+            with self.subTest(change=change):
+                self.api = type(self.api)(self.head, self.base)
+                original = self.api.pull_request
+                calls = 0
+
+                def moving_pull(repository, number):
+                    nonlocal calls
+                    calls += 1
+                    if calls == 2:
+                        if change == "tip":
+                            self.api.base_tip = "c" * 40
+                        else:
+                            self.api.pull["base"]["ref"] = "release"
+                    return original(repository, number)
+
+                with mock.patch.object(self.api, "pull_request", side_effect=moving_pull):
+                    self.assert_rejected("LIVE_OID_MISMATCH|PR_CHANGED_DURING_FETCH")
+
     def test_option_injection_rejected(self):
         for args in (["--strategy", "ours"], ["--repository", REPOSITORY],
                      self.start_args + ["--pr", "10"]):
@@ -100,15 +119,26 @@ class PendingRejectionTests(Fixture):
             self.start()
 
     def test_base_moved_or_pr_retargeted_during_resolution_is_rejected(self):
-        for field, value in (("sha", "c" * 40), ("ref", "release")):
-            with self.subTest(field=field):
-                original = self.api.pull["base"][field]
-                self.api.pull["base"][field] = value
-                with self.assertRaises(BaseIntegrationError):
-                    self.continue_()
-                self.api.pull["base"][field] = original
-                self.assertEqual(git_path(self.work, "MERGE_HEAD").read_text().strip(), self.base)
+        self.api.base_tip = "c" * 40
+        with self.assertRaisesRegex(BaseIntegrationError, "LIVE_OID_MISMATCH"):
+            self.continue_()
+        self.api.base_tip = self.base
+        self.api.pull["base"]["ref"] = "release"
+        with self.assertRaisesRegex(BaseIntegrationError, "BASE_REF_CHANGED"):
+            self.continue_()
+        self.api.pull["base"]["ref"] = "main"
+        self.assertEqual(git_path(self.work, "MERGE_HEAD").read_text().strip(), self.base)
         self.assert_committed(self.continue_())
+
+    def test_legacy_pending_can_abort_but_cannot_continue(self):
+        record = load(self.work)
+        record.pop("base_ref")
+        record["policy_version"] = "gitgate-base-integration/2.0"
+        import json
+        state_path(self.work).write_text(json.dumps(record))
+        with self.assertRaisesRegex(BaseIntegrationError, "LEGACY_OPERATION_ABORT_REQUIRED"):
+            self.continue_()
+        self.assertEqual(self.abort()["status"], "aborted")
 
     def test_unmerged_index_outside_record_is_rejected(self):
         record = load(self.work)
