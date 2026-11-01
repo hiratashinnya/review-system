@@ -144,7 +144,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - 是正は初回実装担当ではなく、レビュー指摘を受ける是正担当へ差し戻す。レビュー結果を先に記録し、是正担当は診断してから変更する。
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
 - **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** Claude Code での手順は次のとおり。
-  1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。レビュー担当（`pr-reviewer`）は finding レポートを handoff ファイル（`tmp/_handoff/pr-reviewer--<key>.md`）へ書き、自分で `python3 -m karte ingest-reviewer --from <path>` を実行して台帳へ取り込む。レポートの全文は主文脈を通らず、主文脈はレビュー担当の `HANDOFF: <path>` と判定・1行要約だけを受け取る。レポートに処置方針（`disposition` 系）が書かれていれば取り込みは拒否される。
+  1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。レビュー担当への依頼文には対象の Issue 番号と取り込むラウンド番号を書く（レポート先頭の `<!-- handoff issue=<N> round=<R> -->` と照合される）。レビュー担当（`pr-reviewer`）は finding レポートを handoff ファイル（`tmp/_handoff/pr-reviewer--<key>.md`）へ書き、自分で `python3 -m karte ingest-reviewer --from <path>` を実行して台帳へ取り込む。レポートの全文は主文脈を通らず、主文脈はレビュー担当の `HANDOFF: <path>` と判定・1行要約だけを受け取る。レポートに処置方針（`disposition` 系）が書かれていれば取り込みは拒否される。
   2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、**覆すかどうかは同じ場でオーナーに仰ぐ**（主文脈が独断で決めない）。
   3. 主文脈がその決定を `python3 -m karte decide --finding <ID> --disposition <値> [--deferred-to <Issue> | --waived-by <許可者> --waived-reason <理由>] [--scope in|out]` で記録する。
   4. 記録した決定は台帳に残り、次ラウンドの `ingest-reviewer` は `disposition` 系を上書きしない。オーナーが覆した `scope` も保持される（台帳の `scope` がレビュー担当の直近申告と食い違う finding は取り込み出力に列挙される）。申告の原本は `tmp/_karte/issue-<N>.declared-scope.jsonl`（追記専用）に残る。

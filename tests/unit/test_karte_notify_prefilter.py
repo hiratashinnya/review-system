@@ -48,6 +48,11 @@ class TestPrefilter(unittest.TestCase):
         self.assertFalse(self._ran("git status"))
         self.assertFalse(self._ran("python3 -m karte render --issue 1"))
 
+    def test_a_trigger_word_without_karte_does_not_start_the_hook(self):
+        for command in ("git log --grep decide", "echo ingest-review", "grep close-attempt notes.md"):
+            with self.subTest(command=command):
+                self.assertFalse(self._ran(command))
+
 
 if __name__ == "__main__":
     unittest.main()

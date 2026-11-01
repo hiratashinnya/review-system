@@ -1,7 +1,10 @@
 """pr-reviewer の Write を handoff ファイルに限る PreToolUse 判定（Issue #375）。"""
 
+import contextlib
+import io
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -62,6 +65,32 @@ class TestReviewerHandoffWrite(unittest.TestCase):
 
     def test_missing_tool_input_is_denied(self):
         self.assertTrue(self._denied(decision(dict(agent_type="pr-reviewer", tool_name="Write"))))
+
+    def _reason(self, result):
+        return result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_invalid_path_is_reported_as_a_path_problem_not_a_gate_failure(self):
+        result = self._write("pr-reviewer", self.root / "tmp/_karte/issue-1.md")
+        self.assertIn("パス不正", self._reason(result))
+        self.assertNotIn("ゲート自体の故障", self._reason(result))
+
+    def test_import_failure_is_reported_as_a_gate_failure_with_the_cause_on_stderr(self):
+        broken = {"karte.handoff_path": None}  # None を入れると import が ImportError になる
+        err = io.StringIO()
+        with mock.patch.dict(sys.modules, broken), contextlib.redirect_stderr(err):
+            result = self._write("pr-reviewer", self.root / "tmp/_handoff/pr-reviewer--k1.md")
+        self.assertTrue(self._denied(result))
+        self.assertIn("ゲート自体の故障", self._reason(result))
+        self.assertNotIn("パス不正", self._reason(result))
+        self.assertIn("ModuleNotFoundError", err.getvalue())  # ImportError の派生
+
+    def test_unexpected_failure_while_resolving_the_root_is_a_gate_failure(self):
+        err = io.StringIO()
+        with mock.patch("karte.paths.main_worktree_root", side_effect=RuntimeError("git が壊れている")):
+            with contextlib.redirect_stderr(err):
+                result = self._write("pr-reviewer", self.root / "tmp/_handoff/pr-reviewer--k1.md")
+        self.assertIn("ゲート自体の故障", self._reason(result))
+        self.assertIn("RuntimeError", err.getvalue())
 
 
 if __name__ == "__main__":

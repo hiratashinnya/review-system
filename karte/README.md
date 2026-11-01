@@ -136,14 +136,21 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
   主文脈が `ingest-review` で取り込もうとすると、`decide` で記録したオーナー決定を上書きしてしまうため
   fail-close で拒否する。申告 scope の原本が壊れている・欠損している場合も、台帳との差分を判定できない
   ので `ingest-reviewer` は拒否する（終了コードは 4）。
-- **申告 scope の記録が無い既存 finding**（`ingest-review` で取り込まれたもの）は、台帳の scope を
-  オーナー確定値とみなして保持する。`decide --scope` で覆した値が、初回の `ingest-reviewer` で
-  失われない（決定を失わない側＝fail-close に倒す）。保持した finding ID は取り込み出力に列挙される。
+- **handoff ヘッダ**：レポートの先頭（最初の `### ` より前）に `<!-- handoff issue=<N> round=<R> -->` の
+  1 行が必須。進行ポインタから決まる取り込み先の Issue と次のラウンドに一致しないもの（ヘッダ無し・別 Issue・
+  古い／再利用した handoff）は取り込まない（`### new` だけのレポートで別 Issue へ書く取り違えを防ぐ）。
+- **オーナー確定の印**：`decide --scope` は台帳の scope を更新したうえで、申告 scope の原本に
+  `by: owner` の印を足す。印のある finding の scope は `ingest-reviewer` が上書きしない（レビューアの申告は
+  原本として記録するだけ。保持した finding ID は取り込み出力に列挙される）。印の無い finding では、
+  台帳の値が `ingest-review` 由来でもレビューアの申告が正当な訂正として反映される。
 - 申告 scope の原本（`tmp/_karte/issue-<N>.declared-scope.jsonl`）への追記は、既存の全行を検証したうえで
   全体を一時ファイル経由で置換する（途中までの行を作らない）。壊れていれば `ingest-reviewer` は
   復旧手順を示して拒否し、主文脈が `python3 -m karte activate --issue <N> --repair-declared-scope` で
-  壊れた行だけを除く（元は `.bak` に残す）。`pr-reviewer` はこの verb も原本も触れない。
+  壊れた行だけを除く（元は `.bak`、`.bak.1`、`.bak.2` … と世代を分けて残し、上書きしない）。
+  `pr-reviewer` はこの verb も原本も触れない。
 - round は進行ポインタの `round`（0＝未取込。欠落・非 ASCII 数字・負数・Issue 不一致は拒否）＋1 で、ロックの内側で決める。
+  0 の扱いは `ingest-reviewer` だけが自動導出に使う（`activate` が書く）。`ingest-review` の初回は従来どおり
+  `--round 1` を明示する。
   申告 scope の覆し判定は「これから取り込むラウンドより前」の申告だけを基準にするため、台帳書込みの
   失敗後に同じラウンドを再試行しても、レビューアの新しい scope をオーナーの覆しと誤判定しない。
 - `decide` / `activate` / `ingest-review` はどのロールの許可集合にも入れない

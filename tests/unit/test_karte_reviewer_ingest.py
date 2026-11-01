@@ -4,6 +4,7 @@ import argparse
 import ast
 import contextlib
 import io
+import json
 import tempfile
 import shutil
 import unittest
@@ -56,8 +57,20 @@ class ReviewerIngestCase(unittest.TestCase):
     def _activate(self):
         return self._run(reviewer_cli.cmd_activate, issue=str(self.issue))
 
-    def _ingest(self, text, name="pr-reviewer--r1.md"):
+    def _next_round(self):
+        """進行ポインタの次ラウンド（ポインタが読めなければ 1）。"""
+        try:
+            return int(json.loads(paths.active_path(self.root).read_text(encoding="utf-8"))["round"]) + 1
+        except (OSError, ValueError, KeyError, TypeError, KartePathError):  # KarteMissing も KartePathError
+            return 1
+
+    def _ingest_raw(self, text, name="pr-reviewer--r1.md"):
         return self._run(reviewer_cli.cmd_ingest_reviewer, source=self._handoff(text, name))
+
+    def _ingest(self, text, name="pr-reviewer--r1.md"):
+        """取り込み先と一致するヘッダ（issue / round）を付けて取り込む。"""
+        header = f"<!-- handoff issue={self.issue} round={self._next_round()} -->\n\n"
+        return self._ingest_raw(header + text, name)
 
     def _karte(self):
         path = paths.karte_path(self.issue, self.root)
@@ -255,13 +268,87 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertEqual(good, path.read_text(encoding="utf-8"))
         self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
 
-    def test_r5_activate_pointer_round_zero_works_for_main_context_ingest_review(self):
+    def test_r5_pointer_round_zero_is_only_derived_by_ingest_reviewer(self):
+        """round 0（未取込）は ingest-reviewer だけが自動導出に使う。ingest-review の初回は従来どおり明示する。"""
         self._activate()
         path = self.root / "tmp" / "review-main.md"
         path.write_text(_report(), encoding="utf-8")
         code, _, _ = self._run(cli.cmd_ingest_review, issue=str(self.issue), round=None, source=str(path))
-        self.assertEqual(cli.EXIT_OK, code)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertEqual(cli.EXIT_OK, self._main_context_ingest_round(1, _report())[0])
         self.assertEqual([1], self._karte().finding(f"F-{self.issue}-01").rounds)
+
+    def test_a1_handoff_must_declare_the_target_issue_and_it_must_match_the_pointer(self):
+        self._activate()
+        body = _report()
+        same = f"<!-- handoff issue={self.issue} round=1 -->\n"
+        for header, fragment in (
+            ("", "ヘッダ"),                                                # ヘッダなし
+            ("<!-- handoff round=1 -->\n", "ヘッダ"),                       # issue の欠落
+            ("<!-- handoff issue=999 round=1 -->\n\n", "issue=999"),        # 別 Issue のレポート
+            (same + same + "\n", "重複"),
+            ("<!-- handoff issue=² round=1 -->\n\n", "issue"),             # 非 ASCII 数字
+        ):
+            with self.subTest(header=header):
+                code, _, err = self._ingest_raw(header + body)
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn(fragment, err)
+        self.assertFalse(paths.karte_path(self.issue, self.root).exists())
+
+    def test_a1_a_new_block_alone_cannot_be_ingested_into_the_wrong_issue(self):
+        self._activate()
+        code, _, err = self._ingest_raw("<!-- handoff issue=1 round=1 -->\n\n" + _report("new"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertFalse(paths.karte_path(1, self.root).exists())
+
+    def test_a3_stale_or_reused_handoff_is_not_ingested_as_a_new_round(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])           # round 1 を取り込み済み
+        stale = f"<!-- handoff issue={self.issue} round=1 -->\n\n" + _report(f"F-{self.issue}-01")
+        code, _, err = self._ingest_raw(stale, "pr-reviewer--r1.md")         # 同じ handoff の再利用
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("round", err)
+        self.assertEqual([1], self._karte().finding(f"F-{self.issue}-01").rounds)
+
+    def test_a2_reviewer_can_correct_scope_of_a_finding_ingested_before_any_owner_decision(self):
+        self._main_context_ingest_round(1, _report(scope="in"))
+        self.assertFalse(scope_ledger.exists(self.issue, self.root))
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01", scope="out"))[0])
+        self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+
+    def test_a2_owner_scope_marker_keeps_the_decision_and_only_decide_writes_it(self):
+        self._main_context_ingest_round(1, _report(scope="in"))
+        self._decide(scope="out")
+        self.assertEqual({f"F-{self.issue}-01": "out"}, scope_ledger.owner_scopes(self.issue, self.root))
+        self.assertEqual({}, scope_ledger.latest_declared(self.issue, self.root))  # 申告ではない
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01", scope="in"))[0])
+        self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+        self.assertEqual("in", scope_ledger.latest_declared(self.issue, self.root)[f"F-{self.issue}-01"])
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01", scope="in"))[0])  # 次ラウンドも保持
+        self.assertEqual("out", self._karte().finding(f"F-{self.issue}-01").scope)
+
+    def test_a5_bool_round_in_declared_scope_is_rejected_as_corrupt(self):
+        self._activate()
+        self._ingest(_report())
+        self._declared_path().write_text('{"round": true, "id": "F-375-01", "scope": "in"}\n', encoding="utf-8")
+        code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("壊れている", err)
+
+    def test_a5_repair_keeps_every_backup_generation_instead_of_overwriting(self):
+        self._activate()
+        self._ingest(_report())
+        path = self._declared_path()
+        good = path.read_text(encoding="utf-8")
+        originals = []
+        for broken in ('{"round": 2, "id"', '{"round": 3, "x'):
+            path.write_text(good + broken + "\n", encoding="utf-8")
+            originals.append(path.read_text(encoding="utf-8"))
+            code, _, _ = self._run(reviewer_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+            self.assertEqual(cli.EXIT_OK, code)
+        backups = sorted(path.parent.glob(path.name + ".bak*"))
+        self.assertEqual([path.name + ".bak", path.name + ".bak.1"], [b.name for b in backups])
+        self.assertEqual(originals, [b.read_text(encoding="utf-8") for b in backups])
 
     def test_r6_docstrings_no_longer_point_at_removed_names(self):
         root = Path(__file__).resolve().parents[2]

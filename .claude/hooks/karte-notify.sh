@@ -12,8 +12,9 @@
 #
 # stdin の事前フィルタ（Issue #512 是正・F-512-07）: トリガー語（ingest-review／close-attempt／
 # decide。`ingest-reviewer` は `ingest-review` に含まれる）を含まない
-# stdin では python を起動しない。語だけで見るのは、`TRIGGER_RE` が `karte` と verb の間に
-# 複数空白・タブを許すため（`karte decide` のような連結語で見ると偽陰性になる）。
+# stdin では python を起動しない。`karte` と verb をそれぞれ独立に見る（AND）のは、
+# `TRIGGER_RE` が `karte` と verb の間に複数空白・タブを許すため（連結語で見ると偽陰性）。
+# `decide` だけを含む無関係な呼び出し（`karte` を含まない）では起動しない。
 # python 側の `trigger.TRIGGER_RE` はこの3語のいずれかを部分文字列として要求するため、shell 側の
 # 部分文字列検査で「無ければ python 側も必ず不一致」と言え、誤って早期 exit する
 # （偽陰性）ことはない——unrelated な Bash/ctx 呼び出しごとに python インタプリタを
@@ -30,11 +31,12 @@ cd "$PROJECT_ROOT" || exit 0
 
 payload="$(cat)"
 case "$payload" in
-  *ingest-review*|*close-attempt*|*decide*)
-    ;;
-  *)
-    exit 0
-    ;;
+  *karte*) ;;
+  *) exit 0 ;;
+esac
+case "$payload" in
+  *ingest-review*|*close-attempt*|*decide*) ;;
+  *) exit 0 ;;
 esac
 
 export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
