@@ -1,4 +1,4 @@
-"""PR base 取り込み（gitgate-base-integration/2.0・Issue #706）の実 Git 受け入れテスト。
+"""PR base 取り込み（gitgate-base-integration/2.1・Issue #706）の実 Git 受け入れテスト。
 
 bare remote と linked worktree / primary checkout を実際に作り、GitHub API だけを
 読取専用の偽物に置き換える。ロール・dispatch 台帳・登録・テスト実行は一切用意しない。
@@ -42,12 +42,16 @@ class PullApi:
                      "head": {"ref": head_ref, "sha": head, "repo": {"full_name": REPOSITORY}},
                      "base": {"ref": "main", "sha": base, "repo": {"full_name": REPOSITORY}}}
         self.default_branch = "main"
+        self.base_tip = base
 
     def pull_request(self, repository, number):
         return copy.deepcopy(self.pull)
 
     def repository(self, repository):
         return {"default_branch": self.default_branch}
+
+    def branch(self, repository, name):
+        return {"name": name, "commit": {"sha": self.base_tip}}
 
 
 class Fixture(unittest.TestCase):
@@ -130,6 +134,12 @@ class Fixture(unittest.TestCase):
 
 
 class IntegrationFlowTests(Fixture):
+    def test_stale_pr_base_sha_allows_conflict_and_continue(self):
+        self.api.pull["base"]["sha"] = "a" * 40
+        self.assertEqual(self.start()["status"], "conflicts")
+        self.resolve()
+        self.assert_committed(self.continue_())
+
     def test_conflict_resolve_continue_without_tests_or_dispatch(self):
         result = self.start()
         self.assertEqual(result, {"status": "conflicts", "conflicts": ["item.txt"]})
@@ -227,6 +237,7 @@ class SimpleMergeTests(Fixture):
     base_files = {**{name: "base contract\n" for name in PROTECTED}, "added.txt": "new\n"}
 
     def test_protected_paths_incoming_merge_and_no_change(self):
+        self.api.pull["base"]["sha"] = "a" * 40
         self.assertEqual(self.start(), {"status": "ready", "conflicts": []})
         result = self.continue_()
         self.assert_committed(result)

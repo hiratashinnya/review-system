@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
 <!-- common-source: .ai/guidance/common.md; sha256: 95f6953e8964e9eab0ae02917f047bb086fda879deb0075521dff46bfbad41d0 -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 071fe87a9b00d067b22d48d707f96bf67000412ec77cf4567746d23746a015a7 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: caf0edb10a886553e39f1c3cbd4e850c44ace71170fa4f0e3f79eaabb6beac1b -->
 
 # プロジェクト共通 guidance
 
@@ -123,6 +123,6 @@
 
 ## PR base 取り込み
 
-- `docs/tools/gitgate-base-integration.md`（policy 2.0）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
+- `docs/tools/gitgate-base-integration.md`（policy 2.1）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
 - GitGate はテストを実行しない。解消結果の検証は自分で行い、CI でも確認する。
 - commitはgitgateを使い、pending中は通常 commit を行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・OID driftはSTOPして報告する。

@@ -1,12 +1,13 @@
-# PR base 取り込み契約（gitgate-base-integration/2.0）
+# PR base 取り込み契約（gitgate-base-integration/2.1）
 
 `gitgate integrate-base` / `integrate-base-continue` / `integrate-base-abort` は、**OPEN PR の base を、その PR の head ブランチの checkout へ取り込み、必要な衝突を解消して確定する**ための操作である。設計目標は善意の利用者・AI による誤操作の防止であり、悪意ある実行者の迂回を阻止すること（sandbox・耐タンパ性）ではない。
 
-本書が現行契約である。policy 2.0 は Issue #706 のオーナー決定による MAJOR 改訂で、#594（PR #600）・#629（PR #640）の設計判断（`.ai/rationale/gitgate-base-integration-594.md`・`.ai/rationale/gitgate-copilot-base-integration-629.md`）に優先する。両文書は履歴として保持する。#706 の判断経緯は `.ai/rationale/gitgate-base-integration-706.md`。
+本書が現行契約である。判断経緯は `.ai/rationale/gitgate-base-integration-706.md` と `.ai/rationale/gitgate-base-integration-716.md` を参照する。
 
 ## 使い方
 
 PR head ブランチを checkout した clean な作業ツリー（linked worktree・通常 clone・primary worktree のいずれでもよい）で実行する。
+`BASE_OID` は PR 情報の `base.sha` ではなく、PR の base branch の現在の先端 OID を指定する。
 
 ```sh
 python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head HEAD_OID --expected-base BASE_OID
@@ -33,8 +34,8 @@ python3 -m gitgate integrate-base-abort
 | live PR が OPEN・同一 repository（fork でない）・PR 番号一致 | 閉じた PR や fork PR、番号違いの PR の base を取り込む |
 | live PR の head ref ＝ 現在の branch、head ref ≠ base ref | 別ブランチ（別 PR の head）を誤って変更する |
 | head ref ≠ repository の default branch | default branch を取り込み先にして、default branch に merge commit を作る |
-| 引数の `--expected-head` ＝ 現在の HEAD ＝ live head、`--expected-base` ＝ live base | 古い情報や別 PR の OID を見て取り込む |
-| fresh fetch 後の `origin/<head>`・`origin/<base>` ＝ 引数の OID、fetch 前後で PR 情報が不変 | 取り込み直前に PR が更新・retarget されたのに古い base を取り込む |
+| 引数の `--expected-head` ＝ 現在の HEAD ＝ live head、`--expected-base` ＝ PR base branch の live 先端 | 古い情報や別 PR の OID を見て取り込む |
+| fresh fetch 後の `origin/<head>`・`origin/<base>` ＝ 引数の OID、fetch 前後で PR 情報と branch 先端が不変 | 取り込み直前に PR が更新・retarget されたのに古い base を取り込む |
 | 開始時に作業ツリー clean（ignore 外の新規ファイル含む）・merge/rebase/cherry-pick/revert 進行中でない | 未コミットの作業が merge と混ざって区別できなくなる／別の Git 操作を壊す |
 | 進行中記録（後述）が無いこと | 同じ checkout での二重開始 |
 | continue/abort 時、記録と現在の branch・HEAD・`MERGE_HEAD` が一致し、他の Git 操作が進行中でない | gitgate が開始していない merge（手動 merge 等）や、HEAD が動いた後の状態を取り違えて確定・中止する |
@@ -50,7 +51,7 @@ python3 -m gitgate integrate-base-abort
 
 ## 進行中記録
 
-開始から確定・中止までの間、当該作業ツリーの Git 管理領域（`git rev-parse --git-path gitgate-base-integration.json`）に、PR 番号・repository・branch・元 HEAD・base OID・開始時の衝突ファイル一覧を1件だけ置く。作業ツリー内には何も書かない。これは他の操作との取り違えを防ぐための記録であり、認可や耐タンパの仕組みではない。canonical worktree 台帳（`tmp/_worktree/`）は使わない（policy 1.x の `base_integrations` / `base_authorizations` は読まない）。
+開始から確定・中止までの間、当該作業ツリーの Git 管理領域（`git rev-parse --git-path gitgate-base-integration.json`）に、PR 番号・repository・branch・元 HEAD・base ref と OID・開始時の衝突ファイル一覧を1件だけ置く。作業ツリー内には何も書かない。これは他の操作との取り違えを防ぐための記録であり、認可や耐タンパの仕組みではない。canonical worktree 台帳（`tmp/_worktree/`）は使わない（policy 1.x の `base_integrations` / `base_authorizations` は読まない）。policy 2.0 の進行中記録には base ref がないため、2.1 では continue できない。abort で退避・中止し、再開始する。
 
 ## 中止と回復
 
