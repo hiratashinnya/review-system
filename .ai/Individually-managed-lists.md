@@ -57,8 +57,8 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 | 3 | PreToolUse（Task／Agent） | `issue-start-gate.sh` | ✅ | — | — |
 | 4 | PostToolUse（Write／Edit） | `check-governance-drift.sh` | ✅ | — | — |
 | 5 | SubagentStart（issue-fixer） | `subagent-karte-inject.sh` | ✅ | — | — |
-| 6 | SubagentStart（implementer／fixer） | `subagent-worktree-bind.sh` | ✅ | — | — |
-| 7 | SubagentStop（implementer／fixer） | `subagent-stop-gate.sh` | ✅ | — | — |
+| 6 | SubagentStart（書込5ロール） | `subagent-worktree-bind.sh` | ✅ | — | — |
+| 7 | SubagentStop（書込5ロール） | `subagent-stop-gate.sh` | ✅ | — | — |
 | 8 | StopFailure（rate_limit） | `on-rate-limit.sh` | ✅ | — | — |
 | 9 | UserPromptSubmit | `inject-governance.sh` | ✅ | — | — |
 | 10 | SessionStart（startup／resume） | `install_pkgs.sh` | ✅ | — | — |
@@ -106,13 +106,13 @@ Issue #538 で退役した Codex 起動用 hook の行（旧 行12）と概要�
 
 #### 6. subagent-worktree-bind
 
-- **概要**: `issue-implementer`／`issue-fixer` 起動時に linked worktree を割り当てる。
+- **概要**: 書込5ロール（`ac-designer`／`change-planner`／`test-writer`／`issue-implementer`／`issue-fixer`）起動時に linked worktree を割り当てる。
 - **スコープ**: SubagentStart。Claude 専用（Codex は worktree bind 非採用）。
 - **実装構成**: [`.claude/hooks/subagent-worktree-bind.sh`](../.claude/hooks/subagent-worktree-bind.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 
 #### 7. subagent-stop-gate
 
-- **概要**: `issue-implementer`／`issue-fixer` 停止時に worktree の後処理を行う。
+- **概要**: 書込5ロール（`ac-designer`／`change-planner`／`test-writer`／`issue-implementer`／`issue-fixer`）停止時に worktree の後処理を行う。
 - **スコープ**: SubagentStop。Claude 専用。
 - **実装構成**: [`.claude/hooks/subagent-stop-gate.sh`](../.claude/hooks/subagent-stop-gate.sh)（`.claude/hooks/README.md` の「subagent ライフサイクルフック」節）
 

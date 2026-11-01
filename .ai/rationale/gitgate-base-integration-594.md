@@ -1,5 +1,7 @@
 # Issue #594: PR base 取り込みのオーナー決定
 
+> **履歴文書**：本書は当時の設計判断の記録として保持する。現行契約は Issue #706 の決定（`docs/tools/gitgate-base-integration.md` policy 2.0・経緯は `.ai/rationale/gitgate-base-integration-706.md`）が優先する。
+
 対象: https://github.com/hiratashinnya/review-system/issues/594
 
 ## 確定した権限範囲
