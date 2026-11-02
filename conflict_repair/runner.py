@@ -1,0 +1,41 @@
+"""各 PR を評価し、修復結果を live 状態と再照合する。"""
+import tempfile
+from pathlib import Path
+
+from . import git
+from .eligibility import classify
+from .repair import regenerate
+
+
+def evaluate(api, source, number, repository, default):
+    target, reason, related = classify(api.pulls(), number, repository, default)
+    result = {'pr': number, '判定': reason, '関連 PR': related, 'push': False,
+              'CI': '未検証'}
+    if target is None:
+        return result
+    _, _, _, base, base_oid, _, head, head_oid = target
+    result.update({'base OID': base_oid, 'head OID': head_oid})
+    if api.branch_oid(base) != base_oid or api.branch_oid(head) != head_oid:
+        result['判定'] = 'branch OID 不一致'
+        return result
+    with tempfile.TemporaryDirectory(prefix='conflict-repair-') as temp:
+        repo = Path(temp) / 'work'
+        merge = git.prepare(source, repo, base_oid, head_oid)
+        if not regenerate(repo, merge):
+            result['判定'] = '生成物は整合、修復不要'
+            return result
+        new_oid = git.commit(repo)
+        current, reason, related = classify(api.pulls(), number, repository, default)
+        if (current != target or api.default_branch() != default
+                or api.branch_oid(base) != base_oid or api.branch_oid(head) != head_oid):
+            result.update({'判定': f'push 前に状態が変化: {reason}', '関連 PR': related})
+            return result
+        git.push(source, repo, head)
+        result.update({'判定': '修復完了', 'push': True, '修復後 OID': new_oid})
+        for workflow in ('tests.yml', 'guidance-sync.yml'):
+            try:
+                api.dispatch(workflow, head)
+                result[f'{workflow} dispatch'] = '要求済み（結果未確認）'
+            except Exception as exc:
+                result[f'{workflow} dispatch'] = f'失敗: {exc}'
+    return result
