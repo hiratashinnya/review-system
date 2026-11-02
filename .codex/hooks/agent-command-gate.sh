@@ -1214,10 +1214,9 @@ elif agent_type == "agy-delegate" and tool_name in SHELL_TOOL_NAMES:
     symbol = dangerous_shell_symbol(command) if isinstance(command, str) else "missing command"
     tokens = shell_words(command) if isinstance(command, str) and not symbol else None
     tokens, env_reason = strip_wrappers_or_env_reason(tokens) if tokens else ([], None)
-    is_wrapper = (len(tokens) >= 4 and tokens[0] in PYTHON_HEAD_COMMANDS
-                  and tokens[1:3] == ["-m", "agy_delegate"] and tokens[3] in {"inspect", "run"})
-    if symbol or env_reason or not is_wrapper:
-        reason = "agent-command-gate (agy-delegate): only agy_delegate inspect|run are allowed."
+    if (symbol or env_reason or len(tokens) < 4 or tokens[0] not in PYTHON_HEAD_COMMANDS
+            or tokens[1:3] != ["-m", "agy_delegate"] or tokens[3] not in {"inspect", "run"}):
+        reason = "agent-command-gate (agy-delegate): only python3 -m agy_delegate inspect|run is allowed; use Read for file inspection."
     else:
         origin_reason = launch_origin_reason(payload, tool_input, TRUSTED_LAUNCH_ROOT)
         if origin_reason:
