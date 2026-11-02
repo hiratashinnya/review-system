@@ -1,8 +1,7 @@
-"""専用 delegate の必読資料だけを symlink をたどらず表示する。"""
+"""専用 delegate の必読資料だけを symlink をたどらず取得する。"""
 
 import os
 import stat
-import sys
 from pathlib import Path
 
 
@@ -37,19 +36,10 @@ def read_reference(root: Path, name: str) -> str:
         os.close(directory)
 
 
-def main() -> int:
-    if len(sys.argv) != 1:
-        print("reference takes no arguments", file=sys.stderr)
-        return 2
-    try:
-        contents = [(name, read_reference(ROOT, name)) for name in REFERENCES]
-    except (OSError, UnicodeError, ValueError) as error:
-        print(f"reference unavailable: {error}", file=sys.stderr)
-        return 1
-    for name, content in contents:
-        print(f"\n--- {name} ---\n{content}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def reference_context(root: Path = ROOT) -> str:
+    contents = [(name, read_reference(root, name)) for name in REFERENCES]
+    result = "".join(f"\n--- {name} ---\n{content}\n" for name, content in contents)
+    result += "\nAGY_REFERENCE_CONTEXT_COMPLETE\n"
+    if len(result.encode("utf-8")) > 65536:
+        raise ValueError("reference context exceeds 65536 bytes")
+    return result

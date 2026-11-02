@@ -341,11 +341,19 @@ Repeat the trust check after moving a checkout or changing a hook registration.
 
 | File | Role |
 |---|---|
-| `.codex/hooks.json` | Registers the project-local `PreToolUse` hooks. Trust them with `/hooks` before relying on them. |
+| `.codex/hooks.json` | Registers the project-local hooks. Trust them with `/hooks` before relying on them. |
+| `agy-reference-context.py` | SubagentStart handler for agy-delegate: injects its three references with a 65536-byte combined limit. |
 | `agent-command-gate.sh` | PreToolUse handler: all-role merge/network-command deny layer plus the gated-role (issue-implementer/issue-fixer/pr-reviewer) allowlist layers. Denies via `permissionDecision:deny`; allows by emitting nothing. |
 | `adr-notify.sh` | PostToolUse handler registered in `.codex/hooks.json` for Bash; checks pending ADR issue tracking. |
 | `archive/issue-603-codex-main-context-assets/.codex/hooks/issue-start-gate.sh` | Archived Codex issue-start wrapper (Issue #603); it is not registered in the current `.codex/hooks.json`. |
 | `../config.toml` | Not a hook. Holds the `[permissions.issue-implementer]` / `[permissions.issue-fixer]` profiles that `codex_worktree_exec` selects for `codex exec` (Issue #538 PR-B). |
+
+`agy-delegate` must stop and report when its injected references or completion
+marker are missing. This is an agent instruction: SubagentStart cannot prevent
+the child from starting when the hook is disabled, untrusted, or fails.
+The handler rejects oversized content before emitting it, and the registration
+sets `additionalContextLimit` to zero to disable hook-output spilling. Review
+the context budget and the entire injected content when changing the references.
 
 ## Removed: Codex rate-limit auto-recovery (Issue #569)
 
