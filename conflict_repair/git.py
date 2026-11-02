@@ -2,15 +2,18 @@
 import base64
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from guidance_sync.sources import COMMON_SOURCE, PRINCIPLES_SOURCE, TARGETS
 
 
-def run(repo, *args, check=True):
+def run(repo, *args, check=True, extra_env=None):
     env = os.environ.copy()
     env.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
                 'GIT_TERMINAL_PROMPT': '0'})
+    if extra_env:
+        env.update(extra_env)
     if os.environ.get('GH_TOKEN'):
         auth = base64.b64encode(f"x-access-token:{os.environ['GH_TOKEN']}".encode()).decode()
         env.update({'GIT_CONFIG_COUNT': '2', 'GIT_CONFIG_KEY_0': 'http.https://github.com/.extraheader',
@@ -49,7 +52,18 @@ def commit(repo):
     return run(repo, 'rev-parse', 'HEAD').stdout.strip()
 
 
-def push(source, repo, branch):
-    # Push through the trusted checkout's configured credential, with ordinary non-force push.
+def push(source, repo, branch, expected_oid):
     url = run(source, 'remote', 'get-url', 'origin').stdout.strip()
-    run(repo, 'push', url, f'HEAD:refs/heads/{branch}')
+    with tempfile.TemporaryDirectory(prefix='trusted-push-hook-') as temp:
+        hook = Path(temp) / 'pre-push'
+        hook.write_text("""#!/bin/sh
+count=0
+while read -r local_ref local_oid remote_ref remote_oid; do
+    count=$((count + 1))
+    [ "$remote_ref" = "$REPAIR_REF" ] && [ "$remote_oid" = "$REPAIR_EXPECTED_OID" ] || exit 1
+done
+[ "$count" -eq 1 ]
+""")
+        hook.chmod(0o700)
+        run(repo, '-c', f'core.hooksPath={temp}', 'push', url, f'HEAD:refs/heads/{branch}',
+            extra_env={'REPAIR_REF': f'refs/heads/{branch}', 'REPAIR_EXPECTED_OID': expected_oid})

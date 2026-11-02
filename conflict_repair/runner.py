@@ -4,6 +4,7 @@ from pathlib import Path
 
 from . import git
 from .eligibility import classify
+from .governance import governance_status
 from .repair import regenerate
 
 
@@ -21,6 +22,7 @@ def evaluate(api, source, number, repository, default):
     with tempfile.TemporaryDirectory(prefix='conflict-repair-') as temp:
         repo = Path(temp) / 'work'
         merge = git.prepare(source, repo, base_oid, head_oid)
+        result['governance 同期'] = governance_status(repo)
         if not regenerate(repo, merge):
             result['判定'] = '生成物は整合、修復不要'
             return result
@@ -30,7 +32,7 @@ def evaluate(api, source, number, repository, default):
                 or api.branch_oid(base) != base_oid or api.branch_oid(head) != head_oid):
             result.update({'判定': f'push 前に状態が変化: {reason}', '関連 PR': related})
             return result
-        git.push(source, repo, head)
+        git.push(source, repo, head, head_oid)
         result.update({'判定': '修復完了', 'push': True, '修復後 OID': new_oid})
         try:
             api.dispatch('conflict-repair-verify.yml', default, new_oid)

@@ -68,13 +68,13 @@ class RunnerTest(RealGitTest):
     def test_push_race_does_not_overwrite(self):
         api = self.setup_remote()
         original = git.push
-        def raced(source, repo, branch):
+        def raced(source, repo, branch, expected_oid):
             cmd(self.repo, 'switch', 'feature')
             (self.repo / 'race.txt').write_text('race')
             race = save(self.repo, 'race')
             cmd(self.repo, 'push', 'origin', 'feature')
             with self.assertRaises(RuntimeError):
-                original(source, repo, branch)
+                original(source, repo, branch, expected_oid)
             self.assertEqual(api.branch_oid('feature'), race)
             raise RuntimeError('race')
         with mock.patch.object(git, 'push', side_effect=raced):

@@ -85,3 +85,22 @@ class RealGitTest(unittest.TestCase):
         (self.repo / '.gitattributes').write_text('AGENTS.md working-tree-encoding=ISO-8859-1\n')
         with self.assertRaisesRegex(ValueError, 'stage 後'):
             git.commit(self.repo)
+
+    def test_each_generated_file_can_conflict_alone(self):
+        for index, path in enumerate(TARGETS):
+            with self.subTest(path=path):
+                if index:
+                    cmd(self.repo, 'reset', '--hard', 'main')
+                with (self.repo / path).open('a') as stream:
+                    stream.write('head change\n')
+                save(self.repo, 'head')
+                cmd(self.repo, 'switch', 'main')
+                with (self.repo / path).open('a') as stream:
+                    stream.write('base change\n')
+                base = save(self.repo, 'base')
+                cmd(self.repo, 'switch', 'feature')
+                merge = git.run(self.repo, 'merge', '--no-ff', '--no-commit', base, check=False)
+                self.assertEqual(git.conflicts(self.repo), {path})
+                self.assertTrue(regenerate(self.repo, merge))
+                self.assertEqual(check(self.repo), [])
+                git.commit(self.repo)
