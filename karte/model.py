@@ -191,16 +191,16 @@ CLEARING_HARM = "real"
 SECTION_FINDINGS = "Findings"
 SECTION_ATTEMPTS = "Attempts"
 
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-FINDING_ID_RE = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})$")
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\Z")
+FINDING_ID_RE = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})\Z")
 DOC_HEADER_RE = re.compile(r"^#\s+Karte:\s+issue-([1-9][0-9]*)\s*$")
-ATTEMPT_TITLE_RE = re.compile(r"^Attempt\s+([1-9][0-9]*)$")
-RESULT_TITLE_RE = re.compile(r"^Result\s+([1-9][0-9]*)$")
+ATTEMPT_TITLE_RE = re.compile(r"^Attempt\s+([1-9][0-9]*)\Z")
+RESULT_TITLE_RE = re.compile(r"^Result\s+([1-9][0-9]*)\Z")
 KEY_RE = re.compile(r"^([a-z][a-z0-9_]*):(.*)$")
 # ``deferred_to``（Issue #495）は**行き先を機械的に解決できる形**だけを受ける。
 # 「別 Issue で対応」のような散文を許すと、申し送りの宛先が不明のまま clean を通せてしまい、
 # `deferred` を必須化した目的（リンク無しの申し送りを作らない）が達成できない。
-DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9]*)$")
+DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9]*)\Z")
 
 # 台帳の値に持ち込めない文字（1行 key: value ＋ `[a, b]` 記法を壊すため）。
 FORBIDDEN_VALUE_CHARS = ("\n", "\r", "\0")
@@ -281,8 +281,8 @@ def check_list(values, what: str) -> list:
 
 
 def format_finding_id(issue: int, seq: int) -> str:
-    """``F-{issue}-{seq}``（seq は 2 桁ゼロ詰め・例 ``F-312-03``）。"""
-    return f"F-{int(issue)}-{int(seq):02d}"
+    """``F-{issue}-{seq}``（seq は 2 桁ゼロ詰め・例 ``F-312-03``）。読み戻せない桁数の番号は書かない。"""
+    return f"F-{int(issue)}-{matched_int(str(seq), KarteFormatError, '連番'):02d}"
 
 
 def parse_finding_id(value: str):
@@ -672,7 +672,7 @@ class Karte:
         return max((item.seq for item in self.findings), default=0) + 1
 
     def next_attempt_number(self) -> int:
-        return max((item.number for item in self.attempts), default=0) + 1
+        return matched_int(str(max((a.number for a in self.attempts), default=0) + 1), KarteFormatError, "Attempt 番号")
 
     def attempt(self, number: int):
         for item in self.attempts:
@@ -717,10 +717,10 @@ def parse(text: str) -> Karte:
         if block.section == SECTION_FINDINGS:
             karte.findings.append(_finding_from_block(block, issue))
         elif block.section == SECTION_ATTEMPTS:
-            if ATTEMPT_TITLE_RE.match(block.title):
-                karte.attempts.append(_attempt_from_block(block))
-            elif RESULT_TITLE_RE.match(block.title):
-                karte.results.append(_result_from_block(block))
+            if attempt_title := ATTEMPT_TITLE_RE.match(block.title):
+                karte.attempts.append(_attempt_from_block(block, attempt_title))
+            elif result_title := RESULT_TITLE_RE.match(block.title):
+                karte.results.append(_result_from_block(block, result_title))
             else:
                 raise KarteFormatError(
                     f"{block.lineno} 行目: '## {SECTION_ATTEMPTS}' 配下の見出しは "
@@ -788,8 +788,8 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
     )
 
 
-def _attempt_from_block(block: Block) -> Attempt:
-    number = matched_int(ATTEMPT_TITLE_RE.match(block.title).group(1), KarteFormatError, "Attempt 見出しの番号")
+def _attempt_from_block(block: Block, title: re.Match[str]) -> Attempt:
+    number = matched_int(title.group(1), KarteFormatError, "Attempt 見出しの番号")
     rounds = _require_int_list(block, "round")
     if len(rounds) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'round' は単一の整数: {block.title}")
@@ -804,11 +804,11 @@ def _attempt_from_block(block: Block) -> Attempt:
     )
 
 
-def _result_from_block(block: Block) -> Result:
+def _result_from_block(block: Block, title: re.Match[str]) -> Result:
     attempt_numbers = _require_int_list(block, "attempt")
     if len(attempt_numbers) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'attempt' は単一の整数: {block.title}")
-    declared = matched_int(RESULT_TITLE_RE.match(block.title).group(1), KarteFormatError, "Result 見出しの番号")
+    declared = matched_int(title.group(1), KarteFormatError, "Result 見出しの番号")
     if attempt_numbers[0] != declared:
         raise KarteFormatError(
             f"{block.lineno} 行目: 見出し 'Result {declared}' と 'attempt: "

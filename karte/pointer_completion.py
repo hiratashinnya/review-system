@@ -7,7 +7,7 @@
 from . import paths
 from .active_pointer import read_active
 from .errors import KarteUsageError
-from .int_args import parse_int
+from .int_args import parse_int, require_ascii_int
 from .round_resolution import MissingRoundHint, ResolvedRound
 
 
@@ -47,6 +47,19 @@ def resolve_round(args, repo_root, issue: int, missing_hint: MissingRoundHint) -
     return ResolvedRound(parse_int(active["round"], "round"), explicit=False)
 
 
+def recorded_round(active: dict, issue: int) -> int | None:
+    """進行ポインタが ``issue`` について記録しているラウンド。縮退してよい場合は ``None``。
+
+    ``None`` になるのは、ポインタの ``issue`` が対象と一致しない（キー欠落・型違いを含む）か、
+    ``round`` が偽値（欠落・0・null・空・false）のとき。それ以外の ``round`` は
+    :func:`parse_int` で検証し、非 ASCII・巨大桁・負・NaN・bool などは :class:`KarteUsageError`。
+    停止ゲートではない verb（``append`` の補完・``render`` の見出し）だけが使う。
+    """
+    if active.get("issue") != issue or not active.get("round"):
+        return None
+    return parse_int(active["round"], "round")
+
+
 def ingest_target(args, repo_root) -> tuple:
     """``ingest-review`` の ``(issue, round)``。順は issue→round。``--round`` 省略時はポインタ**＋1**（K-13）。
 
@@ -55,4 +68,8 @@ def ingest_target(args, repo_root) -> tuple:
     """
     issue = resolve_issue(args, repo_root)
     resolved = resolve_round(args, repo_root, issue, MissingRoundHint.FIRST_INGEST)
-    return issue, (resolved.number if resolved.explicit else resolved.number + 1)
+    if resolved.explicit:
+        return issue, resolved.number
+    return issue, require_ascii_int(
+        resolved.number + 1, KarteUsageError("進行ポインタの round に 1 を足すと桁数の上限を超える")
+    )

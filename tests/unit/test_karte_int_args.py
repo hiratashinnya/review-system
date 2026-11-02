@@ -5,9 +5,9 @@ import unittest
 from karte import int_args
 from karte.errors import KarteUsageError
 from karte.model import KarteFormatError
+from tests.unit.karte_support import AT_CONVERSION_LIMIT, HUGE
 
 NON_ASCII_DIGITS = ("²", "٣", "①")  # str.isdigit() は True だが int() できない
-HUGE = "9" * 6000  # int の変換上限（4300 桁）を超える
 
 
 class TestAsciiIntOrNone(unittest.TestCase):
@@ -18,6 +18,19 @@ class TestAsciiIntOrNone(unittest.TestCase):
             with self.subTest(bad=bad[:10]):
                 self.assertIsNone(int_args.ascii_int_or_none(bad))
 
+    def test_digit_limit_leaves_room_for_plus_one_to_stay_convertible(self):
+        longest = "9" * int_args.MAX_DIGITS
+        self.assertEqual(int(longest), int_args.ascii_int_or_none(longest))
+        self.assertIsNone(int_args.ascii_int_or_none(longest + "9"))
+        self.assertIsNone(int_args.ascii_int_or_none(int(longest) + 1))  # int のまま渡されても同じ
+        self.assertTrue(str(int(longest) + 1))  # 受理される最大値の +1 は str() できる
+        self.assertLess(int_args.MAX_DIGITS, 4300)
+
+    def test_the_conversion_limit_itself_is_refused(self):
+        """4300 桁ちょうどは int() を通るが、+1 した値の str() が ValueError になる（PR #696 第5回 R5-01）。"""
+        self.assertEqual(4300, len(str(int(AT_CONVERSION_LIMIT))))
+        self.assertIsNone(int_args.ascii_int_or_none(AT_CONVERSION_LIMIT))
+
 
 class TestParseInt(unittest.TestCase):
     def test_accepts_ascii_digits_at_or_above_the_minimum(self):
@@ -25,7 +38,7 @@ class TestParseInt(unittest.TestCase):
         self.assertEqual(0, int_args.parse_int(0, "round", minimum=0))
 
     def test_rejects_below_minimum_non_numbers_non_ascii_and_huge_digits(self):
-        for value in ("0", "-1", "abc", "", "1.5", None, *NON_ASCII_DIGITS, HUGE):
+        for value in ("0", "-1", "abc", "", "1.5", None, *NON_ASCII_DIGITS, HUGE, AT_CONVERSION_LIMIT):
             with self.subTest(value=str(value)[:10]), self.assertRaises(KarteUsageError):
                 int_args.parse_int(value, "round")
 

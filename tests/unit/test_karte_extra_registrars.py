@@ -15,8 +15,9 @@ from karte.errors import KarteNotFound, KarteUsageError
 from karte.exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 from karte.model import KarteFormatError
 from karte.path_errors import KartePathError
+from karte.touched import TouchedError
 from karte.verb_boundary import fail_close
-from tests.unit.karte_support import make_tmp_repo, verb_parsers, writer_lock_is_held
+from tests.unit.karte_support import RootedCase, verb_parsers, writer_lock_is_held
 
 
 def _registrar_for(name, func):
@@ -31,9 +32,11 @@ def _registrar_for(name, func):
 _register_probe = _registrar_for("probe", fail_close(locked=False)(lambda args, root: 42))
 
 
-class _RootedCase(unittest.TestCase):
+class _RootedCase(RootedCase):
+    prefix = "karte-reg-"
+
     def setUp(self):
-        self.root = make_tmp_repo(self, "karte-reg-")
+        super().setUp()
         patcher = mock.patch.object(repo_roots, "_REPO_ROOT", self.root)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -185,7 +188,11 @@ class TestExtraVerbFailClose(_RootedCase):
             return cli.main(["boom"], extra_registrars=(_registrar_raising(exc),))
 
     def test_refusal_errors_become_exit_error(self):
-        for exc in (KarteUsageError("u"), KartePathError("p"), KarteFormatError("f"), OSError("o")):
+        refusals = (
+            KarteUsageError("u"), KartePathError("p"), KarteFormatError("f"), OSError("o"),
+            TouchedError("t"),
+        )
+        for exc in refusals:
             with self.subTest(exc=type(exc).__name__):
                 self.assertEqual(EXIT_ERROR, self._main(exc))
 

@@ -7,13 +7,10 @@
 * 明示 ID の新規（``F-9-02``）の後ろに置いた ``new`` は、その次の番号を受ける。
 """
 
-import argparse
-import contextlib
-import io
 import unittest
 
-from karte import cli, exit_codes, model, paths
-from tests.unit.karte_support import finding, make_tmp_repo, report_text, required_finding
+from karte import exit_codes, model
+from tests.unit.karte_support import RootedCase, finding, required_finding
 
 ISSUE = 9
 FIRST = finding("a/b.py::first", "first が入力検査をしていない")
@@ -22,23 +19,18 @@ SECOND = finding("c/d.py::second", "second が戻り値を握りつぶしてい�
 TWIN = finding("e/f.py::twin", "twin が例外を握りつぶして成功を返す")
 
 
-class _IngestCase(unittest.TestCase):
-    def setUp(self):
-        self.root = make_tmp_repo(self, "karte-ic-")
+class _IngestCase(RootedCase):
+    prefix = "karte-ic-"
 
     def _ingest(self, round_no, *blocks):
-        path = self.root / "tmp" / f"review-{round_no}.md"
-        path.write_text(report_text(*blocks), encoding="utf-8")
-        args = argparse.Namespace(
-            issue=str(ISSUE), round=str(round_no), source=str(path), repo_root=str(self.root)
-        )
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = cli.cmd_ingest_review(args)
-        return code, err.getvalue()
+        code, _out, err = self.ingest(round_no, *blocks, issue=ISSUE)
+        return code, err
 
     def _ledger(self) -> model.Karte:
-        return model.parse(paths.karte_path(ISSUE, self.root).read_text(encoding="utf-8"))
+        return self.ledger(ISSUE)
+
+    def _ledger_exists(self) -> bool:
+        return (self.root / "tmp" / "_karte" / f"issue-{ISSUE}.md").exists()
 
 
 class TestResolvedFindingsAreNotOpen(_IngestCase):
@@ -82,7 +74,7 @@ class TestDuplicateWithinOneReport(_IngestCase):
         code, err = self._ingest(1, ("new", TWIN), ("new", dict(TWIN)))
         self.assertEqual(exit_codes.EXIT_ERROR, code)
         self.assertIn("ID 再発番", err)
-        self.assertFalse(paths.karte_path(ISSUE, self.root).exists())
+        self.assertFalse(self._ledger_exists())
 
     def test_distinct_findings_in_one_report_are_accepted(self):
         code, err = self._ingest(1, ("new", FIRST), ("new", SECOND))
@@ -110,6 +102,30 @@ class TestIdAllocationAfterAnExplicitNewId(_IngestCase):
         self.assertEqual(exit_codes.EXIT_OK, code, err)
         self.assertEqual(["F-9-01", "F-9-02", "F-9-03"], [i.id for i in self._ledger().findings])
         self.assertEqual("twin が例外を握りつぶして成功を返す", required_finding(self._ledger(), "F-9-03").summary)
+
+
+class TestEveryRefusalReasonIsReported(_IngestCase):
+    """拒否は最初の 1 件で打ち切らず、別々の理由を全件 stderr に出す（1 件ずつ往復させない）。"""
+
+    def test_blocks_refused_for_different_reasons_all_appear(self):
+        unknown_id = ("F-9-05", FIRST)
+        dangling_distinct = ("new", {**SECOND, "distinct_from": "F-9-77"})
+        code, err = self._ingest(1, unknown_id, dangling_distinct)
+        self.assertEqual(exit_codes.EXIT_ERROR, code)
+        lines = [line for line in err.splitlines() if line.startswith("拒否（fail-close）: ")]
+        self.assertEqual(2, len(lines), err)
+        self.assertIn("未知の finding ID: F-9-05", lines[0])
+        self.assertIn("distinct_from が指す finding ID が実在しない: F-9-77", lines[1])
+        self.assertFalse(self._ledger_exists())
+
+    def test_absent_open_findings_are_reported_together_with_block_refusals(self):
+        self._ingest(1, ("new", FIRST), ("new", SECOND))
+        code, err = self._ingest(2, ("F-9-09", TWIN))
+        self.assertEqual(exit_codes.EXIT_ERROR, code)
+        lines = [line for line in err.splitlines() if line.startswith("拒否（fail-close）: ")]
+        self.assertEqual(2, len(lines), err)
+        self.assertIn("未知の finding ID: F-9-09", lines[0])
+        self.assertIn("再掲されていない: F-9-01, F-9-02", lines[1])
 
 
 if __name__ == "__main__":

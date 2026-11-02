@@ -2,20 +2,22 @@
 
 from .errors import KarteUsageError
 
+# 桁数の上限。str()/int() は 4300 桁超で ValueError になるので、`+ 1` した結果を文字列にしても
+# 届かない余裕のある値で止める（ID・ラウンド・連番は 64bit に収まれば足りる）。
+MAX_DIGITS = 18
+
 
 def ascii_int_or_none(value) -> int | None:
-    """ASCII 数字だけの文字列を int にする。非 ASCII 数字・桁数過多（int の変換上限）・数字以外は ``None``。
+    """ASCII 数字だけの文字列を int にする。非 ASCII 数字・:data:`MAX_DIGITS` 桁超・数字以外は ``None``。
 
     ``str.isdigit()`` だけでは ``"²"`` を通し、``int()`` は ``ValueError`` で終了コード契約
-    {0,2,3,4} の外（traceback の終了コード 1）へ漏れる。整数変換はここを唯一の入口にする。
+    {0,2,3,4} の外（traceback の終了コード 1）へ漏れる。桁数を絞るのは、変換上限ちょうどの値が
+    受理されて次の ``+ 1`` で ``str()`` に失敗するのを防ぐため。整数変換はここを唯一の入口にする。
     """
     text = str(value)
-    if not (text.isascii() and text.isdigit()):
+    if len(text) > MAX_DIGITS or not (text.isascii() and text.isdigit()):
         return None
-    try:
-        return int(text)
-    except ValueError:
-        return None
+    return int(text)
 
 
 def require_ascii_int(value, error: Exception) -> int:

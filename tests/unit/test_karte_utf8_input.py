@@ -5,55 +5,34 @@
 台帳、進行ポインタ、``--diff-file`` のどれを読む経路でも漏らさない。
 """
 
-import argparse
-import contextlib
 import io
 import os
-import shutil
 import subprocess
 import sys
 import unittest
-from pathlib import Path
-from unittest import mock
 
-from karte import cli, exit_codes, model, paths, utf8_text
+from karte import exit_codes, model, paths, utf8_text
 from karte.errors import KarteUsageError
-from tests.unit.karte_support import make_tmp_repo
+from tests.unit.karte_support import RootedCase, ingest_argv, karte_sandbox
 
 BAD = b"\xff\xfe"
-REPO = Path(__file__).resolve().parent.parent.parent
 
 
-class _RootedCase(unittest.TestCase):
-    def setUp(self):
-        self.root = make_tmp_repo(self, "karte-u8-")
-
-    def _call(self, func, stdin=None, **kwargs):
-        args = argparse.Namespace(repo_root=str(self.root), **kwargs)
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            if stdin is None:
-                code = func(args)
-            else:
-                with mock.patch.object(sys, "stdin", stdin):
-                    code = func(args)
-        return code, err.getvalue()
-
-    def _karte_dir(self):
-        return paths.karte_dir(self.root, create=True)
+class _Utf8Case(RootedCase):
+    prefix = "karte-u8-"
 
 
-class TestInvalidReportBody(_RootedCase):
+class TestInvalidReportBody(_Utf8Case):
     def test_invalid_utf8_report_file_is_exit_error_and_creates_nothing(self):
         (self.root / "bad.md").write_bytes(BAD)
-        code, err = self._call(cli.cmd_ingest_review, issue="7", round="1", source="bad.md")
+        code, _out, err = self.run_verb(ingest_argv(7, 1, "bad.md"))
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)
         self.assertFalse((self.root / "tmp" / "_karte").exists())
 
     def test_invalid_utf8_stdin_is_exit_error_and_creates_nothing(self):
         stdin = io.TextIOWrapper(io.BytesIO(BAD), encoding="utf-8")
-        code, err = self._call(cli.cmd_ingest_review, stdin, issue="7", round="1", source="-")
+        code, _out, err = self.run_verb(ingest_argv(7, 1), stdin)
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)
         self.assertFalse((self.root / "tmp" / "_karte").exists())
@@ -63,7 +42,7 @@ class TestInvalidReportBody(_RootedCase):
         stdin = io.TextIOWrapper(
             io.BytesIO(b"### new\n" + BAD), encoding="utf-8", errors="surrogateescape"
         )
-        code, err = self._call(cli.cmd_ingest_review, stdin, issue="7", round="1", source="-")
+        code, _out, err = self.run_verb(ingest_argv(7, 1), stdin)
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertFalse((self.root / "tmp" / "_karte").exists())
 
@@ -75,7 +54,7 @@ class TestInvalidReportBody(_RootedCase):
             utf8_text.read_stream_text(io.TextIOWrapper(io.BytesIO(BAD), encoding="utf-8"))
 
 
-class TestUnencodableWrites(_RootedCase):
+class TestUnencodableWrites(_Utf8Case):
     """argv に混じる lone surrogate は書込みで ``UnicodeEncodeError`` になる前に拒否し、何も書かない。"""
 
     def test_append_and_atomic_write_refuse_before_touching_the_file(self):
@@ -92,23 +71,23 @@ class TestUnencodableWrites(_RootedCase):
         utf8_text.require_utf8_encodable("日本語 ok", "x")
 
 
-class TestInvalidLedgerAndPointerAndDiff(_RootedCase):
+class TestInvalidLedgerAndPointerAndDiff(_Utf8Case):
     def test_invalid_utf8_ledger_is_exit_error(self):
         paths.karte_path(7, self.root, create_dir=True).write_bytes(BAD)
-        code, err = self._call(cli.cmd_status, issue="7", json=False)
+        code, _out, err = self.run_verb(["status", "--issue", "7"])
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)
 
     def test_invalid_utf8_pointer_is_exit_error(self):
         paths.active_path(self.root, create_dir=True).write_bytes(BAD)
-        code, err = self._call(cli.cmd_status, issue=None, json=False)
+        code, _out, err = self.run_verb(["status"])
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)
 
     def test_invalid_utf8_ledger_is_exit_error_on_the_ingest_path_too(self):
         paths.karte_path(7, self.root, create_dir=True).write_bytes(BAD)
         stdin = io.StringIO("### new\n")
-        code, err = self._call(cli.cmd_ingest_review, stdin, issue="7", round="1", source="-")
+        code, _out, err = self.run_verb(ingest_argv(7, 1), stdin)
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)
 
@@ -124,9 +103,9 @@ class TestInvalidLedgerAndPointerAndDiff(_RootedCase):
             model.dumps(karte), encoding="utf-8"
         )
         (self.root / "bad.diff").write_bytes(BAD)
-        code, err = self._call(
-            cli.cmd_close_attempt, issue="7", attempt="1", outcome="fixed",
-            diff_file="bad.diff", base="HEAD", finding_ids=None, note="",
+        code, _out, err = self.run_verb(
+            ["close-attempt", "--issue", "7", "--attempt", "1", "--outcome", "fixed",
+             "--diff-file", "bad.diff"]
         )
         self.assertEqual(exit_codes.EXIT_ERROR, code, err)
         self.assertIn("UTF-8", err)  # 別の理由（Attempt 不在等）で拒否されて空振りしていない
@@ -140,10 +119,7 @@ class TestRealProcessExitCode(unittest.TestCase):
     """
 
     def setUp(self):
-        self.sandbox = make_tmp_repo(self, "karte-proc-", with_tmp=False)
-        shutil.copytree(
-            REPO / "karte", self.sandbox / "karte", ignore=shutil.ignore_patterns("__pycache__")
-        )
+        self.sandbox = karte_sandbox(self)
 
     def _run(self, **env_overrides):
         env = {k: v for k, v in os.environ.items() if k not in ("PYTHONIOENCODING", "PYTHONUTF8")}

@@ -10,7 +10,7 @@ from unittest import mock
 
 import karte
 from karte import cli, repo_roots
-from tests.unit.karte_support import make_tmp_repo, verb_parsers
+from tests.unit.karte_support import finding, make_tmp_repo, report_text, run_cli, verb_parsers
 
 
 class TestRepoRootPrecedence(unittest.TestCase):
@@ -63,38 +63,71 @@ class TestRepoRootIsDerivedInOnePlace(unittest.TestCase):
                     offenders.append(path.name)
         self.assertEqual([], offenders)
 
-    # 各 verb を最後まで走らせる最小の引数（台帳が無いので未検出/拒否で終わるが、本体には入る）。
-    MINIMAL_ARGV = {
-        "ingest-review": ["--issue", "7", "--round", "1", "--from", "missing-report.md"],
+
+_FINDING = finding("a.py::f", "f が入力検査をしていない")
+
+
+class TestEveryVerbResolvesTheRootExactlyOnce(unittest.TestCase):
+    """各 verb を**台帳つきで本体の最後まで**走らせ、その間に台帳 root の導出が 1 回だけであることを数える。
+
+    台帳が無いと verb は冒頭の未検出で終わり、本体の途中（``load_karte`` のあと・ロック内）で
+    起きる再解決を見逃す。数える対象は ``paths.main_worktree_root``（root を導出する唯一の入口）で、
+    どのモジュール経由で ``repo_root_of`` を呼んでも数えられる。
+    """
+
+    DIFF = "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@ def f\n-a\n+b\n"
+    # verb ごとの、台帳を用意したあとの argv（終了コード 0 で本体の最後まで走る）。
+    ARGV = {
+        "ingest-review": ["--issue", "7", "--round", "2", "--from", "tmp/review-2.md"],
         "render": ["--issue", "7"],
         "append": [
-            "--issue", "7", "--round", "1", "--finding-ids", "F-7-01", "--root-cause", "rc",
-            "--change-kind", "logic", "--targets", "a.py::f",
+            "--issue", "7", "--round", "1", "--finding-ids", "F-7-01", "--root-cause", "other",
+            "--change-kind", "interface", "--targets", "z.py::h",
         ],
-        "close-attempt": ["--issue", "7", "--attempt", "1", "--outcome", "fixed"],
+        "close-attempt": ["--issue", "7", "--attempt", "2", "--outcome", "fixed",
+                          "--diff-file", "tmp/x.diff"],
         "check": ["--issue", "7", "--round", "1"],
         "status": ["--issue", "7"],
     }
 
+    def _prepared_root(self, verb):
+        root = make_tmp_repo(self, "karte-rr3-")
+        (root / "tmp" / "review-2.md").write_text(report_text(("F-7-01", _FINDING)), encoding="utf-8")
+        (root / "tmp" / "x.diff").write_text(self.DIFF, encoding="utf-8")
+        steps = [
+            (["ingest-review", "--issue", "7", "--round", "1", "--from", "-"],
+             report_text(("new", _FINDING))),
+            (["append", "--finding-ids", "F-7-01", "--root-cause", "rc", "--change-kind", "logic",
+              "--targets", "a.py::f"], ""),
+            (["close-attempt", "--outcome", "fixed", "--diff-file", "tmp/x.diff"], ""),
+        ]
+        if verb == "close-attempt":  # 閉じる対象（未クローズの Attempt 2）を用意する
+            steps.append(
+                (["append", "--finding-ids", "F-7-01", "--root-cause", "second",
+                  "--change-kind", "interface", "--targets", "y.py::g"], "")
+            )
+        for argv, stdin_text in steps:
+            code, _out, err = run_cli(root, argv, stdin_text)
+            self.assertEqual(0, code, f"{verb} の準備 {argv}: {err}")
+        return root
+
     def test_every_builtin_verb_resolves_the_root_exactly_once(self):
-        root = make_tmp_repo(self, "karte-rr3-", with_tmp=False)
         parser = cli.build_parser()
-        self.assertEqual(set(self.MINIMAL_ARGV), set(verb_parsers(parser)))
-        for verb, argv in self.MINIMAL_ARGV.items():
+        self.assertEqual(set(self.ARGV), set(verb_parsers(parser)))
+        for verb, argv in self.ARGV.items():
             with self.subTest(verb=verb):
-                args = parser.parse_args([verb, *argv])
-                # 本体側（cli）の ``repo_roots.repo_root_of`` も同じモックに差し替えるので、
-                # verb 本体が解決を重ねれば 2 回目として数えられる。
-                with mock.patch(
-                    "karte.verb_boundary.repo_root_of", return_value=root
-                ) as resolver, mock.patch(
-                    "karte.repo_roots.repo_root_of", resolver
-                ), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(
+                root = self._prepared_root(verb)
+                args = parser.parse_args([verb, *argv])  # ``repo_root`` を与えない＝本物の導出経路を通る
+                with mock.patch.object(repo_roots, "_REPO_ROOT", None), mock.patch(
+                    "karte.repo_roots.paths.main_worktree_root", return_value=root
+                ) as derive, mock.patch.object(
+                    repo_roots, "invoking_worktree", return_value=root
+                ), contextlib.redirect_stderr(io.StringIO()) as err, contextlib.redirect_stdout(
                     io.StringIO()
                 ):
                     code = args.func(args)
-                self.assertIn(code, (2, 4))  # OSError(モック) で止まらず、本体まで到達している
-                self.assertEqual(1, resolver.call_count)
+                self.assertEqual(0, code, err.getvalue())  # 本体の最後まで走っている
+                self.assertEqual(1, derive.call_count)
 
 
 if __name__ == "__main__":

@@ -389,11 +389,15 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 - **不正な UTF-8 の入力**（レポート本文のファイル・標準入力、台帳、進行ポインタ、`--diff-file`）。
 - **整数は ASCII 数字だけ**：整数引数（`--issue` / `--round` / `--attempt`）、台帳・ポインタ内の整数
   （`rounds`・`resolved_round`・`round`・`issue`）、finding ID・見出し（`F-<issue>-<seq>`・`# Karte: issue-N`・
-  `Attempt N`・`Result N`）の番号。`²` のような非 ASCII 数字や、Python の変換上限（4300 桁）を超える
-  巨大桁は `4`。変換の入口は `karte/int_args.py` の `ascii_int_or_none` / `require_ascii_int` /
-  `parse_int` に一本化してある。
+  `Attempt N`・`Result N`）の番号。`²` のような非 ASCII 数字や、`int_args.MAX_DIGITS`（18 桁）を超える
+  桁数は `4`（Python の変換上限 4300 桁ちょうどは `int()` を通り、`+ 1` した値の `str()` が `ValueError` になる）。
+  変換の入口は `karte/int_args.py` の `ascii_int_or_none` / `require_ascii_int` / `parse_int` に
+  一本化してある。`+ 1` して書く値（`ingest-review` の `--round` 補完・finding の連番・Attempt 番号）は、
+  足した結果も読み戻せる桁数でなければ `4` で拒否する（書けば台帳が以後読めなくなるため）。
 - **進行ポインタ `tmp/_karte/active.json` の JSON が壊れている／ネストが深すぎる**（再帰上限の
   `RecursionError` も `4`）。JSON オブジェクトでない中身も `4`。末尾改行付きの `--issue $'5\n'` も `4`
-  （検査は `fullmatch`）。
+  （検査は `fullmatch`・正規表現の末尾は `\Z`）。`render` の見出しに出す `round` も、`append` の補完と同じ
+  読み方（`pointer_completion.recorded_round`）で検証し、整数でない値は `4`（subagent の文脈へ注入される本文に
+  検証前の値を出さない）。ポインタが別 Issue を指す・`round` が 0/欠落のときは見出しに出さない。
 - **ロック内で拒否された `ingest-review`** は `4` を返し台帳・ポインタは書かないが、新規 repo でも
   `tmp/_karte/` と `.writer.lock` は残る（何も作らずに拒否できるのはロック前の引数・ポインタ・本文の検証だけ）。

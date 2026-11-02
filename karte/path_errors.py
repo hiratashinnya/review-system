@@ -10,7 +10,8 @@ KARTE_DIRNAME = "_karte"
 
 ACTIVE_FILENAME = "active.json"
 
-ISSUE_RE = re.compile(r"^[1-9][0-9]*$")
+# `$` は末尾の改行の手前でも一致する（`.match("5\n")` が真）ので、末尾は `\Z` で固定する。
+ISSUE_RE = re.compile(r"^[1-9][0-9]*\Z")
 
 KARTE_FILENAME_FMT = "issue-{issue}.md"
 
@@ -31,6 +32,6 @@ def validate_issue(value) -> int:
     text = str(value)
     if not ISSUE_RE.fullmatch(text):
         raise KartePathError(
-            f"issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: {value!r}"
+            f"issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: {text[:40]!r}"
         )
     return require_ascii_int(text, KartePathError(f"issue 番号の桁数が多すぎる: {text[:40]!r}"))

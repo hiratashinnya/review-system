@@ -69,12 +69,12 @@ verb:
   **``ingest-review`` / ``check`` はポインタが無い・壊れている・必要なキーを欠く場合は
   補完せず EXIT_ERROR**（fail-close）——壊れたポインタを「無い」と同じに扱うと、
   別 Issue の台帳へ黙って書きかねない。
-  **``append`` の ``--round`` 補完だけは例外**：ポインタが無い、または ``issue`` が
-  対象と食い違う場合は fail-close せず、**カルテ内の最大ラウンドへ黙って縮退する**
-  （ポインタが JSON として壊れている場合のみ :func:`karte.active_pointer.read_active` が拒否する）。
-  ``append`` は停止ゲートではないため縮退しても安全——ラウンドのズレが起きても、
-  **全 Attempt のクローズを要求する ``check`` が fail-close で必ず捕捉する**（K-02）ので、
-  ここで厳格化しても二重の安全網にしかならない。
+  **``append`` の ``--round`` 補完だけは例外**（:func:`karte.pointer_completion.recorded_round`）：ポインタが無い・
+  ``issue`` が対象と食い違う（キー欠落・型違いを含む）・``round`` が 0/欠落（偽値）なら、fail-close せず
+  **カルテ内の最大ラウンドへ黙って縮退する**。拒否するのは、ポインタが壊れている／オブジェクトでない場合
+  （:func:`karte.active_pointer.read_active`）と、``round`` が偽値でないのに型違い・非 ASCII 数字・巨大桁・負・NaN・
+  bool の場合（:func:`karte.int_args.parse_int`）で、どちらも終了コード 4。縮退しても**全 Attempt のクローズを
+  要求する ``check`` が必ず捕捉する**（K-02）。``render`` の見出しの ``round`` も同じ読み方で、無効値は 4。
   補完の実装は :mod:`karte.pointer_completion`。``ingest-review`` は、引数・ポインタ・本文由来の
   拒否を issue→round→本文の順にロックの**前**で行い（何も作らない）、ポインタ由来の値だけは
   ロックの内側で読み直す（:func:`_prepare_ingest`）。
@@ -356,7 +356,7 @@ def cmd_render(args, repo_root) -> int:
     issue = pointer_completion.resolve_issue(args, repo_root)
     path, karte = karte_loader.load_karte(repo_root, issue)
     active = active_pointer.read_active(repo_root)
-    round_no = active.get("round") if active.get("issue") == issue else None
+    round_no = pointer_completion.recorded_round(active, issue)
 
     lines = [f"=== Karte: issue-{issue}" + (f" / round {round_no}" if round_no else "") + " ==="]
     lines.append(
@@ -476,10 +476,10 @@ def cmd_append(args, repo_root) -> int:
     active = active_pointer.read_active(repo_root)
     if args.round is not None:
         round_no = int_args.parse_int(args.round, "round")
-    elif active.get("issue") == issue and active.get("round"):
-        round_no = int_args.parse_int(active["round"], "round")
     else:
-        round_no = max((r for item in karte.findings for r in item.rounds), default=1)
+        round_no = pointer_completion.recorded_round(active, issue) or max(
+            (r for item in karte.findings for r in item.rounds), default=1
+        )
 
     finding_ids = model.validate_finding_ids(args.finding_ids)
     unknown = [fid for fid in finding_ids if karte.finding(fid) is None]
@@ -856,7 +856,7 @@ def cmd_status(args, repo_root) -> int:
     K-15 は当初「PostToolUse フック（matcher ``Task``）が ``pr-reviewer`` 呼び出し完了直後に
     これを実行し、判定結果をコンテキストへ自動注入する」設計を構想したが未配線のまま、
     Issue #512 が対応 AC を移譲して**別の設計**で実装した。実際に配線されたのは
-    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash``）で、
+    :mod:`karte_notify`（``.claude/hooks/karte-notify.sh``・PostToolUse matcher ``Bash|ctx_execute|ctx_batch_execute``）で、
     トリガーは ``pr-reviewer`` 呼び出し後ではなく ``karte ingest-review``/``close-attempt``
     実行直後、届け先は AI のコンテキスト（``additionalContext``）ではなく**オーナーの
     チャット**（``systemMessage``）にした。AI のコンテキストへ注入するだけでは
