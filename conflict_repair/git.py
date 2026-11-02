@@ -33,6 +33,7 @@ def prepare(source, repo, base, head):
     run(repo, 'config', 'user.name', 'github-actions[bot]')
     run(repo, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
     run(repo, 'checkout', '--detach', head)
+    (repo / '.git' / 'info' / 'attributes').write_text('* !merge\n')
     return run(repo, 'merge', '--no-ff', '--no-commit', base, check=False)
 
 

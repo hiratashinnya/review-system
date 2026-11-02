@@ -70,6 +70,22 @@ class RealGitTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '登録外'):
             regenerate(self.repo, merge)
 
+    def test_untrusted_union_merge_cannot_hide_source_conflict(self):
+        (self.repo / '.gitattributes').write_text(f'{COMMON_SOURCE} merge=union\n')
+        (self.repo / COMMON_SOURCE).write_text('head\n')
+        head = save(self.repo, 'head')
+        cmd(self.repo, 'switch', 'main')
+        (self.repo / COMMON_SOURCE).write_text('base\n')
+        base = save(self.repo, 'base')
+        bare = self.repo.parent / 'remote.git'
+        cmd(self.repo.parent, 'clone', '--bare', str(self.repo), str(bare))
+        cmd(self.repo, 'remote', 'add', 'origin', str(bare))
+        work = self.repo.parent / 'work'
+        merge = git.prepare(self.repo, work, base, head)
+        self.assertIn(COMMON_SOURCE, git.conflicts(work))
+        with self.assertRaisesRegex(ValueError, '登録外'):
+            regenerate(work, merge)
+
     def test_clean_merge_without_drift_is_noop(self):
         save_path = self.repo / 'feature.txt'
         save_path.write_text('feature')
