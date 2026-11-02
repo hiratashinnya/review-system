@@ -16,7 +16,6 @@ import argparse
 import ast
 import contextlib
 import errno
-import fcntl
 import io
 import json
 import os
@@ -45,25 +44,11 @@ from karte import (
     touched,
 )
 from karte.verb_boundary import fail_close
+from tests.unit.karte_support import make_tmp_repo as _make_repo
+from tests.unit.karte_support import report_text as _report
+from tests.unit.karte_support import writer_lock_is_held
 
 _HAS_GIT = shutil.which("git") is not None
-
-
-def _make_repo(case) -> Path:
-    root = Path(tempfile.mkdtemp(prefix="karte-")).resolve()
-    case.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
-    (root / "tmp").mkdir()
-    return root
-
-
-def _report(*findings) -> str:
-    """``### <title>`` ブロック列のレビューレポート本文を組み立てる。"""
-    blocks = []
-    for title, fields in findings:
-        lines = [f"### {title}"]
-        lines += [f"{key}: {value}" for key, value in fields.items()]
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks) + "\n"
 
 
 class KarteTestCase(unittest.TestCase):
@@ -1976,9 +1961,11 @@ class TestAtomicWriteDocstringStatesItsLimits(unittest.TestCase):
                 ):
                     with self.assertRaises(paths.KartePathError):
                         paths.write_text_atomic(path, "new\n")
-        command = fail_close(locked=False)(
-            lambda _args, _root: paths.write_text_atomic(path, "new\n")
-        )
+        def write_the_ledger(_args, _root) -> int:
+            paths.write_text_atomic(path, "new\n")
+            return 0
+
+        command = fail_close(locked=False)(write_the_ledger)
         with mock.patch(
             "karte.path_io.os.open", side_effect=OSError(errno.ELOOP, "injected")
         ):
@@ -3819,14 +3806,7 @@ class TestBuiltinWritersWriteInsideTheLock(KarteTestCase):
 
         def probe(real):
             def wrapper(*args, **kwargs):
-                lock_path = paths.karte_dir(self.root, create=True) / ".writer.lock"
-                with open(lock_path, "a+") as handle:
-                    try:
-                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        observed.append(False)
-                        fcntl.flock(handle, fcntl.LOCK_UN)
-                    except BlockingIOError:
-                        observed.append(True)
+                observed.append(writer_lock_is_held(self.root))
                 return real(*args, **kwargs)
 
             return wrapper

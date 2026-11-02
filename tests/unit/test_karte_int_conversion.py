@@ -1,7 +1,8 @@
 """整数変換の fail-close（F-696-21）。非 ASCII 数字・巨大桁は、traceback（終了コード 1）ではなく 4。
 
 ``int()`` は ``"²"``（``str.isdigit()`` は真）で、また 4300 桁超で ``ValueError`` になる。
-文書化された終了コード {0,2,3,4} の外へ漏れないよう、変換は :mod:`karte.int_args` を通す。
+文書化された終了コード {0,2,3,4} の外へ漏れないよう、変換は :mod:`karte.int_args` を通す
+（変換関数そのものの単体テストは ``test_karte_int_args.py``）。
 """
 
 import argparse
@@ -10,53 +11,20 @@ import io
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
-from karte import cli, exit_codes, int_args, model, paths
-from karte.errors import KarteUsageError
+from karte import cli, exit_codes, model, paths
+from tests.unit.karte_support import finding, make_tmp_repo, required_finding
 
 REPO = Path(__file__).resolve().parent.parent.parent
 HUGE = "9" * 5000
-_FINDING = {
-    "harm": "real",
-    "harm_detail": "検証が素通りする",
-    "severity": "major",
-    "scope": "in",
-    "evidence": "a/b.py:1 を読んで確認",
-    "locus": "a/b.py::f",
-    "summary": "f が入力検査をしていない",
-    "expected": "検査が働く",
-    "recheck": "拒否されることを確認する",
-}
-
-
-class TestIntArgs(unittest.TestCase):
-    def test_ascii_int_or_none(self):
-        self.assertEqual(12, int_args.ascii_int_or_none("12"))
-        for bad in ("²", "１２", "", "-1", "1.5", HUGE):
-            with self.subTest(bad=bad[:10]):
-                self.assertIsNone(int_args.ascii_int_or_none(bad))
-
-    def test_parse_int_rejects_huge_and_non_ascii_as_usage_error(self):
-        for bad in ("²", HUGE, "0"):
-            with self.subTest(bad=bad[:10]), self.assertRaises(KarteUsageError):
-                int_args.parse_int(bad, "round")
-
-    def test_require_ascii_int_raises_the_callers_exception(self):
-        class Boom(Exception):
-            pass
-
-        with self.assertRaises(Boom):
-            int_args.require_ascii_int(HUGE, Boom("x"))
+_FINDING = finding("a/b.py::f", "f が入力検査をしていない")
 
 
 class _RootedCase(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-int-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        (self.root / "tmp").mkdir()
+        self.root = make_tmp_repo(self, "karte-int-")
 
     def _call(self, func, **kwargs):
         args = argparse.Namespace(repo_root=str(self.root), **kwargs)
@@ -123,7 +91,7 @@ class TestNonAsciiDigitsInTheLedger(_RootedCase):
 
     def test_unmodified_ledger_parses(self):
         """前提：mutate 前の台帳は有効（以降の拒否が別の理由で空振りしていない）。"""
-        self.assertEqual([1], model.parse(self._ledger_text()).finding("F-5-01").rounds)
+        self.assertEqual([1], required_finding(model.parse(self._ledger_text()), "F-5-01").rounds)
 
     def test_non_ascii_resolved_round_is_a_format_error(self):
         text = self._ledger_text().replace("resolved_round: \n", "resolved_round: ²\n")
@@ -149,12 +117,14 @@ class TestHugeNumbersInHeadings(_RootedCase):
     def test_ledger_headings_with_huge_numbers_are_format_errors(self):
         base = self._ledger_text()
         attempt = f"### Attempt {HUGE}\nround: 1\nfinding_ids: [F-5-01]\nroot_cause: rc\n"
+        result = f"### Result {HUGE}\nattempt: 1\nfinding_ids: [F-5-01]\noutcome: fixed\n"
         for text in (
             base.replace("issue-5", f"issue-{HUGE}", 1),
             base + attempt,
+            base + result,
             base.replace("F-5-01", f"F-5-{HUGE}"),
         ):
-            with self.subTest(text=text[:30]), self.assertRaisesRegex(
+            with self.subTest(text=text[-30:]), self.assertRaisesRegex(
                 model.KarteFormatError, "桁数が多すぎる"
             ):
                 model.parse(text)

@@ -198,6 +198,16 @@ class SnapshotPathTests(unittest.TestCase):
             path = root / "tmp" / "_karte" / "notified" / "issue-1.json"
             self.assertIsNone(notify.read_snapshot(path))
 
+    def test_deeply_nested_snapshot_is_treated_as_unreadable_not_a_crash(self):
+        """fail-open の約束：深くネストした JSON でも RecursionError でフックを落とさない。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "issue-1.json"
+            path.write_text("[" * 200000, encoding="utf-8")
+            self.assertIsNone(notify.read_snapshot(path))
+
+    def test_deeply_nested_hook_payload_is_treated_as_unreadable(self):
+        self.assertIsNone(hook._load_payload(io.StringIO("[" * 200000)))
+
 
 class DecideTests(unittest.TestCase):
     """Issue #512 本文「通知条件」の判定表を1行ずつ固定する。"""

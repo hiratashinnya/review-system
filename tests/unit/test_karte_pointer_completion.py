@@ -1,30 +1,28 @@
 """``karte.pointer_completion``：``--issue`` / ``--round`` の補完と、``ingest-review`` の拒否の無副作用・優先順位。
 
-拒否の優先順位は issue→round→本文（origin/main と同じ）で、引数・ポインタ・本文由来の拒否は
-``tmp/_karte/.writer.lock`` を作らない。
+拒否の優先順位は issue→round→本文（origin/main と同じ）。何も作らずに拒否できるのは、ロックの前
+（``prepare`` 段）で拒否できる引数・ポインタ・本文由来の範囲に限る。ロックを取ったあとの拒否
+（内容検証・台帳との突き合わせ・ロック内での読み直し）は、新規 repo でも ``tmp/_karte/`` と
+``.writer.lock`` を残す（台帳は書かない）。
 """
 
 import argparse
 import contextlib
 import io
-import shutil
-import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from karte import cli, exit_codes, paths, pointer_completion
 from karte.errors import KarteUsageError
 from karte.round_resolution import MissingRoundHint, ResolvedRound
+from tests.unit.karte_support import finding, make_tmp_repo, report_text
 
 _HINT = MissingRoundHint.FIRST_INGEST
 
 
 class _RootedCase(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-pc-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        (self.root / "tmp").mkdir()
+        self.root = make_tmp_repo(self, "karte-pc-")
 
     def _args(self, **kwargs):
         return argparse.Namespace(repo_root=str(self.root), **kwargs)
@@ -123,6 +121,18 @@ class TestIngestRefusalsHaveNoSideEffect(_RootedCase):
             with self.subTest(**{k: v[:10] for k, v in kwargs.items()}):
                 self._assert_refused_without_side_effect(source="-", **kwargs)
                 self.assertFalse((self.root / "tmp" / "_karte").exists())
+
+
+class TestRefusalInsideTheLockLeavesTheLockFile(_RootedCase):
+    """``prepare`` 段を通ったあとの拒否は、ロック用ファイルとディレクトリを残す（台帳は書かない）。"""
+
+    def test_report_content_refusal_in_a_fresh_repo_leaves_the_lock_file(self):
+        invalid = report_text(("new", {**finding("a.py::f", "s"), "harm": ""}))
+        with contextlib.redirect_stderr(io.StringIO()), mock.patch("sys.stdin", io.StringIO(invalid)):
+            code = cli.cmd_ingest_review(self._args(issue="7", round="1", source="-"))
+        self.assertEqual(exit_codes.EXIT_ERROR, code)
+        self.assertTrue((self.root / "tmp" / "_karte" / ".writer.lock").exists())
+        self.assertFalse((self.root / "tmp" / "_karte" / "issue-7.md").exists())
 
 
 class TestIngestRefusalOrder(_RootedCase):

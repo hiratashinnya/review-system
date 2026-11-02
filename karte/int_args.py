@@ -28,7 +28,7 @@ def require_ascii_int(value, error: Exception) -> int:
 
 def matched_int(text: str, error_cls: type, what: str) -> int:
     """正規表現で数字列と確認済みの断片を int にする。巨大桁は ``error_cls`` で拒否する。"""
-    return require_ascii_int(text, error_cls(f"{what} の桁数が多すぎる: {text[:40]!r}"))
+    return require_ascii_int(text, error_cls(f"{what}の桁数が多すぎる: {text[:40]!r}"))
 
 
 def parse_int(value, label: str, minimum: int = 1) -> int:

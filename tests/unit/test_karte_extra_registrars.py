@@ -5,20 +5,18 @@
 """
 
 import contextlib
-import fcntl
 import io
-import shutil
-import tempfile
 import unittest
-from pathlib import Path
+from typing import Any, cast
 from unittest import mock
 
-from karte import cli, paths, repo_roots
+from karte import cli, repo_roots
 from karte.errors import KarteNotFound, KarteUsageError
 from karte.exit_codes import EXIT_ERROR, EXIT_NOT_FOUND
 from karte.model import KarteFormatError
 from karte.path_errors import KartePathError
 from karte.verb_boundary import fail_close
+from tests.unit.karte_support import make_tmp_repo, verb_parsers, writer_lock_is_held
 
 
 def _registrar_for(name, func):
@@ -33,23 +31,9 @@ def _registrar_for(name, func):
 _register_probe = _registrar_for("probe", fail_close(locked=False)(lambda args, root: 42))
 
 
-def _writer_lock_is_held(repo_root) -> bool:
-    """別の file description から非ブロッキングで取りに行き、取れなければ誰かが握っている。"""
-    lock_path = paths.karte_dir(repo_root, create=True) / ".writer.lock"
-    with open(lock_path, "a+") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return True
-        fcntl.flock(handle, fcntl.LOCK_UN)
-        return False
-
-
 class _RootedCase(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-reg-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        (self.root / "tmp").mkdir()
+        self.root = make_tmp_repo(self, "karte-reg-")
         patcher = mock.patch.object(repo_roots, "_REPO_ROOT", self.root)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -66,7 +50,7 @@ class TestExtraRegistrars(_RootedCase):
         self.assertEqual(42, cli.main(["probe"], extra_registrars=(_register_probe,)))
 
     def test_verb_is_absent_without_the_registrar(self):
-        with self.assertRaises(SystemExit):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             cli.build_parser().parse_args(["probe"])
 
     def test_existing_verbs_are_unchanged_by_registrars(self):
@@ -78,7 +62,7 @@ class TestExtraRegistrars(_RootedCase):
         }
 
         def describe(parser, verb):
-            sub = next(a for a in parser._actions if a.dest == "verb").choices[verb]
+            sub = verb_parsers(parser)[verb]
             options = sorted(o for action in sub._actions for o in action.option_strings)
             return sub.get_default("func"), options
 
@@ -92,12 +76,10 @@ class TestExtraRegistrars(_RootedCase):
     def test_every_builtin_verb_declares_its_lock_requirement(self):
         locked = {"ingest-review": True, "append": True, "close-attempt": True,
                   "render": False, "check": False, "status": False}
-        subparsers = next(
-            action for action in cli.build_parser()._actions if action.dest == "verb"
-        )
+        subparsers = verb_parsers(cli.build_parser())
         for verb, expected in locked.items():
             with self.subTest(verb=verb):
-                self.assertIs(expected, subparsers.choices[verb].get_default("func").locked)
+                self.assertIs(expected, subparsers[verb].get_default("func").locked)
 
 
 class TestUndeclaredVerbIsRejected(unittest.TestCase):
@@ -118,11 +100,11 @@ class TestUndeclaredVerbIsRejected(unittest.TestCase):
 
     def test_locked_must_be_given_explicitly_as_a_bool(self):
         with self.assertRaises(TypeError):
-            fail_close()
+            cast(Any, fail_close)()
         with self.assertRaises(TypeError):
-            fail_close(locked=None)
+            cast(Any, fail_close)(locked=None)
         with self.assertRaises(TypeError):
-            fail_close(locked=1)
+            cast(Any, fail_close)(locked=1)
 
 
 class TestDeclaredLockIsApplied(_RootedCase):
@@ -132,7 +114,7 @@ class TestDeclaredLockIsApplied(_RootedCase):
         observed = []
 
         def verb(args, repo_root):
-            observed.append(_writer_lock_is_held(repo_root))
+            observed.append(writer_lock_is_held(repo_root))
             return 0
 
         register = _registrar_for("probe", fail_close(locked=locked)(verb))
@@ -149,11 +131,11 @@ class TestDeclaredLockIsApplied(_RootedCase):
         observed = []
 
         def prepare(args, repo_root):
-            observed.append(("prepare", _writer_lock_is_held(repo_root)))
+            observed.append(("prepare", writer_lock_is_held(repo_root)))
             return "prepared-value"
 
         def verb(args, repo_root, prepared):
-            observed.append(("verb", _writer_lock_is_held(repo_root), prepared))
+            observed.append(("verb", writer_lock_is_held(repo_root), prepared))
             return 0
 
         register = _registrar_for("probe", fail_close(locked=True, prepare=prepare)(verb))

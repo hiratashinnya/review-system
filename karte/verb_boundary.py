@@ -3,8 +3,10 @@
 設計理由は [.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
 """
 
+import argparse
 import functools
 import sys
+from typing import Callable, Protocol, cast
 
 from . import model, paths
 from .errors import KarteNotFound, KarteUsageError
@@ -15,7 +17,18 @@ from .repo_roots import repo_root_of
 _REFUSALS = (KarteUsageError, paths.KartePathError, model.KarteFormatError, OSError, TouchedError)
 
 
-def fail_close(*, locked, prepare=None):
+class Verb(Protocol):
+    """:func:`fail_close` が返す ``cmd(args) -> 終了コード``。ロック要否の宣言を ``locked`` に持つ。"""
+
+    __name__: str
+    locked: bool
+
+    def __call__(self, args: argparse.Namespace) -> int: ...
+
+
+def fail_close(
+    *, locked: bool, prepare: Callable[..., object] | None = None
+) -> Callable[[Callable[..., int]], Verb]:
     """``func(args, repo_root)`` を、終了コードを返す ``cmd(args)`` にするデコレータ。
 
     ``locked`` は必須で既定値を持たない（True: 共有 writer lock の中で実行、False: ロックなし）。
@@ -29,9 +42,9 @@ def fail_close(*, locked, prepare=None):
     if not isinstance(locked, bool):
         raise TypeError(f"locked は True/False で明示する: {locked!r}")
 
-    def decorate(func):
+    def decorate(func: Callable[..., int]) -> Verb:
         @functools.wraps(func)
-        def wrapper(args) -> int:
+        def wrapper(args: argparse.Namespace) -> int:
             try:
                 repo_root = repo_root_of(args)
                 extra = () if prepare is None else (prepare(args, repo_root),)
@@ -46,8 +59,9 @@ def fail_close(*, locked, prepare=None):
                 print(f"拒否（fail-close）: {exc}", file=sys.stderr)
                 return EXIT_ERROR
 
-        wrapper.locked = locked
-        return wrapper
+        verb = cast(Verb, wrapper)
+        verb.locked = locked
+        return verb
 
     return decorate
 

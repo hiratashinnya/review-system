@@ -4,22 +4,19 @@ import argparse
 import ast
 import contextlib
 import io
-import shutil
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import karte
 from karte import cli, repo_roots
+from tests.unit.karte_support import make_tmp_repo, verb_parsers
 
 
 class TestRepoRootPrecedence(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-rr-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        self.other = Path(tempfile.mkdtemp(prefix="karte-rr2-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.other, ignore_errors=True))
+        self.root = make_tmp_repo(self, "karte-rr-", with_tmp=False)
+        self.other = make_tmp_repo(self, "karte-rr2-", with_tmp=False)
 
     def test_args_override_wins_over_module_override(self):
         with mock.patch.object(repo_roots, "_REPO_ROOT", self.other):
@@ -80,11 +77,9 @@ class TestRepoRootIsDerivedInOnePlace(unittest.TestCase):
     }
 
     def test_every_builtin_verb_resolves_the_root_exactly_once(self):
-        root = Path(tempfile.mkdtemp(prefix="karte-rr3-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        root = make_tmp_repo(self, "karte-rr3-", with_tmp=False)
         parser = cli.build_parser()
-        subparsers = next(a for a in parser._actions if a.dest == "verb")
-        self.assertEqual(set(self.MINIMAL_ARGV), set(subparsers.choices))
+        self.assertEqual(set(self.MINIMAL_ARGV), set(verb_parsers(parser)))
         for verb, argv in self.MINIMAL_ARGV.items():
             with self.subTest(verb=verb):
                 args = parser.parse_args([verb, *argv])

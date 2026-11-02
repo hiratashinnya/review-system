@@ -86,10 +86,13 @@ linked worktree（`issue-implementer` 等の isolated worktree）でも main wor
 2. L-6 の是正：ポインタの読み取りをロックの内側へ移した。このとき本文の読み取りまで一緒にロック内へ入れ、「代償として `--from -` の標準入力読み取りもロック内になる（フックは本文を即座に流し込むので実害は小さい）」と記録した。
 3. F-696-01（real・minor）でこの判断が誤りと判明した：標準入力が閉じないと無期限に排他ロックを握り、他の `append`／`close-attempt`／`ingest-review` が全てブロックされる。フックが即座に流し込む前提は、手動実行・パイプの上流が詰まった場合に成り立たない。現状は `prepare` 段（`prepare=_read_report`）で**本文の読み取りだけをロックの前**に行い、ポインタの読み取りから台帳置換まではロック内に保つ。
 4. 副次効果（F-696-11 で是正済み）：本文が空・`--from` 不正の拒否はロック前に起きるので `tmp/_karte/` を作らないが、進行ポインタ由来の拒否（無い・破損・食い違い）と `--issue abc`・`--round ²` のような引数由来の拒否は、補完と検証が `func`（ロック内）にあったためロック用ファイルとディレクトリを作っていた。拒否の優先順位も出荷時の issue→round→本文から repo-root→本文→issue→round に変わり、ポインタが壊れていても標準入力を先に読み切っていた。
-5. F-696-11 の是正：`prepare`（ロック前）で `ingest_target`（issue→round）→本文の順に検証する（`cli._prepare_ingest`）。引数・ポインタ・本文由来の拒否はロックを取る前に起きるので何も作らず、優先順位も出荷時に戻る。ポインタ由来の値は並行 ingest が先に進めうるので**ロック内で読み直した値だけを使う**（ロック前の値は検証用に捨てる）。このためポインタを2回読む（読取のみ・副作用なし）。**回復できない残余**は、ロック前の検証を通ったあとロック取得までにポインタが変わり、ロック内の読み直しで拒否された競合時にロック用ファイルが残ること（台帳・ポインタは書かない）だけで、通常の拒否では起きない。
+5. F-696-11 の是正：`prepare`（ロック前）で `ingest_target`（issue→round）→本文の順に検証する（`cli._prepare_ingest`）。引数・ポインタ・本文由来の拒否はロックを取る前に起きるので何も作らず、優先順位も出荷時に戻る。ポインタ由来の値は並行 ingest が先に進めうるので**ロック内で読み直した値だけを使う**（ロック前の値は検証用に捨てる）。このためポインタを2回読む（読取のみ・副作用なし）。**何も作らずに拒否できるのは `prepare` 段で拒否できる範囲に限る**。ロックを取ったあとの拒否は、新規 repo でも `tmp/_karte/` と `.writer.lock` を残す（台帳・ポインタは書かない）。対象は、ロック前の検証を通ったあとにポインタが変わりロック内の読み直しで拒否された競合、レポート内容の検証（harm 欄欠落・ID 重複・再発番等）、台帳との突き合わせ（前ラウンド未解消の不在等）。当初ここを「競合時だけ」と書いていたのは誤りで、PR #696 第4回独立レビュー F-7 で実測に合わせて訂正した（`test_karte_pointer_completion.py` の `TestRefusalInsideTheLockLeavesTheLockFile` が固定）。
 
 ### 入力のエンコーディング（F-696-13）
 `UnicodeDecodeError`／`UnicodeEncodeError` は `ValueError` 系で、`verb_boundary._REFUSALS` の5種に含まれず終了コード契約 {0,2,3,4} の外へ漏れる（出荷時の origin/main でも同じ漏れ）。読み側は `path_io.read_text`（レポート本文・台帳・進行ポインタ・`--diff-file`）と `utf8_text.read_stream_text`（標準入力）で、書き側は `path_io` の書込み前に `utf8_text.require_utf8_encodable` で、いずれも拒否例外に畳む。C ロケールでは標準入力が `surrogateescape` で読まれて不正バイトが lone surrogate として検証を通り、台帳への書込みで初めて失敗するため、読んだ直後に UTF-8 へ戻せることも確かめる。`git diff` の出力復号は `errors="replace"` で、`.git` の読取も `replace` のため漏れない。
+
+### `fail_close` の戻り値の型（PR #696 第4回 T11）
+`fail_close` は注釈が無く、装飾後の verb の型が推論されず元の `func(args, repo_root[, prepared])` の署名に見えていた。pyright が `cli.cmd_*(args)` の呼び出しに「`repo_root` が無い」と報告し、`wrapper.locked` の代入も属性未定義になっていた（実行時は正しい）。`Verb` Protocol（`__call__(args) -> int` と `locked: bool` と `__name__`）を戻り値の型にして、`cast` 1 箇所でラッパーに宣言を付ける。呼び出し側の型は `cmd(args) -> int` に揃い、`.locked` の参照も型検査を通る。
 
 ### `prepare` 段の契約
 `prepare(args, repo_root)` はロックの外で 1 回だけ呼ばれ、戻り値が `func(args, repo_root, prepared)` の第 3 引数になる。`prepare` を渡さない verb の署名は `func(args, repo_root)` のまま。

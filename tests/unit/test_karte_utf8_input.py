@@ -12,13 +12,13 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from karte import cli, exit_codes, model, paths, utf8_text
 from karte.errors import KarteUsageError
+from tests.unit.karte_support import make_tmp_repo
 
 BAD = b"\xff\xfe"
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -26,9 +26,7 @@ REPO = Path(__file__).resolve().parent.parent.parent
 
 class _RootedCase(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-u8-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        (self.root / "tmp").mkdir()
+        self.root = make_tmp_repo(self, "karte-u8-")
 
     def _call(self, func, stdin=None, **kwargs):
         args = argparse.Namespace(repo_root=str(self.root), **kwargs)
@@ -142,8 +140,7 @@ class TestRealProcessExitCode(unittest.TestCase):
     """
 
     def setUp(self):
-        self.sandbox = Path(tempfile.mkdtemp(prefix="karte-proc-")).resolve()
-        self.addCleanup(lambda: shutil.rmtree(self.sandbox, ignore_errors=True))
+        self.sandbox = make_tmp_repo(self, "karte-proc-", with_tmp=False)
         shutil.copytree(
             REPO / "karte", self.sandbox / "karte", ignore=shutil.ignore_patterns("__pycache__")
         )

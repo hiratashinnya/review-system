@@ -29,7 +29,7 @@ class KarteMissing(KartePathError):
 def validate_issue(value) -> int:
     """issue 番号を検証して int で返す。パス構築の唯一の可変部分なので厳格に絞る。"""
     text = str(value)
-    if not ISSUE_RE.match(text):
+    if not ISSUE_RE.fullmatch(text):
         raise KartePathError(
             f"issue 番号は 1 以上の十進整数のみ（前置ゼロ・符号・空白を認めない）: {value!r}"
         )

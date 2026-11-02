@@ -48,7 +48,7 @@ STATUS_TIMEOUT_S = 30.0
 def _load_payload(stdin: TextIO) -> dict | None:
     try:
         value = json.load(stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError):
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError, RecursionError):
         return None
     return value if isinstance(value, dict) else None
 

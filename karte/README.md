@@ -392,3 +392,8 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
   `Attempt N`・`Result N`）の番号。`²` のような非 ASCII 数字や、Python の変換上限（4300 桁）を超える
   巨大桁は `4`。変換の入口は `karte/int_args.py` の `ascii_int_or_none` / `require_ascii_int` /
   `parse_int` に一本化してある。
+- **進行ポインタ `tmp/_karte/active.json` の JSON が壊れている／ネストが深すぎる**（再帰上限の
+  `RecursionError` も `4`）。JSON オブジェクトでない中身も `4`。末尾改行付きの `--issue $'5\n'` も `4`
+  （検査は `fullmatch`）。
+- **ロック内で拒否された `ingest-review`** は `4` を返し台帳・ポインタは書かないが、新規 repo でも
+  `tmp/_karte/` と `.writer.lock` は残る（何も作らずに拒否できるのはロック前の引数・ポインタ・本文の検証だけ）。
