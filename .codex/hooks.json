@@ -1,5 +1,19 @@
 {
   "hooks": {
+    "SubagentStart": [
+      {
+        "matcher": "agy-delegate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/agy-reference-context.py\"",
+            "timeout": 15,
+            "additionalContextLimit": 0,
+            "statusMessage": "Loading agy delegate references"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
