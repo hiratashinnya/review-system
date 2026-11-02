@@ -40,5 +40,6 @@ class GitHub:
         encoded = urllib.parse.quote(branch, safe='')
         return self.request(f'/branches/{encoded}')['commit']['sha']
 
-    def dispatch(self, workflow, ref):
-        self.request(f'/actions/workflows/{workflow}/dispatches', {'ref': ref})
+    def dispatch(self, workflow, ref, oid):
+        self.request(f'/actions/workflows/{workflow}/dispatches',
+                     {'ref': ref, 'inputs': {'head_oid': oid}})

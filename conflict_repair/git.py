@@ -4,6 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from guidance_sync.sources import COMMON_SOURCE, PRINCIPLES_SOURCE, TARGETS
+
 
 def run(repo, *args, check=True):
     env = os.environ.copy()
@@ -38,6 +40,11 @@ def conflicts(repo):
 
 def commit(repo):
     run(repo, 'add', '--', 'AGENTS.md', '.github/copilot-instructions.md')
+    for path in {COMMON_SOURCE, PRINCIPLES_SOURCE, *TARGETS.values(), *TARGETS}:
+        working = run(repo, 'hash-object', '--no-filters', '--', path).stdout.strip()
+        staged = run(repo, 'rev-parse', f':{path}').stdout.strip()
+        if working != staged:
+            raise ValueError(f'stage 後の内容が作業ファイルと不一致: {path}')
     run(repo, 'commit', '--no-verify', '-m', 'Merge default branch and regenerate guidance')
     return run(repo, 'rev-parse', 'HEAD').stdout.strip()
 

@@ -32,10 +32,9 @@ def evaluate(api, source, number, repository, default):
             return result
         git.push(source, repo, head)
         result.update({'判定': '修復完了', 'push': True, '修復後 OID': new_oid})
-        for workflow in ('tests.yml', 'guidance-sync.yml'):
-            try:
-                api.dispatch(workflow, head)
-                result[f'{workflow} dispatch'] = '要求済み（結果未確認）'
-            except Exception as exc:
-                result[f'{workflow} dispatch'] = f'失敗: {exc}'
+        try:
+            api.dispatch('conflict-repair-verify.yml', default, new_oid)
+            result['検証 dispatch'] = '要求済み（結果・required checks 未確認）'
+        except Exception as exc:
+            result['検証 dispatch'] = f'失敗: {exc}'
     return result

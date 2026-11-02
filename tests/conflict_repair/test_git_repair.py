@@ -80,3 +80,8 @@ class RealGitTest(unittest.TestCase):
         cmd(self.repo, 'switch', 'feature')
         merge = git.run(self.repo, 'merge', '--no-ff', '--no-commit', base, check=False)
         self.assertFalse(regenerate(self.repo, merge))
+
+    def test_staged_conversion_is_rejected(self):
+        (self.repo / '.gitattributes').write_text('AGENTS.md working-tree-encoding=ISO-8859-1\n')
+        with self.assertRaisesRegex(ValueError, 'stage 後'):
+            git.commit(self.repo)
