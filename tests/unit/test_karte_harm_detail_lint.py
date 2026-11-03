@@ -296,8 +296,12 @@ class ContractSyncTests(unittest.TestCase):
 
     def test_contract_limits_harm_detail_to_observable_harm(self):
         text = self.CONTRACT.read_text(encoding="utf-8")
-        self.assertIn("harm_detail に書くのは実害だけ", text)
-        self.assertIn("karte/allowlist.py", text)
+        source = ".ai/skills/review-harm/SKILL.md"
+        self.assertIn(source, text)
+        self.assertIn("必ず読み", text)
+        criteria = (REPO_ROOT / source).read_text(encoding="utf-8")
+        self.assertIn("harm_detail に書くのは実害だけ", criteria)
+        self.assertIn("karte/allowlist.py", criteria)
 
     def test_handoff_roles_carry_the_same_harm_detail_constraint(self):
         """``out_of_scope_findings`` の生産者にも同じ内容制約がある（F-511-03）。"""
