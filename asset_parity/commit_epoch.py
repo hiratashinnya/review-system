@@ -15,6 +15,12 @@ def git_last_commit_epoch(path: Path, root: Path) -> int | None:
     except ValueError:
         rel = path
     try:
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=root, capture_output=True, text=True, timeout=10, check=False,
+        )
+        if shallow.returncode != 0 or shallow.stdout.strip() != "false":
+            return None
         proc = subprocess.run(
             ["git", "log", "-1", "--format=%ct", "--", str(rel)],
             cwd=root, capture_output=True, text=True, timeout=10, check=False,
@@ -22,6 +28,6 @@ def git_last_commit_epoch(path: Path, root: Path) -> int | None:
     except (OSError, subprocess.SubprocessError):
         return None
     out = (proc.stdout or "").strip()
-    return int(out) if out.isdigit() else None
+    return int(out) if proc.returncode == 0 and out.isdigit() else None
 
 
