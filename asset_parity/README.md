@@ -213,3 +213,22 @@ To investigate, run `git rev-parse --is-shallow-repository`, fetch the complete
 history if necessary, then run `python3 -m asset_parity check` and inspect
 `git log -1 --format=%ct -- <path>` for each side. JSON retains the existing raw
 signals and adds `time_direction` for the observation.
+
+### Documented mirror-only assets (Issue #730)
+
+`MIRROR_ONLY` in `exceptions.py` records the reverse of `EXEMPTIONS`: exact
+`(name, kind, tree)` keys for existing mirror files without a Claude parity seed,
+with reasons and source references. Detection still scans the filesystem first.
+Text reports distinguish documented entries from unclassified orphans; JSON keeps
+`orphans` unchanged as the raw tree-to-label-list map and adds
+`documented_mirror_only` (tree to name/kind/reason objects) and
+`unclassified_orphans` (tree to labels). Both remain informational.
+
+The authoring document is the shared contract referenced by the individual author
+agents, not a standalone author role. The Copilot template declares
+`disable-model-invocation: true` and `user-invocable: false`. The Codex TOML
+contains name, description and instructions to read the shared contract; static
+inspection alone does not establish loader acceptance or standalone invocability.
+Neither was tested by execution, and placement changes are outside this issue.
+The `doc-system-config` skill remains Codex-only, as recorded in
+`.ai/Individually-managed-lists.md` and `.ai/rationale/doc-system-config.md`.

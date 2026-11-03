@@ -72,3 +72,19 @@ def is_exempt(name: str, kind: str, tree: str) -> str | None:
         if (exemption.name, exemption.kind, exemption.tree) == (name, kind, tree):
             return exemption.reason
     return None
+
+
+# Reverse-direction decisions: these are present without a Claude parity seed.
+MIRROR_ONLY: tuple[Exemption, ...] = (
+    Exemption("doc-system-v2-authoring", AGENT, GITHUB,
+              "Shared author contract; non-invocable template (.ai/agents/doc-system-v2-authoring.md; Copilot template frontmatter)"),
+    Exemption("doc-system-v2-authoring", AGENT, CODEX,
+              "Shared author contract reference (.ai/agents/doc-system-v2-authoring.md; .codex/agents/doc-system-v2-authoring.toml)"),
+    Exemption("doc-system-config", SKILL, AGENTS_DIR,
+              "Codex-only skill (.ai/Individually-managed-lists.md; .ai/rationale/doc-system-config.md)"),
+)
+
+def mirror_only_reason(name: str, kind: str, tree: str) -> str | None:
+    """Return the reason for an exact documented mirror-only key."""
+    return next((entry.reason for entry in MIRROR_ONLY
+                 if (entry.name, entry.kind, entry.tree) == (name, kind, tree)), None)

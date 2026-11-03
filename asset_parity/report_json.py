@@ -3,6 +3,7 @@
 import json
 
 from .report_model import Cell, Report
+from .report_orphans import classify_orphans
 from .stale_diagnostics import time_direction
 
 
@@ -27,6 +28,7 @@ def to_jsonable(report: Report) -> dict:
             }
         return d
 
+    documented, unclassified = classify_orphans(report.orphans)
     return {
         "schema": "asset-parity-report/v2",
         "compatibility": {
@@ -47,6 +49,8 @@ def to_jsonable(report: Report) -> dict:
             for row in report.rows
         ],
         "orphans": report.orphans,
+        "documented_mirror_only": documented,
+        "unclassified_orphans": unclassified,
         "summary": {
             "asset_count": len(report.rows),
             "missing_count": report.missing_count,
