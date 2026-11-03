@@ -3,6 +3,7 @@
 import json
 
 from .report_model import Cell, Report
+from .stale_diagnostics import time_direction
 
 
 def to_jsonable(report: Report) -> dict:
@@ -18,6 +19,7 @@ def to_jsonable(report: Report) -> dict:
                 "flagged": s.flagged,
                 "reasons": list(s.flag_reasons),
                 "day_gap": s.day_gap,
+                "time_direction": time_direction(s),
                 "parity_seed_lines": s.parity_seed_lines,
                 "canonical_lines": s.parity_seed_lines,
                 "mirror_lines": s.mirror_lines,
