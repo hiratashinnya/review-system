@@ -220,6 +220,8 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 |---|---|
 | `codex exec --ephemeral -C . "Reply exactly: started"` | 既定 sandbox は `workspace-write [workdir, /tmp, $TMPDIR]`、model `gpt-6-luna`。exit 0、`started`。project の trust 状態を `codex_hook_trust` では独立確認できなかった。 |
 | `codex exec --ephemeral --sandbox read-only -C . "Reply exactly: started"` | Codex 0.166.0 が起動・応答。read-only の一時ファイル作成 probe は `DENIED OSError`。 |
+| trusted main checkout での実認証 smoke | `rtk codex exec --ephemeral --sandbox read-only -C . -m gpt-6-luna 'Reply exactly: secure-default-auth-ok'` は Codex 0.166.0、default `secure-default` に read-only sandbox 指定を重ねて exit 0、応答は `secure-default-auth-ok` と一致。実ユーザーのsecretは表示・複製していない。これは Codex model 認証が secure-default 下で動く証拠であり、app-server / `hooks/list` が実ユーザー HOME で成功した証拠ではない。 |
+| `issue-implementer` profile の直接起動 smoke | trusted main checkout で `rtk codex exec --ephemeral -C . -c 'default_permissions="issue-implementer"' -m gpt-6-luna '<smoke request>'` を実行し、exit 0・workspace-write profile で応答。これは profile の直接指定確認であり、wrapper role の起動成功を示さない。 |
 | `codex --no-alt-screen -C .`（TTY） | Codex 0.166.0 の対話 UI 起動後、`Reply exactly: started` に応答し、Ctrl-C で終了。 |
 | default workspace-write sandbox の一時 probe | `./tmp` と repository root での一時 file 作成・即時削除は `CREATED`、`.codex/` と `.git/` は `DENIED OSError`、`1.1.1.1:443` socket は `BLOCKED PermissionError`。 |
 | `~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json` の open probe | Codex 0.166.0、`codex exec --ephemeral -C .` の既定 `workspace-write` sandbox 内で `os.open(O_RDONLY)`（gh は `O_RDONLY|O_DIRECTORY`）を行い、FD を直ちに閉じた。内容の read・表示・収集なし。既存する3対象すべて `DENIED PermissionError`、Codex exec exit 0。sandbox deny を実測。 |
