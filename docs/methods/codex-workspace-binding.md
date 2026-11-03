@@ -212,6 +212,22 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
   この設定は #630 で導入した。D12 は「ラッパーが Codex にリポジトリを書かせる唯一の**許可された**経路」という
   規律であり、ラッパーを通さない起動そのものを拒否するものではない。`secure-default` は project-local config が
   適用される起動の保護であり、env に含まれた秘密、別パスの認証情報、未 trust project、他リポジトリ起動を包括しない。
+- #630 の実起動確認（2026-11-03、Codex 0.166.0、`issue/630-secure-default` checkout）では、直接 exec と対話 UI の
+  起動・応答、read-only の書込拒否、workspace-write の一時領域書込、`.codex/`・`.git/` の書込拒否、network socket
+  拒否を確認した。コマンドと未検証経路は下表のとおり。これはローカル実行環境での結果であり、未確認経路を製品 PASS とみなさない。
+
+| 経路 / コマンド | 条件・結果 |
+|---|---|
+| `codex exec --ephemeral -C . "Reply exactly: started"` | 既定 sandbox は `workspace-write [workdir, /tmp, $TMPDIR]`、model `gpt-6-luna`。exit 0、`started`。project の trust 状態を `codex_hook_trust` では独立確認できなかった。 |
+| `codex exec --ephemeral --sandbox read-only -C . "Reply exactly: started"` | Codex 0.166.0 が起動・応答。read-only の一時ファイル作成 probe は `DENIED OSError`。 |
+| `codex --no-alt-screen -C .`（TTY） | Codex 0.166.0 の対話 UI 起動後、`Reply exactly: started` に応答し、Ctrl-C で終了。 |
+| default workspace-write sandbox の一時 probe | `./tmp` と repository root での一時 file 作成・即時削除は `CREATED`、`.codex/` と `.git/` は `DENIED OSError`、`1.1.1.1:443` socket は `BLOCKED PermissionError`。 |
+| `~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` の open probe | 先行するパス存在確認では最初の3対象が存在し、`.ssh` は不存在。内容は表示・読取していない。Codex が生成した open probe コマンドは `agent-command-gate` が `ssh` を含むコマンドとして実行前に拒否し、Codex も試行しないと応答した。このため deny の実効確認は**未検証**。gate の拒否を sandbox deny の証拠と扱わない。 |
+| `python3 -m codex_hook_trust check --repo .` / app-server `initialize` → `hooks/list` | 実 `~/.codex` では前者 exit 2、`app-server closed stdout before replying`。stderr は `failed to initialize sqlite state runtime under ~/.codex`。直接 JSON-RPC でも initialize 応答前に stdout が閉じ、exit 1。`codex app-server --print-startup-config` は exit 0。project trust だけを含む一時 `CODEX_HOME`（0700）で app-server と `hooks/list` は起動し、hook 2件を返したが、hook hash trust を設定していないため両方 `untrusted`、`codex_hook_trust` は exit 1。ここに Codex auth は無く、実ユーザー設定での hooks/list と内部認証の両立は**未検証**。別途 `codex sandbox -P secure-default -C . true` は `app-server socket directory must be a user-owned directory with mode 0700` で起動できず、一時 `CODEX_HOME` を指定しても解消しなかった。 |
+| agy `codex_*` | `mcp__agy__codex_status` は bridge host で Codex CLI が PATH 上に無く、`codex login status` も実行できないと報告。agy 経由の実起動・config 適用は**未検証**。 |
+| `codex-review` 実レビュー / wrapper role 実起動 | この作業では read-only exec の起動確認まで。review 完了は未確認。checkout は wrapper が要求する linked worktree ではなく、変更中 profile は `origin/main` pin と不一致のため wrapper の role 起動成功も**未検証**。 |
+
+上記の未検証事項は acceptance criterion 完了の証拠ではない。特に credential path の sandbox deny、app-server `hooks/list`、agy 経由、codex-review 完了、wrapper role 選択は別の条件を満たす環境で確認する必要がある。
 - F-538-31 の残る限界として、猶予後の `killpg(SIGKILL)` は、グループの全メンバーが消えて PGID が再利用される
   極小の窓を完全には閉じない。SIGKILL の直前に存在確認を別の呼び出しで行うことはやめたが、PGID 再利用自体は防げない。
 - 環境の2段の制限はラッパー経由の起動に適用される。実際の Codex シェルに認証関連の変数が現れないことは
