@@ -7,7 +7,13 @@ profile は `-c default_permissions="<role>"` で選ぶ（Issue #538 要設計1�
 from __future__ import annotations
 
 from pathlib import Path
+import re
+import subprocess
 
+from review_harm_sync import check as check_harm_sync
+
+from .committed_artifact import read_committed_artifact
+from .errors import CodexExecError
 from .request import ExecRequest
 from .roles import READ_ONLY_ROLES
 
@@ -27,7 +33,29 @@ PREAMBLE = """\
 def compose_prompt(role: str, worktree: Path, body: str) -> str:
     """固定の前置きに依頼本文を続ける（#565 の再委譲停止への手当て）。"""
     scope = "読み取り専用。ファイル編集・push・台帳操作は禁止。\n" if role in READ_ONLY_ROLES else ""
-    return PREAMBLE.format(role=role, worktree=worktree) + scope + body
+    criteria = ""
+    if role in {"pr-reviewer", "plan-reviewer"}:
+        path = worktree / ".ai/skills/review-harm/SKILL.md"
+        try:
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("not a regular file")
+            content = read_committed_artifact(path, worktree).decode("utf-8")
+            if check_harm_sync(worktree):
+                raise ValueError("criteria and generated preload are out of sync")
+            if not all(re.search(rf"(?m)^{n}\. .+。$", content) for n in range(1, 5)):
+                raise ValueError("criteria categories are incomplete")
+            if not all(f"| {harm} | {scope} |" in content
+                       for harm in ("real", "none") for scope in ("in", "out")):
+                raise ValueError("criteria examples are incomplete")
+            if not all(marker in content for marker in (
+                "name: review-harm", "# レビュー finding の実害判定", "harm_detail",
+                "scope: out", "finding-triager", "real", "none",
+            )):
+                raise ValueError("invalid criteria")
+        except (OSError, UnicodeError, ValueError, subprocess.SubprocessError) as exc:
+            raise CodexExecError("CODEX_EXEC_HARM_CRITERIA", str(exc)) from exc
+        criteria = "[実害判定の正本]\n" + content + "\n[正本ここまで]\n"
+    return PREAMBLE.format(role=role, worktree=worktree) + scope + criteria + body
 
 
 def build_codex_argv(
