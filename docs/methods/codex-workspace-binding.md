@@ -114,18 +114,26 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 
 `.codex/config.toml` に著作ロール（ac-designer/change-planner/test-writer/issue-implementer）とissue-fixerの編集profile、
 調査・plan-reviewer・pr-reviewer・adviserのread-only profileを版管理する。
-config の最初の有効設定はトップレベルの `default_permissions = ":workspace"` とする。profile 選択を省略した
-起動と `--sandbox read-only` 起動でも config を読み込めるようにするためで、ラッパーのロール別選択は
-`-c default_permissions="<role>"` で上書きする。
+config の最初の有効設定はトップレベルの `default_permissions = "secure-default"` とする（F-538-24）。
+`[permissions.secure-default]` は `:workspace` を継承し、role profile と同じ network deny と認証情報パス deny を持つ。
+これにより project config を読む未指定の直接起動も、編集可能な workspace 権限を保ちながら認証情報を読めない。
+`codex_worktree_exec` は `-c default_permissions="<role>"` で個別 role profile を明示選択するため、この既定値を使わない。
+`secure-default` は起動時の既定でありロールではない。`CODEX_EXEC_ROLES` や wrapper の `--role` 許可集合には含めない。
+
+Codex 起動の実効権限は sandbox 指定と project config の組合せで決まる。`--sandbox read-only` や `codex-review`
+のような read-only 起動では、その読取専用境界を維持し、`secure-default` の `:workspace` 継承で writable にしない。
+config の適用範囲は Codex が読み込む trusted project-local `.codex/config.toml` に限る。未 trust の project、別 repository
+からの起動、global config、CLI override、変更された `CODEX_HOME` には本設定の適用を保証しない。
+直接起動の実測は対象 project と trust 状態、Codex version、sandbox 指定を記録して行う。
 
 - 著作/fixerは `extends = ":workspace"`（`-C` の worktreeへ書け、配下の `.codex/` と `.git/` は読取専用）。
 - 調査・レビュー・adviserは `extends = ":read-only"` とし、編集権限を与えない。
-- `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
+- `[permissions.secure-default.network]` と `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
   `dangerously_allow_non_loopback_proxy` をすべて `false`。
-- `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
+- `[permissions.secure-default.filesystem]` と `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
 
 profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unittest` の `tests/unit/test_codex_worktree_exec_assets.py` が、
-先頭の既定設定とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
+先頭の既定設定・secure-default とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
 （未指定・`--sandbox read-only` の実起動成功の代替ではない）。
 
 ## 「要設計」4項目の決定
@@ -199,13 +207,11 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 - D1 の比較先はローカルの `origin/main` ref であり、fetch が古ければ古い版と比べる。検査から Codex の起動までの間に
   profile を書き換える競合は防いでいない（呼び出し側は自分の worktree だけを持つ前提）。
 - `/tmp` への書込みは許可される（実測⑥・許容）。
-- F-538-30：ラッパーを通さない起動（`codex exec` の直接起動・`codex-review`・対話利用・agy の `codex_*`）には、
-  `.codex/config.toml` の既定 `default_permissions = ":workspace"` が適用され、認証情報パスが読める（実測）。
-  この状態は本 PR の前から存在し、本 PR が持ち込んだ退行ではない。ロール別の network 無効・認証情報 deny が
-  適用されるのはラッパーが該当 profile を選択した起動である。既定は未指定起動の config 読込みを成立させるために
-  必要であり、削除すると未指定起動と `--sandbox read-only` 起動が失敗する（実測⑨）。既定を認証情報 deny 付きの
-  強化 profile にする対応は、2026-10-13 のオーナー判断で Issue #630 へ繰り延べた。D12 は「ラッパーが Codex に
-  リポジトリを書かせる唯一の**許可された**経路」という規律であり、ラッパーを通さない起動を機械的に拒否するものではない。
+- F-538-30：ラッパーを通さない起動（`codex exec` の直接起動・`codex-review`・対話利用・agy の `codex_*`）にも、
+  trusted project config が読み込まれる場合は `secure-default` が適用され、認証情報パスを deny する。
+  この設定は #630 で導入した。D12 は「ラッパーが Codex にリポジトリを書かせる唯一の**許可された**経路」という
+  規律であり、ラッパーを通さない起動そのものを拒否するものではない。`secure-default` は project-local config が
+  適用される起動の保護であり、env に含まれた秘密、別パスの認証情報、未 trust project、他リポジトリ起動を包括しない。
 - F-538-31 の残る限界として、猶予後の `killpg(SIGKILL)` は、グループの全メンバーが消えて PGID が再利用される
   極小の窓を完全には閉じない。SIGKILL の直前に存在確認を別の呼び出しで行うことはやめたが、PGID 再利用自体は防げない。
 - 環境の2段の制限はラッパー経由の起動に適用される。実際の Codex シェルに認証関連の変数が現れないことは
