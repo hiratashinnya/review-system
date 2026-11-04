@@ -110,7 +110,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 **変更対象**：defect_metrics/classification.py・cohort_analysis.py・tests/unit/test_defect_metrics_cohorts.py（新規候補）、バージョン付き分類annotationの単一保存先。既存定義・基線・72時間集計・通知を変更しない。
 
-**検査**：L6-T1～T10。承認済みdeferred1件と未承認の実害残置1件をともに第2分類へ加算（残置合計2）、未承認実害は1件だけ。v1レポートとbaselineの互換、分類証拠欠落・API打切り時のunknown/errorも確認。
+**検査**：L6-T1～T10。承認済みdeferred1件と未承認の実害残置1件をともに第2分類 `known_retained_at_merge` へ加算（残置合計2）、内訳 `disposition_state` は `approved_deferred=1` / `undecided=1`、未承認実害は1件だけ。v1レポートとbaselineの互換、分類証拠欠落・API打切り時のunknown/errorも確認。
 
 **AC**：AC-L6全5件。#370の観測/計測の責務に関連付け、#488を再実装しない。
 
