@@ -117,7 +117,7 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 | L2 | **worktree・handoff・結果保存の状態遷移と故障注入**。正常/timeout/二重実行/途中失敗/再起動で、返却結果・保存結果・リソース所有が整合し、次dispatchへ回復できることを実Git/I/O試験で保証 | 複数週間級 | [#559](https://github.com/hiratashinnya/review-system/issues/559)、[#679](https://github.com/hiratashinnya/review-system/issues/679)、[#699](https://github.com/hiratashinnya/review-system/issues/699)、[#409](https://github.com/hiratashinnya/review-system/issues/409) | 状態空間が増えるため、まず実測済み再発経路から固定。手動回復を消す前に誤削除がないことを確認 |
 | L3 | **コマンド安全性を閉じた操作契約に寄せる**。可能な操作は構造化verb・引数で許可し、shell一般構文の完全解析へ拡張し続けない。非対応の動的実行を許す範囲・拒否する範囲を明示し、ALLOWとDENYを実shellと差分検証 | 設計変更を伴う複数週間級 | [#699](https://github.com/hiratashinnya/review-system/issues/699)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、過去[#517](https://github.com/hiratashinnya/review-system/issues/517) | 対象toolの呼出形式変更が必要。まず誤操作防止の保護対象に絞り、万能sandboxを目指さない |
 | L4 | **変更箇所→CI経路→テスト→実機証跡の対応検証**。CI pathsと実際の検査対象の対応、full diff/head一致、clean-scopeの型/schema、実機専用ケースの未実測を明確に検出 | 複数週間級 | [#701](https://github.com/hiratashinnya/review-system/issues/701)、[#703](https://github.com/hiratashinnya/review-system/issues/703)、[#652](https://github.com/hiratashinnya/review-system/issues/652)、[#702](https://github.com/hiratashinnya/review-system/issues/702) | 全ケースをPR CIで実行するのは非現実的。実機検証は別の完了条件として維持 |
-| L5 | **finding原本・処置・停止判定の閉ループ**。独立レビューの原本、triage、オーナー承認されたdisposition、検証済み申し送り、karte verdict/stopとAgentRun closeが参照する検証済みblocking finding集合を相互に束縛。正式deferred/Advisoryはopenでも非ブロック、未決の実害はclean/close不可を機械テスト | 複数週間級 | [#691](https://github.com/hiratashinnya/review-system/issues/691)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、[#409](https://github.com/hiratashinnya/review-system/issues/409)、対応済[#723](https://github.com/hiratashinnya/review-system/issues/723) | triagerにオーナー権限を与えない。自動処置は明示承認・版付きポリシーの範囲に限定 |
+| L5 | **finding原本・処置・停止判定の閉ループ**。独立レビューの原本、triage、オーナー承認されたdisposition、検証済み申し送り、Karteの検証済み原本・処置証拠を共通入力として、verdict/STOP・escalate無進捗・check診断要否・AgentRun closeを**用途別の述語**で機械テスト。#683のverified harm:none/deferredは無進捗のみ除外してno-harm-only/owner STOP維持。未決の実害はclean/close不可 | 複数週間級 | [#691](https://github.com/hiratashinnya/review-system/issues/691)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、[#409](https://github.com/hiratashinnya/review-system/issues/409)、対応済[#723](https://github.com/hiratashinnya/review-system/issues/723) | triagerにオーナー権限を与えない。自動処置は明示承認・版付きポリシーの範囲に限定 |
 | L6 | **merge後欠陥の計測と対策効果の検証**。発見可能な見逃し／発見済み残置（承認済み含む）／実運用でのみ発見／safe default・gate不足を分類し、残置の承認状態を別集計して、対象PR・時刻窓・重複除外を固定して導入前後比較 | 1～数週間級 | [#370](https://github.com/hiratashinnya/review-system/issues/370)、実装済[#488](https://github.com/hiratashinnya/review-system/issues/488) | 現行defect_metricsの定義を黙って変更しない。既存レポートとの比較可能性を保って補助分類を追加 |
 
 ### 機械化する順番の考え方
@@ -205,6 +205,21 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 | F-733-01 | S5/L4のPR Actionsはevent head SHAとtested merge SHAをrun/PR番号に束縛。両SHAの文字列一致は不要 | head A、tested M≠AのGreenを受理。head B更新後にA由来runを拒否 |
 | F-733-02 | S4の原本・変異・復元の3ハッシュを取得。変異中は不一致、復元後のみ一致 | mutated≠base、restored=base、未commitのHEAD OID不変、対象assert Red→Green |
 | F-733-03 | L6の第2分類はmerge前発見済みの承認済み残置も数え、disposition_stateで適正処置を別集計 | 承認済みdeferred1件＋未承認実害1件で残置2件、違反1件 |
-| F-733-04 | L1/L5のAgentRun closeはKarteの検証済みblocking finding集合を参照し、open単純件数を使わない | 正式Advisory/deferredがopenでもclose可能、未承認harm:realなら拒否 |
+| F-733-04 | L1/L5のAgentRun closeはopen単純件数でなくKarteの検証済みverdict/owner判断/close適格性を参照。F-733-05で用途別条件を精緻化 | 正式Advisoryは#691の承認済み条件でのみclose候補。verified harm:none/deferredは無進捗除外だけでcloseしない。未承認harm:realは拒否 |
 
 修正内容は[Issue反映計画](ISSUE-HANDOFF-PLAN.md)にも転記した。**実装テストは未実施**（このPRは設計文書のみ）。Issue新規起票・本文変更・コメント投稿・relation更新・PRマージは行っていない。
+
+
+## 11. PR #733再レビューへの処置（2026-11-04 / F-733-05）
+
+[HEAD d223958の再レビュー](https://github.com/hiratashinnya/review-system/pull/733#pullrequestreview-5763886980)では**F-733-01〜04はresolved**、新たに**F-733-05（harm: real / major / scope: in）**がopenと判断された。F-733-05は、L5が`status/check/escalate/AgentRun close`の結果を同一集合にしようとしたため、#683の「検証済みharm:none/deferredは無進捗から除外するがverdictはno-harm-only維持」および#614のcheck未決境界に反するという指摘。**指摘を採用し、設計・AC・Issue引継ぎ案を修正した**（レビュー側の再評価は別途必要）。
+
+- [L5の用途別判定表・T12/T15〜T22/AC](DESIGN-L4-L6.md)：検証済み原本は共有し、`verdict_blocking`、`stall_candidates`、`diagnosis_required`、`close_eligible`、`hard_stop_required`を別々に導出。旧#503の共通入力を維持し、#683の無進捗用例外を他用途へ流用しない。
+- [L1 close契約・T9〜T14/AC](DESIGN-L1-L3.md)：#409 closeはKarteのverdict・owner判断・close専用の条件を参照。`escalate:no`は`clean`や完了可能性の証明にならない。
+- [Issue引継ぎ計画](ISSUE-HANDOFF-PLAN.md)：#683は無進捗、#614はcheck、#691の子Issueは検証入力と用途別の契約、#409はclose、#513はowner STOPに責務分離。**Issue本文・AC・コメント・relationは未変更**。
+
+### 再検証に使う中心fixture
+
+`status:open / harm:none / disposition:deferred / verified handoff / 3 round継続` の場合、**`verdict:no-harm-only`維持**、そのfindingは**無進捗計数から除外**、`check`は#614の現行ルール、未決owner STOP維持、AgentRun close不許可。ハッシュ不一致・コメント編集/削除・転記先closed・検証不能なら**無進捗へ計数復帰**するが、verdictやSTOPは無断変更しない。Advisoryだけは#691で将来承認された効力に限定する。
+
+文書のみの設計修正であり、#683/#614/#691/#409の実装や製品live検証を完了したとは主張しない。PRはDraftのまま、Issue反映・マージは行わない。
