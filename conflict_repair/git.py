@@ -43,7 +43,9 @@ def conflicts(repo):
 
 
 def commit(repo):
-    run(repo, 'add', '--', 'AGENTS.md', '.github/copilot-instructions.md')
+    paths = ('AGENTS.md', '.github/copilot-instructions.md')
+    run(repo, 'add', '--', *paths)
+    run(repo, 'add', '--renormalize', '--', *paths)
     for path in {COMMON_SOURCE, PRINCIPLES_SOURCE, *TARGETS.values(), *TARGETS}:
         working = run(repo, 'hash-object', '--no-filters', '--', path).stdout.strip()
         staged = run(repo, 'rev-parse', f':{path}').stdout.strip()
