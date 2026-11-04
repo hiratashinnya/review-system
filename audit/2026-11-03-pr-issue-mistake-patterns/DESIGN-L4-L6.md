@@ -213,9 +213,9 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - L6-T5 timezone/UTC半開区間/72時間境界の前後、API収集不足はfail-close。
 - L6-T6 report v1と基線照合の出力は完全互換。補助出力を有効にしてもv1の値を変えない。
 - L6-T7 case分類のevidenceが無い・古いOID・unknown→採用率や適正処置件数を過大評価しない。
+- L6-T8 改善後の誤deny率増加を別指標で検出し、単純な欠陥件数低下だけで成功判定しない。
 - L6-T9 有効なowner承認済みwaivedでもmerge時点にopenで残ったfindingは第2分類へ含むが、処置未承認の違反件数には加えない。ownerがfix_hereを選んだのに修正未了ならfix_here_incompleteへ分類し、適正処置済みと偽らない。
 - L6-T10 merge前に検証済みで修正完了したfindingは第2分類に入らない。
-- L6-T8 改善後の誤deny率増加を別指標で検出し、単純な欠陥件数低下だけで成功判定しない。
 
 ### AC-L6
 
