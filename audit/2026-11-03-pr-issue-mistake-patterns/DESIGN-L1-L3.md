@@ -52,7 +52,7 @@
 - **判定入力と判定用途を分離**：Karteの検証済みreview原本・owner/disposition・policy/handoff/Advisory証拠を参照するが、`status`のverdict阻害集合、`escalate`の無進捗集合、`check`の診断要否集合、**AgentRun close専用の適格性**は用途別に導出する。原本が同一でも結果は異なり得る。AgentRunは判定を再実装せず、Karteの対象run/round/headに拘束された出力を消費する。詳細は[用途別判定表](DESIGN-L4-L6.md)。
 - **#683の意図的非対称性を維持**：`status:open / harm:none / disposition:deferred / handoff検証済み`は3ラウンド無進捗の計数からだけ除外され、**`verdict:no-harm-only`とownerへの既存STOPは維持**。従って`escalate:no`や「申し送り検証済み」だけではclose不可。checkの診断要否も#614で明示承認されるまで既存動作を変えない。
 - **closeに必要な条件**：Karteの検証済み`status_verdict`、close用途で有効な処置とowner判断、#409のhandoff/expected outputs/依存run・レビュー原本の検証がすべて成立すること。現行のstatusが`clean`を妨げる場合にowner専権のSTOPが未解決なら、無進捗の除外ではclose不可。#691の**正式Advisory**は、後続子Issueが承認された範囲でverdictやcloseへの効力を定義した後に限り非ブロック候補とする。
-- **fail-close**：未分類・未承認のharm:real、owner判断未決、policy/Advisory/handoff参照不一致、別Issue/run/round/head、Karte不能はclose拒否。**#409の「未解消findingゼロ」を単純なopen件数でも`escalate`候補ゼロでも実装しない**。実装時は「close阻害findingなし＋承認済みverdict/owner条件成立」というACへの具体化を提案するが、現時点でIssueのowner決定や既存ACを変更しない。
+- **fail-close**：未分類・未承認のharm:real、owner判断未決、policy/Advisory/handoff参照不一致、別Issue/run/round/head、Karte不能はclose拒否。**#683 Q3未決の`closed/completed`はclose/STOPに対する有効なhandoff成功と確定扱いしない**。`closed/not planned`は計数復帰確定、`closed/completed`は#683でownerがA/Bを選択するまで判定保留（`requires_owner_decision`：設計上の保留表現であり新しいKarte status値ではない）。**#409の「未解消findingゼロ」を単純なopen件数でも`escalate`候補ゼロでも実装しない**。実装時は「close阻害findingなし＋承認済みverdict/owner条件成立」というACへの具体化を提案するが、現時点でIssueのowner決定や既存ACを変更しない。
 - 全findingは`status:open`でも履歴として保持し、`deferred`やAdvisoryを機械的に`resolved`へ変換しない。#683はverdict変更をOut of scope、#614はcheck判断が未決という責務境界を尊重する。
 
 ### 結果値の提案
@@ -90,15 +90,19 @@ validate_phase_request(
 - L1-T10 未分類またはowner未決の`harm: real`がopen、Advisory未commit、GitHub転記失敗、別runのKarte evidence→close拒否。openの数だけで判定しない。
 - L1-T11 Karte読取失敗・policy OID不一致・判定不能→close拒否。Karteに残る全findingの履歴は消さない。
 - L1-T12 #683 verified handoffを無進捗計数から除外しただけで`check`診断不要や`verdict:clean`へ変化→契約違反。#614の既存判断境界を保持。
-- L1-T13 verified handoffがhash不一致・宛先closed・検証不能となる→無進捗計数へ復帰。verdict/owner STOPとcloseの既存阻害は維持。
+- L1-T13 verified handoffがhash不一致・転記先closed/not planned・API/内容検証不能→無進捗計数へ復帰。verdict/owner STOPとcloseの既存阻害は維持。**closed/completedはこの復帰条件へ一律に含めない**。
 - L1-T14 同一Karteのstatus/check/escalate/close出力が用途別に異なるが同一の検証済み原本を参照→正規差として受理。別run/round/headの参照なら拒否。
+- L1-T15 handoffの転記先がopenで再検証済み→無進捗除外のみ成立。closed/not plannedなら必ず復帰。どちらも既存`no-harm-only`/owner STOPは維持。
+- L1-T16 転記先closed/completedで#683 Q3が未決→計数復帰とも除外継続とも合格判定せず、`requires_owner_decision`として引継ぎ、AgentRun close/STOP解除に使わない。
+- L1-T17 #683 Q3でownerがA選択済み→completedでも計数復帰。B選択済み→計数除外を維持し、最終検証でclosedを明示。いずれもowner採用証拠refを要し、選択前のデフォルトにしない。
+- L1-T18 ハッシュ不一致・コメント改変・state_reason取得不能・API不能→無進捗除外を認めず、owner STOPを暗黙解除しない。
 
 ### AC-L1
 
 - [ ] Graphは既存の成果物とAgentRunから導出され、重複した永続正本を作らない。
 - [ ] producer/Issue/run/phase/work unit/OID/digest/独立review/owner判断を具体的なtyped edgeで検査する。
-- [ ] T1〜T14の正常・異常・版互換がテストされ、未知を成功扱いしない。
-- [ ] AgentRun closeはKarteのverdict・owner判断・close専用判定を参照する。#683のverified harm:none/deferredは無進捗から除外しても`no-harm-only`/STOPを保持し、自動closeさせない。#691の正式Advisoryは承認済み契約の範囲に限り扱う。用途別の正負・証拠失効試験を固定する。
+- [ ] T1〜T18の正常・異常・版互換がテストされ、未知を成功扱いしない。
+- [ ] AgentRun closeはKarteのverdict・owner判断・close専用判定を参照する。#683のverified harm:none/deferredは無進捗から除外しても`no-harm-only`/STOPを保持し、自動closeさせない。転記先closed/completedは#683 Q3の未決を勝手に解消せず、ownerのA/B確定時だけ対応する回帰条件を固定する。#691の正式Advisoryは承認済み契約の範囲に限り扱う。用途別の正負・証拠失効試験を固定する。
 - [ ] AgentRun closeとworktree releaseとreview verdictの責務が分離され、cross-ledgerの参照だけに限定される。
 - [ ] #652のpostmerge live未検証を実装合格と偽装せず、#370に反する先行mergeゲートを作らない。
 - [ ] 既存issue_envelope check、unit/integration testsがGreen、schema版変更時は移行と全consumerを同期。
