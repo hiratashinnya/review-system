@@ -152,18 +152,24 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 | NEW-TRIAGE-PIPELINE | capture→triage→validated ingest→STOP/解除のphase接続 | #513、#409、#523との競合を解消 |
 | NEW-TRIAGE-LIVE | 正規PRのreview→triage→処置→Karte→owner判断のlive受入 | #652の手法を再利用、後日別Issue |
 
-**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。#409 closeは**Karteの検証済みverdict・owner決定・close専用判定**を消費する（L5-T12/T15〜T22）。**#683のhandoff検証済みharm:none/deferredは、無進捗から除外されてもverdict:no-harm-only・owner STOP維持**。正式Advisoryは#691の承認済み契約の範囲だけ別扱いし、#614のcheck診断要否は決定前に変更しない。レビュー原本未取込や未承認実害はclean/close扱いにしない。
+**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。#409 closeは**Karteの検証済みverdict・owner決定・close専用判定**を消費する（L5-T12/T15〜T28）。**#683のhandoff検証済みharm:none/deferredは、無進捗から除外されてもverdict:no-harm-only・owner STOP維持**。正式Advisoryは#691の承認済み契約の範囲だけ別扱いし、#614のcheck診断要否は決定前に変更しない。レビュー原本未取込や未承認実害はclean/close扱いにしない。
 
 
 ### F-733-05：子Issueと既存Issueへ引き継ぐ用途別の契約試験（反映前原案）
 
-- **#683（既存scope/ACは不変更）**：verified `harm:none/deferred` を無進捗3ラウンド計数と`render ★無進捗`からのみ除外する。元の`status:open`と`verdict:no-harm-only`、既存owner STOPを維持。転記hash変更・コメント編集/削除・転記先closed・検証失敗時は計数へ復帰。`check`とverdictの改変は#683のOut of scope。
+- **#683（既存scope/ACは不変更）**：verified `harm:none/deferred` を無進捗3ラウンド計数と`render ★無進捗`からのみ除外する。元の`status:open`と`verdict:no-harm-only`、既存owner STOPを維持。**転記先openは証拠検証済みなら除外、closed/not plannedは必ず復帰、closed/completedはQ3のowner未決（A: 復帰／B: 除外継続＋最終検証でclosed明示）**。転記hash変更・コメント編集/削除・検証不能時は計数へ戻す。Q3推奨Aを確定済みと誤読しない。`check`とverdictの改変は#683のOut of scope。
 - **#614（既存owner判断の対象）**：`check`診断必須集合は#683によって自動除外しない。`harm:none/deferred/waived`と主文脈担当fix-hereの診断要否は#614の結論と理由に従って別に実装・検証。
-- **NEW-KARTE-DISPOSITION（#691の子Issue候補）**：共通の検証済み入力→用途別の派生述語というAPI/責務を定め、L5-T12/T15〜T22を受入条件に加える。将来の#691承認済みAdvisoryのみ、承認した用途別効果を有効化する。#503の既存一元化や#683の意図的非対称性を壊さない。
+- **NEW-KARTE-DISPOSITION（#691の子Issue候補）**：共通の検証済み入力→用途別の派生述語というAPI/責務を定め、L5-T12/T15〜T28を受入条件に加える。将来の#691承認済みAdvisoryのみ、承認した用途別効果を有効化する。#503の既存一元化や#683の意図的非対称性を壊さない。
 - **#409（既存close gate）**：`escalate:no`を`verdict:clean`やclose可能へ読み替えない。`no-harm-only`が残る場合は有効なowner判断なしのcloseを拒否。`status`/`check`/`escalate`と原本・処置証拠が一致することを検証し、**用途ごとの出力結果が異なるだけで不整合としない**。
 - **#513**：無進捗false-positiveの抑制はowner STOP解除の根拠にならない。tool全denyの発動理由・解除はオーナーが承認した専用の条件を使い、`escalate:yes/no`へ無条件連動させない。
 
-受入fixtureの中心：`status:open, harm:none, disposition:deferred, verified handoff, rounds>=3` → `verdict:no-harm-only`, `stall_candidates`除外, `check`は#614の現行ルール, owner未決なら`close_eligible=false`。同じ入力でhandoff証拠を無効化→`stall_candidates`へ復帰、verdict/owner STOPは変化なし。**これは実装時のAC候補であり、どの既存Issue本文にもまだ投稿・反映していない。**
+受入fixtureの中心：`status:open, harm:none, disposition:deferred, verified handoff, rounds>=3` → `verdict:no-harm-only`, `stall_candidates`除外, `check`は#614の現行ルール, owner未決なら`close_eligible=false`。同じ入力でhandoff証拠を無効化→`stall_candidates`へ復帰、verdict/owner STOPは変化なし。**#683 Q3の追加fixture**：転記先`open`→検証済みなら除外、`closed/not planned`→必ず復帰、`closed/completed`→Q3未決時は`requires_owner_decision`（A/Bのいずれかを確定成功としない）。Q3をownerがA採用した場合のみcompletedで復帰、B採用なら除外維持＋最終検証時のclosed報告。hash不一致、コメント削除/編集、状態理由不明、API不能は別の失敗ケースとする。**これは実装時のAC候補であり、どの既存Issue本文にもまだ投稿・反映していない。**
+
+### F-733-06：#683 Q3の未決条件をIssue化の前提に固定
+
+- #683のQ3「申し送り先closed/completedの扱い」は、**A＝計数復帰（現時点で推奨）／B＝除外維持してfinal verificationにclosedを報告**のオーナー未決。起票・既存Issue更新の際、案Aを既決ACとして転記しない。決定の出典、日時、採用理由と正規の判定境界を確認してからcompletedケースの確定期待値を入力する。
+- Q3未決の間は、設計結果を`requires_owner_decision`として報告し、除外成功・復帰成功のどちらとも断定しない。これは**設計上の保留状態**であり、Karteの既存status/Issue stateに新enumを無断追加する意図ではない。AgentRun closeや#513 STOP解除をcompletedの未決判断で自動許可しない。
+- #683への追加引継ぎは、T23〜T28の状態別fixtureと既存Q3の決定条件だけ。#614の診断仕様、#409のclose、#513の停止強制にはその決定済み出力を入力として渡し、同じcompleted判断を複数のIssueで重複決定しない。
 
 ### L6：#370の計測・再集計
 
