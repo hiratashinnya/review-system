@@ -99,7 +99,7 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 | S2 | **同型不具合探索を是正の一部にする**。修正原因を一文で表し、同じ判定/例外/意味を持つ関数・呼出先を検索して、修正・別Issue・対象外を分類する。修正権限・スコープを勝手に拡大しない | 半日～1日で運用化、個別調査は別 | 高（13、24） | [#370](https://github.com/hiratashinnya/review-system/issues/370)、[#691](https://github.com/hiratashinnya/review-system/issues/691)と重複設計しない |
 | S3 | **ゲートのALLOW/DENY対照試験を先行追加**。修正前後の同一コマンド集で、悪性入力のdeny、正常入力のallow、曖昧入力の安全処理、hook実際の終了コードまで固定する。新規parserを丸ごと作らない | 対象1機構あたり1～3日 | 高（07–10） | [#533](https://github.com/hiratashinnya/review-system/issues/533)、[#722](https://github.com/hiratashinnya/review-system/issues/722)等を起点 |
 | S4 | **重要分岐の小規模変異テスト**。verdict、終了コード、入力ガードについて意図的に誤実装へ書き換え、期待するテストが赤になることを記録する。最初は重要5分岐程度に限定 | 1～3日 | 高（19）※対象分岐に限る | [#720](https://github.com/hiratashinnya/review-system/issues/720)、[#728](https://github.com/hiratashinnya/review-system/issues/728)。全suiteへの一括導入はしない |
-| S5 | **レビュー証跡の3点確認**。対象headに対する①diff全文読了または未読範囲の明記、②そのheadのCI、③未処置finding／承認・実測未達の明記。すでに持つreceiptとkarteを使い新台帳を作らない | 半日～1日で様式化 | 中～高（20–23） | [#530](https://github.com/hiratashinnya/review-system/issues/530)、[#513](https://github.com/hiratashinnya/review-system/issues/513) |
+| S5 | **レビュー証跡の3点確認**。対象headに対する①diff全文読了または未読範囲の明記、②そのheadに**対応する**CI（PR headとActionsのtested merge SHAを区別）、③検証済みblocking finding／承認・実測未達の明記。すでに持つreceiptとkarteを使い新台帳を作らない | 半日～1日で様式化 | 中～高（20–23） | [#530](https://github.com/hiratashinnya/review-system/issues/530)、[#513](https://github.com/hiratashinnya/review-system/issues/513) |
 | S6 | **実機検証を必要ケースへ限定して切り出す**。hook発火、PF固有tool、GitHub Actions実起動、CLI対応版、異常回復はmockでは代用せず、最終headまたはmerge後に実測し証拠を保存する。製品上の制約があるなら「未実測」を維持 | 1～3日で対象・手順定義、実測負荷は別 | 高（17、20、21）※適用環境に限る | [#652](https://github.com/hiratashinnya/review-system/issues/652)、[#363](https://github.com/hiratashinnya/review-system/issues/363) |
 
 ### 短期でまず試す最小セット
@@ -117,8 +117,8 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 | L2 | **worktree・handoff・結果保存の状態遷移と故障注入**。正常/timeout/二重実行/途中失敗/再起動で、返却結果・保存結果・リソース所有が整合し、次dispatchへ回復できることを実Git/I/O試験で保証 | 複数週間級 | [#559](https://github.com/hiratashinnya/review-system/issues/559)、[#679](https://github.com/hiratashinnya/review-system/issues/679)、[#699](https://github.com/hiratashinnya/review-system/issues/699)、[#409](https://github.com/hiratashinnya/review-system/issues/409) | 状態空間が増えるため、まず実測済み再発経路から固定。手動回復を消す前に誤削除がないことを確認 |
 | L3 | **コマンド安全性を閉じた操作契約に寄せる**。可能な操作は構造化verb・引数で許可し、shell一般構文の完全解析へ拡張し続けない。非対応の動的実行を許す範囲・拒否する範囲を明示し、ALLOWとDENYを実shellと差分検証 | 設計変更を伴う複数週間級 | [#699](https://github.com/hiratashinnya/review-system/issues/699)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、過去[#517](https://github.com/hiratashinnya/review-system/issues/517) | 対象toolの呼出形式変更が必要。まず誤操作防止の保護対象に絞り、万能sandboxを目指さない |
 | L4 | **変更箇所→CI経路→テスト→実機証跡の対応検証**。CI pathsと実際の検査対象の対応、full diff/head一致、clean-scopeの型/schema、実機専用ケースの未実測を明確に検出 | 複数週間級 | [#701](https://github.com/hiratashinnya/review-system/issues/701)、[#703](https://github.com/hiratashinnya/review-system/issues/703)、[#652](https://github.com/hiratashinnya/review-system/issues/652)、[#702](https://github.com/hiratashinnya/review-system/issues/702) | 全ケースをPR CIで実行するのは非現実的。実機検証は別の完了条件として維持 |
-| L5 | **finding原本・処置・停止判定の閉ループ**。独立レビューの原本、triage、オーナー承認されたdisposition、検証済み申し送り、karte verdict/stopを相互に束縛。未決の実害が黙ってclean化しないことを機械テスト | 複数週間級 | [#691](https://github.com/hiratashinnya/review-system/issues/691)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、[#409](https://github.com/hiratashinnya/review-system/issues/409)、対応済[#723](https://github.com/hiratashinnya/review-system/issues/723) | triagerにオーナー権限を与えない。自動処置は明示承認・版付きポリシーの範囲に限定 |
-| L6 | **merge後欠陥の計測と対策効果の検証**。発見可能な見逃し／発見済み未処置／実運用でのみ発見／safe default・gate不足を別集計し、対象PR・時刻窓・重複除外を固定して導入前後比較 | 1～数週間級 | [#370](https://github.com/hiratashinnya/review-system/issues/370)、実装済[#488](https://github.com/hiratashinnya/review-system/issues/488) | 現行defect_metricsの定義を黙って変更しない。既存レポートとの比較可能性を保って補助分類を追加 |
+| L5 | **finding原本・処置・停止判定の閉ループ**。独立レビューの原本、triage、オーナー承認されたdisposition、検証済み申し送り、karte verdict/stopとAgentRun closeが参照する検証済みblocking finding集合を相互に束縛。正式deferred/Advisoryはopenでも非ブロック、未決の実害はclean/close不可を機械テスト | 複数週間級 | [#691](https://github.com/hiratashinnya/review-system/issues/691)、[#513](https://github.com/hiratashinnya/review-system/issues/513)、[#409](https://github.com/hiratashinnya/review-system/issues/409)、対応済[#723](https://github.com/hiratashinnya/review-system/issues/723) | triagerにオーナー権限を与えない。自動処置は明示承認・版付きポリシーの範囲に限定 |
+| L6 | **merge後欠陥の計測と対策効果の検証**。発見可能な見逃し／発見済み残置（承認済み含む）／実運用でのみ発見／safe default・gate不足を分類し、残置の承認状態を別集計して、対象PR・時刻窓・重複除外を固定して導入前後比較 | 1～数週間級 | [#370](https://github.com/hiratashinnya/review-system/issues/370)、実装済[#488](https://github.com/hiratashinnya/review-system/issues/488) | 現行defect_metricsの定義を黙って変更しない。既存レポートとの比較可能性を保って補助分類を追加 |
 
 ### 機械化する順番の考え方
 
@@ -151,7 +151,7 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 3. merge後のlive運用で初めて観測できた
 4. safe default・機械gate・lint不足
 
-この4分類は原因と観測時期が一部重なるため、**単一の排他的な区分として使う際は優先規則の定義が必要**。本レポートは測定ルール自体を上書きしない。
+この4分類は原因と観測時期が一部重なるため、**第1〜3分類を発見・残置の軸、第4分類を原因ギャップの独立軸**として扱う案とする。特に第2分類には、merge前に発見済みで残置した**承認済みdeferred/waivedも含める**。承認済みの残置と未承認/未完了の実害は別の`disposition_state`で区分し、承認済みだからといって第2分類から除外しない。既存#370の測定ルールそのものを勝手に上書きせず、詳細は[L6設計](DESIGN-L4-L6.md)に示す。
 
 ## 7. 既存Issueとの整合・追加起票の要否
 
@@ -194,3 +194,17 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 - [Issue反映計画：既存Issueとの責務分離、新規Issueドラフト候補、未決判断、依存関係](ISSUE-HANDOFF-PLAN.md)
 
 将来Issueへ反映する場合は、その時点でmainの仕様、各Issueの最新のscope/AC、関連PRを再確認し、対象コミットの設計書を参照する。オーナー専権の判断を明示確定してから「Issue #Nを処置して」で実装できるようにする。
+
+
+## 10. PR #733のレビュー指摘に対する設計修正（2026-11-04）
+
+[同一HEADに投稿されたレビュー](https://github.com/hiratashinnya/review-system/pull/733#pullrequestreview-5761003553) の4件はいずれも`harm: real`/`severity: major`/`scope: in`。Issueや規範コードには反映せず、次の**設計書とAC案だけを修正**した。再レビューでの確認前にfindingを自動resolved扱いしない。
+
+| Finding | 修正設計 | 将来の検証対象 |
+|---|---|---|
+| F-733-01 | S5/L4のPR Actionsはevent head SHAとtested merge SHAをrun/PR番号に束縛。両SHAの文字列一致は不要 | head A、tested M≠AのGreenを受理。head B更新後にA由来runを拒否 |
+| F-733-02 | S4の原本・変異・復元の3ハッシュを取得。変異中は不一致、復元後のみ一致 | mutated≠base、restored=base、未commitのHEAD OID不変、対象assert Red→Green |
+| F-733-03 | L6の第2分類はmerge前発見済みの承認済み残置も数え、disposition_stateで適正処置を別集計 | 承認済みdeferred1件＋未承認実害1件で残置2件、違反1件 |
+| F-733-04 | L1/L5のAgentRun closeはKarteの検証済みblocking finding集合を参照し、open単純件数を使わない | 正式Advisory/deferredがopenでもclose可能、未承認harm:realなら拒否 |
+
+修正内容は[Issue反映計画](ISSUE-HANDOFF-PLAN.md)にも転記した。**実装テストは未実施**（このPRは設計文書のみ）。Issue新規起票・本文変更・コメント投稿・relation更新・PRマージは行っていない。
