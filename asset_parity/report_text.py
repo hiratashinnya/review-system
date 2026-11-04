@@ -2,6 +2,7 @@
 
 from .report_model import (Report, STATUS_PRESENT, STATUS_MISSING, STATUS_EXEMPT, STATUS_NA)
 from .report_details import render_details
+from .report_orphans import classify_orphans
 from .trees import ALL_TREES, TREE_LABELS
 
 
@@ -46,6 +47,16 @@ def render_text(report: Report) -> str:
             names = report.orphans.get(tree)
             if names:
                 lines.append(f"  {TREE_LABELS[tree]}: {', '.join(names)}")
+
+    documented, unclassified = classify_orphans(report.orphans)
+    lines.append("")
+    lines.append(f"Documented mirror-only: {sum(map(len, documented.values()))}")
+    for tree, entries in documented.items():
+        for entry in entries:
+            lines.append(f"  {TREE_LABELS[tree]}: {entry['name']} ({entry['kind']}) — {entry['reason']}")
+    lines.append(f"Unclassified orphans: {sum(map(len, unclassified.values()))}")
+    for tree, labels in unclassified.items():
+        lines.append(f"  {TREE_LABELS[tree]}: {', '.join(labels)}")
 
     lines.extend(render_details(report))
 

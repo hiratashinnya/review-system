@@ -11,7 +11,8 @@ from .base_error import BaseIntegrationError, require
 from .base_git import git_path
 
 NAME = "gitgate-base-integration.json"
-POLICY = "gitgate-base-integration/2.0"
+POLICY = "gitgate-base-integration/2.1"
+LEGACY_POLICY = "gitgate-base-integration/2.0"
 
 
 def state_path(workspace):
@@ -26,7 +27,7 @@ def load(workspace):
         record = json.loads(path.read_text())
     except (OSError, ValueError):
         record = None
-    require(isinstance(record, dict) and record.get("policy_version") == POLICY,
+    require(isinstance(record, dict) and record.get("policy_version") in (POLICY, LEGACY_POLICY),
             "BASE_STATE_INVALID: " + str(path))
     return record
 

@@ -3,6 +3,8 @@
 import json
 
 from .report_model import Cell, Report
+from .report_orphans import classify_orphans
+from .stale_diagnostics import time_direction
 
 
 def to_jsonable(report: Report) -> dict:
@@ -18,6 +20,7 @@ def to_jsonable(report: Report) -> dict:
                 "flagged": s.flagged,
                 "reasons": list(s.flag_reasons),
                 "day_gap": s.day_gap,
+                "time_direction": time_direction(s),
                 "parity_seed_lines": s.parity_seed_lines,
                 "canonical_lines": s.parity_seed_lines,
                 "mirror_lines": s.mirror_lines,
@@ -25,6 +28,7 @@ def to_jsonable(report: Report) -> dict:
             }
         return d
 
+    documented, unclassified = classify_orphans(report.orphans)
     return {
         "schema": "asset-parity-report/v2",
         "compatibility": {
@@ -45,6 +49,8 @@ def to_jsonable(report: Report) -> dict:
             for row in report.rows
         ],
         "orphans": report.orphans,
+        "documented_mirror_only": documented,
+        "unclassified_orphans": unclassified,
         "summary": {
             "asset_count": len(report.rows),
             "missing_count": report.missing_count,

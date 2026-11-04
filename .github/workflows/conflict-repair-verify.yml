@@ -1,0 +1,30 @@
+name: conflict-repair-verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      head_oid:
+        description: 修復後の commit OID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate commit OID
+        env:
+          HEAD_OID: ${{ inputs.head_oid }}
+        run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.head_oid }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: python3 -m unittest discover tests
+      - run: python3 -m guidance_sync check

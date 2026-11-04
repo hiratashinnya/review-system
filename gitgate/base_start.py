@@ -16,13 +16,13 @@ def require_clean_start(workspace, request):
 def start(binding, request, api):
     workspace = binding["workspace"]
     require_clean_start(workspace, request)
-    verify_live(workspace, request, binding, api)
+    base_ref = verify_live(workspace, request, binding, api)
     require_clean_start(workspace, request)
     if git(workspace, "merge-base", "--is-ancestor", request["base"], request["head"],
            allow_failure=True).returncode == 0:
         return {"status": "no_change", "head": request["head"]}
     record = {"request": request, "branch": binding["branch"],
-              "original_head": request["head"], "conflicts": []}
+              "original_head": request["head"], "base_ref": base_ref, "conflicts": []}
     create(workspace, record)
     result = git(workspace, "merge", "--no-ff", "--no-commit", request["base"],
                  allow_failure=True)

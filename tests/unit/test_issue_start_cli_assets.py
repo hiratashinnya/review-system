@@ -196,11 +196,13 @@ class AssetParityTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertNotIn("launch-intent", command)
                 scripts = re.findall(
-                    r'^bash "\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[a-z-]+\.sh)"$',
+                    r'^(bash|python3) "\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[a-z-]+\.(?:sh|py))"$',
                     command,
                 )
                 self.assertEqual(len(scripts), 1)
-                self.assertTrue((ROOT / scripts[0]).is_file())
+                interpreter, script = scripts[0]
+                self.assertEqual(Path(script).suffix, {"bash": ".sh", "python3": ".py"}[interpreter])
+                self.assertTrue((ROOT / script).is_file())
 
     def test_retired_binding_hook_and_manifest_transport_are_absent(self):
         manifest = json.loads(
