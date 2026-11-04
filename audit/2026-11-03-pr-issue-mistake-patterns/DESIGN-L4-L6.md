@@ -21,7 +21,7 @@
 - obligation_id：asset_parity / unittest / typecheck / pages_build / live_hook / live_dispatch 等
 - trigger_source：何を変更したら検査が必要になるか（正本のsource glob）
 - test_target：当該jobが実際に検査する入口/ファイル/公開経路
-- evidence_identity：PR番号、head OID、workflow run ID/job ID、completion、result
+- evidence_identity：PR番号、event種別、event payload上のPR head SHA、実際にcheckout/testしたSHA（PR merge refならmerge SHA）、必要ならbase SHA、workflow run ID/attempt/job ID、completion、result
 - verification_kind：static / unit / integration / live
 - requirement：premerge_required / postmerge_oneoff / continuous
 - status：pass / fail / pending / not_run / blocked / not_applicable
@@ -32,10 +32,11 @@ Obligationは実際に必要な検査だけ導出。CIがskippedでも、変更�
 ### 検査アルゴリズム
 
 1. 信頼済みbase/headの変更ファイル一覧を取得し、CIの各trigger（path filters）へ適用。GitHub APIで取得結果が不完全ならcompleteとはしない。
-2. unitテストはPR常時起動の既存workflowでheadに対するjobを確認する。typechecked-filesは**実際のjobが読むリスト**を唯一の対象として使用し、削除・rename・警告隠蔽など「見かけ上のGreen」を区別する。
+2. unitテストはPR常時起動の既存workflowで**そのPR headに紐づくrun**を確認する。`pull_request` eventのrunは既定のcheckoutでmerge-refをテストし得るので、head SHAとtested SHAの一致を直接要求しない。typechecked-filesは**実際のjobが読むリスト**を唯一の対象として使用し、削除・rename・警告隠蔽など「見かけ上のGreen」を区別する。
 3. .ai/asset関連の差分は、既存 asset_parity/trees.py の関係とasset-parity.ymlのtrigger条件をテストで照合。trigger-onlyの .ai/** をscan対象だと偽らない。
 4. pages_build等のPR成果物検査とmain上deployは別event、別目的。PRにdeploy権限を付けない。
-5. 必須jobが、**判定時のPR head OIDと対応すること**、jobのstatusがcompleted、conclusionがsuccessであることを確認。古いheadの成功を流用しない。
+5. 必須jobは**run ID/attemptとそのevent payload**でPR番号・event種別・`event.pull_request.head.sha=A`を現在のPR head=Aへ対応づけ、`GITHUB_REF=refs/pull/N/merge`の場合は実checkout/tested SHA=M（merge commit）を同runの証拠として保持する。**M≠Aでも正規のCI成功**であり、単一の`head_sha`欄がAと一致しないことだけで拒否しない。head更新A→Bでevent head=Aの旧runを拒否し、base更新後の検査対象/鮮度も確認する。job status=completed/conclusion=successの必要条件は別途検査。対応証拠を取得できない場合は`not_run`や`pass`でなく検証不能としてfail-close。
+   - `pull_request`以外（workflow_dispatch等）ではevent種別に応じた実checkout SHAを明示し、別イベントの成功をPR headの成功に流用しない。参照: [GitHub Actions公式](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)。
 6. 製品実測が必要なケースはS6の証拠様式を参照。実機未実測をCIのsuccessで補完しない。
 7. fail/pending/not_run/blockedは「検査済み完全」とは表示しない。PR reviewer/owner reportの既存表示へ必要な情報を渡す。#370の既決に反する先回りのmerge gate追加はしない。
 
@@ -52,7 +53,8 @@ Obligationは実際に必要な検査だけ導出。CIがskippedでも、変更�
 - L4-T1 PRで .ai/のみ変更→asset_parity workflowが起動する必要がある。以前の#467の復元変異でチェックが赤。
 - L4-T2 asset-parityのscan rootが増えたのにworkflow triggerが漏れる→既存path contractテストが赤。
 - L4-T3 pyright対象のclean fileをリストから削除してgreenにする改変→coverage ratchetが検出。
-- L4-T4 対象head Aでjob成功後、PRをhead Bへ更新→Aの結果ではBをpassにできない。
+- L4-T4a `pull_request` eventでhead=A・merge-tested=M（M≠A）・PR番号一致・run/job成功→正規のCIとして受理する。
+- L4-T4b headをA→Bへ更新すると旧event head=A・tested=Mの成功ではBをpassにできない。別PR・event不一致やbase変更後の鮮度不明も拒否する。
 - L4-T5 CIがskip/pending/失敗/未起動→それぞれ区別、必要なjobは合格としない。
 - L4-T6 pages PR buildは検証するが、PRからの本番deployを要求しない。
 - L4-T7 hookのunit/mock成功だが本番未発火→live obligationはnot_run/blocked。
@@ -61,7 +63,7 @@ Obligationは実際に必要な検査だけ導出。CIがskippedでも、変更�
 ### AC-L4
 
 - [ ] 検査が必要になる変更面と、実際のjob/対象・対象head・実行証跡を対応づけられる。
-- [ ] 未起動/skip/pending/古いOIDをsuccessと誤認しない。
+- [ ] `pull_request`のevent head=Aに由来するmerge-tested=M（M≠A）のsuccessを正しく受理し、A→B更新・別PR/別event・旧base・証拠不足をsuccessと誤認しない。
 - [ ] #467/#530のCLOSED実装を再作成せず、回帰検出を保持する。
 - [ ] #701のclean-scope ratchetと#703のtrace/orphan検査へ責務を分離し、無検査化による偽Greenを検出する。
 - [ ] S6/#652の実機未検証を区別し、外部課金・secret送信・PRからのdeploy権限を増やさない。
@@ -122,6 +124,14 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - Advisoryの正本は#691で指定した .ai/advisory/ledger/ADV-<YYYYMMDD>-<slug>.toml 。未commit/不正digest/参照欠落ではclean阻害から除外しない。owner判断ledgerとの二重登録を避ける。
 - deferredは#683の検証済み転記を使用。GitHub Issueが存在することだけでなく、実際にfindingの必要情報が到達した証拠が必要。
 
+### #409 close gateへ渡す検証済みblocking finding集合（F-733-04）
+
+- **原本集合**：Karte内のfindingは`status: open`でも履歴をそのまま保持。`unresolved_findings`を物理的に削除/`resolved`へ改変してcloseを通さない。
+- **判定集合**：対象Issue/run/round/PR headに束縛されたKarte `status/check/escalate` の共通述語で `blocking_findings` を導出する。`blocking_findings == ∅`、未決owner判断なし、他のAgentRun close条件成立の場合に限りclose可能。AgentRunに別のdisposition計算器や真偽正本を作らない。
+- `status: open`の**正式なAdvisory**（harm:none・承認済みpolicy版・committed正本のref/digest検証済み）や**正式なdeferred**（#683によりIssue転記/承認の証拠検証済み）は、Karteが非ブロッキングと判定した場合にcloseを妨げない。一方、未分類/未承認のharm:real、未検証Advisory・handoff、別OIDの判断はblockingまたは判定不能でclose拒否。
+- `escalate`/STOPの発動条件とclose eligibilityは**同じ検証済み判定結果から導出**し、個別コマンドで別ロジックを増やさない。Karte/参照元を読めない場合はfail-close。**#409のAC「未解消findingゼロ」はopen件数ゼロではなく、未処置blocking findingゼロへ具体化する提案**（IssueのAC変更は未実施）。
+- 既存の`harm:none/deferred`等の判定を勝手に非ブロッキングへ変更しない。#691/#614/#683で採用・検証された範囲だけを有効とし、旧Karteデータは暗黙に再分類しない。
+
 ### 試験表
 
 | Case | 条件 | 期待 |
@@ -140,6 +150,9 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 | L5-T12 | status/check/escalateで同一finding集合 | 同じブロッカー判定 |
 | L5-T13 | legacyKarteの旧値 | 互換読取、暗黙のadvisory変換なし |
 | L5-T14 | 製品tool hookは存在するが発火していない | LIVE未検証扱い、保証しない |
+| L5-T15 | `status: open`で有効なAdvisory/deferredだけが残る | Karte判定が非ブロッキングならAgentRun close可能、原findingは監査参照に残る |
+| L5-T16 | 未分類/未承認の`harm: real`がopen、policy未承認、Advisory未commit、handoff未検証 | blockingまたは判定不能でAgentRun close不可 |
+| L5-T17 | status/check/escalateとAgentRun closeで異なる集合、別run/round/OIDのKarte | 一致検証で拒否、AgentRunの自己申告により除外できない |
 
 ### AC-L5
 
@@ -147,8 +160,8 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - [ ] fix_here/deferred/advisory/owner_reviewを上記優先順で判定し、未証明の任意改善が勝手にcleanにならない。
 - [ ] #513のhard stopとtriage必要性の競合についてownerが採用順と正規例外を明示決定し、T8～T11を確認する。
 - [ ] hard stopが発火した本来対象のAI toolはAskUserQuestion/todo以外denyされ、正規owner解除の前に再開できない。対象外セッションの過剰denyを検証する。
-- [ ] #691/#683/#375/#409の正本を重複させず、Karte status/check/escalateの意味が一致する。
-- [ ] T1〜T14の代表異常/正常、旧データ、実機の未検証を区別したテストがある。
+- [ ] #691/#683/#375/#409の正本を重複させず、Karte status/check/escalateおよびAgentRun closeが同一の検証済みblocking finding集合を参照する。
+- [ ] openの正式Advisory/deferredならclose可能、未承認のopen実害/不正参照なら拒否となる両方向試験T15〜T17を含み、T1〜T17の異常/正常、旧データ、実機未検証を区別する。
 
 ## L6 merge後混入率と施策の効果を別の軸で計測する
 
