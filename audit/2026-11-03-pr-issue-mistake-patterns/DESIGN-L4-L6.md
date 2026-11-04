@@ -136,7 +136,8 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 | `close_eligible` / AgentRun #409 | 検証済み`status_verdict`、その用途で有効な処置・owner決定、依存run/handoff/成果物検証に基づくclose専用判定。無進捗除外はclose免除ではない | **`no-harm-only`だけではclose不可**。既存STOPに対する有効なowner判断または将来承認済みの正規判定が別途必要 |
 | `hard_stop_required` / #513 | 現行status/owner STOPと、#513で明示承認されたtool制御の対象・解除理由を使用。escalateの偽陽性抑制は別軸 | 無進捗から除外されても、owner判断が未決ならSTOP/解除条件はそのまま |
 
-- #683で有効なhandoffと判断するには、source findingの内容hash一致、転記先の本文/コメント読み戻し、転記先open、final verificationまでの再検証が必要。**hash変更、コメント削除/編集、転記先closed、API不能時は無進捗計数へ戻す（fail-close）**。status verdictはこれと独立して従来どおり`no-harm-only`を維持する。
+- #683で無進捗から除外できるhandoffにはsource findingの内容hash一致、転記先の本文/コメント読み戻し、Issueの実在・状態・close理由の確認、最終検証での再検証が必要。**転記先open＋証拠有効なら除外**、**closed / not plannedは必ず計数復帰**。hash変更・コメント削除/編集・API不能・転記先状態を取得できない場合も除外を無条件に維持せず、既存の無進捗計数へ戻す（fail-close）。**closed / completedは#683のQ3がオーナー未決**であり、A「計数復帰」（#683推奨）/ B「着地済みとして除外維持＋最終検証でclosed明示」のいずれも未承認。ここでどちらかを既定値に確定しない。Q3未決時のcompletedを`requires_owner_decision`として明示し、仕様上のpass/除外成功や確定したstall復帰と報告せず、採用決定まで後続の完了判定へ使わない。`status` verdictはhandoff無進捗除外とは独立して従来どおり`no-harm-only`を維持する。
+- `closed`は一律の状態値ではない。判定入力は転記先Issue ID、GitHub上のstate/state_reason、closed_at、正本の検証証拠、Q3採用記録（必要時）とする。GitHubの値が`completed`か`not planned`か不明なら、推測でcompletedを認定せず検証不能側に倒す。**#683のQ3は明示owner決定・理由・証拠を保存した後にだけ仕様/ACの完成値として採用**し、先行して#409/#513のSTOP解除やcloseに結線しない。
 - #691の`advisory`（harm:none・committed正本・owner承認policy等）は**別の処置種別**であり、#691の子Issueでownerが承認した場合に限りverdict/check/stall/closeへの効力を定義する。#683の`deferred`をAdvisoryと同じ「clean解除」とみなさない。
 - #614の`check`側におけるharm:none/deferred/waived診断除外と主文脈担当fix-hereの扱いは**未決の独立した論点**。#614がその条件を確定するまでは、この設計を理由に既存`check`を緩和しない。#409は`escalate`用の集合や`check`用の集合をcloseへ転用しない。
 
@@ -169,10 +170,16 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 | L5-T16 | 未分類/未承認の`harm: real`がopen、policy未承認、Advisory未commit、handoff未検証 | blockingまたは判定不能でAgentRun close不可 |
 | L5-T17 | 同一run/round/headの正当な用途別差と、別run/round/OIDの混入 | **用途別差だけで拒否しない**。証拠参照不一致は拒否し、AgentRunの自己申告で除外できない |
 | L5-T18 | `status:open / harm:none / deferred / verified handoff` が3連続roundで残存 | **verdict=no-harm-only、stallから除外、既存STOP維持**。checkは#614未決の現行契約、owner決定なしのAgentRun closeは拒否 |
-| L5-T19 | T18のhandoff content_hash不一致・コメント削除/編集・宛先closed・ネットワーク検証失敗 | stallへ計数復帰、render ★無進捗も同じ。verdict/STOP/closeは無断解除なし |
+| L5-T19 | T18のhandoff content_hash不一致・コメント削除/編集・ネットワーク/API検証失敗、宛先state取得不能 | 無進捗へ計数復帰（失敗理由は保持）。render ★無進捗も同一の対象集合。verdict/STOP/closeの無断解除なし |
 | L5-T20 | T18で未修正findingの診断記録が無い | #614の決定前は既存`check`規定どおり。#683による除外で診断完了扱いしない |
 | L5-T21 | #691でowner承認されたAdvisoryが正本/版検証済み、または参照無効 | 承認済みの範囲だけ用途別に非ブロック。失効すれば各用途で保守側判定へ戻す。deferredへ拡張しない |
 | L5-T22 | verified deferredで`escalate:no`だが`verdict:no-harm-only`、owner未決 | STOP解除もAgentRun closeも行わない。`escalate:no`単独からclean/closeを推論しない |
+| L5-T23 | T18の転記先`open`、hash/内容/状態が再検証済み | 無進捗計数から除外、verdictは`no-harm-only`維持。check/STOP/closeは別用途の既存条件 |
+| L5-T24 | T18の転記先`closed` + `state_reason:not planned` | **必ず**無進捗計数に復帰、renderと同期。#683 Q3に依存しない |
+| L5-T25 | T18の転記先`closed` + `state_reason:completed`、#683 Q3未決 | 結果は**`requires_owner_decision`**。A/Bのどちらも確定済みAC扱いせず、成功／自動STOP解除／AgentRun closeと報告しない |
+| L5-T26 | T25で#683 Q3をownerがA採用 | `completed`も無進捗計数へ復帰。#683の決定refとともに試験する（現時点では条件付きfixture） |
+| L5-T27 | T25で#683 Q3をownerがB採用 | `completed`は計数除外を維持し、最終検証へclosedの事実を明示。#683の決定refとともに試験する（現時点では条件付きfixture） |
+| L5-T28 | Issue state_reasonが不明、hash不一致、API不能、別Issueのclose情報混入 | completed成功と推測せず、証拠不完全として除外を認定しない。verdict/owner STOPは別判定 |
 
 ### AC-L5
 
@@ -181,7 +188,8 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - [ ] #513のhard stopとtriage必要性の競合についてownerが採用順と正規例外を明示決定し、T8～T11を確認する。
 - [ ] hard stopが発火した本来対象のAI toolはAskUserQuestion/todo以外denyされ、正規owner解除の前に再開できない。対象外セッションの過剰denyを検証する。
 - [ ] #691/#683/#375/#409の正本を重複させず、Karte status/check/escalateとAgentRun closeが**同一の検証済み原本入力から用途別の派生述語**を計算する。#683の無進捗除外はverdict/STOP/check/closeを緩和しない。#614の診断規則はowner決定まで不変。
-- [ ] 正式Advisoryは**承認済みのverdict/owner条件を満たした場合だけ**close候補、検証済みharm:none/deferredは無進捗除外でも`no-harm-only`/STOPを維持しowner決定なしのcloseを拒否する。T12/T15〜T22の非対称fixtureを含むT1〜T22と旧データ/実機未検証を区別する。
+- [ ] 正式Advisoryは**承認済みのverdict/owner条件を満たした場合だけ**close候補、検証済みharm:none/deferredは無進捗除外でも`no-harm-only`/STOPを維持しowner決定なしのcloseを拒否する。T12/T15〜T28の非対称・Issue状態fixtureを含むT1〜T28と旧データ/実機未検証を区別する。
+- [ ] #683のQ3の採否を先取りしない。openは検証済みなら除外、closed/not plannedは必ず復帰、closed/completedはowner判断まで`requires_owner_decision`。採用後にだけAまたはBの条件付き試験期待値を確定し、handoff失効/API不能の経路も別に検証する。
 
 ## L6 merge後混入率と施策の効果を別の軸で計測する
 
