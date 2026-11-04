@@ -15,10 +15,10 @@
 対象：issue番号 / sourceパスと関数 / test ID / 原正常条件 / 改変条件 / 期待されるassertの失敗。検証手順は次の5段階。
 
 1. 信頼済みsnapshotを隔離した一時作業面で対象unittestを実行しGreenを確認。
-2. 改変前source SHA-256とhead OIDを記録。
-3. 1か所だけ意味のある欠陥を注入（例: verdictのcleanをharmful-openに、入力型チェックを除去、特定の拒否コードを別の拒否コードに置換）。
-4. **対象testのassertion failure**を確認。SyntaxError、ImportError、収集失敗、timeout、コマンド不備は検出成功とみなさない。
-5. sourceをバイト単位に元へ戻したうえで再GreenとSHA-256一致を確認。変異をコミット・PRへ混ぜない。
+2. 改変前の対象sourceの内容ハッシュ `base_sha256` と、隔離作業面のコミット `head_oid` を記録。
+3. 未commitの一時作業面で1か所だけ意味のある欠陥を注入し、`mutated_sha256` を採取する。**`mutated_sha256 != base_sha256`** が必須（同一なら変異未実施として失格）。例: verdictのcleanをharmful-openに変更、入力型チェック除去、拒否コード変更。
+4. **対象testのassertion failure**を確認。SyntaxError、ImportError、収集失敗、timeout、コマンド不備は検出成功とみなさない。試験中にcommitしないため `head_oid` は変わらない。
+5. sourceをバイト単位に元へ戻して `restored_sha256 == base_sha256` と再Greenを確認。**原本と変異中のSHAは異なり、原本と復元後のSHAだけが一致**する。変異をコミット・PRへ混ぜない。
 
 証跡形式（既存test reportとPR本文への参照であり、新規台帳ではない）:
 
@@ -27,10 +27,13 @@ mutation_id: MUT-01
 target_source: karte/<module>.py::<symbol>
 target_test: tests.unit.test_karte_cli.TestStatus.test_clean
 fault: verdict clean -> harmful-open
-source_oid: <full-commit-OID>
+head_oid: <full-commit-OID, unchanged in all three states>
+base_sha256: <source content hash before mutation>
+mutated_sha256: <different source content hash during mutation>
+restored_sha256: <same source content hash as base>
 baseline: test_passed
 mutated: assertion_failed
-restored: test_passed, sha256_equal
+restored: test_passed, restored_sha256 == base_sha256
 evidence: <tracked-report-or-log-path>
 ~~~
 
@@ -50,14 +53,14 @@ evidence: <tracked-report-or-log-path>
 - S4-T3 型ガード除去で不正commandの期待値が崩れる。
 - S4-T4 ソースを構文エラーにしただけのRedはmutation検出と認定しない。
 - S4-T5 未実装Redをmutationで検出したと二重計上しない。
-- S4-T6 実装前・実装後・復元後の版/OID/Source SHA-256が一致する。
+- S4-T6 `head_oid` は未commitの変異前・変異中・復元後で不変、`mutated_sha256 != base_sha256` かつ `restored_sha256 == base_sha256`。3つのhash値を採取し、対象assert Red・復元後Greenを確認する。
 
 ### AC-S4
 
 - [ ] #720/#728の指定変異は個別テストのassert失敗として検出され、収集失敗ではない。
 - [ ] 少なくともverdict、終了コード、入力ガードにそれぞれ1代表変異の検出証拠がある。
 - [ ] Red-firstの証拠とmutationの証拠を区別している。
-- [ ] 変異した実装が成果物PRに残留せず、復元後Green・SHA-256一致を確認する。
+- [ ] 変異中のsource SHA-256は原本と異なり、復元後だけが原本と一致する。隔離作業面のHEAD OIDは不変、対象assert Red・復元後Greenで、変異がPRに残留しない。
 - [ ] 全域の高コストmutation runner、追加のロールやレビュー工程を新設していない。
 
 ## S5 レビュー4点証拠を「同一PR head」に束縛
@@ -73,14 +76,17 @@ evidence: <tracked-report-or-log-path>
 ~~~text
 target: owner/repo PR#<number> head=<exact-OID>
 diff: complete|incomplete ; method=rtk gh pr diff --no-compact ; evidence=<path/ranges>
-ci: pass|fail|pending|not_observed ; check=<URL/run-ID> ; checked_head=<OID>
+ci: pass|fail|pending|not_observed ; check=<URL/run-ID/attempt> ; event=<pull_request|other>
+ci_identity: pr=<N> ; event_head=<PR head SHA A> ; tested_sha=<merge SHA M | head SHA A> ; event_base=<base SHA B if available>
 finding: issue=<N> round=<R> karte_verdict=<value> unresolved=<IDs> owner_ref=<ref-or-none>
 ~~~
 
 - source of truth：レビュー本文/原本artifact（存在する場合）、PRのCI run、Karte。head証拠を別の手動台帳へ二重保存しない。
 - **diff != complete**：既存仕様どおり自己finding blocker+STOP。全差分が読めないのにcleanと言わない。
+- **CIの同一head判定**：`pull_request` runではGitHub Actionsの `GITHUB_SHA` / checkout既定refは通常 `refs/pull/N/merge` のテスト対象マージコミット **M** で、`github.event.pull_request.head.sha` はPR head **A**。**MとAのSHA値は一致しなくてよい**。run ID/attempt、event種別、PR番号、event内head A、checkout/tested SHA M（必要ならevent base B）を同一runの信頼できる証拠で結び、最新のPR head=Aかを検査する。明示的にheadをcheckoutするworkflowではtested SHA=Aとなる。run側の単一 `head_sha` 欄だけをAとの等価比較に使わない。
 - **ci != pass**：必要なCIが満たされていない旨を報告し、merge可能との案内をしない（レビュー自体のSTOP判定は既存規定に従う）。
-- **head不一致**：古いレビュー・CI証拠を現headへ転用しない。新headのレビュー・CIで再判定。
+- **head不一致**：event内headが現在のPR head Bへ更新済みであれば、旧head A由来のMで成功したrunを採用しない。base更新により検査対象が変化した場合も鮮度を確認し、情報を取得できなければ `not_observed`（検証不能）とする。旧レビュー・CI証拠を現headへ転用しない。
+- 出典: [GitHub Actions公式: pull_requestのmerge branchとGITHUB_SHA](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)。
 - **finding未処置/owner未決**：statusがopenであることだけでなく、既存Karteのdispositionとverdictを確認。scope外でも記録を欠かさない。
 - **legacy経路**：現行のread-only legacy承認条件を維持し、対象PRのheadとbase側ローカル実行を混同しない。
 
@@ -90,17 +96,17 @@ finding: issue=<N> round=<R> karte_verdict=<value> unresolved=<IDs> owner_ref=<r
 
 ### 試験方法
 
-- S5-T1 すべて同じhead、diff全読了、必須CI Green、unresolved ownerなし→報告に4点を記載。
+- S5-T1 head Aに対応する `pull_request` run（event head=A、tested merge SHA=M、PR番号一致）がGreen、diff全読了、owner未決なし→M≠AでもCI成功を有効とする。
 - S5-T2 RTKの途中切詰め・保存ファイルの1行でも未読→blocker+STOP。
-- S5-T3 実行中にhead更新→旧headのCI・差分を使ったclean案内は拒否。
-- S5-T4 check成功でもOIDが古い→現headのCIがPASSしたとは言わない。
+- S5-T3 PR headがAからBに更新→旧event head=A・tested SHA=Mで成功したrunはBのCI成功として採用しない。
+- S5-T4 run ID・event・PR番号・head・tested SHAの対応が不明、別run/別PRに混入、またはbase更新後の鮮度が不明→CI成功と報告しない。
 - S5-T5 OOS実害にdispositionなし→Karteのcleanを偽装しない。
 - S5-T6 legacy PRではbase側local unittestをそのPRのCIとして報告しない。
 
 ### AC-S5
 
-- [ ] 対象PR番号/head OID、diff読了、CI実行IDとhead、Karte round/未処置状態が既存成果物で照合できる。
-- [ ] T2〜T6の誤成功例をレビュー又は既存validationテストが捕捉する。
+- [ ] 対象PR/head OID、diff読了、CI run ID/attempt・event PR番号・event head・実tested SHA（merge SHAを含む）、Karte round/未処置状態を既存成果物で照合できる。
+- [ ] `pull_request` のevent head=A / tested merge SHA=M（M≠A）を正しく受理し、head=Bへ更新した後はA由来runを拒否する両方向fixtureがあり、T2〜T6も検証される。
 - [ ] reviewerは自分のレビュー結果からmerge実行せず、owner向けblocker reportを残す。
 - [ ] #375と#409の実行台帳/原本を重複新設していない。
 - [ ] 現行実装ですでに満たす場合は、必要なコード差分が無いことを証拠付きで説明できる。
