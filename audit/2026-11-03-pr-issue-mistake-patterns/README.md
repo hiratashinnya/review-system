@@ -220,6 +220,17 @@ GitHub参照: https://github.com/hiratashinnya/review-system
 
 ### 再検証に使う中心fixture
 
-`status:open / harm:none / disposition:deferred / verified handoff / 3 round継続` の場合、**`verdict:no-harm-only`維持**、そのfindingは**無進捗計数から除外**、`check`は#614の現行ルール、未決owner STOP維持、AgentRun close不許可。ハッシュ不一致・コメント編集/削除・転記先closed・検証不能なら**無進捗へ計数復帰**するが、verdictやSTOPは無断変更しない。Advisoryだけは#691で将来承認された効力に限定する。
+`status:open / harm:none / disposition:deferred / verified handoff / 3 round継続` の場合、**`verdict:no-harm-only`維持**、そのfindingは**無進捗計数から除外**、`check`は#614の現行ルール、未決owner STOP維持、AgentRun close不許可。ハッシュ不一致・コメント編集/削除・転記先**closed/not planned**・検証不能なら**無進捗へ計数復帰**するが、**closed/completedは#683 Q3未決**であり、計数復帰（推奨A）か除外維持（B）をownerが決めるまで確定扱いしない。verdictやSTOPは無断変更しない。Advisoryだけは#691で将来承認された効力に限定する。
 
 文書のみの設計修正であり、#683/#614/#691/#409の実装や製品live検証を完了したとは主張しない。PRはDraftのまま、Issue反映・マージは行わない。
+
+
+## 12. PR #733第3回レビューへの処置（2026-11-05 / F-733-06）
+
+[HEAD 374c673の第3回レビュー](https://github.com/hiratashinnya/review-system/pull/733#pullrequestreview-5767842335)では**F-733-01〜05はresolved**、新たに**F-733-06（harm:real / major / scope:in）**がopenと判定された。指摘は「#683 Q3で未決の`closed/completed`を一律に無進捗計数へ戻すと仕様を先取りする」というもの。**指摘を採用し、設計・試験・Issue引継ぎ案を修正した**。F-733-06の最終的なresolved判定は独立再レビューに委ねる。
+
+- [L5の状態別契約とT19/T23〜T28](DESIGN-L4-L6.md)：転記先`open`＋検証済みは無進捗除外、`closed/not planned`は必ず計数復帰。`closed/completed`は#683 Q3の**オーナー未決**とし、A「計数復帰」（推奨のみ）かB「除外維持・最終検証でclosed明示」を条件付きで試験する。hash不一致・コメント削除/編集・状態理由不明・API不能は別の失敗ケース。
+- [L1のAgentRun close契約とT13/T15〜T18](DESIGN-L1-L3.md)：Q3未決の`closed/completed`は成功判定やSTOP解除に転用しない。`requires_owner_decision`は設計上の保留表現で、Karte statusやIssue stateに新enumを追加するものではない。
+- [Issue引継ぎ計画](ISSUE-HANDOFF-PLAN.md)：#683のQ3と検証用fixtureを責務元で維持。既存Issue更新時に推奨案Aをowner確定済み仕様として扱わず、#409/#513/#691の処理境界とも同期する。
+
+**PRは設計ドキュメントのみ**。実装fixtureおよび製品live検証は未実施。Issueの作成・更新・relation変更・PRマージは行っていない。
