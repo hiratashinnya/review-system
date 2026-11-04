@@ -122,11 +122,11 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ### S5：#375と#409
 
-#375へ「review artifactにPR head、diff完全読了・未読範囲、CIのrun ID/attempt・event PR番号/head SHA・tested SHA（merge-refの場合はM）・Karte round/findingを記録し、head更新後の旧runを拒否」を追加候補とする。**CIのtested MとPR head Aは同一SHAでなくてよい**。#409へは「close時にreview artifactとCIの正規run/head対応を検証し、Karteの**検証済みblocking finding集合が空**であることを照合する（open件数ゼロとはしない）」を追加候補とする。既存ACで既に充足していれば**新しいIssueや実装は作らない**。#530 CLOSEDの完全差分取得とSTOPを再設計しない。
+#375へ「review artifactにPR head、diff完全読了・未読範囲、CIのrun ID/attempt・event PR番号/head SHA・tested SHA（merge-refの場合はM）・Karte round/findingを記録し、head更新後の旧runを拒否」を追加候補とする。**CIのtested MとPR head Aは同一SHAでなくてよい**。#409へは「close時にreview artifactとCIの正規run/head対応を検証し、Karteの**verdict・owner判断・close専用判定**を照合する。**#683の無進捗からの除外はclose免除ではない**（open件数ゼロもescalate集合ゼロも代替不可）」を追加候補とする。既存ACで既に充足していれば**新しいIssueや実装は作らない**。#530 CLOSEDの完全差分取得とSTOPを再設計しない。
 
 ### L1：#409、#703
 
-#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGとT1〜T11を追記候補とする。**既存ACの「未解消findingゼロ」をopen全件ゼロとして実装せず**、「Karteが証拠付きで非ブロッキングと確認したAdvisory/deferredはopenでもclose可能、未分類/未承認harm:real・参照不一致・判定不能はclose不可」という両方向ACへの具体化を提案する。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
+#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGとT1〜T14を追記候補とする。**既存ACの「未解消findingゼロ」をopen全件ゼロや無進捗集合ゼロとして実装しない**。Karteの検証済み`status_verdict`・owner/STOP・close専用条件を照合し、`harm:none/deferred`のverified handoffは#683に従って無進捗から除外しても`verdict:no-harm-only`のままなので**owner判断なくclose不可**とする。#691で採用後の正式Advisoryのみ別途承認済みのverdict/close条件に従い、未分類/未承認harm:real・参照不一致・判定不能はclose不可というACへの具体化を提案する。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
 
 ### L2：#559、#699、#679（#409と関連）
 
@@ -148,11 +148,22 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 | NEW-TRIAGE-POLICY | owner事前承認された版付き決定論的policyと権限境界 | #691、#523、harm正本#723(CLOSED) |
 | NEW-TRIAGE-ARTIFACT | reviewer不変原本→別コンテキストのtriager成果とrun/OID/digest束縛 | #375が原本、#409がrun |
 | NEW-ADVISORY-LEDGER | .ai/advisory/ledgerの検証付きCLI、重複/衝突/索引/昇格 | #691。feedback_ledgerと別正本 |
-| NEW-KARTE-DISPOSITION | validated policy/advisory/handoffをstatus/check/escalateへ同一意味で結線し、**#409 closeが参照するblocking集合を一元導出** | #614、#683、#310を再利用。#409が読み取り専用で消費 |
+| NEW-KARTE-DISPOSITION | **検証済みfinding原本と処置証拠を共有し、verdict/STOP・escalate無進捗・check診断要否・#409 closeを用途別の派生述語に結線**。#683のhandoffは無進捗のみ除外しverdict維持、#614の診断除外はowner決定まで不変更 | #683＝無進捗と転記検証、#614＝check、#691＝承認済みAdvisoryの効力、#409＝close専用消費 |
 | NEW-TRIAGE-PIPELINE | capture→triage→validated ingest→STOP/解除のphase接続 | #513、#409、#523との競合を解消 |
 | NEW-TRIAGE-LIVE | 正規PRのreview→triage→処置→Karte→owner判断のlive受入 | #652の手法を再利用、後日別Issue |
 
-**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。#409 closeはKarteのopen全件ではなく**検証済みblocking finding集合**を読む（T15〜T17：openの正式deferred/Advisoryは非ブロック、未承認実害はブロック）。レビュー成果が取り込まれないときにclean扱いしない。#683のdeferredとAdvisoryは別物。
+**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。#409 closeは**Karteの検証済みverdict・owner決定・close専用判定**を消費する（L5-T12/T15〜T22）。**#683のhandoff検証済みharm:none/deferredは、無進捗から除外されてもverdict:no-harm-only・owner STOP維持**。正式Advisoryは#691の承認済み契約の範囲だけ別扱いし、#614のcheck診断要否は決定前に変更しない。レビュー原本未取込や未承認実害はclean/close扱いにしない。
+
+
+### F-733-05：子Issueと既存Issueへ引き継ぐ用途別の契約試験（反映前原案）
+
+- **#683（既存scope/ACは不変更）**：verified `harm:none/deferred` を無進捗3ラウンド計数と`render ★無進捗`からのみ除外する。元の`status:open`と`verdict:no-harm-only`、既存owner STOPを維持。転記hash変更・コメント編集/削除・転記先closed・検証失敗時は計数へ復帰。`check`とverdictの改変は#683のOut of scope。
+- **#614（既存owner判断の対象）**：`check`診断必須集合は#683によって自動除外しない。`harm:none/deferred/waived`と主文脈担当fix-hereの診断要否は#614の結論と理由に従って別に実装・検証。
+- **NEW-KARTE-DISPOSITION（#691の子Issue候補）**：共通の検証済み入力→用途別の派生述語というAPI/責務を定め、L5-T12/T15〜T22を受入条件に加える。将来の#691承認済みAdvisoryのみ、承認した用途別効果を有効化する。#503の既存一元化や#683の意図的非対称性を壊さない。
+- **#409（既存close gate）**：`escalate:no`を`verdict:clean`やclose可能へ読み替えない。`no-harm-only`が残る場合は有効なowner判断なしのcloseを拒否。`status`/`check`/`escalate`と原本・処置証拠が一致することを検証し、**用途ごとの出力結果が異なるだけで不整合としない**。
+- **#513**：無進捗false-positiveの抑制はowner STOP解除の根拠にならない。tool全denyの発動理由・解除はオーナーが承認した専用の条件を使い、`escalate:yes/no`へ無条件連動させない。
+
+受入fixtureの中心：`status:open, harm:none, disposition:deferred, verified handoff, rounds>=3` → `verdict:no-harm-only`, `stall_candidates`除外, `check`は#614の現行ルール, owner未決なら`close_eligible=false`。同じ入力でhandoff証拠を無効化→`stall_candidates`へ復帰、verdict/owner STOPは変化なし。**これは実装時のAC候補であり、どの既存Issue本文にもまだ投稿・反映していない。**
 
 ### L6：#370の計測・再集計
 
