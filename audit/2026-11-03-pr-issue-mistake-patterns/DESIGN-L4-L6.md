@@ -175,14 +175,15 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 
 全4分類を単一列の排他enumに押し込まない。#370の分類4「safe default・機械gate・lint不足」は、最初の3分類と同時成立し得るため**2軸**とする。
 
-- discoverability（主分類）：
-  - missed_premerge：merge前に検出可能で未検出
-  - known_unresolved_at_merge：merge前に発見済みだが処置/owner判断が不足
+- discoverability（#370の第1〜3分類に対応する主分類）：
+  - missed_premerge：merge前に検出可能だったが未検出
+  - known_retained_at_merge：**merge前に発見済みで、そのfinding/OOSが修正されずmerge時点に残った**。owner承認済みdeferred、承認済みwaived、未決残置をすべて含む（承認の有無は主分類に影響させない）
   - live_only：merge後実機で初めて観測可能
   - unknown：判断材料不足
-- mechanism_gap（独立軸）：safe_default_gate_lint / other / unknown。複数のgapを持つなら配列で表現する。
-- 両軸とも evidence refs、review時点の対象OID、結論・判断主体・日時を持つ。**単にPR後に起票されたというだけではmissed_premergeへ分類しない**。
-- 既に処置承認済みdeferred等は「未処置の実害」と数えない。確定処置でなかったものと分ける。
+- mechanism_gap（#370の第4分類に対応する独立軸）：safe_default_gate_lint / other / unknown。複数gapなら配列。第4分類は第1〜3分類と重なり得るため合計件数へ二重加算しない。
+- **disposition_state（第2分類の独立した内訳）**：approved_deferred（有効な承認と検証済み転記あり）/ approved_waived（有効な明示owner判断あり）/ fix_here_incomplete（修正決定済みだが未完了）/ undecided（有効な処置方針なし）/ other_verified（証拠付きその他）/ unknown。必要なら制度上のpolicy版や判断refを保存し、名前だけのdeferredを承認済みとしない。
+- 各ケースにreview時点のhead OID、merge時点のopen/処置証拠、owner判断またはpolicy参照、分類者・日時を保持する。**PR後に起票されたことだけではmissed_premergeと判定しない**。merge前に修正・検証されて残置していないfindingは第2分類に含めない。
+- **発見・残置の事実と、残置が適正かは別問題**。`known_retained_at_merge`は承認済みdeferredを含めて数える一方、「不適切な残置の実害」はharm:realかつ `fix_here_incomplete`/`undecided` 等の検証済み非免除ケースだけを別指標で数える。approved_deferred/approved_waivedはこの不適切残置の分子へ含めない。unknownは安全側に判断保留とするが、根拠無しに違反件数へも0件へも算入しない。
 
 新規候補の一度だけの分類入力は、監査用のversioned annotation（例 audit/cohorts/<period>/classifications.json）。これは*人間が判断した分類*の正本として1か所だけ使い、Issue/PRの事実・Karteのfinding・GitHub状態を複製した正本にしない。自動収集できる値は計測時にGitHub/既存Karteから導出する。
 
@@ -191,7 +192,7 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - **母集団**：UTC半開区間 [start,end) にmerged_atが含まれるsame-repo PR。既存metricと同じ正規化・収集上限チェックを使用。
 - **新規派生Issue**：既存defect_metricsの72時間の派生関係をそのまま利用。72時間超の遅発事例は別の追跡分析へ置き、v1の分母/分子に混ぜない。
 - **ケース単位**：欠陥起源が同じIssueを1ケースとし、同じIssueへの複数PR参照は既存のdedupeに従う。分類不能はunknownとして残す。
-- **混入率補助**：対象コホートで、各discoverability群とmechanism_gapに該当するケースの件数、対象merged PR数、100PR当たり件数を併記（サンプルが小さい場合は件数優先）。主分類の合計にgap件数を足さない。
+- **混入率補助**：対象コホートで、各discoverability群とmechanism_gapに該当するケースの件数、対象merged PR数、100PR当たり件数を併記（サンプルが小さい場合は件数優先）。第2分類は**承認済み/未承認を合わせた残置総数**と、`disposition_state`別件数・未承認/未完了のharm:real件数を並べる。主分類合計にgap件数を足さない。承認済みの申し送りを集計から消す処理はしない。
 - **施策採用前後の比較**：導入日・対象変更クラス・PRリスク・観測窓を固定。対策導入の前後で、既存のISSUE_PER_PR、派生率、再発、誤deny、レビュー工数を併記。施策が重なると因果の断定をしない。
 - **初期ログ**：S1/2の追加調査時間、S3の誤deny/誤allow、S4代表変異の検出、S5の未読/CI OID不一致、S6のlive未実測数。これを数値KPIにする承認は別途owner判断。
 - **計測不能**：収集打切り・API失敗・日時曖昧・分類証拠無しはunknown/error。0件と混同しない。
@@ -200,26 +201,29 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 
 - pure関数で既存defect_metrics.types.WindowとIssueRecord/PullRequestRecordを入力し、検証済みのcase annotationsをJOINする。元のreport v1 schemaとJSON writerを変更せず、補助レポートは別出力。
 - 推奨ファイル案：defect_metrics/classification.py（正規化と分類の検証）、defect_metrics/cohort_analysis.py（集計）、tests/unit/test_defect_metrics_cohorts.py。具体的分割は100物理行原則に従う。新規の常設workflow追加は既存異常通知との重複を確認後に判断。
-- 補助レポート：schema_version、repo、window、snapshot_at、source_hash、merged_prs、derived_issues、classified/unknown、counts_by_discoverability、counts_by_gap、per_100_prs、missing_evidence、methodology_version。
+- 補助レポート：schema_version、repo、window、snapshot_at、source_hash、merged_prs、derived_issues、classified/unknown、counts_by_discoverability、counts_by_gap、**known_retained_by_disposition_state**、**harmful_retained_without_valid_disposition**、per_100_prs、missing_evidence、methodology_version。
 - 集計結果は導出物であり、GitHubやKarteの正本ではない。保存・配信する場合も新しいowner判断台帳を作らない。
 
 ### 試験
 
-- L6-T1 #370の指摘するpremerge発見済みIssueをmissedに分類しない。
+- L6-T1 #370の第2分類：merge前発見済みで別Issueへ残置された2事例（有効なowner承認済みdeferred／未承認）をともにknown_retained_at_mergeへ分類。内訳はapproved_deferred=1、undecided=1、未承認実害件数=1とする。両方をmissedには分類しない。
 - L6-T2 live運用でしか分からないcron間隔の事象はlive_only、CIだけの事象と区別。
 - L6-T3 caseがmissed_premergeかつmechanism_gap=safe_default_gate_lintでも2度分母加算しない。
 - L6-T4 同一Issueの複数PR参照、#N/owner/repo#N/URL形式、重複issueを正規化。
 - L6-T5 timezone/UTC半開区間/72時間境界の前後、API収集不足はfail-close。
 - L6-T6 report v1と基線照合の出力は完全互換。補助出力を有効にしてもv1の値を変えない。
-- L6-T7 case分類のevidenceが無い・古いOID・unknown→採用率を過大評価しない。
+- L6-T7 case分類のevidenceが無い・古いOID・unknown→採用率や適正処置件数を過大評価しない。
+- L6-T9 有効なowner承認済みwaivedでもmerge時点にopenで残ったfindingは第2分類へ含むが、処置未承認の違反件数には加えない。ownerがfix_hereを選んだのに修正未了ならfix_here_incompleteへ分類し、適正処置済みと偽らない。
+- L6-T10 merge前に検証済みで修正完了したfindingは第2分類に入らない。
 - L6-T8 改善後の誤deny率増加を別指標で検出し、単純な欠陥件数低下だけで成功判定しない。
 
 ### AC-L6
 
-- [ ] 4分類を重複可能な2軸で表現し、主分類のunknownを保持する。
+- [ ] #370の4分類を発見・残置（第1〜3）とmechanism_gap（第4）の2軸で表現し、第2分類は承認済みdeferred/waivedと未決残置をともに数え、独立した`disposition_state`で処置適正性を区別する。
+- [ ] 同一のmerge前発見済み残置の承認有/無fixtureで第2分類が2件、未承認実害が1件となることを確認する。unknownは0件に読み替えない。
 - [ ] 既存defect_metrics v1のschema・分母・72時間・基線・異常通知を一切変えない。
 - [ ] 1つの注釈正本に根拠リンク、分類者/日時/基準版を記録し、派生集計は再生成できる。
-- [ ] T1〜T8、コホート再現試験、データ不足時の明示的失敗が通る。
+- [ ] T1〜T10、コホート再現試験、データ不足時の明示的失敗が通る。
 - [ ] 施策の因果評価は実測の観測窓・ケース数・複数同時導入という限界を記載し、削減率を捏造しない。
 
 ## 既存Issueとの責務境界
