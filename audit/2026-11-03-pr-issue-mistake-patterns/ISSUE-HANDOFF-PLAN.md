@@ -70,7 +70,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 **変更対象**：.ai/agents/test-writer.mdとpr-reviewer.mdの既存2aレビュー契約（参照追加）、既存test reportの証拠記法。新しいmutation runner、常時CI全域走査は作らない。
 
-**検査**：S4-T4～T6を含む一般プロトコル。#720/#728で実績が揃った場合、**規範更新が不要と判断されたら起票不要**。
+**検査**：S4-T4～T6を含む一般プロトコル。原本・変異中・復元後の3状態のSHAを取得し、**mutated≠base、restored=base、未commitのHEAD OID不変**を確認する。#720/#728で実績が揃った場合、**規範更新が不要と判断されたら起票不要**。
 
 **AC**：AC-S4のうち一般規定3点＋既存工程のRed-firstと独立reviewの維持。導入が既存Issueのscopeに収まらなければ分ける。
 
@@ -96,21 +96,21 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ### NEW-CI-EVIDENCE：CI要否・実起動・HEAD同一性の検証（L4、条件付）
 
-**成果**：変更面に対して必要なworkflowが起動し、対応headの完了成功と検査対象が一致することを示す。#467/#530で既に機械化済みの機能は再実装しない。
+**成果**：変更面に対して必要なworkflowが起動し、event内PR head SHAと、実checkout/tested SHA（`pull_request`なら通常merge SHA）が正しく対応するrunの成功であることを示す。**PR head=A、tested merge SHA=M（M≠A）でも有効**、head=Bへの更新後はA由来runを無効とする。#467/#530で既に機械化済みの機能は再実装しない。
 
 **変更対象**：tests/unit/test_asset_parity_ci_paths.py周辺、既存レビュー証拠、必要な場合だけ小さなCI contract validator。#701型check、#703trace、#652liveは別issue。
 
-**検査**：L4-T1～T8。skip・旧HEAD・CIパス漏れ・scan/trigger分離・Pages PR buildを区別。
+**検査**：L4-T1～T8（T4a/T4bを含む）。正例は`pull_request`のevent head=A/merge-tested=Mの成功、負例はhead=B更新後のA由来CI、別PR、別event、証拠欠落。skip・旧HEAD・CIパス漏れ・scan/trigger分離・Pages PR buildも区別。
 
 **AC**：AC-L4全5件。既存テストで全て検出可能なら本Issueを起票せず証拠として報告する。
 
 ### NEW-DEFECT-COHORT：#370の4分類と施策効果の別レポート（L6）
 
-**成果**：既存defect_metrics v1を不変に保ちながら、根拠付きケース分類を２軸で記録・集計し、施策採用前後の件数と観測条件を比較できる補助レポート。
+**成果**：既存defect_metrics v1を不変に保ちながら、#370の第2分類へ**承認済みdeferred/waivedも含めたmerge前発見済み残置**を計上し、別の`disposition_state`で未承認/未完了の実害を集計する。4分類は発見・残置とmechanism_gapの2軸で保持し、施策前後の観測条件を比較できる補助レポートを作る。
 
 **変更対象**：defect_metrics/classification.py・cohort_analysis.py・tests/unit/test_defect_metrics_cohorts.py（新規候補）、バージョン付き分類annotationの単一保存先。既存定義・基線・72時間集計・通知を変更しない。
 
-**検査**：L6-T1～T8、v1レポートとbaselineのバイト/値互換、分類証拠欠落・API打切り時の明示的unknown/error。
+**検査**：L6-T1～T10。承認済みdeferred1件と未承認の実害残置1件をともに第2分類へ加算（残置合計2）、未承認実害は1件だけ。v1レポートとbaselineの互換、分類証拠欠落・API打切り時のunknown/errorも確認。
 
 **AC**：AC-L6全5件。#370の観測/計測の責務に関連付け、#488を再実装しない。
 
@@ -118,15 +118,15 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ### S4：#720、#728
 
-すでに各変異の元実装・対象test・検出条件が具体的。新規Issueを切らず、両Issueに「S4の共通変異証拠プロトコルを適用し、変更前Green→代表変異で対象assertの失敗→復元後GreenとSHA一致を記録する」を補足するだけでよい。**対象外の一般規定**が必要ならNEW-MUTATION-RULEに分ける。
+すでに各変異の元実装・対象test・検出条件が具体的。新規Issueを切らず、両Issueに「S4の共通変異証拠プロトコルを適用し、変更前Green→代表変異で対象assertの失敗→復元後Green、原本SHA≠変異SHA、原本SHA=復元SHA、未commit HEAD OID不変を記録する」を補足するだけでよい。**対象外の一般規定**が必要ならNEW-MUTATION-RULEに分ける。
 
 ### S5：#375と#409
 
-#375へ「review artifactにPR/head、diff完全読了・未読範囲、CI runの同一head、Karte round/findingの参照を保ち、古いheadのreceiptを拒否」を追加候補とする。#409へは「close時にreview artifactとCI/head/OID、Karteの正規判定を照合」を追加候補とする。既存ACで既に充足していれば**新しいIssueや実装は作らない**。#530 CLOSEDの完全差分取得とSTOPを再設計しない。
+#375へ「review artifactにPR head、diff完全読了・未読範囲、CIのrun ID/attempt・event PR番号/head SHA・tested SHA（merge-refの場合はM）・Karte round/findingを記録し、head更新後の旧runを拒否」を追加候補とする。**CIのtested MとPR head Aは同一SHAでなくてよい**。#409へは「close時にreview artifactとCIの正規run/head対応を検証し、Karteの**検証済みblocking finding集合が空**であることを照合する（open件数ゼロとはしない）」を追加候補とする。既存ACで既に充足していれば**新しいIssueや実装は作らない**。#530 CLOSEDの完全差分取得とSTOPを再設計しない。
 
 ### L1：#409、#703
 
-#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGと8つの否定ケースを追記候補とする。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
+#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGとT1〜T11を追記候補とする。**既存ACの「未解消findingゼロ」をopen全件ゼロとして実装せず**、「Karteが証拠付きで非ブロッキングと確認したAdvisory/deferredはopenでもclose可能、未分類/未承認harm:real・参照不一致・判定不能はclose不可」という両方向ACへの具体化を提案する。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
 
 ### L2：#559、#699、#679（#409と関連）
 
@@ -137,7 +137,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ### L4：#701、#703、#652
 
-#701は現行typechecked-filesの追加/削除/renameとpyright実行対象一致のratchet。#703は成果物→検証証拠の欠落・孤立を検出。#652は正規製品経路のlive証拠。CIのhead取り違え・skipを補う新規成果が本当に不足する場合のみNEW-CI-EVIDENCEとし、#467の修正を再発明しない。
+#701は現行typechecked-filesの追加/削除/renameとpyright実行対象一致のratchet。#703は成果物→検証証拠の欠落・孤立を検出。#652は正規製品経路のlive証拠。CIのHEAD同一性はPR headとtested merge SHAの文字列一致でなく、run/eventからの対応で判定する。CIのhead取り違え・skipを補う新規成果が本当に不足する場合のみNEW-CI-EVIDENCEとし、#467の修正を再発明しない。
 
 ### L5：#691下の子成果と#513のSTOP
 
@@ -148,15 +148,15 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 | NEW-TRIAGE-POLICY | owner事前承認された版付き決定論的policyと権限境界 | #691、#523、harm正本#723(CLOSED) |
 | NEW-TRIAGE-ARTIFACT | reviewer不変原本→別コンテキストのtriager成果とrun/OID/digest束縛 | #375が原本、#409がrun |
 | NEW-ADVISORY-LEDGER | .ai/advisory/ledgerの検証付きCLI、重複/衝突/索引/昇格 | #691。feedback_ledgerと別正本 |
-| NEW-KARTE-DISPOSITION | validated policy/advisory/handoffをstatus/check/escalateへ同一意味で結線 | #614、#683、#310を再利用 |
+| NEW-KARTE-DISPOSITION | validated policy/advisory/handoffをstatus/check/escalateへ同一意味で結線し、**#409 closeが参照するblocking集合を一元導出** | #614、#683、#310を再利用。#409が読み取り専用で消費 |
 | NEW-TRIAGE-PIPELINE | capture→triage→validated ingest→STOP/解除のphase接続 | #513、#409、#523との競合を解消 |
 | NEW-TRIAGE-LIVE | 正規PRのreview→triage→処置→Karte→owner判断のlive受入 | #652の手法を再利用、後日別Issue |
 
-**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。レビュー成果が取り込まれないときにclean扱いしない。#683のdeferredとAdvisoryは別物。
+**重要**：#513のtool全denyとtriager dispatchの競合の解（L5のtriage_pending）をownerが明示採用するまでNEW-TRIAGE-PIPELINEの権限変更に着手しない。#409 closeはKarteのopen全件ではなく**検証済みblocking finding集合**を読む（T15〜T17：openの正式deferred/Advisoryは非ブロック、未承認実害はブロック）。レビュー成果が取り込まれないときにclean扱いしない。#683のdeferredとAdvisoryは別物。
 
 ### L6：#370の計測・再集計
 
-#370は**事前分類供給と導入後計測**が成果で、独自のゲート実装は対象外。新しい分類器/補助レポートの実装成果はNEW-DEFECT-COHORTとして切り出し、#370から参照。既存defect_metricsのv1報告と#489の運用実測は再実装しない。
+#370は**事前分類供給と導入後計測**が成果で、独自のゲート実装は対象外。merge前発見済み残置は承認済みも含めた事実分類として数え、未承認/未完了の実害を別の`disposition_state`集計へ分ける。新しい分類器/補助レポートの実装成果はNEW-DEFECT-COHORTとして切り出し、#370から参照。既存defect_metricsのv1報告と#489の運用実測は再実装しない。
 
 ## 5. 採用前にownerが一括決定すべき6点（推奨案を記す）
 
