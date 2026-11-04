@@ -109,7 +109,7 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 
 - triage前のreview結果は**不変のreview原本としてcapture**し、通常の実装/再レビュー/mergeへは進めない。専用のtriage_pendingを#409の工程ゲートで保護する。
 - triagerの一回だけの起動は、review原本に束縛された**trusted dispatcher**が事前に承認した専用role/phaseとして行う。汎用Task・Bash等を「stop解除のため」として無制限にallowしない。
-- triage完了時、正本review/triage/policyを検証してからKarteに原子的に反映し、**そこで未処置harm:real / escalateなら#513の全deny停止を発動**する。
+- triage完了時、正本review/triage/policyを検証してからKarteに原子的に反映する。**未処置harm:real／statusのowner STOP要否／escalateの無進捗を別々に検証**し、#513でowner承認された停止理由に限り全denyへ接続する。`escalate:no`だけでowner STOPを解除せず、`escalate:yes`だけで未承認の全tool停止を発動しない。
 - triageを起動できない、失敗した、戻り証拠が不正なら後続phase不可とし、owner-reviewへ上げる。未仕分けをclean扱いしない。
 - #513の停止解除経路は、ownerの回答が明示したfinding/decision/Issue/runを**信頼されたhookやowner制御のCLI**で記録・検証した後のみ開く。AIの通常のEdit/Bashや「回答したと自己申告する」方法では解除できない。
 - owner専権判断であるにもかかわらず許可toolがほぼゼロであるため、post-tool hookでの信頼された記録かowner管理の外部解除手段を用意する。製品の回答payloadに本人性/一致性が確認できない場合、**自動解除せず外部owner承認経路へSTOP**。
@@ -118,19 +118,34 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 
 ### 既存Karteの判定経路へ結線
 
-- status/check/escalateは同じvalidated disposition predicateを共有する。#503の既存一元化を利用し、判断ロジックを各commandへコピーしない。
+- status/check/escalate/AgentRun closeは**同じ原本findingと検証済みdisposition・owner/policy・handoff/Advisory証拠を入力に使うが、用途別の派生述語を使う**。#503の一元化は現行の共通判定基盤として維持し、#683の`escalate`専用除外をverdict/checkへ流用しない。派生述語はKarte側の一箇所に置き、各CLI commandやAgentRun内へコピーしない。
 - findingを「元のreview原本に存在するが今回の再レビューで省略した」場合は解消扱いにしない。全件再掲の既存規定を維持。
 - scope overrideをowner本人の明示決定と事前承認policy適用に分けて保持し、triagerがreviewerのscope申告を無記録で変更しない。
 - Advisoryの正本は#691で指定した .ai/advisory/ledger/ADV-<YYYYMMDD>-<slug>.toml 。未commit/不正digest/参照欠落ではclean阻害から除外しない。owner判断ledgerとの二重登録を避ける。
 - deferredは#683の検証済み転記を使用。GitHub Issueが存在することだけでなく、実際にfindingの必要情報が到達した証拠が必要。
 
-### #409 close gateへ渡す検証済みblocking finding集合（F-733-04）
+### 検証済み入力を共有し、用途別に判定を導出する（F-733-05）
 
-- **原本集合**：Karte内のfindingは`status: open`でも履歴をそのまま保持。`unresolved_findings`を物理的に削除/`resolved`へ改変してcloseを通さない。
-- **判定集合**：対象Issue/run/round/PR headに束縛されたKarte `status/check/escalate` の共通述語で `blocking_findings` を導出する。`blocking_findings == ∅`、未決owner判断なし、他のAgentRun close条件成立の場合に限りclose可能。AgentRunに別のdisposition計算器や真偽正本を作らない。
-- `status: open`の**正式なAdvisory**（harm:none・承認済みpolicy版・committed正本のref/digest検証済み）や**正式なdeferred**（#683によりIssue転記/承認の証拠検証済み）は、Karteが非ブロッキングと判定した場合にcloseを妨げない。一方、未分類/未承認のharm:real、未検証Advisory・handoff、別OIDの判断はblockingまたは判定不能でclose拒否。
-- `escalate`/STOPの発動条件とclose eligibilityは**同じ検証済み判定結果から導出**し、個別コマンドで別ロジックを増やさない。Karte/参照元を読めない場合はfail-close。**#409のAC「未解消findingゼロ」はopen件数ゼロではなく、未処置blocking findingゼロへ具体化する提案**（IssueのAC変更は未実施）。
-- 既存の`harm:none/deferred`等の判定を勝手に非ブロッキングへ変更しない。#691/#614/#683で採用・検証された範囲だけを有効とし、旧Karteデータは暗黙に再分類しない。
+**共通の検証済み入力**は、review原本のfinding全件（id/status/harm/disposition/round）、run/Issue/head/digest、owner判断・policy版、#683 handoffの転記先Issue状態/内容hash/verified_at、#691 Advisoryのcommitted正本と検証結果とする。証拠は既存Karte/Review/owner判断の正本から読み、独立した判定台帳は作らない。**入力の単一性は、出力結果の同一性を意味しない**。
+
+| 派生判定（単一のKarte実装へ集約） | 役割と適用境界 | `status:open / harm:none / disposition:deferred / handoff検証済み` の期待 |
+|---|---|---|
+| `verdict_blocking` / `status_verdict` | 現行 `karte status` の`needs_remediation`相当。#683では**変更禁止**。#691で承認済みAdvisoryに限り今後変更を審査 | 未解消がこのfindingだけなら **`no-harm-only`**。ownerへの既存STOPを維持 |
+| `stall_candidates` / `escalate` | #683が検証済み`harm:none/deferred`を**3ラウンド無進捗計数と`render ★無進捗`からだけ除外**。残りのstalled/approach-saturationは既存判定 | 該当findingを無進捗から除外。ただし`escalate:no`は`status:clean`を意味しない |
+| `diagnosis_required` / `check` | fixer診断網羅の現行契約を維持。#614の意図確認/owner決定、#691の承認済みAdvisoryを別審査。#683の除外を自動移植しない | **#614決定前は従来の診断要否を維持**。無進捗除外だけを理由に診断不要としない |
+| `close_eligible` / AgentRun #409 | 検証済み`status_verdict`、その用途で有効な処置・owner決定、依存run/handoff/成果物検証に基づくclose専用判定。無進捗除外はclose免除ではない | **`no-harm-only`だけではclose不可**。既存STOPに対する有効なowner判断または将来承認済みの正規判定が別途必要 |
+| `hard_stop_required` / #513 | 現行status/owner STOPと、#513で明示承認されたtool制御の対象・解除理由を使用。escalateの偽陽性抑制は別軸 | 無進捗から除外されても、owner判断が未決ならSTOP/解除条件はそのまま |
+
+- #683で有効なhandoffと判断するには、source findingの内容hash一致、転記先の本文/コメント読み戻し、転記先open、final verificationまでの再検証が必要。**hash変更、コメント削除/編集、転記先closed、API不能時は無進捗計数へ戻す（fail-close）**。status verdictはこれと独立して従来どおり`no-harm-only`を維持する。
+- #691の`advisory`（harm:none・committed正本・owner承認policy等）は**別の処置種別**であり、#691の子Issueでownerが承認した場合に限りverdict/check/stall/closeへの効力を定義する。#683の`deferred`をAdvisoryと同じ「clean解除」とみなさない。
+- #614の`check`側におけるharm:none/deferred/waived診断除外と主文脈担当fix-hereの扱いは**未決の独立した論点**。#614がその条件を確定するまでは、この設計を理由に既存`check`を緩和しない。#409は`escalate`用の集合や`check`用の集合をcloseへ転用しない。
+
+### #409 close gateへ渡す検証済みclose専用判定（F-733-04 / F-733-05）
+
+- **原本集合**：Karte内findingは`status:open`でも監査履歴をそのまま保持。`deferred`/Advisoryだからといって`resolved`へ書き換えない。
+- **close専用出力**：対象Issue/run/round/headとKarteの`status_verdict`、処置証拠、owner承認、未決判断、#409固有のreview/handoff/expected outputs/依存run検証から`close_eligible`を導出。実装時の#409 AC「未解消findingゼロ」は**close阻害の未処置findingがゼロ、かつverdict/STOP/owner条件が通ったこと**へ具体化する案（Issueは未更新）。`status`の`blocking_findings`が空なら`verdict:clean`の一条件となるが、`stall_candidates`の空集合を同じ意味に使わない。
+- **非対称性**：正式なAdvisoryは#691導入後の承認済み規範で許可されればclose候補。検証済み`harm:none/deferred`は#683により無進捗から除外されても**`verdict:no-harm-only`のままなので、それ単独でAgentRun closeを通さない**。正式な`harm:real/deferred`の扱いも#683を根拠に自動変更しない。
+- **失敗側**：未分類/未承認`harm:real`、Advisoryのpolicy/正本不整合、別run/OID、必要なowner判断なし、Karte読取不能ならcloseを拒否する。**STOPの解除・no-harm-onlyの取り扱いはowner承認済みの仕様の範囲でのみ**適用。#409内に別のdisposition計算器や真偽正本を作らない。
 
 ### 試験表
 
@@ -147,12 +162,17 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 | L5-T9 | #513 hard stop後にTask/Bash/Write/Edit | AskUserQuestion/todo以外をdeny（承認済み特例以外） |
 | L5-T10 | 偽owner応答、別runの判断ref、古いOIDで解除 | deny維持 |
 | L5-T11 | 正規owner承認記録とKarte検証が一致 | stop解除、後続phaseは別途再検証 |
-| L5-T12 | status/check/escalateで同一finding集合 | 同じブロッカー判定 |
+| L5-T12 | 同一finding原本・同一の検証済み処置証拠を各commandに渡す | **用途別に異なる判定が可能**。verdict/check/stall/closeの入力同一性と出力独立性を検証 |
 | L5-T13 | legacyKarteの旧値 | 互換読取、暗黙のadvisory変換なし |
 | L5-T14 | 製品tool hookは存在するが発火していない | LIVE未検証扱い、保証しない |
-| L5-T15 | `status: open`で有効なAdvisory/deferredだけが残る | Karte判定が非ブロッキングならAgentRun close可能、原findingは監査参照に残る |
+| L5-T15 | openの正式Advisoryと、openのharm:none/verified deferredを別fixtureで入力 | Advisoryは#691承認済みのverdict/owner条件を満たす場合のみclose候補。**deferredは#683ではno-harm-onlyを維持し、owner判断なしにclose不可**。原findingは保持 |
 | L5-T16 | 未分類/未承認の`harm: real`がopen、policy未承認、Advisory未commit、handoff未検証 | blockingまたは判定不能でAgentRun close不可 |
-| L5-T17 | status/check/escalateとAgentRun closeで異なる集合、別run/round/OIDのKarte | 一致検証で拒否、AgentRunの自己申告により除外できない |
+| L5-T17 | 同一run/round/headの正当な用途別差と、別run/round/OIDの混入 | **用途別差だけで拒否しない**。証拠参照不一致は拒否し、AgentRunの自己申告で除外できない |
+| L5-T18 | `status:open / harm:none / deferred / verified handoff` が3連続roundで残存 | **verdict=no-harm-only、stallから除外、既存STOP維持**。checkは#614未決の現行契約、owner決定なしのAgentRun closeは拒否 |
+| L5-T19 | T18のhandoff content_hash不一致・コメント削除/編集・宛先closed・ネットワーク検証失敗 | stallへ計数復帰、render ★無進捗も同じ。verdict/STOP/closeは無断解除なし |
+| L5-T20 | T18で未修正findingの診断記録が無い | #614の決定前は既存`check`規定どおり。#683による除外で診断完了扱いしない |
+| L5-T21 | #691でowner承認されたAdvisoryが正本/版検証済み、または参照無効 | 承認済みの範囲だけ用途別に非ブロック。失効すれば各用途で保守側判定へ戻す。deferredへ拡張しない |
+| L5-T22 | verified deferredで`escalate:no`だが`verdict:no-harm-only`、owner未決 | STOP解除もAgentRun closeも行わない。`escalate:no`単独からclean/closeを推論しない |
 
 ### AC-L5
 
@@ -160,8 +180,8 @@ Karte/reviewerのfindingに対し、独立triagerが以下を根拠に分類す�
 - [ ] fix_here/deferred/advisory/owner_reviewを上記優先順で判定し、未証明の任意改善が勝手にcleanにならない。
 - [ ] #513のhard stopとtriage必要性の競合についてownerが採用順と正規例外を明示決定し、T8～T11を確認する。
 - [ ] hard stopが発火した本来対象のAI toolはAskUserQuestion/todo以外denyされ、正規owner解除の前に再開できない。対象外セッションの過剰denyを検証する。
-- [ ] #691/#683/#375/#409の正本を重複させず、Karte status/check/escalateおよびAgentRun closeが同一の検証済みblocking finding集合を参照する。
-- [ ] openの正式Advisory/deferredならclose可能、未承認のopen実害/不正参照なら拒否となる両方向試験T15〜T17を含み、T1〜T17の異常/正常、旧データ、実機未検証を区別する。
+- [ ] #691/#683/#375/#409の正本を重複させず、Karte status/check/escalateとAgentRun closeが**同一の検証済み原本入力から用途別の派生述語**を計算する。#683の無進捗除外はverdict/STOP/check/closeを緩和しない。#614の診断規則はowner決定まで不変。
+- [ ] 正式Advisoryは**承認済みのverdict/owner条件を満たした場合だけ**close候補、検証済みharm:none/deferredは無進捗除外でも`no-harm-only`/STOPを維持しowner決定なしのcloseを拒否する。T12/T15〜T22の非対称fixtureを含むT1〜T22と旧データ/実機未検証を区別する。
 
 ## L6 merge後混入率と施策の効果を別の軸で計測する
 
