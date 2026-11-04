@@ -33,7 +33,7 @@
   - reviewed_by：成果物に独立review receiptが対応
   - approval_ref：owner判断の既存記録を参照
   - verification_ref：テスト/検証結果への既存参照
-  - karte_clearance_ref：対象Issue/run/round/headに束縛されたKarteの検証済みblocking finding集合・disposition/承認policy/Advisory/申し送り証拠への参照。**AgentRunへKarteの判断を複製した正本を保存しない**
+  - karte_clearance_ref：対象Issue/run/round/headに束縛されたKarteの**status verdictとclose専用の評価結果**、disposition/承認policy/Advisory/申し送り証拠への参照。無進捗候補やcheck診断集合をclose用blocking集合と取り違えない。**AgentRunへKarte判断を複製した正本を保存しない**
 - worktree owned_byはworktree ledgerの参照であり、AgentRunへ同じ所有状態を二重に書かない。
 - **キャッシュは導出物**。古いDAGを永続化しない。真正のroot/sourceは信頼されたdispatch contextとcommitted artifactから得る。
 
@@ -47,12 +47,13 @@
 6. どれか不一致なら明確なreason code、expected/observed（機密なし）と関係ノード参照を返してSTOP。実行禁止。
 7. 実行終了時に同じノードと成果物を再確認し、対象run/issue/round/headのKarte正本を再評価してからAgentRun close gateへ渡す。完了報告や単純な`status: open`件数だけではcompleted/denyを判断しない。
 
-### AgentRun closeとKarte findingの厳密な接続（F-733-04）
+### AgentRun closeとKarte findingの用途別判定接続（F-733-04 / F-733-05）
 
-- **closeの条件は `blocking_findings == ∅`**。集合はKarteの検証済み`status/check/escalate`の共通判定述語から導出する。AgentRunはreview指摘の全件履歴と`status: open`を監査参照として保持するが、`open`を無条件にclose禁止とも、無条件に無視してよいとも扱わない。
-- `status: open`でも、有効なowner処置/承認済みpolicyに基づく**Advisory**（harm:none、正本commit済み・参照/digest/版が検証済み）や**deferred**（承認条件充足、#683のIssueへの転記と検証済み）は、Karteが非ブロックと認めた場合に限りcloseを妨げない。実害があるのに未分類・owner未決・handoff/advisory未検証なら必ずblocking側へ残す。
-- `blocking_findings`と`escalate`/未決owner判断の検査は、対象run/Issue/round/head OIDおよび実際に参照したKarte/Advisory/handoff/owner policyの証拠に束縛する。Karteが読めない、参照不一致、未承認policyなど**判定不能はfail-close**。AgentRun自身が`cleared`を自己申告して判定を上書きする経路を作らない。
-- **#409の既存ACの「未解消findingゼロ」は、そのままopen件数ゼロとして実装しない**。Issue反映時に「Karteによる検証済み未処置blocking findingがゼロ」の意味と、全open findingの記録を保つことをACへ明記する提案とする。#409/#691の既存owner判断を無断変更しない。
+- **判定入力と判定用途を分離**：Karteの検証済みreview原本・owner/disposition・policy/handoff/Advisory証拠を参照するが、`status`のverdict阻害集合、`escalate`の無進捗集合、`check`の診断要否集合、**AgentRun close専用の適格性**は用途別に導出する。原本が同一でも結果は異なり得る。AgentRunは判定を再実装せず、Karteの対象run/round/headに拘束された出力を消費する。詳細は[用途別判定表](DESIGN-L4-L6.md)。
+- **#683の意図的非対称性を維持**：`status:open / harm:none / disposition:deferred / handoff検証済み`は3ラウンド無進捗の計数からだけ除外され、**`verdict:no-harm-only`とownerへの既存STOPは維持**。従って`escalate:no`や「申し送り検証済み」だけではclose不可。checkの診断要否も#614で明示承認されるまで既存動作を変えない。
+- **closeに必要な条件**：Karteの検証済み`status_verdict`、close用途で有効な処置とowner判断、#409のhandoff/expected outputs/依存run・レビュー原本の検証がすべて成立すること。現行のstatusが`clean`を妨げる場合にowner専権のSTOPが未解決なら、無進捗の除外ではclose不可。#691の**正式Advisory**は、後続子Issueが承認された範囲でverdictやcloseへの効力を定義した後に限り非ブロック候補とする。
+- **fail-close**：未分類・未承認のharm:real、owner判断未決、policy/Advisory/handoff参照不一致、別Issue/run/round/head、Karte不能はclose拒否。**#409の「未解消findingゼロ」を単純なopen件数でも`escalate`候補ゼロでも実装しない**。実装時は「close阻害findingなし＋承認済みverdict/owner条件成立」というACへの具体化を提案するが、現時点でIssueのowner決定や既存ACを変更しない。
+- 全findingは`status:open`でも履歴として保持し、`deferred`やAdvisoryを機械的に`resolved`へ変換しない。#683はverdict変更をOut of scope、#614はcheck判断が未決という責務境界を尊重する。
 
 ### 結果値の提案
 
@@ -85,16 +86,19 @@ validate_phase_request(
 - L1-T6 reviewerとauthorのcontext同一、roleのpermission不足→拒否。
 - L1-T7 postmerge live検証を別Issueへ明示した実装run→「実装条件充足」と「live未完了」を別判定。
 - L1-T8 既存issue-envelope/v1.0 artifact読込互換、正常dispatch/独立reviewは通る。
-- L1-T9 `status: open`でもKarteが証拠・承認policyを検証済みのAdvisoryまたはdeferredだけが残る→`blocking_findings=∅`としてclose可能（他のclose条件も満たす場合）。
+- L1-T9 `status:open / harm:none / deferred / verified handoff`が3ラウンド継続→無進捗対象からは除外、**verdict=no-harm-only**維持。owner STOP未解除ならAgentRun close拒否。正式Advisoryは#691で承認された独立のverdict/owner条件が成立した場合に限りclose候補。
 - L1-T10 未分類またはowner未決の`harm: real`がopen、Advisory未commit、GitHub転記失敗、別runのKarte evidence→close拒否。openの数だけで判定しない。
 - L1-T11 Karte読取失敗・policy OID不一致・判定不能→close拒否。Karteに残る全findingの履歴は消さない。
+- L1-T12 #683 verified handoffを無進捗計数から除外しただけで`check`診断不要や`verdict:clean`へ変化→契約違反。#614の既存判断境界を保持。
+- L1-T13 verified handoffがhash不一致・宛先closed・検証不能となる→無進捗計数へ復帰。verdict/owner STOPとcloseの既存阻害は維持。
+- L1-T14 同一Karteのstatus/check/escalate/close出力が用途別に異なるが同一の検証済み原本を参照→正規差として受理。別run/round/headの参照なら拒否。
 
 ### AC-L1
 
 - [ ] Graphは既存の成果物とAgentRunから導出され、重複した永続正本を作らない。
 - [ ] producer/Issue/run/phase/work unit/OID/digest/独立review/owner判断を具体的なtyped edgeで検査する。
-- [ ] T1〜T11の正常・異常・版互換がテストされ、未知を成功扱いしない。
-- [ ] AgentRun closeはKarteの検証済みblocking finding集合で判定し、openでも有効なAdvisory/deferredは非ブロック、未決実害/未検証参照はブロックとなる両方向試験を固定する。
+- [ ] T1〜T14の正常・異常・版互換がテストされ、未知を成功扱いしない。
+- [ ] AgentRun closeはKarteのverdict・owner判断・close専用判定を参照する。#683のverified harm:none/deferredは無進捗から除外しても`no-harm-only`/STOPを保持し、自動closeさせない。#691の正式Advisoryは承認済み契約の範囲に限り扱う。用途別の正負・証拠失効試験を固定する。
 - [ ] AgentRun closeとworktree releaseとreview verdictの責務が分離され、cross-ledgerの参照だけに限定される。
 - [ ] #652のpostmerge live未検証を実装合格と偽装せず、#370に反する先行mergeゲートを作らない。
 - [ ] 既存issue_envelope check、unit/integration testsがGreen、schema版変更時は移行と全consumerを同期。
