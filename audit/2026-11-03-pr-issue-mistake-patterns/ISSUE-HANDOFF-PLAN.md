@@ -40,7 +40,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ## 3. 新規Issueに転記できる「成果契約」
 
-下の各項目は、**Issue作成本文のScope/Out of scope/ACの核**。反映時には対応設計書のリンクと対象コミットを必ず冒頭に付ける。実装時の詳細手順とテストセットは各DESIGN文書で凍結した案を参照し、ここで再定義しない。
+下の各項目は、**Issue作成本文のScope/Out of scope/ACの核**。反映時には対応設計書のリンクと対象コミットを必ず冒頭に付ける。実装時の詳細手順とテストセットは各DESIGN文書で凍結した案を参照し、ここで再定義しない。**テストIDの上限とACの項目数も対応DESIGN節を唯一の正本として扱い、Issue反映直前に再照合する**。ここで「全N件」と明記した場合は設計書の全件と一致させ、一部だけ引き継ぐ場合はS4の一般規定のように対象部分と範囲外を明記する。
 
 ### NEW-SURFACE：Issue工程の影響面と同一根本原因探索を繋ぐ（S1+S2）
 
@@ -112,7 +112,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 **検査**：L6-T1～T10。承認済みdeferred1件と未承認の実害残置1件をともに第2分類 `known_retained_at_merge` へ加算（残置合計2）、内訳 `disposition_state` は `approved_deferred=1` / `undecided=1`、未承認実害は1件だけ。v1レポートとbaselineの互換、分類証拠欠落・API打切り時のunknown/errorも確認。
 
-**AC**：AC-L6全5件。#370の観測/計測の責務に関連付け、#488を再実装しない。
+**AC**：AC-L6全6件（[DESIGN-L4-L6.md のAC-L6](DESIGN-L4-L6.md)を正本とする）。#370の観測/計測の責務に関連付け、#488を再実装しない。
 
 ## 4. 既存Issueへ反映する追加仕様（本文上書きはしない）
 
@@ -126,7 +126,7 @@ NEW-名称は**仮ID**。GitHub Issueはまだ存在しない。
 
 ### L1：#409、#703
 
-#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGとT1〜T14を追記候補とする。**既存ACの「未解消findingゼロ」をopen全件ゼロや無進捗集合ゼロとして実装しない**。Karteの検証済み`status_verdict`・owner/STOP・close専用条件を照合し、`harm:none/deferred`のverified handoffは#683に従って無進捗から除外しても`verdict:no-harm-only`のままなので**owner判断なくclose不可**とする。#691で採用後の正式Advisoryのみ別途承認済みのverdict/close条件に従い、未分類/未承認harm:real・参照不一致・判定不能はclose不可というACへの具体化を提案する。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
+#409のスキーマ、状態遷移、phase依存・expected artifact・close gateへL1の型付DAGと**L1-T1〜T18（特に#683 Q3未決/決定後/証拠失効を含むT15〜T18）およびAC-L1全7件**を追記候補とする。**既存ACの「未解消findingゼロ」をopen全件ゼロや無進捗集合ゼロとして実装しない**。Karteの検証済み`status_verdict`・owner/STOP・close専用条件を照合し、`harm:none/deferred`のverified handoffは#683に従って無進捗から除外しても`verdict:no-harm-only`のままなので**owner判断なくclose不可**とする。#691で採用後の正式Advisoryのみ別途承認済みのverdict/close条件に従い、未分類/未承認harm:real・参照不一致・判定不能はclose不可というACへの具体化を提案する。#703へはtrace linkのexists・orphan・例外/履歴の正当性を接続し、同じDAG正本を複製しない。#371の成果物schema/handoffは既存のまま使用。
 
 ### L2：#559、#699、#679（#409と関連）
 
@@ -221,6 +221,7 @@ L6 NEW-DEFECT-COHORT ── #370測定・owner評価
 
 - [ ] #733がmainにmergeされたか。未mergeならbranch/ref付きの不変資料へリンクする。
 - [ ] 各IssueのOPEN/CLOSED、本文の最新AC、既存設計の更新、同時進行PRを再取得する。
+- [ ] **S1〜S6/L1〜L6の対応DESIGN節のテストID（枝番含む）とACチェック数を全件再集計**し、引継ぎ先Issue/仮Issueの引用範囲および本書の`全N件`表記と突き合わせる。追加テストやACは参照先の範囲を同時更新し、差異はIssue転記前にSTOP・修正する。**意図的な部分適用**は全件の代替とせず、S4のように対象と既存Issue側の残範囲を明記する。
 - [ ] 既存issueと新規issueで同じ成果物を二重に担当しない。
 - [ ] ownerの既決方針とDEC-1～6の未決/提案の区別がIssue本文でも維持される。
 - [ ] Issue単位の成果が、作業の完了時に客観的な証拠で確認できる。
