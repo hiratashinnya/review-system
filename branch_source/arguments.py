@@ -31,9 +31,12 @@ def parse_new_branch_args(args: Sequence[str]) -> NewBranchRequest:
     base_pr: int | None = None
     if "--base-pr" in values:
         raw_pr = values["--base-pr"]
-        if not raw_pr.isdigit() or int(raw_pr) < 1:
+        try:
+            base_pr = int(raw_pr) if len(raw_pr) <= 4300 and raw_pr.isascii() and raw_pr.isdigit() else 0
+        except ValueError:
+            base_pr = 0
+        if base_pr < 1:
             raise BranchSourceError("BRANCH_BASE_PR_INVALID", raw_pr)
-        base_pr = int(raw_pr)
     return NewBranchRequest(
         branch_name=name,
         repository=_validate_repository(values["--repository"]),
