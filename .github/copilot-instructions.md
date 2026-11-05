@@ -127,5 +127,3 @@
 - `docs/tools/gitgate-base-integration.md`（policy 2.1）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
 - GitGate はテストを実行しない。解消結果の検証は自分で行い、CI でも確認する。
 - commitはgitgateを使い、pending中は通常 commit を行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・OID driftはSTOPして報告する。
-
-<!-- issue-711 fixture: intentionally stale generated file -->
