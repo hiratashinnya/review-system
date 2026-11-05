@@ -17,11 +17,22 @@ def permission_profiles():
 
 
 class PermissionProfileTests(unittest.TestCase):
-    def test_default_permissions_is_the_first_setting_and_selects_workspace(self):
+    def test_default_permissions_is_the_first_setting_and_selects_secure_default(self):
         text = (ROOT / ".codex" / "config.toml").read_text(encoding="utf-8")
         first_setting = next(line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#"))
-        self.assertEqual(tomllib.loads(text)["default_permissions"], ":workspace")
-        self.assertEqual(tomllib.loads(first_setting), {"default_permissions": ":workspace"})
+        self.assertEqual(tomllib.loads(text)["default_permissions"], "secure-default")
+        self.assertEqual(tomllib.loads(first_setting), {"default_permissions": "secure-default"})
+
+    def test_secure_default_extends_workspace_and_denies_credentials_and_network(self):
+        profile = permission_profiles()["secure-default"]
+        self.assertEqual(profile["extends"], ":workspace")
+        self.assertEqual(profile["network"], {
+            "enabled": False,
+            "allow_local_binding": False,
+            "dangerously_allow_all_unix_sockets": False,
+            "dangerously_allow_non_loopback_proxy": False,
+        })
+        self.assertEqual(profile["filesystem"], {path: "deny" for path in CREDENTIAL_PATHS})
 
     def test_every_codex_exec_role_has_a_profile(self):
         profiles = permission_profiles()
@@ -29,6 +40,7 @@ class PermissionProfileTests(unittest.TestCase):
             with self.subTest(role=role):
                 self.assertIn(role, profiles)
         self.assertIn("pr-reviewer", profiles)
+        self.assertNotIn("secure-default", CODEX_EXEC_ROLES)
 
     def test_role_profiles_are_identical(self):
         profiles = permission_profiles()
