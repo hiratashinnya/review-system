@@ -4,7 +4,7 @@
 def identity(pr):
     base, head = pr['base'], pr['head']
     return (pr['number'], pr['state'], base['repo']['full_name'], base['ref'],
-            base['sha'], head['repo']['full_name'], head['ref'], head['sha'])
+            head['repo']['full_name'], head['ref'], head['sha'])
 
 
 def classify(pulls, number, repository, default):
@@ -16,13 +16,13 @@ def classify(pulls, number, repository, default):
         if len(matches) != 1:
             return None, '対象 PR が存在しないか重複', []
         target = matches[0]
-        _, _, base_repo, base_ref, _, head_repo, head_ref, _ = target
+        _, _, base_repo, base_ref, head_repo, head_ref, _ = target
         children = [row[0] for row in rows if row[0] != number
                     and row[2] == repository and row[3] == head_ref]
         same_head = [row[0] for row in rows if row[0] != number
-                     and row[5] == head_repo and row[6] == head_ref]
+                     and row[4] == head_repo and row[5] == head_ref]
         parents = [row[0] for row in rows if row[0] != number
-                   and row[5] == repository and row[6] == base_ref]
+                   and row[4] == repository and row[5] == base_ref]
         related = sorted(set(children + same_head + parents))
         if base_repo != repository or head_repo != repository:
             return None, 'fork または別 repository', related

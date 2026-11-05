@@ -27,9 +27,16 @@ def run(repo, *args, check=True, extra_env=None):
 
 
 def prepare(source, repo, base, head):
-    run(source, 'fetch', '--no-tags', 'origin', base, head)
+    for oid in (base, head):
+        run(source, 'fetch', '--no-tags', 'origin', oid)
+        fetched = run(source, 'rev-parse', 'FETCH_HEAD^{commit}').stdout.strip()
+        if fetched != oid:
+            raise ValueError(f'fetch OID 不一致: {oid}')
     run(source, 'clone', '--no-local', '--no-checkout', str(source), str(repo))
-    run(repo, 'fetch', str(source), base, head)
+    for oid in (base, head):
+        run(repo, 'fetch', str(source), oid)
+        if run(repo, 'rev-parse', 'FETCH_HEAD^{commit}').stdout.strip() != oid:
+            raise ValueError(f'fetch OID 不一致: {oid}')
     run(repo, 'config', 'user.name', 'github-actions[bot]')
     run(repo, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
     run(repo, 'checkout', '--detach', head)

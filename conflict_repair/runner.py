@@ -14,10 +14,14 @@ def evaluate(api, source, number, repository, default):
               'CI': '未検証'}
     if target is None:
         return result
-    _, _, _, base, base_oid, _, head, head_oid = target
+    _, _, _, base, _, head, head_oid = target
+    if api.default_branch() != default:
+        result['判定'] = 'default branch が変更'
+        return result
+    base_oid = api.branch_oid(base)
     result.update({'base OID': base_oid, 'head OID': head_oid})
-    if api.branch_oid(base) != base_oid or api.branch_oid(head) != head_oid:
-        result['判定'] = 'branch OID 不一致'
+    if api.branch_oid(head) != head_oid:
+        result['判定'] = 'head OID 不一致'
         return result
     with tempfile.TemporaryDirectory(prefix='conflict-repair-') as temp:
         repo = Path(temp) / 'work'
