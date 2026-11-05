@@ -45,13 +45,12 @@
   "mixed_class_files": {
     "branch_source/policy.py": {
       "data": [
-        "BranchSourceResult",
-        "NewBranchRequest"
+        "BranchSourceResult"
       ],
       "logic": [
         "GitHubBranchClient"
       ],
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
     }
   },
   "module_lines": {
@@ -96,8 +95,8 @@
       "sha256": "7bf8b9bd7e45e28ad0ccc4493b7b67b357cc7e7129b89dd7d484c32754adae43"
     },
     "branch_source/policy.py": {
-      "line_count": 352,
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "line_count": 273,
+      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
     },
     "feedback_ledger/check.py": {
       "line_count": 454,
