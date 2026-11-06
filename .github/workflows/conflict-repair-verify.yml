@@ -11,7 +11,7 @@ on:
 permissions: {}
 
 jobs:
-  verify:
+  verify-unittest:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: read
@@ -29,14 +29,83 @@ jobs:
         env:
           HEAD_OID: ${{ inputs.head_oid }}
         run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
-      - uses: actions/setup-python@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
-      - run: python3 -m unittest discover tests
-      - run: python3 -m guidance_sync check
+          python-version: "3.x"
+
+      - name: Run Python test suite
+        run: python3 -m unittest discover tests
+
+      - name: Model family policy references and stopped templates
+        run: python3 -m model_policy check
+
+      - name: Run time fixture scanner canary tests (Issue #572)
+        run: python3 -m unittest discover -s tests/time_fixture_lint
+
+      - name: Install pinned optional Jev SDK for local HTTP mock tests
+        run: python3 -m pip install -r jev_hooks/requirements.txt
+
+      - name: Run Jev hook test suite (Issue #572, no live API)
+        run: python3 -m unittest discover -s tests/jev_hooks
+
+      - name: Time-dependent test data check (手当てB, issue #344)
+        run: python3 -m time_fixture_lint check
+
+      - name: Maintainability principles check (Issue #539)
+        run: python3 -m maintainability_lint check
+
+      - name: Guidance sync check
+        run: python3 -m guidance_sync check
+
+  verify-typecheck:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate commit OID
+        env:
+          HEAD_OID: ${{ inputs.head_oid }}
+        run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.head_oid }}
+          persist-credentials: false
+      - name: Confirm checked-out OID
+        env:
+          HEAD_OID: ${{ inputs.head_oid }}
+        run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install pyright
+        # F-510-10: バージョン固定（npm install -g pyright のみだと最新版が無言で入り、
+        # リポジトリ側の変更ゼロでも pyright の新版が診断を追加/変更した瞬間に merge を左右する
+        # fail-close ゲートの判定基準が実行日依存になる）。更新は意図的な変更としてこの行を
+        # 編集する PR に載せる。
+        run: npm install -g pyright@1.1.390
+
+      - name: Type-check declared files (Issue #510, fail-close on the declared list only)
+        run: |
+          set -e
+          mapfile -t files < <(grep -vE '^[[:space:]]*(#|$)' .github/typechecked-files.txt)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no files declared in .github/typechecked-files.txt" >&2
+            exit 1
+          fi
+          echo "Type-checking (fail-close): ${files[*]}"
+          pyright "${files[@]}"
 
   report:
-    needs: verify
+    needs: [verify-unittest, verify-typecheck]
     if: always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       checks: write
@@ -52,7 +121,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_OID: ${{ inputs.head_oid }}
-          VERIFY_RESULT: ${{ needs.verify.result }}
+          UNITTEST_RESULT: ${{ needs.verify-unittest.result }}
+          TYPECHECK_RESULT: ${{ needs.verify-typecheck.result }}
           REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
