@@ -1,4 +1,4 @@
-"""karte verb が投げる前提違反の例外（fail-close の境界は ``karte.verb_support.fail_close``）。"""
+"""karte verb が投げる前提違反の例外（fail-close の境界は ``karte.verb_boundary.fail_close``）。"""
 
 
 class KarteUsageError(Exception):

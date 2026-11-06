@@ -58,9 +58,13 @@ def _parser() -> argparse.ArgumentParser:
 def _timeout_seconds(raw: str | None) -> int:
     if raw is None:
         return DEFAULT_TIMEOUT_SECONDS
-    if not raw.isdigit() or not 1 <= int(raw) <= MAX_TIMEOUT_SECONDS:
+    try:
+        value = int(raw) if len(raw) <= 4300 and raw.isascii() and raw.isdigit() else 0
+    except ValueError:
+        value = 0
+    if not 1 <= value <= MAX_TIMEOUT_SECONDS:
         raise CodexExecError("CODEX_EXEC_TIMEOUT_INVALID", raw)
-    return int(raw)
+    return value
 
 
 def parse_request(argv: Sequence[str]) -> ExecRequest:

@@ -1,7 +1,7 @@
 <!-- generated-by: python3 -m guidance_sync render; edit-source-only -->
-<!-- common-source: .ai/guidance/common.md; sha256: 8d6335674d4f360db799a94006958fd068fc2e76291865fa54756a5e7c335fbd -->
+<!-- common-source: .ai/guidance/common.md; sha256: a2e2130982fee7e50041b9af997e07466379e2dfd8699e667083c793061da35f -->
 <!-- principles-source: .ai/skills/spec-principles/SKILL.md; sha256: 17df1f5cce696a3a65181f465a2eba0a38afe65ed6a298acea0f230edaff64d9 -->
-<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: 8b5cdd4ad60e7a4f83c92753612aa523aa7de352dfaed0eadfc5915f69f86f76 -->
+<!-- platform-source: .ai/guidance/platforms/copilot.md; sha256: caf0edb10a886553e39f1c3cbd4e850c44ace71170fa4f0e3f79eaabb6beac1b -->
 
 # プロジェクト共通 guidance
 
@@ -19,7 +19,8 @@
 - main thread は作業分解、実行主体の選定、進行管理、ユーザー報告を担い、実装・レビュー・是正は利用可能な別コンテキストへ分離する。
 - レビュー担当と修正担当を分け、修正後は元レビューと別の文脈で再レビューしてから完了判断する。レビュー finding は記録し、対応内容・検証・最終結果も追跡可能にする。
 - 矛盾・情報不足・オーナー判断必須で停止するときは、事実、選択肢、メリット／デメリット、理由付き推奨を示す。空の停止や AI による独断的な「対応不要」は禁止する。
-- merge、push、force 系操作、外部への投稿など、取り消しにくい・共有状態に影響する・他者に見える操作は、実行前にチャットでオーナーへ報告して確認を得てから行う。clean 判定や過去に一度得た承認を、その後の実行の事前確認の代わりにしない。完了後にまとめて報告することは事前報告の代替にならない。
+- 依頼済みの開発作業に含まれ、対象 repo・branch・PR・Issue が一致する非破壊の通常操作は追加の事前確認なく実行し、結果を事後報告する。作業 branch への non-force push、PR 作成・本文更新・レビュー記録、Issue 作成・更新・コメント、通常の CI/check 実行・再実行が含まれる。ただし Issue・PR のクローズと、それぞれの受け入れ基準（AC）の更新は対象と変更内容を示して事前確認する。対象と内容が一致する明示的な指示・承認が既にある場合は再質問しない。公開 repository であることだけを理由に確認を求めない。依頼範囲外は停止する。
+- AI は PR merge／auto-merge を実行しない。force push、remote branch 削除、履歴改変・大量削除は個別操作の明示指示を要する。公開設定・アクセス権変更、本番デプロイ、正式 Release 公開、SNS・ブログ等への対外投稿や第三者へのメール・DM は原則事前確認し、対象と内容が一致する既存の明示承認は重ねて尋ねない。禁止 branch・role 権限・秘密保護・課金・機械的な承認ゲートは維持する。
 - スケジュールや後続スプリントへの繰越は、オーナーの明示指示なしに決めない。
 - CI や外部サービスは無課金で実現できる方法を優先する。課金が避けられない場合は実装前にオーナーの明示認可を得る。
 - 設計で仕様から一意に決まらない点は、論点・選択肢・推奨・暫定決定・影響範囲を判断記録へ残して前進する。
@@ -27,6 +28,7 @@
 - rate limit や session 上限を理由に、model／reasoning effort／必要な役割分離を品質降格しない。同じ構成で再開する。
 - 新しい AI 資産を作る前に既存資産の重複・競合を点検する。
 - 実装設計では、module、interface、protocol、persistence、orchestration、prompt、log/version、test strategy の凍結セットを総点検してから実装へ進む。
+- ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げること
 
 ## コード構築原則（Issue #539）
 
@@ -122,6 +124,6 @@
 
 ## PR base 取り込み
 
-- `docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路を使う。Copilot はcleanなPR head branchで `python3 -m gitgate integrate-base-copilot-register --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` により対象を明示認可し、同じ引数の `integrate-base` → 衝突編集 → `integrate-base-continue`、中止は `integrate-base-abort` を使う。
-- この登録は認証済みCopilot roleの保証ではない。固定merge戦略・任意option禁止・固定unittest成功と非ゼロ件・内容CASと2親検証を再利用する。通常cloneも非default PR head branchなら利用できる。
-- commit/pushはgitgateを使い、pending中は行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・protected契約変更・OID driftはSTOPして報告する。Claude/Codex固有hookの等価物を仮定せず、raw Gitや台帳直接編集を阻止するsandboxを謳わない。
+- `docs/tools/gitgate-base-integration.md`（policy 2.1）の経路を使う。cleanなPR head branchの checkout で `python3 -m gitgate integrate-base --repository OWNER/REPO --pr N --expected-head OID --expected-base OID` → 衝突編集（周辺ファイル・生成物は `gitgate add` で明示 stage）→ `integrate-base-continue`、中止は `integrate-base-abort` を使う。専用の登録・認可手順は無い。
+- GitGate はテストを実行しない。解消結果の検証は自分で行い、CI でも確認する。
+- commitはgitgateを使い、pending中は通常 commit を行わない。raw git merge、PR merge/auto-mergeは禁止を維持する。判断不能な衝突・OID driftはSTOPして報告する。

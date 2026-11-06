@@ -113,6 +113,7 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from .allowlist import is_allowlisted
+from .int_args import matched_int, require_ascii_int
 
 FORMAT_VERSION = 1
 
@@ -190,16 +191,16 @@ CLEARING_HARM = "real"
 SECTION_FINDINGS = "Findings"
 SECTION_ATTEMPTS = "Attempts"
 
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-FINDING_ID_RE = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})$")
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\Z")
+FINDING_ID_RE = re.compile(r"^F-([1-9][0-9]*)-([0-9]{2,})\Z")
 DOC_HEADER_RE = re.compile(r"^#\s+Karte:\s+issue-([1-9][0-9]*)\s*$")
-ATTEMPT_TITLE_RE = re.compile(r"^Attempt\s+([1-9][0-9]*)$")
-RESULT_TITLE_RE = re.compile(r"^Result\s+([1-9][0-9]*)$")
+ATTEMPT_TITLE_RE = re.compile(r"^Attempt\s+([1-9][0-9]*)\Z")
+RESULT_TITLE_RE = re.compile(r"^Result\s+([1-9][0-9]*)\Z")
 KEY_RE = re.compile(r"^([a-z][a-z0-9_]*):(.*)$")
 # ``deferred_to``（Issue #495）は**行き先を機械的に解決できる形**だけを受ける。
 # 「別 Issue で対応」のような散文を許すと、申し送りの宛先が不明のまま clean を通せてしまい、
 # `deferred` を必須化した目的（リンク無しの申し送りを作らない）が達成できない。
-DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9]*)$")
+DEFERRED_TO_RE = re.compile(r"^(?:#?[1-9][0-9]*|https?://[^\s]+/issues/[1-9][0-9]*)\Z")
 
 # 台帳の値に持ち込めない文字（1行 key: value ＋ `[a, b]` 記法を壊すため）。
 FORBIDDEN_VALUE_CHARS = ("\n", "\r", "\0")
@@ -280,8 +281,8 @@ def check_list(values, what: str) -> list:
 
 
 def format_finding_id(issue: int, seq: int) -> str:
-    """``F-{issue}-{seq}``（seq は 2 桁ゼロ詰め・例 ``F-312-03``）。"""
-    return f"F-{int(issue)}-{int(seq):02d}"
+    """``F-{issue}-{seq}``（seq は 2 桁ゼロ詰め・例 ``F-312-03``）。読み戻せない桁数の番号は書かない。"""
+    return f"F-{int(issue)}-{matched_int(str(seq), KarteFormatError, '連番'):02d}"
 
 
 def parse_finding_id(value: str):
@@ -292,7 +293,7 @@ def parse_finding_id(value: str):
         raise KarteFormatError(
             f"finding ID の形式違反（期待 `F-<issue>-<seq>`・例 F-312-03）: {value!r}"
         )
-    return int(matched.group(1)), int(matched.group(2))
+    return tuple(matched_int(g, KarteFormatError, "finding ID の番号") for g in matched.groups())
 
 
 # --- ブロックパーサ ----------------------------------------------------------
@@ -384,12 +385,8 @@ def _require_int_list(block: Block, key: str) -> list:
         value = [value] if value.strip() else []
     numbers = []
     for item in value:
-        text = str(item).strip()
-        if not text.isdigit():
-            raise KarteFormatError(
-                f"{block.lineno} 行目 '{block.title}': '{key}' は整数のリスト: {item!r}"
-            )
-        numbers.append(int(text))
+        message = f"{block.lineno} 行目 '{block.title}': '{key}' は整数のリスト: {item!r}"
+        numbers.append(require_ascii_int(str(item).strip(), KarteFormatError(message)))
     return numbers
 
 
@@ -461,7 +458,7 @@ def parse_disposition(block: Block) -> Disposition:
     **既知の限界（オーナー判断そのものは機械強制していない・PR #496 F-495-04）**:
     ``waived_by``/``waived_reason`` は自由記述のスカラであり、**書いた主体がオーナー本人か
     どうかを機械側は区別しない**。``ingest-review`` を実行するのは主文脈（AI）であり、
-    `.claude/hooks/agent-command-gate.sh` の karte 許可 verb の表が締め出して
+    `.claude/hooks/agent-command-gate.sh` の ``KARTE_ALLOWED_SUBCOMMANDS`` が締め出して
     いるのは是正当事者ロールだけである。``deferred_to`` も :data:`DEFERRED_TO_RE` の
     **形式**だけを検査し、指す Issue が実在するかは検証しない。したがってここで強制して
     いるのは**記録**であって**オーナー判断**ではない——多層防御の一枚であって sandbox では
@@ -675,7 +672,7 @@ class Karte:
         return max((item.seq for item in self.findings), default=0) + 1
 
     def next_attempt_number(self) -> int:
-        return max((item.number for item in self.attempts), default=0) + 1
+        return matched_int(str(max((a.number for a in self.attempts), default=0) + 1), KarteFormatError, "Attempt 番号")
 
     def attempt(self, number: int):
         for item in self.attempts:
@@ -710,7 +707,7 @@ def parse(text: str) -> Karte:
             continue
         matched = DOC_HEADER_RE.match(line)
         if matched:
-            issue = int(matched.group(1))
+            issue = matched_int(matched.group(1), KarteFormatError, "カルテ見出しの issue")
         break
     if issue is None:
         raise KarteFormatError("先頭行が '# Karte: issue-<N>' でない（カルテ書式ではない）")
@@ -720,10 +717,10 @@ def parse(text: str) -> Karte:
         if block.section == SECTION_FINDINGS:
             karte.findings.append(_finding_from_block(block, issue))
         elif block.section == SECTION_ATTEMPTS:
-            if ATTEMPT_TITLE_RE.match(block.title):
-                karte.attempts.append(_attempt_from_block(block))
-            elif RESULT_TITLE_RE.match(block.title):
-                karte.results.append(_result_from_block(block))
+            if attempt_title := ATTEMPT_TITLE_RE.match(block.title):
+                karte.attempts.append(_attempt_from_block(block, attempt_title))
+            elif result_title := RESULT_TITLE_RE.match(block.title):
+                karte.results.append(_result_from_block(block, result_title))
             else:
                 raise KarteFormatError(
                     f"{block.lineno} 行目: '## {SECTION_ATTEMPTS}' 配下の見出しは "
@@ -763,11 +760,8 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
     resolved_round = block.fields.get("resolved_round", "")
     resolved = None
     if isinstance(resolved_round, str) and resolved_round.strip():
-        if not resolved_round.strip().isdigit():
-            raise KarteFormatError(
-                f"{block.lineno} 行目: resolved_round は整数: {resolved_round!r}"
-            )
-        resolved = int(resolved_round.strip())
+        message = f"{block.lineno} 行目: resolved_round は整数: {resolved_round!r}"
+        resolved = require_ascii_int(resolved_round.strip(), KarteFormatError(message))
     # 移行措置（Issue #495）: ``scope`` は**台帳側では任意**で、欠落は :data:`DEFAULT_SCOPE`
     # として読む。`tmp/_karte/` に実在する既存カルテ（本 Issue 起票時点で 19 件）を
     # 読めなくすると進行中の是正ループが止まるため。新規取り込み（:func:`parse_review`）
@@ -794,8 +788,8 @@ def _finding_from_block(block: Block, issue: int) -> Finding:
     )
 
 
-def _attempt_from_block(block: Block) -> Attempt:
-    number = int(ATTEMPT_TITLE_RE.match(block.title).group(1))
+def _attempt_from_block(block: Block, title: re.Match[str]) -> Attempt:
+    number = matched_int(title.group(1), KarteFormatError, "Attempt 見出しの番号")
     rounds = _require_int_list(block, "round")
     if len(rounds) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'round' は単一の整数: {block.title}")
@@ -810,11 +804,11 @@ def _attempt_from_block(block: Block) -> Attempt:
     )
 
 
-def _result_from_block(block: Block) -> Result:
+def _result_from_block(block: Block, title: re.Match[str]) -> Result:
     attempt_numbers = _require_int_list(block, "attempt")
     if len(attempt_numbers) != 1:
         raise KarteFormatError(f"{block.lineno} 行目: 'attempt' は単一の整数: {block.title}")
-    declared = int(RESULT_TITLE_RE.match(block.title).group(1))
+    declared = matched_int(title.group(1), KarteFormatError, "Result 見出しの番号")
     if attempt_numbers[0] != declared:
         raise KarteFormatError(
             f"{block.lineno} 行目: 見出し 'Result {declared}' と 'attempt: "

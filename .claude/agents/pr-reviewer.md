@@ -3,6 +3,7 @@ name: pr-reviewer
 description: Reviews TestDesign alone before implementation, then reviews the PR in a separate context. It never edits, pushes, or merges.
 tools: Read, Write, Bash, mcp__plugin_context-mode_context-mode__ctx_search, mcp__plugin_context-mode_context-mode__ctx_index, mcp__plugin_context-mode_context-mode__ctx_batch_execute, mcp__plugin_context-mode_context-mode__ctx_execute
 model: sonnet
+skills: [review-harm]
 effort: xhigh
 ---
 

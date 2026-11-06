@@ -1,12 +1,13 @@
 """Export anonymous audit fixtures and counters; verdicts remain human supplied."""
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
 def export(directory):
     database = Path(directory).expanduser() / "state.sqlite3"
-    with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as connection:
+    with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as connection, connection:
         records = [json.loads(row[0]) for row in connection.execute("SELECT record FROM audit ORDER BY rowid")]
         retained_count = len(records)
         metadata = dict(connection.execute("SELECT name,value FROM audit_metadata"))
@@ -52,7 +53,7 @@ def review(directory, record_id, rule, verdict):
     if rule not in {"R1", "R2", "R3", "R4"} or verdict not in {"positive", "false_positive"}:
         raise ValueError("invalid review")
     database = Path(directory).expanduser() / "state.sqlite3"
-    with sqlite3.connect(f"file:{database}?mode=rw", uri=True) as connection:
+    with closing(sqlite3.connect(f"file:{database}?mode=rw", uri=True)) as connection, connection:
         records = [json.loads(row[0]) for row in connection.execute("SELECT record FROM audit")]
         if not any(r.get("record_id") == record_id and r.get("outcomes", {}).get(rule, {}).get("candidate") for r in records):
             raise ValueError("review requires existing candidate record")

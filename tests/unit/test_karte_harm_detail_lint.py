@@ -19,9 +19,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
-import shutil
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -32,7 +30,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from karte import allowlist as karte_allowlist  # noqa: E402
 from karte import cli  # noqa: E402
+from karte import exit_codes  # noqa: E402
 from karte import model  # noqa: E402
+from tests.unit.karte_support import make_tmp_repo  # noqa: E402
 
 ISSUE = 511
 
@@ -239,9 +239,7 @@ class IngestReviewCliTests(unittest.TestCase):
     issue = ISSUE
 
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp(prefix="karte-511-")).resolve()
-        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        (self.root / "tmp").mkdir()
+        self.root = make_tmp_repo(self, "karte-511-")
 
     def _ingest(self, round_no: int, body: str):
         source = self.root / "tmp" / f"review-{round_no}.md"
@@ -263,14 +261,14 @@ class IngestReviewCliTests(unittest.TestCase):
 
     def test_violating_report_fails_the_cli_and_leaves_the_karte_untouched(self):
         code, _, errors = self._ingest(1, review_report(VALID_HARM_DETAIL))
-        self.assertEqual(code, cli.EXIT_OK, errors)
+        self.assertEqual(code, exit_codes.EXIT_OK, errors)
         before = self._karte_text()
         self.assertIn(f"F-{ISSUE}-01", before)
 
         code, _, errors = self._ingest(
             2, review_report(REAL_DISPOSITION_LEAK, title=f"F-{ISSUE}-01")
         )
-        self.assertEqual(code, cli.EXIT_ERROR)
+        self.assertEqual(code, exit_codes.EXIT_ERROR)
         self.assertIn("harm_detail", errors)
         self.assertEqual(self._karte_text(), before)
 
@@ -296,8 +294,12 @@ class ContractSyncTests(unittest.TestCase):
 
     def test_contract_limits_harm_detail_to_observable_harm(self):
         text = self.CONTRACT.read_text(encoding="utf-8")
-        self.assertIn("harm_detail に書くのは実害だけ", text)
-        self.assertIn("karte/allowlist.py", text)
+        source = ".ai/skills/review-harm/SKILL.md"
+        self.assertIn(source, text)
+        self.assertIn("必ず読み", text)
+        criteria = (REPO_ROOT / source).read_text(encoding="utf-8")
+        self.assertIn("harm_detail に書くのは実害だけ", criteria)
+        self.assertIn("karte/allowlist.py", criteria)
 
     def test_handoff_roles_carry_the_same_harm_detail_constraint(self):
         """``out_of_scope_findings`` の生産者にも同じ内容制約がある（F-511-03）。"""

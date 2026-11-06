@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SubagentStart（matcher: issue-implementer|issue-fixer）— worktree 所有台帳への束縛
+# SubagentStart（matcher: ac-designer|change-planner|test-writer|issue-implementer|issue-fixer）— worktree 所有台帳への束縛
 # （Issue #309・PR-1）。
 #
 # 実体は python 側（`issue_start.subagent_hooks bind`）。起動した dispatch の

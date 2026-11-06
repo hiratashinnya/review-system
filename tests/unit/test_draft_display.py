@@ -290,7 +290,7 @@ class RegistrationTests(unittest.TestCase):
                 ]
                 receipts = [c for c in commands if "gh-create-issue-receipt-gate.sh" in c]
                 self.assertEqual(len(receipts), 1)
-                self.assertIn("python3 -m issue_start.phase_tool_gate", commands)
+                self.assertIn('bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/phase-tool-gate.sh', commands)
 
     def test_no_post_tool_use_hook_is_registered_for_the_draft_display(self):
         for entry in self.hooks["PostToolUse"]:

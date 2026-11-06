@@ -64,6 +64,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -83,7 +85,13 @@ jobs:
         # heuristic flag, not a blocker; see asset_parity/README.md).
         run: |
           set -o pipefail
-          python3 -m asset_parity check | tee -a "$GITHUB_STEP_SUMMARY"
+          report="$RUNNER_TEMP/asset-parity-report.txt"
+          python3 -m asset_parity check | tee "$report" | tee -a "$GITHUB_STEP_SUMMARY"
+          sha=$(git rev-parse HEAD)
+          shallow=$(git rev-parse --is-shallow-repository)
+          report_sha256=$(sha256sum "$report" | cut -d ' ' -f 1)
+          pack_kib=$(git count-objects -v | sed -n 's/^size-pack: //p')
+          echo "::notice title=Asset parity evidence::sha=$sha shallow=$shallow report_sha256=$report_sha256 pack_kib=$pack_kib"
 
       - name: Check model family policy references
         run: python3 -m model_policy check

@@ -1,6 +1,6 @@
 """``SubagentStart`` / ``SubagentStop`` フックの実体（Issue #309・PR-1）。
 
-3つの verb を1モジュールに束ねる（``.claude/hooks/*.sh`` はそれぞれ薄い起動口）:
+3つの verb を1モジュールに束ねる（``.claude/hooks/*.sh`` は薄い起動口・``TARGET_ROLES``＝``WRITE_ROLES`` の5ロール）:
 
 ===================  =====================  ==========================================
 verb                 イベント / matcher     役割
@@ -9,9 +9,9 @@ verb                 イベント / matcher     役割
                      ``issue-fixer``        ``karte render`` の出力を
                                             ``additionalContext`` として注入する（助言）
 ``bind``             SubagentStart          起動した dispatch の worktree を所有台帳へ
-                     implementer / fixer    束縛する（``open`` → ``running``）
+                     ``TARGET_ROLES``       束縛する（``open`` → ``running``）
 ``stop``             SubagentStop           カルテ未更新のまま停止させない（block）
-                     implementer / fixer    ＋ **回収・解放段**（Issue #354・PR-3）
+                     ``TARGET_ROLES``       ＋ **回収・解放段**（Issue #354・PR-3）
 ===================  =====================  ==========================================
 
 **このモジュールは ``git worktree remove`` を直接呼ばない。** 解放は
@@ -77,7 +77,7 @@ in-script 判定があるので、要実測事項 V-2（``matcher`` が ``agent_
   * :mod:`issue_start.worktree_ledger`（台帳 API・状態遷移）
   * :mod:`gitgate.worktree` の ``collect-worktree``（受理する台帳 status・引数スキーマ）
   * ``karte`` CLI の ``check``（終了コード 0=OK / 2=未検出 / 4=前提違反）
-  * ``karte/cli.py`` の進行ポインタ規約（``tmp/_karte/active.json`` の ``{issue, round}``）
+  * ``karte/active_pointer.py`` の進行ポインタ規約（``tmp/_karte/active.json`` の ``{issue, round}``）
 """
 
 from __future__ import annotations
@@ -351,7 +351,7 @@ def run_karte_inject(
     return 0
 
 
-# --- verb: bind（SubagentStart・matcher issue-implementer|issue-fixer） ----------
+# --- verb: bind（SubagentStart・matcher TARGET_ROLES＝WRITE_ROLES の5ロール） ---
 
 
 def run_bind(
@@ -422,7 +422,7 @@ def run_bind(
     return 0
 
 
-# --- verb: stop（SubagentStop・matcher issue-implementer|issue-fixer） -----------
+# --- verb: stop（SubagentStop・matcher TARGET_ROLES＝WRITE_ROLES の5ロール） ----
 
 
 def read_active_pointer(repo_root: Path) -> tuple:
@@ -903,7 +903,7 @@ def run_stop(
        （``stale`` へ落として次 dispatch の gate deny へ委ねる）
     4. 無出力 exit 0
 
-    **``repo_root`` の導出は 2 の内側**（F-309-06）。``issue-implementer`` はこの段を
+    **``repo_root`` の導出は 2 の内側**（F-309-06）。``issue-fixer`` 以外のロールはこの段を
     通らないので、台帳パスの導出失敗（``.git`` 破損等）で無関係な dispatch を
     未捕捉例外＝exit 1 に巻き込まない。3 も同様に自分で導出し、失敗しても例外を外へ出さない。
 

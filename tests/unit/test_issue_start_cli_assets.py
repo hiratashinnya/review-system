@@ -53,7 +53,7 @@ class AssetParityTests(unittest.TestCase):
         self.assertIn("Task|Agent", claude_matchers)
         # Task / Agent の両方を正規 matcher で捕捉する。
         claude_hook = ROOT / ".claude" / "hooks" / "issue-start-gate.sh"
-        self.assertIn("python3 -m issue_start.hook", claude_hook.read_text(encoding="utf-8"))
+        self.assertIn("python3 -P -m issue_start.hook", claude_hook.read_text(encoding="utf-8"))
 
     def test_gate_reads_only_the_v2_manifest(self):
         """Issue #354 PR-4: 正本は v2 で、v1 は退役して**読まれない**。
@@ -196,11 +196,13 @@ class AssetParityTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertNotIn("launch-intent", command)
                 scripts = re.findall(
-                    r'^bash "\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[a-z-]+\.sh)"$',
+                    r'^(bash|python3) "\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[a-z-]+\.(?:sh|py))"$',
                     command,
                 )
                 self.assertEqual(len(scripts), 1)
-                self.assertTrue((ROOT / scripts[0]).is_file())
+                interpreter, script = scripts[0]
+                self.assertEqual(Path(script).suffix, {"bash": ".sh", "python3": ".py"}[interpreter])
+                self.assertTrue((ROOT / script).is_file())
 
     def test_retired_binding_hook_and_manifest_transport_are_absent(self):
         manifest = json.loads(

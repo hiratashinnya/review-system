@@ -1,3 +1,5 @@
+> 注記（Issue #706）: 本記録が参照する `tests/unit/test_base_copilot.py`（および関連する `gitgate/base_copilot.py` 等）は Issue #706 で削除された。本記録は履歴として当時のまま保持する。
+
 ### F-629-01
 harm: real
 harm_detail: Copilot認可をdispatchのrunning entryとして保存すると、後続Claudeのworktree差分束縛がambiguous-runningとなり既存実行経路を利用できなくなる。

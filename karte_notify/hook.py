@@ -48,7 +48,7 @@ STATUS_TIMEOUT_S = 30.0
 def _load_payload(stdin: TextIO) -> dict | None:
     try:
         value = json.load(stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError):
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, OSError, RecursionError):
         return None
     return value if isinstance(value, dict) else None
 
@@ -69,7 +69,7 @@ def _status_payload(
 
     ``issue`` を明示できないとき（``--issue`` が Bash コマンドから取れないとき）は省略する。
     ``karte status`` 自身が進行ポインタ（``tmp/_karte/active.json``）から補完する
-    （``karte/cli.py::_resolve_issue`` と同じ規約）。
+    （``karte.pointer_completion.resolve_issue`` と同じ規約）。
     """
     argv = [sys.executable, "-m", "karte", "status", "--json"]
     if issue is not None:

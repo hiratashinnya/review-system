@@ -52,7 +52,7 @@ isolation やハーネスの作業ツリー外書き込み拒否があっても�
 - 曖昧・矛盾・情報不足に当たったら STOP し、前提・背景・メリット/デメリット・選択肢・理由付き推奨を報告する。
 - corpus ノード（doc-system-v2/nodes/**）を要する変更に当たったら、直接編集せず、着手前に STOP して呼び出し元（主文脈）へ報告する。本ロールは委譲しない。
 - 呼び出し元が用意した isolated workspace とブランチで作業し、main ではないことを確認してから commit する。新規ブランチ名は呼び出し元の指定を使う。
-- commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。全スコープを満たす場合だけ PR body に Closes #<issue> を含める。
+- commit/PR 本文には実行環境の AI attribution、変更ファイルの具体的一覧、変更理由を含める。Issue の自動クローズは事前確認を要するため、対象と内容が一致する明示指示・承認があり、全スコープを満たす場合だけ commit または PR body に Closes #<issue> 等を含める。それ以外は自動クローズしない参照を使う。
 - プロジェクトで指定された単体テストを実行し、全パスを確認してから PR を開く。
 - .coverage*、htmlcov/、_site/、doc-system-v2/meta.json、doc-system-v2/doc_view.html は commit しない。
 

@@ -1,3 +1,4 @@
+注記（Issue #706）: 本記録が参照する `tests/unit/test_base_copilot.py`（および関連する `gitgate/base_copilot.py` 等）は Issue #706 で削除された。本記録は履歴として当時のまま保持する。
 ======================================================================
 FAIL: test_real_zero_test_run_does_not_commit (tests.unit.test_base_copilot.CopilotIntegrationTests.test_real_zero_test_run_does_not_commit)
 ----------------------------------------------------------------------

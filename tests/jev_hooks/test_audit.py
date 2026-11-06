@@ -1,6 +1,8 @@
 """Anonymous exports, replay denominators, human verdicts and retention."""
 import json
+import sqlite3
 import unittest
+from unittest.mock import patch
 import test_runner
 from jev_hooks.audit_export import counters, export, review
 from jev_hooks.evaluator import MockEvaluator
@@ -9,6 +11,27 @@ from jev_hooks.runner import run_event
 
 class AuditTests(unittest.TestCase):
     setUp = test_runner.RunnerTests.setUp
+
+    def test_export_and_review_close_connections_on_success_and_failure(self):
+        run_event(self.event, self.config, test_runner.Evaluator())
+        record_id = export(self.tmp.name)["records"][0]["record_id"]
+        connect = sqlite3.connect
+        connections = []
+
+        def tracked_connect(*args, **kwargs):
+            connection = connect(*args, **kwargs)
+            connections.append(connection)
+            return connection
+
+        with patch("jev_hooks.audit_export.sqlite3.connect", side_effect=tracked_connect):
+            export(self.tmp.name)
+            review(self.tmp.name, record_id, "R1", "positive")
+            with self.assertRaises(ValueError):
+                review(self.tmp.name, "invalid", "R1", "positive")
+        self.assertEqual(len(connections), 3)
+        for connection in connections:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                connection.execute("SELECT 1")
 
     def test_export_replay_review_and_stable_ids(self):
         self.event.update(event_id="sensitive-event", last_assistant_message="secret-content")

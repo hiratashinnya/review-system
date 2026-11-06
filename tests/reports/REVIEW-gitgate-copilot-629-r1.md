@@ -1,3 +1,5 @@
+> 注記（Issue #706）: 本記録が参照する `tests/unit/test_base_copilot.py`（および関連する `gitgate/base_copilot.py` 等）は Issue #706 で削除された。本記録は履歴として当時のまま保持する。
+
 # Issue #629 初回独立ローカルレビュー（Codex）
 
 対象: base b72d94bd → 504868bc2fbe68f18c01d63d4c15188b69cf9a6c。

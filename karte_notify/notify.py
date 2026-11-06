@@ -41,15 +41,9 @@
 ``_handoff``/``_karte``/``_worktree``）に既に入っている——``_karte`` を構成要素に含むパスは
 掃除対象から機械的に除外される。
 
-検出対象コマンドの拾い方（is 再発防止・Issue #512 是正・F-512-02）:
-  トリガー実行は ``Bash`` 経由とは限らない。主文脈・``issue-implementer``・``issue-fixer``・
-  ``pr-reviewer``・``dsv2-lookup`` にはいずれも実行系 MCP ツール（``ctx_execute``・
-  ``ctx_batch_execute``）が付与済みで（`.claude/rules/05-skills-agents.md`「ctx_* ツールの
-  付与方針」）、``python3 -m karte ingest-review``/``close-attempt`` はこれらの ``tool_input``
-  （``code`` / ``commands[].command``）経由でも実行されうる。したがって :func:`karte_notify.trigger.extract_commands`
-  は ``tool_name`` ごとに検査対象の文字列を取り出し、:func:`karte_notify.trigger.detect_trigger` はその文字列単位で
-  ``Bash`` と同じ正規表現を適用する（判定ロジック自体は分岐させない＝経路が増えても検出規則は
-  一本のまま）。
+通知の契機になる tool 呼び出し（``Bash`` と実行系 MCP ツール経由）の検出は
+:mod:`karte_notify.trigger` が担う。設計理由は
+[.ai/rationale/karte-module-split.md](../.ai/rationale/karte-module-split.md)。
 
 通知本文の内容（Issue #512 是正・F-512-03）:
   本文には finding ID 単位の既読管理を経た一覧に加え、``verdict`` の3集合
@@ -111,7 +105,7 @@ def read_snapshot(path: Path) -> dict | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     return data if isinstance(data, dict) else None
 

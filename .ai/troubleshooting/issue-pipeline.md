@@ -38,17 +38,32 @@ dispatch の戻りが `HANDOFF: <絶対パス>` でも、isolated worktree の�
 
 **主文脈がこの verb を手で叩かない。** 「当該ペインからは live な dispatch が無い」という観測が成立するのは復帰イベントの地点だけで、それ以外から呼ぶと入れ子委譲中の正当な `running` を巻き込みうる（上記のとおり、その場合に残る歯止めは `locked` 判定だけである）。手作業で片付けるときは従来どおり `collect-worktree` / `worktree-forget` → `worktree-release` を使う。
 
+## 後続工程の dispatch が `ISSUE_START_PHASE_TARGET_INVALID` で拒否されたとき
+
+後続作者（`change-planner`／`test-writer`／`issue-implementer`）の dispatch では、hook は dispatch 元 cwd（主文脈のセッション cwd）の作業面が `expected_oid` の detached であり、どの worktree（primary checkout を含む）も対象ブランチを掴んでいないことを要求する。どちらの拒否も dispatch の前に起きるので、台帳に作者の entry はまだ無く、原因を取り除けば同じブランチで継続できる。
+
+- **詳細が `phase inspected worktree holds target branch <branch>`** — 作業面が対象ブランチを掴んでいる。当該作業面で `git switch --detach <expected_oid>` を実行し、同じ dispatch を出し直す。
+- **詳細が `worktree <path> holds target branch <branch>`** — 作業面以外の worktree が対象ブランチを掴んでいる。`<path>` の主体に応じて外す：主文脈の linked 作業面なら `git switch --detach <expected_oid>`、primary checkout なら `git switch <既定ブランチ>`、agent worktree なら下の「`adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で失敗したとき」の agent worktree の処置。外してから同じ dispatch を出し直す。
+- **詳細が `git worktree list` の失敗（`returned non-zero exit status`）** — 掴んでいる worktree を判定できないので拒否している（fail-close）。作業面の git 状態を確かめてから出し直す。
+- **詳細が `phase inspected branch mismatch`** — 作業面が別名ブランチ上にある。作業面の取り違えを疑い、`.claude/skills/issue-pipeline/SKILL.md`「工程の入力と独立レビュー束縛（全工程必須）」の手順で作業面を準備し直す。
+- **詳細が `repository/HEAD mismatch` などの照合不一致** — 作業面の origin・HEAD、または承認と native の値が一致していない。値を合わせるために承認を書き換えず、取り違えの原因を確かめる。
+
 ## `adopt-branch` が `BRANCH_ADOPT_LOCAL_EXISTS` で失敗したとき
 
-失敗文言に**誰がそのブランチを掴んでいるか**が出る。主体で処置が変わる。
+失敗文言に**誰がそのブランチを掴んでいるか**が出る。まず失敗した作者のロールを確かめる。
 
-- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態。gitgate の worktree verb では解消しない。当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。
+**後続作者（`change-planner`／`test-writer`／`issue-implementer`）が失敗した場合は、原因を取り除いても同じブランチで継続できない。** hook は dispatch を通した時点で失敗作者の entry を同じ Issue／ブランチの台帳に起票しており、次の dispatch の継続検査（`issue_start/author_continuation.py`）は最新 owner が直前ロールの解放済み entry であることを要求する。失敗作者の entry が最新 owner として残るので、再 dispatch は `ISSUE_START_CONTINUATION_INVALID` で拒否される。`worktree-forget` は entry を `abandoned` にするだけで削除せず、最新 owner の判定からも外さない。台帳の手編集は禁止である。回収手段は新しいブランチでの作り直しになり、どの成果物を引き継ぐか、失敗した entry をどう扱うかはオーナー判断が要る（同一ブランチでの継続契約 #662 に関係する）。下の主体別の処置で掴んでいる側を片付けたうえで STOP し、失敗した entry の ID・ロール・ブランチ・掴んでいた主体をオーナーへ報告する。
+
+`issue-fixer` には継続検査が無いので、主体別の処置の後に dispatch し直せる。
+
+- **primary checkout（メインワークツリー）** — レビュー担当がブランチを切り替えたまま戻していない状態か、主文脈が primary checkout でブランチを切り替えた状態。gitgate の worktree verb では解消しない。当該ワークツリーで `git switch <既定ブランチ>` を実行して戻す（主文脈が行う）。primary checkout は工程 dispatch の作業面にしない。
+- **台帳 entry の無い linked worktree（主文脈の作業面など）** — 後続工程の dispatch は対象ブランチを掴んだ worktree があれば入口で拒否するので、掴まれたまま後続作者が起動される経路は通常無い。dispatch の検査後、作者の adopt までの間にブランチが掴まれた場合などに起きる。当該作業面で `git switch --detach <expected_oid>` を実行して外す（失敗文言も同じ処置を案内する）。`worktree-release` は `.claude/worktrees/agent-<id>` 形のパスしか受理せず、その形でない作業面は `WORKTREE_PATH_SHAPE_INVALID` で拒否されるので、この主体の解消には使えない。
 - **agent worktree** — 台帳 entry が併記されていれば `python3 -m gitgate collect-worktree --entry <entry-id>`。回収不能なら `worktree-forget --entry <entry-id> --reason <text>` → `worktree-release <path> --force-uncollected --reason <text>`。
 - **ローカル ref の tip が origin と違う** — 正体不明のローカル作業がある。内容を確認せずに消さない。
 
 ## hook と入れ子 dispatch の保留
 
-`SubagentStart` は issue fixer のカルテ手順と実装者／是正者の worktree 所有を束縛し、`SubagentStop` は handoff の存在を確認してから台帳を進める。停止イベントだけで終了と判断しない。
+`SubagentStart` は issue fixer のカルテ手順と書込5ロール（`ac-designer`/`change-planner`/`test-writer`/`issue-implementer`/`issue-fixer`）の worktree 所有を束縛し、`SubagentStop` は handoff の存在を確認してから台帳を進める。停止イベントだけで終了と判断しない。
 
 実装者／是正者が内側の subagent へ委譲している間は、handoff が無い状態を `stopped`/`stale` に落とさず `running` のまま保留する。委譲が終わっても handoff が一度も作られず戻った場合は、ledger の entry を確認し、次の順で片付ける。
 
@@ -61,22 +76,22 @@ python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>
 
 ## 旧 Claude wrapper から移設した観測・回収契約
 
-dispatch の戻りは `HANDOFF: <実装者/是正者が実際に書けた絶対パス>` ＋1行要約。この絶対パスは isolated worktree 内部を指すが、**`SubagentStop` フックが同期的に `collect-worktree` を実行し、成功時は worktree ごと削除する**。happy path ではこの絶対パスは主文脈が読もうとする時点で既に存在しないため、**この絶対パスは Read しない**。
+書込5ロールの dispatch の戻りは `HANDOFF: <そのロールが実際に書けた絶対パス>` ＋1行要約。この絶対パスは isolated worktree 内部を指すが、**`SubagentStop` フックが同期的に `collect-worktree` を実行し、成功時は worktree ごと削除する**。happy path ではこの絶対パスは主文脈が読もうとする時点で既に存在しないため、**この絶対パスは Read しない**。
 
 回収済みの実体を読む手順：
 
 1. `<main-worktree>/tmp/_worktree/ledger.json`（worktree 所有台帳）を Read する。
-2. `agent_type`（`issue-implementer` または `issue-fixer`）と `branch_name`（この dispatch に渡した値）が一致する**最新エントリ**を特定する。
+2. `agent_type`（書込5ロール `ac-designer`/`change-planner`/`test-writer`/`issue-implementer`/`issue-fixer` のうち dispatch したもの）と `branch_name`（この dispatch に渡した値）が一致する**最新エントリ**を特定する。
 3. そのエントリの `collected_to` を読む。値が入っていれば `<main-worktree>/<collected_to>`（`tmp/_handoff/collected/<entry-id>--<basename>`）を Read する。
 4. `collected_to` が `null`（`status` が `stopped`/`stale` のまま自動回収が完了していない）なら、`python3 -m gitgate collect-worktree --entry <entry-id>` を主文脈が実行してから 3 を再試行する。`status` が `running` のままなら保留として扱い、契約違反・クラッシュの可能性を確認する。この状態で `collect-worktree` が `WORKTREE_LIVE` で拒否される場合は、`worktree-forget` → `worktree-release` の手順へ進む。`status` が既に `released` なのに `collected_to` が `null` のままなら、worktree の実体（残っていれば）と対応する PR の有無を主文脈が直接確認する。
 
-実装者／是正者の worktree は `SubagentStop` フックが自動で回収・解放する（回収＝ハンドオフを `tmp/_handoff/collected/` へ退避してから解放する1操作。回収できなければ解放しない）。残留した場合（フック未発火・回収失敗）は次の dispatch が `ISSUE_START_WORKTREE_RESIDUE` で deny される。deny 文言のコマンドを実行して解消する。台帳に紐づかない worktree は `ISSUE_START_WORKTREE_UNCLAIMED` で deny されるため、対象 path を確認して `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` を実行する。どうしても回収できないものは `python3 -m gitgate worktree-forget --entry <entry-id> --reason <text>` を使う。
+書込5ロールの worktree は `SubagentStop` フックが自動で回収・解放する（回収＝ハンドオフを `tmp/_handoff/collected/` へ退避してから解放する1操作。回収できなければ解放しない）。残留した場合（フック未発火・回収失敗）は次の dispatch が `ISSUE_START_WORKTREE_RESIDUE` で deny される。deny 文言のコマンドを実行して解消する。台帳に紐づかない worktree は `ISSUE_START_WORKTREE_UNCLAIMED` で deny されるため、対象 path を確認して `python3 -m gitgate worktree-release <path> --force-uncollected --reason <text>` を実行する。どうしても回収できないものは `python3 -m gitgate worktree-forget --entry <entry-id> --reason <text>` を使う。
 
 恒常契約は各エージェントの `.md`/`.ai/agents/*.md` に常設し、フックは**機械的に拒否できる境界**だけに使う。
 
 - `SubagentStart`（matcher `issue-fixer`）→ `.claude/hooks/subagent-karte-inject.sh`：カルテ手順を `additionalContext` として注入する。
-- `SubagentStart`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-worktree-bind.sh`：起動した dispatch の worktree を所有台帳へ束縛する。
-- `SubagentStop`（matcher `issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：`issue-fixer` の `karte check` 未通過を block し、通ったらその dispatch 自身の handoff が worktree にあるときだけ台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。block したら回収へ進まない。フックは `git worktree remove` を直接呼ばず、実体を消してよいかの判断は `gitgate/worktree.py` に集約されている。
+- `SubagentStart`（matcher `ac-designer|change-planner|test-writer|issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-worktree-bind.sh`：起動した dispatch の worktree を所有台帳へ束縛する。
+- `SubagentStop`（matcher `ac-designer|change-planner|test-writer|issue-implementer|issue-fixer`）→ `.claude/hooks/subagent-stop-gate.sh`：`issue-fixer` の `karte check` 未通過を block し、通ったらその dispatch 自身の handoff が worktree にあるときだけ台帳を `running`→`stopped` へ進めて `collect-worktree` で回収・解放する。block したら回収へ進まない。フックは `git worktree remove` を直接呼ばず、実体を消してよいかの判断は `gitgate/worktree.py` に集約されている。
 
 停止イベントは終了とは限らない。回収の起点にするのは「自分の handoff（`<agent_type>--issue-<N>…yaml`）が1件ある」という観測だけで、無ければ台帳を進めず `running` のまま保留する。内側の委譲中に停止イベントが繰り返し届くためである。保留を `stopped`/`stale` へ落とすと、それ自体が residue になり、同じ dispatch 自身の次の委譲まで `ISSUE_START_WORKTREE_RESIDUE` で deny される。
 

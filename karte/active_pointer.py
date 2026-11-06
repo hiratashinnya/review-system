@@ -34,7 +34,7 @@ def read_active(repo_root, *, required: bool = False) -> dict:
         return {}
     try:
         data = json.loads(paths.read_text(path))
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise KarteUsageError(
             f"進行ポインタ {path} が JSON として壊れている: {exc}"
             "（補完に使えないため取り込まない。ポインタを作り直すこと）"

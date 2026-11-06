@@ -1,0 +1,11 @@
+HEAD: 5c8882b4faf4007149befb6c20845a8d7954e0cb
+Command: python3 -m unittest tests.unit.test_base_integration tests.unit.test_base_integration_rejections tests.unit.test_base_integration_gate -q
+Started UTC: 2026-10-31T19:05:31.156462+00:00
+gitgate: BASE_PENDING_COMMIT_DENIED
+----------------------------------------------------------------------
+Ran 28 tests in 170.802s
+
+OK
+
+Exit code: 0
+Elapsed seconds: 171.205

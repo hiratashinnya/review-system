@@ -6,7 +6,8 @@
 
 **あなた（`issue-fixer`）はこのラウンドで、着手前に診断をカルテへ登録すること。**
 `.claude/agents/issue-fixer.md` の「Step 1 の診断（`karte render`→`karte append`）を経ずに
-`Edit`/`Write` しない」契約を、この注入が毎回のラウンドで思い出させる。
+`Edit`/`Write` しない」契約を、この注入が毎回のラウンドで思い出させる
+（例外は PR base 取り込みの衝突解消だけ＝`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）。
 
 ## 1. 着手前：過去の試行を読む
 
@@ -30,7 +31,7 @@ python3 -m karte append --issue <N> --round <R> \
   --targets <file::symbol...> --diagnosis "<1行>"
 ```
 
-**これを通してから `Edit`/`Write` に入る。** 拒否されたらアプローチを変える
+**これを通してから `Edit`/`Write` に入る**（PR base 取り込みの衝突解消だけは例外＝4. の末尾）。拒否されたらアプローチを変える
 （同じ診断で押し切らない）。
 
 ## 3. 修正後：実測差分を記録する
@@ -57,6 +58,20 @@ python3 -m karte check --issue <N> --round <R>
 是正当事者に許されない）でも詰まないようにするための逃げ道であって、
 「2回止めれば通る」という運用ではない。1回目の block reason を読み、
 できる記録（`append` / `close-attempt`）は必ず済ませてから停止すること。
+
+**例外：PR base の取り込みが原因で、診断登録より前に停止する場合。** 取り込み（`gitgate integrate-base`）は
+Step 0 の後・診断より前に行い、その衝突解消の編集は是正の編集ではない（診断登録の対象にしない）。
+ただし衝突解消の編集は解消に必要な最小限に留めて finding の是正を混ぜず、finding 自体が
+取り込み・衝突解消を求める場合は通常どおり 2. の診断を経る。
+取り込みが原因の STOP（`integrate-base-abort` での中止、判断できない衝突、記録と異なる merge の進行中、
+`BASE_STATE_INVALID`、policy 1.x の取り込みの残存など）が**このラウンドの最初の `append` より前**なら、
+この拒否に応じて `append` も `close-attempt` も**実行しない**——試していないアプローチが Attempt として
+残り、再 dispatch 後の是正が類似判定の飽和で拒否されうるうえ、クローズ済みの Attempt が後の
+診断前編集を `karte check` に通してしまう。STOP の原因（中止した場合は退避 tar のパスも）を
+ハンドオフの `stop_reason` に書き、もう一度停止する。
+`append` より後の STOP はこの例外に当たらず、未クローズの Attempt があれば通常どおり実際の結果で
+`close-attempt` してから停止する（push 直後に既にクローズ済みなら、そのまま停止できる）。
+詳細は `.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」。
 
 ## `{issue, round}` の出所
 

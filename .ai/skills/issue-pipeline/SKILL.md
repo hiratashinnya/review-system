@@ -62,6 +62,12 @@ PlanReviewをcommitted envelopeにしない。capture本体は #375、karteの�
 初回1aだけnew-branch、後続1b/2a/2bは前作者自身がcommit/pushした同branchのremote exact OIDをadoptする。
 主文脈は前role完了receiptと終了・pushを確認し、既存collect/releaseで回収・解放を完了してから次roleを起動する。
 回収receipt bytes、台帳の最新owner、Issue/branch/直前role、remote exact OIDを正規hookで照合する。
+dispatch元cwd（検査作業面）は主文脈のセッションcwdで、主文脈のlinked作業面とし、primary checkoutのbranchは切り替えない。
+その作業面をfetch後にHEADをそのremote exact OIDへ置いたdetachedにし、binding/approvalはその作業面のtmp配下に置く。
+検査はdetachedだけを受理し、対象branch上・別名branch上は入口で拒否する。検査面がdetachedでも、primary checkoutを含む他のworktreeが
+対象branchを掴んでいれば拒否する（worktree一覧を取れないときも拒否する）。対象branchを掴むworktreeがあると次作者のadoptは必ず失敗し、
+起票済みの失敗作者entryが最新ownerとして残って同branchで継続できなくなるためである。
+セッションcwdの移し方と、primaryから起動するread-only Codex経路との行き来はClaude wrapperに従う。
 使用中worktree奪取や別branchでの迂回はしない。工程の独立レビュー・owner承認は引き続き必須。
 PF固有markerと起動手順はClaude wrapperに従う。native有効化と新profileのlive実測は分けて記録する。
 
@@ -136,13 +142,14 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - 初回レビューのモデル層／推論予算はリスク信号で選ぶ。共有資産、広域変更、前例のない判断、権限境界、曖昧な仕様があれば判断ボトルネックとして高い側を選び、根拠を1行残す。具体的な設定キーと写像は各 PF wrapper に置く。
 - レビュー担当は各 finding の実害、根拠、期待値、再確認方法を構造化して返す（Claude Code では handoff ファイルへ書いて自分で台帳へ取り込み、全文はチャットに返さない。②-c）。構造化 finding は `harm`/`harm_detail`/`severity`/`scope`/`locus`/`summary`/`evidence`/`expected`/`recheck`/`status` をキーとして返す。レビューコメントには AI 対応であることと具体的な変更・根拠を残す。
 - **スコープ外の指摘も同じ finding の列に入れる**。別のセクション・チャットでの列挙へ逃がさない。スコープ内外は `scope: in | out` の申告として記録するだけで、`harm` の判定・記録台帳・clean 判定のいずれの免除にもならない。レビュー担当の `scope` は申告であって確定ではなく、これを覆せるのはオーナーだけである。
-- **レビュー結果（初回・再レビューとも）を審査中の当該 PR へコメント投稿するのは、主文脈が毎回のオーナー確認なしに行う既定動作である。** 主文脈はレビュー担当から返った構造化 finding を当該 PR へ AI 帰属明記でコメントする。`.ai/guidance/common.md`「作業分離・判断境界」の実行前確認から除外するのはこの投稿だけとし、PR 本文の書き換え、別 PR・別 Issue・別リポジトリ・その他外部サービスへの投稿には実行前のチャット確認を要する。
+- **レビュー結果（初回・再レビューとも）は主文脈が当該 PR へ AI 帰属明記で記録する。** 依頼内の通常操作についての確認・報告と権限境界は `.ai/guidance/common.md`「作業分離・判断境界」に従う。
 - 承認・却下・clean を偽らない。未解消 finding があれば処置ループへ進む。
 
 ### ②-c 是正 → 再レビュー
 
 - 是正は初回実装担当ではなく、レビュー指摘を受ける是正担当へ差し戻す。レビュー結果を先に記録し、是正担当は診断してから変更する。
 - **レビュー結果を記録するとき、実装担当・是正担当のハンドオフに載った `out_of_scope_findings` も同じ finding の列へ写して記録する**。記録の実行は主文脈が行う（当事者ロールには行わせない）。
+- **将来の finding-triager（#691）の分離・実装契約**：実装時には `.ai/skills/review-harm/SKILL.md` の全文をコンテキストへ供給して同一の実害基準を適用する。レビュー原本と triage 判断成果物を別に保持し、処置方針と scope のオーナー権限は変更しない。現時点で triager は未実装である。
 - **オーナーが決めた `disposition` と、オーナーが覆した `scope` は、主文脈が台帳へ記録する。主文脈はこれらを決めない。** Claude Code での手順は次のとおり。
   1. 初回ラウンドの前に主文脈が `python3 -m karte activate --issue <N>` で進行ポインタを向ける。レビュー担当への依頼文には対象の Issue 番号と取り込むラウンド番号を書く（レポート先頭の `<!-- handoff issue=<N> round=<R> -->` と照合される）。レビュー担当（`pr-reviewer`）は finding レポートを handoff ファイル（`tmp/_handoff/pr-reviewer--<key>.md`）へ書き、自分で `python3 -m karte ingest-reviewer --from <path>` を実行して台帳へ取り込む。レポートの全文は主文脈を通らず、主文脈はレビュー担当の `HANDOFF: <path>` と判定・1行要約だけを受け取る。レポートに処置方針（`disposition` 系）が書かれていれば取り込みは拒否される。
   2. `harm: real` の finding についてオーナーの処置方針（`fix-here` / `deferred` / `waived`）を仰ぐ。`deferred` なら行き先 Issue、`waived` なら許可者と理由もオーナーから得る。レビュー担当の `scope` 申告に疑義があるときも、**覆すかどうかは同じ場でオーナーに仰ぐ**（主文脈が独断で決めない）。
@@ -151,6 +158,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
   - `ingest-reviewer` で取り込んだ Issue に主文脈が `ingest-review` で取り込むことはできない（`decide` で記録した決定の上書きを防ぐため拒否される）。
   - `ingest-reviewer` は `--issue` / `--round` を受けない。`decide` / `activate` / `ingest-review` は主文脈専用で、どの当事者ロールにも許可しない。
   - Claude Code 以外の実行環境（レビュー担当に書込経路がない）では従来どおり、主文脈がレポートへ `disposition:` とその付随キーを書き足して `ingest-review` で取り込む。前ラウンドの決定とオーナーが覆した `scope` は毎ラウンド全件再掲する（`disposition` の書き忘れは fail-close、`scope` の書き忘れは申告値へ戻る fail-open）。
+- **是正担当が `integrate-base-abort` の後に STOP したら**、主文脈は報告をオーナーへ打ち上げたうえで、返された退避 tar から必要な内容を取り出し、是正担当を再 dispatch するときに渡す。主文脈は衝突解消の適用・確定を行わない。詳細の正本は `docs/tools/gitgate-base-integration.md`「中止と回復」で、ここへ複製しない。
 - 再レビューは既定のレビュー設定で行う。ラウンド上限で打ち切らず、実害と無進捗を基準に続行・停止を判定する。
 - **clean の条件は「未解消 finding が0件」ではなく「clean を妨げる未解消 finding が0件」**である（次節）。clean ならマージ経路へ進む。残る finding が実害なしだけでも握りつぶさず、起票案＋理由付き推奨を添えてオーナー判断を仰ぐ。
 
@@ -159,7 +167,8 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 - review が clean になったら、主文脈は `rtk python3 -m pr_merge_gate report <PR番号> --repository <OWNER/REPO> --merge-method <merge|rebase|squash>` を実行し、fresh blocker report を確認する。report は同一snapshotを再読して安定性を確認するが、merge permit を発行せず、merge API を呼ばない。
 - 主文脈は review 判定と report をオーナーへ提示して STOP する。merge はオーナーが GitHub UI 等から手動で行う。AI ロール・主文脈は merge／auto-merge を実行しない。
 - report は取得時点の blocker evidence であり、オーナーの手動操作との間の状態変化を防がない。オーナーは結果を確認してから手動 merge を判断する。
-- `Closes #N` で Issue が自動クローズされたことをオーナーの merge 後に確認する。閉じていない場合は次の Issue に進まず、主文脈がオーナーへ確認する。
+- PR の merge は PR をクローズするため、オーナーの merge 判断に先立ち対象 PR と結果を示して確認する。対象と内容が一致する明示指示・承認が既にあれば再質問しない。
+- Issue をクローズする前に対象と内容をオーナーへ確認する。`Closes #N` 等による merge 時の自動クローズも同様に事前確認を要し、承認がなければ自動クローズしない参照を使う。対象と内容が一致する明示指示・承認が既にあれば再質問しない。merge 後に Issue が閉じていなければ次へ進まず、オーナーへ確認する。
 
 ## スコープ・先送り・矛盾
 
@@ -169,16 +178,7 @@ owner merge後の3aはST-TR/IT-TR/UT-TRを各TD/TCへつなぎ、3bは既存kart
 
 ## 実害の定義とエスカレーション
 
-`harm` は `real` または `none` とする。次のいずれかに該当する finding は `real` とする。
-
-1. 仕様・設計との不一致、テスト退行、期待値の誤り。
-2. fail-close、機械ゲート、検証、権限境界の迂回。
-3. 正本・履歴・データの破損、契約違反、秘密・無認可コスト。
-4. 後工程の誤読、名前と実体の不一致、トレーサビリティ断絶、正本の分岐、暗黙の前提、観測不能、再現性の欠如。
-
-上記に該当しない純粋な語順・整形の好みや、根拠のない推測は `none` とする。迷ったら `real` 側に倒し、理由を `harm_detail` に書く。
-
-**スコープ外（`scope: out`）は実害判定の免除ではない。** スコープ外と分類した指摘も `harm` を必ず付け、同じ finding の列へ記録する。
+実害判定前に `.ai/skills/review-harm/SKILL.md` の全文を必ず読み、適用する。取得できない場合は STOP する。
 
 **実害ありの指摘には処置方針（`disposition`）の記録を要求する。** `harm: real` の finding は `scope` の値にかかわらず、次のいずれかが記録されるまで未処置とみなす。
 

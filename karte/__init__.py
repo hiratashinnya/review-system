@@ -25,22 +25,26 @@
   ブロックできないため、役割は「判定を必ず実行し可視化する」まで）。
 
 構成:
-  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・
-    symlink 拒否・``..`` traversal 拒否・fail-close）。様式は ``dsv2/cleantmp.py`` に倣う。
-  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）の
-    データモデル・パーサ・シリアライザ・バリデータ（``harm_detail`` の内容 lint を含む）。
+  * :mod:`karte.paths`      — カルテ置き場のパス解決とガード（実体解決・repo-root 配下・symlink/``..`` 拒否・fail-close）の facade。実装は ``path_*``。
+  * :mod:`karte.model`      — カルテ書式（``## Findings`` / ``### Attempt k`` / ``### Result k``）のデータモデル・パーサ・シリアライザ・バリデータ。
   * :mod:`karte.allowlist`  — その内容 lint の既知 false positive を理由付きで抑制する
     allowlist（``(issue, term, harm_detail)`` の全文一致・``reason`` 必須・Issue #511）。
   * :mod:`karte.similarity` — 類似判定（宣言信号＋実測 touched-set 信号の OR）と転換指令の生成。
     ``append`` のゲートと ``render``/``status`` の表示は**同じ判定関数を同じ入力集合**
     （候補の finding_ids でスコープした priors）に適用する（K-09）。
-  * :mod:`karte.touched`    — 実測 touched-set（変更ファイル＋変更シンボル）の算出。
-    ``close-attempt`` が取り込み、次ラウンド以降の類似判定の実測信号になる。
-  * :mod:`karte.cli`        — 組み込みの verb（``ingest-review`` / ``render`` / ``append`` /
-    ``close-attempt`` / ``check`` / ``status``）。``extra_registrars`` で別モジュールの verb を足せる。
+  * :mod:`karte.touched`    — 実測 touched-set の算出。``close-attempt`` が取り込み類似判定の実測信号になる。
+  * :mod:`karte.active_pointer` / :mod:`karte.errors` / :mod:`karte.exit_codes` — 進行ポインタ
+    ``tmp/_karte/active.json`` の読み書き／verb が投げる前提違反の例外／終了コード。
+  * :mod:`karte.repo_roots` / :mod:`karte.pointer_completion` — 台帳の repo-root（遅延解決）と ``git diff`` の cwd／
+    ``--issue`` ``--round`` のポインタ補完。補助は ``round_resolution``（補完結果の型）・``int_args``（整数変換の唯一の入口）・``karte_loader``・``utf8_text``。
+  * :mod:`karte.verb_boundary` — fail-close 境界とロック要否の宣言（``fail_close(locked=..., prepare=...)``）。
+    ``prepare`` を使う verb は ``func(args, repo_root, prepared)`` の **3 引数**。登録 verb も ``locked`` 宣言必須。
+  * ``karte.ingest_*`` — ``ingest-review`` の段: ``ingest_review``（本体）／``ingest_accept``
+    ／``ingest_checks``／``ingest_apply``／``ingest_report``／``ingest_types``（段間の結果型）。
+  * :mod:`karte.cli`        — 6 verb（``ingest-review`` / ``render`` / ``append`` / ``close-attempt`` /
+    ``check`` / ``status``）・``build_parser``・``main``。``extra_registrars`` で別モジュールの verb を足せる。
   * :mod:`karte.reviewer_cli` — ``ingest-reviewer``（レビューア本人の取り込み）と verb の登録、
     :mod:`karte.owner_cli` — 主文脈専用の ``activate`` / ``decide``（Issue #375）。
-    共通部品は :mod:`karte.verb_support`。
 
 標準ライブラリのみ（外部依存なし）。
 

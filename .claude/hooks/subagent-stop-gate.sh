@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SubagentStop（matcher: issue-implementer|issue-fixer）— カルテ未更新の停止を拒否し、
+# SubagentStop（matcher: ac-designer|change-planner|test-writer|issue-implementer|issue-fixer）—カルテ未更新の停止を拒否し、
 # 終了した dispatch の worktree を回収してから解放する（Issue #309・PR-1 ＋ Issue #354・PR-3）。
 #
 # 実体は python 側（`issue_start.subagent_hooks stop`）。段は逐次で、前段が block したら
