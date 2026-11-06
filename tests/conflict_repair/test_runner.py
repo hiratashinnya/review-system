@@ -51,7 +51,7 @@ class RunnerTest(RealGitTest):
         api = self.setup_remote()
         result = evaluate(api, self.repo, 1, 'owner/repo', 'main')
         self.assertTrue(result['push'])
-        self.assertEqual(api.dispatched, [('conflict-repair-verify.yml', 'main', result['修復後 OID'])])
+        self.assertEqual(api.dispatched, [('conflict-repair-verify.yml', 'main', result['修復後 OID'], 1)])
         api.head = result['修復後 OID']
         result = evaluate(api, self.repo, 1, 'owner/repo', 'main')
         self.assertFalse(result['push'])

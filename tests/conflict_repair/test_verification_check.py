@@ -15,7 +15,7 @@ from conflict_repair.verification_check import publish
 class VerificationCheckTests(unittest.TestCase):
     def setUp(self):
         self.oid = 'a' * 40
-        self.env = {'HEAD_OID': self.oid, 'UNITTEST_RESULT': 'success',
+        self.env = {'HEAD_OID': self.oid, 'MERGE_OID': 'b' * 40, 'UNITTEST_RESULT': 'success',
                     'TYPECHECK_RESULT': 'success', 'REPOSITORY': 'owner/repo',
                     'SERVER_URL': 'https://github.com', 'RUN_ID': '123',
                     'API_URL': 'https://api.github.com', 'GH_TOKEN': 'test-token'}
@@ -26,13 +26,15 @@ class VerificationCheckTests(unittest.TestCase):
 
     @patch('conflict_repair.verification_check.urllib.request.urlopen')
     def test_success_posts_each_required_check_to_tested_oid(self, urlopen):
-        urlopen.side_effect = [self.response('unittest'), self.response('typecheck')]
+        urlopen.side_effect = [self.response('unittest'), self.response('typecheck'),
+                               self.response('unittest', 'b' * 40), self.response('typecheck', 'b' * 40)]
         self.assertEqual(publish(self.env), {'unittest': 'success', 'typecheck': 'success'})
-        for call, name in zip(urlopen.call_args_list, ('unittest', 'typecheck')):
+        for call, name, oid in zip(urlopen.call_args_list, ('unittest', 'typecheck') * 2,
+                                   (self.oid, self.oid, 'b' * 40, 'b' * 40)):
             request = call.args[0]
             data = json.loads(request.data)
             self.assertEqual((data['name'], data['head_sha'], data['conclusion']),
-                             (name, self.oid, 'success'))
+                             (name, oid, 'success'))
             self.assertEqual(request.full_url, 'https://api.github.com/repos/owner/repo/check-runs')
 
     @patch('conflict_repair.verification_check.urllib.request.urlopen')
@@ -41,7 +43,9 @@ class VerificationCheckTests(unittest.TestCase):
             with self.subTest(status=status):
                 self.env['UNITTEST_RESULT'] = status
                 urlopen.side_effect = [self.response('unittest', conclusion='failure'),
-                                       self.response('typecheck')]
+                                       self.response('typecheck'),
+                                       self.response('unittest', 'b' * 40, 'failure'),
+                                       self.response('typecheck', 'b' * 40)]
                 self.assertEqual(publish(self.env), {'unittest': 'failure', 'typecheck': 'success'})
                 self.assertEqual(json.loads(urlopen.call_args_list[-2].args[0].data)['conclusion'], 'failure')
 
@@ -49,7 +53,9 @@ class VerificationCheckTests(unittest.TestCase):
     def test_typecheck_failure_is_independent(self, urlopen):
         self.env['TYPECHECK_RESULT'] = 'cancelled'
         urlopen.side_effect = [self.response('unittest'),
-                               self.response('typecheck', conclusion='failure')]
+                               self.response('typecheck', conclusion='failure'),
+                               self.response('unittest', 'b' * 40),
+                               self.response('typecheck', 'b' * 40, 'failure')]
         self.assertEqual(publish(self.env), {'unittest': 'success', 'typecheck': 'failure'})
 
     @patch('conflict_repair.verification_check.urllib.request.urlopen')
@@ -93,7 +99,7 @@ class VerificationCheckTests(unittest.TestCase):
         command = 'cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml'
         for name, end in (('unittest', 'verify-typecheck'), ('typecheck', 'report')):
             job = verify.split(f'  verify-{name}:\n', 1)[1].split(f'  {end}:\n', 1)[0]
-            self.assertLess(job.index('ref: ${{ github.sha }}'), job.index('ref: ${{ inputs.head_oid }}'))
+            self.assertLess(job.index('ref: ${{ github.sha }}'), job.index('ref: ${{ matrix.oid }}'))
             self.assertLess(job.index('test_verification_commands_match_pr_jobs'), job.index(command))
             self.assertLess(job.index(command), job.index('      - name: Set up Python'))
         with tempfile.TemporaryDirectory() as tmp:

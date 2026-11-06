@@ -39,7 +39,7 @@ def evaluate(api, source, number, repository, default):
         git.push(source, repo, head, head_oid)
         result.update({'判定': '修復完了', 'push': True, '修復後 OID': new_oid})
         try:
-            api.dispatch('conflict-repair-verify.yml', default, new_oid)
+            api.dispatch('conflict-repair-verify.yml', default, new_oid, number)
             result['検証 dispatch'] = '要求済み（結果・required checks 未確認）'
         except Exception as exc:
             result['検証 dispatch'] = f'失敗: {exc}'

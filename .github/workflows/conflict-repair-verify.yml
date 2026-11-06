@@ -3,6 +3,10 @@ name: conflict-repair-verification
 on:
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: 対象 PR 番号
+        required: true
+        type: string
       head_oid:
         description: 修復後の commit OID
         required: true
@@ -11,15 +15,44 @@ on:
 permissions: {}
 
 jobs:
+  prepare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.resolve.outputs.target }}
+      oids: ${{ steps.resolve.outputs.oids }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: resolve
+        name: Resolve live PR and test merge
+        run: python3 -m conflict_repair.verification_target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_OID: ${{ inputs.head_oid }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          TRUSTED_SHA: ${{ github.sha }}
+
   verify-unittest:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        oid: ${{ fromJSON(needs.prepare.outputs.oids) }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Validate commit OID
         env:
-          HEAD_OID: ${{ inputs.head_oid }}
+          HEAD_OID: ${{ matrix.oid }}
         run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
       - name: Save trusted tests workflow
         uses: actions/checkout@v6
@@ -32,11 +65,11 @@ jobs:
           cp .github/workflows/tests.yml "$RUNNER_TEMP/trusted-tests.yml"
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.head_oid }}
+          ref: ${{ matrix.oid }}
           persist-credentials: false
       - name: Confirm checked-out OID
         env:
-          HEAD_OID: ${{ inputs.head_oid }}
+          HEAD_OID: ${{ matrix.oid }}
         run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
       - name: Require unchanged tests workflow
         run: cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml
@@ -71,13 +104,18 @@ jobs:
 
   verify-typecheck:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        oid: ${{ fromJSON(needs.prepare.outputs.oids) }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Validate commit OID
         env:
-          HEAD_OID: ${{ inputs.head_oid }}
+          HEAD_OID: ${{ matrix.oid }}
         run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
       - name: Save trusted tests workflow
         uses: actions/checkout@v6
@@ -90,11 +128,11 @@ jobs:
           cp .github/workflows/tests.yml "$RUNNER_TEMP/trusted-tests.yml"
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.head_oid }}
+          ref: ${{ matrix.oid }}
           persist-credentials: false
       - name: Confirm checked-out OID
         env:
-          HEAD_OID: ${{ inputs.head_oid }}
+          HEAD_OID: ${{ matrix.oid }}
         run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
       - name: Require unchanged tests workflow
         run: cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml
@@ -127,11 +165,12 @@ jobs:
           pyright "${files[@]}"
 
   report:
-    needs: [verify-unittest, verify-typecheck]
-    if: always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: [prepare, verify-unittest, verify-typecheck]
+    if: always() && needs.prepare.result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       checks: write
       contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted workflow code
@@ -139,10 +178,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Publish verification result for the tested OID
+      - name: Revalidate live PR and test merge
+        run: python3 -m conflict_repair.verification_target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_OID: ${{ inputs.head_oid }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          TRUSTED_SHA: ${{ github.sha }}
+          EXPECTED_TARGET: ${{ needs.prepare.outputs.target }}
+      - name: Publish verification results for both tested OIDs
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_OID: ${{ inputs.head_oid }}
+          MERGE_OID: ${{ fromJSON(needs.prepare.outputs.target).merge_oid }}
           UNITTEST_RESULT: ${{ needs.verify-unittest.result }}
           TYPECHECK_RESULT: ${{ needs.verify-typecheck.result }}
           REPOSITORY: ${{ github.repository }}
