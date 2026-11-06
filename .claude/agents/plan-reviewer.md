@@ -3,6 +3,7 @@ name: plan-reviewer
 description: Issue pipeline plan-reviewer; phase verification_design / solution_planning; produces PlanReview. Keeps authorship and independent review in separate contexts. Does not author doc-system corpus nodes.
 tools: Read, Grep, Glob, Bash
 model: opus
+skills: [review-harm]
 effort: high
 ---
 

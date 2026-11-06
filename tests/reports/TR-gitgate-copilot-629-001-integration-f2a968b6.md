@@ -7,6 +7,8 @@ result: pass
 log_ref: tests/logs/TD-gitgate-copilot-629-001-integration-full-f2a968b6.txt
 ---
 
+> 注記（Issue #706）: 本記録が参照する `tests/unit/test_base_copilot.py`（および関連する `gitgate/base_copilot.py` 等）は Issue #706 で削除された。本記録は履歴として当時のまま保持する。
+
 Codex AI agentによる検証記録。2026-10-14、統合済みcode/docsを凍結したまま検証した。
 オーナー承認の今回限定例外の範囲と固定取り込み手順は
 `.ai/rationale/gitgate-copilot-base-integration-629.md` に保持する。

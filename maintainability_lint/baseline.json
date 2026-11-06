@@ -42,13 +42,12 @@
   "mixed_class_files": {
     "branch_source/policy.py": {
       "data": [
-        "BranchSourceResult",
-        "NewBranchRequest"
+        "BranchSourceResult"
       ],
       "logic": [
         "GitHubBranchClient"
       ],
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
     }
   },
   "module_lines": {
@@ -93,8 +92,8 @@
       "sha256": "7bf8b9bd7e45e28ad0ccc4493b7b67b357cc7e7129b89dd7d484c32754adae43"
     },
     "branch_source/policy.py": {
-      "line_count": 352,
-      "sha256": "b15e76b28cf41cc7094bb0a27ca5bbf95c1312d3267de742478d9f9546e00757"
+      "line_count": 273,
+      "sha256": "bd489b19f7966fa00f423d294d184afe181d8893f3086bf6c31a58a25f73f879"
     },
     "feedback_ledger/check.py": {
       "line_count": 454,
@@ -105,8 +104,8 @@
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
     },
     "gitgate/adopt.py": {
-      "line_count": 532,
-      "sha256": "b935af65e7c4934396cef97de152775a53d0d5e16c888bdde8f7ac3215998507"
+      "line_count": 551,
+      "sha256": "813d31e094417a6b19a7261e9fb8dbfcf889bd230d19c0bbdaf43c9470d18db9"
     },
     "gitgate/cli.py": {
       "line_count": 379,
@@ -126,7 +125,7 @@
     },
     "issue_start/subagent_hooks.py": {
       "line_count": 962,
-      "sha256": "b1be0a60b144538841249d687c6428227abf63aecd43b1840e9c038b34ab5a23"
+      "sha256": "98a8857e033875612c12c6a8c68846c2f6af437f23ea4874920c5852178f61ab"
     },
     "issue_start/worktree_ledger.py": {
       "line_count": 856,
@@ -167,14 +166,6 @@
     "project_status_sync/model.py": {
       "line_count": 159,
       "sha256": "e8d9e600eb525ed1bc12ab83224cb13283bbf29853b558c0ee2878ba568daeb2"
-    },
-    "project_status_sync/planner.py": {
-      "line_count": 247,
-      "sha256": "7b294287840159ceab38fff6a2360e36f8b7b70f2e95faa589723e1e71319e71"
-    },
-    "project_status_sync/report.py": {
-      "line_count": 127,
-      "sha256": "a1c896d9e661d18070d9277e8404fd925897364c1d042234597fd59bcf4816d8"
     },
     "review_system/io/cli.py": {
       "line_count": 210,

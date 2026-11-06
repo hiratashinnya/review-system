@@ -48,7 +48,8 @@ FR-17／傘 SPEC-61／PROMPT-8〜20）。**`.claude/` 全体をハーネス＝�
   - Issue 運用パイプライン：`issue-pipeline`/`issue-implementer`/`issue-fixer`/`pr-reviewer`/`gitgate`
   - 実行環境の面倒を見るフック：`on-rate-limit.sh`/`resume-watcher.sh`/`install_pkgs`/
     `inject-governance.sh`/`check-governance-drift.sh`/`orchestrator-context.sh`/`agent-command-gate.sh`/
-    `codex-hook-trust-check.sh`、
+    `codex-hook-trust-check.sh`/`issue-start-gate.sh`/`phase-tool-gate.sh`（後2者は列挙済みの
+    `issue_start` の gate を起動する薄い起動口）、
     `.claude/settings.json`
   - 外部委譲・モデル選定・横展・Issue 起票の補助：`agy-delegate`/`agy_delegate`（直接実行・許可検査 CLI）/`codex-review`/`silent-failure-diagnosis`/
     `bloom-model-tier`/`asset-lateral-deploy`/`coverage-html`/`gh-create-issue`

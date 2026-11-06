@@ -15,7 +15,7 @@ Issue #452 の Codex repo supervisor 方式は Issue #538 の PR-A で退役し�
 - 権限境界は版管理した permission profile（`.codex/config.toml`）、両PFの既存command hook、
   Claude側gateの起動形検査、ラッパーの起動前検査で担う。#371は既存hookへ工程ロールを追加する。
 - **Codex の `spawn_agent` で `issue-implementer`／`issue-fixer` を起動する経路は無い。**
-  issue-start gate が常時 `ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する（後述）。
+  Codex は主文脈にせず、それらの Codex agent も置かない。Codex 側に issue-start hook は登録されていない（後述）。
 
 ## #371の工程入力・有効化境界
 
@@ -114,18 +114,26 @@ codex exec -C <worktree> -c default_permissions="<role>" -m <model> \
 
 `.codex/config.toml` に著作ロール（ac-designer/change-planner/test-writer/issue-implementer）とissue-fixerの編集profile、
 調査・plan-reviewer・pr-reviewer・adviserのread-only profileを版管理する。
-config の最初の有効設定はトップレベルの `default_permissions = ":workspace"` とする。profile 選択を省略した
-起動と `--sandbox read-only` 起動でも config を読み込めるようにするためで、ラッパーのロール別選択は
-`-c default_permissions="<role>"` で上書きする。
+config の最初の有効設定はトップレベルの `default_permissions = "secure-default"` とする（F-538-24）。
+`[permissions.secure-default]` は `:workspace` を継承し、role profile と同じ network deny と認証情報パス deny を持つ。
+これにより project config を読む未指定の直接起動も、編集可能な workspace 権限を保ちながら認証情報を読めない。
+`codex_worktree_exec` は `-c default_permissions="<role>"` で個別 role profile を明示選択するため、この既定値を使わない。
+`secure-default` は起動時の既定でありロールではない。`CODEX_EXEC_ROLES` や wrapper の `--role` 許可集合には含めない。
+
+Codex 起動の実効権限は sandbox 指定と project config の組合せで決まる。`--sandbox read-only` や `codex-review`
+のような read-only 起動では、その読取専用境界を維持し、`secure-default` の `:workspace` 継承で writable にしない。
+config の適用範囲は Codex が読み込む trusted project-local `.codex/config.toml` に限る。未 trust の project、別 repository
+からの起動、global config、CLI override、変更された `CODEX_HOME` には本設定の適用を保証しない。
+直接起動の実測は対象 project と trust 状態、Codex version、sandbox 指定を記録して行う。
 
 - 著作/fixerは `extends = ":workspace"`（`-C` の worktreeへ書け、配下の `.codex/` と `.git/` は読取専用）。
 - 調査・レビュー・adviserは `extends = ":read-only"` とし、編集権限を与えない。
-- `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
+- `[permissions.secure-default.network]` と `[permissions.<role>.network]`：`enabled`・`allow_local_binding`・`dangerously_allow_all_unix_sockets`・
   `dangerously_allow_non_loopback_proxy` をすべて `false`。
-- `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
+- `[permissions.secure-default.filesystem]` と `[permissions.<role>.filesystem]`：`~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json`・`~/.ssh` を `deny`。
 
 profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unittest` の `tests/unit/test_codex_worktree_exec_assets.py` が、
-先頭の既定設定とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
+先頭の既定設定・secure-default とロール別profile・著作profileの同一性・network無効・認証情報パスのdeny を静的に検査する
 （未指定・`--sandbox read-only` の実起動成功の代替ではない）。
 
 ## 「要設計」4項目の決定
@@ -140,7 +148,7 @@ profile の構文は、パスを絶対パスか `~/` 始まりで書く。`unitt
    main checkout の特定は `codex_hook_trust.repository.resolve_main_checkout` を再利用し、特定できなければ
    （渡されたパスへのフォールバック時を含む）判定不能として止める。
 3. **フックの加算**：Codex 用フックは新設しない。`codex exec` では、trust 済みなら project の `.codex/hooks.json`
-   （`agent-command-gate.sh`・`issue-start-gate.sh`）と user 層のフックが加算で走りうるが、権限境界をフックに
+   （Bash の `agent-command-gate.sh` と `adr-notify.sh`）と user 層のフックが加算で走りうるが、権限境界をフックに
    依存させない。Codex が実行するコマンドは `agent_type` を持たないため、Codex 版 gate ではロール専用層の対象外となり、
    全ロール共通の merge／network・exec の deny だけが掛かる。
 4. **権限の非対称**：Codex には profile の filesystem／network 規則で「編集とテスト実行だけ」をさせる
@@ -199,13 +207,34 @@ audit 推奨・オーナー承認の暫定決定。番号は audit の番号を�
 - D1 の比較先はローカルの `origin/main` ref であり、fetch が古ければ古い版と比べる。検査から Codex の起動までの間に
   profile を書き換える競合は防いでいない（呼び出し側は自分の worktree だけを持つ前提）。
 - `/tmp` への書込みは許可される（実測⑥・許容）。
-- F-538-30：ラッパーを通さない起動（`codex exec` の直接起動・`codex-review`・対話利用・agy の `codex_*`）には、
-  `.codex/config.toml` の既定 `default_permissions = ":workspace"` が適用され、認証情報パスが読める（実測）。
-  この状態は本 PR の前から存在し、本 PR が持ち込んだ退行ではない。ロール別の network 無効・認証情報 deny が
-  適用されるのはラッパーが該当 profile を選択した起動である。既定は未指定起動の config 読込みを成立させるために
-  必要であり、削除すると未指定起動と `--sandbox read-only` 起動が失敗する（実測⑨）。既定を認証情報 deny 付きの
-  強化 profile にする対応は、2026-10-13 のオーナー判断で Issue #630 へ繰り延べた。D12 は「ラッパーが Codex に
-  リポジトリを書かせる唯一の**許可された**経路」という規律であり、ラッパーを通さない起動を機械的に拒否するものではない。
+- F-538-30：ラッパーを通さない起動（`codex exec` の直接起動・`codex-review`・対話利用）にも、
+  trusted project config が読み込まれる場合は `secure-default` が適用され、認証情報パスを deny する。
+  この設定は #630 で導入した。D12 は「ラッパーが Codex にリポジトリを書かせる唯一の**許可された**経路」という
+  規律であり、ラッパーを通さない起動そのものを拒否するものではない。`secure-default` は project-local config が
+  適用される起動の保護であり、env に含まれた秘密、別パスの認証情報、未 trust project、他リポジトリ起動を包括しない。
+- #630 の実起動確認（2026-11-03、Codex 0.166.0、`issue/630-secure-default` checkout）では、直接 exec と対話 UI の
+  起動・応答、read-only の書込拒否、workspace-write の一時領域書込、`.codex/`・`.git/` の書込拒否、network socket
+  拒否を確認した。コマンドと未検証経路は下表のとおり。これはローカル実行環境での結果であり、未確認経路を製品 PASS とみなさない。
+
+| 経路 / コマンド | 条件・結果 |
+|---|---|
+| `codex exec --ephemeral -C . "Reply exactly: started"` | 既定 sandbox は `workspace-write [workdir, /tmp, $TMPDIR]`、model `gpt-6-luna`。exit 0、`started`。project の trust 状態を `codex_hook_trust` では独立確認できなかった。 |
+| `codex exec --ephemeral --sandbox read-only -C . "Reply exactly: started"` | Codex 0.166.0 が起動・応答。read-only の一時ファイル作成 probe は `DENIED OSError`。 |
+| trusted main checkout での実認証 smoke | `rtk codex exec --ephemeral --sandbox read-only -C . -m gpt-6-luna 'Reply exactly: secure-default-auth-ok'` は Codex 0.166.0、default `secure-default` に read-only sandbox 指定を重ねて exit 0、応答は `secure-default-auth-ok` と一致。実ユーザーのsecretは表示・複製していない。これは Codex model 認証が secure-default 下で動く証拠であり、app-server / `hooks/list` が実ユーザー HOME で成功した証拠ではない。 |
+| `issue-implementer` profile の直接起動 smoke | trusted main checkout で `rtk codex exec --ephemeral -C . -c 'default_permissions="issue-implementer"' -m gpt-6-luna '<smoke request>'` を実行し、exit 0・workspace-write profile で応答。これは profile の直接指定確認であり、wrapper role の起動成功を示さない。 |
+| `codex --no-alt-screen -C .`（TTY） | Codex 0.166.0 の対話 UI 起動後、`Reply exactly: started` に応答し、Ctrl-C で終了。 |
+| default workspace-write sandbox の一時 probe | `./tmp` と repository root での一時 file 作成・即時削除は `CREATED`、`.codex/` と `.git/` は `DENIED OSError`、`1.1.1.1:443` socket は `BLOCKED PermissionError`。 |
+| `~/.codex/auth.json`・`~/.config/gh`・`~/.claude/.credentials.json` の open probe | Codex 0.166.0、`codex exec --ephemeral -C .` の既定 `workspace-write` sandbox 内で `os.open(O_RDONLY)`（gh は `O_RDONLY|O_DIRECTORY`）を行い、FD を直ちに閉じた。内容の read・表示・収集なし。既存する3対象すべて `DENIED PermissionError`、Codex exec exit 0。sandbox deny を実測。 |
+| 既定 workspace-write sandbox 内 `~/.ssh` open probe | 実 HOME で path 不存在。存在しないため deny の実効確認にはならない。path を含む probe command は `agent-command-gate` が文字列 `ssh` を全 role に対する拒否対象として実行前に止めた。gate の拒否を sandbox deny と扱わず、この実 HOME path の workspace-write probe は**未検証**。secure-default profile の隔離 HOME dummy target probe は別行に記録。 |
+| `codex sandbox -P secure-default` credential deny probe | 隔離 HOME/CODEX_HOME 内に4つの明示的な dummy target files（`auth.json`、gh credentials、Claude credentials、`.ssh` target）を作成し、Codex 0.166.0 の `codex sandbox -P secure-default` から各ファイルを read-only open。内容は読まず、全4件 `EACCES`。外側 sandbox 内の最初の実行は app-server socket directory mode error で止まったが、外側を `require_escalated` で起動した再実行では内側 Codex の secure-default profile が有効のまま全4件を拒否。dummy target に対する profile deny の実測であり、実 credential の拒否を意味しない。 |
+| `python3 -m codex_hook_trust check --repo .` / app-server `initialize` → `hooks/list` | 実 `~/.codex` では前者 exit 2、`app-server closed stdout before replying`。stderr は `failed to initialize sqlite state runtime under ~/.codex`。直接 JSON-RPC でも initialize 応答前に stdout が閉じ、exit 1。`codex app-server --print-startup-config` は exit 0。隔離 HOME/CODEX_HOME（実認証情報なし）に dummy `auth.json` と trusted project config を置いた検証では initialize と `hooks/list` が成功し hook 2件を返したが、両方 `untrusted`、`codex_hook_trust` は exit 1。これは dummy auth のみで、実認証を検証していない。実ユーザー環境の `codex login status` は `Logged in using ChatGPT`。実ユーザー認証を隔離 HOME へ symlink する案は auto-review が情報漏えいリスクを理由に拒否したため試していない。よって実ユーザー認証下の app-server / hooks trust は**未検証**。 |
+| 隔離 HOME/CODEX_HOME での通常 exec と codex-review stdin | 隔離 HOME に `.codex/config.toml` と trusted project 設定を置いたが、認証は dummy `auth.json` のみ。`codex exec --ephemeral --sandbox read-only -C <project> -m gpt-6-luna "<ordinary user request>"` と、codex-review の実 stdin 形式 `codex exec --ephemeral -m gpt-6-luna --sandbox read-only - < prompt.txt` はどちらも通常の user request で exit 1。モデル応答はなく、`network request failed` / `plan type is required for chatgpt authentication`。秘密値は出力していない。これは dummy auth 条件であり、実ユーザー認証下の通常 exec・codex-review は**未検証**。 |
+| `codex-review` 実レビュー | `codex exec --sandbox read-only review --base origin/main -m gpt-6-luna --ephemeral` は Codex 由来の独立read-only reviewとして exit 0、明確な指摘なし。ただし `.claude/skills/codex-review/SKILL.md` の stdin entry `codex exec -m gpt-6-luna --sandbox read-only - < prompt.txt` は exit 1。Codex 0.166.0 が `failed to initialize in-process app-server client: Read-only file system` を返した。`--ephemeral` を付けても同じで、この skill entry は**未検証／実行不能**。実ユーザー認証に基づくskill entry実行も未検証。 |
+| wrapper role 実起動 / origin/main pin | 一時 linked worktree で `rtk python3 -m codex_worktree_exec --role issue-implementer -C . --prompt-file tmp/issue630-role-smoke.prompt --output-file tmp/issue630-role-smoke.out --model gpt-6-luna --reasoning-effort high` を実行。現在の agent sandbox が入れ子起動を止め、exit 2 `CODEX_EXEC_NESTED: CODEX_SANDBOX_NETWORK_DISABLED` で pin 検査前に終了。wrapper を sandbox 内からさらに起動する経路は**未検証**。同 linked worktree の実 blob は `origin/main:.codex/config.toml=82bd8263…`、worktree config=`90e6fd36…` と異なるため、D1 pin が拒否する条件を確認。`tests.unit.test_codex_worktree_exec_profile` と `tests.unit.test_codex_worktree_exec_cli` は 10 tests / 5.465s / OK で profile drift 拒否を検証。 |
+
+単体テスト結果（2026-11-03）：root checkout で `python3 -m unittest discover -s tests/unit` は 2509 tests / 998.477s / exit 1。5 errors は、sandbox が `.codex/` を read-only にし、既存 `test_codex_agent_command_gate.py` fixture が一時 hook file を作れないためだった。同moduleを `/tmp` 上の writable なコピーで実行すると 74 tests / 250.038s / OK。さらに `/tmp/review-system-issue630-discovery` に local clone を作り、正規 origin URL と origin/main=29b8d47 を設定して full discovery を再実行し、2509 tests / 1279.270s / OK。最初の clone 実行で出た27 failures は clone origin URL がローカルパスで dispatch target repo を解決できなかったためで、正規 GitHub URL へ修正した再実行では解消した。clone 実行では fetch/push を行っていない。`python3 -m asset_parity check` は 49 assets / 0 MISSING / 18 heuristic staleness flags、exit 0。`python3 -m maintainability_lint check` は violations 0 / accepted debt 77、exit 0。
+
+上記の未検証事項は acceptance criterion 完了の証拠ではない。特に実ユーザー認証下の app-server / hooks trust、codex-review skill stdin entry、wrapper role の実起動は別の条件を満たす環境で確認する必要がある。実ユーザー auth を隔離 HOME に symlink して確認する案は auto-review が情報漏えいリスクを理由に拒否したため、試していない。従って実ユーザー認証下での app-server、codex-review、wrapper role は未検証のままである。
 - F-538-31 の残る限界として、猶予後の `killpg(SIGKILL)` は、グループの全メンバーが消えて PGID が再利用される
   極小の窓を完全には閉じない。SIGKILL の直前に存在確認を別の呼び出しで行うことはやめたが、PGID 再利用自体は防げない。
 - 環境の2段の制限はラッパー経由の起動に適用される。実際の Codex シェルに認証関連の変数が現れないことは
@@ -225,13 +254,13 @@ PR-B 着手時点（main `edbe35a`）で `.claude/hooks/agent-command-gate.sh` �
 TR とログは主文脈が検証専用環境で実起動して残す。`tests/unit/test_codex_worktree_exec_*.py` は model-free の事前検査であり、
 実起動の代替にしない（#452 の evidence rule を踏襲する）。
 
-## Codex `spawn_agent` の常時拒否
+## Codex に issue-start dispatch 経路が無いこと
 
-Codex の `spawn_agent` / `collaborationspawn_agent` で既知の `issue-implementer` / `issue-fixer` を
-指定した dispatch は、issue-start gate が payload の詳細・cwd・ledger・GitHub API を読む前に
-`ISSUE_START_TRANSPORT_UNAVAILABLE` で拒否する。malformed な payload でも理由は変わらない。
-`issue_start/managed-entrypoints-v2.json` の `binding_transports` は `claude` だけを宣言し、
-Codex の binding transport は置かない。
+Codex 側に issue-start hook は登録されていない（`.codex/hooks.json` は Bash の `agent-command-gate.sh` と
+`adr-notify.sh` だけ）。Codex の `issue-implementer`／`issue-fixer` agent も置かないため、Codex から
+それらを dispatch する経路そのものが無い。`issue_start/managed-entrypoints-v2.json` の `binding_transports` は
+`claude` だけを宣言し、Codex の binding transport は置かない。退役の経緯と旧 wrapper の保存先は
+[`.ai/rationale/issue-pipeline.md`](../../.ai/rationale/issue-pipeline.md)「Issue #603: Codex main-context 資産の退役」を参照する。
 
 gate の判定順と Claude transport の marker／isolation 契約は
 [`docs/tools/issue-start-and-branch-source.md`](../tools/issue-start-and-branch-source.md) を正とする。
@@ -317,7 +346,12 @@ native著作工程の進行承認JSONは、既存のrecipient/run/Issue/target/s
 これは過去review receiptを書き換える情報ではなく、trusted主文脈が今回起動する取得対象の承認である。
 phase承認とnative markerのIssue/repository/branch/OIDを相互照合し、検査cwdのoriginとHEADが同じrepository/OIDで
 あることを起動前に要求する。初回1aでは承認branchは新規作成予定名、expected_oidはbase_oidであり、
-base_refとsnapshotも実HEADへ一致させる。後続著作では承認branchを実検査作業面のcurrent branchへ一致させる。
+base_refとsnapshotも実HEADへ一致させる。後続著作では検査作業面をdetachedに限り、承認branch上と別名branch上は拒否する。検査作業面がdetachedでも、
+primary checkoutを含む他のworktreeが承認branchを掴んでいれば拒否し、worktree一覧を取れないときも拒否する。承認branchを掴むworktreeを拒否するのは、
+そのworktreeが承認branchを掴んだままだと次作者のadopt-branch stage 4が必ず拒否し、起票済みの失敗作者entryが
+最新ownerとして残って同branchで継続できなくなるためである。
+detachedではbranch名を作業面から確かめられないため、その照合は台帳の最新owner、`git ls-remote` のremote exact OID照合、
+adopt-branch stage 2のremote exact OID照合へ委ねる。作業面の準備手順はClaude issue-pipeline wrapperを正とする。
 過去snapshot OIDと後続HEADは異なり得るため、既存のancestor検査・canonical artifact・正確なsource_changesによって
 承認snapshotから現在の検査面までを検証する。Codexも同じartifact検証を使い、D5のcwd/-C一致を維持する。
 native read-only工程の既存phase承認形式は維持し、既存PRの再レビューはその専用契約を使う。

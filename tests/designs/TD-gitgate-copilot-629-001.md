@@ -3,6 +3,8 @@ id: TD-gitgate-copilot-629-001
 title: Copilot明示認可による固定PR base取り込み
 ---
 
+> **履歴**：Issue #706（policy 2.0）で Copilot 登録・固定 unittest・内容 CAS を撤去したため、本 TD の対象テスト `tests/unit/test_base_copilot.py` は削除した。現行の検証設計は `tests/designs/TD-gitgate-base-706-001.md`。
+
 目的: Issue #629 AC1–4を検証する。前提は実bare remote、非default PR headの
 通常clone、fake read-only PR APIであり、Copilot自身のhost認証は仮定しない。
 

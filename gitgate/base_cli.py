@@ -1,44 +1,40 @@
-"""Policy dispatcher and the ordinary commit/push fence for pending integration."""
+"""PR base 取り込み verb の dispatcher と、進行中の通常 commit の拒否。
+
+GitGate 本体はロール・ハーネスを同定しない。ロール別の許可は呼び出し元の
+command gate が扱う（Issue #706）。
+"""
 
 import json
 import sys
 from pathlib import Path
-from issue_start import worktree_ledger
+
 from branch_source.policy import BranchSourceError
 from .base_abort import abort
-from .base_copilot import REGISTER, register
-from .base_authority import identity
 from .base_continue import continue_integration
 from .base_error import BaseIntegrationError, require
-from .base_journal import active_operation
-from .base_records import operation_records
+from .base_git import git
 from .base_live import default_api
-from .base_request import VERBS, parse_request
+from .base_request import parse_request
 from .base_start import start
+from .base_state import state_path
+from .base_workspace import bind
 
 
 def execute(verb, args, *, workspace=None, api=None):
     request = parse_request(verb, list(args))
-    if verb == REGISTER:
-        return register(workspace or Path.cwd(), request, api or default_api())
-    root, entry, binding = identity(workspace or Path.cwd())
-    if verb == "integrate-base" and entry.get("platform") == "copilot-local":
-        require(request == entry["base_authorization"]["request"], "BASE_COPILOT_REQUEST_MISMATCH")
+    binding = bind(workspace or Path.cwd())
     if verb == "integrate-base":
-        return start(root, entry, binding, request, api or default_api())
-    operation = active_operation(entry)
+        return start(binding, request, api or default_api())
     if verb == "integrate-base-abort":
-        return abort(root, entry, binding, operation)
-    return continue_integration(root, entry, binding, operation, request["test_modules"],
-                                api or default_api())
+        return abort(binding)
+    return continue_integration(binding, api or default_api())
 
 
-def refuse_pending_publish(workspace):
-    root = worktree_ledger.main_worktree_root(workspace)
-    relative = Path(workspace).resolve().relative_to(root.resolve()).as_posix()
-    entries = operation_records(worktree_ledger.read_ledger(root))
-    require(not any(entry.get("worktree_path") == relative and active_operation(entry)
-                    for entry in entries), "BASE_PENDING_COMMIT_PUSH_DENIED")
+def refuse_pending_commit(workspace):
+    """通常 commit が取り込み途中の merge を検証なしに確定するのを防ぐ。"""
+    if git(workspace, "rev-parse", "--git-dir", allow_failure=True).returncode != 0:
+        return
+    require(not state_path(workspace).exists(), "BASE_PENDING_COMMIT_DENIED")
 
 
 def run_cli(args):
@@ -46,7 +42,6 @@ def run_cli(args):
         result = execute(args[0], args[1:])
         print(json.dumps(result, ensure_ascii=False))
         return 3 if result["status"] == "conflicts" else 0
-    except (BaseIntegrationError, worktree_ledger.LedgerError,
-            BranchSourceError) as exc:
+    except (BaseIntegrationError, BranchSourceError) as exc:
         sys.stderr.write(f"gitgate: {exc}\n")
         return 2

@@ -1,7 +1,17 @@
 # 現在有効な恒常規範（毎ターン注入・正本＝`CLAUDE.md` ＋ `.claude/rules/*.md` ＋ `.ai/guidance/common.md` ＋ `.claude/main-context/*.md` の抜粋）
 
-<!-- synced-from: CLAUDE.md@11f296076a42 -->
+<!-- synced-from: CLAUDE.md@029b97e5adf3 -->
 <!--
+  PR #712（2026-11-01）: `.claude/rules/05-skills-agents.md` の issue-fixer の診断前編集禁止に、PR base 取り込みの衝突解消の例外（`.ai/agents/issue-fixer.md`「取り込みとカルテ手順の順序」）への参照を括弧書きで足した。項13に同じ例外を括弧書きで反映し、marker を同期した。main の取り込み時の衝突（冒頭コメント欄）は両側の記録を残して解消し、marker を統合後の値へ更新した。
+
+  `.ai/guidance/common.md` への項追加（2026-10-25・オーナー）: 「作業分離・判断境界」に、ドキュメントと既存コードが食い違うときはコードに従い食い違いを最後の返答で挙げる旨を追加。これを項14として配送する。
+
+  Issue #685（2026-10-31・F-685-51）: `.claude/rules/02-decision-process.md` の起票先判定表
+  「実行環境の面倒を見るフック」へ `issue-start-gate.sh`/`phase-tool-gate.sh`（列挙済みの
+  `issue_start` の gate を起動する薄い起動口）を追記しただけ。下記9は「実行環境フック」を
+  総称で配送しており区分は変わらないため、中核規範（1〜13）には掛からない。本文は変更せず
+  marker のみ現在値へ更新した（「見た上で不要と判断した」ことの記録）。
+
   PR #688（2026-10-31）: `.claude/rules/05-skills-agents.md` の karte 台帳 deny の記述から Write 専用エントリへの言及を外しただけ。中核規範（1〜13）には掛からず、本文は変更せず marker のみ同期した。
 
   Issue #371（2026-10-16）: 正本集合を前版と比較し、変更は rules/05-skills-agents.md の
@@ -288,8 +298,13 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
 12. **オーナーへの報告・質問の仕方（主文脈専用）** — 判断を仰ぐ事項は**チャットに全文**
     （何を・なぜ・どうするか）で出し、PR コメント・カルテ・ハンドオフ・ノードへの記載を報告の代わりに
     しない（`<artifact_policy>` 等の要約規律は subagent→主文脈間の規約で、主文脈→オーナーには適用しない）。
-    merge・push・force 系・外部投稿など取り消しにくい操作は**実行前に**報告して確認を得る
-    （事後のまとめ報告・過去の承認・clean 判定で代えない）。質問・承認依頼は判断材料をチャットに
+    依頼内の対象に一致する非破壊の通常 push・PR・Issue・CI 操作は事前確認なく実行し事後報告する。
+    ただし Issue・PR のクローズとそれぞれの受け入れ基準（AC）更新は事前確認し、対象と内容が一致する
+    明示指示・承認が既にあれば再質問しない。
+    依頼範囲外は停止し、force push・remote branch 削除・履歴改変・大量削除は個別の明示指示を要する。
+    対外発信・公開設定変更・本番操作は
+    原則事前確認し、対象と内容が一致する明示承認は再質問しない。AI の merge は禁止。
+    禁止 branch・role 権限・秘密・課金・機械ゲートを維持する。質問・承認依頼は判断材料をチャットに
     提示した上で **`AskUserQuestion`** で問う（推奨案を先頭に「（推奨）」）。非対話ロールは持たないので
     STOP して呼び出し元へ返す。正本＝`.claude/main-context/01-owner-communication.md`（全文はセッション
     開始・clear・compact 時に注入済み）。
@@ -298,7 +313,8 @@ additionalContext として注入する本文。正本は `CLAUDE.md`、`.claude
     1a合格後の1b CP/ADR、`test-writer` は2a UT-TD/UT-TCのRed著作を担う。
     `plan-reviewer` は1a単独・1b整合、`pr-reviewer` は2a単独・2b PRをそれぞれ別dispatchで審査する。
     `issue-implementer` は承認済み単一work unitのGreen化・commit/push/draft PRを担当し、新規テストを著作しない。
-    `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず、
-    `ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
+    `issue-fixer` は既存PRの是正専任で、`karte render`→`karte append` の診断前に編集せず
+    （例外は PR base 取り込みの衝突解消だけ）、`ingest-review` は主文脈だけが行う。著作3role・implementer・fixerはpush可能だがmerge不可、
     `pr-reviewer` はpush/merge不可。`adviser` はread-only相談のみで、編集・push・台帳変更・承認・STOP解除をしない。
     全Issue工程roleは非対話であり、曖昧さはSTOPで主文脈へ返す。正本＝`.claude/rules/05-skills-agents.md`。
+14. **ドキュメントと既存コードの食い違い** — コードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる。

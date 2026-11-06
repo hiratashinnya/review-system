@@ -4,6 +4,7 @@ import os
 import stat
 from contextlib import contextmanager
 from pathlib import PurePath
+from typing import ContextManager, Iterator, Literal, overload
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
@@ -15,8 +16,24 @@ def fingerprint(directory_fd: int) -> dict:
     return {"device": info.st_dev, "inode": info.st_ino}
 
 
+@overload
+def held_directory(path, error: str, *, dir_fd: int | None = None,
+                   missing_ok: Literal[False] = False) -> ContextManager[int]: ...
+
+
+@overload
+def held_directory(path, error: str, *, dir_fd: int | None = None,
+                   missing_ok: Literal[True]) -> ContextManager[int | None]: ...
+
+
+@overload
+def held_directory(path, error: str, *, dir_fd: int | None = None,
+                   missing_ok: bool) -> ContextManager[int | None]: ...
+
+
 @contextmanager
-def held_directory(path, error: str, *, dir_fd: int | None = None, missing_ok: bool = False):
+def held_directory(path, error: str, *, dir_fd: int | None = None,
+                   missing_ok: bool = False) -> Iterator[int | None]:
     """リンクを辿らずに開いた記述子を保持する。missing_ok の不在は None を渡す。"""
     try:
         descriptor = os.open(path, DIRECTORY_FLAGS, dir_fd=dir_fd)

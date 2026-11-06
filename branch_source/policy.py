@@ -18,32 +18,17 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from blocker_gate.auth import github_api_failure_reason, resolve_github_token
 
+from .arguments import parse_new_branch_args
+from .validation import (
+    BranchSourceError, NewBranchRequest, _validate_branch, _validate_oid,
+    _validate_repository,
+)
+
 
 API_VERSION = "2022-11-28"
 POLICY_VERSION = "branch-source/1.0"
-_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-_BRANCH = re.compile(r"^[A-Za-z0-9._/-]+$")
-_OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _HTTPS_REMOTE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$")
 _SSH_REMOTE = re.compile(r"^(?:git@github\.com:|ssh://git@github\.com/)([^/]+)/([^/]+?)(?:\.git)?/?$")
-
-
-class BranchSourceError(Exception):
-    """分岐元を一意かつ fresh に証明できない場合の fail-close error。"""
-
-    def __init__(self, reason: str, detail: str = "") -> None:
-        super().__init__(reason if not detail else f"{reason}: {detail}")
-        self.reason = reason
-        self.detail = detail
-
-
-@dataclass(frozen=True)
-class NewBranchRequest:
-    branch_name: str
-    repository: str
-    base_ref: str
-    base_oid: str
-    base_pr: int | None = None
 
 
 @dataclass(frozen=True)
@@ -115,37 +100,6 @@ class GitHubBranchClient:
         return self._get(f"/repos/{repository}/pulls/{number}")
 
 
-def _validate_repository(value: str) -> str:
-    if not _REPOSITORY.fullmatch(value):
-        raise BranchSourceError("BRANCH_REPOSITORY_INVALID", value)
-    return value
-
-
-def _validate_branch(value: str, reason: str) -> str:
-    if (
-        not value
-        or value.startswith(("-", "/"))
-        or value.endswith(("/", "."))
-        or not _BRANCH.fullmatch(value)
-        or ".." in value
-        or "//" in value
-        or "@{" in value
-        or any(
-            not part or part.startswith(".") or part.endswith(".lock")
-            for part in value.split("/")
-        )
-    ):
-        raise BranchSourceError(reason, value)
-    return value
-
-
-def _validate_oid(value: str, reason: str = "BRANCH_BASE_OID_INVALID") -> str:
-    normalized = value.lower()
-    if not _OID.fullmatch(normalized):
-        raise BranchSourceError(reason, value)
-    return normalized
-
-
 # --- 公開 leaf validator（Issue #354 PR-2） -----------------------------------
 # `gitgate/adopt.py`（adopt-branch）は「既存ブランチを exact OID で checkout する」流れであり、
 # `verify_branch_source`/`create_branch`（新規ブランチ作成・default-branch/stacked-PR の二分岐）
@@ -168,39 +122,6 @@ def validate_repository(value: str) -> str:
 def validate_branch_ref(value: str, reason: str) -> str:
     """git の ref として安全なブランチ名であることを検証して返す。"""
     return _validate_branch(value, reason)
-
-
-def parse_new_branch_args(args: Sequence[str]) -> NewBranchRequest:
-    """固定 schema の new-branch 引数を parse する。未知/重複 flag は拒否。"""
-    if not args:
-        raise BranchSourceError("BRANCH_ARGUMENT_INVALID", "missing branch name")
-    name = _validate_branch(args[0], "BRANCH_NAME_INVALID")
-    values: dict[str, str] = {}
-    allowed = {"--repository", "--base-ref", "--base-oid", "--base-pr"}
-    index = 1
-    while index < len(args):
-        flag = args[index]
-        if flag not in allowed or flag in values or index + 1 >= len(args):
-            raise BranchSourceError("BRANCH_ARGUMENT_INVALID", flag)
-        values[flag] = args[index + 1]
-        index += 2
-    required = {"--repository", "--base-ref", "--base-oid"}
-    if not required.issubset(values):
-        missing = ",".join(sorted(required - set(values)))
-        raise BranchSourceError("BRANCH_ARGUMENT_INVALID", f"missing {missing}")
-    base_pr: int | None = None
-    if "--base-pr" in values:
-        raw_pr = values["--base-pr"]
-        if not raw_pr.isdigit() or int(raw_pr) < 1:
-            raise BranchSourceError("BRANCH_BASE_PR_INVALID", raw_pr)
-        base_pr = int(raw_pr)
-    return NewBranchRequest(
-        branch_name=name,
-        repository=_validate_repository(values["--repository"]),
-        base_ref=_validate_branch(values["--base-ref"], "BRANCH_BASE_REF_INVALID"),
-        base_oid=_validate_oid(values["--base-oid"]),
-        base_pr=base_pr,
-    )
 
 
 def _remote_repository(remote_url: str) -> str:

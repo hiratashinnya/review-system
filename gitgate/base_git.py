@@ -1,4 +1,4 @@
-"""Bounded Git subprocesses for PR-base integration."""
+"""PR base 取り込みが使う、引数固定の Git subprocess と Git 状態の読取。"""
 
 import os
 import subprocess
@@ -28,6 +28,11 @@ def output(workspace, *args):
     return os.fsdecode(git(workspace, *args).stdout).strip()
 
 
+def paths(workspace, *args):
+    raw = git(workspace, *args).stdout
+    return sorted({os.fsdecode(item) for item in raw.split(b"\0") if item})
+
+
 def git_path(workspace, name):
     value = Path(output(workspace, "rev-parse", "--git-path", name))
     return value if value.is_absolute() else Path(workspace) / value
@@ -35,7 +40,6 @@ def git_path(workspace, name):
 
 def merge_head(workspace):
     path = git_path(workspace, "MERGE_HEAD")
-    require(not path.is_symlink(), "BASE_MERGE_HEAD_SYMLINK")
     return path.read_text().strip() if path.exists() else None
 
 
@@ -44,15 +48,16 @@ def foreign_operation(workspace):
         "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"))
 
 
-def process_alive(pid, token):
-    if type(pid) is not int or not isinstance(token, str):
-        return False
-    try:
-        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
-        return fields[0] != "Z" and fields[19] == token
-    except (OSError, IndexError):
-        return False
+def unmerged_paths(workspace):
+    return paths(workspace, "diff", "--name-only", "--diff-filter=U", "-z")
 
 
-def process_token():
-    return Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(")", 1)[1].split()[19]
+def leftover_changes(workspace):
+    """index に載っていない tracked 変更と、ignore されていない新規ファイル。"""
+    return sorted(paths(workspace, "diff", "--name-only", "--no-renames", "-z")
+                  + paths(workspace, "ls-files", "--others", "--exclude-standard", "-z"))
+
+
+def is_clean(workspace):
+    return not git(workspace, "status", "--porcelain=v1", "-z",
+                   "--untracked-files=all").stdout

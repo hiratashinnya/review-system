@@ -52,13 +52,26 @@ handoff_path に書く前に次をすべて確認する。1つでも満たさな
 
 ## PR base の取り込み
 
-`docs/tools/gitgate-base-integration.md`（policy 1.2）の固定経路だけを使う。Claude は `integrate-base` →衝突編集→`integrate-base-continue`、中止は `integrate-base-abort`。解消後に固定 unittest 経路を再実行して確定する。仕様判断ができない衝突、protected/契約変更は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit/push を使わない。
+`docs/tools/gitgate-base-integration.md`（policy 2.1）の固定経路だけを使う。`integrate-base` →衝突編集（解消に必要な周辺 tracked ファイル・新規ファイル・生成物は `gitgate add` で明示 stage）→`integrate-base-continue`、中止は `integrate-base-abort`。中止した後は作業を止め、`integrate-base-abort` が返した退避 tar のパスを含めて STOP して報告する（tar の取り出しは fixer には行えない。中止した作業ツリーで取り込みをやり直さない。再開は新しい作業ツリーへの再 dispatch で行い、分担は同文書「中止と回復」）。GitGate はテストを実行しないので、解消結果の検証は fixer の通常の検証手順で行う。仕様判断ができない衝突は STOP して報告する。PR 自体の merge/auto-merge と raw git merge は引き続き禁止する。取り込み pending 中は通常の commit を使わない。
 
-取り込み経路は通常 Claude issue-fixer だけが使う。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) / [Codex wrapper](../../.codex/agents/issue-fixer.toml) に従う。未対応の実行環境で取り込みが必要なら STOP して報告し、raw Git や別の host 入口で代替しない。
+Issue-pipeline の工程ロールで取り込みを使えるのは issue-fixer だけ（呼び出し元の command gate が判定する）。PF 固有の起動条件・権限境界は [Claude wrapper](../../.claude/agents/issue-fixer.md) に従う（Codex wrapper は Issue #603 で退役済み）。raw Git や別の host 入口で代替しない。
+
+### 取り込みとカルテ手順の順序
+
+取り込みは Step 0 の後、Step 1 の診断より前に行う。取り込みの衝突解消のための編集は是正の編集ではなく、Step 1 の診断登録を前提にしない（`karte append` の対象にもしない）。ただし衝突解消の編集は、取り込みの衝突を解消するのに必要な最小限の変更だけにし、finding の是正を混ぜない。finding 自体が base の取り込みや衝突の解消を求めている場合、その作業は是正であり、通常どおり Step 1 の診断を経てから行う。
+
+取り込みが原因で、このラウンドの Step 1 の診断登録（最初の `karte append`）より前に STOP する場合、`SubagentStop` のカルテ停止ゲートが1回目の停止を拒否し、block reason が診断の `append` や `close-attempt` を求めても、**どちらも実行しない**。対象は `integrate-base-abort` で中止した場合に限らない。仕様判断ができない衝突、記録と異なる merge の進行中、`BASE_STATE_INVALID`、policy 1.x で開始した取り込みの残存など、`docs/tools/gitgate-base-integration.md` が STOP を求める場合はすべて含む。これはカルテ手順書（`.claude/hooks/karte-protocol.md`「4. 停止できる条件」）の「できる記録は必ず済ませてから停止する」に対する例外である。理由は次のとおり。
+
+- 試していないアプローチが Attempt としてカルテに残り、類似判定の飽和（`karte/similarity.py`）に数えられて、再 dispatch された是正担当が本来のアプローチを1回試しただけで `EXIT_SATURATED` で拒否されうる。是正当事者も主文脈もその Attempt を取り消せない。
+- クローズ済みの Attempt が残ると、後で診断せずに行った編集も `karte check` を通ってしまう。
+
+代わりに、STOP の原因（取り込みを中止した場合はそのことと `integrate-base-abort` が返した退避 tar のパス）をハンドオフの `stop_reason` に書き、もう一度停止する（2回目の停止は `stop_hook_active` による再入として通る）。作業ツリーの回収はこの停止が通り、かつ自分のハンドオフがあるときに行われるので、ハンドオフは必ず書いてから停止する。
+
+Step 1 の診断登録より後に取り込みが原因で STOP する場合（push 後に base が進んだ等）は、この例外に当たらない。登録済みの Attempt は実際に試したアプローチなので、未クローズの Attempt があれば通常どおり実際の結果で `close-attempt` によりクローズしてから停止する。Step 2 の push 直後に既にクローズ済みなら（push 後に base が進んだ例はこれに当たる）、`close-attempt` はクローズ済みの Attempt を拒否し、`karte check` も通るので、そのまま停止できる。未クローズの Attempt をクローズするとき、是正の差分が無ければ `--outcome no-change`、あれば実測差分に応じた outcome を使い、実測差分が是正の変更だけを指すよう必要なら `--base` か `--diff-file` で範囲を明示する。
 
 ## Step 1: Diagnose（コード編集の前に必須）
 
-このステップを通さずに編集してはならない。
+このステップを通さずに編集してはならない（例外は「PR base の取り込み」の衝突解消だけで、その範囲は「取り込みとカルテ手順の順序」に従う）。
 
 1. `python3 -m karte render --issue <N> --round <R>` で Prior attempts（DO NOT repeat these）、未解消 finding、必要なら転換指令を読む。
 2. 対象 finding ごとに Diagnosis を作る。各失敗の根本原因、責任のあるファイルと行、設計ドキュメント上の正しい振る舞い（expected と根拠）を埋める。3つとも埋まらないならまだ直さない。

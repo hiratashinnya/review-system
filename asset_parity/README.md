@@ -196,3 +196,39 @@ itself.
 Issue #637: when both routing flags are present, `user-invocable: false` takes precedence
 and the skill is a principle. Virtual inline slot names use `principles-source-<name>`
 so tests can create the display location on Windows too.
+
+### Interpreting staleness and Git history
+
+`STALE?` is a date/line-count heuristic, not a semantic diff or proof of a
+contract mismatch. Platform wrappers can intentionally be shorter while
+referring to shared content; inspect the wrapper and its references before
+changing anything. The defaults remain a gap over 30 days or a size ratio over
+2.0 (and an empty file). Staleness is informational unless `--fail-on-stale`
+is supplied; missing assets still fail by default.
+
+Commit dates require a complete Git history. CI checks out with `fetch-depth: 0`.
+In a shallow checkout, outside Git, or when a file's history cannot be found,
+the date comparison is unobservable, not a zero-day gap; size checks still run.
+To investigate, run `git rev-parse --is-shallow-repository`, fetch the complete
+history if necessary, then run `python3 -m asset_parity check` and inspect
+`git log -1 --format=%ct -- <path>` for each side. JSON retains the existing raw
+signals and adds `time_direction` for the observation.
+
+### Documented mirror-only assets (Issue #730)
+
+`MIRROR_ONLY` in `exceptions.py` records the reverse of `EXEMPTIONS`: exact
+`(name, kind, tree)` keys for existing mirror files without a Claude parity seed,
+with reasons and source references. Detection still scans the filesystem first.
+Text reports distinguish documented entries from unclassified orphans; JSON keeps
+`orphans` unchanged as the raw tree-to-label-list map and adds
+`documented_mirror_only` (tree to name/kind/reason objects) and
+`unclassified_orphans` (tree to labels). Both remain informational.
+
+The authoring document is the shared contract referenced by the individual author
+agents, not a standalone author role. The Copilot template declares
+`disable-model-invocation: true` and `user-invocable: false`. The Codex TOML
+contains name, description and instructions to read the shared contract; static
+inspection alone does not establish loader acceptance or standalone invocability.
+Neither was tested by execution, and placement changes are outside this issue.
+The `doc-system-config` skill remains Codex-only, as recorded in
+`.ai/Individually-managed-lists.md` and `.ai/rationale/doc-system-config.md`.

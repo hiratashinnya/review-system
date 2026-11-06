@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import TypedDict
 
 from agent_command_gate.launch_origin import launch_origin_reason
 from tests.unit.test_agent_command_gate import payload as claude_payload, run_gate as claude_gate
@@ -14,7 +15,15 @@ COMMAND = "python3 -m agy_delegate run --workspace /tmp/work --settings /tmp/set
 LAUNCH_ROOT_MESSAGE = "agy_delegate launch root"
 
 
-def launch_codex(*, cwd=None, tool_input=None, process_cwd=ROOT, omit_cwd=True):
+class LaunchCase(TypedDict, total=False):
+    cwd: object
+    tool_input: dict[str, object]
+    process_cwd: Path
+    omit_cwd: bool
+
+
+def launch_codex(*, cwd: object | None = None, tool_input: dict[str, object] | None = None,
+                 process_cwd: Path = ROOT, omit_cwd: bool = True):
     body = codex_payload("agy-delegate", COMMAND, tool_name="exec_command")
     if not omit_cwd or cwd is not None:
         body["cwd"] = cwd
@@ -22,7 +31,8 @@ def launch_codex(*, cwd=None, tool_input=None, process_cwd=ROOT, omit_cwd=True):
     return codex_gate(body, cwd=process_cwd)
 
 
-def launch_claude(*, cwd=None, tool_input=None, process_cwd=ROOT, omit_cwd=True):
+def launch_claude(*, cwd: object | None = None, tool_input: dict[str, object] | None = None,
+                  process_cwd: Path = ROOT, omit_cwd: bool = True):
     body = claude_payload("agy-delegate", COMMAND)
     if not omit_cwd or cwd is not None:
         body["cwd"] = cwd
@@ -44,14 +54,20 @@ class LaunchOriginBothPlatformsTests(unittest.TestCase):
         self.launchers = (("codex", launch_codex), ("claude", launch_claude))
 
     def test_launch_from_trusted_root_is_allowed_for_every_declaration_form(self):
-        cases = (dict(), dict(omit_cwd=False), dict(cwd=str(ROOT)), dict(cwd=str(self.link)),
-                 dict(tool_input={"workdir": str(ROOT)}), dict(tool_input={"workdir": None}),
-                 dict(cwd=str(ROOT), tool_input={"workdir": "."}), dict(tool_input={"cwd": str(self.link)}),
-                 dict(process_cwd=self.link))
+        cases: tuple[LaunchCase, ...] = (
+            {}, {"omit_cwd": False}, {"cwd": str(ROOT)}, {"cwd": str(self.link)},
+            {"tool_input": {"workdir": str(ROOT)}}, {"tool_input": {"workdir": None}},
+            {"cwd": str(ROOT), "tool_input": {"workdir": "."}},
+            {"tool_input": {"cwd": str(self.link)}}, {"process_cwd": self.link},
+        )
         for name, launch in self.launchers:
             for case in cases:
                 with self.subTest(platform=name, case=case):
-                    self.assertIsNone(launch(**case))
+                    self.assertIsNone(launch(
+                        cwd=case.get("cwd"), tool_input=case.get("tool_input"),
+                        process_cwd=case.get("process_cwd", ROOT),
+                        omit_cwd=case.get("omit_cwd", True),
+                    ))
 
     def test_omitted_or_null_cwd_is_denied_when_real_process_cwd_is_not_trusted_root(self):
         for name, launch in self.launchers:
@@ -71,18 +87,24 @@ class LaunchOriginBothPlatformsTests(unittest.TestCase):
 
     def test_explicit_relative_and_invalid_values_are_denied(self):
         other = str(self.other)
-        cases = (dict(cwd=other), dict(cwd="."), dict(cwd="relative/dir"), dict(cwd=123), dict(cwd=""),
-                 dict(cwd=["x"]), dict(cwd=str(ROOT / "tests")),
-                 dict(tool_input={"workdir": other}), dict(tool_input={"cwd": other}),
-                 dict(tool_input={"workdir": "tests"}), dict(tool_input={"workdir": ""}),
-                 dict(tool_input={"workdir": 123}), dict(tool_input={"workdir": ["x"]}),
-                 dict(cwd=str(ROOT), tool_input={"workdir": other}),
-                 dict(cwd=other, tool_input={"workdir": str(ROOT)}),
-                 dict(cwd=str(self.other / ".." / "other-tree")))
+        cases: tuple[LaunchCase, ...] = (
+            {"cwd": other}, {"cwd": "."}, {"cwd": "relative/dir"}, {"cwd": 123}, {"cwd": ""},
+            {"cwd": ["x"]}, {"cwd": str(ROOT / "tests")},
+            {"tool_input": {"workdir": other}}, {"tool_input": {"cwd": other}},
+            {"tool_input": {"workdir": "tests"}}, {"tool_input": {"workdir": ""}},
+            {"tool_input": {"workdir": 123}}, {"tool_input": {"workdir": ["x"]}},
+            {"cwd": str(ROOT), "tool_input": {"workdir": other}},
+            {"cwd": other, "tool_input": {"workdir": str(ROOT)}},
+            {"cwd": str(self.other / ".." / "other-tree")},
+        )
         for name, launch in self.launchers:
             for case in cases:
                 with self.subTest(platform=name, case=case):
-                    denial = launch(**case)
+                    denial = launch(
+                        cwd=case.get("cwd"), tool_input=case.get("tool_input"),
+                        process_cwd=case.get("process_cwd", ROOT),
+                        omit_cwd=case.get("omit_cwd", True),
+                    )
                     self.assertIsNotNone(denial)
                     self.assertIn(LAUNCH_ROOT_MESSAGE, json.dumps(denial))
 
@@ -90,6 +112,8 @@ class LaunchOriginBothPlatformsTests(unittest.TestCase):
         empty = Path(self.temp.name) / "no-wrapper"
         empty.mkdir()
         reason = launch_origin_reason({"cwd": str(empty)}, {"command": COMMAND}, str(empty))
+        if reason is None:
+            self.fail("expected rejection when the trusted package is missing")
         self.assertIn("trusted agy_delegate package", reason)
 
     def test_wrong_command_is_still_denied_before_origin_check(self):
@@ -105,6 +129,8 @@ class LaunchOriginModuleTests(unittest.TestCase):
         def broken():
             raise FileNotFoundError("cwd removed")
         reason = launch_origin_reason({}, {"command": COMMAND}, str(ROOT), process_cwd=broken)
+        if reason is None:
+            self.fail("expected rejection when process cwd cannot be determined")
         self.assertIsNotNone(reason)
         self.assertIn(LAUNCH_ROOT_MESSAGE, reason)
         self.assertIn("cannot be determined", reason)

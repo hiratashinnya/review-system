@@ -1,6 +1,7 @@
 """primary trusted callerからreadonly専用linked cwdへ束縛する。"""
 import hashlib
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,14 @@ class ReadOnlyWorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             source, target = make_repository(directory)
+            repo_root = Path(__file__).resolve().parents[2]
+            for name in ('.ai/skills/review-harm/SKILL.md',
+                         '.claude/skills/review-harm/SKILL.md'):
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(repo_root / name, path)
+            git(source, "add", ".ai/skills/review-harm/SKILL.md", ".claude/skills/review-harm/SKILL.md")
+            git(source, "commit", "-qm", "review harm criteria")
             manifest = json.loads(ENTRYPOINT_MANIFEST.read_text())
             for entry in manifest["readonly"]:
                 entry["binding_transports"]["claude"]["availability"] = "available"
