@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from jev_hooks.config import load_config
 
@@ -27,7 +28,7 @@ class ParallelTests(unittest.TestCase):
             for process in processes:
                 stdout, stderr = process.communicate(timeout=15)
                 self.assertEqual(json.loads(stdout)["decision"], "block", stderr)
-            with sqlite3.connect(Path(tmp) / "state.sqlite3") as db:
+            with closing(sqlite3.connect(Path(tmp) / "state.sqlite3")) as db:
                 state = json.loads(db.execute("SELECT data FROM sessions").fetchone()[0])
                 self.assertEqual(state["blocks"], {"R1": 1})
                 self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
