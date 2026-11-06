@@ -1,7 +1,10 @@
 """Regression tests for verification check publishing and job parity."""
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -84,3 +87,24 @@ class VerificationCheckTests(unittest.TestCase):
             marker = '      - name: Set up Python'
             self.assertEqual(source[source.index(marker):].strip(),
                              target[target.index(marker):].strip())
+
+    def test_workflows_are_compared_before_running_untrusted_tests(self):
+        verify = Path('.github/workflows/conflict-repair-verify.yml').read_text()
+        command = 'cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml'
+        for name, end in (('unittest', 'verify-typecheck'), ('typecheck', 'report')):
+            job = verify.split(f'  verify-{name}:\n', 1)[1].split(f'  {end}:\n', 1)[0]
+            self.assertLess(job.index('ref: ${{ github.sha }}'), job.index('ref: ${{ inputs.head_oid }}'))
+            self.assertLess(job.index('test_verification_commands_match_pr_jobs'), job.index(command))
+            self.assertLess(job.index(command), job.index('      - name: Set up Python'))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '.github/workflows').mkdir(parents=True)
+            trusted = root / 'trusted-tests.yml'
+            candidate = root / '.github/workflows/tests.yml'
+            trusted.write_text('trusted')
+            candidate.write_text('trusted')
+            env = dict(os.environ, RUNNER_TEMP=tmp)
+            self.assertEqual(subprocess.run(command, shell=True, cwd=root, env=env).returncode, 0)
+            candidate.write_text('different')
+            self.assertNotEqual(subprocess.run(command, shell=True, cwd=root, env=env,
+                                               stdout=subprocess.DEVNULL).returncode, 0)

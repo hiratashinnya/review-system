@@ -21,6 +21,15 @@ jobs:
         env:
           HEAD_OID: ${{ inputs.head_oid }}
         run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
+      - name: Save trusted tests workflow
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Save trusted workflow for comparison
+        run: |
+          python3 -m unittest tests.conflict_repair.test_verification_check.VerificationCheckTests.test_verification_commands_match_pr_jobs
+          cp .github/workflows/tests.yml "$RUNNER_TEMP/trusted-tests.yml"
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.head_oid }}
@@ -29,6 +38,8 @@ jobs:
         env:
           HEAD_OID: ${{ inputs.head_oid }}
         run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
+      - name: Require unchanged tests workflow
+        run: cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -68,6 +79,15 @@ jobs:
         env:
           HEAD_OID: ${{ inputs.head_oid }}
         run: '[[ "$HEAD_OID" =~ ^[0-9a-f]{40}$ ]]'
+      - name: Save trusted tests workflow
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Save trusted workflow for comparison
+        run: |
+          python3 -m unittest tests.conflict_repair.test_verification_check.VerificationCheckTests.test_verification_commands_match_pr_jobs
+          cp .github/workflows/tests.yml "$RUNNER_TEMP/trusted-tests.yml"
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.head_oid }}
@@ -76,6 +96,8 @@ jobs:
         env:
           HEAD_OID: ${{ inputs.head_oid }}
         run: test "$(git rev-parse HEAD)" = "$HEAD_OID"
+      - name: Require unchanged tests workflow
+        run: cmp "$RUNNER_TEMP/trusted-tests.yml" .github/workflows/tests.yml
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
