@@ -2,26 +2,44 @@
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from . import git
 from .github import GitHub
 
 
-def resolve(api, number, head_oid, source):
-    if not re.fullmatch(r'[1-9][0-9]*', number) or not re.fullmatch(r'[0-9a-f]{40}', head_oid):
-        raise ValueError('invalid PR number or head OID')
-    pr = api.request(f'/pulls/{number}')
+def live_pr(api, number, head_oid):
     default = api.default_branch()
+    pr = api.request(f'/pulls/{number}')
     base, head = pr['base'], pr['head']
     if (pr['number'] != int(number) or pr['state'] != 'open'
             or base['repo']['full_name'] != api.repository or head['repo']['full_name'] != api.repository
-            or base['ref'] != default or head['ref'] == default or head['sha'] != head_oid
-            or pr['mergeable'] is not True):
+            or base['ref'] != default or head['ref'] == default or head['sha'] != head_oid):
         raise ValueError('PR is not an eligible live merge target')
     base_oid = api.branch_oid(default)
     if api.branch_oid(head['ref']) != head_oid:
         raise ValueError('head branch changed')
+    return pr, default, base_oid
+
+
+def resolve(api, number, head_oid, source):
+    if not re.fullmatch(r'[1-9][0-9]*', number) or not re.fullmatch(r'[0-9a-f]{40}', head_oid):
+        raise ValueError('invalid PR number or head OID')
+    initial = None
+    for attempt in range(6):
+        pr, default, base_oid = live_pr(api, number, head_oid)
+        snapshot = (default, base_oid, pr['head']['ref'])
+        if initial is not None and snapshot != initial:
+            raise ValueError('PR or base branch changed while waiting for test merge')
+        initial = snapshot
+        if pr['mergeable'] is not None:
+            break
+        if attempt < 5:
+            time.sleep(5)
+    if pr['mergeable'] is not True:
+        raise ValueError('PR is not an eligible live merge target')
+    head = pr['head']
     merge_oid = pr['merge_commit_sha']
     if not isinstance(merge_oid, str) or not re.fullmatch(r'[0-9a-f]{40}', merge_oid):
         raise ValueError('merge commit unavailable')

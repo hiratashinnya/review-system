@@ -33,9 +33,34 @@ class VerificationTargetTests(unittest.TestCase):
         self.parents = f'{self.api.merge} {self.api.base} {self.api.head}\n'
 
     def run_resolve(self):
-        with patch('conflict_repair.verification_target.git.run') as run:
+        with patch('conflict_repair.verification_target.git.run') as run, \
+                patch('conflict_repair.verification_target.time.sleep'):
             run.return_value = SimpleNamespace(stdout=self.parents)
             return resolve(self.api, '3', self.api.head, '.')
+
+    def test_mergeable_is_retried_until_ready(self):
+        pending = dict(self.api.pr, mergeable=None)
+        with patch.object(self.api, 'request', side_effect=[pending, pending, self.api.pr]) as request:
+            self.assertEqual(self.run_resolve()['merge_oid'], self.api.merge)
+            self.assertEqual(request.call_count, 3)
+
+    def test_wait_is_bounded_and_rechecks_pr_and_base(self):
+        self.api.pr['mergeable'] = None
+        with patch.object(self.api, 'request', wraps=self.api.request) as request:
+            with self.assertRaises(ValueError):
+                self.run_resolve()
+            self.assertEqual(request.call_count, 6)
+        self.api = API()
+        pending = dict(self.api.pr, mergeable=None)
+        closed = dict(self.api.pr, state='closed')
+        with patch.object(self.api, 'request', side_effect=[pending, closed]):
+            with self.assertRaises(ValueError):
+                self.run_resolve()
+        with patch.object(self.api, 'request', side_effect=[pending, self.api.pr]), \
+                patch.object(self.api, 'branch_oid', side_effect=[self.api.base, self.api.head,
+                                                                  'd' * 40, self.api.head]):
+            with self.assertRaisesRegex(ValueError, 'changed while waiting'):
+                self.run_resolve()
 
     def test_live_merge_and_parents(self):
         target = self.run_resolve()
