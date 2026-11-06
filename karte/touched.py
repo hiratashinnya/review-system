@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import subprocess
 
-REF_RE = re.compile(r"^[A-Za-z0-9._/@~^-]+$")
+REF_RE = re.compile(r"^[A-Za-z0-9._/@~^-]+\Z")  # `$` は末尾の改行を通すので `\Z`
 HUNK_RE = re.compile(r"^@@[^@]*@@(.*)$")
 SYMBOL_RE = re.compile(r"\b(?:async\s+)?(?:def|class|function)\s+([A-Za-z_][A-Za-z0-9_]*)")
 
@@ -86,7 +86,7 @@ def git_diff(cwd, base: str = "HEAD") -> str:
 
     ``cwd`` は「どの worktree の変更を測るか」を決める値であり、台帳（``tmp/_karte/``）の
     所在解決に使う ``karte.paths.main_worktree_root()`` 由来の値と混同してはならない
-    （呼び出し元 :func:`karte.cli._diff_cwd` の docstring・Issue #437）。ここで main worktree
+    （:func:`karte.repo_roots.invoking_worktree`・Issue #437）。ここで main worktree
     の値を渡すと、isolated worktree で行った commit がその cwd の作業ツリーには存在せず
     diff が常に空になり、fail-close（Issue #355）が spurious に発火する。
     """

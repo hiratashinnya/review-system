@@ -82,8 +82,8 @@ Issue #493 として流出）。迂回に必要なのは「スコープ外」と
 
 - `waived_by` / `waived_reason` は自由記述のスカラであり、**書いた主体がオーナー本人かを
   機械側は区別しない**。`ingest-review` を実行するのは主文脈（AI）であり、
-  `.claude/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは
-  是正当事者ロール（`issue-fixer` 等）だけである。
+  `.claude/hooks/agent-command-gate.sh` と `.codex/hooks/agent-command-gate.sh` の
+  `KARTE_ALLOWED_SUBCOMMANDS` が締め出しているのは是正当事者ロール（`issue-fixer` 等）だけである。
 - `deferred_to` は形式（`#123` / `123` / URL）だけを検査し、**指す Issue が実在するかは
   検証しない**。
 - **したがってこの 2 つについて強制しているのは記録であって、オーナー判断ではない。**
@@ -264,8 +264,8 @@ python3 -m karte check [--issue <N>] [--round <R>]
 同じキー（`harm`/`harm_detail`/`severity`/`scope: out`/`locus`/`summary`/`evidence`/
 `expected`/`recheck`）を揃える。主文脈がそれを finding ブロックへ写して `ingest-review` する
 （`pr-reviewer` だけ直しても半分しか塞がらない）。**取り込みの実行は主文脈**で、是正当事者には
-`ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` の
-`KARTE_ALLOWED_SUBCOMMANDS`）。
+`ingest-review` を許さない（`.claude/hooks/agent-command-gate.sh` と
+`.codex/hooks/agent-command-gate.sh` の `KARTE_ALLOWED_SUBCOMMANDS`）。
 
 ## `harm_detail` の内容 lint（Issue #511）
 
@@ -383,3 +383,21 @@ touched-set 自体が空（`--base` を誤って空 diff になったケース�
 
 `dsv2` に合わせる：`0` OK ／ `2` 未検出 ／ `3` 類似飽和（`append` 拒否）／
 `4` 前提違反・検証失敗（fail-close）。
+
+次の入力は例外（traceback の終了コード 1）ではなく `4` で拒否する（上の 4 種に収まる）：
+
+- **不正な UTF-8 の入力**（レポート本文のファイル・標準入力、台帳、進行ポインタ、`--diff-file`）。
+- **整数は ASCII 数字だけ**：整数引数（`--issue` / `--round` / `--attempt`）、台帳・ポインタ内の整数
+  （`rounds`・`resolved_round`・`round`・`issue`）、finding ID・見出し（`F-<issue>-<seq>`・`# Karte: issue-N`・
+  `Attempt N`・`Result N`）の番号。`²` のような非 ASCII 数字や、`int_args.MAX_DIGITS`（18 桁）を超える
+  桁数は `4`（Python の変換上限 4300 桁ちょうどは `int()` を通り、`+ 1` した値の `str()` が `ValueError` になる）。
+  変換の入口は `karte/int_args.py` の `ascii_int_or_none` / `require_ascii_int` / `parse_int` に
+  一本化してある。`+ 1` して書く値（`ingest-review` の `--round` 補完・finding の連番・Attempt 番号）は、
+  足した結果も読み戻せる桁数でなければ `4` で拒否する（書けば台帳が以後読めなくなるため）。
+- **進行ポインタ `tmp/_karte/active.json` の JSON が壊れている／ネストが深すぎる**（再帰上限の
+  `RecursionError` も `4`）。JSON オブジェクトでない中身も `4`。末尾改行付きの `--issue $'5\n'` も `4`
+  （検査は `fullmatch`・正規表現の末尾は `\Z`）。`render` の見出しに出す `round` も、`append` の補完と同じ
+  読み方（`pointer_completion.recorded_round`）で検証し、整数でない値は `4`（subagent の文脈へ注入される本文に
+  検証前の値を出さない）。ポインタが別 Issue を指す・`round` が 0/欠落のときは見出しに出さない。
+- **ロック内で拒否された `ingest-review`** は `4` を返し台帳・ポインタは書かないが、新規 repo でも
+  `tmp/_karte/` と `.writer.lock` は残る（何も作らずに拒否できるのはロック前の引数・ポインタ・本文の検証だけ）。
