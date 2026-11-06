@@ -78,5 +78,3 @@
 - Codex 資産を `.claude/` に混ぜない。Codex hooks/config/custom agents は `.codex/`、repo skills は `.agents/skills/` に置く。
 
 - pr-reviewer / plan-reviewer 相当を直接 dispatch する前に、信頼する作業 snapshot の `.ai/skills/review-harm/SKILL.md` 全文を読み依頼本文へ含める。取得・検証不能なら STOP し、起動しない。
-
-<!-- issue-711 R5 fixture: intentionally stale generated file; do not merge -->
