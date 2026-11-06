@@ -1098,5 +1098,3 @@ def main(argv=None, extra_registrars=()) -> int:
     （:func:`karte.verb_boundary.fail_close`）が担い、ここでは再ラップしない。"""
     args = build_parser(extra_registrars).parse_args(argv)
     return args.func(args)
-
-
