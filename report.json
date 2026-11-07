@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-07T11:30:38.930806Z",
+  "repository": "hiratashinnya/review-system",
+  "branch": "main",
+  "workflows_checked": 9,
+  "collection_errors": 0,
+  "anomalies": [
+    {
+      "workflow": {
+        "id": 351603195,
+        "name": "defect-metrics",
+        "path": ".github/workflows/defect-metrics.yml"
+      },
+      "severity": "error",
+      "summary": "workflow run concluded failure on main",
+      "details_url": "https://github.com/hiratashinnya/review-system/actions/runs/41382940052",
+      "run": {
+        "id": 41382940052,
+        "attempt": 1,
+        "conclusion": "failure",
+        "event": "schedule",
+        "head_sha": "773f617b270b9f732198da607d990c244862836f",
+        "completed_at": "2026-11-02T03:24:51Z"
+      }
+    }
+  ]
+}
