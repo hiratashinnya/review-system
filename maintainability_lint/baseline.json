@@ -15,9 +15,6 @@
     "gitgate/adopt.py|b773d74d104a989a": 1,
     "gitgate/cli.py|4c084b8d6f4b492f": 1,
     "gitgate/cli.py|b3bd3dea450cdad5": 1,
-    "gitgate/worktree.py|1888da7cc8174c4f": 1,
-    "gitgate/worktree.py|abc15b92f96f2e58": 1,
-    "gitgate/worktree.py|e239a628536ab723": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -39,7 +36,8 @@
     "karte/model.py|e1cbd9df9da10e08": 1,
     "karte/model.py|e22fd7599d44f325": 1,
     "karte_notify/notify.py|ec3051555595dc5f": 1,
-    "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
+    "project_status_sync/model.py|43d8fd6ab29f2cf1": 1,
+    "gitgate/worktree.py|abc15b92f96f2e58": 1
   },
   "mixed_class_files": {
     "branch_source/policy.py": {
@@ -114,8 +112,8 @@
       "sha256": "154d91bdf738797b9271103e6e5a5f14442922c4c5ae52ad38a35bd9cd030208"
     },
     "gitgate/worktree.py": {
-      "line_count": 1098,
-      "sha256": "9c0ada3af0133c21933f1c84e68b72bf08ad40e2535d1a34c081a141cbba4d44"
+      "line_count": 471,
+      "sha256": "179ee02f3a3b7767e79521645f2573ccf0061aae08d77b0d363336edce00bbfc"
     },
     "issue_start/durable_lock.py": {
       "line_count": 129,
