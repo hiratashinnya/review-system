@@ -36,7 +36,7 @@ def collect_handoff(repo_root, *, entry, relative_worktree, handoff_path, into,
             if not allow_missing_handoff:
                 raise WorktreeError("COLLECT_HANDOFF_MISSING", str(source))
         else:
-            data = _read_handoff(source, max_bytes=max_bytes)
+            data = read_handoff(source, max_bytes=max_bytes)
             if len(data) > max_bytes:
                 raise WorktreeError("COLLECT_HANDOFF_TOO_LARGE", str(max_bytes))
 
@@ -54,7 +54,7 @@ def collect_handoff(repo_root, *, entry, relative_worktree, handoff_path, into,
         dest = directory / filename
         if dest.is_symlink():
             raise WorktreeError("COLLECT_DEST_SYMLINK", str(dest))
-        _write_collected(dest, data)
+        write_collected(dest, data)
         expected_digest = hashlib.sha256(data).hexdigest()
         actual_digest = hashlib.sha256(dest.read_bytes()).hexdigest()
         if actual_digest != expected_digest:
