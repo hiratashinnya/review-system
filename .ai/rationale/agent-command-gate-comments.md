@@ -260,6 +260,20 @@
 # KARTE_SUBCOMMANDS_BY_ROLE でロールごとに絞る。
 ```
 
+### #696 側の移設元にあった旧説明
+
+以下は #696 側の移設元の原文であり、Issue #375 による reviewer 本人の限定的な取り込み許可より前の説明である。現行のロール別許可はフックを正本とする。
+
+```text
+# `karte` を issue-fixer にだけ足すのは、カルテ（`tmp/_karte/issue-<N>.md`）の**書き手を
+# issue-fixer に一本化する**という Issue #308 の設計をここでも機械的に担保するため。
+# `python3 -m karte append` はカルテへの追記＝ループ状態の書き換えなので、基底集合に入れて
+# 全 gated ロールへ配ると pr-reviewer（read-only・Write 非付与が fail-close の保証）にまで
+# 書込経路が生えてしまう。`karte` 自体は argparse の固定 CLI で任意コード実行経路を持たず、
+# 書き先も repo-root 配下の `tmp/_karte/` に fail-close で限定されている（`karte/paths.py`）ため、
+# issue-fixer に限れば `dsv2` と同格の「コーパス操作ツール」として扱える。
+```
+
 ## .claude/hooks/agent-command-gate.sh 元の 336 行目
 
 ```text

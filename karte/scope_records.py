@@ -1,73 +1,63 @@
 """申告 scope の原本ファイル（``tmp/_karte/issue-<N>.declared-scope.jsonl``）の読み書き部品。
 
-1 行 1 レコード：レビューアの申告 ``{"round", "id", "scope"}``、またはオーナーの確定
-``{"round", "id", "scope", "by": "owner"}``（``decide --scope`` が足す）。書込みは常に
-「既存の全行を検証 → 新しい全体を一時ファイルへ書いて置換」で、途中までの行を作らない。
+1 行 1 レコード：レビューアの申告またはオーナーの確定。書込みは常に既存の全行を検証し、
+新しい全体を同じディレクトリの一時ファイルへ書いて置換する。
 """
 
-import json
+from pathlib import Path
 
 from . import paths
-from .model import KarteFormatError
+from .scope_atomic import write_scope_text
+from .scope_directory import open_scope_directory
+from .scope_ledger_io import read_scope_text, scope_entry
+from .scope_record_parser import OWNER, REPAIR_HINT, SCOPES, record_of, records_of  # noqa: F401
 
 DECLARED_SCOPE_FMT = "issue-{issue}.declared-scope.jsonl"
-OWNER = "owner"
-SCOPES = ("in", "out")
-REPAIR_HINT = "（主文脈が `python3 -m karte activate --issue {issue} --repair-declared-scope` で復旧する）"
 
 
 def ledger_path(issue, repo_root, *, create=False):
-    return paths.karte_dir(repo_root, create=create) / DECLARED_SCOPE_FMT.format(issue=issue)
+    """Issue に対応する原本パスを返す。置き場は固定 dirfd で検査する。"""
+    root = Path(repo_root).resolve()
+    if not root.is_dir():
+        raise paths.KartePathError(f"repo-root がディレクトリでない: {root}")
+    path = root / "tmp" / "_karte" / DECLARED_SCOPE_FMT.format(issue=paths.validate_issue(issue))
+    with open_scope_directory(path, create=create):
+        return path
+
+
+def is_regular_or_missing(path) -> bool:
+    with open_scope_directory(path) as directory:
+        return scope_entry(path, directory) is not None
 
 
 def exists(issue, repo_root) -> bool:
     """この Issue に原本があるか（置き場が無ければ無い）。"""
     try:
-        return ledger_path(issue, repo_root).exists()
+        path = ledger_path(issue, repo_root)
+        return is_regular_or_missing(path)
     except paths.KarteMissing:
         return False
 
 
-def record_of(line):
-    """1 行を ``(round, id, scope, by)`` にする。``by`` は申告なら ``""``。壊れていれば ``ValueError``。"""
-    try:
-        record = json.loads(line)
-        round_no, finding_id, scope = record["round"], record["id"], record["scope"]
-        by = record.get("by", "")
-    except (ValueError, KeyError, TypeError, AttributeError) as exc:
-        raise ValueError(repr(exc)) from None
-    if isinstance(round_no, bool) or not isinstance(round_no, int):
-        raise ValueError("round は整数でなければならない")
-    if not isinstance(finding_id, str) or scope not in SCOPES or by not in ("", OWNER):
-        raise ValueError("id は文字列、scope は in/out、by は省略か owner でなければならない")
-    return round_no, finding_id, scope, by
-
-
 def read_records(issue, repo_root):
-    """``[(line, (round, id, scope, by))]``。1 行でも壊れていれば :class:`KarteFormatError`。"""
+    """``[(line, (round, id, scope, by))]``。1 行でも壊れていれば KarteFormatError。"""
     try:
         path = ledger_path(issue, repo_root)
-    except paths.KarteMissing:  # 置き場ごと無い＝まだ何も取り込んでいない
+    except paths.KarteMissing:
         return []
-    if not path.is_file():
-        return []
-    records = []
-    for number, line in enumerate(paths.read_text(path).splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            records.append((line, record_of(line)))
-        except ValueError as exc:
-            raise KarteFormatError(
-                f"申告 scope の原本 {path} の {number} 行目が壊れている（{exc}）。"
-                f"台帳との差分を判定できないため拒否する{REPAIR_HINT.format(issue=issue)}"
-            ) from None
-    return records
+    with open_scope_directory(path) as directory:
+        return records_of(path, issue, read_scope_text(path, directory))
 
 
 def append_lines(issue, repo_root, new_lines, *, records=None) -> None:
-    """既存の全行を検証したうえで ``new_lines`` を足し、全体を原子的に置換する。"""
-    if records is None:
-        records = read_records(issue, repo_root)
-    lines = [line for line, _record in records] + list(new_lines)
-    paths.write_text_atomic(ledger_path(issue, repo_root, create=True), "\n".join(lines) + "\n")
+    """読取時の原本が変わっていないことを検査し、原子的に追記する。"""
+    path = ledger_path(issue, repo_root, create=True)
+    with open_scope_directory(path) as directory:
+        current = read_scope_text(path, directory)
+        if records is None:
+            records = records_of(path, issue, current)
+        previous = [line for line, _record in records]
+        if [line for line in (current or "").splitlines() if line.strip()] != previous:
+            raise paths.KartePathError(f"申告 scope の原本が操作中に変更された: {path}")
+        lines = previous + list(new_lines)
+        write_scope_text(path, directory, "\n".join(lines) + "\n", expected=current)

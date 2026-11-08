@@ -5,15 +5,17 @@ import ast
 import contextlib
 import io
 import json
+import os
 import tempfile
 import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from karte import cli, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, reviewer_cli, reviewer_policy, scope_ledger, scope_records, verb_boundary
+from karte import cli, handoff_path, karte_rounds, owner_cli, owner_decision, paths, pointer_completion, reviewer_cli, reviewer_policy, scope_directory, scope_ledger, scope_ledger_io, scope_records, verb_boundary
 from karte.errors import KarteUsageError
 from karte.int_args import parse_int
+from karte.model import KarteFormatError
 from karte.path_errors import KartePathError
 
 FINDING = {
@@ -322,6 +324,311 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertIn(f"F-{self.issue}-02", err)
         self.assertEqual(before, [path.read_bytes() for path in files])
 
+    def test_scope_ledger_symlinks_fail_closed_without_writes(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        self.assertEqual(cli.EXIT_OK, self._decide(disposition="deferred", deferred_to="#9")[0])
+        ledger = self._declared_path()
+        good = ledger.read_bytes()
+        active = paths.active_path(self.root)
+        karte = paths.karte_path(self.issue, self.root)
+        before_active, before_karte = active.read_bytes(), karte.read_bytes()
+
+        for existing in (False, True):
+            with self.subTest(target_exists=existing):
+                ledger.unlink()
+                target = self.root / ("scope-target-live" if existing else "scope-target-missing")
+                if existing:
+                    target.write_bytes(good)
+                ledger.symlink_to(target)
+                code, _, err = self._main_context_ingest_round(2, _report(f"F-{self.issue}-01"))
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn("symlink", err)
+                with self.assertRaises(KartePathError):
+                    scope_records.read_records(self.issue, self.root)
+                code, _, err = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+                self.assertEqual(cli.EXIT_ERROR, code)
+                self.assertIn("symlink", err)
+                self.assertEqual(before_active, active.read_bytes())
+                self.assertEqual(before_karte, karte.read_bytes())
+                self.assertTrue(ledger.is_symlink())
+                self.assertEqual(target, ledger.readlink())
+                self.assertEqual(existing, target.exists())
+                if existing:
+                    self.assertEqual(good, target.read_bytes())
+                ledger.unlink()
+                ledger.write_bytes(good)
+
+    def test_scope_ledger_directory_is_rejected_without_writes(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        ledger.unlink()
+        ledger.mkdir()
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes())
+        with self.assertRaises(KartePathError):
+            scope_ledger.exists(self.issue, self.root)
+        with self.assertRaises(KartePathError):
+            scope_records.read_records(self.issue, self.root)
+        code, _, err = self._main_context_ingest_round(2, _report(f"F-{self.issue}-01"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("通常ファイルではない", err)
+        code, _, _ = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertEqual(before, (active.read_bytes(), karte.read_bytes()))
+        self.assertTrue(ledger.is_dir())
+
+    def test_scope_ledger_metadata_error_is_not_treated_as_absence(self):
+        self._activate()
+        ledger = self._declared_path()
+        original_stat = os.stat
+
+        def stat_error(path, *args, **kwargs):
+            if path == ledger.name and kwargs.get("dir_fd") is not None:
+                raise PermissionError("denied")
+            return original_stat(path, *args, **kwargs)
+
+        with mock.patch.object(os, "stat", side_effect=stat_error):
+            with self.assertRaisesRegex(KartePathError, "検査できない"):
+                scope_records.is_regular_or_missing(ledger)
+
+    def _assert_scope_replacement_is_rejected(self, operation, kind):
+        if kind == "fifo" and not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO が使用できない")
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        target = self.root / "outside-scope.txt"
+        target.write_text("not a scope record\n", encoding="utf-8")
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes(), target.read_bytes())
+        real_open, real_path_read = os.open, Path.read_text
+        swapped = []
+
+        def swap():
+            if not swapped:
+                ledger.unlink()
+                if kind == "symlink":
+                    ledger.symlink_to(target)
+                else:
+                    os.mkfifo(ledger)
+                swapped.append(True)
+
+        def open_race(path, flags, *args, **kwargs):
+            if isinstance(path, (str, os.PathLike)) and (
+                Path(path) == ledger or (str(path) == ledger.name and kwargs.get("dir_fd") is not None)
+            ):
+                swap()
+            return real_open(path, flags, *args, **kwargs)
+
+        def read_race(path, *args, **kwargs):
+            if path == ledger:
+                swap()
+                self.fail("差替え後に path の read_text で開こうとした")
+            return real_path_read(path, *args, **kwargs)
+
+        with mock.patch.object(os, "open", side_effect=open_race), \
+             mock.patch.object(Path, "read_text", autospec=True, side_effect=read_race):
+            if operation == "ingest":
+                code, _, _ = self._main_context_ingest_round(2, _report(f"F-{self.issue}-01"))
+            else:
+                code, _, _ = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertTrue(swapped)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertEqual(before, (active.read_bytes(), karte.read_bytes(), target.read_bytes()))
+        self.assertFalse(ledger.with_name(ledger.name + ".bak").exists())
+        if kind == "symlink":
+            self.assertTrue(ledger.is_symlink())
+            self.assertEqual(target, ledger.readlink())
+
+    def test_scope_symlink_swap_is_rejected_during_ingest(self):
+        self._assert_scope_replacement_is_rejected("ingest", "symlink")
+
+    def test_scope_symlink_swap_is_rejected_before_repair_backup(self):
+        self._assert_scope_replacement_is_rejected("repair", "symlink")
+
+    def test_scope_repair_keeps_backup_if_symlink_appears_after_backup(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        original = ledger.read_text(encoding="utf-8") + "{broken\n"
+        ledger.write_text(original, encoding="utf-8")
+        backup = ledger.with_name(ledger.name + ".bak")
+        target = self.root / "outside-scope.txt"
+        target.write_text("external data\n", encoding="utf-8")
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes(), target.read_bytes())
+        real_link = os.link
+
+        def swap_after_backup(src, dst, *args, **kwargs):
+            real_link(src, dst, *args, **kwargs)
+            if dst == backup.name:
+                ledger.unlink()
+                ledger.symlink_to(target)
+
+        with mock.patch.object(os, "link", side_effect=swap_after_backup):
+            code, _, err = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("symlink", err)
+        self.assertEqual(original, backup.read_text(encoding="utf-8"))
+        self.assertEqual(before, (active.read_bytes(), karte.read_bytes(), target.read_bytes()))
+        self.assertTrue(ledger.is_symlink())
+        self.assertEqual(target, ledger.readlink())
+
+    def test_scope_repair_does_not_overwrite_symlink_backup(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        good = ledger.read_text(encoding="utf-8")
+        original = good + "{broken\n"
+        ledger.write_text(original, encoding="utf-8")
+        backup = ledger.with_name(ledger.name + ".bak")
+        target = self.root / "existing-backup-target"
+        target.write_text("do not overwrite\n", encoding="utf-8")
+        backup.symlink_to(target)
+        code, _, _ = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_OK, code)
+        self.assertTrue(backup.is_symlink())
+        self.assertEqual("do not overwrite\n", target.read_text(encoding="utf-8"))
+        self.assertEqual(original, ledger.with_name(ledger.name + ".bak.1").read_text(encoding="utf-8"))
+        self.assertEqual(good, ledger.read_text(encoding="utf-8"))
+
+    def _assert_scope_parent_swap_is_rejected(self, operation):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        if operation in ("repair", "repair_backup"):
+            ledger.write_text(ledger.read_text(encoding="utf-8") + "{broken\n", encoding="utf-8")
+        directory = ledger.parent
+        moved = directory.with_name("_karte-original")
+        outside = Path(tempfile.mkdtemp(prefix="scope-outside-"))
+        self.addCleanup(lambda: shutil.rmtree(outside, ignore_errors=True))
+        outside_ledger = outside / ledger.name
+        outside_ledger.write_text("outside contents\n", encoding="utf-8")
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes(), ledger.read_bytes(), outside_ledger.read_bytes())
+        real_open, real_link = os.open, os.link
+        swapped = []
+
+        def swap_parent():
+            directory.rename(moved)
+            directory.symlink_to(outside, target_is_directory=True)
+            swapped.append(True)
+
+        def open_race(path, flags, *args, **kwargs):
+            name = os.fspath(path)
+            if kwargs.get("dir_fd") is not None and not swapped:
+                reading = name == ledger.name and not (flags & os.O_WRONLY)
+                writing = name.startswith("." + ledger.name + ".") and bool(flags & os.O_CREAT)
+                if reading and operation == "repair" or writing and operation in ("reviewer", "owner"):
+                    swap_parent()
+            return real_open(path, flags, *args, **kwargs)
+
+        def link_race(src, dst, *args, **kwargs):
+            result = real_link(src, dst, *args, **kwargs)
+            if operation == "repair_backup" and dst == ledger.name + ".bak" and not swapped:
+                swap_parent()
+            return result
+
+        with mock.patch.object(os, "open", side_effect=open_race), \
+             mock.patch.object(os, "link", side_effect=link_race):
+            if operation in ("repair", "repair_backup"):
+                code, _, _ = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+            elif operation == "reviewer":
+                code, _, _ = self._ingest(_report(f"F-{self.issue}-01", scope="out"), "pr-reviewer--r2.md")
+            else:
+                code, _, _ = self._decide(scope="out")
+        self.assertTrue(swapped)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertEqual(before, ((moved / active.name).read_bytes(), (moved / karte.name).read_bytes(),
+                                  (moved / ledger.name).read_bytes(), outside_ledger.read_bytes()))
+        self.assertEqual([ledger.name], sorted(path.name for path in outside.iterdir()))
+        self.assertTrue(directory.is_symlink())
+        self.assertEqual(outside, directory.readlink())
+        if operation == "repair_backup":
+            self.assertEqual(before[2], (moved / (ledger.name + ".bak")).read_bytes())
+
+    def test_scope_parent_swap_during_repair_is_rejected(self):
+        self._assert_scope_parent_swap_is_rejected("repair")
+
+    def test_scope_parent_swap_after_repair_backup_is_rejected(self):
+        self._assert_scope_parent_swap_is_rejected("repair_backup")
+
+    def test_scope_repair_parent_swap_at_replace_keeps_backup_and_rejects(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        good = ledger.read_text(encoding="utf-8")
+        original = good + "{broken\n"
+        ledger.write_text(original, encoding="utf-8")
+        directory = ledger.parent
+        moved = directory.with_name("_karte-original")
+        outside = Path(tempfile.mkdtemp(prefix="scope-outside-"))
+        self.addCleanup(lambda: shutil.rmtree(outside, ignore_errors=True))
+        outside_ledger = outside / ledger.name
+        outside_ledger.write_text("outside contents\n", encoding="utf-8")
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes(), outside_ledger.read_bytes())
+        real_replace, swapped = os.replace, []
+
+        def swap_before_replace(src, dst, *args, **kwargs):
+            if dst == ledger.name and kwargs.get("dst_dir_fd") is not None and not swapped:
+                directory.rename(moved)
+                directory.symlink_to(outside, target_is_directory=True)
+                swapped.append(True)
+            return real_replace(src, dst, *args, **kwargs)
+
+        with mock.patch.object(os, "replace", side_effect=swap_before_replace):
+            code, _, err = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertTrue(swapped)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("置き場が操作中に変更された", err)
+        self.assertEqual(good, (moved / ledger.name).read_text(encoding="utf-8"))
+        self.assertEqual(original, (moved / (ledger.name + ".bak")).read_text(encoding="utf-8"))
+        self.assertEqual(before, ((moved / active.name).read_bytes(), (moved / karte.name).read_bytes(),
+                                  outside_ledger.read_bytes()))
+        self.assertEqual([ledger.name], sorted(path.name for path in outside.iterdir()))
+
+    def test_scope_parent_swap_during_reviewer_append_is_rejected(self):
+        self._assert_scope_parent_swap_is_rejected("reviewer")
+
+    def test_scope_parent_swap_during_owner_append_is_rejected(self):
+        self._assert_scope_parent_swap_is_rejected("owner")
+
+    def test_scope_fifo_swap_is_rejected_during_ingest(self):
+        self._assert_scope_replacement_is_rejected("ingest", "fifo")
+
+    def test_scope_fifo_swap_is_rejected_before_repair_backup(self):
+        self._assert_scope_replacement_is_rejected("repair", "fifo")
+
+    def test_scope_read_refuses_missing_os_guard(self):
+        ledger = self.root / "ledger"
+        for flag in ("O_NOFOLLOW", "O_NONBLOCK"):
+            with self.subTest(flag=flag), mock.patch.object(os, flag, 0, create=True):
+                with self.assertRaisesRegex(KartePathError, "OS 機能"):
+                    scope_ledger_io.read_scope_text(ledger)
+        with mock.patch.object(scope_directory, "_DIR_FD_SUPPORTED", False):
+            with self.assertRaisesRegex(KartePathError, "OS 機能"):
+                scope_ledger_io.read_scope_text(ledger)
+
+    def test_scope_invalid_utf8_refuses_without_writes(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        ledger = self._declared_path()
+        ledger.write_bytes(b"\xff\n")
+        active, karte = paths.active_path(self.root), paths.karte_path(self.issue, self.root)
+        before = (active.read_bytes(), karte.read_bytes(), ledger.read_bytes())
+        code, _, err = self._main_context_ingest_round(2, _report(f"F-{self.issue}-01"))
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("UTF-8", err)
+        self.assertEqual(before, (active.read_bytes(), karte.read_bytes(), ledger.read_bytes()))
+        code, _, err = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("UTF-8", err)
+        self.assertEqual(before, (active.read_bytes(), karte.read_bytes(), ledger.read_bytes()))
+        self.assertFalse(ledger.with_name(ledger.name + ".bak").exists())
+
     def test_protected_main_context_rejects_mixed_new_and_existing_ids_without_writes(self):
         self._activate()
         self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
@@ -613,14 +920,20 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
                 before_ledger = paths.karte_path(self.issue, self.root).read_text(encoding="utf-8")
                 before_side = self._declared_path().read_text(encoding="utf-8")
                 original = paths.write_text_atomic
+                original_replace = os.replace
 
                 def write(path, content):
-                    target = self._declared_path() if failing == "sidefile" else paths.karte_path(self.issue, self.root)
-                    if path == target:
+                    if failing == "ledger" and path == paths.karte_path(self.issue, self.root):
                         raise OSError("disk full")
                     return original(path, content)
 
-                with mock.patch.object(paths, "write_text_atomic", side_effect=write):
+                def replace(src, dst, *args, **kwargs):
+                    if failing == "sidefile" and dst == self._declared_path().name:
+                        raise OSError("disk full")
+                    return original_replace(src, dst, *args, **kwargs)
+
+                with mock.patch.object(paths, "write_text_atomic", side_effect=write), \
+                     mock.patch.object(os, "replace", side_effect=replace):
                     code, _, err = self._ingest(report, "pr-reviewer--r2.md")
                 self.assertEqual(cli.EXIT_ERROR, code)
                 self.assertIn("disk full", err)
@@ -671,6 +984,32 @@ class TestIngestReviewerHardening(ReviewerIngestCase):
         self.assertEqual(cli.EXIT_OK, out_code)
         self.assertIn("1 件", out)
         self.assertTrue(path.with_name(path.name + ".bak").is_file())
+        self.assertEqual(good, path.read_text(encoding="utf-8"))
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
+
+    def test_deep_declared_scope_fails_closed_and_can_be_repaired(self):
+        self._activate()
+        self.assertEqual(cli.EXIT_OK, self._ingest(_report())[0])
+        path = self._declared_path()
+        good = path.read_text(encoding="utf-8")
+        depth = 20_000
+        broken = "[" * depth + "0" + "]" * depth + "\n"
+        with self.assertRaises(RecursionError):
+            json.loads(broken)
+        original = good + broken
+        path.write_text(original, encoding="utf-8")
+
+        with self.assertRaisesRegex(KarteFormatError, "repair-declared-scope"):
+            scope_records.read_records(self.issue, self.root)
+        code, _, err = self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")
+        self.assertEqual(cli.EXIT_ERROR, code)
+        self.assertIn("--repair-declared-scope", err)
+        self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+        code, out, _ = self._run(owner_cli.cmd_activate, issue=str(self.issue), repair_declared_scope=True)
+        self.assertEqual(cli.EXIT_OK, code)
+        self.assertIn("1 件", out)
+        self.assertEqual(original, path.with_name(path.name + ".bak").read_text(encoding="utf-8"))
         self.assertEqual(good, path.read_text(encoding="utf-8"))
         self.assertEqual(cli.EXIT_OK, self._ingest(_report(f"F-{self.issue}-01"), "pr-reviewer--r2.md")[0])
 
