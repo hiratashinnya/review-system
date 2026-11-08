@@ -128,3 +128,13 @@ symlink 構成要素・repo-root 外へ解決されるパスはすべて git を
 - git worktree remove のロック由来失敗は、`collected_to` が記録された場合に限り `release_pending` として後続へ遅延する。それ以外の失敗は例外を維持する。
 - ローカル branch ref は fresh fetch と ancestry 確認を経た場合だけ削除し、判定不能なら台帳に理由を残して fail-open。ネットワーク fetch を毎 dispatch 経路から外す `cleanup_branch_ref=False` 契約は維持する。
 - `gitgate.worktree._write_collected` の実行時差替えを維持するため、facade が writer を回収パイプラインへ明示注入する。壁時計参照の追加はない。
+
+## G-03 abandoned-running sweep の責務分割（#759）
+
+- `worktree_sweep.py`: 呼び出し元の idle 申告、running 候補の絞込み、locked 観測失敗時の一括 fail-close、エントリ単位の例外隔離。
+- `worktree_sweep_handoff.py`: 所有者（agent_type / issue）に一致する handoff のみ候補とし、曖昧・読取不能なら保留。
+- `worktree_sweep_clean.py` / `worktree_sweep_discard.py`: dirty/untracked を拒否。handoff 不在では fresh fetch 後の HEAD ancestry まで確認できた場合に限って消去可能と判定。
+- `worktree_sweep_state.py`: locked を最優先し、handoff 所有者判定と安全性検査後にのみ running → stopped を記録。失敗時は stale と理由を残す。
+- `worktree_sweep_recovery.py`: collect(release=False) → handoff 有りなら clean 確認 → collect(release=True) を順に実行する。失敗時の kept-* 区分、notes、collected_to、release_pending は維持。
+- `worktree_forget.py`: stale → abandoned だけを担い、実体は消さない。
+- `worktree.py`: 既存公開 import、CLI 入口、テスト用差替え点を保持。新しい権限、削除条件、タイミング判定、挙動変更は追加しない。

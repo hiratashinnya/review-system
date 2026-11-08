@@ -36,8 +36,7 @@
     "karte/model.py|e1cbd9df9da10e08": 1,
     "karte/model.py|e22fd7599d44f325": 1,
     "karte_notify/notify.py|ec3051555595dc5f": 1,
-    "project_status_sync/model.py|43d8fd6ab29f2cf1": 1,
-    "gitgate/worktree.py|abc15b92f96f2e58": 1
+    "project_status_sync/model.py|43d8fd6ab29f2cf1": 1
   },
   "mixed_class_files": {
     "branch_source/policy.py": {
@@ -110,10 +109,6 @@
     "gitgate/cli.py": {
       "line_count": 379,
       "sha256": "154d91bdf738797b9271103e6e5a5f14442922c4c5ae52ad38a35bd9cd030208"
-    },
-    "gitgate/worktree.py": {
-      "line_count": 471,
-      "sha256": "179ee02f3a3b7767e79521645f2573ccf0061aae08d77b0d363336edce00bbfc"
     },
     "issue_start/durable_lock.py": {
       "line_count": 129,
