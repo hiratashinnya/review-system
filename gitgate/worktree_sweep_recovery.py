@@ -32,10 +32,8 @@ def sweep_recover(repo_root, entry, *, handoff, how, now, reason, runner, collec
         return SweepEntryOutcome(entry_id, relative, "kept-error", exc.reason)
 
     if how == "unique":
-        # handoff がある経路にも clean 検査を通す（F-502-01）。`git worktree remove --force`
-        # は dirty/untracked を問答無用で消すため、「handoff が書けている＝完走した」を
-        # 「捨ててよい」の代わりにしない。`how == "empty"` は上の `_is_discardable` で
-        # 同じ検査（＋origin 包含）を既に通しているので二重には実行しない。
+        # handoff があっても削除前には clean を確認する（F-502-01）。
+        # handoff 不在は _is_discardable で clean と origin 包含を確認済み。
         clean, why = _is_worktree_clean(repo_root, entry, runner=runner)
         if not clean:
             _sweep_stale(

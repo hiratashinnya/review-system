@@ -30,8 +30,3 @@ def worktree_forget(repo_root, entry_id: str, *, reason: str, now) -> dict:
     _mark(repo_root, entry_id, "abandoned", now=now, note=f"worktree-forget: {reason}")
     return find_entry(repo_root, entry_id=entry_id)
 
-
-# --- verb: worktree-sweep-abandoned ---------------------------------------------
-
-# 掃引で台帳へ残す marker（notes を grep すれば「なぜ解放されたか」が後から辿れる）。
-SWEEP_MARKER = "worktree-sweep-abandoned"

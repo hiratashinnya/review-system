@@ -63,7 +63,6 @@ def collect_worktree(
         release_fn=worktree_release,
     )
 
-# --- verb: worktree-forget -----------------------------------------------------
 
 def _sweep_one(repo_root, entry, *, now, reason, locked, runner) -> SweepEntryOutcome:
     """Preserve the original per-entry entrypoint and collect patch seam."""
