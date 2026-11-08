@@ -12,9 +12,6 @@
     "branch_source/policy.py|237460617202c10c": 1,
     "branch_source/policy.py|baa19a57d76aabbf": 1,
     "feedback_ledger/check.py|201f4f7131d063b3": 1,
-    "gitgate/adopt.py|b773d74d104a989a": 1,
-    "gitgate/cli.py|4c084b8d6f4b492f": 1,
-    "gitgate/cli.py|b3bd3dea450cdad5": 1,
     "issue_start/subagent_hooks.py|04ba118aabcea77e": 1,
     "issue_start/subagent_hooks.py|32c7b913336adb61": 1,
     "issue_start/subagent_hooks.py|538e8580a6345563": 1,
@@ -101,14 +98,6 @@
     "feedback_ledger/status.py": {
       "line_count": 168,
       "sha256": "a10210537898339b8f21bfeaf41eb3a3264403eaa86863d8a1be5190d6b5da15"
-    },
-    "gitgate/adopt.py": {
-      "line_count": 551,
-      "sha256": "813d31e094417a6b19a7261e9fb8dbfcf889bd230d19c0bbdaf43c9470d18db9"
-    },
-    "gitgate/cli.py": {
-      "line_count": 379,
-      "sha256": "154d91bdf738797b9271103e6e5a5f14442922c4c5ae52ad38a35bd9cd030208"
     },
     "issue_start/durable_lock.py": {
       "line_count": 129,
